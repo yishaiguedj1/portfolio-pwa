@@ -2,8 +2,8 @@
 /* ============================================================
  * תיק ההשקעות — PWA עצמאית
  * נתונים סטטיים: פוזיציות, הפקדות, פנסיה (מהגיליון, 2026-09-22)
- * מחירים חיים: CNBC בלבד, דיליי ~15 דקות
- * היסטוריה לגרפים: Stooq (אין מקור היסטוריה מאומת אחר)
+ * מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי), דיליי ~15 דקות
+ * היסטוריה לגרפים: Yahoo (ראשי, כולל מסחר מורחב טרום/אחרי) ← Stooq (גיבוי)
  * שער דולר: open.er-api.com / frankfurter
  * ============================================================ */
 
@@ -42,6 +42,39 @@ function parseHistoryCSV(text) {
     const ta = a.time || '', tb = b.time || '';
     return ta < tb ? -1 : ta > tb ? 1 : 0;
   });
+  return rows;
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+/* מפענח תשובת Yahoo Finance v8: timestamp (שניות UTC) + נרות OHLCV.
+   withTime=true מחזיר גם שעה בשעון הבורסה (לגרף תוך־יומי, כולל מסחר מורחב). */
+function parseYahooBars(json, withTime) {
+  const rows = [];
+  try {
+    const chart = json && json.chart;
+    const res = chart && chart.result && chart.result[0];
+    if (!res || chart.error) return rows;
+    const ts = res.timestamp || [];
+    const ind = (res.indicators && res.indicators.quote && res.indicators.quote[0]) || {};
+    const opens = ind.open || [], highs = ind.high || [], lows = ind.low || [],
+          closes = ind.close || [], vols = ind.volume || [];
+    const off = (res.meta && res.meta.gmtoffset) || 0;
+    for (let i = 0; i < ts.length; i++) {
+      const close = pf(closes[i]);
+      if (!(close > 0)) continue;
+      const d = new Date((ts[i] + off) * 1000);
+      rows.push({
+        date: d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()),
+        time: withTime ? pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) : null,
+        open: pf(opens[i]),
+        high: pf(highs[i]),
+        low: pf(lows[i]),
+        close: close,
+        volume: parseInt(vols[i], 10) || 0
+      });
+    }
+  } catch (e) {}
   return rows;
 }
 
@@ -173,10 +206,17 @@ const PENSION_DEPOSITS = [
 ];
 
 /* ---------------- מקורות נתונים ---------------- */
-/* מחירים חיים: CNBC בלבד. היסטוריה לגרפים: Stooq (אין מקור היסטוריה מאומת אחר). */
+/* מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי). היסטוריה ומסחר מורחב: Yahoo (ראשי) ← Stooq (גיבוי). */
 
 const stooqDailyURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=d';
 const stooqIntradayURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=5';
+
+/* Yahoo Finance v8 — ללא מפתח, כולל מסחר מורחב (includePrePost) */
+const yahooURL = (sym, params) =>
+  'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym.toUpperCase()) + '?' + params;
+const yahooDailyURL = (sym, range) => yahooURL(sym, 'interval=1d&range=' + range);
+const yahooIntradayURL = (sym) => yahooURL(sym, 'interval=5m&range=1d&includePrePost=true');
+const yahooQuoteURL = (sym) => yahooURL(sym, 'interval=1d&range=5d');
 
 const LS_QUOTES = 'pwa_quotes_v2'; // v2: ניקוי מטמון ישן שסומן כ־Stooq
 const LS_HIST = 'pwa_hist_v1_'; // + sym
@@ -337,8 +377,38 @@ function updateSourceLabel() {
   }
 }
 
+async function tryYahooQuotes() {
+  const results = await pool(POSITIONS.map((p) => p.sym), 3, async (sym) => {
+    try {
+      const json = await fetchJSONTimeout(yahooQuoteURL(sym), 10000);
+      const chart = json && json.chart;
+      const res = chart && chart.result && chart.result[0];
+      if (!res || chart.error) return null;
+      const meta = res.meta || {};
+      const close = num(meta.regularMarketPrice);
+      if (!(close > 0)) return null;
+      return {
+        symbol: sym,
+        date: todayISO(),
+        time: '',
+        open: null,
+        high: num(meta.regularMarketDayHigh),
+        low: num(meta.regularMarketDayLow),
+        close: close,
+        volume: parseInt(meta.regularMarketVolume, 10) || 0
+      };
+    } catch (e) { return null; }
+  });
+  const q = {};
+  for (const r of results) if (r) q[r.symbol] = r;
+  const missing = POSITIONS.filter((p) => !q[p.sym]).length;
+  if (missing > 2) throw new Error('too few quotes');
+  const fx = await tryCNBCFx();
+  return { quotes: q, fx: fx, source: 'Yahoo' };
+}
+
 async function refreshQuotes() {
-  const tries = [tryCNBCQuotes];
+  const tries = [tryCNBCQuotes, tryYahooQuotes];
   for (const fn of tries) {
     try { applyQuotes(await fn()); renderAll(); return; }
     catch (e) { /* ניסיון הבא */ }
@@ -360,7 +430,8 @@ async function refreshQuotes() {
 }
 
 async function getDaily(sym, force) {
-  if (!force) {
+  const wantMax = state.range[sym] === 'max';
+  if (!force && !wantMax) {
     if (state.hist[sym]) return state.hist[sym];
     const cached = lsGet(LS_HIST + sym);
     if (cached && cached.rows && cached.rows.length) {
@@ -368,13 +439,18 @@ async function getDaily(sym, force) {
       if (!dayOld) { state.hist[sym] = cached.rows; return cached.rows; }
     }
   }
+  const save = (rows) => {
+    state.hist[sym] = rows;
+    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows });
+    return rows;
+  };
+  try {
+    const rows = parseYahooBars(await fetchJSONTimeout(yahooDailyURL(sym, wantMax ? 'max' : '5y'), 12000), false);
+    if (rows.length) return save(rows);
+  } catch (e) {}
   try {
     const rows = parseHistoryCSV(await fetchText(stooqDailyURL(sym)));
-    if (rows.length) {
-      state.hist[sym] = rows;
-      lsSet(LS_HIST + sym, { at: Date.now(), rows: rows });
-      return rows;
-    }
+    if (rows.length) return save(rows);
   } catch (e) {}
   const cached = lsGet(LS_HIST + sym);
   if (cached && cached.rows) { state.hist[sym] = cached.rows; return cached.rows; }
@@ -383,6 +459,10 @@ async function getDaily(sym, force) {
 
 async function getIntraday(sym) {
   if (state.intra[sym]) return state.intra[sym];
+  try {
+    const rows = parseYahooBars(await fetchJSONTimeout(yahooIntradayURL(sym), 12000), true);
+    if (rows.length) { state.intra[sym] = rows; return rows; }
+  } catch (e) {}
   try {
     const rows = parseHistoryCSV(await fetchText(stooqIntradayURL(sym)));
     if (rows.length) { state.intra[sym] = rows; return rows; }
