@@ -78,6 +78,24 @@ function parseYahooBars(json, withTime) {
   return rows;
 }
 
+/* מסווג שגיאת רשת למילים פשוטות — כדי שנראה מה קרה בטלפון */
+function netErrName(e) {
+  if (e && e.name === 'AbortError') return 'לא ענה בזמן';
+  if (e instanceof TypeError) return 'חסימת דפדפן/רשת';
+  if (e && e.message) return String(e.message).slice(0, 40);
+  return 'שגיאה';
+}
+
+/* ניסיון אחד להביא נרות מ־Yahoo; מחזיר rows או null ורושם מה קרה */
+async function fetchYahooBars(url, withTime, notes, name) {
+  try {
+    const rows = parseYahooBars(await fetchJSONTimeout(url, 12000), withTime);
+    if (rows.length) return rows;
+    notes.push(name + ': החזיר ריק');
+  } catch (e) { notes.push(name + ': ' + netErrName(e)); }
+  return null;
+}
+
 /* סינון טווח מתוך היסטוריה יומית ממוינת (ישן -> חדש) */
 function filterRange(rows, range) {
   if (!rows || !rows.length) return [];
@@ -212,10 +230,8 @@ const stooqDailyURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase()
 const stooqIntradayURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=5';
 
 /* Yahoo Finance v8 — ללא מפתח, כולל מסחר מורחב (includePrePost) */
-const yahooURL = (sym, params) =>
-  'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym.toUpperCase()) + '?' + params;
-const yahooDailyURL = (sym, range) => yahooURL(sym, 'interval=1d&range=' + range);
-const yahooIntradayURL = (sym) => yahooURL(sym, 'interval=5m&range=1d&includePrePost=true');
+const yahooURL = (sym, params, host) =>
+  'https://' + (host || 'query1') + '.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym.toUpperCase()) + '?' + params;
 const yahooQuoteURL = (sym) => yahooURL(sym, 'interval=1d&range=5d');
 
 const LS_QUOTES = 'pwa_quotes_v2'; // v2: ניקוי מטמון ישן שסומן כ־Stooq
@@ -234,6 +250,7 @@ const state = {
   stale: false,     // מוצגים נתונים שמורים (אין חיבור)
   hist: {},         // sym -> daily rows
   intra: {},        // sym -> intraday rows (יום)
+  histDbg: {},      // sym -> מה קרה בניסיון להביא היסטוריה (לאבחון)
   open: {},         // sym -> bool (שורה פתוחה)
   range: {},        // sym -> 'day'|'week'|'month'|'ytd'|'year'|'5y'|'max'
   measure: {}       // sym -> { on, pts:[idxA, idxB] }
@@ -435,17 +452,21 @@ async function getDaily(sym, force) {
   }
   const save = (rows) => {
     state.hist[sym] = rows;
+    state.histDbg[sym] = null;
     lsSet(LS_HIST + sym, { at: Date.now(), rows: rows });
     return rows;
   };
+  const notes = [];
+  const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (wantMax ? 'max' : '5y'), host);
+  let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
+          || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
+  if (rows) return save(rows);
   try {
-    const rows = parseYahooBars(await fetchJSONTimeout(yahooDailyURL(sym, wantMax ? 'max' : '5y'), 12000), false);
+    rows = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 12000));
     if (rows.length) return save(rows);
-  } catch (e) {}
-  try {
-    const rows = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 12000));
-    if (rows.length) return save(rows);
-  } catch (e) {}
+    notes.push('Stooq: החזיר ריק');
+  } catch (e) { notes.push('Stooq: ' + netErrName(e)); }
+  state.histDbg[sym] = notes.join(' · ');
   const cached = lsGet(LS_HIST + sym);
   if (cached && cached.rows) { state.hist[sym] = cached.rows; return cached.rows; }
   return [];
@@ -453,12 +474,13 @@ async function getDaily(sym, force) {
 
 async function getIntraday(sym) {
   if (state.intra[sym]) return state.intra[sym];
+  const notes = [];
+  const iq = (host) => yahooURL(sym, 'interval=5m&range=1d&includePrePost=true', host);
+  let rows = await fetchYahooBars(iq('query1'), true, notes, 'Yahoo')
+          || await fetchYahooBars(iq('query2'), true, notes, 'Yahoo2');
+  if (rows) { state.intra[sym] = rows; return rows; }
   try {
-    const rows = parseYahooBars(await fetchJSONTimeout(yahooIntradayURL(sym), 12000), true);
-    if (rows.length) { state.intra[sym] = rows; return rows; }
-  } catch (e) {}
-  try {
-    const rows = parseHistoryCSV(await fetchTextTimeout(stooqIntradayURL(sym), 12000));
+    rows = parseHistoryCSV(await fetchTextTimeout(stooqIntradayURL(sym), 12000));
     if (rows.length) { state.intra[sym] = rows; return rows; }
   } catch (e) {}
   return [];
@@ -757,18 +779,22 @@ function refreshStockBody(sym) {
 async function ensureChartData(sym) {
   const loading = document.getElementById('cload-' + sym);
   const range = state.range[sym] || 'year';
+  if (loading) { loading.classList.remove('hidden'); loading.textContent = 'טוען נתונים…'; }
   try {
     if (range === 'day') {
       const intra = await getIntraday(sym);
-      if (intra.length) { drawStockChart(sym, intra, true); return; }
+      if (intra.length) {
+        drawStockChart(sym, intra, true);
+        if (loading) loading.classList.add('hidden');
+        return;
+      }
       // נפילה לגרף יומי אם אין תוך-יומי
     }
     const hist = await getDaily(sym, false);
-    drawStockChart(sym, filterRange(hist, range === 'day' ? 'month' : range), false);
+    const pts = drawStockChart(sym, filterRange(hist, range === 'day' ? 'month' : range), false);
+    if (pts && loading) loading.classList.add('hidden');
   } catch (e) {
-    if (loading) { loading.textContent = 'לא התקבלו נתוני גרף'; }
-  } finally {
-    if (loading) loading.classList.add('hidden');
+    if (loading) { loading.textContent = 'לא התקבלו נתוני גרף'; loading.classList.remove('hidden'); }
   }
 }
 
@@ -784,9 +810,16 @@ function chartPoints(sym, rows, intraday) {
 function drawStockChart(sym, rows, intraday) {
   const canvas = document.getElementById('chart-' + sym);
   const loading = document.getElementById('cload-' + sym);
-  if (!canvas) return;
+  if (!canvas) return null;
   const pts = chartPoints(sym, rows, intraday);
-  if (!pts.length) { if (loading) loading.textContent = 'אין נתונים לטווח זה'; return; }
+  if (!pts.length) {
+    if (loading) {
+      const dbg = state.histDbg && state.histDbg[sym];
+      loading.innerHTML = 'אין נתוני גרף כרגע' + (dbg ? '<br><small style="opacity:.65">' + dbg + '</small>' : '');
+      loading.classList.remove('hidden');
+    }
+    return null;
+  }
   if (loading) loading.classList.add('hidden');
 
   const ms = measureState(sym);
@@ -871,6 +904,7 @@ function drawStockChart(sym, rows, intraday) {
   // שמירת מיפוי למדידה
   canvas._chartMap = { n: pts.length, padL: padL, plotW: plotW, pts: pts };
   updateMeasureChip(sym);
+  return pts;
 }
 
 function updateMeasureChip(sym) {
