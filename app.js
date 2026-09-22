@@ -178,7 +178,7 @@ const PENSION_DEPOSITS = [
 const stooqDailyURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=d';
 const stooqIntradayURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=5';
 
-const LS_QUOTES = 'pwa_quotes_v1';
+const LS_QUOTES = 'pwa_quotes_v2'; // v2: ניקוי מטמון ישן שסומן כ־Stooq
 const LS_HIST = 'pwa_hist_v1_'; // + sym
 
 const PIE_COLORS = ['#006A4E','#2E7D32','#1565C0','#5E35B1','#C2185B','#E65100','#B7791F','#00838F','#6D4C41'];
