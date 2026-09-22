@@ -2,7 +2,8 @@
 /* ============================================================
  * תיק ההשקעות — PWA עצמאית
  * נתונים סטטיים: פוזיציות, הפקדות, פנסיה (מהגיליון, 2026-09-22)
- * מחירים חיים: Stooq (client-side fetch, דיליי ~15 דקות)
+ * מחירים חיים: Stooq (ניסיון ראשון), CNBC (גיבוי אוטומטי), דיליי ~15 דקות
+ * שער דולר: Stooq, גיבוי: open.er-api.com / frankfurter
  * ============================================================ */
 
 /* ---------------- עזרים טהורים (נבדקים ב-node) ---------------- */
@@ -216,6 +217,7 @@ const state = {
   currency: 'USD',
   quotes: {},       // sym -> quote
   fx: null,         // USDILS
+  source: null,     // מאיזה מקור הגיעו המחירים (Stooq / CNBC)
   quotesAt: null,
   stale: false,     // מוצגים נתונים שמורים (אין חיבור)
   hist: {},         // sym -> daily rows
@@ -258,30 +260,140 @@ async function pool(items, n, fn) {
   return out;
 }
 
-async function refreshQuotes() {
+/* ---------------- מקורות מחיר (רשת) ---------------- */
+/* סדר הניסיון: Stooq (CSV) ← CNBC (JSON) ← נתונים שמורים בטלפון. */
+
+async function fetchTextTimeout(url, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    const text = await fetchText(STOOQ_QUOTES_URL);
-    const q = parseQuotesCSV(text);
-    const fxRow = q['USDILS'];
-    if (!fxRow || !(fxRow.close > 0)) throw new Error('no fx');
-    state.quotes = q;
-    state.fx = fxRow.close;
-    state.quotesAt = Date.now();
-    state.stale = false;
-    lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: q });
-    setBanner(null);
-  } catch (e) {
-    const cached = lsGet(LS_QUOTES);
-    if (cached && cached.quotes && cached.fx) {
-      state.quotes = cached.quotes;
-      state.fx = cached.fx;
-      state.quotesAt = cached.at;
-      state.stale = true;
-      setBanner('אין חיבור למקור המחירים — מוצגים נתונים אחרונים מ־' + fmtTimeIL(cached.at) + '.');
-    } else {
-      setBanner('לא התקבלו מחירים. בדקו חיבור לאינטרנט ונסו לרענן.');
-    }
+    const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+    if (!res.ok) throw new Error('http ' + res.status);
+    return res.text();
+  } finally { clearTimeout(t); }
+}
+
+async function fetchJSONTimeout(url, ms) {
+  return JSON.parse(await fetchTextTimeout(url, ms));
+}
+
+function num(v) {
+  if (v === null || v === undefined) return null;
+  const n = parseFloat(String(v).replace(/,/g, '').replace('%', '').trim());
+  return isFinite(n) ? n : null;
+}
+
+function todayISO() {
+  const d = new Date();
+  const p2 = (x) => String(x).padStart(2, '0');
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+}
+
+/* --- מקור 1: Stooq --- */
+async function tryStooqQuotes() {
+  const text = await fetchTextTimeout(STOOQ_QUOTES_URL, 8000);
+  const q = parseQuotesCSV(text);
+  const fxRow = q['USDILS'];
+  if (!fxRow || !(fxRow.close > 0)) throw new Error('no fx');
+  delete q['USDILS'];
+  return { quotes: q, fx: fxRow.close, source: 'Stooq' };
+}
+
+/* --- מקור 2: CNBC (גיבוי) --- */
+const CNBC_QUOTES_URL =
+  'https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=' +
+  POSITIONS.map((p) => p.sym.toUpperCase()).join('|') +
+  '&requestMethod=quick&noform=1&partnerId=2&fund=1&exthrs=1&output=json';
+
+function parseCNBCQuotes(json) {
+  const out = {};
+  const fqr = (json && json.FormattedQuoteResult) || {};
+  let arr = fqr.FormattedQuote || [];
+  if (!Array.isArray(arr)) arr = [arr];
+  for (const it of arr) {
+    if (!it || typeof it !== 'object') continue;
+    const sym = String(it.symbol || '').toUpperCase();
+    if (!sym) continue;
+    const close = num(it.last);
+    if (!(close > 0)) continue;
+    out[sym] = {
+      symbol: sym,
+      date: todayISO(),
+      time: String(it.last_time || ''),
+      open: num(it.open),
+      high: num(it.high),
+      low: num(it.low),
+      close: close,
+      volume: parseInt(String(it.volume || '').replace(/,/g, ''), 10) || 0
+    };
   }
+  return out;
+}
+
+async function tryCNBCFx() {
+  const urls = [
+    'https://open.er-api.com/v6/latest/USD',
+    'https://api.frankfurter.app/latest?from=USD&to=ILS'
+  ];
+  for (const u of urls) {
+    try {
+      const j = await fetchJSONTimeout(u, 8000);
+      const r = num(j && j.rates && j.rates.ILS);
+      if (r > 0) return r;
+    } catch (e) {}
+  }
+  throw new Error('no fx');
+}
+
+async function tryCNBCQuotes() {
+  const [json, fx] = await Promise.all([
+    fetchJSONTimeout(CNBC_QUOTES_URL, 10000),
+    tryCNBCFx()
+  ]);
+  const q = parseCNBCQuotes(json);
+  const missing = POSITIONS.filter((p) => !q[p.sym]).length;
+  if (missing > 2) throw new Error('too few quotes');
+  return { quotes: q, fx: fx, source: 'CNBC' };
+}
+
+function applyQuotes(res) {
+  state.quotes = res.quotes;
+  state.fx = res.fx;
+  state.source = res.source;
+  state.quotesAt = Date.now();
+  state.stale = false;
+  lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: res.quotes, source: res.source });
+  setBanner(null);
+  updateSourceLabel();
+}
+
+function updateSourceLabel() {
+  const el = document.getElementById('sourceLabel');
+  if (el) {
+    el.textContent = 'מקור: ' + (state.source || '—') + ' · דיליי ~15 דקות' +
+      (state.stale ? ' · מוצגים נתונים שמורים' : '');
+  }
+}
+
+async function refreshQuotes() {
+  const tries = [tryStooqQuotes, tryCNBCQuotes];
+  for (const fn of tries) {
+    try { applyQuotes(await fn()); renderAll(); return; }
+    catch (e) { /* ניסיון הבא */ }
+  }
+  const cached = lsGet(LS_QUOTES);
+  if (cached && cached.quotes && cached.fx) {
+    state.quotes = cached.quotes;
+    state.fx = cached.fx;
+    state.quotesAt = cached.at;
+    state.source = cached.source || null;
+    state.stale = true;
+    setBanner('אין חיבור למקור המחירים — מוצגים נתונים אחרונים מ־' + fmtTimeIL(cached.at) + '.');
+  } else {
+    state.source = null;
+    setBanner('לא התקבלו מחירים. בדקו חיבור לאינטרנט ונסו לרענן.');
+  }
+  updateSourceLabel();
   renderAll();
 }
 
