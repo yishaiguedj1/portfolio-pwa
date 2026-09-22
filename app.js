@@ -2,8 +2,9 @@
 /* ============================================================
  * תיק ההשקעות — PWA עצמאית
  * נתונים סטטיים: פוזיציות, הפקדות, פנסיה (מהגיליון, 2026-09-22)
- * מחירים חיים: Stooq (ניסיון ראשון), CNBC (גיבוי אוטומטי), דיליי ~15 דקות
- * שער דולר: Stooq, גיבוי: open.er-api.com / frankfurter
+ * מחירים חיים: CNBC בלבד, דיליי ~15 דקות
+ * היסטוריה לגרפים: Stooq (אין מקור היסטוריה מאומת אחר)
+ * שער דולר: open.er-api.com / frankfurter
  * ============================================================ */
 
 /* ---------------- עזרים טהורים (נבדקים ב-node) ---------------- */
@@ -11,33 +12,6 @@
 function pf(v) {
   const n = parseFloat(v);
   return isFinite(n) ? n : null;
-}
-
-/* מפענח CSV של ציטוטי Stooq: Symbol,Date,Time,Open,High,Low,Close,Volume */
-function parseQuotesCSV(text) {
-  const out = {};
-  if (!text || typeof text !== 'string') return out;
-  const lines = text.trim().split(/\r?\n/);
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const c = line.split(',');
-    if (c.length < 8) continue;
-    if (c[0].trim().toLowerCase() === 'symbol') continue; // שורת כותרת
-    const sym = c[0].trim().toUpperCase().replace(/\.US$/, '');
-    const close = pf(c[6]);
-    if (close === null || close <= 0) continue; // N/D או סימול לא תקין
-    out[sym] = {
-      symbol: sym,
-      date: c[1].trim(),
-      time: c[2].trim(),
-      open: pf(c[3]),
-      high: pf(c[4]),
-      low: pf(c[5]),
-      close: close,
-      volume: parseInt(c[7], 10) || 0
-    };
-  }
-  return out;
 }
 
 /* מפענח היסטוריית Stooq יומית/תוך-יומית: Date[,Time],Open,High,Low,Close,Volume */
@@ -198,11 +172,9 @@ const PENSION_DEPOSITS = [
   { place: 'צוות 3 - גוגל',     period: '15/03/2022 – 15/04/2026', amount: -175602, note: 'עודכן 17/09/26' }
 ];
 
-/* ---------------- מקורות מחיר (Stooq, חינמי) ---------------- */
+/* ---------------- מקורות נתונים ---------------- */
+/* מחירים חיים: CNBC בלבד. היסטוריה לגרפים: Stooq (אין מקור היסטוריה מאומת אחר). */
 
-const QUOTE_SYMBOLS = POSITIONS.map((p) => p.sym.toLowerCase() + '.us').concat(['usdils']);
-const STOOQ_QUOTES_URL =
-  'https://stooq.com/q/l/?s=' + QUOTE_SYMBOLS.join(',') + '&f=sd2t2ohlcv&h&e=csv';
 const stooqDailyURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=d';
 const stooqIntradayURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=5';
 
@@ -261,7 +233,7 @@ async function pool(items, n, fn) {
 }
 
 /* ---------------- מקורות מחיר (רשת) ---------------- */
-/* סדר הניסיון: Stooq (CSV) ← CNBC (JSON) ← נתונים שמורים בטלפון. */
+/* סדר הניסיון: CNBC ← נתונים שמורים בטלפון. */
 
 async function fetchTextTimeout(url, ms) {
   const ctrl = new AbortController();
@@ -289,17 +261,7 @@ function todayISO() {
   return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
 }
 
-/* --- מקור 1: Stooq --- */
-async function tryStooqQuotes() {
-  const text = await fetchTextTimeout(STOOQ_QUOTES_URL, 8000);
-  const q = parseQuotesCSV(text);
-  const fxRow = q['USDILS'];
-  if (!fxRow || !(fxRow.close > 0)) throw new Error('no fx');
-  delete q['USDILS'];
-  return { quotes: q, fx: fxRow.close, source: 'Stooq' };
-}
-
-/* --- מקור 2: CNBC (גיבוי) --- */
+/* --- מקור המחירים: CNBC --- */
 const CNBC_QUOTES_URL =
   'https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=' +
   POSITIONS.map((p) => p.sym.toUpperCase()).join('|') +
@@ -376,7 +338,7 @@ function updateSourceLabel() {
 }
 
 async function refreshQuotes() {
-  const tries = [tryStooqQuotes, tryCNBCQuotes];
+  const tries = [tryCNBCQuotes];
   for (const fn of tries) {
     try { applyQuotes(await fn()); renderAll(); return; }
     catch (e) { /* ניסיון הבא */ }
