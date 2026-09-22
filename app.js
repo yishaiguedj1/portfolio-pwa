@@ -253,12 +253,6 @@ function lsSet(k, v) {
 
 /* ---------------- רשת ---------------- */
 
-async function fetchText(url) {
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error('http ' + res.status);
-  return res.text();
-}
-
 async function pool(items, n, fn) {
   const out = new Array(items.length);
   let i = 0;
@@ -449,7 +443,7 @@ async function getDaily(sym, force) {
     if (rows.length) return save(rows);
   } catch (e) {}
   try {
-    const rows = parseHistoryCSV(await fetchText(stooqDailyURL(sym)));
+    const rows = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 12000));
     if (rows.length) return save(rows);
   } catch (e) {}
   const cached = lsGet(LS_HIST + sym);
@@ -464,7 +458,7 @@ async function getIntraday(sym) {
     if (rows.length) { state.intra[sym] = rows; return rows; }
   } catch (e) {}
   try {
-    const rows = parseHistoryCSV(await fetchText(stooqIntradayURL(sym)));
+    const rows = parseHistoryCSV(await fetchTextTimeout(stooqIntradayURL(sym), 12000));
     if (rows.length) { state.intra[sym] = rows; return rows; }
   } catch (e) {}
   return [];
