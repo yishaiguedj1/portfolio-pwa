@@ -915,17 +915,23 @@ function repairKnownSplits(sym, rows) {
   if (!known || !rows || rows.length < 10) return false;
   let fixed = false;
   for (const s of known) {
+    const meta = s.date + '×' + (Math.round(s.ratio * 100) / 100);
+    const has = String(rows.splitsApplied || '').split(',').some((x) => x.split('×')[0] === s.date);
     const pre = [], post = [];
     for (const r of rows) {
       if (!r || !r.date || !(r.close > 0)) continue;
       if (r.date < s.date) { if (r.date >= addDaysISO(s.date, -14)) pre.push(r.close); }
       else if (r.date > s.date) { if (r.date <= addDaysISO(s.date, 14)) post.push(r.close); }
     }
-    if (pre.length < 3 || post.length < 3) continue;
+    // v77: המטא־דאטה נקבע תמיד — העסקאות צריכות אותו גם אם אין מספיק מחירים לאימות.
+    // (NOW 5:1: בלי מטא, עסקאות 2024-2025 לא הומרו → ערך התחלה מנופח פי 5 → תשואה שלילית.)
+    if (pre.length < 3 || post.length < 3) {
+      if (!has) rows.splitsApplied = (rows.splitsApplied ? rows.splitsApplied + ',' : '') + meta;
+      fixed = true;
+      continue;
+    }
     const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
     const obs = avg(pre) / avg(post);
-    const meta = s.date + '×' + (Math.round(s.ratio * 100) / 100);
-    const has = String(rows.splitsApplied || '').split(',').some((x) => x.split('×')[0] === s.date);
     if (Math.abs(obs - s.ratio) / s.ratio < 0.25) {
       for (const r of rows) {
         if (r.date < s.date) {
@@ -1650,7 +1656,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v76';
+const APP_VERSION = 'v77';
 
 
 function saveDBto(db) {
