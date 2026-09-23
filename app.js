@@ -353,17 +353,6 @@ function emptyDb() {
   return { v: 1, positions: [], deposits: [], pensionFunds: [], pensionDeposits: [], cash: { usd: 0, ils: 0 } };
 }
 
-/* השוואה עמוקה בלי תלות בסדר המפתחות */
-function canon(v) {
-  if (v === null || typeof v !== 'object') return JSON.stringify(v);
-  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
-  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
-}
-/* האם התיק המקומי הוא עותק טרי של נתוני ברירת המחדל (שלא נערך מעולם)? */
-function isPristineDefault() {
-  try { return canon(DB) === canon(DEFAULT_DB); } catch (e) { return false; }
-}
-
 /* מחיל נתונים על ה-DB החי — במקום, כדי לא לשבור הפניות קיימות */
 function applyDbData(data) {
   const clean = JSON.parse(JSON.stringify(data || {}));
@@ -1919,7 +1908,7 @@ function init() {
 
   // איפוס נתונים
   document.getElementById('resetData').addEventListener('click', () => {
-    if (!confirm('לאפס את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) לערכי הגיליון המקוריים?\nכל השינויים שביצעת יימחקו ולא ניתן לבטל.')) return;
+    if (!confirm('לאפס את כל הנתונים? התיק יימחק לגמרי (מניות, הפקדות, פנסיה, מזומן) ויתחיל ריק.\nלא ניתן לבטל.')) return;
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
       location.reload();
