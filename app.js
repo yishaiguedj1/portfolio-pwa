@@ -25,6 +25,8 @@ const ICON_PIN = _IC_PRE + '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18
 const ICON_CHART = _IC_PRE + '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>';
 const ICON_TRASH = _IC_PRE + '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 const ICON_GLOBE = _IC_PRE + '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.5 13.5 0 0 1 0 18M12 3a13.5 13.5 0 0 0 0 18"/></svg>';
+const ICON_GEAR = _IC_PRE + '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+const ICON_CHEV = _IC_PRE + '<polyline points="14 6 8 12 14 18"/></svg>';
 const ICON_MENU = _IC_PRE + '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>';
 
 const STRINGS = {
@@ -34,6 +36,7 @@ he: {
   curToggleAria: 'החלפת מטבע — דולר / שקל',
   langAria: 'בחירת שפה',
   menuAria: 'תפריט ראשי',
+  menuSettings: 'הגדרות',
   loading: 'טוען…',
   tabsAria: 'לשוניות',
   tabOverview: 'סקירה',
@@ -364,6 +367,7 @@ en: {
   curToggleAria: 'Toggle currency — dollar / shekel',
   langAria: 'Choose language',
   menuAria: 'Main menu',
+  menuSettings: 'Settings',
   loading: 'Loading…',
   tabsAria: 'Tabs',
   tabOverview: 'Overview',
@@ -1722,7 +1726,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v103';
+const APP_VERSION = 'v104';
 
 
 function saveDBto(db) {
@@ -6010,6 +6014,18 @@ function initMainMenu() {
   const menu = document.getElementById('mainMenu');
   if (!btn || !menu) return;
   btn.innerHTML = ICON_MENU;
+  const setIc = document.getElementById('menuSettingsIc');
+  if (setIc) setIc.innerHTML = ICON_GEAR;
+  const setChev = document.getElementById('menuSettingsChev');
+  if (setChev) setChev.innerHTML = ICON_CHEV;
+  const setBtn = document.getElementById('menuSettingsBtn');
+  if (setBtn) setBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.classList.add('hidden');
+    btn.setAttribute('aria-expanded', 'false');
+    switchTab('settings');
+    try { window.scrollTo(0, 0); } catch (err) {}
+  });
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const willOpen = menu.classList.contains('hidden');
