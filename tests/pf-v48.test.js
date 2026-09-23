@@ -51,7 +51,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { buildTradesHistory, getDailyFast, ibkrIsDepositTx, pfBenchOn, pfShowBench, _state: () => state, _resetHist() { state.hist = {}; }, _setBench(b) { state.pfBench = b; } };';
+  '\n;globalThis.__t = { buildTradesHistory, getDailyFast, ibkrIsDepositTx, pfBenchOn, pfShowBench, _state: () => state, _resetHist() { state.hist = {}; for (const k of Object.keys(histInflight)) delete histInflight[k]; }, _setBench(b) { state.pfBench = b; }, warmPfHistories, isChartableSym, ibkrIsStockTrade, ibkrIsDividendTx, ibkrSaveCfg, _setDB(d) { Object.keys(DB).forEach((k) => delete DB[k]); Object.assign(DB, d); }, _setPos(p) { POSITIONS.length = 0; POSITIONS.push(...p); } };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -201,5 +201,155 @@ const fxOf = () => 3.2;
   const calls1 = fetchCalls.length;
   const rows2 = await T.getDailyFast('AAA', false);
   ok(rows2.length === 30 && fetchCalls.length === calls1, 'קריאה שנייה מהזיכרון — בלי רשת');
+
+  // רגרסיה: Yahoo תלוי (לא עונה) — Stooq מנצח במרוץ בלי לחכות ל־timeout
+  T._resetHist();
+  for (const k of Object.keys(store)) delete store[k];
+  const stooqCSV = 'Date,Open,High,Low,Close,Volume\n' +
+    Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(Date.parse('2026-08-20T12:00:00Z') + i * 86400000).toISOString().slice(0, 10);
+      const c = (100 + i).toFixed(2);
+      return d + ',' + c + ',' + c + ',' + c + ',' + c + ',1000';
+    }).join('\n');
+  sandbox.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('finance.yahoo.com')) return new Promise(() => {}); // תלוי לנצח
+    if (u.includes('stooq.com')) return { ok: true, text: async () => stooqCSV };
+    throw new Error('unexpected fetch: ' + u);
+  };
+  const t0 = Date.now();
+  const rows3 = await T.getDailyFast('BBB', false);
+  const dt = Date.now() - t0;
+  ok(rows3.length === 30, 'Stooq ניצח במרוץ — 30 שורות');
+  ok(dt < 5000, 'בלי לחכות ל־timeout של Yahoo (' + dt + 'ms)');
+
+  /* ---------- v53: סינון סמלי מט"ח, dedup, התקדמות ---------- */
+  ok(T.isChartableSym('AAPL'), 'AAPL תקין לגרף');
+  ok(T.isChartableSym('BRK.B'), 'BRK.B תקין לגרף');
+  ok(!T.isChartableSym('USD.ILS'), 'USD.ILS (מט"ח) לא נטען לגרף');
+  ok(!T.isChartableSym('EUR.USD'), 'EUR.USD (מט"ח) לא נטען לגרף');
+  ok(!T.isChartableSym('AAPL  260919C00150000'), 'אופציה לא נטענת לגרף');
+
+  // warmPfHistories במצב IBKR: מדלג על USD.ILS, מדווח התקדמות
+  T._resetHist();
+  for (const k of Object.keys(store)) delete store[k];
+  T._setDB({ source: 'ibkr', cash: { usd: 0, ils: 0 }, positions: [], deposits: [] });
+  T._setPos([{ sym: 'AAA', shares: 10 }]);
+  T.ibkrSaveCfg({ proxyUrl: 'x', token: 'y', queryId: 'z', data: { trades: [
+    { symbol: 'AAA', date: '2026-01-05', side: 'BUY', qty: 10, price: 100, commission: 1, fxToBase: 1 },
+    { symbol: 'USD.ILS', date: '2026-02-05', side: 'BUY', qty: 1000, price: 3.5, commission: 0, fxToBase: 1 },
+  ], cashTransactions: [], navHistory: [] } });
+  const yahoo30 = (() => {
+    const closes = Array.from({ length: 30 }, (_, i) => 100 + i);
+    const ts = closes.map((_, i) => Date.parse('2026-08-20T13:30:00Z') / 1000 + i * 86400);
+    return JSON.stringify({ chart: { result: [{ timestamp: ts, meta: { gmtoffset: 0 }, indicators: { quote: [{ open: closes, high: closes, low: closes, close: closes, volume: closes.map(() => 1) }] } }], error: null } });
+  })();
+  const fetchedSyms = [];
+  sandbox.fetch = async (url) => {
+    const u = String(url);
+    const m = u.match(/\/chart\/([^?]+)/) || u.match(/s=([a-z0-9.]+)/i);
+    if (m) fetchedSyms.push(decodeURIComponent(m[1]).toUpperCase());
+    if (u.includes('finance.yahoo.com')) return { ok: true, text: async () => yahoo30 };
+    throw new Error('unexpected fetch: ' + u);
+  };
+  const prog = [];
+  await T.warmPfHistories((done, total) => prog.push([done, total]));
+  ok(!fetchedSyms.some((s) => s.includes('USD')), 'לא נטען היסטוריה ל־USD.ILS');
+  ok(fetchedSyms.some((s) => s === 'AAA'), 'נטען היסטוריה ל־AAA');
+  ok(prog.length === 1 && prog[0][0] === 1 && prog[0][1] === 1, 'התקדמות דווחה (1/1): ' + JSON.stringify(prog));
+
+  // dedup: שתי קריאות מקביליות לאותו סימבול = בקשת רשת אחת
+  T._resetHist();
+  for (const k of Object.keys(store)) delete store[k];
+  let netCount = 0;
+  sandbox.fetch = async (url) => {
+    netCount++;
+    await new Promise((r) => setTimeout(r, 50));
+    if (String(url).includes('finance.yahoo.com')) return { ok: true, text: async () => yahoo30 };
+    throw new Error('unexpected fetch: ' + url);
+  };
+  const [r1, r2] = await Promise.all([T.getDailyFast('CCC', false), T.getDailyFast('CCC', false)]);
+  ok(r1.length === 30 && r2.length === 30, 'שתי הקריאות החזירו נתונים');
+  ok(netCount === 3, 'אין כפילות בקשות רשת לסימבול — 3 קריאות המרוץ פעם אחת (נטו: ' + netCount + ')');
+
+  T._setDB({ source: 'manual' });
+
+  /* ---------- v54: המרות מט"ח לא מעוותות את השחזור; דיבידנד = תשואה ---------- */
+  ok(T.ibkrIsStockTrade({ symbol: 'AAPL' }), 'מניה נחשבת עסקת מניה');
+  ok(!T.ibkrIsStockTrade({ symbol: 'USD.ILS' }), 'המרת מט"ח לא עסקת מניה');
+  ok(!T.ibkrIsStockTrade({ symbol: 'AAPL  260919C00150000' }), 'אופציה לא עסקת מניה');
+  ok(T.ibkrIsDividendTx({ type: 'Dividends', description: 'AAPL' }), 'דיבידנד מזוהה');
+  ok(T.ibkrIsDividendTx({ type: 'Withholding Tax', description: '' }), 'מס דיבידנד מזוהה');
+  ok(!T.ibkrIsDividendTx({ type: 'Deposit', description: 'Deposit' }), 'הפקדה לא דיבידנד');
+
+  { // המרת מט"ח באמצע לא מנפחת עבר: מזומן קבוע + מניה קבועה -> TWR שטוח 0%
+    const h = hist30('AAA', 100, 100, '2026-01-01');
+    const rows = T.buildTradesHistory({
+      trades: [
+        { date: '2026-01-05', symbol: 'AAA', side: 'BUY', qty: 10, price: 100, commission: 0, currency: 'USD', fxToBase: 1 },
+        { date: '2026-02-01', symbol: 'USD.ILS', side: 'BUY', qty: 1000, price: 3.5, commission: 0, currency: 'ILS', fxToBase: 1 / 3.5 },
+      ],
+      cashTx: [],
+      positions: [{ sym: 'AAA', shares: 10 }],
+      cash: { usd: 1000, ils: 0 },
+      hist: { AAA: h },
+      fxOf,
+    });
+    const bad = rows.some((r) => Math.abs(r.value - 100) > 1);
+    ok(!bad, 'המרת מט"ח לא מעוותת את הגרף — TWR שטוח, ערכים: ' + rows.slice(0, 3).map((r) => r.value.toFixed(1)).join(','));
+  }
+
+  { // דיבידנד 100$ על תיק 1000$ -> TWR סופי +10% (בלי התיקון היה נשאר 0%)
+    const h = hist30('AAA', 100, 100, '2026-01-01');
+    const rows = T.buildTradesHistory({
+      trades: [
+        { date: '2026-01-05', symbol: 'AAA', side: 'BUY', qty: 10, price: 100, commission: 0, currency: 'USD', fxToBase: 1 },
+      ],
+      cashTx: [
+        { date: '2026-01-15', amount: 100, currency: 'USD', fxToBase: 1, type: 'Dividends', description: 'AAA dividend' },
+      ],
+      positions: [{ sym: 'AAA', shares: 10 }],
+      cash: { usd: 100, ils: 0 },
+      hist: { AAA: h },
+      fxOf,
+    });
+    const ret = rows[rows.length - 1].value / 100 - 1;
+    ok(Math.abs(ret - 0.10) < 0.01, 'דיבידנד נספר כתשואה +10%, בפועל ' + (ret * 100).toFixed(2) + '%');
+  }
+
+  { // v56: מדידה דולרית טהורה — שער חליפין משתנה (3.4->3.0) לא מזהם את התשואה
+    // מניה שטוחה $100 + $1000 מזומן — תשואה אמיתית 0%. בקוד הישן: ‎-11.8%‎
+    const h = hist30('AAA', 100, 100, '2026-01-01');
+    const fxMove = (iso) => (iso < '2026-01-16' ? 3.4 : 3.0);
+    const rows = T.buildTradesHistory({
+      trades: [{ date: '2026-01-05', symbol: 'AAA', side: 'BUY', qty: 10, price: 100, commission: 0, currency: 'USD', fxToBase: 1 }],
+      cashTx: [],
+      positions: [{ sym: 'AAA', shares: 10 }],
+      cash: { usd: 1000, ils: 0 },
+      hist: { AAA: h },
+      fxOf: fxMove,
+    });
+    const ret = rows[rows.length - 1].value / 100 - 1;
+    ok(Math.abs(ret) < 0.01, 'שינוי שער לא מזהם — TWR ~0%, בפועל ' + (ret * 100).toFixed(2) + '%');
+  }
+
+  { // v56: מזומן שקלי מומר פעם אחת לדולרים בשער העדכני — ₪3000 בשער 3.0 ≡ $1000
+    const h = hist30('AAA', 100, 110, '2026-01-01');
+    const fxC = () => 3.0;
+    const mk = (cash) => T.buildTradesHistory({
+      trades: [{ date: '2026-01-05', symbol: 'AAA', side: 'BUY', qty: 10, price: 100, commission: 0, currency: 'USD', fxToBase: 1 }],
+      cashTx: [],
+      positions: [{ sym: 'AAA', shares: 10 }],
+      hist: { AAA: h },
+      fxOf: fxC,
+      cash,
+    });
+    const r1 = mk({ usd: 1000, ils: 0 });
+    const r2 = mk({ usd: 0, ils: 3000 });
+    const ret1 = r1[r1.length - 1].value / 100 - 1, ret2 = r2[r2.length - 1].value / 100 - 1;
+    ok(Math.abs(ret1 - ret2) < 1e-9, '₪3000 ≡ $1000 — אותה תשואה, בפועל ' + (ret1 * 100).toFixed(2) + '% / ' + (ret2 * 100).toFixed(2) + '%');
+    ok(Math.abs(ret2 - 0.05) < 0.015, 'TWR אמיתי +5% ($1000 מניה +10% על $2000), בפועל ' + (ret2 * 100).toFixed(2) + '%');
+  }
+
   console.log('\nכל הבדיקות עברו: ' + n);
 })().catch((e) => { console.error('נכשל:', e); process.exit(1); });
