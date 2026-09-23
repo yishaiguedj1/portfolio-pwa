@@ -494,3 +494,15 @@ footer.fine { text-align: center; }
 /* ---- כרטיס חשבון ---- */
 .account-row { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
 .account-row img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+
+/* ---- רשימת מעקב (wishlist) ---- */
+.wl-card { padding: 14px 16px; }
+.wl-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.wl-sym { font-size: 20px; font-weight: 700; letter-spacing: 0.3px; }
+.wl-note { font-size: 14px; color: var(--on-surface-var); margin-top: 2px; }
+.wl-del { color: var(--on-surface-var); font-size: 18px; padding: 4px 8px; }
+.wl-price { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
+.wl-close { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-chg { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.form-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.form-row input[type="text"] { flex: 1 1 120px; min-width: 0; }
