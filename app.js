@@ -52,6 +52,9 @@ he: {
   perfPeriod: 'תקופת הדוח: {a}–{b}',
   twrOfficial: 'TWR רשמי של IBKR',
   twrMissing: 'חסר בדוח — הפעילו את מקטע Change in NAV ב־Flex',
+  navWarn: 'הדוח חסר את מקטע "Change in NAV" — בלי זה אי אפשר לחשב תשואה (TWR), רווח/הפסד בתקופה ו־XIRR. לתיקון: ב־IBKR נכנסים לדוחות ← Flex Queries ← עריכת השאילתה ← מסמנים Change in NAV ← שומרים ← מסנכרנים מחדש באפליקציה.',
+  ovValueReport: 'כולל מזומן · לפי דוח IBKR',
+  ovStocksSub: 'כולל מזומן',
   perfTwr: 'תשואה משוקללת־זמן (TWR)',
   perfXirr: 'תשואה משוקללת־כסף (XIRR)',
   perfRealized: 'רווח ממומש',
@@ -337,6 +340,9 @@ en: {
   perfPeriod: 'Report period: {a}–{b}',
   twrOfficial: "IBKR's official TWR",
   twrMissing: 'Missing from report — enable the Change in NAV Flex section',
+  navWarn: 'The report is missing the "Change in NAV" section — without it, return (TWR), period gain/loss and XIRR cannot be computed. To fix: in IBKR go to Reports → Flex Queries → edit the query → check "Change in NAV" → save → re-sync in the app.',
+  ovValueReport: 'Incl. cash · per IBKR report',
+  ovStocksSub: 'Incl. cash',
   perfTwr: 'Time-Weighted Return (TWR)',
   perfXirr: 'Money-Weighted Return (XIRR)',
   perfRealized: 'Realized P&L',
@@ -1091,6 +1097,13 @@ function renderIbkrCard() {
       ? t('ibkrDataSummary', { n: (data.positions || []).length, m: (data.trades || []).length, k: (data.cashTransactions || []).length })
       : '';
   }
+  // התראה בולטת כשהדוח חסר Change in NAV — בלי זה אין תשואות
+  const w = document.getElementById('ibkrNavWarn');
+  if (w) {
+    const miss = connected && !!(cfg.data) && !(cfg.data.nav);
+    w.classList.toggle('hidden', !miss);
+    if (miss) w.textContent = t('navWarn');
+  }
 }
 
 async function ibkrSaveAndTest() {
@@ -1346,7 +1359,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v42';
+const APP_VERSION = 'v43';
 
 
 function saveDBto(db) {
@@ -1865,6 +1878,27 @@ function ibkrBaseCur(data) { return (data && data.meta && data.meta.baseCurrency
 /* אובייקט ה־NAV מהסנכרון האחרון */
 function ibkrNav() { const d = ibkrCfg().data; return (d && d.nav) || null; }
 
+/* שווי החשבון לפי הדוח המסונכרן, במטבע הבסיס: שווי שוק הפוזיציות + מזומן.
+   לא תלוי במחירים חיים — זה המספר של IBKR עצמו. null אם אין נתונים. */
+function ibkrReportTotal(data, cash, fx) {
+  if (!data) return null;
+  const base = ibkrBaseCur(data);
+  let t = 0, any = false;
+  for (const p of (data.positions || [])) {
+    const mv = Number(p.marketValue);
+    if (!isFinite(mv)) continue;
+    t += mv * (Number(p.fxToBase) || 1);
+    any = true;
+  }
+  if (!any) return null;
+  const c = cash || { usd: 0, ils: 0 };
+  const usd = Number(c.usd) || 0, ils = Number(c.ils) || 0;
+  if (base === 'USD') t += usd + (fx > 0 ? ils / fx : 0);
+  else if (base === 'ILS') t += ils + (fx > 0 ? usd * fx : 0);
+  else t += usd + ils; // מטבע בסיס אחר — קירוב
+  return t;
+}
+
 /* סכומי ביצועים מהדוח, במטבע הבסיס.
    twr ב־ChangeInNAV הוא אחוז (12.34 = 12.34%) — מוצג כמו שהוא, בלי חלוקה. */
 function ibkrPerfSums(data) {
@@ -2047,6 +2081,32 @@ function renderOverview() {
   const tot = totalsUSD();
   const total = cur === 'ILS' && state.fx ? tot.total * state.fx : tot.total;
   const stockVal = cur === 'ILS' && state.fx ? tot.stockVal * state.fx : tot.stockVal;
+  // כרטיס "שווי תיק המניות" — היה מת אף פעם לא מולא (v43)
+  const vEl = document.getElementById('ovValue');
+  const vSub = document.getElementById('ovValueSub');
+  if (vEl) {
+    let vTxt = '—';
+    if (isIbkrMode()) {
+      // במצב IBKR: השווי לפי הדוח עצמו (מספר של IBKR), לא תלוי במחירים חיים
+      const data = ibkrCfg().data;
+      const rt = ibkrReportTotal(data, DB.cash, state.fx);
+      const base = ibkrBaseCur(data);
+      let disp = null;
+      if (rt !== null && isFinite(rt)) {
+        if (base === 'USD' && cur === 'ILS' && state.fx) disp = rt * state.fx;
+        else if (base === 'ILS' && cur === 'USD' && state.fx) disp = rt / state.fx;
+        else if ((base === 'ILS') === (cur === 'ILS')) disp = rt;
+      }
+      if (disp !== null && isFinite(disp)) vTxt = money(disp, cur);
+    } else if (!POSITIONS.length || POSITIONS.some((p) => state.quotes[p.sym])) {
+      vTxt = money(total, cur);
+    }
+    vEl.textContent = vTxt;
+    if (vSub) {
+      if (isIbkrMode()) vSub.textContent = t('ovValueReport');
+      else vSub.textContent = t('ovStocksSub');
+    }
+  }
   // בסיס החישוב לפי סוג המשתמש (הפקדות מסונכרנות / עלות קנייה / הפקדות ידניות)
   const perf = portfolioPerformance(total, portfolioBasisInCur());
   const gEl = document.getElementById('ovGL');
