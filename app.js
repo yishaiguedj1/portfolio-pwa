@@ -289,7 +289,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 
 
 function saveDBto(db) {
