@@ -147,6 +147,7 @@ he: {
 
   myAccount: 'החשבון שלי',
   appVersion: 'גרסת אפליקציה: ',
+  clearCacheBtn: 'נקה מטמון ורענן',
   tdKeyTitle: 'מפתח נתונים (Twelve Data)',
   tdKeyDesc: 'המפתח מפעיל את הגרפים. נשמר בחשבון שלך בענן (או בטלפון, בלי חשבון).',
   tdSignup: 'להרשמה חינמית ב־Twelve Data',
@@ -388,6 +389,7 @@ en: {
 
   myAccount: 'My account',
   appVersion: 'App version: ',
+  clearCacheBtn: 'Clear cache & reload',
   tdKeyTitle: 'Data key (Twelve Data)',
   tdKeyDesc: 'The key powers the charts. Stored in your cloud account (or on the phone, without an account).',
   tdSignup: 'Free Twelve Data signup',
@@ -1137,7 +1139,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v31';
+const APP_VERSION = 'v32';
 
 
 function saveDBto(db) {
@@ -2898,12 +2900,29 @@ function init() {
   if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = t('appVersion') + APP_VERSION;
   document.getElementById('resetData').addEventListener('click', () => {
     if (!confirm(t('resetConfirm'))) return;
+
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
       location.reload();
     };
     if (window.Cloud && window.Cloud.resetCloud) window.Cloud.resetCloud().then(doReset);
     else doReset();
+  });
+
+  // ניקוי מטמון ורענון — מביא את הגרסה החדשה ביותר מהשרת
+  const clearCacheBtn = document.getElementById('clearCache');
+  if (clearCacheBtn) clearCacheBtn.addEventListener('click', async () => {
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+    } catch (e) {}
+    location.reload();
   });
 
   const startApp = () => {
