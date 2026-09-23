@@ -50,7 +50,7 @@ const READY_XML = `<FlexQueryResponse><FlexStatements><FlexStatement accountId="
 </FlexStatement></FlexStatements></FlexQueryResponse>`;
 
 const PENDING_XML = `<FlexQueryResponse><Status>Error</Status><ErrorCode>1019</ErrorCode><ErrorMessage>Statement is not ready</ErrorMessage></FlexQueryResponse>`;
-const TOKEN_ERR_XML = `<FlexQueryResponse><Status>Error</Status><ErrorCode>1018</ErrorCode><ErrorMessage>Invalid token</ErrorMessage></FlexQueryResponse>`;
+const TOKEN_ERR_XML = `<FlexQueryResponse><Status>Error</Status><ErrorCode>1015</ErrorCode><ErrorMessage>Token is invalid</ErrorMessage></FlexQueryResponse>`;
 
 let lastFetchUrl = '';
 function stubFetch(text, status = 200) {
@@ -94,7 +94,7 @@ function stubFetch(text, status = 200) {
   stubFetch(TOKEN_ERR_XML);
   res = mockRes();
   await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123' } }), res);
-  ok(res.payload.ok === false && res.payload.error === 'flex_1018', 'שגיאת טוקן מועברת');
+  ok(res.payload.ok === false && res.payload.error === 'flex_1015', 'שגיאת טוקן מועברת');
 
   /* ---------- פרמטרים לא תקינים ---------- */
   stubFetch(READY_XML);
@@ -138,8 +138,40 @@ function stubFetch(text, status = 200) {
   };
   res = mockRes();
   await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
-  ok(res.payload.ok === false && res.payload.error === 'flex_1018', 'שגיאת Flex לא גוררת fallback');
+  ok(res.payload.ok === false && res.payload.error === 'flex_1015', 'שגיאת Flex לא גוררת fallback');
   ok(seenHosts.length === 1, 'רק הוסט אחד נקרא');
+
+  /* ---------- נסיון חוזר על שגיאה זמנית (1001) ---------- */
+  flexRequest._setRetryWaitMs(1);
+  const FAIL1001 = `<FlexStatementResponse><Status>Fail</Status><ErrorCode>1001</ErrorCode><ErrorMessage>Statement could not be generated at this time. Please try again shortly.</ErrorMessage></FlexStatementResponse>`;
+  const SEND_OK = `<FlexStatementResponse><Status>Success</Status><ReferenceCode>RC9</ReferenceCode><Url>https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement</Url></FlexStatementResponse>`;
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return { status: 200, text: async () => (calls === 1 ? FAIL1001 : SEND_OK) };
+  };
+  res = mockRes();
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  ok(res.payload.ok === true && res.payload.referenceCode === 'RC9', 'אחרי 1001 מנסה שוב ומצליח');
+  ok(calls === 2, 'בוצעו שני נסיונות');
+
+  /* ---------- שלוש שגיאות 1001 -> מחזיר כשלון עם retried ---------- */
+  calls = 0;
+  global.fetch = async () => { calls++; return { status: 200, text: async () => FAIL1001 }; };
+  res = mockRes();
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  ok(res.payload.ok === false && res.payload.error === 'flex_1001' && res.payload.retried === true, 'אחרי 3 נסיונות מחזיר flex_1001');
+  ok(calls === 3, 'בוצעו שלושה נסיונות');
+
+  /* ---------- שגיאה קבועה (1015) -> אין נסיון חוזר ---------- */
+  calls = 0;
+  const FAIL1015 = `<FlexStatementResponse><Status>Fail</Status><ErrorCode>1015</ErrorCode><ErrorMessage>Token is invalid.</ErrorMessage></FlexStatementResponse>`;
+  global.fetch = async () => { calls++; return { status: 200, text: async () => FAIL1015 }; };
+  res = mockRes();
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  ok(res.payload.ok === false && res.payload.error === 'flex_1015' && !res.payload.retried, 'טוקן לא תקין -> כשלון מיידי');
+  ok(calls === 1, 'נסיון יחיד לשגיאה קבועה');
+  flexRequest._setRetryWaitMs(7000);
 
   /* ---------- שני ההוסטים נכשלים -> שגיאת ההוסט האחרון ---------- */
   global.fetch = async () => ({ status: 500, text: async () => 'boom' });
