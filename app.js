@@ -285,6 +285,39 @@ function ibkrShowErr(msg) {
   const e = document.getElementById('ibkrErr');
   if (e) { e.textContent = msg; e.classList.remove('hidden'); }
 }
+/* מתרגם קודי שגיאה טכניים של IBKR/השרתון לעברית פשוטה. */
+function ibkrFriendlyErr(msg) {
+  const m = String(msg || '').match(/flex_(\d+)|ibkr_http_(\d+)|rate_limited|bad_params|fetch_failed/);
+  const code = m ? (m[1] || m[2] || m[0]) : '';
+  switch (code) {
+    case '1001': case '1004': case '1009': case '1019': case '1021':
+      return 'IBKR לא הצליח ליצור את הדוח כרגע (עומס זמני אצלם) — נסה שוב בעוד כמה דקות.';
+    case '1020':
+      return 'IBKR דחה את הבקשה כרגע — נסה שוב בעוד כמה דקות.';
+    case '1012':
+      return 'הטוקן פג תוקף — צור טוקן חדש ב־IBKR והזן אותו כאן.';
+    case '1013':
+      return 'הטוקן מוגבל לכתובת IP מסוימת — ב־IBKR בטל את הגבלת ה־IP.';
+    case '1014':
+      return 'ה־Query ID לא נמצא — בדוק שהמספר שהזנת נכון.';
+    case '1015':
+      return 'הטוקן לא תקין — בדוק שהעתקת את כולו, בלי רווחים.';
+    case '1016':
+      return 'בעיה בחשבון ב־IBKR — בדוק שהחשבון פעיל.';
+    case '1017':
+      return 'קוד הדוח לא תקין — נסה סנכרון חדש.';
+    case '1018': case 'rate_limited':
+      return 'יותר מדי בקשות ברצף — המתן דקה ונסה שוב.';
+    case '403':
+      return 'הגישה ל־IBKR נחסמה זמנית — נסה שוב בעוד כמה דקות.';
+    case 'bad_params':
+      return 'חסרים Flex token או Query ID.';
+    case 'fetch_failed':
+      return 'לא הצלחנו להגיע לשרתון — בדוק חיבור לאינטרנט.';
+    default:
+      return msg;
+  }
+}
 function ibkrClearErr() {
   const e = document.getElementById('ibkrErr');
   if (e) { e.textContent = ''; e.classList.add('hidden'); }
@@ -339,7 +372,7 @@ async function ibkrSaveAndTest() {
     ibkrSaveCfg({ statementUrl: rep.statementUrl || '' });
     flash('החיבור תקין ✓ (IBKR קיבל את הבקשה)');
   } catch (e) {
-    ibkrShowErr('הבדיקה נכשלה: ' + e.message);
+    ibkrShowErr('הבדיקה נכשלה: ' + ibkrFriendlyErr(e.message));
   }
   ibkrSetBusy(false);
   renderIbkrCard();
@@ -361,7 +394,7 @@ async function ibkrDoSync() {
     ibkrSaveCfg({ lastSync: Date.now(), statementUrl: rep.statementUrl || cfg.statementUrl || '', data });
     flash('הסנכרון הצליח ✓');
   } catch (e) {
-    ibkrShowErr('הסנכרון נכשל: ' + e.message);
+    ibkrShowErr('הסנכרון נכשל: ' + ibkrFriendlyErr(e.message));
   }
   ibkrSetBusy(false);
   renderIbkrCard();
@@ -450,7 +483,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v25';
+const APP_VERSION = 'v26';
 
 
 function saveDBto(db) {
