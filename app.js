@@ -27,6 +27,9 @@ const ICON_TRASH = _IC_PRE + '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14
 const ICON_GLOBE = _IC_PRE + '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.5 13.5 0 0 1 0 18M12 3a13.5 13.5 0 0 0 0 18"/></svg>';
 const ICON_GEAR = _IC_PRE + '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 const ICON_CHEV = _IC_PRE + '<polyline points="14 6 8 12 14 18"/></svg>';
+const ICON_SUN = _IC_PRE + '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></svg>';
+const ICON_MOON = _IC_PRE + '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const ICON_AUTO = _IC_PRE + '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
 const ICON_MENU = _IC_PRE + '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>';
 
 const STRINGS = {
@@ -37,6 +40,8 @@ he: {
   langAria: 'בחירת שפה',
   menuAria: 'תפריט ראשי',
   menuSettings: 'הגדרות',
+  themeToggleAria: 'מעבר בין בהיר לכהה',
+  themeSystemAria: 'ערכת נושא לפי המערכת',
   loading: 'טוען…',
   tabsAria: 'לשוניות',
   tabOverview: 'סקירה',
@@ -368,6 +373,8 @@ en: {
   langAria: 'Choose language',
   menuAria: 'Main menu',
   menuSettings: 'Settings',
+  themeToggleAria: 'Toggle light/dark',
+  themeSystemAria: 'Follow system theme',
   loading: 'Loading…',
   tabsAria: 'Tabs',
   tabOverview: 'Overview',
@@ -826,13 +833,17 @@ function setThemeMode(mode) {
   applyTheme();
 }
 /* מצייר את מצב מתג ערכת הנושא. */
+/* v105: מצייר את עיגולי ערכת הנושא בתפריט ההמבורגר. */
 function renderThemeToggle() {
   const m = getThemeMode();
-  const map = { light: 'themeLight', system: 'themeSystem', dark: 'themeDark' };
-  for (const k of Object.keys(map)) {
-    const b = document.getElementById(map[k]);
-    if (b) b.classList.toggle('active', m === k);
+  const res = resolveTheme();
+  const tgl = document.getElementById('themeToggleBtn');
+  if (tgl) {
+    tgl.innerHTML = res === 'dark' ? ICON_SUN : ICON_MOON;
+    tgl.classList.toggle('active', m !== 'system');
   }
+  const sys = document.getElementById('themeSystemBtn');
+  if (sys) sys.classList.toggle('active', m === 'system');
 }
 /* קורא משתנה CSS מהערכה הנוכחית; בטסטים (אין getComputedStyle) מחזיר ברירת מחדל. */
 function cssVar(name, fallback) {
@@ -1726,7 +1737,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v104';
+const APP_VERSION = 'v105';
 
 
 function saveDBto(db) {
@@ -5778,12 +5789,6 @@ function init() {
   const langEn = document.getElementById('langEn');
   if (langHe) langHe.addEventListener('click', () => setLang('he'));
   if (langEn) langEn.addEventListener('click', () => setLang('en'));
-  const thL = document.getElementById('themeLight');
-  const thS = document.getElementById('themeSystem');
-  const thD = document.getElementById('themeDark');
-  if (thL) thL.addEventListener('click', () => setThemeMode('light'));
-  if (thS) thS.addEventListener('click', () => setThemeMode('system'));
-  if (thD) thD.addEventListener('click', () => setThemeMode('dark'));
   // טאבים
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
@@ -6011,36 +6016,49 @@ if (typeof document !== 'undefined') {
 /* v103: תפריט המבורגר ראשי — נפתח/נסגר, נסגר בלחיצה בחוץ או Escape */
 function initMainMenu() {
   const btn = document.getElementById('menuBtn');
-  const menu = document.getElementById('mainMenu');
-  if (!btn || !menu) return;
+  const drop = document.getElementById('menuDrop');
+  if (!btn || !drop) return;
   btn.innerHTML = ICON_MENU;
-  const setIc = document.getElementById('menuSettingsIc');
-  if (setIc) setIc.innerHTML = ICON_GEAR;
-  const setChev = document.getElementById('menuSettingsChev');
-  if (setChev) setChev.innerHTML = ICON_CHEV;
-  const setBtn = document.getElementById('menuSettingsBtn');
-  if (setBtn) setBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    menu.classList.add('hidden');
+  const closeMenu = () => {
+    drop.classList.add('hidden');
     btn.setAttribute('aria-expanded', 'false');
-    switchTab('settings');
-    try { window.scrollTo(0, 0); } catch (err) {}
+  };
+  const tglBtn = document.getElementById('themeToggleBtn');
+  if (tglBtn) tglBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setThemeMode(resolveTheme() === 'dark' ? 'light' : 'dark');
   });
+  const sysBtn = document.getElementById('themeSystemBtn');
+  if (sysBtn) {
+    sysBtn.innerHTML = ICON_AUTO;
+    sysBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setThemeMode('system');
+    });
+  }
+  const setBtn = document.getElementById('menuSettingsBtn');
+  if (setBtn) {
+    setBtn.innerHTML = ICON_GEAR;
+    setBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeMenu();
+      switchTab('settings');
+      try { window.scrollTo(0, 0); } catch (err) {}
+    });
+  }
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const willOpen = menu.classList.contains('hidden');
+    const willOpen = drop.classList.contains('hidden');
     const lm = document.getElementById('langMenu');
     if (lm) lm.classList.add('hidden');
-    menu.classList.toggle('hidden');
+    drop.classList.toggle('hidden');
     btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
   });
   document.addEventListener('click', (e) => {
-    if (!menu.classList.contains('hidden') && !e.target.closest('.menu-wrap')) {
-      menu.classList.add('hidden');
-      btn.setAttribute('aria-expanded', 'false');
-    }
+    if (!drop.classList.contains('hidden') && !e.target.closest('.menu-wrap')) closeMenu();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); }
+    if (e.key === 'Escape') closeMenu();
   });
+  renderThemeToggle();
 }
