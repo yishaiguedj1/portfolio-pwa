@@ -26,6 +26,15 @@ he: {
   tabsAria: 'לשוניות',
   tabOverview: 'סקירה',
   tabStocks: 'מניות',
+  tabTrades: 'עסקאות',
+  tradesTitle: 'היסטוריית עסקאות',
+  tradesNeedIbkr: 'חברו את IBKR וסנכרנו כדי לראות כאן את היסטוריית הקניות והמכירות.',
+  tradesEmpty: 'אין עסקאות בדוח המסונכרן — ודאו שמקטע Trades מאופשר בשאילתת ה־Flex.',
+  buySide: 'קנייה',
+  sellSide: 'מכירה',
+  commissionLbl: 'עמלה',
+  depEmptyIbkr: 'אין הפקדות/משיכות בדוח — ודאו שמקטע Cash Transactions מאופשר בשאילתת ה־Flex, וסנכרנו מחדש.',
+  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Change in NAV.',
   tabDeposits: 'הפקדות',
   tabWishlist: 'מעקב',
   wishlistTitle: 'רשימת מעקב',
@@ -314,6 +323,15 @@ en: {
   tabsAria: 'Tabs',
   tabOverview: 'Overview',
   tabStocks: 'Stocks',
+  tabTrades: 'Trades',
+  tradesTitle: 'Trade history',
+  tradesNeedIbkr: 'Connect IBKR and sync to see your buy/sell history here.',
+  tradesEmpty: 'No trades in the synced report — make sure the Trades section is enabled in your Flex query.',
+  buySide: 'Buy',
+  sellSide: 'Sell',
+  commissionLbl: 'Commission',
+  depEmptyIbkr: 'No deposits/withdrawals in the report — make sure the Cash Transactions section is enabled in your Flex query, then re-sync.',
+  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Change in NAV.',
   tabDeposits: 'Deposits',
   tabWishlist: 'Watchlist',
   wishlistTitle: 'Watchlist',
@@ -1359,7 +1377,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v43';
+const APP_VERSION = 'v44';
 
 
 function saveDBto(db) {
@@ -1861,11 +1879,14 @@ function ibkrMapDeposits(cashTx, fxOf) {
       ils = amt * toUsd * fx;
     }
     const r2 = (v) => Math.round(v * 100) / 100;
-    // ב־IBKR חיובי = נכנס; באפליקציה שלילי = נכנס
+    // ב־IBKR חיובי = נכנס; באפליקציה שלילי = נכנס. שומרים גם את הסכום המקורי לתצוגה.
+    const origTxt = (cur !== 'ILS' && amt)
+      ? ' · ' + cur + ' ' + Math.abs(amt).toLocaleString('en-US', { maximumFractionDigits: 2 })
+      : '';
     out.push({
       date: String(c.date || '').slice(0, 10),
       amount: amt > 0 ? -r2(Math.abs(ils)) : r2(Math.abs(ils)),
-      place: String(c.description || type || 'IBKR').slice(0, 60),
+      place: String(c.description || type || 'IBKR').slice(0, 40) + origTxt,
     });
   }
   out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -3114,6 +3135,88 @@ function depositAmountHTML(amt) {
   return '<span class="r-amt out">₪' + Math.abs(amt).toLocaleString('en-US') + '</span>';
 }
 
+/* ---------------- עסקאות IBKR: קניות/מכירות מהדוח ---------------- */
+/* רשימת העסקאות מהסנכרון האחרון, ממוינת מהחדשה לישנה (פונקציה טהורה — נבדקת). */
+function ibkrTrades() {
+  const d = ibkrCfg().data;
+  const trs = ((d && d.trades) || []).filter((t) => t && t.symbol);
+  return trs.slice().sort((a, b) => {
+    const da = String(a.date || ''), db = String(b.date || '');
+    return db < da ? -1 : db > da ? 1 : 0;
+  });
+}
+
+/* עיצוב סכום במטבע העסקה (פונקציה טהורה — נבדקת). */
+function fmtTradeMoney(v, cur) {
+  const n = Math.abs(Number(v) || 0);
+  const s = n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const c = String(cur || 'USD').toUpperCase();
+  if (c === 'USD') return '$' + s;
+  if (c === 'ILS') return '₪' + s;
+  return c + ' ' + s;
+}
+
+/* נתוני שורה לתצוגה — מחושבים בנפרד כדי שאפשר יהיה לבדוק בלי DOM (נבדקת). */
+function tradeRowData(tr) {
+  const t = tr || {};
+  const isBuy = String(t.side || '').toUpperCase() === 'BUY';
+  const cur = String(t.currency || 'USD').toUpperCase();
+  const qty = Math.abs(Number(t.qty) || 0);
+  const price = Number(t.price) || 0;
+  const comm = Math.abs(Number(t.commission) || 0);
+  const commCur = String(t.commissionCurrency || cur).toUpperCase();
+  return {
+    date: String(t.date || '').slice(0, 10),
+    symbol: String(t.symbol || ''),
+    isBuy,
+    qtyTxt: Number.isInteger(qty) ? String(qty) : String(+qty.toFixed(4)),
+    priceTxt: fmtTradeMoney(price, cur),
+    totalTxt: (isFinite(qty) && isFinite(price)) ? fmtTradeMoney(qty * price, cur) : null,
+    commTxt: comm > 0 ? fmtTradeMoney(comm, commCur) : null,
+  };
+}
+
+function buildTradeRow(tr) {
+  const d = tradeRowData(tr);
+  const li = el('li');
+  const main = el('span');
+  main.innerHTML = '<span class="r-date">' + esc(fmtDateIL(d.date)) + '</span> ' +
+    '<span class="side-chip ' + (d.isBuy ? 'buy' : 'sell') + '">' +
+    esc(d.isBuy ? t('buySide') : t('sellSide')) + '</span><br>' +
+    '<span class="r-note">' + esc(d.symbol) + ' · ' + esc(d.qtyTxt) + ' × ' + esc(d.priceTxt) + '</span>';
+  li.appendChild(main);
+  const wrap = el('span');
+  let html = d.totalTxt === null
+    ? '<span class="r-amt zero">—</span>'
+    : '<span class="r-amt">' + esc(d.totalTxt) + '</span>';
+  if (d.commTxt) html += '<br><span class="r-note">' + esc(t('commissionLbl')) + ': ' + esc(d.commTxt) + '</span>';
+  wrap.innerHTML = html;
+  li.appendChild(wrap);
+  return li;
+}
+
+function renderTrades() {
+  const list = document.getElementById('tradeList');
+  const hint = document.getElementById('tradesHint');
+  const cnt = document.getElementById('tradeCount');
+  if (!list) return;
+  const ready = isIbkrMode() && !!(ibkrCfg().data);
+  const trs = ready ? ibkrTrades() : [];
+  if (cnt) cnt.textContent = trs.length;
+  list.innerHTML = '';
+  if (hint) {
+    if (!ready) { hint.classList.remove('hidden'); hint.textContent = t('tradesNeedIbkr'); }
+    else hint.classList.add('hidden');
+  }
+  if (!ready) return;
+  if (!trs.length) {
+    const p = el('p', 'fine', t('tradesEmpty'));
+    list.appendChild(p);
+    return;
+  }
+  for (const tr of trs) list.appendChild(buildTradeRow(tr));
+}
+
 function renderDeposits() {
   const nd = netDepositsILS();
   const ndTxt = '₪' + Math.abs(nd).toLocaleString('en-US');
@@ -3124,6 +3227,12 @@ function renderDeposits() {
     (isIbkrMode() ? '<br><span class="fine">' + t('ibkrDepositsNote') + '</span>' : '');
   const dn = document.getElementById('depNoteEl');
   if (dn) dn.classList.toggle('hidden', isIbkrMode()); // ההסבר הידני (גיליון) לא רלוונטי במצב IBKR
+  const de = document.getElementById('depIbkrEmpty');
+  if (de) {
+    const show = isIbkrMode() && !DEPOSITS.length;
+    de.classList.toggle('hidden', !show);
+    if (show) de.textContent = t('depEmptyIbkr');
+  }
   const ul = document.getElementById('depositList');
   ul.innerHTML = '';
   const ed = editAllowed('deposits');
@@ -3392,6 +3501,7 @@ function deletePensionDeposit(i) {
 function renderAll() {
   renderOverview();
   renderStocks();
+  renderTrades();
   renderWishlist();
   renderDeposits();
   renderPension();
