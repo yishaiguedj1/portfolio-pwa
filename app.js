@@ -844,23 +844,44 @@ function parseYahooBars(json, withTime) {
 }
 
 /* התאמת ספליטים: מחירי Yahoo לא מותאמים לספליט. מזהים קפיצה ביחס adjclose/close
-   (דיבידנד מזיז מעט, ספליט קופץ פי 2/3/10) ומחלקים את המחירים שלפני הספליט ביחס.
-   בלי זה, שחזור TWR מנפח את העבר ומדכא תשואה. (פונקציה טהורה — נבדקת) */
+   (דיבידנד מזיז מעט, ספליט קופץ פי 2/3/5/10) ומחלקים את המחירים שלפני הספליט ביחס.
+   אם אין adjclose (מקור לא־Yahoo כמו Stooq), מזהים מגאפ מחירים: פתיחה חדה
+   מתחת לסגירה קודמת ביחס ספליט נפוץ. בלי זה, שחזור TWR מנפח את העבר ומדכא תשואה.
+   (פונקציה טהורה — נבדקת) */
 function applySplitAdjustment(rows) {
   if (!rows || rows.length < 2) return rows;
   const splits = []; // {date, ratio}
-  for (let i = 1; i < rows.length; i++) {
-    const a0 = rows[i - 1]._adj, c0 = rows[i - 1].close;
-    const a1 = rows[i]._adj, c1 = rows[i].close;
-    if (!(a0 > 0) || !(c0 > 0) || !(a1 > 0) || !(c1 > 0)) continue;
-    const r0 = a0 / c0, r1 = a1 / c1;
-    if (!(r0 > 0) || !(r1 > 0)) continue;
-    const jump = r1 / r0;
-    // ספליט: קפיצה חדה ביחס. דיבידנד רגיל מזיז <2%, סף 8% בטוח.
-    // לספליט 2:1: לפני הספליט r=0.5, אחריו r=1 → ratio=2, מחלקים מחירי עבר ב־2.
-    if (jump > 1.08 || jump < 0.92) {
-      const ratio = r1 / r0;
-      if (ratio > 1.08 || ratio < 0.92) splits.push({ date: rows[i].date, ratio });
+  const hasAdj = rows.some((r) => r._adj > 0);
+  if (hasAdj) {
+    for (let i = 1; i < rows.length; i++) {
+      const a0 = rows[i - 1]._adj, c0 = rows[i - 1].close;
+      const a1 = rows[i]._adj, c1 = rows[i].close;
+      if (!(a0 > 0) || !(c0 > 0) || !(a1 > 0) || !(c1 > 0)) continue;
+      const r0 = a0 / c0, r1 = a1 / c1;
+      if (!(r0 > 0) || !(r1 > 0)) continue;
+      const jump = r1 / r0;
+      // ספליט: קפיצה חדה ביחס. דיבידנד רגיל מזיז <2%, סף 8% בטוח.
+      // לספליט 2:1: לפני הספליט r=0.5, אחריו r=1 → ratio=2, מחלקים מחירי עבר ב־2.
+      if (jump > 1.08 || jump < 0.92) {
+        const ratio = r1 / r0;
+        if (ratio > 1.08 || ratio < 0.92) splits.push({ date: rows[i].date, ratio });
+      }
+    }
+  } else {
+    // אין adjclose (Stooq/Twelve) — זיהוי מגאפ: פתיחה חדה מתחת לסגירה קודמת
+    for (let i = 1; i < rows.length; i++) {
+      const pc = rows[i - 1].close, op = rows[i].open;
+      if (!(pc > 0) || !(op > 0)) continue;
+      const g = op / pc;
+      let ratio = 0;
+      if (g > 0.47 && g < 0.53) ratio = 2;        // 2:1
+      else if (g > 0.31 && g < 0.36) ratio = 3;   // 3:1
+      else if (g > 0.23 && g < 0.27) ratio = 4;   // 4:1
+      else if (g > 0.18 && g < 0.22) ratio = 5;   // 5:1 (NOW דצמבר 2025)
+      else if (g > 0.09 && g < 0.11) ratio = 10;  // 10:1
+      else if (g > 0.63 && g < 0.71) ratio = 1.5; // 3:2
+      else if (g > 1.9 && g < 2.1) ratio = 0.5;   // איחוד 1:2
+      if (ratio) splits.push({ date: rows[i].date, ratio });
     }
   }
   if (!splits.length) return rows;
@@ -1465,7 +1486,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v60';
+const APP_VERSION = 'v61';
 
 
 function saveDBto(db) {
@@ -1998,11 +2019,18 @@ async function _getDailyFastInner(sym, force) {
     if (!r) throw new Error('empty');
     return r;
   }))).catch(() => null);
-  if (rows) return save(rows);
+  if (rows) {
+    // התאמת ספליטים גם למקור לא־Yahoo (זיהוי מגאפ) — קריטי ל־NOW 5:1 בדצמבר 2025
+    if (!rows.splitsApplied) { try { applySplitAdjustment(rows); } catch (e) {} }
+    return save(rows);
+  }
   if (tdKey()) {
     const td = await fetchTwelveBars(sym, 'daily', false, notes);
     if (td === 'BADKEY') clearTdKey(notes);
-    else if (td) return save(td);
+    else if (td) {
+      if (!td.splitsApplied) { try { applySplitAdjustment(td); } catch (e) {} }
+      return save(td);
+    }
   }
   state.histDbg[sym] = notes.join(' · ');
   const cached = lsGet(LS_HIST + sym);
