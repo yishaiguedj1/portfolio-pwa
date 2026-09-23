@@ -106,6 +106,9 @@ he: {
   myStocks: 'המניות שלי',
   editBtn: '✏️ עריכה',
   editHintStocks: 'מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על ✏️ עריכה.',
+  stockSearchPh: '🔍 חפש מניה להוספה (למשל: AAPL)',
+  stockSearchNoResults: 'לא נמצאו תוצאות',
+  stockSearchError: 'החיפוש נכשל — נסה שוב',
   editHint: 'מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.',
   addStock: 'הוספת מניה',
   noStocks: 'אין מניות בתיק. הפעילו ✏️ עריכה כדי להוסיף.',
@@ -239,7 +242,7 @@ he: {
   ibkrDisconnectBtn: 'ניתוק',
   ibkrNotConnected: 'לא מחובר — מוצגים הנתונים הידניים.',
   ibkrDepositsNote: 'מסונכרן מ־IBKR — ההפקדות מתעדכנות אוטומטית בכל סנכרון.',
-  ibkrStocksNote: 'מסונכרן מ־IBKR — המניות מתעדכנות אוטומטית בכל סנכרון.',
+  ibkrStocksNote: 'מסונכרן מ־IBKR — המניות מתעדכנות אוטומטית בכל סנכרון. עריכה ידנית תידרס בסנכרון הבא.',
   importTruncatedWarn: 'שים לב: ההעברה הכי מוקדמת בדוח היא מתאריך {date} — ייתכן שהפקדות מוקדמות יותר לא נכללו, ואז התשואה המחושבת עלולה להיות מנופחת.',
   ibkrConnectedSynced: 'מחובר ✓ · סונכרן: {time}',
   ibkrConnectedNever: 'מחובר ✓ · טרם בוצע סנכרון.',
@@ -428,6 +431,9 @@ en: {
   myStocks: 'My stocks',
   editBtn: '✏️ Edit',
   editHintStocks: 'Edit mode is on — you can edit, add and delete stocks. When done, tap ✏️ Edit again.',
+  stockSearchPh: '🔍 Search a stock to add (e.g. AAPL)',
+  stockSearchNoResults: 'No results found',
+  stockSearchError: 'Search failed — try again',
   editHint: 'Edit mode is on — when done, tap ✏️ Edit again.',
   addStock: 'Add stock',
   noStocks: 'No stocks in the portfolio. Turn on ✏️ Edit to add.',
@@ -561,7 +567,7 @@ en: {
   ibkrDisconnectBtn: 'Disconnect',
   ibkrNotConnected: 'Not connected — showing manual data.',
   ibkrDepositsNote: 'Synced from IBKR — deposits update automatically on every sync.',
-  ibkrStocksNote: 'Synced from IBKR — stocks update automatically on every sync.',
+  ibkrStocksNote: 'Synced from IBKR — stocks update automatically on every sync. Manual edits will be overwritten on the next sync.',
   importTruncatedWarn: 'Note: the earliest transfer in the report is from {date} — earlier deposits may be missing, so the computed return could be overstated.',
   ibkrConnectedSynced: 'Connected ✓ · Synced: {time}',
   ibkrConnectedNever: 'Connected ✓ · Not synced yet.',
@@ -1652,7 +1658,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v86';
+const APP_VERSION = 'v87';
 
 
 function saveDBto(db) {
@@ -2390,7 +2396,11 @@ function portfolioPerformance(total, basis) {
 
 /* במצב IBKR כל הנתונים (מניות והפקדות) מגיעים מהדוח — אין עריכה ידנית.
    פנסיה נשארת בעריכה ידנית כי היא לא חלק מנתוני IBKR. */
-function editAllowed(key) { return !!state.edit[key] && !isIbkrMode(); }
+function editAllowed(key) {
+  // v87: עריכת מניות מותרת גם במצב IBKR (לבקשת המשתמש)
+  if (key === 'stocks') return !!state.edit[key];
+  return !!state.edit[key] && !isIbkrMode();
+}
 
 /* נעילת ממשק במצב IBKR: מסתיר כפתורי עריכה ומכבה מצב עריכה פעיל */
 function renderIbkrLocks() {
@@ -4212,6 +4222,135 @@ function paintPfChart() {
 
 /* ---------------- רינדור: מניות ---------------- */
 
+/* v87: חיפוש מניות ב־Yahoo Finance להוספה מהירה.
+   עובד בשני המצבים (ידני ו־IBKR) — פותח את טופס ההוספה עם הסימבול מולא מראש. */
+let _stockSearchT = null;
+let _stockSearchAbort = null;
+
+async function searchStocksYahoo(query) {
+  const q = String(query || '').trim();
+  if (q.length < 1) return [];
+  const url = 'https://query2.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(q) + '&quotesCount=8&newsCount=0';
+  try {
+    if (_stockSearchAbort) { try { _stockSearchAbort.abort(); } catch (e) {} }
+    _stockSearchAbort = new AbortController();
+    const res = await fetch(url, { signal: _stockSearchAbort.signal, headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return null;
+    const j = await res.json();
+    const quotes = (j && j.quotes) || [];
+    // רק מניות/ETF — בלי אופציות, מט"ח, קרנות
+    return quotes
+      .filter((x) => x && x.symbol && ['EQUITY', 'ETF'].includes(x.quoteType))
+      .slice(0, 8)
+      .map((x) => ({ sym: String(x.symbol).toUpperCase(), name: x.longname || x.shortname || x.symbol, type: x.quoteType }));
+  } catch (e) {
+    if (e && e.name === 'AbortError') return 'aborted';
+    return null;
+  }
+}
+
+function renderStockSearchResults(items, status) {
+  const box = document.getElementById('stockSearchResults');
+  if (!box) return;
+  box.innerHTML = '';
+  if (status === 'loading') {
+    box.classList.remove('hidden');
+    const d = el('div', 'stock-search-loading');
+    d.textContent = '…';
+    box.appendChild(d);
+    return;
+  }
+  if (status === 'error') {
+    box.classList.remove('hidden');
+    const d = el('div', 'stock-search-empty');
+    d.textContent = t('stockSearchError');
+    box.appendChild(d);
+    return;
+  }
+  if (!items || !items.length) {
+    if (status === 'empty') {
+      box.classList.remove('hidden');
+      const d = el('div', 'stock-search-empty');
+      d.textContent = t('stockSearchNoResults');
+      box.appendChild(d);
+    } else {
+      box.classList.add('hidden');
+    }
+    return;
+  }
+  box.classList.remove('hidden');
+  for (const it of items) {
+    const row = el('div', 'stock-search-item');
+    row.innerHTML =
+      '<span class="ss-sym" dir="ltr">' + esc(it.sym) + '</span>' +
+      '<span class="ss-name">' + esc(it.name) + '</span>' +
+      '<span class="ss-type">' + esc(it.type) + '</span>' +
+      '<span class="ss-add">＋</span>';
+    row.addEventListener('click', () => {
+      box.classList.add('hidden');
+      const inp = document.getElementById('stockSearchInput');
+      if (inp) inp.value = '';
+      openAddStockWithSymbol(it.sym, it.name);
+    });
+    box.appendChild(row);
+  }
+}
+
+/* פותח את טופס הוספת המניה עם סימבול (ושם) מולאים מראש.
+   אם לא במצב עריכה — מפעיל אותו אוטומטית כדי שהטופס יופיע. */
+function openAddStockWithSymbol(sym, name) {
+  if (!state.edit['stocks']) {
+    const btn = document.getElementById('editStocksBtn');
+    if (btn) btn.click();
+    else { state.edit['stocks'] = true; renderStocks(); }
+  }
+  const list = document.getElementById('stockList');
+  showAddPositionForm(list);
+  // ממלא את השדות אחרי שהטופס נוצר
+  setTimeout(() => {
+    const card = document.getElementById('addPosForm');
+    if (!card) return;
+    const symInp = card.querySelector('#ap-sym');
+    const nameInp = card.querySelector('#ap-full');
+    if (symInp) symInp.value = sym;
+    if (nameInp && name) nameInp.value = name;
+    const sharesInp = card.querySelector('#ap-shares');
+    if (sharesInp) sharesInp.focus();
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
+}
+
+function initStockSearch() {
+  const inp = document.getElementById('stockSearchInput');
+  const box = document.getElementById('stockSearchResults');
+  if (!inp || !box) return;
+  inp.addEventListener('input', () => {
+    clearTimeout(_stockSearchT);
+    const q = inp.value.trim();
+    if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    renderStockSearchResults(null, 'loading');
+    _stockSearchT = setTimeout(async () => {
+      const res = await searchStocksYahoo(q);
+      if (res === 'aborted') return;
+      if (res === null) { renderStockSearchResults(null, 'error'); return; }
+      // מסנן מניות שכבר בתיק
+      const existing = new Set(POSITIONS.map((p) => p.sym));
+      const filtered = res.filter((r) => !existing.has(r.sym));
+      renderStockSearchResults(filtered, filtered.length ? 'ok' : 'empty');
+    }, 400);
+  });
+  // סגירת תוצאות בלחיצה בחוץ
+  document.addEventListener('click', (e) => {
+    if (!box.classList.contains('hidden') && !e.target.closest('.stock-search-wrap')) {
+      box.classList.add('hidden');
+    }
+  });
+  // Escape סוגר
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { box.classList.add('hidden'); inp.blur(); }
+  });
+}
+
 function renderStocks() {
   const list = document.getElementById('stockList');
   list.innerHTML = '';
@@ -5320,6 +5459,8 @@ function init() {
   wireEditToggle('editStocksBtn', 'editStocksHint', 'stocks', renderStocks);
   wireEditToggle('editDepositsBtn', 'editDepositsHint', 'deposits', renderDeposits);
   wireEditToggle('editPensionBtn', 'editPensionHint', 'pension', renderPension);
+  // v87: חיפוש מניות להוספה — זמין בשני המצבים
+  try { initStockSearch(); } catch (e) {}
 
   // רשימת מעקב — הוספה/מחיקה ישירה, לא חלק מהתיק
   const wlAdd = document.getElementById('wlAddBtn');
