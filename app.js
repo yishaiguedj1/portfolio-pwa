@@ -1424,7 +1424,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v49';
+const APP_VERSION = 'v50';
 
 
 function saveDBto(db) {
@@ -1930,31 +1930,41 @@ async function getDailyFast(sym, force) {
   };
   const notes = [];
   const dq = (host) => yahooURL(sym, 'interval=1d&range=5y', host);
-  let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
-          || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
+  // מרוץ מקבילי: הראשון שעונה מנצח — לא מחכים ל־timeout של מקור חסום (v19 לימד אותנו)
+  const racers = [
+    fetchYahooBars(dq('query1'), false, notes, 'Yahoo'),
+    fetchYahooBars(dq('query2'), false, notes, 'Yahoo2'),
+    (async () => {
+      try {
+        const r = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 7000));
+        return r.length ? r : null;
+      } catch (e) { notes.push('Stooq: ' + netErrName(e)); return null; }
+    })(),
+  ];
+  let rows = await Promise.any(racers.map((p) => p.then((r) => {
+    if (!r) throw new Error('empty');
+    return r;
+  }))).catch(() => null);
   if (rows) return save(rows);
   if (tdKey()) {
     const td = await fetchTwelveBars(sym, 'daily', false, notes);
     if (td === 'BADKEY') clearTdKey(notes);
     else if (td) return save(td);
   }
-  try {
-    rows = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 12000));
-    if (rows.length) return save(rows);
-    notes.push(t('srcEmpty', { name: 'Stooq' }));
-  } catch (e) { notes.push('Stooq: ' + netErrName(e)); }
   state.histDbg[sym] = notes.join(' · ');
   const cached = lsGet(LS_HIST + sym);
   if (cached && cached.rows) { state.hist[sym] = cached.rows; return cached.rows; }
   return [];
 }
 
-/* מחמם את ההיסטוריות של כל האחזקות לטובת גרף הביצועים — במקביל (3 בכל פעם)
-   ובסדר מהיר, כדי שהגרף ייטען תוך שניות ולא דקות. */
+/* מחמם את ההיסטוריות של כל האחזקות (וגם סמלים מעסקאות IBKR היסטוריות)
+   לטובת גרף הביצועים — במקביל, כדי שהגרף ייטען תוך שניות ולא דקות. */
 async function warmPfHistories() {
   const syms = [];
-  for (const p of POSITIONS) if (p.sym && !syms.includes(p.sym)) syms.push(p.sym);
-  await pool(syms, 3, (sym) => getDailyFast(sym, false));
+  const add = (s) => { s = String(s || '').toUpperCase(); if (s && !syms.includes(s)) syms.push(s); };
+  for (const p of POSITIONS) add(p.sym);
+  if (isIbkrMode()) { try { for (const tr of ibkrTrades()) add(tr.symbol); } catch (e) {} }
+  await pool(syms, 4, (sym) => getDailyFast(sym, false));
 }
 
 /* ---------------- חישובים ---------------- */
