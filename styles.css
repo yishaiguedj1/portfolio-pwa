@@ -229,6 +229,10 @@ footer.fine { text-align: center; }
   background: var(--primary); color: var(--on-primary); cursor: pointer;
 }
 .btn:active { background: var(--primary-dark); }
+.link-btn {
+  background: none; border: 0; color: var(--primary); font-size: 13px;
+  text-decoration: underline; cursor: pointer; padding: 6px 4px;
+}
 
 @media (min-width: 560px) {
   .stat-value { font-size: 22px; }
