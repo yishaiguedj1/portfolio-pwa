@@ -605,3 +605,32 @@ footer.fine { text-align: center; }
 .perf-lbl { flex: 1; }
 .perf-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .perf-note { font-size: 14px; color: var(--on-surface-var); font-weight: 400; white-space: normal; text-align: end; }
+
+/* ---- v87: חיפוש מניות להוספה ---- */
+.stock-search-wrap { position: relative; margin: 0 0 12px; }
+#stockSearchInput {
+  width: 100%; padding: 12px 16px; font-size: 16px;
+  border: 1px solid var(--separator); border-radius: 12px;
+  background: var(--surface); color: var(--on-surface);
+  outline: none; box-sizing: border-box;
+}
+#stockSearchInput:focus { border-color: var(--primary); }
+.stock-search-results {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+  background: var(--surface); border: 1px solid var(--separator);
+  border-radius: 12px; margin-top: 4px; max-height: 280px; overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.stock-search-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  cursor: pointer; border-bottom: 1px solid var(--separator);
+}
+.stock-search-item:last-child { border-bottom: 0; }
+.stock-search-item:active { background: var(--surface-var); }
+.ss-sym { font-weight: 700; font-size: 17px; min-width: 70px; }
+.ss-name { flex: 1; font-size: 14px; color: var(--on-surface-var); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-type { font-size: 12px; color: var(--on-surface-var); background: var(--surface-var); padding: 2px 8px; border-radius: 8px; }
+.ss-add { font-size: 22px; color: var(--primary); font-weight: 700; }
+.stock-search-empty, .stock-search-loading {
+  padding: 16px; text-align: center; font-size: 14px; color: var(--on-surface-var);
+}
