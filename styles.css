@@ -516,3 +516,11 @@ footer.fine { text-align: center; }
 .earn-when { font-weight: 700; white-space: nowrap; }
 .earn-date { color: var(--on-surface-var); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wl-earn { margin-top: 6px; font-size: 14px; color: var(--on-surface-var); }
+
+/* ---- ביצועי IBKR ---- */
+.perf-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.perf-row { display: flex; align-items: baseline; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--separator); font-size: 15px; }
+.perf-row:last-child { border-bottom: 0; }
+.perf-lbl { flex: 1; }
+.perf-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.perf-note { font-size: 14px; color: var(--on-surface-var); font-weight: 400; }
