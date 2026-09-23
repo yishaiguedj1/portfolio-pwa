@@ -172,6 +172,18 @@ a { color: var(--link); }
 .lang-menu-item.on { font-weight: 800; color: var(--primary); }
 .lang-menu-item.on::after { content: '✓'; font-weight: 800; }
 
+/* v103: תפריט המבורגר ראשי — פופאובר נקי בסגנון אפל, נפתח משמאל למעלה */
+.menu-wrap { position: relative; flex: none; }
+.main-menu {
+  position: absolute; top: calc(100% + 8px); inset-inline-end: 0;
+  width: min(320px, calc(100vw - 28px));
+  background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: 18px; padding: 16px; z-index: 60;
+  box-shadow: 0 12px 32px rgba(0,0,0,.22);
+}
+.menu-title { margin: 0 0 10px; font-size: 16px; font-weight: 800; }
+.main-menu .btn { width: 100%; margin-top: 10px; }
+
 @media (max-width: 360px) {
   .appbar h1 { font-size: 20px; }
   .icon-btn { width: 40px; height: 40px; font-size: 19px; }
