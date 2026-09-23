@@ -1652,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v82';
+const APP_VERSION = 'v83';
 
 
 function saveDBto(db) {
@@ -2644,7 +2644,8 @@ function ibkrInceptionDate() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
     if (!first || dt < first) first = dt;
   };
-  for (const c of (d.cashTransactions || [])) {
+  // v82: כולל הפקדות היסטוריות 2023-2024
+  for (const c of [...((d.cashTransactions || [])), ...EARLY_DEPOSITS_2023_2024]) {
     if (!c || !ibkrIsDepositTx(c)) continue;
     consider(c.date);
   }
