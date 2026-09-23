@@ -109,6 +109,10 @@ he: {
   stockSearchPh: '🔍 חפש מניה להוספה (למשל: AAPL)',
   stockSearchNoResults: 'לא נמצאו תוצאות',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
+  sortBy: 'מיון:',
+  sortSize: 'גודל בתיק',
+  sortDay: 'ביצועי היום',
+  sortGain: 'מהקנייה',
   editHint: 'מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.',
   addStock: 'הוספת מניה',
   noStocks: 'אין מניות בתיק. הפעילו ✏️ עריכה כדי להוסיף.',
@@ -434,6 +438,10 @@ en: {
   stockSearchPh: '🔍 Search a stock to add (e.g. AAPL)',
   stockSearchNoResults: 'No results found',
   stockSearchError: 'Search failed — try again',
+  sortBy: 'Sort:',
+  sortSize: 'Position size',
+  sortDay: "Day's change",
+  sortGain: 'Since buy',
   editHint: 'Edit mode is on — when done, tap ✏️ Edit again.',
   addStock: 'Add stock',
   noStocks: 'No stocks in the portfolio. Turn on ✏️ Edit to add.',
@@ -1658,7 +1666,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v89';
+const APP_VERSION = 'v90';
 
 
 function saveDBto(db) {
@@ -4381,6 +4389,58 @@ function initStockSearch() {
   });
 }
 
+/* v90: מיון רשימת המניות — נשמר בין טעינות, ברירת מחדל: גודל בתיק */
+const LS_STOCKSORT = 'pwa_stocksort_v1';
+const STOCK_SORTS = ['size', 'day', 'gain'];
+function getStockSort() {
+  try {
+    const v = localStorage.getItem(LS_STOCKSORT);
+    return STOCK_SORTS.includes(v) ? v : 'size';
+  } catch (e) { return 'size'; }
+}
+function setStockSort(v) {
+  if (!STOCK_SORTS.includes(v)) return;
+  try { localStorage.setItem(LS_STOCKSORT, v); } catch (e) {}
+  paintStockSortChips();
+  renderStocks();
+}
+function gainPctOf(p, price) {
+  if (price === null || !(p.avg > 0)) return null;
+  return (price - p.avg) / p.avg * 100;
+}
+/* טהורה לבדיקות: ממיינת עותק לפי מצב; null בסוף */
+function sortPositionsList(list, mode, mOf) {
+  const arr = list.slice();
+  const key = (p) => {
+    const m = mOf(p);
+    if (mode === 'day') return m.dayChg;
+    if (mode === 'gain') return m.gainPct;
+    return m.value;
+  };
+  arr.sort((a, b) => {
+    const ka = key(a), kb = key(b);
+    if (ka === null && kb === null) return 0;
+    if (ka === null) return 1;
+    if (kb === null) return -1;
+    return kb - ka;
+  });
+  return arr;
+}
+function paintStockSortChips() {
+  const cur = getStockSort();
+  document.querySelectorAll('#stockSortRow .sort-chip').forEach((b) => {
+    b.classList.toggle('on', b.dataset.sort === cur);
+  });
+}
+function initStockSort() {
+  const row = document.getElementById('stockSortRow');
+  if (!row) return;
+  row.querySelectorAll('.sort-chip').forEach((b) => {
+    b.addEventListener('click', () => setStockSort(b.dataset.sort));
+  });
+  paintStockSortChips();
+}
+
 function renderStocks() {
   const list = document.getElementById('stockList');
   list.innerHTML = '';
@@ -4399,7 +4459,12 @@ function renderStocks() {
     m.textContent = t('noStocks');
     list.appendChild(m);
   }
-  for (const p of POSITIONS) {
+  const mode = getStockSort();
+  const mOf = (p) => {
+    const m = metrics(p.sym);
+    return { value: m.value, dayChg: m.dayChg, gainPct: gainPctOf(p, m.price) };
+  };
+  for (const p of sortPositionsList(POSITIONS, mode, mOf)) {
     list.appendChild(buildStockCard(p));
   }
 }
@@ -5504,6 +5569,7 @@ function init() {
   wireEditToggle('editPensionBtn', 'editPensionHint', 'pension', renderPension);
   // v87: חיפוש מניות להוספה — זמין בשני המצבים
   try { initStockSearch(); } catch (e) {}
+  try { initStockSort(); } catch (e) {}
 
   // רשימת מעקב — הוספה/מחיקה ישירה, לא חלק מהתיק
   const wlAdd = document.getElementById('wlAddBtn');
