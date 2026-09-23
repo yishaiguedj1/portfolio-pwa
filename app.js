@@ -1713,7 +1713,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v97';
+const APP_VERSION = 'v98';
 
 
 function saveDBto(db) {
@@ -4282,6 +4282,157 @@ function paintPfChart() {
 let _stockSearchT = null;
 let _stockSearchAbort = null;
 
+/* v98: רשימת מניות/ETF פופולריות לחיפוש מקומי — גיבוי כשה־API חסום,
+   וסובלנות לשגיאות כתיב (מרחק לוינשטיין). */
+const POPULAR_STOCKS = [
+  'AAPL|Apple Inc.|EQUITY',
+  'MSFT|Microsoft Corp.|EQUITY',
+  'GOOGL|Alphabet Inc. Class A|EQUITY',
+  'GOOG|Alphabet Inc. Class C|EQUITY',
+  'AMZN|Amazon.com Inc.|EQUITY',
+  'META|Meta Platforms Inc.|EQUITY',
+  'NVDA|NVIDIA Corp.|EQUITY',
+  'TSLA|Tesla Inc.|EQUITY',
+  'AVGO|Broadcom Inc.|EQUITY',
+  'ORCL|Oracle Corp.|EQUITY',
+  'ADBE|Adobe Inc.|EQUITY',
+  'CRM|Salesforce Inc.|EQUITY',
+  'AMD|Advanced Micro Devices|EQUITY',
+  'INTC|Intel Corp.|EQUITY',
+  'QCOM|Qualcomm Inc.|EQUITY',
+  'TXN|Texas Instruments|EQUITY',
+  'INTU|Intuit Inc.|EQUITY',
+  'NOW|ServiceNow Inc.|EQUITY',
+  'APP|AppLovin Corp.|EQUITY',
+  'UBER|Uber Technologies|EQUITY',
+  'MBLY|Mobileye Global|EQUITY',
+  'UNH|UnitedHealth Group|EQUITY',
+  'NFLX|Netflix Inc.|EQUITY',
+  'DIS|Walt Disney Co.|EQUITY',
+  'PYPL|PayPal Holdings|EQUITY',
+  'SHOP|Shopify Inc.|EQUITY',
+  'ABNB|Airbnb Inc.|EQUITY',
+  'COIN|Coinbase Global|EQUITY',
+  'PLTR|Palantir Technologies|EQUITY',
+  'SNOW|Snowflake Inc.|EQUITY',
+  'DDOG|Datadog Inc.|EQUITY',
+  'CRWD|CrowdStrike Holdings|EQUITY',
+  'NET|Cloudflare Inc.|EQUITY',
+  'ARM|Arm Holdings|EQUITY',
+  'MU|Micron Technology|EQUITY',
+  'AMAT|Applied Materials|EQUITY',
+  'LRCX|Lam Research Corp.|EQUITY',
+  'MRVL|Marvell Technology|EQUITY',
+  'JPM|JPMorgan Chase|EQUITY',
+  'BAC|Bank of America|EQUITY',
+  'WFC|Wells Fargo & Co.|EQUITY',
+  'GS|Goldman Sachs|EQUITY',
+  'MS|Morgan Stanley|EQUITY',
+  'AXP|American Express|EQUITY',
+  'V|Visa Inc.|EQUITY',
+  'MA|Mastercard Inc.|EQUITY',
+  'JNJ|Johnson & Johnson|EQUITY',
+  'PFE|Pfizer Inc.|EQUITY',
+  'MRK|Merck & Co.|EQUITY',
+  'ABBV|AbbVie Inc.|EQUITY',
+  'LLY|Eli Lilly & Co.|EQUITY',
+  'TMO|Thermo Fisher Scientific|EQUITY',
+  'DHR|Danaher Corp.|EQUITY',
+  'AMGN|Amgen Inc.|EQUITY',
+  'GILD|Gilead Sciences|EQUITY',
+  'CVS|CVS Health Corp.|EQUITY',
+  'WMT|Walmart Inc.|EQUITY',
+  'COST|Costco Wholesale|EQUITY',
+  'TGT|Target Corp.|EQUITY',
+  'HD|Home Depot Inc.|EQUITY',
+  'NKE|Nike Inc.|EQUITY',
+  'SBUX|Starbucks Corp.|EQUITY',
+  'KO|Coca-Cola Co.|EQUITY',
+  'PEP|PepsiCo Inc.|EQUITY',
+  'PG|Procter & Gamble|EQUITY',
+  'XOM|Exxon Mobil Corp.|EQUITY',
+  'CVX|Chevron Corp.|EQUITY',
+  'COP|ConocoPhillips|EQUITY',
+  'BA|Boeing Co.|EQUITY',
+  'CAT|Caterpillar Inc.|EQUITY',
+  'DE|Deere & Co.|EQUITY',
+  'HON|Honeywell International|EQUITY',
+  'UPS|United Parcel Service|EQUITY',
+  'GE|General Electric|EQUITY',
+  'LMT|Lockheed Martin|EQUITY',
+  'RTX|RTX Corp.|EQUITY',
+  'T|AT&T Inc.|EQUITY',
+  'VZ|Verizon Communications|EQUITY',
+  'CMCSA|Comcast Corp.|EQUITY',
+  'BRK.B|Berkshire Hathaway B|EQUITY',
+  'TSM|Taiwan Semiconductor|EQUITY',
+  'ASML|ASML Holding|EQUITY',
+  'BABA|Alibaba Group|EQUITY',
+  'TEVA|Teva Pharmaceutical|EQUITY',
+  'SPY|SPDR S&P 500 ETF|ETF',
+  'VOO|Vanguard S&P 500 ETF|ETF',
+  'QQQ|Invesco QQQ Trust|ETF',
+  'VTI|Vanguard Total Stock Market ETF|ETF',
+  'DIA|SPDR Dow Jones Industrial ETF|ETF',
+  'IWM|iShares Russell 2000 ETF|ETF',
+  'ARKK|ARK Innovation ETF|ETF',
+  'XLK|Technology Select Sector SPDR|ETF',
+  'XLF|Financial Select Sector SPDR|ETF',
+  'SCHD|Schwab US Dividend Equity ETF|ETF',
+].map((l) => l.split("|"));
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = new Array(n + 1), cur = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    const tmp = prev; prev = cur; cur = tmp;
+  }
+  return prev[n];
+}
+
+/* חיפוש מקומי סובלני־שגיאות: סימבול מדויק/תחילית, שם מכיל, או טעות כתיב קלה */
+function localStockSearch(query) {
+  const q = String(query || '').trim().toUpperCase();
+  if (q.length < 2) return [];
+  const out = [];
+  for (const [sym, name, type] of POPULAR_STOCKS) {
+    let score = 0;
+    if (sym === q) score = 100;
+    else if (sym.startsWith(q)) score = 80;
+    else if (name.toUpperCase().includes(q)) score = 60;
+    else if (q.length >= 3) {
+      const d = levenshtein(sym, q);
+      if (d <= 2) score = 50 - d * 10;
+    }
+    if (score > 0) out.push({ sym, name, type, _s: score });
+  }
+  out.sort((a, b) => b._s - a._s);
+  return out.slice(0, 8).map(({ sym, name, type }) => ({ sym, name, type }));
+}
+
+/* בדיקת סימבול ישירה דרך Stooq (גיבוי כשה־chart של Yahoo חסום) */
+async function stooqDirectSymbol(q) {
+  const sym = String(q || '').replace(/[^A-Z0-9.-]/g, '');
+  if (!sym || sym.length > 12) return null;
+  try {
+    const s = sym.includes('.') ? sym : sym + '.US';
+    const res = await fetch('https://stooq.com/q/l/?s=' + encodeURIComponent(s) + '&f=sd2t2ohlcv&h&e=csv');
+    if (!res.ok) return null;
+    const lines = (await res.text()).trim().split('\n');
+    if (lines.length < 2) return null;
+    const parts = lines[1].split(',');
+    if (!parts[6] || parts[6] === 'N/D') return null;
+    return { sym, name: sym, type: 'EQUITY' };
+  } catch (e) { return null; }
+}
+
 async function searchStocksYahoo(query) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
@@ -4289,10 +4440,16 @@ async function searchStocksYahoo(query) {
   const apiRes = await yahooSearchAPI(q);
   if (apiRes === 'aborted') return 'aborted';
   if (apiRes && apiRes.length) return apiRes;
-  // 2. גיבוי: בדיקת סימבול ישירה דרך ה־chart API — ה־search API מוגבל/נחסם
-  //    לפעמים (429), וה־chart API אמין יותר. מכסה הקלדת סימבול כמו GOOG.
-  const direct = await yahooDirectSymbol(q);
-  if (direct) return [direct];
+  // 2. גיבוי: בדיקת סימבול ישירה — Yahoo ו־Stooq במקביל, כי אחד מהם
+  //    נחסם לפעמים (429). מכסה הקלדת סימבול כמו GOOG.
+  const sym = normalizeSym(q).replace(/[^A-Z0-9.-]/g, '');
+  if (sym && sym.length <= 12) {
+    const [yRes, sRes] = await Promise.all([yahooDirectSymbol(sym), stooqDirectSymbol(sym)]);
+    if (yRes || sRes) return [yRes || sRes];
+  }
+  // 3. גיבוי מקומי סובלני־שגיאות — עובד גם כשהרשת חסומה
+  const local = localStockSearch(q);
+  if (local.length) return local;
   return apiRes === null ? null : [];
 }
 
