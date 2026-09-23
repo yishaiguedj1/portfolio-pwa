@@ -470,6 +470,8 @@ footer.fine { text-align: center; }
 }
 .chip-btn.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .chip-btn.danger { color: var(--loss); border-color: var(--loss); }
+/* אייקון inline נקי בצבע המותג (מחליף אימוג'י צבעוני) */
+.ic { width: 1.15em; height: 1.15em; vertical-align: -0.22em; margin-inline-end: 0.35em; flex: none; }
 .edit-actions { display: flex; gap: 12px; align-items: center; padding: 8px 18px 14px; }
 .row-actions { display: flex; gap: 8px; flex: none; }
 .mini-btn {
