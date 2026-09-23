@@ -1,6 +1,6 @@
 /* בדיקות ל-ibkr-proxy. הרצה: node tests/run.js */
 const assert = require('node:assert/strict');
-const { statementBaseFrom, statementEndpointFrom, errorXml } = require('../lib/ibkr');
+const { statementBaseFrom, statementEndpointFrom, errorXml, ibkrUserAgent, FLEX_SEND_PATH, FLEX_GET_PATH } = require('../lib/ibkr');
 const flexStatement = require('../api/flex-statement');
 const flexRequest = require('../api/flex-request');
 
@@ -20,12 +20,13 @@ ok(statementBaseFrom('') === null, 'ריק נדחה');
 ok(statementBaseFrom('not a url') === null, 'זבל נדחה');
 ok(statementBaseFrom(null) === null, 'null נדחה');
 
-ok(statementEndpointFrom('https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement?q=1').path
-  === '/Universal/servlet/FlexStatementService.GetStatement', 'נתיב Flex תקין מתקבל');
-ok(statementEndpointFrom('https://evil.com/Universal/servlet/FlexStatementService.GetStatement') === null, 'הוסט זר ב-endpoint נדחה');
-ok(statementEndpointFrom('https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement') === null,
-  'נתיב AccountManagement נדחה (נחסם ע"י IBKR)');
-ok(errorXml("<FlexStatementResponse><Status>Fail</Status><ErrorCode>1020</ErrorCode><ErrorMessage>Invalid request</ErrorMessage></FlexStatementResponse>").code === '1020',
+ok(statementEndpointFrom('https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?q=1').path
+  === '/AccountManagement/FlexWebService/GetStatement', 'נתיב Flex תקין מתקבל');
+ok(statementEndpointFrom('https://evil.com/AccountManagement/FlexWebService/GetStatement') === null, 'הוסט זר ב-endpoint נדחה');
+ok(statementEndpointFrom('https://ndcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement') === null,
+  'הנתיב הישן Universal נדחה (IBKR מחזיר עליו תמיד 1001)');
+ok(/^Node\.js\/\d/.test(ibkrUserAgent()), 'User-Agent תקין (Node.js)');
+  ok(errorXml("<FlexStatementResponse><Status>Fail</Status><ErrorCode>1020</ErrorCode><ErrorMessage>Invalid request</ErrorMessage></FlexStatementResponse>").code === '1020',
   'Status=Fail מזוהה כשגיאה');
 
 /* ---------- mock req/res ---------- */
@@ -62,9 +63,9 @@ function stubFetch(text, status = 200) {
   /* ---------- POST ready, statementUrl מאושר ---------- */
   stubFetch(READY_XML);
   let res = mockRes();
-  await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123', statementUrl: 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement?q=ABC&t=1' } }), res);
+  await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123', statementUrl: 'https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?q=ABC&t=1' } }), res);
   ok(res.payload.ok === true && res.payload.status === 'ready', 'POST מחזיר ready');
-  ok(lastFetchUrl.startsWith('https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement?t=1234567890&q=ABC123'),
+  ok(lastFetchUrl.startsWith('https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?t=1234567890&q=ABC123'),
     'משתמש ב-host ובנתיב ש-IBKR החזיר');
   ok(res.payload.data.trades.length === 1 && res.payload.data.trades[0].symbol === 'AAPL', 'עסקה נפרסה');
   ok(res.payload.data.positions[0].unrealized === 45, 'פוזיציה נפרסה');
@@ -128,7 +129,7 @@ function stubFetch(text, status = 200) {
   ok(res.payload.ok === true && res.payload.referenceCode === 'RC123', 'נדחה ב-ndcdyn, הצליח ב-gdcdyn');
   ok(seenHosts.length === 2 && seenHosts[0].startsWith('https://ndcdyn.') && seenHosts[1].startsWith('https://gdcdyn.'),
     'ניסה את שני ההוסטים לפי הסדר');
-  ok(seenHosts[0].includes('/Universal/servlet/FlexStatementService.SendRequest?t='), 'נתיב SendRequest רשמי');
+  ok(seenHosts[0].includes('/AccountManagement/FlexWebService/SendRequest?t='), 'נתיב SendRequest רשמי');
 
   /* ---------- 200 עם שגיאת Flex בהוסט הראשון -> לא מנסה שני ---------- */
   seenHosts.length = 0;
@@ -144,7 +145,7 @@ function stubFetch(text, status = 200) {
   /* ---------- נסיון חוזר על שגיאה זמנית (1001) ---------- */
   flexRequest._setRetryWaitMs(1);
   const FAIL1001 = `<FlexStatementResponse><Status>Fail</Status><ErrorCode>1001</ErrorCode><ErrorMessage>Statement could not be generated at this time. Please try again shortly.</ErrorMessage></FlexStatementResponse>`;
-  const SEND_OK = `<FlexStatementResponse><Status>Success</Status><ReferenceCode>RC9</ReferenceCode><Url>https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement</Url></FlexStatementResponse>`;
+  const SEND_OK = `<FlexStatementResponse><Status>Success</Status><ReferenceCode>RC9</ReferenceCode><Url>https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement</Url></FlexStatementResponse>`;
   let calls = 0;
   global.fetch = async () => {
     calls++;
@@ -188,7 +189,7 @@ function stubFetch(text, status = 200) {
     return { status: 200, text: async () => READY_XML };
   };
   res = mockRes();
-  await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123', statementUrl: 'https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService.GetStatement?q=ABC' } }), res);
+  await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123', statementUrl: 'https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?q=ABC' } }), res);
   ok(res.payload.ok === true && res.payload.status === 'ready', 'statement נפל להוסט השני והצליח');
   ok(seenStmt.length === 2 && seenStmt[1].startsWith('https://ndcdyn.'), 'ההוסט השני נוסה');
 
