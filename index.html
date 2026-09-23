@@ -36,31 +36,23 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
     <div class="menu-wrap">
       <button id="menuBtn" class="icon-btn" type="button" data-i18n-aria="menuAria" aria-label="תפריט" aria-haspopup="true" aria-expanded="false"></button>
-      <div id="mainMenu" class="main-menu hidden">
-        <div class="menu-section">
-          <h3 class="menu-title" data-i18n="cashTitle">מזומן בתיק</h3>
-          <div class="form-grid">
-            <label><span data-i18n="cashUsdL">דולרים ($)</span><input id="cashUsd" type="number" min="0" step="any" inputmode="decimal"></label>
-            <label><span data-i18n="cashIlsL">שקלים (₪)</span><input id="cashIls" type="number" min="0" step="any" inputmode="decimal"></label>
-          </div>
-          <div class="form-err hidden" id="cashErr"></div>
-          <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
+      <div id="menuDrop" class="menu-drop hidden">
+        <div class="menu-circles">
+          <button id="themeToggleBtn" class="icon-btn" type="button" data-i18n-aria="themeToggleAria" aria-label="מעבר בין בהיר לכהה"></button>
+          <button id="themeSystemBtn" class="icon-btn" type="button" data-i18n-aria="themeSystemAria" aria-label="ערכת נושא לפי המערכת"></button>
+          <button id="menuSettingsBtn" class="icon-btn" type="button" data-i18n-aria="menuSettings" aria-label="הגדרות"></button>
         </div>
-        <div class="menu-sep"></div>
-        <div class="menu-section">
-          <h3 class="menu-title" data-i18n="themeTitle">ערכת נושא</h3>
-          <div class="theme-toggle" role="group" data-i18n-aria="themeTitle" aria-label="ערכת נושא">
-            <button type="button" id="themeLight" class="theme-opt" data-i18n="themeLight">בהיר</button>
-            <button type="button" id="themeSystem" class="theme-opt" data-i18n="themeSystem">מערכת</button>
-            <button type="button" id="themeDark" class="theme-opt" data-i18n="themeDark">כהה</button>
+        <div id="mainMenu" class="main-menu">
+          <div class="menu-section">
+            <h3 class="menu-title" data-i18n="cashTitle">מזומן בתיק</h3>
+            <div class="form-grid">
+              <label><span data-i18n="cashUsdL">דולרים ($)</span><input id="cashUsd" type="number" min="0" step="any" inputmode="decimal"></label>
+              <label><span data-i18n="cashIlsL">שקלים (₪)</span><input id="cashIls" type="number" min="0" step="any" inputmode="decimal"></label>
+            </div>
+            <div class="form-err hidden" id="cashErr"></div>
+            <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
           </div>
         </div>
-        <div class="menu-sep"></div>
-        <button id="menuSettingsBtn" class="menu-row" type="button">
-          <span class="menu-row-ic" id="menuSettingsIc"></span>
-          <span data-i18n="menuSettings">הגדרות</span>
-          <span class="menu-row-chev" id="menuSettingsChev"></span>
-        </button>
       </div>
     </div>
   </div>
