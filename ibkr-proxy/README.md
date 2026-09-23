@@ -19,9 +19,13 @@ IBKR Flex Web Service. הוא **לא שומר שום סוד** — הטוקן ו�
 ## API
 - `POST /api/flex-request` עם `{ token, queryId }`
   → `{ ok:true, referenceCode }` (או `{ ok:false, error }`)
-- `GET /api/flex-statement?token=..&code=..`
+- `POST /api/flex-statement` עם `{ token, code, statementUrl? }`
+  (מומלץ — הטוקן לא מופיע ב־URL; גם `GET` עם query params עובד).
+  `statementUrl` הוא ה־`<Url>` ש־SendRequest מחזיר — מתקבלים רק שרתי IBKR
+  הידועים (`ndcdyn`/`gdcdyn.interactivebrokers.com`), אחרת משתמשים בברירת המחדל.
   → `{ ok:true, status:'pending' }` עד שהדוח מוכן,
-  → `{ ok:true, status:'ready', data:{...} }` כשמוכן.
+  → `{ ok:true, status:'ready', data:{...} }` כשמוכן,
+  → `{ ok:false, error }` בשגיאה.
 
 ## מבנה data
 `{ meta, trades[], positions[], cashTransactions[], nav, cashBalances[] }`
