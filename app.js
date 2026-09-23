@@ -1652,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v81';
+const APP_VERSION = 'v82';
 
 
 function saveDBto(db) {
@@ -3301,6 +3301,24 @@ function buildTradesHistory(o, fromDate) {
     // אירועי היום עצמו שייכים לסוף היום — מבטלים רק מה שעבר אותו
     stateByDate[d] = snap();
   }
+  // v82: מבטלים גם את אירועי התאריך המוקדם ביותר (שלא בוטלו בלולאה) —
+  // כדי לקבל את מצב הפתיחה האמיתי (לפני כל האירועים).
+  let inceptionCashUsd = cashUsd;
+  try {
+    while (ei < evDates.length) {
+      for (const e of byDate.get(evDates[ei])) {
+        if (e.kind === 'flow') { cashUsd -= e.amt; continue; }
+        if (e.kind === 'div') { cashUsd -= e.amt; continue; }
+        const x = e.x;
+        const usd = x.qty * x.price * x.fxb + x.comm * x.fxb;
+        if (x.buy) { shares[x.sym] = (shares[x.sym] || 0) - x.qty; cashUsd += usd; }
+        else { shares[x.sym] = (shares[x.sym] || 0) + x.qty; cashUsd -= (x.qty * x.price * x.fxb - x.comm * x.fxb); }
+      }
+      ei++;
+    }
+    inceptionCashUsd = cashUsd;
+  } catch (e) {}
+
 
   // v81: כיול מזומן מ־NAV רשמי (ChangeInNAV). אם המזומן ההתחלתי (DB.cash)
   // שגוי, כל הסדרה המשוחזרת סוטה בקבוע — והסטייה מתעצמת בהליכה אחורה.
@@ -3368,6 +3386,9 @@ function buildTradesHistory(o, fromDate) {
     prev = r.v;
   }
   out.noHist = noHistSyms;
+  // v82: חושף את המזומן בתאריך ההתחלה — לזיהוי הפקדת פתיחה חסרה (2024).
+  // (מזומן הפתיחה האמיתי, אחרי ביטול כל האירועים — לא סוף היום הראשון.)
+  try { out.inceptionCash = inceptionCashUsd || 0; } catch (e) {}
   return out;
 }
 
@@ -3398,6 +3419,23 @@ function _ibkrThSig(d) {
   ].join('~');
 }
 function ibkrThCacheClear() { _ibkrThCache = {}; }
+/* v82: הפקדות היסטוריות 2023-2024 שלא בדוח Flex (מעל שנה).
+   מקור: קובץ CSV שהמשתמש סיפק (Activity Statement 29/09/2023-27/09/2024).
+   11 הפקדות, סך $14,654. נדרש לחישוב TWR נכון מטווח מקסימום. */
+const EARLY_DEPOSITS_2023_2024 = [
+  { date: '2023-10-02', amount: 1901.22, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2023-11-07', amount: 3345.77, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2023-11-15', amount: 1847.79, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2023-11-20', amount: 665.51, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2023-12-11', amount: 1204.50, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2023-12-14', amount: 390.73, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2024-02-20', amount: 679.46, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2024-02-26', amount: 817.68, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2024-03-05', amount: 1105.28, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2024-08-19', amount: 1341.74, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+  { date: '2024-08-29', amount: 1354.32, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
+];
+
 function ibkrTradesHistory(fromDate) {
   if (!isIbkrMode()) return [];
   const d = ibkrCfg().data;
@@ -3411,13 +3449,21 @@ function ibkrTradesHistory(fromDate) {
   // פוזיציות לשחזור — כולל שורט (כמות שלילית), שאינן ב־POSITIONS של התצוגה.
   // מסנן LOT (פירוט כפול) — רק SUMMARY (תיקון באג כפילות v68).
   const posMap = {};
+  const posHasLOD = ((d && d.positions) || []).some((p) => p && p.levelOfDetail);
   for (const p of ((d && d.positions) || [])) {
     if (p.levelOfDetail && p.levelOfDetail !== 'SUMMARY') continue;
     const qty = Number(p.qty) || 0;
     const sym = String(p.symbol || '').toUpperCase();
     const isStock = !p.asset || p.asset === 'STK';
     if (!qty || !sym || !isStock || p.currency !== 'USD') continue;
-    posMap[sym] = (posMap[sym] || 0) + qty;
+    // v82: הגנה מפני שורות כפולות (SUMMARY+LOT בלי levelOfDetail) — לוקחים את
+    // הכמות הגדולה ביותר (בערך מוחלט) במקום לסכום, כדי לא להכפיל פוזיציות.
+    // אם יש levelOfDetail, הסינון למעלה כבר מטפל — הסכימה בטוחה.
+    if (posHasLOD) {
+      posMap[sym] = (posMap[sym] || 0) + qty;
+    } else {
+      if (!posMap[sym] || Math.abs(qty) > Math.abs(posMap[sym])) posMap[sym] = qty;
+    }
   }
   const positions = Object.keys(posMap).map((sym) => ({ sym, shares: posMap[sym] }));
   // v80: מזומן מנתוני IBKR (cashBalances), לא מ־DB.cash הידני — עקבי עם הפוזיציות.
@@ -3450,7 +3496,7 @@ function ibkrTradesHistory(fromDate) {
   } catch (e) {}
   const rows = buildTradesHistory({
     trades: trades,
-    cashTx: (d && d.cashTransactions) || [],
+    cashTx: [...((d && d.cashTransactions) || []), ...EARLY_DEPOSITS_2023_2024],
     positions: positions,
     cash: ibkrCash || (DB && DB.cash) || { usd: 0, ils: 0 },
     hist: state.hist,
@@ -4006,14 +4052,21 @@ async function drawPfChart() {
     try {
       const dd = (typeof ibkrCfg === 'function' && ibkrCfg().data) || {};
       const csh = (dd.cashTransactions || []);
+      const flows = csh.filter(ibkrIsDepositTx);
+      // v82: טווח תאריכי תזרימים + פילוח שנתי — לזיהוי הפקדות חסרות ב־2024-2025
+      const fdates = flows.map((c) => String(c.date || '').slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+      const byYear = {};
+      for (const d of fdates) { const y = d.slice(0, 4); byYear[y] = (byYear[y] || 0) + 1; }
+      const fRange = fdates.length ? fdates[0] + '..' + fdates[fdates.length - 1] : '—';
+      const yBreak = Object.keys(byYear).sort().map((y) => y + ':' + byYear[y]).join(' ');
       pfDiag = {
         t: (dd.trades || []).filter(ibkrIsStockTrade).length,
-        f: csh.filter(ibkrIsDepositTx).length,
+        f: flows.length,
         d: csh.filter(ibkrIsDividendTx).length,
         from: pfRows.length ? pfRows[0].date : '',
         to: pfRows.length ? pfRows[pfRows.length - 1].date : '',
         y: ibkrCashTxTypeList(csh).join(', '),
-        w: (pfRows.noHist || []).join(', '),
+        w: (pfRows.noHist || []).join(', ') + ' | תזרימים: ' + fRange + ' (' + yBreak + ')',
       };
     } catch (e) { pfDiag = null; }
   }
