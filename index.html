@@ -191,6 +191,22 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <ul id="pensionReturns" class="legend"></ul>
     </div>
     <div class="card">
+      <h2 data-i18n="fundsTitle">קרנות פנסיה והשתלמות</h2>
+      <div id="pensionFundEditors"></div>
+      <div class="form-grid">
+        <label><span data-i18n="newFundName">שם קרן חדשה</span><input id="newFundName" type="text" data-i18n-ph="newFundPh" placeholder="למשל: מיטב" autocomplete="off"></label>
+        <label><span data-i18n="fldType">סוג</span><select id="newFundKind">
+          <option value="pension" data-i18n="optPension">פנסיה</option>
+          <option value="study" data-i18n="optStudy">קרן השתלמות</option>
+        </select></label>
+      </div>
+      <div class="form-err hidden" id="pfErr"></div>
+      <div class="btn-row">
+        <button id="pensionFundAdd" class="btn" type="button" data-i18n="addFund">＋ הוסף קרן</button>
+        <button id="pensionFundsSave" class="btn" type="button" data-i18n="saveFunds">שמור קרנות</button>
+      </div>
+    </div>
+    <div class="card">
       <div class="section-head">
         <h2 data-i18n="pensionDepositsTitle">הפקדות פנסיה</h2>
         <button id="editPensionBtn" class="chip-btn" type="button" data-i18n-html="editBtn">עריכה</button>
@@ -268,23 +284,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       </div>
       <div class="form-err hidden" id="cashErr"></div>
       <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
-    </div>
-
-    <div class="card">
-      <h2 data-i18n="fundsTitle">קרנות פנסיה והשתלמות</h2>
-      <div id="pensionFundEditors"></div>
-      <div class="form-grid">
-        <label><span data-i18n="newFundName">שם קרן חדשה</span><input id="newFundName" type="text" data-i18n-ph="newFundPh" placeholder="למשל: מיטב" autocomplete="off"></label>
-        <label><span data-i18n="fldType">סוג</span><select id="newFundKind">
-          <option value="pension" data-i18n="optPension">פנסיה</option>
-          <option value="study" data-i18n="optStudy">קרן השתלמות</option>
-        </select></label>
-      </div>
-      <div class="form-err hidden" id="pfErr"></div>
-      <div class="btn-row">
-        <button id="pensionFundAdd" class="btn" type="button" data-i18n="addFund">＋ הוסף קרן</button>
-        <button id="pensionFundsSave" class="btn" type="button" data-i18n="saveFunds">שמור קרנות</button>
-      </div>
     </div>
 
     <div class="card danger-card">
