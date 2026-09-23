@@ -34,9 +34,10 @@
 
 <nav class="tabs" role="tablist" aria-label="לשוניות">
   <button class="tab active" data-tab="overview" type="button" role="tab">סקירה</button>
-  <button class="tab" data-tab="stocks" type="button" role="tab">מניות <span class="count-chip">9</span></button>
+  <button class="tab" data-tab="stocks" type="button" role="tab">מניות <span class="count-chip" id="stockCount">9</span></button>
   <button class="tab" data-tab="deposits" type="button" role="tab">הפקדות</button>
   <button class="tab" data-tab="pension" type="button" role="tab">פנסיה</button>
+  <button class="tab" data-tab="settings" type="button" role="tab">הגדרות</button>
 </nav>
 
 <main>
@@ -61,6 +62,16 @@
     </div>
 
     <div class="card">
+      <div class="section-head">
+        <h2>ביצועי התיק לאורך זמן</h2>
+      </div>
+      <div class="chip-row" id="pfChips"></div>
+      <div class="chart-wrap"><canvas id="pfChart" height="220"></canvas><div id="pfLoading" class="chart-loading">טוען נתונים…</div></div>
+      <ul id="pfLegend" class="legend"></ul>
+      <p class="fine" style="padding:0">הדמיה בלבד: כך היו מתנהגות האחזקות והכמויות הנוכחיות לאורך זמן, מנורמל ל־100 בתחילת הטווח. לא ידוע מתי כל מניה נקנתה או נמכרה, והפקדות ומשיכות אינן משוקללות לאורך הקו.</p>
+    </div>
+
+    <div class="card">
       <h2>חלוקת תיק מניות</h2>
       <div class="pie-wrap"><canvas id="pieChart" height="220"></canvas></div>
       <ul id="pieLegend" class="legend"></ul>
@@ -69,7 +80,7 @@
     <details class="card note">
       <summary>שקיפות חישובים</summary>
       <div class="note-body">
-        <p>התשואה מחושבת מול <b>סך ההפקדות נטו (₪187,319)</b> כפי שמופיע בגיליון:</p>
+        <p>התשואה מחושבת מול <b>סך ההפקדות נטו (<span id="noteDepTotal">—</span>)</b> כפי שמופיע בגיליון:</p>
         <p>רווח/הפסד = שווי התיק − הפקדות · תשואה = רווח ÷ הפקדות.</p>
         <p>שים לב: סכום (כמות × מחיר קנייה ממוצע) עומד על כ־$65,672 (כ־₪198K) — כ־₪10.7K מעל סך ההפקדות. פער אפשרי מעיגול או עדכון מחירי הקנייה בגיליון, מרשומת +₪37,000 (משיכה/תיקון) או מהשפעות מט״ח. כדאי לוודא מול הגיליון.</p>
         <p>התשואה בשקלים מגלמת גם את תנועת שער הדולר, לא רק את ביצועי המניות.</p>
@@ -79,29 +90,27 @@
 
   <!-- מניות -->
   <section id="tab-stocks" class="tabpage" role="tabpanel">
-    <div id="tdKeyCard" class="card hidden">
-      <h2>הפעלת הגרפים 📈</h2>
-      <p class="fine">הגרפים צריכים מפתח נתונים חינמי — דקת הרשמה, בלי כרטיס אשראי. המפתח נשמר רק בטלפון שלך, לא באתר.</p>
-      <p><a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">להרשמה חינמית ב־Twelve Data</a></p>
-      <div class="tdkey-row">
-        <input id="tdKeyInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="הדבק כאן את המפתח" dir="ltr">
-        <button id="tdKeySave" type="button" class="btn">שמור</button>
-      </div>
-      <p class="fine" style="padding:0"><button id="tdKeyCancel" type="button" class="link-btn hidden">סגור בלי לשמור</button></p>
+    <div class="section-head">
+      <h2>המניות שלי</h2>
+      <button id="editStocksBtn" class="chip-btn" type="button">✏️ עריכה</button>
     </div>
+    <p class="fine hidden" id="editStocksHint">מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על ✏️ עריכה.</p>
     <div id="stockList"></div>
-    <p class="fine" style="text-align:center"><button id="tdKeyChange" type="button" class="link-btn">החלפת מפתח גרפים</button></p>
   </section>
 
   <!-- הפקדות -->
   <section id="tab-deposits" class="tabpage" role="tabpanel">
     <div class="card stat wide">
       <div class="stat-label">סך הפקדות נטו</div>
-      <div class="stat-value">₪187,319</div>
-      <div class="stat-sub">48 רשומות · סכום מדויק מהגיליון</div>
+      <div class="stat-value" id="depTotal">—</div>
+      <div class="stat-sub"><span id="depCount">—</span> · מחושב מהרשומות למטה</div>
     </div>
     <div class="card">
-      <h2>כל ההפקדות</h2>
+      <div class="section-head">
+        <h2>כל ההפקדות</h2>
+        <button id="editDepositsBtn" class="chip-btn" type="button">✏️ עריכה</button>
+      </div>
+      <p class="fine hidden" id="editDepositsHint" style="padding:0">מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.</p>
       <ul id="depositList" class="rows"></ul>
     </div>
     <p class="fine">סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.</p>
@@ -115,8 +124,60 @@
       <div class="pension-total" id="pensionTotal">—</div>
     </div>
     <div class="card">
-      <h2>הפקדות פנסיה</h2>
+      <div class="section-head">
+        <h2>הפקדות פנסיה</h2>
+        <button id="editPensionBtn" class="chip-btn" type="button">✏️ עריכה</button>
+      </div>
+      <p class="fine hidden" id="editPensionHint" style="padding:0">מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.</p>
       <ul id="pensionDeposits" class="rows"></ul>
+    </div>
+  </section>
+
+  <!-- הגדרות -->
+  <section id="tab-settings" class="tabpage" role="tabpanel">
+    <div class="card" id="tdKeyCard">
+      <h2>מפתח נתונים (Twelve Data) 📈</h2>
+      <p class="fine" style="padding:0">המפתח מפעיל את הגרפים. נשמר רק בטלפון הזה, לא באתר.</p>
+      <div class="fine" id="tdKeyStatus" style="padding:0"></div>
+      <p><a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">להרשמה חינמית ב־Twelve Data</a></p>
+      <div class="tdkey-row">
+        <input id="tdKeyInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="הדבק כאן את המפתח" dir="ltr">
+        <button id="tdKeySave" type="button" class="btn">שמור</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>מזומן בתיק</h2>
+      <div class="form-grid">
+        <label>דולרים ($)<input id="cashUsd" type="number" min="0" step="any" inputmode="decimal"></label>
+        <label>שקלים (₪)<input id="cashIls" type="number" min="0" step="any" inputmode="decimal"></label>
+      </div>
+      <div class="form-err hidden" id="cashErr"></div>
+      <button id="cashSave" class="btn" type="button">שמור מזומן</button>
+    </div>
+
+    <div class="card">
+      <h2>קרנות פנסיה והשתלמות</h2>
+      <div id="pensionFundEditors"></div>
+      <div class="form-err hidden" id="pfErr"></div>
+      <button id="pensionFundsSave" class="btn" type="button">שמור קרנות</button>
+    </div>
+
+    <div class="card">
+      <h2>גיבוי נתונים</h2>
+      <p class="fine" style="padding:0">הנתונים נשמרים בטלפון בלבד ועלולים להימחק בניקוי נתוני הדפדפן. מומלץ לייצא גיבוי מדי פעם.</p>
+      <div class="edit-actions" style="padding:0">
+        <button id="exportDb" class="chip-btn" type="button">⬇️ ייצוא גיבוי</button>
+        <button id="importDb" class="chip-btn" type="button">⬆️ ייבוא גיבוי</button>
+        <input id="importDbFile" type="file" accept="application/json" class="hidden">
+      </div>
+      <div class="form-err hidden" id="backupErr"></div>
+    </div>
+
+    <div class="card danger-card">
+      <h2>איפוס נתונים</h2>
+      <p class="fine" style="padding:0">מחזיר את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) לערכי הגיליון המקוריים. לא ניתן לבטל.</p>
+      <button id="resetData" class="btn danger-btn" type="button">שחזור נתוני ברירת מחדל</button>
     </div>
   </section>
 </main>
