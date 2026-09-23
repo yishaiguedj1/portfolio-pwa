@@ -1650,7 +1650,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v74';
+const APP_VERSION = 'v75';
 
 
 function saveDBto(db) {
@@ -2628,6 +2628,29 @@ function navToTwr(navRows, flowsByDate) {
     out.push({ date: navRows[i].date, value: cum });
   }
   return out;
+}
+
+/* תאריך הקמת התיק — תאריך התזרים החיצוני (הפקדה) הראשון, או העסקה הראשונה.
+   טווחים שמתחילים לפני תאריך זה מציגים תשואה פיקטיבית — חותכים אותם.
+   v75: תיקון לטווחי 3Y/מקסימום שהראו ‎-12%‎ במקום ‎+48%‎. */
+function ibkrInceptionDate() {
+  const d = ibkrCfg().data;
+  if (!d) return null;
+  let first = null;
+  const consider = (dt) => {
+    dt = String(dt || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
+    if (!first || dt < first) first = dt;
+  };
+  for (const c of (d.cashTransactions || [])) {
+    if (!c || !ibkrIsDepositTx(c)) continue;
+    consider(c.date);
+  }
+  for (const t of (d.trades || [])) {
+    if (!t || !ibkrIsStockTrade(t)) continue;
+    consider(t.date);
+  }
+  return first;
 }
 
 /* מפת תזרימים יומית מנתוני IBKR — {date: סכום ב־USD}, חיובי = נכנס.
@@ -3821,6 +3844,24 @@ async function drawPfChart() {
     pfRows = sliceFromDate(allRows, state.pfCustomFrom);
   } else {
     pfRows = filterRange(allRows, state.pfRange);
+  }
+  // v75: חיתוך לתאריך הקמה — טווח שמתחיל לפני שהתיק נפתח מציג תשואה פיקטיבית.
+  // (3Y/מקסימום הראו ‎-12%‎ כי כללו חודשים לפני ההפקדה הראשונה.)
+  if (isIbkrMode() && pfRows.length >= 2) {
+    try {
+      const inception = ibkrInceptionDate();
+      if (inception && pfRows[0].date < inception) {
+        const cut = pfRows.filter((r) => r.date >= inception);
+        if (cut.length >= 2) {
+          const base = cut[0].value;
+          if (base > 0) {
+            pfRows = cut.map((r) => ({ date: r.date, value: (r.value / base) * 100 }));
+          } else {
+            pfRows = cut;
+          }
+        }
+      }
+    } catch (e) {}
   }
   if (pfRows.length < 2) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
