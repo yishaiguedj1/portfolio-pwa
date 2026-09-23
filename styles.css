@@ -183,6 +183,21 @@ a { color: var(--link); }
 }
 .menu-title { margin: 0 0 10px; font-size: 16px; font-weight: 800; }
 .main-menu .btn { width: 100%; margin-top: 10px; }
+.menu-sep { height: 1px; background: var(--card-border); margin: 14px -16px; }
+.main-menu .theme-toggle { margin-top: 0; }
+/* v104: שורת קישור בתפריט — אייקון נקי + טקסט + שברון */
+.menu-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  border: 0; background: none; cursor: pointer; padding: 10px 4px;
+  font-size: 17px; font-weight: 700; font-family: var(--font); color: var(--on-surface);
+  text-align: start; border-radius: 12px;
+  transition: transform .16s ease, background .25s ease;
+}
+.menu-row:active { background: var(--surface-2); transform: scale(.98); }
+.menu-row-ic { display: flex; font-size: 22px; color: var(--primary); }
+.menu-row-ic .ic, .menu-row-chev .ic { margin: 0; }
+.menu-row-chev { margin-inline-start: auto; display: flex; font-size: 18px; opacity: .45; }
+[dir="ltr"] .menu-row-chev .ic { transform: scaleX(-1); }
 
 @media (max-width: 360px) {
   .appbar h1 { font-size: 20px; }
