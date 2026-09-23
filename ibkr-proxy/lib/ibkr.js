@@ -201,12 +201,22 @@ function statementToJson(tree) {
     });
   }
   /* Transfers: הפקדות/משיכות בין חשבונות (כולל INTERNAL) — נחשבות תזרים.
-     direction=IN → סכום חיובי, OUT → שלילי. */
+     direction=IN → סכום חיובי, OUT → שלילי.
+     גיבוי: אם ה־direction לא אמין, בודקים את התיאור "TRANSFER FROM X TO Y". */
   for (const c of findKids(st, 'Transfer')) {
     const x = c.attrs;
     const amt = num(x.cashTransfer);
     if (!isFinite(amt) || amt === 0) continue;
-    const dir = String(x.direction || '').toUpperCase();
+    let dir = String(x.direction || '').toUpperCase();
+    const acctId = String(x.accountId || '').toUpperCase();
+    const desc = String(x.description || '').toUpperCase();
+    // גיבוי מהתיאור: "TRANSFER FROM {accountId} TO ..." = OUT
+    if (acctId && desc.includes('TRANSFER FROM ' + acctId + ' TO')) {
+      dir = 'OUT';
+    } else if (acctId && desc.includes(' TO ' + acctId)) {
+      // "TRANSFER FROM X TO {accountId}" = IN (ברירת מחדל)
+      if (dir !== 'OUT') dir = 'IN';
+    }
     const signed = dir === 'OUT' ? -Math.abs(amt) : Math.abs(amt);
     out.cashTransactions.push({
       date: flexDate(x.dateTime || x.date),
