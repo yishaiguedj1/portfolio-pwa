@@ -4,7 +4,7 @@
    statementUrl is the <Url> returned by SendRequest; only known IBKR hosts
    are accepted (SSRF guard), otherwise the default host is used.
    -> { ok:true, status:'pending' }  |  { ok:true, status:'ready', data:{...} }  |  { ok:false, error } */
-const { IBKR_HOST, cors, rateLimited, ibkrGetMulti, errorXml, parseXml, statementToJson, statementBaseFrom } = require('../lib/ibkr');
+const { IBKR_HOST, cors, rateLimited, ibkrGetMulti, errorXml, parseXml, statementToJson, statementEndpointFrom, FLEX_GET_PATH } = require('../lib/ibkr');
 
 module.exports = async (req, res) => {
   cors(res);
@@ -29,12 +29,14 @@ module.exports = async (req, res) => {
     return res.status(400).json({ ok: false, error: 'bad_params' });
   }
 
-  // Use the host IBKR itself returned, but only if it is a known IBKR host.
+  // Use the host+path IBKR itself returned, but only if host and path are known IBKR Flex endpoints.
   // אם הוא נכשל — ננסה את ההוסט הקשיח השני (אזור אחר).
-  const base = statementBaseFrom(params.statementUrl || params.url) || IBKR_HOST;
+  const ep = statementEndpointFrom(params.statementUrl || params.url);
+  const base = ep ? ep.base : IBKR_HOST;
+  const getPath = ep ? ep.path : FLEX_GET_PATH;
 
   try {
-    const path = `/AccountManagement/FlexWebService/GetStatement?t=${encodeURIComponent(token)}&q=${encodeURIComponent(code)}&v=3`;
+    const path = `${getPath}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(code)}&v=3`;
     const { status, text } = await ibkrGetMulti(path, base);
     if (status !== 200) return res.status(502).json({ ok: false, error: 'ibkr_http_' + status });
     const err = errorXml(text);
