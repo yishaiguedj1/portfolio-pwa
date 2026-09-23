@@ -130,12 +130,12 @@ main { padding: 4px 12px 0; max-width: 720px; margin: 0 auto; }
 .dot { width: 12px; height: 12px; border-radius: 4px; flex: none; }
 .legend .lg-name { flex: 1; font-weight: 600; }
 .legend .lg-val { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
-.legend .lg-pct { font-weight: 700; min-width: 52px; text-align: left; }
+.legend .lg-pct { font-weight: 700; min-width: 52px; text-align: end; }
 
 /* ---- Stocks ---- */
 .stock { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); margin: 10px 0; overflow: hidden; }
 .stock-head {
-  width: 100%; border: 0; background: none; cursor: pointer; text-align: right;
+  width: 100%; border: 0; background: none; cursor: pointer; text-align: start;
   font-family: var(--font); padding: 14px 16px;
   display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center;
 }
@@ -315,6 +315,22 @@ footer.fine { text-align: center; }
 }
 .google-btn:active { background: #f6fafe; }
 #skipLoginBtn { margin-top: 4px; }
+
+/* ---- Language toggle (Apple segmented control) ---- */
+.lang-toggle {
+  display: flex; background: var(--surface-2);
+  border-radius: 999px; padding: 3px; margin-top: 10px;
+}
+.lang-opt {
+  flex: 1; border: 0; background: transparent; color: var(--on-surface-var);
+  font-size: 15px; font-weight: 600; font-family: var(--font);
+  padding: 9px 14px; border-radius: 999px; cursor: pointer;
+  transition: background .2s, color .2s, box-shadow .2s;
+}
+.lang-opt.active {
+  background: var(--surface); color: var(--on-surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,.18); font-weight: 700;
+}
 
 /* ---- כרטיס חשבון ---- */
 .account-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
