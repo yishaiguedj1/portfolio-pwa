@@ -1486,7 +1486,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v63';
+const APP_VERSION = 'v64';
 
 
 function saveDBto(db) {
@@ -2931,6 +2931,14 @@ function buildTradesHistory(o) {
   for (const x of trades) addEv(x.date, { kind: 'trade', x });
   for (const d of Object.keys(flows)) addEv(d, { kind: 'flow', amt: flows[d] });
   for (const d of Object.keys(cashAdj)) addEv(d, { kind: 'div', amt: cashAdj[d] });
+  // YTD בלבד: מסננים אירועים לפני 1/1 של השנה הנוכחית.
+  // הסיבה: ה־TWR חייב להתחיל מ־100 ב־1/1; אירועי 2025 מזהמים את החישוב.
+  const allEvDates = [...byDate.keys()].sort();
+  const lastEv = allEvDates[allEvDates.length - 1] || todayISO();
+  const ytdStart = lastEv.slice(0, 4) + '-01-01';
+  for (const d of allEvDates) {
+    if (d < ytdStart) byDate.delete(d);
+  }
   const firstEv = [...byDate.keys()].sort()[0];
   const stateByDate = {}; // date -> {shares:{}, cashUsd}
   const evDates = [...byDate.keys()].sort().reverse(); // חדש -> ישן
