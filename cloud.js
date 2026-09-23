@@ -237,8 +237,25 @@
             try { localStorage.setItem(LS_TDKEY, data.tdkey); } catch (e) {}
           }
         } else {
-          /* התחברות ראשונה — מעלים את הנתונים המקומיים לענן */
-          await flushSave();
+          /* התחברות ראשונה — אין מסמך בענן עדיין */
+          if (typeof isPristineDefault === 'function' && isPristineDefault() &&
+              typeof applyDbData === 'function' && typeof emptyDb === 'function') {
+            /* התיק המקומי הוא עותק טרי של נתוני ברירת המחדל —
+               משתמש חדש מתחיל תיק ריק משלו, ולא מקבל נתונים של אחרים */
+            applyDbData(emptyDb());
+            await flushSave();
+          } else if (typeof applyDbData === 'function' && typeof emptyDb === 'function') {
+            /* יש נתונים אמיתיים בטלפון — שואלים את המשתמש מה לעשות איתם */
+            const migrate = confirm('נמצאו נתונים בתיק בטלפון הזה.\nלהעלות אותם לחשבון שלך בענן?');
+            if (migrate) {
+              await flushSave();
+            } else {
+              applyDbData(emptyDb());
+              await flushSave();
+            }
+          } else {
+            await flushSave();
+          }
         }
       } catch (e) {
         if (typeof setBanner === 'function') setBanner('מצב לא מקוון — מוצגים נתונים מקומיים');
