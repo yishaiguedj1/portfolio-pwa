@@ -25,6 +25,7 @@ const ICON_PIN = _IC_PRE + '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18
 const ICON_CHART = _IC_PRE + '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>';
 const ICON_TRASH = _IC_PRE + '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 const ICON_GLOBE = _IC_PRE + '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.5 13.5 0 0 1 0 18M12 3a13.5 13.5 0 0 0 0 18"/></svg>';
+const ICON_MENU = _IC_PRE + '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>';
 
 const STRINGS = {
 he: {
@@ -32,6 +33,7 @@ he: {
   loadingSource: 'מקור: טוען…',
   curToggleAria: 'החלפת מטבע — דולר / שקל',
   langAria: 'בחירת שפה',
+  menuAria: 'תפריט ראשי',
   loading: 'טוען…',
   tabsAria: 'לשוניות',
   tabOverview: 'סקירה',
@@ -361,6 +363,7 @@ en: {
   loadingSource: 'Source: loading…',
   curToggleAria: 'Toggle currency — dollar / shekel',
   langAria: 'Choose language',
+  menuAria: 'Main menu',
   loading: 'Loading…',
   tabsAria: 'Tabs',
   tabOverview: 'Overview',
@@ -766,6 +769,8 @@ function initLangMenu() {
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const willOpen = menu.classList.contains('hidden');
+    const mm = document.getElementById('mainMenu');
+    if (mm) mm.classList.add('hidden');
     menu.classList.toggle('hidden');
     if (willOpen) paintLangMenu();
   });
@@ -1717,7 +1722,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v102';
+const APP_VERSION = 'v103';
 
 
 function saveDBto(db) {
@@ -5800,6 +5805,7 @@ function init() {
   paintCurBtn();
   // תפריט שפה (v92)
   try { initLangMenu(); } catch (e) {}
+  try { initMainMenu(); } catch (e) {}
   // שינוי גודל — ציור מחדש של גרפים פתוחים
   let rzT = null;
   window.addEventListener('resize', () => {
@@ -5996,4 +6002,29 @@ function init() {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', init);
+}
+
+/* v103: תפריט המבורגר ראשי — נפתח/נסגר, נסגר בלחיצה בחוץ או Escape */
+function initMainMenu() {
+  const btn = document.getElementById('menuBtn');
+  const menu = document.getElementById('mainMenu');
+  if (!btn || !menu) return;
+  btn.innerHTML = ICON_MENU;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = menu.classList.contains('hidden');
+    const lm = document.getElementById('langMenu');
+    if (lm) lm.classList.add('hidden');
+    menu.classList.toggle('hidden');
+    btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('hidden') && !e.target.closest('.menu-wrap')) {
+      menu.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); }
+  });
 }
