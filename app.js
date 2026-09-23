@@ -69,7 +69,7 @@ he: {
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
   perfTwr: 'תשואה משוקללת־זמן (TWR)',
-  pfDiag: 'דיאגנוסטיקה: {t} עסקאות · {f} תזרימים · {d} דיבידנדים · {from} עד {to} · סוגים: {y}',
+  pfDiag: 'דיאגנוסטיקה: {t} עסקאות · {f} תזרימים · {d} דיבידנדים · {from} עד {to} · סוגים: {y} · בלי היסטוריה: {w}',
   perfXirr: 'תשואה משוקללת־כסף (XIRR)',
   perfRealized: 'רווח ממומש',
   perfUnrealized: 'רווח לא־ממומש',
@@ -390,7 +390,7 @@ en: {
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
   perfTwr: 'Time-Weighted Return (TWR)',
-  pfDiag: 'Diagnostics: {t} trades · {f} flows · {d} dividends · {from} to {to} · types: {y}',
+  pfDiag: 'Diagnostics: {t} trades · {f} flows · {d} dividends · {from} to {to} · types: {y} · no history: {w}',
   perfXirr: 'Money-Weighted Return (XIRR)',
   perfRealized: 'Realized P&L',
   perfUnrealized: 'Unrealized P&L',
@@ -1428,7 +1428,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v57';
+const APP_VERSION = 'v58';
 
 
 function saveDBto(db) {
@@ -2871,15 +2871,18 @@ function buildTradesHistory(o) {
 
   const asc = [...dateSet].sort();
   const vals = []; // {date, v, f} — הכל ב־USD
+  const noHistSyms = []; // סמלים עם עסקאות אבל בלי היסטוריית מחירים
   for (const d of asc) {
     const st = stateByDate[d];
     if (!st) continue;
     let secUsd = 0;
     for (const sym of Object.keys(st.shares)) {
       const q = st.shares[sym];
-      if (!(q > 0)) continue;
-      const c = closeOnOrBefore((o.hist || {})[sym] || [], d);
-      if (c) secUsd += q * c;
+      if (!q) continue; // אפס — אין פוזיציה; שלילי = שורט (ערך שלילי, תקין)
+      const h = (o.hist || {})[sym] || [];
+      if (!h.length && !noHistSyms.includes(sym)) noHistSyms.push(sym);
+      const c = closeOnOrBefore(h, d);
+      if (c) secUsd += q * c; // q שלילי = התחייבות שורט
     }
     const v = secUsd + st.cashUsd;
     const f = flows[d] || 0;
@@ -2899,6 +2902,7 @@ function buildTradesHistory(o) {
     out.push({ date: r.date, value: cum });
     prev = r.v;
   }
+  out.noHist = noHistSyms;
   return out;
 }
 
@@ -2908,10 +2912,20 @@ function ibkrTradesHistory() {
   const d = ibkrCfg().data;
   const trades = (d && d.trades) || [];
   if (!trades.length) return [];
+  // פוזיציות לשחזור — כולל שורט (כמות שלילית), שאינן ב־POSITIONS של התצוגה
+  const posMap = {};
+  for (const p of ((d && d.positions) || [])) {
+    const qty = Number(p.qty) || 0;
+    const sym = String(p.symbol || '').toUpperCase();
+    const isStock = !p.asset || p.asset === 'STK';
+    if (!qty || !sym || !isStock || p.currency !== 'USD') continue;
+    posMap[sym] = (posMap[sym] || 0) + qty;
+  }
+  const positions = Object.keys(posMap).map((sym) => ({ sym, shares: posMap[sym] }));
   return buildTradesHistory({
     trades: trades,
     cashTx: (d && d.cashTransactions) || [],
-    positions: POSITIONS,
+    positions: positions,
     cash: (DB && DB.cash) || { usd: 0, ils: 0 },
     hist: state.hist,
     fxOf: (iso) => fxOnOrBefore(iso) || state.fx || 1,
@@ -3187,7 +3201,7 @@ function renderPfNote(noBench, srcKind) {
   try {
     const cv = document.getElementById('pfChart');
     const dg = cv && cv._pfPaint && cv._pfPaint.diag;
-    if (dg && dg.from) txt += ' · ' + t('pfDiag', { t: dg.t, f: dg.f, d: dg.d, from: dg.from, to: dg.to, y: dg.y || '—' });
+    if (dg && dg.from) txt += ' · ' + t('pfDiag', { t: dg.t, f: dg.f, d: dg.d, from: dg.from, to: dg.to, y: dg.y || '—', w: dg.w || '—' });
   } catch (e) {}
   p.textContent = txt;
 }
@@ -3415,6 +3429,7 @@ async function drawPfChart() {
         from: pfRows.length ? pfRows[0].date : '',
         to: pfRows.length ? pfRows[pfRows.length - 1].date : '',
         y: ibkrCashTxTypeList(csh).join(', '),
+        w: (pfRows.noHist || []).join(', '),
       };
     } catch (e) { pfDiag = null; }
   }
