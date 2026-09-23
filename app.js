@@ -294,6 +294,7 @@ he: {
   importDepMissing: 'לא נמצאו הפקדות/משיכות בדוח — רשימת ההפקדות לא תשתנה (כדאי להוסיף את מקטע Cash Transactions לשאילתת ה־Flex).',
   importedOk: 'סונכרן ויובאו {n} מניות מ־IBKR ✓',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
+  importPartialBlocked: 'הסנכרון לא הושלם — חלק מהנתונים לא נטענו מ־IBKR. הנתונים הקודמים נשמרו ולא יובא שום דבר חלקי. המתן כמה דקות ונסה לסנכרן שוב.',
   disconnectConfirm: 'לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון, והנתונים הידניים שהיו לפני החיבור ישוחזרו.',
   disconnected: 'החיבור נותק',
   disconnectedRestored: 'החיבור נותק והנתונים הידניים שוחזרו',
@@ -632,6 +633,7 @@ en: {
   importDepMissing: 'No deposits/withdrawals found in the report — the deposits list will not change (consider adding the Cash Transactions section to your Flex query).',
   importedOk: 'Synced & imported {n} stocks from IBKR ✓',
   importFailed: 'Sync & import failed: {err}',
+  importPartialBlocked: 'Sync did not complete — some data could not be loaded from IBKR. Your previous data was kept and nothing partial was imported. Wait a few minutes and try syncing again.',
   disconnectConfirm: 'Disconnect the broker? The token and sync data will be deleted from this phone, and the manual data from before the connection will be restored.',
   disconnected: 'Disconnected',
   disconnectedRestored: 'Disconnected — manual data restored',
@@ -1268,7 +1270,10 @@ function ibkrDateChunks(startYmd, endYmd) {
 
 /* מושך היסטוריה מלאה מ־IBKR במספר בקשות (כל אחת עד 365 יום) וממזג.
    startYmd: תאריך התחלה בפורמט YYYYMMDD (ברירת מחדל: שנתיים אחורה).
-   מחזיר data ממוזג עם trades, cashTransactions, positions (מהדוח האחרון), וכו'. */
+   מחזיר data ממוזג עם trades, cashTransactions, positions, וכו'.
+   v110: פוזיציות נלקחות רק מהחלק העדכני ביותר שהצליח; אם החלק האחרון
+   נכשל — הנתונים מסומנים כחלקיים (latestChunkOk=false) והייבוא נחסם,
+   כדי לא להתקין בשקט פוזיציות מלפני שנה. כל חלק שנכשל מנסה שוב פעם אחת. */
 async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress) {
   const today = new Date();
   const endYmd = today.getFullYear().toString().padStart(4,'0') +
@@ -1283,56 +1288,90 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       d.getDate().toString().padStart(2,'0');
   }
   const chunks = ibkrDateChunks(startYmd, endYmd);
+  const latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
   const merged = { trades: [], cashTransactions: [], positions: [], transfers: [] };
   const seenTradeKeys = new Set();
   const seenCashKeys = new Set();
   const chunkResults = []; // v109: דיאגנוסטיקה — תוצאה לכל חלק בנפרד
-  
+  let latestChunkOk = false; // האם החלק העדכני ביותר (עד היום) נטען בהצלחה
+  let posTd = ''; // מאיזה חלק נלקחו הפוזיציות
+
+  // מיזוג תוצאת דוח בודד לתוך merged
+  const absorb = (data, fd, td) => {
+    chunkResults.push({ fd, td, ok: true,
+      trades: (data.trades || []).length, cash: (data.cashTransactions || []).length,
+      positions: (data.positions || []).length });
+    // ממזג עסקאות (מניעת כפילויות לפי מפתח ייחודי)
+    for (const tr of (data.trades || [])) {
+      const key = [tr.date, tr.symbol, tr.quantity, tr.price, tr.buySell].join('|');
+      if (!seenTradeKeys.has(key)) {
+        seenTradeKeys.add(key);
+        merged.trades.push(tr);
+      }
+    }
+    // ממזג תנועות מזומן
+    for (const c of (data.cashTransactions || [])) {
+      const key = [c.date, c.amount, c.type, c.description].join('|');
+      if (!seenCashKeys.has(key)) {
+        seenCashKeys.add(key);
+        merged.cashTransactions.push(c);
+      }
+    }
+    // פוזיציות: רק מהחלק העדכני ביותר — לעולם לא מחלק ישן יותר
+    if (td >= posTd) {
+      if (data.positions && data.positions.length) {
+        merged.positions = data.positions;
+        posTd = td;
+      }
+      if (td === latestTd) {
+        latestChunkOk = true;
+        // החלק האחרון הצליח: הפוזיציות שלו הן העדכניות (גם אם ריקות — תיק ריק)
+        merged.positions = data.positions || [];
+        posTd = td;
+      }
+    }
+    // שומר מטא-דאטה מהחלק העדכני ביותר שהצליח
+    if (td >= (merged._metaTd || '')) {
+      merged.accountId = data.accountId;
+      merged.fromDate = startYmd;
+      merged.toDate = td;
+      merged._metaTd = td;
+    }
+  };
+
   for (let i = 0; i < chunks.length; i++) {
     const { fd, td } = chunks[i];
     if (onProgress) onProgress(i + 1, chunks.length, fd, td);
-    try {
-      const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
-      const data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
-      chunkResults.push({ fd, td, ok: true,
-        trades: (data.trades || []).length, cash: (data.cashTransactions || []).length });
-      // ממזג עסקאות (מניעת כפילויות לפי מפתח ייחודי)
-      for (const tr of (data.trades || [])) {
-        const key = [tr.date, tr.symbol, tr.quantity, tr.price, tr.buySell].join('|');
-        if (!seenTradeKeys.has(key)) {
-          seenTradeKeys.add(key);
-          merged.trades.push(tr);
-        }
-      }
-      // ממזג תנועות מזומן
-      for (const c of (data.cashTransactions || [])) {
-        const key = [c.date, c.amount, c.type, c.description].join('|');
-        if (!seenCashKeys.has(key)) {
-          seenCashKeys.add(key);
-          merged.cashTransactions.push(c);
-        }
-      }
-      // פוזיציות: לוקח מהדוח האחרון (העדכני ביותר)
-      if (data.positions && data.positions.length) {
-        merged.positions = data.positions;
-      }
-      // שומר מטא-דאטה מהדוח האחרון
-      if (i === chunks.length - 1) {
-        merged.accountId = data.accountId;
-        merged.fromDate = startYmd;
-        merged.toDate = endYmd;
-      }
-    } catch (e) {
-      // אם חלק נכשל (למשל 1003 - אין נתונים לתקופה), ממשיכים לחלק הבא
-      chunkResults.push({ fd, td, ok: false, error: String((e && e.message) || e).slice(0, 120) });
-      console.warn('Chunk failed:', fd, td, e.message);
+    let data = null, err = null;
+    for (let attempt = 0; attempt < 2 && !data; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 3000)); // ניסיון חוזר אחד אחרי הפוגה
+      try {
+        const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
+        data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
+      } catch (e) { err = e; }
+    }
+    if (data) {
+      absorb(data, fd, td);
+    } else {
+      // אם חלק נכשל (למשל timeout או rate limit), מסמנים — לא מציגים כהצלחה
+      chunkResults.push({ fd, td, ok: false, error: String((err && err.message) || err).slice(0, 120) });
+      console.warn('Chunk failed:', fd, td, err && err.message);
     }
   }
   // ממיין לפי תאריך
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged._chunks = chunkResults; // v109: נשמר עם הנתונים כדי להציג דיאגנוסטיקה
+  merged.latestChunkOk = latestChunkOk;
+  merged.positionsAsOf = posTd; // התאריך (td) שהפוזיציות מעודכנות אליו
+  delete merged._metaTd;
   return merged;
+}
+
+/* האם מותר לייבא את תוצאת הסנכרון — פונקציה טהורה (נבדקת).
+   חוסמת יבוא כשהחלק העדכני נכשל: אסור להתקין פוזיציות ישנות כעדכניות. */
+function ibkrSyncIsComplete(data) {
+  return !!(data && data.latestChunkOk);
 }
 
 /* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }.
@@ -1517,6 +1556,14 @@ async function ibkrSyncImport() {
     const data = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, null, (i, total) => {
       if (s) s.textContent = t('fetchHistory', { n: i, total });
     });
+    // v110: אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
+    // פוזיציות ישנות כעדכניות (זה מה שגרם ל־5 מניות במקום 9).
+    if (!ibkrSyncIsComplete(data)) {
+      const fails = (data._chunks || []).filter((c) => !c.ok)
+        .map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
+      renderIbkrCard();
+      return ibkrShowErr(t('importPartialBlocked') + (fails ? ' ' + fails : ''));
+    }
     ibkrSaveCfg({ lastSync: Date.now(), data });
     const imp = ibkrMapImport(data);
     if (!imp.positions.length) {
@@ -1735,7 +1782,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v109';
+const APP_VERSION = 'v110';
 
 
 function saveDBto(db) {
