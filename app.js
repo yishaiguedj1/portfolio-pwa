@@ -819,6 +819,8 @@ function parseYahooBars(json, withTime) {
     const ind = (res.indicators && res.indicators.quote && res.indicators.quote[0]) || {};
     const opens = ind.open || [], highs = ind.high || [], lows = ind.low || [],
           closes = ind.close || [], vols = ind.volume || [];
+    const adjArr = (res.indicators && res.indicators.adjclose && res.indicators.adjclose[0] &&
+      res.indicators.adjclose[0].adjclose) || [];
     const off = (res.meta && res.meta.gmtoffset) || 0;
     for (let i = 0; i < ts.length; i++) {
       const close = pf(closes[i]);
@@ -831,10 +833,45 @@ function parseYahooBars(json, withTime) {
         high: pf(highs[i]),
         low: pf(lows[i]),
         close: close,
-        volume: parseInt(vols[i], 10) || 0
+        volume: parseInt(vols[i], 10) || 0,
+        _adj: pf(adjArr[i]) || 0, // זמני לזיהוי ספליטים
       });
     }
+    applySplitAdjustment(rows);
+    for (const r of rows) delete r._adj;
   } catch (e) {}
+  return rows;
+}
+
+/* התאמת ספליטים: מחירי Yahoo לא מותאמים לספליט. מזהים קפיצה ביחס adjclose/close
+   (דיבידנד מזיז מעט, ספליט קופץ פי 2/3/10) ומחלקים את המחירים שלפני הספליט ביחס.
+   בלי זה, שחזור TWR מנפח את העבר ומדכא תשואה. (פונקציה טהורה — נבדקת) */
+function applySplitAdjustment(rows) {
+  if (!rows || rows.length < 2) return rows;
+  const splits = []; // {date, ratio}
+  for (let i = 1; i < rows.length; i++) {
+    const a0 = rows[i - 1]._adj, c0 = rows[i - 1].close;
+    const a1 = rows[i]._adj, c1 = rows[i].close;
+    if (!(a0 > 0) || !(c0 > 0) || !(a1 > 0) || !(c1 > 0)) continue;
+    const r0 = a0 / c0, r1 = a1 / c1;
+    if (!(r0 > 0) || !(r1 > 0)) continue;
+    const jump = r1 / r0;
+    // ספליט: קפיצה חדה ביחס. דיבידנד רגיל מזיז <2%, סף 8% בטוח.
+    // לספליט 2:1: לפני הספליט r=0.5, אחריו r=1 → ratio=2, מחלקים מחירי עבר ב־2.
+    if (jump > 1.08 || jump < 0.92) {
+      const ratio = r1 / r0;
+      if (ratio > 1.08 || ratio < 0.92) splits.push({ date: rows[i].date, ratio });
+    }
+  }
+  if (!splits.length) return rows;
+  for (const s of splits) {
+    for (const r of rows) {
+      if (r.date < s.date) {
+        r.close /= s.ratio; r.open /= s.ratio; r.high /= s.ratio; r.low /= s.ratio;
+      }
+    }
+  }
+  rows.splitsApplied = splits.map((s) => s.date + '×' + (Math.round(s.ratio * 100) / 100)).join(',');
   return rows;
 }
 
@@ -1428,7 +1465,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v58';
+const APP_VERSION = 'v59';
 
 
 function saveDBto(db) {
@@ -2784,17 +2821,38 @@ function ibkrIsDividendTx(c) {
 }
 
 function buildTradesHistory(o) {
+  // מפת ספליטים מההיסטוריה: sym -> [{date, ratio}] (מ־applySplitAdjustment)
+  const splitsBySym = {};
+  for (const sym of Object.keys(o.hist || {})) {
+    const h = o.hist[sym] || [];
+    const sa = h.splitsApplied;
+    if (!sa) continue;
+    splitsBySym[sym.toUpperCase()] = String(sa).split(',').map((s) => {
+      const parts = s.split('×');
+      return { date: parts[0], ratio: Number(parts[1]) || 1 };
+    }).filter((s) => s.ratio > 1.08 || s.ratio < 0.92);
+  }
   const trades = (o.trades || [])
     .filter((x) => x && x.symbol && x.date && ibkrIsStockTrade(x))
-    .map((x) => ({
-      date: String(x.date).slice(0, 10),
-      sym: String(x.symbol).toUpperCase(),
-      buy: String(x.side || '').toUpperCase() === 'BUY',
-      qty: Math.abs(Number(x.qty) || 0),
-      price: Number(x.price) || 0,
-      comm: Math.abs(Number(x.commission) || 0),
-      fxb: Number(x.fxToBase) || 1,
-    }))
+    .map((x) => {
+      const sym = String(x.symbol).toUpperCase();
+      const date = String(x.date).slice(0, 10);
+      let qty = Math.abs(Number(x.qty) || 0);
+      let price = Number(x.price) || 0;
+      // עסקה לפני ספליט: המרה ליחידות של היום (כמות × יחס, מחיר ÷ יחס)
+      for (const s of (splitsBySym[sym] || [])) {
+        if (date < s.date) { qty *= s.ratio; price /= s.ratio; }
+      }
+      return {
+        date: date,
+        sym: sym,
+        buy: String(x.side || '').toUpperCase() === 'BUY',
+        qty: qty,
+        price: price,
+        comm: Math.abs(Number(x.commission) || 0),
+        fxb: Number(x.fxToBase) || 1,
+      };
+    })
     .filter((x) => x.qty > 0 && x.date >= '2000-01-01')
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   if (!trades.length) return [];
