@@ -17,11 +17,17 @@ const localStorage = {
   removeItem: (k) => { delete store[k]; },
 };
 function elStub() {
+  const ctxStub = new Proxy({}, {
+    get: (t, p) => (...a) => {},
+    set: () => true,
+  });
   return {
     value: '', textContent: '', innerHTML: '',
     classList: { add() {}, remove() {}, toggle() {} },
     addEventListener() {}, appendChild() {}, dataset: {}, style: {},
     disabled: false,
+    children: [],
+    getContext: () => ctxStub,
   };
 }
 const els = {};
@@ -40,7 +46,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrPerfSums, ibkrXirrFlows, xirr, ibkrBaseCur, ibkrNav, fmtPct };';
+  '\n;globalThis.__t = { ibkrPerfSums, ibkrXirrFlows, xirr, ibkrBaseCur, ibkrNav, fmtPct, ibkrNetDeposits, ibkrPeriodGain, renderOverview };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -126,5 +132,56 @@ const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 for (const cls of ['.perf-list', '.perf-row', '.perf-lbl', '.perf-val', '.perf-note']) {
   ok(css.includes(cls), 'סגנון ' + cls + ' קיים ב־styles.css');
 }
+
+/* ---------- רווח/הפסד בתקופת הדוח (Change in NAV) ---------- */
+const depData = {
+  nav: { startingValue: 100000, endingValue: 120000, twr: 15.5 },
+  cashTransactions: [
+    { type: 'Deposits/Withdrawals', amount: 10000, fxToBase: 1, date: '2025-10-01' },
+    { type: 'Deposits/Withdrawals', amount: -4000, fxToBase: 1, date: '2025-11-01' },
+    { type: 'Deposits/Withdrawals', amount: 5000, fxToBase: 1.2, date: '2025-12-01' }, // מט"ח
+    { type: 'Dividends', amount: 405, fxToBase: 1, date: '2025-10-15' }, // לא הפקדה — מתעלמים
+    { type: 'Withholding Tax', amount: -25, fxToBase: 1, date: '2025-10-15' },
+  ],
+};
+ok(T.ibkrNetDeposits(depData) === 10000 - 4000 + 5000 * 1.2, 'הפקדות נטו: רק deposit/withdraw, עם fxToBase');
+ok(T.ibkrNetDeposits({}) === 0, 'אין תנועות -> 0');
+const pg = T.ibkrPeriodGain(depData);
+ok(Math.abs(pg - (120000 - 100000 - 12000)) < 1e-9, 'רווח תקופה = סיום − התחלה − הפקדות נטו');
+ok(T.ibkrPeriodGain({}) === null, 'אין NAV -> null (אסור להציג מספר מטעה)');
+ok(T.ibkrPeriodGain({ nav: { startingValue: 'x', endingValue: 5 } }) === null, 'NAV שבור -> null');
+const html2 = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+ok(html2.includes('id="ovGLSub"'), 'תת־כותרת ovGLSub קיימת (דינמית לפי מצב)');
+
+/* ---------- רינדור כרטיס רווח/הפסד במצב IBKR ---------- */
+vm.runInContext('DB.source = "ibkr"', sandbox);
+store['pwa_ibkr_v1'] = JSON.stringify({
+  data: {
+    meta: { fromDate: '2025-09-23', toDate: '2026-09-22', baseCurrency: 'USD' },
+    nav: null, navHistory: [],
+    cashTransactions: [{ type: 'Deposits/Withdrawals', amount: 3323, fxToBase: 1, date: '2026-01-01' }],
+    positions: [],
+  },
+});
+T.renderOverview();
+ok(document.getElementById('ovGL').textContent === '—', 'בלי NAV: הכרטיס מציג "—" ולא מספר מטעה');
+ok(document.getElementById('ovGLSub').textContent === 'בתקופת הדוח', 'תת־כותרת: בתקופת הדוח');
+store['pwa_ibkr_v1'] = JSON.stringify({
+  data: {
+    meta: { fromDate: '2025-09-23', toDate: '2026-09-22', baseCurrency: 'USD' },
+    nav: { startingValue: 100000, endingValue: 120000, twr: 15.5 },
+    navHistory: [
+      { toDate: '2025-09-23', endingValue: 100000 },
+      { toDate: '2026-09-22', endingValue: 120000 },
+    ],
+    cashTransactions: [{ type: 'Deposits/Withdrawals', amount: 12000, fxToBase: 1, date: '2026-01-01' }],
+    positions: [],
+  },
+});
+T.renderOverview();
+const glTxt = document.getElementById('ovGL').textContent;
+ok(/8,000/.test(glTxt) && glTxt[0] === '+', 'עם NAV: רווח תקופה = 120000−100000−12000 = +$8,000 (קיבלנו ' + glTxt + ')');
+ok(/15\.5/.test(document.getElementById('ovYield').textContent), 'התשואה הראשית = TWR רשמי 15.5%');
+vm.runInContext('DB.source = "manual"', sandbox);
 
 console.log('\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ' + n + ')');
