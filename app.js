@@ -1652,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v79';
+const APP_VERSION = 'v80';
 
 
 function saveDBto(db) {
@@ -3377,11 +3377,24 @@ function ibkrTradesHistory(fromDate) {
     posMap[sym] = (posMap[sym] || 0) + qty;
   }
   const positions = Object.keys(posMap).map((sym) => ({ sym, shares: posMap[sym] }));
+  // v80: מזומן מנתוני IBKR (cashBalances), לא מ־DB.cash הידני — עקבי עם הפוזיציות.
+  // (באג: DB.cash עלול להיות אפס/ישן אם הדוח לא כלל יתרות מזומן, ואז השחזור מתחיל ממזומן שגוי.)
+  let ibkrCash = null;
+  try {
+    const cbs = (d && d.cashBalances) || [];
+    let usd = 0, ils = 0, has = false;
+    for (const c of cbs) {
+      const b = Number(c.balance) || 0;
+      if (c.currency === 'USD') { usd += b; has = true; }
+      else if (c.currency === 'ILS') { ils += b; has = true; }
+    }
+    if (has) ibkrCash = { usd: Math.round(usd * 100) / 100, ils: Math.round(ils * 100) / 100 };
+  } catch (e) {}
   const rows = buildTradesHistory({
     trades: trades,
     cashTx: (d && d.cashTransactions) || [],
     positions: positions,
-    cash: (DB && DB.cash) || { usd: 0, ils: 0 },
+    cash: ibkrCash || (DB && DB.cash) || { usd: 0, ils: 0 },
     hist: state.hist,
     fxOf: (iso) => fxOnOrBefore(iso) || state.fx || 1,
   }, fromDate);
