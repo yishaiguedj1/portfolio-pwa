@@ -648,3 +648,11 @@ footer.fine { text-align: center; }
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain; padding: 5px; box-sizing: border-box;
 }
+
+/* ---- v90: שורת מיון מניות ---- */
+.stock-sort-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 2px 2px 12px;
+}
+.stock-sort-label { font-size: 14px; font-weight: 700; color: var(--on-surface-var); }
+.stock-sort-row .sort-chip { padding: 7px 14px; font-size: 14px; }
