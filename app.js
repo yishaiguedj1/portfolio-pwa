@@ -218,6 +218,166 @@ function downsample(rows, max) {
   return out;
 }
 
+/* ---------------- חיבור ברוקר (IBKR Flex) — אופציונלי ----------------
+   דוח קריאה־בלבד, לא מאפשר מסחר. הטוקן נשמר בטלפון בלבד (localStorage),
+   לעולם לא בענן ולא בקוד. הנתונים הידניים (DB) לא נפגעים — נתוני IBKR
+   נשמרים בנפרד ומוצגים בנפרד. */
+
+const LS_IBKR = 'pwa_ibkr_v1';
+
+function ibkrCfg() {
+  try { return JSON.parse(localStorage.getItem(LS_IBKR) || 'null') || {}; }
+  catch (e) { return {}; }
+}
+function ibkrSaveCfg(patch) {
+  const c = Object.assign({}, ibkrCfg(), patch);
+  try { localStorage.setItem(LS_IBKR, JSON.stringify(c)); } catch (e) {}
+  return c;
+}
+function ibkrProxyBase() {
+  return ((ibkrCfg().proxyUrl || '').trim().replace(/\/+$/, ''));
+}
+
+/* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }. */
+async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId) {
+  const r = await fetchFn(proxyUrl + '/api/flex-request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, queryId })
+  });
+  let j = null;
+  try { j = await r.json(); } catch (e) {}
+  if (!j || j.ok !== true || !j.referenceCode) {
+    throw new Error(j && j.error ? 'שרתון: ' + j.error : 'תשובה לא תקינה מהשרתון');
+  }
+  return j;
+}
+
+/* שואל את השרתון שוב ושוב עד שהדוח מוכן (IBKR מייצר אותו בדיליי).
+   מחזיר את data המפורסר. הטוקן עובר ב־body בלבד, לא ב־URL. */
+async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, opts) {
+  const o = opts || {};
+  const tries = o.tries || 20;
+  const delayMs = o.delayMs || 8000;
+  const sleep = o.sleep || ((ms) => new Promise((res) => setTimeout(res, ms)));
+  let netErr = null;
+  for (let i = 0; i < tries; i++) {
+    let j = null;
+    try {
+      const r = await fetchFn(proxyUrl + '/api/flex-statement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, code, statementUrl: statementUrl || '' })
+      });
+      j = await r.json();
+    } catch (e) { netErr = e; }
+    if (j && j.ok === true && j.status === 'ready' && j.data) return j.data;
+    if (j && j.ok === false) {
+      throw new Error(j.error ? 'שרתון: ' + j.error : 'שגיאת שרתון');
+    }
+    await sleep(delayMs); // pending או כשל רשת חולף — מנסים שוב
+  }
+  throw new Error(netErr ? 'רשת: ' + netErr.message : 'הדוח לא היה מוכן בזמן — נסה שוב');
+}
+
+function ibkrShowErr(msg) {
+  const e = document.getElementById('ibkrErr');
+  if (e) { e.textContent = msg; e.classList.remove('hidden'); }
+}
+function ibkrClearErr() {
+  const e = document.getElementById('ibkrErr');
+  if (e) { e.textContent = ''; e.classList.add('hidden'); }
+}
+function ibkrSetBusy(busy) {
+  ['ibkrSaveTest', 'ibkrSync', 'ibkrDisconnect'].forEach((id) => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !!busy;
+  });
+}
+
+function renderIbkrCard() {
+  const cfg = ibkrCfg();
+  const px = document.getElementById('ibkrProxy');
+  const tk = document.getElementById('ibkrToken');
+  const qd = document.getElementById('ibkrQuery');
+  if (px && !px.value) px.value = cfg.proxyUrl || '';
+  if (tk && !tk.value) tk.value = cfg.token || '';
+  if (qd && !qd.value) qd.value = cfg.queryId || '';
+  const s = document.getElementById('ibkrStatus');
+  const d = document.getElementById('ibkrData');
+  const connected = !!(cfg.proxyUrl && cfg.token && cfg.queryId);
+  if (s) {
+    s.textContent = !connected
+      ? 'לא מחובר — מוצגים הנתונים הידניים.'
+      : cfg.lastSync
+        ? 'מחובר ✓ · סונכרן: ' + fmtTimeIL(cfg.lastSync)
+        : 'מחובר ✓ · טרם בוצע סנכרון.';
+  }
+  if (d) {
+    const data = cfg.data;
+    d.textContent = (connected && data)
+      ? 'פוזיציות: ' + (data.positions || []).length +
+        ' · עסקאות בדוח: ' + (data.trades || []).length +
+        ' · תנועות מזומן: ' + (data.cashTransactions || []).length
+      : '';
+  }
+}
+
+async function ibkrSaveAndTest() {
+  ibkrClearErr();
+  const proxyUrl = (document.getElementById('ibkrProxy').value || '').trim().replace(/\/+$/, '');
+  const token = (document.getElementById('ibkrToken').value || '').trim();
+  const queryId = (document.getElementById('ibkrQuery').value || '').trim();
+  if (!proxyUrl) return ibkrShowErr('כתובת השרתון לא הוגדרה');
+  if (!token || !queryId) return ibkrShowErr('חסרים Flex token או Query ID');
+  ibkrSaveCfg({ proxyUrl, token, queryId });
+  ibkrSetBusy(true);
+  renderIbkrCard();
+  try {
+    const rep = await ibkrRequestReport(fetch, proxyUrl, token, queryId);
+    ibkrSaveCfg({ statementUrl: rep.statementUrl || '' });
+    flash('החיבור תקין ✓ (IBKR קיבל את הבקשה)');
+  } catch (e) {
+    ibkrShowErr('הבדיקה נכשלה: ' + e.message);
+  }
+  ibkrSetBusy(false);
+  renderIbkrCard();
+}
+
+async function ibkrDoSync() {
+  ibkrClearErr();
+  const cfg = ibkrCfg();
+  const proxyUrl = ibkrProxyBase();
+  if (!proxyUrl) return ibkrShowErr('כתובת השרתון לא הוגדרה');
+  if (!cfg.token || !cfg.queryId) return ibkrShowErr('חסרים Flex token או Query ID — שמור קודם');
+  ibkrSetBusy(true);
+  const s = document.getElementById('ibkrStatus');
+  try {
+    if (s) s.textContent = 'מבקש דוח מ־IBKR…';
+    const rep = await ibkrRequestReport(fetch, proxyUrl, cfg.token, cfg.queryId);
+    if (s) s.textContent = 'IBKR מייצר את הדוח… (לוקח בדרך כלל דקה־שתיים)';
+    const data = await ibkrPollStatement(fetch, proxyUrl, cfg.token, rep.referenceCode, rep.statementUrl || cfg.statementUrl);
+    ibkrSaveCfg({ lastSync: Date.now(), statementUrl: rep.statementUrl || cfg.statementUrl || '', data });
+    flash('הסנכרון הצליח ✓');
+  } catch (e) {
+    ibkrShowErr('הסנכרון נכשל: ' + e.message);
+  }
+  ibkrSetBusy(false);
+  renderIbkrCard();
+}
+
+function ibkrDisconnect() {
+  ibkrClearErr();
+  if (!confirm('לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון. הנתונים הידניים לא ייפגעו.')) return;
+  ibkrSaveCfg({ token: '', queryId: '', statementUrl: '', lastSync: 0, data: null });
+  const tk = document.getElementById('ibkrToken');
+  const qd = document.getElementById('ibkrQuery');
+  if (tk) tk.value = '';
+  if (qd) qd.value = '';
+  renderIbkrCard();
+  flash('החיבור נותק');
+}
+
 /* מחיר סגירה קודם לחישוב שינוי יומי (מתמודד עם סופ"ש/חג) */
 function prevCloseFor(quoteDate, hist) {
   if (!hist || !hist.length) return null;
@@ -289,7 +449,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v22';
+const APP_VERSION = 'v23';
 
 
 function saveDBto(db) {
@@ -1910,6 +2070,15 @@ function init() {
   });
   renderTdKeyStatus();
   if (!tdKey()) { switchTab('settings'); }
+
+  // חיבור ברוקר (IBKR) — אופציונלי, הנתונים הידניים נשארים ברירת המחדל
+  renderIbkrCard();
+  const ibkrST = document.getElementById('ibkrSaveTest');
+  if (ibkrST) ibkrST.addEventListener('click', ibkrSaveAndTest);
+  const ibkrSy = document.getElementById('ibkrSync');
+  if (ibkrSy) ibkrSy.addEventListener('click', ibkrDoSync);
+  const ibkrDc = document.getElementById('ibkrDisconnect');
+  if (ibkrDc) ibkrDc.addEventListener('click', ibkrDisconnect);
 
   // מצבי עריכה — כבויים כברירת מחדל כדי למנוע טעויות בלחיצות אקראיות
   wireEditToggle('editStocksBtn', 'editStocksHint', 'stocks', renderStocks);
