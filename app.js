@@ -1658,7 +1658,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v88';
+const APP_VERSION = 'v89';
 
 
 function saveDBto(db) {
@@ -4230,6 +4230,36 @@ let _stockSearchAbort = null;
 async function searchStocksYahoo(query) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
+  // 1. ה־search API של Yahoo (חיפוש חופשי)
+  const apiRes = await yahooSearchAPI(q);
+  if (apiRes === 'aborted') return 'aborted';
+  if (apiRes && apiRes.length) return apiRes;
+  // 2. גיבוי: בדיקת סימבול ישירה דרך ה־chart API — ה־search API מוגבל/נחסם
+  //    לפעמים (429), וה־chart API אמין יותר. מכסה הקלדת סימבול כמו GOOG.
+  const direct = await yahooDirectSymbol(q);
+  if (direct) return [direct];
+  return apiRes === null ? null : [];
+}
+
+/* בדיקת סימבול ישירה: שולף meta מה־chart API של Yahoo (כולל longName) */
+async function yahooDirectSymbol(q) {
+  const sym = normalizeSym(q).replace(/[^A-Z0-9.-]/g, '');
+  if (!sym || sym.length > 12) return null;
+  try {
+    const res = await fetch(yahooURL(sym, 'interval=1d&range=5d'), { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return null;
+    const j = await res.json();
+    const meta = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    if (!meta || !meta.symbol) return null;
+    const qt = String(meta.quoteType || '').toUpperCase();
+    if (qt && !['EQUITY', 'ETF'].includes(qt)) return null;
+    const s = String(meta.symbol).toUpperCase();
+    return { sym: s, name: meta.longName || meta.shortName || s, type: qt || 'EQUITY' };
+  } catch (e) { return null; }
+}
+
+async function yahooSearchAPI(query) {
+  const q = String(query || '').trim();
   const url = 'https://query2.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(q) + '&quotesCount=8&newsCount=0';
   try {
     if (_stockSearchAbort) { try { _stockSearchAbort.abort(); } catch (e) {} }
@@ -4546,18 +4576,13 @@ function renderWishlist() {
   }
 }
 
-/* v88: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
-   מקור: Financial Modeling Prep (חינמי, ללא מפתח). */
-function symHue(sym) {
-  let h = 0;
-  for (const ch of String(sym || '')) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return h;
-}
+/* v88/v89: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
+   מקור: Financial Modeling Prep (חינמי, ללא מפתח).
+   v89: אריח כהה — חלק מהלוגואים לבנים על שקוף ונעלמים על רקע בהיר. */
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
-  const hue = symHue(nsym);
   const first = (nsym || '?').charAt(0);
-  return '<span class="stock-logo" style="--lh:' + hue + '">' +
+  return '<span class="stock-logo">' +
     '<span class="stock-logo-fb">' + esc(first) + '</span>' +
     '<img class="stock-logo-img" src="https://financialmodelingprep.com/image-stock/' +
     encodeURIComponent(nsym) + '.png" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
