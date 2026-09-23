@@ -172,32 +172,27 @@ a { color: var(--link); }
 .lang-menu-item.on { font-weight: 800; color: var(--primary); }
 .lang-menu-item.on::after { content: '✓'; font-weight: 800; }
 
-/* v103: תפריט המבורגר ראשי — פופאובר נקי בסגנון אפל, נפתח משמאל למעלה */
+/* v105: עיגולים צפים מתחת להמבורגר (טור מלמעלה ללמטה) + בועת מזומן */
 .menu-wrap { position: relative; flex: none; }
+.menu-drop {
+  position: absolute; top: calc(100% + 8px); inset-inline-end: 0; z-index: 60;
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+}
+.menu-circles { display: flex; flex-direction: column; gap: 10px; }
+.menu-circles .icon-btn { box-shadow: 0 4px 14px rgba(0,0,0,.20); }
+/* עיגול פעיל = מסגרת בצבע המותג */
+.menu-circles .icon-btn.active { border: 2px solid var(--primary); }
 .main-menu {
-  position: absolute; top: calc(100% + 8px); inset-inline-end: 0;
   width: min(320px, calc(100vw - 28px));
   background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: 18px; padding: 16px; z-index: 60;
+  border-radius: 18px; padding: 16px;
   box-shadow: 0 12px 32px rgba(0,0,0,.22);
 }
+/* v105: הבועה אטומה — בלי שקיפות הרקע של מצב כהה */
+[data-theme="dark"] .main-menu { background: #1C1C1E; }
+[data-theme="dark"] .menu-circles .icon-btn { background: #2C2C2E; }
 .menu-title { margin: 0 0 10px; font-size: 16px; font-weight: 800; }
 .main-menu .btn { width: 100%; margin-top: 10px; }
-.menu-sep { height: 1px; background: var(--card-border); margin: 14px -16px; }
-.main-menu .theme-toggle { margin-top: 0; }
-/* v104: שורת קישור בתפריט — אייקון נקי + טקסט + שברון */
-.menu-row {
-  display: flex; align-items: center; gap: 12px; width: 100%;
-  border: 0; background: none; cursor: pointer; padding: 10px 4px;
-  font-size: 17px; font-weight: 700; font-family: var(--font); color: var(--on-surface);
-  text-align: start; border-radius: 12px;
-  transition: transform .16s ease, background .25s ease;
-}
-.menu-row:active { background: var(--surface-2); transform: scale(.98); }
-.menu-row-ic { display: flex; font-size: 22px; color: var(--primary); }
-.menu-row-ic .ic, .menu-row-chev .ic { margin: 0; }
-.menu-row-chev { margin-inline-start: auto; display: flex; font-size: 18px; opacity: .45; }
-[dir="ltr"] .menu-row-chev .ic { transform: scaleX(-1); }
 
 @media (max-width: 360px) {
   .appbar h1 { font-size: 20px; }
