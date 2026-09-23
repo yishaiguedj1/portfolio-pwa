@@ -14,6 +14,17 @@
 const LS_LANG = 'pwa_lang_v1';
 const LS_THEME = 'pwa_theme_v1'; // 'light' | 'dark' | 'system' — נשמר ברמת המכשיר בלבד, לא בענן
 
+/* v91: סט אייקונים נקי בקו־מתאר — מחליף אימוג'ים צבעוניים.
+   סגנון אחיד: viewBox 24, stroke בצבע המותג, קצוות מעוגלים. */
+const _IC_PRE = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const ICON_EDIT = _IC_PRE + '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const ICON_SEARCH = _IC_PRE + '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>';
+const ICON_SYNC = _IC_PRE + '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10"/><path d="M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>';
+const ICON_MEASURE = _IC_PRE + '<path d="M3 17 17 3l4 4L7 21Z"/><line x1="8.5" y1="12.5" x2="10.5" y2="14.5"/><line x1="11.5" y1="9.5" x2="13.5" y2="11.5"/><line x1="14.5" y1="6.5" x2="16.5" y2="8.5"/></svg>';
+const ICON_PIN = _IC_PRE + '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+const ICON_CHART = _IC_PRE + '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>';
+const ICON_TRASH = _IC_PRE + '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
 const STRINGS = {
 he: {
   appTitle: 'תיק ההשקעות',
@@ -51,13 +62,13 @@ he: {
   wlExists: '{sym} כבר ברשימה',
   wlAlreadyOwn: '{sym} כבר בתיק שלך — אין צורך לעקוב',
   wlNoPrice: 'אין מחיר עדיין',
-  earnTitle: 'דוחות קרובים 📊',
+  earnTitle: ICON_CHART + 'דוחות קרובים',
   earnToday: 'היום',
   earnTomorrow: 'מחר',
   earnInDays: 'בעוד {n} ימים',
   earnBmo: 'לפני הפתיחה',
   earnAmc: 'אחרי הסגירה',
-  earnDate: '📊 דוח: {date}',
+  earnDate: 'דוח: {date}',
   ibkrPerfTitle: 'ביצועי IBKR',
   perfPeriod: 'תקופת הדוח: {a}–{b}',
   twrOfficial: 'TWR רשמי של IBKR',
@@ -104,20 +115,20 @@ he: {
   calcNote4: 'התשואה בשקלים מגלמת גם את תנועת שער הדולר, לא רק את ביצועי המניות.',
 
   myStocks: 'המניות שלי',
-  editBtn: '✏️ עריכה',
-  editHintStocks: 'מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על ✏️ עריכה.',
-  stockSearchPh: '🔍 חפש מניה להוספה (למשל: AAPL)',
+  editBtn: ICON_EDIT + 'עריכה',
+  editHintStocks: 'מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על עריכה.',
+  stockSearchPh: 'חפש מניה להוספה (למשל: AAPL)',
   stockSearchNoResults: 'לא נמצאו תוצאות',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
   sortBy: 'מיון:',
   sortSize: 'גודל בתיק',
   sortDay: 'ביצועי היום',
   sortGain: 'מהקנייה',
-  editHint: 'מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.',
+  editHint: 'מצב עריכה פעיל — בסיום לחצו שוב על עריכה.',
   addStock: 'הוספת מניה',
-  noStocks: 'אין מניות בתיק. הפעילו ✏️ עריכה כדי להוסיף.',
-  btnEdit: '✏️ ערוך',
-  btnDelete: '🗑 מחק',
+  noStocks: 'אין מניות בתיק. הפעילו עריכה כדי להוסיף.',
+  btnEdit: ICON_EDIT + 'ערוך',
+  btnDelete: ICON_TRASH + 'מחק',
   todayChg: 'היום {v}',
   kvShares: 'מניות',
   kvAvg: 'מחיר קנייה ממוצע',
@@ -125,10 +136,10 @@ he: {
   kvGL: 'רווח/הפסד',
   kvWeight: 'משקל בתיק',
   offAth: '{v} מהשיא',
-  measure: '📏 מדידה',
+  measure: ICON_MEASURE + 'מדידה',
   measureTitle: 'בחירת שתי נקודות על הגרף למדידת תשואה ביניהן',
   measureOn: 'מצב מדידה: געו בשתי נקודות על הגרף — התשואה ביניהן תוצג. געו שוב כדי להתחיל מחדש.',
-  measureTip: 'טיפ: לחצו 📏 מדידה ואז געו בשתי נקודות כדי למדוד תשואה ביניהן.',
+  measureTip: 'טיפ: לחצו מדידה ואז געו בשתי נקודות כדי למדוד תשואה ביניהן.',
   mReturn: 'תשואה: ',
   clearMeasure: 'ניקוי מדידה',
   loadingData: 'טוען נתונים…',
@@ -159,7 +170,7 @@ he: {
   pfNoBench: 'אין נתוני מדדים כרגע — מוצג התיק בלבד',
   pfBenchIbkrOnly: 'השוואת מדדים זמינה בסנכרון IBKR',
   pfFromBtn: 'תשואה מתאריך',
-  pfMarkOnChart: '📍 סמן בגרף',
+  pfMarkOnChart: ICON_PIN + 'סמן בגרף',
   pfPickFromCal: 'בחר מהיומן',
   pfCalTitle: 'בחר תאריך התחלה',
   pfPickBubble: 'געו בנקודה על הגרף לבחירת תאריך ההתחלה',
@@ -242,7 +253,7 @@ he: {
   ibkrQueryPh: 'מ־IBKR',
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
   ibkrSaveTest: 'שמור ובדוק חיבור',
-  ibkrSyncImportBtn: '🔄 סנכרן וייבא מ־IBKR',
+  ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   ibkrDisconnectBtn: 'ניתוק',
   ibkrNotConnected: 'לא מחובר — מוצגים הנתונים הידניים.',
   ibkrDepositsNote: 'מסונכרן מ־IBKR — ההפקדות מתעדכנות אוטומטית בכל סנכרון.',
@@ -380,13 +391,13 @@ en: {
   wlExists: '{sym} is already on the list',
   wlAlreadyOwn: '{sym} is already in your portfolio',
   wlNoPrice: 'No price yet',
-  earnTitle: 'Upcoming earnings 📊',
+  earnTitle: ICON_CHART + 'Upcoming earnings',
   earnToday: 'Today',
   earnTomorrow: 'Tomorrow',
   earnInDays: 'in {n} days',
   earnBmo: 'Before open',
   earnAmc: 'After close',
-  earnDate: '📊 Earnings: {date}',
+  earnDate: 'Earnings: {date}',
   ibkrPerfTitle: 'IBKR Performance',
   perfPeriod: 'Report period: {a}–{b}',
   twrOfficial: "IBKR's official TWR",
@@ -433,20 +444,20 @@ en: {
   calcNote4: 'The ILS return also reflects USD/ILS moves, not just stock performance.',
 
   myStocks: 'My stocks',
-  editBtn: '✏️ Edit',
-  editHintStocks: 'Edit mode is on — you can edit, add and delete stocks. When done, tap ✏️ Edit again.',
-  stockSearchPh: '🔍 Search a stock to add (e.g. AAPL)',
+  editBtn: ICON_EDIT + 'Edit',
+  editHintStocks: 'Edit mode is on — you can edit, add and delete stocks. When done, tap Edit again.',
+  stockSearchPh: 'Search a stock to add (e.g. AAPL)',
   stockSearchNoResults: 'No results found',
   stockSearchError: 'Search failed — try again',
   sortBy: 'Sort:',
   sortSize: 'Position size',
   sortDay: "Day's change",
   sortGain: 'Since buy',
-  editHint: 'Edit mode is on — when done, tap ✏️ Edit again.',
+  editHint: 'Edit mode is on — when done, tap Edit again.',
   addStock: 'Add stock',
-  noStocks: 'No stocks in the portfolio. Turn on ✏️ Edit to add.',
-  btnEdit: '✏️ Edit',
-  btnDelete: '🗑 Delete',
+  noStocks: 'No stocks in the portfolio. Turn on Edit to add.',
+  btnEdit: ICON_EDIT + 'Edit',
+  btnDelete: ICON_TRASH + 'Delete',
   todayChg: 'Today {v}',
   kvShares: 'Shares',
   kvAvg: 'Avg buy price',
@@ -454,10 +465,10 @@ en: {
   kvGL: 'Gain/Loss',
   kvWeight: 'Portfolio weight',
   offAth: '{v} off ATH',
-  measure: '📏 Measure',
+  measure: ICON_MEASURE + 'Measure',
   measureTitle: 'Pick two points on the chart to measure the return between them',
   measureOn: 'Measure mode: tap two points on the chart — the return between them will show. Tap again to restart.',
-  measureTip: 'Tip: tap 📏 Measure, then tap two points to measure the return between them.',
+  measureTip: 'Tip: tap Measure, then tap two points to measure the return between them.',
   mReturn: 'Return: ',
   clearMeasure: 'Clear measurement',
   loadingData: 'Loading data…',
@@ -488,7 +499,7 @@ en: {
   pfNoBench: 'No benchmark data right now — portfolio only',
   pfBenchIbkrOnly: 'Benchmark comparison is available with IBKR sync',
   pfFromBtn: 'Return from date',
-  pfMarkOnChart: '📍 Pick on chart',
+  pfMarkOnChart: ICON_PIN + 'Pick on chart',
   pfPickFromCal: 'Choose from calendar',
   pfCalTitle: 'Choose start date',
   pfPickBubble: 'Tap a point on the chart to choose the start date',
@@ -571,7 +582,7 @@ en: {
   ibkrQueryPh: 'from IBKR',
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
   ibkrSaveTest: 'Save & test connection',
-  ibkrSyncImportBtn: '🔄 Sync & import from IBKR',
+  ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   ibkrDisconnectBtn: 'Disconnect',
   ibkrNotConnected: 'Not connected — showing manual data.',
   ibkrDepositsNote: 'Synced from IBKR — deposits update automatically on every sync.',
@@ -1666,7 +1677,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v90';
+const APP_VERSION = 'v91';
 
 
 function saveDBto(db) {
