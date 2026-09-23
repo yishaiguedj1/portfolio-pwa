@@ -523,4 +523,4 @@ footer.fine { text-align: center; }
 .perf-row:last-child { border-bottom: 0; }
 .perf-lbl { flex: 1; }
 .perf-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.perf-note { font-size: 14px; color: var(--on-surface-var); font-weight: 400; }
+.perf-note { font-size: 14px; color: var(--on-surface-var); font-weight: 400; white-space: normal; text-align: end; }
