@@ -38,7 +38,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -168,7 +168,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const impCashOnly = T.ibkrMapImport({ positions: [], cashBalances: [{ currency: 'USD', balance: 100 }] });
   ok(impCashOnly.cash && impCashOnly.cash.usd === 100, 'יתרת מזומן בודדת ממופה');
 
-  /* ---------- הפרדה בין משתמש IBKR לידני (v34) ---------- */
+  /* ---------- הפרדה בין משתמש IBKR לידני (v35) ---------- */
   vm.runInContext('DB.source = undefined;', sandbox);
   ok(T.isIbkrMode() === false, 'ברירת מחדל: לא מצב IBKR');
   vm.runInContext('DB.source = "ibkr";', sandbox);
@@ -188,6 +188,25 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(perfDemo.yld > 40000, 'עם בסיס הפקדות דמו זעיר התשואה מתפוצצת — לכן מתעלמים מהפקדות במצב IBKR');
   vm.runInContext('DB.source = undefined;', sandbox);
 
+  /* ---------- מיפוי הפקדות מ־IBKR (v35) ---------- */
+  const fxStub = (iso) => 3.2;
+  const txs = [
+    { date: '2024-01-15', amount: 10000, currency: 'USD', fxToBase: 1, type: 'Deposits/Withdrawals', description: 'Deposit' },
+    { date: '2024-06-01', amount: -2000, currency: 'USD', fxToBase: 1, type: 'Deposits/Withdrawals', description: 'Withdrawal' },
+    { date: '2024-03-01', amount: 500, currency: 'USD', fxToBase: 1, type: 'Dividends', description: 'Dividend' },
+    { date: '2024-02-01', amount: 3000, currency: 'ILS', fxToBase: 0.31, type: 'Deposits/Withdrawals', description: '' },
+    { date: '2024-04-01', amount: 0, currency: 'USD', fxToBase: 1, type: 'Deposits/Withdrawals', description: 'Zero' },
+  ];
+  const deps = T.ibkrMapDeposits(txs, fxStub);
+  ok(deps.length === 3, 'רק העברות חיצוניות ממופות — דיבידנד ואפס מסוננים');
+  ok(deps[0].date === '2024-01-15' && deps[0].amount === -32000, 'הפקדה בדולרים מומרת לשקלים ונשמרת שלילית (נכנס)');
+  ok(deps[1].date === '2024-02-01' && deps[1].amount === -3000, 'העברה בשקלים נשמרת כמו שהיא');
+  ok(deps[2].date === '2024-06-01' && deps[2].amount === 6400, 'משיכה נשמרת חיובית (יוצא)');
+  ok(deps.every((d) => d.place && d.place.length > 0), 'לכל הפקדה יש תיאור');
+  ok(JSON.stringify(deps.map((d) => d.date)) === JSON.stringify(['2024-01-15', '2024-02-01', '2024-06-01']), 'ממוין לפי תאריך');
+  ok(T.ibkrMapDeposits(null, fxStub).length === 0, 'בלי תנועות — רשימה ריקה (לא מוחקים קיים)');
+  ok(T.ibkrMapDeposits([{ date: '2024-01-01', amount: 100, currency: 'EUR', fxToBase: 0, type: 'Deposits/Withdrawals' }], fxStub).length === 0, 'מטבע בלי שער המרה — מדלגים');
+
   /* ---------- עקביות קבצים ---------- */
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
@@ -196,8 +215,8 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  ok(sw.includes('portfolio-pwa-v34'), 'sw.js בגרסת v34');
-  ok(src.includes("const APP_VERSION = 'v34'"), 'APP_VERSION v34');
+  ok(sw.includes('portfolio-pwa-v35'), 'sw.js בגרסת v35');
+  ok(src.includes("const APP_VERSION = 'v35'"), 'APP_VERSION v35');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
