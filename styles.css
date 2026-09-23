@@ -150,6 +150,8 @@ a { color: var(--link); }
   background: var(--surface-2); color: var(--on-surface); font-size: 21px;
   display: flex; align-items: center; justify-content: center;
 }
+/* אייקון בודד בתוך כפתור עגול — בלי ה־margin של אייקון־ליד־טקסט, ממורכז בדיוק */
+.icon-btn .ic { margin: 0; vertical-align: baseline; }
 /* v92: כפתור מטבע יחיד */
 .cur-btn { font-size: 22px; font-weight: 800; }
 /* v92: תפריט שפה מינימלי */
