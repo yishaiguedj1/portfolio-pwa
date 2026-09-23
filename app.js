@@ -61,6 +61,8 @@ he: {
   perfTaxes: 'מסים (ניכוי במקור)',
   perfFees: 'עמלות ועמלות נוספות',
   cantCalc: 'לא ניתן לחשב',
+  pfNoteIbkr: 'שווי אמיתי מ־IBKR (NAV יומי מהדוח), בדולרים.',
+  ibkrNavLegend: 'שווי אמיתי (IBKR)',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
   langTitle: 'שפה',
@@ -342,6 +344,8 @@ en: {
   perfTaxes: 'Taxes (withheld)',
   perfFees: 'Commissions & other fees',
   cantCalc: 'Cannot compute',
+  pfNoteIbkr: 'Real IBKR value (daily NAV from the report), in USD.',
+  ibkrNavLegend: 'Real value (IBKR)',
   tabPension: 'Pension',
   tabSettings: 'Settings',
   langTitle: 'Language',
@@ -611,6 +615,7 @@ function applyI18n() {
   const verEl = document.getElementById('appVersion');
   if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = t('appVersion') + APP_VERSION;
   renderLangToggle();
+  try { renderPfNote(); } catch (e) {}
 }
 
 /* שומר שפה, מחיל על הדף ומרנדר מחדש את כל התוכן הדינמי. */
@@ -1301,7 +1306,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v39';
+const APP_VERSION = 'v40';
 
 
 function saveDBto(db) {
@@ -1893,6 +1898,21 @@ function xirr(flows) {
   return null;
 }
 
+/* היסטוריית NAV יומית מהדוח — [{date:'YYYY-MM-DD', value}] ממוין, בלי כפילויות.
+   מחזיר פחות מ־2 נקודות אם אין היסטוריה אמיתית (ואז הגרף נשאר משוחזר). */
+function ibkrNavHistory() {
+  const d = ibkrCfg().data;
+  const rows = (d && d.navHistory) || [];
+  const byDate = {};
+  for (const r of rows) {
+    const dt = String(r.toDate || r.fromDate || '').slice(0, 10);
+    const v = Number(r.endingValue);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dt) || !isFinite(v)) continue;
+    byDate[dt] = v; // כפילות תאריך: האחרונה מנצחת
+  }
+  return Object.keys(byDate).sort().map((dt) => ({ date: dt, value: byDate[dt] }));
+}
+
 /* ---------------- DOM ---------------- */
 
 function esc(v) {
@@ -2303,6 +2323,14 @@ function renderPfChips() {
 }
 
 /* גרף שווי התיק בשקלים לאורך זמן (לפי האחזקות הנוכחיות — אין יומן קניות היסטורי) */
+/* הערת הגרף — משתנה לפי מקור הנתונים (NAV אמיתי מ־IBKR או שחזור משוער) */
+function renderPfNote() {
+  const p = document.getElementById('pfNoteEl');
+  if (!p) return;
+  const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
+  p.textContent = ibkrPts.length >= 2 ? t('pfNoteIbkr') : t('pfNote');
+}
+
 let pfChartToken = 0;
 async function drawPfChart() {
   const canvas = document.getElementById('pfChart');
@@ -2311,18 +2339,30 @@ async function drawPfChart() {
   if (!canvas) return;
   renderPfChips();
   const my = ++pfChartToken;
-  if (loading) {
-    loading.textContent = tdKey() ? t('loadingHist') : t('chartNeedsKey');
-    loading.classList.remove('hidden');
+
+  // במצב IBKR עם היסטוריית NAV אמיתית מהדוח — מציירים אותה (בדולרים),
+  // בלי תלות במפתח Twelve Data ובלי שחזור משוער
+  const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
+  const useIbkrNav = ibkrPts.length >= 2;
+  let pf;
+  if (useIbkrNav) {
+    if (loading) loading.classList.add('hidden');
+    pf = filterRange(ibkrPts, state.pfRange);
+  } else {
+    if (loading) {
+      loading.textContent = tdKey() ? t('loadingHist') : t('chartNeedsKey');
+      loading.classList.remove('hidden');
+    }
+
+    await ensureFxHist();
+    if (my !== pfChartToken) return;
+
+    pf = filterRange(portfolioSeriesILS(), state.pfRange);
   }
-
-  await ensureFxHist();
-  if (my !== pfChartToken) return;
-
-  const pf = filterRange(portfolioSeriesILS(), state.pfRange);
   if (!pf.length) {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
     if (legend) legend.innerHTML = '';
+    renderPfNote();
     return;
   }
   if (loading) loading.classList.add('hidden');
@@ -2367,6 +2407,17 @@ async function drawPfChart() {
   }
 
   if (legend) {
+    if (useIbkrNav) {
+      // גרף NAV אמיתי — האחוז הוא ה־TWR הרשמי, כמו בתשואה הראשית
+      const nav = ibkrNav();
+      const twr = (nav && nav.twr !== null && nav.twr !== undefined && nav.twr !== '')
+        ? Number(nav.twr) : null;
+      const cls = twr === null || !isFinite(twr) ? '' : twr >= 0 ? 'pos' : 'neg';
+      legend.innerHTML =
+        '<li><span class="dot" style="background:var(--primary)"></span>' +
+        '<span class="lg-name">' + t('ibkrNavLegend') + '</span>' +
+        '<span class="lg-pct ' + cls + '">' + (twr === null || !isFinite(twr) ? '—' : fmtPct(twr, true)) + '</span></li>';
+    } else {
     // סך תשואה — אותה נוסחה כמו במסך הראשי: שווי נוכחי מול בסיס
     // (עלות קנייה אצל משתמש IBKR, הפקדות אצל משתמש ידני)
     const tot = totalsUSD();
@@ -2381,7 +2432,9 @@ async function drawPfChart() {
       '<li><span class="dot" style="background:var(--primary)"></span>' +
       '<span class="lg-name">' + t('myPortfolio') + '</span>' +
       '<span class="lg-pct ' + cls + '">' + (ret === null ? '—' : fmtPct(ret, true)) + '</span></li>';
+    }
   }
+  renderPfNote();
 }
 
 /* ---------------- רינדור: מניות ---------------- */
