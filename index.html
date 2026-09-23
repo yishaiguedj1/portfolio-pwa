@@ -187,8 +187,18 @@
     <div class="card">
       <h2>קרנות פנסיה והשתלמות</h2>
       <div id="pensionFundEditors"></div>
+      <div class="form-grid">
+        <label>שם קרן חדשה<input id="newFundName" type="text" placeholder="למשל: מיטב" autocomplete="off"></label>
+        <label>סוג<select id="newFundKind">
+          <option value="pension">פנסיה</option>
+          <option value="study">קרן השתלמות</option>
+        </select></label>
+      </div>
       <div class="form-err hidden" id="pfErr"></div>
-      <button id="pensionFundsSave" class="btn" type="button">שמור קרנות</button>
+      <div class="btn-row">
+        <button id="pensionFundAdd" class="btn" type="button">＋ הוסף קרן</button>
+        <button id="pensionFundsSave" class="btn" type="button">שמור קרנות</button>
+      </div>
     </div>
 
     <div class="card danger-card">
