@@ -46,6 +46,21 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
           <div class="form-err hidden" id="cashErr"></div>
           <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
         </div>
+        <div class="menu-sep"></div>
+        <div class="menu-section">
+          <h3 class="menu-title" data-i18n="themeTitle">ערכת נושא</h3>
+          <div class="theme-toggle" role="group" data-i18n-aria="themeTitle" aria-label="ערכת נושא">
+            <button type="button" id="themeLight" class="theme-opt" data-i18n="themeLight">בהיר</button>
+            <button type="button" id="themeSystem" class="theme-opt" data-i18n="themeSystem">מערכת</button>
+            <button type="button" id="themeDark" class="theme-opt" data-i18n="themeDark">כהה</button>
+          </div>
+        </div>
+        <div class="menu-sep"></div>
+        <button id="menuSettingsBtn" class="menu-row" type="button">
+          <span class="menu-row-ic" id="menuSettingsIc"></span>
+          <span data-i18n="menuSettings">הגדרות</span>
+          <span class="menu-row-chev" id="menuSettingsChev"></span>
+        </button>
       </div>
     </div>
   </div>
@@ -251,15 +266,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <div class="lang-toggle" role="group" aria-label="Language">
         <button type="button" id="langHe" class="lang-opt">עברית</button>
         <button type="button" id="langEn" class="lang-opt">English</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2><span data-i18n="themeTitle">ערכת נושא</span></h2>
-      <div class="theme-toggle" role="group" data-i18n-aria="themeTitle" aria-label="ערכת נושא">
-        <button type="button" id="themeLight" class="theme-opt" data-i18n="themeLight">בהיר</button>
-        <button type="button" id="themeSystem" class="theme-opt" data-i18n="themeSystem">מערכת</button>
-        <button type="button" id="themeDark" class="theme-opt" data-i18n="themeDark">כהה</button>
       </div>
     </div>
 
