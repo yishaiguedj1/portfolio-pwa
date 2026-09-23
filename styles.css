@@ -154,36 +154,21 @@ a { color: var(--link); }
 .icon-btn .ic { margin: 0; vertical-align: baseline; }
 /* v92: כפתור מטבע יחיד */
 .cur-btn { font-size: 22px; font-weight: 800; }
-/* v92: תפריט שפה מינימלי */
-.lang-wrap { position: relative; flex: none; }
-.lang-menu {
-  position: absolute; top: calc(100% + 8px); inset-inline-end: 0;
-  min-width: 118px; background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: 14px; padding: 4px; z-index: 60;
-  box-shadow: 0 8px 24px rgba(0,0,0,.18);
-}
-.lang-menu-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  width: 100%; border: 0; background: none; cursor: pointer;
-  padding: 9px 12px; font-size: 15px; font-family: var(--font); color: var(--on-surface);
-  border-radius: 10px; text-align: start; white-space: nowrap;
-}
-.lang-menu-item:active { background: var(--surface-2); }
-.lang-menu-item.on { font-weight: 800; color: var(--primary); }
-.lang-menu-item.on::after { content: '✓'; font-weight: 800; }
 
-/* v105: עיגולים צפים מתחת להמבורגר (טור מלמעלה ללמטה) + בועת מזומן */
+/* v106: טור עיגולים (מלמעלה ללמטה) משמאל לבועת המזומן — זה לצד זה, בלי חפיפה */
 .menu-wrap { position: relative; flex: none; }
 .menu-drop {
   position: absolute; top: calc(100% + 8px); inset-inline-end: 0; z-index: 60;
-  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+  display: flex; flex-direction: row-reverse; gap: 10px; align-items: flex-start;
+  max-width: calc(100vw - 16px);
 }
-.menu-circles { display: flex; flex-direction: column; gap: 10px; }
+.menu-circles { display: flex; flex-direction: column; gap: 10px; flex: none; }
 .menu-circles .icon-btn { box-shadow: 0 4px 14px rgba(0,0,0,.20); }
-/* עיגול פעיל = מסגרת בצבע המותג */
-.menu-circles .icon-btn.active { border: 2px solid var(--primary); }
+/* עיגול שפה — טקסט מצב (עב/EN) */
+.lang-circle { font-size: 15px; font-weight: 800; }
 .main-menu {
-  width: min(320px, calc(100vw - 28px));
+  flex: 1 1 auto; min-width: 0;
+  width: min(280px, calc(100vw - 96px));
   background: var(--surface); border: 1px solid var(--card-border);
   border-radius: 18px; padding: 16px;
   box-shadow: 0 12px 32px rgba(0,0,0,.22);
