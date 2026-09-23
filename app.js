@@ -1426,7 +1426,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v54';
+const APP_VERSION = 'v55';
 
 
 function saveDBto(db) {
@@ -2644,6 +2644,19 @@ function closeOnOrBefore(hist, date) {
   return ans >= 0 ? hist[ans].close : null;
 }
 
+/* שורת בנצ'מרק מיושרת לתאריכי התיק — מחזירה את מחירי הסגירה הגולמיים
+   בדולרים, בלי שום המרת מט"ח (מדידה כמו IBKR). מחזירה null אם לאחד
+   התאריכים אין מחיר זמין. */
+function benchRowsForDates(hist, dates) {
+  const rows = [];
+  for (const d of dates) {
+    const c = closeOnOrBefore(hist, d);
+    if (!(c > 0)) return null;
+    rows.push({ date: d, value: c });
+  }
+  return rows.length >= 2 ? rows : null;
+}
+
 
 /* ---------------- היסטוריית שער דולר־שקל (לבנצ'מרק מותאם הפקדות) ---------------- */
 /* מקור חינמי, בלי מפתח: Frankfurter. נשמר לצמיתות — היסטוריה לא משתנה. */
@@ -3354,18 +3367,11 @@ async function drawPfChart() {
     const wantBench = BENCH_SYMS.filter(([s]) => pfBenchOn(s)); // לא מושכים מדד כבוי
     const hists = await Promise.all(wantBench.map(([s]) => getBenchHist(s)));
     if (my !== pfChartToken) return;
-    const toIls = !useIbkrNav; // שחזור ידני בשקלים — המדדים מומרים לשקלים
+    // המדדים נמדדים בדולרים — בדיוק כמו ש־IBKR מודד. אין שום התאמה לשקלים.
     wantBench.forEach(([sym, labelKey, color], bi) => {
       const hist = hists[bi];
-      if (!hist || hist.length < 2) return;
-      const rows = [];
-      let okB = true;
-      for (const d of pfRows) {
-        const c = closeOnOrBefore(hist, d.date);
-        if (!(c > 0)) { okB = false; break; }
-        rows.push({ date: d.date, value: toIls ? c * (fxOnOrBefore(d.date) || state.fx || 1) : c });
-      }
-      if (okB && rows.length >= 2) benchSeries.push({ name: t(labelKey), color, rows, sym });
+      const rows = hist && hist.length >= 2 ? benchRowsForDates(hist, pfRows.map((r) => r.date)) : null;
+      if (rows) benchSeries.push({ name: t(labelKey), color, rows, sym });
     });
   } catch (e) { /* בלי מדדים — התיק בלבד */ }
   } // showBench
