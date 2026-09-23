@@ -36,10 +36,13 @@ he: {
   appTitle: 'תיק ההשקעות',
   loadingSource: 'מקור: טוען…',
   curToggleAria: 'החלפת מטבע — דולר / שקל',
+  displayTitle: 'תצוגה',
+  curTitle: 'מטבע',
   langAria: 'בחירת שפה',
   menuAria: 'תפריט ראשי',
   menuSettings: 'הגדרות',
   themeCycleAria: 'ערכת נושא — בהיר / כהה / מערכת',
+  menuThemeAria: 'ערכת נושא — בהיר / כהה',
   loading: 'טוען…',
   tabsAria: 'לשוניות',
   tabOverview: 'סקירה',
@@ -369,10 +372,13 @@ en: {
   appTitle: 'Portfolio',
   loadingSource: 'Source: loading…',
   curToggleAria: 'Toggle currency — dollar / shekel',
+  displayTitle: 'Display',
+  curTitle: 'Currency',
   langAria: 'Choose language',
   menuAria: 'Main menu',
   menuSettings: 'Settings',
   themeCycleAria: 'Theme — light / dark / system',
+  menuThemeAria: 'Theme — light / dark',
   loading: 'Loading…',
   tabsAria: 'Tabs',
   tabOverview: 'Overview',
@@ -732,6 +738,7 @@ function applyI18n() {
   const verEl = document.getElementById('appVersion');
   if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = t('appVersion') + APP_VERSION;
   renderLangToggle();
+  try { renderThemeToggle(); } catch (e) {}
   try { renderPfNote(); } catch (e) {}
   try {
     const gSub = document.getElementById('ovGLSub');
@@ -759,8 +766,6 @@ function renderLangToggle() {
   const enB = document.getElementById('langEn');
   if (heB) heB.classList.toggle('active', lang === 'he');
   if (enB) enB.classList.toggle('active', lang === 'en');
-  const lBtn = document.getElementById('menuLangBtn');
-  if (lBtn) lBtn.textContent = lang === 'he' ? 'עב' : 'EN';
 }
 
 /* ---------------- ערכת נושא: בהיר / כהה / מערכת ----------------
@@ -793,11 +798,22 @@ function setThemeMode(mode) {
   applyTheme();
 }
 /* מצייר את מצב מתג ערכת הנושא. */
-/* v106: עיגול ערכת נושא יחיד בתפריט — האייקון משקף את המצב (בהיר/כהה/מערכת). */
+/* v108: בקרת ערכה בטאב ההגדרות — בהיר/כהה/מערכת; כפתור יחיד בתפריט — בהיר/כהה. */
 function renderThemeToggle() {
   const m = getThemeMode();
-  const b = document.getElementById('menuThemeBtn');
-  if (b) b.innerHTML = m === 'dark' ? ICON_MOON : m === 'light' ? ICON_SUN : ICON_AUTO;
+  const l = document.getElementById('themeLight');
+  const d = document.getElementById('themeDark');
+  const s = document.getElementById('themeSystem');
+  if (l) l.classList.toggle('active', m === 'light');
+  if (d) d.classList.toggle('active', m === 'dark');
+  if (s) s.classList.toggle('active', m === 'system');
+  const mt = document.getElementById('menuThemeTxt');
+  if (mt) {
+    const dark = resolveTheme() === 'dark';
+    mt.innerHTML = dark
+      ? ICON_MOON + '<span>' + esc(t('themeDark')) + '</span>'
+      : ICON_SUN + '<span>' + esc(t('themeLight')) + '</span>';
+  }
 }
 /* קורא משתנה CSS מהערכה הנוכחית; בטסטים (אין getComputedStyle) מחזיר ברירת מחדל. */
 function cssVar(name, fallback) {
@@ -1691,7 +1707,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v107';
+const APP_VERSION = 'v108';
 
 
 function saveDBto(db) {
@@ -5773,9 +5789,9 @@ function init() {
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
   });
-  // מטבע — עיגול יחיד בתפריט שמחליף בין $ ל־₪ (v92→v106); נשמר בין רענונים
+  // מטבע — כפתור בטאב ההגדרות שמחליף בין $ ל־₪ (v108); נשמר בין רענונים
   const paintCurBtn = () => {
-    const b = document.getElementById('menuCurBtn');
+    const b = document.getElementById('setCurBtn');
     if (b) b.textContent = state.currency === 'ILS' ? '₪' : '$';
   };
   const setCur = (c) => {
@@ -5784,11 +5800,15 @@ function init() {
     paintCurBtn();
     renderAll();
   };
-  const curBtn = document.getElementById('menuCurBtn');
-  if (curBtn) curBtn.addEventListener('click', (e) => { e.stopPropagation(); setCur(state.currency === 'ILS' ? 'USD' : 'ILS'); });
-  // שפה — עיגול יחיד בתפריט שמחליף עברית/אנגלית ומציג את המצב (v106)
-  const langCircleBtn = document.getElementById('menuLangBtn');
-  if (langCircleBtn) langCircleBtn.addEventListener('click', (e) => { e.stopPropagation(); setLang(getLang() === 'he' ? 'en' : 'he'); });
+  const curBtn = document.getElementById('setCurBtn');
+  if (curBtn) curBtn.addEventListener('click', () => setCur(state.currency === 'ILS' ? 'USD' : 'ILS'));
+  // ערכת נושא — מקטע בטאב ההגדרות: בהיר / כהה / מערכת (v108)
+  const thL = document.getElementById('themeLight');
+  const thD = document.getElementById('themeDark');
+  const thS = document.getElementById('themeSystem');
+  if (thL) thL.addEventListener('click', () => setThemeMode('light'));
+  if (thD) thD.addEventListener('click', () => setThemeMode('dark'));
+  if (thS) thS.addEventListener('click', () => setThemeMode('system'));
   // שחזור מטבע שמור מטעינה קודמת
   try {
     const savedCur = localStorage.getItem('pwa_currency_v1');
@@ -6004,15 +6024,9 @@ function initMainMenu() {
     drop.classList.add('hidden');
     btn.setAttribute('aria-expanded', 'false');
   };
-  const themeBtn = document.getElementById('menuThemeBtn');
-  if (themeBtn) themeBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const m = getThemeMode();
-    setThemeMode(m === 'light' ? 'dark' : m === 'dark' ? 'system' : 'light');
-  });
   const setBtn = document.getElementById('menuSettingsBtn');
   if (setBtn) {
-    setBtn.innerHTML = ICON_GEAR;
+    try { setBtn.insertAdjacentHTML('afterbegin', ICON_GEAR); } catch (e) {}
     setBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       closeMenu();
@@ -6020,6 +6034,12 @@ function initMainMenu() {
       try { window.scrollTo(0, 0); } catch (err) {}
     });
   }
+  /* v108: כפתור ערכה יחיד בתפריט — מחליף בהיר/כהה בלבד */
+  const themeBtn = document.getElementById('menuThemeBtn');
+  if (themeBtn) themeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setThemeMode(resolveTheme() === 'dark' ? 'light' : 'dark');
+  });
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const willOpen = drop.classList.contains('hidden');
