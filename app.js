@@ -290,7 +290,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 
 
 function saveDBto(db) {
@@ -314,9 +314,14 @@ function loadDB() {
 const DB = loadDB();
 function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); }
 
-/* תיק ריק — למשתמש חדש שמתחבר לענן */
+/* תיק ריק — תבנית (נשמר לשימוש עתידי) */
 function emptyDb() {
   return { v: 1, positions: [], deposits: [], pensionFunds: [], pensionDeposits: [], cash: { usd: 0, ils: 0 } };
+}
+
+/* תיק דוגמה — למי שאין לו נתונים: משתמש חדש, אחרי איפוס, או לא מחובר */
+function demoDb() {
+  return JSON.parse(JSON.stringify(DEFAULT_DB));
 }
 
 /* מחיל נתונים על ה-DB החי — במקום, כדי לא לשבור הפניות קיימות */
@@ -1876,7 +1881,7 @@ function init() {
   const verEl = document.getElementById('appVersion');
   if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = 'גרסת אפליקציה: ' + APP_VERSION;
   document.getElementById('resetData').addEventListener('click', () => {
-    if (!confirm('לאפס את כל הנתונים? התיק יימחק לגמרי (מניות, הפקדות, פנסיה, מזומן) ויתחיל ריק.\nלא ניתן לבטל.')) return;
+    if (!confirm('לאפס את כל הנתונים? התיק יימחק לגמרי (מניות, הפקדות, פנסיה, מזומן) ויחזור לתיק הדוגמה.\nלא ניתן לבטל.')) return;
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
       location.reload();
