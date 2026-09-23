@@ -27,6 +27,20 @@ he: {
   tabOverview: 'סקירה',
   tabStocks: 'מניות',
   tabDeposits: 'הפקדות',
+  tabWishlist: 'מעקב',
+  wishlistTitle: 'רשימת מעקב',
+  wishlistHint: 'מניות שמעניינות אותך — מחיר חי ושינוי יומי. לא חלק מהתיק.',
+  wlSymbolPh: 'סימבול (למשל NVDA)',
+  wlNotePh: 'הערה (אופציונלי)',
+  wlAdd: '＋ הוסף למעקב',
+  wlEmpty: 'עוד לא הוספת מניות למעקב.',
+  wlAdded: 'נוסף למעקב ✓',
+  wlRemoved: 'הוסר מהמעקב',
+  wlRemove: 'הסר {sym} מהמעקב',
+  wlDelConfirm: 'להסיר את {sym} מרשימת המעקב?',
+  wlExists: '{sym} כבר ברשימה',
+  wlAlreadyOwn: '{sym} כבר בתיק שלך — אין צורך לעקוב',
+  wlNoPrice: 'אין מחיר עדיין',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
   langTitle: 'שפה',
@@ -274,6 +288,20 @@ en: {
   tabOverview: 'Overview',
   tabStocks: 'Stocks',
   tabDeposits: 'Deposits',
+  tabWishlist: 'Watchlist',
+  wishlistTitle: 'Watchlist',
+  wishlistHint: 'Stocks you are watching — live price and daily change. Not part of the portfolio.',
+  wlSymbolPh: 'Symbol (e.g. NVDA)',
+  wlNotePh: 'Note (optional)',
+  wlAdd: '＋ Add to watchlist',
+  wlEmpty: 'No stocks on your watchlist yet.',
+  wlAdded: 'Added to watchlist ✓',
+  wlRemoved: 'Removed from watchlist',
+  wlRemove: 'Remove {sym} from watchlist',
+  wlDelConfirm: 'Remove {sym} from the watchlist?',
+  wlExists: '{sym} is already on the list',
+  wlAlreadyOwn: '{sym} is already in your portfolio',
+  wlNoPrice: 'No price yet',
   tabPension: 'Pension',
   tabSettings: 'Settings',
   langTitle: 'Language',
@@ -1169,13 +1197,14 @@ const DEFAULT_DB = {
     { sym: 'META',  name: 'מטא',  full: 'Meta Platforms Inc', shares: 5,  avg: 480.00 }
   ],
   deposits: [{ date: '01/01/2026', amount: -1000, place: 'הפקדת דוגמה' }],
+  wishlist: [],
   pensionFunds: [{ name: 'פנסיה — מקום עבודה', usd: 0, ils: 1000 }],
   pensionDeposits: [],
   cash: { usd: 100, ils: 100 }
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v36';
+const APP_VERSION = 'v37';
 
 
 function saveDBto(db) {
@@ -1188,6 +1217,7 @@ function loadDB() {
       const db = JSON.parse(raw);
       if (db && db.v === 1 && Array.isArray(db.positions) && Array.isArray(db.deposits)) {
         if (!db.cash) db.cash = { usd: 0, ils: 0 };
+        if (!Array.isArray(db.wishlist)) db.wishlist = [];
         if (!Array.isArray(db.pensionFunds)) db.pensionFunds = [];
         ensurePensionKinds(db);
         return db;
@@ -1212,12 +1242,15 @@ function applyDbData(data) {
   const clean = JSON.parse(JSON.stringify(data || {}));
   if (!Array.isArray(DB.positions)) DB.positions = [];
   if (!Array.isArray(DB.deposits)) DB.deposits = [];
+  if (!Array.isArray(DB.wishlist)) DB.wishlist = [];
   if (!Array.isArray(DB.pensionFunds)) DB.pensionFunds = [];
   if (!Array.isArray(DB.pensionDeposits)) DB.pensionDeposits = [];
   DB.positions.length = 0;
   if (Array.isArray(clean.positions)) DB.positions.push(...clean.positions);
   DB.deposits.length = 0;
   if (Array.isArray(clean.deposits)) DB.deposits.push(...clean.deposits);
+  DB.wishlist.length = 0;
+  if (Array.isArray(clean.wishlist)) DB.wishlist.push(...clean.wishlist);
   DB.pensionFunds.length = 0;
   if (Array.isArray(clean.pensionFunds)) DB.pensionFunds.push(...clean.pensionFunds);
   ensurePensionKinds(DB);
@@ -1231,6 +1264,7 @@ function applyDbData(data) {
 /* שמות תואמים לקוד הקיים — מצביעים לאותם מערכים; עריכה תמיד במקום (push/splice) */
 let POSITIONS = DB.positions;
 let DEPOSITS = DB.deposits;
+let WISHLIST = DB.wishlist;
 let PENSION_FUNDS = DB.pensionFunds;
 let PENSION_DEPOSITS = DB.pensionDeposits;
 
@@ -1401,6 +1435,14 @@ async function tryCNBCQuotes() {
   return { quotes: q, fx: fx, source: 'CNBC' };
 }
 
+/* כל הסימבולים שצריכים ציטוט חי: אחזקות + רשימת מעקב */
+function quoteSymbols() {
+  const s = new Set();
+  for (const p of POSITIONS) if (p.sym) s.add(p.sym);
+  for (const w of WISHLIST) if (w.sym) s.add(w.sym);
+  return [...s];
+}
+
 function applyQuotes(res) {
   state.quotes = res.quotes;
   state.fx = res.fx;
@@ -1420,7 +1462,7 @@ function updateSourceLabel() {
 }
 
 async function tryYahooQuotes() {
-  const results = await pool(POSITIONS.map((p) => p.sym), 3, async (sym) => {
+  const results = await pool(quoteSymbols(), 3, async (sym) => {
     try {
       const json = await fetchJSONTimeout(yahooQuoteURL(sym), 10000);
       const chart = json && json.chart;
@@ -1437,6 +1479,7 @@ async function tryYahooQuotes() {
         high: num(meta.regularMarketDayHigh),
         low: num(meta.regularMarketDayLow),
         close: close,
+        prev: num(meta.chartPreviousClose),
         volume: parseInt(meta.regularMarketVolume, 10) || 0
       };
     } catch (e) { return null; }
@@ -1450,7 +1493,7 @@ async function tryYahooQuotes() {
 }
 
 async function refreshQuotes() {
-  if (!POSITIONS.length) {
+  if (!quoteSymbols().length) {
     try { state.fx = await tryFx(); } catch (e) { /* אין שער */ }
     state.quotes = {};
     state.quotesAt = Date.now();
@@ -2198,6 +2241,80 @@ function deletePosition(p) {
   refreshQuotes().then(() => warmHistories());
 }
 
+/* ---------------- רשימת מעקב (wishlist) — לא חלק מהתיק ---------------- */
+
+/* ולידציה טהורה — ניתנת לבדיקה */
+function wlValidate(sym) {
+  const s = String(sym || '').trim().toUpperCase();
+  if (!/^[A-Z.]{1,8}$/.test(s)) return { err: t('errSymInvalid') };
+  if (WISHLIST.some((w) => w.sym === s)) return { err: t('wlExists', { sym: s }) };
+  if (POSITIONS.some((p) => p.sym === s)) return { err: t('wlAlreadyOwn', { sym: s }) };
+  return { sym: s };
+}
+
+function wlAddItem() {
+  const symEl = document.getElementById('wlSym');
+  const noteEl = document.getElementById('wlNote');
+  const errEl = document.getElementById('wlErr');
+  const v = wlValidate(symEl.value);
+  if (v.err) { errEl.textContent = v.err; errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  WISHLIST.push({ sym: v.sym, note: noteEl.value.trim() });
+  saveDB();
+  symEl.value = ''; noteEl.value = '';
+  renderWishlist();
+  flash(t('wlAdded'));
+  refreshQuotes();
+}
+
+function wlRemove(w) {
+  if (!confirm(t('wlDelConfirm', { sym: w.sym }))) return;
+  const i = WISHLIST.findIndex((x) => x.sym === w.sym);
+  if (i >= 0) WISHLIST.splice(i, 1);
+  delete state.quotes[w.sym];
+  saveDB();
+  renderWishlist();
+  flash(t('wlRemoved'));
+}
+
+function renderWishlist() {
+  const list = document.getElementById('wishlistList');
+  if (!list) return;
+  list.innerHTML = '';
+  const wc = document.getElementById('wishlistCount');
+  if (wc) wc.textContent = WISHLIST.length;
+  if (!WISHLIST.length) {
+    const m = el('p', 'fine');
+    m.textContent = t('wlEmpty');
+    list.appendChild(m);
+    return;
+  }
+  for (const w of WISHLIST) {
+    const q = state.quotes[w.sym] || {};
+    const close = num(q.close);
+    const prev = num(q.prev);
+    const chg = (close > 0 && prev > 0) ? (close - prev) / prev * 100 : null;
+    const card = el('div', 'card wl-card');
+    card.innerHTML =
+      '<div class="wl-top">' +
+      '<div><div class="wl-sym" dir="ltr">' + esc(w.sym) + '</div>' +
+      (w.note ? '<div class="wl-note">' + esc(w.note) + '</div>' : '') +
+      '</div>' +
+      '<button class="link-btn wl-del" type="button" aria-label="' + esc(t('wlRemove', { sym: w.sym })) + '">✕</button>' +
+      '</div>' +
+      '<div class="wl-price">' +
+      (close > 0
+        ? '<span class="wl-close" dir="ltr">$' + close.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span>'
+        : '<span class="fine">' + t('wlNoPrice') + '</span>') +
+      (chg !== null
+        ? '<span class="wl-chg ' + (chg >= 0 ? 'pos' : 'neg') + '" dir="ltr">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</span>'
+        : '') +
+      '</div>';
+    card.querySelector('.wl-del').addEventListener('click', () => wlRemove(w));
+    list.appendChild(card);
+  }
+}
+
 function buildStockCard(p) {
   const sym = p.sym;
   const m = metrics(sym);
@@ -2822,6 +2939,7 @@ function deletePensionDeposit(i) {
 function renderAll() {
   renderOverview();
   renderStocks();
+  renderWishlist();
   renderDeposits();
   renderPension();
   renderIbkrLocks();
@@ -2985,6 +3103,14 @@ function init() {
   wireEditToggle('editStocksBtn', 'editStocksHint', 'stocks', renderStocks);
   wireEditToggle('editDepositsBtn', 'editDepositsHint', 'deposits', renderDeposits);
   wireEditToggle('editPensionBtn', 'editPensionHint', 'pension', renderPension);
+
+  // רשימת מעקב — הוספה/מחיקה ישירה, לא חלק מהתיק
+  const wlAdd = document.getElementById('wlAddBtn');
+  if (wlAdd) wlAdd.addEventListener('click', wlAddItem);
+  const wlSym = document.getElementById('wlSym');
+  if (wlSym) wlSym.addEventListener('keydown', (e) => { if (e.key === 'Enter') wlAddItem(); });
+  const wlNote = document.getElementById('wlNote');
+  if (wlNote) wlNote.addEventListener('keydown', (e) => { if (e.key === 'Enter') wlAddItem(); });
 
   // מזומן
   renderCashInputs();
