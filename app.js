@@ -1424,7 +1424,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v48';
+const APP_VERSION = 'v49';
 
 
 function saveDBto(db) {
@@ -3260,10 +3260,11 @@ async function drawPfChart() {
   if (showBench) {
   if (loading) { loading.textContent = t('loadingData'); loading.classList.remove('hidden'); }
   try {
-    const hists = await Promise.all(BENCH_SYMS.map(([s]) => getBenchHist(s)));
+    const wantBench = BENCH_SYMS.filter(([s]) => pfBenchOn(s)); // לא מושכים מדד כבוי
+    const hists = await Promise.all(wantBench.map(([s]) => getBenchHist(s)));
     if (my !== pfChartToken) return;
     const toIls = !useIbkrNav; // שחזור ידני בשקלים — המדדים מומרים לשקלים
-    BENCH_SYMS.forEach(([sym, labelKey, color], bi) => {
+    wantBench.forEach(([sym, labelKey, color], bi) => {
       const hist = hists[bi];
       if (!hist || hist.length < 2) return;
       const rows = [];
