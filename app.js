@@ -151,9 +151,9 @@ he: {
   pfClearCustom: '✕ נקה',
   pfNoBench: 'אין נתוני מדדים כרגע — מוצג התיק בלבד',
   pfBenchIbkrOnly: 'השוואת מדדים זמינה בסנכרון IBKR',
-  pfFromBtn: '📅 תשואה מתאריך',
+  pfFromBtn: 'תשואה מתאריך',
   pfMarkOnChart: '📍 סמן בגרף',
-  pfPickFromCal: '📅 בחר מהיומן',
+  pfPickFromCal: 'בחר מהיומן',
   pfCalTitle: 'בחר תאריך התחלה',
   pfPickBubble: 'געו בנקודה על הגרף לבחירת תאריך ההתחלה',
   pfRangeReturn: 'תשואת התיק',
@@ -473,9 +473,9 @@ en: {
   pfClearCustom: '✕ Clear',
   pfNoBench: 'No benchmark data right now — portfolio only',
   pfBenchIbkrOnly: 'Benchmark comparison is available with IBKR sync',
-  pfFromBtn: '📅 Return from date',
+  pfFromBtn: 'Return from date',
   pfMarkOnChart: '📍 Pick on chart',
-  pfPickFromCal: '📅 Choose from calendar',
+  pfPickFromCal: 'Choose from calendar',
   pfCalTitle: 'Choose start date',
   pfPickBubble: 'Tap a point on the chart to choose the start date',
   pfRangeReturn: 'Portfolio return',
@@ -1650,7 +1650,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v71';
+const APP_VERSION = 'v72';
 
 
 function saveDBto(db) {
@@ -2070,8 +2070,11 @@ async function getDaily(sym, force) {
     }
   }
   const save = (rows) => {
+    // v72: רשת ביטחון לספליטים גם בנתיב fetch טרי (כמו ב־_getDailyFastInner)
+    if (rows && !rows.splitsApplied) { try { repairKnownSplits(sym, rows); } catch (e) {} }
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
+    delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
     // v70: שומרים מטא־ספליטים בנפרד — תכונה מותאמת על מערך לא שורדת JSON
     lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
     return rows;
@@ -2096,6 +2099,8 @@ async function getDaily(sym, force) {
   }
   return [];
 }
+
+/* ---- פונקציות עזר לגרף הביצועים ---- */
 
 async function getIntraday(sym) {
   if (state.intra[sym]) return state.intra[sym];
@@ -2179,6 +2184,13 @@ function renderPfBenchToggles(show) {
 async function _getDailyFastInner(sym, force) {
   if (!force) {
     if (state.hist[sym]) return state.hist[sym];
+    // v72: כשלון טרי — לא שורפים timeout רשת שוב; מחזירים מטמון פג־תוקף אם קיים
+    const negAt = histNegCache[sym] || 0;
+    if (negAt && Date.now() - negAt < HIST_NEG_TTL_MS) {
+      const negCached = loadHistCacheRec(sym);
+      if (negCached && negCached.rows) return restoreHistRows(sym, negCached);
+      return [];
+    }
     const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
     if (cached && cached.rows && cached.rows.length) {
       // v69: מטמון 24 שעות במקום "היום הקלנדרי" — מעבר בין טווחים מיידי גם
@@ -2195,8 +2207,13 @@ async function _getDailyFastInner(sym, force) {
     }
   }
   const save = (rows) => {
+    // v72: רשת ביטחון לספליטים גם בנתיב fetch טרי — Yahoo מחזיר מחירים
+    // כבר־מותאמים בלי מטא, ובלי המטא buildTradesHistory לא ממיר עסקאות
+    // טרום־ספליט (באג שיורי: מקסימום ‎-12%‎ במקום ‎+47.95%‎). אידמפוטנטי.
+    if (rows && !rows.splitsApplied) { try { repairKnownSplits(sym, rows); } catch (e) {} }
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
+    delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
     // v70: שומרים מטא־ספליטים בנפרד — תכונה מותאמת על מערך לא שורדת JSON
     lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
     // v69: היסטוריה חדשה = TWR חדש — מנקים מטמון
@@ -2234,6 +2251,7 @@ async function _getDailyFastInner(sym, force) {
     }
   }
   state.histDbg[sym] = notes.join(' · ');
+  histNegCache[sym] = Date.now(); // v72: לא מנסים רשת שוב ב־10 הדקות הקרובות
   const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
   if (cached && cached.rows) {
     return restoreHistRows(sym, cached);
@@ -2253,6 +2271,11 @@ function refreshHistInBackground(sym) {
 /* מעטפת עם מניעת כפילויות: שתי קריאות מקביליות לאותו סימבול חולקות בקשה אחת.
    גם מנרמלת לאותיות גדולות כדי לא לפצל מטמון. */
 const histInflight = {};
+/* v72: מטמון שלילי לסשן — סימבול שכל המקורות נכשלו בו לא ישרוף timeout
+   רשת שוב בכל מעבר טווח; מנסים שוב רק אחרי 10 דקות (ורענון הרקע עם
+   force=true עוקף את זה תמיד, כך שכשל חולף מתאושש מעצמו). */
+const histNegCache = {};
+const HIST_NEG_TTL_MS = 10 * 60 * 1000;
 async function getDailyFast(sym, force) {
   const key = String(sym || '').toUpperCase();
   if (!key) return [];
@@ -3430,13 +3453,15 @@ let pfChartToken = 0;
 
 /* שורת כלי גרף הביצועים: כפתור "תשואה מתאריך" + תג טווח מותאם + צ'יפ מדידה.
    המדידה עצמה מובנית בגרף — שתי לחיצות על נקודות. */
+/* אייקון לוח־שנה נקי בצבע המותג — מחליף את האימוג'י הצבעוני 📅 */
+const CAL_ICON = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2.5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
 function renderPfTools() {
   const box = document.getElementById('pfTools');
   if (!box) return;
   box.innerHTML = '';
   const wrap = el('div', 'pf-tools');
 
-  const fromBtn = el('button', 'chip-btn', t('pfFromBtn'));
+  const fromBtn = el('button', 'chip-btn', CAL_ICON + esc(t('pfFromBtn')));
   fromBtn.type = 'button';
   fromBtn.addEventListener('click', openPfFromSheet);
   wrap.appendChild(fromBtn);
@@ -3485,7 +3510,7 @@ function openPfFromSheet() {
     updatePfPickUI();
     paintPfChart();
   });
-  const b2 = el('button', 'sheet-btn', t('pfPickFromCal'));
+  const b2 = el('button', 'sheet-btn', CAL_ICON + esc(t('pfPickFromCal')));
   b2.type = 'button';
   b2.addEventListener('click', openPfCalSheet);
   const b3 = el('button', 'sheet-btn', '✕ ' + t('btnCancel'));
