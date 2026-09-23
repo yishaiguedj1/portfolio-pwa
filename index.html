@@ -116,6 +116,12 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
     <p class="fine hidden" id="ibkrStocksNote"></p>
     <p class="fine hidden" id="editStocksHint" data-i18n="editHintStocks">מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על ✏️ עריכה.</p>
+    <!-- v87: חיפוש מניות להוספה — זמין בשני המצבים -->
+    <div class="stock-search-wrap">
+      <input id="stockSearchInput" type="search" dir="ltr" autocomplete="off"
+             data-i18n-ph="stockSearchPh" placeholder="🔍 חפש מניה להוספה (למשל: AAPL)">
+      <div id="stockSearchResults" class="stock-search-results hidden"></div>
+    </div>
     <div id="stockList"></div>
   </section>
 
