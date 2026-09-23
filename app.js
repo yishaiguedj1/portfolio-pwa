@@ -1650,7 +1650,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v75';
+const APP_VERSION = 'v76';
 
 
 function saveDBto(db) {
@@ -3824,10 +3824,19 @@ async function drawPfChart() {
     if (my !== pfChartToken) return;
     if (isIbkrMode()) {
       // YTD: חישוב ייעודי מ־1/1 בלבד — "once and for all", בלי זיהום מ־2024-2025.
-      // טווחים אחרים: היסטוריה מלאה.
+      // v76: טווחים ארוכים (3Y/5Y/מקסימום) מתחילים מתאריך ההקמה — לא לפני.
+      // (החישוב עצמו מתחיל מההקמה, לא רק החיתוך החזותי — תיקון ל־v75.)
       const isYtd = state.pfRange === 'ytd' && !state.pfCustomFrom;
       const ytdStart = isYtd ? todayISO().slice(0, 4) + '-01-01' : null;
-      const th = ibkrTradesHistory(ytdStart);
+      let histFrom = ytdStart;
+      if (!isYtd && !state.pfCustomFrom) {
+        try {
+          const inception = ibkrInceptionDate();
+          // רק לטווחים ארוכים שעלולים להתחיל לפני ההקמה
+          if (inception && ['3y', '5y', 'max'].includes(state.pfRange)) histFrom = inception;
+        } catch (e) {}
+      }
+      const th = ibkrTradesHistory(histFrom);
       if (th.length >= 2) { allRows = th; srcKind = 'trades'; }
       else allRows = portfolioSeriesILS();
     } else {
