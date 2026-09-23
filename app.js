@@ -1486,7 +1486,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v62';
+const APP_VERSION = 'v63';
 
 
 function saveDBto(db) {
@@ -2174,7 +2174,11 @@ function portfolioBasisInCur() {
 function ibkrIsDepositTx(c) {
   const type = String((c && c.type) || '');
   const desc = String((c && c.description) || '');
-  if (/internal/i.test(desc)) return false;
+  // Transfer IN/OUT בין חשבונות (כולל INTERNAL מחשבון אחר) — תזרים אמיתי.
+  // מסננים רק העברות פנימיות בתוך אותו חשבון (לא מהדוח הזה).
+  if (/^transfer (in|out)$/i.test(type.trim())) return true;
+  if (/internal/i.test(type) && !/transfer/i.test(type)) return false;
+  if (/internal/i.test(desc) && !/transfer from/i.test(desc)) return false;
   return /deposit|withdraw/i.test(type) || /deposit|withdraw/i.test(desc);
 }
 
