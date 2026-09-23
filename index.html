@@ -29,12 +29,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     <div class="menu-wrap">
       <button id="menuBtn" class="icon-btn" type="button" data-i18n-aria="menuAria" aria-label="תפריט" aria-haspopup="true" aria-expanded="false"></button>
       <div id="menuDrop" class="menu-drop hidden">
-        <div class="menu-circles">
-          <button id="menuSettingsBtn" class="icon-btn" type="button" data-i18n-aria="menuSettings" aria-label="הגדרות"></button>
-          <button id="menuCurBtn" class="icon-btn cur-btn" type="button" data-i18n-aria="curToggleAria" aria-label="החלפת מטבע">$</button>
-          <button id="menuLangBtn" class="icon-btn lang-circle" type="button" data-i18n-aria="langAria" aria-label="בחירת שפה">עב</button>
-          <button id="menuThemeBtn" class="icon-btn" type="button" data-i18n-aria="themeCycleAria" aria-label="ערכת נושא"></button>
-        </div>
         <div id="mainMenu" class="main-menu">
           <div class="menu-section">
             <h3 class="menu-title" data-i18n="cashTitle">מזומן בתיק</h3>
@@ -46,6 +40,8 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
             <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
           </div>
         </div>
+        <button id="menuSettingsBtn" class="chip-btn menu-settings-btn" type="button"><span data-i18n="menuSettings">הגדרות</span></button>
+        <button id="menuThemeBtn" class="chip-btn menu-settings-btn" type="button" data-i18n-aria="menuThemeAria" aria-label="ערכת נושא"><span id="menuThemeTxt"></span></button>
       </div>
     </div>
   </div>
@@ -251,6 +247,22 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <div class="lang-toggle" role="group" aria-label="Language">
         <button type="button" id="langHe" class="lang-opt">עברית</button>
         <button type="button" id="langEn" class="lang-opt">English</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="displayTitle">תצוגה</h2>
+      <div class="display-row">
+        <span class="display-label" data-i18n="curTitle">מטבע</span>
+        <button type="button" id="setCurBtn" class="chip-btn" aria-label="החלפת מטבע">$</button>
+      </div>
+      <div class="display-row">
+        <span class="display-label" data-i18n="themeTitle">ערכת נושא</span>
+        <div class="lang-toggle" role="group" aria-label="Theme">
+          <button type="button" id="themeLight" class="lang-opt" data-i18n="themeLight">בהיר</button>
+          <button type="button" id="themeDark" class="lang-opt" data-i18n="themeDark">כהה</button>
+          <button type="button" id="themeSystem" class="lang-opt" data-i18n="themeSystem">מערכת</button>
+        </div>
       </div>
     </div>
 
