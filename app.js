@@ -1652,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v85';
+const APP_VERSION = 'v86';
 
 
 function saveDBto(db) {
@@ -5216,15 +5216,25 @@ function init() {
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
   });
-  // מטבע
+  // מטבע — נשמר בין רענונים (v85)
   const setCur = (c) => {
     state.currency = c;
+    try { localStorage.setItem('pwa_currency_v1', c); } catch (e) {}
     document.getElementById('curUSD').classList.toggle('active', c === 'USD');
     document.getElementById('curILS').classList.toggle('active', c === 'ILS');
     renderAll();
   };
   document.getElementById('curUSD').addEventListener('click', () => setCur('USD'));
   document.getElementById('curILS').addEventListener('click', () => setCur('ILS'));
+  // שחזור מטבע שמור מטעינה קודמת
+  try {
+    const savedCur = localStorage.getItem('pwa_currency_v1');
+    if (savedCur === 'ILS' || savedCur === 'USD') {
+      state.currency = savedCur;
+      document.getElementById('curUSD').classList.toggle('active', savedCur === 'USD');
+      document.getElementById('curILS').classList.toggle('active', savedCur === 'ILS');
+    }
+  } catch (e) {}
   // רענון
   document.getElementById('refreshBtn').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
