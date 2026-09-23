@@ -1361,10 +1361,10 @@ async function ibkrSyncImport() {
   ibkrSetBusy(true);
   try {
     const s = document.getElementById('ibkrStatus');
-    // מושך היסטוריה מלאה מפתיחת התיק (אמצע 2024) — במספר חלקים של עד 365 יום
-    const startYmd = '20240601';
+    // מושך היסטוריה מלאה — שנתיים אחורה (מגבלת השמירה של IBKR).
+    // במספר חלקים של עד 365 יום, עם מיזוג ומניעת כפילויות.
     if (s) s.textContent = t('fetchHistory', { n: 1, total: '…' });
-    const data = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
+    const data = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, null, (i, total) => {
       if (s) s.textContent = t('fetchHistory', { n: i, total });
     });
     ibkrSaveCfg({ lastSync: Date.now(), data });
@@ -1583,7 +1583,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v65';
+const APP_VERSION = 'v66';
 
 
 function saveDBto(db) {
@@ -2155,9 +2155,14 @@ async function getDailyFast(sym, force) {
    סמלים כאלה אף פעם לא יחזרו מאף מקור — בלי הסינון כל טעינה שורפת עליהם timeout. */
 function isChartableSym(s) {
   if (!s) return false;
-  if (/\s/.test(s)) return false;
+  s = normalizeSym(s);
   if (/\.[A-Z]{3}$/.test(s)) return false;
   return /^[A-Z0-9.-]{1,12}$/.test(s);
+}
+
+/* מנרמל סימבול למחירים: "BRK B" -> "BRK-B" (Yahoo), מסיר רווחים. */
+function normalizeSym(s) {
+  return String(s || '').toUpperCase().replace(/\s+/g, '-').trim();
 }
 
 /* מחמם את ההיסטוריות של כל האחזקות (וגם סמלים מעסקאות IBKR היסטוריות)
@@ -2165,7 +2170,7 @@ function isChartableSym(s) {
    onProgress(done, total) — לעדכון מחוון טעינה, כדי שלא ייראה "תקוע". */
 async function warmPfHistories(onProgress) {
   const syms = [];
-  const add = (s) => { s = String(s || '').toUpperCase(); if (s && isChartableSym(s) && !syms.includes(s)) syms.push(s); };
+  const add = (s) => { s = normalizeSym(s); if (s && isChartableSym(s) && !syms.includes(s)) syms.push(s); };
   for (const p of POSITIONS) add(p.sym);
   if (isIbkrMode()) { try { for (const tr of ibkrTrades()) add(tr.symbol); } catch (e) {} }
   let done = 0;
@@ -2935,9 +2940,9 @@ function portfolioSeriesILS() {
    שאין להם היסטוריית מחירים. בלי הסינון, ביטול המרת מט"ח בהליכה אחורה
    מנפח את המזומן ההיסטורי בסכום ההמרה המלא ומעוות את התשואה לשלילית. */
 function ibkrIsStockTrade(x) {
-  const s = String((x && x.symbol) || '');
-  if (!s || /\s/.test(s)) return false;
-  if (/^[A-Z]{3}\.[A-Z]{3}$/.test(s.toUpperCase())) return false;
+  const s = normalizeSym((x && x.symbol) || '');
+  if (!s) return false;
+  if (/^[A-Z]{3}\.[A-Z]{3}$/.test(s)) return false;
   return true;
 }
 
@@ -2964,7 +2969,7 @@ function buildTradesHistory(o) {
   const trades = (o.trades || [])
     .filter((x) => x && x.symbol && x.date && ibkrIsStockTrade(x))
     .map((x) => {
-      const sym = String(x.symbol).toUpperCase();
+      const sym = normalizeSym(x.symbol);
       const date = String(x.date).slice(0, 10);
       let qty = Math.abs(Number(x.qty) || 0);
       let price = Number(x.price) || 0;
@@ -3016,7 +3021,7 @@ function buildTradesHistory(o) {
   // פעם אחת בשער העדכני; המרות מט"ח הן ניטרליות בערך דולרי (למעט ספרד זניח)
   // ולכן אינן מבוטלות בהליכה אחורה ואינן מוסיפות "מזומן פנטום" לעבר.
   const shares = {};
-  for (const p of (o.positions || [])) shares[String(p.sym).toUpperCase()] = Number(p.shares) || 0;
+  for (const p of (o.positions || [])) shares[normalizeSym(p.sym)] = Number(p.shares) || 0;
   const fxOfNow = o.fxOf || (() => 1);
   const fxNow = fxOfNow(todayISO()) || 1;
   let cashUsd = (Number((o.cash || {}).usd) || 0) + (Number((o.cash || {}).ils) || 0) / fxNow;
@@ -3028,15 +3033,14 @@ function buildTradesHistory(o) {
   for (const x of trades) addEv(x.date, { kind: 'trade', x });
   for (const d of Object.keys(flows)) addEv(d, { kind: 'flow', amt: flows[d] });
   for (const d of Object.keys(cashAdj)) addEv(d, { kind: 'div', amt: cashAdj[d] });
-  // YTD בלבד: מסננים אירועים לפני 1/1 של השנה הנוכחית.
-  // הסיבה: ה־TWR חייב להתחיל מ־100 ב־1/1; אירועי 2025 מזהמים את החישוב.
+  // הערה: לא מסננים ל־YTD כאן — הסינון לטווח נעשה בתצוגה (drawPfChart).
+  // הסרת פילטר v64 ששבר את טווחי 1Y/3Y (הציגו אותו מספר כמו YTD).
   const allEvDates = [...byDate.keys()].sort();
-  const lastEv = allEvDates[allEvDates.length - 1] || todayISO();
-  const ytdStart = lastEv.slice(0, 4) + '-01-01';
-  for (const d of allEvDates) {
-    if (d < ytdStart) byDate.delete(d);
-  }
-  const firstEv = [...byDate.keys()].sort()[0];
+  const firstEvDate = [...byDate.keys()].sort()[0];
+  // מתחילים מ־1/1 של שנת האירוע הראשון (לא מהאירוע עצמו) — כדי שתהיה נקודת
+  // ייחוס נכונה ל־YTD ולנרמול הטווחים. אחרת ה־YTD מחושב מהאירוע הראשון (למשל 14/1)
+  // במקום מ־1/1, והתשואה שגויה.
+  const firstEv = firstEvDate ? firstEvDate.slice(0, 4) + '-01-01' : todayISO();
   const stateByDate = {}; // date -> {shares:{}, cashUsd}
   const evDates = [...byDate.keys()].sort().reverse(); // חדש -> ישן
   let ei = 0;
