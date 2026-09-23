@@ -289,7 +289,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v19';
 
 
 function saveDBto(db) {
@@ -565,11 +565,12 @@ async function refreshQuotes() {
     renderAll();
     return;
   }
-  const tries = [tryYahooQuotes, tryCNBCQuotes];
-  for (const fn of tries) {
-    try { applyQuotes(await fn()); renderAll(); return; }
-    catch (e) { /* ניסיון הבא */ }
-  }
+  // מרוץ מקורות: Yahoo ו־CNBC במקביל — מי שמגיב ראשון מנצח.
+  // ככה לא מחכים ל-timeout של מקור חסום ברשת של המשתמש.
+  try {
+    const res = await Promise.any([tryYahooQuotes(), tryCNBCQuotes()]);
+    applyQuotes(res); renderAll(); return;
+  } catch (e) { /* שניהם נכשלו — נופלים לנתונים שמורים */ }
   const cached = lsGet(LS_QUOTES);
   if (cached && cached.quotes && cached.fx) {
     state.quotes = cached.quotes;
