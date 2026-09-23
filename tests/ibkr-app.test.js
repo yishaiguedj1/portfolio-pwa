@@ -157,8 +157,8 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  ok(sw.includes('portfolio-pwa-v28'), 'sw.js בגרסת v28');
-  ok(src.includes("const APP_VERSION = 'v28'"), 'APP_VERSION v28');
+  ok(sw.includes('portfolio-pwa-v29'), 'sw.js בגרסת v29');
+  ok(src.includes("const APP_VERSION = 'v29'"), 'APP_VERSION v29');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
