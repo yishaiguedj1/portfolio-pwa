@@ -89,12 +89,14 @@ function tKeys(src, name) {
     const lineStart = src.lastIndexOf('\n', m.index) + 1;
     const line = src.slice(lineStart, src.indexOf('\n', m.index));
     if (/function t\(|dataset\.|getLang\(\)/.test(line)) continue;
-    if (/t\(label\)/.test(line)) continue; // RANGES: המפתח מילולי במערך, t() ברינדור
+    if (/t\(label(Key)?\)/.test(line)) continue; // RANGES/BENCH_SYMS: המפתח מילולי במערך, t() ברינדור
     dyn.push(m[2].trim().slice(0, 20));
   }
   ok(dyn.length === 0, 'אין קריאות t() דינמיות ב־' + name + (dyn.length ? ': ' + dyn.join(',') : ''));
-  // מפתחות טווחי הגרף חיים במערכי RANGES/PF_RANGES כמחרוזות מילוליות
+  // מפתחות טווחי הגרף חיים במערכי RANGES/PF_RANGES כמחרוזות מילוליות;
+  // מפתחות הבנצ'מרקים חיים ב־BENCH_SYMS כ־['SYM', 'key', color]
   for (const m of src.matchAll(/\['[a-z0-9]+',\s*'([A-Za-z0-9_]+)'\]/g)) keys.add(m[1]);
+  for (const m of src.matchAll(/\['[A-Z0-9]+',\s*'([A-Za-z0-9_]+)',/g)) keys.add(m[1]);
   return keys;
 }
 const jsKeys = new Set([...tKeys(appSrc, 'app.js'), ...tKeys(cloudSrc, 'cloud.js')]);
