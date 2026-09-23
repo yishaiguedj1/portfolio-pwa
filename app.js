@@ -1713,7 +1713,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v96';
+const APP_VERSION = 'v97';
 
 
 function saveDBto(db) {
@@ -4691,9 +4691,8 @@ function renderWishlist() {
 
 /* v88/v93: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
    מקור: Financial Modeling Prep (חינמי, ללא מפתח).
-   v93: אריח בהיר כמו v88; תיקון ניגודיות אוטומטי — לוגו בהיר על שקוף
-   (UBER/APP/UNH) עובר invert כדי להיראות על האריח הבהיר. עובד גם למניות
-   עתידיות כי הניתוח נעשה בזמן אמת על התמונה שנטענה (FMP שולח CORS). */
+   v97: אריח לבן תמיד (גם בערכת כהה); אות הגיבוי מוסתרת ברגע שהלוגו
+   נטען — נראית רק אם הטעינה נכשלה. */
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
   const first = (nsym || '?').charAt(0);
@@ -4720,11 +4719,14 @@ function logoImgErr(img) {
 
 /* מנתח את בהירות הלוגו; לוגו בהיר על אריח בהיר (או כהה על אריח כהה)
    עובר invert אוטומטי כדי להישאר קריא. */
+/* v97: מסתיר את אות הגיבוי ברגע שהלוגו נטען (שלא תציץ מאחוריו),
+   והופך לוגו בהיר כדי שייראה על האריח הלבן. */
 function logoImgFix(img) {
   try {
+    const fb = img.previousElementSibling;
+    if (fb && fb.classList && fb.classList.contains('stock-logo-fb')) fb.style.display = 'none';
     const w = img.naturalWidth, h = img.naturalHeight;
     if (!w || !h || w < 4 || h < 4) return;
-    const darkTile = document.documentElement.dataset.theme === 'dark';
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -4740,7 +4742,7 @@ function logoImgFix(img) {
     }
     if (cnt < 5) return;
     const avg = sum / cnt;
-    if ((!darkTile && avg > 205) || (darkTile && avg < 50)) {
+    if (avg > 205) {
       img.style.filter = 'invert(1)';
     }
   } catch (e) { /* תמונה מוכתמת (tainted) — משאיר כמו שהיא */ }
