@@ -149,16 +149,35 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const impNoCost = T.ibkrMapImport({ positions: [{ symbol: 'NVDA', asset: 'STK', qty: 3, markPrice: 900, costBasis: 0, currency: 'USD' }] });
   ok(impNoCost.positions[0].avg === 900, 'בלי עלות — נופל למחיר שוק');
 
+  /* איחוד לוטות לפי סימבול — הבאג של הכפילויות */
+  const impLots = T.ibkrMapImport({
+    positions: [
+      { symbol: 'ADBE', asset: 'STK', qty: 10, markPrice: 240, costBasis: 2000, currency: 'USD' },
+      { symbol: 'ADBE', asset: 'STK', qty: 20, markPrice: 240, costBasis: 5000, currency: 'USD' },
+      { symbol: 'ADBE', asset: 'STK', qty: 11, markPrice: 240, costBasis: -2860, currency: 'USD' },
+      { symbol: 'META', asset: 'STK', qty: 5, markPrice: 700, costBasis: 3000, currency: 'USD' },
+    ],
+    cashBalances: [],
+  });
+  ok(impLots.positions.length === 2, 'לוטות של אותו סימבול מאוחדים לרשומה אחת');
+  ok(impLots.lots === 4, 'סופר את כל שורות הקנייה');
+  const adbe = impLots.positions.find((p) => p.sym === 'ADBE');
+  ok(adbe && adbe.shares === 41, 'כמויות מסוכמות (10+20+11)');
+  ok(adbe && Math.abs(adbe.avg - (2000 + 5000 + 2860) / 41) < 1e-9, 'מחיר ממוצע משוקלל לפי עלות (גם עלות שלילית)');
+  ok(impLots.cash === null, 'בלי יתרות מזומן בדוח — cash הוא null ולא מאפס');
+  const impCashOnly = T.ibkrMapImport({ positions: [], cashBalances: [{ currency: 'USD', balance: 100 }] });
+  ok(impCashOnly.cash && impCashOnly.cash.usd === 100, 'יתרת מזומן בודדת ממופה');
+
   /* ---------- עקביות קבצים ---------- */
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSync', 'ibkrImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
+  for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
     ok(html.includes('id="' + id + '"'), 'index.html מכיל #' + id);
   }
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  ok(sw.includes('portfolio-pwa-v29'), 'sw.js בגרסת v29');
-  ok(src.includes("const APP_VERSION = 'v29'"), 'APP_VERSION v29');
+  ok(sw.includes('portfolio-pwa-v30'), 'sw.js בגרסת v29');
+  ok(src.includes("const APP_VERSION = 'v30'"), 'APP_VERSION v29');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
