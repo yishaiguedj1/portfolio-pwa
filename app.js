@@ -125,6 +125,7 @@ he: {
   clearMeasure: 'ניקוי מדידה',
   loadingData: 'טוען נתונים…',
   loadingHist: 'טוען נתוני היסטוריה…',
+  loadingHistN: 'טוען נתוני היסטוריה… ({done}/{total})',
   noChartData: 'לא התקבלו נתוני גרף',
   noChartNow: 'אין נתוני גרף כרגע',
   noPriceYet: 'אין נתוני מחיר עדיין',
@@ -444,6 +445,7 @@ en: {
   clearMeasure: 'Clear measurement',
   loadingData: 'Loading data…',
   loadingHist: 'Loading history data…',
+  loadingHistN: 'Loading history data… ({done}/{total})',
   noChartData: 'No chart data received',
   noChartNow: 'No chart data right now',
   noPriceYet: 'No price data yet',
@@ -843,9 +845,9 @@ function netErrName(e) {
 }
 
 /* ניסיון אחד להביא נרות מ־Yahoo; מחזיר rows או null ורושם מה קרה */
-async function fetchYahooBars(url, withTime, notes, name) {
+async function fetchYahooBars(url, withTime, notes, name, ms) {
   try {
-    const rows = parseYahooBars(await fetchJSONTimeout(url, 12000), withTime);
+    const rows = parseYahooBars(await fetchJSONTimeout(url, ms || 12000), withTime);
     if (rows.length) return rows;
     notes.push(t('srcEmpty', { name }));
   } catch (e) { notes.push(name + ': ' + netErrName(e)); }
@@ -1050,11 +1052,11 @@ function ibkrProxyBase() {
 
 /* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }. */
 async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId) {
-  const r = await fetchFn(proxyUrl + '/api/flex-request', {
+  const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, queryId })
-  });
+  }, 45000);
   let j = null;
   try { j = await r.json(); } catch (e) {}
   if (!j || j.ok !== true || !j.referenceCode) {
@@ -1074,11 +1076,11 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
   for (let i = 0; i < tries; i++) {
     let j = null;
     try {
-      const r = await fetchFn(proxyUrl + '/api/flex-statement', {
+      const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, code, statementUrl: statementUrl || '' })
-      });
+      }, 45000);
       j = await r.json();
     } catch (e) { netErr = e; }
     if (j && j.ok === true && j.status === 'ready' && j.data) return j.data;
@@ -1424,7 +1426,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v52';
+const APP_VERSION = 'v53';
 
 
 function saveDBto(db) {
@@ -1577,6 +1579,16 @@ async function pool(items, n, fn) {
 
 /* ---------------- מקורות מחיר (רשת) ---------------- */
 /* סדר הניסיון: Yahoo ← CNBC ← נתונים שמורים. */
+
+/* fetch עם timeout — לקריאות שעלולות להיתקע (פרוקסי IBKR): בלי זה בקשה
+   תלויה אחת מקפיאה את כל הסנכרון ללא הגבלה. */
+async function fetchWithTimeout(fetchFn, url, opts, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms || 45000);
+  try {
+    return await fetchFn(url, Object.assign({}, opts, { signal: ctrl.signal }));
+  } finally { clearTimeout(timer); }
+}
 
 async function fetchTextTimeout(url, ms) {
   const ctrl = new AbortController();
@@ -1915,7 +1927,7 @@ function renderPfBenchToggles(show) {
 /* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
    הראשון שעונה מנצח, בלי לחכות ל־timeout של מקור חסום. Twelve Data רק
    כגיבוי אחרון (צריך מפתח). אותו מטמון ואותו פורמט שורות כמו getDaily. */
-async function getDailyFast(sym, force) {
+async function _getDailyFastInner(sym, force) {
   if (!force) {
     if (state.hist[sym]) return state.hist[sym];
     const cached = lsGet(LS_HIST + sym);
@@ -1934,8 +1946,8 @@ async function getDailyFast(sym, force) {
   const dq = (host) => yahooURL(sym, 'interval=1d&range=5y', host);
   // מרוץ מקבילי: הראשון שעונה מנצח — לא מחכים ל־timeout של מקור חסום (v19 לימד אותנו)
   const racers = [
-    fetchYahooBars(dq('query1'), false, notes, 'Yahoo'),
-    fetchYahooBars(dq('query2'), false, notes, 'Yahoo2'),
+    fetchYahooBars(dq('query1'), false, notes, 'Yahoo', 8000),
+    fetchYahooBars(dq('query2'), false, notes, 'Yahoo2', 8000),
     (async () => {
       try {
         const r = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 7000));
@@ -1959,14 +1971,45 @@ async function getDailyFast(sym, force) {
   return [];
 }
 
+/* מעטפת עם מניעת כפילויות: שתי קריאות מקביליות לאותו סימבול חולקות בקשה אחת.
+   גם מנרמלת לאותיות גדולות כדי לא לפצל מטמון. */
+const histInflight = {};
+async function getDailyFast(sym, force) {
+  const key = String(sym || '').toUpperCase();
+  if (!key) return [];
+  if (!force && histInflight[key]) return histInflight[key];
+  const p = _getDailyFastInner(key, force);
+  if (!force) {
+    histInflight[key] = p;
+    const clear = () => { if (histInflight[key] === p) delete histInflight[key]; };
+    p.then(clear, clear);
+  }
+  return p;
+}
+
+/* סימבול שאפשר לצייר לו גרף: מניה אמיתית, לא צמד מט"ח (USD.ILS) ולא אופציה.
+   סמלים כאלה אף פעם לא יחזרו מאף מקור — בלי הסינון כל טעינה שורפת עליהם timeout. */
+function isChartableSym(s) {
+  if (!s) return false;
+  if (/\s/.test(s)) return false;
+  if (/\.[A-Z]{3}$/.test(s)) return false;
+  return /^[A-Z0-9.-]{1,12}$/.test(s);
+}
+
 /* מחמם את ההיסטוריות של כל האחזקות (וגם סמלים מעסקאות IBKR היסטוריות)
-   לטובת גרף הביצועים — במקביל, כדי שהגרף ייטען תוך שניות ולא דקות. */
-async function warmPfHistories() {
+   לטובת גרף הביצועים — במקביל, כדי שהגרף ייטען תוך שניות ולא דקות.
+   onProgress(done, total) — לעדכון מחוון טעינה, כדי שלא ייראה "תקוע". */
+async function warmPfHistories(onProgress) {
   const syms = [];
-  const add = (s) => { s = String(s || '').toUpperCase(); if (s && !syms.includes(s)) syms.push(s); };
+  const add = (s) => { s = String(s || '').toUpperCase(); if (s && isChartableSym(s) && !syms.includes(s)) syms.push(s); };
   for (const p of POSITIONS) add(p.sym);
   if (isIbkrMode()) { try { for (const tr of ibkrTrades()) add(tr.symbol); } catch (e) {} }
-  await pool(syms, 4, (sym) => getDailyFast(sym, false));
+  let done = 0;
+  const tick = () => {
+    done++;
+    if (onProgress) { try { onProgress(done, syms.length); } catch (e) {} }
+  };
+  await pool(syms, 4, async (sym) => { try { await getDailyFast(sym, false); } finally { tick(); } });
 }
 
 /* ---------------- חישובים ---------------- */
@@ -3235,7 +3278,9 @@ async function drawPfChart() {
       loading.textContent = t('loadingHist');
       loading.classList.remove('hidden');
     }
-    await warmPfHistories(); // מהיר: Yahoo תחילה, במקביל
+    await warmPfHistories((done, total) => {
+      if (loading && my === pfChartToken) loading.textContent = t('loadingHistN', { done, total });
+    }); // מהיר: מרוץ מקבילי + מטמון
     if (my !== pfChartToken) return;
     await ensureFxHist();
     if (my !== pfChartToken) return;
