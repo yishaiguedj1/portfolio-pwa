@@ -24,16 +24,15 @@ const ICON_MEASURE = _IC_PRE + '<path d="M3 17 17 3l4 4L7 21Z"/><line x1="8.5" y
 const ICON_PIN = _IC_PRE + '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
 const ICON_CHART = _IC_PRE + '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>';
 const ICON_TRASH = _IC_PRE + '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const ICON_GLOBE = _IC_PRE + '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.5 13.5 0 0 1 0 18M12 3a13.5 13.5 0 0 0 0 18"/></svg>';
 
 const STRINGS = {
 he: {
   appTitle: 'תיק ההשקעות',
   loadingSource: 'מקור: טוען…',
-  curAria: 'בחירת מטבע',
-  curUsd: 'הצג בדולרים',
-  curIls: 'הצג בשקלים',
+  curToggleAria: 'החלפת מטבע — דולר / שקל',
+  langAria: 'בחירת שפה',
   loading: 'טוען…',
-  refresh: 'רענון נתונים',
   tabsAria: 'לשוניות',
   tabOverview: 'סקירה',
   tabStocks: 'מניות',
@@ -358,11 +357,9 @@ he: {
 en: {
   appTitle: 'Portfolio',
   loadingSource: 'Source: loading…',
-  curAria: 'Currency selection',
-  curUsd: 'Show in dollars',
-  curIls: 'Show in shekels',
+  curToggleAria: 'Toggle currency — dollar / shekel',
+  langAria: 'Choose language',
   loading: 'Loading…',
-  refresh: 'Refresh data',
   tabsAria: 'Tabs',
   tabOverview: 'Overview',
   tabStocks: 'Stocks',
@@ -745,6 +742,45 @@ function renderLangToggle() {
   const enB = document.getElementById('langEn');
   if (heB) heB.classList.toggle('active', lang === 'he');
   if (enB) enB.classList.toggle('active', lang === 'en');
+  try { paintLangMenu(); } catch (e) {}
+}
+
+/* v92: תפריט שפה נקי ב־header — נפתח/נסגר, בחירה מחליפה שפה בכל האפליקציה. */
+function paintLangMenu() {
+  const cur = getLang();
+  document.querySelectorAll('#langMenu .lang-menu-item').forEach((it) => {
+    const on = it.dataset.lang === cur;
+    it.classList.toggle('on', on);
+    it.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+}
+function initLangMenu() {
+  const btn = document.getElementById('langBtn');
+  const menu = document.getElementById('langMenu');
+  if (!btn || !menu) return;
+  btn.innerHTML = ICON_GLOBE;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = menu.classList.contains('hidden');
+    menu.classList.toggle('hidden');
+    if (willOpen) paintLangMenu();
+  });
+  menu.querySelectorAll('.lang-menu-item').forEach((it) => {
+    it.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.add('hidden');
+      setLang(it.dataset.lang);
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('hidden') && !e.target.closest('.lang-wrap')) {
+      menu.classList.add('hidden');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') menu.classList.add('hidden');
+  });
+  paintLangMenu();
 }
 
 /* ---------------- ערכת נושא: בהיר / כהה / מערכת ----------------
@@ -1677,7 +1713,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v91';
+const APP_VERSION = 'v93';
 
 
 function saveDBto(db) {
@@ -4331,6 +4367,7 @@ function renderStockSearchResults(items, status) {
   for (const it of items) {
     const row = el('div', 'stock-search-item');
     row.innerHTML =
+      '<span class="ss-logo">' + stockLogoHTML(it.sym) + '</span>' +
       '<span class="ss-sym" dir="ltr">' + esc(it.sym) + '</span>' +
       '<span class="ss-name">' + esc(it.name) + '</span>' +
       '<span class="ss-type">' + esc(it.type) + '</span>' +
@@ -4652,17 +4689,61 @@ function renderWishlist() {
   }
 }
 
-/* v88/v89: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
+/* v88/v93: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
    מקור: Financial Modeling Prep (חינמי, ללא מפתח).
-   v89: אריח כהה — חלק מהלוגואים לבנים על שקוף ונעלמים על רקע בהיר. */
+   v93: אריח בהיר כמו v88; תיקון ניגודיות אוטומטי — לוגו בהיר על שקוף
+   (UBER/APP/UNH) עובר invert כדי להיראות על האריח הבהיר. עובד גם למניות
+   עתידיות כי הניתוח נעשה בזמן אמת על התמונה שנטענה (FMP שולח CORS). */
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
   const first = (nsym || '?').charAt(0);
   return '<span class="stock-logo">' +
     '<span class="stock-logo-fb">' + esc(first) + '</span>' +
-    '<img class="stock-logo-img" src="https://financialmodelingprep.com/image-stock/' +
-    encodeURIComponent(nsym) + '.png" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+    '<img class="stock-logo-img" crossorigin="anonymous" src="https://financialmodelingprep.com/image-stock/' +
+    encodeURIComponent(nsym) + '.png" alt="" loading="lazy" ' +
+    'onload="logoImgFix(this)" onerror="logoImgErr(this)">' +
     '</span>';
+}
+
+/* נכשל בטעינת CORS — מנסה שוב בלי CORS (תצוגה בלבד, בלי תיקון ניגודיות).
+   כישלון שני — מסתיר את התמונה ונשאר הגיבוי (אות ראשונה). */
+function logoImgErr(img) {
+  try {
+    if (img.dataset.nocors) { img.style.display = 'none'; return; }
+    img.dataset.nocors = '1';
+    img.removeAttribute('crossorigin');
+    const s = img.src;
+    img.removeAttribute('src');
+    img.src = s;
+  } catch (e) { try { img.style.display = 'none'; } catch (e2) {} }
+}
+
+/* מנתח את בהירות הלוגו; לוגו בהיר על אריח בהיר (או כהה על אריח כהה)
+   עובר invert אוטומטי כדי להישאר קריא. */
+function logoImgFix(img) {
+  try {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h || w < 4 || h < 4) return;
+    const darkTile = document.documentElement.dataset.theme === 'dark';
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let sum = 0, cnt = 0;
+    for (let i = 0; i < d.length; i += 40) {
+      if (d[i + 3] > 128) {
+        sum += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+        cnt++;
+      }
+    }
+    if (cnt < 5) return;
+    const avg = sum / cnt;
+    if ((!darkTile && avg > 205) || (darkTile && avg < 50)) {
+      img.style.filter = 'invert(1)';
+    }
+  } catch (e) { /* תמונה מוכתמת (tainted) — משאיר כמו שהיא */ }
 }
 
 function buildStockCard(p) {
@@ -5474,36 +5555,27 @@ function init() {
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
   });
-  // מטבע — נשמר בין רענונים (v85)
+  // מטבע — כפתור יחיד שמחליף בין $ ל־₪ (v92); נשמר בין רענונים
+  const paintCurBtn = () => {
+    const b = document.getElementById('curToggleBtn');
+    if (b) b.textContent = state.currency === 'ILS' ? '₪' : '$';
+  };
   const setCur = (c) => {
     state.currency = c;
     try { localStorage.setItem('pwa_currency_v1', c); } catch (e) {}
-    document.getElementById('curUSD').classList.toggle('active', c === 'USD');
-    document.getElementById('curILS').classList.toggle('active', c === 'ILS');
+    paintCurBtn();
     renderAll();
   };
-  document.getElementById('curUSD').addEventListener('click', () => setCur('USD'));
-  document.getElementById('curILS').addEventListener('click', () => setCur('ILS'));
+  const curBtn = document.getElementById('curToggleBtn');
+  if (curBtn) curBtn.addEventListener('click', () => setCur(state.currency === 'ILS' ? 'USD' : 'ILS'));
   // שחזור מטבע שמור מטעינה קודמת
   try {
     const savedCur = localStorage.getItem('pwa_currency_v1');
-    if (savedCur === 'ILS' || savedCur === 'USD') {
-      state.currency = savedCur;
-      document.getElementById('curUSD').classList.toggle('active', savedCur === 'USD');
-      document.getElementById('curILS').classList.toggle('active', savedCur === 'ILS');
-    }
+    if (savedCur === 'ILS' || savedCur === 'USD') state.currency = savedCur;
   } catch (e) {}
-  // רענון
-  document.getElementById('refreshBtn').addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    btn.classList.add('spinning');
-    state.hist = {}; state.intra = {};
-    await refreshQuotes();
-    await warmHistories();
-    await refreshEarnings();
-    renderOverview(); renderWishlist();
-    btn.classList.remove('spinning');
-  });
+  paintCurBtn();
+  // תפריט שפה (v92)
+  try { initLangMenu(); } catch (e) {}
   // שינוי גודל — ציור מחדש של גרפים פתוחים
   let rzT = null;
   window.addEventListener('resize', () => {
