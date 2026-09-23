@@ -165,7 +165,7 @@ he: {
   ibkrSyncImportBtn: '🔄 סנכרן וייבא מ־IBKR',
   ibkrDisconnectBtn: 'ניתוק',
   ibkrNotConnected: 'לא מחובר — מוצגים הנתונים הידניים.',
-  ibkrDepositsNote: 'מצב IBKR פעיל: ההפקדות נשמרות לתיעוד בלבד — החישובים מתבססים על עלות הקנייה מ־IBKR.',
+  ibkrDepositsNote: 'מסונכרן מ־IBKR — ההפקדות מתעדכנות אוטומטית בכל סנכרון.',
   ibkrConnectedSynced: 'מחובר ✓ · סונכרן: {time}',
   ibkrConnectedNever: 'מחובר ✓ · טרם בוצע סנכרון.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
@@ -180,7 +180,9 @@ he: {
   importSkippedNote: ' ({n} שורות שאינן מניות דולריות דולגו)',
   importCashLine: 'מזומן מהדוח: ${usd} / ₪{ils}',
   importCashMissing: 'מזומן לא נמצא בדוח — יישמר המזומן הקיים (כדאי להוסיף את מקטע Cash Report לשאילתת ה־Flex).',
-  importConfirm: 'נמצאו {n} מניות בדוח ({lots} שורות קנייה אוחדו לפי סימבול).\n{cashLine}\nפעולה זו תחליף את המניות והמזומן בתיק. פנסיה והפקדות לא ישתנו.{skipped}\nלהמשיך?',
+  importConfirm: 'נמצאו {n} מניות בדוח ({lots} שורות קנייה אוחדו לפי סימבול).\n{cashLine}\n{depLine}\nפעולה זו תחליף את המניות, המזומן וההפקדות בתיק. פנסיה לא תשתנה.{skipped}\nלהמשיך?',
+  importDepLine: 'הפקדות מהדוח: {n} העברות (נטו {total}) — יחליפו את רשימת ההפקדות.',
+  importDepMissing: 'לא נמצאו הפקדות/משיכות בדוח — רשימת ההפקדות לא תשתנה (כדאי להוסיף את מקטע Cash Transactions לשאילתת ה־Flex).',
   importedOk: 'סונכרן ויובאו {n} מניות מ־IBKR ✓',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
   disconnectConfirm: 'לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון. הנתונים הידניים לא ייפגעו.',
@@ -408,7 +410,7 @@ en: {
   ibkrSyncImportBtn: '🔄 Sync & import from IBKR',
   ibkrDisconnectBtn: 'Disconnect',
   ibkrNotConnected: 'Not connected — showing manual data.',
-  ibkrDepositsNote: 'IBKR mode is on: deposits are kept for records only — calculations use the IBKR cost basis.',
+  ibkrDepositsNote: 'Synced from IBKR — deposits update automatically on every sync.',
   ibkrConnectedSynced: 'Connected ✓ · Synced: {time}',
   ibkrConnectedNever: 'Connected ✓ · Not synced yet.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
@@ -423,7 +425,9 @@ en: {
   importSkippedNote: ' ({n} non-USD-stock rows skipped)',
   importCashLine: 'Cash from report: ${usd} / ₪{ils}',
   importCashMissing: 'No cash found in the report — keeping existing cash (consider adding the Cash Report section to your Flex query).',
-  importConfirm: 'Found {n} stocks in the report ({lots} purchase rows merged by symbol).\n{cashLine}\nThis will replace the stocks and cash in the portfolio. Pension and deposits will not change.{skipped}\nContinue?',
+  importConfirm: 'Found {n} stocks in the report ({lots} purchase rows merged by symbol).\n{cashLine}\n{depLine}\nThis will replace the stocks, cash and deposits in the portfolio. Pension will not change.{skipped}\nContinue?',
+  importDepLine: 'Deposits from the report: {n} transfers (net {total}) — will replace the deposits list.',
+  importDepMissing: 'No deposits/withdrawals found in the report — the deposits list will not change (consider adding the Cash Transactions section to your Flex query).',
   importedOk: 'Synced & imported {n} stocks from IBKR ✓',
   importFailed: 'Sync & import failed: {err}',
   disconnectConfirm: 'Disconnect the broker? The token and sync data will be deleted from this phone. Manual data will not be affected.',
@@ -975,8 +979,8 @@ async function ibkrSaveAndTest() {
 }
 
 /* סנכרון וייבוא מ־IBKR בלחיצה אחת: מושך דוח טרי, מאחד לוטות לפי סימבול,
-   מבקש אישור עם סיכום, ומחליף מניות (+מזומן, רק אם נמצא בדוח).
-   פנסיה והפקדות לא נפגעות. */
+   מבקש אישור עם סיכום, ומחליף מניות (+מזומן, רק אם נמצא בדוח) והפקדות
+   (רק העברות חיצוניות מהדוח, מומרות לשקלים). פנסיה לא נפגעת. */
 async function ibkrSyncImport() {
   ibkrClearErr();
   const cfg = ibkrCfg();
@@ -996,6 +1000,18 @@ async function ibkrSyncImport() {
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? t('importSkippedNote', { n: imp.skipped }) : ''));
       return;
     }
+    // הפקדות מהדוח: רק העברות חיצוניות (הפקדה/משיכה), מומרות לשקלים לפי שער יום ההעברה
+    let txEarliest = null;
+    for (const c of (data.cashTransactions || [])) {
+      const dt = String(c.date || '').slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dt) && (!txEarliest || dt < txEarliest)) txEarliest = dt;
+    }
+    if (txEarliest) { try { await ensureFxHist(txEarliest); } catch (e) {} }
+    const depList = ibkrMapDeposits(data.cashTransactions, (iso) => fxOnOrBefore(iso));
+    const depNet = depList.reduce((a, d) => a + (d.amount || 0), 0);
+    const depLine = depList.length
+      ? t('importDepLine', { n: depList.length, total: '₪' + Math.abs(depNet).toLocaleString('en-US') })
+      : t('importDepMissing');
     const cashLine = imp.cash
       ? t('importCashLine', { usd: imp.cash.usd, ils: imp.cash.ils })
       : t('importCashMissing');
@@ -1003,12 +1019,14 @@ async function ibkrSyncImport() {
       n: imp.positions.length,
       lots: imp.lots,
       cashLine,
+      depLine,
       skipped: imp.skipped ? '\n' + t('importSkippedNote', { n: imp.skipped }).trim() : ''
     });
     if (!confirm(msg)) return;
     // עדכון במקום (לא החלפת מערך) כדי לא לשבור הפניות קיימות, וסימון מקור הנתונים
     DB.positions.length = 0;
     DB.positions.push(...imp.positions);
+    if (depList.length) { DEPOSITS.length = 0; DEPOSITS.push(...depList); }
     DB.source = 'ibkr';
     if (imp.cash) DB.cash = { usd: imp.cash.usd, ils: imp.cash.ils };
     saveDB();
@@ -1144,7 +1162,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v34';
+const APP_VERSION = 'v35';
 
 
 function saveDBto(db) {
@@ -1578,6 +1596,51 @@ function portfolioPerformance(total, basis) {
   return { gl: gl, yld: gl / basis * 100 };
 }
 
+/* בסיס החישוב לפי סוג המשתמש:
+   IBKR — ההפקדות המסונכרנות מהדוח; אם אין כאלה, גיבוי לעלות הקנייה.
+   ידני — ההפקדות הידניות. */
+function portfolioBasisInCur() {
+  if (isIbkrMode()) {
+    const dep = depositsInCur();
+    if (dep && dep > 0) return dep;
+    return costBasisInCur();
+  }
+  return depositsInCur();
+}
+
+/* ממפה תנועות מזומן מ־IBKR להפקדות האפליקציה (פונקציה טהורה — נבדקת).
+   נלקחות רק העברות חיצוניות (הפקדה/משיכה) — לא דיבידנדים, ריביות או עמלות.
+   fxOf: פונקציה (isoDate) => שער USD→ILS.
+   מחזיר [{date, amount, place}] — amount בשקלים, שלילי = כסף שנכנס (מוסכמת האפליקציה). */
+function ibkrMapDeposits(cashTx, fxOf) {
+  const out = [];
+  for (const c of (cashTx || [])) {
+    const type = String(c.type || '');
+    if (!/deposit/i.test(type) && !/withdraw/i.test(type)) continue;
+    const amt = Number(c.amount) || 0;
+    if (!amt) continue;
+    const cur = String(c.currency || 'USD').toUpperCase();
+    let ils;
+    if (cur === 'ILS') {
+      ils = amt;
+    } else {
+      const fx = fxOf ? fxOf(String(c.date || '').slice(0, 10)) : null;
+      const toUsd = cur === 'USD' ? 1 : (Number(c.fxToBase) || 0);
+      if (!(fx > 0) || !(toUsd > 0)) continue;
+      ils = amt * toUsd * fx;
+    }
+    const r2 = (v) => Math.round(v * 100) / 100;
+    // ב־IBKR חיובי = נכנס; באפליקציה שלילי = נכנס
+    out.push({
+      date: String(c.date || '').slice(0, 10),
+      amount: amt > 0 ? -r2(Math.abs(ils)) : r2(Math.abs(ils)),
+      place: String(c.description || type || 'IBKR').slice(0, 60),
+    });
+  }
+  out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return out;
+}
+
 /* ---------------- DOM ---------------- */
 
 function esc(v) {
@@ -1649,16 +1712,9 @@ function renderOverview() {
   const tot = totalsUSD();
   const total = cur === 'ILS' && state.fx ? tot.total * state.fx : tot.total;
   const stockVal = cur === 'ILS' && state.fx ? tot.stockVal * state.fx : tot.stockVal;
-  // בסיס החישוב לפי סוג המשתמש: עלות קנייה מ־IBKR או הפקדות ידניות
-  let gl = null, yld = null;
-  if (isIbkrMode()) {
-    const perf = portfolioPerformance(total, costBasisInCur());
-    gl = perf.gl; yld = perf.yld;
-  } else {
-    const dep = depositsInCur();
-    gl = (dep !== null) ? total - dep : null;
-    yld = (dep && dep !== 0 && gl !== null) ? gl / dep * 100 : null;
-  }
+  // בסיס החישוב לפי סוג המשתמש (הפקדות מסונכרנות / עלות קנייה / הפקדות ידניות)
+  const perf = portfolioPerformance(total, portfolioBasisInCur());
+  const gl = perf.gl, yld = perf.yld;
 
   const vEl = document.getElementById('ovValue');
   vEl.textContent = money(total, cur);
@@ -1770,15 +1826,17 @@ function addDaysISO(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
-async function ensureFxHist() {
+async function ensureFxHist(earliestOverride) {
   if (fxHistCache) return fxHistCache;
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LS_FXHIST) || 'null'); } catch (e) {}
   const today = todayISO();
-  let earliest = null;
-  for (const d of DEPOSITS) {
-    const iso = parseDepDate(d.date);
-    if (iso && (!earliest || iso < earliest)) earliest = iso;
+  let earliest = earliestOverride || null;
+  if (!earliest) {
+    for (const d of DEPOSITS) {
+      const iso = parseDepDate(d.date);
+      if (iso && (!earliest || iso < earliest)) earliest = iso;
+    }
   }
   if (!earliest) earliest = addDaysISO(today, -5 * 365);
   const have = (saved && saved.rates) || {};
@@ -1976,14 +2034,11 @@ async function drawPfChart() {
     // (עלות קנייה אצל משתמש IBKR, הפקדות אצל משתמש ידני)
     const tot = totalsUSD();
     const totalILS = state.fx ? tot.total * state.fx : null;
-    let ret = null;
-    if (isIbkrMode()) {
-      const basisILS = state.fx ? costBasisUSD() * state.fx : null;
-      ret = (totalILS !== null && basisILS > 0) ? (totalILS / basisILS - 1) * 100 : null;
-    } else {
-      const depILS = netDepositsILS();
-      ret = (totalILS !== null && depILS > 0) ? (totalILS / depILS - 1) * 100 : null;
+    let basisILS = netDepositsILS();
+    if (isIbkrMode() && !(basisILS > 0)) {
+      basisILS = state.fx ? costBasisUSD() * state.fx : null;
     }
+    const ret = (totalILS !== null && basisILS > 0) ? (totalILS / basisILS - 1) * 100 : null;
     const cls = ret === null ? '' : ret >= 0 ? 'pos' : 'neg';
     legend.innerHTML =
       '<li><span class="dot" style="background:var(--primary)"></span>' +
