@@ -35,7 +35,7 @@ he: {
   commissionLbl: 'עמלה',
   depEmptyIbkr: 'אין תנועות מזומן בדוח — ודאו שמקטע Cash Transactions מאופשר ברמת Detail (כולל Deposits & Withdrawals), שמרו את השאילתה וסנכרנו מחדש.',
   depEmptyIbkrTypes: 'בדוח יש תנועות מזומן, אבל לא זוהו הפקדות/משיכות. הסוגים שהתקבלו: {types}. אם יש ביניהם הפקדות — שלחו לי צילום של השורה הזאת.',
-  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Change in NAV.',
+  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
   tabDeposits: 'הפקדות',
   tabWishlist: 'מעקב',
   wishlistTitle: 'רשימת מעקב',
@@ -356,7 +356,7 @@ en: {
   commissionLbl: 'Commission',
   depEmptyIbkr: 'No cash transactions in the report — make sure the Cash Transactions section is enabled at Detail level (including Deposits & Withdrawals), save the query, then re-sync.',
   depEmptyIbkrTypes: 'The report has cash transactions, but no deposits/withdrawals were identified. Received types: {types}. If deposits are among them — send me a screenshot of this line.',
-  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Change in NAV.',
+  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
   tabDeposits: 'Deposits',
   tabWishlist: 'Watchlist',
   wishlistTitle: 'Watchlist',
@@ -1465,7 +1465,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v59';
+const APP_VERSION = 'v60';
 
 
 function saveDBto(db) {
