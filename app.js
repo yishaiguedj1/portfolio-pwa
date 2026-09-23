@@ -1713,7 +1713,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v98';
+const APP_VERSION = 'v99';
 
 
 function saveDBto(db) {
