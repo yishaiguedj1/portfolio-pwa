@@ -176,6 +176,7 @@ function statementToJson(tree) {
       costBasis: num(x.costBasisMoney),
       unrealized: num(x.fifoPnlUnrealized),
       currency: x.currency || '',
+      fxToBase: num(x.fxRateToBase) || 1,
     });
   }
   for (const c of findKids(st, 'CashTransaction')) {
