@@ -26,11 +26,14 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
   </div>
   <div class="appbar-actions">
-    <div class="seg" role="group" data-i18n-aria="curAria" aria-label="בחירת מטבע">
-      <button id="curUSD" class="seg-btn active" type="button" data-i18n-aria="curUsd" aria-label="דולרים">$</button>
-      <button id="curILS" class="seg-btn" type="button" data-i18n-aria="curIls" aria-label="שקלים">₪</button>
+    <button id="curToggleBtn" class="icon-btn cur-btn" type="button" data-i18n-aria="curToggleAria" aria-label="החלפת מטבע">$</button>
+    <div class="lang-wrap">
+      <button id="langBtn" class="icon-btn" type="button" data-i18n-aria="langAria" aria-label="בחירת שפה"></button>
+      <div id="langMenu" class="lang-menu hidden" role="menu">
+        <button type="button" class="lang-menu-item" data-lang="he" role="menuitemradio">עברית</button>
+        <button type="button" class="lang-menu-item" data-lang="en" role="menuitemradio">English</button>
+      </div>
     </div>
-    <button id="refreshBtn" class="icon-btn" type="button" data-i18n-aria="refresh" data-i18n-title="refresh" aria-label="רענון נתונים" title="רענון נתונים">⟳</button>
   </div>
 </header>
 
