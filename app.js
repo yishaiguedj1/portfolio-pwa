@@ -323,7 +323,7 @@ function ibkrClearErr() {
   if (e) { e.textContent = ''; e.classList.add('hidden'); }
 }
 function ibkrSetBusy(busy) {
-  ['ibkrSaveTest', 'ibkrSync', 'ibkrDisconnect'].forEach((id) => {
+  ['ibkrSaveTest', 'ibkrSync', 'ibkrImport', 'ibkrDisconnect'].forEach((id) => {
     const b = document.getElementById(id);
     if (b) b.disabled = !!busy;
   });
@@ -398,6 +398,77 @@ async function ibkrDoSync() {
   }
   ibkrSetBusy(false);
   renderIbkrCard();
+}
+
+/* ממפה נתוני IBKR מסונכרנים למבנה התיק של האפליקציה (פונקציה טהורה — נבדקת).
+   מייבא רק פוזיציות מניות (STK) בדולרים עם כמות חיובית; השאר נספר כמדולג.
+   מחזיר { positions:[{sym,name,full,shares,avg}], cash:{usd,ils}, skipped }. */
+function ibkrMapImport(data) {
+  const d = data || {};
+  const positions = [];
+  let skipped = 0;
+  for (const p of (d.positions || [])) {
+    const qty = Number(p.qty) || 0;
+    const sym = String(p.symbol || '').trim();
+    const isStock = !p.asset || p.asset === 'STK';
+    if (!(qty > 0) || !sym || !isStock || p.currency !== 'USD') { skipped++; continue; }
+    const cb = Number(p.costBasis) || 0;
+    const mp = Number(p.markPrice) || 0;
+    const avg = cb > 0 ? cb / qty : mp;
+    positions.push({ sym, name: sym, full: '', shares: qty, avg: avg > 0 ? avg : 0 });
+  }
+  let usd = 0, ils = 0;
+  for (const c of (d.cashBalances || [])) {
+    const b = Number(c.balance) || 0;
+    if (c.currency === 'USD') usd += b;
+    else if (c.currency === 'ILS') ils += b;
+  }
+  const r2 = (v) => Math.round(v * 100) / 100;
+  return { positions, cash: { usd: r2(usd), ils: r2(ils) }, skipped };
+}
+
+/* מייבא פוזיציות מ־IBKR לתיק: מסנכרן אם אין נתונים, מבקש אישור, מחליף
+   מניות+מזומן בלבד. פנסיה והפקדות לא נפגעים. */
+async function ibkrImport() {
+  ibkrClearErr();
+  const cfg = ibkrCfg();
+  const proxyUrl = ibkrProxyBase();
+  if (!proxyUrl) return ibkrShowErr('כתובת השרתון לא הוגדרה');
+  if (!cfg.token || !cfg.queryId) return ibkrShowErr('חסרים Flex token או Query ID — שמור קודם');
+  ibkrSetBusy(true);
+  try {
+    let data = cfg.data;
+    if (!data || !(data.positions || []).length) {
+      const s = document.getElementById('ibkrStatus');
+      if (s) s.textContent = 'מבקש דוח מ־IBKR…';
+      const rep = await ibkrRequestReport(fetch, proxyUrl, cfg.token, cfg.queryId);
+      if (s) s.textContent = 'IBKR מייצר את הדוח… (לוקח בדרך כלל דקה־שתיים)';
+      data = await ibkrPollStatement(fetch, proxyUrl, cfg.token, rep.referenceCode, rep.statementUrl || cfg.statementUrl);
+      ibkrSaveCfg({ lastSync: Date.now(), statementUrl: rep.statementUrl || cfg.statementUrl || '', data });
+    }
+    const imp = ibkrMapImport(data);
+    if (!imp.positions.length) {
+      ibkrShowErr('לא נמצאו פוזיציות מניות בדוח IBKR' + (imp.skipped ? ' (' + imp.skipped + ' שורות שאינן מניות דולריות דולגו)' : ''));
+      return;
+    }
+    const msg = 'לייבא ' + imp.positions.length + ' פוזיציות מ־IBKR לתיק?\n' +
+      'המניות והמזומן הנוכחיים יוחלפו בנתוני IBKR.\n' +
+      'פנסיה והפקדות לא ישתנו.' +
+      (imp.skipped ? '\n(' + imp.skipped + ' שורות שאינן מניות דולריות דולגו)' : '') +
+      '\nלהמשיך?';
+    if (!confirm(msg)) return;
+    DB.positions = imp.positions;
+    DB.cash = { usd: imp.cash.usd, ils: imp.cash.ils };
+    saveDB();
+    renderAll();
+    refreshQuotes();
+    flash('יובאו ' + imp.positions.length + ' פוזיציות מ־IBKR ✓');
+  } catch (e) {
+    ibkrShowErr('הייבוא נכשל: ' + ibkrFriendlyErr(e.message));
+  } finally {
+    ibkrSetBusy(false);
+    renderIbkrCard();
+  }
 }
 
 function ibkrDisconnect() {
@@ -483,7 +554,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v26';
+const APP_VERSION = 'v27';
 
 
 function saveDBto(db) {
@@ -2140,6 +2211,8 @@ function init() {
   if (ibkrST) ibkrST.addEventListener('click', ibkrSaveAndTest);
   const ibkrSy = document.getElementById('ibkrSync');
   if (ibkrSy) ibkrSy.addEventListener('click', ibkrDoSync);
+  const ibkrIm = document.getElementById('ibkrImport');
+  if (ibkrIm) ibkrIm.addEventListener('click', ibkrImport);
   const ibkrDc = document.getElementById('ibkrDisconnect');
   if (ibkrDc) ibkrDc.addEventListener('click', ibkrDisconnect);
 
