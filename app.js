@@ -12,6 +12,7 @@
    t('key') מחזיר את המחרוזת בשפה הנוכחית; t('key', {name: val}) ממלא {name}.
    השפה נשמרת ברמת המכשיר בלבד (pwa_lang_v1) — לא בענן. ברירת מחדל: עברית. */
 const LS_LANG = 'pwa_lang_v1';
+const LS_THEME = 'pwa_theme_v1'; // 'light' | 'dark' | 'system' — נשמר ברמת המכשיר בלבד, לא בענן
 
 const STRINGS = {
 he: {
@@ -29,6 +30,10 @@ he: {
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
   langTitle: 'שפה',
+  themeTitle: 'ערכת נושא',
+  themeLight: 'בהיר',
+  themeSystem: 'מערכת',
+  themeDark: 'כהה',
 
   ovStocksValue: 'שווי תיק המניות',
   ovGL: 'רווח / הפסד',
@@ -267,6 +272,10 @@ en: {
   tabPension: 'Pension',
   tabSettings: 'Settings',
   langTitle: 'Language',
+  themeTitle: 'Theme',
+  themeLight: 'Light',
+  themeSystem: 'System',
+  themeDark: 'Dark',
 
   ovStocksValue: 'Stock portfolio value',
   ovGL: 'Gain / Loss',
@@ -545,6 +554,53 @@ function renderLangToggle() {
   const enB = document.getElementById('langEn');
   if (heB) heB.classList.toggle('active', lang === 'he');
   if (enB) enB.classList.toggle('active', lang === 'en');
+}
+
+/* ---------------- ערכת נושא: בהיר / כהה / מערכת ----------------
+   נשמרת ברמת המכשיר בלבד (pwa_theme_v1) — לא בענן. ברירת מחדל: מערכת. */
+function getThemeMode() {
+  try { const v = localStorage.getItem(LS_THEME); return v === 'dark' || v === 'light' ? v : 'system'; }
+  catch (e) { return 'system'; }
+}
+function systemDark() {
+  try { return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+  catch (e) { return false; }
+}
+function resolveTheme() {
+  const m = getThemeMode();
+  return m === 'system' ? (systemDark() ? 'dark' : 'light') : m;
+}
+/* מחיל data-theme על <html> ומעדכן את צבע שורת הסטטוס. */
+function applyTheme() {
+  const th = resolveTheme();
+  try {
+    if (document.documentElement) document.documentElement.dataset.theme = th;
+    const meta = document.querySelector && document.querySelector('#themeColorMeta');
+    if (meta) meta.setAttribute('content', th === 'dark' ? '#0A0E0C' : '#006A4E');
+  } catch (e) {}
+  renderThemeToggle();
+}
+function setThemeMode(mode) {
+  const m = mode === 'dark' ? 'dark' : mode === 'light' ? 'light' : 'system';
+  try { localStorage.setItem(LS_THEME, m); } catch (e) {}
+  applyTheme();
+}
+/* מצייר את מצב מתג ערכת הנושא. */
+function renderThemeToggle() {
+  const m = getThemeMode();
+  const map = { light: 'themeLight', system: 'themeSystem', dark: 'themeDark' };
+  for (const k of Object.keys(map)) {
+    const b = document.getElementById(map[k]);
+    if (b) b.classList.toggle('active', m === k);
+  }
+}
+/* קורא משתנה CSS מהערכה הנוכחית; בטסטים (אין getComputedStyle) מחזיר ברירת מחדל. */
+function cssVar(name, fallback) {
+  try {
+    if (typeof getComputedStyle !== 'function') return fallback;
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return (v && v.trim()) || fallback;
+  } catch (e) { return fallback; }
 }
 
 /* ---------------- עזרים טהורים (נבדקים ב-node) ---------------- */
@@ -1091,7 +1147,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 
 
 function saveDBto(db) {
@@ -1586,7 +1642,7 @@ function drawPie() {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
   if (!total) {
-    ctx.fillStyle = '#9AA5A0'; ctx.font = '14px system-ui'; ctx.textAlign = 'center';
+    ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0'); ctx.font = '15px system-ui'; ctx.textAlign = 'center';
     ctx.fillText(t('noPriceYet'), w / 2, h / 2);
     return;
   }
@@ -1602,7 +1658,7 @@ function drawPie() {
     ctx.fill();
     a = a2;
   }
-  ctx.fillStyle = '#191C1A'; ctx.textAlign = 'center';
+  ctx.fillStyle = cssVar('--on-surface', '#191C1A'); ctx.textAlign = 'center';
   ctx.font = '700 13px system-ui';
   ctx.fillText(t('totalStocks'), cx, cy - 4);
   ctx.font = '800 17px system-ui';
@@ -1834,8 +1890,8 @@ async function drawPfChart() {
   const X = (i, n) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
-  ctx.font = '11px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.strokeStyle = '#E3E7E4'; ctx.fillStyle = '#9AA5A0';
+  ctx.font = '12.5px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.strokeStyle = cssVar('--outline', '#E3E7E4'); ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
   for (let g = 0; g <= 4; g++) {
     const v = min + (max - min) * g / 4;
     const y = Y(v);
@@ -1854,7 +1910,7 @@ async function drawPfChart() {
       const x = X(i, pfD.length), y = Y(p.value);
       if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
     });
-    ctx.strokeStyle = '#006A4E'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = cssVar('--primary', '#006A4E'); ctx.lineWidth = 2.5; ctx.stroke();
   }
 
   if (legend) {
@@ -1865,7 +1921,7 @@ async function drawPfChart() {
     const ret = (totalILS !== null && depILS > 0) ? (totalILS / depILS - 1) * 100 : null;
     const cls = ret === null ? '' : ret >= 0 ? 'pos' : 'neg';
     legend.innerHTML =
-      '<li><span class="dot" style="background:#006A4E"></span>' +
+      '<li><span class="dot" style="background:var(--primary)"></span>' +
       '<span class="lg-name">' + t('myPortfolio') + '</span>' +
       '<span class="lg-pct ' + cls + '">' + (ret === null ? '—' : fmtPct(ret, true)) + '</span></li>';
   }
@@ -2203,16 +2259,16 @@ function drawStockChart(sym, rows, intraday) {
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
   const up = pts[pts.length - 1].close >= pts[0].close;
-  const lineCol = up ? '#137333' : '#B3261E';
+  const lineCol = up ? cssVar('--gain', '#137333') : cssVar('--loss', '#B3261E');
 
   // רשת אופקית + תוויות מחיר
   ctx.font = '11px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   for (let g = 0; g <= 4; g++) {
     const v = min + (max - min) * g / 4;
     const y = Y(v);
-    ctx.strokeStyle = '#E7ECE8'; ctx.lineWidth = 1;
+    ctx.strokeStyle = cssVar('--outline', '#E7ECE8'); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR + 6, y); ctx.stroke();
-    ctx.fillStyle = '#6B7570';
+    ctx.fillStyle = cssVar('--on-surface-var', '#6B7570');
     ctx.fillText(fmtUSD2(v), w - padR + 10, y);
   }
 
@@ -2233,7 +2289,7 @@ function drawStockChart(sym, rows, intraday) {
   ctx.strokeStyle = lineCol; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
 
   // תוויות ציר זמן (עד 5)
-  ctx.fillStyle = '#6B7570'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = cssVar('--on-surface-var', '#6B7570'); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   const ticks = Math.min(5, pts.length);
   for (let k = 0; k < ticks; k++) {
     const i = Math.round(k * (pts.length - 1) / (ticks - 1 || 1));
@@ -2669,12 +2725,26 @@ function renderPensionFundEditors() {
 }
 
 function init() {
+  // ערכת נושא — מחיל מיד (מונע הבהוב; הסקריפט ב־<head> כבר קבע data-theme)
+  applyTheme();
+  // מעקב אחרי שינוי ערכת המערכת כשהמשתמש בחר "מערכת"
+  try {
+    const mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    const onSys = () => { if (getThemeMode() === 'system') applyTheme(); };
+    if (mq) { if (mq.addEventListener) mq.addEventListener('change', onSys); else if (mq.addListener) mq.addListener(onSys); }
+  } catch (e) {}
   // שפה — מחיל מיד (עברית RTL כברירת מחדל, או השפה השמורה במכשיר)
   applyI18n();
   const langHe = document.getElementById('langHe');
   const langEn = document.getElementById('langEn');
   if (langHe) langHe.addEventListener('click', () => setLang('he'));
   if (langEn) langEn.addEventListener('click', () => setLang('en'));
+  const thL = document.getElementById('themeLight');
+  const thS = document.getElementById('themeSystem');
+  const thD = document.getElementById('themeDark');
+  if (thL) thL.addEventListener('click', () => setThemeMode('light'));
+  if (thS) thS.addEventListener('click', () => setThemeMode('system'));
+  if (thD) thD.addEventListener('click', () => setThemeMode('dark'));
   // טאבים
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
