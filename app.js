@@ -115,7 +115,7 @@ he: {
 
   myStocks: 'המניות שלי',
   editBtn: ICON_EDIT + 'עריכה',
-  editHintStocks: 'מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על עריכה.',
+  editHintStocks: 'מצב עריכה פעיל — אפשר להוסיף מניות חדשות. בסיום לחצו שוב על עריכה.',
   stockSearchPh: 'חפש מניה להוספה (למשל: AAPL)',
   stockSearchNoResults: 'לא נמצאו תוצאות',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
@@ -442,7 +442,7 @@ en: {
 
   myStocks: 'My stocks',
   editBtn: ICON_EDIT + 'Edit',
-  editHintStocks: 'Edit mode is on — you can edit, add and delete stocks. When done, tap Edit again.',
+  editHintStocks: 'Edit mode is on — you can add new stocks. When done, tap Edit again.',
   stockSearchPh: 'Search a stock to add (e.g. AAPL)',
   stockSearchNoResults: 'No results found',
   stockSearchError: 'Search failed — try again',
@@ -1713,7 +1713,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v99';
+const APP_VERSION = 'v100';
 
 
 function saveDBto(db) {
@@ -4540,13 +4540,9 @@ function renderStockSearchResults(items, status) {
 }
 
 /* פותח את טופס הוספת המניה עם סימבול (ושם) מולאים מראש.
-   אם לא במצב עריכה — מפעיל אותו אוטומטית כדי שהטופס יופיע. */
+   v100: כבר לא מפעיל מצב עריכה אוטומטית — הטופס נפתח ישירות,
+   וכפתורי עריכה/מחיקה לא צצים יותר על כל המניות הקיימות. */
 function openAddStockWithSymbol(sym, name) {
-  if (!state.edit['stocks']) {
-    const btn = document.getElementById('editStocksBtn');
-    if (btn) btn.click();
-    else { state.edit['stocks'] = true; renderStocks(); }
-  }
   const list = document.getElementById('stockList');
   showAddPositionForm(list);
   // ממלא את השדות אחרי שהטופס נוצר
@@ -4695,8 +4691,10 @@ function showEditPositionForm(card, p) {
     '</div>' +
     '<div class="form-err hidden" id="ep-err"></div>' +
     '<div class="edit-actions"><button class="btn" id="ep-save" type="button">' + t('btnSave') + '</button>' +
-    '<button class="link-btn" id="ep-cancel" type="button">' + t('btnCancel') + '</button></div>';
+    '<button class="link-btn" id="ep-cancel" type="button">' + t('btnCancel') + '</button>' +
+    '<button class="chip-btn danger" id="ep-delete" type="button">' + t('btnDelete') + '</button></div>';
   body.querySelector('#ep-cancel').addEventListener('click', () => refreshStockBody(p.sym));
+  body.querySelector('#ep-delete').addEventListener('click', () => deletePosition(p));
   body.querySelector('#ep-save').addEventListener('click', () => {
     const shares = parseFloat(body.querySelector('#ep-shares').value);
     const avg = parseFloat(body.querySelector('#ep-avg').value);
@@ -4926,19 +4924,8 @@ function buildStockCard(p) {
   head.addEventListener('click', () => toggleStock(sym, card));
   card.appendChild(head);
 
-  // מצב עריכה: כפתורי עריכה/מחיקה מתחת לכותרת הכרטיס
-  if (editAllowed('stocks')) {
-    const actions = el('div', 'edit-actions');
-    const eb = el('button', 'chip-btn', t('btnEdit'));
-    eb.type = 'button';
-    eb.addEventListener('click', (ev) => { ev.stopPropagation(); showEditPositionForm(card, p); });
-    const dbtn = el('button', 'chip-btn danger', t('btnDelete'));
-    dbtn.type = 'button';
-    dbtn.addEventListener('click', (ev) => { ev.stopPropagation(); deletePosition(p); });
-    actions.appendChild(eb);
-    actions.appendChild(dbtn);
-    card.appendChild(actions);
-  }
+  // v100: אין יותר כפתורי עריכה/מחיקה גלובליים על הכרטיסים.
+  // "ערוך" מופיע בתחתית הכרטיס הפתוח (ב־buildStockBody), ו"מחק" רק בתוך טופס העריכה.
 
   const body = el('div', 'stock-body');
   body.appendChild(buildStockBody(p, m));
@@ -5019,6 +5006,21 @@ function buildStockBody(p, m) {
 
   attachMeasure(canvas, sym);
   // ציור יתבצע אחרי טעינת היסטוריה (ensureChartData)
+
+  // v100: כפתור "ערוך" בתחתית הכרטיס הפתוח — מופיע תמיד בלחיצה על המניה,
+  // לא תלוי במצב העריכה הגלובלי. כפתור המחיקה נחשף רק בתוך טופס העריכה.
+  if (!isIbkrMode()) {
+    const actions = el('div', 'edit-actions');
+    const eb = el('button', 'chip-btn', t('btnEdit'));
+    eb.type = 'button';
+    eb.addEventListener('click', () => {
+      const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
+      if (card) showEditPositionForm(card, p);
+    });
+    actions.appendChild(eb);
+    wrap.appendChild(actions);
+  }
+
   return wrap;
 }
 
