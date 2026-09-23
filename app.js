@@ -1583,7 +1583,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v66';
+const APP_VERSION = 'v67';
 
 
 function saveDBto(db) {
@@ -2168,11 +2168,15 @@ function normalizeSym(s) {
 /* מחמם את ההיסטוריות של כל האחזקות (וגם סמלים מעסקאות IBKR היסטוריות)
    לטובת גרף הביצועים — במקביל, כדי שהגרף ייטען תוך שניות ולא דקות.
    onProgress(done, total) — לעדכון מחוון טעינה, כדי שלא ייראה "תקוע". */
-async function warmPfHistories(onProgress) {
+async function warmPfHistories(onProgress, fromDate) {
   const syms = [];
   const add = (s) => { s = normalizeSym(s); if (s && isChartableSym(s) && !syms.includes(s)) syms.push(s); };
   for (const p of POSITIONS) add(p.sym);
-  if (isIbkrMode()) { try { for (const tr of ibkrTrades()) add(tr.symbol); } catch (e) {} }
+  if (isIbkrMode()) { try { for (const tr of ibkrTrades()) {
+    // YTD: רק סימבולים מ־2026 — מהיר יותר, פחות טעינות
+    if (fromDate && String(tr.date || '').slice(0, 10) < fromDate) continue;
+    add(tr.symbol);
+  } } catch (e) {} }
   let done = 0;
   const tick = () => {
     done++;
@@ -2954,7 +2958,9 @@ function ibkrIsDividendTx(c) {
   return /dividend|withholding/i.test(s);
 }
 
-function buildTradesHistory(o) {
+function buildTradesHistory(o, fromDate) {
+  // fromDate (אופציונלי): מסנן אירועים לפני התאריך — לחישוב YTD נקי מ־1/1
+  // בלי זיהום מנתוני 2024-2025. אם לא סופק, משתמש בכל ההיסטוריה.
   // מפת ספליטים מההיסטוריה: sym -> [{date, ratio}] (מ־applySplitAdjustment)
   const splitsBySym = {};
   for (const sym of Object.keys(o.hist || {})) {
@@ -2989,13 +2995,16 @@ function buildTradesHistory(o) {
     })
     .filter((x) => x.qty > 0 && x.date >= '2000-01-01')
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  if (!trades.length) return [];
+  // סינון YTD: רק אירועים מ־fromDate והלאה (למשל 2026-01-01)
+  const tradesF = fromDate ? trades.filter((x) => x.date >= fromDate) : trades;
+  if (!tradesF.length) return [];
 
   // תזרימי מזומן חיצוניים (הפקדות/משיכות בלבד) — בחתימת IBKR: חיובי = נכנס
   const flows = {}; // date -> סכום ב־USD
   for (const c of (o.cashTx || [])) {
     if (!c || !ibkrIsDepositTx(c)) continue;
     const d = String(c.date || '').slice(0, 10);
+    if (fromDate && d < fromDate) continue;
     const amt = Number(c.amount) || 0;
     if (!d || !amt) continue;
     const fxb = Number(c.fxToBase) || 1;
@@ -3009,6 +3018,7 @@ function buildTradesHistory(o) {
   for (const c of (o.cashTx || [])) {
     if (!c || !ibkrIsDividendTx(c)) continue;
     const d = String(c.date || '').slice(0, 10);
+    if (fromDate && d < fromDate) continue;
     const amt = Number(c.amount) || 0;
     if (!d || !amt) continue;
     const fxb = Number(c.fxToBase) || 1;
@@ -3030,7 +3040,7 @@ function buildTradesHistory(o) {
     if (!byDate.has(d)) byDate.set(d, []);
     byDate.get(d).push(ev);
   };
-  for (const x of trades) addEv(x.date, { kind: 'trade', x });
+  for (const x of tradesF) addEv(x.date, { kind: 'trade', x });
   for (const d of Object.keys(flows)) addEv(d, { kind: 'flow', amt: flows[d] });
   for (const d of Object.keys(cashAdj)) addEv(d, { kind: 'div', amt: cashAdj[d] });
   // הערה: לא מסננים ל־YTD כאן — הסינון לטווח נעשה בתצוגה (drawPfChart).
@@ -3105,8 +3115,9 @@ function buildTradesHistory(o) {
   return out;
 }
 
-/* עטיפה למצב IBKR: ההיסטוריה האמיתית מעסקאות, או [] אם אין עסקאות. */
-function ibkrTradesHistory() {
+/* עטיפה למצב IBKR: ההיסטוריה האמיתית מעסקאות, או [] אם אין עסקאות.
+   fromDate (אופציונלי): לחישוב YTD נקי — רק אירועים מ־1/1. */
+function ibkrTradesHistory(fromDate) {
   if (!isIbkrMode()) return [];
   const d = ibkrCfg().data;
   const trades = (d && d.trades) || [];
@@ -3128,7 +3139,7 @@ function ibkrTradesHistory() {
     cash: (DB && DB.cash) || { usd: 0, ils: 0 },
     hist: state.hist,
     fxOf: (iso) => fxOnOrBefore(iso) || state.fx || 1,
-  });
+  }, fromDate);
 }
 
 /* סך תשואת קרן (פנסיה / השתלמות) — כמו תשואת התיק: שווי נוכחי מול סך הפקדות.
@@ -3552,14 +3563,21 @@ async function drawPfChart() {
       loading.textContent = t('loadingHist');
       loading.classList.remove('hidden');
     }
+    // YTD: טוען רק היסטוריות מ־2026 — מהיר יותר
+    const isYtdRange = state.pfRange === 'ytd' && !state.pfCustomFrom;
+    const warmFrom = isYtdRange ? todayISO().slice(0, 4) + '-01-01' : null;
     await warmPfHistories((done, total) => {
       if (loading && my === pfChartToken) loading.textContent = t('loadingHistN', { done, total });
-    }); // מהיר: מרוץ מקבילי + מטמון
+    }, warmFrom); // מהיר: מרוץ מקבילי + מטמון
     if (my !== pfChartToken) return;
     await ensureFxHist();
     if (my !== pfChartToken) return;
     if (isIbkrMode()) {
-      const th = ibkrTradesHistory();
+      // YTD: חישוב ייעודי מ־1/1 בלבד — "once and for all", בלי זיהום מ־2024-2025.
+      // טווחים אחרים: היסטוריה מלאה.
+      const isYtd = state.pfRange === 'ytd' && !state.pfCustomFrom;
+      const ytdStart = isYtd ? todayISO().slice(0, 4) + '-01-01' : null;
+      const th = ibkrTradesHistory(ytdStart);
       if (th.length >= 2) { allRows = th; srcKind = 'trades'; }
       else allRows = portfolioSeriesILS();
     } else {
