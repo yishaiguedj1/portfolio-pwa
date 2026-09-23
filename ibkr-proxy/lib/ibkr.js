@@ -8,6 +8,20 @@
 const IBKR_HOST = 'https://ndcdyn.interactivebrokers.com';
 const UA = 'portfolio-ibkr-proxy/1.0 (+https://yishaiguedj1.github.io/portfolio-pwa/)';
 
+/* Hosts that IBKR itself may return in SendRequest <Url>. Strict allowlist —
+   the client passes statementUrl back to us, so we never fetch an arbitrary host. */
+const IBKR_HOSTS = new Set(['ndcdyn.interactivebrokers.com', 'gdcdyn.interactivebrokers.com']);
+function statementBaseFrom(url) {
+  try {
+    const u = new URL(String(url || '').trim());
+    if (u.protocol !== 'https:') return null;
+    if (!IBKR_HOSTS.has(u.hostname.toLowerCase())) return null;
+    return u.origin;
+  } catch {
+    return null;
+  }
+}
+
 /* ---------- CORS ---------- */
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -187,6 +201,6 @@ function errorXml(text) {
 }
 
 module.exports = {
-  IBKR_HOST, cors, rateLimited, parseXml, findKids, firstKid,
+  IBKR_HOST, IBKR_HOSTS, statementBaseFrom, cors, rateLimited, parseXml, findKids, firstKid,
   statementToJson, ibkrGet, errorXml, flexDate, num,
 };
