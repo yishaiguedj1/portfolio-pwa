@@ -1,5 +1,5 @@
 /* POST /api/flex-request  { token, queryId } -> { ok, referenceCode, statementUrl } */
-const { cors, rateLimited, ibkrGetMulti, errorXml } = require('../lib/ibkr');
+const { cors, rateLimited, ibkrGetMulti, errorXml, FLEX_SEND_PATH } = require('../lib/ibkr');
 
 module.exports = async (req, res) => {
   cors(res);
@@ -19,7 +19,8 @@ module.exports = async (req, res) => {
 
   try {
     // מנסה את שרתי IBKR לפי הסדר (ארה"ב ואז אירופה) — טוקן מאזור אחד מקבל 403 מהשני.
-    const path = `/AccountManagement/FlexWebService/SendRequest?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`;
+    // הנתיב הרשמי: /Universal/servlet/FlexStatementService.SendRequest
+    const path = `${FLEX_SEND_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`;
     const { status, text } = await ibkrGetMulti(path);
     if (status !== 200) return res.status(502).json({ ok: false, error: 'ibkr_http_' + status });
     const err = errorXml(text);
