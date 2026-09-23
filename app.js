@@ -165,6 +165,7 @@ he: {
   ibkrSyncImportBtn: '🔄 סנכרן וייבא מ־IBKR',
   ibkrDisconnectBtn: 'ניתוק',
   ibkrNotConnected: 'לא מחובר — מוצגים הנתונים הידניים.',
+  ibkrDepositsNote: 'מצב IBKR פעיל: ההפקדות נשמרות לתיעוד בלבד — החישובים מתבססים על עלות הקנייה מ־IBKR.',
   ibkrConnectedSynced: 'מחובר ✓ · סונכרן: {time}',
   ibkrConnectedNever: 'מחובר ✓ · טרם בוצע סנכרון.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
@@ -407,6 +408,7 @@ en: {
   ibkrSyncImportBtn: '🔄 Sync & import from IBKR',
   ibkrDisconnectBtn: 'Disconnect',
   ibkrNotConnected: 'Not connected — showing manual data.',
+  ibkrDepositsNote: 'IBKR mode is on: deposits are kept for records only — calculations use the IBKR cost basis.',
   ibkrConnectedSynced: 'Connected ✓ · Synced: {time}',
   ibkrConnectedNever: 'Connected ✓ · Not synced yet.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
@@ -1004,7 +1006,10 @@ async function ibkrSyncImport() {
       skipped: imp.skipped ? '\n' + t('importSkippedNote', { n: imp.skipped }).trim() : ''
     });
     if (!confirm(msg)) return;
-    DB.positions = imp.positions;
+    // עדכון במקום (לא החלפת מערך) כדי לא לשבור הפניות קיימות, וסימון מקור הנתונים
+    DB.positions.length = 0;
+    DB.positions.push(...imp.positions);
+    DB.source = 'ibkr';
     if (imp.cash) DB.cash = { usd: imp.cash.usd, ils: imp.cash.ils };
     saveDB();
     renderAll();
@@ -1139,7 +1144,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v33';
+const APP_VERSION = 'v34';
 
 
 function saveDBto(db) {
@@ -1550,6 +1555,29 @@ function depositsInCur() {
   return state.currency === 'ILS' ? nd : (state.fx ? nd / state.fx : null);
 }
 
+/* הפרדה בין שני סוגי משתמשים:
+   - 'ibkr' — הנתונים סונכרנו מ־IBKR: מתעלמים מההפקדות הידניות, וכל החישובים
+     מתבססים על עלות הקנייה (avg) שבאה מהדוח. ההפקדות נשמרות לתיעוד בלבד.
+   - 'manual' (ברירת מחדל) — החישובים מתבססים על ההפקדות הידניות. */
+function isIbkrMode() { return !!(typeof DB !== 'undefined' && DB && DB.source === 'ibkr'); }
+
+/* עלות קנייה כוללת בדולרים — סכום avg×shares על הפוזיציות */
+function costBasisUSD() {
+  return POSITIONS.reduce((a, p) => a + (num(p.avg) || 0) * (num(p.shares) || 0), 0);
+}
+function costBasisInCur() {
+  const b = costBasisUSD();
+  if (state.currency === 'ILS') return state.fx ? b * state.fx : null;
+  return b;
+}
+
+/* רווח/תשואה: שווי נוכחי מול בסיס (הפקדות או עלות קנייה) — פונקציה טהורה, נבדקת */
+function portfolioPerformance(total, basis) {
+  if (!(basis > 0) || total === null || total === undefined) return { gl: null, yld: null };
+  const gl = total - basis;
+  return { gl: gl, yld: gl / basis * 100 };
+}
+
 /* ---------------- DOM ---------------- */
 
 function esc(v) {
@@ -1621,9 +1649,16 @@ function renderOverview() {
   const tot = totalsUSD();
   const total = cur === 'ILS' && state.fx ? tot.total * state.fx : tot.total;
   const stockVal = cur === 'ILS' && state.fx ? tot.stockVal * state.fx : tot.stockVal;
-  const dep = depositsInCur();
-  const gl = (dep !== null) ? total - dep : null;
-  const yld = (dep && dep !== 0 && gl !== null) ? gl / dep * 100 : null;
+  // בסיס החישוב לפי סוג המשתמש: עלות קנייה מ־IBKR או הפקדות ידניות
+  let gl = null, yld = null;
+  if (isIbkrMode()) {
+    const perf = portfolioPerformance(total, costBasisInCur());
+    gl = perf.gl; yld = perf.yld;
+  } else {
+    const dep = depositsInCur();
+    gl = (dep !== null) ? total - dep : null;
+    yld = (dep && dep !== 0 && gl !== null) ? gl / dep * 100 : null;
+  }
 
   const vEl = document.getElementById('ovValue');
   vEl.textContent = money(total, cur);
@@ -1937,11 +1972,18 @@ async function drawPfChart() {
   }
 
   if (legend) {
-    // סך תשואה — אותה נוסחה כמו במסך הראשי: שווי נוכחי מול סך הפקדות
+    // סך תשואה — אותה נוסחה כמו במסך הראשי: שווי נוכחי מול בסיס
+    // (עלות קנייה אצל משתמש IBKR, הפקדות אצל משתמש ידני)
     const tot = totalsUSD();
     const totalILS = state.fx ? tot.total * state.fx : null;
-    const depILS = netDepositsILS();
-    const ret = (totalILS !== null && depILS > 0) ? (totalILS / depILS - 1) * 100 : null;
+    let ret = null;
+    if (isIbkrMode()) {
+      const basisILS = state.fx ? costBasisUSD() * state.fx : null;
+      ret = (totalILS !== null && basisILS > 0) ? (totalILS / basisILS - 1) * 100 : null;
+    } else {
+      const depILS = netDepositsILS();
+      ret = (totalILS !== null && depILS > 0) ? (totalILS / depILS - 1) * 100 : null;
+    }
     const cls = ret === null ? '' : ret >= 0 ? 'pos' : 'neg';
     legend.innerHTML =
       '<li><span class="dot" style="background:var(--primary)"></span>' +
@@ -2423,7 +2465,8 @@ function renderDeposits() {
   document.getElementById('depTotal').textContent = ndTxt;
   document.getElementById('depCount').textContent = t('records', { n: DEPOSITS.length });
   const cn = document.getElementById('calcNotePara');
-  if (cn) cn.innerHTML = t('calcNote1', { total: ndTxt });
+  if (cn) cn.innerHTML = t('calcNote1', { total: ndTxt }) +
+    (isIbkrMode() ? '<br><span class="fine">' + t('ibkrDepositsNote') + '</span>' : '');
   const ul = document.getElementById('depositList');
   ul.innerHTML = '';
   const ed = state.edit.deposits;
