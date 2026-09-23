@@ -38,7 +38,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -168,7 +168,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const impCashOnly = T.ibkrMapImport({ positions: [], cashBalances: [{ currency: 'USD', balance: 100 }] });
   ok(impCashOnly.cash && impCashOnly.cash.usd === 100, 'יתרת מזומן בודדת ממופה');
 
-  /* ---------- הפרדה בין משתמש IBKR לידני (v35) ---------- */
+  /* ---------- הפרדה בין משתמש IBKR לידני (v36) ---------- */
   vm.runInContext('DB.source = undefined;', sandbox);
   ok(T.isIbkrMode() === false, 'ברירת מחדל: לא מצב IBKR');
   vm.runInContext('DB.source = "ibkr";', sandbox);
@@ -188,7 +188,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(perfDemo.yld > 40000, 'עם בסיס הפקדות דמו זעיר התשואה מתפוצצת — לכן מתעלמים מהפקדות במצב IBKR');
   vm.runInContext('DB.source = undefined;', sandbox);
 
-  /* ---------- מיפוי הפקדות מ־IBKR (v35) ---------- */
+  /* ---------- מיפוי הפקדות מ־IBKR (v36) ---------- */
   const fxStub = (iso) => 3.2;
   const txs = [
     { date: '2024-01-15', amount: 10000, currency: 'USD', fxToBase: 1, type: 'Deposits/Withdrawals', description: 'Deposit' },
@@ -207,16 +207,62 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.ibkrMapDeposits(null, fxStub).length === 0, 'בלי תנועות — רשימה ריקה (לא מוחקים קיים)');
   ok(T.ibkrMapDeposits([{ date: '2024-01-01', amount: 100, currency: 'EUR', fxToBase: 0, type: 'Deposits/Withdrawals' }], fxStub).length === 0, 'מטבע בלי שער המרה — מדלגים');
 
+  /* ---------- אימות מתמטי מלא של צינור IBKR (v36) ---------- */
+  // תיק סינתטי עם ערכים ידועים, חישוב ידני עצמאי:
+  // תנועות: הפקדה 1000$ @3.0, הפקדה 500$ @3.5, משיכה 200$ @3.2, דיבידנד 50$ (מסונן החוצה)
+  // → ‎-3000, ‎-1750, ‎+640 → נטו ‎-4110 → סך הפקדות ‎4110
+  // שווי נוכחי: 2200 → תשואה צפויה: (2200-4110)/4110*100 = ‎-46.474...%
+  vm.runInContext('DB.source = "ibkr"; state.currency = "ILS";', sandbox);
+  const fxT = (iso) => ({ '2024-01-10': 3.0, '2024-05-20': 3.5, '2024-09-01': 3.2 }[iso] || 0);
+  const txs2 = [
+    { date: '2024-01-10', amount: 1000, currency: 'USD', fxToBase: 1, type: 'Deposits/Withdrawals', description: 'Wire' },
+    { date: '2024-05-20', amount: 500, currency: 'USD', fxToBase: 1, type: 'Deposits/Withdrawals', description: 'Wire' },
+    { date: '2024-09-01', amount: -200, currency: 'USD', fxToBase: 1, type: 'Deposits/Withdrawals', description: 'Withdrawal' },
+    { date: '2024-06-15', amount: 50, currency: 'USD', fxToBase: 1, type: 'Dividends', description: 'DIV' },
+  ];
+  const mapped2 = T.ibkrMapDeposits(txs2, fxT);
+  vm.runInContext('DEPOSITS = ' + JSON.stringify(mapped2) + ';', sandbox);
+  ok(T.netDepositsILS() === 4110, 'סך הפקדות נטו = ‎4110 (דיבידנד לא נספר כהפקדה)');
+  ok(T.portfolioBasisInCur() === 4110, 'בסיס החישוב במצב IBKR = ההפקדות המסונכרנות');
+  const perf2 = T.portfolioPerformance(2200, T.portfolioBasisInCur());
+  ok(perf2.gl === 2200 - 4110, 'רווח = ‎-1910');
+  ok(Math.abs(perf2.yld - (-1910 / 4110 * 100)) < 1e-9, 'תשואה = ‎-46.47% — זהה לחישוב ידני עצמאי');
+
+  /* ---------- אימות שווי מול מחירי שוק חיים (v36) ---------- */
+  // 9 הפוזיציות האמיתיות של ישי + מחירי Yahoo חיים מ־2026-09-23 — חישוב עצמאי: $72,977.62
+  const liveQ = { NOW: 137.0, META: 736.595, ADBE: 238.25, MBLY: 7.68, UNH: 372.95, MSFT: 498.0, UBER: 69.89, INTU: 292.35, APP: 328.73 };
+  const yPos = [
+    { sym: 'NOW', shares: 97, avg: 89.12 }, { sym: 'META', shares: 17, avg: 504.17 },
+    { sym: 'ADBE', shares: 41, avg: 251.82 }, { sym: 'MBLY', shares: 1047, avg: 12.23 },
+    { sym: 'UNH', shares: 20, avg: 286.91 }, { sym: 'MSFT', shares: 15, avg: 369.00 },
+    { sym: 'UBER', shares: 93, avg: 70.48 }, { sym: 'INTU', shares: 17, avg: 277.63 },
+    { sym: 'APP', shares: 9, avg: 308.81 },
+  ];
+  vm.runInContext('POSITIONS = ' + JSON.stringify(yPos) + ';', sandbox);
+  const qobj = {};
+  for (const [k, v] of Object.entries(liveQ)) qobj[k] = { close: v };
+  vm.runInContext('state.quotes = ' + JSON.stringify(qobj) + '; DB.cash = { usd: 0, ils: 0 };', sandbox);
+  ok(Math.abs(T.totalsUSD().total - 72977.62) < 0.01, 'שווי התיק מהאפליקציה תואם לחישוב עצמאי ממחירים חיים');
+  ok(Math.abs(T.costBasisUSD() - 65671.80) < 0.01, 'עלות הקנייה תואמת לחישוב עצמאי');
+
+  /* ---------- נעילת עריכה במצב IBKR (v36) ---------- */
+  vm.runInContext('DB.source = "ibkr"; state.edit.stocks = true; state.edit.deposits = true;', sandbox);
+  T.renderIbkrLocks();
+  ok(vm.runInContext('state.edit.stocks === false && state.edit.deposits === false', sandbox), 'במצב IBKR מצב העריכה נכבה אוטומטית');
+  ok(T.editAllowed('stocks') === false && T.editAllowed('deposits') === false, 'במצב IBKR אין עריכה ידנית של מניות/הפקדות');
+  vm.runInContext('DB.source = "manual"; state.edit.stocks = true;', sandbox);
+  ok(T.editAllowed('stocks') === true, 'אחרי ניתוק (מצב ידני) העריכה חוזרת לעבוד');
+
   /* ---------- עקביות קבצים ---------- */
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
+  for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData', 'ibkrStocksNote']) {
     ok(html.includes('id="' + id + '"'), 'index.html מכיל #' + id);
   }
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  ok(sw.includes('portfolio-pwa-v35'), 'sw.js בגרסת v35');
-  ok(src.includes("const APP_VERSION = 'v35'"), 'APP_VERSION v35');
+  ok(sw.includes('portfolio-pwa-v36'), 'sw.js בגרסת v36');
+  ok(src.includes("const APP_VERSION = 'v36'"), 'APP_VERSION v36');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
