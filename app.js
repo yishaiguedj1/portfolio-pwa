@@ -1106,6 +1106,7 @@ function ibkrCfg() {
 function ibkrSaveCfg(patch) {
   const c = Object.assign({}, ibkrCfg(), patch);
   try { localStorage.setItem(LS_IBKR, JSON.stringify(c)); } catch (e) {}
+  try { if (typeof ibkrThCacheClear === 'function') ibkrThCacheClear(); } catch (e) {}
   return c;
 }
 function ibkrProxyBase() {
@@ -1585,7 +1586,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v68';
+const APP_VERSION = 'v69';
 
 
 function saveDBto(db) {
@@ -1978,8 +1979,12 @@ async function getDaily(sym, force) {
     if (state.hist[sym]) return state.hist[sym];
     const cached = lsGet(LS_HIST + sym);
     if (cached && cached.rows && cached.rows.length) {
-      const dayOld = new Date(cached.at).toDateString() !== new Date().toDateString();
-      if (!dayOld) { state.hist[sym] = cached.rows; return cached.rows; }
+      // v69: מטמון 24 שעות (כמו getDailyFast) — עקבי
+      const ageMs = Date.now() - (Number(cached.at) || 0);
+      if (ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000) {
+        state.hist[sym] = cached.rows;
+        return cached.rows;
+      }
     }
   }
   const save = (rows) => {
@@ -2091,14 +2096,21 @@ async function _getDailyFastInner(sym, force) {
     if (state.hist[sym]) return state.hist[sym];
     const cached = lsGet(LS_HIST + sym);
     if (cached && cached.rows && cached.rows.length) {
-      const dayOld = new Date(cached.at).toDateString() !== new Date().toDateString();
-      if (!dayOld) { state.hist[sym] = cached.rows; return cached.rows; }
+      // v69: מטמון 24 שעות במקום "היום הקלנדרי" — מעבר בין טווחים מיידי גם
+      // אחרי שעות, בלי רשת. נתוני סוף־יום לא משתנים תוך 24 שעות ברוב המקרים.
+      const ageMs = Date.now() - (Number(cached.at) || 0);
+      if (ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000) {
+        state.hist[sym] = cached.rows;
+        return cached.rows;
+      }
     }
   }
   const save = (rows) => {
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
     lsSet(LS_HIST + sym, { at: Date.now(), rows: rows });
+    // v69: היסטוריה חדשה = TWR חדש — מנקים מטמון
+    try { if (typeof ibkrThCacheClear === 'function') ibkrThCacheClear(); } catch (e) {}
     return rows;
   };
   const notes = [];
@@ -2184,7 +2196,7 @@ async function warmPfHistories(onProgress, fromDate) {
     done++;
     if (onProgress) { try { onProgress(done, syms.length); } catch (e) {} }
   };
-  await pool(syms, 4, async (sym) => { try { await getDailyFast(sym, false); } finally { tick(); } });
+  await pool(syms, 8, async (sym) => { try { await getDailyFast(sym, false); } finally { tick(); } });
 }
 
 /* ---------------- חישובים ---------------- */
@@ -3125,12 +3137,37 @@ function buildTradesHistory(o, fromDate) {
 }
 
 /* עטיפה למצב IBKR: ההיסטוריה האמיתית מעסקאות, או [] אם אין עסקאות.
-   fromDate (אופציונלי): לחישוב YTD נקי — רק אירועים מ־1/1. */
+   fromDate (אופציונלי): לחישוב YTD נקי — רק אירועים מ־1/1.
+   v69: מטמון תוצאות — מעבר בין טווחי זמן לא מחשב מחדש, רק מסנן. */
+let _ibkrThCache = {};
+function _ibkrThSig(d) {
+  // חתימה מהירה לשינוי נתונים: עסקאות, תזרים, פוזיציות, מזומן, היסטוריות
+  let histSig = '';
+  try {
+    histSig = Object.keys(state.hist || {}).sort()
+      .map((s) => s + ':' + (state.hist[s] || []).length).join('|');
+  } catch (e) {}
+  return [
+    (d.trades || []).length,
+    ((d.trades || [])[0] || {}).date || '',
+    ((d.trades || []).slice(-1)[0] || {}).date || '',
+    (d.cashTransactions || []).length,
+    JSON.stringify((d.positions || []).map((p) => p.symbol + ':' + p.qty).sort()),
+    JSON.stringify((DB && DB.cash) || {}),
+    histSig,
+  ].join('~');
+}
+function ibkrThCacheClear() { _ibkrThCache = {}; }
 function ibkrTradesHistory(fromDate) {
   if (!isIbkrMode()) return [];
   const d = ibkrCfg().data;
   const trades = (d && d.trades) || [];
   if (!trades.length) return [];
+  // בדיקת מטמון
+  const ck = String(fromDate || 'full');
+  const sig = _ibkrThSig(d);
+  const hit = _ibkrThCache[ck];
+  if (hit && hit.sig === sig) return hit.rows;
   // פוזיציות לשחזור — כולל שורט (כמות שלילית), שאינן ב־POSITIONS של התצוגה.
   // מסנן LOT (פירוט כפול) — רק SUMMARY (תיקון באג כפילות v68).
   const posMap = {};
@@ -3143,7 +3180,7 @@ function ibkrTradesHistory(fromDate) {
     posMap[sym] = (posMap[sym] || 0) + qty;
   }
   const positions = Object.keys(posMap).map((sym) => ({ sym, shares: posMap[sym] }));
-  return buildTradesHistory({
+  const rows = buildTradesHistory({
     trades: trades,
     cashTx: (d && d.cashTransactions) || [],
     positions: positions,
@@ -3151,6 +3188,8 @@ function ibkrTradesHistory(fromDate) {
     hist: state.hist,
     fxOf: (iso) => fxOnOrBefore(iso) || state.fx || 1,
   }, fromDate);
+  _ibkrThCache[ck] = { sig: sig, rows: rows };
+  return rows;
 }
 
 /* סך תשואת קרן (פנסיה / השתלמות) — כמו תשואת התיק: שווי נוכחי מול סך הפקדות.
