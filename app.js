@@ -1652,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v84';
+const APP_VERSION = 'v85';
 
 
 function saveDBto(db) {
@@ -2644,13 +2644,11 @@ function ibkrInceptionDate() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
     if (!first || dt < first) first = dt;
   };
-  // v82: כולל הפקדות היסטוריות 2023-2024
-  // v83: כולל עסקאות היסטוריות 2023-2024
-  for (const c of [...((d.cashTransactions || [])), ...EARLY_DEPOSITS_2023_2024]) {
+  for (const c of (d.cashTransactions || [])) {
     if (!c || !ibkrIsDepositTx(c)) continue;
     consider(c.date);
   }
-  for (const t of [...((d.trades || [])), ...EARLY_TRADES_2023_2024]) {
+  for (const t of (d.trades || [])) {
     if (!t || !ibkrIsStockTrade(t)) continue;
     consider(t.date);
   }
@@ -2762,7 +2760,49 @@ function switchTab(name) {
     }
   });
   document.querySelectorAll('.tabpage').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
+  // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
+  try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} });
+  // v85: שחזור מיקום גלילה שמור לטאב הזה (אחרי שהתוכן נטען)
+  const savedY = getSavedScrollY(name);
+  if (savedY > 0) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { window.scrollTo(0, savedY); } catch (e) {}
+    }));
+  }
+}
+
+/* v85: שמירת/שחזור מיקום גלילה לכל טאב — חזרה לאותה נקודה אחרי רענון */
+function getSavedScrollY(tab) {
+  try {
+    const all = JSON.parse(localStorage.getItem('pwa_lastscroll_v1') || '{}');
+    return Number(all[tab]) || 0;
+  } catch (e) { return 0; }
+}
+function saveScrollY(tab, y) {
+  try {
+    const all = JSON.parse(localStorage.getItem('pwa_lastscroll_v1') || '{}');
+    all[tab] = Math.round(y);
+    localStorage.setItem('pwa_lastscroll_v1', JSON.stringify(all));
+  } catch (e) {}
+}
+function currentTabName() {
+  const el = document.querySelector('.tab.active');
+  return (el && el.dataset.tab) || 'overview';
+}
+// שמירת גלילה (debounced) — כל 300ms אחרי עצירת הגלילה
+let _scrollSaveT = null;
+function initScrollSaver() {
+  window.addEventListener('scroll', () => {
+    clearTimeout(_scrollSaveT);
+    _scrollSaveT = setTimeout(() => {
+      try { saveScrollY(currentTabName(), window.scrollY); } catch (e) {}
+    }, 300);
+  }, { passive: true });
+  // שמירה גם לפני עזיבת הדף — למקרה שהדפדפן נסגר מהר
+  window.addEventListener('beforeunload', () => {
+    try { saveScrollY(currentTabName(), window.scrollY); } catch (e) {}
+  });
 }
 
 /* ---------------- רינדור: סקירה ---------------- */
@@ -3421,41 +3461,10 @@ function _ibkrThSig(d) {
   ].join('~');
 }
 function ibkrThCacheClear() { _ibkrThCache = {}; }
-/* v82: הפקדות היסטוריות 2023-2024 שלא בדוח Flex (מעל שנה).
-   מקור: קובץ CSV שהמשתמש סיפק (Activity Statement 29/09/2023-27/09/2024).
-   11 הפקדות, סך $14,654. נדרש לחישוב TWR נכון מטווח מקסימום. */
-const EARLY_DEPOSITS_2023_2024 = [
-  { date: '2023-10-02', amount: 1901.22, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2023-11-07', amount: 3345.77, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2023-11-15', amount: 1847.79, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2023-11-20', amount: 665.51, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2023-12-11', amount: 1204.50, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2023-12-14', amount: 390.73, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2024-02-20', amount: 679.46, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2024-02-26', amount: 817.68, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2024-03-05', amount: 1105.28, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2024-08-19', amount: 1341.74, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-  { date: '2024-08-29', amount: 1354.32, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
-];
-
-/* v83: עסקאות היסטוריות 2023-2024 שלא בדוח Flex (לפני 2024-09-24).
-   מקור: אותו קובץ CSV. 7 עסקאות (לא כולל 2 חופפות מ-24-25/09/2024 שבדוח).
-   נדרש כדי שהפוזיציות ב-2023 יהיו נכונות בשחזור לאחור. */
-const EARLY_TRADES_2023_2024 = [
-  { symbol: 'BRK B', date: '2023-10-03', qty: 3, price: 343.4923, side: 'BUY', commission: 5, currency: 'USD' },
-  { symbol: 'META', date: '2023-10-03', qty: 2, price: 300.03, side: 'BUY', commission: 5, currency: 'USD' },
-  { symbol: 'VOO', date: '2023-10-03', qty: 6, price: 387.449, side: 'BUY', commission: 5, currency: 'USD' },
-  { symbol: 'HE', date: '2024-04-16', qty: 15, price: 9.16, side: 'BUY', commission: 5, currency: 'USD' },
-  { symbol: 'META', date: '2024-04-29', qty: 1, price: 433.06, side: 'BUY', commission: 5, currency: 'USD' },
-  { symbol: 'IBIT', date: '2024-07-11', qty: 26, price: 32.82, side: 'BUY', commission: 5, currency: 'USD' },
-  { symbol: 'IBIT', date: '2024-07-29', qty: -26, price: 39.245, side: 'SELL', commission: 5, currency: 'USD' },
-];
-
 function ibkrTradesHistory(fromDate) {
   if (!isIbkrMode()) return [];
   const d = ibkrCfg().data;
-  // v83: מוסיף עסקאות היסטוריות 2023-2024 שלא בדוח Flex
-  const trades = [...((d && d.trades) || []), ...EARLY_TRADES_2023_2024];
+  const trades = (d && d.trades) || [];
   if (!trades.length) return [];
   // בדיקת מטמון
   const ck = String(fromDate || 'full');
@@ -3512,7 +3521,7 @@ function ibkrTradesHistory(fromDate) {
   } catch (e) {}
   const rows = buildTradesHistory({
     trades: trades,
-    cashTx: [...((d && d.cashTransactions) || []), ...EARLY_DEPOSITS_2023_2024],
+    cashTx: (d && d.cashTransactions) || [],
     positions: positions,
     cash: ibkrCash || (DB && DB.cash) || { usd: 0, ils: 0 },
     hist: state.hist,
@@ -5277,7 +5286,16 @@ function init() {
     for (const sym of Object.keys(state.open)) if (state.open[sym]) ensureChartData(sym);
   });
   renderTdKeyStatus();
+  // v85: שחזור הטאב האחרון אחרי רענון (לפני בדיקת המפתח — אם אין מפתח, הגדרות גובר)
+  try {
+    const lastTab = localStorage.getItem('pwa_lasttab_v1');
+    if (lastTab && document.getElementById('tab-' + lastTab)) {
+      switchTab(lastTab);
+    }
+  } catch (e) {}
   if (!tdKey()) { switchTab('settings'); }
+  // v85: שמירת מיקום גלילה לכל טאב
+  try { initScrollSaver(); } catch (e) {}
 
   // חיבור ברוקר (IBKR) — אופציונלי, הנתונים הידניים נשארים ברירת המחדל
   renderIbkrCard();
