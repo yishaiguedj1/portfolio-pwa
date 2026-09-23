@@ -224,8 +224,9 @@ he: {
   importDepMissing: 'לא נמצאו הפקדות/משיכות בדוח — רשימת ההפקדות לא תשתנה (כדאי להוסיף את מקטע Cash Transactions לשאילתת ה־Flex).',
   importedOk: 'סונכרן ויובאו {n} מניות מ־IBKR ✓',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
-  disconnectConfirm: 'לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון. הנתונים הידניים לא ייפגעו.',
+  disconnectConfirm: 'לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון, והנתונים הידניים שהיו לפני החיבור ישוחזרו.',
   disconnected: 'החיבור נותק',
+  disconnectedRestored: 'החיבור נותק והנתונים הידניים שוחזרו',
   proxyPrefix: 'שרתון: ',
   proxyBadResponse: 'תשובה לא תקינה מהשרתון',
   proxyErr: 'שגיאת שרתון',
@@ -508,8 +509,9 @@ en: {
   importDepMissing: 'No deposits/withdrawals found in the report — the deposits list will not change (consider adding the Cash Transactions section to your Flex query).',
   importedOk: 'Synced & imported {n} stocks from IBKR ✓',
   importFailed: 'Sync & import failed: {err}',
-  disconnectConfirm: 'Disconnect the broker? The token and sync data will be deleted from this phone. Manual data will not be affected.',
+  disconnectConfirm: 'Disconnect the broker? The token and sync data will be deleted from this phone, and the manual data from before the connection will be restored.',
   disconnected: 'Disconnected',
+  disconnectedRestored: 'Disconnected — manual data restored',
   proxyPrefix: 'Proxy: ',
   proxyBadResponse: 'Invalid response from proxy',
   proxyErr: 'Proxy error',
@@ -1162,10 +1164,13 @@ async function ibkrSyncImport() {
       skipped: (imp.skipped ? '\n' + t('importSkippedNote', { n: imp.skipped }).trim() : '') + truncLine
     });
     if (!confirm(msg)) return;
-    // עדכון במקום (לא החלפת מערך) כדי לא לשבור הפניות קיימות, וסימון מקור הנתונים
+    // צילום הנתונים הידניים לפני הדריסה (רק אם אין כבר צילום), ואז החלפה מלאה:
+    // במצב IBKR הטאבים מציגים את נתוני IBKR במקום הידניים (גם רשימת הפקדות ריקה)
+    ibkrSnapshotManual();
     DB.positions.length = 0;
     DB.positions.push(...imp.positions);
-    if (depList.length) { DEPOSITS.length = 0; DEPOSITS.push(...depList); }
+    DEPOSITS.length = 0;
+    DEPOSITS.push(...depList);
     DB.source = 'ibkr';
     if (imp.cash) DB.cash = { usd: imp.cash.usd, ils: imp.cash.ils };
     saveDB();
@@ -1178,6 +1183,33 @@ async function ibkrSyncImport() {
     ibkrSetBusy(false);
     renderIbkrCard();
   }
+}
+
+/* צילום הנתונים הידניים לפני יבוא IBKR — כדי שאפשר יהיה לשחזרם בניתוק.
+   נשמר רק אם אין כבר צילום (סנכרון חוזר במצב IBKR לא דורס את המקור הידני).
+   מחזיר true אם נשמר צילום חדש. */
+function ibkrSnapshotManual() {
+  if (DB.ibkrSnapshot) return false;
+  const cp = (v) => JSON.parse(JSON.stringify(v || []));
+  DB.ibkrSnapshot = {
+    positions: cp(DB.positions),
+    deposits: cp(DB.deposits),
+    cash: JSON.parse(JSON.stringify(DB.cash || { usd: 0, ils: 0 })),
+  };
+  return true;
+}
+
+/* שחזור הנתונים הידניים אחרי ניתוק IBKR. מחזיר true אם שוחזר מצילום. */
+function ibkrRestoreManual() {
+  const snap = DB.ibkrSnapshot;
+  if (!snap) return false;
+  DB.positions.length = 0;
+  DB.positions.push(...(snap.positions || []));
+  DEPOSITS.length = 0;
+  DEPOSITS.push(...(snap.deposits || []));
+  DB.cash = snap.cash || { usd: 0, ils: 0 };
+  delete DB.ibkrSnapshot;
+  return true;
 }
 
 /* ממפה נתוני IBKR מסונכרנים למבנה התיק של האפליקציה (פונקציה טהורה — נבדקת).
@@ -1222,7 +1254,8 @@ function ibkrDisconnect() {
   ibkrClearErr();
   if (!confirm(t('disconnectConfirm'))) return;
   ibkrSaveCfg({ token: '', queryId: '', statementUrl: '', lastSync: 0, data: null });
-  // אחרי ניתוק חוזרים למצב ידני — הנתונים נשארים, אבל שוב אפשר לערוך
+  // שחזור הנתונים הידניים שהיו לפני החיבור (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
+  const restored = ibkrRestoreManual();
   DB.source = 'manual';
   saveDB();
   const tk = document.getElementById('ibkrToken');
@@ -1231,7 +1264,7 @@ function ibkrDisconnect() {
   if (qd) qd.value = '';
   renderAll();
   renderIbkrCard();
-  flash(t('disconnected'));
+  if (restored) flash(t('disconnectedRestored')); else flash(t('disconnected'));
 }
 
 /* מחיר סגירה קודם לחישוב שינוי יומי (מתמודד עם סופ"ש/חג) */
@@ -1313,7 +1346,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v41';
+const APP_VERSION = 'v42';
 
 
 function saveDBto(db) {
@@ -3029,6 +3062,8 @@ function renderDeposits() {
   const cn = document.getElementById('calcNotePara');
   if (cn) cn.innerHTML = t('calcNote1', { total: ndTxt }) +
     (isIbkrMode() ? '<br><span class="fine">' + t('ibkrDepositsNote') + '</span>' : '');
+  const dn = document.getElementById('depNoteEl');
+  if (dn) dn.classList.toggle('hidden', isIbkrMode()); // ההסבר הידני (גיליון) לא רלוונטי במצב IBKR
   const ul = document.getElementById('depositList');
   ul.innerHTML = '';
   const ed = editAllowed('deposits');
