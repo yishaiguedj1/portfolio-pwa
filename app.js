@@ -898,6 +898,70 @@ function applySplitAdjustment(rows) {
   return rows;
 }
 
+/* ספליטים ידועים עובדתית — רשת ביטחון למקרה שמטא־הספליטים אבדו מהמטמון
+   (למשל שורות שנשמרו לפני v70, כש־JSON השמיט את התכונה המותאמת).
+   NOW: ספליט 5:1 ב־18/12/2025 — אומת מול נתוני המסחר של IBKR. */
+const KNOWN_SPLITS = {
+  'NOW': [{ date: '2025-12-18', ratio: 5 }],
+};
+const LS_HIST_V1 = 'pwa_hist_v1_'; // מפתח המטמון הקודם — לנדידת חירום בלבד (v71)
+
+/* מתקן שורות מטמון ישנות שאין להן מטא־ספליטים: בודק את המחירים סביב תאריך
+   הספליט הידוע — אם היחס לפני/אחרי ≈ יחס הספליט, המחירים עוד לא הותאמו
+   ומחלקים אותם; אם היחס ≈ 1, כבר הותאמו ורק מצרפים מטא־נתונים.
+   אם לא ניתן לזהות — לא נוגע (בטוח). פונקציה טהורה, נבדקת. */
+function repairKnownSplits(sym, rows) {
+  const known = KNOWN_SPLITS[String(sym || '').toUpperCase()];
+  if (!known || !rows || rows.length < 10) return false;
+  let fixed = false;
+  for (const s of known) {
+    const pre = [], post = [];
+    for (const r of rows) {
+      if (!r || !r.date || !(r.close > 0)) continue;
+      if (r.date < s.date) { if (r.date >= addDaysISO(s.date, -14)) pre.push(r.close); }
+      else if (r.date > s.date) { if (r.date <= addDaysISO(s.date, 14)) post.push(r.close); }
+    }
+    if (pre.length < 3 || post.length < 3) continue;
+    const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+    const obs = avg(pre) / avg(post);
+    const meta = s.date + '×' + (Math.round(s.ratio * 100) / 100);
+    const has = String(rows.splitsApplied || '').split(',').some((x) => x.split('×')[0] === s.date);
+    if (Math.abs(obs - s.ratio) / s.ratio < 0.25) {
+      for (const r of rows) {
+        if (r.date < s.date) {
+          if (r.open) r.open /= s.ratio;
+          if (r.high) r.high /= s.ratio;
+          if (r.low) r.low /= s.ratio;
+          r.close /= s.ratio;
+        }
+      }
+      if (!has) rows.splitsApplied = (rows.splitsApplied ? rows.splitsApplied + ',' : '') + meta;
+      fixed = true;
+    } else if (Math.abs(obs - 1) < 0.25) {
+      if (!has) rows.splitsApplied = (rows.splitsApplied ? rows.splitsApplied + ',' : '') + meta;
+      fixed = true;
+    }
+  }
+  return fixed;
+}
+
+/* נדידת חירום v1→v2: מעתיקה שורות מהמפתח הישן (שה־v70 ייתם) למפתח החדש,
+   עם תיקון ספליטים — כדי שהגרף יעלה מיד בלי 17 טעינות רשת איטיות,
+   וה־TWR יישאר נכון גם בלי רשת. מחזירה רשומת מטמון או null. */
+function migrateHistCacheV1(sym) {
+  try {
+    const key = LS_HIST_V1 + String(sym || '').toUpperCase();
+    const old = lsGet(key);
+    if (!old || !old.rows || !old.rows.length) return null;
+    const rows = old.rows;
+    try { repairKnownSplits(sym, rows); } catch (e) {}
+    const rec = { at: Number(old.at) || Date.now(), rows: rows, splits: rows.splitsApplied || null };
+    lsSet(LS_HIST + String(sym || '').toUpperCase(), rec);
+    try { localStorage.removeItem(key); } catch (e) {}
+    return rec;
+  } catch (e) { return null; }
+}
+
 /* מסווג שגיאת רשת למילים פשוטות — כדי שנראה מה קרה בטלפון */
 function netErrName(e) {
   if (e && e.name === 'AbortError') return t('errTimeout');
@@ -1586,7 +1650,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v70';
+const APP_VERSION = 'v71';
 
 
 function saveDBto(db) {
@@ -1973,19 +2037,35 @@ async function refreshQuotes() {
   renderAll();
 }
 
+/* משחזר שורות היסטוריה מרשומת מטמון: מטא־ספליטים + רשת ביטחון לספליטים
+   ידועים + שמירה ב־state. מחזיר את השורות. */
+function restoreHistRows(sym, cached) {
+  const rows = cached.rows;
+  if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
+  if (!rows.splitsApplied) { try { repairKnownSplits(sym, rows); } catch (e) {} } // v71: רשת ביטחון
+  state.hist[sym] = rows;
+  return rows;
+}
+
+/* טוען רשומת מטמון v2, ואם חסרה — מנסה נדידת חירום מ־v1 (v71).
+   מחזיר רשומת מטמון או null. */
+function loadHistCacheRec(sym) {
+  let cached = null;
+  try { cached = lsGet(LS_HIST + sym); } catch (e) {}
+  if (cached && cached.rows && cached.rows.length) return cached;
+  return migrateHistCacheV1(sym);
+}
+
 async function getDaily(sym, force) {
   const wantMax = state.range[sym] === 'max';
   if (!force && !wantMax) {
     if (state.hist[sym]) return state.hist[sym];
-    const cached = lsGet(LS_HIST + sym);
+    const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
     if (cached && cached.rows && cached.rows.length) {
       // v69: מטמון 24 שעות (כמו getDailyFast) — עקבי
       const ageMs = Date.now() - (Number(cached.at) || 0);
       if (ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000) {
-        const rows = cached.rows;
-        if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
-        state.hist[sym] = rows;
-        return rows;
+        return restoreHistRows(sym, cached);
       }
     }
   }
@@ -2010,12 +2090,9 @@ async function getDaily(sym, force) {
     notes.push(t('srcEmpty', { name: 'Stooq' }));
   } catch (e) { notes.push('Stooq: ' + netErrName(e)); }
   state.histDbg[sym] = notes.join(' · ');
-  const cached = lsGet(LS_HIST + sym);
+  const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
   if (cached && cached.rows) {
-    const rows = cached.rows;
-    if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
-    state.hist[sym] = rows;
-    return rows;
+    return restoreHistRows(sym, cached);
   }
   return [];
 }
@@ -2102,17 +2179,19 @@ function renderPfBenchToggles(show) {
 async function _getDailyFastInner(sym, force) {
   if (!force) {
     if (state.hist[sym]) return state.hist[sym];
-    const cached = lsGet(LS_HIST + sym);
+    const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
     if (cached && cached.rows && cached.rows.length) {
       // v69: מטמון 24 שעות במקום "היום הקלנדרי" — מעבר בין טווחים מיידי גם
       // אחרי שעות, בלי רשת. נתוני סוף־יום לא משתנים תוך 24 שעות ברוב המקרים.
       const ageMs = Date.now() - (Number(cached.at) || 0);
       if (ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000) {
-        const rows = cached.rows;
-        if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
-        state.hist[sym] = rows;
-        return rows;
+        return restoreHistRows(sym, cached);
       }
+      // v71: stale-while-revalidate — מטמון פג־תוקף מוחזר מיד כדי שהגרף
+      // יעלה בלי לחכות לרשת, והרענון קורה ברקע. מונע "תקיעה" בטעינה.
+      restoreHistRows(sym, cached);
+      refreshHistInBackground(sym);
+      return state.hist[sym];
     }
   }
   const save = (rows) => {
@@ -2155,14 +2234,20 @@ async function _getDailyFastInner(sym, force) {
     }
   }
   state.histDbg[sym] = notes.join(' · ');
-  const cached = lsGet(LS_HIST + sym);
+  const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
   if (cached && cached.rows) {
-    const rows = cached.rows;
-    if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
-    state.hist[sym] = rows;
-    return rows;
+    return restoreHistRows(sym, cached);
   }
   return [];
+}
+
+/* רענון רקע להיסטוריה (stale-while-revalidate): לא חוסם את הגרף.
+   כשהרשת מסיימת, השורות הטריות נשמרות למטמון v2 ומחליפות את הישנות. */
+function refreshHistInBackground(sym) {
+  try {
+    const p = getDailyFast(sym, true);
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch (e) {}
 }
 
 /* מעטפת עם מניעת כפילויות: שתי קריאות מקביליות לאותו סימבול חולקות בקשה אחת.
