@@ -652,6 +652,8 @@ function setBanner(msg) {
 function showTdKeyCard() {
   const c = document.getElementById('tdKeyCard');
   if (c) c.classList.remove('hidden');
+  const cancel = document.getElementById('tdKeyCancel');
+  if (cancel) cancel.classList.toggle('hidden', !tdKey());
 }
 function hideTdKeyCard() {
   const c = document.getElementById('tdKeyCard');
@@ -1189,6 +1191,16 @@ function init() {
     warmHistories();
     for (const sym of Object.keys(state.open)) if (state.open[sym]) ensureChartData(sym);
   });
+  // החלפת מפתח קיים — פותח את הכרטיס עם המפתח הנוכחי
+  const tdChange = document.getElementById('tdKeyChange');
+  if (tdChange) tdChange.addEventListener('click', () => {
+    const inp = document.getElementById('tdKeyInput');
+    if (inp) inp.value = tdKey();
+    showTdKeyCard();
+    if (inp) inp.focus();
+  });
+  const tdCancel = document.getElementById('tdKeyCancel');
+  if (tdCancel) tdCancel.addEventListener('click', hideTdKeyCard);
 
   renderAll();
   refreshQuotes().then(() => warmHistories());
