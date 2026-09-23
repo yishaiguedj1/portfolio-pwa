@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>תיק ההשקעות</title>
+<title data-i18n="appTitle">תיק ההשקעות</title>
 <meta name="description" content="דשבורד תיק ההשקעות — מחירים חיים, הפקדות, פנסיה. אפליקציית ווב להתקנה.">
 <meta name="theme-color" content="#006A4E">
 <meta name="mobile-web-app-capable" content="yes">
@@ -18,26 +18,26 @@
 
 <header class="appbar">
   <div class="appbar-title">
-    <h1>תיק ההשקעות</h1>
-    <p class="appbar-sub" id="sourceLabel">מקור: טוען…</p>
+    <h1 data-i18n="appTitle">תיק ההשקעות</h1>
+    <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
   </div>
   <div class="appbar-actions">
-    <div class="seg" role="group" aria-label="בחירת מטבע">
-      <button id="curUSD" class="seg-btn active" type="button">$</button>
-      <button id="curILS" class="seg-btn" type="button">₪</button>
+    <div class="seg" role="group" data-i18n-aria="curAria" aria-label="בחירת מטבע">
+      <button id="curUSD" class="seg-btn active" type="button" data-i18n-aria="curUsd" aria-label="דולרים">$</button>
+      <button id="curILS" class="seg-btn" type="button" data-i18n-aria="curIls" aria-label="שקלים">₪</button>
     </div>
-    <button id="refreshBtn" class="icon-btn" type="button" aria-label="רענון נתונים" title="רענון נתונים">⟳</button>
+    <button id="refreshBtn" class="icon-btn" type="button" data-i18n-aria="refresh" data-i18n-title="refresh" aria-label="רענון נתונים" title="רענון נתונים">⟳</button>
   </div>
 </header>
 
 <div id="statusBanner" class="banner hidden" role="status"></div>
 
-<nav class="tabs" role="tablist" aria-label="לשוניות">
-  <button class="tab active" data-tab="overview" type="button" role="tab">סקירה</button>
-  <button class="tab" data-tab="stocks" type="button" role="tab">מניות <span class="count-chip" id="stockCount">9</span></button>
-  <button class="tab" data-tab="deposits" type="button" role="tab">הפקדות</button>
-  <button class="tab" data-tab="pension" type="button" role="tab">פנסיה</button>
-  <button class="tab" data-tab="settings" type="button" role="tab">הגדרות</button>
+<nav class="tabs" role="tablist" data-i18n-aria="tabsAria" aria-label="לשוניות">
+  <button class="tab active" data-tab="overview" type="button" role="tab"><span data-i18n="tabOverview">סקירה</span></button>
+  <button class="tab" data-tab="stocks" type="button" role="tab"><span data-i18n="tabStocks">מניות</span> <span class="count-chip" id="stockCount">9</span></button>
+  <button class="tab" data-tab="deposits" type="button" role="tab"><span data-i18n="tabDeposits">הפקדות</span></button>
+  <button class="tab" data-tab="pension" type="button" role="tab"><span data-i18n="tabPension">פנסיה</span></button>
+  <button class="tab" data-tab="settings" type="button" role="tab"><span data-i18n="tabSettings">הגדרות</span></button>
 </nav>
 
 <main>
@@ -45,17 +45,17 @@
   <section id="tab-overview" class="tabpage active" role="tabpanel">
     <div class="cards-3">
       <div class="card stat">
-        <div class="stat-label">שווי תיק המניות</div>
+        <div class="stat-label" data-i18n="ovStocksValue">שווי תיק המניות</div>
         <div class="stat-value" id="ovValue">—</div>
         <div class="stat-sub" id="ovValueSub">כולל מזומן</div>
       </div>
       <div class="card stat">
-        <div class="stat-label">רווח / הפסד</div>
+        <div class="stat-label" data-i18n="ovGL">רווח / הפסד</div>
         <div class="stat-value" id="ovGL">—</div>
-        <div class="stat-sub">מול הפקדות נטו</div>
+        <div class="stat-sub" data-i18n="ovVsNetDeposits">מול הפקדות נטו</div>
       </div>
       <div class="card stat">
-        <div class="stat-label">תשואה</div>
+        <div class="stat-label" data-i18n="ovYield">תשואה</div>
         <div class="stat-value" id="ovYield">—</div>
         <div class="stat-sub" id="ovMeta">עודכן: —</div>
       </div>
@@ -63,27 +63,27 @@
 
     <div class="card">
       <div class="section-head">
-        <h2>ביצועי התיק לאורך זמן</h2>
+        <h2 data-i18n="pfTitle">ביצועי התיק לאורך זמן</h2>
       </div>
       <div class="chip-row" id="pfChips"></div>
-      <div class="chart-wrap"><canvas id="pfChart" height="220"></canvas><div id="pfLoading" class="chart-loading">טוען נתונים…</div></div>
+      <div class="chart-wrap"><canvas id="pfChart" height="220"></canvas><div id="pfLoading" class="chart-loading" data-i18n="loadingData">טוען נתונים…</div></div>
       <ul id="pfLegend" class="legend"></ul>
-      <p class="fine" style="padding:0">שווי התיק בשקלים לאורך זמן, לפי האחזקות הנוכחיות (אין יומן קניות היסטורי).</p>
+      <p class="fine" style="padding:0" data-i18n="pfNote">שווי התיק בשקלים לאורך זמן, לפי האחזקות הנוכחיות (אין יומן קניות היסטורי).</p>
     </div>
 
     <div class="card">
-      <h2>חלוקת תיק מניות</h2>
+      <h2 data-i18n="pieTitle">חלוקת תיק מניות</h2>
       <div class="pie-wrap"><canvas id="pieChart" height="220"></canvas></div>
       <ul id="pieLegend" class="legend"></ul>
     </div>
 
     <details class="card note">
-      <summary>שקיפות חישובים</summary>
+      <summary data-i18n="calcTitle">שקיפות חישובים</summary>
       <div class="note-body">
-        <p>התשואה מחושבת מול <b>סך ההפקדות נטו (<span id="noteDepTotal">—</span>)</b> כפי שמופיע בגיליון:</p>
-        <p>רווח/הפסד = שווי התיק − הפקדות · תשואה = רווח ÷ הפקדות.</p>
-        <p>שים לב: סכום (כמות × מחיר קנייה ממוצע) עומד על כ־$65,672 (כ־₪198K) — כ־₪10.7K מעל סך ההפקדות. פער אפשרי מעיגול או עדכון מחירי הקנייה בגיליון, מרשומת +₪37,000 (משיכה/תיקון) או מהשפעות מט״ח. כדאי לוודא מול הגיליון.</p>
-        <p>התשואה בשקלים מגלמת גם את תנועת שער הדולר, לא רק את ביצועי המניות.</p>
+        <p id="calcNotePara"></p>
+        <p data-i18n="calcNote2">רווח/הפסד = שווי התיק − הפקדות · תשואה = רווח ÷ הפקדות.</p>
+        <p data-i18n="calcNote3">שים לב: סכום (כמות × מחיר קנייה ממוצע) עומד על כ־$65,672 (כ־₪198K) — כ־₪10.7K מעל סך ההפקדות. פער אפשרי מעיגול או עדכון מחירי הקנייה בגיליון, מרשומת +₪37,000 (משיכה/תיקון) או מהשפעות מט״ח. כדאי לוודא מול הגיליון.</p>
+        <p data-i18n="calcNote4">התשואה בשקלים מגלמת גם את תנועת שער הדולר, לא רק את ביצועי המניות.</p>
       </div>
     </details>
   </section>
@@ -91,45 +91,45 @@
   <!-- מניות -->
   <section id="tab-stocks" class="tabpage" role="tabpanel">
     <div class="section-head">
-      <h2>המניות שלי</h2>
-      <button id="editStocksBtn" class="chip-btn" type="button">✏️ עריכה</button>
+      <h2 data-i18n="myStocks">המניות שלי</h2>
+      <button id="editStocksBtn" class="chip-btn" type="button" data-i18n="editBtn">✏️ עריכה</button>
     </div>
-    <p class="fine hidden" id="editStocksHint">מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על ✏️ עריכה.</p>
+    <p class="fine hidden" id="editStocksHint" data-i18n="editHintStocks">מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על ✏️ עריכה.</p>
     <div id="stockList"></div>
   </section>
 
   <!-- הפקדות -->
   <section id="tab-deposits" class="tabpage" role="tabpanel">
     <div class="card stat wide">
-      <div class="stat-label">סך הפקדות נטו</div>
+      <div class="stat-label" data-i18n="depTotalTitle">סך הפקדות נטו</div>
       <div class="stat-value" id="depTotal">—</div>
-      <div class="stat-sub"><span id="depCount">—</span> · מחושב מהרשומות למטה</div>
+      <div class="stat-sub"><span id="depCount">—</span> · <span data-i18n="depCalcNote">מחושב מהרשומות למטה</span></div>
     </div>
     <div class="card">
       <div class="section-head">
-        <h2>כל ההפקדות</h2>
-        <button id="editDepositsBtn" class="chip-btn" type="button">✏️ עריכה</button>
+        <h2 data-i18n="allDeposits">כל ההפקדות</h2>
+        <button id="editDepositsBtn" class="chip-btn" type="button" data-i18n="editBtn">✏️ עריכה</button>
       </div>
-      <p class="fine hidden" id="editDepositsHint" style="padding:0">מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.</p>
+      <p class="fine hidden" id="editDepositsHint" style="padding:0" data-i18n="editHint">מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.</p>
       <ul id="depositList" class="rows"></ul>
     </div>
-    <p class="fine">סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.</p>
+    <p class="fine" data-i18n="depNote">סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.</p>
   </section>
 
   <!-- פנסיה -->
   <section id="tab-pension" class="tabpage" role="tabpanel">
     <div class="cards-3" id="pensionCards"></div>
     <div class="card">
-      <h2>סך פנסיה והשתלמות</h2>
+      <h2 data-i18n="pensionTotalTitle">סך פנסיה והשתלמות</h2>
       <div class="pension-total" id="pensionTotal">—</div>
       <ul id="pensionReturns" class="legend"></ul>
     </div>
     <div class="card">
       <div class="section-head">
-        <h2>הפקדות פנסיה</h2>
-        <button id="editPensionBtn" class="chip-btn" type="button">✏️ עריכה</button>
+        <h2 data-i18n="pensionDepositsTitle">הפקדות פנסיה</h2>
+        <button id="editPensionBtn" class="chip-btn" type="button" data-i18n="editBtn">✏️ עריכה</button>
       </div>
-      <p class="fine hidden" id="editPensionHint" style="padding:0">מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.</p>
+      <p class="fine hidden" id="editPensionHint" style="padding:0" data-i18n="editHint">מצב עריכה פעיל — בסיום לחצו שוב על ✏️ עריכה.</p>
       <ul id="pensionDeposits" class="rows"></ul>
     </div>
   </section>
@@ -137,81 +137,89 @@
   <!-- הגדרות -->
   <section id="tab-settings" class="tabpage" role="tabpanel">
     <div class="card" id="accountCard">
-      <h2>החשבון שלי 👤</h2>
-      <div id="accountInfo"><p class="fine" style="padding:0">טוען…</p></div>
+      <h2><span data-i18n="myAccount">החשבון שלי</span> 👤</h2>
+      <div id="accountInfo"><p class="fine" style="padding:0" data-i18n="loading">טוען…</p></div>
       <p class="fine" id="appVersion" style="padding:0"></p>
     </div>
 
+    <div class="card">
+      <h2><span data-i18n="langTitle">שפה</span> / Language</h2>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" id="langHe" class="lang-opt">עברית</button>
+        <button type="button" id="langEn" class="lang-opt">English</button>
+      </div>
+    </div>
+
     <div class="card" id="tdKeyCard">
-      <h2>מפתח נתונים (Twelve Data) 📈</h2>
-      <p class="fine" style="padding:0">המפתח מפעיל את הגרפים. נשמר בחשבון שלך בענן (או בטלפון, בלי חשבון).</p>
+      <h2 data-i18n="tdKeyTitle">מפתח נתונים (Twelve Data) 📈</h2>
+      <p class="fine" style="padding:0" data-i18n="tdKeyDesc">המפתח מפעיל את הגרפים. נשמר בחשבון שלך בענן (או בטלפון, בלי חשבון).</p>
       <div class="fine" id="tdKeyStatus" style="padding:0"></div>
-      <p><a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">להרשמה חינמית ב־Twelve Data</a></p>
+      <p><a href="https://twelvedata.com/pricing" target="_blank" rel="noopener" data-i18n="tdSignup">להרשמה חינמית ב־Twelve Data</a></p>
       <div class="tdkey-row">
-        <input id="tdKeyInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="הדבק כאן את המפתח" dir="ltr">
-        <button id="tdKeySave" type="button" class="btn">שמור</button>
+        <input id="tdKeyInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" data-i18n-ph="tdKeyPh" placeholder="הדבק כאן את המפתח" dir="ltr">
+        <button id="tdKeySave" type="button" class="btn" data-i18n="btnSave">שמור</button>
       </div>
     </div>
 
     <div class="card" id="ibkrCard">
-      <h2>חיבור ברוקר למשיכת מידע 🏦</h2>
-      <p class="fine" style="padding:0">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).</p>
+      <h2 data-i18n="ibkrTitle">חיבור ברוקר למשיכת מידע 🏦</h2>
+      <p class="fine" style="padding:0" data-i18n="ibkrDesc">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).</p>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
       <div class="form-grid">
-        <label>כתובת השרתון<input id="ibkrProxy" type="text" dir="ltr" autocomplete="off" spellcheck="false" placeholder="https://…vercel.app"></label>
-        <label>Query ID<input id="ibkrQuery" type="text" dir="ltr" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="מ־IBKR"></label>
+        <label><span data-i18n="ibkrProxyLabel">כתובת השרתון</span><input id="ibkrProxy" type="text" dir="ltr" autocomplete="off" spellcheck="false" placeholder="https://…vercel.app"></label>
+        <label>Query ID<input id="ibkrQuery" type="text" dir="ltr" inputmode="numeric" autocomplete="off" spellcheck="false" data-i18n-ph="ibkrQueryPh" placeholder="מ־IBKR"></label>
       </div>
       <div class="form-grid">
         <label>Flex token<input id="ibkrToken" type="password" dir="ltr" autocomplete="off" spellcheck="false" placeholder="Reports ← Flex Web Service"></label>
       </div>
-      <p class="fine" style="padding:0">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
+      <p class="fine" style="padding:0" data-i18n="ibkrTokenNote">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
       <div class="form-err hidden" id="ibkrErr"></div>
       <div class="btn-row">
-        <button id="ibkrSaveTest" class="btn" type="button">שמור ובדוק חיבור</button>
-        <button id="ibkrSync" class="btn" type="button">סנכרון עכשיו</button>
-        <button id="ibkrImport" class="btn" type="button">📥 ייבא פוזיציות לתיק</button>
-        <button id="ibkrDisconnect" class="btn danger-btn" type="button">ניתוק</button>
+        <button id="ibkrSaveTest" class="btn" type="button" data-i18n="ibkrSaveTest">שמור ובדוק חיבור</button>
+        <button id="ibkrSync" class="btn" type="button" data-i18n="ibkrSyncNow">סנכרון עכשיו</button>
+        <button id="ibkrImport" class="btn" type="button" data-i18n="ibkrImportBtn">📥 ייבא פוזיציות לתיק</button>
+        <button id="ibkrDisconnect" class="btn danger-btn" type="button" data-i18n="ibkrDisconnectBtn">ניתוק</button>
       </div>
       <div class="fine" id="ibkrData" style="padding:0"></div>
     </div>
 
     <div class="card">
-      <h2>מזומן בתיק</h2>
+      <h2 data-i18n="cashTitle">מזומן בתיק</h2>
       <div class="form-grid">
-        <label>דולרים ($)<input id="cashUsd" type="number" min="0" step="any" inputmode="decimal"></label>
-        <label>שקלים (₪)<input id="cashIls" type="number" min="0" step="any" inputmode="decimal"></label>
+        <label><span data-i18n="cashUsdL">דולרים ($)</span><input id="cashUsd" type="number" min="0" step="any" inputmode="decimal"></label>
+        <label><span data-i18n="cashIlsL">שקלים (₪)</span><input id="cashIls" type="number" min="0" step="any" inputmode="decimal"></label>
       </div>
       <div class="form-err hidden" id="cashErr"></div>
-      <button id="cashSave" class="btn" type="button">שמור מזומן</button>
+      <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
     </div>
 
     <div class="card">
-      <h2>קרנות פנסיה והשתלמות</h2>
+      <h2 data-i18n="fundsTitle">קרנות פנסיה והשתלמות</h2>
       <div id="pensionFundEditors"></div>
       <div class="form-grid">
-        <label>שם קרן חדשה<input id="newFundName" type="text" placeholder="למשל: מיטב" autocomplete="off"></label>
-        <label>סוג<select id="newFundKind">
-          <option value="pension">פנסיה</option>
-          <option value="study">קרן השתלמות</option>
+        <label><span data-i18n="newFundName">שם קרן חדשה</span><input id="newFundName" type="text" data-i18n-ph="newFundPh" placeholder="למשל: מיטב" autocomplete="off"></label>
+        <label><span data-i18n="fldType">סוג</span><select id="newFundKind">
+          <option value="pension" data-i18n="optPension">פנסיה</option>
+          <option value="study" data-i18n="optStudy">קרן השתלמות</option>
         </select></label>
       </div>
       <div class="form-err hidden" id="pfErr"></div>
       <div class="btn-row">
-        <button id="pensionFundAdd" class="btn" type="button">＋ הוסף קרן</button>
-        <button id="pensionFundsSave" class="btn" type="button">שמור קרנות</button>
+        <button id="pensionFundAdd" class="btn" type="button" data-i18n="addFund">＋ הוסף קרן</button>
+        <button id="pensionFundsSave" class="btn" type="button" data-i18n="saveFunds">שמור קרנות</button>
       </div>
     </div>
 
     <div class="card danger-card">
-      <h2>איפוס נתונים</h2>
-      <p class="fine" style="padding:0">מוחק את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) מהענן ומהטלפון — התיק חוזר לתיק הדוגמה. לא ניתן לבטל.</p>
-      <button id="resetData" class="btn danger-btn" type="button">איפוס התיק</button>
+      <h2 data-i18n="resetTitle">איפוס נתונים</h2>
+      <p class="fine" style="padding:0" data-i18n="resetDesc">מוחק את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) מהענן ומהטלפון — התיק חוזר לתיק הדוגמה. לא ניתן לבטל.</p>
+      <button id="resetData" class="btn danger-btn" type="button" data-i18n="resetBtn">איפוס התיק</button>
     </div>
   </section>
 </main>
 
 <footer class="fine">
-  <p>המחירים מתעדכנים בכל פתיחה (דיליי של כ־15 דקות). הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.</p>
+  <p data-i18n="footerNote">המחירים מתעדכנים בכל פתיחה (דיליי של כ־15 דקות). הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.</p>
 </footer>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
@@ -220,17 +228,17 @@
 <script src="firebase-config.js" defer></script>
 <script src="app.js" defer></script>
 <script src="cloud.js" defer></script>
-<div id="loginOverlay" class="login-overlay hidden" role="dialog" aria-label="התחברות">
+<div id="loginOverlay" class="login-overlay hidden" role="dialog" data-i18n-aria="loginAria" aria-label="התחברות">
   <div class="login-card">
     <img src="icon-192.png" class="login-logo" alt="תיק ההשקעות">
-    <h1>תיק ההשקעות</h1>
-    <p class="login-sub">מתחברים פעם אחת — התיק נשמר בענן<br>ומסונכרן בכל מכשיר</p>
+    <h1 data-i18n="appTitle">תיק ההשקעות</h1>
+    <p class="login-sub" data-i18n-html="loginSub">מתחברים פעם אחת — התיק נשמר בענן<br>ומסונכרן בכל מכשיר</p>
     <button id="googleLoginBtn" class="google-btn" type="button">
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.2H12v4.1h6.5c-.1 1.1-.8 2.7-2.4 3.8l3.7 2.9c2.3-2.1 3.7-5.2 3.7-8.6z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.7-2.9c-1 .7-2.4 1.2-4.2 1.2-3.2 0-5.9-2.1-6.8-5l-3.9 3C3.3 21.3 7.3 24 12 24z"/><path fill="#FBBC05" d="M5.2 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4l-3.9-3C.5 8.2 0 10 0 12s.5 3.8 1.3 5.4l3.9-3z"/><path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.3 0 3.3 2.7 1.3 6.6l3.9 3c.9-2.8 3.6-4.9 6.8-4.9z"/></svg>
-      <span>התחברות עם Google</span>
+      <span data-i18n="googleSignIn">התחברות עם Google</span>
     </button>
     <div class="form-err hidden" id="loginErr"></div>
-    <button id="skipLoginBtn" class="link-btn" type="button">המשך בלי חשבון</button>
+    <button id="skipLoginBtn" class="link-btn" type="button" data-i18n="skipLogin">המשך בלי חשבון</button>
   </div>
 </div>
 </body>
