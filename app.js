@@ -284,13 +284,13 @@ const DEFAULT_DB = {
     { sym: 'META',  name: 'מטא',  full: 'Meta Platforms Inc', shares: 5,  avg: 480.00 }
   ],
   deposits: [{ date: '01/01/2026', amount: -1000, place: 'הפקדת דוגמה' }],
-  pensionFunds: [],
+  pensionFunds: [{ name: 'פנסיה — מקום עבודה', usd: 0, ils: 1000 }],
   pensionDeposits: [],
   cash: { usd: 100, ils: 100 }
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
 
 
 function saveDBto(db) {
