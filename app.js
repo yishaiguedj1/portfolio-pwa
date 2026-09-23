@@ -289,7 +289,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 
 
 function saveDBto(db) {
@@ -650,8 +650,8 @@ async function getIntraday(sym) {
 }
 
 async function warmHistories() {
-  // SPY = בנצ'מרק S&P 500 לגרף ביצועי התיק (לא מניה בתיק)
-  await pool(POSITIONS.map((p) => p.sym).concat(['SPY']), 3, (sym) => getDaily(sym, false));
+  // SPY = בנצ'מרק S&P 500, QQQ = נאסד"ק 100 (להשוואת ביצועים מותאמת הפקדות)
+  await pool(POSITIONS.map((p) => p.sym).concat(['SPY', 'QQQ']), 3, (sym) => getDaily(sym, false));
   renderStocks();
   renderOverview();
 }
@@ -832,30 +832,145 @@ function closeOnOrBefore(hist, date) {
   return ans >= 0 ? hist[ans].close : null;
 }
 
-/* סדרת שווי התיק בדולרים לאורך זמן (מניות + מזומן) */
-function portfolioSeries() {
-  const poss = POSITIONS.filter((p) => (state.hist[p.sym] || []).length > 20);
-  if (!poss.length) return [];
-  const dates = new Set();
-  for (const p of poss) for (const r of state.hist[p.sym]) dates.add(r.date);
-  const sorted = [...dates].sort();
-  const cash = (DB.cash && DB.cash.usd) || 0;
-  return sorted.map((d) => {
-    let v = cash;
-    for (const p of poss) {
-      const c = closeOnOrBefore(state.hist[p.sym], d);
-      if (c) v += c * p.shares;
-    }
-    return { date: d, value: v };
-  });
+
+/* ---------------- היסטוריית שער דולר־שקל (לבנצ'מרק מותאם הפקדות) ---------------- */
+/* מקור חינמי, בלי מפתח: Frankfurter. נשמר לצמיתות — היסטוריה לא משתנה. */
+const LS_FXHIST = 'pwa_fxhist_v1';
+let fxHistCache = null; // {dates:[iso], rates:{iso:rate}}
+
+function parseDepDate(dstr) { // 'DD/MM/YYYY' -> 'YYYY-MM-DD'
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(dstr || '').trim());
+  if (!m) return null;
+  const iso = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  return isNaN(new Date(iso + 'T12:00:00Z')) ? null : iso;
 }
 
-/* נרמול ל־100 בתחילת הסדרה — להשוואת תשואות */
-function normalize100(series) {
-  const first = series.find((s) => s.value > 0);
-  if (!first) return [];
-  const b = first.value;
-  return series.map((s) => ({ date: s.date, value: s.value / b * 100 }));
+function addDaysISO(iso, n) {
+  const d = new Date(iso + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+async function ensureFxHist() {
+  if (fxHistCache) return fxHistCache;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(LS_FXHIST) || 'null'); } catch (e) {}
+  const today = todayISO();
+  let earliest = null;
+  for (const d of DEPOSITS) {
+    const iso = parseDepDate(d.date);
+    if (iso && (!earliest || iso < earliest)) earliest = iso;
+  }
+  if (!earliest) earliest = addDaysISO(today, -5 * 365);
+  const have = (saved && saved.rates) || {};
+  const haveDates = Object.keys(have).sort();
+  const lastHave = haveDates.length ? haveDates[haveDates.length - 1] : null;
+  const rates = Object.assign({}, have);
+  const fetchFrom = (lastHave && lastHave >= earliest) ? addDaysISO(lastHave, 1) : earliest;
+  if (fetchFrom <= today) {
+    let ok = false;
+    try {
+      const j = await fetchJSONTimeout(
+        'https://api.frankfurter.dev/v1/' + fetchFrom + '..' + today + '?base=USD&symbols=ILS', 25000);
+      if (j && j.rates) {
+        for (const [dt, r] of Object.entries(j.rates)) if (r && r.ILS > 0) rates[dt] = r.ILS;
+        ok = true;
+      }
+    } catch (e) { /* גיבוי: Twelve Data */ }
+    if (!ok && tdKey()) {
+      try {
+        const rows = parseTwelveBars(await fetchJSONTimeout(tdURL('USD/ILS', '1day', 5000), 25000), false);
+        for (const r of rows) if (r.date >= fetchFrom && r.close > 0) rates[r.date] = r.close;
+        ok = rows.length > 0;
+      } catch (e) {}
+    }
+    if (ok) {
+      try { localStorage.setItem(LS_FXHIST, JSON.stringify({ rates: rates })); } catch (e) {}
+    }
+  }
+  fxHistCache = { dates: Object.keys(rates).sort(), rates: rates };
+  return fxHistCache;
+}
+
+/* שער דולר־שקל ביום נתון (או יום העסקים הקודם — סופ"ש/חג) */
+function fxOnOrBefore(iso) {
+  const c = fxHistCache;
+  if (!c || !c.dates.length) return state.fx || null;
+  let lo = 0, hi = c.dates.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (c.dates[mid] <= iso) { ans = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return ans >= 0 ? c.rates[c.dates[ans]] : null;
+}
+
+/* ---------------- בנצ'מרק מותאם הפקדות (בשקלים) ---------------- */
+/* מדמה: כל הפקדה אמיתית קונה את המדד באותו יום, בשער הדולר של אותו יום. */
+function buildIndexBenchmark(sym) {
+  const hist = state.hist[sym] || [];
+  if (!hist.length || !fxHistCache || !fxHistCache.dates.length) return null;
+  const deps = [];
+  for (const d of DEPOSITS) {
+    const amt = -(num(d.amount) || 0); // חיובי = כסף שנכנס
+    if (!amt) continue;
+    deps.push({ date: parseDepDate(d.date), amt: amt });
+  }
+  if (!deps.length) return null;
+  let startD = null;
+  for (const d of deps) if (d.date && (!startD || d.date < startD)) startD = d.date;
+  if (!startD) startD = hist[0].date;
+  for (const d of deps) if (!d.date) d.date = startD; // תאריך לא תקין -> להתחלה
+  deps.sort((a, b) => a.date.localeCompare(b.date));
+  let shares = 0, di = 0, invested = 0;
+  const series = [];
+  for (const row of hist) {
+    if (row.date < startD) continue;
+    while (di < deps.length && deps[di].date <= row.date) {
+      const dep = deps[di++];
+      const fx = fxOnOrBefore(dep.date);
+      const px = closeOnOrBefore(hist, dep.date);
+      if (fx && px && px > 0) shares += (dep.amt / fx) / px; // משיכה מקטינה מניות
+      invested += dep.amt;
+    }
+    if (shares > 0) {
+      const fx = fxOnOrBefore(row.date) || state.fx;
+      if (fx) series.push({ date: row.date, value: shares * row.close * fx });
+    }
+  }
+  if (!series.length || !(invested > 0)) return null;
+  return { series: series, invested: invested, retPct: (series[series.length - 1].value / invested - 1) * 100 };
+}
+
+/* סדרת שווי התיק בשקלים לאורך זמן (אחזקות נוכחיות + מזומן).
+   מגבלה ידועה: אין יומן קניות היסטורי, אז מניחים את האחזקות הנוכחיות לאורך כל התקופה. */
+function portfolioSeriesILS() {
+  const dates = new Set();
+  for (const p of POSITIONS) for (const r of (state.hist[p.sym] || [])) dates.add(r.date);
+  if (!dates.size) return [];
+  const cashU = (DB.cash && DB.cash.usd) || 0;
+  const cashI = (DB.cash && DB.cash.ils) || 0;
+  const out = [];
+  for (const d of [...dates].sort()) {
+    const fx = fxOnOrBefore(d) || state.fx;
+    if (!fx) continue;
+    let v = cashI + cashU * fx;
+    for (const p of POSITIONS) {
+      const c = closeOnOrBefore(state.hist[p.sym] || [], d);
+      if (c) v += c * p.shares * fx;
+    }
+    out.push({ date: d, value: v });
+  }
+  return out;
+}
+
+/* סך תשואת הפנסיה — מספר בודד (אין היסטוריית שווי יומית לקרנות) */
+function pensionReturnPct() {
+  const fx = state.fx;
+  let val = 0;
+  for (const f of PENSION_FUNDS) val += (num(f.ils) || 0) + (fx ? (num(f.usd) || 0) * fx : 0);
+  const dep = -PENSION_DEPOSITS.reduce((a, r) => a + (num(r.amount) || 0), 0);
+  if (!(dep > 0)) return null;
+  return (val / dep - 1) * 100;
 }
 
 function renderPfChips() {
@@ -874,28 +989,47 @@ function renderPfChips() {
   }
 }
 
-function drawPfChart() {
+/* גרף ביצועי התיק מול מדדים — כולם בשקלים, המדדים מותאמי הפקדות */
+let pfChartToken = 0;
+async function drawPfChart() {
   const canvas = document.getElementById('pfChart');
   const loading = document.getElementById('pfLoading');
   const legend = document.getElementById('pfLegend');
   if (!canvas) return;
   renderPfChips();
-  let pf = normalize100(filterRange(portfolioSeries(), state.pfRange));
-  const spyHist = state.hist['SPY'] || [];
-  let spy = spyHist.length > 20
-    ? normalize100(filterRange(spyHist.map((r) => ({ date: r.date, value: r.close })), state.pfRange))
-    : [];
+  const my = ++pfChartToken;
+  const alive = () => my === pfChartToken;
+  if (loading) {
+    loading.textContent = tdKey() ? 'טוען נתוני היסטוריה…' : 'הגרף דורש מפתח נתונים (לשונית הגדרות)';
+    loading.classList.remove('hidden');
+  }
+
+  await ensureFxHist();
+  if (!alive()) return;
+
+  const pfFull = portfolioSeriesILS();
+  const pf = filterRange(pfFull, state.pfRange);
+  const spyB = buildIndexBenchmark('SPY');
+  const qqqB = buildIndexBenchmark('QQQ');
+  const spy = spyB ? filterRange(spyB.series, state.pfRange) : [];
+  const qqq = qqqB ? filterRange(qqqB.series, state.pfRange) : [];
+  if (!alive()) return;
+
+  // סך תשואה: התיק לפי שווי חי, המדדים לפי סוף הסדרה, הפנסיה כמספר בודד
+  const t = totalsUSD();
+  const totalILS = state.fx ? t.total * state.fx : null;
+  const depILS = netDepositsILS();
+  const pfRet = (totalILS !== null && depILS > 0) ? (totalILS / depILS - 1) * 100 : null;
+  const penRet = pensionReturnPct();
+
   if (!pf.length) {
-    if (loading) {
-      loading.textContent = tdKey() ? 'טוען נתוני היסטוריה…' : 'הגרף דורש מפתח נתונים (לשונית הגדרות)';
-      loading.classList.remove('hidden');
-    }
+    if (loading) { loading.textContent = 'אין נתוני גרף כרגע'; loading.classList.remove('hidden'); }
     if (legend) legend.innerHTML = '';
     return;
   }
   if (loading) loading.classList.add('hidden');
-  pf = downsample(pf, 300);
-  spy = downsample(spy, 300);
+
+  const pfD = downsample(pf, 300), spyD = downsample(spy, 300), qqqD = downsample(qqq, 300);
 
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 320, h = 210;
@@ -904,7 +1038,7 @@ function drawPfChart() {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const all = pf.concat(spy);
+  const all = pfD.concat(spyD, qqqD);
   let min = Infinity, max = -Infinity;
   for (const p of all) { if (p.value < min) min = p.value; if (p.value > max) max = p.value; }
   if (min === max) { min *= 0.99; max *= 1.01; }
@@ -919,12 +1053,12 @@ function drawPfChart() {
     const v = min + (max - min) * g / 4;
     const y = Y(v);
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
-    ctx.fillText(v.toFixed(0), w - padR + 6, y);
+    ctx.fillText(v >= 1000 ? (v / 1000).toFixed(1) + 'K' : v.toFixed(0), w - padR + 6, y);
   }
   ctx.textAlign = 'center';
-  const step = Math.max(1, Math.floor(pf.length / 4));
-  for (let i = 0; i < pf.length; i += step) {
-    ctx.fillText(fmtDateIL(pf[i].date).slice(3), X(i, pf.length), h - 8);
+  const step = Math.max(1, Math.floor(pfD.length / 4));
+  for (let i = 0; i < pfD.length; i += step) {
+    ctx.fillText(fmtDateIL(pfD[i].date).slice(3), X(i, pfD.length), h - 8);
   }
 
   const drawLine = (series, color, width) => {
@@ -936,22 +1070,21 @@ function drawPfChart() {
     });
     ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
   };
-  if (spy.length) drawLine(spy, '#9AA5A0', 1.5);
-  drawLine(pf, '#006A4E', 2.5);
+  if (spyD.length) drawLine(spyD, '#1A73E8', 1.5);
+  if (qqqD.length) drawLine(qqqD, '#9334E6', 1.5);
+  drawLine(pfD, '#006A4E', 2.5);
 
   if (legend) {
-    const ret = (s) => s.length > 1 ? (s[s.length - 1].value / s[0].value - 1) * 100 : null;
-    const rp = ret(pf), rs = ret(spy);
     const cls = (v) => v === null ? '' : v >= 0 ? 'pos' : 'neg';
+    const row = (color, name, v, extra) =>
+      '<li><span class="dot" style="background:' + color + '"></span>' +
+      '<span class="lg-name">' + name + (extra || '') + '</span>' +
+      '<span class="lg-pct ' + cls(v) + '">' + (v === null ? '—' : fmtPct(v, true)) + '</span></li>';
     legend.innerHTML =
-      '<li><span class="dot" style="background:#006A4E"></span>' +
-      '<span class="lg-name">התיק שלי</span>' +
-      '<span class="lg-pct ' + cls(rp) + '">' + (rp === null ? '—' : fmtPct(rp, true)) + '</span></li>' +
-      (spy.length
-        ? '<li><span class="dot" style="background:#9AA5A0"></span>' +
-          '<span class="lg-name">S&P 500</span>' +
-          '<span class="lg-pct ' + cls(rs) + '">' + (rs === null ? '—' : fmtPct(rs, true)) + '</span></li>'
-        : '');
+      row('#006A4E', 'התיק שלי', pfRet) +
+      (spyB ? row('#1A73E8', 'S&P 500', spyB.retPct) : '') +
+      (qqqB ? row('#9334E6', 'נאסד״ק 100', qqqB.retPct) : '') +
+      row('#F29900', 'פנסיה', penRet, ' <small style="opacity:.6">(סך הכל)</small>');
   }
 }
 
