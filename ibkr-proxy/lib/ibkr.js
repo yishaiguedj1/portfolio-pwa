@@ -13,15 +13,21 @@ const IBKR_HOSTS_LIST = [
   'https://ndcdyn.interactivebrokers.com',
   'https://gdcdyn.interactivebrokers.com',
 ];
-const UA = 'portfolio-ibkr-proxy/1.0 (+https://yishaiguedj1.github.io/portfolio-pwa/)';
+const UA = ibkrUserAgent();
 
 /* Hosts that IBKR itself may return in SendRequest <Url>. Strict allowlist —
    the client passes statementUrl back to us, so we never fetch an arbitrary host. */
 const IBKR_HOSTS = new Set(['ndcdyn.interactivebrokers.com', 'gdcdyn.interactivebrokers.com']);
-/* הנתיבים הרשמיים של Flex Web Service. הנתיב /AccountManagement/... נחסם
-   ע"י ה-edge של IBKR (403) — לכן משתמשים ב-/Universal/servlet/... */
-const FLEX_SEND_PATH = '/Universal/servlet/FlexStatementService.SendRequest';
-const FLEX_GET_PATH = '/Universal/servlet/FlexStatementService.GetStatement';
+/* הנתיבים הרשמיים של Flex Web Service v3 (לפי IBKR והספרייה ibflex).
+   שימו לב: הנתיב הישן /Universal/servlet/... מוחזר ממנו כיום תמיד 1001 —
+   חובה להשתמש ב-/AccountManagement/FlexWebService. */
+const FLEX_SEND_PATH = '/AccountManagement/FlexWebService/SendRequest';
+const FLEX_GET_PATH = '/AccountManagement/FlexWebService/GetStatement';
+/* IBKR דורש User-Agent מזוהה. ה-edge חוסם מחרוזות לא מוכרות (403) —
+   לכן שולחים את הטכנולוגיה האמיתית (Node.js) כפי שהתיעוד מבקש. */
+function ibkrUserAgent() {
+  return 'Node.js/' + process.version.replace(/^v/, '');
+}
 function statementBaseFrom(url) {
   try {
     const u = new URL(String(url || '').trim());
@@ -40,7 +46,7 @@ function statementEndpointFrom(url) {
     if (u.protocol !== 'https:') return null;
     if (!IBKR_HOSTS.has(u.hostname.toLowerCase())) return null;
     const p = u.pathname || '';
-    if (!/^\/Universal\/servlet\/FlexStatementService\.(GetStatement|SendRequest)/.test(p)) return null;
+    if (!/^\/AccountManagement\/FlexWebService\/(GetStatement|SendRequest)/.test(p)) return null;
     return { base: u.origin, path: p };
   } catch {
     return null;
@@ -245,7 +251,7 @@ async function ibkrGetMulti(path, firstHost) {
 }
 
 module.exports = {
-  IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, FLEX_SEND_PATH, FLEX_GET_PATH,
+  IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, FLEX_SEND_PATH, FLEX_GET_PATH, ibkrUserAgent,
   statementBaseFrom, statementEndpointFrom, cors, rateLimited, parseXml, findKids, firstKid,
   statementToJson, ibkrGet, ibkrGetMulti, errorXml, flexDate, num,
 };
