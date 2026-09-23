@@ -3,7 +3,7 @@
  * תיק ההשקעות — PWA עצמאית
  * נתונים סטטיים: פוזיציות, הפקדות, פנסיה (מהגיליון, 2026-09-22)
  * מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי), דיליי ~15 דקות
- * היסטוריה לגרפים: Yahoo (ראשי, כולל מסחר מורחב טרום/אחרי) ← Stooq (גיבוי)
+ * היסטוריה לגרפים: Twelve Data (ראשי; מפתח חינמי נשמר בטלפון) ← Yahoo ← Stooq
  * שער דולר: open.er-api.com / frankfurter
  * ============================================================ */
 
@@ -94,6 +94,98 @@ async function fetchYahooBars(url, withTime, notes, name) {
     notes.push(name + ': החזיר ריק');
   } catch (e) { notes.push(name + ': ' + netErrName(e)); }
   return null;
+}
+
+/* ---------------- Twelve Data (היסטוריה לגרפים) ---------------- */
+/* עובד ישירות מהדפדפן (CORS מאושר), זמן אמת בחינם.
+   דורש מפתח חינמי — נשמר ב־localStorage בטלפון בלבד, לעולם לא בקוד/בריפו. */
+const LS_TDKEY = 'pwa_tdkey_v1';
+const LS_INTRA = 'pwa_intra_v1_'; // + sym — מטמון תוך־יומי קצר (10 דקות)
+
+function tdKey() {
+  try { return (localStorage.getItem(LS_TDKEY) || '').trim(); } catch (e) { return ''; }
+}
+
+const tdURL = (sym, interval, outputsize) =>
+  'https://api.twelvedata.com/time_series?symbol=' + encodeURIComponent(sym.toUpperCase()) +
+  '&interval=' + interval + '&outputsize=' + outputsize +
+  '&timezone=America/New_York&order=ASC&apikey=' + encodeURIComponent(tdKey());
+
+/* מפענח תשובת Twelve Data time_series לשורות הגרף.
+   withTime=true לגרף תוך־יומי (datetime כולל שעה, שעון ניו־יורק). */
+function parseTwelveBars(json, withTime) {
+  const rows = [];
+  try {
+    const vals = json && json.values;
+    if (!Array.isArray(vals)) return rows;
+    for (const v of vals) {
+      if (!v || typeof v !== 'object') continue;
+      const close = pf(v.close);
+      if (!(close > 0)) continue;
+      const m = String(v.datetime || '').match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/);
+      if (!m) continue;
+      rows.push({
+        date: m[1],
+        time: withTime ? (m[2] || null) : null,
+        open: pf(v.open),
+        high: pf(v.high),
+        low: pf(v.low),
+        close: close,
+        volume: parseInt(v.volume, 10) || 0
+      });
+    }
+  } catch (e) {}
+  rows.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    const ta = a.time || '', tb = b.time || '';
+    return ta < tb ? -1 : ta > tb ? 1 : 0;
+  });
+  return rows;
+}
+
+/* מגבלת התוכנית החינמית: 8 קריאות/דקה — מרווחים קריאות כדי לא להיחסם (429) */
+let tdLastAt = 0;
+function tdThrottle() {
+  const now = Date.now();
+  const wait = 8000 - (now - tdLastAt);
+  tdLastAt = Math.max(now, tdLastAt + 8000);
+  return wait > 0 ? new Promise((r) => setTimeout(r, wait)) : Promise.resolve();
+}
+
+/* ניסיון אחד להביא נרות מ־Twelve Data.
+   kind: 'daily' | 'intraday'. מחזיר rows, null, או 'BADKEY' כשהמפתח לא תקין. */
+async function fetchTwelveBars(sym, kind, wantMax, notes) {
+  if (!tdKey()) return null;
+  await tdThrottle();
+  const intraday = kind === 'intraday';
+  const url = tdURL(sym, intraday ? '5min' : '1day', intraday ? 250 : (wantMax ? 5000 : 1500));
+  try {
+    const json = await fetchJSONTimeout(url, 15000);
+    if (json && (json.status === 'error' || (json.code && json.code >= 400))) {
+      const msg = String((json && json.message) || json.code || 'שגיאה');
+      notes.push('TwelveData: ' + msg.slice(0, 60));
+      if (json.code === 401 || /invalid|unauthorized|api\s?key/i.test(msg)) return 'BADKEY';
+      return null;
+    }
+    const rows = parseTwelveBars(json, intraday);
+    if (rows.length) return rows;
+    notes.push('TwelveData: החזיר ריק');
+  } catch (e) {
+    // מפתח לא תקין מגיע כ־HTTP 401 (זריקה), לא כ־JSON
+    if (e && /http 401/.test(e.message || '')) {
+      notes.push('TwelveData: המפתח לא התקבל (401)');
+      return 'BADKEY';
+    }
+    notes.push('TwelveData: ' + netErrName(e));
+  }
+  return null;
+}
+
+/* מפתח לא תקין — מוחקים אותו מהטלפון ומציגים שוב את כרטיס ההזנה */
+function clearTdKey(notes) {
+  try { localStorage.removeItem(LS_TDKEY); } catch (e) {}
+  notes.push('TwelveData: המפתח לא תקין — צריך להזין מפתח חדש');
+  showTdKeyCard();
 }
 
 /* סינון טווח מתוך היסטוריה יומית ממוינת (ישן -> חדש) */
@@ -224,7 +316,7 @@ const PENSION_DEPOSITS = [
 ];
 
 /* ---------------- מקורות נתונים ---------------- */
-/* מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי). היסטוריה ומסחר מורחב: Yahoo (ראשי) ← Stooq (גיבוי). */
+/* מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי). היסטוריה ומסחר מורחב: Twelve Data (ראשי) ← Yahoo ← Stooq. */
 
 const stooqDailyURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=d';
 const stooqIntradayURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=5';
@@ -457,6 +549,9 @@ async function getDaily(sym, force) {
     return rows;
   };
   const notes = [];
+  const td = await fetchTwelveBars(sym, 'daily', wantMax, notes);
+  if (td === 'BADKEY') clearTdKey(notes);
+  else if (td) return save(td);
   const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (wantMax ? 'max' : '5y'), host);
   let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
           || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
@@ -474,7 +569,20 @@ async function getDaily(sym, force) {
 
 async function getIntraday(sym) {
   if (state.intra[sym]) return state.intra[sym];
+  // מטמון קצר (10 דקות) לחיסכון במכסת הקריאות החינמית
+  const cached = lsGet(LS_INTRA + sym);
+  if (cached && cached.rows && cached.rows.length && (Date.now() - cached.at) < 10 * 60 * 1000) {
+    state.intra[sym] = cached.rows;
+    return cached.rows;
+  }
   const notes = [];
+  const td = await fetchTwelveBars(sym, 'intraday', false, notes);
+  if (td === 'BADKEY') clearTdKey(notes);
+  else if (td) {
+    state.intra[sym] = td;
+    lsSet(LS_INTRA + sym, { at: Date.now(), rows: td });
+    return td;
+  }
   const iq = (host) => yahooURL(sym, 'interval=5m&range=1d&includePrePost=true', host);
   let rows = await fetchYahooBars(iq('query1'), true, notes, 'Yahoo')
           || await fetchYahooBars(iq('query2'), true, notes, 'Yahoo2');
@@ -538,6 +646,16 @@ function setBanner(msg) {
   if (!msg) { b.classList.add('hidden'); b.textContent = ''; return; }
   b.classList.remove('hidden');
   b.textContent = msg;
+}
+
+/* כרטיס הזנת מפתח Twelve Data — מוצג רק כשאין מפתח שמור בטלפון */
+function showTdKeyCard() {
+  const c = document.getElementById('tdKeyCard');
+  if (c) c.classList.remove('hidden');
+}
+function hideTdKeyCard() {
+  const c = document.getElementById('tdKeyCard');
+  if (c) c.classList.add('hidden');
 }
 
 function switchTab(name) {
@@ -1057,6 +1175,20 @@ function init() {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+
+  // מפתח Twelve Data לגרפים (נשמר בטלפון בלבד)
+  if (!tdKey()) showTdKeyCard();
+  const tdSave = document.getElementById('tdKeySave');
+  if (tdSave) tdSave.addEventListener('click', () => {
+    const inp = document.getElementById('tdKeyInput');
+    const v = (inp && inp.value || '').trim();
+    if (!v) return;
+    try { localStorage.setItem(LS_TDKEY, v); } catch (e) {}
+    hideTdKeyCard();
+    state.hist = {}; state.intra = {};
+    warmHistories();
+    for (const sym of Object.keys(state.open)) if (state.open[sym]) ensureChartData(sym);
+  });
 
   renderAll();
   refreshQuotes().then(() => warmHistories());
