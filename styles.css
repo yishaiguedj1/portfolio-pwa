@@ -647,17 +647,14 @@ footer.fine { text-align: center; }
 
 /* ---- v88/v93: לוגו חברה בכרטיס מניה ---- */
 .stock-id { align-items: center; }
+/* v88/v97: אריח לוגו לבן תמיד — גם בערכת נושא כהה */
 .stock-logo {
   position: relative; width: 48px; height: 48px; border-radius: 14px; overflow: hidden;
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   background: #FFFFFF;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.12);
 }
-[data-theme="dark"] .stock-logo {
-  background: #2C2C2E;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 1px 3px rgba(0,0,0,.3);
-}
-.stock-logo-fb { font-size: 22px; font-weight: 800; color: var(--on-surface-var); }
+.stock-logo-fb { font-size: 22px; font-weight: 800; color: #3A3A3C; }
 .stock-logo-img {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain; padding: 5px; box-sizing: border-box;
