@@ -269,63 +269,29 @@ function fmtTimeIL(ts) {
 function money(v, cur) { return cur === 'ILS' ? fmtILS(v) : fmtUSD(v); }
 function money2(v, cur) { return cur === 'ILS' ? fmtILS(v) : fmtUSD2(v); }
 
-/* ---------------- נתוני המשתמש — ערכי ברירת מחדל מגיליון 2026-09-22 ---------------- */
+/* ---------------- נתוני ברירת מחדל — תיק דוגמה פיקטיבי ---------------- */
 /* נשמרים בטלפון (localStorage) וניתנים לעריכה מהאפליקציה. */
-
-const DEFAULT_POSITIONS = [
-  { sym: 'NOW',  name: 'סרוויסנאו',   full: 'ServiceNow Inc',      shares: 97,   avg: 89.12  },
-  { sym: 'META', name: 'מטא',         full: 'Meta Platforms Inc',  shares: 17,   avg: 504.17 },
-  { sym: 'ADBE', name: 'אדובי',        full: 'Adobe Inc',          shares: 41,   avg: 251.82 },
-  { sym: 'MBLY', name: 'מובילאיי',     full: 'Mobileye Global Inc', shares: 1047, avg: 12.23  },
-  { sym: 'UNH',  name: 'יונייטדהלת׳',  full: 'UnitedHealth Group',  shares: 20,   avg: 286.91 },
-  { sym: 'MSFT', name: 'מיקרוסופט',    full: 'Microsoft Corp',      shares: 15,   avg: 369.00 },
-  { sym: 'UBER', name: 'אובר',        full: 'Uber Technologies',   shares: 93,   avg: 70.48  },
-  { sym: 'INTU', name: 'אינטואיט',     full: 'Intuit Inc',          shares: 17,   avg: 277.63 },
-  { sym: 'APP',  name: 'אפלובין',      full: 'AppLovin Corp',       shares: 9,    avg: 308.81 }
-];
-
-const DEFAULT_DEPOSIT_PAIRS = [
-  ["08/08/2023",-26240],["08/08/2023",-2000],["10/08/2023",-2000],
-  ["10/09/2023",-2504],["09/10/2023",-2511],["12/11/2023",-3011],
-  ["04/12/2023",-2525],["06/12/2023",-2025],["10/12/2023",-1450],
-  ["31/01/2024",-2500],["18/02/2024",-3017],["03/03/2024",-4024],
-  ["12/04/2024",-3021],["09/05/2024",-3005],["10/05/2024",-1005],
-  ["11/06/2024",-4026],["21/07/2024",-3026],["14/08/2024",-3027],
-  ["10/09/2024",-3028],["10/10/2024",-3029],["10/11/2024",-3030],
-  ["06/01/2025",-5025],["11/02/2025",-3525],["19/02/2025",37000],
-  ["10/03/2025",-6000],["07/04/2025",-2026],["07/04/2025",-18027],
-  ["28/05/2025",-15000],["05/08/2025",-5000],["07/09/2025",-525],
-  ["10/10/2025",-5025],["12/11/2025",-5000],["07/12/2025",-1025],
-  ["11/12/2025",-3025],["11/01/2026",-3825],["10/02/2026",-13025],
-  ["02/03/2026",-5026],["09/03/2026",-2026],["22/03/2026",-5027],
-  ["10/04/2026",-5028],["03/05/2026",-5029],["06/05/2026",-3030],
-  ["21/05/2026",-3031],["18/06/2026",-20032],["26/06/2026",-10033],
-  ["01/08/2026",0],["01/08/2026",0],["01/08/2026",0]
-];
-
-const DEFAULT_PENSION_FUNDS = [
-  { name: 'מנורה — פנסיה',     usd: 80053, ils: 241329 },
-  { name: 'Fnx — השתלמות',     usd: 13345, ils: 40229  },
-  { name: 'מיטב — השתלמות',    usd: 1021,  ils: 3077   }
-];
-
-const DEFAULT_PENSION_DEPOSITS = [
-  { place: 'צה״ל',              period: '02/12/2018 – 02/06/2019', amount: -7586,   note: 'סה״כ ₪190,803' },
-  { place: 'רשף - בנק הפועלים', period: '15/11/2021 – 15/02/2022', amount: -7615,   note: '' },
-  { place: 'צוות 3 - גוגל',     period: '15/03/2022 – 15/04/2026', amount: -175602, note: 'עודכן 17/09/26' }
-];
 
 /* מסד הנתונים המקומי — נטען פעם אחת, נשמר אחרי כל שינוי */
 const LS_DB = 'pwa_db_v1';
 
+/* תיק דוגמה — מה שמוצג למי שלא התחבר או למשתמש חדש במצב מקומי.
+   הנתונים האמיתיים נשמרים רק בענן, בחשבון הפרטי של כל משתמש. */
 const DEFAULT_DB = {
   v: 1,
-  positions: DEFAULT_POSITIONS,
-  deposits: DEFAULT_DEPOSIT_PAIRS.map(([date, amount]) => ({ date: date, amount: amount, place: '' })),
-  pensionFunds: DEFAULT_PENSION_FUNDS,
-  pensionDeposits: DEFAULT_PENSION_DEPOSITS,
-  cash: { usd: 65, ils: 0 }
+  positions: [
+    { sym: 'GOOGL', name: 'גוגל', full: 'Alphabet Inc',      shares: 10, avg: 140.00 },
+    { sym: 'META',  name: 'מטא',  full: 'Meta Platforms Inc', shares: 5,  avg: 480.00 }
+  ],
+  deposits: [{ date: '01/01/2026', amount: -1000, place: 'הפקדת דוגמה' }],
+  pensionFunds: [],
+  pensionDeposits: [],
+  cash: { usd: 100, ils: 100 }
 };
+
+/* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
+const APP_VERSION = 'v13';
+
 
 function saveDBto(db) {
   try { localStorage.setItem(LS_DB, JSON.stringify(db)); } catch (e) {}
@@ -1907,6 +1873,8 @@ function init() {
   });
 
   // איפוס נתונים
+  const verEl = document.getElementById('appVersion');
+  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = 'גרסת אפליקציה: ' + APP_VERSION;
   document.getElementById('resetData').addEventListener('click', () => {
     if (!confirm('לאפס את כל הנתונים? התיק יימחק לגמרי (מניות, הפקדות, פנסיה, מזומן) ויתחיל ריק.\nלא ניתן לבטל.')) return;
     const doReset = () => {
