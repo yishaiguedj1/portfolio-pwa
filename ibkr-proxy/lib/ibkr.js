@@ -169,6 +169,7 @@ function statementToJson(tree) {
     const x = p.attrs;
     out.positions.push({
       symbol: x.symbol || '',
+      asset: x.assetCategory || '',
       qty: num(x.position),
       markPrice: num(x.markPrice),
       marketValue: num(x.positionValue),
