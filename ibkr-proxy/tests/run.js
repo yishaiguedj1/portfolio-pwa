@@ -44,7 +44,7 @@ function mockRes() {
 
 const READY_XML = `<FlexQueryResponse><FlexStatements><FlexStatement accountId="U123" fromDate="20240101" toDate="20240131" baseCurrency="USD">
 <Trades><Trade symbol="AAPL" dateTime="20240105;093000" quantity="10" tradePrice="180.5" proceeds="1805" ibCommission="1" fifoPnlRealized="50" buySell="BUY" currency="USD" fxRateToBase="1"/></Trades>
-<OpenPositions><OpenPosition symbol="AAPL" position="10" markPrice="185" positionValue="1850" costBasisMoney="1805" fifoPnlUnrealized="45" currency="USD"/></OpenPositions>
+<OpenPositions><OpenPosition symbol="AAPL" assetCategory="STK" position="10" markPrice="185" positionValue="1850" costBasisMoney="1805" fifoPnlUnrealized="45" currency="USD"/></OpenPositions>
 <CashTransactions><CashTransaction dateTime="20240110;000000" amount="-1806" currency="USD" fxRateToBase="1" type="Deposits/Withdrawals" description="Wire"/></CashTransactions>
 <ChangeInNAV startingValue="10000" endingValue="10500" twr="0.05" mtm="500"/>
 <EquitySummaryByReportDateInBase><EquitySummaryByReportDateInBase currency="USD" cashBalance="5000"/></EquitySummaryByReportDateInBase>
@@ -69,6 +69,7 @@ function stubFetch(text, status = 200) {
     'משתמש ב-host ובנתיב ש-IBKR החזיר');
   ok(res.payload.data.trades.length === 1 && res.payload.data.trades[0].symbol === 'AAPL', 'עסקה נפרסה');
   ok(res.payload.data.positions[0].unrealized === 45, 'פוזיציה נפרסה');
+  ok(res.payload.data.positions[0].asset === 'STK', 'סוג נכס נפרס');
   ok(res.payload.data.nav.twr === 0.05, 'NAV/TWR נפרס');
   ok(res.payload.data.cashTransactions[0].amount === -1806, 'תנועת מזומן נפרסה');
 
