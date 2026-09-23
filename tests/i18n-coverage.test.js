@@ -1,4 +1,4 @@
-/* בדיקות כיסוי i18n ל־v28: כל מפתח בשימוש קיים בעברית ובאנגלית, והמילונים סימטריים.
+/* בדיקות כיסוי i18n ל־v29: כל מפתח בשימוש קיים בעברית ובאנגלית, והמילונים סימטריים.
    הרצה: node tests/i18n-coverage.test.js */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
