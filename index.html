@@ -39,6 +39,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 <nav class="tabs" role="tablist" data-i18n-aria="tabsAria" aria-label="לשוניות">
   <button class="tab active" data-tab="overview" type="button" role="tab"><span data-i18n="tabOverview">סקירה</span></button>
   <button class="tab" data-tab="stocks" type="button" role="tab"><span data-i18n="tabStocks">מניות</span> <span class="count-chip" id="stockCount">9</span></button>
+  <button class="tab" data-tab="wishlist" type="button" role="tab"><span data-i18n="tabWishlist">מעקב</span> <span class="count-chip" id="wishlistCount">0</span></button>
   <button class="tab" data-tab="deposits" type="button" role="tab"><span data-i18n="tabDeposits">הפקדות</span></button>
   <button class="tab" data-tab="pension" type="button" role="tab"><span data-i18n="tabPension">פנסיה</span></button>
   <button class="tab" data-tab="settings" type="button" role="tab"><span data-i18n="tabSettings">הגדרות</span></button>
@@ -101,6 +102,23 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     <p class="fine hidden" id="ibkrStocksNote"></p>
     <p class="fine hidden" id="editStocksHint" data-i18n="editHintStocks">מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על ✏️ עריכה.</p>
     <div id="stockList"></div>
+  </section>
+
+  <!-- מעקב (wishlist) -->
+  <section id="tab-wishlist" class="tabpage" role="tabpanel">
+    <div class="section-head">
+      <h2 data-i18n="wishlistTitle">רשימת מעקב</h2>
+    </div>
+    <p class="fine" data-i18n="wishlistHint">מניות שמעניינות אותך — מחיר חי ושינוי יומי. לא חלק מהתיק.</p>
+    <div class="card form-card">
+      <div class="form-row">
+        <input id="wlSym" type="text" data-i18n-ph="wlSymbolPh" placeholder="סימבול (למשל NVDA)" autocomplete="off" autocapitalize="characters" />
+        <input id="wlNote" type="text" data-i18n-ph="wlNotePh" placeholder="הערה (אופציונלי)" />
+        <button id="wlAddBtn" class="chip-btn" type="button" data-i18n="wlAdd">＋ הוסף למעקב</button>
+      </div>
+      <p class="fine hidden" id="wlErr"></p>
+    </div>
+    <div id="wishlistList"></div>
   </section>
 
   <!-- הפקדות -->
