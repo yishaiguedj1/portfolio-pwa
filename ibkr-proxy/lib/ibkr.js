@@ -173,6 +173,9 @@ function statementToJson(tree) {
   }
   for (const p of findKids(st, 'OpenPosition')) {
     const x = p.attrs;
+    // רק SUMMARY — רשומות LOT הן פירוט כפול של אותן פוזיציות (באג כפילות v68).
+    // אם אין levelOfDetail (נתוני בדיקה ישנים), כולל.
+    if (x.levelOfDetail && x.levelOfDetail !== 'SUMMARY') continue;
     out.positions.push({
       symbol: x.symbol || '',
       asset: x.assetCategory || '',
@@ -183,6 +186,7 @@ function statementToJson(tree) {
       unrealized: num(x.fifoPnlUnrealized),
       currency: x.currency || '',
       fxToBase: num(x.fxRateToBase) || 1,
+      levelOfDetail: x.levelOfDetail || '',
     });
   }
   for (const c of findKids(st, 'CashTransaction')) {
