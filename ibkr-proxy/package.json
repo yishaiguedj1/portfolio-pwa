@@ -1,0 +1,1 @@
+{"description":"Stateless proxy: IBKR Flex Web Service -> clean JSON for the portfolio PWA. Holds no secrets; token+queryId arrive per request.","engines":{"node":">=18"},"main":"api/flex-statement.js","name":"portfolio-ibkr-proxy","private":true,"version":"1.0.0"}
