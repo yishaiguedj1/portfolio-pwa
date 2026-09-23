@@ -25,6 +25,7 @@ function elStub() {
     value: '', textContent: '', innerHTML: '',
     classList: { add() {}, remove() {}, toggle() {} },
     addEventListener() {}, appendChild() {}, dataset: {}, style: {},
+    setAttribute() {},
     disabled: false,
     children: [],
     getContext: () => ctxStub,
@@ -46,7 +47,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrPerfSums, ibkrXirrFlows, xirr, ibkrBaseCur, ibkrNav, fmtPct, ibkrNetDeposits, ibkrPeriodGain, renderOverview };';
+  '\n;globalThis.__t = { ibkrPerfSums, ibkrXirrFlows, xirr, ibkrBaseCur, ibkrNav, fmtPct, ibkrNetDeposits, ibkrPeriodGain, ibkrEstimate, renderOverview };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -118,6 +119,37 @@ const flW = T.ibkrXirrFlows({
 ok(flW.some((f) => f.amt === 2000), 'משיכה (שלילית ב־Flex) -> תזרים חיובי');
 ok(T.ibkrXirrFlows(null) === null, 'אין נתונים -> null');
 ok(T.ibkrXirrFlows({ nav: { startingValue: 0, endingValue: 0 }, meta: {} }) === null, 'בלי תאריכים -> null');
+
+
+/* ---------- ibkrEstimate (אומדן בלי Change in NAV) ---------- */
+const estData = {
+  meta: { fromDate: '2024-01-01', toDate: '2025-01-01', baseCurrency: 'USD' },
+  nav: null,
+  positions: [{ symbol: 'AAPL', marketValue: 120000, fxToBase: 1, unrealized: 3000 }],
+  trades: [{ symbol: 'AAPL', realized: 2000, commission: 10, fxToBase: 1 }],
+  cashTransactions: [
+    { type: 'Deposits/Withdrawals', amount: 100000, fxToBase: 1, date: '2024-01-15' },
+    { type: 'Dividends', amount: 500, fxToBase: 1, date: '2024-06-01' },
+  ],
+};
+const est = T.ibkrEstimate(estData, 120000);
+// רווח = 2000 (ממומש) + 3000 (לא ממומש) + 500 (דיבידנד) − 10 (עמלה) = 5490
+ok(est !== null && Math.abs(est.gain - 5490) < 1e-9, 'רווח משוער = ממומש+לא־ממומש+דיבידנד−עמלה');
+// התחלה = 120000 − 100000 − 5490 = 14510; תשואה = 5490/14510
+ok(Math.abs(est.ret - 5490 / 14510 * 100) < 1e-9, 'תשואה משוערת = רווח / שווי התחלה');
+ok(T.ibkrEstimate(estData, 0) === null, 'שווי סיום אפס -> null');
+ok(T.ibkrEstimate(estData, null) === null, 'בלי שווי סיום -> null');
+ok(T.ibkrEstimate({ meta: {}, nav: null, positions: [], trades: [], cashTransactions: [] }, 5000) === null, 'דוח ריק -> null (לא 0%)');
+const estNeg = T.ibkrEstimate(estData, 50000); // התחלה שלילית: 50000−100000−5490 < 0
+ok(estNeg === null, 'שווי התחלה משוער לא חיובי -> null');
+
+/* ---------- ibkrXirrFlows בלי NAV ---------- */
+const flNoNav = T.ibkrXirrFlows(estData, 120000);
+ok(flNoNav !== null && flNoNav.length === 3, 'בלי NAV: שלושה תזרימים עם התחלה משוערת');
+ok(flNoNav[0].amt === -(120000 - 100000 - 5490), 'תזרים התחלה = שווי התחלה משוער (שלילי)');
+const xrNoNav = T.xirr(flNoNav);
+ok(xrNoNav !== null && isFinite(xrNoNav), 'XIRR מחושב גם בלי NAV (קיבלנו ' + xrNoNav + ')');
+ok(T.ibkrXirrFlows(estData, 0) === null, 'בלי NAV ובלי שווי סיום -> null');
 
 /* ---------- מטבע בסיס ---------- */
 ok(T.ibkrBaseCur(sample) === 'USD', 'מטבע בסיס מהדוח');
