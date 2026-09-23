@@ -6,6 +6,13 @@
 */
 
 const IBKR_HOST = 'https://ndcdyn.interactivebrokers.com';
+/* כל שרתי ה-Flex הידועים של IBKR, קשיחים בקוד.
+   חשבונות אמריקאים יושבים על ndcdyn, אירופאים/בריטים על gdcdyn —
+   טוקן מאזור אחד מקבל 403 מהשרת של האזור השני. */
+const IBKR_HOSTS_LIST = [
+  'https://ndcdyn.interactivebrokers.com',
+  'https://gdcdyn.interactivebrokers.com',
+];
 const UA = 'portfolio-ibkr-proxy/1.0 (+https://yishaiguedj1.github.io/portfolio-pwa/)';
 
 /* Hosts that IBKR itself may return in SendRequest <Url>. Strict allowlist —
@@ -200,7 +207,25 @@ function errorXml(text) {
   return null;
 }
 
+/* מנסה כל הוסט קשיח של IBKR לפי הסדר; הראשון עם HTTP 200 מנצח.
+   תשובת 200 עם XML שגיאה היא תשובה סופית — לא מנסים הוסט נוסף.
+   ההוסטים קשיחים בקוד, לעולם לא נגזרים מקלט משתמש. */
+async function ibkrGetMulti(path, firstHost) {
+  const hosts = firstHost
+    ? [firstHost, ...IBKR_HOSTS_LIST.filter((h) => h !== firstHost)]
+    : [...IBKR_HOSTS_LIST];
+  let last = { status: 0, text: '' };
+  for (const host of hosts) {
+    try {
+      const r = await ibkrGet(host + path);
+      if (r.status === 200) return r;
+      last = r;
+    } catch (e) { last = { status: 0, text: '' }; }
+  }
+  return last;
+}
+
 module.exports = {
-  IBKR_HOST, IBKR_HOSTS, statementBaseFrom, cors, rateLimited, parseXml, findKids, firstKid,
-  statementToJson, ibkrGet, errorXml, flexDate, num,
+  IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, statementBaseFrom, cors, rateLimited, parseXml, findKids, firstKid,
+  statementToJson, ibkrGet, ibkrGetMulti, errorXml, flexDate, num,
 };
