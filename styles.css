@@ -497,6 +497,7 @@ footer.fine { text-align: center; }
 }
 .add-plus { font-size: 20px; }
 .chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
+#pfChips { margin-top: 12px; }
 .fund-editor { margin-bottom: 14px; }
 .fund-editor > b { display: block; margin-bottom: 8px; font-size: 15.5px; }
 .danger-card { border: 1px solid var(--loss); }
