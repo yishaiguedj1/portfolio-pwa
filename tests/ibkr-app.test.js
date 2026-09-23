@@ -261,8 +261,9 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  ok(sw.includes('portfolio-pwa-v36'), 'sw.js בגרסת v36');
-  ok(src.includes("const APP_VERSION = 'v36'"), 'APP_VERSION v36');
+  const ver = (src.match(/const APP_VERSION = 'v(\d+)'/) || [])[1];
+  ok(!!ver, 'APP_VERSION נמצא ב־app.js');
+  ok(sw.includes('portfolio-pwa-v' + ver), 'sw.js תואם ל־APP_VERSION (v' + ver + ')');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
