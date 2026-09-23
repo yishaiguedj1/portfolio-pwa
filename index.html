@@ -39,6 +39,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 <nav class="tabs" role="tablist" data-i18n-aria="tabsAria" aria-label="לשוניות">
   <button class="tab active" data-tab="overview" type="button" role="tab"><span data-i18n="tabOverview">סקירה</span></button>
   <button class="tab" data-tab="stocks" type="button" role="tab"><span data-i18n="tabStocks">מניות</span> <span class="count-chip" id="stockCount">9</span></button>
+  <button class="tab" data-tab="trades" type="button" role="tab"><span data-i18n="tabTrades">עסקאות</span> <span class="count-chip" id="tradeCount">0</span></button>
   <button class="tab" data-tab="wishlist" type="button" role="tab"><span data-i18n="tabWishlist">מעקב</span> <span class="count-chip" id="wishlistCount">0</span></button>
   <button class="tab" data-tab="deposits" type="button" role="tab"><span data-i18n="tabDeposits">הפקדות</span></button>
   <button class="tab" data-tab="pension" type="button" role="tab"><span data-i18n="tabPension">פנסיה</span></button>
@@ -115,6 +116,17 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     <div id="stockList"></div>
   </section>
 
+  <!-- עסקאות IBKR -->
+  <section id="tab-trades" class="tabpage" role="tabpanel">
+    <div class="section-head">
+      <h2 data-i18n="tradesTitle">היסטוריית עסקאות</h2>
+    </div>
+    <p class="fine hidden" id="tradesHint"></p>
+    <div class="card">
+      <ul id="tradeList" class="rows"></ul>
+    </div>
+  </section>
+
   <!-- מעקב (wishlist) -->
   <section id="tab-wishlist" class="tabpage" role="tabpanel">
     <div class="section-head">
@@ -148,6 +160,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <ul id="depositList" class="rows"></ul>
     </div>
     <p class="fine" id="depNoteEl" data-i18n="depNote">סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.</p>
+    <p class="fine hidden" id="depIbkrEmpty"></p>
   </section>
 
   <!-- פנסיה -->
@@ -208,6 +221,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     <div class="card" id="ibkrCard">
       <h2 data-i18n="ibkrTitle">חיבור ברוקר למשיכת מידע</h2>
       <p class="fine" style="padding:0" data-i18n="ibkrDesc">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).</p>
+      <p class="fine" style="padding:0" data-i18n="flexGuide">מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Change in NAV.</p>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
       <div class="form-err hidden" id="ibkrNavWarn"></div>
       <div class="form-grid">
