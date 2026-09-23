@@ -48,6 +48,19 @@ he: {
   earnBmo: 'לפני הפתיחה',
   earnAmc: 'אחרי הסגירה',
   earnDate: '📊 דוח: {date}',
+  ibkrPerfTitle: 'ביצועי IBKR',
+  perfPeriod: 'תקופת הדוח: {a}–{b}',
+  twrOfficial: 'TWR רשמי של IBKR',
+  twrMissing: 'חסר בדוח — הפעילו את מקטע Change in NAV ב־Flex',
+  perfTwr: 'תשואה משוקללת־זמן (TWR)',
+  perfXirr: 'תשואה משוקללת־כסף (XIRR)',
+  perfRealized: 'רווח ממומש',
+  perfUnrealized: 'רווח לא־ממומש',
+  perfDividends: 'דיבידנדים',
+  perfInterest: 'ריבית',
+  perfTaxes: 'מסים (ניכוי במקור)',
+  perfFees: 'עמלות ועמלות נוספות',
+  cantCalc: 'לא ניתן לחשב',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
   langTitle: 'שפה',
@@ -316,6 +329,19 @@ en: {
   earnBmo: 'Before open',
   earnAmc: 'After close',
   earnDate: '📊 Earnings: {date}',
+  ibkrPerfTitle: 'IBKR Performance',
+  perfPeriod: 'Report period: {a}–{b}',
+  twrOfficial: "IBKR's official TWR",
+  twrMissing: 'Missing from report — enable the Change in NAV Flex section',
+  perfTwr: 'Time-Weighted Return (TWR)',
+  perfXirr: 'Money-Weighted Return (XIRR)',
+  perfRealized: 'Realized P&L',
+  perfUnrealized: 'Unrealized P&L',
+  perfDividends: 'Dividends',
+  perfInterest: 'Interest',
+  perfTaxes: 'Taxes (withheld)',
+  perfFees: 'Commissions & other fees',
+  cantCalc: 'Cannot compute',
   tabPension: 'Pension',
   tabSettings: 'Settings',
   langTitle: 'Language',
@@ -1275,7 +1301,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v38';
+const APP_VERSION = 'v39';
 
 
 function saveDBto(db) {
@@ -1788,6 +1814,85 @@ function ibkrMapDeposits(cashTx, fxOf) {
   return out;
 }
 
+/* ---------------- ביצועי IBKR מהדוח (פונקציות טהורות — נבדקות) ---------------- */
+/* מטבע הבסיס של דוח IBKR */
+function ibkrBaseCur(data) { return (data && data.meta && data.meta.baseCurrency) || 'USD'; }
+/* אובייקט ה־NAV מהסנכרון האחרון */
+function ibkrNav() { const d = ibkrCfg().data; return (d && d.nav) || null; }
+
+/* סכומי ביצועים מהדוח, במטבע הבסיס.
+   twr ב־ChangeInNAV הוא אחוז (12.34 = 12.34%) — מוצג כמו שהוא, בלי חלוקה. */
+function ibkrPerfSums(data) {
+  const out = { realized: 0, unrealized: 0, dividends: 0, interest: 0, taxes: 0, fees: 0 };
+  if (!data) return out;
+  for (const tr of (data.trades || [])) {
+    const fx = Number(tr.fxToBase) || 1;
+    out.realized += (Number(tr.realized) || 0) * fx;
+    out.fees += Math.abs(Number(tr.commission) || 0) * fx;
+  }
+  for (const p of (data.positions || [])) {
+    const fx = Number(p.fxToBase) || 1;
+    out.unrealized += (Number(p.unrealized) || 0) * fx;
+  }
+  for (const c of (data.cashTransactions || [])) {
+    const type = String(c.type || '').toLowerCase();
+    const fx = Number(c.fxToBase) || 1;
+    const amt = (Number(c.amount) || 0) * fx;
+    if (/dividend/.test(type)) out.dividends += amt;
+    else if (/interest/.test(type)) out.interest += amt;
+    else if (/tax/.test(type) && !/receiv/.test(type)) out.taxes += amt;
+    else if (/fee/.test(type) && !/receiv/.test(type)) out.fees += Math.abs(amt);
+  }
+  return out;
+}
+
+/* תזרימים לחישוב XIRR מהדוח: ערך התחלה (שלילי) + הפקדות/משיכות + ערך סיום (חיובי).
+   ב־Flex הפקדה = סכום חיובי, משיכה = שלילי; מנקודת מבט המשקיע זה הפוך. */
+function ibkrXirrFlows(data) {
+  if (!data || !data.nav) return null;
+  const nav = data.nav, meta = data.meta || {};
+  const start = Number(nav.startingValue), end = Number(nav.endingValue);
+  if (!(start >= 0) || !(end >= 0) || !meta.fromDate || !meta.toDate) return null;
+  const flows = [];
+  if (start > 0) flows.push({ d: String(meta.fromDate).slice(0, 10), amt: -start });
+  for (const c of (data.cashTransactions || [])) {
+    if (!/deposit|withdraw/i.test(String(c.type || ''))) continue;
+    const amt = (Number(c.amount) || 0) * (Number(c.fxToBase) || 1);
+    const dt = String(c.date || '').slice(0, 10);
+    if (!amt || !/^\d{4}-\d{2}-\d{2}$/.test(dt)) continue;
+    flows.push({ d: dt, amt: -amt });
+  }
+  flows.push({ d: String(meta.toDate).slice(0, 10), amt: end });
+  flows.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+  const hasNeg = flows.some((f) => f.amt < 0), hasPos = flows.some((f) => f.amt > 0);
+  return (hasNeg && hasPos) ? flows : null;
+}
+
+/* XIRR — תשואה שנתית משוקללת־כסף. flows: [{d:'YYYY-MM-DD', amt}] שלילי = הושקע.
+   מחזיר אחוז (12.34 = 12.34%) או null אם לא ניתן לחשב. */
+function xirr(flows) {
+  if (!flows || flows.length < 2) return null;
+  const t0 = Date.parse(flows[0].d);
+  if (!isFinite(t0)) return null;
+  const yrs = flows.map((f) => {
+    const tt = Date.parse(f.d);
+    return isFinite(tt) ? (tt - t0) / 31557600000 : NaN;
+  });
+  if (yrs.some((y) => !isFinite(y))) return null;
+  const npv = (r) => flows.reduce((s, f, i) => s + f.amt / Math.pow(1 + r, yrs[i]), 0);
+  const dnpv = (r) => flows.reduce((s, f, i) => s + f.amt * -yrs[i] / Math.pow(1 + r, yrs[i] + 1), 0);
+  let r = 0.1;
+  for (let i = 0; i < 100; i++) {
+    const f = npv(r), d = dnpv(r);
+    if (!isFinite(f) || !isFinite(d) || Math.abs(d) < 1e-10) return null;
+    const nr = r - f / d;
+    if (!isFinite(nr) || nr <= -0.9999) return null;
+    if (Math.abs(nr - r) < 1e-9) return nr * 100;
+    r = nr;
+  }
+  return null;
+}
+
 /* ---------------- DOM ---------------- */
 
 function esc(v) {
@@ -1874,16 +1979,27 @@ function renderOverview() {
   gEl.className = 'stat-value ' + (gl === null ? '' : gl >= 0 ? 'pos' : 'neg');
 
   const yEl = document.getElementById('ovYield');
-  yEl.textContent = fmtPct(yld, true);
-  yEl.className = 'stat-value ' + (yld === null ? '' : yld >= 0 ? 'pos' : 'neg');
+  if (isIbkrMode()) {
+    // במצב IBKR התשואה הראשית היא ה־TWR הרשמי מהדוח — לעולם לא נוסחה ידנית
+    const nav = ibkrNav();
+    const twr = (nav && nav.twr !== null && nav.twr !== undefined && nav.twr !== '')
+      ? Number(nav.twr) : null;
+    yEl.textContent = (twr === null || !isFinite(twr)) ? '—' : fmtPct(twr, true);
+    yEl.className = 'stat-value ' + ((twr === null || !isFinite(twr)) ? '' : twr >= 0 ? 'pos' : 'neg');
+  } else {
+    yEl.textContent = fmtPct(yld, true);
+    yEl.className = 'stat-value ' + (yld === null ? '' : yld >= 0 ? 'pos' : 'neg');
+  }
 
   document.getElementById('ovMeta').textContent =
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) +
-    (state.fx ? ' · $=₪' + state.fx.toFixed(4) : '');
+    (state.fx ? ' · $=₪' + state.fx.toFixed(4) : '') +
+    (isIbkrMode() ? ' · ' + t('twrOfficial') : '');
 
   drawPie();
   drawPfChart();
   renderEarningsCard();
+  renderIbkrPerf();
   try { fitNumbers(); } catch (e) {}
 }
 
@@ -1916,6 +2032,48 @@ function renderEarningsCard() {
       '<span class="earn-date">' + esc(fmtDateIL(r.date)) + '</span>';
     list.appendChild(li);
   }
+}
+
+/* כרטיס "ביצועי IBKR" — TWR רשמי, XIRR, ממומש/לא־ממומש, דיבידנדים, ריבית, מסים, עמלות.
+   מוצג רק במצב IBKR ורק אם יש נתוני סנכרון. */
+function renderIbkrPerf() {
+  const card = document.getElementById('ibkrPerfCard');
+  const list = document.getElementById('ibkrPerfList');
+  const period = document.getElementById('ibkrPerfPeriod');
+  if (!card || !list) return;
+  const show = isIbkrMode() && !!(ibkrCfg().data);
+  card.classList.toggle('hidden', !show);
+  if (!show) return;
+  const data = ibkrCfg().data;
+  const meta = data.meta || {};
+  const nav = data.nav || {};
+  const base = ibkrBaseCur(data);
+  if (period) period.textContent = t('perfPeriod', { a: fmtDateIL(meta.fromDate), b: fmtDateIL(meta.toDate) });
+  const sums = ibkrPerfSums(data);
+  const twr = (nav.twr === null || nav.twr === undefined || nav.twr === '') ? null : Number(nav.twr);
+  const xr = xirr(ibkrXirrFlows(data));
+  const mrow = (lbl, val) => {
+    const li = el('li', 'perf-row');
+    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
+      '<span class="perf-val ' + (typeof val === 'object' ? val.cls : '') + '">' +
+      esc(typeof val === 'object' ? val.txt : val) + '</span>';
+    list.appendChild(li);
+  };
+  const mval = (v, isMoney) => {
+    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
+    return { txt: isMoney ? money(v, base) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
+  };
+  list.innerHTML = '';
+  mrow(t('perfTwr'), twr === null || !isFinite(twr)
+    ? { txt: t('twrMissing'), cls: 'perf-note' } : mval(twr, false));
+  mrow(t('perfXirr'), xr === null ? { txt: t('cantCalc'), cls: 'perf-note' } : mval(xr, false));
+  mrow(t('perfRealized'), mval(sums.realized, true));
+  mrow(t('perfUnrealized'), mval(sums.unrealized, true));
+  mrow(t('perfDividends'), mval(sums.dividends, true));
+  mrow(t('perfInterest'), mval(sums.interest, true));
+  mrow(t('perfTaxes'), mval(sums.taxes, true));
+  mrow(t('perfFees'), mval(Math.abs(sums.fees) < 0.005 ? 0 : -Math.abs(sums.fees), true));
+  try { fitNumbers(); } catch (e) {}
 }
 
 function drawPie() {
