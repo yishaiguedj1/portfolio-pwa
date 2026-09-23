@@ -88,7 +88,8 @@ for (const id of ['newFundName', 'newFundKind', 'pensionFundAdd']) {
   ok(html.includes('id="' + id + '"'), 'index.html מכיל #' + id);
 }
 const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-ok(sw.includes('portfolio-pwa-v36'), 'sw.js בגרסת v36');
-ok(src.includes("const APP_VERSION = 'v36'"), 'APP_VERSION v36');
+const ver = (src.match(/const APP_VERSION = 'v(\d+)'/) || [])[1];
+ok(!!ver, 'APP_VERSION נמצא ב־app.js');
+ok(sw.includes('portfolio-pwa-v' + ver), 'sw.js תואם ל־APP_VERSION (v' + ver + ')');
 
 console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
