@@ -1,4 +1,4 @@
-/* בדיקות לשיוך קרנות פנסיה/השתלמות (v24). הרצה: node tests/pension-kinds.test.js */
+/* בדיקות לשיוך קרנות פנסיה/השתלמות (v29). הרצה: node tests/pension-kinds.test.js */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -88,7 +88,7 @@ for (const id of ['newFundName', 'newFundKind', 'pensionFundAdd']) {
   ok(html.includes('id="' + id + '"'), 'index.html מכיל #' + id);
 }
 const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-ok(sw.includes('portfolio-pwa-v25'), 'sw.js בגרסת v24');
-ok(src.includes("const APP_VERSION = 'v25'"), 'APP_VERSION v24');
+ok(sw.includes('portfolio-pwa-v29'), 'sw.js בגרסת v29');
+ok(src.includes("const APP_VERSION = 'v29'"), 'APP_VERSION v29');
 
 console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
