@@ -120,7 +120,7 @@
           await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
         } catch (e) {
           if (err) {
-            err.textContent = 'ההתחברות נכשלה — נסו שוב';
+            err.textContent = t('loginFailed');
             err.classList.remove('hidden');
           }
         }
@@ -150,8 +150,7 @@
 
     if (!sdkOk()) {
       box.appendChild(mk(
-        '<p class="fine" style="padding:0">חיבור ענן לא הוגדר עדיין — ' +
-        'הנתונים נשמרים בטלפון הזה בלבד.</p>'
+        '<p class="fine" style="padding:0">' + t('cloudNotSetup') + '</p>'
       ).firstChild);
       return;
     }
@@ -164,12 +163,12 @@
       img.src = user.photoURL || 'icon-192.png';
       const info = document.createElement('div');
       info.innerHTML =
-        '<b>' + esc(user.displayName || 'משתמש') + '</b><br>' +
+        '<b>' + esc(user.displayName || t('userLabel')) + '</b><br>' +
         '<span class="fine" style="padding:0">' + esc(user.email || '') + '</span>';
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'chip-btn';
-      btn.textContent = 'התנתקות';
+      btn.textContent = t('signOut');
       btn.addEventListener('click', signOut);
       wrap.appendChild(img);
       wrap.appendChild(info);
@@ -178,7 +177,7 @@
       const note = document.createElement('p');
       note.className = 'fine';
       note.style.padding = '0';
-      note.textContent = 'מחובר — הנתונים נשמרים בענן ומסונכרנים אוטומטית בכל מכשיר.';
+      note.textContent = t('cloudConnected');
       box.appendChild(note);
       return;
     }
@@ -187,11 +186,11 @@
       const p = document.createElement('p');
       p.className = 'fine';
       p.style.padding = '0';
-      p.textContent = 'מצב מקומי — הנתונים נשמרים רק בטלפון הזה.';
+      p.textContent = t('localMode');
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'chip-btn';
-      btn.textContent = 'התחברות עם Google';
+      btn.textContent = t('googleSignIn');
       btn.addEventListener('click', () => { localMode = false; showLogin(); });
       box.appendChild(p);
       box.appendChild(btn);
@@ -201,7 +200,7 @@
     const p = document.createElement('p');
     p.className = 'fine';
     p.style.padding = '0';
-    p.textContent = 'מתחבר…';
+    p.textContent = t('signingIn');
     box.appendChild(p);
   }
 
@@ -245,7 +244,7 @@
           await flushSave();
         }
       } catch (e) {
-        if (typeof setBanner === 'function') setBanner('מצב לא מקוון — מוצגים נתונים מקומיים');
+        if (typeof setBanner === 'function') setBanner(t('offlineMode'));
       }
       fallback();
     });
