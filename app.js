@@ -290,7 +290,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 
 
 function saveDBto(db) {
@@ -1770,6 +1770,15 @@ function init() {
 
   // Service Worker (רק בהקשר מאובטח, לא file://)
   if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
+    // כשיוצאת גרסה חדשה והיא משתלטת — לרענן אוטומטית כדי שהמשתמש יקבל אותה מיד.
+    // רק אם הדף כבר היה תחת שליטה (עדכון), לא בהתקנה ראשונה.
+    const hadController = !!navigator.serviceWorker.controller;
+    let autoReloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (autoReloaded || !hadController) return;
+      autoReloaded = true;
+      location.reload();
+    });
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
