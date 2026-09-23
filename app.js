@@ -181,6 +181,8 @@ he: {
   sessionPost: ' · אחרי־מסחר',
   staleSuffix: ' · מוצגים נתונים שמורים',
   fxSource: 'שער חליפין',
+  fxRateLabel: 'שער דולר־שקל',
+  fxUpd: 'עודכן {time}',
   noPriceConn: 'אין חיבור למקור המחירים — מוצגים נתונים אחרונים מ־{time}.',
   noPrices: 'לא התקבלו מחירים. בדקו חיבור לאינטרנט ונסו לרענן.',
 
@@ -508,6 +510,8 @@ en: {
   sessionPost: ' · post-market',
   staleSuffix: ' · showing saved data',
   fxSource: 'Exchange rate',
+  fxRateLabel: 'USD/ILS rate',
+  fxUpd: 'updated {time}',
   noPriceConn: 'No connection to the price source — showing last data from {time}.',
   noPrices: 'No prices received. Check your internet connection and try refreshing.',
 
@@ -1713,7 +1717,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v100';
+const APP_VERSION = 'v102';
 
 
 function saveDBto(db) {
@@ -1817,6 +1821,7 @@ const state = {
   currency: 'USD',
   quotes: {},       // sym -> quote
   fx: null,         // USDILS
+  fxAt: null,        // מתי עודכן השער (v101)
   source: null,     // מאיזה מקור הגיעו המחירים (Yahoo / CNBC)
   session: '',      // סשן מסחר: 'pre' | 'post' | '' (רגיל/סגור)
   quotesAt: null,
@@ -1994,7 +1999,25 @@ function parseYahooQuote(json, sym, nowMs) {
   };
 }
 
+/* v101: שער דולר־שקל תוך־יומי מ־Yahoo (מתעדכן במסחר).
+   נופל בחזרה למקורות היומיים אם Yahoo חסום/מוגבל. */
+async function tryFxYahoo() {
+  const j = await fetchJSONTimeout('https://query1.finance.yahoo.com/v8/finance/chart/USDILS=X?interval=1m&range=1d', 8000);
+  const res = j && j.chart && j.chart.result && j.chart.result[0];
+  if (!res) throw new Error('no yahoo fx');
+  const meta = res.meta || {};
+  let p = num(meta.regularMarketPrice) || num(meta.previousClose);
+  if (!(p > 0)) {
+    const q = res.indicators && res.indicators.quote && res.indicators.quote[0];
+    const c = q && q.close;
+    if (c) for (let i = c.length - 1; i >= 0; i--) if (c[i] > 0) { p = c[i]; break; }
+  }
+  if (!(p > 0)) throw new Error('no yahoo fx');
+  return p;
+}
+
 async function tryFx() {
+  try { return await tryFxYahoo(); } catch (e) {}
   const urls = [
     'https://open.er-api.com/v6/latest/USD',
     'https://api.frankfurter.app/latest?from=USD&to=ILS'
@@ -2007,6 +2030,45 @@ async function tryFx() {
     } catch (e) {}
   }
   throw new Error('no fx');
+}
+
+/* v101: ציור פיל שער הדולר בראש העמוד הראשי */
+function paintFxPill(changed) {
+  const v = document.getElementById('fxPillValue');
+  if (v) {
+    v.textContent = state.fx ? '$1 = ₪' + state.fx.toFixed(4) : '—';
+    if (changed) {
+      const pill = document.getElementById('fxPill');
+      if (pill) { pill.classList.remove('flash'); void pill.offsetWidth; pill.classList.add('flash'); }
+    }
+  }
+  const u = document.getElementById('fxPillUpd');
+  if (u) u.textContent = state.fxAt ? t('fxUpd', { time: fmtTimeIL(state.fxAt) }) : '';
+}
+
+/* v101: טיקר חי — כל 60 שניות מרענן שער דולר בלבד (זול),
+   מעדכן את הפיל; אם השער השתנה — גם מספרי ה־₪ בעמוד הראשי. */
+let _fxT = null;
+function startFxTicker() {
+  if (_fxT) return;
+  const tick = async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const r = await tryFx();
+      if (!(r > 0)) return;
+      if (r !== state.fx) {
+        state.fx = r;
+        state.fxAt = Date.now();
+        paintFxPill(true);
+        const ov = document.getElementById('tab-overview');
+        if (ov && ov.classList.contains('active')) { try { renderOverview(); } catch (e) {} }
+      } else {
+        state.fxAt = Date.now();
+        paintFxPill(false);
+      }
+    } catch (e) { /* שומר על השער האחרון */ }
+  };
+  _fxT = setInterval(tick, 60000);
 }
 
 async function tryCNBCQuotes() {
@@ -2032,6 +2094,7 @@ function quoteSymbols() {
 function applyQuotes(res) {
   state.quotes = res.quotes;
   state.fx = res.fx;
+  state.fxAt = Date.now();
   state.source = res.source;
   state.session = res.session || '';
   state.quotesAt = Date.now();
@@ -2067,7 +2130,7 @@ async function tryYahooQuotes() {
 
 async function refreshQuotes() {
   if (!quoteSymbols().length) {
-    try { state.fx = await tryFx(); } catch (e) { /* אין שער */ }
+    try { state.fx = await tryFx(); state.fxAt = Date.now(); } catch (e) { /* אין שער */ }
     state.quotes = {};
     state.quotesAt = Date.now();
     state.source = state.fx ? t('fxSource') : null;
@@ -2972,8 +3035,8 @@ function renderOverview() {
 
   document.getElementById('ovMeta').textContent =
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) +
-    (state.fx ? ' · $=₪' + state.fx.toFixed(4) : '') +
     (isIbkrMode() ? ' · ' + (ibkrYieldOfficial ? t('twrOfficial') : t('yieldEstNote')) : '');
+  paintFxPill(false);
 
   drawPie();
   drawPfChart();
@@ -4953,10 +5016,10 @@ function buildStockBody(p, m) {
         ' (' + fmtPct(m.gl / (p.avg * p.shares) * 100, true) + ')',
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
     kvHTML(t('kvWeight'), weightTxt(sym)) +
+    // v102: אריח ATH מינימליסטי — רק מחיר ותאריך, מעט גדולים יותר
     kvHTML('ATH',
       m.ath ? (cur === 'ILS' && state.fx ? fmtILS(m.ath.price * state.fx) : fmtUSD2(m.ath.price)) +
-        '<br><span style="font-weight:400;font-size:12px">' + fmtDateIL(m.ath.date) +
-        (m.offAth !== null ? ' · ' + t('offAth', { v: fmtPct(m.offAth, true) }) : '') + '</span>'
+        '<br><span style="font-weight:400;font-size:14px">' + fmtDateIL(m.ath.date) + '</span>'
         : (state.hist[sym] ? '—' : '…'));
   wrap.appendChild(grid);
 
@@ -5814,6 +5877,8 @@ function init() {
   // v87: חיפוש מניות להוספה — זמין בשני המצבים
   try { initStockSearch(); } catch (e) {}
   try { initStockSort(); } catch (e) {}
+  // v101: טיקר חי לשער הדולר — מתחיל עם האפליקציה
+  try { startFxTicker(); } catch (e) {}
 
   // רשימת מעקב — הוספה/מחיקה ישירה, לא חלק מהתיק
   const wlAdd = document.getElementById('wlAddBtn');
