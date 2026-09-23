@@ -1424,7 +1424,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v51';
+const APP_VERSION = 'v52';
 
 
 function saveDBto(db) {
@@ -4477,7 +4477,10 @@ function init() {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').then((reg) => {
         // בדיקת עדכון יזומה בכל פתיחה — למקרה שהדפדפן דילג על הבדיקה האוטומטית
-        try { if (reg && reg.update) reg.update().catch(() => {}); } catch (e) {}
+        const checkUpdate = () => { try { if (reg && reg.update) reg.update().catch(() => {}); } catch (e) {} };
+        checkUpdate();
+        // גם כשהאפליקציה חוזרת מהרקע — מעבר ממסך הבית לא תמיד טוען את הדף מחדש
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
       }).catch(() => {});
     });
   }
