@@ -63,6 +63,7 @@
     DB.deposits.push(...clean.deposits);
     DB.pensionFunds.length = 0;
     DB.pensionFunds.push(...(clean.pensionFunds || []));
+    if (typeof ensurePensionKinds === 'function') ensurePensionKinds(DB);
     DB.pensionDeposits.length = 0;
     DB.pensionDeposits.push(...(clean.pensionDeposits || []));
     const c = clean.cash || {};
