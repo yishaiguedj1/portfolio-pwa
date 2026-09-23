@@ -327,6 +327,13 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .chart-wrap { position: relative; }
 .chart-wrap canvas { width: 100%; height: 210px; display: block; touch-action: manipulation; }
 .chart-wrap canvas.measuring { touch-action: none; cursor: crosshair; }
+/* כלי גרף הביצועים */
+.pf-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 8px; }
+.pf-from-lbl { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--on-surface-var); }
+.pf-from-lbl input[type="date"] { font: inherit; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); }
+.pf-tip { position: absolute; z-index: 5; background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.14); pointer-events: none; max-width: 220px; }
+.pf-tip.hidden { display: none; }
+.pf-tip .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-end: 5px; }
 .chart-loading {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: var(--on-surface-var); font-size: 15px; background: var(--veil);
