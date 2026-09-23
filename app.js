@@ -166,6 +166,8 @@ he: {
   ibkrDisconnectBtn: 'ניתוק',
   ibkrNotConnected: 'לא מחובר — מוצגים הנתונים הידניים.',
   ibkrDepositsNote: 'מסונכרן מ־IBKR — ההפקדות מתעדכנות אוטומטית בכל סנכרון.',
+  ibkrStocksNote: 'מסונכרן מ־IBKR — המניות מתעדכנות אוטומטית בכל סנכרון.',
+  importTruncatedWarn: 'שים לב: ההעברה הכי מוקדמת בדוח היא מתאריך {date} — ייתכן שהפקדות מוקדמות יותר לא נכללו, ואז התשואה המחושבת עלולה להיות מנופחת.',
   ibkrConnectedSynced: 'מחובר ✓ · סונכרן: {time}',
   ibkrConnectedNever: 'מחובר ✓ · טרם בוצע סנכרון.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
@@ -411,6 +413,8 @@ en: {
   ibkrDisconnectBtn: 'Disconnect',
   ibkrNotConnected: 'Not connected — showing manual data.',
   ibkrDepositsNote: 'Synced from IBKR — deposits update automatically on every sync.',
+  ibkrStocksNote: 'Synced from IBKR — stocks update automatically on every sync.',
+  importTruncatedWarn: 'Note: the earliest transfer in the report is from {date} — earlier deposits may be missing, so the computed return could be overstated.',
   ibkrConnectedSynced: 'Connected ✓ · Synced: {time}',
   ibkrConnectedNever: 'Connected ✓ · Not synced yet.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
@@ -1012,6 +1016,11 @@ async function ibkrSyncImport() {
     const depLine = depList.length
       ? t('importDepLine', { n: depList.length, total: '₪' + Math.abs(depNet).toLocaleString('en-US') })
       : t('importDepMissing');
+    // אזהרת קטיעה: אם ההעברה הכי מוקדמת צמודה לתחילת הדוח, ייתכן שהפקדות מוקדמות חסרות
+    const fromDate = (data.meta && data.meta.fromDate) || '';
+    const truncLine = (txEarliest && fromDate && txEarliest <= addDaysISO(fromDate, 7))
+      ? '\n' + t('importTruncatedWarn', { date: fromDate })
+      : '';
     const cashLine = imp.cash
       ? t('importCashLine', { usd: imp.cash.usd, ils: imp.cash.ils })
       : t('importCashMissing');
@@ -1020,7 +1029,7 @@ async function ibkrSyncImport() {
       lots: imp.lots,
       cashLine,
       depLine,
-      skipped: imp.skipped ? '\n' + t('importSkippedNote', { n: imp.skipped }).trim() : ''
+      skipped: (imp.skipped ? '\n' + t('importSkippedNote', { n: imp.skipped }).trim() : '') + truncLine
     });
     if (!confirm(msg)) return;
     // עדכון במקום (לא החלפת מערך) כדי לא לשבור הפניות קיימות, וסימון מקור הנתונים
@@ -1083,10 +1092,14 @@ function ibkrDisconnect() {
   ibkrClearErr();
   if (!confirm(t('disconnectConfirm'))) return;
   ibkrSaveCfg({ token: '', queryId: '', statementUrl: '', lastSync: 0, data: null });
+  // אחרי ניתוק חוזרים למצב ידני — הנתונים נשארים, אבל שוב אפשר לערוך
+  DB.source = 'manual';
+  saveDB();
   const tk = document.getElementById('ibkrToken');
   const qd = document.getElementById('ibkrQuery');
   if (tk) tk.value = '';
   if (qd) qd.value = '';
+  renderAll();
   renderIbkrCard();
   flash(t('disconnected'));
 }
@@ -1162,7 +1175,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v35';
+const APP_VERSION = 'v36';
 
 
 function saveDBto(db) {
@@ -1596,8 +1609,27 @@ function portfolioPerformance(total, basis) {
   return { gl: gl, yld: gl / basis * 100 };
 }
 
-/* בסיס החישוב לפי סוג המשתמש:
-   IBKR — ההפקדות המסונכרנות מהדוח; אם אין כאלה, גיבוי לעלות הקנייה.
+/* במצב IBKR כל הנתונים (מניות והפקדות) מגיעים מהדוח — אין עריכה ידנית.
+   פנסיה נשארת בעריכה ידנית כי היא לא חלק מנתוני IBKR. */
+function editAllowed(key) { return !!state.edit[key] && !isIbkrMode(); }
+
+/* נעילת ממשק במצב IBKR: מסתיר כפתורי עריכה ומכבה מצב עריכה פעיל */
+function renderIbkrLocks() {
+  const ibkr = isIbkrMode();
+  for (const id of ['editStocksBtn', 'editDepositsBtn']) {
+    const b = document.getElementById(id);
+    if (b) b.classList.toggle('hidden', ibkr);
+  }
+  const sn = document.getElementById('ibkrStocksNote');
+  if (sn) {
+    sn.classList.toggle('hidden', !ibkr);
+    if (ibkr) sn.textContent = t('ibkrStocksNote');
+  }
+  if (ibkr) { state.edit.stocks = false; state.edit.deposits = false; }
+}
+
+/* בסיס החישוב לפי סוג המשתמש — ב־IBKR הכל מהדוח:
+   קודם ההפקדות המסונכרנות; אם אין כאלה, גיבוי לעלות הקנייה (גם היא מ־IBKR).
    ידני — ההפקדות הידניות. */
 function portfolioBasisInCur() {
   if (isIbkrMode()) {
@@ -2054,14 +2086,14 @@ function renderStocks() {
   list.innerHTML = '';
   const sc = document.getElementById('stockCount');
   if (sc) sc.textContent = POSITIONS.length;
-  if (state.edit.stocks) {
+  if (editAllowed('stocks')) {
     const add = el('button', 'card add-card');
     add.type = 'button';
     add.innerHTML = '<span class="add-plus">＋</span> ' + t('addStock');
     add.addEventListener('click', () => showAddPositionForm(list));
     list.appendChild(add);
   }
-  if (!POSITIONS.length && !state.edit.stocks) {
+  if (!POSITIONS.length && !editAllowed('stocks')) {
     const m = el('p', 'fine');
     m.style.padding = '0';
     m.textContent = t('noStocks');
@@ -2188,7 +2220,7 @@ function buildStockCard(p) {
   card.appendChild(head);
 
   // מצב עריכה: כפתורי עריכה/מחיקה מתחת לכותרת הכרטיס
-  if (state.edit.stocks) {
+  if (editAllowed('stocks')) {
     const actions = el('div', 'edit-actions');
     const eb = el('button', 'chip-btn', t('btnEdit'));
     eb.type = 'button';
@@ -2524,7 +2556,7 @@ function renderDeposits() {
     (isIbkrMode() ? '<br><span class="fine">' + t('ibkrDepositsNote') + '</span>' : '');
   const ul = document.getElementById('depositList');
   ul.innerHTML = '';
-  const ed = state.edit.deposits;
+  const ed = editAllowed('deposits');
   if (ed) {
     const addLi = el('li');
     const addBtn = el('button', 'chip-btn', '＋ ' + t('addDeposit'));
@@ -2792,6 +2824,7 @@ function renderAll() {
   renderStocks();
   renderDeposits();
   renderPension();
+  renderIbkrLocks();
   // ציור מחדש של גרפים פתוחים (למשל אחרי מעבר מטבע)
   for (const sym of Object.keys(state.open)) {
     if (state.open[sym]) ensureChartData(sym);
