@@ -275,6 +275,8 @@ he: {
   ibkrConnectedSynced: 'מחובר ✓ · סונכרן: {time}',
   ibkrConnectedNever: 'מחובר ✓ · טרם בוצע סנכרון.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
+  ibkrChunksLine: 'טעינת היסטוריה: {ok}/{total} חלקים נטענו',
+  ibkrChunkFail: 'חלק {fd}–{td} נכשל ({err})',
   proxyUrlMissing: 'כתובת השרתון לא הוגדרה',
   credsMissing: 'חסרים Flex token או Query ID',
   credsMissingSave: 'חסרים Flex token או Query ID — שמור קודם',
@@ -611,6 +613,8 @@ en: {
   ibkrConnectedSynced: 'Connected ✓ · Synced: {time}',
   ibkrConnectedNever: 'Connected ✓ · Not synced yet.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
+  ibkrChunksLine: 'History load: {ok}/{total} chunks loaded',
+  ibkrChunkFail: 'chunk {fd}–{td} failed ({err})',
   proxyUrlMissing: 'Proxy URL not set',
   credsMissing: 'Missing Flex token or Query ID',
   credsMissingSave: 'Missing Flex token or Query ID — save first',
@@ -766,6 +770,10 @@ function renderLangToggle() {
   const enB = document.getElementById('langEn');
   if (heB) heB.classList.toggle('active', lang === 'he');
   if (enB) enB.classList.toggle('active', lang === 'en');
+  const lmHe = document.getElementById('langMenuHe');
+  const lmEn = document.getElementById('langMenuEn');
+  if (lmHe) lmHe.classList.toggle('active', lang === 'he');
+  if (lmEn) lmEn.classList.toggle('active', lang === 'en');
 }
 
 /* ---------------- ערכת נושא: בהיר / כהה / מערכת ----------------
@@ -1278,6 +1286,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   const merged = { trades: [], cashTransactions: [], positions: [], transfers: [] };
   const seenTradeKeys = new Set();
   const seenCashKeys = new Set();
+  const chunkResults = []; // v109: דיאגנוסטיקה — תוצאה לכל חלק בנפרד
   
   for (let i = 0; i < chunks.length; i++) {
     const { fd, td } = chunks[i];
@@ -1285,6 +1294,8 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     try {
       const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
       const data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
+      chunkResults.push({ fd, td, ok: true,
+        trades: (data.trades || []).length, cash: (data.cashTransactions || []).length });
       // ממזג עסקאות (מניעת כפילויות לפי מפתח ייחודי)
       for (const tr of (data.trades || [])) {
         const key = [tr.date, tr.symbol, tr.quantity, tr.price, tr.buySell].join('|');
@@ -1313,12 +1324,14 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       }
     } catch (e) {
       // אם חלק נכשל (למשל 1003 - אין נתונים לתקופה), ממשיכים לחלק הבא
+      chunkResults.push({ fd, td, ok: false, error: String((e && e.message) || e).slice(0, 120) });
       console.warn('Chunk failed:', fd, td, e.message);
     }
   }
   // ממיין לפי תאריך
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  merged._chunks = chunkResults; // v109: נשמר עם הנתונים כדי להציג דיאגנוסטיקה
   return merged;
 }
 
@@ -1440,6 +1453,21 @@ function renderIbkrCard() {
     d.textContent = (connected && data)
       ? t('ibkrDataSummary', { n: (data.positions || []).length, m: (data.trades || []).length, k: (data.cashTransactions || []).length })
       : '';
+  }
+  // v109: דיאגנוסטיקת חלקי הסנכרון — אם חלק נכשל, העסקאות שלו חסרות
+  const ch = document.getElementById('ibkrChunks');
+  if (ch) {
+    const chunks = cfg.data && cfg.data._chunks;
+    if (connected && cfg.data && chunks && chunks.length) {
+      const okN = chunks.filter((c) => c.ok).length;
+      const fails = chunks.filter((c) => !c.ok);
+      ch.textContent = t('ibkrChunksLine', { ok: okN, total: chunks.length }) +
+        (fails.length ? ' · ' + fails.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ') : '');
+      ch.classList.toggle('form-err', fails.length > 0);
+    } else {
+      ch.textContent = '';
+      ch.classList.remove('form-err');
+    }
   }
   // התראה בולטת כשהדוח חסר Change in NAV — בלי זה אין תשואות
   const w = document.getElementById('ibkrNavWarn');
@@ -1707,7 +1735,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v108';
+const APP_VERSION = 'v109';
 
 
 function saveDBto(db) {
@@ -3028,10 +3056,11 @@ function renderOverview() {
     (isIbkrMode() ? ' · ' + (ibkrYieldOfficial ? t('twrOfficial') : t('yieldEstNote')) : '');
   paintFxPill(false);
 
-  drawPie();
-  drawPfChart();
-  renderEarningsCard();
-  renderIbkrPerf();
+  /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו (כולל "ביצועי IBKR") */
+  try { drawPie(); } catch (e) {}
+  try { drawPfChart(); } catch (e) {}
+  try { renderEarningsCard(); } catch (e) {}
+  try { renderIbkrPerf(); } catch (e) {}
   try { fitNumbers(); } catch (e) {}
 }
 
@@ -5789,10 +5818,13 @@ function init() {
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
   });
-  // מטבע — כפתור בטאב ההגדרות שמחליף בין $ ל־₪ (v108); נשמר בין רענונים
+  // מטבע — כפתור בטאב ההגדרות + כפתור בהדר (v109) שמחליפים בין $ ל־₪; נשמר בין רענונים
   const paintCurBtn = () => {
+    const lbl = state.currency === 'ILS' ? '₪' : '$';
     const b = document.getElementById('setCurBtn');
-    if (b) b.textContent = state.currency === 'ILS' ? '₪' : '$';
+    if (b) b.textContent = lbl;
+    const h = document.getElementById('curToggleBtn');
+    if (h) h.textContent = lbl;
   };
   const setCur = (c) => {
     state.currency = c;
@@ -5802,6 +5834,8 @@ function init() {
   };
   const curBtn = document.getElementById('setCurBtn');
   if (curBtn) curBtn.addEventListener('click', () => setCur(state.currency === 'ILS' ? 'USD' : 'ILS'));
+  const curToggle = document.getElementById('curToggleBtn');
+  if (curToggle) curToggle.addEventListener('click', () => setCur(state.currency === 'ILS' ? 'USD' : 'ILS'));
   // ערכת נושא — מקטע בטאב ההגדרות: בהיר / כהה / מערכת (v108)
   const thL = document.getElementById('themeLight');
   const thD = document.getElementById('themeDark');
@@ -5816,6 +5850,7 @@ function init() {
   } catch (e) {}
   paintCurBtn();
   try { initMainMenu(); } catch (e) {}
+  try { initHeaderButtons(); } catch (e) {}
   // שינוי גודל — ציור מחדש של גרפים פתוחים
   let rzT = null;
   window.addEventListener('resize', () => {
@@ -6015,6 +6050,33 @@ if (typeof document !== 'undefined') {
 }
 
 /* v103: תפריט המבורגר ראשי — נפתח/נסגר, נסגר בלחיצה בחוץ או Escape */
+/* v109: כפתורי ההדר — גלובוס שפה עם תפריט מינימלי, צמודים להמבורגר. */
+function initHeaderButtons() {
+  const langBtn = document.getElementById('langBtn');
+  const langMenu = document.getElementById('langMenu');
+  if (langBtn) {
+    try { langBtn.innerHTML = ICON_GLOBE; } catch (e) {}
+  }
+  const closeLangMenu = () => { if (langMenu) langMenu.classList.add('hidden'); };
+  if (langBtn && langMenu) {
+    langBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const drop = document.getElementById('menuDrop');
+      if (drop) drop.classList.add('hidden');
+      langMenu.classList.toggle('hidden');
+    });
+  }
+  const lmHe = document.getElementById('langMenuHe');
+  const lmEn = document.getElementById('langMenuEn');
+  if (lmHe) lmHe.addEventListener('click', (e) => { e.stopPropagation(); setLang('he'); closeLangMenu(); });
+  if (lmEn) lmEn.addEventListener('click', (e) => { e.stopPropagation(); setLang('en'); closeLangMenu(); });
+  document.addEventListener('click', (e) => {
+    if (langMenu && !langMenu.classList.contains('hidden') && !e.target.closest('.lang-wrap')) closeLangMenu();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLangMenu(); });
+  renderLangToggle();
+}
+
 function initMainMenu() {
   const btn = document.getElementById('menuBtn');
   const drop = document.getElementById('menuDrop');
