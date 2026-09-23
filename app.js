@@ -1424,7 +1424,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v50';
+const APP_VERSION = 'v51';
 
 
 function saveDBto(db) {
@@ -1900,19 +1900,21 @@ function renderPfBenchToggles(show) {
     b.appendChild(el('span', 'pf-bench-lbl', t(labelKey)));
     const chk = el('span', 'pf-bench-check', on ? '✓' : '');
     b.appendChild(chk);
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       if (!state.pfBench) state.pfBench = {};
-      state.pfBench[sym] = !pfBenchOn(sym);
+      const turningOn = !pfBenchOn(sym);
+      state.pfBench[sym] = turningOn;
       renderPfBenchToggles(true);
-      paintPfChart(); // סינכרוני — מיידי, בלי רשת
+      if (turningOn) await drawPfChart(); // הפעלה: טוען את המדד החסר (מהיר — מטמון/מרוץ) ומצייר
+      else paintPfChart(); // כיבוי: סינכרוני ומיידי, בלי רשת
     });
     host.appendChild(b);
   }
 }
 
-/* היסטוריה יומית מהירה לגרף הביצועים: Yahoo תחילה (מקבילי, בלי מפתח ובלי
-   המתנה של 8 שניות), אחר כך Twelve Data, אחר כך Stooq. אותו מטמון ואותו
-   פורמט שורות כמו getDaily — כך ששניהם חולקים נתונים. */
+/* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
+   הראשון שעונה מנצח, בלי לחכות ל־timeout של מקור חסום. Twelve Data רק
+   כגיבוי אחרון (צריך מפתח). אותו מטמון ואותו פורמט שורות כמו getDaily. */
 async function getDailyFast(sym, force) {
   if (!force) {
     if (state.hist[sym]) return state.hist[sym];
@@ -2884,7 +2886,8 @@ function benchStore() {
   return benchCache;
 }
 
-/* היסטוריית מדד: [{date, close}] ישן -> חדש. נשמר עד 6 שנים אחורה. */
+/* היסטוריית מדד: [{date, close}] ישן -> חדש. נשמר עד 6 שנים אחורה.
+   עובר דרך getDailyFast — אותו מטמון ואותו מרוץ מקבילי מהיר כמו שאר הגרף. */
 async function getBenchHist(sym) {
   // רק הסימולים המוכרים — כל השאר null (לא שולחים בקשות מיותרות)
   if (!BENCH_SYMS.some(([s]) => s === sym)) return null;
@@ -2894,19 +2897,20 @@ async function getBenchHist(sym) {
   if (cached && cached.updated === today && cached.rows && cached.rows.length > 30) {
     return cached.rows.map(([d, c]) => ({ date: d, close: c }));
   }
-  let rows = [];
+  const stale = (cached && cached.rows && cached.rows.length > 30)
+    ? cached.rows.map(([d, c]) => ({ date: d, close: c })) : null;
+  let out = [];
   try {
-    const txt = await fetchTextTimeout(stooqDailyURL(sym), 15000);
-    rows = parseHistoryCSV(txt).filter((r) => r.date >= addDaysISO(today, -6 * 365));
+    const rows = await getDailyFast(sym, false);
+    out = rows.filter((r) => r.date >= addDaysISO(today, -6 * 365))
+              .map((r) => ({ date: r.date, close: r.close }));
   } catch (e) { /* נופל למטמון ישן */ }
-  if (!rows.length && cached && cached.rows) {
-    return cached.rows.map(([d, c]) => ({ date: d, close: c }));
-  }
-  if (rows.length > 30) {
-    store[sym] = { updated: today, rows: rows.map((r) => [r.date, r.close]) };
+  if (!out.length) return stale || [];
+  if (out.length > 30) {
+    store[sym] = { updated: today, rows: out.map((r) => [r.date, r.close]) };
     try { localStorage.setItem(LS_BENCH, JSON.stringify(store)); } catch (e) {}
   }
-  return rows;
+  return out;
 }
 
 /* נרמול סדרה ל־100 בנקודת ההתחלה — טהור, נבדק */
