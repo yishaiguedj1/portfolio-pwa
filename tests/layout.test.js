@@ -1,4 +1,4 @@
-/* בדיקות פריסה ועיצוב ל־v32: סרגל לשוניות שלא נחתך בקצוות, כותרת לא צפופה,
+/* בדיקות פריסה ועיצוב ל־v33: סרגל לשוניות שלא נחתך בקצוות, כותרת לא צפופה,
    פלטת iOS 26 בשתי הערכות, טון רציני (בלי אימוג'י קישוט), ורינדור he/en × בהיר/כהה/מערכת.
    הרצה: node tests/layout.test.js */
 const assert = require('node:assert/strict');
@@ -126,7 +126,14 @@ T.setLang('he');
 
 console.log('\nכל בדיקות הפריסה עברו: ' + n + ' assertions');
 
-/* ---------- כפתור ניקוי מטמון (v32) ---------- */
+/* ---------- כפתור ניקוי מטמון (v33) ---------- */
 ok(html.includes('id="clearCache"'), 'כפתור clearCache קיים ב־index.html');
 ok(appSrc.includes("getElementById('clearCache')"), 'app.js מחבר מאזין לכפתור clearCache');
 ok(/caches\.delete/.test(appSrc) && /unregister\(\)/.test(appSrc), 'ניקוי המטמון מוחק caches ומבטל רישום SW');
+
+/* ---------- התאמת גודל מספרים אוטומטית (v33) ---------- */
+ok(appSrc.includes('function fitNumbers()'), 'fitNumbers קיימת ב־app.js');
+ok(/\.stat-value, \.lg-pct, \.pension-total/.test(appSrc), 'fitNumbers מכסה stat-value, lg-pct ו־pension-total');
+ok(/renderOverview[\s\S]{0,4000}fitNumbers\(\)/.test(appSrc), 'renderOverview קוראת ל־fitNumbers');
+ok(/switchTab[\s\S]{0,1200}fitNumbers\(\)/.test(appSrc), 'switchTab קוראת ל־fitNumbers אחרי מעבר לשונית');
+ok(/white-space:\s*nowrap/.test(css), 'מספרים גדולים לא נשברים לשורות');
