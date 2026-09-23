@@ -251,6 +251,7 @@ he: {
   testFailed: 'הבדיקה נכשלה: {err}',
   reqReport: 'מבקש דוח מ־IBKR…',
   genReport: 'IBKR מייצר את הדוח… (לוקח בדרך כלל דקה־שתיים)',
+  fetchHistory: 'מושך היסטוריה מ־IBKR… (חלק {n} מתוך {total})',
   importNoStocks: 'לא נמצאו פוזיציות מניות בדוח IBKR',
   importSkippedNote: ' ({n} שורות שאינן מניות דולריות דולגו)',
   importCashLine: 'מזומן מהדוח: ${usd} / ₪{ils}',
@@ -572,6 +573,7 @@ en: {
   testFailed: 'Test failed: {err}',
   reqReport: 'Requesting report from IBKR…',
   genReport: 'IBKR is generating the report… (usually takes a minute or two)',
+  fetchHistory: 'Fetching history from IBKR… (part {n} of {total})',
   importNoStocks: 'No stock positions found in the IBKR report',
   importSkippedNote: ' ({n} non-USD-stock rows skipped)',
   importCashLine: 'Cash from report: ${usd} / ₪{ils}',
@@ -1110,12 +1112,105 @@ function ibkrProxyBase() {
   return (((ibkrCfg().proxyUrl || '') || IBKR_PROXY_DEFAULT).trim().replace(/\/+$/, ''));
 }
 
-/* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }. */
-async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId) {
+/* מחלק טווח תאריכים לחלקים של עד 365 יום (מגבלת IBKR לבקשה).
+   מחזיר מערך של {fd, td} בפורמט YYYYMMDD. */
+function ibkrDateChunks(startYmd, endYmd) {
+  const chunks = [];
+  let cur = startYmd;
+  while (cur <= endYmd) {
+    // מוסיף 364 ימים (365 כולל) או עד הסוף
+    const curDate = new Date(cur.slice(0,4), cur.slice(4,6)-1, cur.slice(6,8));
+    curDate.setDate(curDate.getDate() + 364);
+    let chunkEnd = curDate.getFullYear().toString().padStart(4,'0') +
+      (curDate.getMonth()+1).toString().padStart(2,'0') +
+      curDate.getDate().toString().padStart(2,'0');
+    if (chunkEnd > endYmd) chunkEnd = endYmd;
+    chunks.push({ fd: cur, td: chunkEnd });
+    // החלק הבא מתחיל יום אחרי סוף החלק הנוכחי
+    const nextDate = new Date(chunkEnd.slice(0,4), chunkEnd.slice(4,6)-1, chunkEnd.slice(6,8));
+    nextDate.setDate(nextDate.getDate() + 1);
+    cur = nextDate.getFullYear().toString().padStart(4,'0') +
+      (nextDate.getMonth()+1).toString().padStart(2,'0') +
+      nextDate.getDate().toString().padStart(2,'0');
+  }
+  return chunks;
+}
+
+/* מושך היסטוריה מלאה מ־IBKR במספר בקשות (כל אחת עד 365 יום) וממזג.
+   startYmd: תאריך התחלה בפורמט YYYYMMDD (ברירת מחדל: שנתיים אחורה).
+   מחזיר data ממוזג עם trades, cashTransactions, positions (מהדוח האחרון), וכו'. */
+async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress) {
+  const today = new Date();
+  const endYmd = today.getFullYear().toString().padStart(4,'0') +
+    (today.getMonth()+1).toString().padStart(2,'0') +
+    today.getDate().toString().padStart(2,'0');
+  if (!/^\d{8}$/.test(startYmd || '')) {
+    // ברירת מחדל: שנתיים אחורה (מגבלת השמירה של IBKR)
+    const d = new Date(today);
+    d.setFullYear(d.getFullYear() - 2);
+    startYmd = d.getFullYear().toString().padStart(4,'0') +
+      (d.getMonth()+1).toString().padStart(2,'0') +
+      d.getDate().toString().padStart(2,'0');
+  }
+  const chunks = ibkrDateChunks(startYmd, endYmd);
+  const merged = { trades: [], cashTransactions: [], positions: [], transfers: [] };
+  const seenTradeKeys = new Set();
+  const seenCashKeys = new Set();
+  
+  for (let i = 0; i < chunks.length; i++) {
+    const { fd, td } = chunks[i];
+    if (onProgress) onProgress(i + 1, chunks.length, fd, td);
+    try {
+      const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
+      const data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
+      // ממזג עסקאות (מניעת כפילויות לפי מפתח ייחודי)
+      for (const tr of (data.trades || [])) {
+        const key = [tr.date, tr.symbol, tr.quantity, tr.price, tr.buySell].join('|');
+        if (!seenTradeKeys.has(key)) {
+          seenTradeKeys.add(key);
+          merged.trades.push(tr);
+        }
+      }
+      // ממזג תנועות מזומן
+      for (const c of (data.cashTransactions || [])) {
+        const key = [c.date, c.amount, c.type, c.description].join('|');
+        if (!seenCashKeys.has(key)) {
+          seenCashKeys.add(key);
+          merged.cashTransactions.push(c);
+        }
+      }
+      // פוזיציות: לוקח מהדוח האחרון (העדכני ביותר)
+      if (data.positions && data.positions.length) {
+        merged.positions = data.positions;
+      }
+      // שומר מטא-דאטה מהדוח האחרון
+      if (i === chunks.length - 1) {
+        merged.accountId = data.accountId;
+        merged.fromDate = startYmd;
+        merged.toDate = endYmd;
+      }
+    } catch (e) {
+      // אם חלק נכשל (למשל 1003 - אין נתונים לתקופה), ממשיכים לחלק הבא
+      console.warn('Chunk failed:', fd, td, e.message);
+    }
+  }
+  // ממיין לפי תאריך
+  merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  return merged;
+}
+
+/* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }.
+   fd/td אופציונליים (YYYYMMDD) לדריסת טווח התאריכים — עד 365 יום לבקשה. */
+async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td) {
+  const body = { token, queryId };
+  if (/^\d{8}$/.test(fd || '') && /^\d{8}$/.test(td || '')) {
+    body.fd = fd; body.td = td;
+  }
   const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, queryId })
+    body: JSON.stringify(body)
   }, 45000);
   let j = null;
   try { j = await r.json(); } catch (e) {}
@@ -1266,11 +1361,13 @@ async function ibkrSyncImport() {
   ibkrSetBusy(true);
   try {
     const s = document.getElementById('ibkrStatus');
-    if (s) s.textContent = t('reqReport');
-    const rep = await ibkrRequestReport(fetch, proxyUrl, cfg.token, cfg.queryId);
-    if (s) s.textContent = t('genReport');
-    const data = await ibkrPollStatement(fetch, proxyUrl, cfg.token, rep.referenceCode, rep.statementUrl || cfg.statementUrl);
-    ibkrSaveCfg({ lastSync: Date.now(), statementUrl: rep.statementUrl || cfg.statementUrl || '', data });
+    // מושך היסטוריה מלאה מפתיחת התיק (אמצע 2024) — במספר חלקים של עד 365 יום
+    const startYmd = '20240601';
+    if (s) s.textContent = t('fetchHistory', { n: 1, total: '…' });
+    const data = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
+      if (s) s.textContent = t('fetchHistory', { n: i, total });
+    });
+    ibkrSaveCfg({ lastSync: Date.now(), data });
     const imp = ibkrMapImport(data);
     if (!imp.positions.length) {
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? t('importSkippedNote', { n: imp.skipped }) : ''));
@@ -1486,7 +1583,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v64';
+const APP_VERSION = 'v65';
 
 
 function saveDBto(db) {
