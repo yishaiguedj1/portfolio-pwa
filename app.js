@@ -1486,7 +1486,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v61';
+const APP_VERSION = 'v62';
 
 
 function saveDBto(db) {
@@ -3288,6 +3288,13 @@ function renderPfNote(noBench, srcKind) {
     const cv = document.getElementById('pfChart');
     const dg = cv && cv._pfPaint && cv._pfPaint.diag;
     if (dg && dg.from) txt += ' · ' + t('pfDiag', { t: dg.t, f: dg.f, d: dg.d, from: dg.from, to: dg.to, y: dg.y || '—', w: dg.w || '—' });
+    // דיאגנוסטיקת NAV: האם התקבל Change in NAV מהדוח
+    if (isIbkrMode()) {
+      const d = ibkrCfg().data;
+      const nh = (d && d.navHistory) || [];
+      const nt = (d && d.nav && d.nav.twr !== null && d.nav.twr !== undefined && d.nav.twr !== '') ? d.nav.twr : null;
+      txt += ' · NAV: ' + (nh.length > 0 ? nh.length + ' נק׳' : 'אין') + (nt !== null ? ' (TWR ' + nt + '%)' : '');
+    }
   } catch (e) {}
   p.textContent = txt;
 }
