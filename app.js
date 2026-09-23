@@ -1652,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v83';
+const APP_VERSION = 'v84';
 
 
 function saveDBto(db) {
@@ -2645,11 +2645,12 @@ function ibkrInceptionDate() {
     if (!first || dt < first) first = dt;
   };
   // v82: כולל הפקדות היסטוריות 2023-2024
+  // v83: כולל עסקאות היסטוריות 2023-2024
   for (const c of [...((d.cashTransactions || [])), ...EARLY_DEPOSITS_2023_2024]) {
     if (!c || !ibkrIsDepositTx(c)) continue;
     consider(c.date);
   }
-  for (const t of (d.trades || [])) {
+  for (const t of [...((d.trades || [])), ...EARLY_TRADES_2023_2024]) {
     if (!t || !ibkrIsStockTrade(t)) continue;
     consider(t.date);
   }
@@ -3437,10 +3438,24 @@ const EARLY_DEPOSITS_2023_2024 = [
   { date: '2024-08-29', amount: 1354.32, type: 'Transfer IN', currency: 'USD', description: 'Historical deposit (CSV)' },
 ];
 
+/* v83: עסקאות היסטוריות 2023-2024 שלא בדוח Flex (לפני 2024-09-24).
+   מקור: אותו קובץ CSV. 7 עסקאות (לא כולל 2 חופפות מ-24-25/09/2024 שבדוח).
+   נדרש כדי שהפוזיציות ב-2023 יהיו נכונות בשחזור לאחור. */
+const EARLY_TRADES_2023_2024 = [
+  { symbol: 'BRK B', date: '2023-10-03', qty: 3, price: 343.4923, side: 'BUY', commission: 5, currency: 'USD' },
+  { symbol: 'META', date: '2023-10-03', qty: 2, price: 300.03, side: 'BUY', commission: 5, currency: 'USD' },
+  { symbol: 'VOO', date: '2023-10-03', qty: 6, price: 387.449, side: 'BUY', commission: 5, currency: 'USD' },
+  { symbol: 'HE', date: '2024-04-16', qty: 15, price: 9.16, side: 'BUY', commission: 5, currency: 'USD' },
+  { symbol: 'META', date: '2024-04-29', qty: 1, price: 433.06, side: 'BUY', commission: 5, currency: 'USD' },
+  { symbol: 'IBIT', date: '2024-07-11', qty: 26, price: 32.82, side: 'BUY', commission: 5, currency: 'USD' },
+  { symbol: 'IBIT', date: '2024-07-29', qty: -26, price: 39.245, side: 'SELL', commission: 5, currency: 'USD' },
+];
+
 function ibkrTradesHistory(fromDate) {
   if (!isIbkrMode()) return [];
   const d = ibkrCfg().data;
-  const trades = (d && d.trades) || [];
+  // v83: מוסיף עסקאות היסטוריות 2023-2024 שלא בדוח Flex
+  const trades = [...((d && d.trades) || []), ...EARLY_TRADES_2023_2024];
   if (!trades.length) return [];
   // בדיקת מטמון
   const ck = String(fromDate || 'full');
