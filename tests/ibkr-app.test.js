@@ -38,7 +38,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -168,6 +168,26 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const impCashOnly = T.ibkrMapImport({ positions: [], cashBalances: [{ currency: 'USD', balance: 100 }] });
   ok(impCashOnly.cash && impCashOnly.cash.usd === 100, 'יתרת מזומן בודדת ממופה');
 
+  /* ---------- הפרדה בין משתמש IBKR לידני (v34) ---------- */
+  vm.runInContext('DB.source = undefined;', sandbox);
+  ok(T.isIbkrMode() === false, 'ברירת מחדל: לא מצב IBKR');
+  vm.runInContext('DB.source = "ibkr";', sandbox);
+  ok(T.isIbkrMode() === true, 'אחרי ייבוא מ־IBKR: מצב IBKR פעיל');
+  vm.runInContext('DB.source = "manual";', sandbox);
+  ok(T.isIbkrMode() === false, 'מצב ידני מפורש: לא IBKR');
+
+  vm.runInContext('POSITIONS = [{ sym: "A", shares: 10, avg: 100 }, { sym: "B", shares: 5, avg: 200 }, { sym: "C", shares: 3 }];', sandbox);
+  ok(T.costBasisUSD() === 2000, 'עלות קנייה = סכום avg×shares (10×100 + 5×200, בלי avg מתעלמים)');
+
+  const perf = T.portfolioPerformance(146089, 115944);
+  ok(perf.gl === 146089 - 115944, 'רווח = שווי נוכחי פחות עלות קנייה');
+  ok(Math.abs(perf.yld - (146089 - 115944) / 115944 * 100) < 1e-9, 'תשואה מחושבת מעלות הקנייה');
+  const perfZero = T.portfolioPerformance(146089, 0);
+  ok(perfZero.gl === null && perfZero.yld === null, 'בלי עלות קנייה — אין חישוב (מוצג —)');
+  const perfDemo = T.portfolioPerformance(146089, 332);
+  ok(perfDemo.yld > 40000, 'עם בסיס הפקדות דמו זעיר התשואה מתפוצצת — לכן מתעלמים מהפקדות במצב IBKR');
+  vm.runInContext('DB.source = undefined;', sandbox);
+
   /* ---------- עקביות קבצים ---------- */
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
@@ -176,8 +196,8 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  ok(sw.includes('portfolio-pwa-v33'), 'sw.js בגרסת v33');
-  ok(src.includes("const APP_VERSION = 'v33'"), 'APP_VERSION v33');
+  ok(sw.includes('portfolio-pwa-v34'), 'sw.js בגרסת v34');
+  ok(src.includes("const APP_VERSION = 'v34'"), 'APP_VERSION v34');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
