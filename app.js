@@ -2,7 +2,7 @@
 /* ============================================================
  * תיק ההשקעות — PWA עצמאית
  * נתונים סטטיים: פוזיציות, הפקדות, פנסיה (מהגיליון, 2026-09-22)
- * מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי), דיליי ~15 דקות
+ * מחירים חיים: Yahoo (ראשי) ← CNBC (גיבוי), דיליי ~15 דקות
  * היסטוריה לגרפים: Twelve Data (ראשי; מפתח חינמי נשמר בטלפון) ← Yahoo ← Stooq
  * שער דולר: open.er-api.com / frankfurter
  * ============================================================ */
@@ -267,7 +267,6 @@ function fmtTimeIL(ts) {
   } catch (e) { return '—'; }
 }
 function money(v, cur) { return cur === 'ILS' ? fmtILS(v) : fmtUSD(v); }
-function money2(v, cur) { return cur === 'ILS' ? fmtILS(v) : fmtUSD2(v); }
 
 /* ---------------- נתוני ברירת מחדל — תיק דוגמה פיקטיבי ---------------- */
 /* נשמרים בטלפון (localStorage) וניתנים לעריכה מהאפליקציה. */
@@ -290,7 +289,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 
 
 function saveDBto(db) {
@@ -313,11 +312,6 @@ function loadDB() {
 }
 const DB = loadDB();
 function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); }
-
-/* תיק ריק — תבנית (נשמר לשימוש עתידי) */
-function emptyDb() {
-  return { v: 1, positions: [], deposits: [], pensionFunds: [], pensionDeposits: [], cash: { usd: 0, ils: 0 } };
-}
 
 /* תיק דוגמה — למי שאין לו נתונים: משתמש חדש, אחרי איפוס, או לא מחובר */
 function demoDb() {
@@ -363,7 +357,7 @@ function cashInCur(cur) {
 }
 
 /* ---------------- מקורות נתונים ---------------- */
-/* מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי). היסטוריה ומסחר מורחב: Twelve Data (ראשי) ← Yahoo ← Stooq. */
+/* מחירים חיים: Yahoo (ראשי) ← CNBC (גיבוי). היסטוריה ומסחר מורחב: Twelve Data (ראשי) ← Yahoo ← Stooq. */
 
 const stooqDailyURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=d';
 const stooqIntradayURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=5';
@@ -384,7 +378,7 @@ const state = {
   currency: 'USD',
   quotes: {},       // sym -> quote
   fx: null,         // USDILS
-  source: null,     // מאיזה מקור הגיעו המחירים (Stooq / CNBC)
+  source: null,     // מאיזה מקור הגיעו המחירים (Yahoo / CNBC)
   quotesAt: null,
   stale: false,     // מוצגים נתונים שמורים (אין חיבור)
   hist: {},         // sym -> daily rows
@@ -425,7 +419,7 @@ async function pool(items, n, fn) {
 }
 
 /* ---------------- מקורות מחיר (רשת) ---------------- */
-/* סדר הניסיון: CNBC ← נתונים שמורים בטלפון. */
+/* סדר הניסיון: Yahoo ← CNBC ← נתונים שמורים. */
 
 async function fetchTextTimeout(url, ms) {
   const ctrl = new AbortController();
@@ -453,7 +447,7 @@ function todayISO() {
   return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
 }
 
-/* --- מקור המחירים: CNBC (נבנה מחדש אחרי כל שינוי ברשימת המניות) --- */
+/* --- כתובת CNBC (גיבוי; נבנית מחדש אחרי כל שינוי ברשימת המניות) --- */
 const cnbcURL = () =>
   'https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=' +
   POSITIONS.map((p) => p.sym.toUpperCase()).join('|') +
@@ -484,7 +478,7 @@ function parseCNBCQuotes(json) {
   return out;
 }
 
-async function tryCNBCFx() {
+async function tryFx() {
   const urls = [
     'https://open.er-api.com/v6/latest/USD',
     'https://api.frankfurter.app/latest?from=USD&to=ILS'
@@ -502,7 +496,7 @@ async function tryCNBCFx() {
 async function tryCNBCQuotes() {
   const [json, fx] = await Promise.all([
     fetchJSONTimeout(cnbcURL(), 10000),
-    tryCNBCFx()
+    tryFx()
   ]);
   const q = parseCNBCQuotes(json);
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
@@ -555,23 +549,23 @@ async function tryYahooQuotes() {
   for (const r of results) if (r) q[r.symbol] = r;
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
   if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
-  const fx = await tryCNBCFx();
+  const fx = await tryFx();
   return { quotes: q, fx: fx, source: 'Yahoo' };
 }
 
 async function refreshQuotes() {
   if (!POSITIONS.length) {
-    try { state.fx = await tryCNBCFx(); } catch (e) { /* אין שער */ }
+    try { state.fx = await tryFx(); } catch (e) { /* אין שער */ }
     state.quotes = {};
     state.quotesAt = Date.now();
-    state.source = state.fx ? 'CNBC' : null;
+    state.source = state.fx ? 'שער חליפין' : null;
     state.stale = false;
     setBanner('');
     updateSourceLabel();
     renderAll();
     return;
   }
-  const tries = [tryCNBCQuotes, tryYahooQuotes];
+  const tries = [tryYahooQuotes, tryCNBCQuotes];
   for (const fn of tries) {
     try { applyQuotes(await fn()); renderAll(); return; }
     catch (e) { /* ניסיון הבא */ }
@@ -1848,45 +1842,6 @@ function init() {
     saveDB();
     renderPension();
     flash('הקרנות נשמרו ✓');
-  });
-
-  // גיבוי נתונים — ייצוא וייבוא קובץ JSON
-  document.getElementById('exportDb').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(DB)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'portfolio-backup-' + todayISO() + '.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    flash('הגיבוי יוצא ✓');
-  });
-  document.getElementById('importDb').addEventListener('click', () => {
-    document.getElementById('importDbFile').click();
-  });
-  document.getElementById('importDbFile').addEventListener('change', (e) => {
-    const f = e.target.files[0];
-    e.target.value = '';
-    if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      try {
-        const db = JSON.parse(rd.result);
-        if (!db || !Array.isArray(db.positions) || !Array.isArray(db.deposits)) throw new Error('bad');
-        if (!confirm('לייבא את הגיבוי? כל הנתונים הנוכחיים יוחלפו ולא ניתן לבטל.')) return;
-        const imported = Object.assign({ v: 1 }, db);
-        if (typeof applyDbData === 'function') applyDbData(imported); // מחליף את ה-DB החי במקום
-        else saveDBto(imported);
-        if (window.__cloudFlush) window.__cloudFlush().then(() => location.reload());
-        else location.reload();
-      } catch (err) {
-        const ee = document.getElementById('backupErr');
-        ee.textContent = 'קובץ הגיבוי לא תקין';
-        ee.classList.remove('hidden');
-      }
-    };
-    rd.readAsText(f);
   });
 
   // איפוס נתונים
