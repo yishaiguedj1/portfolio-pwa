@@ -449,7 +449,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 
 
 function saveDBto(db) {
@@ -462,11 +462,14 @@ function loadDB() {
       const db = JSON.parse(raw);
       if (db && db.v === 1 && Array.isArray(db.positions) && Array.isArray(db.deposits)) {
         if (!db.cash) db.cash = { usd: 0, ils: 0 };
+        if (!Array.isArray(db.pensionFunds)) db.pensionFunds = [];
+        ensurePensionKinds(db);
         return db;
       }
     }
   } catch (e) {}
   const db = JSON.parse(JSON.stringify(DEFAULT_DB));
+  ensurePensionKinds(db);
   saveDBto(db);
   return db;
 }
@@ -491,6 +494,7 @@ function applyDbData(data) {
   if (Array.isArray(clean.deposits)) DB.deposits.push(...clean.deposits);
   DB.pensionFunds.length = 0;
   if (Array.isArray(clean.pensionFunds)) DB.pensionFunds.push(...clean.pensionFunds);
+  ensurePensionKinds(DB);
   DB.pensionDeposits.length = 0;
   if (Array.isArray(clean.pensionDeposits)) DB.pensionDeposits.push(...clean.pensionDeposits);
   const c = clean.cash || {};
@@ -1104,6 +1108,31 @@ function fundKindReturn(kind) {
   }
   if (!hasAny || !(dep > 0)) return null;
   return (val / dep - 1) * 100;
+}
+
+/* שיוך סוג אוטומטי לקרנות ישנות לפי השם — רץ בכל טעינה, אבל נוגע
+   רק בקרנות שעוד לא הוגדר להן kind במפורש (לא דורס בחירת משתמש).
+   מנורה = פנסיה; הפניקס/מיטב/״השתלמות״ = קרן השתלמות. */
+function ensurePensionKinds(db) {
+  const funds = (db || DB).pensionFunds || [];
+  let changed = false;
+  for (const f of funds) {
+    if (f.kind === 'pension' || f.kind === 'study') continue;
+    const nm = String(f.name || '');
+    f.kind = /מיטב|פניקס|השתלמות/.test(nm) ? 'study' : 'pension';
+    changed = true;
+  }
+  return changed;
+}
+
+/* הוספת קרן חדשה (פנסיה / השתלמות) — לשימוש עתידי מההגדרות */
+function addPensionFund(name, kind) {
+  const nm = String(name || '').trim();
+  if (!nm) return null;
+  const f = { name: nm, usd: 0, ils: 0, kind: kind === 'study' ? 'study' : 'pension' };
+  DB.pensionFunds.push(f);
+  saveDB();
+  return f;
 }
 
 function renderPfChips() {
@@ -2127,6 +2156,22 @@ function init() {
     saveDB();
     renderPension();
     flash('הקרנות נשמרו ✓');
+  });
+  document.getElementById('pensionFundAdd').addEventListener('click', () => {
+    const errEl = document.getElementById('pfErr');
+    const nameEl = document.getElementById('newFundName');
+    const kindEl = document.getElementById('newFundKind');
+    const f = addPensionFund(nameEl.value, kindEl.value);
+    if (!f) {
+      errEl.textContent = 'הזן שם לקרן החדשה';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+    nameEl.value = '';
+    renderPensionFundEditors();
+    renderPension();
+    flash('הקרן נוספה ✓');
   });
 
   // איפוס נתונים
