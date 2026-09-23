@@ -34,6 +34,20 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
         <button type="button" class="lang-menu-item" data-lang="en" role="menuitemradio">English</button>
       </div>
     </div>
+    <div class="menu-wrap">
+      <button id="menuBtn" class="icon-btn" type="button" data-i18n-aria="menuAria" aria-label="תפריט" aria-haspopup="true" aria-expanded="false"></button>
+      <div id="mainMenu" class="main-menu hidden">
+        <div class="menu-section">
+          <h3 class="menu-title" data-i18n="cashTitle">מזומן בתיק</h3>
+          <div class="form-grid">
+            <label><span data-i18n="cashUsdL">דולרים ($)</span><input id="cashUsd" type="number" min="0" step="any" inputmode="decimal"></label>
+            <label><span data-i18n="cashIlsL">שקלים (₪)</span><input id="cashIls" type="number" min="0" step="any" inputmode="decimal"></label>
+          </div>
+          <div class="form-err hidden" id="cashErr"></div>
+          <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
+        </div>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -281,16 +295,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
         <button id="ibkrDisconnect" class="btn danger-btn" type="button" data-i18n="ibkrDisconnectBtn">ניתוק</button>
       </div>
       <div class="fine" id="ibkrData" style="padding:0"></div>
-    </div>
-
-    <div class="card">
-      <h2 data-i18n="cashTitle">מזומן בתיק</h2>
-      <div class="form-grid">
-        <label><span data-i18n="cashUsdL">דולרים ($)</span><input id="cashUsd" type="number" min="0" step="any" inputmode="decimal"></label>
-        <label><span data-i18n="cashIlsL">שקלים (₪)</span><input id="cashIls" type="number" min="0" step="any" inputmode="decimal"></label>
-      </div>
-      <div class="form-err hidden" id="cashErr"></div>
-      <button id="cashSave" class="btn" type="button" data-i18n="saveCash">שמור מזומן</button>
     </div>
 
     <div class="card danger-card">
