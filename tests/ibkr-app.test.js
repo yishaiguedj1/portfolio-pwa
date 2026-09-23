@@ -19,6 +19,7 @@ function elStub() {
     value: '', textContent: '', innerHTML: '',
     classList: { add() {}, remove() {}, toggle() {} },
     addEventListener() {}, appendChild() {}, dataset: {}, style: {},
+    setAttribute() {},
     disabled: false,
   };
 }
@@ -38,7 +39,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -184,6 +185,36 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(Math.abs(perf.yld - (146089 - 115944) / 115944 * 100) < 1e-9, 'תשואה מחושבת מעלות הקנייה');
   const perfZero = T.portfolioPerformance(146089, 0);
   ok(perfZero.gl === null && perfZero.yld === null, 'בלי עלות קנייה — אין חישוב (מוצג —)');
+
+  /* ---------- צילום ושחזור נתונים ידניים (v42) ---------- */
+  vm.runInContext(`
+    DB.positions.length = 0;
+    DB.positions.push({ sym: 'MAN', shares: 5, avg: 10 });
+    DB.deposits.length = 0;
+    DB.deposits.push({ date: '2024-01-01', amount: -1000, place: 'ידני' });
+    DB.cash = { usd: 50, ils: 60 };
+    delete DB.ibkrSnapshot;
+  `, sandbox);
+  ok(T.ibkrSnapshotManual() === true, 'צילום ידני ראשון נשמר');
+  ok(vm.runInContext('!!DB.ibkrSnapshot', sandbox) === true, 'הצילום קיים ב־DB');
+  // שינוי הנתונים (כאילו יבוא IBKR דרס אותם)
+  vm.runInContext(`
+    DB.positions.length = 0;
+    DB.positions.push({ sym: 'IBKR', shares: 9, avg: 99 });
+    DB.deposits.length = 0;
+    DB.deposits.push({ date: '2026-01-01', amount: -5000, place: 'IBKR' });
+    DB.cash = { usd: 133, ils: 0 };
+  `, sandbox);
+  ok(T.ibkrSnapshotManual() === false, 'צילום שני (סנכרון חוזר) לא דורס את המקור הידני');
+  ok(vm.runInContext('DB.ibkrSnapshot.deposits[0].place', sandbox) === 'ידני',
+    'הצילום שומר את ההפקדה הידנית המקורית');
+  ok(T.ibkrRestoreManual() === true, 'שחזור אחרי ניתוק מחזיר true');
+  ok(vm.runInContext('DB.positions[0].sym', sandbox) === 'MAN', 'מניות ידניות שוחזרו');
+  ok(vm.runInContext('DB.deposits[0].place', sandbox) === 'ידני', 'הפקדות ידניות שוחזרו לטאב');
+  ok(vm.runInContext('DB.cash.usd', sandbox) === 50, 'מזומן ידני שוחזר');
+  ok(vm.runInContext('!!DB.ibkrSnapshot', sandbox) === false, 'הצילום נמחק אחרי השחזור');
+  ok(T.ibkrRestoreManual() === false, 'שחזור בלי צילום מחזיר false');
+
   const perfDemo = T.portfolioPerformance(146089, 332);
   ok(perfDemo.yld > 40000, 'עם בסיס הפקדות דמו זעיר התשואה מתפוצצת — לכן מתעלמים מהפקדות במצב IBKR');
   vm.runInContext('DB.source = undefined;', sandbox);
@@ -264,6 +295,52 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const ver = (src.match(/const APP_VERSION = 'v(\d+)'/) || [])[1];
   ok(!!ver, 'APP_VERSION נמצא ב־app.js');
   ok(sw.includes('portfolio-pwa-v' + ver), 'sw.js תואם ל־APP_VERSION (v' + ver + ')');
+
+
+  /* ---------- שווי לפי הדוח (v43) ---------- */
+  const rptData = {
+    meta: { baseCurrency: 'USD' },
+    positions: [
+      { symbol: 'A', marketValue: 10000, fxToBase: 1 },
+      { symbol: 'B', marketValue: 5000, fxToBase: 1 },
+      { symbol: 'C', marketValue: NaN, fxToBase: 1 },
+    ],
+  };
+  ok(T.ibkrReportTotal(null, null, 3) === null, 'בלי דוח — null');
+  ok(T.ibkrReportTotal({ meta: { baseCurrency: 'USD' }, positions: [] }, null, 3) === null, 'בלי פוזיציות — null');
+  ok(Math.abs(T.ibkrReportTotal(rptData, { usd: 1000, ils: 310 }, 3.1) - (15000 + 1000 + 100)) < 1e-9,
+    'שווי = פוזיציות + מזומן דולרי + שקלי מומר (15000+1000+310/3.1)');
+  const rptILS = { meta: { baseCurrency: 'ILS' }, positions: [{ marketValue: 50000, fxToBase: 1 }] };
+  ok(Math.abs(T.ibkrReportTotal(rptILS, { usd: 100, ils: 200 }, 3.2) - (50000 + 200 + 320)) < 1e-9,
+    'מטבע בסיס שקל: מזומן דולרי מומר (50000+200+100×3.2)');
+
+
+  /* ---------- טאב עסקאות (v44) ---------- */
+  ok(T.fmtTradeMoney(180.5, 'USD') === '$180.50', 'עיצוב דולרי');
+  ok(T.fmtTradeMoney(180.5, 'ILS') === '\u20aa180.50', 'עיצוב שקלי');
+  ok(T.fmtTradeMoney(180.5, 'EUR') === 'EUR 180.50', 'מטבע אחר עם קוד');
+  const rd = T.tradeRowData({ date: '2026-01-05', symbol: 'AAPL', side: 'BUY', qty: 10, price: 180.5, commission: -1, commissionCurrency: 'USD', currency: 'USD' });
+  ok(rd.isBuy === true && rd.qtyTxt === '10' && rd.priceTxt === '$180.50', 'שורת קנייה: כמות ומחיר');
+  ok(rd.totalTxt === '$1,805.00', 'סה״כ = כמות × מחיר');
+  ok(rd.commTxt === '$1.00', 'עמלה בערך מוחלט');
+  const rdS = T.tradeRowData({ date: '2026-02-01', symbol: 'MSFT', side: 'SELL', qty: -5, price: 400, commission: 0, currency: 'USD' });
+  ok(rdS.isBuy === false && rdS.qtyTxt === '5' && rdS.commTxt === null, 'מכירה: כמות מוחלטת, בלי עמלה אפסית');
+  const rdF = T.tradeRowData({ symbol: 'X', side: 'BUY', qty: 1.23456, price: 10, currency: 'USD' });
+  ok(rdF.qtyTxt === '1.2346', 'כמות שברית מעוגלת ל־4 ספרות');
+  // מיון וסינון
+  T.ibkrSaveCfg({ token: 't', queryId: '1', data: { trades: [
+    { symbol: 'A', date: '2026-01-01', side: 'BUY', qty: 1, price: 1, currency: 'USD' },
+    { symbol: '', date: '2026-03-01', side: 'BUY', qty: 1, price: 1, currency: 'USD' },
+    { symbol: 'B', date: '2026-02-01', side: 'SELL', qty: 2, price: 2, currency: 'USD' },
+  ] } });
+  const trs = T.ibkrTrades();
+  ok(trs.length === 2 && trs[0].symbol === 'B' && trs[1].symbol === 'A', 'עסקאות ממוינות מהחדשה לישנה, בלי סימבול ריק');
+  // רינדור: מונה מתעדכן
+  vm.runInContext('DB.source = "ibkr";', sandbox);
+  T.renderTrades();
+  ok(vm.runInContext('document.getElementById("tradeCount").textContent', sandbox) === 2, 'מונה עסקאות בטאב = 2');
+  T.ibkrSaveCfg({ token: '', queryId: '', data: null });
+  vm.runInContext('DB.source = "manual";', sandbox);
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
