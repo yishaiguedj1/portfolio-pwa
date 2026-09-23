@@ -346,7 +346,7 @@ function loadDB() {
   return db;
 }
 const DB = loadDB();
-function saveDB() { saveDBto(DB); }
+function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); }
 
 /* שמות תואמים לקוד הקיים — מצביעים לאותם מערכים; עריכה תמיד במקום (push/splice) */
 let POSITIONS = DB.positions;
@@ -1787,6 +1787,7 @@ function init() {
     if (!v) return;
     try { localStorage.setItem(LS_TDKEY, v); } catch (e) {}
     renderTdKeyStatus();
+    if (window.__cloudSave) window.__cloudSave();
     flash('המפתח נשמר ✓');
     state.hist = {}; state.intra = {};
     warmHistories();
@@ -1867,7 +1868,8 @@ function init() {
         if (!db || !Array.isArray(db.positions) || !Array.isArray(db.deposits)) throw new Error('bad');
         if (!confirm('לייבא את הגיבוי? כל הנתונים הנוכחיים יוחלפו ולא ניתן לבטל.')) return;
         saveDBto(Object.assign({ v: 1 }, db));
-        location.reload();
+        if (window.__cloudFlush) window.__cloudFlush().then(() => location.reload());
+        else location.reload();
       } catch (err) {
         const ee = document.getElementById('backupErr');
         ee.textContent = 'קובץ הגיבוי לא תקין';
@@ -1880,12 +1882,20 @@ function init() {
   // איפוס נתונים
   document.getElementById('resetData').addEventListener('click', () => {
     if (!confirm('לאפס את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) לערכי הגיליון המקוריים?\nכל השינויים שביצעת יימחקו ולא ניתן לבטל.')) return;
-    try { localStorage.removeItem(LS_DB); } catch (e) {}
-    location.reload();
+    const doReset = () => {
+      try { localStorage.removeItem(LS_DB); } catch (e) {}
+      location.reload();
+    };
+    if (window.Cloud && window.Cloud.resetCloud) window.Cloud.resetCloud().then(doReset);
+    else doReset();
   });
 
-  renderAll();
-  refreshQuotes().then(() => warmHistories());
+  const startApp = () => {
+    renderAll();
+    refreshQuotes().then(() => warmHistories());
+  };
+  if (window.Cloud && window.Cloud.boot) window.Cloud.boot(startApp);
+  else startApp();
 }
 
 if (typeof document !== 'undefined') {
