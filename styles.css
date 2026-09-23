@@ -155,6 +155,23 @@ a { color: var(--link); }
 /* v92: כפתור מטבע יחיד */
 .cur-btn { font-size: 22px; font-weight: 800; }
 
+/* v109: תפריט שפה מינימלי בהדר — צמוד לכפתור הגלובוס */
+.lang-wrap { position: relative; flex: none; }
+.lang-menu {
+  position: absolute; top: calc(100% + 8px); inset-inline-end: 0; z-index: 60;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: 14px; padding: 6px; min-width: 132px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.22);
+}
+.lang-menu button {
+  border: 0; background: transparent; color: var(--on-surface);
+  font-size: 15.5px; font-weight: 600; text-align: start;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer;
+}
+.lang-menu button.active { background: var(--surface-2); font-weight: 800; }
+[data-theme="dark"] .lang-menu { background: #1C1C1E; }
+
 /* v106: טור עיגולים (מלמעלה ללמטה) משמאל לבועת המזומן — זה לצד זה, בלי חפיפה */
 .menu-wrap { position: relative; flex: none; }
 .menu-drop {
