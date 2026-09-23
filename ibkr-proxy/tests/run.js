@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const { statementBaseFrom, parseXml, statementToJson } = require('../lib/ibkr');
 const flexStatement = require('../api/flex-statement');
+const flexRequest = require('../api/flex-request');
 
 let n = 0;
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
@@ -104,6 +105,51 @@ function stubFetch(text, status = 200) {
   res = mockRes();
   await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123' } }), res);
   ok(res.payload.status === 'pending', 'תשובה לא מוכרת -> pending');
+
+  /* ---------- נפילה בין שרתי IBKR (אזור ארה"ב/אירופה) ---------- */
+  const SEND_OK_XML = `<FlexQueryResponse><Status>Success</Status><ReferenceCode>RC123</ReferenceCode><Url>https://gdcdyn.interactivebrokers.com/x</Url></FlexQueryResponse>`;
+  const seenHosts = [];
+  global.fetch = async (url) => {
+    const u = String(url);
+    seenHosts.push(u);
+    if (u.startsWith('https://ndcdyn.')) return { status: 403, text: async () => 'denied' };
+    return { status: 200, text: async () => SEND_OK_XML };
+  };
+  res = mockRes();
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  ok(res.payload.ok === true && res.payload.referenceCode === 'RC123', 'נדחה ב-ndcdyn, הצליח ב-gdcdyn');
+  ok(seenHosts.length === 2 && seenHosts[0].startsWith('https://ndcdyn.') && seenHosts[1].startsWith('https://gdcdyn.'),
+    'ניסה את שני ההוסטים לפי הסדר');
+
+  /* ---------- 200 עם שגיאת Flex בהוסט הראשון -> לא מנסה שני ---------- */
+  seenHosts.length = 0;
+  global.fetch = async (url) => {
+    seenHosts.push(String(url));
+    return { status: 200, text: async () => TOKEN_ERR_XML };
+  };
+  res = mockRes();
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  ok(res.payload.ok === false && res.payload.error === 'flex_1018', 'שגיאת Flex לא גוררת fallback');
+  ok(seenHosts.length === 1, 'רק הוסט אחד נקרא');
+
+  /* ---------- שני ההוסטים נכשלים -> שגיאת ההוסט האחרון ---------- */
+  global.fetch = async () => ({ status: 500, text: async () => 'boom' });
+  res = mockRes();
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  ok(res.statusCode === 502 && res.payload.error === 'ibkr_http_500', 'שני הוסטים נכשלים -> 502');
+
+  /* ---------- flex-statement: ההוסט המועדף נדחה, השני מצליח ---------- */
+  const seenStmt = [];
+  global.fetch = async (url) => {
+    const u = String(url);
+    seenStmt.push(u);
+    if (u.startsWith('https://gdcdyn.')) return { status: 403, text: async () => 'denied' };
+    return { status: 200, text: async () => READY_XML };
+  };
+  res = mockRes();
+  await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123', statementUrl: 'https://gdcdyn.interactivebrokers.com/x' } }), res);
+  ok(res.payload.ok === true && res.payload.status === 'ready', 'statement נפל להוסט השני והצליח');
+  ok(seenStmt.length === 2 && seenStmt[1].startsWith('https://ndcdyn.'), 'ההוסט השני נוסה');
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
