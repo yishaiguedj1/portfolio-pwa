@@ -1,4 +1,4 @@
-/* בדיקות פריסה ועיצוב ל־v31: סרגל לשוניות שלא נחתך בקצוות, כותרת לא צפופה,
+/* בדיקות פריסה ועיצוב ל־v32: סרגל לשוניות שלא נחתך בקצוות, כותרת לא צפופה,
    פלטת iOS 26 בשתי הערכות, טון רציני (בלי אימוג'י קישוט), ורינדור he/en × בהיר/כהה/מערכת.
    הרצה: node tests/layout.test.js */
 const assert = require('node:assert/strict');
@@ -125,3 +125,8 @@ for (const key of ['myAccount', 'themeTitle', 'tdKeyTitle', 'ibkrTitle']) {
 T.setLang('he');
 
 console.log('\nכל בדיקות הפריסה עברו: ' + n + ' assertions');
+
+/* ---------- כפתור ניקוי מטמון (v32) ---------- */
+ok(html.includes('id="clearCache"'), 'כפתור clearCache קיים ב־index.html');
+ok(appSrc.includes("getElementById('clearCache')"), 'app.js מחבר מאזין לכפתור clearCache');
+ok(/caches\.delete/.test(appSrc) && /unregister\(\)/.test(appSrc), 'ניקוי המטמון מוחק caches ומבטל רישום SW');
