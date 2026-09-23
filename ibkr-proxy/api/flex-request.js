@@ -22,14 +22,21 @@ module.exports = async (req, res) => {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
   const token = String((body && body.token) || '').trim();
   const queryId = String((body && body.queryId) || '').trim();
+  // דריסת טווח תאריכים (אופציונלי): fd=YYYYMMDD, td=YYYYMMDD — עד 365 יום לבקשה.
+  const fd = String((body && body.fd) || '').trim();
+  const td = String((body && body.td) || '').trim();
   if (!/^\d{6,}$/.test(token) || !/^\d+$/.test(queryId)) {
     return res.status(400).json({ ok: false, error: 'bad_params' });
+  }
+  let dateParams = '';
+  if (/^\d{8}$/.test(fd) && /^\d{8}$/.test(td)) {
+    dateParams = `&fd=${fd}&td=${td}`;
   }
 
   try {
     // מנסה את שרתי IBKR לפי הסדר (ארה"ב ואז אירופה).
     // הנתיב: /Universal/servlet/FlexStatementService.SendRequest (הנתיב השני נחסם ברמת הרשת).
-    const path = `${FLEX_SEND_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3`;
+    const path = `${FLEX_SEND_PATH}?t=${encodeURIComponent(token)}&q=${encodeURIComponent(queryId)}&v=3${dateParams}`;
     let lastFlexErr = null;
     let retried = false;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
