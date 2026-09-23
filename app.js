@@ -69,6 +69,7 @@ he: {
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
   perfTwr: 'תשואה משוקללת־זמן (TWR)',
+  pfDiag: 'דיאגנוסטיקה: {t} עסקאות · {f} תזרימים · {d} דיבידנדים · {from} עד {to}',
   perfXirr: 'תשואה משוקללת־כסף (XIRR)',
   perfRealized: 'רווח ממומש',
   perfUnrealized: 'רווח לא־ממומש',
@@ -389,6 +390,7 @@ en: {
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
   perfTwr: 'Time-Weighted Return (TWR)',
+  pfDiag: 'Diagnostics: {t} trades · {f} flows · {d} dividends · {from} to {to}',
   perfXirr: 'Money-Weighted Return (XIRR)',
   perfRealized: 'Realized P&L',
   perfUnrealized: 'Unrealized P&L',
@@ -1426,7 +1428,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v55';
+const APP_VERSION = 'v56';
 
 
 function saveDBto(db) {
@@ -2822,11 +2824,15 @@ function buildTradesHistory(o) {
     cashAdj[d] = (cashAdj[d] || 0) + (cur === 'USD' ? amt : amt * fxb);
   }
 
-  // הליכה אחורה: מבטלים אירועים ושומרים מצב יומי
+  // הליכה אחורה: מבטלים אירועים ושומרים מצב יומי.
+  // המדידה בדולרים בלבד — כמו ש־IBKR מודד. כל המזומן (USD + שקל) מומר ל־USD
+  // פעם אחת בשער העדכני; המרות מט"ח הן ניטרליות בערך דולרי (למעט ספרד זניח)
+  // ולכן אינן מבוטלות בהליכה אחורה ואינן מוסיפות "מזומן פנטום" לעבר.
   const shares = {};
   for (const p of (o.positions || [])) shares[String(p.sym).toUpperCase()] = Number(p.shares) || 0;
-  let cashUsd = Number((o.cash || {}).usd) || 0;
-  const cashIls = Number((o.cash || {}).ils) || 0;
+  const fxOfNow = o.fxOf || (() => 1);
+  const fxNow = fxOfNow(todayISO()) || 1;
+  let cashUsd = (Number((o.cash || {}).usd) || 0) + (Number((o.cash || {}).ils) || 0) / fxNow;
   const byDate = new Map(); // date -> [{kind:'trade',x} | {kind:'flow',amt} | {kind:'div',amt}]
   const addEv = (d, ev) => {
     if (!byDate.has(d)) byDate.set(d, []);
@@ -2863,13 +2869,11 @@ function buildTradesHistory(o) {
     stateByDate[d] = snap();
   }
 
-  const fxOf = o.fxOf || (() => 1);
   const asc = [...dateSet].sort();
-  const vals = []; // {date, v, f}
+  const vals = []; // {date, v, f} — הכל ב־USD
   for (const d of asc) {
     const st = stateByDate[d];
     if (!st) continue;
-    const fx = fxOf(d) || 1;
     let secUsd = 0;
     for (const sym of Object.keys(st.shares)) {
       const q = st.shares[sym];
@@ -2877,8 +2881,8 @@ function buildTradesHistory(o) {
       const c = closeOnOrBefore((o.hist || {})[sym] || [], d);
       if (c) secUsd += q * c;
     }
-    const v = (secUsd + st.cashUsd) * fx + cashIls;
-    const f = (flows[d] || 0) * fx;
+    const v = secUsd + st.cashUsd;
+    const f = flows[d] || 0;
     vals.push({ date: d, v, f });
   }
   // TWR יומי מצטבר
@@ -3180,6 +3184,11 @@ function renderPfNote(noBench, srcKind) {
   }
   if (srcKind === 'manual') txt += ' · ' + t('pfBenchIbkrOnly');
   else if (noBench) txt += ' · ' + t('pfNoBench');
+  try {
+    const cv = document.getElementById('pfChart');
+    const dg = cv && cv._pfPaint && cv._pfPaint.diag;
+    if (dg && dg.from) txt += ' · ' + t('pfDiag', { t: dg.t, f: dg.f, d: dg.d, from: dg.from, to: dg.to });
+  } catch (e) {}
   p.textContent = txt;
 }
 
@@ -3392,7 +3401,23 @@ async function drawPfChart() {
     renderPfRangeSummary(null);
     return;
   }
-  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind };
+  // דיאגנוסטיקה למצב שחזור־מעסקאות: כמה עסקאות/תזרימים זוהו ומה טווח התאריכים.
+  // עוזר לאמת מול הדוח של IBKR כשהתשואה נראית לא נכונה.
+  let pfDiag = null;
+  if (srcKind === 'trades') {
+    try {
+      const dd = (typeof ibkrCfg === 'function' && ibkrCfg().data) || {};
+      const csh = (dd.cashTransactions || []);
+      pfDiag = {
+        t: (dd.trades || []).filter(ibkrIsStockTrade).length,
+        f: csh.filter(ibkrIsDepositTx).length,
+        d: csh.filter(ibkrIsDividendTx).length,
+        from: pfRows.length ? pfRows[0].date : '',
+        to: pfRows.length ? pfRows[pfRows.length - 1].date : '',
+      };
+    } catch (e) { pfDiag = null; }
+  }
+  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind, diag: pfDiag };
   renderPfBenchToggles(showBench);
   paintPfChart();
 }
@@ -3426,7 +3451,7 @@ function paintPfChart() {
   const pad = (max - min) * 0.08 || 1;
   min -= pad; max += pad;
 
-  const padL = 6, padR = 54, padT = 10, padB = 22;
+  const padL = 6, padR = 54, padT = 10, padB = 36;
   const plotW = w - padL - padR, plotH = h - padT - padB;
   const X = (i) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
@@ -3454,7 +3479,7 @@ function paintPfChart() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   const step = Math.max(1, Math.floor(n / 4));
-  for (let i = 0; i < n; i += step) ctx.fillText(fmtDateIL(pts0[i].date).slice(3), X(i), h - 8);
+  for (let i = 0; i < n; i += step) ctx.fillText(fmtDateIL(pts0[i].date).slice(3), X(i), h - 20);
 
   for (const s of series) {
     ctx.beginPath();
