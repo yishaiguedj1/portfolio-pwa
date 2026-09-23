@@ -61,6 +61,7 @@ he: {
   perfTaxes: 'מסים (ניכוי במקור)',
   perfFees: 'עמלות ועמלות נוספות',
   cantCalc: 'לא ניתן לחשב',
+  ovInReportPeriod: 'בתקופת הדוח',
   pfNoteIbkr: 'שווי אמיתי מ־IBKR (NAV יומי מהדוח), בדולרים.',
   ibkrNavLegend: 'שווי אמיתי (IBKR)',
   tabPension: 'פנסיה',
@@ -344,6 +345,7 @@ en: {
   perfTaxes: 'Taxes (withheld)',
   perfFees: 'Commissions & other fees',
   cantCalc: 'Cannot compute',
+  ovInReportPeriod: 'in the report period',
   pfNoteIbkr: 'Real IBKR value (daily NAV from the report), in USD.',
   ibkrNavLegend: 'Real value (IBKR)',
   tabPension: 'Pension',
@@ -616,6 +618,11 @@ function applyI18n() {
   if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = t('appVersion') + APP_VERSION;
   renderLangToggle();
   try { renderPfNote(); } catch (e) {}
+  try {
+    const gSub = document.getElementById('ovGLSub');
+    if (gSub) gSub.textContent = (typeof isIbkrMode === 'function' && isIbkrMode())
+      ? t('ovInReportPeriod') : t('ovVsNetDeposits');
+  } catch (e) {}
 }
 
 /* שומר שפה, מחיל על הדף ומרנדר מחדש את כל התוכן הדינמי. */
@@ -1306,7 +1313,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v40';
+const APP_VERSION = 'v41';
 
 
 function saveDBto(db) {
@@ -1913,6 +1920,29 @@ function ibkrNavHistory() {
   return Object.keys(byDate).sort().map((dt) => ({ date: dt, value: byDate[dt] }));
 }
 
+/* הפקדות נטו בתקופת הדוח, במטבע הבסיס (חיובי = כסף שנכנס).
+   סימן IBKR מקורי: הפקדה חיובית, משיכה שלילית. */
+function ibkrNetDeposits(data) {
+  let s = 0;
+  for (const c of ((data && data.cashTransactions) || [])) {
+    if (!/deposit|withdraw/i.test(String(c.type || ''))) continue;
+    s += (Number(c.amount) || 0) * (Number(c.fxToBase) || 1);
+  }
+  return s;
+}
+
+/* רווח/הפסד כלכלי בתקופת הדוח — לוגיקת Change in NAV של IBKR:
+   שווי סיום − שווי התחלה − הפקדות נטו. null אם חסר NAV (ואז אסור
+   להציג מספר — ההפקדות בדוח חלקיות ויתנו תוצאה מטעה). */
+function ibkrPeriodGain(data) {
+  const nav = data && data.nav;
+  if (!nav) return null;
+  const s = Number(nav.startingValue), e = Number(nav.endingValue);
+  if (!isFinite(s) || !isFinite(e)) return null;
+  const dep = ibkrNetDeposits(data);
+  return e - s - (isFinite(dep) ? dep : 0);
+}
+
 /* ---------------- DOM ---------------- */
 
 function esc(v) {
@@ -1986,14 +2016,23 @@ function renderOverview() {
   const stockVal = cur === 'ILS' && state.fx ? tot.stockVal * state.fx : tot.stockVal;
   // בסיס החישוב לפי סוג המשתמש (הפקדות מסונכרנות / עלות קנייה / הפקדות ידניות)
   const perf = portfolioPerformance(total, portfolioBasisInCur());
-  const gl = perf.gl, yld = perf.yld;
-
-  const vEl = document.getElementById('ovValue');
-  vEl.textContent = money(total, cur);
-  document.getElementById('ovValueSub').textContent =
-    t('ovBreakdown', { a: money(stockVal, cur), b: money(cashInCur(cur), cur) });
-
   const gEl = document.getElementById('ovGL');
+  const gSub = document.getElementById('ovGLSub');
+  let gl = perf.gl, yld = perf.yld;
+  if (isIbkrMode()) {
+    // במצב IBKR: רווח/הפסד = שווי סיום − שווי התחלה − הפקדות נטו (תקופת הדוח).
+    // בלי NAV מוצג "—": חישוב מול הפקדות חלקיות מהדוח נותן מספר מטעה.
+    const data = ibkrCfg().data;
+    const pg = ibkrPeriodGain(data);
+    if (pg === null || !isFinite(pg)) {
+      gl = null;
+    } else {
+      const base = ibkrBaseCur(data);
+      gl = (cur === 'ILS' && state.fx && base === 'USD') ? pg * state.fx
+        : (cur === 'ILS' ? null : pg);
+    }
+    if (gSub) gSub.textContent = t('ovInReportPeriod');
+  }
   if (gl === null) { gEl.textContent = '—'; }
   else { gEl.textContent = (gl < 0 ? '−' : '+') + money(Math.abs(gl), cur); }
   gEl.className = 'stat-value ' + (gl === null ? '' : gl >= 0 ? 'pos' : 'neg');
