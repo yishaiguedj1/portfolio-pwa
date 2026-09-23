@@ -159,23 +159,28 @@ a { color: var(--link); }
 .menu-wrap { position: relative; flex: none; }
 .menu-drop {
   position: absolute; top: calc(100% + 8px); inset-inline-end: 0; z-index: 60;
-  display: flex; flex-direction: row-reverse; gap: 10px; align-items: flex-start;
-  max-width: calc(100vw - 16px);
+  display: flex; flex-direction: column; gap: 10px; align-items: stretch;
+  width: min(280px, calc(100vw - 16px));
 }
-.menu-circles { display: flex; flex-direction: column; gap: 10px; flex: none; }
-.menu-circles .icon-btn { box-shadow: 0 4px 14px rgba(0,0,0,.20); }
-/* עיגול שפה — טקסט מצב (עב/EN) */
-.lang-circle { font-size: 15px; font-weight: 800; }
+/* v108: כפתורי התפריט — פילים נקיים מתחת לבועת המזומן */
+.menu-settings-btn {
+  width: 100%; justify-content: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,.20);
+}
+/* v108: שורות כרטיס התצוגה בהגדרות */
+.display-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 0;
+}
+.display-label { font-size: 15.5px; font-weight: 600; }
 .main-menu {
-  flex: 1 1 auto; min-width: 0;
-  width: min(280px, calc(100vw - 96px));
+  width: 100%;
   background: var(--surface); border: 1px solid var(--card-border);
   border-radius: 18px; padding: 16px;
   box-shadow: 0 12px 32px rgba(0,0,0,.22);
 }
 /* v105: הבועה אטומה — בלי שקיפות הרקע של מצב כהה */
 [data-theme="dark"] .main-menu { background: #1C1C1E; }
-[data-theme="dark"] .menu-circles .icon-btn { background: #2C2C2E; }
 .menu-title { margin: 0 0 10px; font-size: 16px; font-weight: 800; }
 .main-menu .btn { width: 100%; margin-top: 10px; }
 
