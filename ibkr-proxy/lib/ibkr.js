@@ -196,6 +196,23 @@ function statementToJson(tree) {
       description: x.description || '',
     });
   }
+  /* Transfers: הפקדות/משיכות בין חשבונות (כולל INTERNAL) — נחשבות תזרים.
+     direction=IN → סכום חיובי, OUT → שלילי. */
+  for (const c of findKids(st, 'Transfer')) {
+    const x = c.attrs;
+    const amt = num(x.cashTransfer);
+    if (!isFinite(amt) || amt === 0) continue;
+    const dir = String(x.direction || '').toUpperCase();
+    const signed = dir === 'OUT' ? -Math.abs(amt) : Math.abs(amt);
+    out.cashTransactions.push({
+      date: flexDate(x.dateTime || x.date),
+      amount: signed,
+      currency: x.currency || '',
+      fxToBase: num(x.fxRateToBase) || 1,
+      type: 'Transfer ' + (dir === 'OUT' ? 'OUT' : 'IN'),
+      description: x.description || '',
+    });
+  }
   /* ChangeInNAV: שורה אחת = סיכום תקופה; כמה שורות = פירוט יומי (Level=Detail).
      twr הוא אחוז (12.34 = 12.34%). בריבוי שורות מרכיבים TWR תקופתי. */
   out.navHistory = [];
