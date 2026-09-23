@@ -38,7 +38,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -122,16 +122,43 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(els.ibkrData.textContent.includes('פוזיציות: 2') && els.ibkrData.textContent.includes('עסקאות בדוח: 1'),
     'סיכום נתונים מוצג בכרטיס');
 
+  /* ---------- ibkrMapImport ---------- */
+  const impData = {
+    positions: [
+      { symbol: 'AAPL', asset: 'STK', qty: 10, markPrice: 185, costBasis: 1805, currency: 'USD' },
+      { symbol: 'AAPL 260116C00200000', asset: 'OPT', qty: 2, markPrice: 5, costBasis: 800, currency: 'USD' },
+      { symbol: 'NESN', asset: 'STK', qty: 5, markPrice: 100, costBasis: 480, currency: 'CHF' },
+      { symbol: 'TSLA', asset: 'STK', qty: 0, markPrice: 250, costBasis: 0, currency: 'USD' },
+      { symbol: 'MSFT', qty: 4, markPrice: 400, costBasis: 1500, currency: 'USD' },
+    ],
+    cashBalances: [
+      { currency: 'USD', balance: 1234.567 },
+      { currency: 'ILS', balance: 200 },
+      { currency: 'EUR', balance: 50 },
+    ],
+  };
+  const imp = T.ibkrMapImport(impData);
+  ok(imp.positions.length === 2, 'מייבא רק מניות דולריות עם כמות חיובית');
+  ok(imp.positions[0].sym === 'AAPL' && imp.positions[0].shares === 10, 'סימבול וכמות נשמרים');
+  ok(Math.abs(imp.positions[0].avg - 180.5) < 1e-9, 'מחיר ממוצע = עלות/כמות');
+  ok(imp.positions[1].sym === 'MSFT', 'פוזיציה בלי asset (פרוקסי ישן) מתקבלת');
+  ok(imp.skipped === 3, 'אופציה, מט״ח וכמות אפס מדולגות ונספרות');
+  ok(imp.cash.usd === 1234.57 && imp.cash.ils === 200, 'מזומן $/₪ ממופה ומעוגל');
+  const impEmpty = T.ibkrMapImport({});
+  ok(impEmpty.positions.length === 0 && impEmpty.skipped === 0, 'נתונים ריקים לא שוברים');
+  const impNoCost = T.ibkrMapImport({ positions: [{ symbol: 'NVDA', asset: 'STK', qty: 3, markPrice: 900, costBasis: 0, currency: 'USD' }] });
+  ok(impNoCost.positions[0].avg === 900, 'בלי עלות — נופל למחיר שוק');
+
   /* ---------- עקביות קבצים ---------- */
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSync', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
+  for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSync', 'ibkrImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
     ok(html.includes('id="' + id + '"'), 'index.html מכיל #' + id);
   }
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  ok(sw.includes('portfolio-pwa-v25'), 'sw.js בגרסת v24');
-  ok(src.includes("const APP_VERSION = 'v25'"), 'APP_VERSION v24');
+  ok(sw.includes('portfolio-pwa-v27'), 'sw.js בגרסת v27');
+  ok(src.includes("const APP_VERSION = 'v27'"), 'APP_VERSION v27');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
