@@ -247,6 +247,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stat.wide { text-align: center; }
 .stat-label { font-size: 13.5px; color: var(--on-surface-var); margin-bottom: 6px; }
 .stat-value { font-size: 25px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
+.stat-value, .lg-pct, .pension-total { white-space: nowrap; }
 .stat-value.pos { color: var(--gain); }
 .stat-value.neg { color: var(--loss); }
 .stat-sub { font-size: 13px; color: var(--on-surface-var); margin-top: 6px; }
