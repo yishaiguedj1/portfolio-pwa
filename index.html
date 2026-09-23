@@ -153,6 +153,27 @@
       </div>
     </div>
 
+    <div class="card" id="ibkrCard">
+      <h2>חיבור ברוקר למשיכת מידע 🏦</h2>
+      <p class="fine" style="padding:0">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו, והנתונים הידניים שלך נשארים בדיוק כמו שהם.</p>
+      <div class="fine" id="ibkrStatus" style="padding:0"></div>
+      <div class="form-grid">
+        <label>כתובת השרתון<input id="ibkrProxy" type="text" dir="ltr" autocomplete="off" spellcheck="false" placeholder="https://…vercel.app"></label>
+        <label>Query ID<input id="ibkrQuery" type="text" dir="ltr" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="מ־IBKR"></label>
+      </div>
+      <div class="form-grid">
+        <label>Flex token<input id="ibkrToken" type="password" dir="ltr" autocomplete="off" spellcheck="false" placeholder="Reports ← Flex Web Service"></label>
+      </div>
+      <p class="fine" style="padding:0">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
+      <div class="form-err hidden" id="ibkrErr"></div>
+      <div class="btn-row">
+        <button id="ibkrSaveTest" class="btn" type="button">שמור ובדוק חיבור</button>
+        <button id="ibkrSync" class="btn" type="button">סנכרון עכשיו</button>
+        <button id="ibkrDisconnect" class="btn danger-btn" type="button">ניתוק</button>
+      </div>
+      <div class="fine" id="ibkrData" style="padding:0"></div>
+    </div>
+
     <div class="card">
       <h2>מזומן בתיק</h2>
       <div class="form-grid">
