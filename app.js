@@ -923,13 +923,7 @@ function repairKnownSplits(sym, rows) {
       if (r.date < s.date) { if (r.date >= addDaysISO(s.date, -14)) pre.push(r.close); }
       else if (r.date > s.date) { if (r.date <= addDaysISO(s.date, 14)) post.push(r.close); }
     }
-    // v77: המטא־דאטה נקבע תמיד — העסקאות צריכות אותו גם אם אין מספיק מחירים לאימות.
-    // (NOW 5:1: בלי מטא, עסקאות 2024-2025 לא הומרו → ערך התחלה מנופח פי 5 → תשואה שלילית.)
-    if (pre.length < 3 || post.length < 3) {
-      if (!has) rows.splitsApplied = (rows.splitsApplied ? rows.splitsApplied + ',' : '') + meta;
-      fixed = true;
-      continue;
-    }
+    if (pre.length < 3 || post.length < 3) continue;
     const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
     const obs = avg(pre) / avg(post);
     if (Math.abs(obs - s.ratio) / s.ratio < 0.25) {
@@ -944,6 +938,8 @@ function repairKnownSplits(sym, rows) {
       if (!has) rows.splitsApplied = (rows.splitsApplied ? rows.splitsApplied + ',' : '') + meta;
       fixed = true;
     } else if (Math.abs(obs - 1) < 0.25) {
+      // המחירים כבר מותאמים (Yahoo) — רק מסמנים מטא כדי שהעסקאות יומרו.
+      // (הוכח ב־v70: בלי מטא, עסקאות טרום־ספליט לא מומרות → TWR שגוי.)
       if (!has) rows.splitsApplied = (rows.splitsApplied ? rows.splitsApplied + ',' : '') + meta;
       fixed = true;
     }
@@ -1656,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v77';
+const APP_VERSION = 'v79';
 
 
 function saveDBto(db) {
@@ -3269,10 +3265,10 @@ function buildTradesHistory(o, fromDate) {
   // הסרת פילטר v64 ששבר את טווחי 1Y/3Y (הציגו אותו מספר כמו YTD).
   const allEvDates = [...byDate.keys()].sort();
   const firstEvDate = [...byDate.keys()].sort()[0];
-  // מתחילים מ־1/1 של שנת האירוע הראשון (לא מהאירוע עצמו) — כדי שתהיה נקודת
-  // ייחוס נכונה ל־YTD ולנרמול הטווחים. אחרת ה־YTD מחושב מהאירוע הראשון (למשל 14/1)
-  // במקום מ־1/1, והתשואה שגויה.
-  const firstEv = firstEvDate ? firstEvDate.slice(0, 4) + '-01-01' : todayISO();
+  // v79: אם fromDate סופק (YTD/הקמה) — מתחילים ממנו, לא מ־1/1.
+  // (באג: firstEv='2024-01-01' כלל חודשים פיקטיביים לפני ההקמה ב־2024-09-24.)
+  const firstEv = fromDate ? fromDate.slice(0, 10) :
+    (firstEvDate ? firstEvDate.slice(0, 4) + '-01-01' : todayISO());
   const stateByDate = {}; // date -> {shares:{}, cashUsd}
   const evDates = [...byDate.keys()].sort().reverse(); // חדש -> ישן
   let ei = 0;
@@ -3819,9 +3815,12 @@ async function drawPfChart() {
       loading.textContent = t('loadingHist');
       loading.classList.remove('hidden');
     }
-    // YTD: טוען רק היסטוריות מ־2026 — מהיר יותר
+    // YTD/1Y: טוען רק היסטוריות מהטווח — מהיר יותר (v79: גם 1Y, לא רק YTD)
     const isYtdRange = state.pfRange === 'ytd' && !state.pfCustomFrom;
-    const warmFrom = isYtdRange ? todayISO().slice(0, 4) + '-01-01' : null;
+    const is1yRange = state.pfRange === 'year' && !state.pfCustomFrom;
+    let warmFrom = null;
+    if (isYtdRange) warmFrom = todayISO().slice(0, 4) + '-01-01';
+    else if (is1yRange) { const d = new Date(); d.setFullYear(d.getFullYear() - 1); warmFrom = d.toISOString().slice(0, 10); }
     await warmPfHistories((done, total) => {
       if (loading && my === pfChartToken) loading.textContent = t('loadingHistN', { done, total });
     }, warmFrom); // מהיר: מרוץ מקבילי + מטמון
@@ -3832,14 +3831,20 @@ async function drawPfChart() {
       // YTD: חישוב ייעודי מ־1/1 בלבד — "once and for all", בלי זיהום מ־2024-2025.
       // v76: טווחים ארוכים (3Y/5Y/מקסימום) מתחילים מתאריך ההקמה — לא לפני.
       // (החישוב עצמו מתחיל מההקמה, לא רק החיתוך החזותי — תיקון ל־v75.)
+      // v79: 1Y מתחיל מלפני שנה (יעיל — לא מחשב היסטוריה מיותרת מ־2024).
       const isYtd = state.pfRange === 'ytd' && !state.pfCustomFrom;
       const ytdStart = isYtd ? todayISO().slice(0, 4) + '-01-01' : null;
       let histFrom = ytdStart;
       if (!isYtd && !state.pfCustomFrom) {
         try {
-          const inception = ibkrInceptionDate();
-          // רק לטווחים ארוכים שעלולים להתחיל לפני ההקמה
-          if (inception && ['3y', '5y', 'max'].includes(state.pfRange)) histFrom = inception;
+          if (state.pfRange === 'year') {
+            const d = new Date(); d.setFullYear(d.getFullYear() - 1);
+            histFrom = d.toISOString().slice(0, 10);
+          } else {
+            const inception = ibkrInceptionDate();
+            // רק לטווחים ארוכים שעלולים להתחיל לפני ההקמה
+            if (inception && ['3y', '5y', 'max'].includes(state.pfRange)) histFrom = inception;
+          }
         } catch (e) {}
       }
       const th = ibkrTradesHistory(histFrom);
