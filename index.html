@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#006A4E" id="themeColorMeta">
 <script>
 /* מחיל ערכת נושא (בהיר/כהה) לפני הציור הראשון — מונע הבהוב. */
-try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',d?'#0A0E0C':'#006A4E');})();}catch(e){}
+try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',d?'#000000':'#006A4E');})();}catch(e){}
 </script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -141,7 +141,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
   <!-- הגדרות -->
   <section id="tab-settings" class="tabpage" role="tabpanel">
     <div class="card" id="accountCard">
-      <h2><span data-i18n="myAccount">החשבון שלי</span> 👤</h2>
+      <h2><span data-i18n="myAccount">החשבון שלי</span></h2>
       <div id="accountInfo"><p class="fine" style="padding:0" data-i18n="loading">טוען…</p></div>
       <p class="fine" id="appVersion" style="padding:0"></p>
     </div>
@@ -155,7 +155,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
 
     <div class="card">
-      <h2><span data-i18n="themeTitle">ערכת נושא</span> 🎨</h2>
+      <h2><span data-i18n="themeTitle">ערכת נושא</span></h2>
       <div class="theme-toggle" role="group" data-i18n-aria="themeTitle" aria-label="ערכת נושא">
         <button type="button" id="themeLight" class="theme-opt" data-i18n="themeLight">בהיר</button>
         <button type="button" id="themeSystem" class="theme-opt" data-i18n="themeSystem">מערכת</button>
@@ -164,7 +164,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
 
     <div class="card" id="tdKeyCard">
-      <h2 data-i18n="tdKeyTitle">מפתח נתונים (Twelve Data) 📈</h2>
+      <h2 data-i18n="tdKeyTitle">מפתח נתונים (Twelve Data)</h2>
       <p class="fine" style="padding:0" data-i18n="tdKeyDesc">המפתח מפעיל את הגרפים. נשמר בחשבון שלך בענן (או בטלפון, בלי חשבון).</p>
       <div class="fine" id="tdKeyStatus" style="padding:0"></div>
       <p><a href="https://twelvedata.com/pricing" target="_blank" rel="noopener" data-i18n="tdSignup">להרשמה חינמית ב־Twelve Data</a></p>
@@ -175,7 +175,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
 
     <div class="card" id="ibkrCard">
-      <h2 data-i18n="ibkrTitle">חיבור ברוקר למשיכת מידע 🏦</h2>
+      <h2 data-i18n="ibkrTitle">חיבור ברוקר למשיכת מידע</h2>
       <p class="fine" style="padding:0" data-i18n="ibkrDesc">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).</p>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
       <div class="form-grid">
