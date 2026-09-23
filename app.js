@@ -41,6 +41,13 @@ he: {
   wlExists: '{sym} כבר ברשימה',
   wlAlreadyOwn: '{sym} כבר בתיק שלך — אין צורך לעקוב',
   wlNoPrice: 'אין מחיר עדיין',
+  earnTitle: 'דוחות קרובים 📊',
+  earnToday: 'היום',
+  earnTomorrow: 'מחר',
+  earnInDays: 'בעוד {n} ימים',
+  earnBmo: 'לפני הפתיחה',
+  earnAmc: 'אחרי הסגירה',
+  earnDate: '📊 דוח: {date}',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
   langTitle: 'שפה',
@@ -302,6 +309,13 @@ en: {
   wlExists: '{sym} is already on the list',
   wlAlreadyOwn: '{sym} is already in your portfolio',
   wlNoPrice: 'No price yet',
+  earnTitle: 'Upcoming earnings 📊',
+  earnToday: 'Today',
+  earnTomorrow: 'Tomorrow',
+  earnInDays: 'in {n} days',
+  earnBmo: 'Before open',
+  earnAmc: 'After close',
+  earnDate: '📊 Earnings: {date}',
   tabPension: 'Pension',
   tabSettings: 'Settings',
   langTitle: 'Language',
@@ -735,6 +749,7 @@ async function fetchYahooBars(url, withTime, notes, name) {
    דורש מפתח חינמי — נשמר ב־localStorage בטלפון בלבד, לעולם לא בקוד/בריפו. */
 const LS_TDKEY = 'pwa_tdkey_v1';
 const LS_INTRA = 'pwa_intra_v1_'; // + sym — מטמון תוך־יומי קצר (10 דקות)
+const LS_EARN = 'pwa_earn_v1'; // מטמון דוחות קרובים — 24 שעות
 
 function tdKey() {
   try { return (localStorage.getItem(LS_TDKEY) || '').trim(); } catch (e) { return ''; }
@@ -784,6 +799,55 @@ function tdThrottle() {
   const wait = 8000 - (now - tdLastAt);
   tdLastAt = Math.max(now, tdLastAt + 8000);
   return wait > 0 ? new Promise((r) => setTimeout(r, wait)) : Promise.resolve();
+}
+
+/* מפענח תשובת earnings_calendar של Twelve Data למיפוי sym -> { date, time }.
+   טהור וסובלני לשני מבני תשובה אפשריים (data[] או earnings{}). */
+function parseEarningsCalendar(json) {
+  const out = {};
+  try {
+    let entries = [];
+    if (json && Array.isArray(json.data)) {
+      entries = json.data;
+    } else if (json && json.earnings && typeof json.earnings === 'object') {
+      if (Array.isArray(json.earnings)) entries = json.earnings;
+      else for (const k of Object.keys(json.earnings)) {
+        const arr = json.earnings[k];
+        if (Array.isArray(arr)) entries = entries.concat(arr.map((e) => Object.assign({ symbol: k }, e)));
+      }
+    }
+    const today = todayISO();
+    for (const e of entries) {
+      if (!e || typeof e !== 'object') continue;
+      const sym = String(e.symbol || '').toUpperCase();
+      const date = String(e.date || '').slice(0, 10);
+      if (!sym || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today) continue;
+      if (!out[sym] || date < out[sym].date) out[sym] = { date: date, time: String(e.time || '') };
+    }
+  } catch (err) {}
+  return out;
+}
+
+/* דוחות קרובים — בקשה אחת לכל הסימבולים (40 קרדיטים), מטמון 24 שעות.
+   כישלון שקט: פשוט לא מציגים (לא קריטי כמו מחירים). */
+async function refreshEarnings() {
+  const syms = quoteSymbols();
+  if (!syms.length) return;
+  const cached = lsGet(LS_EARN);
+  const freshDay = cached && cached.at && cached.bySym &&
+    new Date(cached.at).toDateString() === new Date().toDateString();
+  if (freshDay) { state.earnings = cached.bySym; return; }
+  if (!tdKey()) return;
+  await tdThrottle();
+  const url = 'https://api.twelvedata.com/earnings_calendar?symbol=' + encodeURIComponent(syms.join(',')) +
+    '&start_date=' + todayISO() + '&apikey=' + encodeURIComponent(tdKey());
+  try {
+    const json = await fetchJSONTimeout(url, 15000);
+    if (json && (json.status === 'error' || (json.code && json.code >= 400))) return;
+    const bySym = parseEarningsCalendar(json);
+    state.earnings = bySym;
+    lsSet(LS_EARN, { at: Date.now(), bySym: bySym });
+  } catch (e) { /* שקט */ }
 }
 
 /* ניסיון אחד להביא נרות מ־Twelve Data.
@@ -1172,6 +1236,13 @@ function fmtDateIL(iso) { // YYYY-MM-DD -> DD/MM/YYYY
   const p = iso.split('-');
   return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
 }
+
+/* ימים מהיום עד תאריך ISO (שלילי = עבר) */
+function daysUntil(iso) {
+  const t = new Date(todayISO() + 'T00:00:00');
+  const d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+  return Math.round((d - t) / 86400000);
+}
 function fmtTimeIL(ts) {
   try {
     return new Date(ts).toLocaleString('he-IL', {
@@ -1204,7 +1275,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v37';
+const APP_VERSION = 'v38';
 
 
 function saveDBto(db) {
@@ -1312,6 +1383,7 @@ const state = {
   quotesAt: null,
   stale: false,     // מוצגים נתונים שמורים (אין חיבור)
   hist: {},         // sym -> daily rows
+  earnings: {},     // sym -> { date, time } — דוחות קרובים מ־Twelve Data
   intra: {},        // sym -> intraday rows (יום)
   histDbg: {},      // sym -> מה קרה בניסיון להביא היסטוריה (לאבחון)
   open: {},         // sym -> bool (שורה פתוחה)
@@ -1811,7 +1883,39 @@ function renderOverview() {
 
   drawPie();
   drawPfChart();
+  renderEarningsCard();
   try { fitNumbers(); } catch (e) {}
+}
+
+/* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
+function renderEarningsCard() {
+  const card = document.getElementById('earnCard');
+  const list = document.getElementById('earnList');
+  if (!card || !list) return;
+  const names = {};
+  for (const p of POSITIONS) names[p.sym] = p.name || p.sym;
+  for (const w of WISHLIST) if (!names[w.sym]) names[w.sym] = w.sym;
+  const rows = [];
+  for (const sym of Object.keys(state.earnings || {})) {
+    const e = state.earnings[sym];
+    if (!e || !e.date || daysUntil(e.date) < 0) continue;
+    rows.push({ sym: sym, date: e.date, time: e.time || '' });
+  }
+  rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  if (!rows.length) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  list.innerHTML = '';
+  for (const r of rows.slice(0, 12)) {
+    const d = daysUntil(r.date);
+    const when = d === 0 ? t('earnToday') : d === 1 ? t('earnTomorrow') : t('earnInDays', { n: d });
+    const tm = r.time === 'bmo' ? ' · ' + t('earnBmo') : r.time === 'amc' ? ' · ' + t('earnAmc') : '';
+    const li = el('li', 'earn-row');
+    li.innerHTML = '<span class="earn-sym" dir="ltr">' + esc(r.sym) + '</span>' +
+      '<span class="earn-name">' + esc(names[r.sym] || r.sym) + '</span>' +
+      '<span class="earn-when">' + esc(when) + esc(tm) + '</span>' +
+      '<span class="earn-date">' + esc(fmtDateIL(r.date)) + '</span>';
+    list.appendChild(li);
+  }
 }
 
 function drawPie() {
@@ -2294,6 +2398,7 @@ function renderWishlist() {
     const close = num(q.close);
     const prev = num(q.prev);
     const chg = (close > 0 && prev > 0) ? (close - prev) / prev * 100 : null;
+    const er = (state.earnings || {})[w.sym];
     const card = el('div', 'card wl-card');
     card.innerHTML =
       '<div class="wl-top">' +
@@ -2309,7 +2414,10 @@ function renderWishlist() {
       (chg !== null
         ? '<span class="wl-chg ' + (chg >= 0 ? 'pos' : 'neg') + '" dir="ltr">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</span>'
         : '') +
-      '</div>';
+      '</div>' +
+      (er && er.date && daysUntil(er.date) >= 0
+        ? '<div class="wl-earn">' + esc(t('earnDate', { date: fmtDateIL(er.date) })) + '</div>'
+        : '');
     card.querySelector('.wl-del').addEventListener('click', () => wlRemove(w));
     list.appendChild(card);
   }
@@ -3039,6 +3147,8 @@ function init() {
     state.hist = {}; state.intra = {};
     await refreshQuotes();
     await warmHistories();
+    await refreshEarnings();
+    renderOverview(); renderWishlist();
     btn.classList.remove('spinning');
   });
   // שינוי גודל — ציור מחדש של גרפים פתוחים
@@ -3212,6 +3322,7 @@ function init() {
   const startApp = () => {
     renderAll();
     refreshQuotes().then(() => warmHistories());
+    refreshEarnings().then(() => { renderOverview(); renderWishlist(); });
   };
   if (window.Cloud && window.Cloud.boot) window.Cloud.boot(startApp);
   else startApp();
