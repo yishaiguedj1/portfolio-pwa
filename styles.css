@@ -219,6 +219,7 @@ footer.fine { text-align: center; }
 
 /* ---- כרטיס מפתח Twelve Data ---- */
 .tdkey-row { display: flex; gap: 8px; margin-top: 10px; }
+.btn-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .tdkey-row input {
   flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px;
   border: 1px solid var(--outline); border-radius: 10px; background: var(--surface);
