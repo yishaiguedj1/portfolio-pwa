@@ -1139,7 +1139,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v32';
+const APP_VERSION = 'v33';
 
 
 function saveDBto(db) {
@@ -1594,9 +1594,27 @@ function switchTab(name) {
     }
   });
   document.querySelectorAll('.tabpage').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
+  requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} });
 }
 
 /* ---------------- רינדור: סקירה ---------------- */
+
+/* התאמת גודל מספרים גדולים לרוחב הכרטיס — נשארים גדולים ככל האפשר,
+   אבל מתכווצים אוטומטית לפי אורך המספר כדי שאף ספרה לא תיחתך. */
+function fitNumbers() {
+  document.querySelectorAll('.stat-value, .lg-pct, .pension-total').forEach((elm) => {
+    elm.style.fontSize = '';
+    const w = elm.clientWidth;
+    if (!w) return; // לשונית מוסתרת — יימדד כשנפתח
+    let size = parseFloat(getComputedStyle(elm).fontSize) || 25;
+    const min = 13;
+    let guard = 40;
+    while (guard-- > 0 && size > min && elm.scrollWidth > w + 1) {
+      size -= 1;
+      elm.style.fontSize = size + 'px';
+    }
+  });
+}
 
 function renderOverview() {
   const cur = state.currency;
@@ -1627,6 +1645,7 @@ function renderOverview() {
 
   drawPie();
   drawPfChart();
+  try { fitNumbers(); } catch (e) {}
 }
 
 function drawPie() {
@@ -2563,6 +2582,7 @@ function renderPension() {
     ul.appendChild(addLi);
   }
   PENSION_DEPOSITS.forEach((r, i) => ul.appendChild(buildPensionDepositRow(r, i, ed)));
+  try { fitNumbers(); } catch (e) {}
 }
 
 function buildPensionDepositRow(r, i, ed) {
@@ -2923,6 +2943,13 @@ function init() {
       }
     } catch (e) {}
     location.reload();
+  });
+
+  // התאמה מחדש של גודל המספרים כשהמסך מסתובב או משתנה
+  let fitT = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(fitT);
+    fitT = setTimeout(() => { try { fitNumbers(); } catch (e) {} }, 150);
   });
 
   const startApp = () => {
