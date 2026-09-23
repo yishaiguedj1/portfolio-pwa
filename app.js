@@ -289,7 +289,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 
 
 function saveDBto(db) {
@@ -650,8 +650,7 @@ async function getIntraday(sym) {
 }
 
 async function warmHistories() {
-  // SPY = בנצ'מרק S&P 500, QQQ = נאסד"ק 100 (להשוואת ביצועים מותאמת הפקדות)
-  await pool(POSITIONS.map((p) => p.sym).concat(['SPY', 'QQQ']), 3, (sym) => getDaily(sym, false));
+  await pool(POSITIONS.map((p) => p.sym), 3, (sym) => getDaily(sym, false));
   renderStocks();
   renderOverview();
 }
@@ -904,43 +903,6 @@ function fxOnOrBefore(iso) {
   return ans >= 0 ? c.rates[c.dates[ans]] : null;
 }
 
-/* ---------------- בנצ'מרק מותאם הפקדות (בשקלים) ---------------- */
-/* מדמה: כל הפקדה אמיתית קונה את המדד באותו יום, בשער הדולר של אותו יום. */
-function buildIndexBenchmark(sym) {
-  const hist = state.hist[sym] || [];
-  if (!hist.length || !fxHistCache || !fxHistCache.dates.length) return null;
-  const deps = [];
-  for (const d of DEPOSITS) {
-    const amt = -(num(d.amount) || 0); // חיובי = כסף שנכנס
-    if (!amt) continue;
-    deps.push({ date: parseDepDate(d.date), amt: amt });
-  }
-  if (!deps.length) return null;
-  let startD = null;
-  for (const d of deps) if (d.date && (!startD || d.date < startD)) startD = d.date;
-  if (!startD) startD = hist[0].date;
-  for (const d of deps) if (!d.date) d.date = startD; // תאריך לא תקין -> להתחלה
-  deps.sort((a, b) => a.date.localeCompare(b.date));
-  let shares = 0, di = 0, invested = 0;
-  const series = [];
-  for (const row of hist) {
-    if (row.date < startD) continue;
-    while (di < deps.length && deps[di].date <= row.date) {
-      const dep = deps[di++];
-      const fx = fxOnOrBefore(dep.date);
-      const px = closeOnOrBefore(hist, dep.date);
-      if (fx && px && px > 0) shares += (dep.amt / fx) / px; // משיכה מקטינה מניות
-      invested += dep.amt;
-    }
-    if (shares > 0) {
-      const fx = fxOnOrBefore(row.date) || state.fx;
-      if (fx) series.push({ date: row.date, value: shares * row.close * fx });
-    }
-  }
-  if (!series.length || !(invested > 0)) return null;
-  return { series: series, invested: invested, retPct: (series[series.length - 1].value / invested - 1) * 100 };
-}
-
 /* סדרת שווי התיק בשקלים לאורך זמן (אחזקות נוכחיות + מזומן).
    מגבלה ידועה: אין יומן קניות היסטורי, אז מניחים את האחזקות הנוכחיות לאורך כל התקופה. */
 function portfolioSeriesILS() {
@@ -963,13 +925,24 @@ function portfolioSeriesILS() {
   return out;
 }
 
-/* סך תשואת הפנסיה — מספר בודד (אין היסטוריית שווי יומית לקרנות) */
-function pensionReturnPct() {
+/* סך תשואת קרן (פנסיה / השתלמות) — כמו תשואת התיק: שווי נוכחי מול סך הפקדות.
+   תמיד בשקלים (ההפקדות והשווי העיקרי בשקלים). kind: 'pension' | 'study'.
+   רשומות ישנות בלי kind נחשבות פנסיה. */
+function fundKindReturn(kind) {
   const fx = state.fx;
-  let val = 0;
-  for (const f of PENSION_FUNDS) val += (num(f.ils) || 0) + (fx ? (num(f.usd) || 0) * fx : 0);
-  const dep = -PENSION_DEPOSITS.reduce((a, r) => a + (num(r.amount) || 0), 0);
-  if (!(dep > 0)) return null;
+  let val = 0, hasAny = false;
+  for (const f of PENSION_FUNDS) {
+    if ((f.kind || 'pension') !== kind) continue;
+    hasAny = true;
+    val += (num(f.ils) || 0) + (fx ? (num(f.usd) || 0) * fx : 0);
+  }
+  let dep = 0;
+  for (const r of PENSION_DEPOSITS) {
+    if ((r.kind || 'pension') !== kind) continue;
+    hasAny = true;
+    dep += -(num(r.amount) || 0);
+  }
+  if (!hasAny || !(dep > 0)) return null;
   return (val / dep - 1) * 100;
 }
 
@@ -989,7 +962,7 @@ function renderPfChips() {
   }
 }
 
-/* גרף ביצועי התיק מול מדדים — כולם בשקלים, המדדים מותאמי הפקדות */
+/* גרף שווי התיק בשקלים לאורך זמן (לפי האחזקות הנוכחיות — אין יומן קניות היסטורי) */
 let pfChartToken = 0;
 async function drawPfChart() {
   const canvas = document.getElementById('pfChart');
@@ -998,38 +971,22 @@ async function drawPfChart() {
   if (!canvas) return;
   renderPfChips();
   const my = ++pfChartToken;
-  const alive = () => my === pfChartToken;
   if (loading) {
     loading.textContent = tdKey() ? 'טוען נתוני היסטוריה…' : 'הגרף דורש מפתח נתונים (לשונית הגדרות)';
     loading.classList.remove('hidden');
   }
 
   await ensureFxHist();
-  if (!alive()) return;
+  if (my !== pfChartToken) return;
 
-  const pfFull = portfolioSeriesILS();
-  const pf = filterRange(pfFull, state.pfRange);
-  const spyB = buildIndexBenchmark('SPY');
-  const qqqB = buildIndexBenchmark('QQQ');
-  const spy = spyB ? filterRange(spyB.series, state.pfRange) : [];
-  const qqq = qqqB ? filterRange(qqqB.series, state.pfRange) : [];
-  if (!alive()) return;
-
-  // סך תשואה: התיק לפי שווי חי, המדדים לפי סוף הסדרה, הפנסיה כמספר בודד
-  const t = totalsUSD();
-  const totalILS = state.fx ? t.total * state.fx : null;
-  const depILS = netDepositsILS();
-  const pfRet = (totalILS !== null && depILS > 0) ? (totalILS / depILS - 1) * 100 : null;
-  const penRet = pensionReturnPct();
-
+  const pf = filterRange(portfolioSeriesILS(), state.pfRange);
   if (!pf.length) {
     if (loading) { loading.textContent = 'אין נתוני גרף כרגע'; loading.classList.remove('hidden'); }
     if (legend) legend.innerHTML = '';
     return;
   }
   if (loading) loading.classList.add('hidden');
-
-  const pfD = downsample(pf, 300), spyD = downsample(spy, 300), qqqD = downsample(qqq, 300);
+  const pfD = downsample(pf, 300);
 
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 320, h = 210;
@@ -1038,9 +995,8 @@ async function drawPfChart() {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const all = pfD.concat(spyD, qqqD);
   let min = Infinity, max = -Infinity;
-  for (const p of all) { if (p.value < min) min = p.value; if (p.value > max) max = p.value; }
+  for (const p of pfD) { if (p.value < min) min = p.value; if (p.value > max) max = p.value; }
   if (min === max) { min *= 0.99; max *= 1.01; }
   const padL = 6, padR = 46, padT = 10, padB = 22;
   const plotW = w - padL - padR, plotH = h - padT - padB;
@@ -1061,30 +1017,26 @@ async function drawPfChart() {
     ctx.fillText(fmtDateIL(pfD[i].date).slice(3), X(i, pfD.length), h - 8);
   }
 
-  const drawLine = (series, color, width) => {
-    if (series.length < 2) return;
+  if (pfD.length > 1) {
     ctx.beginPath();
-    series.forEach((p, i) => {
-      const x = X(i, series.length), y = Y(p.value);
+    pfD.forEach((p, i) => {
+      const x = X(i, pfD.length), y = Y(p.value);
       if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
     });
-    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
-  };
-  if (spyD.length) drawLine(spyD, '#1A73E8', 1.5);
-  if (qqqD.length) drawLine(qqqD, '#9334E6', 1.5);
-  drawLine(pfD, '#006A4E', 2.5);
+    ctx.strokeStyle = '#006A4E'; ctx.lineWidth = 2.5; ctx.stroke();
+  }
 
   if (legend) {
-    const cls = (v) => v === null ? '' : v >= 0 ? 'pos' : 'neg';
-    const row = (color, name, v, extra) =>
-      '<li><span class="dot" style="background:' + color + '"></span>' +
-      '<span class="lg-name">' + name + (extra || '') + '</span>' +
-      '<span class="lg-pct ' + cls(v) + '">' + (v === null ? '—' : fmtPct(v, true)) + '</span></li>';
+    // סך תשואה — אותה נוסחה כמו במסך הראשי: שווי נוכחי מול סך הפקדות
+    const t = totalsUSD();
+    const totalILS = state.fx ? t.total * state.fx : null;
+    const depILS = netDepositsILS();
+    const ret = (totalILS !== null && depILS > 0) ? (totalILS / depILS - 1) * 100 : null;
+    const cls = ret === null ? '' : ret >= 0 ? 'pos' : 'neg';
     legend.innerHTML =
-      row('#006A4E', 'התיק שלי', pfRet) +
-      (spyB ? row('#1A73E8', 'S&P 500', spyB.retPct) : '') +
-      (qqqB ? row('#9334E6', 'נאסד״ק 100', qqqB.retPct) : '') +
-      row('#F29900', 'פנסיה', penRet, ' <small style="opacity:.6">(סך הכל)</small>');
+      '<li><span class="dot" style="background:#006A4E"></span>' +
+      '<span class="lg-name">התיק שלי</span>' +
+      '<span class="lg-pct ' + cls + '">' + (ret === null ? '—' : fmtPct(ret, true)) + '</span></li>';
   }
 }
 
@@ -1694,6 +1646,21 @@ function renderPension() {
   const ti = PENSION_FUNDS.reduce((a, f) => a + (num(f.ils) || 0), 0);
   document.getElementById('pensionTotal').textContent = money(cur === 'ILS' ? ti : tu, cur);
 
+  // סך תשואה לכל סוג — שווי נוכחי מול סך הפקדות, כמו בתיק
+  const prBox = document.getElementById('pensionReturns');
+  if (prBox) {
+    const hasKind = (k) => PENSION_FUNDS.some((f) => (f.kind || 'pension') === k) ||
+                           PENSION_DEPOSITS.some((r) => (r.kind || 'pension') === k);
+    const cls = (v) => v === null ? '' : v >= 0 ? 'pos' : 'neg';
+    const prow = (name, v) =>
+      '<li><span class="lg-name">' + name + '</span>' +
+      '<span class="lg-pct ' + cls(v) + '">' + (v === null ? '—' : fmtPct(v, true)) + '</span></li>';
+    let phtml = '';
+    if (hasKind('pension')) phtml += prow('תשואת פנסיה (סך הכל)', fundKindReturn('pension'));
+    if (hasKind('study')) phtml += prow('תשואת קרן השתלמות (סך הכל)', fundKindReturn('study'));
+    prBox.innerHTML = phtml;
+  }
+
   const ul = document.getElementById('pensionDeposits');
   ul.innerHTML = '';
   const ed = state.edit.pension;
@@ -1710,8 +1677,10 @@ function renderPension() {
 
 function buildPensionDepositRow(r, i, ed) {
   const li = el('li');
+  const kindTag = (r.kind || 'pension') === 'study'
+    ? ' <span class="r-note">· קרן השתלמות</span>' : '';
   li.innerHTML =
-    '<span><b>' + esc(r.place) + '</b><br><span class="r-date">' + esc(r.period) + '</span>' +
+    '<span><b>' + esc(r.place) + '</b><br><span class="r-date">' + esc(r.period) + '</span>' + kindTag +
     (r.note ? '<br><span class="r-note">' + esc(r.note) + '</span>' : '') + '</span>' +
     '<span class="r-amt out">₪' + Math.abs(r.amount).toLocaleString('en-US') + '</span>';
   if (ed) {
@@ -1731,8 +1700,13 @@ function buildPensionDepositRow(r, i, ed) {
 
 function pensionDepositFormHTML(r, idp) {
   const isOut = r.amount > 0;
+  const kind = r.kind || 'pension';
   return '<div class="form-grid">' +
     '<label>חברה<input id="' + idp + '-place" type="text" value="' + esc(r.place || '') + '"></label>' +
+    '<label>שיוך<select id="' + idp + '-kind">' +
+      '<option value="pension"' + (kind !== 'study' ? ' selected' : '') + '>פנסיה</option>' +
+      '<option value="study"' + (kind === 'study' ? ' selected' : '') + '>קרן השתלמות</option>' +
+    '</select></label>' +
     '<label>תקופה<input id="' + idp + '-period" type="text" dir="ltr" value="' + esc(r.period || '') + '" placeholder="MM/YYYY – MM/YYYY"></label>' +
     '<label>סוג<select id="' + idp + '-type">' +
       '<option value="in"' + (!isOut ? ' selected' : '') + '>הפקדה (כסף נכנס)</option>' +
@@ -1754,7 +1728,8 @@ function readPensionDepositForm(box, idp) {
   const note = box.querySelector('#' + idp + '-note').value.trim();
   if (!place) return { err: 'צריך למלא את שם החברה' };
   if (!(amount > 0)) return { err: 'הסכום חייב להיות חיובי' };
-  return { place: place, period: period, amount: type === 'out' ? Math.abs(amount) : -Math.abs(amount), note: note };
+  const kind = box.querySelector('#' + idp + '-kind');
+  return { place: place, period: period, amount: type === 'out' ? Math.abs(amount) : -Math.abs(amount), note: note, kind: kind ? kind.value : 'pension' };
 }
 
 function showEditPensionDepositForm(li, r, i) {
@@ -1766,7 +1741,7 @@ function showEditPensionDepositForm(li, r, i) {
     const v = readPensionDepositForm(li, idp);
     const errEl = li.querySelector('#' + idp + '-err');
     if (v.err) { errEl.textContent = v.err; errEl.classList.remove('hidden'); return; }
-    PENSION_DEPOSITS[i] = { place: v.place, period: v.period, amount: v.amount, note: v.note };
+    PENSION_DEPOSITS[i] = { place: v.place, period: v.period, amount: v.amount, note: v.note, kind: v.kind || 'pension' };
     saveDB();
     renderPension();
     flash('נשמר ✓');
@@ -1785,7 +1760,7 @@ function showAddPensionDepositForm(ul) {
     const v = readPensionDepositForm(li, 'pa');
     const errEl = li.querySelector('#pa-err');
     if (v.err) { errEl.textContent = v.err; errEl.classList.remove('hidden'); return; }
-    PENSION_DEPOSITS.unshift({ place: v.place, period: v.period, amount: v.amount, note: v.note });
+    PENSION_DEPOSITS.unshift({ place: v.place, period: v.period, amount: v.amount, note: v.note, kind: v.kind || 'pension' });
     saveDB();
     renderPension();
     flash('נוספה ✓');
@@ -1853,6 +1828,10 @@ function renderPensionFundEditors() {
     const d = el('div', 'fund-editor');
     d.innerHTML = '<b>' + esc(f.name) + '</b>' +
       '<div class="form-grid">' +
+      '<label>סוג<select data-fund-kind="' + i + '">' +
+        '<option value="pension"' + ((f.kind || 'pension') !== 'study' ? ' selected' : '') + '>פנסיה</option>' +
+        '<option value="study"' + ((f.kind || 'pension') === 'study' ? ' selected' : '') + '>קרן השתלמות</option>' +
+      '</select></label>' +
       '<label>דולרים ($)<input data-fund="' + i + '" data-cur="usd" type="number" min="0" step="any" inputmode="decimal" value="' + f.usd + '"></label>' +
       '<label>שקלים (₪)<input data-fund="' + i + '" data-cur="ils" type="number" min="0" step="any" inputmode="decimal" value="' + f.ils + '"></label>' +
       '</div>';
@@ -1973,6 +1952,9 @@ function init() {
     }
     errEl.classList.add('hidden');
     for (const [i, c, v] of vals) PENSION_FUNDS[i][c] = v;
+    document.querySelectorAll('#pensionFundEditors select[data-fund-kind]').forEach((sel) => {
+      PENSION_FUNDS[+sel.dataset.fundKind].kind = sel.value;
+    });
     saveDB();
     renderPension();
     flash('הקרנות נשמרו ✓');
