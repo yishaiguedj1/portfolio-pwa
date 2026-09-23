@@ -290,7 +290,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 
 
 function saveDBto(db) {
@@ -1780,7 +1780,10 @@ function init() {
       location.reload();
     });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        // בדיקת עדכון יזומה בכל פתיחה — למקרה שהדפדפן דילג על הבדיקה האוטומטית
+        try { if (reg && reg.update) reg.update().catch(() => {}); } catch (e) {}
+      }).catch(() => {});
     });
   }
 
