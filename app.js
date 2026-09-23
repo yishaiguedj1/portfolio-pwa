@@ -1650,7 +1650,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v73';
+const APP_VERSION = 'v74';
 
 
 function saveDBto(db) {
@@ -2042,8 +2042,13 @@ async function refreshQuotes() {
 function restoreHistRows(sym, cached) {
   const rows = cached.rows;
   if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
-  if (!rows.splitsApplied) { try { repairKnownSplits(sym, rows); } catch (e) {} } // v71: רשת ביטחון
+  // v74: תמיד מריץ תיקון לספליטים ידועים (לא רק כשחסר מטא) — למקרה שהמטא
+  // השמור שגוי (למשל: מסמן "מותאם" כשהמחירים לא הותאמו, או להפך).
+  let repaired = false;
+  try { repaired = repairKnownSplits(sym, rows); } catch (e) {}
   state.hist[sym] = rows;
+  // אם התיקון שינה מחירים — מטמון ה־TWR הישן לא תקף
+  if (repaired) { try { if (typeof ibkrThCacheClear === 'function') ibkrThCacheClear(); } catch (e) {} }
   return rows;
 }
 
@@ -2071,7 +2076,7 @@ async function getDaily(sym, force) {
   }
   const save = (rows) => {
     // v72: רשת ביטחון לספליטים גם בנתיב fetch טרי (כמו ב־_getDailyFastInner)
-    if (rows && !rows.splitsApplied) { try { repairKnownSplits(sym, rows); } catch (e) {} }
+    if (rows) { try { repairKnownSplits(sym, rows); } catch (e) {} } // v74: תמיד, לא רק כשחסר
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
     delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
@@ -2210,7 +2215,7 @@ async function _getDailyFastInner(sym, force) {
     // v72: רשת ביטחון לספליטים גם בנתיב fetch טרי — Yahoo מחזיר מחירים
     // כבר־מותאמים בלי מטא, ובלי המטא buildTradesHistory לא ממיר עסקאות
     // טרום־ספליט (באג שיורי: מקסימום ‎-12%‎ במקום ‎+47.95%‎). אידמפוטנטי.
-    if (rows && !rows.splitsApplied) { try { repairKnownSplits(sym, rows); } catch (e) {} }
+    if (rows) { try { repairKnownSplits(sym, rows); } catch (e) {} } // v74: תמיד, לא רק כשחסר
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
     delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
