@@ -148,6 +148,7 @@ he: {
   pfCustom: 'מותאם אישית',
   pfClearCustom: '✕ נקה',
   pfNoBench: 'אין נתוני מדדים כרגע — מוצג התיק בלבד',
+  pfBenchIbkrOnly: 'השוואת מדדים זמינה בסנכרון IBKR',
   pfFromBtn: '📅 תשואה מתאריך',
   pfMarkOnChart: '📍 סמן בגרף',
   pfPickFromCal: '📅 בחר מהיומן',
@@ -466,6 +467,7 @@ en: {
   pfCustom: 'Custom',
   pfClearCustom: '✕ Clear',
   pfNoBench: 'No benchmark data right now — portfolio only',
+  pfBenchIbkrOnly: 'Benchmark comparison is available with IBKR sync',
   pfFromBtn: '📅 Return from date',
   pfMarkOnChart: '📍 Pick on chart',
   pfPickFromCal: '📅 Choose from calendar',
@@ -1867,17 +1869,26 @@ async function warmHistories() {
   renderOverview();
 }
 
+/* הפרדה בין סוגי משתמשים: השוואת מדדים רק כשההיסטוריה אמיתית מ־IBKR.
+   בהזנה ידנית (סימולציית אחזקות נוכחיות) אין השוואה — רק קו התיק. */
+function pfShowBench(srcKind) {
+  return srcKind === 'ibkr' || srcKind === 'trades';
+}
+
 /* מדדי השוואה דולקים/כבויים — ברירת מחדל: הכל דולק */
 function pfBenchOn(sym) {
   const b = state.pfBench;
   return !b || b[sym] !== false;
 }
 
-/* כפתורי סימון/ביטול למדדי ההשוואה — ממשק נקי בסגנון אפל */
-function renderPfBenchToggles() {
+/* כפתורי סימון/ביטול למדדי ההשוואה — ממשק נקי בסגנון אפל.
+   מוצגים רק כשיש היסטוריה אמיתית מ־IBKR; בהזנה ידנית אין השוואה. */
+function renderPfBenchToggles(show) {
   const host = document.getElementById('pfBenchToggles');
   if (!host) return;
   host.innerHTML = '';
+  host.classList.toggle('hidden', !show);
+  if (!show) return;
   for (const [sym, labelKey, color] of BENCH_SYMS) {
     const on = pfBenchOn(sym);
     const b = el('button', 'pf-bench-toggle' + (on ? ' on' : ''));
@@ -1886,13 +1897,13 @@ function renderPfBenchToggles() {
     const dot = el('span', 'pf-bench-dot');
     dot.style.background = color;
     b.appendChild(dot);
-    b.appendChild(document.createTextNode(t(labelKey)));
+    b.appendChild(el('span', 'pf-bench-lbl', t(labelKey)));
     const chk = el('span', 'pf-bench-check', on ? '✓' : '');
     b.appendChild(chk);
     b.addEventListener('click', () => {
       if (!state.pfBench) state.pfBench = {};
       state.pfBench[sym] = !pfBenchOn(sym);
-      renderPfBenchToggles();
+      renderPfBenchToggles(true);
       paintPfChart(); // סינכרוני — מיידי, בלי רשת
     });
     host.appendChild(b);
@@ -3065,7 +3076,8 @@ function renderPfNote(noBench, srcKind) {
     const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
     txt = ibkrPts.length >= 2 ? t('pfNoteIbkr') : t('pfNote');
   }
-  if (noBench) txt += ' · ' + t('pfNoBench');
+  if (srcKind === 'manual') txt += ' · ' + t('pfBenchIbkrOnly');
+  else if (noBench) txt += ' · ' + t('pfNoBench');
   p.textContent = txt;
 }
 
@@ -3222,6 +3234,10 @@ async function drawPfChart() {
     }
   }
 
+  // הפרדה בין סוגי משתמשים: השוואת מדדים רק כשההיסטוריה אמיתית מ־IBKR.
+  // בהזנה ידנית (סימולציית אחזקות נוכחיות) אין השוואה — רק קו התיק.
+  const showBench = pfShowBench(srcKind);
+
   let pfRows;
   if (state.pfCustomFrom) {
     pfRows = sliceFromDate(allRows, state.pfCustomFrom);
@@ -3235,12 +3251,14 @@ async function drawPfChart() {
     canvas._pfPaint = null;
     renderPfNote(true, srcKind);
     renderPfRangeSummary(null);
+    renderPfBenchToggles(false);
     return;
   }
 
-  // בנצ'מרקים מיושרים לתאריכי התיק
-  if (loading) { loading.textContent = t('loadingData'); loading.classList.remove('hidden'); }
+  // בנצ'מרקים מיושרים לתאריכי התיק — רק לנתוני IBKR אמיתיים
   const benchSeries = [];
+  if (showBench) {
+  if (loading) { loading.textContent = t('loadingData'); loading.classList.remove('hidden'); }
   try {
     const hists = await Promise.all(BENCH_SYMS.map(([s]) => getBenchHist(s)));
     if (my !== pfChartToken) return;
@@ -3258,6 +3276,7 @@ async function drawPfChart() {
       if (okB && rows.length >= 2) benchSeries.push({ name: t(labelKey), color, rows, sym });
     });
   } catch (e) { /* בלי מדדים — התיק בלבד */ }
+  } // showBench
   if (loading) loading.classList.add('hidden');
 
   const allSeries = [
@@ -3276,7 +3295,7 @@ async function drawPfChart() {
     return;
   }
   canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind };
-  renderPfBenchToggles();
+  renderPfBenchToggles(showBench);
   paintPfChart();
 }
 
