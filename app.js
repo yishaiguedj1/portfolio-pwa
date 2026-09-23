@@ -1586,7 +1586,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v69';
+const APP_VERSION = 'v70';
 
 
 function saveDBto(db) {
@@ -1674,7 +1674,7 @@ const yahooURL = (sym, params, host) =>
 const yahooQuoteURL = (sym) => yahooURL(sym, 'interval=1m&range=1d&includePrePost=true');
 
 const LS_QUOTES = 'pwa_quotes_v2'; // v2: ניקוי מטמון ישן שסומן כ־Stooq
-const LS_HIST = 'pwa_hist_v1_'; // + sym
+const LS_HIST = 'pwa_hist_v2_'; // + sym — v2: שומר מטא־ספליטים (תיקון באג מטמון v70)
 
 /* צבעי תרשים העוגה — נגזרים מטוקני פלטת iOS 26 החיים, כך שהם מתחלפים
    אוטומטית בין ערכת בהיר לכהה (בטסטים: fallback של ערכת בהיר). */
@@ -1982,15 +1982,18 @@ async function getDaily(sym, force) {
       // v69: מטמון 24 שעות (כמו getDailyFast) — עקבי
       const ageMs = Date.now() - (Number(cached.at) || 0);
       if (ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000) {
-        state.hist[sym] = cached.rows;
-        return cached.rows;
+        const rows = cached.rows;
+        if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
+        state.hist[sym] = rows;
+        return rows;
       }
     }
   }
   const save = (rows) => {
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
-    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows });
+    // v70: שומרים מטא־ספליטים בנפרד — תכונה מותאמת על מערך לא שורדת JSON
+    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
     return rows;
   };
   const notes = [];
@@ -2008,7 +2011,12 @@ async function getDaily(sym, force) {
   } catch (e) { notes.push('Stooq: ' + netErrName(e)); }
   state.histDbg[sym] = notes.join(' · ');
   const cached = lsGet(LS_HIST + sym);
-  if (cached && cached.rows) { state.hist[sym] = cached.rows; return cached.rows; }
+  if (cached && cached.rows) {
+    const rows = cached.rows;
+    if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
+    state.hist[sym] = rows;
+    return rows;
+  }
   return [];
 }
 
@@ -2100,15 +2108,18 @@ async function _getDailyFastInner(sym, force) {
       // אחרי שעות, בלי רשת. נתוני סוף־יום לא משתנים תוך 24 שעות ברוב המקרים.
       const ageMs = Date.now() - (Number(cached.at) || 0);
       if (ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000) {
-        state.hist[sym] = cached.rows;
-        return cached.rows;
+        const rows = cached.rows;
+        if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
+        state.hist[sym] = rows;
+        return rows;
       }
     }
   }
   const save = (rows) => {
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
-    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows });
+    // v70: שומרים מטא־ספליטים בנפרד — תכונה מותאמת על מערך לא שורדת JSON
+    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
     // v69: היסטוריה חדשה = TWR חדש — מנקים מטמון
     try { if (typeof ibkrThCacheClear === 'function') ibkrThCacheClear(); } catch (e) {}
     return rows;
@@ -2145,7 +2156,12 @@ async function _getDailyFastInner(sym, force) {
   }
   state.histDbg[sym] = notes.join(' · ');
   const cached = lsGet(LS_HIST + sym);
-  if (cached && cached.rows) { state.hist[sym] = cached.rows; return cached.rows; }
+  if (cached && cached.rows) {
+    const rows = cached.rows;
+    if (cached.splits) rows.splitsApplied = cached.splits; // v70: שחזור מטא־ספליטים
+    state.hist[sym] = rows;
+    return rows;
+  }
   return [];
 }
 
