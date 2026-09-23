@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title data-i18n="appTitle">תיק ההשקעות</title>
 <meta name="description" content="דשבורד תיק ההשקעות — מחירים חיים, הפקדות, פנסיה. אפליקציית ווב להתקנה.">
-<meta name="theme-color" content="#006A4E">
+<meta name="theme-color" content="#006A4E" id="themeColorMeta">
+<script>
+/* מחיל ערכת נושא (בהיר/כהה) לפני הציור הראשון — מונע הבהוב. */
+try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',d?'#0A0E0C':'#006A4E');})();}catch(e){}
+</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -147,6 +151,15 @@
       <div class="lang-toggle" role="group" aria-label="Language">
         <button type="button" id="langHe" class="lang-opt">עברית</button>
         <button type="button" id="langEn" class="lang-opt">English</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span data-i18n="themeTitle">ערכת נושא</span> 🎨</h2>
+      <div class="theme-toggle" role="group" data-i18n-aria="themeTitle" aria-label="ערכת נושא">
+        <button type="button" id="themeLight" class="theme-opt" data-i18n="themeLight">בהיר</button>
+        <button type="button" id="themeSystem" class="theme-opt" data-i18n="themeSystem">מערכת</button>
+        <button type="button" id="themeDark" class="theme-opt" data-i18n="themeDark">כהה</button>
       </div>
     </div>
 
