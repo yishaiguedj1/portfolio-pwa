@@ -125,7 +125,6 @@ he: {
   clearMeasure: 'ניקוי מדידה',
   loadingData: 'טוען נתונים…',
   loadingHist: 'טוען נתוני היסטוריה…',
-  chartNeedsKey: 'הגרף דורש מפתח נתונים (לשונית הגדרות)',
   noChartData: 'לא התקבלו נתוני גרף',
   noChartNow: 'אין נתוני גרף כרגע',
   noPriceYet: 'אין נתוני מחיר עדיין',
@@ -145,15 +144,17 @@ he: {
   rangeMax: 'מקסימום',
   benchSP: 'S&P 500',
   benchNasdaq: 'Nasdaq 100',
-  pfFromDate: 'מתאריך:',
-  pfPickDate: '📍 בחירה מהגרף',
-  pfPickHint: 'געו בנקודה על הגרף כדי לבחור תאריך התחלה',
   pfConfirmFrom: 'לקבוע את {date} כהתחלה?',
   pfCustom: 'מותאם אישית',
   pfClearCustom: '✕ נקה',
-  pfMeasure: '📏 מדידה',
-  pfMeasureHint: 'מדידה: געו בשתי נקודות על הגרף — התשואה ביניהן תוצג לכל קו',
   pfNoBench: 'אין נתוני מדדים כרגע — מוצג התיק בלבד',
+  pfFromBtn: '📅 תשואה מתאריך',
+  pfMarkOnChart: '📍 סמן בגרף',
+  pfPickFromCal: '📅 בחר מהיומן',
+  pfCalTitle: 'בחר תאריך התחלה',
+  pfPickBubble: 'געו בנקודה על הגרף לבחירת תאריך ההתחלה',
+  pfRangeReturn: 'תשואת התיק',
+  pfNoteTrades: 'היסטוריה אמיתית — משוחזרת מעסקאות IBKR: קניות, מכירות והפקדות/משיכות מנוטרלות מהתשואה',
 
   sourceLabel: 'מקור: {src} · דיליי ~15 דקות{sess}{stale}',
   sessionPre: ' · טרום־מסחר',
@@ -188,6 +189,7 @@ he: {
   phOptional: 'אופציונלי',
   btnSave: 'שמור',
   btnCancel: 'ביטול',
+  btnOk: 'אישור',
   saved: 'נשמר ✓',
   newDeposit: 'הפקדה חדשה',
   depositAdded: 'ההפקדה נוספה ✓',
@@ -441,7 +443,6 @@ en: {
   clearMeasure: 'Clear measurement',
   loadingData: 'Loading data…',
   loadingHist: 'Loading history data…',
-  chartNeedsKey: 'Chart needs a data key (Settings tab)',
   noChartData: 'No chart data received',
   noChartNow: 'No chart data right now',
   noPriceYet: 'No price data yet',
@@ -461,15 +462,17 @@ en: {
   rangeMax: 'Max',
   benchSP: 'S&P 500',
   benchNasdaq: 'Nasdaq 100',
-  pfFromDate: 'From:',
-  pfPickDate: '📍 Pick from chart',
-  pfPickHint: 'Tap a point on the chart to pick the start date',
   pfConfirmFrom: 'Set {date} as the start?',
   pfCustom: 'Custom',
   pfClearCustom: '✕ Clear',
-  pfMeasure: '📏 Measure',
-  pfMeasureHint: 'Measure: tap two points on the chart — the return between them shows for each line',
   pfNoBench: 'No benchmark data right now — portfolio only',
+  pfFromBtn: '📅 Return from date',
+  pfMarkOnChart: '📍 Pick on chart',
+  pfPickFromCal: '📅 Choose from calendar',
+  pfCalTitle: 'Choose start date',
+  pfPickBubble: 'Tap a point on the chart to choose the start date',
+  pfRangeReturn: 'Portfolio return',
+  pfNoteTrades: 'True history — reconstructed from IBKR trades: buys, sells and deposits/withdrawals excluded from the return',
 
   sourceLabel: 'Source: {src} · ~15 min delay{sess}{stale}',
   sessionPre: ' · pre-market',
@@ -504,6 +507,7 @@ en: {
   phOptional: 'Optional',
   btnSave: 'Save',
   btnCancel: 'Cancel',
+  btnOk: 'OK',
   saved: 'Saved ✓',
   newDeposit: 'New deposit',
   depositAdded: 'Deposit added ✓',
@@ -1418,7 +1422,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v47';
+const APP_VERSION = 'v48';
 
 
 function saveDBto(db) {
@@ -1534,9 +1538,10 @@ const state = {
   range: {},        // sym -> 'day'|'week'|'month'|'ytd'|'year'|'5y'|'max'
   measure: {},      // sym -> { on, pts:[idxA, idxB] }
   pfRange: 'year',    // טווח גרף ביצועי התיק
+  pfBench: null,      // {SPY:true, QQQ:true} — נטען/נשמר, ברירת מחדל: הכל דולק
   pfCustomFrom: null, // תאריך התחלה מותאם (YYYY-MM-DD) — דורס את pfRange
   pfPickDate: false,  // מצב בחירת תאריך התחלה בלחיצה על הגרף
-  pfMeasure: { on: false, pts: [] }, // מדידה בין שתי נקודות על גרף התיק
+  pfMeasure: { pts: [] }, // מדידה בין שתי נקודות על גרף התיק — מובנית בגרף
   edit: { stocks: false, deposits: false, pension: false },  // מצב עריכה (מוגן מטעויות)
   lang: getLang()   // 'he' | 'en' — נשמר ברמת המכשיר בלבד (pwa_lang_v1)
 };
@@ -1860,6 +1865,85 @@ async function warmHistories() {
   await pool(POSITIONS.map((p) => p.sym), 3, (sym) => getDaily(sym, false));
   renderStocks();
   renderOverview();
+}
+
+/* מדדי השוואה דולקים/כבויים — ברירת מחדל: הכל דולק */
+function pfBenchOn(sym) {
+  const b = state.pfBench;
+  return !b || b[sym] !== false;
+}
+
+/* כפתורי סימון/ביטול למדדי ההשוואה — ממשק נקי בסגנון אפל */
+function renderPfBenchToggles() {
+  const host = document.getElementById('pfBenchToggles');
+  if (!host) return;
+  host.innerHTML = '';
+  for (const [sym, labelKey, color] of BENCH_SYMS) {
+    const on = pfBenchOn(sym);
+    const b = el('button', 'pf-bench-toggle' + (on ? ' on' : ''));
+    b.type = 'button';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const dot = el('span', 'pf-bench-dot');
+    dot.style.background = color;
+    b.appendChild(dot);
+    b.appendChild(document.createTextNode(t(labelKey)));
+    const chk = el('span', 'pf-bench-check', on ? '✓' : '');
+    b.appendChild(chk);
+    b.addEventListener('click', () => {
+      if (!state.pfBench) state.pfBench = {};
+      state.pfBench[sym] = !pfBenchOn(sym);
+      renderPfBenchToggles();
+      paintPfChart(); // סינכרוני — מיידי, בלי רשת
+    });
+    host.appendChild(b);
+  }
+}
+
+/* היסטוריה יומית מהירה לגרף הביצועים: Yahoo תחילה (מקבילי, בלי מפתח ובלי
+   המתנה של 8 שניות), אחר כך Twelve Data, אחר כך Stooq. אותו מטמון ואותו
+   פורמט שורות כמו getDaily — כך ששניהם חולקים נתונים. */
+async function getDailyFast(sym, force) {
+  if (!force) {
+    if (state.hist[sym]) return state.hist[sym];
+    const cached = lsGet(LS_HIST + sym);
+    if (cached && cached.rows && cached.rows.length) {
+      const dayOld = new Date(cached.at).toDateString() !== new Date().toDateString();
+      if (!dayOld) { state.hist[sym] = cached.rows; return cached.rows; }
+    }
+  }
+  const save = (rows) => {
+    state.hist[sym] = rows;
+    state.histDbg[sym] = null;
+    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows });
+    return rows;
+  };
+  const notes = [];
+  const dq = (host) => yahooURL(sym, 'interval=1d&range=5y', host);
+  let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
+          || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
+  if (rows) return save(rows);
+  if (tdKey()) {
+    const td = await fetchTwelveBars(sym, 'daily', false, notes);
+    if (td === 'BADKEY') clearTdKey(notes);
+    else if (td) return save(td);
+  }
+  try {
+    rows = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 12000));
+    if (rows.length) return save(rows);
+    notes.push(t('srcEmpty', { name: 'Stooq' }));
+  } catch (e) { notes.push('Stooq: ' + netErrName(e)); }
+  state.histDbg[sym] = notes.join(' · ');
+  const cached = lsGet(LS_HIST + sym);
+  if (cached && cached.rows) { state.hist[sym] = cached.rows; return cached.rows; }
+  return [];
+}
+
+/* מחמם את ההיסטוריות של כל האחזקות לטובת גרף הביצועים — במקביל (3 בכל פעם)
+   ובסדר מהיר, כדי שהגרף ייטען תוך שניות ולא דקות. */
+async function warmPfHistories() {
+  const syms = [];
+  for (const p of POSITIONS) if (p.sym && !syms.includes(p.sym)) syms.push(p.sym);
+  await pool(syms, 3, (sym) => getDailyFast(sym, false));
 }
 
 /* ---------------- חישובים ---------------- */
@@ -2590,6 +2674,135 @@ function portfolioSeriesILS() {
   return out;
 }
 
+/* היסטוריה אמיתית של שווי התיק — שחזור לאחור מעסקאות IBKR.
+   הולכים מהיום אחורה: מבטלים קניות/מכירות והפקדות/משיכות, ובכל יום מחשבים
+   שווי ניירות + מזומן. התשואה היא TWR יומי — הפקדות ומשיכות חיצוניות
+   מנוטרלות, כך שהן לא נראות כרווח/הפסד. דיבידנדים, ריבית ועמלות נשארים
+   בתוך התשואה (כמו אצל IBKR).
+   o: { trades:[{date,symbol,side,qty,price,commission,currency,fxToBase}],
+        cashTx:[{date,amount,currency,fxToBase,type,description}],
+        positions:[{sym,shares}], cash:{usd,ils},
+        hist:{sym:[{date,close}]}, fxOf:(iso)=>rate }
+   מחזיר [{date, value}] עולה, value = מדד TWR (100 = תחילת הנתונים). */
+function buildTradesHistory(o) {
+  const trades = (o.trades || [])
+    .filter((x) => x && x.symbol && x.date)
+    .map((x) => ({
+      date: String(x.date).slice(0, 10),
+      sym: String(x.symbol).toUpperCase(),
+      buy: String(x.side || '').toUpperCase() === 'BUY',
+      qty: Math.abs(Number(x.qty) || 0),
+      price: Number(x.price) || 0,
+      comm: Math.abs(Number(x.commission) || 0),
+      fxb: Number(x.fxToBase) || 1,
+    }))
+    .filter((x) => x.qty > 0 && x.date >= '2000-01-01')
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  if (!trades.length) return [];
+
+  // תזרימי מזומן חיצוניים (הפקדות/משיכות בלבד) — בחתימת IBKR: חיובי = נכנס
+  const flows = {}; // date -> סכום ב־USD
+  for (const c of (o.cashTx || [])) {
+    if (!c || !ibkrIsDepositTx(c)) continue;
+    const d = String(c.date || '').slice(0, 10);
+    const amt = Number(c.amount) || 0;
+    if (!d || !amt) continue;
+    const fxb = Number(c.fxToBase) || 1;
+    const cur = String(c.currency || 'USD').toUpperCase();
+    const usd = cur === 'USD' ? amt : amt * fxb;
+    flows[d] = (flows[d] || 0) + usd;
+  }
+
+  // הליכה אחורה: מבטלים אירועים ושומרים מצב יומי
+  const shares = {};
+  for (const p of (o.positions || [])) shares[String(p.sym).toUpperCase()] = Number(p.shares) || 0;
+  let cashUsd = Number((o.cash || {}).usd) || 0;
+  const cashIls = Number((o.cash || {}).ils) || 0;
+  const byDate = new Map(); // date -> [{kind:'trade',x} | {kind:'flow',amt}]
+  const addEv = (d, ev) => {
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d).push(ev);
+  };
+  for (const x of trades) addEv(x.date, { kind: 'trade', x });
+  for (const d of Object.keys(flows)) addEv(d, { kind: 'flow', amt: flows[d] });
+  const firstEv = [...byDate.keys()].sort()[0];
+  const stateByDate = {}; // date -> {shares:{}, cashUsd}
+  const evDates = [...byDate.keys()].sort().reverse(); // חדש -> ישן
+  let ei = 0;
+  const snap = () => ({ shares: Object.assign({}, shares), cashUsd });
+  // כל התאריכים הרלוונטיים: ימי מסחר מההיסטוריה + תאריכי עסקאות, מהאירוע הראשון והלאה
+  const dateSet = new Set();
+  for (const sym of Object.keys(o.hist || {})) for (const r of (o.hist[sym] || [])) {
+    if (r.date >= firstEv) dateSet.add(r.date);
+  }
+  for (const d of byDate.keys()) dateSet.add(d);
+  const allDates = [...dateSet].sort().reverse(); // חדש -> ישן
+  for (const d of allDates) {
+    while (ei < evDates.length && evDates[ei] > d) {
+      for (const e of byDate.get(evDates[ei])) {
+        if (e.kind === 'flow') { cashUsd -= e.amt; continue; } // הפקדה: קודם היה פחות מזומן
+        const x = e.x;
+        const usd = x.qty * x.price * x.fxb + x.comm * x.fxb;
+        if (x.buy) { shares[x.sym] = (shares[x.sym] || 0) - x.qty; cashUsd += usd; }
+        else { shares[x.sym] = (shares[x.sym] || 0) + x.qty; cashUsd -= (x.qty * x.price * x.fxb - x.comm * x.fxb); }
+      }
+      ei++;
+    }
+    // אירועי היום עצמו שייכים לסוף היום — מבטלים רק מה שעבר אותו
+    stateByDate[d] = snap();
+  }
+
+  const fxOf = o.fxOf || (() => 1);
+  const asc = [...dateSet].sort();
+  const vals = []; // {date, v, f}
+  for (const d of asc) {
+    const st = stateByDate[d];
+    if (!st) continue;
+    const fx = fxOf(d) || 1;
+    let secUsd = 0;
+    for (const sym of Object.keys(st.shares)) {
+      const q = st.shares[sym];
+      if (!(q > 0)) continue;
+      const c = closeOnOrBefore((o.hist || {})[sym] || [], d);
+      if (c) secUsd += q * c;
+    }
+    const v = (secUsd + st.cashUsd) * fx + cashIls;
+    const f = (flows[d] || 0) * fx;
+    vals.push({ date: d, v, f });
+  }
+  // TWR יומי מצטבר
+  const out = [];
+  let cum = 100, prev = null;
+  for (const r of vals) {
+    if (prev === null || !(prev > 0)) { prev = r.v; continue; }
+    const den = prev;
+    const num = r.v - r.f;
+    if (den > 0 && isFinite(num) && isFinite(den)) {
+      const k = num / den;
+      if (k > 0 && k < 10) cum *= k;
+    }
+    out.push({ date: r.date, value: cum });
+    prev = r.v;
+  }
+  return out;
+}
+
+/* עטיפה למצב IBKR: ההיסטוריה האמיתית מעסקאות, או [] אם אין עסקאות. */
+function ibkrTradesHistory() {
+  if (!isIbkrMode()) return [];
+  const d = ibkrCfg().data;
+  const trades = (d && d.trades) || [];
+  if (!trades.length) return [];
+  return buildTradesHistory({
+    trades: trades,
+    cashTx: (d && d.cashTransactions) || [],
+    positions: POSITIONS,
+    cash: (DB && DB.cash) || { usd: 0, ils: 0 },
+    hist: state.hist,
+    fxOf: (iso) => fxOnOrBefore(iso) || state.fx || 1,
+  });
+}
+
 /* סך תשואת קרן (פנסיה / השתלמות) — כמו תשואת התיק: שווי נוכחי מול סך הפקדות.
    תמיד בשקלים (ההפקדות והשווי העיקרי בשקלים). kind: 'pension' | 'study'.
    רשומות ישנות בלי kind נחשבות פנסיה. */
@@ -2723,34 +2936,18 @@ function renderPfChips() {  const box = document.getElementById('pfChips');
 
 let pfChartToken = 0;
 
-/* שורת כלי גרף הביצועים: תאריך התחלה (ידני / בחירה מהגרף) + מדידה */
+/* שורת כלי גרף הביצועים: כפתור "תשואה מתאריך" + תג טווח מותאם + צ'יפ מדידה.
+   המדידה עצמה מובנית בגרף — שתי לחיצות על נקודות. */
 function renderPfTools() {
   const box = document.getElementById('pfTools');
   if (!box) return;
   box.innerHTML = '';
   const wrap = el('div', 'pf-tools');
 
-  const lbl = el('label', 'pf-from-lbl');
-  lbl.textContent = t('pfFromDate') + ' ';
-  const inp = document.createElement('input');
-  inp.type = 'date';
-  inp.id = 'pfFromInput';
-  inp.max = todayISO();
-  if (state.pfCustomFrom) inp.value = state.pfCustomFrom;
-  inp.addEventListener('change', () => {
-    const v = inp.value;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v <= todayISO()) {
-      state.pfCustomFrom = v;
-      state.pfRange = 'custom';
-    } else {
-      state.pfCustomFrom = null;
-      if (state.pfRange === 'custom') state.pfRange = 'year';
-    }
-    state.pfMeasure.pts = [];
-    drawPfChart();
-  });
-  lbl.appendChild(inp);
-  wrap.appendChild(lbl);
+  const fromBtn = el('button', 'chip-btn', t('pfFromBtn'));
+  fromBtn.type = 'button';
+  fromBtn.addEventListener('click', openPfFromSheet);
+  wrap.appendChild(fromBtn);
 
   if (state.pfCustomFrom) {
     const tag = el('span', 'pf-custom-tag', esc(t('pfCustom')) + ' · ' + fmtDateIL(state.pfCustomFrom));
@@ -2766,28 +2963,6 @@ function renderPfTools() {
     wrap.appendChild(clr);
   }
 
-  const pick = el('button', 'chip-btn' + (state.pfPickDate ? ' on' : ''), t('pfPickDate'));
-  pick.type = 'button';
-  pick.title = t('pfPickHint');
-  pick.addEventListener('click', () => {
-    state.pfPickDate = !state.pfPickDate;
-    state.pfMeasure.on = false;
-    state.pfMeasure.pts = [];
-    drawPfChart();
-  });
-  wrap.appendChild(pick);
-
-  const mb = el('button', 'chip-btn' + (state.pfMeasure.on ? ' on' : ''), t('pfMeasure'));
-  mb.type = 'button';
-  mb.title = t('pfMeasureHint');
-  mb.addEventListener('click', () => {
-    state.pfMeasure.on = !state.pfMeasure.on;
-    state.pfMeasure.pts = [];
-    state.pfPickDate = false;
-    drawPfChart();
-  });
-  wrap.appendChild(mb);
-
   box.appendChild(wrap);
 
   const chip = el('div', 'measure-chip hidden');
@@ -2795,14 +2970,121 @@ function renderPfTools() {
   box.appendChild(chip);
 }
 
+/* גיליון "תשואה מתאריך": סימון בגרף או בחירה מהיומן */
+function closePfSheet() {
+  const v = document.getElementById('pfSheetVeil');
+  if (v) v.remove();
+}
+function openPfFromSheet() {
+  closePfSheet();
+  const veil = el('div', 'pf-sheet-veil');
+  veil.id = 'pfSheetVeil';
+  const sheet = el('div', 'pf-sheet');
+  const h = el('h3');
+  h.textContent = t('pfFromBtn');
+  sheet.appendChild(h);
+  const b1 = el('button', 'sheet-btn', t('pfMarkOnChart'));
+  b1.type = 'button';
+  b1.addEventListener('click', () => {
+    closePfSheet();
+    state.pfPickDate = true;
+    state.pfMeasure.pts = [];
+    hidePfTip();
+    updatePfPickUI();
+    paintPfChart();
+  });
+  const b2 = el('button', 'sheet-btn', t('pfPickFromCal'));
+  b2.type = 'button';
+  b2.addEventListener('click', openPfCalSheet);
+  const b3 = el('button', 'sheet-btn', '✕ ' + t('btnCancel'));
+  b3.type = 'button';
+  b3.addEventListener('click', closePfSheet);
+  sheet.appendChild(b1);
+  sheet.appendChild(b2);
+  sheet.appendChild(b3);
+  veil.appendChild(sheet);
+  veil.addEventListener('click', (e) => { if (e.target === veil) closePfSheet(); });
+  document.body.appendChild(veil);
+}
+function openPfCalSheet() {
+  const sheet = document.querySelector('#pfSheetVeil .pf-sheet');
+  if (!sheet) { openPfFromSheet(); return; }
+  sheet.innerHTML = '';
+  const h = el('h3');
+  h.textContent = t('pfCalTitle');
+  sheet.appendChild(h);
+  const inp = document.createElement('input');
+  inp.type = 'date';
+  inp.max = todayISO();
+  if (state.pfCustomFrom) inp.value = state.pfCustomFrom;
+  sheet.appendChild(inp);
+  const row = el('div', 'sheet-row');
+  const ok = el('button', 'btn', t('btnOk'));
+  ok.type = 'button';
+  ok.addEventListener('click', () => {
+    const v = inp.value;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v <= todayISO()) {
+      state.pfCustomFrom = v;
+      state.pfRange = 'custom';
+      state.pfMeasure.pts = [];
+      closePfSheet();
+      drawPfChart();
+    } else {
+      inp.focus();
+    }
+  });
+  const cancel = el('button', 'btn', t('btnCancel'));
+  cancel.type = 'button';
+  cancel.style.background = 'var(--surface-container, var(--surface))';
+  cancel.style.color = 'var(--on-surface)';
+  cancel.addEventListener('click', openPfFromSheet);
+  row.appendChild(ok);
+  row.appendChild(cancel);
+  sheet.appendChild(row);
+}
+
+/* מצב בחירת תאריך מהגרף: בועת הסבר + גוון מודגש לגרף */
+function updatePfPickUI() {
+  const wrap = document.getElementById('pfWrap');
+  const bub = document.getElementById('pfPickBubble');
+  const on = !!state.pfPickDate;
+  if (wrap) wrap.classList.toggle('picking', on);
+  if (bub) {
+    bub.textContent = t('pfPickBubble');
+    bub.classList.toggle('hidden', !on);
+  }
+}
+
 /* הסבר מתחת לגרף הביצועים — מותאם למקור הנתונים */
-function renderPfNote(noBench) {
+function renderPfNote(noBench, srcKind) {
   const p = document.getElementById('pfNoteEl');
   if (!p) return;
-  const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
-  let txt = ibkrPts.length >= 2 ? t('pfNoteIbkr') : t('pfNote');
+  let txt;
+  if (srcKind === 'trades') txt = t('pfNoteTrades');
+  else {
+    const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
+    txt = ibkrPts.length >= 2 ? t('pfNoteIbkr') : t('pfNote');
+  }
   if (noBench) txt += ' · ' + t('pfNoBench');
   p.textContent = txt;
+}
+
+/* שורת תשואת הטווח הנבחר מתחת לגרף — מספר אחד גדול וברור */
+function renderPfRangeSummary(s0) {
+  const box = document.getElementById('pfRangeSummary');
+  if (!box) return;
+  if (!s0 || s0.pts.length < 2) { box.innerHTML = ''; return; }
+  const r = s0.pts[s0.pts.length - 1].norm - 100;
+  let rangeName;
+  if (state.pfCustomFrom) rangeName = t('pfCustom') + ' · ' + fmtDateIL(state.pfCustomFrom);
+  else {
+    const found = PF_RANGES.find(([k]) => k === state.pfRange);
+    const labelKey = found ? found[1] : '';
+    rangeName = labelKey ? t(labelKey) : '';
+  }
+  box.innerHTML = '<span>' + esc(t('pfRangeReturn')) + '</span>' +
+    '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
+    (rangeName ? '<span class="rs-range">' + esc(rangeName) + '</span>' : '');
 }
 
 /* טולטיפ של גרף הביצועים */
@@ -2840,7 +3122,7 @@ function updatePfMeasureChip() {
   const canvas = document.getElementById('pfChart');
   const map = canvas && canvas._pfMap;
   const ms = state.pfMeasure;
-  if (!chip || !ms.on || ms.pts.length < 2 || !map) {
+  if (!chip || ms.pts.length < 2 || !map) {
     if (chip) { chip.classList.add('hidden'); chip.innerHTML = ''; }
     return;
   }
@@ -2862,7 +3144,9 @@ function updatePfMeasureChip() {
   });
 }
 
-/* לחיצה על גרף הביצועים: טולטיפ / מדידה / בחירת תאריך התחלה */
+/* לחיצה על גרף הביצועים: בחירת תאריך התחלה / מדידה מובנית / טולטיפ.
+   מדידה: לחיצה ראשונה מסמנת נקודה א', לחיצה שנייה — נקודה ב' והתשואה ביניהן.
+   לחיצה שלישית מתחילה מדידה חדשה. */
 function onPfTap(e) {
   const canvas = document.getElementById('pfChart');
   const map = canvas && canvas._pfMap;
@@ -2881,18 +3165,19 @@ function onPfTap(e) {
     }
     state.pfPickDate = false;
     state.pfMeasure.pts = [];
+    updatePfPickUI();
     drawPfChart();
     return;
   }
-  const ms = state.pfMeasure;
-  if (ms.on) {
-    e.preventDefault();
-    ms.pts.push(idx);
-    if (ms.pts.length > 2) ms.pts = [idx]; // נקודה שלישית — מתחילים מחדש
-    drawPfChart();
-    return;
+  const pts = state.pfMeasure.pts;
+  pts.push(idx);
+  if (pts.length === 1) {
+    showPfTip(idx, x); // נקודה ראשונה — סמן + טולטיפ
+  } else {
+    hidePfTip();
+    if (pts.length > 2) { state.pfMeasure.pts = [idx]; showPfTip(idx, x); } // שלישית — מחדש
   }
-  showPfTip(idx, x);
+  paintPfChart();
 }
 
 /* גרף ביצועי התיק מול S&P 500 ו־Nasdaq 100 — כל הקווים מנורמלים לתשואה
@@ -2909,22 +3194,32 @@ async function drawPfChart() {
   renderPfChips();
   renderPfTools();
   hidePfTip();
+  updatePfPickUI();
   const my = ++pfChartToken;
 
   const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
   const useIbkrNav = ibkrPts.length >= 2;
-  let allRows;
+  let allRows, srcKind = 'manual';
   if (useIbkrNav) {
     if (loading) loading.classList.add('hidden');
     allRows = ibkrPts;
+    srcKind = 'ibkr';
   } else {
     if (loading) {
-      loading.textContent = tdKey() ? t('loadingHist') : t('chartNeedsKey');
+      loading.textContent = t('loadingHist');
       loading.classList.remove('hidden');
     }
+    await warmPfHistories(); // מהיר: Yahoo תחילה, במקביל
+    if (my !== pfChartToken) return;
     await ensureFxHist();
     if (my !== pfChartToken) return;
-    allRows = portfolioSeriesILS();
+    if (isIbkrMode()) {
+      const th = ibkrTradesHistory();
+      if (th.length >= 2) { allRows = th; srcKind = 'trades'; }
+      else allRows = portfolioSeriesILS();
+    } else {
+      allRows = portfolioSeriesILS();
+    }
   }
 
   let pfRows;
@@ -2937,7 +3232,9 @@ async function drawPfChart() {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
     if (legend) legend.innerHTML = '';
     canvas._pfMap = null;
-    renderPfNote(true);
+    canvas._pfPaint = null;
+    renderPfNote(true, srcKind);
+    renderPfRangeSummary(null);
     return;
   }
 
@@ -2958,7 +3255,7 @@ async function drawPfChart() {
         if (!(c > 0)) { okB = false; break; }
         rows.push({ date: d.date, value: toIls ? c * (fxOnOrBefore(d.date) || state.fx || 1) : c });
       }
-      if (okB && rows.length >= 2) benchSeries.push({ name: t(labelKey), color, rows });
+      if (okB && rows.length >= 2) benchSeries.push({ name: t(labelKey), color, rows, sym });
     });
   } catch (e) { /* בלי מדדים — התיק בלבד */ }
   if (loading) loading.classList.add('hidden');
@@ -2973,9 +3270,26 @@ async function drawPfChart() {
     if (loading) { loading.textContent = t('noChartNow'); loading.classList.remove('hidden'); }
     if (legend) legend.innerHTML = '';
     canvas._pfMap = null;
-    renderPfNote(true);
+    canvas._pfPaint = null;
+    renderPfNote(true, srcKind);
+    renderPfRangeSummary(null);
     return;
   }
+  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind };
+  renderPfBenchToggles();
+  paintPfChart();
+}
+
+/* ציור סינכרוני של גרף הביצועים מהנתונים האחרונים (בלי טעינת רשת ובלי
+   בניית DOM מחדש) — ללחיצות מהירות: טולטיפ, מדידה, סמנים. */
+function paintPfChart() {
+  const canvas = document.getElementById('pfChart');
+  const legend = document.getElementById('pfLegend');
+  const paint = canvas && canvas._pfPaint;
+  if (!canvas || !paint) return;
+  const series = paint.series.filter((s) => !s.sym || pfBenchOn(s.sym));
+  if (!series.length) return;
+  const n = series[0].pts.length;
 
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 320, h = 210;
@@ -2997,7 +3311,6 @@ async function drawPfChart() {
 
   const padL = 6, padR = 54, padT = 10, padB = 22;
   const plotW = w - padL - padR, plotH = h - padT - padB;
-  const n = series[0].pts.length;
   const X = (i) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
@@ -3038,26 +3351,31 @@ async function drawPfChart() {
     ctx.stroke();
   }
 
-  // סמני מדידה
+  // סמני מדידה — בולטים ונעימים: הילה רכה, טבעת לבנה, ורצועה בין הנקודות
   const ms = state.pfMeasure;
   ms.pts = ms.pts.filter((i) => i >= 0 && i < n);
-  const markerBlue = cssVar('--sys-blue', '#007AFF');
+  const marker = cssVar('--primary', '#006A4E');
+  if (ms.pts.length >= 2) {
+    const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
+    ctx.fillStyle = marker + '1F';
+    ctx.fillRect(X(a), padT, X(b) - X(a), plotH);
+  }
   const drawMarker = (i) => {
-    const x = X(i);
-    ctx.strokeStyle = markerBlue;
-    ctx.setLineDash([4, 4]);
-    ctx.lineWidth = 1.5;
+    const x = X(i), y = Y(pts0[i].norm - 100);
+    ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = marker + '2E'; ctx.fill();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = marker; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.beginPath(); ctx.arc(x, Y(pts0[i].norm - 100), 5, 0, Math.PI * 2);
-    ctx.fillStyle = markerBlue; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2);
+    ctx.fillStyle = marker; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke();
   };
-  if (ms.on && ms.pts.length >= 1) drawMarker(ms.pts[0]);
-  if (ms.on && ms.pts.length >= 2) drawMarker(ms.pts[1]);
+  for (const i of ms.pts) drawMarker(i);
 
   canvas._pfMap = { n, padL, plotW, series };
-  canvas.classList.toggle('measuring', state.pfPickDate || ms.on);
+  canvas.classList.toggle('measuring', state.pfPickDate || ms.pts.length > 0);
   updatePfMeasureChip();
 
   if (legend) {
@@ -3068,8 +3386,10 @@ async function drawPfChart() {
         '<span class="lg-pct">' + fmtRetHTML(r) + '</span></li>';
     }).join('');
   }
-  renderPfNote(benchSeries.length === 0);
+  renderPfRangeSummary(series[0]);
+  renderPfNote(paint.benchEmpty, paint.srcKind);
 }
+
 /* ---------------- רינדור: מניות ---------------- */
 
 function renderStocks() {
