@@ -671,3 +671,29 @@ footer.fine { text-align: center; }
 }
 .stock-sort-label { font-size: 14px; font-weight: 700; color: var(--on-surface-var); }
 .stock-sort-row .sort-chip { padding: 7px 14px; font-size: 14px; }
+
+/* v101: פיל שער דולר־שקל חי בראש העמוד הראשי — נקי בסגנון אפל */
+.fx-pill {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: fit-content; max-width: 100%;
+  margin: 2px auto 12px; padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #e5e5ea);
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  font-size: 14px; color: var(--subtle, #8e8e93);
+}
+.fx-pill-label { font-weight: 600; }
+.fx-pill-value {
+  font-weight: 700; color: var(--text, #111);
+  font-variant-numeric: tabular-nums;
+}
+.fx-pill-upd { font-size: 12px; }
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #30d158; flex: none;
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+.fx-pill.flash .fx-pill-value { animation: fxFlash .8s ease-out; }
+@keyframes fxFlash { 0% { color: #30d158; } 100% { } }
