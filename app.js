@@ -69,7 +69,7 @@ he: {
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
   perfTwr: 'תשואה משוקללת־זמן (TWR)',
-  pfDiag: 'דיאגנוסטיקה: {t} עסקאות · {f} תזרימים · {d} דיבידנדים · {from} עד {to}',
+  pfDiag: 'דיאגנוסטיקה: {t} עסקאות · {f} תזרימים · {d} דיבידנדים · {from} עד {to} · סוגים: {y}',
   perfXirr: 'תשואה משוקללת־כסף (XIRR)',
   perfRealized: 'רווח ממומש',
   perfUnrealized: 'רווח לא־ממומש',
@@ -390,7 +390,7 @@ en: {
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
   perfTwr: 'Time-Weighted Return (TWR)',
-  pfDiag: 'Diagnostics: {t} trades · {f} flows · {d} dividends · {from} to {to}',
+  pfDiag: 'Diagnostics: {t} trades · {f} flows · {d} dividends · {from} to {to} · types: {y}',
   perfXirr: 'Money-Weighted Return (XIRR)',
   perfRealized: 'Realized P&L',
   perfUnrealized: 'Unrealized P&L',
@@ -1428,7 +1428,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v56';
+const APP_VERSION = 'v57';
 
 
 function saveDBto(db) {
@@ -3187,7 +3187,7 @@ function renderPfNote(noBench, srcKind) {
   try {
     const cv = document.getElementById('pfChart');
     const dg = cv && cv._pfPaint && cv._pfPaint.diag;
-    if (dg && dg.from) txt += ' · ' + t('pfDiag', { t: dg.t, f: dg.f, d: dg.d, from: dg.from, to: dg.to });
+    if (dg && dg.from) txt += ' · ' + t('pfDiag', { t: dg.t, f: dg.f, d: dg.d, from: dg.from, to: dg.to, y: dg.y || '—' });
   } catch (e) {}
   p.textContent = txt;
 }
@@ -3414,6 +3414,7 @@ async function drawPfChart() {
         d: csh.filter(ibkrIsDividendTx).length,
         from: pfRows.length ? pfRows[0].date : '',
         to: pfRows.length ? pfRows[pfRows.length - 1].date : '',
+        y: ibkrCashTxTypeList(csh).join(', '),
       };
     } catch (e) { pfDiag = null; }
   }
