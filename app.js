@@ -1650,7 +1650,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v72';
+const APP_VERSION = 'v73';
 
 
 function saveDBto(db) {
@@ -2599,6 +2599,49 @@ function ibkrNavHistory() {
     byDate[dt] = v; // כפילות תאריך: האחרונה מנצחת
   }
   return Object.keys(byDate).sort().map((dt) => ({ date: dt, value: byDate[dt] }));
+}
+
+/* TWR מסדרת NAV רשמית של IBKR — מנטרל תזרימים חיצוניים (הפקדות/משיכות).
+   navRows: [{date, value}] ממוין עולה (מ־ibkrNavHistory).
+   flowsByDate: {date: סכום} — חיובי = הפקדה (נכנס), שלילי = משיכה.
+   מחזיר [{date, value}] כאשר value הוא מדד TWR מצטבר המתחיל מ־100.
+   בלי נטרול תזרימים, הפקדה של $10K תיראה כ"תשואה" של $10K — זו הייתה
+   הסיבה שמקסימום הראה ‎-12%‎ במקום ‎+48%‎ (v73). */
+function navToTwr(navRows, flowsByDate) {
+  if (!navRows || navRows.length < 2) return [];
+  const flows = flowsByDate || {};
+  const out = [{ date: navRows[0].date, value: 100 }];
+  let cum = 100;
+  for (let i = 1; i < navRows.length; i++) {
+    const prev = Number(navRows[i - 1].value);
+    const curr = Number(navRows[i].value);
+    const flow = Number(flows[navRows[i].date]) || 0;
+    if (prev > 0 && isFinite(prev) && isFinite(curr)) {
+      const growth = (curr - flow) / prev;
+      if (growth > 0 && growth < 10 && isFinite(growth)) cum *= growth;
+    }
+    out.push({ date: navRows[i].date, value: cum });
+  }
+  return out;
+}
+
+/* מפת תזרימים יומית מנתוני IBKR — {date: סכום ב־USD}, חיובי = נכנס.
+   משמש לנטרול תזרימים ב־TWR מסדרת NAV רשמית. */
+function ibkrFlowsByDate() {
+  const d = ibkrCfg().data;
+  const flows = {};
+  for (const c of ((d && d.cashTransactions) || [])) {
+    if (!c || !ibkrIsDepositTx(c)) continue;
+    const dt = String(c.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) continue;
+    const amt = Number(c.amount) || 0;
+    if (!amt) continue;
+    const fxb = Number(c.fxToBase) || 1;
+    const cur = String(c.currency || 'USD').toUpperCase();
+    const usd = cur === 'USD' ? amt : amt * fxb;
+    flows[dt] = (flows[dt] || 0) + usd;
+  }
+  return flows;
 }
 
 /* הפקדות נטו בתקופת הדוח, במטבע הבסיס (חיובי = כסף שנכנס).
@@ -3732,7 +3775,10 @@ async function drawPfChart() {
   let allRows, srcKind = 'manual';
   if (useIbkrNav) {
     if (loading) loading.classList.add('hidden');
-    allRows = ibkrPts;
+    // v73: TWR אמיתי מה־NAV הרשמי — מנטרל תזרימים (הפקדות/משיכות).
+    // לפני כן חושבה תשואה פשוטה (סוף/התחלה) שהתעוותה בגלל תזרימים.
+    allRows = navToTwr(ibkrPts, ibkrFlowsByDate());
+    if (allRows.length < 2) allRows = ibkrPts; // נפילה בטוחה
     srcKind = 'ibkr';
   } else {
     if (loading) {
