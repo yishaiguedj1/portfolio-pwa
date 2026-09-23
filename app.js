@@ -1658,7 +1658,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v87';
+const APP_VERSION = 'v88';
 
 
 function saveDBto(db) {
@@ -4546,6 +4546,24 @@ function renderWishlist() {
   }
 }
 
+/* v88: לוגו חברה לכרטיס מניה — עם אות ראשונה כגיבוי אם הלוגו לא נטען.
+   מקור: Financial Modeling Prep (חינמי, ללא מפתח). */
+function symHue(sym) {
+  let h = 0;
+  for (const ch of String(sym || '')) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+}
+function stockLogoHTML(sym) {
+  const nsym = normalizeSym(sym);
+  const hue = symHue(nsym);
+  const first = (nsym || '?').charAt(0);
+  return '<span class="stock-logo" style="--lh:' + hue + '">' +
+    '<span class="stock-logo-fb">' + esc(first) + '</span>' +
+    '<img class="stock-logo-img" src="https://financialmodelingprep.com/image-stock/' +
+    encodeURIComponent(nsym) + '.png" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+    '</span>';
+}
+
 function buildStockCard(p) {
   const sym = p.sym;
   const m = metrics(sym);
@@ -4557,7 +4575,7 @@ function buildStockCard(p) {
   const head = el('button', 'stock-head');
   head.type = 'button';
   head.innerHTML =
-    '<span class="stock-id"><span class="stock-sym">' + sym + '</span>' +
+    '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym">' + sym + '</span>' +
     '<span class="stock-name">' + esc(p.name) + '</span></span>' +
     '<span class="stock-price">' + priceTxt + '</span>' +
     '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
