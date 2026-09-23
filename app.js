@@ -61,6 +61,9 @@ he: {
   perfPeriod: 'תקופת הדוח: {a}–{b}',
   twrOfficial: 'TWR רשמי של IBKR',
   twrMissing: 'חסר בדוח — הפעילו את מקטע Change in NAV ב־Flex',
+  estMark: '(משוער)',
+  yieldEstNote: 'תשואה משוערת מנתוני הדוח — לא TWR רשמי',
+  perfGainEst: 'רווח משוער לתקופה',
   navWarn: 'הדוח חסר את מקטע "Change in NAV" — בלי זה אי אפשר לחשב תשואה (TWR), רווח/הפסד בתקופה ו־XIRR. לתיקון: ב־IBKR נכנסים לדוחות ← Flex Queries ← עריכת השאילתה ← מסמנים Change in NAV ← שומרים ← מסנכרנים מחדש באפליקציה.',
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
@@ -358,6 +361,9 @@ en: {
   perfPeriod: 'Report period: {a}–{b}',
   twrOfficial: "IBKR's official TWR",
   twrMissing: 'Missing from report — enable the Change in NAV Flex section',
+  estMark: '(est.)',
+  yieldEstNote: 'Estimated return from report data — not official TWR',
+  perfGainEst: 'Est. period gain',
   navWarn: 'The report is missing the "Change in NAV" section — without it, return (TWR), period gain/loss and XIRR cannot be computed. To fix: in IBKR go to Reports → Flex Queries → edit the query → check "Change in NAV" → save → re-sync in the app.',
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
@@ -1377,7 +1383,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v44';
+const APP_VERSION = 'v45';
 
 
 function saveDBto(db) {
@@ -1947,12 +1953,25 @@ function ibkrPerfSums(data) {
 }
 
 /* תזרימים לחישוב XIRR מהדוח: ערך התחלה (שלילי) + הפקדות/משיכות + ערך סיום (חיובי).
-   ב־Flex הפקדה = סכום חיובי, משיכה = שלילי; מנקודת מבט המשקיע זה הפוך. */
-function ibkrXirrFlows(data) {
-  if (!data || !data.nav) return null;
+   ב־Flex הפקדה = סכום חיובי, משיכה = שלילי; מנקודת מבט המשקיע זה הפוך.
+   כשמקטע Change in NAV חסר, ערך ההתחלה הוא אומדן (endBase − הפקדות − רווח) —
+   endBase הוא שווי הסיום במטבע הבסיס (מ־ibkrReportTotal). (פונקציה טהורה — נבדקת) */
+function ibkrXirrFlows(data, endBase) {
+  if (!data) return null;
   const nav = data.nav, meta = data.meta || {};
-  const start = Number(nav.startingValue), end = Number(nav.endingValue);
-  if (!(start >= 0) || !(end >= 0) || !meta.fromDate || !meta.toDate) return null;
+  if (!meta.fromDate || !meta.toDate) return null;
+  let start = null, end = null;
+  if (nav) {
+    const s = Number(nav.startingValue), e = Number(nav.endingValue);
+    if (s >= 0) start = s;
+    if (e >= 0) end = e;
+  }
+  if (end === null) end = (endBase > 0 && isFinite(endBase)) ? endBase : null;
+  if (start === null && end !== null) {
+    const est = ibkrEstimate(data, end);
+    start = est ? est.start : null;
+  }
+  if (!(start >= 0) || !(end >= 0)) return null;
   const flows = [];
   if (start > 0) flows.push({ d: String(meta.fromDate).slice(0, 10), amt: -start });
   for (const c of (data.cashTransactions || [])) {
@@ -2029,6 +2048,25 @@ function ibkrPeriodGain(data) {
   if (!isFinite(s) || !isFinite(e)) return null;
   const dep = ibkrNetDeposits(data);
   return e - s - (isFinite(dep) ? dep : 0);
+}
+
+/* אומדן ביצועים מנתוני הדוח כשמקטע Change in NAV חסר (פונקציה טהורה — נבדקת).
+   רווח = ממומש + לא־ממומש + דיבידנדים + ריבית + מסים (שלילי כששולם) − עמלות.
+   שווי התחלה משוער = שווי סיום − הפקדות נטו − רווח; תשואה = רווח / שווי התחלה.
+   זהו אומדן פשוט (לא TWR רשמי) — מוצג תמיד עם סימון "משוער". null כשאין בסיס לחישוב. */
+function ibkrEstimate(data, endBase) {
+  if (!data || !(endBase > 0) || !isFinite(endBase)) return null;
+  const hasActivity = ((data.trades || []).length > 0) ||
+    ((data.positions || []).length > 0) || ((data.cashTransactions || []).length > 0);
+  if (!hasActivity) return null;
+  const sums = ibkrPerfSums(data);
+  const gain = sums.realized + sums.unrealized + sums.dividends + sums.interest +
+    sums.taxes - Math.abs(sums.fees);
+  if (!isFinite(gain)) return null;
+  const dep = ibkrNetDeposits(data);
+  const start = endBase - (isFinite(dep) ? dep : 0) - gain;
+  if (!(start > 0) || !isFinite(start)) return null;
+  return { gain: gain, ret: gain / start * 100, end: endBase, start: start };
 }
 
 /* ---------------- DOM ---------------- */
@@ -2135,9 +2173,14 @@ function renderOverview() {
   let gl = perf.gl, yld = perf.yld;
   if (isIbkrMode()) {
     // במצב IBKR: רווח/הפסד = שווי סיום − שווי התחלה − הפקדות נטו (תקופת הדוח).
-    // בלי NAV מוצג "—": חישוב מול הפקדות חלקיות מהדוח נותן מספר מטעה.
+    // כשמקטע Change in NAV חסר בדוח — אומדן מנתוני הדוח (מסומן "משוער"), לא מקפים.
     const data = ibkrCfg().data;
-    const pg = ibkrPeriodGain(data);
+    let pg = ibkrPeriodGain(data);
+    let est = null;
+    if (pg === null || !isFinite(pg)) {
+      est = ibkrEstimate(data, ibkrReportTotal(data, DB.cash, state.fx));
+      pg = est ? est.gain : null;
+    }
     if (pg === null || !isFinite(pg)) {
       gl = null;
     } else {
@@ -2145,20 +2188,29 @@ function renderOverview() {
       gl = (cur === 'ILS' && state.fx && base === 'USD') ? pg * state.fx
         : (cur === 'ILS' ? null : pg);
     }
-    if (gSub) gSub.textContent = t('ovInReportPeriod');
+    if (gSub) gSub.textContent = t('ovInReportPeriod') + (est ? ' ' + t('estMark') : '');
   }
   if (gl === null) { gEl.textContent = '—'; }
   else { gEl.textContent = (gl < 0 ? '−' : '+') + money(Math.abs(gl), cur); }
   gEl.className = 'stat-value ' + (gl === null ? '' : gl >= 0 ? 'pos' : 'neg');
 
   const yEl = document.getElementById('ovYield');
+  let ibkrYieldOfficial = true;
   if (isIbkrMode()) {
-    // במצב IBKR התשואה הראשית היא ה־TWR הרשמי מהדוח — לעולם לא נוסחה ידנית
+    // במצב IBKR התשואה הראשית היא ה־TWR הרשמי מהדוח.
+    // כשהוא חסר (אין Change in NAV) — אומדן מנתוני הדוח, מסומן "משוער".
+    const data = ibkrCfg().data;
     const nav = ibkrNav();
     const twr = (nav && nav.twr !== null && nav.twr !== undefined && nav.twr !== '')
       ? Number(nav.twr) : null;
-    yEl.textContent = (twr === null || !isFinite(twr)) ? '—' : fmtPct(twr, true);
-    yEl.className = 'stat-value ' + ((twr === null || !isFinite(twr)) ? '' : twr >= 0 ? 'pos' : 'neg');
+    let yval = (twr === null || !isFinite(twr)) ? null : twr;
+    let estMark = '';
+    if (yval === null) {
+      const est = ibkrEstimate(data, ibkrReportTotal(data, DB.cash, state.fx));
+      if (est && isFinite(est.ret)) { yval = est.ret; estMark = ' ' + t('estMark'); ibkrYieldOfficial = false; }
+    }
+    yEl.textContent = (yval === null || !isFinite(yval)) ? '—' : fmtPct(yval, true) + estMark;
+    yEl.className = 'stat-value ' + ((yval === null || !isFinite(yval)) ? '' : yval >= 0 ? 'pos' : 'neg');
   } else {
     yEl.textContent = fmtPct(yld, true);
     yEl.className = 'stat-value ' + (yld === null ? '' : yld >= 0 ? 'pos' : 'neg');
@@ -2167,7 +2219,7 @@ function renderOverview() {
   document.getElementById('ovMeta').textContent =
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) +
     (state.fx ? ' · $=₪' + state.fx.toFixed(4) : '') +
-    (isIbkrMode() ? ' · ' + t('twrOfficial') : '');
+    (isIbkrMode() ? ' · ' + (ibkrYieldOfficial ? t('twrOfficial') : t('yieldEstNote')) : '');
 
   drawPie();
   drawPfChart();
@@ -2219,12 +2271,17 @@ function renderIbkrPerf() {
   if (!show) return;
   const data = ibkrCfg().data;
   const meta = data.meta || {};
+  const navMissing = !data.nav;
   const nav = data.nav || {};
   const base = ibkrBaseCur(data);
   if (period) period.textContent = t('perfPeriod', { a: fmtDateIL(meta.fromDate), b: fmtDateIL(meta.toDate) });
   const sums = ibkrPerfSums(data);
   const twr = (nav.twr === null || nav.twr === undefined || nav.twr === '') ? null : Number(nav.twr);
-  const xr = xirr(ibkrXirrFlows(data));
+  const endBase = ibkrReportTotal(data, DB.cash, state.fx);
+  // בלי TWR רשמי — אומדן מנתוני הדוח (מסומן), במקום מקפים
+  const est = (twr === null || !isFinite(twr)) ? ibkrEstimate(data, endBase) : null;
+  const xr = xirr(ibkrXirrFlows(data, endBase));
+  const xrEst = xr !== null && navMissing;
   const mrow = (lbl, val) => {
     const li = el('li', 'perf-row');
     li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
@@ -2237,9 +2294,20 @@ function renderIbkrPerf() {
     return { txt: isMoney ? money(v, base) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
   };
   list.innerHTML = '';
+  const estVal = (v, isMoney) => {
+    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
+    return {
+      txt: (isMoney ? money(v, base) : fmtPct(v, true)) + ' ' + t('estMark'),
+      cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '',
+    };
+  };
   mrow(t('perfTwr'), twr === null || !isFinite(twr)
-    ? { txt: t('twrMissing'), cls: 'perf-note' } : mval(twr, false));
-  mrow(t('perfXirr'), xr === null ? { txt: t('cantCalc'), cls: 'perf-note' } : mval(xr, false));
+    ? (est ? estVal(est.ret, false) : { txt: t('twrMissing'), cls: 'perf-note' })
+    : mval(twr, false));
+  mrow(t('perfXirr'), xr === null
+    ? { txt: t('cantCalc'), cls: 'perf-note' }
+    : (xrEst ? estVal(xr, false) : mval(xr, false)));
+  if (est) mrow(t('perfGainEst'), estVal(est.gain, true));
   mrow(t('perfRealized'), mval(sums.realized, true));
   mrow(t('perfUnrealized'), mval(sums.unrealized, true));
   mrow(t('perfDividends'), mval(sums.dividends, true));
