@@ -1426,7 +1426,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v53';
+const APP_VERSION = 'v54';
 
 
 function saveDBto(db) {
@@ -2750,9 +2750,27 @@ function portfolioSeriesILS() {
         positions:[{sym,shares}], cash:{usd,ils},
         hist:{sym:[{date,close}]}, fxOf:(iso)=>rate }
    מחזיר [{date, value}] עולה, value = מדד TWR (100 = תחילת הנתונים). */
+/* עסקת מניה אמיתית? מסנן המרות מט"ח (USD.ILS), אופציות וחוזים — סמלים
+   שאין להם היסטוריית מחירים. בלי הסינון, ביטול המרת מט"ח בהליכה אחורה
+   מנפח את המזומן ההיסטורי בסכום ההמרה המלא ומעוות את התשואה לשלילית. */
+function ibkrIsStockTrade(x) {
+  const s = String((x && x.symbol) || '');
+  if (!s || /\s/.test(s)) return false;
+  if (/^[A-Z]{3}\.[A-Z]{3}$/.test(s.toUpperCase())) return false;
+  return true;
+}
+
+/* תנועת מזומן פנימית (דיבידנד / מס דיבידנד): כסף שנכנס מהשוק, לא הפקדה חיצונית.
+   בהליכה אחורה מבטלים אותה מהמזומן (לפני התשלום הוא לא היה), אבל לא מנטרלים
+   ב־TWR — דיבידנד הוא תשואה, לא תזרים חיצוני. */
+function ibkrIsDividendTx(c) {
+  const s = String((c && c.type) || '') + ' ' + String((c && c.description) || '');
+  return /dividend|withholding/i.test(s);
+}
+
 function buildTradesHistory(o) {
   const trades = (o.trades || [])
-    .filter((x) => x && x.symbol && x.date)
+    .filter((x) => x && x.symbol && x.date && ibkrIsStockTrade(x))
     .map((x) => ({
       date: String(x.date).slice(0, 10),
       sym: String(x.symbol).toUpperCase(),
@@ -2779,18 +2797,31 @@ function buildTradesHistory(o) {
     flows[d] = (flows[d] || 0) + usd;
   }
 
+  // תזרימי מזומן פנימיים (דיבידנדים/מס) — מבוטלים בהליכה אחורה, לא ב־TWR
+  const cashAdj = {}; // date -> סכום ב־USD (חיובי = נכנס)
+  for (const c of (o.cashTx || [])) {
+    if (!c || !ibkrIsDividendTx(c)) continue;
+    const d = String(c.date || '').slice(0, 10);
+    const amt = Number(c.amount) || 0;
+    if (!d || !amt) continue;
+    const fxb = Number(c.fxToBase) || 1;
+    const cur = String(c.currency || 'USD').toUpperCase();
+    cashAdj[d] = (cashAdj[d] || 0) + (cur === 'USD' ? amt : amt * fxb);
+  }
+
   // הליכה אחורה: מבטלים אירועים ושומרים מצב יומי
   const shares = {};
   for (const p of (o.positions || [])) shares[String(p.sym).toUpperCase()] = Number(p.shares) || 0;
   let cashUsd = Number((o.cash || {}).usd) || 0;
   const cashIls = Number((o.cash || {}).ils) || 0;
-  const byDate = new Map(); // date -> [{kind:'trade',x} | {kind:'flow',amt}]
+  const byDate = new Map(); // date -> [{kind:'trade',x} | {kind:'flow',amt} | {kind:'div',amt}]
   const addEv = (d, ev) => {
     if (!byDate.has(d)) byDate.set(d, []);
     byDate.get(d).push(ev);
   };
   for (const x of trades) addEv(x.date, { kind: 'trade', x });
   for (const d of Object.keys(flows)) addEv(d, { kind: 'flow', amt: flows[d] });
+  for (const d of Object.keys(cashAdj)) addEv(d, { kind: 'div', amt: cashAdj[d] });
   const firstEv = [...byDate.keys()].sort()[0];
   const stateByDate = {}; // date -> {shares:{}, cashUsd}
   const evDates = [...byDate.keys()].sort().reverse(); // חדש -> ישן
@@ -2807,6 +2838,7 @@ function buildTradesHistory(o) {
     while (ei < evDates.length && evDates[ei] > d) {
       for (const e of byDate.get(evDates[ei])) {
         if (e.kind === 'flow') { cashUsd -= e.amt; continue; } // הפקדה: קודם היה פחות מזומן
+        if (e.kind === 'div') { cashUsd -= e.amt; continue; } // דיבידנד: קודם עוד לא התקבל
         const x = e.x;
         const usd = x.qty * x.price * x.fxb + x.comm * x.fxb;
         if (x.buy) { shares[x.sym] = (shares[x.sym] || 0) - x.qty; cashUsd += usd; }
