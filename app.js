@@ -348,6 +348,42 @@ function loadDB() {
 const DB = loadDB();
 function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); }
 
+/* תיק ריק — למשתמש חדש שמתחבר לענן */
+function emptyDb() {
+  return { v: 1, positions: [], deposits: [], pensionFunds: [], pensionDeposits: [], cash: { usd: 0, ils: 0 } };
+}
+
+/* השוואה עמוקה בלי תלות בסדר המפתחות */
+function canon(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+}
+/* האם התיק המקומי הוא עותק טרי של נתוני ברירת המחדל (שלא נערך מעולם)? */
+function isPristineDefault() {
+  try { return canon(DB) === canon(DEFAULT_DB); } catch (e) { return false; }
+}
+
+/* מחיל נתונים על ה-DB החי — במקום, כדי לא לשבור הפניות קיימות */
+function applyDbData(data) {
+  const clean = JSON.parse(JSON.stringify(data || {}));
+  if (!Array.isArray(DB.positions)) DB.positions = [];
+  if (!Array.isArray(DB.deposits)) DB.deposits = [];
+  if (!Array.isArray(DB.pensionFunds)) DB.pensionFunds = [];
+  if (!Array.isArray(DB.pensionDeposits)) DB.pensionDeposits = [];
+  DB.positions.length = 0;
+  if (Array.isArray(clean.positions)) DB.positions.push(...clean.positions);
+  DB.deposits.length = 0;
+  if (Array.isArray(clean.deposits)) DB.deposits.push(...clean.deposits);
+  DB.pensionFunds.length = 0;
+  if (Array.isArray(clean.pensionFunds)) DB.pensionFunds.push(...clean.pensionFunds);
+  DB.pensionDeposits.length = 0;
+  if (Array.isArray(clean.pensionDeposits)) DB.pensionDeposits.push(...clean.pensionDeposits);
+  const c = clean.cash || {};
+  DB.cash = { usd: num(c.usd) || 0, ils: num(c.ils) || 0 };
+  saveDBto(DB);
+}
+
 /* שמות תואמים לקוד הקיים — מצביעים לאותם מערכים; עריכה תמיד במקום (push/splice) */
 let POSITIONS = DB.positions;
 let DEPOSITS = DB.deposits;
@@ -1867,7 +1903,9 @@ function init() {
         const db = JSON.parse(rd.result);
         if (!db || !Array.isArray(db.positions) || !Array.isArray(db.deposits)) throw new Error('bad');
         if (!confirm('לייבא את הגיבוי? כל הנתונים הנוכחיים יוחלפו ולא ניתן לבטל.')) return;
-        saveDBto(Object.assign({ v: 1 }, db));
+        const imported = Object.assign({ v: 1 }, db);
+        if (typeof applyDbData === 'function') applyDbData(imported); // מחליף את ה-DB החי במקום
+        else saveDBto(imported);
         if (window.__cloudFlush) window.__cloudFlush().then(() => location.reload());
         else location.reload();
       } catch (err) {
