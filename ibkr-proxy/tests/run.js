@@ -1,6 +1,6 @@
 /* בדיקות ל-ibkr-proxy. הרצה: node tests/run.js */
 const assert = require('node:assert/strict');
-const { statementBaseFrom, statementEndpointFrom, errorXml, ibkrUserAgent, FLEX_SEND_PATH, FLEX_GET_PATH } = require('../lib/ibkr');
+const { statementBaseFrom, statementEndpointFrom, errorXml, ibkrUserAgent, FLEX_SEND_PATH, FLEX_GET_PATH, parseXml, statementToJson } = require('../lib/ibkr');
 const flexStatement = require('../api/flex-statement');
 const flexRequest = require('../api/flex-request');
 
@@ -73,6 +73,20 @@ function stubFetch(text, status = 200) {
   ok(res.payload.data.positions[0].asset === 'STK', 'סוג נכס נפרס');
   ok(res.payload.data.nav.twr === 0.05, 'NAV/TWR נפרס');
   ok(res.payload.data.cashTransactions[0].amount === -1806, 'תנועת מזומן נפרסה');
+
+  /* ---------- ChangeInNAV מרובה שורות (פירוט יומי) ---------- */
+  const multiXml = `<FlexQueryResponse><FlexStatements><FlexStatement accountId="U123" fromDate="20240101" toDate="20240103" baseCurrency="USD">` +
+    `<ChangeInNAV fromDate="20240101" toDate="20240101" startingValue="10000" endingValue="11000" twr="10" mtm="1000"/>` +
+    `<ChangeInNAV fromDate="20240102" toDate="20240102" startingValue="11000" endingValue="12100" twr="10" mtm="1100"/>` +
+    `<ChangeInNAV fromDate="20240103" toDate="20240103" startingValue="12100" endingValue="10890" twr="-10" mtm="-1210"/>` +
+    `</FlexStatement></FlexStatements></FlexQueryResponse>`;
+  const multi = statementToJson(parseXml(multiXml));
+  ok(multi.navHistory.length === 3, 'שלוש שורות NAV נשמרו להיסטוריה');
+  ok(multi.navHistory[0].toDate === '2024-01-01' && multi.navHistory[2].endingValue === 10890, 'תאריכים וערכים יומיים מפוענחים');
+  const expTwr = (1.1 * 1.1 * 0.9 - 1) * 100;
+  ok(Math.abs(multi.nav.twr - expTwr) < 1e-9, 'TWR תקופתי מורכב משורות יומיות (1.1*1.1*0.9-1)');
+  ok(multi.nav.startingValue === 10000 && multi.nav.endingValue === 10890, 'ערכי התחלה/סיום מהשורות הקיצוניות');
+  ok(multi.nav.mtm === 890, 'mtm מסוכם על פני הימים');
 
   /* ---------- statementUrl זדוני -> fallback ל-host ברירת מחדל ---------- */
   stubFetch(READY_XML);
