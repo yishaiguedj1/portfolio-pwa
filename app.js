@@ -185,7 +185,8 @@ async function fetchTwelveBars(sym, kind, wantMax, notes) {
 function clearTdKey(notes) {
   try { localStorage.removeItem(LS_TDKEY); } catch (e) {}
   notes.push('TwelveData: המפתח לא תקין — צריך להזין מפתח חדש');
-  showTdKeyCard();
+  switchTab('settings');
+  renderTdKeyStatus();
 }
 
 /* סינון טווח מתוך היסטוריה יומית ממוינת (ישן -> חדש) */
@@ -200,6 +201,7 @@ function filterRange(rows, range) {
       return rows.filter((r) => r.date.slice(0, 4) === y);
     }
     case 'year':  return rows.slice(-252);
+    case '3y':    return rows.slice(-756);
     case '5y':    return rows.slice(-1260);
     case 'max':
     default:      return rows.slice();
@@ -267,9 +269,10 @@ function fmtTimeIL(ts) {
 function money(v, cur) { return cur === 'ILS' ? fmtILS(v) : fmtUSD(v); }
 function money2(v, cur) { return cur === 'ILS' ? fmtILS(v) : fmtUSD2(v); }
 
-/* ---------------- נתונים סטטיים (גיליון 2026-09-22) ---------------- */
+/* ---------------- נתוני המשתמש — ערכי ברירת מחדל מגיליון 2026-09-22 ---------------- */
+/* נשמרים בטלפון (localStorage) וניתנים לעריכה מהאפליקציה. */
 
-const POSITIONS = [
+const DEFAULT_POSITIONS = [
   { sym: 'NOW',  name: 'סרוויסנאו',   full: 'ServiceNow Inc',      shares: 97,   avg: 89.12  },
   { sym: 'META', name: 'מטא',         full: 'Meta Platforms Inc',  shares: 17,   avg: 504.17 },
   { sym: 'ADBE', name: 'אדובי',        full: 'Adobe Inc',          shares: 41,   avg: 251.82 },
@@ -281,10 +284,7 @@ const POSITIONS = [
   { sym: 'APP',  name: 'אפלובין',      full: 'AppLovin Corp',       shares: 9,    avg: 308.81 }
 ];
 
-const NET_DEPOSITS_ILS = 187319;
-const CASH_USD = 65;
-
-const DEPOSITS = [
+const DEFAULT_DEPOSIT_PAIRS = [
   ["08/08/2023",-26240],["08/08/2023",-2000],["10/08/2023",-2000],
   ["10/09/2023",-2504],["09/10/2023",-2511],["12/11/2023",-3011],
   ["04/12/2023",-2525],["06/12/2023",-2025],["10/12/2023",-1450],
@@ -303,17 +303,68 @@ const DEPOSITS = [
   ["01/08/2026",0],["01/08/2026",0],["01/08/2026",0]
 ];
 
-const PENSION_FUNDS = [
+const DEFAULT_PENSION_FUNDS = [
   { name: 'מנורה — פנסיה',     usd: 80053, ils: 241329 },
   { name: 'Fnx — השתלמות',     usd: 13345, ils: 40229  },
   { name: 'מיטב — השתלמות',    usd: 1021,  ils: 3077   }
 ];
 
-const PENSION_DEPOSITS = [
+const DEFAULT_PENSION_DEPOSITS = [
   { place: 'צה״ל',              period: '02/12/2018 – 02/06/2019', amount: -7586,   note: 'סה״כ ₪190,803' },
   { place: 'רשף - בנק הפועלים', period: '15/11/2021 – 15/02/2022', amount: -7615,   note: '' },
   { place: 'צוות 3 - גוגל',     period: '15/03/2022 – 15/04/2026', amount: -175602, note: 'עודכן 17/09/26' }
 ];
+
+/* מסד הנתונים המקומי — נטען פעם אחת, נשמר אחרי כל שינוי */
+const LS_DB = 'pwa_db_v1';
+
+const DEFAULT_DB = {
+  v: 1,
+  positions: DEFAULT_POSITIONS,
+  deposits: DEFAULT_DEPOSIT_PAIRS.map(([date, amount]) => ({ date: date, amount: amount, place: '' })),
+  pensionFunds: DEFAULT_PENSION_FUNDS,
+  pensionDeposits: DEFAULT_PENSION_DEPOSITS,
+  cash: { usd: 65, ils: 0 }
+};
+
+function saveDBto(db) {
+  try { localStorage.setItem(LS_DB, JSON.stringify(db)); } catch (e) {}
+}
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(LS_DB);
+    if (raw) {
+      const db = JSON.parse(raw);
+      if (db && db.v === 1 && Array.isArray(db.positions) && Array.isArray(db.deposits)) {
+        if (!db.cash) db.cash = { usd: 0, ils: 0 };
+        return db;
+      }
+    }
+  } catch (e) {}
+  const db = JSON.parse(JSON.stringify(DEFAULT_DB));
+  saveDBto(db);
+  return db;
+}
+const DB = loadDB();
+function saveDB() { saveDBto(DB); }
+
+/* שמות תואמים לקוד הקיים — מצביעים לאותם מערכים; עריכה תמיד במקום (push/splice) */
+let POSITIONS = DB.positions;
+let DEPOSITS = DB.deposits;
+let PENSION_FUNDS = DB.pensionFunds;
+let PENSION_DEPOSITS = DB.pensionDeposits;
+
+/* סך הפקדות נטו — מחושב מהרשומות (סכום שלילי = כסף שנכנס לתיק) */
+function netDepositsILS() {
+  return -DEPOSITS.reduce((a, d) => a + (num(d.amount) || 0), 0);
+}
+
+/* מזומן במטבע התצוגה */
+function cashInCur(cur) {
+  const c = (DB && DB.cash) || { usd: 0, ils: 0 };
+  if (cur === 'ILS' && state.fx) return (c.ils || 0) + (c.usd || 0) * state.fx;
+  return (c.usd || 0) + (state.fx && c.ils ? c.ils / state.fx : 0);
+}
 
 /* ---------------- מקורות נתונים ---------------- */
 /* מחירים חיים: CNBC (ראשי) ← Yahoo (גיבוי). היסטוריה ומסחר מורחב: Twelve Data (ראשי) ← Yahoo ← Stooq. */
@@ -345,7 +396,9 @@ const state = {
   histDbg: {},      // sym -> מה קרה בניסיון להביא היסטוריה (לאבחון)
   open: {},         // sym -> bool (שורה פתוחה)
   range: {},        // sym -> 'day'|'week'|'month'|'ytd'|'year'|'5y'|'max'
-  measure: {}       // sym -> { on, pts:[idxA, idxB] }
+  measure: {},      // sym -> { on, pts:[idxA, idxB] }
+  pfRange: '5y',    // טווח גרף ביצועי התיק
+  edit: { stocks: false, deposits: false, pension: false }  // מצב עריכה (מוגן מטעויות)
 };
 
 const RANGES = [
@@ -404,8 +457,8 @@ function todayISO() {
   return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
 }
 
-/* --- מקור המחירים: CNBC --- */
-const CNBC_QUOTES_URL =
+/* --- מקור המחירים: CNBC (נבנה מחדש אחרי כל שינוי ברשימת המניות) --- */
+const cnbcURL = () =>
   'https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=' +
   POSITIONS.map((p) => p.sym.toUpperCase()).join('|') +
   '&requestMethod=quick&noform=1&partnerId=2&fund=1&exthrs=1&output=json';
@@ -452,12 +505,12 @@ async function tryCNBCFx() {
 
 async function tryCNBCQuotes() {
   const [json, fx] = await Promise.all([
-    fetchJSONTimeout(CNBC_QUOTES_URL, 10000),
+    fetchJSONTimeout(cnbcURL(), 10000),
     tryCNBCFx()
   ]);
   const q = parseCNBCQuotes(json);
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
-  if (missing > 2) throw new Error('too few quotes');
+  if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
   return { quotes: q, fx: fx, source: 'CNBC' };
 }
 
@@ -505,12 +558,23 @@ async function tryYahooQuotes() {
   const q = {};
   for (const r of results) if (r) q[r.symbol] = r;
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
-  if (missing > 2) throw new Error('too few quotes');
+  if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
   const fx = await tryCNBCFx();
   return { quotes: q, fx: fx, source: 'Yahoo' };
 }
 
 async function refreshQuotes() {
+  if (!POSITIONS.length) {
+    try { state.fx = await tryCNBCFx(); } catch (e) { /* אין שער */ }
+    state.quotes = {};
+    state.quotesAt = Date.now();
+    state.source = state.fx ? 'CNBC' : null;
+    state.stale = false;
+    setBanner('');
+    updateSourceLabel();
+    renderAll();
+    return;
+  }
   const tries = [tryCNBCQuotes, tryYahooQuotes];
   for (const fn of tries) {
     try { applyQuotes(await fn()); renderAll(); return; }
@@ -595,7 +659,8 @@ async function getIntraday(sym) {
 }
 
 async function warmHistories() {
-  await pool(POSITIONS.map((p) => p.sym), 3, (sym) => getDaily(sym, false));
+  // SPY = בנצ'מרק S&P 500 לגרף ביצועי התיק (לא מניה בתיק)
+  await pool(POSITIONS.map((p) => p.sym).concat(['SPY']), 3, (sym) => getDaily(sym, false));
   renderStocks();
   renderOverview();
 }
@@ -625,14 +690,23 @@ function totalsUSD() {
     const q = state.quotes[p.sym];
     if (q) stockVal += q.close * p.shares;
   }
-  return { stockVal: stockVal, total: stockVal + CASH_USD };
+  const usd = (DB.cash && DB.cash.usd) || 0;
+  const ils = (DB.cash && DB.cash.ils) || 0;
+  return { stockVal: stockVal, total: stockVal + usd + (state.fx ? ils / state.fx : 0) };
 }
 
 function depositsInCur() {
-  return state.currency === 'ILS' ? NET_DEPOSITS_ILS : (state.fx ? NET_DEPOSITS_ILS / state.fx : null);
+  const nd = netDepositsILS();
+  return state.currency === 'ILS' ? nd : (state.fx ? nd / state.fx : null);
 }
 
 /* ---------------- DOM ---------------- */
+
+function esc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -641,23 +715,24 @@ function el(tag, cls, html) {
   return e;
 }
 
+function flash(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = el('div', 'toast');
+    t.id = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
 function setBanner(msg) {
   const b = document.getElementById('statusBanner');
   if (!msg) { b.classList.add('hidden'); b.textContent = ''; return; }
   b.classList.remove('hidden');
   b.textContent = msg;
-}
-
-/* כרטיס הזנת מפתח Twelve Data — מוצג רק כשאין מפתח שמור בטלפון */
-function showTdKeyCard() {
-  const c = document.getElementById('tdKeyCard');
-  if (c) c.classList.remove('hidden');
-  const cancel = document.getElementById('tdKeyCancel');
-  if (cancel) cancel.classList.toggle('hidden', !tdKey());
-}
-function hideTdKeyCard() {
-  const c = document.getElementById('tdKeyCard');
-  if (c) c.classList.add('hidden');
 }
 
 function switchTab(name) {
@@ -679,7 +754,7 @@ function renderOverview() {
   const vEl = document.getElementById('ovValue');
   vEl.textContent = money(total, cur);
   document.getElementById('ovValueSub').textContent =
-    'מניות: ' + money(stockVal, cur) + ' · מזומן: ' + money(cur === 'ILS' && state.fx ? CASH_USD * state.fx : CASH_USD, cur);
+    'מניות: ' + money(stockVal, cur) + ' · מזומן: ' + money(cashInCur(cur), cur);
 
   const gEl = document.getElementById('ovGL');
   if (gl === null) { gEl.textContent = '—'; }
@@ -695,6 +770,7 @@ function renderOverview() {
     (state.fx ? ' · $=₪' + state.fx.toFixed(4) : '');
 
   drawPie();
+  drawPfChart();
 }
 
 function drawPie() {
@@ -750,14 +826,261 @@ function drawPie() {
   }
 }
 
+/* ---------------- גרף ביצועי התיק + בנצ'מרק S&P 500 ---------------- */
+
+const PF_RANGES = [['year', 'שנה'], ['3y', '3 שנים'], ['5y', '5 שנים'], ['max', 'מקסימום']];
+
+/* מחיר סגירה אחרון עד תאריך נתון (היסטוריה ממוינת ישן -> חדש) */
+function closeOnOrBefore(hist, date) {
+  let lo = 0, hi = hist.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (hist[mid].date <= date) { ans = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return ans >= 0 ? hist[ans].close : null;
+}
+
+/* סדרת שווי התיק בדולרים לאורך זמן (מניות + מזומן) */
+function portfolioSeries() {
+  const poss = POSITIONS.filter((p) => (state.hist[p.sym] || []).length > 20);
+  if (!poss.length) return [];
+  const dates = new Set();
+  for (const p of poss) for (const r of state.hist[p.sym]) dates.add(r.date);
+  const sorted = [...dates].sort();
+  const cash = (DB.cash && DB.cash.usd) || 0;
+  return sorted.map((d) => {
+    let v = cash;
+    for (const p of poss) {
+      const c = closeOnOrBefore(state.hist[p.sym], d);
+      if (c) v += c * p.shares;
+    }
+    return { date: d, value: v };
+  });
+}
+
+/* נרמול ל־100 בתחילת הסדרה — להשוואת תשואות */
+function normalize100(series) {
+  const first = series.find((s) => s.value > 0);
+  if (!first) return [];
+  const b = first.value;
+  return series.map((s) => ({ date: s.date, value: s.value / b * 100 }));
+}
+
+function renderPfChips() {
+  const box = document.getElementById('pfChips');
+  if (!box || box.children.length) return;
+  for (const [key, label] of PF_RANGES) {
+    const b = el('button', 'range-btn' + (state.pfRange === key ? ' active' : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      state.pfRange = key;
+      box.querySelectorAll('.range-btn').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      drawPfChart();
+    });
+    box.appendChild(b);
+  }
+}
+
+function drawPfChart() {
+  const canvas = document.getElementById('pfChart');
+  const loading = document.getElementById('pfLoading');
+  const legend = document.getElementById('pfLegend');
+  if (!canvas) return;
+  renderPfChips();
+  let pf = normalize100(filterRange(portfolioSeries(), state.pfRange));
+  const spyHist = state.hist['SPY'] || [];
+  let spy = spyHist.length > 20
+    ? normalize100(filterRange(spyHist.map((r) => ({ date: r.date, value: r.close })), state.pfRange))
+    : [];
+  if (!pf.length) {
+    if (loading) {
+      loading.textContent = tdKey() ? 'טוען נתוני היסטוריה…' : 'הגרף דורש מפתח נתונים (לשונית הגדרות)';
+      loading.classList.remove('hidden');
+    }
+    if (legend) legend.innerHTML = '';
+    return;
+  }
+  if (loading) loading.classList.add('hidden');
+  pf = downsample(pf, 300);
+  spy = downsample(spy, 300);
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 320, h = 210;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const all = pf.concat(spy);
+  let min = Infinity, max = -Infinity;
+  for (const p of all) { if (p.value < min) min = p.value; if (p.value > max) max = p.value; }
+  if (min === max) { min *= 0.99; max *= 1.01; }
+  const padL = 6, padR = 46, padT = 10, padB = 22;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const X = (i, n) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
+
+  ctx.font = '11px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.strokeStyle = '#E3E7E4'; ctx.fillStyle = '#9AA5A0';
+  for (let g = 0; g <= 4; g++) {
+    const v = min + (max - min) * g / 4;
+    const y = Y(v);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillText(v.toFixed(0), w - padR + 6, y);
+  }
+  ctx.textAlign = 'center';
+  const step = Math.max(1, Math.floor(pf.length / 4));
+  for (let i = 0; i < pf.length; i += step) {
+    ctx.fillText(fmtDateIL(pf[i].date).slice(3), X(i, pf.length), h - 8);
+  }
+
+  const drawLine = (series, color, width) => {
+    if (series.length < 2) return;
+    ctx.beginPath();
+    series.forEach((p, i) => {
+      const x = X(i, series.length), y = Y(p.value);
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    });
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+  };
+  if (spy.length) drawLine(spy, '#9AA5A0', 1.5);
+  drawLine(pf, '#006A4E', 2.5);
+
+  if (legend) {
+    const ret = (s) => s.length > 1 ? (s[s.length - 1].value / s[0].value - 1) * 100 : null;
+    const rp = ret(pf), rs = ret(spy);
+    const cls = (v) => v === null ? '' : v >= 0 ? 'pos' : 'neg';
+    legend.innerHTML =
+      '<li><span class="dot" style="background:#006A4E"></span>' +
+      '<span class="lg-name">התיק שלי</span>' +
+      '<span class="lg-pct ' + cls(rp) + '">' + (rp === null ? '—' : fmtPct(rp, true)) + '</span></li>' +
+      (spy.length
+        ? '<li><span class="dot" style="background:#9AA5A0"></span>' +
+          '<span class="lg-name">S&P 500</span>' +
+          '<span class="lg-pct ' + cls(rs) + '">' + (rs === null ? '—' : fmtPct(rs, true)) + '</span></li>'
+        : '');
+  }
+}
+
 /* ---------------- רינדור: מניות ---------------- */
 
 function renderStocks() {
   const list = document.getElementById('stockList');
   list.innerHTML = '';
+  const sc = document.getElementById('stockCount');
+  if (sc) sc.textContent = POSITIONS.length;
+  if (state.edit.stocks) {
+    const add = el('button', 'card add-card');
+    add.type = 'button';
+    add.innerHTML = '<span class="add-plus">＋</span> הוספת מניה';
+    add.addEventListener('click', () => showAddPositionForm(list));
+    list.appendChild(add);
+  }
+  if (!POSITIONS.length && !state.edit.stocks) {
+    const m = el('p', 'fine');
+    m.style.padding = '0';
+    m.textContent = 'אין מניות בתיק. הפעילו ✏️ עריכה כדי להוסיף.';
+    list.appendChild(m);
+  }
   for (const p of POSITIONS) {
     list.appendChild(buildStockCard(p));
   }
+}
+
+/* ולידציה למניה (טהורה — ניתנת לבדיקה) */
+function validPosition(sym, shares, avg, ignoreSym) {
+  const s = String(sym || '').trim().toUpperCase();
+  if (!/^[A-Z.]{1,8}$/.test(s)) return 'סימול לא תקין — אותיות באנגלית בלבד';
+  if (ignoreSym !== s && POSITIONS.some((p) => p.sym === s)) return 'המניה כבר קיימת בתיק';
+  if (!(shares > 0)) return 'כמות המניות חייבת להיות חיובית';
+  if (!(avg > 0)) return 'מחיר הקנייה חייב להיות חיובי';
+  return null;
+}
+
+/* טופס עריכת כמות ומחיר קנייה בתוך כרטיס המניה */
+function showEditPositionForm(card, p) {
+  const body = card.querySelector('.stock-body');
+  card.classList.add('open');
+  body.innerHTML =
+    '<div class="form-grid">' +
+    '<label>כמות מניות<input id="ep-shares" type="number" min="0" step="any" inputmode="decimal" value="' + p.shares + '"></label>' +
+    '<label>מחיר קנייה ממוצע ($)<input id="ep-avg" type="number" min="0" step="any" inputmode="decimal" value="' + p.avg + '"></label>' +
+    '</div>' +
+    '<div class="form-err hidden" id="ep-err"></div>' +
+    '<div class="edit-actions"><button class="btn" id="ep-save" type="button">שמור</button>' +
+    '<button class="link-btn" id="ep-cancel" type="button">ביטול</button></div>';
+  body.querySelector('#ep-cancel').addEventListener('click', () => refreshStockBody(p.sym));
+  body.querySelector('#ep-save').addEventListener('click', () => {
+    const shares = parseFloat(body.querySelector('#ep-shares').value);
+    const avg = parseFloat(body.querySelector('#ep-avg').value);
+    const err = validPosition(p.sym, shares, avg, p.sym);
+    const errEl = body.querySelector('#ep-err');
+    if (err) { errEl.textContent = err; errEl.classList.remove('hidden'); return; }
+    p.shares = shares;
+    p.avg = avg;
+    saveDB();
+    refreshStockBody(p.sym);
+    renderOverview();
+    flash('נשמר ✓');
+  });
+}
+
+/* טופס הוספת מניה חדשה */
+function showAddPositionForm(list) {
+  if (document.getElementById('addPosForm')) return;
+  const card = el('div', 'card');
+  card.id = 'addPosForm';
+  card.innerHTML =
+    '<h2>הוספת מניה</h2>' +
+    '<div class="form-grid">' +
+    '<label>סימול (אנגלית)<input id="ap-sym" type="text" dir="ltr" placeholder="NVDA" autocomplete="off"></label>' +
+    '<label>שם בעברית<input id="ap-name" type="text" placeholder="אנבידיה"></label>' +
+    '<label>שם מלא (אופציונלי)<input id="ap-full" type="text" dir="ltr" placeholder="NVIDIA Corp" autocomplete="off"></label>' +
+    '<label>כמות מניות<input id="ap-shares" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label>מחיר קנייה ממוצע ($)<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '</div>' +
+    '<div class="form-err hidden" id="ap-err"></div>' +
+    '<div class="edit-actions"><button class="btn" id="ap-save" type="button">הוסף מניה</button>' +
+    '<button class="link-btn" id="ap-cancel" type="button">ביטול</button></div>';
+  list.insertBefore(card, list.firstChild);
+  card.querySelector('#ap-cancel').addEventListener('click', () => card.remove());
+  card.querySelector('#ap-save').addEventListener('click', () => {
+    const sym = card.querySelector('#ap-sym').value.trim().toUpperCase();
+    const name = card.querySelector('#ap-name').value.trim() || sym;
+    const full = card.querySelector('#ap-full').value.trim();
+    const shares = parseFloat(card.querySelector('#ap-shares').value);
+    const avg = parseFloat(card.querySelector('#ap-avg').value);
+    const err = validPosition(sym, shares, avg, null);
+    const errEl = card.querySelector('#ap-err');
+    if (err) { errEl.textContent = err; errEl.classList.remove('hidden'); return; }
+    POSITIONS.push({ sym: sym, name: name, full: full, shares: shares, avg: avg });
+    saveDB();
+    card.remove();
+    renderAll();
+    flash('המניה נוספה ✓');
+    refreshQuotes().then(() => warmHistories());
+  });
+}
+
+function deletePosition(p) {
+  if (!confirm('למחוק את ' + p.name + ' (' + p.sym + ') מהתיק?\nגם נתוני הגרף השמורים שלה יימחקו.')) return;
+  const i = POSITIONS.findIndex((x) => x.sym === p.sym);
+  if (i >= 0) POSITIONS.splice(i, 1);
+  delete state.hist[p.sym];
+  delete state.intra[p.sym];
+  delete state.quotes[p.sym];
+  delete state.open[p.sym];
+  delete state.range[p.sym];
+  try {
+    localStorage.removeItem(LS_HIST + p.sym);
+    localStorage.removeItem(LS_INTRA + p.sym);
+  } catch (e) {}
+  saveDB();
+  renderAll();
+  flash('המניה נמחקה ✓');
+  refreshQuotes().then(() => warmHistories());
 }
 
 function buildStockCard(p) {
@@ -767,11 +1090,12 @@ function buildStockCard(p) {
   const priceTxt = m.price === null ? '—' : (cur === 'ILS' && state.fx ? fmtILS(m.price * state.fx) : fmtUSD2(m.price));
 
   const card = el('div', 'stock' + (state.open[sym] ? ' open' : ''));
+  card.dataset.sym = sym;
   const head = el('button', 'stock-head');
   head.type = 'button';
   head.innerHTML =
     '<span class="stock-id"><span class="stock-sym">' + sym + '</span>' +
-    '<span class="stock-name">' + p.name + '</span></span>' +
+    '<span class="stock-name">' + esc(p.name) + '</span></span>' +
     '<span class="stock-price">' + priceTxt + '</span>' +
     '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
     (m.dayChg === null ? '—' : 'היום ' + fmtPct(m.dayChg, true)) + '</span>' +
@@ -779,6 +1103,20 @@ function buildStockCard(p) {
     ' <span class="chev">▾</span></span></span>';
   head.addEventListener('click', () => toggleStock(sym, card));
   card.appendChild(head);
+
+  // מצב עריכה: כפתורי עריכה/מחיקה מתחת לכותרת הכרטיס
+  if (state.edit.stocks) {
+    const actions = el('div', 'edit-actions');
+    const eb = el('button', 'chip-btn', '✏️ ערוך');
+    eb.type = 'button';
+    eb.addEventListener('click', (ev) => { ev.stopPropagation(); showEditPositionForm(card, p); });
+    const dbtn = el('button', 'chip-btn danger', '🗑 מחק');
+    dbtn.type = 'button';
+    dbtn.addEventListener('click', (ev) => { ev.stopPropagation(); deletePosition(p); });
+    actions.appendChild(eb);
+    actions.appendChild(dbtn);
+    card.appendChild(actions);
+  }
 
   const body = el('div', 'stock-body');
   body.appendChild(buildStockBody(p, m));
@@ -884,11 +1222,9 @@ function toggleStock(sym, card) {
 }
 
 function refreshStockBody(sym) {
-  const cards = document.querySelectorAll('#stockList .stock');
-  const idx = POSITIONS.findIndex((p) => p.sym === sym);
-  if (idx < 0 || !cards[idx]) return;
-  const card = cards[idx];
-  const p = POSITIONS[idx];
+  const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
+  const p = POSITIONS.find((x) => x.sym === sym);
+  if (!card || !p) return;
   const m = metrics(sym);
   const body = card.querySelector('.stock-body');
   body.innerHTML = '';
@@ -1073,25 +1409,148 @@ function attachMeasure(canvas, sym) {
 
 /* ---------------- רינדור: הפקדות ---------------- */
 
+/* ---------------- עריכת הפקדות ---------------- */
+
+/* המרת תאריך DD/MM/YYYY <-> YYYY-MM-DD (לטופס תאריך) */
+function dateToInput(s) {
+  const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+}
+function dateFromInput(s) {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+function validDeposit(dateStr, amount) {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr || '')) return 'תאריך לא תקין';
+  if (!(amount > 0)) return 'הסכום חייב להיות חיובי';
+  return null;
+}
+
+function depositAmountHTML(amt) {
+  if (amt === 0) return '<span class="r-amt zero">₪0</span>';
+  if (amt > 0) return '<span class="r-amt in" title="משיכה/תיקון">+₪' + amt.toLocaleString('en-US') + '</span>';
+  return '<span class="r-amt out">₪' + Math.abs(amt).toLocaleString('en-US') + '</span>';
+}
+
 function renderDeposits() {
+  const nd = netDepositsILS();
+  const ndTxt = '₪' + Math.abs(nd).toLocaleString('en-US');
+  document.getElementById('depTotal').textContent = ndTxt;
+  document.getElementById('depCount').textContent = DEPOSITS.length + ' רשומות';
+  const nt = document.getElementById('noteDepTotal');
+  if (nt) nt.textContent = ndTxt;
   const ul = document.getElementById('depositList');
   ul.innerHTML = '';
-  for (const [date, amt] of DEPOSITS) {
-    const li = el('li');
-    const d = el('span', 'r-date', date);
-    li.appendChild(d);
-    let a;
-    if (amt === 0) {
-      a = el('span', 'r-amt zero', '₪0');
-    } else if (amt > 0) {
-      a = el('span', 'r-amt in', '+₪' + amt.toLocaleString('en-US'));
-      a.title = 'משיכה/תיקון';
-    } else {
-      a = el('span', 'r-amt out', '₪' + Math.abs(amt).toLocaleString('en-US'));
-    }
-    li.appendChild(a);
-    ul.appendChild(li);
+  const ed = state.edit.deposits;
+  if (ed) {
+    const addLi = el('li');
+    const addBtn = el('button', 'chip-btn', '＋ הוספת הפקדה');
+    addBtn.type = 'button';
+    addBtn.addEventListener('click', () => showAddDepositForm(ul));
+    addLi.appendChild(addBtn);
+    ul.appendChild(addLi);
   }
+  DEPOSITS.forEach((d, i) => ul.appendChild(buildDepositRow(d, i, ed)));
+}
+
+function buildDepositRow(d, i, ed) {
+  const li = el('li');
+  li.dataset.depIdx = i;
+  const main = el('span');
+  main.innerHTML = '<span class="r-date">' + d.date + '</span>' +
+    (d.place ? '<br><span class="r-note">' + esc(d.place) + '</span>' : '');
+  li.appendChild(main);
+  const wrap = el('span');
+  wrap.innerHTML = depositAmountHTML(d.amount);
+  li.appendChild(wrap);
+  if (ed) {
+    const actions = el('span', 'row-actions');
+    const eb = el('button', 'mini-btn', 'ערוך');
+    eb.type = 'button';
+    eb.addEventListener('click', () => showEditDepositForm(li, d, i));
+    const dbtn = el('button', 'mini-btn danger', 'מחק');
+    dbtn.type = 'button';
+    dbtn.addEventListener('click', () => deleteDeposit(i));
+    actions.appendChild(eb);
+    actions.appendChild(dbtn);
+    li.appendChild(actions);
+  }
+  return li;
+}
+
+/* טופס עריכת הפקדה — בתוך שורת הרשימה */
+function depositFormHTML(d, idp) {
+  const isOut = d.amount > 0;
+  return '<div class="form-grid">' +
+    '<label>תאריך<input id="' + idp + '-date" type="date" value="' + dateToInput(d.date) + '"></label>' +
+    '<label>סוג<select id="' + idp + '-type">' +
+      '<option value="in"' + (!isOut ? ' selected' : '') + '>הפקדה (כסף נכנס)</option>' +
+      '<option value="out"' + (isOut ? ' selected' : '') + '>משיכה (כסף יוצא)</option>' +
+    '</select></label>' +
+    '<label>סכום (₪)<input id="' + idp + '-amt" type="number" min="0" step="any" inputmode="decimal" value="' + Math.abs(d.amount) + '"></label>' +
+    '<label>חברה / הערה<input id="' + idp + '-place" type="text" value="' + esc(d.place || '') + '" placeholder="אופציונלי"></label>' +
+    '</div>' +
+    '<div class="form-err hidden" id="' + idp + '-err"></div>' +
+    '<div class="edit-actions"><button class="btn" id="' + idp + '-save" type="button">שמור</button>' +
+    '<button class="link-btn" id="' + idp + '-cancel" type="button">ביטול</button></div>';
+}
+
+function readDepositForm(box, idp) {
+  const date = dateFromInput(box.querySelector('#' + idp + '-date').value);
+  const type = box.querySelector('#' + idp + '-type').value;
+  const amount = parseFloat(box.querySelector('#' + idp + '-amt').value);
+  const place = box.querySelector('#' + idp + '-place').value.trim();
+  const err = validDeposit(date, amount);
+  if (err) return { err: err };
+  return { date: date, amount: type === 'out' ? Math.abs(amount) : -Math.abs(amount), place: place };
+}
+
+function showEditDepositForm(li, d, i) {
+  const idp = 'de' + i;
+  li.classList.add('form-li');
+  li.innerHTML = depositFormHTML(d, idp);
+  li.querySelector('#' + idp + '-cancel').addEventListener('click', () => renderDeposits());
+  li.querySelector('#' + idp + '-save').addEventListener('click', () => {
+    const r = readDepositForm(li, idp);
+    const errEl = li.querySelector('#' + idp + '-err');
+    if (r.err) { errEl.textContent = r.err; errEl.classList.remove('hidden'); return; }
+    DEPOSITS[i] = { date: r.date, amount: r.amount, place: r.place };
+    saveDB();
+    renderDeposits();
+    renderOverview();
+    flash('נשמר ✓');
+  });
+}
+
+function showAddDepositForm(ul) {
+  if (document.getElementById('addDepForm')) return;
+  const li = el('li');
+  li.id = 'addDepForm';
+  li.classList.add('form-li');
+  li.innerHTML = '<b>הפקדה חדשה</b>' + depositFormHTML({ date: '', amount: 0, place: '' }, 'da');
+  ul.insertBefore(li, ul.firstChild);
+  li.querySelector('#da-cancel').addEventListener('click', () => li.remove());
+  li.querySelector('#da-save').addEventListener('click', () => {
+    const r = readDepositForm(li, 'da');
+    const errEl = li.querySelector('#da-err');
+    if (r.err) { errEl.textContent = r.err; errEl.classList.remove('hidden'); return; }
+    DEPOSITS.unshift({ date: r.date, amount: r.amount, place: r.place });
+    saveDB();
+    renderDeposits();
+    renderOverview();
+    flash('ההפקדה נוספה ✓');
+  });
+}
+
+function deleteDeposit(i) {
+  const d = DEPOSITS[i];
+  if (!d) return;
+  if (!confirm('למחוק את ההפקדה מ־' + d.date + ' (' + Math.abs(d.amount).toLocaleString('en-US') + ' ₪)?')) return;
+  DEPOSITS.splice(i, 1);
+  saveDB();
+  renderDeposits();
+  renderOverview();
+  flash('ההפקדה נמחקה ✓');
 }
 
 /* ---------------- רינדור: פנסיה ---------------- */
@@ -1103,24 +1562,120 @@ function renderPension() {
   for (const f of PENSION_FUNDS) {
     const v = cur === 'ILS' ? f.ils : f.usd;
     const card = el('div', 'card stat',
-      '<div class="stat-label">' + f.name + '</div>' +
+      '<div class="stat-label">' + esc(f.name) + '</div>' +
       '<div class="stat-value">' + money(v, cur) + '</div>');
     wrap.appendChild(card);
   }
-  const tu = PENSION_FUNDS.reduce((a, f) => a + f.usd, 0);
-  const ti = PENSION_FUNDS.reduce((a, f) => a + f.ils, 0);
+  const tu = PENSION_FUNDS.reduce((a, f) => a + (num(f.usd) || 0), 0);
+  const ti = PENSION_FUNDS.reduce((a, f) => a + (num(f.ils) || 0), 0);
   document.getElementById('pensionTotal').textContent = money(cur === 'ILS' ? ti : tu, cur);
 
   const ul = document.getElementById('pensionDeposits');
   ul.innerHTML = '';
-  for (const r of PENSION_DEPOSITS) {
-    const li = el('li');
-    li.innerHTML =
-      '<span><b>' + r.place + '</b><br><span class="r-date">' + r.period + '</span>' +
-      (r.note ? '<br><span class="r-note">' + r.note + '</span>' : '') + '</span>' +
-      '<span class="r-amt out">₪' + Math.abs(r.amount).toLocaleString('en-US') + '</span>';
-    ul.appendChild(li);
+  const ed = state.edit.pension;
+  if (ed) {
+    const addLi = el('li');
+    const addBtn = el('button', 'chip-btn', '＋ הוספת הפקדה');
+    addBtn.type = 'button';
+    addBtn.addEventListener('click', () => showAddPensionDepositForm(ul));
+    addLi.appendChild(addBtn);
+    ul.appendChild(addLi);
   }
+  PENSION_DEPOSITS.forEach((r, i) => ul.appendChild(buildPensionDepositRow(r, i, ed)));
+}
+
+function buildPensionDepositRow(r, i, ed) {
+  const li = el('li');
+  li.innerHTML =
+    '<span><b>' + esc(r.place) + '</b><br><span class="r-date">' + esc(r.period) + '</span>' +
+    (r.note ? '<br><span class="r-note">' + esc(r.note) + '</span>' : '') + '</span>' +
+    '<span class="r-amt out">₪' + Math.abs(r.amount).toLocaleString('en-US') + '</span>';
+  if (ed) {
+    const actions = el('span', 'row-actions');
+    const eb = el('button', 'mini-btn', 'ערוך');
+    eb.type = 'button';
+    eb.addEventListener('click', () => showEditPensionDepositForm(li, r, i));
+    const dbtn = el('button', 'mini-btn danger', 'מחק');
+    dbtn.type = 'button';
+    dbtn.addEventListener('click', () => deletePensionDeposit(i));
+    actions.appendChild(eb);
+    actions.appendChild(dbtn);
+    li.appendChild(actions);
+  }
+  return li;
+}
+
+function pensionDepositFormHTML(r, idp) {
+  const isOut = r.amount > 0;
+  return '<div class="form-grid">' +
+    '<label>חברה<input id="' + idp + '-place" type="text" value="' + esc(r.place || '') + '"></label>' +
+    '<label>תקופה<input id="' + idp + '-period" type="text" dir="ltr" value="' + esc(r.period || '') + '" placeholder="MM/YYYY – MM/YYYY"></label>' +
+    '<label>סוג<select id="' + idp + '-type">' +
+      '<option value="in"' + (!isOut ? ' selected' : '') + '>הפקדה (כסף נכנס)</option>' +
+      '<option value="out"' + (isOut ? ' selected' : '') + '>משיכה (כסף יוצא)</option>' +
+    '</select></label>' +
+    '<label>סכום (₪)<input id="' + idp + '-amt" type="number" min="0" step="any" inputmode="decimal" value="' + Math.abs(r.amount) + '"></label>' +
+    '<label>הערה<input id="' + idp + '-note" type="text" value="' + esc(r.note || '') + '" placeholder="אופציונלי"></label>' +
+    '</div>' +
+    '<div class="form-err hidden" id="' + idp + '-err"></div>' +
+    '<div class="edit-actions"><button class="btn" id="' + idp + '-save" type="button">שמור</button>' +
+    '<button class="link-btn" id="' + idp + '-cancel" type="button">ביטול</button></div>';
+}
+
+function readPensionDepositForm(box, idp) {
+  const place = box.querySelector('#' + idp + '-place').value.trim();
+  const period = box.querySelector('#' + idp + '-period').value.trim();
+  const type = box.querySelector('#' + idp + '-type').value;
+  const amount = parseFloat(box.querySelector('#' + idp + '-amt').value);
+  const note = box.querySelector('#' + idp + '-note').value.trim();
+  if (!place) return { err: 'צריך למלא את שם החברה' };
+  if (!(amount > 0)) return { err: 'הסכום חייב להיות חיובי' };
+  return { place: place, period: period, amount: type === 'out' ? Math.abs(amount) : -Math.abs(amount), note: note };
+}
+
+function showEditPensionDepositForm(li, r, i) {
+  const idp = 'pe' + i;
+  li.classList.add('form-li');
+  li.innerHTML = pensionDepositFormHTML(r, idp);
+  li.querySelector('#' + idp + '-cancel').addEventListener('click', () => renderPension());
+  li.querySelector('#' + idp + '-save').addEventListener('click', () => {
+    const v = readPensionDepositForm(li, idp);
+    const errEl = li.querySelector('#' + idp + '-err');
+    if (v.err) { errEl.textContent = v.err; errEl.classList.remove('hidden'); return; }
+    PENSION_DEPOSITS[i] = { place: v.place, period: v.period, amount: v.amount, note: v.note };
+    saveDB();
+    renderPension();
+    flash('נשמר ✓');
+  });
+}
+
+function showAddPensionDepositForm(ul) {
+  if (document.getElementById('addPenDepForm')) return;
+  const li = el('li');
+  li.id = 'addPenDepForm';
+  li.classList.add('form-li');
+  li.innerHTML = '<b>הפקדת פנסיה חדשה</b>' + pensionDepositFormHTML({ place: '', period: '', amount: 0, note: '' }, 'pa');
+  ul.insertBefore(li, ul.firstChild);
+  li.querySelector('#pa-cancel').addEventListener('click', () => li.remove());
+  li.querySelector('#pa-save').addEventListener('click', () => {
+    const v = readPensionDepositForm(li, 'pa');
+    const errEl = li.querySelector('#pa-err');
+    if (v.err) { errEl.textContent = v.err; errEl.classList.remove('hidden'); return; }
+    PENSION_DEPOSITS.unshift({ place: v.place, period: v.period, amount: v.amount, note: v.note });
+    saveDB();
+    renderPension();
+    flash('נוספה ✓');
+  });
+}
+
+function deletePensionDeposit(i) {
+  const r = PENSION_DEPOSITS[i];
+  if (!r) return;
+  if (!confirm('למחוק את ההפקדה של ' + r.place + ' (' + Math.abs(r.amount).toLocaleString('en-US') + ' ₪)?')) return;
+  PENSION_DEPOSITS.splice(i, 1);
+  saveDB();
+  renderPension();
+  flash('נמחקה ✓');
 }
 
 /* ---------------- כללי ---------------- */
@@ -1134,6 +1689,51 @@ function renderAll() {
   for (const sym of Object.keys(state.open)) {
     if (state.open[sym]) ensureChartData(sym);
   }
+}
+
+/* ---------------- הגדרות ומצב עריכה ---------------- */
+
+function renderTdKeyStatus() {
+  const s = document.getElementById('tdKeyStatus');
+  if (!s) return;
+  const k = tdKey();
+  s.textContent = k
+    ? 'מפתח שמור: ••••' + k.slice(-4) + ' — הגרפים פעילים'
+    : 'אין מפתח שמור — הגרפים לא יעבדו. הזן מפתח למטה.';
+}
+
+function wireEditToggle(btnId, hintId, key, rerender) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    state.edit[key] = !state.edit[key];
+    btn.classList.toggle('on', state.edit[key]);
+    const hint = document.getElementById(hintId);
+    if (hint) hint.classList.toggle('hidden', !state.edit[key]);
+    rerender();
+  });
+}
+
+function renderCashInputs() {
+  const u = document.getElementById('cashUsd');
+  const s = document.getElementById('cashIls');
+  if (u) u.value = (DB.cash && DB.cash.usd) || 0;
+  if (s) s.value = (DB.cash && DB.cash.ils) || 0;
+}
+
+function renderPensionFundEditors() {
+  const box = document.getElementById('pensionFundEditors');
+  if (!box) return;
+  box.innerHTML = '';
+  PENSION_FUNDS.forEach((f, i) => {
+    const d = el('div', 'fund-editor');
+    d.innerHTML = '<b>' + esc(f.name) + '</b>' +
+      '<div class="form-grid">' +
+      '<label>דולרים ($)<input data-fund="' + i + '" data-cur="usd" type="number" min="0" step="any" inputmode="decimal" value="' + f.usd + '"></label>' +
+      '<label>שקלים (₪)<input data-fund="' + i + '" data-cur="ils" type="number" min="0" step="any" inputmode="decimal" value="' + f.ils + '"></label>' +
+      '</div>';
+    box.appendChild(d);
+  });
 }
 
 function init() {
@@ -1165,6 +1765,7 @@ function init() {
     clearTimeout(rzT);
     rzT = setTimeout(() => {
       drawPie();
+      drawPfChart();
       for (const sym of Object.keys(state.open)) {
         if (state.open[sym]) ensureChartData(sym);
       }
@@ -1178,29 +1779,110 @@ function init() {
     });
   }
 
-  // מפתח Twelve Data לגרפים (נשמר בטלפון בלבד)
-  if (!tdKey()) showTdKeyCard();
+  // מפתח Twelve Data לגרפים (נשמר בטלפון בלבד) — בלשונית הגדרות
   const tdSave = document.getElementById('tdKeySave');
   if (tdSave) tdSave.addEventListener('click', () => {
     const inp = document.getElementById('tdKeyInput');
     const v = (inp && inp.value || '').trim();
     if (!v) return;
     try { localStorage.setItem(LS_TDKEY, v); } catch (e) {}
-    hideTdKeyCard();
+    renderTdKeyStatus();
+    flash('המפתח נשמר ✓');
     state.hist = {}; state.intra = {};
     warmHistories();
     for (const sym of Object.keys(state.open)) if (state.open[sym]) ensureChartData(sym);
   });
-  // החלפת מפתח קיים — פותח את הכרטיס עם המפתח הנוכחי
-  const tdChange = document.getElementById('tdKeyChange');
-  if (tdChange) tdChange.addEventListener('click', () => {
-    const inp = document.getElementById('tdKeyInput');
-    if (inp) inp.value = tdKey();
-    showTdKeyCard();
-    if (inp) inp.focus();
+  renderTdKeyStatus();
+  if (!tdKey()) { switchTab('settings'); }
+
+  // מצבי עריכה — כבויים כברירת מחדל כדי למנוע טעויות בלחיצות אקראיות
+  wireEditToggle('editStocksBtn', 'editStocksHint', 'stocks', renderStocks);
+  wireEditToggle('editDepositsBtn', 'editDepositsHint', 'deposits', renderDeposits);
+  wireEditToggle('editPensionBtn', 'editPensionHint', 'pension', renderPension);
+
+  // מזומן
+  renderCashInputs();
+  document.getElementById('cashSave').addEventListener('click', () => {
+    const u = parseFloat(document.getElementById('cashUsd').value);
+    const s = parseFloat(document.getElementById('cashIls').value);
+    const errEl = document.getElementById('cashErr');
+    if (!(u >= 0) || !(s >= 0)) {
+      errEl.textContent = 'הסכומים חייבים להיות מספרים לא־שליליים';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+    DB.cash = { usd: u, ils: s };
+    saveDB();
+    renderOverview();
+    flash('המזומן נשמר ✓');
   });
-  const tdCancel = document.getElementById('tdKeyCancel');
-  if (tdCancel) tdCancel.addEventListener('click', hideTdKeyCard);
+
+  // קרנות פנסיה והשתלמות
+  renderPensionFundEditors();
+  document.getElementById('pensionFundsSave').addEventListener('click', () => {
+    const errEl = document.getElementById('pfErr');
+    const vals = [];
+    let bad = false;
+    document.querySelectorAll('#pensionFundEditors input').forEach((inp) => {
+      const v = parseFloat(inp.value);
+      if (!(v >= 0)) { bad = true; return; }
+      vals.push([+inp.dataset.fund, inp.dataset.cur, v]);
+    });
+    if (bad) {
+      errEl.textContent = 'כל הערכים חייבים להיות מספרים לא־שליליים';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+    for (const [i, c, v] of vals) PENSION_FUNDS[i][c] = v;
+    saveDB();
+    renderPension();
+    flash('הקרנות נשמרו ✓');
+  });
+
+  // גיבוי נתונים — ייצוא וייבוא קובץ JSON
+  document.getElementById('exportDb').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(DB)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'portfolio-backup-' + todayISO() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    flash('הגיבוי יוצא ✓');
+  });
+  document.getElementById('importDb').addEventListener('click', () => {
+    document.getElementById('importDbFile').click();
+  });
+  document.getElementById('importDbFile').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const db = JSON.parse(rd.result);
+        if (!db || !Array.isArray(db.positions) || !Array.isArray(db.deposits)) throw new Error('bad');
+        if (!confirm('לייבא את הגיבוי? כל הנתונים הנוכחיים יוחלפו ולא ניתן לבטל.')) return;
+        saveDBto(Object.assign({ v: 1 }, db));
+        location.reload();
+      } catch (err) {
+        const ee = document.getElementById('backupErr');
+        ee.textContent = 'קובץ הגיבוי לא תקין';
+        ee.classList.remove('hidden');
+      }
+    };
+    rd.readAsText(f);
+  });
+
+  // איפוס נתונים
+  document.getElementById('resetData').addEventListener('click', () => {
+    if (!confirm('לאפס את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) לערכי הגיליון המקוריים?\nכל השינויים שביצעת יימחקו ולא ניתן לבטל.')) return;
+    try { localStorage.removeItem(LS_DB); } catch (e) {}
+    location.reload();
+  });
 
   renderAll();
   refreshQuotes().then(() => warmHistories());
