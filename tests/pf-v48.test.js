@@ -51,7 +51,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { buildTradesHistory, getDailyFast, ibkrIsDepositTx, pfBenchOn, _state: () => state, _resetHist() { state.hist = {}; }, _setBench(b) { state.pfBench = b; } };';
+  '\n;globalThis.__t = { buildTradesHistory, getDailyFast, ibkrIsDepositTx, pfBenchOn, pfShowBench, _state: () => state, _resetHist() { state.hist = {}; }, _setBench(b) { state.pfBench = b; } };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -179,6 +179,14 @@ const fxOf = () => 3.2;
   T._setBench({ SPY: true, QQQ: true });
   ok(T.pfBenchOn('SPY') && T.pfBenchOn('QQQ'), 'שניהם דולקים שוב');
   T._setBench(null);
+}
+
+/* ---------- הפרדת ממשקים: השוואה רק ל־IBKR ---------- */
+{
+  ok(T.pfShowBench('ibkr') === true, 'NAV מ־IBKR — יש השוואה');
+  ok(T.pfShowBench('trades') === true, 'שחזור מעסקאות IBKR — יש השוואה');
+  ok(T.pfShowBench('manual') === false, 'הזנה ידנית — אין השוואה');
+  ok(T.pfShowBench('') === false, 'מקור לא ידוע — אין השוואה');
 }
 
 /* ---------- getDailyFast ---------- */
