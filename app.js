@@ -145,9 +145,9 @@ he: {
   delPensionConfirm: 'למחוק את ההפקדה של {place} ({amt} ₪)?',
   errCompanyNeeded: 'צריך למלא את שם החברה',
 
-  myAccount: 'החשבון שלי 👤',
+  myAccount: 'החשבון שלי',
   appVersion: 'גרסת אפליקציה: ',
-  tdKeyTitle: 'מפתח נתונים (Twelve Data) 📈',
+  tdKeyTitle: 'מפתח נתונים (Twelve Data)',
   tdKeyDesc: 'המפתח מפעיל את הגרפים. נשמר בחשבון שלך בענן (או בטלפון, בלי חשבון).',
   tdSignup: 'להרשמה חינמית ב־Twelve Data',
   tdKeyPh: 'הדבק כאן את המפתח',
@@ -155,7 +155,7 @@ he: {
   tdKeyMissing: 'אין מפתח שמור — הגרפים לא יעבדו. הזן מפתח למטה.',
   tdKeySavedFlash: 'המפתח נשמר ✓',
 
-  ibkrTitle: 'חיבור ברוקר למשיכת מידע 🏦',
+  ibkrTitle: 'חיבור ברוקר למשיכת מידע',
   ibkrDesc: 'אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).',
   ibkrProxyLabel: 'כתובת השרתון',
   ibkrQueryPh: 'מ־IBKR',
@@ -386,9 +386,9 @@ en: {
   delPensionConfirm: 'Delete the deposit for {place} ({amt} ₪)?',
   errCompanyNeeded: 'Company name is required',
 
-  myAccount: 'My account 👤',
+  myAccount: 'My account',
   appVersion: 'App version: ',
-  tdKeyTitle: 'Data key (Twelve Data) 📈',
+  tdKeyTitle: 'Data key (Twelve Data)',
   tdKeyDesc: 'The key powers the charts. Stored in your cloud account (or on the phone, without an account).',
   tdSignup: 'Free Twelve Data signup',
   tdKeyPh: 'Paste your key here',
@@ -396,7 +396,7 @@ en: {
   tdKeyMissing: 'No saved key — charts won\'t work. Enter a key below.',
   tdKeySavedFlash: 'Key saved ✓',
 
-  ibkrTitle: 'Broker connection (data pull) 🏦',
+  ibkrTitle: 'Broker connection (data pull)',
   ibkrDesc: 'Optional — pulls a read-only report from Interactive Brokers. No trading possible. Sync only downloads data for viewing; the Import button adds positions to the portfolio (with your approval).',
   ibkrProxyLabel: 'Proxy URL',
   ibkrQueryPh: 'from IBKR',
@@ -574,7 +574,7 @@ function applyTheme() {
   try {
     if (document.documentElement) document.documentElement.dataset.theme = th;
     const meta = document.querySelector && document.querySelector('#themeColorMeta');
-    if (meta) meta.setAttribute('content', th === 'dark' ? '#0A0E0C' : '#006A4E');
+    if (meta) meta.setAttribute('content', th === 'dark' ? '#000000' : '#006A4E');
   } catch (e) {}
   renderThemeToggle();
 }
@@ -1137,7 +1137,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v30';
+const APP_VERSION = 'v31';
 
 
 function saveDBto(db) {
@@ -1222,7 +1222,13 @@ const yahooQuoteURL = (sym) => yahooURL(sym, 'interval=1d&range=5d');
 const LS_QUOTES = 'pwa_quotes_v2'; // v2: ניקוי מטמון ישן שסומן כ־Stooq
 const LS_HIST = 'pwa_hist_v1_'; // + sym
 
-const PIE_COLORS = ['#006A4E','#2E7D32','#1565C0','#5E35B1','#C2185B','#E65100','#B7791F','#00838F','#6D4C41'];
+/* צבעי תרשים העוגה — נגזרים מטוקני פלטת iOS 26 החיים, כך שהם מתחלפים
+   אוטומטית בין ערכת בהיר לכהה (בטסטים: fallback של ערכת בהיר). */
+const PIE_VARS = ['--sys-green', '--sys-blue', '--sys-teal', '--sys-purple', '--sys-pink', '--sys-orange', '--sys-yellow', '--sys-mint', '--sys-brown'];
+const PIE_FALLBACK = ['#34C759', '#007AFF', '#5AC8FA', '#AF52DE', '#FF2D55', '#FF9500', '#FFCC00', '#00C7BE', '#A2845E'];
+function pieColor(i) {
+  return cssVar(PIE_VARS[i % PIE_VARS.length], PIE_FALLBACK[i % PIE_VARS.length]);
+}
 
 /* ---------------- מצב ---------------- */
 
@@ -1578,7 +1584,13 @@ function setBanner(msg) {
 }
 
 function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab').forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle('active', on);
+    if (on && t.scrollIntoView) {
+      try { t.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
+    }
+  });
   document.querySelectorAll('.tabpage').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
 }
 
@@ -1621,7 +1633,7 @@ function drawPie() {
   const slices = POSITIONS.map((p, i) => {
     const q = state.quotes[p.sym];
     const v = q ? q.close * p.shares : 0;
-    return { sym: p.sym, name: p.name, value: v, color: PIE_COLORS[i % PIE_COLORS.length] };
+    return { sym: p.sym, name: p.name, value: v, color: pieColor(i) };
   }).filter((s) => s.value > 0);
   const total = slices.reduce((a, s) => a + s.value, 0);
 
@@ -2296,11 +2308,12 @@ function drawStockChart(sym, rows, intraday) {
     ctx.fillStyle = color; ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
   };
-  if (ms.pts.length >= 1) drawMarker(ms.pts[0], '#1565C0');
+  const markerBlue = cssVar('--sys-blue', '#007AFF');
+  if (ms.pts.length >= 1) drawMarker(ms.pts[0], markerBlue);
   if (ms.pts.length >= 2) {
-    drawMarker(ms.pts[1], '#1565C0');
+    drawMarker(ms.pts[1], markerBlue);
     const a = pts[ms.pts[0]], b = pts[ms.pts[1]];
-    ctx.strokeStyle = '#1565C0'; ctx.setLineDash([6, 4]); ctx.lineWidth = 2;
+    ctx.strokeStyle = markerBlue; ctx.setLineDash([6, 4]); ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(X(ms.pts[0]), Y(a.close));
     ctx.lineTo(X(ms.pts[1]), Y(b.close));
