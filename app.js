@@ -1652,7 +1652,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v80';
+const APP_VERSION = 'v81';
 
 
 function saveDBto(db) {
@@ -3197,9 +3197,15 @@ function buildTradesHistory(o, fromDate) {
       const date = String(x.date).slice(0, 10);
       let qty = Math.abs(Number(x.qty) || 0);
       let price = Number(x.price) || 0;
-      // עסקה לפני ספליט: המרה ליחידות של היום (כמות × יחס, מחיר ÷ יחס)
+      // עסקה לפני ספליט: המרה ליחידות של היום (כמות × יחס, מחיר ÷ יחס).
+      // v81: בדיקת חוסן — אם מחיר העסקה כבר תואם להיסטוריה המותאמת (IBKR
+      // לפעמים מדווח כבר מותאם), לא מכפילים שוב (מניעת התאמה כפולה).
       for (const s of (splitsBySym[sym] || [])) {
-        if (date < s.date) { qty *= s.ratio; price /= s.ratio; }
+        if (date < s.date) {
+          const hc = closeOnOrBefore(o.hist[sym] || o.hist[sym.toUpperCase()] || [], date);
+          const alreadyAdj = hc && price > 0 && Math.abs(price - hc) / hc < 0.3;
+          if (!alreadyAdj) { qty *= s.ratio; price /= s.ratio; }
+        }
       }
       return {
         date: date,
@@ -3296,6 +3302,31 @@ function buildTradesHistory(o, fromDate) {
     stateByDate[d] = snap();
   }
 
+  // v81: כיול מזומן מ־NAV רשמי (ChangeInNAV). אם המזומן ההתחלתי (DB.cash)
+  // שגוי, כל הסדרה המשוחזרת סוטה בקבוע — והסטייה מתעצמת בהליכה אחורה.
+  // עיגון ל־NAV רשמי מתקן את הסטייה.
+  try {
+    const anchor = o.cashAnchor;
+    if (anchor && anchor.date && isFinite(anchor.nav)) {
+      const ad = String(anchor.date).slice(0, 10);
+      const st = stateByDate[ad];
+      if (st) {
+        let secUsd = 0;
+        for (const sym of Object.keys(st.shares)) {
+          const q = st.shares[sym];
+          if (!q) continue;
+          const c = closeOnOrBefore((o.hist || {})[sym] || [], ad);
+          if (c) secUsd += q * c;
+        }
+        const impliedCash = anchor.nav - secUsd;
+        const delta = impliedCash - st.cashUsd;
+        if (isFinite(delta) && Math.abs(delta) > 0.01) {
+          for (const d of Object.keys(stateByDate)) stateByDate[d].cashUsd += delta;
+        }
+      }
+    }
+  } catch (e) {}
+
   const asc = [...dateSet].sort();
   const vals = []; // {date, v, f} — הכל ב־USD
   const noHistSyms = []; // סמלים עם עסקאות אבל בלי היסטוריית מחירים
@@ -3317,8 +3348,15 @@ function buildTradesHistory(o, fromDate) {
   }
   // TWR יומי מצטבר
   const out = [];
-  let cum = 100, prev = null;
+  let cum = 100, prev = null, based = false;
   for (const r of vals) {
+    // v81: תאריך הבסיס (ראשון עם NAV חיובי) נדחף עם 100 — קודם הוא הושמט,
+    // והתשואה חושבה מהיום השני (סטייה של יום אחד).
+    if (!(r.v > 0)) { prev = r.v; continue; }
+    if (!based) {
+      out.push({ date: r.date, value: 100 });
+      prev = r.v; based = true; continue;
+    }
     if (prev === null || !(prev > 0)) { prev = r.v; continue; }
     const den = prev;
     const num = r.v - r.f;
@@ -3338,11 +3376,15 @@ function buildTradesHistory(o, fromDate) {
    v69: מטמון תוצאות — מעבר בין טווחי זמן לא מחשב מחדש, רק מסנן. */
 let _ibkrThCache = {};
 function _ibkrThSig(d) {
-  // חתימה מהירה לשינוי נתונים: עסקאות, תזרים, פוזיציות, מזומן, היסטוריות
+  // חתימה מהירה לשינוי נתונים: עסקאות, תזרים, פוזיציות, מזומן, היסטוריות, NAV רשמי
   let histSig = '';
   try {
     histSig = Object.keys(state.hist || {}).sort()
       .map((s) => s + ':' + (state.hist[s] || []).length).join('|');
+  } catch (e) {}
+  let navSig = '';
+  try {
+    navSig = JSON.stringify((d.navHistory || []).map((r) => r.fromDate + ':' + r.startingValue));
   } catch (e) {}
   return [
     (d.trades || []).length,
@@ -3352,6 +3394,7 @@ function _ibkrThSig(d) {
     JSON.stringify((d.positions || []).map((p) => p.symbol + ':' + p.qty).sort()),
     JSON.stringify((DB && DB.cash) || {}),
     histSig,
+    navSig,
   ].join('~');
 }
 function ibkrThCacheClear() { _ibkrThCache = {}; }
@@ -3390,6 +3433,21 @@ function ibkrTradesHistory(fromDate) {
     }
     if (has) ibkrCash = { usd: Math.round(usd * 100) / 100, ils: Math.round(ils * 100) / 100 };
   } catch (e) {}
+  // v81: עוגן כיול מ־NAV רשמי (ChangeInNAV) — מתקן סטיית מזומן קבועה.
+  let cashAnchor = null;
+  try {
+    const nh = (d && d.navHistory) || [];
+    // בוחרים את השורה עם startingValue העדכנית ביותר (תקופת הדוח הארוכה)
+    let best = null;
+    for (const r of nh) {
+      const sv = Number(r.startingValue);
+      const fd = String(r.fromDate || '').slice(0, 10);
+      if (isFinite(sv) && /^\d{4}-\d{2}-\d{2}$/.test(fd)) {
+        if (!best || fd < String(best.fromDate).slice(0, 10)) best = r;
+      }
+    }
+    if (best) cashAnchor = { date: String(best.fromDate).slice(0, 10), nav: Number(best.startingValue) };
+  } catch (e) {}
   const rows = buildTradesHistory({
     trades: trades,
     cashTx: (d && d.cashTransactions) || [],
@@ -3397,6 +3455,7 @@ function ibkrTradesHistory(fromDate) {
     cash: ibkrCash || (DB && DB.cash) || { usd: 0, ils: 0 },
     hist: state.hist,
     fxOf: (iso) => fxOnOrBefore(iso) || state.fx || 1,
+    cashAnchor: cashAnchor,
   }, fromDate);
   _ibkrThCache[ck] = { sig: sig, rows: rows };
   return rows;
