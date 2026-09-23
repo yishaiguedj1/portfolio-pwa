@@ -182,6 +182,7 @@ he: {
   pfCalTitle: 'בחר תאריך התחלה',
   pfPickBubble: 'געו בנקודה על הגרף לבחירת תאריך ההתחלה',
   pfRangeReturn: 'תשואת התיק',
+  stockRangeReturn: 'תשואת המניה',
   pfNoteTrades: 'היסטוריה אמיתית — משוחזרת מעסקאות IBKR: קניות, מכירות והפקדות/משיכות מנוטרלות מהתשואה',
 
   sourceLabel: 'מקור: {src} · דיליי ~15 דקות{sess}{stale}',
@@ -514,6 +515,7 @@ en: {
   pfCalTitle: 'Choose start date',
   pfPickBubble: 'Tap a point on the chart to choose the start date',
   pfRangeReturn: 'Portfolio return',
+  stockRangeReturn: 'Stock return',
   pfNoteTrades: 'True history — reconstructed from IBKR trades: buys, sells and deposits/withdrawals excluded from the return',
 
   sourceLabel: 'Source: {src} · ~15 min delay{sess}{stale}',
@@ -1689,7 +1691,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v106';
+const APP_VERSION = 'v107';
 
 
 function saveDBto(db) {
@@ -4996,20 +4998,9 @@ function buildStockBody(p, m) {
   wrap.appendChild(grid);
 
   if (!state.range[sym]) state.range[sym] = 'year';
-  const chead = el('div', 'chart-head');
-  const ranges = el('div', 'ranges');
-  for (const [key, label] of RANGES) {
-    const b = el('button', 'range-btn' + (state.range[sym] === key ? ' active' : ''), t(label));
-    b.type = 'button';
-    b.addEventListener('click', () => {
-      state.range[sym] = key;
-      state.measure[sym] = { on: false, pts: [] };
-      refreshStockBody(sym);
-    });
-    ranges.appendChild(b);
-  }
-  chead.appendChild(ranges);
-  const mb = el('button', 'measure-btn' + (measureState(sym).on ? ' on' : ''), t('measure'));
+  // v107: שורת כלים בשבלונת הגרף הראשי — כפתור מדידה נקי (chip-btn)
+  const tools = el('div', 'pf-tools');
+  const mb = el('button', 'chip-btn' + (measureState(sym).on ? ' on' : ''), t('measure'));
   mb.type = 'button';
   mb.title = t('measureTitle');
   mb.addEventListener('click', () => {
@@ -5018,8 +5009,8 @@ function buildStockBody(p, m) {
     ms.pts = [];
     refreshStockBody(sym);
   });
-  chead.appendChild(mb);
-  wrap.appendChild(chead);
+  tools.appendChild(mb);
+  wrap.appendChild(tools);
 
   const chip = el('div', 'measure-chip hidden');
   chip.id = 'mchip-' + sym;
@@ -5034,6 +5025,28 @@ function buildStockBody(p, m) {
   cwrap.appendChild(canvas);
   cwrap.appendChild(loading);
   wrap.appendChild(cwrap);
+
+  // v107: טווחים מתחת לגרף + שורת תשואה + legend — כמו בגרף הראשי
+  const ranges = el('div', 'chip-row stock-chips');
+  for (const [key, label] of RANGES) {
+    const b = el('button', 'range-btn' + (state.range[sym] === key ? ' active' : ''), t(label));
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      state.range[sym] = key;
+      state.measure[sym] = { on: false, pts: [] };
+      refreshStockBody(sym);
+    });
+    ranges.appendChild(b);
+  }
+  wrap.appendChild(ranges);
+
+  const sret = el('div', 'pf-range-summary');
+  sret.id = 'sret-' + sym;
+  wrap.appendChild(sret);
+
+  const sleg = el('ul', 'legend');
+  sleg.id = 'sleg-' + sym;
+  wrap.appendChild(sleg);
 
   const hint = el('div', 'chart-hint',
     measureState(sym).on ? t('measureOn') : t('measureTip'));
@@ -5146,7 +5159,8 @@ function drawStockChart(sym, rows, intraday) {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const padL = 6, padR = 58, padT = 10, padB = 22;
+  // v107: שבלונת הציור של הגרף הראשי — גיאומטריה, טיפוגרפיה, קו, סמנים
+  const padL = 6, padR = 54, padT = 10, padB = 36;
   const plotW = w - padL - padR, plotH = h - padT - padB;
   let min = Infinity, max = -Infinity;
   for (const p of pts) { if (p.close < min) min = p.close; if (p.close > max) max = p.close; }
@@ -5158,67 +5172,81 @@ function drawStockChart(sym, rows, intraday) {
   const lineCol = up ? cssVar('--gain', '#137333') : cssVar('--loss', '#B3261E');
 
   // רשת אופקית + תוויות מחיר
-  ctx.font = '11px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.font = '12.5px system-ui'; ctx.textBaseline = 'middle';
   for (let g = 0; g <= 4; g++) {
     const v = min + (max - min) * g / 4;
     const y = Y(v);
-    ctx.strokeStyle = cssVar('--outline', '#E7ECE8'); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR + 6, y); ctx.stroke();
-    ctx.fillStyle = cssVar('--on-surface-var', '#6B7570');
-    ctx.fillText(fmtUSD2(v), w - padR + 10, y);
+    ctx.strokeStyle = cssVar('--outline', '#E3E7E4'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
+    ctx.textAlign = 'left';
+    ctx.fillText(fmtUSD2(v), w - padR + 6, y);
   }
 
-  // מילוי שטח
-  const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-  grad.addColorStop(0, up ? 'rgba(19,115,51,.25)' : 'rgba(179,38,30,.22)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  // קו — 2.5px כמו בגרף הראשי, בלי מילוי שטח
   ctx.beginPath();
   pts.forEach((p, i) => { const x = X(i), y = Y(p.close); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-  ctx.lineTo(X(pts.length - 1), padT + plotH);
-  ctx.lineTo(X(0), padT + plotH);
-  ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = lineCol; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
 
-  // קו
-  ctx.beginPath();
-  pts.forEach((p, i) => { const x = X(i), y = Y(p.close); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-  ctx.strokeStyle = lineCol; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
-
-  // תוויות ציר זמן (עד 5)
-  ctx.fillStyle = cssVar('--on-surface-var', '#6B7570'); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  const ticks = Math.min(5, pts.length);
-  for (let k = 0; k < ticks; k++) {
-    const i = Math.round(k * (pts.length - 1) / (ticks - 1 || 1));
-    ctx.fillText(pts[i].label, Math.min(Math.max(X(i), 30), w - padR - 20), padT + plotH + 6);
+  // תוויות ציר זמן — כמו בגרף הראשי (MM/YYYY, צעד קבוע, בלי חפיפות)
+  ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const n = pts.length;
+  const step = Math.max(1, Math.floor(n / 4));
+  for (let i = 0; i < n; i += step) {
+    const lbl = intraday ? pts[i].label : fmtDateIL(pts[i].date).slice(3);
+    ctx.fillText(lbl, X(i), h - 20);
   }
 
-  // נקודת מדידה
-  const drawMarker = (i, color) => {
+  // סמני מדידה — כמו בגרף הראשי: הילה רכה, קו מקווקו, טבעת לבנה, רצועה בין הנקודות
+  const marker = cssVar('--primary', '#006A4E');
+  if (ms.pts.length >= 2) {
+    const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
+    ctx.fillStyle = marker + '1F';
+    ctx.fillRect(X(a), padT, X(b) - X(a), plotH);
+  }
+  const drawMarker = (i) => {
     const x = X(i), y = Y(pts[i].close);
-    ctx.strokeStyle = color; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = marker + '2E'; ctx.fill();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = marker; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
-    ctx.fillStyle = color; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2);
+    ctx.fillStyle = marker; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke();
   };
-  const markerBlue = cssVar('--sys-blue', '#007AFF');
-  if (ms.pts.length >= 1) drawMarker(ms.pts[0], markerBlue);
-  if (ms.pts.length >= 2) {
-    drawMarker(ms.pts[1], markerBlue);
-    const a = pts[ms.pts[0]], b = pts[ms.pts[1]];
-    ctx.strokeStyle = markerBlue; ctx.setLineDash([6, 4]); ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(X(ms.pts[0]), Y(a.close));
-    ctx.lineTo(X(ms.pts[1]), Y(b.close));
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
+  for (const i of ms.pts) drawMarker(i);
 
   // שמירת מיפוי למדידה
   canvas._chartMap = { n: pts.length, padL: padL, plotW: plotW, pts: pts };
+  canvas.classList.toggle('measuring', ms.on || ms.pts.length > 0);
   updateMeasureChip(sym);
+  renderStockRangeSummary(sym, pts, lineCol);
   return pts;
+}
+
+/* v107: שורת תשואת הטווח + legend לגרף המניה — כמו בגרף הראשי */
+function renderStockRangeSummary(sym, pts, lineCol) {
+  const box = document.getElementById('sret-' + sym);
+  const leg = document.getElementById('sleg-' + sym);
+  if (!pts || pts.length < 2) {
+    if (box) box.innerHTML = '';
+    if (leg) leg.innerHTML = '';
+    return;
+  }
+  const r = (pts[pts.length - 1].close - pts[0].close) / pts[0].close * 100;
+  let rangeName = '';
+  for (const [rk, labelKey] of RANGES) {
+    if (rk === (state.range[sym] || 'year')) { rangeName = t(labelKey); break; }
+  }
+  if (box) box.innerHTML = '<span>' + esc(t('stockRangeReturn')) + '</span>' +
+    '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
+    (rangeName ? '<span class="rs-range">' + esc(rangeName) + '</span>' : '');
+  if (leg) leg.innerHTML = '<li><span class="dot" style="background:' + lineCol + '"></span>' +
+    '<span class="lg-name">' + esc(sym) + '</span>' +
+    '<span class="lg-pct">' + fmtRetHTML(r) + '</span></li>';
 }
 
 function updateMeasureChip(sym) {
