@@ -18,12 +18,30 @@ const UA = 'portfolio-ibkr-proxy/1.0 (+https://yishaiguedj1.github.io/portfolio-
 /* Hosts that IBKR itself may return in SendRequest <Url>. Strict allowlist —
    the client passes statementUrl back to us, so we never fetch an arbitrary host. */
 const IBKR_HOSTS = new Set(['ndcdyn.interactivebrokers.com', 'gdcdyn.interactivebrokers.com']);
+/* הנתיבים הרשמיים של Flex Web Service. הנתיב /AccountManagement/... נחסם
+   ע"י ה-edge של IBKR (403) — לכן משתמשים ב-/Universal/servlet/... */
+const FLEX_SEND_PATH = '/Universal/servlet/FlexStatementService.SendRequest';
+const FLEX_GET_PATH = '/Universal/servlet/FlexStatementService.GetStatement';
 function statementBaseFrom(url) {
   try {
     const u = new URL(String(url || '').trim());
     if (u.protocol !== 'https:') return null;
     if (!IBKR_HOSTS.has(u.hostname.toLowerCase())) return null;
     return u.origin;
+  } catch {
+    return null;
+  }
+}
+/* מחזיר { base, path } מתוך statementUrl ש-IBKR החזיר — רק אם ההוסט והנתיב
+   שייכים ל-Flex. אחרת null והקוד ישתמש בברירות המחדל הקשיחות. */
+function statementEndpointFrom(url) {
+  try {
+    const u = new URL(String(url || '').trim());
+    if (u.protocol !== 'https:') return null;
+    if (!IBKR_HOSTS.has(u.hostname.toLowerCase())) return null;
+    const p = u.pathname || '';
+    if (!/^\/Universal\/servlet\/FlexStatementService\.(GetStatement|SendRequest)/.test(p)) return null;
+    return { base: u.origin, path: p };
   } catch {
     return null;
   }
@@ -197,11 +215,12 @@ async function ibkrGet(url) {
 }
 
 function errorXml(text) {
-  // Flex returns <Status>Error</Status><ErrorCode>1018</ErrorCode><ErrorMessage>..</ErrorMessage>
+  // Flex returns <Status>Fail</Status> (SendRequest) or <Status>Error</Status>
+  // with <ErrorCode>1018</ErrorCode><ErrorMessage>..</ErrorMessage>
   const mCode = text.match(/<ErrorCode>\s*(\d+)\s*<\/ErrorCode>/);
   const mMsg = text.match(/<ErrorMessage>\s*([^<]*)\s*<\/ErrorMessage>/);
   const mStatus = text.match(/<Status>\s*([^<]*)\s*<\/Status>/);
-  if (mStatus && /error/i.test(mStatus[1])) {
+  if (mStatus && /fail|error/i.test(mStatus[1])) {
     return { code: mCode ? mCode[1] : '?', message: mMsg ? mMsg[1].trim() : 'Flex error' };
   }
   return null;
@@ -226,6 +245,7 @@ async function ibkrGetMulti(path, firstHost) {
 }
 
 module.exports = {
-  IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, statementBaseFrom, cors, rateLimited, parseXml, findKids, firstKid,
+  IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, FLEX_SEND_PATH, FLEX_GET_PATH,
+  statementBaseFrom, statementEndpointFrom, cors, rateLimited, parseXml, findKids, firstKid,
   statementToJson, ibkrGet, ibkrGetMulti, errorXml, flexDate, num,
 };
