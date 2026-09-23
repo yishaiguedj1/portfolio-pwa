@@ -155,7 +155,7 @@
 
     <div class="card" id="ibkrCard">
       <h2>חיבור ברוקר למשיכת מידע 🏦</h2>
-      <p class="fine" style="padding:0">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו, והנתונים הידניים שלך נשארים בדיוק כמו שהם.</p>
+      <p class="fine" style="padding:0">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).</p>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
       <div class="form-grid">
         <label>כתובת השרתון<input id="ibkrProxy" type="text" dir="ltr" autocomplete="off" spellcheck="false" placeholder="https://…vercel.app"></label>
@@ -169,6 +169,7 @@
       <div class="btn-row">
         <button id="ibkrSaveTest" class="btn" type="button">שמור ובדוק חיבור</button>
         <button id="ibkrSync" class="btn" type="button">סנכרון עכשיו</button>
+        <button id="ibkrImport" class="btn" type="button">📥 ייבא פוזיציות לתיק</button>
         <button id="ibkrDisconnect" class="btn danger-btn" type="button">ניתוק</button>
       </div>
       <div class="fine" id="ibkrData" style="padding:0"></div>
