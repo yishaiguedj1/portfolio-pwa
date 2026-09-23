@@ -224,6 +224,7 @@ function downsample(rows, max) {
    נשמרים בנפרד ומוצגים בנפרד. */
 
 const LS_IBKR = 'pwa_ibkr_v1';
+const IBKR_PROXY_DEFAULT = 'https://ibkr-proxy-wine.vercel.app';
 
 function ibkrCfg() {
   try { return JSON.parse(localStorage.getItem(LS_IBKR) || 'null') || {}; }
@@ -235,7 +236,7 @@ function ibkrSaveCfg(patch) {
   return c;
 }
 function ibkrProxyBase() {
-  return ((ibkrCfg().proxyUrl || '').trim().replace(/\/+$/, ''));
+  return (((ibkrCfg().proxyUrl || '') || IBKR_PROXY_DEFAULT).trim().replace(/\/+$/, ''));
 }
 
 /* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }. */
@@ -300,7 +301,7 @@ function renderIbkrCard() {
   const px = document.getElementById('ibkrProxy');
   const tk = document.getElementById('ibkrToken');
   const qd = document.getElementById('ibkrQuery');
-  if (px && !px.value) px.value = cfg.proxyUrl || '';
+  if (px && !px.value) px.value = cfg.proxyUrl || IBKR_PROXY_DEFAULT;
   if (tk && !tk.value) tk.value = cfg.token || '';
   if (qd && !qd.value) qd.value = cfg.queryId || '';
   const s = document.getElementById('ibkrStatus');
@@ -449,7 +450,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v25';
 
 
 function saveDBto(db) {
