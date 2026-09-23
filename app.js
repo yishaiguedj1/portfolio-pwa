@@ -161,8 +161,7 @@ he: {
   ibkrQueryPh: 'מ־IBKR',
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
   ibkrSaveTest: 'שמור ובדוק חיבור',
-  ibkrSyncNow: 'סנכרון עכשיו',
-  ibkrImportBtn: '📥 ייבא פוזיציות לתיק',
+  ibkrSyncImportBtn: '🔄 סנכרן וייבא מ־IBKR',
   ibkrDisconnectBtn: 'ניתוק',
   ibkrNotConnected: 'לא מחובר — מוצגים הנתונים הידניים.',
   ibkrConnectedSynced: 'מחובר ✓ · סונכרן: {time}',
@@ -175,13 +174,13 @@ he: {
   testFailed: 'הבדיקה נכשלה: {err}',
   reqReport: 'מבקש דוח מ־IBKR…',
   genReport: 'IBKR מייצר את הדוח… (לוקח בדרך כלל דקה־שתיים)',
-  syncOk: 'הסנכרון הצליח ✓',
-  syncFailed: 'הסנכרון נכשל: {err}',
   importNoStocks: 'לא נמצאו פוזיציות מניות בדוח IBKR',
   importSkippedNote: ' ({n} שורות שאינן מניות דולריות דולגו)',
-  importConfirm: 'לייבא {n} פוזיציות מ־IBKR לתיק?\nהמניות והמזומן הנוכחיים יוחלפו בנתוני IBKR.\nפנסיה והפקדות לא ישתנו.{skipped}\nלהמשיך?',
-  importedOk: 'יובאו {n} פוזיציות מ־IBKR ✓',
-  importFailed: 'הייבוא נכשל: {err}',
+  importCashLine: 'מזומן מהדוח: ${usd} / ₪{ils}',
+  importCashMissing: 'מזומן לא נמצא בדוח — יישמר המזומן הקיים (כדאי להוסיף את מקטע Cash Report לשאילתת ה־Flex).',
+  importConfirm: 'נמצאו {n} מניות בדוח ({lots} שורות קנייה אוחדו לפי סימבול).\n{cashLine}\nפעולה זו תחליף את המניות והמזומן בתיק. פנסיה והפקדות לא ישתנו.{skipped}\nלהמשיך?',
+  importedOk: 'סונכרן ויובאו {n} מניות מ־IBKR ✓',
+  importFailed: 'הסנכרון והייבוא נכשלו: {err}',
   disconnectConfirm: 'לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון. הנתונים הידניים לא ייפגעו.',
   disconnected: 'החיבור נותק',
   proxyPrefix: 'שרתון: ',
@@ -403,8 +402,7 @@ en: {
   ibkrQueryPh: 'from IBKR',
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
   ibkrSaveTest: 'Save & test connection',
-  ibkrSyncNow: 'Sync now',
-  ibkrImportBtn: '📥 Import positions',
+  ibkrSyncImportBtn: '🔄 Sync & import from IBKR',
   ibkrDisconnectBtn: 'Disconnect',
   ibkrNotConnected: 'Not connected — showing manual data.',
   ibkrConnectedSynced: 'Connected ✓ · Synced: {time}',
@@ -417,13 +415,13 @@ en: {
   testFailed: 'Test failed: {err}',
   reqReport: 'Requesting report from IBKR…',
   genReport: 'IBKR is generating the report… (usually takes a minute or two)',
-  syncOk: 'Sync succeeded ✓',
-  syncFailed: 'Sync failed: {err}',
   importNoStocks: 'No stock positions found in the IBKR report',
   importSkippedNote: ' ({n} non-USD-stock rows skipped)',
-  importConfirm: 'Import {n} positions from IBKR into the portfolio?\nCurrent stocks and cash will be replaced with IBKR data.\nPension and deposits will not change.{skipped}\nContinue?',
-  importedOk: 'Imported {n} positions from IBKR ✓',
-  importFailed: 'Import failed: {err}',
+  importCashLine: 'Cash from report: ${usd} / ₪{ils}',
+  importCashMissing: 'No cash found in the report — keeping existing cash (consider adding the Cash Report section to your Flex query).',
+  importConfirm: 'Found {n} stocks in the report ({lots} purchase rows merged by symbol).\n{cashLine}\nThis will replace the stocks and cash in the portfolio. Pension and deposits will not change.{skipped}\nContinue?',
+  importedOk: 'Synced & imported {n} stocks from IBKR ✓',
+  importFailed: 'Sync & import failed: {err}',
   disconnectConfirm: 'Disconnect the broker? The token and sync data will be deleted from this phone. Manual data will not be affected.',
   disconnected: 'Disconnected',
   proxyPrefix: 'Proxy: ',
@@ -919,7 +917,7 @@ function ibkrClearErr() {
   if (e) { e.textContent = ''; e.classList.add('hidden'); }
 }
 function ibkrSetBusy(busy) {
-  ['ibkrSaveTest', 'ibkrSync', 'ibkrImport', 'ibkrDisconnect'].forEach((id) => {
+  ['ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect'].forEach((id) => {
     const b = document.getElementById(id);
     if (b) b.disabled = !!busy;
   });
@@ -972,86 +970,40 @@ async function ibkrSaveAndTest() {
   renderIbkrCard();
 }
 
-async function ibkrDoSync() {
+/* סנכרון וייבוא מ־IBKR בלחיצה אחת: מושך דוח טרי, מאחד לוטות לפי סימבול,
+   מבקש אישור עם סיכום, ומחליף מניות (+מזומן, רק אם נמצא בדוח).
+   פנסיה והפקדות לא נפגעות. */
+async function ibkrSyncImport() {
   ibkrClearErr();
   const cfg = ibkrCfg();
   const proxyUrl = ibkrProxyBase();
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!cfg.token || !cfg.queryId) return ibkrShowErr(t('credsMissingSave'));
   ibkrSetBusy(true);
-  const s = document.getElementById('ibkrStatus');
   try {
+    const s = document.getElementById('ibkrStatus');
     if (s) s.textContent = t('reqReport');
     const rep = await ibkrRequestReport(fetch, proxyUrl, cfg.token, cfg.queryId);
     if (s) s.textContent = t('genReport');
     const data = await ibkrPollStatement(fetch, proxyUrl, cfg.token, rep.referenceCode, rep.statementUrl || cfg.statementUrl);
     ibkrSaveCfg({ lastSync: Date.now(), statementUrl: rep.statementUrl || cfg.statementUrl || '', data });
-    flash(t('syncOk'));
-  } catch (e) {
-    ibkrShowErr(t('syncFailed', { err: ibkrFriendlyErr(e.message) }));
-  }
-  ibkrSetBusy(false);
-  renderIbkrCard();
-}
-
-/* ממפה נתוני IBKR מסונכרנים למבנה התיק של האפליקציה (פונקציה טהורה — נבדקת).
-   מייבא רק פוזיציות מניות (STK) בדולרים עם כמות חיובית; השאר נספר כמדולג.
-   מחזיר { positions:[{sym,name,full,shares,avg}], cash:{usd,ils}, skipped }. */
-function ibkrMapImport(data) {
-  const d = data || {};
-  const positions = [];
-  let skipped = 0;
-  for (const p of (d.positions || [])) {
-    const qty = Number(p.qty) || 0;
-    const sym = String(p.symbol || '').trim();
-    const isStock = !p.asset || p.asset === 'STK';
-    if (!(qty > 0) || !sym || !isStock || p.currency !== 'USD') { skipped++; continue; }
-    const cb = Number(p.costBasis) || 0;
-    const mp = Number(p.markPrice) || 0;
-    const avg = cb > 0 ? cb / qty : mp;
-    positions.push({ sym, name: sym, full: '', shares: qty, avg: avg > 0 ? avg : 0 });
-  }
-  let usd = 0, ils = 0;
-  for (const c of (d.cashBalances || [])) {
-    const b = Number(c.balance) || 0;
-    if (c.currency === 'USD') usd += b;
-    else if (c.currency === 'ILS') ils += b;
-  }
-  const r2 = (v) => Math.round(v * 100) / 100;
-  return { positions, cash: { usd: r2(usd), ils: r2(ils) }, skipped };
-}
-
-/* מייבא פוזיציות מ־IBKR לתיק: מסנכרן אם אין נתונים, מבקש אישור, מחליף
-   מניות+מזומן בלבד. פנסיה והפקדות לא נפגעים. */
-async function ibkrImport() {
-  ibkrClearErr();
-  const cfg = ibkrCfg();
-  const proxyUrl = ibkrProxyBase();
-  if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
-  if (!cfg.token || !cfg.queryId) return ibkrShowErr(t('credsMissingSave'));
-  ibkrSetBusy(true);
-  try {
-    let data = cfg.data;
-    if (!data || !(data.positions || []).length) {
-      const s = document.getElementById('ibkrStatus');
-      if (s) s.textContent = t('reqReport');
-      const rep = await ibkrRequestReport(fetch, proxyUrl, cfg.token, cfg.queryId);
-      if (s) s.textContent = t('genReport');
-      data = await ibkrPollStatement(fetch, proxyUrl, cfg.token, rep.referenceCode, rep.statementUrl || cfg.statementUrl);
-      ibkrSaveCfg({ lastSync: Date.now(), statementUrl: rep.statementUrl || cfg.statementUrl || '', data });
-    }
     const imp = ibkrMapImport(data);
     if (!imp.positions.length) {
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? t('importSkippedNote', { n: imp.skipped }) : ''));
       return;
     }
+    const cashLine = imp.cash
+      ? t('importCashLine', { usd: imp.cash.usd, ils: imp.cash.ils })
+      : t('importCashMissing');
     const msg = t('importConfirm', {
       n: imp.positions.length,
+      lots: imp.lots,
+      cashLine,
       skipped: imp.skipped ? '\n' + t('importSkippedNote', { n: imp.skipped }).trim() : ''
     });
     if (!confirm(msg)) return;
     DB.positions = imp.positions;
-    DB.cash = { usd: imp.cash.usd, ils: imp.cash.ils };
+    if (imp.cash) DB.cash = { usd: imp.cash.usd, ils: imp.cash.ils };
     saveDB();
     renderAll();
     refreshQuotes();
@@ -1062,6 +1014,44 @@ async function ibkrImport() {
     ibkrSetBusy(false);
     renderIbkrCard();
   }
+}
+
+/* ממפה נתוני IBKR מסונכרנים למבנה התיק של האפליקציה (פונקציה טהורה — נבדקת).
+   הדוח מחזיר שורה לכל קנייה (לוט); כאן מאחדים לפי סימבול: כמויות מסוכמות
+   ומחיר ממוצע משוקלל לפי עלות כוללת. רק מניות (STK) דולריות בכמות חיובית.
+   מחזיר { positions:[{sym,name,full,shares,avg}], lots, cash:{usd,ils}|null, skipped }.
+   cash הוא null כשאין יתרות מזומן בדוח — כדי לא לדרוס מזומן קיים באפס. */
+function ibkrMapImport(data) {
+  const d = data || {};
+  const bySym = new Map();
+  let skipped = 0, lots = 0;
+  for (const p of (d.positions || [])) {
+    const qty = Number(p.qty) || 0;
+    const sym = String(p.symbol || '').trim();
+    const isStock = !p.asset || p.asset === 'STK';
+    if (!(qty > 0) || !sym || !isStock || p.currency !== 'USD') { skipped++; continue; }
+    lots++;
+    const cb = Math.abs(Number(p.costBasis) || 0);
+    let e = bySym.get(sym);
+    if (!e) { e = { sym, shares: 0, cost: 0, mp: 0 }; bySym.set(sym, e); }
+    e.shares += qty;
+    e.cost += cb;
+    const mp = Number(p.markPrice) || 0;
+    if (mp > 0) e.mp = mp;
+  }
+  const positions = [];
+  for (const e of bySym.values()) {
+    const avg = e.cost > 0 ? e.cost / e.shares : e.mp;
+    positions.push({ sym: e.sym, name: e.sym, full: '', shares: e.shares, avg: avg > 0 ? avg : 0 });
+  }
+  let usd = 0, ils = 0, hasCash = false;
+  for (const c of (d.cashBalances || [])) {
+    const b = Number(c.balance) || 0;
+    if (c.currency === 'USD') { usd += b; hasCash = true; }
+    else if (c.currency === 'ILS') { ils += b; hasCash = true; }
+  }
+  const r2 = (v) => Math.round(v * 100) / 100;
+  return { positions, lots, cash: hasCash ? { usd: r2(usd), ils: r2(ils) } : null, skipped };
 }
 
 function ibkrDisconnect() {
@@ -1147,7 +1137,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 
 
 function saveDBto(db) {
@@ -2820,10 +2810,8 @@ function init() {
   renderIbkrCard();
   const ibkrST = document.getElementById('ibkrSaveTest');
   if (ibkrST) ibkrST.addEventListener('click', ibkrSaveAndTest);
-  const ibkrSy = document.getElementById('ibkrSync');
-  if (ibkrSy) ibkrSy.addEventListener('click', ibkrDoSync);
-  const ibkrIm = document.getElementById('ibkrImport');
-  if (ibkrIm) ibkrIm.addEventListener('click', ibkrImport);
+  const ibkrSI = document.getElementById('ibkrSyncImport');
+  if (ibkrSI) ibkrSI.addEventListener('click', ibkrSyncImport);
   const ibkrDc = document.getElementById('ibkrDisconnect');
   if (ibkrDc) ibkrDc.addEventListener('click', ibkrDisconnect);
 
