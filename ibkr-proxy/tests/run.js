@@ -43,7 +43,7 @@ function mockRes() {
 }
 
 const READY_XML = `<FlexQueryResponse><FlexStatements><FlexStatement accountId="U123" fromDate="20240101" toDate="20240131" baseCurrency="USD">
-<Trades><Trade symbol="AAPL" dateTime="20240105;093000" quantity="10" tradePrice="180.5" proceeds="1805" ibCommission="1" fifoPnlRealized="50" buySell="BUY" currency="USD" fxRateToBase="1"/></Trades>
+<Trades><Trade symbol="AAPL" dateTime="20240105;093000" quantity="10" tradePrice="180.5" proceeds="1805" ibCommission="-1" ibCommissionCurrency="USD" taxes="0.5" netCash="-1806.5" fifoPnlRealized="50" buySell="BUY" openCloseIndicator="O" exchange="NASDAQ" tradeID="T123" currency="USD" fxRateToBase="1"/></Trades>
 <OpenPositions><OpenPosition symbol="AAPL" assetCategory="STK" position="10" markPrice="185" positionValue="1850" costBasisMoney="1805" fifoPnlUnrealized="45" currency="USD" fxRateToBase="1.2"/></OpenPositions>
 <CashTransactions><CashTransaction dateTime="20240110;000000" amount="-1806" currency="USD" fxRateToBase="1" type="Deposits/Withdrawals" description="Wire"/></CashTransactions>
 <ChangeInNAV startingValue="10000" endingValue="10500" twr="0.05" mtm="500"/>
@@ -68,6 +68,12 @@ function stubFetch(text, status = 200) {
   ok(lastFetchUrl.startsWith('https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?t=1234567890&q=ABC123'),
     'משתמש ב-host ובנתיב ש-IBKR החזיר');
   ok(res.payload.data.trades.length === 1 && res.payload.data.trades[0].symbol === 'AAPL', 'עסקה נפרסה');
+  ok(res.payload.data.trades[0].commission === -1, 'עמלת IBKR נפרסה (שלילית כמו ב־Flex)');
+  ok(res.payload.data.trades[0].commissionCurrency === 'USD', 'מטבע העמלה נפרס');
+  ok(res.payload.data.trades[0].netCash === -1806.5, 'netCash נפרס');
+  ok(res.payload.data.trades[0].taxes === 0.5, 'מס עסקה נפרס');
+  ok(res.payload.data.trades[0].openClose === 'O', 'open/close נפרס');
+  ok(res.payload.data.trades[0].tradeId === 'T123', 'מזהה עסקה נפרס');
   ok(res.payload.data.positions[0].unrealized === 45, 'פוזיציה נפרסה');
   ok(res.payload.data.positions[0].fxToBase === 1.2, 'fxToBase של פוזיציה נפרס');
   ok(res.payload.data.positions[0].asset === 'STK', 'סוג נכס נפרס');
