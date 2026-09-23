@@ -1459,6 +1459,8 @@ function ibkrMapImport(data) {
   const bySym = new Map();
   let skipped = 0, lots = 0;
   for (const p of (d.positions || [])) {
+    // מסנן LOT (פירוט כפול) — רק SUMMARY (תיקון באג כפילות v68)
+    if (p.levelOfDetail && p.levelOfDetail !== 'SUMMARY') { skipped++; continue; }
     const qty = Number(p.qty) || 0;
     const sym = String(p.symbol || '').trim();
     const isStock = !p.asset || p.asset === 'STK';
@@ -1583,7 +1585,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v67';
+const APP_VERSION = 'v68';
 
 
 function saveDBto(db) {
@@ -2944,9 +2946,16 @@ function portfolioSeriesILS() {
    שאין להם היסטוריית מחירים. בלי הסינון, ביטול המרת מט"ח בהליכה אחורה
    מנפח את המזומן ההיסטורי בסכום ההמרה המלא ומעוות את התשואה לשלילית. */
 function ibkrIsStockTrade(x) {
-  const s = normalizeSym((x && x.symbol) || '');
+  const raw = String((x && x.symbol) || '');
+  const s = normalizeSym(raw);
   if (!s) return false;
   if (/^[A-Z]{3}\.[A-Z]{3}$/.test(s)) return false;
+  // אופציה: סימבול עם רווח + תבנית תאריך/סטרייק (למשל "AAPL  260919C00150000")
+  // אבל "BRK B" הוא מניה תקינה (מנורמל ל־BRK-B)
+  if (/ /.test(raw.trim()) && !/^BRK B$/i.test(raw.trim())) {
+    // אם יש ספרות אחרי הרווח — אופציה
+    if (/\d/.test(raw)) return false;
+  }
   return true;
 }
 
@@ -3122,9 +3131,11 @@ function ibkrTradesHistory(fromDate) {
   const d = ibkrCfg().data;
   const trades = (d && d.trades) || [];
   if (!trades.length) return [];
-  // פוזיציות לשחזור — כולל שורט (כמות שלילית), שאינן ב־POSITIONS של התצוגה
+  // פוזיציות לשחזור — כולל שורט (כמות שלילית), שאינן ב־POSITIONS של התצוגה.
+  // מסנן LOT (פירוט כפול) — רק SUMMARY (תיקון באג כפילות v68).
   const posMap = {};
   for (const p of ((d && d.positions) || [])) {
+    if (p.levelOfDetail && p.levelOfDetail !== 'SUMMARY') continue;
     const qty = Number(p.qty) || 0;
     const sym = String(p.symbol || '').toUpperCase();
     const isStock = !p.asset || p.asset === 'STK';
