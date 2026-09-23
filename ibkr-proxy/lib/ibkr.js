@@ -190,14 +190,36 @@ function statementToJson(tree) {
       description: x.description || '',
     });
   }
-  const navEl = firstKid(st, 'ChangeInNAV');
-  if (navEl) {
-    const x = navEl.attrs;
-    out.nav = {
+  /* ChangeInNAV: שורה אחת = סיכום תקופה; כמה שורות = פירוט יומי (Level=Detail).
+     twr הוא אחוז (12.34 = 12.34%). בריבוי שורות מרכיבים TWR תקופתי. */
+  out.navHistory = [];
+  for (const el of findKids(st, 'ChangeInNAV')) {
+    const x = el.attrs;
+    out.navHistory.push({
+      fromDate: flexDate(x.fromDate),
+      toDate: flexDate(x.toDate),
       startingValue: num(x.startingValue),
       endingValue: num(x.endingValue),
       twr: x.twr !== undefined && x.twr !== '' ? num(x.twr) : null,
       mtm: num(x.mtm),
+    });
+  }
+  if (out.navHistory.length === 1) {
+    const r = out.navHistory[0];
+    out.nav = { startingValue: r.startingValue, endingValue: r.endingValue, twr: r.twr, mtm: r.mtm };
+  } else if (out.navHistory.length > 1) {
+    let f = 1, twrOk = true, mtmSum = 0;
+    for (const r of out.navHistory) {
+      if (r.twr === null || !isFinite(r.twr)) { twrOk = false; break; }
+      f *= 1 + r.twr / 100;
+    }
+    for (const r of out.navHistory) mtmSum += r.mtm || 0;
+    const first = out.navHistory[0], last = out.navHistory[out.navHistory.length - 1];
+    out.nav = {
+      startingValue: first.startingValue,
+      endingValue: last.endingValue,
+      twr: twrOk ? (f - 1) * 100 : null,
+      mtm: mtmSum,
     };
   }
   for (const tag of ['CashReport', 'CashBalances', 'ForexBalances']) {
