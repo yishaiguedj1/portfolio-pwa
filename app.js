@@ -2353,7 +2353,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v130';
+const APP_VERSION = 'v131';
 
 
 function saveDBto(db) {

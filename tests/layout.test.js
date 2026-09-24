@@ -38,7 +38,7 @@ ok(/html,\s*body\s*\{[^}]*overflow-x:\s*(clip|hidden)/.test(css), 'אין גלי
 ok(/\.appbar-row\s*\{[^}]*justify-content:\s*space-between/.test(css), 'שורת הכותרת: כפתורים ולוגו בקצוות, לא מתנגשים');
 ok(/\.appbar-sub\s*\{[^}]*text-overflow:\s*ellipsis/.test(css), 'שורת המשנה נחתכת ב־… ולא דוחפת את הכפתורים');
 ok(/\.appbar-actions\s*\{[^}]*flex:\s*none/.test(css), 'בלוק הכפתורים לא נמעך (flex:none)');
-ok(/\.brand-logo\s*\{[^}]*width:\s*168px/.test(css), 'הלוגו בגודל קבוע (168px) — לא תלוי במקום שנשאר');
+ok(/\.brand-logo\s*\{[^}]*width:\s*106px/.test(css), 'הלוגו בגודל קבוע (106px) — לא תלוי במקום שנשאר');
 
 /* ---------- 3. פלטת iOS 26 בשתי הערכות ---------- */
 const darkCss = css.split('[data-theme="dark"]')[1] || '';

@@ -23,7 +23,8 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 
 <header class="appbar">
   <div class="appbar-row">
-    <h1 class="brand"><img src="logo-header.png" class="brand-logo" width="168" height="168" alt="" decoding="async"><span class="sr-only" data-i18n="appTitle">תיק ההשקעות</span></h1>
+    <h1 class="brand"><img src="logo-header.png" class="brand-logo" width="106" height="106" alt="" decoding="async"><span class="sr-only" data-i18n="appTitle">תיק ההשקעות</span></h1>
+    <div class="appbar-left">
     <div class="appbar-actions">
     <button id="curToggleBtn" class="icon-btn cur-btn" type="button" data-i18n-aria="curToggleAria" aria-label="החלפת מטבע">₪</button>
     <div class="lang-wrap">
@@ -52,8 +53,9 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       </div>
     </div>
     </div>
+    <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
+    </div>
   </div>
-  <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
 </header>
 
 <div id="statusBanner" class="banner hidden" role="status"></div>
