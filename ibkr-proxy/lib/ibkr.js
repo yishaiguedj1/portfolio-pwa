@@ -171,23 +171,48 @@ function statementToJson(tree) {
       fxToBase: num(x.fxRateToBase) || 1,
     });
   }
+  // פוזיציות: מעדיפים SUMMARY לכל סימבול; לסימבול שאין לו SUMMARY מצרפים LOT-ים.
+  // (LOT הוא פירוט כפול של אותה פוזיציה — לא סופרים פעמיים.)
+  const posSums = new Map(), posLots = new Map();
+  const pAdd = (a, b) => (isFinite(a) ? a : 0) + (isFinite(b) ? b : 0);
   for (const p of findKids(st, 'OpenPosition')) {
     const x = p.attrs;
-    // רק SUMMARY — רשומות LOT הן פירוט כפול של אותן פוזיציות (באג כפילות v68).
-    // אם אין levelOfDetail (נתוני בדיקה ישנים), כולל.
-    if (x.levelOfDetail && x.levelOfDetail !== 'SUMMARY') continue;
-    out.positions.push({
-      symbol: x.symbol || '',
+    const lod = String(x.levelOfDetail || '').toUpperCase();
+    const sym = String(x.symbol || '').trim();
+    const qty = num(x.position);
+    if (!sym || !isFinite(qty) || qty === 0) continue;
+    const pos = {
+      symbol: sym,
       asset: x.assetCategory || '',
-      qty: num(x.position),
+      qty: qty,
       markPrice: num(x.markPrice),
       marketValue: num(x.positionValue),
       costBasis: num(x.costBasisMoney),
       unrealized: num(x.fifoPnlUnrealized),
       currency: x.currency || '',
       fxToBase: num(x.fxRateToBase) || 1,
-      levelOfDetail: x.levelOfDetail || '',
-    });
+      levelOfDetail: lod || 'SUMMARY',
+    };
+    if (lod === 'LOT') {
+      const a = posLots.get(sym);
+      if (!a) posLots.set(sym, { ...pos, lots: 1 });
+      else {
+        a.qty = pAdd(a.qty, pos.qty);
+        a.marketValue = pAdd(a.marketValue, pos.marketValue);
+        a.costBasis = pAdd(a.costBasis, pos.costBasis);
+        a.unrealized = pAdd(a.unrealized, pos.unrealized);
+        a.lots++;
+      }
+    } else {
+      // SUMMARY או levelOfDetail חסר (נתוני בדיקה ישנים) — מעדיפים
+      posSums.set(sym, pos);
+    }
+  }
+  for (const p of posSums.values()) out.positions.push(p);
+  for (const [sym, a] of posLots) {
+    if (posSums.has(sym) || a.qty === 0) continue;
+    a.markPrice = a.qty ? a.marketValue / a.qty : NaN;
+    out.positions.push(a);
   }
   for (const c of findKids(st, 'CashTransaction')) {
     const x = c.attrs;
