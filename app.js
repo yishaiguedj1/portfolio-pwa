@@ -310,8 +310,8 @@ he: {
   ibkrFromDatePh: 'אוטומטי — עד קצה ההיסטוריה',
   ibkrFromDateNote: 'ריק = משיכה עמוקה: הולך אחורה חלק־אחר־חלק עד שני חלקים ריקים רצופים (מקסימום כ־10 שנים). אפשר גם לבחור תאריך התחלה ידנית.',
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
-  fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n})',
-  ibkrFlexWallNote: 'שימו לב: המשיכה האוטומטית בדקה גם תקופות ישנות יותר, אבל IBKR לא החזירה עבורן מידע — שירות Flex שומר ככל הנראה כשנה אחורה בלבד. להיסטוריה עמוקה יותר יש לייבא קובצי CSV.',
+  fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n} מתוך {total})',
+  ibkrFlexOlderHint: 'נמצא מידע עד ינואר 2020. אם החשבון נפתח לפני כן — אפשר להגדיר תאריך התחלה מוקדם יותר ולייבא שוב.',
   ibkrSaveTest: 'שמור ובדוק חיבור',
   ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
@@ -672,8 +672,8 @@ en: {
   ibkrFromDatePh: 'Auto — until history runs out',
   ibkrFromDateNote: 'Empty = deep pull: walks back chunk by chunk until two consecutive empty chunks (max ~10 years). Or pick a start date manually.',
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
-  fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n})',
-  ibkrFlexWallNote: 'Note: the automatic pull also checked older periods, but IBKR returned no data for them — the Flex service appears to retain only about a year of history. Import CSV files for deeper history.',
+  fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n} of {total})',
+  ibkrFlexOlderHint: 'Data was found back to January 2020. If the account is older, set an earlier start date and import again.',
   ibkrSaveTest: 'Save & test connection',
   ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   importFailed: 'Sync & import failed: {err}',
@@ -1347,6 +1347,13 @@ function ibkrChunkRetryPlan(err) {
    - פוזיציות/מזומן: רק מהחלק העדכני ביותר שהצליח — לעולם לא מחלק ישן.
    - navPeriods: מסעיפי ChangeInNAV של כל חלק (TWR רשמי, באחוזים).
    החלקים מסתיימים באתמול — IBKR לא מייצר דוח לתאריך שעדיין פתוח. */
+/* תאריך התחלה אוטומטי למשיכה עמוקה (YYYYMMDD).
+   משכפל את ההצלחה הידנית (v117): משיכה מקוטעת מהעבר הרחוק קדימה מושכת
+   מ־IBKR את כל ההיסטוריה הזמינה — כולל שנים אחורה. מי שחשבונו נפתח לפני
+   2020 יכול לדרוס ידנית תאריך מוקדם יותר. */
+const IBKR_AUTO_START_YMD = '20200101';
+/* הפוגה בין חלקי המשיכה (מילישניות) — לא להעמיס על IBKR בבקשות רצופות. */
+const IBKR_CHUNK_GAP_MS = 3000;
 /* ברירת מחדל חכמה לתאריך ההתחלה של משיכת Flex (פונקציה טהורה, נבדקת):
    אם כבר יש נתונים מיובאים — מתחילים מתאריך הסיום שלהם (המיזוג מטפל בחפיפת
    יום הגבול); אחרת — שנתיים אחורה (הנחת שמירת הנתונים של IBKR).
@@ -1364,10 +1371,17 @@ function ibkrHasImportedData(d) {
   return !!d && (((d.positions || []).length + (d.trades || []).length + ((d.navPeriods || []).length)) > 0);
 }
 
-/* האם חלק גולמי מכיל מידע כלשהו — לזיהוי "חלק ריק" במשיכה עמוקה (טהורה, נבדקת).
-   עסקאות, תנועות מזומן (כולל דיבידנדים) או תקופות NAV — כל אחד מהם מעיד על פעילות. */
-function ibkrChunkHasData(d) {
-  return !!d && (((d.trades || []).length + (d.cashTransactions || []).length + ((d.navHistory || []).length)) > 0);
+/* התאריך המוקדם ביותר במידע המיובא (פונקציה טהורה, נבדקת).
+   משמש להצעת תאריך התחלה מוקדם יותר כשהמידע מגיע עד רצפת המשיכה האוטומטית. */
+function ibkrEarliestDate(d) {
+  let min = '';
+  const consider = (s) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s || '') && (!min || s < min)) min = s;
+  };
+  for (const tr of ((d && d.trades) || [])) consider(tr.date);
+  for (const c of ((d && d.cashTransactions) || [])) consider(c.date);
+  for (const r of ((d && d.navPeriods) || [])) consider(r.fromDate);
+  return min;
 }
 
 /* שולף חלק בודד (fd..td) עם ניסיונות חוזרים. מחזיר data, או null כשהחלק נכשל
@@ -1391,11 +1405,11 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   const endD = new Date();
   endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
-  // מצב 'auto' = משיכה עמוקה: הולכים אחורה חלק־אחר־חלק עד שאין מידע
-  const auto = (startYmd === 'auto');
-  if (!auto && !/^\d{8}$/.test(startYmd || '')) startYmd = ibkrDefaultFromYmd(null, endD);
-  const chunks = auto ? [] : ibkrDateChunks(startYmd, endYmd);
-  const latestTd = auto ? endYmd : (chunks.length ? chunks[chunks.length - 1].td : '');
+  // כל המשיכות מקוטעות לחלקי 365 יום מהעבר הרחוק קדימה — זה הנתיב שהוכח
+  // כמושך מ־IBKR היסטוריה מלאה (v118), כולל שנים אחורה.
+  if (!/^\d{8}$/.test(startYmd || '')) startYmd = IBKR_AUTO_START_YMD;
+  const chunks = ibkrDateChunks(startYmd, endYmd);
+  const latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
   const iso = (y) => y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8);
   const merged = {
     meta: { fromDate: iso(startYmd), toDate: '', baseCurrency: 'USD', kind: 'flex', title: 'IBKR Flex' },
@@ -1467,38 +1481,13 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     }
   };
 
-  const shiftBack = (ymd, days) => {
-    const d = new Date(ymd.slice(0, 4), ymd.slice(4, 6) - 1, ymd.slice(6, 8));
-    d.setDate(d.getDate() - days);
-    return ibkrYmd(d);
-  };
-
-  if (auto) {
-    // משיכה עמוקה: הולכים אחורה חלק־אחר־חלק (עד 365 יום כל אחד) עד שני חלקים
-    // ריקים רצופים — שנה רדומה אחת לא עוצרת, כי יכול להיות מידע ישן יותר.
-    // מקסימום 10 חלקים (~10 שנים) כגבול בטיחות; הגבול האמיתי הוא שמירת IBKR.
-    const MAX_AUTO = 10;
-    let td = endYmd, emptyStreak = 0, hitWall = false;
-    for (let i = 0; i < MAX_AUTO; i++) {
-      const fd = shiftBack(td, 364);
-      if (onProgress) onProgress(i + 1, 0, fd, td);
-      const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults);
-      if (!data && i === 0) break; // החלק העדכני נכשל — הייבוא ייחסם, אין טעם להמשיך
-      if (data) absorb(data, fd, td);
-      emptyStreak = ibkrChunkHasData(data) ? 0 : emptyStreak + 1;
-      if (emptyStreak >= 2) { hitWall = true; break; }
-      td = shiftBack(fd, 1);
-    }
-    // נעצרנו כי שני חלקים רצופים חזרו ריקים — IBKR לא מחזירה מידע ישן
-    // יותר דרך Flex. הדגל מוצג בהערה בתצוגה המקדימה כדי שלא ייראה כמו באג.
-    merged._autoWall = hitWall;
-  } else {
-    for (let i = 0; i < chunks.length; i++) {
-      const { fd, td } = chunks[i];
-      if (onProgress) onProgress(i + 1, chunks.length, fd, td);
-      const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults);
-      if (data) absorb(data, fd, td);
-    }
+  for (let i = 0; i < chunks.length; i++) {
+    const { fd, td } = chunks[i];
+    if (onProgress) onProgress(i + 1, chunks.length, fd, td);
+    // הפוגה קצרה בין חלקים — לא להעמיס על IBKR בבקשות רצופות
+    if (i > 0) await new Promise((r) => setTimeout(r, IBKR_CHUNK_GAP_MS));
+    const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults);
+    if (data) absorb(data, fd, td);
   }
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
@@ -1851,7 +1840,8 @@ async function ibkrSyncImport() {
   // טווח המשיכה — שלושה מצבים:
   // 1. תאריך ידני בשדה (נשמר בטלפון) — המשתמש בחר בדיוק כמה אחורה.
   // 2. יש נתונים מיובאים ואין תאריך — ממשיכים מהנקודה שהם נגמרו (מהיר, בלי כפילויות).
-  // 3. אין נתונים ואין תאריך — משיכה עמוקה: הולכים אחורה עד שאין מידע (מקסימום כ־10 שנים).
+  // 3. אין נתונים ואין תאריך — משיכה עמוקה אוטומטית מינואר 2020 קדימה,
+  //    בחלקי 365 יום (אותו נתיב שהוכח כמושך מ־IBKR היסטוריה מלאה).
   // בכל המצבים הקיטוע לחלקי 365 יום והאיחוד אוטומטיים.
   const fde = document.getElementById('ibkrFromDate');
   const fromStr = ((fde && fde.value) || cfg.fromDate || '').trim();
@@ -1866,16 +1856,16 @@ async function ibkrSyncImport() {
     startYmd = ibkrDefaultFromYmd(cfg.data, endD);
     ibkrSaveCfg({ fromDate: '' });
   } else {
-    startYmd = 'auto';
+    startYmd = IBKR_AUTO_START_YMD;
     autoMode = true;
     ibkrSaveCfg({ fromDate: '' });
   }
   ibkrSetBusy(true);
   try {
     const s = document.getElementById('ibkrStatus');
-    if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: 1 }) : t('fetchHistory', { n: 1, total: '…' });
+    if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: 1, total: '…' }) : t('fetchHistory', { n: 1, total: '…' });
     const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
-      if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: i }) : t('fetchHistory', { n: i, total });
+      if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: i, total }) : t('fetchHistory', { n: i, total });
     });
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
     // פוזיציות ישנות כעדכניות.
@@ -1893,10 +1883,14 @@ async function ibkrSyncImport() {
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? ' ' + t('importSkippedNote', { n: imp.skipped }).trim() : ''));
       return;
     }
-    // המשיכה האוטומטית נעצרה כי IBKR לא החזירה מידע ישן יותר (מגבלת
-    // שמירה של Flex) — מסבירים זאת בתצוגה המקדימה כדי שלא ייראה כמו באג.
-    const wallNote = autoMode && incoming._autoWall ? '\n' + t('ibkrFlexWallNote') : '';
-    ibkrReviewImport(ibkrCfg().data, incoming, wallNote);
+    // המשיכה האוטומטית מתחילה בינואר 2020. אם המידע שנמצא מגיע עד לשם —
+    // ייתכן שהחשבון ישן יותר, ומציעים לדרוס ידנית תאריך מוקדם יותר.
+    let deepNote = '';
+    if (autoMode) {
+      const earliest = ibkrEarliestDate(incoming);
+      if (earliest && earliest <= '2020-04-01') deepNote = '\n' + t('ibkrFlexOlderHint');
+    }
+    ibkrReviewImport(ibkrCfg().data, incoming, deepNote);
   } catch (e) {
     ibkrShowErr(t('importFailed', { err: ibkrFriendlyErr(e.message) }));
   } finally {
@@ -2053,7 +2047,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v117';
+const APP_VERSION = 'v118';
 
 
 function saveDBto(db) {
