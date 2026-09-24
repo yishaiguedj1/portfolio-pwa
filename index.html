@@ -313,6 +313,10 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
           <label>Flex token<input id="ibkrToken" type="password" dir="ltr" autocomplete="off" spellcheck="false" placeholder="Reports ← Flex Web Service"></label>
         </div>
         <p class="fine" style="padding:0" data-i18n="ibkrTokenNote">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
+        <div class="form-grid">
+          <label><span data-i18n="ibkrFromDateLabel">משוך היסטוריה מתאריך</span><input id="ibkrFromDate" type="date" dir="ltr"></label>
+        </div>
+        <p class="fine" style="padding:0" data-i18n="ibkrFromDateNote">המשיכה מתחלקת אוטומטית לחלקים של עד 365 יום ומתאחדת — אפשר לבחור כל תאריך התחלה.</p>
         <div class="btn-row">
           <button id="ibkrSaveTest" class="btn" type="button" data-i18n="ibkrSaveTest">שמור ובדוק חיבור</button>
           <button id="ibkrSyncImport" class="btn" type="button" data-i18n-html="ibkrSyncImportBtn">סנכרן וייבא מ־IBKR</button>
