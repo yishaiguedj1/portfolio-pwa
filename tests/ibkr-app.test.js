@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -411,6 +411,18 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   };
   const mergedId = await T.ibkrFetchFullHistory(idFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldD), null);
   ok(mergedId.cashTransactions.length === 3, 'flex: מזהה יציב — C1×2+C2 בשני חלקים זהים -> 3 (מקסימום מופעים לחלק)');
+
+  // מטמון מיושן + Lot מצורף במיפוי
+  const cachedPos = { positions: [{ symbol: 'AAPL', qty: 10 }, { symbol: 'MSFT', qty: 5 }] };
+  ok(T.ibkrCacheIsStale(cachedPos, []) === true, 'מטמון מיושן: תיק ריק אחרי יבוא -> יבוא מחדש');
+  ok(T.ibkrCacheIsStale(cachedPos, [{ sym: 'MSFT' }]) === false, 'מטמון תקף: סימבול אחד מהמטמון קיים בתיק');
+  ok(T.ibkrCacheIsStale(cachedPos, [{ sym: 'TSLA' }]) === true, 'מטמון מיושן: אף סימבול לא קיים בתיק');
+  ok(T.ibkrCacheIsStale(null, []) === false, 'אין מטמון -> לא מיושן');
+  ok(T.ibkrCacheIsStale({ positions: [] }, []) === false, 'מטמון בלי פוזיציות -> לא מיושן');
+  const lotAgg = T.ibkrMapImport({ positions: [{ symbol: 'NVDA', qty: 8, asset: 'STK', currency: 'USD', costBasis: 800, markPrice: 120, levelOfDetail: 'LOT', lots: 3 }] });
+  ok(lotAgg.positions.length === 1 && lotAgg.positions[0].sym === 'NVDA' && lotAgg.positions[0].shares === 8, 'Lot מצורף (lots) מתקבל במיפוי כפוזיציה אחת');
+  const rawLot = T.ibkrMapImport({ positions: [{ symbol: 'NVDA', qty: 8, asset: 'STK', currency: 'USD', costBasis: 800, levelOfDetail: 'LOT' }] });
+  ok(rawLot.positions.length === 0 && rawLot.skipped === 1, 'פירוט LOT גולמי עדיין מסונן');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
