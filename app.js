@@ -306,12 +306,18 @@ he: {
   ibkrProxyLabel: 'כתובת השרתון',
   ibkrQueryPh: 'מ־IBKR',
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
-  ibkrFromDateLabel: 'משוך היסטוריה מתאריך',
-  ibkrFromDatePh: 'אוטומטי — עד קצה ההיסטוריה',
-  ibkrFromDateNote: 'ריק = משיכה עמוקה: הולך אחורה חלק־אחר־חלק עד שני חלקים ריקים רצופים (מקסימום כ־10 שנים). אפשר גם לבחור תאריך התחלה ידנית.',
+  ibkrFromDateLabel: 'או תאריך התחלה מדויק',
+  ibkrFromDatePh: 'אופציונלי — דורס את בחירת העומק',
+  ibkrFromDateNote: 'בוחרים כמה שנים אחורה למשוך במשיכה הראשונה — או תאריך מדויק, ללא הגבלה. כשכבר יש נתונים, הסנכרון ממשיך מהנקודה שהם נגמרו.',
+  ibkrDepthLabel: 'עומק היסטוריה למשיכה ראשונה',
+  ibkrDepth1: 'שנה אחת',
+  ibkrDepth2: 'שנתיים',
+  ibkrDepth3: '3 שנים',
+  ibkrDepth5: '5 שנים',
+  ibkrDepth10: '10 שנים',
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
   fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n} מתוך {total})',
-  ibkrFlexOlderHint: 'נמצא מידע עד ינואר 2020. אם החשבון נפתח לפני כן — אפשר להגדיר תאריך התחלה מוקדם יותר ולייבא שוב.',
+  ibkrFlexOlderHint: 'נמצא מידע עד {date}. אם החשבון נפתח לפני כן — אפשר לבחור עומק גדול יותר או תאריך מוקדם יותר, ולייבא שוב.',
   ibkrSaveTest: 'שמור ובדוק חיבור',
   ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
@@ -335,7 +341,9 @@ he: {
   ibkrErrTokenBad: 'הטוקן לא תקין — בדוק שהעתקת את כולו, בלי רווחים.',
   ibkrErrAccount: 'בעיה בחשבון ב־IBKR — בדוק שהחשבון פעיל.',
   ibkrErrCode: 'קוד הדוח לא תקין — נסה סנכרון חדש.',
-  ibkrErrMany: 'יותר מדי בקשות ברצף — IBKR חוסם זמנית לכ־10 דקות. המתן כ־15 דקות ונסה שוב.',
+  ibkrErrMany: 'יותר מדי בקשות ברצף — קצב הבקשות הוגבל זמנית. המתן כ־15 דקות ונסה שוב.',
+  ibkrErrLocked: 'הטוקן ננעל זמנית בעקבות יותר מדי ניסיונות כושלים — המתן כמה שעות (עד יום) ונסה שוב. ניסיון מוקדם עלול להאריך את הנעילה.',
+  importLocked: 'IBKR נעל זמנית את הטוקן בעקבות יותר מדי ניסיונות כושלים. המתן כמה שעות (עד יום) ונסה שוב — ניסיון מוקדם עלול להאריך את הנעילה. הנתונים הקודמים נשמרו ולא יובא שום דבר חלקי.',
   ibkrErrBlocked: 'הגישה ל־IBKR נחסמה זמנית — נסה שוב בעוד כמה דקות.',
   ibkrErrCreds: 'חסרים Flex token או Query ID.',
   ibkrErrNet: 'לא הצלחנו להגיע לשרתון — בדוק חיבור לאינטרנט.',
@@ -669,12 +677,18 @@ en: {
   ibkrProxyLabel: 'Proxy URL',
   ibkrQueryPh: 'from IBKR',
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
-  ibkrFromDateLabel: 'Pull history from',
-  ibkrFromDatePh: 'Auto — until history runs out',
-  ibkrFromDateNote: 'Empty = deep pull: walks back chunk by chunk until two consecutive empty chunks (max ~10 years). Or pick a start date manually.',
+  ibkrFromDateLabel: 'Or an exact start date',
+  ibkrFromDatePh: 'Optional — overrides the depth choice',
+  ibkrFromDateNote: 'Choose how many years back the first pull covers — or an exact date, with no limit. When data already exists, sync continues from where it ended.',
+  ibkrDepthLabel: 'History depth for first pull',
+  ibkrDepth1: '1 year',
+  ibkrDepth2: '2 years',
+  ibkrDepth3: '3 years',
+  ibkrDepth5: '5 years',
+  ibkrDepth10: '10 years',
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
   fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n} of {total})',
-  ibkrFlexOlderHint: 'Data was found back to January 2020. If the account is older, set an earlier start date and import again.',
+  ibkrFlexOlderHint: 'Data was found back to {date}. If the account is older, choose a greater depth or an earlier start date and import again.',
   ibkrSaveTest: 'Save & test connection',
   ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   importFailed: 'Sync & import failed: {err}',
@@ -698,7 +712,9 @@ en: {
   ibkrErrTokenBad: 'Invalid token — make sure you copied all of it, with no spaces.',
   ibkrErrAccount: 'IBKR account issue — check that the account is active.',
   ibkrErrCode: 'Invalid report code — try syncing again.',
-  ibkrErrMany: 'Too many requests in a row — IBKR blocks temporarily for about 10 minutes. Wait about 15 minutes and try again.',
+  ibkrErrMany: 'Too many requests in a row — request rate temporarily limited. Wait about 15 minutes and try again.',
+  ibkrErrLocked: 'Token temporarily locked after too many failed attempts — wait several hours (up to a day) and try again. Retrying too soon can extend the lockout.',
+  importLocked: 'IBKR has temporarily locked the token after too many failed attempts. Wait several hours (up to a day) and try again — retrying too soon can extend the lockout. Your previous data was kept and nothing partial was imported.',
   ibkrErrBlocked: 'Access to IBKR temporarily blocked — try again in a few minutes.',
   ibkrErrCreds: 'Missing Flex token or Query ID.',
   ibkrErrNet: 'Couldn\'t reach the proxy server — check your internet connection.',
@@ -1349,20 +1365,44 @@ function ibkrChunkRetryPlan(err) {
    - פוזיציות/מזומן: רק מהחלק העדכני ביותר שהצליח — לעולם לא מחלק ישן.
    - navPeriods: מסעיפי ChangeInNAV של כל חלק (TWR רשמי, באחוזים).
    החלקים מסתיימים באתמול — IBKR לא מייצר דוח לתאריך שעדיין פתוח. */
-/* תאריך התחלה אוטומטי למשיכה עמוקה (YYYYMMDD).
-   משכפל את ההצלחה הידנית (v117): משיכה מקוטעת מהעבר הרחוק קדימה מושכת
-   מ־IBKR את כל ההיסטוריה הזמינה — כולל שנים אחורה. מי שחשבונו נפתח לפני
-   2020 יכול לדרוס ידנית תאריך מוקדם יותר. */
-const IBKR_AUTO_START_YMD = '20200101';
-/* הפוגה בין חלקי המשיכה (מילישניות).
-   IBKR מגביל רשמית את Flex Web Service ל־10 בקשות בדקה לטוקן (שגיאה 1018);
-   חריגה מכניסה את ה־IP ל"קופסת עונשין" של כ־10 דקות. 15 שניות בין חלקים
-   = כ־4 בקשות בדקה — עם מרווח בטיחות. */
-const IBKR_CHUNK_GAP_MS = 15000;
+/* קצב בטוח מול מגבלת IBKR הרשמית (בקשה לשנייה, עד 10 בדקה לטוקן —
+   גם SendRequest וגם GetStatement נספרים):
+   הפוגה של 60 שניות בין חלקים + שאילתות GetStatement כל 12 שניות
+   = כ־6 בקשות בדקה — כ־40% מתחת לתקרה.
+   תיקון (v120): שגיאה 1018 היא הגבלה רגעית שחולפת תוך שניות עד דקות —
+   אין בתיעוד Flex "קופסת עונשין של 10 דקות" (זה מ־API המסחר). */
+const IBKR_CHUNK_GAP_MS = 60000;
+const IBKR_POLL_DELAY_MS = 12000; // מרווח בין שאילתות GetStatement (המלצה: 10–15 שניות)
+const IBKR_POLL_TRIES = 30;       // תקציב כולל ~6 דקות להיווצרות דוח כבד
+const IBKR_HISTORY_YEARS_DEFAULT = 5; // עומק ברירת מחדל למשיכה ראשונה (בשנים)
+/* תאריך התחלה למשיכה ראשונה לפי עומק בשנים (פונקציה טהורה, נבדקת).
+   מחליף את רצפת 2020 הקבועה: המשתמש בוחר כמה שנים באמת צריך (1–10),
+   ותאריך מדויק נשאר בלתי מוגבל. */
+function ibkrDepthStartYmd(endD, years) {
+  const y = Math.min(10, Math.max(1, parseInt(years, 10) || IBKR_HISTORY_YEARS_DEFAULT));
+  const d = (endD && typeof endD.getTime === 'function') ? new Date(endD.getTime()) : new Date();
+  d.setFullYear(d.getFullYear() - y);
+  return ibkrYmd(d);
+}
+/* האם המידע שנמצא מגיע עד קרוב לתחילת הטווח המבוקש (תוך 90 יום) —
+   אם כן, ייתכן שהחשבון ישן יותר וכדאי להעמיק. פונקציה טהורה (נבדקת). */
+function ibkrReachedStart(earliestIso, startYmd) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(earliestIso || '') || !/^\d{8}$/.test(startYmd || '')) return false;
+  const s = new Date(+startYmd.slice(0, 4), +startYmd.slice(4, 6) - 1, +startYmd.slice(6, 8));
+  s.setDate(s.getDate() + 90);
+  const lim = ibkrYmd(s).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
+  return earliestIso <= lim;
+}
 /* האם השגיאה מעידה על הגבלת קצב/חסימה זמנית של IBKR — במקרה כזה אסור
    לנסות שוב מיד: כל ניסיון נוסף עלול להאריך את החסימה (פונקציה טהורה, נבדקת). */
 function ibkrIsThrottleErr(err) {
   return /flex_1018|no_reference_code|rate_limited/i.test(String((err && err.message) || err || ''));
+}
+/* נעילת טוקן של IBKR (קוד 1025, לא מתועד): יותר מדי ניסיונות יצירת דוח
+   כושלים — אסור לנסות שוב כלל, רק להמתין שעות (ניסיון מוקדם מאריך את הנעילה).
+   נגרם מניסיונות SendRequest חוזרים במקום לשאול את אותו קוד דוח. */
+function ibkrIsLockoutErr(err) {
+  return /flex_1025/i.test(String((err && err.message) || err || ''));
 }
 /* ברירת מחדל חכמה לתאריך ההתחלה של משיכת Flex (פונקציה טהורה, נבדקת):
    אם כבר יש נתונים מיובאים — מתחילים מתאריך הסיום שלהם (המיזוג מטפל בחפיפת
@@ -1396,18 +1436,18 @@ function ibkrEarliestDate(d) {
 
 /* שולף חלק בודד (fd..td) עם ניסיונות חוזרים. מחזיר data, או null כשהחלק נכשל
    (הכשלון נרשם ב־chunkResults, הייבוא ממשיך בלעדיו). */
-async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults) {
+async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults, pollOpts) {
   let data = null, err = null;
   let plan = { attempts: 2, waitMs: 3000 };
   for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
     try {
       const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
-      data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
+      data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl, pollOpts);
     } catch (e) {
       err = e;
-      // הגבלת קצב של IBKR: לא מנסים שוב — ניסיון נוסף רק מאריך את החסימה
-      if (ibkrIsThrottleErr(e)) break;
+      // הגבלת קצב או נעילת טוקן של IBKR: לא מנסים שוב — ניסיון נוסף רק מאריך את החסימה/הנעילה
+      if (ibkrIsThrottleErr(e) || ibkrIsLockoutErr(e)) break;
       plan = ibkrChunkRetryPlan(e);
     }
   }
@@ -1416,13 +1456,17 @@ async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkRe
   console.warn('Chunk failed:', fd, td, err && err.message);
   return null;
 }
-async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress) {
+async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress, opts) {
+  const o = opts || {};
+  // הפוגה בין חלקים — ניתנת לדריסה בבדיקות (chunkGapMs), ברירת מחדל: קצב בטוח
+  const gapMs = (typeof o.chunkGapMs === 'number') ? o.chunkGapMs : IBKR_CHUNK_GAP_MS;
+  const pollOpts = { tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs };
   const endD = new Date();
   endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
   // כל המשיכות מקוטעות לחלקי 365 יום מהעבר הרחוק קדימה — זה הנתיב שהוכח
   // כמושך מ־IBKR היסטוריה מלאה (v118), כולל שנים אחורה.
-  if (!/^\d{8}$/.test(startYmd || '')) startYmd = IBKR_AUTO_START_YMD;
+  if (!/^\d{8}$/.test(startYmd || '')) startYmd = ibkrDepthStartYmd(endD, IBKR_HISTORY_YEARS_DEFAULT);
   const chunks = ibkrDateChunks(startYmd, endYmd);
   const latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
   const iso = (y) => y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8);
@@ -1500,11 +1544,14 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     const { fd, td } = chunks[i];
     if (onProgress) onProgress(i + 1, chunks.length, fd, td);
     // הפוגה בין חלקים — קצב בטוח מול מגבלת 10 הבקשות בדקה של IBKR
-    if (i > 0) await new Promise((r) => setTimeout(r, IBKR_CHUNK_GAP_MS));
-    const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults);
+    if (i > 0) await new Promise((r) => setTimeout(r, gapMs));
+    const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults, pollOpts);
     if (data) { consecFails = 0; absorb(data, fd, td); }
     else {
       consecFails++;
+      const lastRes = chunkResults[chunkResults.length - 1];
+      // נעילת טוקן — עוצרים מיד, אפילו לא מחכים לכשלון שני
+      if (lastRes && ibkrIsLockoutErr(lastRes.error)) { merged._locked = true; break; }
       // שני כשלונות רצופים = כנראה הגבלת קצב/חסימה זמנית של IBKR —
       // להמשיך רק מעמיק את החסימה, אז עוצרים ומסבירים למשתמש
       if (consecFails >= 2) { merged._throttled = true; break; }
@@ -1552,8 +1599,8 @@ async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td) {
    מחזיר את data המפורסר. הטוקן עובר ב־body בלבד, לא ב־URL. */
 async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, opts) {
   const o = opts || {};
-  const tries = o.tries || 20;
-  const delayMs = o.delayMs || 8000;
+  const tries = o.tries || IBKR_POLL_TRIES;
+  const delayMs = o.delayMs || IBKR_POLL_DELAY_MS;
   const sleep = o.sleep || ((ms) => new Promise((res) => setTimeout(res, ms)));
   let netErr = null;
   for (let i = 0; i < tries; i++) {
@@ -1600,6 +1647,8 @@ function ibkrFriendlyErr(msg) {
       return t('ibkrErrCode');
     case '1018': case 'rate_limited': case 'no_reference_code':
       return t('ibkrErrMany');
+    case '1025': // נעילת טוקן — אסור לנסות שוב, רק להמתין שעות
+      return t('ibkrErrLocked');
     case '403':
       return t('ibkrErrBlocked');
     case 'bad_params':
@@ -1621,6 +1670,12 @@ function renderIbkrCard() {
   if (tk && !tk.value) tk.value = cfg.token || '';
   if (qd && !qd.value) qd.value = cfg.queryId || '';
   const data = cfg.data;
+  // עומק היסטוריה — בחירת המשתמש (נשמרת בטלפון), ברירת מחדל 5 שנים
+  const dhe = document.getElementById('ibkrHistoryDepth');
+  if (dhe) {
+    const dv = String(cfg.historyYears || IBKR_HISTORY_YEARS_DEFAULT);
+    dhe.value = /^(1|2|3|5|10)$/.test(dv) ? dv : String(IBKR_HISTORY_YEARS_DEFAULT);
+  }
   // תאריך התחלה למשיכה — בחירת המשתמש (נשמרת בטלפון) או ברירת מחדל חכמה
   const fde = document.getElementById('ibkrFromDate');
   if (fde && !fde.value) {
@@ -1834,9 +1889,11 @@ async function ibkrSaveAndTest() {
   const queryId = (document.getElementById('ibkrQuery').value || '').trim();
   const fromDateEl = document.getElementById('ibkrFromDate');
   const fromDate = ((fromDateEl && fromDateEl.value) || '').trim();
+  const dhe = document.getElementById('ibkrHistoryDepth');
+  const depthYears = Math.min(10, Math.max(1, parseInt((dhe && dhe.value) || '', 10) || IBKR_HISTORY_YEARS_DEFAULT));
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
-  ibkrSaveCfg({ proxyUrl, token, queryId, fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '' });
+  ibkrSaveCfg({ proxyUrl, token, queryId, fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '', historyYears: depthYears });
   ibkrSetBusy(true);
   renderIbkrCard();
   try {
@@ -1866,10 +1923,15 @@ async function ibkrSyncImport() {
   // בכל המצבים הקיטוע לחלקי 365 יום והאיחוד אוטומטיים.
   const fde = document.getElementById('ibkrFromDate');
   const fromStr = ((fde && fde.value) || cfg.fromDate || '').trim();
+  // עומק היסטוריה בשנים — כמה שנים אחורה המשתמש באמת צריך (בחירתו, נשמרת בטלפון)
+  const dhe = document.getElementById('ibkrHistoryDepth');
+  const depthYears = Math.min(10, Math.max(1, parseInt(((dhe && dhe.value) || cfg.historyYears || ''), 10) || IBKR_HISTORY_YEARS_DEFAULT));
+  ibkrSaveCfg({ historyYears: depthYears });
   const endD = new Date(); endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
   let startYmd, autoMode = false;
   if (/^\d{4}-\d{2}-\d{2}$/.test(fromStr)) {
+    // תאריך מדויק — ללא הגבלה (גם 10+ שנים אחורה)
     startYmd = fromStr.replace(/-/g, '');
     if (startYmd > endYmd) return ibkrShowErr(t('ibkrBadFromDate'));
     ibkrSaveCfg({ fromDate: fromStr });
@@ -1877,7 +1939,8 @@ async function ibkrSyncImport() {
     startYmd = ibkrDefaultFromYmd(cfg.data, endD);
     ibkrSaveCfg({ fromDate: '' });
   } else {
-    startYmd = IBKR_AUTO_START_YMD;
+    // משיכה ראשונה: מתחילים מהעומק שהמשתמש בחר — לא יותר ממה שצריך, לא פחות
+    startYmd = ibkrDepthStartYmd(endD, depthYears);
     autoMode = true;
     ibkrSaveCfg({ fromDate: '' });
   }
@@ -1895,12 +1958,11 @@ async function ibkrSyncImport() {
     if (!ibkrSyncIsComplete(incoming)) {
       const fails = (incoming._chunks || []).filter((c) => !c.ok);
       const failText = fails.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
-      // הגבלת קצב של IBKR (כולל "קופסת עונשין" זמנית אחרי רצף בקשות מהיר) —
-      // מסבירים להמתין במקום לנסות שוב מיד
-      const throttled = !!incoming._throttled || (fails.length > 0 && fails.some((c) => ibkrIsThrottleErr(c.error)));
-      const notAvail = !throttled && fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
+      const locked = !!incoming._locked || fails.some((c) => ibkrIsLockoutErr(c.error)); // 1025: נעילה — להמתין שעות
+      const throttled = !locked && (!!incoming._throttled || fails.some((c) => ibkrIsThrottleErr(c.error)));
+      const notAvail = !locked && !throttled && fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
       renderIbkrCard();
-      const head = throttled ? t('importThrottled') : (notAvail ? t('importNotAvailable') : t('importPartialBlocked'));
+      const head = locked ? t('importLocked') : throttled ? t('importThrottled') : (notAvail ? t('importNotAvailable') : t('importPartialBlocked'));
       return ibkrShowErr(head + (failText ? ' ' + failText : ''));
     }
     const imp = ibkrMapImport(incoming);
@@ -1908,12 +1970,14 @@ async function ibkrSyncImport() {
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? ' ' + t('importSkippedNote', { n: imp.skipped }).trim() : ''));
       return;
     }
-    // המשיכה האוטומטית מתחילה בינואר 2020. אם המידע שנמצא מגיע עד לשם —
-    // ייתכן שהחשבון ישן יותר, ומציעים לדרוס ידנית תאריך מוקדם יותר.
+    // המשיכה האוטומטית מתחילה בעומק שהמשתמש בחר. אם המידע שנמצא מגיע
+    // עד קרוב לתחילת הטווח — ייתכן שהחשבון ישן יותר, ומציעים להעמיק.
     let deepNote = '';
     if (autoMode) {
       const earliest = ibkrEarliestDate(incoming);
-      if (earliest && earliest <= '2020-04-01') deepNote = '\n' + t('ibkrFlexOlderHint');
+      if (ibkrReachedStart(earliest, startYmd)) {
+        deepNote = '\n' + t('ibkrFlexOlderHint', { date: fmtDateIL(startYmd.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')) });
+      }
     }
     ibkrReviewImport(ibkrCfg().data, incoming, deepNote);
   } catch (e) {
@@ -2072,7 +2136,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v119';
+const APP_VERSION = 'v120';
 
 
 function saveDBto(db) {
