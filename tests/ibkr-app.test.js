@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, IBKR_AUTO_START_YMD, IBKR_CHUNK_GAP_MS };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, ibkrIsLockoutErr, ibkrDepthStartYmd, ibkrReachedStart, IBKR_CHUNK_GAP_MS, IBKR_POLL_DELAY_MS, IBKR_POLL_TRIES, IBKR_HISTORY_YEARS_DEFAULT };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -362,7 +362,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     if (u.includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC1', statementUrl: 'https://x' }) };
     return { json: async () => ({ ok: true, status: 'ready', data: flexChunk([trA, trA2, trB], pos1, nav1) }) };
   };
-  const merged = await T.ibkrFetchFullHistory(flexFetch, 'https://proxy.example.com', 'tok', '1', startYmd, null);
+  const merged = await T.ibkrFetchFullHistory(flexFetch, 'https://proxy.example.com', 'tok', '1', startYmd, null, { chunkGapMs: 5 });
   ok(merged.meta.kind === 'flex', 'flex: meta.kind=flex');
   ok(merged.trades.length === 2, 'flex: כפילות tradeId מוסרת, נשארות 2 עסקאות');
   ok(merged.positions.length === 1 && merged.positions[0].symbol === 'ACME', 'flex: פוזיציות מהחלק העדכני');
@@ -375,7 +375,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     if (String(url).includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC1', statementUrl: '' }) };
     return { json: async () => ({ ok: false, error: 'flex_1020', message: 'rate' }) };
   };
-  const mergedBad = await T.ibkrFetchFullHistory(badFetch, 'https://proxy.example.com', 'tok', '1', startYmd, null, { tries: 1 });
+  const mergedBad = await T.ibkrFetchFullHistory(badFetch, 'https://proxy.example.com', 'tok', '1', startYmd, null, { tries: 1, chunkGapMs: 5 });
   ok(T.ibkrSyncIsComplete(mergedBad) === false, 'flex: סנכרון חסום כשהחלק העדכני נכשל');
   ok(T.ibkrChunkRetryPlan(new Error('x flex_1003 y')).attempts === 3, 'flex_1003 מקבל יותר ניסיונות');
   ok(T.ibkrChunkRetryPlan(new Error('boom')).attempts === 2, 'כשל רגיל: 2 ניסיונות');
@@ -397,7 +397,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     if (String(url).includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC', statementUrl: 'https://x' }) };
     return { json: async () => ({ ok: true, status: 'ready', data: cashChunk }) };
   };
-  const mergedCash = await T.ibkrFetchFullHistory(cashFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldD), null);
+  const mergedCash = await T.ibkrFetchFullHistory(cashFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldD), null, { chunkGapMs: 5 });
   ok(mergedCash.cashTransactions.length === 2, 'flex: שתי תנועות זהות לגיטימיות נשמרות, חזרת החלק לא מוכפלת');
   // מזהה יציב קודם לתוכן: C1 פעמיים באותו חלק -> 1, C2 שונה -> נשמר
   const idChunk = {
@@ -409,7 +409,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     if (String(url).includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC', statementUrl: 'https://x' }) };
     return { json: async () => ({ ok: true, status: 'ready', data: idChunk }) };
   };
-  const mergedId = await T.ibkrFetchFullHistory(idFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldD), null);
+  const mergedId = await T.ibkrFetchFullHistory(idFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldD), null, { chunkGapMs: 5 });
   ok(mergedId.cashTransactions.length === 3, 'flex: מזהה יציב — C1×2+C2 בשני חלקים זהים -> 3 (מקסימום מופעים לחלק)');
 
   // מטמון מיושן + Lot מצורף במיפוי
@@ -449,15 +449,15 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
   const oldStart = new Date(2026, 8, 23); oldStart.setFullYear(oldStart.getFullYear() - 3);
-  const manualRes = await T.ibkrFetchFullHistory(rangeFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldStart), null);
+  const manualRes = await T.ibkrFetchFullHistory(rangeFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldStart), null, { chunkGapMs: 5 });
   const eD = new Date(); eD.setDate(eD.getDate() - 1);
   const expChunks = T.ibkrDateChunks(T.ibkrYmd(oldStart), T.ibkrYmd(eD));
   ok(seenRanges.length === expChunks.length && seenRanges.length >= 3 &&
      seenRanges[0][0] === T.ibkrYmd(oldStart) && seenRanges[seenRanges.length - 1][1] === T.ibkrYmd(eD),
      'משיכה 3 שנים אחורה: בקשה לכל חלק עם fd/td, מההתחלה עד אתמול');
 
-  // משיכה עמוקה אוטומטית (v118): מהעבר הרחוק קדימה — אותו נתיב כמו ידני
-  ok(T.IBKR_AUTO_START_YMD === '20200101', 'משיכה עמוקה: רצפת ההתחלה האוטומטית היא ינואר 2020');
+  // משיכה עמוקה (v120): אין רצפת 2020 קבועה — המשתמש בוחר עומק 1–10 שנים, תאריך מדויק ללא הגבלה
+  ok(typeof T.ibkrDepthStartYmd === 'function', 'עומק: פונקציית התחלה קיימת');
   ok(T.ibkrHasImportedData({ positions: [{ symbol: 'A' }] }) === true, 'יש נתונים: פוזיציות');
   ok(T.ibkrHasImportedData({ trades: [], navPeriods: [] }) === false, 'אין נתונים: מערכים ריקים');
   ok(T.ibkrHasImportedData(null) === false, 'אין נתונים: null');
@@ -485,7 +485,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     };
     return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
-  const deepRes = await T.ibkrFetchFullHistory(deepFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  const deepRes = await T.ibkrFetchFullHistory(deepFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
   ok(dstmt === 3, 'משיכה עמוקה: 3 חלקים מהעבר קדימה, כולם נמשכו');
   ok(deepRanges[0][0] === '20240101' && deepRanges[0][1] < deepRanges[1][1] && deepRanges[1][1] < deepRanges[2][1], 'משיכה עמוקה: החלקים מהעבר לקדימה (העתיק ראשון)');
   ok(deepRes.trades.length === 3, 'משיכה עמוקה: מוזגו עסקאות מכל החלקים');
@@ -510,7 +510,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
           positions: [], navHistory: [], cashBalances: [], cashTransactions: [] };
     return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
-  const midRes = await T.ibkrFetchFullHistory(midFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  const midRes = await T.ibkrFetchFullHistory(midFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
   ok(mstmt === 3, 'משיכה עמוקה: חלק אמצעי ריק לא עוצר — כל 3 החלקים נמשכו');
   ok(midRes.trades.length === 2, 'משיכה עמוקה: מידע משני צדי החלק הריק מוזג');
   // החלק העדכני נכשל -> נחסם, לא מייבאים
@@ -518,7 +518,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     if (String(url).includes('/api/flex-request')) throw new Error('boom');
     return { json: async () => ({ ok: true, status: 'ready', data: {} }) };
   };
-  const failRes = await T.ibkrFetchFullHistory(failFetch, 'https://proxy.example.com', 'tok', '1', '20250101', null);
+  const failRes = await T.ibkrFetchFullHistory(failFetch, 'https://proxy.example.com', 'tok', '1', '20250101', null, { chunkGapMs: 5 });
   ok(T.ibkrSyncIsComplete(failRes) === false, 'משיכה עמוקה: כשלון החלק העדכני חוסם יבוא');
   ok(failRes._throttled === true, 'משיכה עמוקה: 2 כשלונות רצופים -> דגל throttled');
 
@@ -529,15 +529,15 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.ibkrIsThrottleErr(new Error('שרתון: flex_1003')) === false, 'לא throttle: flex_1003 (דוח לא זמין)');
   ok(T.ibkrIsThrottleErr(new Error('boom')) === false, 'לא throttle: שגיאת רשת גנרית');
   ok(T.ibkrIsThrottleErr(null) === false, 'לא throttle: null');
-  // v119: קצב בטוח — הפוגה מספקת בין חלקים (IBKR: עד 10 בקשות בדקה לטוקן)
-  ok(T.IBKR_CHUNK_GAP_MS >= 10000, 'הפוגה בין חלקים: לפחות 10 שניות');
+  // v120: קצב בטוח — הפוגה של 60 שניות בין חלקים (IBKR: עד 10 בקשות בדקה לטוקן)
+  ok(T.IBKR_CHUNK_GAP_MS === 60000, 'הפוגה בין חלקים: 60 שניות');
   // v119: מפסק מעגל — 2 כשלונות רצופים עוצרים את המשיכה במקום להעמיק חסימה
   let cstmt = 0;
   const circuitFetch = async (url) => {
     if (String(url).includes('/api/flex-request')) { cstmt++; throw new Error('boom'); }
     return { json: async () => ({ ok: true, status: 'ready', data: {} }) };
   };
-  const circuitRes = await T.ibkrFetchFullHistory(circuitFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  const circuitRes = await T.ibkrFetchFullHistory(circuitFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
   ok(cstmt === 4, 'מפסק מעגל: 2 חלקים נכשלים (עם ניסיון חוזר אחד לשגיאה רגילה) ואז עצירה — לא ממשיכים לחלק 3');
   ok(circuitRes._throttled === true, 'מפסק מעגל: דגל throttled מוגדר');
   ok(T.ibkrSyncIsComplete(circuitRes) === false, 'מפסק מעגל: החלק העדכני נכשל -> יבוא חסום');
@@ -550,9 +550,45 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     }
     return { json: async () => ({ ok: true, status: 'ready', data: {} }) };
   };
-  const throttleRes = await T.ibkrFetchFullHistory(throttleFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  const throttleRes = await T.ibkrFetchFullHistory(throttleFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
   ok(tstmt === 2, 'throttle: בקשה אחת בלבד לחלק (בלי ניסיון חוזר), עצירה אחרי 2 חלקים');
   ok(throttleRes._throttled === true, 'throttle: דגל throttled מוגדר');
+
+  // v120: שאילתות GetStatement כל 12 שניות, תקציב ~6 דקות לדוח כבד
+  ok(T.IBKR_POLL_DELAY_MS === 12000, 'poll: מרווח 12 שניות בין שאילתות');
+  ok(T.IBKR_POLL_TRIES === 30, 'poll: 30 ניסיונות (תקציב ~6 דקות)');
+  // v120: עומק היסטוריה לפי בחירת המשתמש — לא רצפת 2020 קבועה
+  const endFix5 = new Date(2026, 8, 23);
+  ok(T.ibkrDepthStartYmd(endFix5, 5) === '20210923', 'עומק: 5 שנים אחורה מתאריך נתון');
+  ok(T.ibkrDepthStartYmd(endFix5, 10) === '20160923', 'עומק: 10 שנים אחורה');
+  ok(T.ibkrDepthStartYmd(endFix5, 99) === '20160923', 'עומק: מוגבל ל־10 שנים');
+  ok(T.ibkrDepthStartYmd(endFix5, 0) === '20210923', 'עומק: ערך לא תקין -> ברירת מחדל 5');
+  ok(T.ibkrDepthStartYmd(endFix5) === '20210923', 'עומק: בלי ערך -> ברירת מחדל 5');
+  // v120: הגעה לתחילת הטווח — המלצה להעמיק רק כשהמידע מגיע עד קרוב להתחלה
+  ok(T.ibkrReachedStart('2021-10-01', '20210923') === true, 'הגעה להתחלה: מידע עד 8 יום מההתחלה -> כן');
+  ok(T.ibkrReachedStart('2022-06-01', '20210923') === false, 'הגעה להתחלה: מידע 8 חודשים אחרי -> לא');
+  ok(T.ibkrReachedStart('', '20210923') === false, 'הגעה להתחלה: אין מידע -> לא');
+  ok(T.ibkrReachedStart('2021-10-01', 'bad') === false, 'הגעה להתחלה: קלט לא תקין -> לא');
+  // v120: זיהוי נעילת טוקן (1025) — פונקציה טהורה
+  ok(T.ibkrIsLockoutErr(new Error('שרתון: flex_1025 — Too many failed attempts')) === true, 'נעילה: flex_1025 מזוהה');
+  ok(T.ibkrIsLockoutErr(new Error('שרתון: flex_1018')) === false, 'נעילה: flex_1018 אינו נעילה');
+  ok(T.ibkrIsLockoutErr(new Error('boom')) === false, 'נעילה: שגיאה גנרית אינה נעילה');
+  ok(T.ibkrIsLockoutErr(null) === false, 'נעילה: null');
+  // v120: הודעה נפרדת לנעילה — לא מתבלבלת עם הגבלת קצב
+  ok(T.ibkrFriendlyErr('x flex_1025 y') !== T.ibkrFriendlyErr('x flex_1018 y'), 'נעילה: הודעה שונה מהגבלת קצב');
+  ok(!/flex_1025/.test(T.ibkrFriendlyErr('x flex_1025 y')), 'נעילה: הודעה ידידותית בלי קוד גולמי');
+  // v120: תיקון — ההודעה האדומה כבר לא טוענת "חסימה של 10 דקות" (לא מתועד ב־Flex)
+  ok(!/10 דקות/.test(T.ibkrFriendlyErr('x flex_1018 y')) && !/10 minutes/.test(T.ibkrFriendlyErr('x flex_1018 y')), 'throttle: בלי טענת חסימת 10 דקות');
+  // v120: נעילת טוקן — עצירה מידית אחרי חלק אחד, בלי לחכות לכשלון שני
+  let lstmt = 0;
+  const lockFetch = async (url) => {
+    if (String(url).includes('/api/flex-request')) { lstmt++; return { json: async () => ({ ok: false, error: 'flex_1025', message: 'Too many failed attempts' }) }; }
+    return { json: async () => ({ ok: true, status: 'ready', data: {} }) };
+  };
+  const lockRes = await T.ibkrFetchFullHistory(lockFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
+  ok(lstmt === 1, 'נעילה: בקשת SendRequest אחת בלבד ואז עצירה מידית');
+  ok(lockRes._locked === true, 'נעילה: דגל _locked מוגדר');
+  ok(T.ibkrSyncIsComplete(lockRes) === false, 'נעילה: החלק העדכני נכשל -> יבוא חסום');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
