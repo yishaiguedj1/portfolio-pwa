@@ -300,10 +300,16 @@ function statementToJson(tree) {
 }
 
 /* ---------- IBKR calls ---------- */
-async function ibkrGet(url) {
-  const r = await fetch(url, { headers: { 'User-Agent': UA } });
-  const text = await r.text();
-  return { status: r.status, text };
+/* קריאה ל־IBKR עם הגבלת זמן: אחרת Vercel הורג את הפונקציה אחרי maxDuration
+   והאפליקציה מקבלת תשובה לא־JSON — ונראית "תקועה". */
+async function ibkrGet(url, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || IBKR_CALL_BUDGET_MS);
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: ctrl.signal });
+    const text = await r.text();
+    return { status: r.status, text };
+  } finally { clearTimeout(timer); }
 }
 
 function errorXml(text) {
@@ -321,14 +327,18 @@ function errorXml(text) {
 /* מנסה כל הוסט קשיח של IBKR לפי הסדר; הראשון עם HTTP 200 מנצח.
    תשובת 200 עם XML שגיאה היא תשובה סופית — לא מנסים הוסט נוסף.
    ההוסטים קשיחים בקוד, לעולם לא נגזרים מקלט משתמש. */
-async function ibkrGetMulti(path, firstHost) {
+const IBKR_CALL_BUDGET_MS = 24000; // תקציב זמן כולל לכל ההוסטים — מתחת ל־maxDuration=30 של Vercel
+async function ibkrGetMulti(path, firstHost, budgetMs) {
   const hosts = firstHost
     ? [firstHost, ...IBKR_HOSTS_LIST.filter((h) => h !== firstHost)]
     : [...IBKR_HOSTS_LIST];
+  const deadline = Date.now() + (budgetMs || IBKR_CALL_BUDGET_MS);
   let last = { status: 0, text: '' };
   for (const host of hosts) {
+    const left = deadline - Date.now();
+    if (left < 2000) break; // לא מתחילים הוסט נוסף בלי זמן להשלים אותו
     try {
-      const r = await ibkrGet(host + path);
+      const r = await ibkrGet(host + path, left);
       if (r.status === 200) return r;
       last = r;
     } catch (e) { last = { status: 0, text: '' }; }

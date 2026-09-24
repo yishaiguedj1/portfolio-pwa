@@ -147,7 +147,7 @@ function stubFetch(text, status = 200) {
     return { status: 200, text: async () => SEND_OK_XML };
   };
   res = mockRes();
-  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '999999' } }), res);
   ok(res.payload.ok === true && res.payload.referenceCode === 'RC123', 'נדחה ב-ndcdyn, הצליח ב-gdcdyn');
   ok(seenHosts.length === 2 && seenHosts[0].startsWith('https://ndcdyn.') && seenHosts[1].startsWith('https://gdcdyn.'),
     'ניסה את שני ההוסטים לפי הסדר');
@@ -160,7 +160,7 @@ function stubFetch(text, status = 200) {
     return { status: 200, text: async () => TOKEN_ERR_XML };
   };
   res = mockRes();
-  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '999999' } }), res);
   ok(res.payload.ok === false && res.payload.error === 'flex_1015', 'שגיאת Flex לא גוררת fallback');
   ok(seenHosts.length === 1, 'רק הוסט אחד נקרא');
 
@@ -174,7 +174,7 @@ function stubFetch(text, status = 200) {
     return { status: 200, text: async () => (calls === 1 ? FAIL1001 : SEND_OK) };
   };
   res = mockRes();
-  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '999999' } }), res);
   ok(res.payload.ok === true && res.payload.referenceCode === 'RC9', 'אחרי 1001 מנסה שוב ומצליח');
   ok(calls === 2, 'בוצעו שני נסיונות');
 
@@ -182,7 +182,7 @@ function stubFetch(text, status = 200) {
   calls = 0;
   global.fetch = async () => { calls++; return { status: 200, text: async () => FAIL1001 }; };
   res = mockRes();
-  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '999999' } }), res);
   ok(res.payload.ok === false && res.payload.error === 'flex_1001' && res.payload.retried === true, 'אחרי 3 נסיונות מחזיר flex_1001');
   ok(calls === 3, 'בוצעו שלושה נסיונות');
 
@@ -191,7 +191,7 @@ function stubFetch(text, status = 200) {
   const FAIL1015 = `<FlexStatementResponse><Status>Fail</Status><ErrorCode>1015</ErrorCode><ErrorMessage>Token is invalid.</ErrorMessage></FlexStatementResponse>`;
   global.fetch = async () => { calls++; return { status: 200, text: async () => FAIL1015 }; };
   res = mockRes();
-  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '999999' } }), res);
   ok(res.payload.ok === false && res.payload.error === 'flex_1015' && !res.payload.retried, 'טוקן לא תקין -> כשלון מיידי');
   ok(calls === 1, 'נסיון יחיד לשגיאה קבועה');
 
@@ -200,7 +200,7 @@ function stubFetch(text, status = 200) {
   const FAIL1018 = `<FlexStatementResponse><Status>Fail</Status><ErrorCode>1018</ErrorCode><ErrorMessage>Too many requests have been made from this token. Please try again shortly.</ErrorMessage></FlexStatementResponse>`;
   global.fetch = async () => { calls++; return { status: 200, text: async () => FAIL1018 }; };
   res = mockRes();
-  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '999999' } }), res);
   ok(res.payload.ok === false && res.payload.error === 'flex_1018' && !res.payload.retried, 'הגבלת קצב 1018 -> כשלון מיידי בלי נסיון חוזר');
   ok(calls === 1, 'נסיון יחיד להגבלת קצב (ניסיון חוזר רק שורף תקציב בקשות)');
   flexRequest._setRetryWaitMs(7000);
@@ -208,7 +208,7 @@ function stubFetch(text, status = 200) {
   /* ---------- שני ההוסטים נכשלים -> שגיאת ההוסט האחרון ---------- */
   global.fetch = async () => ({ status: 500, text: async () => 'boom' });
   res = mockRes();
-  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '999999' } }), res);
   ok(res.statusCode === 502 && res.payload.error === 'ibkr_http_500', 'שני הוסטים נכשלים -> 502');
 
   /* ---------- flex-statement: ההוסט המועדף נדחה, השני מצליח ---------- */
@@ -223,6 +223,17 @@ function stubFetch(text, status = 200) {
   await flexStatement(mockReq({ body: { token: '1234567890', code: 'ABC123', statementUrl: 'https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement?q=ABC' } }), res);
   ok(res.payload.ok === true && res.payload.status === 'ready', 'statement נפל להוסט השני והצליח');
   ok(seenStmt.length === 2 && seenStmt[1].startsWith('https://ndcdyn.'), 'ההוסט השני נוסה');
+
+  /* ---------- v122: IBKR איטי — השרתון מחזיר JSON לפני ש־Vercel הורג אותו ---------- */
+  {
+    const { ibkrGetMulti } = require('../lib/ibkr');
+    global.fetch = (url, opts) => new Promise((resolve, reject) => {
+      opts.signal.addEventListener('abort', () => reject(new Error('aborted')));
+    });
+    const t0 = Date.now();
+    const r = await ibkrGetMulti('/x', null, 300);
+    ok(r.status === 0 && Date.now() - t0 < 1500, 'IBKR תקוע -> ibkrGetMulti חוזר בתוך תקציב הזמן');
+  }
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, ibkrIsLockoutErr, ibkrDepthStartYmd, ibkrReachedStart, ibkrMakeLimiter, IBKR_LIMITER, IBKR_RATE_MAX, IBKR_RATE_WINDOW_MS, IBKR_POLL_FIRST_MS, IBKR_POLL_DELAY_MS, IBKR_POLL_TRIES, IBKR_HISTORY_YEARS_DEFAULT };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, ibkrIsLockoutErr, ibkrDepthStartYmd, ibkrReachedStart, ibkrMakeLimiter, IBKR_LIMITER, ibkrStatusLine, IBKR_POLL_MAX_FAILS, IBKR_RATE_MAX, IBKR_RATE_WINDOW_MS, IBKR_POLL_FIRST_MS, IBKR_POLL_DELAY_MS, IBKR_POLL_TRIES, IBKR_HISTORY_YEARS_DEFAULT };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -520,7 +520,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   };
   const failRes = await T.ibkrFetchFullHistory(failFetch, 'https://proxy.example.com', 'tok', '1', '20250101', null, { chunkGapMs: 5 });
   ok(T.ibkrSyncIsComplete(failRes) === false, 'משיכה עמוקה: כשלון החלק העדכני חוסם יבוא');
-  ok(failRes._throttled === true, 'משיכה עמוקה: 2 כשלונות רצופים -> דגל throttled');
+  ok(failRes._stopped === true && !failRes._throttled, 'משיכה עמוקה: 2 כשלונות רצופים -> עצירה, בלי לתייג כהגבלת קצב (v122)');
 
   // v119: זיהוי הגבלת קצב של IBKR — פונקציה טהורה
   ok(T.ibkrIsThrottleErr(new Error('שרתון: no_reference_code')) === true, 'throttle: no_reference_code מזוהה');
@@ -539,7 +539,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   };
   const circuitRes = await T.ibkrFetchFullHistory(circuitFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
   ok(cstmt === 4, 'מפסק מעגל: 2 חלקים נכשלים (עם ניסיון חוזר אחד לשגיאה רגילה) ואז עצירה — לא ממשיכים לחלק 3');
-  ok(circuitRes._throttled === true, 'מפסק מעגל: דגל throttled מוגדר');
+  ok(circuitRes._stopped === true && !circuitRes._throttled, 'מפסק מעגל: עצירה, שגיאה רגילה לא מתויגת כהגבלת קצב');
   ok(T.ibkrSyncIsComplete(circuitRes) === false, 'מפסק מעגל: החלק העדכני נכשל -> יבוא חסום');
   // v119: שגיאת throttle — אין ניסיון חוזר בכלל (כל ניסיון מאריך את החסימה)
   let tstmt = 0;
@@ -557,7 +557,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   // v121: שאילתה ראשונה אחרי 4 שניות, אחר כך כל 6 שניות; תקציב ~6 דקות לדוח כבד
   ok(T.IBKR_POLL_FIRST_MS === 4000, 'poll: המתנה של 4 שניות לפני השאילתה הראשונה');
   ok(T.IBKR_POLL_DELAY_MS === 6000, 'poll: מרווח 6 שניות בין שאילתות');
-  ok(T.IBKR_POLL_TRIES * T.IBKR_POLL_DELAY_MS >= 300000, 'poll: תקציב של לפחות 5 דקות לדוח כבד');
+  ok(T.IBKR_POLL_TRIES * T.IBKR_POLL_DELAY_MS >= 150000 && T.IBKR_POLL_TRIES * T.IBKR_POLL_DELAY_MS <= 240000, 'poll: תקציב של ~3 דקות ל"עדיין מייצר"');
   // v120: עומק היסטוריה לפי בחירת המשתמש — לא רצפת 2020 קבועה
   const endFix5 = new Date(2026, 8, 23);
   ok(T.ibkrDepthStartYmd(endFix5, 5) === '20210923', 'עומק: 5 שנים אחורה מתאריך נתון');
@@ -650,6 +650,52 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     const fetchReady = async () => ({ json: async () => ({ ok: true, status: 'ready', data: { x: 1 } }) });
     await T.ibkrPollStatement(fetchReady, 'https://proxy.example.com', 'tok', 'RC', '', { sleep: async (ms) => { slept.push(ms); } });
     ok(slept[0] === T.IBKR_POLL_FIRST_MS, 'poll: המתנה ראשונית לפני השאילתה הראשונה');
+  }
+
+
+  // v122: כשל שרתון (תשובה לא־JSON, למשל timeout של Vercel) לא נחשב "עדיין מייצר" —
+  // עוצרים אחרי IBKR_POLL_MAX_FAILS רצופים במקום לחכות בשקט עשרות דקות
+  {
+    let polls = 0;
+    const badProxy = async () => { polls++; return { status: 504, json: async () => { throw new Error('not json'); } }; };
+    await assert.rejects(
+      T.ibkrPollStatement(badProxy, 'https://proxy.example.com', 'tok', 'RC', '', { sleep: noSleep }),
+      /proxy_http_504/, 'כשל שרתון חוזר -> שגיאה ברורה עם סטטוס HTTP'
+    );
+    ok(polls === T.IBKR_POLL_MAX_FAILS, 'כשל שרתון: עצירה אחרי ' + T.IBKR_POLL_MAX_FAILS + ' כשלונות רצופים (לא 30)');
+    // כשל חולף אחד ואז מוכן — ממשיך
+    let k = 0;
+    const flaky = async () => {
+      k++;
+      if (k === 1) return { status: 502, json: async () => ({ ok: false, error: 'ibkr_http_0' }) };
+      return { status: 200, json: async () => ({ ok: true, status: 'ready', data: { y: 1 } }) };
+    };
+    const okData = await T.ibkrPollStatement(flaky, 'https://proxy.example.com', 'tok', 'RC', '', { sleep: noSleep });
+    ok(okData && okData.y === 1, 'כשל שרתון חולף אחד -> ממשיך ומצליח');
+  }
+  // v122: חלק שנכשל בשלב ההמתנה לדוח — לא מזמינים דוח חדש (SendRequest חוזר מסכן 1025)
+  {
+    let sends = 0;
+    const stuckFetch = async (url) => {
+      if (String(url).includes('/api/flex-request')) { sends++; return { json: async () => ({ ok: true, referenceCode: 'R' + sends, statementUrl: '' }) }; }
+      return { status: 504, json: async () => { throw new Error('not json'); } };
+    };
+    const stuckRes = await T.ibkrFetchFullHistory(stuckFetch, 'https://proxy.example.com', 'tok', '1', '20250101', null, { chunkGapMs: 0 });
+    ok(sends === 2, 'כשל בהמתנה: SendRequest אחד לכל חלק, בלי הזמנה חוזרת (2 חלקים ואז עצירה)');
+    ok(stuckRes._stopped === true && T.ibkrSyncIsComplete(stuckRes) === false, 'כשל בהמתנה: עצירה והיבוא חסום');
+    ok(/proxy_http_504/.test(stuckRes._chunks[0].error), 'כשל בהמתנה: הקוד האמיתי נשמר להודעה');
+  }
+  // v122: שלבים חיים לשורת המצב
+  {
+    const stages = [];
+    const quick = async (url) => String(url).includes('/api/flex-request')
+      ? { json: async () => ({ ok: true, referenceCode: 'R', statementUrl: '' }) }
+      : { json: async () => ({ ok: true, status: 'ready', data: {} }) };
+    await T.ibkrFetchFullHistory(quick, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(new Date(Date.now() - 10 * 864e5)), null,
+      { chunkGapMs: 0, onStage: (st, n) => stages.push(st + n) });
+    ok(stages.join(',') === 'request0,wait1', 'שלבים: בקשה ואז המתנה לדוח');
+    ok(T.ibkrStatusLine('חלק 2 מתוך 6', 'IBKR מכין את הדוח (בדיקה 3)', 65000) === 'חלק 2 מתוך 6 · IBKR מכין את הדוח (בדיקה 3) · 1:05', 'שורת מצב: חלק · שלב · זמן');
+    ok(T.ibkrStatusLine('x', '', 5000) === 'x · 0:05', 'שורת מצב: בלי שלב');
   }
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);

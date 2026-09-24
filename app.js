@@ -333,6 +333,8 @@ he: {
   proxyErr: 'שגיאת שרתון',
   netPrefix: 'רשת: ',
   reportTimeout: 'הדוח לא היה מוכן בזמן — נסה שוב',
+  ibkrStageRequest: 'שולח בקשה ל־IBKR',
+  ibkrStageWait: 'IBKR מכין את הדוח (בדיקה {n})',
   ibkrErr1001: 'IBKR לא הצליח ליצור את הדוח כרגע (עומס זמני אצלם) — נסה שוב בעוד כמה דקות.',
   ibkrErrRate: 'IBKR דחה את הבקשה כרגע — נסה שוב בעוד כמה דקות.',
   ibkrErrTokenExp: 'הטוקן פג תוקף — צור טוקן חדש ב־IBKR והזן אותו כאן.',
@@ -704,6 +706,8 @@ en: {
   proxyErr: 'Proxy error',
   netPrefix: 'Network: ',
   reportTimeout: 'Report wasn\'t ready in time — try again',
+  ibkrStageRequest: 'Requesting report from IBKR',
+  ibkrStageWait: 'IBKR is preparing the report (check {n})',
   ibkrErr1001: 'IBKR couldn\'t generate the report right now (temporary load on their side) — try again in a few minutes.',
   ibkrErrRate: 'IBKR rejected the request for now — try again in a few minutes.',
   ibkrErrTokenExp: 'Token expired — create a new token in IBKR and enter it here.',
@@ -1378,7 +1382,8 @@ const IBKR_RATE_WINDOW_MS = 60000;   // חלון מתגלגל של דקה
 const IBKR_RATE_MIN_GAP_MS = 1500;   // מרווח מינימלי בין בקשות (IBKR: בקשה לשנייה)
 const IBKR_POLL_FIRST_MS = 4000;     // המתנה לפני השאילתה הראשונה — שאילתה מיידית כמעט תמיד "עדיין מייצר"
 const IBKR_POLL_DELAY_MS = 6000;     // מרווח בין שאילתות GetStatement (המגביל שומר על התקציב)
-const IBKR_POLL_TRIES = 60;          // תקציב כולל ~6 דקות להיווצרות דוח כבד
+const IBKR_POLL_TRIES = 30;          // תקציב ~3 דקות ל"עדיין מייצר" (דוח של שנה נוצר בדרך כלל תוך שניות)
+const IBKR_POLL_MAX_FAILS = 3;       // כשלי שרתון/רשת רצופים בזמן ההמתנה לדוח — ואז עוצרים עם שגיאה ברורה
 /* מגביל קצב מתגלגל (נבדק עם שעון מדומה). מחזיר פונקציה אסינכרונית שממתינה
    עד שמותר לשלוח בקשה נוספת ואז רושמת אותה. קריאות מקבילות נכנסות לתור. */
 function ibkrMakeLimiter(opts) {
@@ -1473,15 +1478,23 @@ function ibkrEarliestDate(d) {
 async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults, pollOpts) {
   let data = null, err = null;
   let plan = { attempts: 2, waitMs: 3000 };
+  const stage = (pollOpts && pollOpts.onStage) || null;
   for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
+    let gotRef = false;
     try {
+      if (stage) { try { stage('request', 0); } catch (e) {} }
       const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td, pollOpts && pollOpts.limiter);
+      gotRef = true;
       data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl, pollOpts);
     } catch (e) {
       err = e;
       // הגבלת קצב או נעילת טוקן של IBKR: לא מנסים שוב — ניסיון נוסף רק מאריך את החסימה/הנעילה
       if (ibkrIsThrottleErr(e) || ibkrIsLockoutErr(e)) break;
+      // v122: הדוח כבר הוזמן ונכשל בהמתנה (שרתון/רשת/זמן) — לא מזמינים דוח חדש:
+      // SendRequest חוזר לא יעזור, מכפיל את הזמן ומסכן נעילת טוקן (1025).
+      // רק 1003 ("עדיין לא פורסם") מצדיק הזמנה חוזרת.
+      if (gotRef && !/flex_1003/.test(String((e && e.message) || e || ''))) break;
       plan = ibkrChunkRetryPlan(e);
     }
   }
@@ -1498,7 +1511,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   const gapMs = manualPace ? o.chunkGapMs : 0;
   const limiter = ('limiter' in o) ? o.limiter : (manualPace ? null : IBKR_LIMITER);
   const pollOpts = {
-    tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep,
+    tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep, onStage: o.onStage,
     firstDelayMs: (typeof o.pollFirstMs === 'number') ? o.pollFirstMs : (manualPace ? o.chunkGapMs : undefined),
   };
   const endD = new Date();
@@ -1592,9 +1605,13 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       const lastRes = chunkResults[chunkResults.length - 1];
       // נעילת טוקן — עוצרים מיד, אפילו לא מחכים לכשלון שני
       if (lastRes && ibkrIsLockoutErr(lastRes.error)) { merged._locked = true; break; }
-      // שני כשלונות רצופים = כנראה הגבלת קצב/חסימה זמנית של IBKR —
-      // להמשיך רק מעמיק את החסימה, אז עוצרים ומסבירים למשתמש
-      if (consecFails >= 2) { merged._throttled = true; break; }
+      // שני כשלונות רצופים — עוצרים במקום לבזבז דקות ובקשות על חלקים נוספים.
+      // "הגבלת קצב" רק כשזו באמת השגיאה; אחרת ההודעה מציגה את הקוד האמיתי
+      if (consecFails >= 2) {
+        merged._stopped = true;
+        if (lastRes && ibkrIsThrottleErr(lastRes.error)) merged._throttled = true;
+        break;
+      }
     }
   }
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
@@ -1644,27 +1661,40 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
   const delayMs = o.delayMs || IBKR_POLL_DELAY_MS;
   const sleep = o.sleep || ((ms) => new Promise((res) => setTimeout(res, ms)));
   const firstMs = (typeof o.firstDelayMs === 'number') ? o.firstDelayMs : Math.min(IBKR_POLL_FIRST_MS, delayMs);
-  let netErr = null;
+  const proxyErr = (j) => new Error(j.error ? t('proxyPrefix') + j.error + (j.message ? ' — ' + j.message : '') : t('proxyErr'));
+  let netErr = null, fails = 0, httpStatus = 0;
   // IBKR צריך כמה שניות לייצר את הדוח — שאילתה מיידית רק שורפת בקשה מהתקציב
   if (firstMs > 0) await sleep(firstMs);
   for (let i = 0; i < tries; i++) {
     let j = null;
+    httpStatus = 0; netErr = null;
     if (o.limiter) await o.limiter();
+    if (o.onStage) { try { o.onStage('wait', i + 1); } catch (e) {} }
     try {
       const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, code, statementUrl: statementUrl || '' }),
-      }, 45000);
+      }, 40000);
+      httpStatus = (r && r.status) || 0;
       j = await r.json();
     } catch (e) { netErr = e; }
     if (j && j.ok === true && j.status === 'ready' && j.data) return j.data;
-    if (j && j.ok === false) {
-      throw new Error(j.error ? t('proxyPrefix') + j.error + (j.message ? ' — ' + j.message : '') : t('proxyErr'));
+    if (j && j.ok === true) { fails = 0; await sleep(delayMs); continue; } // עדיין מייצר
+    // v122: כשל — לא "עדיין מייצר". שגיאת Flex/פרמטרים נזרקת מיד; כשל שרתון/רשת
+    // (תשובה לא־JSON כמו timeout של Vercel, ibkr_http_*, fetch_failed) מקבל עד
+    // IBKR_POLL_MAX_FAILS ניסיונות רצופים — במקום לחכות בשקט עשרות דקות.
+    const errCode = (j && j.error) || '';
+    const transient = !j || /^(ibkr_http_(0|5\d\d)|fetch_failed|timeout)$/.test(errCode);
+    if (!transient) throw proxyErr(j);
+    fails++;
+    if (fails >= IBKR_POLL_MAX_FAILS) {
+      if (j) throw proxyErr(j);
+      throw new Error(t('netPrefix') + (httpStatus && httpStatus !== 200 ? 'proxy_http_' + httpStatus : (netErr ? netErr.message : 'proxy_http_0')));
     }
-    await sleep(delayMs); // pending או כשל רשת חולף — מנסים שוב
+    await sleep(delayMs);
   }
-  throw new Error(netErr ? t('netPrefix') + netErr.message : t('reportTimeout'));
+  throw new Error(t('reportTimeout'));
 }
 
 /* ממפה קוד שגיאת Flex/שרתון להודעה מובנת למשתמש. */
@@ -1990,11 +2020,30 @@ async function ibkrSyncImport() {
     ibkrSaveCfg({ fromDate: '' });
   }
   ibkrSetBusy(true);
+  // v122: מסך דלוק במהלך המשיכה — טלפון שנכבה משהה את הדף והמשיכה "נתקעת"
+  let wakeLock = null;
   try {
-    const s = document.getElementById('ibkrStatus');
-    if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: 1, total: '…' }) : t('fetchHistory', { n: 1, total: '…' });
+    if (typeof navigator !== 'undefined' && navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen');
+  } catch (e) {}
+  // v122: שורת מצב חיה — חלק, שלב (בקשה / IBKR מכין את הדוח) וזמן שעבר,
+  // כדי שיהיה ברור מה קורה ולא ייראה "תקוע"
+  const s = document.getElementById('ibkrStatus');
+  const t0 = Date.now();
+  let base = autoMode ? t('fetchHistoryAuto', { n: 1, total: '…' }) : t('fetchHistory', { n: 1, total: '…' });
+  let stageTxt = '';
+  const paint = () => { if (s) s.textContent = ibkrStatusLine(base, stageTxt, Date.now() - t0); };
+  const ticker = setInterval(paint, 1000);
+  try {
+    paint();
     const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
-      if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: i, total }) : t('fetchHistory', { n: i, total });
+      base = autoMode ? t('fetchHistoryAuto', { n: i, total }) : t('fetchHistory', { n: i, total });
+      stageTxt = '';
+      paint();
+    }, {
+      onStage: (st, n) => {
+        stageTxt = st === 'request' ? t('ibkrStageRequest') : t('ibkrStageWait', { n });
+        paint();
+      },
     });
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
     // פוזיציות ישנות כעדכניות.
@@ -2028,9 +2077,18 @@ async function ibkrSyncImport() {
   } catch (e) {
     ibkrShowErr(t('importFailed', { err: ibkrFriendlyErr(e.message) }));
   } finally {
+    clearInterval(ticker);
+    try { if (wakeLock) wakeLock.release(); } catch (e) {}
     ibkrSetBusy(false);
     renderIbkrCard();
   }
+}
+
+/* שורת מצב של משיכה (פונקציה טהורה, נבדקת): "חלק 2 מתוך 6 · שלב · 1:05". */
+function ibkrStatusLine(base, stage, elapsedMs) {
+  const sec = Math.max(0, Math.floor((elapsedMs || 0) / 1000));
+  const clock = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  return [base, stage, clock].filter(Boolean).join(' · ');
 }
 
 function ibkrKindName(data) {
@@ -2181,7 +2239,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v121';
+const APP_VERSION = 'v122';
 
 
 function saveDBto(db) {
