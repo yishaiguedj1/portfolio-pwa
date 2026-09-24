@@ -123,6 +123,8 @@ async function main() {
     const chunks = chunksOf(startYmd, yestYmd);
     const c2 = chunks[chunks.length - 1];
     const fetchFn = stubFetch({
+      // v123: 1003 כבר מקבל את מכסת הניסיונות המלאה (ibkrChunkRetryPlan) —
+      // סבב הניסיון הנוסף בסוף ibkrFetchFullHistory לא חוזר על 1003
       [c2.fd]: { stmt: [
         { ok: false, error: 'flex_1003', message: 'Statement is not available.' },
         { ok: false, error: 'flex_1003', message: 'Statement is not available.' },

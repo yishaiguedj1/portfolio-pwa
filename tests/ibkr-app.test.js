@@ -698,5 +698,57 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     ok(T.ibkrStatusLine('x', '', 5000) === 'x · 0:05', 'שורת מצב: בלי שלב');
   }
 
+  // v123: תקלה מהשטח — משיכה של 3 שנים (3 חלקים) הביאה מידע רק מ־2 השנים
+  // האחרונות. שורש: החלק הכי ישן נכשל פעם אחת (לא 2 רצופים — לא עוצר את
+  // המשיכה), נשמט בשקט, ו־meta.fromDate ננעל על החלק השני. עכשיו: סבב
+  // ניסיון נוסף בסוף מציל חלקים כאלה, ו־fromDate תמיד המוקדם ביותר שהתקבל
+  // בפועל — לא תלוי בסדר העיבוד.
+  {
+    const oldestFd = '20230924'; // הכי ישן — נכשל בהמתנה בסבב הראשון, מצליח בסבב הניסיון הנוסף
+    const failOnceMore = {}; // per-fd: כמה עוד פעמים ה־poll הבא לחלק הזה ייכשל
+    failOnceMore[oldestFd] = 1;
+    let refN = 0;
+    const codeToFd = {};
+    const flakyOldest = async (url, opts) => {
+      if (String(url).includes('/api/flex-request')) {
+        refN++;
+        const body = JSON.parse(opts.body || '{}');
+        codeToFd['RC' + refN] = body.fd;
+        return { json: async () => ({ ok: true, referenceCode: 'RC' + refN, statementUrl: '' }) };
+      }
+      const body = JSON.parse(opts.body || '{}');
+      const fd = codeToFd[body.code];
+      if (failOnceMore[fd] > 0) {
+        failOnceMore[fd]--;
+        return { status: 504, json: async () => { throw new Error('not json'); } };
+      }
+      const meta = { fromDate: fd.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'), toDate: '2026-09-23', baseCurrency: 'USD' };
+      return { json: async () => ({ ok: true, status: 'ready', data: { meta, trades: [], positions: [], cashTransactions: [] } }) };
+    };
+    const res = await T.ibkrFetchFullHistory(flakyOldest, 'https://proxy.example.com', 'tok', '1', oldestFd, null, { chunkGapMs: 0, sleep: noSleep, delayMs: 1 });
+    ok(T.ibkrSyncIsComplete(res) === true, 'פער: החלק האחרון הצליח -> יבוא מותר');
+    ok((res._chunks || []).every((c) => c.ok), 'פער: סבב הניסיון הנוסף החזיר את כל החלקים ל"תקין"');
+    ok(res.meta.fromDate === '2023-09-24', 'פער: meta.fromDate = התאריך המוקדם ביותר בפועל, לא תלוי בסדר העיבוד');
+  }
+  // v123: חלק ישן שממשיך להיכשל גם אחרי הניסיון הנוסף — נשאר מסומן ככשל,
+  // כדי שהאפליקציה תוכל להזהיר את המשתמש (היבוא עדיין מותר — האחרון תקין)
+  {
+    const c2ok = { meta: { fromDate: '2024-09-23', toDate: '2026-09-23' }, trades: [], positions: [], cashTransactions: [] };
+    let calls = 0;
+    const alwaysFailOldest = async (url, opts) => {
+      if (String(url).includes('/api/flex-request')) {
+        calls++;
+        const body = JSON.parse(opts.body || '{}');
+        return { json: async () => (body.fd === '20230924'
+          ? { ok: false, error: 'boom' }
+          : { ok: true, referenceCode: 'R' + calls, statementUrl: '' }) };
+      }
+      return { json: async () => ({ ok: true, status: 'ready', data: c2ok }) };
+    };
+    const res2 = await T.ibkrFetchFullHistory(alwaysFailOldest, 'https://proxy.example.com', 'tok', '1', '20230924', null, { chunkGapMs: 0, sleep: noSleep, delayMs: 1 });
+    ok(T.ibkrSyncIsComplete(res2) === true, 'פער קבוע: החלק האחרון תקין -> יבוא מותר בכל זאת');
+    ok((res2._chunks || []).some((c) => !c.ok && c.fd === '20230924'), 'פער קבוע: החלק הישן נשאר מסומן ככשל — לא נעלם בשקט');
+  }
+
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

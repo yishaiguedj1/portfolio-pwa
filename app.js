@@ -318,6 +318,7 @@ he: {
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
   fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n} מתוך {total})',
   ibkrFlexOlderHint: 'נמצא מידע עד {date}. אם החשבון נפתח לפני כן — אפשר לבחור עומק גדול יותר או תאריך מוקדם יותר, ולייבא שוב.',
+  ibkrGapWarn: '⚠ חלק מהתקופה חסר — {detail}. סנכרון רגיל לא יחזור אחורה לסגור את זה; הזן תאריך התחלה מדויק {date} ולחץ שוב על "סנכרן וייבא".',
   ibkrSaveTest: 'שמור ובדוק חיבור',
   ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
@@ -691,6 +692,7 @@ en: {
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
   fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n} of {total})',
   ibkrFlexOlderHint: 'Data was found back to {date}. If the account is older, choose a greater depth or an earlier start date and import again.',
+  ibkrGapWarn: '⚠ Part of the period is missing — {detail}. A regular sync won\'t go back to fill it; enter exact start date {date} and tap "Sync & Import" again.',
   ibkrSaveTest: 'Save & test connection',
   ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   importFailed: 'Sync & import failed: {err}',
@@ -1529,7 +1531,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   };
   const seenTrade = new Set(), seenCash = new Map(), seenNav = new Set();
   const chunkResults = [];
-  let latestChunkOk = false, posTd = '', metaTd = '', fromSet = false, consecFails = 0;
+  let latestChunkOk = false, posTd = '', metaTd = '', minFromDate = '', consecFails = 0;
   const tKey = (tr) => {
     const id = String(tr.tradeId || '').trim();
     if (id) return 'id:' + id;
@@ -1585,8 +1587,10 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
         posTd = td;
       }
     }
+    // fromDate: התאריך המוקדם ביותר מכל חלק שהצליח — לא תלוי בסדר העיבוד
+    // (v123: סבב הניסיון החוזר בסוף מעבד חלקים שלא בסדר כרונולוגי)
+    if (m.fromDate && (!minFromDate || m.fromDate < minFromDate)) { minFromDate = m.fromDate; merged.meta.fromDate = m.fromDate; }
     if (td >= metaTd) {
-      if (!fromSet && m.fromDate) { merged.meta.fromDate = m.fromDate; fromSet = true; }
       merged.meta.toDate = m.toDate || merged.meta.toDate;
       merged.meta.baseCurrency = m.baseCurrency || merged.meta.baseCurrency;
       metaTd = td;
@@ -1611,6 +1615,26 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
         merged._stopped = true;
         if (lastRes && ibkrIsThrottleErr(lastRes.error)) merged._throttled = true;
         break;
+      }
+    }
+  }
+  // v123: חלק בודד יכול ליפול מסיבה חולפת (קור-סטארט של השרתון, הפרעת רשת
+  // רגעית) בלי שני כשלונות רצופים שהיו עוצרים את המשיכה — ואז נשמט בשקט,
+  // גם כשהיבוא "הושלם" כי החלק האחרון הצליח. סבב ניסיון נוסף אחד לכל חלק
+  // שנכשל (לא נעילה/הגבלת קצב), אחרי שכל שאר החלקים כבר נמשכו.
+  if (!merged._locked && !merged._stopped) {
+    // מריצים מחדש רק חלקים שקיבלו ניסיון יחיד ונשברו מיד (v122: כשל אחרי
+    // reference code, לא 1003) — אלה שסבלו מתקלה חולפת בלי סיכוי אמיתי.
+    // לא: 1003 (כבר קיבל את מכסת הניסיונות המלאה של ibkrChunkRetryPlan),
+    // ולא throttle (1018/no_reference_code — ניסיון נוסף רק מאריך את החסימה).
+    const stillFailed = chunkResults.filter((c) => !c.ok && !/flex_1003/.test(c.error || '') && !ibkrIsThrottleErr(c.error));
+    for (const f of stillFailed) {
+      const retryResults = [];
+      const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, f.fd, f.td, retryResults, pollOpts);
+      if (data) {
+        const idx = chunkResults.indexOf(f);
+        if (idx >= 0) chunkResults.splice(idx, 1);
+        absorb(data, f.fd, f.td);
       }
     }
   }
@@ -2073,6 +2097,17 @@ async function ibkrSyncImport() {
         deepNote = '\n' + t('ibkrFlexOlderHint', { date: fmtDateIL(startYmd.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')) });
       }
     }
+    // v123: החלק האחרון הצליח (מותר לייבא), אבל חלק ישן יותר עדיין נכשל אחרי
+    // סבב הניסיון הנוסף — מזהירים שיש פער בטווח, כדי שהמשתמש ידע ויסנכרן שוב
+    const stillFailed = (incoming._chunks || []).filter((c) => !c.ok);
+    if (stillFailed.length) {
+      const gapText = stillFailed.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
+      // סנכרון רגיל ממשיך קדימה מהתאריך האחרון שנמשך בהצלחה — הוא לא יחזור
+      // אחורה לסגור פער ישן. צריך תאריך התחלה ידני = תחילת הפער.
+      const gapStart = stillFailed.map((c) => c.fd).sort()[0];
+      const gapStartIso = gapStart.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
+      deepNote += '\n' + t('ibkrGapWarn', { detail: gapText, date: fmtDateIL(gapStartIso) });
+    }
     ibkrReviewImport(ibkrCfg().data, incoming, deepNote);
   } catch (e) {
     ibkrShowErr(t('importFailed', { err: ibkrFriendlyErr(e.message) }));
@@ -2239,7 +2274,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v122';
+const APP_VERSION = 'v123';
 
 
 function saveDBto(db) {
