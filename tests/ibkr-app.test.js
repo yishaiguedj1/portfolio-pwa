@@ -449,9 +449,10 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
   const oldStart = new Date(2026, 8, 23); oldStart.setFullYear(oldStart.getFullYear() - 3);
-  await T.ibkrFetchFullHistory(rangeFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldStart), null);
+  const manualRes = await T.ibkrFetchFullHistory(rangeFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldStart), null);
   const eD = new Date(); eD.setDate(eD.getDate() - 1);
   const expChunks = T.ibkrDateChunks(T.ibkrYmd(oldStart), T.ibkrYmd(eD));
+  ok(manualRes._autoWall !== true, 'מצב ידני: אין דגל קיר־שמירה');
   ok(seenRanges.length === expChunks.length && seenRanges.length >= 3 &&
      seenRanges[0][0] === T.ibkrYmd(oldStart) && seenRanges[seenRanges.length - 1][1] === T.ibkrYmd(eD),
      'משיכה 3 שנים אחורה: בקשה לכל חלק עם fd/td, מההתחלה עד אתמול');
@@ -496,6 +497,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     return (b - a) / 86400000 <= 364;
   }), 'משיכה עמוקה: כל חלק עד 364 יום');
   ok(autoRanges[0][1] > autoRanges[1][1] && autoRanges[1][1] > autoRanges[2][1], 'משיכה עמוקה: החלקים הולכים אחורה בזמן');
+  ok(autoRes._autoWall === true, 'משיכה עמוקה: דגל קיר־שמירה כשנעצר אחרי 2 חלקים ריקים');
   // הכל ריק מההתחלה -> 2 בקשות ועצירה
   let stmtM = 0;
   const emptyFetch = async (url) => {
@@ -506,6 +508,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const emptyRes = await T.ibkrFetchFullHistory(emptyFetch, 'https://proxy.example.com', 'tok', '1', 'auto', null);
   ok(stmtM === 2, 'משיכה עמוקה: הכל ריק -> עוצר אחרי 2 חלקים');
   ok(emptyRes.trades.length === 0 && T.ibkrSyncIsComplete(emptyRes) === true, 'משיכה עמוקה ריקה: החלק העדכני הצליח');
+  ok(emptyRes._autoWall === true, 'משיכה עמוקה: דגל קיר־שמירה גם כשהכל ריק מההתחלה');
   // החלק העדכני נכשל -> נחסם, לא ממשיכים אחורה
   const failFetch = async (url) => {
     if (String(url).includes('/api/flex-request')) throw new Error('boom');
@@ -513,6 +516,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   };
   const failRes = await T.ibkrFetchFullHistory(failFetch, 'https://proxy.example.com', 'tok', '1', 'auto', null);
   ok(T.ibkrSyncIsComplete(failRes) === false, 'משיכה עמוקה: כשלון החלק העדכני חוסם יבוא');
+  ok(failRes._autoWall !== true, 'משיכה עמוקה: אין דגל קיר־שמירה כשהחלק העדכני נכשל');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
