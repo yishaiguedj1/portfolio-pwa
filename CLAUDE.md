@@ -21,7 +21,7 @@
 | `styles.css` | עיצוב (בהיר/כהה) |
 | `sw.js` | Service Worker. גרסת קאש: `CACHE_NAME` |
 | `returns.js`, `cloud.js`, `firebase-config.js` | מנוע תשואות (מיזוג, TWR, רווח, XIRR — בלי פארסר CSV מאז v128), ענן, Firebase |
-| `manifest.webmanifest`, `icon-*.png` | PWA |
+| `manifest.webmanifest`, `icon-*.png`, `logo-header.png`, `apple-touch-icon.png`, `favicon-48.png` | PWA + מיתוג "THE SNOWBALL" (v129): לוגו שקוף בכותרת (56px) במקום הטקסט "תיק ההשקעות" (נשאר ל־sr-only/‏title); icon-192/512 שקופים (any), `icon-maskable-512.png` ו־`apple-touch-icon.png` על רקע כהה `#101613` (אנדרואיד חותך צורה; iOS הופך שקיפות לשחור). המקור הגיע עם משבצות "שקיפות" צרובות בפיקסלים — הוסרו במילוי מהקצוות. |
 | `ibkr-proxy/` | שרתון Vercel ל־IBKR Flex — **מתפרס אוטומטית מ־GitHub בכל push**. נקודות: `/api/flex-request` (SendRequest), `/api/flex-statement` (GetStatement) |
 | `tests/` | בדיקות node. הרצה: `node tests/<file>` או `bash tests/run-all.sh` |
 | `ibkr-proxy/tests/run.js` | בדיקות השרתון (57) |

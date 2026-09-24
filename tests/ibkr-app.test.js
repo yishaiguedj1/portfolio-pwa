@@ -787,5 +787,20 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     ok(btnIdx > 0 && btnIdx < detIdx, 'כפתור הסנכרון גלוי מחוץ לחלקים המקופלים');
   }
 
+
+  // v129: לוגו במקום כותרת טקסט; אייקוני PWA
+  {
+    const fsx = require('fs'), px = require('path');
+    const R0 = px.join(__dirname, '..');
+    const html = fsx.readFileSync(px.join(R0, 'index.html'), 'utf8');
+    ok(/<h1 class="brand"><img src="logo-header\.png"[^>]*alt=""[^>]*><span class="sr-only" data-i18n="appTitle">/.test(html), 'כותרת: לוגו + שם האפליקציה לקוראי מסך');
+    const man = JSON.parse(fsx.readFileSync(px.join(R0, 'manifest.webmanifest'), 'utf8'));
+    ok(man.icons.some((i) => i.purpose === 'maskable') && man.icons.some((i) => i.purpose === 'any' && i.sizes === '512x512'), 'manifest: אייקון any + maskable נפרדים');
+    for (const f of ['logo-header.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon-48.png']) {
+      const b = fsx.readFileSync(px.join(R0, f));
+      ok(b.slice(1, 4).toString() === 'PNG' && b.length < 200000, f + ': PNG קיים וקל (<200KB)');
+    }
+  }
+
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
