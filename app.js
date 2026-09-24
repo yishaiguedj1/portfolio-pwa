@@ -2392,7 +2392,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v125';
+const APP_VERSION = 'v126';
 
 
 function saveDBto(db) {
@@ -2512,7 +2512,8 @@ const state = {
   pfBench: null,      // {SPY:true, QQQ:true} — נטען/נשמר, ברירת מחדל: הכל דולק
   pfCustomFrom: null, // תאריך התחלה מותאם (YYYY-MM-DD) — דורס את pfRange
   pfPickDate: false,  // מצב בחירת תאריך התחלה בלחיצה על הגרף
-  pfMeasure: { pts: [] }, // מדידה בין שתי נקודות על גרף התיק — מובנית בגרף
+  pfMeasure: { on: false, pts: [] }, // v126: מדידה רק אחרי לחיצה על כפתור "מדידה" (כמו בגרף המניה)
+  pfTipIdx: null,   // v126: נקודה שנבחרה בלחיצה רגילה — טולטיפ בלבד
   edit: { stocks: false, deposits: false, pension: false },  // מצב עריכה (מוגן מטעויות)
   lang: getLang()   // 'he' | 'en' — נשמר ברמת המכשיר בלבד (pwa_lang_v1)
 };
@@ -3921,6 +3922,24 @@ function renderPfTools() {
   fromBtn.addEventListener('click', openPfFromSheet);
   wrap.appendChild(fromBtn);
 
+  // v126: כפתור מדידה — אותו רכיב כמו בגרף המניה. בלי מצב מדידה, לחיצה על
+  // הגרף מציגה רק את התשואות בנקודה (טולטיפ).
+  const mb = el('button', 'chip-btn' + (state.pfMeasure.on ? ' on' : ''), t('measure'));
+  mb.type = 'button';
+  mb.title = t('measureTitle');
+  mb.addEventListener('click', () => {
+    state.pfMeasure.on = !state.pfMeasure.on;
+    state.pfMeasure.pts = [];
+    state.pfPickDate = false;
+    // הסבר קצר בהודעה צפה — שורת הסבר קבועה הייתה מזיזה את הגרף מתחת לאצבע
+    if (state.pfMeasure.on) flash(t('measureOn'));
+    hidePfTip();
+    renderPfTools();
+    updatePfPickUI();
+    paintPfChart();
+  });
+  wrap.appendChild(mb);
+
   if (state.pfCustomFrom) {
     const tag = el('span', 'pf-custom-tag', esc(t('pfCustom')) + ' · ' + fmtDateIL(state.pfCustomFrom));
     wrap.appendChild(tag);
@@ -3940,6 +3959,7 @@ function renderPfTools() {
   const chip = el('div', 'measure-chip hidden');
   chip.id = 'pfMeasureChip';
   box.appendChild(chip);
+
 }
 
 /* גיליון "תשואה מתאריך": סימון בגרף או בחירה מהיומן */
@@ -4078,6 +4098,7 @@ function renderPfRangeSummary(s0) {
 function hidePfTip() {
   const tip = document.getElementById('pfTip');
   if (tip) tip.classList.add('hidden');
+  state.pfTipIdx = null;
 }
 function showPfTip(idx, xPx) {
   const canvas = document.getElementById('pfChart');
@@ -4140,7 +4161,7 @@ function onPfTap(e) {
   if (!map || map.n < 2) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
-  if (x < map.padL - 14 || x > map.padL + map.plotW + 14) { hidePfTip(); return; }
+  if (x < map.padL - 14 || x > map.padL + map.plotW + 14) { hidePfTip(); paintPfChart(); return; }
   // הנקודה הקרובה ביותר לפי מיקום בפועל (ציר זמן, לא אינדקס אחיד)
   let idx = 0;
   if (map.xs && map.xs.length === map.n) {
@@ -4159,6 +4180,13 @@ function onPfTap(e) {
     state.pfMeasure.pts = [];
     updatePfPickUI();
     drawPfChart();
+    return;
+  }
+  // v126: בלי מצב מדידה — לחיצה מציגה רק את התשואות בנקודה (סמן + טולטיפ)
+  if (!state.pfMeasure.on) {
+    showPfTip(idx, x);
+    state.pfTipIdx = idx;
+    paintPfChart();
     return;
   }
   const pts = state.pfMeasure.pts;
@@ -4420,9 +4448,10 @@ function paintPfChart() {
     ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke();
   };
   for (const i of ms.pts) drawMarker(i);
+  if (!ms.on && state.pfTipIdx !== null && state.pfTipIdx < n) drawMarker(state.pfTipIdx);
 
   canvas._pfMap = { n, padL, plotW, series, xs: fr.map((f) => padL + f * plotW) };
-  canvas.classList.toggle('measuring', state.pfPickDate || ms.pts.length > 0);
+  canvas.classList.toggle('measuring', state.pfPickDate || ms.on);
   updatePfMeasureChip();
 
   if (legend) {

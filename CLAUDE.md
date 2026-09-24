@@ -62,6 +62,7 @@
 - מוצג **רק TWR רשמי של IBKR** כשזמין (ChangeInNAV) — לעולם לא מנחשים TWR רשמי חסר.
 - **גרף הביצועים (v125)**: טווחים לפי **תאריך** (`pfRangeCutoff`/`pfSliceRange`), לא לפי מספר שורות — `filterRange` ישן הניח שורה ליום מסחר, ובנתוני IBKR (שורה לשנה) כל טווח לקח הכל. אם אין נקודה עד 10 ימים מתחילת הטווח → לא מציגים תשואה (`pfRangeNeedsDaily`), לא ממציאים. YTD מדויק גם בנתוני שנים (בסיס 31/12).
 - **NAV יומי**: מקטע Flex "Net Asset Value (NAV) in Base" → `EquitySummaryByReportDateInBase` → `navDaily`. `rDailyTwrSeries`: r=(NAV_t−F_t)/NAV_{t−1}−1 עם תזרימים מ־`ibkrFlowsByDate`, **מעוגן** לכל תקופה רשמית (מכפלת הימים = TWR רשמי) רק כשהכיסוי מלא. `rCombinedTwrSeries` = תקופות לפני + יומי אחרי. ציר X לפי זמן (`pfTimeFractions`).
+- **לחיצה על גרף הביצועים (v126)**: לחיצה רגילה = טולטיפ בלבד (`state.pfTipIdx`); מדידה בין שתי נקודות רק אחרי כפתור "מדידה" (`state.pfMeasure.on`) — אותו `chip-btn` כמו בגרף המניה. הסבר מצב המדידה ב־`flash` (שורה קבועה הזיזה את הגרף מתחת לאצבע).
 - **רווח/הפסד**: `netFlows` בתקופות Flex מגיע מ־ChangeInNAV (depositsWithdrawals+assetTransfers+internalCashTransfers+debitCardActivity+billPay). לפני v125 היה 0 → כל הפקדה נספרה כרווח.
 - מדידה בדולרים בלבד, בלי התאמת שקל (הוראת המשתמש).
 - גרפי היסטוריה: Yahoo query1/query2 + Stooq במרוץ (`Promise.any` — הראשון שעונה מנצח), Twelve Data כגיבוי אחרון (throttle של 8 שניות, קאש תוך־יומי 10 דקות).
@@ -78,7 +79,7 @@
 ## 7. בדיקות
 
 - `node --check app.js` תמיד לפני push.
-- `node tests/ibkr-app.test.js` — לוגיקת IBKR/קצב/עומק/הודעות (199 אסרטים). `node tests/pf-v125.test.js` (41) — גרף/טווחים/NAV יומי.
+- `node tests/ibkr-app.test.js` — לוגיקת IBKR/קצב/עומק/הודעות (199 אסרטים). `node tests/pf-v125.test.js` (41) — גרף/טווחים/NAV יומי. `pf-v126.test.js` (10) — טולטיפ מול מדידה.
 - `node tests/pf-v110.test.js` (28), `pf-v111.test.js` (19), `pf-v112.test.js` (92) — רגרסיות יבוא.
 - `node tests/i18n-coverage.test.js` (727) — כל מחרוזת גלויה בעברית **ובאנגלית**.
 - `node ibkr-proxy/tests/run.js` (62) — שרתון.
