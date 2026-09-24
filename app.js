@@ -1702,7 +1702,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   };
   const seenTrade = new Set(), seenCash = new Map(), seenNav = new Set(), navDay = new Map();
   const chunkResults = [];
-  let latestChunkOk = false, posTd = '', metaTd = '', minFromDate = '', consecFails = 0;
+  let latestChunkOk = false, posTd = '', metaTd = '', minFromDate = '', consecFails = 0, anyOk = false;
   const tKey = (tr) => {
     const id = String(tr.tradeId || '').trim();
     if (id) return 'id:' + id;
@@ -1717,6 +1717,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   };
 
   const absorb = (data, fd, td) => {
+    anyOk = true;
     const m = (data && data.meta) || {};
     chunkResults.push({
       fd, td, ok: true,
@@ -1779,11 +1780,17 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     if (onProgress) onProgress(i + 1, chunks.length, fd, td);
     // הפוגה ידנית (בדיקות בלבד); בפועל המגביל המתגלגל שומר על הקצב
     if (i > 0 && gapMs > 0) await new Promise((r) => setTimeout(r, gapMs));
-    const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults, pollOpts);
+    const isLastChunk = i === chunks.length - 1;
+    // v137: 1003 על תקופה ישנה לא ישתנה בניסיון חוזר — רק החלק העדכני (דוח שעוד לא פורסם) מקבל ניסיונות
+    const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults,
+      isLastChunk ? pollOpts : Object.assign({}, pollOpts, { no1003Retry: true }));
     if (data) { consecFails = 0; absorb(data, fd, td); }
     else {
-      consecFails++;
       const lastRes = chunkResults[chunkResults.length - 1];
+      // v137: 1003 לפני שחלק כלשהו החזיר נתונים = שנים שלפני פתיחת החשבון (עומק 5 שנים
+      // לחשבון בן 3). לא כשל — ממשיכים קדימה, לא נספר ברצף הכשלונות שעוצר את המשיכה.
+      if (!anyOk && !isLastChunk && lastRes && /flex_1003/.test(lastRes.error || '')) { lastRes.beforeStart = true; continue; }
+      consecFails++;
       // נעילת טוקן — עוצרים מיד, אפילו לא מחכים לכשלון שני
       if (lastRes && ibkrIsLockoutErr(lastRes.error)) { merged._locked = true; break; }
       // שני כשלונות רצופים — עוצרים במקום לבזבז דקות ובקשות על חלקים נוספים.
@@ -1836,6 +1843,8 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.navPeriods.sort((a, b) => (a.fromDate < b.fromDate ? -1 : 1));
   merged.navDaily = [...navDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([date, total]) => ({ date, total }));
+  // v137: שנים ריקות שלפני החשבון — לא כשל ולא "פער" (אם שום חלק לא הצליח, נשארות כשלונות)
+  if (anyOk) for (const c of chunkResults) if (c.beforeStart) { c.ok = true; c.noData = true; }
   merged._chunks = chunkResults;
   merged.latestChunkOk = latestChunkOk;
   merged.positionsAsOf = posTd;
@@ -2435,7 +2444,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v136';
+const APP_VERSION = 'v137';
 
 
 function saveDBto(db) {
