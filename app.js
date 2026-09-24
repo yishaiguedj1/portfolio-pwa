@@ -82,25 +82,23 @@ he: {
   ibkrPerfTitle: 'ביצועי IBKR',
   perfPeriod: 'תקופת הדוח: {a}–{b}',
   twrOfficial: 'TWR רשמי של IBKR',
-  twrMissing: 'חסר בדוח — הפעילו את מקטע Change in NAV ב־Flex',
-  estMark: '(משוער)',
-  yieldEstNote: 'תשואה משוערת מנתוני הדוח — לא TWR רשמי',
-  perfGainEst: 'רווח משוער לתקופה',
-  navWarn: 'הדוח חסר את מקטע "Change in NAV" — בלי זה אי אפשר לחשב תשואה (TWR), רווח/הפסד בתקופה ו־XIRR. לתיקון: ב־IBKR נכנסים לדוחות ← Flex Queries ← עריכת השאילתה ← מסמנים Change in NAV ← שומרים ← מסנכרנים מחדש באפליקציה.',
+  twrMissing: 'לא זמין — אין TWR רשמי בדוח',
+  twrMissingShort: 'אין TWR רשמי',
+  navWarn: 'הדוח חסר TWR רשמי — התשואה לא תוצג (לא מנחשים). כדי לקבל תשואות רשמיות: הורידו מ־IBKR דוח Activity Statement הכולל את מקטעי "Net Asset Value" ו־"Change in NAV".',
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
   perfTwr: 'תשואה משוקללת־זמן (TWR)',
-  pfDiag: 'דיאגנוסטיקה: {t} עסקאות · {f} תזרימים · {d} דיבידנדים · {from} עד {to} · סוגים: {y} · בלי היסטוריה: {w}',
+  perfGain: 'רווח/הפסד בתקופה',
+  pfDiagPeriods: '{n} תקופות רשמיות · {a}–{b} · TWR: {twr}',
   perfXirr: 'תשואה משוקללת־כסף (XIRR)',
   perfRealized: 'רווח ממומש',
   perfUnrealized: 'רווח לא־ממומש',
   perfDividends: 'דיבידנדים',
-  perfInterest: 'ריבית',
-  perfTaxes: 'מסים (ניכוי במקור)',
+  perfWithholding: 'מס שנוכה במקור',
   perfFees: 'עמלות ועמלות נוספות',
   cantCalc: 'לא ניתן לחשב',
   ovInReportPeriod: 'בתקופת הדוח',
-  pfNoteIbkr: 'שווי אמיתי מ־IBKR (NAV יומי מהדוח), בדולרים.',
+  pfNoteIbkr: 'TWR רשמי של IBKR מהדוח, משורשר בין תקופות, בדולרים.',
   ibkrNavLegend: 'שווי אמיתי (IBKR)',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
@@ -260,39 +258,56 @@ he: {
   tdKeyMissing: 'אין מפתח שמור — הגרפים לא יעבדו. הזן מפתח למטה.',
   tdKeySavedFlash: 'המפתח נשמר ✓',
 
-  ibkrTitle: 'חיבור ברוקר למשיכת מידע',
-  ibkrDesc: 'אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).',
-  ibkrProxyLabel: 'כתובת השרתון',
-  ibkrQueryPh: 'מ־IBKR',
-  ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
-  ibkrSaveTest: 'שמור ובדוק חיבור',
-  ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
+  ibkrCsvTitle: 'נתוני IBKR מקובץ CSV',
+  ibkrCsvDesc: 'מקור יחיד ואמין: מייבאים דוח Activity Statement מ־IBKR כקובץ CSV. התשואות הן המספרים הרשמיים של IBKR מהדוח — אין חישובים משוערים ואין סנכרון אוטומטי.',
+  ibkrCsvGuideTitle: 'איך מורידים את הדוח מ־IBKR?',
+  ibkrCsvGuideBody: '<ol><li>נכנסים ל־Client Portal של IBKR ← <b>Reports</b> ← <b>Statements</b> ← <b>Activity</b>.</li><li>בוחרים תקופה (עד שנה אחורה), וב־Format בוחרים <b>CSV</b>, ומורידים.</li><li>לוחצים כאן על ״ייבוא מקובץ CSV״ ובוחרים את הקובץ שהורד.</li><li>טיפ: אפשר לייבא כמה דוחות לתקופות עוקבות — התשואה הרשמית תחושב ברצף לאורך כולן.</li><li>עדכון: כשמורידים דוח חדש מאוחר יותר, האפליקציה מזהה מה כבר יובא ומוסיפה רק את המידע החדש — בלי כפילויות ובלי מחיקת הקיים.</li></ol>',
+  ibkrCsvBtn: 'ייבוא מקובץ CSV',
+  ibkrCsvNever: 'טרם יובא דוח — מוצגים הנתונים הידניים.',
+  ibkrCsvStatus: '{kind} · תקופה: {a}–{b} · יובא: {time}',
+  ibkrCsvParseError: 'הקובץ {name} אינו דוח IBKR תקין (CSV).',
+  ibkrCsvNoData: 'לא נמצאו נתונים בקובץ — ודאו שזהו דוח Activity Statement או Flex Query בפורמט CSV.',
+  ibkrCsvConfirm: 'נמצא דוח IBKR ({kind}):\nתקופה: {a} – {b}\nTWR רשמי: {twr}\n\n{delta}{warns}\n\nרק המידע החדש יתווסף — הקיים לא ישוכפל ולא יימחק. להמשיך?',
+  ibkrCsvDeltaFirst: 'דוח ראשון — ייובא במלואו.',
+  ibkrCsvDeltaPeriods: 'תקופות חדשות: {ranges}',
+  ibkrCsvDeltaReplaced: 'תקופות שיוחלפו (חופפות לחדש): {ranges}',
+  ibkrCsvDeltaTrades: 'עסקאות חדשות: {n} · תנועות מזומן חדשות: {k}',
+  ibkrCsvDeltaDup: 'כבר קיימים וידולגו: {n} עסקאות · {m} תנועות מזומן',
+  ibkrCsvNothingNew: 'אין מידע חדש — כל הנתונים כבר קיימים באפליקציה.',
+  ibkrCsvWarns: '\nשים לב: {w}',
+  csvKindFlex: 'שאילתת Flex',
+  csvKindActivity: 'דוח פעילות',
+  csvWarn_no_twr: 'לא נמצא TWR רשמי בדוח — התשואה לא תוצג',
+  csvWarn_no_nav: 'חסר Change in NAV — אין שווי התחלה/סיום',
+  csvWarn_no_trades: 'לא נמצאו עסקאות בדוח',
+  csvWarn_no_positions: 'לא נמצאו פוזיציות בדוח',
+  csvWarn_no_cash: 'לא נמצאו תנועות מזומן בדוח',
   ibkrDisconnectBtn: 'ניתוק',
-  ibkrNotConnected: 'לא מחובר — מוצגים הנתונים הידניים.',
-  ibkrDepositsNote: 'מסונכרן מ־IBKR — ההפקדות מתעדכנות אוטומטית בכל סנכרון.',
-  ibkrStocksNote: 'מסונכרן מ־IBKR — המניות מתעדכנות אוטומטית בכל סנכרון. עריכה ידנית תידרס בסנכרון הבא.',
-  importTruncatedWarn: 'שים לב: ההעברה הכי מוקדמת בדוח היא מתאריך {date} — ייתכן שהפקדות מוקדמות יותר לא נכללו, ואז התשואה המחושבת עלולה להיות מנופחת.',
-  ibkrConnectedSynced: 'מחובר ✓ · סונכרן: {time}',
-  ibkrConnectedNever: 'מחובר ✓ · טרם בוצע סנכרון.',
+  ibkrDepositsNote: 'מיובא מדוח IBKR (קובץ CSV) — מתעדכן בכל ייבוא חדש.',
+  ibkrStocksNote: 'מיובא מדוח IBKR (קובץ CSV) — מתעדכן בכל ייבוא חדש. עריכה ידנית תידרס בייבוא הבא.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
-  ibkrChunksLine: 'טעינת היסטוריה: {ok}/{total} חלקים נטענו',
   ibkrChunkFail: 'חלק {fd}–{td} נכשל ({err})',
   proxyUrlMissing: 'כתובת השרתון לא הוגדרה',
   credsMissing: 'חסרים Flex token או Query ID',
   credsMissingSave: 'חסרים Flex token או Query ID — שמור קודם',
   connOk: 'החיבור תקין ✓ (IBKR קיבל את הבקשה)',
   testFailed: 'הבדיקה נכשלה: {err}',
-  reqReport: 'מבקש דוח מ־IBKR…',
-  genReport: 'IBKR מייצר את הדוח… (לוקח בדרך כלל דקה־שתיים)',
   fetchHistory: 'מושך היסטוריה מ־IBKR… (חלק {n} מתוך {total})',
   importNoStocks: 'לא נמצאו פוזיציות מניות בדוח IBKR',
   importSkippedNote: ' ({n} שורות שאינן מניות דולריות דולגו)',
-  importCashLine: 'מזומן מהדוח: ${usd} / ₪{ils}',
-  importCashMissing: 'מזומן לא נמצא בדוח — יישמר המזומן הקיים (כדאי להוסיף את מקטע Cash Report לשאילתת ה־Flex).',
-  importConfirm: 'נמצאו {n} מניות בדוח ({lots} שורות קנייה אוחדו לפי סימבול).\n{cashLine}\n{depLine}\nפעולה זו תחליף את המניות, המזומן וההפקדות בתיק. פנסיה לא תשתנה.{skipped}\nלהמשיך?',
-  importDepLine: 'הפקדות מהדוח: {n} העברות (נטו {total}) — יחליפו את רשימת ההפקדות.',
-  importDepMissing: 'לא נמצאו הפקדות/משיכות בדוח — רשימת ההפקדות לא תשתנה (כדאי להוסיף את מקטע Cash Transactions לשאילתת ה־Flex).',
-  importedOk: 'סונכרן ויובאו {n} מניות מ־IBKR ✓',
+  importDone: 'הייבוא הושלם: {added} פוזיציות חדשות · {kept} קיימות נשמרו',
+  importReplaced: '{n} הוחלפו',
+  importSkipped: '{n} דולגו',
+  importSnapshotNote: 'הנתונים הידניים נשמרו וישוחזרו בניתוק.',
+  // סנכרון Flex — אופציה נוספת למשיכת נתונים
+  ibkrSyncTitle: 'משיכה מ־IBKR (אופציה נוספת)',
+  ibkrSyncDesc: 'סנכרון אוטומטי דרך Flex Web Service עם token. אופציה נוספת — יבוא ה־CSV נשאר הדרך המומלצת.',
+  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
+  ibkrProxyLabel: 'כתובת השרתון',
+  ibkrQueryPh: 'מ־IBKR',
+  ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
+  ibkrSaveTest: 'שמור ובדוק חיבור',
+  ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
   importPartialBlocked: 'הסנכרון לא הושלם — חלק מהנתונים לא נטענו מ־IBKR. הנתונים הקודמים נשמרו ולא יובא שום דבר חלקי. המתן כמה דקות ונסה לסנכרן שוב.',
   importNotAvailable: 'הדוח העדכני של IBKR עדיין לא זמין (הוא מתפרסם בשעות הבוקר בארה״ב). החיבור תקין — אין מה לתקן. הנתונים הקודמים נשמרו; נסה לסנכרן שוב מאוחר יותר.',
@@ -423,25 +438,23 @@ en: {
   ibkrPerfTitle: 'IBKR Performance',
   perfPeriod: 'Report period: {a}–{b}',
   twrOfficial: "IBKR's official TWR",
-  twrMissing: 'Missing from report — enable the Change in NAV Flex section',
-  estMark: '(est.)',
-  yieldEstNote: 'Estimated return from report data — not official TWR',
-  perfGainEst: 'Est. period gain',
-  navWarn: 'The report is missing the "Change in NAV" section — without it, return (TWR), period gain/loss and XIRR cannot be computed. To fix: in IBKR go to Reports → Flex Queries → edit the query → check "Change in NAV" → save → re-sync in the app.',
+  twrMissing: 'Unavailable — no official TWR in the report',
+  twrMissingShort: 'No official TWR',
+  navWarn: 'The report has no official TWR — the return will not be shown (never guessed). To get official returns: download an IBKR Activity Statement that includes the "Net Asset Value" and "Change in NAV" sections.',
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
   perfTwr: 'Time-Weighted Return (TWR)',
-  pfDiag: 'Diagnostics: {t} trades · {f} flows · {d} dividends · {from} to {to} · types: {y} · no history: {w}',
+  perfGain: 'Period gain/loss',
+  pfDiagPeriods: '{n} official periods · {a}–{b} · TWR: {twr}',
   perfXirr: 'Money-Weighted Return (XIRR)',
   perfRealized: 'Realized P&L',
   perfUnrealized: 'Unrealized P&L',
   perfDividends: 'Dividends',
-  perfInterest: 'Interest',
-  perfTaxes: 'Taxes (withheld)',
+  perfWithholding: 'Withholding tax',
   perfFees: 'Commissions & other fees',
   cantCalc: 'Cannot compute',
   ovInReportPeriod: 'in the report period',
-  pfNoteIbkr: 'Real IBKR value (daily NAV from the report), in USD.',
+  pfNoteIbkr: "IBKR's official TWR from the report, chained across periods, in USD.",
   ibkrNavLegend: 'Real value (IBKR)',
   tabPension: 'Pension',
   tabSettings: 'Settings',
@@ -601,39 +614,56 @@ en: {
   tdKeyMissing: 'No saved key — charts won\'t work. Enter a key below.',
   tdKeySavedFlash: 'Key saved ✓',
 
-  ibkrTitle: 'Broker connection (data pull)',
-  ibkrDesc: 'Optional — pulls a read-only report from Interactive Brokers. No trading possible. Sync only downloads data for viewing; the Import button adds positions to the portfolio (with your approval).',
-  ibkrProxyLabel: 'Proxy URL',
-  ibkrQueryPh: 'from IBKR',
-  ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
-  ibkrSaveTest: 'Save & test connection',
-  ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
+  ibkrCsvTitle: 'IBKR data from CSV file',
+  ibkrCsvDesc: 'One reliable source: import an IBKR Activity Statement as a CSV file. Returns are IBKR\u2019s official numbers from the report — never estimated, no automatic sync.',
+  ibkrCsvGuideTitle: 'How do I download the report from IBKR?',
+  ibkrCsvGuideBody: '<ol><li>In the IBKR Client Portal go to <b>Reports</b> → <b>Statements</b> → <b>Activity</b>.</li><li>Pick a period (up to one year back), set Format to <b>CSV</b>, and download.</li><li>Tap “Import from CSV file” here and choose the downloaded file.</li><li>Tip: you can import several reports for consecutive periods — the official return will chain across all of them.</li><li>Updating: when you download a newer report later, the app detects what was already imported and adds only the new information — no duplicates, nothing deleted.</li></ol>',
+  ibkrCsvBtn: 'Import from CSV file',
+  ibkrCsvNever: 'No report imported yet — showing manual data.',
+  ibkrCsvStatus: '{kind} · period: {a}–{b} · imported: {time}',
+  ibkrCsvParseError: 'The file {name} is not a valid IBKR report (CSV).',
+  ibkrCsvNoData: 'No data found in the file — make sure it is an Activity Statement or Flex Query in CSV format.',
+  ibkrCsvConfirm: 'Found an IBKR report ({kind}):\nPeriod: {a} – {b}\nOfficial TWR: {twr}\n\n{delta}{warns}\n\nOnly new information will be added — existing data will not be duplicated or deleted. Continue?',
+  ibkrCsvDeltaFirst: 'First report — will be fully imported.',
+  ibkrCsvDeltaPeriods: 'New periods: {ranges}',
+  ibkrCsvDeltaReplaced: 'Periods to be replaced (overlapping): {ranges}',
+  ibkrCsvDeltaTrades: 'New trades: {n} · New cash movements: {k}',
+  ibkrCsvDeltaDup: 'Already exist, will be skipped: {n} trades · {m} cash movements',
+  ibkrCsvNothingNew: 'No new information — everything is already imported.',
+  ibkrCsvWarns: '\nNote: {w}',
+  csvKindFlex: 'Flex query',
+  csvKindActivity: 'Activity statement',
+  csvWarn_no_twr: 'no official TWR in the report — return will not be shown',
+  csvWarn_no_nav: 'Change in NAV missing — no start/end values',
+  csvWarn_no_trades: 'no trades in the report',
+  csvWarn_no_positions: 'no positions in the report',
+  csvWarn_no_cash: 'no cash movements in the report',
   ibkrDisconnectBtn: 'Disconnect',
-  ibkrNotConnected: 'Not connected — showing manual data.',
-  ibkrDepositsNote: 'Synced from IBKR — deposits update automatically on every sync.',
-  ibkrStocksNote: 'Synced from IBKR — stocks update automatically on every sync. Manual edits will be overwritten on the next sync.',
-  importTruncatedWarn: 'Note: the earliest transfer in the report is from {date} — earlier deposits may be missing, so the computed return could be overstated.',
-  ibkrConnectedSynced: 'Connected ✓ · Synced: {time}',
-  ibkrConnectedNever: 'Connected ✓ · Not synced yet.',
+  ibkrDepositsNote: 'Imported from an IBKR report (CSV file) — updates on every new import.',
+  ibkrStocksNote: 'Imported from an IBKR report (CSV file) — updates on every new import. Manual edits will be overwritten by the next import.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
-  ibkrChunksLine: 'History load: {ok}/{total} chunks loaded',
   ibkrChunkFail: 'chunk {fd}–{td} failed ({err})',
   proxyUrlMissing: 'Proxy URL not set',
   credsMissing: 'Missing Flex token or Query ID',
   credsMissingSave: 'Missing Flex token or Query ID — save first',
   connOk: 'Connection OK ✓ (IBKR received the request)',
   testFailed: 'Test failed: {err}',
-  reqReport: 'Requesting report from IBKR…',
-  genReport: 'IBKR is generating the report… (usually takes a minute or two)',
   fetchHistory: 'Fetching history from IBKR… (part {n} of {total})',
   importNoStocks: 'No stock positions found in the IBKR report',
   importSkippedNote: ' ({n} non-USD-stock rows skipped)',
-  importCashLine: 'Cash from report: ${usd} / ₪{ils}',
-  importCashMissing: 'No cash found in the report — keeping existing cash (consider adding the Cash Report section to your Flex query).',
-  importConfirm: 'Found {n} stocks in the report ({lots} purchase rows merged by symbol).\n{cashLine}\n{depLine}\nThis will replace the stocks, cash and deposits in the portfolio. Pension will not change.{skipped}\nContinue?',
-  importDepLine: 'Deposits from the report: {n} transfers (net {total}) — will replace the deposits list.',
-  importDepMissing: 'No deposits/withdrawals found in the report — the deposits list will not change (consider adding the Cash Transactions section to your Flex query).',
-  importedOk: 'Synced & imported {n} stocks from IBKR ✓',
+  importDone: 'Import complete: {added} new positions · {kept} existing kept',
+  importReplaced: '{n} replaced',
+  importSkipped: '{n} skipped',
+  importSnapshotNote: 'Manual data was snapshotted and will be restored on disconnect.',
+  // Flex sync — an additional data-pull option
+  ibkrSyncTitle: 'Pull from IBKR (additional option)',
+  ibkrSyncDesc: 'Automatic sync via Flex Web Service with a token. An additional option — CSV import remains the recommended way.',
+  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
+  ibkrProxyLabel: 'Proxy URL',
+  ibkrQueryPh: 'from IBKR',
+  ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
+  ibkrSaveTest: 'Save & test connection',
+  ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   importFailed: 'Sync & import failed: {err}',
   importPartialBlocked: 'Sync did not complete — some data could not be loaded from IBKR. Your previous data was kept and nothing partial was imported. Wait a few minutes and try syncing again.',
   importNotAvailable: 'The latest IBKR report is not published yet (it is usually released in the US morning hours). The connection is fine — nothing to fix. Your previous data was kept; try syncing again later.',
@@ -1226,13 +1256,13 @@ function downsample(rows, max) {
   return out;
 }
 
-/* ---------------- חיבור ברוקר (IBKR Flex) — אופציונלי ----------------
-   דוח קריאה־בלבד, לא מאפשר מסחר. הטוקן נשמר בטלפון בלבד (localStorage),
-   לעולם לא בענן ולא בקוד. הנתונים הידניים (DB) לא נפגעים — נתוני IBKR
-   נשמרים בנפרד ומוצגים בנפרד. */
+/* ---------------- נתוני IBKR מקובץ CSV — מקור יחיד ----------------
+   הדוח מיובא מקובץ Activity Statement (או Flex Query) שהמשתמש מוריד מ־IBKR.
+   אין סנכרון אוטומטי, אין טוקן, אין שרתון. התשואות הן המספרים הרשמיים
+   של IBKR מהדוח (TWR) — לעולם לא משוערות. הנתונים הידניים (DB) לא נפגעים —
+   נתוני IBKR נשמרים בנפרד ומוצגים בנפרד. */
 
 const LS_IBKR = 'pwa_ibkr_v1';
-const IBKR_PROXY_DEFAULT = 'https://ibkr-proxy-wine.vercel.app';
 
 function ibkrCfg() {
   try { return JSON.parse(localStorage.getItem(LS_IBKR) || 'null') || {}; }
@@ -1241,9 +1271,27 @@ function ibkrCfg() {
 function ibkrSaveCfg(patch) {
   const c = Object.assign({}, ibkrCfg(), patch);
   try { localStorage.setItem(LS_IBKR, JSON.stringify(c)); } catch (e) {}
-  try { if (typeof ibkrThCacheClear === 'function') ibkrThCacheClear(); } catch (e) {}
   return c;
 }
+
+function ibkrShowErr(msg) {
+  const e = document.getElementById('ibkrErr');
+  if (e) { e.textContent = msg; e.classList.remove('hidden'); }
+}
+function ibkrClearErr() {
+  const e = document.getElementById('ibkrErr');
+  if (e) { e.textContent = ''; e.classList.add('hidden'); }
+}
+function ibkrSetBusy(busy) {
+  ['ibkrCsvBtn', 'ibkrDisconnect', 'ibkrSaveTest', 'ibkrSyncImport'].forEach((id) => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !!busy;
+  });
+}
+
+/* כתובת ברירת המחדל של השרתון (Vercel, של המשתמש). ניתנת לדריסה בהגדרות. */
+const IBKR_PROXY_DEFAULT = 'https://ibkr-proxy-wine.vercel.app';
+
 function ibkrProxyBase() {
   return (((ibkrCfg().proxyUrl || '') || IBKR_PROXY_DEFAULT).trim().replace(/\/+$/, ''));
 }
@@ -1254,103 +1302,118 @@ function ibkrDateChunks(startYmd, endYmd) {
   const chunks = [];
   let cur = startYmd;
   while (cur <= endYmd) {
-    // מוסיף 364 ימים (365 כולל) או עד הסוף
-    const curDate = new Date(cur.slice(0,4), cur.slice(4,6)-1, cur.slice(6,8));
+    const curDate = new Date(cur.slice(0, 4), cur.slice(4, 6) - 1, cur.slice(6, 8));
     curDate.setDate(curDate.getDate() + 364);
-    let chunkEnd = curDate.getFullYear().toString().padStart(4,'0') +
-      (curDate.getMonth()+1).toString().padStart(2,'0') +
-      curDate.getDate().toString().padStart(2,'0');
+    let chunkEnd = ibkrYmd(curDate);
     if (chunkEnd > endYmd) chunkEnd = endYmd;
     chunks.push({ fd: cur, td: chunkEnd });
-    // החלק הבא מתחיל יום אחרי סוף החלק הנוכחי
-    const nextDate = new Date(chunkEnd.slice(0,4), chunkEnd.slice(4,6)-1, chunkEnd.slice(6,8));
+    const nextDate = new Date(chunkEnd.slice(0, 4), chunkEnd.slice(4, 6) - 1, chunkEnd.slice(6, 8));
     nextDate.setDate(nextDate.getDate() + 1);
-    cur = nextDate.getFullYear().toString().padStart(4,'0') +
-      (nextDate.getMonth()+1).toString().padStart(2,'0') +
-      nextDate.getDate().toString().padStart(2,'0');
+    cur = ibkrYmd(nextDate);
   }
   return chunks;
 }
 
+function ibkrYmd(d) {
+  return d.getFullYear().toString().padStart(4, '0') +
+    (d.getMonth() + 1).toString().padStart(2, '0') +
+    d.getDate().toString().padStart(2, '0');
+}
+
 /* תכנית ניסיונות חוזרים לחלק שנכשל — פונקציה טהורה (נבדקת).
-   flex_1003 = "הדוח לא זמין" — בדרך כלל IBKR עדיין לא פרסם את הדוח העדכני
-   (קורה הרבה בשעות הלילה בארה"ב). נותנים לו יותר זמן ויותר ניסיונות. */
+   flex_1003 = "הדוח לא זמין" — בדרך כלל IBKR עדיין לא פרסם את הדוח העדכני.
+   נותנים לו יותר זמן ויותר ניסיונות. */
 function ibkrChunkRetryPlan(err) {
   const notAvail = /flex_1003/.test(String((err && err.message) || err || ''));
   return notAvail ? { attempts: 3, waitMs: 15000 } : { attempts: 2, waitMs: 3000 };
 }
 
-/* מושך היסטוריה מלאה מ־IBKR במספר בקשות (כל אחת עד 365 יום) וממזג.
-   startYmd: תאריך התחלה בפורמט YYYYMMDD (ברירת מחדל: שנתיים אחורה).
-   מחזיר data ממוזג עם trades, cashTransactions, positions, וכו'.
-   v111: החלקים מסתיימים באתמול — IBKR לא יכול לייצר דוח לתאריך שעדיין
-   פתוח (היה מחזיר flex_1003 ודאי על חלק "היום" בן יום אחד).
-   v110: פוזיציות נלקחות רק מהחלק העדכני ביותר שהצליח; אם החלק האחרון
-   נכשל — הנתונים מסומנים כחלקיים (latestChunkOk=false) והייבוא נחסם,
-   כדי לא להתקין בשקט פוזיציות מלפני שנה. */
+/* מושך היסטוריה מ־IBKR (Flex Web Service) במספר בקשות (כל אחת עד 365 יום)
+   וממזג למודל הנתונים של returns.js:
+   { meta, trades, positions, cashTransactions, navPeriods, cashBalances }.
+   - עסקאות: ביטול כפילויות לפי tradeId (כשקיים) או מפתח שדות.
+   - פוזיציות/מזומן: רק מהחלק העדכני ביותר שהצליח — לעולם לא מחלק ישן.
+   - navPeriods: מסעיפי ChangeInNAV של כל חלק (TWR רשמי, באחוזים).
+   החלקים מסתיימים באתמול — IBKR לא מייצר דוח לתאריך שעדיין פתוח. */
 async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress) {
   const endD = new Date();
-  endD.setDate(endD.getDate() - 1); // v111: עד אתמול, לא עד היום
-  const endYmd = endD.getFullYear().toString().padStart(4,'0') +
-    (endD.getMonth()+1).toString().padStart(2,'0') +
-    endD.getDate().toString().padStart(2,'0');
+  endD.setDate(endD.getDate() - 1);
+  const endYmd = ibkrYmd(endD);
   if (!/^\d{8}$/.test(startYmd || '')) {
-    // ברירת מחדל: שנתיים אחורה (מגבלת השמירה של IBKR)
     const d = new Date(endD);
-    d.setFullYear(d.getFullYear() - 2);
-    startYmd = d.getFullYear().toString().padStart(4,'0') +
-      (d.getMonth()+1).toString().padStart(2,'0') +
-      d.getDate().toString().padStart(2,'0');
+    d.setFullYear(d.getFullYear() - 2); // ברירת מחדל: שנתיים אחורה
+    startYmd = ibkrYmd(d);
   }
   const chunks = ibkrDateChunks(startYmd, endYmd);
   const latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
-  const merged = { trades: [], cashTransactions: [], positions: [], transfers: [] };
-  const seenTradeKeys = new Set();
-  const seenCashKeys = new Set();
-  const chunkResults = []; // v109: דיאגנוסטיקה — תוצאה לכל חלק בנפרד
-  let latestChunkOk = false; // האם החלק העדכני ביותר (עד אתמול) נטען בהצלחה
-  let posTd = ''; // מאיזה חלק נלקחו הפוזיציות
+  const iso = (y) => y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8);
+  const merged = {
+    meta: { fromDate: iso(startYmd), toDate: '', baseCurrency: 'USD', kind: 'flex', title: 'IBKR Flex' },
+    trades: [], positions: [], cashTransactions: [], navPeriods: [], cashBalances: [],
+  };
+  const seenTrade = new Set(), seenCash = new Map(), seenNav = new Set();
+  const chunkResults = [];
+  let latestChunkOk = false, posTd = '', metaTd = '', fromSet = false;
+  const tKey = (tr) => {
+    const id = String(tr.tradeId || '').trim();
+    if (id) return 'id:' + id;
+    return [tr.date, tr.symbol, tr.qty, tr.side, Math.round((Number(tr.price) || 0) * 10000)].join('|');
+  };
+  // מזהה יציב קודם, אחרת תוכן; ההשוואה מודעת־מופעים (Map סופר)
+  const cKey = (c) => {
+    const id = String(c.id || c.cashId || c.transactionId || '').trim();
+    if (id) return 'id:' + id;
+    return [c.date, c.type, Math.round((Number(c.amount) || 0) * 100),
+      String(c.description || '').slice(0, 30)].join('|');
+  };
 
-  // מיזוג תוצאת דוח בודד לתוך merged
   const absorb = (data, fd, td) => {
-    chunkResults.push({ fd, td, ok: true,
+    const m = (data && data.meta) || {};
+    chunkResults.push({
+      fd, td, ok: true,
       trades: (data.trades || []).length, cash: (data.cashTransactions || []).length,
-      positions: (data.positions || []).length });
-    // ממזג עסקאות (מניעת כפילויות לפי מפתח ייחודי)
+      positions: (data.positions || []).length,
+    });
     for (const tr of (data.trades || [])) {
-      const key = [tr.date, tr.symbol, tr.quantity, tr.price, tr.buySell].join('|');
-      if (!seenTradeKeys.has(key)) {
-        seenTradeKeys.add(key);
-        merged.trades.push(tr);
-      }
+      const k = tKey(tr);
+      if (!seenTrade.has(k)) { seenTrade.add(k); merged.trades.push(tr); }
     }
-    // ממזג תנועות מזומן
+    // תנועות מזומן: דדופליקציה מודעת־מופעים — כפילות לגיטימית באותו
+    // חלק (אותו יום/סכום/תיאור) נשמרת, חזרה על אותו חלק בחלק הבא מסוננת
+    const used = {};
     for (const c of (data.cashTransactions || [])) {
-      const key = [c.date, c.amount, c.type, c.description].join('|');
-      if (!seenCashKeys.has(key)) {
-        seenCashKeys.add(key);
-        merged.cashTransactions.push(c);
+      const k = cKey(c);
+      used[k] = (used[k] || 0) + 1;
+      const already = seenCash.get(k) || 0;
+      if (used[k] > already) { seenCash.set(k, already + 1); merged.cashTransactions.push(c); }
+    }
+    for (const r of (data.navHistory || [])) {
+      const k = (r.fromDate || '') + '|' + (r.toDate || '');
+      if (r.fromDate && r.toDate && !seenNav.has(k)) {
+        seenNav.add(k);
+        merged.navPeriods.push({
+          fromDate: r.fromDate, toDate: r.toDate,
+          startingValue: r.startingValue, endingValue: r.endingValue,
+          twr: r.twr, netFlows: 0,
+        });
       }
     }
-    // פוזיציות: רק מהחלק העדכני ביותר — לעולם לא מחלק ישן יותר
+    // פוזיציות/מזומן: רק מהחלק העדכני ביותר — לעולם לא מחלק ישן יותר
     if (td >= posTd) {
-      if (data.positions && data.positions.length) {
-        merged.positions = data.positions;
-        posTd = td;
-      }
+      if (data.positions && data.positions.length) { merged.positions = data.positions; posTd = td; }
       if (td === latestTd) {
         latestChunkOk = true;
         // החלק האחרון הצליח: הפוזיציות שלו הן העדכניות (גם אם ריקות — תיק ריק)
         merged.positions = data.positions || [];
+        merged.cashBalances = data.cashBalances || [];
         posTd = td;
       }
     }
-    // שומר מטא-דאטה מהחלק העדכני ביותר שהצליח
-    if (td >= (merged._metaTd || '')) {
-      merged.accountId = data.accountId;
-      merged.fromDate = startYmd;
-      merged.toDate = td;
-      merged._metaTd = td;
+    if (td >= metaTd) {
+      if (!fromSet && m.fromDate) { merged.meta.fromDate = m.fromDate; fromSet = true; }
+      merged.meta.toDate = m.toDate || merged.meta.toDate;
+      merged.meta.baseCurrency = m.baseCurrency || merged.meta.baseCurrency;
+      metaTd = td;
     }
   };
 
@@ -1364,23 +1427,21 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       try {
         const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
         data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
-      } catch (e) { err = e; plan = ibkrChunkRetryPlan(e); } // v111: 1003 מקבל יותר זמן
+      } catch (e) { err = e; plan = ibkrChunkRetryPlan(e); }
     }
     if (data) {
       absorb(data, fd, td);
     } else {
-      // אם חלק נכשל (למשל timeout או rate limit), מסמנים — לא מציגים כהצלחה
       chunkResults.push({ fd, td, ok: false, error: String((err && err.message) || err).slice(0, 120) });
       console.warn('Chunk failed:', fd, td, err && err.message);
     }
   }
-  // ממיין לפי תאריך
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-  merged._chunks = chunkResults; // v109: נשמר עם הנתונים כדי להציג דיאגנוסטיקה
+  merged.navPeriods.sort((a, b) => (a.fromDate < b.fromDate ? -1 : 1));
+  merged._chunks = chunkResults;
   merged.latestChunkOk = latestChunkOk;
-  merged.positionsAsOf = posTd; // התאריך (td) שהפוזיציות מעודכנות אליו
-  delete merged._metaTd;
+  merged.positionsAsOf = posTd;
   return merged;
 }
 
@@ -1391,7 +1452,7 @@ function ibkrSyncIsComplete(data) {
 }
 
 /* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }.
-   fd/td אופציונליים (YYYYMMDD) לדריסת טווח התאריכים — עד 365 יום לבקשה. */
+   fd/td אופציוניים (YYYYMMDD) לדריסת טווח התאריכים — עד 365 יום לבקשה. */
 async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td) {
   const body = { token, queryId };
   if (/^\d{8}$/.test(fd || '') && /^\d{8}$/.test(td || '')) {
@@ -1400,13 +1461,14 @@ async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td) {
   const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   }, 45000);
   let j = null;
   try { j = await r.json(); } catch (e) {}
   if (!j || j.ok !== true || !j.referenceCode) {
-    // v111: מצרפים גם את הודעת IBKR המקורית (j.message) כדי שהדיאגנוסטיקה תסביר את עצמה
-    const detail = j && j.error ? t('proxyPrefix') + j.error + (j.message ? ' — ' + j.message : '') : t('proxyBadResponse');
+    const detail = j && j.error
+      ? t('proxyPrefix') + j.error + (j.message ? ' — ' + j.message : '')
+      : t('proxyBadResponse');
     throw new Error(detail);
   }
   return j;
@@ -1426,13 +1488,12 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
       const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, code, statementUrl: statementUrl || '' })
+        body: JSON.stringify({ token, code, statementUrl: statementUrl || '' }),
       }, 45000);
       j = await r.json();
     } catch (e) { netErr = e; }
     if (j && j.ok === true && j.status === 'ready' && j.data) return j.data;
     if (j && j.ok === false) {
-      // v111: מצרפים גם את הודעת IBKR המקורית (j.message)
       throw new Error(j.error ? t('proxyPrefix') + j.error + (j.message ? ' — ' + j.message : '') : t('proxyErr'));
     }
     await sleep(delayMs); // pending או כשל רשת חולף — מנסים שוב
@@ -1440,18 +1501,14 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
   throw new Error(netErr ? t('netPrefix') + netErr.message : t('reportTimeout'));
 }
 
-function ibkrShowErr(msg) {
-  const e = document.getElementById('ibkrErr');
-  if (e) { e.textContent = msg; e.classList.remove('hidden'); }
-}
-/* מתרגם קודי שגיאה טכניים של IBKR/השרתון לעברית פשוטה. */
+/* ממפה קוד שגיאת Flex/שרתון להודעה מובנת למשתמש. */
 function ibkrFriendlyErr(msg) {
   const m = String(msg || '').match(/flex_(\d+)|ibkr_http_(\d+)|rate_limited|bad_params|fetch_failed/);
   const code = m ? (m[1] || m[2] || m[0]) : '';
   switch (code) {
     case '1001': case '1004': case '1009': case '1019': case '1021':
       return t('ibkrErr1001');
-    case '1003': // v111: הדוח המבוקש עדיין לא פורסם ב־IBKR — לא בעיית חיבור
+    case '1003': // הדוח המבוקש עדיין לא פורסם ב־IBKR — לא בעיית חיבור
       return t('ibkrErr1003');
     case '1020':
       return t('ibkrErrRate');
@@ -1479,169 +1536,52 @@ function ibkrFriendlyErr(msg) {
       return msg;
   }
 }
-function ibkrClearErr() {
-  const e = document.getElementById('ibkrErr');
-  if (e) { e.textContent = ''; e.classList.add('hidden'); }
-}
-function ibkrSetBusy(busy) {
-  ['ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect'].forEach((id) => {
-    const b = document.getElementById(id);
-    if (b) b.disabled = !!busy;
-  });
-}
 
 function renderIbkrCard() {
   const cfg = ibkrCfg();
+  // שחזור ערכי שדות הסנכרון (token נשמר בטלפון בלבד)
   const px = document.getElementById('ibkrProxy');
   const tk = document.getElementById('ibkrToken');
   const qd = document.getElementById('ibkrQuery');
   if (px && !px.value) px.value = cfg.proxyUrl || IBKR_PROXY_DEFAULT;
   if (tk && !tk.value) tk.value = cfg.token || '';
   if (qd && !qd.value) qd.value = cfg.queryId || '';
+  const data = cfg.data;
+  const has = !!(data && (data.positions || []).length + (data.trades || []).length + (data.navPeriods || []).length);
   const s = document.getElementById('ibkrStatus');
-  const d = document.getElementById('ibkrData');
-  const connected = !!(cfg.proxyUrl && cfg.token && cfg.queryId);
   if (s) {
-    s.textContent = !connected
-      ? t('ibkrNotConnected')
-      : cfg.lastSync
-        ? t('ibkrConnectedSynced', { time: fmtTimeIL(cfg.lastSync) })
-        : t('ibkrConnectedNever');
-  }
-  if (d) {
-    const data = cfg.data;
-    d.textContent = (connected && data)
-      ? t('ibkrDataSummary', { n: (data.positions || []).length, m: (data.trades || []).length, k: (data.cashTransactions || []).length })
-      : '';
-  }
-  // v109: דיאגנוסטיקת חלקי הסנכרון — אם חלק נכשל, העסקאות שלו חסרות
-  const ch = document.getElementById('ibkrChunks');
-  if (ch) {
-    const chunks = cfg.data && cfg.data._chunks;
-    if (connected && cfg.data && chunks && chunks.length) {
-      const okN = chunks.filter((c) => c.ok).length;
-      const fails = chunks.filter((c) => !c.ok);
-      ch.textContent = t('ibkrChunksLine', { ok: okN, total: chunks.length }) +
-        (fails.length ? ' · ' + fails.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ') : '');
-      ch.classList.toggle('form-err', fails.length > 0);
+    if (!has) {
+      s.textContent = t('ibkrCsvNever');
     } else {
-      ch.textContent = '';
-      ch.classList.remove('form-err');
+      const meta = data.meta || {};
+      const kind = (typeof ibkrKindName === 'function') ? ibkrKindName(data) : '';
+      s.textContent = t('ibkrCsvStatus', {
+        kind: kind,
+        a: meta.fromDate ? fmtDateIL(meta.fromDate) : '—',
+        b: meta.toDate ? fmtDateIL(meta.toDate) : '—',
+        time: cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—',
+      });
     }
   }
-  // התראה בולטת כשהדוח חסר Change in NAV — בלי זה אין תשואות
+  const d = document.getElementById('ibkrData');
+  if (d) {
+    d.textContent = has
+      ? t('ibkrDataSummary', {
+          n: (data.positions || []).length,
+          m: (data.trades || []).length,
+          k: (data.cashTransactions || []).length,
+        })
+      : '';
+  }
+  // התראה בולטת כשהדוח חסר TWR רשמי — בלי זה אין תשואות, רק סכומים
   const w = document.getElementById('ibkrNavWarn');
   if (w) {
-    const miss = connected && !!(cfg.data) && !(cfg.data.nav);
+    const miss = has && (typeof rSourceKind === 'function') && rSourceKind(data) !== 'official';
     w.classList.toggle('hidden', !miss);
     if (miss) w.textContent = t('navWarn');
   }
 }
 
-async function ibkrSaveAndTest() {
-  ibkrClearErr();
-  const proxyUrl = (document.getElementById('ibkrProxy').value || '').trim().replace(/\/+$/, '');
-  const token = (document.getElementById('ibkrToken').value || '').trim();
-  const queryId = (document.getElementById('ibkrQuery').value || '').trim();
-  if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
-  if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
-  ibkrSaveCfg({ proxyUrl, token, queryId });
-  ibkrSetBusy(true);
-  renderIbkrCard();
-  try {
-    const rep = await ibkrRequestReport(fetch, proxyUrl, token, queryId);
-    ibkrSaveCfg({ statementUrl: rep.statementUrl || '' });
-    flash(t('connOk'));
-  } catch (e) {
-    ibkrShowErr(t('testFailed', { err: ibkrFriendlyErr(e.message) }));
-  }
-  ibkrSetBusy(false);
-  renderIbkrCard();
-}
-
-/* סנכרון וייבוא מ־IBKR בלחיצה אחת: מושך דוח טרי, מאחד לוטות לפי סימבול,
-   מבקש אישור עם סיכום, ומחליף מניות (+מזומן, רק אם נמצא בדוח) והפקדות
-   (רק העברות חיצוניות מהדוח, מומרות לשקלים). פנסיה לא נפגעת. */
-async function ibkrSyncImport() {
-  ibkrClearErr();
-  const cfg = ibkrCfg();
-  const proxyUrl = ibkrProxyBase();
-  if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
-  if (!cfg.token || !cfg.queryId) return ibkrShowErr(t('credsMissingSave'));
-  ibkrSetBusy(true);
-  try {
-    const s = document.getElementById('ibkrStatus');
-    // מושך היסטוריה מלאה — שנתיים אחורה (מגבלת השמירה של IBKR).
-    // במספר חלקים של עד 365 יום, עם מיזוג ומניעת כפילויות.
-    if (s) s.textContent = t('fetchHistory', { n: 1, total: '…' });
-    const data = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, null, (i, total) => {
-      if (s) s.textContent = t('fetchHistory', { n: i, total });
-    });
-    // v110: אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
-    // פוזיציות ישנות כעדכניות (זה מה שגרם ל־5 מניות במקום 9).
-    // v111: אם כל הכשלונות הם flex_1003 (הדוח עדיין לא פורסם ב־IBKR) — מסבירים
-    // שהפתרון הוא פשוט לנסות שוב מאוחר יותר, לא לתקן שום דבר בחיבור.
-    if (!ibkrSyncIsComplete(data)) {
-      const fails = (data._chunks || []).filter((c) => !c.ok);
-      const failText = fails.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
-      const notAvail = fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
-      renderIbkrCard();
-      return ibkrShowErr((notAvail ? t('importNotAvailable') : t('importPartialBlocked')) + (failText ? ' ' + failText : ''));
-    }
-    ibkrSaveCfg({ lastSync: Date.now(), data });
-    const imp = ibkrMapImport(data);
-    if (!imp.positions.length) {
-      ibkrShowErr(t('importNoStocks') + (imp.skipped ? t('importSkippedNote', { n: imp.skipped }) : ''));
-      return;
-    }
-    // הפקדות מהדוח: רק העברות חיצוניות (הפקדה/משיכה), מומרות לשקלים לפי שער יום ההעברה
-    let txEarliest = null;
-    for (const c of (data.cashTransactions || [])) {
-      const dt = String(c.date || '').slice(0, 10);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dt) && (!txEarliest || dt < txEarliest)) txEarliest = dt;
-    }
-    if (txEarliest) { try { await ensureFxHist(txEarliest); } catch (e) {} }
-    const depList = ibkrMapDeposits(data.cashTransactions, (iso) => fxOnOrBefore(iso));
-    const depNet = depList.reduce((a, d) => a + (d.amount || 0), 0);
-    const depLine = depList.length
-      ? t('importDepLine', { n: depList.length, total: '₪' + Math.abs(depNet).toLocaleString('en-US') })
-      : t('importDepMissing');
-    // אזהרת קטיעה: אם ההעברה הכי מוקדמת צמודה לתחילת הדוח, ייתכן שהפקדות מוקדמות חסרות
-    const fromDate = (data.meta && data.meta.fromDate) || '';
-    const truncLine = (txEarliest && fromDate && txEarliest <= addDaysISO(fromDate, 7))
-      ? '\n' + t('importTruncatedWarn', { date: fromDate })
-      : '';
-    const cashLine = imp.cash
-      ? t('importCashLine', { usd: imp.cash.usd, ils: imp.cash.ils })
-      : t('importCashMissing');
-    const msg = t('importConfirm', {
-      n: imp.positions.length,
-      lots: imp.lots,
-      cashLine,
-      depLine,
-      skipped: (imp.skipped ? '\n' + t('importSkippedNote', { n: imp.skipped }).trim() : '') + truncLine
-    });
-    if (!confirm(msg)) return;
-    // צילום הנתונים הידניים לפני הדריסה (רק אם אין כבר צילום), ואז החלפה מלאה:
-    // במצב IBKR הטאבים מציגים את נתוני IBKR במקום הידניים (גם רשימת הפקדות ריקה)
-    ibkrSnapshotManual();
-    DB.positions.length = 0;
-    DB.positions.push(...imp.positions);
-    DEPOSITS.length = 0;
-    DEPOSITS.push(...depList);
-    DB.source = 'ibkr';
-    if (imp.cash) DB.cash = { usd: imp.cash.usd, ils: imp.cash.ils };
-    saveDB();
-    renderAll();
-    refreshQuotes();
-    flash(t('importedOk', { n: imp.positions.length }));
-  } catch (e) {
-    ibkrShowErr(t('importFailed', { err: ibkrFriendlyErr(e.message) }));
-  } finally {
-    ibkrSetBusy(false);
-    renderIbkrCard();
-  }
-}
 
 /* צילום הנתונים הידניים לפני יבוא IBKR — כדי שאפשר יהיה לשחזרם בניתוק.
    נשמר רק אם אין כבר צילום (סנכרון חוזר במצב IBKR לא דורס את המקור הידני).
@@ -1684,7 +1624,8 @@ function ibkrMapImport(data) {
     if (p.levelOfDetail && p.levelOfDetail !== 'SUMMARY') { skipped++; continue; }
     const qty = Number(p.qty) || 0;
     const sym = String(p.symbol || '').trim();
-    const isStock = !p.asset || p.asset === 'STK';
+    const _a = String(p.asset || '').toUpperCase();
+    const isStock = !_a || _a === 'STK' || _a === 'STOCKS'; // CSV: 'Stocks', Flex: 'STK'
     if (!(qty > 0) || !sym || !isStock || p.currency !== 'USD') { skipped++; continue; }
     lots++;
     const cb = Math.abs(Number(p.costBasis) || 0);
@@ -1713,18 +1654,209 @@ function ibkrMapImport(data) {
 function ibkrDisconnect() {
   ibkrClearErr();
   if (!confirm(t('disconnectConfirm'))) return;
-  ibkrSaveCfg({ token: '', queryId: '', statementUrl: '', lastSync: 0, data: null });
-  // שחזור הנתונים הידניים שהיו לפני החיבור (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
+  ibkrSaveCfg({ lastSync: 0, data: null });
+  // שחזור הנתונים הידניים שהיו לפני הייבוא (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
   const restored = ibkrRestoreManual();
   DB.source = 'manual';
   saveDB();
-  const tk = document.getElementById('ibkrToken');
-  const qd = document.getElementById('ibkrQuery');
-  if (tk) tk.value = '';
-  if (qd) qd.value = '';
   renderAll();
   renderIbkrCard();
   if (restored) flash(t('disconnectedRestored')); else flash(t('disconnected'));
+}
+
+/* ייבוא מקובץ CSV: קורא קבצים מקומית, מפענח עם returns.js, מאחד תקופות
+   שאינן חופפות, מבקש אישור עם סיכום, ומכניס את הפוזיציות לתיק (בהסכמתך).
+   אין רשת, אין טוקן — הכל קורה בטלפון. */
+function ibkrCsvReadFile(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || ''));
+    r.onerror = () => reject(new Error('read'));
+    r.readAsText(file);
+  });
+}
+
+async function ibkrCsvImport(fileList) {
+  ibkrClearErr();
+  const files = Array.prototype.slice.call(fileList || []);
+  if (!files.length) return;
+  ibkrSetBusy(true);
+  try {
+    let merged = null;
+    const warns = [];
+    for (const f of files) {
+      const text = await ibkrCsvReadFile(f);
+      const res = ibkrParseCsv(text);
+      if (!res.ok) throw new Error(t('ibkrCsvParseError', { name: f.name }));
+      if (res.warnings && res.warnings.length) {
+        for (const w of res.warnings) if (warns.indexOf(w) < 0) warns.push(w);
+      }
+      merged = merged ? rMergeData(merged, res.data) : res.data;
+    }
+    if (!merged || !((merged.trades || []).length || (merged.positions || []).length || (merged.navPeriods || []).length)) {
+      ibkrShowErr(t('ibkrCsvNoData'));
+      return;
+    }
+    const existing = ibkrCfg().data;
+    const warnTxt = warns.length ? '\n' + t('ibkrCsvWarns', { w: warns.map((w) => t('csvWarn_' + String(w).replace(/-/g, '_')) || w).join(', ') }) : '';
+    ibkrReviewImport(existing, merged, warnTxt);
+  } catch (e) {
+    ibkrShowErr(t('importFailed', { err: e && e.message ? e.message : String(e) }));
+  } finally {
+    ibkrSetBusy(false);
+    renderIbkrCard();
+  }
+}
+
+/* בדיקת יבוא מאוחדת לשני מקורות הנתונים (CSV ו־Flex): תצוגה מקדימה של
+   מה חדש מול מה שכבר יובא, אישור, וסיום יבוא עם מיזוג בלי כפילויות. */
+function ibkrReviewImport(existing, incoming, warnTxt) {
+  const preview = rMergePreview(existing, incoming);
+  const deltaTxt = ibkrCsvDeltaText(preview, !!existing);
+  if (deltaTxt === null) { flash(t('ibkrCsvNothingNew')); return; }
+  const meta = incoming.meta || {};
+  const twr = rHeadlineTwr(incoming);
+  const okGo = confirm(t('ibkrCsvConfirm', {
+    kind: ibkrKindName(incoming),
+    a: meta.fromDate ? fmtDateIL(meta.fromDate) : '—',
+    b: meta.toDate ? fmtDateIL(meta.toDate) : '—',
+    twr: (twr === null || twr === undefined) ? '—' : fmtPct(twr, true),
+    delta: deltaTxt,
+    warns: warnTxt || '',
+  }));
+  if (!okGo) return;
+  ibkrFinishImport(rMergeData(existing, incoming));
+}
+
+async function ibkrSaveAndTest() {
+  ibkrClearErr();
+  const proxyUrl = (document.getElementById('ibkrProxy').value || '').trim().replace(/\/+$/, '');
+  const token = (document.getElementById('ibkrToken').value || '').trim();
+  const queryId = (document.getElementById('ibkrQuery').value || '').trim();
+  if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
+  if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
+  ibkrSaveCfg({ proxyUrl, token, queryId });
+  ibkrSetBusy(true);
+  renderIbkrCard();
+  try {
+    const rep = await ibkrRequestReport(fetch, proxyUrl, token, queryId);
+    ibkrSaveCfg({ statementUrl: rep.statementUrl || '' });
+    flash(t('connOk'));
+  } catch (e) {
+    ibkrShowErr(t('testFailed', { err: ibkrFriendlyErr(e.message) }));
+  }
+  ibkrSetBusy(false);
+  renderIbkrCard();
+}
+
+/* סנכרון מ־IBKR (Flex Web Service) — אופציה נוספת למשיכת נתונים, לצד יבוא CSV.
+   מושך דוח טרי דרך השרתון ומכניס אותו לאותו צינור יבוא מאוחד. */
+async function ibkrSyncImport() {
+  ibkrClearErr();
+  const cfg = ibkrCfg();
+  const proxyUrl = ibkrProxyBase();
+  if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
+  if (!cfg.token || !cfg.queryId) return ibkrShowErr(t('credsMissingSave'));
+  ibkrSetBusy(true);
+  try {
+    const s = document.getElementById('ibkrStatus');
+    // מושך היסטוריה — עד שנתיים אחורה (מגבלת השמירה של IBKR), בחלקים של עד 365 יום
+    if (s) s.textContent = t('fetchHistory', { n: 1, total: '…' });
+    const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, null, (i, total) => {
+      if (s) s.textContent = t('fetchHistory', { n: i, total });
+    });
+    // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
+    // פוזיציות ישנות כעדכניות.
+    // אם כל הכשלונות הם flex_1003 (הדוח עדיין לא פורסם ב־IBKR) — מסבירים
+    // שהפתרון הוא פשוט לנסות שוב מאוחר יותר, לא לתקן שום דבר בחיבור.
+    if (!ibkrSyncIsComplete(incoming)) {
+      const fails = (incoming._chunks || []).filter((c) => !c.ok);
+      const failText = fails.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
+      const notAvail = fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
+      renderIbkrCard();
+      return ibkrShowErr((notAvail ? t('importNotAvailable') : t('importPartialBlocked')) + (failText ? ' ' + failText : ''));
+    }
+    const imp = ibkrMapImport(incoming);
+    if (!imp.positions.length && !(incoming.navPeriods || []).length && !(incoming.trades || []).length) {
+      ibkrShowErr(t('importNoStocks') + (imp.skipped ? ' ' + t('importSkippedNote', { n: imp.skipped }).trim() : ''));
+      return;
+    }
+    ibkrReviewImport(ibkrCfg().data, incoming, '');
+  } catch (e) {
+    ibkrShowErr(t('importFailed', { err: ibkrFriendlyErr(e.message) }));
+  } finally {
+    ibkrSetBusy(false);
+    renderIbkrCard();
+  }
+}
+
+function ibkrKindName(data) {
+  const k = (data && data.meta && data.meta.kind) || '';
+  if (k === 'flex') return t('csvKindFlex');
+  return t('csvKindActivity');
+}
+
+/* טקסט "מה יתווסף" לדיאלוג האישור — משווה את הקובץ החדש למה שכבר יובא.
+   מחזיר null כשאין שום מידע חדש. */
+function ibkrCsvDeltaText(preview, hasExisting) {
+  const pr = preview;
+  if (!hasExisting) return t('ibkrCsvDeltaFirst');
+  const lines = [];
+  const rng = (p) => fmtDateIL(p.fromDate) + '–' + fmtDateIL(p.toDate);
+  if (pr.addedPeriods.length) lines.push(t('ibkrCsvDeltaPeriods', { ranges: pr.addedPeriods.map(rng).join(', ') }));
+  if (pr.replacedPeriods.length) lines.push(t('ibkrCsvDeltaReplaced', { ranges: pr.replacedPeriods.map(rng).join(', ') }));
+  if (pr.newTrades || pr.newCash) lines.push(t('ibkrCsvDeltaTrades', { n: pr.newTrades, k: pr.newCash }));
+  // אין שום דבר חדש — גם אם יש כפילויות שידולגו, אין טעם בדיאלוג
+  if (!lines.length) return null;
+  if (pr.dupTrades || pr.dupCash) lines.push(t('ibkrCsvDeltaDup', { n: pr.dupTrades, m: pr.dupCash }));
+  return lines.join('\n');
+}
+
+/* סיום יבוא: מאחד לוטות לפי סימבול, מכניס פוזיציות לתיק (בהסכמת המשתמש
+   שכבר ניתנה), מזומן (רק אם נמצא בדוח) והפקדות (רק העברות חיצוניות מהדוח,
+   מומרות לשקלים). פנסיה לא נפגעת. */
+function ibkrFinishImport(data) {
+  const isManual = DB.source === 'manual';
+  const snapshotOk = isManual && ibkrSnapshotManual();
+  const imp = ibkrMapImport(data);
+  const impSyms = {};
+  for (const p of (imp.positions || [])) impSyms[p.sym] = true;
+  const curSyms = {};
+  for (const p of POSITIONS) curSyms[p.sym] = true;
+  const replaced = POSITIONS.filter((p) => !impSyms[p.sym]).length;
+  POSITIONS.length = 0;
+  for (const e of (imp.positions || [])) POSITIONS.push(e);
+  const added = (imp.positions || []).filter((e) => !curSyms[e.sym]).length;
+  const kept = Object.keys(curSyms).length - replaced;
+  // מזומן מהדוח — רק אם נמצא בדוח
+  if (imp.cash) DB.cash = imp.cash;
+  // הפקדות: רק העברות חיצוניות מהדוח, מומרות לשקלים — בלי כפילויות בייבוא חוזר
+  const fxOf = (iso) => fxOnOrBefore(iso) || state.fx || 1;
+  const deps = ibkrMapDeposits(data.cashTransactions || [], fxOf);
+  // מודע־מופעים: שתי הפקדות זהות באותו יום הן לגיטימיות; יבוא חוזר לא מכפיל
+  const depKey = (d) => d.date + '|' + d.amount;
+  const existCount = {};
+  for (const d of (DB.deposits || [])) { const k = depKey(d); existCount[k] = (existCount[k] || 0) + 1; }
+  const usedCount = {};
+  const newDeps = deps.filter((d) => {
+    const k = depKey(d);
+    usedCount[k] = (usedCount[k] || 0) + 1;
+    return usedCount[k] > (existCount[k] || 0);
+  });
+  const skipped = imp.skipped;
+  if (newDeps.length || imp.cash || (imp.positions || []).length) {
+    if (newDeps.length) DB.deposits = DB.deposits.concat(newDeps);
+    DB.source = 'ibkr';
+    saveDB();
+  }
+  ibkrSaveCfg({ lastSync: Date.now(), data: data });
+  renderAll();
+  renderIbkrCard();
+  let msg = t('importDone', { added: added, kept: kept });
+  if (replaced > 0) msg += ' ' + t('importReplaced', { n: replaced });
+  if (skipped > 0) msg += ' ' + t('importSkipped', { n: skipped });
+  if (snapshotOk) msg += ' ' + t('importSnapshotNote');
+  flash(msg);
 }
 
 /* מחיר סגירה קודם לחישוב שינוי יומי (מתמודד עם סופ"ש/חג) */
@@ -1806,7 +1938,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v111';
+const APP_VERSION = 'v112';
 
 
 function saveDBto(db) {
@@ -2700,8 +2832,6 @@ function ibkrMapDeposits(cashTx, fxOf) {
 /* ---------------- ביצועי IBKR מהדוח (פונקציות טהורות — נבדקות) ---------------- */
 /* מטבע הבסיס של דוח IBKR */
 function ibkrBaseCur(data) { return (data && data.meta && data.meta.baseCurrency) || 'USD'; }
-/* אובייקט ה־NAV מהסנכרון האחרון */
-function ibkrNav() { const d = ibkrCfg().data; return (d && d.nav) || null; }
 
 /* שווי החשבון לפי הדוח המסונכרן, במטבע הבסיס: שווי שוק הפוזיציות + מזומן.
    לא תלוי במחירים חיים — זה המספר של IBKR עצמו. null אם אין נתונים. */
@@ -2726,212 +2856,6 @@ function ibkrReportTotal(data, cash, fx) {
 
 /* סכומי ביצועים מהדוח, במטבע הבסיס.
    twr ב־ChangeInNAV הוא אחוז (12.34 = 12.34%) — מוצג כמו שהוא, בלי חלוקה. */
-function ibkrPerfSums(data) {
-  const out = { realized: 0, unrealized: 0, dividends: 0, interest: 0, taxes: 0, fees: 0 };
-  if (!data) return out;
-  for (const tr of (data.trades || [])) {
-    const fx = Number(tr.fxToBase) || 1;
-    out.realized += (Number(tr.realized) || 0) * fx;
-    out.fees += Math.abs(Number(tr.commission) || 0) * fx;
-  }
-  for (const p of (data.positions || [])) {
-    const fx = Number(p.fxToBase) || 1;
-    out.unrealized += (Number(p.unrealized) || 0) * fx;
-  }
-  for (const c of (data.cashTransactions || [])) {
-    const type = String(c.type || '').toLowerCase();
-    const fx = Number(c.fxToBase) || 1;
-    const amt = (Number(c.amount) || 0) * fx;
-    if (/dividend/.test(type)) out.dividends += amt;
-    else if (/interest/.test(type)) out.interest += amt;
-    else if (/tax/.test(type) && !/receiv/.test(type)) out.taxes += amt;
-    else if (/fee/.test(type) && !/receiv/.test(type)) out.fees += Math.abs(amt);
-  }
-  return out;
-}
-
-/* תזרימים לחישוב XIRR מהדוח: ערך התחלה (שלילי) + הפקדות/משיכות + ערך סיום (חיובי).
-   ב־Flex הפקדה = סכום חיובי, משיכה = שלילי; מנקודת מבט המשקיע זה הפוך.
-   כשמקטע Change in NAV חסר, ערך ההתחלה הוא אומדן (endBase − הפקדות − רווח) —
-   endBase הוא שווי הסיום במטבע הבסיס (מ־ibkrReportTotal). (פונקציה טהורה — נבדקת) */
-function ibkrXirrFlows(data, endBase) {
-  if (!data) return null;
-  const nav = data.nav, meta = data.meta || {};
-  if (!meta.fromDate || !meta.toDate) return null;
-  let start = null, end = null;
-  if (nav) {
-    const s = Number(nav.startingValue), e = Number(nav.endingValue);
-    if (s >= 0) start = s;
-    if (e >= 0) end = e;
-  }
-  if (end === null) end = (endBase > 0 && isFinite(endBase)) ? endBase : null;
-  if (start === null && end !== null) {
-    const est = ibkrEstimate(data, end);
-    start = est ? est.start : null;
-  }
-  if (!(start >= 0) || !(end >= 0)) return null;
-  const flows = [];
-  if (start > 0) flows.push({ d: String(meta.fromDate).slice(0, 10), amt: -start });
-  for (const c of (data.cashTransactions || [])) {
-    if (!/deposit|withdraw/i.test(String(c.type || ''))) continue;
-    const amt = (Number(c.amount) || 0) * (Number(c.fxToBase) || 1);
-    const dt = String(c.date || '').slice(0, 10);
-    if (!amt || !/^\d{4}-\d{2}-\d{2}$/.test(dt)) continue;
-    flows.push({ d: dt, amt: -amt });
-  }
-  flows.push({ d: String(meta.toDate).slice(0, 10), amt: end });
-  flows.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
-  const hasNeg = flows.some((f) => f.amt < 0), hasPos = flows.some((f) => f.amt > 0);
-  return (hasNeg && hasPos) ? flows : null;
-}
-
-/* XIRR — תשואה שנתית משוקללת־כסף. flows: [{d:'YYYY-MM-DD', amt}] שלילי = הושקע.
-   מחזיר אחוז (12.34 = 12.34%) או null אם לא ניתן לחשב. */
-function xirr(flows) {
-  if (!flows || flows.length < 2) return null;
-  const t0 = Date.parse(flows[0].d);
-  if (!isFinite(t0)) return null;
-  const yrs = flows.map((f) => {
-    const tt = Date.parse(f.d);
-    return isFinite(tt) ? (tt - t0) / 31557600000 : NaN;
-  });
-  if (yrs.some((y) => !isFinite(y))) return null;
-  const npv = (r) => flows.reduce((s, f, i) => s + f.amt / Math.pow(1 + r, yrs[i]), 0);
-  const dnpv = (r) => flows.reduce((s, f, i) => s + f.amt * -yrs[i] / Math.pow(1 + r, yrs[i] + 1), 0);
-  let r = 0.1;
-  for (let i = 0; i < 100; i++) {
-    const f = npv(r), d = dnpv(r);
-    if (!isFinite(f) || !isFinite(d) || Math.abs(d) < 1e-10) return null;
-    const nr = r - f / d;
-    if (!isFinite(nr) || nr <= -0.9999) return null;
-    if (Math.abs(nr - r) < 1e-9) return nr * 100;
-    r = nr;
-  }
-  return null;
-}
-
-/* היסטוריית NAV יומית מהדוח — [{date:'YYYY-MM-DD', value}] ממוין, בלי כפילויות.
-   מחזיר פחות מ־2 נקודות אם אין היסטוריה אמיתית (ואז הגרף נשאר משוחזר). */
-function ibkrNavHistory() {
-  const d = ibkrCfg().data;
-  const rows = (d && d.navHistory) || [];
-  const byDate = {};
-  for (const r of rows) {
-    const dt = String(r.toDate || r.fromDate || '').slice(0, 10);
-    const v = Number(r.endingValue);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dt) || !isFinite(v)) continue;
-    byDate[dt] = v; // כפילות תאריך: האחרונה מנצחת
-  }
-  return Object.keys(byDate).sort().map((dt) => ({ date: dt, value: byDate[dt] }));
-}
-
-/* TWR מסדרת NAV רשמית של IBKR — מנטרל תזרימים חיצוניים (הפקדות/משיכות).
-   navRows: [{date, value}] ממוין עולה (מ־ibkrNavHistory).
-   flowsByDate: {date: סכום} — חיובי = הפקדה (נכנס), שלילי = משיכה.
-   מחזיר [{date, value}] כאשר value הוא מדד TWR מצטבר המתחיל מ־100.
-   בלי נטרול תזרימים, הפקדה של $10K תיראה כ"תשואה" של $10K — זו הייתה
-   הסיבה שמקסימום הראה ‎-12%‎ במקום ‎+48%‎ (v73). */
-function navToTwr(navRows, flowsByDate) {
-  if (!navRows || navRows.length < 2) return [];
-  const flows = flowsByDate || {};
-  const out = [{ date: navRows[0].date, value: 100 }];
-  let cum = 100;
-  for (let i = 1; i < navRows.length; i++) {
-    const prev = Number(navRows[i - 1].value);
-    const curr = Number(navRows[i].value);
-    const flow = Number(flows[navRows[i].date]) || 0;
-    if (prev > 0 && isFinite(prev) && isFinite(curr)) {
-      const growth = (curr - flow) / prev;
-      if (growth > 0 && growth < 10 && isFinite(growth)) cum *= growth;
-    }
-    out.push({ date: navRows[i].date, value: cum });
-  }
-  return out;
-}
-
-/* תאריך הקמת התיק — תאריך התזרים החיצוני (הפקדה) הראשון, או העסקה הראשונה.
-   טווחים שמתחילים לפני תאריך זה מציגים תשואה פיקטיבית — חותכים אותם.
-   v75: תיקון לטווחי 3Y/מקסימום שהראו ‎-12%‎ במקום ‎+48%‎. */
-function ibkrInceptionDate() {
-  const d = ibkrCfg().data;
-  if (!d) return null;
-  let first = null;
-  const consider = (dt) => {
-    dt = String(dt || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
-    if (!first || dt < first) first = dt;
-  };
-  for (const c of (d.cashTransactions || [])) {
-    if (!c || !ibkrIsDepositTx(c)) continue;
-    consider(c.date);
-  }
-  for (const t of (d.trades || [])) {
-    if (!t || !ibkrIsStockTrade(t)) continue;
-    consider(t.date);
-  }
-  return first;
-}
-
-/* מפת תזרימים יומית מנתוני IBKR — {date: סכום ב־USD}, חיובי = נכנס.
-   משמש לנטרול תזרימים ב־TWR מסדרת NAV רשמית. */
-function ibkrFlowsByDate() {
-  const d = ibkrCfg().data;
-  const flows = {};
-  for (const c of ((d && d.cashTransactions) || [])) {
-    if (!c || !ibkrIsDepositTx(c)) continue;
-    const dt = String(c.date || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) continue;
-    const amt = Number(c.amount) || 0;
-    if (!amt) continue;
-    const fxb = Number(c.fxToBase) || 1;
-    const cur = String(c.currency || 'USD').toUpperCase();
-    const usd = cur === 'USD' ? amt : amt * fxb;
-    flows[dt] = (flows[dt] || 0) + usd;
-  }
-  return flows;
-}
-
-/* הפקדות נטו בתקופת הדוח, במטבע הבסיס (חיובי = כסף שנכנס).
-   סימן IBKR מקורי: הפקדה חיובית, משיכה שלילית. */
-function ibkrNetDeposits(data) {
-  let s = 0;
-  for (const c of ((data && data.cashTransactions) || [])) {
-    if (!/deposit|withdraw/i.test(String(c.type || ''))) continue;
-    s += (Number(c.amount) || 0) * (Number(c.fxToBase) || 1);
-  }
-  return s;
-}
-
-/* רווח/הפסד כלכלי בתקופת הדוח — לוגיקת Change in NAV של IBKR:
-   שווי סיום − שווי התחלה − הפקדות נטו. null אם חסר NAV (ואז אסור
-   להציג מספר — ההפקדות בדוח חלקיות ויתנו תוצאה מטעה). */
-function ibkrPeriodGain(data) {
-  const nav = data && data.nav;
-  if (!nav) return null;
-  const s = Number(nav.startingValue), e = Number(nav.endingValue);
-  if (!isFinite(s) || !isFinite(e)) return null;
-  const dep = ibkrNetDeposits(data);
-  return e - s - (isFinite(dep) ? dep : 0);
-}
-
-/* אומדן ביצועים מנתוני הדוח כשמקטע Change in NAV חסר (פונקציה טהורה — נבדקת).
-   רווח = ממומש + לא־ממומש + דיבידנדים + ריבית + מסים (שלילי כששולם) − עמלות.
-   שווי התחלה משוער = שווי סיום − הפקדות נטו − רווח; תשואה = רווח / שווי התחלה.
-   זהו אומדן פשוט (לא TWR רשמי) — מוצג תמיד עם סימון "משוער". null כשאין בסיס לחישוב. */
-function ibkrEstimate(data, endBase) {
-  if (!data || !(endBase > 0) || !isFinite(endBase)) return null;
-  const hasActivity = ((data.trades || []).length > 0) ||
-    ((data.positions || []).length > 0) || ((data.cashTransactions || []).length > 0);
-  if (!hasActivity) return null;
-  const sums = ibkrPerfSums(data);
-  const gain = sums.realized + sums.unrealized + sums.dividends + sums.interest +
-    sums.taxes - Math.abs(sums.fees);
-  if (!isFinite(gain)) return null;
-  const dep = ibkrNetDeposits(data);
-  const start = endBase - (isFinite(dep) ? dep : 0) - gain;
-  if (!(start > 0) || !isFinite(start)) return null;
-  return { gain: gain, ret: gain / start * 100, end: endBase, start: start };
-}
 
 /* ---------------- DOM ---------------- */
 
@@ -3078,15 +3002,10 @@ function renderOverview() {
   const gSub = document.getElementById('ovGLSub');
   let gl = perf.gl, yld = perf.yld;
   if (isIbkrMode()) {
-    // במצב IBKR: רווח/הפסד = שווי סיום − שווי התחלה − הפקדות נטו (תקופת הדוח).
-    // כשמקטע Change in NAV חסר בדוח — אומדן מנתוני הדוח (מסומן "משוער"), לא מקפים.
+    // במצב IBKR: רווח/הפסד = שווי סיום − שווי התחלה − תזרימים נטו (תקופת הדוח).
+    // בלי תקופות NAV תקינות — מקף, לא אומדן.
     const data = ibkrCfg().data;
-    let pg = ibkrPeriodGain(data);
-    let est = null;
-    if (pg === null || !isFinite(pg)) {
-      est = ibkrEstimate(data, ibkrReportTotal(data, DB.cash, state.fx));
-      pg = est ? est.gain : null;
-    }
+    const pg = rGain(data);
     if (pg === null || !isFinite(pg)) {
       gl = null;
     } else {
@@ -3094,7 +3013,7 @@ function renderOverview() {
       gl = (cur === 'ILS' && state.fx && base === 'USD') ? pg * state.fx
         : (cur === 'ILS' ? null : pg);
     }
-    if (gSub) gSub.textContent = t('ovInReportPeriod') + (est ? ' ' + t('estMark') : '');
+    if (gSub) gSub.textContent = t('ovInReportPeriod');
   }
   if (gl === null) { gEl.textContent = '—'; }
   else { gEl.textContent = (gl < 0 ? '−' : '+') + money(Math.abs(gl), cur); }
@@ -3103,20 +3022,14 @@ function renderOverview() {
   const yEl = document.getElementById('ovYield');
   let ibkrYieldOfficial = true;
   if (isIbkrMode()) {
-    // במצב IBKR התשואה הראשית היא ה־TWR הרשמי מהדוח.
-    // כשהוא חסר (אין Change in NAV) — אומדן מנתוני הדוח, מסומן "משוער".
+    // במצב IBKR התשואה הראשית היא ה־TWR הרשמי המשורשר מהדוח.
+    // בלי TWR רשמי — "לא זמין", לא אומדן.
     const data = ibkrCfg().data;
-    const nav = ibkrNav();
-    const twr = (nav && nav.twr !== null && nav.twr !== undefined && nav.twr !== '')
-      ? Number(nav.twr) : null;
-    let yval = (twr === null || !isFinite(twr)) ? null : twr;
-    let estMark = '';
-    if (yval === null) {
-      const est = ibkrEstimate(data, ibkrReportTotal(data, DB.cash, state.fx));
-      if (est && isFinite(est.ret)) { yval = est.ret; estMark = ' ' + t('estMark'); ibkrYieldOfficial = false; }
-    }
-    yEl.textContent = (yval === null || !isFinite(yval)) ? '—' : fmtPct(yval, true) + estMark;
-    yEl.className = 'stat-value ' + ((yval === null || !isFinite(yval)) ? '' : yval >= 0 ? 'pos' : 'neg');
+    const twr = rHeadlineTwr(data);
+    const yval = (twr === null || !isFinite(twr)) ? null : twr;
+    ibkrYieldOfficial = yval !== null;
+    yEl.textContent = yval === null ? '—' : fmtPct(yval, true);
+    yEl.className = 'stat-value ' + (yval === null ? '' : yval >= 0 ? 'pos' : 'neg');
   } else {
     yEl.textContent = fmtPct(yld, true);
     yEl.className = 'stat-value ' + (yld === null ? '' : yld >= 0 ? 'pos' : 'neg');
@@ -3124,7 +3037,7 @@ function renderOverview() {
 
   document.getElementById('ovMeta').textContent =
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) +
-    (isIbkrMode() ? ' · ' + (ibkrYieldOfficial ? t('twrOfficial') : t('yieldEstNote')) : '');
+    (isIbkrMode() ? ' · ' + (ibkrYieldOfficial ? t('twrOfficial') : t('twrMissingShort')) : '');
   paintFxPill(false);
 
   /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו (כולל "ביצועי IBKR") */
@@ -3178,17 +3091,15 @@ function renderIbkrPerf() {
   if (!show) return;
   const data = ibkrCfg().data;
   const meta = data.meta || {};
-  const navMissing = !data.nav;
-  const nav = data.nav || {};
   const base = ibkrBaseCur(data);
   if (period) period.textContent = t('perfPeriod', { a: fmtDateIL(meta.fromDate), b: fmtDateIL(meta.toDate) });
-  const sums = ibkrPerfSums(data);
-  const twr = (nav.twr === null || nav.twr === undefined || nav.twr === '') ? null : Number(nav.twr);
-  const endBase = ibkrReportTotal(data, DB.cash, state.fx);
-  // בלי TWR רשמי — אומדן מנתוני הדוח (מסומן), במקום מקפים
-  const est = (twr === null || !isFinite(twr)) ? ibkrEstimate(data, endBase) : null;
-  const xr = xirr(ibkrXirrFlows(data, endBase));
-  const xrEst = xr !== null && navMissing;
+  // מנוע חדש (returns.js): TWR רשמי משורשר, רווח מהזהות החשבונאית, XIRR מתזרימים.
+  // בלי TWR רשמי — לא מנחשים: מציגים "לא זמין".
+  const sums = rSums(data);
+  const twr = rHeadlineTwr(data);
+  const gain = rGain(data);
+  const official = rSourceKind(data) === 'official';
+  const xr = rXirr(rXirrFlows(data));
   const mrow = (lbl, val) => {
     const li = el('li', 'perf-row');
     li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
@@ -3201,26 +3112,20 @@ function renderIbkrPerf() {
     return { txt: isMoney ? money(v, base) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
   };
   list.innerHTML = '';
-  const estVal = (v, isMoney) => {
-    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return {
-      txt: (isMoney ? money(v, base) : fmtPct(v, true)) + ' ' + t('estMark'),
-      cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '',
-    };
-  };
-  mrow(t('perfTwr'), twr === null || !isFinite(twr)
-    ? (est ? estVal(est.ret, false) : { txt: t('twrMissing'), cls: 'perf-note' })
-    : mval(twr, false));
+  mrow(t('perfTwr'), official
+    ? mval(twr, false)
+    : { txt: t('twrMissing'), cls: 'perf-note' });
+  mrow(t('perfGain'), gain === null
+    ? { txt: '—', cls: '' }
+    : mval(gain, true));
   mrow(t('perfXirr'), xr === null
     ? { txt: t('cantCalc'), cls: 'perf-note' }
-    : (xrEst ? estVal(xr, false) : mval(xr, false)));
-  if (est) mrow(t('perfGainEst'), estVal(est.gain, true));
+    : mval(xr, false));
   mrow(t('perfRealized'), mval(sums.realized, true));
   mrow(t('perfUnrealized'), mval(sums.unrealized, true));
   mrow(t('perfDividends'), mval(sums.dividends, true));
-  mrow(t('perfInterest'), mval(sums.interest, true));
-  mrow(t('perfTaxes'), mval(sums.taxes, true));
-  mrow(t('perfFees'), mval(Math.abs(sums.fees) < 0.005 ? 0 : -Math.abs(sums.fees), true));
+  mrow(t('perfWithholding'), mval(sums.withholding, true));
+  mrow(t('perfFees'), mval(Math.abs(sums.fees + sums.commissions) < 0.005 ? 0 : -(sums.fees + sums.commissions), true));
   try { fitNumbers(); } catch (e) {}
 }
 
@@ -3411,344 +3316,6 @@ function portfolioSeriesILS() {
         positions:[{sym,shares}], cash:{usd,ils},
         hist:{sym:[{date,close}]}, fxOf:(iso)=>rate }
    מחזיר [{date, value}] עולה, value = מדד TWR (100 = תחילת הנתונים). */
-/* עסקת מניה אמיתית? מסנן המרות מט"ח (USD.ILS), אופציות וחוזים — סמלים
-   שאין להם היסטוריית מחירים. בלי הסינון, ביטול המרת מט"ח בהליכה אחורה
-   מנפח את המזומן ההיסטורי בסכום ההמרה המלא ומעוות את התשואה לשלילית. */
-function ibkrIsStockTrade(x) {
-  const raw = String((x && x.symbol) || '');
-  const s = normalizeSym(raw);
-  if (!s) return false;
-  if (/^[A-Z]{3}\.[A-Z]{3}$/.test(s)) return false;
-  // אופציה: סימבול עם רווח + תבנית תאריך/סטרייק (למשל "AAPL  260919C00150000")
-  // אבל "BRK B" הוא מניה תקינה (מנורמל ל־BRK-B)
-  if (/ /.test(raw.trim()) && !/^BRK B$/i.test(raw.trim())) {
-    // אם יש ספרות אחרי הרווח — אופציה
-    if (/\d/.test(raw)) return false;
-  }
-  return true;
-}
-
-/* תנועת מזומן פנימית (דיבידנד / מס דיבידנד): כסף שנכנס מהשוק, לא הפקדה חיצונית.
-   בהליכה אחורה מבטלים אותה מהמזומן (לפני התשלום הוא לא היה), אבל לא מנטרלים
-   ב־TWR — דיבידנד הוא תשואה, לא תזרים חיצוני. */
-function ibkrIsDividendTx(c) {
-  const s = String((c && c.type) || '') + ' ' + String((c && c.description) || '');
-  return /dividend|withholding/i.test(s);
-}
-
-function buildTradesHistory(o, fromDate) {
-  // fromDate (אופציונלי): מסנן אירועים לפני התאריך — לחישוב YTD נקי מ־1/1
-  // בלי זיהום מנתוני 2024-2025. אם לא סופק, משתמש בכל ההיסטוריה.
-  // מפת ספליטים מההיסטוריה: sym -> [{date, ratio}] (מ־applySplitAdjustment)
-  const splitsBySym = {};
-  for (const sym of Object.keys(o.hist || {})) {
-    const h = o.hist[sym] || [];
-    const sa = h.splitsApplied;
-    if (!sa) continue;
-    splitsBySym[sym.toUpperCase()] = String(sa).split(',').map((s) => {
-      const parts = s.split('×');
-      return { date: parts[0], ratio: Number(parts[1]) || 1 };
-    }).filter((s) => s.ratio > 1.08 || s.ratio < 0.92);
-  }
-  const trades = (o.trades || [])
-    .filter((x) => x && x.symbol && x.date && ibkrIsStockTrade(x))
-    .map((x) => {
-      const sym = normalizeSym(x.symbol);
-      const date = String(x.date).slice(0, 10);
-      let qty = Math.abs(Number(x.qty) || 0);
-      let price = Number(x.price) || 0;
-      // עסקה לפני ספליט: המרה ליחידות של היום (כמות × יחס, מחיר ÷ יחס).
-      // v81: בדיקת חוסן — אם מחיר העסקה כבר תואם להיסטוריה המותאמת (IBKR
-      // לפעמים מדווח כבר מותאם), לא מכפילים שוב (מניעת התאמה כפולה).
-      for (const s of (splitsBySym[sym] || [])) {
-        if (date < s.date) {
-          const hc = closeOnOrBefore(o.hist[sym] || o.hist[sym.toUpperCase()] || [], date);
-          const alreadyAdj = hc && price > 0 && Math.abs(price - hc) / hc < 0.3;
-          if (!alreadyAdj) { qty *= s.ratio; price /= s.ratio; }
-        }
-      }
-      return {
-        date: date,
-        sym: sym,
-        buy: String(x.side || '').toUpperCase() === 'BUY',
-        qty: qty,
-        price: price,
-        comm: Math.abs(Number(x.commission) || 0),
-        fxb: Number(x.fxToBase) || 1,
-      };
-    })
-    .filter((x) => x.qty > 0 && x.date >= '2000-01-01')
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  // סינון YTD: רק אירועים מ־fromDate והלאה (למשל 2026-01-01)
-  const tradesF = fromDate ? trades.filter((x) => x.date >= fromDate) : trades;
-  if (!tradesF.length) return [];
-
-  // תזרימי מזומן חיצוניים (הפקדות/משיכות בלבד) — בחתימת IBKR: חיובי = נכנס
-  const flows = {}; // date -> סכום ב־USD
-  for (const c of (o.cashTx || [])) {
-    if (!c || !ibkrIsDepositTx(c)) continue;
-    const d = String(c.date || '').slice(0, 10);
-    if (fromDate && d < fromDate) continue;
-    const amt = Number(c.amount) || 0;
-    if (!d || !amt) continue;
-    const fxb = Number(c.fxToBase) || 1;
-    const cur = String(c.currency || 'USD').toUpperCase();
-    const usd = cur === 'USD' ? amt : amt * fxb;
-    flows[d] = (flows[d] || 0) + usd;
-  }
-
-  // תזרימי מזומן פנימיים (דיבידנדים/מס) — מבוטלים בהליכה אחורה, לא ב־TWR
-  const cashAdj = {}; // date -> סכום ב־USD (חיובי = נכנס)
-  for (const c of (o.cashTx || [])) {
-    if (!c || !ibkrIsDividendTx(c)) continue;
-    const d = String(c.date || '').slice(0, 10);
-    if (fromDate && d < fromDate) continue;
-    const amt = Number(c.amount) || 0;
-    if (!d || !amt) continue;
-    const fxb = Number(c.fxToBase) || 1;
-    const cur = String(c.currency || 'USD').toUpperCase();
-    cashAdj[d] = (cashAdj[d] || 0) + (cur === 'USD' ? amt : amt * fxb);
-  }
-
-  // הליכה אחורה: מבטלים אירועים ושומרים מצב יומי.
-  // המדידה בדולרים בלבד — כמו ש־IBKR מודד. כל המזומן (USD + שקל) מומר ל־USD
-  // פעם אחת בשער העדכני; המרות מט"ח הן ניטרליות בערך דולרי (למעט ספרד זניח)
-  // ולכן אינן מבוטלות בהליכה אחורה ואינן מוסיפות "מזומן פנטום" לעבר.
-  const shares = {};
-  for (const p of (o.positions || [])) shares[normalizeSym(p.sym)] = Number(p.shares) || 0;
-  const fxOfNow = o.fxOf || (() => 1);
-  const fxNow = fxOfNow(todayISO()) || 1;
-  let cashUsd = (Number((o.cash || {}).usd) || 0) + (Number((o.cash || {}).ils) || 0) / fxNow;
-  const byDate = new Map(); // date -> [{kind:'trade',x} | {kind:'flow',amt} | {kind:'div',amt}]
-  const addEv = (d, ev) => {
-    if (!byDate.has(d)) byDate.set(d, []);
-    byDate.get(d).push(ev);
-  };
-  for (const x of tradesF) addEv(x.date, { kind: 'trade', x });
-  for (const d of Object.keys(flows)) addEv(d, { kind: 'flow', amt: flows[d] });
-  for (const d of Object.keys(cashAdj)) addEv(d, { kind: 'div', amt: cashAdj[d] });
-  // הערה: לא מסננים ל־YTD כאן — הסינון לטווח נעשה בתצוגה (drawPfChart).
-  // הסרת פילטר v64 ששבר את טווחי 1Y/3Y (הציגו אותו מספר כמו YTD).
-  const allEvDates = [...byDate.keys()].sort();
-  const firstEvDate = [...byDate.keys()].sort()[0];
-  // v79: אם fromDate סופק (YTD/הקמה) — מתחילים ממנו, לא מ־1/1.
-  // (באג: firstEv='2024-01-01' כלל חודשים פיקטיביים לפני ההקמה ב־2024-09-24.)
-  const firstEv = fromDate ? fromDate.slice(0, 10) :
-    (firstEvDate ? firstEvDate.slice(0, 4) + '-01-01' : todayISO());
-  const stateByDate = {}; // date -> {shares:{}, cashUsd}
-  const evDates = [...byDate.keys()].sort().reverse(); // חדש -> ישן
-  let ei = 0;
-  const snap = () => ({ shares: Object.assign({}, shares), cashUsd });
-  // כל התאריכים הרלוונטיים: ימי מסחר מההיסטוריה + תאריכי עסקאות, מהאירוע הראשון והלאה
-  const dateSet = new Set();
-  for (const sym of Object.keys(o.hist || {})) for (const r of (o.hist[sym] || [])) {
-    if (r.date >= firstEv) dateSet.add(r.date);
-  }
-  for (const d of byDate.keys()) dateSet.add(d);
-  const allDates = [...dateSet].sort().reverse(); // חדש -> ישן
-  for (const d of allDates) {
-    while (ei < evDates.length && evDates[ei] > d) {
-      for (const e of byDate.get(evDates[ei])) {
-        if (e.kind === 'flow') { cashUsd -= e.amt; continue; } // הפקדה: קודם היה פחות מזומן
-        if (e.kind === 'div') { cashUsd -= e.amt; continue; } // דיבידנד: קודם עוד לא התקבל
-        const x = e.x;
-        const usd = x.qty * x.price * x.fxb + x.comm * x.fxb;
-        if (x.buy) { shares[x.sym] = (shares[x.sym] || 0) - x.qty; cashUsd += usd; }
-        else { shares[x.sym] = (shares[x.sym] || 0) + x.qty; cashUsd -= (x.qty * x.price * x.fxb - x.comm * x.fxb); }
-      }
-      ei++;
-    }
-    // אירועי היום עצמו שייכים לסוף היום — מבטלים רק מה שעבר אותו
-    stateByDate[d] = snap();
-  }
-  // v82: מבטלים גם את אירועי התאריך המוקדם ביותר (שלא בוטלו בלולאה) —
-  // כדי לקבל את מצב הפתיחה האמיתי (לפני כל האירועים).
-  let inceptionCashUsd = cashUsd;
-  try {
-    while (ei < evDates.length) {
-      for (const e of byDate.get(evDates[ei])) {
-        if (e.kind === 'flow') { cashUsd -= e.amt; continue; }
-        if (e.kind === 'div') { cashUsd -= e.amt; continue; }
-        const x = e.x;
-        const usd = x.qty * x.price * x.fxb + x.comm * x.fxb;
-        if (x.buy) { shares[x.sym] = (shares[x.sym] || 0) - x.qty; cashUsd += usd; }
-        else { shares[x.sym] = (shares[x.sym] || 0) + x.qty; cashUsd -= (x.qty * x.price * x.fxb - x.comm * x.fxb); }
-      }
-      ei++;
-    }
-    inceptionCashUsd = cashUsd;
-  } catch (e) {}
-
-
-  // v81: כיול מזומן מ־NAV רשמי (ChangeInNAV). אם המזומן ההתחלתי (DB.cash)
-  // שגוי, כל הסדרה המשוחזרת סוטה בקבוע — והסטייה מתעצמת בהליכה אחורה.
-  // עיגון ל־NAV רשמי מתקן את הסטייה.
-  try {
-    const anchor = o.cashAnchor;
-    if (anchor && anchor.date && isFinite(anchor.nav)) {
-      const ad = String(anchor.date).slice(0, 10);
-      const st = stateByDate[ad];
-      if (st) {
-        let secUsd = 0;
-        for (const sym of Object.keys(st.shares)) {
-          const q = st.shares[sym];
-          if (!q) continue;
-          const c = closeOnOrBefore((o.hist || {})[sym] || [], ad);
-          if (c) secUsd += q * c;
-        }
-        const impliedCash = anchor.nav - secUsd;
-        const delta = impliedCash - st.cashUsd;
-        if (isFinite(delta) && Math.abs(delta) > 0.01) {
-          for (const d of Object.keys(stateByDate)) stateByDate[d].cashUsd += delta;
-        }
-      }
-    }
-  } catch (e) {}
-
-  const asc = [...dateSet].sort();
-  const vals = []; // {date, v, f} — הכל ב־USD
-  const noHistSyms = []; // סמלים עם עסקאות אבל בלי היסטוריית מחירים
-  for (const d of asc) {
-    const st = stateByDate[d];
-    if (!st) continue;
-    let secUsd = 0;
-    for (const sym of Object.keys(st.shares)) {
-      const q = st.shares[sym];
-      if (!q) continue; // אפס — אין פוזיציה; שלילי = שורט (ערך שלילי, תקין)
-      const h = (o.hist || {})[sym] || [];
-      if (!h.length && !noHistSyms.includes(sym)) noHistSyms.push(sym);
-      const c = closeOnOrBefore(h, d);
-      if (c) secUsd += q * c; // q שלילי = התחייבות שורט
-    }
-    const v = secUsd + st.cashUsd;
-    const f = flows[d] || 0;
-    vals.push({ date: d, v, f });
-  }
-  // TWR יומי מצטבר
-  const out = [];
-  let cum = 100, prev = null, based = false;
-  for (const r of vals) {
-    // v81: תאריך הבסיס (ראשון עם NAV חיובי) נדחף עם 100 — קודם הוא הושמט,
-    // והתשואה חושבה מהיום השני (סטייה של יום אחד).
-    if (!(r.v > 0)) { prev = r.v; continue; }
-    if (!based) {
-      out.push({ date: r.date, value: 100 });
-      prev = r.v; based = true; continue;
-    }
-    if (prev === null || !(prev > 0)) { prev = r.v; continue; }
-    const den = prev;
-    const num = r.v - r.f;
-    if (den > 0 && isFinite(num) && isFinite(den)) {
-      const k = num / den;
-      if (k > 0 && k < 10) cum *= k;
-    }
-    out.push({ date: r.date, value: cum });
-    prev = r.v;
-  }
-  out.noHist = noHistSyms;
-  // v82: חושף את המזומן בתאריך ההתחלה — לזיהוי הפקדת פתיחה חסרה (2024).
-  // (מזומן הפתיחה האמיתי, אחרי ביטול כל האירועים — לא סוף היום הראשון.)
-  try { out.inceptionCash = inceptionCashUsd || 0; } catch (e) {}
-  return out;
-}
-
-/* עטיפה למצב IBKR: ההיסטוריה האמיתית מעסקאות, או [] אם אין עסקאות.
-   fromDate (אופציונלי): לחישוב YTD נקי — רק אירועים מ־1/1.
-   v69: מטמון תוצאות — מעבר בין טווחי זמן לא מחשב מחדש, רק מסנן. */
-let _ibkrThCache = {};
-function _ibkrThSig(d) {
-  // חתימה מהירה לשינוי נתונים: עסקאות, תזרים, פוזיציות, מזומן, היסטוריות, NAV רשמי
-  let histSig = '';
-  try {
-    histSig = Object.keys(state.hist || {}).sort()
-      .map((s) => s + ':' + (state.hist[s] || []).length).join('|');
-  } catch (e) {}
-  let navSig = '';
-  try {
-    navSig = JSON.stringify((d.navHistory || []).map((r) => r.fromDate + ':' + r.startingValue));
-  } catch (e) {}
-  return [
-    (d.trades || []).length,
-    ((d.trades || [])[0] || {}).date || '',
-    ((d.trades || []).slice(-1)[0] || {}).date || '',
-    (d.cashTransactions || []).length,
-    JSON.stringify((d.positions || []).map((p) => p.symbol + ':' + p.qty).sort()),
-    JSON.stringify((DB && DB.cash) || {}),
-    histSig,
-    navSig,
-  ].join('~');
-}
-function ibkrThCacheClear() { _ibkrThCache = {}; }
-function ibkrTradesHistory(fromDate) {
-  if (!isIbkrMode()) return [];
-  const d = ibkrCfg().data;
-  const trades = (d && d.trades) || [];
-  if (!trades.length) return [];
-  // בדיקת מטמון
-  const ck = String(fromDate || 'full');
-  const sig = _ibkrThSig(d);
-  const hit = _ibkrThCache[ck];
-  if (hit && hit.sig === sig) return hit.rows;
-  // פוזיציות לשחזור — כולל שורט (כמות שלילית), שאינן ב־POSITIONS של התצוגה.
-  // מסנן LOT (פירוט כפול) — רק SUMMARY (תיקון באג כפילות v68).
-  const posMap = {};
-  const posHasLOD = ((d && d.positions) || []).some((p) => p && p.levelOfDetail);
-  for (const p of ((d && d.positions) || [])) {
-    if (p.levelOfDetail && p.levelOfDetail !== 'SUMMARY') continue;
-    const qty = Number(p.qty) || 0;
-    const sym = String(p.symbol || '').toUpperCase();
-    const isStock = !p.asset || p.asset === 'STK';
-    if (!qty || !sym || !isStock || p.currency !== 'USD') continue;
-    // v82: הגנה מפני שורות כפולות (SUMMARY+LOT בלי levelOfDetail) — לוקחים את
-    // הכמות הגדולה ביותר (בערך מוחלט) במקום לסכום, כדי לא להכפיל פוזיציות.
-    // אם יש levelOfDetail, הסינון למעלה כבר מטפל — הסכימה בטוחה.
-    if (posHasLOD) {
-      posMap[sym] = (posMap[sym] || 0) + qty;
-    } else {
-      if (!posMap[sym] || Math.abs(qty) > Math.abs(posMap[sym])) posMap[sym] = qty;
-    }
-  }
-  const positions = Object.keys(posMap).map((sym) => ({ sym, shares: posMap[sym] }));
-  // v80: מזומן מנתוני IBKR (cashBalances), לא מ־DB.cash הידני — עקבי עם הפוזיציות.
-  // (באג: DB.cash עלול להיות אפס/ישן אם הדוח לא כלל יתרות מזומן, ואז השחזור מתחיל ממזומן שגוי.)
-  let ibkrCash = null;
-  try {
-    const cbs = (d && d.cashBalances) || [];
-    let usd = 0, ils = 0, has = false;
-    for (const c of cbs) {
-      const b = Number(c.balance) || 0;
-      if (c.currency === 'USD') { usd += b; has = true; }
-      else if (c.currency === 'ILS') { ils += b; has = true; }
-    }
-    if (has) ibkrCash = { usd: Math.round(usd * 100) / 100, ils: Math.round(ils * 100) / 100 };
-  } catch (e) {}
-  // v81: עוגן כיול מ־NAV רשמי (ChangeInNAV) — מתקן סטיית מזומן קבועה.
-  let cashAnchor = null;
-  try {
-    const nh = (d && d.navHistory) || [];
-    // בוחרים את השורה עם startingValue העדכנית ביותר (תקופת הדוח הארוכה)
-    let best = null;
-    for (const r of nh) {
-      const sv = Number(r.startingValue);
-      const fd = String(r.fromDate || '').slice(0, 10);
-      if (isFinite(sv) && /^\d{4}-\d{2}-\d{2}$/.test(fd)) {
-        if (!best || fd < String(best.fromDate).slice(0, 10)) best = r;
-      }
-    }
-    if (best) cashAnchor = { date: String(best.fromDate).slice(0, 10), nav: Number(best.startingValue) };
-  } catch (e) {}
-  const rows = buildTradesHistory({
-    trades: trades,
-    cashTx: (d && d.cashTransactions) || [],
-    positions: positions,
-    cash: ibkrCash || (DB && DB.cash) || { usd: 0, ils: 0 },
-    hist: state.hist,
-    fxOf: (iso) => fxOnOrBefore(iso) || state.fx || 1,
-    cashAnchor: cashAnchor,
-  }, fromDate);
-  _ibkrThCache[ck] = { sig: sig, rows: rows };
-  return rows;
-}
 
 /* סך תשואת קרן (פנסיה / השתלמות) — כמו תשואת התיק: שווי נוכחי מול סך הפקדות.
    תמיד בשקלים (ההפקדות והשווי העיקרי בשקלים). kind: 'pension' | 'study'.
@@ -4011,23 +3578,24 @@ function renderPfNote(noBench, srcKind) {
   const p = document.getElementById('pfNoteEl');
   if (!p) return;
   let txt;
-  if (srcKind === 'trades') txt = t('pfNoteTrades');
-  else {
-    const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
-    txt = ibkrPts.length >= 2 ? t('pfNoteIbkr') : t('pfNote');
-  }
+  if (srcKind === 'ibkr') txt = t('pfNoteIbkr');
+  else txt = t('pfNote');
   if (srcKind === 'manual') txt += ' · ' + t('pfBenchIbkrOnly');
   else if (noBench) txt += ' · ' + t('pfNoBench');
   try {
-    const cv = document.getElementById('pfChart');
-    const dg = cv && cv._pfPaint && cv._pfPaint.diag;
-    if (dg && dg.from) txt += ' · ' + t('pfDiag', { t: dg.t, f: dg.f, d: dg.d, from: dg.from, to: dg.to, y: dg.y || '—', w: dg.w || '—' });
-    // דיאגנוסטיקת NAV: האם התקבל Change in NAV מהדוח
+    // דיאגנוסטיקת תקופות: כמה תקופות רשמיות נטענו מהדוח
     if (isIbkrMode()) {
       const d = ibkrCfg().data;
-      const nh = (d && d.navHistory) || [];
-      const nt = (d && d.nav && d.nav.twr !== null && d.nav.twr !== undefined && d.nav.twr !== '') ? d.nav.twr : null;
-      txt += ' · NAV: ' + (nh.length > 0 ? nh.length + ' נק׳' : 'אין') + (nt !== null ? ' (TWR ' + nt + '%)' : '');
+      const ps = (typeof rNavPeriods === 'function') ? rNavPeriods(d) : [];
+      const twr = (typeof rHeadlineTwr === 'function') ? rHeadlineTwr(d) : null;
+      if (ps.length) {
+        txt += ' · ' + t('pfDiagPeriods', {
+          n: ps.length,
+          a: fmtDateIL(ps[0].fromDate),
+          b: fmtDateIL(ps[ps.length - 1].toDate),
+          twr: (twr === null || twr === undefined) ? '—' : fmtPct(twr, true),
+        });
+      }
     }
   } catch (e) {}
   p.textContent = txt;
@@ -4161,16 +3729,15 @@ async function drawPfChart() {
   updatePfPickUI();
   const my = ++pfChartToken;
 
-  const ibkrPts = isIbkrMode() ? ibkrNavHistory() : [];
-  const useIbkrNav = ibkrPts.length >= 2;
+  const ibkrData = isIbkrMode() ? ibkrCfg().data : null;
+  // TWR רשמי משורשר מתקופות הדוח — אין שחזור, אין אומדן.
+  const ibkrOfficial = ibkrData && rSourceKind(ibkrData) === 'official';
   let allRows, srcKind = 'manual';
-  if (useIbkrNav) {
+  if (ibkrOfficial) {
     if (loading) loading.classList.add('hidden');
-    // v73: TWR אמיתי מה־NAV הרשמי — מנטרל תזרימים (הפקדות/משיכות).
-    // לפני כן חושבה תשואה פשוטה (סוף/התחלה) שהתעוותה בגלל תזרימים.
-    allRows = navToTwr(ibkrPts, ibkrFlowsByDate());
-    if (allRows.length < 2) allRows = ibkrPts; // נפילה בטוחה
-    srcKind = 'ibkr';
+    allRows = rTwrIndexSeries(rNavPeriods(ibkrData));
+    if (allRows.length < 2) allRows = portfolioSeriesILS();
+    else srcKind = 'ibkr';
   } else {
     if (loading) {
       loading.textContent = t('loadingHist');
@@ -4188,32 +3755,8 @@ async function drawPfChart() {
     if (my !== pfChartToken) return;
     await ensureFxHist();
     if (my !== pfChartToken) return;
-    if (isIbkrMode()) {
-      // YTD: חישוב ייעודי מ־1/1 בלבד — "once and for all", בלי זיהום מ־2024-2025.
-      // v76: טווחים ארוכים (3Y/5Y/מקסימום) מתחילים מתאריך ההקמה — לא לפני.
-      // (החישוב עצמו מתחיל מההקמה, לא רק החיתוך החזותי — תיקון ל־v75.)
-      // v79: 1Y מתחיל מלפני שנה (יעיל — לא מחשב היסטוריה מיותרת מ־2024).
-      const isYtd = state.pfRange === 'ytd' && !state.pfCustomFrom;
-      const ytdStart = isYtd ? todayISO().slice(0, 4) + '-01-01' : null;
-      let histFrom = ytdStart;
-      if (!isYtd && !state.pfCustomFrom) {
-        try {
-          if (state.pfRange === 'year') {
-            const d = new Date(); d.setFullYear(d.getFullYear() - 1);
-            histFrom = d.toISOString().slice(0, 10);
-          } else {
-            const inception = ibkrInceptionDate();
-            // רק לטווחים ארוכים שעלולים להתחיל לפני ההקמה
-            if (inception && ['3y', '5y', 'max'].includes(state.pfRange)) histFrom = inception;
-          }
-        } catch (e) {}
-      }
-      const th = ibkrTradesHistory(histFrom);
-      if (th.length >= 2) { allRows = th; srcKind = 'trades'; }
-      else allRows = portfolioSeriesILS();
-    } else {
-      allRows = portfolioSeriesILS();
-    }
+    // בלי TWR רשמי מהדוח — אין היסטוריה אמיתית: סימולציית אחזקות נוכחיות (כמו ידני).
+    allRows = portfolioSeriesILS();
   }
 
   // הפרדה בין סוגי משתמשים: השוואת מדדים רק כשההיסטוריה אמיתית מ־IBKR.
@@ -4226,11 +3769,11 @@ async function drawPfChart() {
   } else {
     pfRows = filterRange(allRows, state.pfRange);
   }
-  // v75: חיתוך לתאריך הקמה — טווח שמתחיל לפני שהתיק נפתח מציג תשואה פיקטיבית.
-  // (3Y/מקסימום הראו ‎-12%‎ כי כללו חודשים לפני ההפקדה הראשונה.)
+  // חיתוך לתחילת תקופת הדוח — טווח שמתחיל לפני שהתיק נפתח מציג תשואה פיקטיבית.
   if (isIbkrMode() && pfRows.length >= 2) {
     try {
-      const inception = ibkrInceptionDate();
+      const ps = ibkrData ? rNavPeriods(ibkrData) : [];
+      const inception = ps.length ? ps[0].fromDate : null;
       if (inception && pfRows[0].date < inception) {
         const cut = pfRows.filter((r) => r.date >= inception);
         if (cut.length >= 2) {
@@ -4274,7 +3817,7 @@ async function drawPfChart() {
   if (loading) loading.classList.add('hidden');
 
   const allSeries = [
-    { name: useIbkrNav ? t('ibkrNavLegend') : t('myPortfolio'), color: cssVar('--primary', '#006A4E'), rows: pfRows },
+    { name: srcKind === 'ibkr' ? t('ibkrNavLegend') : t('myPortfolio'), color: cssVar('--primary', '#006A4E'), rows: pfRows },
     ...benchSeries,
   ];
   for (const s of allSeries) s.pts = downsample(normalize100(s.rows), 300);
@@ -4288,32 +3831,7 @@ async function drawPfChart() {
     renderPfRangeSummary(null);
     return;
   }
-  // דיאגנוסטיקה למצב שחזור־מעסקאות: כמה עסקאות/תזרימים זוהו ומה טווח התאריכים.
-  // עוזר לאמת מול הדוח של IBKR כשהתשואה נראית לא נכונה.
-  let pfDiag = null;
-  if (srcKind === 'trades') {
-    try {
-      const dd = (typeof ibkrCfg === 'function' && ibkrCfg().data) || {};
-      const csh = (dd.cashTransactions || []);
-      const flows = csh.filter(ibkrIsDepositTx);
-      // v82: טווח תאריכי תזרימים + פילוח שנתי — לזיהוי הפקדות חסרות ב־2024-2025
-      const fdates = flows.map((c) => String(c.date || '').slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
-      const byYear = {};
-      for (const d of fdates) { const y = d.slice(0, 4); byYear[y] = (byYear[y] || 0) + 1; }
-      const fRange = fdates.length ? fdates[0] + '..' + fdates[fdates.length - 1] : '—';
-      const yBreak = Object.keys(byYear).sort().map((y) => y + ':' + byYear[y]).join(' ');
-      pfDiag = {
-        t: (dd.trades || []).filter(ibkrIsStockTrade).length,
-        f: flows.length,
-        d: csh.filter(ibkrIsDividendTx).length,
-        from: pfRows.length ? pfRows[0].date : '',
-        to: pfRows.length ? pfRows[pfRows.length - 1].date : '',
-        y: ibkrCashTxTypeList(csh).join(', '),
-        w: (pfRows.noHist || []).join(', ') + ' | תזרימים: ' + fRange + ' (' + yBreak + ')',
-      };
-    } catch (e) { pfDiag = null; }
-  }
-  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind, diag: pfDiag };
+  canvas._pfPaint = { series: series, benchEmpty: benchSeries.length === 0, srcKind: srcKind };
   renderPfBenchToggles(showBench);
   paintPfChart();
 }
@@ -5983,14 +5501,21 @@ function init() {
   // v85: שמירת מיקום גלילה לכל טאב
   try { initScrollSaver(); } catch (e) {}
 
-  // חיבור ברוקר (IBKR) — אופציונלי, הנתונים הידניים נשארים ברירת המחדל
+  // נתוני IBKR מקובץ CSV — מקור יחיד
   renderIbkrCard();
-  const ibkrST = document.getElementById('ibkrSaveTest');
-  if (ibkrST) ibkrST.addEventListener('click', ibkrSaveAndTest);
-  const ibkrSI = document.getElementById('ibkrSyncImport');
-  if (ibkrSI) ibkrSI.addEventListener('click', ibkrSyncImport);
+  const ibkrCb = document.getElementById('ibkrCsvBtn');
+  const ibkrCf = document.getElementById('ibkrCsvFile');
+  if (ibkrCb && ibkrCf) {
+    ibkrCb.addEventListener('click', () => ibkrCf.click());
+    ibkrCf.addEventListener('change', () => { ibkrCsvImport(ibkrCf.files); ibkrCf.value = ''; });
+  }
   const ibkrDc = document.getElementById('ibkrDisconnect');
   if (ibkrDc) ibkrDc.addEventListener('click', ibkrDisconnect);
+  // סנכרון Flex — אופציה נוספת למשיכת נתונים מ־IBKR
+  const ibkrSt = document.getElementById('ibkrSaveTest');
+  if (ibkrSt) ibkrSt.addEventListener('click', ibkrSaveAndTest);
+  const ibkrSi = document.getElementById('ibkrSyncImport');
+  if (ibkrSi) ibkrSi.addEventListener('click', ibkrSyncImport);
 
   // מצבי עריכה — כבויים כברירת מחדל כדי למנוע טעויות בלחיצות אקראיות
   wireEditToggle('editStocksBtn', 'editStocksHint', 'stocks', renderStocks);
