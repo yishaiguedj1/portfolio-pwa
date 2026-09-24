@@ -307,8 +307,10 @@ he: {
   ibkrQueryPh: 'מ־IBKR',
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
   ibkrFromDateLabel: 'משוך היסטוריה מתאריך',
-  ibkrFromDateNote: 'המשיכה מתחלקת אוטומטית לחלקים של עד 365 יום ומתאחדת — אפשר לבחור כל תאריך התחלה.',
+  ibkrFromDatePh: 'אוטומטי — עד קצה ההיסטוריה',
+  ibkrFromDateNote: 'ריק = משיכה עמוקה: הולך אחורה חלק־אחר־חלק עד שני חלקים ריקים רצופים (מקסימום כ־10 שנים). אפשר גם לבחור תאריך התחלה ידנית.',
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
+  fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n})',
   ibkrSaveTest: 'שמור ובדוק חיבור',
   ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
@@ -666,8 +668,10 @@ en: {
   ibkrQueryPh: 'from IBKR',
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
   ibkrFromDateLabel: 'Pull history from',
-  ibkrFromDateNote: 'The pull is automatically split into ≤365-day chunks and merged — any start date can be chosen.',
+  ibkrFromDatePh: 'Auto — until history runs out',
+  ibkrFromDateNote: 'Empty = deep pull: walks back chunk by chunk until two consecutive empty chunks (max ~10 years). Or pick a start date manually.',
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
+  fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n})',
   ibkrSaveTest: 'Save & test connection',
   ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   importFailed: 'Sync & import failed: {err}',
@@ -1353,13 +1357,43 @@ function ibkrDefaultFromYmd(existingData, endD) {
   d.setFullYear(d.getFullYear() - 2);
   return ibkrYmd(d);
 }
+/* האם יש מידע מיובא כלשהו (פונקציה טהורה, נבדקת). */
+function ibkrHasImportedData(d) {
+  return !!d && (((d.positions || []).length + (d.trades || []).length + ((d.navPeriods || []).length)) > 0);
+}
+
+/* האם חלק גולמי מכיל מידע כלשהו — לזיהוי "חלק ריק" במשיכה עמוקה (טהורה, נבדקת).
+   עסקאות, תנועות מזומן (כולל דיבידנדים) או תקופות NAV — כל אחד מהם מעיד על פעילות. */
+function ibkrChunkHasData(d) {
+  return !!d && (((d.trades || []).length + (d.cashTransactions || []).length + ((d.navHistory || []).length)) > 0);
+}
+
+/* שולף חלק בודד (fd..td) עם ניסיונות חוזרים. מחזיר data, או null כשהחלק נכשל
+   (הכשלון נרשם ב־chunkResults, הייבוא ממשיך בלעדיו). */
+async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults) {
+  let data = null, err = null;
+  let plan = { attempts: 2, waitMs: 3000 };
+  for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
+    try {
+      const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
+      data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
+    } catch (e) { err = e; plan = ibkrChunkRetryPlan(e); }
+  }
+  if (data) return data;
+  chunkResults.push({ fd, td, ok: false, error: String((err && err.message) || err).slice(0, 120) });
+  console.warn('Chunk failed:', fd, td, err && err.message);
+  return null;
+}
 async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress) {
   const endD = new Date();
   endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
-  if (!/^\d{8}$/.test(startYmd || '')) startYmd = ibkrDefaultFromYmd(null, endD);
-  const chunks = ibkrDateChunks(startYmd, endYmd);
-  const latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
+  // מצב 'auto' = משיכה עמוקה: הולכים אחורה חלק־אחר־חלק עד שאין מידע
+  const auto = (startYmd === 'auto');
+  if (!auto && !/^\d{8}$/.test(startYmd || '')) startYmd = ibkrDefaultFromYmd(null, endD);
+  const chunks = auto ? [] : ibkrDateChunks(startYmd, endYmd);
+  const latestTd = auto ? endYmd : (chunks.length ? chunks[chunks.length - 1].td : '');
   const iso = (y) => y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8);
   const merged = {
     meta: { fromDate: iso(startYmd), toDate: '', baseCurrency: 'USD', kind: 'flex', title: 'IBKR Flex' },
@@ -1431,23 +1465,34 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     }
   };
 
-  for (let i = 0; i < chunks.length; i++) {
-    const { fd, td } = chunks[i];
-    if (onProgress) onProgress(i + 1, chunks.length, fd, td);
-    let data = null, err = null;
-    let plan = { attempts: 2, waitMs: 3000 };
-    for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
-      try {
-        const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
-        data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
-      } catch (e) { err = e; plan = ibkrChunkRetryPlan(e); }
+  const shiftBack = (ymd, days) => {
+    const d = new Date(ymd.slice(0, 4), ymd.slice(4, 6) - 1, ymd.slice(6, 8));
+    d.setDate(d.getDate() - days);
+    return ibkrYmd(d);
+  };
+
+  if (auto) {
+    // משיכה עמוקה: הולכים אחורה חלק־אחר־חלק (עד 365 יום כל אחד) עד שני חלקים
+    // ריקים רצופים — שנה רדומה אחת לא עוצרת, כי יכול להיות מידע ישן יותר.
+    // מקסימום 10 חלקים (~10 שנים) כגבול בטיחות; הגבול האמיתי הוא שמירת IBKR.
+    const MAX_AUTO = 10;
+    let td = endYmd, emptyStreak = 0;
+    for (let i = 0; i < MAX_AUTO; i++) {
+      const fd = shiftBack(td, 364);
+      if (onProgress) onProgress(i + 1, 0, fd, td);
+      const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults);
+      if (!data && i === 0) break; // החלק העדכני נכשל — הייבוא ייחסם, אין טעם להמשיך
+      if (data) absorb(data, fd, td);
+      emptyStreak = ibkrChunkHasData(data) ? 0 : emptyStreak + 1;
+      if (emptyStreak >= 2) break;
+      td = shiftBack(fd, 1);
     }
-    if (data) {
-      absorb(data, fd, td);
-    } else {
-      chunkResults.push({ fd, td, ok: false, error: String((err && err.message) || err).slice(0, 120) });
-      console.warn('Chunk failed:', fd, td, err && err.message);
+  } else {
+    for (let i = 0; i < chunks.length; i++) {
+      const { fd, td } = chunks[i];
+      if (onProgress) onProgress(i + 1, chunks.length, fd, td);
+      const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults);
+      if (data) absorb(data, fd, td);
     }
   }
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
@@ -1564,12 +1609,14 @@ function renderIbkrCard() {
   // תאריך התחלה למשיכה — בחירת המשתמש (נשמרת בטלפון) או ברירת מחדל חכמה
   const fde = document.getElementById('ibkrFromDate');
   if (fde && !fde.value) {
-    let dv = cfg.fromDate;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dv || '')) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cfg.fromDate || '')) {
+      fde.value = cfg.fromDate;
+    } else if (ibkrHasImportedData(data)) {
+      // יש נתונים — ברירת המחדל: המשך מהנקודה שהם נגמרו
       const yest = new Date(); yest.setDate(yest.getDate() - 1);
-      dv = ibkrDefaultFromYmd(data, yest).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
+      fde.value = ibkrDefaultFromYmd(data, yest).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
     }
-    fde.value = dv;
+    // אחרת השדה נשאר ריק = משיכה עמוקה אוטומטית עד קצה ההיסטוריה
   }
   const has = !!(data && (data.positions || []).length + (data.trades || []).length + (data.navPeriods || []).length);
   const s = document.getElementById('ibkrStatus');
@@ -1796,22 +1843,34 @@ async function ibkrSyncImport() {
   const proxyUrl = ibkrProxyBase();
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!cfg.token || !cfg.queryId) return ibkrShowErr(t('credsMissingSave'));
-  // טווח המשיכה: תאריך שבחר המשתמש (נשמר בטלפון), אחרת ברירת מחדל חכמה —
-  // המשך מנקודת הסיום של הנתונים הקיימים, או שנתיים אחורה כשאין נתונים.
-  // הקיטוע לחלקי 365 יום והאיחוד אוטומטיים — אפשר לבחור כל תאריך עבר.
+  // טווח המשיכה — שלושה מצבים:
+  // 1. תאריך ידני בשדה (נשמר בטלפון) — המשתמש בחר בדיוק כמה אחורה.
+  // 2. יש נתונים מיובאים ואין תאריך — ממשיכים מהנקודה שהם נגמרו (מהיר, בלי כפילויות).
+  // 3. אין נתונים ואין תאריך — משיכה עמוקה: הולכים אחורה עד שאין מידע (מקסימום כ־10 שנים).
+  // בכל המצבים הקיטוע לחלקי 365 יום והאיחוד אוטומטיים.
   const fde = document.getElementById('ibkrFromDate');
   const fromStr = ((fde && fde.value) || cfg.fromDate || '').trim();
   const endD = new Date(); endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
-  const startYmd = /^\d{4}-\d{2}-\d{2}$/.test(fromStr) ? fromStr.replace(/-/g, '') : ibkrDefaultFromYmd(cfg.data, endD);
-  if (startYmd > endYmd) return ibkrShowErr(t('ibkrBadFromDate'));
-  ibkrSaveCfg({ fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromStr) ? fromStr : '' });
+  let startYmd, autoMode = false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromStr)) {
+    startYmd = fromStr.replace(/-/g, '');
+    if (startYmd > endYmd) return ibkrShowErr(t('ibkrBadFromDate'));
+    ibkrSaveCfg({ fromDate: fromStr });
+  } else if (ibkrHasImportedData(cfg.data)) {
+    startYmd = ibkrDefaultFromYmd(cfg.data, endD);
+    ibkrSaveCfg({ fromDate: '' });
+  } else {
+    startYmd = 'auto';
+    autoMode = true;
+    ibkrSaveCfg({ fromDate: '' });
+  }
   ibkrSetBusy(true);
   try {
     const s = document.getElementById('ibkrStatus');
-    if (s) s.textContent = t('fetchHistory', { n: 1, total: '…' });
+    if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: 1 }) : t('fetchHistory', { n: 1, total: '…' });
     const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
-      if (s) s.textContent = t('fetchHistory', { n: i, total });
+      if (s) s.textContent = autoMode ? t('fetchHistoryAuto', { n: i }) : t('fetchHistory', { n: i, total });
     });
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
     // פוזיציות ישנות כעדכניות.
@@ -1986,7 +2045,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v115';
+const APP_VERSION = 'v116';
 
 
 function saveDBto(db) {
