@@ -1,0 +1,42 @@
+# מריץ את כל הבדיקות בענן בכל push/PR — כדי שאפשר יהיה לעבוד מהטלפון בלי להריץ כלום מקומית.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: syntax check
+        run: node --check app.js && node --check ibkr-proxy/api/flex-request.js
+      - name: app test files
+        run: |
+          cd tests
+          # קבצים מורשתיים מוחרגים: בודקים פונקציות/אלמנטים שהוסרו בריפקטורים
+          # (buildTradesHistory, navToTwr, ibkrInceptionDate, ibkrNavHistory, ibkrPerfSums, ibkrChunks).
+          # נשמרים כהיסטוריה; החייאתם = כתיבה מחדש מול הארכיטקטורה הנוכחית (warmPfHistories).
+          # Legacy-excluded: these test functions/elements removed in refactors.
+          SKIP="pf-v48.test.js pf-v57.test.js pf-v58.test.js pf-v59.test.js pf-v71.test.js pf-v72.test.js pf-v73.test.js pf-v75.test.js pf-v79.test.js pf-v81.test.js pf-v109.test.js ibkr-nav.test.js ibkr-perf.test.js"
+          pass=0; failed=()
+          for f in *.test.js; do
+            case " $SKIP " in *" $f "*) echo "SKIP-legacy $f"; continue;; esac
+            timeout 150 node "$f" > "/tmp/test-$f.log" 2>&1
+            code=$?
+            if [ $code -eq 0 ]; then
+              pass=$((pass+1)); echo "PASS $f"
+            else
+              failed+=("$f"); echo "FAIL $f (exit $code)"; tail -5 "/tmp/test-$f.log"
+            fi
+          done
+          echo "---- $pass passed, ${#failed[@]} failed ----"
+          [ ${#failed[@]} -eq 0 ]
+      - name: proxy tests
+        run: node ibkr-proxy/tests/run.js
