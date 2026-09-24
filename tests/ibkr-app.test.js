@@ -33,13 +33,14 @@ const document = {
 const sandbox = {
   localStorage, document,
   window: {}, navigator: {}, location: { reload() {} },
+  AbortController,
   fetch: async () => { throw new Error('fetch לא הוגדר בטסט'); },
   setTimeout, clearTimeout, confirm: () => true,
   console,
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -116,10 +117,10 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   /* ---------- renderIbkrCard ---------- */
   Object.keys(store).forEach((k) => delete store[k]);
   T.renderIbkrCard();
-  ok(els.ibkrStatus.textContent.includes('לא מחובר'), 'סטטוס: לא מחובר כשאין הגדרות');
+  ok(els.ibkrStatus.textContent.includes('טרם יובא דוח'), 'סטטוס: טרם יובא דוח כשאין נתונים');
   T.ibkrSaveCfg({ proxyUrl: 'https://p', token: 't', queryId: '1', lastSync: Date.now(), data: { positions: [{}, {}], trades: [{}], cashTransactions: [{}, {}, {}] } });
   T.renderIbkrCard();
-  ok(els.ibkrStatus.textContent.includes('סונכרן'), 'סטטוס: מוצג זמן סנכרון');
+  ok(els.ibkrStatus.textContent.includes('יובא:'), 'סטטוס: מוצג זמן יבוא');
   ok(els.ibkrData.textContent.includes('פוזיציות: 2') && els.ibkrData.textContent.includes('עסקאות בדוח: 1'),
     'סיכום נתונים מוצג בכרטיס');
 
@@ -341,6 +342,75 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(vm.runInContext('document.getElementById("tradeCount").textContent', sandbox) === 2, 'מונה עסקאות בטאב = 2');
   T.ibkrSaveCfg({ token: '', queryId: '', data: null });
   vm.runInContext('DB.source = "manual";', sandbox);
+
+  /* ---------- ibkrFetchFullHistory: מיזוג למודל returns.js ---------- */
+  const flexChunk = (trades, positions, nav) => ({
+    meta: { accountId: 'X1', fromDate: '2025-01-01', toDate: '2025-12-31', baseCurrency: 'USD' },
+    trades: trades || [], positions: positions || [], cashTransactions: [],
+    navHistory: nav || [], cashBalances: [{ currency: 'USD', balance: 500 }],
+  });
+  const trA = { date: '2025-02-01', symbol: 'ACME', qty: 10, price: 100, side: 'BUY', commission: 1, currency: 'USD', tradeId: 'T1' };
+  const trA2 = { date: '2025-02-01', symbol: 'ACME', qty: 10, price: 100, side: 'BUY', commission: 1, currency: 'USD', tradeId: 'T1' }; // כפילות מאותו chunk
+  const trB = { date: '2025-03-01', symbol: 'ACME', qty: 5, price: 110, side: 'BUY', commission: 1, currency: 'USD', tradeId: 'T2' };
+  const pos1 = [{ symbol: 'ACME', asset: 'STK', qty: 15, markPrice: 120, costBasis: 1550, currency: 'USD', levelOfDetail: 'SUMMARY' }];
+  const nav1 = [{ fromDate: '2025-01-01', toDate: '2025-12-31', startingValue: 10000, endingValue: 11500, twr: 15, mtm: 1500 }];
+  // startYmd קרוב להיום -> חלק יחיד
+  const nowD = new Date(); nowD.setDate(nowD.getDate() - 6);
+  const startYmd = T.ibkrYmd(nowD);
+  const flexFetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC1', statementUrl: 'https://x' }) };
+    return { json: async () => ({ ok: true, status: 'ready', data: flexChunk([trA, trA2, trB], pos1, nav1) }) };
+  };
+  const merged = await T.ibkrFetchFullHistory(flexFetch, 'https://proxy.example.com', 'tok', '1', startYmd, null);
+  ok(merged.meta.kind === 'flex', 'flex: meta.kind=flex');
+  ok(merged.trades.length === 2, 'flex: כפילות tradeId מוסרת, נשארות 2 עסקאות');
+  ok(merged.positions.length === 1 && merged.positions[0].symbol === 'ACME', 'flex: פוזיציות מהחלק העדכני');
+  ok(merged.navPeriods.length === 1 && merged.navPeriods[0].twr === 15, 'flex: navHistory -> navPeriods עם TWR רשמי');
+  ok(merged.cashBalances.length === 1, 'flex: יתרות מזומן מהחלק העדכני');
+  ok(T.ibkrSyncIsComplete(merged) === true, 'flex: סנכרון שלם כשהחלק האחרון הצליח');
+  ok(merged.meta.toDate === '2025-12-31', 'flex: meta.toDate מהחלק');
+  // החלק העדכני נכשל -> חסום
+  const badFetch = async (url) => {
+    if (String(url).includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC1', statementUrl: '' }) };
+    return { json: async () => ({ ok: false, error: 'flex_1020', message: 'rate' }) };
+  };
+  const mergedBad = await T.ibkrFetchFullHistory(badFetch, 'https://proxy.example.com', 'tok', '1', startYmd, null, { tries: 1 });
+  ok(T.ibkrSyncIsComplete(mergedBad) === false, 'flex: סנכרון חסום כשהחלק העדכני נכשל');
+  ok(T.ibkrChunkRetryPlan(new Error('x flex_1003 y')).attempts === 3, 'flex_1003 מקבל יותר ניסיונות');
+  ok(T.ibkrChunkRetryPlan(new Error('boom')).attempts === 2, 'כשל רגיל: 2 ניסיונות');
+  const chunks = T.ibkrDateChunks('20250101', '20260101');
+  ok(chunks.length === 2 && chunks[0].fd === '20250101' && chunks[1].td === '20260101', 'חלוקה לחלקי 365 יום');
+  ok(String(T.ibkrFriendlyErr('x flex_1015 y')).length > 0 && !/flex_1015/.test(T.ibkrFriendlyErr('x flex_1015 y')), 'שגיאה ידידותית ל־1015');
+
+  /* ---------- flex: דדופליקציה מודעת־מופעים במזומן ---------- */
+  const cashDup = { date: '2025-01-15', amount: 500, type: 'Deposits/Withdrawals', currency: 'USD', description: 'Wire deposit' };
+  // שני חלקים (400 יום אחורה) מחזירים את אותן שתי תנועות זהות —
+  // כפילות לגיטימית בתוך חלק נשמרת, חזרה על החלק לא מוכפלת
+  const cashChunk = {
+    meta: { fromDate: '2024-01-01', toDate: '2025-12-31', baseCurrency: 'USD' },
+    trades: [], positions: [], cashTransactions: [cashDup, { ...cashDup }],
+    navHistory: [], cashBalances: [],
+  };
+  const oldD = new Date(); oldD.setDate(oldD.getDate() - 400);
+  const cashFetch = async (url) => {
+    if (String(url).includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC', statementUrl: 'https://x' }) };
+    return { json: async () => ({ ok: true, status: 'ready', data: cashChunk }) };
+  };
+  const mergedCash = await T.ibkrFetchFullHistory(cashFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldD), null);
+  ok(mergedCash.cashTransactions.length === 2, 'flex: שתי תנועות זהות לגיטימיות נשמרות, חזרת החלק לא מוכפלת');
+  // מזהה יציב קודם לתוכן: C1 פעמיים באותו חלק -> 1, C2 שונה -> נשמר
+  const idChunk = {
+    meta: { fromDate: '2024-01-01', toDate: '2025-12-31', baseCurrency: 'USD' },
+    trades: [], positions: [], navHistory: [], cashBalances: [],
+    cashTransactions: [{ ...cashDup, id: 'C1' }, { ...cashDup, id: 'C1' }, { ...cashDup, id: 'C2' }],
+  };
+  const idFetch = async (url) => {
+    if (String(url).includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RC', statementUrl: 'https://x' }) };
+    return { json: async () => ({ ok: true, status: 'ready', data: idChunk }) };
+  };
+  const mergedId = await T.ibkrFetchFullHistory(idFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldD), null);
+  ok(mergedId.cashTransactions.length === 3, 'flex: מזהה יציב — C1×2+C2 בשני חלקים זהים -> 3 (מקסימום מופעים לחלק)');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
