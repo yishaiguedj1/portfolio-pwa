@@ -1,9 +1,12 @@
 /* POST /api/flex-request  { token, queryId } -> { ok, referenceCode, statementUrl } */
 const { cors, rateLimited, ibkrGetMulti, errorXml, FLEX_SEND_PATH } = require('../lib/ibkr');
 
-/* קודי Flex זמניים — IBKR מבקש "לנסות שוב בעוד רגע" (עומס / הגבלת קצב).
-   1020 ("invalid request") נכלל כי בפועל הוא מתחלף להצלחה אחרי המתנה קצרה. */
-const TRANSIENT_FLEX_CODES = new Set(['1001', '1004', '1009', '1018', '1019', '1020', '1021']);
+/* קודי Flex זמניים — IBKR מבקש "לנסות שוב בעוד רגע" (עומס / שגיאה חולפת).
+   1020 ("invalid request") נכלל כי בפועל הוא מתחלף להצלחה אחרי המתנה קצרה.
+   1018 ("too many requests") הוסר בכוונה: זו הגבלת קצב — ניסיון חוזר מידי
+   רק שורף תקציב בקשות ומעמיק את ההגבלה. האפליקציה עוצרת ומסבירה למשתמש.
+   1025 (נעילת טוקן) אינו כאן — עליו אסור לנסות שוב כלל. */
+const TRANSIENT_FLEX_CODES = new Set(['1001', '1004', '1009', '1019', '1020', '1021']);
 const MAX_ATTEMPTS = 3;
 const RETRY_WAIT_MS = 7000; // סה"כ תקציב: ~3 נסיונות + 2 המתנות < 30 שניות (maxDuration)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
