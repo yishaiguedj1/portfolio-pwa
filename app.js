@@ -188,7 +188,9 @@ he: {
   stockRangeReturn: 'תשואת המניה',
   pfNoteTrades: 'היסטוריה אמיתית — משוחזרת מעסקאות IBKR: קניות, מכירות והפקדות/משיכות מנוטרלות מהתשואה',
 
-  sourceLabel: 'מקור: {src} · דיליי ~15 דקות{sess}{stale}',
+  sourceLabel: 'מקור: {src} · {lag}{sess}{stale}',
+  lagLive: 'חי',
+  lagDelayed: 'דיליי ~15 דקות',
   sessionPre: ' · טרום־מסחר',
   sessionPost: ' · אחרי־מסחר',
   staleSuffix: ' · מוצגים נתונים שמורים',
@@ -366,7 +368,7 @@ he: {
   resetBtn: 'איפוס התיק',
   resetConfirm: 'לאפס את כל הנתונים? התיק יימחק לגמרי (מניות, הפקדות, פנסיה, מזומן) ויחזור לתיק הדוגמה.\nלא ניתן לבטל.',
 
-  footerNote: 'המחירים מתעדכנים בכל פתיחה (דיליי של כ־15 דקות). הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.',
+  footerNote: 'המחירים מתעדכנים חי כל כמה שניות כשהאפליקציה פתוחה. הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.',
 
   loginAria: 'התחברות',
   loginSub: 'מתחברים פעם אחת — התיק נשמר בענן<br>ומסונכרן בכל מכשיר',
@@ -553,7 +555,9 @@ en: {
   stockRangeReturn: 'Stock return',
   pfNoteTrades: 'True history — reconstructed from IBKR trades: buys, sells and deposits/withdrawals excluded from the return',
 
-  sourceLabel: 'Source: {src} · ~15 min delay{sess}{stale}',
+  sourceLabel: 'Source: {src} · {lag}{sess}{stale}',
+  lagLive: 'live',
+  lagDelayed: '~15 min delay',
   sessionPre: ' · pre-market',
   sessionPost: ' · post-market',
   staleSuffix: ' · showing saved data',
@@ -731,7 +735,7 @@ en: {
   resetBtn: 'Reset portfolio',
   resetConfirm: 'Reset all data? The portfolio will be fully deleted (stocks, deposits, pension, cash) and return to the demo portfolio.\nThis cannot be undone.',
 
-  footerNote: 'Prices update on every open (~15 min delay). The daily chart includes extended-hours trading — pre-market and after-hours. Outside trading hours the last closing price is shown.',
+  footerNote: 'Prices update live every few seconds while the app is open. The daily chart includes extended-hours trading — pre-market and after-hours. Outside trading hours the last closing price is shown.',
 
   loginAria: 'Sign in',
   loginSub: 'Sign in once — your portfolio is saved in the cloud<br>and synced on every device',
@@ -1441,6 +1445,7 @@ function ibkrClearErr() {
   if (e) { e.textContent = ''; e.classList.add('hidden'); }
 }
 function ibkrSetBusy(busy) {
+  state.ibkrSyncing = !!busy; // v139: עוצר את הטיק החי בזמן סנכרון
   ['ibkrDisconnect', 'ibkrSaveTest', 'ibkrSyncImport'].forEach((id) => {
     const b = document.getElementById(id);
     if (b) b.disabled = !!busy;
@@ -2444,7 +2449,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v138';
+const APP_VERSION = 'v139';
 
 
 function saveDBto(db) {
@@ -2859,13 +2864,24 @@ function parseYahooQuote(json, sym, nowMs) {
     else session = 'regular';
   } catch (e) {}
   // v134: תאריך המסחר לפי שעון הבורסה — אחרי חצות בישראל todayISO כבר "מחר"
-  let mdate = null;
-  const rmt = num(meta.regularMarketTime);
-  if (rmt > 0) mdate = new Date((rmt + (num(meta.gmtoffset) || 0)) * 1000).toISOString().slice(0, 10);
+  // v139: + שעת הדקה האחרונה שנסחרה (HH:MM בשעון הבורסה) — נקודת "עכשיו" בגרף היומי
+  let mdate = null, mtime = null;
+  const off = num(meta.gmtoffset) || 0;
+  const ts = res.timestamp || [];
+  const rawC = ind.close || [];
+  let li = Math.min(ts.length, rawC.length) - 1;
+  while (li >= 0 && !(rawC[li] > 0)) li--;
+  const lastTs = li >= 0 ? num(ts[li]) : num(meta.regularMarketTime);
+  if (lastTs > 0) {
+    const iso = new Date((lastTs + off) * 1000).toISOString();
+    mdate = iso.slice(0, 10);
+    if (li >= 0) mtime = iso.slice(11, 16);
+  }
   return {
     symbol: sym,
     date: todayISO(),
     mdate: mdate,
+    mtime: mtime,
     time: '',
     open: null,
     high: num(meta.regularMarketDayHigh),
@@ -2969,6 +2985,147 @@ function quoteSymbols() {
   return [...s];
 }
 
+/* ---------------- v139: מחירים חיים ----------------
+   ציטוטי Yahoo בזמן אמת (נמדד: נר הדקה האחרון בן שניות) — אותו endpoint
+   שכבר עובד מהדפדפן, בלי שרתון ובלי מפתח. כרטיסי מניה פתוחים כל 5 שניות,
+   כל התיק כל 10. מעדכן במקום (מחיר/שינוי/שווי/גרף פתוח) — לא בונה מחדש את
+   הרשימות, כדי לא לאפס טפסים, מיון, מדידה או כרטיס פתוח. עוצר כשהאפליקציה
+   ברקע, בזמן עריכה/הקלדה ובזמן סנכרון IBKR; מאט לדקה כשהמחירים לא זזים
+   (שוק סגור). ~50 בקשות בדקה בזמן מסחר — הרבה מתחת לרף החסימה של Yahoo. */
+const LIVE_FAST_MS = 5000;
+const LIVE_ALL_EVERY = 2;
+const LIVE_IDLE_MS = 60000;
+const LIVE_IDLE_AFTER = 6;
+const live = { timer: null, busy: false, n: 0, still: 0, on: false };
+
+function liveCanTick() {
+  if (typeof document !== 'undefined' && document.hidden) return false;
+  if (live.busy || state.ibkrSyncing) return false;
+  if (state.edit && Object.keys(state.edit).some((k) => state.edit[k])) return false;
+  const a = typeof document !== 'undefined' ? document.activeElement : null;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || '')) return false;
+  return true;
+}
+
+/* אילו סימבולים לשאול בטיק הזה: כל התיק+מעקב בטיק מלא, אחרת רק כרטיסים פתוחים. */
+function liveSymbolsFor(full) {
+  const all = quoteSymbols();
+  if (full) return all;
+  return Object.keys(state.open).filter((s) => state.open[s] && all.includes(s));
+}
+
+async function liveFetch(syms) {
+  const res = await pool(syms, 3, async (sym) => {
+    try { return parseYahooQuote(await fetchJSONTimeout(yahooQuoteURL(sym), 8000), sym); } catch (e) { return null; }
+  });
+  const out = {};
+  for (const r of res) if (r) out[r.symbol] = r;
+  return out;
+}
+
+/* ממזג ציטוטים חדשים — מחזיר את הסימבולים שהמחיר שלהם זז. פונקציה טהורה על state. */
+function liveMerge(got) {
+  const moved = [];
+  for (const s of Object.keys(got)) {
+    const old = state.quotes[s];
+    if (!old || old.close !== got[s].close) moved.push(s);
+    state.quotes[s] = got[s];
+  }
+  return moved;
+}
+
+async function liveTick() {
+  live.timer = null;
+  if (!live.on) return;
+  if (liveCanTick()) {
+    const full = live.n % LIVE_ALL_EVERY === 0;
+    live.n++;
+    const syms = liveSymbolsFor(full);
+    if (syms.length) {
+      live.busy = true;
+      try {
+        let got = await liveFetch(syms);
+        let src = 'Yahoo';
+        // Yahoo חסום/נכשל: CNBC בבקשה אחת לכל הסימבולים (ציטוט מושהה — התווית אומרת "דיליי")
+        if (!Object.keys(got).length && full) {
+          try { got = parseCNBCQuotes(await fetchJSONTimeout(cnbcURL(), 8000), etSessionNow()) || {}; src = 'CNBC'; } catch (e) { got = {}; }
+        }
+        if (Object.keys(got).length) {
+          const moved = liveMerge(got);
+          state.quotesAt = Date.now();
+          state.stale = false;
+          if (full) {
+            live.still = moved.length ? 0 : live.still + 1;
+            const sess = (Object.values(got).find((r) => r.session) || {}).session || '';
+            state.session = sess === 'regular' ? '' : sess;
+            state.source = src;
+            state.live = src === 'Yahoo';
+            lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session });
+            updateSourceLabel();
+          }
+          if (moved.length) renderLive(moved);
+        }
+      } catch (e) { /* טיק שנכשל — הבא ינסה שוב */ }
+      finally { live.busy = false; }
+    }
+  }
+  liveSchedule();
+}
+
+function liveSchedule() {
+  if (!live.on) return;
+  if (live.timer) clearTimeout(live.timer);
+  live.timer = setTimeout(liveTick, live.still >= LIVE_IDLE_AFTER ? LIVE_IDLE_MS : LIVE_FAST_MS);
+}
+
+function liveStart() {
+  if (live.on) return;
+  live.on = true;
+  liveSchedule();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !live.on) return;
+    if (live.timer) clearTimeout(live.timer);
+    live.n = 0; // חזרה לאפליקציה: טיק מלא מיד
+    liveTick();
+  });
+}
+
+/* עדכון במקום אחרי טיק: כותרת כרטיס (מחיר/שינוי יומי/שווי), אריחי כרטיס פתוח
+   וגרף פתוח, סקירה בלי גרף הביצועים, ורשימת המעקב. */
+function renderLive(syms) {
+  try { renderOverview(true); } catch (e) {}
+  for (const s of syms) {
+    const p = POSITIONS.find((x) => x.sym === s);
+    const card = p && document.querySelector('#stockList .stock[data-sym="' + s + '"]');
+    if (!card) continue;
+    const fresh = buildStockCard(p);
+    for (const cls of ['.stock-price', '.stock-sub']) {
+      const a = card.querySelector('.stock-head ' + cls), b = fresh.querySelector('.stock-head ' + cls);
+      if (a && b) a.innerHTML = b.innerHTML;
+    }
+    if (state.open[s]) {
+      const g = card.querySelector('.stock-body .kv-grid'), g2 = fresh.querySelector('.stock-body .kv-grid');
+      if (g && g2) g.innerHTML = g2.innerHTML;
+      if (g) ensureChartData(s, true);
+    }
+  }
+  if (syms.some((s) => WISHLIST.some((w) => w.sym === s))) { try { renderWishlist(); } catch (e) {} }
+  try { fitNumbers(); } catch (e) {}
+}
+
+/* v139: נקודת "עכשיו" בגרף היומי — המחיר החי בשעת הדקה האחרונה שנסחרה.
+   מחליפה את הנר האחרון אם זו אותה דקה, אחרת נוספת אחריו. לא משנה את המטמון. */
+function intradayLiveRows(rows, q) {
+  const out = (rows || []).slice();
+  if (!q || !(q.close > 0) || !q.mtime || !q.mdate || !out.length) return out;
+  const last = out[out.length - 1];
+  if (q.mdate !== last.date) return out;
+  if (q.mtime < (last.time || '')) return out;
+  if (q.mtime === last.time) out[out.length - 1] = Object.assign({}, last, { close: q.close });
+  else out.push({ date: q.mdate, time: q.mtime, close: q.close });
+  return out;
+}
+
 function applyQuotes(res) {
   state.quotes = res.quotes;
   state.fx = res.fx;
@@ -2986,7 +3143,8 @@ function updateSourceLabel() {
   const el = document.getElementById('sourceLabel');
   if (el) {
     const sess = state.session === 'pre' ? t('sessionPre') : state.session === 'post' ? t('sessionPost') : '';
-    el.textContent = t('sourceLabel', { src: state.source || '—', sess: sess, stale: state.stale ? t('staleSuffix') : '' });
+    const lag = state.live && state.source === 'Yahoo' ? t('lagLive') : t('lagDelayed');
+    el.textContent = t('sourceLabel', { src: state.source || '—', lag: lag, sess: sess, stale: state.stale ? t('staleSuffix') : '' });
   }
 }
 
@@ -3112,7 +3270,10 @@ async function getDaily(sym, force) {
 /* ---- פונקציות עזר לגרף הביצועים ---- */
 
 async function getIntraday(sym) {
-  if (state.intra[sym]) return state.intra[sym];
+  // v139: בזיכרון עד 10 דקות (כמו המטמון) — אפליקציה פתוחה שעות לא נתקעת על גרף יומי ישן
+  if (state.intra[sym] && Date.now() - ((state.intraAt || {})[sym] || 0) < 10 * 60 * 1000) return state.intra[sym];
+  if (!state.intraAt) state.intraAt = {};
+  state.intraAt[sym] = Date.now();
   // מטמון קצר (10 דקות) לחיסכון במכסת הקריאות החינמית
   const cached = lsGet(LS_INTRA + sym);
   if (cached && cached.rows && cached.rows.length && (Date.now() - cached.at) < 10 * 60 * 1000) {
@@ -3346,7 +3507,9 @@ function metrics(sym) {
   }
   const value = price !== null ? price * p.shares : null;
   const gl = price !== null ? (price - p.avg) * p.shares : null;
-  const ath = athOf(hist);
+  let ath = athOf(hist);
+  // v139: שיא חדש במחיר החי — ה־ATH הוא המחיר עכשיו, לא השיא הישן מההיסטוריה
+  if (price !== null && (!ath || price > ath.price) && hist.length) ath = { price: price, date: (q && (q.mdate || q.date)) || todayISO() };
   const offAth = (ath && price !== null) ? (price - ath.price) / ath.price * 100 : null;
   return { p, q, price, dayChg, value, gl, ath, offAth };
 }
@@ -3622,7 +3785,7 @@ function fitNumbers() {
   });
 }
 
-function renderOverview() {
+function renderOverview(light) {
   const cur = state.currency;
   const tot = totalsUSD();
   const total = cur === 'ILS' && state.fx ? tot.total * state.fx : tot.total;
@@ -3699,9 +3862,12 @@ function renderOverview() {
 
   /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו (כולל "ביצועי IBKR") */
   try { drawPie(); } catch (e) {}
-  try { drawPfChart(); } catch (e) {}
-  try { renderEarningsCard(); } catch (e) {}
-  try { renderIbkrPerf(); } catch (e) {}
+  // v139: טיק חי — בלי גרף הביצועים/דוחות/IBKR (לא תלויים במחיר החי, ויאפסו מגע בגרף)
+  if (!light) {
+    try { drawPfChart(); } catch (e) {}
+    try { renderEarningsCard(); } catch (e) {}
+    try { renderIbkrPerf(); } catch (e) {}
+  }
   try { fitNumbers(); } catch (e) {}
 }
 
@@ -5497,15 +5663,15 @@ function refreshStockBody(sym) {
   ensureChartData(sym);
 }
 
-async function ensureChartData(sym) {
+async function ensureChartData(sym, quiet) {
   const loading = document.getElementById('cload-' + sym);
   const range = state.range[sym] || 'year';
-  if (loading) { loading.classList.remove('hidden'); loading.textContent = t('loadingData'); }
+  if (loading && !quiet) { loading.classList.remove('hidden'); loading.textContent = t('loadingData'); }
   try {
     if (range === 'day') {
       const intra = await getIntraday(sym);
       if (intra.length) {
-        drawStockChart(sym, intra, true);
+        drawStockChart(sym, intradayLiveRows(intra, state.quotes[sym]), true);
         if (loading) loading.classList.add('hidden');
         return;
       }
@@ -6396,7 +6562,7 @@ function init() {
 
   const startApp = () => {
     renderAll();
-    refreshQuotes().then(() => warmHistories());
+    refreshQuotes().then(() => { warmHistories(); liveStart(); });
     refreshEarnings().then(() => { renderOverview(); renderWishlist(); });
   };
   if (window.Cloud && window.Cloud.boot) window.Cloud.boot(startApp);
