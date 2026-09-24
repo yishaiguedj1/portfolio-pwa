@@ -306,6 +306,9 @@ he: {
   ibkrProxyLabel: 'כתובת השרתון',
   ibkrQueryPh: 'מ־IBKR',
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
+  ibkrFromDateLabel: 'משוך היסטוריה מתאריך',
+  ibkrFromDateNote: 'המשיכה מתחלקת אוטומטית לחלקים של עד 365 יום ומתאחדת — אפשר לבחור כל תאריך התחלה.',
+  ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
   ibkrSaveTest: 'שמור ובדוק חיבור',
   ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
@@ -662,6 +665,9 @@ en: {
   ibkrProxyLabel: 'Proxy URL',
   ibkrQueryPh: 'from IBKR',
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
+  ibkrFromDateLabel: 'Pull history from',
+  ibkrFromDateNote: 'The pull is automatically split into ≤365-day chunks and merged — any start date can be chosen.',
+  ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
   ibkrSaveTest: 'Save & test connection',
   ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   importFailed: 'Sync & import failed: {err}',
@@ -1335,15 +1341,23 @@ function ibkrChunkRetryPlan(err) {
    - פוזיציות/מזומן: רק מהחלק העדכני ביותר שהצליח — לעולם לא מחלק ישן.
    - navPeriods: מסעיפי ChangeInNAV של כל חלק (TWR רשמי, באחוזים).
    החלקים מסתיימים באתמול — IBKR לא מייצר דוח לתאריך שעדיין פתוח. */
+/* ברירת מחדל חכמה לתאריך ההתחלה של משיכת Flex (פונקציה טהורה, נבדקת):
+   אם כבר יש נתונים מיובאים — מתחילים מתאריך הסיום שלהם (המיזוג מטפל בחפיפת
+   יום הגבול); אחרת — שנתיים אחורה (הנחת שמירת הנתונים של IBKR).
+   המשתמש יכול לדרוס בכל תאריך עבר — הקיטוע לחלקי 365 יום אוטומטי. */
+function ibkrDefaultFromYmd(existingData, endD) {
+  const m = (existingData && existingData.meta) || {};
+  if (/^\d{4}-\d{2}-\d{2}$/.test(m.toDate || '')) return String(m.toDate).replace(/-/g, '');
+  // בדיקת duck-type במקום instanceof — עובד גם כשהתאריך נוצר ב־realm אחר (טסטים)
+  const d = (endD && typeof endD.getTime === 'function') ? new Date(endD.getTime()) : new Date();
+  d.setFullYear(d.getFullYear() - 2);
+  return ibkrYmd(d);
+}
 async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress) {
   const endD = new Date();
   endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
-  if (!/^\d{8}$/.test(startYmd || '')) {
-    const d = new Date(endD);
-    d.setFullYear(d.getFullYear() - 2); // ברירת מחדל: שנתיים אחורה
-    startYmd = ibkrYmd(d);
-  }
+  if (!/^\d{8}$/.test(startYmd || '')) startYmd = ibkrDefaultFromYmd(null, endD);
   const chunks = ibkrDateChunks(startYmd, endYmd);
   const latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
   const iso = (y) => y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8);
@@ -1547,6 +1561,16 @@ function renderIbkrCard() {
   if (tk && !tk.value) tk.value = cfg.token || '';
   if (qd && !qd.value) qd.value = cfg.queryId || '';
   const data = cfg.data;
+  // תאריך התחלה למשיכה — בחירת המשתמש (נשמרת בטלפון) או ברירת מחדל חכמה
+  const fde = document.getElementById('ibkrFromDate');
+  if (fde && !fde.value) {
+    let dv = cfg.fromDate;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dv || '')) {
+      const yest = new Date(); yest.setDate(yest.getDate() - 1);
+      dv = ibkrDefaultFromYmd(data, yest).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
+    }
+    fde.value = dv;
+  }
   const has = !!(data && (data.positions || []).length + (data.trades || []).length + (data.navPeriods || []).length);
   const s = document.getElementById('ibkrStatus');
   if (s) {
@@ -1746,9 +1770,11 @@ async function ibkrSaveAndTest() {
   const proxyUrl = (document.getElementById('ibkrProxy').value || '').trim().replace(/\/+$/, '');
   const token = (document.getElementById('ibkrToken').value || '').trim();
   const queryId = (document.getElementById('ibkrQuery').value || '').trim();
+  const fromDateEl = document.getElementById('ibkrFromDate');
+  const fromDate = ((fromDateEl && fromDateEl.value) || '').trim();
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
-  ibkrSaveCfg({ proxyUrl, token, queryId });
+  ibkrSaveCfg({ proxyUrl, token, queryId, fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '' });
   ibkrSetBusy(true);
   renderIbkrCard();
   try {
@@ -1770,12 +1796,21 @@ async function ibkrSyncImport() {
   const proxyUrl = ibkrProxyBase();
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!cfg.token || !cfg.queryId) return ibkrShowErr(t('credsMissingSave'));
+  // טווח המשיכה: תאריך שבחר המשתמש (נשמר בטלפון), אחרת ברירת מחדל חכמה —
+  // המשך מנקודת הסיום של הנתונים הקיימים, או שנתיים אחורה כשאין נתונים.
+  // הקיטוע לחלקי 365 יום והאיחוד אוטומטיים — אפשר לבחור כל תאריך עבר.
+  const fde = document.getElementById('ibkrFromDate');
+  const fromStr = ((fde && fde.value) || cfg.fromDate || '').trim();
+  const endD = new Date(); endD.setDate(endD.getDate() - 1);
+  const endYmd = ibkrYmd(endD);
+  const startYmd = /^\d{4}-\d{2}-\d{2}$/.test(fromStr) ? fromStr.replace(/-/g, '') : ibkrDefaultFromYmd(cfg.data, endD);
+  if (startYmd > endYmd) return ibkrShowErr(t('ibkrBadFromDate'));
+  ibkrSaveCfg({ fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromStr) ? fromStr : '' });
   ibkrSetBusy(true);
   try {
     const s = document.getElementById('ibkrStatus');
-    // מושך היסטוריה — עד שנתיים אחורה (מגבלת השמירה של IBKR), בחלקים של עד 365 יום
     if (s) s.textContent = t('fetchHistory', { n: 1, total: '…' });
-    const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, null, (i, total) => {
+    const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
       if (s) s.textContent = t('fetchHistory', { n: i, total });
     });
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
@@ -1951,7 +1986,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v114';
+const APP_VERSION = 'v115';
 
 
 function saveDBto(db) {
