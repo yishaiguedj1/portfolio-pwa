@@ -311,6 +311,7 @@ he: {
   ibkrFromDateNote: 'ריק = משיכה עמוקה: הולך אחורה חלק־אחר־חלק עד שני חלקים ריקים רצופים (מקסימום כ־10 שנים). אפשר גם לבחור תאריך התחלה ידנית.',
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
   fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n})',
+  ibkrFlexWallNote: 'שימו לב: המשיכה האוטומטית בדקה גם תקופות ישנות יותר, אבל IBKR לא החזירה עבורן מידע — שירות Flex שומר ככל הנראה כשנה אחורה בלבד. להיסטוריה עמוקה יותר יש לייבא קובצי CSV.',
   ibkrSaveTest: 'שמור ובדוק חיבור',
   ibkrSyncImportBtn: ICON_SYNC + 'סנכרן וייבא מ־IBKR',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
@@ -672,6 +673,7 @@ en: {
   ibkrFromDateNote: 'Empty = deep pull: walks back chunk by chunk until two consecutive empty chunks (max ~10 years). Or pick a start date manually.',
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
   fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n})',
+  ibkrFlexWallNote: 'Note: the automatic pull also checked older periods, but IBKR returned no data for them — the Flex service appears to retain only about a year of history. Import CSV files for deeper history.',
   ibkrSaveTest: 'Save & test connection',
   ibkrSyncImportBtn: ICON_SYNC + 'Sync & import from IBKR',
   importFailed: 'Sync & import failed: {err}',
@@ -1476,7 +1478,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     // ריקים רצופים — שנה רדומה אחת לא עוצרת, כי יכול להיות מידע ישן יותר.
     // מקסימום 10 חלקים (~10 שנים) כגבול בטיחות; הגבול האמיתי הוא שמירת IBKR.
     const MAX_AUTO = 10;
-    let td = endYmd, emptyStreak = 0;
+    let td = endYmd, emptyStreak = 0, hitWall = false;
     for (let i = 0; i < MAX_AUTO; i++) {
       const fd = shiftBack(td, 364);
       if (onProgress) onProgress(i + 1, 0, fd, td);
@@ -1484,9 +1486,12 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       if (!data && i === 0) break; // החלק העדכני נכשל — הייבוא ייחסם, אין טעם להמשיך
       if (data) absorb(data, fd, td);
       emptyStreak = ibkrChunkHasData(data) ? 0 : emptyStreak + 1;
-      if (emptyStreak >= 2) break;
+      if (emptyStreak >= 2) { hitWall = true; break; }
       td = shiftBack(fd, 1);
     }
+    // נעצרנו כי שני חלקים רצופים חזרו ריקים — IBKR לא מחזירה מידע ישן
+    // יותר דרך Flex. הדגל מוצג בהערה בתצוגה המקדימה כדי שלא ייראה כמו באג.
+    merged._autoWall = hitWall;
   } else {
     for (let i = 0; i < chunks.length; i++) {
       const { fd, td } = chunks[i];
@@ -1888,7 +1893,10 @@ async function ibkrSyncImport() {
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? ' ' + t('importSkippedNote', { n: imp.skipped }).trim() : ''));
       return;
     }
-    ibkrReviewImport(ibkrCfg().data, incoming, '');
+    // המשיכה האוטומטית נעצרה כי IBKR לא החזירה מידע ישן יותר (מגבלת
+    // שמירה של Flex) — מסבירים זאת בתצוגה המקדימה כדי שלא ייראה כמו באג.
+    const wallNote = autoMode && incoming._autoWall ? '\n' + t('ibkrFlexWallNote') : '';
+    ibkrReviewImport(ibkrCfg().data, incoming, wallNote);
   } catch (e) {
     ibkrShowErr(t('importFailed', { err: ibkrFriendlyErr(e.message) }));
   } finally {
@@ -2045,7 +2053,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v116';
+const APP_VERSION = 'v117';
 
 
 function saveDBto(db) {
