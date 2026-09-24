@@ -2449,7 +2449,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v139';
+const APP_VERSION = 'v140';
 
 
 function saveDBto(db) {

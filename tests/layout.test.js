@@ -39,6 +39,10 @@ ok(/\.appbar-row\s*\{[^}]*justify-content:\s*space-between/.test(css), 'שורת
 ok(/\.appbar-sub\s*\{[^}]*text-overflow:\s*ellipsis/.test(css), 'שורת המשנה נחתכת ב־… ולא דוחפת את הכפתורים');
 ok(/\.appbar-actions\s*\{[^}]*flex:\s*none/.test(css), 'בלוק הכפתורים לא נמעך (flex:none)');
 ok(/\.brand-logo\s*\{[^}]*width:\s*106px/.test(css), 'הלוגו בגודל קבוע (106px) — לא תלוי במקום שנשאר');
+// v140: כפתורי הפעולה צמודים לקצה המסך (flex-end) — לא flex-start, שהיה
+// מצמיד אותם לקצה הבלוק שגדל/מתכווץ לפי אורך שורת "מקור" ומזיז אותם
+// (דווח 25/09/2026: "אחרי סגירת המסחר נוסף הטקסט 'אחרי-מסחר' וכל הלחצנים זזים")
+ok(/\.appbar-left\s*\{[^}]*align-items:\s*flex-end/.test(css), 'appbar-left: flex-end — כפתורי הפעולה לא זזים כששורת המקור מתארכת');
 
 /* ---------- 3. פלטת iOS 26 בשתי הערכות ---------- */
 const darkCss = css.split('[data-theme="dark"]')[1] || '';

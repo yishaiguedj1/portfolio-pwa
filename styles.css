@@ -144,7 +144,11 @@ a { color: var(--link); }
 [data-theme="dark"] .brand-logo {
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.5)) drop-shadow(0 0 14px rgba(57,255,120,.10));
 }
-.appbar-left { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+/* v140: flex-end (לא flex-start) — הצד היציב הוא זה שצמוד לקצה המסך (לא
+   לצד הלוגו). שורת "מקור" ארוכה (אחרי־מסחר) מרחיבה את התיבה כלפי הלוגו;
+   flex-start היה מצמיד את שתי השורות לקצה שזז, וגורר את כפתורי הפעולה
+   ימינה (לכיוון הלוגו) בכל פעם שהטקסט התארך. */
+.appbar-left { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 0; }
 .appbar-actions { display: flex; align-items: center; gap: 8px; flex: none; }
 .appbar-sub {
   margin: 0; font-size: 12.5px; color: var(--on-surface-var);
