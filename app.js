@@ -295,6 +295,8 @@ he: {
   importedOk: 'סונכרן ויובאו {n} מניות מ־IBKR ✓',
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
   importPartialBlocked: 'הסנכרון לא הושלם — חלק מהנתונים לא נטענו מ־IBKR. הנתונים הקודמים נשמרו ולא יובא שום דבר חלקי. המתן כמה דקות ונסה לסנכרן שוב.',
+  importNotAvailable: 'הדוח העדכני של IBKR עדיין לא זמין (הוא מתפרסם בשעות הבוקר בארה״ב). החיבור תקין — אין מה לתקן. הנתונים הקודמים נשמרו; נסה לסנכרן שוב מאוחר יותר.',
+  ibkrErr1003: 'הדוח המבוקש עדיין לא פורסם ב־IBKR. נסה שוב מאוחר יותר.',
   disconnectConfirm: 'לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון, והנתונים הידניים שהיו לפני החיבור ישוחזרו.',
   disconnected: 'החיבור נותק',
   disconnectedRestored: 'החיבור נותק והנתונים הידניים שוחזרו',
@@ -634,6 +636,8 @@ en: {
   importedOk: 'Synced & imported {n} stocks from IBKR ✓',
   importFailed: 'Sync & import failed: {err}',
   importPartialBlocked: 'Sync did not complete — some data could not be loaded from IBKR. Your previous data was kept and nothing partial was imported. Wait a few minutes and try syncing again.',
+  importNotAvailable: 'The latest IBKR report is not published yet (it is usually released in the US morning hours). The connection is fine — nothing to fix. Your previous data was kept; try syncing again later.',
+  ibkrErr1003: 'The requested report is not published by IBKR yet. Try again later.',
   disconnectConfirm: 'Disconnect the broker? The token and sync data will be deleted from this phone, and the manual data from before the connection will be restored.',
   disconnected: 'Disconnected',
   disconnectedRestored: 'Disconnected — manual data restored',
@@ -1268,20 +1272,31 @@ function ibkrDateChunks(startYmd, endYmd) {
   return chunks;
 }
 
+/* תכנית ניסיונות חוזרים לחלק שנכשל — פונקציה טהורה (נבדקת).
+   flex_1003 = "הדוח לא זמין" — בדרך כלל IBKR עדיין לא פרסם את הדוח העדכני
+   (קורה הרבה בשעות הלילה בארה"ב). נותנים לו יותר זמן ויותר ניסיונות. */
+function ibkrChunkRetryPlan(err) {
+  const notAvail = /flex_1003/.test(String((err && err.message) || err || ''));
+  return notAvail ? { attempts: 3, waitMs: 15000 } : { attempts: 2, waitMs: 3000 };
+}
+
 /* מושך היסטוריה מלאה מ־IBKR במספר בקשות (כל אחת עד 365 יום) וממזג.
    startYmd: תאריך התחלה בפורמט YYYYMMDD (ברירת מחדל: שנתיים אחורה).
    מחזיר data ממוזג עם trades, cashTransactions, positions, וכו'.
+   v111: החלקים מסתיימים באתמול — IBKR לא יכול לייצר דוח לתאריך שעדיין
+   פתוח (היה מחזיר flex_1003 ודאי על חלק "היום" בן יום אחד).
    v110: פוזיציות נלקחות רק מהחלק העדכני ביותר שהצליח; אם החלק האחרון
    נכשל — הנתונים מסומנים כחלקיים (latestChunkOk=false) והייבוא נחסם,
-   כדי לא להתקין בשקט פוזיציות מלפני שנה. כל חלק שנכשל מנסה שוב פעם אחת. */
+   כדי לא להתקין בשקט פוזיציות מלפני שנה. */
 async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress) {
-  const today = new Date();
-  const endYmd = today.getFullYear().toString().padStart(4,'0') +
-    (today.getMonth()+1).toString().padStart(2,'0') +
-    today.getDate().toString().padStart(2,'0');
+  const endD = new Date();
+  endD.setDate(endD.getDate() - 1); // v111: עד אתמול, לא עד היום
+  const endYmd = endD.getFullYear().toString().padStart(4,'0') +
+    (endD.getMonth()+1).toString().padStart(2,'0') +
+    endD.getDate().toString().padStart(2,'0');
   if (!/^\d{8}$/.test(startYmd || '')) {
     // ברירת מחדל: שנתיים אחורה (מגבלת השמירה של IBKR)
-    const d = new Date(today);
+    const d = new Date(endD);
     d.setFullYear(d.getFullYear() - 2);
     startYmd = d.getFullYear().toString().padStart(4,'0') +
       (d.getMonth()+1).toString().padStart(2,'0') +
@@ -1293,7 +1308,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   const seenTradeKeys = new Set();
   const seenCashKeys = new Set();
   const chunkResults = []; // v109: דיאגנוסטיקה — תוצאה לכל חלק בנפרד
-  let latestChunkOk = false; // האם החלק העדכני ביותר (עד היום) נטען בהצלחה
+  let latestChunkOk = false; // האם החלק העדכני ביותר (עד אתמול) נטען בהצלחה
   let posTd = ''; // מאיזה חלק נלקחו הפוזיציות
 
   // מיזוג תוצאת דוח בודד לתוך merged
@@ -1343,12 +1358,13 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     const { fd, td } = chunks[i];
     if (onProgress) onProgress(i + 1, chunks.length, fd, td);
     let data = null, err = null;
-    for (let attempt = 0; attempt < 2 && !data; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 3000)); // ניסיון חוזר אחד אחרי הפוגה
+    let plan = { attempts: 2, waitMs: 3000 };
+    for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
       try {
         const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
         data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
-      } catch (e) { err = e; }
+      } catch (e) { err = e; plan = ibkrChunkRetryPlan(e); } // v111: 1003 מקבל יותר זמן
     }
     if (data) {
       absorb(data, fd, td);
@@ -1389,7 +1405,9 @@ async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td) {
   let j = null;
   try { j = await r.json(); } catch (e) {}
   if (!j || j.ok !== true || !j.referenceCode) {
-    throw new Error(j && j.error ? t('proxyPrefix') + j.error : t('proxyBadResponse'));
+    // v111: מצרפים גם את הודעת IBKR המקורית (j.message) כדי שהדיאגנוסטיקה תסביר את עצמה
+    const detail = j && j.error ? t('proxyPrefix') + j.error + (j.message ? ' — ' + j.message : '') : t('proxyBadResponse');
+    throw new Error(detail);
   }
   return j;
 }
@@ -1414,7 +1432,8 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
     } catch (e) { netErr = e; }
     if (j && j.ok === true && j.status === 'ready' && j.data) return j.data;
     if (j && j.ok === false) {
-      throw new Error(j.error ? t('proxyPrefix') + j.error : t('proxyErr'));
+      // v111: מצרפים גם את הודעת IBKR המקורית (j.message)
+      throw new Error(j.error ? t('proxyPrefix') + j.error + (j.message ? ' — ' + j.message : '') : t('proxyErr'));
     }
     await sleep(delayMs); // pending או כשל רשת חולף — מנסים שוב
   }
@@ -1432,6 +1451,8 @@ function ibkrFriendlyErr(msg) {
   switch (code) {
     case '1001': case '1004': case '1009': case '1019': case '1021':
       return t('ibkrErr1001');
+    case '1003': // v111: הדוח המבוקש עדיין לא פורסם ב־IBKR — לא בעיית חיבור
+      return t('ibkrErr1003');
     case '1020':
       return t('ibkrErrRate');
     case '1012':
@@ -1558,11 +1579,14 @@ async function ibkrSyncImport() {
     });
     // v110: אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
     // פוזיציות ישנות כעדכניות (זה מה שגרם ל־5 מניות במקום 9).
+    // v111: אם כל הכשלונות הם flex_1003 (הדוח עדיין לא פורסם ב־IBKR) — מסבירים
+    // שהפתרון הוא פשוט לנסות שוב מאוחר יותר, לא לתקן שום דבר בחיבור.
     if (!ibkrSyncIsComplete(data)) {
-      const fails = (data._chunks || []).filter((c) => !c.ok)
-        .map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
+      const fails = (data._chunks || []).filter((c) => !c.ok);
+      const failText = fails.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
+      const notAvail = fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
       renderIbkrCard();
-      return ibkrShowErr(t('importPartialBlocked') + (fails ? ' ' + fails : ''));
+      return ibkrShowErr((notAvail ? t('importNotAvailable') : t('importPartialBlocked')) + (failText ? ' ' + failText : ''));
     }
     ibkrSaveCfg({ lastSync: Date.now(), data });
     const imp = ibkrMapImport(data);
@@ -1782,7 +1806,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v110';
+const APP_VERSION = 'v111';
 
 
 function saveDBto(db) {
