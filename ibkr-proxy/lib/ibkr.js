@@ -264,8 +264,22 @@ function statementToJson(tree) {
       endingValue: num(x.endingValue),
       twr: x.twr !== undefined && x.twr !== '' ? num(x.twr) : null,
       mtm: num(x.mtm),
+      // תזרימים חיצוניים בתקופה (הפקדות/משיכות/העברות) — בלעדיהם כל הפקדה
+      // נספרת כ"רווח". אותם שדות ש־IBKR מנטרל בחישוב ה־TWR.
+      flows: ['depositsWithdrawals', 'assetTransfers', 'internalCashTransfers', 'debitCardActivity', 'billPay']
+        .reduce((a, k) => a + num(x[k]), 0),
     });
   }
+  /* NAV יומי (סעיף Flex: "Net Asset Value (NAV) in Base") — שורה לכל יום
+     דיווח. מאפשר תשואה לכל טווח (חודש/שנה/YTD) ולא רק לתקופות הדוח. */
+  const navDay = new Map();
+  for (const el of findKids(st, 'EquitySummaryByReportDateInBase')) {
+    const x = el.attrs || {};
+    const date = flexDate(x.reportDate || x.date);
+    if (x.total === undefined || x.total === '') continue; // num() מחזיר 0 לחסר — לא NAV אמיתי
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) navDay.set(date, num(x.total));
+  }
+  out.navDaily = [...navDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([date, total]) => ({ date, total }));
   if (out.navHistory.length === 1) {
     const r = out.navHistory[0];
     out.nav = { startingValue: r.startingValue, endingValue: r.endingValue, twr: r.twr, mtm: r.mtm };

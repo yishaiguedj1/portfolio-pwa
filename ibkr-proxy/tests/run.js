@@ -224,6 +224,23 @@ function stubFetch(text, status = 200) {
   ok(res.payload.ok === true && res.payload.status === 'ready', 'statement נפל להוסט השני והצליח');
   ok(seenStmt.length === 2 && seenStmt[1].startsWith('https://ndcdyn.'), 'ההוסט השני נוסה');
 
+  /* ---------- v125: תזרימים ב־ChangeInNAV + NAV יומי ---------- */
+  {
+    const xml = '<FlexQueryResponse><FlexStatements><FlexStatement accountId="U0" fromDate="20260101" toDate="20260110">' +
+      '<ChangeInNAV fromDate="20260101" toDate="20260110" startingValue="1000" endingValue="1650" depositsWithdrawals="500" assetTransfers="100" twr="4.5" mtm="50"/>' +
+      '<EquitySummaryInBase>' +
+      '<EquitySummaryByReportDateInBase reportDate="20260102" total="1010"/>' +
+      '<EquitySummaryByReportDateInBase reportDate="20260105" total="1520.5"/>' +
+      '<EquitySummaryByReportDateInBase reportDate="20260106" total=""/>' +
+      '</EquitySummaryInBase></FlexStatement></FlexStatements></FlexQueryResponse>';
+    const j = statementToJson(parseXml(xml));
+    ok(j.navHistory[0].flows === 600, 'ChangeInNAV: תזרימים = הפקדות/משיכות + העברות');
+    ok(Array.isArray(j.navDaily) && j.navDaily.length === 2, 'NAV יומי: שורה לכל יום, בלי ערך חסר');
+    ok(j.navDaily[0].date === '2026-01-02' && j.navDaily[1].total === 1520.5, 'NAV יומי: תאריך ושווי נכונים');
+    const j2 = statementToJson(parseXml('<FlexStatement fromDate="20260101" toDate="20260110"></FlexStatement>'));
+    ok(Array.isArray(j2.navDaily) && j2.navDaily.length === 0, 'בלי סעיף NAV — מערך ריק, לא שגיאה');
+  }
+
   /* ---------- v122: IBKR איטי — השרתון מחזיר JSON לפני ש־Vercel הורג אותו ---------- */
   {
     const { ibkrGetMulti } = require('../lib/ibkr');

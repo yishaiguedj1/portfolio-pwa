@@ -60,6 +60,9 @@
 
 - TWR: שחזור לאחור מעסקאות (`buildTradesHistory`) — מבטל קניות/מכירות/עמלות/תזרימים; דיבידנדים נחשבים כתשואה; המרות מט"ח מוחרגות; אופציות מסוננות (רק BRK B); שורטים כפוזיציות שליליות; רשת ביטחון לספליטים ידועים (`KNOWN_SPLITS`: NOW 5:1 ב־2025-12-18).
 - מוצג **רק TWR רשמי של IBKR** כשזמין (ChangeInNAV) — לעולם לא מנחשים TWR רשמי חסר.
+- **גרף הביצועים (v125)**: טווחים לפי **תאריך** (`pfRangeCutoff`/`pfSliceRange`), לא לפי מספר שורות — `filterRange` ישן הניח שורה ליום מסחר, ובנתוני IBKR (שורה לשנה) כל טווח לקח הכל. אם אין נקודה עד 10 ימים מתחילת הטווח → לא מציגים תשואה (`pfRangeNeedsDaily`), לא ממציאים. YTD מדויק גם בנתוני שנים (בסיס 31/12).
+- **NAV יומי**: מקטע Flex "Net Asset Value (NAV) in Base" → `EquitySummaryByReportDateInBase` → `navDaily`. `rDailyTwrSeries`: r=(NAV_t−F_t)/NAV_{t−1}−1 עם תזרימים מ־`ibkrFlowsByDate`, **מעוגן** לכל תקופה רשמית (מכפלת הימים = TWR רשמי) רק כשהכיסוי מלא. `rCombinedTwrSeries` = תקופות לפני + יומי אחרי. ציר X לפי זמן (`pfTimeFractions`).
+- **רווח/הפסד**: `netFlows` בתקופות Flex מגיע מ־ChangeInNAV (depositsWithdrawals+assetTransfers+internalCashTransfers+debitCardActivity+billPay). לפני v125 היה 0 → כל הפקדה נספרה כרווח.
 - מדידה בדולרים בלבד, בלי התאמת שקל (הוראת המשתמש).
 - גרפי היסטוריה: Yahoo query1/query2 + Stooq במרוץ (`Promise.any` — הראשון שעונה מנצח), Twelve Data כגיבוי אחרון (throttle של 8 שניות, קאש תוך־יומי 10 דקות).
 - ציטוטים חיים: Yahoo ראשי / CNBC גיבוי; טרום־מסחר: Yahoo extended-hours + שדה CNBC (`טרום־מסחר`).
@@ -75,10 +78,10 @@
 ## 7. בדיקות
 
 - `node --check app.js` תמיד לפני push.
-- `node tests/ibkr-app.test.js` — לוגיקת IBKR/קצב/עומק/הודעות (199 אסרטים).
+- `node tests/ibkr-app.test.js` — לוגיקת IBKR/קצב/עומק/הודעות (199 אסרטים). `node tests/pf-v125.test.js` (41) — גרף/טווחים/NAV יומי.
 - `node tests/pf-v110.test.js` (28), `pf-v111.test.js` (19), `pf-v112.test.js` (92) — רגרסיות יבוא.
 - `node tests/i18n-coverage.test.js` (727) — כל מחרוזת גלויה בעברית **ובאנגלית**.
-- `node ibkr-proxy/tests/run.js` (58) — שרתון.
+- `node ibkr-proxy/tests/run.js` (62) — שרתון.
 - הכל: הלולאה ב־`.github/workflows/test.yml` (אין `tests/run-all.sh` בריפו). בדיקות תאימות `CACHE_NAME`↔`APP_VERSION` אדומות בין שלב התוכן לשלב ה־sw.js — צפוי, מתייבש אחרי דחיפת sw.js.
 - מוסכמה: בבדיקות multi-chunk מעבירים `{ chunkGapMs: 5 }` — זה מחליף את כל הקצב (בלי מגביל, בלי המתנת poll ראשונה). לבדיקת קצב אמיתי: `{ limiter: ibkrMakeLimiter({now, sleep}), sleep }` עם שעון מדומה.
 - 13 קבצי בדיקות מורשתיים מוחרגים מ־CI (רשימה ב־`.github/workflows/test.yml`): בודקים פונקציות/אלמנטים שהוסרו בריפקטורים (`buildTradesHistory`, `navToTwr`, `ibkrInceptionDate`, `ibkrNavHistory`, `ibkrPerfSums`, `ibkrChunks`). נשמרים כהיסטוריה; החייאה = כתיבה מחדש.
@@ -139,4 +142,4 @@
 - סימון `kind` לקרנות/הפקדות של קרן השתלמות (מצב עריכה בהגדרות) — לפיצול פנסיוני נכון.
 - פריטי המבורגר נוספים — נשאל ב־2026-09-23, טרם נענה.
 - ניקוי הערות/קאשים מיושנים, אזהרות TWR רשמי, ניקוי היסטוריה ציבורית.
-- ממתין לאישור טלפון של v124 (עומק שנים מתחיל ב־1/1 + חלקים קלנדריים).
+- v124 אושר בטלפון (3 שנים מושך מ־1/1/2023). ממתין לאישור של v125 (גרף ביצועים) + המשתמש צריך להוסיף מקטע NAV in Base ל־Flex ולסנכרן מחדש.

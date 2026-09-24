@@ -615,8 +615,89 @@ function rMergeData(a, b) {
     positions: posSrc.positions || [],
     cashTransactions: cashTransactions,
     navPeriods: navPeriods,
+    navDaily: rMergeNavDaily(A.navDaily, B.navDaily),
     cashBalances: cashSrc.cashBalances || [],
   };
+}
+
+/* מספר ימים בין שני תאריכי ISO (b − a), ערך מוחלט. */
+function rDaysBetween(a, b) {
+  const pa = String(a).split('-'), pb = String(b).split('-');
+  const da = Date.UTC(+pa[0], +pa[1] - 1, +pa[2]), db = Date.UTC(+pb[0], +pb[1] - 1, +pb[2]);
+  return Math.abs(Math.round((db - da) / 86400000));
+}
+
+/* סדרת TWR משולבת: יומית (מ־NAV יומי) כשיש, ולפניה — נקודות התקופות
+   הרשמיות, מחוברות בנקודת תפר רשמית. בלי NAV יומי — נקודות התקופות בלבד. */
+function rCombinedTwrSeries(periods, navDaily, flowsByDate) {
+  const pr = rTwrIndexSeries(periods);
+  const daily = rDailyTwrSeries(navDaily, flowsByDate, periods);
+  if (daily.length < 2) return pr;
+  const d0 = daily[0].date;
+  // נקודת תפר: שורת תקופה בתאריך ההתחלה היומי או עד 4 ימים לפניו (סופ"ש/חג)
+  let seam = null;
+  for (const r of pr) if (r.date <= d0 && rDaysBetween(r.date, d0) <= 4) seam = r;
+  if (!seam) return daily;
+  const k = seam.value / 100;
+  return pr.filter((r) => r.date < seam.date)
+    .concat(daily.map((r) => ({ date: r.date, value: r.value * k })));
+}
+
+/* איחוד NAV יומי לפי תאריך — החדש (b) גובר ביום חופף. ממוין ישן -> חדש. */
+function rMergeNavDaily(a, b) {
+  const m = new Map();
+  for (const src of [a || [], b || []]) {
+    for (const d of src) {
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') && fin(d.total)) m.set(d.date, Number(d.total));
+    }
+  }
+  return [...m.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map(([date, total]) => ({ date: date, total: total }));
+}
+
+/* ---------------- TWR יומי מ־NAV יומי ----------------
+   r_t = (NAV_t − F_t) / NAV_{t−1} − 1, כש־F_t = תזרים חיצוני באותו יום
+   (הפקדה חיובית, משיכה שלילית, במטבע הבסיס). כך הפקדה לא נספרת כתשואה.
+   עיגון: בכל תקופה רשמית של IBKR (TWR רשמי) מכפלת הימים מתוקנת גאומטרית
+   כך שתהיה שווה בדיוק ל־TWR הרשמי — נקודות העוגן רשמיות, הצורה בין לבין
+   מה־NAV היומי. מחזיר [{date, value}] (מדד שמתחיל ב־100), או [] אם אין די
+   נתונים. */
+function rDailyTwrSeries(navDaily, flowsByDate, periods) {
+  const rows = (navDaily || []).filter((d) => d && d.date && fin(d.total))
+    .slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  const flows = flowsByDate || {};
+  // תשואות יומיות (מתחילים מהיום הראשון עם בסיס חיובי)
+  const days = [];
+  for (let i = 1; i < rows.length; i++) {
+    const prev = Number(rows[i - 1].total), cur = Number(rows[i].total);
+    if (!(prev > 0)) continue;
+    const f = Number(flows[rows[i].date]) || 0;
+    const g = (cur - f) / prev;
+    if (!(g > 0) || !isFinite(g)) continue;
+    days.push({ date: rows[i].date, g: g, base: rows[i - 1].date });
+  }
+  if (!days.length) return [];
+  // עיגון לתקופות רשמיות
+  for (const p of (periods || [])) {
+    if (!p || !fin(p.twr) || !p.fromDate || !p.toDate) continue;
+    const inP = days.filter((d) => d.date >= p.fromDate && d.date <= p.toDate);
+    if (!inP.length) continue;
+    // מעגנים רק כשה־NAV היומי מכסה את כל התקופה (עד שבוע מכל קצה) —
+    // עיגון TWR של שנה שלמה על כיסוי חלקי היה מעוות את הצורה
+    if (rDaysBetween(p.fromDate, inP[0].base) > 7 || rDaysBetween(inP[inP.length - 1].date, p.toDate) > 7) continue;
+    let raw = 1;
+    for (const d of inP) raw *= d.g;
+    const target = 1 + Number(p.twr) / 100;
+    if (!(raw > 0) || !(target > 0)) continue;
+    const adj = Math.pow(target / raw, 1 / inP.length);
+    for (const d of inP) d.g *= adj;
+  }
+  const out = [{ date: days[0].base, value: 100 }];
+  let v = 100;
+  for (const d of days) {
+    v *= d.g;
+    out.push({ date: d.date, value: v });
+  }
+  return out;
 }
 
 /* ---------------- תקופות NAV ממקור טוקן ----------------
@@ -822,5 +903,6 @@ if (typeof module !== 'undefined' && module.exports) {
     rPeriodsOverlap, rPeriodsEqual, countKeys, unionCount, countNew, parseStatementPeriod,
     rNavPeriods, rChainTwr, rTwrIndexSeries, rGain, rSums, rXirrFlows, rXirr,
     rSourceKind, rHeadlineTwr, rNum, rDate,
+    rMergeNavDaily, rDailyTwrSeries, rCombinedTwrSeries, rDaysBetween,
   };
 }

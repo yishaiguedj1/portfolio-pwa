@@ -56,7 +56,7 @@ he: {
   commissionLbl: 'עמלה',
   depEmptyIbkr: 'אין תנועות מזומן בדוח — ודאו שמקטע Cash Transactions מאופשר ברמת Detail (כולל Deposits & Withdrawals), שמרו את השאילתה וסנכרנו מחדש.',
   depEmptyIbkrTypes: 'בדוח יש תנועות מזומן, אבל לא זוהו הפקדות/משיכות. הסוגים שהתקבלו: {types}. אם יש ביניהם הפקדות — שלחו לי צילום של השורה הזאת.',
-  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
+  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (לתשואה לפי חודש/שנה/YTD).',
   tabDeposits: 'הפקדות',
   tabWishlist: 'מעקב',
   wishlistTitle: 'רשימת מעקב',
@@ -99,6 +99,8 @@ he: {
   cantCalc: 'לא ניתן לחשב',
   ovInReportPeriod: 'בתקופת הדוח',
   pfNoteIbkr: 'TWR רשמי של IBKR מהדוח, משורשר בין תקופות, בדולרים.',
+  pfNoteIbkrDaily: 'TWR יומי מה־NAV של IBKR, בדולרים — הפקדות ומשיכות מנוטרלות, ומעוגן ל־TWR הרשמי של כל תקופה בדוח.',
+  pfRangeNeedsDaily: 'אין נתונים מספיק מפורטים לטווח הזה — בדוח יש נקודה אחת לכל תקופה (שנה). כדי לקבל תשואה לפי חודש/שנה/YTD: הוסף בשאילתת ה־Flex ב־IBKR את המקטע "Net Asset Value (NAV) in Base", ואז נתק וסנכרן מחדש.',
   ibkrNavLegend: 'שווי אמיתי (IBKR)',
   tabPension: 'פנסיה',
   tabSettings: 'הגדרות',
@@ -302,7 +304,7 @@ he: {
   // סנכרון Flex — אופציה נוספת למשיכת נתונים
   ibkrSyncTitle: 'משיכה מ־IBKR (אופציה נוספת)',
   ibkrSyncDesc: 'סנכרון אוטומטי דרך Flex Web Service עם token. אופציה נוספת — יבוא ה־CSV נשאר הדרך המומלצת.',
-  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
+  flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (לתשואה לפי חודש/שנה/YTD).',
   ibkrProxyLabel: 'כתובת השרתון',
   ibkrQueryPh: 'מ־IBKR',
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
@@ -430,7 +432,7 @@ en: {
   commissionLbl: 'Commission',
   depEmptyIbkr: 'No cash transactions in the report — make sure the Cash Transactions section is enabled at Detail level (including Deposits & Withdrawals), save the query, then re-sync.',
   depEmptyIbkrTypes: 'The report has cash transactions, but no deposits/withdrawals were identified. Received types: {types}. If deposits are among them — send me a screenshot of this line.',
-  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
+  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (for month/year/YTD returns).',
   tabDeposits: 'Deposits',
   tabWishlist: 'Watchlist',
   wishlistTitle: 'Watchlist',
@@ -473,6 +475,8 @@ en: {
   cantCalc: 'Cannot compute',
   ovInReportPeriod: 'in the report period',
   pfNoteIbkr: "IBKR's official TWR from the report, chained across periods, in USD.",
+  pfNoteIbkrDaily: "Daily TWR from IBKR's NAV, in USD — deposits and withdrawals neutralized, anchored to the official TWR of each report period.",
+  pfRangeNeedsDaily: 'Not enough detail for this range — the report has one point per period (year). To get month/year/YTD returns: add the "Net Asset Value (NAV) in Base" section to your IBKR Flex query, then disconnect and sync again.',
   ibkrNavLegend: 'Real value (IBKR)',
   tabPension: 'Pension',
   tabSettings: 'Settings',
@@ -676,7 +680,7 @@ en: {
   // Flex sync — an additional data-pull option
   ibkrSyncTitle: 'Pull from IBKR (additional option)',
   ibkrSyncDesc: 'Automatic sync via Flex Web Service with a token. An additional option — CSV import remains the recommended way.',
-  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.',
+  flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (for month/year/YTD returns).',
   ibkrProxyLabel: 'Proxy URL',
   ibkrQueryPh: 'from IBKR',
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
@@ -1282,6 +1286,105 @@ function filterRange(rows, range) {
   }
 }
 
+/* v125: טווחי גרף הביצועים לפי תאריכים, לא לפי מספר שורות.
+   filterRange הניח שורה לכל יום מסחר ("חודש" = 22 שורות); בנתוני IBKR יש
+   שורה לכל תקופה (שנה) — אז כל טווח לקח את הכל והציג את אותה תשואה.
+   מחזיר את תאריך הבסיס של הטווח (ISO) ביחס לתאריך האחרון, או null ל"מקסימום". */
+function pfRangeCutoff(lastIso, range) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(lastIso || '')) return null;
+  const y = +lastIso.slice(0, 4), m = +lastIso.slice(5, 7) - 1, d = +lastIso.slice(8, 10);
+  const back = (dy, dm) => {
+    // אותו יום בחודש/שנה קודמים; יום שלא קיים (31/2) נחתך לסוף החודש
+    const t = new Date(Date.UTC(y - dy, m - dm, 1));
+    const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+    t.setUTCDate(Math.min(d, last));
+    return t.toISOString().slice(0, 10);
+  };
+  switch (range) {
+    case '1m': return back(0, 1);
+    case '3m': return back(0, 3);
+    case '6m': return back(0, 6);
+    case 'ytd': return (y - 1) + '-12-31';
+    case 'year': return back(1, 0);
+    case '3y': return back(3, 0);
+    case '5y': return back(5, 0);
+    default: return null;
+  }
+}
+
+/* חיתוך שורות לטווח (פונקציה טהורה, נבדקת): הבסיס = השורה האחרונה בתאריך
+   הבסיס או לפניו. gapDays = כמה ימים הבסיס רחוק מתאריך הבסיס האמיתי —
+   בנתונים יומיים עד כמה ימים (סופ"ש/חג); בנתוני תקופות — חודשים, ואז
+   התשואה לטווח לא ניתנת לחישוב אמיתי. */
+function pfSliceRange(rows, range) {
+  if (!rows || !rows.length) return { rows: [], gapDays: 0 };
+  const cutoff = pfRangeCutoff(rows[rows.length - 1].date, range);
+  if (!cutoff || rows[0].date >= cutoff) return { rows: rows.slice(), gapDays: 0 };
+  let bi = 0;
+  for (let i = 0; i < rows.length; i++) if (rows[i].date <= cutoff) bi = i;
+  return { rows: rows.slice(bi), gapDays: pfDaysBetween(rows[bi].date, cutoff) };
+}
+
+/* ימים בין שני תאריכי ISO (ערך מוחלט). מקומי ב־app.js — לא תלוי ב־returns.js
+   (טלפון יכול לרגע להריץ app.js חדש עם returns.js ישן מהמטמון). */
+function pfDaysBetween(a, b) {
+  const pa = String(a).split('-'), pb = String(b).split('-');
+  return Math.abs(Math.round((Date.UTC(+pb[0], +pb[1] - 1, +pb[2]) - Date.UTC(+pa[0], +pa[1] - 1, +pa[2])) / 86400000));
+}
+
+/* תזרימים חיצוניים לפי תאריך, במטבע הבסיס (הפקדה חיובית, משיכה שלילית) —
+   לחישוב TWR יומי מ־NAV יומי. */
+function ibkrFlowsByDate(data) {
+  const out = {};
+  for (const c of ((data && data.cashTransactions) || [])) {
+    if (!ibkrIsDepositTx(c)) continue;
+    const date = String(c.date || '').slice(0, 10);
+    const amt = Number(c.amount) || 0;
+    const cur = String(c.currency || '').toUpperCase();
+    const base = String((data.meta && data.meta.baseCurrency) || 'USD').toUpperCase();
+    const fx = (!cur || cur === base) ? 1 : (Number(c.fxToBase) || 0);
+    if (!date || !amt || !(fx > 0)) continue;
+    out[date] = (out[date] || 0) + amt * fx;
+  }
+  return out;
+}
+
+/* מיקום יחסי (0..1) של כל נקודה על ציר הזמן (פונקציה טהורה, נבדקת).
+   תאריך לא תקין -> נופל לפריסה לפי אינדקס. */
+function pfTimeFractions(dates) {
+  const n = (dates || []).length;
+  if (n <= 1) return n ? [0] : [];
+  const ts = dates.map((d) => {
+    const p = String(d).split('-');
+    return Date.UTC(+p[0], +p[1] - 1, +p[2]);
+  });
+  const t0 = ts[0], t1 = ts[n - 1];
+  if (!ts.every((t) => isFinite(t)) || !(t1 > t0)) return dates.map((_, i) => i / (n - 1));
+  return ts.map((t) => (t - t0) / (t1 - t0));
+}
+
+/* תוויות ציר X (פונקציה טהורה, נבדקת): עד 4 תוויות, בלי כפילויות,
+   פורמט לפי אורך הטווח — ימים/חודש לטווח קצר, חודש/שנה לארוך. */
+function pfAxisLabels(dates) {
+  const n = (dates || []).length;
+  if (!n) return [];
+  const span = n > 1 ? pfDaysBetween(dates[0], dates[n - 1]) : 0;
+  const fmt = (iso) => span <= 120
+    ? iso.slice(8, 10) + '/' + iso.slice(5, 7)
+    : iso.slice(5, 7) + '/' + iso.slice(2, 4);
+  // נקודות תווית לפי זמן (שליש/שני שלישים של הטווח), הקרובה ביותר מכל אחת
+  const fr = pfTimeFractions(dates);
+  const near = (f) => { let b = 0; for (let i = 1; i < n; i++) if (Math.abs(fr[i] - f) < Math.abs(fr[b] - f)) b = i; return b; };
+  const idx = n === 1 ? [0] : [...new Set([0, near(1 / 3), near(2 / 3), n - 1])];
+  const out = [];
+  for (const i of idx) {
+    const text = fmt(dates[i]);
+    if (out.length && out[out.length - 1].text === text) continue;
+    out.push({ i, text });
+  }
+  return out;
+}
+
 /* דילול נקודות לציור חלק */
 function downsample(rows, max) {
   if (rows.length <= max) return rows;
@@ -1537,7 +1640,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     meta: { fromDate: iso(startYmd), toDate: '', baseCurrency: 'USD', kind: 'flex', title: 'IBKR Flex' },
     trades: [], positions: [], cashTransactions: [], navPeriods: [], cashBalances: [],
   };
-  const seenTrade = new Set(), seenCash = new Map(), seenNav = new Set();
+  const seenTrade = new Set(), seenCash = new Map(), seenNav = new Set(), navDay = new Map();
   const chunkResults = [];
   let latestChunkOk = false, posTd = '', metaTd = '', minFromDate = '', consecFails = 0;
   const tKey = (tr) => {
@@ -1580,9 +1683,15 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
         merged.navPeriods.push({
           fromDate: r.fromDate, toDate: r.toDate,
           startingValue: r.startingValue, endingValue: r.endingValue,
-          twr: r.twr, netFlows: 0,
+          twr: r.twr,
+          // v125: תזרימים חיצוניים מהדוח — בלעדיהם הפקדות נספרו כרווח
+          netFlows: (typeof r.flows === 'number' && isFinite(r.flows)) ? r.flows : 0,
         });
       }
+    }
+    // v125: NAV יומי — איחוד לפי תאריך (חלק מאוחר גובר ביום חופף)
+    for (const d of (data.navDaily || [])) {
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') && isFinite(Number(d.total))) navDay.set(d.date, Number(d.total));
     }
     // פוזיציות/מזומן: רק מהחלק העדכני ביותר — לעולם לא מחלק ישן יותר
     if (td >= posTd) {
@@ -1649,6 +1758,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.navPeriods.sort((a, b) => (a.fromDate < b.fromDate ? -1 : 1));
+  merged.navDaily = [...navDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([date, total]) => ({ date, total }));
   merged._chunks = chunkResults;
   merged.latestChunkOk = latestChunkOk;
   merged.positionsAsOf = posTd;
@@ -2282,7 +2392,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v124';
+const APP_VERSION = 'v125';
 
 
 function saveDBto(db) {
@@ -3922,7 +4032,8 @@ function renderPfNote(noBench, srcKind) {
   const p = document.getElementById('pfNoteEl');
   if (!p) return;
   let txt;
-  if (srcKind === 'ibkr') txt = t('pfNoteIbkr');
+  const hasDaily = isIbkrMode() && ((ibkrCfg().data || {}).navDaily || []).length > 1;
+  if (srcKind === 'ibkr') txt = hasDaily ? t('pfNoteIbkrDaily') : t('pfNoteIbkr');
   else txt = t('pfNote');
   if (srcKind === 'manual') txt += ' · ' + t('pfBenchIbkrOnly');
   else if (noBench) txt += ' · ' + t('pfNoBench');
@@ -4030,8 +4141,13 @@ function onPfTap(e) {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   if (x < map.padL - 14 || x > map.padL + map.plotW + 14) { hidePfTip(); return; }
-  let idx = Math.round((x - map.padL) / map.plotW * (map.n - 1));
-  idx = Math.max(0, Math.min(map.n - 1, idx));
+  // הנקודה הקרובה ביותר לפי מיקום בפועל (ציר זמן, לא אינדקס אחיד)
+  let idx = 0;
+  if (map.xs && map.xs.length === map.n) {
+    for (let i = 1; i < map.n; i++) if (Math.abs(map.xs[i] - x) < Math.abs(map.xs[idx] - x)) idx = i;
+  } else {
+    idx = Math.max(0, Math.min(map.n - 1, Math.round((x - map.padL) / map.plotW * (map.n - 1))));
+  }
 
   if (state.pfPickDate) {
     const d = map.series[0].pts[idx].date;
@@ -4079,7 +4195,10 @@ async function drawPfChart() {
   let allRows, srcKind = 'manual';
   if (ibkrOfficial) {
     if (loading) loading.classList.add('hidden');
-    allRows = rTwrIndexSeries(rNavPeriods(ibkrData));
+    // v125: יומי מ־NAV יומי (אם הדוח כולל אותו), אחרת נקודות התקופות הרשמיות
+    allRows = (typeof rCombinedTwrSeries === 'function')
+      ? rCombinedTwrSeries(rNavPeriods(ibkrData), ibkrData.navDaily, ibkrFlowsByDate(ibkrData))
+      : rTwrIndexSeries(rNavPeriods(ibkrData));
     if (allRows.length < 2) allRows = portfolioSeriesILS();
     else srcKind = 'ibkr';
   } else {
@@ -4107,11 +4226,27 @@ async function drawPfChart() {
   // בהזנה ידנית (סימולציית אחזקות נוכחיות) אין השוואה — רק קו התיק.
   const showBench = pfShowBench(srcKind);
 
-  let pfRows;
+  let pfRows, rangeGap = 0;
   if (state.pfCustomFrom) {
     pfRows = sliceFromDate(allRows, state.pfCustomFrom);
+    if (pfRows.length && allRows[0].date < state.pfCustomFrom) rangeGap = pfDaysBetween(pfRows[0].date, state.pfCustomFrom);
   } else {
-    pfRows = filterRange(allRows, state.pfRange);
+    const sl = pfSliceRange(allRows, state.pfRange);
+    pfRows = sl.rows; rangeGap = sl.gapDays;
+  }
+  // v125: אין נקודה קרובה לתחילת הטווח (נתוני תקופות, בלי NAV יומי) —
+  // לא מציגים תשואה מומצאת. מסבירים איך לקבל נתונים מפורטים.
+  if (srcKind === 'ibkr' && rangeGap > 10) {
+    if (loading) { loading.textContent = t('pfRangeNeedsDaily'); loading.classList.remove('hidden'); }
+    if (legend) legend.innerHTML = '';
+    canvas._pfMap = null;
+    canvas._pfPaint = null;
+    const ctx0 = canvas.getContext && canvas.getContext('2d');
+    if (ctx0) ctx0.clearRect(0, 0, canvas.width, canvas.height);
+    renderPfNote(true, srcKind);
+    renderPfRangeSummary(null);
+    renderPfBenchToggles(false);
+    return;
   }
   // חיתוך לתחילת תקופת הדוח — טווח שמתחיל לפני שהתיק נפתח מציג תשואה פיקטיבית.
   if (isIbkrMode() && pfRows.length >= 2) {
@@ -4119,7 +4254,11 @@ async function drawPfChart() {
       const ps = ibkrData ? rNavPeriods(ibkrData) : [];
       const inception = ps.length ? ps[0].fromDate : null;
       if (inception && pfRows[0].date < inception) {
-        const cut = pfRows.filter((r) => r.date >= inception);
+        // v125: הבסיס = השורה האחרונה עד תחילת התקופה (סגירת היום הקודם, עד
+        // שבוע לפני) — אחרת התשואה של יום המסחר הראשון נחתכת מהחישוב
+        let bi = pfRows.findIndex((r) => r.date >= inception);
+        if (bi > 0 && pfDaysBetween(pfRows[bi - 1].date, inception) <= 7) bi--;
+        const cut = bi >= 0 ? pfRows.slice(bi) : [];
         if (cut.length >= 2) {
           const base = cut[0].value;
           if (base > 0) {
@@ -4211,7 +4350,10 @@ function paintPfChart() {
 
   const padL = 6, padR = 54, padT = 10, padB = 36;
   const plotW = w - padL - padR, plotH = h - padT - padB;
-  const X = (i) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  // v125: ציר X לפי זמן, לא לפי אינדקס — בנתוני תקופות (נקודה לשנה) תקופה
+  // של יום אחד תפסה רוחב של שנה שלמה והגרף היה מעוות
+  const fr = pfTimeFractions(series[0].pts.map((p) => p.date));
+  const X = (i) => padL + (n <= 1 ? plotW / 2 : fr[i] * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
   ctx.font = '12.5px system-ui';
@@ -4236,8 +4378,13 @@ function paintPfChart() {
   ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  const step = Math.max(1, Math.floor(n / 4));
-  for (let i = 0; i < n; i += step) ctx.fillText(fmtDateIL(pts0[i].date).slice(3), X(i), h - 20);
+  // v125: תוויות בלי כפילויות, הראשונה מיושרת לשמאל והאחרונה לימין (לא נחתכות)
+  const labels = pfAxisLabels(pts0.map((p) => p.date));
+  labels.forEach((lb, k) => {
+    ctx.textAlign = labels.length > 1 && k === 0 ? 'left' : (labels.length > 1 && k === labels.length - 1 ? 'right' : 'center');
+    const x = ctx.textAlign === 'right' ? Math.min(X(lb.i), w - padR) : X(lb.i);
+    ctx.fillText(lb.text, x, h - 20);
+  });
 
   for (const s of series) {
     ctx.beginPath();
@@ -4274,7 +4421,7 @@ function paintPfChart() {
   };
   for (const i of ms.pts) drawMarker(i);
 
-  canvas._pfMap = { n, padL, plotW, series };
+  canvas._pfMap = { n, padL, plotW, series, xs: fr.map((f) => padL + f * plotW) };
   canvas.classList.toggle('measuring', state.pfPickDate || ms.pts.length > 0);
   updatePfMeasureChip();
 
