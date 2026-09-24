@@ -314,9 +314,16 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
         </div>
         <p class="fine" style="padding:0" data-i18n="ibkrTokenNote">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
         <div class="form-grid">
-          <label><span data-i18n="ibkrFromDateLabel">משוך היסטוריה מתאריך</span><input id="ibkrFromDate" type="date" dir="ltr" data-i18n-ph="ibkrFromDatePh" placeholder="אוטומטי — עד קצה ההיסטוריה"></label>
+          <label><span data-i18n="ibkrDepthLabel">עומק היסטוריה למשיכה ראשונה</span><select id="ibkrHistoryDepth" dir="ltr">
+            <option value="1" data-i18n="ibkrDepth1">שנה אחת</option>
+            <option value="2" data-i18n="ibkrDepth2">שנתיים</option>
+            <option value="3" data-i18n="ibkrDepth3">3 שנים</option>
+            <option value="5" data-i18n="ibkrDepth5" selected>5 שנים</option>
+            <option value="10" data-i18n="ibkrDepth10">10 שנים</option>
+          </select></label>
+          <label><span data-i18n="ibkrFromDateLabel">או תאריך התחלה מדויק</span><input id="ibkrFromDate" type="date" dir="ltr" data-i18n-ph="ibkrFromDatePh" placeholder="אופציונלי — דורס את בחירת העומק"></label>
         </div>
-        <p class="fine" style="padding:0" data-i18n="ibkrFromDateNote">המשיכה מתחלקת אוטומטית לחלקים של עד 365 יום ומתאחדת — אפשר לבחור כל תאריך התחלה.</p>
+        <p class="fine" style="padding:0" data-i18n="ibkrFromDateNote">בוחרים כמה שנים אחורה למשוך במשיכה הראשונה — או תאריך מדויק, ללא הגבלה. כשכבר יש נתונים, הסנכרון ממשיך מהנקודה שהם נגמרו.</p>
         <div class="btn-row">
           <button id="ibkrSaveTest" class="btn" type="button" data-i18n="ibkrSaveTest">שמור ובדוק חיבור</button>
           <button id="ibkrSyncImport" class="btn" type="button" data-i18n-html="ibkrSyncImportBtn">סנכרן וייבא מ־IBKR</button>
