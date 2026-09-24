@@ -524,6 +524,11 @@ function rMergePeriods(existing, incoming) {
   for (const np of (incoming || [])) {
     // תקופה זהה לחלוטין שכבר קיימת — לא "מוחלפת", פשוט כפילות
     if (out.some((p) => rPeriodsEqual(p, np))) continue;
+    // v127: תקופה קצרה שכולה בתוך תקופה קיימת רחבה יותר (למשל 31/12 בודד
+    // מול שנה שלמה) — הקיימת כבר מכסה את הימים האלה. בלי זה היא הייתה
+    // "מחליפה" את השנה כולה ומוחקת אותה. טווח זהה עם ערכים שונים — עדיין מחליף.
+    if (np.fromDate && np.toDate && out.some((p) => p.fromDate <= np.fromDate && np.toDate <= p.toDate &&
+      !(p.fromDate === np.fromDate && p.toDate === np.toDate))) continue;
     for (const p of out) if (rPeriodsOverlap(p, np)) replaced.push(p);
     out = out.filter((p) => !rPeriodsOverlap(p, np));
     out.push(np);

@@ -426,7 +426,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
 
   // ברירת מחדל חכמה לתאריך התחלה + קיטוע רב־שנתי
   const endFix = new Date(2026, 8, 22); // אתמול = 22.09.2026
-  ok(T.ibkrDefaultFromYmd({ meta: { toDate: '2024-09-27' } }, endFix) === '20240927', 'ברירת מחדל: ממשיך מתאריך הסיום של הנתונים הקיימים');
+  ok(T.ibkrDefaultFromYmd({ meta: { toDate: '2024-09-27' } }, endFix) === '20240928', 'ברירת מחדל: ממשיך ביום שאחרי הנתונים הקיימים (v127: לא אותו יום — נספר פעמיים)');
   ok(T.ibkrDefaultFromYmd(null, endFix) === '20240922', 'ברירת מחדל: שנתיים אחורה מאתמול כשאין נתונים');
   ok(T.ibkrDefaultFromYmd({ meta: {} }, endFix) === '20240922', 'ברירת מחדל: meta בלי toDate -> שנתיים אחורה');
   const threeY = T.ibkrDateChunks('20230924', '20260922');

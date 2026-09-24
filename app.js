@@ -318,6 +318,7 @@ he: {
   ibkrDepth5: '5 שנים',
   ibkrDepth10: '10 שנים',
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
+  ibkrUpToDate: 'הנתונים כבר מעודכנים עד יום המסחר האחרון שנסגר — אין מה למשוך כרגע.',
   fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n} מתוך {total})',
   ibkrFlexOlderHint: 'נמצא מידע עד {date}. אם החשבון נפתח לפני כן — אפשר לבחור עומק גדול יותר או תאריך מוקדם יותר, ולייבא שוב.',
   ibkrGapWarn: '⚠ חלק מהתקופה חסר — {detail}. סנכרון רגיל לא יחזור אחורה לסגור את זה; הזן תאריך התחלה מדויק {date} ולחץ שוב על "סנכרן וייבא".',
@@ -694,6 +695,7 @@ en: {
   ibkrDepth5: '5 years',
   ibkrDepth10: '10 years',
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
+  ibkrUpToDate: 'Data is already up to date through the last closed trading day — nothing to fetch right now.',
   fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n} of {total})',
   ibkrFlexOlderHint: 'Data was found back to {date}. If the account is older, choose a greater depth or an earlier start date and import again.',
   ibkrGapWarn: '⚠ Part of the period is missing — {detail}. A regular sync won\'t go back to fill it; enter exact start date {date} and tap "Sync & Import" again.',
@@ -1557,17 +1559,35 @@ function ibkrIsLockoutErr(err) {
   return /flex_1025/i.test(String((err && err.message) || err || ''));
 }
 /* ברירת מחדל חכמה לתאריך ההתחלה של משיכת Flex (פונקציה טהורה, נבדקת):
-   אם כבר יש נתונים מיובאים — מתחילים מתאריך הסיום שלהם (המיזוג מטפל בחפיפת
-   יום הגבול); אחרת — שנתיים אחורה (הנחת שמירת הנתונים של IBKR).
-   המשתמש יכול לדרוס בכל תאריך עבר — הקיטוע לחלקי 365 יום אוטומטי. */
+   אם כבר יש נתונים מיובאים — מתחילים ביום שאחרי תאריך הסיום שלהם; אחרת —
+   שנתיים אחורה. המשתמש יכול לדרוס בכל תאריך עבר.
+   v127: לא מתאריך הסיום עצמו — תקופה חדשה שמתחילה ביום שבו הקודמת נגמרה לא
+   מזוהה כחופפת במיזוג, שתיהן נשמרות, ויום הגבול נספר פעמיים ברווח וב־TWR
+   בכל סנכרון המשך (שוחזר: 19.26% -> 19.74% אחרי סנכרון אחד). */
 function ibkrDefaultFromYmd(existingData, endD) {
   const m = (existingData && existingData.meta) || {};
-  if (/^\d{4}-\d{2}-\d{2}$/.test(m.toDate || '')) return String(m.toDate).replace(/-/g, '');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(m.toDate || '')) {
+    const p = m.toDate.split('-');
+    return ibkrYmd(new Date(+p[0], +p[1] - 1, +p[2] + 1));
+  }
   // בדיקת duck-type במקום instanceof — עובד גם כשהתאריך נוצר ב־realm אחר (טסטים)
   const d = (endD && typeof endD.getTime === 'function') ? new Date(endD.getTime()) : new Date();
   d.setFullYear(d.getFullYear() - 2);
   return ibkrYmd(d);
 }
+/* האם יש לפחות יום חול אחד בטווח YYYYMMDD (כולל) — פונקציה טהורה, נבדקת.
+   טווח של סופ"ש בלבד: IBKR לא מפיק עליו דוח (1003), אז אין מה למשוך. */
+function ibkrHasWeekday(fromYmd, toYmd) {
+  if (!(fromYmd <= toYmd)) return false;
+  const d = new Date(+fromYmd.slice(0, 4), +fromYmd.slice(4, 6) - 1, +fromYmd.slice(6, 8));
+  for (let i = 0; i < 7 && ibkrYmd(d) <= toYmd; i++) {
+    const w = d.getDay();
+    if (w !== 0 && w !== 6) return true;
+    d.setDate(d.getDate() + 1);
+  }
+  return false;
+}
+
 /* האם יש מידע מיובא כלשהו (פונקציה טהורה, נבדקת). */
 function ibkrHasImportedData(d) {
   return !!d && (((d.positions || []).length + (d.trades || []).length + ((d.navPeriods || []).length)) > 0);
@@ -2147,14 +2167,30 @@ async function ibkrSyncImport() {
   const endD = new Date(); endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
   let startYmd, autoMode = false;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(fromStr)) {
+  const hasData = ibkrHasImportedData(cfg.data);
+  // v127: התאריך שהוצע אוטומטית בשדה (המשך מהנתונים הקיימים, או הערך הישן
+  // שנשמר ממנו) הוא לא "תאריך ידני" — שמירתו כקבוע גרמה למשיכה חוזרת מאותו
+  // יום ישן בכל סנכרון. סנכרון המשך תמיד מתחיל ביום שאחרי הנתונים הקיימים.
+  const contYmd = hasData ? ibkrDefaultFromYmd(cfg.data, endD) : '';
+  const lastYmd = hasData ? String((cfg.data.meta || {}).toDate || '').replace(/-/g, '') : '';
+  const fromYmd = fromStr.replace(/-/g, '');
+  const isContinuation = hasData && /^\d{8}$/.test(fromYmd) && (fromYmd === contYmd || fromYmd === lastYmd);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromStr) && !isContinuation) {
     // תאריך מדויק — ללא הגבלה (גם 10+ שנים אחורה)
-    startYmd = fromStr.replace(/-/g, '');
+    startYmd = fromYmd;
     if (startYmd > endYmd) return ibkrShowErr(t('ibkrBadFromDate'));
     ibkrSaveCfg({ fromDate: fromStr });
-  } else if (ibkrHasImportedData(cfg.data)) {
-    startYmd = ibkrDefaultFromYmd(cfg.data, endD);
+  } else if (hasData) {
+    startYmd = contYmd;
     ibkrSaveCfg({ fromDate: '' });
+    // השדה יתמלא מחדש אחרי הסנכרון מהנתונים המעודכנים — לא נשאר ערך ישן
+    if (fde) fde.value = '';
+    // כבר מעודכן (או שנותרו רק ימי סופ"ש, שעליהם IBKR לא מפיק דוח)
+    if (!ibkrHasWeekday(startYmd, endYmd)) {
+      if (fde) fde.value = '';
+      renderIbkrCard();
+      return flash(t('ibkrUpToDate'));
+    }
   } else {
     // משיכה ראשונה: מתחילים מהעומק שהמשתמש בחר — לא יותר ממה שצריך, לא פחות
     startYmd = ibkrDepthStartYmd(endD, depthYears);
@@ -2392,7 +2428,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v126';
+const APP_VERSION = 'v127';
 
 
 function saveDBto(db) {
