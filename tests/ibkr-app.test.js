@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, ibkrIsLockoutErr, ibkrDepthStartYmd, ibkrReachedStart, IBKR_CHUNK_GAP_MS, IBKR_POLL_DELAY_MS, IBKR_POLL_TRIES, IBKR_HISTORY_YEARS_DEFAULT };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, ibkrIsLockoutErr, ibkrDepthStartYmd, ibkrReachedStart, ibkrMakeLimiter, IBKR_LIMITER, IBKR_RATE_MAX, IBKR_RATE_WINDOW_MS, IBKR_POLL_FIRST_MS, IBKR_POLL_DELAY_MS, IBKR_POLL_TRIES, IBKR_HISTORY_YEARS_DEFAULT };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -529,8 +529,8 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.ibkrIsThrottleErr(new Error('שרתון: flex_1003')) === false, 'לא throttle: flex_1003 (דוח לא זמין)');
   ok(T.ibkrIsThrottleErr(new Error('boom')) === false, 'לא throttle: שגיאת רשת גנרית');
   ok(T.ibkrIsThrottleErr(null) === false, 'לא throttle: null');
-  // v120: קצב בטוח — הפוגה של 60 שניות בין חלקים (IBKR: עד 10 בקשות בדקה לטוקן)
-  ok(T.IBKR_CHUNK_GAP_MS === 60000, 'הפוגה בין חלקים: 60 שניות');
+  // v121: במקום הפוגה קבועה של 60 שניות — מגביל מתגלגל, עד 8 בקשות בדקה (תקרת IBKR: 10)
+  ok(T.IBKR_RATE_MAX === 8 && T.IBKR_RATE_WINDOW_MS === 60000, 'מגביל: עד 8 בקשות בחלון של 60 שניות');
   // v119: מפסק מעגל — 2 כשלונות רצופים עוצרים את המשיכה במקום להעמיק חסימה
   let cstmt = 0;
   const circuitFetch = async (url) => {
@@ -554,9 +554,10 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(tstmt === 2, 'throttle: בקשה אחת בלבד לחלק (בלי ניסיון חוזר), עצירה אחרי 2 חלקים');
   ok(throttleRes._throttled === true, 'throttle: דגל throttled מוגדר');
 
-  // v120: שאילתות GetStatement כל 12 שניות, תקציב ~6 דקות לדוח כבד
-  ok(T.IBKR_POLL_DELAY_MS === 12000, 'poll: מרווח 12 שניות בין שאילתות');
-  ok(T.IBKR_POLL_TRIES === 30, 'poll: 30 ניסיונות (תקציב ~6 דקות)');
+  // v121: שאילתה ראשונה אחרי 4 שניות, אחר כך כל 6 שניות; תקציב ~6 דקות לדוח כבד
+  ok(T.IBKR_POLL_FIRST_MS === 4000, 'poll: המתנה של 4 שניות לפני השאילתה הראשונה');
+  ok(T.IBKR_POLL_DELAY_MS === 6000, 'poll: מרווח 6 שניות בין שאילתות');
+  ok(T.IBKR_POLL_TRIES * T.IBKR_POLL_DELAY_MS >= 300000, 'poll: תקציב של לפחות 5 דקות לדוח כבד');
   // v120: עומק היסטוריה לפי בחירת המשתמש — לא רצפת 2020 קבועה
   const endFix5 = new Date(2026, 8, 23);
   ok(T.ibkrDepthStartYmd(endFix5, 5) === '20210923', 'עומק: 5 שנים אחורה מתאריך נתון');
@@ -589,6 +590,67 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(lstmt === 1, 'נעילה: בקשת SendRequest אחת בלבד ואז עצירה מידית');
   ok(lockRes._locked === true, 'נעילה: דגל _locked מוגדר');
   ok(T.ibkrSyncIsComplete(lockRes) === false, 'נעילה: החלק העדכני נכשל -> יבוא חסום');
+
+
+  // v121: מגביל קצב מתגלגל — שעון מדומה
+  {
+    let clock = 0;
+    const now = () => clock;
+    const fsleep = async (ms) => { clock += ms; };
+    const lim = T.ibkrMakeLimiter({ max: 8, windowMs: 60000, minGapMs: 1500, now, sleep: fsleep });
+    const times = [];
+    for (let k = 0; k < 20; k++) { await lim(); times.push(clock); }
+    let worst = 0;
+    for (let a = 0; a < times.length; a++) {
+      worst = Math.max(worst, times.filter((x) => x >= times[a] && x < times[a] + 60000).length);
+    }
+    ok(worst <= 8, 'מגביל: אף חלון של 60 שניות לא עובר 8 בקשות');
+    ok(times.every((x, k) => k === 0 || x - times[k - 1] >= 1500), 'מגביל: לפחות 1.5 שניות בין בקשות');
+    ok(times[7] < 15000, 'מגביל: 8 הבקשות הראשונות יוצאות מיד (בלי המתנה של דקה)');
+    // קריאות מקבילות נכנסות לתור — לא עוקפות את המגבלה
+    clock = 0;
+    const lim2 = T.ibkrMakeLimiter({ max: 2, windowMs: 60000, minGapMs: 0, now, sleep: fsleep });
+    const par = [];
+    await Promise.all([0, 1, 2].map(() => lim2().then(() => par.push(clock))));
+    ok(par[2] >= 60000, 'מגביל: קריאות מקבילות ממתינות בתור');
+  }
+  // v121: משיכה של 10 שנים — מדידת זמן וקצב בשעון מדומה
+  {
+    let clock = 0;
+    const now = () => clock;
+    const fsleep = async (ms) => { clock += ms; };
+    const lim = T.ibkrMakeLimiter({ now, sleep: fsleep });
+    const reqTimes = [];
+    const polls = {};
+    const simFetch = async (url, init) => {
+      reqTimes.push(clock);
+      clock += 1000; // זמן תגובה של הרשת/IBKR
+      if (String(url).includes('/api/flex-request')) {
+        const code = 'RC' + reqTimes.length;
+        return { json: async () => ({ ok: true, referenceCode: code, statementUrl: '' }) };
+      }
+      const code = JSON.parse(init.body).code;
+      polls[code] = (polls[code] || 0) + 1;
+      // IBKR מחזיר "עדיין מייצר" בשאילתה הראשונה, מוכן בשנייה
+      if (polls[code] < 2) return { json: async () => ({ ok: true, status: 'pending' }) };
+      return { json: async () => ({ ok: true, status: 'ready', data: { meta: {}, trades: [], positions: [] } }) };
+    };
+    const start10 = T.ibkrDepthStartYmd(new Date(), 10);
+    const res10 = await T.ibkrFetchFullHistory(simFetch, 'https://proxy.example.com', 'tok', '1', start10, null, { limiter: lim, sleep: fsleep });
+    ok(res10.latestChunkOk === true, '10 שנים: כל החלקים הושלמו');
+    let worst = 0;
+    for (const a of reqTimes) worst = Math.max(worst, reqTimes.filter((x) => x >= a && x < a + 60000).length);
+    ok(worst <= 8, '10 שנים: לא יותר מ־8 בקשות בשום דקה (תקרת IBKR: 10)');
+    ok(clock < 6 * 60000, '10 שנים: המשיכה מסתיימת בפחות מ־6 דקות (היה ~13 דקות עם הפוגה קבועה)');
+    console.log('  סימולציה 10 שנים: ' + reqTimes.length + ' בקשות, ' + Math.round(clock / 1000) + ' שניות');
+  }
+  // v121: שאילתת GetStatement הראשונה ממתינה — לא נשרפת בקשה על "עדיין מייצר"
+  {
+    const slept = [];
+    const fetchReady = async () => ({ json: async () => ({ ok: true, status: 'ready', data: { x: 1 } }) });
+    await T.ibkrPollStatement(fetchReady, 'https://proxy.example.com', 'tok', 'RC', '', { sleep: async (ms) => { slept.push(ms); } });
+    ok(slept[0] === T.IBKR_POLL_FIRST_MS, 'poll: המתנה ראשונית לפני השאילתה הראשונה');
+  }
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

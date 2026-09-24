@@ -1365,15 +1365,49 @@ function ibkrChunkRetryPlan(err) {
    - פוזיציות/מזומן: רק מהחלק העדכני ביותר שהצליח — לעולם לא מחלק ישן.
    - navPeriods: מסעיפי ChangeInNAV של כל חלק (TWR רשמי, באחוזים).
    החלקים מסתיימים באתמול — IBKR לא מייצר דוח לתאריך שעדיין פתוח. */
-/* קצב בטוח מול מגבלת IBKR הרשמית (בקשה לשנייה, עד 10 בדקה לטוקן —
-   גם SendRequest וגם GetStatement נספרים):
-   הפוגה של 60 שניות בין חלקים + שאילתות GetStatement כל 12 שניות
-   = כ־6 בקשות בדקה — כ־40% מתחת לתקרה.
-   תיקון (v120): שגיאה 1018 היא הגבלה רגעית שחולפת תוך שניות עד דקות —
-   אין בתיעוד Flex "קופסת עונשין של 10 דקות" (זה מ־API המסחר). */
-const IBKR_CHUNK_GAP_MS = 60000;
-const IBKR_POLL_DELAY_MS = 12000; // מרווח בין שאילתות GetStatement (המלצה: 10–15 שניות)
-const IBKR_POLL_TRIES = 30;       // תקציב כולל ~6 דקות להיווצרות דוח כבד
+/* קצב מול מגבלת IBKR הרשמית (בקשה לשנייה, עד 10 בדקה לטוקן —
+   גם SendRequest וגם GetStatement נספרים).
+   v121: במקום הפוגה קבועה של 60 שניות בין חלקים (שהפכה משיכה של 10 שנים
+   ל־15+ דקות, רובן המתנה ריקה) — מגביל קצב מתגלגל: כל בקשה ל־IBKR עוברת
+   דרכו, ועד 8 בקשות בכל חלון של 60 שניות, לפחות 1.5 שניות בין בקשות.
+   ממתינים רק כשהתקציב באמת נגמר — אותו מרווח ביטחון (~20% מתחת לתקרה),
+   בלי לבזבז דקות כשאין צורך.
+   שגיאה 1018 היא הגבלה רגעית — אין בתיעוד Flex "קופסת עונשין של 10 דקות". */
+const IBKR_RATE_MAX = 8;             // בקשות מקסימום בחלון (תקרת IBKR: 10)
+const IBKR_RATE_WINDOW_MS = 60000;   // חלון מתגלגל של דקה
+const IBKR_RATE_MIN_GAP_MS = 1500;   // מרווח מינימלי בין בקשות (IBKR: בקשה לשנייה)
+const IBKR_POLL_FIRST_MS = 4000;     // המתנה לפני השאילתה הראשונה — שאילתה מיידית כמעט תמיד "עדיין מייצר"
+const IBKR_POLL_DELAY_MS = 6000;     // מרווח בין שאילתות GetStatement (המגביל שומר על התקציב)
+const IBKR_POLL_TRIES = 60;          // תקציב כולל ~6 דקות להיווצרות דוח כבד
+/* מגביל קצב מתגלגל (נבדק עם שעון מדומה). מחזיר פונקציה אסינכרונית שממתינה
+   עד שמותר לשלוח בקשה נוספת ואז רושמת אותה. קריאות מקבילות נכנסות לתור. */
+function ibkrMakeLimiter(opts) {
+  const o = opts || {};
+  const max = o.max || IBKR_RATE_MAX;
+  const win = o.windowMs || IBKR_RATE_WINDOW_MS;
+  const gap = (typeof o.minGapMs === 'number') ? o.minGapMs : IBKR_RATE_MIN_GAP_MS;
+  const now = o.now || (() => Date.now());
+  const sleep = o.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const stamps = [];
+  const take = async () => {
+    for (;;) {
+      const t0 = now();
+      while (stamps.length && t0 - stamps[0] >= win) stamps.shift();
+      let wait = 0;
+      if (stamps.length >= max) wait = stamps[0] + win - t0;
+      if (stamps.length) wait = Math.max(wait, stamps[stamps.length - 1] + gap - t0);
+      if (wait <= 0) { stamps.push(t0); return; }
+      await sleep(wait);
+    }
+  };
+  let chain = Promise.resolve();
+  const acquire = () => (chain = chain.then(take, take));
+  acquire.stamps = stamps;
+  return acquire;
+}
+/* מגביל אחד לכל האפליקציה — כל הבקשות לאותו טוקן חולקות תקציב
+   (גם "בדוק חיבור" וגם סנכרון). */
+const IBKR_LIMITER = ibkrMakeLimiter();
 const IBKR_HISTORY_YEARS_DEFAULT = 5; // עומק ברירת מחדל למשיכה ראשונה (בשנים)
 /* תאריך התחלה למשיכה ראשונה לפי עומק בשנים (פונקציה טהורה, נבדקת).
    מחליף את רצפת 2020 הקבועה: המשתמש בוחר כמה שנים באמת צריך (1–10),
@@ -1442,7 +1476,7 @@ async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkRe
   for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
     try {
-      const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
+      const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td, pollOpts && pollOpts.limiter);
       data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl, pollOpts);
     } catch (e) {
       err = e;
@@ -1458,9 +1492,15 @@ async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkRe
 }
 async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd, onProgress, opts) {
   const o = opts || {};
-  // הפוגה בין חלקים — ניתנת לדריסה בבדיקות (chunkGapMs), ברירת מחדל: קצב בטוח
-  const gapMs = (typeof o.chunkGapMs === 'number') ? o.chunkGapMs : IBKR_CHUNK_GAP_MS;
-  const pollOpts = { tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs };
+  // קצב: ברירת המחדל היא המגביל המתגלגל המשותף (בלי הפוגה קבועה בין חלקים).
+  // בדיקות מעבירות chunkGapMs — קצב ידני מהיר במקום המגביל, בלי לישון באמת.
+  const manualPace = (typeof o.chunkGapMs === 'number');
+  const gapMs = manualPace ? o.chunkGapMs : 0;
+  const limiter = ('limiter' in o) ? o.limiter : (manualPace ? null : IBKR_LIMITER);
+  const pollOpts = {
+    tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep,
+    firstDelayMs: (typeof o.pollFirstMs === 'number') ? o.pollFirstMs : (manualPace ? o.chunkGapMs : undefined),
+  };
   const endD = new Date();
   endD.setDate(endD.getDate() - 1);
   const endYmd = ibkrYmd(endD);
@@ -1543,8 +1583,8 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   for (let i = 0; i < chunks.length; i++) {
     const { fd, td } = chunks[i];
     if (onProgress) onProgress(i + 1, chunks.length, fd, td);
-    // הפוגה בין חלקים — קצב בטוח מול מגבלת 10 הבקשות בדקה של IBKR
-    if (i > 0) await new Promise((r) => setTimeout(r, gapMs));
+    // הפוגה ידנית (בדיקות בלבד); בפועל המגביל המתגלגל שומר על הקצב
+    if (i > 0 && gapMs > 0) await new Promise((r) => setTimeout(r, gapMs));
     const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults, pollOpts);
     if (data) { consecFails = 0; absorb(data, fd, td); }
     else {
@@ -1574,11 +1614,12 @@ function ibkrSyncIsComplete(data) {
 
 /* מבקש מ־IBKR (דרך השרתון) ליצור דוח Flex. מחזיר { referenceCode, statementUrl }.
    fd/td אופציוניים (YYYYMMDD) לדריסת טווח התאריכים — עד 365 יום לבקשה. */
-async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td) {
+async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td, limiter) {
   const body = { token, queryId };
   if (/^\d{8}$/.test(fd || '') && /^\d{8}$/.test(td || '')) {
     body.fd = fd; body.td = td;
   }
+  if (limiter) await limiter();
   const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1602,9 +1643,13 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
   const tries = o.tries || IBKR_POLL_TRIES;
   const delayMs = o.delayMs || IBKR_POLL_DELAY_MS;
   const sleep = o.sleep || ((ms) => new Promise((res) => setTimeout(res, ms)));
+  const firstMs = (typeof o.firstDelayMs === 'number') ? o.firstDelayMs : Math.min(IBKR_POLL_FIRST_MS, delayMs);
   let netErr = null;
+  // IBKR צריך כמה שניות לייצר את הדוח — שאילתה מיידית רק שורפת בקשה מהתקציב
+  if (firstMs > 0) await sleep(firstMs);
   for (let i = 0; i < tries; i++) {
     let j = null;
+    if (o.limiter) await o.limiter();
     try {
       const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-statement', {
         method: 'POST',
@@ -1897,7 +1942,7 @@ async function ibkrSaveAndTest() {
   ibkrSetBusy(true);
   renderIbkrCard();
   try {
-    const rep = await ibkrRequestReport(fetch, proxyUrl, token, queryId);
+    const rep = await ibkrRequestReport(fetch, proxyUrl, token, queryId, '', '', IBKR_LIMITER);
     ibkrSaveCfg({ statementUrl: rep.statementUrl || '' });
     flash(t('connOk'));
   } catch (e) {
@@ -2136,7 +2181,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v120';
+const APP_VERSION = 'v121';
 
 
 function saveDBto(db) {
