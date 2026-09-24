@@ -1264,6 +1264,43 @@ function filterRange(rows, range) {
   }
 }
 
+/* v134: נקודת הסיום של גרף המניה = המחיר החי, לא השורה האחרונה בהיסטוריה
+   השמורה (מטמון עד 24 שעות — הייתה נגמרת אתמול או לפני כמה ימים). לא בטרום־מסחר:
+   אז "היום" עוד לא נסחר והסגירה האחרונה כבר בהיסטוריה. */
+function stockChartRows(hist, q) {
+  const rows = (hist || []).slice();
+  if (!q || !(q.close > 0) || q.session === 'pre') return rows;
+  const d = q.mdate || q.date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return rows;
+  const last = rows[rows.length - 1];
+  if (!last || d > last.date) rows.push({ date: d, close: q.close });
+  else if (d === last.date) rows[rows.length - 1] = Object.assign({}, last, { close: q.close });
+  return rows;
+}
+
+function daysBetweenIso(a, b) {
+  return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+}
+
+/* v134: טווח גרף המניה לפי תאריך לוח שנה, כמו Yahoo/Google: הבסיס = הסגירה
+   האחרונה בתאריך החיתוך או לפניו ("שנה" = אותו יום לפני שנה, YTD = סגירת
+   31/12). filterRange הישן ספר שורות (שנה = 252, שבוע = 5 → רק 4 ימי שינוי). */
+function stockRangeRows(rows, range) {
+  if (!rows || !rows.length) return [];
+  const lastIso = rows[rows.length - 1].date;
+  let cut = null;
+  if (range === 'week') {
+    const t = new Date(lastIso + 'T00:00:00Z');
+    t.setUTCDate(t.getUTCDate() - 7);
+    cut = t.toISOString().slice(0, 10);
+  } else if (range !== 'max') {
+    cut = pfRangeCutoff(lastIso, range === 'month' ? '1m' : range);
+  }
+  if (!cut) return rows.slice();
+  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].date <= cut) return rows.slice(i);
+  return rows.slice();
+}
+
 /* v125: טווחי גרף הביצועים לפי תאריכים, לא לפי מספר שורות.
    filterRange הניח שורה לכל יום מסחר ("חודש" = 22 שורות); בנתוני IBKR יש
    שורה לכל תקופה (שנה) — אז כל טווח לקח את הכל והציג את אותה תשואה.
@@ -2353,7 +2390,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v133';
+const APP_VERSION = 'v134';
 
 
 function saveDBto(db) {
@@ -2767,9 +2804,14 @@ function parseYahooQuote(json, sym, nowMs) {
     else if (inP(ctp.post)) session = 'post';
     else session = 'regular';
   } catch (e) {}
+  // v134: תאריך המסחר לפי שעון הבורסה — אחרי חצות בישראל todayISO כבר "מחר"
+  let mdate = null;
+  const rmt = num(meta.regularMarketTime);
+  if (rmt > 0) mdate = new Date((rmt + (num(meta.gmtoffset) || 0)) * 1000).toISOString().slice(0, 10);
   return {
     symbol: sym,
     date: todayISO(),
+    mdate: mdate,
     time: '',
     open: null,
     high: num(meta.regularMarketDayHigh),
@@ -5415,8 +5457,14 @@ async function ensureChartData(sym) {
       }
       // נפילה לגרף יומי אם אין תוך-יומי
     }
-    const hist = await getDaily(sym, false);
-    const pts = drawStockChart(sym, filterRange(hist, range === 'day' ? 'month' : range), false);
+    let hist = await getDaily(sym, false);
+    // v134: היסטוריה בזיכרון/מטמון שנתקעה ימים אחורה (אפליקציה פתוחה ברקע) — טוענים מחדש
+    const lastD = hist && hist.length ? hist[hist.length - 1].date : '';
+    if (lastD && daysBetweenIso(lastD, todayISO()) > 4) {
+      try { const fresh = await getDaily(sym, true); if (fresh && fresh.length) hist = fresh; } catch (e) {}
+    }
+    const rows = stockChartRows(hist, state.quotes[sym]);
+    const pts = drawStockChart(sym, stockRangeRows(rows, range === 'day' ? 'month' : range), false);
     if (pts && loading) loading.classList.add('hidden');
   } catch (e) {
     if (loading) { loading.textContent = t('noChartData'); loading.classList.remove('hidden'); }
