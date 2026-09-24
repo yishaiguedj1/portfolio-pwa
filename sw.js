@@ -1,13 +1,14 @@
 /* Service Worker — תיק ההשקעות PWA
  * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
  */
-const CACHE_NAME = 'portfolio-pwa-v124';
+const CACHE_NAME = 'portfolio-pwa-v125';
 
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './returns.js',
   './cloud.js',
   './firebase-config.js',
   './manifest.webmanifest',
