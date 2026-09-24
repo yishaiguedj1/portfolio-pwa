@@ -286,27 +286,38 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
 
     <div class="card" id="ibkrCard">
-      <h2 data-i18n="ibkrTitle">חיבור ברוקר למשיכת מידע</h2>
-      <p class="fine" style="padding:0" data-i18n="ibkrDesc">אופציונלי — מושך דוח קריאה־בלבד מ־Interactive Brokers. אי אפשר לסחור דרכו. הסנכרון רק מוריד נתונים לצפייה; כפתור הייבוא מכניס את הפוזיציות לתיק (בהסכמתך).</p>
-      <p class="fine" style="padding:0" data-i18n="flexGuide">מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Change in NAV.</p>
+      <h2 data-i18n="ibkrCsvTitle">נתוני IBKR מקובץ CSV</h2>
+      <p class="fine" style="padding:0" data-i18n="ibkrCsvDesc">מקור יחיד ואמין: מייבאים דוח Activity Statement מ־IBKR כקובץ CSV. התשואות הן המספרים הרשמיים של IBKR — אין חישובים משוערים ואין סנכרון אוטומטי.</p>
+      <details class="fine" style="padding:0">
+        <summary data-i18n="ibkrCsvGuideTitle">איך מורידים את הדוח מ־IBKR?</summary>
+        <div data-i18n-html="ibkrCsvGuideBody"></div>
+      </details>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
       <div class="form-err hidden" id="ibkrNavWarn"></div>
-      <div class="form-grid">
-        <label><span data-i18n="ibkrProxyLabel">כתובת השרתון</span><input id="ibkrProxy" type="text" dir="ltr" autocomplete="off" spellcheck="false" placeholder="https://…vercel.app"></label>
-        <label>Query ID<input id="ibkrQuery" type="text" dir="ltr" inputmode="numeric" autocomplete="off" spellcheck="false" data-i18n-ph="ibkrQueryPh" placeholder="מ־IBKR"></label>
-      </div>
-      <div class="form-grid">
-        <label>Flex token<input id="ibkrToken" type="password" dir="ltr" autocomplete="off" spellcheck="false" placeholder="Reports ← Flex Web Service"></label>
-      </div>
-      <p class="fine" style="padding:0" data-i18n="ibkrTokenNote">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
       <div class="form-err hidden" id="ibkrErr"></div>
       <div class="btn-row">
-        <button id="ibkrSaveTest" class="btn" type="button" data-i18n="ibkrSaveTest">שמור ובדוק חיבור</button>
-        <button id="ibkrSyncImport" class="btn" type="button" data-i18n-html="ibkrSyncImportBtn">סנכרן וייבא מ־IBKR</button>
+        <button id="ibkrCsvBtn" class="btn" type="button" data-i18n="ibkrCsvBtn">ייבוא מקובץ CSV</button>
         <button id="ibkrDisconnect" class="btn danger-btn" type="button" data-i18n="ibkrDisconnectBtn">ניתוק</button>
       </div>
+      <input type="file" id="ibkrCsvFile" accept=".csv,text/csv,text/plain" multiple hidden>
       <div class="fine" id="ibkrData" style="padding:0"></div>
-      <div class="fine" id="ibkrChunks" style="padding:0"></div>
+      <details class="fine" id="importFlexDetails" style="padding:0;margin-top:8px">
+        <summary data-i18n="ibkrSyncTitle">משיכה מ־IBKR (אופציה נוספת)</summary>
+        <p class="fine" style="padding:0" data-i18n="ibkrSyncDesc">סנכרון אוטומטי דרך Flex Web Service עם token. אופציה נוספת — יבוא ה־CSV נשאר הדרך המומלצת.</p>
+        <p class="fine" style="padding:0" data-i18n="flexGuide">מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV.</p>
+        <div class="form-grid">
+          <label><span data-i18n="ibkrProxyLabel">כתובת השרתון</span><input id="ibkrProxy" type="text" dir="ltr" autocomplete="off" spellcheck="false" placeholder="https://…vercel.app"></label>
+          <label>Query ID<input id="ibkrQuery" type="text" dir="ltr" inputmode="numeric" autocomplete="off" spellcheck="false" data-i18n-ph="ibkrQueryPh" placeholder="מ־IBKR"></label>
+        </div>
+        <div class="form-grid">
+          <label>Flex token<input id="ibkrToken" type="password" dir="ltr" autocomplete="off" spellcheck="false" placeholder="Reports ← Flex Web Service"></label>
+        </div>
+        <p class="fine" style="padding:0" data-i18n="ibkrTokenNote">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
+        <div class="btn-row">
+          <button id="ibkrSaveTest" class="btn" type="button" data-i18n="ibkrSaveTest">שמור ובדוק חיבור</button>
+          <button id="ibkrSyncImport" class="btn" type="button" data-i18n-html="ibkrSyncImportBtn">סנכרן וייבא מ־IBKR</button>
+        </div>
+      </details>
     </div>
 
     <div class="card danger-card">
@@ -325,6 +336,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
 <script src="firebase-config.js" defer></script>
+<script src="returns.js" defer></script>
 <script src="app.js" defer></script>
 <script src="cloud.js" defer></script>
 <div id="loginOverlay" class="login-overlay hidden" role="dialog" data-i18n-aria="loginAria" aria-label="התחברות">
