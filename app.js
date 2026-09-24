@@ -1332,20 +1332,27 @@ function ibkrProxyBase() {
   return (((ibkrCfg().proxyUrl || '') || IBKR_PROXY_DEFAULT).trim().replace(/\/+$/, ''));
 }
 
-/* מחלק טווח תאריכים לחלקים של עד 365 יום (מגבלת IBKR לבקשה).
-   מחזיר מערך של {fd, td} בפורמט YYYYMMDD. */
+/* מחלק טווח תאריכים לחלקים לפי שנים קלנדריות (פונקציה טהורה, נבדקת).
+   מחזיר מערך של {fd, td} בפורמט YYYYMMDD.
+   v124: IBKR מסרב (flex_1003 "Statement is not available") לטווח ישן
+   שמתחיל באמצע השנה — הוכח מהשטח: 23/09/2023–21/09/2024 נכשל,
+   01/01/2023–31/12/2023 עבד. לכן כל חלק מתחיל ב־1 בינואר (חוץ מהראשון,
+   שמתחיל בתאריך המבוקש). שנה מעוברת מלאה (366 יום, מעל מגבלת 365):
+   1/1–30/12 + 31/12 כחלק נפרד — ההתחלה ב־1/1 היא הצורה שהוכחה, ובמקרה
+   הגרוע חסר יום אחד (ומוצגת אזהרה), לא חצי שנה. */
 function ibkrDateChunks(startYmd, endYmd) {
   const chunks = [];
-  let cur = startYmd;
-  while (cur <= endYmd) {
-    const curDate = new Date(cur.slice(0, 4), cur.slice(4, 6) - 1, cur.slice(6, 8));
-    curDate.setDate(curDate.getDate() + 364);
-    let chunkEnd = ibkrYmd(curDate);
-    if (chunkEnd > endYmd) chunkEnd = endYmd;
-    chunks.push({ fd: cur, td: chunkEnd });
-    const nextDate = new Date(chunkEnd.slice(0, 4), chunkEnd.slice(4, 6) - 1, chunkEnd.slice(6, 8));
-    nextDate.setDate(nextDate.getDate() + 1);
-    cur = ibkrYmd(nextDate);
+  if (!(startYmd <= endYmd)) return chunks;
+  for (let y = +startYmd.slice(0, 4); y <= +endYmd.slice(0, 4); y++) {
+    const fd = String(y) + '0101' > startYmd ? String(y) + '0101' : startYmd;
+    const td = String(y) + '1231' < endYmd ? String(y) + '1231' : endYmd;
+    const leapFull = fd === String(y) + '0101' && td === String(y) + '1231' && new Date(y, 1, 29).getMonth() === 1;
+    if (leapFull) {
+      chunks.push({ fd, td: String(y) + '1230' });
+      chunks.push({ fd: String(y) + '1231', td });
+    } else {
+      chunks.push({ fd, td });
+    }
   }
   return chunks;
 }
@@ -1422,8 +1429,9 @@ const IBKR_HISTORY_YEARS_DEFAULT = 5; // עומק ברירת מחדל למשיכ
 function ibkrDepthStartYmd(endD, years) {
   const y = Math.min(10, Math.max(1, parseInt(years, 10) || IBKR_HISTORY_YEARS_DEFAULT));
   const d = (endD && typeof endD.getTime === 'function') ? new Date(endD.getTime()) : new Date();
-  d.setFullYear(d.getFullYear() - y);
-  return ibkrYmd(d);
+  // v124: מתחילים ב־1 בינואר של אותה שנה — IBKR מסרב לטווח ישן שמתחיל באמצע
+  // השנה (flex_1003). "3 שנים" = לפחות 3 שנים מלאות, מתחילת השנה.
+  return String(d.getFullYear() - y) + '0101';
 }
 /* האם המידע שנמצא מגיע עד קרוב לתחילת הטווח המבוקש (תוך 90 יום) —
    אם כן, ייתכן שהחשבון ישן יותר וכדאי להעמיק. פונקציה טהורה (נבדקת). */
@@ -2274,7 +2282,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v123';
+const APP_VERSION = 'v124';
 
 
 function saveDBto(db) {

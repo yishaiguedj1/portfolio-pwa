@@ -380,7 +380,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.ibkrChunkRetryPlan(new Error('x flex_1003 y')).attempts === 3, 'flex_1003 מקבל יותר ניסיונות');
   ok(T.ibkrChunkRetryPlan(new Error('boom')).attempts === 2, 'כשל רגיל: 2 ניסיונות');
   const chunks = T.ibkrDateChunks('20250101', '20260101');
-  ok(chunks.length === 2 && chunks[0].fd === '20250101' && chunks[1].td === '20260101', 'חלוקה לחלקי 365 יום');
+  ok(chunks.length === 2 && chunks[0].fd === '20250101' && chunks[0].td === '20251231' && chunks[1].fd === '20260101' && chunks[1].td === '20260101', 'חלוקה לפי שנים קלנדריות');
   ok(String(T.ibkrFriendlyErr('x flex_1015 y')).length > 0 && !/flex_1015/.test(T.ibkrFriendlyErr('x flex_1015 y')), 'שגיאה ידידותית ל־1015');
 
   /* ---------- flex: דדופליקציה מודעת־מופעים במזומן ---------- */
@@ -430,12 +430,28 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.ibkrDefaultFromYmd(null, endFix) === '20240922', 'ברירת מחדל: שנתיים אחורה מאתמול כשאין נתונים');
   ok(T.ibkrDefaultFromYmd({ meta: {} }, endFix) === '20240922', 'ברירת מחדל: meta בלי toDate -> שנתיים אחורה');
   const threeY = T.ibkrDateChunks('20230924', '20260922');
-  ok(threeY.length === 3 && threeY[0].fd === '20230924' && threeY[threeY.length - 1].td === '20260922', 'קיטוע 3 שנים: 3 חלקים מקצה לקצה');
+  ok(threeY[0].fd === '20230924' && threeY[threeY.length - 1].td === '20260922', 'קיטוע 3 שנים: מקצה לקצה');
   ok(threeY.every((c) => {
     const a = new Date(c.fd.slice(0,4), c.fd.slice(4,6)-1, c.fd.slice(6,8));
     const b = new Date(c.td.slice(0,4), c.td.slice(4,6)-1, c.td.slice(6,8));
-    return (b - a) / 86400000 <= 364;
-  }), 'כל חלק בקיטוע עד 364 יום');
+    return Math.round((b - a) / 86400000) <= 364;
+  }), 'כל חלק בקיטוע עד 365 יום (כולל)');
+  ok(threeY.slice(1).every((c) => /0101$/.test(c.fd) || c.fd === '20241231'), 'v124: כל חלק מלבד הראשון מתחיל ב־1 בינואר (חוץ מ־31/12 של שנה מעוברת)');
+  // v124: רציפות — אין יום חסר ואין חפיפה בין חלקים
+  ok(threeY.every((c, i) => {
+    if (!i) return true;
+    const p = threeY[i - 1].td;
+    const d = new Date(+p.slice(0, 4), +p.slice(4, 6) - 1, +p.slice(6, 8) + 1);
+    return T.ibkrYmd(d) === c.fd;
+  }), 'v124: החלקים רציפים — בלי פער ובלי חפיפה');
+  // v124: תקלה מהשטח — 3 שנים יצא 23/09/2023–21/09/2024 ו־IBKR החזיר flex_1003.
+  // עכשיו: מתחילים ב־1/1/2023, בדיוק הצורה שעבדה עם תאריך ידני
+  const c3y = T.ibkrDateChunks(T.ibkrDepthStartYmd(new Date(2026, 8, 23), 3), '20260923');
+  ok(JSON.stringify(c3y) === JSON.stringify([
+    { fd: '20230101', td: '20231231' }, { fd: '20240101', td: '20241230' }, { fd: '20241231', td: '20241231' },
+    { fd: '20250101', td: '20251231' }, { fd: '20260101', td: '20260923' },
+  ]), 'v124: 3 שנים -> 1/1/2023 בחלקים קלנדריים (שנה מעוברת: 1/1–30/12 + 31/12)');
+  ok(T.ibkrDateChunks('20260105', '20260101').length === 0, 'טווח הפוך -> אין חלקים');
   // משיכה מלאה עם תאריך התחלה מפורש: שולח fd/td לכל חלק
   const seenRanges = [];
   const rangeFetch = async (url, opts) => {
@@ -465,7 +481,10 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.ibkrEarliestDate({ trades: [{ date: '2024-05-05' }] }) === '2024-05-05', 'התאריך המוקדם ביותר: עובד גם עם סוג יחיד');
   ok(T.ibkrEarliestDate({ trades: [], cashTransactions: [], navPeriods: [] }) === '', 'התאריך המוקדם ביותר: מחרוזת ריקה כשאין מידע');
   ok(T.ibkrEarliestDate(null) === '', 'התאריך המוקדם ביותר: null');
-  // סימולציה: 3 חלקים מהעבר קדימה, כולם עם מידע — מיזוג מלא בלי עצירה מוקדמת
+  // סימולציה: כל החלקים מהעבר קדימה, כולם עם מידע — מיזוג מלא בלי עצירה מוקדמת
+  // (v124: מספר החלקים נגזר מהחלוקה הקלנדרית — 2024 מעוברת מתפצלת)
+  const yD = new Date(); yD.setDate(yD.getDate() - 1);
+  const nDeep = T.ibkrDateChunks('20240101', T.ibkrYmd(yD)).length;
   let dstmt = 0;
   const deepRanges = [];
   const deepFetch = async (url, opts) => {
@@ -479,17 +498,17 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     const chunk = {
       meta: { fromDate: '2024-01-01', toDate: '2026-09-22', baseCurrency: 'USD' },
       trades: [{ tradeId: 'DT' + idx, date: '2024-0' + (idx + 1) + '-15', symbol: 'AAA', qty: 1, side: 'BUY', price: 10 }],
-      positions: idx === 2 ? [{ symbol: 'AAA', qty: 5, price: 11 }] : [],
+      positions: idx === nDeep - 1 ? [{ symbol: 'AAA', qty: 5, price: 11 }] : [],
       navHistory: [{ fromDate: '2024-0' + (idx + 1) + '-01', toDate: '2024-0' + (idx + 1) + '-28', twr: 1 }],
       cashBalances: [], cashTransactions: [],
     };
     return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
   const deepRes = await T.ibkrFetchFullHistory(deepFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
-  ok(dstmt === 3, 'משיכה עמוקה: 3 חלקים מהעבר קדימה, כולם נמשכו');
-  ok(deepRanges[0][0] === '20240101' && deepRanges[0][1] < deepRanges[1][1] && deepRanges[1][1] < deepRanges[2][1], 'משיכה עמוקה: החלקים מהעבר לקדימה (העתיק ראשון)');
-  ok(deepRes.trades.length === 3, 'משיכה עמוקה: מוזגו עסקאות מכל החלקים');
-  ok(deepRes.navPeriods.length === 3, 'משיכה עמוקה: מוזגו תקופות NAV מכל החלקים');
+  ok(nDeep >= 3 && dstmt === nDeep, 'משיכה עמוקה: כל החלקים מהעבר קדימה נמשכו');
+  ok(deepRanges[0][0] === '20240101' && deepRanges.every((r, i) => !i || deepRanges[i - 1][1] < r[1]), 'משיכה עמוקה: החלקים מהעבר לקדימה (העתיק ראשון)');
+  ok(deepRes.trades.length === nDeep, 'משיכה עמוקה: מוזגו עסקאות מכל החלקים');
+  ok(deepRes.navPeriods.length === nDeep, 'משיכה עמוקה: מוזגו תקופות NAV מכל החלקים');
   ok(deepRes.latestChunkOk === true, 'משיכה עמוקה: החלק העדכני תקין');
   ok((deepRes.positions || []).length === 1, 'משיכה עמוקה: פוזיציות רק מהחלק העדכני');
   ok(deepRes._autoWall !== true, 'משיכה עמוקה: אין דגל קיר־שמירה');
@@ -511,8 +530,8 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
   const midRes = await T.ibkrFetchFullHistory(midFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null, { chunkGapMs: 5 });
-  ok(mstmt === 3, 'משיכה עמוקה: חלק אמצעי ריק לא עוצר — כל 3 החלקים נמשכו');
-  ok(midRes.trades.length === 2, 'משיכה עמוקה: מידע משני צדי החלק הריק מוזג');
+  ok(mstmt === nDeep, 'משיכה עמוקה: חלק אמצעי ריק לא עוצר — כל החלקים נמשכו');
+  ok(midRes.trades.length === nDeep - 1, 'משיכה עמוקה: מידע משני צדי החלק הריק מוזג');
   // החלק העדכני נכשל -> נחסם, לא מייבאים
   const failFetch = async (url) => {
     if (String(url).includes('/api/flex-request')) throw new Error('boom');
@@ -560,11 +579,13 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.IBKR_POLL_TRIES * T.IBKR_POLL_DELAY_MS >= 150000 && T.IBKR_POLL_TRIES * T.IBKR_POLL_DELAY_MS <= 240000, 'poll: תקציב של ~3 דקות ל"עדיין מייצר"');
   // v120: עומק היסטוריה לפי בחירת המשתמש — לא רצפת 2020 קבועה
   const endFix5 = new Date(2026, 8, 23);
-  ok(T.ibkrDepthStartYmd(endFix5, 5) === '20210923', 'עומק: 5 שנים אחורה מתאריך נתון');
-  ok(T.ibkrDepthStartYmd(endFix5, 10) === '20160923', 'עומק: 10 שנים אחורה');
-  ok(T.ibkrDepthStartYmd(endFix5, 99) === '20160923', 'עומק: מוגבל ל־10 שנים');
-  ok(T.ibkrDepthStartYmd(endFix5, 0) === '20210923', 'עומק: ערך לא תקין -> ברירת מחדל 5');
-  ok(T.ibkrDepthStartYmd(endFix5) === '20210923', 'עומק: בלי ערך -> ברירת מחדל 5');
+  // v124: מתחילים ב־1 בינואר של שנת ההתחלה (IBKR מסרב לטווח ישן מאמצע השנה)
+  ok(T.ibkrDepthStartYmd(endFix5, 5) === '20210101', 'עומק: 5 שנים -> 1 בינואר 2021');
+  ok(T.ibkrDepthStartYmd(endFix5, 3) === '20230101', 'עומק: 3 שנים -> 1 בינואר 2023');
+  ok(T.ibkrDepthStartYmd(endFix5, 10) === '20160101', 'עומק: 10 שנים -> 1 בינואר 2016');
+  ok(T.ibkrDepthStartYmd(endFix5, 99) === '20160101', 'עומק: מוגבל ל־10 שנים');
+  ok(T.ibkrDepthStartYmd(endFix5, 0) === '20210101', 'עומק: ערך לא תקין -> ברירת מחדל 5');
+  ok(T.ibkrDepthStartYmd(endFix5) === '20210101', 'עומק: בלי ערך -> ברירת מחדל 5');
   // v120: הגעה לתחילת הטווח — המלצה להעמיק רק כשהמידע מגיע עד קרוב להתחלה
   ok(T.ibkrReachedStart('2021-10-01', '20210923') === true, 'הגעה להתחלה: מידע עד 8 יום מההתחלה -> כן');
   ok(T.ibkrReachedStart('2022-06-01', '20210923') === false, 'הגעה להתחלה: מידע 8 חודשים אחרי -> לא');
