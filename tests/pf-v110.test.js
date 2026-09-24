@@ -88,7 +88,7 @@ async function main() {
       [c1.fd]: { stmt: [{ ok: true, status: 'ready', data: { positions: pos5, trades: trades(13), cashTransactions: [] } }] },
       [c2.fd]: { stmt: [{ ok: false, error: 'flex_1020' }, { ok: false, error: 'flex_1020' }] }, // נכשל גם בניסיון החוזר
     });
-    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null);
+    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null, { chunkGapMs: 5 });
     ok(data.latestChunkOk === false, 'latestChunkOk=false כשהחלק האחרון נכשל');
     ok(data.positionsAsOf === c1.td, 'positionsAsOf מצביע על החלק הישן');
     ok(data.positions.length === 5, 'פוזיציות הגיבוי נשמרות (5) אך מסומנות כישנות');
@@ -104,7 +104,7 @@ async function main() {
       [c1.fd]: { stmt: [{ ok: true, status: 'ready', data: { positions: pos5, trades: trades(5, 0), cashTransactions: [] } }] },
       [c2.fd]: { stmt: [{ ok: true, status: 'ready', data: { positions: pos9, trades: trades(8, 1000), cashTransactions: [] } }] },
     });
-    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null);
+    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null, { chunkGapMs: 5 });
     ok(data.latestChunkOk === true, 'latestChunkOk=true כששני החלקים הצליחו');
     ok(data.positions.length === 9, 'הפוזיציות נלקחו מהחלק האחרון (9), לא מהישן (5)');
     ok(data.positionsAsOf === c2.td, 'positionsAsOf = החלק האחרון');
@@ -118,7 +118,7 @@ async function main() {
       [c1.fd]: { stmt: [{ ok: true, status: 'ready', data: { positions: pos5, trades: [], cashTransactions: [] } }] },
       [c2.fd]: { stmt: [{ ok: true, status: 'ready', data: { positions: [], trades: [], cashTransactions: [] } }] },
     });
-    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null);
+    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null, { chunkGapMs: 5 });
     ok(data.latestChunkOk === true, 'latestChunkOk=true גם כשהפוזיציות ריקות');
     ok(data.positions.length === 0, 'תיק ריק נשמר כריק — לא נופל לגיבוי הישן');
     ok(isComplete(data) === true, 'תיק ריק לגיטימי לא נחסם');
@@ -130,7 +130,7 @@ async function main() {
       [c1.fd]: { stmt: [{ ok: true, status: 'ready', data: { positions: pos5, trades: [], cashTransactions: [] } }] },
       [c2.fd]: { stmt: [{ ok: false, error: 'timeout' }, { ok: true, status: 'ready', data: { positions: pos9, trades: trades(3, 2000), cashTransactions: [] } }] },
     });
-    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null);
+    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null, { chunkGapMs: 5 });
     ok(data.latestChunkOk === true, 'ניסיון חוזר הצליח → latestChunkOk=true');
     ok(data.positions.length === 9, 'אחרי ניסיון חוזר: 9 פוזיציות עדכניות');
     ok(data._chunks.filter((c) => !c.ok).length === 0, 'אין חלקים כושלים אחרי ניסיון חוזר מוצלח');
@@ -142,7 +142,7 @@ async function main() {
       [c1.fd]: { stmt: [{ ok: false, error: 'x' }, { ok: false, error: 'x' }] },
       [c2.fd]: { stmt: [{ ok: true, status: 'ready', data: { positions: pos9, trades: trades(4, 3000), cashTransactions: [] } }] },
     });
-    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null);
+    const data = await fetchFull(fetchFn, 'https://proxy', 'tok', 'qid', startYmd, null, { chunkGapMs: 5 });
     ok(data.latestChunkOk === true, 'כשל בחלק הישן לא חוסם כשהאחרון הצליח');
     ok(data.positions.length === 9, '9 פוזיציות מהחלק האחרון');
     ok(isComplete(data) === true, 'מותר לייבא (הדיאגנוסטיקה תראה את החלק החסר)');
