@@ -129,6 +129,40 @@ const FLEX_CSV = [
   approx(R.rHeadlineTwr(res.data), 12, 1e-9, 'flex: headline');
 }
 
+/* ---------- פוזיציות: LOT-only מצורפות, SUMMARY גובר ---------- */
+{
+  const csv = [
+    'Statement,Header,Field Name,Field Value',
+    'Statement,Data,Title,Activity Statement',
+    'Statement,Data,Period,"January 1, 2024 - December 31, 2024"',
+    'Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Close Price,Value,Cost Basis,Unrealized P/L',
+    'Open Positions,Data,Lot,Stocks,USD,LOTSYM,3,100,300,270,30',
+    'Open Positions,Data,Lot,Stocks,USD,LOTSYM,2,110,220,200,20',
+    'Open Positions,Data,Summary,Stocks,USD,MIXSYM,10,50,500,400,100',
+    'Open Positions,Data,Lot,Stocks,USD,MIXSYM,10,50,500,400,100',
+  ].join('\n');
+  const res = R.ibkrParseCsv(csv);
+  eq(res.data.positions.length, 2, 'lot: two symbols total');
+  const lot = res.data.positions.find((p) => p.symbol === 'LOTSYM');
+  eq([lot.qty, lot.marketValue, lot.costBasis, lot.unrealized, lot.levelOfDetail], [5, 520, 470, 50, 'LOT'], 'lot: lots aggregated');
+  const mix = res.data.positions.find((p) => p.symbol === 'MIXSYM');
+  eq([mix.qty, mix.levelOfDetail], [10, 'SUMMARY'], 'lot: SUMMARY preferred, no double count');
+}
+
+/* ---------- מיזוג: דוח חדש עם תיק ריק גובר; דוח ישן לא דורס ---------- */
+{
+  const oldD = { meta: { fromDate: '2023-01-01', toDate: '2024-09-27' }, navPeriods: [], trades: [], cashTransactions: [], positions: [{ symbol: 'OLD', qty: 5 }], cashBalances: [{ currency: 'USD', balance: 100 }] };
+  const newEmpty = { meta: { fromDate: '2024-09-27', toDate: '2026-09-24' }, navPeriods: [], trades: [], cashTransactions: [], positions: [], cashBalances: [] };
+  const m1 = R.rMergeData(oldD, newEmpty);
+  eq(m1.positions.length, 0, 'merge: newer empty portfolio wins over stale');
+  eq(m1.cashBalances.length, 0, 'merge: newer empty cash wins over stale');
+  const m2 = R.rMergeData(newEmpty, oldD);
+  eq(m2.positions.length, 0, 'merge: older report does not clobber newer positions');
+  const newFull = { ...newEmpty, positions: [{ symbol: 'NEW', qty: 9 }], cashBalances: [{ currency: 'USD', balance: 200 }] };
+  const m3 = R.rMergeData(oldD, newFull);
+  eq(m3.positions[0].symbol, 'NEW', 'merge: newer positions replace older');
+}
+
 /* ---------- מיזוג ---------- */
 {
   const a = R.ibkrParseCsv(ACTIVITY_CSV).data;
@@ -227,8 +261,13 @@ eq(R.rXirr([{ d: '2024-01-01', amt: -1000 }]), null, 'xirr: single flow -> null'
   eq(r5.periods[0].twr, 12, 'same range diff twr: new value kept');
   ok(R.rPeriodsEqual(p('2024-01-01', '2024-12-31', 10), p('2024-01-01', '2024-12-31', 10)), 'rPeriodsEqual: identical');
   ok(!R.rPeriodsEqual(p('2024-01-01', '2024-12-31', 10), p('2024-01-01', '2024-12-31', 12)), 'rPeriodsEqual: twr differs');
-  ok(R.rPeriodsOverlap({ fromDate: '2024-01-01', toDate: '2024-06-30' }, { fromDate: '2024-06-30', toDate: '2024-12-31' }), 'overlap: touching edges count');
+  ok(!R.rPeriodsOverlap({ fromDate: '2024-01-01', toDate: '2024-06-30' }, { fromDate: '2024-06-30', toDate: '2024-12-31' }), 'overlap: touching edges are adjacent, not overlapping');
   ok(!R.rPeriodsOverlap({ fromDate: '2024-01-01', toDate: '2024-06-29' }, { fromDate: '2024-06-30', toDate: '2024-12-31' }), 'overlap: disjoint');
+  // תקופות עוקבות שנוגעות בגבול — נשמרות ומשורשרות, לא מוחלפות
+  const r6 = R.rMergePeriods([p('2024-01-01', '2024-06-30', 5)], [p('2024-06-30', '2024-12-31', 8)]);
+  eq(r6.periods.length, 2, 'adjacent-touching: both kept');
+  eq(r6.replaced.length, 0, 'adjacent-touching: nothing replaced');
+  approx(R.rChainTwr(r6.periods), 13.4, 1e-9, 'adjacent-touching: chained 5%+8%=13.4%');
 }
 
 /* ---------- תצוגה מקדימה של מיזוג ---------- */
