@@ -793,7 +793,8 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     const fsx = require('fs'), px = require('path');
     const R0 = px.join(__dirname, '..');
     const html = fsx.readFileSync(px.join(R0, 'index.html'), 'utf8');
-    ok(/<h1 class="brand"><img src="logo-header\.png"[^>]*alt=""[^>]*><span class="sr-only" data-i18n="appTitle">/.test(html), 'כותרת: לוגו + שם האפליקציה לקוראי מסך');
+    ok(/<h1 class="brand"><img src="logo-header\.png"[^>]*width="168"[^>]*alt=""[^>]*><span class="sr-only" data-i18n="appTitle">/.test(html), 'כותרת: לוגו גדול (168px) + שם האפליקציה לקוראי מסך');
+    ok(/<div class="appbar-row">/.test(html) && /appbar-actions[\s\S]*<\/div>\s*<\/div>\s*<p class="appbar-sub"/.test(html), 'כותרת v130: שורת מקור בשורה נפרדת, לא לוחצת על הלוגו הגדול');
     const man = JSON.parse(fsx.readFileSync(px.join(R0, 'manifest.webmanifest'), 'utf8'));
     ok(man.icons.some((i) => i.purpose === 'maskable') && man.icons.some((i) => i.purpose === 'any' && i.sizes === '512x512'), 'manifest: אייקון any + maskable נפרדים');
     for (const f of ['logo-header.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon-48.png']) {

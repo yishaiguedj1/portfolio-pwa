@@ -33,9 +33,12 @@ ok(/flex:\s*1\s+0\s+auto/.test(tab), '.tab גמיש (flex:1 0 auto) — מתמת
 ok(/html,\s*body\s*\{[^}]*overflow-x:\s*(clip|hidden)/.test(css), 'אין גלילה אופקית ברמת העמוד');
 
 /* ---------- 2. כותרת עליונה: אין התנגשות במסכים צרים ---------- */
-ok(/\.appbar-title\s*\{[^}]*min-width:\s*0/.test(css), 'בלוק הכותרת יכול להתכווץ (min-width:0 + flex)');
+// v130: הכותרת הפכה ללוגו (מידה קבועה) בשורה נפרדת מהכפתורים — אין יותר
+// טקסט כותרת מתכווץ שמאיים לדחוק את הכפתורים; שורת "מקור" בשורה שלה
+ok(/\.appbar-row\s*\{[^}]*justify-content:\s*space-between/.test(css), 'שורת הכותרת: כפתורים ולוגו בקצוות, לא מתנגשים');
 ok(/\.appbar-sub\s*\{[^}]*text-overflow:\s*ellipsis/.test(css), 'שורת המשנה נחתכת ב־… ולא דוחפת את הכפתורים');
 ok(/\.appbar-actions\s*\{[^}]*flex:\s*none/.test(css), 'בלוק הכפתורים לא נמעך (flex:none)');
+ok(/\.brand-logo\s*\{[^}]*width:\s*168px/.test(css), 'הלוגו בגודל קבוע (168px) — לא תלוי במקום שנשאר');
 
 /* ---------- 3. פלטת iOS 26 בשתי הערכות ---------- */
 const darkCss = css.split('[data-theme="dark"]')[1] || '';
