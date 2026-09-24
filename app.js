@@ -84,7 +84,7 @@ he: {
   twrOfficial: 'TWR רשמי של IBKR',
   twrMissing: 'לא זמין — אין TWR רשמי בדוח',
   twrMissingShort: 'אין TWR רשמי',
-  navWarn: 'הדוח חסר TWR רשמי — התשואה לא תוצג (לא מנחשים). כדי לקבל תשואות רשמיות: הורידו מ־IBKR דוח Activity Statement הכולל את מקטעי "Net Asset Value" ו־"Change in NAV".',
+  navWarn: 'הדוח חסר TWR רשמי — התשואה לא תוצג (לא מנחשים). כדי לקבל תשואות רשמיות: ודאו ששאילתת ה־Flex כוללת את המקטע "Change in NAV", ואז נתקו וסנכרנו מחדש.',
   ovValueReport: 'כולל מזומן · לפי דוח IBKR',
   ovStocksSub: 'כולל מזומן',
   perfTwr: 'תשואה משוקללת־זמן (TWR)',
@@ -260,33 +260,19 @@ he: {
   tdKeyMissing: 'אין מפתח שמור — הגרפים לא יעבדו. הזן מפתח למטה.',
   tdKeySavedFlash: 'המפתח נשמר ✓',
 
-  ibkrCsvTitle: 'נתוני IBKR מקובץ CSV',
-  ibkrCsvDesc: 'מקור יחיד ואמין: מייבאים דוח Activity Statement מ־IBKR כקובץ CSV. התשואות הן המספרים הרשמיים של IBKR מהדוח — אין חישובים משוערים ואין סנכרון אוטומטי.',
-  ibkrCsvGuideTitle: 'איך מורידים את הדוח מ־IBKR?',
-  ibkrCsvGuideBody: '<ol><li>נכנסים ל־Client Portal של IBKR ← <b>Reports</b> ← <b>Statements</b> ← <b>Activity</b>.</li><li>בוחרים תקופה (עד שנה אחורה), וב־Format בוחרים <b>CSV</b>, ומורידים.</li><li>לוחצים כאן על ״ייבוא מקובץ CSV״ ובוחרים את הקובץ שהורד.</li><li>טיפ: אפשר לייבא כמה דוחות לתקופות עוקבות — התשואה הרשמית תחושב ברצף לאורך כולן.</li><li>עדכון: כשמורידים דוח חדש מאוחר יותר, האפליקציה מזהה מה כבר יובא ומוסיפה רק את המידע החדש — בלי כפילויות ובלי מחיקת הקיים.</li></ol>',
-  ibkrCsvBtn: 'ייבוא מקובץ CSV',
-  ibkrCsvNever: 'טרם יובא דוח — מוצגים הנתונים הידניים.',
-  ibkrCsvStatus: '{kind} · תקופה: {a}–{b} · יובא: {time}',
-  ibkrCsvParseError: 'הקובץ {name} אינו דוח IBKR תקין (CSV).',
-  ibkrCsvNoData: 'לא נמצאו נתונים בקובץ — ודאו שזהו דוח Activity Statement או Flex Query בפורמט CSV.',
-  ibkrCsvConfirm: 'נמצא דוח IBKR ({kind}):\nתקופה: {a} – {b}\nTWR רשמי: {twr}\n\n{delta}{warns}\n\nרק המידע החדש יתווסף — הקיים לא ישוכפל ולא יימחק. להמשיך?',
-  ibkrCsvDeltaFirst: 'דוח ראשון — ייובא במלואו.',
-  ibkrCsvDeltaPeriods: 'תקופות חדשות: {ranges}',
-  ibkrCsvDeltaReplaced: 'תקופות שיוחלפו (חופפות לחדש): {ranges}',
-  ibkrCsvDeltaTrades: 'עסקאות חדשות: {n} · תנועות מזומן חדשות: {k}',
-  ibkrCsvDeltaDup: 'כבר קיימים וידולגו: {n} עסקאות · {m} תנועות מזומן',
-  ibkrCsvNothingNew: 'אין מידע חדש — כל הנתונים כבר קיימים באפליקציה.',
-  ibkrCsvWarns: '\nשים לב: {w}',
-  csvKindFlex: 'שאילתת Flex',
-  csvKindActivity: 'דוח פעילות',
-  csvWarn_no_twr: 'לא נמצא TWR רשמי בדוח — התשואה לא תוצג',
-  csvWarn_no_nav: 'חסר Change in NAV — אין שווי התחלה/סיום',
-  csvWarn_no_trades: 'לא נמצאו עסקאות בדוח',
-  csvWarn_no_positions: 'לא נמצאו פוזיציות בדוח',
-  csvWarn_no_cash: 'לא נמצאו תנועות מזומן בדוח',
+  ibkrTitle: 'חיבור ל־IBKR',
+  ibkrNever: 'טרם סונכרן — מוצגים הנתונים הידניים.',
+  ibkrSyncStatus: 'תקופה: {a}–{b} · סונכרן: {time}',
+  ibkrImportConfirm: 'נמצא דוח IBKR:\nתקופה: {a} – {b}\nTWR רשמי: {twr}\n\n{delta}{warns}\n\nרק המידע החדש יתווסף — הקיים לא ישוכפל ולא יימחק. להמשיך?',
+  ibkrImportDeltaFirst: 'סנכרון ראשון — ייובא במלואו.',
+  ibkrImportDeltaPeriods: 'תקופות חדשות: {ranges}',
+  ibkrImportDeltaReplaced: 'תקופות שיוחלפו (חופפות לחדש): {ranges}',
+  ibkrImportDeltaTrades: 'עסקאות חדשות: {n} · תנועות מזומן חדשות: {k}',
+  ibkrImportDeltaDup: 'כבר קיימים וידולגו: {n} עסקאות · {m} תנועות מזומן',
+  ibkrImportNothingNew: 'אין מידע חדש — כל הנתונים כבר קיימים באפליקציה.',
   ibkrDisconnectBtn: 'ניתוק',
-  ibkrDepositsNote: 'מיובא מדוח IBKR (קובץ CSV) — מתעדכן בכל ייבוא חדש.',
-  ibkrStocksNote: 'מיובא מדוח IBKR (קובץ CSV) — מתעדכן בכל ייבוא חדש. עריכה ידנית תידרס בייבוא הבא.',
+  ibkrDepositsNote: 'מסונכרן מ־IBKR — מתעדכן בכל סנכרון.',
+  ibkrStocksNote: 'מסונכרן מ־IBKR — מתעדכן בכל סנכרון. עריכה ידנית תידרס בסנכרון הבא.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
   ibkrChunkFail: 'חלק {fd}–{td} נכשל ({err})',
   proxyUrlMissing: 'כתובת השרתון לא הוגדרה',
@@ -302,8 +288,10 @@ he: {
   importSkipped: '{n} דולגו',
   importSnapshotNote: 'הנתונים הידניים נשמרו וישוחזרו בניתוק.',
   // סנכרון Flex — אופציה נוספת למשיכת נתונים
-  ibkrSyncTitle: 'משיכה מ־IBKR (אופציה נוספת)',
-  ibkrSyncDesc: 'סנכרון אוטומטי דרך Flex Web Service עם token. אופציה נוספת — יבוא ה־CSV נשאר הדרך המומלצת.',
+  ibkrConnTitle: 'הגדרות חיבור (שרתון · Query ID · token)',
+  ibkrRangeTitle: 'טווח המשיכה',
+  ibkrFlexHowTitle: 'איך מגדירים את שאילתת ה־Flex?',
+  ibkrSyncDesc: 'הנתונים נמשכים מ־IBKR דרך Flex Web Service: יוצרים שאילתת Flex ב־Client Portal ‏(Reports ← Flex Queries), ומפעילים Flex Web Service כדי לקבל token.',
   flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (לתשואה לפי חודש/שנה/YTD).',
   ibkrProxyLabel: 'כתובת השרתון',
   ibkrQueryPh: 'מ־IBKR',
@@ -461,7 +449,7 @@ en: {
   twrOfficial: "IBKR's official TWR",
   twrMissing: 'Unavailable — no official TWR in the report',
   twrMissingShort: 'No official TWR',
-  navWarn: 'The report has no official TWR — the return will not be shown (never guessed). To get official returns: download an IBKR Activity Statement that includes the "Net Asset Value" and "Change in NAV" sections.',
+  navWarn: 'The report has no official TWR — the return will not be shown (never guessed). To get official returns: make sure your Flex query includes the "Change in NAV" section, then disconnect and sync again.',
   ovValueReport: 'Incl. cash · per IBKR report',
   ovStocksSub: 'Incl. cash',
   perfTwr: 'Time-Weighted Return (TWR)',
@@ -637,33 +625,19 @@ en: {
   tdKeyMissing: 'No saved key — charts won\'t work. Enter a key below.',
   tdKeySavedFlash: 'Key saved ✓',
 
-  ibkrCsvTitle: 'IBKR data from CSV file',
-  ibkrCsvDesc: 'One reliable source: import an IBKR Activity Statement as a CSV file. Returns are IBKR\u2019s official numbers from the report — never estimated, no automatic sync.',
-  ibkrCsvGuideTitle: 'How do I download the report from IBKR?',
-  ibkrCsvGuideBody: '<ol><li>In the IBKR Client Portal go to <b>Reports</b> → <b>Statements</b> → <b>Activity</b>.</li><li>Pick a period (up to one year back), set Format to <b>CSV</b>, and download.</li><li>Tap “Import from CSV file” here and choose the downloaded file.</li><li>Tip: you can import several reports for consecutive periods — the official return will chain across all of them.</li><li>Updating: when you download a newer report later, the app detects what was already imported and adds only the new information — no duplicates, nothing deleted.</li></ol>',
-  ibkrCsvBtn: 'Import from CSV file',
-  ibkrCsvNever: 'No report imported yet — showing manual data.',
-  ibkrCsvStatus: '{kind} · period: {a}–{b} · imported: {time}',
-  ibkrCsvParseError: 'The file {name} is not a valid IBKR report (CSV).',
-  ibkrCsvNoData: 'No data found in the file — make sure it is an Activity Statement or Flex Query in CSV format.',
-  ibkrCsvConfirm: 'Found an IBKR report ({kind}):\nPeriod: {a} – {b}\nOfficial TWR: {twr}\n\n{delta}{warns}\n\nOnly new information will be added — existing data will not be duplicated or deleted. Continue?',
-  ibkrCsvDeltaFirst: 'First report — will be fully imported.',
-  ibkrCsvDeltaPeriods: 'New periods: {ranges}',
-  ibkrCsvDeltaReplaced: 'Periods to be replaced (overlapping): {ranges}',
-  ibkrCsvDeltaTrades: 'New trades: {n} · New cash movements: {k}',
-  ibkrCsvDeltaDup: 'Already exist, will be skipped: {n} trades · {m} cash movements',
-  ibkrCsvNothingNew: 'No new information — everything is already imported.',
-  ibkrCsvWarns: '\nNote: {w}',
-  csvKindFlex: 'Flex query',
-  csvKindActivity: 'Activity statement',
-  csvWarn_no_twr: 'no official TWR in the report — return will not be shown',
-  csvWarn_no_nav: 'Change in NAV missing — no start/end values',
-  csvWarn_no_trades: 'no trades in the report',
-  csvWarn_no_positions: 'no positions in the report',
-  csvWarn_no_cash: 'no cash movements in the report',
+  ibkrTitle: 'IBKR connection',
+  ibkrNever: 'Not synced yet — showing manual data.',
+  ibkrSyncStatus: 'Period: {a}–{b} · synced: {time}',
+  ibkrImportConfirm: 'Found an IBKR report:\nPeriod: {a} – {b}\nOfficial TWR: {twr}\n\n{delta}{warns}\n\nOnly new information will be added — existing data will not be duplicated or deleted. Continue?',
+  ibkrImportDeltaFirst: 'First sync — will be fully imported.',
+  ibkrImportDeltaPeriods: 'New periods: {ranges}',
+  ibkrImportDeltaReplaced: 'Periods to be replaced (overlapping): {ranges}',
+  ibkrImportDeltaTrades: 'New trades: {n} · New cash movements: {k}',
+  ibkrImportDeltaDup: 'Already exist, will be skipped: {n} trades · {m} cash movements',
+  ibkrImportNothingNew: 'No new information — everything is already imported.',
   ibkrDisconnectBtn: 'Disconnect',
-  ibkrDepositsNote: 'Imported from an IBKR report (CSV file) — updates on every new import.',
-  ibkrStocksNote: 'Imported from an IBKR report (CSV file) — updates on every new import. Manual edits will be overwritten by the next import.',
+  ibkrDepositsNote: 'Synced from IBKR — updates on every sync.',
+  ibkrStocksNote: 'Synced from IBKR — updates on every sync. Manual edits will be overwritten by the next sync.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
   ibkrChunkFail: 'chunk {fd}–{td} failed ({err})',
   proxyUrlMissing: 'Proxy URL not set',
@@ -679,8 +653,10 @@ en: {
   importSkipped: '{n} skipped',
   importSnapshotNote: 'Manual data was snapshotted and will be restored on disconnect.',
   // Flex sync — an additional data-pull option
-  ibkrSyncTitle: 'Pull from IBKR (additional option)',
-  ibkrSyncDesc: 'Automatic sync via Flex Web Service with a token. An additional option — CSV import remains the recommended way.',
+  ibkrConnTitle: 'Connection settings (proxy · Query ID · token)',
+  ibkrRangeTitle: 'Pull range',
+  ibkrFlexHowTitle: 'How do I set up the Flex query?',
+  ibkrSyncDesc: 'Data is pulled from IBKR via Flex Web Service: create a Flex query in the Client Portal (Reports → Flex Queries), and enable Flex Web Service to get a token.',
   flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (for month/year/YTD returns).',
   ibkrProxyLabel: 'Proxy URL',
   ibkrQueryPh: 'from IBKR',
@@ -1397,11 +1373,10 @@ function downsample(rows, max) {
   return out;
 }
 
-/* ---------------- נתוני IBKR מקובץ CSV — מקור יחיד ----------------
-   הדוח מיובא מקובץ Activity Statement (או Flex Query) שהמשתמש מוריד מ־IBKR.
-   אין סנכרון אוטומטי, אין טוקן, אין שרתון. התשואות הן המספרים הרשמיים
-   של IBKR מהדוח (TWR) — לעולם לא משוערות. הנתונים הידניים (DB) לא נפגעים —
-   נתוני IBKR נשמרים בנפרד ומוצגים בנפרד. */
+/* ---------------- נתוני IBKR — סנכרון Flex ----------------
+   הנתונים נמשכים מ־IBKR דרך Flex Web Service (שרתון Vercel + token שנשמר
+   בטלפון בלבד). התשואות הן המספרים הרשמיים של IBKR מהדוח (TWR) — לעולם לא
+   משוערות. הנתונים הידניים (DB) לא נפגעים — נתוני IBKR נשמרים בנפרד. */
 
 const LS_IBKR = 'pwa_ibkr_v1';
 
@@ -1424,7 +1399,7 @@ function ibkrClearErr() {
   if (e) { e.textContent = ''; e.classList.add('hidden'); }
 }
 function ibkrSetBusy(busy) {
-  ['ibkrCsvBtn', 'ibkrDisconnect', 'ibkrSaveTest', 'ibkrSyncImport'].forEach((id) => {
+  ['ibkrDisconnect', 'ibkrSaveTest', 'ibkrSyncImport'].forEach((id) => {
     const b = document.getElementById(id);
     if (b) b.disabled = !!busy;
   });
@@ -1906,6 +1881,9 @@ function renderIbkrCard() {
   if (px && !px.value) px.value = cfg.proxyUrl || IBKR_PROXY_DEFAULT;
   if (tk && !tk.value) tk.value = cfg.token || '';
   if (qd && !qd.value) qd.value = cfg.queryId || '';
+  // v128: הגדרות החיבור מקופלות — נפתחות לבד רק כשעוד אין token/Query ID
+  const cdet = document.getElementById('ibkrConnDetails');
+  if (cdet && !(cfg.token && cfg.queryId)) cdet.open = true;
   const data = cfg.data;
   // עומק היסטוריה — בחירת המשתמש (נשמרת בטלפון), ברירת מחדל 5 שנים
   const dhe = document.getElementById('ibkrHistoryDepth');
@@ -1929,12 +1907,10 @@ function renderIbkrCard() {
   const s = document.getElementById('ibkrStatus');
   if (s) {
     if (!has) {
-      s.textContent = t('ibkrCsvNever');
+      s.textContent = t('ibkrNever');
     } else {
       const meta = data.meta || {};
-      const kind = (typeof ibkrKindName === 'function') ? ibkrKindName(data) : '';
-      s.textContent = t('ibkrCsvStatus', {
-        kind: kind,
+      s.textContent = t('ibkrSyncStatus', {
         a: meta.fromDate ? fmtDateIL(meta.fromDate) : '—',
         b: meta.toDate ? fmtDateIL(meta.toDate) : '—',
         time: cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—',
@@ -2004,7 +1980,7 @@ function ibkrMapImport(data) {
     const qty = Number(p.qty) || 0;
     const sym = String(p.symbol || '').trim();
     const _a = String(p.asset || '').toUpperCase();
-    const isStock = !_a || _a === 'STK' || _a === 'STOCKS'; // CSV: 'Stocks', Flex: 'STK'
+    const isStock = !_a || _a === 'STK' || _a === 'STOCKS'; // Flex: 'STK' (ונתונים ישנים: 'Stocks')
     if (!(qty > 0) || !sym || !isStock || p.currency !== 'USD') { skipped++; continue; }
     lots++;
     const cb = Math.abs(Number(p.costBasis) || 0);
@@ -2043,52 +2019,8 @@ function ibkrDisconnect() {
   if (restored) flash(t('disconnectedRestored')); else flash(t('disconnected'));
 }
 
-/* ייבוא מקובץ CSV: קורא קבצים מקומית, מפענח עם returns.js, מאחד תקופות
-   שאינן חופפות, מבקש אישור עם סיכום, ומכניס את הפוזיציות לתיק (בהסכמתך).
-   אין רשת, אין טוקן — הכל קורה בטלפון. */
-function ibkrCsvReadFile(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result || ''));
-    r.onerror = () => reject(new Error('read'));
-    r.readAsText(file);
-  });
-}
-
-async function ibkrCsvImport(fileList) {
-  ibkrClearErr();
-  const files = Array.prototype.slice.call(fileList || []);
-  if (!files.length) return;
-  ibkrSetBusy(true);
-  try {
-    let merged = null;
-    const warns = [];
-    for (const f of files) {
-      const text = await ibkrCsvReadFile(f);
-      const res = ibkrParseCsv(text);
-      if (!res.ok) throw new Error(t('ibkrCsvParseError', { name: f.name }));
-      if (res.warnings && res.warnings.length) {
-        for (const w of res.warnings) if (warns.indexOf(w) < 0) warns.push(w);
-      }
-      merged = merged ? rMergeData(merged, res.data) : res.data;
-    }
-    if (!merged || !((merged.trades || []).length || (merged.positions || []).length || (merged.navPeriods || []).length)) {
-      ibkrShowErr(t('ibkrCsvNoData'));
-      return;
-    }
-    const existing = ibkrCfg().data;
-    const warnTxt = warns.length ? '\n' + t('ibkrCsvWarns', { w: warns.map((w) => t('csvWarn_' + String(w).replace(/-/g, '_')) || w).join(', ') }) : '';
-    ibkrReviewImport(existing, merged, warnTxt);
-  } catch (e) {
-    ibkrShowErr(t('importFailed', { err: e && e.message ? e.message : String(e) }));
-  } finally {
-    ibkrSetBusy(false);
-    renderIbkrCard();
-  }
-}
-
-/* בדיקת יבוא מאוחדת לשני מקורות הנתונים (CSV ו־Flex): תצוגה מקדימה של
-   מה חדש מול מה שכבר יובא, אישור, וסיום יבוא עם מיזוג בלי כפילויות. */
+/* בדיקת יבוא מסנכרון IBKR: תצוגה מקדימה של מה חדש מול מה שכבר נשמר,
+   אישור, וסיום יבוא עם מיזוג בלי כפילויות. */
 
 /* מטמון מיושן: האפליקציה "זוכרת" יבוא קודם, אבל אף סימבול ממנו לא נמצא בתיק
    בפועל (למשל אחרי איפוס או מחיקה). דילוג על כפילויות חל רק כשהמידע כבר הוזן
@@ -2103,12 +2035,11 @@ function ibkrCacheIsStale(cached, curPositions) {
 function ibkrReviewImport(existing, incoming, warnTxt) {
   if (ibkrCacheIsStale(existing, typeof POSITIONS !== 'undefined' ? POSITIONS : [])) existing = null;
   const preview = rMergePreview(existing, incoming);
-  const deltaTxt = ibkrCsvDeltaText(preview, !!existing);
-  if (deltaTxt === null) { flash(t('ibkrCsvNothingNew')); return; }
+  const deltaTxt = ibkrImportDeltaText(preview, !!existing);
+  if (deltaTxt === null) { flash(t('ibkrImportNothingNew')); return; }
   const meta = incoming.meta || {};
   const twr = rHeadlineTwr(incoming);
-  const okGo = confirm(t('ibkrCsvConfirm', {
-    kind: ibkrKindName(incoming),
+  const okGo = confirm(t('ibkrImportConfirm', {
     a: meta.fromDate ? fmtDateIL(meta.fromDate) : '—',
     b: meta.toDate ? fmtDateIL(meta.toDate) : '—',
     twr: (twr === null || twr === undefined) ? '—' : fmtPct(twr, true),
@@ -2144,7 +2075,7 @@ async function ibkrSaveAndTest() {
   renderIbkrCard();
 }
 
-/* סנכרון מ־IBKR (Flex Web Service) — אופציה נוספת למשיכת נתונים, לצד יבוא CSV.
+/* סנכרון מ־IBKR (Flex Web Service) — מקור הנתונים היחיד של מצב IBKR.
    מושך דוח טרי דרך השרתון ומכניס אותו לאותו צינור יבוא מאוחד. */
 async function ibkrSyncImport() {
   ibkrClearErr();
@@ -2280,25 +2211,19 @@ function ibkrStatusLine(base, stage, elapsedMs) {
   return [base, stage, clock].filter(Boolean).join(' · ');
 }
 
-function ibkrKindName(data) {
-  const k = (data && data.meta && data.meta.kind) || '';
-  if (k === 'flex') return t('csvKindFlex');
-  return t('csvKindActivity');
-}
-
-/* טקסט "מה יתווסף" לדיאלוג האישור — משווה את הקובץ החדש למה שכבר יובא.
+/* טקסט "מה יתווסף" לדיאלוג האישור — משווה את הדוח החדש למה שכבר נשמר.
    מחזיר null כשאין שום מידע חדש. */
-function ibkrCsvDeltaText(preview, hasExisting) {
+function ibkrImportDeltaText(preview, hasExisting) {
   const pr = preview;
-  if (!hasExisting) return t('ibkrCsvDeltaFirst');
+  if (!hasExisting) return t('ibkrImportDeltaFirst');
   const lines = [];
   const rng = (p) => fmtDateIL(p.fromDate) + '–' + fmtDateIL(p.toDate);
-  if (pr.addedPeriods.length) lines.push(t('ibkrCsvDeltaPeriods', { ranges: pr.addedPeriods.map(rng).join(', ') }));
-  if (pr.replacedPeriods.length) lines.push(t('ibkrCsvDeltaReplaced', { ranges: pr.replacedPeriods.map(rng).join(', ') }));
-  if (pr.newTrades || pr.newCash) lines.push(t('ibkrCsvDeltaTrades', { n: pr.newTrades, k: pr.newCash }));
+  if (pr.addedPeriods.length) lines.push(t('ibkrImportDeltaPeriods', { ranges: pr.addedPeriods.map(rng).join(', ') }));
+  if (pr.replacedPeriods.length) lines.push(t('ibkrImportDeltaReplaced', { ranges: pr.replacedPeriods.map(rng).join(', ') }));
+  if (pr.newTrades || pr.newCash) lines.push(t('ibkrImportDeltaTrades', { n: pr.newTrades, k: pr.newCash }));
   // אין שום דבר חדש — גם אם יש כפילויות שידולגו, אין טעם בדיאלוג
   if (!lines.length) return null;
-  if (pr.dupTrades || pr.dupCash) lines.push(t('ibkrCsvDeltaDup', { n: pr.dupTrades, m: pr.dupCash }));
+  if (pr.dupTrades || pr.dupCash) lines.push(t('ibkrImportDeltaDup', { n: pr.dupTrades, m: pr.dupCash }));
   return lines.join('\n');
 }
 
@@ -2428,7 +2353,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v127';
+const APP_VERSION = 'v128';
 
 
 function saveDBto(db) {
@@ -6057,17 +5982,10 @@ function init() {
   // v85: שמירת מיקום גלילה לכל טאב
   try { initScrollSaver(); } catch (e) {}
 
-  // נתוני IBKR מקובץ CSV — מקור יחיד
+  // נתוני IBKR — סנכרון Flex
   renderIbkrCard();
-  const ibkrCb = document.getElementById('ibkrCsvBtn');
-  const ibkrCf = document.getElementById('ibkrCsvFile');
-  if (ibkrCb && ibkrCf) {
-    ibkrCb.addEventListener('click', () => ibkrCf.click());
-    ibkrCf.addEventListener('change', () => { ibkrCsvImport(ibkrCf.files); ibkrCf.value = ''; });
-  }
   const ibkrDc = document.getElementById('ibkrDisconnect');
   if (ibkrDc) ibkrDc.addEventListener('click', ibkrDisconnect);
-  // סנכרון Flex — אופציה נוספת למשיכת נתונים מ־IBKR
   const ibkrSt = document.getElementById('ibkrSaveTest');
   if (ibkrSt) ibkrSt.addEventListener('click', ibkrSaveAndTest);
   const ibkrSi = document.getElementById('ibkrSyncImport');

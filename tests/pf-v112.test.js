@@ -1,4 +1,4 @@
-// pf-v112.test.js — פארסר CSV + מנוע תשואות חדש (נבנה מאפס).
+// pf-v112.test.js — מנוע תשואות (מיזוג, שרשור TWR, סכומים, XIRR). v128: פארסר ה־CSV הוסר.
 // כל הנתונים פיקטיביים לחלוטין — אסור להכניס נתוני משתמש אמיתיים.
 const R = require('../returns.js');
 
@@ -20,134 +20,12 @@ function approx(a, b, eps, name) {
   console.log('ok - ' + name);
 }
 
-/* ---------- טוקניזר ---------- */
-{
-  const rows = R.csvRows('a,"b,c","d""e"\r\nx,y,z\r\n');
-  eq(rows, [['a', 'b,c', 'd"e'], ['x', 'y', 'z']], 'csvRows: quotes+escaped+CRLF');
-  const bom = R.csvRows('\uFEFFStatement,Header,A\r\n');
-  eq(bom[0][0], 'Statement', 'csvRows: BOM stripped');
-}
 
-/* ---------- תקופת דוח ---------- */
-eq(R.parseStatementPeriod('September 29, 2023 - September 27, 2024'),
-  ['2023-09-29', '2024-09-27'], 'parseStatementPeriod');
-eq(R.parseStatementPeriod('January 1, 2025 - March 31, 2025'),
-  ['2025-01-01', '2025-03-31'], 'parseStatementPeriod Q1');
-
-/* ---------- Activity Statement סינתטי ---------- */
-const ACTIVITY_CSV = [
-  'Statement,Header,Field Name,Field Value',
-  'Statement,Data,Title,Activity Statement',
-  'Statement,Data,Period,"January 1, 2024 - December 31, 2024"',
-  'Account Information,Header,Field Name,Field Value',
-  'Account Information,Data,Base Currency,USD',
-  'Net Asset Value,Header,Asset Class,Prior Total,Current Total,Change',
-  'Net Asset Value,Data,Total,10000,12500,2500',
-  'Net Asset Value,Data,12.5%',
-  'Change in NAV,Header,Field Name,Field Value',
-  'Change in NAV,Data,Starting Value,10000',
-  'Change in NAV,Data,Mark-to-Market,1500',
-  'Change in NAV,Data,Deposits & Withdrawals,1000',
-  'Change in NAV,Data,Dividends,120',
-  'Change in NAV,Data,Withholding Tax,-30',
-  'Change in NAV,Data,Change in Dividend Accruals,0',
-  'Change in NAV,Data,Commissions,-90',
-  'Change in NAV,Data,Ending Value,12500',
-  'Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code',
-  'Trades,Data,Order,Stocks,USD,ACME,"2024-02-01, 10:00:00",10,100,101,1000,-1,0,0,0,',
-  'Trades,Data,Order,Stocks,USD,ACME,"2024-05-01, 10:00:00",-4,120,121,-480,-1,0,80,0,',
-  'Trades,SubTotal,Stocks,USD,ACME,,,,,520,-2,,,,',
-  'Trades,Total,,,,,,,,,518,-2,,,,',
-  'Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Mult,Cost Price,Cost Basis,Close Price,Value,Unrealized P/L,Code',
-  'Open Positions,Data,Summary,Stocks,USD,ACME,6,1,100,600,121,726,126,',
-  'Open Positions,Total,,,,,,,,,,,726,126,',
-  'Deposits & Withdrawals,Header,Currency,Settle Date,Description,Amount',
-  'Deposits & Withdrawals,Data,USD,2024-01-15,Deposit,1000',
-  'Dividends,Header,Currency,Date,Description,Amount',
-  'Dividends,Data,USD,2024-06-01,ACME Dividend,120',
-  'Withholding Tax,Header,Currency,Date,Description,Amount,Code',
-  'Withholding Tax,Data,USD,2024-06-01,ACME Withholding,-30,',
-  'Cash Report,Header,Currency Summary,Currency,Total,Securities,Futures,',
-  'Cash Report,Data,Ending Cash,Base Currency Summary,5000,5000,0,',
-].join('\r\n');
-
-{
-  const res = R.ibkrParseCsv(ACTIVITY_CSV);
-  ok(res.ok, 'activity: ok');
-  eq(res.stats.kind, 'activity', 'activity: kind');
-  eq(res.warnings, [], 'activity: no warnings');
-  eq([res.stats.trades, res.stats.positions, res.stats.cashTxs], [2, 1, 3], 'activity: counts');
-  eq([res.stats.fromDate, res.stats.toDate], ['2024-01-01', '2024-12-31'], 'activity: period');
-
-  const t0 = res.data.trades[0], t1 = res.data.trades[1];
-  eq([t0.symbol, t0.side, t0.qty, t0.date], ['ACME', 'BUY', 10, '2024-02-01'], 'activity: buy from +qty');
-  eq([t1.side, t1.qty, t1.realized], ['SELL', 4, 80], 'activity: sell from -qty');
-  eq(res.data.trades.length, 2, 'activity: SubTotal/Total ignored');
-
-  const p = res.data.positions[0];
-  eq([p.symbol, p.qty, p.markPrice, p.marketValue, p.costBasis], ['ACME', 6, 121, 726, 600], 'activity: position');
-
-  const np = res.data.navPeriods[0];
-  approx(np.twr, 12.5, 1e-9, 'activity: official TWR from % row');
-  eq([np.startingValue, np.endingValue, np.netFlows], [10000, 12500, 1000], 'activity: NAV values');
-
-  const types = res.data.cashTransactions.map((c) => c.type).sort();
-  eq(types, ['Deposits/Withdrawals', 'Dividend', 'Withholding Tax'], 'activity: cash types');
-  eq(res.data.cashBalances, [{ currency: 'USD', balance: 5000 }], 'activity: cash balance');
-
-  // זהות חשבונאית: 10000+1500+1000+120-30+0-90 = 12500
-  approx(R.rGain(res.data), 1500, 1e-6, 'activity: gain = end-start-flows');
-  approx(R.rHeadlineTwr(res.data), 12.5, 1e-9, 'activity: headline TWR');
-  eq(R.rSourceKind(res.data), 'official', 'activity: source official');
-}
-
-/* ---------- אזהרות ---------- */
-{
-  const noTwr = ACTIVITY_CSV.split('\r\n').filter((l) => !/^Net Asset Value,Data,12/.test(l)).join('\r\n');
-  const res = R.ibkrParseCsv(noTwr);
-  ok(res.warnings.includes('no-twr'), 'warn: no-twr when % row missing');
-  eq(R.rHeadlineTwr(res.data), null, 'no official TWR -> headline null (no guessing)');
-  eq(R.rSourceKind(res.data), 'nav', 'source falls to nav when values exist');
-}
-
-/* ---------- Flex Query סינתטי ---------- */
-const FLEX_CSV = [
-  'Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,Proceeds,Buy/Sell,Comm/Fee,TradeID',
-  'Trades,Data,Order,Stocks,USD,GLOBEX,2024-03-01 11:00:00,5,200,1000,BUY,-2,T1',
-  'Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Position,Mark Price,Position Value,Cost Basis Money,Fifo Pnl Unrealized,Level Of Detail',
-  'Open Positions,Data,Summary,Stocks,USD,GLOBEX,5,210,1050,1000,50,SUMMARY',
-  'Open Positions,Data,Lot,Stocks,USD,GLOBEX,5,210,1050,1000,50,LOT',
-  'Change in NAV,Header,From Date,To Date,Starting Value,Ending Value,TWR',
-  'Change in NAV,Data,2024-01-01,2024-12-31,10000,11200,12',
-].join('\n');
-{
-  const res = R.ibkrParseCsv(FLEX_CSV);
-  eq(res.stats.kind, 'flex', 'flex: kind');
-  eq(res.data.trades[0].side, 'BUY', 'flex: explicit Buy/Sell wins');
-  eq(res.data.positions.length, 1, 'flex: LOT filtered, SUMMARY kept');
-  approx(res.data.navPeriods[0].twr, 12, 1e-9, 'flex: TWR column');
-  approx(R.rHeadlineTwr(res.data), 12, 1e-9, 'flex: headline');
-}
-
-/* ---------- פוזיציות: LOT-only מצורפות, SUMMARY גובר ---------- */
-{
-  const csv = [
-    'Statement,Header,Field Name,Field Value',
-    'Statement,Data,Title,Activity Statement',
-    'Statement,Data,Period,"January 1, 2024 - December 31, 2024"',
-    'Open Positions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Quantity,Close Price,Value,Cost Basis,Unrealized P/L',
-    'Open Positions,Data,Lot,Stocks,USD,LOTSYM,3,100,300,270,30',
-    'Open Positions,Data,Lot,Stocks,USD,LOTSYM,2,110,220,200,20',
-    'Open Positions,Data,Summary,Stocks,USD,MIXSYM,10,50,500,400,100',
-    'Open Positions,Data,Lot,Stocks,USD,MIXSYM,10,50,500,400,100',
-  ].join('\n');
-  const res = R.ibkrParseCsv(csv);
-  eq(res.data.positions.length, 2, 'lot: two symbols total');
-  const lot = res.data.positions.find((p) => p.symbol === 'LOTSYM');
-  eq([lot.qty, lot.marketValue, lot.costBasis, lot.unrealized, lot.levelOfDetail], [5, 520, 470, 50, 'LOT'], 'lot: lots aggregated');
-  const mix = res.data.positions.find((p) => p.symbol === 'MIXSYM');
-  eq([mix.qty, mix.levelOfDetail], [10, 'SUMMARY'], 'lot: SUMMARY preferred, no double count');
-}
+/* ---------- נתוני דוח סינתטיים (לשעבר מפוענחים מ־CSV; v128: יבוא CSV הוסר —
+   המנוע נבדק על אותם נתונים בדיוק, כאובייקט) ---------- */
+const FX_A = {"meta": {"fromDate": "2024-01-01", "toDate": "2024-12-31", "baseCurrency": "USD"}, "trades": [{"symbol": "ACME", "date": "2024-02-01", "qty": 10, "side": "BUY", "price": 100, "proceeds": 1000, "commission": 1, "realized": 0, "currency": "USD", "asset": "Stocks", "tradeId": "", "fxToBase": 1}, {"symbol": "ACME", "date": "2024-05-01", "qty": 4, "side": "SELL", "price": 120, "proceeds": -480, "commission": 1, "realized": 80, "currency": "USD", "asset": "Stocks", "tradeId": "", "fxToBase": 1}], "positions": [{"symbol": "ACME", "qty": 6, "asset": "Stocks", "currency": "USD", "markPrice": 121, "marketValue": 726, "costBasis": 600, "unrealized": 126, "levelOfDetail": "SUMMARY", "fxToBase": 1}], "cashTransactions": [{"date": "2024-01-15", "amount": 1000, "currency": "USD", "fxToBase": 1, "type": "Deposits/Withdrawals", "description": "Deposit"}, {"date": "2024-06-01", "amount": 120, "currency": "USD", "fxToBase": 1, "type": "Dividend", "description": "ACME Dividend"}, {"date": "2024-06-01", "amount": -30, "currency": "USD", "fxToBase": 1, "type": "Withholding Tax", "description": "ACME Withholding"}], "navPeriods": [{"fromDate": "2024-01-01", "toDate": "2024-12-31", "startingValue": 10000, "endingValue": 12500, "netFlows": 1000, "twr": 12.5, "source": "ibkr"}], "cashBalances": [{"currency": "USD", "balance": 5000}]};
+const FX_B = {"meta": {"fromDate": "2025-01-01", "toDate": "2025-12-31", "baseCurrency": "USD"}, "trades": [{"symbol": "ACME", "date": "2025-02-01", "qty": 10, "side": "BUY", "price": 100, "proceeds": 1000, "commission": 1, "realized": 0, "currency": "USD", "asset": "Stocks", "tradeId": "", "fxToBase": 1}, {"symbol": "ACME", "date": "2025-05-01", "qty": 4, "side": "SELL", "price": 120, "proceeds": -480, "commission": 1, "realized": 80, "currency": "USD", "asset": "Stocks", "tradeId": "", "fxToBase": 1}], "positions": [{"symbol": "ACME", "qty": 6, "asset": "Stocks", "currency": "USD", "markPrice": 121, "marketValue": 726, "costBasis": 600, "unrealized": 126, "levelOfDetail": "SUMMARY", "fxToBase": 1}], "cashTransactions": [{"date": "2025-01-15", "amount": 1000, "currency": "USD", "fxToBase": 1, "type": "Deposits/Withdrawals", "description": "Deposit"}, {"date": "2025-06-01", "amount": 120, "currency": "USD", "fxToBase": 1, "type": "Dividend", "description": "ACME Dividend"}, {"date": "2025-06-01", "amount": -30, "currency": "USD", "fxToBase": 1, "type": "Withholding Tax", "description": "ACME Withholding"}], "navPeriods": [{"fromDate": "2025-01-01", "toDate": "2025-12-31", "startingValue": 10000, "endingValue": 12500, "netFlows": 1000, "twr": 12.5, "source": "ibkr"}], "cashBalances": [{"currency": "USD", "balance": 5000}]};
+const clone = (o) => JSON.parse(JSON.stringify(o));
 
 /* ---------- מיזוג: דוח חדש עם תיק ריק גובר; דוח ישן לא דורס ---------- */
 {
@@ -165,9 +43,8 @@ const FLEX_CSV = [
 
 /* ---------- מיזוג ---------- */
 {
-  const a = R.ibkrParseCsv(ACTIVITY_CSV).data;
-  const b = R.ibkrParseCsv(ACTIVITY_CSV.replace(/2024/g, '2025')
-    .replace('January 1, 2025 - December 31, 2025', 'January 1, 2025 - December 31, 2025')).data;
+  const a = clone(FX_A);
+  const b = clone(FX_B);
   const m0 = R.rMergeData(a, a);
   eq([m0.trades.length, m0.navPeriods.length], [2, 1], 'merge: self-merge dedupes');
   const m = R.rMergeData(a, b);
@@ -198,7 +75,7 @@ eq(R.rChainTwr([{ twr: -100 }]), null, 'chain: -100% invalid -> null');
 
 /* ---------- סכומים ---------- */
 {
-  const d = R.ibkrParseCsv(ACTIVITY_CSV).data;
+  const d = clone(FX_A);
   const s = R.rSums(d);
   approx(s.realized, 80, 1e-9, 'sums: realized');
   approx(s.unrealized, 126, 1e-9, 'sums: unrealized');
@@ -212,7 +89,7 @@ const _x = R.rXirr([{ d: '2024-01-01', amt: -1000 }, { d: '2025-01-01', amt: 110
 ok(_x > 9.9 && _x < 10.1, 'xirr: textbook case ~10% (actual/365.25 day count)');
 eq(R.rXirr([{ d: '2024-01-01', amt: -1000 }]), null, 'xirr: single flow -> null');
 {
-  const d = R.ibkrParseCsv(ACTIVITY_CSV).data;
+  const d = clone(FX_A);
   const xf = R.rXirrFlows(d);
   ok(xf && xf.length === 3, 'xirrFlows: start + 1 deposit + end');
   eq(xf[0].amt < 0 && xf[2].amt > 0, true, 'xirrFlows: signs (out negative, in positive)');

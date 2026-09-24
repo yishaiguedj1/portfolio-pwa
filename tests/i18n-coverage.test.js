@@ -100,11 +100,6 @@ function tKeys(src, name) {
   return keys;
 }
 const jsKeys = new Set([...tKeys(appSrc, 'app.js'), ...tKeys(cloudSrc, 'cloud.js')]);
-// t('csvWarn_' + code): הקידומת הדינמית מכוסה ע"י כל המפתחות csvWarn_* במילונים
-if (jsKeys.has('csvWarn_')) {
-  jsKeys.delete('csvWarn_');
-  for (const k of heKeys) if (k.startsWith('csvWarn_')) jsKeys.add(k);
-}
 ok(jsKeys.size > 60, 'נמצאו קריאות t() בקוד (' + jsKeys.size + ')');
 const jsMissing = [...jsKeys].filter((k) => !heKeys.has(k) || !enKeys.has(k));
 ok(jsMissing.length === 0, 'כל מפתחות ה־t() קיימים בשתי השפות' + (jsMissing.length ? ': ' + jsMissing.join(',') : ''));

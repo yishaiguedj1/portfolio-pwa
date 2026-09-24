@@ -20,7 +20,7 @@
 | `index.html` | מבנה + מסכים |
 | `styles.css` | עיצוב (בהיר/כהה) |
 | `sw.js` | Service Worker. גרסת קאש: `CACHE_NAME` |
-| `returns.js`, `cloud.js`, `firebase-config.js` | חישובי תשואה, ענן, Firebase |
+| `returns.js`, `cloud.js`, `firebase-config.js` | מנוע תשואות (מיזוג, TWR, רווח, XIRR — בלי פארסר CSV מאז v128), ענן, Firebase |
 | `manifest.webmanifest`, `icon-*.png` | PWA |
 | `ibkr-proxy/` | שרתון Vercel ל־IBKR Flex — **מתפרס אוטומטית מ־GitHub בכל push**. נקודות: `/api/flex-request` (SendRequest), `/api/flex-statement` (GetStatement) |
 | `tests/` | בדיקות node. הרצה: `node tests/<file>` או `bash tests/run-all.sh` |
@@ -81,9 +81,9 @@
 ## 7. בדיקות
 
 - `node --check app.js` תמיד לפני push.
-- `node tests/ibkr-app.test.js` — לוגיקת IBKR/קצב/עומק/הודעות (199 אסרטים). `node tests/pf-v125.test.js` (41) — גרף/טווחים/NAV יומי. `pf-v126.test.js` (10) — טולטיפ מול מדידה. `pf-v127.test.js` (18) — יום כפול בסנכרון המשך.
-- `node tests/pf-v110.test.js` (28), `pf-v111.test.js` (19), `pf-v112.test.js` (92) — רגרסיות יבוא.
-- `node tests/i18n-coverage.test.js` (727) — כל מחרוזת גלויה בעברית **ובאנגלית**.
+- `node tests/ibkr-app.test.js` — לוגיקת IBKR/קצב/עומק/הודעות (205 אסרטים, כולל שמירה שה־CSV לא חוזר). `node tests/pf-v125.test.js` (41) — גרף/טווחים/NAV יומי. `pf-v126.test.js` (10) — טולטיפ מול מדידה. `pf-v127.test.js` (18) — יום כפול בסנכרון המשך.
+- `node tests/pf-v110.test.js` (28), `pf-v111.test.js` (19) — רגרסיות סנכרון; `pf-v112.test.js` (61) — מנוע התשואות על נתוני דוח סינתטיים.
+- `node tests/i18n-coverage.test.js` (711) — כל מחרוזת גלויה בעברית **ובאנגלית**.
 - `node ibkr-proxy/tests/run.js` (62) — שרתון.
 - הכל: הלולאה ב־`.github/workflows/test.yml` (אין `tests/run-all.sh` בריפו). בדיקות תאימות `CACHE_NAME`↔`APP_VERSION` אדומות בין שלב התוכן לשלב ה־sw.js — צפוי, מתייבש אחרי דחיפת sw.js.
 - מוסכמה: בבדיקות multi-chunk מעבירים `{ chunkGapMs: 5 }` — זה מחליף את כל הקצב (בלי מגביל, בלי המתנת poll ראשונה). לבדיקת קצב אמיתי: `{ limiter: ibkrMakeLimiter({now, sleep}), sleep }` עם שעון מדומה.
@@ -106,7 +106,8 @@
 
 - **i18n**: כל מחרוזת גלויה חייבת להתקיים ב־`STRINGS.he` וב־`STRINGS.en`. הבדיקה אוכפת.
 - **עיצוב**: עברית תחילה; טקסט ואייקונים **מעט גדולים מהסטנדרט**; היברידי — תחושת Material מוכרת לאנדרואיד עם טעם של Apple (Liquid Glass כבסיס craft); בהיר + כהה; **אסור לשנות `space-2`**; צבעים נועזים אך נעימים כמו אפליקציית Google טבעית; תצוגת הפקדות נפרדת עם תאריך מדויק לכל הפקדה.
-- **תמיכת CSV נשמרת** תמיד.
+- **יבוא CSV הוסר לגמרי (v128, בקשת המשתמש 24/09/2026)** — מקור הנתונים היחיד של מצב IBKR הוא סנכרון Flex. לא להחזיר. ("CSV" שנשאר בקוד = היסטוריית מחירים מ־Stooq, `parseHistoryCSV` — לא קשור.)
+- **כרטיס IBKR בהגדרות (v128)**: גלויים רק סטטוס + "סנכרן וייבא" + "ניתוק"; טווח המשיכה, הגדרות החיבור וההדרכה ב־`<details>` מקופלים (`ibkrRangeDetails`, `ibkrConnDetails` — נפתח לבד כשאין token/Query ID, `ibkrFlexHow`). העדפת המשתמש: מעט טקסט גלוי, הרחבה בחיצים.
 
 ## 10. המשתמש וכללי התנהגות
 

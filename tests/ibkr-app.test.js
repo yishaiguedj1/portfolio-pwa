@@ -117,10 +117,10 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   /* ---------- renderIbkrCard ---------- */
   Object.keys(store).forEach((k) => delete store[k]);
   T.renderIbkrCard();
-  ok(els.ibkrStatus.textContent.includes('טרם יובא דוח'), 'סטטוס: טרם יובא דוח כשאין נתונים');
+  ok(els.ibkrStatus.textContent.includes('טרם סונכרן'), 'סטטוס: טרם סונכרן כשאין נתונים');
   T.ibkrSaveCfg({ proxyUrl: 'https://p', token: 't', queryId: '1', lastSync: Date.now(), data: { positions: [{}, {}], trades: [{}], cashTransactions: [{}, {}, {}] } });
   T.renderIbkrCard();
-  ok(els.ibkrStatus.textContent.includes('יובא:'), 'סטטוס: מוצג זמן יבוא');
+  ok(els.ibkrStatus.textContent.includes('סונכרן:'), 'סטטוס: מוצג זמן הסנכרון');
   ok(els.ibkrData.textContent.includes('פוזיציות: 2') && els.ibkrData.textContent.includes('עסקאות בדוח: 1'),
     'סיכום נתונים מוצג בכרטיס');
 
@@ -769,6 +769,22 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     const res2 = await T.ibkrFetchFullHistory(alwaysFailOldest, 'https://proxy.example.com', 'tok', '1', '20230924', null, { chunkGapMs: 0, sleep: noSleep, delayMs: 1 });
     ok(T.ibkrSyncIsComplete(res2) === true, 'פער קבוע: החלק האחרון תקין -> יבוא מותר בכל זאת');
     ok((res2._chunks || []).some((c) => !c.ok && c.fd === '20230924'), 'פער קבוע: החלק הישן נשאר מסומן ככשל — לא נעלם בשקט');
+  }
+
+
+  // v128: יבוא CSV הוסר לגמרי — רק סנכרון Flex
+  {
+    const fsx = require('fs'), px = require('path');
+    const html = fsx.readFileSync(px.join(__dirname, '..', 'index.html'), 'utf8');
+    const appSrc = fsx.readFileSync(px.join(__dirname, '..', 'app.js'), 'utf8');
+    const retSrc = fsx.readFileSync(px.join(__dirname, '..', 'returns.js'), 'utf8');
+    ok(!/csv/i.test(html), 'index.html: אין שום אזכור של CSV');
+    ok(!/ibkrCsv|csvKind|csvWarn|ibkrParseCsv|FileReader/.test(appSrc), 'app.js: אין קוד/מחרוזות של יבוא CSV');
+    ok(!/csv/i.test(appSrc.replace(/parseHistoryCSV|e=csv/g, '')), 'app.js: CSV נשאר רק בהיסטוריית המחירים של Stooq');
+    ok(!/csv/i.test(retSrc), 'returns.js: פארסר ה־CSV הוסר');
+    ok(/<details[^>]*id="ibkrConnDetails"/.test(html) && /<details[^>]*id="ibkrRangeDetails"/.test(html) && /<details[^>]*id="ibkrFlexHow"/.test(html), 'כרטיס IBKR: הגדרות/טווח/הדרכה מקופלים');
+    const btnIdx = html.indexOf('id="ibkrSyncImport"'), detIdx = html.indexOf('id="ibkrRangeDetails"');
+    ok(btnIdx > 0 && btnIdx < detIdx, 'כפתור הסנכרון גלוי מחוץ לחלקים המקופלים');
   }
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
