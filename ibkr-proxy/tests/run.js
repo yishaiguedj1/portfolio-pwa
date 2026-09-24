@@ -194,6 +194,15 @@ function stubFetch(text, status = 200) {
   await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
   ok(res.payload.ok === false && res.payload.error === 'flex_1015' && !res.payload.retried, 'טוקן לא תקין -> כשלון מיידי');
   ok(calls === 1, 'נסיון יחיד לשגיאה קבועה');
+
+  /* ---------- הגבלת קצב (1018) -> אין נסיון חוזר כלל (v120) ---------- */
+  calls = 0;
+  const FAIL1018 = `<FlexStatementResponse><Status>Fail</Status><ErrorCode>1018</ErrorCode><ErrorMessage>Too many requests have been made from this token. Please try again shortly.</ErrorMessage></FlexStatementResponse>`;
+  global.fetch = async () => { calls++; return { status: 200, text: async () => FAIL1018 }; };
+  res = mockRes();
+  await flexRequest(mockReq({ body: { token: '123456789012345678901234', queryId: '1646275' } }), res);
+  ok(res.payload.ok === false && res.payload.error === 'flex_1018' && !res.payload.retried, 'הגבלת קצב 1018 -> כשלון מיידי בלי נסיון חוזר');
+  ok(calls === 1, 'נסיון יחיד להגבלת קצב (ניסיון חוזר רק שורף תקציב בקשות)');
   flexRequest._setRetryWaitMs(7000);
 
   /* ---------- שני ההוסטים נכשלים -> שגיאת ההוסט האחרון ---------- */
