@@ -599,7 +599,7 @@ footer.fine { text-align: center; }
   text-align: center; box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
   color: #191C1A;
 }
-.login-logo { width: 96px; height: 96px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.14)); }
+.login-logo { width: 192px; height: 192px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.14)); }
 .login-card h1 { margin: 14px 0 4px; font-size: 28px; letter-spacing: -.3px; }
 .login-sub { color: #5f6368; font-size: 16px; margin: 0 0 26px; line-height: 1.6; }
 .google-btn {
