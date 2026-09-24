@@ -1283,11 +1283,16 @@ function daysBetweenIso(a, b) {
 }
 
 /* v134: טווח גרף המניה לפי תאריך לוח שנה, כמו Yahoo/Google: הבסיס = הסגירה
-   האחרונה בתאריך החיתוך או לפניו ("שנה" = אותו יום לפני שנה, YTD = סגירת
-   31/12). filterRange הישן ספר שורות (שנה = 252, שבוע = 5 → רק 4 ימי שינוי). */
+   האחרונה בתאריך החיתוך או לפניו ("שנה" = אותו יום לפני שנה). filterRange הישן ספר שורות (שנה = 252, שבוע = 5 → רק 4 ימי שינוי). */
 function stockRangeRows(rows, range) {
   if (!rows || !rows.length) return [];
   const lastIso = rows[rows.length - 1].date;
+  // v135: YTD כמו Google — מסגירת יום המסחר הראשון של השנה (NOW: 147.45 ב־02/01/2026)
+  if (range === 'ytd') {
+    const y = lastIso.slice(0, 4);
+    const i = rows.findIndex((r) => r.date.slice(0, 4) === y);
+    return i < 0 ? rows.slice() : rows.slice(i);
+  }
   let cut = null;
   if (range === 'week') {
     const t = new Date(lastIso + 'T00:00:00Z');
@@ -2390,7 +2395,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v134';
+const APP_VERSION = 'v135';
 
 
 function saveDBto(db) {

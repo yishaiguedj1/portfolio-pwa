@@ -62,7 +62,8 @@ const mo = rangeRows(rows, 'month');
 ok(mo[0].date === '2026-08-24', 'חודש: בסיס = אותו יום בחודש הקודם');
 
 const ytd = rangeRows(rows, 'ytd');
-ok(ytd[0].date === '2025-12-31', 'YTD: בסיס = סגירת 31/12 (הישן: יום המסחר הראשון בשנה)');
+ok(ytd[0].date === '2026-01-01', 'YTD (v135, כמו Google): בסיס = סגירת יום המסחר הראשון של השנה');
+ok(rangeRows(rows.filter((r) => r.date !== '2026-01-01'), 'ytd')[0].date === '2026-01-02', 'YTD: יום המסחר הראשון גם כש־1/1 חג');
 
 const y5 = rangeRows(rows, '5y');
 ok(y5[0] === rows[0], '5 שנים כשאין מספיק היסטוריה: הכל');
