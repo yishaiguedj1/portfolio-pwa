@@ -197,15 +197,19 @@ function mapActivityStatement(sections) {
   }
   if (!data.trades.length) warnings.push('no-trades');
 
-  // פוזיציות פתוחות: DataDiscriminator=Summary (אין LOT כפול בדוח פעילות)
+  // פוזיציות פתוחות: מעדיפים Summary לכל סימבול; לסימבול שאין לו Summary
+  // מצרפים את שורות ה־Lot (דוח פעילות תקין נותן Summary; Lot הוא פירוט — לא סופרים פעמיים)
   const op = sections['Open Positions'];
   if (op) {
+    const rAdd = (a, b) => (isFinite(a) ? a : 0) + (isFinite(b) ? b : 0);
+    const sums = new Map(); // symbol -> position (Summary)
+    const lots = new Map(); // symbol -> aggregated lots
     for (const r of op.rows) {
-      if (String(r['DataDiscriminator'] || '').trim() !== 'Summary') continue;
+      const disc = String(r['DataDiscriminator'] || '').trim().toLowerCase();
       const sym = String(r['Symbol'] || '').trim();
       const qty = rNum(r['Quantity']);
       if (!sym || !isFinite(qty) || qty === 0) continue;
-      data.positions.push({
+      const p = {
         symbol: sym,
         qty: qty,
         asset: String(r['Asset Category'] || '').trim(),
@@ -214,9 +218,29 @@ function mapActivityStatement(sections) {
         marketValue: rNum(r['Value']),
         costBasis: rNum(r['Cost Basis']),
         unrealized: rNum(r['Unrealized P/L']),
-        levelOfDetail: 'SUMMARY',
+        levelOfDetail: disc === 'lot' ? 'LOT' : 'SUMMARY',
         fxToBase: 1,
-      });
+      };
+      if (disc === 'lot') {
+        const a = lots.get(sym);
+        if (!a) lots.set(sym, { ...p, lots: 1 });
+        else {
+          a.qty = rAdd(a.qty, p.qty);
+          a.marketValue = rAdd(a.marketValue, p.marketValue);
+          a.costBasis = rAdd(a.costBasis, p.costBasis);
+          a.unrealized = rAdd(a.unrealized, p.unrealized);
+          a.lots++;
+        }
+      } else {
+        // 'summary' או עמודה חסרה — Summary גובר
+        sums.set(sym, p);
+      }
+    }
+    for (const p of sums.values()) data.positions.push(p);
+    for (const [sym, a] of lots) {
+      if (sums.has(sym) || a.qty === 0) continue;
+      a.markPrice = a.qty ? a.marketValue / a.qty : NaN;
+      data.positions.push(a);
     }
   }
   if (!data.positions.length) warnings.push('no-positions');
@@ -478,7 +502,10 @@ function cashKey(c) {
 /* האם שתי תקופות חופפות (כולל מגע בקצוות)? */
 function rPeriodsOverlap(a, b) {
   if (!a || !b || !a.fromDate || !a.toDate || !b.fromDate || !b.toDate) return false;
-  return a.fromDate <= b.toDate && b.fromDate <= a.toDate;
+  // חפיפה אמיתית — לא מגע בנקודת גבול בודדת.
+  // תקופות עוקבות (האחת מסתיימת בדיוק כשהשנייה מתחילה) אינן "חופפות" —
+  // הן נשמרות ומשורשרות ב־TWR, לא מוחלפות.
+  return a.fromDate < b.toDate && b.fromDate < a.toDate;
 }
 
 /* מיזוג תקופות: תקופה חדשה מחליפה כל תקופה קיימת שהיא חופפת (עדכון —
@@ -572,12 +599,12 @@ function rMergeData(a, b) {
   const mA = A.meta || {}, mB = B.meta || {};
   const fds = [mA.fromDate, mB.fromDate].filter(Boolean).sort();
   const tds = [mA.toDate, mB.toDate].filter(Boolean).sort();
-  // פוזיציות/מזומן: מהדוח עם תאריך הסיום המאוחר ביותר (לא לפי סדר הבחירה)
-  const bNewer = String(mB.toDate || '') >= String(mA.toDate || '');
-  const posSrc = (bNewer && (B.positions || []).length) ? B
-    : ((A.positions || []).length ? A : B);
-  const cashSrc = (bNewer && (B.cashBalances || []).length) ? B
-    : ((A.cashBalances || []).length ? A : B);
+  // פוזיציות/מזומן: מהדוח עם תאריך הסיום המאוחר ביותר (לא לפי סדר הבחירה).
+  // תאריך חדש יותר גובר תמיד — גם אם הפוזיציות בו ריקות (תיק ריק הוא מידע אמיתי,
+  // לא סיבה לדבוק בנתונים ישנים). בתיקו — הייבוא האחרון גובר.
+  const tdA = String(mA.toDate || ''), tdB = String(mB.toDate || '');
+  const posSrc = tdB > tdA ? B : tdA > tdB ? A : B;
+  const cashSrc = tdB > tdA ? B : tdA > tdB ? A : B;
   return {
     meta: {
       fromDate: fds[0] || '', toDate: tds[tds.length - 1] || '',
