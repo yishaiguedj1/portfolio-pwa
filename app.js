@@ -2353,7 +2353,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v132';
+const APP_VERSION = 'v133';
 
 
 function saveDBto(db) {
@@ -2443,12 +2443,157 @@ const yahooQuoteURL = (sym) => yahooURL(sym, 'interval=1m&range=1d&includePrePos
 const LS_QUOTES = 'pwa_quotes_v2'; // v2: ניקוי מטמון ישן שסומן כ־Stooq
 const LS_HIST = 'pwa_hist_v2_'; // + sym — v2: שומר מטא־ספליטים (תיקון באג מטמון v70)
 
-/* צבעי תרשים העוגה — נגזרים מטוקני פלטת iOS 26 החיים, כך שהם מתחלפים
-   אוטומטית בין ערכת בהיר לכהה (בטסטים: fallback של ערכת בהיר). */
-const PIE_VARS = ['--sys-green', '--sys-blue', '--sys-teal', '--sys-purple', '--sys-pink', '--sys-orange', '--sys-yellow', '--sys-mint', '--sys-brown'];
-const PIE_FALLBACK = ['#34C759', '#007AFF', '#5AC8FA', '#AF52DE', '#FF2D55', '#FF9500', '#FFCC00', '#00C7BE', '#A2845E'];
-function pieColor(i) {
-  return cssVar(PIE_VARS[i % PIE_VARS.length], PIE_FALLBACK[i % PIE_VARS.length]);
+/* צבעי תרשים העוגה (v133): צבע המותג האמיתי של החברה כשהוא ידוע (מקורות
+   ציבוריים — brandcolors.net/brandpalettes.com, ל־24/09/2026; מותג
+   רב־צבעי כמו מיקרוסופט מיוצג בגוון אחד מהסט הרשמי). קבועים במכוון בין
+   בהיר לכהה — צבע מותג לא אמור להשתנות לפי ערכת הנושא, רק רקע הכרטיס
+   משתנה סביבו. חברה לא ממותגת מקבלת גוון פסטלי מ־PIE_FALLBACK_PALETTE
+   (בהשראת גרף העוגה שהמשתמש שלח כדוגמה). */
+const PIE_BRAND_COLORS = {
+  META: '#0866FF', ADBE: '#FA0C00', MSFT: '#FFB900', NOW: '#62D84E',
+  MBLY: '#1A1F71', UNH: '#263D96', UBER: '#3AA76D', INTU: '#236CFF',
+};
+const PIE_FALLBACK_PALETTE = ['#8DC63F', '#8FC1E3', '#F46A5C', '#F5A35C', '#C98BBE', '#F2D250', '#9AA0A6', '#5B8DBE', '#B07CC6'];
+
+/* hex -> {h,s,l} (0..360 / 0..1 / 0..1) — עזר להשוואת צבעים. */
+function pieHexToHsl(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return { h: 0, s: 0, l: 0.5 };
+  const n = parseInt(m[1], 16);
+  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  let h = 0, s0 = 0;
+  if (mx !== mn) {
+    const d = mx - mn;
+    s0 = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    if (mx === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h: h, s: s0, l: l };
+}
+
+/* {h,s,l} -> hex — הופכת ל-pieHexToHsl, לבניית גוון פסטלי מהגוון המקורי. */
+function pieHslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  const toHex = (v) => Math.max(0, Math.min(255, Math.round((v + m) * 255))).toString(16).padStart(2, '0');
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
+/* מרככת צבע מותג חד/רווי לגוון פסטלי (כמו בגרף העוגה שהמשתמש שלח כדוגמה):
+   שומרת את הגוון (h) של המותג — כדי שהחברה עדיין תהיה מזוהה — אבל מגבילה
+   רוויה ומעלה בהירות. פונקציה טהורה, נבדקת. */
+function pastelizeBrand(hex) {
+  const c = pieHexToHsl(hex);
+  const s = Math.min(c.s, 0.55);
+  const l = Math.min(0.8, Math.max(0.68, c.l * 0.4 + 0.62));
+  return pieHslToHex(c.h, s, l);
+}
+
+/* צבע לסימבול: גוון פסטלי של צבע המותג אם ידוע, אחרת גוון מהפלטה הפסטלית —
+   הסבב בפלטה נספר רק על חברות לא־ממותגות (fallbackIdx), כדי שהוספת/הסרת
+   חברה ממותגת לא תזיז את כל שאר הצבעים. פונקציה טהורה, נבדקת. */
+function pieColorFor(sym, fallbackIdx) {
+  const s = String(sym || '').toUpperCase();
+  return PIE_BRAND_COLORS[s]
+    ? pastelizeBrand(PIE_BRAND_COLORS[s])
+    : PIE_FALLBACK_PALETTE[((fallbackIdx % PIE_FALLBACK_PALETTE.length) + PIE_FALLBACK_PALETTE.length) % PIE_FALLBACK_PALETTE.length];
+}
+
+/* מרחק "תפיסתי" גס בין שני צבעים (0 = זהים, גבוה = קל להבדיל) —
+   הפרש גוון מעגלי (0–180°) משוקלל בעיקר, ועוד קצת הפרש בהירות.
+   פונקציה טהורה, נבדקת. */
+function pieColorDistance(hexA, hexB) {
+  const a = pieHexToHsl(hexA), b = pieHexToHsl(hexB);
+  let dh = Math.abs(a.h - b.h); if (dh > 180) dh = 360 - dh;
+  return (dh / 180) * 0.7 + Math.abs(a.l - b.l) * 0.3;
+}
+
+/* מוודאת שאין שתי חברות (לא רק שכנות בעוגה — גם בכל הגרף/המקרא) בצבע
+   כמעט זהה: כמה מהחברות בתיק חולקות משפחת גוון (למשל כמה "כחולים"
+   רשמיים שונים) — אחרי הפסטול הם עלולים להתכנס לאותו גוון בערך.
+   עוברת חתיכה־חתיכה לפי הסדר שקיבלה, ומסובבת את הגוון (h) של כל
+   חתיכה שקרובה מדי לאחת שכבר "ננעלה" עד שהיא מרוחקת מספיק מכולן —
+   שומרת רוויה/בהירות (עדיין פסטלי), רק מזיזה גוון. פונקציה טהורה,
+   לא משנה את המערך שקיבלה, נבדקת. */
+function pieDedupeColors(slices) {
+  const out = (slices || []).map((s) => Object.assign({}, s));
+  for (let i = 1; i < out.length; i++) {
+    const minDistTo = (hex) => {
+      let d = Infinity;
+      for (let j = 0; j < i; j++) d = Math.min(d, pieColorDistance(hex, out[j].color));
+      return d;
+    };
+    let bestD = minDistTo(out[i].color);
+    if (bestD >= 0.15) continue;
+    // מספיק קרוב לחברה קודמת: מחפשת בין 24 גוונים מרווחים באופן שווה
+    // (כל 15°) סביב הגוון המקורי את זה שהכי רחוק מכל הצבעים שכבר ננעלו —
+    // חיפוש גלובלי, לא "צעד אחר צעד", כדי לא להיתקע באזור צפוף.
+    const c = pieHexToHsl(out[i].color);
+    let bestHex = out[i].color;
+    for (let step = 15; step < 360; step += 15) {
+      const cand = pieHslToHex(c.h + step, c.s, c.l);
+      const d = minDistTo(cand);
+      if (d > bestD) { bestD = d; bestHex = cand; }
+    }
+    out[i].color = bestHex;
+  }
+  return out;
+}
+
+/* מסדר מחדש חתיכות עוגה כך ששתי חתיכות שכנות (כולל התפר המעגלי בין
+   האחרונה לראשונה) לא יהיו בצבעים קרובים מדי — כדי שאפשר תמיד להבדיל
+   בין שתי חברות סמוכות. אלגוריתם חמדני: מתחילים מהחתיכה הראשונה,
+   ובכל צעד בוחרים מהנותרות את הצבע הכי רחוק מהאחרונה שהונחה; בסוף
+   ניסיון תיקון אחד לתפר המעגלי אם הוא יצא קרוב מדי. פונקציה טהורה,
+   לא משנה את המערך שקיבלה, נבדקת. */
+function pieArrangeSlices(slices) {
+  const left = (slices || []).slice();
+  if (left.length <= 2) return left;
+  const out = [left.shift()];
+  while (left.length) {
+    let bi = 0, bd = -1;
+    for (let i = 0; i < left.length; i++) {
+      const d = pieColorDistance(out[out.length - 1].color, left[i].color);
+      if (d > bd) { bd = d; bi = i; }
+    }
+    out.push(left.splice(bi, 1)[0]);
+  }
+  const wrapD = pieColorDistance(out[out.length - 1].color, out[0].color);
+  if (wrapD < 0.12) {
+    for (let i = 1; i < out.length - 1; i++) {
+      const d1 = pieColorDistance(out[i].color, out[0].color);
+      const d2 = pieColorDistance(out[out.length - 1].color, out[i - 1].color);
+      if (d1 > 0.12 && d2 > 0.12) { out.push(out.splice(i, 1)[0]); break; }
+    }
+  }
+  return out;
+}
+
+/* מטמון תמונות לוגו לתרשים העוגה (Image, לא DOM) — לוגו כל סימבול
+   נטען פעם אחת; ברגע שהוא מוכן מציירים מחדש כדי שהוא יופיע. */
+const PIE_LOGO_CACHE = {};
+function pieLogoImg(sym) {
+  const s = normalizeSym(sym);
+  let e = PIE_LOGO_CACHE[s];
+  if (!e) {
+    e = PIE_LOGO_CACHE[s] = { img: new Image(), ready: false, failed: false };
+    e.img.onload = () => { e.ready = true; try { drawPie(); } catch (er) {} };
+    e.img.onerror = () => { e.failed = true; try { drawPie(); } catch (er) {} };
+    e.img.src = 'https://financialmodelingprep.com/image-stock/' + encodeURIComponent(s) + '.png';
+  }
+  return e;
 }
 
 /* ---------------- מצב ---------------- */
@@ -3548,15 +3693,24 @@ function renderIbkrPerf() {
 function drawPie() {
   const canvas = document.getElementById('pieChart');
   const tot = totalsUSD();
-  const slices = POSITIONS.map((p, i) => {
+  let fbIdx = 0;
+  const slices = POSITIONS.map((p) => {
     const q = state.quotes[p.sym];
     const v = q ? q.close * p.shares : 0;
-    return { sym: p.sym, name: p.name, value: v, color: pieColor(i) };
+    const branded = !!PIE_BRAND_COLORS[String(p.sym || '').toUpperCase()];
+    const color = pieColorFor(p.sym, fbIdx);
+    if (!branded) fbIdx++;
+    return { sym: p.sym, name: p.name, value: v, color: color };
   }).filter((s) => s.value > 0);
-  const total = slices.reduce((a, s) => a + s.value, 0);
+  // v133: כמה מותגים "נופלים" לאותו גוון פסטלי בקירוב (למשל כמה כחולים
+  // רשמיים שונים) — מפזרת ביניהם לפני שממשיכים, כדי שכל חברה תיבדל
+  // גם ברשימת המקרא ולא רק בין שכנות בטבעת.
+  const slicesUnique = pieDedupeColors(slices);
+  const total = slicesUnique.reduce((a, s) => a + s.value, 0);
 
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 320, h = 220;
+  // v133: גדול ככל שהרוחב הזמין מאפשר (הקנבס מרובע — CSS aspect-ratio:1/1)
+  const w = canvas.clientWidth || 320, h = canvas.clientHeight || w;
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -3566,9 +3720,12 @@ function drawPie() {
     ctx.fillText(t('noPriceYet'), w / 2, h / 2);
     return;
   }
+  // v133: חתיכות שכנות (כולל התפר המעגלי) לא בצבעים קרובים מדי — קל להבדיל
+  const ordered = pieArrangeSlices(slicesUnique);
   const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 10, r = R * 0.62;
+  const band = R - r, rMid = (R + r) / 2;
   let a = -Math.PI / 2;
-  for (const s of slices) {
+  for (const s of ordered) {
     const a2 = a + (s.value / total) * Math.PI * 2;
     ctx.beginPath();
     ctx.arc(cx, cy, R, a, a2);
@@ -3576,8 +3733,33 @@ function drawPie() {
     ctx.closePath();
     ctx.fillStyle = s.color;
     ctx.fill();
+    // v133: לוגו החברה בתוך המשולש — בגודל פרופורציונלי לפרוסה (רוחב
+    // הטבעת ואורך הקשת), על תג לבן קטן לקריאוּת מעל כל צבע. פרוסות
+    // צרות מדי מדלגות על לוגו במקום לדחוס אחד בלתי קריא.
+    const mid = (a + a2) / 2;
+    const arcLen = (a2 - a) * rMid;
+    const box = Math.min(band * 0.78, arcLen * 0.72, 46);
+    if (box >= 20) {
+      const e = pieLogoImg(s.sym);
+      const lx = cx + Math.cos(mid) * rMid, ly = cy + Math.sin(mid) * rMid;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(lx, ly, box / 2 + 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 3;
+      ctx.fill(); ctx.restore();
+      if (e.ready && !e.failed && e.img.naturalWidth) {
+        const iw = e.img.naturalWidth, ih = e.img.naturalHeight;
+        const scale = Math.min(box / iw, box / ih);
+        const dw = iw * scale, dh = ih * scale;
+        ctx.drawImage(e.img, lx - dw / 2, ly - dh / 2, dw, dh);
+      } else if (e.failed) {
+        ctx.fillStyle = '#3A3A3C'; ctx.font = '700 ' + Math.round(box * 0.42) + 'px system-ui';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText((normalizeSym(s.sym) || '?').charAt(0), lx, ly);
+      }
+    }
     a = a2;
   }
+  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = cssVar('--on-surface', '#191C1A'); ctx.textAlign = 'center';
   ctx.font = '700 13px system-ui';
   ctx.fillText(t('totalStocks'), cx, cy - 4);
@@ -3587,9 +3769,11 @@ function drawPie() {
 
   const legend = document.getElementById('pieLegend');
   legend.innerHTML = '';
-  const sorted = slices.slice().sort((a, b) => b.value - a.value);
+  const sorted = slicesUnique.slice().sort((a, b) => b.value - a.value);
   for (const s of sorted) {
     const li = el('li', '',
+      '<span class="pie-leg-logo"><img src="https://financialmodelingprep.com/image-stock/' +
+      encodeURIComponent(normalizeSym(s.sym)) + '.png" alt="" loading="lazy" onerror="this.parentElement.style.display=\'none\'"></span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +
       '<span class="lg-name">' + s.name + ' (' + s.sym + ')</span>' +
       '<span class="lg-val">' + money(cur === 'ILS' && state.fx ? s.value * state.fx : s.value, cur) + '</span>' +
