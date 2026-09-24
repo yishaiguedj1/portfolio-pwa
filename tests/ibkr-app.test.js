@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrChunkHasData };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, IBKR_AUTO_START_YMD };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -452,71 +452,74 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   const manualRes = await T.ibkrFetchFullHistory(rangeFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldStart), null);
   const eD = new Date(); eD.setDate(eD.getDate() - 1);
   const expChunks = T.ibkrDateChunks(T.ibkrYmd(oldStart), T.ibkrYmd(eD));
-  ok(manualRes._autoWall !== true, 'מצב ידני: אין דגל קיר־שמירה');
   ok(seenRanges.length === expChunks.length && seenRanges.length >= 3 &&
      seenRanges[0][0] === T.ibkrYmd(oldStart) && seenRanges[seenRanges.length - 1][1] === T.ibkrYmd(eD),
      'משיכה 3 שנים אחורה: בקשה לכל חלק עם fd/td, מההתחלה עד אתמול');
 
-  // משיכה עמוקה ('auto')
+  // משיכה עמוקה אוטומטית (v118): מהעבר הרחוק קדימה — אותו נתיב כמו ידני
+  ok(T.IBKR_AUTO_START_YMD === '20200101', 'משיכה עמוקה: רצפת ההתחלה האוטומטית היא ינואר 2020');
   ok(T.ibkrHasImportedData({ positions: [{ symbol: 'A' }] }) === true, 'יש נתונים: פוזיציות');
   ok(T.ibkrHasImportedData({ trades: [], navPeriods: [] }) === false, 'אין נתונים: מערכים ריקים');
   ok(T.ibkrHasImportedData(null) === false, 'אין נתונים: null');
-  ok(T.ibkrChunkHasData({ trades: [{ tradeId: 'x' }] }) === true, 'חלק עם עסקה = יש מידע');
-  ok(T.ibkrChunkHasData({ cashTransactions: [{ id: 'c' }] }) === true, 'חלק עם תנועת מזומן בלבד = יש מידע');
-  ok(T.ibkrChunkHasData({ navHistory: [{ fromDate: 'a', toDate: 'b' }] }) === true, 'חלק עם NAV בלבד = יש מידע');
-  ok(T.ibkrChunkHasData({ trades: [], cashTransactions: [], navHistory: [] }) === false, 'חלק ריק = אין מידע');
-  ok(T.ibkrChunkHasData(null) === false, 'חלק null = אין מידע');
-  // סימולציה: 2 חלקים עדכניים עם מידע, אחריהם ריקים -> עוצר אחרי 2 ריקים רצופים
-  let stmtN = 0;
-  const autoRanges = [];
-  const autoFetch = async (url, opts) => {
+  ok(T.ibkrEarliestDate({ trades: [{ date: '2023-10-03' }], cashTransactions: [{ date: '2023-09-28' }], navPeriods: [{ fromDate: '2023-01-01', toDate: '2023-12-31' }] }) === '2023-01-01', 'התאריך המוקדם ביותר: מינימום על עסקאות/מזומן/NAV');
+  ok(T.ibkrEarliestDate({ trades: [{ date: '2024-05-05' }] }) === '2024-05-05', 'התאריך המוקדם ביותר: עובד גם עם סוג יחיד');
+  ok(T.ibkrEarliestDate({ trades: [], cashTransactions: [], navPeriods: [] }) === '', 'התאריך המוקדם ביותר: מחרוזת ריקה כשאין מידע');
+  ok(T.ibkrEarliestDate(null) === '', 'התאריך המוקדם ביותר: null');
+  // סימולציה: 3 חלקים מהעבר קדימה, כולם עם מידע — מיזוג מלא בלי עצירה מוקדמת
+  let dstmt = 0;
+  const deepRanges = [];
+  const deepFetch = async (url, opts) => {
     const u = String(url);
     if (u.includes('/api/flex-request')) {
       const body = JSON.parse(opts.body || '{}');
-      autoRanges.push([body.fd, body.td]);
-      return { json: async () => ({ ok: true, referenceCode: 'RC' + stmtN, statementUrl: 'https://x' }) };
+      deepRanges.push([body.fd, body.td]);
+      return { json: async () => ({ ok: true, referenceCode: 'RCD' + dstmt, statementUrl: 'https://x' }) };
     }
-    const idx = stmtN++;
-    const has = idx < 2;
+    const idx = dstmt++;
     const chunk = {
-      meta: { fromDate: '2020-01-01', toDate: '2026-09-22', baseCurrency: 'USD' },
-      trades: has ? [{ tradeId: 'T' + idx, date: '2026-05-0' + (idx + 1), symbol: 'AAA', qty: 1, side: 'BUY', price: 10 }] : [],
-      positions: idx === 0 ? [{ symbol: 'AAA', qty: 2, price: 10 }] : [],
-      navHistory: [], cashBalances: [], cashTransactions: [],
+      meta: { fromDate: '2024-01-01', toDate: '2026-09-22', baseCurrency: 'USD' },
+      trades: [{ tradeId: 'DT' + idx, date: '2024-0' + (idx + 1) + '-15', symbol: 'AAA', qty: 1, side: 'BUY', price: 10 }],
+      positions: idx === 2 ? [{ symbol: 'AAA', qty: 5, price: 11 }] : [],
+      navHistory: [{ fromDate: '2024-0' + (idx + 1) + '-01', toDate: '2024-0' + (idx + 1) + '-28', twr: 1 }],
+      cashBalances: [], cashTransactions: [],
     };
     return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
-  const autoRes = await T.ibkrFetchFullHistory(autoFetch, 'https://proxy.example.com', 'tok', '1', 'auto', null);
-  ok(stmtN === 4, 'משיכה עמוקה: 2 חלקים עם מידע + 2 ריקים רצופים -> עוצר (4 בקשות)');
-  ok(autoRes.trades.length === 2, 'משיכה עמוקה: מוזגו עסקאות משני החלקים');
-  ok(autoRes.latestChunkOk === true, 'משיכה עמוקה: החלק העדכני תקין');
-  ok((autoRes.positions || []).length === 1, 'משיכה עמוקה: פוזיציות רק מהחלק העדכני');
-  ok(autoRanges.every(([fd, td]) => {
-    const a = new Date(fd.slice(0,4), fd.slice(4,6)-1, fd.slice(6,8));
-    const b = new Date(td.slice(0,4), td.slice(4,6)-1, td.slice(6,8));
-    return (b - a) / 86400000 <= 364;
-  }), 'משיכה עמוקה: כל חלק עד 364 יום');
-  ok(autoRanges[0][1] > autoRanges[1][1] && autoRanges[1][1] > autoRanges[2][1], 'משיכה עמוקה: החלקים הולכים אחורה בזמן');
-  ok(autoRes._autoWall === true, 'משיכה עמוקה: דגל קיר־שמירה כשנעצר אחרי 2 חלקים ריקים');
-  // הכל ריק מההתחלה -> 2 בקשות ועצירה
-  let stmtM = 0;
-  const emptyFetch = async (url) => {
-    if (String(url).includes('/api/flex-request')) return { json: async () => ({ ok: true, referenceCode: 'RCE', statementUrl: 'https://x' }) };
-    stmtM++;
-    return { json: async () => ({ ok: true, status: 'ready', data: { meta: {}, trades: [], positions: [], navHistory: [], cashBalances: [], cashTransactions: [] } }) };
+  const deepRes = await T.ibkrFetchFullHistory(deepFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  ok(dstmt === 3, 'משיכה עמוקה: 3 חלקים מהעבר קדימה, כולם נמשכו');
+  ok(deepRanges[0][0] === '20240101' && deepRanges[0][1] < deepRanges[1][1] && deepRanges[1][1] < deepRanges[2][1], 'משיכה עמוקה: החלקים מהעבר לקדימה (העתיק ראשון)');
+  ok(deepRes.trades.length === 3, 'משיכה עמוקה: מוזגו עסקאות מכל החלקים');
+  ok(deepRes.navPeriods.length === 3, 'משיכה עמוקה: מוזגו תקופות NAV מכל החלקים');
+  ok(deepRes.latestChunkOk === true, 'משיכה עמוקה: החלק העדכני תקין');
+  ok((deepRes.positions || []).length === 1, 'משיכה עמוקה: פוזיציות רק מהחלק העדכני');
+  ok(deepRes._autoWall !== true, 'משיכה עמוקה: אין דגל קיר־שמירה');
+  // חלק אמצעי ריק לא עוצר את המשיכה — ממשיכים עד הסוף
+  let mstmt = 0;
+  const midRanges = [];
+  const midFetch = async (url, opts) => {
+    if (String(url).includes('/api/flex-request')) {
+      const body = JSON.parse(opts.body || '{}');
+      midRanges.push([body.fd, body.td]);
+      return { json: async () => ({ ok: true, referenceCode: 'RCM' + mstmt, statementUrl: 'https://x' }) };
+    }
+    const idx = mstmt++;
+    const chunk = idx === 1
+      ? { meta: {}, trades: [], positions: [], navHistory: [], cashBalances: [], cashTransactions: [] }
+      : { meta: { fromDate: '2024-01-01', toDate: '2026-09-22', baseCurrency: 'USD' },
+          trades: [{ tradeId: 'MT' + idx, date: '2024-06-01', symbol: 'BBB', qty: 1, side: 'BUY', price: 5 }],
+          positions: [], navHistory: [], cashBalances: [], cashTransactions: [] };
+    return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
   };
-  const emptyRes = await T.ibkrFetchFullHistory(emptyFetch, 'https://proxy.example.com', 'tok', '1', 'auto', null);
-  ok(stmtM === 2, 'משיכה עמוקה: הכל ריק -> עוצר אחרי 2 חלקים');
-  ok(emptyRes.trades.length === 0 && T.ibkrSyncIsComplete(emptyRes) === true, 'משיכה עמוקה ריקה: החלק העדכני הצליח');
-  ok(emptyRes._autoWall === true, 'משיכה עמוקה: דגל קיר־שמירה גם כשהכל ריק מההתחלה');
-  // החלק העדכני נכשל -> נחסם, לא ממשיכים אחורה
+  const midRes = await T.ibkrFetchFullHistory(midFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  ok(mstmt === 3, 'משיכה עמוקה: חלק אמצעי ריק לא עוצר — כל 3 החלקים נמשכו');
+  ok(midRes.trades.length === 2, 'משיכה עמוקה: מידע משני צדי החלק הריק מוזג');
+  // החלק העדכני נכשל -> נחסם, לא מייבאים
   const failFetch = async (url) => {
     if (String(url).includes('/api/flex-request')) throw new Error('boom');
     return { json: async () => ({ ok: true, status: 'ready', data: {} }) };
   };
-  const failRes = await T.ibkrFetchFullHistory(failFetch, 'https://proxy.example.com', 'tok', '1', 'auto', null);
+  const failRes = await T.ibkrFetchFullHistory(failFetch, 'https://proxy.example.com', 'tok', '1', '20250101', null);
   ok(T.ibkrSyncIsComplete(failRes) === false, 'משיכה עמוקה: כשלון החלק העדכני חוסם יבוא');
-  ok(failRes._autoWall !== true, 'משיכה עמוקה: אין דגל קיר־שמירה כשהחלק העדכני נכשל');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
