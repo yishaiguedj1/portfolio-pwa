@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, IBKR_AUTO_START_YMD };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, IBKR_AUTO_START_YMD, IBKR_CHUNK_GAP_MS };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -520,6 +520,39 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   };
   const failRes = await T.ibkrFetchFullHistory(failFetch, 'https://proxy.example.com', 'tok', '1', '20250101', null);
   ok(T.ibkrSyncIsComplete(failRes) === false, 'משיכה עמוקה: כשלון החלק העדכני חוסם יבוא');
+  ok(failRes._throttled === true, 'משיכה עמוקה: 2 כשלונות רצופים -> דגל throttled');
+
+  // v119: זיהוי הגבלת קצב של IBKR — פונקציה טהורה
+  ok(T.ibkrIsThrottleErr(new Error('שרתון: no_reference_code')) === true, 'throttle: no_reference_code מזוהה');
+  ok(T.ibkrIsThrottleErr(new Error('שרתון: flex_1018 — Too many requests')) === true, 'throttle: flex_1018 מזוהה');
+  ok(T.ibkrIsThrottleErr(new Error('rate_limited')) === true, 'throttle: rate_limited מזוהה');
+  ok(T.ibkrIsThrottleErr(new Error('שרתון: flex_1003')) === false, 'לא throttle: flex_1003 (דוח לא זמין)');
+  ok(T.ibkrIsThrottleErr(new Error('boom')) === false, 'לא throttle: שגיאת רשת גנרית');
+  ok(T.ibkrIsThrottleErr(null) === false, 'לא throttle: null');
+  // v119: קצב בטוח — הפוגה מספקת בין חלקים (IBKR: עד 10 בקשות בדקה לטוקן)
+  ok(T.IBKR_CHUNK_GAP_MS >= 10000, 'הפוגה בין חלקים: לפחות 10 שניות');
+  // v119: מפסק מעגל — 2 כשלונות רצופים עוצרים את המשיכה במקום להעמיק חסימה
+  let cstmt = 0;
+  const circuitFetch = async (url) => {
+    if (String(url).includes('/api/flex-request')) { cstmt++; throw new Error('boom'); }
+    return { json: async () => ({ ok: true, status: 'ready', data: {} }) };
+  };
+  const circuitRes = await T.ibkrFetchFullHistory(circuitFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  ok(cstmt === 4, 'מפסק מעגל: 2 חלקים נכשלים (עם ניסיון חוזר אחד לשגיאה רגילה) ואז עצירה — לא ממשיכים לחלק 3');
+  ok(circuitRes._throttled === true, 'מפסק מעגל: דגל throttled מוגדר');
+  ok(T.ibkrSyncIsComplete(circuitRes) === false, 'מפסק מעגל: החלק העדכני נכשל -> יבוא חסום');
+  // v119: שגיאת throttle — אין ניסיון חוזר בכלל (כל ניסיון מאריך את החסימה)
+  let tstmt = 0;
+  const throttleFetch = async (url) => {
+    if (String(url).includes('/api/flex-request')) {
+      tstmt++;
+      return { json: async () => ({ ok: false, error: 'no_reference_code' }) };
+    }
+    return { json: async () => ({ ok: true, status: 'ready', data: {} }) };
+  };
+  const throttleRes = await T.ibkrFetchFullHistory(throttleFetch, 'https://proxy.example.com', 'tok', '1', '20240101', null);
+  ok(tstmt === 2, 'throttle: בקשה אחת בלבד לחלק (בלי ניסיון חוזר), עצירה אחרי 2 חלקים');
+  ok(throttleRes._throttled === true, 'throttle: דגל throttled מוגדר');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
