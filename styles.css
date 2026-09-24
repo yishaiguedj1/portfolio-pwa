@@ -719,14 +719,14 @@ footer.fine { text-align: center; }
   width: fit-content; max-width: 100%;
   margin: 2px auto 12px; padding: 8px 18px;
   border-radius: 999px;
-  background: var(--card, #fff);
-  border: 1px solid var(--border, #e5e5ea);
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
-  font-size: 14px; color: var(--subtle, #8e8e93);
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow);
+  font-size: 14px; color: var(--on-surface-var);
 }
 .fx-pill-label { font-weight: 600; }
 .fx-pill-value {
-  font-weight: 700; color: var(--text, #111);
+  font-weight: 700; color: var(--on-surface);
   font-variant-numeric: tabular-nums;
 }
 .fx-pill-upd { font-size: 12px; }
