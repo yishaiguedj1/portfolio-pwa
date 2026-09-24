@@ -133,7 +133,7 @@ function makeSandbox() {
   ok(gain === 100, 'רווח = סוף − התחלה − הפקדות');
 
   // --- 7. משיכה מ־IBKR: flows ו־navDaily עוברים דרך המיזוג הרב־חלקי ---
-  const yest = new Date(); yest.setDate(yest.getDate() - 1);
+  const yest = A('ibkrLastClosedDate')(); // v136: אתמול לפי ניו־יורק
   const ymd = A('ibkrYmd');
   const startYmd = String(yest.getFullYear()) + '0101';
   const fetchFn = async (url, opts) => {

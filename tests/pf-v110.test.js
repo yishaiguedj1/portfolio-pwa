@@ -77,7 +77,7 @@ async function main() {
   const ymd = (d) => d.getFullYear().toString().padStart(4, '0') +
     (d.getMonth() + 1).toString().padStart(2, '0') + d.getDate().toString().padStart(2, '0');
   const startYmd = ymd(t0);
-  const yest = new Date(); yest.setDate(yest.getDate() - 1); // v111: החלקים מסתיימים באתמול
+  const yest = vm.runInContext('ibkrLastClosedDate', sb)(); // v136: אתמול לפי ניו־יורק
   const chunks = chunksOf(startYmd, ymd(yest));
   ok(chunks.length === 2, 'שני חלקים ל־400 יום (קיבלנו ' + chunks.length + ')');
   const [c1, c2] = chunks;

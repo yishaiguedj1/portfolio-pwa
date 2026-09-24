@@ -1485,6 +1485,28 @@ function ibkrYmd(d) {
     d.getDate().toString().padStart(2, '0');
 }
 
+/* v136: יום המסחר האחרון שנסגר לפי שעון ניו־יורק, לא ישראל. בחצות בישראל
+   עדיין 17:00 באותו יום בניו־יורק — "אתמול" הישראלי הוא היום שעוד לא נגמר,
+   ו־IBKR מחזיר עליו flex_1003. מחזיר Date מקומי (לשימוש עם ibkrYmd). */
+function ibkrLastClosedDate(now) {
+  const n = now || new Date();
+  let iso = '';
+  try {
+    iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(n);
+  } catch (e) {}
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso = new Date(n.getTime() - 5 * 3600000).toISOString().slice(0, 10);
+  const d = new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+  d.setDate(d.getDate() - 1);
+  return d;
+}
+
+/* יום החול הקודם ל־YYYYMMDD (מדלג על סופ"ש). */
+function ibkrPrevWeekdayYmd(ymd) {
+  const d = new Date(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8));
+  do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  return ibkrYmd(d);
+}
+
 /* תכנית ניסיונות חוזרים לחלק שנכשל — פונקציה טהורה (נבדקת).
    flex_1003 = "הדוח לא זמין" — בדרך כלל IBKR עדיין לא פרסם את הדוח העדכני.
    נותנים לו יותר זמן ויותר ניסיונות. */
@@ -1646,6 +1668,8 @@ async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkRe
       // רק 1003 ("עדיין לא פורסם") מצדיק הזמנה חוזרת.
       if (gotRef && !/flex_1003/.test(String((e && e.message) || e || ''))) break;
       plan = ibkrChunkRetryPlan(e);
+      // v136: ניסיון הגיבוי (יום מסחר קודם) — פעם אחת בלבד, לא עוד SendRequest
+      if (pollOpts && pollOpts.no1003Retry && /flex_1003/.test(String((e && e.message) || e || ''))) break;
     }
   }
   if (data) return data;
@@ -1664,14 +1688,13 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep, onStage: o.onStage,
     firstDelayMs: (typeof o.pollFirstMs === 'number') ? o.pollFirstMs : (manualPace ? o.chunkGapMs : undefined),
   };
-  const endD = new Date();
-  endD.setDate(endD.getDate() - 1);
+  const endD = o.endDate || ibkrLastClosedDate();
   const endYmd = ibkrYmd(endD);
   // כל המשיכות מקוטעות לחלקי 365 יום מהעבר הרחוק קדימה — זה הנתיב שהוכח
   // כמושך מ־IBKR היסטוריה מלאה (v118), כולל שנים אחורה.
   if (!/^\d{8}$/.test(startYmd || '')) startYmd = ibkrDepthStartYmd(endD, IBKR_HISTORY_YEARS_DEFAULT);
   const chunks = ibkrDateChunks(startYmd, endYmd);
-  const latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
+  let latestTd = chunks.length ? chunks[chunks.length - 1].td : '';
   const iso = (y) => y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8);
   const merged = {
     meta: { fromDate: iso(startYmd), toDate: '', baseCurrency: 'USD', kind: 'flex', title: 'IBKR Flex' },
@@ -1769,6 +1792,23 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
         merged._stopped = true;
         if (lastRes && ibkrIsThrottleErr(lastRes.error)) merged._throttled = true;
         break;
+      }
+    }
+  }
+  // v136: החלק העדכני נכשל ב־1003 — הדוח של היום האחרון עוד לא פורסם (IBKR
+  // מפרסם בבוקר בארה"ב). ניסיון אחד שמסתיים יום מסחר אחד קודם, במקום להפיל
+  // את כל הסנכרון. סנכרון ההמשך הבא ישלים את היום החסר.
+  const lastChunk = chunks[chunks.length - 1];
+  const lastRes = lastChunk && chunkResults.find((c) => !c.ok && c.fd === lastChunk.fd && c.td === lastChunk.td);
+  if (!merged._locked && !merged._throttled && lastRes && /flex_1003/.test(lastRes.error || '')) {
+    const td2 = ibkrPrevWeekdayYmd(lastChunk.td);
+    if (td2 >= lastChunk.fd) {
+      const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, lastChunk.fd, td2, [],
+        Object.assign({}, pollOpts, { no1003Retry: true }));
+      if (data) {
+        chunkResults.splice(chunkResults.indexOf(lastRes), 1);
+        latestTd = td2;
+        absorb(data, lastChunk.fd, td2);
       }
     }
   }
@@ -1940,7 +1980,7 @@ function renderIbkrCard() {
       fde.value = cfg.fromDate;
     } else if (ibkrHasImportedData(data)) {
       // יש נתונים — ברירת המחדל: המשך מהנקודה שהם נגמרו
-      const yest = new Date(); yest.setDate(yest.getDate() - 1);
+      const yest = ibkrLastClosedDate();
       fde.value = ibkrDefaultFromYmd(data, yest).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
     }
     // אחרת השדה נשאר ריק = משיכה עמוקה אוטומטית עד קצה ההיסטוריה
@@ -2137,7 +2177,7 @@ async function ibkrSyncImport() {
   const dhe = document.getElementById('ibkrHistoryDepth');
   const depthYears = Math.min(10, Math.max(1, parseInt(((dhe && dhe.value) || cfg.historyYears || ''), 10) || IBKR_HISTORY_YEARS_DEFAULT));
   ibkrSaveCfg({ historyYears: depthYears });
-  const endD = new Date(); endD.setDate(endD.getDate() - 1);
+  const endD = ibkrLastClosedDate();
   const endYmd = ibkrYmd(endD);
   let startYmd, autoMode = false;
   const hasData = ibkrHasImportedData(cfg.data);
@@ -2395,7 +2435,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v135';
+const APP_VERSION = 'v136';
 
 
 function saveDBto(db) {

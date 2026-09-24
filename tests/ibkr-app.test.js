@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, ibkrIsLockoutErr, ibkrDepthStartYmd, ibkrReachedStart, ibkrMakeLimiter, IBKR_LIMITER, ibkrStatusLine, IBKR_POLL_MAX_FAILS, IBKR_RATE_MAX, IBKR_RATE_WINDOW_MS, IBKR_POLL_FIRST_MS, IBKR_POLL_DELAY_MS, IBKR_POLL_TRIES, IBKR_HISTORY_YEARS_DEFAULT };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrLastClosedDate, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd, ibkrHasImportedData, ibkrEarliestDate, ibkrIsThrottleErr, ibkrIsLockoutErr, ibkrDepthStartYmd, ibkrReachedStart, ibkrMakeLimiter, IBKR_LIMITER, ibkrStatusLine, IBKR_POLL_MAX_FAILS, IBKR_RATE_MAX, IBKR_RATE_WINDOW_MS, IBKR_POLL_FIRST_MS, IBKR_POLL_DELAY_MS, IBKR_POLL_TRIES, IBKR_HISTORY_YEARS_DEFAULT };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -466,7 +466,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   };
   const oldStart = new Date(2026, 8, 23); oldStart.setFullYear(oldStart.getFullYear() - 3);
   const manualRes = await T.ibkrFetchFullHistory(rangeFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldStart), null, { chunkGapMs: 5 });
-  const eD = new Date(); eD.setDate(eD.getDate() - 1);
+  const eD = T.ibkrLastClosedDate(); // v136: אתמול לפי ניו־יורק
   const expChunks = T.ibkrDateChunks(T.ibkrYmd(oldStart), T.ibkrYmd(eD));
   ok(seenRanges.length === expChunks.length && seenRanges.length >= 3 &&
      seenRanges[0][0] === T.ibkrYmd(oldStart) && seenRanges[seenRanges.length - 1][1] === T.ibkrYmd(eD),
@@ -483,7 +483,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(T.ibkrEarliestDate(null) === '', 'התאריך המוקדם ביותר: null');
   // סימולציה: כל החלקים מהעבר קדימה, כולם עם מידע — מיזוג מלא בלי עצירה מוקדמת
   // (v124: מספר החלקים נגזר מהחלוקה הקלנדרית — 2024 מעוברת מתפצלת)
-  const yD = new Date(); yD.setDate(yD.getDate() - 1);
+  const yD = T.ibkrLastClosedDate();
   const nDeep = T.ibkrDateChunks('20240101', T.ibkrYmd(yD)).length;
   let dstmt = 0;
   const deepRanges = [];

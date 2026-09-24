@@ -72,7 +72,7 @@ async function main() {
   const retryPlan = vm.runInContext('ibkrChunkRetryPlan', sb);
   const S = vm.runInContext('STRINGS', sb);
 
-  const yest = new Date(); yest.setDate(yest.getDate() - 1);
+  const yest = vm.runInContext('ibkrLastClosedDate', sb)(); // v136: אתמול לפי ניו־יורק
   const yestYmd = ymd(yest);
   const todayYmd = ymd(new Date());
   const t0 = new Date(); t0.setDate(t0.getDate() - 400);
@@ -128,6 +128,8 @@ async function main() {
       [c2.fd]: { stmt: [
         { ok: false, error: 'flex_1003', message: 'Statement is not available.' },
         { ok: false, error: 'flex_1003', message: 'Statement is not available.' },
+        { ok: false, error: 'flex_1003', message: 'Statement is not available.' },
+        // v136: + ניסיון הגיבוי שמסתיים יום מסחר קודם
         { ok: false, error: 'flex_1003', message: 'Statement is not available.' },
       ] },
     });
