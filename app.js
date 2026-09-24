@@ -317,6 +317,7 @@ he: {
   importFailed: 'הסנכרון והייבוא נכשלו: {err}',
   importPartialBlocked: 'הסנכרון לא הושלם — חלק מהנתונים לא נטענו מ־IBKR. הנתונים הקודמים נשמרו ולא יובא שום דבר חלקי. המתן כמה דקות ונסה לסנכרן שוב.',
   importNotAvailable: 'הדוח העדכני של IBKR עדיין לא זמין (הוא מתפרסם בשעות הבוקר בארה״ב). החיבור תקין — אין מה לתקן. הנתונים הקודמים נשמרו; נסה לסנכרן שוב מאוחר יותר.',
+  importThrottled: 'IBKR הגביל זמנית את קצב הבקשות (מותרות עד 10 בדקה) — כנראה בעקבות רצף בקשות מהיר. הנתונים הקודמים נשמרו ולא יובא שום דבר חלקי. המתן כ־15 דקות, לחץ "שמור ובדוק חיבור" — אם הבדיקה מצליחה, סנכרן שוב.',
   ibkrErr1003: 'הדוח המבוקש עדיין לא פורסם ב־IBKR. נסה שוב מאוחר יותר.',
   disconnectConfirm: 'לנתק את חיבור הברוקר? הטוקן ונתוני הסנכרון יימחקו מהטלפון, והנתונים הידניים שהיו לפני החיבור ישוחזרו.',
   disconnected: 'החיבור נותק',
@@ -334,7 +335,7 @@ he: {
   ibkrErrTokenBad: 'הטוקן לא תקין — בדוק שהעתקת את כולו, בלי רווחים.',
   ibkrErrAccount: 'בעיה בחשבון ב־IBKR — בדוק שהחשבון פעיל.',
   ibkrErrCode: 'קוד הדוח לא תקין — נסה סנכרון חדש.',
-  ibkrErrMany: 'יותר מדי בקשות ברצף — המתן דקה ונסה שוב.',
+  ibkrErrMany: 'יותר מדי בקשות ברצף — IBKR חוסם זמנית לכ־10 דקות. המתן כ־15 דקות ונסה שוב.',
   ibkrErrBlocked: 'הגישה ל־IBKR נחסמה זמנית — נסה שוב בעוד כמה דקות.',
   ibkrErrCreds: 'חסרים Flex token או Query ID.',
   ibkrErrNet: 'לא הצלחנו להגיע לשרתון — בדוק חיבור לאינטרנט.',
@@ -679,6 +680,7 @@ en: {
   importFailed: 'Sync & import failed: {err}',
   importPartialBlocked: 'Sync did not complete — some data could not be loaded from IBKR. Your previous data was kept and nothing partial was imported. Wait a few minutes and try syncing again.',
   importNotAvailable: 'The latest IBKR report is not published yet (it is usually released in the US morning hours). The connection is fine — nothing to fix. Your previous data was kept; try syncing again later.',
+  importThrottled: 'IBKR has temporarily rate-limited requests (max 10 per minute) — likely after a burst of rapid requests. Your previous data was kept and nothing partial was imported. Wait about 15 minutes, tap "Save and test connection" — if the test succeeds, sync again.',
   ibkrErr1003: 'The requested report is not published by IBKR yet. Try again later.',
   disconnectConfirm: 'Disconnect the broker? The token and sync data will be deleted from this phone, and the manual data from before the connection will be restored.',
   disconnected: 'Disconnected',
@@ -696,7 +698,7 @@ en: {
   ibkrErrTokenBad: 'Invalid token — make sure you copied all of it, with no spaces.',
   ibkrErrAccount: 'IBKR account issue — check that the account is active.',
   ibkrErrCode: 'Invalid report code — try syncing again.',
-  ibkrErrMany: 'Too many requests in a row — wait a minute and try again.',
+  ibkrErrMany: 'Too many requests in a row — IBKR blocks temporarily for about 10 minutes. Wait about 15 minutes and try again.',
   ibkrErrBlocked: 'Access to IBKR temporarily blocked — try again in a few minutes.',
   ibkrErrCreds: 'Missing Flex token or Query ID.',
   ibkrErrNet: 'Couldn\'t reach the proxy server — check your internet connection.',
@@ -1352,8 +1354,16 @@ function ibkrChunkRetryPlan(err) {
    מ־IBKR את כל ההיסטוריה הזמינה — כולל שנים אחורה. מי שחשבונו נפתח לפני
    2020 יכול לדרוס ידנית תאריך מוקדם יותר. */
 const IBKR_AUTO_START_YMD = '20200101';
-/* הפוגה בין חלקי המשיכה (מילישניות) — לא להעמיס על IBKR בבקשות רצופות. */
-const IBKR_CHUNK_GAP_MS = 3000;
+/* הפוגה בין חלקי המשיכה (מילישניות).
+   IBKR מגביל רשמית את Flex Web Service ל־10 בקשות בדקה לטוקן (שגיאה 1018);
+   חריגה מכניסה את ה־IP ל"קופסת עונשין" של כ־10 דקות. 15 שניות בין חלקים
+   = כ־4 בקשות בדקה — עם מרווח בטיחות. */
+const IBKR_CHUNK_GAP_MS = 15000;
+/* האם השגיאה מעידה על הגבלת קצב/חסימה זמנית של IBKR — במקרה כזה אסור
+   לנסות שוב מיד: כל ניסיון נוסף עלול להאריך את החסימה (פונקציה טהורה, נבדקת). */
+function ibkrIsThrottleErr(err) {
+  return /flex_1018|no_reference_code|rate_limited/i.test(String((err && err.message) || err || ''));
+}
 /* ברירת מחדל חכמה לתאריך ההתחלה של משיכת Flex (פונקציה טהורה, נבדקת):
    אם כבר יש נתונים מיובאים — מתחילים מתאריך הסיום שלהם (המיזוג מטפל בחפיפת
    יום הגבול); אחרת — שנתיים אחורה (הנחת שמירת הנתונים של IBKR).
@@ -1394,7 +1404,12 @@ async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkRe
     try {
       const rep = await ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td);
       data = await ibkrPollStatement(fetchFn, proxyUrl, token, rep.referenceCode, rep.statementUrl);
-    } catch (e) { err = e; plan = ibkrChunkRetryPlan(e); }
+    } catch (e) {
+      err = e;
+      // הגבלת קצב של IBKR: לא מנסים שוב — ניסיון נוסף רק מאריך את החסימה
+      if (ibkrIsThrottleErr(e)) break;
+      plan = ibkrChunkRetryPlan(e);
+    }
   }
   if (data) return data;
   chunkResults.push({ fd, td, ok: false, error: String((err && err.message) || err).slice(0, 120) });
@@ -1417,7 +1432,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   };
   const seenTrade = new Set(), seenCash = new Map(), seenNav = new Set();
   const chunkResults = [];
-  let latestChunkOk = false, posTd = '', metaTd = '', fromSet = false;
+  let latestChunkOk = false, posTd = '', metaTd = '', fromSet = false, consecFails = 0;
   const tKey = (tr) => {
     const id = String(tr.tradeId || '').trim();
     if (id) return 'id:' + id;
@@ -1484,10 +1499,16 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   for (let i = 0; i < chunks.length; i++) {
     const { fd, td } = chunks[i];
     if (onProgress) onProgress(i + 1, chunks.length, fd, td);
-    // הפוגה קצרה בין חלקים — לא להעמיס על IBKR בבקשות רצופות
+    // הפוגה בין חלקים — קצב בטוח מול מגבלת 10 הבקשות בדקה של IBKR
     if (i > 0) await new Promise((r) => setTimeout(r, IBKR_CHUNK_GAP_MS));
     const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults);
-    if (data) absorb(data, fd, td);
+    if (data) { consecFails = 0; absorb(data, fd, td); }
+    else {
+      consecFails++;
+      // שני כשלונות רצופים = כנראה הגבלת קצב/חסימה זמנית של IBKR —
+      // להמשיך רק מעמיק את החסימה, אז עוצרים ומסבירים למשתמש
+      if (consecFails >= 2) { merged._throttled = true; break; }
+    }
   }
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   merged.cashTransactions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
@@ -1556,7 +1577,7 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
 
 /* ממפה קוד שגיאת Flex/שרתון להודעה מובנת למשתמש. */
 function ibkrFriendlyErr(msg) {
-  const m = String(msg || '').match(/flex_(\d+)|ibkr_http_(\d+)|rate_limited|bad_params|fetch_failed/);
+  const m = String(msg || '').match(/flex_(\d+)|ibkr_http_(\d+)|no_reference_code|rate_limited|bad_params|fetch_failed/);
   const code = m ? (m[1] || m[2] || m[0]) : '';
   switch (code) {
     case '1001': case '1004': case '1009': case '1019': case '1021':
@@ -1577,7 +1598,7 @@ function ibkrFriendlyErr(msg) {
       return t('ibkrErrAccount');
     case '1017':
       return t('ibkrErrCode');
-    case '1018': case 'rate_limited':
+    case '1018': case 'rate_limited': case 'no_reference_code':
       return t('ibkrErrMany');
     case '403':
       return t('ibkrErrBlocked');
@@ -1874,9 +1895,13 @@ async function ibkrSyncImport() {
     if (!ibkrSyncIsComplete(incoming)) {
       const fails = (incoming._chunks || []).filter((c) => !c.ok);
       const failText = fails.map((c) => t('ibkrChunkFail', { fd: c.fd, td: c.td, err: c.error || '' })).join('; ');
-      const notAvail = fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
+      // הגבלת קצב של IBKR (כולל "קופסת עונשין" זמנית אחרי רצף בקשות מהיר) —
+      // מסבירים להמתין במקום לנסות שוב מיד
+      const throttled = !!incoming._throttled || (fails.length > 0 && fails.some((c) => ibkrIsThrottleErr(c.error)));
+      const notAvail = !throttled && fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
       renderIbkrCard();
-      return ibkrShowErr((notAvail ? t('importNotAvailable') : t('importPartialBlocked')) + (failText ? ' ' + failText : ''));
+      const head = throttled ? t('importThrottled') : (notAvail ? t('importNotAvailable') : t('importPartialBlocked'));
+      return ibkrShowErr(head + (failText ? ' ' + failText : ''));
     }
     const imp = ibkrMapImport(incoming);
     if (!imp.positions.length && !(incoming.navPeriods || []).length && !(incoming.trades || []).length) {
@@ -2047,7 +2072,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v118';
+const APP_VERSION = 'v119';
 
 
 function saveDBto(db) {
