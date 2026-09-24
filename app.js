@@ -1620,8 +1620,9 @@ function ibkrMapImport(data) {
   const bySym = new Map();
   let skipped = 0, lots = 0;
   for (const p of (d.positions || [])) {
-    // מסנן LOT (פירוט כפול) — רק SUMMARY (תיקון באג כפילות v68)
-    if (p.levelOfDetail && p.levelOfDetail !== 'SUMMARY') { skipped++; continue; }
+    // מסנן פירוט LOT גולמי (כפילות שורות, תיקון באג כפילות v68) — אבל שורות Lot
+    // מצורפות (lots: מספר הלוטים) הן פוזיציה אחת מאוחדת ומתקבלות.
+    if (p.levelOfDetail && p.levelOfDetail !== 'SUMMARY' && !p.lots) { skipped++; continue; }
     const qty = Number(p.qty) || 0;
     const sym = String(p.symbol || '').trim();
     const _a = String(p.asset || '').toUpperCase();
@@ -1710,7 +1711,19 @@ async function ibkrCsvImport(fileList) {
 
 /* בדיקת יבוא מאוחדת לשני מקורות הנתונים (CSV ו־Flex): תצוגה מקדימה של
    מה חדש מול מה שכבר יובא, אישור, וסיום יבוא עם מיזוג בלי כפילויות. */
+
+/* מטמון מיושן: האפליקציה "זוכרת" יבוא קודם, אבל אף סימבול ממנו לא נמצא בתיק
+   בפועל (למשל אחרי איפוס או מחיקה). דילוג על כפילויות חל רק כשהמידע כבר הוזן
+   ולא נמחק — כל עוד המידע לא קיים באמת במערכת, מושכים אותו מחדש. */
+function ibkrCacheIsStale(cached, curPositions) {
+  const cps = (cached && cached.positions) || [];
+  if (!cps.length) return false;
+  const cur = {};
+  for (const p of (curPositions || [])) cur[String(p.sym || '').trim()] = true;
+  return !cps.some((p) => cur[String(p.symbol || '').trim()]);
+}
 function ibkrReviewImport(existing, incoming, warnTxt) {
+  if (ibkrCacheIsStale(existing, typeof POSITIONS !== 'undefined' ? POSITIONS : [])) existing = null;
   const preview = rMergePreview(existing, incoming);
   const deltaTxt = ibkrCsvDeltaText(preview, !!existing);
   if (deltaTxt === null) { flash(t('ibkrCsvNothingNew')); return; }
@@ -1938,7 +1951,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v113';
+const APP_VERSION = 'v114';
 
 
 function saveDBto(db) {
@@ -5603,6 +5616,8 @@ function init() {
 
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
+      // מנקה גם את מטמון הייבוא (IBKR) — אחרת יבוא חוזר אחרי איפוס נחסם כ"אין מידע חדש"
+      try { localStorage.removeItem(LS_IBKR); } catch (e) {}
       location.reload();
     };
     if (window.Cloud && window.Cloud.resetCloud) window.Cloud.resetCloud().then(doReset);
