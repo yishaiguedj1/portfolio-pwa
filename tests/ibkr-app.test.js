@@ -40,7 +40,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale };';
+  '\n;globalThis.__t = { ibkrCfg, ibkrSaveCfg, ibkrProxyBase, ibkrRequestReport, ibkrPollStatement, renderIbkrCard, ibkrMapImport, ibkrMapDeposits, isIbkrMode, costBasisUSD, costBasisInCur, portfolioPerformance, portfolioBasisInCur, netDepositsILS, totalsUSD, editAllowed, renderIbkrLocks, ibkrSnapshotManual, ibkrRestoreManual, ibkrReportTotal, ibkrTrades, fmtTradeMoney, tradeRowData, renderTrades, ibkrFetchFullHistory, ibkrSyncIsComplete, ibkrDateChunks, ibkrChunkRetryPlan, ibkrYmd, ibkrFriendlyErr, ibkrCacheIsStale, ibkrDefaultFromYmd };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
@@ -423,6 +423,38 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(lotAgg.positions.length === 1 && lotAgg.positions[0].sym === 'NVDA' && lotAgg.positions[0].shares === 8, 'Lot מצורף (lots) מתקבל במיפוי כפוזיציה אחת');
   const rawLot = T.ibkrMapImport({ positions: [{ symbol: 'NVDA', qty: 8, asset: 'STK', currency: 'USD', costBasis: 800, levelOfDetail: 'LOT' }] });
   ok(rawLot.positions.length === 0 && rawLot.skipped === 1, 'פירוט LOT גולמי עדיין מסונן');
+
+  // ברירת מחדל חכמה לתאריך התחלה + קיטוע רב־שנתי
+  const endFix = new Date(2026, 8, 22); // אתמול = 22.09.2026
+  ok(T.ibkrDefaultFromYmd({ meta: { toDate: '2024-09-27' } }, endFix) === '20240927', 'ברירת מחדל: ממשיך מתאריך הסיום של הנתונים הקיימים');
+  ok(T.ibkrDefaultFromYmd(null, endFix) === '20240922', 'ברירת מחדל: שנתיים אחורה מאתמול כשאין נתונים');
+  ok(T.ibkrDefaultFromYmd({ meta: {} }, endFix) === '20240922', 'ברירת מחדל: meta בלי toDate -> שנתיים אחורה');
+  const threeY = T.ibkrDateChunks('20230924', '20260922');
+  ok(threeY.length === 3 && threeY[0].fd === '20230924' && threeY[threeY.length - 1].td === '20260922', 'קיטוע 3 שנים: 3 חלקים מקצה לקצה');
+  ok(threeY.every((c) => {
+    const a = new Date(c.fd.slice(0,4), c.fd.slice(4,6)-1, c.fd.slice(6,8));
+    const b = new Date(c.td.slice(0,4), c.td.slice(4,6)-1, c.td.slice(6,8));
+    return (b - a) / 86400000 <= 364;
+  }), 'כל חלק בקיטוע עד 364 יום');
+  // משיכה מלאה עם תאריך התחלה מפורש: שולח fd/td לכל חלק
+  const seenRanges = [];
+  const rangeFetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('/api/flex-request')) {
+      const body = JSON.parse(opts.body || '{}');
+      seenRanges.push([body.fd, body.td]);
+      return { json: async () => ({ ok: true, referenceCode: 'RC', statementUrl: 'https://x' }) };
+    }
+    const chunk = { meta: { fromDate: '2023-01-01', toDate: '2026-09-22', baseCurrency: 'USD' }, trades: [], positions: [], navHistory: [], cashBalances: [], cashTransactions: [] };
+    return { json: async () => ({ ok: true, status: 'ready', data: chunk }) };
+  };
+  const oldStart = new Date(2026, 8, 23); oldStart.setFullYear(oldStart.getFullYear() - 3);
+  await T.ibkrFetchFullHistory(rangeFetch, 'https://proxy.example.com', 'tok', '1', T.ibkrYmd(oldStart), null);
+  const eD = new Date(); eD.setDate(eD.getDate() - 1);
+  const expChunks = T.ibkrDateChunks(T.ibkrYmd(oldStart), T.ibkrYmd(eD));
+  ok(seenRanges.length === expChunks.length && seenRanges.length >= 3 &&
+     seenRanges[0][0] === T.ibkrYmd(oldStart) && seenRanges[seenRanges.length - 1][1] === T.ibkrYmd(eD),
+     'משיכה 3 שנים אחורה: בקשה לכל חלק עם fd/td, מההתחלה עד אתמול');
 
   console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
