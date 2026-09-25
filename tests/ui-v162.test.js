@@ -8,8 +8,8 @@ let n = 0;
 function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.exit(1); } console.log('ok - ' + name); }
 ok(/await pool\(missing, 6, async \(s\) => \{/.test(src), 'v163: רק מה שהשרת לא החזיר — ישירות, 6 במקביל');
 ok(/if \(!h\.length\) h = state\.hist\[s\] \|\| \[\];/.test(src), 'נופלים למטמון הקיים');
-ok(/const db = got >= 4/.test(src), 'מספיקות 4 מניות כדי לבנות דמו');
-ok(/if \(iso < h\[0\]\.date\) \{ if \(bought\) continue; iso = h\[0\]\.date; \}/.test(src), 'היסטוריה קצרה: הקנייה הראשונה ביום הראשון שיש');
+ok(/if \(syms\.length < 4\) return null;/.test(src), 'מספיקות 4 מניות כדי לבנות דמו');
+ok(/if \(!r\) \{ row\.push\(0\); prevU = 0; prevI = 0; continue; \}/.test(src), 'היסטוריה קצרה: המניה נכנסת ברבעון הראשון שיש לו מחיר (v168)');
 ok(/\} catch \(e\) \{\s*ui\.fail\(t\('demoFail'\)\);/.test(src), 'שגיאה לא צפויה — הודעה במסך, לא קריסה שקטה');
 ok(/\[t\('demoStepPrices'\), t\('demoStepFx'\), t\('demoStepBuild'\), t\('demoStepSave'\)\]/.test(src), 'ארבעה שלבים');
 for (const k of ['demoProgTitle', 'demoStepPrices', 'demoStepFx', 'demoStepBuild', 'demoStepSave', 'demoStepOf', 'btnClose']) {

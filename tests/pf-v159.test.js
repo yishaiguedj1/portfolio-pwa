@@ -47,7 +47,7 @@ const taseSyms = (src.match(/const TASE_STOCKS = \[([\s\S]*?)\]\.map/)[1].match(
 ok(taseSyms.length > 40 && taseSyms.every((s) => he.logoSrc(s + '.TA')), 'לכל מניות ת"א ברשימת החיפוש יש לוגו (' + taseSyms.length + ')');
 ok(/img-src[^;]*https:\/\/s3-symbol-logo\.tradingview\.com/.test(html), 'CSP מאשר את מקור הלוגו');
 ok(!/image-stock\/' \+ encodeURIComponent\(normalizeSym\(s\.sym\)\)/.test(src), 'מקרא העוגה דרך logoSrc');
-ok(/if \(symCur\(sym\) === 'ILS'\) return fmtAg\(v\);/.test(src), 'fmtPx: ת"א באגורות');
+ok(/if \(symCur\(sym\) === 'ILS'\) return fmtAg\(v, sym\);/.test(src), 'fmtPx: ת"א באגורות (מדד — בנקודות, v168)');
 ok(/function liveMerge\(got\) \{\n  taseFixQuotes/.test(src) && /function applyQuotes\(res\) \{\n  taseFixQuotes/.test(src), 'רשת הביטחון בכל מיזוג ציטוטים');
 ok(src.includes("if (/s3-symbol-logo\\.tradingview\\.com/.test(img.src || '')) return;"), 'לוגו רשמי לא עובר היפוך צבעים');
 console.log('\n' + n + ' בדיקות עברו');

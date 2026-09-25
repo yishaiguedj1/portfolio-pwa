@@ -46,7 +46,7 @@ ok(/el\('button', 'mini-btn', t\('btnEditRow'\)\)/.test(src) && /el\('button', '
 // 11. אריחי סקירה
 ok(/flex-direction:\s*column/.test(rule('.cards-3 .card')) && /margin-top:\s*auto/.test(rule('.cards-3 .stat-sub')), 'אריחי הסקירה באותו גובה');
 // 12. מקרא עוגה
-ok(/'<span class="lg-name">' \+ esc\(s\.sym\) \+/.test(src), 'מקרא: סימבול ראשון, עם esc()');
+ok(/'<span class="lg-name"><bdi dir="ltr">' \+ esc\(s\.sym\) \+ '<\/bdi>' \+/.test(src), 'מקרא: סימבול ראשון, עם esc() ובידוד LTR (v168: "207.TA")');
 // 13. תאריכים
 ok((src.match(/type="date" lang="he-IL"/g) || []).length >= 3, 'שדות תאריך: he-IL');
 

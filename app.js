@@ -141,6 +141,8 @@ he: {
   srcFilterBtn: 'סינון',
   agorotUnit: 'אגורות',
   agShort: 'אג׳',
+  ptsShort: 'נק׳',
+  ptsUnit: 'נקודות',
   histRetryLater: 'אין כרגע גישה להיסטוריית המחירים — ננסה שוב אוטומטית',
   agorotFixed: 'תוקנו {n} מחירים של מניות ת"א שהוזנו באגורות',
   srcFilterAll: 'הכל',
@@ -413,7 +415,7 @@ he: {
   resetIbkrDone: 'נתוני IBKR נמחקו — אפשר לסנכרן מחדש מההגדרות',
   resetIbkrNone: 'אין נתוני IBKR למחיקה',
   demoTitle: 'רוצה לראות את האפליקציה במלואה?',
-  demoDesc: 'טוענים תיק דמו מלא בלחיצה אחת: המניות החמות בשוק עכשיו מארה״ב ומת״א, קניות ומכירות לפי מחירי שוק אמיתיים, הפקדות ומשיכות, מזומן בדולרים ובשקלים ופנסיה. הנתונים שלך לא נמחקים — הם מחכים לך ביציאה מהדמו.',
+  demoDesc: 'טוענים תיק דמו מלא בלחיצה אחת: העתק של תיק המניות של וורן באפט (ברקשייר האת׳וויי) ב־6 השנים האחרונות — כל קנייה ומכירה לפי הדוחות הרבעוניים שלו, במחירי שוק אמיתיים ובסכומים של תיק פרטי. ועוד: 3 מניות ומדד מת״א, הפקדות ומשיכות, מזומן ופנסיה. הנתונים שלך לא נמחקים — הם מחכים לך ביציאה מהדמו.',
   demoBtn: '✨ טען תיק דמו',
   demoConfirm: 'לטעון תיק דמו?\nהנתונים שלך נשמרים בצד וחוזרים ביציאה מהדמו. שינויים בזמן הדמו לא נשמרים בענן.',
   demoBuilding: 'בונה תיק דמו ממחירי שוק אמיתיים…',
@@ -424,7 +426,7 @@ he: {
   demoProgSub: 'מחירי שוק אמיתיים של 6 השנים האחרונות — עוד כמה רגעים',
   demoStepPrices: 'מושכים מחירי מניות ומדדים',
   demoStepFx: 'מושכים שערי דולר־שקל',
-  demoStepBuild: 'בונים עסקאות, הפקדות ופנסיה',
+  demoStepBuild: 'בונים את העסקאות של באפט, הפקדות ופנסיה',
   demoStepSave: 'מכינים את התיק',
   demoStepOf: '{n} מתוך {total}',
   demoStepServer: 'מהשרת — בבקשה אחת',
@@ -438,13 +440,11 @@ he: {
   demoDepPlace: 'העברה מהבנק',
   demoWdPlace: 'משיכה לחשבון הבנק',
   demoReservePlace: 'הפקדה פותחת',
-  demoWlNote: 'במעקב — מומנטום חזק',
+  demoWlBrk: 'המניה של ברקשייר — להשוואה מול התיק',
   demoPension: 'קרן פנסיה – מסלול כללי',
   demoStudy: 'קרן השתלמות – מסלול כללי',
   demoPension2: 'קרן פנסיה – מסלול מניות',
-  demoNameSpy: 'מחקה S&P 500',
-  demoNameQqq: 'מחקה נאסד"ק 100',
-  demoNameEis: 'מדד ישראל (MSCI)',
+  demoNameDefense: 'מדד ת"א ביטחוניות',
   demoStudy2: 'קרן השתלמות – מסלול S&P 500',
 
   footerNote: 'המחירים מתעדכנים חי כל כמה שניות כשהאפליקציה פתוחה. הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.',
@@ -617,6 +617,8 @@ en: {
   srcFilterBtn: 'Filter',
   agorotUnit: 'agorot',
   agShort: 'ag.',
+  ptsShort: 'pts',
+  ptsUnit: 'points',
   histRetryLater: 'Price history is unavailable right now — retrying automatically',
   agorotFixed: 'Fixed {n} TASE prices that were entered in agorot',
   srcFilterAll: 'All',
@@ -889,7 +891,7 @@ en: {
   resetIbkrDone: 'IBKR data deleted — you can sync again from Settings',
   resetIbkrNone: 'No IBKR data to delete',
   demoTitle: 'Want to see the full app?',
-  demoDesc: 'Load a complete demo portfolio in one tap: today’s hottest stocks from the US and Tel Aviv, buys and sells at real market prices, deposits and withdrawals, cash in dollars and shekels, and pension. Your data is not deleted — it’s waiting for you when you exit the demo.',
+  demoDesc: 'Load a complete demo portfolio in one tap: a copy of Warren Buffett’s stock portfolio (Berkshire Hathaway) over the last 6 years — every buy and sell following his quarterly filings, at real market prices, scaled to a private portfolio. Plus 3 Tel Aviv stocks and an index, deposits and withdrawals, cash and pension. Your data is not deleted — it’s waiting for you when you exit the demo.',
   demoBtn: '✨ Load demo portfolio',
   demoConfirm: 'Load a demo portfolio?\nYour data is set aside and comes back when you exit the demo. Changes during the demo are not saved to the cloud.',
   demoBuilding: 'Building a demo portfolio from real market prices…',
@@ -900,7 +902,7 @@ en: {
   demoProgSub: 'Real market prices from the last 6 years — just a moment',
   demoStepPrices: 'Fetching stock and index prices',
   demoStepFx: 'Fetching USD/ILS rates',
-  demoStepBuild: 'Building trades, deposits and pension',
+  demoStepBuild: 'Building Buffett’s trades, deposits and pension',
   demoStepSave: 'Preparing the portfolio',
   demoStepOf: '{n} of {total}',
   demoStepServer: 'From the server — one request',
@@ -914,13 +916,11 @@ en: {
   demoDepPlace: 'Bank transfer',
   demoWdPlace: 'Withdrawal to bank',
   demoReservePlace: 'Opening deposit',
-  demoWlNote: 'Watching — strong momentum',
+  demoWlBrk: 'Berkshire’s own stock — to compare with the portfolio',
   demoPension: 'Pension fund – General track',
   demoStudy: 'Study fund – General track',
   demoPension2: 'Pension fund – Equity track',
-  demoNameSpy: 'S&P 500 ETF',
-  demoNameQqq: 'Nasdaq 100 ETF',
-  demoNameEis: 'Israel index (MSCI)',
+  demoNameDefense: 'TA-Defense index',
   demoStudy2: 'Study fund – S&P 500 track',
 
   footerNote: 'Prices update live every few seconds while the app is open. The daily chart includes extended-hours trading — pre-market and after-hours. Outside trading hours the last closing price is shown.',
@@ -2945,81 +2945,101 @@ function doResetIbkr() {
 
 /* ---------------- v146: תיק דמו ---------------- */
 /* נבנה ממחירי סגירה אמיתיים (Yahoo), כך שהמחיר החי, הגרפים והתשואות עקביים.
-   "לוהטות" = המומנטום החזק ביותר ב־6 החודשים האחרונים מתוך רשימת מועמדים,
-   בתנאי שהן גם מעל המחיר של לפני 18 חודשים. הכל ידני: עסקאות, הפקדות, מזומן, פנסיה. */
+   מ־v168: העתק של תיק המניות של באפט (ברקשייר) — ראו BRK_13F. הכל ידני: עסקאות, הפקדות, מזומן, פנסיה. */
 const LS_PREDEMO = 'pwa_predemo_v1';
-/* v161: תיק דמו של 6 שנים — מניות ומדדים פופולריים מארה"ב ומישראל, קניות מדורגות לאורך השנים
-   (כולל חיסכון חצי־שנתי במדדים), מימושים חלקיים, הפקדות, ופנסיה/השתלמות עם הפקדה לכל שנה.
-   [סימבול, חודש מתחילת 6 השנים, תקציב לקנייה (דולר / שקל למניה ישראלית), אפשרויות]
-   dca = קנייה חוזרת כל N חודשים; again = קניות נוספות בחודשים; trim = [חלק, מחודש, עד חודש] — מימוש בשיא. */
-const DEMO_PLAN = [
-  ['SPY', 0, 1500, { dca: 6 }], ['QQQ', 3, 1200, { dca: 6 }], ['EIS', 1, 2000, { again: [25] }],
-  ['AAPL', 0, 4000, { trim: [0.2, 40, 56] }], ['MSFT', 2, 4000], ['GOOGL', 4, 3000], ['AMZN', 6, 3000, { again: [22] }],
-  ['NVDA', 9, 3000, { trim: [0.3, 36, 60] }], ['AVGO', 20, 3000], ['META', 26, 3000], ['LLY', 30, 3000],
-  ['COST', 36, 3000], ['TSM', 40, 3000], ['NFLX', 44, 2500],
-  ['LUMI.TA', 1, 12000, { trim: [0.3, 30, 50] }], ['ESLT.TA', 8, 15000], ['POLI.TA', 28, 10000], ['DSCT.TA', 34, 8000],
-  ['TSEM.TA', 38, 9000], ['TEVA.TA', 44, 6000], ['NVMI.TA', 48, 10000], ['PHOE.TA', 52, 8000],
-];
-/* מועמדים ל"לוהטות" (קנייה בשנה האחרונה) ולרשימת המעקב — לפי מומנטום בזמן היצירה */
-const DEMO_HOT = ('PLTR APP ANET CRWD MU AMD SHOP UBER ORCL TSLA').split(' ');
-const DEMO_US = DEMO_PLAN.filter((x) => !/\.TA$/.test(x[0])).map((x) => x[0]).concat(DEMO_HOT);
-const DEMO_TA = DEMO_PLAN.filter((x) => /\.TA$/.test(x[0])).map((x) => x[0]);
+/* v168: תיק הדמו = העתק של תיק המניות של ברקשייר האת'וויי (באפט), מתוך דוחות 13F הרבעוניים ל־SEC.
+   BRK_13F[sym][i] = שווי האחזקה בסוף הרבעון BRK_13F_Q[i], בדולרים, מוקטן פי מיליון (~$300K היום).
+   בכל סוף רבעון התיק מתיישר לאחזקות של ברקשייר — כמות = שווי ÷ סגירה (מחירי Yahoo מותאמי ספליט,
+   כך שספליט עתידי לא שובר את הטבלה). הטבלה נוצרת ב־tools/brk13f.py — לעדכן אחרי כל דוח (אמצע פבר'/מאי/אוג'/נוב').
+   בחוץ: ניירות בלי היסטוריה ב־Yahoo (ATVI, מניות המעקב של Liberty SiriusXM, STORE), אחזקות קטנות מ־0.35%
+   שכבר נמכרו, ואחזקות של פחות ממניה אחת בקנה המידה הזה (NVR, LEN.B, JEF, DHI היום).
+   נבדק מול כל 91 הניירות שיש להם מחירים: TWR ל־6 שנים זהה עד ~0.1 נקודה. */
+const BRK_13F_Q = ['2020-09-30','2020-12-31','2021-03-31','2021-06-30','2021-09-30','2021-12-31','2022-03-31','2022-06-30','2022-09-30','2022-12-31','2023-03-31','2023-06-30','2023-09-30','2023-12-31','2024-03-31','2024-06-30','2024-09-30','2024-12-31','2025-03-31','2025-06-30','2025-09-30','2025-12-31','2026-03-31','2026-06-30'];
+const BRK_13F = {
+  'AAPL': [109359,117714,108364,121502,125530,157529,155564,122337,123662,116305,150976,177591,156753,174347,135361,84248,69900,75126,66639,57448,60656,61962,57843,65950],
+  'AXP': [15199,18331,21444,25051,25399,24804,28351,21016,20454,22400,25008,26411,22619,28403,34520,35105,41117,44997,40791,48361,50359,56088,45859,51282],
+  'KO': [19748,21936,21084,21644,20988,23684,24800,25164,22408,25444,24812,24088,22392,23572,24472,25460,28744,24904,28648,28300,26528,27964,30420,32508],
+  'GOOGL': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4338,5586,15600,28158],
+  'BAC': [24333,30616,39081,41646,42879,44939,41636,31444,30505,33455,29540,29633,28279,34776,39166,41077,31652,29896,26356,28641,29307,28451,25039,27544],
+  'CVX': [3188,4096,2481,2422,2912,4488,25919,23373,23757,29253,21604,19373,18590,18808,19399,18553,17468,17180,19842,17478,18955,19837,17457,13986],
+  'OXY': [0,0,0,0,0,0,7738,9335,11943,12242,13217,13179,14542,14552,16119,16090,13157,13053,13078,11130,12518,10894,17221,12868],
+  'CB': [0,0,0,0,0,0,0,0,0,0,0,0,1695,4543,6718,6896,7796,7469,8164,7832,8844,10690,11163,11670],
+  'MCO': [7151,7160,7367,8940,8760,9636,8324,6709,5997,6873,7549,8578,7800,9635,9696,10384,11708,11678,11488,12374,11755,12603,10762,11173],
+  'GOOG': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1028,9606],
+  'KHC': [9753,11287,13025,13279,11990,11690,12827,12420,10860,13257,12592,11560,10954,12042,12016,10492,11433,10000,9909,8408,8480,7897,7324,7691],
+  'DVA': [3092,4238,3890,4347,4196,4106,4083,2886,2988,2695,2928,3627,3412,3781,4983,5002,5917,5398,5376,4814,4273,3608,4626,6425],
+  'DAL': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2647,5369],
+  'SIRI': [268,318,266,286,266,0,0,0,0,0,0,0,44,220,142,376,2487,2678,2700,2751,2905,2496,2881,3687],
+  'VRSN': [2625,2773,2547,2918,2627,3253,2851,2144,2226,2633,2708,2896,2596,2640,2429,2279,2434,2747,3374,3838,2513,2184,2233,2261],
+  'KR': [847,1065,1838,2367,2498,2780,3327,2482,2199,2229,2468,2350,2238,2286,2856,2497,2865,3058,3384,3587,3371,3124,3618,2166],
+  'ALLY': [0,0,0,0,0,0,390,1005,835,729,739,783,774,1013,1177,1150,1032,1044,1058,1130,1137,1313,1138,1241],
+  'LEN': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,222,780,889,725,877,1186],
+  'LLYVK': [0,0,0,0,0,0,0,0,0,0,0,0,357,416,488,418,560,743,744,886,1059,908,996,1118],
+  'NYT': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,352,1268,1099],
+  'COF': [0,0,0,0,0,0,0,0,0,0,954,1364,1210,1635,1857,1359,1363,1328,1282,1521,1520,1733,1304,602],
+  'LLYVA': [0,0,0,0,0,0,0,0,0,0,0,0,161,185,214,187,247,332,335,396,470,406,457,505],
+  'LPX': [0,0,0,0,0,0,0,0,297,417,382,528,389,499,554,491,641,587,521,487,503,457,412,446],
+  'NUE': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,693,857,868,1045,661,414],
+  'M': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,55,173],
+  'DHI': [0,0,0,0,0,0,0,0,0,0,0,726,642,0,0,0,0,0,192,191,0,0,0,1],
+  'VZ': [3471,8620,9236,8899,8578,8253,70],
+  'USB': [4731,6110,7173,7343,7514,7101,6719,5513,3136,291],
+  'GM': [2367,3019,3850,3550,3163,3518,2714,1679,1604,1682,1467,848],
+  'TSM': [0,0,0,0,0,0,0,0,4118,618],
+  'CHTR': [3255,3449,3217,3761,3056,2496,2089,1794,1162,1298,1369,1407,1684,1488,1113,1145,915,683,731,434,292,221],
+  'C': [0,0,0,0,0,0,2945,2537,2298,2495,2590,2543,2272,2842,3494,3506,3458,1030],
+  'BNY': [2485,3071,3422,3707,3751,4203,3591,3018,2396,1141],
+  'WFC': [2995,1582,26,31,31,32],
+  'V': [1997,2185,2115,2335,2130,1798,1840,1634,1474,1724,1871,1970,1908,2160,2316,2178,2281,2622,2908,2946,2833,2910],
+  'HPQ': [0,0,0,0,0,0,3792,3425,2604,2807,3550,3714,2635,688],
+  'ABBV': [1863,2736,2475,2312,1553,411],
+  'MA': [1544,1629,1625,1667,1491,1432,1425,1258,1134,1386,1449,1568,1578,1700,1920,1759,1969,2099,2185,2240,2268,2276],
+  'MRK': [1858,2347,1379,712],
+  'AMZN': [1679,1737,1650,1835,1752,1778,1739,1133,1205,896,1090,1375,1271,1519,1804,1932,1863,2194,1903,2194,2196,525],
+  'STZ': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1243,2204,2180,1805,1793,95],
+  'BMY': [1807,2068,1959,1757,1305,324],
+  'PSKY': [0,0,0,0,0,0,2607,1935,1737,1581,2091,1491,1209,937,89],
+  'SNOW': [1537,1724,1404,1481,1852,2075,1404,852,1041,879,945,1078,936,1219,990],
+  'UNH': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1572,1740,1664],
+  'AON': [0,0,943,1050,1256,1321,1431,1186,1178,1319,1367,1496,1329,1193,1368,1204,1419,1473,1636,1463,1462,1271],
+  'DPZ': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,549,1000,1204,1187,1287,1396],
+  'NU': [0,0,0,0,0,1005,827,401,471,436,510,845,777,892,1278,1381,1180,416],
+  'STNE': [749,1189,655,717,371,180,125,82,102,101,102,136,114],
+  'RH': [654,775,1048,1217,1195,974,708,461,581,631],
+  'POOL': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,152,204,466,1008,1072,702],
+  'TMUS': [276,707,657,759,670,608,673,705,703,734,759,728,734,840,856,823,964,960,1036],
+  'MCK': [0,0,0,0,0,0,895,1043,1087,1071,815],
+  'CE': [0,0,0,0,0,0,1126,1077,877,993,960,621],
+};
+/* ישראליות "לפי ממוצע" — בשווי וברווח, לא ב־TWR (כך התשואה נשארת של באפט): [סימבול, תאריך קנייה, תקציב ₪] */
+const DEMO_IL = [['POLI.TA', '2021-03-01', 10000], ['ESLT.TA', '2022-06-01', 10000], ['BEZQ.TA', '2023-10-02', 8000]];
+/* מדד ת"א ביטחוניות (207) — ב־Yahoo יש רק מחיר חי, בלי היסטוריה (גם לקרנות הסל שעוקבות אחריו) → נקנה במחיר של היום */
+const DEMO_IL_INDEX = '207.TA';
+const DEMO_WATCH = ['BRK-B'];
 const DEMO_YEARS = 6;
+const DEMO_FEE = 1;
 /* פנסיה והשתלמות: [מפתח שם, סוג, הפקדה שנתית בשנה הראשונה, גידול הפקדה לשנה, תשואה שנתית] */
 const DEMO_FUNDS = [
   ['demoPension', 'pension', 30000, 0.06, 0.065], ['demoPension2', 'pension', 12000, 0.05, 0.095],
   ['demoStudy', 'study', 15500, 0.02, 0.06], ['demoStudy2', 'study', 8000, 0.03, 0.11],
 ];
-
-/* נקודת קנייה: התאריך האחרון בחלון שבו המחיר היה ≤ מחיר היום ÷ (1+יעד).
-   אם המחיר מעולם לא ירד כך בחלון — השפל של החלון. טהורה. */
-function demoEntry(h, lastPx, target, from, to) {
-  const lim = lastPx / (1 + target);
-  for (let i = (h || []).length - 1; i >= 0; i--) {
-    const r = h[i];
-    if (r.date > to) continue;
-    if (r.date < from) break;
-    if (r.close > 0 && r.close <= lim) return r;
-  }
-  return demoExtreme(h, from, to, false);
+const DEMO_NAMES = {
+  AAPL: 'Apple', AXP: 'American Express', KO: 'Coca-Cola', GOOGL: 'Alphabet A', GOOG: 'Alphabet C', BAC: 'Bank of America',
+  CVX: 'Chevron', OXY: 'Occidental Petroleum', CB: 'Chubb', MCO: "Moody's", KHC: 'Kraft Heinz', DVA: 'DaVita',
+  DAL: 'Delta Air Lines', SIRI: 'SiriusXM', VRSN: 'VeriSign', KR: 'Kroger', ALLY: 'Ally Financial', LEN: 'Lennar',
+  LLYVK: 'Liberty Live C', LLYVA: 'Liberty Live A', NYT: 'New York Times', COF: 'Capital One', LPX: 'Louisiana-Pacific',
+  NUE: 'Nucor', M: "Macy's", DHI: 'D.R. Horton', V: 'Visa', MA: 'Mastercard', AMZN: 'Amazon', UNH: 'UnitedHealth',
+  AON: 'Aon', DPZ: "Domino's", POOL: 'Pool Corp', STZ: 'Constellation Brands', CHTR: 'Charter', C: 'Citigroup',
+  VZ: 'Verizon', USB: 'U.S. Bancorp', BNY: 'BNY Mellon', WFC: 'Wells Fargo', GM: 'General Motors', HPQ: 'HP',
+  TSM: 'TSMC', ABBV: 'AbbVie', MRK: 'Merck', BMY: 'Bristol-Myers Squibb', PSKY: 'Paramount', SNOW: 'Snowflake',
+  NU: 'Nu Holdings', STNE: 'StoneCo', RH: 'RH', TMUS: 'T-Mobile', MCK: 'McKesson', CE: 'Celanese', 'BRK-B': 'Berkshire Hathaway B',
+};
+function demoStockName(sym, lang) {
+  for (const [s, en, he] of TASE_STOCKS) if (s === sym) return lang === 'en' ? en : he;
+  return DEMO_NAMES[sym] || sym;
 }
 
 function isDemoMode() { return !!(typeof DB !== 'undefined' && DB && DB.demo); }
-
-/* מדרג לפי מומנטום 6 חודשים. טהורה. */
-function demoPickHot(hist, syms, n, today) {
-  const scored = [];
-  for (const s of syms) {
-    const h = hist[s] || [];
-    if (h.length < 300) continue;
-    const last = h[h.length - 1].close;
-    const b6 = closeOnOrBefore(h, addDaysISO(today, -182));
-    const b18 = closeOnOrBefore(h, addDaysISO(today, -540));
-    if (!(last > 0 && b6 > 0 && b18 > 0) || last <= b18) continue;
-    scored.push({ sym: s, score: last / b6 - 1 });
-  }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, n).map((x) => x.sym);
-}
-
-function demoExtreme(h, from, to, wantMax) {
-  let best = null;
-  for (const r of (h || [])) {
-    if (r.date < from || r.date > to || !(r.close > 0)) continue;
-    if (!best || (wantMax ? r.close > best.close : r.close < best.close)) best = r;
-  }
-  return best;
-}
-
-function demoStockName(sym, lang) {
-  for (const [s, en, he] of TASE_STOCKS) if (s === sym) return lang === 'en' ? en : he;
-  for (const [s, en] of POPULAR_STOCKS) {
-    if (s === sym) return String(en).replace(/,? (Inc|Corp|Corporation|Ltd|Co|Holdings|N\.V|plc)\.?$/i, '').replace(/\.$/, '');
-  }
-  const extra = { ANET: 'Arista Networks', APP: 'AppLovin', PLTR: 'Palantir', CRWD: 'CrowdStrike', TSM: 'TSMC',
-    AVGO: 'Broadcom', MU: 'Micron', ORCL: 'Oracle', SHOP: 'Shopify', UBER: 'Uber', LLY: 'Eli Lilly', COST: 'Costco' };
-  return extra[sym] || sym;
-}
 
 /* חודש m אחרי תאריך ISO (יום בחודש נחתך לסוף החודש). טהורה. */
 function demoAddMonths(iso, m) {
@@ -3034,93 +3054,122 @@ function demoRowFrom(h, iso) {
   for (const r of (h || [])) if (r.date >= iso && r.close > 0) return r.date <= addDaysISO(iso, 10) ? r : null;
   return null;
 }
+/* יום המסחר האחרון עד תאריך (עד 10 ימים אחורה) — המחיר שבו 13F מעריך את האחזקה. טהורה. */
+function demoRowOnOrBefore(h, iso) {
+  for (let i = (h || []).length - 1; i >= 0; i--) {
+    const r = h[i];
+    if (r.date > iso || !(r.close > 0)) continue;
+    return r.date >= addDaysISO(iso, -10) ? r : null;
+  }
+  return null;
+}
+/* הרבעון הראשון: האחרון שלא אחרי "לפני 6 שנים" — כך טווח 6 השנים מכוסה (ואם הטבלה מתחילה אחריו — הראשון). טהורה. */
+function demoFirstQuarter(today) {
+  const from = demoAddMonths(today, -12 * DEMO_YEARS);
+  let i0 = 0;
+  for (let i = 0; i < BRK_13F_Q.length; i++) if (BRK_13F_Q[i] <= from) i0 = i;
+  return i0;
+}
+/* כמות המניות בכל רבעון (מ־i0) לכל סימבול שיש לו היסטוריה: שווי ÷ סגירה, מעוגל.
+   שינוי של פחות מ־0.5% מול העיגון האחרון = אותה אחזקה (רעש עיגול, לא עסקה). טהורה. */
+function demoCloneShares(hist, i0) {
+  const out = {};
+  for (const sym of Object.keys(BRK_13F)) {
+    const h = hist[sym] || [];
+    if (!h.length) continue;
+    const vals = BRK_13F[sym];
+    let prevU = 0, prevI = 0;
+    const row = [];
+    for (let i = i0; i < BRK_13F_Q.length; i++) {
+      const v = vals[i] || 0;
+      const r = v > 0 ? demoRowOnOrBefore(h, BRK_13F_Q[i]) : null;
+      if (!r) { row.push(0); prevU = 0; prevI = 0; continue; }
+      const u = v / r.close;
+      if (prevU > 0 && Math.abs(u - prevU) / prevU < 0.005) { row.push(prevI); continue; }
+      prevU = u; prevI = Math.round(u); row.push(prevI);
+    }
+    if (row.some((x) => x > 0)) out[sym] = row;
+  }
+  return out;
+}
 
-/* בונה את תיק הדמו — טהורה (hist, שערים ותאריך מבחוץ). tr = פונקציית תרגום.
-   picks = { plan: סימבולים מ־DEMO_PLAN שיש להם היסטוריה, hot: 2 "לוהטות", watch: למעקב }.
-   כל קנייה ממומנת בהפקדה (מעוגלת ל־₪1,000 למעלה) — העודף נשאר מזומן; אחרי מימוש — משיכה של
-   כמחצית. כך שווי − הפקדות = רווח אמיתי (עד תנודות שער). */
-function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
+/* בונה את תיק הדמו — טהורה (hist, שערים ותאריך מבחוץ). tr = פונקציית תרגום. taNow = { '207.TA': מחיר חי }.
+   ארה"ב: עסקאות בסוף כל רבעון לפי השינוי באחזקות של ברקשייר (מכירות קודם, אז קניות, במחיר הסגירה).
+   קניות שהמזומן לא מכסה — הפקדה (מעוגלת ל־₪10,000 למעלה); רבעון של מכירות נטו — משיכה של כמחצית.
+   כך שווי − הפקדות = רווח אמיתי (עד תנודות שער). */
+function demoBuild(hist, fxOf, fxNow, today, tr, lang, taNow) {
   const r2 = (v) => Math.round(v * 100) / 100;
   const fx = (d) => (fxOf && fxOf(d)) || fxNow;
   const trades = [], deposits = [];
   let usdCash = 0, ilsCash = 0, n = 0;
   const addDep = (iso, ils, place) => deposits.push({ date: fmtDateIL(iso), amount: ils > 0 ? -ils : Math.abs(ils), place: place, _iso: iso });
-  const start = addDaysISO(demoAddMonths(today, -12 * DEMO_YEARS), 7);
-  const lastBuy = addDaysISO(today, -21);
-  const buy = (sym, row, budget) => {
-    const isTa = symCur(sym) === 'ILS';
-    const qty = Math.max(1, Math.floor(budget / row.close));
-    const price = r2(row.close);
-    const fee = isTa ? 5 : 1.5;
-    trades.push({ id: 'demo' + (++n), date: row.date, sym: sym, side: 'BUY', qty: qty, price: price, fee: fee });
-    const cost = qty * price + fee;
-    const costIls = isTa ? cost : cost * fx(row.date);
-    const dep = Math.ceil(costIls / 1000) * 1000;
-    addDep(addDaysISO(row.date, -3), dep, tr('demoDepPlace'));
-    if (isTa) ilsCash += dep - cost; else usdCash += dep / fx(row.date) - cost;
-  };
-  const sell = (sym, row, frac) => {
-    const st = mtPosition(trades, sym, row.date);
-    const q = Math.floor(st.shares * frac);
-    if (q < 1 || !(row.close > st.avg)) return;
-    const isTa = symCur(sym) === 'ILS';
-    const fee = isTa ? 5 : 1.5;
-    const price = r2(row.close);
-    trades.push({ id: 'demo' + (++n), date: row.date, sym: sym, side: 'SELL', qty: q, price: price, fee: fee });
-    const proceeds = q * price - fee;
-    if (isTa) ilsCash += proceeds; else usdCash += proceeds;
-    const wIso = addDaysISO(row.date, 7);
-    const w = Math.floor((isTa ? proceeds : proceeds * fx(wIso)) * 0.5 / 1000) * 1000;
-    if (w > 0 && wIso <= today) {
+  const i0 = demoFirstQuarter(today);
+  const sh = demoCloneShares(hist, i0);
+  const syms = Object.keys(sh);
+  if (syms.length < 4) return null;
+  const held = {};
+  for (let k = 0; i0 + k < BRK_13F_Q.length; k++) {
+    const q = BRK_13F_Q[i0 + k];
+    if (q >= today) break;
+    const sells = [], buys = [];
+    for (const sym of syms) {
+      const d = sh[sym][k] - (held[sym] || 0);
+      if (!d) continue;
+      const row = demoRowOnOrBefore(hist[sym], q);
+      if (row) (d < 0 ? sells : buys).push({ sym: sym, qty: Math.abs(d), date: row.date, price: r2(row.close) });
+    }
+    if (!sells.length && !buys.length) continue;
+    const qd = sells.concat(buys).reduce((a, x) => (x.date < a ? x.date : a), q);
+    let proceeds = 0, cost = 0;
+    for (const x of sells) {
+      trades.push({ id: 'demo' + (++n), date: x.date, sym: x.sym, side: 'SELL', qty: x.qty, price: x.price, fee: DEMO_FEE });
+      proceeds += x.qty * x.price - DEMO_FEE;
+      held[x.sym] = (held[x.sym] || 0) - x.qty;
+    }
+    for (const x of buys) cost += x.qty * x.price + DEMO_FEE;
+    usdCash += proceeds;
+    if (cost > usdCash + 1e-6) {
+      const dIso = addDaysISO(qd, -2);
+      const dep = Math.ceil((cost - usdCash) * fx(dIso) / 10000) * 10000;
+      addDep(dIso, dep, tr(k === 0 ? 'demoReservePlace' : 'demoDepPlace'));
+      usdCash += dep / fx(dIso);
+    }
+    for (const x of buys) {
+      trades.push({ id: 'demo' + (++n), date: x.date, sym: x.sym, side: 'BUY', qty: x.qty, price: x.price, fee: DEMO_FEE });
+      held[x.sym] = (held[x.sym] || 0) + x.qty;
+    }
+    usdCash -= cost;
+    const wIso = addDaysISO(qd, 7);
+    const w = Math.floor((proceeds - cost) * fx(wIso) * 0.5 / 1000) * 1000;
+    if (w >= 5000 && wIso <= today) {
       addDep(wIso, -w, tr('demoWdPlace'));
-      if (isTa) ilsCash -= w; else usdCash -= w / fx(wIso);
-    }
-  };
-  const want = new Set(picks.plan || []);
-  for (const [sym, m0, budget, o] of DEMO_PLAN) {
-    if (!want.has(sym)) continue;
-    const h = hist[sym] || [];
-    const opt = o || {};
-    const months = [m0];
-    if (opt.dca) for (let m = m0 + opt.dca; demoAddMonths(start, m) <= lastBuy; m += opt.dca) months.push(m);
-    for (const m of (opt.again || [])) months.push(m);
-    let bought = false;
-    for (const m of months.sort((a, b) => a - b)) {
-      let iso = demoAddMonths(start, m);
-      if (iso > lastBuy || !h.length) continue;
-      if (iso < h[0].date) { if (bought) continue; iso = h[0].date; } // אין מחיר מאז — הקנייה הראשונה ביום הראשון שיש
-      const row = demoRowFrom(h, iso);
-      if (row) { buy(sym, row, budget); bought = true; }
-    }
-    if (opt.trim && trades.some((x) => x.sym === sym)) {
-      const from = demoAddMonths(start, opt.trim[1]);
-      const to = demoAddMonths(start, opt.trim[2]) < addDaysISO(today, -14) ? demoAddMonths(start, opt.trim[2]) : addDaysISO(today, -14);
-      const pk = demoExtreme(h, from, to, true);
-      if (pk) sell(sym, pk, opt.trim[0]);
+      usdCash -= w / fx(wIso);
     }
   }
-  // "לוהטות": קנייה בשנה האחרונה בנקודה שנותנת רווח יעד — שגם הטווחים הקצרים ייראו חיים
-  (picks.hot || []).forEach((sym, k) => {
-    const h = hist[sym] || [];
-    if (!h.length) return;
-    const row = demoEntry(h, h[h.length - 1].close, [0.34, 0.22][k] || 0.2, addDaysISO(today, -365), addDaysISO(today, -60));
-    if (row) buy(sym, row, 2500);
-  });
   if (!trades.length) return null;
-  const first = trades.reduce((a, x) => (x.date < a ? x.date : a), trades[0].date);
-  const rIso = addDaysISO(first, -10);
-  addDep(rIso, 8000, tr('demoReservePlace'));
-  ilsCash += 3000; usdCash += 5000 / fx(rIso);
+  const positions = [];
+  for (const sym of [...new Set(trades.map((x) => x.sym))]) {
+    const st = mtPosition(trades, sym);
+    if (st.shares > 0) positions.push({ sym: sym, name: demoStockName(sym, lang), full: '', shares: st.shares, avg: st.avg, src: 'manual', fromTrades: true });
+  }
+  // ישראליות: "לפי ממוצע" (בלי עסקאות) — מחיר סגירה אמיתי ביום הקנייה, הפקדה בשקלים
+  const ilBuy = (sym, iso, qty, px, name) => {
+    const cost = qty * px;
+    const dep = Math.ceil(cost / 1000) * 1000;
+    addDep(iso, dep, tr('demoDepPlace'));
+    ilsCash += dep - cost;
+    positions.push({ sym: sym, name: name, full: '', shares: qty, avg: px, src: 'manual' });
+  };
+  for (const [sym, iso, budget] of DEMO_IL) {
+    const row = demoRowFrom(hist[sym], iso);
+    if (!row) continue;
+    const px = r2(row.close);
+    ilBuy(sym, addDaysISO(row.date, -3), Math.max(1, Math.floor(budget / px)), px, demoStockName(sym, lang));
+  }
+  const idxPx = taNow && taNow[DEMO_IL_INDEX];
+  if (idxPx > 0) ilBuy(DEMO_IL_INDEX, today, Math.max(1, Math.floor(12000 / idxPx)), r2(idxPx), tr('demoNameDefense'));
   deposits.sort((a, b) => (a._iso < b._iso ? 1 : a._iso > b._iso ? -1 : 0));
   for (const d of deposits) delete d._iso;
-  const syms = [...new Set(trades.map((x) => x.sym))];
-  const positions = [];
-  for (const sym of syms) {
-    const st = mtPosition(trades, sym);
-    const idxKey = { SPY: 'demoNameSpy', QQQ: 'demoNameQqq', EIS: 'demoNameEis' }[sym];
-    const nm = (idxKey && tr(idxKey)) || demoStockName(sym, lang);
-    if (st.shares > 0) positions.push({ sym: sym, name: nm, full: '', shares: st.shares, avg: st.avg, src: 'manual', fromTrades: true });
-  }
   // פנסיה והשתלמות: הפקדה לכל שנה (השנה הנוכחית — לפי החודשים שעברו), שווי = הפקדות שצמחו בתשואה השנתית
   const y = Number(today.slice(0, 4)), monthsNow = Number(today.slice(5, 7));
   const pensionFunds = [], pensionDeposits = [];
@@ -3143,7 +3192,7 @@ function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
     deposits: deposits,
     manualTrades: trades,
     cash: { usd: r2(Math.max(0, usdCash)), ils: r2(Math.max(0, ilsCash)) },
-    wishlist: (picks.watch || []).map((s) => ({ sym: s, note: tr('demoWlNote') })),
+    wishlist: DEMO_WATCH.map((s) => ({ sym: s, note: tr('demoWlBrk') })),
     pensionFunds: pensionFunds,
     pensionDeposits: pensionDeposits.sort((a, b) => (a.period < b.period ? 1 : a.period > b.period ? -1 : 0)),
     source: 'manual',
@@ -3151,15 +3200,10 @@ function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
   };
 }
 
-/* מי נכנס לדמו: מתוכנית 6 השנים — כל מי שיש לו היסטוריה מתחילת התקופה; 2 "לוהטות"
-   ו־3 למעקב לפי מומנטום (demoPickHot). טהורה. */
-function demoPicks(hist, today) {
-  const start = addDaysISO(demoAddMonths(today, -12 * DEMO_YEARS), 7);
-  // v162: גם מניה בלי 6 שנים של היסטוריה נכנסת (Yahoo חסום → רק 5 שנים מ־Stooq / מהמטמון) —
-  // הקנייה הראשונה שלה פשוט זזה ליום הראשון שיש לו מחיר
-  const plan = DEMO_PLAN.map((x) => x[0]).filter((sym) => (hist[sym] || []).length > 200 && start);
-  const hotRank = demoPickHot(hist, DEMO_HOT, 5, today);
-  return { plan: plan, hot: hotRank.slice(0, 2), watch: hotRank.slice(2, 5) };
+/* היסטוריה של מניה שנמכרה כולה — רק סביב תקופת ההחזקה (ל־TWR), כדי לא למלא את הטלפון. טהורה. */
+function demoTrimSold(rows, from, to) {
+  const a = addDaysISO(from, -20), b = addDaysISO(to, 5);
+  return (rows || []).filter((r) => r.date >= a && r.date <= b);
 }
 
 let _demoBusy = false;
@@ -3231,20 +3275,28 @@ async function demoCreate(btn, noConfirm) {
     const today = todayISO();
     const demoTexts = {
       demoDepPlace: t('demoDepPlace'), demoWdPlace: t('demoWdPlace'), demoReservePlace: t('demoReservePlace'),
-      demoWlNote: t('demoWlNote'), demoPension: t('demoPension'), demoStudy: t('demoStudy'),
-      demoPension2: t('demoPension2'), demoStudy2: t('demoStudy2'),
-      demoNameSpy: t('demoNameSpy'), demoNameQqq: t('demoNameQqq'), demoNameEis: t('demoNameEis'),
+      demoWlBrk: t('demoWlBrk'), demoPension: t('demoPension'), demoStudy: t('demoStudy'),
+      demoPension2: t('demoPension2'), demoStudy2: t('demoStudy2'), demoNameDefense: t('demoNameDefense'),
     };
-    // שלב 1: מחירים — קודם מהשרתון בבקשה אחת (~1 שנייה לכל 32 הסימבולים); רק מה שחסר — ישירות
+    // שלב 1: מחירים — מהשרתון, עד 40 סימבולים לבקשה (במקביל); רק מה שחסר — ישירות
     ui.step(0, t('demoStepServer'));
-    const syms = DEMO_US.concat(DEMO_TA);
+    const syms = Object.keys(BRK_13F).concat(DEMO_IL.map((x) => x[0]));
     const hist = {};
     ui.progress(0.05);
     const creep = setInterval(() => ui.progress(Math.min(0.5, (ui.shown || 0) + 0.03)), 400); // תנועה בזמן ההמתנה
-    try {
-      const got = await proxyHistory(syms, '7y', 25000);
-      for (const s of Object.keys(got)) if (got[s].length > 200) hist[s] = storeHistRows(s, got[s]);
-    } catch (e) { /* השרת לא ענה — ממשיכים ישירות */ }
+    const taNow = {};
+    const idxQ = proxyQuotes([DEMO_IL_INDEX]).then((got) => {
+      const q = got[DEMO_IL_INDEX];
+      if (q && q.close > 0) taNow[DEMO_IL_INDEX] = q.close;
+    }).catch(() => {});
+    const parts = [];
+    for (let i = 0; i < syms.length; i += 40) parts.push(syms.slice(i, i + 40));
+    await Promise.all(parts.map(async (part) => {
+      try {
+        const got = await proxyHistory(part, '7y', 25000);
+        for (const s of Object.keys(got)) if (got[s].length > 200) hist[s] = got[s];
+      } catch (e) { /* השרת לא ענה — ממשיכים ישירות */ }
+    }));
     clearInterval(creep);
     const missing = syms.filter((s) => !hist[s]);
     let done = syms.length - missing.length;
@@ -3257,29 +3309,36 @@ async function demoCreate(btn, noConfirm) {
           let h = [];
           try { h = (await getDailyFast(s, true)) || []; } catch (e) { h = []; }
           if (!h.length) h = state.hist[s] || []; // מה שיש במטמון
-          hist[s] = h;
+          if (h.length) hist[s] = h;
           done++;
           ui.detail(0, t('demoStepOf', { n: done, total: syms.length }));
           ui.progress(0.05 + 0.65 * done / syms.length);
         });
       } finally { histProxyOff = false; }
     }
+    await idxQ;
     // שלב 2: שערי דולר־שקל לכל התקופה
     ui.step(1);
     ui.progress(0.78);
-    try { await ensureFxHist(addDaysISO(today, -(DEMO_YEARS * 366 + 30))); } catch (e) {}
-    // שלב 3: בחירת מניות, עסקאות, הפקדות ופנסיה
+    try { await ensureFxHist(addDaysISO(BRK_13F_Q[demoFirstQuarter(today)], -30)); } catch (e) {}
+    // שלב 3: עסקאות לפי הדוחות של ברקשייר, הפקדות ופנסיה
     ui.step(2);
     ui.progress(0.86);
     await new Promise((r) => setTimeout(r, 60)); // לתת למסך להתעדכן לפני החישוב
-    const picks = demoPicks(hist, today);
-    const got = picks.plan.length + picks.hot.length;
-    ui.detail(2, t('demoStepStocks', { n: got }));
-    const db = got >= 4
-      ? demoBuild(hist, picks, (d) => fxOnOrBefore(d), state.fx || 3.7, today, (k) => demoTexts[k], state.lang) : null;
-    // לא שומרים היסטוריה של מועמדים שלא נבחרו — חוסך מקום בטלפון
-    const keep = new Set(picks.plan.concat(picks.hot, picks.watch));
-    for (const s of Object.keys(hist)) if (!keep.has(s)) { delete state.hist[s]; try { localStorage.removeItem(LS_HIST + s); } catch (e) {} }
+    const db = demoBuild(hist, (d) => fxOnOrBefore(d), state.fx || 3.7, today, (k) => demoTexts[k], state.lang, taNow);
+    // שומרים היסטוריה רק למה שנסחר; מניה שנמכרה כולה — רק סביב תקופת ההחזקה (ל־TWR)
+    const span = {};
+    for (const x of (db ? db.manualTrades : [])) {
+      const o = span[x.sym] || (span[x.sym] = { from: x.date, to: x.date });
+      if (x.date < o.from) o.from = x.date;
+      if (x.date > o.to) o.to = x.date;
+    }
+    const heldNow = new Set((db ? db.positions : []).map((p) => p.sym));
+    for (const s of Object.keys(hist)) {
+      if (heldNow.has(s)) storeHistRows(s, hist[s]);
+      else if (span[s]) storeHistRows(s, demoTrimSold(hist[s], span[s].from, span[s].to));
+      else { delete state.hist[s]; try { localStorage.removeItem(LS_HIST + s); } catch (e) {} }
+    }
     if (!db) { ui.fail(t('demoFail')); return; }
     ui.detail(2, t('demoStepStocks', { n: db.positions.length }));
     // שלב 4: שמירה אחרונה של הנתונים האמיתיים לענן — ואז גיבוי מקומי, והדמו לא נשמר בענן
@@ -3314,7 +3373,7 @@ function demoExit() {
   try { backup = JSON.parse(localStorage.getItem(LS_PREDEMO) || 'null'); } catch (e) {}
   // היסטוריית מחירים של מניות הדמו — לא נשארת בטלפון (אלא אם המניה בתיק/במעקב האמיתי)
   const keep = new Set([].concat((backup && backup.positions) || [], (backup && backup.wishlist) || []).map((p) => p && p.sym));
-  for (const sym of new Set(POSITIONS.concat(WISHLIST).map((p) => p.sym))) {
+  for (const sym of new Set(POSITIONS.concat(WISHLIST, DB.manualTrades || []).map((p) => p.sym))) { // v168: גם מה שנמכר
     if (!keep.has(sym)) { try { localStorage.removeItem(LS_HIST + sym); } catch (e) {} }
   }
   applyDbData(backup || {});
@@ -3639,8 +3698,12 @@ function fmtUSD2(v) {
 }
 /* v159: מחיר מניה בת"א — באגורות, כמו בבורסה ("7,830 אג'"). בפנים נשמר בשקלים.
    עטוף בבידוד RTL כדי ש"אג'" יופיע משמאל למספר בכל הקשר (גם בתוך dir=ltr וגם בקנבס). */
-function fmtAg(v) {
+function fmtAg(v, sym) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
+  if (sym && isTaseIndex(sym)) {
+    const p = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return state.lang === 'en' ? p + ' pts' : '\u2067' + p + ' ' + t('ptsShort') + '\u2069';
+  }
   const n = (Math.round(v * 100 * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
   return state.lang === 'en' ? n + ' ag.' : '\u2067' + n + ' ' + t('agShort') + '\u2069';
 }
@@ -3653,15 +3716,18 @@ function fmtILS2(v) {
    כל מחיר/ממוצע/עסקה של מניה נשמר במטבע שלה; סכומים (שווי, רווח, עוגה, תשואה)
    מומרים לדולר דרך nativeToUSD, ומשם למטבע התצוגה כמו תמיד. */
 function symCur(sym) { return /\.TA$/i.test(String(sym || '')) ? 'ILS' : 'USD'; }
+/* v168: מדד של בורסת ת"א (סימבול מספרי — 207.TA = ת"א ביטחוניות). Yahoo מדווח בנקודות (ILS, לא ILA):
+   מוצג בנקודות ומוזן בנקודות; שווי = יחידות × נקודות בשקלים. */
+function isTaseIndex(sym) { return /^\d{1,4}\.TA$/i.test(String(sym || '')); }
 /* v157: מחיר מניה בת"א מוזן באגורות — כמו הציטוט הרשמי בבורסה. בפנים נשמר בשקלים (כמו Yahoo אחרי חלוקה ב־100).
    עמלה נשארת בשקלים. טהורות. */
-function pxInFactor(sym) { return symCur(sym) === 'ILS' ? 100 : 1; }
+function pxInFactor(sym) { return symCur(sym) === 'ILS' && !isTaseIndex(sym) ? 100 : 1; }
 function pxFromInput(sym, v) { return v / pxInFactor(sym); }
 function pxToInput(sym, v) {
   if (v === undefined || v === null || v === '' || !isFinite(+v)) return '';
   return String(Math.round(+v * pxInFactor(sym) * 1e6) / 1e6);
 }
-function pxUnit(sym) { return symCur(sym) === 'ILS' ? t('agorotUnit') : '$'; }
+function pxUnit(sym) { return isTaseIndex(sym) ? t('ptsUnit') : symCur(sym) === 'ILS' ? t('agorotUnit') : '$'; }
 /* v157: תיקון חד־פעמי — מחיר ת"א שהוזן באגורות לפני v157 נשמר כשקלים (פי 100). מזהים לפי יחס למחיר החי:
    30–300 = כמעט בוודאות אגורות (מניה לא יורדת פי 30). טהורה על db + מחירים; מחזירה כמה תוקנו. */
 function fixAgorotEntries(db, priceOf) {
@@ -3686,7 +3752,7 @@ function nativeToUSD(v, sym, fx) {
 /* מחיר למניה לתצוגה: מניה ישראלית תמיד בשקלים (ככה היא נסחרת); מניה אמריקאית
    לפי מטבע התצוגה (כמו קודם). */
 function fmtPx(v, sym) {
-  if (symCur(sym) === 'ILS') return fmtAg(v);
+  if (symCur(sym) === 'ILS') return fmtAg(v, sym);
   return state.currency === 'ILS' && state.fx ? fmtILS(v * state.fx) : fmtUSD2(v);
 }
 function fmtILS(v) {
@@ -3704,6 +3770,7 @@ function fmtPct(v, signed) {
 /* סכום עם סימן: "+$2,215" / "−₪1,300" (מטבע לפי cur). null → מקף. */
 function fmtSignedMoney(v, cur) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
+  if (Math.abs(v) < 0.5) return ltrNum(money(0, cur)); // v168: "$0" בלי סימן (מניה שנקנתה היום)
   return ltrNum((v < 0 ? '−' : '+') + money(Math.abs(v), cur));
 }
 function fmtDateIL(iso) { // YYYY-MM-DD -> DD/MM/YYYY
@@ -3774,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v167';
+const APP_VERSION = 'v168';
 
 
 function saveDBto(db) {
@@ -4746,11 +4813,35 @@ function restoreHistRows(sym, cached) {
   return rows;
 }
 
+/* v168: רשומת מטמון היסטוריה. שורות רזות (תאריך + סגירה — בדמו) נשמרות דחוסות: יום ראשון + הפרשי ימים
+   + סגירות — פי ~4 פחות מקום בטלפון (הדמו עם ~55 מניות הגיע ל־3MB). שורות מלאות — כמו קודם. טהורות. */
+function histCacheRec(rows) {
+  const rec = { at: Date.now(), rows: rows, splits: rows.splitsApplied || null };
+  if (!rows.length || !rows.every((r) => r && Object.keys(r).length === 2 && typeof r.date === 'string' && r.close > 0)) return rec;
+  const day = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / 86400000);
+  const d = [];
+  let prev = 0;
+  for (const r of rows) { const k = day(r.date); d.push(k - prev); prev = k; }
+  delete rec.rows;
+  rec.z = { d: d, c: rows.map((r) => r.close) };
+  return rec;
+}
+function histCacheUnpack(rec) {
+  if (!rec || rec.rows || !rec.z || !Array.isArray(rec.z.d) || !Array.isArray(rec.z.c)) return rec;
+  const rows = [];
+  let k = 0;
+  for (let i = 0; i < rec.z.d.length; i++) {
+    k += rec.z.d[i];
+    rows.push({ date: new Date(k * 86400000).toISOString().slice(0, 10), close: rec.z.c[i] });
+  }
+  return { at: rec.at, rows: rows, splits: rec.splits || null };
+}
+
 /* טוען רשומת מטמון v2, ואם חסרה — מנסה נדידת חירום מ־v1 (v71).
    מחזיר רשומת מטמון או null. */
 function loadHistCacheRec(sym) {
   let cached = null;
-  try { cached = lsGet(LS_HIST + sym); } catch (e) {}
+  try { cached = histCacheUnpack(lsGet(LS_HIST + sym)); } catch (e) {}
   if (cached && cached.rows && cached.rows.length) return cached;
   return migrateHistCacheV1(sym);
 }
@@ -4776,7 +4867,7 @@ async function getDaily(sym, force) {
     state.histDbg[sym] = null;
     delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
     // v70: שומרים מטא־ספליטים בנפרד — תכונה מותאמת על מערך לא שורדת JSON
-    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
+    lsSet(LS_HIST + sym, histCacheRec(rows));
     return rows;
   };
   const notes = [];
@@ -4847,7 +4938,19 @@ async function getIntraday(sym) {
 
 async function warmHistories() {
   const syms = new Set(POSITIONS.map((p) => p.sym));
-  for (const x of mtActiveTrades()) syms.add(mtNorm(x).sym); // v141: גם מניות ידניות שנמכרו (לתשואה)
+  const soldTo = {};
+  for (const x of mtActiveTrades()) {
+    const n = mtNorm(x);
+    syms.add(n.sym); // v141: גם מניות ידניות שנמכרו (לתשואה)
+    if (!soldTo[n.sym] || n.date > soldTo[n.sym]) soldTo[n.sym] = n.date;
+  }
+  // v168: מניה שנמכרה כולה — ההיסטוריה שלה לא משתנה; מטמון שמכסה עד העסקה האחרונה מספיק (בלי משיכה יומית מחדש)
+  for (const sym of [...syms]) {
+    if (POSITIONS.some((p) => p.sym === sym) || state.hist[sym]) continue;
+    const rec = loadHistCacheRec(sym);
+    const rows = rec && rec.rows;
+    if (rows && rows.length && rows[rows.length - 1].date >= soldTo[sym]) { restoreHistRows(sym, rec); syms.delete(sym); }
+  }
   await pool([...syms], 3, (sym) => getDaily(sym, false));
   renderStocks();
   renderOverview();
@@ -4936,7 +5039,7 @@ function storeHistRows(sym, rows) {
   state.hist[sym] = rows;
   state.histDbg[sym] = null;
   delete histNegCache[sym];
-  lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
+  lsSet(LS_HIST + sym, histCacheRec(rows));
   return rows;
 }
 /* גיבוי בגרפים הרגילים: כמה מניות שנכשלו באותו רגע נאספות לבקשה אחת (250ms) */
@@ -5005,7 +5108,7 @@ async function _getDailyFastInner(sym, force) {
     state.histDbg[sym] = null;
     delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
     // v70: שומרים מטא־ספליטים בנפרד — תכונה מותאמת על מערך לא שורדת JSON
-    lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
+    lsSet(LS_HIST + sym, histCacheRec(rows));
     // v69: היסטוריה חדשה = TWR חדש — מנקים מטמון
     try { if (typeof ibkrThCacheClear === 'function') ibkrThCacheClear(); } catch (e) {}
     return rows;
@@ -5812,7 +5915,7 @@ function drawPie() {
     const li = el('li', '',
       (logoSrc(s.sym) ? '<span class="pie-leg-logo"><img src="' + logoSrc(s.sym) + '" alt="" loading="lazy" data-err="hide-parent"></span>' : '<span class="pie-leg-logo"></span>') +
       '<span class="dot" style="background:' + s.color + '"></span>' +
-      '<span class="lg-name">' + esc(s.sym) + (s.name && s.name !== s.sym ? ' · ' + esc(s.name) : '') + '</span>' +
+      '<span class="lg-name"><bdi dir="ltr">' + esc(s.sym) + '</bdi>' + (s.name && s.name !== s.sym ? ' · ' + esc(s.name) : '') + '</span>' +
       '<span class="lg-val">' + money(cur === 'ILS' && state.fx ? s.value * state.fx : s.value, cur) + '</span>' +
       '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
     legend.appendChild(li);
@@ -7320,7 +7423,7 @@ function pxHints(card, symInp) {
     }
     const sym = symInp.value.trim();
     const val = parseFloat(inp.value);
-    const show = symCur(sym) === 'ILS' && val > 0;
+    const show = symCur(sym) === 'ILS' && !isTaseIndex(sym) && val > 0;
     h.textContent = show ? '= ₪' + (Math.round(pxFromInput(sym, val) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '';
     h.classList.toggle('hidden', !show);
   });
@@ -7545,7 +7648,7 @@ function renderWishlist() {
       '</div>' +
       '<div class="wl-price">' +
       (close > 0
-        ? '<span class="wl-close" dir="ltr">' + (symCur(w.sym) === 'ILS' ? fmtAg(close) : fmtUSD2(close)) + '</span>'
+        ? '<span class="wl-close" dir="ltr">' + (symCur(w.sym) === 'ILS' ? fmtAg(close, w.sym) : fmtUSD2(close)) + '</span>'
         : '<span class="fine">' + t('wlNoPrice') + '</span>') +
       (chg !== null
         ? '<span class="wl-chg ' + (chg >= 0 ? 'pos' : 'neg') + '" dir="ltr">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</span>'
@@ -7630,7 +7733,8 @@ function stockSubHTML(p, m) {
   const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
   let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) })) + '</span>' +
     '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
-  const gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
+  let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
+  if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
   if (gp !== null && isFinite(gp)) {
     html += '<span class="buy-chg ' + cls(gp) + '">' + t('buyChg', { v: fmtPct(gp, true) }) + '</span>' +
       '<span class="buy-amt ' + cls(gp) + '">' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
@@ -7649,7 +7753,7 @@ function buildStockCard(p) {
   const head = el('button', 'stock-head');
   head.type = 'button';
   head.innerHTML =
-    '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym">' + sym + '</span>' +
+    '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' +
     '<span class="stock-name">' + esc(p.name) + '</span>' +
     srcTagHTML(positionSource(p)) + '</span>' +
     '<span class="stock-pcol"><span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
@@ -7879,7 +7983,7 @@ function drawStockChart(sym, rows, intraday) {
   if (min === max) { min *= 0.99; max *= 1.01; }
   // v151: עמודת התוויות ברוחב התווית הארוכה בפועל (54 קבוע חתך "$629.26")
   ctx.font = '12.5px system-ui';
-  const fmtAxis = (v) => (symCur(sym) === 'ILS' ? fmtAg(v) : fmtUSD2(v));
+  const fmtAxis = (v) => (symCur(sym) === 'ILS' ? fmtAg(v, sym) : fmtUSD2(v));
   const padL = 6, padR = Math.ceil(Math.max(ctx.measureText(fmtAxis(min)).width, ctx.measureText(fmtAxis(max)).width)) + 12, padT = 10, padB = 36;
   const plotW = w - padL - padR, plotH = h - padT - padB;
   const X = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
@@ -7897,7 +8001,7 @@ function drawStockChart(sym, rows, intraday) {
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
-    ctx.fillText(symCur(sym) === 'ILS' ? fmtAg(v) : fmtUSD2(v), w - padR + 6, y);
+    ctx.fillText(symCur(sym) === 'ILS' ? fmtAg(v, sym) : fmtUSD2(v), w - padR + 6, y);
   }
 
   // קו — 2.5px כמו בגרף הראשי, בלי מילוי שטח
