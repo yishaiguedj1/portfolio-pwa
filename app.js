@@ -3229,7 +3229,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v148';
+const APP_VERSION = 'v149';
 
 
 function saveDBto(db) {
@@ -4507,6 +4507,22 @@ function ibkrReportTotal(data, cash, fx) {
 
 /* ---------------- DOM ---------------- */
 
+/* אבטחה (CSP, v149): בלי handlers בתוך HTML (onload=/onerror=) — מדיניות האבטחה חוסמת
+   אותם. מאזין אחד בשלב ה־capture (אירועי load/error של תמונות לא "מבעבעים"). */
+(function wireImgEvents() {
+  if (typeof document === 'undefined' || !document.addEventListener) return;
+  const on = (type, fn) => document.addEventListener(type, (e) => {
+    const im = e.target;
+    if (im && im.tagName === 'IMG') { try { fn(im); } catch (err) {} }
+  }, true);
+  on('load', (im) => { if (im.dataset && im.dataset.logo) logoImgFix(im); });
+  on('error', (im) => {
+    if (!im.dataset) return;
+    if (im.dataset.logo) logoImgErr(im);
+    else if (im.dataset.err === 'hide-parent' && im.parentElement) im.parentElement.style.display = 'none';
+  });
+})();
+
 function esc(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -4883,7 +4899,7 @@ function drawPie() {
   for (const s of sorted) {
     const li = el('li', '',
       '<span class="pie-leg-logo"><img src="https://financialmodelingprep.com/image-stock/' +
-      encodeURIComponent(normalizeSym(s.sym)) + '.png" alt="" loading="lazy" onerror="this.parentElement.style.display=\'none\'"></span>' +
+      encodeURIComponent(normalizeSym(s.sym)) + '.png" alt="" loading="lazy" data-err="hide-parent"></span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +
       '<span class="lg-name">' + s.name + ' (' + s.sym + ')</span>' +
       '<span class="lg-val">' + money(cur === 'ILS' && state.fx ? s.value * state.fx : s.value, cur) + '</span>' +
@@ -6591,7 +6607,7 @@ function stockLogoHTML(sym) {
     '<span class="stock-logo-fb">' + esc(first) + '</span>' +
     '<img class="stock-logo-img" crossorigin="anonymous" src="https://financialmodelingprep.com/image-stock/' +
     encodeURIComponent(nsym) + '.png" alt="" loading="lazy" ' +
-    'onload="logoImgFix(this)" onerror="logoImgErr(this)">' +
+    'data-logo="1">' +
     '</span>';
 }
 

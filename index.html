@@ -2,6 +2,8 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<!-- אבטחה (v149): מדיניות תוכן — רק המקורות שהאפליקציה באמת משתמשת בהם. מקור חדש = להוסיף כאן, אחרת הדפדפן חוסם בשקט. tests/csp.test.js בודק. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-aTreupeN171ypYYa3Moj4qEvRAjfwowmS9HhrQZMbpg=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://financialmodelingprep.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data:; connect-src 'self' https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.twelvedata.com https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://*.googleapis.com https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src https://yishaiguedj1-c786e.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title data-i18n="appTitle">תיק ההשקעות</title>
 <meta name="description" content="דשבורד תיק ההשקעות — מחירים חיים, הפקדות, פנסיה. אפליקציית ווב להתקנה.">
@@ -377,9 +379,9 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
   <p data-i18n="footerNote">המחירים מתעדכנים בכל פתיחה (דיליי של כ־15 דקות). הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.</p>
 </footer>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" integrity="sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9" crossorigin="anonymous" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" integrity="sha384-TnlRYaR4JYz/lpaGuaiU61PjNberSA4vjLjtF+oRC/IkohkJqnWxw5EmDSOt1vA1" crossorigin="anonymous" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" integrity="sha384-qn4Jh88HhJA8dplNQyGjOh9OGI4izVhrfj/qIFgaKcdgOE06pXqIKGlsCILZcLAC" crossorigin="anonymous" defer></script>
 <script src="firebase-config.js" defer></script>
 <script src="returns.js" defer></script>
 <script src="app.js" defer></script>
