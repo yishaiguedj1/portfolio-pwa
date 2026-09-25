@@ -2808,7 +2808,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v142';
+const APP_VERSION = 'v143';
 
 
 function saveDBto(db) {
@@ -5826,11 +5826,11 @@ function showAddPositionForm(list) {
     '<label>' + t('fldNameHe') + '<input id="ap-name" type="text" placeholder="' + t('phExampleName') + '"></label>' +
     '<label>' + t('fldFullName') + '<input id="ap-full" type="text" dir="ltr" placeholder="NVIDIA Corp" autocomplete="off"></label>' +
     '<label class="m-avg">' + t('fldShares') + '<input id="ap-shares" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-avg">' + t('fldAvgPrice', { c: '<span class="cur-sym">$</span>' }) + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-avg">' + '<span>' + t('fldAvgPrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '<label class="m-tr hidden">' + t('fldDate') + '<input id="ap-date" type="date" max="' + todayISO() + '" value="' + todayISO() + '"></label>' +
     '<label class="m-tr hidden">' + t('fldTradeQty') + '<input id="ap-qty" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-tr hidden">' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-tr hidden">' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '<input id="ap-fee" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + '<span>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + '<span>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-fee" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ap-err"></div>' +
     '<div class="edit-actions"><button class="btn" id="ap-save" type="button">' + t('btnAddStock') + '</button>' +
@@ -5912,8 +5912,8 @@ function showTradeForm(host, opts) {
     '<label>' + t('fldSymbol') + '<input class="mt-sym" type="text" dir="ltr" autocomplete="off" placeholder="GOOG" value="' + esc(v(tr ? tr.sym : o.sym)) + '"' + (o.lockSym || tr ? ' readonly' : '') + '></label>' +
     '<label>' + t('fldDate') + '<input class="mt-date" type="date" max="' + todayISO() + '" value="' + esc(tr ? tr.date : todayISO()) + '"></label>' +
     '<label>' + t('fldTradeQty') + '<input class="mt-qty" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.qty)) + '"></label>' +
-    '<label>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.price)) + '"></label>' +
-    '<label>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
+    '<label>' + '<span>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.price)) + '"></label>' +
+    '<label>' + '<span>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
     '</div>' +
     '<div class="form-err hidden"></div>' +
     '<div class="edit-actions"><button class="btn mt-save" type="button">' + t('btnSave') + '</button>' +
