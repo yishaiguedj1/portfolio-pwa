@@ -3221,7 +3221,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v150';
+const APP_VERSION = 'v151';
 
 
 function saveDBto(db) {
@@ -4893,7 +4893,7 @@ function drawPie() {
       '<span class="pie-leg-logo"><img src="https://financialmodelingprep.com/image-stock/' +
       encodeURIComponent(normalizeSym(s.sym)) + '.png" alt="" loading="lazy" data-err="hide-parent"></span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +
-      '<span class="lg-name">' + s.name + ' (' + s.sym + ')</span>' +
+      '<span class="lg-name">' + esc(s.sym) + (s.name && s.name !== s.sym ? ' · ' + esc(s.name) : '') + '</span>' +
       '<span class="lg-val">' + money(cur === 'ILS' && state.fx ? s.value * state.fx : s.value, cur) + '</span>' +
       '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
     legend.appendChild(li);
@@ -6293,7 +6293,7 @@ function showAddPositionForm(list) {
     '<label>' + t('fldFullName') + '<input id="ap-full" type="text" dir="ltr" placeholder="NVIDIA Corp" autocomplete="off"></label>' +
     '<label class="m-avg">' + t('fldShares') + '<input id="ap-shares" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '<label class="m-avg">' + '<span>' + t('fldAvgPrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-tr hidden">' + t('fldDate') + '<input id="ap-date" type="date" max="' + todayISO() + '" value="' + todayISO() + '"></label>' +
+    '<label class="m-tr hidden">' + t('fldDate') + '<input id="ap-date" type="date" lang="he-IL" max="' + todayISO() + '" value="' + todayISO() + '"></label>' +
     '<label class="m-tr hidden">' + t('fldTradeQty') + '<input id="ap-qty" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '<label class="m-tr hidden">' + '<span>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '<label class="m-tr hidden">' + '<span>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-fee" type="number" min="0" step="any" inputmode="decimal"></label>' +
@@ -6376,7 +6376,7 @@ function showTradeForm(host, opts) {
     '</div>' +
     '<div class="form-grid">' +
     '<label>' + t('fldSymbol') + '<input class="mt-sym" type="text" dir="ltr" autocomplete="off" placeholder="GOOG" value="' + esc(v(tr ? tr.sym : o.sym)) + '"' + (o.lockSym || tr ? ' readonly' : '') + '></label>' +
-    '<label>' + t('fldDate') + '<input class="mt-date" type="date" max="' + todayISO() + '" value="' + esc(tr ? tr.date : todayISO()) + '"></label>' +
+    '<label>' + t('fldDate') + '<input class="mt-date" type="date" lang="he-IL" max="' + todayISO() + '" value="' + esc(tr ? tr.date : todayISO()) + '"></label>' +
     '<label>' + t('fldTradeQty') + '<input class="mt-qty" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.qty)) + '"></label>' +
     '<label>' + '<span>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.price)) + '"></label>' +
     '<label>' + '<span>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
@@ -6443,10 +6443,10 @@ function buildManualTradeRow(x, onEdit) {
     if (mtShadowed(n.sym)) first.appendChild(el('div', 'fine', t('mtShadowed', { sym: n.sym })));
   }
   const act = el('span', 'mt-actions');
-  const eb = el('button', 'link-btn', t('btnEditRow'));
+  const eb = el('button', 'mini-btn', t('btnEditRow'));
   eb.type = 'button';
   eb.addEventListener('click', () => onEdit(x));
-  const db = el('button', 'link-btn danger', t('btnDeleteRow'));
+  const db = el('button', 'mini-btn danger', t('btnDeleteRow'));
   db.type = 'button';
   db.addEventListener('click', () => mtDeleteTrade(x));
   act.appendChild(eb);
@@ -6570,7 +6570,7 @@ function renderWishlist() {
       '<div><div class="wl-sym" dir="ltr">' + esc(w.sym) + '</div>' +
       (w.note ? '<div class="wl-note">' + esc(w.note) + '</div>' : '') +
       '</div>' +
-      '<button class="link-btn wl-del" type="button" aria-label="' + esc(t('wlRemove', { sym: w.sym })) + '">✕</button>' +
+      '<button class="mini-btn danger wl-del" type="button" aria-label="' + esc(t('wlRemove', { sym: w.sym })) + '">' + esc(t('btnDeleteRow')) + '</button>' +
       '</div>' +
       '<div class="wl-price">' +
       (close > 0
@@ -6662,8 +6662,8 @@ function buildStockCard(p) {
     '<span class="stock-name">' + esc(p.name) + '</span>' +
     srcTagHTML(positionSource(p)) + '</span>' +
     '<span class="stock-price">' + priceTxt + '</span>' +
-    '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
-    (m.dayChg === null ? '—' : t('todayChg', { v: fmtPct(m.dayChg, true) })) + '</span>' +
+    '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null || Math.abs(m.dayChg) < 0.005 ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
+    (m.dayChg === null ? '—' : t('todayChg', { v: fmtPct(Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg, true) })) + '</span>' +
     '<span>' + (m.value === null ? '—' : money(cur === 'ILS' && state.fx ? m.value * state.fx : m.value, cur)) +
     ' <span class="chev">▾</span></span></span>';
   head.addEventListener('click', () => toggleStock(sym, card));
@@ -6882,11 +6882,14 @@ function drawStockChart(sym, rows, intraday) {
   ctx.clearRect(0, 0, w, h);
 
   // v107: שבלונת הציור של הגרף הראשי — גיאומטריה, טיפוגרפיה, קו, סמנים
-  const padL = 6, padR = 54, padT = 10, padB = 36;
-  const plotW = w - padL - padR, plotH = h - padT - padB;
   let min = Infinity, max = -Infinity;
   for (const p of pts) { if (p.close < min) min = p.close; if (p.close > max) max = p.close; }
   if (min === max) { min *= 0.99; max *= 1.01; }
+  // v151: עמודת התוויות ברוחב התווית הארוכה בפועל (54 קבוע חתך "$629.26")
+  ctx.font = '12.5px system-ui';
+  const fmtAxis = (v) => (symCur(sym) === 'ILS' ? fmtILS2(v) : fmtUSD2(v));
+  const padL = 6, padR = Math.ceil(Math.max(ctx.measureText(fmtAxis(min)).width, ctx.measureText(fmtAxis(max)).width)) + 12, padT = 10, padB = 36;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
   const X = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
@@ -7036,7 +7039,7 @@ function validDeposit(dateStr, amount) {
 
 function depositAmountHTML(amt) {
   if (amt === 0) return '<span class="r-amt zero">₪0</span>';
-  if (amt > 0) return '<span class="r-amt in" title="' + t('adjTitle') + '">+₪' + amt.toLocaleString('en-US') + '</span>';
+  if (amt > 0) return '<span class="r-amt in" title="' + t('adjTitle') + '">−₪' + amt.toLocaleString('en-US') + '</span>'; // v151: משיכה — מינוס אפור, לא ירוק
   return '<span class="r-amt out">₪' + Math.abs(amt).toLocaleString('en-US') + '</span>';
 }
 
@@ -7231,7 +7234,7 @@ function buildDepositRow(d, i, ed) {
 function depositFormHTML(d, idp) {
   const isOut = d.amount > 0;
   return '<div class="form-grid">' +
-    '<label>' + t('fldDate') + '<input id="' + idp + '-date" type="date" value="' + dateToInput(d.date) + '"></label>' +
+    '<label>' + t('fldDate') + '<input id="' + idp + '-date" type="date" lang="he-IL" value="' + dateToInput(d.date) + '"></label>' +
     '<label>' + t('fldType') + '<select id="' + idp + '-type">' +
       '<option value="in"' + (!isOut ? ' selected' : '') + '>' + t('optIn') + '</option>' +
       '<option value="out"' + (isOut ? ' selected' : '') + '>' + t('optOut') + '</option>' +
@@ -7309,7 +7312,8 @@ function renderPension() {
   const wrap = document.getElementById('pensionCards');
   wrap.innerHTML = '';
   for (const f of PENSION_FUNDS) {
-    const v = cur === 'ILS' ? f.ils : f.usd;
+    // v151: קרן בשקלים לא מוצגת $0 במצב דולרים — המרה לפי השער, כמו הסך
+    const v = cur === 'ILS' ? (num(f.ils) || 0) + (state.fx ? (num(f.usd) || 0) * state.fx : 0) : (num(f.usd) || 0) + (state.fx ? (num(f.ils) || 0) / state.fx : 0);
     const card = el('div', 'card stat',
       '<div class="stat-label">' + esc(f.name) + '</div>' +
       '<div class="stat-value">' + money(v, cur) + '</div>');
@@ -7317,7 +7321,9 @@ function renderPension() {
   }
   const tu = PENSION_FUNDS.reduce((a, f) => a + (num(f.usd) || 0), 0);
   const ti = PENSION_FUNDS.reduce((a, f) => a + (num(f.ils) || 0), 0);
-  document.getElementById('pensionTotal').textContent = money(cur === 'ILS' ? ti : tu, cur);
+  // v151: הסך כולל את שני המטבעות לפי השער (קרן בשקלים לא נעלמת במצב דולרים)
+  const totCur = cur === 'ILS' ? ti + (state.fx ? tu * state.fx : 0) : tu + (state.fx ? ti / state.fx : 0);
+  document.getElementById('pensionTotal').textContent = money(totCur, cur);
 
   // סך תשואה לכל סוג — שווי נוכחי מול סך הפקדות, כמו בתיק
   const prBox = document.getElementById('pensionReturns');

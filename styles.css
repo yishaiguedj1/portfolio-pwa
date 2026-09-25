@@ -296,7 +296,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .card h2 { margin: 0 0 12px; font-size: 19px; font-weight: 700; letter-spacing: -.2px; }
 
 .cards-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
-.cards-3 .card { margin: 0; padding: 14px 8px; text-align: center; min-width: 0; overflow: hidden; }
+.cards-3 .card { margin: 0; padding: 14px 8px; text-align: center; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+.cards-3 .stat-sub { margin-top: auto; padding-top: 6px; } /* v151: שורת ההסבר צמודה לתחתית — שלושת האריחים אחידים */
 .stat.wide { text-align: center; }
 .stat-label { font-size: 13.5px; color: var(--on-surface-var); margin-bottom: 6px; }
 .stat-value { font-size: 25px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
@@ -322,6 +323,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .legend li:last-child { border-bottom: 0; }
 .dot { width: 13px; height: 13px; border-radius: 5px; flex: none; }
 .legend .lg-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* v151: מקרא העוגה — "SYM · שם": הסימבול ראשון והחיתוך רק בסוף השם */
+#pieLegend .lg-name { flex: 0 1 auto; margin-inline-end: auto; unicode-bidi: plaintext; }
 .legend .lg-val { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .legend .lg-pct { font-weight: 700; min-width: 56px; text-align: end; font-variant-numeric: tabular-nums; }
 
@@ -339,12 +342,17 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-head {
   width: 100%; border: 0; background: none; cursor: pointer; text-align: start;
   font-family: var(--font); padding: 16px 18px;
-  display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center;
   color: var(--on-surface);
 }
-.stock-id { display: flex; align-items: baseline; gap: 10px; }
-.stock-sym { font-weight: 800; font-size: 18.5px; letter-spacing: .3px; }
-.stock-name { color: var(--on-surface-var); font-size: 14.5px; }
+.stock-head > * { min-width: 0; }
+/* v151: כמו אפליקציית המניות של אפל — סימבול + תגית בשורה 1, שם החברה בשורה 2 (שורה אחת,
+   נקטע בסופו). שם ארוך כבר לא דוחף את המחיר מחוץ לכרטיס. */
+.stock-id { display: grid; grid-template-columns: auto auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; row-gap: 1px; align-items: center; min-width: 0; }
+.stock-id .stock-logo { grid-row: 1 / 3; grid-column: 1; }
+.stock-sym { grid-row: 1; grid-column: 2; font-weight: 800; font-size: 18.5px; letter-spacing: .3px; line-height: 1.15; }
+.stock-id .src-tag { grid-row: 1; grid-column: 3; justify-self: start; margin-inline-start: 0; }
+.stock-name { grid-row: 2; grid-column: 2 / 4; color: var(--on-surface-var); font-size: 13.5px; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start; max-width: 100%; unicode-bidi: plaintext; }
 .stock-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
 .stock-sub { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -478,9 +486,9 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .rows li > * { min-width: 0; }
 .rows li:last-child { border-bottom: 0; }
 .rows .r-date { color: var(--on-surface-var); font-variant-numeric: tabular-nums; font-size: 14px; }
-.rows .r-amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+.rows .r-amt { font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; display: inline-block; } /* v151: הסימן תמיד לפני המספר */
 .rows .r-amt.out { color: var(--on-surface); }
-.rows .r-amt.in { color: var(--gain); }
+.rows .r-amt.in { color: var(--on-surface-var); } /* v151: משיכה — אפור. ירוק שמור לרווח */
 .rows .r-amt.zero { color: var(--on-surface-var); font-weight: 400; }
 .rows .r-note { font-size: 13.5px; color: var(--on-surface-var); }
 .side-chip { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px; }
@@ -594,7 +602,7 @@ footer.fine { text-align: center; }
 .login-overlay {
   position: fixed; inset: 0; z-index: 200;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, #1a73e8 0%, #0d47a1 100%);
+  background: linear-gradient(160deg, #0F7A5A 0%, #063D2D 100%); /* v151: ירוק המותג (היה כחול זר) */
   padding: 20px;
 }
 .login-card {
@@ -642,12 +650,18 @@ footer.fine { text-align: center; }
 .wl-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .wl-sym { font-size: 20px; font-weight: 700; letter-spacing: 0.3px; }
 .wl-note { font-size: 14px; color: var(--on-surface-var); margin-top: 2px; }
-.wl-del { color: var(--on-surface-var); font-size: 18px; padding: 4px 8px; }
+.wl-del { flex: none; }
 .wl-price { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
 .wl-close { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wl-chg { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .form-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.form-row input[type="text"] { flex: 1 1 120px; min-width: 0; }
+.form-row input[type="text"] { /* v151: אותו סגנון כמו כל שאר הטפסים (היו תיבות דפדפן גולמיות) */
+  flex: 1 1 100%; min-width: 0; font-family: var(--font); font-size: 17px; padding: 11px 12px;
+  border: 1px solid var(--outline); border-radius: 16px; background: var(--surface);
+  color: var(--on-surface); box-sizing: border-box;
+}
+.form-row input[type="text"]:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+.form-row .chip-btn { flex: 1 1 100%; justify-content: center; }
 
 /* ---- דוחות קרובים ---- */
 .earn-list { list-style: none; margin: 8px 0 0; padding: 0; }
@@ -697,7 +711,6 @@ footer.fine { text-align: center; }
 }
 
 /* ---- v88/v93: לוגו חברה בכרטיס מניה ---- */
-.stock-id { align-items: center; }
 /* v88/v97: אריח לוגו לבן תמיד — גם בערכת נושא כהה */
 .stock-logo {
   position: relative; width: 48px; height: 48px; border-radius: 14px; overflow: hidden;
@@ -758,7 +771,7 @@ footer.fine { text-align: center; }
 .add-mode { padding-bottom: 6px; }
 .add-mode-hint { margin: 0 0 10px; }
 .mt-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px; }
-.mt-actions .link-btn { font-size: 14px; padding: 2px 0; }
+.mt-actions { gap: 8px; }
 .link-btn.danger { color: var(--loss); }
 .mt-manage .rows { margin: 6px 0 4px; }
 
@@ -785,3 +798,9 @@ footer.fine { text-align: center; }
 .danger-btn .src-tag { margin-inline-start: 0; margin-inline-end: 8px; background: #fff; color: var(--primary); }
 .danger-btn .src-tag.src-ibkr { background: #fff; }
 .reset-row .btn { display: inline-flex; align-items: center; justify-content: center; }
+
+/* v151: הגדרות חיבור IBKR — שדות ארוכים (כתובת, טוקן) בעמודה אחת, בלי חיתוך באמצע */
+#ibkrConnDetails .form-grid { grid-template-columns: 1fr; }
+/* v151: היררכיית כפתורים — "ניתוק" הוא פעולה הרסנית משנית: מתאר אדום.
+   אדום מלא נשמר לכפתורי האיפוס בלבד. */
+#ibkrDisconnect.danger-btn { background: transparent; color: var(--loss); border: 1.5px solid var(--loss); box-shadow: none; }
