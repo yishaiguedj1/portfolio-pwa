@@ -371,8 +371,8 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 200 && r.payload.data.AAPL && r.payload.failed.join() === 'BAD', 'quotes: מחזיר מה שיש, מסמן כשל');
     const c1 = calls;
     r = mockRes();
-    await quotes(mockReq({ body: { syms: ['AAPL'] } }), r);
-    ok(calls === c1 && r.payload.data.AAPL, 'quotes: מטמון של כמה שניות — בלי פנייה חוזרת ל־Yahoo');
+    await quotes(mockReq({ body: { syms: ['AAPL', 'BAD'] } }), r);
+    ok(calls === c1 && r.payload.data.AAPL, 'quotes: מטמון של 1.5 שניות (אותו סט סימבולים) — בלי פנייה חוזרת ל־Yahoo');
     r = mockRes();
     await quotes(mockReq({ body: { syms: Array.from({ length: 41 }, (_, i) => 'S' + i) } }), r);
     ok(r.statusCode === 400, 'quotes: יותר מ־40 → 400');
@@ -381,8 +381,42 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403, 'quotes: Origin זר → 403');
     mockReq.ip = '8.8.8.5';
     let last = 0;
-    for (let k = 0; k < 61; k++) { r = mockRes(); await quotes(mockReq({ body: { syms: ['AAPL'] } }), r); last = r.statusCode; }
-    ok(last === 429, 'quotes: הגבלת קצב (60 בדקה ל־IP)');
+    for (let k = 0; k < 121; k++) { r = mockRes(); await quotes(mockReq({ body: { syms: ['AAPL'] } }), r); last = r.statusCode; }
+    ok(last === 429, 'quotes: הגבלת קצב (120 בדקה ל־IP — v165: טיק כל 2 שניות = 30)');
+  }
+
+  /* ---------- v165: שדות מורחבים (טרום/אחרי/overnight) ---------- */
+  {
+    const e = quotes._extFromQuote({ symbol: 'AAPL', currency: 'USD', marketState: 'POST', regularMarketPrice: 341.07, regularMarketChange: 5.15, regularMarketChangePercent: 1.53, regularMarketTime: 1,
+      postMarketPrice: 341, postMarketChange: -0.07, postMarketChangePercent: -0.02, postMarketTime: 2, preMarketPrice: 336, preMarketChange: 0.08, preMarketChangePercent: 0.02, preMarketTime: 0 });
+    ok(e.state === 'POST' && e.post.p === 341 && e.post.pct === -0.02 && e.pre.p === 336 && e.reg.p === 341.07 && !e.night, 'ext: אחרי־מסחר + טרום־מסחר + סגירה רגילה');
+    const n2 = quotes._extFromQuote({ symbol: 'TSLA', marketState: 'OVERNIGHT', regularMarketPrice: 372, overnightMarketPrice: 370.5, overnightMarketChange: -1.5, overnightMarketChangePercent: -0.4, overnightMarketTime: 9 });
+    ok(n2.state === 'OVERNIGHT' && n2.night.p === 370.5 && n2.night.pct === -0.4, 'ext: overnight');
+    const il = quotes._extFromQuote({ symbol: 'POLI.TA', currency: 'ILA', marketState: 'POSTPOST', regularMarketPrice: 7830, regularMarketChange: 30 });
+    ok(il.reg.p === 78.3 && il.reg.ch === 0.3 && !il.post, 'ext: ת"א אגורות → שקלים, בלי אחרי־מסחר');
+    ok(quotes._extFromQuote(null) === null && quotes._extFromQuote({}) === null, 'ext: קלט ריק → null');
+    // crumb מתחדש ב־401, ומחיר חוזר גם כש־v7 נכשל לגמרי
+    let v7calls = 0, crumbs = 0;
+    global.fetch = async (url, o) => {
+      const u = String(url);
+      if (/fc\.yahoo\.com/.test(u)) return { status: 302, headers: { get: () => 'A3=d=x; Path=/' } };
+      if (/getcrumb/.test(u)) { crumbs++; return { status: 200, text: async () => 'crumb' + crumbs }; }
+      if (/v7\/finance\/quote/.test(u)) { v7calls++; if (v7calls === 1) return { status: 401, json: async () => ({}) }; return { status: 200, json: async () => ({ quoteResponse: { result: [{ symbol: 'AAPL', marketState: 'PRE', regularMarketPrice: 340, preMarketPrice: 342, preMarketChange: 2, preMarketChangePercent: 0.59, preMarketTime: 5 }] } }) }; }
+      return { status: 200, json: async () => ({ chart: { result: [{ meta: { currency: 'USD', regularMarketPrice: 340, gmtoffset: 0 }, timestamp: [1, 2], indicators: { quote: [{ close: [339, 340] }] } }] } }) };
+    };
+    quotes._cache.clear(); quotes._setCrumb({ cookie: '', crumb: '', at: 0 });
+    mockReq.ip = '8.8.8.6';
+    let r = mockRes();
+    await quotes(mockReq({ body: { syms: ['AAPL'] } }), r);
+    ok(r.payload.ext === true && r.payload.data.AAPL.x && r.payload.data.AAPL.x.pre.p === 342 && crumbs === 2, 'quotes: 401 → crumb מתחדש, השדות המורחבים מצורפים');
+    global.fetch = async (url) => { const u = String(url); if (/v7\/finance\/quote|getcrumb|fc\.yahoo/.test(u)) throw new Error('down'); return { status: 200, json: async () => ({ chart: { result: [{ meta: { currency: 'USD', regularMarketPrice: 340, gmtoffset: 0 }, timestamp: [1], indicators: { quote: [{ close: [340] }] } }] } }) }; };
+    quotes._cache.clear();
+    r = mockRes();
+    await quotes(mockReq({ body: { syms: ['MSFT'] } }), r);
+    ok(r.statusCode === 200 && r.payload.data.MSFT && !r.payload.data.MSFT.x && r.payload.ext === false, 'quotes: v7 למטה → המחיר הבסיסי עדיין מגיע (בלי x)');
+    r = mockRes();
+    await quotes(mockReq({ body: { syms: ['MSFT'] } }), r);
+    ok(r.payload.data.MSFT, 'quotes: מטמון 1.5 שניות לפי סט הסימבולים');
   }
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);

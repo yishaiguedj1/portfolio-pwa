@@ -92,8 +92,8 @@ const run = (c) => vm.runInContext(c, sb);
 
   // מחירים לא זזים → האטה לדקה (שוק סגור)
   run('live.n = 0; live.still = 0;');
-  for (let i = 0; i < 14; i++) await A('liveTick')();
-  ok(run('live.still') >= run('LIVE_IDLE_AFTER'), 'בלי תזוזה 6 טיקים מלאים → מצב איטי');
+  for (let i = 0; i < 2 * A('LIVE_IDLE_AFTER') + 2; i++) await A('liveTick')();
+  ok(run('live.still') >= run('LIVE_IDLE_AFTER'), 'בלי תזוזה LIVE_IDLE_AFTER טיקים מלאים → מצב איטי (v165: 15 = ~דקה)');
 
   // Yahoo נכשל → CNBC בבקשה אחת
   run(`fetchJSONTimeout = async (u) => { __calls.push(u); if (/yahoo/.test(u)) throw new Error('blocked');

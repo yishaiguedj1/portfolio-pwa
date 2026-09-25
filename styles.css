@@ -376,7 +376,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-id .src-tag { grid-row: 1; grid-column: 3; justify-self: start; margin-inline-start: 0; }
 .stock-name { grid-row: 2; grid-column: 2 / 4; color: var(--on-surface-var); font-size: 13.5px; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start; max-width: 100%; unicode-bidi: plaintext; }
 .stock-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
-.stock-sub { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--on-surface-var); }
+.stock-sub { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 6px 10px; flex-wrap: wrap; font-size: 14px; color: var(--on-surface-var); }
+.stock-sub > :last-child { margin-inline-start: auto; }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
 .day-chg.pos, .pos { color: var(--gain); }
 .day-chg.neg, .neg { color: var(--loss); }
@@ -912,3 +913,25 @@ footer.fine { text-align: center; }
   .demo-step[data-state="now"] .ds-dot { animation-duration: 3s; }
   .demo-prog-bar span, .demo-inline { transition: none; animation: none; }
 }
+
+/* v165: מחיר חי בסגנון Robinhood — ספרות שהשתנו מתגלגלות, הבזק ירוק/אדום קצר */
+.stock-price { position: relative; transition: color .35s ease; direction: ltr; unicode-bidi: isolate; display: inline-block; } /* המספר תמיד LTR — ספרות מגולגלות לא מתערבבות ב־RTL */
+.stock-price.px-up { animation: pxUp .9s ease-out; }
+.stock-price.px-down { animation: pxDown .9s ease-out; }
+@keyframes pxUp { 0% { color: var(--gain); text-shadow: 0 0 10px color-mix(in srgb, var(--gain) 55%, transparent); } 100% { } }
+@keyframes pxDown { 0% { color: var(--loss); text-shadow: 0 0 10px color-mix(in srgb, var(--loss) 55%, transparent); } 100% { } }
+.px-roll { display: inline-grid; overflow: hidden; height: 1.15em; vertical-align: top; line-height: 1.15em; direction: ltr; }
+.px-roll > span { grid-area: 1 / 1; display: block; animation-duration: .4s; animation-timing-function: cubic-bezier(.2, .9, .25, 1); animation-fill-mode: both; }
+.px-roll.up .px-old { animation-name: pxRollOutUp; }
+.px-roll.up .px-new { animation-name: pxRollInUp; }
+.px-roll.down .px-old { animation-name: pxRollOutDown; }
+.px-roll.down .px-new { animation-name: pxRollInDown; }
+@keyframes pxRollOutUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-100%); opacity: 0; } }
+@keyframes pxRollInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes pxRollOutDown { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+@keyframes pxRollInDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+/* תג סשן מורחב בכרטיס: טרום־מסחר / אחרי־מסחר / לילי, עם השינוי מהסגירה הרגילה */
+.ext-sess { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: var(--pill); background: var(--surface-2); color: var(--on-surface-var); }
+.ext-sess.pos { color: var(--gain); } .ext-sess.neg { color: var(--loss); }
+.ext-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: livePulse 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .stock-price.px-up, .stock-price.px-down, .px-roll > span, .ext-dot { animation: none; } }

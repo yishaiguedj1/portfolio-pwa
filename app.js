@@ -221,6 +221,11 @@ he: {
   lagDelayed: 'דיליי ~15 דקות',
   sessionPre: ' · טרום־מסחר',
   sessionPost: ' · אחרי־מסחר',
+  sessionNight: ' · מסחר לילי (overnight)',
+  sessPreShort: 'טרום־מסחר',
+  sessPostShort: 'אחרי־מסחר',
+  sessNightShort: 'לילי',
+  sessExtTitle: 'שינוי מהסגירה הרגילה',
   staleSuffix: ' · מוצגים נתונים שמורים',
   fxSource: 'שער חליפין',
   fxRateLabel: 'שער דולר־שקל',
@@ -691,6 +696,11 @@ en: {
   lagDelayed: '~15 min delay',
   sessionPre: ' · pre-market',
   sessionPost: ' · post-market',
+  sessionNight: ' · overnight',
+  sessPreShort: 'Pre-market',
+  sessPostShort: 'After hours',
+  sessNightShort: 'Overnight',
+  sessExtTitle: 'Change from regular close',
   staleSuffix: ' · showing saved data',
   fxSource: 'Exchange rate',
   fxRateLabel: 'USD/ILS rate',
@@ -3754,7 +3764,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v164';
+const APP_VERSION = 'v165';
 
 
 function saveDBto(db) {
@@ -4362,10 +4372,13 @@ function quoteSymbols() {
    הרשימות, כדי לא לאפס טפסים, מיון, מדידה או כרטיס פתוח. עוצר כשהאפליקציה
    ברקע, בזמן עריכה/הקלדה ובזמן סנכרון IBKR; מאט לדקה כשהמחירים לא זזים
    (שוק סגור). ~50 בקשות בדקה בזמן מסחר — הרבה מתחת לרף החסימה של Yahoo. */
-const LIVE_FAST_MS = 5000;
+/* v165: Yahoo עצמו מזיז את המחיר כל 1–2 שניות בזמן מסחר (נמדד: 23 שינויים ב־24 דגימות בדקה).
+   טיק כל 2 שניות: כרטיסים פתוחים בכל טיק, כל התיק כל 2 טיקים (4 שניות). הכל בבקשה אחת לשרתון
+   (מטמון 1.5 שניות שם) — 30 בקשות בדקה מהטלפון, במקום ~100 ישירות ל־Yahoo לפני v164. */
+const LIVE_FAST_MS = 2000;
 const LIVE_ALL_EVERY = 2;
 const LIVE_IDLE_MS = 60000;
-const LIVE_IDLE_AFTER = 6;
+const LIVE_IDLE_AFTER = 15; // ~1 דקה בלי תזוזה (שוק סגור) → טיק לדקה
 const live = { timer: null, busy: false, n: 0, still: 0, on: false };
 
 function liveCanTick() {
@@ -4384,6 +4397,30 @@ function liveSymbolsFor(full) {
   return Object.keys(state.open).filter((s) => state.open[s] && all.includes(s));
 }
 
+/* v165: שדות מורחבים מהשרתון (v7/quote של Yahoo): marketState + טרום־מסחר / אחרי־מסחר / overnight
+   יחסית לסגירה הרגילה. q.session נקבע לפי marketState של Yahoo (מדויק יותר מחלון הזמן).
+   שומר: q.regClose (סגירה רגילה), q.ext = { kind: 'pre'|'post'|'night', price, ch, pct, t }. טהורה. */
+const YAHOO_STATE_SESSION = { PRE: 'pre', PREPRE: 'pre', POST: 'post', POSTPOST: 'post', OVERNIGHT: 'night', CLOSED: 'closed', REGULAR: 'regular' };
+function applyExtQuote(q, x) {
+  if (!q || !x) return q;
+  const sess = YAHOO_STATE_SESSION[String(x.state || '').toUpperCase()];
+  if (sess) q.session = sess;
+  if (x.reg && x.reg.p > 0) { q.regClose = x.reg.p; q.regCh = x.reg.ch; q.regPct = x.reg.pct; }
+  const pick = sess === 'night' ? (x.night || x.post) : sess === 'post' ? x.post : sess === 'pre' ? x.pre : null;
+  const kind = sess === 'night' ? (x.night ? 'night' : 'post') : sess;
+  if (pick && pick.p > 0) q.ext = { kind: kind, price: pick.p, ch: pick.ch, pct: pick.pct, t: pick.t };
+  else if (sess === 'closed' && x.post && x.post.p > 0) q.ext = { kind: 'post', price: x.post.p, ch: x.post.ch, pct: x.post.pct, t: x.post.t };
+  return q;
+}
+/* תווית הסשן לכרטיס: "טרום־מסחר −0.4%" וכו'. null בזמן מסחר רגיל / בלי נתונים. */
+function extSessionHTML(q) {
+  if (!q || !q.ext || !(q.ext.price > 0)) return '';
+  const lbl = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
+  const pct = Number(q.ext.pct) || 0;
+  const cls = Math.abs(pct) < 0.005 ? '' : pct >= 0 ? 'pos' : 'neg';
+  return '<span class="ext-sess ' + cls + '" title="' + esc(t('sessExtTitle')) + '"><span class="ext-dot"></span>' + esc(lbl) + ' ' + fmtPct(pct, true) + '</span>';
+}
+
 /* v164: מחירים חיים דרך השרתון — בקשה אחת לכל התיק (Yahoo מהשרת). עד v163 הטלפון שלח בקשה
    נפרדת לכל מניה כל 5–10 שניות (~90 בדקה בזמן מסחר) — Yahoo חסם את הטלפון (429) וזה הפיל גם את
    הגרפים. התשובה במבנה של Yahoo (חתוכה) — אותו parseYahooQuote. */
@@ -4400,7 +4437,7 @@ async function proxyQuotes(syms, ms) {
     const out = {};
     for (const sym of Object.keys(j.data)) {
       const q = parseYahooQuote(j.data[sym], sym);
-      if (q) out[sym] = q;
+      if (q) { applyExtQuote(q, j.data[sym].x); out[sym] = q; }
     }
     return out;
   } finally { clearTimeout(to); }
@@ -4508,7 +4545,7 @@ async function liveTick() {
           if (full) {
             live.still = moved.length ? 0 : live.still + 1;
             const sess = (Object.values(got).find((r) => r.session) || {}).session || '';
-            state.session = sess === 'regular' ? '' : sess;
+            state.session = (sess === 'regular' || sess === 'closed') ? '' : sess;
             state.source = src;
             state.live = src === 'Yahoo';
             lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session });
@@ -4544,6 +4581,36 @@ function liveStart() {
 
 /* עדכון במקום אחרי טיק: כותרת כרטיס (מחיר/שינוי יומי/שווי), אריחי כרטיס פתוח
    וגרף פתוח, סקירה בלי גרף הביצועים, ורשימת המעקב. */
+/* v165: החלפת מחיר בסגנון Robinhood — הספרות שהשתנו "מתגלגלות" למעלה (עלייה) או למטה (ירידה),
+   והמחיר מהבהב לרגע בירוק/אדום. הספרות שלא השתנו נשארות במקום, כך שהעין רואה בדיוק מה זז.
+   מכבד "הפחת תנועה" (רק צבע). טהורה על שני אלמנטים — לא נוגעת ב־state. */
+function livePriceSwap(a, b) {
+  const oldPx = parseFloat(a.dataset.px), newPx = parseFloat(b.dataset.px);
+  const oldTxt = a.textContent, newTxt = b.textContent;
+  if (oldTxt === newTxt) return;
+  a.dataset.px = b.dataset.px;
+  if (!(oldPx > 0 && newPx > 0) || oldTxt.length !== newTxt.length || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+    a.textContent = newTxt;
+    if (oldPx > 0 && newPx > 0) livePriceFlash(a, newPx > oldPx ? 'up' : 'down');
+    return;
+  }
+  const dir = newPx > oldPx ? 'up' : 'down';
+  let html = '';
+  for (let i = 0; i < newTxt.length; i++) {
+    const o = oldTxt[i], nch = newTxt[i];
+    if (o === nch || !/\d/.test(nch)) html += esc(nch);
+    else html += '<span class="px-roll ' + dir + '"><span class="px-old">' + esc(o) + '</span><span class="px-new">' + esc(nch) + '</span></span>';
+  }
+  a.innerHTML = html;
+  livePriceFlash(a, dir);
+  setTimeout(() => { if (a.dataset.px === String(newPx)) a.textContent = newTxt; }, 420);
+}
+function livePriceFlash(el, dir) {
+  el.classList.remove('px-up', 'px-down');
+  void el.offsetWidth; // מאפס את האנימציה גם כשאותו כיוון פעמיים ברצף
+  el.classList.add(dir === 'up' ? 'px-up' : 'px-down');
+}
+
 function renderLive(syms) {
   try { renderOverview(true); } catch (e) {}
   for (const s of syms) {
@@ -4551,10 +4618,10 @@ function renderLive(syms) {
     const card = p && document.querySelector('#stockList .stock[data-sym="' + s + '"]');
     if (!card) continue;
     const fresh = buildStockCard(p);
-    for (const cls of ['.stock-price', '.stock-sub']) {
-      const a = card.querySelector('.stock-head ' + cls), b = fresh.querySelector('.stock-head ' + cls);
-      if (a && b) a.innerHTML = b.innerHTML;
-    }
+    const pa = card.querySelector('.stock-head .stock-price'), pb = fresh.querySelector('.stock-head .stock-price');
+    if (pa && pb) livePriceSwap(pa, pb);
+    const sa = card.querySelector('.stock-head .stock-sub'), sb = fresh.querySelector('.stock-head .stock-sub');
+    if (sa && sb && sa.innerHTML !== sb.innerHTML) sa.innerHTML = sb.innerHTML;
     if (state.open[s]) {
       const g = card.querySelector('.stock-body .kv-grid'), g2 = fresh.querySelector('.stock-body .kv-grid');
       if (g && g2) g.innerHTML = g2.innerHTML;
@@ -4595,7 +4662,7 @@ function applyQuotes(res) {
 function updateSourceLabel() {
   const el = document.getElementById('sourceLabel');
   if (el) {
-    const sess = state.session === 'pre' ? t('sessionPre') : state.session === 'post' ? t('sessionPost') : '';
+    const sess = state.session === 'pre' ? t('sessionPre') : state.session === 'post' ? t('sessionPost') : state.session === 'night' ? t('sessionNight') : '';
     const lag = state.live && state.source === 'Yahoo' ? t('lagLive') : t('lagDelayed');
     el.textContent = t('sourceLabel', { src: state.source || '—', lag: lag, sess: sess, stale: state.stale ? t('staleSuffix') : '' });
   }
@@ -4608,7 +4675,7 @@ async function tryYahooQuotes() {
   if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
   const fx = await tryFx();
   const sess = (results.find((r) => r && r.session) || {}).session || '';
-  return { quotes: q, fx: fx, source: 'Yahoo', session: sess === 'regular' ? '' : sess };
+  return { quotes: q, fx: fx, source: 'Yahoo', session: (sess === 'regular' || sess === 'closed') ? '' : sess };
 }
 
 async function refreshQuotes() {
@@ -7552,9 +7619,10 @@ function buildStockCard(p) {
     '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym">' + sym + '</span>' +
     '<span class="stock-name">' + esc(p.name) + '</span>' +
     srcTagHTML(positionSource(p)) + '</span>' +
-    '<span class="stock-price">' + priceTxt + '</span>' +
+    '<span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
     '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null || Math.abs(m.dayChg) < 0.005 ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
     (m.dayChg === null ? '—' : t('todayChg', { v: fmtPct(Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg, true) })) + '</span>' +
+    extSessionHTML(m.q) +
     '<span>' + (m.value === null ? '—' : money(cur === 'ILS' && state.fx ? m.value * state.fx : m.value, cur)) +
     ' <span class="chev">▾</span></span></span>';
   head.addEventListener('click', () => toggleStock(sym, card));
