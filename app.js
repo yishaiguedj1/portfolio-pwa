@@ -156,6 +156,7 @@ he: {
   btnEdit: ICON_EDIT + 'ערוך',
   btnDelete: ICON_TRASH + 'מחק',
   todayChg: 'היום {v}',
+  buyChg: 'מהקנייה {v}',
   kvShares: 'מניות',
   kvAvg: 'מחיר קנייה ממוצע',
   kvValue: 'שווי',
@@ -631,6 +632,7 @@ en: {
   btnEdit: ICON_EDIT + 'Edit',
   btnDelete: ICON_TRASH + 'Delete',
   todayChg: 'Today {v}',
+  buyChg: 'Since purchase {v}',
   kvShares: 'Shares',
   kvAvg: 'Avg buy price',
   kvValue: 'Value',
@@ -3691,10 +3693,18 @@ function fmtILS(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   return '₪' + Math.round(v).toLocaleString('en-US');
 }
+/* v166: מספר עם סימן תמיד משמאל למספר ("+0.52%", "−$2,215") — גם בתוך טקסט עברי. בלי בידוד,
+   ב־RTL הדפדפן מזיז את הסימן לימין ("0.52%+"). LRI…PDI = בידוד LTR שלא נראה על המסך. */
+function ltrNum(s) { return '\u2066' + s + '\u2069'; }
 function fmtPct(v, signed) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
-  const s = signed && v > 0 ? '+' : '';
-  return s + v.toFixed(2) + '%';
+  const s = v < 0 ? '−' : signed && v > 0 ? '+' : '';
+  return ltrNum(s + Math.abs(v).toFixed(2) + '%');
+}
+/* סכום עם סימן: "+$2,215" / "−₪1,300" (מטבע לפי cur). null → מקף. */
+function fmtSignedMoney(v, cur) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  return ltrNum((v < 0 ? '−' : '+') + money(Math.abs(v), cur));
 }
 function fmtDateIL(iso) { // YYYY-MM-DD -> DD/MM/YYYY
   if (!iso) return '—';
@@ -3764,7 +3774,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v165';
+const APP_VERSION = 'v166';
 
 
 function saveDBto(db) {
@@ -4589,7 +4599,8 @@ function livePriceSwap(a, b) {
   const oldTxt = a.textContent, newTxt = b.textContent;
   if (oldTxt === newTxt) return;
   a.dataset.px = b.dataset.px;
-  if (!(oldPx > 0 && newPx > 0) || oldTxt.length !== newTxt.length || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+  // מחיר באגורות ("7,830 אג׳") עטוף בבידוד RTL — פירוק לספרות מערבב אותו באמצע הגלגול; שם רק הבזק
+  if (!(oldPx > 0 && newPx > 0) || oldTxt.length !== newTxt.length || /[\u2067\u0590-\u05FF]/.test(newTxt) || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
     a.textContent = newTxt;
     if (oldPx > 0 && newPx > 0) livePriceFlash(a, newPx > oldPx ? 'up' : 'down');
     return;
@@ -4620,8 +4631,10 @@ function renderLive(syms) {
     const fresh = buildStockCard(p);
     const pa = card.querySelector('.stock-head .stock-price'), pb = fresh.querySelector('.stock-head .stock-price');
     if (pa && pb) livePriceSwap(pa, pb);
-    const sa = card.querySelector('.stock-head .stock-sub'), sb = fresh.querySelector('.stock-head .stock-sub');
-    if (sa && sb && sa.innerHTML !== sb.innerHTML) sa.innerHTML = sb.innerHTML;
+    for (const cls of ['.stock-sub', '.stock-ext']) {
+      const sa = card.querySelector('.stock-head ' + cls), sb = fresh.querySelector('.stock-head ' + cls);
+      if (sa && sb && sa.innerHTML !== sb.innerHTML) sa.innerHTML = sb.innerHTML;
+    }
     if (state.open[s]) {
       const g = card.querySelector('.stock-body .kv-grid'), g2 = fresh.querySelector('.stock-body .kv-grid');
       if (g && g2) g.innerHTML = g2.innerHTML;
@@ -5524,7 +5537,7 @@ function renderOverview(light) {
   } else if (!isIbkrMode() && gSub) gSub.textContent = t('ovVsNetDeposits');
   state._ovSimpleYld = yld;
   if (gl === null) { gEl.textContent = '—'; }
-  else { gEl.textContent = (gl < 0 ? '−' : '+') + money(Math.abs(gl), cur); }
+  else { gEl.textContent = fmtSignedMoney(gl, cur); }
   gEl.className = 'stat-value ' + (gl === null ? '' : gl >= 0 ? 'pos' : 'neg');
 
   const yEl = document.getElementById('ovYield');
@@ -5613,7 +5626,7 @@ function renderManualPerf(mp) {
   };
   const mval = (v, isMoney) => {
     if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? (v < 0 ? '−' : '') + money(Math.abs(v), 'USD') : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
+    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), 'USD')) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
   };
   list.innerHTML = '';
   mrow(t('perfTwr'), mp.twr !== null ? mval(mp.twr, false)
@@ -5695,7 +5708,7 @@ function renderIbkrPerf() {
   };
   const mval = (v, isMoney) => {
     if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? (v < 0 ? '−' : '') + money(Math.abs(v), base) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
+    return { txt: isMoney ? ltrNum((v < 0 ? '−' : '') + money(Math.abs(v), base)) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
   };
   list.innerHTML = '';
   mrow(t('perfTwr'), official
@@ -6590,7 +6603,8 @@ function paintPfChart() {
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
-    ctx.fillText((v > 0 ? '+' : '') + v.toFixed(1) + '%', w - padR + 6, y);
+    ctx.direction = 'ltr'; // v166: הסימן משמאל למספר גם בקנבס (ברירת המחדל יורשת RTL)
+    ctx.fillText((v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%', w - padR + 6, y);
   }
   if (min < 0 && max > 0) {
     ctx.strokeStyle = cssVar('--outline', '#E3E7E4');
@@ -7605,6 +7619,25 @@ function logoImgFix(img) {
   } catch (e) { /* תמונה מוכתמת (tainted) — משאיר כמו שהיא */ }
 }
 
+/* v166: שורות המשנה בכרטיס — זוגות הגיוניים, שורה לכל שאלה:
+     היום  +0.52%           |  $25,448 ▾   (שווי)
+     מהקנייה +40.04%        |  +$2,215     (רווח/הפסד מהקנייה, בדולרים/שקלים לפי המטבע הנבחר)
+   שורת "מהקנייה" רק כשיש מחיר קנייה ומחיר חי. */
+function stockSubHTML(p, m) {
+  const cur = state.currency;
+  const toCur = (usd) => (usd === null || usd === undefined ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
+  const cls = (v) => (v === null || !isFinite(v) || Math.abs(v) < 0.005 ? '' : v >= 0 ? 'pos' : 'neg');
+  const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
+  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) })) + '</span>' +
+    '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
+  const gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
+  if (gp !== null && isFinite(gp)) {
+    html += '<span class="buy-chg ' + cls(gp) + '">' + t('buyChg', { v: fmtPct(gp, true) }) + '</span>' +
+      '<span class="buy-amt ' + cls(gp) + '">' + (m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur)) + '</span>';
+  }
+  return html;
+}
+
 function buildStockCard(p) {
   const sym = p.sym;
   const m = metrics(sym);
@@ -7619,12 +7652,9 @@ function buildStockCard(p) {
     '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym">' + sym + '</span>' +
     '<span class="stock-name">' + esc(p.name) + '</span>' +
     srcTagHTML(positionSource(p)) + '</span>' +
-    '<span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
-    '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null || Math.abs(m.dayChg) < 0.005 ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
-    (m.dayChg === null ? '—' : t('todayChg', { v: fmtPct(Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg, true) })) + '</span>' +
-    extSessionHTML(m.q) +
-    '<span>' + (m.value === null ? '—' : money(cur === 'ILS' && state.fx ? m.value * state.fx : m.value, cur)) +
-    ' <span class="chev">▾</span></span></span>';
+    '<span class="stock-pcol"><span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
+    '<span class="stock-ext">' + extSessionHTML(m.q) + '</span></span>' +
+    '<span class="stock-sub">' + stockSubHTML(p, m) + '</span>';
   head.addEventListener('click', () => toggleStock(sym, card));
   card.appendChild(head);
 
@@ -7653,14 +7683,14 @@ function buildStockBody(p, m) {
     kvHTML(t('kvAvg'), fmtPx(p.avg, sym)) +
     kvHTML(t('kvValue'), m.value === null ? '—' : money(toCur(m.value), cur)) +
     kvHTML(t('kvGL'),
-      m.gl === null ? '—' : (m.gl < 0 ? '−' : '+') + money(Math.abs(toCur(m.gl)), cur) +
+      m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur) +
         ' (' + fmtPct(p.avg > 0 ? (m.price / p.avg - 1) * 100 : null, true) + ')',
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
     kvHTML(t('kvWeight'), weightTxt(sym)) +
     (p.fromTrades ? (() => {
       const rz = mtPosition(mtList(), sym).realized;
       const rzU = nativeToUSD(rz, sym);
-      return rzU !== null && Math.abs(rz) > 0.005 ? kvHTML(t('kvRealized'), (rz < 0 ? '−' : '+') + money(Math.abs(toCur(rzU)), cur), rz >= 0 ? 'pos' : 'neg') : '';
+      return rzU !== null && Math.abs(rz) > 0.005 ? kvHTML(t('kvRealized'), fmtSignedMoney(toCur(rzU), cur), rz >= 0 ? 'pos' : 'neg') : '';
     })() : '') +
     // v102: אריח ATH מינימליסטי — רק מחיר ותאריך, מעט גדולים יותר
     kvHTML('ATH',
@@ -8108,10 +8138,10 @@ function renderDeposits() {
     ensureFxHist().then(() => renderDeposits()).catch(() => null);
   }
   const nd = netDepositsILS() + (hasMf ? mf.inILS : 0);
-  const ndTxt = (nd < 0 ? '−' : '') + '₪' + Math.abs(Math.round(nd * 100) / 100).toLocaleString('en-US');
+  const ndTxt = ltrNum((nd < 0 ? '−' : '') + '₪' + Math.abs(Math.round(nd * 100) / 100).toLocaleString('en-US'));
   document.getElementById('depTotal').textContent = ndTxt;
   document.getElementById('depCount').textContent = t('records', { n: DEPOSITS.length }) +
-    (hasMf ? ' · ' + t('depInclManual', { amt: (mf.inILS < 0 ? '−' : '') + '₪' + Math.abs(mf.inILS).toLocaleString('en-US') }) : '');
+    (hasMf ? ' · ' + t('depInclManual', { amt: ltrNum((mf.inILS < 0 ? '−' : '') + '₪' + Math.abs(mf.inILS).toLocaleString('en-US')) }) : '');
   const cn = document.getElementById('calcNotePara');
   if (cn) cn.innerHTML = t('calcNote1', { total: ndTxt }) +
     (isIbkrMode() ? '<br><span class="fine">' + t('ibkrDepositsNote') + '</span>' : '');

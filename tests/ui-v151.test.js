@@ -26,7 +26,7 @@ ok(/function drawStockChart[\s\S]{0,2500}padR = Math\.ceil\(Math\.max\(ctx\.meas
 // 3. פנסיה
 ok(/\(num\(f\.ils\) \|\| 0\) \/ state\.fx/.test(src) && /const totCur = /.test(src), 'פנסיה: אריחים וסך ממירים לפי השער');
 // 4. אפס ניטרלי
-ok(/Math\.abs\(m\.dayChg\) < 0\.005 \? '' :/.test(src), 'שינוי יומי 0.00% בלי צבע');
+ok(/Math\.abs\(v\) < 0\.005 \? '' : v >= 0 \? 'pos' : 'neg'/.test(src) && /Math\.abs\(m\.dayChg\) < 0\.005 \? 0 : m\.dayChg/.test(src), 'שינוי יומי 0.00% בלי צבע (v166: stockSubHTML)');
 // 5+9. סכומים
 const dep = A('depositAmountHTML');
 ok(/−₪1,000/.test(dep(1000)) && /class="r-amt in"/.test(dep(1000)), 'משיכה: −₪ (לא +₪ ירוק)');

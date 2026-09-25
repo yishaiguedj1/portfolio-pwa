@@ -376,8 +376,14 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-id .src-tag { grid-row: 1; grid-column: 3; justify-self: start; margin-inline-start: 0; }
 .stock-name { grid-row: 2; grid-column: 2 / 4; color: var(--on-surface-var); font-size: 13.5px; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start; max-width: 100%; unicode-bidi: plaintext; }
 .stock-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
-.stock-sub { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 6px 10px; flex-wrap: wrap; font-size: 14px; color: var(--on-surface-var); }
-.stock-sub > :last-child { margin-inline-start: auto; }
+/* v166: עמודת המחיר — המחיר ומתחתיו תג טרום/אחרי־מסחר/לילי (כמו Robinhood) */
+.stock-pcol { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.stock-ext:empty { display: none; }
+/* שורות המשנה: שתי עמודות — אחוזים בצד ההתחלה, סכומים בצד הסוף, שורה לכל זוג */
+.stock-sub { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3px 12px; font-size: 14px; color: var(--on-surface-var); }
+.stock-sub .sub-val, .stock-sub .buy-amt { justify-self: end; font-variant-numeric: tabular-nums; }
+.stock-sub .buy-chg, .stock-sub .buy-amt { font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.stock-sub .buy-chg:not(.pos):not(.neg), .stock-sub .buy-amt:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
 .day-chg.pos, .pos { color: var(--gain); }
 .day-chg.neg, .neg { color: var(--loss); }
