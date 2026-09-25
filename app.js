@@ -141,6 +141,7 @@ he: {
   srcFilterBtn: 'סינון',
   agorotUnit: 'אגורות',
   agShort: 'אג׳',
+  histRetryLater: 'אין כרגע גישה להיסטוריית המחירים — ננסה שוב אוטומטית',
   agorotFixed: 'תוקנו {n} מחירים של מניות ת"א שהוזנו באגורות',
   srcFilterAll: 'הכל',
   srcFilterManual: 'ידני',
@@ -594,6 +595,7 @@ en: {
   srcFilterBtn: 'Filter',
   agorotUnit: 'agorot',
   agShort: 'ag.',
+  histRetryLater: 'Price history is unavailable right now — retrying automatically',
   agorotFixed: 'Fixed {n} TASE prices that were entered in agorot',
   srcFilterAll: 'All',
   srcFilterManual: 'Manual',
@@ -3557,7 +3559,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v159';
+const APP_VERSION = 'v160';
 
 
 function saveDBto(db) {
@@ -3986,6 +3988,7 @@ function parseCNBCQuotes(json, useExt) {
       symbol: sym,
       date: todayISO(),
       time: tm,
+      prev: (num(it.previous_day_closing) || (num(it.change) ? num(it.last) - num(it.change) : 0)) / ag || null,
       open: num(it.open) / ag,
       high: num(it.high) / ag,
       low: num(it.low) / ag,
@@ -4207,7 +4210,7 @@ function taseFixQuotes(quotes, refOf) {
     if (!(ref > 0)) continue;
     const r = q.close / ref;
     if (r >= 30 && r <= 300) {
-      for (const k of ['close', 'open', 'high', 'low', 'prevClose', 'pre', 'post']) if (q[k] > 0) q[k] = q[k] / 100;
+      for (const k of ['close', 'open', 'high', 'low', 'prev', 'prevClose', 'pre', 'post']) if (q[k] > 0) q[k] = q[k] / 100;
       n++;
     }
   }
@@ -4232,6 +4235,25 @@ function liveMerge(got) {
   return moved;
 }
 
+/* v160: הגנה על Yahoo — כשכל הבקשות בטיק נכשלות (בדרך כלל 429 "יותר מדי בקשות", שבדפדפן נראה
+   כחסימת CORS), מפסיקים לשאול את Yahoo לזמן הולך וגדל (דקה → 10 דקות) במקום להפציץ כל 5 שניות
+   ולהאריך את החסימה. בזמן ההפסקה — CNBC. כש־Yahoo חוזר: משלימים היסטוריות חסרות וגרפים פתוחים. */
+const yahooGate = { until: 0, backoff: 0 };
+function yahooCooling(now) { return (now || Date.now()) < yahooGate.until; }
+function yahooFailed(now) {
+  yahooGate.backoff = Math.min(yahooGate.backoff ? yahooGate.backoff * 2 : 60000, 600000);
+  yahooGate.until = (now || Date.now()) + yahooGate.backoff;
+}
+function yahooOk() { const was = yahooGate.backoff > 0; yahooGate.backoff = 0; yahooGate.until = 0; return was; }
+async function yahooRecovered() {
+  const syms = quoteSymbols().filter((sym) => isChartableSym(sym) && !(state.hist[sym] || []).length);
+  for (const sym of syms) delete histNegCache[sym];
+  await pool(syms, 3, (sym) => getDailyFast(sym, true).catch(() => null));
+  const open = Object.keys(state.open).filter((x) => state.open[x]);
+  for (const sym of open) { try { ensureChartData(sym, true); } catch (e) {} }
+  try { renderLive(syms.concat(open)); } catch (e) {}
+}
+
 async function liveTick() {
   live.timer = null;
   if (!live.on) return;
@@ -4242,8 +4264,13 @@ async function liveTick() {
     if (syms.length) {
       live.busy = true;
       try {
-        let got = await liveFetch(syms);
+        let got = {};
         let src = 'Yahoo';
+        if (!yahooCooling()) {
+          got = await liveFetch(syms);
+          if (Object.keys(got).length) { if (yahooOk()) yahooRecovered().catch(() => {}); }
+          else yahooFailed();
+        }
         // Yahoo חסום/נכשל: CNBC בבקשה אחת לכל הסימבולים (ציטוט מושהה — התווית אומרת "דיליי")
         if (!Object.keys(got).length && full) {
           try { got = parseCNBCQuotes(await fetchJSONTimeout(cnbcURL(), 8000), etSessionNow()) || {}; src = 'CNBC'; } catch (e) { got = {}; }
@@ -4251,6 +4278,7 @@ async function liveTick() {
         if (Object.keys(got).length) {
           const moved = liveMerge(got);
           state.quotesAt = Date.now();
+          if (state.stale) setBanner(null); // v160: מחירים חזרו — מסירים את "לא התקבלו מחירים"
           state.stale = false;
           if (full) {
             live.still = moved.length ? 0 : live.still + 1;
@@ -4603,6 +4631,7 @@ async function _getDailyFastInner(sym, force) {
     fetchYahooBars(dq('query1'), false, notes, 'Yahoo', 8000),
     fetchYahooBars(dq('query2'), false, notes, 'Yahoo2', 8000),
     (async () => {
+      if (symCur(sym) !== 'USD') return null; // v160: Stooq כאן = ארה"ב בלבד (היה מבקש poli.ta.us)
       try {
         const r = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 7000));
         return r.length ? r : null;
@@ -4711,6 +4740,8 @@ function metrics(sym) {
     const pc = prevCloseFor(q.date, hist);
     if (pc) dayChg = (q.close - pc) / pc * 100;
   }
+  // v160: בלי היסטוריה (מקור ההיסטוריה חסום) — השינוי היומי מהסגירה הקודמת שבציטוט עצמו
+  if (dayChg === null && q && q.prev > 0 && q.close > 0) dayChg = (q.close - q.prev) / q.prev * 100;
   // v142: שווי ורווח בדולרים (מניה ישראלית מומרת); המחיר נשאר במטבע המניה
   const value = price !== null ? nativeToUSD(price * p.shares, sym) : null;
   const gl = price !== null ? nativeToUSD((price - p.avg) * p.shares, sym) : null;
@@ -7378,7 +7409,10 @@ async function ensureChartData(sym, quiet) {
     }
     const rows = stockChartRows(hist, state.quotes[sym]);
     const pts = drawStockChart(sym, stockRangeRows(rows, range === 'day' ? 'month' : range), false);
-    if (pts && loading) loading.classList.add('hidden');
+    // v160: אין היסטוריה (המקור חסום כרגע) — אומרים את זה, לא "טוען" לנצח ולא גרף של נקודה אחת.
+    // ננסה שוב אוטומטית כש־Yahoo חוזר (yahooRecovered).
+    if (!(hist && hist.length) && loading) { loading.textContent = t('histRetryLater'); loading.classList.remove('hidden'); }
+    else if (pts && loading) loading.classList.add('hidden');
   } catch (e) {
     if (loading) { loading.textContent = t('noChartData'); loading.classList.remove('hidden'); }
   }
