@@ -167,7 +167,9 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
   <section id="tab-trades" class="tabpage" role="tabpanel">
     <div class="section-head">
       <h2 data-i18n="tradesTitle">היסטוריית עסקאות</h2>
+      <button class="chip-btn" id="addManualTradeBtn" type="button" data-i18n="tradesAddManual">＋ עסקה ידנית</button>
     </div>
+    <div id="tradeFormHost"></div>
     <p class="fine hidden" id="tradesHint"></p>
     <div class="card">
       <ul id="tradeList" class="rows"></ul>

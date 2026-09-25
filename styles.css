@@ -748,3 +748,16 @@ footer.fine { text-align: center; }
 @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 .fx-pill.flash .fx-pill-value { animation: fxFlash .8s ease-out; }
 @keyframes fxFlash { 0% { color: #30d158; } 100% { } }
+
+/* v141: אחזקות ידניות */
+.src-tag {
+  display: inline-block; margin-inline-start: 6px; padding: 1px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; vertical-align: middle;
+  color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.add-mode { padding-bottom: 6px; }
+.add-mode-hint { margin: 0 0 10px; }
+.mt-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 4px; }
+.mt-actions .link-btn { font-size: 14px; padding: 2px 0; }
+.link-btn.danger { color: var(--loss); }
+.mt-manage .rows { margin: 6px 0 4px; }

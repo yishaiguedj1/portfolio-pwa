@@ -68,6 +68,8 @@
     DB.pensionDeposits.push(...(clean.pensionDeposits || []));
     const c = clean.cash || {};
     DB.cash = { usd: num(c.usd) || 0, ils: num(c.ils) || 0 };
+    // v141: עסקאות ידניות (ענן ישן בלי השדה — משאירים את המקומיות)
+    if (Array.isArray(clean.manualTrades)) DB.manualTrades = clean.manualTrades;
     saveDBto(DB); // עדכון המטמון המקומי
   }
 

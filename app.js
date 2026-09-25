@@ -274,7 +274,7 @@ he: {
   ibkrImportNothingNew: 'אין מידע חדש — כל הנתונים כבר קיימים באפליקציה.',
   ibkrDisconnectBtn: 'ניתוק',
   ibkrDepositsNote: 'מסונכרן מ־IBKR — מתעדכן בכל סנכרון.',
-  ibkrStocksNote: 'מסונכרן מ־IBKR — מתעדכן בכל סנכרון. עריכה ידנית תידרס בסנכרון הבא.',
+  ibkrStocksNote: 'מניות IBKR מתעדכנות בכל סנכרון. מניות שמוסיפים ידנית (מסומנות "ידני") נשמרות בסנכרון ונכללות בשווי, ברווח ובתשואה.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
   ibkrChunkFail: 'חלק {fd}–{td} נכשל ({err})',
   proxyUrlMissing: 'כתובת השרתון לא הוגדרה',
@@ -394,6 +394,36 @@ he: {
   stockAdded: 'המניה נוספה ✓',
   stockDeleted: 'המניה נמחקה ✓',
   delStockConfirm: 'למחוק את {name} ({sym}) מהתיק?\nגם נתוני הגרף השמורים שלה יימחקו.',
+  addModeAvg: 'לפי מחיר ממוצע',
+  addModeTrades: 'לפי עסקאות',
+  addModeAvgHint: 'מהיר: כמות ומחיר ממוצע. נכלל בשווי וברווח — בלי תאריכים, לכן לא בתשואה לאורך זמן.',
+  addModeTradesHint: 'מדויק: כל קנייה ומכירה עם תאריך. נכלל גם בגרף הביצועים ובתשואה לפי טווחי זמן.',
+  fldTradeQty: 'כמות',
+  fldTradePrice: 'מחיר למניה ($)',
+  fldFee: 'עמלה ($, אופציונלי)',
+  mtAddTitle: 'עסקה ידנית',
+  mtEditTitle: 'עריכת עסקה',
+  btnAddTrade: 'הוסף עסקה',
+  tradesAddManual: '＋ עסקה ידנית',
+  mtErrDate: 'תאריך לא תקין (לא בעתיד)',
+  mtErrQty: 'כמות חייבת להיות גדולה מאפס',
+  mtErrPrice: 'מחיר חייב להיות גדול מאפס',
+  mtErrOversell: 'אי אפשר למכור יותר מניות ממה שמוחזק בתאריך הזה',
+  mtErrHeldIbkr: '{sym} מגיעה מ־IBKR — הקניות והמכירות שלה מתעדכנות בסנכרון',
+  mtErrHeldAvg: '{sym} הוזנה לפי מחיר ממוצע. כדי לנהל אותה לפי עסקאות — מחק אותה והוסף מחדש "לפי עסקאות".',
+  mtErrDeleteBreaks: 'בלי העסקה הזו תישאר מכירה של יותר מניות ממה שהוחזק — מחק או ערוך קודם את המכירה',
+  mtDelConfirm: 'למחוק את העסקה ({side} {qty} {sym} ב־{date})?',
+  mtSaved: 'העסקה נשמרה ✓',
+  mtDeleted: 'העסקה נמחקה ✓',
+  manualTag: 'ידני',
+  mtShadowed: 'לא נספר — {sym} מוחזקת עכשיו ב־IBKR',
+  kvRealized: 'רווח ממומש',
+  mtManageHint: 'המניה מנוהלת לפי עסקאות — הכמות והמחיר הממוצע מחושבים מהן.',
+  btnManageTrades: 'עסקאות',
+  twrCombined: 'TWR משולב: IBKR + עסקאות ידניות',
+  twrAvgNote: '{n} מניות לפי מחיר ממוצע — בשווי וברווח, לא בתשואה',
+  twrNeedsDaily: 'עסקאות ידניות לא נכללות בתשואה — הדוח בלי NAV יומי',
+  delTradesPosConfirm: 'למחוק את {sym} ואת כל {n} העסקאות שלה?',
   errSymInvalid: 'סימול לא תקין — אותיות באנגלית בלבד',
   errSymExists: 'המניה כבר קיימת בתיק',
   errSharesPos: 'כמות המניות חייבת להיות חיובית',
@@ -641,7 +671,7 @@ en: {
   ibkrImportNothingNew: 'No new information — everything is already imported.',
   ibkrDisconnectBtn: 'Disconnect',
   ibkrDepositsNote: 'Synced from IBKR — updates on every sync.',
-  ibkrStocksNote: 'Synced from IBKR — updates on every sync. Manual edits will be overwritten by the next sync.',
+  ibkrStocksNote: 'IBKR stocks update on every sync. Stocks you add manually (tagged "Manual") are kept on sync and counted in value, P&L and returns.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
   ibkrChunkFail: 'chunk {fd}–{td} failed ({err})',
   proxyUrlMissing: 'Proxy URL not set',
@@ -761,6 +791,36 @@ en: {
   stockAdded: 'Stock added ✓',
   stockDeleted: 'Stock deleted ✓',
   delStockConfirm: 'Delete {name} ({sym}) from the portfolio?\nIts saved chart data will also be deleted.',
+  addModeAvg: 'By average price',
+  addModeTrades: 'By trades',
+  addModeAvgHint: 'Quick: quantity and average price. Counted in value and P&L — no dates, so not in returns over time.',
+  addModeTradesHint: 'Precise: every buy and sell with a date. Also counted in the performance chart and range returns.',
+  fldTradeQty: 'Quantity',
+  fldTradePrice: 'Price per share ($)',
+  fldFee: 'Fee ($, optional)',
+  mtAddTitle: 'Manual trade',
+  mtEditTitle: 'Edit trade',
+  btnAddTrade: 'Add trade',
+  tradesAddManual: '＋ Manual trade',
+  mtErrDate: 'Invalid date (not in the future)',
+  mtErrQty: 'Quantity must be greater than zero',
+  mtErrPrice: 'Price must be greater than zero',
+  mtErrOversell: "Can't sell more shares than held on that date",
+  mtErrHeldIbkr: '{sym} comes from IBKR — its buys and sells update on sync',
+  mtErrHeldAvg: '{sym} was entered by average price. To track it by trades — delete it and add it again "By trades".',
+  mtErrDeleteBreaks: 'Without this trade a sell would exceed the shares held — delete or edit the sell first',
+  mtDelConfirm: 'Delete this trade ({side} {qty} {sym} on {date})?',
+  mtSaved: 'Trade saved ✓',
+  mtDeleted: 'Trade deleted ✓',
+  manualTag: 'Manual',
+  mtShadowed: 'Not counted — {sym} is now held at IBKR',
+  kvRealized: 'Realized P&L',
+  mtManageHint: 'This stock is tracked by trades — quantity and average price are computed from them.',
+  btnManageTrades: 'Trades',
+  twrCombined: 'Combined TWR: IBKR + manual trades',
+  twrAvgNote: '{n} stocks by average price — in value and P&L, not in returns',
+  twrNeedsDaily: 'Manual trades not in returns — report has no daily NAV',
+  delTradesPosConfirm: 'Delete {sym} and all {n} of its trades?',
   errSymInvalid: 'Invalid symbol — English letters only',
   errSymExists: 'This stock is already in the portfolio',
   errSharesPos: 'Share count must be positive',
@@ -2051,8 +2111,11 @@ function ibkrSnapshotManual() {
 function ibkrRestoreManual() {
   const snap = DB.ibkrSnapshot;
   if (!snap) return false;
+  // v141: פוזיציות ידניות שנוספו אחרי הצילום — לא נמחקות בניתוק
+  const manual = DB.positions.filter((p) => p.src === 'manual');
   DB.positions.length = 0;
   DB.positions.push(...(snap.positions || []));
+  for (const m of manual) if (!DB.positions.some((p) => p.sym === m.sym)) DB.positions.push(m);
   DEPOSITS.length = 0;
   DEPOSITS.push(...(snap.deposits || []));
   DB.cash = snap.cash || { usd: 0, ils: 0 };
@@ -2100,6 +2163,243 @@ function ibkrMapImport(data) {
   }
   const r2 = (v) => Math.round(v * 100) / 100;
   return { positions, lots, cash: hasCash ? { usd: r2(usd), ils: r2(ils) } : null, skipped };
+}
+
+/* ---------------- v141: אחזקות ידניות — לפי מחיר ממוצע או לפי עסקאות ----------------
+   • לפי מחיר ממוצע: כמות + מחיר ממוצע. נכלל בשווי וברווח; בלי תאריכים — לא בתשואה
+     לאורך זמן.
+   • לפי עסקאות (DB.manualTrades): קנייה/מכירה עם תאריך, כמות, מחיר ועמלה. הכמות
+     והממוצע נגזרים מהעסקאות (עלות ממוצעת, כולל רווח ממומש במכירות) ומשתתפים בגרף
+     הביצועים ובתשואה — כמו נתוני IBKR.
+   פוזיציה ידנית = src:'manual' (fromTrades:true כשהיא מעסקאות). סנכרון IBKR מחליף רק
+   את הפוזיציות שלו — הידניות נשמרות. מניה שמוחזקת ב־IBKR לא ניתנת להזנה ידנית;
+   עסקאות ידניות של מניה ש־IBKR התחיל להחזיק "מוצללות" (לא נספרות, מסומנות). */
+
+function mtList() {
+  if (!Array.isArray(DB.manualTrades)) DB.manualTrades = [];
+  return DB.manualTrades;
+}
+
+function mtNorm(x) {
+  const r = x || {};
+  return {
+    id: String(r.id || ''),
+    date: String(r.date || '').slice(0, 10),
+    sym: String(r.sym || '').trim().toUpperCase(),
+    side: String(r.side || '').toUpperCase() === 'SELL' ? 'SELL' : 'BUY',
+    qty: Math.abs(Number(r.qty) || 0),
+    price: Math.abs(Number(r.price) || 0),
+    fee: Math.abs(Number(r.fee) || 0),
+  };
+}
+
+/* כרונולוגי; באותו יום — קניות לפני מכירות, ואז לפי סדר ההזנה. טהורה. */
+function mtSorted(trades, sym) {
+  return (trades || []).map((x, i) => [mtNorm(x), i])
+    .filter((e) => !sym || e[0].sym === sym)
+    .sort((a, b) => {
+      if (a[0].date !== b[0].date) return a[0].date < b[0].date ? -1 : 1;
+      if (a[0].side !== b[0].side) return a[0].side === 'BUY' ? -1 : 1;
+      return a[1] - b[1];
+    })
+    .map((e) => e[0]);
+}
+
+/* מצב האחזקה מתוך העסקאות — שיטת עלות ממוצעת (כמו ברוקרים): קנייה מוסיפה עלות
+   (כולל עמלה); מכירה מורידה עלות לפי הממוצע, ורושמת רווח ממומש (תמורה − עמלה −
+   עלות). upto (YYYY-MM-DD, אופציונלי) = מצב בסוף היום הזה. טהורה. */
+function mtPosition(trades, sym, upto) {
+  let shares = 0, cost = 0, realized = 0, first = '';
+  for (const x of mtSorted(trades, sym)) {
+    if (upto && x.date > upto) break;
+    if (!first) first = x.date;
+    if (x.side === 'BUY') { shares += x.qty; cost += x.qty * x.price + x.fee; }
+    else {
+      const q = Math.min(x.qty, shares);
+      const avgc = shares > 0 ? cost / shares : 0;
+      realized += q * x.price - x.fee - avgc * q;
+      cost -= avgc * q;
+      shares -= q;
+    }
+    if (shares < 1e-9) { shares = 0; cost = 0; }
+  }
+  return { shares: shares, cost: cost, avg: shares > 0 ? cost / shares : 0, realized: realized, firstDate: first };
+}
+
+/* ולידציה לעסקה חדשה/ערוכה (replaceId) — מחזירה הודעת שגיאה או null. בודקת גם
+   שאף מכירה (של אותה מניה, בכל נקודה בזמן) לא עוברת את הכמות שמוחזקת. טהורה. */
+function mtValidate(trades, cand, replaceId, today) {
+  const c = mtNorm(cand);
+  if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(c.sym)) return t('errSymInvalid');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(c.date) || isNaN(Date.parse(c.date)) || c.date > (today || todayISO())) return t('mtErrDate');
+  if (!(c.qty > 0)) return t('mtErrQty');
+  if (!(c.price > 0)) return t('mtErrPrice');
+  const rest = (trades || []).filter((x) => !replaceId || String(x.id) !== String(replaceId));
+  return mtOversold(rest.concat([c]), c.sym) ? t('mtErrOversell') : null;
+}
+
+function mtOversold(trades, sym) {
+  let shares = 0;
+  for (const x of mtSorted(trades, sym)) {
+    if (x.side === 'BUY') shares += x.qty;
+    else { if (x.qty > shares + 1e-9) return true; shares -= x.qty; }
+  }
+  return false;
+}
+
+/* תזרים הכסף שנכנס לאחזקות הידניות לפי תאריך — קנייה (+עלות כולל עמלה),
+   מכירה (−תמורה נטו). בתשואה זה כמו הפקדה/משיכה, כדי שקנייה לא תיראה כרווח. */
+function mtFlowsByDate(trades) {
+  const out = {};
+  for (const x of mtSorted(trades)) {
+    const f = x.side === 'BUY' ? x.qty * x.price + x.fee : -(x.qty * x.price - x.fee);
+    out[x.date] = (out[x.date] || 0) + f;
+  }
+  return out;
+}
+
+/* מניה עם עסקאות ידניות שמוחזקת ממקור אחר (IBKR / מחיר ממוצע) — העסקאות מוצללות. */
+function mtShadowed(sym, positions) {
+  const p = (positions || POSITIONS).find((x) => x.sym === sym);
+  return !!(p && !p.fromTrades);
+}
+function mtActiveTrades() {
+  return mtList().filter((x) => !mtShadowed(mtNorm(x).sym));
+}
+
+/* מסנכרן את רשימת הפוזיציות עם העסקאות (במקום — POSITIONS הוא DB.positions):
+   כמות/ממוצע מחושבים מחדש; מניה שנמכרה כולה יורדת מהרשימה (הרווח הממומש שלה
+   נשאר בחישובים). לא נוגע בפוזיציות IBKR או לפי מחיר ממוצע. */
+function mtSyncPositions() {
+  const trades = mtList();
+  const syms = [...new Set(trades.map((x) => mtNorm(x).sym))];
+  for (const sym of syms) {
+    const i = POSITIONS.findIndex((p) => p.sym === sym);
+    const cur = i >= 0 ? POSITIONS[i] : null;
+    if (cur && !cur.fromTrades) continue;
+    const st = mtPosition(trades, sym);
+    if (st.shares > 0) {
+      if (cur) { cur.shares = st.shares; cur.avg = st.avg; }
+      else POSITIONS.push({ sym: sym, name: sym, full: '', shares: st.shares, avg: st.avg, src: 'manual', fromTrades: true });
+    } else if (cur) POSITIONS.splice(i, 1);
+  }
+  for (let i = POSITIONS.length - 1; i >= 0; i--) {
+    if (POSITIONS[i].fromTrades && !syms.includes(POSITIONS[i].sym)) POSITIONS.splice(i, 1);
+  }
+}
+
+/* במצב IBKR: פוזיציה שלא הגיעה מהדוח = ידנית (נוספה ביד לפני v141 — למשל GOOG).
+   מסמן src:'manual' כדי שתיכלל בחישובים ותישמר בסנכרון. מחזיר כמה סומנו. */
+function markManualPositions() {
+  if (!isIbkrMode()) return 0;
+  const data = ibkrCfg().data;
+  if (!data) return 0;
+  const ib = {};
+  for (const p of ibkrMapImport(data).positions) ib[p.sym] = true;
+  let n = 0;
+  for (const p of POSITIONS) {
+    if (!p.src && !ib[p.sym]) { p.src = 'manual'; n++; }
+  }
+  return n;
+}
+
+/* שווי ורווח (דולר) של האחזקות הידניות: לפי ממוצע — (מחיר − ממוצע) × כמות;
+   לפי עסקאות — רווח ממומש + (שווי − עלות שנותרה). trades = עסקאות פעילות בלבד.
+   missing = מניות ידניות בלי מחיר (לא נספרות). טהורה. */
+function manualTotalsUSD(positions, trades, quotes) {
+  let value = 0, gain = 0, avgOnly = 0, missing = 0;
+  const priceOf = (sym) => { const q = (quotes || {})[sym]; return q && q.close > 0 ? q.close : null; };
+  for (const p of (positions || [])) {
+    if (p.src !== 'manual') continue;
+    const px = priceOf(p.sym);
+    if (!p.fromTrades) avgOnly++;
+    if (px === null) { missing++; continue; }
+    value += px * p.shares;
+    if (!p.fromTrades) gain += (px - (Number(p.avg) || 0)) * p.shares;
+  }
+  for (const sym of new Set((trades || []).map((x) => mtNorm(x).sym))) {
+    const st = mtPosition(trades, sym);
+    if (st.shares > 0) {
+      const px = priceOf(sym);
+      if (px === null) continue;
+      gain += st.realized + px * st.shares - st.cost;
+    } else gain += st.realized;
+  }
+  return { value: value, gain: gain, avgOnly: avgOnly, missing: missing };
+}
+
+/* TWR משולב: IBKR + אחזקות לפי עסקאות. עד היום שלפני העסקה הידנית הראשונה —
+   הסדרה של IBKR כמו שהיא (רשמית/מעוגנת); מאז — תשואה יומית על הסכום:
+     r_t = (NAV_t + M_t − F_t − G_t) / (NAV_{t−1} + M_{t−1}) − 1
+   M = שווי הידניות בסגירה (כמות באותו יום × סגירה), F = הפקדות IBKR, G = כסף
+   שנכנס לידניות (קנייה +, מכירה −) — שניהם בחלון (t−1, t], כך שסופ"ש לא נבלע.
+   דורש NAV יומי (baseRows מסדרה יומית). מחזיר null אם אי אפשר (אין NAV יומי
+   שמכסה את העסקה הראשונה / חסרה היסטוריית מחיר). טהורה. */
+function rowsWithManualTwr(baseRows, navDaily, ibkrFlows, trades, histOf) {
+  const tr = mtSorted(trades);
+  if (!tr.length) return baseRows;
+  const nav = (navDaily || []).filter((d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') && isFinite(Number(d.total)))
+    .slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  const first = tr[0].date;
+  if (!nav.length || !(baseRows || []).length) return null;
+  // כל העסקאות הידניות אחרי סוף נתוני IBKR — תקופת IBKR לא מושפעת
+  if (first > nav[nav.length - 1].date) return baseRows;
+  let s = -1;
+  for (let i = 0; i < nav.length; i++) if (nav[i].date < first) s = i;
+  if (s < 0) return null; // עסקה ידנית לפני תחילת ה־NAV היומי — אין בסיס לשילוב
+  let seamV = null;
+  for (const r of baseRows) if (r.date <= nav[s].date) seamV = r.value;
+  if (!(seamV > 0)) return null;
+  const syms = [...new Set(tr.map((x) => x.sym))];
+  const mFlows = mtFlowsByDate(tr);
+  const mVal = (date) => {
+    let v = 0;
+    for (const sym of syms) {
+      const sh = mtPosition(tr, sym, date).shares;
+      if (!(sh > 0)) continue;
+      const c = closeOnOrBefore(histOf(sym) || [], date);
+      if (!(c > 0)) return null;
+      v += sh * c;
+    }
+    return v;
+  };
+  const inWin = (map, a, b) => {
+    let f = 0;
+    for (const k of Object.keys(map || {})) if (k > a && k <= b) f += Number(map[k]) || 0;
+    return f;
+  };
+  const out = baseRows.filter((r) => r.date <= nav[s].date);
+  let v = seamV;
+  let prevTot = Number(nav[s].total) + (mVal(nav[s].date) || 0);
+  for (let i = s + 1; i < nav.length; i++) {
+    const m = mVal(nav[i].date);
+    if (m === null) return null;
+    const tot = Number(nav[i].total) + m;
+    const flow = inWin(ibkrFlows, nav[i - 1].date, nav[i].date) + inWin(mFlows, nav[i - 1].date, nav[i].date);
+    if (!(prevTot > 0)) return null;
+    v *= (tot - flow) / prevTot;
+    out.push({ date: nav[i].date, value: v });
+    prevTot = tot;
+  }
+  return out;
+}
+
+/* סדרת התשואה של מצב IBKR — עם עסקאות ידניות אם יש. kind:
+   'official' (אין עסקאות ידניות פעילות), 'combined', 'needsDaily' (אין NAV יומי
+   מתאים / מטבע בסיס לא דולר), 'loading' (חסרה היסטוריית מחיר של מניה ידנית). */
+function ibkrReturnRows(data) {
+  const flows = ibkrFlowsByDate(data);
+  const base = (typeof rCombinedTwrSeries === 'function')
+    ? rCombinedTwrSeries(rNavPeriods(data), data.navDaily, flows)
+    : rTwrIndexSeries(rNavPeriods(data));
+  const trades = mtActiveTrades();
+  if (!trades.length) return { rows: base, kind: 'official' };
+  if (ibkrBaseCur(data) !== 'USD' || !(data.navDaily || []).length) return { rows: base, kind: 'needsDaily' };
+  const missing = [...new Set(trades.map((x) => mtNorm(x).sym))].filter((sym) => !(state.hist[sym] || []).length);
+  if (missing.length) return { rows: base, kind: 'loading', missing: missing };
+  const rows = rowsWithManualTwr(base, data.navDaily, flows, trades, (sym) => state.hist[sym]);
+  if (!rows) return { rows: base, kind: 'needsDaily' };
+  return { rows: rows, kind: rows === base ? 'official' : 'combined' };
 }
 
 function ibkrDisconnect() {
@@ -2334,9 +2634,14 @@ function ibkrFinishImport(data) {
   for (const p of (imp.positions || [])) impSyms[p.sym] = true;
   const curSyms = {};
   for (const p of POSITIONS) curSyms[p.sym] = true;
-  const replaced = POSITIONS.filter((p) => !impSyms[p.sym]).length;
+  // v141: פוזיציות ידניות (src:'manual') נשמרות — IBKR מחליף רק את שלו. מניה
+  // ש־IBKR מחזיק עכשיו גוברת על הזנה ידנית לפי ממוצע (עסקאות ידניות שלה מוצללות).
+  const manualKeep = POSITIONS.filter((p) => p.src === 'manual' && !impSyms[p.sym]);
+  const replaced = POSITIONS.filter((p) => !impSyms[p.sym] && p.src !== 'manual').length;
   POSITIONS.length = 0;
   for (const e of (imp.positions || [])) POSITIONS.push(e);
+  for (const e of manualKeep) POSITIONS.push(e);
+  mtSyncPositions();
   const added = (imp.positions || []).filter((e) => !curSyms[e.sym]).length;
   const kept = Object.keys(curSyms).length - replaced;
   // מזומן מהדוח — רק אם נמצא בדוח
@@ -2449,7 +2754,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v140';
+const APP_VERSION = 'v141';
 
 
 function saveDBto(db) {
@@ -2464,6 +2769,7 @@ function loadDB() {
         if (!db.cash) db.cash = { usd: 0, ils: 0 };
         if (!Array.isArray(db.wishlist)) db.wishlist = [];
         if (!Array.isArray(db.pensionFunds)) db.pensionFunds = [];
+        if (!Array.isArray(db.manualTrades)) db.manualTrades = [];
         ensurePensionKinds(db);
         return db;
       }
@@ -2503,6 +2809,7 @@ function applyDbData(data) {
   if (Array.isArray(clean.pensionDeposits)) DB.pensionDeposits.push(...clean.pensionDeposits);
   const c = clean.cash || {};
   DB.cash = { usd: num(c.usd) || 0, ils: num(c.ils) || 0 };
+  DB.manualTrades = Array.isArray(clean.manualTrades) ? clean.manualTrades : [];
   saveDBto(DB);
 }
 
@@ -3300,7 +3607,9 @@ async function getIntraday(sym) {
 }
 
 async function warmHistories() {
-  await pool(POSITIONS.map((p) => p.sym), 3, (sym) => getDaily(sym, false));
+  const syms = new Set(POSITIONS.map((p) => p.sym));
+  for (const x of mtActiveTrades()) syms.add(mtNorm(x).sym); // v141: גם מניות ידניות שנמכרו (לתשואה)
+  await pool([...syms], 3, (sym) => getDaily(sym, false));
   renderStocks();
   renderOverview();
 }
@@ -3785,6 +4094,7 @@ function fitNumbers() {
   });
 }
 
+let ovTwrKind = 'official';
 function renderOverview(light) {
   const cur = state.currency;
   const tot = totalsUSD();
@@ -3793,6 +4103,9 @@ function renderOverview(light) {
   // כרטיס "שווי תיק המניות" — היה מת אף פעם לא מולא (v43)
   const vEl = document.getElementById('ovValue');
   const vSub = document.getElementById('ovValueSub');
+  // v141: אחזקות ידניות (מחיר ממוצע / עסקאות) — נכנסות גם במצב IBKR
+  const mt = isIbkrMode() ? manualTotalsUSD(POSITIONS, mtActiveTrades(), state.quotes) : null;
+  const usdToCur = (v) => (cur === 'ILS' ? (state.fx ? v * state.fx : null) : v);
   if (vEl) {
     let vTxt = '—';
     if (isIbkrMode()) {
@@ -3806,6 +4119,7 @@ function renderOverview(light) {
         else if (base === 'ILS' && cur === 'USD' && state.fx) disp = rt / state.fx;
         else if ((base === 'ILS') === (cur === 'ILS')) disp = rt;
       }
+      if (disp !== null && mt && mt.value) { const add = usdToCur(mt.value); disp = add === null ? null : disp + add; }
       if (disp !== null && isFinite(disp)) vTxt = money(disp, cur);
     } else if (!POSITIONS.length || POSITIONS.some((p) => state.quotes[p.sym])) {
       vTxt = money(total, cur);
@@ -3832,6 +4146,7 @@ function renderOverview(light) {
       const base = ibkrBaseCur(data);
       gl = (cur === 'ILS' && state.fx && base === 'USD') ? pg * state.fx
         : (cur === 'ILS' ? null : pg);
+      if (gl !== null && mt && mt.gain) { const add = usdToCur(mt.gain); gl = add === null ? null : gl + add; }
     }
     if (gSub) gSub.textContent = t('ovInReportPeriod');
   }
@@ -3845,7 +4160,14 @@ function renderOverview(light) {
     // במצב IBKR התשואה הראשית היא ה־TWR הרשמי המשורשר מהדוח.
     // בלי TWR רשמי — "לא זמין", לא אומדן.
     const data = ibkrCfg().data;
-    const twr = rHeadlineTwr(data);
+    let twr = rHeadlineTwr(data);
+    // v141: עסקאות ידניות — TWR משולב מהסדרה היומית (IBKR + ידני)
+    let rr = null;
+    try { rr = data ? ibkrReturnRows(data) : null; } catch (e) { rr = null; }
+    if (rr && rr.kind === 'combined' && rr.rows.length >= 2 && rr.rows[0].value > 0) {
+      twr = (rr.rows[rr.rows.length - 1].value / rr.rows[0].value - 1) * 100;
+    }
+    ovTwrKind = rr ? rr.kind : 'official';
     const yval = (twr === null || !isFinite(twr)) ? null : twr;
     ibkrYieldOfficial = yval !== null;
     yEl.textContent = yval === null ? '—' : fmtPct(yval, true);
@@ -3855,9 +4177,15 @@ function renderOverview(light) {
     yEl.className = 'stat-value ' + (yld === null ? '' : yld >= 0 ? 'pos' : 'neg');
   }
 
+  let twrTxt = '';
+  if (isIbkrMode()) {
+    twrTxt = ' · ' + (!ibkrYieldOfficial ? t('twrMissingShort')
+      : ovTwrKind === 'combined' ? t('twrCombined') : t('twrOfficial'));
+    if (ovTwrKind === 'needsDaily') twrTxt += ' · ' + t('twrNeedsDaily');
+    if (mt && mt.avgOnly) twrTxt += ' · ' + t('twrAvgNote', { n: mt.avgOnly });
+  }
   document.getElementById('ovMeta').textContent =
-    t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) +
-    (isIbkrMode() ? ' · ' + (ibkrYieldOfficial ? t('twrOfficial') : t('twrMissingShort')) : '');
+    t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + twrTxt;
   paintFxPill(false);
 
   /* v109: כל ציור עטוף בנפרד — כשל באחד לא יחסום את הכרטיסים שאחריו (כולל "ביצועי IBKR") */
@@ -4631,9 +4959,14 @@ async function drawPfChart() {
   if (ibkrOfficial) {
     if (loading) loading.classList.add('hidden');
     // v125: יומי מ־NAV יומי (אם הדוח כולל אותו), אחרת נקודות התקופות הרשמיות
-    allRows = (typeof rCombinedTwrSeries === 'function')
-      ? rCombinedTwrSeries(rNavPeriods(ibkrData), ibkrData.navDaily, ibkrFlowsByDate(ibkrData))
-      : rTwrIndexSeries(rNavPeriods(ibkrData));
+    // v141: + עסקאות ידניות (TWR משולב) — טוענים קודם היסטוריה חסרה של המניות הידניות
+    let rr = ibkrReturnRows(ibkrData);
+    if (rr.kind === 'loading') {
+      await pool(rr.missing, 3, (sym) => getDaily(sym, false).catch(() => null));
+      if (my !== pfChartToken) return;
+      rr = ibkrReturnRows(ibkrData);
+    }
+    allRows = rr.rows;
     if (allRows.length < 2) allRows = portfolioSeriesILS();
     else srcKind = 'ibkr';
   } else {
@@ -5313,30 +5646,62 @@ function showAddPositionForm(list) {
   if (document.getElementById('addPosForm')) return;
   const card = el('div', 'card');
   card.id = 'addPosForm';
+  // v141: שני מצבים — לפי מחיר ממוצע (מהיר) או לפי עסקאות (תאריך לכל קנייה)
+  let mode = 'avg';
   card.innerHTML =
     '<h2>' + t('addStockTitle') + '</h2>' +
+    '<div class="chip-row add-mode">' +
+    '<button type="button" class="range-btn active" data-mode="avg">' + t('addModeAvg') + '</button>' +
+    '<button type="button" class="range-btn" data-mode="trades">' + t('addModeTrades') + '</button>' +
+    '</div>' +
+    '<p class="fine add-mode-hint" id="ap-hint">' + esc(t('addModeAvgHint')) + '</p>' +
     '<div class="form-grid">' +
     '<label>' + t('fldSymbol') + '<input id="ap-sym" type="text" dir="ltr" placeholder="NVDA" autocomplete="off"></label>' +
     '<label>' + t('fldNameHe') + '<input id="ap-name" type="text" placeholder="' + t('phExampleName') + '"></label>' +
     '<label>' + t('fldFullName') + '<input id="ap-full" type="text" dir="ltr" placeholder="NVIDIA Corp" autocomplete="off"></label>' +
-    '<label>' + t('fldShares') + '<input id="ap-shares" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label>' + t('fldAvgPrice') + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-avg">' + t('fldShares') + '<input id="ap-shares" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-avg">' + t('fldAvgPrice') + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + t('fldDate') + '<input id="ap-date" type="date" max="' + todayISO() + '" value="' + todayISO() + '"></label>' +
+    '<label class="m-tr hidden">' + t('fldTradeQty') + '<input id="ap-qty" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + t('fldTradePrice') + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + t('fldFee') + '<input id="ap-fee" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ap-err"></div>' +
     '<div class="edit-actions"><button class="btn" id="ap-save" type="button">' + t('btnAddStock') + '</button>' +
     '<button class="link-btn" id="ap-cancel" type="button">' + t('btnCancel') + '</button></div>';
   list.insertBefore(card, list.firstChild);
+  card.querySelectorAll('.add-mode [data-mode]').forEach((b) => b.addEventListener('click', () => {
+    mode = b.dataset.mode;
+    card.querySelectorAll('.add-mode [data-mode]').forEach((x) => x.classList.toggle('active', x === b));
+    card.querySelectorAll('.m-avg').forEach((x) => x.classList.toggle('hidden', mode !== 'avg'));
+    card.querySelectorAll('.m-tr').forEach((x) => x.classList.toggle('hidden', mode !== 'trades'));
+    card.querySelector('#ap-hint').textContent = (mode === 'avg' ? t('addModeAvgHint') : t('addModeTradesHint'));
+  }));
   card.querySelector('#ap-cancel').addEventListener('click', () => card.remove());
   card.querySelector('#ap-save').addEventListener('click', () => {
     const sym = card.querySelector('#ap-sym').value.trim().toUpperCase();
     const name = card.querySelector('#ap-name').value.trim() || sym;
     const full = card.querySelector('#ap-full').value.trim();
-    const shares = parseFloat(card.querySelector('#ap-shares').value);
-    const avg = parseFloat(card.querySelector('#ap-avg').value);
-    const err = validPosition(sym, shares, avg, null);
     const errEl = card.querySelector('#ap-err');
-    if (err) { errEl.textContent = err; errEl.classList.remove('hidden'); return; }
-    POSITIONS.push({ sym: sym, name: name, full: full, shares: shares, avg: avg });
+    const fail = (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); };
+    if (mode === 'avg') {
+      const shares = parseFloat(card.querySelector('#ap-shares').value);
+      const avg = parseFloat(card.querySelector('#ap-avg').value);
+      const err = validPosition(sym, shares, avg, null);
+      if (err) return fail(err);
+      POSITIONS.push({ sym: sym, name: name, full: full, shares: shares, avg: avg, src: 'manual' });
+    } else {
+      const err0 = validPosition(sym, 1, 1, null);
+      if (err0) return fail(err0);
+      const tr = { id: mtNewId(), date: card.querySelector('#ap-date').value, sym: sym, side: 'BUY',
+        qty: parseFloat(card.querySelector('#ap-qty').value), price: parseFloat(card.querySelector('#ap-price').value),
+        fee: parseFloat(card.querySelector('#ap-fee').value) || 0 };
+      const err = mtValidate(mtList(), tr, null);
+      if (err) return fail(err);
+      mtList().push(mtNorm(tr));
+      POSITIONS.push({ sym: sym, name: name, full: full, shares: 0, avg: 0, src: 'manual', fromTrades: true });
+      mtSyncPositions();
+    }
     saveDB();
     card.remove();
     renderAll();
@@ -5345,8 +5710,145 @@ function showAddPositionForm(list) {
   });
 }
 
+function mtNewId() {
+  return 'mt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/* טופס עסקה ידנית (חדשה או עריכה). host = איפה להציג; opts: { sym, lockSym,
+   trade (לעריכה), name, onClose }. */
+function showTradeForm(host, opts) {
+  const o = opts || {};
+  if (!host || host.querySelector('.mt-form')) return;
+  const tr = o.trade ? mtNorm(o.trade) : null;
+  let side = tr ? tr.side : 'BUY';
+  const card = el('div', 'card mt-form');
+  const v = (x) => (x === undefined || x === null ? '' : String(x));
+  card.innerHTML =
+    '<h2>' + (tr ? t('mtEditTitle') : t('mtAddTitle')) + '</h2>' +
+    '<div class="chip-row add-mode">' +
+    '<button type="button" class="range-btn" data-side="BUY">' + t('buySide') + '</button>' +
+    '<button type="button" class="range-btn" data-side="SELL">' + t('sellSide') + '</button>' +
+    '</div>' +
+    '<div class="form-grid">' +
+    '<label>' + t('fldSymbol') + '<input class="mt-sym" type="text" dir="ltr" autocomplete="off" placeholder="GOOG" value="' + esc(v(tr ? tr.sym : o.sym)) + '"' + (o.lockSym || tr ? ' readonly' : '') + '></label>' +
+    '<label>' + t('fldDate') + '<input class="mt-date" type="date" max="' + todayISO() + '" value="' + esc(tr ? tr.date : todayISO()) + '"></label>' +
+    '<label>' + t('fldTradeQty') + '<input class="mt-qty" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.qty)) + '"></label>' +
+    '<label>' + t('fldTradePrice') + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.price)) + '"></label>' +
+    '<label>' + t('fldFee') + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
+    '</div>' +
+    '<div class="form-err hidden"></div>' +
+    '<div class="edit-actions"><button class="btn mt-save" type="button">' + t('btnSave') + '</button>' +
+    '<button class="link-btn mt-cancel" type="button">' + t('btnCancel') + '</button></div>';
+  const paintSide = () => card.querySelectorAll('[data-side]').forEach((b) => b.classList.toggle('active', b.dataset.side === side));
+  paintSide();
+  card.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => { side = b.dataset.side; paintSide(); }));
+  host.insertBefore(card, host.firstChild);
+  const close = () => { card.remove(); if (o.onClose) o.onClose(); };
+  card.querySelector('.mt-cancel').addEventListener('click', close);
+  card.querySelector('.mt-save').addEventListener('click', () => {
+    const errEl = card.querySelector('.form-err');
+    const fail = (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); };
+    const cand = {
+      id: tr ? tr.id : mtNewId(),
+      sym: card.querySelector('.mt-sym').value.trim().toUpperCase(),
+      date: card.querySelector('.mt-date').value, side: side,
+      qty: parseFloat(card.querySelector('.mt-qty').value),
+      price: parseFloat(card.querySelector('.mt-price').value),
+      fee: parseFloat(card.querySelector('.mt-fee').value) || 0,
+    };
+    const held = POSITIONS.find((p) => p.sym === cand.sym);
+    if (held && !held.fromTrades) return fail((held.src === 'manual' ? t('mtErrHeldAvg', { sym: cand.sym }) : t('mtErrHeldIbkr', { sym: cand.sym })));
+    const err = mtValidate(mtList(), cand, tr ? tr.id : null);
+    if (err) return fail(err);
+    const list = mtList();
+    const i = tr ? list.findIndex((x) => String(x.id) === String(tr.id)) : -1;
+    if (i >= 0) list[i] = mtNorm(cand); else list.push(mtNorm(cand));
+    if (!held) POSITIONS.push({ sym: cand.sym, name: o.name || cand.sym, full: '', shares: 0, avg: 0, src: 'manual', fromTrades: true });
+    mtSyncPositions();
+    saveDB();
+    card.remove();
+    renderAll();
+    flash(t('mtSaved'));
+    refreshQuotes().then(() => warmHistories());
+  });
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function mtDeleteTrade(x) {
+  const n = mtNorm(x);
+  const rest = mtList().filter((y) => String(y.id) !== String(n.id));
+  if (mtOversold(rest, n.sym)) { alert(t('mtErrDeleteBreaks')); return false; }
+  if (!confirm(t('mtDelConfirm', { side: (n.side === 'BUY' ? t('buySide') : t('sellSide')), qty: n.qty, sym: n.sym, date: fmtDateIL(n.date) }))) return false;
+  DB.manualTrades = rest;
+  mtSyncPositions();
+  saveDB();
+  renderAll();
+  flash(t('mtDeleted'));
+  return true;
+}
+
+/* שורת עסקה ידנית — כמו שורת IBKR + תגית "ידני" וכפתורי עריכה/מחיקה. */
+function buildManualTradeRow(x, onEdit) {
+  const n = mtNorm(x);
+  const li = buildTradeRow({ date: n.date, symbol: n.sym, side: n.side, qty: n.qty, price: n.price, commission: n.fee, currency: 'USD' });
+  li.classList.add('mt-row');
+  const first = li.firstChild;
+  if (first) {
+    const tag = el('span', 'src-tag', t('manualTag'));
+    first.insertBefore(tag, first.querySelector('br'));
+    if (mtShadowed(n.sym)) first.appendChild(el('div', 'fine', t('mtShadowed', { sym: n.sym })));
+  }
+  const act = el('span', 'mt-actions');
+  const eb = el('button', 'link-btn', t('btnEditRow'));
+  eb.type = 'button';
+  eb.addEventListener('click', () => onEdit(x));
+  const db = el('button', 'link-btn danger', t('btnDeleteRow'));
+  db.type = 'button';
+  db.addEventListener('click', () => mtDeleteTrade(x));
+  act.appendChild(eb);
+  act.appendChild(db);
+  (li.lastChild || li).appendChild(act);
+  return li;
+}
+
+/* ניהול העסקאות של מניה אחת — בתוך הכרטיס הפתוח. */
+function showPositionTrades(card, p) {
+  const body = card.querySelector('.stock-body');
+  card.classList.add('open');
+  body.innerHTML = '';
+  const wrap = el('div', 'mt-manage');
+  wrap.appendChild(el('p', 'fine', t('mtManageHint')));
+  const formHost = el('div');
+  wrap.appendChild(formHost);
+  const ul = el('ul', 'rows');
+  const trades = mtList().filter((x) => mtNorm(x).sym === p.sym)
+    .sort((a, b) => (mtNorm(a).date < mtNorm(b).date ? 1 : -1));
+  const edit = (x) => showTradeForm(formHost, { trade: x, lockSym: true });
+  for (const x of trades) ul.appendChild(buildManualTradeRow(x, edit));
+  wrap.appendChild(ul);
+  const actions = el('div', 'edit-actions');
+  const add = el('button', 'btn', t('btnAddTrade'));
+  add.type = 'button';
+  add.addEventListener('click', () => showTradeForm(formHost, { sym: p.sym, lockSym: true, name: p.name }));
+  const close = el('button', 'link-btn', t('btnCancel'));
+  close.type = 'button';
+  close.addEventListener('click', () => refreshStockBody(p.sym));
+  const del = el('button', 'chip-btn danger', t('btnDelete'));
+  del.type = 'button';
+  del.addEventListener('click', () => deletePosition(p));
+  actions.appendChild(add);
+  actions.appendChild(close);
+  actions.appendChild(del);
+  wrap.appendChild(actions);
+  body.appendChild(wrap);
+}
+
 function deletePosition(p) {
-  if (!confirm(t('delStockConfirm', { name: p.name, sym: p.sym }))) return;
+  // v141: מניה לפי עסקאות — מוחקים גם את העסקאות שלה (אחרת היא "חוזרת" מהן)
+  const own = p.fromTrades ? mtList().filter((x) => mtNorm(x).sym === p.sym) : [];
+  const msg = own.length ? t('delTradesPosConfirm', { sym: p.sym, n: own.length }) : t('delStockConfirm', { name: p.name, sym: p.sym });
+  if (!confirm(msg)) return;
+  if (own.length) DB.manualTrades = mtList().filter((x) => mtNorm(x).sym !== p.sym);
   const i = POSITIONS.findIndex((x) => x.sym === p.sym);
   if (i >= 0) POSITIONS.splice(i, 1);
   delete state.hist[p.sym];
@@ -5513,7 +6015,8 @@ function buildStockCard(p) {
   head.type = 'button';
   head.innerHTML =
     '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym">' + sym + '</span>' +
-    '<span class="stock-name">' + esc(p.name) + '</span></span>' +
+    '<span class="stock-name">' + esc(p.name) + '</span>' +
+    (p.src === 'manual' ? '<span class="src-tag">' + esc(t('manualTag')) + '</span>' : '') + '</span>' +
     '<span class="stock-price">' + priceTxt + '</span>' +
     '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
     (m.dayChg === null ? '—' : t('todayChg', { v: fmtPct(m.dayChg, true) })) + '</span>' +
@@ -5551,6 +6054,10 @@ function buildStockBody(p, m) {
         ' (' + fmtPct(m.gl / (p.avg * p.shares) * 100, true) + ')',
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
     kvHTML(t('kvWeight'), weightTxt(sym)) +
+    (p.fromTrades ? (() => {
+      const rz = mtPosition(mtList(), sym).realized;
+      return Math.abs(rz) > 0.005 ? kvHTML(t('kvRealized'), (rz < 0 ? '−' : '+') + money(Math.abs(toCur(rz)), cur), rz >= 0 ? 'pos' : 'neg') : '';
+    })() : '') +
     // v102: אריח ATH מינימליסטי — רק מחיר ותאריך, מעט גדולים יותר
     kvHTML('ATH',
       m.ath ? (cur === 'ILS' && state.fx ? fmtILS(m.ath.price * state.fx) : fmtUSD2(m.ath.price)) +
@@ -5618,13 +6125,15 @@ function buildStockBody(p, m) {
 
   // v100: כפתור "ערוך" בתחתית הכרטיס הפתוח — מופיע תמיד בלחיצה על המניה,
   // לא תלוי במצב העריכה הגלובלי. כפתור המחיקה נחשף רק בתוך טופס העריכה.
-  if (!isIbkrMode()) {
+  // v141: גם במצב IBKR — למניות ידניות. מניה לפי עסקאות נפתחת לניהול העסקאות.
+  if (!isIbkrMode() || p.src === 'manual') {
     const actions = el('div', 'edit-actions');
-    const eb = el('button', 'chip-btn', t('btnEdit'));
+    const eb = el('button', 'chip-btn', p.fromTrades ? t('btnManageTrades') : t('btnEdit'));
     eb.type = 'button';
     eb.addEventListener('click', () => {
       const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
-      if (card) showEditPositionForm(card, p);
+      if (!card) return;
+      if (p.fromTrades) showPositionTrades(card, p); else showEditPositionForm(card, p);
     });
     actions.appendChild(eb);
     wrap.appendChild(actions);
@@ -5951,20 +6460,27 @@ function renderTrades() {
   const cnt = document.getElementById('tradeCount');
   if (!list) return;
   const ready = isIbkrMode() && !!(ibkrCfg().data);
-  const trs = ready ? ibkrTrades() : [];
-  if (cnt) cnt.textContent = trs.length;
+  const ib = ready ? ibkrTrades() : [];
+  const man = mtList();
+  if (cnt) cnt.textContent = ib.length + man.length;
   list.innerHTML = '';
   if (hint) {
-    if (!ready) { hint.classList.remove('hidden'); hint.textContent = t('tradesNeedIbkr'); }
-    else hint.classList.add('hidden');
+    // v141: בלי IBKR עדיין אפשר עסקאות ידניות — ההסבר רק כשאין כלום להציג
+    const showHint = !ready && !man.length;
+    hint.classList.toggle('hidden', !showHint);
+    if (showHint) hint.textContent = t('tradesNeedIbkr');
   }
-  if (!ready) return;
-  if (!trs.length) {
-    const p = el('p', 'fine', t('tradesEmpty'));
-    list.appendChild(p);
+  if (!ib.length && !man.length) {
+    if (ready) list.appendChild(el('p', 'fine', t('tradesEmpty')));
     return;
   }
-  for (const tr of trs) list.appendChild(buildTradeRow(tr));
+  // מאוחד, מהחדש לישן — ידניות מסומנות ועם עריכה/מחיקה
+  const host = document.getElementById('tradeFormHost');
+  const edit = (x) => { if (host) { host.innerHTML = ''; showTradeForm(host, { trade: x }); } };
+  const rows = ib.map((x) => ({ d: String(x.date || '').slice(0, 10), ib: x }))
+    .concat(man.map((x) => ({ d: mtNorm(x).date, mt: x })))
+    .sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0));
+  for (const r of rows) list.appendChild(r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib));
 }
 
 function renderDeposits() {
@@ -6259,6 +6775,8 @@ function deletePensionDeposit(i) {
 /* ---------------- כללי ---------------- */
 
 function renderAll() {
+  // v141: מניה שנוספה ביד במצב IBKR (לפני v141) מסומנת ידנית — נכללת בחישובים ונשמרת בסנכרון
+  try { if (markManualPositions()) saveDB(); } catch (e) {}
   renderOverview();
   renderStocks();
   renderTrades();
@@ -6538,6 +7056,11 @@ function init() {
   });
 
   // ניקוי מטמון ורענון — מביא את הגרסה החדשה ביותר מהשרת
+  const amtBtn = document.getElementById('addManualTradeBtn');
+  if (amtBtn) amtBtn.addEventListener('click', () => {
+    const host = document.getElementById('tradeFormHost');
+    if (host) { host.innerHTML = ''; showTradeForm(host, {}); }
+  });
   const clearCacheBtn = document.getElementById('clearCache');
   if (clearCacheBtn) clearCacheBtn.addEventListener('click', async () => {
     try {
