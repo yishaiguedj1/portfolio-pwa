@@ -3774,7 +3774,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v166';
+const APP_VERSION = 'v167';
 
 
 function saveDBto(db) {
@@ -5136,7 +5136,7 @@ function metrics(sym) {
   const hist = state.hist[sym] || [];
   let dayChg = null;
   if (q && hist.length) {
-    const pc = prevCloseFor(q.date, hist);
+    const pc = prevCloseFor(q.mdate || q.date, hist);
     if (pc) dayChg = (q.close - pc) / pc * 100;
   }
   // v160: בלי היסטוריה (מקור ההיסטוריה חסום) — השינוי היומי מהסגירה הקודמת שבציטוט עצמו
