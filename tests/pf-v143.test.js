@@ -95,6 +95,30 @@ const hist = days.map((d, i) => ({ date: d, close: px(i) }));
   ok(comb < ib && ib - comb < w * ib * 1.5 + 0.01, 'מניה קטנה וחלשה מהתיק: המשולב נמוך במעט (' + (ib * 100).toFixed(2) + '% → ' + (comb * 100).toFixed(2) + '%, משקל ' + (w * 100).toFixed(1) + '%)');
 }
 
+// --- 3ב. כותרת משולבת על אותה תקופה כמו הרשמית — גם כש־NAV יומי מתחיל מאוחר ---
+// שוחזר מהשטח: NAV יומי מ־09/2023, תקופות רשמיות מ־01/2023. בלי ידניות הכותרת =
+// רשמית (מ־01/2023); עם ידניות היא הפכה ל־last/first של הסדרה (מ־09/2023) = בדיוק
+// "3 שנים" — ולא הייתה ברת השוואה ל"בלי".
+{
+  const head = vm.runInContext('combinedHeadlineTwr', sb);
+  const base = [{ date: '2023-09-25', value: 100 }, { date: '2025-04-03', value: 120 }, { date: '2026-09-24', value: 148.32 }];
+  const comb = [{ date: '2023-09-25', value: 100 }, { date: '2025-04-03', value: 120 }, { date: '2026-09-24', value: 154.31 }];
+  const h = head(48.07, comb, base);
+  ok(near(h, (1.4807 * (154.31 / 148.32) - 1) * 100, 1e-9), 'כותרת משולבת = רשמית × השפעת הידניות (' + h.toFixed(2) + '%, לא 54.31)');
+  ok(near(head(48.07, base, base), 48.07, 1e-9), 'בלי השפעה ידנית → בדיוק הרשמי');
+  ok(near(head(null, comb, base), 54.31, 1e-9), 'בלי רשמי — נפילה ל־last/first');
+  // עקביות: NAV יומי חלקי + תיקון = אותה תוצאה כמו NAV יומי מלא
+  const full = build(null);
+  const tr = [{ id: 'x', date: days[70], sym: 'MAN', side: 'BUY', qty: 30, price: px(70), fee: 0 }];
+  const official = (full.base[full.base.length - 1].value / full.base[0].value - 1) * 100;
+  const combFull = rows(full.base, full.nav, {}, tr, () => hist, () => 1);
+  const hFull = (combFull[combFull.length - 1].value / combFull[0].value - 1) * 100;
+  const cut = 30; // NAV יומי רק מיום 30 — הסדרה "הרשמית" מתחילה שם ב־100
+  const bPart = full.base.slice(cut).map((r) => ({ date: r.date, value: r.value / full.base[cut].value * 100 }));
+  const combPart = rows(bPart, full.nav.slice(cut), {}, tr, () => hist, () => 1);
+  ok(near(head(official, combPart, bPart), hFull, 1e-9), 'NAV יומי חלקי + תיקון = התוצאה עם NAV יומי מלא (' + hFull.toFixed(3) + '%)');
+}
+
 // --- 4. תווית המחיר בשורה אחת (₪/$ לא נשבר לשורות) ---
 ok((src.match(/'<span>' \+ t\('(fldAvgPrice|fldTradePrice|fldFee)', \{ c: '<span class="cur-sym">/g) || []).length === 5, 'תוויות מחיר/עמלה עטופות — סימן המטבע באותה שורה');
 

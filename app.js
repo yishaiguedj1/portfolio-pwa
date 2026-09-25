@@ -2432,7 +2432,22 @@ function ibkrReturnRows(data) {
   if (missing.length || needFx) return { rows: base, kind: 'loading', missing: missing, needFx: needFx };
   const rows = rowsWithManualTwr(base, data.navDaily, flows, trades, (sym) => state.hist[sym], (d) => fxOnOrBefore(d));
   if (!rows) return { rows: base, kind: 'needsDaily' };
-  return { rows: rows, kind: rows === base ? 'official' : 'combined' };
+  return { rows: rows, kind: rows === base ? 'official' : 'combined', base: base };
+}
+
+/* v143: כותרת התשואה המשולבת — על אותה תקופה כמו הרשמית (מתחילת החשבון), לא
+   מתחילת ה־NAV היומי. כשה־NAV היומי מתחיל אחרי פתיחת החשבון (למשל 09/2023 מול
+   01/2023), last/first של הסדרה מודד תקופה קצרה יותר — והכותרת "עם" ו"בלי"
+   מניה ידנית לא היו ברות השוואה. הסדרות זהות עד העסקה הידנית, אז ההשפעה של
+   הידניות = יחס הערך האחרון; מכפילים בו את הרשמי. טהורה. */
+function combinedHeadlineTwr(officialPct, rows, base) {
+  if (!rows || !rows.length || !base || !base.length) return null;
+  const k = rows[rows.length - 1].value / base[base.length - 1].value;
+  if (!(k > 0) || !isFinite(k)) return null;
+  if (officialPct === null || officialPct === undefined || !isFinite(officialPct)) {
+    return rows[0].value > 0 ? (rows[rows.length - 1].value / rows[0].value - 1) * 100 : null;
+  }
+  return ((1 + officialPct / 100) * k - 1) * 100;
 }
 
 function ibkrDisconnect() {
@@ -2808,7 +2823,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v143';
+const APP_VERSION = 'v144';
 
 
 function saveDBto(db) {
@@ -4226,8 +4241,9 @@ function renderOverview(light) {
     // v141: עסקאות ידניות — TWR משולב מהסדרה היומית (IBKR + ידני)
     let rr = null;
     try { rr = data ? ibkrReturnRows(data) : null; } catch (e) { rr = null; }
-    if (rr && rr.kind === 'combined' && rr.rows.length >= 2 && rr.rows[0].value > 0) {
-      twr = (rr.rows[rr.rows.length - 1].value / rr.rows[0].value - 1) * 100;
+    if (rr && rr.kind === 'combined' && rr.rows.length >= 2) {
+      const c = combinedHeadlineTwr(twr, rr.rows, rr.base);
+      if (c !== null) twr = c;
     }
     ovTwrKind = rr ? rr.kind : 'official';
     const yval = (twr === null || !isFinite(twr)) ? null : twr;
