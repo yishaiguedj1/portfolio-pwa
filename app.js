@@ -421,6 +421,8 @@ he: {
   demoStepBuild: 'בונים עסקאות, הפקדות ופנסיה',
   demoStepSave: 'מכינים את התיק',
   demoStepOf: '{n} מתוך {total}',
+  demoStepServer: 'מהשרת — בבקשה אחת',
+  demoRetry: 'נסו שוב',
   demoStepStocks: '{n} מניות ומדדים',
   demoActiveTitle: 'מצב דמו פעיל',
   demoActiveDesc: 'זה תיק לדוגמה — אפשר לגעת בהכל. שינויים כאן לא נשמרים בענן, והנתונים האמיתיים שלך חוזרים ביציאה מהדמו.',
@@ -889,6 +891,8 @@ en: {
   demoStepBuild: 'Building trades, deposits and pension',
   demoStepSave: 'Preparing the portfolio',
   demoStepOf: '{n} of {total}',
+  demoStepServer: 'From the server — one request',
+  demoRetry: 'Try again',
   demoStepStocks: '{n} stocks and indexes',
   demoActiveTitle: 'Demo mode is on',
   demoActiveDesc: 'This is a sample portfolio — feel free to touch everything. Changes here are not saved to the cloud, and your real data comes back when you exit the demo.',
@@ -3148,18 +3152,17 @@ function demoPicks(hist, today) {
 
 let _demoBusy = false;
 
-/* v162: מסך טעינה לבניית הדמו — שלבים (ממתין / עכשיו / הושלם) + פס התקדמות, בסגנון נקי.
-   מחזיר בקר: step(i, פירוט), progress(0..1), done(), fail(הודעה). */
+/* v163: התקדמות בניית הדמו — בתוך כרטיס הדמו עצמו (לא חלון צף): שלבים (ממתין / עכשיו / הושלם)
+   + פס התקדמות. מחזיר בקר: step(i, פירוט), detail, progress(0..1), done(), fail(הודעה). */
 function demoProgressOpen() {
-  const old = document.getElementById('demoProgVeil');
+  const card = document.getElementById('demoOffer');
+  const noop = { shown: 0, progress() {}, step() {}, detail() {}, done() {}, fail() { flash(t('demoFail')); } };
+  if (!card) return noop;
+  const old = card.querySelector('.demo-inline');
   if (old) old.remove();
-  const veil = el('div', 'demo-prog-veil');
-  veil.id = 'demoProgVeil';
-  const card = el('div', 'demo-prog');
-  card.setAttribute('role', 'dialog');
-  card.setAttribute('aria-live', 'polite');
-  card.innerHTML = '<div class="demo-prog-icon" aria-hidden="true">✨</div>' +
-    '<h3>' + esc(t('demoProgTitle')) + '</h3>' +
+  const box = el('div', 'demo-inline');
+  box.setAttribute('aria-live', 'polite');
+  box.innerHTML = '<h2>' + esc(t('demoProgTitle')) + '</h2>' +
     '<p class="demo-prog-sub">' + esc(t('demoProgSub')) + '</p>' +
     '<div class="demo-prog-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span></span></div>' +
     '<div class="demo-prog-pct" dir="ltr">0%</div>' +
@@ -3167,16 +3170,17 @@ function demoProgressOpen() {
       '<span class="ds-dot" aria-hidden="true"></span><span class="ds-txt"><span class="ds-lbl">' + esc(lbl) +
       '</span><span class="ds-det"></span></span></li>').join('') + '</ol>' +
     '<div class="demo-prog-err hidden"></div>';
-  veil.appendChild(card);
-  document.body.appendChild(veil);
-  const bar = card.querySelector('.demo-prog-bar');
-  const pct = card.querySelector('.demo-prog-pct');
-  const steps = [...card.querySelectorAll('.demo-step')];
-  let shown = 0;
+  card.appendChild(box);
+  card.classList.add('building');
+  const bar = box.querySelector('.demo-prog-bar');
+  const pct = box.querySelector('.demo-prog-pct');
+  const steps = [...box.querySelectorAll('.demo-step')];
+  const close = () => { box.remove(); card.classList.remove('building', 'failed'); };
   const ctl = {
+    shown: 0,
     progress(f) {
-      const v = Math.max(shown, Math.min(1, f || 0)); // לא חוזרים אחורה
-      shown = v;
+      const v = Math.max(ctl.shown, Math.min(1, f || 0)); // לא חוזרים אחורה
+      ctl.shown = v;
       bar.firstChild.style.width = (v * 100).toFixed(1) + '%';
       bar.setAttribute('aria-valuenow', String(Math.round(v * 100)));
       pct.textContent = Math.round(v * 100) + '%';
@@ -3189,25 +3193,25 @@ function demoProgressOpen() {
     done() {
       steps.forEach((li) => { li.dataset.state = 'done'; });
       ctl.progress(1);
-      card.classList.add('ok');
-      setTimeout(() => veil.remove(), 650);
+      setTimeout(close, 500);
     },
     fail(msg) {
       card.classList.add('failed');
       steps.forEach((li) => { if (li.dataset.state === 'now') li.dataset.state = 'fail'; });
-      const e = card.querySelector('.demo-prog-err');
-      e.innerHTML = '<p>' + esc(msg) + '</p><button class="btn" type="button">' + esc(t('btnClose')) + '</button>';
+      const e = box.querySelector('.demo-prog-err');
+      e.innerHTML = '<p>' + esc(msg) + '</p><div class="demo-err-btns"><button class="btn" type="button" data-act="retry">' +
+        esc(t('demoRetry')) + '</button><button class="chip-btn" type="button" data-act="close">' + esc(t('btnClose')) + '</button></div>';
       e.classList.remove('hidden');
-      e.querySelector('button').addEventListener('click', () => veil.remove());
+      e.querySelector('[data-act="close"]').addEventListener('click', close);
+      e.querySelector('[data-act="retry"]').addEventListener('click', () => { close(); demoCreate(null, true); });
     },
   };
-  requestAnimationFrame(() => veil.classList.add('in'));
   return ctl;
 }
 
-async function demoCreate(btn) {
+async function demoCreate(btn, noConfirm) {
   if (_demoBusy || isDemoMode()) return;
-  if (!confirm(t('demoConfirm'))) return;
+  if (!noConfirm && !confirm(t('demoConfirm'))) return;
   _demoBusy = true;
   if (btn) btn.disabled = true;
   const ui = demoProgressOpen();
@@ -3219,25 +3223,35 @@ async function demoCreate(btn) {
       demoPension2: t('demoPension2'), demoStudy2: t('demoStudy2'),
       demoNameSpy: t('demoNameSpy'), demoNameQqq: t('demoNameQqq'), demoNameEis: t('demoNameEis'),
     };
-    // שלב 1: מחירים — 4 במקביל (לא מפציצים את Yahoo), ניסיון נוסף אחד לכל מניה שלא חזרה
-    ui.step(0);
+    // שלב 1: מחירים — קודם מהשרתון בבקשה אחת (~1 שנייה לכל 32 הסימבולים); רק מה שחסר — ישירות
+    ui.step(0, t('demoStepServer'));
     const syms = DEMO_US.concat(DEMO_TA);
     const hist = {};
-    let done = 0;
-    const tick = () => { done++; ui.detail(0, t('demoStepOf', { n: done, total: syms.length })); ui.progress(0.04 + 0.7 * done / syms.length); };
-    ui.detail(0, t('demoStepOf', { n: 0, total: syms.length }));
-    ui.progress(0.04);
-    await pool(syms, 4, async (s) => {
-      let h = [];
-      try { h = (await getDailyFast(s, true)) || []; } catch (e) { h = []; }
-      if (!h.length) {
-        await new Promise((r) => setTimeout(r, 1200));
-        try { h = (await getDailyFast(s, true)) || []; } catch (e) { h = []; }
-      }
-      if (!h.length) h = state.hist[s] || []; // מה שיש במטמון
-      hist[s] = h;
-      tick();
-    });
+    ui.progress(0.05);
+    const creep = setInterval(() => ui.progress(Math.min(0.5, (ui.shown || 0) + 0.03)), 400); // תנועה בזמן ההמתנה
+    try {
+      const got = await proxyHistory(syms, '7y', 25000);
+      for (const s of Object.keys(got)) if (got[s].length > 200) hist[s] = storeHistRows(s, got[s]);
+    } catch (e) { /* השרת לא ענה — ממשיכים ישירות */ }
+    clearInterval(creep);
+    const missing = syms.filter((s) => !hist[s]);
+    let done = syms.length - missing.length;
+    ui.detail(0, t('demoStepOf', { n: done, total: syms.length }));
+    ui.progress(0.05 + 0.65 * done / syms.length);
+    if (missing.length) {
+      histProxyOff = true;
+      try {
+        await pool(missing, 6, async (s) => {
+          let h = [];
+          try { h = (await getDailyFast(s, true)) || []; } catch (e) { h = []; }
+          if (!h.length) h = state.hist[s] || []; // מה שיש במטמון
+          hist[s] = h;
+          done++;
+          ui.detail(0, t('demoStepOf', { n: done, total: syms.length }));
+          ui.progress(0.05 + 0.65 * done / syms.length);
+        });
+      } finally { histProxyOff = false; }
+    }
     // שלב 2: שערי דולר־שקל לכל התקופה
     ui.step(1);
     ui.progress(0.78);
@@ -3255,6 +3269,7 @@ async function demoCreate(btn) {
     const keep = new Set(picks.plan.concat(picks.hot, picks.watch));
     for (const s of Object.keys(hist)) if (!keep.has(s)) { delete state.hist[s]; try { localStorage.removeItem(LS_HIST + s); } catch (e) {} }
     if (!db) { ui.fail(t('demoFail')); return; }
+    ui.detail(2, t('demoStepStocks', { n: db.positions.length }));
     // שלב 4: שמירה אחרונה של הנתונים האמיתיים לענן — ואז גיבוי מקומי, והדמו לא נשמר בענן
     ui.step(3);
     ui.progress(0.94);
@@ -3739,7 +3754,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v162';
+const APP_VERSION = 'v163';
 
 
 function saveDBto(db) {
@@ -4663,6 +4678,18 @@ async function getDaily(sym, force) {
   const td = await fetchTwelveBars(sym, 'daily', wantMax, notes);
   if (td === 'BADKEY') clearTdKey(notes);
   else if (td) return save(td);
+  // v163: היסטוריה דרך השרתון (Yahoo מהשרת) — ראשון כש־Yahoo כבר ידוע כחוסם את הטלפון, אחרון אחרת
+  const viaProxy = async () => {
+    if (histProxyOff) return null;
+    try {
+      const got = await proxyHistory([sym], wantMax ? '10y' : isDemoMode() ? '7y' : '5y', 15000);
+      const r = got[sym];
+      if (r && r.length) { notes.push('Proxy: ok'); return r; }
+      notes.push('Proxy: —');
+    } catch (e) { notes.push('Proxy: ' + netErrName(e)); }
+    return null;
+  };
+  if (yahooCooling()) { const pr = await viaProxy(); if (pr) return save(pr); }
   const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (wantMax ? 'max' : isDemoMode() ? '10y' : '5y'), host);
   let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
           || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
@@ -4672,6 +4699,7 @@ async function getDaily(sym, force) {
     if (rows.length) return save(rows);
     notes.push(t('srcEmpty', { name: 'Stooq' }));
   } catch (e) { notes.push('Stooq: ' + netErrName(e)); }
+  if (!yahooCooling()) { const pr = await viaProxy(); if (pr) return save(pr); }
   state.histDbg[sym] = notes.join(' · ');
   const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
   if (cached && cached.rows) {
@@ -4766,6 +4794,65 @@ function renderPfBenchToggles(show) {
 /* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
    הראשון שעונה מנצח, בלי לחכות ל־timeout של מקור חסום. Twelve Data רק
    כגיבוי אחרון (צריך מפתח). אותו מטמון ואותו פורמט שורות כמו getDaily. */
+/* v163: היסטוריית מחירים דרך השרתון שלנו (Vercel) — בקשה אחת לכל הסימבולים. בטלפון Yahoo חוסם
+   לפעמים (429 לכתובת של הספק הסלולרי) ו־Stooq לא עונה, ולמניות ת"א אין מקור אחר; מהשרת זה עובד.
+   מחזיר { SYM: [{date, close}] } (ת"א כבר בשקלים). */
+async function proxyHistory(syms, range, ms) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const to = setTimeout(() => { if (ctl) ctl.abort(); }, ms || 20000);
+  try {
+    const r = await fetch(ibkrProxyBase() + '/api/history', {
+      method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ syms: syms, range: range || '5y' }),
+      signal: ctl ? ctl.signal : undefined,
+    });
+    const j = await r.json();
+    if (!j || !j.ok || !j.data) throw new Error((j && j.error) || 'proxy_history');
+    return proxyHistoryRows(j.data);
+  } finally { clearTimeout(to); }
+}
+/* טהורה: { SYM: {t:[ימים מאז 1970], c:[סגירות]} } → { SYM: [{date, close}] } */
+function proxyHistoryRows(data) {
+  const out = {};
+  for (const sym of Object.keys(data || {})) {
+    const v = data[sym];
+    if (!v || !Array.isArray(v.t) || !Array.isArray(v.c)) continue;
+    const rows = [];
+    for (let i = 0; i < v.t.length; i++) {
+      if (v.c[i] > 0) rows.push({ date: new Date(v.t[i] * 86400000).toISOString().slice(0, 10), close: v.c[i] });
+    }
+    if (rows.length) out[sym] = rows;
+  }
+  return out;
+}
+/* שומר היסטוריה שהגיעה מבחוץ כמו fetch רגיל: ספליטים, דמו רזה, זיכרון ומטמון */
+function storeHistRows(sym, rows) {
+  try { repairKnownSplits(sym, rows); } catch (e) {}
+  if (isDemoMode() || _demoBusy) rows = histSlimForDemo(rows);
+  state.hist[sym] = rows;
+  state.histDbg[sym] = null;
+  delete histNegCache[sym];
+  lsSet(LS_HIST + sym, { at: Date.now(), rows: rows, splits: rows.splitsApplied || null });
+  return rows;
+}
+/* גיבוי בגרפים הרגילים: כמה מניות שנכשלו באותו רגע נאספות לבקשה אחת (250ms) */
+const proxyHistQ = { syms: {}, timer: null };
+let histProxyOff = false; // בזמן בניית הדמו — השרת כבר נוסה, לא לשאול שוב על כל מניה
+function proxyHistQueued(sym) {
+  if (histProxyOff) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    (proxyHistQ.syms[sym] = proxyHistQ.syms[sym] || []).push(resolve);
+    if (proxyHistQ.timer) return;
+    proxyHistQ.timer = setTimeout(async () => {
+      const batch = proxyHistQ.syms;
+      proxyHistQ.syms = {}; proxyHistQ.timer = null;
+      const list = Object.keys(batch).slice(0, 40);
+      let got = {};
+      try { got = await proxyHistory(list, (isDemoMode() || _demoBusy) ? '7y' : '5y', 20000); } catch (e) { got = {}; }
+      for (const k of Object.keys(batch)) for (const fn of batch[k]) fn(got[k] || null);
+    }, 250);
+  });
+}
+
 /* v161: תיק הדמו — 7 השנים האחרונות, תאריך + סגירה בלבד (מעוגל). 30+ מניות × 10 שנים במבנה המלא
    (פתיחה/גבוה/נמוך/מחזור) מילאו ~5.6MB — על גבול הזיכרון של הדפדפן בטלפון. */
 function histSlimForDemo(rows) {
@@ -4819,6 +4906,13 @@ async function _getDailyFastInner(sym, force) {
     return rows;
   };
   const notes = [];
+  // v163: Yahoo כבר ידוע כחוסם את הטלפון — ישר לשרתון, בלי לחכות ל־timeouts של המרוץ
+  let proxyTried = false;
+  if (yahooCooling() && !histProxyOff) {
+    proxyTried = true;
+    const px = await proxyHistQueued(sym);
+    if (px && px.length) return save(px);
+  }
   const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (demoLong ? '10y' : '5y'), host);
   // מרוץ מקבילי: הראשון שעונה מנצח — לא מחכים ל־timeout של מקור חסום (v19 לימד אותנו)
   const racers = [
@@ -4841,6 +4935,12 @@ async function _getDailyFastInner(sym, force) {
     if (!rows.splitsApplied) { try { applySplitAdjustment(rows); } catch (e) {} }
     return save(rows);
   }
+  // v163: Yahoo ו־Stooq לא ענו מהטלפון — דרך השרתון (Yahoo מהשרת)
+  if (!proxyTried) try {
+    const px = await proxyHistQueued(sym);
+    if (px && px.length) { notes.push('Proxy: ok'); return save(px); }
+    notes.push('Proxy: —');
+  } catch (e) { notes.push('Proxy: ' + netErrName(e)); }
   if (tdKey()) {
     const td = await fetchTwelveBars(sym, 'daily', false, notes);
     if (td === 'BADKEY') clearTdKey(notes);

@@ -873,28 +873,12 @@ footer.fine { text-align: center; }
 @keyframes menuDropIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .menu-drop:not(.hidden) { animation-duration: .12s; } }
 
-/* v162: מסך בניית תיק הדמו — כרטיס זכוכית במרכז, שלבים ופס התקדמות (בסגנון אפל נקי) */
-.demo-prog-veil {
-  position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
-  padding: 16px; background: rgba(0, 0, 0, .28);
-  -webkit-backdrop-filter: blur(8px) saturate(140%); backdrop-filter: blur(8px) saturate(140%);
-  opacity: 0; transition: opacity .25s ease;
-}
-.demo-prog-veil.in { opacity: 1; }
-.demo-prog {
-  width: 100%; max-width: 400px; padding: 26px 22px 22px; text-align: center;
-  background: var(--surface); color: var(--on-surface);
-  border: 1px solid var(--card-border); border-radius: var(--radius-xl);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
-  transform: translateY(10px) scale(.97); transition: transform .35s cubic-bezier(.2, .9, .25, 1);
-}
-[data-theme="dark"] .demo-prog { background: #1C1C1E; }
-.demo-prog-veil.in .demo-prog { transform: none; }
-.demo-prog-icon { font-size: 34px; line-height: 1; animation: demoPulse 1.6s ease-in-out infinite; }
-.demo-prog.ok .demo-prog-icon, .demo-prog.failed .demo-prog-icon { animation: none; }
-@keyframes demoPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .8; } }
-.demo-prog h3 { margin: 10px 0 4px; font-size: 20px; font-weight: 800; }
-.demo-prog-sub { margin: 0 0 18px; font-size: 14.5px; color: var(--on-surface-var); }
+/* v163: בניית תיק הדמו — בתוך כרטיס הדמו עצמו (בלי חלון צף): שלבים ופס התקדמות בסגנון נקי */
+.demo-card.building > :not(.demo-inline) { display: none; }
+.demo-inline { animation: demoIn .35s cubic-bezier(.2, .9, .25, 1) both; }
+@keyframes demoIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.demo-inline h2 { margin: 2px 0 4px; font-size: 20px; }
+.demo-prog-sub { margin: 0 0 16px; font-size: 14.5px; color: var(--on-surface-var); }
 .demo-prog-bar { height: 8px; border-radius: var(--pill); background: var(--surface-2); overflow: hidden; }
 .demo-prog-bar span {
   display: block; height: 100%; width: 0; border-radius: inherit;
@@ -923,8 +907,8 @@ footer.fine { text-align: center; }
 @keyframes dsSpin { to { transform: rotate(360deg); } }
 .demo-prog-err { margin-top: 14px; }
 .demo-prog-err p { margin: 0 0 12px; font-size: 14.5px; color: var(--on-surface); }
-.demo-prog-err .btn { width: 100%; }
+.demo-err-btns { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) {
-  .demo-prog-icon, .demo-step[data-state="now"] .ds-dot { animation-duration: 3s; }
-  .demo-prog-bar span, .demo-prog { transition: none; }
+  .demo-step[data-state="now"] .ds-dot { animation-duration: 3s; }
+  .demo-prog-bar span, .demo-inline { transition: none; animation: none; }
 }

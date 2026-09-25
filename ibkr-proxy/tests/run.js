@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { statementBaseFrom, statementEndpointFrom, errorXml, ibkrUserAgent, FLEX_SEND_PATH, FLEX_GET_PATH, parseXml, statementToJson } = require('../lib/ibkr');
 const flexStatement = require('../api/flex-statement');
 const flexRequest = require('../api/flex-request');
+const history = require('../api/history');
 
 let n = 0;
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
@@ -308,6 +309,48 @@ function stubFetch(text, status = 200) {
     r = mockRes();
     await flexStatement(mockReq({ body: { token: '1234567890', code: 'AB<script>' } }), r);
     ok(r.statusCode === 400, 'קוד דוח עם תווים לא חוקיים → 400');
+  }
+
+  /* ---------- v163: /api/history — היסטוריית מחירים ציבורית מהשרת ---------- */
+  {
+    mockReq.ip = '8.8.4.4';
+    const day = (iso) => Math.floor(Date.parse(iso + 'T00:00:00Z') / 1000);
+    const chart = (cur, ts, closes) => ({ chart: { result: [{ meta: { currency: cur, gmtoffset: 0 }, timestamp: ts, indicators: { quote: [{ close: closes }] } }] } });
+    const pc = history._parseChart(chart('ILA', [day('2026-09-01'), day('2026-09-02'), day('2026-09-02') + 60, day('2026-09-03')], [7830, null, 7900, 7950]));
+    ok(pc.c[0] === 78.3 && pc.c.length === 3 && pc.c[1] === 79, 'history: אגורות → שקלים, בלי ערכים ריקים, יום כפול = האחרון');
+    ok(history._parseChart({}) === null, 'history: תשובה לא תקינה → null');
+    let urls = [];
+    global.fetch = async (url) => {
+      urls.push(String(url));
+      const sym = decodeURIComponent(/chart\/([^?]+)/.exec(url)[1]);
+      if (sym === 'BAD') return { status: 429, json: async () => ({}) };
+      const now = Math.floor(Date.now() / 1000);
+      const ts = [now - 9 * 365 * 86400, now - 3 * 86400, now - 86400];
+      return { status: 200, json: async () => chart('USD', ts, [10, 11, 12]) };
+    };
+    history._cache.clear();
+    let r = mockRes();
+    await history(mockReq({ body: { syms: ['spy', 'BAD', 'SPY'], range: '7y' } }), r);
+    ok(r.statusCode === 200 && r.payload.ok && r.payload.data.SPY && r.payload.failed.includes('BAD'), 'history: מחזיר נתונים, מסמן כשל, בלי כפילויות');
+    ok(r.payload.data.SPY.c.length === 2, 'history: 7y — נחתך ל־7 שנים (מביא 10y)');
+    ok(urls.some((u) => /query1\.finance\.yahoo\.com\/v8\/finance\/chart\/SPY\?interval=1d&range=10y/.test(u)), 'history: רק Yahoo chart, 10y ל־7y');
+    ok(urls.filter((u) => /BAD/.test(u)).length === 2, 'history: 429 → מנסה את המארח השני ומוותר');
+    urls = [];
+    r = mockRes();
+    await history(mockReq({ body: { syms: ['SPY'], range: '7y' } }), r);
+    ok(urls.length === 0 && r.payload.data.SPY, 'history: מטמון — בלי פנייה חוזרת ל־Yahoo');
+    r = mockRes();
+    await history(mockReq({ body: { syms: ['A/../B'] } }), r);
+    ok(r.statusCode === 400, 'history: סימבול לא חוקי → 400');
+    r = mockRes();
+    await history(mockReq({ body: { syms: Array.from({ length: 41 }, (_, i) => 'S' + i) } }), r);
+    ok(r.statusCode === 400, 'history: יותר מ־40 סימבולים → 400');
+    r = mockRes();
+    await history(mockReq({ body: { syms: ['SPY'] }, headers: { origin: 'https://evil.example' } }), r);
+    ok(r.statusCode === 403, 'history: Origin זר → 403');
+    r = mockRes();
+    await history(mockReq({ method: 'GET', body: {} }), r);
+    ok(r.statusCode === 405, 'history: GET → 405');
   }
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
