@@ -4,6 +4,7 @@ const { statementBaseFrom, statementEndpointFrom, errorXml, ibkrUserAgent, FLEX_
 const flexStatement = require('../api/flex-statement');
 const flexRequest = require('../api/flex-request');
 const history = require('../api/history');
+const quotes = require('../api/quotes');
 
 let n = 0;
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
@@ -351,6 +352,37 @@ function stubFetch(text, status = 200) {
     r = mockRes();
     await history(mockReq({ method: 'GET', body: {} }), r);
     ok(r.statusCode === 405, 'history: GET → 405');
+  }
+
+  /* ---------- v164: /api/quotes — מחיר חי לכל התיק בבקשה אחת ---------- */
+  {
+    mockReq.ip = '8.8.8.4';
+    const full = { chart: { result: [{ meta: { currency: 'USD', regularMarketPrice: 101, chartPreviousClose: 99, gmtoffset: -14400, secret: 'x',
+      currentTradingPeriod: { regular: { start: 1, end: 2 } } }, timestamp: [10, 20, 30, 40, 50], indicators: { quote: [{ close: [1, 2, 3, null, 5], open: [1, 1, 1, 1, 1] }] } }] } };
+    const tr = quotes._trimChart(full).chart.result[0];
+    ok(tr.timestamp.join() === '20,30,50' && tr.indicators.quote[0].close.join() === '2,3,5', 'quotes: 3 הנרות האחרונים עם מחיר (בלי ריקים)');
+    ok(tr.meta.chartPreviousClose === 99 && tr.meta.currentTradingPeriod && tr.meta.secret === undefined && !tr.indicators.quote[0].open, 'quotes: רק שדות המטא הנחוצים');
+    ok(quotes._trimChart({ chart: { result: null, error: { code: 'x' } } }) === null, 'quotes: שגיאת Yahoo → null');
+    let calls = 0;
+    global.fetch = async (url) => { calls++; if (/BAD/.test(url)) return { status: 429, json: async () => ({}) }; return { status: 200, json: async () => full }; };
+    quotes._cache.clear();
+    let r = mockRes();
+    await quotes(mockReq({ body: { syms: ['aapl', 'BAD'] } }), r);
+    ok(r.statusCode === 200 && r.payload.data.AAPL && r.payload.failed.join() === 'BAD', 'quotes: מחזיר מה שיש, מסמן כשל');
+    const c1 = calls;
+    r = mockRes();
+    await quotes(mockReq({ body: { syms: ['AAPL'] } }), r);
+    ok(calls === c1 && r.payload.data.AAPL, 'quotes: מטמון של כמה שניות — בלי פנייה חוזרת ל־Yahoo');
+    r = mockRes();
+    await quotes(mockReq({ body: { syms: Array.from({ length: 41 }, (_, i) => 'S' + i) } }), r);
+    ok(r.statusCode === 400, 'quotes: יותר מ־40 → 400');
+    r = mockRes();
+    await quotes(mockReq({ body: { syms: ['AAPL'] }, headers: { origin: 'https://evil.example' } }), r);
+    ok(r.statusCode === 403, 'quotes: Origin זר → 403');
+    mockReq.ip = '8.8.8.5';
+    let last = 0;
+    for (let k = 0; k < 61; k++) { r = mockRes(); await quotes(mockReq({ body: { syms: ['AAPL'] } }), r); last = r.statusCode; }
+    ok(last === 429, 'quotes: הגבלת קצב (60 בדקה ל־IP)');
   }
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);

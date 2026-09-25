@@ -1,1 +1,1 @@
-{"$schema":"https://openapi.vercel.sh/vercel.json","functions":{"api/flex-request.js":{"maxDuration":30},"api/flex-statement.js":{"maxDuration":30},"api/history.js":{"maxDuration":30}}}
+{"$schema":"https://openapi.vercel.sh/vercel.json","functions":{"api/flex-request.js":{"maxDuration":30},"api/flex-statement.js":{"maxDuration":30},"api/history.js":{"maxDuration":30},"api/quotes.js":{"maxDuration":15}}}

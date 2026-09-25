@@ -3754,7 +3754,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v163';
+const APP_VERSION = 'v164';
 
 
 function saveDBto(db) {
@@ -4384,12 +4384,39 @@ function liveSymbolsFor(full) {
   return Object.keys(state.open).filter((s) => state.open[s] && all.includes(s));
 }
 
+/* v164: מחירים חיים דרך השרתון — בקשה אחת לכל התיק (Yahoo מהשרת). עד v163 הטלפון שלח בקשה
+   נפרדת לכל מניה כל 5–10 שניות (~90 בדקה בזמן מסחר) — Yahoo חסם את הטלפון (429) וזה הפיל גם את
+   הגרפים. התשובה במבנה של Yahoo (חתוכה) — אותו parseYahooQuote. */
+async function proxyQuotes(syms, ms) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const to = setTimeout(() => { if (ctl) ctl.abort(); }, ms || 9000);
+  try {
+    const r = await fetch(ibkrProxyBase() + '/api/quotes', {
+      method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ syms: syms.slice(0, 40) }),
+      signal: ctl ? ctl.signal : undefined,
+    });
+    const j = await r.json();
+    if (!j || !j.ok || !j.data) throw new Error((j && j.error) || 'proxy_quotes');
+    const out = {};
+    for (const sym of Object.keys(j.data)) {
+      const q = parseYahooQuote(j.data[sym], sym);
+      if (q) out[sym] = q;
+    }
+    return out;
+  } finally { clearTimeout(to); }
+}
+/* קודם השרתון; ישירות ל־Yahoo רק אם השרתון לא ענה וגם Yahoo לא ידוע כחוסם (ואז — מעדכן את ההפסקה) */
 async function liveFetch(syms) {
-  const res = await pool(syms, 3, async (sym) => {
+  let out = {};
+  try { out = await proxyQuotes(syms); } catch (e) { out = {}; }
+  const rest = syms.filter((s) => !out[s]);
+  if (!rest.length || yahooCooling()) return out;
+  const res = await pool(rest, 3, async (sym) => {
     try { return parseYahooQuote(await fetchJSONTimeout(yahooQuoteURL(sym), 8000), sym); } catch (e) { return null; }
   });
-  const out = {};
-  for (const r of res) if (r) out[r.symbol] = r;
+  let direct = 0;
+  for (const r of res) if (r) { out[r.symbol] = r; direct++; }
+  if (direct) yahooOk(); else yahooFailed();
   return out;
 }
 
@@ -4443,7 +4470,8 @@ function yahooOk() { const was = yahooGate.backoff > 0; yahooGate.backoff = 0; y
 async function yahooRecovered() {
   const syms = quoteSymbols().filter((sym) => isChartableSym(sym) && !(state.hist[sym] || []).length);
   for (const sym of syms) delete histNegCache[sym];
-  await pool(syms, 3, (sym) => getDailyFast(sym, true).catch(() => null));
+  // בלי force — טעינה שכבר רצה לאותה מניה משותפת (histInflight), לא כפולה
+  await pool(syms, 3, (sym) => getDailyFast(sym, false).catch(() => null));
   const open = Object.keys(state.open).filter((x) => state.open[x]);
   for (const sym of open) { try { ensureChartData(sym, true); } catch (e) {} }
   try { renderLive(syms.concat(open)); } catch (e) {}
@@ -4459,12 +4487,14 @@ async function liveTick() {
     if (syms.length) {
       live.busy = true;
       try {
-        let got = {};
         let src = 'Yahoo';
-        if (!yahooCooling()) {
-          got = await liveFetch(syms);
-          if (Object.keys(got).length) { if (yahooOk()) yahooRecovered().catch(() => {}); }
-          else yahooFailed();
+        const wasCooling = yahooCooling();
+        let got = await liveFetch(syms);
+        // מחירים חזרו (ישירות או דרך השרתון) ויש מניות בלי היסטוריה — משלימים גרפים (לכל היותר פעם בשתי דקות)
+        const lacking = quoteSymbols().some((x) => isChartableSym(x) && !(state.hist[x] || []).length);
+        if (Object.keys(got).length && ((wasCooling && !yahooCooling()) || lacking) && Date.now() - (live.lastRecover || 0) > 120000) {
+          live.lastRecover = Date.now();
+          yahooRecovered().catch(() => {});
         }
         // Yahoo חסום/נכשל: CNBC בבקשה אחת לכל הסימבולים (ציטוט מושהה — התווית אומרת "דיליי")
         if (!Object.keys(got).length && full) {
@@ -4501,6 +4531,7 @@ function liveSchedule() {
 
 function liveStart() {
   if (live.on) return;
+  live.lastRecover = Date.now(); // v164: השלמת גרפים — לא בטעינה הראשונית (היא כבר טוענת)
   live.on = true;
   liveSchedule();
   document.addEventListener('visibilitychange', () => {
@@ -4571,14 +4602,8 @@ function updateSourceLabel() {
 }
 
 async function tryYahooQuotes() {
-  const results = await pool(quoteSymbols(), 3, async (sym) => {
-    try {
-      const json = await fetchJSONTimeout(yahooQuoteURL(sym), 10000);
-      return parseYahooQuote(json, sym);
-    } catch (e) { return null; }
-  });
-  const q = {};
-  for (const r of results) if (r) q[r.symbol] = r;
+  const q = await liveFetch(quoteSymbols()); // v164: שרתון בבקשה אחת, ישירות רק כגיבוי
+  const results = Object.values(q);
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
   if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
   const fx = await tryFx();
