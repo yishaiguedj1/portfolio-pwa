@@ -41,11 +41,11 @@ const A = (k) => vm.runInContext(k, sb);
   const fe = A('ibkrFriendlyErr');
   ok(fe('שרתון: bad_app_key') === A("t('ibkrErrAppKey')"), 'bad_app_key → הסבר איפה להדביק את המפתח');
   ok(fe('שרתון: forbidden_origin') === A("t('ibkrErrOrigin')"), 'forbidden_origin → הסבר');
-  ok(/APP_KEY/.test(A("STRINGS.en.ibkrErrAppKey")) && /APP_KEY/.test(A("STRINGS.he.ibkrErrAppKey")), 'הודעה בעברית ובאנגלית');
+  ok(/APP_KEY/.test(A("STRINGS.en.ibkrErrAppKey")) && /Redeploy/.test(A("STRINGS.he.ibkrErrAppKey")), 'הודעה בעברית ובאנגלית — מסבירה איך לבטל את APP_KEY');
 
   // --- 3. שדה בהגדרות + שמירה ---
-  ok(/id="ibkrAppKey" type="password"/.test(html), 'שדה "מפתח שרתון" (מוסתר כמו סיסמה)');
-  ok(/ibkrSaveCfg\(\{ proxyUrl, token, queryId, appKey,/.test(src), 'נשמר עם שאר פרטי החיבור (בטלפון)');
+  ok(!/id="ibkrAppKey"/.test(html), 'v150: שדה "מפתח שרתון" הוסר מההגדרות (APP_KEY לא מוגדר ב־Vercel)');
+  ok(/ibkrSaveCfg\(\{ proxyUrl, token, queryId, appKey: '',/.test(src) && /if \(cfg\.appKey\) ibkrSaveCfg\(\{ appKey: '' \}\)/.test(src), 'v150: מפתח ישן שנשמר בטלפון נמחק');
 
   // --- 4. ניתוק מוחק פרטי גישה ---
   ok(/ibkrSaveCfg\(\{ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' \}\)/.test(src), 'ניתוק מוחק token, Query ID ומפתח שרתון');
