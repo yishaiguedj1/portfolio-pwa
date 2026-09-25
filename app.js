@@ -29,6 +29,7 @@ const ICON_GEAR = _IC_PRE + '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.
 const ICON_SUN = _IC_PRE + '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></svg>';
 const ICON_MOON = _IC_PRE + '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
 const ICON_AUTO = _IC_PRE + '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
+const ICON_CLOSE = _IC_PRE + '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
 const ICON_MENU = _IC_PRE + '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>';
 
 const STRINGS = {
@@ -40,6 +41,7 @@ he: {
   curTitle: 'מטבע',
   langAria: 'בחירת שפה',
   menuAria: 'תפריט ראשי',
+  menuCloseAria: 'סגירת התפריט',
   menuSettings: 'הגדרות',
   themeCycleAria: 'ערכת נושא — בהיר / כהה / מערכת',
   menuThemeAria: 'ערכת נושא — בהיר / כהה',
@@ -471,6 +473,7 @@ en: {
   curTitle: 'Currency',
   langAria: 'Choose language',
   menuAria: 'Main menu',
+  menuCloseAria: 'Close menu',
   menuSettings: 'Settings',
   themeCycleAria: 'Theme — light / dark / system',
   menuThemeAria: 'Theme — light / dark',
@@ -1001,13 +1004,9 @@ function renderThemeToggle() {
   if (l) l.classList.toggle('active', m === 'light');
   if (d) d.classList.toggle('active', m === 'dark');
   if (s) s.classList.toggle('active', m === 'system');
-  const mt = document.getElementById('menuThemeTxt');
-  if (mt) {
-    const dark = resolveTheme() === 'dark';
-    mt.innerHTML = dark
-      ? ICON_MOON + '<span>' + esc(t('themeDark')) + '</span>'
-      : ICON_SUN + '<span>' + esc(t('themeLight')) + '</span>';
-  }
+  // v154: כשהתפריט פתוח כפתור המטבע הופך לכפתור ערכה — מציג את הערכה שאליה עוברים
+  const alt = document.querySelector && document.querySelector('#curToggleBtn .face-alt');
+  if (alt) alt.innerHTML = resolveTheme() === 'dark' ? ICON_SUN : ICON_MOON;
 }
 /* קורא משתנה CSS מהערכה הנוכחית; בטסטים (אין getComputedStyle) מחזיר ברירת מחדל. */
 function cssVar(name, fallback) {
@@ -3221,7 +3220,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v153';
+const APP_VERSION = 'v154';
 
 
 function saveDBto(db) {
@@ -7584,7 +7583,11 @@ function init() {
     const b = document.getElementById('setCurBtn');
     if (b) b.textContent = lbl;
     const h = document.getElementById('curToggleBtn');
-    if (h) h.textContent = lbl;
+    if (h) {
+      if (!h.querySelector('.face-main')) h.innerHTML = btnFacesHTML('', '');
+      h.querySelector('.face-main').textContent = lbl;
+      renderThemeToggle();
+    }
   };
   const setCur = (c) => {
     state.currency = c;
@@ -7595,7 +7598,11 @@ function init() {
   const curBtn = document.getElementById('setCurBtn');
   if (curBtn) curBtn.addEventListener('click', () => setCur(state.currency === 'ILS' ? 'USD' : 'ILS'));
   const curToggle = document.getElementById('curToggleBtn');
-  if (curToggle) curToggle.addEventListener('click', () => setCur(state.currency === 'ILS' ? 'USD' : 'ILS'));
+  if (curToggle) curToggle.addEventListener('click', (e) => {
+    // v154: תפריט פתוח → הכפתור הוא מתג בהיר/כהה (התפריט נשאר פתוח)
+    if (mainMenuOpen()) { e.stopPropagation(); setThemeMode(resolveTheme() === 'dark' ? 'light' : 'dark'); return; }
+    setCur(state.currency === 'ILS' ? 'USD' : 'ILS');
+  });
   // ערכת נושא — מקטע בטאב ההגדרות: בהיר / כהה / מערכת (v108)
   const thL = document.getElementById('themeLight');
   const thD = document.getElementById('themeDark');
@@ -7839,14 +7846,21 @@ function initHeaderButtons() {
   const langBtn = document.getElementById('langBtn');
   const langMenu = document.getElementById('langMenu');
   if (langBtn) {
-    try { langBtn.innerHTML = ICON_GLOBE; } catch (e) {}
+    try { langBtn.innerHTML = btnFacesHTML(ICON_GLOBE, ICON_GEAR); } catch (e) {}
   }
   const closeLangMenu = () => { if (langMenu) langMenu.classList.add('hidden'); };
   if (langBtn && langMenu) {
     langBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const drop = document.getElementById('menuDrop');
-      if (drop) drop.classList.add('hidden');
+      // v154: תפריט פתוח → הגלובוס הוא כפתור "הגדרות"
+      if (mainMenuOpen()) {
+        setMainMenuOpen(false);
+        switchTab('settings');
+        cancelScrollRestore();
+        try { window.scrollTo(0, 0); } catch (err) {}
+        return;
+      }
+      setMainMenuOpen(false);
       langMenu.classList.toggle('hidden');
     });
   }
@@ -7861,43 +7875,45 @@ function initHeaderButtons() {
   renderLangToggle();
 }
 
+/* v154: כשההמבורגר פתוח, שני הכפתורים שלידו מתחלפים באנימציה — גלובוס → הגדרות,
+   מטבע → בהיר/כהה, והמבורגר → ✕. בסגירה הם חוזרים. הכפתורים הכפולים הוסרו מהתפריט. */
+function btnFacesHTML(main, alt) {
+  return '<span class="face face-main">' + main + '</span><span class="face face-alt" aria-hidden="true">' + alt + '</span>';
+}
+function mainMenuOpen() {
+  const d = document.getElementById('menuDrop');
+  return !!d && !d.classList.contains('hidden');
+}
+function setMainMenuOpen(open) {
+  const d = document.getElementById('menuDrop');
+  const btn = document.getElementById('menuBtn');
+  if (!d || !btn) return;
+  d.classList.toggle('hidden', !open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const acts = document.querySelector('.appbar-actions');
+  if (acts) acts.classList.toggle('menu-open', open);
+  const lang = document.getElementById('langBtn');
+  const cur = document.getElementById('curToggleBtn');
+  if (lang) lang.setAttribute('aria-label', open ? t('menuSettings') : t('langAria'));
+  if (cur) cur.setAttribute('aria-label', open ? t('menuThemeAria') : t('curToggleAria'));
+  btn.setAttribute('aria-label', open ? t('menuCloseAria') : t('menuAria'));
+  if (open) { const lm = document.getElementById('langMenu'); if (lm) lm.classList.add('hidden'); }
+}
+
 function initMainMenu() {
   const btn = document.getElementById('menuBtn');
   const drop = document.getElementById('menuDrop');
   if (!btn || !drop) return;
-  btn.innerHTML = ICON_MENU;
-  const closeMenu = () => {
-    drop.classList.add('hidden');
-    btn.setAttribute('aria-expanded', 'false');
-  };
-  const setBtn = document.getElementById('menuSettingsBtn');
-  if (setBtn) {
-    try { setBtn.insertAdjacentHTML('afterbegin', ICON_GEAR); } catch (e) {}
-    setBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      closeMenu();
-      switchTab('settings');
-      cancelScrollRestore(); // כפתור "הגדרות" בתפריט = לראש העמוד בכוונה
-      try { window.scrollTo(0, 0); } catch (err) {}
-    });
-  }
-  /* v108: כפתור ערכה יחיד בתפריט — מחליף בהיר/כהה בלבד */
-  const themeBtn = document.getElementById('menuThemeBtn');
-  if (themeBtn) themeBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setThemeMode(resolveTheme() === 'dark' ? 'light' : 'dark');
-  });
+  btn.innerHTML = btnFacesHTML(ICON_MENU, ICON_CLOSE);
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const willOpen = drop.classList.contains('hidden');
-    drop.classList.toggle('hidden');
-    btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    setMainMenuOpen(!mainMenuOpen());
   });
   document.addEventListener('click', (e) => {
-    if (!drop.classList.contains('hidden') && !e.target.closest('.menu-wrap')) closeMenu();
+    if (mainMenuOpen() && !e.target.closest('.menu-wrap')) setMainMenuOpen(false);
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeMenu();
+    if (e.key === 'Escape' && mainMenuOpen()) setMainMenuOpen(false);
   });
   renderThemeToggle();
 }

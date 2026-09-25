@@ -170,6 +170,27 @@ a { color: var(--link); }
 /* v92: כפתור מטבע יחיד */
 .cur-btn { font-size: 22px; font-weight: 800; }
 
+/* v154: החלפת כפתורים כשההמבורגר פתוח — גלובוס→הגדרות, מטבע→בהיר/כהה, המבורגר→✕.
+   שני "פנים" בכל כפתור, זה מעל זה: הפנים הנוכחיות מסתובבות, מתכווצות ונמוגות, והחדשות
+   נכנסות מהצד השני. עקומת האטה רכה, והכפתור השני מתחיל מעט אחרי הראשון. */
+.icon-btn { position: relative; overflow: hidden; transition: background-color .28s ease, color .28s ease, border-color .28s ease, transform .18s ease; }
+.icon-btn:active { transform: scale(.94); }
+.icon-btn .face {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  transition: transform .38s cubic-bezier(.2, .9, .25, 1.15), opacity .26s ease;
+  will-change: transform, opacity;
+}
+.icon-btn .face-alt { opacity: 0; transform: rotate(-120deg) scale(.4); pointer-events: none; }
+.menu-open .icon-btn .face-main { opacity: 0; transform: rotate(120deg) scale(.4); }
+.menu-open .icon-btn .face-alt { opacity: 1; transform: none; }
+.appbar-actions > :nth-child(2) .face, .appbar-actions > :nth-child(2).icon-btn .face { transition-delay: .04s; }
+.appbar-actions > :nth-child(1) .face, .appbar-actions > .icon-btn:nth-child(1) .face { transition-delay: .08s; }
+/* הכפתורים החדשים באותו סגנון בדיוק כמו כפתורי השפה והמטבע — רק האייקון מתחלף */
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn .face, .icon-btn { transition: opacity .15s linear; }
+  .icon-btn .face-alt, .menu-open .icon-btn .face-main, .menu-open .icon-btn .face-alt { transform: none; }
+}
+
 /* v109: תפריט שפה מינימלי בהדר — צמוד לכפתור הגלובוס */
 .lang-wrap { position: relative; flex: none; }
 .lang-menu {
@@ -805,3 +826,13 @@ footer.fine { text-align: center; }
 /* v151: היררכיית כפתורים — "ניתוק" הוא פעולה הרסנית משנית: מתאר אדום.
    אדום מלא נשמר לכפתורי האיפוס בלבד. */
 #ibkrDisconnect.danger-btn { background: transparent; color: var(--loss); border: 1.5px solid var(--loss); box-shadow: none; }
+
+/* v154: בועת התפריט נכנסת ברכות — יחד עם החלפת הכפתורים */
+.menu-drop:not(.hidden) { animation: menuDropIn .26s cubic-bezier(.2, .9, .25, 1) both; transform-origin: top; }
+@keyframes menuDropIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .menu-drop:not(.hidden) { animation-duration: .12s; } }
+
+/* v154: בועת התפריט נכנסת ברכות — יחד עם החלפת הכפתורים */
+.menu-drop:not(.hidden) { animation: menuDropIn .26s cubic-bezier(.2, .9, .25, 1) both; transform-origin: top; }
+@keyframes menuDropIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .menu-drop:not(.hidden) { animation-duration: .12s; } }

@@ -12,7 +12,7 @@ function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.e
 ok(!/if \(!tdKey\(\)\) \{ switchTab\('settings'\); \}/.test(src), 'אין מעבר כפוי להגדרות כשאין מפתח Twelve Data');
 ok(/history\.scrollRestoration = 'manual'/.test(src), 'הדפדפן לא מתחרה בשחזור (scrollRestoration=manual)');
 ok(/if \(scrollRestoring\(\)\) return; \/\/ v153/.test(src), 'לא שומרים מיקום בזמן שחזור');
-ok(/cancelScrollRestore\(\); \/\/ כפתור "הגדרות"/.test(src), 'כפתור ההגדרות בתפריט מבטל שחזור (לראש העמוד בכוונה)');
+ok(/switchTab\('settings'\);\s*cancelScrollRestore\(\);/.test(src), 'כפתור ההגדרות (גלובוס בתפריט פתוח) מבטל שחזור — לראש העמוד בכוונה');
 
 // סימולציה: עמוד שמתארך אחרי 600ms (תוכן מהענן/רשת)
 const timers = []; let now = 0;
