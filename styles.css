@@ -761,3 +761,6 @@ footer.fine { text-align: center; }
 .mt-actions .link-btn { font-size: 14px; padding: 2px 0; }
 .link-btn.danger { color: var(--loss); }
 .mt-manage .rows { margin: 6px 0 4px; }
+
+/* v145: כותרת "קניות ידניות" בתוך רשימת ההפקדות */
+.rows li.dep-sub { border-top: 1px solid var(--card-border); margin-top: 6px; padding-top: 12px; }

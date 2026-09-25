@@ -417,6 +417,10 @@ he: {
   mtSaved: 'העסקה נשמרה ✓',
   mtDeleted: 'העסקה נמחקה ✓',
   manualTag: 'ידני',
+  depInclManual: 'כולל {amt} קניות ידניות',
+  depManualTitle: 'קניות ידניות — מחוץ ל־IBKR',
+  depManualNote: 'כסף שהוכנס לתיק דרך מניות שהוספת ביד: קנייה = הפקדה, מכירה = משיכה. דולר הומר לשקל לפי שער יום העסקה. לא משנה את התשואה (TWR מנטרל תזרימים).',
+  depManualAvg: 'לפי ממוצע',
   mtShadowed: 'לא נספר — {sym} מוחזקת עכשיו ב־IBKR',
   kvRealized: 'רווח ממומש',
   mtManageHint: 'המניה מנוהלת לפי עסקאות — הכמות והמחיר הממוצע מחושבים מהן.',
@@ -815,6 +819,10 @@ en: {
   mtSaved: 'Trade saved ✓',
   mtDeleted: 'Trade deleted ✓',
   manualTag: 'Manual',
+  depInclManual: 'incl. {amt} in manual buys',
+  depManualTitle: 'Manual buys — outside IBKR',
+  depManualNote: 'Money that entered the portfolio through stocks you added by hand: a buy counts as a deposit, a sell as a withdrawal. USD converted to ILS at the trade-date rate. Does not change the return (TWR neutralizes flows).',
+  depManualAvg: 'By average',
   mtShadowed: 'Not counted — {sym} is now held at IBKR',
   kvRealized: 'Realized P&L',
   mtManageHint: 'This stock is tracked by trades — quantity and average price are computed from them.',
@@ -2823,7 +2831,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v144';
+const APP_VERSION = 'v145';
 
 
 function saveDBto(db) {
@@ -2892,6 +2900,39 @@ let PENSION_DEPOSITS = DB.pensionDeposits;
 /* סך הפקדות נטו — מחושב מהרשומות (סכום שלילי = כסף שנכנס לתיק) */
 function netDepositsILS() {
   return -DEPOSITS.reduce((a, d) => a + (num(d.amount) || 0), 0);
+}
+
+/* v145: כסף שנכנס לתיק מחוץ ל־IBKR — קניות/מכירות ידניות, בשקלים, בכיוון של הפקדה.
+   קנייה = הפקדה (qty×price+עמלה), מכירה = משיכה (qty×price−עמלה). דולר → שקל לפי שער
+   יום העסקה (fxOf), פוזיציה "לפי ממוצע" (בלי תאריך) — עלות × שער נוכחי.
+   amount בכיוון רשומות ההפקדה: שלילי = כסף שנכנס. טהורה, נבדקת. */
+function manualFlowsILS(positions, trades, fxOf, fxNow) {
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const toIls = (v, sym, rate) => (symCur(sym) === 'ILS' ? v : (rate > 0 ? v * rate : null));
+  const rows = [], avgRows = [];
+  let inILS = 0, missing = 0;
+  for (const raw of (trades || [])) {
+    const x = mtNorm(raw);
+    if (!x.sym || !(x.qty > 0) || !(x.price > 0)) continue;
+    const gross = x.qty * x.price;
+    const native = x.side === 'BUY' ? gross + x.fee : gross - x.fee;
+    const ils = toIls(native, x.sym, (fxOf && fxOf(x.date)) || fxNow);
+    if (ils === null) { missing++; continue; }
+    const amount = x.side === 'BUY' ? -r2(ils) : r2(ils);
+    rows.push({ id: x.id, date: x.date, sym: x.sym, side: x.side, qty: x.qty, price: x.price, amount: amount });
+    inILS -= amount;
+  }
+  for (const p of (positions || [])) {
+    if (!p || p.src !== 'manual' || p.fromTrades) continue;
+    const cost = (num(p.shares) || 0) * (num(p.avg) || 0);
+    if (!(cost > 0)) continue;
+    const ils = toIls(cost, p.sym, fxNow);
+    if (ils === null) { missing++; continue; }
+    avgRows.push({ sym: p.sym, qty: num(p.shares), price: num(p.avg), amount: -r2(ils) });
+    inILS += r2(ils);
+  }
+  rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return { rows: rows, avgRows: avgRows, inILS: r2(inILS), missing: missing };
 }
 
 /* מזומן במטבע התצוגה */
@@ -6682,10 +6723,19 @@ function renderTrades() {
 }
 
 function renderDeposits() {
-  const nd = netDepositsILS();
-  const ndTxt = '₪' + Math.abs(nd).toLocaleString('en-US');
+  // v145: במצב IBKR — גם כסף שנכנס מחוץ ל־IBKR דרך קניות ידניות (סה"כ = IBKR + ידני)
+  const mf = isIbkrMode()
+    ? manualFlowsILS(POSITIONS, mtActiveTrades(), (iso) => fxOnOrBefore(iso), state.fx) : null;
+  const hasMf = !!(mf && (mf.rows.length || mf.avgRows.length));
+  if (hasMf && !fxHistCache && mf.rows.some((r) => symCur(r.sym) !== 'ILS') && !state._depFxLoading) {
+    state._depFxLoading = true; // שער יום העסקה — נטען פעם אחת ומצייר שוב
+    ensureFxHist().then(() => renderDeposits()).catch(() => null);
+  }
+  const nd = netDepositsILS() + (hasMf ? mf.inILS : 0);
+  const ndTxt = (nd < 0 ? '−' : '') + '₪' + Math.abs(Math.round(nd * 100) / 100).toLocaleString('en-US');
   document.getElementById('depTotal').textContent = ndTxt;
-  document.getElementById('depCount').textContent = t('records', { n: DEPOSITS.length });
+  document.getElementById('depCount').textContent = t('records', { n: DEPOSITS.length }) +
+    (hasMf ? ' · ' + t('depInclManual', { amt: (mf.inILS < 0 ? '−' : '') + '₪' + Math.abs(mf.inILS).toLocaleString('en-US') }) : '');
   const cn = document.getElementById('calcNotePara');
   if (cn) cn.innerHTML = t('calcNote1', { total: ndTxt }) +
     (isIbkrMode() ? '<br><span class="fine">' + t('ibkrDepositsNote') + '</span>' : '');
@@ -6719,6 +6769,29 @@ function renderDeposits() {
     ul.appendChild(addLi);
   }
   DEPOSITS.forEach((d, i) => ul.appendChild(buildDepositRow(d, i, ed)));
+  if (hasMf) {
+    const head = el('li', 'dep-sub');
+    head.innerHTML = '<span><b>' + esc(t('depManualTitle')) + '</b><br><span class="r-note">' +
+      esc(t('depManualNote')) + '</span></span>';
+    ul.appendChild(head);
+    const side = (s) => (s === 'SELL' ? t('sellSide') : t('buySide'));
+    for (const r of mf.rows) {
+      const li = el('li');
+      li.innerHTML = '<span><span class="r-date">' + fmtDateIL(r.date) + '</span> <span class="src-tag">' +
+        esc(t('manualTag')) + '</span><br><span class="r-note">' + esc(r.sym) + ' · ' + esc(side(r.side)) +
+        ' ' + r.qty + ' × ' + esc(fmtPx(r.price, r.sym)) + '</span></span>' +
+        '<span>' + depositAmountHTML(r.amount) + '</span>';
+      ul.appendChild(li);
+    }
+    for (const r of mf.avgRows) {
+      const li = el('li');
+      li.innerHTML = '<span><span class="r-date">' + esc(t('depManualAvg')) + '</span> <span class="src-tag">' +
+        esc(t('manualTag')) + '</span><br><span class="r-note">' + esc(r.sym) + ' · ' + r.qty + ' × ' +
+        esc(fmtPx(r.price, r.sym)) + '</span></span>' +
+        '<span>' + depositAmountHTML(r.amount) + '</span>';
+      ul.appendChild(li);
+    }
+  }
 }
 
 function buildDepositRow(d, i, ed) {
