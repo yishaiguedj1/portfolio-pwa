@@ -422,8 +422,13 @@ he: {
   demoWdPlace: 'משיכה לחשבון הבנק',
   demoReservePlace: 'הפקדה פותחת',
   demoWlNote: 'במעקב — מומנטום חזק',
-  demoPension: 'קרן פנסיה',
-  demoStudy: 'קרן השתלמות',
+  demoPension: 'קרן פנסיה – מסלול כללי',
+  demoStudy: 'קרן השתלמות – מסלול כללי',
+  demoPension2: 'קרן פנסיה – מסלול מניות',
+  demoNameSpy: 'מחקה S&P 500',
+  demoNameQqq: 'מחקה נאסד"ק 100',
+  demoNameEis: 'מדד ישראל (MSCI)',
+  demoStudy2: 'קרן השתלמות – מסלול S&P 500',
 
   footerNote: 'המחירים מתעדכנים חי כל כמה שניות כשהאפליקציה פתוחה. הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.',
 
@@ -876,8 +881,13 @@ en: {
   demoWdPlace: 'Withdrawal to bank',
   demoReservePlace: 'Opening deposit',
   demoWlNote: 'Watching — strong momentum',
-  demoPension: 'Pension fund',
-  demoStudy: 'Study fund',
+  demoPension: 'Pension fund – General track',
+  demoStudy: 'Study fund – General track',
+  demoPension2: 'Pension fund – Equity track',
+  demoNameSpy: 'S&P 500 ETF',
+  demoNameQqq: 'Nasdaq 100 ETF',
+  demoNameEis: 'Israel index (MSCI)',
+  demoStudy2: 'Study fund – S&P 500 track',
 
   footerNote: 'Prices update live every few seconds while the app is open. The daily chart includes extended-hours trading — pre-market and after-hours. Outside trading hours the last closing price is shown.',
 
@@ -2904,13 +2914,28 @@ function doResetIbkr() {
    "לוהטות" = המומנטום החזק ביותר ב־6 החודשים האחרונים מתוך רשימת מועמדים,
    בתנאי שהן גם מעל המחיר של לפני 18 חודשים. הכל ידני: עסקאות, הפקדות, מזומן, פנסיה. */
 const LS_PREDEMO = 'pwa_predemo_v1';
-const DEMO_US = ('NVDA PLTR AVGO META TSM AMD NFLX MSFT AMZN GOOGL ORCL MU TSLA APP CRWD ANET LLY COST SHOP UBER').split(' ');
-const DEMO_TA = ('ESLT.TA LUMI.TA POLI.TA NVMI.TA TSEM.TA PHOE.TA DSCT.TA TEVA.TA').split(' ');
-const DEMO_US_BUDGET = [9000, 7500, 6500, 6000, 5000, 4500]; // דולר לכל מניה
-const DEMO_TA_BUDGET = [26000, 18000];                        // שקל לכל מניה
-/* רווח יעד לכל מניה — תיק "יפה" אבל אמין (לא קנייה בשפל של קריסה → +500%) */
-const DEMO_US_TARGET = [0.62, 0.48, 0.41, 0.33, 0.27, 0.18];
-const DEMO_TA_TARGET = [0.44, 0.22];
+/* v161: תיק דמו של 6 שנים — מניות ומדדים פופולריים מארה"ב ומישראל, קניות מדורגות לאורך השנים
+   (כולל חיסכון חצי־שנתי במדדים), מימושים חלקיים, הפקדות, ופנסיה/השתלמות עם הפקדה לכל שנה.
+   [סימבול, חודש מתחילת 6 השנים, תקציב לקנייה (דולר / שקל למניה ישראלית), אפשרויות]
+   dca = קנייה חוזרת כל N חודשים; again = קניות נוספות בחודשים; trim = [חלק, מחודש, עד חודש] — מימוש בשיא. */
+const DEMO_PLAN = [
+  ['SPY', 0, 1500, { dca: 6 }], ['QQQ', 3, 1200, { dca: 6 }], ['EIS', 1, 2000, { again: [25] }],
+  ['AAPL', 0, 4000, { trim: [0.2, 40, 56] }], ['MSFT', 2, 4000], ['GOOGL', 4, 3000], ['AMZN', 6, 3000, { again: [22] }],
+  ['NVDA', 9, 3000, { trim: [0.3, 36, 60] }], ['AVGO', 20, 3000], ['META', 26, 3000], ['LLY', 30, 3000],
+  ['COST', 36, 3000], ['TSM', 40, 3000], ['NFLX', 44, 2500],
+  ['LUMI.TA', 1, 12000, { trim: [0.3, 30, 50] }], ['ESLT.TA', 8, 15000], ['POLI.TA', 28, 10000], ['DSCT.TA', 34, 8000],
+  ['TSEM.TA', 38, 9000], ['TEVA.TA', 44, 6000], ['NVMI.TA', 48, 10000], ['PHOE.TA', 52, 8000],
+];
+/* מועמדים ל"לוהטות" (קנייה בשנה האחרונה) ולרשימת המעקב — לפי מומנטום בזמן היצירה */
+const DEMO_HOT = ('PLTR APP ANET CRWD MU AMD SHOP UBER ORCL TSLA').split(' ');
+const DEMO_US = DEMO_PLAN.filter((x) => !/\.TA$/.test(x[0])).map((x) => x[0]).concat(DEMO_HOT);
+const DEMO_TA = DEMO_PLAN.filter((x) => /\.TA$/.test(x[0])).map((x) => x[0]);
+const DEMO_YEARS = 6;
+/* פנסיה והשתלמות: [מפתח שם, סוג, הפקדה שנתית בשנה הראשונה, גידול הפקדה לשנה, תשואה שנתית] */
+const DEMO_FUNDS = [
+  ['demoPension', 'pension', 30000, 0.06, 0.065], ['demoPension2', 'pension', 12000, 0.05, 0.095],
+  ['demoStudy', 'study', 15500, 0.02, 0.06], ['demoStudy2', 'study', 8000, 0.03, 0.11],
+];
 
 /* נקודת קנייה: התאריך האחרון בחלון שבו המחיר היה ≤ מחיר היום ÷ (1+יעד).
    אם המחיר מעולם לא ירד כך בחלון — השפל של החלון. טהורה. */
@@ -2962,61 +2987,90 @@ function demoStockName(sym, lang) {
   return extra[sym] || sym;
 }
 
+/* חודש m אחרי תאריך ISO (יום בחודש נחתך לסוף החודש). טהורה. */
+function demoAddMonths(iso, m) {
+  const y = +iso.slice(0, 4), mo = +iso.slice(5, 7) - 1 + m, d = +iso.slice(8, 10);
+  const t = new Date(Date.UTC(y, mo, 1));
+  const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+  t.setUTCDate(Math.min(d, last));
+  return t.toISOString().slice(0, 10);
+}
+/* יום המסחר הראשון מתאריך (עד 10 ימים קדימה). טהורה. */
+function demoRowFrom(h, iso) {
+  for (const r of (h || [])) if (r.date >= iso && r.close > 0) return r.date <= addDaysISO(iso, 10) ? r : null;
+  return null;
+}
+
 /* בונה את תיק הדמו — טהורה (hist, שערים ותאריך מבחוץ). tr = פונקציית תרגום.
-   קנייה ראשונה = הנקודה האחרונה (3–18 חודשים אחורה) שנותנת את רווח היעד של המניה;
-   מניה זוגית מוסיפה בהמשך (חצי מהיעד), מניה אי־זוגית מממשת ~30% בשיא שאחרי הקנייה.
-   כל קנייה ממומנת בהפקדה (מעוגלת ל־₪1,000 למעלה) — העודף נשאר מזומן; אחרי מכירה —
-   משיכה של כמחצית. כך שווי − הפקדות = רווח אמיתי (עד תנודות שער). */
+   picks = { plan: סימבולים מ־DEMO_PLAN שיש להם היסטוריה, hot: 2 "לוהטות", watch: למעקב }.
+   כל קנייה ממומנת בהפקדה (מעוגלת ל־₪1,000 למעלה) — העודף נשאר מזומן; אחרי מימוש — משיכה של
+   כמחצית. כך שווי − הפקדות = רווח אמיתי (עד תנודות שער). */
 function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
   const r2 = (v) => Math.round(v * 100) / 100;
   const fx = (d) => (fxOf && fxOf(d)) || fxNow;
   const trades = [], deposits = [];
   let usdCash = 0, ilsCash = 0, n = 0;
   const addDep = (iso, ils, place) => deposits.push({ date: fmtDateIL(iso), amount: ils > 0 ? -ils : Math.abs(ils), place: place, _iso: iso });
-  const all = picks.us.map((s, i) => ({ s, cur: 'USD', budget: DEMO_US_BUDGET[i] || 4000, target: DEMO_US_TARGET[i] || 0.2, i }))
-    .concat(picks.ta.map((s, i) => ({ s, cur: 'ILS', budget: DEMO_TA_BUDGET[i] || 15000, target: DEMO_TA_TARGET[i] || 0.2, i: i + 1 })));
-  for (const o of all) {
-    const h = hist[o.s] || [];
-    const fee = o.cur === 'ILS' ? 5 : 1.5;
-    const buy = (row, qty) => {
-      const price = r2(row.close);
-      trades.push({ id: 'demo' + (++n), date: row.date, sym: o.s, side: 'BUY', qty: qty, price: price, fee: fee });
-      const cost = qty * price + fee;
-      const costIls = o.cur === 'ILS' ? cost : cost * fx(row.date);
-      const dep = Math.ceil(costIls / 1000) * 1000;
-      const dIso = addDaysISO(row.date, -3);
-      addDep(dIso, dep, tr('demoDepPlace'));
-      if (o.cur === 'ILS') ilsCash += dep - cost; else usdCash += dep / fx(row.date) - cost;
-    };
-    if (!h.length) continue;
-    const lastPx = h[h.length - 1].close;
-    const b1 = demoEntry(h, lastPx, o.target, addDaysISO(today, -540), addDaysISO(today, -90));
-    if (!b1) continue;
-    buy(b1, Math.max(1, Math.floor(o.budget * 0.7 / b1.close)));
-    if (o.i % 2 === 0) {
-      const b2 = demoEntry(h, lastPx, o.target * 0.6, addDaysISO(b1.date, 30), addDaysISO(today, -21));
-      if (b2 && b2.date > b1.date) buy(b2, Math.max(1, Math.floor(o.budget * 0.3 / b2.close)));
-    } else {
-      const sp = demoExtreme(h, addDaysISO(b1.date, 20), addDaysISO(today, -14), true);
-      const st = mtPosition(trades, o.s);
-      const q = Math.floor(st.shares * 0.3);
-      if (sp && q >= 1 && sp.close > st.avg) {
-        const price = r2(sp.close);
-        trades.push({ id: 'demo' + (++n), date: sp.date, sym: o.s, side: 'SELL', qty: q, price: price, fee: fee });
-        const proceeds = q * price - fee;
-        if (o.cur === 'ILS') ilsCash += proceeds; else usdCash += proceeds;
-        const wIso = addDaysISO(sp.date, 7);
-        const pIls = o.cur === 'ILS' ? proceeds : proceeds * fx(wIso);
-        const w = Math.floor(pIls * 0.5 / 1000) * 1000;
-        if (w > 0) {
-          addDep(wIso, -w, tr('demoWdPlace'));
-          if (o.cur === 'ILS') ilsCash -= w; else usdCash -= w / fx(wIso);
-        }
-      }
+  const start = addDaysISO(demoAddMonths(today, -12 * DEMO_YEARS), 7);
+  const lastBuy = addDaysISO(today, -21);
+  const buy = (sym, row, budget) => {
+    const isTa = symCur(sym) === 'ILS';
+    const qty = Math.max(1, Math.floor(budget / row.close));
+    const price = r2(row.close);
+    const fee = isTa ? 5 : 1.5;
+    trades.push({ id: 'demo' + (++n), date: row.date, sym: sym, side: 'BUY', qty: qty, price: price, fee: fee });
+    const cost = qty * price + fee;
+    const costIls = isTa ? cost : cost * fx(row.date);
+    const dep = Math.ceil(costIls / 1000) * 1000;
+    addDep(addDaysISO(row.date, -3), dep, tr('demoDepPlace'));
+    if (isTa) ilsCash += dep - cost; else usdCash += dep / fx(row.date) - cost;
+  };
+  const sell = (sym, row, frac) => {
+    const st = mtPosition(trades, sym, row.date);
+    const q = Math.floor(st.shares * frac);
+    if (q < 1 || !(row.close > st.avg)) return;
+    const isTa = symCur(sym) === 'ILS';
+    const fee = isTa ? 5 : 1.5;
+    const price = r2(row.close);
+    trades.push({ id: 'demo' + (++n), date: row.date, sym: sym, side: 'SELL', qty: q, price: price, fee: fee });
+    const proceeds = q * price - fee;
+    if (isTa) ilsCash += proceeds; else usdCash += proceeds;
+    const wIso = addDaysISO(row.date, 7);
+    const w = Math.floor((isTa ? proceeds : proceeds * fx(wIso)) * 0.5 / 1000) * 1000;
+    if (w > 0 && wIso <= today) {
+      addDep(wIso, -w, tr('demoWdPlace'));
+      if (isTa) ilsCash -= w; else usdCash -= w / fx(wIso);
+    }
+  };
+  const want = new Set(picks.plan || []);
+  for (const [sym, m0, budget, o] of DEMO_PLAN) {
+    if (!want.has(sym)) continue;
+    const h = hist[sym] || [];
+    const opt = o || {};
+    const months = [m0];
+    if (opt.dca) for (let m = m0 + opt.dca; demoAddMonths(start, m) <= lastBuy; m += opt.dca) months.push(m);
+    for (const m of (opt.again || [])) months.push(m);
+    for (const m of months.sort((a, b) => a - b)) {
+      const iso = demoAddMonths(start, m);
+      if (iso > lastBuy) continue;
+      const row = demoRowFrom(h, iso);
+      if (row) buy(sym, row, budget);
+    }
+    if (opt.trim && trades.some((x) => x.sym === sym)) {
+      const from = demoAddMonths(start, opt.trim[1]);
+      const to = demoAddMonths(start, opt.trim[2]) < addDaysISO(today, -14) ? demoAddMonths(start, opt.trim[2]) : addDaysISO(today, -14);
+      const pk = demoExtreme(h, from, to, true);
+      if (pk) sell(sym, pk, opt.trim[0]);
     }
   }
+  // "לוהטות": קנייה בשנה האחרונה בנקודה שנותנת רווח יעד — שגם הטווחים הקצרים ייראו חיים
+  (picks.hot || []).forEach((sym, k) => {
+    const h = hist[sym] || [];
+    if (!h.length) return;
+    const row = demoEntry(h, h[h.length - 1].close, [0.34, 0.22][k] || 0.2, addDaysISO(today, -365), addDaysISO(today, -60));
+    if (row) buy(sym, row, 2500);
+  });
   if (!trades.length) return null;
-  // הפקדה פותחת לרזרבת מזומן — חלק נשאר בשקלים, חלק הומר לדולרים
   const first = trades.reduce((a, x) => (x.date < a ? x.date : a), trades[0].date);
   const rIso = addDaysISO(first, -10);
   addDep(rIso, 8000, tr('demoReservePlace'));
@@ -3027,9 +3081,26 @@ function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
   const positions = [];
   for (const sym of syms) {
     const st = mtPosition(trades, sym);
-    if (st.shares > 0) positions.push({ sym: sym, name: demoStockName(sym, lang), full: '', shares: st.shares, avg: st.avg, src: 'manual', fromTrades: true });
+    const idxKey = { SPY: 'demoNameSpy', QQQ: 'demoNameQqq', EIS: 'demoNameEis' }[sym];
+    const nm = (idxKey && tr(idxKey)) || demoStockName(sym, lang);
+    if (st.shares > 0) positions.push({ sym: sym, name: nm, full: '', shares: st.shares, avg: st.avg, src: 'manual', fromTrades: true });
   }
-  const y = Number(today.slice(0, 4));
+  // פנסיה והשתלמות: הפקדה לכל שנה (השנה הנוכחית — לפי החודשים שעברו), שווי = הפקדות שצמחו בתשואה השנתית
+  const y = Number(today.slice(0, 4)), monthsNow = Number(today.slice(5, 7));
+  const pensionFunds = [], pensionDeposits = [];
+  for (const [key, kind, dep0, depGrow, ret] of DEMO_FUNDS) {
+    let value = 0;
+    for (let k = 0; k < DEMO_YEARS; k++) {
+      const yr = y - DEMO_YEARS + 1 + k;
+      const part = yr === y ? monthsNow / 12 : 1;
+      const dep = Math.round(dep0 * Math.pow(1 + depGrow, k) * part / 100) * 100;
+      if (!(dep > 0)) continue;
+      pensionDeposits.push({ place: tr(key), period: String(yr), amount: -dep, note: '', kind: kind });
+      const age = (y - yr) + (monthsNow / 12) - part / 2; // הפקדה באמצע התקופה שלה
+      value += dep * Math.pow(1 + ret, Math.max(0, age));
+    }
+    pensionFunds.push({ name: tr(key), usd: 0, ils: Math.round(value / 100) * 100, kind: kind });
+  }
   return {
     v: 1,
     positions: positions,
@@ -3037,21 +3108,23 @@ function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
     manualTrades: trades,
     cash: { usd: r2(Math.max(0, usdCash)), ils: r2(Math.max(0, ilsCash)) },
     wishlist: (picks.watch || []).map((s) => ({ sym: s, note: tr('demoWlNote') })),
-    pensionFunds: [
-      { name: tr('demoPension'), usd: 0, ils: 186400, kind: 'pension' },
-      { name: tr('demoStudy'), usd: 0, ils: 94700, kind: 'study' },
-    ],
-    pensionDeposits: [
-      { place: tr('demoPension'), period: String(y), amount: -38000, note: '', kind: 'pension' },
-      { place: tr('demoPension'), period: String(y - 1), amount: -52000, note: '', kind: 'pension' },
-      { place: tr('demoPension'), period: String(y - 2), amount: -49000, note: '', kind: 'pension' },
-      { place: tr('demoStudy'), period: String(y), amount: -15000, note: '', kind: 'study' },
-      { place: tr('demoStudy'), period: String(y - 1), amount: -20500, note: '', kind: 'study' },
-      { place: tr('demoStudy'), period: String(y - 2), amount: -20500, note: '', kind: 'study' },
-    ],
+    pensionFunds: pensionFunds,
+    pensionDeposits: pensionDeposits.sort((a, b) => (a.period < b.period ? 1 : a.period > b.period ? -1 : 0)),
     source: 'manual',
     demo: true,
   };
+}
+
+/* מי נכנס לדמו: מתוכנית 6 השנים — כל מי שיש לו היסטוריה מתחילת התקופה; 2 "לוהטות"
+   ו־3 למעקב לפי מומנטום (demoPickHot). טהורה. */
+function demoPicks(hist, today) {
+  const start = addDaysISO(demoAddMonths(today, -12 * DEMO_YEARS), 7);
+  const plan = DEMO_PLAN.map((x) => x[0]).filter((sym) => {
+    const h = hist[sym] || [];
+    return h.length > 200 && h[0].date <= addDaysISO(start, 20);
+  });
+  const hotRank = demoPickHot(hist, DEMO_HOT, 5, today);
+  return { plan: plan, hot: hotRank.slice(0, 2), watch: hotRank.slice(2, 5) };
 }
 
 let _demoBusy = false;
@@ -3066,18 +3139,20 @@ async function demoCreate(btn) {
     const demoTexts = {
       demoDepPlace: t('demoDepPlace'), demoWdPlace: t('demoWdPlace'), demoReservePlace: t('demoReservePlace'),
       demoWlNote: t('demoWlNote'), demoPension: t('demoPension'), demoStudy: t('demoStudy'),
+      demoPension2: t('demoPension2'), demoStudy2: t('demoStudy2'),
+      demoNameSpy: t('demoNameSpy'), demoNameQqq: t('demoNameQqq'), demoNameEis: t('demoNameEis'),
     };
     const hist = {};
-    await Promise.all(DEMO_US.concat(DEMO_TA).map(async (s) => {
-      try { hist[s] = (await getDailyFast(s)) || []; } catch (e) { hist[s] = []; }
-    }));
-    const rankUS = demoPickHot(hist, DEMO_US, 9, today);
-    const picks = { us: rankUS.slice(0, 6), ta: demoPickHot(hist, DEMO_TA, 2, today), watch: rankUS.slice(6, 9) };
-    try { await ensureFxHist(addDaysISO(today, -600)); } catch (e) {}
-    const db = picks.us.length >= 3
+    // v161: היסטוריה של 6+ שנים (force — מטמון רגיל הוא 5 שנים)
+    await pool(DEMO_US.concat(DEMO_TA), 6, async (s) => {
+      try { hist[s] = (await getDailyFast(s, true)) || []; } catch (e) { hist[s] = []; }
+    });
+    const picks = demoPicks(hist, today);
+    try { await ensureFxHist(addDaysISO(today, -(DEMO_YEARS * 366 + 30))); } catch (e) {}
+    const db = picks.plan.length >= 8
       ? demoBuild(hist, picks, (d) => fxOnOrBefore(d), state.fx || 3.7, today, (k) => demoTexts[k], state.lang) : null;
     // לא שומרים היסטוריה של מועמדים שלא נבחרו — חוסך מקום בטלפון
-    const keep = new Set(picks.us.concat(picks.ta, picks.watch));
+    const keep = new Set(picks.plan.concat(picks.hot, picks.watch));
     for (const s of Object.keys(hist)) if (!keep.has(s)) { delete state.hist[s]; try { localStorage.removeItem(LS_HIST + s); } catch (e) {} }
     if (!db) { flash(t('demoFail')); return; }
     // שמירה אחרונה של הנתונים האמיתיים לענן — ואז גיבוי מקומי, והדמו לא נשמר בענן
@@ -3559,7 +3634,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v160';
+const APP_VERSION = 'v161';
 
 
 function saveDBto(db) {
@@ -4471,6 +4546,7 @@ async function getDaily(sym, force) {
   const save = (rows) => {
     // v72: רשת ביטחון לספליטים גם בנתיב fetch טרי (כמו ב־_getDailyFastInner)
     if (rows) { try { repairKnownSplits(sym, rows); } catch (e) {} } // v74: תמיד, לא רק כשחסר
+    if (isDemoMode()) rows = histSlimForDemo(rows);
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
     delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
@@ -4482,7 +4558,7 @@ async function getDaily(sym, force) {
   const td = await fetchTwelveBars(sym, 'daily', wantMax, notes);
   if (td === 'BADKEY') clearTdKey(notes);
   else if (td) return save(td);
-  const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (wantMax ? 'max' : '5y'), host);
+  const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (wantMax ? 'max' : isDemoMode() ? '10y' : '5y'), host);
   let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
           || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
   if (rows) return save(rows);
@@ -4585,7 +4661,19 @@ function renderPfBenchToggles(show) {
 /* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
    הראשון שעונה מנצח, בלי לחכות ל־timeout של מקור חסום. Twelve Data רק
    כגיבוי אחרון (צריך מפתח). אותו מטמון ואותו פורמט שורות כמו getDaily. */
+/* v161: תיק הדמו — 7 השנים האחרונות, תאריך + סגירה בלבד (מעוגל). 30+ מניות × 10 שנים במבנה המלא
+   (פתיחה/גבוה/נמוך/מחזור) מילאו ~5.6MB — על גבול הזיכרון של הדפדפן בטלפון. */
+function histSlimForDemo(rows) {
+  if (!rows || !rows.length) return rows;
+  const cut = addDaysISO(todayISO(), -7 * 366);
+  const out = rows.filter((r) => r.date >= cut).map((r) => ({ date: r.date, close: Math.round(r.close * 1e4) / 1e4 }));
+  if (rows.splitsApplied) out.splitsApplied = rows.splitsApplied;
+  return out;
+}
+
 async function _getDailyFastInner(sym, force) {
+  // v161: תיק הדמו מציג 6 שנים — בדמו (ובזמן בנייתו) 10 שנים מ־Yahoo, נחתך ל־7 כדי לא למלא את הטלפון
+  const demoLong = isDemoMode() || _demoBusy;
   if (!force) {
     if (state.hist[sym]) return state.hist[sym];
     // v72: כשלון טרי — לא שורפים timeout רשת שוב; מחזירים מטמון פג־תוקף אם קיים
@@ -4615,6 +4703,7 @@ async function _getDailyFastInner(sym, force) {
     // כבר־מותאמים בלי מטא, ובלי המטא buildTradesHistory לא ממיר עסקאות
     // טרום־ספליט (באג שיורי: מקסימום ‎-12%‎ במקום ‎+47.95%‎). אידמפוטנטי.
     if (rows) { try { repairKnownSplits(sym, rows); } catch (e) {} } // v74: תמיד, לא רק כשחסר
+    if (demoLong) rows = histSlimForDemo(rows);
     state.hist[sym] = rows;
     state.histDbg[sym] = null;
     delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
@@ -4625,7 +4714,7 @@ async function _getDailyFastInner(sym, force) {
     return rows;
   };
   const notes = [];
-  const dq = (host) => yahooURL(sym, 'interval=1d&range=5y', host);
+  const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (demoLong ? '10y' : '5y'), host);
   // מרוץ מקבילי: הראשון שעונה מנצח — לא מחכים ל־timeout של מקור חסום (v19 לימד אותנו)
   const racers = [
     fetchYahooBars(dq('query1'), false, notes, 'Yahoo', 8000),

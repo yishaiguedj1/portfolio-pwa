@@ -99,12 +99,12 @@ const man = { positions: [{ sym: 'Q', shares: 1, avg: 1 }], deposits: [{ date: '
 A('resetManualData')(man, false);
 ok(man.positions.length === 0 && man.deposits.length === 0 && man.cash.usd === 0, 'מצב ידני: איפוס ידני מנקה הכל כולל מזומן');
 
-// --- 4. תיק דמו ---
+// --- 4. תיק דמו (v161: 6 שנים, מניות ומדדים מארה"ב ומישראל, פנסיה והשתלמות) ---
 const today = '2026-09-25';
-function series(start, mult, days) { // מחיר שעולה בהדרגה עם גלים — ימי חול בלבד
-  const out = []; const t = new Date('2024-06-01T00:00:00Z');
+function series(start, mult, from) { // מחיר שעולה בהדרגה עם גלים — ימי חול בלבד, מ־from עד היום
+  const out = []; const t = new Date((from || '2019-06-03') + 'T00:00:00Z');
   let k = 0;
-  while (out.length < days) {
+  for (;;) {
     const wd = t.getUTCDay();
     if (wd !== 0 && wd !== 6) {
       const iso = t.toISOString().slice(0, 10);
@@ -117,20 +117,29 @@ function series(start, mult, days) { // מחיר שעולה בהדרגה עם ג
   return out;
 }
 const hist = {};
-const us = A('DEMO_US'), ta = A('DEMO_TA');
-us.forEach((s, k) => { hist[s] = series(50 + k * 7, 1 + 0.0004 * (k + 1), 900); });
-ta.forEach((s, k) => { hist[s] = series(30 + k * 5, 1 + 0.0006 * (k + 1), 900); });
-hist.COST = series(900, 0.9995, 900); // יורדת — לא "לוהטת"
-const rank = A('demoPickHot')(hist, us, 9, today);
-ok(rank.length === 9 && !rank.includes('COST'), 'בחירה: מניה בירידה לא נבחרת');
-ok(rank[0] === us[us.length - 2] || rank[0] === us[us.length - 1], 'בחירה: המומנטום החזק ביותר ראשון');
-const picks = { us: rank.slice(0, 6), ta: A('demoPickHot')(hist, ta, 2, today), watch: rank.slice(6, 9) };
+const us = A('DEMO_US'), ta = A('DEMO_TA'), hot = A('DEMO_HOT');
+us.forEach((s, k) => { hist[s] = series(50 + k * 7, 1 + 0.0004 * (k % 7 + 1)); });
+ta.forEach((s, k) => { hist[s] = series(30 + k * 5, 1 + 0.0005 * (k + 1)); });
+hist.TSLA = series(900, 0.9995); // יורדת — לא "לוהטת"
+hist.NFLX = series(300, 1.0004, '2023-01-02'); // היסטוריה קצרה — לא נכנסת לתוכנית 6 השנים
+const rank = A('demoPickHot')(hist, hot, 5, today);
+ok(rank.length === 5 && !rank.includes('TSLA'), 'בחירה: מניה בירידה לא נבחרת');
+const picks = A('demoPicks')(hist, today);
+ok(!picks.plan.includes('NFLX') && picks.plan.includes('SPY') && picks.plan.includes('ESLT.TA'), 'בלי היסטוריה של 6 שנים — לא בתוכנית');
+ok(picks.hot.length === 2 && picks.watch.length === 3, 'שתי "לוהטות" ושלוש למעקב');
 const fxOf = (d) => (d < '2026-01-01' ? 3.6 : 3.3);
 const db = A('demoBuild')(hist, picks, fxOf, 3.1, today, (k) => 'T:' + k, 'he');
 ok(db && db.demo === true && db.source === 'manual', 'דמו: מסומן דמו, מצב ידני');
-ok(db.positions.length === 8 && db.positions.every((p) => p.src === 'manual' && p.fromTrades), 'דמו: 8 מניות (6 ארה"ב + 2 ת"א), כולן לפי עסקאות — לא לפי ממוצע');
-ok(db.positions.filter((p) => /\.TA$/.test(p.sym)).length === 2, 'דמו: שתי מניות ישראליות');
+const first = db.manualTrades.reduce((a, x) => (x.date < a ? x.date : a), '9999');
+ok(first <= '2020-10-15' && first >= '2020-09-20', 'דמו: העסקה הראשונה לפני ~6 שנים (' + first + ')');
+ok(db.positions.length >= 20 && db.positions.every((p) => p.src === 'manual' && p.fromTrades), 'דמו: ' + db.positions.length + ' אחזקות, כולן לפי עסקאות');
+ok(db.positions.filter((p) => /\.TA$/.test(p.sym)).length === 8, 'דמו: 8 מניות ישראליות');
+ok(['SPY', 'QQQ', 'EIS'].every((s) => db.positions.some((p) => p.sym === s)), 'דמו: מדדים — S&P 500, נאסד"ק 100, ישראל');
+ok(db.positions.find((p) => p.sym === 'SPY').name === 'T:demoNameSpy', 'דמו: שם מדד מתורגם');
+ok(db.manualTrades.filter((x) => x.sym === 'SPY').length >= 11, 'דמו: חיסכון חצי־שנתי במדד (' + db.manualTrades.filter((x) => x.sym === 'SPY').length + ' קניות)');
 ok(db.manualTrades.some((x) => x.side === 'SELL') && db.manualTrades.some((x) => x.side === 'BUY'), 'דמו: קניות וגם מכירות');
+const years = new Set(db.manualTrades.map((x) => x.date.slice(0, 4)));
+ok(years.size >= 6, 'דמו: עסקאות בכל שנה (' + [...years].sort().join(',') + ')');
 let bad = 0;
 for (const x of db.manualTrades) { const r = A('mtValidate')(db.manualTrades.filter((y) => y !== x), x, null, today); if (r && r.err) bad++; }
 ok(bad === 0, 'דמו: כל העסקאות עוברות את הוולידציה של הטופס (תאריך, כמות, מחיר)');
@@ -151,10 +160,20 @@ const depIls = -db.deposits.reduce((a, d) => a + d.amount, 0);
 const ret = valUsd * 3.1 / depIls - 1;
 ok(ret > 0.05, 'דמו: תשואה חיובית מול ההפקדות (' + (ret * 100).toFixed(1) + '%)');
 ok(db.positions.every((p) => last(p.sym) > p.avg), 'דמו: כל מניה ברווח');
-ok(db.pensionFunds.length === 2 && db.pensionDeposits.length > 0 && db.wishlist.length === 3, 'דמו: פנסיה, השתלמות, ורשימת מעקב');
+ok(db.pensionFunds.length === 4 && db.pensionFunds.filter((f) => f.kind === 'study').length === 2, 'דמו: 2 קרנות פנסיה + 2 קרנות השתלמות');
+ok(db.pensionDeposits.length === 24 && new Set(db.pensionDeposits.map((d) => d.period)).size === 6, 'דמו: הפקדה לכל קרן בכל אחת מ־6 השנים');
+for (const f of db.pensionFunds) {
+  const dep = -db.pensionDeposits.filter((d) => d.place === f.name).reduce((a, d) => a + d.amount, 0);
+  if (!(f.ils > dep)) ok(false, 'דמו: שווי הקרן גבוה מההפקדות — ' + f.name);
+}
+ok(true, 'דמו: כל קרן שווה יותר מסך ההפקדות אליה');
+ok(db.wishlist.length === 3, 'דמו: רשימת מעקב');
 ok(db.deposits[0].place.startsWith('T:') && db.pensionFunds[0].name.startsWith('T:'), 'דמו: טקסטים דרך תרגום (עברית/אנגלית)');
+const slim = A('histSlimForDemo')([{ date: '2015-01-02', close: 1, open: 1, high: 1, low: 1, volume: 5 }, { date: '2026-09-01', close: 12.345678, open: 1, high: 2, low: 0.5, volume: 9 }]);
+ok(slim.length === 1 && Object.keys(slim[0]).join() === 'date,close' && slim[0].close === 12.3457, 'דמו: היסטוריה נחתכת ל־7 שנים ונשמרת רזה (תאריך + סגירה) — לא ממלאים את הזיכרון בטלפון');
+ok(/if \(isDemoMode\(\)\) rows = histSlimForDemo\(rows\);/.test(src) && /if \(demoLong\) rows = histSlimForDemo\(rows\);/.test(src), 'דמו: שני מסלולי השמירה רזים');
 ok(A('demoStockName')('TEVA.TA', 'he') === 'טבע' && A('demoStockName')('ANET', 'he') === 'Arista Networks', 'דמו: שמות מניות');
-ok(A('demoBuild')({}, { us: [], ta: [] }, fxOf, 3, today, (k) => k, 'he') === null, 'דמו בלי נתוני שוק: null (הודעת שגיאה, לא תיק ריק)');
+ok(A('demoBuild')({}, { plan: [], hot: [] }, fxOf, 3, today, (k) => k, 'he') === null, 'דמו בלי נתוני שוק: null (הודעת שגיאה, לא תיק ריק)');
 
 // --- 5. מצב דמו לא נכתב לענן ולא נדרס ממנו ---
 ok(/function scheduleSave\(\) \{\n\s+if \([^)]*demoOn\(\)\) return;/.test(cloudSrc), 'ענן: לא שומרים במצב דמו (scheduleSave)');
