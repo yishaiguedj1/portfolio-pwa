@@ -34,7 +34,7 @@ ok(/₪2,000/.test(dep(-2000)) && !/−/.test(dep(-2000)), 'הפקדה: ללא �
 ok(/direction:\s*ltr/.test(rule('.rows .r-amt')), 'סימן תמיד לפני המספר');
 ok(/--on-surface-var/.test(rule('.rows .r-amt.in')), 'משיכה באפור, ירוק שמור לרווח');
 // 6. מעקב
-ok(/border-radius:\s*16px/.test(rule('.form-row input[type="text"]')) && /font-size:\s*17px/.test(rule('.form-row input[type="text"]')), 'שדות המעקב כמו שאר הטפסים');
+ok(/border-radius:\s*(16px|var\(--radius-sm\))/.test(rule('.form-row input[type="text"]')) && /font-size:\s*17px/.test(rule('.form-row input[type="text"]')), 'שדות המעקב כמו שאר הטפסים');
 ok(/mini-btn danger wl-del/.test(src) && !/wl-del[^>]*>✕/.test(src), 'מעקב: כפתור "מחק" כמו בשאר הטאבים');
 // 7. התחברות
 ok(/#0F7A5A/.test(rule('.login-overlay')) && !/#1a73e8/i.test(css), 'מסך התחברות בירוק המותג');

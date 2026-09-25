@@ -54,6 +54,7 @@
   --radius: 22px;
   --radius-sm: 16px;
   --radius-xs: 12px;
+  --pill: 999px;                    /* גלולות: כפתורים, תגיות, טאבים */
   --shadow-sm: 0 1px 2px rgba(20, 40, 30, .05);
   --shadow: 0 1px 3px rgba(20, 40, 30, .06), 0 10px 30px rgba(20, 40, 30, .07);
   --glass-blur: blur(22px) saturate(1.7);
@@ -223,7 +224,7 @@ a { color: var(--link); }
 /* ---- Status banner ---- */
 .banner {
   margin: 16px 16px 0; padding: 12px 16px;
-  border-radius: 16px; font-size: 15px; font-weight: 600;
+  border-radius: var(--radius-sm); font-size: 15px; font-weight: 600;
   background: var(--warn-bg); color: var(--warn-fg);
   border: 1px solid var(--warn-border);
 }
@@ -244,7 +245,7 @@ a { color: var(--link); }
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  border-radius: var(--pill);
   box-shadow: var(--shadow), var(--glass-hi);
 }
 .tabs::-webkit-scrollbar { display: none; }
@@ -258,7 +259,7 @@ button, a, .tab, .icon-btn, .ss-add {
 .tab {
   flex: 1 0 auto; min-width: 0; border: 0; cursor: pointer; font-family: var(--font);
   font-size: 16px; font-weight: 600; color: var(--on-surface-var);
-  background: transparent; border-radius: 999px;
+  background: transparent; border-radius: var(--pill);
   padding: 12px 10px;
   display: flex; align-items: center; justify-content: center; gap: 6px;
   white-space: nowrap;
@@ -272,7 +273,7 @@ button, a, .tab, .icon-btn, .ss-add {
 .icon-btn, .ss-add { transition: transform .16s ease, background .25s ease; }
 .icon-btn:active, .ss-add:active { transform: scale(.9); }
 .count-chip {
-  background: var(--primary); color: var(--on-primary); border-radius: 999px;
+  background: var(--primary); color: var(--on-primary); border-radius: var(--pill);
   font-size: 13px; padding: 2px 9px; font-weight: 700;
 }
 .tab.active .count-chip { background: var(--on-primary); color: var(--primary); }
@@ -372,13 +373,13 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }
 .range-btn {
   flex: none; border: 1px solid var(--outline); background: var(--surface);
-  border-radius: 999px; padding: 8px 15px; font-size: 14px; font-weight: 600;
+  border-radius: var(--pill); padding: 8px 15px; font-size: 14px; font-weight: 600;
   font-family: var(--font); color: var(--on-surface-var); cursor: pointer;
 }
 .range-btn.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .measure-btn {
   flex: none; border: 1px dashed var(--primary); background: var(--primary-container);
-  color: var(--on-primary-container); border-radius: 999px; padding: 8px 15px;
+  color: var(--on-primary-container); border-radius: var(--pill); padding: 8px 15px;
   font-size: 14px; font-weight: 700; font-family: var(--font); cursor: pointer;
 }
 .measure-btn.on { background: var(--primary); color: var(--on-primary); border-style: solid; }
@@ -423,7 +424,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .pf-bench-row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:2px 0 4px; }
 .pf-bench-toggle {
   display:inline-flex; align-items:center; gap:7px;
-  padding:7px 14px 7px 12px; border-radius:999px; cursor:pointer;
+  padding:7px 14px 7px 12px; border-radius: var(--pill); cursor:pointer;
   border:1px solid var(--outline, #E3E7E4); background:var(--surface, #fff);
   font-size:13.5px; font-weight:600; color:var(--on-surface-var, #6B756F);
   transition:transform .15s ease, opacity .15s ease, background .15s ease, color .15s ease, border-color .15s ease;
@@ -457,7 +458,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .pf-sheet .sheet-btn:active { background: var(--secondary-container); }
 .pf-sheet input[type="date"] {
   width: 100%; font: inherit; font-size: 17px; padding: 12px;
-  border-radius: 12px; border: 1px solid var(--outline);
+  border-radius: var(--radius-xs); border: 1px solid var(--outline);
   background: var(--surface); color: var(--on-surface); margin: 0 0 12px;
 }
 .pf-sheet .sheet-row { display: flex; gap: 10px; }
@@ -466,7 +467,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .pf-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 8px; }
 .pf-from-lbl { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--on-surface-var); }
 .pf-from-lbl input[type="date"] { font: inherit; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); }
-.pf-tip { position: absolute; z-index: 5; background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.14); pointer-events: none; max-width: 220px; }
+.pf-tip { position: absolute; z-index: 5; background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius-xs); padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.14); pointer-events: none; max-width: 220px; }
 .pf-tip.hidden { display: none; }
 .pf-tip .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-end: 5px; }
 .chart-loading {
@@ -491,7 +492,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .rows .r-amt.in { color: var(--on-surface-var); } /* v151: משיכה — אפור. ירוק שמור לרווח */
 .rows .r-amt.zero { color: var(--on-surface-var); font-weight: 400; }
 .rows .r-note { font-size: 13.5px; color: var(--on-surface-var); }
-.side-chip { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px; }
+.side-chip { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 1px 9px; border-radius: var(--pill); }
 .side-chip.buy { color: var(--gain); background: color-mix(in srgb, var(--gain) 14%, transparent); }
 .side-chip.sell { color: var(--loss); background: color-mix(in srgb, var(--loss) 14%, transparent); }
 .pension-total { font-size: 28px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
@@ -513,7 +514,7 @@ footer.fine { text-align: center; }
 .btn-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .tdkey-row input {
   flex: 1; min-width: 0; padding: 12px 14px; font-size: 16px;
-  border: 1px solid var(--outline); border-radius: 16px; background: var(--surface);
+  border: 1px solid var(--outline); border-radius: var(--radius-sm); background: var(--surface);
   color: var(--on-surface);
 }
 .btn {
@@ -532,7 +533,7 @@ footer.fine { text-align: center; }
 .section-head h2 { margin: 0; font-size: 20px; }
 .chip-btn {
   flex: none; border: 1px solid var(--outline); background: var(--surface);
-  border-radius: 999px; padding: 8px 17px; font-size: 15px; font-weight: 700;
+  border-radius: var(--pill); padding: 8px 17px; font-size: 15px; font-weight: 700;
   font-family: var(--font); color: var(--on-surface-var); cursor: pointer;
 }
 .chip-btn.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
@@ -542,7 +543,7 @@ footer.fine { text-align: center; }
 .edit-actions { display: flex; gap: 12px; align-items: center; padding: 8px 18px 14px; }
 .row-actions { display: flex; gap: 8px; flex: none; }
 .mini-btn {
-  border: 1px solid var(--outline); background: var(--surface); border-radius: 12px;
+  border: 1px solid var(--outline); background: var(--surface); border-radius: var(--radius-xs);
   padding: 6px 12px; font-size: 13.5px; font-weight: 700; font-family: var(--font);
   color: var(--primary); cursor: pointer;
 }
@@ -554,7 +555,7 @@ footer.fine { text-align: center; }
 .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: var(--on-surface-var); }
 .form-grid input, .form-grid select {
   font-family: var(--font); font-size: 17px; padding: 11px 12px;
-  border: 1px solid var(--outline); border-radius: 16px; background: var(--surface);
+  border: 1px solid var(--outline); border-radius: var(--radius-sm); background: var(--surface);
   color: var(--on-surface); width: 100%; box-sizing: border-box;
 }
 .form-grid input:focus, .form-grid select:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
@@ -588,7 +589,7 @@ footer.fine { text-align: center; }
 /* ---- Toast — קפסולת זכוכית ---- */
 .toast {
   position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%) translateY(20px);
-  background: rgba(30, 32, 31, .82); color: #fff; padding: 12px 22px; border-radius: 999px;
+  background: rgba(30, 32, 31, .82); color: #fff; padding: 12px 22px; border-radius: var(--pill);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border: 1px solid rgba(255, 255, 255, .16);
@@ -617,7 +618,7 @@ footer.fine { text-align: center; }
 .google-btn {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   width: 100%; padding: 14px; margin-bottom: 12px;
-  background: #fff; border: 1px solid #dadce0; border-radius: 999px;
+  background: #fff; border: 1px solid #dadce0; border-radius: var(--pill);
   font-size: 18px; font-weight: 600; color: #3c4043; cursor: pointer;
   font-family: inherit;
 }
@@ -628,12 +629,12 @@ footer.fine { text-align: center; }
 .lang-toggle, .theme-toggle {
   display: flex; background: var(--surface-2);
   border: 1px solid var(--card-border);
-  border-radius: 999px; padding: 4px; margin-top: 12px;
+  border-radius: var(--pill); padding: 4px; margin-top: 12px;
 }
 .lang-opt, .theme-opt {
   flex: 1; border: 0; background: transparent; color: var(--on-surface-var);
   font-size: 16px; font-weight: 600; font-family: var(--font);
-  padding: 10px 14px; border-radius: 999px; cursor: pointer;
+  padding: 10px 14px; border-radius: var(--pill); cursor: pointer;
   transition: background .2s, color .2s, box-shadow .2s;
 }
 .lang-opt.active, .theme-opt.active {
@@ -657,7 +658,7 @@ footer.fine { text-align: center; }
 .form-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .form-row input[type="text"] { /* v151: אותו סגנון כמו כל שאר הטפסים (היו תיבות דפדפן גולמיות) */
   flex: 1 1 100%; min-width: 0; font-family: var(--font); font-size: 17px; padding: 11px 12px;
-  border: 1px solid var(--outline); border-radius: 16px; background: var(--surface);
+  border: 1px solid var(--outline); border-radius: var(--radius-sm); background: var(--surface);
   color: var(--on-surface); box-sizing: border-box;
 }
 .form-row input[type="text"]:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
@@ -685,7 +686,7 @@ footer.fine { text-align: center; }
 .stock-search-wrap { position: relative; margin: 0 0 12px; }
 #stockSearchInput {
   width: 100%; padding: 12px 16px; font-size: 16px;
-  border: 1px solid var(--separator); border-radius: 12px;
+  border: 1px solid var(--separator); border-radius: var(--radius-xs);
   background: var(--surface); color: var(--on-surface);
   outline: none; box-sizing: border-box;
 }
@@ -693,7 +694,7 @@ footer.fine { text-align: center; }
 .stock-search-results {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
   background: var(--surface); border: 1px solid var(--separator);
-  border-radius: 12px; margin-top: 4px; max-height: 280px; overflow-y: auto;
+  border-radius: var(--radius-xs); margin-top: 4px; max-height: 280px; overflow-y: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
 }
 .stock-search-item {
@@ -741,7 +742,7 @@ footer.fine { text-align: center; }
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: fit-content; max-width: 100%;
   margin: 2px auto 12px; padding: 8px 18px;
-  border-radius: 999px;
+  border-radius: var(--pill);
   background: var(--surface);
   border: 1px solid var(--card-border);
   box-shadow: var(--shadow);
@@ -764,7 +765,7 @@ footer.fine { text-align: center; }
 
 /* v141: אחזקות ידניות */
 .src-tag {
-  display: inline-block; margin-inline-start: 6px; padding: 1px 8px; border-radius: 999px;
+  display: inline-block; margin-inline-start: 6px; padding: 1px 8px; border-radius: var(--pill);
   font-size: 12px; font-weight: 700; vertical-align: middle;
   color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, transparent);
 }
