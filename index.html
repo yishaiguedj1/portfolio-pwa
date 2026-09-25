@@ -148,7 +148,10 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
   <section id="tab-stocks" class="tabpage" role="tabpanel">
     <div class="section-head">
       <h2 data-i18n="myStocks">המניות שלי</h2>
-      <button id="editStocksBtn" class="chip-btn" type="button" data-i18n-html="editBtn">עריכה</button>
+      <div class="head-actions">
+        <button id="editStocksBtn" class="chip-btn" type="button" data-i18n-html="editBtn">עריכה</button>
+        <div class="src-filter" id="stocksSrcFilter"></div>
+      </div>
     </div>
     <p class="fine hidden" id="ibkrStocksNote"></p>
     <p class="fine hidden" id="editStocksHint" data-i18n="editHintStocks">מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על עריכה.</p>
@@ -165,7 +168,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <button class="chip-btn sort-chip" type="button" data-sort="day" data-i18n="sortDay">ביצועי היום</button>
       <button class="chip-btn sort-chip" type="button" data-sort="gain" data-i18n="sortGain">מהקנייה</button>
     </div>
-    <div class="stock-sort-row src-filter" id="stocksSrcFilter"></div>
     <div id="stockList"></div>
   </section>
 
@@ -173,11 +175,13 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
   <section id="tab-trades" class="tabpage" role="tabpanel">
     <div class="section-head">
       <h2 data-i18n="tradesTitle">היסטוריית עסקאות</h2>
-      <button class="chip-btn" id="addManualTradeBtn" type="button" data-i18n="tradesAddManual">＋ עסקה ידנית</button>
+      <div class="head-actions">
+        <button class="chip-btn" id="addManualTradeBtn" type="button" data-i18n="tradesAddManual">＋ עסקה ידנית</button>
+        <div class="src-filter" id="tradesSrcFilter"></div>
+      </div>
     </div>
     <div id="tradeFormHost"></div>
     <p class="fine hidden" id="tradesHint"></p>
-    <div class="stock-sort-row src-filter" id="tradesSrcFilter"></div>
     <div class="card">
       <ul id="tradeList" class="rows"></ul>
     </div>
@@ -210,10 +214,12 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     <div class="card">
       <div class="section-head">
         <h2 data-i18n="allDeposits">כל ההפקדות</h2>
-        <button id="editDepositsBtn" class="chip-btn" type="button" data-i18n-html="editBtn">עריכה</button>
+        <div class="head-actions">
+          <button id="editDepositsBtn" class="chip-btn" type="button" data-i18n-html="editBtn">עריכה</button>
+          <div class="src-filter" id="depositsSrcFilter"></div>
+        </div>
       </div>
       <p class="fine hidden" id="editDepositsHint" style="padding:0" data-i18n="editHint">מצב עריכה פעיל — בסיום לחצו שוב על עריכה.</p>
-      <div class="stock-sort-row src-filter" id="depositsSrcFilter"></div>
       <ul id="depositList" class="rows"></ul>
     </div>
     <p class="fine" id="depNoteEl" data-i18n="depNote">סכומים שליליים = כסף שהופקד לתיק. הרשומה החיובית (+₪37,000 ב־19/02/2025) היא משיכה/תיקון כפי שמופיעה בגיליון.</p>

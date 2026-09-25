@@ -32,5 +32,5 @@ ok(/srcPass\(sf, isIbkrDeposit\(x\.d\)/.test(src), 'הפקדות: מקור לפ�
 ok(/srcPass\(sf, r\.mt \? 'manual' : 'ibkr'\)/.test(src), 'עסקאות: ידני מול IBKR');
 ok(/srcPass\(sf, positionSource\(p\)\)/.test(src), 'מניות: מקור לפי positionSource');
 ok(/\.rows li > :not\(:first-child\) \{ flex: none; \}/.test(css) && /overflow-wrap: anywhere/.test(css), 'הסכום לא מתכווץ, התיאור נשבר');
-ok(/srcFilterLabel: 'מקור:'/.test(src) && /srcFilterLabel: 'Source:'/.test(src), 'תוויות בעברית ובאנגלית');
+ok(/srcFilterLabel: 'הצג לפי מקור'/.test(src) && /srcFilterLabel: 'Show by source'/.test(src), 'תוויות בעברית ובאנגלית');
 console.log('\n' + n + ' בדיקות עברו');

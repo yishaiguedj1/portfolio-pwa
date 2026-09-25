@@ -760,7 +760,36 @@ footer.fine { text-align: center; }
 }
 .stock-sort-label { font-size: 14px; font-weight: 700; color: var(--on-surface-var); }
 .stock-sort-row .sort-chip { padding: 7px 14px; font-size: 14px; }
-.src-filter .sort-chip img { width: 14px; height: 14px; vertical-align: -2px; border-radius: 3px; } /* v155 */
+/* v156: כפתור "סינון" + בועת בחירה (בסגנון בועת התפריט) */
+/* כותרת בשורה אחת; אם אין מקום — הכפתורים יורדים לשורה משלהם */
+.section-head:has(.head-actions) { flex-wrap: wrap; row-gap: 10px; }
+.section-head:has(.head-actions) h2 { white-space: nowrap; }
+.head-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-inline-start: auto; }
+.src-filter { position: relative; }
+.src-btn { display: inline-flex; align-items: center; }
+.chip-btn.on .ic { stroke: currentColor; }
+.src-pop {
+  position: absolute; top: calc(100% + 8px); inset-inline-end: 0; z-index: 30;
+  min-width: 250px; padding: 8px;
+  background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm); box-shadow: 0 12px 32px rgba(0,0,0,.22);
+}
+[data-theme="dark"] .src-pop { background: #1C1C1E; }
+.src-pop-title { font-size: 13.5px; font-weight: 700; color: var(--on-surface-var); padding: 6px 12px 8px; }
+.src-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px; border: 0; background: transparent; border-radius: var(--radius-xs);
+  font: inherit; font-size: 16px; font-weight: 600; color: var(--on-surface); cursor: pointer; text-align: start;
+}
+.src-opt:hover { background: var(--surface-2); }
+.src-opt.on { background: var(--primary-container); color: var(--on-primary-container); font-weight: 700; }
+[data-theme="dark"] .src-opt.on { background: rgba(48, 209, 88, .16); color: var(--on-surface); }
+.src-opt-name { white-space: nowrap; }
+.src-opt-ic { display: inline-flex; align-items: center; justify-content: center; width: 22px; flex: none; }
+.src-opt-ic .ic { margin: 0; width: 20px; height: 20px; }
+.src-opt-ic img { border-radius: 5px; }
+.src-opt-check { margin-inline-start: auto; display: inline-flex; width: 1.15em; }
+.src-opt-check .ic { margin: 0; }
 
 
 /* v101: פיל שער דולר־שקל חי בראש העמוד הראשי — נקי בסגנון אפל */

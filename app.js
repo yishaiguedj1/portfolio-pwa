@@ -30,6 +30,9 @@ const ICON_SUN = _IC_PRE + '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" 
 const ICON_MOON = _IC_PRE + '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
 const ICON_AUTO = _IC_PRE + '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
 const ICON_CLOSE = _IC_PRE + '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+const ICON_FILTER = _IC_PRE + '<path d="M3 5h18l-7 8.5V19l-4 2v-7.5Z"/></svg>';
+const ICON_LIST = _IC_PRE + '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>';
+const ICON_CHECK = _IC_PRE + '<polyline points="4 12.5 9.5 18 20 6.5"/></svg>';
 const ICON_MENU = _IC_PRE + '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>';
 
 const STRINGS = {
@@ -134,8 +137,11 @@ he: {
   mktTase: 'ת״א · ₪',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
   sortBy: 'מיון:',
-  srcFilterLabel: 'מקור:',
+  srcFilterLabel: 'הצג לפי מקור',
+  srcFilterBtn: 'סינון',
   srcFilterAll: 'הכל',
+  srcFilterManual: 'ידני',
+  srcFilterIbkr: 'Interactive Brokers',
   srcFilterEmpty: 'אין פריטים מהמקור הזה.',
   sortSize: 'גודל בתיק',
   sortDay: 'ביצועי היום',
@@ -569,8 +575,11 @@ en: {
   mktTase: 'TASE · ₪',
   stockSearchError: 'Search failed — try again',
   sortBy: 'Sort:',
-  srcFilterLabel: 'Source:',
+  srcFilterLabel: 'Show by source',
+  srcFilterBtn: 'Filter',
   srcFilterAll: 'All',
+  srcFilterManual: 'Manual',
+  srcFilterIbkr: 'Interactive Brokers',
   srcFilterEmpty: 'No items from this source.',
   sortSize: 'Position size',
   sortDay: "Day's change",
@@ -2568,19 +2577,52 @@ function setSrcFilter(tab, v) {
 }
 /* טהורה: האם פריט ממקור src עובר את הסינון f */
 function srcPass(f, src) { return f === 'all' || f === src; }
-/* שורת הבורר — נבנית מחדש בכל ציור (הטקסט לפי השפה) */
-function renderSrcFilter(tab) {
-  const row = document.getElementById(tab + 'SrcFilter');
-  if (!row) return;
-  const cur = getSrcFilter(tab);
-  const lab = { all: esc(t('srcFilterAll')), manual: esc(t('manualTag')),
-    ibkr: '<img src="ibkr-logo.png" alt="" width="14" height="14"> IB' };
-  row.innerHTML = '<span class="stock-sort-label">' + esc(t('srcFilterLabel')) + '</span>' +
-    SRC_FILTERS.map((k) => '<button class="chip-btn sort-chip' + (k === cur ? ' on' : '') +
-      '" type="button" data-srcf="' + k + '" aria-pressed="' + (k === cur) + '">' + lab[k] + '</button>').join('');
-  row.querySelectorAll('button[data-srcf]').forEach((b) => {
-    b.addEventListener('click', () => setSrcFilter(tab, b.dataset.srcf));
+/* v156: כפתור "סינון" אחד; הבחירה בבועה קטנה מתחתיו (במקום שורת צ'יפים גלויה).
+   נבנה מחדש בכל ציור (הטקסט לפי השפה). כשמסונן — הכפתור ירוק ומציג את המקור. */
+function srcFilterName(k) {
+  return k === 'manual' ? t('srcFilterManual') : k === 'ibkr' ? t('srcFilterIbkr') : t('srcFilterAll');
+}
+function closeSrcPops(except) {
+  document.querySelectorAll('.src-filter.open').forEach((w) => {
+    if (w === except) return;
+    w.classList.remove('open');
+    const b = w.querySelector('.src-btn'); if (b) b.setAttribute('aria-expanded', 'false');
+    const p = w.querySelector('.src-pop'); if (p) p.classList.add('hidden');
   });
+}
+function renderSrcFilter(tab) {
+  const wrap = document.getElementById(tab + 'SrcFilter');
+  if (!wrap) return;
+  const cur = getSrcFilter(tab);
+  const lead = { all: ICON_LIST, manual: ICON_EDIT, ibkr: '<img src="ibkr-logo.png" alt="" width="18" height="18">' };
+  wrap.classList.remove('open');
+  wrap.innerHTML = '<button class="chip-btn src-btn' + (cur !== 'all' ? ' on' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
+    ICON_FILTER + esc(cur === 'all' ? t('srcFilterBtn') : cur === 'ibkr' ? 'IB' : srcFilterName(cur)) + '</button>' +
+    '<div class="src-pop menu-drop hidden" role="menu">' +
+      '<div class="src-pop-title">' + esc(t('srcFilterLabel')) + '</div>' +
+      SRC_FILTERS.map((k) => '<button class="src-opt' + (k === cur ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (k === cur) +
+        '" data-srcf="' + k + '"><span class="src-opt-ic">' + lead[k] + '</span><span class="src-opt-name">' + esc(srcFilterName(k)) + '</span>' +
+        '<span class="src-opt-check">' + (k === cur ? ICON_CHECK : '') + '</span></button>').join('') +
+    '</div>';
+  const btn = wrap.querySelector('.src-btn');
+  const pop = wrap.querySelector('.src-pop');
+  if (!btn || !pop) return;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !wrap.classList.contains('open');
+    closeSrcPops(wrap);
+    wrap.classList.toggle('open', open);
+    pop.classList.toggle('hidden', !open);
+    btn.setAttribute('aria-expanded', String(open));
+  });
+  pop.addEventListener('click', (e) => e.stopPropagation());
+  pop.querySelectorAll('button[data-srcf]').forEach((b) => {
+    b.addEventListener('click', () => { closeSrcPops(); setSrcFilter(tab, b.dataset.srcf); });
+  });
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', () => closeSrcPops());
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSrcPops(); });
 }
 /* טהורה: מפתח מיון לתאריך הפקדה — ISO או DD/MM/YYYY → YYYYMMDD */
 function depDateKey(d) {
@@ -3277,7 +3319,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v155';
+const APP_VERSION = 'v156';
 
 
 function saveDBto(db) {
