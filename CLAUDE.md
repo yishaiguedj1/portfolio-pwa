@@ -24,7 +24,7 @@
 | `manifest.webmanifest`, `icon-*.png`, `logo-header.png`, `apple-touch-icon.png`, `favicon-48.png` | PWA + מיתוג "THE SNOWBALL" (v129→v131): לוגו שקוף בכותרת (106px, נייד 80px) במקום הטקסט "תיק ההשקעות" (נשאר ל־sr-only/‏title). מבנה v131: הלוגו ראשון ב־DOM בתוך `.appbar-row` (מציג בצד ה"התחלה" — ימין ב־RTL); כפתורי הפעולה + שורת "מקור" מקובצים יחד ב־`.appbar-left` בצד השני (שמאל), טור אנכי, ממורכז מול גובה הלוגו (`align-items:center` בשורה). אייקוני הכפתורים ירוקים (`var(--primary)`) — זה המקור, לא לשנות לכחול. icon-192/512 שקופים (any), `icon-maskable-512.png` ו־`apple-touch-icon.png` על רקע כהה `#101613`. המקור הגיע עם משבצות "שקיפות" צרובות בפיקסלים — הוסרו במילוי מהקצוות. לקח: שינוי עיצוב שמשתמש מבקש — תצוגה מקדימה (mockup סטטי, headless) לפני נגיעה בקוד האמיתי, במיוחד כשגדלים/מיקומים משתנים בכמה סבבים. **v140**: `.appbar-left` (טור: כפתורי פעולה + שורת "מקור") היה `align-items:flex-start` — בקונטיינר RTL זה מצמיד לקצה שגדל/מתכווץ לפי אורך שורת המקור (רגיל מול "· אחרי־מסחר"), לא לקצה המסך. כשהטקסט התארך, כפתורי הפעולה (צמודים לאותו קצה) זזו לכיוון הלוגו. תוקן ל־`flex-end` — מצמיד לקצה שבאמת עוגן למסך (flush ב־`justify-content:space-between`). לקח כללי: בטור RTL עם ילדים ברוחב משתנה, לבדוק תמיד לאיזה קצה `align-items` באמת מצמיד — הקצה "היציב" ויזואלית הוא זה שעוגן לקונטיינר החיצוני, לא בהכרח `flex-start`. |
 | `ibkr-proxy/` | שרתון Vercel ל־IBKR Flex — **מתפרס אוטומטית מ־GitHub בכל push**. נקודות: `/api/flex-request` (SendRequest), `/api/flex-statement` (GetStatement) |
 | `tests/` | בדיקות node. הרצה: `node tests/<file>` או `bash tests/run-all.sh` |
-| `ibkr-proxy/tests/run.js` | בדיקות השרתון (57) |
+| `ibkr-proxy/tests/run.js` | בדיקות השרתון (88, כולל שמירת גישה) |
 | `יומן-עבודה.md` | יומן עבודה בעברית — מתעדכן בכל גרסה |
 | `תהליך-עבודה.md` | תהליך העבודה צעד־אחר־צעד: מבקשה ועד אישור בטלפון (עם דוגמת v121) |
 | `design-mockups/` | מוקאפים עיצוביים |
@@ -39,7 +39,10 @@
 - **תגית מקור (v147)**: `srcTagHTML('manual'|'ibkr')` על כל פריט (מניות, עסקאות, הפקדות, פנסיה, כפתורי איפוס). IBKR = `ibkr-logo.png` (ב־APP_SHELL של sw.js). המקור נגזר מ־`positionSource`/`isIbkrDeposit` — אותן פונקציות של האיפוס; לא להמציא כלל סימון נפרד.
 - **תיק דמו (v146)**: `demoCreate` — נבנה בזמן אמת ממחירי Yahoo (לא נתונים קבועים בקוד): בחירה לפי מומנטום, עסקאות במחירי סגירה אמיתיים ברווח יעד 18%–62% (שפל החלון נתן +503% — לא אמין), הכל ידני לפי עסקאות. `DB.demo`: לא נכתב לענן (`demoOn` ב־cloud.js) ולא נדרס ממנו; גיבוי `pwa_predemo_v1`; IBKR חסום; `demoExit` משחזר ומנקה היסטוריה.
 - **אסור** להכניס ל־git / צ'אט / לוגים / פיקסטורות / צילומי מסך: טוקני Flex, Query ID, מספרי חשבון, אחזקות, יתרות, עסקאות, שמות קבצים, ביצועים, XML/CSV.
-- מפתחות API (Twelve Data) נשמרים ב־localStorage של הטלפון בלבד (`pwa_tdkey_v1`).
+- מפתחות API (Twelve Data) נשמרים ב־localStorage של הטלפון בלבד (`pwa_tdkey_v1`). **מ־v148 גם לא מועתקים לענן** (`cloud.js` מוחק עותק ישן: `FieldValue.delete()`).
+- **אבטחת השרתון (v148)**: `guard` ב־`ibkr-proxy/lib/ibkr.js` — Origin מאושר בלבד (`ALLOWED_ORIGINS` + localhost), POST בלבד, `X-App-Key` מול `process.env.APP_KEY` (כשמוגדר), גוף ≤4KB, token ≤64 / queryId ≤12 / code ≤32. באפליקציה: `ibkrProxyHeaders()` בכל קריאה, שדה "מפתח שרתון" (`ibkrCfg().appKey`, בטלפון בלבד). אם האתר עובר לדומיין אחר — להוסיף אותו ל־`ALLOWED_ORIGINS`, אחרת הסנכרון נחסם.
+- **שומרים אוטומטיים ב־CI**: `tests/privacy-guard.test.js` (מספר חשבון, טוקן, מפתח Google, מייל — בכל קובץ בריפו), `tests/xss-guard.test.js` (שדה חיצוני ב־`innerHTML` בלי `esc()`). אם נכשלים — לתקן את המקור, לא להחליש את הבדיקה.
+- **CI**: `permissions: contents: read`, actions מקובעים ל־SHA. ניתוק IBKR מוחק token/Query ID/מפתח שרתון מהטלפון.
 
 ## 4. IBKR Flex — הידע שנצבר בדם
 

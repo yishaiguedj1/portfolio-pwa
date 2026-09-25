@@ -340,7 +340,9 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
         </div>
         <div class="form-grid">
           <label>Flex token<input id="ibkrToken" type="password" dir="ltr" autocomplete="off" spellcheck="false" placeholder="Reports ← Flex Web Service"></label>
+          <label><span data-i18n="ibkrAppKeyLabel">מפתח שרתון</span><input id="ibkrAppKey" type="password" dir="ltr" autocomplete="off" spellcheck="false" data-i18n-ph="ibkrAppKeyPh" placeholder="אם הוגדר APP_KEY ב־Vercel"></label>
         </div>
+        <p class="fine" style="padding:0" data-i18n="ibkrAppKeyNote">מגן על השרתון שלך מפני שימוש של אחרים.</p>
         <p class="fine" style="padding:0" data-i18n="ibkrTokenNote">ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.</p>
         <div class="btn-row">
           <button id="ibkrSaveTest" class="btn" type="button" data-i18n="ibkrSaveTest">שמור ובדוק חיבור</button>

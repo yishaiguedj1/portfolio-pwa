@@ -30,8 +30,10 @@ ok(/^Node\.js\/\d/.test(ibkrUserAgent()), 'User-Agent תקין (Node.js)');
   'Status=Fail מזוהה כשגיאה');
 
 /* ---------- mock req/res ---------- */
-function mockReq({ method = 'POST', query = {}, body = {} } = {}) {
-  return { method, query, body, headers: {}, socket: { remoteAddress: '9.9.9.9' } };
+function mockReq({ method = 'POST', query = {}, body = {}, headers } = {}) {
+  // ברירת מחדל: בקשה מהאפליקציה החיה (Origin מאושר)
+  const h = headers || { origin: 'https://yishaiguedj1.github.io' };
+  return { method, query, body, headers: h, socket: { remoteAddress: mockReq.ip || '9.9.9.9' } };
 }
 function mockRes() {
   const r = { statusCode: 200, payload: null, headers: {} };
@@ -101,11 +103,11 @@ function stubFetch(text, status = 200) {
   ok(lastFetchUrl.startsWith('https://ndcdyn.interactivebrokers.com/'), 'URL זדוני נדחה, fallback לברירת מחדל');
   ok(res.payload.ok === true, 'עדיין ok');
 
-  /* ---------- GET תואם לאחור ---------- */
+  /* ---------- GET נחסם (אבטחה): הטוקן לעולם לא ב־URL ---------- */
   stubFetch(READY_XML);
   res = mockRes();
   await flexStatement(mockReq({ method: 'GET', query: { token: '1234567890', code: 'ABC123' } }), res);
-  ok(res.payload.ok === true && res.payload.status === 'ready', 'GET עדיין עובד');
+  ok(res.statusCode === 405 && lastFetchUrl === '', 'GET נחסם (405) ולא פונה ל־IBKR');
 
   /* ---------- pending ---------- */
   stubFetch(PENDING_XML);
@@ -250,6 +252,62 @@ function stubFetch(text, status = 200) {
     const t0 = Date.now();
     const r = await ibkrGetMulti('/x', null, 300);
     ok(r.status === 0 && Date.now() - t0 < 1500, 'IBKR תקוע -> ibkrGetMulti חוזר בתוך תקציב הזמן');
+  }
+
+  /* ---------- שמירת גישה: Origin, מפתח אפליקציה, גודל, פורמט ---------- */
+  {
+    mockReq.ip = '7.7.7.7'; // IP נפרד — לא נחסם בהגבלת הקצב של הבדיקות הקודמות
+    const { originAllowed, safeEqual } = require('../lib/ibkr');
+    ok(originAllowed('https://yishaiguedj1.github.io'), 'Origin: האתר החי מאושר');
+    ok(originAllowed('http://localhost:8080') && originAllowed('http://127.0.0.1:5500'), 'Origin: localhost לבדיקות');
+    ok(!originAllowed('https://evil.example') && !originAllowed('https://yishaiguedj1.github.io.evil.com') && !originAllowed(''),
+      'Origin: אתר זר / זיוף סאבדומיין / חסר — נדחים');
+    ok(!originAllowed('http://localhost.evil.com'), 'Origin: זיוף localhost נדחה');
+    ok(safeEqual('abc', 'abc') && !safeEqual('abc', 'abd') && !safeEqual('', '') && !safeEqual('a', 'ab'), 'safeEqual');
+
+    for (const [fn, name, body] of [[flexRequest, 'flex-request', { token: '123456789012345678901234', queryId: '999999' }],
+                                    [flexStatement, 'flex-statement', { token: '1234567890', code: 'ABC123' }]]) {
+      stubFetch(READY_XML);
+      let r = mockRes();
+      await fn(mockReq({ body, headers: { origin: 'https://evil.example' } }), r);
+      ok(r.statusCode === 403 && r.payload.error === 'forbidden_origin' && lastFetchUrl === '', name + ': Origin זר → 403, לא פונה ל־IBKR');
+      ok(!r.headers['Access-Control-Allow-Origin'], name + ': אין כותרת CORS לאתר זר');
+      r = mockRes();
+      await fn(mockReq({ body, headers: {} }), r);
+      ok(r.statusCode === 403 && lastFetchUrl === '', name + ': בלי Origin (curl) → 403');
+      r = mockRes();
+      await fn(mockReq({ method: 'OPTIONS' }), r);
+      ok(r.statusCode === 204 && r.headers['Access-Control-Allow-Origin'] === 'https://yishaiguedj1.github.io' &&
+        /X-App-Key/.test(r.headers['Access-Control-Allow-Headers']), name + ': preflight מהאתר → 204 + X-App-Key מותר');
+
+      process.env.APP_KEY = 'k'.repeat(32);
+      r = mockRes();
+      await fn(mockReq({ body }), r);
+      ok(r.statusCode === 401 && r.payload.error === 'bad_app_key' && lastFetchUrl === '', name + ': APP_KEY מוגדר ואין מפתח → 401');
+      r = mockRes();
+      await fn(mockReq({ body, headers: { origin: 'https://yishaiguedj1.github.io', 'x-app-key': 'x'.repeat(32) } }), r);
+      ok(r.statusCode === 401, name + ': מפתח שגוי → 401');
+      r = mockRes();
+      await fn(mockReq({ method: 'OPTIONS' }), r);
+      ok(r.statusCode === 204, name + ': preflight לא דורש מפתח');
+      r = mockRes();
+      await fn(mockReq({ body, headers: { origin: 'https://yishaiguedj1.github.io', 'x-app-key': 'k'.repeat(32) } }), r);
+      ok(r.statusCode !== 401 && r.statusCode !== 403 && lastFetchUrl !== '', name + ': מפתח נכון → עובר את השמירה ופונה ל־IBKR');
+      delete process.env.APP_KEY;
+
+      r = mockRes();
+      await fn(mockReq({ body: Object.assign({}, body, { pad: 'x'.repeat(5000) }) }), r);
+      ok(r.statusCode === 413, name + ': גוף ענק → 413');
+    }
+    let r = mockRes();
+    await flexRequest(mockReq({ body: { token: '1'.repeat(65), queryId: '999999' } }), r);
+    ok(r.statusCode === 400, 'token ארוך מ־64 → 400');
+    r = mockRes();
+    await flexRequest(mockReq({ body: { token: '1234567890', queryId: '1'.repeat(13) } }), r);
+    ok(r.statusCode === 400, 'queryId ארוך מ־12 → 400');
+    r = mockRes();
+    await flexStatement(mockReq({ body: { token: '1234567890', code: 'AB<script>' } }), r);
+    ok(r.statusCode === 400, 'קוד דוח עם תווים לא חוקיים → 400');
   }
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);

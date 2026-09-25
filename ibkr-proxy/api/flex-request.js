@@ -1,5 +1,6 @@
-/* POST /api/flex-request  { token, queryId } -> { ok, referenceCode, statementUrl } */
-const { cors, rateLimited, ibkrGetMulti, errorXml, FLEX_SEND_PATH } = require('../lib/ibkr');
+/* POST /api/flex-request  { token, queryId } -> { ok, referenceCode, statementUrl }
+   מאובטח: Origin מאושר בלבד + X-App-Key (אם הוגדר APP_KEY) — ראה guard ב־lib/ibkr.js */
+const { guard, rateLimited, ibkrGetMulti, errorXml, FLEX_SEND_PATH, TOKEN_RE, QUERY_RE } = require('../lib/ibkr');
 
 /* קודי Flex זמניים — IBKR מבקש "לנסות שוב בעוד רגע" (עומס / שגיאה חולפת).
    1020 ("invalid request") נכלל כי בפועל הוא מתחלף להצלחה אחרי המתנה קצרה.
@@ -14,9 +15,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let retryWaitMs = RETRY_WAIT_MS;
 
 module.exports = async (req, res) => {
-  cors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
+  if (guard(req, res)) return; // Origin מאושר, POST בלבד, מפתח אפליקציה, גודל
 
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || req.socket?.remoteAddress || 'unknown';
   if (rateLimited(ip)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -28,7 +27,7 @@ module.exports = async (req, res) => {
   // דריסת טווח תאריכים (אופציונלי): fd=YYYYMMDD, td=YYYYMMDD — עד 365 יום לבקשה.
   const fd = String((body && body.fd) || '').trim();
   const td = String((body && body.td) || '').trim();
-  if (!/^\d{6,}$/.test(token) || !/^\d+$/.test(queryId)) {
+  if (!TOKEN_RE.test(token) || !QUERY_RE.test(queryId)) {
     return res.status(400).json({ ok: false, error: 'bad_params' });
   }
   let dateParams = '';

@@ -93,7 +93,8 @@
       await userDoc().set({
         v: 1,
         db: JSON.parse(JSON.stringify(DB)),
-        tdkey: (typeof tdKey === 'function' ? tdKey() : null) || null,
+        // אבטחה (25/09/2026): מפתח Twelve Data נשאר בטלפון בלבד — ומוחקים עותק ישן מהענן
+        tdkey: firebase.firestore.FieldValue.delete(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
     } catch (e) {
@@ -243,9 +244,7 @@
         } else if (snap.exists && validCloudDb(snap.data().db)) {
           const data = snap.data();
           if (applyCloudDb(data.db)) await flushSave();
-          if (data.tdkey) {
-            try { localStorage.setItem(LS_TDKEY, data.tdkey); } catch (e) {}
-          }
+          /* מפתח Twelve Data לא נטען מהענן (אבטחה) — נשמר רק בטלפון שבו הוזן */
         } else {
           /* אין מסמך בענן עדיין (משתמש חדש / אחרי איפוס) — מתחילים מתיק ריק (v146).
              לעולם לא מושכים נתונים מהטלפון; הענן הוא מקור האמת היחיד. */

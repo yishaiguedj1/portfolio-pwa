@@ -299,6 +299,11 @@ he: {
   ibkrProxyLabel: 'כתובת השרתון',
   ibkrQueryPh: 'מ־IBKR',
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
+  ibkrAppKeyLabel: 'מפתח שרתון',
+  ibkrAppKeyPh: 'אם הוגדר APP_KEY ב־Vercel',
+  ibkrAppKeyNote: 'מגן על השרתון שלך מפני שימוש של אחרים. אותו ערך כמו APP_KEY ב־Vercel. נשמר בטלפון בלבד.',
+  ibkrErrAppKey: 'השרתון דחה את הבקשה: מפתח השרתון חסר או שגוי. העתק את APP_KEY מ־Vercel לשדה "מפתח שרתון" בהגדרות החיבור.',
+  ibkrErrOrigin: 'השרתון מקבל בקשות רק מהאתר של האפליקציה. פתח את האפליקציה מהכתובת הרגילה שלה.',
   ibkrFromDateLabel: 'או תאריך התחלה מדויק',
   ibkrFromDatePh: 'אופציונלי — דורס את בחירת העומק',
   ibkrFromDateNote: 'בוחרים כמה שנים אחורה למשוך במשיכה הראשונה — או תאריך מדויק, ללא הגבלה. כשכבר יש נתונים, הסנכרון ממשיך מהנקודה שהם נגמרו.',
@@ -728,6 +733,11 @@ en: {
   ibkrProxyLabel: 'Proxy URL',
   ibkrQueryPh: 'from IBKR',
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
+  ibkrAppKeyLabel: 'Proxy key',
+  ibkrAppKeyPh: 'If APP_KEY is set in Vercel',
+  ibkrAppKeyNote: 'Protects your proxy from use by others. Same value as APP_KEY in Vercel. Stored on this phone only.',
+  ibkrErrAppKey: 'The proxy rejected the request: the proxy key is missing or wrong. Copy APP_KEY from Vercel into the "Proxy key" field in the connection settings.',
+  ibkrErrOrigin: 'The proxy only accepts requests from the app’s own site. Open the app from its usual address.',
   ibkrFromDateLabel: 'Or an exact start date',
   ibkrFromDatePh: 'Optional — overrides the depth choice',
   ibkrFromDateNote: 'Choose how many years back the first pull covers — or an exact date, with no limit. When data already exists, sync continues from where it ended.',
@@ -1585,6 +1595,15 @@ const IBKR_PROXY_DEFAULT = 'https://ibkr-proxy-wine.vercel.app';
 function ibkrProxyBase() {
   return (((ibkrCfg().proxyUrl || '') || IBKR_PROXY_DEFAULT).trim().replace(/\/+$/, ''));
 }
+/* כותרות לשרתון: X-App-Key (אבטחה, 25/09/2026) — המפתח שהוגדר ב־Vercel כ־APP_KEY.
+   נשמר בטלפון בלבד (ibkrCfg().appKey), לעולם לא בענן ולא בקוד. */
+function ibkrProxyHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  let k = '';
+  try { k = String(ibkrCfg().appKey || '').trim(); } catch (e) {}
+  if (k) h['X-App-Key'] = k;
+  return h;
+}
 
 /* מחלק טווח תאריכים לחלקים לפי שנים קלנדריות (פונקציה טהורה, נבדקת).
    מחזיר מערך של {fd, td} בפורמט YYYYMMDD.
@@ -1999,7 +2018,7 @@ async function ibkrRequestReport(fetchFn, proxyUrl, token, queryId, fd, td, limi
   if (limiter) await limiter();
   const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-request', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: ibkrProxyHeaders(),
     body: JSON.stringify(body),
   }, 45000);
   let j = null;
@@ -2033,7 +2052,7 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
     try {
       const r = await fetchWithTimeout(fetchFn, proxyUrl + '/api/flex-statement', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: ibkrProxyHeaders(),
         body: JSON.stringify({ token, code, statementUrl: statementUrl || '' }),
       }, 40000);
       httpStatus = (r && r.status) || 0;
@@ -2059,7 +2078,7 @@ async function ibkrPollStatement(fetchFn, proxyUrl, token, code, statementUrl, o
 
 /* ממפה קוד שגיאת Flex/שרתון להודעה מובנת למשתמש. */
 function ibkrFriendlyErr(msg) {
-  const m = String(msg || '').match(/flex_(\d+)|ibkr_http_(\d+)|no_reference_code|rate_limited|bad_params|fetch_failed/);
+  const m = String(msg || '').match(/flex_(\d+)|ibkr_http_(\d+)|no_reference_code|rate_limited|bad_params|fetch_failed|bad_app_key|forbidden_origin/);
   const code = m ? (m[1] || m[2] || m[0]) : '';
   switch (code) {
     case '1001': case '1004': case '1009': case '1019': case '1021':
@@ -2090,6 +2109,10 @@ function ibkrFriendlyErr(msg) {
       return t('ibkrErrCreds');
     case 'fetch_failed':
       return t('ibkrErrNet');
+    case 'bad_app_key':
+      return t('ibkrErrAppKey');
+    case 'forbidden_origin':
+      return t('ibkrErrOrigin');
     default:
       return msg;
   }
@@ -2104,6 +2127,8 @@ function renderIbkrCard() {
   if (px && !px.value) px.value = cfg.proxyUrl || IBKR_PROXY_DEFAULT;
   if (tk && !tk.value) tk.value = cfg.token || '';
   if (qd && !qd.value) qd.value = cfg.queryId || '';
+  const ak = document.getElementById('ibkrAppKey');
+  if (ak && !ak.value) ak.value = cfg.appKey || '';
   // v128: הגדרות החיבור מקופלות — נפתחות לבד רק כשעוד אין token/Query ID
   const cdet = document.getElementById('ibkrConnDetails');
   if (cdet && !(cfg.token && cfg.queryId)) cdet.open = true;
@@ -2805,7 +2830,9 @@ function renderDemoUi() {
 function ibkrDisconnect() {
   ibkrClearErr();
   if (!confirm(t('disconnectConfirm'))) return;
-  ibkrSaveCfg({ lastSync: 0, data: null });
+  // אבטחה: ניתוק מוחק מהטלפון גם את פרטי הגישה (token, Query ID, מפתח שרתון) — כפי שההודעה מבטיחה
+  ibkrSaveCfg({ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' });
+  for (const id of ['ibkrToken', 'ibkrQuery', 'ibkrAppKey']) { const e = document.getElementById(id); if (e) e.value = ''; }
   // שחזור הנתונים הידניים שהיו לפני הייבוא (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
   const restored = ibkrRestoreManual();
   DB.source = 'manual';
@@ -2851,13 +2878,15 @@ async function ibkrSaveAndTest() {
   const proxyUrl = (document.getElementById('ibkrProxy').value || '').trim().replace(/\/+$/, '');
   const token = (document.getElementById('ibkrToken').value || '').trim();
   const queryId = (document.getElementById('ibkrQuery').value || '').trim();
+  const akEl = document.getElementById('ibkrAppKey');
+  const appKey = ((akEl && akEl.value) || '').trim();
   const fromDateEl = document.getElementById('ibkrFromDate');
   const fromDate = ((fromDateEl && fromDateEl.value) || '').trim();
   const dhe = document.getElementById('ibkrHistoryDepth');
   const depthYears = Math.min(10, Math.max(1, parseInt((dhe && dhe.value) || '', 10) || IBKR_HISTORY_YEARS_DEFAULT));
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
-  ibkrSaveCfg({ proxyUrl, token, queryId, fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '', historyYears: depthYears });
+  ibkrSaveCfg({ proxyUrl, token, queryId, appKey, fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '', historyYears: depthYears });
   ibkrSetBusy(true);
   renderIbkrCard();
   try {
@@ -3200,7 +3229,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v147';
+const APP_VERSION = 'v148';
 
 
 function saveDBto(db) {
@@ -6826,7 +6855,7 @@ function drawStockChart(sym, rows, intraday) {
   if (!pts.length) {
     if (loading) {
       const dbg = state.histDbg && state.histDbg[sym];
-      loading.innerHTML = t('noChartNow') + (dbg ? '<br><small style="opacity:.65">' + dbg + '</small>' : '');
+      loading.innerHTML = esc(t('noChartNow')) + (dbg ? '<br><small style="opacity:.65">' + esc(dbg) + '</small>' : '');
       loading.classList.remove('hidden');
     }
     return null;
@@ -7691,6 +7720,7 @@ function init() {
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
       try { localStorage.removeItem(LS_PREDEMO); } catch (e) {}
+      try { localStorage.removeItem(LS_TDKEY); } catch (e) {} // איפוס מלא = כל מה שבטלפון
       // מנקה גם את מטמון הייבוא (IBKR) — אחרת יבוא חוזר אחרי איפוס נחסם כ"אין מידע חדש"
       try { localStorage.removeItem(LS_IBKR); } catch (e) {}
       location.reload();

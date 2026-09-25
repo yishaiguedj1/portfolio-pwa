@@ -53,12 +53,60 @@ function statementEndpointFrom(url) {
   }
 }
 
-/* ---------- CORS ---------- */
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+/* ---------- CORS + שמירת גישה (אבטחה, 25/09/2026) ----------
+   השרתון מקבל בקשות רק מהאפליקציה עצמה:
+   1. Origin מאושר בלבד (האתר החי + localhost לבדיקות). בקשה בלי Origin
+      (curl/סקריפט) או מאתר אחר → 403.
+   2. אם הוגדר משתנה סביבה APP_KEY ב־Vercel — חובה כותרת X-App-Key זהה
+      (Origin ניתן לזיוף מחוץ לדפדפן; המפתח לא). בלי APP_KEY — לא נבדק,
+      כדי שהשרתון לא יישבר לפני שהמשתמש הגדיר אותו. */
+const ALLOWED_ORIGINS = new Set(['https://yishaiguedj1.github.io']);
+function originAllowed(origin) {
+  const o = String(origin || '');
+  if (ALLOWED_ORIGINS.has(o)) return true;
+  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(o);
 }
+function cors(res, origin) {
+  if (origin && originAllowed(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-App-Key');
+  res.setHeader('Access-Control-Max-Age', '600');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+}
+function safeEqual(a, b) {
+  a = String(a || ''); b = String(b || '');
+  if (!a || a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+/* מחזיר true אם הבקשה טופלה (נחסמה או preflight) — ה־endpoint צריך לעצור. */
+function guard(req, res) {
+  const h = req.headers || {};
+  const origin = h.origin || h.Origin || '';
+  cors(res, origin);
+  if (!originAllowed(origin)) {
+    res.status(403).json({ ok: false, error: 'forbidden_origin' });
+    return true;
+  }
+  if (req.method === 'OPTIONS') { res.status(204).end(); return true; }
+  if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'POST only' }); return true; }
+  const need = process.env.APP_KEY;
+  if (need && !safeEqual(h['x-app-key'] || h['X-App-Key'], need)) {
+    res.status(401).json({ ok: false, error: 'bad_app_key' });
+    return true;
+  }
+  let len = 0;
+  try { len = typeof req.body === 'string' ? req.body.length : JSON.stringify(req.body || {}).length; } catch (e) { len = 1e9; }
+  if (len > 4096) { res.status(413).json({ ok: false, error: 'too_large' }); return true; }
+  return false;
+}
+/* פורמט קלט: token ספרות בלבד עד 64, queryId עד 12 ספרות, קוד דוח עד 32 אותיות/ספרות */
+const TOKEN_RE = /^\d{6,64}$/;
+const QUERY_RE = /^\d{1,12}$/;
+const CODE_RE = /^[A-Za-z0-9]{1,32}$/;
 
 /* ---------- simple per-IP rate limit (best effort on serverless) ---------- */
 const hits = new Map();
@@ -362,6 +410,6 @@ async function ibkrGetMulti(path, firstHost, budgetMs) {
 
 module.exports = {
   IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, FLEX_SEND_PATH, FLEX_GET_PATH, ibkrUserAgent,
-  statementBaseFrom, statementEndpointFrom, cors, rateLimited, parseXml, findKids, firstKid,
+  statementBaseFrom, statementEndpointFrom, cors, guard, originAllowed, safeEqual, TOKEN_RE, QUERY_RE, CODE_RE, rateLimited, parseXml, findKids, firstKid,
   statementToJson, ibkrGet, ibkrGetMulti, errorXml, flexDate, num,
 };
