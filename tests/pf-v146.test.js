@@ -125,13 +125,15 @@ hist.NFLX = series(300, 1.0004, '2023-01-02'); // היסטוריה קצרה — 
 const rank = A('demoPickHot')(hist, hot, 5, today);
 ok(rank.length === 5 && !rank.includes('TSLA'), 'בחירה: מניה בירידה לא נבחרת');
 const picks = A('demoPicks')(hist, today);
-ok(!picks.plan.includes('NFLX') && picks.plan.includes('SPY') && picks.plan.includes('ESLT.TA'), 'בלי היסטוריה של 6 שנים — לא בתוכנית');
+ok(picks.plan.includes('NFLX') && picks.plan.includes('SPY') && picks.plan.includes('ESLT.TA'), 'v162: גם בלי 6 שנים של היסטוריה — בתוכנית (Yahoo חסום → רק 5 שנים)');
 ok(picks.hot.length === 2 && picks.watch.length === 3, 'שתי "לוהטות" ושלוש למעקב');
 const fxOf = (d) => (d < '2026-01-01' ? 3.6 : 3.3);
 const db = A('demoBuild')(hist, picks, fxOf, 3.1, today, (k) => 'T:' + k, 'he');
 ok(db && db.demo === true && db.source === 'manual', 'דמו: מסומן דמו, מצב ידני');
 const first = db.manualTrades.reduce((a, x) => (x.date < a ? x.date : a), '9999');
 ok(first <= '2020-10-15' && first >= '2020-09-20', 'דמו: העסקה הראשונה לפני ~6 שנים (' + first + ')');
+const nf = db.manualTrades.filter((x) => x.sym === 'NFLX');
+ok(nf.length === 1 && nf[0].date >= hist.NFLX[0].date, 'v162: מניה עם היסטוריה קצרה — נקנית ביום הראשון שיש לו מחיר, פעם אחת');
 ok(db.positions.length >= 20 && db.positions.every((p) => p.src === 'manual' && p.fromTrades), 'דמו: ' + db.positions.length + ' אחזקות, כולן לפי עסקאות');
 ok(db.positions.filter((p) => /\.TA$/.test(p.sym)).length === 8, 'דמו: 8 מניות ישראליות');
 ok(['SPY', 'QQQ', 'EIS'].every((s) => db.positions.some((p) => p.sym === s)), 'דמו: מדדים — S&P 500, נאסד"ק 100, ישראל');

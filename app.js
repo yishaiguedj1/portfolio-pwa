@@ -412,7 +412,16 @@ he: {
   demoConfirm: 'לטעון תיק דמו?\nהנתונים שלך נשמרים בצד וחוזרים ביציאה מהדמו. שינויים בזמן הדמו לא נשמרים בענן.',
   demoBuilding: 'בונה תיק דמו ממחירי שוק אמיתיים…',
   demoReady: 'תיק הדמו מוכן — סיור נעים!',
-  demoFail: 'לא הצלחתי למשוך מחירי שוק — צריך חיבור לאינטרנט. נסה שוב.',
+  demoFail: 'מקורות מחירי השוק לא עונים כרגע (לפעמים הם מגבילים לכמה דקות). נסו שוב בעוד כמה דקות.',
+  demoProgTitle: 'בונים את תיק הדמו',
+  btnClose: 'סגירה',
+  demoProgSub: 'מחירי שוק אמיתיים של 6 השנים האחרונות — עוד כמה רגעים',
+  demoStepPrices: 'מושכים מחירי מניות ומדדים',
+  demoStepFx: 'מושכים שערי דולר־שקל',
+  demoStepBuild: 'בונים עסקאות, הפקדות ופנסיה',
+  demoStepSave: 'מכינים את התיק',
+  demoStepOf: '{n} מתוך {total}',
+  demoStepStocks: '{n} מניות ומדדים',
   demoActiveTitle: 'מצב דמו פעיל',
   demoActiveDesc: 'זה תיק לדוגמה — אפשר לגעת בהכל. שינויים כאן לא נשמרים בענן, והנתונים האמיתיים שלך חוזרים ביציאה מהדמו.',
   demoExitBtn: 'יציאה מהדמו',
@@ -871,7 +880,16 @@ en: {
   demoConfirm: 'Load a demo portfolio?\nYour data is set aside and comes back when you exit the demo. Changes during the demo are not saved to the cloud.',
   demoBuilding: 'Building a demo portfolio from real market prices…',
   demoReady: 'Demo portfolio ready — enjoy the tour!',
-  demoFail: 'Could not fetch market prices — an internet connection is needed. Try again.',
+  demoFail: 'Market price sources are not responding right now (they sometimes limit requests for a few minutes). Try again in a few minutes.',
+  demoProgTitle: 'Building the demo portfolio',
+  btnClose: 'Close',
+  demoProgSub: 'Real market prices from the last 6 years — just a moment',
+  demoStepPrices: 'Fetching stock and index prices',
+  demoStepFx: 'Fetching USD/ILS rates',
+  demoStepBuild: 'Building trades, deposits and pension',
+  demoStepSave: 'Preparing the portfolio',
+  demoStepOf: '{n} of {total}',
+  demoStepStocks: '{n} stocks and indexes',
   demoActiveTitle: 'Demo mode is on',
   demoActiveDesc: 'This is a sample portfolio — feel free to touch everything. Changes here are not saved to the cloud, and your real data comes back when you exit the demo.',
   demoExitBtn: 'Exit demo',
@@ -3050,11 +3068,13 @@ function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
     const months = [m0];
     if (opt.dca) for (let m = m0 + opt.dca; demoAddMonths(start, m) <= lastBuy; m += opt.dca) months.push(m);
     for (const m of (opt.again || [])) months.push(m);
+    let bought = false;
     for (const m of months.sort((a, b) => a - b)) {
-      const iso = demoAddMonths(start, m);
-      if (iso > lastBuy) continue;
+      let iso = demoAddMonths(start, m);
+      if (iso > lastBuy || !h.length) continue;
+      if (iso < h[0].date) { if (bought) continue; iso = h[0].date; } // אין מחיר מאז — הקנייה הראשונה ביום הראשון שיש
       const row = demoRowFrom(h, iso);
-      if (row) buy(sym, row, budget);
+      if (row) { buy(sym, row, budget); bought = true; }
     }
     if (opt.trim && trades.some((x) => x.sym === sym)) {
       const from = demoAddMonths(start, opt.trim[1]);
@@ -3119,21 +3139,78 @@ function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
    ו־3 למעקב לפי מומנטום (demoPickHot). טהורה. */
 function demoPicks(hist, today) {
   const start = addDaysISO(demoAddMonths(today, -12 * DEMO_YEARS), 7);
-  const plan = DEMO_PLAN.map((x) => x[0]).filter((sym) => {
-    const h = hist[sym] || [];
-    return h.length > 200 && h[0].date <= addDaysISO(start, 20);
-  });
+  // v162: גם מניה בלי 6 שנים של היסטוריה נכנסת (Yahoo חסום → רק 5 שנים מ־Stooq / מהמטמון) —
+  // הקנייה הראשונה שלה פשוט זזה ליום הראשון שיש לו מחיר
+  const plan = DEMO_PLAN.map((x) => x[0]).filter((sym) => (hist[sym] || []).length > 200 && start);
   const hotRank = demoPickHot(hist, DEMO_HOT, 5, today);
   return { plan: plan, hot: hotRank.slice(0, 2), watch: hotRank.slice(2, 5) };
 }
 
 let _demoBusy = false;
+
+/* v162: מסך טעינה לבניית הדמו — שלבים (ממתין / עכשיו / הושלם) + פס התקדמות, בסגנון נקי.
+   מחזיר בקר: step(i, פירוט), progress(0..1), done(), fail(הודעה). */
+function demoProgressOpen() {
+  const old = document.getElementById('demoProgVeil');
+  if (old) old.remove();
+  const veil = el('div', 'demo-prog-veil');
+  veil.id = 'demoProgVeil';
+  const card = el('div', 'demo-prog');
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-live', 'polite');
+  card.innerHTML = '<div class="demo-prog-icon" aria-hidden="true">✨</div>' +
+    '<h3>' + esc(t('demoProgTitle')) + '</h3>' +
+    '<p class="demo-prog-sub">' + esc(t('demoProgSub')) + '</p>' +
+    '<div class="demo-prog-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span></span></div>' +
+    '<div class="demo-prog-pct" dir="ltr">0%</div>' +
+    '<ol class="demo-steps">' + [t('demoStepPrices'), t('demoStepFx'), t('demoStepBuild'), t('demoStepSave')].map((lbl) => '<li class="demo-step" data-state="wait">' +
+      '<span class="ds-dot" aria-hidden="true"></span><span class="ds-txt"><span class="ds-lbl">' + esc(lbl) +
+      '</span><span class="ds-det"></span></span></li>').join('') + '</ol>' +
+    '<div class="demo-prog-err hidden"></div>';
+  veil.appendChild(card);
+  document.body.appendChild(veil);
+  const bar = card.querySelector('.demo-prog-bar');
+  const pct = card.querySelector('.demo-prog-pct');
+  const steps = [...card.querySelectorAll('.demo-step')];
+  let shown = 0;
+  const ctl = {
+    progress(f) {
+      const v = Math.max(shown, Math.min(1, f || 0)); // לא חוזרים אחורה
+      shown = v;
+      bar.firstChild.style.width = (v * 100).toFixed(1) + '%';
+      bar.setAttribute('aria-valuenow', String(Math.round(v * 100)));
+      pct.textContent = Math.round(v * 100) + '%';
+    },
+    step(i, det) {
+      steps.forEach((li, k) => { li.dataset.state = k < i ? 'done' : k === i ? 'now' : 'wait'; });
+      if (det !== undefined) steps[i].querySelector('.ds-det').textContent = det;
+    },
+    detail(i, det) { steps[i].querySelector('.ds-det').textContent = det; },
+    done() {
+      steps.forEach((li) => { li.dataset.state = 'done'; });
+      ctl.progress(1);
+      card.classList.add('ok');
+      setTimeout(() => veil.remove(), 650);
+    },
+    fail(msg) {
+      card.classList.add('failed');
+      steps.forEach((li) => { if (li.dataset.state === 'now') li.dataset.state = 'fail'; });
+      const e = card.querySelector('.demo-prog-err');
+      e.innerHTML = '<p>' + esc(msg) + '</p><button class="btn" type="button">' + esc(t('btnClose')) + '</button>';
+      e.classList.remove('hidden');
+      e.querySelector('button').addEventListener('click', () => veil.remove());
+    },
+  };
+  requestAnimationFrame(() => veil.classList.add('in'));
+  return ctl;
+}
+
 async function demoCreate(btn) {
   if (_demoBusy || isDemoMode()) return;
   if (!confirm(t('demoConfirm'))) return;
   _demoBusy = true;
   if (btn) btn.disabled = true;
-  flash(t('demoBuilding'));
+  const ui = demoProgressOpen();
   try {
     const today = todayISO();
     const demoTexts = {
@@ -3142,20 +3219,45 @@ async function demoCreate(btn) {
       demoPension2: t('demoPension2'), demoStudy2: t('demoStudy2'),
       demoNameSpy: t('demoNameSpy'), demoNameQqq: t('demoNameQqq'), demoNameEis: t('demoNameEis'),
     };
+    // שלב 1: מחירים — 4 במקביל (לא מפציצים את Yahoo), ניסיון נוסף אחד לכל מניה שלא חזרה
+    ui.step(0);
+    const syms = DEMO_US.concat(DEMO_TA);
     const hist = {};
-    // v161: היסטוריה של 6+ שנים (force — מטמון רגיל הוא 5 שנים)
-    await pool(DEMO_US.concat(DEMO_TA), 6, async (s) => {
-      try { hist[s] = (await getDailyFast(s, true)) || []; } catch (e) { hist[s] = []; }
+    let done = 0;
+    const tick = () => { done++; ui.detail(0, t('demoStepOf', { n: done, total: syms.length })); ui.progress(0.04 + 0.7 * done / syms.length); };
+    ui.detail(0, t('demoStepOf', { n: 0, total: syms.length }));
+    ui.progress(0.04);
+    await pool(syms, 4, async (s) => {
+      let h = [];
+      try { h = (await getDailyFast(s, true)) || []; } catch (e) { h = []; }
+      if (!h.length) {
+        await new Promise((r) => setTimeout(r, 1200));
+        try { h = (await getDailyFast(s, true)) || []; } catch (e) { h = []; }
+      }
+      if (!h.length) h = state.hist[s] || []; // מה שיש במטמון
+      hist[s] = h;
+      tick();
     });
-    const picks = demoPicks(hist, today);
+    // שלב 2: שערי דולר־שקל לכל התקופה
+    ui.step(1);
+    ui.progress(0.78);
     try { await ensureFxHist(addDaysISO(today, -(DEMO_YEARS * 366 + 30))); } catch (e) {}
-    const db = picks.plan.length >= 8
+    // שלב 3: בחירת מניות, עסקאות, הפקדות ופנסיה
+    ui.step(2);
+    ui.progress(0.86);
+    await new Promise((r) => setTimeout(r, 60)); // לתת למסך להתעדכן לפני החישוב
+    const picks = demoPicks(hist, today);
+    const got = picks.plan.length + picks.hot.length;
+    ui.detail(2, t('demoStepStocks', { n: got }));
+    const db = got >= 4
       ? demoBuild(hist, picks, (d) => fxOnOrBefore(d), state.fx || 3.7, today, (k) => demoTexts[k], state.lang) : null;
     // לא שומרים היסטוריה של מועמדים שלא נבחרו — חוסך מקום בטלפון
     const keep = new Set(picks.plan.concat(picks.hot, picks.watch));
     for (const s of Object.keys(hist)) if (!keep.has(s)) { delete state.hist[s]; try { localStorage.removeItem(LS_HIST + s); } catch (e) {} }
-    if (!db) { flash(t('demoFail')); return; }
-    // שמירה אחרונה של הנתונים האמיתיים לענן — ואז גיבוי מקומי, והדמו לא נשמר בענן
+    if (!db) { ui.fail(t('demoFail')); return; }
+    // שלב 4: שמירה אחרונה של הנתונים האמיתיים לענן — ואז גיבוי מקומי, והדמו לא נשמר בענן
+    ui.step(3);
+    ui.progress(0.94);
     try { if (window.Cloud && window.Cloud.flushSave) await window.Cloud.flushSave(); } catch (e) {}
     try { localStorage.setItem(LS_PREDEMO, JSON.stringify(DB)); } catch (e) {}
     applyDbData(db);
@@ -3166,9 +3268,12 @@ async function demoCreate(btn) {
     renderAll();
     renderDemoUi();
     try { refreshQuotes(); } catch (e) {}
+    ui.done();
     const ov = document.querySelector('.tab[data-tab="overview"]');
     if (ov) ov.click();
     flash(t('demoReady'));
+  } catch (e) {
+    ui.fail(t('demoFail'));
   } finally {
     _demoBusy = false;
     if (btn) btn.disabled = false;
@@ -3634,7 +3739,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v161';
+const APP_VERSION = 'v162';
 
 
 function saveDBto(db) {
@@ -5557,7 +5662,9 @@ function addDaysISO(iso, n) {
 }
 
 async function ensureFxHist(earliestOverride) {
-  if (fxHistCache) return fxHistCache;
+  // v162: מטמון קיים שמתחיל מאוחר מדי לבקשה (למשל דמו של 6 שנים) — משלימים אחורה
+  const tooShort = (c) => !!(earliestOverride && c && c.dates.length && c.dates[0] > addDaysISO(earliestOverride, 10));
+  if (fxHistCache && !tooShort(fxHistCache)) return fxHistCache;
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LS_FXHIST) || 'null'); } catch (e) {}
   const today = todayISO();
@@ -5573,7 +5680,8 @@ async function ensureFxHist(earliestOverride) {
   const haveDates = Object.keys(have).sort();
   const lastHave = haveDates.length ? haveDates[haveDates.length - 1] : null;
   const rates = Object.assign({}, have);
-  const fetchFrom = (lastHave && lastHave >= earliest) ? addDaysISO(lastHave, 1) : earliest;
+  const firstHave = haveDates.length ? haveDates[0] : null;
+  const fetchFrom = (lastHave && lastHave >= earliest && firstHave <= addDaysISO(earliest, 10)) ? addDaysISO(lastHave, 1) : earliest;
   if (fetchFrom <= today) {
     let ok = false;
     try {
