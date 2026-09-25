@@ -14,7 +14,7 @@ for (const tab of ['deposits', 'trades', 'stocks']) {
 }
 ok(!/stock-sort-row src-filter/.test(html), 'אין עוד שורת צ\'יפים גלויה');
 ok(/class="chip-btn src-btn' \+ \(cur !== 'all' \? ' on' : ''\)/.test(src), 'כפתור אחד; ירוק כשמסונן');
-ok(/cur === 'ibkr' \? 'IB'/.test(src), 'מסונן ל־IBKR: תווית קצרה בכפתור');
+ok(/ICON_FILTER \+ esc\(t\('srcFilterBtn'\)\)/.test(src), 'v157: תמיד "סינון"');
 ok(/class="src-pop menu-drop hidden" role="menu"/.test(src), 'בועה עם אנימציית התפריט הקיימת');
 ok(/role="menuitemradio" aria-checked=/.test(src) && /aria-expanded/.test(src), 'נגישות: menuitemradio + aria-expanded');
 ok(/document\.addEventListener\('click', \(\) => closeSrcPops\(\)\)/.test(src) && /e\.key === 'Escape'\) closeSrcPops\(\)/.test(src), 'נסגר בלחיצה בחוץ וב־Escape');

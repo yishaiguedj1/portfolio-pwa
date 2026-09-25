@@ -785,6 +785,8 @@ footer.fine { text-align: center; }
 .src-opt.on { background: var(--primary-container); color: var(--on-primary-container); font-weight: 700; }
 [data-theme="dark"] .src-opt.on { background: rgba(48, 209, 88, .16); color: var(--on-surface); }
 .src-opt-name { white-space: nowrap; }
+/* v157: מחיר באגורות → כמה זה בשקלים */
+.px-hint { align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--on-surface-var); direction: ltr; unicode-bidi: isolate; }
 .src-opt-ic { display: inline-flex; align-items: center; justify-content: center; width: 22px; flex: none; }
 .src-opt-ic .ic { margin: 0; width: 20px; height: 20px; }
 .src-opt-ic img { border-radius: 5px; }

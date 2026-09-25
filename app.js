@@ -139,6 +139,8 @@ he: {
   sortBy: 'מיון:',
   srcFilterLabel: 'הצג לפי מקור',
   srcFilterBtn: 'סינון',
+  agorotUnit: 'אגורות',
+  agorotFixed: 'תוקנו {n} מחירים של מניות ת"א שהוזנו באגורות',
   srcFilterAll: 'הכל',
   srcFilterManual: 'ידני',
   srcFilterIbkr: 'Interactive Brokers',
@@ -577,6 +579,8 @@ en: {
   sortBy: 'Sort:',
   srcFilterLabel: 'Show by source',
   srcFilterBtn: 'Filter',
+  agorotUnit: 'agorot',
+  agorotFixed: 'Fixed {n} TASE prices that were entered in agorot',
   srcFilterAll: 'All',
   srcFilterManual: 'Manual',
   srcFilterIbkr: 'Interactive Brokers',
@@ -2597,7 +2601,7 @@ function renderSrcFilter(tab) {
   const lead = { all: ICON_LIST, manual: ICON_EDIT, ibkr: '<img src="ibkr-logo.png" alt="" width="18" height="18">' };
   wrap.classList.remove('open');
   wrap.innerHTML = '<button class="chip-btn src-btn' + (cur !== 'all' ? ' on' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
-    ICON_FILTER + esc(cur === 'all' ? t('srcFilterBtn') : cur === 'ibkr' ? 'IB' : srcFilterName(cur)) + '</button>' +
+    ICON_FILTER + esc(t('srcFilterBtn')) + '</button>' +
     '<div class="src-pop menu-drop hidden" role="menu">' +
       '<div class="src-pop-title">' + esc(t('srcFilterLabel')) + '</div>' +
       SRC_FILTERS.map((k) => '<button class="src-opt' + (k === cur ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (k === cur) +
@@ -3230,6 +3234,30 @@ function fmtILS2(v) {
    כל מחיר/ממוצע/עסקה של מניה נשמר במטבע שלה; סכומים (שווי, רווח, עוגה, תשואה)
    מומרים לדולר דרך nativeToUSD, ומשם למטבע התצוגה כמו תמיד. */
 function symCur(sym) { return /\.TA$/i.test(String(sym || '')) ? 'ILS' : 'USD'; }
+/* v157: מחיר מניה בת"א מוזן באגורות — כמו הציטוט הרשמי בבורסה. בפנים נשמר בשקלים (כמו Yahoo אחרי חלוקה ב־100).
+   עמלה נשארת בשקלים. טהורות. */
+function pxInFactor(sym) { return symCur(sym) === 'ILS' ? 100 : 1; }
+function pxFromInput(sym, v) { return v / pxInFactor(sym); }
+function pxToInput(sym, v) {
+  if (v === undefined || v === null || v === '' || !isFinite(+v)) return '';
+  return String(Math.round(+v * pxInFactor(sym) * 1e6) / 1e6);
+}
+function pxUnit(sym) { return symCur(sym) === 'ILS' ? t('agorotUnit') : '$'; }
+/* v157: תיקון חד־פעמי — מחיר ת"א שהוזן באגורות לפני v157 נשמר כשקלים (פי 100). מזהים לפי יחס למחיר החי:
+   30–300 = כמעט בוודאות אגורות (מניה לא יורדת פי 30). טהורה על db + מחירים; מחזירה כמה תוקנו. */
+function fixAgorotEntries(db, priceOf) {
+  let n = 0;
+  const off = (sym, v) => { const px = priceOf(sym); if (!(px > 0) || !(v > 0)) return false; const r = v / px; return r >= 30 && r <= 300; };
+  for (const p of (db.positions || [])) {
+    if (!p || symCur(p.sym) !== 'ILS' || p.fromTrades) continue; // IBKR ממפה רק USD — כל מניית ת"א ידנית
+    if (off(p.sym, p.avg)) { p.avg = p.avg / 100; n++; }
+  }
+  for (const x of (db.manualTrades || [])) {
+    if (!x || symCur(x.sym) !== 'ILS') continue;
+    if (off(String(x.sym).toUpperCase(), +x.price)) { x.price = +x.price / 100; n++; }
+  }
+  return n;
+}
 function nativeToUSD(v, sym, fx) {
   if (v === null || v === undefined || !isFinite(v)) return null;
   if (symCur(sym) !== 'ILS') return v;
@@ -3319,7 +3347,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v156';
+const APP_VERSION = 'v157';
 
 
 function saveDBto(db) {
@@ -6390,7 +6418,7 @@ function showEditPositionForm(card, p) {
   body.innerHTML =
     '<div class="form-grid">' +
     '<label>' + t('fldShares') + '<input id="ep-shares" type="number" min="0" step="any" inputmode="decimal" value="' + p.shares + '"></label>' +
-    '<label>' + t('fldAvgPrice', { c: symCur(p.sym) === 'ILS' ? '₪' : '$' }) + '<input id="ep-avg" type="number" min="0" step="any" inputmode="decimal" value="' + p.avg + '"></label>' +
+    '<label>' + t('fldAvgPrice', { c: esc(pxUnit(p.sym)) }) + '<input id="ep-avg" type="number" min="0" step="any" inputmode="decimal" value="' + pxToInput(p.sym, p.avg) + '"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ep-err"></div>' +
     '<div class="edit-actions"><button class="btn" id="ep-save" type="button">' + t('btnSave') + '</button>' +
@@ -6400,7 +6428,7 @@ function showEditPositionForm(card, p) {
   body.querySelector('#ep-delete').addEventListener('click', () => deletePosition(p));
   body.querySelector('#ep-save').addEventListener('click', () => {
     const shares = parseFloat(body.querySelector('#ep-shares').value);
-    const avg = parseFloat(body.querySelector('#ep-avg').value);
+    const avg = pxFromInput(p.sym, parseFloat(body.querySelector('#ep-avg').value));
     const err = validPosition(p.sym, shares, avg, p.sym);
     const errEl = body.querySelector('#ep-err');
     if (err) { errEl.textContent = err; errEl.classList.remove('hidden'); return; }
@@ -6432,10 +6460,10 @@ function showAddPositionForm(list) {
     '<label>' + t('fldNameHe') + '<input id="ap-name" type="text" placeholder="' + t('phExampleName') + '"></label>' +
     '<label>' + t('fldFullName') + '<input id="ap-full" type="text" dir="ltr" placeholder="NVIDIA Corp" autocomplete="off"></label>' +
     '<label class="m-avg">' + t('fldShares') + '<input id="ap-shares" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-avg">' + '<span>' + t('fldAvgPrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-avg">' + '<span>' + t('fldAvgPrice', { c: '<span class="cur-px">$</span>' }) + '</span>' + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '<label class="m-tr hidden">' + t('fldDate') + '<input id="ap-date" type="date" lang="he-IL" max="' + todayISO() + '" value="' + todayISO() + '"></label>' +
     '<label class="m-tr hidden">' + t('fldTradeQty') + '<input id="ap-qty" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-tr hidden">' + '<span>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + '<span>' + t('fldTradePrice', { c: '<span class="cur-px">$</span>' }) + '</span>' + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '<label class="m-tr hidden">' + '<span>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input id="ap-fee" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ap-err"></div>' +
@@ -6459,7 +6487,7 @@ function showAddPositionForm(list) {
     const fail = (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); };
     if (mode === 'avg') {
       const shares = parseFloat(card.querySelector('#ap-shares').value);
-      const avg = parseFloat(card.querySelector('#ap-avg').value);
+      const avg = pxFromInput(sym, parseFloat(card.querySelector('#ap-avg').value));
       const err = validPosition(sym, shares, avg, null);
       if (err) return fail(err);
       POSITIONS.push({ sym: sym, name: name, full: full, shares: shares, avg: avg, src: 'manual' });
@@ -6467,7 +6495,7 @@ function showAddPositionForm(list) {
       const err0 = validPosition(sym, 1, 1, null);
       if (err0) return fail(err0);
       const tr = { id: mtNewId(), date: card.querySelector('#ap-date').value, sym: sym, side: 'BUY',
-        qty: parseFloat(card.querySelector('#ap-qty').value), price: parseFloat(card.querySelector('#ap-price').value),
+        qty: parseFloat(card.querySelector('#ap-qty').value), price: pxFromInput(sym, parseFloat(card.querySelector('#ap-price').value)),
         fee: parseFloat(card.querySelector('#ap-fee').value) || 0 };
       const err = mtValidate(mtList(), tr, null);
       if (err) return fail(err);
@@ -6489,10 +6517,32 @@ function bindCurSym(card, symInp) {
   const paint = () => {
     const c = symCur(symInp.value.trim()) === 'ILS' ? '₪' : '$';
     card.querySelectorAll('.cur-sym').forEach((x) => { x.textContent = c; });
+    card.querySelectorAll('.cur-px').forEach((x) => { x.textContent = pxUnit(symInp.value.trim()); });
+    pxHints(card, symInp);
   };
   symInp.addEventListener('input', paint);
   card._paintCur = paint;
   paint();
+}
+
+/* v157: מתחת לשדה מחיר באגורות — "= ₪682.40", שלא יהיה ספק מה נשמר */
+function pxHints(card, symInp) {
+  card.querySelectorAll('.cur-px').forEach((u) => {
+    const lab = u.closest('label');
+    const inp = lab && lab.querySelector('input');
+    if (!inp) return;
+    let h = lab.querySelector('.px-hint');
+    if (!h) {
+      h = el('span', 'px-hint');
+      lab.appendChild(h);
+      inp.addEventListener('input', () => pxHints(card, symInp));
+    }
+    const sym = symInp.value.trim();
+    const val = parseFloat(inp.value);
+    const show = symCur(sym) === 'ILS' && val > 0;
+    h.textContent = show ? '= ₪' + (Math.round(pxFromInput(sym, val) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '';
+    h.classList.toggle('hidden', !show);
+  });
 }
 
 function mtNewId() {
@@ -6518,7 +6568,7 @@ function showTradeForm(host, opts) {
     '<label>' + t('fldSymbol') + '<input class="mt-sym" type="text" dir="ltr" autocomplete="off" placeholder="GOOG" value="' + esc(v(tr ? tr.sym : o.sym)) + '"' + (o.lockSym || tr ? ' readonly' : '') + '></label>' +
     '<label>' + t('fldDate') + '<input class="mt-date" type="date" lang="he-IL" max="' + todayISO() + '" value="' + esc(tr ? tr.date : todayISO()) + '"></label>' +
     '<label>' + t('fldTradeQty') + '<input class="mt-qty" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.qty)) + '"></label>' +
-    '<label>' + '<span>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.price)) + '"></label>' +
+    '<label>' + '<span>' + t('fldTradePrice', { c: '<span class="cur-px">$</span>' }) + '</span>' + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(tr ? pxToInput(tr.sym, tr.price) : '') + '"></label>' +
     '<label>' + '<span>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '</span>' + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
     '</div>' +
     '<div class="form-err hidden"></div>' +
@@ -6539,7 +6589,7 @@ function showTradeForm(host, opts) {
       sym: card.querySelector('.mt-sym').value.trim().toUpperCase(),
       date: card.querySelector('.mt-date').value, side: side,
       qty: parseFloat(card.querySelector('.mt-qty').value),
-      price: parseFloat(card.querySelector('.mt-price').value),
+      price: pxFromInput(card.querySelector('.mt-sym').value.trim(), parseFloat(card.querySelector('.mt-price').value)),
       fee: parseFloat(card.querySelector('.mt-fee').value) || 0,
     };
     const held = POSITIONS.find((p) => p.sym === cand.sym);
@@ -7610,6 +7660,13 @@ function deletePensionDeposit(i) {
 function renderAll() {
   // v141: מניה שנוספה ביד במצב IBKR (לפני v141) מסומנת ידנית — נכללת בחישובים ונשמרת בסנכרון
   try { if (markManualPositions()) saveDB(); } catch (e) {}
+  // v157: מחירי ת"א שהוזנו באגורות לפני v157 — מתוקנים פעם אחת כשיש מחיר חי
+  try {
+    if (!isDemoMode()) {
+      const fixed = fixAgorotEntries({ positions: POSITIONS, manualTrades: mtList() }, (sym) => (state.quotes[sym] ? state.quotes[sym].close : null));
+      if (fixed) { mtSyncPositions(); saveDB(); flash(t('agorotFixed', { n: fixed })); }
+    }
+  } catch (e) {}
   renderOverview();
   renderStocks();
   renderTrades();

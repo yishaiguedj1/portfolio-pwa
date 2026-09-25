@@ -120,7 +120,7 @@ const hist = days.map((d, i) => ({ date: d, close: px(i) }));
 }
 
 // --- 4. תווית המחיר בשורה אחת (₪/$ לא נשבר לשורות) ---
-ok((src.match(/'<span>' \+ t\('(fldAvgPrice|fldTradePrice|fldFee)', \{ c: '<span class="cur-sym">/g) || []).length === 5, 'תוויות מחיר/עמלה עטופות — סימן המטבע באותה שורה');
+ok((src.match(/'<span>' \+ t\('(fldAvgPrice|fldTradePrice|fldFee)', \{ c: '<span class="cur-(sym|px)">/g) || []).length === 5, 'תוויות מחיר/עמלה עטופות — סימן המטבע באותה שורה');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
