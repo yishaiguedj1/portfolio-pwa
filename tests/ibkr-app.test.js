@@ -19,7 +19,7 @@ function elStub() {
     value: '', textContent: '', innerHTML: '',
     classList: { add() {}, remove() {}, toggle() {} },
     addEventListener() {}, appendChild() {}, dataset: {}, style: {},
-    setAttribute() {},
+    setAttribute() {}, querySelectorAll: () => [],
     disabled: false,
   };
 }
