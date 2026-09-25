@@ -157,7 +157,7 @@ ok(/DB\.manualTrades = clean\.manualTrades/.test(cloudSrc), 'ענן: העסקא�
 ok(/if \(!Array\.isArray\(db\.manualTrades\)\) db\.manualTrades = \[\]/.test(src), 'loadDB: מערך עסקאות תמיד קיים');
 
 // --- 11. חיווט ---
-ok(/const mt = isIbkrMode\(\) \? manualTotalsUSD\(POSITIONS, mtActiveTrades\(\), state\.quotes\)/.test(src), 'סקירה: שווי/רווח ידניים במצב IBKR');
+ok(/const mt = isIbkrMode\(\) \? manualTotalsUSD\(POSITIONS, mtActiveTrades\(\), state\.quotes(, state\.fx)?\)/.test(src), 'סקירה: שווי/רווח ידניים במצב IBKR');
 ok(/ibkrReturnRows\(ibkrData\)/.test(src), 'גרף הביצועים: סדרה משולבת');
 ok(/if \(!isIbkrMode\(\) \|\| p\.src === 'manual'\)/.test(src), 'כפתור עריכה גם למניות ידניות במצב IBKR');
 ok(/mt\.src|src === 'manual' \? '<span class="src-tag">/.test(src), 'תגית "ידני" בכרטיס המניה');

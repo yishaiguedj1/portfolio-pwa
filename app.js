@@ -127,8 +127,9 @@ he: {
   myStocks: 'המניות שלי',
   editBtn: ICON_EDIT + 'עריכה',
   editHintStocks: 'מצב עריכה פעיל — אפשר להוסיף מניות חדשות. בסיום לחצו שוב על עריכה.',
-  stockSearchPh: 'חפש מניה להוספה (למשל: AAPL)',
+  stockSearchPh: 'חפש מניה להוספה (למשל: AAPL, טבע, LUMI)',
   stockSearchNoResults: 'לא נמצאו תוצאות',
+  mktTase: 'ת״א · ₪',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
   sortBy: 'מיון:',
   sortSize: 'גודל בתיק',
@@ -388,7 +389,7 @@ he: {
   fldFullName: 'שם מלא (אופציונלי)',
   phExampleName: 'אנבידיה',
   fldShares: 'כמות מניות',
-  fldAvgPrice: 'מחיר קנייה ממוצע ($)',
+  fldAvgPrice: 'מחיר קנייה ממוצע ({c})',
   addStockTitle: 'הוספת מניה',
   btnAddStock: 'הוסף מניה',
   stockAdded: 'המניה נוספה ✓',
@@ -399,8 +400,8 @@ he: {
   addModeAvgHint: 'מהיר: כמות ומחיר ממוצע. נכלל בשווי וברווח — בלי תאריכים, לכן לא בתשואה לאורך זמן.',
   addModeTradesHint: 'מדויק: כל קנייה ומכירה עם תאריך. נכלל גם בגרף הביצועים ובתשואה לפי טווחי זמן.',
   fldTradeQty: 'כמות',
-  fldTradePrice: 'מחיר למניה ($)',
-  fldFee: 'עמלה ($, אופציונלי)',
+  fldTradePrice: 'מחיר למניה ({c})',
+  fldFee: 'עמלה ({c}, אופציונלי)',
   mtAddTitle: 'עסקה ידנית',
   mtEditTitle: 'עריכת עסקה',
   btnAddTrade: 'הוסף עסקה',
@@ -524,8 +525,9 @@ en: {
   myStocks: 'My stocks',
   editBtn: ICON_EDIT + 'Edit',
   editHintStocks: 'Edit mode is on — you can add new stocks. When done, tap Edit again.',
-  stockSearchPh: 'Search a stock to add (e.g. AAPL)',
+  stockSearchPh: 'Search a stock to add (e.g. AAPL, TEVA.TA)',
   stockSearchNoResults: 'No results found',
+  mktTase: 'TASE · ₪',
   stockSearchError: 'Search failed — try again',
   sortBy: 'Sort:',
   sortSize: 'Position size',
@@ -785,7 +787,7 @@ en: {
   fldFullName: 'Full name (optional)',
   phExampleName: 'Nvidia',
   fldShares: 'Shares',
-  fldAvgPrice: 'Avg buy price ($)',
+  fldAvgPrice: 'Avg buy price ({c})',
   addStockTitle: 'Add stock',
   btnAddStock: 'Add stock',
   stockAdded: 'Stock added ✓',
@@ -796,8 +798,8 @@ en: {
   addModeAvgHint: 'Quick: quantity and average price. Counted in value and P&L — no dates, so not in returns over time.',
   addModeTradesHint: 'Precise: every buy and sell with a date. Also counted in the performance chart and range returns.',
   fldTradeQty: 'Quantity',
-  fldTradePrice: 'Price per share ($)',
-  fldFee: 'Fee ($, optional)',
+  fldTradePrice: 'Price per share ({c})',
+  fldFee: 'Fee ({c}, optional)',
   mtAddTitle: 'Manual trade',
   mtEditTitle: 'Edit trade',
   btnAddTrade: 'Add trade',
@@ -1005,19 +1007,22 @@ function parseYahooBars(json, withTime) {
     const adjArr = (res.indicators && res.indicators.adjclose && res.indicators.adjclose[0] &&
       res.indicators.adjclose[0].adjclose) || [];
     const off = (res.meta && res.meta.gmtoffset) || 0;
+    // v142: בורסת ת"א מדווחת באגורות (ILA) — לשקלים
+    const k = String((res.meta && res.meta.currency) || '').toUpperCase() === 'ILA' ? 0.01 : 1;
+    const pk = (v) => { const x = pf(v); return x > 0 ? x * k : x; };
     for (let i = 0; i < ts.length; i++) {
-      const close = pf(closes[i]);
+      const close = pk(closes[i]);
       if (!(close > 0)) continue;
       const d = new Date((ts[i] + off) * 1000);
       rows.push({
         date: d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()),
         time: withTime ? pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) : null,
-        open: pf(opens[i]),
-        high: pf(highs[i]),
-        low: pf(lows[i]),
+        open: pk(opens[i]),
+        high: pk(highs[i]),
+        low: pk(lows[i]),
         close: close,
         volume: parseInt(vols[i], 10) || 0,
-        _adj: pf(adjArr[i]) || 0, // זמני לזיהוי ספליטים
+        _adj: pk(adjArr[i]) || 0, // זמני לזיהוי ספליטים
       });
     }
     applySplitAdjustment(rows);
@@ -1272,7 +1277,7 @@ async function refreshEarnings() {
 /* ניסיון אחד להביא נרות מ־Twelve Data.
    kind: 'daily' | 'intraday'. מחזיר rows, null, או 'BADKEY' כשהמפתח לא תקין. */
 async function fetchTwelveBars(sym, kind, wantMax, notes) {
-  if (!tdKey()) return null;
+  if (!tdKey() || symCur(sym) === 'ILS') return null; // v142: ת"א — Yahoo בלבד
   await tdThrottle();
   const intraday = kind === 'intraday';
   const url = tdURL(sym, intraday ? '5min' : '1day', intraday ? 250 : (wantMax ? 5000 : 1500));
@@ -2306,24 +2311,29 @@ function markManualPositions() {
 /* שווי ורווח (דולר) של האחזקות הידניות: לפי ממוצע — (מחיר − ממוצע) × כמות;
    לפי עסקאות — רווח ממומש + (שווי − עלות שנותרה). trades = עסקאות פעילות בלבד.
    missing = מניות ידניות בלי מחיר (לא נספרות). טהורה. */
-function manualTotalsUSD(positions, trades, quotes) {
+function manualTotalsUSD(positions, trades, quotes, fx) {
   let value = 0, gain = 0, avgOnly = 0, missing = 0;
   const priceOf = (sym) => { const q = (quotes || {})[sym]; return q && q.close > 0 ? q.close : null; };
+  // v142: מניה ישראלית — סכומים בשקלים, מומרים לדולר בשער הנוכחי
+  const usd = (v, sym) => nativeToUSD(v, sym, fx);
   for (const p of (positions || [])) {
     if (p.src !== 'manual') continue;
     const px = priceOf(p.sym);
     if (!p.fromTrades) avgOnly++;
-    if (px === null) { missing++; continue; }
-    value += px * p.shares;
-    if (!p.fromTrades) gain += (px - (Number(p.avg) || 0)) * p.shares;
+    const v = px === null ? null : usd(px * p.shares, p.sym);
+    if (v === null) { missing++; continue; }
+    value += v;
+    if (!p.fromTrades) gain += usd((px - (Number(p.avg) || 0)) * p.shares, p.sym);
   }
   for (const sym of new Set((trades || []).map((x) => mtNorm(x).sym))) {
     const st = mtPosition(trades, sym);
+    let g;
     if (st.shares > 0) {
       const px = priceOf(sym);
       if (px === null) continue;
-      gain += st.realized + px * st.shares - st.cost;
-    } else gain += st.realized;
+      g = usd(st.realized + px * st.shares - st.cost, sym);
+    } else g = usd(st.realized, sym);
+    if (g !== null) gain += g;
   }
   return { value: value, gain: gain, avgOnly: avgOnly, missing: missing };
 }
@@ -2335,8 +2345,14 @@ function manualTotalsUSD(positions, trades, quotes) {
    שנכנס לידניות (קנייה +, מכירה −) — שניהם בחלון (t−1, t], כך שסופ"ש לא נבלע.
    דורש NAV יומי (baseRows מסדרה יומית). מחזיר null אם אי אפשר (אין NAV יומי
    שמכסה את העסקה הראשונה / חסרה היסטוריית מחיר). טהורה. */
-function rowsWithManualTwr(baseRows, navDaily, ibkrFlows, trades, histOf) {
+function rowsWithManualTwr(baseRows, navDaily, ibkrFlows, trades, histOf, fxOf) {
   const tr = mtSorted(trades);
+  // v142: מניה בשקלים — שווי ותזרים מומרים לדולר בשער של אותו יום
+  const toU = (v, sym, date) => {
+    if (symCur(sym) !== 'ILS') return v;
+    const r = fxOf ? fxOf(date) : null;
+    return r > 0 ? v / r : null;
+  };
   if (!tr.length) return baseRows;
   const nav = (navDaily || []).filter((d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') && isFinite(Number(d.total)))
     .slice().sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -2351,7 +2367,12 @@ function rowsWithManualTwr(baseRows, navDaily, ibkrFlows, trades, histOf) {
   for (const r of baseRows) if (r.date <= nav[s].date) seamV = r.value;
   if (!(seamV > 0)) return null;
   const syms = [...new Set(tr.map((x) => x.sym))];
-  const mFlows = mtFlowsByDate(tr);
+  const mFlows = {};
+  for (const x of tr) {
+    const f = toU(x.side === 'BUY' ? x.qty * x.price + x.fee : -(x.qty * x.price - x.fee), x.sym, x.date);
+    if (f === null) return null;
+    mFlows[x.date] = (mFlows[x.date] || 0) + f;
+  }
   const mVal = (date) => {
     let v = 0;
     for (const sym of syms) {
@@ -2359,7 +2380,9 @@ function rowsWithManualTwr(baseRows, navDaily, ibkrFlows, trades, histOf) {
       if (!(sh > 0)) continue;
       const c = closeOnOrBefore(histOf(sym) || [], date);
       if (!(c > 0)) return null;
-      v += sh * c;
+      const u = toU(sh * c, sym, date);
+      if (u === null) return null;
+      v += u;
     }
     return v;
   };
@@ -2368,18 +2391,26 @@ function rowsWithManualTwr(baseRows, navDaily, ibkrFlows, trades, histOf) {
     for (const k of Object.keys(map || {})) if (k > a && k <= b) f += Number(map[k]) || 0;
     return f;
   };
+  // v142: חלק IBKR לפי הסדרה המעוגנת לרשמי (לא NAV גולמי) — בלי עסקאות ידניות
+  // התוצאה זהה בדיוק לרשמית; רק הידניות משנות אותה:
+  //   r_t = [NAV_{t−1}·(1+r_IBKR) + M_t − G_t] / (NAV_{t−1} + M_{t−1}) − 1
+  const baseAt = {};
+  for (const r of baseRows) baseAt[r.date] = r.value;
   const out = baseRows.filter((r) => r.date <= nav[s].date);
   let v = seamV;
-  let prevTot = Number(nav[s].total) + (mVal(nav[s].date) || 0);
+  let prevM = mVal(nav[s].date) || 0;
   for (let i = s + 1; i < nav.length; i++) {
     const m = mVal(nav[i].date);
     if (m === null) return null;
-    const tot = Number(nav[i].total) + m;
-    const flow = inWin(ibkrFlows, nav[i - 1].date, nav[i].date) + inWin(mFlows, nav[i - 1].date, nav[i].date);
-    if (!(prevTot > 0)) return null;
-    v *= (tot - flow) / prevTot;
+    const navPrev = Number(nav[i - 1].total), navCur = Number(nav[i].total);
+    const b0 = baseAt[nav[i - 1].date], b1 = baseAt[nav[i].date];
+    const rIb = (b0 > 0 && b1 > 0) ? b1 / b0 - 1
+      : (navPrev > 0 ? (navCur - inWin(ibkrFlows, nav[i - 1].date, nav[i].date)) / navPrev - 1 : null);
+    if (rIb === null || !(navPrev + prevM > 0)) return null;
+    const g = inWin(mFlows, nav[i - 1].date, nav[i].date);
+    v *= (navPrev * (1 + rIb) + m - g) / (navPrev + prevM);
     out.push({ date: nav[i].date, value: v });
-    prevTot = tot;
+    prevM = m;
   }
   return out;
 }
@@ -2395,9 +2426,11 @@ function ibkrReturnRows(data) {
   const trades = mtActiveTrades();
   if (!trades.length) return { rows: base, kind: 'official' };
   if (ibkrBaseCur(data) !== 'USD' || !(data.navDaily || []).length) return { rows: base, kind: 'needsDaily' };
-  const missing = [...new Set(trades.map((x) => mtNorm(x).sym))].filter((sym) => !(state.hist[sym] || []).length);
-  if (missing.length) return { rows: base, kind: 'loading', missing: missing };
-  const rows = rowsWithManualTwr(base, data.navDaily, flows, trades, (sym) => state.hist[sym]);
+  const tSyms = [...new Set(trades.map((x) => mtNorm(x).sym))];
+  const missing = tSyms.filter((sym) => !(state.hist[sym] || []).length);
+  const needFx = tSyms.some((sym) => symCur(sym) === 'ILS') && !fxHistCache;
+  if (missing.length || needFx) return { rows: base, kind: 'loading', missing: missing, needFx: needFx };
+  const rows = rowsWithManualTwr(base, data.navDaily, flows, trades, (sym) => state.hist[sym], (d) => fxOnOrBefore(d));
   if (!rows) return { rows: base, kind: 'needsDaily' };
   return { rows: rows, kind: rows === base ? 'official' : 'combined' };
 }
@@ -2701,6 +2734,27 @@ function fmtUSD2(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function fmtILS2(v) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  return '₪' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/* v142: מטבע המסחר של מניה — בורסת ת"א (סיומת .TA) בשקלים, השאר בדולרים.
+   כל מחיר/ממוצע/עסקה של מניה נשמר במטבע שלה; סכומים (שווי, רווח, עוגה, תשואה)
+   מומרים לדולר דרך nativeToUSD, ומשם למטבע התצוגה כמו תמיד. */
+function symCur(sym) { return /\.TA$/i.test(String(sym || '')) ? 'ILS' : 'USD'; }
+function nativeToUSD(v, sym, fx) {
+  if (v === null || v === undefined || !isFinite(v)) return null;
+  if (symCur(sym) !== 'ILS') return v;
+  const r = fx === undefined ? state.fx : fx;
+  return r > 0 ? v / r : null;
+}
+/* מחיר למניה לתצוגה: מניה ישראלית תמיד בשקלים (ככה היא נסחרת); מניה אמריקאית
+   לפי מטבע התצוגה (כמו קודם). */
+function fmtPx(v, sym) {
+  if (symCur(sym) === 'ILS') return fmtILS2(v);
+  return state.currency === 'ILS' && state.fx ? fmtILS(v * state.fx) : fmtUSD2(v);
+}
 function fmtILS(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   return '₪' + Math.round(v).toLocaleString('en-US');
@@ -2754,7 +2808,7 @@ const DEFAULT_DB = {
 };
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v141';
+const APP_VERSION = 'v142';
 
 
 function saveDBto(db) {
@@ -3158,8 +3212,11 @@ function parseYahooQuote(json, sym, nowMs) {
   const meta = res.meta || {};
   const ind = (res.indicators && res.indicators.quote && res.indicators.quote[0]) || {};
   const closes = (ind.close || []).filter((c) => c > 0);
+  // v142: בורסת ת"א מדווחת באגורות (ILA) — כל המחירים לשקלים
+  const k = String(meta.currency || '').toUpperCase() === 'ILA' ? 0.01 : 1;
+  const kk = (v) => (v === null || v === undefined ? v : v * k);
   // הסגירה האחרונה של נר הדקה — חיה גם ב־pre/post; גיבוי למחיר הרגיל
-  const close = closes.length ? closes[closes.length - 1] : num(meta.regularMarketPrice);
+  const close = kk(closes.length ? closes[closes.length - 1] : num(meta.regularMarketPrice));
   if (!(close > 0)) return null;
   let session = '';
   try {
@@ -3191,10 +3248,10 @@ function parseYahooQuote(json, sym, nowMs) {
     mtime: mtime,
     time: '',
     open: null,
-    high: num(meta.regularMarketDayHigh),
-    low: num(meta.regularMarketDayLow),
+    high: kk(num(meta.regularMarketDayHigh)),
+    low: kk(num(meta.regularMarketDayLow)),
     close: close,
-    prev: num(meta.chartPreviousClose),
+    prev: kk(num(meta.chartPreviousClose)),
     session: session,
     volume: parseInt(meta.regularMarketVolume, 10) || 0
   };
@@ -3487,7 +3544,11 @@ async function refreshQuotes() {
   // ככה לא מחכים ל-timeout של מקור חסום ברשת של המשתמש.
   try {
     const res = await Promise.any([tryYahooQuotes(), tryCNBCQuotes()]);
-    applyQuotes(res); renderAll(); return;
+    applyQuotes(res); renderAll();
+    // v142: CNBC לא מכיר מניות ת"א — מה שחסר נשלף מ־Yahoo
+    const miss = quoteSymbols().filter((sym) => !state.quotes[sym]);
+    if (miss.length) liveFetch(miss).then((got) => { if (Object.keys(got).length) { liveMerge(got); renderAll(); } }).catch(() => {});
+    return;
   } catch (e) { /* שניהם נכשלו — נופלים לנתונים שמורים */ }
   const cached = lsGet(LS_QUOTES);
   if (cached && cached.quotes && cached.fx) {
@@ -3814,8 +3875,9 @@ function metrics(sym) {
     const pc = prevCloseFor(q.date, hist);
     if (pc) dayChg = (q.close - pc) / pc * 100;
   }
-  const value = price !== null ? price * p.shares : null;
-  const gl = price !== null ? (price - p.avg) * p.shares : null;
+  // v142: שווי ורווח בדולרים (מניה ישראלית מומרת); המחיר נשאר במטבע המניה
+  const value = price !== null ? nativeToUSD(price * p.shares, sym) : null;
+  const gl = price !== null ? nativeToUSD((price - p.avg) * p.shares, sym) : null;
   let ath = athOf(hist);
   // v139: שיא חדש במחיר החי — ה־ATH הוא המחיר עכשיו, לא השיא הישן מההיסטוריה
   if (price !== null && (!ath || price > ath.price) && hist.length) ath = { price: price, date: (q && (q.mdate || q.date)) || todayISO() };
@@ -3827,7 +3889,7 @@ function totalsUSD() {
   let stockVal = 0;
   for (const p of POSITIONS) {
     const q = state.quotes[p.sym];
-    if (q) stockVal += q.close * p.shares;
+    if (q) stockVal += nativeToUSD(q.close * p.shares, p.sym) || 0;
   }
   const usd = (DB.cash && DB.cash.usd) || 0;
   const ils = (DB.cash && DB.cash.ils) || 0;
@@ -3847,7 +3909,7 @@ function isIbkrMode() { return !!(typeof DB !== 'undefined' && DB && DB.source =
 
 /* עלות קנייה כוללת בדולרים — סכום avg×shares על הפוזיציות */
 function costBasisUSD() {
-  return POSITIONS.reduce((a, p) => a + (num(p.avg) || 0) * (num(p.shares) || 0), 0);
+  return POSITIONS.reduce((a, p) => a + (nativeToUSD((num(p.avg) || 0) * (num(p.shares) || 0), p.sym) || 0), 0);
 }
 function costBasisInCur() {
   const b = costBasisUSD();
@@ -4104,7 +4166,7 @@ function renderOverview(light) {
   const vEl = document.getElementById('ovValue');
   const vSub = document.getElementById('ovValueSub');
   // v141: אחזקות ידניות (מחיר ממוצע / עסקאות) — נכנסות גם במצב IBKR
-  const mt = isIbkrMode() ? manualTotalsUSD(POSITIONS, mtActiveTrades(), state.quotes) : null;
+  const mt = isIbkrMode() ? manualTotalsUSD(POSITIONS, mtActiveTrades(), state.quotes, state.fx) : null;
   const usdToCur = (v) => (cur === 'ILS' ? (state.fx ? v * state.fx : null) : v);
   if (vEl) {
     let vTxt = '—';
@@ -4286,7 +4348,7 @@ function drawPie() {
   let fbIdx = 0;
   const slices = POSITIONS.map((p) => {
     const q = state.quotes[p.sym];
-    const v = q ? q.close * p.shares : 0;
+    const v = q ? (nativeToUSD(q.close * p.shares, p.sym) || 0) : 0;
     const branded = !!PIE_BRAND_COLORS[String(p.sym || '').toUpperCase()];
     const color = pieColorFor(p.sym, fbIdx);
     if (!branded) fbIdx++;
@@ -4489,7 +4551,7 @@ function portfolioSeriesILS() {
     let v = cashI + cashU * fx;
     for (const p of POSITIONS) {
       const c = closeOnOrBefore(state.hist[p.sym] || [], d);
-      if (c) v += c * p.shares * fx;
+      if (c) v += symCur(p.sym) === 'ILS' ? c * p.shares : c * p.shares * fx;
     }
     out.push({ date: d, value: v });
   }
@@ -4962,6 +5024,7 @@ async function drawPfChart() {
     // v141: + עסקאות ידניות (TWR משולב) — טוענים קודם היסטוריה חסרה של המניות הידניות
     let rr = ibkrReturnRows(ibkrData);
     if (rr.kind === 'loading') {
+      if (rr.needFx) await ensureFxHist().catch(() => null);
       await pool(rr.missing, 3, (sym) => getDaily(sym, false).catch(() => null));
       if (my !== pfChartToken) return;
       rr = ibkrReturnRows(ibkrData);
@@ -5312,6 +5375,29 @@ const POPULAR_STOCKS = [
   'SCHD|Schwab US Dividend Equity ETF|ETF',
 ].map((l) => l.split("|"));
 
+/* v142: מניות בורסת ת"א — סימבול Yahoo (.TA), שם באנגלית, שם בעברית. החיפוש של
+   Yahoo לא מקבל עברית (400) — הרשימה הזו מאפשרת "לאומי", "טבע" וכו'. כל הסימבולים
+   אומתו מול Yahoo (25/09/2026). מחירי ת"א ב־Yahoo באגורות — מומרים לשקלים בפענוח. */
+const TASE_STOCKS = [
+  'LUMI.TA|Bank Leumi|לאומי', 'POLI.TA|Bank Hapoalim|הפועלים', 'DSCT.TA|Israel Discount Bank|דיסקונט',
+  'MZTF.TA|Mizrahi Tefahot Bank|מזרחי טפחות', 'FIBI.TA|First International Bank|הבינלאומי',
+  'TEVA.TA|Teva Pharmaceutical|טבע', 'ESLT.TA|Elbit Systems|אלביט מערכות', 'NICE.TA|NICE Ltd.|נייס',
+  'ICL.TA|ICL Group|כיל', 'BEZQ.TA|Bezeq|בזק', 'AZRG.TA|Azrieli Group|עזריאלי', 'DLEKG.TA|Delek Group|קבוצת דלק',
+  'NVMI.TA|Nova Ltd.|נובה', 'TSEM.TA|Tower Semiconductor|טאואר', 'ORL.TA|Oil Refineries (Bazan)|בזן',
+  'HARL.TA|Harel Insurance|הראל', 'PHOE.TA|Phoenix Financial|הפניקס', 'CLIS.TA|Clal Insurance|כלל ביטוח',
+  'MGDL.TA|Migdal Insurance|מגדל', 'MMHD.TA|Menora Mivtachim|מנורה מבטחים', 'SPEN.TA|Shapir Engineering|שפיר הנדסה',
+  'ENLT.TA|Enlight Renewable Energy|אנלייט', 'ENRG.TA|Energix|אנרג׳יקס', 'OPCE.TA|OPC Energy|או.פי.סי',
+  'SAE.TA|Shufersal|שופרסל', 'STRS.TA|Strauss Group|שטראוס', 'ALHE.TA|Alony-Hetz|אלוני חץ', 'AMOT.TA|Amot Investments|אמות',
+  'MLSR.TA|Melisron|מליסרון', 'BIG.TA|BIG Shopping Centers|ביג', 'NWMD.TA|NewMed Energy|ניו־מד',
+  'CEL.TA|Cellcom Israel|סלקום', 'PTNR.TA|Partner Communications|פרטנר', 'ELAL.TA|El Al Israel Airlines|אל על',
+  'FTAL.TA|Fattal Holdings|פתאל', 'MTRX.TA|Matrix IT|מטריקס', 'ONE.TA|One Software Technologies|וואן טכנולוגיות',
+  'ELTR.TA|Electra|אלקטרה', 'SKBN.TA|Shikun & Binui|שיכון ובינוי', 'ASHG.TA|Ashtrom Group|אשטרום',
+  'CAMT.TA|Camtek|קמטק', 'KEN.TA|Kenon Holdings|קנון', 'DANE.TA|Danel|דנאל', 'ELCO.TA|Elco|אלקו',
+  'HLAN.TA|Hilan|חילן', 'AURA.TA|Aura Investments|אאורה', 'ISRA.TA|Isramco Negev 2|ישראמקו',
+  'NXSN.TA|NextVision|נקסטויז׳ן', 'FORTY.TA|Formula Systems|פורמולה מערכות', 'MVNE.TA|Mivne Real Estate|מבנה',
+  'ILCO.TA|Israel Corporation|החברה לישראל',
+].map((l) => l.split('|'));
+
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
   if (!m) return n;
@@ -5328,21 +5414,35 @@ function levenshtein(a, b) {
   return prev[n];
 }
 
-/* חיפוש מקומי סובלני־שגיאות: סימבול מדויק/תחילית, שם מכיל, או טעות כתיב קלה */
+/* חיפוש מקומי סובלני־שגיאות: סימבול מדויק/תחילית, שם מכיל, או טעות כתיב קלה.
+   v142: גם מניות ת"א — לפי סימבול (עם או בלי .TA), שם באנגלית או בעברית. מיידי. */
 function localStockSearch(query) {
-  const q = String(query || '').trim().toUpperCase();
-  if (q.length < 2) return [];
+  const raw = String(query || '').trim();
+  const q = raw.toUpperCase();
+  const heb = /[֐-׿]/.test(raw);
+  if (q.length < (heb ? 1 : 2)) return [];
   const out = [];
-  for (const [sym, name, type] of POPULAR_STOCKS) {
-    let score = 0;
-    if (sym === q) score = 100;
-    else if (sym.startsWith(q)) score = 80;
-    else if (name.toUpperCase().includes(q)) score = 60;
-    else if (q.length >= 3) {
-      const d = levenshtein(sym, q);
-      if (d <= 2) score = 50 - d * 10;
+  const score = (sym, name, he) => {
+    const base = sym.replace(/\.TA$/, '');
+    if (heb) {
+      if (!he) return 0;
+      if (he === raw) return 100;
+      if (he.startsWith(raw)) return 85;
+      return he.includes(raw) ? 65 : 0;
     }
-    if (score > 0) out.push({ sym, name, type, _s: score });
+    if (sym === q || base === q) return 100;
+    if (sym.startsWith(q) || base.startsWith(q)) return 80;
+    if (name.toUpperCase().includes(q)) return 60;
+    if (q.length >= 3) { const d = levenshtein(base, q); if (d <= 2) return 50 - d * 10; }
+    return 0;
+  };
+  for (const [sym, name, type] of POPULAR_STOCKS) {
+    const sc = score(sym, name, '');
+    if (sc > 0) out.push({ sym, name, type, _s: sc });
+  }
+  for (const [sym, name, he] of TASE_STOCKS) {
+    const sc = score(sym, name, he);
+    if (sc > 0) out.push({ sym, name: he + ' · ' + name, type: 'EQUITY', _s: sc - 1 });
   }
   out.sort((a, b) => b._s - a._s);
   return out.slice(0, 8).map(({ sym, name, type }) => ({ sym, name, type }));
@@ -5364,24 +5464,64 @@ async function stooqDirectSymbol(q) {
   } catch (e) { return null; }
 }
 
-async function searchStocksYahoo(query) {
+/* v142: חיפוש מהיר — הכל במקביל עם timeout קצר, תוצאות מוצגות ברגע שמגיעות,
+   ומטמון לכל שאילתה (מחיקה והקלדה חוזרת — מיידי). קודם היה רצף: search API →
+   בדיקת סימבול → מקומי, בלי timeout; כשמקור אחד נתקע החיפוש חיכה לו. */
+const _searchCache = new Map();
+let _searchSeq = 0;
+const SEARCH_TIMEOUT_MS = 3500;
+
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((r) => setTimeout(() => r(null), ms))]);
+}
+
+/* מיזוג תוצאות ממקורות שונים — בלי כפילויות, סימבול מדויק (גם עם .TA) ראשון. טהורה. */
+function mergeSearchResults(q, lists) {
+  const Q = String(q || '').trim().toUpperCase();
+  const seen = new Set(), out = [];
+  for (const l of lists) for (const it of (l || [])) {
+    if (!it || !it.sym || seen.has(it.sym)) continue;
+    seen.add(it.sym);
+    out.push(it);
+  }
+  const exact = (it) => (it.sym === Q || it.sym === Q + '.TA' ? 1 : 0);
+  return out.sort((x, y) => exact(y) - exact(x)).slice(0, 10);
+}
+
+async function searchStocksYahoo(query, onUpdate) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
-  // 1. ה־search API של Yahoo (חיפוש חופשי)
-  const apiRes = await yahooSearchAPI(q);
-  if (apiRes === 'aborted') return 'aborted';
-  if (apiRes && apiRes.length) return apiRes;
-  // 2. גיבוי: בדיקת סימבול ישירה — Yahoo ו־Stooq במקביל, כי אחד מהם
-  //    נחסם לפעמים (429). מכסה הקלדת סימבול כמו GOOG.
-  const sym = normalizeSym(q).replace(/[^A-Z0-9.-]/g, '');
-  if (sym && sym.length <= 12) {
-    const [yRes, sRes] = await Promise.all([yahooDirectSymbol(sym), stooqDirectSymbol(sym)]);
-    if (yRes || sRes) return [yRes || sRes];
-  }
-  // 3. גיבוי מקומי סובלני־שגיאות — עובד גם כשהרשת חסומה
+  const key = q.toUpperCase();
+  if (_searchCache.has(key)) return _searchCache.get(key);
+  const heb = /[֐-׿]/.test(q); // Yahoo לא מחפש בעברית — רק הרשימה המקומית
   const local = localStockSearch(q);
-  if (local.length) return local;
-  return apiRes === null ? null : [];
+  const parts = { api: null, direct: null, stooq: null };
+  const all = () => [parts.direct, parts.api, local, parts.stooq];
+  const emit = () => { if (onUpdate) onUpdate(mergeSearchResults(q, all())); };
+  const tasks = [];
+  let apiOk = false;
+  if (!heb) {
+    tasks.push(withTimeout(yahooSearchAPI(q), SEARCH_TIMEOUT_MS).then((r) => {
+      if (Array.isArray(r)) { apiOk = true; parts.api = r; emit(); }
+      return r;
+    }));
+    const sym = normalizeSym(q).replace(/[^A-Z0-9.-]/g, '');
+    if (sym && sym.length <= 12) {
+      tasks.push(withTimeout(yahooDirectSymbol(sym), SEARCH_TIMEOUT_MS).then((r) => { if (r) { parts.direct = [r]; emit(); } return r; }));
+    }
+  }
+  const res = await Promise.all(tasks);
+  if (res.includes('aborted')) return 'aborted';
+  let merged = mergeSearchResults(q, all());
+  // Stooq רק כמוצא אחרון (איטי יותר) — כשאין שום תוצאה
+  if (!merged.length && !heb) {
+    const sym = normalizeSym(q).replace(/[^A-Z0-9.-]/g, '');
+    const st = sym ? await withTimeout(stooqDirectSymbol(sym), SEARCH_TIMEOUT_MS) : null;
+    if (st) { parts.stooq = [st]; merged = mergeSearchResults(q, all()); }
+  }
+  if (apiOk || heb) _searchCache.set(key, merged); // כשל רשת — לא נשמר, כדי לנסות שוב
+  if (!merged.length && !apiOk && !heb) return null;
+  return merged;
 }
 
 /* בדיקת סימבול ישירה: שולף meta מה־chart API של Yahoo (כולל longName) */
@@ -5397,8 +5537,15 @@ async function yahooDirectSymbol(q) {
     const qt = String(meta.quoteType || '').toUpperCase();
     if (qt && !['EQUITY', 'ETF'].includes(qt)) return null;
     const s = String(meta.symbol).toUpperCase();
+    if (!searchMarketOk(s)) return null;
     return { sym: s, name: meta.longName || meta.shortName || s, type: qt || 'EQUITY' };
   } catch (e) { return null; }
+}
+
+/* סימבול שנתמך: ארה"ב (בלי סיומת בורסה) או ת"א (.TA). טהורה. */
+function searchMarketOk(sym) {
+  const s = String(sym || '').toUpperCase();
+  return !/\./.test(s) || /\.TA$/.test(s);
 }
 
 async function yahooSearchAPI(query) {
@@ -5412,8 +5559,9 @@ async function yahooSearchAPI(query) {
     const j = await res.json();
     const quotes = (j && j.quotes) || [];
     // רק מניות/ETF — בלי אופציות, מט"ח, קרנות
+    // v142: רק ארה"ב ות"א — בורסות אחרות במטבעות שהאפליקציה לא מתמחרת
     return quotes
-      .filter((x) => x && x.symbol && ['EQUITY', 'ETF'].includes(x.quoteType))
+      .filter((x) => x && x.symbol && ['EQUITY', 'ETF'].includes(x.quoteType) && searchMarketOk(x.symbol))
       .slice(0, 8)
       .map((x) => ({ sym: String(x.symbol).toUpperCase(), name: x.longname || x.shortname || x.symbol, type: x.quoteType }));
   } catch (e) {
@@ -5426,7 +5574,7 @@ function renderStockSearchResults(items, status) {
   const box = document.getElementById('stockSearchResults');
   if (!box) return;
   box.innerHTML = '';
-  if (status === 'loading') {
+  if (status === 'loading' && (!items || !items.length)) {
     box.classList.remove('hidden');
     const d = el('div', 'stock-search-loading');
     d.textContent = '…';
@@ -5458,7 +5606,7 @@ function renderStockSearchResults(items, status) {
       '<span class="ss-logo">' + stockLogoHTML(it.sym) + '</span>' +
       '<span class="ss-sym" dir="ltr">' + esc(it.sym) + '</span>' +
       '<span class="ss-name">' + esc(it.name) + '</span>' +
-      '<span class="ss-type">' + esc(it.type) + '</span>' +
+      '<span class="ss-type">' + esc(symCur(it.sym) === 'ILS' ? t('mktTase') : it.type) + '</span>' +
       '<span class="ss-add">＋</span>';
     row.addEventListener('click', () => {
       box.classList.add('hidden');
@@ -5467,6 +5615,11 @@ function renderStockSearchResults(items, status) {
       openAddStockWithSymbol(it.sym, it.name);
     });
     box.appendChild(row);
+  }
+  if (status === 'loading') {
+    const d = el('div', 'stock-search-loading');
+    d.textContent = '…';
+    box.appendChild(d);
   }
 }
 
@@ -5484,6 +5637,7 @@ function openAddStockWithSymbol(sym, name) {
     const nameInp = card.querySelector('#ap-full');
     if (symInp) symInp.value = sym;
     if (nameInp && name) nameInp.value = name;
+    if (card._paintCur) card._paintCur();
     const sharesInp = card.querySelector('#ap-shares');
     if (sharesInp) sharesInp.focus();
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -5497,17 +5651,29 @@ function initStockSearch() {
   inp.addEventListener('input', () => {
     clearTimeout(_stockSearchT);
     const q = inp.value.trim();
+    const my = ++_searchSeq;
     if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-    renderStockSearchResults(null, 'loading');
+    const owned = new Set(POSITIONS.map((p) => p.sym));
+    // loading = עוד מחכים לרשת (התוצאות שכבר יש מוצגות); ok/empty = סופי
+    const show = (items, loading) => {
+      if (my !== _searchSeq) return; // תשובה של הקלדה ישנה
+      const f = (items || []).filter((r) => !owned.has(r.sym));
+      if (f.length) renderStockSearchResults(f, loading ? 'loading' : 'ok');
+      else renderStockSearchResults(null, loading ? 'loading' : 'empty');
+    };
+    const cached = _searchCache.get(q.toUpperCase());
+    if (cached) { show(cached, false); return; }
+    show(localStockSearch(q), true); // מיידי — בלי לחכות לרשת
     _stockSearchT = setTimeout(async () => {
-      const res = await searchStocksYahoo(q);
-      if (res === 'aborted') return;
-      if (res === null) { renderStockSearchResults(null, 'error'); return; }
-      // מסנן מניות שכבר בתיק
-      const existing = new Set(POSITIONS.map((p) => p.sym));
-      const filtered = res.filter((r) => !existing.has(r.sym));
-      renderStockSearchResults(filtered, filtered.length ? 'ok' : 'empty');
-    }, 400);
+      const res = await searchStocksYahoo(q, (partial) => show(partial, true));
+      if (res === 'aborted' || my !== _searchSeq) return;
+      if (res === null) {
+        const loc = localStockSearch(q);
+        if (loc.length) show(loc, false); else renderStockSearchResults(null, 'error');
+        return;
+      }
+      show(res, false);
+    }, 150);
   });
   // סגירת תוצאות בלחיצה בחוץ
   document.addEventListener('click', (e) => {
@@ -5604,7 +5770,7 @@ function renderStocks() {
 /* ולידציה למניה (טהורה — ניתנת לבדיקה) */
 function validPosition(sym, shares, avg, ignoreSym) {
   const s = String(sym || '').trim().toUpperCase();
-  if (!/^[A-Z.]{1,8}$/.test(s)) return t('errSymInvalid');
+  if (!/^[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(s)) return t('errSymInvalid');
   if (ignoreSym !== s && POSITIONS.some((p) => p.sym === s)) return t('errSymExists');
   if (!(shares > 0)) return t('errSharesPos');
   if (!(avg > 0)) return t('errAvgPos');
@@ -5618,7 +5784,7 @@ function showEditPositionForm(card, p) {
   body.innerHTML =
     '<div class="form-grid">' +
     '<label>' + t('fldShares') + '<input id="ep-shares" type="number" min="0" step="any" inputmode="decimal" value="' + p.shares + '"></label>' +
-    '<label>' + t('fldAvgPrice') + '<input id="ep-avg" type="number" min="0" step="any" inputmode="decimal" value="' + p.avg + '"></label>' +
+    '<label>' + t('fldAvgPrice', { c: symCur(p.sym) === 'ILS' ? '₪' : '$' }) + '<input id="ep-avg" type="number" min="0" step="any" inputmode="decimal" value="' + p.avg + '"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ep-err"></div>' +
     '<div class="edit-actions"><button class="btn" id="ep-save" type="button">' + t('btnSave') + '</button>' +
@@ -5660,16 +5826,17 @@ function showAddPositionForm(list) {
     '<label>' + t('fldNameHe') + '<input id="ap-name" type="text" placeholder="' + t('phExampleName') + '"></label>' +
     '<label>' + t('fldFullName') + '<input id="ap-full" type="text" dir="ltr" placeholder="NVIDIA Corp" autocomplete="off"></label>' +
     '<label class="m-avg">' + t('fldShares') + '<input id="ap-shares" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-avg">' + t('fldAvgPrice') + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-avg">' + t('fldAvgPrice', { c: '<span class="cur-sym">$</span>' }) + '<input id="ap-avg" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '<label class="m-tr hidden">' + t('fldDate') + '<input id="ap-date" type="date" max="' + todayISO() + '" value="' + todayISO() + '"></label>' +
     '<label class="m-tr hidden">' + t('fldTradeQty') + '<input id="ap-qty" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-tr hidden">' + t('fldTradePrice') + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
-    '<label class="m-tr hidden">' + t('fldFee') + '<input id="ap-fee" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '<input id="ap-price" type="number" min="0" step="any" inputmode="decimal"></label>' +
+    '<label class="m-tr hidden">' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '<input id="ap-fee" type="number" min="0" step="any" inputmode="decimal"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ap-err"></div>' +
     '<div class="edit-actions"><button class="btn" id="ap-save" type="button">' + t('btnAddStock') + '</button>' +
     '<button class="link-btn" id="ap-cancel" type="button">' + t('btnCancel') + '</button></div>';
   list.insertBefore(card, list.firstChild);
+  bindCurSym(card, card.querySelector('#ap-sym'));
   card.querySelectorAll('.add-mode [data-mode]').forEach((b) => b.addEventListener('click', () => {
     mode = b.dataset.mode;
     card.querySelectorAll('.add-mode [data-mode]').forEach((x) => x.classList.toggle('active', x === b));
@@ -5710,6 +5877,18 @@ function showAddPositionForm(list) {
   });
 }
 
+/* v142: סימן המטבע בתוויות המחיר מתעדכן לפי הסימבול — ₪ למניה בת"א (.TA), אחרת $ */
+function bindCurSym(card, symInp) {
+  if (!card || !symInp) return;
+  const paint = () => {
+    const c = symCur(symInp.value.trim()) === 'ILS' ? '₪' : '$';
+    card.querySelectorAll('.cur-sym').forEach((x) => { x.textContent = c; });
+  };
+  symInp.addEventListener('input', paint);
+  card._paintCur = paint;
+  paint();
+}
+
 function mtNewId() {
   return 'mt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -5733,8 +5912,8 @@ function showTradeForm(host, opts) {
     '<label>' + t('fldSymbol') + '<input class="mt-sym" type="text" dir="ltr" autocomplete="off" placeholder="GOOG" value="' + esc(v(tr ? tr.sym : o.sym)) + '"' + (o.lockSym || tr ? ' readonly' : '') + '></label>' +
     '<label>' + t('fldDate') + '<input class="mt-date" type="date" max="' + todayISO() + '" value="' + esc(tr ? tr.date : todayISO()) + '"></label>' +
     '<label>' + t('fldTradeQty') + '<input class="mt-qty" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.qty)) + '"></label>' +
-    '<label>' + t('fldTradePrice') + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.price)) + '"></label>' +
-    '<label>' + t('fldFee') + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
+    '<label>' + t('fldTradePrice', { c: '<span class="cur-sym">$</span>' }) + '<input class="mt-price" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.price)) + '"></label>' +
+    '<label>' + t('fldFee', { c: '<span class="cur-sym">$</span>' }) + '<input class="mt-fee" type="number" min="0" step="any" inputmode="decimal" value="' + esc(v(tr && tr.fee ? tr.fee : '')) + '"></label>' +
     '</div>' +
     '<div class="form-err hidden"></div>' +
     '<div class="edit-actions"><button class="btn mt-save" type="button">' + t('btnSave') + '</button>' +
@@ -5743,6 +5922,7 @@ function showTradeForm(host, opts) {
   paintSide();
   card.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => { side = b.dataset.side; paintSide(); }));
   host.insertBefore(card, host.firstChild);
+  bindCurSym(card, card.querySelector('.mt-sym'));
   const close = () => { card.remove(); if (o.onClose) o.onClose(); };
   card.querySelector('.mt-cancel').addEventListener('click', close);
   card.querySelector('.mt-save').addEventListener('click', () => {
@@ -5790,7 +5970,7 @@ function mtDeleteTrade(x) {
 /* שורת עסקה ידנית — כמו שורת IBKR + תגית "ידני" וכפתורי עריכה/מחיקה. */
 function buildManualTradeRow(x, onEdit) {
   const n = mtNorm(x);
-  const li = buildTradeRow({ date: n.date, symbol: n.sym, side: n.side, qty: n.qty, price: n.price, commission: n.fee, currency: 'USD' });
+  const li = buildTradeRow({ date: n.date, symbol: n.sym, side: n.side, qty: n.qty, price: n.price, commission: n.fee, currency: symCur(n.sym) });
   li.classList.add('mt-row');
   const first = li.firstChild;
   if (first) {
@@ -5871,7 +6051,7 @@ function deletePosition(p) {
 /* ולידציה טהורה — ניתנת לבדיקה */
 function wlValidate(sym) {
   const s = String(sym || '').trim().toUpperCase();
-  if (!/^[A-Z.]{1,8}$/.test(s)) return { err: t('errSymInvalid') };
+  if (!/^[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(s)) return { err: t('errSymInvalid') };
   if (WISHLIST.some((w) => w.sym === s)) return { err: t('wlExists', { sym: s }) };
   if (POSITIONS.some((p) => p.sym === s)) return { err: t('wlAlreadyOwn', { sym: s }) };
   return { sym: s };
@@ -5930,7 +6110,7 @@ function renderWishlist() {
       '</div>' +
       '<div class="wl-price">' +
       (close > 0
-        ? '<span class="wl-close" dir="ltr">$' + close.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span>'
+        ? '<span class="wl-close" dir="ltr">' + (symCur(w.sym) === 'ILS' ? fmtILS2(close) : fmtUSD2(close)) + '</span>'
         : '<span class="fine">' + t('wlNoPrice') + '</span>') +
       (chg !== null
         ? '<span class="wl-chg ' + (chg >= 0 ? 'pos' : 'neg') + '" dir="ltr">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</span>'
@@ -6007,7 +6187,7 @@ function buildStockCard(p) {
   const sym = p.sym;
   const m = metrics(sym);
   const cur = state.currency;
-  const priceTxt = m.price === null ? '—' : (cur === 'ILS' && state.fx ? fmtILS(m.price * state.fx) : fmtUSD2(m.price));
+  const priceTxt = m.price === null ? '—' : fmtPx(m.price, sym);
 
   const card = el('div', 'stock' + (state.open[sym] ? ' open' : ''));
   card.dataset.sym = sym;
@@ -6047,20 +6227,21 @@ function buildStockBody(p, m) {
   const grid = el('div', 'kv-grid');
   grid.innerHTML =
     kvHTML(t('kvShares'), p.shares.toLocaleString('en-US')) +
-    kvHTML(t('kvAvg'), cur === 'ILS' && state.fx ? fmtILS(p.avg * state.fx) : fmtUSD2(p.avg)) +
+    kvHTML(t('kvAvg'), fmtPx(p.avg, sym)) +
     kvHTML(t('kvValue'), m.value === null ? '—' : money(toCur(m.value), cur)) +
     kvHTML(t('kvGL'),
       m.gl === null ? '—' : (m.gl < 0 ? '−' : '+') + money(Math.abs(toCur(m.gl)), cur) +
-        ' (' + fmtPct(m.gl / (p.avg * p.shares) * 100, true) + ')',
+        ' (' + fmtPct(p.avg > 0 ? (m.price / p.avg - 1) * 100 : null, true) + ')',
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
     kvHTML(t('kvWeight'), weightTxt(sym)) +
     (p.fromTrades ? (() => {
       const rz = mtPosition(mtList(), sym).realized;
-      return Math.abs(rz) > 0.005 ? kvHTML(t('kvRealized'), (rz < 0 ? '−' : '+') + money(Math.abs(toCur(rz)), cur), rz >= 0 ? 'pos' : 'neg') : '';
+      const rzU = nativeToUSD(rz, sym);
+      return rzU !== null && Math.abs(rz) > 0.005 ? kvHTML(t('kvRealized'), (rz < 0 ? '−' : '+') + money(Math.abs(toCur(rzU)), cur), rz >= 0 ? 'pos' : 'neg') : '';
     })() : '') +
     // v102: אריח ATH מינימליסטי — רק מחיר ותאריך, מעט גדולים יותר
     kvHTML('ATH',
-      m.ath ? (cur === 'ILS' && state.fx ? fmtILS(m.ath.price * state.fx) : fmtUSD2(m.ath.price)) +
+      m.ath ? fmtPx(m.ath.price, sym) +
         '<br><span style="font-weight:400;font-size:14px">' + fmtDateIL(m.ath.date) + '</span>'
         : (state.hist[sym] ? '—' : '…'));
   wrap.appendChild(grid);
@@ -6152,7 +6333,8 @@ function weightTxt(sym) {
   const p = POSITIONS.find((x) => x.sym === sym);
   const q = state.quotes[sym];
   if (!tot.stockVal || !q) return '—';
-  return (q.close * p.shares / tot.stockVal * 100).toFixed(1) + '%';
+  const v = nativeToUSD(q.close * p.shares, sym);
+  return v === null ? '—' : (v / tot.stockVal * 100).toFixed(1) + '%';
 }
 
 function toggleStock(sym, card) {
@@ -6256,7 +6438,7 @@ function drawStockChart(sym, rows, intraday) {
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
-    ctx.fillText(fmtUSD2(v), w - padR + 6, y);
+    ctx.fillText(symCur(sym) === 'ILS' ? fmtILS2(v) : fmtUSD2(v), w - padR + 6, y);
   }
 
   // קו — 2.5px כמו בגרף הראשי, בלי מילוי שטח
