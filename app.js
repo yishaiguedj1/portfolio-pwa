@@ -174,6 +174,18 @@ he: {
   noPriceYet: 'אין נתוני מחיר עדיין',
   totalStocks: 'סך מניות',
   myPortfolio: 'התיק שלי',
+  pfHoldingsLegend: 'האחזקות הנוכחיות',
+  pfNoteManualTwr: 'תשואה משוקללת־זמן (TWR) בדולרים מהעסקאות הידניות — קנייה ומכירה לא נספרות כרווח, כמו ב־IBKR.',
+  pfNoteHoldings: 'האחזקות הנוכחיות בדולרים לאורך זמן (אין עסקאות עם תאריך). להיסטוריה מדויקת — הוסיפו מניות "לפי עסקאות".',
+  twrManual: 'TWR מהעסקאות הידניות',
+  twrManualLoading: 'TWR נטען…',
+  ovGLHoldings: 'ממומש + לא־ממומש',
+  perfTitleManual: 'ביצועי התיק',
+  perfPeriodManual: 'מהעסקה הראשונה ({a}) עד היום · בדולרים',
+  perfNoTrades: 'לפי מחיר ממוצע · בדולרים',
+  perfNeedTrades: 'נדרשות עסקאות עם תאריך',
+  perfGainManual: 'רווח/הפסד כולל',
+  perfFeesManual: 'עמלות',
 
   rangeDay: 'יום',
   rangeWeek: 'שבוע',
@@ -614,6 +626,18 @@ en: {
   noPriceYet: 'No price data yet',
   totalStocks: 'Stocks total',
   myPortfolio: 'My portfolio',
+  pfHoldingsLegend: 'Current holdings',
+  pfNoteManualTwr: 'Time-weighted return (TWR) in USD from your manual trades — buys and sells are not counted as gains, like IBKR.',
+  pfNoteHoldings: 'Current holdings in USD over time (no dated trades). For exact history, add stocks "by trades".',
+  twrManual: 'TWR from manual trades',
+  twrManualLoading: 'TWR loading…',
+  ovGLHoldings: 'Realized + unrealized',
+  perfTitleManual: 'Portfolio Performance',
+  perfPeriodManual: 'From the first trade ({a}) to today · in USD',
+  perfNoTrades: 'By average price · in USD',
+  perfNeedTrades: 'Needs dated trades',
+  perfGainManual: 'Total gain/loss',
+  perfFeesManual: 'Commissions',
 
   rangeDay: 'Day',
   rangeWeek: 'Week',
@@ -2514,6 +2538,183 @@ function rowsWithManualTwr(baseRows, navDaily, ibkrFlows, trades, histOf, fxOf) 
   return out;
 }
 
+/* v158: TWR של תיק ידני מהעסקאות בלבד (בלי IBKR) — בדולרים, כמו IBKR. קנייה/מכירה = תזרים,
+   לא רווח. כל יום עם עסקה מחולק לשתי תת־תקופות (TWR אמיתי):
+     עד רגע העסקה: V_b / M_{t−1}   — V_b = האחזקות הקודמות; מניה שנסחרה היום לפי מחיר העסקה,
+                                      השאר לפי הסגירה של היום (אחרת התנועה שלהן "נמהלת" בכסף החדש)
+     מרגע העסקה:   M_t / (V_b + G)  — G = כסף שנכנס (קנייה + עמלה, מכירה − נטו)
+   יום בלי עסקאות = M_t / M_{t−1}. קנייה בסגירה לא משנה את התשואה; סכום גדול לתיק קטן לא "מתפוצץ".
+   מניה בשקלים — בשער של אותו יום. מחזיר [{date,value}] מדד שמתחיל ב־100 ביום שלפני העסקה
+   הראשונה, או null. טהורה. */
+function manualTwrRows(trades, histOf, fxOf) {
+  const tr = mtSorted(trades);
+  if (!tr.length) return null;
+  const toU = (v, sym, date) => {
+    if (symCur(sym) !== 'ILS') return v;
+    const r = fxOf ? fxOf(date) : null;
+    return r > 0 ? v / r : null;
+  };
+  const syms = [...new Set(tr.map((x) => x.sym))];
+  const first = tr[0].date;
+  const dset = new Set(tr.map((x) => x.date));
+  let prevD = null;
+  for (const sym of syms) {
+    for (const r of (histOf(sym) || [])) {
+      if (r.date >= first) dset.add(r.date);
+      else if (!prevD || r.date > prevD) prevD = r.date;
+    }
+  }
+  const held = {};
+  const valAt = (date) => {
+    let v = 0;
+    for (const sym of syms) {
+      const sh = held[sym] || 0;
+      if (!(sh > 1e-9)) continue;
+      const c = closeOnOrBefore(histOf(sym) || [], date);
+      if (!(c > 0)) return null;
+      const u = toU(sh * c, sym, date);
+      if (u === null) return null;
+      v += u;
+    }
+    return v;
+  };
+  const start = prevD || addDaysISO(first, -1);
+  const out = [{ date: start, value: 100 }];
+  let v = 100, prevM = 0, last = start, ti = 0;
+  for (const d of [...dset].sort()) {
+    const today = [];
+    while (ti < tr.length && tr[ti].date <= d) today.push(tr[ti++]);
+    if (today.length) {
+      // מחיר העסקה (ממוצע משוקלל) לכל מניה שנסחרה היום, והכסף שנכנס
+      const px = {}, qn = {};
+      let g = 0;
+      for (const x of today) {
+        px[x.sym] = (px[x.sym] || 0) + x.qty * x.price; qn[x.sym] = (qn[x.sym] || 0) + x.qty;
+        const f = toU(x.side === 'BUY' ? x.qty * x.price + x.fee : -(x.qty * x.price - x.fee), x.sym, x.date);
+        if (f === null) return null;
+        g += f;
+      }
+      let vb = 0;
+      for (const sym of syms) {
+        const sh = held[sym] || 0;
+        if (!(sh > 1e-9)) continue;
+        const p = qn[sym] ? px[sym] / qn[sym] : closeOnOrBefore(histOf(sym) || [], d);
+        if (!(p > 0)) return null;
+        const u = toU(sh * p, sym, d);
+        if (u === null) return null;
+        vb += u;
+      }
+      if (prevM > 0 && vb > 0) v *= vb / prevM;
+      for (const x of today) held[x.sym] = Math.max(0, (held[x.sym] || 0) + (x.side === 'BUY' ? x.qty : -x.qty));
+      const m = valAt(d);
+      if (m === null) return null;
+      if (vb + g > 1e-9) v *= m / (vb + g);
+      prevM = m;
+    } else {
+      const m = valAt(d);
+      if (m === null) return null;
+      if (prevM > 0) v *= m / prevM;
+      prevM = m;
+    }
+    out.push({ date: d, value: v });
+    last = d;
+  }
+  return out.length >= 2 ? out : null;
+}
+
+/* v158: בלי עסקאות עם תאריך — האחזקות הנוכחיות בדולרים לאורך זמן (להשוואה מול המדדים).
+   מתחיל מהיום הראשון שיש מחיר לכל המניות, כדי שמניה "חדשה" בהיסטוריה לא תיראה כזינוק. טהורה. */
+function holdingsUsdRows(positions, histOf, fxOf) {
+  const ps = (positions || []).filter((p) => p && p.shares > 0);
+  if (!ps.length) return null;
+  let from = '';
+  const dset = new Set();
+  for (const p of ps) {
+    const h = histOf(p.sym) || [];
+    if (!h.length) return null;
+    if (h[0].date > from) from = h[0].date;
+    for (const r of h) dset.add(r.date);
+  }
+  const out = [];
+  for (const d of [...dset].sort()) {
+    if (d < from) continue;
+    let v = 0, ok = true;
+    for (const p of ps) {
+      const c = closeOnOrBefore(histOf(p.sym) || [], d);
+      if (!(c > 0)) { ok = false; break; }
+      if (symCur(p.sym) === 'ILS') { const r = fxOf ? fxOf(d) : null; if (!(r > 0)) { ok = false; break; } v += c * p.shares / r; }
+      else v += c * p.shares;
+    }
+    if (ok) out.push({ date: d, value: v });
+  }
+  return out.length >= 2 ? out : null;
+}
+
+/* v158: ביצועי תיק ידני — אותם שדות כמו כרטיס IBKR, מהנתונים הידניים. בדולרים.
+   positions = כל האחזקות (לפי ממוצע + לפי עסקאות), trades = עסקאות פעילות.
+   twr/xirr — מהעסקאות בלבד (מניות לפי ממוצע אין להן תאריך). טהורה. */
+function manualPerfUSD(positions, trades, quotes, fx, histOf, fxOf, today) {
+  const priceOf = (sym) => { const q = (quotes || {})[sym]; return q && q.close > 0 ? q.close : null; };
+  const usd = (v, sym) => nativeToUSD(v, sym, fx);
+  const tr = mtSorted(trades);
+  let realized = 0, unrealized = 0, fees = 0, tradeVal = 0, missing = 0, avgOnly = 0;
+  for (const sym of new Set(tr.map((x) => x.sym))) {
+    const st = mtPosition(tr, sym);
+    realized += usd(st.realized, sym) || 0;
+    if (st.shares > 0) {
+      const px = priceOf(sym);
+      if (px === null) { missing++; continue; }
+      unrealized += usd(px * st.shares - st.cost, sym) || 0;
+      tradeVal += usd(px * st.shares, sym) || 0;
+    }
+  }
+  for (const x of tr) fees += usd(x.fee, x.sym) || 0;
+  for (const p of (positions || [])) {
+    if (!p || p.fromTrades) continue;
+    avgOnly++;
+    const px = priceOf(p.sym);
+    if (px === null) { missing++; continue; }
+    unrealized += usd((px - (Number(p.avg) || 0)) * p.shares, p.sym) || 0;
+  }
+  let twr = null, rows = null;
+  if (tr.length && histOf) {
+    rows = manualTwrRows(tr, histOf, fxOf);
+    if (rows) twr = (rows[rows.length - 1].value / rows[0].value - 1) * 100;
+  }
+  let xirr = null;
+  if (tr.length && !missing) {
+    const flows = [];
+    for (const x of tr) {
+      const r = symCur(x.sym) === 'ILS' ? (fxOf ? fxOf(x.date) : null) : 1;
+      if (!(r > 0)) { flows.length = 0; break; }
+      const amt = (x.side === 'BUY' ? -(x.qty * x.price + x.fee) : (x.qty * x.price - x.fee)) / r;
+      flows.push({ d: x.date, amt: amt });
+    }
+    if (flows.length && tradeVal > 0) flows.push({ d: today, amt: tradeVal });
+    if (flows.length >= 2 && flows[flows.length - 1].d > flows[0].d) {
+      try { xirr = rXirr(flows); } catch (e) { xirr = null; }
+    }
+  }
+  return { twr: twr, rows: rows, xirr: xirr, gain: realized + unrealized, realized: realized,
+    unrealized: unrealized, fees: fees, avgOnly: avgOnly, missing: missing,
+    fromDate: tr.length ? tr[0].date : null };
+}
+
+/* v158: מצב ידני — היסטוריה חיה (עם המחיר של היום) לכל מניה, ושער לכל יום */
+function manualHistOf(sym) { return stockChartRows(state.hist[sym] || [], state.quotes[sym]); }
+function manualPerfNow() {
+  const trades = mtActiveTrades();
+  const need = [...new Set(trades.map((x) => mtNorm(x).sym))].filter((sym) => !(state.hist[sym] || []).length);
+  const needFx = trades.some((x) => symCur(mtNorm(x).sym) === 'ILS') && !fxHistCache;
+  const ready = !need.length && !needFx;
+  const mp = manualPerfUSD(POSITIONS, trades, state.quotes, state.fx, ready ? manualHistOf : null,
+    (d) => fxOnOrBefore(d), todayISO());
+  mp.loading = !ready;
+  mp.need = need;
+  mp.needFx = needFx;
+  return mp;
+}
+
 /* סדרת התשואה של מצב IBKR — עם עסקאות ידניות אם יש. kind:
    'official' (אין עסקאות ידניות פעילות), 'combined', 'needsDaily' (אין NAV יומי
    מתאים / מטבע בסיס לא דולר), 'loading' (חסרה היסטוריית מחיר של מניה ידנית). */
@@ -3347,7 +3548,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v157';
+const APP_VERSION = 'v158';
 
 
 function saveDBto(db) {
@@ -4252,7 +4453,7 @@ async function warmHistories() {
 /* הפרדה בין סוגי משתמשים: השוואת מדדים רק כשההיסטוריה אמיתית מ־IBKR.
    בהזנה ידנית (סימולציית אחזקות נוכחיות) אין השוואה — רק קו התיק. */
 function pfShowBench(srcKind) {
-  return srcKind === 'ibkr' || srcKind === 'trades';
+  return srcKind === 'ibkr' || srcKind === 'trades' || srcKind === 'holdings';
 }
 
 /* מדדי השוואה דולקים/כבויים — ברירת מחדל: הכל דולק */
@@ -4837,6 +5038,13 @@ function renderOverview(light) {
     }
     if (gSub) gSub.textContent = t('ovInReportPeriod');
   }
+  // v158: מצב ידני בלי הפקדות — רווח ממומש + לא־ממומש מהאחזקות (כמו IBKR: לא תלוי בהזנת הפקדות)
+  if (!isIbkrMode() && gl === null && POSITIONS.length) {
+    const mp = manualPerfUSD(POSITIONS, mtActiveTrades(), state.quotes, state.fx, null, null, todayISO());
+    if (!mp.missing) gl = usdToCur(mp.gain);
+    if (gSub) gSub.textContent = t('ovGLHoldings');
+  } else if (!isIbkrMode() && gSub) gSub.textContent = t('ovVsNetDeposits');
+  state._ovSimpleYld = yld;
   if (gl === null) { gEl.textContent = '—'; }
   else { gEl.textContent = (gl < 0 ? '−' : '+') + money(Math.abs(gl), cur); }
   gEl.className = 'stat-value ' + (gl === null ? '' : gl >= 0 ? 'pos' : 'neg');
@@ -4861,8 +5069,7 @@ function renderOverview(light) {
     yEl.textContent = yval === null ? '—' : fmtPct(yval, true);
     yEl.className = 'stat-value ' + (yval === null ? '' : yval >= 0 ? 'pos' : 'neg');
   } else {
-    yEl.textContent = fmtPct(yld, true);
-    yEl.className = 'stat-value ' + (yld === null ? '' : yld >= 0 ? 'pos' : 'neg');
+    paintManualHead();
   }
 
   let twrTxt = '';
@@ -4872,7 +5079,7 @@ function renderOverview(light) {
     if (ovTwrKind === 'needsDaily') twrTxt += ' · ' + t('twrNeedsDaily');
     if (mt && mt.avgOnly) twrTxt += ' · ' + t('twrAvgNote', { n: mt.avgOnly });
   }
-  document.getElementById('ovMeta').textContent =
+  if (isIbkrMode()) document.getElementById('ovMeta').textContent =
     t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + twrTxt;
   paintFxPill(false);
 
@@ -4885,6 +5092,65 @@ function renderOverview(light) {
     try { renderIbkrPerf(); } catch (e) {}
   }
   try { fitNumbers(); } catch (e) {}
+}
+
+/* v158: כותרת התשואה במצב ידני — TWR מהעסקאות (כמו TWR של IBKR), אחרת התשואה הפשוטה
+   (שווי מול הפקדות/עלות). נקרא שוב כשההיסטוריה נטענת (drawPfChart). */
+function paintManualHead() {
+  const yEl = document.getElementById('ovYield');
+  const meta = document.getElementById('ovMeta');
+  if (!yEl || isIbkrMode()) return;
+  const mp = manualPerfNow();
+  let y = state._ovSimpleYld === undefined ? null : state._ovSimpleYld;
+  let note = '';
+  if (mp.twr !== null && isFinite(mp.twr)) {
+    y = mp.twr;
+    note = ' · ' + t('twrManual');
+    if (mp.avgOnly) note += ' · ' + t('twrAvgNote', { n: mp.avgOnly });
+  } else if (mp.fromDate && mp.loading) note = ' · ' + t('twrManualLoading');
+  yEl.textContent = y === null || !isFinite(y) ? '—' : fmtPct(y, true);
+  yEl.className = 'stat-value ' + (y === null || !isFinite(y) ? '' : y >= 0 ? 'pos' : 'neg');
+  if (meta) meta.textContent = t('ovUpdated', { time: state.quotesAt ? fmtTimeIL(state.quotesAt) : '—' }) + note;
+  try { renderManualPerf(mp); } catch (e) {}
+  try { fitNumbers(); } catch (e) {}
+}
+
+/* v158: כרטיס "ביצועי התיק" במצב ידני — המקבילה של "ביצועי IBKR", מהעסקאות והאחזקות הידניות */
+function renderManualPerf(mp) {
+  const card = document.getElementById('ibkrPerfCard');
+  const list = document.getElementById('ibkrPerfList');
+  const period = document.getElementById('ibkrPerfPeriod');
+  const title = document.getElementById('ibkrPerfTitleEl');
+  if (!card || !list || isIbkrMode()) return;
+  const show = POSITIONS.length > 0 || mtList().length > 0;
+  card.classList.toggle('hidden', !show);
+  if (!show) return;
+  if (title) title.textContent = t('perfTitleManual');
+  if (period) period.textContent = mp.fromDate ? t('perfPeriodManual', { a: fmtDateIL(mp.fromDate) }) : t('perfNoTrades');
+  const mrow = (lbl, val) => {
+    const li = el('li', 'perf-row');
+    li.innerHTML = '<span class="perf-lbl">' + esc(lbl) + '</span>' +
+      '<span class="perf-val ' + val.cls + '">' + esc(val.txt) + '</span>';
+    list.appendChild(li);
+  };
+  const mval = (v, isMoney) => {
+    if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
+    return { txt: isMoney ? (v < 0 ? '−' : '') + money(Math.abs(v), 'USD') : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
+  };
+  list.innerHTML = '';
+  mrow(t('perfTwr'), mp.twr !== null ? mval(mp.twr, false)
+    : { txt: mp.fromDate ? (mp.loading ? t('loadingData') : t('cantCalc')) : t('perfNeedTrades'), cls: 'perf-note' });
+  mrow(t('perfGainManual'), mp.missing ? { txt: '—', cls: '' } : mval(mp.gain, true));
+  mrow(t('perfXirr'), mp.xirr !== null ? mval(mp.xirr, false)
+    : { txt: mp.fromDate ? t('cantCalc') : t('perfNeedTrades'), cls: 'perf-note' });
+  mrow(t('perfRealized'), mval(mp.realized, true));
+  mrow(t('perfUnrealized'), mp.missing ? { txt: '—', cls: '' } : mval(mp.unrealized, true));
+  mrow(t('perfFeesManual'), mval(Math.abs(mp.fees) < 0.005 ? 0 : -mp.fees, true));
+  if (mp.avgOnly && mp.fromDate) {
+    const li = el('li', 'perf-row');
+    li.innerHTML = '<span class="perf-lbl fine">' + esc(t('twrAvgNote', { n: mp.avgOnly })) + '</span>';
+    list.appendChild(li);
+  }
 }
 
 /* כרטיס "דוחות קרובים" — תיק + מעקב, ממוין לפי תאריך */
@@ -4925,7 +5191,10 @@ function renderIbkrPerf() {
   const list = document.getElementById('ibkrPerfList');
   const period = document.getElementById('ibkrPerfPeriod');
   if (!card || !list) return;
-  const show = isIbkrMode() && !!(ibkrCfg().data);
+  if (!isIbkrMode()) return; // v158: במצב ידני — renderManualPerf
+  const tEl = document.getElementById('ibkrPerfTitleEl');
+  if (tEl) tEl.textContent = t('ibkrPerfTitle');
+  const show = !!(ibkrCfg().data);
   card.classList.toggle('hidden', !show);
   if (!show) return;
   const data = ibkrCfg().data;
@@ -4948,7 +5217,7 @@ function renderIbkrPerf() {
   };
   const mval = (v, isMoney) => {
     if (v === null || v === undefined || !isFinite(v)) return { txt: '—', cls: '' };
-    return { txt: isMoney ? money(v, base) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
+    return { txt: isMoney ? (v < 0 ? '−' : '') + money(Math.abs(v), base) : fmtPct(v, true), cls: v > 0 ? 'pos' : v < 0 ? 'neg' : '' };
   };
   list.innerHTML = '';
   mrow(t('perfTwr'), official
@@ -5476,10 +5745,12 @@ function renderPfNote(noBench, srcKind) {
   if (!p) return;
   let txt;
   const hasDaily = isIbkrMode() && ((ibkrCfg().data || {}).navDaily || []).length > 1;
+  if (srcKind === undefined) { const c = document.getElementById('pfChart'); srcKind = c && c._pfPaint ? c._pfPaint.srcKind : 'manual'; }
   if (srcKind === 'ibkr') txt = hasDaily ? t('pfNoteIbkrDaily') : t('pfNoteIbkr');
+  else if (srcKind === 'trades') txt = t('pfNoteManualTwr');
+  else if (srcKind === 'holdings') txt = t('pfNoteHoldings');
   else txt = t('pfNote');
-  if (srcKind === 'manual') txt += ' · ' + t('pfBenchIbkrOnly');
-  else if (noBench) txt += ' · ' + t('pfNoBench');
+  if (noBench && srcKind !== 'manual') txt += ' · ' + t('pfNoBench');
   try {
     // דיאגנוסטיקת תקופות: כמה תקופות רשמיות נטענו מהדוח
     if (isIbkrMode()) {
@@ -5675,8 +5946,24 @@ async function drawPfChart() {
     if (my !== pfChartToken) return;
     await ensureFxHist();
     if (my !== pfChartToken) return;
+    allRows = null;
+    if (!isIbkrMode()) {
+      // v158: מצב ידני — TWR בדולרים מהעסקאות (כולל מניות שכבר נמכרו), אחרת האחזקות הנוכחיות בדולרים.
+      // שניהם מול המדדים, כמו במצב IBKR.
+      const tr = mtActiveTrades();
+      const tSyms = [...new Set(tr.map((x) => mtNorm(x).sym))].filter((sym) => !(state.hist[sym] || []).length);
+      if (tSyms.length) await pool(tSyms, 4, (sym) => getDailyFast(sym, false).catch(() => null));
+      if (my !== pfChartToken) return;
+      const mr = tr.length ? manualTwrRows(tr, manualHistOf, (d) => fxOnOrBefore(d)) : null;
+      if (mr) { allRows = mr; srcKind = 'trades'; }
+      else if (!tr.length) {
+        const hr = holdingsUsdRows(POSITIONS, manualHistOf, (d) => fxOnOrBefore(d));
+        if (hr) { allRows = hr; srcKind = 'holdings'; }
+      }
+      try { paintManualHead(); } catch (e) {}
+    }
     // בלי TWR רשמי מהדוח — אין היסטוריה אמיתית: סימולציית אחזקות נוכחיות (כמו ידני).
-    allRows = portfolioSeriesILS();
+    if (!allRows) allRows = portfolioSeriesILS();
   }
 
   // הפרדה בין סוגי משתמשים: השוואת מדדים רק כשההיסטוריה אמיתית מ־IBKR.
@@ -5757,7 +6044,7 @@ async function drawPfChart() {
   if (loading) loading.classList.add('hidden');
 
   const allSeries = [
-    { name: srcKind === 'ibkr' ? t('ibkrNavLegend') : t('myPortfolio'), color: cssVar('--primary', '#006A4E'), rows: pfRows },
+    { name: srcKind === 'ibkr' ? t('ibkrNavLegend') : srcKind === 'holdings' ? t('pfHoldingsLegend') : t('myPortfolio'), color: cssVar('--primary', '#006A4E'), rows: pfRows },
     ...benchSeries,
   ];
   for (const s of allSeries) s.pts = downsample(normalize100(s.rows), 300);
