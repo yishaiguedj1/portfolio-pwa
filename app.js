@@ -365,9 +365,36 @@ he: {
   errFundName: 'הזן שם לקרן החדשה',
 
   resetTitle: 'איפוס נתונים',
-  resetDesc: 'מוחק את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) מהענן ומהטלפון — התיק חוזר לתיק הדוגמה. לא ניתן לבטל.',
-  resetBtn: 'איפוס התיק',
-  resetConfirm: 'לאפס את כל הנתונים? התיק יימחק לגמרי (מניות, הפקדות, פנסיה, מזומן) ויחזור לתיק הדוגמה.\nלא ניתן לבטל.',
+  resetDesc: 'איפוס מלא: מוחק הכל — ידני ו־IBKR — מהענן ומהטלפון. התיק מתחיל ריק.',
+  resetBtn: 'איפוס מלא',
+  resetConfirm: 'למחוק את כל הנתונים? הכל יימחק מהענן ומהטלפון (מניות, עסקאות, הפקדות, פנסיה, מזומן ונתוני IBKR), והתיק יתחיל ריק.\nלא ניתן לבטל.',
+  resetManualDesc: 'מה שהוזן ביד: מניות ועסקאות ידניות, הפקדות ידניות, מזומן ידני ופנסיה. נתוני IBKR ורשימת המעקב נשארים.',
+  resetManualBtn: 'איפוס נתונים ידניים',
+  resetManualConfirm: 'למחוק את כל הנתונים שהוזנו ביד?\nמניות ועסקאות ידניות, הפקדות ידניות, מזומן ידני ופנסיה יימחקו. נתוני IBKR ורשימת המעקב נשארים.\nלא ניתן לבטל.',
+  resetManualDone: 'הנתונים הידניים נמחקו',
+  resetIbkrDesc: 'מה שהגיע מ־IBKR: מניות, הפקדות, מזומן והדוח השמור. הנתונים הידניים והגדרות החיבור נשארים — אפשר לסנכרן מחדש.',
+  resetIbkrBtn: 'איפוס נתוני IBKR',
+  resetIbkrConfirm: 'למחוק את כל הנתונים שהגיעו מ־IBKR?\nמניות, הפקדות, מזומן והדוח השמור יימחקו. הנתונים הידניים והחיבור נשארים, ואפשר לסנכרן מחדש.\nלא ניתן לבטל.',
+  resetIbkrDone: 'נתוני IBKR נמחקו — אפשר לסנכרן מחדש מההגדרות',
+  resetIbkrNone: 'אין נתוני IBKR למחיקה',
+  demoTitle: 'רוצה לראות את האפליקציה במלואה?',
+  demoDesc: 'טוענים תיק דמו מלא בלחיצה אחת: המניות החמות בשוק עכשיו מארה״ב ומת״א, קניות ומכירות לפי מחירי שוק אמיתיים, הפקדות ומשיכות, מזומן בדולרים ובשקלים ופנסיה. הנתונים שלך לא נמחקים — הם מחכים לך ביציאה מהדמו.',
+  demoBtn: '✨ טען תיק דמו',
+  demoConfirm: 'לטעון תיק דמו?\nהנתונים שלך נשמרים בצד וחוזרים ביציאה מהדמו. שינויים בזמן הדמו לא נשמרים בענן.',
+  demoBuilding: 'בונה תיק דמו ממחירי שוק אמיתיים…',
+  demoReady: 'תיק הדמו מוכן — סיור נעים!',
+  demoFail: 'לא הצלחתי למשוך מחירי שוק — צריך חיבור לאינטרנט. נסה שוב.',
+  demoActiveTitle: 'מצב דמו פעיל',
+  demoActiveDesc: 'זה תיק לדוגמה — אפשר לגעת בהכל. שינויים כאן לא נשמרים בענן, והנתונים האמיתיים שלך חוזרים ביציאה מהדמו.',
+  demoExitBtn: 'יציאה מהדמו',
+  demoBanner: 'מצב דמו — נתונים לדוגמה',
+  demoSyncBlocked: 'במצב דמו אין סנכרון IBKR — צא מהדמו קודם (בהגדרות).',
+  demoDepPlace: 'העברה מהבנק',
+  demoWdPlace: 'משיכה לחשבון הבנק',
+  demoReservePlace: 'הפקדה פותחת',
+  demoWlNote: 'במעקב — מומנטום חזק',
+  demoPension: 'קרן פנסיה',
+  demoStudy: 'קרן השתלמות',
 
   footerNote: 'המחירים מתעדכנים חי כל כמה שניות כשהאפליקציה פתוחה. הגרף היומי כולל גם מסחר מורחב — לפני הפתיחה ואחרי הסגירה. מחוץ לשעות המסחר מוצג מחיר הסגירה האחרון.',
 
@@ -767,9 +794,36 @@ en: {
   errFundName: 'Enter a name for the new fund',
 
   resetTitle: 'Reset data',
-  resetDesc: 'Deletes all data (stocks, deposits, pension, cash) from the cloud and this phone — the portfolio returns to the demo. Cannot be undone.',
-  resetBtn: 'Reset portfolio',
-  resetConfirm: 'Reset all data? The portfolio will be fully deleted (stocks, deposits, pension, cash) and return to the demo portfolio.\nThis cannot be undone.',
+  resetDesc: 'Full reset: deletes everything — manual and IBKR — from the cloud and this phone. The portfolio starts empty.',
+  resetBtn: 'Full reset',
+  resetConfirm: 'Delete all data? Everything will be deleted from the cloud and this phone (stocks, trades, deposits, pension, cash and IBKR data), and the portfolio will start empty.\nThis cannot be undone.',
+  resetManualDesc: 'What you entered by hand: manual stocks and trades, manual deposits, manual cash and pension. IBKR data and the watchlist stay.',
+  resetManualBtn: 'Reset manual data',
+  resetManualConfirm: 'Delete all manually entered data?\nManual stocks and trades, manual deposits, manual cash and pension will be deleted. IBKR data and the watchlist stay.\nThis cannot be undone.',
+  resetManualDone: 'Manual data deleted',
+  resetIbkrDesc: 'What came from IBKR: stocks, deposits, cash and the saved report. Manual data and the connection settings stay — you can sync again.',
+  resetIbkrBtn: 'Reset IBKR data',
+  resetIbkrConfirm: 'Delete all data that came from IBKR?\nStocks, deposits, cash and the saved report will be deleted. Manual data and the connection stay, and you can sync again.\nThis cannot be undone.',
+  resetIbkrDone: 'IBKR data deleted — you can sync again from Settings',
+  resetIbkrNone: 'No IBKR data to delete',
+  demoTitle: 'Want to see the full app?',
+  demoDesc: 'Load a complete demo portfolio in one tap: today’s hottest stocks from the US and Tel Aviv, buys and sells at real market prices, deposits and withdrawals, cash in dollars and shekels, and pension. Your data is not deleted — it’s waiting for you when you exit the demo.',
+  demoBtn: '✨ Load demo portfolio',
+  demoConfirm: 'Load a demo portfolio?\nYour data is set aside and comes back when you exit the demo. Changes during the demo are not saved to the cloud.',
+  demoBuilding: 'Building a demo portfolio from real market prices…',
+  demoReady: 'Demo portfolio ready — enjoy the tour!',
+  demoFail: 'Could not fetch market prices — an internet connection is needed. Try again.',
+  demoActiveTitle: 'Demo mode is on',
+  demoActiveDesc: 'This is a sample portfolio — feel free to touch everything. Changes here are not saved to the cloud, and your real data comes back when you exit the demo.',
+  demoExitBtn: 'Exit demo',
+  demoBanner: 'Demo mode — sample data',
+  demoSyncBlocked: 'IBKR sync is off in demo mode — exit the demo first (in Settings).',
+  demoDepPlace: 'Bank transfer',
+  demoWdPlace: 'Withdrawal to bank',
+  demoReservePlace: 'Opening deposit',
+  demoWlNote: 'Watching — strong momentum',
+  demoPension: 'Pension fund',
+  demoStudy: 'Study fund',
 
   footerNote: 'Prices update live every few seconds while the app is open. The daily chart includes extended-hours trading — pre-market and after-hours. Outside trading hours the last closing price is shown.',
 
@@ -2458,6 +2512,285 @@ function combinedHeadlineTwr(officialPct, rows, base) {
   return ((1 + officialPct / 100) * k - 1) * 100;
 }
 
+/* ---------------- v146: שני מאגרים — ידני מול IBKR, איפוס נפרד ---------------- */
+/* הפקדה מ־IBKR: מתויגת src:'ibkr' (מ־v146), ורשומות ישנות מזוהות בתאריך ISO
+   (ibkrMapDeposits כותב YYYY-MM-DD; הטופס הידני כותב DD/MM/YYYY). טהורה. */
+function isIbkrDeposit(d) {
+  return !!d && (d.src === 'ibkr' || /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')));
+}
+/* פוזיציה מ־IBKR: במצב IBKR — כל מה שלא סומן ידני. */
+function isIbkrPosition(p, ibkrMode) { return !!p && !!ibkrMode && p.src !== 'manual'; }
+
+/* איפוס הנתונים הידניים — במקום, על db. נתוני IBKR ורשימת המעקב נשארים. טהורה. */
+function resetManualData(db, ibkrMode) {
+  const keepPos = (db.positions || []).filter((p) => isIbkrPosition(p, ibkrMode));
+  db.positions.length = 0; db.positions.push(...keepPos);
+  const keepDep = (db.deposits || []).filter(isIbkrDeposit);
+  db.deposits.length = 0; db.deposits.push(...keepDep);
+  db.manualTrades = [];
+  if (Array.isArray(db.pensionFunds)) db.pensionFunds.length = 0;
+  if (Array.isArray(db.pensionDeposits)) db.pensionDeposits.length = 0;
+  if (!ibkrMode) db.cash = { usd: 0, ils: 0 };
+  delete db.ibkrSnapshot;
+}
+
+/* איפוס נתוני IBKR — במקום. הנתונים הידניים נשארים; התיק עובר למצב ידני. טהורה. */
+function resetIbkrData(db, ibkrMode) {
+  const keepPos = (db.positions || []).filter((p) => !isIbkrPosition(p, ibkrMode));
+  db.positions.length = 0; db.positions.push(...keepPos);
+  const keepDep = (db.deposits || []).filter((d) => !isIbkrDeposit(d));
+  db.deposits.length = 0; db.deposits.push(...keepDep);
+  if (ibkrMode) db.cash = { usd: 0, ils: 0 }; // המזומן במצב IBKR הגיע מהדוח
+  delete db.ibkrSnapshot;
+  db.source = 'manual';
+}
+
+function doResetManual() {
+  if (!confirm(t('resetManualConfirm'))) return;
+  resetManualData(DB, isIbkrMode());
+  saveDB(); renderAll();
+  flash(t('resetManualDone'));
+}
+function doResetIbkr() {
+  const hasIbkr = isIbkrMode() || !!ibkrCfg().data || DEPOSITS.some(isIbkrDeposit);
+  if (!hasIbkr) { flash(t('resetIbkrNone')); return; }
+  if (!confirm(t('resetIbkrConfirm'))) return;
+  resetIbkrData(DB, isIbkrMode());
+  ibkrSaveCfg({ lastSync: 0, data: null }); // החיבור (token/Query ID) נשאר — אפשר לסנכרן מחדש
+  saveDB(); renderAll();
+  try { renderIbkrCard(); } catch (e) {}
+  flash(t('resetIbkrDone'));
+}
+
+/* ---------------- v146: תיק דמו ---------------- */
+/* נבנה ממחירי סגירה אמיתיים (Yahoo), כך שהמחיר החי, הגרפים והתשואות עקביים.
+   "לוהטות" = המומנטום החזק ביותר ב־6 החודשים האחרונים מתוך רשימת מועמדים,
+   בתנאי שהן גם מעל המחיר של לפני 18 חודשים. הכל ידני: עסקאות, הפקדות, מזומן, פנסיה. */
+const LS_PREDEMO = 'pwa_predemo_v1';
+const DEMO_US = ('NVDA PLTR AVGO META TSM AMD NFLX MSFT AMZN GOOGL ORCL MU TSLA APP CRWD ANET LLY COST SHOP UBER').split(' ');
+const DEMO_TA = ('ESLT.TA LUMI.TA POLI.TA NVMI.TA TSEM.TA PHOE.TA DSCT.TA TEVA.TA').split(' ');
+const DEMO_US_BUDGET = [9000, 7500, 6500, 6000, 5000, 4500]; // דולר לכל מניה
+const DEMO_TA_BUDGET = [26000, 18000];                        // שקל לכל מניה
+/* רווח יעד לכל מניה — תיק "יפה" אבל אמין (לא קנייה בשפל של קריסה → +500%) */
+const DEMO_US_TARGET = [0.62, 0.48, 0.41, 0.33, 0.27, 0.18];
+const DEMO_TA_TARGET = [0.44, 0.22];
+
+/* נקודת קנייה: התאריך האחרון בחלון שבו המחיר היה ≤ מחיר היום ÷ (1+יעד).
+   אם המחיר מעולם לא ירד כך בחלון — השפל של החלון. טהורה. */
+function demoEntry(h, lastPx, target, from, to) {
+  const lim = lastPx / (1 + target);
+  for (let i = (h || []).length - 1; i >= 0; i--) {
+    const r = h[i];
+    if (r.date > to) continue;
+    if (r.date < from) break;
+    if (r.close > 0 && r.close <= lim) return r;
+  }
+  return demoExtreme(h, from, to, false);
+}
+
+function isDemoMode() { return !!(typeof DB !== 'undefined' && DB && DB.demo); }
+
+/* מדרג לפי מומנטום 6 חודשים. טהורה. */
+function demoPickHot(hist, syms, n, today) {
+  const scored = [];
+  for (const s of syms) {
+    const h = hist[s] || [];
+    if (h.length < 300) continue;
+    const last = h[h.length - 1].close;
+    const b6 = closeOnOrBefore(h, addDaysISO(today, -182));
+    const b18 = closeOnOrBefore(h, addDaysISO(today, -540));
+    if (!(last > 0 && b6 > 0 && b18 > 0) || last <= b18) continue;
+    scored.push({ sym: s, score: last / b6 - 1 });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, n).map((x) => x.sym);
+}
+
+function demoExtreme(h, from, to, wantMax) {
+  let best = null;
+  for (const r of (h || [])) {
+    if (r.date < from || r.date > to || !(r.close > 0)) continue;
+    if (!best || (wantMax ? r.close > best.close : r.close < best.close)) best = r;
+  }
+  return best;
+}
+
+function demoStockName(sym, lang) {
+  for (const [s, en, he] of TASE_STOCKS) if (s === sym) return lang === 'en' ? en : he;
+  for (const [s, en] of POPULAR_STOCKS) {
+    if (s === sym) return String(en).replace(/,? (Inc|Corp|Corporation|Ltd|Co|Holdings|N\.V|plc)\.?$/i, '').replace(/\.$/, '');
+  }
+  const extra = { ANET: 'Arista Networks', APP: 'AppLovin', PLTR: 'Palantir', CRWD: 'CrowdStrike', TSM: 'TSMC',
+    AVGO: 'Broadcom', MU: 'Micron', ORCL: 'Oracle', SHOP: 'Shopify', UBER: 'Uber', LLY: 'Eli Lilly', COST: 'Costco' };
+  return extra[sym] || sym;
+}
+
+/* בונה את תיק הדמו — טהורה (hist, שערים ותאריך מבחוץ). tr = פונקציית תרגום.
+   קנייה ראשונה = הנקודה האחרונה (3–18 חודשים אחורה) שנותנת את רווח היעד של המניה;
+   מניה זוגית מוסיפה בהמשך (חצי מהיעד), מניה אי־זוגית מממשת ~30% בשיא שאחרי הקנייה.
+   כל קנייה ממומנת בהפקדה (מעוגלת ל־₪1,000 למעלה) — העודף נשאר מזומן; אחרי מכירה —
+   משיכה של כמחצית. כך שווי − הפקדות = רווח אמיתי (עד תנודות שער). */
+function demoBuild(hist, picks, fxOf, fxNow, today, tr, lang) {
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const fx = (d) => (fxOf && fxOf(d)) || fxNow;
+  const trades = [], deposits = [];
+  let usdCash = 0, ilsCash = 0, n = 0;
+  const addDep = (iso, ils, place) => deposits.push({ date: fmtDateIL(iso), amount: ils > 0 ? -ils : Math.abs(ils), place: place, _iso: iso });
+  const all = picks.us.map((s, i) => ({ s, cur: 'USD', budget: DEMO_US_BUDGET[i] || 4000, target: DEMO_US_TARGET[i] || 0.2, i }))
+    .concat(picks.ta.map((s, i) => ({ s, cur: 'ILS', budget: DEMO_TA_BUDGET[i] || 15000, target: DEMO_TA_TARGET[i] || 0.2, i: i + 1 })));
+  for (const o of all) {
+    const h = hist[o.s] || [];
+    const fee = o.cur === 'ILS' ? 5 : 1.5;
+    const buy = (row, qty) => {
+      const price = r2(row.close);
+      trades.push({ id: 'demo' + (++n), date: row.date, sym: o.s, side: 'BUY', qty: qty, price: price, fee: fee });
+      const cost = qty * price + fee;
+      const costIls = o.cur === 'ILS' ? cost : cost * fx(row.date);
+      const dep = Math.ceil(costIls / 1000) * 1000;
+      const dIso = addDaysISO(row.date, -3);
+      addDep(dIso, dep, tr('demoDepPlace'));
+      if (o.cur === 'ILS') ilsCash += dep - cost; else usdCash += dep / fx(row.date) - cost;
+    };
+    if (!h.length) continue;
+    const lastPx = h[h.length - 1].close;
+    const b1 = demoEntry(h, lastPx, o.target, addDaysISO(today, -540), addDaysISO(today, -90));
+    if (!b1) continue;
+    buy(b1, Math.max(1, Math.floor(o.budget * 0.7 / b1.close)));
+    if (o.i % 2 === 0) {
+      const b2 = demoEntry(h, lastPx, o.target * 0.6, addDaysISO(b1.date, 30), addDaysISO(today, -21));
+      if (b2 && b2.date > b1.date) buy(b2, Math.max(1, Math.floor(o.budget * 0.3 / b2.close)));
+    } else {
+      const sp = demoExtreme(h, addDaysISO(b1.date, 20), addDaysISO(today, -14), true);
+      const st = mtPosition(trades, o.s);
+      const q = Math.floor(st.shares * 0.3);
+      if (sp && q >= 1 && sp.close > st.avg) {
+        const price = r2(sp.close);
+        trades.push({ id: 'demo' + (++n), date: sp.date, sym: o.s, side: 'SELL', qty: q, price: price, fee: fee });
+        const proceeds = q * price - fee;
+        if (o.cur === 'ILS') ilsCash += proceeds; else usdCash += proceeds;
+        const wIso = addDaysISO(sp.date, 7);
+        const pIls = o.cur === 'ILS' ? proceeds : proceeds * fx(wIso);
+        const w = Math.floor(pIls * 0.5 / 1000) * 1000;
+        if (w > 0) {
+          addDep(wIso, -w, tr('demoWdPlace'));
+          if (o.cur === 'ILS') ilsCash -= w; else usdCash -= w / fx(wIso);
+        }
+      }
+    }
+  }
+  if (!trades.length) return null;
+  // הפקדה פותחת לרזרבת מזומן — חלק נשאר בשקלים, חלק הומר לדולרים
+  const first = trades.reduce((a, x) => (x.date < a ? x.date : a), trades[0].date);
+  const rIso = addDaysISO(first, -10);
+  addDep(rIso, 8000, tr('demoReservePlace'));
+  ilsCash += 3000; usdCash += 5000 / fx(rIso);
+  deposits.sort((a, b) => (a._iso < b._iso ? 1 : a._iso > b._iso ? -1 : 0));
+  for (const d of deposits) delete d._iso;
+  const syms = [...new Set(trades.map((x) => x.sym))];
+  const positions = [];
+  for (const sym of syms) {
+    const st = mtPosition(trades, sym);
+    if (st.shares > 0) positions.push({ sym: sym, name: demoStockName(sym, lang), full: '', shares: st.shares, avg: st.avg, src: 'manual', fromTrades: true });
+  }
+  const y = Number(today.slice(0, 4));
+  return {
+    v: 1,
+    positions: positions,
+    deposits: deposits,
+    manualTrades: trades,
+    cash: { usd: r2(Math.max(0, usdCash)), ils: r2(Math.max(0, ilsCash)) },
+    wishlist: (picks.watch || []).map((s) => ({ sym: s, note: tr('demoWlNote') })),
+    pensionFunds: [
+      { name: tr('demoPension'), usd: 0, ils: 186400, kind: 'pension' },
+      { name: tr('demoStudy'), usd: 0, ils: 94700, kind: 'study' },
+    ],
+    pensionDeposits: [
+      { place: tr('demoPension'), period: String(y), amount: -38000, note: '', kind: 'pension' },
+      { place: tr('demoPension'), period: String(y - 1), amount: -52000, note: '', kind: 'pension' },
+      { place: tr('demoPension'), period: String(y - 2), amount: -49000, note: '', kind: 'pension' },
+      { place: tr('demoStudy'), period: String(y), amount: -15000, note: '', kind: 'study' },
+      { place: tr('demoStudy'), period: String(y - 1), amount: -20500, note: '', kind: 'study' },
+      { place: tr('demoStudy'), period: String(y - 2), amount: -20500, note: '', kind: 'study' },
+    ],
+    source: 'manual',
+    demo: true,
+  };
+}
+
+let _demoBusy = false;
+async function demoCreate(btn) {
+  if (_demoBusy || isDemoMode()) return;
+  if (!confirm(t('demoConfirm'))) return;
+  _demoBusy = true;
+  if (btn) btn.disabled = true;
+  flash(t('demoBuilding'));
+  try {
+    const today = todayISO();
+    const demoTexts = {
+      demoDepPlace: t('demoDepPlace'), demoWdPlace: t('demoWdPlace'), demoReservePlace: t('demoReservePlace'),
+      demoWlNote: t('demoWlNote'), demoPension: t('demoPension'), demoStudy: t('demoStudy'),
+    };
+    const hist = {};
+    await Promise.all(DEMO_US.concat(DEMO_TA).map(async (s) => {
+      try { hist[s] = (await getDailyFast(s)) || []; } catch (e) { hist[s] = []; }
+    }));
+    const rankUS = demoPickHot(hist, DEMO_US, 9, today);
+    const picks = { us: rankUS.slice(0, 6), ta: demoPickHot(hist, DEMO_TA, 2, today), watch: rankUS.slice(6, 9) };
+    try { await ensureFxHist(addDaysISO(today, -600)); } catch (e) {}
+    const db = picks.us.length >= 3
+      ? demoBuild(hist, picks, (d) => fxOnOrBefore(d), state.fx || 3.7, today, (k) => demoTexts[k], state.lang) : null;
+    // לא שומרים היסטוריה של מועמדים שלא נבחרו — חוסך מקום בטלפון
+    const keep = new Set(picks.us.concat(picks.ta, picks.watch));
+    for (const s of Object.keys(hist)) if (!keep.has(s)) { delete state.hist[s]; try { localStorage.removeItem(LS_HIST + s); } catch (e) {} }
+    if (!db) { flash(t('demoFail')); return; }
+    // שמירה אחרונה של הנתונים האמיתיים לענן — ואז גיבוי מקומי, והדמו לא נשמר בענן
+    try { if (window.Cloud && window.Cloud.flushSave) await window.Cloud.flushSave(); } catch (e) {}
+    try { localStorage.setItem(LS_PREDEMO, JSON.stringify(DB)); } catch (e) {}
+    applyDbData(db);
+    DB.source = 'manual';
+    DB.demo = true;
+    delete DB.ibkrSnapshot;
+    saveDBto(DB);
+    renderAll();
+    renderDemoUi();
+    try { refreshQuotes(); } catch (e) {}
+    const ov = document.querySelector('.tab[data-tab="overview"]');
+    if (ov) ov.click();
+    flash(t('demoReady'));
+  } finally {
+    _demoBusy = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* יציאה מהדמו: הנתונים האמיתיים חוזרים מהגיבוי המקומי; בטעינה מחדש הענן (מקור האמת) נטען כרגיל. */
+function demoExit() {
+  if (!isDemoMode()) return;
+  let backup = null;
+  try { backup = JSON.parse(localStorage.getItem(LS_PREDEMO) || 'null'); } catch (e) {}
+  // היסטוריית מחירים של מניות הדמו — לא נשארת בטלפון (אלא אם המניה בתיק/במעקב האמיתי)
+  const keep = new Set([].concat((backup && backup.positions) || [], (backup && backup.wishlist) || []).map((p) => p && p.sym));
+  for (const sym of new Set(POSITIONS.concat(WISHLIST).map((p) => p.sym))) {
+    if (!keep.has(sym)) { try { localStorage.removeItem(LS_HIST + sym); } catch (e) {} }
+  }
+  applyDbData(backup || {});
+  delete DB.demo;
+  if (backup && backup.source) DB.source = backup.source; else delete DB.source;
+  if (backup && backup.ibkrSnapshot) DB.ibkrSnapshot = backup.ibkrSnapshot;
+  saveDBto(DB);
+  try { localStorage.removeItem(LS_PREDEMO); } catch (e) {}
+  location.reload();
+}
+
+function renderDemoUi() {
+  const on = isDemoMode();
+  const tog = (id, show) => { const e = document.getElementById(id); if (e) e.classList.toggle('hidden', !show); };
+  tog('demoOffer', !on);
+  tog('demoActive', on);
+  tog('demoBanner', on);
+  tog('resetCard', !on);
+}
+
 function ibkrDisconnect() {
   ibkrClearErr();
   if (!confirm(t('disconnectConfirm'))) return;
@@ -2531,6 +2864,7 @@ async function ibkrSaveAndTest() {
    מושך דוח טרי דרך השרתון ומכניס אותו לאותו צינור יבוא מאוחד. */
 async function ibkrSyncImport() {
   ibkrClearErr();
+  if (isDemoMode()) return ibkrShowErr(t('demoSyncBlocked'));
   const cfg = ibkrCfg();
   const proxyUrl = ibkrProxyBase();
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
@@ -2815,23 +3149,47 @@ function money(v, cur) { return cur === 'ILS' ? fmtILS(v) : fmtUSD(v); }
 /* מסד הנתונים המקומי — נטען פעם אחת, נשמר אחרי כל שינוי */
 const LS_DB = 'pwa_db_v1';
 
-/* תיק דוגמה — מה שמוצג למי שלא התחבר או למשתמש חדש במצב מקומי.
-   הנתונים האמיתיים נשמרים רק בענן, בחשבון הפרטי של כל משתמש. */
+/* v146: תיק חדש מתחיל ריק — בלי מניות/הפקדות/פנסיה/מזומן לדוגמה.
+   (עד v145 היו כאן GOOGL/META, הפקדה ₪1,000, פנסיה ₪1,000 ומזומן 100 — והם
+   נשמרו כנתונים אמיתיים אצל משתמשים; stripLegacyDemo מנקה אותם.)
+   תיק דמו מלא — בכפתור בהגדרות (demoCreate). */
 const DEFAULT_DB = {
   v: 1,
-  positions: [
-    { sym: 'GOOGL', name: 'גוגל', full: 'Alphabet Inc',      shares: 10, avg: 140.00 },
-    { sym: 'META',  name: 'מטא',  full: 'Meta Platforms Inc', shares: 5,  avg: 480.00 }
-  ],
-  deposits: [{ date: '01/01/2026', amount: -1000, place: 'הפקדת דוגמה' }],
+  positions: [],
+  deposits: [],
   wishlist: [],
-  pensionFunds: [{ name: 'פנסיה — מקום עבודה', usd: 0, ils: 1000 }],
+  pensionFunds: [],
   pensionDeposits: [],
-  cash: { usd: 100, ils: 100 }
+  cash: { usd: 0, ils: 0 },
+  manualTrades: []
 };
 
+/* מסיר את רשומות הדוגמה הישנות (עד v145) — רק טביעת אצבע מדויקת, לא נתון אמיתי. מחזיר true אם שינה. */
+function stripLegacyDemo(db) {
+  if (!db) return false;
+  let changed = false;
+  const isDep = (d) => d && d.date === '01/01/2026' && Number(d.amount) === -1000 && d.place === 'הפקדת דוגמה';
+  const isPos = (p) => p && !p.src && (
+    (p.sym === 'GOOGL' && p.name === 'גוגל' && Number(p.shares) === 10 && Number(p.avg) === 140) ||
+    (p.sym === 'META' && p.name === 'מטא' && Number(p.shares) === 5 && Number(p.avg) === 480));
+  const isFund = (f) => f && f.name === 'פנסיה — מקום עבודה' && Number(f.ils) === 1000 && !Number(f.usd);
+  const strip = (arr, bad) => {
+    if (!Array.isArray(arr)) return;
+    for (let i = arr.length - 1; i >= 0; i--) if (bad(arr[i])) { arr.splice(i, 1); changed = true; }
+  };
+  const hadDep = Array.isArray(db.deposits) && db.deposits.some(isDep);
+  strip(db.deposits, isDep);
+  strip(db.positions, isPos);
+  strip(db.pensionFunds, isFund);
+  if (db.ibkrSnapshot) { strip(db.ibkrSnapshot.deposits, isDep); strip(db.ibkrSnapshot.positions, isPos); }
+  if (hadDep && db.source !== 'ibkr' && db.cash && Number(db.cash.usd) === 100 && Number(db.cash.ils) === 100) {
+    db.cash = { usd: 0, ils: 0 }; changed = true;
+  }
+  return changed;
+}
+
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v145';
+const APP_VERSION = 'v146';
 
 
 function saveDBto(db) {
@@ -2848,6 +3206,7 @@ function loadDB() {
         if (!Array.isArray(db.pensionFunds)) db.pensionFunds = [];
         if (!Array.isArray(db.manualTrades)) db.manualTrades = [];
         ensurePensionKinds(db);
+        if (stripLegacyDemo(db)) saveDBto(db);
         return db;
       }
     }
@@ -2860,7 +3219,7 @@ function loadDB() {
 const DB = loadDB();
 function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); }
 
-/* תיק דוגמה — למי שאין לו נתונים: משתמש חדש, אחרי איפוס, או לא מחובר */
+/* תיק ריק — למשתמש חדש או אחרי איפוס (השם נשמר לתאימות עם cloud.js) */
 function demoDb() {
   return JSON.parse(JSON.stringify(DEFAULT_DB));
 }
@@ -2887,6 +3246,7 @@ function applyDbData(data) {
   const c = clean.cash || {};
   DB.cash = { usd: num(c.usd) || 0, ils: num(c.ils) || 0 };
   DB.manualTrades = Array.isArray(clean.manualTrades) ? clean.manualTrades : [];
+  stripLegacyDemo(DB);
   saveDBto(DB);
 }
 
@@ -4070,6 +4430,7 @@ function ibkrMapDeposits(cashTx, fxOf) {
       date: String(c.date || '').slice(0, 10),
       amount: amt > 0 ? -r2(Math.abs(ils)) : r2(Math.abs(ils)),
       place: String(c.description || type || 'IBKR').slice(0, 40) + origTxt,
+      src: 'ibkr',
     });
   }
   out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -7055,6 +7416,7 @@ function renderAll() {
   renderDeposits();
   renderPension();
   renderIbkrLocks();
+  try { renderDemoUi(); } catch (e) {}
   // ציור מחדש של גרפים פתוחים (למשל אחרי מעבר מטבע)
   for (const sym of Object.keys(state.open)) {
     if (state.open[sym]) ensureChartData(sym);
@@ -7318,6 +7680,7 @@ function init() {
 
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
+      try { localStorage.removeItem(LS_PREDEMO); } catch (e) {}
       // מנקה גם את מטמון הייבוא (IBKR) — אחרת יבוא חוזר אחרי איפוס נחסם כ"אין מידע חדש"
       try { localStorage.removeItem(LS_IBKR); } catch (e) {}
       location.reload();
@@ -7325,6 +7688,18 @@ function init() {
     if (window.Cloud && window.Cloud.resetCloud) window.Cloud.resetCloud().then(doReset);
     else doReset();
   });
+
+  // v146: איפוס נפרד + תיק דמו
+  const rmBtn = document.getElementById('resetManual');
+  if (rmBtn) rmBtn.addEventListener('click', doResetManual);
+  const riBtn = document.getElementById('resetIbkr');
+  if (riBtn) riBtn.addEventListener('click', doResetIbkr);
+  const dBtn = document.getElementById('demoCreateBtn');
+  if (dBtn) dBtn.addEventListener('click', () => demoCreate(dBtn));
+  for (const id of ['demoExitBtn', 'demoBannerExit']) {
+    const b = document.getElementById(id);
+    if (b) b.addEventListener('click', demoExit);
+  }
 
   // ניקוי מטמון ורענון — מביא את הגרסה החדשה ביותר מהשרת
   const amtBtn = document.getElementById('addManualTradeBtn');

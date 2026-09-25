@@ -71,6 +71,11 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 </nav>
 
 <main>
+  <!-- v146: מצב דמו -->
+  <div class="demo-banner hidden" id="demoBanner" role="status">
+    <span data-i18n="demoBanner">מצב דמו — נתונים לדוגמה</span>
+    <button type="button" class="link-btn" id="demoBannerExit" data-i18n="demoExitBtn">יציאה מהדמו</button>
+  </div>
   <!-- סקירה -->
   <section id="tab-overview" class="tabpage active" role="tabpanel">
     <!-- v101: שער דולר־שקל חי — פיל נקי בסגנון אפל בראש העמוד -->
@@ -248,6 +253,19 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 
   <!-- הגדרות -->
   <section id="tab-settings" class="tabpage" role="tabpanel">
+    <!-- v146: תיק דמו — הצעה למשתמשים חדשים -->
+    <div class="card demo-card" id="demoOffer">
+      <div class="demo-card-icon" aria-hidden="true">✨</div>
+      <h2 data-i18n="demoTitle">רוצה לראות את האפליקציה במלואה?</h2>
+      <p class="fine" style="padding:0" data-i18n="demoDesc">תיק דמו מלא בלחיצה אחת.</p>
+      <button id="demoCreateBtn" class="btn demo-btn" type="button" data-i18n="demoBtn">טען תיק דמו</button>
+    </div>
+    <div class="card demo-card hidden" id="demoActive">
+      <h2 data-i18n="demoActiveTitle">מצב דמו פעיל</h2>
+      <p class="fine" style="padding:0" data-i18n="demoActiveDesc">זה תיק לדוגמה.</p>
+      <button id="demoExitBtn" class="btn" type="button" data-i18n="demoExitBtn">יציאה מהדמו</button>
+    </div>
+
     <div class="card" id="accountCard">
       <h2><span data-i18n="myAccount">החשבון שלי</span></h2>
       <div id="accountInfo"><p class="fine" style="padding:0" data-i18n="loading">טוען…</p></div>
@@ -335,10 +353,20 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       </details>
     </div>
 
-    <div class="card danger-card">
+    <div class="card danger-card" id="resetCard">
       <h2 data-i18n="resetTitle">איפוס נתונים</h2>
-      <p class="fine" style="padding:0" data-i18n="resetDesc">מוחק את כל הנתונים (מניות, הפקדות, פנסיה, מזומן) מהענן ומהטלפון — התיק חוזר לתיק הדוגמה. לא ניתן לבטל.</p>
-      <button id="resetData" class="btn danger-btn" type="button" data-i18n="resetBtn">איפוס התיק</button>
+      <div class="reset-row">
+        <p class="fine" style="padding:0" data-i18n="resetManualDesc">נתונים שהוזנו ביד.</p>
+        <button id="resetManual" class="btn danger-btn" type="button" data-i18n="resetManualBtn">איפוס נתונים ידניים</button>
+      </div>
+      <div class="reset-row">
+        <p class="fine" style="padding:0" data-i18n="resetIbkrDesc">נתונים שהגיעו מ־IBKR.</p>
+        <button id="resetIbkr" class="btn danger-btn" type="button" data-i18n="resetIbkrBtn">איפוס נתוני IBKR</button>
+      </div>
+      <div class="reset-row">
+        <p class="fine" style="padding:0" data-i18n="resetDesc">מוחק הכל.</p>
+        <button id="resetData" class="btn danger-btn" type="button" data-i18n="resetBtn">איפוס מלא</button>
+      </div>
     </div>
   </section>
 </main>

@@ -764,3 +764,17 @@ footer.fine { text-align: center; }
 
 /* v145: כותרת "קניות ידניות" בתוך רשימת ההפקדות */
 .rows li.dep-sub { border-top: 1px solid var(--card-border); margin-top: 6px; padding-top: 12px; }
+
+/* v146: תיק דמו + איפוס נפרד */
+.demo-card { text-align: center; background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--card-border)); }
+.demo-card h2 { justify-content: center; }
+.demo-card-icon { font-size: 34px; line-height: 1; margin-bottom: 4px; }
+.demo-card .fine { margin: 6px auto 14px; max-width: 34em; }
+.demo-btn { font-size: 17px; padding: 12px 26px; }
+.demo-banner { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; font-weight: 600; font-size: 15px; background: color-mix(in srgb, var(--primary) 16%, var(--surface)); color: var(--on-surface); border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--card-border)); }
+.demo-banner.hidden, .demo-card.hidden { display: none; }
+.reset-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--card-border); }
+.reset-row:first-of-type { border-top: 0; }
+.reset-row .fine { flex: 1; }
+.reset-row .btn { flex-shrink: 0; }
+@media (max-width: 480px) { .reset-row { flex-direction: column; align-items: stretch; } }

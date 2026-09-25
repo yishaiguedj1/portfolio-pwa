@@ -70,18 +70,24 @@
     DB.cash = { usd: num(c.usd) || 0, ils: num(c.ils) || 0 };
     // v141: עסקאות ידניות (ענן ישן בלי השדה — משאירים את המקומיות)
     if (Array.isArray(clean.manualTrades)) DB.manualTrades = clean.manualTrades;
+    // v146: רשומות הדוגמה הישנות (עד v145) שנשמרו כנתונים — מנקים ומעדכנים את הענן
+    const stripped = (typeof stripLegacyDemo === 'function') && stripLegacyDemo(DB);
     saveDBto(DB); // עדכון המטמון המקומי
+    return !!stripped;
   }
+
+  /* v146: במצב דמו לא כותבים לענן — הנתונים האמיתיים שם נשארים כמו שהם */
+  function demoOn() { return typeof isDemoMode === 'function' && isDemoMode(); }
 
   /* שמירה לענן — עם השהיה קצרה כדי לא להציף בכתיבות */
   function scheduleSave() {
-    if (!user || !fs || localMode) return;
+    if (!user || !fs || localMode || demoOn()) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 2000);
   }
 
   async function flushSave() {
-    if (!user || !fs || localMode) return;
+    if (!user || !fs || localMode || demoOn()) return;
     clearTimeout(saveTimer);
     try {
       await userDoc().set({
@@ -232,15 +238,16 @@
       renderAccountCard();
       try {
         const snap = await userDoc().get();
-        if (snap.exists && validCloudDb(snap.data().db)) {
+        if (demoOn()) {
+          /* מצב דמו: לא דורסים את הדמו בנתוני הענן (הם יחזרו ביציאה מהדמו) */
+        } else if (snap.exists && validCloudDb(snap.data().db)) {
           const data = snap.data();
-          applyCloudDb(data.db);
+          if (applyCloudDb(data.db)) await flushSave();
           if (data.tdkey) {
             try { localStorage.setItem(LS_TDKEY, data.tdkey); } catch (e) {}
           }
         } else {
-          /* אין מסמך בענן עדיין (משתמש חדש / אחרי איפוס).
-             מציגים את תיק הדוגמה כדי שהאפליקציה לא תישאר ריקה —
+          /* אין מסמך בענן עדיין (משתמש חדש / אחרי איפוס) — מתחילים מתיק ריק (v146).
              לעולם לא מושכים נתונים מהטלפון; הענן הוא מקור האמת היחיד. */
           applyDbData(demoDb());
           await flushSave();
