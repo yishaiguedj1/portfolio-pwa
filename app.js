@@ -3221,7 +3221,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v152';
+const APP_VERSION = 'v153';
 
 
 function saveDBto(db) {
@@ -4560,14 +4560,42 @@ function switchTab(name) {
   // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
   try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} });
-  // v85: שחזור מיקום גלילה שמור לטאב הזה (אחרי שהתוכן נטען)
-  const savedY = getSavedScrollY(name);
-  if (savedY > 0) {
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      try { window.scrollTo(0, savedY); } catch (e) {}
-    }));
-  }
+  // v85/v153: שחזור מיקום גלילה שמור לטאב הזה — גם כשהתוכן עוד נטען (restoreScrollTo)
+  restoreScrollTo(name, getSavedScrollY(name));
 }
+
+/* v153: שחזור גלילה עמיד. לפני כן: scrollTo אחד מיד אחרי המעבר, כשהדף עוד קצר (מחירים,
+   גרפים ורשימות נטענים אחר כך) — הדפדפן "חתך" את הקפיצה, ואירוע הגלילה שמר את המיקום
+   החתוך במקום האמיתי. עכשיו: מנסים שוב כל 120ms עד שהדף ארוך מספיק (עד 8 שניות),
+   לא שומרים מיקום בזמן השחזור, ועוצרים מיד אם המשתמש נוגע/גולל בעצמו. */
+let _scrollRestore = null;
+const RESTORE_STOP_EVENTS = ['touchstart', 'wheel', 'keydown', 'mousedown'];
+function cancelScrollRestore() {
+  const r = _scrollRestore;
+  if (!r) return;
+  _scrollRestore = null;
+  clearTimeout(r.timer);
+  for (const ev of RESTORE_STOP_EVENTS) { try { window.removeEventListener(ev, r.stop); } catch (e) {} }
+}
+function restoreScrollTo(tab, y) {
+  cancelScrollRestore();
+  if (!(y > 0) || typeof window === 'undefined' || !window.scrollTo) return;
+  const t0 = Date.now();
+  const r = { tab: tab, y: y, timer: 0, stop: () => cancelScrollRestore() };
+  _scrollRestore = r;
+  for (const ev of RESTORE_STOP_EVENTS) { try { window.addEventListener(ev, r.stop, { passive: true }); } catch (e) {} }
+  const step = () => {
+    if (_scrollRestore !== r) return;
+    if (currentTabName() !== tab) return cancelScrollRestore();
+    const de = document.documentElement;
+    const maxY = Math.max(0, (de.scrollHeight || 0) - (window.innerHeight || 0));
+    try { window.scrollTo(0, Math.min(y, maxY)); } catch (e) {}
+    if (maxY >= y - 2 || Date.now() - t0 > 8000) return cancelScrollRestore(); // הגענו / נגמר הזמן
+    r.timer = setTimeout(step, 120);
+  };
+  r.timer = setTimeout(step, 0);
+}
+function scrollRestoring() { return !!_scrollRestore; }
 
 /* v85: שמירת/שחזור מיקום גלילה לכל טאב — חזרה לאותה נקודה אחרי רענון */
 function getSavedScrollY(tab) {
@@ -4593,12 +4621,18 @@ function initScrollSaver() {
   window.addEventListener('scroll', () => {
     clearTimeout(_scrollSaveT);
     _scrollSaveT = setTimeout(() => {
+      if (scrollRestoring()) return; // v153: לא דורסים את המיקום השמור בזמן שחזור
       try { saveScrollY(currentTabName(), window.scrollY); } catch (e) {}
     }, 300);
   }, { passive: true });
   // שמירה גם לפני עזיבת הדף — למקרה שהדפדפן נסגר מהר
   window.addEventListener('beforeunload', () => {
+    if (scrollRestoring()) return;
     try { saveScrollY(currentTabName(), window.scrollY); } catch (e) {}
+  });
+  // v153: טלפון שמעביר את האפליקציה לרקע לא תמיד שולח beforeunload
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && !scrollRestoring()) { try { saveScrollY(currentTabName(), window.scrollY); } catch (e) {} }
   });
 }
 
@@ -7627,6 +7661,8 @@ function init() {
     for (const sym of Object.keys(state.open)) if (state.open[sym]) ensureChartData(sym);
   });
   renderTdKeyStatus();
+  // v153: הדפדפן לא משחזר גלילה בעצמו — אנחנו עושים את זה לפי טאב, אחרי שהתוכן נטען
+  try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   // v85: שחזור הטאב האחרון אחרי רענון (לפני בדיקת המפתח — אם אין מפתח, הגדרות גובר)
   try {
     const lastTab = localStorage.getItem('pwa_lasttab_v1');
@@ -7634,7 +7670,8 @@ function init() {
       switchTab(lastTab);
     }
   } catch (e) {}
-  if (!tdKey()) { switchTab('settings'); }
+  // v153: לא מעבירים להגדרות כשאין מפתח Twelve Data — הוא רק גיבוי אחרון (Yahoo הוא המקור
+  // הראשי), ומ־v148 הוא לא נטען מהענן, אז כל רענון נחת בהגדרות.
   // v85: שמירת מיקום גלילה לכל טאב
   try { initScrollSaver(); } catch (e) {}
 
@@ -7840,6 +7877,7 @@ function initMainMenu() {
       e.stopPropagation();
       closeMenu();
       switchTab('settings');
+      cancelScrollRestore(); // כפתור "הגדרות" בתפריט = לראש העמוד בכוונה
       try { window.scrollTo(0, 0); } catch (err) {}
     });
   }
