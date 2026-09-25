@@ -160,7 +160,7 @@ ok(/if \(!Array\.isArray\(db\.manualTrades\)\) db\.manualTrades = \[\]/.test(src
 ok(/const mt = isIbkrMode\(\) \? manualTotalsUSD\(POSITIONS, mtActiveTrades\(\), state\.quotes(, state\.fx)?\)/.test(src), 'סקירה: שווי/רווח ידניים במצב IBKR');
 ok(/ibkrReturnRows\(ibkrData\)/.test(src), 'גרף הביצועים: סדרה משולבת');
 ok(/if \(!isIbkrMode\(\) \|\| p\.src === 'manual'\)/.test(src), 'כפתור עריכה גם למניות ידניות במצב IBKR');
-ok(/mt\.src|src === 'manual' \? '<span class="src-tag">/.test(src), 'תגית "ידני" בכרטיס המניה');
+ok(/srcTagHTML\(positionSource\(p\)\)/.test(src), 'תגית "ידני" בכרטיס המניה (v147: תגית מקור משותפת — ידני/IBKR)');
 ok(/concat\(man\.map/.test(src), 'טאב עסקאות: IBKR + ידניות יחד');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];

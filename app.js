@@ -2520,6 +2520,17 @@ function isIbkrDeposit(d) {
 }
 /* פוזיציה מ־IBKR: במצב IBKR — כל מה שלא סומן ידני. */
 function isIbkrPosition(p, ibkrMode) { return !!p && !!ibkrMode && p.src !== 'manual'; }
+function positionSource(p) { return isIbkrPosition(p, isIbkrMode()) ? 'ibkr' : 'manual'; }
+
+/* v147: תגית מקור אחידה לכל פריט — "ידני" או הלוגו של Interactive Brokers.
+   אותה תגית על כפתורי האיפוס, כך שרואים מה כל כפתור מוחק. */
+function srcTagHTML(kind) {
+  if (kind === 'ibkr') {
+    return '<span class="src-tag src-ibkr" title="Interactive Brokers" aria-label="Interactive Brokers">' +
+      '<img src="ibkr-logo.png" alt="IBKR" width="14" height="14"></span>';
+  }
+  return '<span class="src-tag">' + esc(t('manualTag')) + '</span>';
+}
 
 /* איפוס הנתונים הידניים — במקום, על db. נתוני IBKR ורשימת המעקב נשארים. טהורה. */
 function resetManualData(db, ibkrMode) {
@@ -3189,7 +3200,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v146';
+const APP_VERSION = 'v147';
 
 
 function saveDBto(db) {
@@ -6388,12 +6399,10 @@ function mtDeleteTrade(x) {
 /* שורת עסקה ידנית — כמו שורת IBKR + תגית "ידני" וכפתורי עריכה/מחיקה. */
 function buildManualTradeRow(x, onEdit) {
   const n = mtNorm(x);
-  const li = buildTradeRow({ date: n.date, symbol: n.sym, side: n.side, qty: n.qty, price: n.price, commission: n.fee, currency: symCur(n.sym) });
+  const li = buildTradeRow({ date: n.date, symbol: n.sym, side: n.side, qty: n.qty, price: n.price, commission: n.fee, currency: symCur(n.sym) }, 'manual');
   li.classList.add('mt-row');
   const first = li.firstChild;
   if (first) {
-    const tag = el('span', 'src-tag', t('manualTag'));
-    first.insertBefore(tag, first.querySelector('br'));
     if (mtShadowed(n.sym)) first.appendChild(el('div', 'fine', t('mtShadowed', { sym: n.sym })));
   }
   const act = el('span', 'mt-actions');
@@ -6614,7 +6623,7 @@ function buildStockCard(p) {
   head.innerHTML =
     '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym">' + sym + '</span>' +
     '<span class="stock-name">' + esc(p.name) + '</span>' +
-    (p.src === 'manual' ? '<span class="src-tag">' + esc(t('manualTag')) + '</span>' : '') + '</span>' +
+    srcTagHTML(positionSource(p)) + '</span>' +
     '<span class="stock-price">' + priceTxt + '</span>' +
     '<span class="stock-sub"><span class="day-chg ' + (m.dayChg === null ? '' : m.dayChg >= 0 ? 'pos' : 'neg') + '">' +
     (m.dayChg === null ? '—' : t('todayChg', { v: fmtPct(m.dayChg, true) })) + '</span>' +
@@ -7035,13 +7044,13 @@ function tradeRowData(tr) {
   };
 }
 
-function buildTradeRow(tr) {
+function buildTradeRow(tr, src) {
   const d = tradeRowData(tr);
   const li = el('li');
   const main = el('span');
   main.innerHTML = '<span class="r-date">' + esc(fmtDateIL(d.date)) + '</span> ' +
     '<span class="side-chip ' + (d.isBuy ? 'buy' : 'sell') + '">' +
-    esc(d.isBuy ? t('buySide') : t('sellSide')) + '</span><br>' +
+    esc(d.isBuy ? t('buySide') : t('sellSide')) + '</span>' + (src ? srcTagHTML(src) : '') + '<br>' +
     '<span class="r-note">' + esc(d.symbol) + ' · ' + esc(d.qtyTxt) + ' × ' + esc(d.priceTxt) + '</span>';
   li.appendChild(main);
   const wrap = el('span');
@@ -7080,7 +7089,7 @@ function renderTrades() {
   const rows = ib.map((x) => ({ d: String(x.date || '').slice(0, 10), ib: x }))
     .concat(man.map((x) => ({ d: mtNorm(x).date, mt: x })))
     .sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0));
-  for (const r of rows) list.appendChild(r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib));
+  for (const r of rows) list.appendChild(r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib, 'ibkr'));
 }
 
 function renderDeposits() {
@@ -7138,16 +7147,16 @@ function renderDeposits() {
     const side = (s) => (s === 'SELL' ? t('sellSide') : t('buySide'));
     for (const r of mf.rows) {
       const li = el('li');
-      li.innerHTML = '<span><span class="r-date">' + fmtDateIL(r.date) + '</span> <span class="src-tag">' +
-        esc(t('manualTag')) + '</span><br><span class="r-note">' + esc(r.sym) + ' · ' + esc(side(r.side)) +
+      li.innerHTML = '<span><span class="r-date">' + fmtDateIL(r.date) + '</span> ' +
+        srcTagHTML('manual') + '<br><span class="r-note">' + esc(r.sym) + ' · ' + esc(side(r.side)) +
         ' ' + r.qty + ' × ' + esc(fmtPx(r.price, r.sym)) + '</span></span>' +
         '<span>' + depositAmountHTML(r.amount) + '</span>';
       ul.appendChild(li);
     }
     for (const r of mf.avgRows) {
       const li = el('li');
-      li.innerHTML = '<span><span class="r-date">' + esc(t('depManualAvg')) + '</span> <span class="src-tag">' +
-        esc(t('manualTag')) + '</span><br><span class="r-note">' + esc(r.sym) + ' · ' + r.qty + ' × ' +
+      li.innerHTML = '<span><span class="r-date">' + esc(t('depManualAvg')) + '</span> ' +
+        srcTagHTML('manual') + '<br><span class="r-note">' + esc(r.sym) + ' · ' + r.qty + ' × ' +
         esc(fmtPx(r.price, r.sym)) + '</span></span>' +
         '<span>' + depositAmountHTML(r.amount) + '</span>';
       ul.appendChild(li);
@@ -7159,7 +7168,8 @@ function buildDepositRow(d, i, ed) {
   const li = el('li');
   li.dataset.depIdx = i;
   const main = el('span');
-  main.innerHTML = '<span class="r-date">' + d.date + '</span>' +
+  const dTxt = /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')) ? fmtDateIL(d.date) : String(d.date || '');
+  main.innerHTML = '<span class="r-date">' + esc(dTxt) + '</span> ' + srcTagHTML(isIbkrDeposit(d) ? 'ibkr' : 'manual') +
     (d.place ? '<br><span class="r-note">' + esc(d.place) + '</span>' : '');
   li.appendChild(main);
   const wrap = el('span');
@@ -7307,7 +7317,7 @@ function buildPensionDepositRow(r, i, ed) {
   const kindTag = (r.kind || 'pension') === 'study'
     ? ' <span class="r-note">' + t('studyTag') + '</span>' : '';
   li.innerHTML =
-    '<span><b>' + esc(r.place) + '</b><br><span class="r-date">' + esc(r.period) + '</span>' + kindTag +
+    '<span><b>' + esc(r.place) + '</b> ' + srcTagHTML('manual') + '<br><span class="r-date">' + esc(r.period) + '</span>' + kindTag +
     (r.note ? '<br><span class="r-note">' + esc(r.note) + '</span>' : '') + '</span>' +
     '<span class="r-amt out">₪' + Math.abs(r.amount).toLocaleString('en-US') + '</span>';
   if (ed) {

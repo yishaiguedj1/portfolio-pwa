@@ -778,3 +778,10 @@ footer.fine { text-align: center; }
 .reset-row .fine { flex: 1; }
 .reset-row .btn { flex-shrink: 0; }
 @media (max-width: 480px) { .reset-row { flex-direction: column; align-items: stretch; } }
+
+/* v147: תגית מקור IBKR — הלוגו של Interactive Brokers, באותו מבנה כמו "ידני" */
+.src-tag.src-ibkr { padding: 2px 6px; line-height: 0; background: color-mix(in srgb, #d71920 12%, transparent); }
+.src-tag.src-ibkr img { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
+.danger-btn .src-tag { margin-inline-start: 0; margin-inline-end: 8px; background: #fff; color: var(--primary); }
+.danger-btn .src-tag.src-ibkr { background: #fff; }
+.reset-row .btn { display: inline-flex; align-items: center; justify-content: center; }

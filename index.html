@@ -357,15 +357,15 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <h2 data-i18n="resetTitle">איפוס נתונים</h2>
       <div class="reset-row">
         <p class="fine" style="padding:0" data-i18n="resetManualDesc">נתונים שהוזנו ביד.</p>
-        <button id="resetManual" class="btn danger-btn" type="button" data-i18n="resetManualBtn">איפוס נתונים ידניים</button>
+        <button id="resetManual" class="btn danger-btn" type="button"><span class="src-tag" data-i18n="manualTag">ידני</span><span data-i18n="resetManualBtn">איפוס נתונים ידניים</span></button>
       </div>
       <div class="reset-row">
         <p class="fine" style="padding:0" data-i18n="resetIbkrDesc">נתונים שהגיעו מ־IBKR.</p>
-        <button id="resetIbkr" class="btn danger-btn" type="button" data-i18n="resetIbkrBtn">איפוס נתוני IBKR</button>
+        <button id="resetIbkr" class="btn danger-btn" type="button"><span class="src-tag src-ibkr" title="Interactive Brokers"><img src="ibkr-logo.png" alt="IBKR" width="14" height="14"></span><span data-i18n="resetIbkrBtn">איפוס נתוני IBKR</span></button>
       </div>
       <div class="reset-row">
         <p class="fine" style="padding:0" data-i18n="resetDesc">מוחק הכל.</p>
-        <button id="resetData" class="btn danger-btn" type="button" data-i18n="resetBtn">איפוס מלא</button>
+        <button id="resetData" class="btn danger-btn" type="button"><span class="src-tag" data-i18n="manualTag">ידני</span><span class="src-tag src-ibkr" title="Interactive Brokers"><img src="ibkr-logo.png" alt="IBKR" width="14" height="14"></span><span data-i18n="resetBtn">איפוס מלא</span></button>
       </div>
     </div>
   </section>
