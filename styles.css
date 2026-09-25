@@ -506,6 +506,9 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
   padding: 12px 4px; border-bottom: 1px solid var(--separator); font-size: 16px;
 }
 .rows li > * { min-width: 0; }
+/* v155: הטקסט מתכווץ ונשבר, הסכום והכפתורים לא — אחרת תיאור ארוך דוחף את הסכום מחוץ למסך */
+.rows li > :first-child { flex: 1 1 auto; overflow-wrap: anywhere; }
+.rows li > :not(:first-child) { flex: none; }
 .rows li:last-child { border-bottom: 0; }
 .rows .r-date { color: var(--on-surface-var); font-variant-numeric: tabular-nums; font-size: 14px; }
 .rows .r-amt { font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; display: inline-block; } /* v151: הסימן תמיד לפני המספר */
@@ -757,6 +760,8 @@ footer.fine { text-align: center; }
 }
 .stock-sort-label { font-size: 14px; font-weight: 700; color: var(--on-surface-var); }
 .stock-sort-row .sort-chip { padding: 7px 14px; font-size: 14px; }
+.src-filter .sort-chip img { width: 14px; height: 14px; vertical-align: -2px; border-radius: 3px; } /* v155 */
+
 
 /* v101: פיל שער דולר־שקל חי בראש העמוד הראשי — נקי בסגנון אפל */
 .fx-pill {

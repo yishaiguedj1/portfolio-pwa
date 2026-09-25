@@ -134,6 +134,9 @@ he: {
   mktTase: 'ת״א · ₪',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
   sortBy: 'מיון:',
+  srcFilterLabel: 'מקור:',
+  srcFilterAll: 'הכל',
+  srcFilterEmpty: 'אין פריטים מהמקור הזה.',
   sortSize: 'גודל בתיק',
   sortDay: 'ביצועי היום',
   sortGain: 'מהקנייה',
@@ -566,6 +569,9 @@ en: {
   mktTase: 'TASE · ₪',
   stockSearchError: 'Search failed — try again',
   sortBy: 'Sort:',
+  srcFilterLabel: 'Source:',
+  srcFilterAll: 'All',
+  srcFilterEmpty: 'No items from this source.',
   sortSize: 'Position size',
   sortDay: "Day's change",
   sortGain: 'Since buy',
@@ -2540,6 +2546,57 @@ function isIbkrDeposit(d) {
 function isIbkrPosition(p, ibkrMode) { return !!p && !!ibkrMode && p.src !== 'manual'; }
 function positionSource(p) { return isIbkrPosition(p, isIbkrMode()) ? 'ibkr' : 'manual'; }
 
+/* v155: סינון לפי מקור (הכל / ידני / IB) — בהפקדות, בעסקאות ובמניות. נשמר לכל טאב בנפרד. */
+const LS_SRCFILTER = 'pwa_srcfilter_v1';
+const SRC_FILTERS = ['all', 'manual', 'ibkr'];
+function getSrcFilter(tab) {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_SRCFILTER) || '{}') || {};
+    return SRC_FILTERS.includes(o[tab]) ? o[tab] : 'all';
+  } catch (e) { return 'all'; }
+}
+function setSrcFilter(tab, v) {
+  if (!SRC_FILTERS.includes(v)) return;
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_SRCFILTER) || '{}') || {};
+    o[tab] = v;
+    localStorage.setItem(LS_SRCFILTER, JSON.stringify(o));
+  } catch (e) {}
+  if (tab === 'deposits') renderDeposits();
+  else if (tab === 'trades') renderTrades();
+  else if (tab === 'stocks') renderStocks();
+}
+/* טהורה: האם פריט ממקור src עובר את הסינון f */
+function srcPass(f, src) { return f === 'all' || f === src; }
+/* שורת הבורר — נבנית מחדש בכל ציור (הטקסט לפי השפה) */
+function renderSrcFilter(tab) {
+  const row = document.getElementById(tab + 'SrcFilter');
+  if (!row) return;
+  const cur = getSrcFilter(tab);
+  const lab = { all: esc(t('srcFilterAll')), manual: esc(t('manualTag')),
+    ibkr: '<img src="ibkr-logo.png" alt="" width="14" height="14"> IB' };
+  row.innerHTML = '<span class="stock-sort-label">' + esc(t('srcFilterLabel')) + '</span>' +
+    SRC_FILTERS.map((k) => '<button class="chip-btn sort-chip' + (k === cur ? ' on' : '') +
+      '" type="button" data-srcf="' + k + '" aria-pressed="' + (k === cur) + '">' + lab[k] + '</button>').join('');
+  row.querySelectorAll('button[data-srcf]').forEach((b) => {
+    b.addEventListener('click', () => setSrcFilter(tab, b.dataset.srcf));
+  });
+}
+/* טהורה: מפתח מיון לתאריך הפקדה — ISO או DD/MM/YYYY → YYYYMMDD */
+function depDateKey(d) {
+  const s = String((d && d.date) || '');
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + m[2] + m[3];
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[3] + m[2].padStart(2, '0') + m[1].padStart(2, '0');
+  return '';
+}
+/* טהורה: הפקדות מהחדשה לישנה, עם האינדקס המקורי (לעריכה/מחיקה) */
+function depositsNewestFirst(list) {
+  return list.map((d, i) => ({ d, i }))
+    .sort((a, b) => { const ka = depDateKey(a.d), kb = depDateKey(b.d); return ka < kb ? 1 : ka > kb ? -1 : b.i - a.i; });
+}
+
 /* v147: תגית מקור אחידה לכל פריט — "ידני" או הלוגו של Interactive Brokers.
    אותה תגית על כפתורי האיפוס, כך שרואים מה כל כפתור מוחק. */
 function srcTagHTML(kind) {
@@ -3220,7 +3277,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v154';
+const APP_VERSION = 'v155';
 
 
 function saveDBto(db) {
@@ -6261,7 +6318,15 @@ function renderStocks() {
     const m = metrics(p.sym);
     return { value: m.value, dayChg: m.dayChg, gainPct: gainPctOf(p, m.price) };
   };
-  for (const p of sortPositionsList(POSITIONS, mode, mOf)) {
+  renderSrcFilter('stocks');
+  const sf = getSrcFilter('stocks');
+  const shown = POSITIONS.filter((p) => srcPass(sf, positionSource(p)));
+  if (!shown.length && POSITIONS.length) {
+    const m = el('p', 'fine', t('srcFilterEmpty'));
+    m.style.padding = '0';
+    list.appendChild(m);
+  }
+  for (const p of sortPositionsList(shown, mode, mOf)) {
     list.appendChild(buildStockCard(p));
   }
 }
@@ -7146,6 +7211,8 @@ function renderTrades() {
   const man = mtList();
   if (cnt) cnt.textContent = ib.length + man.length;
   list.innerHTML = '';
+  renderSrcFilter('trades');
+  const sf = getSrcFilter('trades');
   if (hint) {
     // v141: בלי IBKR עדיין אפשר עסקאות ידניות — ההסבר רק כשאין כלום להציג
     const showHint = !ready && !man.length;
@@ -7161,7 +7228,9 @@ function renderTrades() {
   const edit = (x) => { if (host) { host.innerHTML = ''; showTradeForm(host, { trade: x }); } };
   const rows = ib.map((x) => ({ d: String(x.date || '').slice(0, 10), ib: x }))
     .concat(man.map((x) => ({ d: mtNorm(x).date, mt: x })))
+    .filter((r) => srcPass(sf, r.mt ? 'manual' : 'ibkr'))
     .sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0));
+  if (!rows.length) list.appendChild(el('p', 'fine', t('srcFilterEmpty')));
   for (const r of rows) list.appendChild(r.mt ? buildManualTradeRow(r.mt, edit) : buildTradeRow(r.ib, 'ibkr'));
 }
 
@@ -7211,8 +7280,12 @@ function renderDeposits() {
     addLi.appendChild(addBtn);
     ul.appendChild(addLi);
   }
-  DEPOSITS.forEach((d, i) => ul.appendChild(buildDepositRow(d, i, ed)));
-  if (hasMf) {
+  renderSrcFilter('deposits');
+  const sf = getSrcFilter('deposits');
+  const shown = depositsNewestFirst(DEPOSITS).filter((x) => srcPass(sf, isIbkrDeposit(x.d) ? 'ibkr' : 'manual'));
+  shown.forEach((x) => ul.appendChild(buildDepositRow(x.d, x.i, ed)));
+  if (!shown.length && DEPOSITS.length && !(hasMf && srcPass(sf, 'manual'))) ul.appendChild(el('p', 'fine', t('srcFilterEmpty')));
+  if (hasMf && srcPass(sf, 'manual')) {
     const head = el('li', 'dep-sub');
     head.innerHTML = '<span><b>' + esc(t('depManualTitle')) + '</b><br><span class="r-note">' +
       esc(t('depManualNote')) + '</span></span>';
