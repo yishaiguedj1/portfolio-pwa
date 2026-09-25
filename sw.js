@@ -1,7 +1,7 @@
 /* Service Worker — תיק ההשקעות PWA
  * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
  */
-const CACHE_NAME = 'portfolio-pwa-v146';
+const CACHE_NAME = 'portfolio-pwa-v147';
 
 const APP_SHELL = [
   './',
@@ -16,7 +16,8 @@ const APP_SHELL = [
   './icon-512.png',
   './logo-header.png',
   './apple-touch-icon.png',
-  './favicon-48.png'
+  './favicon-48.png',
+  './ibkr-logo.png'
 ];
 
 self.addEventListener('install', (event) => {
