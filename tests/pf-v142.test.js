@@ -40,7 +40,7 @@ const run = (c) => vm.runInContext(c, sb);
   run('state.fx = 4; state.currency = "USD";');
   ok(A('nativeToUSD')(400, 'LUMI.TA') === 100 && A('nativeToUSD')(400, 'GOOG') === 400, 'המרה לדולר רק למניה בשקלים');
   ok(A('nativeToUSD')(400, 'LUMI.TA', 0) === null, 'בלי שער — null, לא ממציאים');
-  ok(A('fmtPx')(75.88, 'LUMI.TA') === '₪75.88', 'מחיר מניה ישראלית — בשקלים');
+  ok(A('fmtPx')(75.88, 'LUMI.TA') === '\u20677,588 אג׳\u2069', 'מחיר מניה ישראלית — באגורות, כמו בבורסה (v159)');
   ok(A('fmtPx')(10, 'GOOG') === '$10.00', 'מחיר מניה אמריקאית — בדולרים');
 
   // --- 2. אגורות → שקלים ---

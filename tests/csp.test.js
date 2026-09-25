@@ -29,7 +29,7 @@ const allows = (dir, url) => {
 // 1. כל host בקוד מכוסה
 const hosts = new Set();
 for (const src of [app, cloud]) for (const x of src.matchAll(/['"`](https:\/\/[a-z0-9.-]+)/gi)) hosts.add(x[1]);
-const imgHosts = ['https://financialmodelingprep.com'];
+const imgHosts = ['https://financialmodelingprep.com', 'https://s3-symbol-logo.tradingview.com'];
 for (const h of hosts) {
   if (imgHosts.includes(h)) { ok(allows('img-src', h + '/x.png'), 'img-src מכסה ' + h); continue; }
   if (/twelvedata\.com$/.test(h) && !/^https:\/\/api\./.test(h)) continue; // קישור הרשמה, לא fetch

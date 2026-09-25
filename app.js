@@ -140,6 +140,7 @@ he: {
   srcFilterLabel: 'הצג לפי מקור',
   srcFilterBtn: 'סינון',
   agorotUnit: 'אגורות',
+  agShort: 'אג׳',
   agorotFixed: 'תוקנו {n} מחירים של מניות ת"א שהוזנו באגורות',
   srcFilterAll: 'הכל',
   srcFilterManual: 'ידני',
@@ -592,6 +593,7 @@ en: {
   srcFilterLabel: 'Show by source',
   srcFilterBtn: 'Filter',
   agorotUnit: 'agorot',
+  agShort: 'ag.',
   agorotFixed: 'Fixed {n} TASE prices that were entered in agorot',
   srcFilterAll: 'All',
   srcFilterManual: 'Manual',
@@ -3426,6 +3428,13 @@ function fmtUSD2(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+/* v159: מחיר מניה בת"א — באגורות, כמו בבורסה ("7,830 אג'"). בפנים נשמר בשקלים.
+   עטוף בבידוד RTL כדי ש"אג'" יופיע משמאל למספר בכל הקשר (גם בתוך dir=ltr וגם בקנבס). */
+function fmtAg(v) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const n = (Math.round(v * 100 * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return state.lang === 'en' ? n + ' ag.' : '\u2067' + n + ' ' + t('agShort') + '\u2069';
+}
 function fmtILS2(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   return '₪' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3468,7 +3477,7 @@ function nativeToUSD(v, sym, fx) {
 /* מחיר למניה לתצוגה: מניה ישראלית תמיד בשקלים (ככה היא נסחרת); מניה אמריקאית
    לפי מטבע התצוגה (כמו קודם). */
 function fmtPx(v, sym) {
-  if (symCur(sym) === 'ILS') return fmtILS2(v);
+  if (symCur(sym) === 'ILS') return fmtAg(v);
   return state.currency === 'ILS' && state.fx ? fmtILS(v * state.fx) : fmtUSD2(v);
 }
 function fmtILS(v) {
@@ -3548,7 +3557,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v158';
+const APP_VERSION = 'v159';
 
 
 function saveDBto(db) {
@@ -3823,9 +3832,30 @@ function pieLogoImg(sym) {
     e = PIE_LOGO_CACHE[s] = { img: new Image(), ready: false, failed: false };
     e.img.onload = () => { e.ready = true; try { drawPie(); } catch (er) {} };
     e.img.onerror = () => { e.failed = true; try { drawPie(); } catch (er) {} };
-    e.img.src = 'https://financialmodelingprep.com/image-stock/' + encodeURIComponent(s) + '.png';
+    const src = logoSrc(s);
+    if (src) { e.img.crossOrigin = 'anonymous'; e.img.src = src; } else e.failed = true;
   }
   return e;
+}
+
+/* v159: לוגו רשמי. מניות ת"א — לוגו TradingView לפי מזהה החברה (FMP החזיר תמונות אקראיות,
+   למשל בניין במקום הלוגו של הפועלים); ת"א שלא ברשימה — בלי תמונה (האות הראשונה). */
+const TASE_LOGOS = ('LUMI:leumi POLI:bank-hapoalim DSCT:discount MZTF:mizrahi-tefahot FIBI:fibi-bank TEVA:teva ' +
+  'ESLT:elbit-systems NICE:nice ICL:icl BEZQ:bezeq AZRG:azrieli DLEKG:delek NVMI:nova TSEM:tower-semiconductor ' +
+  'ORL:bazan HARL:harel PHOE:phoenix CLIS:clal-insurance MGDL:migdal-insur MMHD:menora-miv-hld SPEN:shapir-eng ' +
+  'ENLT:enlight-energy ENRG:energix OPCE:opc-energy SAE:shufersal STRS:strauss ALHE:alony-hetz AMOT:amot ' +
+  'MLSR:melisron BIG:big NWMD:newmed-energy-ltd CEL:cellcom PTNR:partner ELAL:el-al-israel-airlines-ltd FTAL:fattal ' +
+  'MTRX:matrix ONE:one-technologi ELTR:electra SKBN:shikun-and-binui ASHG:ashtrom CAMT:camtek KEN:kenon-ltd ' +
+  'DANE:danel ELCO:elco HLAN:hilan AURA:aura ISRA:isramco-negev-2 NXSN:next-vision-stabil FORTY:formula ' +
+  'MVNE:mivne ILCO:israel').split(' ').reduce((o, kv) => { const [k, v] = kv.split(':'); o[k] = v; return o; }, {});
+function logoSrc(sym) {
+  const s = normalizeSym(sym);
+  if (!s) return null;
+  if (/\.TA$/i.test(s)) {
+    const id = TASE_LOGOS[s.replace(/\.TA$/i, '')];
+    return id ? 'https://s3-symbol-logo.tradingview.com/' + id + '.svg' : null;
+  }
+  return 'https://financialmodelingprep.com/image-stock/' + encodeURIComponent(s) + '.png';
 }
 
 /* ---------------- מצב ---------------- */
@@ -3949,13 +3979,16 @@ function parseCNBCQuotes(json, useExt) {
       tm = String(ext.last_timedate || ext.last_time || tm);
     }
     if (!(close > 0)) continue;
+    // v159: CNBC מחזיר מניות ת"א באגורות (בלי סימון) — כמו Yahoo ILA, מחלקים ב־100
+    const ag = symCur(sym) === 'ILS' && String(it.currencyCode || 'ILA').toUpperCase() !== 'ILS' ? 100 : 1;
+    if (ag !== 1) close = close / ag;
     out[sym] = {
       symbol: sym,
       date: todayISO(),
       time: tm,
-      open: num(it.open),
-      high: num(it.high),
-      low: num(it.low),
+      open: num(it.open) / ag,
+      high: num(it.high) / ag,
+      low: num(it.low) / ag,
       close: close,
       session: session,
       volume: parseInt(String(it.volume || '').replace(/,/g, ''), 10) || 0
@@ -4163,7 +4196,33 @@ async function liveFetch(syms) {
 }
 
 /* ממזג ציטוטים חדשים — מחזיר את הסימבולים שהמחיר שלהם זז. פונקציה טהורה על state. */
+/* v159: רשת ביטחון — ציטוט ת"א שגדול פי 30–300 מהסגירה האחרונה הידועה הגיע באגורות
+   (מקור שלא סימן ILA). מחלקים ב־100. טהורה על האובייקט; מחזירה כמה תוקנו. */
+function taseFixQuotes(quotes, refOf) {
+  let n = 0;
+  for (const s of Object.keys(quotes || {})) {
+    const q = quotes[s];
+    if (!q || symCur(s) !== 'ILS' || !(q.close > 0)) continue;
+    const ref = refOf(s);
+    if (!(ref > 0)) continue;
+    const r = q.close / ref;
+    if (r >= 30 && r <= 300) {
+      for (const k of ['close', 'open', 'high', 'low', 'prevClose', 'pre', 'post']) if (q[k] > 0) q[k] = q[k] / 100;
+      n++;
+    }
+  }
+  return n;
+}
+function taseRef(s) {
+  const h = state.hist[s];
+  if (h && h.length) return h[h.length - 1].close;
+  const p = POSITIONS.find((x) => x.sym === s);
+  if (p && p.avg > 0) return p.avg;
+  const o = state.quotes[s];
+  return o && o.close > 0 ? o.close : null;
+}
 function liveMerge(got) {
+  taseFixQuotes(got, taseRef);
   const moved = [];
   for (const s of Object.keys(got)) {
     const old = state.quotes[s];
@@ -4266,6 +4325,7 @@ function intradayLiveRows(rows, q) {
 }
 
 function applyQuotes(res) {
+  taseFixQuotes(res.quotes, taseRef);
   state.quotes = res.quotes;
   state.fx = res.fx;
   state.fxAt = Date.now();
@@ -4327,6 +4387,7 @@ async function refreshQuotes() {
   } catch (e) { /* שניהם נכשלו — נופלים לנתונים שמורים */ }
   const cached = lsGet(LS_QUOTES);
   if (cached && cached.quotes && cached.fx) {
+    try { taseFixQuotes(cached.quotes, (x) => { const h = state.hist[x]; if (h && h.length) return h[h.length - 1].close; const p = POSITIONS.find((y) => y.sym === x); return p && p.avg > 0 ? p.avg : null; }); } catch (e) {}
     state.quotes = cached.quotes;
     state.fx = cached.fx;
     state.quotesAt = cached.at;
@@ -5319,8 +5380,7 @@ function drawPie() {
   const sorted = slicesUnique.slice().sort((a, b) => b.value - a.value);
   for (const s of sorted) {
     const li = el('li', '',
-      '<span class="pie-leg-logo"><img src="https://financialmodelingprep.com/image-stock/' +
-      encodeURIComponent(normalizeSym(s.sym)) + '.png" alt="" loading="lazy" data-err="hide-parent"></span>' +
+      (logoSrc(s.sym) ? '<span class="pie-leg-logo"><img src="' + logoSrc(s.sym) + '" alt="" loading="lazy" data-err="hide-parent"></span>' : '<span class="pie-leg-logo"></span>') +
       '<span class="dot" style="background:' + s.color + '"></span>' +
       '<span class="lg-name">' + esc(s.sym) + (s.name && s.name !== s.sym ? ' · ' + esc(s.name) : '') + '</span>' +
       '<span class="lg-val">' + money(cur === 'ILS' && state.fx ? s.value * state.fx : s.value, cur) + '</span>' +
@@ -7051,7 +7111,7 @@ function renderWishlist() {
       '</div>' +
       '<div class="wl-price">' +
       (close > 0
-        ? '<span class="wl-close" dir="ltr">' + (symCur(w.sym) === 'ILS' ? fmtILS2(close) : fmtUSD2(close)) + '</span>'
+        ? '<span class="wl-close" dir="ltr">' + (symCur(w.sym) === 'ILS' ? fmtAg(close) : fmtUSD2(close)) + '</span>'
         : '<span class="fine">' + t('wlNoPrice') + '</span>') +
       (chg !== null
         ? '<span class="wl-chg ' + (chg >= 0 ? 'pos' : 'neg') + '" dir="ltr">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</span>'
@@ -7072,11 +7132,11 @@ function renderWishlist() {
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
   const first = (nsym || '?').charAt(0);
+  const src = logoSrc(nsym);
   return '<span class="stock-logo">' +
     '<span class="stock-logo-fb">' + esc(first) + '</span>' +
-    '<img class="stock-logo-img" crossorigin="anonymous" src="https://financialmodelingprep.com/image-stock/' +
-    encodeURIComponent(nsym) + '.png" alt="" loading="lazy" ' +
-    'data-logo="1">' +
+    (src ? '<img class="stock-logo-img" crossorigin="anonymous" src="' + src + '" alt="" loading="lazy" ' +
+    'data-logo="1">' : '') +
     '</span>';
 }
 
@@ -7101,6 +7161,7 @@ function logoImgFix(img) {
   try {
     const fb = img.previousElementSibling;
     if (fb && fb.classList && fb.classList.contains('stock-logo-fb')) fb.style.display = 'none';
+    if (/s3-symbol-logo\.tradingview\.com/.test(img.src || '')) return; // v159: לוגו רשמי עם רקע משלו — בלי היפוך צבעים
     const w = img.naturalWidth, h = img.naturalHeight;
     if (!w || !h || w < 4 || h < 4) return;
     const c = document.createElement('canvas');
@@ -7364,7 +7425,7 @@ function drawStockChart(sym, rows, intraday) {
   if (min === max) { min *= 0.99; max *= 1.01; }
   // v151: עמודת התוויות ברוחב התווית הארוכה בפועל (54 קבוע חתך "$629.26")
   ctx.font = '12.5px system-ui';
-  const fmtAxis = (v) => (symCur(sym) === 'ILS' ? fmtILS2(v) : fmtUSD2(v));
+  const fmtAxis = (v) => (symCur(sym) === 'ILS' ? fmtAg(v) : fmtUSD2(v));
   const padL = 6, padR = Math.ceil(Math.max(ctx.measureText(fmtAxis(min)).width, ctx.measureText(fmtAxis(max)).width)) + 12, padT = 10, padB = 36;
   const plotW = w - padL - padR, plotH = h - padT - padB;
   const X = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
@@ -7382,7 +7443,7 @@ function drawStockChart(sym, rows, intraday) {
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
     ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
     ctx.textAlign = 'left';
-    ctx.fillText(symCur(sym) === 'ILS' ? fmtILS2(v) : fmtUSD2(v), w - padR + 6, y);
+    ctx.fillText(symCur(sym) === 'ILS' ? fmtAg(v) : fmtUSD2(v), w - padR + 6, y);
   }
 
   // קו — 2.5px כמו בגרף הראשי, בלי מילוי שטח
