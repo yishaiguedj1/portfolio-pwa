@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v187';
+const APP_VERSION = 'v188';
 
 
 function saveDBto(db) {
@@ -6161,19 +6161,40 @@ function drawPie() {
   // (הקצה שהיא חולקת עם הפרוסה הגדולה ממנה), ורק נדחקת עם כיוון השעון אם היא נוגעת בתווית שכבר הונחה.
   // כך UNH יורדת, מפנה מקום ל־UBER, שמפנה ל־GOOG… ואף תווית לא נשמטת. מחזיר true כשהכול נכנס בלי נגיעות ובלי לגלוש מהפרוסה.
   const posAt = (rho) => {
+    // v188: הקריטריון = הלוגו (החלק העליון של התווית) יושב על הפרוסה של המניה, כמה שיותר קרוב לקצה שנגד כיוון השעון;
+    // הבועה עם המספרים מותר לה לגלוש לפרוסה השכנה (בקשת המשתמש) — מה שחשוב שהלוגו משויך בוודאות לפרוסה.
     const placed = [];
+    const dyLogo = (H / 2 - LS / 2) * SC; // הלוגו מעל מרכז התווית (מסך), לא רדיאלי
     let fine = true;
     for (const g of segs) {
-      const half = (th) => ((g.W / 2) * Math.abs(Math.sin(th)) + (H / 2) * Math.abs(Math.cos(th))) * SC; // חצי־רוחב התווית לאורך המשיק
-      // הגדולה (הראשונה מ־12) — בדיוק מול הפרוסה שלה (v185), וכך משאירה מקום ליד 12 לקטנות שבסוף הלולאה; השאר צמודות לקצה ההתחלה
-      let th = g === segs[0] ? g.mid : Math.min(g.mid, g.a + half(g.a) / rho + 0.03); // פרוסה צרה — במרכז
       const put = (t) => { g.x = Math.cos(t) * rho; g.y = Math.sin(t) * rho; };
-      put(th);
-      const th0 = th, hit = () => placed.some((o) => clash(o, g));
-      for (let k = 0; k < 25 && hit(); k++) { th += 0.03; put(th); } // נדחקת עם כיוון השעון
-      if (hit()) { th = th0; put(th); for (let k = 0; k < 25 && hit(); k++) { th -= 0.03; put(th); } } // ואם גם זה לא — נגד (הקטנות שבסוף, מול הגדולה)
+      const hit = () => placed.some((o) => clash(o, g));
+      const logoOn = () => { // מרכז הלוגו בתוך הפרוסה (עם שוליים של חצי לוגו); פרוסה צרה מהלוגו — הלוגו מול אמצע הפרוסה
+        const lx = g.x, ly = g.y - dyLogo, rl = Math.hypot(lx, ly), m = (LS / 2) * SC / Math.max(rl, 1);
+        let phi = Math.atan2(ly, lx);
+        while (phi < g.a - Math.PI) phi += Math.PI * 2;
+        while (phi > g.a + Math.PI) phi -= Math.PI * 2;
+        const narrow = g.a2 - g.a < 2 * m + 0.02;
+        return narrow ? Math.abs(phi - g.mid) < m + 0.04 : (phi >= g.a + m && phi <= g.a2 - m); // צרה: הלוגו עד חצי מחוץ לפרוסה
+      };
+      let th = null;
+      if (g === segs[0]) { th = g.mid; put(th); } // הגדולה — מול הפרוסה שלה (v185), משאירה מקום ליד 12 לקטנות שבסוף
+      else {
+        let best = null;
+        for (let t = g.a - 0.35; t <= g.a2 + 0.35; t += 0.02) { // סריקה עם כיוון השעון — הראשון שמתאים = הכי נגד כיוון השעון
+          put(t);
+          if (hit()) continue;
+          if (logoOn()) { th = t; break; }
+          if (best === null || Math.abs(t - g.mid) < Math.abs(best - g.mid)) best = t;
+        }
+        if (th === null) { // אין מקום על הפרוסה — הקרוב ביותר בלי נגיעה (עם סיכה), גם רחוק יותר
+          fine = false;
+          if (best === null) for (let t = g.mid - 1.6; t <= g.mid + 1.6; t += 0.03) { put(t); if (!hit() && (best === null || Math.abs(t - g.mid) < Math.abs(best - g.mid))) best = t; }
+          th = best === null ? g.mid : best; put(th);
+        }
+      }
+      if (hit()) fine = false;
       g.lab = th;
-      if (hit() || Math.abs(th - Math.max(Math.min(th, g.a2), g.a)) > 0.35) fine = false; // עדיין נוגעת / נדחקה הרבה מעבר לפרוסה
       placed.push(g);
     }
     return fine;
@@ -6182,9 +6203,9 @@ function drawPie() {
   const ringAt = (RR, f) => holeOf(RR) + (RR - holeOf(RR)) * f;
   let R = R0, rho = ringAt(R0, 0.62), ok = false;
   // 1) מעט מניות: במרכז הפרוסות — אם צריך, כל התוויות קטנות יחד (עד 82%) כדי שלא ייגעו
-  for (const sc of [1, 0.9, 0.82]) {
+  for (const sc of [1, 0.9, 0.82, 0.76, 0.7]) { // v188: עדיף תוויות קטנות יותר מאשר תוויות מחוץ לטבעת — הלוגו על הפרוסה
     SC = sc;
-    for (const d of [0, 6, 12]) { if (posAt(rho + d)) { ok = true; rho += d; break; } }
+    for (const d of [0, 6, 12, 18]) { if (posAt(rho + d)) { ok = true; rho += d; break; } }
     if (ok) break;
   }
   // 2) יותר מניות: כל התוויות מתרחקות מהמרכז באותה מידה (הטבעת מתכווצת ונשארת מתחתן), עד שאין נגיעות
