@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v172';
+const APP_VERSION = 'v173';
 
 
 function saveDBto(db) {
@@ -4128,6 +4128,19 @@ function logoIsLight(img) {
     return cnt >= 5 && sum / cnt > 225;
   } catch (e) { return false; }
 }
+/* v173: כמו בטאב המניות — לוגו לבן מתהפך לשחור על האריח הלבן (במקום אריח כהה). עותק הפוך בקנבס. */
+function logoInverted(img) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const im = ctx.getImageData(0, 0, c.width, c.height), d = im.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; }
+    ctx.putImageData(im, 0, 0);
+    return c;
+  } catch (e) { return null; }
+}
 /* v169: שם החברה המלא, נקי ("Microsoft", "Meta Platforms", "בנק הפועלים"): ת"א בעברית לפי שפה,
    אחרת רשימת החיפוש / השם מ־Yahoo / מה שנשמר. בלי "Inc." / "Corp." וכו'. */
 function companyName(sym, fallback) {
@@ -4177,7 +4190,7 @@ function pieLogoImg(sym) {
   let e = PIE_LOGO_CACHE[s];
   if (!e) {
     e = PIE_LOGO_CACHE[s] = { img: new Image(), ready: false, failed: false };
-    e.img.onload = () => { e.ready = true; e.light = logoIsLight(e.img); try { drawPie(); } catch (er) {} };
+    e.img.onload = () => { e.ready = true; e.light = logoIsLight(e.img); if (e.light) e.inv = logoInverted(e.img); try { drawPie(); } catch (er) {} };
     e.img.onerror = () => { e.failed = true; try { drawPie(); } catch (er) {} };
     const src = logoSrc(s);
     if (src) { e.img.crossOrigin = 'anonymous'; e.img.src = src; } else e.failed = true;
@@ -5955,56 +5968,49 @@ function drawPie() {
     a0 = a2;
     return g;
   });
-  // v172: התווית תמיד בתוך הפרוסה, בגודל יחסי לפרוסה (קטנה עד 55%; מותר לבלוט מעט מהשפה).
-  // רק בתיק עם הרבה מניות (מעל 12), פרוסה שגם בגודל הקטן לא נכנסת — התווית בולטת החוצה בכיוון הפרוסה.
-  const MANY = segs.length > 12;
-  const SCALES = [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55];
-  const place = (R, r) => {
-    const boxes = [];
-    let need = 0;
-    const rMid = (R + r) / 2;
-    for (const g of segs) {
-      g.out = false; g.skip = false; g.sc = 0;
-      for (const sc of SCALES) {
-        for (const k of [0.5, 0.55, 0.45, 0.6, 0.4, 0.65]) {
-          const rr = r + (R - r) * k;
-          const x = Math.cos(g.mid) * rr, y = Math.sin(g.mid) * rr;
-          if (pieBoxFits(x, y, g.W * sc, H * sc, g.a, g.a2, r, R + 16, 2)) { g.x = x; g.y = y; g.sc = sc; break; }
-        }
-        if (g.sc) break;
-      }
-      if (!g.sc) {
-        if (MANY) g.out = true;
-        else { g.sc = SCALES[SCALES.length - 1]; g.x = Math.cos(g.mid) * rMid; g.y = Math.sin(g.mid) * rMid; } // חורגת קצת — בסדר
-      }
-      if (!g.out) boxes.push(g);
-    }
-    const hit = (g) => boxes.some((o) => o !== g && Math.abs(o.x - g.x) < (o.W * o.sc + g.W) / 2 + 4 && Math.abs(o.y - g.y) < (H * o.sc + H) / 2 + 4);
-    for (const g of segs) {
-      if (!g.out) continue;
-      g.sc = 1;
-      let done = false;
-      for (let k = 0; k <= 7 && !done; k++) { // עד ~24° מהפרוסה — שהתווית תישאר צמודה אליה
-        for (const sgn of k ? [1, -1] : [1]) {
-          const th = g.mid + sgn * k * 0.06;
-          const e = Math.abs(Math.cos(th)) * g.W / 2 + Math.abs(Math.sin(th)) * H / 2;
-          const rho = R - 26 + e; // חופף את הטבעת ובולט החוצה — אבל נשאר בתוך הקנבס
-          g.x = Math.max(-w / 2 + g.W / 2 + 1, Math.min(w / 2 - g.W / 2 - 1, Math.cos(th) * rho));
-          g.y = Math.max(-h / 2 + H / 2 + 1, Math.min(h / 2 - H / 2 - 1, Math.sin(th) * rho));
-          if (!hit(g)) { done = true; break; }
-        }
-      }
-      g.skip = !done;
-      if (done) { boxes.push(g); need = Math.max(need, (R - 26) + 2 * (Math.abs(Math.cos(g.mid)) * g.W / 2 + Math.abs(Math.sin(g.mid)) * H / 2) - Math.min(w, h) / 2); }
-    }
-    return need;
-  };
+  // v173: כל התוויות באותו גודל, על מעגל אחד. מעט מניות — במרכז הפרוסות; ככל שיש יותר מניות, המעגל של
+  // התוויות מתרחק מהמרכז (והטבעת מתכווצת בהתאם) — עד שאין שתי תוויות שנוגעות זו בזו. מה שגם אז לא נכנס
+  // (עשרות מניות זעירות) — רק ברשימה, לפי סדר גודל.
   const R0 = Math.min(w, h) / 2 - 4;
-  let R = R0;
-  // שוליים לתוויות שבולטות (רק בתיק גדול) — לכל היותר 10% מהרדיוס
-  const need0 = place(R, R * HOLE);
-  if (need0 > 0.5) { R = Math.max(R0 * 0.9, R0 - need0 - 2); place(R, R * HOLE); }
-  const r = R * HOLE;
+  const holeOf = (R) => Math.max(R * HOLE, Math.min(R * 0.62, 58)); // החור נשאר רחב מספיק לסכום במרכז
+  let SC = 1;
+  const posAt = (rho) => { for (const g of segs) { g.x = Math.cos(g.mid) * rho; g.y = Math.sin(g.mid) * rho; } };
+  const clash = (p, q) => Math.abs(p.x - q.x) < (p.W + q.W) / 2 * SC + 3 && Math.abs(p.y - q.y) < H * SC + 3;
+  const anyClash = () => {
+    for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) if (clash(segs[i], segs[j])) return true;
+    return false;
+  };
+  let R = R0, rho = (R0 + holeOf(R0)) / 2, ok = false;
+  // 1) מעט מניות: במרכז הפרוסות — אם צריך, כל התוויות קטנות יחד (עד 82%) כדי שלא ייגעו
+  for (const sc of [1, 0.9, 0.82]) {
+    SC = sc;
+    for (const d of [0, 6, 12]) { posAt(rho + d); if (!anyClash()) { ok = true; rho += d; break; } }
+    if (ok) break;
+  }
+  // 2) יותר מניות: כל התוויות מתרחקות מהמרכז באותה מידה (הטבעת מתכווצת ונשארת מתחתן), עד שאין נגיעות
+  if (!ok) {
+    SC = segs.length <= 12 ? 0.85 : 0.78;
+    const rhoMax = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W, H) / 2 * SC));
+    for (rho = (R0 + holeOf(R0)) / 2; rho <= rhoMax; rho += 3) { posAt(rho); if (!anyClash()) { ok = true; break; } }
+    if (!ok) { rho = rhoMax; posAt(rho); }
+    R = Math.max(R0 * 0.6, Math.min(R0, rho - H * SC * 0.15));
+  }
+  // עדיין יש התנגשות (הרבה מניות זעירות) — מוותרים על התווית של הקטנה יותר
+  const shown = [];
+  for (const g of segs.slice().sort((p, q) => q.s.value - p.s.value)) {
+    g.sc = SC; g.out = rho > R - 8;
+    g.skip = shown.some((o) => clash(o, g));
+    // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°) לפני שמוותרים
+    for (let k = 1; g.skip && k <= 7; k++) {
+      for (const sgn of [1, -1]) {
+        const th = g.mid + sgn * k * 0.05;
+        g.x = Math.cos(th) * rho; g.y = Math.sin(th) * rho;
+        if (!shown.some((o) => clash(o, g))) { g.skip = false; break; }
+      }
+    }
+    if (!g.skip) shown.push(g);
+  }
+  const r = holeOf(R);
   const gap = ordered.length > 1 ? 2.5 : 0;
   for (const g of segs) {
     ctx.beginPath();
@@ -6038,7 +6044,7 @@ function drawPie() {
     // לוגו — אותו גודל לכל החברות
     const e = pieLogoImg(s.sym);
     const lx = x - LS / 2;
-    const light = !!(e.ready && e.light);
+    const light = !!(e.ready && e.light && !e.inv); // לוגו לבן שלא הצלחנו להפוך — אריח כהה
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
     pieRoundRect(ctx, lx, top, LS, LS, LS * 0.26);
@@ -6052,7 +6058,7 @@ function drawPie() {
       const inner = /tradingview/.test(e.img.src || '') ? LS : LS * 0.74;
       const iw = e.img.naturalWidth, ih = e.img.naturalHeight;
       const sc = Math.min(inner / iw, inner / ih);
-      ctx.drawImage(e.img, x - iw * sc / 2, top + LS / 2 - ih * sc / 2, iw * sc, ih * sc);
+      ctx.drawImage(e.inv || e.img, x - iw * sc / 2, top + LS / 2 - ih * sc / 2, iw * sc, ih * sc);
       ctx.restore();
     } else {
       ctx.fillStyle = '#3A3A3C'; ctx.font = '700 ' + Math.round(LS * 0.44) + 'px ' + FONT;
@@ -6102,7 +6108,7 @@ function drawPie() {
     const e = src ? pieLogoImg(s.sym) : null;
     const full = companyName(s.sym, s.name);
     const li = el('li', '',
-      '<span class="pie-leg-logo' + (e && e.ready && e.light ? ' on-dark' : '') + '">' +
+      '<span class="pie-leg-logo' + (e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc((normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
       (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" data-err="hide-self">' : '') + '</span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +

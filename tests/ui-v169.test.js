@@ -26,13 +26,12 @@ ok(cn('MSFT') === 'Microsoft' && cn('META') === 'Meta Platforms' && cn('NOW') ==
 ok(cn('POLI.TA') === 'הפועלים' && (vm.runInContext('state.lang = "en"', sb), cn('POLI.TA') === 'Bank Hapoalim'), 'ת"א: שם בעברית / באנגלית לפי השפה');
 ok(/'longName', 'shortName'\]/.test(proxy) && /longName: meta\.longName \|\| meta\.shortName/.test(src), 'מניה שלא ברשימה: השם מ־Yahoo דרך השרתון');
 ok(/return cnt >= 5 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן (UNH/UBER/APP) מזוהה');
-ok(/ctx\.fillStyle = light \? '#1D1D1F' : '#FFFFFF';/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' on-dark'/.test(src), 'לוגו לבן — על אריח כהה, בעוגה ובמקרא');
-ok(/const LS = 26, SYM_H = 12, BUB_H = 26,/.test(src) && !/const tiers = /.test(src), 'v171: לכל מניה אותה תווית — לוגו בגודל אחיד + סימבול + בועה (אחוז מעל שווי)');
-ok(/g\.W \* sc, H \* sc, g\.a, g\.a2, r, R \+ 16, 2\)\) \{ g\.x = x; g\.y = y; g\.sc = sc;/.test(src) && /const MANY = segs\.length > 12;/.test(src) && /if \(MANY\) g\.out = true;/.test(src), 'v172: התווית בתוך הפרוסה בגודל יחסי (עד 55%); בחוץ רק בתיק עם מעל 12 מניות');
+ok(/ctx\.drawImage\(e\.inv \|\| e\.img,/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' inv'/.test(src) && /\.pie-leg-logo\.inv img \{ filter: invert\(1\); background: transparent; \}/.test(css), 'v173: לוגו לבן — מתהפך לשחור על אריח לבן, כמו בטאב המניות (עוגה ומקרא)');
+ok(/for \(const sc of \[1, 0\.9, 0\.82\]\)/.test(src) && /R = Math\.max\(R0 \* 0\.6, Math\.min\(R0, rho - H \* SC \* 0\.15\)\);/.test(src), 'v173: כל התוויות באותו גודל על מעגל אחד — מעט מניות במרכז הפרוסות, יותר מניות: המעגל מתרחק באחידות');
+ok(/const clash = \(p, q\) =>/.test(src) && /g\.skip = shown\.some\(\(o\) => clash\(o, g\)\);/.test(src), 'v173: אין שתי תוויות שנוגעות זו בזו');
 ok(/pctTxt: pct\.toFixed\(1\) \+ '%'/.test(src), 'v172: אחוז עם ספרה עשרונית תמיד (18.1%)');
-ok(/R = Math\.max\(R0 \* 0\.9, R0 - need0 - 2\);/.test(src), 'v171: הטבעת מתכווצת לכל היותר ב־10% כדי לפנות מקום');
 ok(/ctx\.strokeStyle = surface; ctx\.lineWidth = gap;/.test(src), 'רווח דק בצבע הכרטיס בין הפרוסות');
-ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css) && /\.pie-leg-logo\.on-dark \{ background: #1D1D1F; \}/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל; לבן על כהה');
+ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל');
 ok(/class="lg-full" dir="auto"/.test(src) && /#pieLegend \.lg-full \{ align-self: flex-start; max-width: 100%;/.test(css), 'מקרא: שם מלא מתחת לסימבול, חיתוך בסוף השם');
 ok(/data-err="hide-self"/.test(src) && /im\.dataset\.err === 'hide-self'/.test(src), 'לוגו שלא נטען — נשארת האות, לא ריבוע ריק');
 ok(/const ordered = slicesUnique\.slice\(\)\.sort\(\(x, y\) => y\.value - x\.value\);/.test(src), 'v170: הפרוסות לפי גודל, מהגדולה ב־12 בשעון עם כיוון השעון');
