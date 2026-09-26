@@ -119,6 +119,7 @@ module.exports = async (req, res) => {
 };
 function send(res, v, asJson) {
   res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=45');
+  res.setHeader('Access-Control-Allow-Origin', '*'); // תמונה ציבורית — האפליקציה מציגה תצוגה מקדימה ובונה ממנה את קובץ ה־KWGT
   if (asJson) return res.status(200).json({ ok: true, model: v });
   res.setHeader('Content-Type', 'image/png');
   return res.status(200).send(v);

@@ -74,4 +74,35 @@ const pj = JSON.parse(fs.readFileSync(path.join(root, 'ibkr-proxy/package.json')
 ok(/^\d/.test(pj.dependencies['@sparticuz/chromium']) && /^\d/.test(pj.dependencies['puppeteer-core']), 'package.json: גרסאות מקובעות');
 ok(fs.readFileSync(path.join(root, 'ibkr-proxy/.gitignore'), 'utf8').includes('node_modules'), 'node_modules לא נכנס לגיט');
 
+
+// ---- האפליקציה: רשימה, קישור וקובץ .kwgt ----
+const sb = { localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, style: {} }) }, window: {}, navigator: {}, location: {}, AbortController, fetch: () => Promise.reject(new Error('x')), setTimeout, clearTimeout, console, Image: class { set src(_) {} } };
+sb.TextEncoder = TextEncoder; sb.location = { origin: 'https://yishaiguedj1.github.io', pathname: '/portfolio-pwa/index.html' };
+vm.createContext(sb); vm.runInContext(app, sb);
+const R = (c) => vm.runInContext(c, sb);
+R("POSITIONS.length = 0; POSITIONS.push({ sym: 'KO', name: 'Coca-Cola', shares: 10, avg: 50, src: 'manual' }, { sym: 'AAPL', name: 'Apple', shares: 10, avg: 100 }, { sym: 'LUMI.TA', name: 'לאומי', shares: 100, avg: 30, src: 'manual' }, { sym: 'ZERO', shares: 0, avg: 1 });" +
+  "WISHLIST.length = 0; WISHLIST.push({ sym: 'TSLA' }, { sym: 'KO' });" +
+  "state.quotes = { KO: { close: 87 }, AAPL: { close: 341 }, 'LUMI.TA': { close: 75.88 } }; state.fx = 3.05; state.lang = 'he';");
+const wi = R('widgetItems()');
+ok(wi.map((x) => x.sym).join(',') === 'AAPL,LUMI.TA,KO,TSLA', 'רשימה: אחזקות לפי שווי, אחר כך מעקב, בלי כפילות ובלי כמות 0');
+ok(wi[1].logo === 'leumi' && wi[3].src === 'w' && wi[2].src === 'm', 'רשימה: מזהה לוגו ת״א, תגית מעקב/ידני');
+const param = R('widgetParam(widgetItems())');
+ok(/^AAPL~[im]~Apple,LUMI\.TA~m~לאומי~leumi,KO~m~Coca-Cola,TSLA~w~Tesla$/.test(param) && !/\d{2,}~/.test(param), 'קישור: סימבול~מקור~שם — בלי כמויות/שווי');
+ok(M.parseItems(param).length === 4, 'השרתון מפענח את מה שהאפליקציה יוצרת');
+const url = R("widgetUrl({ n: 3, theme: 'dark' })");
+ok(url.startsWith('https://ibkr-proxy-wine.vercel.app/api/widget?s=') && url.endsWith('&l=he&t=dark&n=3'), 'קישור מלא לשרתון');
+const preset = R("widgetPreset('https://x/api/widget?s=A', 3)");
+const bm = preset.preset_root.viewgroup_items[0];
+ok(preset.preset_root.internal_type === 'RootLayerModule' && bm.internal_type === 'BitmapModule' && bm.internal_formulas.bitmap_bitmap === '$gv(link)$&z=$df(HHmm)$' && preset.preset_root.globals_list.link.value === 'https://x/api/widget?s=A', 'preset.json: תמונה מהקישור (משתנה link), מתרעננת כל דקה');
+ok(/^intent:https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/#Intent;action=android\.intent\.action\.VIEW;/.test(bm.internal_events[0].intent), 'נגיעה פותחת את האפליקציה');
+// zip אמיתי — נפתח ב־unzip
+const zipBytes = R("zipStore([{ name: 'preset.json', data: new TextEncoder().encode(JSON.stringify(widgetPreset('https://x/?s=A', 3))) }, { name: 'preset_thumb_portrait.jpg', data: new Uint8Array([137, 80, 78, 71]) }])");
+const tmp = path.join(require('os').tmpdir(), 'w' + process.pid + '.kwgt');
+fs.writeFileSync(tmp, Buffer.from(zipBytes));
+let unz = '';
+try { unz = require('child_process').execFileSync('python3', ['-c', 'import zipfile,sys,json;z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;print(json.loads(z.read("preset.json"))["preset_info"]["title"], len(z.namelist()))', tmp]).toString().trim(); } catch (e) { unz = 'ERR ' + e.message; }
+fs.unlinkSync(tmp);
+ok(unz === 'THE SNOWBALL 2', '.kwgt: zip תקין (CRC) עם preset.json + תמונה ממוזערת');
+ok(/id="widgetCard"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && R("tabRenderer('settings') === renderSettingsLive"), 'כרטיס בהגדרות, מצויר כשהטאב נראה');
+
 console.log('\n' + n + ' בדיקות עברו');

@@ -308,6 +308,40 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       </div>
     </div>
 
+    <div class="card" id="widgetCard">
+      <h2 data-i18n="widgetTitle">ווידג׳ט למסך הבית</h2>
+      <p class="fine" style="padding:0" data-i18n="widgetDesc">המניות מהתיק (מהגדולה לקטנה) ואז רשימת המעקב, בעיצוב של הכרטיסים. מתעדכן בערך פעם בדקה, נגיעה פותחת את האפליקציה.</p>
+      <img id="widgetPreview" class="widget-prev hidden" alt="">
+      <p class="fine hidden" id="widgetEmpty" style="padding:0" data-i18n="widgetEmpty">אין עדיין מניות בתיק או ברשימת המעקב.</p>
+      <div class="display-row">
+        <span class="display-label" data-i18n="widgetCount">כמה מניות בווידג׳ט</span>
+        <select id="widgetN" class="widget-n" aria-label="Count">
+          <option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option>
+        </select>
+      </div>
+      <div class="display-row">
+        <span class="display-label" data-i18n="themeTitle">ערכת נושא</span>
+        <div class="lang-toggle" role="group" aria-label="Widget theme">
+          <button type="button" id="widgetThemeLight" class="lang-opt" data-i18n="themeLight">בהיר</button>
+          <button type="button" id="widgetThemeDark" class="lang-opt" data-i18n="themeDark">כהה</button>
+        </div>
+      </div>
+      <p class="fine hidden" id="widgetChanged" style="padding:0" data-i18n="widgetChanged">הרשימה או ההגדרות השתנו מאז ההורדה האחרונה — הורד שוב וטען בווידג׳ט.</p>
+      <div class="btn-row">
+        <button id="widgetDownload" class="btn" type="button" data-i18n="widgetDownloadBtn">הורדה ל־KWGT</button>
+        <button id="widgetCopy" class="btn secondary-btn" type="button" data-i18n="widgetCopyBtn">העתקת קישור</button>
+      </div>
+      <details class="fine" style="padding:0;margin-top:8px">
+        <summary data-i18n="widgetHowTitle">איך מתקינים</summary>
+        <ol class="widget-steps">
+          <li data-i18n="widgetStep1">מתקינים את KWGT מחנות Play (ייתכן שלטעינת קובץ נדרש KWGT Pro).</li>
+          <li data-i18n="widgetStep2">לוחצים "הורדה ל־KWGT" ופותחים את הקובץ מההורדות עם KWGT.</li>
+          <li data-i18n="widgetStep3">לחיצה ארוכה על מסך הבית ← ווידג׳טים ← KWGT (4×3) ← נוגעים בווידג׳ט ובוחרים את THE SNOWBALL.</li>
+          <li data-i18n="widgetStep4">לרענון מהיר: בהגדרות KWGT ← מתקדם ← מצב עדכון "מהיר", ולהחריג את KWGT מחיסכון בסוללה.</li>
+        </ol>
+      </details>
+    </div>
+
     <div class="card" id="tdKeyCard">
       <h2 data-i18n="tdKeyTitle">מפתח נתונים (Twelve Data)</h2>
       <p class="fine" style="padding:0" data-i18n="tdKeyDesc">המפתח מפעיל את הגרפים. נשמר בחשבון שלך בענן (או בטלפון, בלי חשבון).</p>
