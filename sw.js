@@ -1,7 +1,7 @@
 /* Service Worker — תיק ההשקעות PWA
  * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
  */
-const CACHE_NAME = 'portfolio-pwa-v192';
+const CACHE_NAME = 'portfolio-pwa-v193';
 
 const APP_SHELL = [
   './',
@@ -29,11 +29,16 @@ self.addEventListener('install', (event) => {
   );
 });
 
+/* v193: מטמון ריצה למשאבים חיצוניים שכמעט לא משתנים — לוגואים (FMP / TradingView) וקבצי ה־SDK של Firebase
+   (כתובות עם גרסה). cache-first: פעם אחת מהרשת, אחר כך מיד מהמטמון. רק תשובות תקינות (לא opaque — הן תופסות מכסה ענקית). */
+const RUNTIME = 'portfolio-pwa-rt-v1';
+const RT_HOSTS = { 'financialmodelingprep.com': /^\/image-stock\//, 's3-symbol-logo.tradingview.com': /./, 'www.gstatic.com': /^\/firebasejs\// };
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+        keys.filter((k) => k !== CACHE_NAME && k !== RUNTIME).map((k) => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
@@ -47,7 +52,17 @@ self.addEventListener('fetch', (event) => {
 
   // בקשות API (Stooq וכדומה) — תמיד רשת בלבד, לעולם לא מהמטמון.
   // אם אין רשת, האפליקציה עצמה נופלת לנתונים שמורים ב-localStorage.
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin) {
+    const re = RT_HOSTS[url.hostname];
+    if (!re || !re.test(url.pathname)) return;
+    event.respondWith(
+      caches.open(RUNTIME).then((cache) => cache.match(request).then((hit) => hit || fetch(request).then((res) => {
+        if (res && res.ok) cache.put(request, res.clone());
+        return res;
+      })))
+    );
+    return;
+  }
 
   // App shell: קודם מטמון, אחרת רשת — כדי שהאפליקציה תיפתח גם אופליין.
   event.respondWith(
