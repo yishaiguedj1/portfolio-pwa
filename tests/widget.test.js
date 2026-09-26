@@ -1,0 +1,77 @@
+// widget.test.js — v211: ווידג'ט למסך הבית (/api/widget). לוח המסחר זהה לאפליקציה, מודל הטקסטים, פרמטרי
+// הקישור, הכותרת בשורה/שתיים בכל החגים, ה־HTML (escape, לוגו 84px) והקישור שהאפליקציה יוצרת.
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const root = path.join(__dirname, '..');
+let n = 0;
+function ok(cond, name) { n++; if (!cond) { console.error('FAIL - ' + name); process.exit(1); } console.log('ok - ' + name); }
+
+const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const libSrc = fs.readFileSync(path.join(root, 'ibkr-proxy/lib/market.js'), 'utf8');
+const fnText = (src, name) => { const i = src.indexOf('\nfunction ' + name + '('); return i < 0 ? null : src.slice(i + 1, src.indexOf('\n}\n', i) + 2); };
+for (const f of ['easterSunday', 'nyseHolidays', 'etDateParts', 'marketClosedReason', 'ilDateParts', 'taseHolidayKey', 'taseMarketNow']) {
+  ok(fnText(app, f) && fnText(app, f) === fnText(libSrc, f), 'lib/market.js: ' + f + ' זהה לאפליקציה (שינוי ב־app.js → לעדכן גם כאן)');
+}
+const market = require('../ibkr-proxy/lib/market');
+const M = require('../ibkr-proxy/lib/widget-model');
+const { buildHtml, LOGO } = require('../ibkr-proxy/lib/widget-html');
+
+// פרמטר s
+const items = M.parseItems('aapl~i~Apple,LUMI.TA~m~לאומי~leumi,TSLA~w~Tesla,bad sym~i,AAPL~m~dup,X<Y~i,OXY~m~<b>Occ</b>~../x');
+ok(items.length === 4 && items[0].sym === 'AAPL' && items[0].src === 'ibkr' && items[1].logo === 'leumi' && items[2].src === 'watch', 'parseItems: סימבול/מקור/שם/לוגו, כפילות וסימבול לא חוקי נזרקים');
+ok(items[3].name === 'bOcc/b' && items[3].logo === '', 'parseItems: שם מנוקה מ־<>, מזהה לוגו לא חוקי נזרק');
+ok(M.parseItems(Array.from({ length: 30 }, (_, i) => 'S' + i + '~i').join(','), 12).length === 12, 'parseItems: עד 12');
+
+// ציטוט: META 25/9 אחרי־מסחר (מבנה /api/quotes) — כמו Yahoo: −25.93 (−3.33%), אחרי־מסחר −0.51%
+const T0 = 1790366401, TP = 1790380799;
+const ctp = { pre: { start: 1790323200, end: 1790343000 }, regular: { start: 1790343000, end: 1790366400 }, post: { start: 1790366400, end: 1790380800 } };
+const meta = { currency: 'USD', symbol: 'META', regularMarketPrice: 751.66, previousClose: 777.59, regularMarketTime: T0, currentTradingPeriod: ctp, longName: 'Meta Platforms, Inc.' };
+const chart = { chart: { result: [{ meta, timestamp: [TP], indicators: { quote: [{ close: [747.82] }] } }] } };
+const sat = Date.parse('2026-09-26T12:00:00Z');
+let q = M.parseQuote(chart, sat);
+ok(Math.abs(q.regCh + 25.93) < 1e-6 && Math.abs(q.regPct + 3.3347) < 1e-3 && q.ext.kind === 'post' && Math.abs(q.ext.pct + 0.5109) < 1e-3 && q.session === 'closed', 'parseQuote בלי v7: שינוי רשמי + אחרי־מסחר + סגור');
+q = M.parseQuote(Object.assign({}, chart, { x: { state: 'CLOSED', reg: { p: 751.66, ch: -25.9301, pct: -3.33467 }, post: { p: 747.82, ch: -3.84, pct: -0.51086 } } }), sat);
+ok(q.regPct === -3.33467 && q.ext.pct === -0.51086, 'parseQuote עם v7: המספרים של Yahoo');
+// ת״א באגורות + חג: Yahoo מחזיר 0 → מהסגירות היומיות (בלי יום בלי מסחר)
+const ta = { chart: { result: [{ meta: { currency: 'ILA', symbol: 'LUMI.TA', regularMarketPrice: 7588, previousClose: 7588, regularMarketTime: 1790260020 }, timestamp: [1790260020], indicators: { quote: [{ close: [7588] }] } }] } };
+const qa = M.parseQuote(ta, sat);
+ok(qa.price === 75.88 && qa.regCh === 0 && qa.ext === null, 'ת״א: אגורות → שקלים, בלי מסחר מורחב');
+const d = M.dayChange(qa, [76.89, 75.88]);
+ok(Math.abs(d.ch + 1.01) < 1e-9 && Math.abs(d.pct + 1.3136) < 1e-3, 'ת״א בחג: השינוי של יום המסחר האחרון (לא 0.00%)');
+
+// מודל מלא
+const m = M.buildModel(M.parseItems('META~i~Meta Platforms,LUMI.TA~m~לאומי~leumi,TSLA~w~Tesla'), { META: chart, 'LUMI.TA': ta }, { 'LUMI.TA': [76.89, 75.88] }, { lang: 'he', nowMs: sat });
+const c0 = m.cards[0], c1 = m.cards[1], c2 = m.cards[2];
+ok(c0.price === '\u2066$747.82\u2069' && c0.chg === '\u2066\u2212$25.93\u2069 (\u2066\u22123.33%\u2069)' && c0.dir === 'neg', 'כרטיס: מחיר חי + צ׳יפ "‎−$25.93 (−3.33%)"');
+ok(c0.sub === 'אחרי־מסחר' && c0.subPct === '\u2066\u22120.51%\u2069' && c0.subDir === 'neg', 'כרטיס: שורת אחרי־מסחר');
+ok(c1.price === '\u20677,588 אג׳\u2069' && c1.chg.startsWith('\u2066\u2212101 אג׳\u2069') && c1.sub === 'סגור · סוכות', 'ת״א: "7,588 אג׳", "−101 אג׳", "סגור · סוכות" (שבת בסוכות — החג קודם)');
+ok(c2.price === '—' && c2.chg === '', 'בלי ציטוט: מקף, בלי צ׳יפ');
+ok(c0.logo === 'https://financialmodelingprep.com/image-stock/META.png' && c1.logo === 'https://s3-symbol-logo.tradingview.com/leumi.svg', 'לוגו: FMP / TradingView (כמו באפליקציה)');
+ok(m.header.lines.join('') === 'השוק סגור ·סופ״ש' && m.header.two === false && /^עודכן \d\d:\d\d$/.test(m.updated), 'כותרת: "השוק סגור · סופ״ש" בשורה אחת + שעת עדכון');
+const en = M.buildModel(M.parseItems('META~i'), { META: chart }, {}, { lang: 'en', nowMs: sat });
+ok(en.header.lines[0] === 'Closed' && en.header.lines[1] === 'Weekend' && en.header.two === true && en.dir === 'ltr' && en.cards[0].name === 'Meta Platforms, Inc.', 'אנגלית: "Closed / Weekend" בשתי שורות, LTR, שם מ־Yahoo כשאין מהאפליקציה');
+
+// כל חגי NYSE: עם סיבה → שתי שורות (הבועה לא נוגעת בלוגו — נמדד בתצוגה המקדימה), סופ״ש בשורה אחת
+const regNow = { META: { chart: { result: [{ meta: Object.assign({}, meta, { currentTradingPeriod: {} }), timestamp: [], indicators: { quote: [{ close: [] }] } }] }, x: { state: 'CLOSED' } } };
+for (const [iso, key] of [['2026-01-01T15:00:00Z', 'hdNewYear'], ['2026-01-19T15:00:00Z', 'hdMlk'], ['2026-04-03T15:00:00Z', 'hdGoodFriday'], ['2026-05-25T15:00:00Z', 'hdMemorial'], ['2026-06-19T15:00:00Z', 'hdJuneteenth'], ['2026-07-03T15:00:00Z', 'hdIndependence'], ['2026-09-07T15:00:00Z', 'hdLabor'], ['2026-11-26T15:00:00Z', 'hdThanksgiving'], ['2026-12-25T15:00:00Z', 'hdChristmas']]) {
+  const mm = M.buildModel(M.parseItems('META~i'), regNow, {}, { lang: 'he', nowMs: Date.parse(iso) });
+  ok(market.marketClosedReason(Date.parse(iso)) === key && mm.header.two === true && mm.header.lines[0] === 'השוק סגור' && mm.header.lines[1] === M.STR.he[key], 'כותרת בחג ' + key + ': שתי שורות, בלי "·"');
+}
+const open = M.buildModel(M.parseItems('META~i'), { META: Object.assign({}, chart, { x: { state: 'REGULAR', reg: { p: 751, ch: 1, pct: 0.1 } } }) }, {}, { lang: 'he', nowMs: sat });
+ok(open.header.lines[0] === 'המסחר פתוח' && open.header.live === true && open.cards[0].sub === '', 'שוק פתוח: "המסחר פתוח" עם נקודה חיה, בלי שורת מסחר מורחב');
+
+// HTML
+const html = buildHtml(Object.assign({}, m, { cards: [Object.assign({}, c0, { name: '<img src=x onerror=alert(1)>' })] }), { theme: 'light', n: 3 });
+ok(!html.includes('<img src=x') && html.includes('&lt;img src=x'), 'HTML: טקסט עובר escape');
+ok(LOGO === 84 && html.includes('width:84px;height:84px') && html.includes('class="hero"') && html.includes('<body class="light"'), 'HTML: לוגו 84px במרכז העליון, ערכה בהירה');
+ok(/data:image\/png;base64,/.test(html) && !/github\.io/.test(html), 'HTML: הלוגו וסמל IBKR מוטמעים (בלי רשת)');
+
+// Vercel
+const vj = JSON.parse(fs.readFileSync(path.join(root, 'ibkr-proxy/vercel.json'), 'utf8'));
+ok(vj.functions['api/widget.js'] && /assets/.test(vj.functions['api/widget.js'].includeFiles) && /chromium\/bin/.test(vj.functions['api/widget.js'].includeFiles), 'vercel.json: widget עם הנכסים וקבצי Chromium');
+const pj = JSON.parse(fs.readFileSync(path.join(root, 'ibkr-proxy/package.json'), 'utf8'));
+ok(/^\d/.test(pj.dependencies['@sparticuz/chromium']) && /^\d/.test(pj.dependencies['puppeteer-core']), 'package.json: גרסאות מקובעות');
+ok(fs.readFileSync(path.join(root, 'ibkr-proxy/.gitignore'), 'utf8').includes('node_modules'), 'node_modules לא נכנס לגיט');
+
+console.log('\n' + n + ' בדיקות עברו');

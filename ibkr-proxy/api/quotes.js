@@ -150,3 +150,5 @@ module.exports._trimChart = trimChart;
 module.exports._extFromQuote = extFromQuote;
 module.exports._cache = cache;
 module.exports._setCrumb = (c) => { crumbState = c; };
+module.exports._fetchChart = fetchChart; // v211: /api/widget משתמש באותה משיכה
+module.exports._fetchExt = fetchExt;
