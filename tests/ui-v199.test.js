@@ -54,7 +54,8 @@ const heT = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1
 ok(/השוק סגור ·<\/span><span class="ext-lbl">חג ההודיה/.test(heT), 'עברית: "השוק סגור ·" והסיבה ב־spans נפרדים');
 R("state.lang = 'en'");
 const enT = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: -2.34 } })");
-ok(/>Thanksgiving</.test(enT) && !/Closed/.test(enT) && !/השוק/.test(enT) && /Post</.test(enT), 'אנגלית: רק הסיבה + Post (אין רוחב ל־"Closed ·"), בלי נפילה לעברית');
+ok(/Closed ·<\/span><span class="ext-lbl">Thanksgiving</.test(enT) && !/השוק/.test(enT) && /Post</.test(enT), 'אנגלית (v203): "Closed ·" + הסיבה + Post, בלי נפילה לעברית');
+ok(/\.stock-id \.src-tag \{[^}]*font-size: 11px/.test(css), 'תגית המקור בכרטיס 11px (v203)');
 R("marketClosedReason = () => null");
 ok(/>Closed</.test(R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: 0 } })")), 'אנגלית בלי סיבה: "Closed"');
 R("state.lang = 'he'");

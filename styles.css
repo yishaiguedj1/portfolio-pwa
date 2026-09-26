@@ -409,7 +409,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-id { display: grid; grid-template-columns: auto auto minmax(max-content, 1fr); /* v202: עמודת תגית המקור לא קטנה מהתגית (היה minmax(0) — התגית גלשה לעמודת המחיר) */ grid-template-rows: auto auto; column-gap: 10px; row-gap: 1px; align-items: center; min-width: 0; }
 .stock-id .stock-logo { grid-row: 1 / 3; grid-column: 1; }
 .stock-sym { grid-row: 1; grid-column: 2; font-weight: 800; font-size: 18.5px; letter-spacing: .3px; line-height: 1.15; }
-.stock-id .src-tag { grid-row: 1; grid-column: 3; justify-self: start; margin-inline-start: 0; }
+.stock-id .src-tag { grid-row: 1; grid-column: 3; justify-self: start; margin-inline-start: 0; font-size: 11px; padding: 1px 6px; } /* v203: תגית המקור בכרטיס מעט קטנה יותר */
 .stock-name { grid-row: 2; grid-column: 2 / 4; color: var(--on-surface-var); font-size: 13.5px; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start; max-width: 100%; unicode-bidi: plaintext; }
 .stock-id .stock-name { contain: inline-size; justify-self: stretch; } /* v202: שם ארוך נקטע ב־… באותו מקום ולא מרחיב את העמודה */
 .stock-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
@@ -991,7 +991,7 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 .ext-sess { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; column-gap: 5px; row-gap: 0; max-width: 100%; line-height: 1.35; text-align: center; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 2px 9px; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--on-surface-var); }
 .ext-sess.pos { color: var(--gain); } .ext-sess.neg { color: var(--loss); }
 /* v199→v201: "השוק סגור · סיבה" ומתחת "אחרי־מסחר +0.25%" — שתי שורות, בועה צרה (fit-content) צמודה לקצה החיצוני */
-.ext-sess.closed { flex-direction: column; align-items: flex-end; align-self: flex-end; width: fit-content; max-width: 100%; padding: 3px 7px; row-gap: 0; text-align: end; font-size: 11.5px; letter-spacing: -.25px; }
+.ext-sess.closed { flex-direction: column; align-items: flex-end; align-self: flex-end; width: fit-content; max-width: 100%; padding: 3px 6px; row-gap: 0; text-align: end; font-size: 11px; letter-spacing: -.2px; }
 .ext-sess.closed .ext-dot { width: 6px; height: 6px; }
 @media (max-width: 374px) { .ext-sess.closed { font-size: 10.5px; padding: 2px 6px; } } /* v202: מסך צר — בלי התנגשות גם במילה ארוכה (Thanksgiving) */
 .ext-sess.closed .ext-line { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0 3px; max-width: 100%; }

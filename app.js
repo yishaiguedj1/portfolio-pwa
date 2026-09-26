@@ -723,7 +723,7 @@ en: {
   sessNightShort: 'Overnight',
   sessExtTitle: 'Change from regular close',
   sessClosed: 'Closed',
-  sessClosedPrefix: 'Closed ·', // לא בשימוש באנגלית (אין רוחב) — ראו extSessionHTML
+  sessClosedPrefix: 'Closed ·',
   sessPostTiny: 'Post',
   sessPreTiny: 'Pre',
   sessNightTiny: 'Night',
@@ -3895,7 +3895,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v202';
+const APP_VERSION = 'v203';
 
 
 function saveDBto(db) {
@@ -4884,7 +4884,7 @@ function extSessionHTML(q) {
     const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
     // v202: "השוק סגור ·" והסיבה ב־spans נפרדים — רק במסך צר מאוד נשברים ביניהם (במקום לעלות על תגית המקור)
     // באנגלית אין רוחב ל־"Closed ·" + סיבה ליד תגית "Manual" — שם רק הסיבה (הנקודה האפורה = סגור); בעברית "השוק סגור ·" + סיבה
-    const pre = state.lang === 'en' ? '' : t('sessClosedPrefix'); // מחרוזת ריקה ב־t() נופלת לעברית — לכן לפי שפה
+    const pre = t('sessClosedPrefix'); // v203: גם באנגלית "Closed ·" + סיבה
     const lblHTML = why && names[why] ? (pre ? esc(pre) + '</span><span class="ext-lbl">' : '') + esc(names[why]) : esc(t('sessClosed'));
     // v201: שתי שורות — "השוק סגור · סיבה" ומתחת "אחרי־מסחר +0.25%" (הסשן המורחב האחרון); בועה צרה, צמודה לקצה
     const last = q.ext.kind === 'pre' ? t('sessPreTiny') : q.ext.kind === 'night' ? t('sessNightTiny') : t('sessPostTiny'); // v202: קצר (באנגלית) — שתי שורות ליד המחיר
