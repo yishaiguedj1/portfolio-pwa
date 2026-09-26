@@ -55,11 +55,11 @@ ok(/השוק סגור ·<\/span><span class="ext-lbl">חג ההודיה/.test(he
 R("state.lang = 'en'");
 const enT = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: -2.34 } })");
 ok(/Closed ·<\/span><span class="ext-lbl">Thanksgiving</.test(enT) && !/השוק/.test(enT) && /Post</.test(enT), 'אנגלית (v203): "Closed ·" + הסיבה + Post, בלי נפילה לעברית');
-ok(/\.stock-id \.src-tag \{[^}]*font-size: 11px/.test(css), 'תגית המקור בכרטיס 11px (v203)');
+ok(/\.sh-r1 \.src-tag \{[^}]*font-size: 10\.5px/.test(css), 'תגית המקור בכרטיס 10.5px, מעט למעלה (v204)');
 R("marketClosedReason = () => null");
 ok(/>Closed</.test(R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: 0 } })")), 'אנגלית בלי סיבה: "Closed"');
 R("state.lang = 'he'");
-ok(/\.stock-id \{ display: grid; grid-template-columns: auto auto minmax\(max-content, 1fr\)/.test(css), 'עמודת תגית המקור לא קטנה מהתגית (לא גולשת לעמודת המחיר)');
+ok(/class="sh-r1"><span class="stock-sym">[\s\S]*stock-price/.test(src) && /class="sh-r2"><span class="stock-name">[\s\S]*stock-ext/.test(src), 'v204: שורה 1 סימבול+תגית+מחיר, שורה 2 שם+בועה');
 ok(/\.stock-id \.stock-name \{ contain: inline-size; justify-self: stretch; \}/.test(css), 'שם ארוך נקטע ב־… באותו מקום ולא דוחף את הבועה');
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');

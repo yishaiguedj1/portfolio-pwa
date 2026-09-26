@@ -3895,7 +3895,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v203';
+const APP_VERSION = 'v204';
 
 
 function saveDBto(db) {
@@ -8655,11 +8655,13 @@ function quotesPending() { return !state.quotesAt && !state.stale; }
 function stockHeadHTML(p, m) {
   const sym = p.sym;
   const priceTxt = m.price === null ? (quotesPending() ? SKEL_HTML : '—') : fmtPx(m.price, sym);
-  return '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' +
-    '<span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
-    srcTagHTML(positionSource(p)) + '</span>' +
-    '<span class="stock-pcol"><span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
-    '<span class="stock-ext">' + extSessionHTML(m.q) + '</span></span>' +
+  // v204: שתי שורות עצמאיות ליד הלוגו — שורה 1: סימבול + תגית המקור + מחיר; שורה 2: שם החברה + בועת הסשן.
+  // כך הבועה מתחרה רק עם שם החברה (שנקטע ב־…) ולא עם הסימבול/התגית — תמיד שתי שורות, בלי התנגשות.
+  return '<span class="stock-id">' + stockLogoHTML(sym) +
+    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' + srcTagHTML(positionSource(p)) +
+    '<span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
+    '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
+    '<span class="stock-ext">' + extSessionHTML(m.q) + '</span></span></span>' +
     '<span class="stock-sub">' + stockSubHTML(p, m) + '</span>';
 }
 function buildStockCard(p) {
