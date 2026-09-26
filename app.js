@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v171';
+const APP_VERSION = 'v172';
 
 
 function saveDBto(db) {
@@ -5945,7 +5945,7 @@ function drawPie() {
   const segs = ordered.map((s) => {
     const a2 = a0 + (s.value / total) * Math.PI * 2;
     const pct = s.value / total * 100;
-    const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, pctTxt: (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)) + '%',
+    const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, pctTxt: pct.toFixed(1) + '%',
       valTxt: fmtShortMoney(val(s.value), cur), symTxt: normalizeSym(s.sym) || '?' };
     ctx.font = '700 10.5px ' + FONT;
     const symW = tw(g.symTxt), pW = tw(g.pctTxt);
@@ -5955,22 +5955,34 @@ function drawPie() {
     a0 = a2;
     return g;
   });
-  // פריסה: בתוך הפרוסה אם נכנס; אחרת בולט החוצה. מחשבים כמה שוליים צריך ומקטינים את הטבעת בהתאם.
+  // v172: התווית תמיד בתוך הפרוסה, בגודל יחסי לפרוסה (קטנה עד 55%; מותר לבלוט מעט מהשפה).
+  // רק בתיק עם הרבה מניות (מעל 12), פרוסה שגם בגודל הקטן לא נכנסת — התווית בולטת החוצה בכיוון הפרוסה.
+  const MANY = segs.length > 12;
+  const SCALES = [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55];
   const place = (R, r) => {
     const boxes = [];
     let need = 0;
+    const rMid = (R + r) / 2;
     for (const g of segs) {
-      g.out = true;
-      for (const k of [0.5, 0.55, 0.45, 0.6, 0.4, 0.65, 0.7]) {
-        const rr = r + (R - r) * k;
-        const x = Math.cos(g.mid) * rr, y = Math.sin(g.mid) * rr;
-        if (pieBoxFits(x, y, g.W, H, g.a, g.a2, r, R + 16, 2)) { g.x = x; g.y = y; g.out = false; break; } // מותר לבלוט מעט מהשפה
+      g.out = false; g.skip = false; g.sc = 0;
+      for (const sc of SCALES) {
+        for (const k of [0.5, 0.55, 0.45, 0.6, 0.4, 0.65]) {
+          const rr = r + (R - r) * k;
+          const x = Math.cos(g.mid) * rr, y = Math.sin(g.mid) * rr;
+          if (pieBoxFits(x, y, g.W * sc, H * sc, g.a, g.a2, r, R + 16, 2)) { g.x = x; g.y = y; g.sc = sc; break; }
+        }
+        if (g.sc) break;
+      }
+      if (!g.sc) {
+        if (MANY) g.out = true;
+        else { g.sc = SCALES[SCALES.length - 1]; g.x = Math.cos(g.mid) * rMid; g.y = Math.sin(g.mid) * rMid; } // חורגת קצת — בסדר
       }
       if (!g.out) boxes.push(g);
     }
-    const hit = (g) => boxes.some((o) => o !== g && Math.abs(o.x - g.x) < (o.W + g.W) / 2 + 4 && Math.abs(o.y - g.y) < H + 4);
+    const hit = (g) => boxes.some((o) => o !== g && Math.abs(o.x - g.x) < (o.W * o.sc + g.W) / 2 + 4 && Math.abs(o.y - g.y) < (H * o.sc + H) / 2 + 4);
     for (const g of segs) {
       if (!g.out) continue;
+      g.sc = 1;
       let done = false;
       for (let k = 0; k <= 7 && !done; k++) { // עד ~24° מהפרוסה — שהתווית תישאר צמודה אליה
         for (const sgn of k ? [1, -1] : [1]) {
@@ -5989,7 +6001,7 @@ function drawPie() {
   };
   const R0 = Math.min(w, h) / 2 - 4;
   let R = R0;
-  // שוליים לתוויות שבולטות — לכל היותר 16% מהרדיוס (העוגה נשארת גדולה; תווית שלא נכנסת נצמדת לקצה הקנבס)
+  // שוליים לתוויות שבולטות (רק בתיק גדול) — לכל היותר 10% מהרדיוס
   const need0 = place(R, R * HOLE);
   if (need0 > 0.5) { R = Math.max(R0 * 0.9, R0 - need0 - 2); place(R, R * HOLE); }
   const r = R * HOLE;
@@ -6018,8 +6030,11 @@ function drawPie() {
   const ink = dark ? '#F2F2F7' : '#1C1C1E', sub = dark ? 'rgba(242,242,247,.7)' : 'rgba(28,28,30,.62)';
   for (const g of segs) {
     if (g.skip) continue;
-    const s = g.s, x = cx + g.x;
-    let top = cy + g.y - H / 2;
+    const s = g.s, x = 0;
+    ctx.save();
+    ctx.translate(cx + g.x, cy + g.y);
+    ctx.scale(g.sc || 1, g.sc || 1); // גודל יחסי לפרוסה — הלוגו, הסימבול והבועה יחד
+    let top = -H / 2;
     // לוגו — אותו גודל לכל החברות
     const e = pieLogoImg(s.sym);
     const lx = x - LS / 2;
@@ -6067,6 +6082,7 @@ function drawPie() {
     ctx.fillText(g.pctTxt, x, top + 9);
     ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT;
     ctx.fillText(g.valTxt, x, top + 19.5);
+    ctx.restore();
   }
   ctx.textBaseline = 'alphabetic';
   ctx.direction = 'inherit';

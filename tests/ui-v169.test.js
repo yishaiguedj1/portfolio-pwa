@@ -28,7 +28,8 @@ ok(/'longName', 'shortName'\]/.test(proxy) && /longName: meta\.longName \|\| met
 ok(/return cnt >= 5 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן (UNH/UBER/APP) מזוהה');
 ok(/ctx\.fillStyle = light \? '#1D1D1F' : '#FFFFFF';/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' on-dark'/.test(src), 'לוגו לבן — על אריח כהה, בעוגה ובמקרא');
 ok(/const LS = 26, SYM_H = 12, BUB_H = 26,/.test(src) && !/const tiers = /.test(src), 'v171: לכל מניה אותה תווית — לוגו בגודל אחיד + סימבול + בועה (אחוז מעל שווי)');
-ok(/g\.a, g\.a2, r, R \+ 16, 2\)\) \{ g\.x = x;/.test(src) && /const rho = R - 26 \+ e;/.test(src), 'v171: פרוסה קטנה — התווית בולטת מעבר לשפה, בתוך הקנבס');
+ok(/g\.W \* sc, H \* sc, g\.a, g\.a2, r, R \+ 16, 2\)\) \{ g\.x = x; g\.y = y; g\.sc = sc;/.test(src) && /const MANY = segs\.length > 12;/.test(src) && /if \(MANY\) g\.out = true;/.test(src), 'v172: התווית בתוך הפרוסה בגודל יחסי (עד 55%); בחוץ רק בתיק עם מעל 12 מניות');
+ok(/pctTxt: pct\.toFixed\(1\) \+ '%'/.test(src), 'v172: אחוז עם ספרה עשרונית תמיד (18.1%)');
 ok(/R = Math\.max\(R0 \* 0\.9, R0 - need0 - 2\);/.test(src), 'v171: הטבעת מתכווצת לכל היותר ב־10% כדי לפנות מקום');
 ok(/ctx\.strokeStyle = surface; ctx\.lineWidth = gap;/.test(src), 'רווח דק בצבע הכרטיס בין הפרוסות');
 ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css) && /\.pie-leg-logo\.on-dark \{ background: #1D1D1F; \}/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל; לבן על כהה');
