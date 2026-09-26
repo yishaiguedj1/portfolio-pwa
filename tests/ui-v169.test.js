@@ -37,8 +37,6 @@ ok(/data-err="hide-self"/.test(src) && /im\.dataset\.err === 'hide-self'/.test(s
 ok(/const ordered = slicesUnique\.slice\(\)\.sort\(\(x, y\) => y\.value - x\.value\);/.test(src), 'v170: הפרוסות לפי גודל, מהגדולה ב־12 בשעון עם כיוון השעון');
 ok(/\.pie-leg-logo\.inv \.pie-leg-fb \{ display: none; \}/.test(css), 'v174: לוגו לבן מהופך — בלי האות מאחוריו');
 ok(/\.pie-wrap \{ display: flex; justify-content: center; margin-inline: -12px; \}/.test(css) && /#pieChart \{ width: 100%; max-width: 520px;/.test(css), 'v175: העוגה כמעט ברוחב הכרטיס');
-ok(/const OUTER = segs\.length > 12;/.test(src) && /R = R0 \* Math\.max\(0\.62, Math\.min\(0\.88, 1 - \(segs\.length - 12\) \* 0\.025\)\);/.test(src) && /if \(OUTER\) \{ \/\/ קו מוביל/.test(src), 'v176: מעל 12 מניות — הטבעת קטנה לפי הכמות, התוויות בחוץ מול הפרוסה עם קו מוביל');
-ok(/SC = segs\.length > 30 \? 0\.56 : segs\.length > 20 \? 0\.64 : segs\.length > 16 \? 0\.72 : 0\.8;/.test(src), 'v177: יותר מניות — תוויות קטנות יותר');
 ok(A('PIE_RANK_PALETTE').slice(0, 4).join() === '#8DC63F,#8FC1E3,#F46A5C,#C95CF5' && /x\.color = PIE_RANK_PALETTE\[i % PIE_RANK_PALETTE\.length\]/.test(src), 'v178: צבעי הפרוסות לפי הדירוג בתיק (ירוק, תכלת, אלמוגי, סגול…)');
 const geom = { cx: 100, cy: 100, r: 40, R: 90, segs: [{ sym: 'A', a: -Math.PI / 2, a2: 0 }, { sym: 'B', a: 0, a2: 3 * Math.PI / 2 }] };
 ok(A('pieHitSym')(geom, 160, 40) === 'A' && A('pieHitSym')(geom, 40, 160) === 'B' && A('pieHitSym')(geom, 100, 100) === null && A('pieHitSym')(geom, 100, -10) === null, 'v178: זיהוי הפרוסה שנגעו בה (לא במרכז ולא מחוץ לטבעת)');
@@ -48,4 +46,14 @@ ok(/#pieChart \{ -webkit-tap-highlight-color: transparent;/.test(css), 'v179: ב
 ok(/const PIE_SPRING = \{ k: 320, c: 20 \};/.test(src) && /ctx\.globalAlpha = dimA;/.test(src) && /ctx\.fillText\(act\.pctTxt, cx,/.test(src), 'v179: אנימציית קפיץ, השאר מתעמעמות, פרטי המניה במרכז');
 ok(/const pop = 1 \+ 0\.2 \* gL;/.test(src) && /g\.x \+= ox; g\.y \+= oy; \/\/ v180/.test(src), 'v180: הלוגו והבועה זזים וגדלים יחד עם הפרוסה (אותו קפיץ)');
 ok(/#pieLegend li\.active \.pie-leg-logo \{ transform: scale\(1\.18\)/.test(css) && /function pieMarkLegend/.test(src) && /if \(pieAnimRaf && legend\.children && legend\.children\.length\) \{ pieMarkLegend\(legend\); return; \}/.test(src), 'v180: שורת המקרא של הפרוסה מודגשת והלוגו קופץ; בלי בנייה מחדש בזמן אנימציה');
+{
+  const vals = [77853,46983,35064,27409,27200,17000,15000,12000,11000,11000,10000,9200,7700,5200,4800,3700,3200,3100,2600,2291,1093,1084,1068,1047,601,495,482,400,159];
+  const mk = (N) => { const v = vals.slice(0, N), T = v.reduce((a, b) => a + b, 0); let a = -Math.PI / 2; return v.map((x) => { const a2 = a + x / T * 2 * Math.PI; const it = { mid: (a + a2) / 2, W: 44, H: 45 }; a = a2; return it; }); };
+  const noOverlap = (L, its) => L.pos.every((p, i) => L.pos.every((q, j) => i >= j || !(Math.abs(p.x - q.x) < (its[i].W + its[j].W) / 2 * L.sc && Math.abs(p.y - q.y) < (its[i].H + its[j].H) / 2 * L.sc)));
+  const i29 = mk(29), T29 = A('pieTrackLayout')(i29, 340, 340, 159);
+  ok(T29 && T29.pos.length === 29 && T29.sc >= 0.72 && T29.R > 110 && noOverlap(T29, i29), 'v181: 29 מניות במסך טלפון — כל 29 התוויות, בגודל קריא (' + (T29 && T29.sc) + '), בלי חפיפה, עוגה גדולה');
+  const i13 = mk(13), C13 = A('pieOuterLayout')(i13, 340, 340, 159, 0.72);
+  ok(C13 && C13.pos.length === 13 && noOverlap(C13, i13), 'v181: 13 מניות — כולן על מעגל מסביב לעוגה, קרוב לפרוסות');
+  ok(/pieOuterLayout\(its, w, h, R0, 0\.72\) \|\| pieTrackLayout\(its, w, h, R0\) \|\| pieOuterLayout\(its, w, h, R0, 0\)/.test(src) && /state\.pieOuterCache = \{ key: key, L: L \}/.test(src), 'v181: מעגל → מסלול מלבני → מעגל קטן; הפריסה במטמון (לא מחושבת בכל פריים של האנימציה)');
+}
 console.log('\n' + n + ' בדיקות עברו');

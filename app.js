@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v180';
+const APP_VERSION = 'v181';
 
 
 function saveDBto(db) {
@@ -4156,6 +4156,152 @@ function companyName(sym, fallback) {
   if (!n) { const p = POSITIONS.find((x) => x.sym === sym); n = (p && (p.full || (p.name !== p.sym ? p.name : ''))) || fallback || ''; }
   return String(n).replace(/,?\s+(Inc|Corp|Corporation|Co|Ltd|Limited|Holdings|Hldgs|N\.V|plc|S\.A|AG|SE|Company)\.?(?=\s|$)/gi, '').replace(/\s{2,}/g, ' ').trim();
 }
+/* v181: פריסת תוויות מחוץ לטבעת לתיק עם הרבה מניות — כל התוויות מוצגות. items: [{mid, W, H}] (גודל בסיס),
+   מחזיר { R, sc, pos: [{x, y}] } או null. לכל גודל תווית (sc) הטבעת הכי גדולה שמשאירה לתוויות מקום בתוך הקנבס;
+   התוויות על מעגל מסביב, כל אחת מול הפרוסה שלה, ומתפזרות לאורך המעגל (שומרות על הסדר) עד שאין חפיפה.
+   צפוף מדי — תוויות שכנות לסירוגין בשתי שורות. מעדיפים טבעת גדולה ותוויות גדולות. טהורה. */
+function pieOuterLayout(items, w, h, R0, minSc) {
+  const n = items.length;
+  if (!n) return null;
+  const order = items.map((it, i) => i).sort((a, b) => items[a].mid - items[b].mid);
+  const tryFit = (sc, twoTier) => {
+    const bw = items.map((it) => it.W * sc), bh = items.map((it) => it.H * sc);
+    const maxH = Math.max(...bh), maxW = Math.max(...bw);
+    const R = Math.min(R0, Math.min(w, h) / 2 - 8 - Math.max(maxH, maxW) - (twoTier ? maxH + 4 : 0));
+    if (R < R0 * 0.42) return null;
+    const tier = items.map(() => 0);
+    if (twoTier) order.forEach((i, k) => { tier[i] = k % 2; });
+    const ext = (i, th) => (Math.abs(Math.cos(th)) * bw[i] + Math.abs(Math.sin(th)) * bh[i]) / 2;
+    const tanExt = (i, th) => Math.abs(Math.sin(th)) * bw[i] + Math.abs(Math.cos(th)) * bh[i];
+    const dist = (i, th) => R + 7 + ext(i, th) + tier[i] * (maxH + 4);
+    // זוויות "פרושות": ברצף לפי הסדר, כל אחת קרוב לפרוסה שלה ככל האפשר, עם מרווח מינימלי בין שכנות באותה שורה
+    const T = order.map((i) => items[i].mid);
+    for (let k = 1; k < n; k++) while (T[k] < T[k - 1]) T[k] += Math.PI * 2;
+    const steps = twoTier ? [1, 2] : [1];
+    const enforce = () => {
+      let worst = 0;
+      for (let k = 0; k < n && n > 1; k++) {
+        for (const st of steps) {
+          if (st >= n) continue;
+          const k2 = k + st, wrap = k2 >= n, kk = wrap ? k2 - n : k2;
+          const i = order[k], j = order[kk];
+          if (tier[i] !== tier[j]) continue; // בשורות שונות — לא נוגעות זו בזו
+          const tj = wrap ? T[kk] + Math.PI * 2 : T[kk];
+          const d = Math.min(dist(i, T[k]), dist(j, tj));
+          const need = ((tanExt(i, T[k]) + tanExt(j, tj)) / 2 + 4) / d;
+          const def = need - (tj - T[k]);
+          if (def > 0) { worst = Math.max(worst, def); T[k] -= def / 2 + 1e-4; T[kk] += def / 2 + 1e-4; }
+        }
+      }
+      return worst;
+    };
+    for (let it = 0; it < 500; it++) {
+      enforce();
+      if (it > 40 && it % 3 === 0 && it < 420) for (let k = 0; k < n; k++) { // משיכה עדינה חזרה אל הפרוסה
+        const i = order[k];
+        let m = items[i].mid; while (m < T[k] - Math.PI) m += Math.PI * 2; while (m > T[k] + Math.PI) m -= Math.PI * 2;
+        T[k] += (m - T[k]) * 0.04;
+      }
+    }
+    for (let it = 0; it < 200 && enforce() > 0; it++);
+    const th = items.map(() => 0);
+    order.forEach((i, k) => { th[i] = T[k]; });
+    const P = items.map((it, i) => { const d = dist(i, th[i]); return { x: Math.cos(th[i]) * d, y: Math.sin(th[i]) * d }; });
+    const hit = (i, j) => Math.abs(P[i].x - P[j].x) < (bw[i] + bw[j]) / 2 + 1 && Math.abs(P[i].y - P[j].y) < (bh[i] + bh[j]) / 2 + 1;
+    for (let i = 0; i < n; i++) {
+      let dm = th[i] - items[i].mid; while (dm > Math.PI) dm -= Math.PI * 2; while (dm < -Math.PI) dm += Math.PI * 2;
+      if (Math.abs(dm) > 1.9) return null;
+      if (Math.abs(P[i].x) + bw[i] / 2 > w / 2 || Math.abs(P[i].y) + bh[i] / 2 > h / 2) return null;
+      for (let j = i + 1; j < n; j++) if (hit(i, j)) return null;
+    }
+    return { R: R, sc: sc, pos: P, tier: tier };
+  };
+  // עדיפות: קריאוּת (תווית לא קטנה מ־72%) — קודם שורה אחת, אחר כך שתי שורות; רק אם אין ברירה — קטן יותר
+  for (const [sc, two] of [[1, false], [0.9, false], [0.8, false], [0.72, false], [0.64, false], [0.58, false], [0.52, false]]) {
+    if (sc < (minSc || 0)) break;
+    const L = tryFit(sc, two);
+    if (L) return L;
+  }
+  return null;
+}
+
+/* v181: כשגם במעגל אין מקום לכל התוויות בגודל קריא — מסלול מלבני לאורך שולי הקנבס (הרבה יותר היקף),
+   כל תווית במקום שבו הקרן מהפרוסה שלה פוגשת את המסלול, מתפזרות לאורכו לפי הסדר, והטבעת במרכז.
+   מחזיר { R, sc, pos } או null. טהורה. */
+function pieTrackLayout(items, w, h, R0) {
+  const n = items.length;
+  if (!n) return null;
+  const order = items.map((it, i) => i).sort((a, b) => items[a].mid - items[b].mid);
+  for (const sc of [1, 0.92, 0.84, 0.76, 0.68, 0.6, 0.52]) {
+    const bw = items.map((it) => it.W * sc), bh = items.map((it) => it.H * sc);
+    const maxW = Math.max(...bw), maxH = Math.max(...bh);
+    const A = w / 2 - maxW / 2 - 1, B = h / 2 - maxH / 2 - 1;
+    const R = Math.min(R0, Math.min(A - maxW / 2, B - maxH / 2) - 10);
+    if (R < R0 * 0.5) continue;
+    const P = 4 * (A + B);
+    // מיקום על המסלול: s מ־0 (למעלה באמצע) עם כיוון השעון
+    const toXY = (sv) => {
+      let q = ((sv % P) + P) % P;
+      if (q < A) return [q, -B];
+      q -= A; if (q < 2 * B) return [A, -B + q];
+      q -= 2 * B; if (q < 2 * A) return [A - q, B];
+      q -= 2 * A; if (q < 2 * B) return [-A, B - q];
+      q -= 2 * B; return [-A + q, -B];
+    };
+    const fromAng = (th) => {
+      const c = Math.cos(th), si = Math.sin(th);
+      const t = Math.min(Math.abs(c) > 1e-9 ? A / Math.abs(c) : Infinity, Math.abs(si) > 1e-9 ? B / Math.abs(si) : Infinity);
+      const x = c * t, y = si * t;
+      if (Math.abs(y + B) < 1e-6 && x >= 0) return x;
+      if (Math.abs(x - A) < 1e-6) return A + (y + B);
+      if (Math.abs(y - B) < 1e-6) return A + 2 * B + (A - x);
+      if (Math.abs(x + A) < 1e-6) return 3 * A + 2 * B + (B - y);
+      return 3 * A + 4 * B + (x + A);
+    };
+    const S = order.map((i) => fromAng(items[i].mid));
+    for (let k = 1; k < n; k++) while (S[k] < S[k - 1]) S[k] += P;
+    // מרווח בין שכנות לפי חפיפה אמיתית בדו־ממד (גם סביב פינות המסלול)
+    const enforce = () => {
+      let worst = 0;
+      for (let k = 0; k < n && n > 1; k++) {
+        for (const st of [1, 2]) {
+          if (st >= n) continue;
+          const kk = (k + st) % n, wrap = k + st >= n;
+          const i = order[k], j = order[kk];
+          const sj = wrap ? S[kk] + P : S[kk];
+          if (sj - S[k] < 0.5) { const d = 1; worst = Math.max(worst, d); S[k] -= d; S[kk] += d; continue; }
+          const [xi, yi] = toXY(S[k]), [xj, yj] = toXY(sj);
+          const ox = (bw[i] + bw[j]) / 2 + 4 - Math.abs(xi - xj), oy = (bh[i] + bh[j]) / 2 + 4 - Math.abs(yi - yj);
+          if (ox > 0 && oy > 0) {
+            const d = Math.min(ox, oy) + 0.5;
+            worst = Math.max(worst, d);
+            S[k] -= d / 2; S[kk] += d / 2;
+          }
+        }
+      }
+      return worst;
+    };
+    for (let it = 0; it < 500; it++) {
+      enforce();
+      if (it > 40 && it % 3 === 0 && it < 420) for (let k = 0; k < n; k++) {
+        let a = fromAng(items[order[k]].mid);
+        while (a < S[k] - P / 2) a += P; while (a > S[k] + P / 2) a -= P;
+        S[k] += (a - S[k]) * 0.05;
+      }
+    }
+    for (let it = 0; it < 2500 && enforce() > 0; it++);
+    const pos = items.map(() => null);
+    order.forEach((i, k) => { const [x, y] = toXY(S[k]); pos[i] = { x: x, y: y }; });
+    let ok = true;
+    for (let i = 0; i < n && ok; i++) {
+      if (Math.abs(pos[i].x) + bw[i] / 2 > w / 2 || Math.abs(pos[i].y) + bh[i] / 2 > h / 2) ok = false;
+      for (let j = i + 1; j < n && ok; j++) if (Math.abs(pos[i].x - pos[j].x) < (bw[i] + bw[j]) / 2 + 1 && Math.abs(pos[i].y - pos[j].y) < (bh[i] + bh[j]) / 2 + 1) ok = false;
+    }
+    if (ok) return { R: R, sc: sc, pos: pos, track: true };
+  }
+  return null;
+}
+
 /* v178: הבהרה/הכהיה של צבע hex (k>0 בהיר יותר, לבן ב־1). טהורה. */
 function pieShade(hex, k) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
@@ -6083,31 +6229,36 @@ function drawPie() {
     if (!ok) { rho = rhoMax; posAt(rho); }
     R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
-  // 3) v176: הרבה מאוד מניות (מעל 12) — הטבעת קטנה בהדרגה לפי הכמות, והתוויות עוברות אל מחוץ לה, כל אחת
-  // מול הפרוסה שלה (עם קו מוביל דק), כך שיותר תוויות נכנסות במקום הנכון.
+  // 3) v176→v181: הרבה מאוד מניות (מעל 12) — התוויות מחוץ לטבעת, כל אחת מול הפרוסה שלה (קו מוביל דק).
+  // v181: כולן מוצגות — תווית קומפקטית (לוגו + בועה, בלי שורת סימבול), מתפזרות לאורך המעגל, ובצפיפות בשתי שורות;
+  // הטבעת הכי גדולה שמשאירה לכולן מקום בתוך הקנבס. הפריסה נשמרת במטמון (האנימציה מציירת 60 פעם בשנייה).
   const OUTER = segs.length > 12;
-  const outPos = (g, th) => {
-    const e = (Math.abs(Math.cos(th)) * g.W + Math.abs(Math.sin(th)) * H) / 2 * SC;
-    const d = R + 8 + e;
-    g.x = Math.max(-w / 2 + g.W * SC / 2 + 1, Math.min(w / 2 - g.W * SC / 2 - 1, Math.cos(th) * d));
-    g.y = Math.max(-h / 2 + H * SC / 2 + 1, Math.min(h / 2 - H * SC / 2 - 1, Math.sin(th) * d));
-    g.th = th;
-  };
   if (OUTER) {
-    SC = segs.length > 30 ? 0.56 : segs.length > 20 ? 0.64 : segs.length > 16 ? 0.72 : 0.8; // v177: יותר מניות — תוויות קטנות יותר, יותר נכנסות
-    R = R0 * Math.max(0.62, Math.min(0.88, 1 - (segs.length - 12) * 0.025));
-    for (const g of segs) outPos(g, g.mid);
+    const CH = LS + 2 + 17; // v181: תווית קומפקטית — לוגו + בועת אחוז (השווי — בנגיעה, במרכז העוגה)
+    const key = [w, h, R0].concat(segs.map((g) => g.s.sym + ':' + g.pctTxt)).join('|');
+    let L = state.pieOuterCache && state.pieOuterCache.key === key ? state.pieOuterCache.L : null;
+    if (!L) {
+      ctx.font = '800 12px ' + FONT;
+      segs.forEach((g) => { g.pillW = tw(g.pctTxt) + 10; });
+      const its = segs.map((g) => ({ mid: g.mid, W: Math.max(LS, g.pillW), H: CH }));
+      L = pieOuterLayout(its, w, h, R0, 0.72) || pieTrackLayout(its, w, h, R0) || pieOuterLayout(its, w, h, R0, 0);
+      state.pieOuterCache = { key: key, L: L };
+    }
+    if (L) {
+      R = L.R; SC = L.sc;
+      segs.forEach((g, i) => { g.x = L.pos[i].x; g.y = L.pos[i].y; g.compact = true; g.W = Math.max(LS, g.pillW || g.bubW); });
+    }
   }
-  // עדיין יש התנגשות (הרבה מניות זעירות) — מוותרים על התווית של הקטנה יותר
   const shown = [];
   for (const g of segs.slice().sort((p, q) => q.s.value - p.s.value)) {
     g.sc = SC; g.out = OUTER || rho > R - 8;
+    if (OUTER && g.compact) { g.skip = false; shown.push(g); continue; }
     g.skip = shown.some((o) => clash(o, g));
-    // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°; מחוץ לטבעת עד ~30°) לפני שמוותרים
-    for (let k = 1; g.skip && k <= (OUTER ? 10 : 7); k++) {
+    // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°) לפני שמוותרים
+    for (let k = 1; g.skip && k <= 7; k++) {
       for (const sgn of [1, -1]) {
         const th = g.mid + sgn * k * 0.05;
-        if (OUTER) outPos(g, th); else { g.x = Math.cos(th) * rho; g.y = Math.sin(th) * rho; }
+        g.x = Math.cos(th) * rho; g.y = Math.sin(th) * rho;
         if (!shown.some((o) => clash(o, g))) { g.skip = false; break; }
       }
     }
@@ -6192,7 +6343,8 @@ function drawPie() {
     for (const g of segs) {
       if (g.skip) continue;
       const th = Math.atan2(g.y, g.x);
-      const e = (Math.abs(Math.cos(th)) * g.W + Math.abs(Math.sin(th)) * H) / 2 * SC;
+      const gh = g.compact ? LS + 2 + 17 : H;
+      const e = (Math.abs(Math.cos(th)) * g.W + Math.abs(Math.sin(th)) * gh) / 2 * SC;
       const d = Math.hypot(g.x, g.y) - e - 1;
       if (d <= R + 2) continue;
       ctx.beginPath();
@@ -6213,7 +6365,7 @@ function drawPie() {
     const gL = lift(g);
     const pop = 1 + 0.2 * gL; // v180: התווית "קופצת" יחד עם הפרוסה — אותו קפיץ, אותו תזמון
     ctx.scale((g.sc || 1) * pop, (g.sc || 1) * pop); // גודל יחסי לפרוסה — הלוגו, הסימבול והבועה יחד
-    let top = -H / 2;
+    let top = -(g.compact ? LS + 2 + 17 : H) / 2;
     // לוגו — אותו גודל לכל החברות
     const e = pieLogoImg(s.sym);
     const lx = x - LS / 2;
@@ -6239,12 +6391,28 @@ function drawPie() {
       ctx.fillText(g.symTxt.charAt(0), x, top + LS / 2 + 0.5);
     }
     top += LS + 2;
-    // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
-    ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
-    ctx.font = '700 10.5px ' + FONT;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(g.symTxt, x, top + SYM_H / 2);
-    top += SYM_H + 2;
+    if (!g.compact) { // v181: בתווית קומפקטית (הרבה מניות) — הלוגו מזהה את המניה, בלי שורת סימבול
+      // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
+      ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
+      ctx.font = '700 10.5px ' + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(g.symTxt, x, top + SYM_H / 2);
+      top += SYM_H + 2;
+    }
+    if (g.compact) { // בועת אחוז קומפקטית
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
+      pieRoundRect(ctx, x - g.pillW / 2, top, g.pillW, 17, 8.5);
+      ctx.fillStyle = dark ? 'rgba(44,44,46,.96)' : 'rgba(255,255,255,.96)';
+      ctx.fill();
+      ctx.restore();
+      if (!dark) { pieRoundRect(ctx, x - g.pillW / 2 + 0.5, top + 0.5, g.pillW - 1, 16, 8); ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.stroke(); }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = ink; ctx.font = '800 12px ' + FONT;
+      ctx.fillText(g.pctTxt, x, top + 9);
+      ctx.restore();
+      continue;
+    }
     // בועה: אחוז מהתיק מעל השווי
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
