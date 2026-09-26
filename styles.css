@@ -399,7 +399,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-head {
   width: 100%; border: 0; background: none; cursor: pointer; text-align: start;
   font-family: var(--font); padding: 16px 18px;
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center;
+  display: grid; grid-template-columns: minmax(0, 1fr) fit-content(196px); gap: 6px 12px; align-items: center; /* v199: עמודת המחיר מוגבלת — תווית סשן ארוכה נשברת בתוכה ולא דוחפת את שם החברה */
   color: var(--on-surface);
 }
 .stock-head > * { min-width: 0; }
@@ -986,8 +986,12 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 @keyframes pxRollOutDown { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
 @keyframes pxRollInDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 /* תג סשן מורחב בכרטיס: טרום־מסחר / אחרי־מסחר / לילי, עם השינוי מהסגירה הרגילה */
-.ext-sess { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: var(--pill); background: var(--surface-2); color: var(--on-surface-var); }
+.ext-sess { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; column-gap: 5px; row-gap: 0; max-width: 100%; line-height: 1.35; text-align: center; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 2px 9px; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--on-surface-var); }
 .ext-sess.pos { color: var(--gain); } .ext-sess.neg { color: var(--loss); }
+/* v199: "השוק סגור · סיבה" — התווית באפור, רק האחוז בצבע; טקסט ארוך נשבר לשורה שנייה בתוך הבועה במקום לגלוש */
+.ext-sess.closed .ext-lbl { color: var(--on-surface-var); font-weight: 600; }
+.ext-sess .ext-lbl { white-space: nowrap; }
+.ext-sess .ext-pct { white-space: nowrap; }
 .ext-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: livePulse 2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .stock-price.px-up, .stock-price.px-down, .fx-num.px-up, .fx-num.px-down, .px-roll > span, .ext-dot { animation: none; } }
 

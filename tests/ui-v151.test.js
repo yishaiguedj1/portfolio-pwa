@@ -18,7 +18,7 @@ vm.createContext(sb); vm.runInContext(src, sb);
 const A = (k) => vm.runInContext(k, sb);
 
 // 1. כרטיס מניה: שם ארוך לא דוחף את המחיר
-ok(/minmax\(0, 1fr\) auto/.test(rule('.stock-head')), 'כותרת כרטיס: עמודת המחיר auto, התוכן minmax(0,1fr)');
+ok(/minmax\(0, 1fr\) fit-content\(196px\)/.test(rule('.stock-head')), 'כותרת כרטיס: עמודת המחיר מוגבלת (fit-content, v199), התוכן minmax(0,1fr)');
 ok(/grid-row:\s*2/.test(rule('.stock-name')) && /text-overflow:\s*ellipsis/.test(rule('.stock-name')) && /nowrap/.test(rule('.stock-name')), 'שם החברה בשורה 2, שורה אחת עם שלוש נקודות');
 ok((css.match(/^\.stock-id\s*\{/gm) || []).length === 1, '.stock-id מוגדר פעם אחת (הכפילות הוסרה)');
 // 2. תוויות גרף המניה

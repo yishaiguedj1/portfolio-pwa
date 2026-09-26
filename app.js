@@ -229,6 +229,19 @@ he: {
   sessPostShort: 'אחרי־מסחר',
   sessNightShort: 'לילי',
   sessExtTitle: 'שינוי מהסגירה הרגילה',
+  sessClosed: 'השוק סגור',
+  sessClosedTitle: 'השוק סגור — השינוי הוא מהמסחר המאוחר האחרון',
+  hdWeekend: 'סופ״ש',
+  hdNewYear: 'ראש השנה האזרחית',
+  hdMlk: 'יום מרטין לותר קינג',
+  hdPresidents: 'יום הנשיאים',
+  hdGoodFriday: 'יום שישי הטוב',
+  hdMemorial: 'יום הזיכרון',
+  hdJuneteenth: 'ג׳ונטינת׳',
+  hdIndependence: 'יום העצמאות',
+  hdLabor: 'יום העבודה',
+  hdThanksgiving: 'חג ההודיה',
+  hdChristmas: 'חג המולד',
   staleSuffix: ' · מוצגים נתונים שמורים',
   fxSource: 'שער חליפין',
   fxRateLabel: 'שער הדולר',
@@ -705,6 +718,19 @@ en: {
   sessPostShort: 'After hours',
   sessNightShort: 'Overnight',
   sessExtTitle: 'Change from regular close',
+  sessClosed: 'Market closed',
+  sessClosedTitle: 'Market closed — change is from the last extended session',
+  hdWeekend: 'weekend',
+  hdNewYear: "New Year's Day",
+  hdMlk: 'MLK Day',
+  hdPresidents: "Presidents' Day",
+  hdGoodFriday: 'Good Friday',
+  hdMemorial: 'Memorial Day',
+  hdJuneteenth: 'Juneteenth',
+  hdIndependence: 'Independence Day',
+  hdLabor: 'Labor Day',
+  hdThanksgiving: 'Thanksgiving',
+  hdChristmas: 'Christmas',
   staleSuffix: ' · showing saved data',
   fxSource: 'Exchange rate',
   fxRateLabel: 'USD rate',
@@ -3861,7 +3887,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v198';
+const APP_VERSION = 'v199';
 
 
 function saveDBto(db) {
@@ -4565,6 +4591,59 @@ function parseCNBCQuotes(json, useExt) {
 }
 
 /* סשן המסחר כרגע לפי שעון ניו־יורק: pre / post / '' — טהור־למחצה, נבדק */
+/* v199: לוח החגים של NYSE — לפי הכללים הרשמיים (nyse.com/markets/hours-calendars), דטרמיניסטי לכל שנה, בלי
+   תלות ברשת: ראש השנה האזרחית, MLK (ב׳ ה־3 בינואר), הנשיאים (ב׳ ה־3 בפברואר), שישי הטוב (פסחא−2),
+   הזיכרון (ב׳ האחרון במאי), ג׳ונטינת׳ (19/6), העצמאות (4/7), העבודה (ב׳ ה־1 בספטמבר), ההודיה (ה׳ ה־4 בנובמבר),
+   המולד (25/12). חג שנופל בשבת נצפה ביום שישי, בראשון — ביום שני; חריג רשמי: 1/1 שנופל בשבת לא נצפה ב־31/12.
+   סגירות מיוחדות (ימי אבל לאומי) לא ניתנות לחיזוי — אז מוצג "השוק סגור" בלי סיבה (מצב CLOSED מ־Yahoo). */
+function easterSunday(y) { // אלגוריתם גרגוריאני אנונימי
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
+  return { m: mo, d: da };
+}
+function nyseHolidays(y) {
+  const out = {};
+  const key = (m, d) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  const dow = (m, d) => new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const nthDow = (m, wd, n) => { const first = dow(m, 1); let d = 1 + ((wd - first + 7) % 7) + (n - 1) * 7; return d; };
+  const lastDow = (m, wd) => { const dim = new Date(Date.UTC(y, m, 0)).getUTCDate(); const last = dow(m, dim); return dim - ((last - wd + 7) % 7); };
+  const observed = (m, d, name, noFriday) => { // שבת → שישי, ראשון → שני
+    const w = dow(m, d);
+    if (w === 6) { if (noFriday) return; const dt = new Date(Date.UTC(y, m - 1, d - 1)); out[key(dt.getUTCMonth() + 1, dt.getUTCDate())] = name; }
+    else if (w === 0) { const dt = new Date(Date.UTC(y, m - 1, d + 1)); out[key(dt.getUTCMonth() + 1, dt.getUTCDate())] = name; }
+    else out[key(m, d)] = name;
+  };
+  observed(1, 1, 'hdNewYear', true);
+  out[key(1, nthDow(1, 1, 3))] = 'hdMlk';
+  out[key(2, nthDow(2, 1, 3))] = 'hdPresidents';
+  const e = easterSunday(y); const gf = new Date(Date.UTC(y, e.m - 1, e.d - 2)); out[key(gf.getUTCMonth() + 1, gf.getUTCDate())] = 'hdGoodFriday';
+  out[key(5, lastDow(5, 1))] = 'hdMemorial';
+  observed(6, 19, 'hdJuneteenth');
+  observed(7, 4, 'hdIndependence');
+  out[key(9, nthDow(9, 1, 1))] = 'hdLabor';
+  out[key(11, nthDow(11, 4, 4))] = 'hdThanksgiving';
+  observed(12, 25, 'hdChristmas');
+  return out;
+}
+const _nyseHolCache = {};
+function etDateParts(nowMs) {
+  const d = nowMs ? new Date(nowMs) : new Date();
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' }).formatToParts(d);
+  const g = (t) => (parts.find((p) => p.type === t) || {}).value;
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(g('weekday'));
+  return { y: +g('year'), m: +g('month'), d: +g('day'), dow: wd, key: g('year') + '-' + g('month') + '-' + g('day') };
+}
+/* סיבת הסגירה כרגע (שעון ניו־יורק): 'hdWeekend' / מפתח חג / null (יום מסחר רגיל — סגור רק בגלל השעה) */
+function marketClosedReason(nowMs) {
+  try {
+    const p = etDateParts(nowMs);
+    if (p.dow === 0 || p.dow === 6) return 'hdWeekend';
+    const hol = _nyseHolCache[p.y] || (_nyseHolCache[p.y] = nyseHolidays(p.y));
+    return hol[p.key] || null;
+  } catch (e) { return null; }
+}
 function etSessionNow(nowMs) {
   try {
     const d = nowMs ? new Date(nowMs) : new Date();
@@ -4789,10 +4868,17 @@ function applyExtQuote(q, x) {
 /* תווית הסשן לכרטיס: "טרום־מסחר −0.4%" וכו'. null בזמן מסחר רגיל / בלי נתונים. */
 function extSessionHTML(q) {
   if (!q || !q.ext || !(q.ext.price > 0)) return '';
-  const lbl = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
   const pct = Number(q.ext.pct) || 0;
   const cls = Math.abs(pct) < 0.005 ? '' : pct >= 0 ? 'pos' : 'neg';
-  return '<span class="ext-sess ' + cls + '" title="' + esc(t('sessExtTitle')) + '"><span class="ext-dot"></span>' + esc(lbl) + ' ' + fmtPct(pct, true) + '</span>';
+  // v199: השוק סגור (סופ״ש/חג/לילה) — "השוק סגור · סיבה" עם השינוי של המסחר המאוחר האחרון; בלי נקודה מהבהבת
+  if (q.session === 'closed') {
+    const why = marketClosedReason();
+    const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
+    const lbl = t('sessClosed') + (why && names[why] ? ' · ' + names[why] : '');
+    return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosedTitle')) + '"><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
+  }
+  const lbl = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
+  return '<span class="ext-sess ' + cls + '" title="' + esc(t('sessExtTitle')) + '"><span class="ext-dot"></span><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
 }
 
 /* v164: מחירים חיים דרך השרתון — בקשה אחת לכל התיק (Yahoo מהשרת). עד v163 הטלפון שלח בקשה
