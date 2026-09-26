@@ -3905,7 +3905,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v206';
+const APP_VERSION = 'v207';
 
 
 function saveDBto(db) {
@@ -4803,8 +4803,32 @@ async function tryFx() {
   });
 }
 
+/* v207: שוק המט״ח (דולר־שקל) פתוח 24/5 — מראשון 17:00 עד שישי 17:00 שעון ניו־יורק */
+function fxMarketOpen(nowMs) {
+  try {
+    const d = nowMs ? new Date(nowMs) : new Date();
+    const g = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(d);
+    const pick = (t) => (g.find((p) => p.type === t) || {}).value;
+    const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(pick('weekday'));
+    const mins = (+pick('hour') % 24) * 60 + (+pick('minute'));
+    if (dow === 6) return false;
+    if (dow === 0) return mins >= 17 * 60;
+    if (dow === 5) return mins < 17 * 60;
+    return true;
+  } catch (e) { return true; }
+}
+/* v207: נקודת שער הדולר — מהבהבת ירוק/אדום לפי כיוון היום כשיש מסחר, אפורה קבועה כשאין */
+function paintFxDot() {
+  const dot = document.getElementById('fxDot');
+  if (!dot) return;
+  const open = fxMarketOpen();
+  const dir = state.fx > 0 && state.fxPrev > 0 ? (state.fx >= state.fxPrev ? 'pos' : 'neg') : '';
+  dot.className = 'ext-dot' + (open ? (dir ? ' ' + dir : '') : ' off');
+}
+
 /* v196: ציור בועת שער הדולר בהדר — המספר מתגלגל ספרה־ספרה (אותו livePriceSwap של המניות) כשהשער זז */
 function paintFxPill(changed) {
+  try { paintFxDot(); } catch (e) {}
   const v = document.getElementById('fxPillValue');
   if (!v) return;
   let num = v.querySelector('.fx-num');
@@ -4818,8 +4842,9 @@ function paintFxPill(changed) {
 }
 
 /* v196: השער בזמן אמת — מגיע עם המחירים בטיק המלא של הלולאה החיה (USDILS=X באותה בקשה לשרתון) */
-function applyLiveFx(r) {
+function applyLiveFx(r, prev) {
   if (!(r > 0)) return;
+  if (prev > 0) state.fxPrev = prev;
   const moved = r !== state.fx;
   state.fx = r;
   state.fxAt = Date.now();
@@ -5067,7 +5092,7 @@ async function liveTick() {
         let src = 'Yahoo';
         const wasCooling = yahooCooling();
         let got = await liveFetch(full ? syms.concat([FX_SYM]) : syms); // v196: שער הדולר באותו טיק
-        if (got[FX_SYM]) { const fxq = got[FX_SYM]; delete got[FX_SYM]; if (fxq.close > 0) applyLiveFx(fxq.close); }
+        if (got[FX_SYM]) { const fxq = got[FX_SYM]; delete got[FX_SYM]; if (fxq.close > 0) applyLiveFx(fxq.close, fxq.prev); }
         // מחירים חזרו (ישירות או דרך השרתון) ויש מניות בלי היסטוריה — משלימים גרפים (לכל היותר פעם בשתי דקות)
         const lacking = quoteSymbols().some((x) => isChartableSym(x) && !(state.hist[x] || []).length);
         if (Object.keys(got).length && ((wasCooling && !yahooCooling()) || lacking) && Date.now() - (live.lastRecover || 0) > 120000) {
@@ -5221,6 +5246,7 @@ async function tryYahooQuotes() {
   const results = Object.values(q);
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
   if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
+  if (fxq && fxq.prev > 0) state.fxPrev = fxq.prev; // v207: לכיוון היומי של נקודת שער הדולר
   const fx = fxq && fxq.close > 0 ? fxq.close : await tryFx();
   const sess = (results.find((r) => r && r.session) || {}).session || '';
   return { quotes: q, fx: fx, source: 'Yahoo', session: (sess === 'regular' || sess === 'closed') ? '' : sess };

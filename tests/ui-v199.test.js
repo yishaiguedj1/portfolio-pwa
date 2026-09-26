@@ -91,6 +91,11 @@ const taH = R("extSessionHTML(null, { p: { sym: 'POLI.TA' }, dayChg: -0.7 })");
 ok(/השוק סגור ·<\/span><span class="ext-lbl">סוכות/.test(taH) && /סגירה<\/span>/.test(taH) && /ext-dot off/.test(taH) && /ext-sess closed neg/.test(taH), 'בועת ת״א: "השוק סגור · סוכות" + "סגירה" ושינוי יום המסחר האחרון');
 R("taseMarketNow = () => ({ closed: false, reason: null })");
 ok(R("extSessionHTML(null, { p: { sym: 'POLI.TA' }, dayChg: 1 })") === '', 'ת״א בזמן מסחר: בלי בועה (כמו מסחר רגיל בארה״ב)');
+// v207: נקודת שער הדולר — מט״ח 24/5 (ראשון 17:00 עד שישי 17:00 ניו־יורק)
+ok(R('fxMarketOpen(Date.parse("2026-09-26T15:00:00Z"))') === false, 'מט״ח: שבת — סגור');
+ok(R('fxMarketOpen(Date.parse("2026-09-27T20:00:00Z"))') === false && R('fxMarketOpen(Date.parse("2026-09-27T22:00:00Z"))') === true, 'מט״ח: ראשון — נפתח ב־17:00 ניו־יורק');
+ok(R('fxMarketOpen(Date.parse("2026-09-25T20:30:00Z"))') === true && R('fxMarketOpen(Date.parse("2026-09-25T21:30:00Z"))') === false, 'מט״ח: שישי — נסגר ב־17:00 ניו־יורק');
+ok(/id="fxDot"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && /\.fx-pill \{[^}]*background: var\(--surface-2\)/.test(css), 'בועת שער הדולר: נקודה + עיצוב בועת הסשן (v207)');
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');
