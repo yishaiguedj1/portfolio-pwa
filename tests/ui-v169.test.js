@@ -27,7 +27,9 @@ ok(cn('POLI.TA') === 'הפועלים' && (vm.runInContext('state.lang = "en"', s
 ok(/'longName', 'shortName'\]/.test(proxy) && /longName: meta\.longName \|\| meta\.shortName/.test(src), 'מניה שלא ברשימה: השם מ־Yahoo דרך השרתון');
 ok(/return cnt >= 5 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן (UNH/UBER/APP) מזוהה');
 ok(/ctx\.fillStyle = light \? '#1D1D1F' : '#FFFFFF';/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' on-dark'/.test(src), 'לוגו לבן — על אריח כהה, בעוגה ובמקרא');
-ok(/const tiers = \[\[32, true, 'two'\]/.test(src), 'עדיפות: לוגו + סימבול + בועה (אחוז מעל שווי)');
+ok(/const LS = 26, SYM_H = 12, BUB_H = 26,/.test(src) && !/const tiers = /.test(src), 'v171: לכל מניה אותה תווית — לוגו בגודל אחיד + סימבול + בועה (אחוז מעל שווי)');
+ok(/g\.a, g\.a2, r, R \+ 16, 2\)\) \{ g\.x = x;/.test(src) && /const rho = R - 26 \+ e;/.test(src), 'v171: פרוסה קטנה — התווית בולטת מעבר לשפה, בתוך הקנבס');
+ok(/R = Math\.max\(R0 \* 0\.9, R0 - need0 - 2\);/.test(src), 'v171: הטבעת מתכווצת לכל היותר ב־10% כדי לפנות מקום');
 ok(/ctx\.strokeStyle = surface; ctx\.lineWidth = gap;/.test(src), 'רווח דק בצבע הכרטיס בין הפרוסות');
 ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css) && /\.pie-leg-logo\.on-dark \{ background: #1D1D1F; \}/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל; לבן על כהה');
 ok(/class="lg-full" dir="auto"/.test(src) && /#pieLegend \.lg-full \{ align-self: flex-start; max-width: 100%;/.test(css), 'מקרא: שם מלא מתחת לסימבול, חיתוך בסוף השם');

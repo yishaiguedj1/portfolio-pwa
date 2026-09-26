@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v170';
+const APP_VERSION = 'v171';
 
 
 function saveDBto(db) {
@@ -5929,26 +5929,78 @@ function drawPie() {
   // v170: לפי הגודל בתיק — הגדולה ביותר מ־12 בשעון, ומשם בכיוון השעון (מימין לשמאל), כמו המקרא.
   // הצבעים כבר מובדלים גלובלית (pieDedupeColors), כך שגם שכנות נבדלות.
   const ordered = slicesUnique.slice().sort((x, y) => y.value - x.value);
-  // v169: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות; בכל פרוסה
-  // (כשיש מקום) אריח לוגו מעוגל + סימבול מתחתיו + בועה קטנה עם האחוז והשווי. פרוסה צרה — פחות פרטים.
-  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 4, r = R * 0.43;
+  // v169→v171: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות. לכל מניה אותה "תווית":
+  // אריח לוגו בגודל אחיד + סימבול + בועה (אחוז מעל שווי). פרוסה קטנה מדי — התווית בולטת החוצה מעבר לשפה
+  // (הטבעת מתכווצת בדיוק כמה שצריך), ותוויות לא עולות אחת על השנייה (מוזזות לאורך הטבעת).
+  const cx = w / 2, cy = h / 2;
   const dark = document.documentElement && document.documentElement.getAttribute && document.documentElement.getAttribute('data-theme') === 'dark';
   const surface = cssVar('--surface', dark ? '#1C1C1E' : '#FFFFFF');
   const cur = state.currency;
   const val = (v) => (cur === 'ILS' && state.fx ? v * state.fx : v);
+  const FONT = '-apple-system, system-ui, "Segoe UI", Roboto, sans-serif';
+  const tw = (txt) => { const m = ctx.measureText(txt); return (m && m.width) || txt.length * 6; };
+  const HOLE = 0.38; // חור קטן יותר = טבעת עבה יותר, יותר תוויות נכנסות לפרוסה
+  const LS = 26, SYM_H = 12, BUB_H = 26, H = LS + 2 + SYM_H + 2 + BUB_H;
+  let a0 = -Math.PI / 2;
+  const segs = ordered.map((s) => {
+    const a2 = a0 + (s.value / total) * Math.PI * 2;
+    const pct = s.value / total * 100;
+    const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, pctTxt: (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)) + '%',
+      valTxt: fmtShortMoney(val(s.value), cur), symTxt: normalizeSym(s.sym) || '?' };
+    ctx.font = '700 10.5px ' + FONT;
+    const symW = tw(g.symTxt), pW = tw(g.pctTxt);
+    ctx.font = '500 10px ' + FONT;
+    g.bubW = Math.max(pW, tw(g.valTxt)) + 14;
+    g.W = Math.max(LS, symW, g.bubW);
+    a0 = a2;
+    return g;
+  });
+  // פריסה: בתוך הפרוסה אם נכנס; אחרת בולט החוצה. מחשבים כמה שוליים צריך ומקטינים את הטבעת בהתאם.
+  const place = (R, r) => {
+    const boxes = [];
+    let need = 0;
+    for (const g of segs) {
+      g.out = true;
+      for (const k of [0.5, 0.55, 0.45, 0.6, 0.4, 0.65, 0.7]) {
+        const rr = r + (R - r) * k;
+        const x = Math.cos(g.mid) * rr, y = Math.sin(g.mid) * rr;
+        if (pieBoxFits(x, y, g.W, H, g.a, g.a2, r, R + 16, 2)) { g.x = x; g.y = y; g.out = false; break; } // מותר לבלוט מעט מהשפה
+      }
+      if (!g.out) boxes.push(g);
+    }
+    const hit = (g) => boxes.some((o) => o !== g && Math.abs(o.x - g.x) < (o.W + g.W) / 2 + 4 && Math.abs(o.y - g.y) < H + 4);
+    for (const g of segs) {
+      if (!g.out) continue;
+      let done = false;
+      for (let k = 0; k <= 7 && !done; k++) { // עד ~24° מהפרוסה — שהתווית תישאר צמודה אליה
+        for (const sgn of k ? [1, -1] : [1]) {
+          const th = g.mid + sgn * k * 0.06;
+          const e = Math.abs(Math.cos(th)) * g.W / 2 + Math.abs(Math.sin(th)) * H / 2;
+          const rho = R - 26 + e; // חופף את הטבעת ובולט החוצה — אבל נשאר בתוך הקנבס
+          g.x = Math.max(-w / 2 + g.W / 2 + 1, Math.min(w / 2 - g.W / 2 - 1, Math.cos(th) * rho));
+          g.y = Math.max(-h / 2 + H / 2 + 1, Math.min(h / 2 - H / 2 - 1, Math.sin(th) * rho));
+          if (!hit(g)) { done = true; break; }
+        }
+      }
+      g.skip = !done;
+      if (done) { boxes.push(g); need = Math.max(need, (R - 26) + 2 * (Math.abs(Math.cos(g.mid)) * g.W / 2 + Math.abs(Math.sin(g.mid)) * H / 2) - Math.min(w, h) / 2); }
+    }
+    return need;
+  };
+  const R0 = Math.min(w, h) / 2 - 4;
+  let R = R0;
+  // שוליים לתוויות שבולטות — לכל היותר 16% מהרדיוס (העוגה נשארת גדולה; תווית שלא נכנסת נצמדת לקצה הקנבס)
+  const need0 = place(R, R * HOLE);
+  if (need0 > 0.5) { R = Math.max(R0 * 0.9, R0 - need0 - 2); place(R, R * HOLE); }
+  const r = R * HOLE;
   const gap = ordered.length > 1 ? 2.5 : 0;
-  let a = -Math.PI / 2;
-  const segs = [];
-  for (const s of ordered) {
-    const a2 = a + (s.value / total) * Math.PI * 2;
+  for (const g of segs) {
     ctx.beginPath();
-    ctx.arc(cx, cy, R, a, a2);
-    ctx.arc(cx, cy, r, a2, a, true);
+    ctx.arc(cx, cy, R, g.a, g.a2);
+    ctx.arc(cx, cy, r, g.a2, g.a, true);
     ctx.closePath();
-    ctx.fillStyle = s.color;
+    ctx.fillStyle = g.s.color;
     ctx.fill();
-    segs.push({ s: s, a: a, a2: a2 });
-    a = a2;
   }
   // רווחים בין הפרוסות — קווים רדיאליים בצבע הכרטיס
   if (gap) {
@@ -5962,112 +6014,68 @@ function drawPie() {
     }
     ctx.restore();
   }
-  const FONT = '-apple-system, system-ui, "Segoe UI", Roboto, sans-serif';
-  const tw = (txt) => { const m = ctx.measureText(txt); return (m && m.width) || txt.length * 6; };
   ctx.direction = 'ltr';
+  const ink = dark ? '#F2F2F7' : '#1C1C1E', sub = dark ? 'rgba(242,242,247,.7)' : 'rgba(28,28,30,.62)';
   for (const g of segs) {
-    const s = g.s;
-    const pct = (s.value / total * 100);
-    const pctTxt = (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)) + '%';
-    const valTxt = fmtShortMoney(val(s.value), cur);
-    const symTxt = normalizeSym(s.sym) || '?';
-    // מהעשיר לפשוט: [גודל לוגו, סימבול?, בועה: 'two' = אחוז מעל שווי, 'one' = "אחוז · שווי", 'pct' = אחוז, null]
-    const tiers = [[32, true, 'two'], [28, true, 'two'], [26, true, 'two'], [24, true, 'two'], [24, true, 'one'], [22, true, 'pct'],
-      [24, false, 'two'], [22, false, 'one'], [20, false, 'pct'], [18, false, 'pct'], [0, false, 'two'], [0, false, 'pct'], [18, false, null]];
-    let plan = null;
-    const mid = (g.a + g.a2) / 2;
-    for (const [ls, withSym, bub] of tiers) {
-      const symH = withSym ? 13 : 0;
-      ctx.font = '700 10.5px ' + FONT;
-      const pW = tw(pctTxt);
-      const symW = withSym ? tw(symTxt) : 0;
-      ctx.font = '500 10px ' + FONT;
-      const vW = tw(valTxt), oneW = tw(pctTxt + ' · ' + valTxt) + 4;
-      const bubW = bub === 'two' ? Math.max(pW, vW) + 14 : bub === 'one' ? oneW + 14 : bub === 'pct' ? pW + 14 : 0;
-      const bubH = bub === 'two' ? 29 : bub ? 17 : 0;
-      const W = Math.max(ls, symW, bubW);
-      const H = ls + (ls && (withSym || bub) ? 3 : 0) + symH + (bub ? (withSym || ls ? 3 : 0) + bubH : 0);
-      if (!W || !H) continue;
-      for (const k of [0.5, 0.45, 0.55, 0.4, 0.6]) {
-        const rr = r + (R - r) * k;
-        const x = Math.cos(mid) * rr, y = Math.sin(mid) * rr;
-        if (pieBoxFits(x, y, W, H, g.a, g.a2, r, R, 3)) { plan = { ls, withSym, bub, bubW, bubH, symH, W, H, x: cx + x, y: cy + y }; break; }
-      }
-      if (plan) break;
-    }
-    if (!plan) continue;
-    let top = plan.y - plan.H / 2;
-    if (plan.ls) {
-      const e = pieLogoImg(s.sym);
-      const ls = plan.ls, lx = plan.x - ls / 2;
-      const light = !!(e.ready && e.light);
+    if (g.skip) continue;
+    const s = g.s, x = cx + g.x;
+    let top = cy + g.y - H / 2;
+    // לוגו — אותו גודל לכל החברות
+    const e = pieLogoImg(s.sym);
+    const lx = x - LS / 2;
+    const light = !!(e.ready && e.light);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
+    pieRoundRect(ctx, lx, top, LS, LS, LS * 0.26);
+    ctx.fillStyle = light ? '#1D1D1F' : '#FFFFFF';
+    ctx.fill();
+    ctx.restore();
+    if (e.ready && !e.failed && e.img.naturalWidth) {
       ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
-      pieRoundRect(ctx, lx, top, ls, ls, ls * 0.26);
-      ctx.fillStyle = light ? '#1D1D1F' : '#FFFFFF';
-      ctx.fill();
+      pieRoundRect(ctx, lx, top, LS, LS, LS * 0.26);
+      ctx.clip();
+      const inner = /tradingview/.test(e.img.src || '') ? LS : LS * 0.74;
+      const iw = e.img.naturalWidth, ih = e.img.naturalHeight;
+      const sc = Math.min(inner / iw, inner / ih);
+      ctx.drawImage(e.img, x - iw * sc / 2, top + LS / 2 - ih * sc / 2, iw * sc, ih * sc);
       ctx.restore();
-      if (e.ready && !e.failed && e.img.naturalWidth) {
-        ctx.save();
-        pieRoundRect(ctx, lx, top, ls, ls, ls * 0.26);
-        ctx.clip();
-        const tv = /tradingview/.test(e.img.src || '');
-        const inner = tv ? ls : ls * 0.74;
-        const iw = e.img.naturalWidth, ih = e.img.naturalHeight;
-        const sc = Math.min(inner / iw, inner / ih);
-        ctx.drawImage(e.img, plan.x - iw * sc / 2, top + ls / 2 - ih * sc / 2, iw * sc, ih * sc);
-        ctx.restore();
-      } else {
-        ctx.fillStyle = '#3A3A3C'; ctx.font = '700 ' + Math.round(ls * 0.44) + 'px ' + FONT;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(symTxt.charAt(0), plan.x, top + ls / 2 + 0.5);
-      }
-      top += ls + (plan.withSym || plan.bub ? 3 : 0);
-    }
-    if (plan.withSym) {
-      ctx.fillStyle = 'rgba(28,28,30,.88)'; ctx.font = '700 10.5px ' + FONT;
+    } else {
+      ctx.fillStyle = '#3A3A3C'; ctx.font = '700 ' + Math.round(LS * 0.44) + 'px ' + FONT;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(symTxt, plan.x, top + plan.symH / 2);
-      top += plan.symH;
+      ctx.fillText(g.symTxt.charAt(0), x, top + LS / 2 + 0.5);
     }
-    if (plan.bub) {
-      if (plan.withSym || plan.ls) top += 3;
-      ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
-      pieRoundRect(ctx, plan.x - plan.bubW / 2, top, plan.bubW, plan.bubH, plan.bub === 'two' ? 9 : plan.bubH / 2);
-      ctx.fillStyle = dark ? 'rgba(28,28,30,.92)' : 'rgba(255,255,255,.95)';
-      ctx.fill();
-      ctx.restore();
-      const ink = dark ? '#F2F2F7' : '#1C1C1E', sub = dark ? 'rgba(242,242,247,.7)' : 'rgba(28,28,30,.62)';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (plan.bub === 'two') {
-        ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
-        ctx.fillText(pctTxt, plan.x, top + 9.5);
-        ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT;
-        ctx.fillText(valTxt, plan.x, top + 20.5);
-      } else if (plan.bub === 'one') {
-        ctx.font = '700 10.5px ' + FONT;
-        const pw = tw(pctTxt + ' ');
-        ctx.font = '500 10px ' + FONT;
-        const rest = '· ' + valTxt, rw = tw(rest);
-        const x0 = plan.x - (pw + rw) / 2;
-        ctx.textAlign = 'left';
-        ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT; ctx.fillText(pctTxt, x0, top + plan.bubH / 2 + 0.5);
-        ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT; ctx.fillText(rest, x0 + pw, top + plan.bubH / 2 + 0.5);
-      } else {
-        ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
-        ctx.fillText(pctTxt, plan.x, top + plan.bubH / 2 + 0.5);
-      }
+    top += LS + 2;
+    // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
+    ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
+    ctx.font = '700 10.5px ' + FONT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(g.symTxt, x, top + SYM_H / 2);
+    top += SYM_H + 2;
+    // בועה: אחוז מהתיק מעל השווי
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
+    pieRoundRect(ctx, x - g.bubW / 2, top, g.bubW, BUB_H, 9);
+    ctx.fillStyle = dark ? 'rgba(44,44,46,.96)' : 'rgba(255,255,255,.96)';
+    ctx.fill();
+    ctx.restore();
+    if (g.out && !dark) { // על רקע הכרטיס הלבן — קו מתאר עדין במקום צל בלבד
+      pieRoundRect(ctx, x - g.bubW / 2 + 0.5, top + 0.5, g.bubW - 1, BUB_H - 1, 9);
+      ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.stroke();
     }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
+    ctx.fillText(g.pctTxt, x, top + 9);
+    ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT;
+    ctx.fillText(g.valTxt, x, top + 19.5);
   }
   ctx.textBaseline = 'alphabetic';
   ctx.direction = 'inherit';
   ctx.textAlign = 'center';
   ctx.fillStyle = cssVar('--on-surface-var', '#6B6B70');
-  ctx.font = '600 13px ' + FONT;
+  ctx.font = '600 ' + (r > 64 ? 13 : 12) + 'px ' + FONT;
   ctx.fillText(t('totalStocks'), cx, cy - 8);
   ctx.fillStyle = cssVar('--on-surface', '#191C1A');
-  ctx.font = '800 21px ' + FONT;
+  ctx.font = '800 ' + (r > 64 ? 21 : 18) + 'px ' + FONT;
   ctx.fillText(money(val(total), cur), cx, cy + 17);
 
   const legend = document.getElementById('pieLegend');
