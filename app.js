@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v186';
+const APP_VERSION = 'v187';
 
 
 function saveDBto(db) {
@@ -6139,8 +6139,8 @@ function drawPie() {
   const segs = ordered.map((s) => {
     const a2 = a0 + (s.value / total) * Math.PI * 2;
     const pct = s.value / total * 100;
-    // v186: התווית נצמדת לצד שנגד כיוון השעון של הפרוסה (38% מתחילתה) — מפנה מקום לשכנה הקטנה יותר שאחריה
-    const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, lab: a0 + (a2 - a0) * 0.38, pctTxt: pct.toFixed(1) + '%',
+    // v187: זווית התווית (`lab`) נקבעת בשרשרת ב־posAt — צמודה לצד שנגד כיוון השעון של הפרוסה
+    const g = { s: s, a: a0, a2: a2, mid: (a0 + a2) / 2, lab: (a0 + a2) / 2, pctTxt: pct.toFixed(1) + '%',
       valTxt: fmtShortMoney(val(s.value), cur), symTxt: normalizeSym(s.sym) || '?' };
     ctx.font = '700 10.5px ' + FONT;
     const symW = tw(g.symTxt), pW = tw(g.pctTxt);
@@ -6156,11 +6156,27 @@ function drawPie() {
   const R0 = Math.min(w, h) / 2 - 11; // v178: מקום לפרוסה ש"מורמת" בנגיעה
   const holeOf = (R) => Math.max(R * HOLE, Math.min(R * 0.62, 58)); // החור נשאר רחב מספיק לסכום במרכז
   let SC = 1;
-  const posAt = (rho) => { for (const g of segs) { g.x = Math.cos(g.lab) * rho; g.y = Math.sin(g.lab) * rho; } };
   const clash = (p, q) => Math.abs(p.x - q.x) < (p.W + q.W) / 2 * SC + 3 && Math.abs(p.y - q.y) < H * SC + 3;
-  const anyClash = () => {
-    for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) if (clash(segs[i], segs[j])) return true;
-    return false;
+  // v187: "שרשרת" — התוויות מונחות בסדר השעון (מ־12), כל אחת צמודה ככל האפשר לצד שנגד כיוון השעון של הפרוסה שלה
+  // (הקצה שהיא חולקת עם הפרוסה הגדולה ממנה), ורק נדחקת עם כיוון השעון אם היא נוגעת בתווית שכבר הונחה.
+  // כך UNH יורדת, מפנה מקום ל־UBER, שמפנה ל־GOOG… ואף תווית לא נשמטת. מחזיר true כשהכול נכנס בלי נגיעות ובלי לגלוש מהפרוסה.
+  const posAt = (rho) => {
+    const placed = [];
+    let fine = true;
+    for (const g of segs) {
+      const half = (th) => ((g.W / 2) * Math.abs(Math.sin(th)) + (H / 2) * Math.abs(Math.cos(th))) * SC; // חצי־רוחב התווית לאורך המשיק
+      // הגדולה (הראשונה מ־12) — בדיוק מול הפרוסה שלה (v185), וכך משאירה מקום ליד 12 לקטנות שבסוף הלולאה; השאר צמודות לקצה ההתחלה
+      let th = g === segs[0] ? g.mid : Math.min(g.mid, g.a + half(g.a) / rho + 0.03); // פרוסה צרה — במרכז
+      const put = (t) => { g.x = Math.cos(t) * rho; g.y = Math.sin(t) * rho; };
+      put(th);
+      const th0 = th, hit = () => placed.some((o) => clash(o, g));
+      for (let k = 0; k < 25 && hit(); k++) { th += 0.03; put(th); } // נדחקת עם כיוון השעון
+      if (hit()) { th = th0; put(th); for (let k = 0; k < 25 && hit(); k++) { th -= 0.03; put(th); } } // ואם גם זה לא — נגד (הקטנות שבסוף, מול הגדולה)
+      g.lab = th;
+      if (hit() || Math.abs(th - Math.max(Math.min(th, g.a2), g.a)) > 0.35) fine = false; // עדיין נוגעת / נדחקה הרבה מעבר לפרוסה
+      placed.push(g);
+    }
+    return fine;
   };
   // v185: התוויות שואפות לחלק החיצוני של הפרוסה (62% מרוחב הטבעת) — נוגעות בפרוסה, לא עמוק בפנים
   const ringAt = (RR, f) => holeOf(RR) + (RR - holeOf(RR)) * f;
@@ -6168,14 +6184,14 @@ function drawPie() {
   // 1) מעט מניות: במרכז הפרוסות — אם צריך, כל התוויות קטנות יחד (עד 82%) כדי שלא ייגעו
   for (const sc of [1, 0.9, 0.82]) {
     SC = sc;
-    for (const d of [0, 6, 12]) { posAt(rho + d); if (!anyClash()) { ok = true; rho += d; break; } }
+    for (const d of [0, 6, 12]) { if (posAt(rho + d)) { ok = true; rho += d; break; } }
     if (ok) break;
   }
   // 2) יותר מניות: כל התוויות מתרחקות מהמרכז באותה מידה (הטבעת מתכווצת ונשארת מתחתן), עד שאין נגיעות
   if (!ok) {
     SC = segs.length <= 12 ? 0.85 : 0.78;
     const rhoMax = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W, H) / 2 * SC));
-    for (rho = ringAt(R0, 0.62); rho <= rhoMax; rho += 3) { posAt(rho); if (!anyClash()) { ok = true; break; } }
+    for (rho = ringAt(R0, 0.62); rho <= rhoMax; rho += 3) { if (posAt(rho)) { ok = true; break; } }
     if (!ok) { rho = rhoMax; posAt(rho); }
     R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
@@ -6215,21 +6231,10 @@ function drawPie() {
     }
   }
   if (!OUTER && canvas.style && canvas.style.height) { canvas.style.height = ''; } // חזרה לקנבס מרובע
-  const shown = [];
-  for (const g of segs.slice().sort((p, q) => q.s.value - p.s.value)) {
+  // v187: כל תווית מוצגת תמיד (המיקום נקבע בשרשרת ב־posAt) — אף מניה לא נשמטת מהגרף
+  for (const g of segs) {
     g.sc = SC; g.out = OUTER || rho > (holeOf(R) + R) / 2 + 6; // תווית על השפה (לא במרכז הפרוסה) → קו מוביל
-    if (g.chip) { g.skip = false; shown.push(g); continue; }
-    g.skip = shown.some((o) => clash(o, g));
-    // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°) לפני שמוותרים
-    // v185: הגדולות מונחות קודם (בדיוק מול הפרוסה); תווית שצריכה לזוז — קודם עם כיוון השעון (לצד ה"ימני" של הפרוסה), ואז נגד
-    for (let step = 1; g.skip && step <= 14; step++) {
-      for (const [sgn, k] of [step <= 7 ? [-1, step] : [1, step - 7]]) { // v186: קודם נגד כיוון השעון (לצד הפרוסה הגדולה יותר)
-        const th = g.lab + sgn * k * 0.05;
-        g.x = Math.cos(th) * rho; g.y = Math.sin(th) * rho;
-        if (!shown.some((o) => clash(o, g))) { g.skip = false; break; }
-      }
-    }
-    if (!g.skip) shown.push(g);
+    g.skip = false;
   }
   const r = holeOf(R);
   const gap = ordered.length > 1 ? 2.5 : 0;

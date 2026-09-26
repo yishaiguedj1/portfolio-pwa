@@ -28,7 +28,7 @@ ok(/'longName', 'shortName'\]/.test(proxy) && /longName: meta\.longName \|\| met
 ok(/return cnt >= 5 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן (UNH/UBER/APP) מזוהה');
 ok(/ctx\.drawImage\(e\.inv \|\| e\.img,/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' inv'/.test(src) && /\.pie-leg-logo\.inv img \{ filter: invert\(1\); background: transparent; \}/.test(css), 'v173: לוגו לבן — מתהפך לשחור על אריח לבן, כמו בטאב המניות (עוגה ומקרא)');
 ok(/for \(const sc of \[1, 0\.9, 0\.82\]\)/.test(src) && /R = Math\.max\(R0 \* 0\.6, Math\.min\(R0, rho \+ H \* SC \* 0\.22\)\);/.test(src), 'v173: כל התוויות באותו גודל על מעגל אחד — מעט מניות במרכז הפרוסות, יותר מניות: המעגל מתרחק באחידות');
-ok(/const clash = \(p, q\) =>/.test(src) && /g\.skip = shown\.some\(\(o\) => clash\(o, g\)\);/.test(src), 'v173: אין שתי תוויות שנוגעות זו בזו');
+ok(/const clash = \(p, q\) =>/.test(src) && /placed\.some\(\(o\) => clash\(o, g\)\)/.test(src), 'v173/v187: אין שתי תוויות שנוגעות זו בזו (שרשרת ב־posAt)');
 ok(/pctTxt: pct\.toFixed\(1\) \+ '%'/.test(src), 'v172: אחוז עם ספרה עשרונית תמיד (18.1%)');
 ok(/ctx\.strokeStyle = surface; ctx\.lineWidth = gap;/.test(src), 'רווח דק בצבע הכרטיס בין הפרוסות');
 ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל');
@@ -70,5 +70,5 @@ ok(/#pieLegend li\.active \.pie-leg-logo \{ transform: scale\(1\.18\)/.test(css)
   ok(/const CHIP_H = LS \+ 2 \+ BUB_H;/.test(src) && /g\.chipW = Math\.max\(LS, g\.bubW\)/.test(src) && /if \(!g\.chip\) \{ \/\/ סימבול/.test(src) && !/const drawChip = /.test(src), 'v186: שבב אנכי — לוגו מעל בועת אחוז/שווי, בלי סימבול, אותו מצייר כמו במעט מניות');
 }
 ok(/g\.out = OUTER \|\| rho > \(holeOf\(R\) \+ R\) \/ 2 \+ 6;/.test(src) && /const len = Math\.min\(18, dist - edge - 3\);/.test(src) && /if \(dist <= edge \+ 6\) continue;/.test(src) && /if \(onSlice\) continue;/.test(src), 'v184/v186: במעט מניות — סיכה קצרה (≤18px) מקצה התווית לתוך הפרוסה; בלי קו כשהתווית יושבת בבירור על הפרוסה שלה');
-ok(/let R = R0, rho = ringAt\(R0, 0\.62\), ok = false;/.test(src) && /for \(const \[sgn, k\] of \[step <= 7 \? \[-1, step\] : \[1, step - 7\]\]\)/.test(src) && /lab: a0 \+ \(a2 - a0\) \* 0\.38/.test(src) && /g\.x = Math\.cos\(g\.lab\) \* rho/.test(src) && /segs\.slice\(\)\.sort\(\(p, q\) => q\.s\.value - p\.s\.value\)/.test(src), 'v185/v186: תוויות בחלק החיצוני של הטבעת, צמודות לצד שנגד כיוון השעון של הפרוסה; הגדולה מונחת ראשונה; הזזה קודם נגד כיוון השעון');
+ok(/let R = R0, rho = ringAt\(R0, 0\.62\), ok = false;/.test(src) && /let th = g === segs\[0\] \? g\.mid : Math\.min\(g\.mid, g\.a \+ half\(g\.a\) \/ rho \+ 0\.03\);/.test(src) && /for \(let k = 0; k < 25 && hit\(\); k\+\+\) \{ th \+= 0\.03; put\(th\); \}/.test(src) && /g\.skip = false;/.test(src) && !/g\.skip = shown\.some/.test(src), 'v185/v187: תוויות בחלק החיצוני של הטבעת; שרשרת בסדר השעון — הגדולה מול הפרוסה, כל השאר צמודות לקצה שנגד כיוון השעון ונדחקות רק בנגיעה; אף תווית לא נשמטת');
 console.log('\n' + n + ' בדיקות עברו');
