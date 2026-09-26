@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v169';
+const APP_VERSION = 'v170';
 
 
 function saveDBto(db) {
@@ -5926,8 +5926,9 @@ function drawPie() {
     ctx.fillText(t('noPriceYet'), w / 2, h / 2);
     return;
   }
-  // v133: חתיכות שכנות (כולל התפר המעגלי) לא בצבעים קרובים מדי — קל להבדיל
-  const ordered = pieArrangeSlices(slicesUnique);
+  // v170: לפי הגודל בתיק — הגדולה ביותר מ־12 בשעון, ומשם בכיוון השעון (מימין לשמאל), כמו המקרא.
+  // הצבעים כבר מובדלים גלובלית (pieDedupeColors), כך שגם שכנות נבדלות.
+  const ordered = slicesUnique.slice().sort((x, y) => y.value - x.value);
   // v169: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות; בכל פרוסה
   // (כשיש מקום) אריח לוגו מעוגל + סימבול מתחתיו + בועה קטנה עם האחוז והשווי. פרוסה צרה — פחות פרטים.
   const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 4, r = R * 0.43;
