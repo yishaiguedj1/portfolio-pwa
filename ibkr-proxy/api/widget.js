@@ -71,7 +71,7 @@ let _browser = null;
 async function browser() {
   if (_browser && _browser.connected !== false) return _browser;
   const chromium = (await import('@sparticuz/chromium')).default;
-  const puppeteer = require('puppeteer-core');
+  const puppeteer = (await import('puppeteer-core')).default; // ESM — import() (require של ESM לא נתמך בגרסת Node של Vercel)
   // WIDGET_PROXY: בדיקה מקומית בלבד (רשת דרך פרוקסי); ב־Vercel לא מוגדר
   _browser = await puppeteer.launch({
     args: chromium.args.concat(process.env.WIDGET_PROXY ? ['--proxy-server=' + process.env.WIDGET_PROXY, '--ignore-certificate-errors'] : []), executablePath: await chromium.executablePath(), headless: true,
