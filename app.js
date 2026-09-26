@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v168';
+const APP_VERSION = 'v169';
 
 
 function saveDBto(db) {
@@ -4109,12 +4109,75 @@ function pieArrangeSlices(slices) {
 /* מטמון תמונות לוגו לתרשים העוגה (Image, לא DOM) — לוגו כל סימבול
    נטען פעם אחת; ברגע שהוא מוכן מציירים מחדש כדי שהוא יופיע. */
 const PIE_LOGO_CACHE = {};
+/* v169: לוגו לבן/בהיר מאוד (UNH, UBER, APP ב־FMP הם לבן על שקוף) — נעלם על אריח לבן.
+   מזהים לפי הבהירות הממוצעת של הפיקסלים האטומים; אז האריח כהה (כמו אייקון אפליקציה). */
+function logoIsLight(img) {
+  try {
+    if (/s3-symbol-logo\.tradingview\.com/.test(img.src || '')) return false; // רקע משלו
+    const w = Math.min(64, img.naturalWidth || 0), h = Math.min(64, img.naturalHeight || 0);
+    if (w < 4 || h < 4) return false;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let sum = 0, cnt = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] > 128) { sum += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114; cnt++; }
+    }
+    return cnt >= 5 && sum / cnt > 225;
+  } catch (e) { return false; }
+}
+/* v169: שם החברה המלא, נקי ("Microsoft", "Meta Platforms", "בנק הפועלים"): ת"א בעברית לפי שפה,
+   אחרת רשימת החיפוש / השם מ־Yahoo / מה שנשמר. בלי "Inc." / "Corp." וכו'. */
+function companyName(sym, fallback) {
+  const s = normalizeSym(sym);
+  let n = '';
+  for (const r of TASE_STOCKS) if (r[0] === s) { n = state.lang === 'en' ? r[1] : r[2]; break; }
+  if (!n) for (const r of POPULAR_STOCKS) if (r[0] === s) { n = r[1]; break; }
+  if (!n) { const q = state.quotes[s]; n = (q && q.longName) || ''; }
+  if (!n) { const p = POSITIONS.find((x) => x.sym === sym); n = (p && (p.full || (p.name !== p.sym ? p.name : ''))) || fallback || ''; }
+  return String(n).replace(/,?\s+(Inc|Corp|Corporation|Co|Ltd|Limited|Holdings|Hldgs|N\.V|plc|S\.A|AG|SE|Company)\.?(?=\s|$)/gi, '').replace(/\s{2,}/g, ' ').trim();
+}
+/* v169: מלבן מעוגל (גם בדפדפנים בלי roundRect) */
+function pieRoundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+/* v169: האם מלבן (מרכז cx0,cy0 ביחס למרכז העוגה) נכנס כולו לתוך הפרוסה [a,a2] בטבעת [r,R], עם שוליים. טהורה. */
+function pieBoxFits(x, y, w, h, a, a2, r, R, pad) {
+  const pts = [[x - w / 2, y - h / 2], [x + w / 2, y - h / 2], [x - w / 2, y + h / 2], [x + w / 2, y + h / 2], [x, y - h / 2], [x, y + h / 2], [x - w / 2, y], [x + w / 2, y]];
+  for (const [px, py] of pts) {
+    const d = Math.hypot(px, py);
+    if (d < r + pad || d > R - pad) return false;
+    let ang = Math.atan2(py, px);
+    while (ang < a) ang += Math.PI * 2;
+    while (ang > a + Math.PI * 2) ang -= Math.PI * 2;
+    if (ang > a2) return false;
+    if (d * (ang - a) < pad || d * (a2 - ang) < pad) return false;
+  }
+  return true;
+}
+/* v169: סכום מקוצר לבועה: $13.2K / $950 / ₪1.2M */
+function fmtShortMoney(v, cur) {
+  const sym = cur === 'ILS' ? '₪' : '$';
+  const a = Math.abs(v);
+  const t = a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : a >= 1e4 ? (a / 1e3).toFixed(0) + 'K' : a >= 1e3 ? (a / 1e3).toFixed(1) + 'K' : Math.round(a).toString();
+  return sym + t.replace(/\.0(?=[KM])/, '');
+}
+
 function pieLogoImg(sym) {
   const s = normalizeSym(sym);
   let e = PIE_LOGO_CACHE[s];
   if (!e) {
     e = PIE_LOGO_CACHE[s] = { img: new Image(), ready: false, failed: false };
-    e.img.onload = () => { e.ready = true; try { drawPie(); } catch (er) {} };
+    e.img.onload = () => { e.ready = true; e.light = logoIsLight(e.img); try { drawPie(); } catch (er) {} };
     e.img.onerror = () => { e.failed = true; try { drawPie(); } catch (er) {} };
     const src = logoSrc(s);
     if (src) { e.img.crossOrigin = 'anonymous'; e.img.src = src; } else e.failed = true;
@@ -4346,7 +4409,8 @@ function parseYahooQuote(json, sym, nowMs) {
     close: close,
     prev: kk(num(meta.chartPreviousClose)),
     session: session,
-    volume: parseInt(meta.regularMarketVolume, 10) || 0
+    volume: parseInt(meta.regularMarketVolume, 10) || 0,
+    longName: meta.longName || meta.shortName || ''
   };
 }
 
@@ -5433,6 +5497,7 @@ function ibkrReportTotal(data, cash, fx) {
     if (!im.dataset) return;
     if (im.dataset.logo) logoImgErr(im);
     else if (im.dataset.err === 'hide-parent' && im.parentElement) im.parentElement.style.display = 'none';
+    else if (im.dataset.err === 'hide-self') im.style.display = 'none'; // v169: נשארת האות מתחת
   });
 })();
 
@@ -5863,9 +5928,16 @@ function drawPie() {
   }
   // v133: חתיכות שכנות (כולל התפר המעגלי) לא בצבעים קרובים מדי — קל להבדיל
   const ordered = pieArrangeSlices(slicesUnique);
-  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 10, r = R * 0.62;
-  const band = R - r, rMid = (R + r) / 2;
+  // v169: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות; בכל פרוסה
+  // (כשיש מקום) אריח לוגו מעוגל + סימבול מתחתיו + בועה קטנה עם האחוז והשווי. פרוסה צרה — פחות פרטים.
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 4, r = R * 0.43;
+  const dark = document.documentElement && document.documentElement.getAttribute && document.documentElement.getAttribute('data-theme') === 'dark';
+  const surface = cssVar('--surface', dark ? '#1C1C1E' : '#FFFFFF');
+  const cur = state.currency;
+  const val = (v) => (cur === 'ILS' && state.fx ? v * state.fx : v);
+  const gap = ordered.length > 1 ? 2.5 : 0;
   let a = -Math.PI / 2;
+  const segs = [];
   for (const s of ordered) {
     const a2 = a + (s.value / total) * Math.PI * 2;
     ctx.beginPath();
@@ -5874,49 +5946,144 @@ function drawPie() {
     ctx.closePath();
     ctx.fillStyle = s.color;
     ctx.fill();
-    // v133: לוגו החברה בתוך המשולש — בגודל פרופורציונלי לפרוסה (רוחב
-    // הטבעת ואורך הקשת), על תג לבן קטן לקריאוּת מעל כל צבע. פרוסות
-    // צרות מדי מדלגות על לוגו במקום לדחוס אחד בלתי קריא.
-    const mid = (a + a2) / 2;
-    const arcLen = (a2 - a) * rMid;
-    const box = Math.min(band * 0.78, arcLen * 0.72, 46);
-    if (box >= 20) {
-      const e = pieLogoImg(s.sym);
-      const lx = cx + Math.cos(mid) * rMid, ly = cy + Math.sin(mid) * rMid;
-      ctx.save();
-      ctx.beginPath(); ctx.arc(lx, ly, box / 2 + 3, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 3;
-      ctx.fill(); ctx.restore();
-      if (e.ready && !e.failed && e.img.naturalWidth) {
-        const iw = e.img.naturalWidth, ih = e.img.naturalHeight;
-        const scale = Math.min(box / iw, box / ih);
-        const dw = iw * scale, dh = ih * scale;
-        ctx.drawImage(e.img, lx - dw / 2, ly - dh / 2, dw, dh);
-      } else if (e.failed) {
-        ctx.fillStyle = '#3A3A3C'; ctx.font = '700 ' + Math.round(box * 0.42) + 'px system-ui';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText((normalizeSym(s.sym) || '?').charAt(0), lx, ly);
-      }
-    }
+    segs.push({ s: s, a: a, a2: a2 });
     a = a2;
   }
+  // רווחים בין הפרוסות — קווים רדיאליים בצבע הכרטיס
+  if (gap) {
+    ctx.save();
+    ctx.strokeStyle = surface; ctx.lineWidth = gap; ctx.lineCap = 'butt';
+    for (const g of segs) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(g.a) * (r - 1), cy + Math.sin(g.a) * (r - 1));
+      ctx.lineTo(cx + Math.cos(g.a) * (R + 1), cy + Math.sin(g.a) * (R + 1));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  const FONT = '-apple-system, system-ui, "Segoe UI", Roboto, sans-serif';
+  const tw = (txt) => { const m = ctx.measureText(txt); return (m && m.width) || txt.length * 6; };
+  ctx.direction = 'ltr';
+  for (const g of segs) {
+    const s = g.s;
+    const pct = (s.value / total * 100);
+    const pctTxt = (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)) + '%';
+    const valTxt = fmtShortMoney(val(s.value), cur);
+    const symTxt = normalizeSym(s.sym) || '?';
+    // מהעשיר לפשוט: [גודל לוגו, סימבול?, בועה: 'two' = אחוז מעל שווי, 'one' = "אחוז · שווי", 'pct' = אחוז, null]
+    const tiers = [[32, true, 'two'], [28, true, 'two'], [26, true, 'two'], [24, true, 'two'], [24, true, 'one'], [22, true, 'pct'],
+      [24, false, 'two'], [22, false, 'one'], [20, false, 'pct'], [18, false, 'pct'], [0, false, 'two'], [0, false, 'pct'], [18, false, null]];
+    let plan = null;
+    const mid = (g.a + g.a2) / 2;
+    for (const [ls, withSym, bub] of tiers) {
+      const symH = withSym ? 13 : 0;
+      ctx.font = '700 10.5px ' + FONT;
+      const pW = tw(pctTxt);
+      const symW = withSym ? tw(symTxt) : 0;
+      ctx.font = '500 10px ' + FONT;
+      const vW = tw(valTxt), oneW = tw(pctTxt + ' · ' + valTxt) + 4;
+      const bubW = bub === 'two' ? Math.max(pW, vW) + 14 : bub === 'one' ? oneW + 14 : bub === 'pct' ? pW + 14 : 0;
+      const bubH = bub === 'two' ? 29 : bub ? 17 : 0;
+      const W = Math.max(ls, symW, bubW);
+      const H = ls + (ls && (withSym || bub) ? 3 : 0) + symH + (bub ? (withSym || ls ? 3 : 0) + bubH : 0);
+      if (!W || !H) continue;
+      for (const k of [0.5, 0.45, 0.55, 0.4, 0.6]) {
+        const rr = r + (R - r) * k;
+        const x = Math.cos(mid) * rr, y = Math.sin(mid) * rr;
+        if (pieBoxFits(x, y, W, H, g.a, g.a2, r, R, 3)) { plan = { ls, withSym, bub, bubW, bubH, symH, W, H, x: cx + x, y: cy + y }; break; }
+      }
+      if (plan) break;
+    }
+    if (!plan) continue;
+    let top = plan.y - plan.H / 2;
+    if (plan.ls) {
+      const e = pieLogoImg(s.sym);
+      const ls = plan.ls, lx = plan.x - ls / 2;
+      const light = !!(e.ready && e.light);
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
+      pieRoundRect(ctx, lx, top, ls, ls, ls * 0.26);
+      ctx.fillStyle = light ? '#1D1D1F' : '#FFFFFF';
+      ctx.fill();
+      ctx.restore();
+      if (e.ready && !e.failed && e.img.naturalWidth) {
+        ctx.save();
+        pieRoundRect(ctx, lx, top, ls, ls, ls * 0.26);
+        ctx.clip();
+        const tv = /tradingview/.test(e.img.src || '');
+        const inner = tv ? ls : ls * 0.74;
+        const iw = e.img.naturalWidth, ih = e.img.naturalHeight;
+        const sc = Math.min(inner / iw, inner / ih);
+        ctx.drawImage(e.img, plan.x - iw * sc / 2, top + ls / 2 - ih * sc / 2, iw * sc, ih * sc);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#3A3A3C'; ctx.font = '700 ' + Math.round(ls * 0.44) + 'px ' + FONT;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(symTxt.charAt(0), plan.x, top + ls / 2 + 0.5);
+      }
+      top += ls + (plan.withSym || plan.bub ? 3 : 0);
+    }
+    if (plan.withSym) {
+      ctx.fillStyle = 'rgba(28,28,30,.88)'; ctx.font = '700 10.5px ' + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(symTxt, plan.x, top + plan.symH / 2);
+      top += plan.symH;
+    }
+    if (plan.bub) {
+      if (plan.withSym || plan.ls) top += 3;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
+      pieRoundRect(ctx, plan.x - plan.bubW / 2, top, plan.bubW, plan.bubH, plan.bub === 'two' ? 9 : plan.bubH / 2);
+      ctx.fillStyle = dark ? 'rgba(28,28,30,.92)' : 'rgba(255,255,255,.95)';
+      ctx.fill();
+      ctx.restore();
+      const ink = dark ? '#F2F2F7' : '#1C1C1E', sub = dark ? 'rgba(242,242,247,.7)' : 'rgba(28,28,30,.62)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (plan.bub === 'two') {
+        ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
+        ctx.fillText(pctTxt, plan.x, top + 9.5);
+        ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT;
+        ctx.fillText(valTxt, plan.x, top + 20.5);
+      } else if (plan.bub === 'one') {
+        ctx.font = '700 10.5px ' + FONT;
+        const pw = tw(pctTxt + ' ');
+        ctx.font = '500 10px ' + FONT;
+        const rest = '· ' + valTxt, rw = tw(rest);
+        const x0 = plan.x - (pw + rw) / 2;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT; ctx.fillText(pctTxt, x0, top + plan.bubH / 2 + 0.5);
+        ctx.fillStyle = sub; ctx.font = '500 10px ' + FONT; ctx.fillText(rest, x0 + pw, top + plan.bubH / 2 + 0.5);
+      } else {
+        ctx.fillStyle = ink; ctx.font = '700 10.5px ' + FONT;
+        ctx.fillText(pctTxt, plan.x, top + plan.bubH / 2 + 0.5);
+      }
+    }
+  }
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = cssVar('--on-surface', '#191C1A'); ctx.textAlign = 'center';
-  ctx.font = '700 13px system-ui';
-  ctx.fillText(t('totalStocks'), cx, cy - 4);
-  ctx.font = '800 17px system-ui';
-  const cur = state.currency;
-  ctx.fillText(money(cur === 'ILS' && state.fx ? total * state.fx : total, cur), cx, cy + 18);
+  ctx.direction = 'inherit';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = cssVar('--on-surface-var', '#6B6B70');
+  ctx.font = '600 13px ' + FONT;
+  ctx.fillText(t('totalStocks'), cx, cy - 8);
+  ctx.fillStyle = cssVar('--on-surface', '#191C1A');
+  ctx.font = '800 21px ' + FONT;
+  ctx.fillText(money(val(total), cur), cx, cy + 17);
 
   const legend = document.getElementById('pieLegend');
   legend.innerHTML = '';
   const sorted = slicesUnique.slice().sort((a, b) => b.value - a.value);
   for (const s of sorted) {
+    const src = logoSrc(s.sym);
+    const e = src ? pieLogoImg(s.sym) : null;
+    const full = companyName(s.sym, s.name);
     const li = el('li', '',
-      (logoSrc(s.sym) ? '<span class="pie-leg-logo"><img src="' + logoSrc(s.sym) + '" alt="" loading="lazy" data-err="hide-parent"></span>' : '<span class="pie-leg-logo"></span>') +
+      '<span class="pie-leg-logo' + (e && e.ready && e.light ? ' on-dark' : '') + '">' +
+      '<span class="pie-leg-fb">' + esc((normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
+      (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" data-err="hide-self">' : '') + '</span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +
-      '<span class="lg-name"><bdi dir="ltr">' + esc(s.sym) + '</bdi>' + (s.name && s.name !== s.sym ? ' · ' + esc(s.name) : '') + '</span>' +
-      '<span class="lg-val">' + money(cur === 'ILS' && state.fx ? s.value * state.fx : s.value, cur) + '</span>' +
+      '<span class="lg-name"><bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>' +
+      (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
+      '<span class="lg-val">' + money(val(s.value), cur) + '</span>' +
       '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
     legend.appendChild(li);
   }

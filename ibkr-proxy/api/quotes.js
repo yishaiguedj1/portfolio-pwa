@@ -16,7 +16,7 @@ const BUDGET_MS = 8000;
 const CACHE_MS = 1500;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
 const META_KEYS = ['currency', 'symbol', 'regularMarketPrice', 'chartPreviousClose', 'previousClose', 'regularMarketTime',
-  'regularMarketDayHigh', 'regularMarketDayLow', 'regularMarketVolume', 'gmtoffset', 'timezone', 'exchangeName', 'currentTradingPeriod'];
+  'regularMarketDayHigh', 'regularMarketDayLow', 'regularMarketVolume', 'gmtoffset', 'timezone', 'exchangeName', 'currentTradingPeriod', 'longName', 'shortName'];
 const cache = new Map();
 let crumbState = { cookie: '', crumb: '', at: 0 };
 

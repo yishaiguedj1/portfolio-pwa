@@ -332,11 +332,19 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .pie-wrap { display: flex; justify-content: center; }
 #pieChart { width: 100%; max-width: 460px; aspect-ratio: 1 / 1; height: auto; display: block; }
 .pie-leg-logo {
-  width: 22px; height: 22px; border-radius: 7px; flex: none; overflow: hidden;
+  position: relative; width: 34px; height: 34px; border-radius: 10px; flex: none; overflow: hidden;
   display: inline-flex; align-items: center; justify-content: center;
-  background: #FFFFFF; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+  background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
 }
-.pie-leg-logo img { width: 100%; height: 100%; object-fit: contain; padding: 2px; box-sizing: border-box; }
+.pie-leg-logo.on-dark { background: #1D1D1F; }
+[data-theme="dark"] .pie-leg-logo.on-dark { box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.pie-leg-fb { font-weight: 800; font-size: 15px; color: #3A3A3C; }
+.pie-leg-logo.on-dark .pie-leg-fb { color: #F2F2F7; }
+.pie-leg-logo img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+  padding: 5px; box-sizing: border-box; background: inherit;
+}
+.pie-leg-logo img[src*="tradingview"] { padding: 0; }
 .legend { list-style: none; margin: 10px 0 0; padding: 0; }
 .legend li {
   display: flex; align-items: center; gap: 10px;
@@ -346,7 +354,11 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .dot { width: 13px; height: 13px; border-radius: 5px; flex: none; }
 .legend .lg-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* v151: מקרא העוגה — "SYM · שם": הסימבול ראשון והחיתוך רק בסוף השם */
-#pieLegend .lg-name { flex: 0 1 auto; margin-inline-end: auto; unicode-bidi: plaintext; }
+#pieLegend .lg-name { flex: 1 1 auto; margin-inline-end: auto; display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
+#pieLegend .lg-sym { font-weight: 700; font-size: 15.5px; align-self: flex-start; }
+#pieLegend .lg-full { align-self: flex-start; max-width: 100%; font-weight: 500; font-size: 13px; color: var(--on-surface-var); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#pieLegend li { gap: 12px; padding: 10px 0; }
+#pieLegend .dot { width: 10px; height: 10px; border-radius: 50%; }
 .legend .lg-val { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .legend .lg-pct { font-weight: 700; min-width: 56px; text-align: end; font-variant-numeric: tabular-nums; }
 

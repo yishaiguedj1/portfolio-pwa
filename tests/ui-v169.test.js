@@ -1,0 +1,35 @@
+// ui-v169.test.js — עוגת חלוקת התיק: לוגו + סימבול + בועה (אחוז ושווי) בכל פרוסה שיש בה מקום,
+// לוגו לבן על אריח כהה, שם מלא במקרא.
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const root = path.join(__dirname, '..');
+const src = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const proxy = fs.readFileSync(path.join(root, 'ibkr-proxy/api/quotes.js'), 'utf8');
+let n = 0;
+function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.exit(1); } console.log('ok - ' + name); }
+const sb = { localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {} }) }, window: {}, navigator: {}, location: {}, AbortController, fetch: () => Promise.reject(1), setTimeout, clearTimeout, console };
+vm.createContext(sb); vm.runInContext(src, sb);
+const A = (k) => vm.runInContext(k, sb);
+const fits = A('pieBoxFits');
+const q = Math.PI / 2;
+ok(fits(0, -100, 40, 40, -q - 0.5, -q + 0.5, 60, 140, 3), 'מלבן במרכז פרוסה רחבה — נכנס');
+ok(!fits(0, -100, 40, 40, -q - 0.1, -q + 0.1, 60, 140, 3), 'פרוסה צרה — לא נכנס (לא דוחסים)');
+ok(!fits(0, -100, 40, 100, -q - 0.8, -q + 0.8, 60, 140, 3), 'גבוה מעובי הטבעת — לא נכנס');
+ok(fits(0, 100, 30, 30, q - 0.4, q + 0.4, 60, 140, 3) && fits(-100, 0, 30, 30, Math.PI - 0.4, Math.PI + 0.4, 60, 140, 3), 'עובד בכל כיוון (כולל מעבר ±π)');
+const sm = A('fmtShortMoney');
+ok(sm(13153, 'USD') === '$13K' && sm(9663, 'USD') === '$9.7K' && sm(950, 'USD') === '$950' && sm(2500000, 'ILS') === '₪2.5M' && sm(4000, 'USD') === '$4K', 'שווי מקוצר לבועה: $13K / $9.7K / $950 / ₪2.5M');
+vm.runInContext('state.lang = "he"', sb);
+const cn = A('companyName');
+ok(cn('MSFT') === 'Microsoft' && cn('META') === 'Meta Platforms' && cn('NOW') === 'ServiceNow', 'שם מלא ונקי (בלי Inc./Corp.)');
+ok(cn('POLI.TA') === 'הפועלים' && (vm.runInContext('state.lang = "en"', sb), cn('POLI.TA') === 'Bank Hapoalim'), 'ת"א: שם בעברית / באנגלית לפי השפה');
+ok(/'longName', 'shortName'\]/.test(proxy) && /longName: meta\.longName \|\| meta\.shortName/.test(src), 'מניה שלא ברשימה: השם מ־Yahoo דרך השרתון');
+ok(/return cnt >= 5 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן (UNH/UBER/APP) מזוהה');
+ok(/ctx\.fillStyle = light \? '#1D1D1F' : '#FFFFFF';/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' on-dark'/.test(src), 'לוגו לבן — על אריח כהה, בעוגה ובמקרא');
+ok(/const tiers = \[\[32, true, 'two'\]/.test(src), 'עדיפות: לוגו + סימבול + בועה (אחוז מעל שווי)');
+ok(/ctx\.strokeStyle = surface; ctx\.lineWidth = gap;/.test(src), 'רווח דק בצבע הכרטיס בין הפרוסות');
+ok(/\.pie-leg-logo \{[^}]*width: 34px; height: 34px; border-radius: 10px;/.test(css) && /\.pie-leg-logo\.on-dark \{ background: #1D1D1F; \}/.test(css), 'מקרא: לוגו גדול יותר, אריח מעוגל; לבן על כהה');
+ok(/class="lg-full" dir="auto"/.test(src) && /#pieLegend \.lg-full \{ align-self: flex-start; max-width: 100%;/.test(css), 'מקרא: שם מלא מתחת לסימבול, חיתוך בסוף השם');
+ok(/data-err="hide-self"/.test(src) && /im\.dataset\.err === 'hide-self'/.test(src), 'לוגו שלא נטען — נשארת האות, לא ריבוע ריק');
+console.log('\n' + n + ' בדיקות עברו');
