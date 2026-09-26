@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v174';
+const APP_VERSION = 'v175';
 
 
 function saveDBto(db) {
@@ -5993,7 +5993,7 @@ function drawPie() {
     const rhoMax = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W, H) / 2 * SC));
     for (rho = (R0 + holeOf(R0)) / 2; rho <= rhoMax; rho += 3) { posAt(rho); if (!anyClash()) { ok = true; break; } }
     if (!ok) { rho = rhoMax; posAt(rho); }
-    R = Math.max(R0 * 0.6, Math.min(R0, rho - H * SC * 0.15));
+    R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
   // עדיין יש התנגשות (הרבה מניות זעירות) — מוותרים על התווית של הקטנה יותר
   const shown = [];

@@ -153,7 +153,7 @@ function makeSandbox() {
   // --- 5. CSS: קנבס מרובע וגדול, כרטיס לוגו למקרא ---
   const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
   ok(/#pieChart\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/.test(css), 'CSS: הקנבס מרובע (aspect-ratio 1/1) — גדל עם הרוחב');
-  ok(/#pieChart\s*\{[^}]*max-width:\s*4\d\dpx/.test(css), 'CSS: max-width גדול משמעותית מ-340px הישן');
+  ok(/#pieChart\s*\{[^}]*max-width:\s*[45]\d\dpx/.test(css), 'CSS: max-width גדול משמעותית מ-340px הישן');
   ok(/\.pie-leg-logo\s*\{/.test(css), 'CSS: מחלקת לוגו המקרא קיימת');
 
   // גרסאות
