@@ -3936,7 +3936,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v212';
+const APP_VERSION = 'v213';
 
 
 function saveDBto(db) {
@@ -9738,8 +9738,23 @@ function widgetUrl(cfg, items) {
 }
 /* preset.json של KWGT: תמונה אחת מהשרתון (הכתובת במשתנה גלובלי "link" — אפשר לערוך בתוך KWGT), מתרעננת כל דקה
    (z = שעה+דקה), ונגיעה פותחת את האפליקציה. מבנה לפי קבצי .kwgt אמיתיים (RootLayerModule / BitmapModule). */
-function widgetPreset(url, n) {
-  const w = 720, h = Math.round(w * (42 + 82.5 * n) / 400); // יחס התמונה (400px CSS, ~82px לכרטיס)
+/* v213: גיאומטריית תמונת הווידג'ט — זהה ל־ibkr-proxy/lib/widget-html.js (HEAD/CARD/GAP/TOP0/BOTTOM, רוחב 400) */
+const WIDGET_GEOM = { W: 400, HEAD: 32, CARD: 72, GAP: 6, TOP0: 56, BOTTOM: 12, PAD: 12 };
+function widgetOpenIntent(sym) {
+  return 'intent:' + pwaUrl() + (sym ? '#stock=' + encodeURIComponent(sym) : '') + '#Intent;action=android.intent.action.VIEW;S.org.kustom.intent.label=THE%20SNOWBALL;end';
+}
+/* preset.json של KWGT: תמונה אחת מהשרתון (הכתובת במשתנה גלובלי "link" — אפשר לערוך בתוך KWGT), מתרעננת כל דקה
+   (z = שעה+דקה). נגיעה בכרטיס (v213) — אזור שקוף מעל כל כרטיס פותח את המניה באפליקציה (#stock=SYM); נגיעה בכותרת —
+   את האפליקציה. מבנה לפי קבצי .kwgt אמיתיים (RootLayerModule / BitmapModule / ShapeModule שקוף עם internal_events). */
+function widgetPreset(url, items) {
+  const G = WIDGET_GEOM, n = Math.max(1, items.length), k = 720 / G.W;
+  const w = 720, hCss = G.TOP0 + n * G.CARD + (n - 1) * G.GAP + G.BOTTOM, h = Math.round(hCss * k);
+  const zones = items.map((it, i) => ({
+    internal_type: 'ShapeModule', internal_title: it.sym, shape_type: 'RECT',
+    shape_width: Math.round((G.W - 2 * G.PAD) * k), shape_height: Math.round(G.CARD * k), paint_color: '#00FFFFFF',
+    position_offset_x: 0, position_offset_y: Math.round((G.TOP0 + i * (G.CARD + G.GAP) + G.CARD / 2 - hCss / 2) * k),
+    internal_events: [{ type: 'SINGLE_TAP', action: 'LAUNCH_APP', intent: widgetOpenIntent(it.sym) }],
+  }));
   return {
     preset_info: { version: 11, title: 'THE SNOWBALL', description: 'THE SNOWBALL — portfolio widget', author: 'THE SNOWBALL', width: w, height: h, features: '', release: 1, locked: false, pflags: 0 },
     preset_root: {
@@ -9748,10 +9763,38 @@ function widgetPreset(url, n) {
       viewgroup_items: [{
         internal_type: 'BitmapModule', internal_title: 'THE SNOWBALL', bitmap_width: w,
         bitmap_bitmap: url, internal_formulas: { bitmap_bitmap: '$gv(link)$&z=$df(HHmm)$' },
-        internal_events: [{ type: 'SINGLE_TAP', action: 'LAUNCH_APP', intent: 'intent:' + pwaUrl() + '#Intent;action=android.intent.action.VIEW;S.org.kustom.intent.label=THE%20SNOWBALL;end' }],
-      }],
+        internal_events: [{ type: 'SINGLE_TAP', action: 'LAUNCH_APP', intent: widgetOpenIntent('') }],
+      }].concat(zones),
     },
   };
+}
+/* v213: קישור עמוק מהווידג'ט — ‎#stock=SYM → טאב המניות, הכרטיס של המניה פתוח וגלול לראש המסך.
+   גם בהפעלה וגם כשהאפליקציה כבר פתוחה (hashchange). ה־hash נמחק מיד (רענון לא יפתח שוב). */
+function openStockFromHash() {
+  let m = null;
+  try { m = /(?:^#|&)stock=([^&#]+)/.exec(location.hash || ''); } catch (e) {}
+  if (!m) return false;
+  const sym = normalizeSym(decodeURIComponent(m[1]));
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (!sym || !POSITIONS.some((p) => p.sym === sym)) return false;
+  switchTab('stocks');
+  cancelScrollRestore();
+  const go = (tries) => {
+    const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
+    if (!card) { if (tries < 40) setTimeout(() => go(tries + 1), 150); return; }
+    const wasOpen = !!state.open[sym];
+    if (!wasOpen) toggleStock(sym, card);
+    // גלילה אחרי אנימציית הפתיחה — לפניה הדף עוד קצר והגלילה נחתכת
+    setTimeout(() => {
+      const cur = document.querySelector('#stockList .stock[data-sym="' + sym + '"]') || card; // הרשימה אולי צוירה מחדש בינתיים
+      const bar = document.querySelector('.appbar');
+      const off = bar ? bar.getBoundingClientRect().height : 0;
+      const y = cur.getBoundingClientRect().top + (window.scrollY || 0) - off - 12;
+      try { window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } catch (e) { window.scrollTo(0, Math.max(0, y)); }
+    }, wasOpen ? 0 : 480);
+  };
+  go(0);
+  return true;
 }
 /* zip מינימלי (בלי דחיסה) — מספיק ל־.kwgt. טהור: [{name, data:Uint8Array}] → Uint8Array */
 const _crcTable = (() => { const t = new Uint32Array(256); for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[i] = c >>> 0; } return t; })();
@@ -9817,7 +9860,7 @@ async function widgetDownload() {
   if (!items.length) return;
   const url = widgetUrl(c, items);
   const enc = new TextEncoder();
-  const files = [{ name: 'preset.json', data: enc.encode(JSON.stringify(widgetPreset(url, items.length))) }];
+  const files = [{ name: 'preset.json', data: enc.encode(JSON.stringify(widgetPreset(url, items))) }];
   try {
     const png = _widgetPng || await (await fetch(url + '&z=' + Date.now())).blob();
     const buf = new Uint8Array(await png.arrayBuffer());
@@ -9993,6 +10036,8 @@ function init() {
   }
 
   try { wireWidgetCard(); } catch (e) {} // v211: ווידג'ט למסך הבית
+  // v213: נגיעה בכרטיס בווידג'ט → המניה באפליקציה (קישור ‎#stock=SYM) — אחרי הציור הראשון, וגם כשהאפליקציה כבר פתוחה
+  try { window.addEventListener('hashchange', () => { try { openStockFromHash(); } catch (e) {} }); setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0); } catch (e) {}
 
   // מפתח Twelve Data לגרפים (נשמר בטלפון בלבד) — בלשונית הגדרות
   const tdSave = document.getElementById('tdKeySave');

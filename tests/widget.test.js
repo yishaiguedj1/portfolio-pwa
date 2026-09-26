@@ -92,12 +92,27 @@ ok(/^AAPL~[im]~Apple,LUMI\.TA~m~לאומי~leumi,KO~m~Coca-Cola$/.test(param) &&
 ok(M.parseItems(param).length === 3, 'השרתון מפענח את מה שהאפליקציה יוצרת');
 const url = R("widgetUrl({ theme: 'dark' })");
 ok(url.startsWith('https://ibkr-proxy-wine.vercel.app/api/widget?s=') && url.endsWith('&l=he&t=dark') && !/&n=/.test(url), 'קישור מלא לשרתון, בלי כמות (כל התיק)');
-const preset = R("widgetPreset('https://x/api/widget?s=A', 3)");
+const preset = R("widgetPreset('https://x/api/widget?s=A', [{ sym: 'AAPL' }, { sym: 'LUMI.TA' }, { sym: 'KO' }])");
 const bm = preset.preset_root.viewgroup_items[0];
 ok(preset.preset_root.internal_type === 'RootLayerModule' && bm.internal_type === 'BitmapModule' && bm.internal_formulas.bitmap_bitmap === '$gv(link)$&z=$df(HHmm)$' && preset.preset_root.globals_list.link.value === 'https://x/api/widget?s=A', 'preset.json: תמונה מהקישור (משתנה link), מתרעננת כל דקה');
-ok(/^intent:https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/#Intent;action=android\.intent\.action\.VIEW;/.test(bm.internal_events[0].intent), 'נגיעה פותחת את האפליקציה');
+ok(/^intent:https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/#Intent;action=android\.intent\.action\.VIEW;/.test(bm.internal_events[0].intent), 'נגיעה בכותרת פותחת את האפליקציה');
+// v213: אזור נגיעה לכל כרטיס — על הכרטיס בדיוק (אותה גיאומטריה כמו השרתון) ופותח את המניה
+const H = require('../ibkr-proxy/lib/widget-html');
+const G = R('WIDGET_GEOM');
+ok(G.W === H.WIDTH && G.HEAD === H.HEAD && G.CARD === H.CARD && G.GAP === H.GAP && G.TOP0 === H.TOP0 && G.BOTTOM === H.BOTTOM, 'גיאומטריה זהה באפליקציה ובשרתון');
+const zones = preset.preset_root.viewgroup_items.slice(1);
+const k = 720 / 400, hCss = H.TOP0 + 3 * H.CARD + 2 * H.GAP + H.BOTTOM;
+ok(zones.length === 3 && zones.every((z) => z.internal_type === 'ShapeModule' && z.paint_color === '#00FFFFFF'), 'שלושה אזורי נגיעה שקופים');
+ok(zones.every((z, i) => Math.abs(z.position_offset_y - (H.TOP0 + i * (H.CARD + H.GAP) + H.CARD / 2 - hCss / 2) * k) <= 1 && Math.abs(z.shape_height - H.CARD * k) <= 1) && preset.preset_info.height === Math.round(hCss * k), 'אזור i ממורכז על כרטיס i (ביחידות KWGT)');
+ok(/#stock=LUMI\.TA#Intent;action=android\.intent\.action\.VIEW;/.test(zones[1].internal_events[0].intent), 'נגיעה בכרטיס → #stock=SYM');
+// קישור עמוק באפליקציה
+R("var __sw = null, __opened = []; switchTab = (n) => { __sw = n; }; toggleStock = (s) => { __opened.push(s); state.open[s] = true; }; globalThis.history = { replaceState: () => { location.hash = ''; } };");
+R("location.hash = '#stock=LUMI.TA'; document.querySelector = (q) => (/data-sym=\"LUMI\.TA\"/.test(q) ? { getBoundingClientRect: () => ({ top: 500, height: 50 }) } : null); window.scrollTo = () => {}; window.scrollY = 0;");
+ok(R('openStockFromHash()') === true && R('__sw') === 'stocks' && R('__opened.join()') === 'LUMI.TA' && R('location.hash') === '', '#stock=SYM → טאב מניות, הכרטיס נפתח, ה־hash נמחק');
+R("location.hash = '#stock=NOPE'; __sw = null;");
+ok(R('openStockFromHash()') === false && R('__sw') === null, 'מניה שלא בתיק — לא עוברים טאב');
 // zip אמיתי — נפתח ב־unzip
-const zipBytes = R("zipStore([{ name: 'preset.json', data: new TextEncoder().encode(JSON.stringify(widgetPreset('https://x/?s=A', 3))) }, { name: 'preset_thumb_portrait.jpg', data: new Uint8Array([137, 80, 78, 71]) }])");
+const zipBytes = R("zipStore([{ name: 'preset.json', data: new TextEncoder().encode(JSON.stringify(widgetPreset('https://x/?s=A', [{ sym: 'AAPL' }]))) }, { name: 'preset_thumb_portrait.jpg', data: new Uint8Array([137, 80, 78, 71]) }])");
 const tmp = path.join(require('os').tmpdir(), 'w' + process.pid + '.kwgt');
 fs.writeFileSync(tmp, Buffer.from(zipBytes));
 let unz = '';

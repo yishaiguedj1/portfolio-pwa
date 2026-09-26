@@ -17,6 +17,11 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 
 const WIDTH = 400; // CSS px — ~רוחב ווידג'ט 4 תאים; KWGT מתאים את התמונה לרוחב
 const LOGO = 84;   // בקשת המשתמש: 84px בכל תנאי
+/* v213: גיאומטריה קבועה — כל כרטיס בגובה CARD (עם/בלי שורת אחרי־מסחר) והכותרת בגובה HEAD (שורה/שתיים),
+   כדי שאזורי הנגיעה בקובץ ה־KWGT (כרטיס → המניה באפליקציה) יפלו בדיוק על הכרטיסים.
+   מיקום כרטיס i (px, מראש התמונה): TOP0 + i*(CARD+GAP); גובה התמונה: TOP0 + n*CARD + (n-1)*GAP + BOTTOM.
+   אותם מספרים ב־app.js (widgetGeom) — tests/widget.test.js בודק שזהים. */
+const HEAD = 32, CARD = 72, GAP = 6, TOP0 = 8 + 8 + HEAD + 8, BOTTOM = 12;
 
 const CSS = `
 :root{--w:#1c1d20;--w2:#26282c;--on:#f3f5f4;--var:#a3a9a6;--pos:#34c759;--neg:#ff453a;--pill:#2b2d31;--tagbg:rgba(255,69,58,.14);--watch:#9fb0ff;--man:#34c759}
@@ -28,15 +33,15 @@ body{font-family:Roboto,"Noto Sans Hebrew",system-ui,sans-serif;-webkit-font-smo
 .widget{position:relative;background:var(--w);border-radius:26px;padding:8px 12px 12px;display:flex;flex-direction:column;gap:8px;color:var(--on)}
 .hero{position:absolute;left:50%;top:-6px;width:${LOGO}px;height:${LOGO}px;transform:translateX(-50%);z-index:3;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
 .light .hero{filter:drop-shadow(0 6px 14px rgba(0,0,0,.18))}
-.wh{display:grid;grid-template-columns:minmax(0,1fr) ${LOGO + 12}px minmax(0,1fr);align-items:center;padding:0 2px;min-height:28px}
+.wh{display:grid;grid-template-columns:minmax(0,1fr) ${LOGO + 12}px minmax(0,1fr);align-items:center;padding:0 2px;height:${HEAD}px}
 .wh .upd{justify-self:start;padding-inline-start:4px;font-size:11px;color:var(--var);white-space:nowrap}
 .wh .mkw{justify-self:end;display:flex;max-width:100%}
 .mk{display:inline-flex;align-items:center;justify-content:center;column-gap:4px;font-size:10.5px;line-height:1.25;color:var(--var);background:var(--pill);padding:3px 8px;border-radius:12px;text-align:center;white-space:nowrap}
 .mk.two{flex-direction:column;border-radius:11px;padding:3px 9px}
 .dot{width:7px;height:7px;border-radius:50%;background:#8e9490;display:inline-block;margin-inline-end:4px;vertical-align:middle}
 .dot.live{background:var(--pos);box-shadow:0 0 0 2px rgba(52,199,89,.25)}
-.list{display:flex;flex-direction:column;gap:6px}
-.card{background:var(--w2);border-radius:18px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:10px;padding:9px 11px}
+.list{display:flex;flex-direction:column;gap:${GAP}px}
+.card{background:var(--w2);border-radius:18px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:10px;padding:0 11px;height:${CARD}px;overflow:hidden}
 .logo{width:38px;height:38px;border-radius:11px;background:#fff;display:grid;place-items:center;overflow:hidden;flex:none;position:relative}
 .logo img{width:30px;height:30px;object-fit:contain}
 .logo img.inv{filter:invert(1)}
@@ -105,4 +110,4 @@ function buildHtml(model, opts) {
     '</div></div><script>' + SCRIPT + '</script></body></html>';
 }
 
-module.exports = { buildHtml, WIDTH, LOGO, esc };
+module.exports = { buildHtml, WIDTH, LOGO, HEAD, CARD, GAP, TOP0, BOTTOM, esc };
