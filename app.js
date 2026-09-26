@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v184';
+const APP_VERSION = 'v185';
 
 
 function saveDBto(db) {
@@ -6148,7 +6148,9 @@ function drawPie() {
     for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) if (clash(segs[i], segs[j])) return true;
     return false;
   };
-  let R = R0, rho = (R0 + holeOf(R0)) / 2, ok = false;
+  // v185: התוויות שואפות לחלק החיצוני של הפרוסה (62% מרוחב הטבעת) — נוגעות בפרוסה, לא עמוק בפנים
+  const ringAt = (RR, f) => holeOf(RR) + (RR - holeOf(RR)) * f;
+  let R = R0, rho = ringAt(R0, 0.62), ok = false;
   // 1) מעט מניות: במרכז הפרוסות — אם צריך, כל התוויות קטנות יחד (עד 82%) כדי שלא ייגעו
   for (const sc of [1, 0.9, 0.82]) {
     SC = sc;
@@ -6159,7 +6161,7 @@ function drawPie() {
   if (!ok) {
     SC = segs.length <= 12 ? 0.85 : 0.78;
     const rhoMax = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W, H) / 2 * SC));
-    for (rho = (R0 + holeOf(R0)) / 2; rho <= rhoMax; rho += 3) { posAt(rho); if (!anyClash()) { ok = true; break; } }
+    for (rho = ringAt(R0, 0.62); rho <= rhoMax; rho += 3) { posAt(rho); if (!anyClash()) { ok = true; break; } }
     if (!ok) { rho = rhoMax; posAt(rho); }
     R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
@@ -6209,8 +6211,9 @@ function drawPie() {
     if (g.chip) { g.skip = false; shown.push(g); continue; }
     g.skip = shown.some((o) => clash(o, g));
     // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°) לפני שמוותרים
-    for (let k = 1; g.skip && k <= 7; k++) {
-      for (const sgn of [1, -1]) {
+    // v185: הגדולות מונחות קודם (בדיוק מול הפרוסה); תווית שצריכה לזוז — קודם עם כיוון השעון (לצד ה"ימני" של הפרוסה), ואז נגד
+    for (let step = 1; g.skip && step <= 14; step++) {
+      for (const [sgn, k] of [step <= 7 ? [1, step] : [-1, step - 7]]) {
         const th = g.mid + sgn * k * 0.05;
         g.x = Math.cos(th) * rho; g.y = Math.sin(th) * rho;
         if (!shown.some((o) => clash(o, g))) { g.skip = false; break; }

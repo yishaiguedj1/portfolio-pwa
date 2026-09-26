@@ -65,4 +65,5 @@ ok(/#pieLegend li\.active \.pie-leg-logo \{ transform: scale\(1\.18\)/.test(css)
 }
 ok(/const cr = Math\.max\(0, Math\.min\(7, \(Ro - r\) \/ 4, span \* r \/ 2\.4, span \* Ro \/ 2\.4\)\);/.test(src) && /ctx\.arcTo\(\.\.\.pt\(g\.a, Ro\)/.test(src), 'v182: פינות מעוגלות לכל פרוסה (קטנות יותר בפרוסה צרה)');
 ok(/g\.out = OUTER \|\| rho > \(holeOf\(R\) \+ R\) \/ 2 \+ 6;/.test(src) && /const len = Math\.min\(18, dist - edge - 3\);/.test(src) && /if \(dist <= edge \+ 6\) continue;/.test(src), 'v184: במעט מניות — סיכה קצרה (≤18px) מקצה התווית לתוך הפרוסה; בלי קו כשהתווית מכסה את אמצע הפרוסה');
+ok(/let R = R0, rho = ringAt\(R0, 0\.62\), ok = false;/.test(src) && /for \(const \[sgn, k\] of \[step <= 7 \? \[1, step\] : \[-1, step - 7\]\]\)/.test(src) && /segs\.slice\(\)\.sort\(\(p, q\) => q\.s\.value - p\.s\.value\)/.test(src), 'v185: תוויות בחלק החיצוני של הטבעת; הגדולה מונחת ראשונה מול הפרוסה; הזזה קודם עם כיוון השעון');
 console.log('\n' + n + ' בדיקות עברו');
