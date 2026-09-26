@@ -421,6 +421,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-sub .buy-chg, .stock-sub .buy-amt { font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .stock-sub .buy-chg:not(.pos):not(.neg), .stock-sub .buy-amt:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
+.day-chg .day-amt { font-weight: 600; font-size: 13.5px; margin-inline-start: 4px; white-space: nowrap; } /* v208: השינוי היומי בכסף ליד האחוז */
 .day-chg.pos, .pos { color: var(--gain); }
 .day-chg.neg, .neg { color: var(--loss); }
 .chev { color: var(--on-surface-var); transition: transform .2s; font-size: 17px; }

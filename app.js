@@ -3905,7 +3905,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v207';
+const APP_VERSION = 'v208';
 
 
 function saveDBto(db) {
@@ -8729,7 +8729,10 @@ function stockSubHTML(p, m) {
   const toCur = (usd) => (usd === null || usd === undefined ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
   const cls = (v) => (v === null || !isFinite(v) || Math.abs(v) < 0.005 ? '' : v >= 0 ? 'pos' : 'neg');
   const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
-  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) })) + '</span>' +
+  // v208: גם השינוי היומי בכסף (שווי האחזקה היום פחות שוויה בסגירה הקודמת), באותו צבע, מעט קל יותר
+  const dayAmt = day === null || m.value === null || !isFinite(m.value) ? null : m.value - m.value / (1 + day / 100);
+  const dayAmtHTML = dayAmt === null || !isFinite(dayAmt) ? '' : ' <span class="day-amt">' + fmtSignedMoney(toCur(Math.abs(dayAmt) < 0.5 ? 0 : dayAmt), cur) + '</span>';
+  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) }) + dayAmtHTML) + '</span>' +
     '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
   if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
