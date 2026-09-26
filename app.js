@@ -231,7 +231,7 @@ he: {
   sessExtTitle: 'שינוי מהסגירה הרגילה',
   staleSuffix: ' · מוצגים נתונים שמורים',
   fxSource: 'שער חליפין',
-  fxRateLabel: 'שער דולר־שקל',
+  fxRateLabel: 'שער הדולר',
   fxUpd: 'עודכן {time}',
   noPriceConn: 'אין חיבור למקור המחירים — מוצגים נתונים אחרונים מ־{time}.',
   noPrices: 'לא התקבלו מחירים. בדקו חיבור לאינטרנט ונסו לרענן.',
@@ -707,7 +707,7 @@ en: {
   sessExtTitle: 'Change from regular close',
   staleSuffix: ' · showing saved data',
   fxSource: 'Exchange rate',
-  fxRateLabel: 'USD/ILS rate',
+  fxRateLabel: 'USD rate',
   fxUpd: 'updated {time}',
   noPriceConn: 'No connection to the price source — showing last data from {time}.',
   noPrices: 'No prices received. Check your internet connection and try refreshing.',
@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v193';
+const APP_VERSION = 'v194';
 
 
 function saveDBto(db) {
@@ -4673,7 +4673,7 @@ async function tryFx() {
 function paintFxPill(changed) {
   const v = document.getElementById('fxPillValue');
   if (v) {
-    v.textContent = state.fx ? '$1 = ₪' + state.fx.toFixed(4) : '—';
+    v.innerHTML = state.fx ? '<span class="fx-cur">₪</span>' + state.fx.toFixed(2) : '—'; // v194: שתי ספרות, בועה אנכית בהדר
     if (changed) {
       const pill = document.getElementById('fxPill');
       if (pill) { pill.classList.remove('flash'); void pill.offsetWidth; pill.classList.add('flash'); }

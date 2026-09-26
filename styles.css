@@ -844,23 +844,22 @@ footer.fine { text-align: center; }
 .src-opt-check .ic { margin: 0; }
 
 
-/* v101: פיל שער דולר־שקל חי בראש העמוד הראשי — נקי בסגנון אפל */
+/* v194: בועת שער הדולר — אנכית, מינימליסטית, בין הלוגו לכפתורי ההדר (מחליפה את הפיל של v101 בראש הסקירה) */
 .fx-pill {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: fit-content; max-width: 100%;
-  margin: 2px auto 12px; padding: 8px 18px;
-  border-radius: var(--pill);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  flex: none; min-width: 72px; padding: 7px 12px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   border: 1px solid var(--card-border);
   box-shadow: var(--shadow);
-  font-size: 14px; color: var(--on-surface-var);
+  color: var(--on-surface-var);
 }
-.fx-pill-label { font-weight: 600; }
+.fx-pill-label { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .fx-pill-value {
-  font-weight: 700; color: var(--on-surface);
+  font-size: 18px; font-weight: 700; line-height: 1.15; color: var(--on-surface);
   font-variant-numeric: tabular-nums;
 }
-.fx-pill-upd { font-size: 12px; }
+.fx-pill-value .fx-cur { font-size: 12px; font-weight: 600; color: var(--on-surface-var); margin-inline-end: 1px; }
 .live-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: #30d158; flex: none;
