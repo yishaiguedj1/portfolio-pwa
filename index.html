@@ -30,12 +30,8 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 <header class="appbar">
   <div class="appbar-row">
     <h1 class="brand"><img src="logo-header.png" class="brand-logo" width="106" height="106" alt="" decoding="async"><span class="sr-only" data-i18n="appTitle">תיק ההשקעות</span></h1>
-    <!-- v194: בועת שער הדולר — אנכית ומינימליסטית, בין הלוגו לכפתורים (בקשת המשתמש) -->
-    <div class="fx-pill" id="fxPill" role="status" aria-live="polite">
-      <span class="fx-pill-label" data-i18n="fxRateLabel">שער הדולר</span>
-      <span class="fx-pill-value" id="fxPillValue" dir="ltr">—</span>
-    </div>
     <div class="appbar-left">
+    <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
     <div class="appbar-actions">
     <button id="curToggleBtn" class="icon-btn cur-btn" type="button" data-i18n-aria="curToggleAria" aria-label="החלפת מטבע">₪</button>
     <div class="lang-wrap">
@@ -62,7 +58,11 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       </div>
     </div>
     </div>
-    <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
+    <!-- v195: בועת שער הדולר מתחת לכפתורים (במקום שורת "מקור", שעברה מעליהם) — בקשת המשתמש -->
+    <div class="fx-pill" id="fxPill" role="status" aria-live="polite">
+      <span class="fx-pill-label" data-i18n="fxRateLabel">שער הדולר</span>
+      <span class="fx-pill-value" id="fxPillValue" dir="ltr">—</span>
+    </div>
     </div>
   </div>
 </header>
