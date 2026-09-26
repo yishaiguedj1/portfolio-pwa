@@ -44,16 +44,25 @@ ok(A('pieShade')('#000000', 0.5) === '#808080' && A('pieShade')('#FFFFFF', -0.5)
 ok(/canvas\.addEventListener\('pointerdown'/.test(src) && /navigator\.vibrate\(8\)/.test(src) && /prefers-reduced-motion: reduce/.test(src) && /ctx\.shadowBlur = 22 \* L/.test(src), 'v178: נגיעה מרימה את הפרוסה (צל, רטט קל, מכבד הפחתת תנועה)');
 ok(/#pieChart \{ -webkit-tap-highlight-color: transparent;/.test(css), 'v179: בלי הריבוע הכחול בנגיעה');
 ok(/const PIE_SPRING = \{ k: 320, c: 20 \};/.test(src) && /ctx\.globalAlpha = dimA;/.test(src) && /ctx\.fillText\(act\.pctTxt, cx,/.test(src), 'v179: אנימציית קפיץ, השאר מתעמעמות, פרטי המניה במרכז');
-ok(/const pop = 1 \+ 0\.2 \* gL;/.test(src) && /g\.x \+= ox; g\.y \+= oy; \/\/ v180/.test(src), 'v180: הלוגו והבועה זזים וגדלים יחד עם הפרוסה (אותו קפיץ)');
+ok(/const pop = 1 \+ 0\.2 \* gL;/.test(src) && /if \(!g\.chip\) \{ g\.x \+= ox; g\.y \+= oy; \}/.test(src), 'v180: הלוגו והבועה זזים וגדלים יחד עם הפרוסה (אותו קפיץ)');
 ok(/#pieLegend li\.active \.pie-leg-logo \{ transform: scale\(1\.18\)/.test(css) && /function pieMarkLegend/.test(src) && /if \(pieAnimRaf && legend\.children && legend\.children\.length\) \{ pieMarkLegend\(legend\); return; \}/.test(src), 'v180: שורת המקרא של הפרוסה מודגשת והלוגו קופץ; בלי בנייה מחדש בזמן אנימציה');
 {
   const vals = [77853,46983,35064,27409,27200,17000,15000,12000,11000,11000,10000,9200,7700,5200,4800,3700,3200,3100,2600,2291,1093,1084,1068,1047,601,495,482,400,159];
-  const mk = (N) => { const v = vals.slice(0, N), T = v.reduce((a, b) => a + b, 0); let a = -Math.PI / 2; return v.map((x) => { const a2 = a + x / T * 2 * Math.PI; const it = { mid: (a + a2) / 2, W: 44, H: 45 }; a = a2; return it; }); };
-  const noOverlap = (L, its) => L.pos.every((p, i) => L.pos.every((q, j) => i >= j || !(Math.abs(p.x - q.x) < (its[i].W + its[j].W) / 2 * L.sc && Math.abs(p.y - q.y) < (its[i].H + its[j].H) / 2 * L.sc)));
-  const i29 = mk(29), T29 = A('pieTrackLayout')(i29, 340, 340, 159);
-  ok(T29 && T29.pos.length === 29 && T29.sc >= 0.72 && T29.R > 110 && noOverlap(T29, i29), 'v181: 29 מניות במסך טלפון — כל 29 התוויות, בגודל קריא (' + (T29 && T29.sc) + '), בלי חפיפה, עוגה גדולה');
-  const i13 = mk(13), C13 = A('pieOuterLayout')(i13, 340, 340, 159, 0.72);
-  ok(C13 && C13.pos.length === 13 && noOverlap(C13, i13), 'v181: 13 מניות — כולן על מעגל מסביב לעוגה, קרוב לפרוסות');
-  ok(/pieOuterLayout\(its, w, h, R0, 0\.72\) \|\| pieTrackLayout\(its, w, h, R0\) \|\| pieOuterLayout\(its, w, h, R0, 0\)/.test(src) && /state\.pieOuterCache = \{ key: key, L: L \}/.test(src), 'v181: מעגל → מסלול מלבני → מעגל קטן; הפריסה במטמון (לא מחושבת בכל פריים של האנימציה)');
+  const mk = (N) => { const v = vals.slice(0, N), T = v.reduce((a, b) => a + b, 0); let a = -Math.PI / 2; return v.map((x) => { const a2 = a + x / T * 2 * Math.PI; const it = { mid: (a + a2) / 2 }; a = a2; return it; }); };
+  const lay = A('pieCalloutLayout');
+  for (const N of [13, 21, 29]) {
+    const its = mk(N), L = lay(its, 340, 510, 28 * 0.92, 64 * 0.92, 12);
+    const R = L.pos.filter((p) => p.side > 0), Lf = L.pos.filter((p) => p.side < 0);
+    const ok1 = L && L.pos.every(Boolean) && Math.abs(R.length - Lf.length) <= 1 && L.h <= 510 && L.R >= 0.29 * 340;
+    // בלי חפיפה: בכל טור המרחק בין שבבים ≥ גובה + 4; ובלי הצטלבות: סדר ה־y בטור = סדר הזווית (בטור הימני מ־12 עם השעון)
+    const ys = R.map((p) => p.y).sort((a, b) => a - b);
+    const ok2 = ys.every((y, i) => !i || y - ys[i - 1] >= 28 * 0.92 + 4 - 1e-6);
+    ok(ok1 && ok2, 'v183: ' + N + ' מניות — כל התוויות בשני טורים מאוזנים (' + R.length + '/' + Lf.length + '), בלי חפיפה, גובה ' + Math.round(L.h) + ', עוגה R=' + Math.round(L.R));
+  }
+  ok(/const OUTER = segs\.length > 12;/.test(src) && /pieCalloutLayout\(items, w, w \* 1\.5, CHIP_H \* sc, colW0 \* sc, 12\)/.test(src) && /canvas\.style\.height = h \+ 'px';/.test(src), 'v183: מעל 12 מניות — הסברים בטורים, הקנבס מתארך לפי הצורך');
+  ok(/ctx\.strokeStyle = pieShade\(g\.s\.color, -0\.22\);/.test(src) && /ctx\.fillStyle = s\.color; \/\/ פס הצבע/.test(src) && /ctx\.fillText\(g\.valTxt, tx0, 6\.5\);/.test(src), 'v183: קו מוביל ופס בצבע הפרוסה, אחוז מעל שווי בשבב');
+  ok(/for \(const c of \(geom\.chips \|\| \[\]\)\)/.test(src), 'v183: נגיעה בשבב בוחרת את הפרוסה');
 }
+ok(/const cr = Math\.max\(0, Math\.min\(7, \(Ro - r\) \/ 4, span \* r \/ 2\.4, span \* Ro \/ 2\.4\)\);/.test(src) && /ctx\.arcTo\(\.\.\.pt\(g\.a, Ro\)/.test(src), 'v182: פינות מעוגלות לכל פרוסה (קטנות יותר בפרוסה צרה)');
+ok(/g\.out = OUTER \|\| rho > \(holeOf\(R\) \+ R\) \/ 2 \+ 6;/.test(src) && /const r0 = r \+ 6;/.test(src), 'v183: גם במעט מניות — תווית על השפה מקבלת קו בצבע הפרוסה מתוך הפרוסה');
 console.log('\n' + n + ' בדיקות עברו');

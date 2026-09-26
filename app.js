@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v181';
+const APP_VERSION = 'v183';
 
 
 function saveDBto(db) {
@@ -4156,150 +4156,82 @@ function companyName(sym, fallback) {
   if (!n) { const p = POSITIONS.find((x) => x.sym === sym); n = (p && (p.full || (p.name !== p.sym ? p.name : ''))) || fallback || ''; }
   return String(n).replace(/,?\s+(Inc|Corp|Corporation|Co|Ltd|Limited|Holdings|Hldgs|N\.V|plc|S\.A|AG|SE|Company)\.?(?=\s|$)/gi, '').replace(/\s{2,}/g, ' ').trim();
 }
-/* v181: פריסת תוויות מחוץ לטבעת לתיק עם הרבה מניות — כל התוויות מוצגות. items: [{mid, W, H}] (גודל בסיס),
-   מחזיר { R, sc, pos: [{x, y}] } או null. לכל גודל תווית (sc) הטבעת הכי גדולה שמשאירה לתוויות מקום בתוך הקנבס;
-   התוויות על מעגל מסביב, כל אחת מול הפרוסה שלה, ומתפזרות לאורך המעגל (שומרות על הסדר) עד שאין חפיפה.
-   צפוף מדי — תוויות שכנות לסירוגין בשתי שורות. מעדיפים טבעת גדולה ותוויות גדולות. טהורה. */
-function pieOuterLayout(items, w, h, R0, minSc) {
+/* v183: פריסת "הסברים" (callouts) לתיק עם הרבה מניות — ארבעה אזורים סביב העוגה: שורה מעל (פרוסות ליד 12),
+   טור מימין, שורה מתחת (ליד 6), טור משמאל — השורות רק עם rows=true; ברירת המחדל: שני טורים מאוזנים. כל התוויות על לולאה אחת עם כיוון השעון (שמאל למעלה → מעל → ימין
+   למטה → מתחת → שמאל למעלה), כך שהקווים המובילים לעולם לא מצטלבים; שורה מלאה שופכת לטורים הסמוכים, והטורים
+   מאוזנים. items: [{mid}], chipW/chipH בגודל הסופי. מחזיר { h, R, cx, cy, pos: [{x, y, zone, side}] } או null. טהורה. */
+function pieCalloutLayout(items, w, hMax, chipH, chipW, gap, rows) {
   const n = items.length;
   if (!n) return null;
-  const order = items.map((it, i) => i).sort((a, b) => items[a].mid - items[b].mid);
-  const tryFit = (sc, twoTier) => {
-    const bw = items.map((it) => it.W * sc), bh = items.map((it) => it.H * sc);
-    const maxH = Math.max(...bh), maxW = Math.max(...bw);
-    const R = Math.min(R0, Math.min(w, h) / 2 - 8 - Math.max(maxH, maxW) - (twoTier ? maxH + 4 : 0));
-    if (R < R0 * 0.42) return null;
-    const tier = items.map(() => 0);
-    if (twoTier) order.forEach((i, k) => { tier[i] = k % 2; });
-    const ext = (i, th) => (Math.abs(Math.cos(th)) * bw[i] + Math.abs(Math.sin(th)) * bh[i]) / 2;
-    const tanExt = (i, th) => Math.abs(Math.sin(th)) * bw[i] + Math.abs(Math.cos(th)) * bh[i];
-    const dist = (i, th) => R + 7 + ext(i, th) + tier[i] * (maxH + 4);
-    // זוויות "פרושות": ברצף לפי הסדר, כל אחת קרוב לפרוסה שלה ככל האפשר, עם מרווח מינימלי בין שכנות באותה שורה
-    const T = order.map((i) => items[i].mid);
-    for (let k = 1; k < n; k++) while (T[k] < T[k - 1]) T[k] += Math.PI * 2;
-    const steps = twoTier ? [1, 2] : [1];
-    const enforce = () => {
-      let worst = 0;
-      for (let k = 0; k < n && n > 1; k++) {
-        for (const st of steps) {
-          if (st >= n) continue;
-          const k2 = k + st, wrap = k2 >= n, kk = wrap ? k2 - n : k2;
-          const i = order[k], j = order[kk];
-          if (tier[i] !== tier[j]) continue; // בשורות שונות — לא נוגעות זו בזו
-          const tj = wrap ? T[kk] + Math.PI * 2 : T[kk];
-          const d = Math.min(dist(i, T[k]), dist(j, tj));
-          const need = ((tanExt(i, T[k]) + tanExt(j, tj)) / 2 + 4) / d;
-          const def = need - (tj - T[k]);
-          if (def > 0) { worst = Math.max(worst, def); T[k] -= def / 2 + 1e-4; T[kk] += def / 2 + 1e-4; }
-        }
-      }
-      return worst;
-    };
-    for (let it = 0; it < 500; it++) {
-      enforce();
-      if (it > 40 && it % 3 === 0 && it < 420) for (let k = 0; k < n; k++) { // משיכה עדינה חזרה אל הפרוסה
-        const i = order[k];
-        let m = items[i].mid; while (m < T[k] - Math.PI) m += Math.PI * 2; while (m > T[k] + Math.PI) m -= Math.PI * 2;
-        T[k] += (m - T[k]) * 0.04;
-      }
-    }
-    for (let it = 0; it < 200 && enforce() > 0; it++);
-    const th = items.map(() => 0);
-    order.forEach((i, k) => { th[i] = T[k]; });
-    const P = items.map((it, i) => { const d = dist(i, th[i]); return { x: Math.cos(th[i]) * d, y: Math.sin(th[i]) * d }; });
-    const hit = (i, j) => Math.abs(P[i].x - P[j].x) < (bw[i] + bw[j]) / 2 + 1 && Math.abs(P[i].y - P[j].y) < (bh[i] + bh[j]) / 2 + 1;
-    for (let i = 0; i < n; i++) {
-      let dm = th[i] - items[i].mid; while (dm > Math.PI) dm -= Math.PI * 2; while (dm < -Math.PI) dm += Math.PI * 2;
-      if (Math.abs(dm) > 1.9) return null;
-      if (Math.abs(P[i].x) + bw[i] / 2 > w / 2 || Math.abs(P[i].y) + bh[i] / 2 > h / 2) return null;
-      for (let j = i + 1; j < n; j++) if (hit(i, j)) return null;
-    }
-    return { R: R, sc: sc, pos: P, tier: tier };
+  const Q = Math.PI / 4;
+  const norm = (a) => { let t = a; while (t < 3 * Q) t += Math.PI * 2; while (t >= 11 * Q) t -= Math.PI * 2; return t; }; // [135°, 495°)
+  const ord = items.map((it, i) => i).sort((p, q) => norm(items[p].mid) - norm(items[q].mid));
+  const ang = (i) => norm(items[i].mid);
+  // אזורים לפי הזווית: L 135–225°, T 225–315°, R 315–405°, B 405–495°
+  const zones = { L: [], T: [], R: [], B: [] };
+  for (const i of ord) { const a = ang(i); zones[a < 5 * Q ? 'L' : a < 7 * Q ? 'T' : a < 9 * Q ? 'R' : 'B'].push(i); }
+  const rowCap = rows ? Math.max(0, Math.floor((w - 8) / (chipW + 6))) : 0; // בלי rows: רק שני טורים (ברירת המחדל)
+  // שורה עמוסה → הקצוות עוברים לטורים הסמוכים (בסדר, לסירוגין), הטורים מאוזנים בסיבוב לאורך הלולאה
+  while (zones.T.length > rowCap) { if (zones.T.length % 2) zones.L.push(zones.T.shift()); else zones.R.unshift(zones.T.pop()); }
+  while (zones.B.length > rowCap) { if (zones.B.length % 2) zones.R.push(zones.B.shift()); else zones.L.unshift(zones.B.pop()); }
+  const rotCW = () => { // שמאל-עליון → תחילת השורה העליונה → סופה → ראש הטור הימני; תחתית ימין → שורה תחתונה → ראש שמאל
+    if (!zones.L.length) return false;
+    zones.T.unshift(zones.L.pop());
+    if (zones.T.length > rowCap) zones.R.unshift(zones.T.pop());
+    return true;
   };
-  // עדיפות: קריאוּת (תווית לא קטנה מ־72%) — קודם שורה אחת, אחר כך שתי שורות; רק אם אין ברירה — קטן יותר
-  for (const [sc, two] of [[1, false], [0.9, false], [0.8, false], [0.72, false], [0.64, false], [0.58, false], [0.52, false]]) {
-    if (sc < (minSc || 0)) break;
-    const L = tryFit(sc, two);
-    if (L) return L;
-  }
-  return null;
-}
-
-/* v181: כשגם במעגל אין מקום לכל התוויות בגודל קריא — מסלול מלבני לאורך שולי הקנבס (הרבה יותר היקף),
-   כל תווית במקום שבו הקרן מהפרוסה שלה פוגשת את המסלול, מתפזרות לאורכו לפי הסדר, והטבעת במרכז.
-   מחזיר { R, sc, pos } או null. טהורה. */
-function pieTrackLayout(items, w, h, R0) {
-  const n = items.length;
-  if (!n) return null;
-  const order = items.map((it, i) => i).sort((a, b) => items[a].mid - items[b].mid);
-  for (const sc of [1, 0.92, 0.84, 0.76, 0.68, 0.6, 0.52]) {
-    const bw = items.map((it) => it.W * sc), bh = items.map((it) => it.H * sc);
-    const maxW = Math.max(...bw), maxH = Math.max(...bh);
-    const A = w / 2 - maxW / 2 - 1, B = h / 2 - maxH / 2 - 1;
-    const R = Math.min(R0, Math.min(A - maxW / 2, B - maxH / 2) - 10);
-    if (R < R0 * 0.5) continue;
-    const P = 4 * (A + B);
-    // מיקום על המסלול: s מ־0 (למעלה באמצע) עם כיוון השעון
-    const toXY = (sv) => {
-      let q = ((sv % P) + P) % P;
-      if (q < A) return [q, -B];
-      q -= A; if (q < 2 * B) return [A, -B + q];
-      q -= 2 * B; if (q < 2 * A) return [A - q, B];
-      q -= 2 * A; if (q < 2 * B) return [-A, B - q];
-      q -= 2 * B; return [-A + q, -B];
-    };
-    const fromAng = (th) => {
-      const c = Math.cos(th), si = Math.sin(th);
-      const t = Math.min(Math.abs(c) > 1e-9 ? A / Math.abs(c) : Infinity, Math.abs(si) > 1e-9 ? B / Math.abs(si) : Infinity);
-      const x = c * t, y = si * t;
-      if (Math.abs(y + B) < 1e-6 && x >= 0) return x;
-      if (Math.abs(x - A) < 1e-6) return A + (y + B);
-      if (Math.abs(y - B) < 1e-6) return A + 2 * B + (A - x);
-      if (Math.abs(x + A) < 1e-6) return 3 * A + 2 * B + (B - y);
-      return 3 * A + 4 * B + (x + A);
-    };
-    const S = order.map((i) => fromAng(items[i].mid));
-    for (let k = 1; k < n; k++) while (S[k] < S[k - 1]) S[k] += P;
-    // מרווח בין שכנות לפי חפיפה אמיתית בדו־ממד (גם סביב פינות המסלול)
-    const enforce = () => {
-      let worst = 0;
-      for (let k = 0; k < n && n > 1; k++) {
-        for (const st of [1, 2]) {
-          if (st >= n) continue;
-          const kk = (k + st) % n, wrap = k + st >= n;
-          const i = order[k], j = order[kk];
-          const sj = wrap ? S[kk] + P : S[kk];
-          if (sj - S[k] < 0.5) { const d = 1; worst = Math.max(worst, d); S[k] -= d; S[kk] += d; continue; }
-          const [xi, yi] = toXY(S[k]), [xj, yj] = toXY(sj);
-          const ox = (bw[i] + bw[j]) / 2 + 4 - Math.abs(xi - xj), oy = (bh[i] + bh[j]) / 2 + 4 - Math.abs(yi - yj);
-          if (ox > 0 && oy > 0) {
-            const d = Math.min(ox, oy) + 0.5;
-            worst = Math.max(worst, d);
-            S[k] -= d / 2; S[kk] += d / 2;
-          }
-        }
-      }
-      return worst;
-    };
-    for (let it = 0; it < 500; it++) {
-      enforce();
-      if (it > 40 && it % 3 === 0 && it < 420) for (let k = 0; k < n; k++) {
-        let a = fromAng(items[order[k]].mid);
-        while (a < S[k] - P / 2) a += P; while (a > S[k] + P / 2) a -= P;
-        S[k] += (a - S[k]) * 0.05;
-      }
+  const rotCCW = () => {
+    if (!zones.R.length) return false;
+    zones.T.push(zones.R.shift());
+    if (zones.T.length > rowCap) zones.L.push(zones.T.shift());
+    return true;
+  };
+  for (let g = 0; g < n && zones.L.length > zones.R.length + 1; g++) if (!rotCW()) break;
+  for (let g = 0; g < n && zones.R.length > zones.L.length + 1; g++) if (!rotCCW()) break;
+  const step = chipH + 4;
+  const topH = zones.T.length ? chipH + 8 : 0, botH = zones.B.length ? chipH + 8 : 0;
+  const colW = chipW;
+  const R = (w - 2 * colW - 2 * gap) / 2;
+  if (R < 40) return null;
+  const colNeed = Math.max(zones.L.length, zones.R.length) * step + 8;
+  const h = topH + botH + Math.max(colNeed, 2 * R + 24);
+  if (h > hMax + 0.5) return null;
+  const cx = w / 2, cy = topH + (h - topH - botH) / 2;
+  const pos = items.map(() => null);
+  const pack1d = (targets, lo, hi) => { // סדר נשמר; נדחקים זה מזה בלי לחרוג מהגבולות
+    const y = targets.slice();
+    for (let it = 0; it < 8; it++) {
+      for (let k = 0; k < y.length; k++) y[k] = Math.max(k ? y[k - 1] + step : lo, Math.min(y[k], hi - (y.length - 1 - k) * step));
+      for (let k = y.length - 1; k >= 0; k--) y[k] = Math.min(k < y.length - 1 ? y[k + 1] - step : hi, Math.max(y[k], lo + k * step));
     }
-    for (let it = 0; it < 2500 && enforce() > 0; it++);
-    const pos = items.map(() => null);
-    order.forEach((i, k) => { const [x, y] = toXY(S[k]); pos[i] = { x: x, y: y }; });
-    let ok = true;
-    for (let i = 0; i < n && ok; i++) {
-      if (Math.abs(pos[i].x) + bw[i] / 2 > w / 2 || Math.abs(pos[i].y) + bh[i] / 2 > h / 2) ok = false;
-      for (let j = i + 1; j < n && ok; j++) if (Math.abs(pos[i].x - pos[j].x) < (bw[i] + bw[j]) / 2 + 1 && Math.abs(pos[i].y - pos[j].y) < (bh[i] + bh[j]) / 2 + 1) ok = false;
+    return y;
+  };
+  const col = (idx, x, side) => { // L: מלמטה למעלה לפי הסדר; R: מלמעלה למטה
+    if (!idx.length) return;
+    const seq = side < 0 ? idx.slice().reverse() : idx;
+    const lo = topH + chipH / 2 + 4, hi = h - botH - chipH / 2 - 4;
+    const ty = seq.map((i) => cy + Math.sin(items[i].mid) * (hi - lo) / 2);
+    const y = pack1d(ty, lo, hi);
+    seq.forEach((i, k) => { pos[i] = { x: x, y: y[k], zone: side < 0 ? 'L' : 'R', side: side }; });
+  };
+  const row = (idx, y, zone) => { // T: משמאל לימין; B: מימין לשמאל
+    if (!idx.length) return;
+    const seq = zone === 'B' ? idx.slice().reverse() : idx;
+    const lo = chipW / 2 + 4, hi = w - chipW / 2 - 4;
+    const tx = seq.map((i) => cx + Math.cos(items[i].mid) * (R + 40));
+    const stepX = chipW + 6;
+    const x = tx.slice();
+    for (let it = 0; it < 8; it++) {
+      for (let k = 0; k < x.length; k++) x[k] = Math.max(k ? x[k - 1] + stepX : lo, Math.min(x[k], hi - (x.length - 1 - k) * stepX));
+      for (let k = x.length - 1; k >= 0; k--) x[k] = Math.min(k < x.length - 1 ? x[k + 1] - stepX : hi, Math.max(x[k], lo + k * stepX));
     }
-    if (ok) return { R: R, sc: sc, pos: pos, track: true };
-  }
-  return null;
+    seq.forEach((i, k) => { pos[i] = { x: x[k], y: y, zone: zone, side: 1 }; });
+  };
+  col(zones.L, colW / 2 + 2, -1);
+  col(zones.R, w - colW / 2 - 2, 1);
+  row(zones.T, chipH / 2 + 4, 'T');
+  row(zones.B, h - chipH / 2 - 4, 'B');
+  return { h: h, R: R, cx: cx, cy: cy, pos: pos };
 }
 
 /* v178: הבהרה/הכהיה של צבע hex (k>0 בהיר יותר, לבן ב־1). טהורה. */
@@ -4313,6 +4245,7 @@ function pieShade(hex, k) {
 /* v178: איזו פרוסה נמצאת בנקודה (x,y ביחס לקנבס) — או null. טהורה על הגאומטריה. */
 function pieHitSym(geom, x, y) {
   if (!geom) return null;
+  for (const c of (geom.chips || [])) if (x >= c.x - 4 && x <= c.x + c.w + 4 && y >= c.y - 3 && y <= c.y + c.h + 3) return c.sym; // v183: נגיעה בשבב
   const dx = x - geom.cx, dy = y - geom.cy, d = Math.hypot(dx, dy);
   if (d < geom.r - 2 || d > geom.R + 16) return null;
   let ang = Math.atan2(dy, dx);
@@ -6162,7 +6095,8 @@ function drawPie() {
 
   const dpr = window.devicePixelRatio || 1;
   // v133: גדול ככל שהרוחב הזמין מאפשר (הקנבס מרובע — CSS aspect-ratio:1/1)
-  const w = canvas.clientWidth || 320, h = canvas.clientHeight || w;
+  const w = canvas.clientWidth || 320;
+  let h = w; // v183: מרובע; עם הרבה מניות הקנבס מתארך (למטה)
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -6179,7 +6113,7 @@ function drawPie() {
   // v169→v171: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות. לכל מניה אותה "תווית":
   // אריח לוגו בגודל אחיד + סימבול + בועה (אחוז מעל שווי). פרוסה קטנה מדי — התווית בולטת החוצה מעבר לשפה
   // (הטבעת מתכווצת בדיוק כמה שצריך), ותוויות לא עולות אחת על השנייה (מוזזות לאורך הטבעת).
-  const cx = w / 2, cy = h / 2;
+  let cx = w / 2, cy = h / 2;
   const dark = document.documentElement && document.documentElement.getAttribute && document.documentElement.getAttribute('data-theme') === 'dark';
   const surface = cssVar('--surface', dark ? '#1C1C1E' : '#FFFFFF');
   const cur = state.currency;
@@ -6229,30 +6163,50 @@ function drawPie() {
     if (!ok) { rho = rhoMax; posAt(rho); }
     R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
-  // 3) v176→v181: הרבה מאוד מניות (מעל 12) — התוויות מחוץ לטבעת, כל אחת מול הפרוסה שלה (קו מוביל דק).
-  // v181: כולן מוצגות — תווית קומפקטית (לוגו + בועה, בלי שורת סימבול), מתפזרות לאורך המעגל, ובצפיפות בשתי שורות;
-  // הטבעת הכי גדולה שמשאירה לכולן מקום בתוך הקנבס. הפריסה נשמרת במטמון (האנימציה מציירת 60 פעם בשנייה).
+  // 3) v183: הרבה מניות (מעל 12) — "הסברים": לכל מניה שבב (פס בצבע הפרוסה + לוגו + אחוז מעל שווי) בטור לצד העוגה,
+  // ממוין לפי הזווית, עם קו מוביל בצבע הפרוסה מהפרוסה אל השבב — הקווים לא מצטלבים, ואף מניה לא מוסתרת.
+  // הקנבס מתארך לפי הצורך (עד פי 1.5 מהרוחב); גודל השבב — הגדול ביותר שמשאיר עוגה של לפחות 29% מהרוחב.
   const OUTER = segs.length > 12;
+  const CHIP_H = 28;
   if (OUTER) {
-    const CH = LS + 2 + 17; // v181: תווית קומפקטית — לוגו + בועת אחוז (השווי — בנגיעה, במרכז העוגה)
-    const key = [w, h, R0].concat(segs.map((g) => g.s.sym + ':' + g.pctTxt)).join('|');
+    const key = ['cols', w].concat(segs.map((g) => g.s.sym + ':' + g.pctTxt + ':' + g.valTxt)).join('|');
     let L = state.pieOuterCache && state.pieOuterCache.key === key ? state.pieOuterCache.L : null;
     if (!L) {
-      ctx.font = '800 12px ' + FONT;
-      segs.forEach((g) => { g.pillW = tw(g.pctTxt) + 10; });
-      const its = segs.map((g) => ({ mid: g.mid, W: Math.max(LS, g.pillW), H: CH }));
-      L = pieOuterLayout(its, w, h, R0, 0.72) || pieTrackLayout(its, w, h, R0) || pieOuterLayout(its, w, h, R0, 0);
+      segs.forEach((g) => {
+        ctx.font = '700 11px ' + FONT; const pw = tw(g.pctTxt);
+        ctx.font = '500 9.5px ' + FONT; const vw = tw(g.valTxt);
+        g.chipW = 7 + 20 + 4 + Math.max(pw, vw) + 6;
+      });
+      const colW0 = Math.max(...segs.map((g) => g.chipW));
+      const items = segs.map((g) => ({ mid: g.mid }));
+      let best = null, fallback = null;
+      for (const sc of [1, 0.92, 0.84, 0.76, 0.7, 0.64]) {
+        const lay = pieCalloutLayout(items, w, w * 1.5, CHIP_H * sc, colW0 * sc, 12);
+        if (!lay) continue;
+        if (!fallback) fallback = { sc: sc, lay: lay };
+        if (lay.R >= 0.29 * w) { best = { sc: sc, lay: lay }; break; }
+      }
+      if (!best) best = fallback || { sc: 0.64, lay: pieCalloutLayout(items, w, w * 2.2, CHIP_H * 0.64, colW0 * 0.64, 12) };
+      L = best.lay ? { h: best.lay.h, R: best.lay.R, cx: best.lay.cx, cy: best.lay.cy, sc: best.sc, pos: best.lay.pos, chipW: segs.map((g) => g.chipW) } : null;
       state.pieOuterCache = { key: key, L: L };
     }
     if (L) {
+      if (Math.abs(L.h - h) > 0.5) { // גובה הקנבס לפי הפריסה (שורות מעל/מתחת, טורים)
+        h = L.h;
+        canvas.style.height = h + 'px';
+        canvas.height = h * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
       R = L.R; SC = L.sc;
-      segs.forEach((g, i) => { g.x = L.pos[i].x; g.y = L.pos[i].y; g.compact = true; g.W = Math.max(LS, g.pillW || g.bubW); });
+      cx = L.cx; cy = L.cy; // v183: עם שורה מעל/מתחת — מרכז העוגה זז
+      segs.forEach((g, i) => { g.chip = true; g.chipW = L.chipW[i]; g.x = L.pos[i].x - cx; g.y = L.pos[i].y - cy; g.side = L.pos[i].side; g.zone = L.pos[i].zone; g.W = g.chipW; });
     }
   }
+  if (!OUTER && canvas.style && canvas.style.height) { canvas.style.height = ''; } // חזרה לקנבס מרובע
   const shown = [];
   for (const g of segs.slice().sort((p, q) => q.s.value - p.s.value)) {
-    g.sc = SC; g.out = OUTER || rho > R - 8;
-    if (OUTER && g.compact) { g.skip = false; shown.push(g); continue; }
+    g.sc = SC; g.out = OUTER || rho > (holeOf(R) + R) / 2 + 6; // תווית על השפה (לא במרכז הפרוסה) → קו מוביל
+    if (g.chip) { g.skip = false; shown.push(g); continue; }
     g.skip = shown.some((o) => clash(o, g));
     // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°) לפני שמוותרים
     for (let k = 1; g.skip && k <= 7; k++) {
@@ -6271,9 +6225,28 @@ function drawPie() {
   const lift = (g) => (state.pieLift && state.pieLift[g.s.sym]) || 0;
   const slicePath = (g, L) => {
     const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
+    const X = cx + ox, Y = cy + oy, Ro = R + L * 4;
+    // v182: פינות מעוגלות לכל פרוסה (רדיוס עד 7px, קטן יותר בפרוסה צרה)
+    const span = g.a2 - g.a;
+    const cr = Math.max(0, Math.min(7, (Ro - r) / 4, span * r / 2.4, span * Ro / 2.4));
     ctx.beginPath();
-    ctx.arc(cx + ox, cy + oy, R + L * 4, g.a, g.a2);
-    ctx.arc(cx + ox, cy + oy, r, g.a2, g.a, true);
+    if (cr < 1 || !ctx.arcTo) {
+      ctx.arc(X, Y, Ro, g.a, g.a2);
+      ctx.arc(X, Y, r, g.a2, g.a, true);
+      ctx.closePath();
+      return [ox, oy];
+    }
+    const pt = (ang, rad) => [X + Math.cos(ang) * rad, Y + Math.sin(ang) * rad];
+    const dO = cr / Ro, dI = cr / r;
+    ctx.moveTo(...pt(g.a, r + cr));
+    ctx.lineTo(...pt(g.a, Ro - cr));
+    ctx.arcTo(...pt(g.a, Ro), ...pt(g.a + dO, Ro), cr);
+    ctx.arc(X, Y, Ro, g.a + dO, g.a2 - dO);
+    ctx.arcTo(...pt(g.a2, Ro), ...pt(g.a2, Ro - cr), cr);
+    ctx.lineTo(...pt(g.a2, r + cr));
+    ctx.arcTo(...pt(g.a2, r), ...pt(g.a2 - dI, r), cr);
+    ctx.arc(X, Y, r, g.a2 - dI, g.a + dI, true);
+    ctx.arcTo(...pt(g.a, r), ...pt(g.a, r + cr), cr);
     ctx.closePath();
     return [ox, oy];
   };
@@ -6333,31 +6306,110 @@ function drawPie() {
     }
     slicePath(g, L);
     ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
-    g.x += ox; g.y += oy; // v180: התווית זזה יחד עם הפרוסה (גם כשהיא מחוץ לטבעת)
+    if (!g.chip) { g.x += ox; g.y += oy; } // v180: התווית זזה יחד עם הפרוסה; שבב בטור נשאר במקומו (הקו המוביל זז)
   }
-  state.pieGeom = { cx: cx, cy: cy, r: r, R: R, segs: segs.map((g) => ({ sym: g.s.sym, a: g.a, a2: g.a2 })) };
+  state.pieGeom = { cx: cx, cy: cy, r: r, R: R, segs: segs.map((g) => ({ sym: g.s.sym, a: g.a, a2: g.a2 })),
+    chips: segs.filter((g) => g.chip).map((g) => ({ sym: g.s.sym, x: cx + g.x - g.chipW * SC / 2, y: cy + g.y - CHIP_H * SC / 2, w: g.chipW * SC, h: CHIP_H * SC })) };
   pieWireTouch(canvas);
-  if (OUTER) { // קו מוביל דק מהפרוסה לתווית שלה
+  if (OUTER) { // v183: קו מוביל בצבע הפרוסה: מהשפה, קטע רדיאלי קצר, ואז ישר אל השבב (הקווים לא מצטלבים — הטור ממוין לפי הזווית)
     ctx.save();
-    ctx.strokeStyle = dark ? 'rgba(242,242,247,.35)' : 'rgba(28,28,30,.28)'; ctx.lineWidth = 1;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const g of segs) {
-      if (g.skip) continue;
-      const th = Math.atan2(g.y, g.x);
-      const gh = g.compact ? LS + 2 + 17 : H;
-      const e = (Math.abs(Math.cos(th)) * g.W + Math.abs(Math.sin(th)) * gh) / 2 * SC;
-      const d = Math.hypot(g.x, g.y) - e - 1;
-      if (d <= R + 2) continue;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(g.mid) * (R + 2), cy + Math.sin(g.mid) * (R + 2));
-      ctx.lineTo(cx + Math.cos(th) * d, cy + Math.sin(th) * d);
-      ctx.stroke();
+      if (g.skip || !g.chip) continue;
+      const L = lift(g);
+      const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
+      const r1 = R + L * 4 + 1, r2 = R + 10;
+      const sx = cx + ox + Math.cos(g.mid) * r1, sy = cy + oy + Math.sin(g.mid) * r1;
+      const ex = cx + ox + Math.cos(g.mid) * r2, ey = cy + oy + Math.sin(g.mid) * r2;
+      const cw = g.chipW * SC, chh = CHIP_H * SC;
+      const tx = g.zone === 'T' || g.zone === 'B' ? cx + g.x : cx + g.x - g.side * (cw / 2 + 2);
+      const ty = g.zone === 'T' ? cy + g.y + chh / 2 + 2 : g.zone === 'B' ? cy + g.y - chh / 2 - 2 : cy + g.y;
+      ctx.globalAlpha = L > 0.5 ? 1 : (0.55 + 0.45 * (1 - focus));
+      ctx.strokeStyle = pieShade(g.s.color, -0.22);
+      ctx.lineWidth = 1.25 + L * 1.25;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.beginPath(); ctx.arc(tx, ty, 2 + L, 0, Math.PI * 2); ctx.fillStyle = pieShade(g.s.color, -0.22); ctx.fill();
+    }
+    ctx.restore();
+  }
+  if (!OUTER) { // v183: גם במעט מניות — כשהתוויות יושבות על השפה, קו בצבע הפרוסה מתוך הפרוסה אל התווית שלה
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const g of segs) {
+      if (g.skip || !g.out) continue;
+      const L = lift(g);
+      const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
+      const r0 = r + 6; // מתחיל ליד החור — כך הקו נראה גם כשהתווית מכסה את השפה
+      const sx = cx + ox + Math.cos(g.mid) * r0, sy = cy + oy + Math.sin(g.mid) * r0;
+      ctx.globalAlpha = L > 0.5 ? 1 : (0.6 + 0.4 * (1 - focus));
+      ctx.strokeStyle = pieShade(g.s.color, -0.3);
+      ctx.lineWidth = 1.5 + L;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(cx + g.x, cy + g.y); ctx.stroke();
+      ctx.beginPath(); ctx.arc(sx, sy, 2.2 + L, 0, Math.PI * 2); ctx.fillStyle = pieShade(g.s.color, -0.3); ctx.fill();
     }
     ctx.restore();
   }
   ctx.direction = 'ltr';
   const ink = dark ? '#F2F2F7' : '#1C1C1E', sub = dark ? 'rgba(242,242,247,.7)' : 'rgba(28,28,30,.62)';
+  // v183: שבב — [פס בצבע הפרוסה][לוגו][אחוז / שווי]; הלוגו בצד הפונה לעוגה
+  const drawChip = (g) => {
+    const s = g.s, gL = lift(g), pop = 1 + 0.1 * gL;
+    const cw = g.chipW, chh = CHIP_H, side = g.side || 1;
+    ctx.save();
+    if (gL < 0.5) ctx.globalAlpha = dimA;
+    ctx.translate(cx + g.x, cy + g.y);
+    ctx.scale(SC * pop, SC * pop);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,' + (0.12 + 0.16 * Math.min(1, gL)).toFixed(3) + ')'; ctx.shadowBlur = 5 + 8 * gL; ctx.shadowOffsetY = 1 + 3 * gL;
+    pieRoundRect(ctx, -cw / 2, -chh / 2, cw, chh, 9);
+    ctx.fillStyle = dark ? 'rgba(44,44,46,.97)' : 'rgba(255,255,255,.97)';
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    pieRoundRect(ctx, -cw / 2, -chh / 2, cw, chh, 9);
+    ctx.clip();
+    ctx.fillStyle = s.color; // פס הצבע בצד הפנימי — אותו צבע כמו הפרוסה
+    ctx.fillRect(side > 0 ? -cw / 2 : cw / 2 - 4, -chh / 2, 4, chh);
+    ctx.restore();
+    if (gL > 0.01) { pieRoundRect(ctx, -cw / 2 + 0.75, -chh / 2 + 0.75, cw - 1.5, chh - 1.5, 8.5); ctx.strokeStyle = pieShade(s.color, -0.2); ctx.lineWidth = 1.5; ctx.globalAlpha = Math.min(1, gL); ctx.stroke(); ctx.globalAlpha = gL < 0.5 ? dimA : 1; }
+    else if (!dark) { pieRoundRect(ctx, -cw / 2 + 0.5, -chh / 2 + 0.5, cw - 1, chh - 1, 9); ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.stroke(); }
+    // לוגו 20px
+    const LZ = 20, lx = side > 0 ? -cw / 2 + 8 : cw / 2 - 8 - LZ, ly = -LZ / 2;
+    const e = pieLogoImg(s.sym);
+    const light = !!(e.ready && e.light && !e.inv);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
+    pieRoundRect(ctx, lx, ly, LZ, LZ, 5.5);
+    ctx.fillStyle = light ? '#1D1D1F' : '#FFFFFF';
+    ctx.fill();
+    ctx.restore();
+    if (!dark) { pieRoundRect(ctx, lx + 0.5, ly + 0.5, LZ - 1, LZ - 1, 5); ctx.strokeStyle = 'rgba(0,0,0,.07)'; ctx.lineWidth = 1; ctx.stroke(); }
+    if (e.ready && !e.failed && e.img.naturalWidth) {
+      ctx.save();
+      pieRoundRect(ctx, lx, ly, LZ, LZ, 5.5);
+      ctx.clip();
+      const inner = /tradingview/.test(e.img.src || '') ? LZ : LZ * 0.74;
+      const iw = e.img.naturalWidth, ih = e.img.naturalHeight;
+      const sc = Math.min(inner / iw, inner / ih);
+      ctx.drawImage(e.inv || e.img, lx + LZ / 2 - iw * sc / 2, ly + LZ / 2 - ih * sc / 2, iw * sc, ih * sc);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#3A3A3C'; ctx.font = '700 9px ' + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(g.symTxt.charAt(0), lx + LZ / 2, 0.5);
+    }
+    // אחוז (מודגש) מעל השווי
+    const tx0 = side > 0 ? lx + LZ + 5 : lx - 5;
+    ctx.textAlign = side > 0 ? 'left' : 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = ink; ctx.font = '700 11px ' + FONT;
+    ctx.fillText(g.pctTxt, tx0, -5.5);
+    ctx.fillStyle = sub; ctx.font = '500 9.5px ' + FONT;
+    ctx.fillText(g.valTxt, tx0, 6.5);
+    ctx.restore();
+  };
   for (const g of segs) {
     if (g.skip) continue;
+    if (g.chip) { drawChip(g); continue; }
     const s = g.s, x = 0;
     ctx.save();
     if (lift(g) < 0.5) ctx.globalAlpha = dimA;
@@ -6365,7 +6417,7 @@ function drawPie() {
     const gL = lift(g);
     const pop = 1 + 0.2 * gL; // v180: התווית "קופצת" יחד עם הפרוסה — אותו קפיץ, אותו תזמון
     ctx.scale((g.sc || 1) * pop, (g.sc || 1) * pop); // גודל יחסי לפרוסה — הלוגו, הסימבול והבועה יחד
-    let top = -(g.compact ? LS + 2 + 17 : H) / 2;
+    let top = -H / 2;
     // לוגו — אותו גודל לכל החברות
     const e = pieLogoImg(s.sym);
     const lx = x - LS / 2;
@@ -6391,28 +6443,12 @@ function drawPie() {
       ctx.fillText(g.symTxt.charAt(0), x, top + LS / 2 + 0.5);
     }
     top += LS + 2;
-    if (!g.compact) { // v181: בתווית קומפקטית (הרבה מניות) — הלוגו מזהה את המניה, בלי שורת סימבול
-      // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
-      ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
-      ctx.font = '700 10.5px ' + FONT;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(g.symTxt, x, top + SYM_H / 2);
-      top += SYM_H + 2;
-    }
-    if (g.compact) { // בועת אחוז קומפקטית
-      ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
-      pieRoundRect(ctx, x - g.pillW / 2, top, g.pillW, 17, 8.5);
-      ctx.fillStyle = dark ? 'rgba(44,44,46,.96)' : 'rgba(255,255,255,.96)';
-      ctx.fill();
-      ctx.restore();
-      if (!dark) { pieRoundRect(ctx, x - g.pillW / 2 + 0.5, top + 0.5, g.pillW - 1, 16, 8); ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.stroke(); }
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = ink; ctx.font = '800 12px ' + FONT;
-      ctx.fillText(g.pctTxt, x, top + 9);
-      ctx.restore();
-      continue;
-    }
+    // סימבול — מחוץ לטבעת בצבע הטקסט של הכרטיס, בתוכה כהה על הפסטל
+    ctx.fillStyle = g.out ? cssVar('--on-surface', ink) : 'rgba(28,28,30,.88)';
+    ctx.font = '700 10.5px ' + FONT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(g.symTxt, x, top + SYM_H / 2);
+    top += SYM_H + 2;
     // בועה: אחוז מהתיק מעל השווי
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,.14)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
