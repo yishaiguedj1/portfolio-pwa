@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v190';
+const APP_VERSION = 'v191';
 
 
 function saveDBto(db) {
@@ -6213,7 +6213,7 @@ function drawPie() {
   };
   // v185: התוויות שואפות לחלק החיצוני של הפרוסה (62% מרוחב הטבעת) — נוגעות בפרוסה, לא עמוק בפנים
   const ringAt = (RR, f) => holeOf(RR) + (RR - holeOf(RR)) * f;
-  let R = R0, rho = ringAt(R0, 0.72), ok = false; // v190: הלוגואים ב־72% מרוחב הטבעת — קרוב לשפה החיצונית
+  let R = R0, rho = ringAt(R0, 0.9), ok = false; // v191: הלוגואים ב־90% מרוחב הטבעת — ממש על השפה החיצונית
   // 1) מעט מניות: במרכז הפרוסות — אם צריך, כל התוויות קטנות יחד (עד 82%) כדי שלא ייגעו
   for (const sc of [1, 0.9, 0.82, 0.76, 0.7]) { // v188: עדיף תוויות קטנות יותר מאשר תוויות מחוץ לטבעת — הלוגו על הפרוסה
     SC = sc;
@@ -6227,7 +6227,7 @@ function drawPie() {
     for (const sc of [0.85, 0.78, 0.72]) { // v190: אם גם בשפה לא נכנס — תוויות קטנות עוד יותר לפני שמקבלים נגיעות
       SC = sc;
       rhoMax = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W / 2, H / 2 + (H / 2 - LS / 2) * 0.6) * SC));
-      for (rho = ringAt(R0, 0.72); rho <= rhoMax; rho += 3) { if (posAt(rho)) { ok = true; break; } }
+      for (rho = ringAt(R0, 0.9); rho <= rhoMax; rho += 3) { if (posAt(rho)) { ok = true; break; } }
       if (ok) break;
     }
     if (!ok) { rho = rhoMax; posAt(rho); }
