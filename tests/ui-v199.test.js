@@ -64,6 +64,33 @@ ok(/\.stock-id \.stock-name \{ contain: inline-size; justify-self: stretch; \}/.
 // v205: מחיר גדול בכרטיס, מוקטן רק כשהוא ארוך במיוחד
 ok(R("stockPriceSizeCls('$16.70')") === '' && R("stockPriceSizeCls('$1,234.56')") === ' px-lg' && R("stockPriceSizeCls('$12,345.67')") === ' px-xl', 'גודל מחיר לפי אורך (v205)');
 ok(/\.sh-r1 \.stock-price \{[^}]*font-size: 27px/.test(css), 'מחיר 27px בכרטיס (v205)');
+// v206: בורסת ת״א — ב'–ו', חגים לפי הלוח העברי (Intl), בלי מסחר מאוחר
+const TA = (iso) => JSON.stringify(R('taseMarketNow(Date.parse("' + iso + '"))'));
+for (const [iso, exp, name] of [
+  ['2026-09-11T09:00:00Z', '{"closed":true,"reason":"hdTaErevRH"}', 'ערב ראש השנה (ו׳ 11/9)'],
+  ['2026-09-21T09:00:00Z', '{"closed":true,"reason":"hdTaYK"}', 'יום כיפור (ב׳ 21/9)'],
+  ['2026-09-25T09:00:00Z', '{"closed":true,"reason":"hdTaErevSukkot"}', 'ערב סוכות (ו׳ 25/9 — אין מסחר, אומת מול Yahoo)'],
+  ['2026-09-26T09:00:00Z', '{"closed":true,"reason":"hdTaSukkot"}', 'סוכות בשבת — החג קודם לסופ״ש'],
+  ['2026-09-27T09:00:00Z', '{"closed":true,"reason":"hdWeekend"}', 'ראשון = סופ״ש (מסחר ב׳–ו׳ מ־2026)'],
+  ['2026-09-28T09:00:00Z', '{"closed":false,"reason":null}', 'ב׳ 12:00 — פתוח'],
+  ['2026-09-28T16:00:00Z', '{"closed":true,"reason":null}', 'ב׳ 19:00 — סגור בלי סיבה'],
+  ['2026-10-02T09:00:00Z', '{"closed":true,"reason":"hdTaErevSimchat"}', 'הושענא רבה'],
+  ['2026-10-09T10:30:00Z', '{"closed":false,"reason":null}', 'ו׳ 13:30 — פתוח'],
+  ['2026-10-09T11:30:00Z', '{"closed":true,"reason":null}', 'ו׳ 14:30 — סגור'],
+  ['2026-03-03T09:00:00Z', '{"closed":true,"reason":"hdTaPurim"}', 'פורים'],
+  ['2026-04-02T09:00:00Z', '{"closed":true,"reason":"hdTaPesach"}', 'פסח'],
+  ['2026-04-08T09:00:00Z', '{"closed":true,"reason":"hdTaPesach"}', 'שביעי של פסח'],
+  ['2026-04-22T09:00:00Z', '{"closed":true,"reason":"hdTaIndependence"}', 'יום העצמאות'],
+  ['2026-05-22T09:00:00Z', '{"closed":true,"reason":"hdTaShavuot"}', 'שבועות'],
+  ['2026-07-23T09:00:00Z', '{"closed":true,"reason":"hdTaTishaBav"}', 'ט׳ באב'],
+]) ok(TA(iso) === exp, 'ת״א: ' + name);
+ok(R("taseHolidayKey({ hm: 'Iyar', hd: 4, dow: 4 })") === 'hdTaIndependence' && R("taseHolidayKey({ hm: 'Iyar', hd: 5, dow: 5 })") === null, 'יום העצמאות מוקדם לחמישי כשה׳ באייר בשישי');
+ok(R("taseHolidayKey({ hm: 'Iyar', hd: 6, dow: 2 })") === 'hdTaIndependence' && R("taseHolidayKey({ hm: 'Iyar', hd: 5, dow: 1 })") === null, 'יום העצמאות נדחה לשלישי כשה׳ באייר בשני');
+R("taseMarketNow = () => ({ closed: true, reason: 'hdTaSukkot' })");
+const taH = R("extSessionHTML(null, { p: { sym: 'POLI.TA' }, dayChg: -0.7 })");
+ok(/השוק סגור ·<\/span><span class="ext-lbl">סוכות/.test(taH) && /סגירה<\/span>/.test(taH) && /ext-dot off/.test(taH) && /ext-sess closed neg/.test(taH), 'בועת ת״א: "השוק סגור · סוכות" + "סגירה" ושינוי יום המסחר האחרון');
+R("taseMarketNow = () => ({ closed: false, reason: null })");
+ok(R("extSessionHTML(null, { p: { sym: 'POLI.TA' }, dayChg: 1 })") === '', 'ת״א בזמן מסחר: בלי בועה (כמו מסחר רגיל בארה״ב)');
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');

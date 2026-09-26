@@ -231,6 +231,11 @@ he: {
   sessExtTitle: 'שינוי מהסגירה הרגילה',
   sessClosed: 'השוק סגור',
   sessClosedPrefix: 'השוק סגור ·',
+  sessLastClose: 'סגירה',
+  hdTaErevRH: 'ערב ראש השנה', hdTaRH: 'ראש השנה', hdTaErevYK: 'ערב יום כיפור', hdTaYK: 'יום כיפור',
+  hdTaErevSukkot: 'ערב סוכות', hdTaSukkot: 'סוכות', hdTaErevSimchat: 'הושענא רבה', hdTaSimchat: 'שמחת תורה',
+  hdTaPurim: 'פורים', hdTaErevPesach: 'ערב פסח', hdTaPesach: 'פסח', hdTaIndependence: 'יום העצמאות',
+  hdTaErevShavuot: 'ערב שבועות', hdTaShavuot: 'שבועות', hdTaTishaBav: 'ט׳ באב',
   sessPostTiny: 'אחרי־מסחר',
   sessPreTiny: 'טרום־מסחר',
   sessNightTiny: 'לילי',
@@ -724,6 +729,11 @@ en: {
   sessExtTitle: 'Change from regular close',
   sessClosed: 'Closed',
   sessClosedPrefix: 'Closed ·',
+  sessLastClose: 'Close',
+  hdTaErevRH: 'Erev Rosh Hashanah', hdTaRH: 'Rosh Hashanah', hdTaErevYK: 'Erev Yom Kippur', hdTaYK: 'Yom Kippur',
+  hdTaErevSukkot: 'Erev Sukkot', hdTaSukkot: 'Sukkot', hdTaErevSimchat: 'Hoshana Rabbah', hdTaSimchat: 'Simchat Torah',
+  hdTaPurim: 'Purim', hdTaErevPesach: 'Erev Passover', hdTaPesach: 'Passover', hdTaIndependence: 'Independence Day',
+  hdTaErevShavuot: 'Erev Shavuot', hdTaShavuot: 'Shavuot', hdTaTishaBav: "Tisha B'Av",
   sessPostTiny: 'Post',
   sessPreTiny: 'Pre',
   sessNightTiny: 'Night',
@@ -3895,7 +3905,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v205';
+const APP_VERSION = 'v206';
 
 
 function saveDBto(db) {
@@ -4652,6 +4662,43 @@ function marketClosedReason(nowMs) {
     return hol[p.key] || null;
   } catch (e) { return null; }
 }
+/* v206: הבורסה בתל אביב — מסחר ב'–ו' (מינואר 2026), ב'–ה' עד ~17:30, ו' עד ~14:00 (שעון ישראל). אין מסחר מאוחר/לילי.
+   חגים לפי הלוח העברי — מחושב עם לוח השנה העברי המובנה בדפדפן (Intl, calendar 'hebrew'), בלי רשת:
+   ערב+ראש השנה, ערב+יום כיפור, ערב+סוכות, הושענא רבה+שמחת תורה, פורים, ערב+פסח וערב+שביעי של פסח, יום העצמאות (כולל הקדמה/דחייה),
+   ערב+שבועות, ט׳ באב. סגירה מיוחדת (בחירות וכו') לא ניתנת לחיזוי — אז "השוק סגור" בלי סיבה. */
+function ilDateParts(nowMs) {
+  const d = nowMs ? new Date(nowMs) : new Date();
+  const g = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(d);
+  const pick = (a, t) => (a.find((p) => p.type === t) || {}).value;
+  const h = new Intl.DateTimeFormat('en-u-ca-hebrew', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'long' }).formatToParts(d);
+  return { dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(pick(g, 'weekday')), mins: (+pick(g, 'hour') % 24) * 60 + (+pick(g, 'minute')), hm: pick(h, 'month'), hd: +pick(h, 'day') };
+}
+function taseHolidayKey(p) {
+  const m = p.hm, d = p.hd;
+  if (m === 'Elul' && d === 29) return 'hdTaErevRH';
+  if (m === 'Tishri') return ({ 1: 'hdTaRH', 2: 'hdTaRH', 9: 'hdTaErevYK', 10: 'hdTaYK', 14: 'hdTaErevSukkot', 15: 'hdTaSukkot', 21: 'hdTaErevSimchat', 22: 'hdTaSimchat' })[d] || null;
+  if ((m === 'Adar' || m === 'Adar II') && d === 14) return 'hdTaPurim';
+  if (m === 'Nisan') return ({ 14: 'hdTaErevPesach', 15: 'hdTaPesach', 20: 'hdTaErevPesach', 21: 'hdTaPesach' })[d] || null;
+  if (m === 'Iyar' && d >= 3 && d <= 6) { // יום העצמאות: ה׳ באייר, מוקדם לחמישי אם ו׳/שבת, נדחה לשלישי אם שני
+    const dow5 = (p.dow + (5 - d) + 7) % 7;
+    const obs = dow5 === 5 ? 4 : dow5 === 6 ? 3 : dow5 === 1 ? 6 : 5;
+    return d === obs ? 'hdTaIndependence' : null;
+  }
+  if (m === 'Sivan') return ({ 5: 'hdTaErevShavuot', 6: 'hdTaShavuot' })[d] || null;
+  if (m === 'Av' && d === 9 && p.dow !== 6) return 'hdTaTishaBav';
+  return null;
+}
+/* { closed, reason } לבורסה בת״א עכשיו. חג קודם לסופ״ש (שבת בסוכות = "סוכות") */
+function taseMarketNow(nowMs) {
+  try {
+    const p = ilDateParts(nowMs);
+    const hol = taseHolidayKey(p);
+    if (hol) return { closed: true, reason: hol };
+    if (p.dow === 0 || p.dow === 6) return { closed: true, reason: 'hdWeekend' };
+    const end = p.dow === 5 ? 14 * 60 : 17 * 60 + 30;
+    return { closed: p.mins < 9 * 60 + 59 || p.mins >= end, reason: null };
+  } catch (e) { return { closed: false, reason: null }; }
+}
 function etSessionNow(nowMs) {
   try {
     const d = nowMs ? new Date(nowMs) : new Date();
@@ -4874,7 +4921,9 @@ function applyExtQuote(q, x) {
   return q;
 }
 /* תווית הסשן לכרטיס: "טרום־מסחר −0.4%" וכו'. null בזמן מסחר רגיל / בלי נתונים. */
-function extSessionHTML(q) {
+function extSessionHTML(q, m) {
+  const tsym = (m && m.p && m.p.sym) || (q && q.symbol) || '';
+  if (/\.TA$/i.test(tsym)) return taseSessionHTML(m);
   if (!q || !q.ext || !(q.ext.price > 0)) return '';
   const pct = Number(q.ext.pct) || 0;
   const cls = Math.abs(pct) < 0.005 ? '' : pct >= 0 ? 'pos' : 'neg';
@@ -4892,6 +4941,23 @@ function extSessionHTML(q) {
   }
   const lbl = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
   return '<span class="ext-sess ' + cls + '" title="' + esc(t('sessExtTitle')) + '"><span class="ext-dot"></span><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
+}
+
+/* v206: בועת הסשן למניות ת״א — אותו עיצוב כמו בארה״ב. בזמן מסחר: כלום (כמו מסחר רגיל בארה״ב).
+   סגור: "השוק סגור · סיבה" ומתחת "סגירה" + השינוי של יום המסחר האחרון (בת״א אין מסחר מאוחר/לילי). */
+function taseSessionHTML(m) {
+  const st = taseMarketNow();
+  if (!st.closed) return '';
+  const names = { hdWeekend: t('hdWeekend'), hdTaErevRH: t('hdTaErevRH'), hdTaRH: t('hdTaRH'), hdTaErevYK: t('hdTaErevYK'), hdTaYK: t('hdTaYK'),
+    hdTaErevSukkot: t('hdTaErevSukkot'), hdTaSukkot: t('hdTaSukkot'), hdTaErevSimchat: t('hdTaErevSimchat'), hdTaSimchat: t('hdTaSimchat'),
+    hdTaPurim: t('hdTaPurim'), hdTaErevPesach: t('hdTaErevPesach'), hdTaPesach: t('hdTaPesach'), hdTaIndependence: t('hdTaIndependence'),
+    hdTaErevShavuot: t('hdTaErevShavuot'), hdTaShavuot: t('hdTaShavuot'), hdTaTishaBav: t('hdTaTishaBav') };
+  const why = st.reason && names[st.reason];
+  const lblHTML = why ? esc(t('sessClosedPrefix')) + '</span><span class="ext-lbl">' + esc(why) : esc(t('sessClosed'));
+  const pct = m && m.dayChg !== null && m.dayChg !== undefined && isFinite(m.dayChg) ? m.dayChg : null;
+  const cls = pct === null || Math.abs(pct) < 0.005 ? '' : pct >= 0 ? 'pos' : 'neg';
+  const line2 = pct === null ? '' : '<span class="ext-line"><span class="ext-lbl">' + esc(t('sessLastClose')) + '</span> <span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
+  return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosed')) + '"><span class="ext-line"><span class="ext-dot off"></span><span class="ext-lbl">' + lblHTML + '</span></span>' + line2 + '</span>';
 }
 
 /* v164: מחירים חיים דרך השרתון — בקשה אחת לכל התיק (Yahoo מהשרת). עד v163 הטלפון שלח בקשה
@@ -8666,7 +8732,7 @@ function stockHeadHTML(p, m) {
     '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' + srcTagHTML(positionSource(p)) +
     '<span class="stock-price' + stockPriceSizeCls(priceTxt) + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
-    '<span class="stock-ext">' + extSessionHTML(m.q) + '</span></span></span>' +
+    '<span class="stock-ext">' + extSessionHTML(m.q, m) + '</span></span></span>' +
     '<span class="stock-sub">' + stockSubHTML(p, m) + '</span>';
 }
 function buildStockCard(p) {

@@ -31,7 +31,7 @@ vm.runInContext('state.currency = "ILS";', sb);
 ok(A('stockSubHTML')(p, m('ZZZ')).includes(LRI + '+₪1,525' + PDI), 'במטבע שקל: הרווח בשקלים');
 ok(!/buy-chg/.test(A('stockSubHTML')({ sym: 'ZZZ', shares: 1, avg: 0 }, m('ZZZ'))), 'בלי מחיר קנייה — בלי שורת "מהקנייה"');
 ok(/\.stock-sub \{[^}]*display: grid;[^}]*grid-template-columns: minmax\(0, 1fr\) auto/.test(css), 'שורות המשנה: רשת של שתי עמודות (אחוזים / סכומים)');
-ok(/<span class="stock-ext">' \+ extSessionHTML\(m\.q\)/.test(src) && /\.stock-pcol \{[^}]*flex-direction: column/.test(css), 'תג הסשן מתחת למחיר');
+ok(/<span class="sh-r2">[\s\S]*?<span class="stock-ext">' \+ extSessionHTML\(m\.q, m\)/.test(src), 'v204/v206: תג הסשן בשורה השנייה של הכרטיס (ליד שם החברה), מתעדכן בטיק');
 ok(/for \(const cls of \['\.stock-sub', '\.stock-ext'\]\)/.test(src), 'טיק חי מעדכן גם את התג וגם את השורות');
 ok(/ctx\.direction = 'ltr';/.test(src), 'ציר גרף הביצועים: "+18.7%" גם בקנבס');
 ok(/\[\\u2067\\u0590-\\u05FF\]/.test(src), 'מחיר באגורות: בלי גלגול ספרות (רק הבזק) — הגלגול ערבב את הבידוד');

@@ -33,6 +33,6 @@ ok(/function livePriceSwap\(a, b\)/.test(src) && /px-roll ' \+ dir/.test(src) &&
 ok(/if \(pa && pb\) livePriceSwap\(pa, pb\);/.test(src), 'renderLive משתמש בה (לא innerHTML גס)');
 ok(/\.stock-price \{[^}]*direction: ltr;[^}]*unicode-bidi: isolate/.test(css), 'המחיר תמיד LTR — ב־RTL ספרות מגולגלות התערבבו ("51.9$33")');
 ok(/@keyframes pxRollInUp/.test(css) && /@keyframes pxDown/.test(css) && /\.ext-sess \{/.test(css), 'CSS: גלגול, הבזק, תג סשן');
-ok(/\.stock-pcol \{/.test(css) && /<span class="stock-ext">' \+ extSessionHTML\(m\.q\)/.test(src), 'v166: התג מתחת למחיר (עמודת המחיר), מתעדכן בטיק');
+ok(/<span class="sh-r2">[\s\S]*?<span class="stock-ext">' \+ extSessionHTML\(m\.q, m\)/.test(src), 'v204/v206: תג הסשן בשורה השנייה של הכרטיס (ליד שם החברה), מתעדכן בטיק');
 for (const k of ['sessionNight', 'sessPreShort', 'sessPostShort', 'sessNightShort', 'sessExtTitle']) ok((src.match(new RegExp('\\n  ' + k + ': ', 'g')) || []).length === 2, 'מחרוזת בעברית ובאנגלית: ' + k);
 console.log('\n' + n + ' בדיקות עברו');
