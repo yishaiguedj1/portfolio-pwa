@@ -3819,6 +3819,19 @@ function fmtPx(v, sym) {
   if (symCur(sym) === 'ILS') return fmtAg(v, sym);
   return state.currency === 'ILS' && state.fx ? fmtILS(v * state.fx) : fmtUSD2(v);
 }
+/* v209: שינוי מחיר עם סימן, באותה יחידה כמו המחיר (fmtPx): "−$2.16", "+₪6.58", "−35 אג׳", "+12.40 נק׳". */
+function fmtSignedPx(v, sym) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const cur = symCur(sym);
+  const r = cur === 'ILS' ? (isTaseIndex(sym) ? Math.round(v * 100) / 100 : Math.round(v * 10000) / 100) : Math.round((state.currency === 'ILS' && state.fx ? v * state.fx : v) * 100) / 100;
+  const sg = r < 0 ? '−' : r > 0 ? '+' : '';
+  if (cur === 'ILS') {
+    const n = Math.abs(r).toLocaleString('en-US', isTaseIndex(sym) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 2 });
+    const unit = isTaseIndex(sym) ? (state.lang === 'en' ? 'pts' : t('ptsShort')) : (state.lang === 'en' ? 'ag.' : t('agShort'));
+    return state.lang === 'en' ? ltrNum(sg + n + ' ' + unit) : '\u2067' + ltrNum(sg + n) + ' ' + unit + '\u2069';
+  }
+  return ltrNum(sg + (state.currency === 'ILS' && state.fx ? fmtILS2(Math.abs(r)) : fmtUSD2(Math.abs(r))));
+}
 function fmtILS(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   return '₪' + Math.round(v).toLocaleString('en-US');
@@ -3905,7 +3918,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v208';
+const APP_VERSION = 'v209';
 
 
 function saveDBto(db) {
@@ -5763,6 +5776,11 @@ function metrics(sym) {
   }
   // v160: בלי היסטוריה (מקור ההיסטוריה חסום) — השינוי היומי מהסגירה הקודמת שבציטוט עצמו
   if (dayChg === null && q && q.prev > 0 && q.close > 0) dayChg = (q.close - q.prev) / q.prev * 100;
+  // v209: השינוי היומי למניה (כסף) — מהסגירה הקודמת שממנה חושב האחוז
+  let dayAbs = dayChg !== null && q && q.close > 0 ? q.close - q.close / (1 + dayChg / 100) : null;
+  // v209: כשיש את המספרים הרשמיים של Yahoo (v7: regularMarketChange/Percent) — הם הקובעים, כמו בכותרת של Yahoo Finance.
+  // המחיר בכרטיס הוא הנר האחרון (כולל אחרי־מסחר), והיסטוריה ממקור אחר יכולה להיות מעוגלת אחרת — לכן יצא −1.59% מול −1.57%.
+  if (q && q.regClose > 0 && isFinite(q.regPct) && isFinite(q.regCh) && q.regCh !== 0) { dayChg = q.regPct; dayAbs = q.regCh; } // 0 = Yahoo בחג/סגירה ארוכה (כמו ב־v167) → נשארים עם ההיסטוריה
   // v142: שווי ורווח בדולרים (מניה ישראלית מומרת); המחיר נשאר במטבע המניה
   const value = price !== null ? nativeToUSD(price * p.shares, sym) : null;
   const gl = price !== null ? nativeToUSD((price - p.avg) * p.shares, sym) : null;
@@ -5770,7 +5788,7 @@ function metrics(sym) {
   // v139: שיא חדש במחיר החי — ה־ATH הוא המחיר עכשיו, לא השיא הישן מההיסטוריה
   if (price !== null && (!ath || price > ath.price) && hist.length) ath = { price: price, date: (q && (q.mdate || q.date)) || todayISO() };
   const offAth = (ath && price !== null) ? (price - ath.price) / ath.price * 100 : null;
-  return { p, q, price, dayChg, value, gl, ath, offAth };
+  return { p, q, price, dayChg, dayAbs, value, gl, ath, offAth };
 }
 
 function totalsUSD() {
@@ -8729,9 +8747,8 @@ function stockSubHTML(p, m) {
   const toCur = (usd) => (usd === null || usd === undefined ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
   const cls = (v) => (v === null || !isFinite(v) || Math.abs(v) < 0.005 ? '' : v >= 0 ? 'pos' : 'neg');
   const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
-  // v208: גם השינוי היומי בכסף (שווי האחזקה היום פחות שוויה בסגירה הקודמת), באותו צבע, מעט קל יותר
-  const dayAmt = day === null || m.value === null || !isFinite(m.value) ? null : m.value - m.value / (1 + day / 100);
-  const dayAmtHTML = dayAmt === null || !isFinite(dayAmt) ? '' : ' <span class="day-amt">' + fmtSignedMoney(toCur(Math.abs(dayAmt) < 0.5 ? 0 : dayAmt), cur) + '</span>';
+  // v208→v209: גם השינוי היומי בכסף — למניה אחת (כמו Yahoo: "−2.16 (−1.57%)"), במטבע של המחיר, באותו צבע
+  const dayAmtHTML = day === null || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs) ? '' : ' <span class="day-amt">' + fmtSignedPx(m.dayAbs, p && p.sym) + '</span>';
   let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) }) + dayAmtHTML) + '</span>' +
     '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;

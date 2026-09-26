@@ -96,11 +96,17 @@ ok(R('fxMarketOpen(Date.parse("2026-09-26T15:00:00Z"))') === false, 'מט״ח: �
 ok(R('fxMarketOpen(Date.parse("2026-09-27T20:00:00Z"))') === false && R('fxMarketOpen(Date.parse("2026-09-27T22:00:00Z"))') === true, 'מט״ח: ראשון — נפתח ב־17:00 ניו־יורק');
 ok(R('fxMarketOpen(Date.parse("2026-09-25T20:30:00Z"))') === true && R('fxMarketOpen(Date.parse("2026-09-25T21:30:00Z"))') === false, 'מט״ח: שישי — נסגר ב־17:00 ניו־יורק');
 ok(/id="fxDot"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && /\.fx-pill \{[^}]*background: var\(--surface-2\)/.test(css), 'בועת שער הדולר: נקודה + עיצוב בועת הסשן (v207)');
-// v208: השינוי היומי בכסף ליד האחוז
+// v208→v209: השינוי היומי בכסף — למניה אחת, לפי המספרים הרשמיים של Yahoo (כמו בכותרת Yahoo Finance)
 {
-  const sub = R("state.currency = 'USD'; stockSubHTML({ sym: 'X', avg: 10 }, { price: 11, dayChg: 10, value: 1100, gl: 100 })");
-  ok(/class="day-chg pos">[^<]*<span class="day-amt">/.test(sub) && sub.includes('100'), 'שינוי יומי בכסף: שווי היום פחות שווי בסגירה הקודמת (+$100 על 10%)');
-  ok(!/day-amt/.test(R("stockSubHTML({ sym: 'X' }, { price: null, dayChg: null, value: null, gl: null })")), 'בלי שינוי יומי — בלי סכום');
+  R("POSITIONS.push({ sym: 'ZZTST', shares: 10, avg: 100 }); state.currency = 'USD'; state.lang = 'he'; state.hist.ZZTST = [{ date: '2026-09-24', close: 137.8 }];" +
+    "state.quotes.ZZTST = { symbol: 'ZZTST', close: 135.6, mdate: '2026-09-25', date: '2026-09-26', regClose: 135.62, regCh: -2.16, regPct: -1.56772 }");
+  ok(R("metrics('ZZTST').dayChg") === -1.56772 && R("metrics('ZZTST').dayAbs") === -2.16, 'שינוי יומי = regularMarketChange/Percent של Yahoo (לא הנר של אחרי־המסחר מול היסטוריה)');
+  const sub = R("stockSubHTML(metrics('ZZTST').p, metrics('ZZTST'))");
+  ok(sub.includes('−1.57%') && /<span class="day-amt">\u2066−\$2\.16\u2069<\/span>/.test(sub), 'כרטיס: "היום −1.57%  −$2.16" — כמו Yahoo');
+  R("state.quotes.ZZTST.regCh = 0; state.quotes.ZZTST.regPct = 0");
+  ok(Math.abs(R("metrics('ZZTST').dayChg") - (135.6 / 137.8 - 1) * 100) < 1e-9 && Math.abs(R("metrics('ZZTST').dayAbs") + 2.2) < 1e-9, 'Yahoo מחזיר 0 בחג — נשארים עם ההיסטוריה (v167)');
+  ok(R("fmtSignedPx(0.35, 'POLI.TA')").includes('+35') && R("fmtSignedPx(-0.004, 'X')") === '\u2066$0.00\u2069', 'ת״א באגורות; אפס בלי סימן');
+  ok(!/day-amt/.test(R("stockSubHTML({ sym: 'X' }, { price: null, dayChg: null, dayAbs: null, value: null, gl: null })")), 'בלי שינוי יומי — בלי סכום');
   ok(/\.day-chg \.day-amt \{[^}]*white-space: nowrap/.test(css), 'הסכום לא נשבר שורה');
 }
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
