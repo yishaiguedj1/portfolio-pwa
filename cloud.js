@@ -23,6 +23,7 @@
   let auth = null;
   let fs = null;
   let user = null;
+  const LS_CLOUD_USER = 'pwa_cloud_user_v1'; // v193: '1' כשיש משתמש ענן מחובר במכשיר הזה
   let localMode = false;
   let bootFallback = null;
   let saveTimer = null;
@@ -31,6 +32,35 @@
     return isConfigured &&
       typeof firebase !== 'undefined' &&
       firebase.auth && firebase.firestore;
+  }
+
+  /* v193: ה־SDK של Firebase (3 קבצים, ~300KB) נטען כאן — אחרי הציור הראשון — ולא בתגי <script> חוסמים ב־index.html.
+     אותם קבצים, אותן חתימות SRI (tests/csp.test.js בודק), נטענים בסדר (app → auth → firestore). */
+  const SDK = [
+    ['https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js', 'sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9'],
+    ['https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js', 'sha384-TnlRYaR4JYz/lpaGuaiU61PjNberSA4vjLjtF+oRC/IkohkJqnWxw5EmDSOt1vA1'],
+    ['https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js', 'sha384-qn4Jh88HhJA8dplNQyGjOh9OGI4izVhrfj/qIFgaKcdgOE06pXqIKGlsCILZcLAC'],
+  ];
+  let sdkLoading = null;
+  function loadSdk() {
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.firestore) return Promise.resolve(true);
+    if (sdkLoading) return sdkLoading;
+    sdkLoading = new Promise((resolve) => {
+      let i = 0;
+      const next = () => {
+        if (i >= SDK.length) { resolve(typeof firebase !== 'undefined' && !!firebase.auth && !!firebase.firestore); return; }
+        const sc = document.createElement('script');
+        sc.src = SDK[i][0];
+        sc.integrity = SDK[i][1];
+        sc.crossOrigin = 'anonymous';
+        sc.async = false;
+        sc.addEventListener('load', () => { i++; next(); });
+        sc.addEventListener('error', () => resolve(false));
+        document.head.appendChild(sc);
+      };
+      next();
+    });
+    return sdkLoading;
   }
 
   function initSdk() {
@@ -223,16 +253,29 @@
   function boot(fallback) {
     bootFallback = fallback;
     renderAccountCard();
-    if (!initSdk()) {
+    if (!isConfigured) {
       fallback(); // אין ענן — עובדים מקומית
       return;
     }
-    wireLoginUi();
+    // v193: האפליקציה כבר צוירה מהנתונים המקומיים (init קורא ל־startApp לפני boot); ה־SDK נטען אחרי הפריים הראשון
+    const go = () => loadSdk().then((ok) => {
+      if (!ok || !initSdk()) { renderAccountCard(); fallback(); return; }
+      wireLoginUi();
+      watchAuth();
+    });
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(go, 0)); else setTimeout(go, 0);
+  }
+
+  function watchAuth() {
+    const fallback = bootFallback;
     auth.onAuthStateChanged(async (u) => {
       user = u;
+      // v193: דגל "היה מחובר" — app.js משתמש בו כדי לא לצייר תיק ריק לרגע כשהאחסון המקומי ריק אבל הענן מלא
+      try { if (u) localStorage.setItem(LS_CLOUD_USER, '1'); else localStorage.removeItem(LS_CLOUD_USER); } catch (e) {}
       if (!u) {
         if (!localMode) showLogin();
         renderAccountCard();
+        fallback(); // v193: לא מחובר — האפליקציה ממשיכה מקומית (startApp עמיד לקריאה חוזרת)
         return;
       }
       hideLogin();

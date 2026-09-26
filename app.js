@@ -1024,6 +1024,7 @@ function applyI18n() {
   renderLangToggle();
   try { renderThemeToggle(); } catch (e) {}
   try { renderPfNote(); } catch (e) {}
+  try { if (typeof positionTabIndicator === 'function') positionTabIndicator(); } catch (e) {}
   try {
     const gSub = document.getElementById('ovGLSub');
     if (gSub) gSub.textContent = (typeof isIbkrMode === 'function' && isIbkrMode())
@@ -1036,11 +1037,14 @@ function setLang(lang) {
   const l = lang === 'en' ? 'en' : 'he';
   try { localStorage.setItem(LS_LANG, l); } catch (e) {}
   if (typeof state !== 'undefined') state.lang = l;
-  applyI18n();
-  if (typeof renderAll === 'function') renderAll();
-  if (typeof renderIbkrCard === 'function') renderIbkrCard();
-  if (typeof renderTdKeyStatus === 'function') renderTdKeyStatus();
-  if (typeof updateSourceLabel === 'function') updateSourceLabel();
+  const apply = () => {
+    applyI18n();
+    if (typeof renderAll === 'function') renderAll({ all: true }); // v193: כל הטאבים — הטקסטים בכולם משתנים
+    if (typeof renderIbkrCard === 'function') renderIbkrCard();
+    if (typeof renderTdKeyStatus === 'function') renderTdKeyStatus();
+    if (typeof updateSourceLabel === 'function') updateSourceLabel();
+  };
+  if (typeof withViewTransition === 'function') withViewTransition(apply); else apply();
 }
 
 /* מצייר את מצב המתג (איזה כפתור פעיל). */
@@ -1073,6 +1077,7 @@ function resolveTheme() {
 /* מחיל data-theme על <html> ומעדכן את צבע שורת הסטטוס. */
 function applyTheme() {
   const th = resolveTheme();
+  cssVarCacheClear(); // v193
   try {
     if (document.documentElement) document.documentElement.dataset.theme = th;
     const meta = document.querySelector && document.querySelector('#themeColorMeta');
@@ -1083,7 +1088,16 @@ function applyTheme() {
 function setThemeMode(mode) {
   const m = mode === 'dark' ? 'dark' : mode === 'light' ? 'light' : 'system';
   try { localStorage.setItem(LS_THEME, m); } catch (e) {}
-  applyTheme();
+  withViewTransition(applyTheme); // v193: מעבר בהיר/כהה בהצלבה רכה (View Transitions כשיש)
+}
+/* v193: מריץ שינוי מסך בתוך View Transition (הצלבה של המסך הישן והחדש, ~280ms) כשהדפדפן תומך;
+   אחרת — מיד. מכבד "הפחתת תנועה". fn חייבת להיות סינכרונית. */
+function withViewTransition(fn) {
+  try {
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce && typeof document !== 'undefined' && typeof document.startViewTransition === 'function') { document.startViewTransition(() => { fn(); }); return; }
+  } catch (e) {}
+  fn();
 }
 /* מצייר את מצב מתג ערכת הנושא. */
 /* v108: בקרת ערכה בטאב ההגדרות — בהיר/כהה/מערכת; כפתור יחיד בתפריט — בהיר/כהה. */
@@ -1100,13 +1114,19 @@ function renderThemeToggle() {
   if (alt) alt.innerHTML = resolveTheme() === 'dark' ? ICON_SUN : ICON_MOON;
 }
 /* קורא משתנה CSS מהערכה הנוכחית; בטסטים (אין getComputedStyle) מחזיר ברירת מחדל. */
+/* v193: מטמון לפי ערכה — getComputedStyle נקרא עשרות פעמים בכל ציור גרף; הערך משתנה רק כשהערכה מתחלפת (applyTheme מנקה). */
+const _cssVarCache = {};
 function cssVar(name, fallback) {
   try {
     if (typeof getComputedStyle !== 'function') return fallback;
+    if (name in _cssVarCache) return _cssVarCache[name] || fallback;
     const v = getComputedStyle(document.documentElement).getPropertyValue(name);
-    return (v && v.trim()) || fallback;
+    const out = (v && v.trim()) || '';
+    _cssVarCache[name] = out;
+    return out || fallback;
   } catch (e) { return fallback; }
 }
+function cssVarCacheClear() { for (const k of Object.keys(_cssVarCache)) delete _cssVarCache[k]; }
 
 /* ---------------- עזרים טהורים (נבדקים ב-node) ---------------- */
 
@@ -3841,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v192';
+const APP_VERSION = 'v193';
 
 
 function saveDBto(db) {
@@ -4364,13 +4384,20 @@ function fmtShortMoney(v, cur) {
   return sym + t.replace(/\.0(?=[KM])/, '');
 }
 
+/* v193: ציור עוגה מאוחד — כמה לוגואים שנטענים באותה שנייה = ציור אחד בפריים הבא, לא ציור מלא לכל לוגו */
+let _pieDrawT = 0;
+function schedulePie() {
+  if (_pieDrawT) return;
+  const run = () => { _pieDrawT = 0; try { drawPie(); } catch (e) {} };
+  _pieDrawT = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(run) : setTimeout(run, 16);
+}
 function pieLogoImg(sym) {
   const s = normalizeSym(sym);
   let e = PIE_LOGO_CACHE[s];
   if (!e) {
     e = PIE_LOGO_CACHE[s] = { img: new Image(), ready: false, failed: false };
-    e.img.onload = () => { e.ready = true; e.light = logoIsLight(e.img); if (e.light) e.inv = logoInverted(e.img); try { drawPie(); } catch (er) {} };
-    e.img.onerror = () => { e.failed = true; try { drawPie(); } catch (er) {} };
+    e.img.onload = () => { e.ready = true; e.light = logoIsLight(e.img); if (e.light) e.inv = logoInverted(e.img); schedulePie(); };
+    e.img.onerror = () => { e.failed = true; schedulePie(); };
     const src = logoSrc(s);
     if (src) { e.img.crossOrigin = 'anonymous'; e.img.src = src; } else e.failed = true;
   }
@@ -4624,19 +4651,22 @@ async function tryFxYahoo() {
 }
 
 async function tryFx() {
-  try { return await tryFxYahoo(); } catch (e) {}
+  // v193: מרוץ — Yahoo (תוך־יומי, עדיף) מול המקורות היומיים במקביל, לא בטור. Yahoo מקבל יתרון של 1.2 שניות;
+  // אם הוא חסום/איטי — המקור היומי הראשון שעונה. לפני כן: Yahoo נכשל בטלפון → 8 שניות המתנה ואז המקורות בזה אחר זה.
   const urls = [
     'https://open.er-api.com/v6/latest/USD',
     'https://api.frankfurter.app/latest?from=USD&to=ILS'
   ];
-  for (const u of urls) {
-    try {
-      const j = await fetchJSONTimeout(u, 8000);
-      const r = num(j && j.rates && j.rates.ILS);
-      if (r > 0) return r;
-    } catch (e) {}
-  }
-  throw new Error('no fx');
+  const daily = (u) => fetchJSONTimeout(u, 8000).then((j) => { const r = num(j && j.rates && j.rates.ILS); if (!(r > 0)) throw new Error('no fx'); return r; });
+  return new Promise((resolve, reject) => {
+    let done = false, backup = null, yahooDead = false, backupDead = false, timer = null;
+    const finish = (v) => { if (done) return; done = true; clearTimeout(timer); resolve(v); };
+    const fail = () => { if (!done && yahooDead && backupDead) reject(new Error('no fx')); };
+    tryFxYahoo().then((v) => { if (v > 0) finish(v); else { yahooDead = true; if (backup) finish(backup); fail(); } },
+      () => { yahooDead = true; if (backup) finish(backup); fail(); });
+    Promise.any(urls.map(daily)).then((v) => { backup = v; if (yahooDead) finish(v); else timer = setTimeout(() => finish(v), 1200); },
+      () => { backupDead = true; fail(); });
+  });
 }
 
 /* v101: ציור פיל שער הדולר בראש העמוד הראשי */
@@ -4840,6 +4870,7 @@ function yahooOk() { const was = yahooGate.backoff > 0; yahooGate.backoff = 0; y
 async function yahooRecovered() {
   const syms = quoteSymbols().filter((sym) => isChartableSym(sym) && !(state.hist[sym] || []).length);
   for (const sym of syms) delete histNegCache[sym];
+  await histBatchWarm(syms); // v193
   // בלי force — טעינה שכבר רצה לאותה מניה משותפת (histInflight), לא כפולה
   await pool(syms, 3, (sym) => getDailyFast(sym, false).catch(() => null));
   const open = Object.keys(state.open).filter((x) => state.open[x]);
@@ -4951,17 +4982,18 @@ function renderLive(syms) {
     const p = POSITIONS.find((x) => x.sym === s);
     const card = p && document.querySelector('#stockList .stock[data-sym="' + s + '"]');
     if (!card) continue;
-    const fresh = buildStockCard(p);
-    const pa = card.querySelector('.stock-head .stock-price'), pb = fresh.querySelector('.stock-head .stock-price');
+    const m = metrics(s);
+    const fresh = el('div'); // v193: רק הכותרת — לא כרטיס שלם עם גוף וקנבס בכל טיק
+    fresh.innerHTML = stockHeadHTML(p, m);
+    const pa = card.querySelector('.stock-head .stock-price'), pb = fresh.querySelector('.stock-price');
     if (pa && pb) livePriceSwap(pa, pb);
     for (const cls of ['.stock-sub', '.stock-ext']) {
-      const sa = card.querySelector('.stock-head ' + cls), sb = fresh.querySelector('.stock-head ' + cls);
+      const sa = card.querySelector('.stock-head ' + cls), sb = fresh.querySelector(cls);
       if (sa && sb && sa.innerHTML !== sb.innerHTML) sa.innerHTML = sb.innerHTML;
     }
     if (state.open[s]) {
-      const g = card.querySelector('.stock-body .kv-grid'), g2 = fresh.querySelector('.stock-body .kv-grid');
-      if (g && g2) g.innerHTML = g2.innerHTML;
-      if (g) ensureChartData(s, true);
+      const g = card.querySelector('.stock-body .kv-grid');
+      if (g) { g.innerHTML = kvGridHTML(p, m); ensureChartData(s, true); }
     }
   }
   if (syms.some((s) => WISHLIST.some((w) => w.sym === s))) { try { renderWishlist(); } catch (e) {} }
@@ -5004,12 +5036,15 @@ function updateSourceLabel() {
   }
 }
 
+const FX_SYM = 'USDILS=X';
 async function tryYahooQuotes() {
-  const q = await liveFetch(quoteSymbols()); // v164: שרתון בבקשה אחת, ישירות רק כגיבוי
+  // v193: שער הדולר באותה בקשה לשרתון (USDILS=X) — חוסך סבב רשת שלם בטעינה; tryFx רק אם חסר
+  const q = await liveFetch(quoteSymbols().concat([FX_SYM])); // v164: שרתון בבקשה אחת, ישירות רק כגיבוי
+  const fxq = q[FX_SYM]; delete q[FX_SYM];
   const results = Object.values(q);
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
   if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
-  const fx = await tryFx();
+  const fx = fxq && fxq.close > 0 ? fxq.close : await tryFx();
   const sess = (results.find((r) => r && r.session) || {}).session || '';
   return { quotes: q, fx: fx, source: 'Yahoo', session: (sess === 'regular' || sess === 'closed') ? '' : sess };
 }
@@ -5207,9 +5242,32 @@ async function warmHistories() {
     const rows = rec && rec.rows;
     if (rows && rows.length && rows[rows.length - 1].date >= soldTo[sym]) { restoreHistRows(sym, rec); syms.delete(sym); }
   }
+  await histBatchWarm([...syms]); // v193: כל מה שחסר — בבקשה אחת לשרתון
   await pool([...syms], 3, (sym) => getDaily(sym, false));
   renderStocks();
   renderOverview();
+}
+
+/* v193: חימום היסטוריות בבקשה אחת: מה שאין בזיכרון ולא במטמון טרי (24 שעות) נשלח לשרתון ב־POST אחד (עד 40 סימבולים)
+   ונשמר כמו fetch רגיל. מה שהשרתון לא החזיר — נופל אחר כך למסלול הרגיל (Yahoo/Stooq ישירות). לפני כן: בקשה לכל מניה,
+   מהטלפון ישירות ל־Yahoo (שחוסם), עם timeouts של 8 שניות. */
+async function histBatchWarm(syms) {
+  if (histProxyOff) return;
+  const need = [];
+  for (const raw of syms) {
+    const sym = normalizeSym(raw);
+    if (!sym || !isChartableSym(sym) || state.hist[sym] || need.includes(sym)) continue;
+    if (histInflight[sym]) continue;
+    let fresh = false;
+    try {
+      const rec = loadHistCacheRec(sym);
+      const age = rec ? Date.now() - (Number(rec.at) || 0) : Infinity;
+      fresh = !!(rec && rec.rows && rec.rows.length && age >= 0 && age < 24 * 60 * 60 * 1000);
+    } catch (e) {}
+    if (!fresh) need.push(sym);
+  }
+  if (!need.length) return;
+  await Promise.all(need.slice(0, 40).map((sym) => proxyHistQueued(sym).then((rows) => { if (rows && rows.length) storeHistRows(sym, rows); }).catch(() => null)));
 }
 
 /* הפרדה בין סוגי משתמשים: השוואת מדדים רק כשההיסטוריה אמיתית מ־IBKR.
@@ -5311,9 +5369,9 @@ function proxyHistQueued(sym) {
       proxyHistQ.syms = {}; proxyHistQ.timer = null;
       const list = Object.keys(batch).slice(0, 40);
       let got = {};
-      try { got = await proxyHistory(list, (isDemoMode() || _demoBusy) ? '7y' : '5y', 20000); } catch (e) { got = {}; }
+      try { got = await proxyHistory(list, (isDemoMode() || _demoBusy) ? '7y' : '5y', 12000); } catch (e) { got = {}; }
       for (const k of Object.keys(batch)) for (const fn of batch[k]) fn(got[k] || null);
-    }, 250);
+    }, 60); // v193: חלון איסוף קצר — הקוראים כבר מגיעים יחד
   });
 }
 
@@ -5371,8 +5429,9 @@ async function _getDailyFastInner(sym, force) {
   };
   const notes = [];
   // v163: Yahoo כבר ידוע כחוסם את הטלפון — ישר לשרתון, בלי לחכות ל־timeouts של המרוץ
+  // v193: השרתון ראשון תמיד (בקשות מקבילות מאוחדות לאחת) — מהטלפון Yahoo ישירות נחסם ומחכה ל־timeout; ישירות רק כגיבוי
   let proxyTried = false;
-  if (yahooCooling() && !histProxyOff) {
+  if (!histProxyOff) {
     proxyTried = true;
     const px = await proxyHistQueued(sym);
     if (px && px.length) return save(px);
@@ -5483,6 +5542,7 @@ async function warmPfHistories(onProgress, fromDate) {
     done++;
     if (onProgress) { try { onProgress(done, syms.length); } catch (e) {} }
   };
+  await histBatchWarm(syms); // v193: בקשה אחת לכל מה שחסר, ואז המסלול הרגיל למה שנשאר
   await pool(syms, 8, async (sym) => { try { await getDailyFast(sym, false); } finally { tick(); } });
 }
 
@@ -5726,18 +5786,74 @@ function setBanner(msg) {
   b.textContent = msg;
 }
 
+/* v193: מציירים רק את הטאב שרואים. כל מצייר־טאב שואל tabShouldRender(שם): טאב מוסתר לא מצויר אלא מסומן "מלוכלך",
+   ומצויר ברגע שעוברים אליו (switchTab). ככה טיק חי / שינוי מטבע / הגעת מחירים לא בונים 6 טאבים מחדש בכל פעם.
+   בלי DOM (בדיקות) — תמיד מציירים. */
+const tabDirty = {};
+let _renderForce = false;
+function tabShouldRender(name) {
+  if (_renderForce) { tabDirty[name] = false; return true; }
+  let cur = null;
+  try { const a = document.querySelector('.tabpage.active'); cur = a && a.id ? String(a.id).replace(/^tab-/, '') : null; } catch (e) { cur = null; }
+  if (!cur || cur === name) { tabDirty[name] = false; return true; }
+  tabDirty[name] = true;
+  return false;
+}
+const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings'];
+function tabRenderer(name) {
+  return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension }[name] || null;
+}
+/* v193: גלולה ירוקה שמחליקה בין הלשוניות (במקום רקע שקופץ) — כמו בורר מקטעים של אפל. ממוקמת פיזית (offsetLeft),
+   עובד ב־RTL וב־LTR ובתוך סרגל שגולל. הפעם הראשונה — בלי אנימציה. */
+function positionTabIndicator() {
+  const tabs = document.querySelector('.tabs');
+  if (!tabs || !tabs.querySelector) return;
+  let ind = tabs.querySelector('.tab-ind');
+  if (!ind) {
+    ind = document.createElement('span');
+    ind.className = 'tab-ind';
+    ind.setAttribute('aria-hidden', 'true');
+    tabs.insertBefore(ind, tabs.firstChild);
+  }
+  const act = tabs.querySelector('.tab.active');
+  if (!act || !act.offsetWidth) return;
+  ind.style.width = act.offsetWidth + 'px';
+  ind.style.transform = 'translateX(' + act.offsetLeft + 'px)';
+  if (!tabs.classList.contains('has-ind')) {
+    ind.style.transition = 'none';
+    tabs.classList.add('has-ind');
+    void ind.offsetWidth; // מיקום ראשון בלי החלקה
+    ind.style.transition = '';
+  }
+}
+/* v193: כיוון הכניסה של העמוד (ציר משותף, כמו Material/iOS) — לשונית "קדימה" = העמוד נכנס מהצד שאליו הולכים
+   (ב־RTL הפוך). נכתב כמשתנה CSS על העמוד; האנימציה עצמה ב־styles.css (tabIn). */
+function setTabPageDirection(prev, name) {
+  const page = document.getElementById('tab-' + name);
+  if (!page || !page.style || !page.style.setProperty || prev === name) return;
+  const fwd = TAB_ORDER.indexOf(name) > TAB_ORDER.indexOf(prev);
+  const rtl = String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
+  page.style.setProperty('--tab-dx', ((fwd !== rtl) ? 22 : -22) + 'px');
+}
 function switchTab(name) {
+  const prev = currentTabName();
+  let actTab = null;
   document.querySelectorAll('.tab').forEach((t) => {
     const on = t.dataset.tab === name;
     t.classList.toggle('active', on);
-    if (on && t.scrollIntoView) {
-      try { t.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
-    }
+    if (on) actTab = t;
   });
+  // v193: הגלולה נמדדת לפני שהעמוד החדש מוצג — ה־layout הכפוי (offsetLeft) מכסה רק את שורת הלשוניות
+  try { positionTabIndicator(); } catch (e) {}
+  if (actTab && actTab.scrollIntoView) {
+    try { actTab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
+  }
+  setTabPageDirection(prev, name);
   document.querySelectorAll('.tabpage').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
+  if (tabDirty[name]) { const fn = tabRenderer(name); if (fn) { try { fn(); } catch (e) {} } } // v193: הטאב השתנה בזמן שהיה מוסתר
   // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
   try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
-  requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} });
+  requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} }); // התאמת מספרים אחרי המעבר (fitNumbers)
   // v85/v153: שחזור מיקום גלילה שמור לטאב הזה — גם כשהתוכן עוד נטען (restoreScrollTo)
   restoreScrollTo(name, getSavedScrollY(name));
 }
@@ -5819,22 +5935,42 @@ function initScrollSaver() {
 /* התאמת גודל מספרים גדולים לרוחב הכרטיס — נשארים גדולים ככל האפשר,
    אבל מתכווצים אוטומטית לפי אורך המספר כדי שאף ספרה לא תיחתך. */
 function fitNumbers() {
-  document.querySelectorAll('.stat-value, .lg-pct, .pension-total').forEach((elm) => {
-    elm.style.fontSize = '';
+  // v193: רק בטאב הנראה, וקריאות/כתיבות בקבוצות — לפני כן כל מספר עשה עד 40 סבבי מדידה→שינוי (layout thrash)
+  const SEL = '.stat-value, .lg-pct, .pension-total';
+  const els = document.querySelectorAll(SEL.split(', ').map((x) => '.tabpage.active ' + x).join(', '));
+  if (!els.length) return;
+  // זיכרון לכל אלמנט: אותו טקסט באותו רוחב מסך = אותה תוצאה — טיק חי שלא שינה מספר לא נוגע ב־layout בכלל
+  const vw = (typeof window !== 'undefined' && window.innerWidth) || 0;
+  const todo = [];
+  for (const elm of els) {
+    const key = elm.textContent + '|' + vw;
+    if (elm._fitKey === key) continue;
+    elm._fitKey = key;
+    todo.push(elm);
+  }
+  if (!todo.length) return;
+  for (const elm of todo) if (elm.style.fontSize) elm.style.fontSize = '';
+  const items = [];
+  for (const elm of todo) {
     const w = elm.clientWidth;
-    if (!w) return; // לשונית מוסתרת — יימדד כשנפתח
-    let size = parseFloat(getComputedStyle(elm).fontSize) || 25;
-    const min = 13;
-    let guard = 40;
-    while (guard-- > 0 && size > min && elm.scrollWidth > w + 1) {
-      size -= 1;
-      elm.style.fontSize = size + 'px';
-    }
-  });
+    if (!w) { elm._fitKey = ''; continue; } // מוסתר — נמדוד כשיוצג
+    const sw = elm.scrollWidth;
+    if (sw <= w + 1) continue;
+    const size = parseFloat(getComputedStyle(elm).fontSize) || 25;
+    items.push({ elm: elm, w: w, size: Math.max(13, Math.floor(size * (w / sw) * 0.98)) });
+  }
+  if (!items.length) return;
+  for (const it of items) it.elm.style.fontSize = it.size + 'px';
+  for (let pass = 0; pass < 3; pass++) { // בדרך כלל מדויק מהניסיון הראשון; עוד צעד־שניים ליישור
+    let again = false;
+    for (const it of items) if (it.size > 13 && it.elm.scrollWidth > it.w + 1) { it.size -= 1; it.elm.style.fontSize = it.size + 'px'; again = true; }
+    if (!again) break;
+  }
 }
 
 let ovTwrKind = 'official';
 function renderOverview(light) {
+  if (!tabShouldRender('overview')) return; // v193
   const cur = state.currency;
   const tot = totalsUSD();
   const total = cur === 'ILS' && state.fx ? tot.total * state.fx : tot.total;
@@ -5863,7 +5999,7 @@ function renderOverview(light) {
     } else if (!POSITIONS.length || POSITIONS.some((p) => state.quotes[p.sym])) {
       vTxt = money(total, cur);
     }
-    vEl.textContent = vTxt;
+    if (vTxt === '—' && quotesPending() && POSITIONS.length) vEl.innerHTML = SKEL_HTML; else vEl.textContent = vTxt; // v193: שלד עד המחיר הראשון
     if (vSub) {
       if (isIbkrMode()) vSub.textContent = t('ovValueReport');
       else vSub.textContent = t('ovStocksSub');
@@ -5896,7 +6032,7 @@ function renderOverview(light) {
     if (gSub) gSub.textContent = t('ovGLHoldings');
   } else if (!isIbkrMode() && gSub) gSub.textContent = t('ovVsNetDeposits');
   state._ovSimpleYld = yld;
-  if (gl === null) { gEl.textContent = '—'; }
+  if (gl === null) { if (quotesPending() && POSITIONS.length) gEl.innerHTML = SKEL_HTML; else gEl.textContent = '—'; }
   else { gEl.textContent = fmtSignedMoney(gl, cur); }
   gEl.className = 'stat-value ' + (gl === null ? '' : gl >= 0 ? 'pos' : 'neg');
 
@@ -6110,6 +6246,16 @@ function drawPie() {
   // v133: גדול ככל שהרוחב הזמין מאפשר (הקנבס מרובע — CSS aspect-ratio:1/1)
   const w = canvas.clientWidth || 320;
   let h = w; // v183: מרובע; עם הרבה מניות הקנבס מתארך (למטה)
+  // v193: מפתח ציור — כשכלום שנראה לא השתנה (רוחב, ערכה, שפה, מטבע, אחוזים/שווי מקוצר, לוגואים, הרמה) לא מציירים שוב.
+  // הטיק החי (כל 2 שניות) קורא ל־drawPie דרך renderOverview(true); רוב הטיקים לא מזיזים אף אחוז — ואז זה חינם.
+  try {
+    const cur0 = state.currency, dark0 = document.documentElement.getAttribute('data-theme') === 'dark';
+    const key = [w, dark0 ? 'd' : 'l', state.lang, cur0, state.pieActive || '', Math.round((state.pieFocus || 0) * 1000), JSON.stringify(state.pieLift || {}),
+      slicesUnique.slice().sort((x, y) => y.value - x.value).map((sl) => { const e = PIE_LOGO_CACHE[normalizeSym(sl.sym)];
+        return sl.sym + ':' + (total ? (sl.value / total * 100).toFixed(1) : '') + ':' + fmtShortMoney(cur0 === 'ILS' && state.fx ? sl.value * state.fx : sl.value, cur0) + ':' + (e ? (e.ready ? 'r' : e.failed ? 'f' : 'p') : '-'); }).join('|')].join('#');
+    if (canvas._pieDrawKey === key && canvas.width && !pieAnimRaf) return;
+    canvas._pieDrawKey = key;
+  } catch (e) {}
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -6214,20 +6360,26 @@ function drawPie() {
   // v185: התוויות שואפות לחלק החיצוני של הפרוסה (62% מרוחב הטבעת) — נוגעות בפרוסה, לא עמוק בפנים
   const ringAt = (RR, f) => holeOf(RR) + (RR - holeOf(RR)) * f;
   let R = R0, rho = ringAt(R0, 0.9), ok = false; // v191: הלוגואים ב־90% מרוחב הטבעת — ממש על השפה החיצונית
+  const OUTER = segs.length > 12; // v193: מעל 12 — הפריסה של השבבים (למטה); שלבי התוויות של מעט מניות מיותרים
+  // v193: מטמון פריסה — אותן פרוסות (זוויות, רוחבי תוויות) באותו רוחב = אותה פריסה; החיפוש (סריקות + נגיעות) לא רץ שוב
+  const layKey = w + '|' + h + '|' + segs.map((g) => g.s.sym + ':' + g.a.toFixed(4) + ':' + g.a2.toFixed(4) + ':' + g.W).join('|');
+  const LC = state.pieLayoutCache;
+  const layHit = !OUTER && LC && LC.key === layKey && LC.pos.length === segs.length;
+  if (layHit) { rho = LC.rho; R = LC.R; SC = LC.SC; ok = true; segs.forEach((g, i) => { g.x = LC.pos[i][0]; g.y = LC.pos[i][1]; g.lab = LC.pos[i][2]; }); }
   // 1) מעט מניות: במרכז הפרוסות — אם צריך, כל התוויות קטנות יחד (עד 82%) כדי שלא ייגעו
-  for (const sc of [1, 0.9, 0.82, 0.76, 0.7]) { // v188: עדיף תוויות קטנות יותר מאשר תוויות מחוץ לטבעת — הלוגו על הפרוסה
+  if (!OUTER && !layHit) for (const sc of [1, 0.9, 0.82, 0.76, 0.7]) { // v188: עדיף תוויות קטנות יותר מאשר תוויות מחוץ לטבעת — הלוגו על הפרוסה
     SC = sc;
     const cap = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W / 2, H / 2 + (H / 2 - LS / 2) * 0.6) * SC)); // v190: הבועה שתלויה מתחת ללוגו נשארת בתוך הקנבס
     for (const d of [0, 6, 12, 18]) { const r1 = Math.min(rho + d, cap); if (posAt(r1)) { ok = true; rho = r1; break; } }
     if (ok) break;
   }
-  if (ok) { // v192: אם הקנבס לא מאפשר להגיע ל־90% מרוחב הטבעת — הטבעת מתכווצת כך שהלוגואים באמת יושבים על השפה
+  if (ok && !layHit && !OUTER) { // v192: אם הקנבס לא מאפשר להגיע ל־90% מרוחב הטבעת — הטבעת מתכווצת כך שהלוגואים באמת יושבים על השפה
     let RR = R0;
     for (let i = 0; i < 4; i++) RR = (rho - 0.1 * holeOf(RR)) / 0.9;
     R = Math.max(R0 * 0.8, Math.min(R0, RR));
   }
   // 2) יותר מניות: כל התוויות מתרחקות מהמרכז באותה מידה (הטבעת מתכווצת ונשארת מתחתן), עד שאין נגיעות
-  if (!ok) {
+  if (!ok && !OUTER) {
     let rhoMax = 0;
     for (const sc of [0.85, 0.78, 0.72]) { // v190: אם גם בשפה לא נכנס — תוויות קטנות עוד יותר לפני שמקבלים נגיעות
       SC = sc;
@@ -6238,10 +6390,10 @@ function drawPie() {
     if (!ok) { rho = rhoMax; posAt(rho); }
     R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
+  if (!OUTER && !layHit) state.pieLayoutCache = { key: layKey, rho: rho, R: R, SC: SC, pos: segs.map((g) => [g.x, g.y, g.lab]) };
   // 3) v183: הרבה מניות (מעל 12) — "הסברים": לכל מניה שבב (פס בצבע הפרוסה + לוגו + אחוז מעל שווי) בטור לצד העוגה,
   // ממוין לפי הזווית, עם קו מוביל בצבע הפרוסה מהפרוסה אל השבב — הקווים לא מצטלבים, ואף מניה לא מוסתרת.
   // הקנבס מתארך לפי הצורך (עד פי 1.5 מהרוחב); גודל השבב — הגדול ביותר שמשאיר עוגה של לפחות 29% מהרוחב.
-  const OUTER = segs.length > 12;
   const CHIP_H = LS + 2 + BUB_H; // v186: שבב אנכי — לוגו מעל הבועה (אחוז/שווי), בלי סימבול — אותו מבנה כמו במעט מניות
   if (OUTER) {
     const key = ['cols', w].concat(segs.map((g) => g.s.sym + ':' + g.pctTxt + ':' + g.valTxt)).join('|');
@@ -6369,6 +6521,7 @@ function drawPie() {
     ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
     if (!g.chip) { g.x += ox; g.y += oy; } // v180: התווית זזה יחד עם הפרוסה; שבב בטור נשאר במקומו (הקו המוביל זז)
   }
+  if (canvas.classList) canvas.classList.add('drawn'); // v193: הקנבס נכנס בעמעום כשיש מה להראות
   state.pieGeom = { cx: cx, cy: cy, r: r, R: R, segs: segs.map((g) => ({ sym: g.s.sym, a: g.a, a2: g.a2 })),
     chips: segs.filter((g) => g.chip).map((g) => ({ sym: g.s.sym, x: cx + g.x - g.chipW * SC / 2, y: cy + g.y - CHIP_H * SC / 2, w: g.chipW * SC, h: CHIP_H * SC })) };
   pieWireTouch(canvas);
@@ -6532,7 +6685,7 @@ function drawPie() {
     const li = el('li', '',
       '<span class="pie-leg-logo' + (e && e.ready && e.light ? ' inv' : '') + '">' +
       '<span class="pie-leg-fb">' + esc((normalizeSym(s.sym) || '?').charAt(0)) + '</span>' +
-      (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" data-err="hide-self">' : '') + '</span>' +
+      (src && !(e && e.failed) ? '<img src="' + src + '" alt="" loading="lazy" decoding="async" data-err="hide-self">' : '') + '</span>' +
       '<span class="dot" style="background:' + s.color + '"></span>' +
       '<span class="lg-name"><bdi dir="ltr" class="lg-sym">' + esc(s.sym) + '</bdi>' +
       (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
@@ -7398,6 +7551,7 @@ function paintPfChart() {
   if (!ms.on && state.pfTipIdx !== null && state.pfTipIdx < n) drawMarker(state.pfTipIdx);
 
   canvas._pfMap = { n, padL, plotW, series, xs: fr.map((f) => padL + f * plotW) };
+  if (canvas.classList) canvas.classList.add('drawn'); // v193
   canvas.classList.toggle('measuring', state.pfPickDate || ms.on);
   updatePfMeasureChip();
 
@@ -7884,10 +8038,12 @@ function initStockSort() {
 }
 
 function renderStocks() {
-  const list = document.getElementById('stockList');
-  list.innerHTML = '';
   const sc = document.getElementById('stockCount');
   if (sc) sc.textContent = POSITIONS.length;
+  if (!tabShouldRender('stocks')) return; // v193
+  const list = document.getElementById('stockList');
+  const wasEmpty = !list.querySelector || !list.querySelector('.stock'); // v193: כניסה מדורגת רק כשהרשימה נבנית מאפס
+  list.innerHTML = '';
   if (editAllowed('stocks')) {
     const add = el('button', 'card add-card');
     add.type = 'button';
@@ -7914,8 +8070,12 @@ function renderStocks() {
     m.style.padding = '0';
     list.appendChild(m);
   }
+  let idx = 0;
   for (const p of sortPositionsList(shown, mode, mOf)) {
-    list.appendChild(buildStockCard(p));
+    const card = buildStockCard(p);
+    if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); }
+    idx++;
+    list.appendChild(card);
   }
 }
 
@@ -7934,14 +8094,14 @@ function showEditPositionForm(card, p) {
   const body = card.querySelector('.stock-body');
   card.classList.add('open');
   body.innerHTML =
-    '<div class="form-grid">' +
+    '<div class="stock-body-in"><div class="form-grid">' +
     '<label>' + t('fldShares') + '<input id="ep-shares" type="number" min="0" step="any" inputmode="decimal" value="' + p.shares + '"></label>' +
     '<label>' + t('fldAvgPrice', { c: esc(pxUnit(p.sym)) }) + '<input id="ep-avg" type="number" min="0" step="any" inputmode="decimal" value="' + pxToInput(p.sym, p.avg) + '"></label>' +
     '</div>' +
     '<div class="form-err hidden" id="ep-err"></div>' +
     '<div class="edit-actions"><button class="btn" id="ep-save" type="button">' + t('btnSave') + '</button>' +
     '<button class="link-btn" id="ep-cancel" type="button">' + t('btnCancel') + '</button>' +
-    '<button class="chip-btn danger" id="ep-delete" type="button">' + t('btnDelete') + '</button></div>';
+    '<button class="chip-btn danger" id="ep-delete" type="button">' + t('btnDelete') + '</button></div></div>';
   body.querySelector('#ep-cancel').addEventListener('click', () => refreshStockBody(p.sym));
   body.querySelector('#ep-delete').addEventListener('click', () => deletePosition(p));
   body.querySelector('#ep-save').addEventListener('click', () => {
@@ -8168,7 +8328,7 @@ function showPositionTrades(card, p) {
   const body = card.querySelector('.stock-body');
   card.classList.add('open');
   body.innerHTML = '';
-  const wrap = el('div', 'mt-manage');
+  const wrap = el('div', 'mt-manage stock-body-in');
   wrap.appendChild(el('p', 'fine', t('mtManageHint')));
   const formHost = el('div');
   wrap.appendChild(formHost);
@@ -8257,9 +8417,10 @@ function wlRemove(w) {
 function renderWishlist() {
   const list = document.getElementById('wishlistList');
   if (!list) return;
-  list.innerHTML = '';
   const wc = document.getElementById('wishlistCount');
   if (wc) wc.textContent = WISHLIST.length;
+  if (!tabShouldRender('wishlist')) return; // v193
+  list.innerHTML = '';
   if (!WISHLIST.length) {
     const m = el('p', 'fine');
     m.textContent = t('wlEmpty');
@@ -8306,7 +8467,7 @@ function stockLogoHTML(sym) {
   const src = logoSrc(nsym);
   return '<span class="stock-logo">' +
     '<span class="stock-logo-fb">' + esc(first) + '</span>' +
-    (src ? '<img class="stock-logo-img" crossorigin="anonymous" src="' + src + '" alt="" loading="lazy" ' +
+    (src ? '<img class="stock-logo-img" crossorigin="anonymous" src="' + src + '" alt="" loading="lazy" decoding="async" ' +
     'data-logo="1">' : '') +
     '</span>';
 }
@@ -8376,23 +8537,29 @@ function stockSubHTML(p, m) {
   return html;
 }
 
-function buildStockCard(p) {
+/* v193: "שלד" מהבהב במקום "—" בזמן שהמחירים הראשונים עוד בדרך (אין עדיין ציטוט ולא נתונים שמורים) */
+const SKEL_HTML = '<span class="skel" aria-hidden="true"></span>';
+function quotesPending() { return !state.quotesAt && !state.stale; }
+/* v193: כותרת הכרטיס (לוגו, סימבול, שם, מחיר, שינוי) — משותף לבנייה ולעדכון החי, בלי לבנות כרטיס שלם בכל טיק */
+function stockHeadHTML(p, m) {
   const sym = p.sym;
-  const m = metrics(sym);
-  const cur = state.currency;
-  const priceTxt = m.price === null ? '—' : fmtPx(m.price, sym);
-
-  const card = el('div', 'stock' + (state.open[sym] ? ' open' : ''));
-  card.dataset.sym = sym;
-  const head = el('button', 'stock-head');
-  head.type = 'button';
-  head.innerHTML =
-    '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' +
+  const priceTxt = m.price === null ? (quotesPending() ? SKEL_HTML : '—') : fmtPx(m.price, sym);
+  return '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' +
     '<span class="stock-name">' + esc(p.name) + '</span>' +
     srcTagHTML(positionSource(p)) + '</span>' +
     '<span class="stock-pcol"><span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
     '<span class="stock-ext">' + extSessionHTML(m.q) + '</span></span>' +
     '<span class="stock-sub">' + stockSubHTML(p, m) + '</span>';
+}
+function buildStockCard(p) {
+  const sym = p.sym;
+  const m = metrics(sym);
+
+  const card = el('div', 'stock' + (state.open[sym] ? ' open' : ''));
+  card.dataset.sym = sym;
+  const head = el('button', 'stock-head');
+  head.type = 'button';
+  head.innerHTML = stockHeadHTML(p, m);
   head.addEventListener('click', () => toggleStock(sym, card));
   card.appendChild(head);
 
@@ -8409,15 +8576,12 @@ function kvHTML(k, v, cls) {
   return '<div class="kv"><div class="k">' + k + '</div><div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div></div>';
 }
 
-function buildStockBody(p, m) {
+/* v193: אריחי הכרטיס הפתוח (כמות, ממוצע, שווי, רווח, משקל, ATH) — משותף לבנייה ולעדכון החי */
+function kvGridHTML(p, m) {
   const sym = p.sym;
   const cur = state.currency;
-  const wrap = el('div');
   const toCur = (usd) => (usd === null ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
-
-  const grid = el('div', 'kv-grid');
-  grid.innerHTML =
-    kvHTML(t('kvShares'), p.shares.toLocaleString('en-US')) +
+  return kvHTML(t('kvShares'), p.shares.toLocaleString('en-US')) +
     kvHTML(t('kvAvg'), fmtPx(p.avg, sym)) +
     kvHTML(t('kvValue'), m.value === null ? '—' : money(toCur(m.value), cur)) +
     kvHTML(t('kvGL'),
@@ -8435,6 +8599,13 @@ function buildStockBody(p, m) {
       m.ath ? fmtPx(m.ath.price, sym) +
         '<br><span style="font-weight:400;font-size:14px">' + fmtDateIL(m.ath.date) + '</span>'
         : (state.hist[sym] ? '—' : '…'));
+}
+function buildStockBody(p, m) {
+  const sym = p.sym;
+  const wrap = el('div', 'stock-body-in'); // v193: עוטף יחיד — הגוף נפתח/נסגר באנימציית גובה (grid-template-rows)
+
+  const grid = el('div', 'kv-grid');
+  grid.innerHTML = kvGridHTML(p, m);
   wrap.appendChild(grid);
 
   if (!state.range[sym]) state.range[sym] = 'year';
@@ -8528,10 +8699,32 @@ function weightTxt(sym) {
   return v === null ? '—' : (v / tot.stockVal * 100).toFixed(1) + '%';
 }
 
+/* v193: פתיחה/סגירה עם אנימציית גובה (grid 0fr↔1fr) — אבל גוף סגור נשאר display:none (בלי עלות layout ל־10 גופים
+   סגורים בכל ציור). המצב 'anim' מחזיק את הגוף מוצג לאורך המעבר; נופל לזמן קצוב אם transitionend לא מגיע. */
 function toggleStock(sym, card) {
   state.open[sym] = !state.open[sym];
-  card.classList.toggle('open', state.open[sym]);
-  if (state.open[sym]) ensureChartData(sym);
+  const body = card.querySelector && card.querySelector('.stock-body');
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!body || reduce || !card.classList) {
+    card.classList.toggle('open', state.open[sym]);
+    if (state.open[sym]) ensureChartData(sym);
+    return;
+  }
+  clearTimeout(card._animT);
+  const done = () => { clearTimeout(card._animT); card.classList.remove('anim'); body.removeEventListener('transitionend', onEnd); };
+  const onEnd = (e) => { if (e.target === body) done(); };
+  body.addEventListener('transitionend', onEnd);
+  card._animT = setTimeout(done, 450);
+  if (state.open[sym]) {
+    card.classList.add('anim'); // display:grid ב־0fr
+    void body.offsetHeight; // נקודת מוצא לפני המעבר
+    card.classList.add('open'); // → 1fr
+    ensureChartData(sym);
+  } else {
+    card.classList.add('anim');
+    void body.offsetHeight;
+    card.classList.remove('open'); // → 0fr, ואז display:none כשנגמר
+  }
 }
 
 function refreshStockBody(sym) {
@@ -8676,6 +8869,7 @@ function drawStockChart(sym, rows, intraday) {
 
   // שמירת מיפוי למדידה
   canvas._chartMap = { n: pts.length, padL: padL, plotW: plotW, pts: pts };
+  if (canvas.classList) canvas.classList.add('drawn'); // v193
   canvas.classList.toggle('measuring', ms.on || ms.pts.length > 0);
   updateMeasureChip(sym);
   renderStockRangeSummary(sym, pts, lineCol);
@@ -8842,6 +9036,7 @@ function renderTrades() {
   const ib = ready ? ibkrTrades() : [];
   const man = mtList();
   if (cnt) cnt.textContent = ib.length + man.length;
+  if (!tabShouldRender('trades')) return; // v193
   list.innerHTML = '';
   renderSrcFilter('trades');
   const sf = getSrcFilter('trades');
@@ -8867,6 +9062,7 @@ function renderTrades() {
 }
 
 function renderDeposits() {
+  if (!tabShouldRender('deposits')) return; // v193
   // v145: במצב IBKR — גם כסף שנכנס מחוץ ל־IBKR דרך קניות ידניות (סה"כ = IBKR + ידני)
   const mf = isIbkrMode()
     ? manualFlowsILS(POSITIONS, mtActiveTrades(), (iso) => fxOnOrBefore(iso), state.fx) : null;
@@ -9046,6 +9242,7 @@ function deleteDeposit(i) {
 /* ---------------- רינדור: פנסיה ---------------- */
 
 function renderPension() {
+  if (!tabShouldRender('pension')) return; // v193
   const cur = state.currency;
   const wrap = document.getElementById('pensionCards');
   wrap.innerHTML = '';
@@ -9197,7 +9394,11 @@ function deletePensionDeposit(i) {
 
 /* ---------------- כללי ---------------- */
 
-function renderAll() {
+function renderAll(opts) {
+  _renderForce = !!(opts && opts.all); // v193: {all:true} = גם טאבים מוסתרים (למשל החלפת שפה)
+  try { renderAllInner(); } finally { _renderForce = false; }
+}
+function renderAllInner() {
   // v141: מניה שנוספה ביד במצב IBKR (לפני v141) מסומנת ידנית — נכללת בחישובים ונשמרת בסנכרון
   try { if (markManualPositions()) saveDB(); } catch (e) {}
   // v157: מחירי ת"א שהוזנו באגורות לפני v157 — מתוקנים פעם אחת כשיש מחיר חי
@@ -9539,13 +9740,34 @@ function init() {
     fitT = setTimeout(() => { try { fitNumbers(); } catch (e) {} }, 150);
   });
 
+  // v193: מציירים מיד מהנתונים שבטלפון ומתחילים למשוך מחירים — לא מחכים ל־Firebase (SDK + התחברות + Firestore, ~1–2 שניות).
+  // כשהענן עונה: אם הנתונים זהים — כלום; אם השתנו — ציור מחדש ומחירים למניות החדשות.
+  let appStarted = false, bootSig = '';
+  const dbSig = () => { try { return JSON.stringify(DB); } catch (e) { return String(Math.random()); } };
   const startApp = () => {
+    if (appStarted) {
+      if (dbSig() === bootSig) return;
+      bootSig = dbSig();
+      renderAll();
+      refreshQuotes().then(() => { warmHistories(); });
+      return;
+    }
+    appStarted = true;
+    bootSig = dbSig();
     renderAll();
+    requestAnimationFrame(() => { try { positionTabIndicator(); } catch (e) {} });
     refreshQuotes().then(() => { warmHistories(); liveStart(); });
     refreshEarnings().then(() => { renderOverview(); renderWishlist(); });
   };
+  /* v193: ציור מיידי מהנתונים המקומיים; הענן מאשר אחר כך (startApp עמיד — מצייר שוב רק אם הנתונים השתנו).
+     יוצא מן הכלל: אין כלום באחסון המקומי אבל במכשיר הזה יש משתמש ענן מחובר (pwa_cloud_user_v1) —
+     אז מחכים לענן (עד 6 שניות) כדי לא להבהב "תיק ריק" לפני שהנתונים מגיעים. */
+  let waitCloud = false;
+  try { waitCloud = !localStorage.getItem(LS_DB) && localStorage.getItem('pwa_cloud_user_v1') === '1' && !!(window.Cloud && window.Cloud.isConfigured && window.Cloud.isConfigured()); } catch (e) { waitCloud = false; }
+  if (!waitCloud) startApp();
+  else setTimeout(startApp, 6000);
   if (window.Cloud && window.Cloud.boot) window.Cloud.boot(startApp);
-  else startApp();
+  window.addEventListener('resize', () => { try { positionTabIndicator(); } catch (e) {} });
 }
 
 if (typeof document !== 'undefined') {

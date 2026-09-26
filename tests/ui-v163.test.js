@@ -27,5 +27,5 @@ ok(/data-act="retry"/.test(src) && /demoCreate\(null, true\)/.test(src) && /demo
 ok(/demoStepServer: 'מהשרת — בבקשה אחת'/.test(src), 'מציג מאיפה מגיעים הנתונים');
 ok(/if \(yahooCooling\(\)\) \{ const pr = await viaProxy\(\); if \(pr\) return save\(pr\); \}/.test(src), 'גרף מניה (getDaily): Yahoo חוסם → ישר לשרת');
 ok(/if \(!yahooCooling\(\)\) \{ const pr = await viaProxy\(\); if \(pr\) return save\(pr\); \}/.test(src), 'גרף מניה: השרת כגיבוי אחרי Yahoo ו־Stooq');
-ok(/if \(yahooCooling\(\) && !histProxyOff\) \{\s*proxyTried = true;/.test(src) && /if \(!proxyTried\) try \{/.test(src), 'גרף הביצועים: בלי בקשה כפולה לשרת');
+ok(/if \(!histProxyOff\) \{\s*proxyTried = true;/.test(src) && /if \(!proxyTried\) try \{/.test(src), 'גרף הביצועים: בלי בקשה כפולה לשרת (v193: השרתון ראשון תמיד, ישירות רק כגיבוי)');
 console.log('\n' + n + ' בדיקות עברו');

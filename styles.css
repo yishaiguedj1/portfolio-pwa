@@ -257,6 +257,7 @@ a { color: var(--link); }
 .tabs {
   position: sticky; top: 78px; z-index: 15;
   display: flex; gap: 4px;
+  isolation: isolate;
   margin: 12px 14px 0; padding: 6px;
   max-width: calc(100% - 28px);
   overflow-x: auto;
@@ -291,6 +292,17 @@ button, a, .tab, .icon-btn, .ss-add {
   background: var(--primary); color: var(--on-primary); font-weight: 700;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 8px rgba(0, 0, 0, .18);
 }
+/* v193: גלולה אחת שמחליקה בין הלשוניות (כמו בורר המקטעים של אפל) — הרקע הקופץ של .tab.active נשאר רק כגיבוי בלי JS */
+.tab { position: relative; z-index: 1; }
+.tab-ind {
+  position: absolute; top: 6px; bottom: 6px; left: 0; width: 0; z-index: 0;
+  border-radius: var(--pill); background: var(--primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 8px rgba(0, 0, 0, .18);
+  transition: transform .42s cubic-bezier(.32, .72, .35, 1), width .42s cubic-bezier(.32, .72, .35, 1);
+  will-change: transform; pointer-events: none;
+}
+.tabs.has-ind .tab.active { background: transparent; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .tab-ind { transition: none; } }
 .icon-btn, .ss-add { transition: transform .16s ease, background .25s ease; }
 .icon-btn:active, .ss-add:active { transform: scale(.9); }
 .count-chip {
@@ -302,8 +314,11 @@ button, a, .tab, .icon-btn, .ss-add {
 /* ---- Layout — קצב 8pt ---- */
 main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .tabpage { display: none; }
-.tabpage.active { display: block; animation: fade .2s ease; }
+/* v193: העמוד נכנס בציר משותף (Material/iOS) — מחליק מהצד שאליו עברנו (--tab-dx נקבע ב־switchTab לפי הכיוון ו־RTL) ומתבהר */
+.tabpage.active { display: block; animation: tabIn .32s cubic-bezier(.2, .9, .25, 1) both; }
+@keyframes tabIn { from { opacity: 0; transform: translate3d(var(--tab-dx, 0px), 0, 0); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: .4; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tabpage.active { animation: fade .15s ease; } }
 
 .card {
   background: var(--surface);
@@ -311,10 +326,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow); padding: 20px; margin: 16px 0;
 }
-[data-theme="dark"] .card {
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-}
+/* v193: בלי backdrop-filter על כרטיסים במצב כהה — הרקע שחור אחיד, הטשטוש לא נראה אבל עלה בפריים בכל גלילה */
+[data-theme="dark"] .card { background: #1C1C1E; }
 .card h2 { margin: 0 0 12px; font-size: 19px; font-weight: 700; letter-spacing: -.2px; }
 
 .cards-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
@@ -376,10 +389,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow); margin: 16px 0; overflow: hidden;
 }
-[data-theme="dark"] .stock {
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-}
+[data-theme="dark"] .stock { background: #1C1C1E; } /* v193: כנ"ל */
 .stock-head {
   width: 100%; border: 0; background: none; cursor: pointer; text-align: start;
   font-family: var(--font); padding: 16px 18px;
@@ -409,8 +419,19 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .chev { color: var(--on-surface-var); transition: transform .2s; font-size: 17px; }
 .stock.open .chev { transform: rotate(180deg); }
 
-.stock-body { display: none; border-top: 1px solid var(--separator); padding: 16px 18px 18px; }
-.stock.open .stock-body { display: block; }
+/* v193: פתיחה/סגירה של הכרטיס באנימציית גובה חלקה (grid 0fr→1fr) במקום קפיצת display; התוכן בעוטף יחיד .stock-body-in */
+.stock-body { display: none; grid-template-rows: 0fr; transition: grid-template-rows .34s cubic-bezier(.2, .9, .25, 1); }
+.stock.open .stock-body, .stock.anim .stock-body { display: grid; }
+.stock-body > * { min-height: 0; overflow: hidden; }
+.stock.open .stock-body { grid-template-rows: 1fr; }
+.stock-body-in { border-top: 1px solid var(--separator); padding: 16px 18px 18px; }
+@media (prefers-reduced-motion: reduce) { .stock-body { transition: none; } }
+.stock-head { transition: background-color .18s ease; }
+.stock-head:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
+/* v193: כניסה מדורגת של כרטיסי המניות כשהרשימה נבנית לראשונה */
+.stock.enter { animation: cardIn .34s cubic-bezier(.2, .9, .25, 1) both; animation-delay: calc(var(--i, 0) * 32ms); }
+@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .stock.enter { animation: none; } }
 .kv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
 .kv { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px; min-width: 0; }
 .kv .k { font-size: 12.5px; color: var(--on-surface-var); }
@@ -572,7 +593,8 @@ footer.fine { text-align: center; }
   background: var(--primary); color: var(--on-primary); cursor: pointer;
   font-family: var(--font);
 }
-.btn:active { background: var(--primary-dark); }
+.btn { transition: transform .15s ease, background-color .2s ease; }
+.btn:active { background: var(--primary-dark); transform: scale(.97); }
 .link-btn {
   background: none; border: 0; color: var(--link); font-size: 15px;
   text-decoration: underline; cursor: pointer; padding: 8px 4px; font-family: var(--font);
@@ -586,6 +608,8 @@ footer.fine { text-align: center; }
   border-radius: var(--pill); padding: 8px 17px; font-size: 15px; font-weight: 700;
   font-family: var(--font); color: var(--on-surface-var); cursor: pointer;
 }
+.chip-btn, .range-btn, .mini-btn { transition: transform .15s ease, background-color .2s ease, color .2s ease, border-color .2s ease; }
+.chip-btn:active, .range-btn:active, .mini-btn:active { transform: scale(.95); }
 .chip-btn.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .chip-btn.danger { color: var(--loss); border-color: var(--loss); }
 /* אייקון inline נקי בצבע המותג (מחליף אימוג'י צבעוני) */
@@ -894,10 +918,9 @@ footer.fine { text-align: center; }
 @keyframes menuDropIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .menu-drop:not(.hidden) { animation-duration: .12s; } }
 
-/* v154: בועת התפריט נכנסת ברכות — יחד עם החלפת הכפתורים */
-.menu-drop:not(.hidden) { animation: menuDropIn .26s cubic-bezier(.2, .9, .25, 1) both; transform-origin: top; }
-@keyframes menuDropIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .menu-drop:not(.hidden) { animation-duration: .12s; } }
+/* v193: תוכן של <details> (הגדרות IBKR, הדרכה) נכנס ברכות במקום לקפוץ */
+details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9, .25, 1) both; }
+@media (prefers-reduced-motion: reduce) { details.note[open] > :not(summary) { animation: none; } }
 
 /* v163: בניית תיק הדמו — בתוך כרטיס הדמו עצמו (בלי חלון צף): שלבים ופס התקדמות בסגנון נקי */
 .demo-card.building > :not(.demo-inline) { display: none; }
@@ -960,3 +983,24 @@ footer.fine { text-align: center; }
 .ext-sess.pos { color: var(--gain); } .ext-sess.neg { color: var(--loss); }
 .ext-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: livePulse 2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .stock-price.px-up, .stock-price.px-down, .px-roll > span, .ext-dot { animation: none; } }
+
+/* ---- v193: תנועה וטעינה ---- */
+/* שלד מהבהב במקום "—" עד המחיר הראשון */
+.skel {
+  display: inline-block; width: 4.4em; height: .82em; border-radius: 6px; vertical-align: middle;
+  background: linear-gradient(90deg, var(--surface-2) 25%, color-mix(in srgb, var(--on-surface) 9%, var(--surface-2)) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%; animation: skel 1.4s ease-in-out infinite;
+}
+.stock-price .skel { width: 3.6em; }
+@keyframes skel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+/* גרפים נכנסים בעמעום כשיש מה להראות (הקנבס ריק עד אז) */
+.chart-wrap canvas, #pieChart { opacity: 0; transition: opacity .38s ease; }
+.chart-wrap canvas.drawn, #pieChart.drawn { opacity: 1; }
+.chart-loading { transition: opacity .25s ease; }
+/* מעברי ערכה/שפה: הצלבה רכה (View Transitions) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; animation-timing-function: ease; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
+/* שורות מקרא ורשימות — משוב מגע עדין */
+.legend li, .rows li { transition: background-color .18s ease; }
+#pieLegend li:active { background: color-mix(in srgb, var(--primary) 12%, transparent); }

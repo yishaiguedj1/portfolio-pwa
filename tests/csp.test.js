@@ -53,8 +53,10 @@ ok(pol['object-src'] && pol['object-src'][0] === "'none'" && pol['base-uri'] && 
 for (const [name, src] of [['app.js', app], ['index.html', html], ['cloud.js', cloud]])
   ok(!/\son(load|error|click|change|input|submit|mouseover)\s*=\s*["'\\]/i.test(src), name + ': אין on…= בתוך HTML');
 // 5. SRI
-const fb = [...html.matchAll(/<script src="https:\/\/www\.gstatic\.com[^>]+>/g)].map((x) => x[0]);
-ok(fb.length === 3 && fb.every((t) => /integrity="sha384-[A-Za-z0-9+/=]{64}"/.test(t) && /crossorigin="anonymous"/.test(t)), 'SRI על שלושת קבצי Firebase');
+// v193: ה־SDK נטען דינמית מ־cloud.js (אחרי הציור הראשון) — SRI + crossorigin על כל אחד משלושת הקבצים
+const fb = [...cloud.matchAll(/\['(https:\/\/www\.gstatic\.com\/firebasejs\/[^']+)',\s*'(sha384-[A-Za-z0-9+/=]{64})'\]/g)];
+ok(fb.length === 3 && /sc\.integrity = SDK\[i\]\[1\];/.test(cloud) && /sc\.crossOrigin = 'anonymous';/.test(cloud), 'SRI על שלושת קבצי Firebase (cloud.js)');
+ok(!/<script src="https:\/\/www\.gstatic\.com/.test(html), 'אין תגי סקריפט חיצוניים חוסמים ב־index.html');
 
 const ver = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');

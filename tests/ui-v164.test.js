@@ -29,6 +29,6 @@ ok(JSON.stringify(trim(day('USD', 100, 390))).length < 1500, 'תשובה חתו�
 ok(/let out = \{\};\s*try \{ out = await proxyQuotes\(syms\); \}/.test(src), 'liveFetch: קודם השרתון');
 ok(/if \(!rest\.length \|\| yahooCooling\(\)\) return out;/.test(src), 'ישירות ל־Yahoo רק אם השרתון לא החזיר, וגם Yahoo לא חוסם');
 ok(/if \(direct\) yahooOk\(\); else yahooFailed\(\);/.test(src), 'כשל ישיר מפעיל את ההפסקה');
-ok(/const q = await liveFetch\(quoteSymbols\(\)\);/.test(src), 'טעינה ראשונה: אותו מסלול (בקשה אחת)');
+ok(/const q = await liveFetch\(quoteSymbols\(\)\.concat\(\[FX_SYM\]\)\);/.test(src), 'טעינה ראשונה: אותו מסלול (בקשה אחת, v193: כולל שער הדולר)');
 ok(/Date\.now\(\) - \(live\.lastRecover \|\| 0\) > 120000/.test(src), 'גרפים שחסרו מושלמים כשהמחירים חוזרים (לכל היותר פעם בשתי דקות)');
 console.log('\n' + n + ' בדיקות עברו');
