@@ -64,5 +64,5 @@ ok(/#pieLegend li\.active \.pie-leg-logo \{ transform: scale\(1\.18\)/.test(css)
   ok(/for \(const c of \(geom\.chips \|\| \[\]\)\)/.test(src), 'v183: נגיעה בשבב בוחרת את הפרוסה');
 }
 ok(/const cr = Math\.max\(0, Math\.min\(7, \(Ro - r\) \/ 4, span \* r \/ 2\.4, span \* Ro \/ 2\.4\)\);/.test(src) && /ctx\.arcTo\(\.\.\.pt\(g\.a, Ro\)/.test(src), 'v182: פינות מעוגלות לכל פרוסה (קטנות יותר בפרוסה צרה)');
-ok(/g\.out = OUTER \|\| rho > \(holeOf\(R\) \+ R\) \/ 2 \+ 6;/.test(src) && /const r0 = r \+ 6;/.test(src), 'v183: גם במעט מניות — תווית על השפה מקבלת קו בצבע הפרוסה מתוך הפרוסה');
+ok(/g\.out = OUTER \|\| rho > \(holeOf\(R\) \+ R\) \/ 2 \+ 6;/.test(src) && /const len = Math\.min\(18, dist - edge - 3\);/.test(src) && /if \(dist <= edge \+ 6\) continue;/.test(src), 'v184: במעט מניות — סיכה קצרה (≤18px) מקצה התווית לתוך הפרוסה; בלי קו כשהתווית מכסה את אמצע הפרוסה');
 console.log('\n' + n + ' בדיקות עברו');

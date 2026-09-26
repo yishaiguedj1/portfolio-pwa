@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v183';
+const APP_VERSION = 'v184';
 
 
 function saveDBto(db) {
@@ -6332,20 +6332,28 @@ function drawPie() {
     }
     ctx.restore();
   }
-  if (!OUTER) { // v183: גם במעט מניות — כשהתוויות יושבות על השפה, קו בצבע הפרוסה מתוך הפרוסה אל התווית שלה
+  if (!OUTER) { // v183/v184: במעט מניות — תווית שיושבת על השפה מקבלת "סיכה" קצרה בצבע הפרוסה: מקצה התווית ~18px לתוך הפרוסה, לא עמוק
     ctx.save();
     ctx.lineCap = 'round';
     for (const g of segs) {
       if (g.skip || !g.out) continue;
       const L = lift(g);
       const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
-      const r0 = r + 6; // מתחיל ליד החור — כך הקו נראה גם כשהתווית מכסה את השפה
-      const sx = cx + ox + Math.cos(g.mid) * r0, sy = cy + oy + Math.sin(g.mid) * r0;
+      const tx = ox + Math.cos(g.mid) * (r + R) / 2, ty = oy + Math.sin(g.mid) * (r + R) / 2; // אמצע הפרוסה (יחסית למרכז)
+      const dx = tx - g.x, dy = ty - g.y, dist = Math.hypot(dx, dy);
+      if (dist < 1) continue;
+      const ux = dx / dist, uy = dy / dist;
+      const hw = g.W * SC / 2 + 2, hh = H * SC / 2 + 2;
+      const edge = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
+      if (dist <= edge + 6) continue; // התווית כבר מכסה את אמצע הפרוסה — ברור בלי קו
+      const len = Math.min(18, dist - edge - 3);
+      const sx = cx + g.x + ux * edge, sy = cy + g.y + uy * edge;
+      const ex = sx + ux * len, ey = sy + uy * len;
       ctx.globalAlpha = L > 0.5 ? 1 : (0.6 + 0.4 * (1 - focus));
       ctx.strokeStyle = pieShade(g.s.color, -0.3);
       ctx.lineWidth = 1.5 + L;
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(cx + g.x, cy + g.y); ctx.stroke();
-      ctx.beginPath(); ctx.arc(sx, sy, 2.2 + L, 0, Math.PI * 2); ctx.fillStyle = pieShade(g.s.color, -0.3); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.beginPath(); ctx.arc(ex, ey, 2.2 + L, 0, Math.PI * 2); ctx.fillStyle = pieShade(g.s.color, -0.3); ctx.fill();
     }
     ctx.restore();
   }
