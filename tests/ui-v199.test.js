@@ -46,6 +46,20 @@ for (const k of ['sessClosed', 'hdWeekend', 'hdNewYear', 'hdMlk', 'hdPresidents'
   ok(R("STRINGS.he['" + k + "'] && STRINGS.en['" + k + "']"), 'מחרוזת ' + k + ' בעברית ובאנגלית');
 ok(/\.ext-sess \{[^}]*flex-wrap: wrap/.test(css) && /\.ext-sess \{[^}]*max-width: 100%/.test(css), 'CSS: הבועה נשברת לשורה שנייה במקום לגלוש');
 ok(/\.ext-sess \.ext-lbl \{ white-space: nowrap; \}/.test(css) && /\.ext-sess \.ext-pct \{ white-space: nowrap; \}/.test(css), 'CSS: השבירה רק בין התווית לאחוז');
+// v202: קיצורים — הבועה בשתי שורות ליד המחיר בלי לעלות על שם החברה/תגית המקור
+for (const [k, v] of [['hdNewYear', 'ראש השנה'], ['hdMlk', 'יום MLK'], ['hdPresidents', 'הנשיאים'], ['hdGoodFriday', 'שישי הטוב'], ['hdIndependence', '4 ביולי'], ['hdLabor', 'העבודה']])
+  ok(R("STRINGS.he['" + k + "']") === v, 'קיצור (v202): ' + k + ' = ' + v);
+R("marketClosedReason = () => 'hdThanksgiving'");
+const heT = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: -2.34 } })");
+ok(/השוק סגור ·<\/span><span class="ext-lbl">חג ההודיה/.test(heT), 'עברית: "השוק סגור ·" והסיבה ב־spans נפרדים');
+R("state.lang = 'en'");
+const enT = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: -2.34 } })");
+ok(/>Thanksgiving</.test(enT) && !/Closed/.test(enT) && !/השוק/.test(enT) && /Post</.test(enT), 'אנגלית: רק הסיבה + Post (אין רוחב ל־"Closed ·"), בלי נפילה לעברית');
+R("marketClosedReason = () => null");
+ok(/>Closed</.test(R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: 0 } })")), 'אנגלית בלי סיבה: "Closed"');
+R("state.lang = 'he'");
+ok(/\.stock-id \{ display: grid; grid-template-columns: auto auto minmax\(max-content, 1fr\)/.test(css), 'עמודת תגית המקור לא קטנה מהתגית (לא גולשת לעמודת המחיר)');
+ok(/\.stock-id \.stock-name \{ contain: inline-size; justify-self: stretch; \}/.test(css), 'שם ארוך נקטע ב־… באותו מקום ולא דוחף את הבועה');
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');

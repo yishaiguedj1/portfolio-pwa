@@ -230,16 +230,20 @@ he: {
   sessNightShort: 'לילי',
   sessExtTitle: 'שינוי מהסגירה הרגילה',
   sessClosed: 'השוק סגור',
+  sessClosedPrefix: 'השוק סגור ·',
+  sessPostTiny: 'אחרי־מסחר',
+  sessPreTiny: 'טרום־מסחר',
+  sessNightTiny: 'לילי',
   sessClosedTitle: 'השוק סגור — השינוי הוא מהמסחר המאוחר האחרון',
   hdWeekend: 'סופ״ש',
-  hdNewYear: 'ראש השנה האזרחית',
-  hdMlk: 'יום מרטין לותר קינג',
-  hdPresidents: 'יום הנשיאים',
-  hdGoodFriday: 'יום שישי הטוב',
+  hdNewYear: 'ראש השנה',
+  hdMlk: 'יום MLK',
+  hdPresidents: 'הנשיאים',
+  hdGoodFriday: 'שישי הטוב',
   hdMemorial: 'יום הזיכרון',
   hdJuneteenth: 'ג׳ונטינת׳',
-  hdIndependence: 'יום העצמאות',
-  hdLabor: 'יום העבודה',
+  hdIndependence: '4 ביולי',
+  hdLabor: 'העבודה',
   hdThanksgiving: 'חג ההודיה',
   hdChristmas: 'חג המולד',
   staleSuffix: ' · מוצגים נתונים שמורים',
@@ -718,16 +722,20 @@ en: {
   sessPostShort: 'After hours',
   sessNightShort: 'Overnight',
   sessExtTitle: 'Change from regular close',
-  sessClosed: 'Market closed',
+  sessClosed: 'Closed',
+  sessClosedPrefix: 'Closed ·', // לא בשימוש באנגלית (אין רוחב) — ראו extSessionHTML
+  sessPostTiny: 'Post',
+  sessPreTiny: 'Pre',
+  sessNightTiny: 'Night',
   sessClosedTitle: 'Market closed — change is from the last extended session',
-  hdWeekend: 'weekend',
-  hdNewYear: "New Year's Day",
+  hdWeekend: 'Weekend',
+  hdNewYear: 'New Year',
   hdMlk: 'MLK Day',
-  hdPresidents: "Presidents' Day",
+  hdPresidents: 'Presidents',
   hdGoodFriday: 'Good Friday',
-  hdMemorial: 'Memorial Day',
+  hdMemorial: 'Memorial',
   hdJuneteenth: 'Juneteenth',
-  hdIndependence: 'Independence Day',
+  hdIndependence: 'July 4th',
   hdLabor: 'Labor Day',
   hdThanksgiving: 'Thanksgiving',
   hdChristmas: 'Christmas',
@@ -3887,7 +3895,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v201';
+const APP_VERSION = 'v202';
 
 
 function saveDBto(db) {
@@ -4874,10 +4882,13 @@ function extSessionHTML(q) {
   if (q.session === 'closed') {
     const why = marketClosedReason();
     const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
-    const lbl = t('sessClosed') + (why && names[why] ? ' · ' + names[why] : '');
+    // v202: "השוק סגור ·" והסיבה ב־spans נפרדים — רק במסך צר מאוד נשברים ביניהם (במקום לעלות על תגית המקור)
+    // באנגלית אין רוחב ל־"Closed ·" + סיבה ליד תגית "Manual" — שם רק הסיבה (הנקודה האפורה = סגור); בעברית "השוק סגור ·" + סיבה
+    const pre = state.lang === 'en' ? '' : t('sessClosedPrefix'); // מחרוזת ריקה ב־t() נופלת לעברית — לכן לפי שפה
+    const lblHTML = why && names[why] ? (pre ? esc(pre) + '</span><span class="ext-lbl">' : '') + esc(names[why]) : esc(t('sessClosed'));
     // v201: שתי שורות — "השוק סגור · סיבה" ומתחת "אחרי־מסחר +0.25%" (הסשן המורחב האחרון); בועה צרה, צמודה לקצה
-    const last = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
-    return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosedTitle')) + '"><span class="ext-line"><span class="ext-dot off"></span><span class="ext-lbl">' + esc(lbl) + '</span></span><span class="ext-line"><span class="ext-lbl">' + esc(last) + '</span> <span class="ext-pct">' + fmtPct(pct, true) + '</span></span></span>';
+    const last = q.ext.kind === 'pre' ? t('sessPreTiny') : q.ext.kind === 'night' ? t('sessNightTiny') : t('sessPostTiny'); // v202: קצר (באנגלית) — שתי שורות ליד המחיר
+    return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosedTitle')) + '"><span class="ext-line"><span class="ext-dot off"></span><span class="ext-lbl">' + lblHTML + '</span></span><span class="ext-line"><span class="ext-lbl">' + esc(last) + '</span> <span class="ext-pct">' + fmtPct(pct, true) + '</span></span></span>';
   }
   const lbl = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
   return '<span class="ext-sess ' + cls + '" title="' + esc(t('sessExtTitle')) + '"><span class="ext-dot"></span><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
