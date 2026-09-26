@@ -339,6 +339,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .pie-leg-fb { font-weight: 800; font-size: 15px; color: #3A3A3C; }
 /* v173: לוגו לבן — מתהפך לשחור על האריח הלבן, כמו בטאב המניות */
 .pie-leg-logo.inv img { filter: invert(1); background: transparent; }
+.pie-leg-logo.inv .pie-leg-fb { display: none; } /* v174: הלוגו כבר נטען — בלי האות מאחוריו */
 .pie-leg-logo img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
   padding: 5px; box-sizing: border-box; background: inherit;
