@@ -104,10 +104,27 @@ ok(/id="fxDot"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && 
   const sub = R("stockSubHTML(metrics('ZZTST').p, metrics('ZZTST'))");
   ok(sub.includes('−1.57%') && /<span class="day-amt">\u2066−\$2\.16\u2069<\/span>/.test(sub), 'כרטיס: "היום −1.57%  −$2.16" — כמו Yahoo');
   R("state.quotes.ZZTST.regCh = 0; state.quotes.ZZTST.regPct = 0");
-  ok(Math.abs(R("metrics('ZZTST').dayChg") - (135.6 / 137.8 - 1) * 100) < 1e-9 && Math.abs(R("metrics('ZZTST').dayAbs") + 2.2) < 1e-9, 'Yahoo מחזיר 0 בחג — נשארים עם ההיסטוריה (v167)');
+  ok(Math.abs(R("metrics('ZZTST').dayChg") - (135.62 / 137.8 - 1) * 100) < 1e-9 && Math.abs(R("metrics('ZZTST').dayAbs") + 2.18) < 1e-9, 'Yahoo מחזיר 0 בחג — נשארים עם ההיסטוריה (v167), מהסגירה הרגילה (v210)');
   ok(R("fmtSignedPx(0.35, 'POLI.TA')").includes('+35') && R("fmtSignedPx(-0.004, 'X')") === '\u2066$0.00\u2069', 'ת״א באגורות; אפס בלי סימן');
   ok(!/day-amt/.test(R("stockSubHTML({ sym: 'X' }, { price: null, dayChg: null, dayAbs: null, value: null, gl: null })")), 'בלי שינוי יומי — בלי סכום');
   ok(/\.day-chg \.day-amt \{[^}]*white-space: nowrap/.test(css), 'הסכום לא נשבר שורה');
+}
+// v210: כל מקור ציטוט נושא את השינוי היומי הרשמי — META/UNH/UBER הציגו את שינוי אחרי־המסחר כשהציטוט הגיע בלי v7
+{
+  const T0 = 1790366401, TP = 1790380799; // 25/9 16:00 / 19:59 EDT
+  const ctp = { pre: { start: 1790323200, end: 1790343000 }, regular: { start: 1790343000, end: 1790366400 }, post: { start: 1790366400, end: 1790380800 } };
+  const chart = (now) => JSON.stringify({ chart: { result: [{ meta: { currency: 'USD', regularMarketPrice: 751.66, previousClose: 777.59, chartPreviousClose: 777.59, regularMarketTime: T0, gmtoffset: -14400, currentTradingPeriod: ctp }, timestamp: [TP], indicators: { quote: [{ close: [747.82] }] } }] } });
+  const qa = R('(() => { const q = parseYahooQuote(' + chart() + ", 'META', " + (TP + 1) * 1000 + '); return q; })()');
+  ok(Math.abs(qa.regPct + 3.3347) < 0.001 && Math.abs(qa.regCh + 25.93) < 0.001 && qa.ext && qa.ext.kind === 'post' && Math.abs(qa.ext.pct + 0.5109) < 0.001, 'Yahoo ישיר (בלי v7): −25.93 (−3.33%) + אחרי־מסחר −0.51% — כמו Yahoo');
+  const qb = R('parseYahooQuote(' + chart() + ", 'META', Date.parse('2026-09-26T12:00:00Z'))");
+  ok(qb.session === 'closed' && qb.ext && qb.ext.kind === 'post', 'בסופ״ש: השוק סגור + המסחר המאוחר האחרון');
+  const cn = R('parseCNBCQuotes(' + JSON.stringify({ FormattedQuoteResult: { FormattedQuote: [{ symbol: 'META', last: '751.66', change: '-25.93', change_pct: '-3.33%', previous_day_closing: '777.59', ExtendedMktQuote: { type: 'POST_MKT', last: '747.82', change: '-3.84', change_pct: '-0.51%' } }] } }) + ", 'post')");
+  ok(cn.META.close === 747.82 && cn.META.regCh === -25.93 && cn.META.regPct === -3.33 && cn.META.ext.pct === -0.51, 'CNBC: השינוי הרשמי מ־change/change_pct, אחרי־מסחר בנפרד');
+  R("POSITIONS.push({ sym: 'ZZCN', shares: 1, avg: 700 }); state.hist.ZZCN = [{ date: '2026-09-24', close: 777.59 }, { date: '2026-09-25', close: 751.66 }];" +
+    "state.quotes.ZZCN = { symbol: 'ZZCN', close: 747.82, date: '2026-09-26', prev: 751.66 }");
+  ok(Math.abs(R("metrics('ZZCN').dayChg") - (747.82 / 751.66 - 1) * 100) < 1e-9, 'ציטוט בלי תאריך בורסה ובלי שדות רשמיים — עדיין עובד (גיבוי)');
+  R("state.quotes.ZZCN.regClose = 751.66; state.quotes.ZZCN.regCh = 0; state.quotes.ZZCN.regPct = 0; state.quotes.ZZCN.mdate = '2026-09-25'");
+  ok(Math.abs(R("metrics('ZZCN').dayChg") - (751.66 / 777.59 - 1) * 100) < 1e-9, 'גיבוי ההיסטוריה מהסגירה הרגילה — לא מהמחיר של אחרי־המסחר');
 }
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');

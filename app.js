@@ -3918,7 +3918,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v209';
+const APP_VERSION = 'v210';
 
 
 function saveDBto(db) {
@@ -4617,6 +4617,17 @@ function parseCNBCQuotes(json, useExt) {
       session: session,
       volume: parseInt(String(it.volume || '').replace(/,/g, ''), 10) || 0
     };
+    // v210: השינוי היומי הרשמי (של המסחר הרגיל) — אחרת במסחר מורחב חושב מהמחיר המורחב מול סגירת היום
+    const regLast = num(it.last) / ag, regCh = num(it.change) / ag;
+    if (regLast > 0 && isFinite(regCh)) {
+      out[sym].regClose = regLast; out[sym].regCh = regCh;
+      const pc = regLast - regCh;
+      out[sym].regPct = num(it.change_pct) !== null ? num(it.change_pct) : (pc > 0 ? regCh / pc * 100 : 0);
+    }
+    if (session && close !== regLast && regLast > 0) {
+      const ech = ext && num(ext.change) !== null ? num(ext.change) / ag : close - regLast;
+      out[sym].ext = { kind: session, price: close, ch: ech, pct: ext && num(ext.change_pct) !== null ? num(ext.change_pct) : ech / regLast * 100, t: 0 };
+    }
   }
   return out;
 }
@@ -4763,7 +4774,7 @@ function parseYahooQuote(json, sym, nowMs) {
     mdate = iso.slice(0, 10);
     if (li >= 0) mtime = iso.slice(11, 16);
   }
-  return {
+  const out = {
     symbol: sym,
     date: todayISO(),
     mdate: mdate,
@@ -4778,6 +4789,18 @@ function parseYahooQuote(json, sym, nowMs) {
     volume: parseInt(meta.regularMarketVolume, 10) || 0,
     longName: meta.longName || meta.shortName || ''
   };
+  // v210: השינוי היומי הרשמי גם בלי v7 (ציטוט ישיר / השרתון בלי השדות המורחבים): הסגירה הרגילה מול הסגירה
+  // הקודמת (range=1d → previousClose/chartPreviousClose = היום הקודם). הנר האחרון יכול להיות אחרי־מסחר.
+  const reg = kk(num(meta.regularMarketPrice)), pc = kk(num(meta.previousClose) || num(meta.chartPreviousClose));
+  if (reg > 0 && pc > 0) { out.regClose = reg; out.regCh = reg - pc; out.regPct = (reg - pc) / pc * 100; }
+  const regT = num(meta.regularMarketTime) || 0;
+  let inReg = false;
+  try { const rp = (meta.currentTradingPeriod || {}).regular; const nowS = (nowMs ? nowMs : Date.now()) / 1000; inReg = !!(rp && nowS >= rp.start && nowS < rp.end); } catch (e) {}
+  if (!inReg && reg > 0 && lastTs > regT + 60 && Math.abs(close - reg) > 1e-9 && !/\.TA$/i.test(sym) && !/=X$/.test(sym)) {
+    out.ext = { kind: session === 'pre' ? 'pre' : 'post', price: close, ch: close - reg, pct: (close - reg) / reg * 100, t: lastTs };
+    if (session === 'regular') out.session = 'closed'; // נר מורחב מחוץ לחלון pre/post = השוק סגור (לילה/סופ״ש)
+  }
+  return out;
 }
 
 /* v101: שער דולר־שקל תוך־יומי מ־Yahoo (מתעדכן במסחר).
@@ -5770,14 +5793,16 @@ function metrics(sym) {
   const price = q ? q.close : null;
   const hist = state.hist[sym] || [];
   let dayChg = null;
+  // v210: הבסיס = הסגירה הרגילה (לא המחיר של אחרי־המסחר) — כמו Yahoo
+  const regPx = q && q.regClose > 0 ? q.regClose : q ? q.close : null;
   if (q && hist.length) {
     const pc = prevCloseFor(q.mdate || q.date, hist);
-    if (pc) dayChg = (q.close - pc) / pc * 100;
+    if (pc) dayChg = (regPx - pc) / pc * 100;
   }
   // v160: בלי היסטוריה (מקור ההיסטוריה חסום) — השינוי היומי מהסגירה הקודמת שבציטוט עצמו
-  if (dayChg === null && q && q.prev > 0 && q.close > 0) dayChg = (q.close - q.prev) / q.prev * 100;
+  if (dayChg === null && q && q.prev > 0 && regPx > 0) dayChg = (regPx - q.prev) / q.prev * 100;
   // v209: השינוי היומי למניה (כסף) — מהסגירה הקודמת שממנה חושב האחוז
-  let dayAbs = dayChg !== null && q && q.close > 0 ? q.close - q.close / (1 + dayChg / 100) : null;
+  let dayAbs = dayChg !== null && regPx > 0 ? regPx - regPx / (1 + dayChg / 100) : null;
   // v209: כשיש את המספרים הרשמיים של Yahoo (v7: regularMarketChange/Percent) — הם הקובעים, כמו בכותרת של Yahoo Finance.
   // המחיר בכרטיס הוא הנר האחרון (כולל אחרי־מסחר), והיסטוריה ממקור אחר יכולה להיות מעוגלת אחרת — לכן יצא −1.59% מול −1.57%.
   if (q && q.regClose > 0 && isFinite(q.regPct) && isFinite(q.regCh) && q.regCh !== 0) { dayChg = q.regPct; dayAbs = q.regCh; } // 0 = Yahoo בחג/סגירה ארוכה (כמו ב־v167) → נשארים עם ההיסטוריה

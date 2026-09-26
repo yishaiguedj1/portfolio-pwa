@@ -31,7 +31,7 @@ const q = cnbc({ FormattedQuoteResult: { FormattedQuote: [
 ok(q['POLI.TA'].prev === 77 && q['POLI.TA'].close === 78.3, 'CNBC: סגירה קודמת (אגורות → שקלים)');
 ok(q.AAPL.prev === 204, 'CNBC: בלי סגירה קודמת — מחושבת מהשינוי');
 
-ok(/if \(dayChg === null && q && q\.prev > 0 && q\.close > 0\) dayChg = \(q\.close - q\.prev\) \/ q\.prev \* 100;/.test(src), 'שינוי יומי גם בלי היסטוריה');
+ok(/if \(dayChg === null && q && q\.prev > 0 && regPx > 0\) dayChg = \(regPx - q\.prev\) \/ q\.prev \* 100;/.test(src), 'שינוי יומי גם בלי היסטוריה (v210: מהסגירה הרגילה)');
 ok(/if \(!rest\.length \|\| yahooCooling\(\)\) return out;/.test(src) && /if \(direct\) yahooOk\(\); else yahooFailed\(\);/.test(src), 'לא שואלים את Yahoo ישירות בזמן הפסקה (v164: דרך השרתון בכל מקרה)');
 ok(/yahooRecovered\(\)\.catch/.test(src) && /delete histNegCache\[sym\]/.test(src), 'Yahoo חזר: משלימים היסטוריות חסרות וגרפים פתוחים');
 ok(/if \(symCur\(sym\) !== 'USD'\) return null; \/\/ v160: Stooq/.test(src), 'Stooq רק לארה"ב (לא poli.ta.us)');
