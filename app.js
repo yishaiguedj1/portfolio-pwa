@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v175';
+const APP_VERSION = 'v176';
 
 
 function saveDBto(db) {
@@ -5995,16 +5995,31 @@ function drawPie() {
     if (!ok) { rho = rhoMax; posAt(rho); }
     R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
+  // 3) v176: הרבה מאוד מניות (מעל 12) — הטבעת קטנה בהדרגה לפי הכמות, והתוויות עוברות אל מחוץ לה, כל אחת
+  // מול הפרוסה שלה (עם קו מוביל דק), כך שיותר תוויות נכנסות במקום הנכון.
+  const OUTER = segs.length > 12;
+  const outPos = (g, th) => {
+    const e = (Math.abs(Math.cos(th)) * g.W + Math.abs(Math.sin(th)) * H) / 2 * SC;
+    const d = R + 8 + e;
+    g.x = Math.max(-w / 2 + g.W * SC / 2 + 1, Math.min(w / 2 - g.W * SC / 2 - 1, Math.cos(th) * d));
+    g.y = Math.max(-h / 2 + H * SC / 2 + 1, Math.min(h / 2 - H * SC / 2 - 1, Math.sin(th) * d));
+    g.th = th;
+  };
+  if (OUTER) {
+    SC = segs.length > 20 ? 0.72 : 0.8;
+    R = R0 * Math.max(0.62, Math.min(0.88, 1 - (segs.length - 12) * 0.025));
+    for (const g of segs) outPos(g, g.mid);
+  }
   // עדיין יש התנגשות (הרבה מניות זעירות) — מוותרים על התווית של הקטנה יותר
   const shown = [];
   for (const g of segs.slice().sort((p, q) => q.s.value - p.s.value)) {
-    g.sc = SC; g.out = rho > R - 8;
+    g.sc = SC; g.out = OUTER || rho > R - 8;
     g.skip = shown.some((o) => clash(o, g));
-    // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°) לפני שמוותרים
-    for (let k = 1; g.skip && k <= 7; k++) {
+    // מניה קטנה צמודה לשכנה — מזיזים מעט לאורך אותו מעגל (עד ~20°; מחוץ לטבעת עד ~30°) לפני שמוותרים
+    for (let k = 1; g.skip && k <= (OUTER ? 10 : 7); k++) {
       for (const sgn of [1, -1]) {
         const th = g.mid + sgn * k * 0.05;
-        g.x = Math.cos(th) * rho; g.y = Math.sin(th) * rho;
+        if (OUTER) outPos(g, th); else { g.x = Math.cos(th) * rho; g.y = Math.sin(th) * rho; }
         if (!shown.some((o) => clash(o, g))) { g.skip = false; break; }
       }
     }
@@ -6028,6 +6043,22 @@ function drawPie() {
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(g.a) * (r - 1), cy + Math.sin(g.a) * (r - 1));
       ctx.lineTo(cx + Math.cos(g.a) * (R + 1), cy + Math.sin(g.a) * (R + 1));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (OUTER) { // קו מוביל דק מהפרוסה לתווית שלה
+    ctx.save();
+    ctx.strokeStyle = dark ? 'rgba(242,242,247,.35)' : 'rgba(28,28,30,.28)'; ctx.lineWidth = 1;
+    for (const g of segs) {
+      if (g.skip) continue;
+      const th = Math.atan2(g.y, g.x);
+      const e = (Math.abs(Math.cos(th)) * g.W + Math.abs(Math.sin(th)) * H) / 2 * SC;
+      const d = Math.hypot(g.x, g.y) - e - 1;
+      if (d <= R + 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(g.mid) * (R + 2), cy + Math.sin(g.mid) * (R + 2));
+      ctx.lineTo(cx + Math.cos(th) * d, cy + Math.sin(th) * d);
       ctx.stroke();
     }
     ctx.restore();

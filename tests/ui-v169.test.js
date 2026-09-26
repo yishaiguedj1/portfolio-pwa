@@ -37,4 +37,5 @@ ok(/data-err="hide-self"/.test(src) && /im\.dataset\.err === 'hide-self'/.test(s
 ok(/const ordered = slicesUnique\.slice\(\)\.sort\(\(x, y\) => y\.value - x\.value\);/.test(src), 'v170: הפרוסות לפי גודל, מהגדולה ב־12 בשעון עם כיוון השעון');
 ok(/\.pie-leg-logo\.inv \.pie-leg-fb \{ display: none; \}/.test(css), 'v174: לוגו לבן מהופך — בלי האות מאחוריו');
 ok(/\.pie-wrap \{ display: flex; justify-content: center; margin-inline: -12px; \}/.test(css) && /#pieChart \{ width: 100%; max-width: 520px;/.test(css), 'v175: העוגה כמעט ברוחב הכרטיס');
+ok(/const OUTER = segs\.length > 12;/.test(src) && /R = R0 \* Math\.max\(0\.62, Math\.min\(0\.88, 1 - \(segs\.length - 12\) \* 0\.025\)\);/.test(src) && /if \(OUTER\) \{ \/\/ קו מוביל/.test(src), 'v176: מעל 12 מניות — הטבעת קטנה לפי הכמות, התוויות בחוץ מול הפרוסה עם קו מוביל');
 console.log('\n' + n + ' בדיקות עברו');
