@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v189';
+const APP_VERSION = 'v190';
 
 
 function saveDBto(db) {
@@ -6161,13 +6161,16 @@ function drawPie() {
   // (הקצה שהיא חולקת עם הפרוסה הגדולה ממנה), ורק נדחקת עם כיוון השעון אם היא נוגעת בתווית שכבר הונחה.
   // כך UNH יורדת, מפנה מקום ל־UBER, שמפנה ל־GOOG… ואף תווית לא נשמטת. מחזיר true כשהכול נכנס בלי נגיעות ובלי לגלוש מהפרוסה.
   const posAt = (rho) => {
+    // v190: ρ = רדיוס המעגל של ה*לוגואים* (לא של מרכזי התוויות) — כך כל הלוגואים באותו מרחק מהמרכז, קרוב לשפה החיצונית,
+    // בין אם הפרוסה למעלה (הבועה מתחת ללוגו, לתוך הטבעת) ובין אם למטה (הבועה מתחת ללוגו, החוצה). מראה אחיד לכולן.
     // v188: הקריטריון = הלוגו (החלק העליון של התווית) יושב על הפרוסה של המניה, כמה שיותר קרוב לקצה שנגד כיוון השעון;
     // הבועה עם המספרים מותר לה לגלוש לפרוסה השכנה (בקשת המשתמש) — מה שחשוב שהלוגו משויך בוודאות לפרוסה.
     const placed = [];
     const dyLogo = (H / 2 - LS / 2) * SC; // הלוגו מעל מרכז התווית (מסך), לא רדיאלי
+    const dyShift = dyLogo * 0.6; // v190: התווית תלויה מתחת למעגל הלוגואים (חלקית — שלא לאבד רדיוס בתחתית הקנבס)
     let fine = true;
     for (const g of segs) {
-      const put = (t) => { g.x = Math.cos(t) * rho; g.y = Math.sin(t) * rho; };
+      const put = (t) => { g.x = Math.cos(t) * rho; g.y = Math.sin(t) * rho + dyShift; }; // v190: הלוגואים על מעגל אחד, התווית תלויה מתחת
       const hit = () => placed.some((o) => clash(o, g));
       const logoOn = () => { // מרכז הלוגו בתוך הפרוסה (עם שוליים של חצי לוגו); פרוסה צרה מהלוגו — הלוגו מול אמצע הפרוסה
         const lx = g.x, ly = g.y - dyLogo, rl = Math.hypot(lx, ly), m = (LS / 2) * SC / Math.max(rl, 1);
@@ -6201,7 +6204,7 @@ function drawPie() {
     // כך תווית נצמדת לקצה שנגד כיוון השעון רק כשבאמת צריך לפנות מקום לשכנות הצפופות; כשיש מקום — היא ממורכזת (META/ADBE/MBLY/MSFT).
     for (let i = segs.length - 1; i >= 1; i--) {
       const g = segs[i], others = segs.filter((o) => o !== g);
-      const put = (t) => { g.x = Math.cos(t) * rho; g.y = Math.sin(t) * rho; };
+      const put = (t) => { g.x = Math.cos(t) * rho; g.y = Math.sin(t) * rho + dyShift; }; // v190: הלוגואים על מעגל אחד, התווית תלויה מתחת
       let best = g.lab;
       for (let t = g.lab + 0.02; t <= g.mid; t += 0.02) { put(t); if (others.some((o) => clash(o, g))) break; best = t; }
       g.lab = best; put(best);
@@ -6210,18 +6213,23 @@ function drawPie() {
   };
   // v185: התוויות שואפות לחלק החיצוני של הפרוסה (62% מרוחב הטבעת) — נוגעות בפרוסה, לא עמוק בפנים
   const ringAt = (RR, f) => holeOf(RR) + (RR - holeOf(RR)) * f;
-  let R = R0, rho = ringAt(R0, 0.62), ok = false;
+  let R = R0, rho = ringAt(R0, 0.72), ok = false; // v190: הלוגואים ב־72% מרוחב הטבעת — קרוב לשפה החיצונית
   // 1) מעט מניות: במרכז הפרוסות — אם צריך, כל התוויות קטנות יחד (עד 82%) כדי שלא ייגעו
   for (const sc of [1, 0.9, 0.82, 0.76, 0.7]) { // v188: עדיף תוויות קטנות יותר מאשר תוויות מחוץ לטבעת — הלוגו על הפרוסה
     SC = sc;
-    for (const d of [0, 6, 12, 18]) { if (posAt(rho + d)) { ok = true; rho += d; break; } }
+    const cap = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W / 2, H / 2 + (H / 2 - LS / 2) * 0.6) * SC)); // v190: הבועה שתלויה מתחת ללוגו נשארת בתוך הקנבס
+    for (const d of [0, 6, 12, 18]) { const r1 = Math.min(rho + d, cap); if (posAt(r1)) { ok = true; rho = r1; break; } }
     if (ok) break;
   }
   // 2) יותר מניות: כל התוויות מתרחקות מהמרכז באותה מידה (הטבעת מתכווצת ונשארת מתחתן), עד שאין נגיעות
   if (!ok) {
-    SC = segs.length <= 12 ? 0.85 : 0.78;
-    const rhoMax = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W, H) / 2 * SC));
-    for (rho = ringAt(R0, 0.62); rho <= rhoMax; rho += 3) { if (posAt(rho)) { ok = true; break; } }
+    let rhoMax = 0;
+    for (const sc of [0.85, 0.78, 0.72]) { // v190: אם גם בשפה לא נכנס — תוויות קטנות עוד יותר לפני שמקבלים נגיעות
+      SC = sc;
+      rhoMax = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W / 2, H / 2 + (H / 2 - LS / 2) * 0.6) * SC));
+      for (rho = ringAt(R0, 0.72); rho <= rhoMax; rho += 3) { if (posAt(rho)) { ok = true; break; } }
+      if (ok) break;
+    }
     if (!ok) { rho = rhoMax; posAt(rho); }
     R = Math.max(R0 * 0.6, Math.min(R0, rho + H * SC * 0.22)); // v175: התוויות יושבות על השפה — הטבעת נשארת גדולה
   }
