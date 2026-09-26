@@ -988,7 +988,9 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 /* תג סשן מורחב בכרטיס: טרום־מסחר / אחרי־מסחר / לילי, עם השינוי מהסגירה הרגילה */
 .ext-sess { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; column-gap: 5px; row-gap: 0; max-width: 100%; line-height: 1.35; text-align: center; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 2px 9px; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--on-surface-var); }
 .ext-sess.pos { color: var(--gain); } .ext-sess.neg { color: var(--loss); }
-/* v199: "השוק סגור · סיבה" — התווית באפור, רק האחוז בצבע; טקסט ארוך נשבר לשורה שנייה בתוך הבועה במקום לגלוש */
+/* v199→v201: "השוק סגור · סיבה" ומתחת "אחרי־מסחר +0.25%" — שתי שורות, בועה צרה (fit-content) צמודה לקצה החיצוני */
+.ext-sess.closed { flex-direction: column; align-items: flex-end; align-self: flex-end; width: fit-content; max-width: 100%; padding: 4px 10px; row-gap: 1px; text-align: end; }
+.ext-sess.closed .ext-line { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .ext-sess.closed .ext-lbl { color: var(--on-surface-var); font-weight: 600; }
 .ext-sess .ext-lbl { white-space: nowrap; }
 .ext-sess .ext-pct { white-space: nowrap; }

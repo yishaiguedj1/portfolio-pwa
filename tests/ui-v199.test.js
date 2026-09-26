@@ -37,7 +37,7 @@ const closedHtml = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', p
 ok(/ext-sess closed neg/.test(closedHtml) && /השוק סגור/.test(closedHtml) && /0\.46%/.test(closedHtml), 'סגור: "השוק סגור" + השינוי של המסחר המאוחר האחרון, בצבע לפי הכיוון');
 ok(/class="ext-dot off"/.test(closedHtml), 'סגור: נקודה אפורה קבועה (v200) — מהבהבת רק במסחר פעיל');
 ok(/\.ext-dot\.off \{ animation: none;/.test(css) && /\[data-theme="dark"\] \.ext-dot\.off/.test(css), 'CSS: הנקודה הכבויה לא מהבהבת, עם גוון נפרד למצב כהה');
-ok(/class="ext-lbl"/.test(closedHtml) && /class="ext-pct"/.test(closedHtml), 'תווית ואחוז בשני spans — נשברים יפה');
+ok((closedHtml.match(/class="ext-line"/g) || []).length === 2 && /אחרי־מסחר/.test(closedHtml) && /class="ext-pct"/.test(closedHtml), 'סגור (v201): שתי שורות — סיבה, ומתחת הסשן האחרון + האחוז');
 const preHtml = R("extSessionHTML({ session: 'pre', ext: { kind: 'pre', price: 100, pct: 1.2 } })");
 ok(/ext-dot/.test(preHtml) && /טרום־מסחר/.test(preHtml) && !/השוק סגור/.test(preHtml), 'טרום־מסחר: כמו קודם');
 const nightHtml = R("extSessionHTML({ session: 'night', ext: { kind: 'night', price: 100, pct: 0.3 } })");

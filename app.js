@@ -3887,7 +3887,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v200';
+const APP_VERSION = 'v201';
 
 
 function saveDBto(db) {
@@ -4875,7 +4875,9 @@ function extSessionHTML(q) {
     const why = marketClosedReason();
     const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
     const lbl = t('sessClosed') + (why && names[why] ? ' · ' + names[why] : '');
-    return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosedTitle')) + '"><span class="ext-dot off"></span><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
+    // v201: שתי שורות — "השוק סגור · סיבה" ומתחת "אחרי־מסחר +0.25%" (הסשן המורחב האחרון); בועה צרה, צמודה לקצה
+    const last = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
+    return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosedTitle')) + '"><span class="ext-line"><span class="ext-dot off"></span><span class="ext-lbl">' + esc(lbl) + '</span></span><span class="ext-line"><span class="ext-lbl">' + esc(last) + '</span> <span class="ext-pct">' + fmtPct(pct, true) + '</span></span></span>';
   }
   const lbl = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
   return '<span class="ext-sess ' + cls + '" title="' + esc(t('sessExtTitle')) + '"><span class="ext-dot"></span><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
@@ -8643,7 +8645,7 @@ function stockHeadHTML(p, m) {
   const sym = p.sym;
   const priceTxt = m.price === null ? (quotesPending() ? SKEL_HTML : '—') : fmtPx(m.price, sym);
   return '<span class="stock-id">' + stockLogoHTML(sym) + '<span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' +
-    '<span class="stock-name">' + esc(p.name) + '</span>' +
+    '<span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     srcTagHTML(positionSource(p)) + '</span>' +
     '<span class="stock-pcol"><span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span>' +
     '<span class="stock-ext">' + extSessionHTML(m.q) + '</span></span>' +
