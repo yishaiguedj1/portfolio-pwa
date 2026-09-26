@@ -142,8 +142,8 @@ function makeSandbox() {
     drawPie();
   `);
   const fills = canvas.calls.filter((c) => c[0] === 'fillStyle').map((c) => c[1][0].toUpperCase());
-  ok(fills.includes(A('pieColorFor')('META', 0).toUpperCase()), 'drawPie: META צוירה בגוון הפסטלי של צבע המותג שלה');
-  ok(fills.includes(A('pieColorFor')('ADBE', 0).toUpperCase()), 'drawPie: ADBE צוירה בגוון הפסטלי של צבע המותג שלה');
+  ok(fills.includes(A('PIE_RANK_PALETTE')[0].toUpperCase()), 'drawPie (v178): הפרוסה הגדולה בצבע הראשון בפלטת הדירוג');
+  ok(fills.includes(A('PIE_RANK_PALETTE')[1].toUpperCase()), 'drawPie (v178): השנייה בצבע השני');
   ok(legendChildren.length === 2, 'drawPie: שורת מקרא לכל חברה');
   ok(legendChildren.every((li) => /pie-leg-logo/.test(li.innerHTML)), 'מקרא: לוגו קטן בכל שורה');
   ok(legendChildren.every((li) => /class="dot"/.test(li.innerHTML)), 'מקרא: עיגול הצבע עדיין קיים');

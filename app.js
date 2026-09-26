@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v177';
+const APP_VERSION = 'v178';
 
 
 function saveDBto(db) {
@@ -3978,6 +3978,10 @@ const PIE_BRAND_COLORS = {
   META: '#0866FF', ADBE: '#FA0C00', MSFT: '#FFB900', NOW: '#62D84E',
   MBLY: '#1A1F71', UNH: '#263D96', UBER: '#3AA76D', INTU: '#236CFF',
 };
+/* v178: צבעי הפרוסות לפי הדירוג בתיק (בקשת המשתמש — בדיוק הצבעים מצילום העוגה של הדמו): הגדולה ירוקה, השנייה תכלת,
+   השלישית אלמוגית וכו'. אחרי 21 — מתחילים מחדש. */
+const PIE_RANK_PALETTE = ['#8DC63F', '#8FC1E3', '#F46A5C', '#C95CF5', '#8BC9A6', '#F2D250', '#BE5B8D', '#9A9AA6', '#7CC6C2',
+  '#97E38F', '#C6783F', '#F45CE6', '#D4F55C', '#8B9FC9', '#F25070', '#9DA69A', '#5BA6BE', '#9D7CC6', '#3FC656', '#E38FC1', '#5CF46A'];
 const PIE_FALLBACK_PALETTE = ['#8DC63F', '#8FC1E3', '#F46A5C', '#F5A35C', '#C98BBE', '#F2D250', '#9AA0A6', '#5B8DBE', '#B07CC6'];
 
 /* hex -> {h,s,l} (0..360 / 0..1 / 0..1) — עזר להשוואת צבעים. */
@@ -4152,6 +4156,64 @@ function companyName(sym, fallback) {
   if (!n) { const p = POSITIONS.find((x) => x.sym === sym); n = (p && (p.full || (p.name !== p.sym ? p.name : ''))) || fallback || ''; }
   return String(n).replace(/,?\s+(Inc|Corp|Corporation|Co|Ltd|Limited|Holdings|Hldgs|N\.V|plc|S\.A|AG|SE|Company)\.?(?=\s|$)/gi, '').replace(/\s{2,}/g, ' ').trim();
 }
+/* v178: הבהרה/הכהיה של צבע hex (k>0 בהיר יותר, לבן ב־1). טהורה. */
+function pieShade(hex, k) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const f = (v) => Math.max(0, Math.min(255, Math.round(k >= 0 ? v + (255 - v) * k : v * (1 + k))));
+  return '#' + [f((n >> 16) & 255), f((n >> 8) & 255), f(n & 255)].map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+/* v178: איזו פרוסה נמצאת בנקודה (x,y ביחס לקנבס) — או null. טהורה על הגאומטריה. */
+function pieHitSym(geom, x, y) {
+  if (!geom) return null;
+  const dx = x - geom.cx, dy = y - geom.cy, d = Math.hypot(dx, dy);
+  if (d < geom.r - 2 || d > geom.R + 16) return null;
+  let ang = Math.atan2(dy, dx);
+  for (const g of geom.segs) {
+    let t = ang;
+    while (t < g.a) t += Math.PI * 2;
+    if (t <= g.a2) return g.sym;
+  }
+  return null;
+}
+/* v178: אנימציית ההרמה (spring קצר, ~220ms) + רטט קל במכשירים שתומכים */
+function pieAnimateLift(target) {
+  state.pieLift = state.pieLift || {};
+  const from = Object.assign({}, state.pieLift);
+  const syms = new Set(Object.keys(from).concat(target ? [target] : []));
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = reduce ? 1 : 240;
+  const ease = (p) => 1 - Math.pow(1 - p, 3) + Math.sin(p * Math.PI) * 0.08; // קפיצה עדינה בסוף
+  const step = (now) => {
+    const p = Math.min(1, ((now || Date.now()) - t0) / dur);
+    for (const s of syms) {
+      const a = from[s] || 0, b = s === target ? 1 : 0;
+      state.pieLift[s] = a + (b - a) * ease(p);
+      if (p >= 1) state.pieLift[s] = b;
+    }
+    try { drawPie(); } catch (e) {}
+    if (p < 1 && typeof requestAnimationFrame === 'function') requestAnimationFrame(step);
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(step); else step(t0 + dur);
+}
+function pieWireTouch(canvas) {
+  if (!canvas || !canvas.addEventListener || canvas.dataset.pieTouch) return;
+  canvas.dataset.pieTouch = '1';
+  canvas.style.cursor = 'pointer';
+  canvas.style.touchAction = 'manipulation';
+  canvas.addEventListener('pointerdown', (ev) => {
+    const rc = canvas.getBoundingClientRect();
+    const sym = pieHitSym(state.pieGeom, ev.clientX - rc.left, ev.clientY - rc.top);
+    const cur = state.pieActive || null;
+    const next = sym && sym !== cur ? sym : null;
+    state.pieActive = next;
+    if (next) { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }
+    pieAnimateLift(next);
+  });
+}
+
 /* v169: מלבן מעוגל (גם בדפדפנים בלי roundRect) */
 function pieRoundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
@@ -5942,6 +6004,7 @@ function drawPie() {
   // v170: לפי הגודל בתיק — הגדולה ביותר מ־12 בשעון, ומשם בכיוון השעון (מימין לשמאל), כמו המקרא.
   // הצבעים כבר מובדלים גלובלית (pieDedupeColors), כך שגם שכנות נבדלות.
   const ordered = slicesUnique.slice().sort((x, y) => y.value - x.value);
+  ordered.forEach((x, i) => { x.color = PIE_RANK_PALETTE[i % PIE_RANK_PALETTE.length]; }); // v178: צבע לפי דירוג (גם במקרא)
   // v169→v171: עיצוב נקי בסגנון אפל/גוגל — טבעת עבה עם רווח דק בצבע הכרטיס בין הפרוסות. לכל מניה אותה "תווית":
   // אריח לוגו בגודל אחיד + סימבול + בועה (אחוז מעל שווי). פרוסה קטנה מדי — התווית בולטת החוצה מעבר לשפה
   // (הטבעת מתכווצת בדיוק כמה שצריך), ותוויות לא עולות אחת על השנייה (מוזזות לאורך הטבעת).
@@ -5971,7 +6034,7 @@ function drawPie() {
   // v173: כל התוויות באותו גודל, על מעגל אחד. מעט מניות — במרכז הפרוסות; ככל שיש יותר מניות, המעגל של
   // התוויות מתרחק מהמרכז (והטבעת מתכווצת בהתאם) — עד שאין שתי תוויות שנוגעות זו בזו. מה שגם אז לא נכנס
   // (עשרות מניות זעירות) — רק ברשימה, לפי סדר גודל.
-  const R0 = Math.min(w, h) / 2 - 4;
+  const R0 = Math.min(w, h) / 2 - 11; // v178: מקום לפרוסה ש"מורמת" בנגיעה
   const holeOf = (R) => Math.max(R * HOLE, Math.min(R * 0.62, 58)); // החור נשאר רחב מספיק לסכום במרכז
   let SC = 1;
   const posAt = (rho) => { for (const g of segs) { g.x = Math.cos(g.mid) * rho; g.y = Math.sin(g.mid) * rho; } };
@@ -6027,13 +6090,31 @@ function drawPie() {
   }
   const r = holeOf(R);
   const gap = ordered.length > 1 ? 2.5 : 0;
-  for (const g of segs) {
+  // v178: נגיעה בפרוסה "מרימה" אותה — יוצאת החוצה מהטבעת, גדלה מעט ומטילה צל רך (תחושת עומק מוחשית).
+  // הצבע: גרדיאנט עדין (בהיר ליד המרכז) — נפח בלי להעמיס.
+  const lift = (g) => (state.pieLift && state.pieLift[g.s.sym]) || 0;
+  const slicePath = (g, L) => {
+    const off = L * 6, ox = Math.cos(g.mid) * off, oy = Math.sin(g.mid) * off;
     ctx.beginPath();
-    ctx.arc(cx, cy, R, g.a, g.a2);
-    ctx.arc(cx, cy, r, g.a2, g.a, true);
+    ctx.arc(cx + ox, cy + oy, R + L * 4, g.a, g.a2);
+    ctx.arc(cx + ox, cy + oy, r, g.a2, g.a, true);
     ctx.closePath();
-    ctx.fillStyle = g.s.color;
+    return [ox, oy];
+  };
+  const sliceFill = (g, L, ox, oy) => {
+    const gr = ctx.createRadialGradient ? ctx.createRadialGradient(cx + ox, cy + oy, r, cx + ox, cy + oy, R + L * 4) : null;
+    if (gr && gr.addColorStop) {
+      gr.addColorStop(0, pieShade(g.s.color, 0.16 + L * 0.06));
+      gr.addColorStop(1, pieShade(g.s.color, L * 0.04));
+      ctx.fillStyle = gr;
+    } else ctx.fillStyle = g.s.color;
     ctx.fill();
+  };
+  for (const g of segs) {
+    if (lift(g) > 0.001) continue;
+    const [ox, oy] = slicePath(g, 0);
+    ctx.fillStyle = g.s.color; // (גם לבדיקות: הצבע הבסיסי)
+    sliceFill(g, 0, ox, oy);
   }
   // רווחים בין הפרוסות — קווים רדיאליים בצבע הכרטיס
   if (gap) {
@@ -6047,6 +6128,20 @@ function drawPie() {
     }
     ctx.restore();
   }
+  for (const g of segs) {
+    const L = lift(g);
+    if (L <= 0.001) continue;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,' + (0.3 * L).toFixed(3) + ')'; ctx.shadowBlur = 22 * L; ctx.shadowOffsetY = 8 * L;
+    const [ox, oy] = slicePath(g, L);
+    sliceFill(g, L, ox, oy);
+    ctx.restore();
+    slicePath(g, L);
+    ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
+    if (!OUTER) { g.x += ox; g.y += oy; } // התווית זזה עם הפרוסה
+  }
+  state.pieGeom = { cx: cx, cy: cy, r: r, R: R, segs: segs.map((g) => ({ sym: g.s.sym, a: g.a, a2: g.a2 })) };
+  pieWireTouch(canvas);
   if (OUTER) { // קו מוביל דק מהפרוסה לתווית שלה
     ctx.save();
     ctx.strokeStyle = dark ? 'rgba(242,242,247,.35)' : 'rgba(28,28,30,.28)'; ctx.lineWidth = 1;
