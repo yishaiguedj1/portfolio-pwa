@@ -3895,7 +3895,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v204';
+const APP_VERSION = 'v205';
 
 
 function saveDBto(db) {
@@ -8652,6 +8652,11 @@ function stockSubHTML(p, m) {
 const SKEL_HTML = '<span class="skel" aria-hidden="true"></span>';
 function quotesPending() { return !state.quotesAt && !state.stale; }
 /* v193: כותרת הכרטיס (לוגו, סימבול, שם, מחיר, שינוי) — משותף לבנייה ולעדכון החי, בלי לבנות כרטיס שלם בכל טיק */
+/* v205: המחיר בכרטיס גדול (27px); מחיר ארוך במיוחד ("$12,345.67", "226,240 אג׳") מוקטן בשלב אחד או שניים כדי שהשורה לא תגלוש */
+function stockPriceSizeCls(txt) {
+  const n = String(txt || '').replace(/<[^>]*>/g, '').replace(/[\u2066-\u2069]/g, '').length;
+  return n >= 10 ? ' px-xl' : n >= 9 ? ' px-lg' : '';
+}
 function stockHeadHTML(p, m) {
   const sym = p.sym;
   const priceTxt = m.price === null ? (quotesPending() ? SKEL_HTML : '—') : fmtPx(m.price, sym);
@@ -8659,7 +8664,7 @@ function stockHeadHTML(p, m) {
   // כך הבועה מתחרה רק עם שם החברה (שנקטע ב־…) ולא עם הסימבול/התגית — תמיד שתי שורות, בלי התנגשות.
   return '<span class="stock-id">' + stockLogoHTML(sym) +
     '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' + srcTagHTML(positionSource(p)) +
-    '<span class="stock-price" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
+    '<span class="stock-price' + stockPriceSizeCls(priceTxt) + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     '<span class="stock-ext">' + extSessionHTML(m.q) + '</span></span></span>' +
     '<span class="stock-sub">' + stockSubHTML(p, m) + '</span>';

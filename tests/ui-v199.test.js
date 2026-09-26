@@ -61,6 +61,9 @@ ok(/>Closed</.test(R("extSessionHTML({ session: 'closed', ext: { kind: 'post', p
 R("state.lang = 'he'");
 ok(/class="sh-r1"><span class="stock-sym">[\s\S]*stock-price/.test(src) && /class="sh-r2"><span class="stock-name">[\s\S]*stock-ext/.test(src), 'v204: שורה 1 סימבול+תגית+מחיר, שורה 2 שם+בועה');
 ok(/\.stock-id \.stock-name \{ contain: inline-size; justify-self: stretch; \}/.test(css), 'שם ארוך נקטע ב־… באותו מקום ולא דוחף את הבועה');
+// v205: מחיר גדול בכרטיס, מוקטן רק כשהוא ארוך במיוחד
+ok(R("stockPriceSizeCls('$16.70')") === '' && R("stockPriceSizeCls('$1,234.56')") === ' px-lg' && R("stockPriceSizeCls('$12,345.67')") === ' px-xl', 'גודל מחיר לפי אורך (v205)');
+ok(/\.sh-r1 \.stock-price \{[^}]*font-size: 27px/.test(css), 'מחיר 27px בכרטיס (v205)');
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');
