@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v191';
+const APP_VERSION = 'v192';
 
 
 function saveDBto(db) {
@@ -6220,6 +6220,11 @@ function drawPie() {
     const cap = Math.min(w, h) / 2 - 2 - Math.max(...segs.map((g) => Math.max(g.W / 2, H / 2 + (H / 2 - LS / 2) * 0.6) * SC)); // v190: הבועה שתלויה מתחת ללוגו נשארת בתוך הקנבס
     for (const d of [0, 6, 12, 18]) { const r1 = Math.min(rho + d, cap); if (posAt(r1)) { ok = true; rho = r1; break; } }
     if (ok) break;
+  }
+  if (ok) { // v192: אם הקנבס לא מאפשר להגיע ל־90% מרוחב הטבעת — הטבעת מתכווצת כך שהלוגואים באמת יושבים על השפה
+    let RR = R0;
+    for (let i = 0; i < 4; i++) RR = (rho - 0.1 * holeOf(RR)) / 0.9;
+    R = Math.max(R0 * 0.8, Math.min(R0, RR));
   }
   // 2) יותר מניות: כל התוויות מתרחקות מהמרכז באותה מידה (הטבעת מתכווצת ונשארת מתחתן), עד שאין נגיעות
   if (!ok) {
