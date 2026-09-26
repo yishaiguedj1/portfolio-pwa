@@ -134,6 +134,7 @@
 6. אם לקוח כבר הורעל — bump גרסה נקי (v+1, בלי שינוי תוכן) מאלץ התקנה נקייה.
 
 השרתון (Vercel) מתפרס אוטומטית מכל push לריפו — אין צעד ידני.
+**מגבלת פריסות של Vercel (לקח v213)**: בתוכנית החינמית יש מכסת פריסות יומית, וכל push (גם של sw.js/בדיקות) צרך פריסה → "Deployment rate limited — retry in 24 hours" והשרתון נשאר על הגרסה הקודמת בזמן שהאפליקציה כבר עודכנה. מאז: `ignoreCommand` ב־`ibkr-proxy/vercel.json` מדלג על commit שלא נוגע ב־`ibkr-proxy/`. לבדוק סטטוס פריסה: `api.github.com/repos/<repo>/commits/<sha>/statuses` (context Vercel). שינוי בשרתון — לאמת את התוצאה החיה (לא רק 200).
 
 ## 9. כללים נוספים
 
