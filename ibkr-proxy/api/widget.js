@@ -10,7 +10,7 @@ const model = require('../lib/widget-model');
 const market = require('../lib/market');
 const { buildHtml, WIDTH } = require('../lib/widget-html');
 
-const MAX_ITEMS = 12;
+const MAX_ITEMS = 30; // v212: כל התיק (המשתמש: בלי בחירת כמות) — תקרה רק להגנה על זמן הציור
 const CACHE_MS = 50000;
 const BUDGET_MS = 9000;
 const UA = 'Mozilla/5.0 (compatible; portfolio-pwa/1.0)';
@@ -79,11 +79,12 @@ async function browser() {
   });
   return _browser;
 }
-async function render(html) {
+async function render(html, n) {
+  const dpr = n > 10 ? 2 : 3; // v212: תיק ארוך → תמונה גבוהה; DPR 2 שומר על קובץ קטן
   const b = await browser();
   const page = await b.newPage();
   try {
-    await page.setViewport({ width: WIDTH, height: 200, deviceScaleFactor: 3 });
+    await page.setViewport({ width: WIDTH, height: 200, deviceScaleFactor: dpr });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 12000 });
     await page.evaluate(() => Promise.all([document.fonts.ready, window.__logos]));
     const el = await page.$('#wrap');
@@ -99,7 +100,7 @@ module.exports = async (req, res) => {
   if (!items.length || String(q.s || '').length > 1500) return res.status(400).json({ ok: false, error: 'bad_params' });
   const lang = q.l === 'en' ? 'en' : 'he';
   const theme = q.t === 'light' ? 'light' : 'dark';
-  const n = Math.max(1, Math.min(8, parseInt(q.n, 10) || 3));
+  const n = Math.max(1, Math.min(MAX_ITEMS, parseInt(q.n, 10) || items.length)); // בלי n = כל המניות בקישור
   const asJson = q.format === 'json';
   const key = [q.s, lang, theme, n, asJson ? 'j' : 'p'].join('|');
   const hit = cache.get(key);
@@ -109,7 +110,7 @@ module.exports = async (req, res) => {
     const shown = items.slice(0, n);
     const { data, daily } = await getData(shown);
     const m = model.buildModel(shown, data, daily, { lang });
-    const v = asJson ? m : await render(buildHtml(m, { theme, n }));
+    const v = asJson ? m : await render(buildHtml(m, { theme, n }), n);
     cache.set(key, { at: Date.now(), v });
     if (cache.size > 100) cache.clear();
     return send(res, v, asJson);

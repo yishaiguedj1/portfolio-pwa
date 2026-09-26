@@ -89,7 +89,7 @@ function cardHTML(c, L, a) {
 function buildHtml(model, opts) {
   const a = assets();
   const theme = opts && opts.theme === 'light' ? 'light' : 'dark';
-  const n = Math.max(1, Math.min(8, (opts && opts.n) || 3));
+  const n = Math.max(1, Math.min(30, (opts && opts.n) || model.cards.length));
   const h = model.header;
   const mk = '<span class="mk' + (h.two ? ' two' : '') + '">' +
     '<span><span class="dot' + (h.live ? ' live' : '') + '"></span>' + esc(h.lines[0]) + '</span>' +

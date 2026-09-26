@@ -21,7 +21,8 @@ const { buildHtml, LOGO } = require('../ibkr-proxy/lib/widget-html');
 const items = M.parseItems('aapl~i~Apple,LUMI.TA~m~לאומי~leumi,TSLA~w~Tesla,bad sym~i,AAPL~m~dup,X<Y~i,OXY~m~<b>Occ</b>~../x');
 ok(items.length === 4 && items[0].sym === 'AAPL' && items[0].src === 'ibkr' && items[1].logo === 'leumi' && items[2].src === 'watch', 'parseItems: סימבול/מקור/שם/לוגו, כפילות וסימבול לא חוקי נזרקים');
 ok(items[3].name === 'bOcc/b' && items[3].logo === '', 'parseItems: שם מנוקה מ־<>, מזהה לוגו לא חוקי נזרק');
-ok(M.parseItems(Array.from({ length: 30 }, (_, i) => 'S' + i + '~i').join(','), 12).length === 12, 'parseItems: עד 12');
+ok(M.parseItems(Array.from({ length: 40 }, (_, i) => 'S' + i + '~i').join(','), 30).length === 30, 'parseItems: עד 30');
+ok(/MAX_ITEMS = 30/.test(fs.readFileSync(path.join(root, 'ibkr-proxy/api/widget.js'), 'utf8')) && !/id="widgetN"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'v212: עד 30 מניות בשרתון, אין בורר כמות בהגדרות');
 
 // ציטוט: META 25/9 אחרי־מסחר (מבנה /api/quotes) — כמו Yahoo: −25.93 (−3.33%), אחרי־מסחר −0.51%
 const T0 = 1790366401, TP = 1790380799;
@@ -84,13 +85,13 @@ R("POSITIONS.length = 0; POSITIONS.push({ sym: 'KO', name: 'Coca-Cola', shares: 
   "WISHLIST.length = 0; WISHLIST.push({ sym: 'TSLA' }, { sym: 'KO' });" +
   "state.quotes = { KO: { close: 87 }, AAPL: { close: 341 }, 'LUMI.TA': { close: 75.88 } }; state.fx = 3.05; state.lang = 'he';");
 const wi = R('widgetItems()');
-ok(wi.map((x) => x.sym).join(',') === 'AAPL,LUMI.TA,KO,TSLA', 'רשימה: אחזקות לפי שווי, אחר כך מעקב, בלי כפילות ובלי כמות 0');
-ok(wi[1].logo === 'leumi' && wi[3].src === 'w' && wi[2].src === 'm', 'רשימה: מזהה לוגו ת״א, תגית מעקב/ידני');
+ok(wi.map((x) => x.sym).join(',') === 'AAPL,LUMI.TA,KO', 'רשימה (v212): כל האחזקות לפי שווי — בלי רשימת המעקב ובלי כמות 0');
+ok(wi[1].logo === 'leumi' && wi[2].src === 'm' && !wi.some((x) => x.src === 'w'), 'רשימה: מזהה לוגו ת״א, תגית ידני, אין פריטי מעקב');
 const param = R('widgetParam(widgetItems())');
-ok(/^AAPL~[im]~Apple,LUMI\.TA~m~לאומי~leumi,KO~m~Coca-Cola,TSLA~w~Tesla$/.test(param) && !/\d{2,}~/.test(param), 'קישור: סימבול~מקור~שם — בלי כמויות/שווי');
-ok(M.parseItems(param).length === 4, 'השרתון מפענח את מה שהאפליקציה יוצרת');
-const url = R("widgetUrl({ n: 3, theme: 'dark' })");
-ok(url.startsWith('https://ibkr-proxy-wine.vercel.app/api/widget?s=') && url.endsWith('&l=he&t=dark&n=3'), 'קישור מלא לשרתון');
+ok(/^AAPL~[im]~Apple,LUMI\.TA~m~לאומי~leumi,KO~m~Coca-Cola$/.test(param) && !/\d{2,}~/.test(param), 'קישור: סימבול~מקור~שם — בלי כמויות/שווי');
+ok(M.parseItems(param).length === 3, 'השרתון מפענח את מה שהאפליקציה יוצרת');
+const url = R("widgetUrl({ theme: 'dark' })");
+ok(url.startsWith('https://ibkr-proxy-wine.vercel.app/api/widget?s=') && url.endsWith('&l=he&t=dark') && !/&n=/.test(url), 'קישור מלא לשרתון, בלי כמות (כל התיק)');
 const preset = R("widgetPreset('https://x/api/widget?s=A', 3)");
 const bm = preset.preset_root.viewgroup_items[0];
 ok(preset.preset_root.internal_type === 'RootLayerModule' && bm.internal_type === 'BitmapModule' && bm.internal_formulas.bitmap_bitmap === '$gv(link)$&z=$df(HHmm)$' && preset.preset_root.globals_list.link.value === 'https://x/api/widget?s=A', 'preset.json: תמונה מהקישור (משתנה link), מתרעננת כל דקה');

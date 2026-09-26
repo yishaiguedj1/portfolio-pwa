@@ -312,13 +312,13 @@ he: {
   myAccount: 'החשבון שלי',
   appVersion: 'גרסת אפליקציה: ',
   clearCacheBtn: 'נקה מטמון ורענן',
-  widgetTitle: 'ווידג׳ט למסך הבית', widgetDesc: 'המניות מהתיק (מהגדולה לקטנה) ואז רשימת המעקב, בעיצוב של הכרטיסים. מתעדכן בערך פעם בדקה, נגיעה פותחת את האפליקציה.',
-  widgetEmpty: 'אין עדיין מניות בתיק או ברשימת המעקב.', widgetCount: 'כמה מניות בווידג׳ט',
-  widgetChanged: 'הרשימה או ההגדרות השתנו מאז ההורדה האחרונה — הורד שוב וטען בווידג׳ט.',
+  widgetTitle: 'ווידג׳ט למסך הבית', widgetDesc: 'כל המניות בתיק, מהגדולה לקטנה, בעיצוב של הכרטיסים. מתעדכן בערך פעם בדקה, נגיעה פותחת את האפליקציה.',
+  widgetEmpty: 'אין עדיין מניות בתיק.',
+  widgetChanged: 'המניות בתיק או ההגדרות השתנו מאז ההורדה האחרונה — הורד שוב וטען בווידג׳ט.',
   widgetDownloadBtn: 'הורדה ל־KWGT', widgetCopyBtn: 'העתקת קישור', widgetHowTitle: 'איך מתקינים',
   widgetStep1: 'מתקינים את KWGT מחנות Play (ייתכן שלטעינת קובץ נדרש KWGT Pro).',
   widgetStep2: 'לוחצים "הורדה ל־KWGT" ופותחים את הקובץ מההורדות עם KWGT.',
-  widgetStep3: 'לחיצה ארוכה על מסך הבית ← ווידג׳טים ← KWGT (4×3) ← נוגעים בווידג׳ט ובוחרים את THE SNOWBALL.',
+  widgetStep3: 'לחיצה ארוכה על מסך הבית ← ווידג׳טים ← KWGT ← נוגעים בווידג׳ט ובוחרים את THE SNOWBALL. מותחים אותו לגודל הרצוי — עד מסך מלא.',
   widgetStep4: 'לרענון מהיר: בהגדרות KWGT ← מתקדם ← מצב עדכון "מהיר", ולהחריג את KWGT מחיסכון בסוללה.',
   widgetDownloaded: 'הקובץ ירד — פתח אותו עם KWGT', widgetCopied: 'הקישור הועתק', widgetCopyFail: 'לא הצלחתי — נסה שוב',
   tdKeyTitle: 'מפתח נתונים (Twelve Data)',
@@ -819,13 +819,13 @@ en: {
   myAccount: 'My account',
   appVersion: 'App version: ',
   clearCacheBtn: 'Clear cache & reload',
-  widgetTitle: 'Home-screen widget', widgetDesc: 'Your holdings (largest first), then your watchlist, in the card design. Refreshes about once a minute; tap opens the app.',
-  widgetEmpty: 'No stocks in your portfolio or watchlist yet.', widgetCount: 'Stocks in the widget',
-  widgetChanged: 'Your list or settings changed since the last download — download again and reload the widget.',
+  widgetTitle: 'Home-screen widget', widgetDesc: 'All the stocks in your portfolio, largest first, in the card design. Refreshes about once a minute; tap opens the app.',
+  widgetEmpty: 'No stocks in your portfolio yet.',
+  widgetChanged: 'Your holdings or settings changed since the last download — download again and reload the widget.',
   widgetDownloadBtn: 'Download for KWGT', widgetCopyBtn: 'Copy link', widgetHowTitle: 'How to install',
   widgetStep1: 'Install KWGT from the Play Store (loading a file may require KWGT Pro).',
   widgetStep2: 'Tap "Download for KWGT" and open the file from Downloads with KWGT.',
-  widgetStep3: 'Long-press the home screen → Widgets → KWGT (4×3) → tap the widget and pick THE SNOWBALL.',
+  widgetStep3: 'Long-press the home screen → Widgets → KWGT → tap the widget and pick THE SNOWBALL. Stretch it to the size you want — up to full screen.',
   widgetStep4: 'For faster refresh: KWGT settings → Advanced → Update mode "Fast", and exclude KWGT from battery optimization.',
   widgetDownloaded: 'Downloaded — open it with KWGT', widgetCopied: 'Link copied', widgetCopyFail: 'That didn’t work — try again',
   tdKeyTitle: 'Data key (Twelve Data)',
@@ -3936,7 +3936,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v211';
+const APP_VERSION = 'v212';
 
 
 function saveDBto(db) {
@@ -9701,20 +9701,19 @@ function renderAllInner() {
 /* v211: ווידג'ט למסך הבית (KWGT). השרתון מצייר תמונה (/api/widget) — גרסה B, לוגו 84px — ו־KWGT מציג אותה
    ומרענן לפי הדקה (z). הקישור: המניות לפי שווי בתיק ואז רשימת המעקב — סימבול, מקור (i/m/w), שם, מזהה לוגו ת״א.
    בלי כמויות/שווי (החלטת המשתמש, "אפשרות הפרטיות הפשוטה"). קובץ ה־.kwgt נבנה כאן (zip) עם הקישור בפנים. */
-const LS_WIDGET = 'pwa_widget_v1'; // { n, theme, sig } — הגדרות הווידג'ט במכשיר; sig = הרשימה בזמן ההורדה האחרונה
+const LS_WIDGET = 'pwa_widget_v1'; // { theme, sig } — הגדרות הווידג'ט במכשיר; sig = הרשימה בזמן ההורדה האחרונה
 function pwaUrl() { try { return (location.origin + location.pathname).replace(/index\.html$/, ''); } catch (e) { return ''; } } // כתובת האפליקציה (לנגיעה בווידג׳ט)
 function widgetCfg() {
   let c = {};
   try { c = JSON.parse(localStorage.getItem(LS_WIDGET) || '{}') || {}; } catch (e) {}
-  const n = parseInt(c.n, 10);
-  return { n: n >= 2 && n <= 8 ? n : 3, theme: c.theme === 'light' || c.theme === 'dark' ? c.theme : resolveTheme(), sig: c.sig || '' };
+  return { theme: c.theme === 'light' || c.theme === 'dark' ? c.theme : resolveTheme(), sig: c.sig || '' };
 }
 function widgetSave(patch) {
   const c = Object.assign(widgetCfg(), patch || {});
   try { localStorage.setItem(LS_WIDGET, JSON.stringify(c)); } catch (e) {}
   return c;
 }
-/* פריטי הווידג'ט: אחזקות מהגדולה לקטנה, ואז מעקב (בלי כפילות) — עד 12 */
+/* פריטי הווידג'ט (v212, בקשת המשתמש): כל המניות בתיק מהגדולה לקטנה — בלי רשימת המעקב ובלי בחירת כמות (עד 30) */
 function widgetItems() {
   const clean = (s) => String(s || '').replace(/[,~<>&"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
   const held = POSITIONS.filter((p) => p && p.sym && p.shares > 0).map((p) => {
@@ -9724,19 +9723,18 @@ function widgetItems() {
   const out = [];
   const add = (sym, src, name) => {
     const s = normalizeSym(sym);
-    if (!s || out.some((x) => x.sym === s) || out.length >= 12) return;
+    if (!s || out.some((x) => x.sym === s) || out.length >= 30) return;
     const logo = /\.TA$/i.test(s) ? (TASE_LOGOS[s.replace(/\.TA$/i, '')] || '') : '';
     out.push({ sym: s, src, name: clean(companyName(s, name)), logo });
   };
   for (const h of held) add(h.p.sym, positionSource(h.p) === 'ibkr' ? 'i' : 'm', h.p.name);
-  for (const w of WISHLIST || []) if (w && w.sym) add(w.sym, 'w', w.name);
   return out;
 }
 function widgetParam(items) { return items.map((x) => [x.sym, x.src, x.name].concat(x.logo ? [x.logo] : []).join('~')).join(','); }
 function widgetUrl(cfg, items) {
   const c = cfg || widgetCfg();
   return ibkrProxyBase() + '/api/widget?s=' + encodeURIComponent(widgetParam(items || widgetItems())) +
-    '&l=' + (state.lang === 'en' ? 'en' : 'he') + '&t=' + c.theme + '&n=' + c.n;
+    '&l=' + (state.lang === 'en' ? 'en' : 'he') + '&t=' + c.theme;
 }
 /* preset.json של KWGT: תמונה אחת מהשרתון (הכתובת במשתנה גלובלי "link" — אפשר לערוך בתוך KWGT), מתרעננת כל דקה
    (z = שעה+דקה), ונגיעה פותחת את האפליקציה. מבנה לפי קבצי .kwgt אמיתיים (RootLayerModule / BitmapModule). */
@@ -9789,14 +9787,12 @@ function renderWidgetCard() {
   if (!card) return;
   const c = widgetCfg();
   const items = widgetItems();
-  const nSel = document.getElementById('widgetN');
-  if (nSel && document.activeElement !== nSel) nSel.value = String(c.n);
   const tl = document.getElementById('widgetThemeLight'), td = document.getElementById('widgetThemeDark');
   if (tl) tl.classList.toggle('active', c.theme === 'light');
   if (td) td.classList.toggle('active', c.theme === 'dark');
   const has = items.length > 0;
   for (const id of ['widgetDownload', 'widgetCopy']) { const b = document.getElementById(id); if (b) b.disabled = !has; }
-  const sig = widgetParam(items) + '|' + c.n + '|' + c.theme + '|' + state.lang;
+  const sig = widgetParam(items) + '|' + c.theme + '|' + state.lang;
   const ch = document.getElementById('widgetChanged');
   if (ch) ch.classList.toggle('hidden', !c.sig || c.sig === sig || !has);
   const st = document.getElementById('widgetEmpty');
@@ -9821,7 +9817,7 @@ async function widgetDownload() {
   if (!items.length) return;
   const url = widgetUrl(c, items);
   const enc = new TextEncoder();
-  const files = [{ name: 'preset.json', data: enc.encode(JSON.stringify(widgetPreset(url, c.n))) }];
+  const files = [{ name: 'preset.json', data: enc.encode(JSON.stringify(widgetPreset(url, items.length))) }];
   try {
     const png = _widgetPng || await (await fetch(url + '&z=' + Date.now())).blob();
     const buf = new Uint8Array(await png.arrayBuffer());
@@ -9833,7 +9829,7 @@ async function widgetDownload() {
   a.download = 'the-snowball-widget.kwgt';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 30000);
-  widgetSave({ sig: widgetParam(items) + '|' + c.n + '|' + c.theme + '|' + state.lang });
+  widgetSave({ sig: widgetParam(items) + '|' + c.theme + '|' + state.lang });
   renderWidgetCard();
   flash(t('widgetDownloaded'));
 }
@@ -9843,7 +9839,7 @@ async function widgetCopy() {
   const c = widgetCfg();
   try { await navigator.clipboard.writeText(widgetUrl(c, items)); flash(t('widgetCopied')); }
   catch (e) { flash(t('widgetCopyFail')); return; }
-  widgetSave({ sig: widgetParam(items) + '|' + c.n + '|' + c.theme + '|' + state.lang });
+  widgetSave({ sig: widgetParam(items) + '|' + c.theme + '|' + state.lang });
   renderWidgetCard();
 }
 function wireWidgetCard() {
@@ -9852,8 +9848,6 @@ function wireWidgetCard() {
   on('widgetCopy', () => { widgetCopy(); });
   on('widgetThemeLight', () => { widgetSave({ theme: 'light' }); renderWidgetCard(); });
   on('widgetThemeDark', () => { widgetSave({ theme: 'dark' }); renderWidgetCard(); });
-  const sel = document.getElementById('widgetN');
-  if (sel) sel.addEventListener('change', () => { widgetSave({ n: parseInt(sel.value, 10) }); renderWidgetCard(); });
 }
 
 function renderTdKeyStatus() {
