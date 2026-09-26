@@ -48,22 +48,27 @@ ok(/const pop = 1 \+ 0\.2 \* gL;/.test(src) && /if \(!g\.chip\) \{ g\.x \+= ox; 
 ok(/#pieLegend li\.active \.pie-leg-logo \{ transform: scale\(1\.18\)/.test(css) && /function pieMarkLegend/.test(src) && /if \(pieAnimRaf && legend\.children && legend\.children\.length\) \{ pieMarkLegend\(legend\); return; \}/.test(src), 'v180: שורת המקרא של הפרוסה מודגשת והלוגו קופץ; בלי בנייה מחדש בזמן אנימציה');
 {
   const vals = [77853,46983,35064,27409,27200,17000,15000,12000,11000,11000,10000,9200,7700,5200,4800,3700,3200,3100,2600,2291,1093,1084,1068,1047,601,495,482,400,159];
-  const mk = (N) => { const v = vals.slice(0, N), T = v.reduce((a, b) => a + b, 0); let a = -Math.PI / 2; return v.map((x) => { const a2 = a + x / T * 2 * Math.PI; const it = { mid: (a + a2) / 2 }; a = a2; return it; }); };
+  const mk = (N) => { const v = vals.slice(0, N), T = v.reduce((a, b) => a + b, 0); let a = -Math.PI / 2; return v.map((x) => { const a2 = a + x / T * 2 * Math.PI; const it = { mid: (a + a2) / 2, span: a2 - a }; a = a2; return it; }); };
   const lay = A('pieCalloutLayout');
+  const norm = (t) => { while (t < Math.PI * 5 / 4) t += Math.PI * 2; while (t >= Math.PI * 13 / 4) t -= Math.PI * 2; return t; };
   for (const N of [13, 21, 29]) {
-    const its = mk(N), L = lay(its, 340, 510, 28 * 0.92, 64 * 0.92, 12);
-    const R = L.pos.filter((p) => p.side > 0), Lf = L.pos.filter((p) => p.side < 0);
-    const ok1 = L && L.pos.every(Boolean) && Math.abs(R.length - Lf.length) <= 1 && L.h <= 510 && L.R >= 0.29 * 340;
-    // בלי חפיפה: בכל טור המרחק בין שבבים ≥ גובה + 4; ובלי הצטלבות: סדר ה־y בטור = סדר הזווית (בטור הימני מ־12 עם השעון)
-    const ys = R.map((p) => p.y).sort((a, b) => a - b);
-    const ok2 = ys.every((y, i) => !i || y - ys[i - 1] >= 28 * 0.92 + 4 - 1e-6);
-    ok(ok1 && ok2, 'v183: ' + N + ' מניות — כל התוויות בשני טורים מאוזנים (' + R.length + '/' + Lf.length + '), בלי חפיפה, גובה ' + Math.round(L.h) + ', עוגה R=' + Math.round(L.R));
+    const its = mk(N), L = lay(its, 340, 510, 54 * 0.76, 44 * 0.76, 12);
+    const zone = (z) => L.pos.map((p, i) => ({ p, i })).filter((o) => o.p.zone === z);
+    const cnt = { T: zone('T').length, R: zone('R').length, B: zone('B').length, L: zone('L').length };
+    const ok1 = L && L.pos.every(Boolean) && L.h <= 510 && L.R >= 0.29 * 340 && cnt.T > 0 && cnt.R > 0 && cnt.B > 0 && cnt.L > 0;
+    // v186: לולאה אחת עם כיוון השעון — סדר השבבים בכל צד = סדר הזוויות (T משמאל לימין, R מלמעלה למטה, B מימין לשמאל, L מלמטה למעלה)
+    const mono = (z, key) => { const s = zone(z).sort((a, b) => key(a.p) - key(b.p)).map((o) => norm(its[o.i].mid)); return s.every((v, k) => !k || v >= s[k - 1] || s[k - 1] - v > Math.PI); }; // ירידה של ~2π = מעבר דרך נקודת ההתחלה (225°), לא שבירת סדר
+    const ok2 = mono('T', (p) => p.x) && mono('R', (p) => p.y) && mono('B', (p) => -p.x) && mono('L', (p) => -p.y);
+    // בלי חפיפה בטורים ובשורות
+    const gapOk = (z, key, st) => { const s = zone(z).map((o) => key(o.p)).sort((a, b) => a - b); return s.every((v, k) => !k || v - s[k - 1] >= st - 1e-6); };
+    const ok3 = gapOk('R', (p) => p.y, 54 * 0.76 + 4) && gapOk('L', (p) => p.y, 54 * 0.76 + 4) && gapOk('T', (p) => p.x, 44 * 0.76 + 6) && gapOk('B', (p) => p.x, 44 * 0.76 + 6);
+    // הגדולה (AAPL, מ־12 עם כיוון השעון) — בטור הימני, בחצי העליון
+    const big = L.pos[0], ok4 = big.zone === 'R' && big.y < L.cy;
+    ok(ok1 && ok2 && ok3 && ok4, 'v186: ' + N + ' מניות — שבבים מסביב לעוגה (' + cnt.T + '/' + cnt.R + '/' + cnt.B + '/' + cnt.L + '), סדר לפי השעון, בלי חפיפה, הגדולה מול הפרוסה שלה, גובה ' + Math.round(L.h) + ', R=' + Math.round(L.R));
   }
-  ok(/const OUTER = segs\.length > 12;/.test(src) && /pieCalloutLayout\(items, w, w \* 1\.5, CHIP_H \* sc, colW0 \* sc, 12\)/.test(src) && /canvas\.style\.height = h \+ 'px';/.test(src), 'v183: מעל 12 מניות — הסברים בטורים, הקנבס מתארך לפי הצורך');
-  ok(/ctx\.strokeStyle = pieShade\(g\.s\.color, -0\.22\);/.test(src) && /ctx\.fillStyle = s\.color; \/\/ פס הצבע/.test(src) && /ctx\.fillText\(g\.valTxt, tx0, 6\.5\);/.test(src), 'v183: קו מוביל ופס בצבע הפרוסה, אחוז מעל שווי בשבב');
-  ok(/for \(const c of \(geom\.chips \|\| \[\]\)\)/.test(src), 'v183: נגיעה בשבב בוחרת את הפרוסה');
+  ok(/const OUTER = segs\.length > 12;/.test(src) && /pieCalloutLayout\(items, w, w \* 1\.5, CHIP_H \* sc, colW0 \* sc, 12\)/.test(src) && /canvas\.style\.height = h \+ 'px';/.test(src), 'v183/v186: מעל 12 מניות — שבבים סביב העוגה, הקנבס מתארך לפי הצורך');
+  ok(/const CHIP_H = LS \+ 2 \+ BUB_H;/.test(src) && /g\.chipW = Math\.max\(LS, g\.bubW\)/.test(src) && /if \(!g\.chip\) \{ \/\/ סימבול/.test(src) && !/const drawChip = /.test(src), 'v186: שבב אנכי — לוגו מעל בועת אחוז/שווי, בלי סימבול, אותו מצייר כמו במעט מניות');
 }
-ok(/const cr = Math\.max\(0, Math\.min\(7, \(Ro - r\) \/ 4, span \* r \/ 2\.4, span \* Ro \/ 2\.4\)\);/.test(src) && /ctx\.arcTo\(\.\.\.pt\(g\.a, Ro\)/.test(src), 'v182: פינות מעוגלות לכל פרוסה (קטנות יותר בפרוסה צרה)');
-ok(/g\.out = OUTER \|\| rho > \(holeOf\(R\) \+ R\) \/ 2 \+ 6;/.test(src) && /const len = Math\.min\(18, dist - edge - 3\);/.test(src) && /if \(dist <= edge \+ 6\) continue;/.test(src), 'v184: במעט מניות — סיכה קצרה (≤18px) מקצה התווית לתוך הפרוסה; בלי קו כשהתווית מכסה את אמצע הפרוסה');
-ok(/let R = R0, rho = ringAt\(R0, 0\.62\), ok = false;/.test(src) && /for \(const \[sgn, k\] of \[step <= 7 \? \[1, step\] : \[-1, step - 7\]\]\)/.test(src) && /segs\.slice\(\)\.sort\(\(p, q\) => q\.s\.value - p\.s\.value\)/.test(src), 'v185: תוויות בחלק החיצוני של הטבעת; הגדולה מונחת ראשונה מול הפרוסה; הזזה קודם עם כיוון השעון');
+ok(/g\.out = OUTER \|\| rho > \(holeOf\(R\) \+ R\) \/ 2 \+ 6;/.test(src) && /const len = Math\.min\(18, dist - edge - 3\);/.test(src) && /if \(dist <= edge \+ 6\) continue;/.test(src) && /if \(onSlice\) continue;/.test(src), 'v184/v186: במעט מניות — סיכה קצרה (≤18px) מקצה התווית לתוך הפרוסה; בלי קו כשהתווית יושבת בבירור על הפרוסה שלה');
+ok(/let R = R0, rho = ringAt\(R0, 0\.62\), ok = false;/.test(src) && /for \(const \[sgn, k\] of \[step <= 7 \? \[-1, step\] : \[1, step - 7\]\]\)/.test(src) && /lab: a0 \+ \(a2 - a0\) \* 0\.38/.test(src) && /g\.x = Math\.cos\(g\.lab\) \* rho/.test(src) && /segs\.slice\(\)\.sort\(\(p, q\) => q\.s\.value - p\.s\.value\)/.test(src), 'v185/v186: תוויות בחלק החיצוני של הטבעת, צמודות לצד שנגד כיוון השעון של הפרוסה; הגדולה מונחת ראשונה; הזזה קודם נגד כיוון השעון');
 console.log('\n' + n + ' בדיקות עברו');
