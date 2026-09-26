@@ -46,4 +46,6 @@ ok(A('pieShade')('#000000', 0.5) === '#808080' && A('pieShade')('#FFFFFF', -0.5)
 ok(/canvas\.addEventListener\('pointerdown'/.test(src) && /navigator\.vibrate\(8\)/.test(src) && /prefers-reduced-motion: reduce/.test(src) && /ctx\.shadowBlur = 22 \* L/.test(src), 'v178: נגיעה מרימה את הפרוסה (צל, רטט קל, מכבד הפחתת תנועה)');
 ok(/#pieChart \{ -webkit-tap-highlight-color: transparent;/.test(css), 'v179: בלי הריבוע הכחול בנגיעה');
 ok(/const PIE_SPRING = \{ k: 320, c: 20 \};/.test(src) && /ctx\.globalAlpha = dimA;/.test(src) && /ctx\.fillText\(act\.pctTxt, cx,/.test(src), 'v179: אנימציית קפיץ, השאר מתעמעמות, פרטי המניה במרכז');
+ok(/const pop = 1 \+ 0\.2 \* gL;/.test(src) && /g\.x \+= ox; g\.y \+= oy; \/\/ v180/.test(src), 'v180: הלוגו והבועה זזים וגדלים יחד עם הפרוסה (אותו קפיץ)');
+ok(/#pieLegend li\.active \.pie-leg-logo \{ transform: scale\(1\.18\)/.test(css) && /function pieMarkLegend/.test(src) && /if \(pieAnimRaf && legend\.children && legend\.children\.length\) \{ pieMarkLegend\(legend\); return; \}/.test(src), 'v180: שורת המקרא של הפרוסה מודגשת והלוגו קופץ; בלי בנייה מחדש בזמן אנימציה');
 console.log('\n' + n + ' בדיקות עברו');

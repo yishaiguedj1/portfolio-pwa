@@ -359,6 +359,12 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 #pieLegend .lg-sym { font-weight: 700; font-size: 15.5px; align-self: flex-start; }
 #pieLegend .lg-full { align-self: flex-start; max-width: 100%; font-weight: 500; font-size: 13px; color: var(--on-surface-var); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #pieLegend li { gap: 12px; padding: 10px 0; }
+/* v180: שורת המקרא של הפרוסה שנבחרה — רקע עדין, והלוגו קופץ בקפיץ כמו בעוגה */
+#pieLegend li { cursor: pointer; border-radius: var(--radius-sm); transition: background-color .25s ease, padding .25s ease; -webkit-tap-highlight-color: transparent; }
+#pieLegend li .pie-leg-logo { transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), box-shadow .3s ease; }
+#pieLegend li.active { background: color-mix(in srgb, var(--primary) 9%, transparent); padding-inline: 10px; }
+#pieLegend li.active .pie-leg-logo { transform: scale(1.18) translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.18), inset 0 0 0 1px rgba(0,0,0,.06); }
+@media (prefers-reduced-motion: reduce) { #pieLegend li, #pieLegend li .pie-leg-logo { transition: none; } }
 #pieLegend .dot { width: 10px; height: 10px; border-radius: 50%; }
 .legend .lg-val { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .legend .lg-pct { font-weight: 700; min-width: 56px; text-align: end; font-variant-numeric: tabular-nums; }

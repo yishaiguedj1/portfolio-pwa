@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v179';
+const APP_VERSION = 'v180';
 
 
 function saveDBto(db) {
@@ -6182,7 +6182,7 @@ function drawPie() {
     }
     slicePath(g, L);
     ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
-    if (!OUTER) { g.x += ox; g.y += oy; } // התווית זזה עם הפרוסה
+    g.x += ox; g.y += oy; // v180: התווית זזה יחד עם הפרוסה (גם כשהיא מחוץ לטבעת)
   }
   state.pieGeom = { cx: cx, cy: cy, r: r, R: R, segs: segs.map((g) => ({ sym: g.s.sym, a: g.a, a2: g.a2 })) };
   pieWireTouch(canvas);
@@ -6210,14 +6210,16 @@ function drawPie() {
     ctx.save();
     if (lift(g) < 0.5) ctx.globalAlpha = dimA;
     ctx.translate(cx + g.x, cy + g.y);
-    ctx.scale(g.sc || 1, g.sc || 1); // גודל יחסי לפרוסה — הלוגו, הסימבול והבועה יחד
+    const gL = lift(g);
+    const pop = 1 + 0.2 * gL; // v180: התווית "קופצת" יחד עם הפרוסה — אותו קפיץ, אותו תזמון
+    ctx.scale((g.sc || 1) * pop, (g.sc || 1) * pop); // גודל יחסי לפרוסה — הלוגו, הסימבול והבועה יחד
     let top = -H / 2;
     // לוגו — אותו גודל לכל החברות
     const e = pieLogoImg(s.sym);
     const lx = x - LS / 2;
     const light = !!(e.ready && e.light && !e.inv); // לוגו לבן שלא הצלחנו להפוך — אריח כהה
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
+    ctx.shadowColor = 'rgba(0,0,0,' + (0.18 + 0.16 * Math.min(1, gL)).toFixed(3) + ')'; ctx.shadowBlur = 6 + 10 * gL; ctx.shadowOffsetY = 1.5 + 4 * gL;
     pieRoundRect(ctx, lx, top, LS, LS, LS * 0.26);
     ctx.fillStyle = light ? '#1D1D1F' : '#FFFFFF';
     ctx.fill();
@@ -6295,6 +6297,8 @@ function drawPie() {
   }
 
   const legend = document.getElementById('pieLegend');
+  // v180: בזמן האנימציה לא בונים את הרשימה מחדש (התמונות היו מהבהבות) — רק מסמנים את השורה הפעילה
+  if (pieAnimRaf && legend.children && legend.children.length) { pieMarkLegend(legend); return; }
   legend.innerHTML = '';
   const sorted = slicesUnique.slice().sort((a, b) => b.value - a.value);
   for (const s of sorted) {
@@ -6310,7 +6314,21 @@ function drawPie() {
       (full && full.toUpperCase() !== String(s.sym).toUpperCase() ? '<span class="lg-full" dir="auto">' + esc(full) + '</span>' : '') + '</span>' +
       '<span class="lg-val">' + money(val(s.value), cur) + '</span>' +
       '<span class="lg-pct">' + (s.value / total * 100).toFixed(1) + '%</span>');
+    if (li.dataset) li.dataset.sym = s.sym;
+    li.addEventListener && li.addEventListener('click', () => { // נגיעה בשורה = נגיעה בפרוסה
+      const next = state.pieActive === s.sym ? null : s.sym;
+      state.pieActive = next;
+      if (next) { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }
+      pieAnimateLift(next);
+    });
     legend.appendChild(li);
+  }
+  pieMarkLegend(legend);
+}
+/* v180: השורה של הפרוסה הפעילה מודגשת, והלוגו שלה קופץ (CSS, אותו תזמון כמו בעוגה) */
+function pieMarkLegend(legend) {
+  for (const li of (legend.children || [])) {
+    if (li.classList) li.classList.toggle('active', !!state.pieActive && li.dataset && li.dataset.sym === state.pieActive);
   }
 }
 
