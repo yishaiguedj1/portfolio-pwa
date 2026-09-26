@@ -331,8 +331,12 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .card h2 { margin: 0 0 12px; font-size: 19px; font-weight: 700; letter-spacing: -.2px; }
 
 .cards-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
-.cards-3 .card { margin: 0; padding: 14px 8px; text-align: center; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
-.cards-3 .stat-sub { margin-top: auto; padding-top: 6px; } /* v151: שורת ההסבר צמודה לתחתית — שלושת האריחים אחידים */
+.cards-3 .card { margin: 0; padding: 18px 8px 16px; text-align: center; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+/* v197: אריחי הסקירה נקיים — תווית + מספר בלבד; שורת ההסבר (מזומן/דוח/TWR/עודכן) הוסרה מהתצוגה (בקשת המשתמש).
+   האלמנטים נשארים ב־DOM (ה־JS כותב אליהם) אבל מוסתרים. */
+.cards-3 .stat-sub { margin-top: auto; padding-top: 6px; display: none; }
+.cards-3 .stat-label { margin-bottom: 8px; font-weight: 600; letter-spacing: .1px; }
+.cards-3 .stat-value { margin-top: auto; } /* המספרים בקו אחד גם כשתווית נשברת לשתי שורות */
 .stat.wide { text-align: center; }
 .stat-label { font-size: 13.5px; color: var(--on-surface-var); margin-bottom: 6px; }
 .stat-value { font-size: 25px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
