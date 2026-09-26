@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v176';
+const APP_VERSION = 'v177';
 
 
 function saveDBto(db) {
@@ -6006,7 +6006,7 @@ function drawPie() {
     g.th = th;
   };
   if (OUTER) {
-    SC = segs.length > 20 ? 0.72 : 0.8;
+    SC = segs.length > 30 ? 0.56 : segs.length > 20 ? 0.64 : segs.length > 16 ? 0.72 : 0.8; // v177: יותר מניות — תוויות קטנות יותר, יותר נכנסות
     R = R0 * Math.max(0.62, Math.min(0.88, 1 - (segs.length - 12) * 0.025));
     for (const g of segs) outPos(g, g.mid);
   }
