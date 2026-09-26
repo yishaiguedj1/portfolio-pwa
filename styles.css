@@ -330,6 +330,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 
 /* ---- Pie ---- */
 .pie-wrap { display: flex; justify-content: center; margin-inline: -12px; } /* v175: העוגה מנצלת כמעט את כל רוחב הכרטיס */
+#pieChart { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; outline: none; } /* v179: בלי הריבוע הכחול בנגיעה */
 #pieChart { width: 100%; max-width: 520px; aspect-ratio: 1 / 1; height: auto; display: block; }
 .pie-leg-logo {
   position: relative; width: 34px; height: 34px; border-radius: 10px; flex: none; overflow: hidden;

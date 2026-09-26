@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v178';
+const APP_VERSION = 'v179';
 
 
 function saveDBto(db) {
@@ -4177,26 +4177,51 @@ function pieHitSym(geom, x, y) {
   }
   return null;
 }
-/* v178: אנימציית ההרמה (spring קצר, ~220ms) + רטט קל במכשירים שתומכים */
+/* v179: אנימציית קפיץ (spring) — הפרוסה קופצת החוצה עם "נשימה" קטנה ונרגעת; השאר נסוגות בעמעום.
+   פיזיקה אמיתית (מהירות + ריסון) ולא עקומה קבועה — המעבר רציף גם אם נוגעים שוב באמצע. */
+const PIE_SPRING = { k: 320, c: 20 };
+let pieAnimRaf = 0;
 function pieAnimateLift(target) {
   state.pieLift = state.pieLift || {};
-  const from = Object.assign({}, state.pieLift);
-  const syms = new Set(Object.keys(from).concat(target ? [target] : []));
-  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  state.pieVel = state.pieVel || {};
+  state.pieTarget = target || null;
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const dur = reduce ? 1 : 240;
-  const ease = (p) => 1 - Math.pow(1 - p, 3) + Math.sin(p * Math.PI) * 0.08; // קפיצה עדינה בסוף
+  if (reduce || typeof requestAnimationFrame !== 'function') {
+    for (const k of Object.keys(state.pieLift)) state.pieLift[k] = 0;
+    if (target) state.pieLift[target] = 1;
+    state.pieFocus = target ? 1 : 0;
+    try { drawPie(); } catch (e) {}
+    return;
+  }
+  if (target && !(target in state.pieLift)) state.pieLift[target] = 0;
+  let last = 0;
   const step = (now) => {
-    const p = Math.min(1, ((now || Date.now()) - t0) / dur);
-    for (const s of syms) {
-      const a = from[s] || 0, b = s === target ? 1 : 0;
-      state.pieLift[s] = a + (b - a) * ease(p);
-      if (p >= 1) state.pieLift[s] = b;
+    const dt = Math.min(0.034, last ? (now - last) / 1000 : 0.016);
+    last = now;
+    let moving = false;
+    const keys = Object.keys(state.pieLift).concat(['__focus']);
+    for (const k of keys) {
+      const isF = k === '__focus';
+      const x = isF ? (state.pieFocus || 0) : state.pieLift[k];
+      const v = state.pieVel[k] || 0;
+      const goal = isF ? (state.pieTarget ? 1 : 0) : (k === state.pieTarget ? 1 : 0);
+      const cc = isF ? PIE_SPRING.c * 1.6 : PIE_SPRING.c; // העמעום בלי קפיצה
+      const a = PIE_SPRING.k * (goal - x) - cc * v;
+      const nv = v + a * dt, nx = x + nv * dt;
+      if (Math.abs(goal - nx) < 0.002 && Math.abs(nv) < 0.01) {
+        if (isF) state.pieFocus = goal; else state.pieLift[k] = goal;
+        state.pieVel[k] = 0;
+        if (!isF && goal === 0) delete state.pieLift[k];
+      } else {
+        if (isF) state.pieFocus = Math.max(0, nx); else state.pieLift[k] = Math.max(0, nx);
+        state.pieVel[k] = nv;
+        moving = true;
+      }
     }
     try { drawPie(); } catch (e) {}
-    if (p < 1 && typeof requestAnimationFrame === 'function') requestAnimationFrame(step);
+    pieAnimRaf = moving ? requestAnimationFrame(step) : 0;
   };
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(step); else step(t0 + dur);
+  if (!pieAnimRaf) pieAnimRaf = requestAnimationFrame(step);
 }
 function pieWireTouch(canvas) {
   if (!canvas || !canvas.addEventListener || canvas.dataset.pieTouch) return;
@@ -6110,11 +6135,17 @@ function drawPie() {
     } else ctx.fillStyle = g.s.color;
     ctx.fill();
   };
+  // v179: כשפרוסה מורמת — השאר נסוגות לרקע (שקיפות), כמו מיקוד באפל
+  const focus = Math.max(0, Math.min(1, state.pieFocus || 0));
+  const dimA = 1 - 0.5 * focus;
   for (const g of segs) {
     if (lift(g) > 0.001) continue;
     const [ox, oy] = slicePath(g, 0);
+    ctx.save();
+    ctx.globalAlpha = dimA;
     ctx.fillStyle = g.s.color; // (גם לבדיקות: הצבע הבסיסי)
     sliceFill(g, 0, ox, oy);
+    ctx.restore();
   }
   // רווחים בין הפרוסות — קווים רדיאליים בצבע הכרטיס
   if (gap) {
@@ -6136,6 +6167,19 @@ function drawPie() {
     const [ox, oy] = slicePath(g, L);
     sliceFill(g, L, ox, oy);
     ctx.restore();
+    // ברק עדין על הפרוסה המורמת — כמו אור מלמעלה על משטח אמיתי
+    if (ctx.createLinearGradient) {
+      ctx.save();
+      slicePath(g, L);
+      ctx.clip();
+      const sh = ctx.createLinearGradient(cx + ox, cy + oy - R, cx + ox, cy + oy + R);
+      if (sh && sh.addColorStop) {
+        sh.addColorStop(0, 'rgba(255,255,255,' + (0.28 * Math.min(1, L)).toFixed(3) + ')');
+        sh.addColorStop(0.55, 'rgba(255,255,255,0)');
+        ctx.fillStyle = sh; ctx.fillRect(0, 0, w, h);
+      }
+      ctx.restore();
+    }
     slicePath(g, L);
     ctx.strokeStyle = surface; ctx.lineWidth = gap || 1.5; ctx.stroke();
     if (!OUTER) { g.x += ox; g.y += oy; } // התווית זזה עם הפרוסה
@@ -6164,6 +6208,7 @@ function drawPie() {
     if (g.skip) continue;
     const s = g.s, x = 0;
     ctx.save();
+    if (lift(g) < 0.5) ctx.globalAlpha = dimA;
     ctx.translate(cx + g.x, cy + g.y);
     ctx.scale(g.sc || 1, g.sc || 1); // גודל יחסי לפרוסה — הלוגו, הסימבול והבועה יחד
     let top = -H / 2;
@@ -6219,12 +6264,35 @@ function drawPie() {
   ctx.textBaseline = 'alphabetic';
   ctx.direction = 'inherit';
   ctx.textAlign = 'center';
-  ctx.fillStyle = cssVar('--on-surface-var', '#6B6B70');
-  ctx.font = '600 ' + (r > 64 ? 13 : 12) + 'px ' + FONT;
-  ctx.fillText(t('totalStocks'), cx, cy - 8);
-  ctx.fillStyle = cssVar('--on-surface', '#191C1A');
-  ctx.font = '800 ' + (r > 64 ? 21 : 18) + 'px ' + FONT;
-  ctx.fillText(money(val(total), cur), cx, cy + 17);
+  // v179: במרכז — הסכום הכולל; כשפרוסה מורמת, מתחלף בעמעום לפרטי המניה (סימבול, אחוז, שווי)
+  const act = state.pieActive && segs.find((g) => g.s.sym === state.pieActive);
+  const cf = act ? focus : 0;
+  const big = r > 64 ? 21 : 18, small = r > 64 ? 13 : 12;
+  if (cf < 0.999) {
+    ctx.save(); ctx.globalAlpha = 1 - cf;
+    ctx.fillStyle = cssVar('--on-surface-var', '#6B6B70');
+    ctx.font = '600 ' + small + 'px ' + FONT;
+    ctx.fillText(t('totalStocks'), cx, cy - 8 - cf * 6);
+    ctx.fillStyle = cssVar('--on-surface', '#191C1A');
+    ctx.font = '800 ' + big + 'px ' + FONT;
+    ctx.fillText(money(val(total), cur), cx, cy + 17 - cf * 6);
+    ctx.restore();
+  }
+  if (act && cf > 0.001) {
+    ctx.save(); ctx.globalAlpha = cf; ctx.direction = 'ltr';
+    const dy = (1 - cf) * 8;
+    ctx.font = '700 ' + small + 'px ' + FONT;
+    ctx.fillStyle = act.s.color;
+    ctx.beginPath(); ctx.arc(cx - tw(act.symTxt) / 2 - 8, cy - 22 + dy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = cssVar('--on-surface', '#191C1A');
+    ctx.fillText(act.symTxt, cx, cy - 18 + dy);
+    ctx.font = '800 ' + big + 'px ' + FONT;
+    ctx.fillText(act.pctTxt, cx, cy + 5 + dy);
+    ctx.fillStyle = cssVar('--on-surface-var', '#6B6B70');
+    ctx.font = '600 ' + small + 'px ' + FONT;
+    ctx.fillText(money(val(act.s.value), cur), cx, cy + 24 + dy);
+    ctx.restore();
+  }
 
   const legend = document.getElementById('pieLegend');
   legend.innerHTML = '';

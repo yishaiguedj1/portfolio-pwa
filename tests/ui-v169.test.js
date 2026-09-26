@@ -44,4 +44,6 @@ const geom = { cx: 100, cy: 100, r: 40, R: 90, segs: [{ sym: 'A', a: -Math.PI / 
 ok(A('pieHitSym')(geom, 160, 40) === 'A' && A('pieHitSym')(geom, 40, 160) === 'B' && A('pieHitSym')(geom, 100, 100) === null && A('pieHitSym')(geom, 100, -10) === null, 'v178: זיהוי הפרוסה שנגעו בה (לא במרכז ולא מחוץ לטבעת)');
 ok(A('pieShade')('#000000', 0.5) === '#808080' && A('pieShade')('#FFFFFF', -0.5) === '#808080', 'v178: הבהרה/הכהיה של צבע');
 ok(/canvas\.addEventListener\('pointerdown'/.test(src) && /navigator\.vibrate\(8\)/.test(src) && /prefers-reduced-motion: reduce/.test(src) && /ctx\.shadowBlur = 22 \* L/.test(src), 'v178: נגיעה מרימה את הפרוסה (צל, רטט קל, מכבד הפחתת תנועה)');
+ok(/#pieChart \{ -webkit-tap-highlight-color: transparent;/.test(css), 'v179: בלי הריבוע הכחול בנגיעה');
+ok(/const PIE_SPRING = \{ k: 320, c: 20 \};/.test(src) && /ctx\.globalAlpha = dimA;/.test(src) && /ctx\.fillText\(act\.pctTxt, cx,/.test(src), 'v179: אנימציית קפיץ, השאר מתעמעמות, פרטי המניה במרכז');
 console.log('\n' + n + ' בדיקות עברו');
