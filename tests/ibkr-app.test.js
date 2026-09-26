@@ -793,7 +793,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     const fsx = require('fs'), px = require('path');
     const R0 = px.join(__dirname, '..');
     const html = fsx.readFileSync(px.join(R0, 'index.html'), 'utf8');
-    ok(/<h1 class="brand"><img src="logo-header\.png"[^>]*width="106"[^>]*alt=""[^>]*><span class="sr-only" data-i18n="appTitle">/.test(html), 'כותרת: לוגו (106px) + שם האפליקציה לקוראי מסך');
+    ok(/<h1 class="brand"><img src="logo-header\.png"[^>]*width="128"[^>]*alt=""[^>]*><span class="sr-only" data-i18n="appTitle">/.test(html), 'כותרת: לוגו (128px) + שם האפליקציה לקוראי מסך');
     ok(/<div class="appbar-row">\s*<h1 class="brand">/.test(html), 'כותרת v131: הלוגו ראשון ב־DOM (מציג בצד ההתחלה, ימין ב־RTL)');
     // v195: בתוך .appbar-left הסדר הוא שורת מקור → כפתורים → בועת שער הדולר (בקשת המשתמש)
     ok(/<div class="appbar-left">\s*<p class="appbar-sub"[^>]*>[\s\S]*?<\/p>\s*<div class="appbar-actions">/.test(html) && /appbar-actions[\s\S]*<div class="fx-pill" id="fxPill"[\s\S]*?<\/div>\s*<\/div>/.test(html), 'כותרת v131/v195: שורת מקור, כפתורים ובועת השער מקובצים יחד בצד השני');

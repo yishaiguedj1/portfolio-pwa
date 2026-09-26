@@ -38,7 +38,7 @@ ok(/html,\s*body\s*\{[^}]*overflow-x:\s*(clip|hidden)/.test(css), 'אין גלי
 ok(/\.appbar-row\s*\{[^}]*justify-content:\s*space-between/.test(css), 'שורת הכותרת: כפתורים ולוגו בקצוות, לא מתנגשים');
 ok(/\.appbar-sub\s*\{[^}]*text-overflow:\s*ellipsis/.test(css), 'שורת המשנה נחתכת ב־… ולא דוחפת את הכפתורים');
 ok(/\.appbar-actions\s*\{[^}]*flex:\s*none/.test(css), 'בלוק הכפתורים לא נמעך (flex:none)');
-ok(/\.brand-logo\s*\{[^}]*width:\s*106px/.test(css), 'הלוגו בגודל קבוע (106px) — לא תלוי במקום שנשאר');
+ok(/\.brand-logo\s*\{[^}]*width:\s*128px/.test(css), 'הלוגו בגודל קבוע (128px, v198) — לא תלוי במקום שנשאר');
 // v140: כפתורי הפעולה צמודים לקצה המסך (flex-end) — לא flex-start, שהיה
 // מצמיד אותם לקצה הבלוק שגדל/מתכווץ לפי אורך שורת "מקור" ומזיז אותם
 // (דווח 25/09/2026: "אחרי סגירת המסחר נוסף הטקסט 'אחרי-מסחר' וכל הלחצנים זזים")
