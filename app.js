@@ -3841,7 +3841,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v188';
+const APP_VERSION = 'v189';
 
 
 function saveDBto(db) {
@@ -6196,6 +6196,15 @@ function drawPie() {
       if (hit()) fine = false;
       g.lab = th;
       placed.push(g);
+    }
+    // v189: מעבר חוזר, מהאחרונה אחורה — כל תווית חוזרת לכיוון אמצע הפרוסה שלה עד שהיא נוגעת בשכנה שאחריה (עם כיוון השעון).
+    // כך תווית נצמדת לקצה שנגד כיוון השעון רק כשבאמת צריך לפנות מקום לשכנות הצפופות; כשיש מקום — היא ממורכזת (META/ADBE/MBLY/MSFT).
+    for (let i = segs.length - 1; i >= 1; i--) {
+      const g = segs[i], others = segs.filter((o) => o !== g);
+      const put = (t) => { g.x = Math.cos(t) * rho; g.y = Math.sin(t) * rho; };
+      let best = g.lab;
+      for (let t = g.lab + 0.02; t <= g.mid; t += 0.02) { put(t); if (others.some((o) => clash(o, g))) break; best = t; }
+      g.lab = best; put(best);
     }
     return fine;
   };
