@@ -992,7 +992,10 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 .ext-sess.closed .ext-lbl { color: var(--on-surface-var); font-weight: 600; }
 .ext-sess .ext-lbl { white-space: nowrap; }
 .ext-sess .ext-pct { white-space: nowrap; }
-.ext-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: livePulse 2s ease-in-out infinite; }
+.ext-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: livePulse 2s ease-in-out infinite; flex: none; }
+/* v200: הנקודה מהבהבת (ירוק/אדום) רק כשיש מסחר פעיל; כשהשוק סגור — אפורה, קבועה, ובולטת גם על רקע כהה */
+.ext-dot.off { animation: none; background: #8E8E93; box-shadow: 0 0 0 2px color-mix(in srgb, #8E8E93 28%, transparent); }
+[data-theme="dark"] .ext-dot.off { background: #A1A1A6; box-shadow: 0 0 0 2px rgba(161, 161, 166, .3); }
 @media (prefers-reduced-motion: reduce) { .stock-price.px-up, .stock-price.px-down, .fx-num.px-up, .fx-num.px-down, .px-roll > span, .ext-dot { animation: none; } }
 
 /* ---- v193: תנועה וטעינה ---- */

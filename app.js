@@ -3887,7 +3887,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v199';
+const APP_VERSION = 'v200';
 
 
 function saveDBto(db) {
@@ -4875,7 +4875,7 @@ function extSessionHTML(q) {
     const why = marketClosedReason();
     const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
     const lbl = t('sessClosed') + (why && names[why] ? ' · ' + names[why] : '');
-    return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosedTitle')) + '"><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
+    return '<span class="ext-sess closed ' + cls + '" title="' + esc(t('sessClosedTitle')) + '"><span class="ext-dot off"></span><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';
   }
   const lbl = q.ext.kind === 'pre' ? t('sessPreShort') : q.ext.kind === 'night' ? t('sessNightShort') : t('sessPostShort');
   return '<span class="ext-sess ' + cls + '" title="' + esc(t('sessExtTitle')) + '"><span class="ext-dot"></span><span class="ext-lbl">' + esc(lbl) + '</span><span class="ext-pct">' + fmtPct(pct, true) + '</span></span>';

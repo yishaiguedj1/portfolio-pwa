@@ -35,7 +35,8 @@ ok(R('marketClosedReason(Date.UTC(2026, 8, 28, 15))') === null, 'יום מסחר
 R("state.lang = 'he'");
 const closedHtml = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 100, pct: -0.46 } })");
 ok(/ext-sess closed neg/.test(closedHtml) && /השוק סגור/.test(closedHtml) && /0\.46%/.test(closedHtml), 'סגור: "השוק סגור" + השינוי של המסחר המאוחר האחרון, בצבע לפי הכיוון');
-ok(!/ext-dot/.test(closedHtml), 'סגור: בלי נקודה מהבהבת (אין מסחר)');
+ok(/class="ext-dot off"/.test(closedHtml), 'סגור: נקודה אפורה קבועה (v200) — מהבהבת רק במסחר פעיל');
+ok(/\.ext-dot\.off \{ animation: none;/.test(css) && /\[data-theme="dark"\] \.ext-dot\.off/.test(css), 'CSS: הנקודה הכבויה לא מהבהבת, עם גוון נפרד למצב כהה');
 ok(/class="ext-lbl"/.test(closedHtml) && /class="ext-pct"/.test(closedHtml), 'תווית ואחוז בשני spans — נשברים יפה');
 const preHtml = R("extSessionHTML({ session: 'pre', ext: { kind: 'pre', price: 100, pct: 1.2 } })");
 ok(/ext-dot/.test(preHtml) && /טרום־מסחר/.test(preHtml) && !/השוק סגור/.test(preHtml), 'טרום־מסחר: כמו קודם');
