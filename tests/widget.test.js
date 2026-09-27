@@ -15,7 +15,6 @@ for (const f of ['easterSunday', 'nyseHolidays', 'etDateParts', 'marketClosedRea
 }
 const market = require('../ibkr-proxy/lib/market');
 const M = require('../ibkr-proxy/lib/widget-model');
-const { buildHtml, LOGO } = require('../ibkr-proxy/lib/widget-html');
 
 // פרמטר s
 const items = M.parseItems('aapl~i~Apple,LUMI.TA~m~לאומי~leumi,TSLA~w~Tesla,bad sym~i,AAPL~m~dup,X<Y~i,OXY~m~<b>Occ</b>~../x');
@@ -62,21 +61,16 @@ for (const [iso, key] of [['2026-01-01T15:00:00Z', 'hdNewYear'], ['2026-01-19T15
 const open = M.buildModel(M.parseItems('META~i'), { META: Object.assign({}, chart, { x: { state: 'REGULAR', reg: { p: 751, ch: 1, pct: 0.1 } } }) }, {}, { lang: 'he', nowMs: sat });
 ok(open.header.lines[0] === 'המסחר פתוח' && open.header.live === true && open.cards[0].sub === '', 'שוק פתוח: "המסחר פתוח" עם נקודה חיה, בלי שורת מסחר מורחב');
 
-// HTML
-const html = buildHtml(Object.assign({}, m, { cards: [Object.assign({}, c0, { name: '<img src=x onerror=alert(1)>' })] }), { theme: 'light', n: 3 });
-ok(!html.includes('<img src=x') && html.includes('&lt;img src=x'), 'HTML: טקסט עובר escape');
-ok(LOGO === 84 && html.includes('width:84px;height:84px') && html.includes('class="hero"') && html.includes('<body class="light"'), 'HTML: לוגו 84px במרכז העליון, ערכה בהירה');
-ok(/data:image\/png;base64,/.test(html) && !/github\.io/.test(html), 'HTML: הלוגו וסמל IBKR מוטמעים (בלי רשת)');
-
-// Vercel
+// Vercel (v215: בלי Chromium — רק JSON)
 const vj = JSON.parse(fs.readFileSync(path.join(root, 'ibkr-proxy/vercel.json'), 'utf8'));
-ok(vj.functions['api/widget.js'] && /assets/.test(vj.functions['api/widget.js'].includeFiles) && /chromium\/bin/.test(vj.functions['api/widget.js'].includeFiles), 'vercel.json: widget עם הנכסים וקבצי Chromium');
+ok(vj.functions['api/widget.js'] && !vj.functions['api/widget.js'].includeFiles, 'vercel.json: widget בלי קבצי Chromium');
 const pj = JSON.parse(fs.readFileSync(path.join(root, 'ibkr-proxy/package.json'), 'utf8'));
-ok(/^\d/.test(pj.dependencies['@sparticuz/chromium']) && /^\d/.test(pj.dependencies['puppeteer-core']), 'package.json: גרסאות מקובעות');
+ok(!pj.dependencies || !pj.dependencies['@sparticuz/chromium'], 'package.json: בלי Chromium/puppeteer');
+ok(!/buildHtml|puppeteer|chromium/.test(fs.readFileSync(path.join(root, 'ibkr-proxy/api/widget.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')), 'השרתון מחזיר רק JSON (ציור ה־KWGT הוסר)');
 ok(fs.readFileSync(path.join(root, 'ibkr-proxy/.gitignore'), 'utf8').includes('node_modules'), 'node_modules לא נכנס לגיט');
 
 
-// ---- האפליקציה: רשימה, קישור וקובץ .kwgt ----
+// ---- האפליקציה: רשימה + קישור עמוק ----
 const sb = { localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, style: {} }) }, window: {}, navigator: {}, location: {}, AbortController, fetch: () => Promise.reject(new Error('x')), setTimeout, clearTimeout, console, Image: class { set src(_) {} } };
 sb.TextEncoder = TextEncoder; sb.location = { origin: 'https://yishaiguedj1.github.io', pathname: '/portfolio-pwa/index.html' };
 vm.createContext(sb); vm.runInContext(app, sb);
@@ -90,21 +84,6 @@ ok(wi[1].logo === 'leumi' && wi[2].src === 'm' && !wi.some((x) => x.src === 'w')
 const param = R('widgetParam(widgetItems())');
 ok(/^AAPL~[im]~Apple,LUMI\.TA~m~לאומי~leumi,KO~m~Coca-Cola$/.test(param) && !/\d{2,}~/.test(param), 'קישור: סימבול~מקור~שם — בלי כמויות/שווי');
 ok(M.parseItems(param).length === 3, 'השרתון מפענח את מה שהאפליקציה יוצרת');
-const url = R("widgetUrl({ theme: 'dark' })");
-ok(url.startsWith('https://ibkr-proxy-wine.vercel.app/api/widget?s=') && url.endsWith('&l=he&t=dark') && !/&n=/.test(url), 'קישור מלא לשרתון, בלי כמות (כל התיק)');
-const preset = R("widgetPreset('https://x/api/widget?s=A', [{ sym: 'AAPL' }, { sym: 'LUMI.TA' }, { sym: 'KO' }])");
-const bm = preset.preset_root.viewgroup_items[0];
-ok(preset.preset_root.internal_type === 'RootLayerModule' && bm.internal_type === 'BitmapModule' && bm.internal_formulas.bitmap_bitmap === '$gv(link)$&z=$df(HHmm)$' && preset.preset_root.globals_list.link.value === 'https://x/api/widget?s=A', 'preset.json: תמונה מהקישור (משתנה link), מתרעננת כל דקה');
-ok(/^intent:https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/#Intent;action=android\.intent\.action\.VIEW;/.test(bm.internal_events[0].intent), 'נגיעה בכותרת פותחת את האפליקציה');
-// v213: אזור נגיעה לכל כרטיס — על הכרטיס בדיוק (אותה גיאומטריה כמו השרתון) ופותח את המניה
-const H = require('../ibkr-proxy/lib/widget-html');
-const G = R('WIDGET_GEOM');
-ok(G.W === H.WIDTH && G.HEAD === H.HEAD && G.CARD === H.CARD && G.GAP === H.GAP && G.TOP0 === H.TOP0 && G.BOTTOM === H.BOTTOM, 'גיאומטריה זהה באפליקציה ובשרתון');
-const zones = preset.preset_root.viewgroup_items.slice(1);
-const k = 720 / 400, hCss = H.TOP0 + 3 * H.CARD + 2 * H.GAP + H.BOTTOM;
-ok(zones.length === 3 && zones.every((z) => z.internal_type === 'ShapeModule' && z.paint_color === '#00FFFFFF'), 'שלושה אזורי נגיעה שקופים');
-ok(zones.every((z, i) => Math.abs(z.position_offset_y - (H.TOP0 + i * (H.CARD + H.GAP) + H.CARD / 2 - hCss / 2) * k) <= 1 && Math.abs(z.shape_height - H.CARD * k) <= 1) && preset.preset_info.height === Math.round(hCss * k), 'אזור i ממורכז על כרטיס i (ביחידות KWGT)');
-ok(/#stock=LUMI\.TA#Intent;action=android\.intent\.action\.VIEW;/.test(zones[1].internal_events[0].intent), 'נגיעה בכרטיס → #stock=SYM');
 // קישור עמוק באפליקציה
 R("var __sw = null, __opened = []; switchTab = (n) => { __sw = n; }; toggleStock = (s) => { __opened.push(s); state.open[s] = true; }; globalThis.history = { replaceState: () => { location.hash = ''; } };");
 R("location.hash = '#stock=LUMI.TA'; document.querySelector = (q) => (/data-sym=\"LUMI\.TA\"/.test(q) ? { getBoundingClientRect: () => ({ top: 500, height: 50 }) } : null); window.scrollTo = () => {}; window.scrollY = 0;");
@@ -122,14 +101,7 @@ ok(R('appWidgetSync(false)') === true && /^intent:\/\/widget\?s=AAPL~[im]~Apple%
 R("location.href = '';");
 ok(R('appWidgetSync(false)') === false && R('location.href') === '', 'אחרי שליחה — לא שולחים שוב עד שהתיק משתנה');
 ok(R('appWidgetSync(true)') === true, 'כפתור "סנכרון לווידג׳ט" שולח תמיד');
-// zip אמיתי — נפתח ב־unzip
-const zipBytes = R("zipStore([{ name: 'preset.json', data: new TextEncoder().encode(JSON.stringify(widgetPreset('https://x/?s=A', [{ sym: 'AAPL' }]))) }, { name: 'preset_thumb_portrait.jpg', data: new Uint8Array([137, 80, 78, 71]) }])");
-const tmp = path.join(require('os').tmpdir(), 'w' + process.pid + '.kwgt');
-fs.writeFileSync(tmp, Buffer.from(zipBytes));
-let unz = '';
-try { unz = require('child_process').execFileSync('python3', ['-c', 'import zipfile,sys,json;z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;print(json.loads(z.read("preset.json"))["preset_info"]["title"], len(z.namelist()))', tmp]).toString().trim(); } catch (e) { unz = 'ERR ' + e.message; }
-fs.unlinkSync(tmp);
-ok(unz === 'THE SNOWBALL 2', '.kwgt: zip תקין (CRC) עם preset.json + תמונה ממוזערת');
+ok(!/widgetPreset|zipStore|WIDGET_GEOM|widgetUrl|KWGT/.test(R('Object.keys(globalThis).join()') + fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'KWGT הוסר מהאפליקציה (v215)');
 ok(/id="widgetCard"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && R("tabRenderer('settings') === renderSettingsLive"), 'כרטיס בהגדרות, מצויר כשהטאב נראה');
 
 console.log('\n' + n + ' בדיקות עברו');

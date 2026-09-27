@@ -310,29 +310,19 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 
     <div class="card" id="widgetCard">
       <h2 data-i18n="widgetTitle">ווידג׳ט למסך הבית</h2>
-      <p class="fine" style="padding:0" data-i18n="widgetDesc">כל המניות בתיק, מהגדולה לקטנה, בעיצוב של הכרטיסים. מתעדכן בערך פעם בדקה, נגיעה פותחת את האפליקציה.</p>
-      <img id="widgetPreview" class="widget-prev hidden" alt="">
+      <p class="fine" style="padding:0" data-i18n="widgetDesc">כל המניות בתיק על מסך הבית — מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה כאן. דורש את אפליקציית האנדרואיד.</p>
       <p class="fine hidden" id="widgetEmpty" style="padding:0" data-i18n="widgetEmpty">אין עדיין מניות בתיק.</p>
-      <div class="display-row">
-        <span class="display-label" data-i18n="themeTitle">ערכת נושא</span>
-        <div class="lang-toggle" role="group" aria-label="Widget theme">
-          <button type="button" id="widgetThemeLight" class="lang-opt" data-i18n="themeLight">בהיר</button>
-          <button type="button" id="widgetThemeDark" class="lang-opt" data-i18n="themeDark">כהה</button>
-        </div>
-      </div>
-      <p class="fine hidden" id="widgetChanged" style="padding:0" data-i18n="widgetChanged">המניות בתיק או ההגדרות השתנו מאז ההורדה האחרונה — הורד שוב וטען בווידג׳ט.</p>
+      <p class="fine hidden" id="widgetInApp" style="padding:0" data-i18n="widgetInApp">הווידג׳ט מתעדכן לבד: כשהתיק משתנה, הרשימה עוברת אליו בנגיעה הבאה באפליקציה.</p>
       <div class="btn-row">
         <button id="widgetAppSync" class="btn hidden" type="button" data-i18n="widgetAppSyncBtn">סנכרון לווידג׳ט</button>
-        <button id="widgetDownload" class="btn" type="button" data-i18n="widgetDownloadBtn">הורדה ל־KWGT</button>
-        <button id="widgetCopy" class="btn secondary-btn" type="button" data-i18n="widgetCopyBtn">העתקת קישור</button>
+        <a id="widgetApk" class="btn" href="https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball.apk" rel="noopener" data-i18n="widgetApkBtn">הורדת האפליקציה לאנדרואיד</a>
       </div>
-      <details class="fine" style="padding:0;margin-top:8px">
+      <details class="fine" id="widgetHow" style="padding:0;margin-top:8px">
         <summary data-i18n="widgetHowTitle">איך מתקינים</summary>
         <ol class="widget-steps">
-          <li data-i18n="widgetStep1">מתקינים את KWGT מחנות Play (ייתכן שלטעינת קובץ נדרש KWGT Pro).</li>
-          <li data-i18n="widgetStep2">לוחצים "הורדה ל־KWGT" ופותחים את הקובץ מההורדות עם KWGT.</li>
-          <li data-i18n="widgetStep3">לחיצה ארוכה על מסך הבית ← ווידג׳טים ← KWGT ← נוגעים בווידג׳ט ובוחרים את THE SNOWBALL. מותחים אותו לגודל הרצוי — עד מסך מלא.</li>
-          <li data-i18n="widgetStep4">לרענון מהיר: בהגדרות KWGT ← מתקדם ← מצב עדכון "מהיר", ולהחריג את KWGT מחיסכון בסוללה.</li>
+          <li data-i18n="widgetStep1">מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים "התקנה ממקור לא ידוע".</li>
+          <li data-i18n="widgetStep2">פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.</li>
+          <li data-i18n="widgetStep3">לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.</li>
         </ol>
       </details>
     </div>

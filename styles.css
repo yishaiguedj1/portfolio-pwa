@@ -1048,8 +1048,8 @@ details.note[open] > :not(summary) { animation: demoIn .28s cubic-bezier(.2, .9,
 .sh-r2 .ext-sess.closed .ext-line { flex-wrap: nowrap; white-space: nowrap; }
 
 /* v211: כרטיס "ווידג׳ט למסך הבית" בהגדרות — תצוגה מקדימה חיה (אותה תמונה שהווידג׳ט מציג), כפתור משני במתאר */
-.widget-prev { display: block; width: 100%; max-width: 400px; height: auto; margin: 12px auto 6px; }
 .btn.secondary-btn { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); box-shadow: none; }
 .btn.secondary-btn:active { background: var(--surface-2); }
 .btn:disabled { opacity: .45; pointer-events: none; }
 .widget-steps { margin: 8px 0 0; padding-inline-start: 22px; display: grid; gap: 6px; line-height: 1.45; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; } /* v215: קישור שנראה ככפתור (הורדת האפליקציה) */
