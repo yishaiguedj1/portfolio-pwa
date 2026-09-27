@@ -23,7 +23,12 @@ data class WidgetRow(
     val src: Src,
     val logoUrl: String?,
     val active: Boolean,      // המחיר זז עכשיו (מסחר רגיל / טרום / אחרי / לילי) → רענון כל דקה
+    val bubble: Bubble?,
 )
+
+/** בועת הסשן — זהה לבועה של כרטיס המניה באפליקציה (השרתון בונה אותה: lib/widget-model.js → bubbleOf).
+    closed: שתי שורות ("השוק סגור · סיבה" / "אחרי־מסחר +0.11%"); אחרת שורה אחת עם נקודה חיה. */
+data class Bubble(val closed: Boolean, val l1: String, val l2: String, val pct: String, val dir: Dir)
 
 data class WidgetHeader(val lines: List<String>, val live: Boolean)
 
@@ -56,6 +61,9 @@ data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>) {
                     src = if (c.optString("src") == "ibkr") Src.IBKR else Src.MANUAL,
                     logoUrl = c.optString("logo").takeIf { it.startsWith("https://") },
                     active = session != "closed" && session.isNotEmpty(),
+                    bubble = c.optJSONObject("bubble")?.let { b ->
+                        Bubble(b.optBoolean("closed"), b.optString("l1"), b.optString("l2"), b.optString("pct"), dir(b.optString("dir")))
+                    },
                 )
             }
             WidgetModel(header, rows)

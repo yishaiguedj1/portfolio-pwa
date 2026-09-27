@@ -3,8 +3,10 @@ package io.github.yishaiguedj1.snowball
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -36,6 +38,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
+import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
@@ -51,10 +54,12 @@ import androidx.glance.unit.ColorProvider as GColor
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
- * הווידג'ט למסך הבית — גרסה B שאושרה (תצוגה מקדימה native-1): כותרת קבועה עם הלוגו 84dp במרכז, "עודכן" + ↻
- * בצד ההתחלה, בועת מצב השוק בצד הסוף; מתחת — כל התיק ברשימה שנגללת, כרטיס 70dp לכל מניה.
+ * הווידג'ט למסך הבית — גרסה B (תצוגות מקדימות native-1 → native3 שאושרה): כותרת עם "עודכן" + ↻ ובועת מצב השוק,
+ * הלוגו 84dp במרכז עולה ~14dp על הכרטיס הראשון; מתחת — כל התיק ברשימה שנגללת (בלי פס גלילה), כרטיס 74dp לכל מניה:
+ * לוגו, סימבול + תגית + שם, בועת הסשן של האפליקציה, מחיר + צ׳יפ. מימין לשמאל כמו באפליקציה.
  * בהיר/כהה לפי מצב המערכת. נגיעה בכרטיס → האפליקציה על אותה מניה (‎#stock=SYM, openStockFromHash באתר).
  */
 class SnowballWidget : GlanceAppWidget() {
@@ -113,113 +118,189 @@ private object C {
     val dot = ColorProvider(Color(0xFF8E9490), Color(0xFF8E9490))
 }
 
-private fun ltr(s: String) = "⁦$s⁩"
+private fun ltr(s: String) = "\u2066$s\u2069"
 private fun dirColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.on }
+private fun softColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.variant }
 private fun chipBg(d: Dir) = when (d) { Dir.POS -> C.posBg; Dir.NEG -> C.negBg; Dir.FLAT -> C.pill }
 
 private fun stockIntent(context: Context, sym: String): Intent =
     Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.launchUrl) + "#stock=" + Uri.encode(sym)))
         .setClass(context, MainActivity::class.java)
 
+/** טקסטים בשפת האפליקציה (לא בשפת הטלפון) — "עודכן", "ידני" */
+private fun localized(context: Context, lang: String): Context {
+    val conf = Configuration(context.resources.configuration)
+    conf.setLocale(Locale.forLanguageTag(lang))
+    return context.createConfigurationContext(conf)
+}
+
+/**
+ * כיוון: כמו כרטיס המניה באפליקציה — בעברית מימין לשמאל (הלוגו מימין), גם כשהטלפון באנגלית.
+ * את כיוון הפריסה של ווידג'ט קובע המשגר (שפת הטלפון), ולכן כשהוא הפוך מהרצוי — הופכים בעצמנו את סדר
+ * הילדים בשורות ואת היישור (Start↔End). "s" = תחילת הקריאה (ימין בעברית), "e" = סופה.
+ */
+private class Dirn(context: Context, lang: String) {
+    val flip = (lang != "en") != (context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+    val s: Alignment.Horizontal get() = if (flip) Alignment.End else Alignment.Start
+    val e: Alignment.Horizontal get() = if (flip) Alignment.Start else Alignment.End
+    val ts: TextAlign get() = if (flip) TextAlign.End else TextAlign.Start
+    fun <T> order(parts: List<T>) = if (flip) parts.reversed() else parts
+}
+
+private typealias Part = @Composable RowScope.() -> Unit
+
+@Composable
+private fun DRow(d: Dirn, modifier: GlanceModifier = GlanceModifier, parts: List<Part>) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) { d.order(parts).forEach { it() } }
+}
+
 @Composable
 private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bitmap?>, updated: Long) {
-    Column(GlanceModifier.fillMaxSize().background(C.w).cornerRadius(28.dp)) {
-        Header(context, model?.header, updated)
-        if (model == null || model.rows.isEmpty()) {
-            // עוד לא הגיעה רשימה מהאפליקציה (או שהשרתון לא ענה בפעם הראשונה)
-            Box(
-                GlanceModifier.fillMaxWidth().defaultWeight().padding(16.dp).clickable(actionStartActivity<MainActivity>()),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    context.getString(if (WidgetStore.items(context).isEmpty()) R.string.wEmpty else R.string.wLoading),
-                    style = TextStyle(color = C.variant, fontSize = 14.sp, textAlign = TextAlign.Center),
-                )
+    val lang = WidgetStore.lang(context)
+    val lc = localized(context, lang)
+    val d = Dirn(context, lang)
+    Box(GlanceModifier.fillMaxSize().background(C.w).cornerRadius(28.dp)) {
+        Column(GlanceModifier.fillMaxSize()) {
+            Header(lc, d, model?.header, updated)
+            if (model == null || model.rows.isEmpty()) {
+                // עוד לא הגיעה רשימה מהאפליקציה (או שהשרתון לא ענה בפעם הראשונה)
+                Box(
+                    GlanceModifier.fillMaxWidth().defaultWeight().padding(16.dp).clickable(actionStartActivity<MainActivity>()),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        lc.getString(if (WidgetStore.items(context).isEmpty()) R.string.wEmpty else R.string.wLoading),
+                        style = TextStyle(color = C.variant, fontSize = 14.sp, textAlign = TextAlign.Center),
+                    )
+                }
+            } else {
+                // בלי פס גלילה: הסגנון Glance.AppWidget.List נדרס ב־res/values/styles.xml
+                LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
+                    items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
+                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym]) }
+                    }
+                }
             }
-            return@Column
         }
-        LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
-            items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
-                Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, row, logos[row.sym]) }
-            }
+        /* הלוגו של באפט (84dp) — בשכבה מעל הרשימה, עולה ~14dp על הכרטיס הראשון (תצוגה מקדימה ב׳ שאושרה).
+           בלי clickable: נגיעה בו עוברת לכרטיס שמתחתיו, וגם גלילה שמתחילה עליו. */
+        Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
+            Image(ImageProvider(R.drawable.widget_logo), contentDescription = null, modifier = GlanceModifier.size(84.dp))
         }
     }
 }
 
 @Composable
-private fun Header(context: Context, h: WidgetHeader?, updated: Long) {
+private fun Header(lc: Context, d: Dirn, h: WidgetHeader?, updated: Long) {
     val time = if (updated <= 0L) "—" else DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(updated))
-    Box(GlanceModifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
-        Column(GlanceModifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
-            Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Column(GlanceModifier.fillMaxWidth().height(74.dp).padding(start = 14.dp, end = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
+        DRow(d, GlanceModifier.fillMaxWidth(), listOf(
+            {
                 Box(
                     GlanceModifier.size(30.dp).cornerRadius(15.dp).background(C.pill).clickable(actionRunCallback<RefreshAction>()),
                     contentAlignment = Alignment.Center,
                 ) { Text("↻", style = TextStyle(color = C.on, fontSize = 16.sp, fontWeight = FontWeight.Bold)) }
-                Spacer(GlanceModifier.width(6.dp))
-                Text(context.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 11.5.sp), maxLines = 1)
-                Spacer(GlanceModifier.defaultWeight())
-                if (h != null && h.lines.isNotEmpty()) Row(
-                    GlanceModifier.cornerRadius(12.dp).background(C.pill).padding(start = 9.dp, end = 9.dp, top = 4.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(GlanceModifier.size(7.dp).cornerRadius(4.dp).background(if (h.live) C.pos else C.dot)) {}
-                    Spacer(GlanceModifier.width(5.dp))
-                    Text(h.lines.joinToString(" "), style = TextStyle(color = C.variant, fontSize = 10.5.sp), maxLines = 1)
-                }
-            }
-        }
-        // הלוגו מעל השורה — נגיעה בו פותחת את האפליקציה
-        Image(
-            ImageProvider(R.drawable.widget_logo), contentDescription = context.getString(R.string.app_name),
-            modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity<MainActivity>()),
-        )
+            },
+            { Spacer(GlanceModifier.width(7.dp)) },
+            { Text(lc.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1) },
+            { Spacer(GlanceModifier.defaultWeight()) },
+            {
+                if (h != null && h.lines.isNotEmpty()) DRow(
+                    d, GlanceModifier.cornerRadius(12.dp).background(C.pill).padding(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+                    listOf(
+                        { Box(GlanceModifier.size(7.dp).cornerRadius(4.dp).background(if (h.live) C.pos else C.dot)) {} },
+                        { Spacer(GlanceModifier.width(5.dp)) },
+                        { Text(h.lines.joinToString(" "), style = TextStyle(color = C.variant, fontSize = 11.sp), maxLines = 1) },
+                    ),
+                )
+            },
+        ))
     }
 }
 
 @Composable
-private fun Card(context: Context, r: WidgetRow, logo: Bitmap?) {
-    Row(
-        GlanceModifier.fillMaxWidth().height(70.dp).cornerRadius(18.dp).background(C.w2)
+private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bitmap?) {
+    DRow(
+        d,
+        GlanceModifier.fillMaxWidth().height(74.dp).cornerRadius(18.dp).background(C.w2)
             .padding(start = 11.dp, end = 11.dp).clickable(actionStartActivity(stockIntent(context, r.sym))),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(GlanceModifier.size(38.dp).cornerRadius(11.dp).background(C.white), contentAlignment = Alignment.Center) {
-            if (logo != null) Image(ImageProvider(logo), contentDescription = null, modifier = GlanceModifier.size(30.dp), contentScale = ContentScale.Fit)
-            else Text(r.disp.take(1), style = TextStyle(color = C.letter, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+        listOf(
+            {
+                Box(GlanceModifier.size(40.dp).cornerRadius(11.dp).background(C.white), contentAlignment = Alignment.Center) {
+                    if (logo != null) Image(ImageProvider(logo), contentDescription = null, modifier = GlanceModifier.size(if (r.sym.endsWith(".TA")) 40.dp else 31.dp), contentScale = ContentScale.Fit)
+                    else Text(r.disp.take(1), style = TextStyle(color = C.letter, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+                }
+            },
+            { Spacer(GlanceModifier.width(10.dp)) },
+            {
+                // סימבול + תגית + שם החברה בשורה אחת; מתחת — הבועה של האפליקציה
+                Column(GlanceModifier.defaultWeight(), horizontalAlignment = d.s) {
+                    DRow(d, GlanceModifier.fillMaxWidth(), listOf(
+                        { Text(ltr(r.disp), style = TextStyle(color = C.on, fontSize = 17.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
+                        { Spacer(GlanceModifier.width(6.dp)) },
+                        { Tag(lc, r.src) },
+                        { Spacer(GlanceModifier.width(6.dp)) },
+                        { Text(r.name, modifier = GlanceModifier.defaultWeight(), style = TextStyle(color = C.variant, fontSize = 12.5.sp, textAlign = d.ts), maxLines = 1) },
+                    ))
+                    val b = r.bubble
+                    if (b != null) {
+                        Spacer(GlanceModifier.height(4.dp))
+                        SessionBubble(d, b)
+                    } else if (r.sub.isNotEmpty()) { // שרתון ישן בלי bubble
+                        Spacer(GlanceModifier.height(4.dp))
+                        Text(r.sub + (if (r.subPct.isNotEmpty()) " " + ltr(r.subPct) else ""), style = TextStyle(color = C.variant, fontSize = 11.sp), maxLines = 1)
+                    }
+                }
+            },
+            { Spacer(GlanceModifier.width(10.dp)) },
+            {
+                Column(horizontalAlignment = d.e) {
+                    Text(ltr(r.price), style = TextStyle(color = C.on, fontSize = 19.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                    Spacer(GlanceModifier.height(5.dp))
+                    if (r.chg.isNotEmpty()) Box(GlanceModifier.cornerRadius(9.dp).background(chipBg(r.dir)).padding(start = 7.dp, end = 7.dp, top = 2.dp, bottom = 2.dp)) {
+                        Text(ltr(r.chg), style = TextStyle(color = dirColor(r.dir), fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                    }
+                }
+            },
+        ),
+    )
+}
+
+/** הבועה — כמו .ext-sess באפליקציה, מותאמת לגודל: סגור = שתי שורות על רקע אפור; מסחר מורחב = שורה אחת צבעונית */
+@Composable
+private fun SessionBubble(d: Dirn, b: Bubble) {
+    if (b.closed) {
+        Column(GlanceModifier.cornerRadius(10.dp).background(C.pill).padding(start = 7.dp, end = 7.dp, top = 3.dp, bottom = 3.dp), horizontalAlignment = d.s) {
+            DRow(d, parts = listOf(
+                { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(C.dot)) {} },
+                { Spacer(GlanceModifier.width(4.dp)) },
+                { Text(b.l1, style = TextStyle(color = C.variant, fontSize = 10.5.sp, fontWeight = FontWeight.Medium), maxLines = 1) },
+            ))
+            if (b.l2.isNotEmpty() || b.pct.isNotEmpty()) DRow(d, parts = listOf(
+                { Text(b.l2, style = TextStyle(color = C.variant, fontSize = 10.5.sp, fontWeight = FontWeight.Medium), maxLines = 1) },
+                { Spacer(GlanceModifier.width(4.dp)) },
+                { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 10.5.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
+            ))
         }
-        Spacer(GlanceModifier.width(10.dp))
-        Column(GlanceModifier.defaultWeight()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(ltr(r.disp), style = TextStyle(color = C.on, fontSize = 16.5.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                Spacer(GlanceModifier.width(6.dp))
-                Tag(context, r.src)
-            }
-            Text(r.name, style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1)
-            if (r.sub.isNotEmpty()) Row {
-                Text(r.sub, style = TextStyle(color = C.variant, fontSize = 10.5.sp), maxLines = 1)
-                if (r.subPct.isNotEmpty()) Text(" " + ltr(r.subPct), style = TextStyle(color = dirColor(r.subDir), fontSize = 10.5.sp), maxLines = 1)
-            }
-        }
-        Spacer(GlanceModifier.width(10.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(ltr(r.price), style = TextStyle(color = C.on, fontSize = 19.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-            Spacer(GlanceModifier.height(4.dp))
-            if (r.chg.isNotEmpty()) Box(GlanceModifier.cornerRadius(9.dp).background(chipBg(r.dir)).padding(start = 7.dp, end = 7.dp, top = 2.dp, bottom = 2.dp)) {
-                Text(ltr(r.chg), style = TextStyle(color = dirColor(r.dir), fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-            }
-        }
+    } else {
+        DRow(d, GlanceModifier.cornerRadius(10.dp).background(C.pill).padding(start = 9.dp, end = 9.dp, top = 3.dp, bottom = 3.dp), listOf(
+            { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(softColor(b.dir))) {} },
+            { Spacer(GlanceModifier.width(5.dp)) },
+            { Text(b.l1, style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
+            { Spacer(GlanceModifier.width(5.dp)) },
+            { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
+        ))
     }
 }
 
 @Composable
-private fun Tag(context: Context, src: Src) {
+private fun Tag(lc: Context, src: Src) {
     when (src) {
         Src.IBKR -> Box(GlanceModifier.height(18.dp).width(25.dp).cornerRadius(9.dp).background(C.tagBg), contentAlignment = Alignment.Center) {
             Image(ImageProvider(R.drawable.tag_ibkr), contentDescription = "IBKR", modifier = GlanceModifier.size(12.dp))
         }
         Src.MANUAL -> Box(GlanceModifier.height(18.dp).cornerRadius(9.dp).background(C.manBg).padding(start = 5.dp, end = 5.dp), contentAlignment = Alignment.Center) {
-            Text(context.getString(R.string.wManual), style = TextStyle(color = C.pos, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+            Text(lc.getString(R.string.wManual), style = TextStyle(color = C.pos, fontSize = 10.sp, fontWeight = FontWeight.Bold))
         }
     }
 }
