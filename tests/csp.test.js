@@ -32,7 +32,8 @@ for (const src of [app, cloud]) for (const x of src.matchAll(/['"`](https:\/\/[a
 const imgHosts = ['https://financialmodelingprep.com', 'https://s3-symbol-logo.tradingview.com'];
 for (const h of hosts) {
   if (imgHosts.includes(h)) { ok(allows('img-src', h + '/x.png'), 'img-src מכסה ' + h); continue; }
-  if (/twelvedata\.com$/.test(h) && !/^https:\/\/api\./.test(h)) continue; // קישור הרשמה, לא fetch
+  // קישורי ניווט (נפתחים בלשונית חדשה, לא fetch): v222 — הוספת דוח ל־Google Calendar
+  if (h === 'https://calendar.google.com') { ok(!/fetch\w*\([^)]*calendar\.google\.com/.test(app), 'Google Calendar רק כקישור ניווט (לא fetch)'); continue; }
   ok(allows('connect-src', h + '/x'), 'connect-src מכסה ' + h);
 }
 ok(allows('connect-src', 'https://my-proxy-123.vercel.app/api'), 'שרתון מותאם אישית ב־Vercel מותר');

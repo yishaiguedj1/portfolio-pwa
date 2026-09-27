@@ -84,6 +84,9 @@ he: {
   earnBmo: 'לפני הפתיחה',
   earnAmc: 'אחרי הסגירה',
   earnEst: 'משוער',
+  calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
+  calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
+  calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
   earnDate: 'דוח: {date}',
   ibkrPerfTitle: 'ביצועי IBKR',
   perfPeriod: 'תקופת הדוח: {a}–{b}',
@@ -580,6 +583,9 @@ en: {
   earnBmo: 'Before open',
   earnAmc: 'After close',
   earnEst: 'estimated',
+  calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
+  calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
+  calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
   earnDate: 'Earnings: {date}',
   ibkrPerfTitle: 'IBKR Performance',
   perfPeriod: 'Report period: {a}–{b}',
@@ -1399,15 +1405,17 @@ function earnFromExt(sym, e) {
   for (const p of new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d)) parts[p.type] = p.value;
   const date = parts.year + '-' + parts.month + '-' + parts.day;
   const hm = Number(parts.hour) * 60 + Number(parts.minute);
-  const time = ta ? '' : hm < 9 * 60 + 30 ? 'bmo' : hm >= 16 * 60 ? 'amc' : '';
-  return { date: date, time: time, est: !!e.est };
+  // v222: Yahoo רושם "אחרי הסגירה" כ־20:00 UTC קבוע — 16:00 בשעון קיץ אבל 15:00 בחורף בניו־יורק (ADBE/APP/INTU
+  // אחרי 1/11 יצאו בלי "אחרי הסגירה"). דוחות לא מתפרסמים בשעה האחרונה של המסחר, אז מ־15:00 = אחרי הסגירה.
+  const time = ta ? '' : hm < 9 * 60 + 30 ? 'bmo' : hm >= 15 * 60 ? 'amc' : '';
+  return { date: date, time: time, est: !!e.est, ts: e.t };
 }
 /* מעדכן דוח קרוב של מניה מתשובת המחירים; שומר למטמון רק כשהשתנה */
 function earnUpdate(sym, e) {
   const v = earnFromExt(sym, e);
   if (!v) return;
   const cur = (state.earnings || {})[sym];
-  if (cur && cur.date === v.date && cur.time === v.time && !!cur.est === v.est) return;
+  if (cur && cur.date === v.date && cur.time === v.time && !!cur.est === v.est && cur.ts === v.ts) return;
   state.earnings = Object.assign({}, state.earnings || {}, { [sym]: v });
   lsSet(LS_EARN, { at: Date.now(), bySym: state.earnings });
 }
@@ -3804,7 +3812,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v221';
+const APP_VERSION = 'v222';
 
 
 function saveDBto(db) {
@@ -6268,7 +6276,7 @@ function renderEarningsCard() {
   for (const sym of Object.keys(state.earnings || {})) {
     const e = state.earnings[sym];
     if (!e || !e.date || daysUntil(e.date) < 0 || !names[sym]) continue; // v220: רק מניות שבתיק/במעקב עכשיו
-    rows.push({ sym: sym, date: e.date, time: e.time || '', est: !!e.est });
+    rows.push({ sym: sym, date: e.date, time: e.time || '', est: !!e.est, ts: e.ts || 0 });
   }
   rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   if (!rows.length) { card.classList.add('hidden'); return; }
@@ -6283,6 +6291,12 @@ function renderEarningsCard() {
     const sub = [when, tm, r.est ? t('earnEst') : ''].filter(Boolean).join(' · ');
     const dt = new Date(r.date + 'T12:00:00Z');
     const li = el('li', 'earn-row' + (d <= 1 ? ' soon' : ''));
+    // v222: נגיעה בדוח → גיליון "הוספה ליומן"
+    li.tabIndex = 0;
+    li.setAttribute('role', 'button');
+    li.setAttribute('aria-label', t('calAddAria', { sym: r.sym.replace(/\.TA$/i, '') }));
+    li.addEventListener('click', () => openEarnCalSheet(r, companyName(r.sym, names[r.sym] || r.sym)));
+    li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); li.click(); } });
     li.innerHTML = stockLogoHTML(r.sym) +
       '<span class="earn-main"><span class="earn-sym" dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span>' +
       '<span class="earn-name">' + esc(companyName(r.sym, names[r.sym] || r.sym)) + '</span>' +
@@ -6291,6 +6305,93 @@ function renderEarningsCard() {
       '<span class="earn-day">' + dt.getUTCDate() + '</span></span>';
     list.appendChild(li);
   }
+}
+
+/* v222: הוספת דוח ליומן — גיליון תחתון בסגנון iOS/Android: Google Calendar בנגיעה, או קובץ .ics לכל יומן אחר
+   (Apple / Samsung / Outlook) עם תזכורת יום לפני ושעה לפני. שעה ידועה (לפני הפתיחה/אחרי הסגירה) — אירוע של חצי שעה
+   בזמן של Yahoo; בלי שעה — אירוע של יום שלם. טהורות: earnCalEvent, earnGoogleUrl, earnIcs. */
+function earnCalEvent(r, name) {
+  const bare = r.sym.replace(/\.TA$/i, '');
+  const title = t('calEventTitle', { sym: bare, name: name && name !== r.sym ? ' (' + name + ')' : '' });
+  const tm = r.time === 'bmo' ? t('earnBmo') : r.time === 'amc' ? t('earnAmc') : '';
+  const lines = [t('calEventDesc', { sym: bare }) + (tm ? ' · ' + tm : '')];
+  if (r.est) lines.push(t('calEventEst'));
+  try { lines.push((location.origin + location.pathname).replace(/index\.html$/, '') + '#stock=' + encodeURIComponent(r.sym)); } catch (e) {}
+  const timed = !!(r.ts > 0 && r.time);
+  return { title: title, desc: lines.join('\n'), timed: timed, start: timed ? r.ts : 0, end: timed ? r.ts + 1800 : 0, date: r.date, uid: 'earn-' + r.sym + '-' + r.date + '@the-snowball' };
+}
+function calStamp(sec) { return new Date(sec * 1000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+function calDay(iso, plus) { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + (plus || 0)); return d.toISOString().slice(0, 10).replace(/-/g, ''); }
+function earnGoogleUrl(ev) {
+  const dates = ev.timed ? calStamp(ev.start) + '/' + calStamp(ev.end) : calDay(ev.date) + '/' + calDay(ev.date, 1);
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(ev.title) +
+    '&dates=' + dates + '&details=' + encodeURIComponent(ev.desc);
+}
+function earnIcs(ev, nowSec) {
+  const escI = (v) => String(v).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//THE SNOWBALL//Earnings//HE', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    'UID:' + ev.uid, 'DTSTAMP:' + calStamp(nowSec || Math.floor(Date.now() / 1000))];
+  if (ev.timed) L.push('DTSTART:' + calStamp(ev.start), 'DTEND:' + calStamp(ev.end));
+  else L.push('DTSTART;VALUE=DATE:' + calDay(ev.date), 'DTEND;VALUE=DATE:' + calDay(ev.date, 1));
+  L.push('SUMMARY:' + escI(ev.title), 'DESCRIPTION:' + escI(ev.desc),
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + escI(ev.title), 'TRIGGER:-P1D', 'END:VALARM');
+  if (ev.timed) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + escI(ev.title), 'TRIGGER:-PT1H', 'END:VALARM');
+  L.push('END:VEVENT', 'END:VCALENDAR');
+  return L.join('\r\n') + '\r\n';
+}
+const CAL_ICON_CUR = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2.5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="12" y1="13" x2="12" y2="18"/><line x1="9.5" y1="15.5" x2="14.5" y2="15.5"/></svg>';
+function closeEarnCalSheet() {
+  const v = document.getElementById('earnCalVeil');
+  if (!v) return;
+  v.classList.remove('show');
+  setTimeout(() => { try { v.remove(); } catch (e) {} }, 220);
+}
+function openEarnCalSheet(r, name) {
+  closeEarnCalSheet();
+  const ev = earnCalEvent(r, name);
+  const d = daysUntil(r.date);
+  const dt = new Date(r.date + 'T12:00:00Z');
+  const dayTxt = new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(dt);
+  const local = ev.timed ? new Intl.DateTimeFormat(state.lang === 'en' ? 'en-GB' : 'he-IL', Object.assign({ hour: '2-digit', minute: '2-digit', hour12: false }, state.lang === 'en' ? {} : { timeZone: 'Asia/Jerusalem' })).format(new Date(ev.start * 1000)) : '';
+  const tm = r.time === 'bmo' ? t('earnBmo') : r.time === 'amc' ? t('earnAmc') : '';
+  const when = d === 0 ? t('earnToday') : d === 1 ? t('earnTomorrow') : t('earnInDays', { n: d });
+  const veil = el('div', 'pf-sheet-veil earn-veil');
+  veil.id = 'earnCalVeil';
+  const sh = el('div', 'pf-sheet earn-sheet');
+  sh.setAttribute('role', 'dialog');
+  sh.setAttribute('aria-modal', 'true');
+  sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div>' +
+    '<div class="es-head">' + stockLogoHTML(r.sym) +
+      '<div class="es-id"><div class="es-title"><span dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span> · ' + esc(t('calReport')) + '</div>' +
+      '<div class="es-name">' + esc(name) + '</div></div></div>' +
+    '<div class="es-when"><div class="es-day">' + esc(dayTxt) + '</div>' +
+      '<div class="es-meta">' + esc([when, tm, local ? t('calLocal', { t: local }) : '', r.est ? t('earnEst') : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+    '<button type="button" class="btn es-btn es-google">' + CAL_ICON_CUR + '<span>' + esc(t('calGoogle')) + '</span></button>' +
+    '<button type="button" class="btn secondary-btn es-btn es-ics">' + CAL_ICON_CUR + '<span>' + esc(t('calOther')) + '</span></button>' +
+    '<div class="es-note">' + esc(t('calIcsNote')) + '</div>' +
+    '<button type="button" class="es-cancel">' + esc(t('btnCancel')) + '</button>';
+  veil.appendChild(sh);
+  veil.addEventListener('click', (e) => { if (e.target === veil) closeEarnCalSheet(); });
+  sh.querySelector('.es-cancel').addEventListener('click', closeEarnCalSheet);
+  sh.querySelector('.es-google').addEventListener('click', () => {
+    try { window.open(earnGoogleUrl(ev), '_blank', 'noopener'); } catch (e) {}
+    closeEarnCalSheet();
+  });
+  sh.querySelector('.es-ics').addEventListener('click', () => {
+    try {
+      const blob = new Blob([earnIcs(ev)], { type: 'text/calendar;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = r.sym.replace(/\.TA$/i, '') + '-earnings.ics';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+      flash(t('calIcsDone'));
+    } catch (e) { flash(t('errGeneric')); }
+    closeEarnCalSheet();
+  });
+  document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape') { closeEarnCalSheet(); document.removeEventListener('keydown', onKey); } });
+  document.body.appendChild(veil);
+  requestAnimationFrame(() => veil.classList.add('show'));
 }
 
 /* כרטיס "ביצועי IBKR" — TWR רשמי, XIRR, ממומש/לא־ממומש, דיבידנדים, ריבית, מסים, עמלות.
