@@ -3812,7 +3812,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v222';
+const APP_VERSION = 'v223';
 
 
 function saveDBto(db) {
@@ -5940,6 +5940,7 @@ function positionTabIndicator() {
     tabs.insertBefore(ind, tabs.firstChild);
   }
   const act = tabs.querySelector('.tab.active');
+  ind.classList.toggle('off', !act); // v223: בהגדרות אין לשונית פעילה — הגלולה נעלמת
   if (!act || !act.offsetWidth) return;
   ind.style.width = act.offsetWidth + 'px';
   ind.style.transform = 'translateX(' + act.offsetLeft + 'px)';
@@ -5975,6 +5976,7 @@ function switchTab(name) {
   setTabPageDirection(prev, name);
   document.querySelectorAll('.tabpage').forEach((s) => s.classList.toggle('active', s.id === 'tab-' + name));
   if (tabDirty[name]) { const fn = tabRenderer(name); if (fn) { try { fn(); } catch (e) {} } } // v193: הטאב השתנה בזמן שהיה מוסתר
+  if (name === 'overview') { try { sizeEarnWindow(); } catch (e) {} } // v223: חלון הדוחות נמדד רק כשהסקירה גלויה
   // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
   try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} }); // התאמת מספרים אחרי המעבר (fitNumbers)
@@ -6030,6 +6032,9 @@ function saveScrollY(tab, y) {
   } catch (e) {}
 }
 function currentTabName() {
+  // v223: לפי העמוד הפעיל, לא לפי כפתור הלשונית — להגדרות אין לשונית (נפתחות מתפריט ההמבורגר)
+  const pg = document.querySelector('.tabpage.active');
+  if (pg && pg.id && pg.id.indexOf('tab-') === 0) return pg.id.slice(4);
   const el = document.querySelector('.tab.active');
   return (el && el.dataset.tab) || 'overview';
 }
@@ -6305,6 +6310,24 @@ function renderEarningsCard() {
       '<span class="earn-day">' + dt.getUTCDate() + '</span></span>';
     list.appendChild(li);
   }
+  sizeEarnWindow();
+}
+/* v223: חלון של שני דוחות שנגלל בתוך הכרטיס (כמו רשימת הווידג׳ט): הגובה = שתי השורות הראשונות, עצירה על כל
+   שורה (scroll-snap), דהייה בתחתית כשיש עוד. נמדד אחרי הציור; בטאב מוסתר (גובה 0) — ננסה שוב כשייראה */
+function sizeEarnWindow() {
+  const list = document.getElementById('earnList');
+  if (!list) return;
+  requestAnimationFrame(() => {
+    const rows = list.querySelectorAll('.earn-row');
+    const more = rows.length > 2;
+    list.classList.toggle('earn-scroll', more);
+    if (!more) { list.style.maxHeight = ''; return; }
+    const h = rows[0].offsetHeight + rows[1].offsetHeight;
+    if (h > 0) list.style.maxHeight = h + 'px';
+    const fade = () => list.classList.toggle('at-end', list.scrollTop + list.clientHeight >= list.scrollHeight - 2);
+    if (!list._earnWired) { list._earnWired = true; list.addEventListener('scroll', fade, { passive: true }); }
+    fade();
+  });
 }
 
 /* v222: הוספת דוח ליומן — גיליון תחתון בסגנון iOS/Android: Google Calendar בנגיעה, או קובץ .ics לכל יומן אחר

@@ -303,6 +303,7 @@ button, a, .tab, .icon-btn, .ss-add {
 }
 .tabs.has-ind .tab.active { background: transparent; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .tab-ind { transition: none; } }
+.tab-ind.off { opacity: 0; } /* v223: בעמוד ההגדרות (אין לשונית) */
 .icon-btn, .ss-add { transition: transform .16s ease, background .25s ease; }
 .icon-btn:active, .ss-add:active { transform: scale(.9); }
 .count-chip {
@@ -747,6 +748,11 @@ footer.fine { text-align: center; }
 /* ---- דוחות קרובים ---- */
 /* v221: דוחות קרובים — רשימה בסגנון iOS/Material: לוגו, סימבול ושם, שורת "בעוד N ימים", ואריח לוח שנה בקצה */
 .earn-list { list-style: none; margin: 4px 0 0; padding: 0; }
+/* v223: שני דוחות גלויים, השאר בגלילה בתוך הכרטיס — עוצר על כל שורה, בלי פס גלילה, דהייה בתחתית כשיש עוד */
+.earn-list.earn-scroll { max-height: 150px; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent); }
+.earn-list.earn-scroll::-webkit-scrollbar { display: none; }
+.earn-list.earn-scroll.at-end { -webkit-mask-image: none; mask-image: none; }
+.earn-list.earn-scroll .earn-row { scroll-snap-align: start; }
 .earn-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; position: relative; }
 .earn-row + .earn-row::before { content: ""; position: absolute; top: 0; inset-inline-start: 52px; inset-inline-end: 0; height: 1px; background: var(--separator); }
 .earn-row .stock-logo { width: 40px; height: 40px; border-radius: var(--radius-xs); }
