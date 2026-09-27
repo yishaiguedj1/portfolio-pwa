@@ -50,7 +50,7 @@ ok(!/<script src="https:\/\/www\.gstatic\.com/.test(html), 'index.html: בלי �
 ok(/<link rel="preconnect" href="https:\/\/ibkr-proxy-wine\.vercel\.app" crossorigin>/.test(html), 'index.html: preconnect לשרתון');
 
 // --- 5. רשת: שער הדולר באותה בקשה, היסטוריה בבקשה אחת, שרתון ראשון ---
-ok(/const FX_SYM = 'USDILS=X';/.test(src) && /liveFetch\(quoteSymbols\(\)\.concat\(\[FX_SYM(, EUR_SYM)?\]\)\)/.test(src), 'שער הדולר מגיע עם המחירים (בקשה אחת פחות בטעינה)');
+ok(/const FX_SYM = 'USDILS=X';/.test(src) && /liveFetch\(quoteSymbols\(\)\.concat\(\[FX_SYM\]\)\)/.test(src), 'שער הדולר מגיע עם המחירים (בקשה אחת פחות בטעינה)');
 ok(/async function histBatchWarm\(syms\)/.test(src) && fnBody('warmHistories', 2500).includes('await histBatchWarm('), 'היסטוריות חסרות: בקשה אחת לשרתון לפני הבריכה');
 ok(/if \(!histProxyOff\) \{\s*proxyTried = true;/.test(src), 'היסטוריה: השרתון ראשון (בטלפון Yahoo חוסם), ישירות רק כגיבוי');
 ok(/proxyHistory\(list,[^\n]*, 12000\)/.test(src), 'proxyHistQueued: timeout של 12 שניות (לא 6) לבקשה מאוחדת');
