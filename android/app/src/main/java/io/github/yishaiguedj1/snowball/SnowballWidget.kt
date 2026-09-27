@@ -183,9 +183,13 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
             }
         }
         /* הלוגו של באפט (84dp) — בשכבה מעל הרשימה, עולה ~14dp על הכרטיס הראשון (תצוגה מקדימה ב׳ שאושרה).
-           בלי clickable: נגיעה בו עוברת לכרטיס שמתחתיו, וגם גלילה שמתחילה עליו. */
+           נגיעה בכל הלוגו — גם בחלק שמעל הכרטיס — פותחת את האפליקציה (בקשת המשתמש). רק ריבוע הלוגו לוחץ;
+           מחוץ לו הנגיעה עוברת לכרטיס. גלילה שמתחילה על הלוגו לא גוללת (הוא תופס את המגע). */
         Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
-            Image(ImageProvider(R.drawable.widget_logo), contentDescription = null, modifier = GlanceModifier.size(84.dp))
+            Image(
+                ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
+                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity<MainActivity>()),
+            )
         }
     }
 }
