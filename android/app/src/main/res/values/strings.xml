@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">THE SNOWBALL</string>
+    <string name="launchUrl">https://yishaiguedj1.github.io/portfolio-pwa/</string>
+    <!-- אימות הקשר לאתר (Digital Asset Links). בלי assetlinks.json בשורש הדומיין — נפתח עם שורת כתובת דקה של כרום -->
+    <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://yishaiguedj1.github.io\"}}]</string>
+</resources>

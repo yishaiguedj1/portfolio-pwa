@@ -1,0 +1,72 @@
+# THE SNOWBALL — בניית אפליקציית האנדרואיד (APK) ופרסום בקישור קבוע.
+# רץ רק כשמשהו ב־android/ משתנה (או ידנית). מפרסם ל־Release בשם android-latest — קישור ההורדה לא משתנה:
+#   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball.apk
+# חתימה: הסוד SNOWBALL_KEYSTORE_B64 (+ SNOWBALL_KS_PASS). בלי הסוד — בונה עם מפתח debug ומעלה רק כ־artifact
+# (לא לקישור הקבוע), כי APK עם מפתח אחר לא מתקין את עצמו מעל הגרסה הקודמת.
+name: android
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write # פרסום ה־APK ב־Release (רק ה־workflow הזה; test.yml נשאר read)
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          gradle-version: '8.14.3'
+      - name: Android SDK 36
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+      - name: Keystore
+        id: ks
+        env:
+          KS_B64: ${{ secrets.SNOWBALL_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/snowball.keystore"
+            echo "SNOWBALL_KEYSTORE=$RUNNER_TEMP/snowball.keystore" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::חסר הסוד SNOWBALL_KEYSTORE_B64 — בנייה עם מפתח debug, בלי פרסום לקישור הקבוע"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build APK
+        working-directory: android
+        env:
+          SNOWBALL_KS_PASS: ${{ secrets.SNOWBALL_KS_PASS }}
+          SNOWBALL_VERSION_CODE: ${{ github.run_number }}
+          SNOWBALL_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: gradle --no-daemon assembleRelease
+      - name: Rename
+        run: cp android/app/build/outputs/apk/release/app-release.apk the-snowball.apk
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: the-snowball-apk
+          path: the-snowball.apk
+          retention-days: 14
+      - name: Publish (android-latest)
+        if: steps.ks.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view android-latest > /dev/null 2>&1; then
+            gh release create android-latest --title "THE SNOWBALL — אנדרואיד" --notes "הגרסה האחרונה של אפליקציית האנדרואיד. הקישור להורדה קבוע." --latest=false
+          fi
+          gh release upload android-latest the-snowball.apk --clobber
+          gh release edit android-latest --notes "הגרסה האחרונה: 1.0.${{ github.run_number }} (${GITHUB_SHA::7})"
