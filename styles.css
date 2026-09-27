@@ -441,9 +441,12 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .stock.enter { animation: none; } }
 .kv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
-.kv { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px; min-width: 0; }
-.kv .k { font-size: 12.5px; color: var(--on-surface-var); }
-.kv .v { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* v219: אריחים בסגנון Apple — ממורכזים, גובה אחיד, תווית אחת, ערך אחד, שורה משנית קטנה */
+.kv { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px 8px; min-width: 0; min-height: 78px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; text-align: center; }
+.kv .k { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.kv .v { font-size: clamp(14px, 4.3vw, 17px); font-weight: 700; letter-spacing: -.2px; font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%; }
+.kv .v2 { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--on-surface-var); white-space: nowrap; }
+.kv .v2.pos { color: var(--gain); } .kv .v2.neg { color: var(--loss); }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }

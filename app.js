@@ -160,7 +160,7 @@ he: {
   todayChg: 'היום {v}',
   buyChg: 'מהקנייה {v}',
   kvShares: 'מניות',
-  kvAvg: 'מחיר קנייה ממוצע',
+  kvAvg: 'מחיר ממוצע',
   kvValue: 'שווי',
   kvGL: 'רווח/הפסד',
   kvWeight: 'משקל בתיק',
@@ -664,10 +664,10 @@ en: {
   todayChg: 'Today {v}',
   buyChg: 'Since purchase {v}',
   kvShares: 'Shares',
-  kvAvg: 'Avg buy price',
+  kvAvg: 'Avg price',
   kvValue: 'Value',
   kvGL: 'Gain/Loss',
-  kvWeight: 'Portfolio weight',
+  kvWeight: 'Weight',
   offAth: '{v} off ATH',
   measure: ICON_MEASURE + 'Measure',
   measureTitle: 'Pick two points on the chart to measure the return between them',
@@ -3930,7 +3930,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v218';
+const APP_VERSION = 'v219';
 
 
 function saveDBto(db) {
@@ -8839,8 +8839,10 @@ function buildStockCard(p) {
   return card;
 }
 
-function kvHTML(k, v, cls) {
-  return '<div class="kv"><div class="k">' + k + '</div><div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div></div>';
+/* v219: אריח בסגנון Apple — תווית בשורה אחת, ערך גדול, ושורה משנית קטנה (אחוז) בצבע משלה */
+function kvHTML(k, v, cls, sub, subCls) {
+  return '<div class="kv"><div class="k">' + k + '</div><div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div>' +
+    (sub ? '<div class="v2' + (subCls ? ' ' + subCls : '') + '">' + sub + '</div>' : '') + '</div>';
 }
 
 /* v193: אריחי הכרטיס הפתוח (כמות, ממוצע, שווי, רווח, משקל, ATH) — משותף לבנייה ולעדכון החי */
@@ -8852,8 +8854,9 @@ function kvGridHTML(p, m) {
     kvHTML(t('kvAvg'), fmtPx(p.avg, sym)) +
     kvHTML(t('kvValue'), m.value === null ? '—' : money(toCur(m.value), cur)) +
     kvHTML(t('kvGL'),
-      m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur) +
-        ' (' + fmtPct(p.avg > 0 ? (m.price / p.avg - 1) * 100 : null, true) + ')',
+      m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur),
+      m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg',
+      m.gl === null || !(p.avg > 0) ? '' : fmtPct((m.price / p.avg - 1) * 100, true),
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
     kvHTML(t('kvWeight'), weightTxt(sym)) +
     (p.fromTrades ? (() => {
@@ -8861,11 +8864,11 @@ function kvGridHTML(p, m) {
       const rzU = nativeToUSD(rz, sym);
       return rzU !== null && Math.abs(rz) > 0.005 ? kvHTML(t('kvRealized'), fmtSignedMoney(toCur(rzU), cur), rz >= 0 ? 'pos' : 'neg') : '';
     })() : '') +
-    // v102: אריח ATH מינימליסטי — רק מחיר ותאריך, מעט גדולים יותר
+    // v219 (בקשת המשתמש): ATH — המחיר, ומתחת המרחק ממנו באחוזים (במקום התאריך)
     kvHTML('ATH',
-      m.ath ? fmtPx(m.ath.price, sym) +
-        '<br><span style="font-weight:400;font-size:14px">' + fmtDateIL(m.ath.date) + '</span>'
-        : (state.hist[sym] ? '—' : '…'));
+      m.ath ? fmtPx(m.ath.price, sym) : (state.hist[sym] ? '—' : '…'), '',
+      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : '',
+      m.offAth === null || Math.abs(m.offAth) < 0.005 ? '' : m.offAth > 0 ? 'pos' : 'neg');
 }
 function buildStockBody(p, m) {
   const sym = p.sym;
