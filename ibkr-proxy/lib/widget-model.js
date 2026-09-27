@@ -10,6 +10,7 @@ const STR = {
   he: {
     open: 'המסחר פתוח', pre: 'טרום־מסחר', post: 'אחרי־מסחר', night: 'מסחר לילי', closed: 'השוק סגור', closedDot: 'השוק סגור ·',
     cardPost: 'אחרי־מסחר', cardPre: 'טרום־מסחר', cardNight: 'לילי', taClosed: 'סגור', updated: 'עודכן',
+    tinyPost: 'אחרי־מסחר', tinyPre: 'טרום־מסחר', tinyNight: 'לילי', lastClose: 'סגירה',
     ag: 'אג׳', pts: 'נק׳', manual: 'ידני', watch: 'מעקב',
     hdWeekend: 'סופ״ש', hdNewYear: 'ראש השנה', hdMlk: 'יום MLK', hdPresidents: 'הנשיאים', hdGoodFriday: 'שישי הטוב',
     hdMemorial: 'יום הזיכרון', hdJuneteenth: 'ג׳ונטינת׳', hdIndependence: '4 ביולי', hdLabor: 'העבודה',
@@ -22,6 +23,7 @@ const STR = {
   en: {
     open: 'Market open', pre: 'Pre-market', post: 'After hours', night: 'Overnight', closed: 'Closed', closedDot: 'Closed ·',
     cardPost: 'After hours', cardPre: 'Pre-market', cardNight: 'Overnight', taClosed: 'Closed', updated: 'Updated',
+    tinyPost: 'Post', tinyPre: 'Pre', tinyNight: 'Night', lastClose: 'Close',
     ag: 'ag.', pts: 'pts', manual: 'Manual', watch: 'Watch',
     hdWeekend: 'Weekend', hdNewYear: 'New Year', hdMlk: 'MLK Day', hdPresidents: 'Presidents', hdGoodFriday: 'Good Friday',
     hdMemorial: 'Memorial', hdJuneteenth: 'Juneteenth', hdIndependence: 'July 4th', hdLabor: 'Labor Day',
@@ -155,6 +157,28 @@ function timeIL(nowMs) {
   return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(nowMs || Date.now()));
 }
 
+/* בועת הסשן של הכרטיס — אחד לאחד כמו extSessionHTML / taseSessionHTML באפליקציה (v199–v206):
+   ארה״ב, שוק סגור: שתי שורות — "השוק סגור · סיבה" (לוח NYSE) ומתחת הסשן המורחב האחרון (קצר) + האחוז שלו;
+   טרום/אחרי/לילי: שורה אחת — נקודה חיה + הסשן + האחוז; מסחר רגיל: בלי בועה.
+   ת״א: סגור → "השוק סגור · סיבה" (הלוח העברי) ומתחת "סגירה" + השינוי היומי; פתוח → בלי בועה (אין מסחר מורחב). */
+function bubbleOf(it, q, d, nowMs, L, taStat) {
+  const closedL1 = (key) => (key && L[key] ? L.closedDot + ' ' + L[key] : L.closed);
+  if (isTA(it.sym)) {
+    if (!taStat.closed) return null;
+    const pct = d && num(d.pct) !== null ? d.pct : null;
+    return { closed: true, l1: closedL1(taStat.reason), l2: pct === null ? '' : L.lastClose, pct: pct === null ? '' : fmtPct(pct), dir: pct === null ? 'flat' : dirOf(pct) };
+  }
+  if (!q.ext) return null;
+  const pct = Number(q.ext.pct) || 0;
+  if (q.session === 'closed') {
+    const tiny = q.ext.kind === 'pre' ? L.tinyPre : q.ext.kind === 'night' ? L.tinyNight : L.tinyPost;
+    return { closed: true, l1: closedL1(market.marketClosedReason(nowMs)), l2: tiny, pct: fmtPct(pct), dir: dirOf(pct) };
+  }
+  if (q.session === 'regular') return null;
+  const lbl = q.ext.kind === 'pre' ? L.cardPre : q.ext.kind === 'night' ? L.cardNight : L.cardPost;
+  return { closed: false, l1: lbl, l2: '', pct: fmtPct(pct), dir: dirOf(pct) };
+}
+
 /* items + quotes ({SYM: entry}) + daily ({SYM: [closes]}) → מודל התצוגה */
 function buildModel(items, quotes, daily, opts) {
   const lang = opts && opts.lang === 'en' ? 'en' : 'he';
@@ -164,8 +188,9 @@ function buildModel(items, quotes, daily, opts) {
   const cards = items.map((it) => {
     const q = parseQuote(quotes[it.sym], nowMs);
     const c = { sym: it.sym, disp: it.sym.replace(/\.TA$/i, ''), src: it.src, name: it.name || (q && q.name) || '', logo: logoUrl(it), q };
-    if (!q) return Object.assign(c, { price: '—', chg: '', dir: 'flat', sub: '', subDir: 'flat' });
+    if (!q) return Object.assign(c, { price: '—', chg: '', dir: 'flat', sub: '', subDir: 'flat', bubble: null });
     const d = dayChange(q, daily && daily[it.sym]);
+    c.bubble = bubbleOf(it, q, d, nowMs, L, taStat);
     c.price = fmtPrice(q.price, it.sym, L);
     c.chg = fmtChg(d.ch, it.sym, L) + ' (' + fmtPct(d.pct) + ')';
     c.dir = dirOf(d.pct);
@@ -184,4 +209,4 @@ function buildModel(items, quotes, daily, opts) {
   return { lang, dir: lang === 'he' ? 'rtl' : 'ltr', L, cards, header, updated: L.updated + ' ' + timeIL(nowMs) };
 }
 
-module.exports = { STR, parseItems, parseQuote, dayChange, buildModel, fmtPrice, fmtChg, fmtPct, headerOf, headerTwoLine, logoUrl, isTA };
+module.exports = { STR, parseItems, parseQuote, dayChange, buildModel, bubbleOf, fmtPrice, fmtChg, fmtPct, headerOf, headerTwoLine, logoUrl, isTA };

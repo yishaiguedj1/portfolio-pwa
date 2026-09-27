@@ -104,4 +104,22 @@ ok(R('appWidgetSync(true)') === true, 'כפתור "סנכרון לווידג׳ט
 ok(!/widgetPreset|zipStore|WIDGET_GEOM|widgetUrl|KWGT/.test(R('Object.keys(globalThis).join()') + fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'KWGT הוסר מהאפליקציה (v215)');
 ok(/id="widgetCard"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && R("tabRenderer('settings') === renderSettingsLive"), 'כרטיס בהגדרות, מצויר כשהטאב נראה');
 
+// v216: בועת הסשן בכרטיס הווידג'ט = הבועה של כרטיס המניה באפליקציה (אותם טקסטים ואותה לוגיקה)
+{
+  const S = R('STRINGS');
+  for (const lg of ['he', 'en']) {
+    const P = M.STR[lg], A = S[lg];
+    ok(P.closedDot === A.sessClosedPrefix && P.closed === A.sessClosed && P.lastClose === A.sessLastClose && P.tinyPost === A.sessPostTiny && P.tinyPre === A.sessPreTiny && P.tinyNight === A.sessNightTiny && P.cardPost === A.sessPostShort && P.cardPre === A.sessPreShort && P.cardNight === A.sessNightShort, 'טקסטי הבועה זהים לאפליקציה (' + lg + ')');
+  }
+  const L = M.STR.he, sat = Date.parse('2026-09-26T12:00:00Z');
+  const b1 = M.bubbleOf({ sym: 'AAPL' }, { session: 'closed', ext: { kind: 'post', pct: 0.11 } }, { pct: 1.5 }, sat, L, { closed: true });
+  ok(b1.closed && b1.l1 === 'השוק סגור · סופ״ש' && b1.l2 === 'אחרי־מסחר' && b1.pct === '\u2066+0.11%\u2069' && b1.dir === 'pos', 'שוק סגור: שתי שורות — סיבה + הסשן המורחב האחרון');
+  const b2 = M.bubbleOf({ sym: 'AAPL' }, { session: 'pre', ext: { kind: 'pre', pct: -0.2 } }, { pct: 1 }, sat, L, { closed: true });
+  ok(!b2.closed && b2.l1 === 'טרום־מסחר' && b2.dir === 'neg', 'טרום־מסחר: שורה אחת');
+  ok(M.bubbleOf({ sym: 'AAPL' }, { session: 'regular', ext: null }, { pct: 1 }, sat, L, { closed: false }) === null, 'מסחר רגיל: בלי בועה');
+  const b3 = M.bubbleOf({ sym: 'LUMI.TA' }, { session: 'closed', ext: null }, { pct: -1.31 }, sat, L, { closed: true, reason: 'hdWeekend' });
+  ok(b3.closed && b3.l2 === 'סגירה' && b3.dir === 'neg', 'ת״א סגור: "סגירה" + השינוי היומי');
+  ok(M.bubbleOf({ sym: 'LUMI.TA' }, {}, { pct: -1 }, sat, L, { closed: false }) === null, 'ת״א פתוח: בלי בועה');
+}
+
 console.log('\n' + n + ' בדיקות עברו');
