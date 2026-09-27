@@ -13,6 +13,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.browser.trusted.TrustedWebActivityIntentBuilder
 import com.google.androidbrowserhelper.trusted.TwaLauncher
 
@@ -68,9 +69,17 @@ class MainActivity : Activity() {
                 return
             }
             launcher?.destroy()
-            val colors = CustomTabColorSchemeParams.Builder()
+            // שורת הסטטוס: בבהיר — הירוק של האפליקציה (#30D158, כמו theme-color של האתר מ־v217); בכהה — שחור.
+            // נקבע לפי מצב המערכת (TWA לא יודע על מתג הערכה שבתוך האתר)
+            val dark = CustomTabColorSchemeParams.Builder()
                 .setToolbarColor(Color.BLACK).setNavigationBarColor(Color.BLACK).build()
-            val builder = TrustedWebActivityIntentBuilder(url).setDefaultColorSchemeParams(colors)
+            val light = CustomTabColorSchemeParams.Builder()
+                .setToolbarColor(Color.parseColor("#30D158")).setNavigationBarColor(Color.BLACK).build()
+            val builder = TrustedWebActivityIntentBuilder(url)
+                .setColorScheme(CustomTabsIntent.COLOR_SCHEME_SYSTEM)
+                .setDefaultColorSchemeParams(light)
+                .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_LIGHT, light)
+                .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_DARK, dark)
             launcher = TwaLauncher(this, pkg).also {
                 it.launch(builder, null, null, { launched = true }, TwaLauncher.CCT_FALLBACK_STRATEGY)
             }

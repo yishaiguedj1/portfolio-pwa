@@ -1139,7 +1139,7 @@ function applyTheme() {
   try {
     if (document.documentElement) document.documentElement.dataset.theme = th;
     const meta = document.querySelector && document.querySelector('#themeColorMeta');
-    if (meta) meta.setAttribute('content', th === 'dark' ? '#000000' : '#006A4E');
+    if (meta) meta.setAttribute('content', th === 'dark' ? '#000000' : '#30D158');
   } catch (e) {}
   renderThemeToggle();
 }
@@ -3932,7 +3932,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v216';
+const APP_VERSION = 'v217';
 
 
 function saveDBto(db) {
