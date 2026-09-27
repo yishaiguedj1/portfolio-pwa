@@ -591,14 +591,7 @@ footer.fine { text-align: center; }
 
 .hidden { display: none !important; }
 
-/* ---- כרטיס מפתח Twelve Data ---- */
-.tdkey-row { display: flex; gap: 10px; margin-top: 12px; }
 .btn-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-.tdkey-row input {
-  flex: 1; min-width: 0; padding: 12px 14px; font-size: 16px;
-  border: 1px solid var(--outline); border-radius: var(--radius-sm); background: var(--surface);
-  color: var(--on-surface);
-}
 .btn {
   padding: 13px 22px; font-size: 17px; font-weight: 700; border: 0; border-radius: var(--radius-sm);
   background: var(--primary); color: var(--on-primary); cursor: pointer;

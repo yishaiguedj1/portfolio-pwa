@@ -45,8 +45,10 @@ function trimChart(j) {
   return { chart: { result: [{ meta, timestamp: keepT, indicators: { quote: [{ close: keepC }] } }] } };
 }
 
-/* v7/quote → השדות המורחבים בלבד. ת"א (ILA) לשקלים. טהורה. */
-function extFromQuote(q) {
+/* v7/quote → השדות המורחבים בלבד. ת"א (ILA) לשקלים. טהורה.
+   v220: גם הדוח הרבעוני הבא (earn: שניות UTC + האם משוער) — במקום Twelve Data. earningsTimestamp = הדוח האחרון
+   (לפעמים עתידי), earningsTimestampStart/End = החלון של הבא; לוקחים את המוקדם שעוד לא עבר (חצי יום חסד). */
+function extFromQuote(q, nowMs) {
   if (!q || !q.symbol) return null;
   const k = String(q.currency || '').toUpperCase() === 'ILA' ? 0.01 : 1;
   const sec = (pfx) => {
@@ -59,6 +61,9 @@ function extFromQuote(q) {
   if (pre) out.pre = pre;
   if (post) out.post = post;
   if (night) out.night = night;
+  const nowS = (nowMs || Date.now()) / 1000;
+  const cand = [q.earningsTimestampStart, q.earningsTimestamp, q.earningsTimestampEnd].filter((v) => typeof v === 'number' && v > nowS - 12 * 3600);
+  if (cand.length) out.earn = { t: Math.min.apply(null, cand), est: !!q.isEarningsDateEstimate };
   return out;
 }
 
@@ -85,7 +90,8 @@ async function fetchExt(syms, deadline) {
       const url = 'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + encodeURIComponent(syms.join(',')) +
         '&fields=marketState,currency,regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketTime,' +
         'preMarketPrice,preMarketChange,preMarketChangePercent,preMarketTime,postMarketPrice,postMarketChange,postMarketChangePercent,postMarketTime,' +
-        'overnightMarketPrice,overnightMarketChange,overnightMarketChangePercent,overnightMarketTime&crumb=' + encodeURIComponent(cs.crumb);
+        'overnightMarketPrice,overnightMarketChange,overnightMarketChangePercent,overnightMarketTime,' +
+        'earningsTimestamp,earningsTimestampStart,earningsTimestampEnd,isEarningsDateEstimate&crumb=' + encodeURIComponent(cs.crumb);
       const r = await fetch(url, { headers: { 'User-Agent': UA, Cookie: cs.cookie, Accept: 'application/json' }, signal: ctl.signal });
       if (r.status === 401 || r.status === 403) continue; // crumb ישן — מתחדש בניסיון הבא
       if (r.status !== 200) return null;

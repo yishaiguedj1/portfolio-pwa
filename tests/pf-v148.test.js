@@ -49,7 +49,7 @@ const A = (k) => vm.runInContext(k, sb);
 
   // --- 4. ניתוק מוחק פרטי גישה ---
   ok(/ibkrSaveCfg\(\{ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' \}\)/.test(src), 'ניתוק מוחק token, Query ID ומפתח שרתון');
-  ok(/removeItem\(LS_TDKEY\)/.test(src), 'איפוס מלא מוחק גם את מפתח Twelve Data');
+  ok(/removeItem\('pwa_tdkey_v1'\)/.test(src), 'v220: Twelve Data הוסר — מפתח ישן נמחק מהטלפון');
 
   // --- 5. ענן ---
   ok(/tdkey: firebase\.firestore\.FieldValue\.delete\(\)/.test(cloud), 'ענן: מפתח Twelve Data לא נשמר, ועותק ישן נמחק');

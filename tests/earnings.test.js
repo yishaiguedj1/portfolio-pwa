@@ -39,42 +39,31 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { parseEarningsCalendar, daysUntil };';
+  '\n;globalThis.__t = { earnFromExt, daysUntil };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
 
-/* ---------- parseEarningsCalendar ---------- */
-// מבנה data[]
-const j1 = { data: [
-  { symbol: 'NVDA', date: '2099-02-10', time: 'amc' },
-  { symbol: 'AAPL', date: '2099-01-05', time: 'bmo' },
-  { symbol: 'OLD', date: '2020-01-01', time: '' },
-  { symbol: 'BAD', date: 'not-a-date' },
-] };
-const r1 = T.parseEarningsCalendar(j1);
-ok(r1.NVDA && r1.NVDA.date === '2099-02-10' && r1.NVDA.time === 'amc', 'מבנה data[] מפוענח');
-ok(r1.AAPL && r1.AAPL.date === '2099-01-05', 'סימבול שני מפוענח');
-ok(!r1.OLD, 'דוח מהעבר מסונן');
-ok(!r1.BAD, 'תאריך לא תקין מסונן');
+/* ---------- earnFromExt (v220: Yahoo דרך השרתון, במקום Twelve Data) ---------- */
+const ts = (iso) => Date.parse(iso) / 1000;
+const e1 = T.earnFromExt('AAPL', { t: ts('2026-10-29T20:00:00Z'), est: false });
+ok(e1 && e1.date === '2026-10-29' && e1.time === 'amc' && e1.est === false, 'ארה״ב 16:00 בניו־יורק → אחרי הסגירה, תאריך בשעון ניו־יורק');
+const e2 = T.earnFromExt('KO', { t: ts('2026-10-20T10:30:00Z'), est: true });
+ok(e2 && e2.date === '2026-10-20' && e2.time === 'bmo' && e2.est === true, 'ארה״ב 06:30 בניו־יורק → לפני הפתיחה, משוער');
+const e3 = T.earnFromExt('MSFT', { t: ts('2026-10-21T01:30:00Z') });
+ok(e3 && e3.date === '2026-10-20' && e3.time === 'amc', 'אחרי חצות UTC אבל עדיין ערב בניו־יורק → התאריך האמריקאי');
+const e4 = T.earnFromExt('LUMI.TA', { t: ts('2026-11-17T14:30:00Z') });
+ok(e4 && e4.date === '2026-11-17' && e4.time === '', 'ת״א: תאריך בשעון ישראל, בלי לפני/אחרי');
+ok(T.earnFromExt('AAPL', null) === null && T.earnFromExt('AAPL', { t: 0 }) === null, 'בלי נתון → null');
 
-// מבנה earnings{} (מיפוי סימבול -> מערך)
-const j2 = { earnings: {
-  NVDA: [{ date: '2099-03-01', time: 'amc' }, { date: '2099-06-01', time: '' }],
-  MSFT: [{ date: '2099-02-01' }],
-} };
-const r2 = T.parseEarningsCalendar(j2);
-ok(r2.NVDA && r2.NVDA.date === '2099-03-01', 'מבנה earnings{} מפוענח — נבחר המוקדם ביותר');
-ok(r2.MSFT && r2.MSFT.date === '2099-02-01', 'סימבול שני במבנה earnings{}');
-
-// קלטים משובשים לא מפילים
-ok(JSON.stringify(T.parseEarningsCalendar(null)) === '{}', 'null -> ריק');
-ok(JSON.stringify(T.parseEarningsCalendar({ status: 'error' })) === '{}', 'שגיאת API -> ריק');
-ok(JSON.stringify(T.parseEarningsCalendar({ data: 'x' })) === '{}', 'data לא-מערך -> ריק');
-
-// סימבול באותיות קטנות מנורמל
-const r3 = T.parseEarningsCalendar({ data: [{ symbol: 'nvda', date: '2099-04-01' }] });
-ok(r3.NVDA && r3.NVDA.date === '2099-04-01', 'סימבול מנורמל לאותיות גדולות');
+/* השרתון: הדוח הבא מתוך v7/quote */
+const Q = require(path.join(__dirname, '..', 'ibkr-proxy', 'api', 'quotes.js'));
+const now = Date.parse('2026-09-27T12:00:00Z');
+const x1 = Q._extFromQuote({ symbol: 'AAPL', earningsTimestamp: ts('2026-07-30T20:00:00Z'), earningsTimestampStart: ts('2026-10-29T20:00:00Z'), earningsTimestampEnd: ts('2026-10-29T20:00:00Z'), isEarningsDateEstimate: true }, now);
+ok(x1.earn && x1.earn.t === ts('2026-10-29T20:00:00Z') && x1.earn.est === true, 'שרתון: הדוח הבא (לא האחרון שכבר עבר), כולל "משוער"');
+ok(!Q._extFromQuote({ symbol: 'X', earningsTimestamp: ts('2026-07-30T20:00:00Z') }, now).earn, 'שרתון: רק דוח שעבר → בלי earn');
+const appSrc = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+ok(!/twelvedata|tdKey\(|LS_TDKEY/i.test(appSrc), 'Twelve Data הוסר מהאפליקציה (v220)');
 
 /* ---------- daysUntil ---------- */
 const today = new Date();

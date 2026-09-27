@@ -3,7 +3,7 @@
  * תיק ההשקעות — PWA עצמאית
  * נתונים סטטיים: פוזיציות, הפקדות, פנסיה (מהגיליון, 2026-09-22)
  * מחירים חיים: Yahoo (ראשי) ← CNBC (גיבוי), דיליי ~15 דקות
- * היסטוריה לגרפים: Twelve Data (ראשי; מפתח חינמי נשמר בטלפון) ← Yahoo ← Stooq
+ * היסטוריה לגרפים: Yahoo ← Stooq ← השרתון (Yahoo מהשרת)
  * שער דולר: open.er-api.com / frankfurter
  * ============================================================ */
 
@@ -262,8 +262,6 @@ he: {
   errBlocked: 'חסימת דפדפן/רשת',
   errGeneric: 'שגיאה',
   srcEmpty: '{name}: החזיר ריק',
-  tdBadKey: 'TwelveData: המפתח לא תקין — צריך להזין מפתח חדש',
-  tdKeyRejected: 'TwelveData: המפתח לא התקבל (401)',
 
   depTotalTitle: 'סך הפקדות נטו',
   depCalcNote: 'מחושב מהרשומות למטה',
@@ -319,13 +317,6 @@ he: {
   widgetStep1: 'מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים "התקנה ממקור לא ידוע".',
   widgetStep2: 'פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.',
   widgetStep3: 'לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.',
-  tdKeyTitle: 'מפתח נתונים (Twelve Data)',
-  tdKeyDesc: 'המפתח מפעיל את הגרפים. נשמר בחשבון שלך בענן (או בטלפון, בלי חשבון).',
-  tdSignup: 'להרשמה חינמית ב־Twelve Data',
-  tdKeyPh: 'הדבק כאן את המפתח',
-  tdKeySaved: 'מפתח שמור: ••••{last4} — הגרפים פעילים',
-  tdKeyMissing: 'אין מפתח שמור — הגרפים לא יעבדו. הזן מפתח למטה.',
-  tdKeySavedFlash: 'המפתח נשמר ✓',
 
   ibkrTitle: 'חיבור ל־IBKR',
   ibkrNever: 'טרם סונכרן — מוצגים הנתונים הידניים.',
@@ -766,8 +757,6 @@ en: {
   errBlocked: 'Browser/network blocked',
   errGeneric: 'Error',
   srcEmpty: '{name}: returned empty',
-  tdBadKey: 'TwelveData: invalid key — please enter a new key',
-  tdKeyRejected: 'TwelveData: key rejected (401)',
 
   depTotalTitle: 'Total net deposits',
   depCalcNote: 'calculated from the records below',
@@ -823,13 +812,6 @@ en: {
   widgetStep1: 'Download the app (APK file) and open it. The first time, allow "install unknown apps".',
   widgetStep2: 'Open THE SNOWBALL and tap the screen — your stock list moves to the widget.',
   widgetStep3: 'Long-press the home screen → Widgets → THE SNOWBALL → drag it onto the screen.',
-  tdKeyTitle: 'Data key (Twelve Data)',
-  tdKeyDesc: 'The key powers the charts. Stored in your cloud account (or on the phone, without an account).',
-  tdSignup: 'Free Twelve Data signup',
-  tdKeyPh: 'Paste your key here',
-  tdKeySaved: 'Key saved: ••••{last4} — charts are active',
-  tdKeyMissing: 'No saved key — charts won\'t work. Enter a key below.',
-  tdKeySavedFlash: 'Key saved ✓',
 
   ibkrTitle: 'IBKR connection',
   ibkrNever: 'Not synced yet — showing manual data.',
@@ -1097,7 +1079,6 @@ function setLang(lang) {
     applyI18n();
     if (typeof renderAll === 'function') renderAll({ all: true }); // v193: כל הטאבים — הטקסטים בכולם משתנים
     if (typeof renderIbkrCard === 'function') renderIbkrCard();
-    if (typeof renderTdKeyStatus === 'function') renderTdKeyStatus();
     if (typeof updateSourceLabel === 'function') updateSourceLabel();
   };
   if (typeof withViewTransition === 'function') withViewTransition(apply); else apply();
@@ -1400,147 +1381,38 @@ async function fetchYahooBars(url, withTime, notes, name, ms) {
   return null;
 }
 
-/* ---------------- Twelve Data (היסטוריה לגרפים) ---------------- */
-/* עובד ישירות מהדפדפן (CORS מאושר), זמן אמת בחינם.
-   דורש מפתח חינמי — נשמר ב־localStorage בטלפון בלבד, לעולם לא בקוד/בריפו. */
-const LS_TDKEY = 'pwa_tdkey_v1';
+/* ---------------- מטמונים + דוחות רבעוניים קרובים ---------------- */
+/* v220: Twelve Data הוסר (בקשת המשתמש) — הגרפים מ־Yahoo/Stooq/השרתון, והדוחות הקרובים מ־Yahoo דרך השרתון:
+   /api/quotes מחזיר לכל מניה x.earn = { t: שניות UTC, est } באותה בקשת מחירים (בלי קריאה נוספת). */
 const LS_INTRA = 'pwa_intra_v1_'; // + sym — מטמון תוך־יומי קצר (10 דקות)
-const LS_EARN = 'pwa_earn_v1'; // מטמון דוחות קרובים — 24 שעות
+const LS_EARN = 'pwa_earn_v1'; // מטמון הדוחות הקרובים (sym → { date, time, est })
 
-function tdKey() {
-  try { return (localStorage.getItem(LS_TDKEY) || '').trim(); } catch (e) { return ''; }
+/* x.earn מהשרתון → { date: YYYY-MM-DD בשעון הבורסה, time: 'bmo' לפני הפתיחה / 'amc' אחרי הסגירה / '', est }. טהורה */
+function earnFromExt(sym, e) {
+  if (!e || !(e.t > 0)) return null;
+  const ta = /\.TA$/i.test(sym);
+  const tz = ta ? 'Asia/Jerusalem' : 'America/New_York';
+  const d = new Date(e.t * 1000);
+  const parts = {};
+  for (const p of new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d)) parts[p.type] = p.value;
+  const date = parts.year + '-' + parts.month + '-' + parts.day;
+  const hm = Number(parts.hour) * 60 + Number(parts.minute);
+  const time = ta ? '' : hm < 9 * 60 + 30 ? 'bmo' : hm >= 16 * 60 ? 'amc' : '';
+  return { date: date, time: time, est: !!e.est };
 }
-
-const tdURL = (sym, interval, outputsize) =>
-  'https://api.twelvedata.com/time_series?symbol=' + encodeURIComponent(sym.toUpperCase()) +
-  '&interval=' + interval + '&outputsize=' + outputsize +
-  '&timezone=America/New_York&order=ASC&apikey=' + encodeURIComponent(tdKey());
-
-/* מפענח תשובת Twelve Data time_series לשורות הגרף.
-   withTime=true לגרף תוך־יומי (datetime כולל שעה, שעון ניו־יורק). */
-function parseTwelveBars(json, withTime) {
-  const rows = [];
-  try {
-    const vals = json && json.values;
-    if (!Array.isArray(vals)) return rows;
-    for (const v of vals) {
-      if (!v || typeof v !== 'object') continue;
-      const close = pf(v.close);
-      if (!(close > 0)) continue;
-      const m = String(v.datetime || '').match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/);
-      if (!m) continue;
-      rows.push({
-        date: m[1],
-        time: withTime ? (m[2] || null) : null,
-        open: pf(v.open),
-        high: pf(v.high),
-        low: pf(v.low),
-        close: close,
-        volume: parseInt(v.volume, 10) || 0
-      });
-    }
-  } catch (e) {}
-  rows.sort((a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    const ta = a.time || '', tb = b.time || '';
-    return ta < tb ? -1 : ta > tb ? 1 : 0;
-  });
-  return rows;
+/* מעדכן דוח קרוב של מניה מתשובת המחירים; שומר למטמון רק כשהשתנה */
+function earnUpdate(sym, e) {
+  const v = earnFromExt(sym, e);
+  if (!v) return;
+  const cur = (state.earnings || {})[sym];
+  if (cur && cur.date === v.date && cur.time === v.time && !!cur.est === v.est) return;
+  state.earnings = Object.assign({}, state.earnings || {}, { [sym]: v });
+  lsSet(LS_EARN, { at: Date.now(), bySym: state.earnings });
 }
-
-/* מגבלת התוכנית החינמית: 8 קריאות/דקה — מרווחים קריאות כדי לא להיחסם (429) */
-let tdLastAt = 0;
-function tdThrottle() {
-  const now = Date.now();
-  const wait = 8000 - (now - tdLastAt);
-  tdLastAt = Math.max(now, tdLastAt + 8000);
-  return wait > 0 ? new Promise((r) => setTimeout(r, wait)) : Promise.resolve();
-}
-
-/* מפענח תשובת earnings_calendar של Twelve Data למיפוי sym -> { date, time }.
-   טהור וסובלני לשני מבני תשובה אפשריים (data[] או earnings{}). */
-function parseEarningsCalendar(json) {
-  const out = {};
-  try {
-    let entries = [];
-    if (json && Array.isArray(json.data)) {
-      entries = json.data;
-    } else if (json && json.earnings && typeof json.earnings === 'object') {
-      if (Array.isArray(json.earnings)) entries = json.earnings;
-      else for (const k of Object.keys(json.earnings)) {
-        const arr = json.earnings[k];
-        if (Array.isArray(arr)) entries = entries.concat(arr.map((e) => Object.assign({ symbol: k }, e)));
-      }
-    }
-    const today = todayISO();
-    for (const e of entries) {
-      if (!e || typeof e !== 'object') continue;
-      const sym = String(e.symbol || '').toUpperCase();
-      const date = String(e.date || '').slice(0, 10);
-      if (!sym || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today) continue;
-      if (!out[sym] || date < out[sym].date) out[sym] = { date: date, time: String(e.time || '') };
-    }
-  } catch (err) {}
-  return out;
-}
-
-/* דוחות קרובים — בקשה אחת לכל הסימבולים (40 קרדיטים), מטמון 24 שעות.
-   כישלון שקט: פשוט לא מציגים (לא קריטי כמו מחירים). */
+/* בהפעלה: מהמטמון (דוחות שכבר עברו מסוננים בתצוגה) — העדכון מגיע עם המחירים */
 async function refreshEarnings() {
-  const syms = quoteSymbols();
-  if (!syms.length) return;
   const cached = lsGet(LS_EARN);
-  const freshDay = cached && cached.at && cached.bySym &&
-    new Date(cached.at).toDateString() === new Date().toDateString();
-  if (freshDay) { state.earnings = cached.bySym; return; }
-  if (!tdKey()) return;
-  await tdThrottle();
-  const url = 'https://api.twelvedata.com/earnings_calendar?symbol=' + encodeURIComponent(syms.join(',')) +
-    '&start_date=' + todayISO() + '&apikey=' + encodeURIComponent(tdKey());
-  try {
-    const json = await fetchJSONTimeout(url, 15000);
-    if (json && (json.status === 'error' || (json.code && json.code >= 400))) return;
-    const bySym = parseEarningsCalendar(json);
-    state.earnings = bySym;
-    lsSet(LS_EARN, { at: Date.now(), bySym: bySym });
-  } catch (e) { /* שקט */ }
-}
-
-/* ניסיון אחד להביא נרות מ־Twelve Data.
-   kind: 'daily' | 'intraday'. מחזיר rows, null, או 'BADKEY' כשהמפתח לא תקין. */
-async function fetchTwelveBars(sym, kind, wantMax, notes) {
-  if (!tdKey() || symCur(sym) === 'ILS') return null; // v142: ת"א — Yahoo בלבד
-  await tdThrottle();
-  const intraday = kind === 'intraday';
-  const url = tdURL(sym, intraday ? '5min' : '1day', intraday ? 250 : (wantMax ? 5000 : 1500));
-  try {
-    const json = await fetchJSONTimeout(url, 15000);
-    if (json && (json.status === 'error' || (json.code && json.code >= 400))) {
-      const msg = String((json && json.message) || json.code || t('errGeneric'));
-      notes.push('TwelveData: ' + msg.slice(0, 60));
-      if (json.code === 401 || /invalid|unauthorized|api\s?key/i.test(msg)) return 'BADKEY';
-      return null;
-    }
-    const rows = parseTwelveBars(json, intraday);
-    if (rows.length) return rows;
-    notes.push(t('srcEmpty', { name: 'TwelveData' }));
-  } catch (e) {
-    // מפתח לא תקין מגיע כ־HTTP 401 (זריקה), לא כ־JSON
-    if (e && /http 401/.test(e.message || '')) {
-      notes.push(t('tdKeyRejected'));
-      return 'BADKEY';
-    }
-    notes.push('TwelveData: ' + netErrName(e));
-  }
-  return null;
-}
-
-/* מפתח לא תקין — מוחקים אותו מהטלפון ומציגים שוב את כרטיס ההזנה */
-function clearTdKey(notes) {
-  try { localStorage.removeItem(LS_TDKEY); } catch (e) {}
-  notes.push(t('tdBadKey'));
-  switchTab('settings');
-  renderTdKeyStatus();
+  if (cached && cached.bySym) state.earnings = cached.bySym;
 }
 
 /* סינון טווח מתוך היסטוריה יומית ממוינת (ישן -> חדש) */
@@ -3930,7 +3802,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v219';
+const APP_VERSION = 'v220';
 
 
 function saveDBto(db) {
@@ -4044,7 +3916,7 @@ function cashInCur(cur) {
 }
 
 /* ---------------- מקורות נתונים ---------------- */
-/* מחירים חיים: Yahoo (ראשי) ← CNBC (גיבוי). היסטוריה ומסחר מורחב: Twelve Data (ראשי) ← Yahoo ← Stooq. */
+/* מחירים חיים: השרתון (Yahoo מהשרת) ← Yahoo ישיר ← CNBC (גיבוי). היסטוריה: Yahoo ← Stooq ← השרתון. */
 
 const stooqDailyURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=d';
 const stooqIntradayURL = (sym) => 'https://stooq.com/q/d/l/?s=' + sym.toLowerCase() + '.us&i=5';
@@ -4505,7 +4377,7 @@ const state = {
   quotesAt: null,
   stale: false,     // מוצגים נתונים שמורים (אין חיבור)
   hist: {},         // sym -> daily rows
-  earnings: {},     // sym -> { date, time } — דוחות קרובים מ־Twelve Data
+  earnings: {},     // sym -> { date, time, est } — דוחות קרובים (Yahoo דרך השרתון, v220)
   intra: {},        // sym -> intraday rows (יום)
   histDbg: {},      // sym -> מה קרה בניסיון להביא היסטוריה (לאבחון)
   open: {},         // sym -> bool (שורה פתוחה)
@@ -5050,6 +4922,7 @@ async function proxyQuotes(syms, ms) {
     for (const sym of Object.keys(j.data)) {
       const q = parseYahooQuote(j.data[sym], sym);
       if (q) { applyExtQuote(q, j.data[sym].x); out[sym] = q; }
+      if (j.data[sym].x && j.data[sym].x.earn) earnUpdate(sym, j.data[sym].x.earn); // v220: הדוח הרבעוני הבא
     }
     return out;
   } finally { clearTimeout(to); }
@@ -5413,9 +5286,6 @@ async function getDaily(sym, force) {
     return rows;
   };
   const notes = [];
-  const td = await fetchTwelveBars(sym, 'daily', wantMax, notes);
-  if (td === 'BADKEY') clearTdKey(notes);
-  else if (td) return save(td);
   // v163: היסטוריה דרך השרתון (Yahoo מהשרת) — ראשון כש־Yahoo כבר ידוע כחוסם את הטלפון, אחרון אחרת
   const viaProxy = async () => {
     if (histProxyOff) return null;
@@ -5460,13 +5330,6 @@ async function getIntraday(sym) {
     return cached.rows;
   }
   const notes = [];
-  const td = await fetchTwelveBars(sym, 'intraday', false, notes);
-  if (td === 'BADKEY') clearTdKey(notes);
-  else if (td) {
-    state.intra[sym] = td;
-    lsSet(LS_INTRA + sym, { at: Date.now(), rows: td });
-    return td;
-  }
   const iq = (host) => yahooURL(sym, 'interval=5m&range=1d&includePrePost=true', host);
   let rows = await fetchYahooBars(iq('query1'), true, notes, 'Yahoo')
           || await fetchYahooBars(iq('query2'), true, notes, 'Yahoo2');
@@ -5565,8 +5428,8 @@ function renderPfBenchToggles(show) {
 }
 
 /* היסטוריה יומית מהירה לגרף הביצועים: מרוץ מקבילי Yahoo/Yahoo2/Stooq —
-   הראשון שעונה מנצח, בלי לחכות ל־timeout של מקור חסום. Twelve Data רק
-   כגיבוי אחרון (צריך מפתח). אותו מטמון ואותו פורמט שורות כמו getDaily. */
+   הראשון שעונה מנצח, בלי לחכות ל־timeout של מקור חסום. השרתון
+   כגיבוי אחרון. אותו מטמון ואותו פורמט שורות כמו getDaily. */
 /* v163: היסטוריית מחירים דרך השרתון שלנו (Vercel) — בקשה אחת לכל הסימבולים. בטלפון Yahoo חוסם
    לפעמים (429 לכתובת של הספק הסלולרי) ו־Stooq לא עונה, ולמניות ת"א אין מקור אחר; מהשרת זה עובד.
    מחזיר { SYM: [{date, close}] } (ת"א כבר בשקלים). */
@@ -5715,14 +5578,6 @@ async function _getDailyFastInner(sym, force) {
     if (px && px.length) { notes.push('Proxy: ok'); return save(px); }
     notes.push('Proxy: —');
   } catch (e) { notes.push('Proxy: ' + netErrName(e)); }
-  if (tdKey()) {
-    const td = await fetchTwelveBars(sym, 'daily', false, notes);
-    if (td === 'BADKEY') clearTdKey(notes);
-    else if (td) {
-      if (!td.splitsApplied) { try { applySplitAdjustment(td); } catch (e) {} }
-      return save(td);
-    }
-  }
   state.histDbg[sym] = notes.join(' · ');
   histNegCache[sym] = Date.now(); // v72: לא מנסים רשת שוב ב־10 הדקות הקרובות
   const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
@@ -6409,7 +6264,7 @@ function renderEarningsCard() {
   const rows = [];
   for (const sym of Object.keys(state.earnings || {})) {
     const e = state.earnings[sym];
-    if (!e || !e.date || daysUntil(e.date) < 0) continue;
+    if (!e || !e.date || daysUntil(e.date) < 0 || !names[sym]) continue; // v220: רק מניות שבתיק/במעקב עכשיו
     rows.push({ sym: sym, date: e.date, time: e.time || '' });
   }
   rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
@@ -7044,14 +6899,7 @@ async function ensureFxHist(earliestOverride) {
         for (const [dt, r] of Object.entries(j.rates)) if (r && r.ILS > 0) rates[dt] = r.ILS;
         ok = true;
       }
-    } catch (e) { /* גיבוי: Twelve Data */ }
-    if (!ok && tdKey()) {
-      try {
-        const rows = parseTwelveBars(await fetchJSONTimeout(tdURL('USD/ILS', '1day', 5000), 25000), false);
-        for (const r of rows) if (r.date >= fetchFrom && r.close > 0) rates[r.date] = r.close;
-        ok = rows.length > 0;
-      } catch (e) {}
-    }
+    } catch (e) { /* בלי רשת — נשארים עם מה שיש */ }
     if (ok) {
       try { localStorage.setItem(LS_FXHIST, JSON.stringify({ rates: rates })); } catch (e) {}
     }
@@ -9815,15 +9663,6 @@ function wireWidgetCard() {
   try { localStorage.removeItem('pwa_widget_v1'); } catch (e) {} // הגדרות ה־KWGT הישנות
 }
 
-function renderTdKeyStatus() {
-  const s = document.getElementById('tdKeyStatus');
-  if (!s) return;
-  const k = tdKey();
-  s.textContent = k
-    ? t('tdKeySaved', { last4: k.slice(-4) })
-    : t('tdKeyMissing');
-}
-
 function wireEditToggle(btnId, hintId, key, rerender) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
@@ -9962,21 +9801,7 @@ function init() {
   // v213: נגיעה בכרטיס בווידג'ט → המניה באפליקציה (קישור ‎#stock=SYM) — אחרי הציור הראשון, וגם כשהאפליקציה כבר פתוחה
   try { window.addEventListener('hashchange', () => { try { openStockFromHash(); } catch (e) {} }); setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0); } catch (e) {}
 
-  // מפתח Twelve Data לגרפים (נשמר בטלפון בלבד) — בלשונית הגדרות
-  const tdSave = document.getElementById('tdKeySave');
-  if (tdSave) tdSave.addEventListener('click', () => {
-    const inp = document.getElementById('tdKeyInput');
-    const v = (inp && inp.value || '').trim();
-    if (!v) return;
-    try { localStorage.setItem(LS_TDKEY, v); } catch (e) {}
-    renderTdKeyStatus();
-    if (window.__cloudSave) window.__cloudSave();
-    flash(t('tdKeySavedFlash'));
-    state.hist = {}; state.intra = {};
-    warmHistories();
-    for (const sym of Object.keys(state.open)) if (state.open[sym]) ensureChartData(sym);
-  });
-  renderTdKeyStatus();
+  try { localStorage.removeItem('pwa_tdkey_v1'); } catch (e) {} // v220: Twelve Data הוסר — מוחקים מפתח ישן מהטלפון
   // v153: הדפדפן לא משחזר גלילה בעצמו — אנחנו עושים את זה לפי טאב, אחרי שהתוכן נטען
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   // v85: שחזור הטאב האחרון אחרי רענון (לפני בדיקת המפתח — אם אין מפתח, הגדרות גובר)
@@ -9986,8 +9811,7 @@ function init() {
       switchTab(lastTab);
     }
   } catch (e) {}
-  // v153: לא מעבירים להגדרות כשאין מפתח Twelve Data — הוא רק גיבוי אחרון (Yahoo הוא המקור
-  // הראשי), ומ־v148 הוא לא נטען מהענן, אז כל רענון נחת בהגדרות.
+  // v153: אין מעבר כפוי להגדרות בהפעלה (לשעבר: כשלא היה מפתח Twelve Data — הוסר ב־v220).
   // v85: שמירת מיקום גלילה לכל טאב
   try { initScrollSaver(); } catch (e) {}
 
@@ -10087,7 +9911,6 @@ function init() {
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
       try { localStorage.removeItem(LS_PREDEMO); } catch (e) {}
-      try { localStorage.removeItem(LS_TDKEY); } catch (e) {} // איפוס מלא = כל מה שבטלפון
       // מנקה גם את מטמון הייבוא (IBKR) — אחרת יבוא חוזר אחרי איפוס נחסם כ"אין מידע חדש"
       try { localStorage.removeItem(LS_IBKR); } catch (e) {}
       location.reload();

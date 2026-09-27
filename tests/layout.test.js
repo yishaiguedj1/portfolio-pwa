@@ -126,7 +126,7 @@ for (const [lang, theme, dark] of combos) {
   const wantTheme = theme === 'system' ? (dark ? 'dark' : 'light') : theme;
   ok(docEl.dataset.theme === wantTheme, `רינדור ${lang}/${theme}: ערכה=${wantTheme}`);
 }
-for (const key of ['myAccount', 'themeTitle', 'tdKeyTitle', 'ibkrTitle']) {
+for (const key of ['myAccount', 'themeTitle', 'widgetTitle', 'ibkrTitle']) {
   T.setLang('he');
   ok(!/[👤🎨📈🏦]/u.test(T.t(key)), `המפתח ${key} בעברית בלי אימוג׳י`);
   T.setLang('en');
