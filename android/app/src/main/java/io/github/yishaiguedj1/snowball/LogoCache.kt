@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import com.caverock.androidsvg.SVG
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -33,7 +34,7 @@ object LogoCache {
         Unit
     }
 
-    /** הלוגו השמור (או null → האות הראשונה). SVG (לוגואים של ת״א ב־TradingView) לא מפוענח — אות */
+    /** הלוגו השמור (או null → האות הראשונה). SVG (לוגואים של ת״א ב־TradingView) מצויר עם AndroidSVG */
     fun bitmap(context: Context, sym: String): Bitmap? = runCatching {
         val f = file(context, sym)
         if (f.exists()) BitmapFactory.decodeFile(f.path) else null
@@ -46,6 +47,12 @@ object LogoCache {
         val f = file(context, sym)
         if (f.exists() && System.currentTimeMillis() - f.lastModified() < MAX_AGE_MS) return
         val bytes = fetch(url) ?: return
+        val isSvg = url.endsWith(".svg") || String(bytes, 0, minOf(bytes.size, 200)).trimStart().let { it.startsWith("<") }
+        if (isSvg) { // לוגואים של ת״א (TradingView) — ריבוע מלא עם רקע משלהם, בלי היפוך צבעים (כמו באפליקציה)
+            val bmp = svgBitmap(String(bytes, Charsets.UTF_8)) ?: return
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            return
+        }
         val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
         f.outputStream().use { prep(raw).compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
@@ -58,6 +65,15 @@ object LogoCache {
             if (c.responseCode == 200) c.inputStream.use { it.readBytes() } else null
         } finally { c.disconnect() }
     }
+
+    private fun svgBitmap(text: String): Bitmap? = runCatching {
+        val svg = SVG.getFromString(text)
+        svg.documentWidth = LOGO_PX.toFloat()
+        svg.documentHeight = LOGO_PX.toFloat()
+        val out = Bitmap.createBitmap(LOGO_PX, LOGO_PX, Bitmap.Config.ARGB_8888)
+        svg.renderToCanvas(Canvas(out))
+        out
+    }.getOrNull()
 
     private fun prep(src: Bitmap): Bitmap {
         val s = LOGO_PX.toFloat() / maxOf(src.width, src.height)

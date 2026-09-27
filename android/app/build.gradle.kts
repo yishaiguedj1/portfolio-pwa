@@ -50,4 +50,5 @@ dependencies {
     implementation("com.google.androidbrowserhelper:androidbrowserhelper:2.7.3")
     implementation("androidx.glance:glance-appwidget:1.2.0")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
+    implementation("com.caverock:androidsvg-aar:1.4") // לוגואים של ת״א (SVG של TradingView)
 }
