@@ -84,6 +84,7 @@ he: {
   earnBmo: 'לפני הפתיחה',
   earnAmc: 'אחרי הסגירה',
   earnEst: 'משוער',
+  earnMore: 'עוד {n} דוחות', earnMoreOne: 'עוד דוח אחד', earnTop: 'חזרה למעלה',
   calReport: 'דוח רבעוני', calAddAria: 'הוספת הדוח של {sym} ליומן', calGoogle: 'הוספה ל־Google Calendar', calOther: 'יומן אחר (אפל, סמסונג, Outlook)',
   calIcsNote: 'ביומן אחר נוצרות גם תזכורות — יום לפני ושעה לפני.', calIcsDone: 'הקובץ ירד — פתח אותו כדי להוסיף ליומן', calLocal: '{t} שעון ישראל',
   calEventTitle: 'דוח רבעוני · {sym}{name}', calEventDesc: 'פרסום הדוח הרבעוני של {sym}', calEventEst: 'תאריך משוער (לפי Yahoo Finance)',
@@ -583,6 +584,7 @@ en: {
   earnBmo: 'Before open',
   earnAmc: 'After close',
   earnEst: 'estimated',
+  earnMore: '{n} more reports', earnMoreOne: '1 more report', earnTop: 'Back to top',
   calReport: 'Earnings', calAddAria: 'Add the {sym} earnings report to your calendar', calGoogle: 'Add to Google Calendar', calOther: 'Other calendar (Apple, Samsung, Outlook)',
   calIcsNote: 'Other calendars also get reminders — a day before and an hour before.', calIcsDone: 'Downloaded — open it to add to your calendar', calLocal: '{t} local time',
   calEventTitle: 'Earnings · {sym}{name}', calEventDesc: '{sym} quarterly earnings report', calEventEst: 'Estimated date (per Yahoo Finance)',
@@ -3812,7 +3814,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v223';
+const APP_VERSION = 'v224';
 
 
 function saveDBto(db) {
@@ -6321,13 +6323,43 @@ function sizeEarnWindow() {
     const rows = list.querySelectorAll('.earn-row');
     const more = rows.length > 2;
     list.classList.toggle('earn-scroll', more);
+    const btn = document.getElementById('earnMore');
+    if (btn) btn.classList.toggle('hidden', !more);
     if (!more) { list.style.maxHeight = ''; return; }
     const h = rows[0].offsetHeight + rows[1].offsetHeight;
     if (h > 0) list.style.maxHeight = h + 'px';
-    const fade = () => list.classList.toggle('at-end', list.scrollTop + list.clientHeight >= list.scrollHeight - 2);
-    if (!list._earnWired) { list._earnWired = true; list.addEventListener('scroll', fade, { passive: true }); }
-    fade();
+    if (!list._earnWired) {
+      list._earnWired = true;
+      list.addEventListener('scroll', () => earnMoreUpdate(), { passive: true });
+      // v224: הכפתור גולל דוח אחד למטה; בסוף הרשימה — חזרה לראש
+      if (btn) btn.addEventListener('click', () => {
+        const atEnd = list.scrollTop + list.clientHeight >= list.scrollHeight - 2;
+        const step = (list.querySelector('.earn-row') || {}).offsetHeight || 70;
+        try { list.scrollTo({ top: atEnd ? 0 : list.scrollTop + step, behavior: 'smooth' }); } catch (e) { list.scrollTop = atEnd ? 0 : list.scrollTop + step; }
+      });
+    }
+    earnMoreUpdate();
   });
+}
+/* v224 (בקשת המשתמש: שיהיה ברור שאפשר לגלול): "עוד N דוחות ⌄" מתחת לחלון — N = השורות שעוד מתחת לתצוגה;
+   בסוף הרשימה "חזרה למעלה ⌃". יחד עם הדהייה בתחתית */
+function earnMoreUpdate() {
+  const list = document.getElementById('earnList');
+  const btn = document.getElementById('earnMore');
+  if (!list || !btn) return;
+  const bottom = list.scrollTop + list.clientHeight;
+  const atEnd = bottom >= list.scrollHeight - 2;
+  list.classList.toggle('at-end', atEnd);
+  // שורות שמרכזן מתחת לתחתית החלון (מיקום יחסי לחלון, לא לדף)
+  const lb = list.getBoundingClientRect().bottom;
+  let n = 0;
+  for (const r of list.querySelectorAll('.earn-row')) { const rr = r.getBoundingClientRect(); if (rr.top + rr.height / 2 > lb) n++; }
+  const txt = atEnd ? t('earnTop') : n === 1 ? t('earnMoreOne') : t('earnMore', { n: n });
+  const key = (atEnd ? 'top' : 'down') + '|' + txt;
+  if (btn._key === key) return;
+  btn._key = key;
+  btn.classList.toggle('up', atEnd);
+  btn.innerHTML = '<span>' + esc(txt) + '</span><svg class="earn-more-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
 }
 
 /* v222: הוספת דוח ליומן — גיליון תחתון בסגנון iOS/Android: Google Calendar בנגיעה, או קובץ .ics לכל יומן אחר

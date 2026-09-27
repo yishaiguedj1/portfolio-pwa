@@ -753,6 +753,13 @@ footer.fine { text-align: center; }
 .earn-list.earn-scroll::-webkit-scrollbar { display: none; }
 .earn-list.earn-scroll.at-end { -webkit-mask-image: none; mask-image: none; }
 .earn-list.earn-scroll .earn-row { scroll-snap-align: start; }
+/* v224: "עוד N דוחות ⌄" — גלולה קטנה וממורכזת מתחת לחלון (בסוף: "חזרה למעלה ⌃") */
+.earn-more { display: flex; align-items: center; gap: 4px; margin: 8px auto 0; padding: 6px 14px; border: 0; border-radius: var(--pill); background: var(--surface-2); color: var(--on-surface); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.earn-more.hidden { display: none; }
+.earn-more:active { transform: scale(.97); }
+.earn-more-ic { width: 16px; height: 16px; color: var(--primary); transition: transform .2s ease; }
+.earn-more.up .earn-more-ic { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .earn-more-ic { transition: none; } }
 .earn-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; position: relative; }
 .earn-row + .earn-row::before { content: ""; position: absolute; top: 0; inset-inline-start: 52px; inset-inline-end: 0; height: 1px; background: var(--separator); }
 .earn-row .stock-logo { width: 40px; height: 40px; border-radius: var(--radius-xs); }
