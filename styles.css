@@ -903,7 +903,9 @@ footer.fine { text-align: center; }
 .demo-card h2 { justify-content: center; }
 .demo-card-icon { font-size: 34px; line-height: 1; margin-bottom: 4px; }
 .demo-card .fine { margin: 6px auto 14px; max-width: 34em; }
-.demo-btn { font-size: 17px; padding: 12px 26px; }
+.demo-card h2 { margin-bottom: 0; }
+/* v218: בלי טקסט הסבר (בקשת המשתמש) — כפתור גלולה רחב וממורכז עם הילה ירוקה עדינה, כמו כפתור ראשי אצלנו */
+.demo-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 220px; margin-top: 16px; font-size: 17px; padding: 14px 30px; border-radius: var(--pill); box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 32%, transparent); }
 .demo-banner { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; font-weight: 600; font-size: 15px; background: color-mix(in srgb, var(--primary) 16%, var(--surface)); color: var(--on-surface); border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--card-border)); }
 .demo-banner.hidden, .demo-card.hidden { display: none; }
 .reset-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--card-border); }

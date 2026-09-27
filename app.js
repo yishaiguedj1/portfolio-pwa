@@ -444,8 +444,7 @@ he: {
   resetIbkrDone: 'נתוני IBKR נמחקו — אפשר לסנכרן מחדש מההגדרות',
   resetIbkrNone: 'אין נתוני IBKR למחיקה',
   demoTitle: 'רוצה לראות את האפליקציה במלואה?',
-  demoDesc: 'טוענים תיק דמו מלא בלחיצה אחת: העתק של תיק המניות של וורן באפט (ברקשייר האת׳וויי) ב־6 השנים האחרונות — כל קנייה ומכירה לפי הדוחות הרבעוניים שלו, במחירי שוק אמיתיים ובסכומים של תיק פרטי. ועוד: 3 מניות ומדד מת״א, הפקדות ומשיכות, מזומן ופנסיה. הנתונים שלך לא נמחקים — הם מחכים לך ביציאה מהדמו.',
-  demoBtn: '✨ טען תיק דמו',
+  demoBtn: 'טען תיק דמו',
   demoConfirm: 'לטעון תיק דמו?\nהנתונים שלך נשמרים בצד וחוזרים ביציאה מהדמו. שינויים בזמן הדמו לא נשמרים בענן.',
   demoBuilding: 'בונה תיק דמו ממחירי שוק אמיתיים…',
   demoReady: 'תיק הדמו מוכן — סיור נעים!',
@@ -949,8 +948,7 @@ en: {
   resetIbkrDone: 'IBKR data deleted — you can sync again from Settings',
   resetIbkrNone: 'No IBKR data to delete',
   demoTitle: 'Want to see the full app?',
-  demoDesc: 'Load a complete demo portfolio in one tap: a copy of Warren Buffett’s stock portfolio (Berkshire Hathaway) over the last 6 years — every buy and sell following his quarterly filings, at real market prices, scaled to a private portfolio. Plus 3 Tel Aviv stocks and an index, deposits and withdrawals, cash and pension. Your data is not deleted — it’s waiting for you when you exit the demo.',
-  demoBtn: '✨ Load demo portfolio',
+  demoBtn: 'Load demo portfolio',
   demoConfirm: 'Load a demo portfolio?\nYour data is set aside and comes back when you exit the demo. Changes during the demo are not saved to the cloud.',
   demoBuilding: 'Building a demo portfolio from real market prices…',
   demoReady: 'Demo portfolio ready — enjoy the tour!',
@@ -3932,7 +3930,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v217';
+const APP_VERSION = 'v218';
 
 
 function saveDBto(db) {
