@@ -904,6 +904,10 @@ footer.fine { text-align: center; }
   border: 0; box-shadow: none;
   color: var(--on-surface-var);
 }
+/* v225: שתי בועות שער (אירו מימין, דולר משמאל) — באותו רוחב, יחד ברוחב שורת הכפתורים שמעליהן */
+.fx-pills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-self: stretch; }
+.appbar-left > .appbar-actions { align-self: stretch; justify-content: space-between; } /* v225: שורת הכפתורים ברוחב שתי הבועות — הקצוות מיושרים */
+.fx-pills .fx-pill { min-width: 0; padding: 4px 8px; }
 .fx-pill-label { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; white-space: nowrap; line-height: 1.25; }
 .fx-pill-label .ext-dot { width: 6px; height: 6px; }
 .fx-pill-label .ext-dot.pos { color: var(--gain); }

@@ -258,6 +258,7 @@ he: {
   hdChristmas: 'חג המולד',
   staleSuffix: ' · מוצגים נתונים שמורים',
   fxSource: 'שער חליפין',
+  eurRateLabel: 'שער האירו',
   fxRateLabel: 'שער הדולר',
   fxUpd: 'עודכן {time}',
   noPriceConn: 'אין חיבור למקור המחירים — מוצגים נתונים אחרונים מ־{time}.',
@@ -758,6 +759,7 @@ en: {
   hdChristmas: 'Christmas',
   staleSuffix: ' · showing saved data',
   fxSource: 'Exchange rate',
+  eurRateLabel: 'EUR rate',
   fxRateLabel: 'USD rate',
   fxUpd: 'updated {time}',
   noPriceConn: 'No connection to the price source — showing last data from {time}.',
@@ -3814,7 +3816,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v224';
+const APP_VERSION = 'v225';
 
 
 function saveDBto(db) {
@@ -4750,28 +4752,42 @@ function fxMarketOpen(nowMs) {
     return true;
   } catch (e) { return true; }
 }
-/* v207: נקודת שער הדולר — מהבהבת ירוק/אדום לפי כיוון היום כשיש מסחר, אפורה קבועה כשאין */
+/* v207: נקודת שער הדולר — מהבהבת ירוק/אדום לפי כיוון היום כשיש מסחר, אפורה קבועה כשאין. v225: גם לאירו */
 function paintFxDot() {
-  const dot = document.getElementById('fxDot');
-  if (!dot) return;
   const open = fxMarketOpen();
-  const dir = state.fx > 0 && state.fxPrev > 0 ? (state.fx >= state.fxPrev ? 'pos' : 'neg') : '';
-  dot.className = 'ext-dot' + (open ? (dir ? ' ' + dir : '') : ' off');
+  for (const [id, v, pv] of [['fxDot', state.fx, state.fxPrev], ['eurDot', state.eur, state.eurPrev]]) {
+    const dot = document.getElementById(id);
+    if (!dot) continue;
+    const dir = v > 0 && pv > 0 ? (v >= pv ? 'pos' : 'neg') : '';
+    dot.className = 'ext-dot' + (open ? (dir ? ' ' + dir : '') : ' off');
+  }
 }
 
-/* v196: ציור בועת שער הדולר בהדר — המספר מתגלגל ספרה־ספרה (אותו livePriceSwap של המניות) כשהשער זז */
-function paintFxPill(changed) {
-  try { paintFxDot(); } catch (e) {}
-  const v = document.getElementById('fxPillValue');
+/* v196: ציור בועת שער בהדר — המספר מתגלגל ספרה־ספרה (אותו livePriceSwap של המניות) כשהשער זז */
+function paintRatePill(valueId, rate, changed) {
+  const v = document.getElementById(valueId);
   if (!v) return;
   let num = v.querySelector('.fx-num');
   if (!num) { v.innerHTML = '<span class="fx-cur">₪</span><span class="fx-num" dir="ltr" data-px="0">—</span>'; num = v.querySelector('.fx-num'); }
-  if (!(state.fx > 0)) { num.textContent = '—'; num.dataset.px = '0'; return; }
+  if (!(rate > 0)) { num.textContent = '—'; num.dataset.px = '0'; return; }
   const fresh = el('span');
-  fresh.dataset.px = String(state.fx);
-  fresh.textContent = state.fx.toFixed(2);
+  fresh.dataset.px = String(rate);
+  fresh.textContent = rate.toFixed(2);
   if (num.textContent === '—' || !changed) { num.dataset.px = fresh.dataset.px; num.textContent = fresh.textContent; return; }
   livePriceSwap(num, fresh);
+}
+function paintFxPill(changed) {
+  try { paintFxDot(); } catch (e) {}
+  paintRatePill('fxPillValue', state.fx, changed);
+}
+/* v225: שער האירו — מגיע עם המחירים (EURILS=X באותה בקשה לשרתון), תצוגה בלבד (החישובים בדולרים/שקלים לא משתנים) */
+function applyLiveEur(q) {
+  if (!q || !(q.close > 0)) return;
+  if (q.prev > 0) state.eurPrev = q.prev;
+  const moved = q.close !== state.eur;
+  state.eur = q.close;
+  try { paintFxDot(); } catch (e) {}
+  paintRatePill('eurPillValue', state.eur, moved);
 }
 
 /* v196: השער בזמן אמת — מגיע עם המחירים בטיק המלא של הלולאה החיה (USDILS=X באותה בקשה לשרתון) */
@@ -4944,7 +4960,7 @@ async function proxyQuotes(syms, ms) {
 async function liveFetch(syms) {
   let out = {};
   try { out = await proxyQuotes(syms); } catch (e) { out = {}; }
-  const rest = syms.filter((s) => !out[s] && s !== FX_SYM); // v196: שער חסר — לא ישירות מ־Yahoo (CORS בטלפון היה נספר ככשל)
+  const rest = syms.filter((s) => !out[s] && s !== FX_SYM && s !== EUR_SYM); // v196: שער חסר — לא ישירות מ־Yahoo (CORS בטלפון היה נספר ככשל)
   if (!rest.length || yahooCooling()) return out;
   const res = await pool(rest, 3, async (sym) => {
     try { return parseYahooQuote(await fetchJSONTimeout(yahooQuoteURL(sym), 8000), sym); } catch (e) { return null; }
@@ -5025,8 +5041,9 @@ async function liveTick() {
       try {
         let src = 'Yahoo';
         const wasCooling = yahooCooling();
-        let got = await liveFetch(full ? syms.concat([FX_SYM]) : syms); // v196: שער הדולר באותו טיק
+        let got = await liveFetch(full ? syms.concat([FX_SYM, EUR_SYM]) : syms); // v196/v225: שער הדולר והאירו באותו טיק
         if (got[FX_SYM]) { const fxq = got[FX_SYM]; delete got[FX_SYM]; if (fxq.close > 0) applyLiveFx(fxq.close, fxq.prev); }
+        if (got[EUR_SYM]) { const eq = got[EUR_SYM]; delete got[EUR_SYM]; applyLiveEur(eq); }
         // מחירים חזרו (ישירות או דרך השרתון) ויש מניות בלי היסטוריה — משלימים גרפים (לכל היותר פעם בשתי דקות)
         const lacking = quoteSymbols().some((x) => isChartableSym(x) && !(state.hist[x] || []).length);
         if (Object.keys(got).length && ((wasCooling && !yahooCooling()) || lacking) && Date.now() - (live.lastRecover || 0) > 120000) {
@@ -5173,10 +5190,13 @@ function updateSourceLabel() {
 }
 
 const FX_SYM = 'USDILS=X';
+const EUR_SYM = 'EURILS=X'; // v225: שער האירו לבועה בהדר
 async function tryYahooQuotes() {
-  // v193: שער הדולר באותה בקשה לשרתון (USDILS=X) — חוסך סבב רשת שלם בטעינה; tryFx רק אם חסר
-  const q = await liveFetch(quoteSymbols().concat([FX_SYM])); // v164: שרתון בבקשה אחת, ישירות רק כגיבוי
+  // v193: שער הדולר באותה בקשה לשרתון (USDILS=X) — חוסך סבב רשת שלם בטעינה; tryFx רק אם חסר. v225: גם האירו
+  const q = await liveFetch(quoteSymbols().concat([FX_SYM, EUR_SYM])); // v164: שרתון בבקשה אחת, ישירות רק כגיבוי
   const fxq = q[FX_SYM]; delete q[FX_SYM];
+  const eq = q[EUR_SYM]; delete q[EUR_SYM];
+  if (eq) { try { applyLiveEur(eq); } catch (e) {} }
   const results = Object.values(q);
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
   if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
