@@ -33,6 +33,24 @@
             </intent-filter>
         </activity>
 
+        <!-- רשימת המניות מהאתר לווידג'ט (intent://widget?s=…#Intent;scheme=snowball;…) — בלי מסך -->
+        <activity
+            android:name=".WidgetSyncActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="snowball" android:host="widget" />
+            </intent-filter>
+        </activity>
+
+        <receiver android:name=".TickReceiver" android:exported="false" />
+
         <!-- הווידג'ט למסך הבית (Glance) -->
         <receiver
             android:name=".SnowballWidgetReceiver"

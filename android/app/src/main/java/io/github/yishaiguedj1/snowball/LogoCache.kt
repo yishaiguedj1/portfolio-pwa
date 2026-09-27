@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -26,24 +25,29 @@ object LogoCache {
     private const val LOGO_PX = 96
     private const val MAX_AGE_MS = 7L * 24 * 3600 * 1000
 
-    suspend fun load(context: Context, rows: List<WidgetRow>): Map<String, Bitmap> = coroutineScope {
+    /** מוריד לקבצים את מה שחסר/ישן (במקביל) — ברענון, לפני הציור */
+    suspend fun warm(context: Context, rows: List<WidgetRow>) = coroutineScope {
         rows.filter { it.logoUrl != null }.map { row ->
-            async(Dispatchers.IO) { row.sym to runCatching { one(context, row.sym, row.logoUrl!!) }.getOrNull() }
-        }.awaitAll().mapNotNull { (s, b) -> b?.let { s to it } }.toMap()
+            async(Dispatchers.IO) { runCatching { one(context, row.sym, row.logoUrl!!) } }
+        }.awaitAll()
+        Unit
     }
 
-    private suspend fun one(context: Context, sym: String, url: String): Bitmap? = withContext(Dispatchers.IO) {
-        val dir = File(context.cacheDir, "logos").apply { mkdirs() }
-        val f = File(dir, sym.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".png")
-        val fresh = f.exists() && System.currentTimeMillis() - f.lastModified() < MAX_AGE_MS
-        if (!fresh) {
-            val bytes = fetch(url)
-            if (bytes != null) {
-                val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                if (raw != null) f.outputStream().use { prep(raw).compress(Bitmap.CompressFormat.PNG, 100, it) }
-            }
-        }
+    /** הלוגו השמור (או null → האות הראשונה). SVG (לוגואים של ת״א ב־TradingView) לא מפוענח — אות */
+    fun bitmap(context: Context, sym: String): Bitmap? = runCatching {
+        val f = file(context, sym)
         if (f.exists()) BitmapFactory.decodeFile(f.path) else null
+    }.getOrNull()
+
+    private fun file(context: Context, sym: String) =
+        File(File(context.cacheDir, "logos").apply { mkdirs() }, sym.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".png")
+
+    private fun one(context: Context, sym: String, url: String) {
+        val f = file(context, sym)
+        if (f.exists() && System.currentTimeMillis() - f.lastModified() < MAX_AGE_MS) return
+        val bytes = fetch(url) ?: return
+        val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
+        f.outputStream().use { prep(raw).compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     private fun fetch(url: String): ByteArray? {

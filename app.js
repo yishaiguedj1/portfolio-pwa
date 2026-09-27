@@ -315,7 +315,7 @@ he: {
   widgetTitle: 'ווידג׳ט למסך הבית', widgetDesc: 'כל המניות בתיק, מהגדולה לקטנה, בעיצוב של הכרטיסים. מתעדכן בערך פעם בדקה, נגיעה פותחת את האפליקציה.',
   widgetEmpty: 'אין עדיין מניות בתיק.',
   widgetChanged: 'המניות בתיק או ההגדרות השתנו מאז ההורדה האחרונה — הורד שוב וטען בווידג׳ט.',
-  widgetDownloadBtn: 'הורדה ל־KWGT', widgetCopyBtn: 'העתקת קישור', widgetHowTitle: 'איך מתקינים',
+  widgetDownloadBtn: 'הורדה ל־KWGT', widgetCopyBtn: 'העתקת קישור', widgetAppSyncBtn: 'סנכרון לווידג׳ט', widgetAppSynced: 'רשימת המניות נשלחה לווידג׳ט', widgetHowTitle: 'איך מתקינים',
   widgetStep1: 'מתקינים את KWGT מחנות Play (ייתכן שלטעינת קובץ נדרש KWGT Pro).',
   widgetStep2: 'לוחצים "הורדה ל־KWGT" ופותחים את הקובץ מההורדות עם KWGT.',
   widgetStep3: 'לחיצה ארוכה על מסך הבית ← ווידג׳טים ← KWGT ← נוגעים בווידג׳ט ובוחרים את THE SNOWBALL. מותחים אותו לגודל הרצוי — עד מסך מלא.',
@@ -822,7 +822,7 @@ en: {
   widgetTitle: 'Home-screen widget', widgetDesc: 'All the stocks in your portfolio, largest first, in the card design. Refreshes about once a minute; tap opens the app.',
   widgetEmpty: 'No stocks in your portfolio yet.',
   widgetChanged: 'Your holdings or settings changed since the last download — download again and reload the widget.',
-  widgetDownloadBtn: 'Download for KWGT', widgetCopyBtn: 'Copy link', widgetHowTitle: 'How to install',
+  widgetDownloadBtn: 'Download for KWGT', widgetCopyBtn: 'Copy link', widgetAppSyncBtn: 'Sync to widget', widgetAppSynced: 'Stock list sent to the widget', widgetHowTitle: 'How to install',
   widgetStep1: 'Install KWGT from the Play Store (loading a file may require KWGT Pro).',
   widgetStep2: 'Tap "Download for KWGT" and open the file from Downloads with KWGT.',
   widgetStep3: 'Long-press the home screen → Widgets → KWGT → tap the widget and pick THE SNOWBALL. Stretch it to the size you want — up to full screen.',
@@ -3936,7 +3936,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v213';
+const APP_VERSION = 'v214';
 
 
 function saveDBto(db) {
@@ -9771,12 +9771,23 @@ function widgetPreset(url, items) {
 /* v213: קישור עמוק מהווידג'ט — ‎#stock=SYM → טאב המניות, הכרטיס של המניה פתוח וגלול לראש המסך.
    גם בהפעלה וגם כשהאפליקציה כבר פתוחה (hashchange). ה־hash נמחק מיד (רענון לא יפתח שוב). */
 function openStockFromHash() {
+  appSessionFromHash();
   let m = null;
   try { m = /(?:^#|&)stock=([^&#]+)/.exec(location.hash || ''); } catch (e) {}
   if (!m) return false;
   const sym = normalizeSym(decodeURIComponent(m[1]));
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-  if (!sym || !POSITIONS.some((p) => p.sym === sym)) return false;
+  if (!sym) return false;
+  // v214: בפתיחה קרה מהווידג'ט התיק עוד נטען (ענן) — מחכים עד 8 שניות לפני שמוותרים
+  const start = Date.now();
+  const whenHeld = () => {
+    if (POSITIONS.some((p) => p.sym === sym)) return openStockCard(sym);
+    if (Date.now() - start < 8000) setTimeout(whenHeld, 250);
+  };
+  whenHeld();
+  return true;
+}
+function openStockCard(sym) {
   switchTab('stocks');
   cancelScrollRestore();
   const go = (tries) => {
@@ -9794,7 +9805,45 @@ function openStockFromHash() {
     }, wasOpen ? 0 : 480);
   };
   go(0);
+}
+/* v214: אפליקציית האנדרואיד (THE SNOWBALL.apk) פותחת את האתר עם ‎#app=<חתימה> — חתימת רשימת המניות שהווידג'ט
+   הנייטיב כבר מכיר ("0" = ריק). כשהתיק שונה, בנגיעה הבאה (Chrome פותח אפליקציה רק אחרי נגיעה של המשתמש) שולחים
+   את הרשימה: intent://widget?s=… → WidgetSyncActivity (בלי מסך). אותו פורמט של קישור ה־KWGT — בלי כמויות/שווי.
+   החתימה = String.hashCode של Java על "s|l" (WidgetStore.sig) — חייבות להיות זהות. */
+const APP_PKG = 'io.github.yishaiguedj1.snowball';
+const SS_APPSIG = 'pwa_app_widget_sig';
+function javaHash36(str) { let h = 0; for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
+function appSessionFromHash() {
+  let m = null;
+  try { m = /(?:^#|&)app=([0-9a-z]{1,16})/.exec(location.hash || ''); } catch (e) {}
+  if (!m) return;
+  try { sessionStorage.setItem(SS_APPSIG, m[1]); } catch (e) {}
+  // מנקים רק את ‎app= (‎stock= מטופל ב־openStockFromHash)
+  const rest = String(location.hash || '').replace(/^#/, '').split('&').filter((x) => x && !/^app=/.test(x)).join('&');
+  try { history.replaceState(null, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
+  try { renderWidgetCard(); } catch (e) {}
+}
+function inAndroidApp() { try { return !!sessionStorage.getItem(SS_APPSIG); } catch (e) { return false; } }
+function appWidgetPayload() {
+  const items = widgetItems();
+  if (!items.length) return null;
+  const s = widgetParam(items), l = state.lang === 'en' ? 'en' : 'he';
+  return { s, l, sig: javaHash36(s + '|' + l) };
+}
+function appWidgetSync(force) {
+  if (!inAndroidApp()) return false;
+  const pl = appWidgetPayload();
+  if (!pl) return false;
+  let known = '';
+  try { known = sessionStorage.getItem(SS_APPSIG) || ''; } catch (e) {}
+  if (!force && known === pl.sig) return false;
+  try { sessionStorage.setItem(SS_APPSIG, pl.sig); } catch (e) {}
+  location.href = 'intent://widget?s=' + encodeURIComponent(pl.s) + '&l=' + pl.l + '#Intent;scheme=snowball;package=' + APP_PKG + ';end';
   return true;
+}
+function wireAppWidgetSync() {
+  // כל נגיעה בודקת (זול: השוואת מחרוזת) — שליחה רק כשהתיק/השפה השתנו מאז מה שהווידג'ט מכיר
+  document.addEventListener('click', () => { try { appWidgetSync(false); } catch (e) {} }, true);
 }
 /* zip מינימלי (בלי דחיסה) — מספיק ל־.kwgt. טהור: [{name, data:Uint8Array}] → Uint8Array */
 const _crcTable = (() => { const t = new Uint32Array(256); for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[i] = c >>> 0; } return t; })();
@@ -9835,6 +9884,8 @@ function renderWidgetCard() {
   if (td) td.classList.toggle('active', c.theme === 'dark');
   const has = items.length > 0;
   for (const id of ['widgetDownload', 'widgetCopy']) { const b = document.getElementById(id); if (b) b.disabled = !has; }
+  const as = document.getElementById('widgetAppSync'); // v214: רק בתוך אפליקציית האנדרואיד
+  if (as) { as.classList.toggle('hidden', !inAndroidApp()); as.disabled = !has; }
   const sig = widgetParam(items) + '|' + c.theme + '|' + state.lang;
   const ch = document.getElementById('widgetChanged');
   if (ch) ch.classList.toggle('hidden', !c.sig || c.sig === sig || !has);
@@ -9889,6 +9940,7 @@ function wireWidgetCard() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
   on('widgetDownload', () => { widgetDownload().catch(() => flash(t('widgetCopyFail'))); });
   on('widgetCopy', () => { widgetCopy(); });
+  on('widgetAppSync', () => { if (appWidgetSync(true)) flash(t('widgetAppSynced')); });
   on('widgetThemeLight', () => { widgetSave({ theme: 'light' }); renderWidgetCard(); });
   on('widgetThemeDark', () => { widgetSave({ theme: 'dark' }); renderWidgetCard(); });
 }
@@ -10035,6 +10087,7 @@ function init() {
     });
   }
 
+  try { appSessionFromHash(); wireAppWidgetSync(); } catch (e) {} // v214: ווידג'ט אפליקציית האנדרואיד
   try { wireWidgetCard(); } catch (e) {} // v211: ווידג'ט למסך הבית
   // v213: נגיעה בכרטיס בווידג'ט → המניה באפליקציה (קישור ‎#stock=SYM) — אחרי הציור הראשון, וגם כשהאפליקציה כבר פתוחה
   try { window.addEventListener('hashchange', () => { try { openStockFromHash(); } catch (e) {} }); setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0); } catch (e) {}

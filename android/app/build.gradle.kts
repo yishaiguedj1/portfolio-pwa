@@ -49,4 +49,5 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 dependencies {
     implementation("com.google.androidbrowserhelper:androidbrowserhelper:2.7.3")
     implementation("androidx.glance:glance-appwidget:1.2.0")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 }

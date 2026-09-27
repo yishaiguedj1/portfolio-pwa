@@ -1,5 +1,6 @@
 package io.github.yishaiguedj1.snowball
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -44,6 +45,7 @@ import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider as GColor
 import java.time.Instant
@@ -58,28 +60,38 @@ import java.time.format.DateTimeFormatter
 class SnowballWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val model = SampleData.model()
-        val logos = LogoCache.load(context, model.rows)
         provideContent {
-            val t = currentState<Preferences>()[KEY_UPDATED] ?: System.currentTimeMillis()
-            Content(context, model, logos, t)
+            currentState<Preferences>()[KEY_STAMP] // קריאה = ציור מחדש בכל רענון (WidgetRefresh.repaint)
+            val model = WidgetModel.parse(WidgetStore.model(context))
+            val logos = model?.rows?.associate { it.sym to LogoCache.bitmap(context, it.sym) } ?: emptyMap()
+            Content(context, model, logos, WidgetStore.updated(context))
         }
     }
 
     companion object {
-        val KEY_UPDATED = longPreferencesKey("updated")
+        val KEY_STAMP = longPreferencesKey("stamp")
     }
 }
 
 class SnowballWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SnowballWidget()
+
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        WidgetRefresh.ensurePeriodic(context)
+        WidgetRefresh.now(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        WidgetRefresh.stopAll(context)
+    }
 }
 
-/** ↻ — רענון מיידי (בשלב 2: רק זמן העדכון; בשלב 3 גם מחירים) */
+/** ↻ — רענון מיידי מהשרתון */
 class RefreshAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        updateAppWidgetState(context, glanceId) { it[SnowballWidget.KEY_UPDATED] = System.currentTimeMillis() }
-        SnowballWidget().update(context, glanceId)
+        WidgetRefresh.now(context)
     }
 }
 
@@ -110,9 +122,22 @@ private fun stockIntent(context: Context, sym: String): Intent =
         .setClass(context, MainActivity::class.java)
 
 @Composable
-private fun Content(context: Context, model: WidgetModel, logos: Map<String, Bitmap>, updated: Long) {
+private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bitmap?>, updated: Long) {
     Column(GlanceModifier.fillMaxSize().background(C.w).cornerRadius(28.dp)) {
-        Header(context, model.header, updated)
+        Header(context, model?.header, updated)
+        if (model == null || model.rows.isEmpty()) {
+            // עוד לא הגיעה רשימה מהאפליקציה (או שהשרתון לא ענה בפעם הראשונה)
+            Box(
+                GlanceModifier.fillMaxWidth().defaultWeight().padding(16.dp).clickable(actionStartActivity<MainActivity>()),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    context.getString(if (WidgetStore.items(context).isEmpty()) R.string.wEmpty else R.string.wLoading),
+                    style = TextStyle(color = C.variant, fontSize = 14.sp, textAlign = TextAlign.Center),
+                )
+            }
+            return@Column
+        }
         LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
             items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
                 Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, row, logos[row.sym]) }
@@ -122,8 +147,8 @@ private fun Content(context: Context, model: WidgetModel, logos: Map<String, Bit
 }
 
 @Composable
-private fun Header(context: Context, h: WidgetHeader, updated: Long) {
-    val time = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(updated))
+private fun Header(context: Context, h: WidgetHeader?, updated: Long) {
+    val time = if (updated <= 0L) "—" else DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(updated))
     Box(GlanceModifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
         Column(GlanceModifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
             Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -134,7 +159,7 @@ private fun Header(context: Context, h: WidgetHeader, updated: Long) {
                 Spacer(GlanceModifier.width(6.dp))
                 Text(context.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 11.5.sp), maxLines = 1)
                 Spacer(GlanceModifier.defaultWeight())
-                Row(
+                if (h != null && h.lines.isNotEmpty()) Row(
                     GlanceModifier.cornerRadius(12.dp).background(C.pill).padding(start = 9.dp, end = 9.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

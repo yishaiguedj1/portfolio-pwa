@@ -1,8 +1,11 @@
 package io.github.yishaiguedj1.snowball
 
+import android.content.Context
+import org.json.JSONObject
+
 /**
- * מה שהווידג'ט מציג — שורה מוכנה לתצוגה (הטקסטים כבר מעוצבים, כמו המודל של השרתון ב־lib/widget-model.js).
- * שלב 2: נתוני דוגמה קבועים (מחירים מתיק הדמו, לא התיק של המשתמש). שלב 3: סנכרון מהאפליקציה + מחירים מהשרתון.
+ * מה שהווידג'ט מציג — המודל שהשרתון בונה (`/api/widget?format=json`, lib/widget-model.js): אותו חישוב של
+ * השינוי היומי, אחרי־המסחר, האגורות בת״א ולוח החגים כמו בתמונת ה־KWGT ובאפליקציה. הטקסטים מגיעים מוכנים.
  */
 enum class Dir { POS, NEG, FLAT }
 enum class Src { IBKR, MANUAL }
@@ -12,37 +15,81 @@ data class WidgetRow(
     val disp: String,         // מה שמוצג (בלי .TA)
     val name: String,
     val price: String,
-    val chg: String,          // "+$5.15 (+1.53%)" — מבודד LTR בתצוגה
+    val chg: String,
     val dir: Dir,
     val sub: String,          // "אחרי־מסחר" / "סגור · סופ״ש"
     val subPct: String,
     val subDir: Dir,
     val src: Src,
     val logoUrl: String?,
+    val active: Boolean,      // המחיר זז עכשיו (מסחר רגיל / טרום / אחרי / לילי) → רענון כל דקה
 )
 
 data class WidgetHeader(val lines: List<String>, val live: Boolean)
 
-data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>)
+data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>) {
+    companion object {
+        private fun dir(s: String?) = when (s) { "pos" -> Dir.POS; "neg" -> Dir.NEG; else -> Dir.FLAT }
 
-object SampleData {
-    private const val M = "−" // מינוס אמיתי, כמו באפליקציה
-    private fun fmp(s: String) = "https://financialmodelingprep.com/image-stock/$s.png"
-    private fun r(sym: String, name: String, price: String, chg: String, dir: Dir, sub: String, subPct: String, subDir: Dir, src: Src = Src.IBKR) =
-        WidgetRow(sym, sym.removeSuffix(".TA"), name, price, chg, dir, sub, subPct, subDir, src, fmp(sym))
+        /** JSON של השרתון ({ok, model}) או המודל עצמו → WidgetModel; קלט פגום → null */
+        fun parse(json: String?): WidgetModel? = runCatching {
+            val root = JSONObject(json ?: return null)
+            val m = root.optJSONObject("model") ?: root
+            val h = m.getJSONObject("header")
+            val lines = h.optJSONArray("lines")
+            val header = WidgetHeader(List(lines?.length() ?: 0) { lines!!.optString(it) }.filter { it.isNotEmpty() }, h.optBoolean("live"))
+            val cards = m.getJSONArray("cards")
+            val rows = List(cards.length()) { i ->
+                val c = cards.getJSONObject(i)
+                val q = c.optJSONObject("q")
+                val session = q?.optString("session") ?: "closed"
+                WidgetRow(
+                    sym = c.getString("sym"),
+                    disp = c.optString("disp", c.getString("sym")),
+                    name = c.optString("name"),
+                    price = c.optString("price"),
+                    chg = c.optString("chg"),
+                    dir = dir(c.optString("dir")),
+                    sub = c.optString("sub"),
+                    subPct = c.optString("subPct"),
+                    subDir = dir(c.optString("subDir")),
+                    src = if (c.optString("src") == "ibkr") Src.IBKR else Src.MANUAL,
+                    logoUrl = c.optString("logo").takeIf { it.startsWith("https://") },
+                    active = session != "closed" && session.isNotEmpty(),
+                )
+            }
+            WidgetModel(header, rows)
+        }.getOrNull()
+    }
+}
 
-    fun model(): WidgetModel = WidgetModel(
-        WidgetHeader(listOf("השוק סגור · סופ״ש"), live = false),
-        listOf(
-            r("AAPL", "Apple", "$341.46", "+$5.15 (+1.53%)", Dir.POS, "אחרי־מסחר", "+0.11%", Dir.POS),
-            r("AXP", "American Express", "$309.10", "+$3.23 (+1.06%)", Dir.POS, "אחרי־מסחר", "+0.07%", Dir.POS),
-            r("BAC", "Bank of America", "$56.75", "+$0.67 (+1.20%)", Dir.POS, "אחרי־מסחר", "+0.08%", Dir.POS),
-            r("KO", "Coca-Cola", "$87.66", "${M}$0.29 (${M}0.33%)", Dir.NEG, "אחרי־מסחר", "${M}0.17%", Dir.NEG),
-            r("CVX", "Chevron", "$204.00", "${M}$1.20 (${M}0.58%)", Dir.NEG, "אחרי־מסחר", "${M}0.22%", Dir.NEG),
-            r("OXY", "Occidental Petroleum", "$56.82", "${M}$1.19 (${M}2.05%)", Dir.NEG, "אחרי־מסחר", "${M}0.07%", Dir.NEG, Src.MANUAL),
-            r("MCO", "Moody's", "$469.23", "+$1.35 (+0.29%)", Dir.POS, "אחרי־מסחר", "+0.11%", Dir.POS),
-            r("UNH", "UnitedHealth", "$351.20", "${M}$2.44 (${M}0.69%)", Dir.NEG, "אחרי־מסחר", "+0.04%", Dir.POS),
-            r("BRK-B", "Berkshire Hathaway", "$505.56", "+$0.30 (+0.06%)", Dir.POS, "אחרי־מסחר", "+0.02%", Dir.POS),
-        ),
-    )
+/**
+ * מה שנשמר בטלפון: רשימת המניות שהאפליקציה שלחה (סימבול~מקור~שם[~לוגו ת״א] — בלי כמויות/שווי, כמו קישור ה־KWGT),
+ * השפה, והמודל האחרון מהשרתון (כדי שהווידג'ט יוצג מיד גם בלי רשת).
+ */
+object WidgetStore {
+    private const val PREFS = "snowball_widget"
+    const val PROXY = "https://ibkr-proxy-wine.vercel.app"
+    private val ITEMS_RE = Regex("^[^<>\"]{1,3000}$")
+
+    private fun p(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun items(c: Context): String = p(c).getString("s", "") ?: ""
+    fun lang(c: Context): String = p(c).getString("l", "he") ?: "he"
+    fun model(c: Context): String? = p(c).getString("model", null)
+    fun updated(c: Context): Long = p(c).getLong("t", 0L)
+
+    /** מהאפליקציה (snowball://widget?s=…&l=…). מחזיר true אם הרשימה השתנתה */
+    fun setItems(c: Context, s: String, l: String): Boolean {
+        if (!ITEMS_RE.matches(s)) return false
+        val lang = if (l == "en") "en" else "he"
+        if (s == items(c) && lang == lang(c)) return false
+        p(c).edit().putString("s", s).putString("l", lang).remove("model").apply()
+        return true
+    }
+
+    fun saveModel(c: Context, json: String, t: Long) { p(c).edit().putString("model", json).putLong("t", t).apply() }
+
+    /** חתימת הרשימה — האפליקציה משווה אליה (‎#app=…) ומסנכרנת רק כשיש הבדל. זהה ל־String.hashCode ב־JS של app.js */
+    fun sig(c: Context): String = if (items(c).isEmpty()) "0" else (items(c) + "|" + lang(c)).hashCode().toUInt().toString(36)
 }

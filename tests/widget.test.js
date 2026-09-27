@@ -110,7 +110,18 @@ R("var __sw = null, __opened = []; switchTab = (n) => { __sw = n; }; toggleStock
 R("location.hash = '#stock=LUMI.TA'; document.querySelector = (q) => (/data-sym=\"LUMI\.TA\"/.test(q) ? { getBoundingClientRect: () => ({ top: 500, height: 50 }) } : null); window.scrollTo = () => {}; window.scrollY = 0;");
 ok(R('openStockFromHash()') === true && R('__sw') === 'stocks' && R('__opened.join()') === 'LUMI.TA' && R('location.hash') === '', '#stock=SYM → טאב מניות, הכרטיס נפתח, ה־hash נמחק');
 R("location.hash = '#stock=NOPE'; __sw = null;");
-ok(R('openStockFromHash()') === false && R('__sw') === null, 'מניה שלא בתיק — לא עוברים טאב');
+ok(R('__sw') === null && (R('openStockFromHash()'), R('__sw')) === null, 'מניה שלא בתיק — לא עוברים טאב (v214: מחכים עד 8 שניות לטעינת התיק)');
+// v214: ווידג'ט אפליקציית האנדרואיד — חתימה זהה ל־Java String.hashCode, ‎#app= מזהה את האפליקציה, שליחת רשימה ב־intent
+ok(R("javaHash36('hello')") === (99162322).toString(36) && R("javaHash36('')") === '0' && R("javaHash36('AAPL~i~Apple|he')") === ((() => { let h = 0; for (const ch of 'AAPL~i~Apple|he') h = (Math.imul(31, h) + ch.charCodeAt(0)) | 0; return (h >>> 0).toString(36); })()), 'חתימה = String.hashCode של Java (בסיס 36, בלי סימן)');
+R("globalThis.__ss = {}; globalThis.sessionStorage = { getItem: (k) => (k in __ss ? __ss[k] : null), setItem: (k, v) => { __ss[k] = String(v); } };");
+R("location.hash = ''; location.href = '';");
+ok(R('inAndroidApp()') === false && R('appWidgetSync(true)') === false && R('location.href') === '', 'בדפדפן רגיל (בלי ‎#app=) — לא שולחים intent');
+R("location.hash = '#app=0'; appSessionFromHash();");
+ok(R('inAndroidApp()') === true && R('location.hash') === '', '‎#app= מזהה את האפליקציה ונמחק מהכתובת');
+ok(R('appWidgetSync(false)') === true && /^intent:\/\/widget\?s=AAPL~[im]~Apple%2CLUMI\.TA~m~.+&l=he#Intent;scheme=snowball;package=io\.github\.yishaiguedj1\.snowball;end$/.test(R('location.href')), 'רשימה שונה מהווידג׳ט → intent עם הרשימה (בלי כמויות)');
+R("location.href = '';");
+ok(R('appWidgetSync(false)') === false && R('location.href') === '', 'אחרי שליחה — לא שולחים שוב עד שהתיק משתנה');
+ok(R('appWidgetSync(true)') === true, 'כפתור "סנכרון לווידג׳ט" שולח תמיד');
 // zip אמיתי — נפתח ב־unzip
 const zipBytes = R("zipStore([{ name: 'preset.json', data: new TextEncoder().encode(JSON.stringify(widgetPreset('https://x/?s=A', [{ sym: 'AAPL' }]))) }, { name: 'preset_thumb_portrait.jpg', data: new Uint8Array([137, 80, 78, 71]) }])");
 const tmp = path.join(require('os').tmpdir(), 'w' + process.pid + '.kwgt');

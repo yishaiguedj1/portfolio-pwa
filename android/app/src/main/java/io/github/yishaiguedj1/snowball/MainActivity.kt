@@ -41,6 +41,7 @@ class MainActivity : Activity() {
     // חזרה מהאתר (כפתור "אחורה") — סוגרים, במקום להשאיר מסך לוגו ריק
     override fun onRestart() {
         super.onRestart()
+        WidgetRefresh.now(this) // חוזרים מהאפליקציה למסך הבית — הווידג'ט מתרענן
         if (launched) finish()
     }
 
@@ -49,10 +50,14 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    /* הכתובת לפתיחה + ‎app=<חתימת רשימת הווידג'ט> ב־hash: האתר יודע שהוא בתוך האפליקציה ומה הווידג'ט כבר מכיר,
+       ומסנכרן רשימה רק כשיש הבדל (app.js → appWidgetSync). hash — לא משנה את הכתובת במטמון של ה־SW */
     private fun urlFor(i: Intent?): Uri {
         val d = i?.data
-        return if (d != null && d.scheme == "https" && d.host == SITE_HOST && (d.path ?: "").startsWith(SITE_PATH)) d
-        else Uri.parse(getString(R.string.launchUrl))
+        val base = if (d != null && d.scheme == "https" && d.host == SITE_HOST && (d.path ?: "").startsWith(SITE_PATH)) d.toString()
+        else getString(R.string.launchUrl)
+        val app = "app=" + WidgetStore.sig(this)
+        return Uri.parse(if (base.contains('#')) "$base&$app" else "$base#$app")
     }
 
     private fun open(url: Uri) {
