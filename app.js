@@ -83,6 +83,7 @@ he: {
   earnInDays: 'בעוד {n} ימים',
   earnBmo: 'לפני הפתיחה',
   earnAmc: 'אחרי הסגירה',
+  earnEst: 'משוער',
   earnDate: 'דוח: {date}',
   ibkrPerfTitle: 'ביצועי IBKR',
   perfPeriod: 'תקופת הדוח: {a}–{b}',
@@ -578,6 +579,7 @@ en: {
   earnInDays: 'in {n} days',
   earnBmo: 'Before open',
   earnAmc: 'After close',
+  earnEst: 'estimated',
   earnDate: 'Earnings: {date}',
   ibkrPerfTitle: 'IBKR Performance',
   perfPeriod: 'Report period: {a}–{b}',
@@ -3802,7 +3804,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v220';
+const APP_VERSION = 'v221';
 
 
 function saveDBto(db) {
@@ -4090,7 +4092,8 @@ function logoIsLight(img) {
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] > 128) { sum += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114; cnt++; }
     }
-    return cnt >= 5 && sum / cnt > 225;
+    // v221: לוגו עם רקע לבן אטום (AAPL ב־FMP) אינו "לוגו לבן" — רק כשלפחות 20% מהתמונה שקוף (כמו בווידג׳ט/בשרתון)
+    return cnt >= 5 && cnt <= w * h * 0.8 && sum / cnt > 225;
   } catch (e) { return false; }
 }
 /* v173: כמו בטאב המניות — לוגו לבן מתהפך לשחור על האריח הלבן (במקום אריח כהה). עותק הפוך בקנבס. */
@@ -6265,21 +6268,27 @@ function renderEarningsCard() {
   for (const sym of Object.keys(state.earnings || {})) {
     const e = state.earnings[sym];
     if (!e || !e.date || daysUntil(e.date) < 0 || !names[sym]) continue; // v220: רק מניות שבתיק/במעקב עכשיו
-    rows.push({ sym: sym, date: e.date, time: e.time || '' });
+    rows.push({ sym: sym, date: e.date, time: e.time || '', est: !!e.est });
   }
   rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   if (!rows.length) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
   list.innerHTML = '';
+  // v221: שורה בסגנון רשימת iOS — לוגו, סימבול + שם, "בעוד N ימים · אחרי הסגירה", ואריח לוח שנה (חודש + יום) בקצה
+  const monFmt = new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'he-IL', { month: 'short', timeZone: 'UTC' });
   for (const r of rows.slice(0, 12)) {
     const d = daysUntil(r.date);
     const when = d === 0 ? t('earnToday') : d === 1 ? t('earnTomorrow') : t('earnInDays', { n: d });
-    const tm = r.time === 'bmo' ? ' · ' + t('earnBmo') : r.time === 'amc' ? ' · ' + t('earnAmc') : '';
-    const li = el('li', 'earn-row');
-    li.innerHTML = '<span class="earn-sym" dir="ltr">' + esc(r.sym) + '</span>' +
-      '<span class="earn-name">' + esc(names[r.sym] || r.sym) + '</span>' +
-      '<span class="earn-when">' + esc(when) + esc(tm) + '</span>' +
-      '<span class="earn-date">' + esc(fmtDateIL(r.date)) + '</span>';
+    const tm = r.time === 'bmo' ? t('earnBmo') : r.time === 'amc' ? t('earnAmc') : '';
+    const sub = [when, tm, r.est ? t('earnEst') : ''].filter(Boolean).join(' · ');
+    const dt = new Date(r.date + 'T12:00:00Z');
+    const li = el('li', 'earn-row' + (d <= 1 ? ' soon' : ''));
+    li.innerHTML = stockLogoHTML(r.sym) +
+      '<span class="earn-main"><span class="earn-sym" dir="ltr">' + esc(r.sym.replace(/\.TA$/i, '')) + '</span>' +
+      '<span class="earn-name">' + esc(companyName(r.sym, names[r.sym] || r.sym)) + '</span>' +
+      '<span class="earn-sub">' + esc(sub) + '</span></span>' +
+      '<span class="earn-cal" aria-label="' + esc(fmtDateIL(r.date)) + '"><span class="earn-mon">' + esc(monFmt.format(dt)) + '</span>' +
+      '<span class="earn-day">' + dt.getUTCDate() + '</span></span>';
     list.appendChild(li);
   }
 }
@@ -8616,6 +8625,9 @@ function logoImgFix(img) {
       }
     }
     if (cnt < 5) return;
+    // v221: לוגו על רקע לבן אטום (AAPL ב־FMP: לבן עם תפוח שחור) אינו "לוגו לבן" — היה מתהפך לריבוע שחור.
+    // הופכים רק כשלפחות 20% מהתמונה שקוף (כמו logoIsLight, הווידג׳ט והשרתון)
+    if (cnt > Math.ceil(d.length / 40) * 0.8) return;
     const avg = sum / cnt;
     if (avg > 205) {
       img.style.filter = 'invert(1)';

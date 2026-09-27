@@ -743,13 +743,22 @@ footer.fine { text-align: center; }
 .form-row .chip-btn { flex: 1 1 100%; justify-content: center; }
 
 /* ---- דוחות קרובים ---- */
-.earn-list { list-style: none; margin: 8px 0 0; padding: 0; }
-.earn-row { display: flex; align-items: baseline; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--separator); font-size: 15px; }
-.earn-row:last-child { border-bottom: 0; }
-.earn-sym { font-weight: 700; min-width: 62px; }
-.earn-name { flex: 1; color: var(--on-surface-var); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.earn-when { font-weight: 700; white-space: nowrap; }
-.earn-date { color: var(--on-surface-var); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* v221: דוחות קרובים — רשימה בסגנון iOS/Material: לוגו, סימבול ושם, שורת "בעוד N ימים", ואריח לוח שנה בקצה */
+.earn-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.earn-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; position: relative; }
+.earn-row + .earn-row::before { content: ""; position: absolute; top: 0; inset-inline-start: 52px; inset-inline-end: 0; height: 1px; background: var(--separator); }
+.earn-row .stock-logo { width: 40px; height: 40px; border-radius: var(--radius-xs); }
+.earn-row .stock-logo-fb { font-size: 18px; }
+.earn-main { flex: 1; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; row-gap: 1px; align-items: baseline; }
+.earn-sym { font-weight: 700; font-size: 16px; }
+.earn-name { color: var(--on-surface-var); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.earn-sub { grid-column: 1 / -1; font-size: 13px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.earn-cal { flex: none; width: 46px; border-radius: var(--radius-xs); background: var(--surface-2); display: flex; flex-direction: column; align-items: center; overflow: hidden; padding: 4px 0 5px; line-height: 1.1; }
+.earn-mon { font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: .2px; }
+.earn-day { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--on-surface); }
+.earn-row.soon .earn-cal { background: var(--primary); }
+.earn-row.soon .earn-mon, .earn-row.soon .earn-day { color: var(--on-primary); }
+.earn-row.soon .earn-sub { color: var(--on-surface); font-weight: 600; }
 .wl-earn { margin-top: 6px; font-size: 14px; color: var(--on-surface-var); }
 
 /* ---- ביצועי IBKR ---- */

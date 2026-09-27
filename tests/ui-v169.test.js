@@ -25,7 +25,7 @@ const cn = A('companyName');
 ok(cn('MSFT') === 'Microsoft' && cn('META') === 'Meta Platforms' && cn('NOW') === 'ServiceNow', 'שם מלא ונקי (בלי Inc./Corp.)');
 ok(cn('POLI.TA') === 'הפועלים' && (vm.runInContext('state.lang = "en"', sb), cn('POLI.TA') === 'Bank Hapoalim'), 'ת"א: שם בעברית / באנגלית לפי השפה');
 ok(/'longName', 'shortName'\]/.test(proxy) && /longName: meta\.longName \|\| meta\.shortName/.test(src), 'מניה שלא ברשימה: השם מ־Yahoo דרך השרתון');
-ok(/return cnt >= 5 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן (UNH/UBER/APP) מזוהה');
+ok(/return cnt >= 5 && cnt <= w \* h \* 0\.8 && sum \/ cnt > 225;/.test(src) && /e\.light = logoIsLight\(e\.img\)/.test(src), 'לוגו לבן על שקוף (UNH/UBER/APP) מזוהה; לבן אטום (AAPL, v221) לא');
 ok(/ctx\.drawImage\(e\.inv \|\| e\.img,/.test(src) && /pie-leg-logo' \+ \(e && e\.ready && e\.light \? ' inv'/.test(src) && /\.pie-leg-logo\.inv img \{ filter: invert\(1\); background: transparent; \}/.test(css), 'v173: לוגו לבן — מתהפך לשחור על אריח לבן, כמו בטאב המניות (עוגה ומקרא)');
 ok(/for \(const sc of \[1, 0\.9, 0\.82, 0\.76, 0\.7\]\)/.test(src) && /R = Math\.max\(R0 \* 0\.6, Math\.min\(R0, rho \+ H \* SC \* 0\.22\)\);/.test(src), 'v173: כל התוויות באותו גודל על מעגל אחד — מעט מניות במרכז הפרוסות, יותר מניות: המעגל מתרחק באחידות');
 ok(/const clash = \(p, q\) =>/.test(src) && /placed\.some\(\(o\) => clash\(o, g\)\)/.test(src), 'v173/v187: אין שתי תוויות שנוגעות זו בזו (שרשרת ב־posAt)');
