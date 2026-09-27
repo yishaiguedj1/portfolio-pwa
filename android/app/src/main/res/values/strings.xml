@@ -7,4 +7,7 @@
     <string name="launchUrl">https://yishaiguedj1.github.io/portfolio-pwa/</string>
     <!-- אימות הקשר לאתר (Digital Asset Links). בלי assetlinks.json בשורש הדומיין — נפתח עם שורת כתובת דקה של כרום -->
     <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://yishaiguedj1.github.io\"}}]</string>
+    <string name="wUpdated">עודכן %1$s</string>
+    <string name="wManual">ידני</string>
+    <string name="wDesc">כל התיק במסך הבית: מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה.</string>
 </resources>

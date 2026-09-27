@@ -1,5 +1,6 @@
-// THE SNOWBALL — אפליקציית אנדרואיד (שלב 1): מעטפת TWA לאתר + בהמשך ווידג'ט Glance. נבנית ב־GitHub Actions.
+// THE SNOWBALL — אפליקציית אנדרואיד מעטפת TWA לאתר + ווידג'ט Glance. נבנית ב־GitHub Actions.
 plugins {
     id("com.android.application") version "8.13.2" apply false
     id("org.jetbrains.kotlin.android") version "2.4.20" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20" apply false
 }

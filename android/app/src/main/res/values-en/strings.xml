@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loading">Loading…</string>
+    <string name="openFailed">Couldn\'t open the site. Take a screenshot and send it:</string>
+    <string name="noBrowser">No browser found. Install Chrome and try again.</string>
+    <string name="wUpdated">Updated %1$s</string>
+    <string name="wManual">Manual</string>
+    <string name="wDesc">Your whole portfolio on the home screen: price, daily change and after-hours. Tap a stock to open it.</string>
+</resources>

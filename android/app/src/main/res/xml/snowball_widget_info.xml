@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ווידג'ט התיק: ברירת מחדל 4×5, ניתן לשינוי גודל; רענון ברקע יתווסף בשלב 3 (WorkManager) -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="180dp"
+    android:minResizeWidth="220dp"
+    android:minResizeHeight="160dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="5"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:previewImage="@drawable/widget_preview"
+    android:description="@string/wDesc"
+    android:widgetCategory="home_screen" />
