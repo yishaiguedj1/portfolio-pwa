@@ -53,8 +53,9 @@ for (const tok of ['--sys-blue', '--sys-green', '--sys-teal', '--sys-purple', '-
   ok(re.test(css), 'טוקן ' + tok + ' מוגדר בערכת בהיר');
   ok(darkCss.includes(tok + ':'), 'טוקן ' + tok + ' מוגדר גם בערכה הכהה');
 }
-ok(/--gain:\s*#34C759/i.test(css), 'רווח = systemGreen של iOS בערכת בהיר');
-ok(/--loss:\s*#FF3B30/i.test(css), 'הפסד = systemRed של iOS בערכת בהיר');
+// v216 (בקשת המשתמש): הבהיר משתמש באותם צבעי מבטא/רווח/הפסד כמו הכהה
+ok(/--gain:\s*#30D158/i.test(css) && /--primary:\s*#30D158/i.test(css), 'רווח ומבטא בבהיר = כמו בכהה (#30D158)');
+ok(/--loss:\s*#FF453A/i.test(css), 'הפסד בבהיר = כמו בכהה (#FF453A)');
 ok(/--gain:\s*#30D158/i.test(darkCss), 'רווח = systemGreen (dark) בערכה הכהה');
 ok(/--loss:\s*#FF453A/i.test(darkCss), 'הפסד = systemRed (dark) בערכה הכהה');
 ok(!/text-align:\s*(left|right)/.test(css), 'אין text-align פיזי — בטוח ל־RTL ול־LTR');

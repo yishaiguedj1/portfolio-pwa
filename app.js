@@ -3932,7 +3932,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v215';
+const APP_VERSION = 'v216';
 
 
 function saveDBto(db) {
@@ -7687,7 +7687,7 @@ async function drawPfChart() {
   if (loading) loading.classList.add('hidden');
 
   const allSeries = [
-    { name: srcKind === 'ibkr' ? t('ibkrNavLegend') : srcKind === 'holdings' ? t('pfHoldingsLegend') : t('myPortfolio'), color: cssVar('--primary', '#006A4E'), rows: pfRows },
+    { name: srcKind === 'ibkr' ? t('ibkrNavLegend') : srcKind === 'holdings' ? t('pfHoldingsLegend') : t('myPortfolio'), color: cssVar('--primary', '#30D158'), rows: pfRows },
     ...benchSeries,
   ];
   for (const s of allSeries) s.pts = downsample(normalize100(s.rows), 300);
@@ -7789,7 +7789,7 @@ function paintPfChart() {
   // סמני מדידה — בולטים ונעימים: הילה רכה, טבעת לבנה, ורצועה בין הנקודות
   const ms = state.pfMeasure;
   ms.pts = ms.pts.filter((i) => i >= 0 && i < n);
-  const marker = cssVar('--primary', '#006A4E');
+  const marker = cssVar('--primary', '#30D158');
   if (ms.pts.length >= 2) {
     const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
     ctx.fillStyle = marker + '1F';
@@ -9116,7 +9116,7 @@ function drawStockChart(sym, rows, intraday) {
   }
 
   // סמני מדידה — כמו בגרף הראשי: הילה רכה, קו מקווקו, טבעת לבנה, רצועה בין הנקודות
-  const marker = cssVar('--primary', '#006A4E');
+  const marker = cssVar('--primary', '#30D158');
   if (ms.pts.length >= 2) {
     const a = Math.min(ms.pts[0], ms.pts[1]), b = Math.max(ms.pts[0], ms.pts[1]);
     ctx.fillStyle = marker + '1F';

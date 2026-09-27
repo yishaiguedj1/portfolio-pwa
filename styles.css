@@ -20,17 +20,17 @@
   --outline: #D8D8DE;
   --veil: rgba(255, 255, 255, .65);
 
-  /* ---- מבטא ראשי: ירוק המותג בעיבוד iOS 26 ---- */
-  --primary: #006A4E;
-  --primary-dark: #004E39;
-  --on-primary: #FFFFFF;
-  --primary-container: #CFF0DC;
-  --on-primary-container: #002117;
+  /* ---- מבטא ראשי (v216, בקשת המשתמש): אותו ירוק כמו במצב כהה — כפתורים ומבטא זהים בשתי הערכות ---- */
+  --primary: #30D158;
+  --primary-dark: #30D158;
+  --on-primary: #06281A;
+  --primary-container: rgba(48, 209, 88, .18);
+  --on-primary-container: #0B6B2C;  /* טקסט על מיכל ירוק־שקוף — כהה כדי שיהיה קריא על רקע בהיר */
   --secondary-container: #E4E4E9;
 
   /* ---- צבעים סמנטיים של iOS 26 ---- */
-  --gain: #34C759;                  /* systemGreen */
-  --loss: #FF3B30;                  /* systemRed */
+  --gain: #30D158;                  /* v216: כמו במצב כהה */
+  --loss: #FF453A;                  /* v216: כמו במצב כהה */
   --warn-bg: rgba(255, 149, 0, .14);
   --warn-fg: #9A5B00;
   --warn-border: rgba(255, 149, 0, .35);
@@ -507,8 +507,8 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 }
 .pf-bench-toggle:active { transform:scale(.96); }
 .pf-bench-dot { width:10px; height:10px; border-radius:50%; flex:none; }
-.pf-bench-check { font-size:12px; font-weight:700; color:var(--primary, #006A4E); min-width:14px; text-align:center; }
-.pf-bench-toggle.on { color:var(--on-surface, #1A1C1A); border-color:var(--primary, #006A4E); background:color-mix(in srgb, var(--primary, #006A4E) 8%, var(--surface, #fff)); }
+.pf-bench-check { font-size:12px; font-weight:700; color:var(--primary, #30D158); min-width:14px; text-align:center; }
+.pf-bench-toggle.on { color:var(--on-surface, #1A1C1A); border-color:var(--primary, #30D158); background:color-mix(in srgb, var(--primary, #30D158) 8%, var(--surface, #fff)); }
 .pf-bench-toggle:not(.on) { opacity:.55; }
 .pf-bench-toggle:not(.on) .pf-bench-check { color:transparent; }
 
