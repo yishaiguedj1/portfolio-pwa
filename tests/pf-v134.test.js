@@ -108,7 +108,7 @@ ok(pq && pq.mdate === '2026-09-24', 'parseYahooQuote: mdate לפי שעון הב
 ok(A('daysBetweenIso')('2026-09-17', '2026-09-24') === 7, 'daysBetweenIso');
 
 // --- 5. חיווט ---
-ok(/stockRangeRows\(rows, range === 'day' \? 'month' : range\)/.test(src), 'ensureChartData משתמש בטווח לפי תאריך');
+ok(/stockRangeRows\(rows, range === 'day' \? 'month' : range === '5d' \? 'week' : range\)/.test(src), 'ensureChartData משתמש בטווח לפי תאריך (v228: 5D בלי תוך־יומי → שבוע)');
 ok(/stockChartRows\(hist, state\.quotes\[sym\]\)/.test(src), 'ensureChartData מוסיף את המחיר החי');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];

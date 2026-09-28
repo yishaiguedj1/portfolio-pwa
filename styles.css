@@ -651,6 +651,20 @@ footer.fine { text-align: center; }
 #pfChips { margin-top: 12px; }
 /* v107: טווחי גרף המניה מתחת לגרף — כמו בגרף הראשי */
 .stock-body .chip-row.stock-chips { margin-top: 12px; }
+/* v228: 1D 5D 1M 3M YTD 1Y — שישה כפתורים ברוחב שווה בשורה אחת (בלי גלילה, כדי שתפריט השנה לא ייחתך);
+   אותו עיצוב כפתור, רק ריפוד צדדי קטן יותר. תפריט השנה = בועת הסינון, צמוד לקצה של הכפתור */
+.stock-body .chip-row.stock-chips { overflow: visible; gap: 6px; }
+.stock-chips > .range-btn, .stock-chips > .range-year { flex: 1 1 0; min-width: 0; }
+.stock-chips .range-btn { padding-inline: 4px; text-align: center; white-space: nowrap; }
+.stock-chips .range-year .range-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
+.range-caret { font-size: 10px; line-height: 1; opacity: .75; transition: transform .2s ease; }
+.range-year.open .range-caret { transform: rotate(180deg); }
+/* ספציפיות גבוהה — .src-pop / .menu-drop מוגדרים מאוחר יותר בקובץ (top + bottom יחד = בועה מכווצת) */
+.range-year .src-pop.range-pop { top: auto; bottom: calc(100% + 8px); width: auto; min-width: 150px; gap: 2px; transform-origin: bottom; }
+.range-year .range-pop:not(.hidden) { animation-name: menuUpIn; }
+@keyframes menuUpIn { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
+.range-year .range-pop .src-opt { font-variant-numeric: tabular-nums; padding: 11px 12px; }
+@media (prefers-reduced-motion: reduce) { .range-caret { transition: none; } }
 .fund-editor { margin-bottom: 14px; }
 .fund-editor > b { display: block; margin-bottom: 8px; font-size: 15.5px; }
 .danger-card { border: 1px solid var(--loss); }

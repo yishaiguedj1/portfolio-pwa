@@ -198,6 +198,8 @@ he: {
   perfFeesManual: 'עמלות',
 
   rangeDay: 'יום',
+  sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
+  srYearMenu: 'טווח שנים',
   rangeWeek: 'שבוע',
   rangeMonth: 'חודש',
   range1m: 'חודש',
@@ -698,6 +700,8 @@ en: {
   perfFeesManual: 'Commissions',
 
   rangeDay: 'Day',
+  sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
+  srYearMenu: 'Years',
   rangeWeek: 'Week',
   rangeMonth: 'Month',
   range1m: '1M',
@@ -2800,7 +2804,7 @@ function closeSrcPops(except) {
   document.querySelectorAll('.src-filter.open').forEach((w) => {
     if (w === except) return;
     w.classList.remove('open');
-    const b = w.querySelector('.src-btn'); if (b) b.setAttribute('aria-expanded', 'false');
+    const b = w.querySelector('.src-btn, .range-btn'); if (b) b.setAttribute('aria-expanded', 'false');
     const p = w.querySelector('.src-pop'); if (p) p.classList.add('hidden');
   });
 }
@@ -3815,7 +3819,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v227';
+const APP_VERSION = 'v228';
 
 
 function saveDBto(db) {
@@ -4395,7 +4399,7 @@ const state = {
   intra: {},        // sym -> intraday rows (יום)
   histDbg: {},      // sym -> מה קרה בניסיון להביא היסטוריה (לאבחון)
   open: {},         // sym -> bool (שורה פתוחה)
-  range: {},        // sym -> 'day'|'week'|'month'|'ytd'|'year'|'5y'|'max'
+  range: {},        // sym -> 'day'|'5d'|'month'|'3m'|'ytd'|'year'|'3y'|'5y' (v228)
   measure: {},      // sym -> { on, pts:[idxA, idxB] }
   pfRange: 'year',    // טווח גרף ביצועי התיק
   pfBench: null,      // {SPY:true, QQQ:true} — נטען/נשמר, ברירת מחדל: הכל דולק
@@ -4407,10 +4411,15 @@ const state = {
   lang: getLang()   // 'he' | 'en' — נשמר ברמת המכשיר בלבד (pwa_lang_v1)
 };
 
+/* v228: טווחי גרף המניה כמו באפליקציות מסחר (בקשת המשתמש): 1D 5D 1M 3M YTD 1Y — ובכפתור השנה תפריט 1Y/3Y/5Y.
+   'day'/'5d' = תוך־יומי (מהשרתון), השאר = סגירות יומיות. */
 const RANGES = [
-  ['day', 'rangeDay'], ['week', 'rangeWeek'], ['month', 'rangeMonth'], ['ytd', 'rangeYtd'],
-  ['year', 'rangeYear'], ['5y', 'range5y'], ['max', 'rangeMax']
+  ['day', 'sr1D'], ['5d', 'sr5D'], ['month', 'sr1M'], ['3m', 'sr3M'], ['ytd', 'rangeYtd'],
+  ['year', 'sr1Y'], ['3y', 'sr3Y'], ['5y', 'sr5Y']
 ];
+const YEAR_RANGES = ['year', '3y', '5y']; // מאוחדים בכפתור אחד עם תפריט
+const INTRA_RANGES = { day: '1d', '5d': '5d' };
+const YH_HOSTS = 'query1 query2'.split(' ');
 
 function lsGet(k) {
   try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; }
@@ -5334,27 +5343,66 @@ async function getDaily(sym, force) {
 
 /* ---- פונקציות עזר לגרף הביצועים ---- */
 
-async function getIntraday(sym) {
+/* v228: גרף תוך־יומי — 1D (נרות 5 דקות כולל טרום/אחרי־מסחר) או 5D (נרות 15 דקות). קודם השרתון (Yahoo מהשרת,
+   ~0.3 שניות); ישירות מ־Yahoo רק כגיבוי, במרוץ ובזמן קצוב קצר. עד v227 רק ישירות: query1 → query2 → Stooq,
+   12 שניות לכל אחד — כש־Yahoo חוסם את הטלפון "יום" נטען הרבה יותר לאט משאר הטווחים (שמגיעים מהמטמון/השרתון). */
+async function getIntraday(sym, span) {
+  const rng = span === '5d' ? '5d' : '1d';
+  const key = sym + '|' + rng;
   // v139: בזיכרון עד 10 דקות (כמו המטמון) — אפליקציה פתוחה שעות לא נתקעת על גרף יומי ישן
-  if (state.intra[sym] && Date.now() - ((state.intraAt || {})[sym] || 0) < 10 * 60 * 1000) return state.intra[sym];
   if (!state.intraAt) state.intraAt = {};
-  state.intraAt[sym] = Date.now();
-  // מטמון קצר (10 דקות) לחיסכון במכסת הקריאות החינמית
-  const cached = lsGet(LS_INTRA + sym);
+  if (state.intra[key] && Date.now() - (state.intraAt[key] || 0) < 10 * 60 * 1000) return state.intra[key];
+  const cached = lsGet(LS_INTRA + key);
   if (cached && cached.rows && cached.rows.length && (Date.now() - cached.at) < 10 * 60 * 1000) {
-    state.intra[sym] = cached.rows;
+    state.intra[key] = cached.rows; state.intraAt[key] = cached.at;
     return cached.rows;
   }
-  const notes = [];
-  const iq = (host) => yahooURL(sym, 'interval=5m&range=1d&includePrePost=true', host);
-  let rows = await fetchYahooBars(iq('query1'), true, notes, 'Yahoo')
-          || await fetchYahooBars(iq('query2'), true, notes, 'Yahoo2');
-  if (rows) { state.intra[sym] = rows; return rows; }
-  try {
-    rows = parseHistoryCSV(await fetchTextTimeout(stooqIntradayURL(sym), 12000));
-    if (rows.length) { state.intra[sym] = rows; return rows; }
-  } catch (e) {}
+  const keep = (rows) => {
+    state.intra[key] = rows; state.intraAt[key] = Date.now();
+    lsSet(LS_INTRA + key, { at: Date.now(), rows: rows });
+    return rows;
+  };
+  if (!histProxyOff) {
+    try {
+      const rows = await proxyIntraday(sym, rng, 8000);
+      if (rows.length) return keep(rows);
+    } catch (e) {}
+  }
+  if (!yahooCooling()) {
+    const q = rng === '5d' ? 'interval=15m&range=5d' : 'interval=5m&range=1d&includePrePost=true';
+    const notes = [];
+    try {
+      const rows = await Promise.any(YH_HOSTS.map((h) =>
+        fetchYahooBars(yahooURL(sym, q, h), true, notes, h, 6000).then((r) => r || Promise.reject(new Error('empty')))));
+      if (rows && rows.length) return keep(rows);
+    } catch (e) {}
+  }
   return [];
+}
+async function proxyIntraday(sym, rng, ms) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const to = setTimeout(() => { if (ctl) ctl.abort(); }, ms || 8000);
+  try {
+    const r = await fetch(ibkrProxyBase() + '/api/history', {
+      method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ syms: [sym], range: rng }),
+      signal: ctl ? ctl.signal : undefined,
+    });
+    const j = await r.json();
+    if (!j || !j.ok || !j.data) throw new Error((j && j.error) || 'proxy_history');
+    return intraRowsFromProxy(j.data[String(sym).toUpperCase()]);
+  } finally { clearTimeout(to); }
+}
+/* טהורה: { t: [דקות מאז 1970 בשעון הבורסה], c } → [{ date, time, close }] (כמו parseYahooBars עם זמן) */
+function intraRowsFromProxy(v) {
+  const rows = [];
+  if (!v || !Array.isArray(v.t) || !Array.isArray(v.c)) return rows;
+  if (!(v.t[0] > 1e6)) return rows; // שרתון ישן שלא מכיר '1d'/'5d' מחזיר ימים (~20,000) ולא דקות — לא לפרש כזמן
+  for (let i = 0; i < v.t.length; i++) {
+    if (!(v.c[i] > 0)) continue;
+    const iso = new Date(v.t[i] * 60000).toISOString();
+    rows.push({ date: iso.slice(0, 10), time: iso.slice(11, 16), close: v.c[i] });
+  }
+  return rows;
 }
 
 async function warmHistories() {
@@ -8638,13 +8686,14 @@ function deletePosition(p) {
   const i = POSITIONS.findIndex((x) => x.sym === p.sym);
   if (i >= 0) POSITIONS.splice(i, 1);
   delete state.hist[p.sym];
-  delete state.intra[p.sym];
+  for (const r of Object.values(INTRA_RANGES)) delete state.intra[p.sym + '|' + r];
   delete state.quotes[p.sym];
   delete state.open[p.sym];
   delete state.range[p.sym];
   try {
     localStorage.removeItem(LS_HIST + p.sym);
-    localStorage.removeItem(LS_INTRA + p.sym);
+    localStorage.removeItem(LS_INTRA + p.sym); // ישן (עד v227)
+    localStorage.removeItem(LS_INTRA + p.sym + '|1d'); localStorage.removeItem(LS_INTRA + p.sym + '|5d');
   } catch (e) {}
   saveDB();
   renderAll();
@@ -8927,15 +8976,44 @@ function buildStockBody(p, m) {
   wrap.appendChild(cwrap);
 
   // v107: טווחים מתחת לגרף + שורת תשואה + legend — כמו בגרף הראשי
+  // v228: 1D 5D 1M 3M YTD 1Y — כפתור השנה פותח תפריט 1Y / 3Y / 5Y (אותו עיצוב כמו בועת הסינון), והתווית שלו = הנבחר
   const ranges = el('div', 'chip-row stock-chips');
+  const pick = (key) => {
+    state.range[sym] = key;
+    state.measure[sym] = { on: false, pts: [] };
+    refreshStockBody(sym);
+  };
+  const labelOf = (key) => { const r = RANGES.find((x) => x[0] === key); const labelKey = r ? r[1] : null; return labelKey ? t(labelKey) : key; };
+  const cur = state.range[sym];
   for (const [key, label] of RANGES) {
-    const b = el('button', 'range-btn' + (state.range[sym] === key ? ' active' : ''), t(label));
+    if (YEAR_RANGES.includes(key) && key !== YEAR_RANGES[0]) continue;
+    if (key === YEAR_RANGES[0]) {
+      const on = YEAR_RANGES.includes(cur);
+      const yw = el('div', 'src-filter range-year');
+      yw.innerHTML = '<button class="range-btn' + (on ? ' active' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
+        '<span>' + esc(labelOf(on ? cur : key)) + '</span><span class="range-caret" aria-hidden="true">▾</span></button>' +
+        '<div class="src-pop menu-drop range-pop hidden" role="menu">' +
+          '<div class="src-pop-title">' + esc(t('srYearMenu')) + '</div>' +
+          YEAR_RANGES.map((k) => '<button class="src-opt' + (k === cur ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (k === cur) +
+            '" data-range="' + k + '"><span class="src-opt-name">' + esc(labelOf(k)) + '</span><span class="src-opt-check">' + (k === cur ? ICON_CHECK : '') + '</span></button>').join('') +
+        '</div>';
+      const yb = yw.querySelector('.range-btn'), pop = yw.querySelector('.range-pop');
+      yb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = !yw.classList.contains('open');
+        closeSrcPops(yw);
+        yw.classList.toggle('open', open);
+        pop.classList.toggle('hidden', !open);
+        yb.setAttribute('aria-expanded', String(open));
+      });
+      pop.addEventListener('click', (e) => e.stopPropagation());
+      pop.querySelectorAll('button[data-range]').forEach((b) => b.addEventListener('click', () => { closeSrcPops(); pick(b.dataset.range); }));
+      ranges.appendChild(yw);
+      continue;
+    }
+    const b = el('button', 'range-btn' + (cur === key ? ' active' : ''), t(label));
     b.type = 'button';
-    b.addEventListener('click', () => {
-      state.range[sym] = key;
-      state.measure[sym] = { on: false, pts: [] };
-      refreshStockBody(sym);
-    });
+    b.addEventListener('click', () => pick(key));
     ranges.appendChild(b);
   }
   wrap.appendChild(ranges);
@@ -9032,10 +9110,11 @@ async function ensureChartData(sym, quiet) {
   const range = state.range[sym] || 'year';
   if (loading && !quiet) { loading.classList.remove('hidden'); loading.textContent = t('loadingData'); }
   try {
-    if (range === 'day') {
-      const intra = await getIntraday(sym);
+    if (INTRA_RANGES[range]) {
+      const intra = await getIntraday(sym, INTRA_RANGES[range]);
+      if ((state.range[sym] || 'year') !== range) return; // המשתמש כבר עבר לטווח אחר
       if (intra.length) {
-        drawStockChart(sym, intradayLiveRows(intra, state.quotes[sym]), true);
+        drawStockChart(sym, intradayLiveRows(intra, state.quotes[sym]), range);
         if (loading) loading.classList.add('hidden');
         return;
       }
@@ -9048,7 +9127,8 @@ async function ensureChartData(sym, quiet) {
       try { const fresh = await getDaily(sym, true); if (fresh && fresh.length) hist = fresh; } catch (e) {}
     }
     const rows = stockChartRows(hist, state.quotes[sym]);
-    const pts = drawStockChart(sym, stockRangeRows(rows, range === 'day' ? 'month' : range), false);
+    if ((state.range[sym] || 'year') !== range) return;
+    const pts = drawStockChart(sym, stockRangeRows(rows, range === 'day' ? 'month' : range === '5d' ? 'week' : range), false);
     // v160: אין היסטוריה (המקור חסום כרגע) — אומרים את זה, לא "טוען" לנצח ולא גרף של נקודה אחת.
     // ננסה שוב אוטומטית כש־Yahoo חוזר (yahooRecovered).
     if (!(hist && hist.length) && loading) { loading.textContent = t('histRetryLater'); loading.classList.remove('hidden'); }
@@ -9062,7 +9142,7 @@ async function ensureChartData(sym, quiet) {
 
 function chartPoints(sym, rows, intraday) {
   return downsample(rows, 400).map((r) => ({
-    label: intraday && r.time ? r.time.slice(0, 5) : fmtDateIL(r.date),
+    label: intraday && r.time ? (intraday === '5d' ? fmtDateIL(r.date).slice(0, 5) + ' ' : '') + r.time.slice(0, 5) : fmtDateIL(r.date),
     date: r.date, time: r.time, close: r.close
   }));
 }
@@ -9125,14 +9205,26 @@ function drawStockChart(sym, rows, intraday) {
   pts.forEach((p, i) => { const x = X(i), y = Y(p.close); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.strokeStyle = lineCol; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
 
-  // תוויות ציר זמן — כמו בגרף הראשי (MM/YYYY, צעד קבוע, בלי חפיפות)
+  // תוויות ציר זמן — v228: עד 4, בלי כפילויות ובלי חפיפות (בשבוע היו 6 תוויות "09/2026" אחת על השנייה),
+  // והקצוות בתוך הגרף. הפורמט לפי הטווח: שעה (1D), יום/חודש (5D ועד ~3 חודשים), חודש/שנה (ארוך יותר)
   ctx.fillStyle = cssVar('--on-surface-var', '#9AA5A0');
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.textBaseline = 'top';
   const n = pts.length;
-  const step = Math.max(1, Math.floor(n / 4));
-  for (let i = 0; i < n; i += step) {
-    const lbl = intraday ? pts[i].label : fmtDateIL(pts[i].date).slice(3);
-    ctx.fillText(lbl, X(i), h - 20);
+  const spanDays = n > 1 ? daysBetweenIso(pts[0].date, pts[n - 1].date) : 0;
+  const xLabel = (p) => intraday === 'day' || intraday === true ? (p.time || '').slice(0, 5)
+    : intraday === '5d' || spanDays <= 120 ? fmtDateIL(p.date).slice(0, 5) : fmtDateIL(p.date).slice(3);
+  const L = Math.min(4, n);
+  let lastLbl = null, lastRight = -Infinity;
+  for (let k = 0; k < L; k++) {
+    const i = L === 1 ? 0 : Math.round(k * (n - 1) / (L - 1));
+    const lbl = xLabel(pts[i]);
+    if (!lbl || lbl === lastLbl) continue;
+    const tw = ctx.measureText(lbl).width;
+    const x = Math.min(Math.max(X(i) - tw / 2, 0), w - padR - tw); // בתוך אזור הגרף
+    if (x < lastRight + 8) continue;
+    ctx.textAlign = 'left';
+    ctx.fillText(lbl, x, h - 20);
+    lastLbl = lbl; lastRight = x + tw;
   }
 
   // סמני מדידה — כמו בגרף הראשי: הילה רכה, קו מקווקו, טבעת לבנה, רצועה בין הנקודות

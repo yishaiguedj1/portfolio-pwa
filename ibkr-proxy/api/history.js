@@ -1,4 +1,4 @@
-/* POST /api/history  { syms: ['SPY','LUMI.TA',…] (עד 40), range: '1y'|'5y'|'7y'|'10y' }
+/* POST /api/history  { syms: ['SPY','LUMI.TA',…] (עד 40), range: '1y'|'5y'|'7y'|'10y' | '1d'|'5d' (תוך־יומי, v228) }
    -> { ok, data: { SYM: { t: [ימים מאז 1970], c: [סגירות] } }, failed: [...] }
    מחירי סגירה יומיים מ־Yahoo (מידע ציבורי) — מהשרת, בבקשה אחת לכל הסימבולים.
    למה: בטלפון Yahoo חוסם לפעמים (429 לכתובת של הספק הסלולרי), ולמניות ת"א אין מקור אחר.
@@ -7,7 +7,12 @@
 const { guard, rateLimited } = require('../lib/ibkr');
 
 const SYM_RE = /^[A-Z0-9][A-Z0-9.\-=^]{0,11}$/;
-const RANGES = new Set(['1y', '5y', '7y', '10y']); // 7y = 10y מ־Yahoo, חתוך ל־7 (תיק הדמו)
+const RANGES = new Set(['1y', '5y', '7y', '10y', '1d', '5d']); // 7y = 10y מ־Yahoo, חתוך ל־7 (תיק הדמו)
+/* v228: טווחים תוך־יומיים לגרף המניה (1D / 5D). עד עכשיו הטלפון משך אותם ישירות מ־Yahoo (query1 → query2 → Stooq,
+   12 שניות timeout לכל אחד) — כש־Yahoo חוסם את הטלפון זה היה איטי בהרבה משאר הטווחים (שמגיעים מהמטמון/השרתון).
+   תשובה: { t: [דקות מאז 1970 בשעון הבורסה], c: [סגירות] }. מטמון קצר — המחיר זז. */
+const INTRA = { '1d': 'interval=5m&range=1d&includePrePost=true', '5d': 'interval=15m&range=5d' };
+const INTRA_CACHE_MS = 60 * 1000;
 const MAX_SYMS = 40;
 const CONCURRENCY = 8;
 const PER_FETCH_MS = 8000;
@@ -15,6 +20,23 @@ const BUDGET_MS = 22000; // לפני ש־Vercel (maxDuration 30) הורג את �
 const CACHE_MS = 6 * 60 * 60 * 1000;
 const UA = 'Mozilla/5.0 (compatible; portfolio-pwa/1.0)';
 const cache = new Map(); // מופע חם בלבד — "best effort"
+
+function parseIntra(j) {
+  const r = j && j.chart && j.chart.result && j.chart.result[0];
+  if (!r || !Array.isArray(r.timestamp)) return null;
+  const q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
+  const closes = q.close || [];
+  const div = String((r.meta && r.meta.currency) || '').toUpperCase() === 'ILA' ? 100 : 1;
+  const off = Number((r.meta && r.meta.gmtoffset) || 0);
+  const t = [], c = [];
+  for (let i = 0; i < r.timestamp.length; i++) {
+    const v = closes[i];
+    if (!(v > 0)) continue;
+    t.push(Math.floor((r.timestamp[i] + off) / 60));
+    c.push(Math.round(v / div * 1e4) / 1e4);
+  }
+  return t.length ? { t, c } : null;
+}
 
 function parseChart(j) {
   const r = j && j.chart && j.chart.result && j.chart.result[0];
@@ -39,7 +61,7 @@ function parseChart(j) {
 async function fetchOne(sym, range, deadline) {
   const key = sym + '|' + range;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.v;
+  if (hit && Date.now() - hit.at < (INTRA[range] ? INTRA_CACHE_MS : CACHE_MS)) return hit.v;
   for (const host of ['query1', 'query2']) {
     const left = deadline - Date.now();
     if (left < 500) return null;
@@ -47,10 +69,11 @@ async function fetchOne(sym, range, deadline) {
     const to = setTimeout(() => ctl.abort(), Math.min(PER_FETCH_MS, left));
     try {
       const url = 'https://' + host + '.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) +
-        '?interval=1d&range=' + (range === '7y' ? '10y' : range);
+        '?' + (INTRA[range] || 'interval=1d&range=' + (range === '7y' ? '10y' : range));
       const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: ctl.signal });
       if (r.status !== 200) continue;
-      let v = parseChart(await r.json());
+      const j = await r.json();
+      let v = INTRA[range] ? parseIntra(j) : parseChart(j);
       if (v && range === '7y') {
         const from = Math.floor(Date.now() / 86400000) - 7 * 366;
         const k = v.t.findIndex((d) => d >= from);
@@ -93,4 +116,5 @@ module.exports = async (req, res) => {
 };
 
 module.exports._parseChart = parseChart;
+module.exports._parseIntra = parseIntra;
 module.exports._cache = cache;
