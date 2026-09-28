@@ -3853,7 +3853,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v242';
+const APP_VERSION = 'v243';
 
 
 function saveDBto(db) {
@@ -3881,7 +3881,7 @@ function loadDB() {
   return db;
 }
 const DB = loadDB();
-function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); }
+function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); try { scheduleAppWidgetSync(); } catch (e) {} } // v243: כל שינוי → לווידג'ט
 
 /* תיק ריק — למשתמש חדש או אחרי איפוס (השם נשמר לתאימות עם cloud.js) */
 function demoDb() {
@@ -10321,20 +10321,40 @@ function appWidgetPayload() {
   const s = widgetParam(items), l = state.lang === 'en' ? 'en' : 'he';
   return { s, l, sig: javaHash36(s + '|' + l) };
 }
+/* v243: מפתח שלא תלוי בסדר — הסדר בווידג'ט לפי שווי, ומשתנה עם המחירים; שינוי סדר לבד לא מצדיק שליחה בכל נגיעה */
+const SS_APPSENT = 'pwa_app_widget_sent';
+function appWidgetKey(pl) { return pl ? pl.s.split(',').sort().join(',') + '|' + pl.l : ''; }
 function appWidgetSync(force) {
   if (!inAndroidApp()) return false;
   const pl = appWidgetPayload();
   if (!pl) return false;
-  let known = '';
-  try { known = sessionStorage.getItem(SS_APPSIG) || ''; } catch (e) {}
-  if (!force && known === pl.sig) return false;
-  try { sessionStorage.setItem(SS_APPSIG, pl.sig); } catch (e) {}
+  let known = '', sent = '';
+  try { known = sessionStorage.getItem(SS_APPSIG) || ''; sent = sessionStorage.getItem(SS_APPSENT) || ''; } catch (e) {}
+  const key = appWidgetKey(pl);
+  // בפתיחה: מול מה שהווידג'ט מכיר (‎#app=); אחרי שליחה ראשונה — רק כשהרשימה/השמות/השפה באמת השתנו
+  if (!force && (sent ? sent === key : known === pl.sig)) return false;
+  try { sessionStorage.setItem(SS_APPSIG, pl.sig); sessionStorage.setItem(SS_APPSENT, key); } catch (e) {}
   location.href = 'intent://widget?s=' + encodeURIComponent(pl.s) + '&l=' + pl.l + '#Intent;scheme=snowball;package=' + APP_PKG + ';end';
   return true;
 }
+/* v243 (בקשת המשתמש): כל שינוי במניות עובר לווידג'ט לבד, בלי "סנכרון לווידג'ט" ידני.
+   Chrome פותח אפליקציה רק בזמן נגיעה של המשתמש (user activation, ~5 שניות) — לכן:
+   (1) אחרי כל נגיעה, *אחרי* שהפעולה שלה בוצעה (עד v242 הבדיקה רצה בשלב ה־capture, לפני השמירה — הנגיעה ששמרה
+       מניה לא שלחה כלום, והשינוי חיכה לנגיעה הבאה, שלפעמים לא הגיעה כי יצאו מהאפליקציה);
+   (2) אחרי כל שמירה (saveDB) — אם עוד בתוך זמן הנגיעה (חיפוש, שמירה אסינכרונית);
+   (3) שינוי בלי נגיעה (ענן/סנכרון IBKR ארוך) — בנגיעה הבאה. */
+let _appWsT = null;
+function scheduleAppWidgetSync(delay) {
+  if (!inAndroidApp()) return;
+  clearTimeout(_appWsT);
+  _appWsT = setTimeout(() => {
+    const ua = typeof navigator !== 'undefined' && navigator.userActivation;
+    if (ua && !ua.isActive) return; // אין נגיעה פעילה — הנגיעה הבאה תשלח
+    try { appWidgetSync(false); } catch (e) {}
+  }, delay === undefined ? 120 : delay);
+}
 function wireAppWidgetSync() {
-  // כל נגיעה בודקת (זול: השוואת מחרוזת) — שליחה רק כשהתיק/השפה השתנו מאז מה שהווידג'ט מכיר
-  document.addEventListener('click', () => { try { appWidgetSync(false); } catch (e) {} }, true);
+  document.addEventListener('click', () => scheduleAppWidgetSync(120));
 }
 /* v211: חלקים חיים בטאב ההגדרות (כרטיס הווידג'ט) — רק כשהטאב נראה */
 function renderSettingsLive() {

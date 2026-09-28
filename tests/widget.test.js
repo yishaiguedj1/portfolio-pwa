@@ -101,6 +101,19 @@ ok(R('appWidgetSync(false)') === true && /^intent:\/\/widget\?s=AAPL~[im]~Apple%
 R("location.href = '';");
 ok(R('appWidgetSync(false)') === false && R('location.href') === '', 'אחרי שליחה — לא שולחים שוב עד שהתיק משתנה');
 ok(R('appWidgetSync(true)') === true, 'כפתור "סנכרון לווידג׳ט" שולח תמיד');
+// v243: שינוי סדר בלבד (מחירים זזו — הסדר לפי שווי) לא שולח; שינוי אמיתי ברשימה — כן
+R("location.href = ''; state.quotes.KO.close = 9999;");
+ok(R('widgetItems()')[0].sym === 'KO' && R('appWidgetSync(false)') === false && R('location.href') === '', 'v243: רק הסדר השתנה — לא שולחים בכל נגיעה');
+R("POSITIONS.push({ sym: 'MSFT', name: 'Microsoft', shares: 1, avg: 100 }); state.quotes.MSFT = { close: 500 };");
+ok(R('appWidgetSync(false)') === true && /MSFT/.test(R('location.href')), 'v243: מניה נוספה → נשלח');
+R("POSITIONS.pop();");
+{
+  const src = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  ok(/function saveDB\(\) \{[^\n]*scheduleAppWidgetSync\(\)/.test(src), 'v243: כל שמירה מתזמנת שליחה לווידג׳ט');
+  ok(/document\.addEventListener\('click', \(\) => scheduleAppWidgetSync\(120\)\);/.test(src) && !/addEventListener\('click', \(\) => \{ try \{ appWidgetSync\(false\); \} catch \(e\) \{\} \}, true\)/.test(src),
+    'v243: הבדיקה אחרי הנגיעה (לא ב־capture לפני השמירה)');
+  ok(/if \(ua && !ua\.isActive\) return;/.test(src), 'v243: בלי נגיעה פעילה — מחכים לנגיעה הבאה (Chrome חוסם intent בלי נגיעה)');
+}
 ok(!/widgetPreset|zipStore|WIDGET_GEOM|widgetUrl|KWGT/.test(R('Object.keys(globalThis).join()') + fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'KWGT הוסר מהאפליקציה (v215)');
 ok(/id="widgetCard"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && R("tabRenderer('settings') === renderSettingsLive"), 'כרטיס בהגדרות, מצויר כשהטאב נראה');
 
