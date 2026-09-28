@@ -2,7 +2,7 @@
 /* v239: מחולל היקום של החיפוש הסובלני (ibkr-proxy/lib/universe.txt) — מידע ציבורי בלבד.
    מניות: Nasdaq screener (כל ארה"ב, עם שווי שוק — לדירוג: "tesle" → TSLA לפני חברה קטנה).
    קרנות סל: nasdaqtrader (ETF=Y), אחרי המניות.
-   שורה: SYM|שם|E (E = ETF). להריץ מדי כמה חודשים: node tools/stock-universe.js
+   שורה: SYM|שם|E (E = ETF). מתעדכן אוטומטית ב־1 לכל חודש (.github/workflows/stock-universe.yml); ידנית: node tools/stock-universe.js
    (מניות חדשות בינתיים — Yahoo search בשרתון מוצא אותן בסימבול/שם מדויק). */
 const fs = require('fs');
 const path = require('path');
@@ -23,8 +23,14 @@ const TOP_ETF = ['SPY', 'VOO', 'IVV', 'QQQ', 'VTI', 'VT', 'SCHD', 'VUG', 'VEA', 
   'GLD', 'SLV', 'TLT', 'BND', 'AGG', 'QQQM', 'SPLG', 'JEPI', 'JEPQ', 'VYM', 'XLF', 'XLE', 'XLV', 'IBIT', 'EEM', 'EFA', 'VNQ', 'SCHG', 'RSP', 'MGK', 'TQQQ', 'SQQQ', 'SOXL'];
 
 (async () => {
-  const r = await fetch('https://api.nasdaq.com/api/screener/stocks?tableonly=true&download=true', { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-  const rows = ((await r.json()).data || {}).rows || [];
+  let rows = [];
+  for (let attempt = 1; attempt <= 3 && !rows.length; attempt++) { // ניסיון חוזר — התקלות אצל Nasdaq רגעיות
+    try {
+      const r = await fetch('https://api.nasdaq.com/api/screener/stocks?tableonly=true&download=true', { headers: { 'User-Agent': UA, Accept: 'application/json', 'Accept-Language': 'en-US,en;q=0.9' } });
+      rows = ((await r.json()).data || {}).rows || [];
+    } catch (e) { console.error('nasdaq attempt ' + attempt + ': ' + e.message); }
+    if (!rows.length && attempt < 3) await new Promise((res) => setTimeout(res, 5000 * attempt));
+  }
   const stocks = rows
     .map((x) => ({ s: String(x.symbol || '').trim().toUpperCase().replace('/', '-').replace('^', '-P'), n: cleanName(x.name), cap: parseFloat(x.marketCap) || 0 }))
     .filter((x) => /^[A-Z][A-Z0-9\-]{0,7}$/.test(x.s) && !/-P[A-Z]?$/.test(x.s) && x.n && !JUNK.test(x.n)) // -PA = מניית בכורה
@@ -47,6 +53,10 @@ const TOP_ETF = ['SPY', 'VOO', 'IVV', 'QQQ', 'VTI', 'VT', 'SCHD', 'VUG', 'VEA', 
   const out = stocks.map((x) => x.s + '|' + x.n).concat(etfs.map((x) => x.s + '|' + x.n + '|E'));
   if (stocks.length < 3000) throw new Error('too few stocks: ' + stocks.length);
   const file = path.join(__dirname, '..', 'ibkr-proxy', 'lib', 'universe.txt');
+  // הגנה לעדכון האוטומטי: מקור שהחזיר רשימה חלקית (חסימה/תקלה) לא דורס רשימה טובה
+  let prevStocks = 0;
+  try { prevStocks = fs.readFileSync(file, 'utf8').split('\n').filter((l) => l && !l.endsWith('|E')).length; } catch (e) {}
+  if (prevStocks && stocks.length < prevStocks * 0.85) throw new Error('stocks dropped ' + prevStocks + ' → ' + stocks.length + ' — not overwriting');
   fs.writeFileSync(file, out.join('\n') + '\n');
   console.log('stocks', stocks.length, 'etfs', etfs.length, 'bytes', fs.statSync(file).size, '→', file);
 })().catch((e) => { console.error(e); process.exit(1); });

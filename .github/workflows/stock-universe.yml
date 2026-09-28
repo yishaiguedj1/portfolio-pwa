@@ -1,0 +1,44 @@
+# v239: עדכון חודשי אוטומטי של רשימת המניות לחיפוש (ibkr-proxy/lib/universe.txt) — ב־1 לכל חודש.
+# מריץ את tools/stock-universe.js (Nasdaq screener + nasdaqtrader, מידע ציבורי), בודק שהחיפוש עדיין עובד
+# (בדיקות השרתון), ודוחף רק אם הרשימה השתנתה. הדחיפה נוגעת ב־ibkr-proxy/ → Vercel מפרס את השרתון לבד.
+name: stock-universe
+
+on:
+  schedule:
+    - cron: '17 4 1 * *'   # 1 לחודש, 04:17 UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/stock-universe.yml']  # הרצה ראשונה מיד כשהקובץ נוסף/משתנה
+
+# כתיבה רק לתוכן הריפו (הקובץ של הרשימה); שאר ה־CI נשאר לקריאה בלבד
+permissions:
+  contents: write
+
+concurrency:
+  group: stock-universe
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+      - name: build universe
+        run: node tools/stock-universe.js
+      - name: search still works (proxy tests)
+        run: node ibkr-proxy/tests/run.js
+      - name: commit if changed
+        run: |
+          if git diff --quiet -- ibkr-proxy/lib/universe.txt; then
+            echo "הרשימה לא השתנתה"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ibkr-proxy/lib/universe.txt
+          git commit -m "עדכון חודשי אוטומטי: רשימת המניות לחיפוש (universe.txt)"
+          git push
