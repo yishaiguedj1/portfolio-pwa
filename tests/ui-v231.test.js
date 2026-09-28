@@ -38,4 +38,7 @@ const body = fn('buildStockBody');
 ok(!/t\('measure'\)/.test(body) && !/measure-chip/.test(body) && !/sleg-/.test(body), 'v236: בלי כפתור מדידה ובלי שורת legend בכרטיס המניה');
 ok(/\.stock-body \.chart-wrap canvas \{ height: 170px; \}/.test(css) && /h = canvas\.clientHeight \|\| 170/.test(src), 'v236: גובה הגרף מה־CSS (170)');
 ok(/class="rs-sym"><span class="dot"/.test(fn('renderStockRangeSummary')), 'v236: סמן ● סימבול מימין לשורת התשואה');
+ok(/foot\.appendChild\(sret\)/.test(fn('buildStockBody')) && /foot\.appendChild\(actions\)/.test(fn('buildStockBody')), 'v237: "ערוך" באותה שורה עם התשואה');
+ok(/\.stock-foot \.pf-range-summary \{ flex: 1 1 auto; min-width: 0;/.test(css) && /\.edit-actions\.stock-edit \{ flex: none;/.test(css), 'v237: התשואה מתכווצת, הכפתור קבוע — בלי חפיפה');
+ok(/fitStockFoot\(box\)/.test(fn('renderStockRangeSummary')) && /classList\.add\('no-lbl'\)/.test(fn('fitStockFoot')), 'v237: מה שלא נכנס שלם מוסתר (בלי חיתוך)');
 console.log('\n' + n + ' בדיקות עברו');

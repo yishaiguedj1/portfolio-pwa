@@ -3849,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v236';
+const APP_VERSION = 'v237';
 
 
 function saveDBto(db) {
@@ -9086,9 +9086,12 @@ function buildStockBody(p, m) {
   }
   wrap.appendChild(ranges);
 
+  // v237: שורה תחתונה אחת — התשואה בצד ימין, "ערוך" בקצה השמאלי (flex: התשואה מתכווצת/נשברת, הכפתור לא זז)
+  const foot = el('div', 'stock-foot');
   const sret = el('div', 'pf-range-summary');
   sret.id = 'sret-' + sym;
-  wrap.appendChild(sret);
+  foot.appendChild(sret);
+  wrap.appendChild(foot);
   // v236: שורת ה־legend ("NOW ● +x%") הוסרה — חזרה בדיוק על שורת התשואה שמעליה
 
   const picking = !!state.stockPick[sym];
@@ -9104,7 +9107,7 @@ function buildStockBody(p, m) {
   // לא תלוי במצב העריכה הגלובלי. כפתור המחיקה נחשף רק בתוך טופס העריכה.
   // v141: גם במצב IBKR — למניות ידניות. מניה לפי עסקאות נפתחת לניהול העסקאות.
   if (!isIbkrMode() || p.src === 'manual') {
-    const actions = el('div', 'edit-actions');
+    const actions = el('div', 'edit-actions stock-edit');
     const eb = el('button', 'chip-btn', p.fromTrades ? t('btnManageTrades') : t('btnEdit'));
     eb.type = 'button';
     eb.addEventListener('click', () => {
@@ -9113,7 +9116,7 @@ function buildStockBody(p, m) {
       if (p.fromTrades) showPositionTrades(card, p); else showEditPositionForm(card, p);
     });
     actions.appendChild(eb);
-    wrap.appendChild(actions);
+    foot.appendChild(actions);
   }
 
   return wrap;
@@ -9387,12 +9390,23 @@ function renderStockRangeSummary(sym, pts, lineCol) {
   }
   // v236: סמן המניה (● סימבול בצבע הקו) — מימין לשורת התשואה, במקום שורת ה־legend שהוסרה
   if (box) box.innerHTML = '<span class="rs-sym"><span class="dot" style="background:' + lineCol + '"></span>' + esc(sym) + '</span>' +
-    '<span>' + esc(t('stockRangeReturn')) + '</span>' +
+    '<span class="rs-lbl">' + esc(t('stockRangeReturn')) + '</span>' +
     '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
     (rangeName ? '<span class="rs-range">' + esc(rangeName) + '</span>' : '');
+  if (box) fitStockFoot(box);
   if (leg) leg.innerHTML = '<li><span class="dot" style="background:' + lineCol + '"></span>' +
     '<span class="lg-name">' + esc(sym) + '</span>' +
     '<span class="lg-pct">' + fmtRetHTML(r) + '</span></li>';
+}
+
+// v237: שורת התשואה + "ערוך" בשורה אחת — בלי חיתוך "…": מה שלא נכנס שלם מוסתר
+// (קודם התווית "תשואת המניה", ואז שם הטווח). הסמן והאחוז תמיד מוצגים; הכפתור לא זז (flex: none).
+function fitStockFoot(box) {
+  if (!box.closest('.stock-foot') || !box.clientWidth) return;
+  const cut = (x) => x && x.scrollWidth > x.clientWidth + 1;
+  box.classList.remove('no-lbl', 'no-rng');
+  if (cut(box.querySelector('.rs-lbl')) || cut(box.querySelector('.rs-range'))) box.classList.add('no-lbl');
+  if (cut(box.querySelector('.rs-range'))) box.classList.add('no-rng');
 }
 
 function updateMeasureChip(sym) {

@@ -474,8 +474,22 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .pf-range-summary .rs-sym { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; margin-inline-end: 4px; }
 .pf-range-summary .rs-sym .dot { width: 12px; height: 12px; border-radius: var(--pill); flex: none; align-self: center; }
 .stock-body .chart-hint { margin-top: 4px; font-size: 12.5px; }
-.stock-body .edit-actions { margin-top: 8px; padding: 0; }
-.stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; }
+/* v237: שורה תחתונה — תשואה (מתכווצת ונשברת לשורה שנייה אם צריך) + "ערוך" צמוד לקצה השמאלי, בלי חפיפה */
+.stock-foot { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.stock-foot .pf-range-summary { flex: 1 1 auto; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; }
+.stock-foot .pf-range-summary > span { flex: none; }
+/* רק התווית "תשואת המניה" מתקצרת כשאין מקום — הסמן, האחוז והטווח תמיד שלמים */
+.stock-foot .pf-range-summary > .rs-lbl { flex: 0 10 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.stock-foot .pf-range-summary > .rs-range { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.stock-foot .rs-sym { margin-inline-end: 0; font-size: 14px; gap: 5px; }
+.stock-foot .rs-sym .dot { width: 10px; height: 10px; }
+.stock-foot .rs-lbl { font-size: 13.5px; color: var(--on-surface-var); }
+.stock-body .stock-foot .pf-range-summary .rs-val { font-size: 17px; }
+.stock-body .stock-foot .pf-range-summary .rs-range { font-size: 12px; }
+.stock-foot .pf-range-summary.no-lbl > .rs-lbl, .stock-foot .pf-range-summary.no-rng > .rs-range { display: none; }
+.stock-body .edit-actions.stock-edit { flex: none; margin: 0; margin-inline-start: auto; padding: 0; }
+.stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; white-space: nowrap; }
+.stock-foot .stock-edit .chip-btn { padding: 5px 12px; font-size: 13px; gap: 5px; }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }
