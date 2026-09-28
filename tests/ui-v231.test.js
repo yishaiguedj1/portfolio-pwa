@@ -20,7 +20,7 @@ ok(/\.menu-veil \{[^}]*z-index: 19;[^}]*backdrop-filter: blur\(18px\)/.test(css)
 ok(/body\.menu-blur \.appbar \.brand, body\.menu-blur \.appbar-sub, body\.menu-blur \.appbar \.fx-pill \{ filter: blur/.test(css), 'בהדר: הלוגו/המקור/השער מטושטשים, הכפתורים לא');
 ok(/prefers-reduced-motion: reduce\) \{\s*\.menu-veil/.test(css), 'מכבד "הפחת תנועה"');
 ok(/if \(!state\.open\[sym\]\) closeStockCards\(sym, card\);/.test(fn('toggleStock')), 'פתיחת כרטיס סוגרת את האחרים');
-ok(/prev === 'stocks' && name !== 'stocks'\) \{ try \{ closeStockCards\(\)/.test(fn('switchTab')), 'יציאה מטאב המניות סוגרת הכל');
+ok(/\(prev === 'stocks' \|\| prev === 'wishlist'\) && name !== prev\) \{ try \{ closeStockCards\(\)/.test(fn('switchTab')), 'יציאה מטאב המניות/המעקב סוגרת הכל');
 ok(/if \(document\.hidden\) \{[\s\S]*?closeStockCards\(\);/.test(src), 'יציאה מהאפליקציה (רקע) סוגרת הכל');
 ok(/window\.scrollBy\(0, after - before\)/.test(fn('closeStockCards')), 'הכרטיס שנגעת בו לא קופץ (פיצוי גלילה)');
 // v233: פתיחת כרטיס מעלה את ראשו לראש המסך (מתחת להדר), גם אחרי שהאנימציה הגדילה את הדף

@@ -138,6 +138,8 @@ he: {
   editBtn: ICON_EDIT + 'עריכה',
   editHintStocks: 'מצב עריכה פעיל — אפשר להוסיף מניות חדשות. בסיום לחצו שוב על עריכה.',
   stockSearchPh: 'חיפוש מניה או חברה',
+  kvPrevClose: 'סגירה קודמת', kv52High: 'שיא 52 שב׳', kv52Low: 'שפל 52 שב׳', kvYtd: 'מתחילת השנה', kvNextEarn: 'הדוח הבא',
+  wlRemoveBtn: 'הסר', wlSortAdded: 'סדר הוספה', wlSortName: 'א״ב',
   searchClear: 'ניקוי',
   stockSearchNoResults: 'לא נמצאו תוצאות',
   mktTase: 'ת״א · ₪',
@@ -641,6 +643,8 @@ en: {
   editBtn: ICON_EDIT + 'Edit',
   editHintStocks: 'Edit mode is on — you can add new stocks. When done, tap Edit again.',
   stockSearchPh: 'Search stocks or companies',
+  kvPrevClose: 'Prev close', kv52High: '52W high', kv52Low: '52W low', kvYtd: 'YTD', kvNextEarn: 'Next earnings',
+  wlRemoveBtn: 'Remove', wlSortAdded: 'Added', wlSortName: 'A–Z',
   searchClear: 'Clear',
   stockSearchNoResults: 'No results found',
   mktTase: 'TASE · ₪',
@@ -3849,7 +3853,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v239';
+const APP_VERSION = 'v240';
 
 
 function saveDBto(db) {
@@ -4927,7 +4931,7 @@ function applyExtQuote(q, x) {
 }
 /* תווית הסשן לכרטיס: "טרום־מסחר −0.4%" וכו'. null בזמן מסחר רגיל / בלי נתונים. */
 function extSessionHTML(q, m) {
-  const tsym = (m && m.p && m.p.sym) || (q && q.symbol) || '';
+  const tsym = (m && m.p && m.p.sym) || (m && m.sym) || (q && q.symbol) || ''; // v240: מניה במעקב — אין p
   if (/\.TA$/i.test(tsym)) return taseSessionHTML(m);
   if (!q || !q.ext || !(q.ext.price > 0)) return '';
   const pct = Number(q.ext.pct) || 0;
@@ -5161,10 +5165,9 @@ function livePriceFlash(el, dir) {
 
 function renderLive(syms) {
   try { renderOverview(true); } catch (e) {}
-  for (const s of syms) {
-    const p = POSITIONS.find((x) => x.sym === s);
-    const card = p && document.querySelector('#stockList .stock[data-sym="' + s + '"]');
-    if (!card) continue;
+  for (const s of syms) for (const card of (document.querySelectorAll ? document.querySelectorAll('.stock[data-sym="' + s + '"]') : [])) { // v240: גם כרטיסי המעקב
+    const p = stockItemFor(s, card);
+    if (!p) continue;
     const m = metrics(s);
     const fresh = el('div'); // v193: רק הכותרת — לא כרטיס שלם עם גוף וקנבס בכל טיק
     fresh.innerHTML = stockHeadHTML(p, m);
@@ -5179,7 +5182,6 @@ function renderLive(syms) {
       if (g) { g.innerHTML = kvGridHTML(p, m); ensureChartData(s, true); }
     }
   }
-  if (syms.some((s) => WISHLIST.some((w) => w.sym === s))) { try { renderWishlist(); } catch (e) {} }
   try { fitNumbers(); } catch (e) {}
 }
 
@@ -5803,13 +5805,13 @@ function metrics(sym) {
   // המחיר בכרטיס הוא הנר האחרון (כולל אחרי־מסחר), והיסטוריה ממקור אחר יכולה להיות מעוגלת אחרת — לכן יצא −1.59% מול −1.57%.
   if (q && q.regClose > 0 && isFinite(q.regPct) && isFinite(q.regCh) && q.regCh !== 0) { dayChg = q.regPct; dayAbs = q.regCh; } // 0 = Yahoo בחג/סגירה ארוכה (כמו ב־v167) → נשארים עם ההיסטוריה
   // v142: שווי ורווח בדולרים (מניה ישראלית מומרת); המחיר נשאר במטבע המניה
-  const value = price !== null ? nativeToUSD(price * p.shares, sym) : null;
-  const gl = price !== null ? nativeToUSD((price - p.avg) * p.shares, sym) : null;
+  const value = p && price !== null ? nativeToUSD(price * p.shares, sym) : null; // v240: מניה במעקב — בלי אחזקה
+  const gl = p && price !== null ? nativeToUSD((price - p.avg) * p.shares, sym) : null;
   let ath = athOf(hist);
   // v139: שיא חדש במחיר החי — ה־ATH הוא המחיר עכשיו, לא השיא הישן מההיסטוריה
   if (price !== null && (!ath || price > ath.price) && hist.length) ath = { price: price, date: (q && (q.mdate || q.date)) || todayISO() };
   const offAth = (ath && price !== null) ? (price - ath.price) / ath.price * 100 : null;
-  return { p, q, price, dayChg, dayAbs, value, gl, ath, offAth };
+  return { p, sym, q, price, dayChg, dayAbs, value, gl, ath, offAth };
 }
 
 function totalsUSD() {
@@ -6076,7 +6078,7 @@ function setTabPageDirection(prev, name) {
 }
 function switchTab(name) {
   const prev = currentTabName();
-  if (prev === 'stocks' && name !== 'stocks') { try { closeStockCards(); } catch (e) {} } // v231
+  if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
   let actTab = null;
   document.querySelectorAll('.tab').forEach((t) => {
     const on = t.dataset.tab === name;
@@ -6174,7 +6176,7 @@ function initScrollSaver() {
     // v231: יציאה מהאפליקציה — כרטיסי המניות חוזרים למצב הרגיל (סגור); נשארים באותו כרטיס בראש המסך
     if (document.hidden) {
       try {
-        const open = [...document.querySelectorAll('#stockList .stock.open')];
+        const open = [...document.querySelectorAll('.stock.open')];
         const bar = document.querySelector('.appbar');
         const off = bar ? bar.getBoundingClientRect().height : 0;
         const first = open.find((c) => c.getBoundingClientRect().bottom > off);
@@ -8353,8 +8355,8 @@ async function yahooSearchAPI(query) {
   }
 }
 
-function renderStockSearchResults(items, status) {
-  const box = document.getElementById('stockSearchResults');
+function renderStockSearchResults(items, status, boxId, onPick) {
+  const box = document.getElementById(boxId || 'stockSearchResults');
   if (!box) return;
   box.innerHTML = '';
   if (status === 'loading' && (!items || !items.length)) {
@@ -8393,13 +8395,11 @@ function renderStockSearchResults(items, status) {
       '<span class="ss-add" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 7.5v9M7.5 12h9"/></svg></span>';
     row.addEventListener('click', () => {
       box.classList.add('hidden');
-      const inp = document.getElementById('stockSearchInput');
+      const sw = box.closest ? box.closest('.stock-search-wrap') : null;
+      const inp = sw && sw.querySelector('input');
       if (inp) { inp.value = ''; inp.blur(); }
-      const sw = document.querySelector('.stock-search-wrap');
-      if (sw) sw.classList.remove('active');
-      const sc = document.getElementById('stockSearchClear');
-      if (sc) sc.classList.add('hidden');
-      openAddStockWithSymbol(it.sym, it.name);
+      if (sw) { sw.classList.remove('active'); const sc = sw.querySelector('.sf-clear'); if (sc) sc.classList.add('hidden'); }
+      (onPick || ((x) => openAddStockWithSymbol(x.sym, x.name)))(it);
     });
     box.appendChild(row);
   }
@@ -8431,14 +8431,18 @@ function openAddStockWithSymbol(sym, name) {
   }, 50);
 }
 
-function initStockSearch() {
-  const inp = document.getElementById('stockSearchInput');
-  const box = document.getElementById('stockSearchResults');
+/* v240: אותו שדה חיפוש בטאב המניות (בחירה → טופס הוספה) וברשימת המעקב (בחירה → נוסף למעקב) */
+function initStockSearch(pfx, owned, onPick) {
+  pfx = pfx || 'stockSearch';
+  const inp = document.getElementById(pfx + 'Input');
+  const box = document.getElementById(pfx + 'Results');
   if (!inp || !box) return;
+  const ownedSet = owned || (() => new Set(POSITIONS.map((p) => p.sym)));
+  const render = (items, status) => renderStockSearchResults(items, status, pfx + 'Results', onPick);
   // v239: ⓧ מנקה ונשאר בשדה; "ביטול" מנקה ויוצא (כמו ב־iOS). השדה "פעיל" בזמן פוקוס או כשיש טקסט.
   const wrap = inp.closest('.stock-search-wrap');
-  const clr = document.getElementById('stockSearchClear');
-  const cancel = document.getElementById('stockSearchCancel');
+  const clr = document.getElementById(pfx + 'Clear');
+  const cancel = document.getElementById(pfx + 'Cancel');
   const paint = () => {
     if (clr) clr.classList.toggle('hidden', !inp.value);
     if (wrap) wrap.classList.toggle('active', document.activeElement === inp || !!inp.value);
@@ -8455,13 +8459,13 @@ function initStockSearch() {
     const q = inp.value.trim();
     const my = ++_searchSeq;
     if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-    const owned = new Set(POSITIONS.map((p) => p.sym));
+    const owned = ownedSet();
     // loading = עוד מחכים לרשת (התוצאות שכבר יש מוצגות); ok/empty = סופי
     const show = (items, loading) => {
       if (my !== _searchSeq) return; // תשובה של הקלדה ישנה
       const f = (items || []).filter((r) => !owned.has(r.sym));
-      if (f.length) renderStockSearchResults(f, loading ? 'loading' : 'ok');
-      else renderStockSearchResults(null, loading ? 'loading' : 'empty');
+      if (f.length) render(f, loading ? 'loading' : 'ok');
+      else render(null, loading ? 'loading' : 'empty');
     };
     const cached = _searchCache.get(q.toUpperCase());
     if (cached) { show(cached, false); return; }
@@ -8471,7 +8475,7 @@ function initStockSearch() {
       if (res === 'aborted' || my !== _searchSeq) return;
       if (res === null) {
         const loc = localStockSearch(q);
-        if (loc.length) show(loc, false); else renderStockSearchResults(null, 'error');
+        if (loc.length) show(loc, false); else render(null, 'error');
         return;
       }
       show(res, false);
@@ -8479,7 +8483,7 @@ function initStockSearch() {
   });
   // סגירת תוצאות בלחיצה בחוץ
   document.addEventListener('click', (e) => {
-    if (!box.classList.contains('hidden') && !e.target.closest('.stock-search-wrap')) {
+    if (!box.classList.contains('hidden') && !(wrap && wrap.contains(e.target))) {
       box.classList.add('hidden');
     }
   });
@@ -8542,8 +8546,6 @@ function initStockSort() {
 }
 
 function renderStocks() {
-  const sc = document.getElementById('stockCount');
-  if (sc) sc.textContent = POSITIONS.length;
   if (!tabShouldRender('stocks')) return; // v193
   const list = document.getElementById('stockList');
   const wasEmpty = !list.querySelector || !list.querySelector('.stock'); // v193: כניסה מדורגת רק כשהרשימה נבנית מאפס
@@ -8894,16 +8896,12 @@ function wlValidate(sym) {
   return { sym: s };
 }
 
-function wlAddItem() {
-  const symEl = document.getElementById('wlSym');
-  const noteEl = document.getElementById('wlNote');
-  const errEl = document.getElementById('wlErr');
-  const v = wlValidate(symEl.value);
-  if (v.err) { errEl.textContent = v.err; errEl.classList.remove('hidden'); return; }
-  errEl.classList.add('hidden');
-  WISHLIST.push({ sym: v.sym, note: noteEl.value.trim() });
+/* v240: הוספה מתוצאת חיפוש (כמו בטאב המניות) */
+function wlAddPicked(it) {
+  const v = wlValidate(it && it.sym);
+  if (v.err) { flash(v.err); return; }
+  WISHLIST.push({ sym: v.sym, name: (it.name && it.name !== v.sym) ? it.name : '', note: '' });
   saveDB();
-  symEl.value = ''; noteEl.value = '';
   renderWishlist();
   flash(t('wlAdded'));
   refreshQuotes();
@@ -8913,49 +8911,69 @@ function wlRemove(w) {
   if (!confirm(t('wlDelConfirm', { sym: w.sym }))) return;
   const i = WISHLIST.findIndex((x) => x.sym === w.sym);
   if (i >= 0) WISHLIST.splice(i, 1);
-  delete state.quotes[w.sym];
+  if (!POSITIONS.some((p) => p.sym === w.sym)) delete state.quotes[w.sym];
+  state.open[w.sym] = false;
   saveDB();
   renderWishlist();
   flash(t('wlRemoved'));
 }
 
+/* v240: פריט מעקב בצורה של כרטיס מניה — בלי נתוני אחזקה (כמות, ממוצע, שווי, רווח, מקור) */
+function wlItem(w) {
+  return { sym: w.sym, name: companyName(w.sym, w.name) || w.name || w.sym, note: w.note || '', watch: true };
+}
+
+/* v240: מיון רשימת המעקב — סדר הוספה / ביצועי היום / א״ב (נשמר בין טעינות) */
+const LS_WLSORT = 'pwa_wlsort_v1';
+const WL_SORTS = ['added', 'day', 'name'];
+function getWatchSort() {
+  try { const v = localStorage.getItem(LS_WLSORT); return WL_SORTS.includes(v) ? v : 'added'; } catch (e) { return 'added'; }
+}
+function paintWatchSortChips() {
+  const cur = getWatchSort();
+  document.querySelectorAll('#wlSortRow .sort-chip').forEach((b) => b.classList.toggle('on', b.dataset.sort === cur));
+}
+function initWatchSort() {
+  const row = document.getElementById('wlSortRow');
+  if (!row) return;
+  row.querySelectorAll('.sort-chip').forEach((b) => b.addEventListener('click', () => {
+    if (!WL_SORTS.includes(b.dataset.sort)) return;
+    try { localStorage.setItem(LS_WLSORT, b.dataset.sort); } catch (e) {}
+    paintWatchSortChips();
+    renderWishlist();
+  }));
+  paintWatchSortChips();
+}
+/* טהורה: day = השינוי היומי מהגבוה לנמוך (בלי נתון — בסוף), name = לפי הסימבול */
+function sortWatchList(list, mode, dayOf) {
+  const arr = list.slice();
+  if (mode === 'day') {
+    const k = (w) => { const v = dayOf(w.sym); return v === null || v === undefined || !isFinite(v) ? -Infinity : v; };
+    arr.sort((a, b) => k(b) - k(a));
+  } else if (mode === 'name') arr.sort((a, b) => a.sym.localeCompare(b.sym));
+  return arr;
+}
+
+/* v240: רשימת המעקב = אותם כרטיסי מניה כמו בטאב המניות (לוגו, מחיר חי, בועת סשן, גרף וטווחים) */
 function renderWishlist() {
   const list = document.getElementById('wishlistList');
   if (!list) return;
   if (!tabShouldRender('wishlist')) return; // v193
+  const wasEmpty = !list.querySelector || !list.querySelector('.stock');
   list.innerHTML = '';
+  paintWatchSortChips();
   if (!WISHLIST.length) {
     const m = el('p', 'fine');
+    m.style.padding = '0';
     m.textContent = t('wlEmpty');
     list.appendChild(m);
     return;
   }
-  for (const w of WISHLIST) {
-    const q = state.quotes[w.sym] || {};
-    const close = num(q.close);
-    const prev = num(q.prev);
-    const chg = (close > 0 && prev > 0) ? (close - prev) / prev * 100 : null;
-    const er = (state.earnings || {})[w.sym];
-    const card = el('div', 'card wl-card');
-    card.innerHTML =
-      '<div class="wl-top">' +
-      '<div><div class="wl-sym" dir="ltr">' + esc(w.sym) + '</div>' +
-      (w.note ? '<div class="wl-note">' + esc(w.note) + '</div>' : '') +
-      '</div>' +
-      '<button class="mini-btn danger wl-del" type="button" aria-label="' + esc(t('wlRemove', { sym: w.sym })) + '">' + esc(t('btnDeleteRow')) + '</button>' +
-      '</div>' +
-      '<div class="wl-price">' +
-      (close > 0
-        ? '<span class="wl-close" dir="ltr">' + (symCur(w.sym) === 'ILS' ? fmtAg(close, w.sym) : fmtUSD2(close)) + '</span>'
-        : '<span class="fine">' + t('wlNoPrice') + '</span>') +
-      (chg !== null
-        ? '<span class="wl-chg ' + (chg >= 0 ? 'pos' : 'neg') + '" dir="ltr">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%</span>'
-        : '') +
-      '</div>' +
-      (er && er.date && daysUntil(er.date) >= 0
-        ? '<div class="wl-earn">' + esc(t('earnDate', { date: fmtDateIL(er.date) })) + '</div>'
-        : '');
-    card.querySelector('.wl-del').addEventListener('click', () => wlRemove(w));
+  let idx = 0;
+  for (const w of sortWatchList(WISHLIST, getWatchSort(), (s) => metrics(s).dayChg)) {
+    const card = buildStockCard(wlItem(w));
+    if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); }
+    idx++;
     list.appendChild(card);
   }
 }
@@ -9027,6 +9045,25 @@ function logoImgFix(img) {
      היום  +0.52%           |  $25,448 ▾   (שווי)
      מהקנייה +40.04%        |  +$2,215     (רווח/הפסד מהקנייה, בדולרים/שקלים לפי המטבע הנבחר)
    שורת "מהקנייה" רק כשיש מחיר קנייה ומחיר חי. */
+/* v240: אותה מניה יכולה להופיע גם בטאב המניות וגם ברשימת המעקב — הכרטיס של הטאב הנראה קודם */
+function stockCardEl(sym) {
+  if (typeof document === 'undefined' || !document.querySelector) return null;
+  const sel = '.stock[data-sym="' + sym + '"]';
+  let page = null;
+  try { page = document.getElementById('tab-' + currentTabName()); } catch (e) {}
+  return (page && page.querySelector && page.querySelector(sel)) || document.querySelector('#stockList ' + sel) || document.querySelector('#wishlistList ' + sel);
+}
+function stockNode(sym, prefix) {
+  const c = stockCardEl(sym);
+  const id = prefix + sym;
+  return (c && c.querySelector && c.querySelector('[id="' + id + '"]')) || document.getElementById(id);
+}
+/* הפריט שהכרטיס מציג: אחזקה, או פריט מעקב (לפי הכרטיס עצמו) */
+function stockItemFor(sym, card) {
+  if (card && card.dataset && card.dataset.watch) { const w = WISHLIST.find((x) => x.sym === sym); return w ? wlItem(w) : null; }
+  return POSITIONS.find((x) => x.sym === sym) || null;
+}
+
 function stockSubHTML(p, m) {
   const cur = state.currency;
   const toCur = (usd) => (usd === null || usd === undefined ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
@@ -9034,8 +9071,11 @@ function stockSubHTML(p, m) {
   const day = m.dayChg === null ? null : (Math.abs(m.dayChg) < 0.005 ? 0 : m.dayChg);
   // v208→v209: גם השינוי היומי בכסף — למניה אחת (כמו Yahoo: "−2.16 (−1.57%)"), במטבע של המחיר, באותו צבע
   const dayAmtHTML = day === null || m.dayAbs === null || m.dayAbs === undefined || !isFinite(m.dayAbs) ? '' : ' <span class="day-amt">' + fmtSignedPx(m.dayAbs, p && p.sym) + '</span>';
-  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) }) + dayAmtHTML) + '</span>' +
-    '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
+  let html = '<span class="day-chg ' + cls(day) + '">' + (day === null ? '—' : t('todayChg', { v: fmtPct(day, true) }) + dayAmtHTML) + '</span>';
+  if (p && p.watch) { // v240: מעקב — בלי שווי/רווח; ההערה (אם יש) במקום השווי
+    return html + '<span class="sub-val wl-sub-note">' + (p.note ? '<span class="wl-note-txt">' + esc(p.note) + '</span> ' : '') + '<span class="chev">▾</span></span>';
+  }
+  html += '<span class="sub-val">' + (m.value === null ? '—' : money(toCur(m.value), cur)) + ' <span class="chev">▾</span></span>';
   let gp = (p && p.avg > 0 && m.price !== null) ? gainPctOf(p, m.price) : null;
   if (gp !== null && Math.abs(gp) < 0.005) gp = 0; // בלי "+0.00%"
   if (gp !== null && isFinite(gp)) {
@@ -9060,7 +9100,7 @@ function stockHeadHTML(p, m) {
   // v204: שתי שורות עצמאיות ליד הלוגו — שורה 1: סימבול + תגית המקור + מחיר; שורה 2: שם החברה + בועת הסשן.
   // כך הבועה מתחרה רק עם שם החברה (שנקטע ב־…) ולא עם הסימבול/התגית — תמיד שתי שורות, בלי התנגשות.
   return '<span class="stock-id">' + stockLogoHTML(sym) +
-    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' + srcTagHTML(positionSource(p)) +
+    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p))) +
     '<span class="stock-price' + stockPriceSizeCls(priceTxt) + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     '<span class="stock-ext">' + extSessionHTML(m.q, m) + '</span></span></span>' +
@@ -9070,8 +9110,9 @@ function buildStockCard(p) {
   const sym = p.sym;
   const m = metrics(sym);
 
-  const card = el('div', 'stock' + (state.open[sym] ? ' open' : ''));
+  const card = el('div', 'stock' + (state.open[sym] ? ' open' : '') + (p.watch ? ' watch' : ''));
   card.dataset.sym = sym;
+  if (p.watch) card.dataset.watch = '1'; // v240: כרטיס ברשימת המעקב
   const head = el('button', 'stock-head');
   head.type = 'button';
   head.innerHTML = stockHeadHTML(p, m);
@@ -9084,6 +9125,8 @@ function buildStockCard(p) {
   const body = el('div', 'stock-body');
   body.appendChild(buildStockBody(p, m));
   card.appendChild(body);
+  // v240: כרטיס פתוח שנבנה מחדש (ציור הרשימה אחרי עדכון מחירים) — מתאימים שוב לגובה המסך ומחברים את ה־ResizeObserver
+  if (state.open[sym] && typeof setTimeout === 'function') setTimeout(() => { if (card.isConnected && fitCardToScreen(sym, card)) ensureChartData(sym, true); }, 0);
   return card;
 }
 
@@ -9094,7 +9137,42 @@ function kvHTML(k, v, cls, sub, subCls) {
 }
 
 /* v193: אריחי הכרטיס הפתוח (כמות, ממוצע, שווי, רווח, משקל, ATH) — משותף לבנייה ולעדכון החי */
+/* v240: נתוני כרטיס במעקב — רק מידע על המניה עצמה (אין כמות/ממוצע/שווי/רווח/משקל): סגירה קודמת, שיא ושפל 52 שבועות,
+   ATH, מתחילת השנה, הדוח הבא. אותו עיצוב אריחים. */
+function watchKvHTML(p, m) {
+  const sym = p.sym, q = m.q || {};
+  const hist = state.hist[sym] || [];
+  const wait = state.hist[sym] ? '—' : '…';
+  const cls = (v) => (v === null || !isFinite(v) || Math.abs(v) < 0.005 ? '' : v > 0 ? 'pos' : 'neg');
+  const regPx = q.regClose > 0 ? q.regClose : m.price;
+  const prevClose = regPx > 0 && m.dayAbs !== null && m.dayAbs !== undefined && isFinite(m.dayAbs) ? regPx - m.dayAbs : (q.prev > 0 ? q.prev : null);
+  let hi = null, lo = null;
+  if (hist.length) {
+    const from = addDaysISO(todayISO(), -365);
+    for (const r of hist) if (r.date >= from && r.close > 0) { if (hi === null || r.close > hi) hi = r.close; if (lo === null || r.close < lo) lo = r.close; }
+    if (m.price > 0) { if (hi !== null && m.price > hi) hi = m.price; if (lo !== null && m.price < lo) lo = m.price; }
+  }
+  const off = (ref) => (ref > 0 && m.price > 0 ? (m.price / ref - 1) * 100 : null);
+  let ytd = null;
+  if (hist.length) {
+    try {
+      const rr = stockRangeRows(stockChartRows(hist, q), 'ytd', null, exchangeTodayIso(sym));
+      if (rr && rr.length >= 2 && rr[0].close > 0) ytd = (rr[rr.length - 1].close / rr[0].close - 1) * 100;
+    } catch (e) {}
+  }
+  const er = (state.earnings || {})[sym];
+  const erTxt = er && er.date && daysUntil(er.date) >= 0 ? fmtDateIL(er.date) : '—';
+  const oH = off(hi), oL = off(lo);
+  return kvHTML(t('kvPrevClose'), prevClose ? fmtPx(prevClose, sym) : '—') +
+    kvHTML(t('kv52High'), hi ? fmtPx(hi, sym) : wait, '', oH !== null ? fmtPct(oH, true) : '', cls(oH)) +
+    kvHTML(t('kv52Low'), lo ? fmtPx(lo, sym) : wait, '', oL !== null ? fmtPct(oL, true) : '', cls(oL)) +
+    kvHTML('ATH', m.ath ? fmtPx(m.ath.price, sym) : wait, '',
+      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : '', cls(m.offAth)) +
+    kvHTML(t('kvYtd'), ytd === null ? wait : fmtPct(ytd, true), cls(ytd)) +
+    kvHTML(t('kvNextEarn'), erTxt);
+}
 function kvGridHTML(p, m) {
+  if (p.watch) return watchKvHTML(p, m);
   const sym = p.sym;
   const cur = state.currency;
   const toCur = (usd) => (usd === null ? null : (cur === 'ILS' && state.fx ? usd * state.fx : usd));
@@ -9212,12 +9290,19 @@ function buildStockBody(p, m) {
   // v100: כפתור "ערוך" בתחתית הכרטיס הפתוח — מופיע תמיד בלחיצה על המניה,
   // לא תלוי במצב העריכה הגלובלי. כפתור המחיקה נחשף רק בתוך טופס העריכה.
   // v141: גם במצב IBKR — למניות ידניות. מניה לפי עסקאות נפתחת לניהול העסקאות.
-  if (!isIbkrMode() || p.src === 'manual') {
+  if (p.watch) { // v240: במעקב — "הסר" במקום "ערוך" (באותו מקום ובאותו עיצוב)
+    const actions = el('div', 'edit-actions stock-edit');
+    const rb = el('button', 'chip-btn danger', t('wlRemoveBtn'));
+    rb.type = 'button';
+    rb.addEventListener('click', () => wlRemove({ sym: sym }));
+    actions.appendChild(rb);
+    foot.appendChild(actions);
+  } else if (!isIbkrMode() || p.src === 'manual') {
     const actions = el('div', 'edit-actions stock-edit');
     const eb = el('button', 'chip-btn', p.fromTrades ? t('btnManageTrades') : t('btnEdit'));
     eb.type = 'button';
     eb.addEventListener('click', () => {
-      const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
+      const card = stockCardEl(sym);
       if (!card) return;
       if (p.fromTrades) showPositionTrades(card, p); else showEditPositionForm(card, p);
     });
@@ -9254,8 +9339,9 @@ function closeStockCards(except, keepEl) {
   for (const s of syms) {
     state.open[s] = false;
     if (state.stockPick) state.stockPick[s] = false;
-    const c = document.querySelector('#stockList .stock[data-sym="' + s + '"]');
-    if (c && c.classList) { clearTimeout(c._animT); c.classList.remove('open', 'anim'); }
+    for (const c of (document.querySelectorAll ? document.querySelectorAll('.stock[data-sym="' + s + '"]') : [])) { // v240: גם במעקב
+      if (c && c.classList) { clearTimeout(c._animT); c.classList.remove('open', 'anim'); }
+    }
   }
   if (before !== null) {
     const after = keepEl.getBoundingClientRect().top;
@@ -9278,7 +9364,7 @@ function scrollCardToTop(card) {
 // הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
 function fitCardToScreen(sym, card) {
   if (typeof window === 'undefined' || !window.innerHeight) return false;
-  card = card || document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
+  card = card || stockCardEl(sym);
   if (!card || !state.open[sym] || !card.getBoundingClientRect) return false;
   const cv = card.querySelector('.chart-wrap canvas');
   const body = card.querySelector('.stock-body'), inner = card.querySelector('.stock-body-in');
@@ -9340,8 +9426,8 @@ function toggleStock(sym, card) {
 }
 
 function refreshStockBody(sym) {
-  const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
-  const p = POSITIONS.find((x) => x.sym === sym);
+  const card = stockCardEl(sym);
+  const p = stockItemFor(sym, card);
   if (!card || !p) return;
   const m = metrics(sym);
   const body = card.querySelector('.stock-body');
@@ -9352,7 +9438,7 @@ function refreshStockBody(sym) {
 }
 
 async function ensureChartData(sym, quiet) {
-  const loading = document.getElementById('cload-' + sym);
+  const loading = stockNode(sym, 'cload-');
   const range = state.range[sym] || 'year';
   if (loading && !quiet) { loading.classList.remove('hidden'); loading.textContent = t('loadingData'); }
   try {
@@ -9382,6 +9468,9 @@ async function ensureChartData(sym, quiet) {
     // ננסה שוב אוטומטית כש־Yahoo חוזר (yahooRecovered).
     if (!(hist && hist.length) && loading) { loading.textContent = t('histRetryLater'); loading.classList.remove('hidden'); }
     else if (pts && loading) loading.classList.add('hidden');
+    // v240: ההיסטוריה הגיעה — האריחים שתלויים בה (ATH, 52 שבועות, מתחילת השנה) מתעדכנים מיד, לא בטיק הבא
+    const card = stockCardEl(sym), g = card && card.querySelector('.kv-grid'), it = g && stockItemFor(sym, card);
+    if (it) { const html = kvGridHTML(it, metrics(sym)); if (g.innerHTML !== html) g.innerHTML = html; }
   } catch (e) {
     if (loading) { loading.textContent = t('noChartData'); loading.classList.remove('hidden'); }
   }
@@ -9397,8 +9486,8 @@ function chartPoints(sym, rows, intraday) {
 }
 
 function drawStockChart(sym, rows, intraday) {
-  const canvas = document.getElementById('chart-' + sym);
-  const loading = document.getElementById('cload-' + sym);
+  const canvas = stockNode(sym, 'chart-');
+  const loading = stockNode(sym, 'cload-');
   if (!canvas) return null;
   const pts = chartPoints(sym, rows, intraday);
   if (!pts.length) {
@@ -9509,8 +9598,8 @@ function drawStockChart(sym, rows, intraday) {
 
 /* v107: שורת תשואת הטווח + legend לגרף המניה — כמו בגרף הראשי */
 function renderStockRangeSummary(sym, pts, lineCol) {
-  const box = document.getElementById('sret-' + sym);
-  const leg = document.getElementById('sleg-' + sym);
+  const box = stockNode(sym, 'sret-');
+  const leg = stockNode(sym, 'sleg-');
   if (!pts || pts.length < 2) {
     if (box) box.innerHTML = '';
     if (leg) leg.innerHTML = '';
@@ -9550,10 +9639,10 @@ function fitStockFoot(box) {
 }
 
 function updateMeasureChip(sym) {
-  const chip = document.getElementById('mchip-' + sym);
+  const chip = stockNode(sym, 'mchip-');
   if (!chip) return;
   const ms = measureState(sym);
-  const canvas = document.getElementById('chart-' + sym);
+  const canvas = stockNode(sym, 'chart-');
   const pts = canvas && canvas._chartMap ? canvas._chartMap.pts : [];
   if (!ms.on || ms.pts.length < 2 || !pts.length) {
     chip.classList.add('hidden');
@@ -9599,7 +9688,7 @@ function openStockFromSheet(sym) {
     state.stockPick[sym] = true;
     state.measure[sym] = { on: false, pts: [] };
     refreshStockBody(sym);
-    const c = document.getElementById('chart-' + sym);
+    const c = stockNode(sym, 'chart-');
     if (c && c.scrollIntoView) { cancelScrollRestore(); c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
   });
   const b2 = el('button', 'sheet-btn', CAL_ICON + esc(t('pfPickFromCal')));
@@ -10196,7 +10285,7 @@ function openStockCard(sym) {
   switchTab('stocks');
   cancelScrollRestore();
   const go = (tries) => {
-    const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
+    const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]'); // הווידג׳ט — רק אחזקות
     if (!card) { if (tries < 40) setTimeout(() => go(tries + 1), 150); return; }
     const wasOpen = !!state.open[sym];
     if (!wasOpen) toggleStock(sym, card); // v233: toggleStock כבר גולל את הכרטיס לראש המסך
@@ -10435,16 +10524,12 @@ function init() {
   // v87: חיפוש מניות להוספה — זמין בשני המצבים
   try { initStockSearch(); } catch (e) {}
   try { initStockSort(); } catch (e) {}
+  // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
+  try { initStockSearch('wlSearch', () => new Set(WISHLIST.map((w) => w.sym).concat(POSITIONS.map((p) => p.sym))), wlAddPicked); } catch (e) {}
+  try { initWatchSort(); } catch (e) {}
   // v101: טיקר חי לשער הדולר — מתחיל עם האפליקציה
   try { startFxTicker(); } catch (e) {}
 
-  // רשימת מעקב — הוספה/מחיקה ישירה, לא חלק מהתיק
-  const wlAdd = document.getElementById('wlAddBtn');
-  if (wlAdd) wlAdd.addEventListener('click', wlAddItem);
-  const wlSym = document.getElementById('wlSym');
-  if (wlSym) wlSym.addEventListener('keydown', (e) => { if (e.key === 'Enter') wlAddItem(); });
-  const wlNote = document.getElementById('wlNote');
-  if (wlNote) wlNote.addEventListener('keydown', (e) => { if (e.key === 'Enter') wlAddItem(); });
 
   // מזומן
   renderCashInputs();

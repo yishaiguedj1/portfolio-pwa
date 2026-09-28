@@ -71,7 +71,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 
 <nav class="tabs" role="tablist" data-i18n-aria="tabsAria" aria-label="לשוניות">
   <button class="tab active" data-tab="overview" type="button" role="tab"><span data-i18n="tabOverview">סקירה</span></button>
-  <button class="tab" data-tab="stocks" type="button" role="tab"><span data-i18n="tabStocks">מניות</span> <span class="count-chip" id="stockCount">9</span></button>
+  <button class="tab" data-tab="stocks" type="button" role="tab"><span data-i18n="tabStocks">מניות</span></button>
   <button class="tab" data-tab="trades" type="button" role="tab"><span data-i18n="tabTrades">עסקאות</span></button>
   <button class="tab" data-tab="wishlist" type="button" role="tab"><span data-i18n="tabWishlist">מעקב</span></button>
   <button class="tab" data-tab="deposits" type="button" role="tab"><span data-i18n="tabDeposits">הפקדות</span></button>
@@ -196,19 +196,28 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
   </section>
 
-  <!-- מעקב (wishlist) -->
+  <!-- מעקב (wishlist) — v240: זהה לטאב המניות (חיפוש, מיון, כרטיסים), בלי נתוני אחזקה -->
   <section id="tab-wishlist" class="tabpage" role="tabpanel">
     <div class="section-head">
       <h2 data-i18n="wishlistTitle">רשימת מעקב</h2>
     </div>
-    <p class="fine" data-i18n="wishlistHint">מניות שמעניינות אותך — מחיר חי ושינוי יומי. לא חלק מהתיק.</p>
-    <div class="card form-card">
-      <div class="form-row">
-        <input id="wlSym" type="text" data-i18n-ph="wlSymbolPh" placeholder="סימבול (למשל NVDA)" autocomplete="off" autocapitalize="characters" />
-        <input id="wlNote" type="text" data-i18n-ph="wlNotePh" placeholder="הערה (אופציונלי)" />
-        <button id="wlAddBtn" class="chip-btn" type="button" data-i18n="wlAdd">＋ הוסף למעקב</button>
+    <div class="stock-search-wrap">
+      <div class="search-row">
+        <label class="search-field">
+          <svg class="sf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20.5 20.5"/></svg>
+          <input id="wlSearchInput" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"
+                 data-i18n-ph="stockSearchPh" placeholder="חיפוש מניה או חברה">
+          <button type="button" class="sf-clear hidden" id="wlSearchClear" data-i18n-aria="searchClear" aria-label="ניקוי"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg></button>
+        </label>
+        <button type="button" class="sf-cancel" id="wlSearchCancel" data-i18n="btnCancel">ביטול</button>
       </div>
-      <p class="fine hidden" id="wlErr"></p>
+      <div id="wlSearchResults" class="stock-search-results hidden"></div>
+    </div>
+    <div class="stock-sort-row" id="wlSortRow">
+      <span class="stock-sort-label" data-i18n="sortBy">מיון:</span>
+      <button class="chip-btn sort-chip" type="button" data-sort="added" data-i18n="wlSortAdded">סדר הוספה</button>
+      <button class="chip-btn sort-chip" type="button" data-sort="day" data-i18n="sortDay">ביצועי היום</button>
+      <button class="chip-btn sort-chip" type="button" data-sort="name" data-i18n="wlSortName">א״ב</button>
     </div>
     <div id="wishlistList"></div>
   </section>
