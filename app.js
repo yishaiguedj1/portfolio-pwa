@@ -3849,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v230';
+const APP_VERSION = 'v231';
 
 
 function saveDBto(db) {
@@ -6080,6 +6080,7 @@ function setTabPageDirection(prev, name) {
 }
 function switchTab(name) {
   const prev = currentTabName();
+  if (prev === 'stocks' && name !== 'stocks') { try { closeStockCards(); } catch (e) {} } // v231
   let actTab = null;
   document.querySelectorAll('.tab').forEach((t) => {
     const on = t.dataset.tab === name;
@@ -6174,6 +6175,17 @@ function initScrollSaver() {
   // v153: טלפון שמעביר את האפליקציה לרקע לא תמיד שולח beforeunload
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && !scrollRestoring()) { try { saveScrollY(currentTabName(), window.scrollY); } catch (e) {} }
+    // v231: יציאה מהאפליקציה — כרטיסי המניות חוזרים למצב הרגיל (סגור); נשארים באותו כרטיס בראש המסך
+    if (document.hidden) {
+      try {
+        const open = [...document.querySelectorAll('#stockList .stock.open')];
+        const bar = document.querySelector('.appbar');
+        const off = bar ? bar.getBoundingClientRect().height : 0;
+        const first = open.find((c) => c.getBoundingClientRect().bottom > off);
+        closeStockCards();
+        if (first && first.getBoundingClientRect().top < off) window.scrollTo(0, Math.max(0, first.getBoundingClientRect().top + window.scrollY - off - 12));
+      } catch (e) {}
+    }
   });
 }
 
@@ -9143,7 +9155,26 @@ function weightTxt(sym) {
 
 /* v193: פתיחה/סגירה עם אנימציית גובה (grid 0fr↔1fr) — אבל גוף סגור נשאר display:none (בלי עלות layout ל־10 גופים
    סגורים בכל ציור). המצב 'anim' מחזיק את הגוף מוצג לאורך המעבר; נופל לזמן קצוב אם transitionend לא מגיע. */
+/* v231: כרטיסי מניה לא נשארים פתוחים בלי סיבה (בקשת המשתמש) — פתיחת כרטיס סוגרת את האחרים, ויציאה מטאב המניות
+   או מהאפליקציה (רקע) סוגרת את כולם, גם כרטיס שנפתח מהווידג'ט. הסגירה מיידית (בלי אנימציה) ומפצה את הגלילה,
+   כדי שהכרטיס שנגעת בו לא יקפוץ מתחת לאצבע כשכרטיס פתוח מעליו נסגר. */
+function closeStockCards(except, keepEl) {
+  const syms = Object.keys(state.open).filter((s) => state.open[s] && s !== except);
+  if (!syms.length) return;
+  const before = keepEl && keepEl.getBoundingClientRect ? keepEl.getBoundingClientRect().top : null;
+  for (const s of syms) {
+    state.open[s] = false;
+    if (state.stockPick) state.stockPick[s] = false;
+    const c = document.querySelector('#stockList .stock[data-sym="' + s + '"]');
+    if (c && c.classList) { clearTimeout(c._animT); c.classList.remove('open', 'anim'); }
+  }
+  if (before !== null) {
+    const after = keepEl.getBoundingClientRect().top;
+    if (Math.abs(after - before) > 1) { cancelScrollRestore(); window.scrollBy(0, after - before); }
+  }
+}
 function toggleStock(sym, card) {
+  if (!state.open[sym]) closeStockCards(sym, card);
   state.open[sym] = !state.open[sym];
   const body = card.querySelector && card.querySelector('.stock-body');
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -10473,6 +10504,8 @@ function setMainMenuOpen(open) {
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   const acts = document.querySelector('.appbar-actions');
   if (acts) acts.classList.toggle('menu-open', open);
+  // v231: טשטוש בסגנון Apple על כל המסך חוץ מהתפריט וכפתורי ההדר (שכבה על העמוד; בהדר — הלוגו/המקור/השער עצמם)
+  if (document.body && document.body.classList) document.body.classList.toggle('menu-blur', open);
   const lang = document.getElementById('langBtn');
   const cur = document.getElementById('curToggleBtn');
   if (lang) lang.setAttribute('aria-label', open ? t('menuSettings') : t('langAria'));
@@ -10486,6 +10519,13 @@ function initMainMenu() {
   const drop = document.getElementById('menuDrop');
   if (!btn || !drop) return;
   btn.innerHTML = btnFacesHTML(ICON_MENU, ICON_CLOSE);
+  // v231: שכבות הטשטוש — נוצרות פעם אחת; נגיעה בהן סוגרת את התפריט (דרך מאזין ה־click של המסמך)
+  if (!document.getElementById('menuVeil')) {
+    const veil = document.createElement('div');
+    veil.id = 'menuVeil'; veil.className = 'menu-veil'; veil.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(veil);
+    veil.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false }); // בלי גלילת העמוד מאחורי הטשטוש
+  }
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     setMainMenuOpen(!mainMenuOpen());
