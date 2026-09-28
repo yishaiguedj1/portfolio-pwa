@@ -3849,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v232';
+const APP_VERSION = 'v233';
 
 
 function saveDBto(db) {
@@ -9171,6 +9171,18 @@ function closeStockCards(except, keepEl) {
     if (Math.abs(after - before) > 1) { cancelScrollRestore(); window.scrollBy(0, after - before); }
   }
 }
+/* v233: פתיחת כרטיס מניה — ראש הכרטיס עולה לראש המסך (מתחת להדר הדביק), כדי שיראו כמה שיותר מהפרטים (בקשת המשתמש).
+   פעמיים: מיד (גלילה חלקה), ושוב כשהאנימציה נגמרת — כרטיס בתחתית הדף מגיע לראש רק אחרי שהדף התארך */
+function scrollCardToTop(card) {
+  if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
+  const bar = document.querySelector('.appbar');
+  const off = (bar ? bar.getBoundingClientRect().height : 0) + 10;
+  const top = card.getBoundingClientRect().top;
+  if (Math.abs(top - off) < 4) return;
+  cancelScrollRestore();
+  const y = Math.max(0, top + (window.scrollY || 0) - off);
+  try { window.scrollTo({ top: y, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, y); }
+}
 function toggleStock(sym, card) {
   if (!state.open[sym]) closeStockCards(sym, card);
   state.open[sym] = !state.open[sym];
@@ -9178,11 +9190,15 @@ function toggleStock(sym, card) {
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!body || reduce || !card.classList) {
     card.classList.toggle('open', state.open[sym]);
-    if (state.open[sym]) ensureChartData(sym);
+    if (state.open[sym]) { ensureChartData(sym); scrollCardToTop(card); }
     return;
   }
   clearTimeout(card._animT);
-  const done = () => { clearTimeout(card._animT); card.classList.remove('anim'); body.removeEventListener('transitionend', onEnd); };
+  const opening = !!state.open[sym];
+  const done = () => {
+    clearTimeout(card._animT); card.classList.remove('anim'); body.removeEventListener('transitionend', onEnd);
+    if (opening && state.open[sym]) scrollCardToTop(card); // השלמה אחרי שהדף התארך
+  };
   const onEnd = (e) => { if (e.target === body) done(); };
   body.addEventListener('transitionend', onEnd);
   card._animT = setTimeout(done, 450);
@@ -9191,6 +9207,7 @@ function toggleStock(sym, card) {
     void body.offsetHeight; // נקודת מוצא לפני המעבר
     card.classList.add('open'); // → 1fr
     ensureChartData(sym);
+    scrollCardToTop(card);
   } else {
     card.classList.add('anim');
     void body.offsetHeight;
@@ -10044,15 +10061,9 @@ function openStockCard(sym) {
     const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
     if (!card) { if (tries < 40) setTimeout(() => go(tries + 1), 150); return; }
     const wasOpen = !!state.open[sym];
-    if (!wasOpen) toggleStock(sym, card);
-    // גלילה אחרי אנימציית הפתיחה — לפניה הדף עוד קצר והגלילה נחתכת
-    setTimeout(() => {
-      const cur = document.querySelector('#stockList .stock[data-sym="' + sym + '"]') || card; // הרשימה אולי צוירה מחדש בינתיים
-      const bar = document.querySelector('.appbar');
-      const off = bar ? bar.getBoundingClientRect().height : 0;
-      const y = cur.getBoundingClientRect().top + (window.scrollY || 0) - off - 12;
-      try { window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } catch (e) { window.scrollTo(0, Math.max(0, y)); }
-    }, wasOpen ? 0 : 480);
+    if (!wasOpen) toggleStock(sym, card); // v233: toggleStock כבר גולל את הכרטיס לראש המסך
+    // השלמה (גם כשכבר פתוח / הרשימה צוירה מחדש בינתיים)
+    setTimeout(() => scrollCardToTop(document.querySelector('#stockList .stock[data-sym="' + sym + '"]') || card), wasOpen ? 0 : 520);
   };
   go(0);
 }

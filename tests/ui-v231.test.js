@@ -23,4 +23,7 @@ ok(/if \(!state\.open\[sym\]\) closeStockCards\(sym, card\);/.test(fn('toggleSto
 ok(/prev === 'stocks' && name !== 'stocks'\) \{ try \{ closeStockCards\(\)/.test(fn('switchTab')), 'יציאה מטאב המניות סוגרת הכל');
 ok(/if \(document\.hidden\) \{[\s\S]*?closeStockCards\(\);/.test(src), 'יציאה מהאפליקציה (רקע) סוגרת הכל');
 ok(/window\.scrollBy\(0, after - before\)/.test(fn('closeStockCards')), 'הכרטיס שנגעת בו לא קופץ (פיצוי גלילה)');
+// v233: פתיחת כרטיס מעלה את ראשו לראש המסך (מתחת להדר), גם אחרי שהאנימציה הגדילה את הדף
+ok(/scrollCardToTop\(card\);/.test(fn('toggleStock')) && /if \(opening && state\.open\[sym\]\) scrollCardToTop\(card\)/.test(fn('toggleStock')), 'v233: פתיחת כרטיס גוללת את ראשו לראש המסך (מיד + בסוף האנימציה)');
+ok(/\.appbar'\);[\s\S]*?getBoundingClientRect\(\)\.height : 0\) \+ 10/.test(fn('scrollCardToTop')), 'v233: מתחת להדר הדביק');
 console.log('\n' + n + ' בדיקות עברו');
