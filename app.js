@@ -229,10 +229,10 @@ he: {
   lagDelayed: 'דיליי ~15 דקות',
   sessionPre: ' · טרום־מסחר',
   sessionPost: ' · אחרי־מסחר',
-  sessionNight: ' · מסחר לילי (overnight)',
+  sessionNight: ' · מסחר־לילי (overnight)',
   sessPreShort: 'טרום־מסחר',
   sessPostShort: 'אחרי־מסחר',
-  sessNightShort: 'לילי',
+  sessNightShort: 'מסחר־לילי',
   sessExtTitle: 'שינוי מהסגירה הרגילה',
   sessClosed: 'השוק סגור',
   sessClosedPrefix: 'השוק סגור ·',
@@ -243,7 +243,7 @@ he: {
   hdTaErevShavuot: 'ערב שבועות', hdTaShavuot: 'שבועות', hdTaTishaBav: 'ט׳ באב',
   sessPostTiny: 'אחרי־מסחר',
   sessPreTiny: 'טרום־מסחר',
-  sessNightTiny: 'לילי',
+  sessNightTiny: 'מסחר־לילי',
   sessClosedTitle: 'השוק סגור — השינוי הוא מהמסחר המאוחר האחרון',
   hdWeekend: 'סופ״ש',
   hdNewYear: 'ראש השנה',
@@ -3815,7 +3815,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v226';
+const APP_VERSION = 'v227';
 
 
 function saveDBto(db) {
