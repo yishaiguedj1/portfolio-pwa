@@ -116,6 +116,7 @@ private object C {
     val white: GColor = ColorProvider(Color.White, Color.White)
     val letter: GColor = ColorProvider(Color(0xFF3A3A3C), Color(0xFF3A3A3C))
     val dot = ColorProvider(Color(0xFF8E9490), Color(0xFF8E9490))
+    val btnBorder = ColorProvider(Color(0xFFDFE2E0), Color(0xFF3C3E42))
 }
 
 private fun ltr(s: String) = "\u2066$s\u2069"
@@ -140,7 +141,8 @@ private fun localized(context: Context, lang: String): Context {
  * הילדים בשורות ואת היישור (Start↔End). "s" = תחילת הקריאה (ימין בעברית), "e" = סופה.
  */
 private class Dirn(context: Context, lang: String) {
-    val flip = (lang != "en") != (context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+    val rtlPhone = context.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+    val flip = (lang != "en") != rtlPhone
     val s: Alignment.Horizontal get() = if (flip) Alignment.End else Alignment.Start
     val e: Alignment.Horizontal get() = if (flip) Alignment.Start else Alignment.End
     val ts: TextAlign get() = if (flip) TextAlign.End else TextAlign.Start
@@ -161,7 +163,7 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
     val d = Dirn(context, lang)
     Box(GlanceModifier.fillMaxSize().background(C.w).cornerRadius(28.dp)) {
         Column(GlanceModifier.fillMaxSize()) {
-            Header(lc, d, model?.header, updated)
+            Header(lc, d, model?.fx, updated)
             if (model == null || model.rows.isEmpty()) {
                 // עוד לא הגיעה רשימה מהאפליקציה (או שהשרתון לא ענה בפעם הראשונה)
                 Box(
@@ -194,31 +196,50 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
     }
 }
 
+/* v228: כותרת — מצד אחד כפתור רענון עגול בסגנון כפתורי ההדר באפליקציה (רקע + מסגרת דקה, אייקון ירוק) ו"עודכן",
+   מהצד השני בועת שער הדולר כמו באפליקציה (נקודה + "שער הדולר", מתחת ₪3.06). בועת מצב השוק הוסרה (בקשת המשתמש) —
+   מצב המסחר כבר מופיע בבועה של כל כרטיס. תצוגה מקדימה אושרה 28/09/2026. */
 @Composable
-private fun Header(lc: Context, d: Dirn, h: WidgetHeader?, updated: Long) {
+private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long) {
     val time = if (updated <= 0L) "—" else DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(updated))
     Column(GlanceModifier.fillMaxWidth().height(74.dp).padding(start = 14.dp, end = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
         DRow(d, GlanceModifier.fillMaxWidth(), listOf(
             {
+                // מסגרת דקה: עיגול בצבע המסגרת ובתוכו עיגול הרקע (ל־Glance אין border)
                 Box(
-                    GlanceModifier.size(30.dp).cornerRadius(15.dp).background(C.pill).clickable(actionRunCallback<RefreshAction>()),
+                    GlanceModifier.size(34.dp).cornerRadius(17.dp).background(C.btnBorder).padding(1.dp)
+                        .clickable(actionRunCallback<RefreshAction>()),
                     contentAlignment = Alignment.Center,
-                ) { Text("↻", style = TextStyle(color = C.on, fontSize = 16.sp, fontWeight = FontWeight.Bold)) }
+                ) {
+                    Box(GlanceModifier.fillMaxSize().cornerRadius(16.dp).background(C.pill), contentAlignment = Alignment.Center) {
+                        Image(ImageProvider(R.drawable.ic_widget_refresh), contentDescription = lc.getString(R.string.wRefresh), modifier = GlanceModifier.size(19.dp))
+                    }
+                }
             },
-            { Spacer(GlanceModifier.width(7.dp)) },
+            { Spacer(GlanceModifier.width(8.dp)) },
             { Text(lc.getString(R.string.wUpdated, time), style = TextStyle(color = C.variant, fontSize = 12.sp), maxLines = 1) },
             { Spacer(GlanceModifier.defaultWeight()) },
-            {
-                if (h != null && h.lines.isNotEmpty()) DRow(
-                    d, GlanceModifier.cornerRadius(12.dp).background(C.pill).padding(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
-                    listOf(
-                        { Box(GlanceModifier.size(7.dp).cornerRadius(4.dp).background(if (h.live) C.pos else C.dot)) {} },
-                        { Spacer(GlanceModifier.width(5.dp)) },
-                        { Text(h.lines.joinToString(" "), style = TextStyle(color = C.variant, fontSize = 11.sp), maxLines = 1) },
-                    ),
-                )
-            },
+            { if (fx != null) FxPill(lc, d, fx) },
         ))
+    }
+}
+
+@Composable
+private fun FxPill(lc: Context, d: Dirn, fx: Fx) {
+    val dot = if (!fx.open) C.dot else when (fx.dir) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.dot }
+    Column(
+        GlanceModifier.cornerRadius(12.dp).background(C.pill).padding(start = 11.dp, end = 11.dp, top = 4.dp, bottom = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        DRow(d, parts = listOf(
+            { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(dot)) {} },
+            { Spacer(GlanceModifier.width(5.dp)) },
+            { Text(lc.getString(R.string.wFx), style = TextStyle(color = C.variant, fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1) },
+        ))
+        // "₪3.06" — הסימן קטן מהמספר (כמו .fx-cur באפליקציה), תמיד משמאל: Row מסדר לפי כיוון הטלפון, אז הופכים ב־RTL
+        val cur: Part = { Text("₪", style = TextStyle(color = C.variant, fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1) }
+        val num: Part = { Text(fx.value, style = TextStyle(color = C.on, fontSize = 15.sp, fontWeight = FontWeight.Bold), maxLines = 1) }
+        Row(verticalAlignment = Alignment.Bottom) { (if (d.rtlPhone) listOf(num, cur) else listOf(cur, num)).forEach { it() } }
     }
 }
 

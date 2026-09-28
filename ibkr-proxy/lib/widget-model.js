@@ -34,6 +34,7 @@ const STR = {
     hdTaErevShavuot: 'Erev Shavuot', hdTaShavuot: 'Shavuot', hdTaTishaBav: "Tisha B'Av",
   },
 };
+const FX_SYM = 'USDILS=X';
 const STATE_SESSION = { PRE: 'pre', PREPRE: 'closed', POST: 'post', POSTPOST: 'closed', OVERNIGHT: 'night', CLOSED: 'closed', REGULAR: 'regular' };
 const SYM_RE = /^[A-Z0-9][A-Z0-9.\-=^]{0,11}$/;
 const MINUS = '−';
@@ -181,6 +182,35 @@ function bubbleOf(it, q, d, nowMs, L, taStat) {
 }
 
 /* items + quotes ({SYM: entry}) + daily ({SYM: [closes]}) → מודל התצוגה */
+/* v228: שוק המט״ח פתוח (שעון ניו־יורק): ראשון 17:00 → שישי 17:00 — עותק של fxMarketOpen באפליקציה */
+function fxMarketOpen(nowMs) {
+  try {
+    const g = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date(nowMs || Date.now()));
+    const pick = (t) => (g.find((p) => p.type === t) || {}).value;
+    const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(pick('weekday'));
+    const mins = (+pick('hour') % 24) * 60 + (+pick('minute'));
+    if (dow === 6) return false;
+    if (dow === 0) return mins >= 17 * 60;
+    if (dow === 5) return mins < 17 * 60;
+    return true;
+  } catch (e) { return true; }
+}
+/* v228: בועת שער הדולר בכותרת הווידג'ט — כמו בועת ההדר באפליקציה: "₪3.06" (שתי ספרות), נקודה ירוקה/אדומה
+   לפי הכיוון מול הסגירה הקודמת כשהשוק פתוח, אפורה כשסגור. entry = ציטוט USDILS=X במבנה /api/quotes */
+function fxOf(entry, nowMs) {
+  const res = entry && entry.chart && entry.chart.result && entry.chart.result[0];
+  if (!res) return null;
+  const meta = res.meta || {};
+  const cl = (res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || [];
+  let li = cl.length - 1;
+  while (li >= 0 && !(cl[li] > 0)) li--;
+  const v = li >= 0 ? cl[li] : num(meta.regularMarketPrice);
+  if (!(v > 0)) return null;
+  const prev = num(meta.previousClose) || num(meta.chartPreviousClose);
+  const open = fxMarketOpen(nowMs);
+  return { v: v.toFixed(2), dir: !open || !(prev > 0) ? 'flat' : v >= prev ? 'pos' : 'neg', open };
+}
+
 function buildModel(items, quotes, daily, opts) {
   const lang = opts && opts.lang === 'en' ? 'en' : 'he';
   const L = STR[lang];
@@ -207,7 +237,8 @@ function buildModel(items, quotes, daily, opts) {
   const header = headerOf(cards, nowMs, L);
   header.two = headerTwoLine(header, lang);
   if (header.two) header.lines[0] = header.lines[0].replace(/\s*·\s*$/, '');
-  return { lang, dir: lang === 'he' ? 'rtl' : 'ltr', L, cards, header, updated: L.updated + ' ' + timeIL(nowMs) };
+  const fx = fxOf(quotes && quotes[FX_SYM], nowMs);
+  return { lang, dir: lang === 'he' ? 'rtl' : 'ltr', L, cards, header, updated: L.updated + ' ' + timeIL(nowMs), fx };
 }
 
-module.exports = { STR, parseItems, parseQuote, dayChange, buildModel, bubbleOf, fmtPrice, fmtChg, fmtPct, headerOf, headerTwoLine, logoUrl, isTA };
+module.exports = { FX_SYM, fxOf, fxMarketOpen, STR, parseItems, parseQuote, dayChange, buildModel, bubbleOf, fmtPrice, fmtChg, fmtPct, headerOf, headerTwoLine, logoUrl, isTA };

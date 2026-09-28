@@ -55,9 +55,10 @@ async function getData(items) {
   const syms = items.map((x) => x.sym);
   const deadline = Date.now() + BUDGET_MS;
   const data = {};
+  const all = syms.concat([model.FX_SYM]); // v228: שער הדולר לבועה בכותרת — באותו סבב (chart בלבד)
   let i = 0;
-  const worker = async () => { while (i < syms.length) { const s = syms[i++]; const v = await quotes._fetchChart(s, deadline); if (v) data[s] = v; } };
-  const [ext] = await Promise.all([quotes._fetchExt(syms, deadline), ...Array.from({ length: Math.min(8, syms.length) }, worker)]);
+  const worker = async () => { while (i < all.length) { const s = all[i++]; const v = await quotes._fetchChart(s, deadline); if (v) data[s] = v; } };
+  const [ext] = await Promise.all([quotes._fetchExt(syms, deadline), ...Array.from({ length: Math.min(8, all.length) }, worker)]);
   if (ext) for (const s of Object.keys(data)) if (ext[s]) data[s].x = ext[s];
   const daily = {};
   const need = syms.filter((s) => { const q = model.parseQuote(data[s]); return q && !(q.regCh); });

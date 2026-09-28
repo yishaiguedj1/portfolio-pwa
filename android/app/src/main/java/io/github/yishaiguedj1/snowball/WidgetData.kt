@@ -32,7 +32,10 @@ data class Bubble(val closed: Boolean, val l1: String, val l2: String, val pct: 
 
 data class WidgetHeader(val lines: List<String>, val live: Boolean)
 
-data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>) {
+/** v228: בועת שער הדולר בכותרת (במקום בועת מצב השוק) — השרתון מחזיר fx = { v: "3.06", dir, open } */
+data class Fx(val value: String, val dir: Dir, val open: Boolean)
+
+data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>, val fx: Fx? = null) {
     companion object {
         private fun dir(s: String?) = when (s) { "pos" -> Dir.POS; "neg" -> Dir.NEG; else -> Dir.FLAT }
 
@@ -66,7 +69,10 @@ data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>) {
                     },
                 )
             }
-            WidgetModel(header, rows)
+            val fx = m.optJSONObject("fx")?.let { f ->
+                f.optString("v").takeIf { it.isNotEmpty() }?.let { Fx(it, dir(f.optString("dir")), f.optBoolean("open")) }
+            }
+            WidgetModel(header, rows, fx)
         }.getOrNull()
     }
 }

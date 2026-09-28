@@ -12,4 +12,6 @@
     <string name="wDesc">כל התיק במסך הבית: מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה.</string>
     <string name="wEmpty">פתח את THE SNOWBALL ונגע במסך — רשימת המניות תעבור לווידג׳ט.</string>
     <string name="wLoading">טוען מחירים…</string>
+    <string name="wFx">שער הדולר</string>
+    <string name="wRefresh">רענון</string>
 </resources>
