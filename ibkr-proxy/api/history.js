@@ -11,7 +11,9 @@ const RANGES = new Set(['1y', '5y', '7y', '10y', 'max', '1d', '5d']); // v229: m
 /* v228: טווחים תוך־יומיים לגרף המניה (1D / 5D). עד עכשיו הטלפון משך אותם ישירות מ־Yahoo (query1 → query2 → Stooq,
    12 שניות timeout לכל אחד) — כש־Yahoo חוסם את הטלפון זה היה איטי בהרבה משאר הטווחים (שמגיעים מהמטמון/השרתון).
    תשובה: { t: [דקות מאז 1970 בשעון הבורסה], c: [סגירות] }. מטמון קצר — המחיר זז. */
-const INTRA = { '1d': 'interval=5m&range=1d&includePrePost=true', '5d': 'interval=15m&range=5d' };
+/* v230: 1d = חמישה ימים של נרות 5 דק׳ (בטרום־מסחר של יום חדש Yahoo מחזיר רק את הבוקר — האפליקציה מציגה את יום המסחר האחרון, כמו Google);
+   5d = נרות 30 דקות — Google מחשב 5D מהנר הראשון של 30 דק׳ (15 דק׳ נתן בסיס אחר לגמרי) */
+const INTRA = { '1d': 'interval=5m&range=5d&includePrePost=true', '5d': 'interval=30m&range=5d' };
 const INTRA_CACHE_MS = 60 * 1000;
 const MAX_SYMS = 40;
 const CONCURRENCY = 8;
@@ -25,17 +27,18 @@ function parseIntra(j) {
   const r = j && j.chart && j.chart.result && j.chart.result[0];
   if (!r || !Array.isArray(r.timestamp)) return null;
   const q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
-  const closes = q.close || [];
+  const closes = q.close || [], opens = q.open || [];
   const div = String((r.meta && r.meta.currency) || '').toUpperCase() === 'ILA' ? 100 : 1;
   const off = Number((r.meta && r.meta.gmtoffset) || 0);
-  const t = [], c = [];
+  const t = [], c = [], o = [];
   for (let i = 0; i < r.timestamp.length; i++) {
     const v = closes[i];
     if (!(v > 0)) continue;
     t.push(Math.floor((r.timestamp[i] + off) / 60));
     c.push(Math.round(v / div * 1e4) / 1e4);
+    o.push(opens[i] > 0 ? Math.round(opens[i] / div * 1e4) / 1e4 : 0); // v230: 5D של Google מתחיל ממחיר הפתיחה
   }
-  return t.length ? { t, c } : null;
+  return t.length ? { t, c, o } : null;
 }
 
 function parseChart(j) {

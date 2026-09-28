@@ -1464,9 +1464,11 @@ function stockChartRows(hist, q) {
   if (!q || !(q.close > 0) || q.session === 'pre' || q.session === 'night') return rows;
   const d = q.mdate || q.date;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return rows;
+  // v230: אחרי הסגירה — הסגירה הרגילה (כמו Google: 135.62 ולא מחיר אחרי־המסחר 135.60); בזמן מסחר — המחיר החי
+  const px = (q.session === 'post' || q.session === 'closed') && q.regClose > 0 ? q.regClose : q.close;
   const last = rows[rows.length - 1];
-  if (!last || d > last.date) rows.push({ date: d, close: q.close });
-  else if (d === last.date) rows[rows.length - 1] = Object.assign({}, last, { close: q.close });
+  if (!last || d > last.date) rows.push({ date: d, close: px });
+  else if (d === last.date) rows[rows.length - 1] = Object.assign({}, last, { close: px });
   return rows;
 }
 
@@ -1476,7 +1478,7 @@ function daysBetweenIso(a, b) {
 
 /* v134: טווח גרף המניה לפי תאריך לוח שנה, כמו Yahoo/Google: הבסיס = הסגירה
    האחרונה בתאריך החיתוך או לפניו ("שנה" = אותו יום לפני שנה). filterRange הישן ספר שורות (שנה = 252, שבוע = 5 → רק 4 ימי שינוי). */
-function stockRangeRows(rows, range, from) {
+function stockRangeRows(rows, range, from, today) {
   if (!rows || !rows.length) return [];
   const lastIso = rows[rows.length - 1].date;
   // v229: "מתאריך" — הבסיס = הסגירה האחרונה בתאריך שנבחר או לפניו (כמו שאר הטווחים)
@@ -1491,17 +1493,37 @@ function stockRangeRows(rows, range, from) {
     const i = rows.findIndex((r) => r.date.slice(0, 4) === y);
     return i < 0 ? rows.slice() : rows.slice(i);
   }
-  let cut = null;
   if (range === 'week') {
     const t = new Date(lastIso + 'T00:00:00Z');
     t.setUTCDate(t.getUTCDate() - 7);
-    cut = t.toISOString().slice(0, 10);
-  } else if (range !== 'max') {
-    cut = pfRangeCutoff(lastIso, range === 'month' ? '1m' : range);
+    const cw = t.toISOString().slice(0, 10);
+    for (let i = rows.length - 1; i >= 0; i--) if (rows[i].date <= cw) return rows.slice(i);
+    return rows.slice();
   }
+  if (range === 'max') return rows.slice();
+  /* v230: כמו Google (נבדק מול הסדרות ש־Google Finance מחזיר — NOW, ‏28/09/2026): הטווח נספר מהתאריך של *היום*
+     בבורסה (לא מיום המסחר האחרון), והבסיס = יום המסחר הראשון *בתאריך היעד או אחריו* (6M: 28/03 שבת → 30/03).
+     5Y — נקודות שבועיות: סגירת השבוע של תאריך היעד (28/09/2021 → שישי 01/10). עד v229 — מהסגירה האחרונה אחורה
+     ובסגירה שלפני התאריך: 1M של NOW יצא +6.79% במקום −6.28%. */
+  const cut = pfRangeCutoff(/^\d{4}-\d{2}-\d{2}$/.test(today || '') ? today : lastIso, range === 'month' ? '1m' : range);
   if (!cut) return rows.slice();
-  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].date <= cut) return rows.slice(i);
-  return rows.slice();
+  let i = rows.findIndex((r) => r.date >= cut);
+  if (i < 0) return rows.slice(-1);
+  if (range === '5y' && rows[0].date < cut) { // מניה צעירה מ־5 שנים — מהסגירה הראשונה
+    const wk = (iso) => { const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
+    const w0 = wk(rows[i].date);
+    while (i + 1 < rows.length && wk(rows[i + 1].date) === w0) i++;
+  }
+  return rows.slice(i);
+}
+/* v230: התאריך של היום בבורסה של המניה (ת״א — שעון ישראל, אחרת ניו־יורק) — הטווחים נספרים ממנו, כמו ב־Google */
+function exchangeTodayIso(sym, nowMs) {
+  try {
+    const tz = /\.TA$/i.test(sym || '') ? 'Asia/Jerusalem' : 'America/New_York';
+    const p = {};
+    for (const x of new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(nowMs ? new Date(nowMs) : new Date())) p[x.type] = x.value;
+    return p.year + '-' + p.month + '-' + p.day;
+  } catch (e) { return todayISO(); }
 }
 
 /* v125: טווחי גרף הביצועים לפי תאריכים, לא לפי מספר שורות.
@@ -3827,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v229';
+const APP_VERSION = 'v230';
 
 
 function saveDBto(db) {
@@ -5395,7 +5417,7 @@ async function getIntraday(sym, span) {
     } catch (e) {}
   }
   if (!yahooCooling()) {
-    const q = rng === '5d' ? 'interval=15m&range=5d' : 'interval=5m&range=1d&includePrePost=true';
+    const q = rng === '5d' ? 'interval=30m&range=5d' : 'interval=5m&range=5d&includePrePost=true';
     const notes = [];
     try {
       const rows = await Promise.any(YH_HOSTS.map((h) =>
@@ -5418,6 +5440,23 @@ async function proxyIntraday(sym, rng, ms) {
     return intraRowsFromProxy(j.data[String(sym).toUpperCase()]);
   } finally { clearTimeout(to); }
 }
+/* v230: מה שמוצג בגרף התוך־יומי — כמו Google:
+   1D = יום המסחר האחרון שהיה בו מסחר רגיל, מ־09:30 (כולל אחרי־המסחר; בטרום־מסחר של יום חדש — עדיין יום המסחר הקודם).
+   5D = חמשת ימי המסחר האחרונים, נרות 30 דקות, מ־09:30 (הבסיס = הנר הראשון; NOW: 138.00 → −1.72% כמו Google). טהורה */
+function intraSessionRows(rows, range, sym) {
+  if (!rows || !rows.length) return [];
+  const ta = /\.TA$/i.test(sym || '');
+  const reg = (r) => ta || !r.time || (r.time >= '09:30' && r.time < '16:00');
+  const days = [];
+  for (const r of rows) if (reg(r) && days[days.length - 1] !== r.date) days.push(r.date);
+  if (!days.length) return rows.slice();
+  const keep = new Set(days.slice(range === '5d' ? -5 : -1));
+  const open = (r) => ta || !r.time || r.time >= '09:30';
+  const out = rows.filter((r) => keep.has(r.date) && open(r) && (range !== '5d' || reg(r)));
+  // 5D: Google מתחיל ממחיר הפתיחה של היום הראשון ("מחיר ב־09:30"), לא מסגירת הנר הראשון (META: 680.30 מול 711.80)
+  if (range === '5d' && out.length && out[0].open > 0) out.unshift({ date: out[0].date, time: out[0].time, close: out[0].open });
+  return out;
+}
 /* טהורה: { t: [דקות מאז 1970 בשעון הבורסה], c } → [{ date, time, close }] (כמו parseYahooBars עם זמן) */
 function intraRowsFromProxy(v) {
   const rows = [];
@@ -5426,7 +5465,7 @@ function intraRowsFromProxy(v) {
   for (let i = 0; i < v.t.length; i++) {
     if (!(v.c[i] > 0)) continue;
     const iso = new Date(v.t[i] * 60000).toISOString();
-    rows.push({ date: iso.slice(0, 10), time: iso.slice(11, 16), close: v.c[i] });
+    rows.push({ date: iso.slice(0, 10), time: iso.slice(11, 16), close: v.c[i], open: Array.isArray(v.o) && v.o[i] > 0 ? v.o[i] : null });
   }
   return rows;
 }
@@ -9149,8 +9188,9 @@ async function ensureChartData(sym, quiet) {
     if (INTRA_RANGES[range] && !state.stockPick[sym]) {
       const intra = await getIntraday(sym, INTRA_RANGES[range]);
       if ((state.range[sym] || 'year') !== range) return; // המשתמש כבר עבר לטווח אחר
-      if (intra.length) {
-        drawStockChart(sym, intradayLiveRows(intra, state.quotes[sym]), range);
+      const shown = intraSessionRows(intra, range, sym);
+      if (shown.length) {
+        drawStockChart(sym, intradayLiveRows(shown, state.quotes[sym]), range);
         if (loading) loading.classList.add('hidden');
         return;
       }
@@ -9166,7 +9206,7 @@ async function ensureChartData(sym, quiet) {
     if ((state.range[sym] || 'year') !== range) return;
     // v229: בזמן בחירת תאריך בגרף — כל ההיסטוריה, כדי שאפשר יהיה לגעת בכל יום
     const view = state.stockPick[sym] ? 'max' : range;
-    const pts = drawStockChart(sym, stockRangeRows(rows, view === 'day' ? 'month' : view === '5d' ? 'week' : view, state.stockFrom[sym]), false);
+    const pts = drawStockChart(sym, stockRangeRows(rows, view === 'day' ? 'month' : view === '5d' ? 'week' : view, state.stockFrom[sym], exchangeTodayIso(sym)), false);
     // v160: אין היסטוריה (המקור חסום כרגע) — אומרים את זה, לא "טוען" לנצח ולא גרף של נקודה אחת.
     // ננסה שוב אוטומטית כש־Yahoo חוזר (yahooRecovered).
     if (!(hist && hist.length) && loading) { loading.textContent = t('histRetryLater'); loading.classList.remove('hidden'); }
@@ -9223,7 +9263,8 @@ function drawStockChart(sym, rows, intraday) {
   const X = (i) => padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
   const Y = (v) => padT + (1 - (v - min) / (max - min)) * plotH;
 
-  const up = pts[pts.length - 1].close >= pts[0].close;
+  const qd = state.quotes[sym];
+  const up = intraday === 'day' && qd && typeof qd.regPct === 'number' && isFinite(qd.regPct) ? qd.regPct >= 0 : pts[pts.length - 1].close >= pts[0].close; // v230: 1D לפי השינוי היומי
   const lineCol = up ? cssVar('--gain', '#137333') : cssVar('--loss', '#B3261E');
 
   // רשת אופקית + תוויות מחיר
@@ -9304,7 +9345,10 @@ function renderStockRangeSummary(sym, pts, lineCol) {
     if (leg) leg.innerHTML = '';
     return;
   }
-  const r = (pts[pts.length - 1].close - pts[0].close) / pts[0].close * 100;
+  let r = (pts[pts.length - 1].close - pts[0].close) / pts[0].close * 100;
+  // v230: 1D = השינוי של יום המסחר מול הסגירה הקודמת (כמו Google/Yahoo: NOW −1.57%), לא מהנר הראשון בגרף
+  const q1 = state.quotes[sym];
+  if ((state.range[sym] || 'year') === 'day' && !state.stockPick[sym] && q1 && typeof q1.regPct === 'number' && isFinite(q1.regPct)) r = q1.regPct;
   let rangeName = '';
   const curR = state.range[sym] || 'year';
   if (state.stockPick[sym]) rangeName = t('srMaxName');

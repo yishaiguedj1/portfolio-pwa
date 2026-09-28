@@ -72,7 +72,7 @@ ok(rangeRows([], 'year').length === 0, 'מערך ריק לא קורס');
 
 // תאריך החיתוך נופל בסופ"ש → הסגירה של יום שישי שלפניו
 const sat = weekdays('2025-01-01', '2026-09-21'); // 21/09/2026 שני → לפני שנה = 21/09/2025 ראשון
-ok(rangeRows(sat, 'year')[0].date === '2025-09-19', 'חיתוך בסופ"ש: הסגירה האחרונה לפניו (שישי)');
+ok(rangeRows(sat, 'year')[0].date === '2025-09-22', 'חיתוך בסופ"ש (v230, כמו Google): יום המסחר הראשון אחריו (שני) — NOW 1Y: 28/09/2025 ראשון → 29/09');
 
 // --- 2. נקודת הסיום = המחיר החי ---
 const stale = rows.slice(0, -5); // היסטוריה שמורה שנגמרת לפני שבוע
@@ -108,7 +108,7 @@ ok(pq && pq.mdate === '2026-09-24', 'parseYahooQuote: mdate לפי שעון הב
 ok(A('daysBetweenIso')('2026-09-17', '2026-09-24') === 7, 'daysBetweenIso');
 
 // --- 5. חיווט ---
-ok(/stockRangeRows\(rows, view === 'day' \? 'month' : view === '5d' \? 'week' : view, state\.stockFrom\[sym\]\)/.test(src), 'ensureChartData משתמש בטווח לפי תאריך (v228: 5D בלי תוך־יומי → שבוע)');
+ok(/stockRangeRows\(rows, view === 'day' \? 'month' : view === '5d' \? 'week' : view, state\.stockFrom\[sym\], exchangeTodayIso\(sym\)\)/.test(src), 'ensureChartData משתמש בטווח לפי תאריך (v228: 5D בלי תוך־יומי → שבוע)');
 ok(/stockChartRows\(hist, state\.quotes\[sym\]\)/.test(src), 'ensureChartData מוסיף את המחיר החי');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
