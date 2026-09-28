@@ -62,9 +62,10 @@ ok(T.quoteSymbols().length === 3, 'סימבול כפול (תיק+מעקב) נס�
 
 /* ---------- עקביות קבצים ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-for (const id of ['tab-wishlist', 'wishlistList', 'wishlistCount', 'wlSym', 'wlNote', 'wlAddBtn', 'wlErr']) {
+for (const id of ['tab-wishlist', 'wishlistList', 'wlSym', 'wlNote', 'wlAddBtn', 'wlErr']) {
   ok(html.includes('id="' + id + '"'), 'אלמנט ' + id + ' קיים ב־index.html');
 }
+ok(!html.includes('id="wishlistCount"'), 'v232: בלי מונה מניות במעקב בטאב (בקשת המשתמש)');
 const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 for (const cls of ['.wl-card', '.wl-sym', '.wl-close', '.wl-chg']) {
   ok(css.includes(cls), 'סגנון ' + cls + ' קיים ב־styles.css');

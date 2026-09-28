@@ -3849,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v231';
+const APP_VERSION = 'v232';
 
 
 function saveDBto(db) {
@@ -8817,8 +8817,6 @@ function wlRemove(w) {
 function renderWishlist() {
   const list = document.getElementById('wishlistList');
   if (!list) return;
-  const wc = document.getElementById('wishlistCount');
-  if (wc) wc.textContent = WISHLIST.length;
   if (!tabShouldRender('wishlist')) return; // v193
   list.innerHTML = '';
   if (!WISHLIST.length) {
@@ -9607,12 +9605,10 @@ function buildTradeRow(tr, src) {
 function renderTrades() {
   const list = document.getElementById('tradeList');
   const hint = document.getElementById('tradesHint');
-  const cnt = document.getElementById('tradeCount');
   if (!list) return;
   const ready = isIbkrMode() && !!(ibkrCfg().data);
   const ib = ready ? ibkrTrades() : [];
   const man = mtList();
-  if (cnt) cnt.textContent = ib.length + man.length;
   if (!tabShouldRender('trades')) return; // v193
   list.innerHTML = '';
   renderSrcFilter('trades');

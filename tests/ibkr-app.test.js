@@ -339,7 +339,7 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   // רינדור: מונה מתעדכן
   vm.runInContext('DB.source = "ibkr";', sandbox);
   T.renderTrades();
-  ok(vm.runInContext('document.getElementById("tradeCount").textContent', sandbox) === 2, 'מונה עסקאות בטאב = 2');
+  ok(!/id="tradeCount"/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8')), 'v232: בלי מונה עסקאות בטאב (בקשת המשתמש)');
   T.ibkrSaveCfg({ token: '', queryId: '', data: null });
   vm.runInContext('DB.source = "manual";', sandbox);
 
