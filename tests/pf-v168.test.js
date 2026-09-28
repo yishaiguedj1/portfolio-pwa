@@ -113,7 +113,7 @@ ok(A('demoBuild')({}, fxOf, 3, today, tr, 'he', {}) === null, 'בלי נתוני
 const trim = A('demoTrimSold')(hist.AAPL, '2021-06-30', '2022-06-30');
 ok(trim[0].date >= '2021-06-10' && trim[trim.length - 1].date <= '2022-07-05' && trim.length > 250, 'מניה שנמכרה: היסטוריה רק סביב תקופת ההחזקה');
 ok(/soldTo\[sym\]\) \{ restoreHistRows\(sym, rec\); syms\.delete\(sym\); \}/.test(src), 'מניה שנמכרה: לא נמשכת מחדש כל יום אם המטמון מכסה עד המכירה');
-ok(/POSITIONS\.concat\(WISHLIST, DB\.manualTrades \|\| \[\]\)/.test(src), 'יציאה מהדמו: מנקה גם את ההיסטוריה של מה שנמכר');
+ok(/POSITIONS\.concat\(wlAllItems\(\), DB\.manualTrades \|\| \[\]\)/.test(src), 'יציאה מהדמו: מנקה גם את ההיסטוריה של מה שנמכר (v244: מכל רשימות המעקב)');
 const slim = A('histSlimForDemo')([{ date: '2015-01-02', close: 1, open: 1 }, { date: '2026-09-01', close: 12.345678, open: 1 }]);
 ok(slim.length === 1 && Object.keys(slim[0]).join() === 'date,close', 'היסטוריה בדמו: 7 שנים, תאריך + סגירה');
 ok(/for \(let i = 0; i < syms\.length; i \+= 40\) parts\.push/.test(src), 'עד 40 סימבולים לבקשה לשרתון (מגבלת השרתון)');

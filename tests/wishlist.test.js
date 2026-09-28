@@ -39,25 +39,25 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8') +
-  '\n;globalThis.__t = { wlValidate, quoteSymbols, wlItem, sortWatchList };';
+  '\n;globalThis.__t = { wlValidate, quoteSymbols, wlItem, sortWatchList, wlLists, wlActive, wlItems, wlNameCheck, wlAllItems };';
 vm.runInContext(src, sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 ok(!!T, 'app.js נטען בלי שגיאות תחביר');
 
 /* ---------- ולידציה ---------- */
-vm.runInContext('WISHLIST = []; POSITIONS = [{ sym: "NOW", shares: 97, avg: 89 }];', sandbox);
+vm.runInContext('DB.wishlist.length = 0; POSITIONS = [{ sym: "NOW", shares: 97, avg: 89 }];', sandbox);
 ok(T.wlValidate('nvda').sym === 'NVDA', 'סימבול תקין מנורמל לאותיות גדולות');
 ok(!!T.wlValidate('xx!').err, 'סימבול לא תקין נדחה');
-vm.runInContext('WISHLIST.push({ sym: "NVDA", note: "" });', sandbox);
+vm.runInContext('DB.wishlist.push({ sym: "NVDA", note: "" });', sandbox);
 ok(!!T.wlValidate('NVDA').err, 'כפילות ברשימת המעקב נדחית');
 ok(!!T.wlValidate('NOW').err, 'מניה שכבר בתיק לא ניתנת להוספה למעקב');
 
 /* ---------- סימבולים לציטוט ---------- */
-vm.runInContext('WISHLIST = [{ sym: "NVDA", note: "" }, { sym: "TSLA", note: "x" }]; POSITIONS = [{ sym: "NOW", shares: 97, avg: 89 }];', sandbox);
+vm.runInContext('DB.wishlist.length = 0; DB.wishlist.push({ sym: "NVDA", note: "" }, { sym: "TSLA", note: "x" }); POSITIONS = [{ sym: "NOW", shares: 97, avg: 89 }];', sandbox);
 const syms = T.quoteSymbols();
 ok(syms.includes('NOW') && syms.includes('NVDA') && syms.includes('TSLA'), 'הציטוט כולל אחזקות + מעקב');
 ok(syms.length === 3, 'אין כפילויות בסימבולים');
-vm.runInContext('WISHLIST.push({ sym: "NOW", note: "" });', sandbox);
+vm.runInContext('DB.wishlist.push({ sym: "NOW", note: "" });', sandbox);
 ok(T.quoteSymbols().length === 3, 'סימבול כפול (תיק+מעקב) נספר פעם אחת');
 
 /* ---------- עקביות קבצים ---------- */
@@ -78,4 +78,22 @@ const sw = T.sortWatchList([{ sym: 'B' }, { sym: 'A' }, { sym: 'C' }], 'day', (s
 ok(sw.map((x) => x.sym).join('') === 'CAB', 'מיון לפי ביצועי היום — בלי נתון בסוף');
 ok(T.sortWatchList([{ sym: 'B' }, { sym: 'A' }], 'name', () => 0).map((x) => x.sym).join('') === 'AB', 'מיון א״ב');
 ok(T.sortWatchList([{ sym: 'B' }, { sym: 'A' }], 'added', () => 0).map((x) => x.sym).join('') === 'BA', 'סדר הוספה = כמו שנשמר');
+/* ---------- v244: כמה רשימות מעקב ---------- */
+vm.runInContext('DB.wishlist.length = 0; DB.wishlist.push({ sym: "NVDA" }); DB.wlExtra = [{ id: "l1", name: "טכנולוגיה", items: [{ sym: "AMD" }] }, { id: "l2", name: "ישראל", items: [{ sym: "LUMI.TA" }, { sym: "TEVA.TA" }] }];', sandbox);
+ok(T.wlLists().map((l) => l.id).join() === 'main,l1,l2' && T.wlLists()[0].items.length === 1, 'wlLists: הראשית (DB.wishlist) + הנוספות');
+ok(T.wlActive().id === 'main' && T.wlItems()[0].sym === 'NVDA', 'ברירת מחדל: הרשימה הראשית');
+vm.runInContext('localStorage.setItem("pwa_wlactive_v1", "l2");', sandbox);
+ok(T.wlActive().id === 'l2' && T.wlItems().length === 2 && T.quoteSymbols().includes('TEVA.TA') && !T.quoteSymbols().includes('NVDA'), 'רשימה פעילה נשמרת; ציטוטים רק לפתוחה');
+ok(!!T.wlValidate('LUMI.TA').err && !T.wlValidate('NVDA').err, 'כפילות נבדקת רק ברשימה הפתוחה — אותה מניה יכולה להיות בכמה רשימות');
+ok(T.wlAllItems().length === 4, 'wlAllItems: כל הרשימות');
+vm.runInContext('localStorage.setItem("pwa_wlactive_v1", "gone");', sandbox);
+ok(T.wlActive().id === 'main', 'רשימה שנמחקה (או מכשיר אחר) → חוזרים לראשית');
+const ls = T.wlLists();
+ok(!!T.wlNameCheck('  ', ls).err && !!T.wlNameCheck('ישראל', ls).err && !!T.wlNameCheck('x'.repeat(31), ls).err, 'שם: לא ריק, לא כפול, עד 30');
+ok(T.wlNameCheck(' חדשה  ', ls).name === 'חדשה' && !T.wlNameCheck('ישראל', ls, 'l2').err, 'שם: רווחים נחתכים; אותו שם לאותה רשימה (שינוי שם) — מותר');
+const cloudSrc = fs.readFileSync(path.join(__dirname, '..', 'cloud.js'), 'utf8');
+ok(/Array\.isArray\(clean\.wlExtra\)\) DB\.wlExtra = clean\.wlExtra/.test(cloudSrc), 'ענן: הרשימות הנוספות עוברות בין מכשירים');
+ok(/id="wlMenu"/.test(html) && /id="wlTabs"/.test(html), 'index.html: תפריט הרשימות ושורת הצ׳יפים');
+vm.runInContext('localStorage.removeItem("pwa_wlactive_v1"); DB.wlExtra = [];', sandbox);
+
 console.log('\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ' + n + ')');

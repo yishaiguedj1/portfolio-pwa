@@ -138,6 +138,9 @@ he: {
   editBtn: ICON_EDIT + 'עריכה',
   editHintStocks: 'מצב עריכה פעיל — אפשר להוסיף מניות חדשות. בסיום לחצו שוב על עריכה.',
   stockSearchPh: 'חיפוש מניה או חברה',
+  wlListsTitle: 'רשימות מעקב', wlNewList: 'רשימה חדשה', wlNewShort: 'חדשה', wlRenameList: 'שינוי שם', wlDeleteList: 'מחיקת הרשימה',
+  wlNamePh: 'שם הרשימה', wlCreateBtn: 'יצירה', wlNameEmpty: 'צריך שם לרשימה', wlNameLong: 'עד 30 תווים', wlNameDup: 'כבר יש רשימה בשם הזה',
+  wlDelListConfirm: 'למחוק את "{name}" ואת {n} המניות שבה?', wlListCreated: 'הרשימה נוצרה', wlListDeleted: 'הרשימה נמחקה',
   kvPrevClose: 'סגירה קודמת', kv52High: 'שיא 52 שב׳', kv52Low: 'שפל 52 שב׳', kvYtd: 'מתחילת השנה', kvNextEarn: 'הדוח הבא',
   wlRemoveBtn: 'הסר', wlSortAdded: 'סדר הוספה', wlSortName: 'א״ב',
   searchClear: 'ניקוי',
@@ -643,6 +646,9 @@ en: {
   editBtn: ICON_EDIT + 'Edit',
   editHintStocks: 'Edit mode is on — you can add new stocks. When done, tap Edit again.',
   stockSearchPh: 'Search stocks or companies',
+  wlListsTitle: 'Watchlists', wlNewList: 'New list', wlNewShort: 'New', wlRenameList: 'Rename', wlDeleteList: 'Delete list',
+  wlNamePh: 'List name', wlCreateBtn: 'Create', wlNameEmpty: 'The list needs a name', wlNameLong: 'Up to 30 characters', wlNameDup: 'A list with this name already exists',
+  wlDelListConfirm: 'Delete "{name}" and its {n} stocks?', wlListCreated: 'List created', wlListDeleted: 'List deleted',
   kvPrevClose: 'Prev close', kv52High: '52W high', kv52Low: '52W low', kvYtd: 'YTD', kvNextEarn: 'Next earnings',
   wlRemoveBtn: 'Remove', wlSortAdded: 'Added', wlSortName: 'A–Z',
   searchClear: 'Clear',
@@ -3371,8 +3377,9 @@ function demoExit() {
   let backup = null;
   try { backup = JSON.parse(localStorage.getItem(LS_PREDEMO) || 'null'); } catch (e) {}
   // היסטוריית מחירים של מניות הדמו — לא נשארת בטלפון (אלא אם המניה בתיק/במעקב האמיתי)
-  const keep = new Set([].concat((backup && backup.positions) || [], (backup && backup.wishlist) || []).map((p) => p && p.sym));
-  for (const sym of new Set(POSITIONS.concat(WISHLIST, DB.manualTrades || []).map((p) => p.sym))) { // v168: גם מה שנמכר
+  const keep = new Set([].concat((backup && backup.positions) || [], (backup && backup.wishlist) || [],
+    ...((backup && Array.isArray(backup.wlExtra)) ? backup.wlExtra.map((l) => l.items || []) : [])).map((p) => p && p.sym));
+  for (const sym of new Set(POSITIONS.concat(wlAllItems(), DB.manualTrades || []).map((p) => p.sym))) { // v168: גם מה שנמכר
     if (!keep.has(sym)) { try { localStorage.removeItem(LS_HIST + sym); } catch (e) {} }
   }
   applyDbData(backup || {});
@@ -3822,6 +3829,7 @@ const DEFAULT_DB = {
   positions: [],
   deposits: [],
   wishlist: [],
+  wlExtra: [],      // v244: רשימות מעקב נוספות [{ id, name, items }]; הראשית = wishlist
   pensionFunds: [],
   pensionDeposits: [],
   cash: { usd: 0, ils: 0 },
@@ -3853,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v243';
+const APP_VERSION = 'v244';
 
 
 function saveDBto(db) {
@@ -3867,6 +3875,7 @@ function loadDB() {
       if (db && db.v === 1 && Array.isArray(db.positions) && Array.isArray(db.deposits)) {
         if (!db.cash) db.cash = { usd: 0, ils: 0 };
         if (!Array.isArray(db.wishlist)) db.wishlist = [];
+        if (!Array.isArray(db.wlExtra)) db.wlExtra = [];
         if (!Array.isArray(db.pensionFunds)) db.pensionFunds = [];
         if (!Array.isArray(db.manualTrades)) db.manualTrades = [];
         ensurePensionKinds(db);
@@ -3902,6 +3911,8 @@ function applyDbData(data) {
   if (Array.isArray(clean.deposits)) DB.deposits.push(...clean.deposits);
   DB.wishlist.length = 0;
   if (Array.isArray(clean.wishlist)) DB.wishlist.push(...clean.wishlist);
+  DB.wlExtra = Array.isArray(clean.wlExtra) ? clean.wlExtra : []; // v244
+  DB.wlMainName = typeof clean.wlMainName === 'string' ? clean.wlMainName : '';
   DB.pensionFunds.length = 0;
   if (Array.isArray(clean.pensionFunds)) DB.pensionFunds.push(...clean.pensionFunds);
   ensurePensionKinds(DB);
@@ -4879,7 +4890,7 @@ async function tryCNBCQuotes() {
 function quoteSymbols() {
   const s = new Set();
   for (const p of POSITIONS) if (p.sym) s.add(p.sym);
-  for (const w of WISHLIST) if (w.sym) s.add(w.sym);
+  for (const w of wlItems()) if (w.sym) s.add(w.sym); // v244: רק הרשימה הפתוחה (השרתון מחזיר עד 40 בבקשה); מעבר רשימה = רענון
   return [...s];
 }
 
@@ -6407,7 +6418,7 @@ function renderEarningsCard() {
   if (!card || !list) return;
   const names = {};
   for (const p of POSITIONS) names[p.sym] = p.name || p.sym;
-  for (const w of WISHLIST) if (!names[w.sym]) names[w.sym] = w.sym;
+  for (const w of wlAllItems()) if (!names[w.sym]) names[w.sym] = w.sym;
   const rows = [];
   for (const sym of Object.keys(state.earnings || {})) {
     const e = state.earnings[sym];
@@ -8894,7 +8905,7 @@ function deletePosition(p) {
 function wlValidate(sym) {
   const s = String(sym || '').trim().toUpperCase();
   if (!/^[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(s)) return { err: t('errSymInvalid') };
-  if (WISHLIST.some((w) => w.sym === s)) return { err: t('wlExists', { sym: s }) };
+  if (wlItems().some((w) => w.sym === s)) return { err: t('wlExists', { sym: s }) };
   if (POSITIONS.some((p) => p.sym === s)) return { err: t('wlAlreadyOwn', { sym: s }) };
   return { sym: s };
 }
@@ -8903,7 +8914,7 @@ function wlValidate(sym) {
 function wlAddPicked(it) {
   const v = wlValidate(it && it.sym);
   if (v.err) { flash(v.err); return; }
-  WISHLIST.push({ sym: v.sym, name: (it.name && it.name !== v.sym) ? it.name : '', note: '' });
+  wlItems().push({ sym: v.sym, name: (it.name && it.name !== v.sym) ? it.name : '', note: '' });
   saveDB();
   renderWishlist();
   flash(t('wlAdded'));
@@ -8912,8 +8923,9 @@ function wlAddPicked(it) {
 
 function wlRemove(w) {
   if (!confirm(t('wlDelConfirm', { sym: w.sym }))) return;
-  const i = WISHLIST.findIndex((x) => x.sym === w.sym);
-  if (i >= 0) WISHLIST.splice(i, 1);
+  const items = wlItems();
+  const i = items.findIndex((x) => x.sym === w.sym);
+  if (i >= 0) items.splice(i, 1);
   if (!POSITIONS.some((p) => p.sym === w.sym)) delete state.quotes[w.sym];
   state.open[w.sym] = false;
   saveDB();
@@ -8957,23 +8969,196 @@ function sortWatchList(list, mode, dayOf) {
   return arr;
 }
 
+/* ---------------- v244: כמה רשימות מעקב ----------------
+   הראשית = DB.wishlist (תאימות: דמו, ענן ישן, בדיקות); נוספות = DB.wlExtra [{ id, name, items }], בלי הגבלת כמות.
+   הרשימה הפתוחה נשמרת בטלפון (pwa_wlactive_v1). מעבר: כותרת = תפריט (Apple), שורת צ'יפים גלולים (Material), החלקה הצידה. */
+const WL_MAIN = 'main';
+const LS_WLACTIVE = 'pwa_wlactive_v1';
+function wlLists() {
+  if (!Array.isArray(DB.wlExtra)) DB.wlExtra = [];
+  return [{ id: WL_MAIN, name: DB.wlMainName || t('wishlistTitle'), items: DB.wishlist, main: true }]
+    .concat(DB.wlExtra.filter((l) => l && l.id).map((l) => { if (!Array.isArray(l.items)) l.items = []; return { id: l.id, name: l.name || '', items: l.items }; }));
+}
+function wlActiveId() { try { return localStorage.getItem(LS_WLACTIVE) || WL_MAIN; } catch (e) { return WL_MAIN; } }
+function wlActive() { const ls = wlLists(); return ls.find((l) => l.id === wlActiveId()) || ls[0]; }
+function wlItems() { return wlActive().items; }
+function wlAllItems() { return [].concat(...wlLists().map((l) => l.items)); }
+/* טהורה: שם תקין — לא ריק, עד 30 תווים, בלי כפילות (לא תלוי רישיות) */
+function wlNameCheck(name, lists, exceptId) {
+  const n = String(name || '').replace(/\s+/g, ' ').trim();
+  if (!n) return { err: t('wlNameEmpty') };
+  if (n.length > 30) return { err: t('wlNameLong') };
+  if (lists.some((l) => l.id !== exceptId && l.name.toLowerCase() === n.toLowerCase())) return { err: t('wlNameDup') };
+  return { name: n };
+}
+function wlSwitch(id, dir) {
+  if (id === wlActiveId() && !dir) return;
+  try { localStorage.setItem(LS_WLACTIVE, id); } catch (e) {}
+  try { closeStockCards(); } catch (e) {}
+  renderWishlist({ dir: dir || 0 });
+  try { refreshQuotes(); } catch (e) {}
+}
+function wlCreate(name) {
+  const v = wlNameCheck(name, wlLists(), null);
+  if (v.err) return v.err;
+  const id = 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  DB.wlExtra.push({ id, name: v.name, items: [] });
+  saveDB();
+  wlSwitch(id, 1);
+  flash(t('wlListCreated'));
+  return null;
+}
+function wlRenameList(id, name) {
+  const v = wlNameCheck(name, wlLists(), id);
+  if (v.err) return v.err;
+  if (id === WL_MAIN) DB.wlMainName = v.name;
+  else { const l = DB.wlExtra.find((x) => x.id === id); if (l) l.name = v.name; }
+  saveDB();
+  renderWishlist();
+  return null;
+}
+function wlDeleteList(id) {
+  if (id === WL_MAIN) return;
+  const i = DB.wlExtra.findIndex((x) => x.id === id);
+  if (i < 0) return;
+  const l = DB.wlExtra[i];
+  if ((l.items || []).length && !confirm(t('wlDelListConfirm', { name: l.name, n: l.items.length }))) return;
+  DB.wlExtra.splice(i, 1);
+  saveDB();
+  const ls = wlLists();
+  wlSwitch((ls[Math.min(i, ls.length - 1)] || ls[0]).id, -1); // הרשימה שלפניה
+  flash(t('wlListDeleted'));
+}
+/* גיליון תחתון (כמו ב־iOS): שם לרשימה חדשה או שינוי שם */
+function closeWlSheet() { const v = document.getElementById('wlSheetVeil'); if (v) v.remove(); }
+function openWlNameSheet(mode) {
+  closeWlSheet();
+  const cur = wlActive();
+  const veil = el('div', 'pf-sheet-veil');
+  veil.id = 'wlSheetVeil';
+  const sh = el('div', 'pf-sheet wl-sheet');
+  sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div><h3>' + esc(mode === 'new' ? t('wlNewList') : t('wlRenameList')) + '</h3>' +
+    '<input type="text" id="wlNameInp" maxlength="30" autocomplete="off" enterkeyhint="done" placeholder="' + esc(t('wlNamePh')) + '" value="' + (mode === 'new' ? '' : esc(cur.name)) + '">' +
+    '<div class="form-err hidden" id="wlNameErr"></div>' +
+    '<div class="sheet-row"><button class="chip-btn" type="button" id="wlNameCancel">' + esc(t('btnCancel')) + '</button>' +
+    '<button class="btn" type="button" id="wlNameOk">' + esc(mode === 'new' ? t('wlCreateBtn') : t('btnSave')) + '</button></div>';
+  veil.appendChild(sh);
+  document.body.appendChild(veil);
+  const inp = sh.querySelector('#wlNameInp'), err = sh.querySelector('#wlNameErr');
+  const ok = () => {
+    const e = mode === 'new' ? wlCreate(inp.value) : wlRenameList(cur.id, inp.value);
+    if (e) { err.textContent = e; err.classList.remove('hidden'); inp.focus(); return; }
+    closeWlSheet();
+  };
+  sh.querySelector('#wlNameOk').addEventListener('click', ok);
+  sh.querySelector('#wlNameCancel').addEventListener('click', closeWlSheet);
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok(); if (e.key === 'Escape') closeWlSheet(); });
+  veil.addEventListener('click', (e) => { if (e.target === veil) closeWlSheet(); });
+  setTimeout(() => { try { inp.focus(); if (mode !== 'new') inp.select(); } catch (e) {} }, 60);
+}
+/* כותרת = שם הרשימה + חץ → תפריט הרשימות (כמו "My Symbols ⌄" ב־Stocks של Apple) */
+function renderWatchHead() {
+  const wrap = document.getElementById('wlMenu');
+  const tabs = document.getElementById('wlTabs');
+  if (!wrap || !tabs) return;
+  const ls = wlLists(), cur = wlActive();
+  wrap.classList.remove('open');
+  wrap.innerHTML = '<h2 class="wl-h2"><button class="wl-title-btn" type="button" aria-haspopup="true" aria-expanded="false">' +
+    '<span class="wl-title-txt">' + esc(cur.name) + '</span><span class="wl-title-caret" aria-hidden="true">▾</span></button></h2>' +
+    '<div class="src-pop menu-drop wl-pop hidden" role="menu">' +
+      '<div class="src-pop-title">' + esc(t('wlListsTitle')) + '</div>' +
+      ls.map((l) => '<button class="src-opt' + (l.id === cur.id ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (l.id === cur.id) + '" data-wl="' + esc(l.id) + '">' +
+        '<span class="src-opt-ic">' + ICON_LIST + '</span><span class="src-opt-name">' + esc(l.name) + '</span>' +
+        '<span class="wl-opt-count">' + l.items.length + '</span><span class="src-opt-check">' + (l.id === cur.id ? ICON_CHECK : '') + '</span></button>').join('') +
+      '<div class="range-pop-sep" role="separator"></div>' +
+      '<button class="src-opt" type="button" role="menuitem" data-act="new"><span class="src-opt-ic wl-plus">＋</span><span class="src-opt-name">' + esc(t('wlNewList')) + '</span></button>' +
+      '<button class="src-opt" type="button" role="menuitem" data-act="rename"><span class="src-opt-ic">' + ICON_EDIT + '</span><span class="src-opt-name">' + esc(t('wlRenameList')) + '</span></button>' +
+      (cur.main ? '' : '<button class="src-opt danger" type="button" role="menuitem" data-act="del"><span class="src-opt-ic wl-trash">' + ICON_TRASH + '</span><span class="src-opt-name">' + esc(t('wlDeleteList')) + '</span></button>') +
+    '</div>';
+  const btn = wrap.querySelector('.wl-title-btn'), pop = wrap.querySelector('.wl-pop');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !wrap.classList.contains('open');
+    closeSrcPops(wrap);
+    wrap.classList.toggle('open', open);
+    pop.classList.toggle('hidden', !open);
+    btn.setAttribute('aria-expanded', String(open));
+  });
+  pop.addEventListener('click', (e) => e.stopPropagation());
+  pop.querySelectorAll('[data-wl]').forEach((b) => b.addEventListener('click', () => {
+    closeSrcPops();
+    const ids = ls.map((l) => l.id);
+    wlSwitch(b.dataset.wl, Math.sign(ids.indexOf(b.dataset.wl) - ids.indexOf(cur.id)));
+  }));
+  pop.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => {
+    closeSrcPops();
+    if (b.dataset.act === 'new') openWlNameSheet('new');
+    else if (b.dataset.act === 'rename') openWlNameSheet('rename');
+    else wlDeleteList(cur.id);
+  }));
+  // צ'יפים (Material): כל הרשימות בנגיעה אחת + "＋" בסוף; הפעיל ממורכז בשורה
+  tabs.innerHTML = ls.map((l) => '<button class="wl-tab' + (l.id === cur.id ? ' on' : '') + '" type="button" role="tab" aria-selected="' + (l.id === cur.id) + '" data-wl="' + esc(l.id) + '">' +
+      '<span class="wl-tab-name">' + esc(l.name) + '</span><span class="wl-tab-count">' + l.items.length + '</span></button>').join('') +
+    '<button class="wl-tab add" type="button" aria-label="' + esc(t('wlNewList')) + '"><span aria-hidden="true">＋</span><span class="wl-tab-name">' + esc(t('wlNewShort')) + '</span></button>';
+  tabs.querySelectorAll('[data-wl]').forEach((b) => b.addEventListener('click', () => {
+    const ids = ls.map((l) => l.id);
+    wlSwitch(b.dataset.wl, Math.sign(ids.indexOf(b.dataset.wl) - ids.indexOf(cur.id)));
+  }));
+  tabs.querySelector('.wl-tab.add').addEventListener('click', () => openWlNameSheet('new'));
+  const on = tabs.querySelector('.wl-tab.on');
+  if (on && on.scrollIntoView && tabs.scrollWidth > tabs.clientWidth + 2) { try { on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch (e) {} }
+}
+/* החלקה הצידה על הרשימה = הרשימה הבאה/הקודמת (ב־RTL: החלקה ימינה = הבאה). לא בתוך כרטיס פתוח/גרף/שורת הצ'יפים */
+function wireWatchSwipe() {
+  const page = document.getElementById('wishlistList');
+  if (!page || page._swipe) return;
+  page._swipe = true;
+  let x0 = null, y0 = 0;
+  page.addEventListener('touchstart', (e) => {
+    const tg = e.target;
+    if (e.touches.length !== 1 || (tg.closest && tg.closest('.stock.open .stock-body, canvas, input'))) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+  }, { passive: true });
+  page.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+    const rtl = String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
+    const next = rtl ? dx > 0 : dx < 0;
+    const ls = wlLists(), i = ls.findIndex((l) => l.id === wlActive().id);
+    const j = i + (next ? 1 : -1);
+    if (j < 0 || j >= ls.length) return;
+    wlSwitch(ls[j].id, next ? 1 : -1);
+  }, { passive: true });
+}
+
 /* v240: רשימת המעקב = אותם כרטיסי מניה כמו בטאב המניות (לוגו, מחיר חי, בועת סשן, גרף וטווחים) */
-function renderWishlist() {
+function renderWishlist(opts) {
   const list = document.getElementById('wishlistList');
   if (!list) return;
   if (!tabShouldRender('wishlist')) return; // v193
-  const wasEmpty = !list.querySelector || !list.querySelector('.stock');
+  try { renderWatchHead(); } catch (e) {}
+  const items = wlItems();
+  const dir = (opts && opts.dir) || 0;
+  const wasEmpty = !!dir || !list.querySelector || !list.querySelector('.stock');
   list.innerHTML = '';
   paintWatchSortChips();
-  if (!WISHLIST.length) {
-    const m = el('p', 'fine');
+  // v244: מעבר רשימה — הרשימה החדשה נכנסת מהכיוון שאליו עברו (ציר משותף, כמו מעבר לשוניות)
+  if (dir && list.style && list.style.setProperty && list.classList) {
+    const rtl = String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
+    list.style.setProperty('--wl-dx', ((dir > 0) !== rtl ? 28 : -28) + 'px');
+    list.classList.remove('wl-slide'); void list.offsetWidth; list.classList.add('wl-slide');
+  }
+  if (!items.length) {
+    const m = el('p', 'fine wl-empty');
     m.style.padding = '0';
     m.textContent = t('wlEmpty');
     list.appendChild(m);
     return;
   }
   let idx = 0;
-  for (const w of sortWatchList(WISHLIST, getWatchSort(), (s) => metrics(s).dayChg)) {
+  for (const w of sortWatchList(items, getWatchSort(), (s) => metrics(s).dayChg)) {
     const card = buildStockCard(wlItem(w));
     if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); }
     idx++;
@@ -9063,7 +9248,7 @@ function stockNode(sym, prefix) {
 }
 /* הפריט שהכרטיס מציג: אחזקה, או פריט מעקב (לפי הכרטיס עצמו) */
 function stockItemFor(sym, card) {
-  if (card && card.dataset && card.dataset.watch) { const w = WISHLIST.find((x) => x.sym === sym); return w ? wlItem(w) : null; }
+  if (card && card.dataset && card.dataset.watch) { const w = wlItems().find((x) => x.sym === sym); return w ? wlItem(w) : null; }
   return POSITIONS.find((x) => x.sym === sym) || null;
 }
 
@@ -10548,7 +10733,8 @@ function init() {
   try { initStockSearch(); } catch (e) {}
   try { initStockSort(); } catch (e) {}
   // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
-  try { initStockSearch('wlSearch', () => new Set(WISHLIST.map((w) => w.sym).concat(POSITIONS.map((p) => p.sym))), wlAddPicked); } catch (e) {}
+  try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym).concat(POSITIONS.map((p) => p.sym))), wlAddPicked); } catch (e) {}
+  try { wireWatchSwipe(); } catch (e) {} // v244: החלקה בין רשימות
   try { initWatchSort(); } catch (e) {}
   // v101: טיקר חי לשער הדולר — מתחיל עם האפליקציה
   try { startFxTicker(); } catch (e) {}

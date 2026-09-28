@@ -100,6 +100,10 @@
     DB.cash = { usd: num(c.usd) || 0, ils: num(c.ils) || 0 };
     // v141: עסקאות ידניות (ענן ישן בלי השדה — משאירים את המקומיות)
     if (Array.isArray(clean.manualTrades)) DB.manualTrades = clean.manualTrades;
+    // v244: רשימות המעקב (הראשית + הנוספות) — עוברות בין מכשירים; ענן ישן בלי השדות — המקומיות נשארות
+    if (Array.isArray(clean.wishlist) && Array.isArray(DB.wishlist)) { DB.wishlist.length = 0; DB.wishlist.push(...clean.wishlist); }
+    if (Array.isArray(clean.wlExtra)) DB.wlExtra = clean.wlExtra;
+    if (typeof clean.wlMainName === 'string') DB.wlMainName = clean.wlMainName;
     // v146: רשומות הדוגמה הישנות (עד v145) שנשמרו כנתונים — מנקים ומעדכנים את הענן
     const stripped = (typeof stripLegacyDemo === 'function') && stripLegacyDemo(DB);
     saveDBto(DB); // עדכון המטמון המקומי

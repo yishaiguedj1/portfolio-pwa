@@ -941,6 +941,60 @@ footer.fine { text-align: center; }
   padding: 16px; text-align: center; font-size: 14px; color: var(--on-surface-var);
 }
 
+/* ---- v244: כמה רשימות מעקב ----
+   כותרת = שם הרשימה + ▾ (תפריט כמו ב־Stocks של Apple); מתחת — צ'יפים גלולים לגלילה (Material filter chips):
+   הפעיל מלא בירוק, "＋ חדשה" במתאר מקווקו. מעבר רשימה = כניסה מהצד (ציר משותף). */
+.wl-head { margin-bottom: 6px; }
+.wl-menu { position: relative; }
+.wl-h2 { margin: 0; }
+.wl-title-btn {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  border: 0; background: none; padding: 2px 0; cursor: pointer;
+  font: inherit; font-size: inherit; font-weight: inherit; color: inherit; letter-spacing: inherit;
+}
+.wl-title-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-title-caret { font-size: .6em; color: var(--primary); transition: transform .25s cubic-bezier(.2, .9, .25, 1); }
+.wl-menu.open .wl-title-caret { transform: rotate(180deg); }
+.wl-menu .wl-pop { inset-inline-end: auto; inset-inline-start: 0; max-height: 70vh; overflow-y: auto; }
+.wl-opt-count { margin-inline-start: auto; font-size: 13px; font-weight: 600; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.wl-opt-count + .src-opt-check { margin-inline-start: 6px; }
+.wl-plus { font-size: 20px; font-weight: 700; color: var(--primary); }
+.src-opt.danger { color: var(--loss, #C62828); }
+.wl-trash .ic { stroke: currentColor; }
+.wl-tabs {
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  margin: 0 -16px 14px; padding: 2px 16px; scroll-padding-inline: 16px;
+}
+.wl-tabs::-webkit-scrollbar { display: none; }
+.wl-tab {
+  flex: none; display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px;
+  border: 1px solid var(--outline); border-radius: var(--pill); background: var(--surface);
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--on-surface); cursor: pointer; white-space: nowrap;
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease, transform .15s ease;
+}
+.wl-tab:active { transform: scale(.96); }
+.wl-tab-name { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; }
+.wl-tab-count {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--pill); box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; background: var(--search-fill); color: var(--on-surface-var); font-variant-numeric: tabular-nums;
+}
+.wl-tab.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.wl-tab.on .wl-tab-count { background: rgba(0, 0, 0, .16); color: var(--on-primary); }
+.wl-tab.add { border-style: dashed; color: var(--primary); background: transparent; gap: 4px; }
+.wl-tab.add span[aria-hidden] { font-size: 18px; font-weight: 700; }
+#wishlistList.wl-slide { animation: wlSlide .32s cubic-bezier(.2, .9, .25, 1); }
+@keyframes wlSlide { from { opacity: 0; transform: translateX(var(--wl-dx, 28px)); } to { opacity: 1; transform: none; } }
+.wl-empty { text-align: center; margin-top: 18px; }
+.wl-sheet .sheet-grab { width: 38px; height: 5px; border-radius: var(--pill); background: var(--outline); margin: 0 auto 8px; }
+.wl-sheet input[type="text"] {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; height: 44px; padding: 0 12px;
+  border: 0; border-radius: var(--radius-xs); background: var(--search-fill); color: var(--on-surface); margin: 0 0 12px; outline: none;
+}
+.wl-sheet input[type="text"]:focus { box-shadow: 0 0 0 2px var(--primary); }
+.wl-sheet .sheet-row .chip-btn { flex: 1; justify-content: center; }
+@media (prefers-reduced-motion: reduce) { #wishlistList.wl-slide { animation: none; } .wl-title-caret, .wl-tab { transition: none; } }
+
 /* ---- v88/v93: לוגו חברה בכרטיס מניה ---- */
 /* v88/v97: אריח לוגו לבן תמיד — גם בערכת נושא כהה */
 .stock-logo {

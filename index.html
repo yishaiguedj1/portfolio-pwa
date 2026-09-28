@@ -198,9 +198,11 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 
   <!-- מעקב (wishlist) — v240: זהה לטאב המניות (חיפוש, מיון, כרטיסים), בלי נתוני אחזקה -->
   <section id="tab-wishlist" class="tabpage" role="tabpanel">
-    <div class="section-head">
-      <h2 data-i18n="wishlistTitle">רשימת מעקב</h2>
+    <!-- v244: כמה רשימות — הכותרת פותחת את תפריט הרשימות; צ'יפים למעבר מהיר + "＋" -->
+    <div class="section-head wl-head">
+      <div class="src-filter wl-menu" id="wlMenu"><h2 class="wl-h2" data-i18n="wishlistTitle">רשימת מעקב</h2></div>
     </div>
+    <div class="wl-tabs" id="wlTabs" role="tablist"></div>
     <div class="stock-search-wrap">
       <div class="search-row">
         <label class="search-field">
