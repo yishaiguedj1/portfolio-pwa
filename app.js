@@ -3853,7 +3853,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v240';
+const APP_VERSION = 'v241';
 
 
 function saveDBto(db) {
@@ -4407,9 +4407,12 @@ const TASE_LOGOS = ('LUMI:leumi POLI:bank-hapoalim DSCT:discount MZTF:mizrahi-te
   'MTRX:matrix ONE:one-technologi ELTR:electra SKBN:shikun-and-binui ASHG:ashtrom CAMT:camtek KEN:kenon-ltd ' +
   'DANE:danel ELCO:elco HLAN:hilan AURA:aura ISRA:isramco-negev-2 NXSN:next-vision-stabil FORTY:formula ' +
   'MVNE:mivne ILCO:israel').split(' ').reduce((o, kv) => { const [k, v] = kv.split(':'); o[k] = v; return o; }, {});
+/* v241: לוגו שגוי אצל FMP (KHC: "Kraft" בלבן — נעלם על האריח הלבן) → עותק תקין בריפו (logos/). גם בווידג׳ט (widget-model.js) */
+const LOGO_OVERRIDES = { KHC: 'logos/KHC.png' };
 function logoSrc(sym) {
   const s = normalizeSym(sym);
   if (!s) return null;
+  if (LOGO_OVERRIDES[s]) return LOGO_OVERRIDES[s];
   if (/\.TA$/i.test(s)) {
     const id = TASE_LOGOS[s.replace(/\.TA$/i, '')];
     return id ? 'https://s3-symbol-logo.tradingview.com/' + id + '.svg' : null;

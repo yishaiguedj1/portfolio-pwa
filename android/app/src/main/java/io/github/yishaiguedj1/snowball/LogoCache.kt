@@ -41,7 +41,7 @@ object LogoCache {
     }.getOrNull()
 
     private fun file(context: Context, sym: String) =
-        File(File(context.cacheDir, "logos").apply { mkdirs() }, sym.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".png")
+        File(File(context.cacheDir, "logos").apply { mkdirs() }, sym.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".v2.png") // v2: לוגואים שנשמרו קטנים/חתוכים לפני התיקון לא נטענים
 
     private fun one(context: Context, sym: String, url: String) {
         val f = file(context, sym)
@@ -68,6 +68,13 @@ object LogoCache {
 
     private fun svgBitmap(text: String): Bitmap? = runCatching {
         val svg = SVG.getFromString(text)
+        // הלוגואים של TradingView: width/height=18 בלי viewBox — בלי viewBox שינוי הגודל רק מגדיל את הקנבס,
+        // והציור נשאר 18px בפינה (לוגו זעיר וחתוך בווידג׳ט). viewBox בגודל המקורי → נמתח על כל הריבוע.
+        if (svg.documentViewBox == null) {
+            val w0 = svg.documentWidth.takeIf { it > 0f } ?: 18f
+            val h0 = svg.documentHeight.takeIf { it > 0f } ?: w0
+            svg.setDocumentViewBox(0f, 0f, w0, h0)
+        }
         svg.documentWidth = LOGO_PX.toFloat()
         svg.documentHeight = LOGO_PX.toFloat()
         val out = Bitmap.createBitmap(LOGO_PX, LOGO_PX, Bitmap.Config.ARGB_8888)

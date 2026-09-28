@@ -129,7 +129,10 @@ function fmtChg(ch, sym, L) {
 const isHe = (L) => L === STR.he;
 const dirOf = (v) => (Math.abs(v) < 0.005 ? 'flat' : v > 0 ? 'pos' : 'neg');
 
+// v241: לוגו שגוי אצל FMP → עותק תקין באתר (כמו LOGO_OVERRIDES באפליקציה)
+const LOGO_OVERRIDES = { KHC: 'https://yishaiguedj1.github.io/portfolio-pwa/logos/KHC.png' };
 function logoUrl(it) {
+  if (LOGO_OVERRIDES[it.sym]) return LOGO_OVERRIDES[it.sym];
   if (isTA(it.sym)) return it.logo ? 'https://s3-symbol-logo.tradingview.com/' + it.logo + '.svg' : '';
   return 'https://financialmodelingprep.com/image-stock/' + encodeURIComponent(it.sym) + '.png';
 }
