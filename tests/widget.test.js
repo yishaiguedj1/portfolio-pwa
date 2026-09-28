@@ -44,7 +44,7 @@ ok(Math.abs(d.ch + 1.01) < 1e-9 && Math.abs(d.pct + 1.3136) < 1e-3, 'ת״א בח
 const m = M.buildModel(M.parseItems('META~i~Meta Platforms,LUMI.TA~m~לאומי~leumi,TSLA~w~Tesla'), { META: chart, 'LUMI.TA': ta }, { 'LUMI.TA': [76.89, 75.88] }, { lang: 'he', nowMs: sat });
 const c0 = m.cards[0], c1 = m.cards[1], c2 = m.cards[2];
 ok(c0.price === '\u2066$747.82\u2069' && c0.chg === '\u2066\u2212$25.93\u2069 (\u2066\u22123.33%\u2069)' && c0.dir === 'neg', 'כרטיס: מחיר חי + צ׳יפ "‎−$25.93 (−3.33%)"');
-ok(c0.sub === 'אחרי־מסחר' && c0.subPct === '\u2066\u22120.51%\u2069' && c0.subDir === 'neg', 'כרטיס: שורת אחרי־מסחר');
+ok(c0.sub === 'מסחר־מאוחר' && c0.subPct === '\u2066\u22120.51%\u2069' && c0.subDir === 'neg', 'כרטיס: שורת אחרי־מסחר');
 ok(c1.price === '\u20677,588 אג׳\u2069' && c1.chg.startsWith('\u2066\u2212101 אג׳\u2069') && c1.sub === 'סגור · סוכות', 'ת״א: "7,588 אג׳", "−101 אג׳", "סגור · סוכות" (שבת בסוכות — החג קודם)');
 ok(c2.price === '—' && c2.chg === '', 'בלי ציטוט: מקף, בלי צ׳יפ');
 ok(c0.logo === 'https://financialmodelingprep.com/image-stock/META.png' && c1.logo === 'https://s3-symbol-logo.tradingview.com/leumi.svg', 'לוגו: FMP / TradingView (כמו באפליקציה)');
@@ -113,9 +113,9 @@ ok(/id="widgetCard"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')
   }
   const L = M.STR.he, sat = Date.parse('2026-09-26T12:00:00Z');
   const b1 = M.bubbleOf({ sym: 'AAPL' }, { session: 'closed', ext: { kind: 'post', pct: 0.11 } }, { pct: 1.5 }, sat, L, { closed: true });
-  ok(b1.closed && b1.l1 === 'השוק סגור · סופ״ש' && b1.l2 === 'אחרי־מסחר' && b1.pct === '\u2066+0.11%\u2069' && b1.dir === 'pos', 'שוק סגור: שתי שורות — סיבה + הסשן המורחב האחרון');
+  ok(b1.closed && b1.l1 === 'השוק סגור · סופ״ש' && b1.l2 === 'מסחר־מאוחר' && b1.pct === '\u2066+0.11%\u2069' && b1.dir === 'pos', 'שוק סגור: שתי שורות — סיבה + הסשן המורחב האחרון');
   const b2 = M.bubbleOf({ sym: 'AAPL' }, { session: 'pre', ext: { kind: 'pre', pct: -0.2 } }, { pct: 1 }, sat, L, { closed: true });
-  ok(!b2.closed && b2.l1 === 'טרום־מסחר' && b2.dir === 'neg', 'טרום־מסחר: שורה אחת');
+  ok(!b2.closed && b2.l1 === 'מסחר־מוקדם' && b2.dir === 'neg', 'טרום־מסחר: שורה אחת');
   ok(M.bubbleOf({ sym: 'AAPL' }, { session: 'regular', ext: null }, { pct: 1 }, sat, L, { closed: false }) === null, 'מסחר רגיל: בלי בועה');
   const b3 = M.bubbleOf({ sym: 'LUMI.TA' }, { session: 'closed', ext: null }, { pct: -1.31 }, sat, L, { closed: true, reason: 'hdWeekend' });
   ok(b3.closed && b3.l2 === 'סגירה' && b3.dir === 'neg', 'ת״א סגור: "סגירה" + השינוי היומי');

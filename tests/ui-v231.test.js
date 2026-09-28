@@ -24,7 +24,7 @@ ok(/prev === 'stocks' && name !== 'stocks'\) \{ try \{ closeStockCards\(\)/.test
 ok(/if \(document\.hidden\) \{[\s\S]*?closeStockCards\(\);/.test(src), 'יציאה מהאפליקציה (רקע) סוגרת הכל');
 ok(/window\.scrollBy\(0, after - before\)/.test(fn('closeStockCards')), 'הכרטיס שנגעת בו לא קופץ (פיצוי גלילה)');
 // v233: פתיחת כרטיס מעלה את ראשו לראש המסך (מתחת להדר), גם אחרי שהאנימציה הגדילה את הדף
-ok(/scrollCardToTop\(card\);/.test(fn('toggleStock')) && /if \(opening && state\.open\[sym\]\) scrollCardToTop\(card\)/.test(fn('toggleStock')), 'v233: פתיחת כרטיס גוללת את ראשו לראש המסך (מיד + בסוף האנימציה)');
+ok(/scrollCardToTop\(card\);/.test(fn('toggleStock')) && /if \(opening && state\.open\[sym\]\) \{[\s\S]*?scrollCardToTop\(card\)/.test(fn('toggleStock')), 'v233: פתיחת כרטיס גוללת את ראשו לראש המסך (מיד + בסוף האנימציה)');
 ok(/\.appbar'\);[\s\S]*?getBoundingClientRect\(\)\.height : 0\) \+ 10/.test(fn('scrollCardToTop')), 'v233: מתחת להדר הדביק');
 // v234: נתוני הכרטיס — בלי בועות: קו אופקי דק בין השורות + קווים אנכיים קצרים, אחוז קטן ורגיל
 ok(/\.kv \{ position: relative; background: none;/.test(css) && /\.kv::before \{[^}]*top: 22%; bottom: 22%; width: \.5px/.test(css) && /\.kv:nth-child\(n\+4\) \{ border-top: \.5px solid var\(--outline\)/.test(css), 'v234: נתוני הכרטיס — בלי בועות, קווים דקים (הצעה ה׳)');
@@ -37,7 +37,8 @@ ok(/\.ov-stats \.stat \+ \.stat::before \{[^}]*width: \.5px/.test(css), 'v235: �
 const body = fn('buildStockBody');
 ok(!/t\('measure'\)/.test(body) && !/measure-chip/.test(body) && !/sleg-/.test(body), 'v236: בלי כפתור מדידה ובלי שורת legend בכרטיס המניה');
 ok(/\.stock-body \.chart-wrap canvas \{ height: 170px; \}/.test(css) && /h = canvas\.clientHeight \|\| 170/.test(src), 'v236: גובה הגרף מה־CSS (170)');
-ok(/class="rs-sym"><span class="dot"/.test(fn('renderStockRangeSummary')), 'v236: סמן ● סימבול מימין לשורת התשואה');
+ok(/class="rs-sym"><span class="dot"/.test(fn('renderStockRangeSummary')), 'v236/v238: סמן ● סימבול מימין לשורת התשואה (אושר)');
+ok(/function fitCardToScreen/.test(src) && /fitCardToScreen\(sym, card\);\n    ensureChartData\(sym\);/.test(fn('toggleStock')) && /ResizeObserver/.test(fn('fitCardToScreen')), 'v238: הכרטיס הפתוח = גובה המסך מתחת להדר (הגרף משלים, מתעדכן כשהתוכן משתנה)');
 ok(/foot\.appendChild\(sret\)/.test(fn('buildStockBody')) && /foot\.appendChild\(actions\)/.test(fn('buildStockBody')), 'v237: "ערוך" באותה שורה עם התשואה');
 ok(/\.stock-foot \.pf-range-summary \{ flex: 1 1 auto; min-width: 0;/.test(css) && /\.edit-actions\.stock-edit \{ flex: none;/.test(css), 'v237: התשואה מתכווצת, הכפתור קבוע — בלי חפיפה');
 ok(/fitStockFoot\(box\)/.test(fn('renderStockRangeSummary')) && /classList\.add\('no-lbl'\)/.test(fn('fitStockFoot')), 'v237: מה שלא נכנס שלם מוסתר (בלי חיתוך)');

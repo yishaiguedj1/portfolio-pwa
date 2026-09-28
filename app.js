@@ -230,11 +230,11 @@ he: {
   sourceLabel: 'מקור: {src} · {lag}{sess}{stale}',
   lagLive: 'חי',
   lagDelayed: 'דיליי ~15 דקות',
-  sessionPre: ' · טרום־מסחר',
-  sessionPost: ' · אחרי־מסחר',
+  sessionPre: ' · מסחר־מוקדם',
+  sessionPost: ' · מסחר־מאוחר',
   sessionNight: ' · מסחר־לילי (overnight)',
-  sessPreShort: 'טרום־מסחר',
-  sessPostShort: 'אחרי־מסחר',
+  sessPreShort: 'מסחר־מוקדם',
+  sessPostShort: 'מסחר־מאוחר',
   sessNightShort: 'מסחר־לילי',
   sessExtTitle: 'שינוי מהסגירה הרגילה',
   sessClosed: 'השוק סגור',
@@ -244,8 +244,8 @@ he: {
   hdTaErevSukkot: 'ערב סוכות', hdTaSukkot: 'סוכות', hdTaErevSimchat: 'הושענא רבה', hdTaSimchat: 'שמחת תורה',
   hdTaPurim: 'פורים', hdTaErevPesach: 'ערב פסח', hdTaPesach: 'פסח', hdTaIndependence: 'יום העצמאות',
   hdTaErevShavuot: 'ערב שבועות', hdTaShavuot: 'שבועות', hdTaTishaBav: 'ט׳ באב',
-  sessPostTiny: 'אחרי־מסחר',
-  sessPreTiny: 'טרום־מסחר',
+  sessPostTiny: 'מסחר־מאוחר',
+  sessPreTiny: 'מסחר־מוקדם',
   sessNightTiny: 'מסחר־לילי',
   sessClosedTitle: 'השוק סגור — השינוי הוא מהמסחר המאוחר האחרון',
   hdWeekend: 'סופ״ש',
@@ -318,7 +318,7 @@ he: {
   myAccount: 'החשבון שלי',
   appVersion: 'גרסת אפליקציה: ',
   clearCacheBtn: 'נקה מטמון ורענן',
-  widgetTitle: 'ווידג׳ט למסך הבית', widgetDesc: 'כל המניות בתיק על מסך הבית — מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה כאן. דורש את אפליקציית האנדרואיד.',
+  widgetTitle: 'ווידג׳ט למסך הבית', widgetDesc: 'כל המניות בתיק על מסך הבית — מחיר, שינוי יומי ומסחר מוקדם/מאוחר. נגיעה במניה פותחת אותה כאן. דורש את אפליקציית האנדרואיד.',
   widgetEmpty: 'אין עדיין מניות בתיק.',
   widgetInApp: 'הווידג׳ט מתעדכן לבד: כשהתיק משתנה, הרשימה עוברת אליו בנגיעה הבאה באפליקציה.',
   widgetAppSyncBtn: 'סנכרון לווידג׳ט', widgetAppSynced: 'רשימת המניות נשלחה לווידג׳ט', widgetApkBtn: 'הורדת האפליקציה לאנדרואיד', widgetHowTitle: 'איך מתקינים',
@@ -3849,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v237';
+const APP_VERSION = 'v238';
 
 
 function saveDBto(db) {
@@ -9031,6 +9031,7 @@ function buildStockBody(p, m) {
   canvas.id = 'chart-' + sym;
   const loading = el('div', 'chart-loading', t('loadingData'));
   loading.id = 'cload-' + sym;
+  if (state.chartH && state.chartH[sym]) canvas.style.height = state.chartH[sym] + 'px'; // v238: הגובה שהותאם למסך
   cwrap.appendChild(canvas);
   cwrap.appendChild(loading);
   wrap.appendChild(cwrap);
@@ -9168,6 +9169,35 @@ function scrollCardToTop(card) {
   const y = Math.max(0, top + (window.scrollY || 0) - off);
   try { window.scrollTo({ top: y, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, y); }
 }
+// v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל ומתחת) — לא גדול ולא קטן ממנו:
+// הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
+function fitCardToScreen(sym, card) {
+  if (typeof window === 'undefined' || !window.innerHeight) return false;
+  card = card || document.querySelector('#stockList .stock[data-sym="' + sym + '"]');
+  if (!card || !state.open[sym] || !card.getBoundingClientRect) return false;
+  const cv = card.querySelector('.chart-wrap canvas');
+  const body = card.querySelector('.stock-body'), inner = card.querySelector('.stock-body-in');
+  if (!cv || !body || !inner || !cv.clientHeight) return false;
+  // התוכן משתנה אחרי הפתיחה (ציטוט מגיע → שורת ATH, בועת סשן, שורת התשואה) — מתאימים מחדש כשהגודל משתנה
+  if (!card._fitRO && typeof ResizeObserver === 'function') {
+    card._fitRO = new ResizeObserver(() => {
+      cancelAnimationFrame(card._fitRaf);
+      card._fitRaf = requestAnimationFrame(() => { if (fitCardToScreen(sym, card)) ensureChartData(sym, true); });
+    });
+    card._fitRO.observe(inner);
+    const head = card.querySelector('.stock-head');
+    if (head) card._fitRO.observe(head);
+  }
+  const bar = document.querySelector('.appbar');
+  const avail = window.innerHeight - (bar ? bar.getBoundingClientRect().height : 0) - 20;
+  const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
+  const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
+  if (Math.abs(h - cv.clientHeight) < 2) return false;
+  if (!state.chartH) state.chartH = {};
+  state.chartH[sym] = h;
+  cv.style.height = h + 'px';
+  return true;
+}
 function toggleStock(sym, card) {
   if (!state.open[sym]) closeStockCards(sym, card);
   state.open[sym] = !state.open[sym];
@@ -9175,14 +9205,17 @@ function toggleStock(sym, card) {
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!body || reduce || !card.classList) {
     card.classList.toggle('open', state.open[sym]);
-    if (state.open[sym]) { ensureChartData(sym); scrollCardToTop(card); }
+    if (state.open[sym]) { fitCardToScreen(sym, card); ensureChartData(sym); scrollCardToTop(card); }
     return;
   }
   clearTimeout(card._animT);
   const opening = !!state.open[sym];
   const done = () => {
     clearTimeout(card._animT); card.classList.remove('anim'); body.removeEventListener('transitionend', onEnd);
-    if (opening && state.open[sym]) scrollCardToTop(card); // השלמה אחרי שהדף התארך
+    if (opening && state.open[sym]) {
+      if (fitCardToScreen(sym, card)) ensureChartData(sym, true); // תיקון עדין אחרי הפריסה הסופית
+      scrollCardToTop(card); // השלמה אחרי שהדף התארך
+    }
   };
   const onEnd = (e) => { if (e.target === body) done(); };
   body.addEventListener('transitionend', onEnd);
@@ -9191,6 +9224,7 @@ function toggleStock(sym, card) {
     card.classList.add('anim'); // display:grid ב־0fr
     void body.offsetHeight; // נקודת מוצא לפני המעבר
     card.classList.add('open'); // → 1fr
+    fitCardToScreen(sym, card);
     ensureChartData(sym);
     scrollCardToTop(card);
   } else {
@@ -9208,6 +9242,7 @@ function refreshStockBody(sym) {
   const body = card.querySelector('.stock-body');
   body.innerHTML = '';
   body.appendChild(buildStockBody(p, m));
+  fitCardToScreen(sym, card);
   ensureChartData(sym);
 }
 
@@ -9388,7 +9423,7 @@ function renderStockRangeSummary(sym, pts, lineCol) {
   else for (const [rk, labelKey] of RANGES) {
     if (rk === curR) { rangeName = t(labelKey); break; }
   }
-  // v236: סמן המניה (● סימבול בצבע הקו) — מימין לשורת התשואה, במקום שורת ה־legend שהוסרה
+  // v236: סמן המניה (● סימבול בצבע הקו) — מימין לשורת התשואה (v238: המשתמש אישר "ככה זה מדהים, תשאיר ככה")
   if (box) box.innerHTML = '<span class="rs-sym"><span class="dot" style="background:' + lineCol + '"></span>' + esc(sym) + '</span>' +
     '<span class="rs-lbl">' + esc(t('stockRangeReturn')) + '</span>' +
     '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
@@ -10233,7 +10268,7 @@ function init() {
       drawPie();
       drawPfChart();
       for (const sym of Object.keys(state.open)) {
-        if (state.open[sym]) ensureChartData(sym);
+        if (state.open[sym]) { fitCardToScreen(sym); ensureChartData(sym); }
       }
     }, 250);
   });

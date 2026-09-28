@@ -8,9 +8,9 @@ const market = require('./market');
 
 const STR = {
   he: {
-    open: 'המסחר פתוח', pre: 'טרום־מסחר', post: 'אחרי־מסחר', night: 'מסחר־לילי', closed: 'השוק סגור', closedDot: 'השוק סגור ·',
-    cardPost: 'אחרי־מסחר', cardPre: 'טרום־מסחר', cardNight: 'מסחר־לילי', taClosed: 'סגור', updated: 'עודכן',
-    tinyPost: 'אחרי־מסחר', tinyPre: 'טרום־מסחר', tinyNight: 'מסחר־לילי', lastClose: 'סגירה',
+    open: 'המסחר פתוח', pre: 'מסחר־מוקדם', post: 'מסחר־מאוחר', night: 'מסחר־לילי', closed: 'השוק סגור', closedDot: 'השוק סגור ·',
+    cardPost: 'מסחר־מאוחר', cardPre: 'מסחר־מוקדם', cardNight: 'מסחר־לילי', taClosed: 'סגור', updated: 'עודכן',
+    tinyPost: 'מסחר־מאוחר', tinyPre: 'מסחר־מוקדם', tinyNight: 'מסחר־לילי', lastClose: 'סגירה',
     ag: 'אג׳', pts: 'נק׳', manual: 'ידני', watch: 'מעקב',
     hdWeekend: 'סופ״ש', hdNewYear: 'ראש השנה', hdMlk: 'יום MLK', hdPresidents: 'הנשיאים', hdGoodFriday: 'שישי הטוב',
     hdMemorial: 'יום הזיכרון', hdJuneteenth: 'ג׳ונטינת׳', hdIndependence: '4 ביולי', hdLabor: 'העבודה',
