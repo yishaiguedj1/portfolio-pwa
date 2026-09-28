@@ -47,7 +47,7 @@ ok(c0.price === '\u2066$747.82\u2069' && c0.chg === '\u2066\u2212$25.93\u2069 (\
 ok(c0.sub === 'מסחר־מאוחר' && c0.subPct === '\u2066\u22120.51%\u2069' && c0.subDir === 'neg', 'כרטיס: שורת אחרי־מסחר');
 ok(c1.price === '\u20677,588 אג׳\u2069' && c1.chg.startsWith('\u2066\u2212101 אג׳\u2069') && c1.sub === 'סגור · סוכות', 'ת״א: "7,588 אג׳", "−101 אג׳", "סגור · סוכות" (שבת בסוכות — החג קודם)');
 ok(c2.price === '—' && c2.chg === '', 'בלי ציטוט: מקף, בלי צ׳יפ');
-ok(c0.logo === 'https://financialmodelingprep.com/image-stock/META.png' && c1.logo === 'https://s3-symbol-logo.tradingview.com/leumi.svg', 'לוגו: FMP / TradingView (כמו באפליקציה)');
+ok(c0.logo === 'https://financialmodelingprep.com/image-stock/META.png' && c1.logo === 'https://yishaiguedj1.github.io/portfolio-pwa/logos/ta/leumi.png', 'לוגו: FMP / ת״א = PNG מוכן באתר (v242 — ה־SVG יצא זעיר בווידג׳ט)');
 ok(m.header.lines.join('') === 'השוק סגור ·סופ״ש' && m.header.two === false && /^עודכן \d\d:\d\d$/.test(m.updated), 'כותרת: "השוק סגור · סופ״ש" בשורה אחת + שעת עדכון');
 const en = M.buildModel(M.parseItems('META~i'), { META: chart }, {}, { lang: 'en', nowMs: sat });
 ok(en.header.lines[0] === 'Closed' && en.header.lines[1] === 'Weekend' && en.header.two === true && en.dir === 'ltr' && en.cards[0].name === 'Meta Platforms, Inc.', 'אנגלית: "Closed / Weekend" בשתי שורות, LTR, שם מ־Yahoo כשאין מהאפליקציה');

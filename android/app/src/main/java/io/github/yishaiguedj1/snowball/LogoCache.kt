@@ -41,7 +41,7 @@ object LogoCache {
     }.getOrNull()
 
     private fun file(context: Context, sym: String) =
-        File(File(context.cacheDir, "logos").apply { mkdirs() }, sym.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".v2.png") // v2: לוגואים שנשמרו קטנים/חתוכים לפני התיקון לא נטענים
+        File(File(context.cacheDir, "logos").apply { mkdirs() }, sym.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".v3.png") // v3: לוגואים שנשמרו קטנים/חתוכים לפני התיקון לא נטענים (ת״א מגיעים עכשיו כ־PNG מהאתר)
 
     private fun one(context: Context, sym: String, url: String) {
         val f = file(context, sym)

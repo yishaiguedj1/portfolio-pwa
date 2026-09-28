@@ -130,10 +130,15 @@ const isHe = (L) => L === STR.he;
 const dirOf = (v) => (Math.abs(v) < 0.005 ? 'flat' : v > 0 ? 'pos' : 'neg');
 
 // v241: לוגו שגוי אצל FMP → עותק תקין באתר (כמו LOGO_OVERRIDES באפליקציה)
-const LOGO_OVERRIDES = { KHC: 'https://yishaiguedj1.github.io/portfolio-pwa/logos/KHC.png' };
+const SITE = 'https://yishaiguedj1.github.io/portfolio-pwa/';
+const LOGO_OVERRIDES = { KHC: SITE + 'logos/KHC.png' };
+let TA_PNG = new Set();
+try { TA_PNG = new Set(require('./ta-logos.json')); } catch (e) {}
 function logoUrl(it) {
   if (LOGO_OVERRIDES[it.sym]) return LOGO_OVERRIDES[it.sym];
-  if (isTA(it.sym)) return it.logo ? 'https://s3-symbol-logo.tradingview.com/' + it.logo + '.svg' : '';
+  // v242: לוגו ת״א = PNG מוכן באתר (logos/ta/) — ה־SVG של TradingView (18×18 בלי viewBox) יצא בווידג׳ט זעיר וחתוך בפינה.
+  // לוגו שעוד לא הומר (מניה חדשה) — ה־SVG כמו קודם.
+  if (isTA(it.sym)) return !it.logo ? '' : TA_PNG.has(it.logo) ? SITE + 'logos/ta/' + it.logo + '.png' : 'https://s3-symbol-logo.tradingview.com/' + it.logo + '.svg';
   return 'https://financialmodelingprep.com/image-stock/' + encodeURIComponent(it.sym) + '.png';
 }
 

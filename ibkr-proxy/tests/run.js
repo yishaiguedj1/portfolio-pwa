@@ -461,5 +461,11 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 400, 'search: עברית → 400 (מקומי באפליקציה)');
   }
 
+  /* ---------- v242: לוגו ת״א בווידג׳ט = PNG מהאתר ---------- */
+  {
+    const taList = require('../lib/ta-logos.json');
+    ok(taList.includes('bank-hapoalim') && taList.includes('elbit-systems') && taList.length >= 40, 'ווידג׳ט: רשימת לוגואי ת״א שהומרו ל־PNG');
+  }
+
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });
