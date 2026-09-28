@@ -339,6 +339,13 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .cards-3 .stat-label { margin-bottom: 6px; font-weight: 600; letter-spacing: 0; font-size: 13px; white-space: nowrap; } /* v198: תווית בשורה אחת — אריח נמוך יותר */
 /* v198: הערת ההסבר מתחת לגרף הביצועים (TWR יומי… · תקופות רשמיות) מוסתרת — בקשת המשתמש; הקוד נשאר לדיאגנוסטיקה */
 #pfNoteEl { display: none; }
+/* v235: אריחי הסקירה באותו סגנון כמו נתוני כרטיס המניה (v234, בקשת המשתמש) — כרטיס לבן אחד במקום שלושה,
+   קווים אנכיים קצרים בין העמודות, תווית שקטה, מספר בולט (גדול מבכרטיס המניה — אלה המספרים הראשיים) */
+.cards-3.ov-stats { gap: 0; padding: 14px 6px; margin: 16px 0; }
+.ov-stats .stat { position: relative; min-width: 0; padding: 2px 4px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; }
+.ov-stats .stat + .stat::before { content: ''; position: absolute; inset-inline-start: 0; top: 16%; bottom: 16%; width: .5px; background: var(--outline); }
+.ov-stats .stat-label { margin: 0; font-size: 12px; font-weight: 400; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ov-stats .stat-value { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
 .cards-3 .stat-value { margin-top: auto; } /* המספרים בקו אחד גם כשתווית נשברת לשתי שורות */
 .stat.wide { text-align: center; }
 .stat-label { font-size: 13.5px; color: var(--on-surface-var); margin-bottom: 6px; }
@@ -452,6 +459,23 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .kv .v { font-size: clamp(14px, 3.9vw, 16px); font-weight: 600; letter-spacing: -.2px; font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%; }
 .kv .v2 { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--on-surface-var); white-space: nowrap; }
 .kv .v2.pos { color: var(--gain); } .kv .v2.neg { color: var(--loss); }
+/* v236: כרטיס מניה פתוח קומפקטי — נכנס במסך אחד בלי גלילה (בקשת המשתמש): אותו מבנה ועיצוב, פחות רווחים,
+   גרף 170 במקום 210, טווחים ושורת התשואה קטנים יותר. כפתור "מדידה", ההסבר וה־legend הוסרו (app.js) */
+.stock.open .stock-head { padding: 12px 16px 10px; gap: 6px 10px; }
+.stock-body-in { padding: 8px 16px 12px; }
+.stock-body .kv-grid { margin: 0 0 6px; }
+.stock-body .kv { padding: 5px 4px 6px; gap: 1px; }
+.stock-body .chart-wrap canvas { height: 170px; }
+.stock-body .chip-row.stock-chips { margin-top: 6px; padding-bottom: 0; }
+.stock-chips .range-btn { padding-block: 6px; font-size: 13px; }
+.stock-body .pf-range-summary { margin: 6px 0 0; font-size: 14px; gap: 6px; }
+.stock-body .pf-range-summary .rs-val { font-size: 18px; }
+.stock-body .pf-range-summary .rs-range { font-size: 12.5px; }
+.pf-range-summary .rs-sym { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; margin-inline-end: 4px; }
+.pf-range-summary .rs-sym .dot { width: 12px; height: 12px; border-radius: var(--pill); flex: none; align-self: center; }
+.stock-body .chart-hint { margin-top: 4px; font-size: 12.5px; }
+.stock-body .edit-actions { margin-top: 8px; padding: 0; }
+.stock-body .edit-actions .chip-btn { padding-block: 6px; font-size: 13.5px; }
 
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ranges { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: 1; }
@@ -682,12 +706,15 @@ footer.fine { text-align: center; }
 
 @media (min-width: 560px) {
   .stat-value { font-size: 28px; }
+  .ov-stats .stat-value { font-size: 22px; }
 }
 
 /* מסכים צרים: מספרים גדולים לא נשברים ולא נחתכים */
 @media (max-width: 400px) {
   .stat-value { font-size: 21px; }
   .cards-3 .card { padding: 12px 6px; }
+  .ov-stats .stat-value { font-size: 18px; }
+  .cards-3.ov-stats { padding: 12px 4px; }
   .tab { font-size: 15px; padding: 11px 8px; }
 }
 

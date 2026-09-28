@@ -3849,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v234';
+const APP_VERSION = 'v236';
 
 
 function saveDBto(db) {
@@ -9022,28 +9022,13 @@ function buildStockBody(p, m) {
   wrap.appendChild(grid);
 
   if (!state.range[sym]) state.range[sym] = 'year';
-  // v107: שורת כלים בשבלונת הגרף הראשי — כפתור מדידה נקי (chip-btn)
-  const tools = el('div', 'pf-tools');
-  const mb = el('button', 'chip-btn' + (measureState(sym).on ? ' on' : ''), t('measure'));
-  mb.type = 'button';
-  mb.title = t('measureTitle');
-  mb.addEventListener('click', () => {
-    const ms = measureState(sym);
-    ms.on = !ms.on;
-    ms.pts = [];
-    refreshStockBody(sym);
-  });
-  tools.appendChild(mb);
-  wrap.appendChild(tools);
-
-  const chip = el('div', 'measure-chip hidden');
-  chip.id = 'mchip-' + sym;
-  wrap.appendChild(chip);
+  // v236: כפתור "מדידה" ושורת ההסבר שלו הוסרו מכרטיס המניה (בקשת המשתמש — הכרטיס הפתוח נכנס במסך אחד);
+  // "מתאריך…" בתפריט השנים נשאר הדרך למדוד תשואה מנקודה בגרף
+  measureState(sym).on = false;
 
   const cwrap = el('div', 'chart-wrap');
   const canvas = el('canvas');
   canvas.id = 'chart-' + sym;
-  if (measureState(sym).on) canvas.classList.add('measuring');
   const loading = el('div', 'chart-loading', t('loadingData'));
   loading.id = 'cload-' + sym;
   cwrap.appendChild(canvas);
@@ -9104,16 +9089,13 @@ function buildStockBody(p, m) {
   const sret = el('div', 'pf-range-summary');
   sret.id = 'sret-' + sym;
   wrap.appendChild(sret);
-
-  const sleg = el('ul', 'legend');
-  sleg.id = 'sleg-' + sym;
-  wrap.appendChild(sleg);
+  // v236: שורת ה־legend ("NOW ● +x%") הוסרה — חזרה בדיוק על שורת התשואה שמעליה
 
   const picking = !!state.stockPick[sym];
-  if (picking) cwrap.classList.add('picking');
-  const hint = el('div', 'chart-hint' + (picking ? ' pick-hint' : ''),
-    picking ? t('pfPickBubble') : measureState(sym).on ? t('measureOn') : t('measureTip'));
-  wrap.appendChild(hint);
+  if (picking) {
+    cwrap.classList.add('picking');
+    wrap.appendChild(el('div', 'chart-hint pick-hint', t('pfPickBubble'))); // רק במצב בחירת תאריך בגרף
+  }
 
   attachMeasure(canvas, sym);
   // ציור יתבצע אחרי טעינת היסטוריה (ensureChartData)
@@ -9291,7 +9273,7 @@ function drawStockChart(sym, rows, intraday) {
   ms.pts = ms.pts.filter((i) => i >= 0 && i < pts.length);
 
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 320, h = 210;
+  const w = canvas.clientWidth || 320, h = canvas.clientHeight || 170; // v236: הגובה מה־CSS (170, היה 210 קבוע)
   canvas.width = w * dpr; canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -9403,7 +9385,9 @@ function renderStockRangeSummary(sym, pts, lineCol) {
   else for (const [rk, labelKey] of RANGES) {
     if (rk === curR) { rangeName = t(labelKey); break; }
   }
-  if (box) box.innerHTML = '<span>' + esc(t('stockRangeReturn')) + '</span>' +
+  // v236: סמן המניה (● סימבול בצבע הקו) — מימין לשורת התשואה, במקום שורת ה־legend שהוסרה
+  if (box) box.innerHTML = '<span class="rs-sym"><span class="dot" style="background:' + lineCol + '"></span>' + esc(sym) + '</span>' +
+    '<span>' + esc(t('stockRangeReturn')) + '</span>' +
     '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
     (rangeName ? '<span class="rs-range">' + esc(rangeName) + '</span>' : '');
   if (leg) leg.innerHTML = '<li><span class="dot" style="background:' + lineCol + '"></span>' +

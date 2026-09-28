@@ -29,4 +29,13 @@ ok(/\.appbar'\);[\s\S]*?getBoundingClientRect\(\)\.height : 0\) \+ 10/.test(fn('
 // v234: נתוני הכרטיס — בלי בועות: קו אופקי דק בין השורות + קווים אנכיים קצרים, אחוז קטן ורגיל
 ok(/\.kv \{ position: relative; background: none;/.test(css) && /\.kv::before \{[^}]*top: 22%; bottom: 22%; width: \.5px/.test(css) && /\.kv:nth-child\(n\+4\) \{ border-top: \.5px solid var\(--outline\)/.test(css), 'v234: נתוני הכרטיס — בלי בועות, קווים דקים (הצעה ה׳)');
 ok(/\.kv \.v2 \{ font-size: 11px; font-weight: 500;/.test(css), 'v234: האחוז קטן ורגיל');
+// v235: אריחי הסקירה — כרטיס אחד עם קווים אנכיים קצרים (כמו נתוני כרטיס המניה)
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+ok(/<div class="cards-3 ov-stats card">/.test(html) && !/<div class="card stat">\s*<div class="stat-label" data-i18n="ovStocksValue">/.test(html), 'v235: הסקירה — כרטיס אחד במקום שלושה');
+ok(/\.ov-stats \.stat \+ \.stat::before \{[^}]*width: \.5px/.test(css), 'v235: קווים אנכיים קצרים בין הנתונים');
+// v236: כרטיס מניה פתוח נכנס במסך אחד — בלי כפתור "מדידה", בלי שורת legend כפולה, גרף 170
+const body = fn('buildStockBody');
+ok(!/t\('measure'\)/.test(body) && !/measure-chip/.test(body) && !/sleg-/.test(body), 'v236: בלי כפתור מדידה ובלי שורת legend בכרטיס המניה');
+ok(/\.stock-body \.chart-wrap canvas \{ height: 170px; \}/.test(css) && /h = canvas\.clientHeight \|\| 170/.test(src), 'v236: גובה הגרף מה־CSS (170)');
+ok(/class="rs-sym"><span class="dot"/.test(fn('renderStockRangeSummary')), 'v236: סמן ● סימבול מימין לשורת התשואה');
 console.log('\n' + n + ' בדיקות עברו');
