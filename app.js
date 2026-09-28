@@ -1451,10 +1451,11 @@ function filterRange(rows, range) {
 
 /* v134: נקודת הסיום של גרף המניה = המחיר החי, לא השורה האחרונה בהיסטוריה
    השמורה (מטמון עד 24 שעות — הייתה נגמרת אתמול או לפני כמה ימים). לא בטרום־מסחר:
-   אז "היום" עוד לא נסחר והסגירה האחרונה כבר בהיסטוריה. */
+   אז "היום" עוד לא נסחר והסגירה האחרונה כבר בהיסטוריה. v226: גם לא במסחר הלילי — Yahoo משייך אותו ליום המסחר הבא,
+   ו־q.mdate עדיין של הסגירה האחרונה (המחיר הלילי היה דורס אותה). */
 function stockChartRows(hist, q) {
   const rows = (hist || []).slice();
-  if (!q || !(q.close > 0) || q.session === 'pre') return rows;
+  if (!q || !(q.close > 0) || q.session === 'pre' || q.session === 'night') return rows;
   const d = q.mdate || q.date;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return rows;
   const last = rows[rows.length - 1];
@@ -3814,7 +3815,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v224';
+const APP_VERSION = 'v226';
 
 
 function saveDBto(db) {
@@ -4866,7 +4867,7 @@ function liveSymbolsFor(full) {
 /* v165: שדות מורחבים מהשרתון (v7/quote של Yahoo): marketState + טרום־מסחר / אחרי־מסחר / overnight
    יחסית לסגירה הרגילה. q.session נקבע לפי marketState של Yahoo (מדויק יותר מחלון הזמן).
    שומר: q.regClose (סגירה רגילה), q.ext = { kind: 'pre'|'post'|'night', price, ch, pct, t }. טהורה. */
-const YAHOO_STATE_SESSION = { PRE: 'pre', PREPRE: 'pre', POST: 'post', POSTPOST: 'post', OVERNIGHT: 'night', CLOSED: 'closed', REGULAR: 'regular' };
+const YAHOO_STATE_SESSION = { PRE: 'pre', PREPRE: 'closed', POST: 'post', POSTPOST: 'closed', OVERNIGHT: 'night', CLOSED: 'closed', REGULAR: 'regular' };
 function applyExtQuote(q, x) {
   if (!q || !x) return q;
   const sess = YAHOO_STATE_SESSION[String(x.state || '').toUpperCase()];
@@ -4875,6 +4876,8 @@ function applyExtQuote(q, x) {
   const pick = sess === 'night' ? (x.night || x.post) : sess === 'post' ? x.post : sess === 'pre' ? x.pre : null;
   const kind = sess === 'night' ? (x.night ? 'night' : 'post') : sess;
   if (pick && pick.p > 0) q.ext = { kind: kind, price: pick.p, ch: pick.ch, pct: pick.pct, t: pick.t };
+  // v226: בגרף של Yahoo אין נרות לילה — המחיר הראשי בכרטיס = המחיר הלילי (כמו אחרי־מסחר, שם הנר האחרון חי)
+  if (kind === 'night' && pick && pick.p > 0) q.close = pick.p;
   else if (sess === 'closed' && x.post && x.post.p > 0) q.ext = { kind: 'post', price: x.post.p, ch: x.post.ch, pct: x.post.pct, t: x.post.t };
   return q;
 }
@@ -5140,7 +5143,7 @@ function renderLive(syms) {
    מחליפה את הנר האחרון אם זו אותה דקה, אחרת נוספת אחריו. לא משנה את המטמון. */
 function intradayLiveRows(rows, q) {
   const out = (rows || []).slice();
-  if (!q || !(q.close > 0) || !q.mtime || !q.mdate || !out.length) return out;
+  if (!q || !(q.close > 0) || !q.mtime || !q.mdate || !out.length || q.session === 'night') return out; // v226: לילה = היום הבא
   const last = out[out.length - 1];
   if (q.mdate !== last.date) return out;
   if (q.mtime < (last.time || '')) return out;

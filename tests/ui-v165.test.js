@@ -25,7 +25,13 @@ ok(q.session === 'pre' && q.ext.kind === 'pre', 'טרום־מסחר');
 q = ext.applyExtQuote({ close: 341, session: 'regular' }, { state: 'REGULAR', reg: { p: 341 } });
 ok(q.session === 'regular' && !q.ext, 'מסחר רגיל: בלי תג');
 q = ext.applyExtQuote({ close: 78.3 }, { state: 'POSTPOST', reg: { p: 78.3, ch: 0, pct: 0, t: 1 } });
-ok(q.session === 'post' && !q.ext && ext.extSessionHTML(q) === '', 'ת"א אחרי הסגירה: בלי מחיר מורחב → בלי תג');
+ok(q.session === 'closed' && !q.ext && ext.extSessionHTML(q) === '', 'ת"א אחרי הסגירה: בלי מחיר מורחב → בלי תג');
+// v226: Yahoo מחזיר OVERNIGHT רק עם overnightPrice=true; PREPRE/POSTPOST = בין הסשנים → סגור (לא "טרום־מסחר" ב־02:49)
+q = ext.applyExtQuote({ close: 135.6 }, { state: 'PREPRE', reg: { p: 135.62, ch: -2.16, pct: -1.57 }, post: { p: 135.6, ch: -0.02, pct: -0.02, t: 5 } });
+ok(q.session === 'closed' && q.ext.kind === 'post', 'PREPRE → השוק סגור + אחרי־מסחר אחרון');
+q = ext.applyExtQuote({ close: 135.6 }, { state: 'OVERNIGHT', reg: { p: 135.62, ch: -2.16, pct: -1.57 }, night: { p: 136.74, ch: 1.12, pct: 0.83, t: 6 } });
+ok(q.session === 'night' && q.close === 136.74 && q.ext.kind === 'night' && q.regCh === -2.16, 'v226: לילה — המחיר הראשי = הלילי, השינוי היומי נשאר של המסחר הרגיל');
+ok(/&overnightPrice=true&/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'ibkr-proxy', 'api', 'quotes.js'), 'utf8')), 'v226: השרתון מבקש overnightPrice=true (בלעדיו אין overnight ב־v7)');
 ok(/ext-sess neg/.test(ext.extSessionHTML({ ext: { kind: 'post', price: 341, pct: -0.02 } })) && /sessPostShort/.test(ext.extSessionHTML({ ext: { kind: 'post', price: 341, pct: -0.02 } })), 'תג: "אחרי־מסחר" באדום כשיורד');
 ok(/const LIVE_FAST_MS = 2000;/.test(src) && /const LIVE_ALL_EVERY = 2;/.test(src) && /const LIVE_IDLE_AFTER = 15;/.test(src), 'לולאה: טיק כל 2 שניות, כל התיק כל 4, האטה אחרי ~דקה בלי תזוזה');
 ok(/applyExtQuote\(q, j\.data\[sym\]\.x\)/.test(src), 'השדות המורחבים נקלטים מהשרתון');

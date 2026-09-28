@@ -34,7 +34,7 @@ const STR = {
     hdTaErevShavuot: 'Erev Shavuot', hdTaShavuot: 'Shavuot', hdTaTishaBav: "Tisha B'Av",
   },
 };
-const STATE_SESSION = { PRE: 'pre', PREPRE: 'pre', POST: 'post', POSTPOST: 'post', OVERNIGHT: 'night', CLOSED: 'closed', REGULAR: 'regular' };
+const STATE_SESSION = { PRE: 'pre', PREPRE: 'closed', POST: 'post', POSTPOST: 'closed', OVERNIGHT: 'night', CLOSED: 'closed', REGULAR: 'regular' };
 const SYM_RE = /^[A-Z0-9][A-Z0-9.\-=^]{0,11}$/;
 const MINUS = '−';
 const LRI = '⁦', RLI = '⁧', PDI = '⁩';
@@ -93,6 +93,7 @@ function parseQuote(entry, nowMs) {
     const pick = sess === 'night' ? (x.night || x.post) : sess === 'post' ? x.post : sess === 'pre' ? x.pre : sess === 'closed' ? x.post : null;
     const kind = sess === 'night' ? (x.night ? 'night' : 'post') : sess === 'pre' ? 'pre' : 'post';
     if (pick && pick.p > 0) q.ext = { kind, pct: num(pick.pct) || 0 };
+    if (kind === 'night' && pick && pick.p > 0) q.price = pick.p; // v226: אין נרות לילה בגרף — המחיר הראשי = הלילי (כמו באפליקציה)
     else if (sess === 'regular') q.ext = null;
   }
   if (isTA(meta.symbol || '')) q.ext = null; // אין מסחר מורחב בת״א

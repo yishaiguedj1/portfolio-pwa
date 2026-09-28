@@ -78,7 +78,9 @@ async function getCrumb(force) {
   return crumbState;
 }
 
-/* v7/quote לכל הסימבולים בבקשה אחת (עד 40). כשל = null (המחיר הבסיסי עדיין מגיע מ־chart) */
+/* v7/quote לכל הסימבולים בבקשה אחת (עד 40). כשל = null (המחיר הבסיסי עדיין מגיע מ־chart)
+   v226: overnightPrice=true — בלעדיו Yahoo לא מחזיר overnightMarket* ו־marketState נשאר PREPRE/POSTPOST
+   גם באמצע המסחר הלילי (נמדד 28/09/2026 02:49 NY: עם הפרמטר OVERNIGHT + המחיר של אתר Yahoo). */
 async function fetchExt(syms, deadline) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const left = deadline - Date.now();
@@ -91,7 +93,7 @@ async function fetchExt(syms, deadline) {
         '&fields=marketState,currency,regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketTime,' +
         'preMarketPrice,preMarketChange,preMarketChangePercent,preMarketTime,postMarketPrice,postMarketChange,postMarketChangePercent,postMarketTime,' +
         'overnightMarketPrice,overnightMarketChange,overnightMarketChangePercent,overnightMarketTime,' +
-        'earningsTimestamp,earningsTimestampStart,earningsTimestampEnd,isEarningsDateEstimate&crumb=' + encodeURIComponent(cs.crumb);
+        'earningsTimestamp,earningsTimestampStart,earningsTimestampEnd,isEarningsDateEstimate&overnightPrice=true&crumb=' + encodeURIComponent(cs.crumb);
       const r = await fetch(url, { headers: { 'User-Agent': UA, Cookie: cs.cookie, Accept: 'application/json' }, signal: ctl.signal });
       if (r.status === 401 || r.status === 403) continue; // crumb ישן — מתחדש בניסיון הבא
       if (r.status !== 200) return null;
