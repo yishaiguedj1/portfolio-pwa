@@ -137,7 +137,8 @@ he: {
   myStocks: 'המניות שלי',
   editBtn: ICON_EDIT + 'עריכה',
   editHintStocks: 'מצב עריכה פעיל — אפשר להוסיף מניות חדשות. בסיום לחצו שוב על עריכה.',
-  stockSearchPh: 'חפש מניה להוספה (למשל: AAPL, טבע, LUMI)',
+  stockSearchPh: 'חיפוש מניה או חברה',
+  searchClear: 'ניקוי',
   stockSearchNoResults: 'לא נמצאו תוצאות',
   mktTase: 'ת״א · ₪',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
@@ -338,7 +339,6 @@ he: {
   ibkrImportNothingNew: 'אין מידע חדש — כל הנתונים כבר קיימים באפליקציה.',
   ibkrDisconnectBtn: 'ניתוק',
   ibkrDepositsNote: 'מסונכרן מ־IBKR — מתעדכן בכל סנכרון.',
-  ibkrStocksNote: 'מניות IBKR מתעדכנות בכל סנכרון. מניות שמוסיפים ידנית (מסומנות "ידני") נשמרות בסנכרון ונכללות בשווי, ברווח ובתשואה.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
   ibkrChunkFail: 'חלק {fd}–{td} נכשל ({err})',
   proxyUrlMissing: 'כתובת השרתון לא הוגדרה',
@@ -640,7 +640,8 @@ en: {
   myStocks: 'My stocks',
   editBtn: ICON_EDIT + 'Edit',
   editHintStocks: 'Edit mode is on — you can add new stocks. When done, tap Edit again.',
-  stockSearchPh: 'Search a stock to add (e.g. AAPL, TEVA.TA)',
+  stockSearchPh: 'Search stocks or companies',
+  searchClear: 'Clear',
   stockSearchNoResults: 'No results found',
   mktTase: 'TASE · ₪',
   stockSearchError: 'Search failed — try again',
@@ -841,7 +842,6 @@ en: {
   ibkrImportNothingNew: 'No new information — everything is already imported.',
   ibkrDisconnectBtn: 'Disconnect',
   ibkrDepositsNote: 'Synced from IBKR — updates on every sync.',
-  ibkrStocksNote: 'IBKR stocks update on every sync. Stocks you add manually (tagged "Manual") are kept on sync and counted in value, P&L and returns.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
   ibkrChunkFail: 'chunk {fd}–{td} failed ({err})',
   proxyUrlMissing: 'Proxy URL not set',
@@ -3849,7 +3849,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v238';
+const APP_VERSION = 'v239';
 
 
 function saveDBto(db) {
@@ -5866,11 +5866,7 @@ function renderIbkrLocks() {
     const b = document.getElementById(id);
     if (b) b.classList.toggle('hidden', ibkr);
   }
-  const sn = document.getElementById('ibkrStocksNote');
-  if (sn) {
-    sn.classList.toggle('hidden', !ibkr);
-    if (ibkr) sn.textContent = t('ibkrStocksNote');
-  }
+  // v239: ההסבר "מניות IBKR מתעדכנות בכל סנכרון…" הוסר מטאב המניות (בקשת המשתמש)
   if (ibkr) { state.edit.stocks = false; state.edit.deposits = false; }
 }
 
@@ -8111,36 +8107,109 @@ function levenshtein(a, b) {
   return prev[n];
 }
 
-/* חיפוש מקומי סובלני־שגיאות: סימבול מדויק/תחילית, שם מכיל, או טעות כתיב קלה.
-   v142: גם מניות ת"א — לפי סימבול (עם או בלי .TA), שם באנגלית או בעברית. מיידי. */
+/* v239: שמות בעברית למניות ארה"ב מוכרות (חיפוש "אנבידיה", "טסלה", "רדיט"). חלופות כתיב מופרדות ב־/ — הראשונה מוצגת. */
+const US_HE = [
+  'AAPL|Apple Inc.|אפל', 'MSFT|Microsoft Corp.|מיקרוסופט', 'GOOGL|Alphabet (Google)|גוגל/אלפבית', 'AMZN|Amazon.com Inc.|אמזון',
+  'META|Meta Platforms (Facebook)|מטא/פייסבוק', 'NVDA|NVIDIA Corp.|אנבידיה/אנווידיה/נבידיה/אנוידיה', 'TSLA|Tesla Inc.|טסלה',
+  'BRK-B|Berkshire Hathaway B|ברקשייר/ברקשייר האתווי', 'NFLX|Netflix Inc.|נטפליקס', 'RDDT|Reddit Inc.|רדיט/רדדיט', 'PLTR|Palantir|פלנטיר/פאלנטיר',
+  'INTC|Intel Corp.|אינטל', 'AMD|Advanced Micro Devices|איי אם די', 'KO|Coca-Cola|קוקה קולה/קוקה־קולה', 'MCD|McDonald\'s|מקדונלדס',
+  'DIS|Walt Disney|דיסני', 'NKE|Nike|נייקי', 'V|Visa Inc.|ויזה', 'MA|Mastercard|מאסטרקארד', 'JPM|JPMorgan Chase|ג׳יי פי מורגן/גיי פי מורגן',
+  'WMT|Walmart|וולמארט', 'COST|Costco|קוסטקו', 'PFE|Pfizer|פייזר/פפייזר', 'JNJ|Johnson & Johnson|ג׳ונסון אנד ג׳ונסון', 'ADBE|Adobe|אדובי',
+  'ORCL|Oracle|אורקל', 'CRM|Salesforce|סיילספורס', 'NOW|ServiceNow|סרוויס נאו/סרוויסנאו', 'UBER|Uber|אובר', 'ABNB|Airbnb|איירבנב',
+  'SHOP|Shopify|שופיפיי', 'PYPL|PayPal|פייפאל', 'SPOT|Spotify|ספוטיפיי', 'INTU|Intuit|אינטואיט', 'AVGO|Broadcom|ברודקום',
+  'TSM|Taiwan Semiconductor (TSMC)|טייוואן סמיקונדקטור/טי אס אם סי', 'SPY|SPDR S&P 500 ETF|אס אנד פי 500/מדד S&P', 'VOO|Vanguard S&P 500 ETF|ואנגארד/וונגארד',
+  'QQQ|Invesco QQQ (Nasdaq 100)|נאסד״ק 100/נאסדק', 'MBLY|Mobileye|מובילאיי', 'CHKP|Check Point|צ׳ק פוינט/צק פוינט', 'WIX|Wix.com|ויקס',
+  'MNDY|monday.com|מאנדיי', 'CYBR|CyberArk|סייברארק', 'GS|Goldman Sachs|גולדמן זאקס/גולדמן סאקס', 'BAC|Bank of America|בנק אוף אמריקה',
+  'UNH|UnitedHealth|יונייטד הלת׳', 'LLY|Eli Lilly|אלי לילי', 'NVO|Novo Nordisk|נובו נורדיסק', 'SBUX|Starbucks|סטארבקס', 'BA|Boeing|בואינג',
+  'IBM|IBM|איי בי אם', 'CSCO|Cisco|סיסקו', 'QCOM|Qualcomm|קוואלקום', 'MU|Micron|מיקרון', 'ASML|ASML|אי אס אם אל', 'SNOW|Snowflake|סנופלייק',
+  'COIN|Coinbase|קוינבייס', 'HOOD|Robinhood|רובינהוד', 'SOFI|SoFi|סופי', 'F|Ford|פורד', 'GM|General Motors|ג׳נרל מוטורס',
+  'XOM|Exxon Mobil|אקסון מוביל', 'CVX|Chevron|שברון', 'PEP|PepsiCo|פפסי', 'MSTR|Strategy (MicroStrategy)|מיקרוסטרטג׳י', 'ARM|Arm Holdings|ארם',
+  'SMCI|Super Micro Computer|סופר מיקרו', 'APP|AppLovin|אפלובין', 'CRWD|CrowdStrike|קראודסטרייק', 'PANW|Palo Alto Networks|פאלו אלטו',
+  'ZM|Zoom|זום', 'DELL|Dell|דל', 'TEVA|Teva (NYSE)|טבע ניו יורק',
+].map((l) => l.split('|'));
+
+/* נרמול לחיפוש: בלי ניקוד/גרשיים/מקפים, אותיות סופיות → רגילות, אותיות קטנות. טהורה. */
+function searchNorm(s) {
+  return String(s || '').toLowerCase().replace(/[\u05BE\-.,/()&]+/g, ' ').replace(/[\u0591-\u05C7]/g, '').replace(/[\u05F3\u05F4'"`\u2019]/g, '') // המקף העברי (־, U+05BE) בטווח הניקוד — קודם לרווח
+    .replace(/ך/g, 'כ').replace(/ם/g, 'מ').replace(/ן/g, 'נ').replace(/ף/g, 'פ').replace(/ץ/g, 'צ')
+    .replace(/\s+/g, ' ').trim();
+}
+// מילים שלא מזהות מניה ("בנק הפועלים" = "הפועלים")
+const SEARCH_STOP = new Set(['בנק', 'קבוצת', 'קבוצה', 'חברת', 'חברה', 'מניית', 'מניה', 'מניות', 'בעמ', 'של',
+  'inc', 'corp', 'corporation', 'co', 'company', 'ltd', 'plc', 'the', 'group', 'holdings', 'class']);
+const searchTol = (len) => (len >= 7 ? 2 : len >= 3 ? 1 : 0);
+/* כל מילה בשאילתה מתאימה למילה בשם: זהה / תחילית / טעות כתיב (גם בלי ה׳/ו׳/ל׳ בהתחלה). מחזיר סך הטעויות או −1. טהורה. */
+function searchTokensMatch(qTok, nameTok) {
+  const vars = [];
+  for (const w of nameTok) { vars.push(w); if (w.length >= 4 && /^[הול]/.test(w)) vars.push(w.slice(1)); }
+  let tot = 0;
+  for (const w of qTok) {
+    const wv = w.length >= 4 && /^[הול]/.test(w) ? [w, w.slice(1)] : [w];
+    let best = 9;
+    for (const x of wv) for (const v of vars) {
+      if (v === x) { best = 0; break; }
+      if (x.length >= 2 && v.startsWith(x)) { best = Math.min(best, 0.3); continue; }
+      const t = searchTol(x.length);
+      if (!t) continue;
+      best = Math.min(best, levenshtein(x, v));
+      if (v.length > x.length) best = Math.min(best, levenshtein(x, v.slice(0, x.length)) + 0.4);
+    }
+    if (best > searchTol(w.length) + 0.4) return -1;
+    tot += best;
+  }
+  return tot;
+}
+
+/* חיפוש מקומי סובלני־שגיאות (מיידי, בלי רשת): סימבול מדויק/תחילית/טעות, שם באנגלית או בעברית — גם עם טעות כתיב,
+   מילים מיותרות ("בנק", "Inc") וסדר מילים. v142: ת"א; v239: עברית סובלנית + שמות בעברית למניות ארה"ב (US_HE). */
 function localStockSearch(query) {
   const raw = String(query || '').trim();
   const q = raw.toUpperCase();
   const heb = /[֐-׿]/.test(raw);
   if (q.length < (heb ? 1 : 2)) return [];
-  const out = [];
+  const qn = searchNorm(raw);
+  let qTok = qn.split(' ').filter((w) => w && !SEARCH_STOP.has(w));
+  if (!qTok.length) qTok = qn.split(' ').filter(Boolean);
+  const out = [], seen = new Map();
   const score = (sym, name, he) => {
     const base = sym.replace(/\.TA$/, '');
+    let best = 0;
     if (heb) {
-      if (!he) return 0;
-      if (he === raw) return 100;
-      if (he.startsWith(raw)) return 85;
-      return he.includes(raw) ? 65 : 0;
+      for (const alt of String(he || '').split('/')) {
+        const hn = searchNorm(alt);
+        if (!hn) continue;
+        if (hn === qn) return 100;
+        if (hn.startsWith(qn)) best = Math.max(best, 85);
+        else if (hn.includes(qn)) best = Math.max(best, 65);
+        const m = searchTokensMatch(qTok, hn.split(' ').filter((w) => !SEARCH_STOP.has(w)));
+        if (m >= 0) best = Math.max(best, 90 - m * 12);
+      }
+      return best;
     }
-    if (sym === q || base === q) return 100;
-    if (sym.startsWith(q) || base.startsWith(q)) return 80;
-    if (name.toUpperCase().includes(q)) return 60;
-    if (q.length >= 3) { const d = levenshtein(base, q); if (d <= 2) return 50 - d * 10; }
-    return 0;
+    const Q = q.replace(/[^A-Z0-9]/g, ''), B = base.replace(/[^A-Z0-9]/g, '');
+    if (sym === q || base === q || (Q && B === Q)) return 100;
+    if (sym.startsWith(q) || base.startsWith(q)) best = 80;
+    const nn = searchNorm(name);
+    if (nn.includes(qn) || nn.replace(/ /g, '').includes(qn.replace(/ /g, ''))) best = Math.max(best, 60);
+    if (qn.length >= 3) {
+      const m = searchTokensMatch(qTok, nn.split(' ').filter((w) => !SEARCH_STOP.has(w)));
+      if (m >= 0) best = Math.max(best, 58 - m * 10);
+    }
+    if (Q.length >= 3 && Q.length <= 6) { const d = levenshtein(B, Q); if (d <= 1) best = Math.max(best, 45); }
+    return best;
   };
-  for (const [sym, name, type] of POPULAR_STOCKS) {
-    const sc = score(sym, name, '');
-    if (sc > 0) out.push({ sym, name, type, _s: sc });
-  }
-  for (const [sym, name, he] of TASE_STOCKS) {
-    const sc = score(sym, name, he);
-    if (sc > 0) out.push({ sym, name: he + ' · ' + name, type: 'EQUITY', _s: sc - 1 });
-  }
+  const add = (sym, name, type, sc) => {
+    if (sc <= 0) return;
+    if (!/\.TA$/.test(sym)) sym = sym.replace('.', '-'); // BRK.B = BRK-B (כמו Yahoo) — בלי כפילות
+    const k = seen.get(sym);
+    if (k && k._s >= sc) return;
+    if (k) out.splice(out.indexOf(k), 1);
+    const it = { sym, name, type, _s: sc };
+    seen.set(sym, it); out.push(it);
+  };
+  for (const [sym, name, type] of POPULAR_STOCKS) add(sym, name, type, score(sym, name, ''));
+  for (const [sym, name, he] of US_HE) add(sym, heb ? he.split('/')[0] + ' · ' + name : name, 'EQUITY', score(sym, name, he) - 0.5);
+  for (const [sym, name, he] of TASE_STOCKS) add(sym, he + ' · ' + name, 'EQUITY', score(sym, name, he) - 1);
   out.sort((a, b) => b._s - a._s);
   return out.slice(0, 8).map(({ sym, name, type }) => ({ sym, name, type }));
 }
@@ -8197,7 +8266,11 @@ async function searchStocksYahoo(query, onUpdate) {
   const emit = () => { if (onUpdate) onUpdate(mergeSearchResults(q, all())); };
   const tasks = [];
   let apiOk = false;
-  if (!heb) {
+  // v239: קודם השרתון — חיפוש סובלני לטעויות על כל המניות בארה"ב + Yahoo מהשרת (מהטלפון Yahoo חוסם: RDDT לא נמצא).
+  // ישירות ל־Yahoo רק אם השרתון לא ענה.
+  const px = heb ? null : await withTimeout(proxySearchAPI(q), SEARCH_TIMEOUT_MS);
+  if (Array.isArray(px)) { apiOk = true; parts.api = px; emit(); }
+  if (!heb && !apiOk) {
     tasks.push(withTimeout(yahooSearchAPI(q), SEARCH_TIMEOUT_MS).then((r) => {
       if (Array.isArray(r)) { apiOk = true; parts.api = r; emit(); }
       return r;
@@ -8219,6 +8292,19 @@ async function searchStocksYahoo(query, onUpdate) {
   if (apiOk || heb) _searchCache.set(key, merged); // כשל רשת — לא נשמר, כדי לנסות שוב
   if (!merged.length && !apiOk && !heb) return null;
   return merged;
+}
+
+/* v239: חיפוש דרך השרתון (/api/search) — null בכשל (ואז Yahoo ישירות) */
+async function proxySearchAPI(query) {
+  if (typeof fetch !== 'function') return null;
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const to = setTimeout(() => { if (ctl) ctl.abort(); }, SEARCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(ibkrProxyBase() + '/api/search', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ q: String(query || '').slice(0, 40) }), signal: ctl ? ctl.signal : undefined });
+    const j = await r.json();
+    if (!j || !j.ok || !Array.isArray(j.items)) return null;
+    return j.items.filter((x) => x && x.sym && searchMarketOk(x.sym)).map((x) => ({ sym: String(x.sym).toUpperCase(), name: x.name || x.sym, type: x.type || 'EQUITY' }));
+  } catch (e) { return null; } finally { clearTimeout(to); }
 }
 
 /* בדיקת סימבול ישירה: שולף meta מה־chart API של Yahoo (כולל longName) */
@@ -8302,13 +8388,17 @@ function renderStockSearchResults(items, status) {
     row.innerHTML =
       '<span class="ss-logo">' + stockLogoHTML(it.sym) + '</span>' +
       '<span class="ss-sym" dir="ltr">' + esc(it.sym) + '</span>' +
-      '<span class="ss-name">' + esc(it.name) + '</span>' +
+      '<span class="ss-name" dir="auto">' + esc(it.name) + '</span>' +
       '<span class="ss-type">' + esc(symCur(it.sym) === 'ILS' ? t('mktTase') : it.type) + '</span>' +
-      '<span class="ss-add">＋</span>';
+      '<span class="ss-add" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 7.5v9M7.5 12h9"/></svg></span>';
     row.addEventListener('click', () => {
       box.classList.add('hidden');
       const inp = document.getElementById('stockSearchInput');
-      if (inp) inp.value = '';
+      if (inp) { inp.value = ''; inp.blur(); }
+      const sw = document.querySelector('.stock-search-wrap');
+      if (sw) sw.classList.remove('active');
+      const sc = document.getElementById('stockSearchClear');
+      if (sc) sc.classList.add('hidden');
       openAddStockWithSymbol(it.sym, it.name);
     });
     box.appendChild(row);
@@ -8345,7 +8435,22 @@ function initStockSearch() {
   const inp = document.getElementById('stockSearchInput');
   const box = document.getElementById('stockSearchResults');
   if (!inp || !box) return;
+  // v239: ⓧ מנקה ונשאר בשדה; "ביטול" מנקה ויוצא (כמו ב־iOS). השדה "פעיל" בזמן פוקוס או כשיש טקסט.
+  const wrap = inp.closest('.stock-search-wrap');
+  const clr = document.getElementById('stockSearchClear');
+  const cancel = document.getElementById('stockSearchCancel');
+  const paint = () => {
+    if (clr) clr.classList.toggle('hidden', !inp.value);
+    if (wrap) wrap.classList.toggle('active', document.activeElement === inp || !!inp.value);
+  };
+  const reset = () => { inp.value = ''; ++_searchSeq; box.classList.add('hidden'); box.innerHTML = ''; paint(); };
+  inp.addEventListener('focus', paint);
+  inp.addEventListener('blur', () => setTimeout(paint, 0));
+  if (clr) clr.addEventListener('mousedown', (e) => e.preventDefault()); // לא לאבד פוקוס
+  if (clr) clr.addEventListener('click', () => { reset(); inp.focus(); });
+  if (cancel) cancel.addEventListener('click', () => { reset(); inp.blur(); if (wrap) wrap.classList.remove('active'); });
   inp.addEventListener('input', () => {
+    paint();
     clearTimeout(_stockSearchT);
     const q = inp.value.trim();
     const my = ++_searchSeq;
