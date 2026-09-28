@@ -50,7 +50,8 @@ ok(T.wlValidate('nvda').sym === 'NVDA', 'סימבול תקין מנורמל לא
 ok(!!T.wlValidate('xx!').err, 'סימבול לא תקין נדחה');
 vm.runInContext('DB.wishlist.push({ sym: "NVDA", note: "" });', sandbox);
 ok(!!T.wlValidate('NVDA').err, 'כפילות ברשימת המעקב נדחית');
-ok(!!T.wlValidate('NOW').err, 'מניה שכבר בתיק לא ניתנת להוספה למעקב');
+ok(T.wlValidate('NOW').sym === 'NOW', 'v245: מניה שבתיק אפשר להוסיף גם למעקב (כפילות רק באותה רשימה)');
+ok(/initStockSearch\('wlSearch', \(\) => new Set\(wlItems\(\)\.map\(\(w\) => w\.sym\)\), wlAddPicked/.test(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8')), 'v245: החיפוש במעקב מסתיר רק את מה שכבר ברשימה הפתוחה');
 
 /* ---------- סימבולים לציטוט ---------- */
 vm.runInContext('DB.wishlist.length = 0; DB.wishlist.push({ sym: "NVDA", note: "" }, { sym: "TSLA", note: "x" }); POSITIONS = [{ sym: "NOW", shares: 97, avg: 89 }];', sandbox);
@@ -63,10 +64,11 @@ ok(T.quoteSymbols().length === 3, 'סימבול כפול (תיק+מעקב) נס�
 /* ---------- עקביות קבצים ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 // v240: רשימת המעקב זהה לטאב המניות — אותו חיפוש, אותו מיון, אותם כרטיסים (בלי נתוני אחזקה)
-for (const id of ['tab-wishlist', 'wishlistList', 'wlSearchInput', 'wlSearchResults', 'wlSearchClear', 'wlSearchCancel', 'wlSortRow']) {
+for (const id of ['tab-wishlist', 'wishlistList', 'wlSearchInput', 'wlSearchResults', 'wlSearchClear', 'wlSortRow']) {
   ok(html.includes('id="' + id + '"'), 'אלמנט ' + id + ' קיים ב־index.html');
 }
 ok(!/id="wlSym"|id="wlAddBtn"|data-i18n="wishlistHint"/.test(html), 'v240: הטופס הישן וטקסט ההסבר הוסרו');
+ok(!/sf-cancel|SearchCancel/.test(html), 'v245: בלי כפתור "ביטול" בשדות החיפוש');
 ok(!html.includes('id="wishlistCount"') && !html.includes('id="stockCount"'), 'v232/v240: בלי מונים בלשוניות (מעקב ומניות)');
 const fnSrc = (name) => { const a = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'); const i = a.indexOf('function ' + name + '('); return a.slice(i, a.indexOf('\n}\n', i)); };
 const appSrc = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');

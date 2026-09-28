@@ -75,7 +75,6 @@ he: {
   wlRemove: 'הסר {sym} מהמעקב',
   wlDelConfirm: 'להסיר את {sym} מרשימת המעקב?',
   wlExists: '{sym} כבר ברשימה',
-  wlAlreadyOwn: '{sym} כבר בתיק שלך — אין צורך לעקוב',
   wlNoPrice: 'אין מחיר עדיין',
   earnTitle: ICON_CHART + 'דוחות קרובים',
   earnToday: 'היום',
@@ -583,7 +582,6 @@ en: {
   wlRemove: 'Remove {sym} from watchlist',
   wlDelConfirm: 'Remove {sym} from the watchlist?',
   wlExists: '{sym} is already on the list',
-  wlAlreadyOwn: '{sym} is already in your portfolio',
   wlNoPrice: 'No price yet',
   earnTitle: ICON_CHART + 'Upcoming earnings',
   earnToday: 'Today',
@@ -3861,7 +3859,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v244';
+const APP_VERSION = 'v245';
 
 
 function saveDBto(db) {
@@ -8905,8 +8903,8 @@ function deletePosition(p) {
 function wlValidate(sym) {
   const s = String(sym || '').trim().toUpperCase();
   if (!/^[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(s)) return { err: t('errSymInvalid') };
+  // v245 (בקשת המשתמש): כפילות רק באותה רשימה — מניה יכולה להיות גם בתיק וגם בכמה רשימות
   if (wlItems().some((w) => w.sym === s)) return { err: t('wlExists', { sym: s }) };
-  if (POSITIONS.some((p) => p.sym === s)) return { err: t('wlAlreadyOwn', { sym: s }) };
   return { sym: s };
 }
 
@@ -10733,7 +10731,7 @@ function init() {
   try { initStockSearch(); } catch (e) {}
   try { initStockSort(); } catch (e) {}
   // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
-  try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym).concat(POSITIONS.map((p) => p.sym))), wlAddPicked); } catch (e) {}
+  try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym)), wlAddPicked); } catch (e) {} // v245: רק מה שכבר ברשימה הפתוחה מוסתר
   try { wireWatchSwipe(); } catch (e) {} // v244: החלקה בין רשימות
   try { initWatchSort(); } catch (e) {}
   // v101: טיקר חי לשער הדולר — מתחיל עם האפליקציה

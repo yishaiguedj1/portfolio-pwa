@@ -157,7 +157,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
     <p class="fine hidden" id="editStocksHint" data-i18n="editHintStocks">מצב עריכה פעיל — אפשר לערוך, להוסיף ולמחוק מניות. בסיום לחצו שוב על עריכה.</p>
     <!-- v87: חיפוש מניות להוספה — זמין בשני המצבים -->
-    <!-- v239: שדה חיפוש בסגנון Apple — מילוי אפור, זכוכית מגדלת, ⓧ לניקוי, "ביטול" בפוקוס -->
+    <!-- v239: שדה חיפוש בסגנון Apple — מילוי אפור, זכוכית מגדלת, ⓧ לניקוי (v245: בלי "ביטול" — בקשת המשתמש) -->
     <div class="stock-search-wrap">
       <div class="search-row">
         <label class="search-field">
@@ -166,7 +166,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
                  data-i18n-ph="stockSearchPh" placeholder="חיפוש מניה או חברה">
           <button type="button" class="sf-clear hidden" id="stockSearchClear" data-i18n-aria="searchClear" aria-label="ניקוי"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg></button>
         </label>
-        <button type="button" class="sf-cancel" id="stockSearchCancel" data-i18n="btnCancel">ביטול</button>
       </div>
       <div id="stockSearchResults" class="stock-search-results hidden"></div>
     </div>
@@ -211,7 +210,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
                  data-i18n-ph="stockSearchPh" placeholder="חיפוש מניה או חברה">
           <button type="button" class="sf-clear hidden" id="wlSearchClear" data-i18n-aria="searchClear" aria-label="ניקוי"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg></button>
         </label>
-        <button type="button" class="sf-cancel" id="wlSearchCancel" data-i18n="btnCancel">ביטול</button>
       </div>
       <div id="wlSearchResults" class="stock-search-results hidden"></div>
     </div>
