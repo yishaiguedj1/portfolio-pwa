@@ -200,6 +200,7 @@ he: {
   rangeDay: 'יום',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
   srYearMenu: 'טווח שנים',
+  srMax: 'MAX', srMaxName: 'מקסימום', srFrom: 'מתאריך…', srFromTag: 'מ־{date}',
   rangeWeek: 'שבוע',
   rangeMonth: 'חודש',
   range1m: 'חודש',
@@ -702,6 +703,7 @@ en: {
   rangeDay: 'Day',
   sr1D: '1D', sr5D: '5D', sr1M: '1M', sr3M: '3M', sr1Y: '1Y', sr3Y: '3Y', sr5Y: '5Y',
   srYearMenu: 'Years',
+  srMax: 'MAX', srMaxName: 'Max', srFrom: 'From date…', srFromTag: 'From {date}',
   rangeWeek: 'Week',
   rangeMonth: 'Month',
   range1m: '1M',
@@ -1474,9 +1476,15 @@ function daysBetweenIso(a, b) {
 
 /* v134: טווח גרף המניה לפי תאריך לוח שנה, כמו Yahoo/Google: הבסיס = הסגירה
    האחרונה בתאריך החיתוך או לפניו ("שנה" = אותו יום לפני שנה). filterRange הישן ספר שורות (שנה = 252, שבוע = 5 → רק 4 ימי שינוי). */
-function stockRangeRows(rows, range) {
+function stockRangeRows(rows, range, from) {
   if (!rows || !rows.length) return [];
   const lastIso = rows[rows.length - 1].date;
+  // v229: "מתאריך" — הבסיס = הסגירה האחרונה בתאריך שנבחר או לפניו (כמו שאר הטווחים)
+  if (range === 'custom') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '')) return rows.slice();
+    for (let i = rows.length - 1; i >= 0; i--) if (rows[i].date <= from) return rows.slice(i);
+    return rows.slice();
+  }
   // v135: YTD כמו Google — מסגירת יום המסחר הראשון של השנה (NOW: 147.45 ב־02/01/2026)
   if (range === 'ytd') {
     const y = lastIso.slice(0, 4);
@@ -3819,7 +3827,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v228';
+const APP_VERSION = 'v229';
 
 
 function saveDBto(db) {
@@ -4399,7 +4407,10 @@ const state = {
   intra: {},        // sym -> intraday rows (יום)
   histDbg: {},      // sym -> מה קרה בניסיון להביא היסטוריה (לאבחון)
   open: {},         // sym -> bool (שורה פתוחה)
-  range: {},        // sym -> 'day'|'5d'|'month'|'3m'|'ytd'|'year'|'3y'|'5y' (v228)
+  range: {},        // sym -> 'day'|'5d'|'month'|'3m'|'ytd'|'year'|'3y'|'5y'|'max'|'custom' (v228/v229)
+  stockFrom: {},    // v229: sym -> YYYY-MM-DD (טווח 'custom')
+  stockPick: {},    // v229: sym -> true — מצב בחירת תאריך בנגיעה בגרף
+  histMax: {},      // v229: sym -> שורות מתחילת המסחר (בנפרד — נתיבים אחרים מחליפים את state.hist ב־5 שנים)
   measure: {},      // sym -> { on, pts:[idxA, idxB] }
   pfRange: 'year',    // טווח גרף ביצועי התיק
   pfBench: null,      // {SPY:true, QQQ:true} — נטען/נשמר, ברירת מחדל: הכל דולק
@@ -4415,9 +4426,11 @@ const state = {
    'day'/'5d' = תוך־יומי (מהשרתון), השאר = סגירות יומיות. */
 const RANGES = [
   ['day', 'sr1D'], ['5d', 'sr5D'], ['month', 'sr1M'], ['3m', 'sr3M'], ['ytd', 'rangeYtd'],
-  ['year', 'sr1Y'], ['3y', 'sr3Y'], ['5y', 'sr5Y']
+  ['year', 'sr1Y'], ['3y', 'sr3Y'], ['5y', 'sr5Y'], ['max', 'srMax'], ['custom', 'srFrom']
 ];
-const YEAR_RANGES = ['year', '3y', '5y']; // מאוחדים בכפתור אחד עם תפריט
+/* מאוחדים בכפתור אחד עם תפריט. v229: + מקסימום (מתחילת המסחר) ו"מתאריך" — תאריך מהיומן או נגיעה בגרף,
+   התשואה מאותו יום ועד עכשיו (state.stockFrom[sym]) */
+const YEAR_RANGES = ['year', '3y', '5y', 'max', 'custom'];
 const INTRA_RANGES = { day: '1d', '5d': '5d' };
 const YH_HOSTS = 'query1 query2'.split(' ');
 
@@ -5286,8 +5299,19 @@ function loadHistCacheRec(sym) {
   return migrateHistCacheV1(sym);
 }
 
+function histWantsMax(sym) {
+  const r = state.range[sym];
+  if (state.stockPick[sym] || r === 'max') return true;
+  if (r !== 'custom') return false;
+  // "מתאריך" לפני 5 השנים שבמטמון הרגיל — צריך יותר היסטוריה
+  const from = state.stockFrom[sym];
+  const h = state.histMax[sym] || state.hist[sym];
+  return !(h && h.length && from && h[0].date <= from);
+}
 async function getDaily(sym, force) {
-  const wantMax = state.range[sym] === 'max';
+  // v229: מקסימום / "מתאריך" / בחירה בגרף — כל ההיסטוריה (period1=0). פעם אחת בסשן, אחר כך מהזיכרון
+  const wantMax = histWantsMax(sym);
+  if (!force && wantMax && state.histMax[sym]) return state.histMax[sym];
   if (!force && !wantMax) {
     if (state.hist[sym]) return state.hist[sym];
     const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
@@ -5304,6 +5328,7 @@ async function getDaily(sym, force) {
     if (rows) { try { repairKnownSplits(sym, rows); } catch (e) {} } // v74: תמיד, לא רק כשחסר
     if (isDemoMode()) rows = histSlimForDemo(rows);
     state.hist[sym] = rows;
+    if (wantMax) state.histMax[sym] = rows;
     state.histDbg[sym] = null;
     delete histNegCache[sym]; // v72: הצלחה מבטלת מטמון שלילי
     // v70: שומרים מטא־ספליטים בנפרד — תכונה מותאמת על מערך לא שורדת JSON
@@ -5315,7 +5340,7 @@ async function getDaily(sym, force) {
   const viaProxy = async () => {
     if (histProxyOff) return null;
     try {
-      const got = await proxyHistory([sym], wantMax ? '10y' : isDemoMode() ? '7y' : '5y', 15000);
+      const got = await proxyHistory([sym], wantMax ? 'max' : isDemoMode() ? '7y' : '5y', 15000);
       const r = got[sym];
       if (r && r.length) { notes.push('Proxy: ok'); return r; }
       notes.push('Proxy: —');
@@ -5323,7 +5348,8 @@ async function getDaily(sym, force) {
     return null;
   };
   if (yahooCooling()) { const pr = await viaProxy(); if (pr) return save(pr); }
-  const dq = (host) => yahooURL(sym, 'interval=1d&range=' + (wantMax ? 'max' : isDemoMode() ? '10y' : '5y'), host);
+  // v229: range=max של Yahoo = נרות חודשיים — מתחילת המסחר עם period1=0 (יומי)
+  const dq = (host) => yahooURL(sym, 'interval=1d&' + (wantMax ? 'period1=0&period2=' + Math.floor(Date.now() / 1000) : 'range=' + (isDemoMode() ? '10y' : '5y')), host);
   let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
           || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
   if (rows) return save(rows);
@@ -8979,6 +9005,7 @@ function buildStockBody(p, m) {
   // v228: 1D 5D 1M 3M YTD 1Y — כפתור השנה פותח תפריט 1Y / 3Y / 5Y (אותו עיצוב כמו בועת הסינון), והתווית שלו = הנבחר
   const ranges = el('div', 'chip-row stock-chips');
   const pick = (key) => {
+    state.stockPick[sym] = false;
     state.range[sym] = key;
     state.measure[sym] = { on: false, pts: [] };
     refreshStockBody(sym);
@@ -8989,13 +9016,17 @@ function buildStockBody(p, m) {
     if (YEAR_RANGES.includes(key) && key !== YEAR_RANGES[0]) continue;
     if (key === YEAR_RANGES[0]) {
       const on = YEAR_RANGES.includes(cur);
+      // v229: "מתאריך" = אייקון לוח שנה בכפתור (התאריך עצמו בשורת התשואה); בתפריט: מקסימום בשמו המלא
+      const btnLbl = on && cur === 'custom' ? CAL_ICON : esc(labelOf(on ? cur : key));
+      const optLbl = (k) => k === 'max' ? esc(t('srMaxName')) : k === 'custom' ? CAL_ICON + esc(t('srFrom')) : esc(labelOf(k));
       const yw = el('div', 'src-filter range-year');
-      yw.innerHTML = '<button class="range-btn' + (on ? ' active' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
-        '<span>' + esc(labelOf(on ? cur : key)) + '</span><span class="range-caret" aria-hidden="true">▾</span></button>' +
+      yw.innerHTML = '<button class="range-btn' + (on ? ' active' : '') + (on && cur === 'custom' ? ' cal' : '') + (on && cur === 'max' ? ' long' : '') + '" type="button" aria-haspopup="true" aria-expanded="false">' +
+        '<span class="range-lbl">' + btnLbl + '</span><span class="range-caret" aria-hidden="true">▾</span></button>' +
         '<div class="src-pop menu-drop range-pop hidden" role="menu">' +
           '<div class="src-pop-title">' + esc(t('srYearMenu')) + '</div>' +
-          YEAR_RANGES.map((k) => '<button class="src-opt' + (k === cur ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (k === cur) +
-            '" data-range="' + k + '"><span class="src-opt-name">' + esc(labelOf(k)) + '</span><span class="src-opt-check">' + (k === cur ? ICON_CHECK : '') + '</span></button>').join('') +
+          YEAR_RANGES.map((k) => (k === 'custom' ? '<div class="range-pop-sep" role="separator"></div>' : '') +
+            '<button class="src-opt' + (k === cur ? ' on' : '') + '" type="button" role="menuitemradio" aria-checked="' + (k === cur) +
+            '" data-range="' + k + '"><span class="src-opt-name">' + optLbl(k) + '</span><span class="src-opt-check">' + (k === cur ? ICON_CHECK : '') + '</span></button>').join('') +
         '</div>';
       const yb = yw.querySelector('.range-btn'), pop = yw.querySelector('.range-pop');
       yb.addEventListener('click', (e) => {
@@ -9007,7 +9038,10 @@ function buildStockBody(p, m) {
         yb.setAttribute('aria-expanded', String(open));
       });
       pop.addEventListener('click', (e) => e.stopPropagation());
-      pop.querySelectorAll('button[data-range]').forEach((b) => b.addEventListener('click', () => { closeSrcPops(); pick(b.dataset.range); }));
+      pop.querySelectorAll('button[data-range]').forEach((b) => b.addEventListener('click', () => {
+        closeSrcPops();
+        if (b.dataset.range === 'custom') openStockFromSheet(sym); else pick(b.dataset.range);
+      }));
       ranges.appendChild(yw);
       continue;
     }
@@ -9026,8 +9060,10 @@ function buildStockBody(p, m) {
   sleg.id = 'sleg-' + sym;
   wrap.appendChild(sleg);
 
-  const hint = el('div', 'chart-hint',
-    measureState(sym).on ? t('measureOn') : t('measureTip'));
+  const picking = !!state.stockPick[sym];
+  if (picking) cwrap.classList.add('picking');
+  const hint = el('div', 'chart-hint' + (picking ? ' pick-hint' : ''),
+    picking ? t('pfPickBubble') : measureState(sym).on ? t('measureOn') : t('measureTip'));
   wrap.appendChild(hint);
 
   attachMeasure(canvas, sym);
@@ -9110,7 +9146,7 @@ async function ensureChartData(sym, quiet) {
   const range = state.range[sym] || 'year';
   if (loading && !quiet) { loading.classList.remove('hidden'); loading.textContent = t('loadingData'); }
   try {
-    if (INTRA_RANGES[range]) {
+    if (INTRA_RANGES[range] && !state.stockPick[sym]) {
       const intra = await getIntraday(sym, INTRA_RANGES[range]);
       if ((state.range[sym] || 'year') !== range) return; // המשתמש כבר עבר לטווח אחר
       if (intra.length) {
@@ -9128,7 +9164,9 @@ async function ensureChartData(sym, quiet) {
     }
     const rows = stockChartRows(hist, state.quotes[sym]);
     if ((state.range[sym] || 'year') !== range) return;
-    const pts = drawStockChart(sym, stockRangeRows(rows, range === 'day' ? 'month' : range === '5d' ? 'week' : range), false);
+    // v229: בזמן בחירת תאריך בגרף — כל ההיסטוריה, כדי שאפשר יהיה לגעת בכל יום
+    const view = state.stockPick[sym] ? 'max' : range;
+    const pts = drawStockChart(sym, stockRangeRows(rows, view === 'day' ? 'month' : view === '5d' ? 'week' : view, state.stockFrom[sym]), false);
     // v160: אין היסטוריה (המקור חסום כרגע) — אומרים את זה, לא "טוען" לנצח ולא גרף של נקודה אחת.
     // ננסה שוב אוטומטית כש־Yahoo חוזר (yahooRecovered).
     if (!(hist && hist.length) && loading) { loading.textContent = t('histRetryLater'); loading.classList.remove('hidden'); }
@@ -9268,8 +9306,12 @@ function renderStockRangeSummary(sym, pts, lineCol) {
   }
   const r = (pts[pts.length - 1].close - pts[0].close) / pts[0].close * 100;
   let rangeName = '';
-  for (const [rk, labelKey] of RANGES) {
-    if (rk === (state.range[sym] || 'year')) { rangeName = t(labelKey); break; }
+  const curR = state.range[sym] || 'year';
+  if (state.stockPick[sym]) rangeName = t('srMaxName');
+  else if (curR === 'custom' && state.stockFrom[sym]) rangeName = t('srFromTag', { date: fmtDateIL(state.stockFrom[sym]) });
+  else if (curR === 'max') rangeName = t('srMaxName');
+  else for (const [rk, labelKey] of RANGES) {
+    if (rk === curR) { rangeName = t(labelKey); break; }
   }
   if (box) box.innerHTML = '<span>' + esc(t('stockRangeReturn')) + '</span>' +
     '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
@@ -9306,9 +9348,88 @@ function updateMeasureChip(sym) {
 }
 
 /* מדידה בשתי נקודות — עובד עם מגע (אצבע) ועם עכבר דרך Pointer Events */
+/* v229: "מתאריך" בגרף המניה — אותו גיליון כמו "תשואה מתאריך" בגרף הביצועים: סימון בגרף או בחירה מהיומן */
+function setStockFrom(sym, d) {
+  state.stockFrom[sym] = d;
+  state.stockPick[sym] = false;
+  state.range[sym] = 'custom';
+  state.measure[sym] = { on: false, pts: [] };
+  refreshStockBody(sym);
+}
+function openStockFromSheet(sym) {
+  closePfSheet();
+  const veil = el('div', 'pf-sheet-veil');
+  veil.id = 'pfSheetVeil';
+  const sheet = el('div', 'pf-sheet');
+  const h = el('h3');
+  h.textContent = t('pfFromBtn') + ' · ' + sym;
+  sheet.appendChild(h);
+  const b1 = el('button', 'sheet-btn', t('pfMarkOnChart'));
+  b1.type = 'button';
+  b1.addEventListener('click', () => {
+    closePfSheet();
+    state.stockPick[sym] = true;
+    state.measure[sym] = { on: false, pts: [] };
+    refreshStockBody(sym);
+    const c = document.getElementById('chart-' + sym);
+    if (c && c.scrollIntoView) { cancelScrollRestore(); c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  });
+  const b2 = el('button', 'sheet-btn', CAL_ICON + esc(t('pfPickFromCal')));
+  b2.type = 'button';
+  b2.addEventListener('click', () => {
+    sheet.innerHTML = '';
+    const h2 = el('h3');
+    h2.textContent = t('pfCalTitle');
+    sheet.appendChild(h2);
+    const inp = document.createElement('input');
+    inp.type = 'date';
+    inp.max = todayISO();
+    if (state.stockFrom[sym]) inp.value = state.stockFrom[sym];
+    sheet.appendChild(inp);
+    const row = el('div', 'sheet-row');
+    const okb = el('button', 'btn', t('btnOk'));
+    okb.type = 'button';
+    okb.addEventListener('click', () => {
+      const v = inp.value;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v < todayISO()) { closePfSheet(); setStockFrom(sym, v); }
+      else inp.focus();
+    });
+    const cancel = el('button', 'btn', t('btnCancel'));
+    cancel.type = 'button';
+    cancel.style.background = 'var(--surface-container, var(--surface))';
+    cancel.style.color = 'var(--on-surface)';
+    cancel.addEventListener('click', () => openStockFromSheet(sym));
+    row.appendChild(okb);
+    row.appendChild(cancel);
+    sheet.appendChild(row);
+  });
+  const b3 = el('button', 'sheet-btn', '✕ ' + t('btnCancel'));
+  b3.type = 'button';
+  b3.addEventListener('click', closePfSheet);
+  sheet.appendChild(b1);
+  sheet.appendChild(b2);
+  sheet.appendChild(b3);
+  veil.appendChild(sheet);
+  veil.addEventListener('click', (e) => { if (e.target === veil) closePfSheet(); });
+  document.body.appendChild(veil);
+}
+
 function attachMeasure(canvas, sym) {
   canvas.addEventListener('pointerdown', (e) => {
     const ms = measureState(sym);
+    // v229: מצב "מתאריך" — נגיעה בגרף קובעת את תאריך ההתחלה (כמו "תשואה מתאריך" בגרף הביצועים)
+    if (state.stockPick[sym]) {
+      const map = canvas._chartMap;
+      if (!map || map.n < 2) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const idx = Math.max(0, Math.min(map.n - 1, Math.round((e.clientX - rect.left - map.padL) / map.plotW * (map.n - 1))));
+      const d = map.pts[idx] && map.pts[idx].date;
+      state.stockPick[sym] = false;
+      if (d && confirm(t('pfConfirmFrom', { date: fmtDateIL(d) }))) setStockFrom(sym, d);
+      else refreshStockBody(sym);
+      return;
+    }
     if (!ms.on) return;
     const map = canvas._chartMap;
     if (!map || map.n < 2) return;

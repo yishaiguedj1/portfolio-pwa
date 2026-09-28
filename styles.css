@@ -657,6 +657,12 @@ footer.fine { text-align: center; }
 .stock-chips > .range-btn, .stock-chips > .range-year { flex: 1 1 0; min-width: 0; }
 .stock-chips .range-btn { padding-inline: 4px; text-align: center; white-space: nowrap; }
 .stock-chips .range-year .range-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
+.range-year .range-btn.cal .ic { width: 17px; height: 17px; margin: 0; stroke: currentColor; vertical-align: -3px; }
+.range-lbl { display: inline-flex; align-items: center; }
+.range-year .range-btn.long { font-size: 12.5px; gap: 2px; letter-spacing: -.2px; }
+.range-pop-sep { height: 1px; margin: 4px 10px; background: var(--card-border); }
+.range-year .range-pop .src-opt .ic { width: 18px; height: 18px; margin-inline-end: 8px; vertical-align: -3px; }
+.chart-hint.pick-hint { color: var(--primary); font-weight: 700; }
 .range-caret { font-size: 10px; line-height: 1; opacity: .75; transition: transform .2s ease; }
 .range-year.open .range-caret { transform: rotate(180deg); }
 /* ספציפיות גבוהה — .src-pop / .menu-drop מוגדרים מאוחר יותר בקובץ (top + bottom יחד = בועה מכווצת) */

@@ -7,7 +7,7 @@
 const { guard, rateLimited } = require('../lib/ibkr');
 
 const SYM_RE = /^[A-Z0-9][A-Z0-9.\-=^]{0,11}$/;
-const RANGES = new Set(['1y', '5y', '7y', '10y', '1d', '5d']); // 7y = 10y מ־Yahoo, חתוך ל־7 (תיק הדמו)
+const RANGES = new Set(['1y', '5y', '7y', '10y', 'max', '1d', '5d']); // v229: max = מתחילת המסחר (period1=0; range=max של Yahoo מחזיר נרות חודשיים) // 7y = 10y מ־Yahoo, חתוך ל־7 (תיק הדמו)
 /* v228: טווחים תוך־יומיים לגרף המניה (1D / 5D). עד עכשיו הטלפון משך אותם ישירות מ־Yahoo (query1 → query2 → Stooq,
    12 שניות timeout לכל אחד) — כש־Yahoo חוסם את הטלפון זה היה איטי בהרבה משאר הטווחים (שמגיעים מהמטמון/השרתון).
    תשובה: { t: [דקות מאז 1970 בשעון הבורסה], c: [סגירות] }. מטמון קצר — המחיר זז. */
@@ -69,7 +69,8 @@ async function fetchOne(sym, range, deadline) {
     const to = setTimeout(() => ctl.abort(), Math.min(PER_FETCH_MS, left));
     try {
       const url = 'https://' + host + '.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) +
-        '?' + (INTRA[range] || 'interval=1d&range=' + (range === '7y' ? '10y' : range));
+        '?' + (INTRA[range] || (range === 'max' ? 'interval=1d&period1=0&period2=' + Math.floor(Date.now() / 1000)
+          : 'interval=1d&range=' + (range === '7y' ? '10y' : range)));
       const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: ctl.signal });
       if (r.status !== 200) continue;
       const j = await r.json();

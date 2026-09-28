@@ -24,10 +24,19 @@ vm.runInContext(src, sb);
 const A = (k) => vm.runInContext(k, sb);
 
 const R = A('RANGES').map((r) => r[0]);
-ok(R.join() === 'day,5d,month,3m,ytd,year,3y,5y', 'טווחים: 1D 5D 1M 3M YTD 1Y 3Y 5Y (בלי שבוע/מקסימום)');
-ok(A('YEAR_RANGES').join() === 'year,3y,5y', 'כפתור השנה מאחד 1Y/3Y/5Y');
+ok(R.join() === 'day,5d,month,3m,ytd,year,3y,5y,max,custom', 'טווחים: 1D 5D 1M 3M YTD 1Y 3Y 5Y + (v229) מקסימום ומתאריך');
+ok(A('YEAR_RANGES').join() === 'year,3y,5y,max,custom', 'כפתור השנה מאחד 1Y/3Y/5Y/מקסימום/מתאריך');
+// v229: "מתאריך" — הבסיס = הסגירה האחרונה בתאריך שנבחר או לפניו
+const days = [{ date: '2024-01-02', close: 10 }, { date: '2024-01-03', close: 11 }, { date: '2024-01-05', close: 12 }, { date: '2024-01-08', close: 13 }];
+const cr = A('stockRangeRows')(days, 'custom', '2024-01-04');
+ok(cr.length === 3 && cr[0].date === '2024-01-03', 'מתאריך: מתחיל בסגירה האחרונה לפני התאריך (סופ״ש/חג)');
+ok(A('stockRangeRows')(days, 'custom', '2020-01-01').length === 4 && A('stockRangeRows')(days, 'max').length === 4, 'מתאריך לפני ההיסטוריה / מקסימום → הכל');
+ok(/period1=0&period2=/.test(src) && /wantMax \? 'max'/.test(src), 'מקסימום: period1=0 (range=max של Yahoo = נרות חודשיים), דרך השרתון עם max');
+ok(/if \(!force && wantMax && state\.histMax\[sym\]\) return state\.histMax\[sym\];/.test(src), 'היסטוריה מלאה נשמרת בנפרד (נתיבים אחרים מחליפים את state.hist ב־5 שנים)');
+ok(/if \(state\.stockPick\[sym\]\) \{/.test(src) && /setStockFrom\(sym, d\)/.test(src), 'נגיעה בגרף במצב בחירה קובעת תאריך התחלה');
+ok(/function openStockFromSheet\(sym\)/.test(src) && /inp\.max = todayISO\(\)/.test(src), 'גיליון: סימון בגרף / בחירה מהיומן (עד היום)');
 ok(A("t('sr1D')") === '1D' && A("t('sr5D')") === '5D' && A("t('sr1Y')") === '1Y', 'התוויות כמו בצילום (1D, 5D, 1Y)');
-ok(/range-year/.test(src) && /data-range="/.test(src) && /closeSrcPops\(\); pick\(b\.dataset\.range\)/.test(src), 'תפריט השנה: בחירה סוגרת ומחליפה טווח');
+ok(/range-year/.test(src) && /data-range="/.test(src) && /closeSrcPops\(\);\s*if \(b\.dataset\.range === 'custom'\) openStockFromSheet\(sym\); else pick\(b\.dataset\.range\)/.test(src), 'תפריט השנה: בחירה סוגרת ומחליפה טווח');
 ok(/\.range-year \.src-pop\.range-pop \{ top: auto; bottom: calc\(100% \+ 8px\)/.test(css), 'התפריט נפתח למעלה (בלי top+bottom יחד — בועה מכווצת)');
 ok(/\.stock-body \.chip-row\.stock-chips \{ overflow: visible;/.test(css), 'שורת הטווחים בלי גלילה — התפריט לא נחתך');
 
