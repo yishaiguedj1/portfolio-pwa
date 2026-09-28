@@ -26,4 +26,7 @@ ok(/window\.scrollBy\(0, after - before\)/.test(fn('closeStockCards')), 'הכר�
 // v233: פתיחת כרטיס מעלה את ראשו לראש המסך (מתחת להדר), גם אחרי שהאנימציה הגדילה את הדף
 ok(/scrollCardToTop\(card\);/.test(fn('toggleStock')) && /if \(opening && state\.open\[sym\]\) scrollCardToTop\(card\)/.test(fn('toggleStock')), 'v233: פתיחת כרטיס גוללת את ראשו לראש המסך (מיד + בסוף האנימציה)');
 ok(/\.appbar'\);[\s\S]*?getBoundingClientRect\(\)\.height : 0\) \+ 10/.test(fn('scrollCardToTop')), 'v233: מתחת להדר הדביק');
+// v234: נתוני הכרטיס — בלי בועות: קו אופקי דק בין השורות + קווים אנכיים קצרים, אחוז קטן ורגיל
+ok(/\.kv \{ position: relative; background: none;/.test(css) && /\.kv::before \{[^}]*top: 22%; bottom: 22%; width: \.5px/.test(css) && /\.kv:nth-child\(n\+4\) \{ border-top: \.5px solid var\(--outline\)/.test(css), 'v234: נתוני הכרטיס — בלי בועות, קווים דקים (הצעה ה׳)');
+ok(/\.kv \.v2 \{ font-size: 11px; font-weight: 500;/.test(css), 'v234: האחוז קטן ורגיל');
 console.log('\n' + n + ' בדיקות עברו');
