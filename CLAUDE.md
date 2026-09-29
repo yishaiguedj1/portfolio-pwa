@@ -126,7 +126,7 @@
 
 ## 7. בדיקות
 
-- `node --check app.js` תמיד לפני push.
+- `node --check app.js` תמיד לפני push. **הדחיפה מותנית בבדיקות** — בשרשור פקודות: `[ "$fails" = 0 ] && git push` (לקח v252: `;` אחרי הבדיקות דחף קוד עם בדיקה אדומה). קוד שנוגע ב־`window`/`document` — עם שמירה (`typeof window !== 'undefined' && window.addEventListener`), הבדיקות רצות ב־vm בלי DOM מלא.
 - `node tests/ibkr-app.test.js` — לוגיקת IBKR/קצב/עומק/הודעות (205 אסרטים, כולל שמירה שה־CSV לא חוזר). `node tests/pf-v125.test.js` (41) — גרף/טווחים/NAV יומי. `pf-v126.test.js` (10) — טולטיפ מול מדידה. `pf-v127.test.js` (18) — יום כפול בסנכרון המשך.
 - `node tests/pf-v110.test.js` (28), `pf-v111.test.js` (19) — רגרסיות סנכרון; `pf-v112.test.js` (61) — מנוע התשואות על נתוני דוח סינתטיים.
 - `node tests/i18n-coverage.test.js` (711) — כל מחרוזת גלויה בעברית **ובאנגלית**.
