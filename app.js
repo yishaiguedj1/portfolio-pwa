@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v252';
+const APP_VERSION = 'v253';
 
 
 function saveDBto(db) {
@@ -9306,20 +9306,39 @@ function renderWishlist(opts) {
    מקור: Financial Modeling Prep (חינמי, ללא מפתח).
    v97: אריח לבן תמיד (גם בערכת כהה); אות הגיבוי מוסתרת ברגע שהלוגו
    נטען — נראית רק אם הטעינה נכשלה. */
+/* v253: זיכרון לוגואים — אילו כבר נטענו ואם צריך להפוך צבעים. נשמר בטלפון (pwa_logo_meta_v1), כך שגם אחרי רענון:
+   בלי אות גיבוי שמהבהבת עד שהתמונה עולה, בלי טעינה עצלה, ובלי ניתוח הבהירות מחדש (קנבס) בכל ציור.
+   את הקובץ עצמו שומר ה־Service Worker (מטמון ריצה, v193) — כאן רק מה שהדף צריך כדי לצייר מיד. */
+const LS_LOGO_META = 'pwa_logo_meta_v1';
+let _logoMeta = null;
+function logoMeta() {
+  if (_logoMeta) return _logoMeta;
+  try { _logoMeta = JSON.parse(localStorage.getItem(LS_LOGO_META) || '{}') || {}; } catch (e) { _logoMeta = {}; }
+  return _logoMeta;
+}
+let _logoMetaT = null;
+function setLogoMeta(src, v) {
+  const m = logoMeta();
+  if (v === null) { if (!(src in m)) return; delete m[src]; } else if (m[src] === v) return; else m[src] = v;
+  clearTimeout(_logoMetaT);
+  _logoMetaT = setTimeout(() => { try { localStorage.setItem(LS_LOGO_META, JSON.stringify(m)); } catch (e) {} }, 400);
+}
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
   const first = (nsym || '?').charAt(0);
   const src = logoSrc(nsym);
-  return '<span class="stock-logo">' +
+  const known = src ? logoMeta()[src] : undefined; // 1 = נטען, 2 = נטען והפוך
+  return '<span class="stock-logo' + (known ? ' logo-ok' : '') + '">' +
     '<span class="stock-logo-fb">' + esc(first) + '</span>' +
-    (src ? '<img class="stock-logo-img" crossorigin="anonymous" src="' + src + '" alt="" loading="lazy" decoding="async" ' +
-    'data-logo="1">' : '') +
+    (src ? '<img class="stock-logo-img' + (known === 2 ? ' inv' : '') + '" crossorigin="anonymous" src="' + src + '" alt="" ' +
+      (known ? 'decoding="sync"' : 'loading="lazy" decoding="async"') + ' data-logo="1">' : '') +
     '</span>';
 }
 
 /* נכשל בטעינת CORS — מנסה שוב בלי CORS (תצוגה בלבד, בלי תיקון ניגודיות).
    כישלון שני — מסתיר את התמונה ונשאר הגיבוי (אות ראשונה). */
 function logoImgErr(img) {
+  try { setLogoMeta(img.getAttribute('src') || '', null); } catch (e) {} // v253: נכשל — לא "זוכרים" אותו כתקין
   try {
     if (img.dataset.nocors) { img.style.display = 'none'; return; }
     img.dataset.nocors = '1';
@@ -9335,12 +9354,18 @@ function logoImgErr(img) {
 /* v97: מסתיר את אות הגיבוי ברגע שהלוגו נטען (שלא תציץ מאחוריו),
    והופך לוגו בהיר כדי שייראה על האריח הלבן. */
 function logoImgFix(img) {
+  const src = img.getAttribute('src') || '';
+  let inv = false;
   try {
     const fb = img.previousElementSibling;
     if (fb && fb.classList && fb.classList.contains('stock-logo-fb')) fb.style.display = 'none';
-    if (/s3-symbol-logo\.tradingview\.com/.test(img.src || '')) return; // v159: לוגו רשמי עם רקע משלו — בלי היפוך צבעים
+    const known = logoMeta()[src];
+    if (known) { img.classList.toggle('inv', known === 2); return; } // v253: כבר נותח — בלי קנבס
+    if (img.dataset.nocors) return; // נטען בלי CORS — אין ניתוח ואין זיכרון (אולי לא יעלה בפעם הבאה)
+    if (/s3-symbol-logo\.tradingview\.com/.test(img.src || '')) { setLogoMeta(src, 1); return; } // v159: לוגו רשמי עם רקע משלו — בלי היפוך צבעים
     const w = img.naturalWidth, h = img.naturalHeight;
     if (!w || !h || w < 4 || h < 4) return;
+    setLogoMeta(src, 1); // נטען; אם יתברר שצריך להפוך — מתעדכן ל־2 למטה
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -9360,8 +9385,10 @@ function logoImgFix(img) {
     if (cnt > Math.ceil(d.length / 40) * 0.8) return;
     const avg = sum / cnt;
     if (avg > 205) {
-      img.style.filter = 'invert(1)';
+      img.classList.add('inv');
+      inv = true;
     }
+    setLogoMeta(src, inv ? 2 : 1);
   } catch (e) { /* תמונה מוכתמת (tainted) — משאיר כמו שהיא */ }
 }
 

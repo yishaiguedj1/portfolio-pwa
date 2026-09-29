@@ -1005,6 +1005,9 @@ footer.fine { text-align: center; }
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.12);
 }
 .stock-logo-fb { font-size: 22px; font-weight: 800; color: #3A3A3C; }
+/* v253: לוגו שכבר נטען בעבר — בלי אות גיבוי שמהבהבת; היפוך צבעים (לוגו לבן) דרך מחלקה ולא style */
+.stock-logo.logo-ok .stock-logo-fb { display: none; }
+.stock-logo-img.inv { filter: invert(1); }
 .stock-logo-img {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain; padding: 5px; box-sizing: border-box;

@@ -52,4 +52,7 @@ ok(/fitStockFoot\(box\)/.test(fn('renderStockRangeSummary')) && /classList\.add\
 }
 // v248: עדכון מחיר לא מזיז את הכרטיסים — תיבת הגלגול בגובה שורה אחת בדיוק, ומחיר בגובה קבוע
 ok(/\.px-roll \{ display: inline-grid; overflow: hidden; height: 1lh; vertical-align: top; line-height: inherit;/.test(css) && /\.sh-r1 \.stock-price \{[^}]*height: 1\.1em;/.test(css), 'v248: גלגול הספרות לא משנה את גובה השורה');
+// v253: זיכרון לוגואים — לוגו שכבר נטען מצויר מיד (בלי אות גיבוי/טעינה עצלה/ניתוח קנבס חוזר), גם אחרי רענון
+ok(/const known = src \? logoMeta\(\)\[src\] : undefined;/.test(src) && /if \(known\) \{ img\.classList\.toggle\('inv', known === 2\); return; \}/.test(src) && /setLogoMeta\(img\.getAttribute\('src'\) \|\| '', null\)/.test(src), 'v253: זיכרון לוגואים (נטען/הפוך), נמחק בכישלון');
+ok(/\.stock-logo\.logo-ok \.stock-logo-fb \{ display: none; \}/.test(css) && /\.stock-logo-img\.inv \{ filter: invert\(1\); \}/.test(css), 'v253: בלי אות גיבוי ללוגו מוכר; היפוך דרך מחלקה');
 console.log('\n' + n + ' בדיקות עברו');
