@@ -3878,7 +3878,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v257';
+const APP_VERSION = 'v258';
 
 
 function saveDBto(db) {
@@ -8290,17 +8290,18 @@ async function wordmarkLoad(syms) {
     return true;
   } finally { _wmBusy = false; }
 }
-/* טהורה: סקאלה "עגולה" לציר — [lo, hi] כולל 0, צעד מתוך 5/10/20/25/50/100…, עד 4 צעדים */
+/* טהורה: הציר = הטווח האמיתי של הנתונים (+3% ריווח), לא מעוגל החוצה — כל פיקסל לפסים (v258: בטלפון צר עיגול ל־±50 בזבז
+   רבע מהרוחב, ופס של 20% לא הכיל לוגו). קווי הרשת בצעד "עגול" (5/10/20/25/50…) — רק בתוך הטווח; ‏0 תמיד. */
 function gainScale(vals) {
   let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
   if (hi - lo < 1e-9) hi = lo + 10;
+  const span = hi - lo;
+  lo -= lo < 0 ? span * 0.03 : 0; hi += hi > 0 ? span * 0.03 : 0;
   const steps = [2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
   let step = steps[steps.length - 1];
-  for (const st of steps) { if (Math.ceil(hi / st) - Math.floor(lo / st) <= 4) { step = st; break; } }
-  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
-  if (hi === lo) hi = lo + step;
+  for (const st of steps) { if (Math.floor(hi / st) - Math.ceil(lo / st) <= 3) { step = st; break; } }
   const ticks = [];
-  for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
   return { lo, hi, step, ticks, x: (v) => (v - lo) / (hi - lo) * 100 };
 }
 /* טהורה: השורות — אחזקות עם מחיר ועלות, מהגבוהה לנמוכה */
@@ -8341,7 +8342,7 @@ function renderGainBars() {
     box.innerHTML = '<div class="gb-plot">' +
       sc.ticks.map((v) => '<i class="gb-grid' + (Math.abs(v) < 1e-9 ? ' zero' : '') + '" style="left:' + sc.x(v).toFixed(3) + '%"></i>').join('') +
       rows.map((r) => '<button type="button" class="gb-row" data-sym="' + esc(r.sym) + '" aria-label="' + esc(dispSym(r.sym)) + '">' +
-        '<span class="gb-bar">' + gainMarkHTML(r.sym, r.name) + '</span><span class="gb-ico">' + stockLogoHTML(r.sym) + '</span><span class="gb-pct"></span></button>').join('') +
+        '<span class="gb-bar">' + gainMarkHTML(r.sym, r.name) + '<span class="gb-sqi">' + stockLogoHTML(r.sym) + '</span></span><span class="gb-ico">' + stockLogoHTML(r.sym) + '</span><span class="gb-pct"></span></button>').join('') +
       '</div><div class="gb-axis">' + sc.ticks.map((v) => '<span style="left:' + sc.x(v).toFixed(3) + '%">' + gainTickTxt(v) + '</span>').join('') + '</div>';
     box.style.setProperty('--gb-zero', x0.toFixed(3) + '%');
     // v256 (בקשת המשתמש): נגיעה = כמו בעוגה — הפס "מורם" בקפיץ והשאר מתעמעמים; נגיעה חוזרת/בחוץ — חוזר. בלי מעבר לכרטיס
@@ -8366,10 +8367,8 @@ function renderGainBars() {
     if (!r) return;
     const xe = sc.x(r.g), up = r.g >= 0;
     const bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct');
-    const l = Math.min(x0, xe), w = Math.abs(xe - x0);
-    bar.style.left = l.toFixed(3) + '%'; bar.style.width = w.toFixed(3) + '%';
     row.classList.toggle('gb-up', up); row.classList.toggle('gb-down', !up);
-    row._end = up ? xe : l; row._up = up;
+    row._x0 = x0; row._xe = xe; row._up = up; row._g = r.g; // המיקום בפיקסלים — gainBarsFit (חוק ה־20%)
     const txt = gainPctTxt(r.g);
     if (pct.textContent !== txt) pct.textContent = txt;
   });
@@ -8381,28 +8380,46 @@ function gainSetActive(box, sym) {
   box.querySelectorAll('.gb-row').forEach((r) => r.classList.toggle('active', !!sym && r.dataset.sym === sym));
   try { if (sym && navigator.vibrate) navigator.vibrate(8); } catch (e) {}
 }
-/* התאמה לגודל (גם בכל שינוי רוחב): פס שהלוגו האופקי נכנס בו קריא — הפס בנוי מהלוגו; פס קצר מדי — הפס נשאר באורך
-   האמיתי (דק, בצבע) ובקצה שלו האייקון הריבועי של החברה (כמו בטאב המניות) ואז האחוז. כלל אחד — בלי קפיצות בין צדדים. */
+/* v258 (בקשת המשתמש): חוק ה־20% — קבוע לכל המניות: שינוי של 20% ומעלה (רווח או הפסד) → הפס בנוי מהלוגו האופקי
+   (או אייקון + שם כשאין לחברה לוגו אופקי); מתחת ל־20% → הלוגו הרגיל בצד השני של קו האפס (רווח → משמאל, הפסד → מימין),
+   ופס דק בצבע באורך האמיתי. אורך הפס תמיד = האחוז בדיוק (פרופורציה קודמת לנראות — בקשת המשתמש): מעל 20%, כשהלוגו
+   האופקי לא קריא באורך האמיתי (<9px גובה — ציר רחב/לוגו רחב מאוד) → הלוגו הרגיל בתוך הפס; פס קצר מ־36px → כמו מתחת ל־20%. טהורות. */
+const GB_WM_PCT = 20, GB_MIN_H = 9, GB_PAD = 16, GB_FB_MIN = 96, GB_SQ_MIN = 36;
+function gainUsesMark(g) { return Math.abs(g) >= GB_WM_PCT - 1e-9; }
 function gainBarsFit(box) {
   const plot = box.querySelector('.gb-plot');
   if (!plot) return;
+  // שוליים לפי האחוז הארוך ביותר (שלא ייחתך) ולפחות מקום לאייקון כשהאפס בקצה
+  let lw = 0;
+  box.querySelectorAll('.gb-pct').forEach((p) => { lw = Math.max(lw, p.offsetWidth || 0); });
+  const m = Math.max(44, Math.ceil(lw) + 12);
+  if (box._m !== m) { box._m = m; box.style.setProperty('--gb-m', m + 'px'); }
   const W = plot.clientWidth;
   if (!W) return;
+  const x0 = row0(box) / 100 * W;
   box.querySelectorAll('.gb-row').forEach((row) => {
-    const bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct');
+    const bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct'), ico = row.querySelector('.gb-ico');
     const mark = bar.firstElementChild;
     const r = mark && mark.tagName === 'IMG' ? (+mark.dataset.r || 4) : 0;
-    const bw = parseFloat(bar.style.width) / 100 * W;
-    const lw = r ? Math.min(bw - 16, 20 * r) : 0; // רוחב הלוגו בתוך הפס (גובה עד 20px)
-    const out = r ? lw / r < 9 || lw < 44 : bw < 84; // קריא: גובה ≥9px ורוחב ≥44px (UNH בפס של ~70px — בפנים)
+    // אורך הפס = האחוז, תמיד ובדיוק — בלי מתיחה/קיצוץ (בתצוגה הקודמת מניה עם אחוז קטן יצאה ארוכה מאחרת).
+    // הלוגו מתאים את עצמו לפס: אופקי כשהוא קריא באורך האמיתי, אחרת הלוגו הרגיל בתוך הפס; פס קצר מ־36px — כמו מתחת ל־20%
+    const bw = Math.abs(row._xe - row._x0) / 100 * W;
+    const out = !gainUsesMark(row._g) || bw < GB_SQ_MIN;
     row.classList.toggle('gb-out', out);
-    const endPx = row._end / 100 * W;
-    const ico = row.querySelector('.gb-ico');
-    const off = out ? 6 + 28 + 8 : 8; // קצר מדי: האייקון הריבועי בקצה הפס (28px), ואחריו האחוז
-    if (row._up) { ico.style.left = (endPx + 6) + 'px'; ico.style.right = 'auto'; pct.style.left = (endPx + off) + 'px'; pct.style.right = 'auto'; }
-    else { ico.style.right = (W - endPx + 6) + 'px'; ico.style.left = 'auto'; pct.style.right = (W - endPx + off) + 'px'; pct.style.left = 'auto'; }
+    row.classList.toggle('gb-sq', !out && (r ? (bw - GB_PAD) / r < GB_MIN_H : bw < GB_FB_MIN));
+    const left = row._up ? x0 : x0 - bw;
+    bar.style.left = left + 'px'; bar.style.width = bw + 'px';
+    const endPx = row._up ? x0 + bw : x0 - bw;
+    if (row._up) {
+      ico.style.right = (W - x0 + 8) + 'px'; ico.style.left = 'auto';
+      pct.style.left = (endPx + 8) + 'px'; pct.style.right = 'auto';
+    } else {
+      ico.style.left = (x0 + 8) + 'px'; ico.style.right = 'auto';
+      pct.style.right = (W - endPx + 8) + 'px'; pct.style.left = 'auto';
+    }
   });
 }
+function row0(box) { return parseFloat(box.style.getPropertyValue('--gb-zero')) || 0; }
 
 /* v255: מדדים לחיפוש ברשימות המעקב בלבד (בתיק — רק קרנות הסל שעוקבות אחריהם). [סימבול Yahoo, שם, עברית (/ חלופות), כינויים (רווח), תווית]
    נבדק ב־Yahoo: כולם INDEX עם מחיר (ארה"ב ב־USD, ת"א ב־ILS — נקודות). */

@@ -1295,7 +1295,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 
 /* ---- v256: רווח/הפסד מהקנייה — פס לכל מניה, בנוי מהלוגו האופקי שלה (אריח לבן בשתי הערכות, כמו הלוגואים) ---- */
 .gb { position: relative; padding-top: 4px; }
-.gb-plot { position: relative; margin: 0 44px; }
+.gb-plot { position: relative; margin: 0 var(--gb-m, 52px); }
 .gb-grid { position: absolute; top: 0; bottom: 0; width: 0; border-inline-start: 1px dashed var(--card-border); pointer-events: none; }
 .gb-grid.zero { border-inline-start: 1.5px solid var(--on-surface-var); opacity: .45; }
 .gb-row { position: relative; display: block; width: 100%; height: 46px; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -1318,9 +1318,11 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-up.active .gb-bar { transform: translateX(3px) scale(1.07); }
 .gb-down.active .gb-bar { transform: translateX(-3px) scale(1.07); }
 .gb-row.active:not(.gb-out) .gb-bar { box-shadow: 0 6px 18px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.06); }
-.gb-up.active .gb-pct, .gb-up.active .gb-ico { transform: translate(8px, -50%) scale(1.08); }
-.gb-down.active .gb-pct, .gb-down.active .gb-ico { transform: translate(-8px, -50%) scale(1.08); }
-.gb-mark { display: block; height: 20px; width: auto; max-width: calc(100% - 18px); object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.gb-up.active .gb-pct { transform: translate(8px, -50%) scale(1.08); }
+.gb-up.active .gb-ico { transform: translate(-4px, -50%) scale(1.12); }
+.gb-down.active .gb-pct { transform: translate(-8px, -50%) scale(1.08); }
+.gb-down.active .gb-ico { transform: translate(4px, -50%) scale(1.12); }
+.gb-mark { display: block; height: 20px; width: auto; max-width: calc(100% - 16px); object-fit: contain; user-select: none; -webkit-user-drag: none; }
 .gb-fb { display: flex; align-items: center; gap: 6px; max-width: calc(100% - 14px); overflow: hidden; }
 .gb-fb .stock-logo { width: 22px; height: 22px; border-radius: 6px; box-shadow: none; flex: none; }
 .gb-fb .stock-logo-fb { font-size: 12px; }
@@ -1331,14 +1333,19 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-out.gb-up .gb-bar { background: var(--gain); }
 .gb-out.gb-down .gb-bar { background: var(--loss); }
 .gb-out .gb-bar::after, .gb-out .gb-bar > * { display: none; }
+.gb-sqi { display: none; }
+.gb-sq .gb-bar > .gb-mark, .gb-sq .gb-bar > .gb-fb { display: none; }
+.gb-sq:not(.gb-out) .gb-sqi { display: block; }
+.gb-sqi .stock-logo { width: 26px; height: 26px; border-radius: 7px; box-shadow: none; }
+.gb-sqi .stock-logo-fb { font-size: 12px; }
 .gb-ico { position: absolute; top: 50%; transform: translateY(-50%); display: none; }
 .gb-out .gb-ico { display: block; }
 .gb-ico .stock-logo { width: 28px; height: 28px; border-radius: 8px; }
 .gb-ico .stock-logo-fb { font-size: 13px; }
 .gb-ico .stock-logo-img { padding: 2px; }
-.gb-pct { position: absolute; top: 50%; transform: translateY(-50%); font-size: 12.5px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gb-pct { position: absolute; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: 800; letter-spacing: -.2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .gb-up .gb-pct { color: var(--gain); }
 .gb-down .gb-pct { color: var(--loss); }
-.gb-axis { position: relative; height: 18px; margin: 4px 44px 0; }
-.gb-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: 11.5px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gb-axis { position: relative; height: 20px; margin: 6px var(--gb-m, 52px) 0; }
+.gb-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .gb-bar, .gb-row > * { transition: none; } }
