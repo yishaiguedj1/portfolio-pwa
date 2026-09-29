@@ -8290,17 +8290,18 @@ async function wordmarkLoad(syms) {
     return true;
   } finally { _wmBusy = false; }
 }
-/* טהורה: סקאלה "עגולה" לציר — [lo, hi] כולל 0, צעד מתוך 5/10/20/25/50/100…, עד 4 צעדים */
+/* טהורה: הציר = הטווח האמיתי של הנתונים (+3% ריווח), לא מעוגל החוצה — כל פיקסל לפסים (v258: בטלפון צר עיגול ל־±50 בזבז
+   רבע מהרוחב, ופס של 20% לא הכיל לוגו). קווי הרשת בצעד "עגול" (5/10/20/25/50…) — רק בתוך הטווח; ‏0 תמיד. */
 function gainScale(vals) {
   let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
   if (hi - lo < 1e-9) hi = lo + 10;
+  const span = hi - lo;
+  lo -= lo < 0 ? span * 0.03 : 0; hi += hi > 0 ? span * 0.03 : 0;
   const steps = [2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
   let step = steps[steps.length - 1];
-  for (const st of steps) { if (Math.ceil(hi / st) - Math.floor(lo / st) <= 4) { step = st; break; } }
-  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
-  if (hi === lo) hi = lo + step;
+  for (const st of steps) { if (Math.floor(hi / st) - Math.ceil(lo / st) <= 3) { step = st; break; } }
   const ticks = [];
-  for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
   return { lo, hi, step, ticks, x: (v) => (v - lo) / (hi - lo) * 100 };
 }
 /* טהורה: השורות — אחזקות עם מחיר ועלות, מהגבוהה לנמוכה */
@@ -8381,11 +8382,10 @@ function gainSetActive(box, sym) {
 }
 /* v258 (בקשת המשתמש): חוק ה־20% — קבוע לכל המניות: שינוי של 20% ומעלה (רווח או הפסד) → הפס בנוי מהלוגו האופקי
    (או אייקון + שם כשאין לחברה לוגו אופקי); מתחת ל־20% → הלוגו הרגיל בצד השני של קו האפס (רווח → משמאל, הפסד → מימין),
-   ופס דק בצבע באורך האמיתי. מקרה קצה: ציר רחב מאוד (מניה ב־+250%) — פס של 20% קצר מכדי שהלוגו יהיה קריא: האריח
-   מתארך למינימום קריא (לוגו בגובה 11px), והאחוז אחריו. טהורות. */
-const GB_WM_PCT = 20, GB_MIN_H = 11, GB_PAD = 16, GB_FB_MIN = 96;
+   ופס דק בצבע באורך האמיתי. אורך הפס תמיד = האחוז בדיוק (פרופורציה קודמת לנראות — בקשת המשתמש): מעל 20%, כשהלוגו
+   האופקי לא קריא באורך האמיתי (<9px גובה — ציר רחב/לוגו רחב מאוד) → הלוגו הרגיל בתוך הפס; פס קצר מ־36px → כמו מתחת ל־20%. טהורות. */
+const GB_WM_PCT = 20, GB_MIN_H = 9, GB_PAD = 16, GB_FB_MIN = 96, GB_SQ_MIN = 36;
 function gainUsesMark(g) { return Math.abs(g) >= GB_WM_PCT - 1e-9; }
-function gainMinTile(ratio) { return ratio ? Math.max(52, Math.ceil(GB_MIN_H * ratio + GB_PAD)) : GB_FB_MIN; }
 function gainBarsFit(box) {
   const plot = box.querySelector('.gb-plot');
   if (!plot) return;
@@ -8401,15 +8401,12 @@ function gainBarsFit(box) {
     const bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct'), ico = row.querySelector('.gb-ico');
     const mark = bar.firstElementChild;
     const r = mark && mark.tagName === 'IMG' ? (+mark.dataset.r || 4) : 0;
-    const out = !gainUsesMark(row._g);
+    // אורך הפס = האחוז, תמיד ובדיוק — בלי מתיחה/קיצוץ (בתצוגה הקודמת מניה עם אחוז קטן יצאה ארוכה מאחרת).
+    // הלוגו מתאים את עצמו לפס: אופקי כשהוא קריא באורך האמיתי, אחרת הלוגו הרגיל בתוך הפס; פס קצר מ־36px — כמו מתחת ל־20%
+    const bw = Math.abs(row._xe - row._x0) / 100 * W;
+    const out = !gainUsesMark(row._g) || bw < GB_SQ_MIN;
     row.classList.toggle('gb-out', out);
-    let bw = Math.abs(row._xe - row._x0) / 100 * W;
-    if (!out) { // אריח מוארך עד המינימום הקריא — אבל לא מעבר לקצה הכרטיס (עם האחוז); לוגו רחב מאוד מוקטן מעט
-      const room = (row._up ? W - x0 : x0) + m - (pct.offsetWidth || 60) - 14;
-      bw = Math.max(bw, Math.min(gainMinTile(r), room));
-    }
-    // גם באריח המקסימלי הלוגו האופקי לא קריא (<9px, לוגו רחב מאוד בצד צר) — האייקון הרגיל בתוך האריח
-    row.classList.toggle('gb-sq', !out && (r ? (bw - GB_PAD) / r < 9 : bw < GB_FB_MIN));
+    row.classList.toggle('gb-sq', !out && (r ? (bw - GB_PAD) / r < GB_MIN_H : bw < GB_FB_MIN));
     const left = row._up ? x0 : x0 - bw;
     bar.style.left = left + 'px'; bar.style.width = bw + 'px';
     const endPx = row._up ? x0 + bw : x0 - bw;
