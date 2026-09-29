@@ -1308,12 +1308,11 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-bar::after { content: ''; position: absolute; top: 0; bottom: 0; width: 4px; }
 .gb-up .gb-bar::after { right: 0; border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: var(--gain); }
 .gb-down .gb-bar::after { left: 0; border-radius: var(--radius-xs) 0 0 var(--radius-xs); background: var(--loss); }
-/* נגיעה (כמו בעוגה): הפס נפתח החוצה מקו האפס בקפיץ, צל עמוק, והשאר מתעמעמים */
+/* נגיעה (כמו בעוגה): הפס נפתח החוצה מקו האפס בקפיץ, צל עמוק — בלי עמעום של השאר (v261) */
 .gb-row > * { transition: transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s, box-shadow .3s; }
 .gb-bar { transition: left .5s cubic-bezier(.2,.8,.2,1), width .5s cubic-bezier(.2,.8,.2,1), transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s, box-shadow .3s; }
 .gb-up .gb-bar { transform-origin: left center; }
 .gb-down .gb-bar { transform-origin: right center; }
-.gb.has-active .gb-row:not(.active) > * { opacity: .32; }
 .gb-row.active { z-index: 2; }
 .gb-up.active .gb-bar { transform: translateX(3px) scale(1.07); }
 .gb-down.active .gb-bar { transform: translateX(-3px) scale(1.07); }
