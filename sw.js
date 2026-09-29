@@ -1,7 +1,7 @@
 /* Service Worker — תיק ההשקעות PWA
  * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
  */
-const CACHE_NAME = 'portfolio-pwa-v255';
+const CACHE_NAME = 'portfolio-pwa-v256';
 
 const APP_SHELL = [
   './',
@@ -32,7 +32,7 @@ self.addEventListener('install', (event) => {
 /* v193: מטמון ריצה למשאבים חיצוניים שכמעט לא משתנים — לוגואים (FMP / TradingView) וקבצי ה־SDK של Firebase
    (כתובות עם גרסה). cache-first: פעם אחת מהרשת, אחר כך מיד מהמטמון. רק תשובות תקינות (לא opaque — הן תופסות מכסה ענקית). */
 const RUNTIME = 'portfolio-pwa-rt-v1';
-const RT_HOSTS = { 'financialmodelingprep.com': /^\/image-stock\//, 's3-symbol-logo.tradingview.com': /./, 'www.gstatic.com': /^\/firebasejs\// };
+const RT_HOSTS = { 'upload.wikimedia.org': /^\/wikipedia\/commons\//, 'thumb.wikimedia.org': /^\/wikipedia\/commons\//, 'financialmodelingprep.com': /^\/image-stock\//, 's3-symbol-logo.tradingview.com': /./, 'www.gstatic.com': /^\/firebasejs\// };
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
