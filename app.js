@@ -3878,7 +3878,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v256';
+const APP_VERSION = 'v257';
 
 
 function saveDBto(db) {
@@ -8344,7 +8344,11 @@ function renderGainBars() {
         '<span class="gb-bar">' + gainMarkHTML(r.sym, r.name) + '</span><span class="gb-ico">' + stockLogoHTML(r.sym) + '</span><span class="gb-pct"></span></button>').join('') +
       '</div><div class="gb-axis">' + sc.ticks.map((v) => '<span style="left:' + sc.x(v).toFixed(3) + '%">' + gainTickTxt(v) + '</span>').join('') + '</div>';
     box.style.setProperty('--gb-zero', x0.toFixed(3) + '%');
-    box.querySelectorAll('.gb-row').forEach((b) => b.addEventListener('click', () => { try { openStockCard(b.dataset.sym, 'stocks'); } catch (e) {} }));
+    // v256 (בקשת המשתמש): נגיעה = כמו בעוגה — הפס "מורם" בקפיץ והשאר מתעמעמים; נגיעה חוזרת/בחוץ — חוזר. בלי מעבר לכרטיס
+    box.querySelectorAll('.gb-row').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); gainSetActive(box, box._active === b.dataset.sym ? null : b.dataset.sym); }));
+    if (!box._outWired && typeof document !== 'undefined') { box._outWired = true; document.addEventListener('click', () => { if (box._active) gainSetActive(box, null); }); }
+    if (box._active && !rows.some((r) => r.sym === box._active)) box._active = null;
+    gainSetActive(box, box._active || null);
     // לוגו שלא נטען (קובץ שבור/חסום) — נשכח ונחליף ב"לוגו מורכב" (אייקון + שם)
     box.querySelectorAll('img.gb-mark').forEach((im) => im.addEventListener('error', () => {
       const sym = im.closest('.gb-row').dataset.sym, st = wmStore();
@@ -8371,6 +8375,12 @@ function renderGainBars() {
   });
   gainBarsFit(box);
 }
+function gainSetActive(box, sym) {
+  box._active = sym || null;
+  box.classList.toggle('has-active', !!sym);
+  box.querySelectorAll('.gb-row').forEach((r) => r.classList.toggle('active', !!sym && r.dataset.sym === sym));
+  try { if (sym && navigator.vibrate) navigator.vibrate(8); } catch (e) {}
+}
 /* התאמה לגודל (גם בכל שינוי רוחב): פס שהלוגו האופקי נכנס בו קריא — הפס בנוי מהלוגו; פס קצר מדי — הפס נשאר באורך
    האמיתי (דק, בצבע) ובקצה שלו האייקון הריבועי של החברה (כמו בטאב המניות) ואז האחוז. כלל אחד — בלי קפיצות בין צדדים. */
 function gainBarsFit(box) {
@@ -8384,7 +8394,7 @@ function gainBarsFit(box) {
     const r = mark && mark.tagName === 'IMG' ? (+mark.dataset.r || 4) : 0;
     const bw = parseFloat(bar.style.width) / 100 * W;
     const lw = r ? Math.min(bw - 16, 20 * r) : 0; // רוחב הלוגו בתוך הפס (גובה עד 20px)
-    const out = r ? lw / r < 9 || lw < 58 : bw < 84; // קריא: גובה ≥9px ורוחב ≥58px (לוגו רחב מאוד כמו UnitedHealth — נמוך אבל קריא)
+    const out = r ? lw / r < 9 || lw < 44 : bw < 84; // קריא: גובה ≥9px ורוחב ≥44px (UNH בפס של ~70px — בפנים)
     row.classList.toggle('gb-out', out);
     const endPx = row._end / 100 * W;
     const ico = row.querySelector('.gb-ico');

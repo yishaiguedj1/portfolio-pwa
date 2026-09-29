@@ -25,6 +25,7 @@ ok(/class="gb-mark"/.test(R("gainMarkHTML('ADBE', 'Adobe')")) && /gb-fb/.test(R(
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 ok(/id="gainCard"/.test(html) && /id="gainBars" dir="ltr"/.test(html) && /img-src[^;]*https:\/\/thumb\.wikimedia\.org/.test(html) && /img-src[^;]*https:\/\/upload\.wikimedia\.org/.test(html), 'כרטיס בסקירה + CSP מאפשר תמונות מ־Wikimedia');
 ok(/'thumb\.wikimedia\.org'/.test(fs.readFileSync(path.join(root, 'sw.js'), 'utf8')), 'SW שומר את הלוגואים במטמון ריצה');
+ok(/gainSetActive\(box, box\._active === b\.dataset\.sym \? null : b\.dataset\.sym\)/.test(app) && !/openStockCard\(b\.dataset\.sym/.test(app), 'נגיעה = הרמה כמו בעוגה (לא מעבר לכרטיס)');
 ok(/try \{ renderGainBars\(\); \} catch/.test(app) && /pct\.textContent !== txt/.test(app), 'מצויר עם הסקירה (רק כשהטאב נראה) ומתעדכן במקום בטיק החי');
 // השרתון
 const W = require('../ibkr-proxy/lib/wordmark');

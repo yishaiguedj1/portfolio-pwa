@@ -1308,7 +1308,18 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-bar::after { content: ''; position: absolute; top: 0; bottom: 0; width: 4px; }
 .gb-up .gb-bar::after { right: 0; border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: var(--gain); }
 .gb-down .gb-bar::after { left: 0; border-radius: var(--radius-xs) 0 0 var(--radius-xs); background: var(--loss); }
-.gb-row:active .gb-bar { transform: scale(.97); }
+/* נגיעה (כמו בעוגה): הפס נפתח החוצה מקו האפס בקפיץ, צל עמוק, והשאר מתעמעמים */
+.gb-row > * { transition: transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s, box-shadow .3s; }
+.gb-bar { transition: left .5s cubic-bezier(.2,.8,.2,1), width .5s cubic-bezier(.2,.8,.2,1), transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s, box-shadow .3s; }
+.gb-up .gb-bar { transform-origin: left center; }
+.gb-down .gb-bar { transform-origin: right center; }
+.gb.has-active .gb-row:not(.active) > * { opacity: .32; }
+.gb-row.active { z-index: 2; }
+.gb-up.active .gb-bar { transform: translateX(3px) scale(1.07); }
+.gb-down.active .gb-bar { transform: translateX(-3px) scale(1.07); }
+.gb-row.active:not(.gb-out) .gb-bar { box-shadow: 0 6px 18px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.06); }
+.gb-up.active .gb-pct, .gb-up.active .gb-ico { transform: translate(8px, -50%) scale(1.08); }
+.gb-down.active .gb-pct, .gb-down.active .gb-ico { transform: translate(-8px, -50%) scale(1.08); }
 .gb-mark { display: block; height: 20px; width: auto; max-width: calc(100% - 18px); object-fit: contain; user-select: none; -webkit-user-drag: none; }
 .gb-fb { display: flex; align-items: center; gap: 6px; max-width: calc(100% - 14px); overflow: hidden; }
 .gb-fb .stock-logo { width: 22px; height: 22px; border-radius: 6px; box-shadow: none; flex: none; }
@@ -1330,4 +1341,4 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-down .gb-pct { color: var(--loss); }
 .gb-axis { position: relative; height: 18px; margin: 4px 44px 0; }
 .gb-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: 11.5px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) { .gb-bar { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .gb-bar, .gb-row > * { transition: none; } }
