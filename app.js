@@ -146,6 +146,7 @@ he: {
   searchClear: 'ניקוי',
   stockSearchNoResults: 'לא נמצאו תוצאות',
   mktTase: 'ת״א · ₪',
+  mktIndex: 'מדד',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
   sortBy: 'מיון:',
   srcFilterLabel: 'הצג לפי מקור',
@@ -654,6 +655,7 @@ en: {
   searchClear: 'Clear',
   stockSearchNoResults: 'No results found',
   mktTase: 'TASE · ₪',
+  mktIndex: 'Index',
   stockSearchError: 'Search failed — try again',
   sortBy: 'Sort:',
   srcFilterLabel: 'Show by source',
@@ -3724,7 +3726,14 @@ function fmtILS2(v) {
 function symCur(sym) { return /\.TA$/i.test(String(sym || '')) ? 'ILS' : 'USD'; }
 /* v168: מדד של בורסת ת"א (סימבול מספרי — 207.TA = ת"א ביטחוניות). Yahoo מדווח בנקודות (ILS, לא ILA):
    מוצג בנקודות ומוזן בנקודות; שווי = יחידות × נקודות בשקלים. */
-function isTaseIndex(sym) { return /^\d{1,4}\.TA$/i.test(String(sym || '')); }
+function isTaseIndex(sym) { return /^(\d{1,4}|\^?TA\d{2,3})\.TA$/i.test(String(sym || '')); } // v255: גם TA35.TA / ^TA125.TA
+/* v255: מדד (לא נסחר — רק ברשימות מעקב): ^GSPC, ^NDX… או מדד ת"א. מוצג בנקודות, בלי $/שער. טהורה. */
+function isIndexSym(sym) { const s = String(sym || ''); return /^\^/.test(s) || isTaseIndex(s); }
+function fmtPts(v) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const p = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return state.lang === 'en' ? p + ' pts' : '\u2067' + p + ' ' + t('ptsShort') + '\u2069';
+}
 /* v157: מחיר מניה בת"א מוזן באגורות — כמו הציטוט הרשמי בבורסה. בפנים נשמר בשקלים (כמו Yahoo אחרי חלוקה ב־100).
    עמלה נשארת בשקלים. טהורות. */
 function pxInFactor(sym) { return symCur(sym) === 'ILS' && !isTaseIndex(sym) ? 100 : 1; }
@@ -3733,7 +3742,7 @@ function pxToInput(sym, v) {
   if (v === undefined || v === null || v === '' || !isFinite(+v)) return '';
   return String(Math.round(+v * pxInFactor(sym) * 1e6) / 1e6);
 }
-function pxUnit(sym) { return isTaseIndex(sym) ? t('ptsUnit') : symCur(sym) === 'ILS' ? t('agorotUnit') : '$'; }
+function pxUnit(sym) { return isIndexSym(sym) ? t('ptsUnit') : symCur(sym) === 'ILS' ? t('agorotUnit') : '$'; }
 /* v157: תיקון חד־פעמי — מחיר ת"א שהוזן באגורות לפני v157 נשמר כשקלים (פי 100). מזהים לפי יחס למחיר החי:
    30–300 = כמעט בוודאות אגורות (מניה לא יורדת פי 30). טהורה על db + מחירים; מחזירה כמה תוקנו. */
 function fixAgorotEntries(db, priceOf) {
@@ -3758,12 +3767,18 @@ function nativeToUSD(v, sym, fx) {
 /* מחיר למניה לתצוגה: מניה ישראלית תמיד בשקלים (ככה היא נסחרת); מניה אמריקאית
    לפי מטבע התצוגה (כמו קודם). */
 function fmtPx(v, sym) {
+  if (isIndexSym(sym)) return fmtPts(v);
   if (symCur(sym) === 'ILS') return fmtAg(v, sym);
   return state.currency === 'ILS' && state.fx ? fmtILS(v * state.fx) : fmtUSD2(v);
 }
 /* v209: שינוי מחיר עם סימן, באותה יחידה כמו המחיר (fmtPx): "−$2.16", "+₪6.58", "−35 אג׳", "+12.40 נק׳". */
 function fmtSignedPx(v, sym) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
+  if (isIndexSym(sym)) { // v255: מדד — נקודות
+    const r = Math.round(v * 100) / 100, sg = r < 0 ? '−' : r > 0 ? '+' : '';
+    const n = Math.abs(r).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return state.lang === 'en' ? ltrNum(sg + n + ' pts') : '\u2067' + ltrNum(sg + n) + ' ' + t('ptsShort') + '\u2069';
+  }
   const cur = symCur(sym);
   const r = cur === 'ILS' ? (isTaseIndex(sym) ? Math.round(v * 100) / 100 : Math.round(v * 10000) / 100) : Math.round((state.currency === 'ILS' && state.fx ? v * state.fx : v) * 100) / 100;
   const sg = r < 0 ? '−' : r > 0 ? '+' : '';
@@ -3861,7 +3876,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v254';
+const APP_VERSION = 'v255';
 
 
 function saveDBto(db) {
@@ -4425,6 +4440,7 @@ function logoSrc(sym) {
   const s = normalizeSym(sym);
   if (!s) return null;
   if (LOGO_OVERRIDES[s]) return LOGO_OVERRIDES[s];
+  if (isIndexSym(s)) return null; // v255: למדד אין לוגו — אייקון גרף (stockLogoHTML)
   if (/\.TA$/i.test(s)) {
     const id = TASE_LOGOS[s.replace(/\.TA$/i, '')];
     return id ? 'https://s3-symbol-logo.tradingview.com/' + id + '.svg' : null;
@@ -8231,6 +8247,52 @@ function localStockSearch(query) {
   return out.slice(0, 8).map(({ sym, name, type }) => ({ sym, name, type }));
 }
 
+/* v255: מדדים לחיפוש ברשימות המעקב בלבד (בתיק — רק קרנות הסל שעוקבות אחריהם). [סימבול Yahoo, שם, עברית (/ חלופות), כינויים (רווח), תווית]
+   נבדק ב־Yahoo: כולם INDEX עם מחיר (ארה"ב ב־USD, ת"א ב־ILS — נקודות). */
+const MARKET_INDICES = [
+  ['^GSPC', 'S&P 500', 'אס אנד פי 500/אס אנד פי/סנופי', 'SPX SP500 S&P S&P500 INX', 'S&P'],
+  ['^NDX', 'Nasdaq 100', 'נאסד״ק 100/נאסדק 100', 'NDX NASDAQ100 NAS100', 'NDX'],
+  ['^IXIC', 'Nasdaq Composite', 'נאסד״ק/נאסדק/נאסד״ק קומפוזיט', 'COMP IXIC NASDAQ', 'COMP'],
+  ['^DJI', 'Dow Jones Industrial Average', 'דאו ג׳ונס/דאו גונס/דאו', 'DJI DJIA DOW INDU DOWJONES', 'DOW'],
+  ['^RUT', 'Russell 2000', 'ראסל 2000/ראסל', 'RUT RUSSELL R2K', 'RUT'],
+  ['^VIX', 'CBOE Volatility Index (VIX)', 'מדד הפחד/ויקס/תנודתיות', 'VIX', 'VIX'],
+  ['^SOX', 'PHLX Semiconductor Index', 'מדד השבבים/שבבים/מוליכים למחצה', 'SOX', 'SOX'],
+  ['TA35.TA', 'TA-35', 'ת״א 35/תל אביב 35/תא 35', 'TA35 TA-35', '35'],
+  ['^TA125.TA', 'TA-125', 'ת״א 125/תל אביב 125/תא 125', 'TA125 TA-125', '125'],
+  ['207.TA', 'TA Defense', 'ת״א ביטחוניות/ביטחוניות', '207.TA TADEFENSE', '207'],
+];
+/* v255: סימבול לתצוגה — למדד הכינוי המוכר (SPX, NDX, TA35) במקום ^GSPC של Yahoo */
+function dispSym(sym) { const ix = MARKET_INDICES.find((x) => x[0] === sym); return ix ? ix[3].split(' ')[0] : String(sym || ''); }
+/* טהורה: המדדים שמתאימים לשאילתה — כינוי/סימבול מדויק או תחילית, שם באנגלית או בעברית */
+function indexSearch(query) {
+  const raw = String(query || '').trim();
+  if (!raw) return [];
+  const heb = /[\u0590-\u05FF]/.test(raw);
+  const Q = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const qn = searchNorm(raw);
+  const out = [];
+  for (const [sym, name, he, al] of MARKET_INDICES) {
+    let sc = 0;
+    if (heb) {
+      for (const alt of he.split('/')) {
+        const hn = searchNorm(alt);
+        if (!hn || !qn) continue;
+        if (hn === qn) sc = Math.max(sc, 100);
+        else if (hn.startsWith(qn)) sc = Math.max(sc, 85);
+        else if (qn.length >= 2 && hn.includes(qn)) sc = Math.max(sc, 65);
+      }
+    } else {
+      const keys = [sym, name].concat(al.split(' ')).map((k) => k.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+      if (Q && keys.includes(Q)) sc = 100;
+      else if (Q.length >= 2 && keys.some((k) => k.startsWith(Q))) sc = 85;
+      const nn = searchNorm(name);
+      if (qn.length >= 3 && (nn.startsWith(qn) || nn.includes(' ' + qn))) sc = Math.max(sc, 70);
+    }
+    if (sc) out.push({ sym, name: heb || /\.TA$/.test(sym) ? he.split('/')[0] + ' · ' + name : name, type: 'INDEX', _s: sc });
+  }
+  return out.sort((a, b) => b._s - a._s).map(({ sym, name, type }) => ({ sym, name, type }));
+}
+
 /* בדיקת סימבול ישירה דרך Stooq (גיבוי כשה־chart של Yahoo חסום) */
 async function stooqDirectSymbol(q) {
   const sym = String(q || '').replace(/[^A-Z0-9.-]/g, '');
@@ -8404,9 +8466,9 @@ function renderStockSearchResults(items, status, boxId, onPick) {
     const row = el('div', 'stock-search-item');
     row.innerHTML =
       '<span class="ss-logo">' + stockLogoHTML(it.sym) + '</span>' +
-      '<span class="ss-sym" dir="ltr">' + esc(it.sym) + '</span>' +
+      '<span class="ss-sym" dir="ltr">' + esc(dispSym(it.sym)) + '</span>' +
       '<span class="ss-name" dir="auto">' + esc(it.name) + '</span>' +
-      '<span class="ss-type">' + esc(symCur(it.sym) === 'ILS' ? t('mktTase') : it.type) + '</span>' +
+      '<span class="ss-type">' + esc(isIndexSym(it.sym) ? t('mktIndex') : symCur(it.sym) === 'ILS' ? t('mktTase') : it.type) + '</span>' +
       '<span class="ss-add" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 7.5v9M7.5 12h9"/></svg></span>';
     row.addEventListener('click', () => {
       box.classList.add('hidden');
@@ -8447,7 +8509,8 @@ function openAddStockWithSymbol(sym, name) {
 }
 
 /* v240: אותו שדה חיפוש בטאב המניות (בחירה → טופס הוספה) וברשימת המעקב (בחירה → נוסף למעקב) */
-function initStockSearch(pfx, owned, onPick) {
+function initStockSearch(pfx, owned, onPick, opts) {
+  opts = opts || {};
   pfx = pfx || 'stockSearch';
   const inp = document.getElementById(pfx + 'Input');
   const box = document.getElementById(pfx + 'Results');
@@ -8478,7 +8541,10 @@ function initStockSearch(pfx, owned, onPick) {
     // loading = עוד מחכים לרשת (התוצאות שכבר יש מוצגות); ok/empty = סופי
     const show = (items, loading) => {
       if (my !== _searchSeq) return; // תשובה של הקלדה ישנה
-      const f = (items || []).filter((r) => !owned.has(r.sym));
+      // v255: מדדים רק ברשימות המעקב (בראש התוצאות); בתיק — אף פעם (רק קרנות הסל שעוקבות אחריהם)
+      const idx = opts.indices ? indexSearch(q) : [];
+      const f = idx.concat((items || []).filter((r) => !isIndexSym(r.sym) && !idx.some((i) => i.sym === r.sym)))
+        .filter((r) => !owned.has(r.sym)).slice(0, 10);
       if (f.length) render(f, loading ? 'loading' : 'ok');
       else render(null, loading ? 'loading' : 'empty');
     };
@@ -8914,7 +8980,7 @@ function deletePosition(p) {
 /* ולידציה טהורה — ניתנת לבדיקה */
 function wlValidate(sym) {
   const s = String(sym || '').trim().toUpperCase();
-  if (!/^[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(s)) return { err: t('errSymInvalid') };
+  if (!/^\^?[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(s)) return { err: t('errSymInvalid') }; // v255: ^ = מדד
   // v245 (בקשת המשתמש): כפילות רק באותה רשימה — מניה יכולה להיות גם בתיק וגם בכמה רשימות
   if (wlItems().some((w) => w.sym === s)) return { err: t('wlExists', { sym: s }) };
   return { sym: s };
@@ -9325,6 +9391,11 @@ function setLogoMeta(src, v) {
 }
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
+  if (isIndexSym(nsym)) {
+    const ix = MARKET_INDICES.find((x) => x[0] === nsym);
+    return '<span class="stock-logo idx-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 16.5l5-5 4 3 8-8"/><path d="M15 6.5h5v5"/></svg>' +
+      '<span class="idx-lbl" dir="ltr">' + esc(ix ? ix[4] : nsym.replace(/^\^/, '').replace(/\.TA$/, '').slice(0, 4)) + '</span></span>';
+  }
   const first = (nsym || '?').charAt(0);
   const src = logoSrc(nsym);
   const known = src ? logoMeta()[src] : undefined; // 1 = נטען, 2 = נטען והפוך
@@ -9451,7 +9522,7 @@ function stockHeadHTML(p, m) {
   // v204: שתי שורות עצמאיות ליד הלוגו — שורה 1: סימבול + תגית המקור + מחיר; שורה 2: שם החברה + בועת הסשן.
   // כך הבועה מתחרה רק עם שם החברה (שנקטע ב־…) ולא עם הסימבול/התגית — תמיד שתי שורות, בלי התנגשות.
   return '<span class="stock-id">' + stockLogoHTML(sym) +
-    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(sym) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p))) +
+    '<span class="sh-r1"><span class="stock-sym"><bdi dir="ltr">' + esc(dispSym(sym)) + '</bdi></span>' + (p.watch ? '' : srcTagHTML(positionSource(p))) +
     '<span class="stock-price' + stockPriceSizeCls(priceTxt) + '" data-px="' + (m.price === null ? '' : m.price) + '">' + priceTxt + '</span></span>' +
     '<span class="sh-r2"><span class="stock-name">' + esc(companyName(p.sym, p.name) || p.name) + '</span>' + // v201: שם החברה, לא הסימבול פעמיים
     '<span class="stock-ext">' + extSessionHTML(m.q, m) + '</span></span></span>' +
@@ -10597,7 +10668,7 @@ function renderAllInner() {
    סימבול, מקור (i/m), שם, מזהה לוגו ת״א; בלי כמויות/שווי (החלטת המשתמש). המחירים — השרתון (/api/widget, JSON). */
 /* פריטי הווידג'ט (v212, בקשת המשתמש): כל המניות בתיק מהגדולה לקטנה — בלי רשימת המעקב ובלי בחירת כמות (עד 30) */
 function widgetItems() {
-  const clean = (s) => String(s || '').replace(/[,~<>&"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  const clean = (s) => String(s || '').replace(/&/g, '＆').replace(/[,~<>"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
   const held = POSITIONS.filter((p) => p && p.sym && p.shares > 0).map((p) => {
     const m = metrics(p.sym);
     return { p, v: m && m.value !== null ? m.value : 0 };
@@ -10615,7 +10686,7 @@ function widgetItems() {
 }
 /* v249: רשימות המעקב לווידג'ט "רשימות מעקב" (טאב לכל רשימה): [{ i: id, n: שם, s: "SYM~w~שם[~לוגו]" }] — בלי רשימות ריקות */
 function widgetWatchLists() {
-  const clean = (s) => String(s || '').replace(/[,~<>&"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  const clean = (s) => String(s || '').replace(/&/g, '＆').replace(/[,~<>"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
   const lists = [];
   for (const l of wlLists()) {
     const out = [];
@@ -10957,7 +11028,7 @@ function init() {
   try { initStockSearch(); } catch (e) {}
   try { initStockSort(); } catch (e) {}
   // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
-  try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym)), wlAddPicked); } catch (e) {} // v245: רק מה שכבר ברשימה הפתוחה מוסתר
+  try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym)), wlAddPicked, { indices: true }); } catch (e) {} // v245: רק מה שכבר ברשימה הפתוחה מוסתר
   try { wireWatchSwipe(); } catch (e) {} // v244: החלקה בין רשימות
   try { wireAllCardDrag(); } catch (e) {} // v246: סידור בגרירה
   try { initWatchSort(); } catch (e) {}

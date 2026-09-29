@@ -14,7 +14,7 @@ function grab(name) {
 }
 const tl = src.slice(src.indexOf('const TASE_LOGOS ='), src.indexOf('function logoSrc('));
 const mk = (lang) => new Function('state', 't', 'normalizeSym', 'num', 'todayISO',
-  ['symCur', 'fmtAg', 'parseCNBCQuotes', 'taseFixQuotes'].map(grab).join('\n') + tl + grab('logoSrc') +
+  ['symCur', 'isTaseIndex', 'isIndexSym', 'fmtAg', 'parseCNBCQuotes', 'taseFixQuotes'].map(grab).join('\n') + tl + grab('logoSrc') +
   'return { fmtAg, parseCNBCQuotes, taseFixQuotes, logoSrc };')({ lang: lang }, (k) => (k === 'agShort' ? 'אג׳' : k),
   (s) => String(s || '').trim().toUpperCase(), (v) => Number(String(v).replace(/,/g, '')) || 0, () => '2026-09-25');
 const he = mk('he'), en = mk('en');

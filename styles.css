@@ -1016,6 +1016,11 @@ footer.fine { text-align: center; }
 .ss-logo .stock-logo { width: 36px; height: 36px; border-radius: 10px; }
 .ss-logo .stock-logo-fb { font-size: 17px; }
 .ss-logo { flex: none; display: inline-flex; }
+/* v255: מדד — אייקון גרף ירוק + תווית קצרה במקום לוגו */
+.stock-logo.idx-logo { flex-direction: column; gap: 1px; }
+.idx-logo svg { width: 55%; height: 55%; fill: none; stroke: #1E9E4A; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.idx-logo .idx-lbl { font-size: 10px; font-weight: 800; color: #3A3A3C; line-height: 1; letter-spacing: -.2px; }
+.ss-logo .idx-logo .idx-lbl { font-size: 8.5px; }
 
 /* ---- v90: שורת מיון מניות ---- */
 .stock-sort-row {

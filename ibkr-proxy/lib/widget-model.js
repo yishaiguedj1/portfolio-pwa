@@ -36,12 +36,13 @@ const STR = {
 };
 const FX_SYM = 'USDILS=X';
 const STATE_SESSION = { PRE: 'pre', PREPRE: 'closed', POST: 'post', POSTPOST: 'closed', OVERNIGHT: 'night', CLOSED: 'closed', REGULAR: 'regular' };
-const SYM_RE = /^[A-Z0-9][A-Z0-9.\-=^]{0,11}$/;
+const SYM_RE = /^\^?[A-Z0-9][A-Z0-9.\-=^]{0,11}$/; // v255: ^ בהתחלה = מדד (^GSPC)
 const MINUS = '−';
 const LRI = '⁦', RLI = '⁧', PDI = '⁩';
 
 const isTA = (s) => /\.TA$/i.test(s);
-const isTaseIndex = (s) => /^\d{1,4}\.TA$/i.test(s);
+const isTaseIndex = (s) => /^(\d{1,4}|\^?TA\d{2,3})\.TA$/i.test(s);
+const isIndex = (s) => /^\^/.test(s) || isTaseIndex(s); // v255: מדד (מעקב) — נקודות, בלי לוגו
 const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
 
 /* פרמטר s של הקישור: "AAPL~i~Apple,LUMI.TA~m~לאומי~leumi,TSLA~w~Tesla" — סימבול~מקור(i/m/w)~שם~מזהה לוגו (ת״א) */
@@ -115,13 +116,13 @@ const fmt2 = (v) => Math.abs(v).toLocaleString('en-US', { minimumFractionDigits:
 const sign = (v, eps) => (v > (eps || 0) ? '+' : v < -(eps || 0) ? MINUS : '');
 function fmtPct(v) { const r = Math.round(v * 100) / 100; return LRI + sign(r, 0.004) + fmt2(r) + '%' + PDI; }
 function fmtPrice(v, sym, L) {
-  if (isTaseIndex(sym)) return isHe(L) ? RLI + fmt2(v) + ' ' + L.pts + PDI : fmt2(v) + ' ' + L.pts;
+  if (isIndex(sym)) return isHe(L) ? RLI + fmt2(v) + ' ' + L.pts + PDI : fmt2(v) + ' ' + L.pts;
   if (isTA(sym)) { const n = Math.round(v * 100).toLocaleString('en-US'); return isHe(L) ? RLI + n + ' ' + L.ag + PDI : n + ' ' + L.ag; }
   return LRI + '$' + fmt2(v) + PDI;
 }
 function fmtChg(ch, sym, L) {
   // בצ׳יפ (LTR): "−101 אג׳ (−1.31%)" — המספר ואחריו היחידה, כמו "‎−$1.19"
-  if (isTaseIndex(sym)) { const r = Math.round(ch * 100) / 100; return LRI + sign(r, 0.004) + fmt2(r) + ' ' + L.pts + PDI; }
+  if (isIndex(sym)) { const r = Math.round(ch * 100) / 100; return LRI + sign(r, 0.004) + fmt2(r) + ' ' + L.pts + PDI; }
   if (isTA(sym)) { const a = Math.round(ch * 10000) / 100; const n = Math.abs(a).toLocaleString('en-US', { maximumFractionDigits: 2 }); return LRI + sign(a, 0.004) + n + ' ' + L.ag + PDI; }
   const r = Math.round(ch * 100) / 100;
   return LRI + sign(r, 0.004) + '$' + fmt2(r) + PDI;
@@ -136,6 +137,7 @@ let TA_PNG = new Set();
 try { TA_PNG = new Set(require('./ta-logos.json')); } catch (e) {}
 function logoUrl(it) {
   if (LOGO_OVERRIDES[it.sym]) return LOGO_OVERRIDES[it.sym];
+  if (isIndex(it.sym)) return '';
   // v242: לוגו ת״א = PNG מוכן באתר (logos/ta/) — ה־SVG של TradingView (18×18 בלי viewBox) יצא בווידג׳ט זעיר וחתוך בפינה.
   // לוגו שעוד לא הומר (מניה חדשה) — ה־SVG כמו קודם.
   if (isTA(it.sym)) return !it.logo ? '' : TA_PNG.has(it.logo) ? SITE + 'logos/ta/' + it.logo + '.png' : 'https://s3-symbol-logo.tradingview.com/' + it.logo + '.svg';
@@ -226,7 +228,7 @@ function buildModel(items, quotes, daily, opts) {
   const taStat = market.taseMarketNow(nowMs);
   const cards = items.map((it) => {
     const q = parseQuote(quotes[it.sym], nowMs);
-    const c = { sym: it.sym, disp: it.sym.replace(/\.TA$/i, ''), src: it.src, name: it.name || (q && q.name) || '', logo: logoUrl(it), q };
+    const c = { sym: it.sym, disp: it.sym.replace(/^\^/, '').replace(/\.TA$/i, ''), src: it.src, name: it.name || (q && q.name) || '', logo: logoUrl(it), q };
     if (!q) return Object.assign(c, { price: '—', chg: '', dir: 'flat', sub: '', subDir: 'flat', bubble: null });
     const d = dayChange(q, daily && daily[it.sym]);
     c.bubble = bubbleOf(it, q, d, nowMs, L, taStat);
