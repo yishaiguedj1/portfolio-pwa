@@ -3878,7 +3878,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v258';
+const APP_VERSION = 'v259';
 
 
 function saveDBto(db) {
@@ -8253,7 +8253,7 @@ function localStockSearch(query) {
 /* ---------------- v256: גרף "רווח/הפסד מהקנייה" בסקירה — כל מניה = פס שבנוי מהלוגו האופקי שלה ----------------
    לוגואים אופקיים: השרתון (/api/wordmark ← Wikidata → Wikimedia Commons), מטמון בטלפון שבוע (חסר — יום).
    לוגו ריבועי/חסר (Apple, Tesla, מניה בלי לוגו) → "לוגו מורכב": האייקון הרגיל + שם החברה, באותו פס. */
-const LS_WORDMARK = 'pwa_wordmarks_v1';
+const LS_WORDMARK = 'pwa_wordmarks_v2'; // v259: ‏v2 — עם מסגרת הדיו (bx) מהשרתון
 const WM_MIN_RATIO = 1.8; // רוחב/גובה — מתחת לזה הלוגו ריבועי מדי לפס
 let _wm = null, _wmBusy = false;
 function wmStore() {
@@ -8265,6 +8265,14 @@ function wordmarkOf(sym) {
   const r = wmStore()[sym];
   return r && r.v && r.v.h > 0 && r.v.w / r.v.h >= WM_MIN_RATIO ? r.v : null;
 }
+/* טהורה (v259): מסגרת הדיו [x0,y0,x1,y1] מהשרתון — רק כשתקינה וחותכת משהו; אחרת null (כל התמונה) */
+function wmInkBox(b) {
+  if (!Array.isArray(b) || b.length !== 4 || !b.every((v) => typeof v === 'number' && v >= 0 && v <= 1)) return null;
+  if (!(b[2] - b[0] > 0.3 && b[3] - b[1] > 0.3)) return null;
+  return b[0] || b[1] || b[2] < 1 || b[3] < 1 ? b.map((v) => +v.toFixed(3)) : null;
+}
+/* טהורה: יחס רוחב/גובה של הדיו (אחרי החיתוך) */
+function wmInkRatio(wm) { const b = wm.bx; return b ? (wm.w * (b[2] - b[0])) / (wm.h * (b[3] - b[1])) : wm.w / wm.h; }
 async function wordmarkLoad(syms) {
   const st = wmStore(), now = Date.now();
   const need = syms.filter((s) => { const r = st[s]; return !r || now - r.at > (r.v ? 7 : 1) * 864e5; });
@@ -8280,7 +8288,7 @@ async function wordmarkLoad(syms) {
         if (!j || !j.ok || !j.items) return false;
         for (const s of part) {
           const v = j.items[s];
-          st[s] = { at: now, v: v && /^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(String(v.url)) && +v.w > 0 && +v.h > 0 ? { url: String(v.url), w: +v.w, h: +v.h } : null };
+          st[s] = { at: now, v: v && /^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(String(v.url)) && +v.w > 0 && +v.h > 0 ? { url: String(v.url), w: +v.w, h: +v.h, bx: wmInkBox(v.bx) } : null };
         }
         return true;
       } catch (e) { return false; }
@@ -8290,18 +8298,17 @@ async function wordmarkLoad(syms) {
     return true;
   } finally { _wmBusy = false; }
 }
-/* טהורה: הציר = הטווח האמיתי של הנתונים (+3% ריווח), לא מעוגל החוצה — כל פיקסל לפסים (v258: בטלפון צר עיגול ל־±50 בזבז
-   רבע מהרוחב, ופס של 20% לא הכיל לוגו). קווי הרשת בצעד "עגול" (5/10/20/25/50…) — רק בתוך הטווח; ‏0 תמיד. */
+/* טהורה: ציר "עגול" (±50 וכו') — עד 4 קטעים. v259: חזרה לציר של v257 (בקשת המשתמש — "העיצוב הזה היה מעולה") */
 function gainScale(vals) {
   let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
   if (hi - lo < 1e-9) hi = lo + 10;
-  const span = hi - lo;
-  lo -= lo < 0 ? span * 0.03 : 0; hi += hi > 0 ? span * 0.03 : 0;
   const steps = [2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
   let step = steps[steps.length - 1];
-  for (const st of steps) { if (Math.floor(hi / st) - Math.ceil(lo / st) <= 3) { step = st; break; } }
+  for (const st of steps) { if (Math.ceil(hi / st) - Math.floor(lo / st) <= 4) { step = st; break; } }
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  if (hi === lo) hi = lo + step;
   const ticks = [];
-  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
   return { lo, hi, step, ticks, x: (v) => (v - lo) / (hi - lo) * 100 };
 }
 /* טהורה: השורות — אחזקות עם מחיר ועלות, מהגבוהה לנמוכה */
@@ -8317,11 +8324,18 @@ function gainRows(positions, priceOf) {
   }
   return rows.sort((a, b) => b.g - a.g);
 }
+/* v259: בתוך הפס — הלוגו האופקי (חתוך לפי מסגרת הדיו, בלי שוליים ריקים) וגם "לוגו מורכב" (אייקון + שם) כגיבוי:
+   gainBarsFit בוחר ביניהם (לוגו רחב מאוד שלא קריא גם ברוחב המרבי → המורכב) */
 function gainMarkHTML(sym, name) {
-  const wm = wordmarkOf(sym);
-  if (wm) return '<img class="gb-mark" src="' + esc(wm.url) + '" alt="' + esc(companyName(sym, name) || sym) + '" decoding="async" draggable="false" data-r="' + (wm.w / wm.h).toFixed(3) + '">';
-  const nm = String(companyName(sym, name) || dispSym(sym)).replace(/,?\s+(Inc|Corp|Corporation|Ltd|Plc|Co|Company|Holdings|Group)\.?$/i, '');
-  return '<span class="gb-fb">' + stockLogoHTML(sym) + '<span class="gb-fbn" dir="auto">' + esc(nm) + '</span></span>';
+  const wm = wordmarkOf(sym), nm = companyName(sym, name) || dispSym(sym);
+  let h = '';
+  if (wm) {
+    const b = wm.bx || [0, 0, 1, 1], bw = b[2] - b[0], bh = b[3] - b[1];
+    const st = 'width:' + (100 / bw).toFixed(2) + '%;height:' + (100 / bh).toFixed(2) + '%;left:' + (-b[0] / bw * 100).toFixed(2) + '%;top:' + (-b[1] / bh * 100).toFixed(2) + '%';
+    h = '<span class="gb-mark" data-r="' + wmInkRatio(wm).toFixed(3) + '"><img src="' + esc(wm.url) + '" alt="' + esc(nm) + '" decoding="async" draggable="false" style="' + st + '"></span>';
+  }
+  const short = String(nm).replace(/,?\s+(Inc|Corp|Corporation|Ltd|Plc|Co|Company|Holdings|Group)\.?$/i, '');
+  return h + '<span class="gb-fb">' + stockLogoHTML(sym) + '<span class="gb-fbn" dir="auto">' + esc(short) + '</span><span class="gb-fbn gb-fbs">' + esc(dispSym(sym).replace(/\.TA$/, '')) + '</span></span>';
 }
 const gainPctTxt = (v) => ltrNum((v < 0 ? '−' : v > 0 ? '+' : '') + Math.abs(v).toFixed(1) + '%'); // "+44.9%" — ספרה אחת כמו בגרף
 const gainTickTxt = (v) => ltrNum((v < 0 ? '−' : '') + Math.abs(v) + '%');
@@ -8342,7 +8356,7 @@ function renderGainBars() {
     box.innerHTML = '<div class="gb-plot">' +
       sc.ticks.map((v) => '<i class="gb-grid' + (Math.abs(v) < 1e-9 ? ' zero' : '') + '" style="left:' + sc.x(v).toFixed(3) + '%"></i>').join('') +
       rows.map((r) => '<button type="button" class="gb-row" data-sym="' + esc(r.sym) + '" aria-label="' + esc(dispSym(r.sym)) + '">' +
-        '<span class="gb-bar">' + gainMarkHTML(r.sym, r.name) + '<span class="gb-sqi">' + stockLogoHTML(r.sym) + '</span></span><span class="gb-ico">' + stockLogoHTML(r.sym) + '</span><span class="gb-pct"></span></button>').join('') +
+        '<span class="gb-bar">' + gainMarkHTML(r.sym, r.name) + '</span><span class="gb-ico">' + stockLogoHTML(r.sym) + '</span><span class="gb-pct"></span></button>').join('') +
       '</div><div class="gb-axis">' + sc.ticks.map((v) => '<span style="left:' + sc.x(v).toFixed(3) + '%">' + gainTickTxt(v) + '</span>').join('') + '</div>';
     box.style.setProperty('--gb-zero', x0.toFixed(3) + '%');
     // v256 (בקשת המשתמש): נגיעה = כמו בעוגה — הפס "מורם" בקפיץ והשאר מתעמעמים; נגיעה חוזרת/בחוץ — חוזר. בלי מעבר לכרטיס
@@ -8351,7 +8365,7 @@ function renderGainBars() {
     if (box._active && !rows.some((r) => r.sym === box._active)) box._active = null;
     gainSetActive(box, box._active || null);
     // לוגו שלא נטען (קובץ שבור/חסום) — נשכח ונחליף ב"לוגו מורכב" (אייקון + שם)
-    box.querySelectorAll('img.gb-mark').forEach((im) => im.addEventListener('error', () => {
+    box.querySelectorAll('.gb-mark img').forEach((im) => im.addEventListener('error', () => {
       const sym = im.closest('.gb-row').dataset.sym, st = wmStore();
       st[sym] = { at: Date.now(), v: null };
       try { localStorage.setItem(LS_WORDMARK, JSON.stringify(st)); } catch (e) {}
@@ -8380,44 +8394,89 @@ function gainSetActive(box, sym) {
   box.querySelectorAll('.gb-row').forEach((r) => r.classList.toggle('active', !!sym && r.dataset.sym === sym));
   try { if (sym && navigator.vibrate) navigator.vibrate(8); } catch (e) {}
 }
-/* v258 (בקשת המשתמש): חוק ה־20% — קבוע לכל המניות: שינוי של 20% ומעלה (רווח או הפסד) → הפס בנוי מהלוגו האופקי
-   (או אייקון + שם כשאין לחברה לוגו אופקי); מתחת ל־20% → הלוגו הרגיל בצד השני של קו האפס (רווח → משמאל, הפסד → מימין),
-   ופס דק בצבע באורך האמיתי. אורך הפס תמיד = האחוז בדיוק (פרופורציה קודמת לנראות — בקשת המשתמש): מעל 20%, כשהלוגו
-   האופקי לא קריא באורך האמיתי (<9px גובה — ציר רחב/לוגו רחב מאוד) → הלוגו הרגיל בתוך הפס; פס קצר מ־36px → כמו מתחת ל־20%. טהורות. */
-const GB_WM_PCT = 20, GB_MIN_H = 9, GB_PAD = 16, GB_FB_MIN = 96, GB_SQ_MIN = 36;
+/* v259 (בקשת המשתמש): חוק ה־20% — קבוע לכל המניות. מ־20% (רווח או הפסד) הפס = הלוגו האופקי המלא, תמיד (גם גוגל ב־20.6%
+   בטלפון צר); מתחת ל־20% — פס דק בצבע ובקצה שלו הלוגו הרגיל ואז האחוז (העיצוב של v257).
+   גודל הלוגו: גובה 10–18px (נעים לעין); הפס = האחוז בדיוק כשהלוגו נכנס בו בגובה 10 לפחות, אחרת מתארך רק כמה שצריך
+   (עד קצה הגרף) — ואף פעם לא ארוך מפס של אחוז גדול ממנו (הסדר נשמר). לוגו רחב מאוד (ברקשייר/‏J&J) שלא קריא (<9px) גם
+   ברוחב המרבי → לוגו מורכב (אייקון + שם). כמו כן בלי לוגו אופקי לחברה (אפל, טסלה, בזק). */
+const GB_WM_PCT = 20, GB_H_MAX = 18, GB_H_MIN = 10, GB_H_FLOOR = 9, GB_PAD = 14, GB_FB_MAX = 124;
 function gainUsesMark(g) { return Math.abs(g) >= GB_WM_PCT - 1e-9; }
+/* טהורה: רוחב הפס (px) לפס עם לוגו — bw אורך אמיתי, avail עד קצה הגרף, r יחס הלוגו (0 = מורכב), fbw/tkw רוחב המורכב
+   עם השם / עם הסימבול. → { w, fb: מורכב?, tk: סימבול במקום שם (השם לא נכנס — בלי "Home D…"), h: גובה הלוגו } */
+function gainTile(bw, avail, r, fbw, tkw) {
+  if (r) {
+    const w = Math.min(avail, Math.max(bw, GB_H_MIN * r + GB_PAD));
+    const h = Math.min(GB_H_MAX, (w - GB_PAD) / r);
+    if (h >= GB_H_FLOOR) return { w, fb: false, h };
+  }
+  const nw = fbw + GB_PAD + 4;
+  if (nw <= Math.min(avail, GB_FB_MAX + GB_PAD)) return { w: Math.min(avail, Math.max(bw, nw)), fb: true, tk: false, h: 0 };
+  return { w: Math.max(bw, tkw + GB_PAD + 4), fb: true, tk: true, h: 0 }; // הסימבול תמיד שלם (השוליים מתאימים)
+}
 function gainBarsFit(box) {
   const plot = box.querySelector('.gb-plot');
   if (!plot) return;
-  // שוליים לפי האחוז הארוך ביותר (שלא ייחתך) ולפחות מקום לאייקון כשהאפס בקצה
-  let lw = 0;
-  box.querySelectorAll('.gb-pct').forEach((p) => { lw = Math.max(lw, p.offsetWidth || 0); });
-  const m = Math.max(44, Math.ceil(lw) + 12);
-  if (box._m !== m) { box._m = m; box.style.setProperty('--gb-m', m + 'px'); }
-  const W = plot.clientWidth;
-  if (!W) return;
-  const x0 = row0(box) / 100 * W;
-  box.querySelectorAll('.gb-row').forEach((row) => {
-    const bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct'), ico = row.querySelector('.gb-ico');
-    const mark = bar.firstElementChild;
-    const r = mark && mark.tagName === 'IMG' ? (+mark.dataset.r || 4) : 0;
-    // אורך הפס = האחוז, תמיד ובדיוק — בלי מתיחה/קיצוץ (בתצוגה הקודמת מניה עם אחוז קטן יצאה ארוכה מאחרת).
-    // הלוגו מתאים את עצמו לפס: אופקי כשהוא קריא באורך האמיתי, אחרת הלוגו הרגיל בתוך הפס; פס קצר מ־36px — כמו מתחת ל־20%
-    const bw = Math.abs(row._xe - row._x0) / 100 * W;
-    const out = !gainUsesMark(row._g) || bw < GB_SQ_MIN;
-    row.classList.toggle('gb-out', out);
-    row.classList.toggle('gb-sq', !out && (r ? (bw - GB_PAD) / r < GB_MIN_H : bw < GB_FB_MIN));
-    const left = row._up ? x0 : x0 - bw;
-    bar.style.left = left + 'px'; bar.style.width = bw + 'px';
-    const endPx = row._up ? x0 + bw : x0 - bw;
-    if (row._up) {
-      ico.style.right = (W - x0 + 8) + 'px'; ico.style.left = 'auto';
-      pct.style.left = (endPx + 8) + 'px'; pct.style.right = 'auto';
-    } else {
-      ico.style.left = (x0 + 8) + 'px'; ico.style.right = 'auto';
-      pct.style.right = (W - endPx + 8) + 'px'; pct.style.left = 'auto';
+  const rows = [...box.querySelectorAll('.gb-row')];
+  const pw = new Map(rows.map((r) => [r, r.querySelector('.gb-pct').offsetWidth || 0]));
+  const fitAll = (W) => {
+    const x0 = row0(box) / 100 * W;
+    const fits = rows.map((row) => {
+      const bw = Math.abs(row._xe - row._x0) / 100 * W;
+      if (!gainUsesMark(row._g)) return { row, bw, w: bw, out: true };
+      const mk = row.querySelector('.gb-mark'), fb = row.querySelector('.gb-fb');
+      const fbn = fb && fb.querySelector('.gb-fbn:not(.gb-fbs)'), fbs = fb && fb.querySelector('.gb-fbs');
+      const t = gainTile(bw, row._up ? W - x0 : x0, mk ? (+mk.dataset.r || 4) : 0, fbn ? 28 + fbn.scrollWidth : 0, fbs ? 28 + fbs.scrollWidth : 0);
+      return { row, bw, w: t.w, fb: t.fb, tk: t.tk, h: t.h, out: false };
+    });
+    // הסדר נשמר: פס של אחוז גדול לא קצר מפס של אחוז קטן ממנו באותו צד (השורות ממוינות מהגבוה לנמוך)
+    for (const up of [true, false]) {
+      const side = fits.filter((f) => f.row._up === up && !f.out);
+      if (up) side.reverse(); // מהקטן לגדול
+      let prev = 0;
+      for (const f of side) { if (f.w < prev) { f.w = prev; if (!f.fb) f.h = Math.min(GB_H_MAX, (f.w - GB_PAD) / (+f.row.querySelector('.gb-mark').dataset.r || 4)); } prev = f.w; }
     }
-  });
+    // שוליים לכל צד בנפרד — רק כמה שהאחוז (ומתחת ל־20%: גם הלוגו הרגיל) שאחרי קצה הפס צריכים; ‏24 לתוויות הציר
+    let ml = 24, mr = 24;
+    for (const f of fits) {
+      const ext = pw.get(f.row) + (f.out ? 42 : 8) + 4;
+      if (f.row._up) mr = Math.max(mr, x0 + f.w + ext - W); else ml = Math.max(ml, ext - (x0 - f.w));
+    }
+    // הגרף עצמו לפחות 55% מהרוחב — אף פעם לא נמחץ
+    const room = 0.45 * (W + (box._ml || 0) + (box._mr || 0));
+    if (ml + mr > room) { const k = room / (ml + mr); ml *= k; mr *= k; }
+    return { fits, x0, ml: Math.ceil(ml), mr: Math.ceil(mr) };
+  };
+  // השוליים תלויים ברוחב הגרף ולהפך — כמה סבבים עד יציבות (שוליים רק גדלים בתוך אותו ציור, כדי שלא יתנדנדו)
+  let res = null, W = 0;
+  for (let it = 0; it < 8; it++) {
+    W = plot.clientWidth;
+    if (!W) return;
+    res = fitAll(W);
+    const ml = it ? Math.max(res.ml, box._ml) : res.ml, mr = it ? Math.max(res.mr, box._mr) : res.mr;
+    if (it && ml === box._ml && mr === box._mr) break;
+    box._ml = ml; box._mr = mr;
+    box.style.setProperty('--gb-ml', ml + 'px'); box.style.setProperty('--gb-mr', mr + 'px');
+  }
+  const { fits, x0 } = res;
+  // תוויות הציר צפופות (טלפון צר) — כל שנייה, 0 תמיד נשאר
+  const ax = [...box.querySelectorAll('.gb-axis span')];
+  if (ax.length > 2) {
+    const gap = (parseFloat(ax[1].style.left) - parseFloat(ax[0].style.left)) / 100 * W;
+    const zi = ax.findIndex((a) => Math.abs(parseFloat(a.style.left) - row0(box)) < 0.01);
+    const lw = Math.max(...ax.map((a) => a.offsetWidth || 0));
+    ax.forEach((a, i) => { a.style.visibility = gap < lw + 10 && (i - (zi < 0 ? 0 : zi)) % 2 ? 'hidden' : ''; });
+  }
+  for (const f of fits) {
+    const { row, w } = f, bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct'), ico = row.querySelector('.gb-ico');
+    row.classList.toggle('gb-out', f.out);
+    row.classList.toggle('gb-usefb', !f.out && f.fb);
+    row.classList.toggle('gb-tk', !f.out && !!f.fb && !!f.tk);
+    if (!f.out && !f.fb) { const mk = row.querySelector('.gb-mark'), r = +mk.dataset.r || 4; mk.style.height = f.h.toFixed(1) + 'px'; mk.style.width = (f.h * r).toFixed(1) + 'px'; }
+    bar.style.left = (row._up ? x0 : x0 - w) + 'px'; bar.style.width = w + 'px';
+    const endPx = row._up ? x0 + w : x0 - w, off = f.out ? 6 + 28 + 8 : 8; // מתחת ל־20%: הלוגו הרגיל בקצה הפס (28px), ואז האחוז
+    if (row._up) { ico.style.left = (endPx + 6) + 'px'; ico.style.right = 'auto'; pct.style.left = (endPx + off) + 'px'; pct.style.right = 'auto'; }
+    else { ico.style.right = (W - endPx + 6) + 'px'; ico.style.left = 'auto'; pct.style.right = (W - endPx + off) + 'px'; pct.style.left = 'auto'; }
+  }
 }
 function row0(box) { return parseFloat(box.style.getPropertyValue('--gb-zero')) || 0; }
 
