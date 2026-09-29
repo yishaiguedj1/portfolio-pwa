@@ -8,6 +8,16 @@ const EX_TA = 'Q1507974'; // בורסת תל אביב
 const OVERRIDES = {
   UNH: 'UnitedHealthcare (logo).svg', // הרשמי ארוך ודק מדי (פי 13) — לא קריא בפס; זה עם ה־U, בשתי שורות (פי 3.2) — בקשת המשתמש
 };
+/* v259: שוליים ריקים בתוך הקובץ (נמדדו בקנבס על ~100 לוגואים של ארה"ב ות"א, 29/09/2026) — מסגרת הדיו [x0,y0,x1,y1]
+   כשבר מהתמונה, לפי שם הקובץ. האפליקציה חותכת לפיה, כדי שהלוגו ינצל את כל הגובה בפס (מובילאיי: ‎−23% גובה בלי חיתוך) */
+const INK = {
+  'Costco_Wholesale_logo_2010-10-26.svg': [0.054, 0.144, 0.964, 0.844],
+  'TexasInstruments-Logo.svg': [0.024, 0.065, 0.976, 0.935],
+  'Shopify_logo_2018.svg': [0, 0.032, 1, 0.943],
+  'Caterpillar_logo.svg': [0.016, 0.044, 0.986, 0.933],
+  'Mobileye_logo_(new).svg': [0, 0.141, 1, 0.909],
+  'Check_Point_logo_2022.svg': [0.044, 0.054, 0.99, 0.946],
+};
 
 /* טהורה: סימבול של Yahoo → { ticker, ex } לחיפוש ב־Wikidata */
 function tickerOf(sym) {
@@ -52,10 +62,12 @@ function pickThumbs(json) {
     const url = String(i.thumburl).split('?')[0];
     if (!/^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(url)) continue;
     const v = { url, w: i.thumbwidth, h: i.thumbheight };
+    const bx = INK[title.replace(/ /g, '_')];
+    if (bx) v.bx = bx;
     out[title] = v;
     if (norm['File:' + title]) out[String(norm['File:' + title]).replace(/^File:/, '')] = v;
   }
   return out;
 }
 
-module.exports = { tickerOf, sparqlFor, pickFiles, pickThumbs, OVERRIDES, EX_TA, EX_US };
+module.exports = { tickerOf, sparqlFor, pickFiles, pickThumbs, OVERRIDES, INK, EX_TA, EX_US };
