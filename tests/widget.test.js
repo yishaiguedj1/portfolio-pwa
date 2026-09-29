@@ -166,4 +166,11 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   ok(/itemId = \{ \(listKey \+ "\|" \+ it\.sym\)\.hashCode\(\)\.toLong\(\) \}/.test(kt) && /KEY_LIST\] = id; it\[SnowballWidget\.KEY_STAMP\] = System\.nanoTime\(\)/.test(kt), 'v251: מזהה שורה לפי רשימה+סימבול, ובחירת טאב מאלצת ציור');
   ok(/if \(!inL\(target\)\) \{ const f = ls\.find/.test(fs.readFileSync(path.join(root, 'app.js'), 'utf8')), 'v251: מניה שלא ברשימה שבקישור — נפתחת ברשימה שבה היא נמצאת');
 }
+// v252: קישור מהווידג'ט כשטאב המעקב כבר פתוח על רשימה אחרת — ציור מחדש של הרשימה הנכונה; הכרטיס נצמד לראש המסך
+{
+  const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  ok(/localStorage\.setItem\(LS_WLACTIVE, target\); \} catch \(e\) \{\}\s*try \{ closeStockCards\(\); \} catch \(e\) \{\}\s*try \{ renderWishlist\(\); \}/.test(app), 'v252: החלפת רשימה מקישור מציירת מחדש (לא נשארת על הרשימה הקודמת)');
+  ok(/for \(const ms of \[520, 1100, 2000, 3200\]\) setTimeout\(pin, ms\)/.test(app), 'v252: הכרטיס נצמד לראש המסך עד שהכל נטען (אלא אם המשתמש נוגע)');
+  ok(/mem\.get\(key\) \?: BitmapFactory\.decodeFile/.test(fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/LogoCache.kt'), 'utf8')), 'v252: לוגואים מהזיכרון — מעבר טאב בווידג׳ט בלי פענוח מהדיסק');
+}
 console.log('\n' + n + ' בדיקות עברו');

@@ -37,8 +37,15 @@ object LogoCache {
     /** הלוגו השמור (או null → האות הראשונה). SVG (לוגואים של ת״א ב־TradingView) מצויר עם AndroidSVG */
     fun bitmap(context: Context, sym: String): Bitmap? = runCatching {
         val f = file(context, sym)
-        if (f.exists()) BitmapFactory.decodeFile(f.path) else null
+        if (!f.exists()) return@runCatching null
+        // v252: מטמון בזיכרון (לפי הקובץ וזמן השינוי) — כל מעבר טאב בווידג'ט המעקב פענח מחדש את כל הלוגואים מהדיסק
+        val key = f.path + "@" + f.lastModified()
+        mem.get(key) ?: BitmapFactory.decodeFile(f.path)?.also { mem.put(key, it) }
     }.getOrNull()
+
+    private val mem = object : android.util.LruCache<String, Bitmap>(8 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
 
     private fun file(context: Context, sym: String) =
         File(File(context.cacheDir, "logos").apply { mkdirs() }, sym.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".v3.png") // v3: לוגואים שנשמרו קטנים/חתוכים לפני התיקון לא נטענים (ת״א מגיעים עכשיו כ־PNG מהאתר)

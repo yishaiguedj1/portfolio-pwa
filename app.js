@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v251';
+const APP_VERSION = 'v252';
 
 
 function saveDBto(db) {
@@ -10618,7 +10618,14 @@ function openStockFromHash() {
   // v251: הרשימה מהקישור — ואם המניה לא בה (קישור ישן מהווידג'ט), הרשימה שבה המניה נמצאת בפועל
   let target = wl;
   if (watch && sym) { const ls = wlLists(); const inL = (id) => ls.some((l) => l.id === id && l.items.some((w) => w.sym === sym)); if (!inL(target)) { const f = ls.find((l) => l.items.some((w) => w.sym === sym)); if (f) target = f.id; } }
-  if (watch && target) { try { if (wlLists().some((l) => l.id === target) && wlActiveId() !== target) localStorage.setItem(LS_WLACTIVE, target); } catch (e) {} }
+  if (watch && target && wlLists().some((l) => l.id === target) && wlActiveId() !== target) {
+    // v252: החלפת רשימה = גם ציור מחדש ומחירים — עד עכשיו רק נשמרה, ואם טאב המעקב כבר היה פתוח על רשימה אחרת
+    // הדף נשאר עליה והמניה לא נמצאה ("נפתחה תוכנה במקום שבבים")
+    try { localStorage.setItem(LS_WLACTIVE, target); } catch (e) {}
+    try { closeStockCards(); } catch (e) {}
+    try { renderWishlist(); } catch (e) {}
+    try { refreshQuotes(); } catch (e) {}
+  }
   if (!sym) {
     if (TAB_ORDER.includes(tab)) { cancelScrollRestore(); switchTab(tab); if (watch) { try { renderWishlist(); } catch (e) {} } window.scrollTo(0, 0); }
     return true;
@@ -10638,13 +10645,16 @@ function openStockCard(sym, tab) {
   const listSel = tab === 'wishlist' ? '#wishlistList' : '#stockList';
   switchTab(tab);
   cancelScrollRestore();
+  // v252: הכרטיס נשאר בראש המסך עד שהכל נטען (מחירים, ענן, ציור מחדש של הרשימה משנים גבהים מעליו) — אלא אם המשתמש נגע/גלל
+  let touched = false;
+  const stop = () => { touched = true; };
+  for (const ev of ['touchstart', 'wheel', 'mousedown']) window.addEventListener(ev, stop, { once: true, passive: true });
+  const pin = () => { if (touched) return; const c = document.querySelector(listSel + ' .stock[data-sym="' + sym + '"]'); if (c) { if (!state.open[sym]) toggleStock(sym, c); scrollCardToTop(c); } };
   const go = (tries) => {
     const card = document.querySelector(listSel + ' .stock[data-sym="' + sym + '"]');
     if (!card) { if (tries < 40) setTimeout(() => go(tries + 1), 150); return; }
-    const wasOpen = !!state.open[sym];
-    if (!wasOpen) toggleStock(sym, card); // v233: toggleStock כבר גולל את הכרטיס לראש המסך
-    // השלמה (גם כשכבר פתוח / הרשימה צוירה מחדש בינתיים)
-    setTimeout(() => scrollCardToTop(document.querySelector(listSel + ' .stock[data-sym="' + sym + '"]') || card), wasOpen ? 0 : 520);
+    if (!state.open[sym]) toggleStock(sym, card); // v233: toggleStock כבר גולל את הכרטיס לראש המסך
+    for (const ms of [520, 1100, 2000, 3200]) setTimeout(pin, ms);
   };
   go(0);
 }
