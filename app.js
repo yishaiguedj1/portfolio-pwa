@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v250';
+const APP_VERSION = 'v251';
 
 
 function saveDBto(db) {
@@ -10615,7 +10615,10 @@ function openStockFromHash() {
   if (!tab && !sym) return false;
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
   const watch = tab === 'wishlist';
-  if (watch && wl) { try { if (wlLists().some((l) => l.id === wl) && wlActiveId() !== wl) localStorage.setItem(LS_WLACTIVE, wl); } catch (e) {} }
+  // v251: הרשימה מהקישור — ואם המניה לא בה (קישור ישן מהווידג'ט), הרשימה שבה המניה נמצאת בפועל
+  let target = wl;
+  if (watch && sym) { const ls = wlLists(); const inL = (id) => ls.some((l) => l.id === id && l.items.some((w) => w.sym === sym)); if (!inL(target)) { const f = ls.find((l) => l.items.some((w) => w.sym === sym)); if (f) target = f.id; } }
+  if (watch && target) { try { if (wlLists().some((l) => l.id === target) && wlActiveId() !== target) localStorage.setItem(LS_WLACTIVE, target); } catch (e) {} }
   if (!sym) {
     if (TAB_ORDER.includes(tab)) { cancelScrollRestore(); switchTab(tab); if (watch) { try { renderWishlist(); } catch (e) {} } window.scrollTo(0, 0); }
     return true;

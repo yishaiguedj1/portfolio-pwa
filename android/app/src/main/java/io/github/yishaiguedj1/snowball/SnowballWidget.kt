@@ -392,7 +392,8 @@ private val LIST_PARAM = ActionParameters.Key<String>("wl")
 class SelectListAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val id = parameters[LIST_PARAM] ?: return
-        updateAppWidgetState(context, glanceId) { it[SnowballWatchWidget.KEY_LIST] = id }
+        // v251: גם חותמת ציור חדשה — מאלצת ציור מלא גם אם הרכבה קודמת עוד פתוחה (מעבר טאבים ש"נתקע" לסירוגין)
+        updateAppWidgetState(context, glanceId) { it[SnowballWatchWidget.KEY_LIST] = id; it[SnowballWidget.KEY_STAMP] = System.nanoTime() }
         SnowballWatchWidget().update(context, glanceId)
         if (WidgetStore.watchModel(context, id) == null) WidgetRefresh.now(context)
     }
@@ -418,9 +419,12 @@ private fun WatchContent(context: Context, lists: List<WatchList>, sel: WatchLis
                     )
                 }
             } else {
+                // v251: מזהה השורה כולל את הרשימה — עם מזהה לפי הסימבול בלבד מסך הבית שמר שורות (ואת הקישור שלהן, עם ‎wl= של
+                // הרשימה הקודמת) בין טאבים: הרשימה נראתה "תקועה", ונגיעה במניה פתחה את הרשימה הקודמת
+                val listKey = sel?.id ?: ""
                 LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
-                    items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
-                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym], "&tab=wishlist&wl=" + Uri.encode(sel?.id ?: "")) }
+                    items(model.rows, itemId = { (listKey + "|" + it.sym).hashCode().toLong() }) { row ->
+                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym], "&tab=wishlist&wl=" + Uri.encode(listKey)) }
                     }
                 }
             }

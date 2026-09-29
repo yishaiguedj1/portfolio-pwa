@@ -160,4 +160,10 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   ok(/const tab = get\('tab'\), wl = get\('wl'\), sym = normalizeSym\(get\('stock'\)\);/.test(app) && /watch \? wlItems\(\)\.some/.test(app), 'v250: האתר פותח את הטאב/הרשימה/המניה מהקישור (גם מניה שלא בתיק)');
 }
+// v251: מזהה שורה בווידג'ט המעקב כולל את הרשימה (בלי שורות "תקועות" מהרשימה הקודמת); קישור ישן → הרשימה שבה המניה באמת
+{
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
+  ok(/itemId = \{ \(listKey \+ "\|" \+ it\.sym\)\.hashCode\(\)\.toLong\(\) \}/.test(kt) && /KEY_LIST\] = id; it\[SnowballWidget\.KEY_STAMP\] = System\.nanoTime\(\)/.test(kt), 'v251: מזהה שורה לפי רשימה+סימבול, ובחירת טאב מאלצת ציור');
+  ok(/if \(!inL\(target\)\) \{ const f = ls\.find/.test(fs.readFileSync(path.join(root, 'app.js'), 'utf8')), 'v251: מניה שלא ברשימה שבקישור — נפתחת ברשימה שבה היא נמצאת');
+}
 console.log('\n' + n + ' בדיקות עברו');
