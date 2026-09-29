@@ -141,6 +141,7 @@ he: {
   wlNamePh: 'שם הרשימה', wlCreateBtn: 'יצירה', wlNameEmpty: 'צריך שם לרשימה', wlNameLong: 'עד 30 תווים', wlNameDup: 'כבר יש רשימה בשם הזה',
   wlDelListConfirm: 'למחוק את "{name}" ואת {n} המניות שבה?', wlListCreated: 'הרשימה נוצרה', wlListDeleted: 'הרשימה נמחקה',
   kvPrevClose: 'סגירה קודמת', kv52High: 'שיא 52 שב׳', kv52Low: 'שפל 52 שב׳', kvYtd: 'מתחילת השנה', kvNextEarn: 'הדוח הבא',
+  dragNeedsAdded: 'לסידור בגרירה — מיון "סדר הוספה" בלי סינון',
   wlRemoveBtn: 'הסר', wlSortAdded: 'סדר הוספה', wlSortName: 'א״ב',
   searchClear: 'ניקוי',
   stockSearchNoResults: 'לא נמצאו תוצאות',
@@ -648,6 +649,7 @@ en: {
   wlNamePh: 'List name', wlCreateBtn: 'Create', wlNameEmpty: 'The list needs a name', wlNameLong: 'Up to 30 characters', wlNameDup: 'A list with this name already exists',
   wlDelListConfirm: 'Delete "{name}" and its {n} stocks?', wlListCreated: 'List created', wlListDeleted: 'List deleted',
   kvPrevClose: 'Prev close', kv52High: '52W high', kv52Low: '52W low', kvYtd: 'YTD', kvNextEarn: 'Next earnings',
+  dragNeedsAdded: 'To reorder by dragging — sort by "Added" with no filter',
   wlRemoveBtn: 'Remove', wlSortAdded: 'Added', wlSortName: 'A–Z',
   searchClear: 'Clear',
   stockSearchNoResults: 'No results found',
@@ -3859,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v245';
+const APP_VERSION = 'v246';
 
 
 function saveDBto(db) {
@@ -3910,6 +3912,7 @@ function applyDbData(data) {
   DB.wishlist.length = 0;
   if (Array.isArray(clean.wishlist)) DB.wishlist.push(...clean.wishlist);
   DB.wlExtra = Array.isArray(clean.wlExtra) ? clean.wlExtra : []; // v244
+  DB.stockOrder = Array.isArray(clean.stockOrder) ? clean.stockOrder : []; // v246: סדר אישי בטאב המניות
   DB.wlMainName = typeof clean.wlMainName === 'string' ? clean.wlMainName : '';
   DB.pensionFunds.length = 0;
   if (Array.isArray(clean.pensionFunds)) DB.pensionFunds.push(...clean.pensionFunds);
@@ -8507,11 +8510,11 @@ function initStockSearch(pfx, owned, onPick) {
 
 /* v90: מיון רשימת המניות — נשמר בין טעינות, ברירת מחדל: גודל בתיק */
 const LS_STOCKSORT = 'pwa_stocksort_v1';
-const STOCK_SORTS = ['size', 'day', 'gain'];
+const STOCK_SORTS = ['added', 'size', 'day', 'gain']; // v246: 'added' = סדר אישי (גרירה); בלי עריכה — לפי גודל
 function getStockSort() {
   try {
     const v = localStorage.getItem(LS_STOCKSORT);
-    return STOCK_SORTS.includes(v) ? v : 'size';
+    return STOCK_SORTS.includes(v) ? v : 'added';
   } catch (e) { return 'size'; }
 }
 function setStockSort(v) {
@@ -8525,7 +8528,15 @@ function gainPctOf(p, price) {
   return (price - p.avg) / p.avg * 100;
 }
 /* טהורה לבדיקות: ממיינת עותק לפי מצב; null בסוף */
-function sortPositionsList(list, mode, mOf) {
+/* v246: סדר אישי — מה שהמשתמש גרר (DB.stockOrder) קודם; מניה שלא סודרה (חדשה/מסנכרון) — אחריהן לפי גודל. טהורה */
+function manualOrderList(list, order, bySize) {
+  if (!Array.isArray(order) || !order.length) return bySize;
+  const idx = new Map(order.map((s, i) => [s, i]));
+  return list.filter((p) => idx.has(p.sym)).sort((a, b) => idx.get(a.sym) - idx.get(b.sym))
+    .concat(bySize.filter((p) => !idx.has(p.sym)));
+}
+function sortPositionsList(list, mode, mOf, order) {
+  if (mode === 'added') return manualOrderList(list, order, sortPositionsList(list, 'size', mOf));
   const arr = list.slice();
   const key = (p) => {
     const m = mOf(p);
@@ -8560,6 +8571,7 @@ function initStockSort() {
 function renderStocks() {
   if (!tabShouldRender('stocks')) return; // v193
   const list = document.getElementById('stockList');
+  if (list && list._dragging) { list._pendingRender = true; return; } // v246: לא לצייר מחדש באמצע גרירה
   const wasEmpty = !list.querySelector || !list.querySelector('.stock'); // v193: כניסה מדורגת רק כשהרשימה נבנית מאפס
   list.innerHTML = '';
   if (editAllowed('stocks')) {
@@ -8589,7 +8601,7 @@ function renderStocks() {
     list.appendChild(m);
   }
   let idx = 0;
-  for (const p of sortPositionsList(shown, mode, mOf)) {
+  for (const p of sortPositionsList(shown, mode, mOf, DB.stockOrder)) {
     const card = buildStockCard(p);
     if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); }
     idx++;
@@ -9119,6 +9131,7 @@ function wireWatchSwipe() {
   }, { passive: true });
   page.addEventListener('touchend', (e) => {
     if (x0 === null) return;
+    if (page._dragging || document.documentElement.classList.contains('drag-active')) { x0 = null; return; } // v246: גרירה ≠ החלקה
     const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
     x0 = null;
     if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
@@ -9131,11 +9144,136 @@ function wireWatchSwipe() {
   }, { passive: true });
 }
 
+/* ---------------- v246: סידור בגרירה (לחיצה ארוכה) ----------------
+   בטאב המניות וברשימות המעקב, רק במיון "סדר הוספה" (ובמניות — בלי סינון). לחיצה ארוכה (380ms, בלי תזוזה) מרימה את
+   הכרטיס (רטט קצר, צל, הגדלה קלה), הוא עוקב אחרי האצבע, והשאר מפנים מקום בהחלקה (FLIP); ליד קצה המסך — גלילה אוטומטית.
+   שחרור → הכרטיס נוחת במקום, והסדר נשמר (onDrop). גלילה רגילה (תזוזה לפני הלחיצה הארוכה) לא מושפעת. */
+function wireCardDrag(list, cfg) {
+  if (!list || list._dragWired) return;
+  list._dragWired = true;
+  const LONG = 380, SLOP = 10;
+  let timer = null, sx = 0, sy = 0, cy = 0, pend = null, drag = null, raf = null, swallow = 0;
+  const cancelTimer = () => { clearTimeout(timer); timer = null; pend = null; };
+  const cards = () => [...list.querySelectorAll('.stock')].filter((c) => !drag || c !== drag.card);
+  const barBottom = () => { const b = document.querySelector('.appbar'); return b ? b.getBoundingClientRect().bottom : 0; };
+  function flipMove(fn) { // השכנים זזים בהחלקה במקום לקפוץ
+    const cs = cards(), before = new Map(cs.map((c) => [c, c.getBoundingClientRect().top]));
+    fn();
+    for (const c of cs) {
+      const d = before.get(c) - c.getBoundingClientRect().top;
+      if (!d) continue;
+      c.style.transition = 'none'; c.style.transform = 'translateY(' + d + 'px)';
+      void c.offsetHeight;
+      c.style.transition = 'transform .2s cubic-bezier(.2, .9, .25, 1)'; c.style.transform = '';
+    }
+  }
+  function place() {
+    if (!drag) return;
+    drag.card.style.top = (cy - drag.offY) + 'px';
+    const mid = cy - drag.offY + drag.h / 2;
+    const cs = cards();
+    let target = null;
+    for (const c of cs) { const r = c.getBoundingClientRect(); if (mid < r.top + r.height / 2) { target = c; break; } }
+    const cur = drag.ph.nextElementSibling;
+    if (target === drag.ph) return;
+    if (target ? cur !== target : list.lastElementChild !== drag.ph) {
+      flipMove(() => { if (target) list.insertBefore(drag.ph, target); else list.appendChild(drag.ph); });
+    }
+  }
+  function tick() { // גלילה אוטומטית ליד הקצוות
+    raf = null;
+    if (!drag) return;
+    const top = barBottom() + 70, bottom = window.innerHeight - 70;
+    const v = cy < top ? -Math.min(18, (top - cy) / 4) : cy > bottom ? Math.min(18, (cy - bottom) / 4) : 0;
+    if (v) { window.scrollBy(0, v); place(); }
+    raf = requestAnimationFrame(tick);
+  }
+  function begin(card) {
+    if (!card || !card.isConnected || card.classList.contains('open')) return;
+    if (!cfg.canDrag()) { if (cfg.onBlocked) cfg.onBlocked(); return; }
+    const r = card.getBoundingClientRect();
+    const ph = el('div', 'stock-ph');
+    ph.style.height = r.height + 'px';
+    list.insertBefore(ph, card);
+    list._dragging = true;
+    drag = { card, ph, offY: cy - r.top, h: r.height };
+    Object.assign(card.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: r.width + 'px', margin: '0', zIndex: '45' });
+    card.classList.add('dragging');
+    document.documentElement.classList.add('drag-active');
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
+    swallow = Date.now() + 800; // הלחיצה שמסתיימת לא פותחת את הכרטיס
+    raf = requestAnimationFrame(tick);
+  }
+  function end() {
+    cancelTimer();
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    const pr = d.ph.getBoundingClientRect();
+    d.card.style.transition = 'top .18s cubic-bezier(.2, .9, .25, 1)';
+    d.card.style.top = pr.top + 'px';
+    d.card.classList.remove('dragging');
+    setTimeout(() => {
+      list.insertBefore(d.card, d.ph);
+      d.ph.remove();
+      for (const k of ['position', 'top', 'left', 'width', 'margin', 'zIndex', 'transition']) d.card.style[k] = '';
+      document.documentElement.classList.remove('drag-active');
+      list._dragging = false;
+      try { cfg.onDrop([...list.querySelectorAll('.stock')].map((c) => c.dataset.sym)); } catch (e) {}
+      if (list._pendingRender) { list._pendingRender = false; try { cfg.rerender(); } catch (e) {} }
+    }, 190);
+  }
+  const headOf = (tg) => (tg && tg.closest ? tg.closest('.stock:not(.open) > .stock-head') : null);
+  const arm = (tg, x, y) => {
+    const h = headOf(tg);
+    if (!h || drag) return;
+    sx = x; sy = y; cy = y; pend = h.parentElement;
+    clearTimeout(timer);
+    timer = setTimeout(() => { const c = pend; timer = null; pend = null; begin(c); }, LONG);
+  };
+  list.addEventListener('touchstart', (e) => { if (e.touches.length === 1) arm(e.target, e.touches[0].clientX, e.touches[0].clientY); else cancelTimer(); }, { passive: true });
+  list.addEventListener('touchmove', (e) => {
+    const t0 = e.touches[0];
+    if (drag) { e.preventDefault(); cy = t0.clientY; place(); return; }
+    if (timer && (Math.abs(t0.clientX - sx) > SLOP || Math.abs(t0.clientY - sy) > SLOP)) cancelTimer(); // גלילה רגילה
+  }, { passive: false });
+  list.addEventListener('touchend', end);
+  list.addEventListener('touchcancel', end);
+  list.addEventListener('mousedown', (e) => { if (e.button === 0) arm(e.target, e.clientX, e.clientY); });
+  document.addEventListener('mousemove', (e) => {
+    if (drag) { cy = e.clientY; place(); return; }
+    if (timer && (Math.abs(e.clientX - sx) > SLOP || Math.abs(e.clientY - sy) > SLOP)) cancelTimer();
+  });
+  document.addEventListener('mouseup', end);
+  list.addEventListener('contextmenu', (e) => { if (drag || timer) e.preventDefault(); });
+  list.addEventListener('click', (e) => { if (Date.now() < swallow) { e.stopPropagation(); e.preventDefault(); swallow = 0; } }, true);
+}
+function wireAllCardDrag() {
+  wireCardDrag(document.getElementById('stockList'), {
+    canDrag: () => getStockSort() === 'added' && getSrcFilter('stocks') === 'all',
+    onBlocked: () => flash(t('dragNeedsAdded')),
+    onDrop: (syms) => { DB.stockOrder = syms; saveDB(); },
+    rerender: () => renderStocks(),
+  });
+  wireCardDrag(document.getElementById('wishlistList'), {
+    canDrag: () => getWatchSort() === 'added',
+    onBlocked: () => flash(t('dragNeedsAdded')),
+    onDrop: (syms) => { // הסדר ברשימה הפתוחה = הסדר שנגרר
+      const items = wlItems(), pos = new Map(syms.map((s, i) => [s, i]));
+      items.sort((a, b) => (pos.has(a.sym) ? pos.get(a.sym) : 1e9) - (pos.has(b.sym) ? pos.get(b.sym) : 1e9));
+      saveDB();
+    },
+    rerender: () => renderWishlist(),
+  });
+}
+
 /* v240: רשימת המעקב = אותם כרטיסי מניה כמו בטאב המניות (לוגו, מחיר חי, בועת סשן, גרף וטווחים) */
 function renderWishlist(opts) {
   const list = document.getElementById('wishlistList');
   if (!list) return;
   if (!tabShouldRender('wishlist')) return; // v193
+  if (list._dragging) { list._pendingRender = true; return; } // v246
   try { renderWatchHead(); } catch (e) {}
   const items = wlItems();
   const dir = (opts && opts.dir) || 0;
@@ -10733,6 +10871,7 @@ function init() {
   // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
   try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym)), wlAddPicked); } catch (e) {} // v245: רק מה שכבר ברשימה הפתוחה מוסתר
   try { wireWatchSwipe(); } catch (e) {} // v244: החלקה בין רשימות
+  try { wireAllCardDrag(); } catch (e) {} // v246: סידור בגרירה
   try { initWatchSort(); } catch (e) {}
   // v101: טיקר חי לשער הדולר — מתחיל עם האפליקציה
   try { startFxTicker(); } catch (e) {}

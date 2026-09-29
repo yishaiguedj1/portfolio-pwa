@@ -104,6 +104,7 @@
     if (Array.isArray(clean.wishlist) && Array.isArray(DB.wishlist)) { DB.wishlist.length = 0; DB.wishlist.push(...clean.wishlist); }
     if (Array.isArray(clean.wlExtra)) DB.wlExtra = clean.wlExtra;
     if (typeof clean.wlMainName === 'string') DB.wlMainName = clean.wlMainName;
+    if (Array.isArray(clean.stockOrder)) DB.stockOrder = clean.stockOrder; // v246: סדר אישי בטאב המניות
     // v146: רשומות הדוגמה הישנות (עד v145) שנשמרו כנתונים — מנקים ומעדכנים את הענן
     const stripped = (typeof stripLegacyDemo === 'function') && stripLegacyDemo(DB);
     saveDBto(DB); // עדכון המטמון המקומי

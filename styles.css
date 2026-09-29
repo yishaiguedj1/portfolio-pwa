@@ -454,6 +454,14 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock.enter { animation: cardIn .34s cubic-bezier(.2, .9, .25, 1) both; animation-delay: calc(var(--i, 0) * 32ms); }
 @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .stock.enter { animation: none; } }
+/* v246: סידור בגרירה — הכרטיס מורם (צל, הגדלה קלה) ומשאיר מקום מקווקו; בלי בחירת טקסט/תפריט לחיצה ארוכה */
+.stock-head { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.stock.dragging { transform: scale(1.03); box-shadow: 0 18px 44px rgba(0, 0, 0, .28); opacity: .97; transition: transform .18s ease, box-shadow .18s ease; pointer-events: none; }
+.stock-ph { margin: 16px 0; border: 2px dashed var(--outline); border-radius: var(--radius-xl); box-sizing: border-box; }
+html.drag-active, html.drag-active body { -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+/* הדף של הטאב נשאר עם transform מאנימציית הכניסה — אז position:fixed נמדד ממנו ולא מהמסך; בזמן גרירה בלי transform */
+html.drag-active .tabpage { transform: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .stock.dragging { transform: none; transition: none; } }
 .kv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 4px 0 14px; }
 /* v234: נתוני הכרטיס בסגנון Apple/Google (בקשת המשתמש, תצוגה מקדימה "ה׳" + גובה/אחוזים של "ה2"): בלי בועות ובלי מסגרת —
    קו אופקי דק אחד בין השורות, קווים אנכיים קצרים בין העמודות, תווית שקטה / ערך בולט / אחוז קטן ורגיל */
@@ -1008,11 +1016,13 @@ footer.fine { text-align: center; }
 
 /* ---- v90: שורת מיון מניות ---- */
 .stock-sort-row {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin: 2px 2px 12px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; /* v246: שורה אחת שנגללת הצידה (4 אופציות) */
+  margin: 2px -16px 12px; padding: 2px 18px; overflow-x: auto; scrollbar-width: none;
 }
+.stock-sort-row::-webkit-scrollbar { display: none; }
+.stock-sort-row > * { flex: none; }
 .stock-sort-label { font-size: 14px; font-weight: 700; color: var(--on-surface-var); }
-.stock-sort-row .sort-chip { padding: 7px 14px; font-size: 14px; }
+.stock-sort-row .sort-chip { padding: 7px 12px; font-size: 14px; white-space: nowrap; }
 /* v156: כפתור "סינון" + בועת בחירה (בסגנון בועת התפריט) */
 /* כותרת בשורה אחת; אם אין מקום — הכפתורים יורדים לשורה משלהם */
 .section-head:has(.head-actions) { flex-wrap: wrap; row-gap: 10px; }
