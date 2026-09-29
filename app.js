@@ -10648,7 +10648,7 @@ function openStockCard(sym, tab) {
   // v252: הכרטיס נשאר בראש המסך עד שהכל נטען (מחירים, ענן, ציור מחדש של הרשימה משנים גבהים מעליו) — אלא אם המשתמש נגע/גלל
   let touched = false;
   const stop = () => { touched = true; };
-  for (const ev of ['touchstart', 'wheel', 'mousedown']) window.addEventListener(ev, stop, { once: true, passive: true });
+  if (typeof window !== 'undefined' && window.addEventListener) for (const ev of ['touchstart', 'wheel', 'mousedown']) window.addEventListener(ev, stop, { once: true, passive: true });
   const pin = () => { if (touched) return; const c = document.querySelector(listSel + ' .stock[data-sym="' + sym + '"]'); if (c) { if (!state.open[sym]) toggleStock(sym, c); scrollCardToTop(c); } };
   const go = (tries) => {
     const card = document.querySelector(listSel + ' .stock[data-sym="' + sym + '"]');
