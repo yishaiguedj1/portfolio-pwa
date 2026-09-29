@@ -9,5 +9,6 @@
     <string name="wEmpty">Open THE SNOWBALL and tap the screen — your stock list will move to the widget.</string>
     <string name="wLoading">Loading prices…</string>
     <string name="wFx">USD rate</string>
+    <string name="wWatch">Watch</string>
     <string name="wRefresh">Refresh</string>
 </resources>

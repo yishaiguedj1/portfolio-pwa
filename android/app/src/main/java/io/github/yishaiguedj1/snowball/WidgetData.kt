@@ -8,7 +8,7 @@ import org.json.JSONObject
  * השינוי היומי, אחרי־המסחר, האגורות בת״א ולוח החגים כמו בתמונת ה־KWGT ובאפליקציה. הטקסטים מגיעים מוכנים.
  */
 enum class Dir { POS, NEG, FLAT }
-enum class Src { IBKR, MANUAL }
+enum class Src { IBKR, MANUAL, WATCH }
 
 data class WidgetRow(
     val sym: String,          // הסימבול (גם לקישור ‎#stock=SYM)
@@ -61,7 +61,7 @@ data class WidgetModel(val header: WidgetHeader, val rows: List<WidgetRow>, val 
                     sub = c.optString("sub"),
                     subPct = c.optString("subPct"),
                     subDir = dir(c.optString("subDir")),
-                    src = if (c.optString("src") == "ibkr") Src.IBKR else Src.MANUAL,
+                    src = when (c.optString("src")) { "ibkr" -> Src.IBKR; "watch" -> Src.WATCH; else -> Src.MANUAL },
                     logoUrl = c.optString("logo").takeIf { it.startsWith("https://") },
                     active = session != "closed" && session.isNotEmpty(),
                     bubble = c.optJSONObject("bubble")?.let { b ->

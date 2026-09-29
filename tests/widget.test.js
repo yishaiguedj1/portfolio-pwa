@@ -76,11 +76,11 @@ sb.TextEncoder = TextEncoder; sb.location = { origin: 'https://yishaiguedj1.gith
 vm.createContext(sb); vm.runInContext(app, sb);
 const R = (c) => vm.runInContext(c, sb);
 R("POSITIONS.length = 0; POSITIONS.push({ sym: 'KO', name: 'Coca-Cola', shares: 10, avg: 50, src: 'manual' }, { sym: 'AAPL', name: 'Apple', shares: 10, avg: 100 }, { sym: 'LUMI.TA', name: 'לאומי', shares: 100, avg: 30, src: 'manual' }, { sym: 'ZERO', shares: 0, avg: 1 });" +
-  "WISHLIST.length = 0; WISHLIST.push({ sym: 'TSLA' }, { sym: 'KO' });" +
+  "WISHLIST.length = 0;" +
   "state.quotes = { KO: { close: 87 }, AAPL: { close: 341 }, 'LUMI.TA': { close: 75.88 } }; state.fx = 3.05; state.lang = 'he';");
 const wi = R('widgetItems()');
-ok(wi.map((x) => x.sym).join(',') === 'AAPL,LUMI.TA,KO', 'רשימה (v212): כל האחזקות לפי שווי — בלי רשימת המעקב ובלי כמות 0');
-ok(wi[1].logo === 'leumi' && wi[2].src === 'm' && !wi.some((x) => x.src === 'w'), 'רשימה: מזהה לוגו ת״א, תגית ידני, אין פריטי מעקב');
+ok(wi.map((x) => x.sym).join(',') === 'AAPL,LUMI.TA,KO', 'רשימה (v212): כל האחזקות לפי שווי, בלי כמות 0');
+ok(wi[1].logo === 'leumi' && wi[2].src === 'm', 'רשימה: מזהה לוגו ת״א, תגית ידני');
 const param = R('widgetParam(widgetItems())');
 ok(/^AAPL~[im]~Apple,LUMI\.TA~m~לאומי~leumi,KO~m~Coca-Cola$/.test(param) && !/\d{2,}~/.test(param), 'קישור: סימבול~מקור~שם — בלי כמויות/שווי');
 ok(M.parseItems(param).length === 3, 'השרתון מפענח את מה שהאפליקציה יוצרת');
@@ -135,4 +135,17 @@ ok(/id="widgetCard"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')
   ok(M.bubbleOf({ sym: 'LUMI.TA' }, {}, { pct: -1 }, sat, L, { closed: false }) === null, 'ת״א פתוח: בלי בועה');
 }
 
+// v248: רשימות המעקב בווידג'ט — אחרי האחזקות, בסדר הרשימות, תגית "מעקב" (w); מניה שכבר מוצגת — פעם אחת; עד 30
+R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sym: 'KO' }); DB.wlExtra = [{ id: 'x', name: 'ישראל', items: [{ sym: 'TEVA.TA' }, { sym: 'TSLA' }] }];");
+{
+  const w2 = R('widgetItems()');
+  const held = w2.slice(0, 3).map((x) => x.sym).sort().join(','), watch = w2.slice(3).map((x) => x.sym + ':' + x.src).join(',');
+  ok(held === 'AAPL,KO,LUMI.TA' && w2.slice(0, 3).every((x) => x.src !== 'w') && watch === 'TSLA:w,TEVA.TA:w', 'v248: אחזקות ואחריהן כל רשימות המעקב בסדר שלהן (KO שבתיק ובמעקב — פעם אחת)');
+  ok(M.parseItems(R('widgetParam(widgetItems())'), 30).filter((x) => x.src === 'watch').length === 2, 'v248: השרתון מזהה את פריטי המעקב');
+  R("for (let i = 0; i < 40; i++) DB.wishlist.push({ sym: 'W' + i });");
+  ok(R('widgetItems()').length === 30, 'v248: עד 30 שורות');
+  R("DB.wishlist.length = 0; DB.wlExtra = [];");
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
+  ok(/Src\.WATCH -> Box/.test(kt) && /"watch" -> Src\.WATCH/.test(fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/WidgetData.kt'), 'utf8')), 'v248: תגית "מעקב" באפליקציית האנדרואיד');
+}
 console.log('\n' + n + ' בדיקות עברו');

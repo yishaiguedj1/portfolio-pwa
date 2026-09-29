@@ -50,4 +50,6 @@ ok(/fitStockFoot\(box\)/.test(fn('renderStockRangeSummary')) && /classList\.add\
   const he = keys.map((k) => vals(heStart, enStart, k)), en = keys.map((k) => vals(enStart, src.length, k));
   ok(he.every((v) => v && !/[A-Za-z]/.test(v)) && en.every((v) => v && !/[\u0590-\u05FF]/.test(v)), 'v247: תוויות סשן בשפה אחת בלבד (בלי "(overnight)" בעברית)');
 }
+// v248: עדכון מחיר לא מזיז את הכרטיסים — תיבת הגלגול בגובה שורה אחת בדיוק, ומחיר בגובה קבוע
+ok(/\.px-roll \{ display: inline-grid; overflow: hidden; height: 1lh; vertical-align: top; line-height: inherit;/.test(css) && /\.sh-r1 \.stock-price \{[^}]*height: 1\.1em;/.test(css), 'v248: גלגול הספרות לא משנה את גובה השורה');
 console.log('\n' + n + ' בדיקות עברו');

@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v247';
+const APP_VERSION = 'v248';
 
 
 function saveDBto(db) {
@@ -10583,6 +10583,9 @@ function widgetItems() {
     out.push({ sym: s, src, name: clean(companyName(s, name)), logo });
   };
   for (const h of held) add(h.p.sym, positionSource(h.p) === 'ibkr' ? 'i' : 'm', h.p.name);
+  // v248 (בקשת המשתמש): אחרי האחזקות — כל רשימות המעקב לפי הסדר שלהן, עם תגית "מעקב".
+  // מניה שכבר מוצגת (בתיק או ברשימה קודמת) — פעם אחת; עד 30 שורות בסך הכל (תקרת השרתון)
+  for (const w of wlAllItems()) if (w && w.sym) add(w.sym, 'w', w.name || '');
   return out;
 }
 function widgetParam(items) { return items.map((x) => [x.sym, x.src, x.name].concat(x.logo ? [x.logo] : []).join('~')).join(','); }

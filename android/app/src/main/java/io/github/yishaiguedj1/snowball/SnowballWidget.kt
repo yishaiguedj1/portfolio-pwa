@@ -327,5 +327,9 @@ private fun Tag(lc: Context, src: Src) {
         Src.MANUAL -> Box(GlanceModifier.height(18.dp).cornerRadius(9.dp).background(C.manBg).padding(start = 5.dp, end = 5.dp), contentAlignment = Alignment.Center) {
             Text(lc.getString(R.string.wManual), style = TextStyle(color = C.pos, fontSize = 10.sp, fontWeight = FontWeight.Bold))
         }
+        // v248: רשימת מעקב — תגית ניטרלית (אפור), כדי שלא תתבלבל עם אחזקה
+        Src.WATCH -> Box(GlanceModifier.height(18.dp).cornerRadius(9.dp).background(C.pill).padding(start = 5.dp, end = 5.dp), contentAlignment = Alignment.Center) {
+            Text(lc.getString(R.string.wWatch), style = TextStyle(color = C.variant, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+        }
     }
 }
