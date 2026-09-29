@@ -153,4 +153,11 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const mf = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
   ok(/\.SnowballWatchWidgetReceiver/.test(mf) && fs.existsSync(path.join(root, 'android/app/src/main/res/xml/snowball_watch_widget_info.xml')), 'v249: ווידג׳ט "רשימות מעקב" רשום באפליקציה');
 }
+// v250: הלוגו של כל ווידג'ט → הטאב שלו; נגיעה במניה בווידג'ט המעקב → המעקב, באותה רשימה
+{
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
+  ok(/tabIntent\(context, "stocks"\)/.test(kt) && /tabIntent\(context, "wishlist", sel\?\.id\)/.test(kt) && /"&tab=wishlist&wl=" \+ Uri\.encode/.test(kt), 'v250: לוגו התיק → מניות, לוגו המעקב → מעקב (הרשימה שבווידג׳ט), מניה ממעקב → מעקב');
+  const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  ok(/const tab = get\('tab'\), wl = get\('wl'\), sym = normalizeSym\(get\('stock'\)\);/.test(app) && /watch \? wlItems\(\)\.some/.test(app), 'v250: האתר פותח את הטאב/הרשימה/המניה מהקישור (גם מניה שלא בתיק)');
+}
 console.log('\n' + n + ' בדיקות עברו');

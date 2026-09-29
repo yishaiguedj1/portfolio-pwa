@@ -135,8 +135,13 @@ private fun dirColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Di
 private fun softColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.variant }
 private fun chipBg(d: Dir) = when (d) { Dir.POS -> C.posBg; Dir.NEG -> C.negBg; Dir.FLAT -> C.pill }
 
-private fun stockIntent(context: Context, sym: String): Intent =
-    Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.launchUrl) + "#stock=" + Uri.encode(sym)))
+private fun stockIntent(context: Context, sym: String, extra: String = ""): Intent =
+    Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.launchUrl) + "#stock=" + Uri.encode(sym) + extra))
+        .setClass(context, MainActivity::class.java)
+
+/** v250: הלוגו פותח את הטאב של הווידג'ט — התיק → "מניות", רשימות המעקב → "מעקב" על הרשימה שבווידג'ט (app.js → openStockFromHash) */
+private fun tabIntent(context: Context, tab: String, list: String? = null): Intent =
+    Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.launchUrl) + "#tab=" + tab + (if (list.isNullOrEmpty()) "" else "&wl=" + Uri.encode(list))))
         .setClass(context, MainActivity::class.java)
 
 /** טקסטים בשפת האפליקציה (לא בשפת הטלפון) — "עודכן", "ידני" */
@@ -201,7 +206,7 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
         Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
             Image(
                 ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
-                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity<MainActivity>()),
+                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
             )
         }
     }
@@ -255,11 +260,11 @@ private fun FxPill(lc: Context, d: Dirn, fx: Fx) {
 }
 
 @Composable
-private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bitmap?) {
+private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bitmap?, extra: String = "") {
     DRow(
         d,
         GlanceModifier.fillMaxWidth().height(74.dp).cornerRadius(18.dp).background(C.w2)
-            .padding(start = 11.dp, end = 11.dp).clickable(actionStartActivity(stockIntent(context, r.sym))),
+            .padding(start = 11.dp, end = 11.dp).clickable(actionStartActivity(stockIntent(context, r.sym, extra))),
         listOf(
             {
                 Box(GlanceModifier.size(40.dp).cornerRadius(11.dp).background(C.white), contentAlignment = Alignment.Center) {
@@ -415,7 +420,7 @@ private fun WatchContent(context: Context, lists: List<WatchList>, sel: WatchLis
             } else {
                 LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
                     items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
-                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym]) }
+                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym], "&tab=wishlist&wl=" + Uri.encode(sel?.id ?: "")) }
                     }
                 }
             }
@@ -423,7 +428,7 @@ private fun WatchContent(context: Context, lists: List<WatchList>, sel: WatchLis
         Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
             Image(
                 ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
-                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity<MainActivity>()),
+                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity(tabIntent(context, "wishlist", sel?.id))),
             )
         }
     }

@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v249';
+const APP_VERSION = 'v250';
 
 
 function saveDBto(db) {
@@ -10605,33 +10605,43 @@ function widgetWatchLists() {
 function widgetParam(items) { return items.map((x) => [x.sym, x.src, x.name].concat(x.logo ? [x.logo] : []).join('~')).join(','); }
 /* v213: קישור עמוק מהווידג'ט — ‎#stock=SYM → טאב המניות, הכרטיס של המניה פתוח וגלול לראש המסך.
    גם בהפעלה וגם כשהאפליקציה כבר פתוחה (hashchange). ה־hash נמחק מיד (רענון לא יפתח שוב). */
+/* v250: קישורים מהווידג'טים — ‎#tab=stocks|wishlist (הלוגו → הטאב של הווידג'ט), ‎&wl=<רשימה> (ווידג'ט המעקב → אותה רשימה),
+   ‎#stock=SYM (נגיעה במניה) — בטאב של הווידג'ט: אחזקה בטאב המניות, מעקב ברשימה של הווידג'ט. */
 function openStockFromHash() {
   appSessionFromHash();
-  let m = null;
-  try { m = /(?:^#|&)stock=([^&#]+)/.exec(location.hash || ''); } catch (e) {}
-  if (!m) return false;
-  const sym = normalizeSym(decodeURIComponent(m[1]));
+  const h = String(location.hash || '');
+  const get = (k) => { const m = new RegExp('(?:^#|&)' + k + '=([^&#]+)').exec(h); return m ? decodeURIComponent(m[1]) : ''; };
+  const tab = get('tab'), wl = get('wl'), sym = normalizeSym(get('stock'));
+  if (!tab && !sym) return false;
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-  if (!sym) return false;
+  const watch = tab === 'wishlist';
+  if (watch && wl) { try { if (wlLists().some((l) => l.id === wl) && wlActiveId() !== wl) localStorage.setItem(LS_WLACTIVE, wl); } catch (e) {} }
+  if (!sym) {
+    if (TAB_ORDER.includes(tab)) { cancelScrollRestore(); switchTab(tab); if (watch) { try { renderWishlist(); } catch (e) {} } window.scrollTo(0, 0); }
+    return true;
+  }
   // v214: בפתיחה קרה מהווידג'ט התיק עוד נטען (ענן) — מחכים עד 8 שניות לפני שמוותרים
   const start = Date.now();
-  const whenHeld = () => {
-    if (POSITIONS.some((p) => p.sym === sym)) return openStockCard(sym);
-    if (Date.now() - start < 8000) setTimeout(whenHeld, 250);
+  const has = () => (watch ? wlItems().some((w) => w.sym === sym) : POSITIONS.some((p) => p.sym === sym));
+  const whenReady = () => {
+    if (has()) return openStockCard(sym, watch ? 'wishlist' : 'stocks');
+    if (Date.now() - start < 8000) setTimeout(whenReady, 250);
   };
-  whenHeld();
+  whenReady();
   return true;
 }
-function openStockCard(sym) {
-  switchTab('stocks');
+function openStockCard(sym, tab) {
+  tab = tab === 'wishlist' ? 'wishlist' : 'stocks';
+  const listSel = tab === 'wishlist' ? '#wishlistList' : '#stockList';
+  switchTab(tab);
   cancelScrollRestore();
   const go = (tries) => {
-    const card = document.querySelector('#stockList .stock[data-sym="' + sym + '"]'); // הווידג׳ט — רק אחזקות
+    const card = document.querySelector(listSel + ' .stock[data-sym="' + sym + '"]');
     if (!card) { if (tries < 40) setTimeout(() => go(tries + 1), 150); return; }
     const wasOpen = !!state.open[sym];
     if (!wasOpen) toggleStock(sym, card); // v233: toggleStock כבר גולל את הכרטיס לראש המסך
     // השלמה (גם כשכבר פתוח / הרשימה צוירה מחדש בינתיים)
-    setTimeout(() => scrollCardToTop(document.querySelector('#stockList .stock[data-sym="' + sym + '"]') || card), wasOpen ? 0 : 520);
+    setTimeout(() => scrollCardToTop(document.querySelector(listSel + ' .stock[data-sym="' + sym + '"]') || card), wasOpen ? 0 : 520);
   };
   go(0);
 }
