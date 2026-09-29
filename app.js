@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v248';
+const APP_VERSION = 'v249';
 
 
 function saveDBto(db) {
@@ -10583,10 +10583,24 @@ function widgetItems() {
     out.push({ sym: s, src, name: clean(companyName(s, name)), logo });
   };
   for (const h of held) add(h.p.sym, positionSource(h.p) === 'ibkr' ? 'i' : 'm', h.p.name);
-  // v248 (בקשת המשתמש): אחרי האחזקות — כל רשימות המעקב לפי הסדר שלהן, עם תגית "מעקב".
-  // מניה שכבר מוצגת (בתיק או ברשימה קודמת) — פעם אחת; עד 30 שורות בסך הכל (תקרת השרתון)
-  for (const w of wlAllItems()) if (w && w.sym) add(w.sym, 'w', w.name || '');
+  // v249: רשימות המעקב — בווידג'ט נפרד עם טאבים (widgetWatchLists), לא בווידג'ט התיק
   return out;
+}
+/* v249: רשימות המעקב לווידג'ט "רשימות מעקב" (טאב לכל רשימה): [{ i: id, n: שם, s: "SYM~w~שם[~לוגו]" }] — בלי רשימות ריקות */
+function widgetWatchLists() {
+  const clean = (s) => String(s || '').replace(/[,~<>&"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  const lists = [];
+  for (const l of wlLists()) {
+    const out = [];
+    for (const w of l.items) {
+      const s = normalizeSym(w && w.sym);
+      if (!s || out.some((x) => x.sym === s) || out.length >= 30) continue;
+      out.push({ sym: s, src: 'w', name: clean(companyName(s, w.name)), logo: /\.TA$/i.test(s) ? (TASE_LOGOS[s.replace(/\.TA$/i, '')] || '') : '' });
+    }
+    if (out.length) lists.push({ i: String(l.id).slice(0, 24), n: String(l.name).replace(/[<>"]/g, '').slice(0, 30), s: widgetParam(out) });
+    if (lists.length >= 20) break;
+  }
+  return lists;
 }
 function widgetParam(items) { return items.map((x) => [x.sym, x.src, x.name].concat(x.logo ? [x.logo] : []).join('~')).join(','); }
 /* v213: קישור עמוק מהווידג'ט — ‎#stock=SYM → טאב המניות, הכרטיס של המניה פתוח וגלול לראש המסך.
@@ -10640,14 +10654,15 @@ function appSessionFromHash() {
 }
 function inAndroidApp() { try { return !!sessionStorage.getItem(SS_APPSIG); } catch (e) { return false; } }
 function appWidgetPayload() {
-  const items = widgetItems();
-  if (!items.length) return null;
+  const items = widgetItems(), wl = widgetWatchLists();
+  if (!items.length && !wl.length) return null;
   const s = widgetParam(items), l = state.lang === 'en' ? 'en' : 'he';
-  return { s, l, sig: javaHash36(s + '|' + l) };
+  const w = wl.length ? JSON.stringify(wl) : ''; // v249: רשימות המעקב (ווידג'ט נפרד); בלי רשימות — החתימה כמו קודם
+  return { s, l, w, sig: javaHash36(s + '|' + l + (w ? '|' + w : '')) };
 }
 /* v243: מפתח שלא תלוי בסדר — הסדר בווידג'ט לפי שווי, ומשתנה עם המחירים; שינוי סדר לבד לא מצדיק שליחה בכל נגיעה */
 const SS_APPSENT = 'pwa_app_widget_sent';
-function appWidgetKey(pl) { return pl ? pl.s.split(',').sort().join(',') + '|' + pl.l : ''; }
+function appWidgetKey(pl) { return pl ? pl.s.split(',').sort().join(',') + '|' + pl.l + '|' + (pl.w || '') : ''; }
 function appWidgetSync(force) {
   if (!inAndroidApp()) return false;
   const pl = appWidgetPayload();
@@ -10658,7 +10673,7 @@ function appWidgetSync(force) {
   // בפתיחה: מול מה שהווידג'ט מכיר (‎#app=); אחרי שליחה ראשונה — רק כשהרשימה/השמות/השפה באמת השתנו
   if (!force && (sent ? sent === key : known === pl.sig)) return false;
   try { sessionStorage.setItem(SS_APPSIG, pl.sig); sessionStorage.setItem(SS_APPSENT, key); } catch (e) {}
-  location.href = 'intent://widget?s=' + encodeURIComponent(pl.s) + '&l=' + pl.l + '#Intent;scheme=snowball;package=' + APP_PKG + ';end';
+  location.href = 'intent://widget?s=' + encodeURIComponent(pl.s) + '&l=' + pl.l + (pl.w ? '&w=' + encodeURIComponent(pl.w) : '') + '#Intent;scheme=snowball;package=' + APP_PKG + ';end';
   return true;
 }
 /* v243 (בקשת המשתמש): כל שינוי במניות עובר לווידג'ט לבד, בלי "סנכרון לווידג'ט" ידני.
@@ -10688,7 +10703,7 @@ function renderSettingsLive() {
 function renderWidgetCard() {
   const card = document.getElementById('widgetCard');
   if (!card) return;
-  const has = widgetItems().length > 0, app = inAndroidApp();
+  const has = widgetItems().length > 0 || widgetWatchLists().length > 0, app = inAndroidApp(); // v249: גם רק רשימות מעקב
   const tog = (id, hide) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', hide); return el; };
   tog('widgetEmpty', has);
   tog('widgetInApp', !app || !has);

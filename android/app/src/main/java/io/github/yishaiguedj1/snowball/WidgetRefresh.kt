@@ -17,6 +17,9 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
@@ -81,8 +84,24 @@ object WidgetRefresh {
                 active = model.rows.any { it.active }
             } else ok = false
         }
+        // v249: ווידג'ט "רשימות מעקב" — בקשה לכל רשימה (במקביל), רק כשיש ווידג'ט כזה על המסך
+        val lists = WidgetStore.watchLists(c)
+        val hasWatch = GlanceAppWidgetManager(c).getGlanceIds(SnowballWatchWidget::class.java).isNotEmpty()
+        if (hasWatch && lists.isNotEmpty()) {
+            val lang = WidgetStore.lang(c)
+            val res = coroutineScope { lists.map { l -> async(Dispatchers.IO) { l to fetch(l.items, lang) } }.awaitAll() }
+            for ((l, json) in res) {
+                val m = WidgetModel.parse(json)
+                if (json != null && m != null) {
+                    WidgetStore.saveWatchModel(c, l.id, json)
+                    LogoCache.warm(c, m.rows)
+                    if (m.rows.any { it.active }) active = true
+                } else ok = false
+            }
+            WidgetStore.saveWatchTime(c, System.currentTimeMillis())
+        }
         repaint(c)
-        if (s.isNotEmpty()) scheduleNext(c, active)
+        if (s.isNotEmpty() || lists.isNotEmpty()) scheduleNext(c, active)
         return ok
     }
 
@@ -91,6 +110,10 @@ object WidgetRefresh {
         GlanceAppWidgetManager(c).getGlanceIds(SnowballWidget::class.java).forEach { id ->
             updateAppWidgetState(c, id) { it[SnowballWidget.KEY_STAMP] = stamp }
             SnowballWidget().update(c, id)
+        }
+        GlanceAppWidgetManager(c).getGlanceIds(SnowballWatchWidget::class.java).forEach { id ->
+            updateAppWidgetState(c, id) { it[SnowballWidget.KEY_STAMP] = stamp }
+            SnowballWatchWidget().update(c, id)
         }
     }
 

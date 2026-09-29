@@ -10,5 +10,8 @@
     <string name="wLoading">Loading prices…</string>
     <string name="wFx">USD rate</string>
     <string name="wWatch">Watch</string>
+    <string name="wWatchLabel">Watchlists</string>
+    <string name="wWatchDesc">Your watchlists on the home screen — a tab per list, price and daily change. Tap a stock to open it.</string>
+    <string name="wWatchEmpty">No watchlists yet. Open THE SNOWBALL, add stocks to a watchlist and tap the screen.</string>
     <string name="wRefresh">Refresh</string>
 </resources>

@@ -13,11 +13,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import android.content.ComponentName
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -89,8 +92,16 @@ class SnowballWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        WidgetRefresh.stopAll(context)
+        stopIfNoWidgets(context)
     }
+}
+
+/** v249: עוצרים את הרענון רק כשלא נשאר אף ווידג'ט (התיק או רשימות המעקב) */
+fun stopIfNoWidgets(context: Context) {
+    val m = AppWidgetManager.getInstance(context)
+    val any = listOf(SnowballWidgetReceiver::class.java, SnowballWatchWidgetReceiver::class.java)
+        .any { m.getAppWidgetIds(ComponentName(context, it)).isNotEmpty() }
+    if (!any) WidgetRefresh.stopAll(context)
 }
 
 /** ↻ — רענון מיידי מהשרתון */
@@ -327,9 +338,138 @@ private fun Tag(lc: Context, src: Src) {
         Src.MANUAL -> Box(GlanceModifier.height(18.dp).cornerRadius(9.dp).background(C.manBg).padding(start = 5.dp, end = 5.dp), contentAlignment = Alignment.Center) {
             Text(lc.getString(R.string.wManual), style = TextStyle(color = C.pos, fontSize = 10.sp, fontWeight = FontWeight.Bold))
         }
-        // v248: רשימת מעקב — תגית ניטרלית (אפור), כדי שלא תתבלבל עם אחזקה
-        Src.WATCH -> Box(GlanceModifier.height(18.dp).cornerRadius(9.dp).background(C.pill).padding(start = 5.dp, end = 5.dp), contentAlignment = Alignment.Center) {
-            Text(lc.getString(R.string.wWatch), style = TextStyle(color = C.variant, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+        // v249: פריטי מעקב מופיעים רק בווידג'ט "רשימות מעקב" — שם כל השורות ממעקב, בלי תגית (רעש)
+        Src.WATCH -> {}
+    }
+}
+
+
+/* ---------------- v249: ווידג'ט "רשימות מעקב" ----------------
+   ווידג'ט נפרד מהתיק (בקשת המשתמש): אותה כותרת, אותו לוגו ואותם כרטיסים, ומתחת לכותרת טאבים — אחד לכל רשימה,
+   כמו בטאב המעקב באפליקציה. נגיעה בטאב מחליפה את הרשימה בווידג'ט הזה בלבד (כל ווידג'ט זוכר את שלו) —
+   אפשר לשים כמה ווידג'טים, כל אחד על רשימה אחרת. יותר מ־3 רשימות: חלון של 3 טאבים + חצים. */
+class SnowballWatchWidget : GlanceAppWidget() {
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideContent {
+            val st = currentState<Preferences>()
+            st[SnowballWidget.KEY_STAMP]
+            val lists = WidgetStore.watchLists(context)
+            val sel = lists.firstOrNull { it.id == st[KEY_LIST] } ?: lists.firstOrNull()
+            val model = sel?.let { WidgetModel.parse(WidgetStore.watchModel(context, it.id)) }
+            val logos = model?.rows?.associate { it.sym to LogoCache.bitmap(context, it.sym) } ?: emptyMap()
+            WatchContent(context, lists, sel, model, logos, WidgetStore.watchUpdated(context))
         }
+    }
+
+    companion object {
+        val KEY_LIST = stringPreferencesKey("wl")
+    }
+}
+
+class SnowballWatchWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = SnowballWatchWidget()
+
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        WidgetRefresh.ensurePeriodic(context)
+        WidgetRefresh.now(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        stopIfNoWidgets(context)
+    }
+}
+
+private val LIST_PARAM = ActionParameters.Key<String>("wl")
+
+/** נגיעה בטאב — הרשימה של הווידג'ט הזה. הנתונים כבר שמורים (הרענון מושך את כל הרשימות) — ציור מיידי, ואם אין — רענון */
+class SelectListAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val id = parameters[LIST_PARAM] ?: return
+        updateAppWidgetState(context, glanceId) { it[SnowballWatchWidget.KEY_LIST] = id }
+        SnowballWatchWidget().update(context, glanceId)
+        if (WidgetStore.watchModel(context, id) == null) WidgetRefresh.now(context)
+    }
+}
+
+@Composable
+private fun WatchContent(context: Context, lists: List<WatchList>, sel: WatchList?, model: WidgetModel?, logos: Map<String, Bitmap?>, updated: Long) {
+    val lang = WidgetStore.lang(context)
+    val lc = localized(context, lang)
+    val d = Dirn(context, lang)
+    Box(GlanceModifier.fillMaxSize().background(C.w).cornerRadius(28.dp)) {
+        Column(GlanceModifier.fillMaxSize()) {
+            Header(lc, d, model?.fx, updated)
+            if (lists.isNotEmpty()) WatchTabs(d, lang, lists, sel)
+            if (lists.isEmpty() || model == null || model.rows.isEmpty()) {
+                Box(
+                    GlanceModifier.fillMaxWidth().defaultWeight().padding(16.dp).clickable(actionStartActivity<MainActivity>()),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        lc.getString(if (lists.isEmpty()) R.string.wWatchEmpty else R.string.wLoading),
+                        style = TextStyle(color = C.variant, fontSize = 14.sp, textAlign = TextAlign.Center),
+                    )
+                }
+            } else {
+                LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight().padding(start = 10.dp, end = 10.dp)) {
+                    items(model.rows, itemId = { it.sym.hashCode().toLong() }) { row ->
+                        Column(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp)) { Card(context, lc, d, row, logos[row.sym]) }
+                    }
+                }
+            }
+        }
+        Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
+            Image(
+                ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
+                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity<MainActivity>()),
+            )
+        }
+    }
+}
+
+/* הטאבים: גלולות שממלאות את הרוחב (כמו segmented control של Apple), הנבחר ירוק מלא (כמו הצ'יפים באפליקציה).
+   עד 3 גלויים; יותר — חלון סביב הנבחר עם ‹ › לרשימה הקודמת/הבאה. מתחת ללוגו (שעולה ~14dp מתחת לכותרת). */
+@Composable
+private fun WatchTabs(d: Dirn, lang: String, lists: List<WatchList>, sel: WatchList?) {
+    val max = 3
+    val i = lists.indexOfFirst { it.id == sel?.id }.coerceAtLeast(0)
+    val start = (i - 1).coerceIn(0, maxOf(0, lists.size - max))
+    val win = lists.subList(start, minOf(lists.size, start + max))
+    val rtl = lang != "en"
+    val parts = mutableListOf<Part>()
+    if (start > 0) parts += { TabArrow(if (rtl) "›" else "‹", lists[start - 1].id) }
+    win.forEachIndexed { k, l ->
+        if (k > 0 || start > 0) parts += { Spacer(GlanceModifier.width(6.dp)) }
+        parts += { TabChip(l, l.id == (sel?.id ?: lists.first().id)) }
+    }
+    if (start + max < lists.size) {
+        parts += { Spacer(GlanceModifier.width(6.dp)) }
+        parts += { TabArrow(if (rtl) "‹" else "›", lists[start + max].id) }
+    }
+    DRow(d, GlanceModifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 8.dp), parts)
+}
+
+@Composable
+private fun RowScope.TabChip(l: WatchList, on: Boolean) {
+    Box(
+        GlanceModifier.defaultWeight().height(32.dp).cornerRadius(16.dp).background(if (on) C.pos else C.pill)
+            .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to l.id))),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(l.name, modifier = GlanceModifier.padding(start = 8.dp, end = 8.dp),
+            style = TextStyle(color = if (on) C.white else C.on, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+    }
+}
+
+@Composable
+private fun TabArrow(glyph: String, target: String) {
+    Box(
+        GlanceModifier.size(32.dp).cornerRadius(16.dp).background(C.pill)
+            .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to target))),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(glyph, style = TextStyle(color = C.pos, fontSize = 18.sp, fontWeight = FontWeight.Bold), maxLines = 1)
     }
 }

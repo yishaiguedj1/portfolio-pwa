@@ -14,7 +14,7 @@ class WidgetSyncActivity : Activity() {
         super.onCreate(savedInstanceState)
         val d = intent?.data
         if (d != null && d.scheme == "snowball" && d.host == "widget") {
-            WidgetStore.setItems(this, d.getQueryParameter("s") ?: "", d.getQueryParameter("l") ?: "he")
+            WidgetStore.setItems(this, d.getQueryParameter("s") ?: "", d.getQueryParameter("l") ?: "he", d.getQueryParameter("w") ?: "") // v249: w = רשימות המעקב
             WidgetRefresh.ensurePeriodic(this)
             WidgetRefresh.now(this)
         }

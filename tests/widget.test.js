@@ -135,17 +135,22 @@ ok(/id="widgetCard"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')
   ok(M.bubbleOf({ sym: 'LUMI.TA' }, {}, { pct: -1 }, sat, L, { closed: false }) === null, 'ת״א פתוח: בלי בועה');
 }
 
-// v248: רשימות המעקב בווידג'ט — אחרי האחזקות, בסדר הרשימות, תגית "מעקב" (w); מניה שכבר מוצגת — פעם אחת; עד 30
-R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sym: 'KO' }); DB.wlExtra = [{ id: 'x', name: 'ישראל', items: [{ sym: 'TEVA.TA' }, { sym: 'TSLA' }] }];");
+// v249: ווידג'ט התיק = רק אחזקות; רשימות המעקב — לווידג'ט נפרד עם טאבים (w = JSON של הרשימות)
+R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sym: 'KO' }, { sym: 'TSLA' }); DB.wlExtra = [{ id: 'x', name: 'ישראל', items: [{ sym: 'TEVA.TA' }] }, { id: 'e', name: 'ריקה', items: [] }];");
 {
-  const w2 = R('widgetItems()');
-  const held = w2.slice(0, 3).map((x) => x.sym).sort().join(','), watch = w2.slice(3).map((x) => x.sym + ':' + x.src).join(',');
-  ok(held === 'AAPL,KO,LUMI.TA' && w2.slice(0, 3).every((x) => x.src !== 'w') && watch === 'TSLA:w,TEVA.TA:w', 'v248: אחזקות ואחריהן כל רשימות המעקב בסדר שלהן (KO שבתיק ובמעקב — פעם אחת)');
-  ok(M.parseItems(R('widgetParam(widgetItems())'), 30).filter((x) => x.src === 'watch').length === 2, 'v248: השרתון מזהה את פריטי המעקב');
-  R("for (let i = 0; i < 40; i++) DB.wishlist.push({ sym: 'W' + i });");
-  ok(R('widgetItems()').length === 30, 'v248: עד 30 שורות');
+  ok(!R('widgetItems()').some((x) => x.src === 'w'), 'v249: ווידג׳ט התיק — בלי פריטי מעקב');
+  const wl = R('widgetWatchLists()');
+  ok(wl.length === 2 && wl[0].i === 'main' && wl[1].n === 'ישראל' && /^TSLA~w~/.test(wl[0].s) && wl[0].s.split(',').length === 2 && /TEVA\.TA~w~.+~teva$/.test(wl[1].s), 'v249: רשימה לכל טאב (בלי ריקות, בלי כפילויות בתוך רשימה, לוגו ת״א)');
+  ok(M.parseItems(wl[1].s, 30)[0].src === 'watch', 'v249: השרתון מזהה את פריטי המעקב');
+  const pl = R('appWidgetPayload()');
+  ok(pl.w === JSON.stringify(wl) && pl.sig === R('javaHash36')(pl.s + '|' + pl.l + '|' + pl.w), 'v249: החתימה כוללת את הרשימות (זהה ל־WidgetStore.sig באנדרואיד)');
+  R("location.href = ''; sessionStorage.setItem('pwa_app_widget_sent', ''); sessionStorage.setItem('pwa_app_widget_sig', 'old');");
+  ok(R('appWidgetSync(false)') === true && /&w=%5B%7B/.test(R('location.href')), 'v249: ה־intent שולח גם את הרשימות (w)');
   R("DB.wishlist.length = 0; DB.wlExtra = [];");
-  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
-  ok(/Src\.WATCH -> Box/.test(kt) && /"watch" -> Src\.WATCH/.test(fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/WidgetData.kt'), 'utf8')), 'v248: תגית "מעקב" באפליקציית האנדרואיד');
+  ok(R('appWidgetPayload()').w === '' && R('appWidgetPayload()').sig === R('javaHash36')(R('appWidgetPayload()').s + '|he'), 'v249: בלי רשימות — החתימה כמו קודם (תאימות ל־APK ישן)');
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/WidgetData.kt'), 'utf8');
+  ok(/\(items\(c\) \+ "\|" \+ lang\(c\) \+ \(if \(watch\(c\)\.isEmpty\(\)\) "" else "\|" \+ watch\(c\)\)\)\.hashCode\(\)/.test(kt), 'v249: האנדרואיד מחשב את אותה חתימה');
+  const mf = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
+  ok(/\.SnowballWatchWidgetReceiver/.test(mf) && fs.existsSync(path.join(root, 'android/app/src/main/res/xml/snowball_watch_widget_info.xml')), 'v249: ווידג׳ט "רשימות מעקב" רשום באפליקציה');
 }
 console.log('\n' + n + ' בדיקות עברו');

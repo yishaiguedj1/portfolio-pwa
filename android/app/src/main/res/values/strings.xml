@@ -14,5 +14,8 @@
     <string name="wLoading">טוען מחירים…</string>
     <string name="wFx">שער הדולר</string>
     <string name="wWatch">מעקב</string>
+    <string name="wWatchLabel">רשימות מעקב</string>
+    <string name="wWatchDesc">רשימות המעקב במסך הבית — טאב לכל רשימה, מחיר ושינוי יומי. נגיעה במניה פותחת אותה.</string>
+    <string name="wWatchEmpty">אין עדיין רשימות מעקב. פתח את THE SNOWBALL, הוסף מניות למעקב ונגע במסך.</string>
     <string name="wRefresh">רענון</string>
 </resources>

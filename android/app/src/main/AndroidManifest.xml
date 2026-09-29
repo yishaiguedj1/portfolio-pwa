@@ -62,6 +62,17 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/snowball_widget_info" />
         </receiver>
 
+        <!-- v249: ווידג'ט "רשימות מעקב" — טאבים למעבר בין הרשימות -->
+        <receiver
+            android:name=".SnowballWatchWidgetReceiver"
+            android:exported="true"
+            android:label="@string/wWatchLabel">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/snowball_watch_widget_info" />
+        </receiver>
+
         <service
             android:name="com.google.androidbrowserhelper.trusted.DelegationService"
             android:enabled="true"

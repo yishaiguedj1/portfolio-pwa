@@ -30,6 +30,9 @@ data class WidgetRow(
     closed: שתי שורות ("השוק סגור · סיבה" / "אחרי־מסחר +0.11%"); אחרת שורה אחת עם נקודה חיה. */
 data class Bubble(val closed: Boolean, val l1: String, val l2: String, val pct: String, val dir: Dir)
 
+/** v249: רשימת מעקב לווידג'ט "רשימות מעקב" — מזהה, שם (הטאב), ופריטים בפורמט של הקישור */
+data class WatchList(val id: String, val name: String, val items: String)
+
 data class WidgetHeader(val lines: List<String>, val live: Boolean)
 
 /** v228: בועת שער הדולר בכותרת (במקום בועת מצב השוק) — השרתון מחזיר fx = { v: "3.06", dir, open } */
@@ -89,21 +92,37 @@ object WidgetStore {
     private fun p(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun items(c: Context): String = p(c).getString("s", "") ?: ""
+    /** v249: רשימות המעקב (JSON כפי שהאתר שלח — [{i,n,s}]); נשמר כמו שהוא כדי שהחתימה תהיה זהה לאתר */
+    fun watch(c: Context): String = p(c).getString("w", "") ?: ""
+    fun watchLists(c: Context): List<WatchList> = runCatching {
+        val a = org.json.JSONArray(watch(c).ifEmpty { return emptyList() })
+        List(a.length()) { i -> a.getJSONObject(i).let { WatchList(it.optString("i"), it.optString("n"), it.optString("s")) } }
+            .filter { it.id.isNotEmpty() && it.items.isNotEmpty() }
+    }.getOrDefault(emptyList())
+    fun watchModel(c: Context, id: String): String? = p(c).getString("wm_" + id, null)
+    fun saveWatchModel(c: Context, id: String, json: String) { p(c).edit().putString("wm_" + id, json).apply() }
+    fun watchUpdated(c: Context): Long = p(c).getLong("wt", 0L)
+    fun saveWatchTime(c: Context, t: Long) { p(c).edit().putLong("wt", t).apply() }
     fun lang(c: Context): String = p(c).getString("l", "he") ?: "he"
     fun model(c: Context): String? = p(c).getString("model", null)
     fun updated(c: Context): Long = p(c).getLong("t", 0L)
 
-    /** מהאפליקציה (snowball://widget?s=…&l=…). מחזיר true אם הרשימה השתנתה */
-    fun setItems(c: Context, s: String, l: String): Boolean {
-        if (!ITEMS_RE.matches(s)) return false
+    /** מהאפליקציה (snowball://widget?s=…&l=…[&w=…]). מחזיר true אם משהו השתנה. s ריק מותר כשיש רשימות מעקב (v249) */
+    fun setItems(c: Context, s: String, l: String, w: String = ""): Boolean {
+        if (s.isNotEmpty() && !ITEMS_RE.matches(s)) return false
+        val wOk = w.isEmpty() || (w.length <= 30000 && !w.contains('<') && runCatching { org.json.JSONArray(w) }.isSuccess)
+        if (!wOk || (s.isEmpty() && w.isEmpty())) return false
         val lang = if (l == "en") "en" else "he"
-        if (s == items(c) && lang == lang(c)) return false
-        p(c).edit().putString("s", s).putString("l", lang).remove("model").apply()
+        if (s == items(c) && lang == lang(c) && w == watch(c)) return false
+        val e = p(c).edit().putString("s", s).putString("l", lang).putString("w", w)
+        if (s != items(c) || lang != lang(c)) e.remove("model")
+        e.apply()
         return true
     }
 
     fun saveModel(c: Context, json: String, t: Long) { p(c).edit().putString("model", json).putLong("t", t).apply() }
 
     /** חתימת הרשימה — האפליקציה משווה אליה (‎#app=…) ומסנכרנת רק כשיש הבדל. זהה ל־String.hashCode ב־JS של app.js */
-    fun sig(c: Context): String = if (items(c).isEmpty()) "0" else (items(c) + "|" + lang(c)).hashCode().toUInt().toString(36)
+    fun sig(c: Context): String = if (items(c).isEmpty() && watch(c).isEmpty()) "0"
+        else (items(c) + "|" + lang(c) + (if (watch(c).isEmpty()) "" else "|" + watch(c))).hashCode().toUInt().toString(36)
 }
