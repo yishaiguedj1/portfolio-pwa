@@ -1308,19 +1308,20 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-bar::after { content: ''; position: absolute; top: 0; bottom: 0; width: 4px; }
 .gb-up .gb-bar::after { right: 0; border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: var(--gain); }
 .gb-down .gb-bar::after { left: 0; border-radius: var(--radius-xs) 0 0 var(--radius-xs); background: var(--loss); }
-/* נגיעה (כמו בעוגה): הפס נפתח החוצה מקו האפס בקפיץ, צל עמוק — בלי עמעום של השאר (v261) */
-.gb-row > * { transition: transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s, box-shadow .3s; }
-.gb-bar { transition: left .5s cubic-bezier(.2,.8,.2,1), width .5s cubic-bezier(.2,.8,.2,1), transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s, box-shadow .3s; }
-.gb-up .gb-bar { transform-origin: left center; }
-.gb-down .gb-bar { transform-origin: right center; }
+/* נגיעה (כמו בעוגה): הפס גדל החוצה מקו האפס בקפיץ עדין, צל רך — בלי עמעום של השאר (v261). v262: הגדלה מורגשת יותר —
+   לכל פס כמה שיש מקום (8%–15%, ‎--gb-s מ־gainBarsFit), והאחוז/הלוגו זזים בדיוק עם קצה הפס (‎--gb-shift) — בלי חפיפה ובלי לצאת מהכרטיס */
+.gb-row > * { transition: transform .42s cubic-bezier(.3,1.3,.5,1), opacity .3s, box-shadow .3s; }
+.gb-bar { transition: left .5s cubic-bezier(.2,.8,.2,1), width .5s cubic-bezier(.2,.8,.2,1), transform .42s cubic-bezier(.3,1.3,.5,1), opacity .3s, box-shadow .3s; }
+.gb-up .gb-bar, .gb-up .gb-pct, .gb-up .gb-ico { transform-origin: left center; }
+.gb-down .gb-bar, .gb-down .gb-pct, .gb-down .gb-ico { transform-origin: right center; }
 .gb-row.active { z-index: 2; }
-.gb-up.active .gb-bar { transform: translateX(3px) scale(1.07); }
-.gb-down.active .gb-bar { transform: translateX(-3px) scale(1.07); }
-.gb-row.active:not(.gb-out) .gb-bar { box-shadow: 0 6px 18px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.06); }
-.gb-up.active .gb-pct { transform: translate(8px, -50%) scale(1.08); }
-.gb-up.active .gb-ico { transform: translate(6px, -50%) scale(1.1); }
-.gb-down.active .gb-pct { transform: translate(-8px, -50%) scale(1.08); }
-.gb-down.active .gb-ico { transform: translate(-6px, -50%) scale(1.1); }
+.gb-up.active .gb-bar { transform: translateX(4px) scale(var(--gb-s, 1.12)); }
+.gb-down.active .gb-bar { transform: translateX(-4px) scale(var(--gb-s, 1.12)); }
+.gb-row.active:not(.gb-out) .gb-bar { box-shadow: 0 8px 22px rgba(0,0,0,.24), inset 0 0 0 1px rgba(0,0,0,.06); }
+.gb-up.active .gb-pct { transform: translate(calc(var(--gb-shift, 12px) + var(--gb-x, 0px)), -50%) scale(1.1); }
+.gb-up.active .gb-ico { transform: translate(var(--gb-shift, 12px), -50%) scale(1.15); }
+.gb-down.active .gb-pct { transform: translate(calc(-1 * (var(--gb-shift, 12px) + var(--gb-x, 0px))), -50%) scale(1.1); }
+.gb-down.active .gb-ico { transform: translate(calc(-1 * var(--gb-shift, 12px)), -50%) scale(1.15); }
 .gb-mark { position: relative; display: block; flex: none; height: 18px; width: 72px; overflow: hidden; }
 .gb-mark img { position: absolute; display: block; max-width: none; user-select: none; -webkit-user-drag: none; }
 /* v259: הלוגו המורכב (אייקון + שם) נשאר במקום (למדידה) — גלוי רק כשנבחר */

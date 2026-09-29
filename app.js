@@ -3878,7 +3878,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v261';
+const APP_VERSION = 'v262';
 
 
 function saveDBto(db) {
@@ -8476,7 +8476,23 @@ function gainBarsFit(box) {
     const endPx = row._up ? x0 + w : x0 - w, off = f.out ? 6 + 28 + 8 : 8; // מתחת ל־20%: הלוגו הרגיל בקצה הפס (28px), ואז האחוז
     if (row._up) { ico.style.left = (endPx + 6) + 'px'; ico.style.right = 'auto'; pct.style.left = (endPx + off) + 'px'; pct.style.right = 'auto'; }
     else { ico.style.right = (W - endPx + 6) + 'px'; ico.style.left = 'auto'; pct.style.right = (W - endPx + off) + 'px'; pct.style.left = 'auto'; }
+    // v262: הגדלה בנגיעה — כמה שיש מקום עד קצה הכרטיס (השוליים + 14px מהריפוד), בין 8% ל־15%
+    const pw0 = pw.get(row), room = (row._up ? W + (box._mr || 0) - (endPx + off + pw0) : (box._ml || 0) + endPx - off - pw0) + 14;
+    const gs = gainLift(w, room, pw0, f.out);
+    row.style.setProperty('--gb-s', gs.s.toFixed(3));
+    row.style.setProperty('--gb-shift', gs.shift.toFixed(1) + 'px');
+    row.style.setProperty('--gb-x', f.out ? '5px' : '0px');
   }
+}
+/* טהורה (v262): הגדלת פס בנגיעה — w רוחב הפס, room המקום אחרי האחוז עד קצה הכרטיס, pw רוחב האחוז.
+   → { s: קנה מידה עד 1.15 (לרוב ≥1.08), shift: כמה קצה הפס זז (האחוז/הלוגו זזים בדיוק איתו) } */
+function gainLift(w, room, pw, out) {
+  const grow = pw * 0.1 + (out ? 5 : 0); // האחוז גדל ב־10% מהצד הקרוב, הלוגו הרגיל ב־15%
+  const tx = Math.max(0, Math.min(4, room - grow));
+  const k = w > 0 ? (room - tx - grow) / w : 0.15;
+  // בדרך כלל 8%–15%; רק כשהפס כבר נוגע בקצה (הארוך ביותר בציר מלא) — פחות, כדי שהאחוז לא ייצא מהכרטיס
+  const s = 1 + Math.max(0, Math.min(0.15, k >= 0.08 ? k : Math.max(k, 0)));
+  return { s, shift: w * (s - 1) + tx };
 }
 function row0(box) { return parseFloat(box.style.getPropertyValue('--gb-zero')) || 0; }
 
