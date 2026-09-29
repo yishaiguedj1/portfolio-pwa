@@ -20,7 +20,13 @@ import com.google.androidbrowserhelper.trusted.TwaLauncher
 /**
  * פותח את האתר כאפליקציה (Trusted Web Activity) — תמיד ב־Chrome (לא בדפדפן ברירת המחדל: דפדפן היצרן
  * לפעמים נכשל), עם מסך לוגו בזמן הטעינה, והודעת שגיאה על המסך במקום להיסגר בשקט.
- * קישור לאתר (למשל ‎#stock=SYM מהווידג'ט) נפתח בכתובת שלו — גם כשהאפליקציה כבר פתוחה (onNewIntent).
+ *
+ * v254 — קישור (‎#stock=SYM מהווידג'ט) כשהאפליקציה כבר פתוחה: כמו LauncherActivity הרשמי — מופע חדש לכל
+ * קישור (בלי singleTask), מעל ה־TWA ובאותה משימה. Chrome מזהה את הסשן במשימה ומעביר את הכתובת ללשונית הקיימת
+ * (CLEAR_TOP → onNewIntent → ניווט; LaunchIntentDispatcher.createCustomTabActivityIntent). המופע החדש נסגר
+ * מיד אחרי ההעברה; רק מופע השורש נשאר מתחת ל־TWA (בשביל "אחורה" → רענון הווידג'ט).
+ * עד v253 (singleTask): נגיעה בווידג'ט הביאה את המופע הישן קדימה — זה סגר את ה־TWA שמעליו, ו־onRestart
+ * (launched=true) סגר גם אותו לפני שהחיבור ל־Chrome הושלם, והפתיחה של הכתובת החדשה בוטלה.
  */
 class MainActivity : Activity() {
     private var launcher: TwaLauncher? = null
@@ -29,6 +35,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // נוצרנו מחדש אחרי שהתהליך נהרג ברקע, כשה־TWA מעלינו נסגר ("אחורה") — יוצאים, לא פותחים שוב
+        if (savedInstanceState?.getBoolean(KEY_LAUNCHED) == true) { finish(); return }
+        if (restartInOwnTask()) { finish(); return }
         setContentView(buildSplash())
         open(urlFor(intent))
     }
@@ -46,9 +55,24 @@ class MainActivity : Activity() {
         if (launched) finish()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_LAUNCHED, launched)
+    }
+
     override fun onDestroy() {
         launcher?.destroy()
         super.onDestroy()
+    }
+
+    /* קישור מאפליקציה אחרת נפתח במשימה שלה — מפעילים את עצמנו מחדש במשימה של האפליקציה, שבה רץ ה־TWA
+       (כמו LauncherActivity.restartInNewTask). מהווידג'ט (הטרמפולינה של Glance, שלנו) — כבר במשימה שלנו. */
+    private fun restartInOwnTask(): Boolean {
+        val f = intent.flags
+        if (f and Intent.FLAG_ACTIVITY_NEW_TASK != 0 && f and Intent.FLAG_ACTIVITY_NEW_DOCUMENT == 0) return false
+        if (referrer?.host == packageName) return false
+        startActivity(Intent(intent).setFlags((f or Intent.FLAG_ACTIVITY_NEW_TASK) and Intent.FLAG_ACTIVITY_NEW_DOCUMENT.inv()))
+        return true
     }
 
     /* הכתובת לפתיחה + ‎app=<חתימת רשימת הווידג'ט> ב־hash: האתר יודע שהוא בתוך האפליקציה ומה הווידג'ט כבר מכיר,
@@ -68,7 +92,8 @@ class MainActivity : Activity() {
                 openInAnyBrowser(url)
                 return
             }
-            launcher?.destroy()
+            // אותו מחבר (וסשן) גם לקישור נוסף באותו מופע — השמדה ויצירה מחדש ביטלו פתיחה שעוד חיכתה לחיבור
+            val l = launcher ?: TwaLauncher(this, pkg).also { launcher = it }
             // שורת הסטטוס: בבהיר — הירוק של האפליקציה (#30D158, כמו theme-color של האתר מ־v217); בכהה — שחור.
             // נקבע לפי מצב המערכת (TWA לא יודע על מתג הערכה שבתוך האתר)
             val dark = CustomTabColorSchemeParams.Builder()
@@ -80,9 +105,8 @@ class MainActivity : Activity() {
                 .setDefaultColorSchemeParams(light)
                 .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_LIGHT, light)
                 .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_DARK, dark)
-            launcher = TwaLauncher(this, pkg).also {
-                it.launch(builder, null, null, { launched = true }, TwaLauncher.CCT_FALLBACK_STRATEGY)
-            }
+            // מופע שנפתח מעל ה־TWA (קישור כשהאפליקציה פתוחה) — נסגר אחרי ההעברה; השורש נשאר עד "אחורה"
+            l.launch(builder, null, null, { launched = true; if (!isTaskRoot) finish() }, TwaLauncher.CCT_FALLBACK_STRATEGY)
         } catch (e: Throwable) {
             showError(e)
         }
@@ -129,6 +153,7 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private const val KEY_LAUNCHED = "snowball.launched"
         const val SITE_HOST = "yishaiguedj1.github.io"
         const val SITE_PATH = "/portfolio-pwa"
         val CHROME_PACKAGES = listOf("com.android.chrome", "com.chrome.beta", "com.chrome.dev", "com.chrome.canary")

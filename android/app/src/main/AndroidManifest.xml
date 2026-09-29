@@ -15,10 +15,12 @@
 
         <meta-data android:name="asset_statements" android:resource="@string/assetStatements" />
 
+        <!-- v254: בלי singleTask — כמו LauncherActivity הרשמי: מופע חדש לכל קישור, מעל ה־TWA ובאותה משימה,
+             ו־Chrome מעביר את הכתובת ללשונית הקיימת. singleTask סגר את ה־TWA והקישור אבד (MainActivity.kt). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTask"
+            android:alwaysRetainTaskState="true"
             android:theme="@android:style/Theme.Material.NoActionBar"
             android:label="@string/app_name">
             <intent-filter>

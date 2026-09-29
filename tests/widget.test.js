@@ -173,4 +173,26 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   ok(/for \(const ms of \[520, 1100, 2000, 3200\]\) setTimeout\(pin, ms\)/.test(app), 'v252: הכרטיס נצמד לראש המסך עד שהכל נטען (אלא אם המשתמש נוגע)');
   ok(/mem\.get\(key\) \?: BitmapFactory\.decodeFile/.test(fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/LogoCache.kt'), 'utf8')), 'v252: לוגואים מהזיכרון — מעבר טאב בווידג׳ט בלי פענוח מהדיסק');
 }
+// v254: קישור מהווידג'ט כשהאפליקציה כבר פתוחה — מופע חדש מעל ה־TWA (בלי singleTask), Chrome מעביר את הכתובת ללשונית;
+// הרשומה שנוספת בהיסטוריה (ניווט הלשונית) מוסרת כדי ש"אחורה" לא ייתקע
+{
+  const mf = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
+  const main = (/<activity\s+android:name="\.MainActivity"[^>]*>/.exec(mf) || [''])[0];
+  ok(main && !/launchMode/.test(main) && /alwaysRetainTaskState="true"/.test(main), 'v254: MainActivity בלי singleTask — singleTask סגר את ה־TWA והקישור אבד');
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt'), 'utf8');
+  ok(/\{ launched = true; if \(!isTaskRoot\) finish\(\) \}/.test(kt) && /val l = launcher \?: TwaLauncher\(this, pkg\)/.test(kt) && !/launcher\?\.destroy\(\)\s*\n\s*\/\/ שורת/.test(kt), 'v254: המופע שמעל ה־TWA נסגר אחרי ההעברה; בלי השמדת המחבר באמצע פתיחה');
+  ok(/savedInstanceState\?\.getBoolean\(KEY_LAUNCHED\) == true/.test(kt) && /private fun restartInOwnTask\(\)/.test(kt) && /referrer\?\.host == packageName/.test(kt), 'v254: שחזור אחרי מוות תהליך לא פותח שוב; קישור מאפליקציה אחרת → למשימה שלנו');
+  R("var __backs = 0; history.back = () => { __backs++; }; location.href = 'https://yishaiguedj1.github.io/portfolio-pwa/';");
+  R("window.navigation = { canGoBack: true, currentEntry: { index: 1 }, entries: () => [{ url: 'https://yishaiguedj1.github.io/portfolio-pwa/', sameDocument: true }, { url: 'https://yishaiguedj1.github.io/portfolio-pwa/#stock=AMD&app=x', sameDocument: true }] };");
+  ok(R('dropAppNavEntry()') === true && R('__backs') === 1, 'v254: הרשומה הקודמת מאותו מסמך ובאותה כתובת → חוזרים אליה');
+  R("window.navigation.entries = () => [{ url: 'https://yishaiguedj1.github.io/portfolio-pwa/', sameDocument: false }, {}];");
+  ok(R('dropAppNavEntry()') === false && R('__backs') === 1, 'v254: רשומה ממסמך אחר — לא נוגעים');
+  R("window.navigation.entries = () => [{ url: 'https://example.com/', sameDocument: true }, {}];");
+  ok(R('dropAppNavEntry()') === false && R('__backs') === 1, 'v254: כתובת אחרת — לא נוגעים');
+  R("window.navigation.canGoBack = false;");
+  ok(R('dropAppNavEntry()') === false, 'v254: אין אחורה — לא נוגעים');
+  R("window.navigation = undefined;");
+  ok(R('dropAppNavEntry()') === false && R('__backs') === 1, 'v254: בלי Navigation API — בלי שינוי');
+  ok(/const fromApp = \/\(\?:\^#\|&\)app=\/\.test\(location\.hash \|\| ''\);[\s\S]{0,80}if \(fromApp\) dropAppNavEntry\(\)/.test(app), 'v254: רק בקישור מהאפליקציה (‎app=), לא בכל שינוי hash');
+}
 console.log('\n' + n + ' בדיקות עברו');

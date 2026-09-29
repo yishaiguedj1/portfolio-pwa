@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v253';
+const APP_VERSION = 'v254';
 
 
 function saveDBto(db) {
@@ -10667,6 +10667,19 @@ function openStockFromHash() {
   whenReady();
   return true;
 }
+/* v254: קישור מהאפליקציה כשהיא כבר פתוחה — Chrome מנווט את הלשונית הקיימת (NAVIGATE_EXISTING) ל־‎#stock=…&app=…,
+   וזו רשומה חדשה בהיסטוריה של אותו מסמך: "אחורה" היה נתקע פעם אחת (חזרה לאותו מסך). חוזרים לרשומה הקודמת כשהיא
+   מאותו מסמך ובאותה כתובת — מצב הדף (רשימה, כרטיס פתוח) לא משתנה. Navigation API; בלעדיו — בלי שינוי. */
+function dropAppNavEntry() {
+  try {
+    const nav = typeof window !== 'undefined' ? window.navigation : null;
+    if (!nav || !nav.canGoBack || !nav.currentEntry || typeof nav.entries !== 'function') return false;
+    const prev = nav.entries()[nav.currentEntry.index - 1];
+    if (!prev || !prev.sameDocument || String(prev.url || '').split('#')[0] !== String(location.href).split('#')[0]) return false;
+    history.back();
+    return true;
+  } catch (e) { return false; }
+}
 function openStockCard(sym, tab) {
   tab = tab === 'wishlist' ? 'wishlist' : 'stocks';
   const listSel = tab === 'wishlist' ? '#wishlistList' : '#stockList';
@@ -10904,7 +10917,14 @@ function init() {
   try { appSessionFromHash(); wireAppWidgetSync(); } catch (e) {} // v214: ווידג'ט אפליקציית האנדרואיד
   try { wireWidgetCard(); } catch (e) {} // v211: ווידג'ט למסך הבית
   // v213: נגיעה בכרטיס בווידג'ט → המניה באפליקציה (קישור ‎#stock=SYM) — אחרי הציור הראשון, וגם כשהאפליקציה כבר פתוחה
-  try { window.addEventListener('hashchange', () => { try { openStockFromHash(); } catch (e) {} }); setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0); } catch (e) {}
+  try {
+    window.addEventListener('hashchange', () => {
+      const fromApp = /(?:^#|&)app=/.test(location.hash || '');
+      try { openStockFromHash(); } catch (e) {}
+      if (fromApp) dropAppNavEntry(); // v254
+    });
+    setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0);
+  } catch (e) {}
 
   try { localStorage.removeItem('pwa_tdkey_v1'); } catch (e) {} // v220: Twelve Data הוסר — מוחקים מפתח ישן מהטלפון
   // v153: הדפדפן לא משחזר גלילה בעצמו — אנחנו עושים את זה לפי טאב, אחרי שהתוכן נטען
