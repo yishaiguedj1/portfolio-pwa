@@ -127,11 +127,6 @@ he: {
   pfTitle: 'ביצועי התיק לאורך זמן',
   pfNote: 'שווי התיק בשקלים לאורך זמן, לפי האחזקות הנוכחיות (אין יומן קניות היסטורי).',
   pieTitle: 'חלוקת תיק מניות',
-  calcTitle: 'שקיפות חישובים',
-  calcNote1: 'התשואה מחושבת מול <b>סך ההפקדות נטו ({total})</b> כפי שמופיע בגיליון:',
-  calcNote2: 'רווח/הפסד = שווי התיק − הפקדות · תשואה = רווח ÷ הפקדות.',
-  calcNote3: 'שים לב: סכום (כמות × מחיר קנייה ממוצע) עומד על כ־$65,672 (כ־₪198K) — כ־₪10.7K מעל סך ההפקדות. פער אפשרי מעיגול או עדכון מחירי הקנייה בגיליון, מרשומת +₪37,000 (משיכה/תיקון) או מהשפעות מט״ח. כדאי לוודא מול הגיליון.',
-  calcNote4: 'התשואה בשקלים מגלמת גם את תנועת שער הדולר, לא רק את ביצועי המניות.',
 
   myStocks: 'המניות שלי',
   editBtn: ICON_EDIT + 'עריכה',
@@ -345,7 +340,6 @@ he: {
   ibkrImportDeltaDup: 'כבר קיימים וידולגו: {n} עסקאות · {m} תנועות מזומן',
   ibkrImportNothingNew: 'אין מידע חדש — כל הנתונים כבר קיימים באפליקציה.',
   ibkrDisconnectBtn: 'ניתוק',
-  ibkrDepositsNote: 'מסונכרן מ־IBKR — מתעדכן בכל סנכרון.',
   ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
   ibkrChunkFail: 'חלק {fd}–{td} נכשל ({err})',
   proxyUrlMissing: 'כתובת השרתון לא הוגדרה',
@@ -637,11 +631,6 @@ en: {
   pfTitle: 'Portfolio performance over time',
   pfNote: 'Portfolio value in ILS over time, based on current holdings (no historical trade log).',
   pieTitle: 'Stock allocation',
-  calcTitle: 'Calculation transparency',
-  calcNote1: 'Return is calculated against <b>total net deposits ({total})</b> as shown in the sheet:',
-  calcNote2: 'Gain/Loss = portfolio value − deposits · Return = gain ÷ deposits.',
-  calcNote3: 'Note: sum (shares × avg buy price) is about $65,672 (about ₪198K) — about ₪10.7K above total deposits. Possible gap from rounding or buy-price updates in the sheet, a +₪37,000 entry (withdrawal/correction), or FX effects. Worth checking against the sheet.',
-  calcNote4: 'The ILS return also reflects USD/ILS moves, not just stock performance.',
 
   myStocks: 'My stocks',
   editBtn: ICON_EDIT + 'Edit',
@@ -855,7 +844,6 @@ en: {
   ibkrImportDeltaDup: 'Already exist, will be skipped: {n} trades · {m} cash movements',
   ibkrImportNothingNew: 'No new information — everything is already imported.',
   ibkrDisconnectBtn: 'Disconnect',
-  ibkrDepositsNote: 'Synced from IBKR — updates on every sync.',
   ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
   ibkrChunkFail: 'chunk {fd}–{td} failed ({err})',
   proxyUrlMissing: 'Proxy URL not set',
@@ -3878,7 +3866,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v262';
+const APP_VERSION = 'v263';
 
 
 function saveDBto(db) {
@@ -10564,9 +10552,6 @@ function renderDeposits() {
   document.getElementById('depTotal').textContent = ndTxt;
   document.getElementById('depCount').textContent = t('records', { n: DEPOSITS.length }) +
     (hasMf ? ' · ' + t('depInclManual', { amt: ltrNum((mf.inILS < 0 ? '−' : '') + '₪' + Math.abs(mf.inILS).toLocaleString('en-US')) }) : '');
-  const cn = document.getElementById('calcNotePara');
-  if (cn) cn.innerHTML = t('calcNote1', { total: ndTxt }) +
-    (isIbkrMode() ? '<br><span class="fine">' + t('ibkrDepositsNote') + '</span>' : '');
   const dn = document.getElementById('depNoteEl');
   if (dn) dn.classList.toggle('hidden', isIbkrMode()); // ההסבר הידני (גיליון) לא רלוונטי במצב IBKR
   const de = document.getElementById('depIbkrEmpty');
