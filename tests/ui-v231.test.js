@@ -42,4 +42,12 @@ ok(/function fitCardToScreen/.test(src) && /fitCardToScreen\(sym, card\);\n    e
 ok(/foot\.appendChild\(sret\)/.test(fn('buildStockBody')) && /foot\.appendChild\(actions\)/.test(fn('buildStockBody')), 'v237: "ערוך" באותה שורה עם התשואה');
 ok(/\.stock-foot \.pf-range-summary \{ flex: 1 1 auto; min-width: 0;/.test(css) && /\.edit-actions\.stock-edit \{ flex: none;/.test(css), 'v237: התשואה מתכווצת, הכפתור קבוע — בלי חפיפה');
 ok(/fitStockFoot\(box\)/.test(fn('renderStockRangeSummary')) && /classList\.add\('no-lbl'\)/.test(fn('fitStockFoot')), 'v237: מה שלא נכנס שלם מוסתר (בלי חיתוך)');
+// v247: תוויות הסשן בלי ערבוב שפות — בעברית רק עברית ("מסחר־לילי", בלי "(overnight)"), באנגלית רק אנגלית
+{
+  const heStart = src.indexOf('const STRINGS = {'), enStart = src.indexOf('\nen: {', heStart);
+  const vals = (from, to, k) => { const m = src.slice(from, to).match(new RegExp('\\n  ' + k + ": '([^']*)'")); return m ? m[1] : null; };
+  const keys = ['sessionPre', 'sessionPost', 'sessionNight', 'sessPreShort', 'sessPostShort', 'sessNightShort', 'sessPreTiny', 'sessPostTiny', 'sessNightTiny'];
+  const he = keys.map((k) => vals(heStart, enStart, k)), en = keys.map((k) => vals(enStart, src.length, k));
+  ok(he.every((v) => v && !/[A-Za-z]/.test(v)) && en.every((v) => v && !/[\u0590-\u05FF]/.test(v)), 'v247: תוויות סשן בשפה אחת בלבד (בלי "(overnight)" בעברית)');
+}
 console.log('\n' + n + ' בדיקות עברו');

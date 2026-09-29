@@ -238,7 +238,7 @@ he: {
   lagDelayed: 'דיליי ~15 דקות',
   sessionPre: ' · מסחר־מוקדם',
   sessionPost: ' · מסחר־מאוחר',
-  sessionNight: ' · מסחר־לילי (overnight)',
+  sessionNight: ' · מסחר־לילי',
   sessPreShort: 'מסחר־מוקדם',
   sessPostShort: 'מסחר־מאוחר',
   sessNightShort: 'מסחר־לילי',
@@ -3861,7 +3861,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v246';
+const APP_VERSION = 'v247';
 
 
 function saveDBto(db) {
