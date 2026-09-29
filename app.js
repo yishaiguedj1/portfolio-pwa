@@ -147,6 +147,7 @@ he: {
   stockSearchNoResults: 'לא נמצאו תוצאות',
   mktTase: 'ת״א · ₪',
   mktIndex: 'מדד',
+  gainTitle: 'רווח/הפסד מהקנייה',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
   sortBy: 'מיון:',
   srcFilterLabel: 'הצג לפי מקור',
@@ -656,6 +657,7 @@ en: {
   stockSearchNoResults: 'No results found',
   mktTase: 'TASE · ₪',
   mktIndex: 'Index',
+  gainTitle: 'Gain / loss since purchase',
   stockSearchError: 'Search failed — try again',
   sortBy: 'Sort:',
   srcFilterLabel: 'Show by source',
@@ -3876,7 +3878,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v255';
+const APP_VERSION = 'v256';
 
 
 function saveDBto(db) {
@@ -6259,6 +6261,7 @@ function fitNumbers() {
 let ovTwrKind = 'official';
 function renderOverview(light) {
   if (!tabShouldRender('overview')) return; // v193
+  try { renderGainBars(); } catch (e) {} // v256
   const cur = state.currency;
   const tot = totalsUSD();
   const total = cur === 'ILS' && state.fx ? tot.total * state.fx : tot.total;
@@ -8245,6 +8248,150 @@ function localStockSearch(query) {
   for (const [sym, name, he] of TASE_STOCKS) add(sym, he + ' · ' + name, 'EQUITY', score(sym, name, he) - 1);
   out.sort((a, b) => b._s - a._s);
   return out.slice(0, 8).map(({ sym, name, type }) => ({ sym, name, type }));
+}
+
+/* ---------------- v256: גרף "רווח/הפסד מהקנייה" בסקירה — כל מניה = פס שבנוי מהלוגו האופקי שלה ----------------
+   לוגואים אופקיים: השרתון (/api/wordmark ← Wikidata → Wikimedia Commons), מטמון בטלפון שבוע (חסר — יום).
+   לוגו ריבועי/חסר (Apple, Tesla, מניה בלי לוגו) → "לוגו מורכב": האייקון הרגיל + שם החברה, באותו פס. */
+const LS_WORDMARK = 'pwa_wordmarks_v1';
+const WM_MIN_RATIO = 1.8; // רוחב/גובה — מתחת לזה הלוגו ריבועי מדי לפס
+let _wm = null, _wmBusy = false;
+function wmStore() {
+  if (_wm) return _wm;
+  try { _wm = JSON.parse(localStorage.getItem(LS_WORDMARK) || '{}') || {}; } catch (e) { _wm = {}; }
+  return _wm;
+}
+function wordmarkOf(sym) {
+  const r = wmStore()[sym];
+  return r && r.v && r.v.h > 0 && r.v.w / r.v.h >= WM_MIN_RATIO ? r.v : null;
+}
+async function wordmarkLoad(syms) {
+  const st = wmStore(), now = Date.now();
+  const need = syms.filter((s) => { const r = st[s]; return !r || now - r.at > (r.v ? 7 : 1) * 864e5; });
+  if (!need.length || _wmBusy || typeof fetch !== 'function') return false;
+  _wmBusy = true;
+  try {
+    const parts = [];
+    for (let i = 0; i < need.length; i += 40) parts.push(need.slice(i, i + 40));
+    const res = await Promise.all(parts.map(async (part) => {
+      try {
+        const r = await fetch(ibkrProxyBase() + '/api/wordmark', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ syms: part }) });
+        const j = await r.json();
+        if (!j || !j.ok || !j.items) return false;
+        for (const s of part) {
+          const v = j.items[s];
+          st[s] = { at: now, v: v && /^https:\/\/(upload|thumb)\.wikimedia\.org\//.test(String(v.url)) && +v.w > 0 && +v.h > 0 ? { url: String(v.url), w: +v.w, h: +v.h } : null };
+        }
+        return true;
+      } catch (e) { return false; }
+    }));
+    if (!res.some(Boolean)) return false;
+    try { localStorage.setItem(LS_WORDMARK, JSON.stringify(st)); } catch (e) {}
+    return true;
+  } finally { _wmBusy = false; }
+}
+/* טהורה: סקאלה "עגולה" לציר — [lo, hi] כולל 0, צעד מתוך 5/10/20/25/50/100…, עד 4 צעדים */
+function gainScale(vals) {
+  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  if (hi - lo < 1e-9) hi = lo + 10;
+  const steps = [2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+  let step = steps[steps.length - 1];
+  for (const st of steps) { if (Math.ceil(hi / st) - Math.floor(lo / st) <= 4) { step = st; break; } }
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  if (hi === lo) hi = lo + step;
+  const ticks = [];
+  for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  return { lo, hi, step, ticks, x: (v) => (v - lo) / (hi - lo) * 100 };
+}
+/* טהורה: השורות — אחזקות עם מחיר ועלות, מהגבוהה לנמוכה */
+function gainRows(positions, priceOf) {
+  const rows = [];
+  for (const p of positions || []) {
+    if (!p || !p.sym || !(p.shares > 0) || !(p.avg > 0)) continue;
+    const px = priceOf(p.sym);
+    if (!(px > 0)) continue;
+    const g = gainPctOf(p, px);
+    if (g === null || !isFinite(g)) continue;
+    rows.push({ sym: p.sym, g, name: p.name || '' });
+  }
+  return rows.sort((a, b) => b.g - a.g);
+}
+function gainMarkHTML(sym, name) {
+  const wm = wordmarkOf(sym);
+  if (wm) return '<img class="gb-mark" src="' + esc(wm.url) + '" alt="' + esc(companyName(sym, name) || sym) + '" decoding="async" draggable="false" data-r="' + (wm.w / wm.h).toFixed(3) + '">';
+  const nm = String(companyName(sym, name) || dispSym(sym)).replace(/,?\s+(Inc|Corp|Corporation|Ltd|Plc|Co|Company|Holdings|Group)\.?$/i, '');
+  return '<span class="gb-fb">' + stockLogoHTML(sym) + '<span class="gb-fbn" dir="auto">' + esc(nm) + '</span></span>';
+}
+const gainPctTxt = (v) => ltrNum((v < 0 ? '−' : v > 0 ? '+' : '') + Math.abs(v).toFixed(1) + '%'); // "+44.9%" — ספרה אחת כמו בגרף
+const gainTickTxt = (v) => ltrNum((v < 0 ? '−' : '') + Math.abs(v) + '%');
+let _gbKey = '';
+function renderGainBars() {
+  const card = document.getElementById('gainCard'), box = document.getElementById('gainBars');
+  if (!card || !box) return;
+  const rows = gainRows(POSITIONS, (s) => { const q = state.quotes[s]; return q ? q.close : null; });
+  card.classList.toggle('hidden', !rows.length);
+  if (!rows.length) { box.innerHTML = ''; _gbKey = ''; return; }
+  const missing = rows.map((r) => r.sym).filter((s) => !wmStore()[s]);
+  if (missing.length) wordmarkLoad(rows.map((r) => r.sym)).then((ok) => { if (ok) { _gbKey = ''; renderGainBars(); } });
+  const sc = gainScale(rows.map((r) => r.g));
+  const key = rows.map((r) => r.sym + (wordmarkOf(r.sym) ? '*' : '')).join(',') + '|' + sc.lo + ':' + sc.hi + '|' + state.lang;
+  if (key !== _gbKey) {
+    _gbKey = key;
+    const x0 = sc.x(0);
+    box.innerHTML = '<div class="gb-plot">' +
+      sc.ticks.map((v) => '<i class="gb-grid' + (Math.abs(v) < 1e-9 ? ' zero' : '') + '" style="left:' + sc.x(v).toFixed(3) + '%"></i>').join('') +
+      rows.map((r) => '<button type="button" class="gb-row" data-sym="' + esc(r.sym) + '" aria-label="' + esc(dispSym(r.sym)) + '">' +
+        '<span class="gb-bar">' + gainMarkHTML(r.sym, r.name) + '</span><span class="gb-ico">' + stockLogoHTML(r.sym) + '</span><span class="gb-pct"></span></button>').join('') +
+      '</div><div class="gb-axis">' + sc.ticks.map((v) => '<span style="left:' + sc.x(v).toFixed(3) + '%">' + gainTickTxt(v) + '</span>').join('') + '</div>';
+    box.style.setProperty('--gb-zero', x0.toFixed(3) + '%');
+    box.querySelectorAll('.gb-row').forEach((b) => b.addEventListener('click', () => { try { openStockCard(b.dataset.sym, 'stocks'); } catch (e) {} }));
+    // לוגו שלא נטען (קובץ שבור/חסום) — נשכח ונחליף ב"לוגו מורכב" (אייקון + שם)
+    box.querySelectorAll('img.gb-mark').forEach((im) => im.addEventListener('error', () => {
+      const sym = im.closest('.gb-row').dataset.sym, st = wmStore();
+      st[sym] = { at: Date.now(), v: null };
+      try { localStorage.setItem(LS_WORDMARK, JSON.stringify(st)); } catch (e) {}
+      _gbKey = ''; renderGainBars();
+    }, { once: true }));
+    if (typeof ResizeObserver !== 'undefined' && !box._ro) { box._ro = new ResizeObserver(() => gainBarsFit(box)); box._ro.observe(box); }
+  }
+  // עדכון במקום (גם בטיק החי): אורך הפס, הצד, והאחוז
+  const byS = new Map(rows.map((r) => [r.sym, r]));
+  const x0 = sc.x(0);
+  box.querySelectorAll('.gb-row').forEach((row) => {
+    const r = byS.get(row.dataset.sym);
+    if (!r) return;
+    const xe = sc.x(r.g), up = r.g >= 0;
+    const bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct');
+    const l = Math.min(x0, xe), w = Math.abs(xe - x0);
+    bar.style.left = l.toFixed(3) + '%'; bar.style.width = w.toFixed(3) + '%';
+    row.classList.toggle('gb-up', up); row.classList.toggle('gb-down', !up);
+    row._end = up ? xe : l; row._up = up;
+    const txt = gainPctTxt(r.g);
+    if (pct.textContent !== txt) pct.textContent = txt;
+  });
+  gainBarsFit(box);
+}
+/* התאמה לגודל (גם בכל שינוי רוחב): פס שהלוגו האופקי נכנס בו קריא — הפס בנוי מהלוגו; פס קצר מדי — הפס נשאר באורך
+   האמיתי (דק, בצבע) ובקצה שלו האייקון הריבועי של החברה (כמו בטאב המניות) ואז האחוז. כלל אחד — בלי קפיצות בין צדדים. */
+function gainBarsFit(box) {
+  const plot = box.querySelector('.gb-plot');
+  if (!plot) return;
+  const W = plot.clientWidth;
+  if (!W) return;
+  box.querySelectorAll('.gb-row').forEach((row) => {
+    const bar = row.querySelector('.gb-bar'), pct = row.querySelector('.gb-pct');
+    const mark = bar.firstElementChild;
+    const r = mark && mark.tagName === 'IMG' ? (+mark.dataset.r || 4) : 0;
+    const bw = parseFloat(bar.style.width) / 100 * W;
+    const lw = r ? Math.min(bw - 16, 20 * r) : 0; // רוחב הלוגו בתוך הפס (גובה עד 20px)
+    const out = r ? lw / r < 9 || lw < 58 : bw < 84; // קריא: גובה ≥9px ורוחב ≥58px (לוגו רחב מאוד כמו UnitedHealth — נמוך אבל קריא)
+    row.classList.toggle('gb-out', out);
+    const endPx = row._end / 100 * W;
+    const ico = row.querySelector('.gb-ico');
+    const off = out ? 6 + 28 + 8 : 8; // קצר מדי: האייקון הריבועי בקצה הפס (28px), ואחריו האחוז
+    if (row._up) { ico.style.left = (endPx + 6) + 'px'; ico.style.right = 'auto'; pct.style.left = (endPx + off) + 'px'; pct.style.right = 'auto'; }
+    else { ico.style.right = (W - endPx + 6) + 'px'; ico.style.left = 'auto'; pct.style.right = (W - endPx + off) + 'px'; pct.style.left = 'auto'; }
+  });
 }
 
 /* v255: מדדים לחיפוש ברשימות המעקב בלבד (בתיק — רק קרנות הסל שעוקבות אחריהם). [סימבול Yahoo, שם, עברית (/ חלופות), כינויים (רווח), תווית]
