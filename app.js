@@ -142,6 +142,9 @@ he: {
   stockSearchNoResults: 'לא נמצאו תוצאות',
   mktTase: 'ת״א · ₪',
   mktIndex: 'מדד',
+  holdIbkrLocked: 'מניית IBKR מתעדכנת מהסנכרון — אי אפשר לערוך או למחוק אותה כאן',
+  actEdit: 'עריכה',
+  actDelete: 'מחיקה',
   mktYield: 'אג״ח',
   mktFuture: 'סחורה',
   mktCrypto: 'קריפטו',
@@ -654,6 +657,9 @@ en: {
   stockSearchNoResults: 'No results found',
   mktTase: 'TASE · ₪',
   mktIndex: 'Index',
+  holdIbkrLocked: 'IBKR positions update from the sync — they can’t be edited or deleted here',
+  actEdit: 'Edit',
+  actDelete: 'Delete',
   mktYield: 'Bond yield',
   mktFuture: 'Commodity',
   mktCrypto: 'Crypto',
@@ -3884,6 +3890,7 @@ const DEFAULT_DB = {
   positions: [],
   deposits: [],
   wishlist: [],
+  wlOrder: [],      // v278: סדר טאבי רשימות המעקב (מזהים)
   wlExtra: [],      // v244: רשימות מעקב נוספות [{ id, name, items }]; הראשית = wishlist
   pensionFunds: [],
   pensionDeposits: [],
@@ -3916,7 +3923,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v277';
+const APP_VERSION = 'v278';
 
 
 function saveDBto(db) {
@@ -3969,6 +3976,7 @@ function applyDbData(data) {
   DB.wlExtra = Array.isArray(clean.wlExtra) ? clean.wlExtra : []; // v244
   DB.stockOrder = Array.isArray(clean.stockOrder) ? clean.stockOrder : []; // v246: סדר אישי בטאב המניות
   DB.wlMainName = typeof clean.wlMainName === 'string' ? clean.wlMainName : '';
+  DB.wlOrder = Array.isArray(clean.wlOrder) ? clean.wlOrder : []; // v278: סדר טאבי הרשימות
   DB.pensionFunds.length = 0;
   if (Array.isArray(clean.pensionFunds)) DB.pensionFunds.push(...clean.pensionFunds);
   ensurePensionKinds(DB);
@@ -9755,8 +9763,15 @@ const WL_MAIN = 'main';
 const LS_WLACTIVE = 'pwa_wlactive_v1';
 function wlLists() {
   if (!Array.isArray(DB.wlExtra)) DB.wlExtra = [];
-  return [{ id: WL_MAIN, name: DB.wlMainName || t('wishlistTitle'), items: DB.wishlist, main: true }]
+  const ls = [{ id: WL_MAIN, name: DB.wlMainName || t('wishlistTitle'), items: DB.wishlist, main: true }]
     .concat(DB.wlExtra.filter((l) => l && l.id).map((l) => { if (!Array.isArray(l.items)) l.items = []; return { id: l.id, name: l.name || '', items: l.items }; }));
+  return wlOrdered(ls, DB.wlOrder);
+}
+/* v278: סדר הטאבים שהמשתמש גרר (DB.wlOrder = מזהים). רשימה שלא בסדר (חדשה) — בסוף, בסדר היצירה. טהורה */
+function wlOrdered(ls, order) {
+  if (!Array.isArray(order) || !order.length) return ls;
+  const pos = new Map(order.map((id, i) => [id, i]));
+  return ls.map((l, i) => [l, i]).sort((a, b) => (pos.has(a[0].id) ? pos.get(a[0].id) : 1e6 + a[1]) - (pos.has(b[0].id) ? pos.get(b[0].id) : 1e6 + b[1])).map((x) => x[0]);
 }
 function wlActiveId() { try { return localStorage.getItem(LS_WLACTIVE) || WL_MAIN; } catch (e) { return WL_MAIN; } }
 function wlActive() { const ls = wlLists(); return ls.find((l) => l.id === wlActiveId()) || ls[0]; }
@@ -9938,6 +9953,7 @@ function wireCardDrag(list, cfg) {
   }
   function place() {
     if (!drag) return;
+    if (Math.abs(cy - drag.y0) > SLOP) drag.moved = true;
     drag.card.style.top = (cy - drag.offY) + 'px';
     const mid = cy - drag.offY + drag.h / 2;
     const cs = cards();
@@ -9959,13 +9975,15 @@ function wireCardDrag(list, cfg) {
   }
   function begin(card) {
     if (!card || !card.isConnected || card.classList.contains('open')) return;
-    if (!cfg.canDrag()) { if (cfg.onBlocked) cfg.onBlocked(); return; }
+    clearItemActions();
+    // v278: לחיצה ארוכה בלי אפשרות גרירה (מיון אחר) — ישר לעריכה/מחיקה
+    if (!cfg.canDrag()) { swallow = Date.now() + 800; try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {} if (cfg.onHold) cfg.onHold(card); return; }
     const r = card.getBoundingClientRect();
     const ph = el('div', 'stock-ph');
     ph.style.height = r.height + 'px';
     list.insertBefore(ph, card);
     list._dragging = true;
-    drag = { card, ph, offY: cy - r.top, h: r.height };
+    drag = { card, ph, offY: cy - r.top, h: r.height, y0: cy, moved: false };
     Object.assign(card.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: r.width + 'px', margin: '0', zIndex: '45' });
     card.classList.add('dragging');
     document.documentElement.classList.add('drag-active');
@@ -9989,8 +10007,10 @@ function wireCardDrag(list, cfg) {
       for (const k of ['position', 'top', 'left', 'width', 'margin', 'zIndex', 'transition']) d.card.style[k] = '';
       document.documentElement.classList.remove('drag-active');
       list._dragging = false;
-      try { cfg.onDrop([...list.querySelectorAll('.stock')].map((c) => c.dataset.sym)); } catch (e) {}
+      if (d.moved) { try { cfg.onDrop([...list.querySelectorAll('.stock')].map((c) => c.dataset.sym)); } catch (e) {} }
       if (list._pendingRender) { list._pendingRender = false; try { cfg.rerender(); } catch (e) {} }
+      // v278: שוחרר בלי לזוז = מצב עריכה (עט + X), עד לחיצה במקום אחר
+      if (!d.moved && cfg.onHold) { const c = list.querySelector('.stock[data-sym="' + d.card.dataset.sym + '"]') || d.card; if (c.isConnected) cfg.onHold(c); }
     }, 190);
   }
   const headOf = (tg) => (tg && tg.closest ? tg.closest('.stock:not(.open) > .stock-head') : null);
@@ -10024,6 +10044,15 @@ function wireAllCardDrag() {
     onBlocked: () => flash(t('dragNeedsAdded')),
     onDrop: (syms) => { DB.stockOrder = syms; saveDB(); },
     rerender: () => renderStocks(),
+    onHold: (card) => {
+      const p = POSITIONS.find((x) => x.sym === card.dataset.sym);
+      if (!p) return;
+      if (isIbkrMode() && p.src !== 'manual') { flash(t('holdIbkrLocked')); return; } // מניית IBKR — מתעדכנת רק מהסנכרון
+      showItemActions(card, [
+        { kind: 'edit', fn: () => { const c = stockCardEl(p.sym); if (!c) return; if (p.fromTrades) showPositionTrades(c, p); else showEditPositionForm(c, p); } },
+        { kind: 'del', fn: () => deletePosition(p) },
+      ]);
+    },
   });
   wireCardDrag(document.getElementById('wishlistList'), {
     canDrag: () => getWatchSort() === 'added',
@@ -10034,7 +10063,159 @@ function wireAllCardDrag() {
       saveDB();
     },
     rerender: () => renderWishlist(),
+    onHold: (card) => showItemActions(card, [{ kind: 'del', fn: () => wlRemove({ sym: card.dataset.sym }) }]), // במעקב אין מה לערוך במניה — רק הסרה
   });
+  wireTabDrag(document.getElementById('wlTabs'));
+}
+
+/* v278 (בקשת המשתמש): לחיצה ארוכה → עריכה/מחיקה — כפתורים עגולים כמו בהדר (.icon-btn): עט ירוק, X אדום.
+   על כרטיס — בתוך הכרטיס בקצה; על טאב — צף מתחתיו. לחיצה בכל מקום אחר מבטלת (והלחיצה עצמה לא עושה כלום אחר). */
+let _itemActs = null;
+function clearItemActions() {
+  if (!_itemActs) return;
+  const a = _itemActs; _itemActs = null;
+  a.host.classList.remove('holding');
+  a.box.classList.add('out');
+  setTimeout(() => a.box.remove(), 180);
+}
+function showItemActions(host, acts) {
+  clearItemActions();
+  if (!host || !acts.length) return;
+  const box = el('div', 'item-acts');
+  for (const a of acts) {
+    const b = el('button', 'icon-btn act-' + a.kind);
+    b.type = 'button';
+    b.setAttribute('aria-label', a.kind === 'edit' ? t('actEdit') : t('actDelete'));
+    b.innerHTML = a.kind === 'edit' ? ICON_EDIT : ICON_CLOSE;
+    b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); clearItemActions(); a.fn(); });
+    box.appendChild(b);
+  }
+  host.classList.add('holding');
+  // v278 (בקשת המשתמש): תמיד צף ממש מעל הכרטיס/הטאב, מחוץ לגבולות שלו, מיושר לצד השמאלי
+  box.classList.add('floating');
+  document.body.appendChild(box);
+  const r = host.getBoundingClientRect();
+  const bw = box.offsetWidth || 110, bh = box.offsetHeight || 56;
+  box.style.top = Math.round(Math.max(8, r.top - bh - 8)) + 'px';
+  box.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - bw - 8, r.left))) + 'px';
+  _itemActs = { host, box, at: Date.now() };
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  // לחיצה מחוץ לכפתורים — מבטלת את מצב העריכה ו"נבלעת" (לא פותחת כרטיס/טאב)
+  const outside = (e) => { if (!_itemActs || Date.now() - _itemActs.at < 350) return false; return !(e.target && e.target.closest && e.target.closest('.item-acts')); };
+  document.addEventListener('pointerdown', (e) => { if (outside(e)) { _itemActs.cancelTap = true; } }, true);
+  document.addEventListener('click', (e) => { if (_itemActs && _itemActs.cancelTap) { e.stopPropagation(); e.preventDefault(); clearItemActions(); } }, true);
+  document.addEventListener('scroll', () => { if (_itemActs && Date.now() - _itemActs.at > 350) clearItemActions(); }, true); // הכפתורים צפים — גלילה מבטלת
+}
+
+/* v278: טאבי רשימות המעקב — לחיצה ארוכה: גרירה לשינוי הסדר (אותו סגנון כמו הכרטיסים: מורם, מקום ריק מקווקו, השכנים מחליקים),
+   שחרור בלי תזוזה = עט (שינוי שם) + X (מחיקה; לא לרשימה הראשית). הסדר ב־DB.wlOrder */
+function wireTabDrag(bar) {
+  if (!bar || bar._dragWired) return;
+  bar._dragWired = true;
+  const LONG = 380, SLOP = 10;
+  let timer = null, sx = 0, sy = 0, cx = 0, pend = null, drag = null, raf = null, swallow = 0;
+  const cancelTimer = () => { clearTimeout(timer); timer = null; pend = null; };
+  const rtl = () => getComputedStyle(bar).direction === 'rtl';
+  const chips = () => [...bar.querySelectorAll('.wl-tab:not(.add)')].filter((c) => !drag || c !== drag.tab);
+  function flipMove(fn) {
+    const cs = chips(), before = new Map(cs.map((c) => [c, c.getBoundingClientRect().left]));
+    fn();
+    for (const c of cs) {
+      const d = before.get(c) - c.getBoundingClientRect().left;
+      if (!d) continue;
+      c.style.transition = 'none'; c.style.transform = 'translateX(' + d + 'px)';
+      void c.offsetHeight;
+      c.style.transition = 'transform .2s cubic-bezier(.2, .9, .25, 1)'; c.style.transform = '';
+    }
+  }
+  function place() {
+    if (!drag) return;
+    if (Math.abs(cx - drag.x0) > SLOP) drag.moved = true;
+    drag.tab.style.left = (cx - drag.offX) + 'px';
+    const mid = cx - drag.offX + drag.w / 2, R = rtl();
+    let target = null;
+    for (const c of chips()) { const r = c.getBoundingClientRect(), m = r.left + r.width / 2; if (R ? mid > m : mid < m) { target = c; break; } }
+    const add = bar.querySelector('.wl-tab.add');
+    const want = target || add;
+    if (drag.ph.nextElementSibling !== want && want !== drag.ph) flipMove(() => bar.insertBefore(drag.ph, want));
+  }
+  function tick() { // גלילה אופקית של שורת הטאבים ליד הקצוות
+    raf = null;
+    if (!drag) return;
+    const r = bar.getBoundingClientRect();
+    const v = cx < r.left + 40 ? -Math.min(14, (r.left + 40 - cx) / 3) : cx > r.right - 40 ? Math.min(14, (cx - r.right + 40) / 3) : 0;
+    if (v) { bar.scrollLeft += v; place(); }
+    raf = requestAnimationFrame(tick);
+  }
+  function begin(tab) {
+    if (!tab || !tab.isConnected) return;
+    clearItemActions();
+    const r = tab.getBoundingClientRect();
+    const ph = el('div', 'wl-tab-ph');
+    ph.style.width = r.width + 'px'; ph.style.height = r.height + 'px';
+    bar.insertBefore(ph, tab);
+    drag = { tab, ph, offX: cx - r.left, w: r.width, x0: cx, moved: false };
+    Object.assign(tab.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: Math.ceil(r.width) + 1 + 'px', margin: '0', zIndex: '45' }); // +1: שם בלי קיצור אחרי עיגול
+    tab.classList.add('dragging');
+    document.documentElement.classList.add('drag-active');
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
+    swallow = Date.now() + 800;
+    raf = requestAnimationFrame(tick);
+  }
+  function end() {
+    cancelTimer();
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    const pr = d.ph.getBoundingClientRect();
+    d.tab.style.transition = 'left .18s cubic-bezier(.2, .9, .25, 1), top .18s cubic-bezier(.2, .9, .25, 1)';
+    d.tab.style.left = pr.left + 'px'; d.tab.style.top = pr.top + 'px';
+    d.tab.classList.remove('dragging');
+    setTimeout(() => {
+      bar.insertBefore(d.tab, d.ph);
+      d.ph.remove();
+      for (const k of ['position', 'top', 'left', 'width', 'margin', 'zIndex', 'transition']) d.tab.style[k] = '';
+      document.documentElement.classList.remove('drag-active');
+      const id = d.tab.dataset.wl;
+      if (d.moved) {
+        DB.wlOrder = [...bar.querySelectorAll('.wl-tab:not(.add)')].map((c) => c.dataset.wl);
+        saveDB();
+        try { renderWatchHead(); } catch (e) {}
+      } else {
+        const tab = bar.querySelector('.wl-tab[data-wl="' + id + '"]') || d.tab;
+        const l = wlLists().find((x) => x.id === id);
+        if (l) showItemActions(tab, [
+          { kind: 'edit', fn: () => { if (wlActiveId() !== id) wlSwitch(id); openWlNameSheet('rename'); } },
+        ].concat(l.main ? [] : [{ kind: 'del', fn: () => wlDeleteList(id) }]));
+      }
+    }, 190);
+  }
+  const tabOf = (tg) => (tg && tg.closest ? tg.closest('.wl-tab:not(.add)') : null);
+  const arm = (tg, x, y) => {
+    const tb = tabOf(tg);
+    if (!tb || drag) return;
+    sx = x; sy = y; cx = x; pend = tb;
+    clearTimeout(timer);
+    timer = setTimeout(() => { const c = pend; timer = null; pend = null; begin(c); }, LONG);
+  };
+  bar.addEventListener('touchstart', (e) => { if (e.touches.length === 1) arm(e.target, e.touches[0].clientX, e.touches[0].clientY); else cancelTimer(); }, { passive: true });
+  bar.addEventListener('touchmove', (e) => {
+    const t0 = e.touches[0];
+    if (drag) { e.preventDefault(); cx = t0.clientX; place(); return; }
+    if (timer && (Math.abs(t0.clientX - sx) > SLOP || Math.abs(t0.clientY - sy) > SLOP)) cancelTimer(); // גלילה רגילה של הטאבים
+  }, { passive: false });
+  bar.addEventListener('touchend', end);
+  bar.addEventListener('touchcancel', end);
+  bar.addEventListener('mousedown', (e) => { if (e.button === 0) arm(e.target, e.clientX, e.clientY); });
+  document.addEventListener('mousemove', (e) => {
+    if (drag) { cx = e.clientX; place(); return; }
+    if (timer && (Math.abs(e.clientX - sx) > SLOP || Math.abs(e.clientY - sy) > SLOP)) cancelTimer();
+  });
+  document.addEventListener('mouseup', end);
+  bar.addEventListener('contextmenu', (e) => { if (drag || timer) e.preventDefault(); });
+  bar.addEventListener('click', (e) => { if (Date.now() < swallow) { e.stopPropagation(); e.preventDefault(); swallow = 0; } }, true);
 }
 
 /* v240: רשימת המעקב = אותם כרטיסי מניה כמו בטאב המניות (לוגו, מחיר חי, בועת סשן, גרף וטווחים) */
