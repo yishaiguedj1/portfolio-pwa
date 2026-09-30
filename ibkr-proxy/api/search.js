@@ -20,8 +20,12 @@ function limited(ip) { // הקלדה = בקשה לכל כמה אותיות; 90 �
   return arr.length > 90;
 }
 const marketOk = (s) => !/\./.test(s) || /\.TA$/.test(s);
+// v274: ברשימות המעקב (mk) — גם מדדים, חוזים (סחורות), קריפטו ומט"ח. סימבולים של Yahoo: ^FTSE, CL=F, BTC-USD, EURUSD=X
+const MK_TYPES = ['INDEX', 'FUTURE', 'CRYPTOCURRENCY', 'CURRENCY'];
+const mkOk = (s, type) => (type === 'INDEX' ? /^\^[A-Z0-9.\-]{1,12}$/.test(s) || /\.TA$/.test(s) : type === 'FUTURE' ? /^[A-Z0-9]{1,6}=F$/.test(s)
+  : type === 'CRYPTOCURRENCY' ? /^[A-Z0-9]{1,12}-USD$/.test(s) : /^[A-Z]{6}=X$/.test(s));
 
-async function yahooSearch(q) {
+async function yahooSearch(q, mk) {
   const ctl = new AbortController();
   const to = setTimeout(() => ctl.abort(), YAHOO_MS);
   try {
@@ -30,7 +34,8 @@ async function yahooSearch(q) {
     if (r.status !== 200) return [];
     const j = await r.json();
     return ((j && j.quotes) || [])
-      .filter((x) => x && x.symbol && ['EQUITY', 'ETF'].includes(x.quoteType) && marketOk(String(x.symbol).toUpperCase()))
+      .filter((x) => x && x.symbol && ((['EQUITY', 'ETF'].includes(x.quoteType) && marketOk(String(x.symbol).toUpperCase()))
+        || (mk && MK_TYPES.includes(x.quoteType) && mkOk(String(x.symbol).toUpperCase(), x.quoteType))))
       .map((x) => ({ sym: String(x.symbol).toUpperCase(), name: x.longname || x.shortname || x.symbol, type: x.quoteType }));
   } catch (e) { return []; } finally { clearTimeout(to); }
 }
@@ -55,12 +60,13 @@ module.exports = async (req, res) => {
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   const q = String((body && body.q) || '').trim().slice(0, 40);
-  if (!q || /[^\w\s.&'\-]/.test(q)) return res.status(400).json({ ok: false, error: 'bad_params' }); // עברית — מקומי באפליקציה
-  const key = q.toLowerCase();
+  if (!q || /[^\w\s.&'\-^=/+]/.test(q)) return res.status(400).json({ ok: false, error: 'bad_params' }); // עברית — מתורגמת באפליקציה
+  const mk = !!(body && body.mk);
+  const key = (mk ? 'mk|' : '') + q.toLowerCase();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return res.status(200).json({ ok: true, items: hit.v });
   const uni = searchUniverse(universe(), q, 10);
-  const yh = await yahooSearch(q);
+  const yh = await yahooSearch(q, mk);
   const items = mergeResults(uni, yh, 8);
   cache.set(key, { at: Date.now(), v: items });
   if (cache.size > 2000) cache.clear();

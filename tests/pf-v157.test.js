@@ -10,7 +10,7 @@ function grab(name) {
   let d = 0, j = src.indexOf('{', i);
   for (let k = j; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); }
 }
-const f = new Function('t', ['symCur', 'isTaseIndex', 'isIndexSym', 'pxInFactor', 'pxFromInput', 'pxToInput', 'pxUnit', 'fixAgorotEntries'].map(grab).join('\n') +
+const f = new Function('t', ['symCur', 'isTaseIndex', 'isIndexSym', 'pxInFactor', 'pxFromInput', 'pxToInput', 'pxUnit', 'fixAgorotEntries'].map(grab).join('\n') + '\n' + src.slice(src.indexOf('const MKT_IDX_EXTRA'), src.indexOf('function isWatchOnlySym(')) + grab('isWatchOnlySym') + '\n' + 
   'return { pxFromInput, pxToInput, pxUnit, fixAgorotEntries };')((k) => (k === 'agorotUnit' ? 'אגורות' : k));
 
 ok(f.pxFromInput('TSEM.TA', 68240) === 682.4, 'ת"א: 68,240 אגורות → ₪682.40');

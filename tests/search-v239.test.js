@@ -31,6 +31,6 @@ for (const [q, want] of Object.entries(cases)) ok(top(q) === want, '"' + q + '" 
 ok(vm.runInContext('searchNorm', sb)('צ׳ק־פוינט בע"מ') === 'צק פוינט בעמ', 'נרמול: בלי גרשיים/מקפים, אותיות סופיות');
 ok(loc('xq').length === 0 || !loc('xq').some((r) => r.sym === 'NVDA'), 'שאילתה קצרה ולא קשורה — לא מחזירה זבל');
 // הרשת: קודם השרתון (/api/search), Yahoo ישירות רק כשהשרתון לא ענה
-ok(/const px = heb \? null : await withTimeout\(proxySearchAPI\(q\)/.test(src) && /if \(!heb && !apiOk\) \{/.test(src), 'רשת: השרתון קודם, Yahoo ישירות רק בכשל');
+ok(/const px = pq \? await withTimeout\(proxySearchAPI\(pq, mk\)/.test(src) && /if \(!heb && !apiOk\) \{/.test(src), 'רשת: השרתון קודם, Yahoo ישירות רק בכשל');
 ok(!/id="ibkrStocksNote"/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')) && !/ibkrStocksNote/.test(src), 'הטקסט "מניות IBKR מתעדכנות…" הוסר מטאב המניות');
 console.log('\n' + n + ' בדיקות עברו');

@@ -8,7 +8,7 @@
    השרת אלא הטלפון (חסימה לפי IP של הספק הסלולרי), לכן הכל מהשרת, עם מטמון 1.5 שניות. */
 const { guard } = require('../lib/ibkr');
 
-const SYM_RE = /^\^?[A-Z0-9][A-Z0-9.\-=^]{0,11}$/; // v255: ^ בהתחלה = מדד (^GSPC)
+const SYM_RE = /^\^?[A-Z0-9][A-Z0-9.\-=^]{0,15}$/; // v255: ^ בהתחלה = מדד (^GSPC); v274: עד 16 תווים (PEPE24478-USD)
 const MAX_SYMS = 40;
 const CONCURRENCY = 10;
 const PER_FETCH_MS = 5000;

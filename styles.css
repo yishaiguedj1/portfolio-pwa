@@ -1066,6 +1066,10 @@ footer.fine { text-align: center; }
 .idx-logo svg { width: 55%; height: 55%; fill: none; stroke: #1E9E4A; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .idx-logo .idx-lbl { font-size: 10px; font-weight: 800; color: #3A3A3C; line-height: 1; letter-spacing: -.2px; }
 .ss-logo .idx-logo .idx-lbl { font-size: 8.5px; }
+/* v274: אייקון לפי סוג הנכס ברשימות המעקב — מדד ירוק, תשואת אג"ח/מט"ח כחול, סחורה ענבר, קריפטו כתום */
+.idx-logo.mk-yield svg, .idx-logo.mk-fx svg { stroke: #3478F6; }
+.idx-logo.mk-future svg { stroke: #B7791F; }
+.idx-logo.mk-crypto svg { stroke: #E8710A; stroke-width: 2; }
 
 /* ---- v90: שורת מיון מניות ---- */
 .stock-sort-row {

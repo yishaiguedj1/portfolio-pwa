@@ -142,6 +142,11 @@ he: {
   stockSearchNoResults: 'לא נמצאו תוצאות',
   mktTase: 'ת״א · ₪',
   mktIndex: 'מדד',
+  mktYield: 'אג״ח',
+  mktFuture: 'סחורה',
+  mktCrypto: 'קריפטו',
+  mktFx: 'מט״ח',
+  mktTaseEtf: 'קרן סל · ת״א',
   gainTitle: 'רווח/הפסד מהקנייה',
   stockSearchError: 'החיפוש נכשל — נסה שוב',
   sortBy: 'מיון:',
@@ -230,6 +235,7 @@ he: {
   pfPickContinue: 'המשך',
   pfRangeReturn: 'תשואת התיק',
   stockRangeReturn: 'תשואת המניה',
+  mktRangeReturn: 'תשואה',
   pfNoteTrades: 'היסטוריה אמיתית — משוחזרת מעסקאות IBKR: קניות, מכירות והפקדות/משיכות מנוטרלות מהתשואה',
 
   sourceLabel: 'מקור: {src} · {lag}{sess}{stale}',
@@ -648,6 +654,11 @@ en: {
   stockSearchNoResults: 'No results found',
   mktTase: 'TASE · ₪',
   mktIndex: 'Index',
+  mktYield: 'Bond yield',
+  mktFuture: 'Commodity',
+  mktCrypto: 'Crypto',
+  mktFx: 'FX',
+  mktTaseEtf: 'TASE ETF',
   gainTitle: 'Gain / loss since purchase',
   stockSearchError: 'Search failed — try again',
   sortBy: 'Sort:',
@@ -736,6 +747,7 @@ en: {
   pfPickContinue: 'Continue',
   pfRangeReturn: 'Portfolio return',
   stockRangeReturn: 'Stock return',
+  mktRangeReturn: 'Return',
   pfNoteTrades: 'True history — reconstructed from IBKR trades: buys, sells and deposits/withdrawals excluded from the return',
 
   sourceLabel: 'Source: {src} · {lag}{sess}{stale}',
@@ -3720,9 +3732,31 @@ function fmtILS2(v) {
 function symCur(sym) { return /\.TA$/i.test(String(sym || '')) ? 'ILS' : 'USD'; }
 /* v168: מדד של בורסת ת"א (סימבול מספרי — 207.TA = ת"א ביטחוניות). Yahoo מדווח בנקודות (ILS, לא ILA):
    מוצג בנקודות ומוזן בנקודות; שווי = יחידות × נקודות בשקלים. */
-function isTaseIndex(sym) { return /^(\d{1,4}|\^?TA\d{2,3})\.TA$/i.test(String(sym || '')); } // v255: גם TA35.TA / ^TA125.TA
+function isTaseIndex(sym) { return /^(\d{1,4}|\^?TA\d{2,3}|TA-[A-Z]{2,8}|MIDCAP50|TELDIV20|ESTATE15|TASEBM|TEL-TECH)\.TA$/i.test(String(sym || '')); } // v255: גם TA35.TA / ^TA125.TA; v274: בנקים, נדל"ן…
 /* v255: מדד (לא נסחר — רק ברשימות מעקב): ^GSPC, ^NDX… או מדד ת"א. מוצג בנקודות, בלי $/שער. טהורה. */
-function isIndexSym(sym) { const s = String(sym || ''); return /^\^/.test(s) || isTaseIndex(s); }
+function isIndexSym(sym) { const s = String(sym || ''); return /^\^/.test(s) || isTaseIndex(s) || MKT_IDX_EXTRA.has(s.toUpperCase()); }
+/* v274: סוג נכס שאינו מניה/קרן — רק ברשימות המעקב. טהורה, לפי צורת הסימבול של Yahoo:
+   index (^GSPC, מדדי ת"א), yield (תשואת אג"ח — ^TNX), future (CL=F — סחורות), crypto (BTC-USD), fx (EURUSD=X). null = מניה/קרן. */
+const MKT_IDX_EXTRA = new Set(['000001.SS', 'FTSEMIB.MI', 'DX-Y.NYB']);
+const MKT_YIELDS = new Set(['^TNX', '^TYX', '^FVX', '^IRX']);
+function mktKind(sym) {
+  const s = String(sym || '').toUpperCase();
+  if (!s) return null;
+  if (MKT_YIELDS.has(s)) return 'yield';
+  if (/=F$/.test(s)) return 'future';
+  if (/^[A-Z]{6}=X$/.test(s)) return 'fx';
+  if (/^[A-Z0-9]{1,15}-USD$/.test(s)) return 'crypto';
+  if (isIndexSym(s)) return 'index';
+  return null;
+}
+function isWatchOnlySym(sym) { return !!mktKind(sym); }
+/* מחיר של זוג מט"ח / תשואת אג"ח — בלי $ ובלי המרה לשקל */
+function fmtFx(v, sym) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const d = Math.abs(v) >= 20 ? 2 : 4;
+  return ltrNum(v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
+}
+function fmtYield(v) { return v === null || v === undefined || !isFinite(v) ? '—' : ltrNum(v.toFixed(3) + '%'); }
 function fmtPts(v) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   const p = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3736,7 +3770,7 @@ function pxToInput(sym, v) {
   if (v === undefined || v === null || v === '' || !isFinite(+v)) return '';
   return String(Math.round(+v * pxInFactor(sym) * 1e6) / 1e6);
 }
-function pxUnit(sym) { return isIndexSym(sym) ? t('ptsUnit') : symCur(sym) === 'ILS' ? t('agorotUnit') : '$'; }
+function pxUnit(sym) { const k = mktKind(sym); return k === 'yield' ? '%' : k === 'fx' ? '' : isIndexSym(sym) ? t('ptsUnit') : symCur(sym) === 'ILS' ? t('agorotUnit') : '$'; }
 /* v157: תיקון חד־פעמי — מחיר ת"א שהוזן באגורות לפני v157 נשמר כשקלים (פי 100). מזהים לפי יחס למחיר החי:
    30–300 = כמעט בוודאות אגורות (מניה לא יורדת פי 30). טהורה על db + מחירים; מחזירה כמה תוקנו. */
 function fixAgorotEntries(db, priceOf) {
@@ -3761,6 +3795,11 @@ function nativeToUSD(v, sym, fx) {
 /* מחיר למניה לתצוגה: מניה ישראלית תמיד בשקלים (ככה היא נסחרת); מניה אמריקאית
    לפי מטבע התצוגה (כמו קודם). */
 function fmtPx(v, sym) {
+  const k = mktKind(sym);
+  if (k === 'yield') return fmtYield(v);
+  if (k === 'fx') return fmtFx(v, sym);
+  if (k === 'crypto' && v > 0 && v < 1) return ltrNum('$' + v.toPrecision(4)); // מטבע זול (SHIB) — לא $0.00
+  if (k === 'future' || k === 'crypto') return fmtUSD2(v); // סחורה/קריפטו מצוטטים בדולרים — גם בתצוגת שקלים
   if (isIndexSym(sym)) return fmtPts(v);
   if (symCur(sym) === 'ILS') return fmtAg(v, sym);
   return state.currency === 'ILS' && state.fx ? fmtILS(v * state.fx) : fmtUSD2(v);
@@ -3768,6 +3807,13 @@ function fmtPx(v, sym) {
 /* v209: שינוי מחיר עם סימן, באותה יחידה כמו המחיר (fmtPx): "−$2.16", "+₪6.58", "−35 אג׳", "+12.40 נק׳". */
 function fmtSignedPx(v, sym) {
   if (v === null || v === undefined || !isFinite(v)) return '—';
+  const mk = mktKind(sym);
+  if (mk === 'yield' || mk === 'fx') { // v274: בלי יחידה/המרה
+    const sg = v < 0 ? '−' : v > 0 ? '+' : '', d = mk === 'yield' ? 3 : Math.abs(v) >= 1 ? 2 : 4;
+    return ltrNum(sg + Math.abs(v).toFixed(d) + (mk === 'yield' ? '%' : ''));
+  }
+  if (mk === 'crypto' && Math.abs(v) < 0.01 && v !== 0) return ltrNum((v < 0 ? '−$' : '+$') + Math.abs(v).toFixed(Math.min(12, 2 - Math.floor(Math.log10(Math.abs(v)))))); // לא 2.00e-8
+  if (mk === 'future' || mk === 'crypto') { const r = Math.round(v * 100) / 100; return ltrNum((r < 0 ? '−' : r > 0 ? '+' : '') + fmtUSD2(Math.abs(r))); }
   if (isIndexSym(sym)) { // v255: מדד — נקודות
     const r = Math.round(v * 100) / 100, sg = r < 0 ? '−' : r > 0 ? '+' : '';
     const n = Math.abs(r).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3870,7 +3916,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v273';
+const APP_VERSION = 'v274';
 
 
 function saveDBto(db) {
@@ -4427,14 +4473,47 @@ const TASE_LOGOS = ('LUMI:leumi POLI:bank-hapoalim DSCT:discount MZTF:mizrahi-te
   'MLSR:melisron BIG:big NWMD:newmed-energy-ltd CEL:cellcom PTNR:partner ELAL:el-al-israel-airlines-ltd FTAL:fattal ' +
   'MTRX:matrix ONE:one-technologi ELTR:electra SKBN:shikun-and-binui ASHG:ashtrom CAMT:camtek KEN:kenon-ltd ' +
   'DANE:danel ELCO:elco HLAN:hilan AURA:aura ISRA:isramco-negev-2 NXSN:next-vision-stabil FORTY:formula ' +
-  'MVNE:mivne ILCO:israel').split(' ').reduce((o, kv) => { const [k, v] = kv.split(':'); o[k] = v; return o; }, {});
+  'MVNE:mivne ILCO:israel ' +
+  // v274: לוגואים למניות ת"א שנוספו לחיפוש בעברית (TradingView logoid)
+  'CAST:castro TASE:tel-aviv-stock-exchange-ltd ORA:ormat-technologies ISHI:israel-shipyards PLSN:plasson-indus ' +
+  'GCT:gazit-globe AUDC:audiocodes JBNK:jerusalem TTAM:tiv-taam BWAY:brainsway-ltd DIPL:diplomat EQTL:equital ' +
+  'MRIN:mor-indus HIPR:hiper-global-ltd NTO:neto-malinda RATI:ratio-energies-ltd HLMS:holmes-place DRAL:dor-alon ' +
+  'IBI:ibi-lion NFTA:naphtha NXTM:nextcom SNCM:suny-commun BRIH:rav-bariach-08-ind ' +
+  'BVC:batm-advanced-communications CMER:mer OPK:opko-health TMIS:themis MAXO:max-stock-ltd PLCR:plasto-cargal ' +
+  'DNYA:dnya-cebus ALLT:allot-ltd ANGL:angel-salomon ASHO:ashot BLRX:biolinerx-ltd CGEN:compugen DANH:dan-hotels ' +
+  'ELRN:elron-ventures-ltd DORL:doral-gp-renewable SCOP:scope RPAC:rapac DLTI:delta-israel-brand MGRT:mgurit ' +
+  'ELWS:electreon-wireless-ltd BONS:bonus-biogroup-ltd WESR:wesure-globalt SOFW:sofwave-medical WILK:wilk ' +
+  'ACRO:kvutzat-acro-ltd APLP:apollo-power SMT:summit TRX:terminal-x PERI:perion-network SMSH:smart-shooter-ltd ' +
+  'PRDM:prodalim-investments-ltd DSIT:dsit-solutions-ltd RLRE:rami-levy-shekma-real-estate-ltd ' +
+  'CANF:can-fite-biopharma LCTX:lineage-cell-therapeutics FRSX:foresight-autonomous GAGR:b-gaon-lt MEDN:mehadrin ' +
+  'EMDV:emilia-devel DIFI:direct-finance-of GNCL:gencell-ltd PRSK:prashkovsky MSHR:mishorim VTNA:vitania ' +
+  'EPIT:epitomee-medical-ltd TRPZ:turpaz-industries MGOR:mega-or AMAN:amanet AFRE:africa-residenc ' +
+  'SLARL:sella-real-est KRDI:kardan-nv QNCO:queenco UNMI:universal-motors-israel-ltd GAON:b-gaon-lt CRMT:carmit ' +
+  'LAPD:lapidoth-cap IES:ies AFPR:afi-properties TAYA:taya-inv PTCH:petrochemical YHNF:yochananof ' +
+  'BOTI:bonei-tichon BLSR:blue-sq-real-es HAMAT:hamat ORMP:oramed MISH:mivtach-shamir ' +
+  'SHGR:shagrir-vehicle-services-ltd KLIL:klil ZUR:zur RIT1:reit-1 POLP:polyram-plastic-in KARE:kardan-real-es ' +
+  'PTBL:propert-and-buil TDRN:tadiran NAWI:nawi DIMRI:dimri ENOG:energean DISI:discount-inv ILDC:land-dev ' +
+  'SCC:space-com ZNKL:zanlakol MSVT:massivit-3d-printi RIMO:rimoni ICON:icon-ltd LAHAV:lahav TIGBUR:tgbr ' +
+  'RTPT:ratio-petroleum GKL:global-knafaim KSTN:keystone-infra-ltd NTGR:netanel-menivim-lt ISRS:isras ' +
+  'NTML:neto-malinda SANO1:sano TATT:tat-technologies GILT:gilat-satellite-networks ISI:imagesat-inertnati ' +
+  'ALTF:altshuler-shaham-f GIVO:givot-olam-oil-exp ILDR:ild-renewal CBI:clal-biotech PLRM:palram KMDA:kamada ' +
+  'MDTR:mediterranean-towers-ltd BRND:brand MTRN:maytronics TMRP:tamar-pet HGG:hagag INRM:inrom-const ' +
+  'ISCN:israel-canada LBRA:libra-insurance-co LSCO:lesico TUZA:teuza NVPT:navitas-petroleum MNRT:menivim-reit ' +
+  'ORIN:orian ARD:arad KRUR:kerur CRSM:carasso-motors-ltd ECP:electra-co-pr KNFM:knafaim AFHL:afcon-hold ' +
+  'NVLG:novolog ABRA:abra-tech ELCRE:electra-real-e RTEN:rotem-energy-miner MNRV:minrav-ltd ADGR:adgar-inv ' +
+  'ELLO:ellomay-capital-ltd XTLB:xtl-biopharmaceuticals-ltd WILC:willy-food FOX:fox-group MSBI:hamashbir-365 ' +
+  'GOSS:g-1-secu RMLI:rami-levi ISRO:isrotel ISTA:issta JNGO:jungo-connectivity VCTR:victory ' +
+  'SHVA:automatic-bank-services-ltd GLTL:gilat-telecom MTAV:meitav-inv-house ISCD:isracard DLEA:delek-automotiv ' +
+  'UNIT:unitronics AVGL:avgol BSEN:bet-shemesh BRIL:brill SNEL:synel-payway-mll-ltd VRDS:veridis-environmen ' +
+  'GOLF:golf BRAN:baran SHNP:schnapp GVYM:gav-yam-lands TFRLF:tefron FIBIH:fibi IDIN:idi-insur ARPT:airport-city ' +
+  'EVGN:evogene AZRM:azorim').split(' ').reduce((o, kv) => { const [k, v] = kv.split(':'); o[k] = v; return o; }, {});
 /* v241: לוגו שגוי אצל FMP (KHC: "Kraft" בלבן — נעלם על האריח הלבן) → עותק תקין בריפו (logos/). גם בווידג׳ט (widget-model.js) */
 const LOGO_OVERRIDES = { KHC: 'logos/KHC.png' };
 function logoSrc(sym) {
   const s = normalizeSym(sym);
   if (!s) return null;
   if (LOGO_OVERRIDES[s]) return LOGO_OVERRIDES[s];
-  if (isIndexSym(s)) return null; // v255: למדד אין לוגו — אייקון גרף (stockLogoHTML)
+  if (isWatchOnlySym(s)) return null; // v255: למדד אין לוגו — אייקון (stockLogoHTML); v274: גם סחורה/קריפטו/מט"ח
   if (/\.TA$/i.test(s)) {
     const id = TASE_LOGOS[s.replace(/\.TA$/i, '')];
     return id ? 'https://s3-symbol-logo.tradingview.com/' + id + '.svg' : null;
@@ -5104,7 +5183,7 @@ async function liveTick() {
         let src = 'Yahoo';
         const wasCooling = yahooCooling();
         let got = await liveFetch(full ? syms.concat([FX_SYM]) : syms); // v196: שער הדולר באותו טיק
-        if (got[FX_SYM]) { const fxq = got[FX_SYM]; delete got[FX_SYM]; if (fxq.close > 0) applyLiveFx(fxq.close, fxq.prev); }
+        if (got[FX_SYM]) { const fxq = got[FX_SYM]; if (!syms.includes(FX_SYM)) delete got[FX_SYM]; if (fxq.close > 0) applyLiveFx(fxq.close, fxq.prev); } // v274: דולר־שקל ברשימת מעקב — נשאר גם כציטוט
         // מחירים חזרו (ישירות או דרך השרתון) ויש מניות בלי היסטוריה — משלימים גרפים (לכל היותר פעם בשתי דקות)
         const lacking = quoteSymbols().some((x) => isChartableSym(x) && !(state.hist[x] || []).length);
         if (Object.keys(got).length && ((wasCooling && !yahooCooling()) || lacking) && Date.now() - (live.lastRecover || 0) > 120000) {
@@ -5252,7 +5331,7 @@ const FX_SYM = 'USDILS=X';
 async function tryYahooQuotes() {
   // v193: שער הדולר באותה בקשה לשרתון (USDILS=X) — חוסך סבב רשת שלם בטעינה; tryFx רק אם חסר
   const q = await liveFetch(quoteSymbols().concat([FX_SYM])); // v164: שרתון בבקשה אחת, ישירות רק כגיבוי
-  const fxq = q[FX_SYM]; delete q[FX_SYM];
+  const fxq = q[FX_SYM]; if (!quoteSymbols().includes(FX_SYM)) delete q[FX_SYM]; // v274: דולר־שקל ברשימת מעקב — נשאר גם כציטוט
   const results = Object.values(q);
   const missing = POSITIONS.filter((p) => !q[p.sym]).length;
   if (missing > Math.max(1, Math.floor(POSITIONS.length / 2))) throw new Error('too few quotes');
@@ -5410,18 +5489,20 @@ async function getDailyInner(sym, force) {
     } catch (e) { notes.push('Proxy: ' + netErrName(e)); }
     return null;
   };
-  if (yahooCooling()) { const pr = await viaProxy(); if (pr) return save(pr); }
+  // v274: מדד/סחורה/קריפטו/מט"ח — השרתון ראשון (Stooq לא מכיר אותם, ומהטלפון Yahoo חוסם לעתים)
+  const mkFirst = !!mktKind(sym);
+  if (yahooCooling() || mkFirst) { const pr = await viaProxy(); if (pr) return save(pr); }
   // v229: range=max של Yahoo = נרות חודשיים — מתחילת המסחר עם period1=0 (יומי)
   const dq = (host) => yahooURL(sym, 'interval=1d&' + (wantMax ? 'period1=0&period2=' + Math.floor(Date.now() / 1000) : 'range=' + (isDemoMode() ? '10y' : '5y')), host);
   let rows = await fetchYahooBars(dq('query1'), false, notes, 'Yahoo')
           || await fetchYahooBars(dq('query2'), false, notes, 'Yahoo2');
   if (rows) return save(rows);
-  try {
+  if (symCur(sym) === 'USD' && !mkFirst) try { // v274: Stooq = ארה"ב בלבד (היה מחכה 12 שניות גם על מניות ת"א)
     rows = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 12000));
     if (rows.length) return save(rows);
     notes.push(t('srcEmpty', { name: 'Stooq' }));
   } catch (e) { notes.push('Stooq: ' + netErrName(e)); }
-  if (!yahooCooling()) { const pr = await viaProxy(); if (pr) return save(pr); }
+  if (!yahooCooling() && !mkFirst) { const pr = await viaProxy(); if (pr) return save(pr); }
   state.histDbg[sym] = notes.join(' · ');
   const cached = loadHistCacheRec(sym); // v71: כולל נדידת v1
   if (cached && cached.rows) {
@@ -5726,7 +5807,7 @@ async function _getDailyFastInner(sym, force) {
     fetchYahooBars(dq('query1'), false, notes, 'Yahoo', 8000),
     fetchYahooBars(dq('query2'), false, notes, 'Yahoo2', 8000),
     (async () => {
-      if (symCur(sym) !== 'USD') return null; // v160: Stooq כאן = ארה"ב בלבד (היה מבקש poli.ta.us)
+      if (symCur(sym) !== 'USD' || mktKind(sym)) return null; // v160: Stooq כאן = ארה"ב בלבד (היה מבקש poli.ta.us); v274: לא מדדים/סחורות
       try {
         const r = parseHistoryCSV(await fetchTextTimeout(stooqDailyURL(sym), 7000));
         return r.length ? r : null;
@@ -5792,6 +5873,7 @@ async function getDailyFast(sym, force) {
 function isChartableSym(s) {
   if (!s) return false;
   s = normalizeSym(s);
+  if (mktKind(s)) return /^\^?[A-Z0-9][A-Z0-9.\-=]{0,15}$/.test(s); // v274: מדד/סחורה/קריפטו/מט"ח — יש להם היסטוריה ב־Yahoo
   if (/\.[A-Z]{3}$/.test(s)) return false;
   return /^[A-Z0-9.-]{1,12}$/.test(s);
 }
@@ -8252,6 +8334,70 @@ const TASE_STOCKS = [
   'HLAN.TA|Hilan|חילן', 'AURA.TA|Aura Investments|אאורה', 'ISRA.TA|Isramco Negev 2|ישראמקו',
   'NXSN.TA|NextVision|נקסטויז׳ן', 'FORTY.TA|Formula Systems|פורמולה מערכות', 'MVNE.TA|Mivne Real Estate|מבנה',
   'ILCO.TA|Israel Corporation|החברה לישראל',
+  // v274: עוד 184 מניות ת"א עם שם עברי (Wikidata: בורסה Q1507974 + טיקר + תווית עברית), רק כאלה שנסחרות היום (TradingView)
+  'CAST.TA|Castro Model|קסטרו מודל', 'TASE.TA|Tel Aviv Stock Exchange|הבורסה לניירות ערך בתל אביב', 'ORA.TA|Ormat Technologies|אורמת טכנולוגיות',
+  'ISHI.TA|Israel Shipyards Industries|מספנות ישראל', 'PLSN.TA|Plasson Industries|פלסאון תעשיות', 'GCT.TA|G CITY LTD.|ג׳י סיטי',
+  'AUDC.TA|AudioCodes|אודיוקודס', 'JBNK.TA|Bank of Jerusalem|בנק ירושלים', 'TTAM.TA|Tiv Taam Holdings|טיב טעם', 'BWAY.TA|Brainsway|בריינסוויי',
+  'DIPL.TA|Diplomat Holdings|דיפלומט', 'EQTL.TA|Equital|אקויטל', 'MRIN.TA|Y.D. More Investments|מור בית השקעות',
+  'HIPR.TA|HIPER GLOBAL LTD|הייפר גלובל', 'NTO.TA|Neto M.E. Holdings|נטו אחזקות', 'RATI.TA|Ratio Energies Limited Partnership|רציו חיפושי נפט (1992)',
+  'HLMS.TA|Holmes Place International|הולמס פלייס', 'DRAL.TA|Dor Alon Energy in Israel (1988)|דור אלון', 'IBI.TA|IBI Investment House|IBI בית השקעות',
+  'NFTA.TA|Naphtha Israel Petroleum Corp|נפטא', 'NXTM.TA|Nextcom Ltd. (Israel)|נקסטקום', 'SNCM.TA|Suny Cellular Communication|סאני תקשורת סלולרית',
+  'BRIH.TA|Rav-Bariach (08) Industries|רב-בריח', 'BVC.TA|BATM Advanced Communications|באטמ תקשורת מתקדמת', 'CMER.TA|C. Mer Industries|ח.מר תעשיות',
+  'OPK.TA|OPKO Health|אופקו הלת׳', 'TMIS.TA|THEMIS G.R.E.N. LTD|ב. יאיר', 'MAXO.TA|Max Stock|מקס סטוק', 'PLCR.TA|Plasto-Cargal Group|קרגל',
+  'DNYA.TA|Danya Cebus|קבוצת דניה', 'ALLT.TA|Allot|אלוט תקשורת', 'ANGL.TA|Salomon A. Angel|מאפיית אנג׳ל',
+  'ASHO.TA|Ashot Ashkelon Industries|עשות אשקלון', 'BLRX.TA|BioLineRX|ביוליין', 'CGEN.TA|Compugen|קומפיוג׳ן', 'DANH.TA|Dan Hotels|מלונות דן',
+  'ELRN.TA|Elron Ventures|אלרון', 'DORL.TA|DORAL GROUP RENEWABLE ENERGY RESOURCES LTD|קבוצת דוראל אנרגיה', 'SCOP.TA|Scope Metals Group|סקופ מתכות',
+  'RPAC.TA|Rapac Group|רפק תקשורת ותשתיות', 'DLTI.TA|Delta Israel Brands|דלתא ישראל מותגים', 'MGRT.TA|Megureit Israel|מגוריט',
+  'ELWS.TA|Electreon Wireless|אלקטריאון וירלס', 'BONS.TA|Bonus Biogroup|בונוס ביוגרופ', 'WESR.TA|WeSure Global Tech|ווישור גלובלטק',
+  'SOFW.TA|Sofwave Medical|סופווייב מדיקל', 'WILK.TA|Wilk Technologies|ביומילק', 'ACRO.TA|KVUTZAT ACRO LTD|קבוצת אקרו',
+  'APLP.TA|Apollo Power|אפולו פאוור', 'SMT.TA|Summit Real Estate Holdings|סאמיט אחזקות נדל"ן', 'TRX.TA|Terminal X Online|טרמינל איקס',
+  'PERI.TA|Perion Network|פריון נטוורק', 'SMSH.TA|Smart Shooter|סמארט שוּטר', 'PRDM.TA|Prodalim Investments|פרודלים השקעות',
+  'DSIT.TA|DSIT Solutions|די.אס.איי.טי פתרונות', 'RLRE.TA|Rami Levy Shekma Real Estate|רמי לוי השקמה נדל"ן',
+  'CANF.TA|Can-Fite BioPharma|כן פייט ביופרמה', 'LCTX.TA|Lineage Cell Therapeutics|ליניאג תרפיוטיק', 'FRSX.TA|Foresight Autonomous Holdings|פורסייט',
+  'GAGR.TA|GAON GROUP|קבוצת גאון', 'MEDN.TA|Mehadrin|מהדרין', 'EMDV.TA|Emilia Development (O.F.G.) Ltd. Class A|אמיליה פיתוח',
+  'DIFI.TA|DIRECT FINANCE OF DIRECT GROUP (2006)LTD|מימון ישיר', 'GNCL.TA|GenCell|ג׳נסל', 'PRSK.TA|Prashkovsky Investments & Construction|פרשקובסקי',
+  'MSHR.TA|Mishorim Real Estate Investments|מישורים', 'VTNA.TA|Vitania|ויתניה', 'EPIT.TA|EPITOMEE MEDICAL LTD|אפיטומי מדיקל',
+  'TRPZ.TA|TURPAZ INDUSTRIES LTD|תורפז תעשיות', 'MGOR.TA|Mega Or Holdings|מגה אור', 'AMAN.TA|Amanet Management & Systems|אמנת ניהול ומערכות',
+  'AFRE.TA|Africa Israel Residences|אפריקה ישראל מגורים', 'SLARL.TA|Sella Capital Real Estate|סלע קפיטל', 'KRDI.TA|Kardan Israel|קרדן ישראל',
+  'QNCO.TA|(I.Z.) Queenco|קווינקו', 'UNMI.TA|Universal Motors Israel|יוניברסל מוטורס ישראל', 'GAON.TA|B. Gaon Holdings|גאון אחזקות',
+  'CRMT.TA|Carmit Candy Industries|כרמית תעשיות ממתקים', 'LAPD.TA|Lapidoth Capital|לפידות חברת מחפשי נפט לישראל',
+  'IES.TA|I.E.S Holdings|איי.אי.אס החזקות', 'AFPR.TA|AFI Properties|אפריקה ישראל נכסים', 'TAYA.TA|Taya Investment Co.|תיא', 'PTCH.TA|Israel Petrochemical Enterprises|מפעלים פטרוכימיים בישראל',
+  'YHNF.TA|M. Yochananof & Sons (1988)|רשת יוחננוף', 'BOTI.TA|Bonei Hatichon Civil Engineering & Infrastructures|בוני התיכון',
+  'BLSR.TA|Blue Square Real Estate|רבוע כחול נדל"ן', 'HAMAT.TA|Hamat Group|קבוצת חמת', 'ORMP.TA|Oramed Pharmaceuticals Incorporated|אורמד פארמסוטיקלס',
+  'MISH.TA|Mivtach Shamir Holdings|מבטח שמיר אחזקות', 'SHGR.TA|Shagrir Group Vehicle Services|קבוצת שגריר', 'KLIL.TA|Klil Industries|קליל תעשיות',
+  'ZUR.TA|Zur Shamir Holdings|צור שמיר אחזקות', 'RIT1.TA|REIT|ריט 1', 'POLP.TA|Polyram Plastic Industries|פולירם',
+  'KARE.TA|Kardan Real Estate Enterprise & Development|קרדן נדל"ן', 'PTBL.TA|Property & Building Corp.|חברה לנכסים ולבנין',
+  'TDRN.TA|Tadiran Group|תדיראן הולדינגס', 'NAWI.TA|Nawi Group|קבוצת אחים נאוי',
+  'DIMRI.TA|Y.H. Dimri Construction and Development|י.ח. דמרי בניה ופיתוח', 'ENOG.TA|Energean Plc|אנרג׳יאן',
+  'DISI.TA|Discount Investment Corp.|השקעות דיסקונט', 'ILDC.TA|Land Development of Nimrodi Group|הכשרת הישוב', 'SCC.TA|Space-Communication|חלל תקשורת',
+  'ZNKL.TA|Zanlakol|זנלכל', 'MSVT.TA|MASSIVIT 3D PRINTING TECHNOLOGIES LTD|מאסיבית', 'RIMO.TA|Rimoni Industries|רימוני תעשיות',
+  'ICON.TA|ICON GROUP LTD|אייקון גרופ', 'LAHAV.TA|Lahav L.R. Real Estate|להב אל.אר', 'TIGBUR.TA|Tigbur-Temporary Professional Personnel|קבוצת תיגבור',
+  'RTPT.TA|Ratio Petroleum Energy LP|רציו פטרוליום', 'GKL.TA|Global Knafaim Leasing|גלובל כנפיים ליסינג', 'KSTN.TA|KEYSTONE INFRA LTD|קיסטון ריט',
+  'NTGR.TA|Netanel Group|נתנאל גרופ', 'ISRS.TA|Isras Investment Co.|ישרס', 'NTML.TA|Neto Malinda Trading|נטו מלינדה',
+  'SANO1.TA|Sano-Brunos Enterprises|סנו', 'TATT.TA|TAT Technologies|תאת טכנולוגיות', 'GILT.TA|Gilat Satellite Networks|גילת רשתות לווין',
+  'ISI.TA|ImageSat International (ISI)|אימאג׳סאט אינטרנשיונל', 'ALTF.TA|ALTSHULER SHAHAM FINANCIAL LTD|אלטשולר שחם',
+  'GIVO.TA|Givot Olam Oil Exploration LP (1993)|גבעות עולם חיפושי נפט',
+  'ILDR.TA|Israel Land Development - Urban Renewal|הכשרת הישוב התחדשות עירונית בישראל', 'CBI.TA|Clal Biotechnology Industries|כלל ביוטכנולוגיה',
+  'PLRM.TA|Palram Industries (1990)|פלרם', 'KMDA.TA|Kamada|קמהדע', 'MDTR.TA|Mediterranean Towers|מגדלי הים התיכון',
+  'BRND.TA|Brand Group (M.G)|ברנד תעשיות', 'MTRN.TA|Maytronics|מיטרוניקס', 'TMRP.TA|Tamar Petroleum|תמר פטרוליום',
+  'HGG.TA|Hagag Group Real Estate Development|קבוצת חג׳ג׳', 'INRM.TA|Inrom Construction Industries|אינרום', 'ISCN.TA|Israel Canada (T.R)|ישראל קנדה',
+  'LBRA.TA|Libra Insurance Co.|ליברה חברה לביטוח', 'LSCO.TA|Lesico|לסיכו', 'TUZA.TA|Teuza - A Fairchild Technology Venture|תעוזה',
+  'NVPT.TA|Navitas Petroleum LP|נאוויטס פטרוליום', 'MNRT.TA|Menivim - The New REIT|מניבים קרן הריט החדשה בע"מ', 'ORIN.TA|Orian Sh.M.|אוריין ש.מ.',
+  'ARD.TA|Arad|ארד', 'KRUR.TA|Kerur Holdings|קרור', 'CRSM.TA|Carasso Motors|קרסו מוטורס', 'ECP.TA|Electra Consumer Products|אלקטרה מוצרי צריכה',
+  'KNFM.TA|Knafaim Holdings|כנפיים אחזקות', 'AFHL.TA|AFCON Holdings|אפקון החזקות', 'NVLG.TA|Novolog (Pharm UP 1966)|נובולוג',
+  'ABRA.TA|Abra Information Technologies|אברא טכנולוגיות מידע', 'ELCRE.TA|Electra Real Estate|אלקטרה נדל"ן',
+  'RTEN.TA|ROTEM ENERGY MINERAL (REM) - LIMITED PARTNERSHIP|רותם אנרגיה מחצבים', 'MNRV.TA|Minrav Group|קבוצת מנרב',
+  'ADGR.TA|Adgar Investment & Development|אדגר השקעות ופיתוח', 'ELLO.TA|Ellomay Capital|אלומיי קפיטל בע"מ', 'XTLB.TA|XTL Biopharmaceuticals|אקס טי אל',
+  'WILC.TA|G. Willi-Food International|וילי פוד', 'FOX.TA|Fox-Wizel|פוקס נס', 'MSBI.TA|Hamashbir|המשביר לצרכן',
+  'GOSS.TA|G1 Secure Solutions|חברת השמירה', 'RMLI.TA|Rami Levi Chain Stores Hashikma Marketing|רמי לוי שיווק השקמה', 'ISRO.TA|Isrotel|ישרוטל',
+  'ISTA.TA|Issta|איסתא ליינס', 'JNGO.TA|Jungo Connectivity|ג׳נגו קונקטיביטי', 'VCTR.TA|Victory Supermarket Chain|ויקטורי',
+  'SHVA.TA|Automatic Bank Services|שירותי בנק אוטומטיים', 'GLTL.TA|Gilat Telecom Global|גילת סאטקום', 'MTAV.TA|MEITAV INVESTMENTS HOUSE LTD|מיטב דש',
+  'ISCD.TA|Isracard|ישראכרט', 'DLEA.TA|Delek Automotive Systems|דלק מערכות רכב', 'UNIT.TA|Unitronics (1989) (RG)|יוניטרוניקס',
+  'AVGL.TA|Avgol Industries|אבגול', 'BSEN.TA|Bet Shemesh Engines Holdings (1997)|מנועי בית שמש', 'BRIL.TA|Brill Shoe Industries|בריל',
+  'SNEL.TA|Synel M.L.L. Payway|סינאל תעשיות', 'VRDS.TA|Veridis Environment|ורידיס', 'GOLF.TA|GOLF & CO GROUP LTD|קבוצת גולף א.ק.',
+  'BRAN.TA|Baran Group|קבוצת ברן', 'SHNP.TA|E. Schnapp Co. Works|שנפ', 'GVYM.TA|Gav-Yam Lands Corp.|גב-ים', 'TFRLF.TA|Tefron|תפרון',
+  'FIBIH.TA|FIBI Holdings|פ.י.ב.י. אחזקות', 'IDIN.TA|I.D.I. Insurance Company|איי.די.איי. חברה לביטוח', 'ARPT.TA|Airport City|איירפורט סיטי',
+  'EVGN.TA|Evogene|אבוג׳ן', 'AZRM.TA|Azorim Investment Dev & Const Co.|אזורים',
 ].map((l) => l.split('|'));
 
 function levenshtein(a, b) {
@@ -8625,20 +8771,159 @@ function row0(box) { return parseFloat(box.style.getPropertyValue('--gb-zero')) 
 
 /* v255: מדדים לחיפוש ברשימות המעקב בלבד (בתיק — רק קרנות הסל שעוקבות אחריהם). [סימבול Yahoo, שם, עברית (/ חלופות), כינויים (רווח), תווית]
    נבדק ב־Yahoo: כולם INDEX עם מחיר (ארה"ב ב־USD, ת"א ב־ILS — נקודות). */
+/* v255→v274: קטלוג השווקים (רק ברשימות המעקב — לא נסחרים בתיק): מדדים (ארה"ב, עולם, ת"א), חוזים עתידיים על סחורות (ברנט, WTI, זהב…),
+   קריפטו, מט"ח ותשואות אג"ח. [סימבול Yahoo, שם, עברית (/), כינויים, תווית קצרה לאייקון]. כל 130 הסימבולים אומתו מול Yahoo (מחיר + היסטוריה).
+   מה שלא כאן — Yahoo search בשרתון (mk) מוצא עוד מדדים/חוזים/מטבעות קריפטו. */
 const MARKET_INDICES = [
-  ['^GSPC', 'S&P 500', 'אס אנד פי 500/אס אנד פי/סנופי', 'SPX SP500 S&P S&P500 INX', 'S&P'],
-  ['^NDX', 'Nasdaq 100', 'נאסד״ק 100/נאסדק 100', 'NDX NASDAQ100 NAS100', 'NDX'],
-  ['^IXIC', 'Nasdaq Composite', 'נאסד״ק/נאסדק/נאסד״ק קומפוזיט', 'COMP IXIC NASDAQ', 'COMP'],
-  ['^DJI', 'Dow Jones Industrial Average', 'דאו ג׳ונס/דאו גונס/דאו', 'DJI DJIA DOW INDU DOWJONES', 'DOW'],
-  ['^RUT', 'Russell 2000', 'ראסל 2000/ראסל', 'RUT RUSSELL R2K', 'RUT'],
-  ['^VIX', 'CBOE Volatility Index (VIX)', 'מדד הפחד/ויקס/תנודתיות', 'VIX', 'VIX'],
-  ['^SOX', 'PHLX Semiconductor Index', 'מדד השבבים/שבבים/מוליכים למחצה', 'SOX', 'SOX'],
-  ['TA35.TA', 'TA-35', 'ת״א 35/תל אביב 35/תא 35', 'TA35 TA-35', '35'],
-  ['^TA125.TA', 'TA-125', 'ת״א 125/תל אביב 125/תא 125', 'TA125 TA-125', '125'],
-  ['207.TA', 'TA Defense', 'ת״א ביטחוניות/ביטחוניות', '207.TA TADEFENSE', '207'],
+  ["^GSPC", "S&P 500", "אס אנד פי 500/אס אנד פי/סנופי/אסנפי", "SPX SP500 S&P S&P500 INX", "S&P"],
+  ["^NDX", "Nasdaq 100", "נאסד״ק 100/נאסדק 100", "NDX NASDAQ100 NAS100", "NDX"],
+  ["^IXIC", "Nasdaq Composite", "נאסד״ק/נאסדק/נאסד״ק קומפוזיט", "COMP IXIC NASDAQ", "COMP"],
+  ["^DJI", "Dow Jones Industrial Average", "דאו ג׳ונס/דאו גונס/דאו", "DJI DJIA DOW INDU DOWJONES", "DOW"],
+  ["^RUT", "Russell 2000", "ראסל 2000/ראסל", "RUT RUSSELL R2K", "RUT"],
+  ["^VIX", "CBOE Volatility Index (VIX)", "מדד הפחד/ויקס/תנודתיות", "VIX", "VIX"],
+  ["^SOX", "PHLX Semiconductor Index", "מדד השבבים/שבבים/מוליכים למחצה", "SOX", "SOX"],
+  ["^OEX", "S&P 100", "אס אנד פי 100", "OEX SP100", "100"],
+  ["^MID", "S&P MidCap 400", "אס אנד פי 400/מידקאפ", "MID SP400 MIDCAP", "400"],
+  ["^SP600", "S&P SmallCap 600", "אס אנד פי 600/סמולקאפ", "SP600 SMALLCAP", "600"],
+  ["^SPXEW", "S&P 500 Equal Weight", "אס אנד פי שווה משקל/משקל שווה", "SPXEW RSP EQUALWEIGHT", "EW"],
+  ["^RUI", "Russell 1000", "ראסל 1000", "RUI R1K", "R1K"],
+  ["^RUA", "Russell 3000", "ראסל 3000", "RUA R3K", "R3K"],
+  ["^NYA", "NYSE Composite", "מדד בורסת ניו יורק/ניו יורק קומפוזיט", "NYA NYSE", "NYA"],
+  ["^W5000", "Wilshire 5000", "וילשייר 5000", "W5000 WILSHIRE", "W5K"],
+  ["^DJT", "Dow Jones Transportation Average", "דאו תחבורה", "DJT TRANSPORTS", "DJT"],
+  ["^DJU", "Dow Jones Utility Average", "דאו תשתיות", "DJU UTILITIES", "DJU"],
+  ["^NBI", "Nasdaq Biotechnology", "נאסד״ק ביוטק/ביוטכנולוגיה", "NBI BIOTECH", "NBI"],
+  ["^BKX", "KBW Bank Index", "מדד הבנקים האמריקאי/בנקים ארה״ב", "BKX BANKS KBW", "BKX"],
+  ["^XAU", "Philadelphia Gold and Silver Index", "מדד מכרות הזהב", "XAU GOLDMINERS", "XAU"],
+  ["^VVIX", "CBOE VIX of VIX", "ויקס של ויקס", "VVIX", "VVIX"],
+  ["^TNX", "US 10-Year Treasury Yield", "אג״ח 10 שנים/תשואת אג״ח 10/אגח ארהב 10", "TNX US10Y 10Y TREASURY BOND", "10Y"],
+  ["^TYX", "US 30-Year Treasury Yield", "אג״ח 30 שנים/תשואת אג״ח 30", "TYX US30Y 30Y", "30Y"],
+  ["^FVX", "US 5-Year Treasury Yield", "אג״ח 5 שנים/תשואת אג״ח 5", "FVX US5Y 5Y", "5Y"],
+  ["^IRX", "US 13-Week Treasury Bill", "אג״ח 3 חודשים/טי-ביל/מק״מ אמריקאי", "IRX US3M TBILL", "3M"],
+  ["DX-Y.NYB", "US Dollar Index (DXY)", "מדד הדולר/דולר אינדקס", "DXY DX USDX DOLLARINDEX", "DXY"],
+  ["^FTSE", "FTSE 100", "פוטסי/פוטסי 100/לונדון/בריטניה", "FTSE UKX FTSE100 UK100", "FTSE"],
+  ["^GDAXI", "DAX", "דאקס/גרמניה/פרנקפורט", "DAX GDAXI GER40", "DAX"],
+  ["^FCHI", "CAC 40", "קאק 40/קאק/צרפת/פריז", "CAC CAC40 FCHI FRA40", "CAC"],
+  ["^STOXX50E", "Euro Stoxx 50", "יורו סטוקס 50/יורוסטוקס/אירופה", "STOXX50 SX5E EUROSTOXX EU50", "SX5E"],
+  ["^STOXX", "STOXX Europe 600", "סטוקס 600/אירופה 600", "STOXX600 SXXP", "SXXP"],
+  ["^IBEX", "IBEX 35", "איבקס/ספרד", "IBEX IBEX35", "IBEX"],
+  ["FTSEMIB.MI", "FTSE MIB", "מיב/איטליה/מילאנו", "FTSEMIB MIB ITALY", "MIB"],
+  ["^AEX", "AEX", "הולנד/אמסטרדם", "AEX", "AEX"],
+  ["^SSMI", "Swiss Market Index (SMI)", "שווייץ/ציריך", "SMI SSMI", "SMI"],
+  ["^N225", "Nikkei 225", "ניקיי/ניקיי 225/יפן/טוקיו", "NIKKEI N225 NI225 JP225", "N225"],
+  ["^HSI", "Hang Seng", "האנג סנג/הונג קונג", "HSI HANGSENG HK50", "HSI"],
+  ["000001.SS", "SSE Composite (Shanghai)", "שנגחאי/סין", "SSE SHANGHAI SHCOMP CHINA", "SSE"],
+  ["^KS11", "KOSPI", "קוספי/קוריאה", "KOSPI KS11 KOREA", "KOSPI"],
+  ["^TWII", "TAIEX (Taiwan)", "טייוואן/טאייקס", "TAIEX TWII TAIWAN", "TWII"],
+  ["^BSESN", "BSE Sensex", "סנסקס/הודו/מומבאי", "SENSEX BSESN INDIA", "SENS"],
+  ["^NSEI", "Nifty 50", "ניפטי/ניפטי 50", "NIFTY NIFTY50 NSEI", "NIFTY"],
+  ["^AXJO", "S&P/ASX 200", "אוסטרליה/סידני", "ASX ASX200 AXJO AUS200", "ASX"],
+  ["^GSPTSE", "S&P/TSX Composite", "קנדה/טורונטו", "TSX GSPTSE CANADA", "TSX"],
+  ["^BVSP", "Bovespa", "בובספה/ברזיל", "BOVESPA IBOV BVSP BRAZIL", "IBOV"],
+  ["^MXX", "IPC Mexico", "מקסיקו", "IPC MXX MEXICO", "IPC"],
+  ["^STI", "Straits Times Index", "סינגפור", "STI SINGAPORE", "STI"],
+  ["TA35.TA", "TA-35", "ת״א 35/תל אביב 35/תא 35", "TA35 TA-35", "35"],
+  ["^TA125.TA", "TA-125", "ת״א 125/תל אביב 125/תא 125", "TA125 TA-125", "125"],
+  ["TA90.TA", "TA-90", "ת״א 90/תל אביב 90/תא 90", "TA90 TA-90", "90"],
+  ["TA-BANKS.TA", "TA Banks-5", "ת״א בנקים/בנקים 5/מדד הבנקים", "TABANKS BANKS5", "BNK"],
+  ["TA-FIN.TA", "TA Finance", "ת״א פיננסים/פיננסים", "TAFIN FINANCE", "FIN"],
+  ["TA-INS.TA", "TA Insurance & Financial Services", "ת״א ביטוח/ביטוח", "TAINS INSURANCE", "INS"],
+  ["ESTATE15.TA", "TA Real Estate 15", "ת״א נדל״ן 15/נדל״ן/נדלן", "ESTATE15 REALESTATE", "RE15"],
+  ["MIDCAP50.TA", "TA-SME60", "ת״א סל-אס אם אי 60/מניות בינוניות/יתר 60", "SME60 TASME60 MIDCAP", "SME"],
+  ["TEL-TECH.TA", "TA BlueTech Global", "ת״א בלוטק/בלוטק גלובל", "TELTECH BLUETECH", "BLUE"],
+  ["TELDIV20.TA", "Tel Div", "תל דיב/דיבידנד", "TELDIV DIVIDEND", "DIV"],
+  ["TASEBM.TA", "TA Biomed", "ת״א ביומד/ביומד", "TASEBM BIOMED", "BIO"],
+  ["200.TA", "Tel Div Aristocrats", "אריסטוקרטים/אצולת הדיבידנד", "ARISTOCRATS", "ARIS"],
+  ["184.TA", "TA-Cleantech", "ת״א קלינטק/קלינטק", "CLEANTECH", "CLN"],
+  ["55.TA", "TA-Construction", "ת״א בנייה/בנייה/בניה", "CONSTRUCTION", "BLD"],
+  ["207.TA", "TA Defense", "ת״א ביטחוניות/ביטחוניות", "207.TA TADEFENSE DEFENSE", "207"],
+  ["CL=F", "WTI Crude Oil", "נפט/נפט גולמי/נפט טקסס/וסט טקסס", "WTI CL CRUDE OIL USOIL", "WTI"],
+  ["BZ=F", "Brent Crude Oil", "ברנט/נפט ברנט", "BRENT BZ UKOIL", "BRENT"],
+  ["NG=F", "Natural Gas", "גז טבעי/גז", "NATGAS NG GAS", "NATGA"],
+  ["RB=F", "RBOB Gasoline", "בנזין", "GASOLINE RBOB RB", "GASOL"],
+  ["HO=F", "Heating Oil", "סולר/נפט לחימום", "HO HEATINGOIL DIESEL", "HEATI"],
+  ["GC=F", "Gold", "זהב", "GOLD GC XAU XAUUSD", "GOLD"],
+  ["SI=F", "Silver", "כסף (מתכת)/כסף", "SILVER SI XAG XAGUSD", "SILVE"],
+  ["PL=F", "Platinum", "פלטינה", "PLATINUM PL", "PLATI"],
+  ["PA=F", "Palladium", "פלדיום", "PA PALLADIUM", "PALLA"],
+  ["HG=F", "Copper", "נחושת", "COPPER HG", "COPPE"],
+  ["ALI=F", "Aluminum", "אלומיניום", "ALUMINUM ALUMINIUM ALI", "ALUMI"],
+  ["ZC=F", "Corn", "תירס", "CORN ZC", "CORN"],
+  ["ZW=F", "Wheat", "חיטה", "WHEAT ZW", "WHEAT"],
+  ["ZS=F", "Soybeans", "סויה", "SOYBEANS SOY ZS", "SOYBE"],
+  ["KC=F", "Coffee", "קפה", "COFFEE KC", "COFFE"],
+  ["SB=F", "Sugar", "סוכר", "SUGAR SB", "SUGAR"],
+  ["CC=F", "Cocoa", "קקאו", "COCOA CC", "COCOA"],
+  ["CT=F", "Cotton", "כותנה", "COTTON CT", "COTTO"],
+  ["OJ=F", "Orange Juice", "מיץ תפוזים", "OJ ORANGEJUICE", "ORANG"],
+  ["LE=F", "Live Cattle", "בקר", "CATTLE LE", "CATTL"],
+  ["HE=F", "Lean Hogs", "חזירים", "HOGS HE", "HOGS"],
+  ["ES=F", "S&P 500 Futures", "חוזים אס אנד פי/חוזה אס אנד פי", "ES SPFUTURES", "ES"],
+  ["NQ=F", "Nasdaq 100 Futures", "חוזים נאסד״ק/חוזה נאסדק", "NQ NASDAQFUTURES", "NQ"],
+  ["YM=F", "Dow Futures", "חוזים דאו", "YM DOWFUTURES", "YM"],
+  ["RTY=F", "Russell 2000 Futures", "חוזים ראסל", "RTY RUSSELLFUTURES", "RTY"],
+  ["ZN=F", "10-Year T-Note Futures", "חוזים אג״ח 10", "ZN TNOTE", "ZN"],
+  ["ZB=F", "US Treasury Bond Futures", "חוזים אג״ח 30", "ZB TBOND", "ZB"],
+  ["BTC-USD", "Bitcoin", "ביטקוין/ביטכוין", "BTC BITCOIN XBT", "BTC"],
+  ["ETH-USD", "Ethereum", "את׳ריום/אתריום", "ETH ETHEREUM ETHER", "ETH"],
+  ["SOL-USD", "Solana", "סולנה", "SOL SOLANA", "SOL"],
+  ["XRP-USD", "XRP", "ריפל", "XRP RIPPLE", "XRP"],
+  ["BNB-USD", "BNB", "בינאנס/בי אן בי", "BNB BINANCE", "BNB"],
+  ["DOGE-USD", "Dogecoin", "דוג׳קוין/דוגקוין", "DOGE DOGECOIN", "DOGE"],
+  ["ADA-USD", "Cardano", "קרדנו", "ADA CARDANO", "ADA"],
+  ["TRX-USD", "TRON", "טרון", "TRX TRON", "TRX"],
+  ["AVAX-USD", "Avalanche", "אוולנץ׳", "AVAX AVALANCHE", "AVAX"],
+  ["LINK-USD", "Chainlink", "צ׳יינלינק", "LINK CHAINLINK", "LINK"],
+  ["DOT-USD", "Polkadot", "פולקדוט", "DOT POLKADOT", "DOT"],
+  ["LTC-USD", "Litecoin", "לייטקוין", "LTC LITECOIN", "LTC"],
+  ["BCH-USD", "Bitcoin Cash", "ביטקוין קאש", "BCH BITCOINCASH", "BCH"],
+  ["SHIB-USD", "Shiba Inu", "שיבה/שיבה אינו", "SHIB SHIBA", "SHIB"],
+  ["XLM-USD", "Stellar", "סטלר", "XLM STELLAR", "XLM"],
+  ["TON11419-USD", "Toncoin", "טון", "TON TONCOIN", "TON"],
+  ["SUI20947-USD", "Sui", "סוי", "SUI", "SUI"],
+  ["HBAR-USD", "Hedera", "הדרה", "HBAR HEDERA", "HBAR"],
+  ["NEAR-USD", "NEAR Protocol", "ניר", "NEAR", "NEAR"],
+  ["UNI7083-USD", "Uniswap", "יוניסוואפ", "UNI UNISWAP", "UNI"],
+  ["PEPE24478-USD", "Pepe", "פפה", "PEPE", "PEPE"],
+  ["XMR-USD", "Monero", "מונרו", "XMR MONERO", "XMR"],
+  ["ETC-USD", "Ethereum Classic", "את׳ריום קלאסיק", "ETC", "ETC"],
+  ["ATOM-USD", "Cosmos", "קוסמוס", "ATOM COSMOS", "ATOM"],
+  ["AAVE-USD", "Aave", "אאווה", "AAVE", "AAVE"],
+  ["FIL-USD", "Filecoin", "פייל קוין", "FIL FILECOIN", "FIL"],
+  ["ICP-USD", "Internet Computer", "אינטרנט קומפיוטר", "ICP", "ICP"],
+  ["APT21794-USD", "Aptos", "אפטוס", "APT APTOS", "APT"],
+  ["ARB11841-USD", "Arbitrum", "ארביטרום", "ARB ARBITRUM", "ARB"],
+  ["USDT-USD", "Tether", "טת׳ר/טתר", "USDT TETHER", "USDT"],
+  ["USDC-USD", "USD Coin", "יו אס די קוין", "USDC", "USDC"],
+  ["USDILS=X", "USD/ILS", "דולר שקל/דולר/שער הדולר", "USD/ILS USDILS DOLLARSHEKEL", "$/₪"],
+  ["EURILS=X", "EUR/ILS", "יורו שקל/יורו/שער היורו", "EUR/ILS EURILS", "€/₪"],
+  ["GBPILS=X", "GBP/ILS", "לירה שטרלינג שקל/פאונד שקל", "GBP/ILS GBPILS", "£/₪"],
+  ["EURUSD=X", "EUR/USD", "יורו דולר", "EUR/USD EURUSD", "€/$"],
+  ["GBPUSD=X", "GBP/USD", "פאונד דולר/לירה שטרלינג", "GBP/USD GBPUSD CABLE", "£/$"],
+  ["USDJPY=X", "USD/JPY", "דולר ין/ין יפני/ין", "USD/JPY USDJPY YEN", "$/¥"],
+  ["USDCHF=X", "USD/CHF", "דולר פרנק/פרנק שווייצרי", "USD/CHF USDCHF", "$/CHF"],
+  ["AUDUSD=X", "AUD/USD", "דולר אוסטרלי", "AUD/USD AUDUSD", "A$/$"],
+  ["USDCAD=X", "USD/CAD", "דולר קנדי", "USD/CAD USDCAD", "$/C$"],
+  ["USDCNY=X", "USD/CNY", "יואן/יואן סיני", "USD/CNY USDCNY YUAN", "$/CNY"],
 ];
-/* v255: סימבול לתצוגה — למדד הכינוי המוכר (SPX, NDX, TA35) במקום ^GSPC של Yahoo */
-function dispSym(sym) { const ix = MARKET_INDICES.find((x) => x[0] === sym); return ix ? ix[3].split(' ')[0] : String(sym || ''); }
+/* v255: סימבול לתצוגה — למדד הכינוי המוכר (SPX, NDX, TA35) במקום ^GSPC של Yahoo. v274: BTC-USD → BTC, CL=F → CL, EURUSD=X → EUR/USD */
+function dispSym(sym) {
+  const ix = MARKET_INDICES.find((x) => x[0] === sym);
+  if (ix) return ix[3].split(' ')[0];
+  const s = String(sym || ''), k = mktKind(s);
+  if (k === 'crypto') return s.replace(/\d*-USD$/i, '');
+  if (k === 'future') return s.replace(/=F$/i, '');
+  if (k === 'fx') return s.slice(0, 3) + '/' + s.slice(3, 6);
+  if (k === 'index' || k === 'yield') return s.replace(/^\^/, '');
+  return s;
+}
+const MKT_ICONS = {
+  index: '<path d="M3 16.5l5-5 4 3 8-8"/><path d="M15 6.5h5v5"/>',
+  yield: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.2"/><circle cx="17" cy="17" r="2.2"/>',
+  future: '<path d="M12 3.5c3 4 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-10z"/>',
+  crypto: '<circle cx="12" cy="12" r="8.5"/><path d="M10 7.5v9M10 7.5h3.2a2.2 2.2 0 0 1 0 4.4H10M10 11.9h3.7a2.3 2.3 0 0 1 0 4.6H10M11.5 6v1.5M11.5 16.5V18"/>',
+  fx: '<path d="M4 8.5h14l-3.5-3.5"/><path d="M20 15.5H6l3.5 3.5"/>',
+};
 /* טהורה: המדדים שמתאימים לשאילתה — כינוי/סימבול מדויק או תחילית, שם באנגלית או בעברית */
 function indexSearch(query) {
   const raw = String(query || '').trim();
@@ -8664,7 +8949,7 @@ function indexSearch(query) {
       const nn = searchNorm(name);
       if (qn.length >= 3 && (nn.startsWith(qn) || nn.includes(' ' + qn))) sc = Math.max(sc, 70);
     }
-    if (sc) out.push({ sym, name: heb || /\.TA$/.test(sym) ? he.split('/')[0] + ' · ' + name : name, type: 'INDEX', _s: sc });
+    if (sc) out.push({ sym, name: heb || /\.TA$/.test(sym) ? he.split('/')[0] + ' · ' + name : name, type: (mktKind(sym) || 'index').toUpperCase(), _s: sc });
   }
   return out.sort((a, b) => b._s - a._s).map(({ sym, name, type }) => ({ sym, name, type }));
 }
@@ -8709,21 +8994,53 @@ function mergeSearchResults(q, lists) {
   return out.sort((x, y) => exact(y) - exact(x)).slice(0, 10);
 }
 
-async function searchStocksYahoo(query, onUpdate) {
+/* v274: שאילתה בעברית → מונחים באנגלית לחיפוש בשרתון (שמות הקרנות והמדדים שם באנגלית: "KSM ETF (4A) S&P 500").
+   מנהלי קרנות הסל, מדדים, ענפים וסחורות. טהורה; null כשלא תורגם כלום (ואז רק החיפוש המקומי בעברית). */
+const HE_EN = [
+  ['קסם', 'KSM'], ['תכלית', 'Tachlit'], ['הראל', 'Harel'], ['מיטב', 'MTF'], ['אי בי אי', 'IBI'], ['אי.בי.אי', 'IBI'], ['איביאי', 'IBI'],
+  ['מור', 'MORE'], ['איישרס', 'iShares'], ['אישרס', 'iShares'], ['אינבסקו', 'Invesco'], ['סל', ''], ['קרן סל', ''], ['קרן', ''],
+  ['אס אנד פי', 'S&P'], ['אס אנד פי 500', 'S&P 500'], ['אסנפי', 'S&P'], ['סנופי', 'S&P'], ['נאסד״ק', 'Nasdaq'], ['נאסדק', 'Nasdaq'], ["נאסד'ק", 'Nasdaq'],
+  ['דאו ג׳ונס', 'Dow Jones'], ['דאו גונס', 'Dow Jones'], ['דאו', 'Dow'], ['ראסל', 'Russell'], ['ניקיי', 'Nikkei'], ['דאקס', 'DAX'], ['פוטסי', 'FTSE'],
+  ['ת״א', 'TA'], ['תא', 'TA'], ['תל אביב', 'TA'], ['תל בונד', 'Tel Bond'], ['תל-בונד', 'Tel Bond'], ['תל דיב', 'Tel Div'], ['בנקים', 'Banks'],
+  ['ביטוח', 'Insurance'], ['נדל״ן', 'Real Estate'], ['נדלן', 'Real Estate'], ['ביטחוניות', 'Defense'], ['ביטחון', 'Defense'], ['טכנולוגיה', 'Technology'],
+  ['בריאות', 'Health Care'], ['פיננסים', 'Financial'], ['אנרגיה', 'Energy'], ['שבבים', 'Semiconductor'], ['סייבר', 'Cyber'], ['ביוטק', 'Biotech'],
+  ['תשתיות', 'Infrastructure'], ['דיבידנד', 'Dividend'], ['צמיחה', 'Growth'], ['ערך', 'Value'], ['משקל שווה', 'Equal Weight'], ['בינה מלאכותית', 'Artificial Intelligence'],
+  ['זהב', 'Gold'], ['כסף', 'Silver'], ['נפט', 'Crude'], ['ברנט', 'Brent'], ['גז טבעי', 'Natural Gas'], ['נחושת', 'Copper'], ['אורניום', 'Uranium'],
+  ['ביטקוין', 'Bitcoin'], ['את׳ריום', 'Ethereum'], ['אתריום', 'Ethereum'], ['קריפטו', 'Crypto'],
+  ['כשר', 'Kosher'], ['כשרה', 'Kosher'], ['צמוד', 'CPI Linked'], ['צמודות', 'CPI Linked'], ['צמוד מדד', 'CPI Linked'], ['שקלי', 'Shekel'], ['שקליות', 'Shekel'],
+  ['ממונף', 'Leveraged'], ['מינוף', 'Leveraged'], ['שורט', 'Short'], ['מנוטרל מטבע', 'Currency Hedged'], ['מגודר', 'Currency Hedged'], ['גידור', 'Currency Hedged'],
+  ['ממשלתי', 'Government'], ['ממשלתיות', 'Government'], ['אג״ח', 'Bond'], ['אגח', 'Bond'], ['קונצרני', 'Corporate'], ['קונצרניות', 'Corporate'],
+  ['ארה״ב', 'US'], ['ארהב', 'US'], ['אמריקה', 'US'], ['עולם', 'World'], ['עולמי', 'World'], ['אירופה', 'Europe'], ['יפן', 'Japan'], ['הודו', 'India'],
+  ['סין', 'China'], ['גרמניה', 'Germany'], ['בריטניה', 'UK'], ['שווקים מתעוררים', 'Emerging Markets'], ['ישראל', 'Israel'],
+].sort((a, b) => b[0].length - a[0].length); // ביטוי ארוך קודם ("אס אנד פי 500" לפני "אס אנד פי")
+function heToEnQuery(q) {
+  let s = ' ' + String(q || '').replace(/["'״׳]/g, (c) => (c === '"' ? '״' : c === "'" ? '׳' : c)).replace(/\s+/g, ' ').trim() + ' ';
+  let hit = false;
+  for (const [he, en] of HE_EN) {
+    const re = new RegExp('(^|\\s)' + he.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s|$)', 'g');
+    if (re.test(s)) { hit = true; s = s.replace(re, '$1' + en); }
+  }
+  if (!hit) return null;
+  s = s.replace(/[֐-׿״׳]+/g, ' ').replace(/\s+/g, ' ').trim(); // מילים שלא תורגמו — לא נשלחות
+  return s || null;
+}
+async function searchStocksYahoo(query, onUpdate, mk) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
-  const key = q.toUpperCase();
+  const key = (mk ? 'MK|' : '') + q.toUpperCase();
   if (_searchCache.has(key)) return _searchCache.get(key);
   const heb = /[֐-׿]/.test(q); // Yahoo לא מחפש בעברית — רק הרשימה המקומית
   const local = localStockSearch(q);
   const parts = { api: null, direct: null, stooq: null };
-  const all = () => [parts.direct, parts.api, local, parts.stooq];
+  const all = () => (heb ? [local, parts.api] : [parts.direct, parts.api, local, parts.stooq]);
   const emit = () => { if (onUpdate) onUpdate(mergeSearchResults(q, all())); };
   const tasks = [];
   let apiOk = false;
   // v239: קודם השרתון — חיפוש סובלני לטעויות על כל המניות בארה"ב + Yahoo מהשרת (מהטלפון Yahoo חוסם: RDDT לא נמצא).
   // ישירות ל־Yahoo רק אם השרתון לא ענה.
-  const px = heb ? null : await withTimeout(proxySearchAPI(q), SEARCH_TIMEOUT_MS);
+  // v274: עברית → מונחים באנגלית לשרתון ("קסם נאסדק 100" → "KSM Nasdaq 100") — כך נמצאות קרנות הסל של ת"א לפי המדד
+  const pq = heb ? heToEnQuery(q) : q;
+  const px = pq ? await withTimeout(proxySearchAPI(pq, mk), SEARCH_TIMEOUT_MS) : null;
   if (Array.isArray(px)) { apiOk = true; parts.api = px; emit(); }
   if (!heb && !apiOk) {
     tasks.push(withTimeout(yahooSearchAPI(q), SEARCH_TIMEOUT_MS).then((r) => {
@@ -8744,21 +9061,21 @@ async function searchStocksYahoo(query, onUpdate) {
     const st = sym ? await withTimeout(stooqDirectSymbol(sym), SEARCH_TIMEOUT_MS) : null;
     if (st) { parts.stooq = [st]; merged = mergeSearchResults(q, all()); }
   }
-  if (apiOk || heb) _searchCache.set(key, merged); // כשל רשת — לא נשמר, כדי לנסות שוב
+  if (apiOk || (heb && !pq)) _searchCache.set(key, merged); // כשל רשת — לא נשמר, כדי לנסות שוב
   if (!merged.length && !apiOk && !heb) return null;
   return merged;
 }
 
 /* v239: חיפוש דרך השרתון (/api/search) — null בכשל (ואז Yahoo ישירות) */
-async function proxySearchAPI(query) {
+async function proxySearchAPI(query, mk) {
   if (typeof fetch !== 'function') return null;
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const to = setTimeout(() => { if (ctl) ctl.abort(); }, SEARCH_TIMEOUT_MS);
   try {
-    const r = await fetch(ibkrProxyBase() + '/api/search', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ q: String(query || '').slice(0, 40) }), signal: ctl ? ctl.signal : undefined });
+    const r = await fetch(ibkrProxyBase() + '/api/search', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify(mk ? { q: String(query || '').slice(0, 40), mk: 1 } : { q: String(query || '').slice(0, 40) }), signal: ctl ? ctl.signal : undefined });
     const j = await r.json();
     if (!j || !j.ok || !Array.isArray(j.items)) return null;
-    return j.items.filter((x) => x && x.sym && searchMarketOk(x.sym)).map((x) => ({ sym: String(x.sym).toUpperCase(), name: x.name || x.sym, type: x.type || 'EQUITY' }));
+    return j.items.filter((x) => x && x.sym && (searchMarketOk(x.sym) || isWatchOnlySym(x.sym))).map((x) => ({ sym: String(x.sym).toUpperCase(), name: x.name || x.sym, type: x.type || 'EQUITY' }));
   } catch (e) { return null; } finally { clearTimeout(to); }
 }
 
@@ -8783,7 +9100,7 @@ async function yahooDirectSymbol(q) {
 /* סימבול שנתמך: ארה"ב (בלי סיומת בורסה) או ת"א (.TA). טהורה. */
 function searchMarketOk(sym) {
   const s = String(sym || '').toUpperCase();
-  return !/\./.test(s) || /\.TA$/.test(s);
+  return !/\./.test(s) || /\.TA$/.test(s) || MKT_IDX_EXTRA.has(s);
 }
 
 async function yahooSearchAPI(query) {
@@ -8808,6 +9125,16 @@ async function yahooSearchAPI(query) {
   }
 }
 
+function mktTypeLabel(it) {
+  const k = mktKind(it.sym);
+  if (k === 'index') return t('mktIndex');
+  if (k === 'yield') return t('mktYield');
+  if (k === 'future') return t('mktFuture');
+  if (k === 'crypto') return t('mktCrypto');
+  if (k === 'fx') return t('mktFx');
+  if (symCur(it.sym) === 'ILS') return it.type === 'ETF' ? t('mktTaseEtf') : t('mktTase');
+  return it.type;
+}
 function renderStockSearchResults(items, status, boxId, onPick) {
   const box = document.getElementById(boxId || 'stockSearchResults');
   if (!box) return;
@@ -8844,7 +9171,7 @@ function renderStockSearchResults(items, status, boxId, onPick) {
       '<span class="ss-logo">' + stockLogoHTML(it.sym) + '</span>' +
       '<span class="ss-sym" dir="ltr">' + esc(dispSym(it.sym)) + '</span>' +
       '<span class="ss-name" dir="auto">' + esc(it.name) + '</span>' +
-      '<span class="ss-type">' + esc(isIndexSym(it.sym) ? t('mktIndex') : symCur(it.sym) === 'ILS' ? t('mktTase') : it.type) + '</span>' +
+      '<span class="ss-type">' + esc(mktTypeLabel(it)) + '</span>' +
       '<span class="ss-add" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 7.5v9M7.5 12h9"/></svg></span>';
     row.addEventListener('click', () => {
       box.classList.add('hidden');
@@ -8919,16 +9246,16 @@ function initStockSearch(pfx, owned, onPick, opts) {
       if (my !== _searchSeq) return; // תשובה של הקלדה ישנה
       // v255: מדדים רק ברשימות המעקב (בראש התוצאות); בתיק — אף פעם (רק קרנות הסל שעוקבות אחריהם)
       const idx = opts.indices ? indexSearch(q) : [];
-      const f = idx.concat((items || []).filter((r) => !isIndexSym(r.sym) && !idx.some((i) => i.sym === r.sym)))
+      const f = idx.concat((items || []).filter((r) => (opts.indices || !isWatchOnlySym(r.sym)) && !idx.some((i) => i.sym === r.sym)))
         .filter((r) => !owned.has(r.sym)).slice(0, 10);
       if (f.length) render(f, loading ? 'loading' : 'ok');
       else render(null, loading ? 'loading' : 'empty');
     };
-    const cached = _searchCache.get(q.toUpperCase());
+    const cached = _searchCache.get((opts.indices ? 'MK|' : '') + q.toUpperCase());
     if (cached) { show(cached, false); return; }
     show(localStockSearch(q), true); // מיידי — בלי לחכות לרשת
     _stockSearchT = setTimeout(async () => {
-      const res = await searchStocksYahoo(q, (partial) => show(partial, true));
+      const res = await searchStocksYahoo(q, (partial) => show(partial, true), !!opts.indices);
       if (res === 'aborted' || my !== _searchSeq) return;
       if (res === null) {
         const loc = localStockSearch(q);
@@ -9356,7 +9683,7 @@ function deletePosition(p) {
 /* ולידציה טהורה — ניתנת לבדיקה */
 function wlValidate(sym) {
   const s = String(sym || '').trim().toUpperCase();
-  if (!/^\^?[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(s)) return { err: t('errSymInvalid') }; // v255: ^ = מדד
+  if (!/^\^?[A-Z0-9][A-Z0-9.\-=]{0,15}$/.test(s)) return { err: t('errSymInvalid') }; // v255: ^ = מדד; v274: CL=F, EURUSD=X, PEPE24478-USD
   // v245 (בקשת המשתמש): כפילות רק באותה רשימה — מניה יכולה להיות גם בתיק וגם בכמה רשימות
   if (wlItems().some((w) => w.sym === s)) return { err: t('wlExists', { sym: s }) };
   return { sym: s };
@@ -9767,10 +10094,11 @@ function setLogoMeta(src, v) {
 }
 function stockLogoHTML(sym) {
   const nsym = normalizeSym(sym);
-  if (isIndexSym(nsym)) {
+  const mk = mktKind(nsym);
+  if (mk) {
     const ix = MARKET_INDICES.find((x) => x[0] === nsym);
-    return '<span class="stock-logo idx-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 16.5l5-5 4 3 8-8"/><path d="M15 6.5h5v5"/></svg>' +
-      '<span class="idx-lbl" dir="ltr">' + esc(ix ? ix[4] : nsym.replace(/^\^/, '').replace(/\.TA$/, '').slice(0, 4)) + '</span></span>';
+    return '<span class="stock-logo idx-logo mk-' + mk + '" aria-hidden="true"><svg viewBox="0 0 24 24">' + (MKT_ICONS[mk] || MKT_ICONS.index) + '</svg>' +
+      '<span class="idx-lbl" dir="ltr">' + esc(ix ? ix[4] : dispSym(nsym).replace(/^\^/, '').replace(/\.TA$/, '').slice(0, 5)) + '</span></span>';
   }
   const first = (nsym || '?').charAt(0);
   const src = logoSrc(nsym);
@@ -10547,8 +10875,8 @@ function renderStockRangeSummary(sym, pts, lineCol) {
   }
   // v236: סמן המניה (● סימבול בצבע הקו) — מימין לשורת התשואה (v238: המשתמש אישר "ככה זה מדהים, תשאיר ככה")
   const wasEmpty = box && !box.innerHTML; // v273: השורה מופיעה בפעם הראשונה — בדהייה
-  if (box) box.innerHTML = '<span class="rs-sym"><span class="dot" style="background:' + lineCol + '"></span>' + esc(sym) + '</span>' +
-    '<span class="rs-lbl">' + esc(t('stockRangeReturn')) + '</span>' +
+  if (box) box.innerHTML = '<span class="rs-sym"><span class="dot" style="background:' + lineCol + '"></span>' + esc(dispSym(sym)) + '</span>' +
+    '<span class="rs-lbl">' + esc(isWatchOnlySym(sym) ? t('mktRangeReturn') : t('stockRangeReturn')) + '</span>' +
     '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
     (rangeName ? '<span class="rs-range">' + esc(rangeName) + '</span>' : '');
   if (box) fitStockFoot(box);
@@ -10709,7 +11037,7 @@ function scIdx(map, x) { return Math.max(0, Math.min(map.n - 1, Math.round((x - 
 function scX(map, i) { return map.padL + (map.n === 1 ? map.plotW / 2 : i / (map.n - 1) * map.plotW); }
 function scY(map, v) { return map.padT + (1 - (v - map.min) / (map.max - map.min)) * map.plotH; }
 /* טהורה: מחיר בגרף — ביחידה של הציר (דולר / אגורות / נקודות), בלי המרה למטבע התצוגה */
-function scPxTxt(sym, v) { return isIndexSym(sym) ? fmtPts(v) : symCur(sym) === 'ILS' ? fmtAg(v, sym) : ltrNum(fmtUSD2(v)); }
+function scPxTxt(sym, v) { return mktKind(sym) === 'yield' || mktKind(sym) === 'fx' ? fmtPx(v, sym) : isIndexSym(sym) ? fmtPts(v) : symCur(sym) === 'ILS' ? fmtAg(v, sym) : ltrNum(fmtUSD2(v)); }
 /* טהורה: תאריך לנקודה — יום/חודש/שנה, ובגרף תוך־יומי גם השעה */
 function scDateTxt(p, intraday) {
   const d = fmtDateIL(p.date);

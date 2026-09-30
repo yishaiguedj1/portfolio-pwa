@@ -93,7 +93,8 @@ function scoreEntry(x, q, qWords) {
         if (best > tol(w.length) + 0.5) { okAll = false; break; }
         tot += best;
       }
-      if (okAll) sc = Math.max(sc, 520 - tot * 110 + (first ? 30 : 0)); // המילה הראשונה בשם = שם החברה (לא ETF שמזכיר אותה)
+      // v274: פחות מילים עודפות בשם = התאמה טובה יותר ("KSM S&P 500" → הקרן הרגילה לפני "... Currency Hedged Leveraged")
+      if (okAll) sc = Math.max(sc, 520 - tot * 110 + (first ? 30 : 0) - Math.min(60, Math.max(0, x.w.length - qWords.length) * 6)); // המילה הראשונה בשם = שם החברה (לא ETF שמזכיר אותה)
     }
   }
   if (sc < 400 && Q.length >= 3 && Q.length <= 6 && sym.length >= 3) {

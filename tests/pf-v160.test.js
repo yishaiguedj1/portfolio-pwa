@@ -34,7 +34,7 @@ ok(q.AAPL.prev === 204, 'CNBC: בלי סגירה קודמת — מחושבת מ�
 ok(/if \(dayChg === null && q && q\.prev > 0 && regPx > 0\) dayChg = \(regPx - q\.prev\) \/ q\.prev \* 100;/.test(src), 'שינוי יומי גם בלי היסטוריה (v210: מהסגירה הרגילה)');
 ok(/if \(!rest\.length \|\| yahooCooling\(\)\) return out;/.test(src) && /if \(direct\) yahooOk\(\); else yahooFailed\(\);/.test(src), 'לא שואלים את Yahoo ישירות בזמן הפסקה (v164: דרך השרתון בכל מקרה)');
 ok(/yahooRecovered\(\)\.catch/.test(src) && /delete histNegCache\[sym\]/.test(src), 'Yahoo חזר: משלימים היסטוריות חסרות וגרפים פתוחים');
-ok(/if \(symCur\(sym\) !== 'USD'\) return null; \/\/ v160: Stooq/.test(src), 'Stooq רק לארה"ב (לא poli.ta.us)');
+ok(/if \(symCur\(sym\) !== 'USD'( \|\| mktKind\(sym\))?\) return null; \/\/ v160: Stooq/.test(src), 'Stooq רק לארה"ב (לא poli.ta.us)');
 ok(/loading\.textContent = t\('histRetryLater'\)/.test(src) && /histRetryLater: 'Price history/.test(src), 'בלי היסטוריה — הודעה ברורה, לא "טוען" לנצח');
 ok(/'prev', 'prevClose'/.test(src), 'רשת הביטחון לאגורות מתקנת גם את הסגירה הקודמת');
 ok(/if \(state\.stale\) setBanner\(null\);/.test(src), 'מחירים חזרו — ההודעה "לא התקבלו מחירים" יורדת');
