@@ -571,6 +571,12 @@ html.drag-active .tabpage { transform: none !important; animation: none !importa
   box-shadow: 0 2px 8px rgba(0,0,0,.12);
 }
 .pf-pick-bubble.hidden { display: none; }
+/* v266: סימון בגרף — "המשך" (ראשי, פעיל אחרי שנבחרה נקודה) ו"ביטול" מתחת לגרף */
+.pf-pick-bar { display: flex; gap: 10px; margin: 10px 0 4px; }
+.pf-pick-bar.hidden { display: none; }
+.pf-pick-bar .btn { flex: 1; }
+.pf-pick-bar .btn:disabled { opacity: .45; cursor: default; }
+.pf-pick-bar .chip-btn { flex: none; min-width: 96px; justify-content: center; }
 /* שורת תשואת הטווח מתחת לגרף */
 .pf-range-summary {
   margin: 8px 0 2px; font-size: 16px; color: var(--on-surface);

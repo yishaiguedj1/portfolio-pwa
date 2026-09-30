@@ -34,4 +34,8 @@ ok(/base: base \}/.test(app) && /map\.pts\[i\]\.close \/ map\.base - 1/.test(app
 ok(/translate\(0px,' \+ \(-tip\.offsetHeight - 4\)/.test(app) && /tip\.style\.top = \(-tip\.offsetHeight - 4\)/.test(app), 'v265: הבועה בשני הגרפים — פינה שמאלית עליונה, מעל הגרף');
 ok(/pf-tip sc-tip/.test(app) && /radial-gradient\(circle, var\(--on-surface-var\)/.test(css), 'v265: עיצוב הבועה של גרף הביצועים + קו אנכי מנוקד');
 ok(/pfAttachTouch\(canvas\)/.test(app) && /showPfMeasureTip\(a, b\)/.test(app) && /!ms\.on \|\| ms\.pts\.length < 2/.test(app), 'v265: גרף הביצועים — שתי אצבעות = מדידה בבועה (שורת המדידה רק במצב הכפתור)');
+// v266
+ok(/function pfPickConfirm\(\)/.test(app) && /state\.pfCustomFrom = map\.series\[0\]\.pts\[i\]\.date;/.test(app) && /go\.disabled = !picked;/.test(app), 'v266: סימון בגרף הסקירה — "המשך" פעיל רק אחרי סימון, קובע את תאריך ההתחלה');
+ok(/if \(state\.pfPickDate\) \{ \/\/ v266/.test(app) && /pickAt\(xOf\(e\)\)/.test(app), 'v266: הסימון זז בנגיעה ובגרירה בלי הגבלה (בלי חלון אישור)');
+ok(/pfPickContinue: 'המשך'/.test(app) && /pfPickContinue: 'Continue'/.test(app), 'v266: "המשך" בעברית ובאנגלית');
 console.log('\n' + n + ' בדיקות עברו');

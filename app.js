@@ -227,6 +227,7 @@ he: {
   pfPickFromCal: 'בחר מהיומן',
   pfCalTitle: 'בחר תאריך התחלה',
   pfPickBubble: 'געו בנקודה על הגרף לבחירת תאריך ההתחלה',
+  pfPickContinue: 'המשך',
   pfRangeReturn: 'תשואת התיק',
   stockRangeReturn: 'תשואת המניה',
   pfNoteTrades: 'היסטוריה אמיתית — משוחזרת מעסקאות IBKR: קניות, מכירות והפקדות/משיכות מנוטרלות מהתשואה',
@@ -732,6 +733,7 @@ en: {
   pfPickFromCal: 'Choose from calendar',
   pfCalTitle: 'Choose start date',
   pfPickBubble: 'Tap a point on the chart to choose the start date',
+  pfPickContinue: 'Continue',
   pfRangeReturn: 'Portfolio return',
   stockRangeReturn: 'Stock return',
   pfNoteTrades: 'True history — reconstructed from IBKR trades: buys, sells and deposits/withdrawals excluded from the return',
@@ -3868,7 +3870,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v265';
+const APP_VERSION = 'v266';
 
 
 function saveDBto(db) {
@@ -4465,6 +4467,7 @@ const state = {
   pfBench: null,      // {SPY:true, QQQ:true} — נטען/נשמר, ברירת מחדל: הכל דולק
   pfCustomFrom: null, // תאריך התחלה מותאם (YYYY-MM-DD) — דורס את pfRange
   pfPickDate: false,  // מצב בחירת תאריך התחלה בלחיצה על הגרף
+  pfPickIdx: null,    // v266: הנקודה שסומנה (אפשר להזיז עד "המשך")
   pfMeasure: { on: false, pts: [] }, // v126: מדידה רק אחרי לחיצה על כפתור "מדידה" (כמו בגרף המניה)
   pfTipIdx: null,   // v126: נקודה שנבחרה בלחיצה רגילה — טולטיפ בלבד
   edit: { stocks: false, deposits: false, pension: false },  // מצב עריכה (מוגן מטעויות)
@@ -7476,6 +7479,7 @@ function openPfFromSheet() {
   b1.addEventListener('click', () => {
     closePfSheet();
     state.pfPickDate = true;
+    state.pfPickIdx = null;
     state.pfMeasure.pts = [];
     hidePfTip();
     updatePfPickUI();
@@ -7535,12 +7539,53 @@ function openPfCalSheet() {
 function updatePfPickUI() {
   const wrap = document.getElementById('pfWrap');
   const bub = document.getElementById('pfPickBubble');
-  const on = !!state.pfPickDate;
+  const on = !!state.pfPickDate, picked = on && state.pfPickIdx !== null;
   if (wrap) wrap.classList.toggle('picking', on);
   if (bub) {
     bub.textContent = t('pfPickBubble');
-    bub.classList.toggle('hidden', !on);
+    bub.classList.toggle('hidden', !on || picked); // v266: אחרי הסימון — הבועה עם התאריך במקומה
   }
+  // v266 (בקשת המשתמש): במקום חלון אישור — סימון שאפשר להזיז בלי הגבלה, ו"המשך" / "ביטול" מתחת לגרף
+  let bar = document.getElementById('pfPickBar');
+  if (!bar && wrap && on) {
+    bar = el('div', 'pf-pick-bar');
+    bar.id = 'pfPickBar';
+    bar.innerHTML = '<button type="button" class="btn pf-pick-go"></button><button type="button" class="chip-btn pf-pick-cancel"></button>';
+    bar.querySelector('.pf-pick-go').addEventListener('click', pfPickConfirm);
+    bar.querySelector('.pf-pick-cancel').addEventListener('click', pfPickCancel);
+    wrap.insertAdjacentElement('afterend', bar);
+  }
+  if (bar) {
+    bar.classList.toggle('hidden', !on);
+    const go = bar.querySelector('.pf-pick-go');
+    go.textContent = t('pfPickContinue');
+    go.disabled = !picked;
+    bar.querySelector('.pf-pick-cancel').textContent = t('btnCancel');
+  }
+}
+function pfPickConfirm() {
+  const canvas = document.getElementById('pfChart'), map = canvas && canvas._pfMap;
+  const i = state.pfPickIdx;
+  if (!map || i === null || !map.series[0].pts[i]) return;
+  state.pfCustomFrom = map.series[0].pts[i].date;
+  state.pfRange = 'custom';
+  pfPickCancel(true);
+}
+function pfPickCancel(redraw) {
+  state.pfPickDate = false;
+  state.pfPickIdx = null;
+  state.pfMeasure.pts = [];
+  hidePfTip();
+  updatePfPickUI();
+  if (redraw === true) drawPfChart(); else paintPfChart();
+}
+/* v266: בועת הסימון — תאריך + ערך הקו של התיק באותה נקודה, באותו מקום ועיצוב כמו הבועה הרגילה */
+function showPfPickTip() {
+  const canvas = document.getElementById('pfChart'), map = canvas && canvas._pfMap, tip = pfTipEl();
+  const i = state.pfPickIdx;
+  if (!map || !tip || i === null || !map.series[0].pts[i]) return;
+  const s0 = map.series[0];
+  pfTipPlace(tip, '<b>' + fmtDateIL(s0.pts[i].date) + '</b><div><span class="dot" style="background:' + s0.color + '"></span>' + esc(s0.name) + ' ' + fmtRetHTML(s0.pts[i].norm - 100) + '</div>');
 }
 
 /* הסבר מתחת לגרף הביצועים — מותאם למקור הנתונים */
@@ -7647,7 +7692,17 @@ function pfIdxAt(map, x) {
    מצב "מתאריך" וכפתור "מדידה" — כמו קודם (onPfTap). */
 function pfAttachTouch(canvas) {
   const ptrs = new Map();
-  let froze = false, raf = 0;
+  let froze = false, raf = 0, pick = null;
+  const pickAt = (x) => {
+    const map = canvas._pfMap;
+    const i = pfIdxAt(map, x);
+    if (i === state.pfPickIdx) return;
+    const first = state.pfPickIdx === null;
+    state.pfPickIdx = i;
+    if (first) updatePfPickUI();
+    showPfPickTip();
+    repaint();
+  };
   const repaint = () => { if (raf) return; raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => { raf = 0; paintPfChart(); }) : (paintPfChart(), 0); };
   const xOf = (e) => e.clientX - canvas.getBoundingClientRect().left;
   const upd = () => {
@@ -7670,7 +7725,15 @@ function pfAttachTouch(canvas) {
     repaint();
   };
   canvas.addEventListener('pointerdown', (e) => {
-    if (state.pfPickDate || state.pfMeasure.on) { onPfTap(e); return; }
+    if (state.pfPickDate) { // v266: סימון שאפשר להזיז — נגיעה/גרירה, בלי חלון אישור
+      const map = canvas._pfMap;
+      if (!map || map.n < 2) return;
+      pick = e.pointerId;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      pickAt(xOf(e));
+      return;
+    }
+    if (state.pfMeasure.on) { onPfTap(e); return; }
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (!ptrs.size) froze = false;
     ptrs.set(e.pointerId, xOf(e));
@@ -7678,11 +7741,13 @@ function pfAttachTouch(canvas) {
     upd();
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (pick === e.pointerId && state.pfPickDate) { pickAt(xOf(e)); return; }
     if (!ptrs.has(e.pointerId)) return;
     ptrs.set(e.pointerId, xOf(e));
     upd();
   });
   const end = (e, cancel) => {
+    if (pick === e.pointerId) pick = null;
     if (!ptrs.has(e.pointerId)) return;
     ptrs.delete(e.pointerId);
     if (cancel && !froze && !ptrs.size) { hidePfTip(); repaint(); } // גלילת הדף — לא התכוונו לגרף
@@ -7690,7 +7755,7 @@ function pfAttachTouch(canvas) {
   canvas.addEventListener('pointerup', (e) => end(e, false));
   canvas.addEventListener('pointercancel', (e) => end(e, true));
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', (e) => {
-    if (e.target === canvas || state.pfMeasure.on) return;
+    if (e.target === canvas || state.pfMeasure.on || state.pfPickDate) return;
     if (state.pfTipIdx !== null || state.pfMeasure.pts.length) { hidePfTip(); state.pfMeasure.pts = []; repaint(); }
   }, true);
 }
@@ -8043,8 +8108,10 @@ function paintPfChart() {
   };
   for (const i of ms.pts) drawMarker(i);
   if (!ms.on && state.pfTipIdx !== null && state.pfTipIdx < n) drawMarker(state.pfTipIdx);
+  if (state.pfPickDate && state.pfPickIdx !== null) { if (state.pfPickIdx >= n) state.pfPickIdx = n - 1; drawMarker(state.pfPickIdx); } // v266
 
   canvas._pfMap = { n, padL, plotW, series, xs: fr.map((f) => padL + f * plotW) };
+  if (state.pfPickDate && state.pfPickIdx !== null) showPfPickTip(); // v266: הבועה נשארת גם בציור מחדש
   if (canvas.classList) canvas.classList.add('drawn'); // v193
   canvas.classList.toggle('measuring', state.pfPickDate || ms.on);
   updatePfMeasureChip();
