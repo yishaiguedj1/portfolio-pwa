@@ -306,6 +306,7 @@ he: {
   btnSave: 'שמור',
   btnCancel: 'ביטול',
   btnOk: 'אישור', ibkrImportOk: 'ייבוא',
+  ibkrAutoLbl: 'עדכון אוטומטי', ibkrAutoVal: 'כל יום ב־{h}', ibkrAutoSynced: 'עודכן אוטומטית מ־IBKR',
   saved: 'נשמר ✓',
   newDeposit: 'הפקדה חדשה',
   depositAdded: 'ההפקדה נוספה ✓',
@@ -368,7 +369,6 @@ he: {
   importSnapshotNote: 'הנתונים הידניים נשמרו וישוחזרו בניתוק.',
   // סנכרון Flex — אופציה נוספת למשיכת נתונים
   ibkrConnTitle: 'הגדרות חיבור',
-  ibkrRangeTitle: 'בחירת טווח למשיכה', ibkrDepthAuto: 'אוטומטי', ibkrDepthAria: 'עומק היסטוריה', ibkrFromAria: 'תאריך התחלה',
   ibkrFlexHowTitle: 'איך מגדירים את שאילתת ה־Flex?',
   ibkrSyncDesc: 'הנתונים נמשכים מ־IBKR דרך Flex Web Service: יוצרים שאילתת Flex ב־Client Portal ‏(Reports ← Flex Queries), ומפעילים Flex Web Service כדי לקבל token.',
   flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (לתשואה לפי חודש/שנה/YTD).',
@@ -377,11 +377,6 @@ he: {
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
   ibkrErrAppKey: 'השרתון דחה את הבקשה כי הוגדר בו APP_KEY. ב־Vercel: Settings ← Environment Variables ← מחק את APP_KEY ← Redeploy.',
   ibkrErrOrigin: 'השרתון מקבל בקשות רק מהאתר של האפליקציה. פתח את האפליקציה מהכתובת הרגילה שלה.',
-  ibkrDepth1: 'שנה אחת',
-  ibkrDepth2: 'שנתיים',
-  ibkrDepth3: '3 שנים',
-  ibkrDepth5: '5 שנים',
-  ibkrDepth10: '10 שנים',
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
   ibkrUpToDate: 'הנתונים כבר מעודכנים עד יום המסחר האחרון שנסגר — אין מה למשוך כרגע.',
   fetchHistoryAuto: 'מושך היסטוריה עמוקה מ־IBKR… (חלק {n} מתוך {total})',
@@ -838,6 +833,7 @@ en: {
   btnSave: 'Save',
   btnCancel: 'Cancel',
   btnOk: 'OK', ibkrImportOk: 'Import',
+  ibkrAutoLbl: 'Auto update', ibkrAutoVal: 'Daily at {h}', ibkrAutoSynced: 'Updated automatically from IBKR',
   saved: 'Saved ✓',
   newDeposit: 'New deposit',
   depositAdded: 'Deposit added ✓',
@@ -900,7 +896,6 @@ en: {
   importSnapshotNote: 'Manual data was snapshotted and will be restored on disconnect.',
   // Flex sync — an additional data-pull option
   ibkrConnTitle: 'Connection settings',
-  ibkrRangeTitle: 'Choose pull range', ibkrDepthAuto: 'Automatic', ibkrDepthAria: 'History depth', ibkrFromAria: 'Start date',
   ibkrFlexHowTitle: 'How do I set up the Flex query?',
   ibkrSyncDesc: 'Data is pulled from IBKR via Flex Web Service: create a Flex query in the Client Portal (Reports → Flex Queries), and enable Flex Web Service to get a token.',
   flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (for month/year/YTD returns).',
@@ -909,11 +904,6 @@ en: {
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
   ibkrErrAppKey: 'The proxy rejected the request because APP_KEY is set on it. In Vercel: Settings → Environment Variables → delete APP_KEY → Redeploy.',
   ibkrErrOrigin: 'The proxy only accepts requests from the app’s own site. Open the app from its usual address.',
-  ibkrDepth1: '1 year',
-  ibkrDepth2: '2 years',
-  ibkrDepth3: '3 years',
-  ibkrDepth5: '5 years',
-  ibkrDepth10: '10 years',
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
   ibkrUpToDate: 'Data is already up to date through the last closed trading day — nothing to fetch right now.',
   fetchHistoryAuto: 'Deep history pull from IBKR… (chunk {n} of {total})',
@@ -1734,6 +1724,61 @@ function ibkrClearErr() {
   const e = document.getElementById('ibkrErr');
   if (e) { e.textContent = ''; e.classList.add('hidden'); }
 }
+/* v298 (בקשת המשתמש): עדכון אוטומטי מ־IBKR פעם ביממה.
+   השעה: 14:00 שעון ישראל (07:00 בניו־יורק) — הרבה אחרי שדוח Flex של יום המסחר הקודם מתפרסם
+   (בחצות בישראל הוא עוד לא קיים — flex_1003, לקח v136), ולפני פתיחת המסחר ב־16:30.
+   PWA לא רצה ברקע, וה־token נשמר רק בטלפון (אסור בענן) — לכן המשיכה רצה כשהאפליקציה פתוחה:
+   בפתיחה/חזרה לאפליקציה, ובדיקה כל 5 דקות כשהיא פתוחה. אם לא נפתחה אחרי 14:00 — הפתיחה הבאה משלימה,
+   כך שאף פעם לא עוברות יותר מ־24 שעות משימוש לשימוש בלי עדכון. */
+const IBKR_AUTO_HOUR_IL = 14;
+const IBKR_AUTO_RETRY_MS = 3 * 3600 * 1000;
+/* רגע היעד האחרון (ms): היום ב־14:00 שעון ישראל, או אתמול אם עוד לא הגענו (טהורה, נבדקת) */
+function ibkrAutoTargetMs(now) {
+  const ms = (typeof now === 'number') ? now : Date.now();
+  let p;
+  try {
+    p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' })
+      .formatToParts(new Date(ms)).forEach((x) => { p[x.type] = +x.value; });
+  } catch (e) { p = null; }
+  if (!p || !p.year) { const d = new Date(ms); p = { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() }; }
+  const offset = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(ms / 1000) * 1000; // שעון ישראל מול UTC
+  let target = Date.UTC(p.year, p.month - 1, p.day, IBKR_AUTO_HOUR_IL, 0, 0) - offset;
+  if (target > ms) target -= 24 * 3600 * 1000;
+  return target;
+}
+/* האם הגיע זמן העדכון האוטומטי (טהורה, נבדקת) — רק לחשבון מחובר עם נתונים שכבר יובאו */
+function ibkrAutoSyncDue(cfg, now) {
+  if (!cfg || !cfg.token || !cfg.queryId || !ibkrHasImportedData(cfg.data)) return false;
+  const target = ibkrAutoTargetMs(now);
+  if ((cfg.lastSync || 0) >= target) return false;
+  const tried = cfg.autoTry || 0;
+  if (tried >= target && !(cfg.autoRetry && now - tried >= IBKR_AUTO_RETRY_MS)) return false; // ניסיון אחד לחלון (+ אחד אחרי 3 שעות בתקלה חולפת)
+  return true;
+}
+let _ibkrAutoRunning = false;
+async function ibkrAutoSyncTick() {
+  try {
+    if (_ibkrAutoRunning || state.ibkrSyncing || isDemoMode()) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    const now = Date.now();
+    if (!ibkrAutoSyncDue(ibkrCfg(), now)) return;
+    _ibkrAutoRunning = true;
+    ibkrSaveCfg({ autoTry: now, autoRetry: false });
+    _ibkrLastRes = '';
+    const r0 = await ibkrSyncImport({ silent: true });
+    const res = (typeof r0 === 'string' && r0 !== 'fail') ? r0 : _ibkrLastRes;
+    if (res === 'retry') ibkrSaveCfg({ autoRetry: true });
+  } catch (e) {
+  } finally { _ibkrAutoRunning = false; }
+}
+function wireIbkrAutoSync() {
+  if (typeof document === 'undefined' || typeof setInterval !== 'function') return;
+  setTimeout(ibkrAutoSyncTick, 8000); // אחרי הציור הראשון והענן
+  setInterval(ibkrAutoSyncTick, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(ibkrAutoSyncTick, 3000); });
+}
+
 function ibkrSetBusy(busy) {
   state.ibkrSyncing = !!busy; // v139: עוצר את הטיק החי בזמן סנכרון
   ['ibkrDisconnect', 'ibkrSaveTest', 'ibkrSyncImport'].forEach((id) => {
@@ -2342,21 +2387,7 @@ function renderIbkrCard() {
   const cdet = document.getElementById('ibkrConnDetails');
   if (cdet && !(cfg.token && cfg.queryId)) cdet.open = true;
   const data = cfg.data;
-  // עומק היסטוריה — בחירת המשתמש (נשמרת בטלפון); v296: ברירת המחדל "אוטומטי"
-  const dhe = document.getElementById('ibkrHistoryDepth');
-  if (dhe) dhe.value = ibkrDepthChoice(cfg.historyDepth);
-  // תאריך התחלה למשיכה — בחירת המשתמש (נשמרת בטלפון) או ברירת מחדל חכמה
-  const fde = document.getElementById('ibkrFromDate');
-  if (fde && !fde.value) {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cfg.fromDate || '')) {
-      fde.value = cfg.fromDate;
-    } else if (ibkrHasImportedData(data)) {
-      // יש נתונים — ברירת המחדל: המשך מהנקודה שהם נגמרו
-      const yest = ibkrLastClosedDate();
-      fde.value = ibkrDefaultFromYmd(data, yest).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
-    }
-    // אחרת השדה נשאר ריק = משיכה עמוקה אוטומטית עד קצה ההיסטוריה
-  }
+  // v298: בחירת הטווח הוסרה — אין שדות עומק/תאריך לאכלס
   const has = !!(data && (data.positions || []).length + (data.trades || []).length + (data.navPeriods || []).length);
   const s = document.getElementById('ibkrStatus');
   if (s) {
@@ -2368,7 +2399,8 @@ function renderIbkrCard() {
       const row = (k, v, ltr) => '<div class="ib-row"><span>' + esc(k) + '</span><span class="ib-v"' + (ltr ? ' dir="ltr"' : '') + '>' + esc(v) + '</span></div>';
       s.innerHTML = '<div class="ib-sum">' +
         row(t('ibkrPeriodLbl'), (meta.fromDate ? fmtDateIL(meta.fromDate) : '—') + ' – ' + (meta.toDate ? fmtDateIL(meta.toDate) : '—'), true) +
-        row(t('ibkrLastSyncLbl'), cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—') + '</div>';
+        row(t('ibkrLastSyncLbl'), cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—') +
+        row(t('ibkrAutoLbl'), t('ibkrAutoVal', { h: String(IBKR_AUTO_HOUR_IL).padStart(2, '0') + ':00' })) + '</div>';
     }
   }
   const d = document.getElementById('ibkrData');
@@ -3625,11 +3657,19 @@ function ibkrCacheIsStale(cached, curPositions) {
   for (const p of (curPositions || [])) cur[String(p.sym || '').trim()] = true;
   return !cps.some((p) => cur[String(p.symbol || '').trim()]);
 }
-function ibkrReviewImport(existing, incoming, warnTxt) {
-  if (ibkrCacheIsStale(existing, typeof POSITIONS !== 'undefined' ? POSITIONS : [])) existing = null;
+function ibkrReviewImport(existing, incoming, warnTxt, silent) {
+  if (ibkrCacheIsStale(existing, typeof POSITIONS !== 'undefined' ? POSITIONS : [])) {
+    if (silent) return; // v298: עדכון שקט לא מחליף נתונים שמורים שלא תואמים לתיק — רק סנכרון ידני (עם אישור)
+    existing = null;
+  }
   const preview = rMergePreview(existing, incoming);
   const deltaTxt = ibkrImportDeltaText(preview, !!existing);
-  if (deltaTxt === null) { flash(t('ibkrImportNothingNew')); return; }
+  if (deltaTxt === null) {
+    if (silent) { ibkrSaveCfg({ lastSync: Date.now() }); return; } // v298: עדכון יומי בלי חדש — רק חותמת זמן
+    flash(t('ibkrImportNothingNew')); return;
+  }
+  // v298: עדכון יומי אוטומטי — מייבאים בלי לשאול; רק כשיש אזהרה (פער/חלק שנכשל) — שואלים כרגיל
+  if (silent && !String(warnTxt || '').trim()) { ibkrFinishImport(rMergeData(existing, incoming), true); return; }
   const meta = incoming.meta || {};
   const twr = rHeadlineTwr(incoming);
   askConfirm(t('ibkrImportConfirm', {
@@ -3646,13 +3686,9 @@ async function ibkrSaveAndTest() {
   const proxyUrl = (document.getElementById('ibkrProxy').value || '').trim().replace(/\/+$/, '');
   const token = (document.getElementById('ibkrToken').value || '').trim();
   const queryId = (document.getElementById('ibkrQuery').value || '').trim();
-  const fromDateEl = document.getElementById('ibkrFromDate');
-  const fromDate = ((fromDateEl && fromDateEl.value) || '').trim();
-  const dhe = document.getElementById('ibkrHistoryDepth');
-  const historyDepth = ibkrDepthChoice(dhe && dhe.value);
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
-  ibkrSaveCfg({ proxyUrl, token, queryId, appKey: '', fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '', historyDepth });
+  ibkrSaveCfg({ proxyUrl, token, queryId, appKey: '', fromDate: '' });
   ibkrSetBusy(true);
   renderIbkrCard();
   try {
@@ -3825,25 +3861,28 @@ function ibkrProgressOpen(chunks, startYmd, endYmd, popts) {
   };
 }
 
-async function ibkrSyncImport() {
-  ibkrClearErr();
+async function ibkrSyncImport(opts) {
+  // v298: silent = העדכון היומי האוטומטי — בלי כרטיס התקדמות, בלי חלון אישור (אלא אם יש אזהרה), מחזיר תוצאה לתזמון
+  const silent = !!(opts && opts.silent === true);
+  if (silent && (state.ibkrSyncing || isDemoMode())) return 'skip';
+  if (!silent) ibkrClearErr();
   if (isDemoMode()) return ibkrShowErr(t('demoSyncBlocked'));
   const cfg = ibkrCfg();
   const proxyUrl = ibkrProxyBase();
-  if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
-  if (!cfg.token || !cfg.queryId) return ibkrShowErr(t('credsMissingSave'));
+  if (!proxyUrl) return silent ? 'fail' : ibkrShowErr(t('proxyUrlMissing'));
+  if (!cfg.token || !cfg.queryId) return silent ? 'fail' : ibkrShowErr(t('credsMissingSave'));
+  if (silent && !ibkrHasImportedData(cfg.data)) return 'skip'; // משיכה ראשונה — רק בלחיצה
   // טווח המשיכה — שלושה מצבים:
   // 1. תאריך ידני בשדה (נשמר בטלפון) — המשתמש בחר בדיוק כמה אחורה.
   // 2. יש נתונים מיובאים ואין תאריך — ממשיכים מהנקודה שהם נגמרו (מהיר, בלי כפילויות).
   // 3. אין נתונים ואין תאריך — משיכה עמוקה אוטומטית מינואר 2020 קדימה,
   //    בחלקי 365 יום (אותו נתיב שהוכח כמושך מ־IBKR היסטוריה מלאה).
   // בכל המצבים הקיטוע לחלקי 365 יום והאיחוד אוטומטיים.
-  const fde = document.getElementById('ibkrFromDate');
-  const fromStr = ((fde && fde.value) || cfg.fromDate || '').trim();
-  // עומק היסטוריה בשנים — כמה שנים אחורה המשתמש באמת צריך (בחירתו, נשמרת בטלפון)
-  const dhe = document.getElementById('ibkrHistoryDepth');
-  const historyDepth = ibkrDepthChoice((dhe && dhe.value) || cfg.historyDepth);
-  ibkrSaveCfg({ historyDepth });
+  // v298 (בקשת המשתמש): בחירת הטווח הוסרה — משיכה ראשונה תמיד "אוטומטי" (כל השנים עם פעילות),
+  // ואחר כך תמיד המשך מהנקודה שהנתונים נגמרו. תאריך ידני ישן שנשמר — מתעלמים ממנו.
+  const fde = null;
+  const fromStr = '';
+  const historyDepth = 'auto';
   const endD = ibkrLastClosedDate();
   const endYmd = ibkrYmd(endD);
   let startYmd, autoMode = false, autoAll = false;
@@ -3868,6 +3907,7 @@ async function ibkrSyncImport() {
     // כבר מעודכן (או שנותרו רק ימי סופ"ש, שעליהם IBKR לא מפיק דוח)
     if (!ibkrHasWeekday(startYmd, endYmd)) {
       if (fde) fde.value = '';
+      if (silent) { ibkrSaveCfg({ lastSync: Date.now() }); renderIbkrCard(); return 'uptodate'; } // נבדק — אין יום מסחר חדש
       renderIbkrCard();
       return flash(t('ibkrUpToDate'));
     }
@@ -3883,17 +3923,18 @@ async function ibkrSyncImport() {
   // v122: מסך דלוק במהלך המשיכה — טלפון שנכבה משהה את הדף והמשיכה "נתקעת"
   let wakeLock = null;
   try {
-    if (typeof navigator !== 'undefined' && navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen');
+    if (!silent && typeof navigator !== 'undefined' && navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen');
   } catch (e) {}
+  let result = 'fail', incomingRef = null, errRef = null;
   // v122: שורת מצב חיה — חלק, שלב (בקשה / IBKR מכין את הדוח) וזמן שעבר,
   // כדי שיהיה ברור מה קורה ולא ייראה "תקוע"
   const s = document.getElementById('ibkrStatus');
   const t0 = Date.now();
   let base = autoMode ? t('fetchHistoryAuto', { n: 1, total: '…' }) : t('fetchHistory', { n: 1, total: '…' });
   let stageTxt = '';
-  const paint = () => { if (s) s.textContent = ibkrStatusLine(base, stageTxt, Date.now() - t0); };
+  const paint = () => { if (s && !silent) s.textContent = ibkrStatusLine(base, stageTxt, Date.now() - t0); };
   const ticker = setInterval(paint, 1000);
-  const ui = ibkrProgressOpen(ibkrDateChunks(startYmd, endYmd), startYmd, endYmd, { grow: autoAll }); // v280; v296: אוטומטי — שורות נוספות תוך כדי
+  const ui = ibkrProgressOpen(silent ? [] : ibkrDateChunks(startYmd, endYmd), startYmd, endYmd, { grow: autoAll }); // v280; v296: אוטומטי — שורות נוספות תוך כדי
   let uiFailed = false;
   const uiFail = (msg, retry) => { uiFailed = true; ui.fail(msg, retry); };
   try {
@@ -3912,6 +3953,7 @@ async function ibkrSyncImport() {
       endDate: endD,
       autoDepth: autoAll,
     });
+    incomingRef = incoming;
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
     // פוזיציות ישנות כעדכניות.
     // אם כל הכשלונות הם flex_1003 (הדוח עדיין לא פורסם ב־IBKR) — מסבירים
@@ -3930,6 +3972,7 @@ async function ibkrSyncImport() {
     ui.merging({ trades: (incoming.trades || []).length, cash: (incoming.cashTransactions || []).length, days: (incoming.navDaily || []).length });
     const imp = ibkrMapImport(incoming);
     if (!imp.positions.length && !(incoming.navPeriods || []).length && !(incoming.trades || []).length) {
+      if (silent) return result;
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? ' ' + t('importSkippedNote', { n: imp.skipped }).trim() : ''));
       uiFail(t('importNoStocks'), false);
       return;
@@ -3955,8 +3998,11 @@ async function ibkrSyncImport() {
       deepNote += '\n' + t('ibkrGapWarn', { detail: gapText, date: fmtDateIL(gapStartIso) });
     }
     await ui.ready(); // "סקירה ואישור" נשאר מאחורי הדיאלוג; נסגר ב־finally
-    ibkrReviewImport(ibkrCfg().data, incoming, deepNote);
+    ibkrReviewImport(ibkrCfg().data, incoming, deepNote, silent);
+    result = 'ok';
   } catch (e) {
+    errRef = e;
+    if (silent) return;
     const msg = t('importFailed', { err: ibkrFriendlyErr(e.message) });
     ibkrShowErr(msg);
     uiFail(msg, !ibkrIsLockoutErr(e) && !ibkrIsThrottleErr(e));
@@ -3966,7 +4012,21 @@ async function ibkrSyncImport() {
     try { if (wakeLock) wakeLock.release(); } catch (e) {}
     ibkrSetBusy(false);
     renderIbkrCard();
+    if (silent) _ibkrLastRes = ibkrSilentResult(result, incomingRef, errRef);
   }
+  return result;
+}
+/* תוצאת עדכון שקט לתזמון (טהורה, נבדקת): ok / retry (תקלה חולפת — ניסיון נוסף בעוד 3 שעות) / fail (נעילה/קצב — לא היום) */
+let _ibkrLastRes = '';
+function ibkrSilentResult(result, incoming, err) {
+  if (result === 'ok') return 'ok';
+  if (err) return (ibkrIsLockoutErr(err) || ibkrIsThrottleErr(err)) ? 'fail' : 'retry';
+  if (incoming && !ibkrSyncIsComplete(incoming)) {
+    const fails = (incoming._chunks || []).filter((c) => !c.ok);
+    const hard = !!incoming._locked || !!incoming._throttled || fails.some((c) => ibkrIsLockoutErr(c.error) || ibkrIsThrottleErr(c.error));
+    return hard ? 'fail' : 'retry';
+  }
+  return 'fail';
 }
 
 /* שורת מצב של משיכה (פונקציה טהורה, נבדקת): "חלק 2 מתוך 6 · שלב · 1:05". */
@@ -3995,7 +4055,7 @@ function ibkrImportDeltaText(preview, hasExisting) {
 /* סיום יבוא: מאחד לוטות לפי סימבול, מכניס פוזיציות לתיק (בהסכמת המשתמש
    שכבר ניתנה), מזומן (רק אם נמצא בדוח) והפקדות (רק העברות חיצוניות מהדוח,
    מומרות לשקלים). פנסיה לא נפגעת. */
-function ibkrFinishImport(data) {
+function ibkrFinishImport(data, auto) {
   const isManual = DB.source === 'manual';
   const snapshotOk = isManual && ibkrSnapshotManual();
   const imp = ibkrMapImport(data);
@@ -4041,7 +4101,7 @@ function ibkrFinishImport(data) {
   if (replaced > 0) msg += ' ' + t('importReplaced', { n: replaced });
   if (skipped > 0) msg += ' ' + t('importSkipped', { n: skipped });
   if (snapshotOk) msg += ' ' + t('importSnapshotNote');
-  flash(msg);
+  flash(auto ? t('ibkrAutoSynced') : msg);
 }
 
 /* מחיר סגירה קודם לחישוב שינוי יומי (מתמודד עם סופ"ש/חג) */
@@ -4277,7 +4337,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v297';
+const APP_VERSION = 'v298';
 
 
 function saveDBto(db) {
@@ -12906,6 +12966,7 @@ function init() {
   });
 
   wireBackNav(); // v290
+  wireIbkrAutoSync(); // v298: עדכון יומי מ־IBKR
   // v287: "אפשרויות מתקדמות" — עמוד משנה של ההגדרות
   const advO = document.getElementById('advancedOpen'), advB = document.getElementById('advancedBack');
   if (advO) advO.addEventListener('click', () => switchTab('advanced'));

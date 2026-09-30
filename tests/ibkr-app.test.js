@@ -782,8 +782,8 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
     ok(!/ibkrCsv|csvKind|csvWarn|ibkrParseCsv|FileReader/.test(appSrc), 'app.js: אין קוד/מחרוזות של יבוא CSV');
     ok(!/csv/i.test(appSrc.replace(/parseHistoryCSV|e=csv/g, '')), 'app.js: CSV נשאר רק בהיסטוריית המחירים של Stooq');
     ok(!/csv/i.test(retSrc), 'returns.js: פארסר ה־CSV הוסר');
-    ok(/<details[^>]*id="ibkrConnDetails"/.test(html) && /<details[^>]*id="ibkrRangeDetails"/.test(html) && /<details[^>]*id="ibkrFlexHow"/.test(html), 'כרטיס IBKR: הגדרות/טווח/הדרכה מקופלים');
-    const btnIdx = html.indexOf('id="ibkrSyncImport"'), detIdx = html.indexOf('id="ibkrRangeDetails"');
+    ok(/<details[^>]*id="ibkrConnDetails"/.test(html) && !/id="ibkrRangeDetails"/.test(html) && /<details[^>]*id="ibkrFlexHow"/.test(html), 'כרטיס IBKR: הגדרות/הדרכה מקופלים (v298: בלי בחירת טווח)');
+    const btnIdx = html.indexOf('id="ibkrSyncImport"'), detIdx = html.indexOf('id="ibkrConnDetails"');
     ok(btnIdx > 0 && btnIdx < detIdx, 'כפתור הסנכרון גלוי מחוץ לחלקים המקופלים');
   }
 

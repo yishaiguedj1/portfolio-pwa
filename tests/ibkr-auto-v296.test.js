@@ -87,10 +87,8 @@ const run = (f, extra) => T.ibkrFetchFullHistory(f, 'https://p', 'tok', '1', T.i
   ok(yrs(log) === '2024,2025,2026', 'עומק ידני — עדיין מהישן לחדש');
 
   // ממשק
-  const sec = html.slice(html.indexOf('id="ibkrRangeDetails"'), html.indexOf('id="ibkrConnDetails"'));
-  ok(/data-i18n="ibkrRangeTitle">בחירת טווח למשיכה</.test(sec), 'כותרת: "בחירת טווח למשיכה"');
-  ok(/<option value="auto" data-i18n="ibkrDepthAuto" selected>אוטומטי</.test(sec) && !/<label/.test(sec) && !/<p /.test(sec), 'אוטומטי ראשון ונבחר; בלי תוויות ובלי טקסט הסבר');
-  ok(/ibkrRangeTitle: 'Choose pull range'/.test(app) && /ipAutoRange: '/.test(app), 'מחרוזות באנגלית');
+  ok(!/id="ibkrRangeDetails"|id="ibkrHistoryDepth"|id="ibkrFromDate"/.test(html), 'v298: בחירת הטווח הוסרה — תמיד אוטומטי');
+  ok(/const historyDepth = 'auto';/.test(app) && /const fromStr = '';/.test(app), 'v298: משיכה ראשונה תמיד אוטומטית, תאריך ישן שנשמר — מתעלמים');
   ok(/autoDepth: autoAll/.test(app) && /\{ grow: autoAll \}/.test(app), 'המשיכה והכרטיס מקבלים את המצב האוטומטי');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });

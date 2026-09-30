@@ -1547,9 +1547,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 [dir="rtl"] #ibkrCard .ib-more > details > summary::after { transform: translateY(-2px) rotate(-45deg); }
 [dir="rtl"] #ibkrCard .ib-more > details[open] > summary::after { transform: translateY(2px) rotate(135deg); }
 #ibkrCard .ib-more > details[open] { padding-bottom: 12px; }
-/* v296: בורר העומק ותאריך ההתחלה זה לצד זה, בלי תוויות */
-#ibkrCard .ib-range { grid-template-columns: 1fr 1fr; gap: 10px; }
-#ibkrCard .ib-range > * { min-width: 0; width: 100%; }
+
 @media (prefers-reduced-motion: reduce) { #ibkrCard .ib-more > details > summary::after { transition: none; } }
 
 #ibkrCard.syncing > :not(.ibkr-prog) { display: none; }

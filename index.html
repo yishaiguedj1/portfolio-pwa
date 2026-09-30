@@ -345,21 +345,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
         <button id="ibkrDisconnect" class="btn danger-btn" type="button" data-i18n="ibkrDisconnectBtn">ניתוק</button>
       </div>
       <div class="ib-more">
-      <details class="fine" id="ibkrRangeDetails">
-        <summary data-i18n="ibkrRangeTitle">בחירת טווח למשיכה</summary>
-        <!-- v296 (בקשת המשתמש): בלי תוויות והסברים; "אוטומטי" = כל השנים עם פעילות -->
-        <div class="form-grid ib-range">
-          <select id="ibkrHistoryDepth" data-i18n-aria="ibkrDepthAria" aria-label="עומק היסטוריה">
-            <option value="auto" data-i18n="ibkrDepthAuto" selected>אוטומטי</option>
-            <option value="1" data-i18n="ibkrDepth1">שנה אחת</option>
-            <option value="2" data-i18n="ibkrDepth2">שנתיים</option>
-            <option value="3" data-i18n="ibkrDepth3">3 שנים</option>
-            <option value="5" data-i18n="ibkrDepth5">5 שנים</option>
-            <option value="10" data-i18n="ibkrDepth10">10 שנים</option>
-          </select>
-          <input id="ibkrFromDate" type="date" dir="ltr" data-i18n-aria="ibkrFromAria" aria-label="תאריך התחלה">
-        </div>
-      </details>
+      <!-- v298 (בקשת המשתמש): בחירת הטווח הוסרה — המשיכה תמיד אוטומטית, ועדכון יומי ב־14:00 -->
       <details class="fine" id="ibkrConnDetails">
         <summary data-i18n="ibkrConnTitle">הגדרות חיבור</summary>
         <div class="form-grid">
