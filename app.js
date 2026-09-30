@@ -174,6 +174,7 @@ he: {
   kvWeight: 'משקל בתיק',
   offAth: '{v} מהשיא',
   measure: ICON_MEASURE + 'מדידה',
+  scTwoFingerHint: 'טיפ: געו בגרף בשתי אצבעות כדי למדוד את התשואה בין שתי נקודות',
   measureTitle: 'בחירת שתי נקודות על הגרף למדידת תשואה ביניהן',
   measureOn: 'מצב מדידה: געו בשתי נקודות על הגרף — התשואה ביניהן תוצג. געו שוב כדי להתחיל מחדש.',
   measureTip: 'טיפ: לחצו מדידה ואז געו בשתי נקודות כדי למדוד תשואה ביניהן.',
@@ -678,6 +679,7 @@ en: {
   kvWeight: 'Weight',
   offAth: '{v} off ATH',
   measure: ICON_MEASURE + 'Measure',
+  scTwoFingerHint: 'Tip: touch the chart with two fingers to measure the return between two points',
   measureTitle: 'Pick two points on the chart to measure the return between them',
   measureOn: 'Measure mode: tap two points on the chart — the return between them will show. Tap again to restart.',
   measureTip: 'Tip: tap Measure, then tap two points to measure the return between them.',
@@ -3866,7 +3868,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v263';
+const APP_VERSION = 'v264';
 
 
 function saveDBto(db) {
@@ -9944,6 +9946,7 @@ function buildStockBody(p, m) {
   }
 
   attachMeasure(canvas, sym);
+  scAttach(canvas, sym); // v264: נגיעה = מחיר ותאריך, שתי אצבעות = מדידה
   // ציור יתבצע אחרי טעינת היסטוריה (ensureChartData)
 
   // v100: כפתור "ערוך" בתחתית הכרטיס הפתוח — מופיע תמיד בלחיצה על המניה,
@@ -10247,7 +10250,8 @@ function drawStockChart(sym, rows, intraday) {
   for (const i of ms.pts) drawMarker(i);
 
   // שמירת מיפוי למדידה
-  canvas._chartMap = { n: pts.length, padL: padL, plotW: plotW, pts: pts };
+  canvas._chartMap = { n: pts.length, padL: padL, plotW: plotW, pts: pts, padT: padT, plotH: plotH, min: min, max: max, up: up, intraday: intraday };
+  scRender(canvas); // v264: הסמן/המדידה של המשתמש נשארים במקום גם כשהגרף מתעדכן בטיק החי
   if (canvas.classList) canvas.classList.add('drawn'); // v193
   canvas.classList.toggle('measuring', ms.on || ms.pts.length > 0);
   updateMeasureChip(sym);
@@ -10406,7 +10410,7 @@ function attachMeasure(canvas, sym) {
       else refreshStockBody(sym);
       return;
     }
-    if (!ms.on) return;
+    if (!ms.on) return; // v264: נגיעה/מדידה בשתי אצבעות — scAttach
     const map = canvas._chartMap;
     if (!map || map.n < 2) return;
     e.preventDefault();
@@ -10418,6 +10422,148 @@ function attachMeasure(canvas, sym) {
     if (ms.pts.length > 2) ms.pts = [idx]; // געו שלישית — מתחילים מחדש
     ensureChartData(sym);
   });
+}
+
+/* v264 (בקשת המשתמש): נגיעה בגרף המניה — כמו בגוגל. אצבע אחת: קו אנכי + נקודה על הקו + בועה עם המחיר והתאריך
+   (ושעה בגרף תוך־יומי), גרירה לצדדים מזיזה. שתי אצבעות בו־זמנית: מדידה — רצועה בין הנקודות ובועה עם התשואה, השינוי
+   במחיר והתאריכים. בעכבר: ריחוף = מחיר, גרירה = מדידה. התוצאה נשארת אחרי ההרמה עד נגיעה אחרת (בגרף או מחוצה לו).
+   ציור ב־DOM מעל הקנבס (לא ציור מחדש של הגרף בכל תזוזה). גלילה אנכית של הדף נשארת (touch-action: pan-y). */
+function scIdx(map, x) { return Math.max(0, Math.min(map.n - 1, Math.round((x - map.padL) / map.plotW * (map.n - 1)))); }
+function scX(map, i) { return map.padL + (map.n === 1 ? map.plotW / 2 : i / (map.n - 1) * map.plotW); }
+function scY(map, v) { return map.padT + (1 - (v - map.min) / (map.max - map.min)) * map.plotH; }
+/* טהורה: מחיר בגרף — ביחידה של הציר (דולר / אגורות / נקודות), בלי המרה למטבע התצוגה */
+function scPxTxt(sym, v) { return isIndexSym(sym) ? fmtPts(v) : symCur(sym) === 'ILS' ? fmtAg(v, sym) : ltrNum(fmtUSD2(v)); }
+/* טהורה: תאריך לנקודה — יום/חודש/שנה, ובגרף תוך־יומי גם השעה */
+function scDateTxt(p, intraday) {
+  const d = fmtDateIL(p.date);
+  return p.time && intraday ? (intraday === 'day' || intraday === true ? p.time.slice(0, 5) + ' · ' + d.slice(0, 5) : d.slice(0, 5) + ' ' + p.time.slice(0, 5)) : d;
+}
+/* טהורה: המדידה בין שתי נקודות (לפי סדר הזמן) → תשואה באחוזים ושינוי במחיר */
+function scMeasure(pts, i, j) {
+  const a = Math.min(i, j), b = Math.max(i, j), pa = pts[a], pb = pts[b];
+  return { a, b, pct: (pb.close - pa.close) / pa.close * 100, chg: pb.close - pa.close };
+}
+function scRender(canvas) {
+  const wrap = canvas.parentNode, map = canvas._chartMap, sc = canvas._sc;
+  let ov = wrap && wrap.querySelector('.sc-ov');
+  if (!sc || !map || map.n < 2 || !wrap) { if (ov) ov.classList.add('hidden'); return; }
+  const sym = canvas.id.replace(/^chart-/, '');
+  if (!ov) {
+    ov = el('div', 'sc-ov');
+    ov.setAttribute('aria-live', 'polite');
+    ov.innerHTML = '<i class="sc-band"></i><i class="sc-line"></i><i class="sc-line sc-l2"></i><i class="sc-dot"></i><i class="sc-dot sc-d2"></i><div class="sc-tip"></div>';
+    wrap.appendChild(ov);
+  }
+  ov.classList.remove('hidden');
+  const n = map.n, clamp = (i) => Math.max(0, Math.min(n - 1, i));
+  const q = (c) => ov.querySelector(c), band = q('.sc-band'), l1 = q('.sc-line'), l2 = q('.sc-l2'), d1 = q('.sc-dot'), d2 = q('.sc-d2'), tip = q('.sc-tip');
+  const place = (dot, line, i) => {
+    const x = scX(map, i), y = scY(map, map.pts[i].close);
+    line.style.transform = 'translateX(' + x.toFixed(1) + 'px)'; line.style.top = map.padT + 'px'; line.style.height = map.plotH + 'px';
+    dot.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+    return { x, y };
+  };
+  let html, cx, dotYs, tone;
+  if (sc.mode === 'm') {
+    const m = scMeasure(map.pts, clamp(sc.a), clamp(sc.b));
+    tone = m.pct >= 0 ? 'pos' : 'neg';
+    const A = place(d1, l1, m.a), B = place(d2, l2, m.b);
+    band.style.transform = 'translateX(' + A.x.toFixed(1) + 'px)'; band.style.width = Math.max(0, B.x - A.x).toFixed(1) + 'px';
+    band.style.top = map.padT + 'px'; band.style.height = map.plotH + 'px';
+    html = '<b class="sc-ret ' + tone + '">' + fmtPct(m.pct, true) + '</b><span class="sc-chg ' + tone + '">' + fmtSignedPx(m.chg, sym) + '</span>' +
+      '<span class="sc-dt">' + ltrNum(esc(scDateTxt(map.pts[m.a], map.intraday)) + ' – ' + esc(scDateTxt(map.pts[m.b], map.intraday))) + '</span>';
+    cx = (A.x + B.x) / 2; dotYs = [A.y, B.y];
+  } else {
+    const i = clamp(sc.i), P = place(d1, l1, i);
+    tone = map.up ? 'pos' : 'neg';
+    html = '<b class="sc-px">' + scPxTxt(sym, map.pts[i].close) + '</b><span class="sc-dt">' + esc(scDateTxt(map.pts[i], map.intraday)) + '</span>';
+    cx = P.x; dotYs = [P.y];
+  }
+  ov.classList.toggle('m', sc.mode === 'm');
+  ov.classList.toggle('neg', tone === 'neg');
+  if (tip._html !== html) { tip.innerHTML = html; tip._html = html; }
+  // הבועה למעלה, ממורכזת מעל הנקודה/הרצועה ובתוך הגרף; נקודה שמתחתיה — הבועה יורדת לתחתית אזור הגרף
+  const W = wrap.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+  const left = Math.max(0, Math.min(W - tw, cx - tw / 2));
+  const hitTop = dotYs.some((y) => y < th + 14);
+  const top = hitTop ? map.padT + map.plotH - th - 2 : 0;
+  tip.style.transform = 'translate(' + left.toFixed(1) + 'px,' + top.toFixed(1) + 'px)';
+}
+function scSet(canvas, sc) {
+  canvas._sc = sc;
+  if (canvas._scRaf) return;
+  const run = () => { canvas._scRaf = 0; scRender(canvas); };
+  canvas._scRaf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(run) : (run(), 0);
+}
+let _scOutWired = false;
+function scAttach(canvas, sym) {
+  const ptrs = new Map(); // pointerId → x (בתוך הקנבס)
+  let mouseDown = null, froze = false;
+  const xOf = (e) => e.clientX - canvas.getBoundingClientRect().left;
+  const busy = () => state.stockPick[sym] || measureState(sym).on;
+  const upd = () => {
+    const map = canvas._chartMap;
+    if (!map || map.n < 2) return;
+    const xs = [...ptrs.values()];
+    if (xs.length >= 2) {
+      const a = scIdx(map, xs[0]), b = scIdx(map, xs[1]);
+      if (!canvas._sc || canvas._sc.mode !== 'm') { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} }
+      scSet(canvas, { mode: 'm', a, b }); froze = true;
+    } else if (xs.length === 1 && !froze) scSet(canvas, { mode: 'tip', i: scIdx(map, xs[0]) });
+  };
+  canvas.addEventListener('pointerdown', (e) => {
+    if (busy()) return;
+    if (e.pointerType === 'mouse') { if (e.button !== 0) return; mouseDown = xOf(e); return; }
+    if (!ptrs.size) froze = false;
+    ptrs.set(e.pointerId, xOf(e));
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    upd();
+    if (ptrs.size === 1) scHintOnce();
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (busy()) return;
+    const map = canvas._chartMap;
+    if (e.pointerType === 'mouse') {
+      if (!map || map.n < 2) return;
+      const x = xOf(e);
+      if (mouseDown !== null && Math.abs(x - mouseDown) > 6) scSet(canvas, { mode: 'm', a: scIdx(map, mouseDown), b: scIdx(map, x) });
+      else if (mouseDown === null && !(canvas._sc && canvas._sc.pinned)) scSet(canvas, { mode: 'tip', i: scIdx(map, x) });
+      return;
+    }
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, xOf(e));
+    upd();
+  });
+  const end = (e, cancel) => {
+    if (e.pointerType === 'mouse') {
+      if (cancel || mouseDown === null) return;
+      const map = canvas._chartMap, x = xOf(e);
+      if (map && Math.abs(x - mouseDown) <= 6) scSet(canvas, { mode: 'tip', i: scIdx(map, x), pinned: true }); // לחיצה — נעוץ
+      else if (canvas._sc) canvas._sc.pinned = true;
+      mouseDown = null;
+      return;
+    }
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
+    // גלילה אנכית של הדף (pointercancel) באמצע נגיעה של אצבע אחת — לא התכוונו לגרף
+    if (cancel && !froze && !ptrs.size) scSet(canvas, null);
+  };
+  canvas.addEventListener('pointerup', (e) => end(e, false));
+  canvas.addEventListener('pointercancel', (e) => end(e, true));
+  canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && mouseDown === null && canvas._sc && !canvas._sc.pinned) scSet(canvas, null); });
+  canvas.addEventListener('contextmenu', (e) => { if (canvas._sc) e.preventDefault(); }); // לחיצה ארוכה — בלי תפריט
+  if (!_scOutWired && typeof document !== 'undefined') {
+    _scOutWired = true;
+    // נגיעה מחוץ לגרף — הסמן/המדידה נעלמים (כמו בגרף הרווח/הפסד)
+    document.addEventListener('pointerdown', (e) => {
+      document.querySelectorAll('.chart-wrap canvas').forEach((c) => { if (c._sc && e.target !== c) scSet(c, null); });
+    }, true);
+  }
+}
+/* פעם אחת במכשיר: אחרי הנגיעה הראשונה — שתי אצבעות = מדידה */
+function scHintOnce() {
+  try { if (localStorage.getItem('pwa_schint_v1')) return; localStorage.setItem('pwa_schint_v1', '1'); } catch (e) { return; }
+  setTimeout(() => flash(t('scTwoFingerHint')), 700);
 }
 
 /* ---------------- רינדור: הפקדות ---------------- */
