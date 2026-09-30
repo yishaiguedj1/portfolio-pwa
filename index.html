@@ -45,6 +45,14 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <button id="menuBtn" class="icon-btn" type="button" data-i18n-aria="menuAria" aria-label="תפריט" aria-haspopup="true" aria-expanded="false"></button>
       <div id="menuDrop" class="menu-drop hidden">
         <div id="mainMenu" class="main-menu">
+          <!-- v291: תיק דמו — קבוע בתפריט (בדמו: יציאה מהדמו) -->
+          <div class="menu-section menu-demo">
+            <button id="menuDemoBtn" class="row-link menu-row" type="button">
+              <span class="row-link-ic demo-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 2.5l1.7 5.1a3 3 0 0 0 1.9 1.9L18.7 11.2l-5.1 1.7a3 3 0 0 0-1.9 1.9L10 19.9l-1.7-5.1a3 3 0 0 0-1.9-1.9L1.3 11.2l5.1-1.7a3 3 0 0 0 1.9-1.9z"/><path d="M19 1.5l.8 2.2a1.5 1.5 0 0 0 .9.9l2.3.8-2.3.8a1.5 1.5 0 0 0-.9.9L19 9.3l-.8-2.2a1.5 1.5 0 0 0-.9-.9L15 5.4l2.3-.8a1.5 1.5 0 0 0 .9-.9z"/></svg></span>
+              <span class="row-link-txt"><span class="menu-row-t" id="menuDemoLbl" data-i18n="demoBtn">טען תיק דמו</span><span class="menu-row-s" id="menuDemoSub" data-i18n="menuDemoSub">האפליקציה במלואה</span></span>
+              <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
+            </button>
+          </div>
           <div class="menu-section">
             <h3 class="menu-title" data-i18n="cashTitle">מזומן בתיק</h3>
             <div class="form-grid">
@@ -86,6 +94,12 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
   </div>
   <!-- סקירה -->
   <section id="tab-overview" class="tabpage active" role="tabpanel">
+    <!-- v146→v291: הצעת תיק הדמו — בראש הסקירה, רק כשהחשבון ריק לגמרי (renderDemoUi); תמיד זמין גם בתפריט ההמבורגר -->
+    <div class="card demo-card" id="demoOffer">
+      <div class="demo-card-icon" aria-hidden="true">✨</div>
+      <h2 data-i18n="demoTitle">רוצה לראות את האפליקציה במלואה?</h2>
+      <button id="demoCreateBtn" class="btn demo-btn" type="button" data-i18n="demoBtn">טען תיק דמו</button>
+    </div>
     <div class="cards-3 ov-stats card">
       <div class="stat">
         <div class="stat-label" data-i18n="ovStocksValue">שווי תיק המניות</div>
@@ -277,12 +291,6 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 
   <!-- הגדרות -->
   <section id="tab-settings" class="tabpage" role="tabpanel">
-    <!-- v146: תיק דמו — הצעה למשתמשים חדשים -->
-    <div class="card demo-card" id="demoOffer">
-      <div class="demo-card-icon" aria-hidden="true">✨</div>
-      <h2 data-i18n="demoTitle">רוצה לראות את האפליקציה במלואה?</h2>
-      <button id="demoCreateBtn" class="btn demo-btn" type="button" data-i18n="demoBtn">טען תיק דמו</button>
-    </div>
     <div class="card demo-card hidden" id="demoActive">
       <h2 data-i18n="demoActiveTitle">מצב דמו פעיל</h2>
       <p class="fine" style="padding:0" data-i18n="demoActiveDesc">זה תיק לדוגמה.</p>

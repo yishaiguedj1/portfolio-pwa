@@ -111,7 +111,8 @@ ok(/localStorage\.setItem\(LS_PREDEMO, JSON\.stringify\(DB\)\)/.test(src) && /Cl
 ok(/if \(isDemoMode\(\)\) return ibkrShowErr\(t\('demoSyncBlocked'\)\)/.test(src), 'סנכרון IBKR חסום במצב דמו');
 
 // --- 6. HTML ---
-ok(html.indexOf('id="demoOffer"') > -1 && html.indexOf('id="demoOffer"') < html.indexOf('id="accountCard"'), 'הצעת הדמו בראש ההגדרות');
+// v291: ההצעה עברה לראש הסקירה (רק בחשבון ריק) + שורה קבועה בתפריט ההמבורגר
+ok(html.indexOf('id="demoOffer"') > html.indexOf('id="tab-overview"') && html.indexOf('id="demoOffer"') < html.indexOf('ov-stats'), 'הצעת הדמו בראש הסקירה');
 ok(/id="resetManual"/.test(html) && /id="resetIbkr"/.test(html) && /id="resetData"/.test(html), 'שלושה כפתורי איפוס: ידני, IBKR, מלא');
 ok(/id="demoBanner"/.test(html), 'באנר מצב דמו');
 

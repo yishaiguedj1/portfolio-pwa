@@ -459,7 +459,7 @@ he: {
   resetIbkrDone: 'נתוני IBKR נמחקו — אפשר לסנכרן מחדש מההגדרות',
   resetIbkrNone: 'אין נתוני IBKR למחיקה',
   demoTitle: 'רוצה לראות את האפליקציה במלואה?',
-  demoBtn: 'טען תיק דמו',
+  demoBtn: 'טען תיק דמו', menuDemoSub: 'האפליקציה במלואה', menuDemoExitSub: 'חזרה לנתונים שלך',
   demoConfirm: 'לטעון תיק דמו?\nהנתונים שלך נשמרים בצד וחוזרים ביציאה מהדמו. שינויים בזמן הדמו לא נשמרים בענן.',
   demoBuilding: 'בונה תיק דמו ממחירי שוק אמיתיים…',
   demoReady: 'תיק הדמו מוכן — סיור נעים!',
@@ -997,7 +997,7 @@ en: {
   resetIbkrDone: 'IBKR data deleted — you can sync again from Settings',
   resetIbkrNone: 'No IBKR data to delete',
   demoTitle: 'Want to see the full app?',
-  demoBtn: 'Load demo portfolio',
+  demoBtn: 'Load demo portfolio', menuDemoSub: 'See the full app', menuDemoExitSub: 'Back to your own data',
   demoConfirm: 'Load a demo portfolio?\nYour data is set aside and comes back when you exit the demo. Changes during the demo are not saved to the cloud.',
   demoBuilding: 'Building a demo portfolio from real market prices…',
   demoReady: 'Demo portfolio ready — enjoy the tour!',
@@ -3471,10 +3471,25 @@ function demoExit() {
   location.reload();
 }
 
+/* v291: חשבון ריק לגמרי — אין מניות, עסקאות, הפקדות, פנסיה ונתוני IBKR (רשימת המעקב לא נחשבת). אז — ורק אז —
+   הצעת תיק הדמו בראש הסקירה; מהנתון הראשון שהמשתמש מוסיף היא נעלמת, ואחרי איפוס (שוב ריק) חוזרת. */
+function accountIsEmpty() {
+  if (typeof DB === 'undefined' || !DB) return false;
+  const n = (a) => (Array.isArray(a) ? a.length : 0);
+  if (n(DB.positions) || n(DB.manualTrades) || n(DB.deposits) || n(DB.pensionFunds) || n(DB.pensionDeposits)) return false;
+  try { if (typeof ibkrHasImportedData === 'function' && ibkrHasImportedData(ibkrCfg().data)) return false; } catch (e) {}
+  return true;
+}
 function renderDemoUi() {
   const on = isDemoMode();
   const tog = (id, show) => { const e = document.getElementById(id); if (e) e.classList.toggle('hidden', !show); };
-  tog('demoOffer', !on);
+  const offer = document.getElementById('demoOffer');
+  const building = !!(offer && offer.classList.contains('building'));
+  tog('demoOffer', !on && (building || accountIsEmpty()));
+  // v291: שורת הדמו בתפריט — "טען תיק דמו" / במצב דמו "יציאה מהדמו"
+  const ml = document.getElementById('menuDemoLbl'), ms = document.getElementById('menuDemoSub');
+  if (ml) { ml.dataset.i18n = on ? 'demoExitBtn' : 'demoBtn'; ml.textContent = t(ml.dataset.i18n); }
+  if (ms) { ms.dataset.i18n = on ? 'menuDemoExitSub' : 'menuDemoSub'; ms.textContent = t(ms.dataset.i18n); }
   tog('demoActive', on);
   tog('demoBanner', on);
   tog('resetCard', !on);
@@ -4150,7 +4165,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v290';
+const APP_VERSION = 'v291';
 
 
 function saveDBto(db) {
@@ -12779,6 +12794,20 @@ function init() {
   if (rmBtn) rmBtn.addEventListener('click', doResetManual);
   const riBtn = document.getElementById('resetIbkr');
   if (riBtn) riBtn.addEventListener('click', doResetIbkr);
+  // v291: תיק דמו מהתפריט — יציאה במצב דמו; אחרת לסקירה, והבנייה מוצגת בכרטיס בראשה
+  const mDemo = document.getElementById('menuDemoBtn');
+  if (mDemo) mDemo.addEventListener('click', (e) => {
+    e.stopPropagation();
+    try { setMainMenuOpen(false); } catch (err) {}
+    if (isDemoMode()) { demoExit(); return; }
+    switchTab('overview');
+    cancelScrollRestore();
+    try { window.scrollTo(0, 0); } catch (err) {}
+    const offer = document.getElementById('demoOffer');
+    if (offer) offer.classList.remove('hidden');
+    Promise.resolve(demoCreate(document.getElementById('demoCreateBtn'))).finally(() => { try { renderDemoUi(); } catch (err) {} });
+    setTimeout(() => { try { renderDemoUi(); } catch (err) {} }, 0); // ביטול באישור — הכרטיס חוזר למצבו
+  });
   const dBtn = document.getElementById('demoCreateBtn');
   if (dBtn) dBtn.addEventListener('click', () => demoCreate(dBtn));
   for (const id of ['demoExitBtn', 'demoBannerExit']) {
