@@ -493,8 +493,6 @@ he: {
   ipUntil: 'עד {d}',
   ipMergeDet: '{n} עסקאות · {k} תנועות מזומן · {d} ימי שווי',
   demoStepStocks: '{n} מניות ומדדים',
-  demoActiveTitle: 'מצב דמו פעיל',
-  demoActiveDesc: 'זה תיק לדוגמה — אפשר לגעת בהכל. שינויים כאן לא נשמרים בענן, והנתונים האמיתיים שלך חוזרים ביציאה מהדמו.',
   demoExitBtn: 'יציאה מהדמו',
   demoBanner: 'מצב דמו — נתונים לדוגמה',
   demoSyncBlocked: 'במצב דמו אין סנכרון IBKR — צא מהדמו קודם (בהגדרות).',
@@ -1030,8 +1028,6 @@ en: {
   ipUntil: 'to {d}',
   ipMergeDet: '{n} trades · {k} cash transactions · {d} value days',
   demoStepStocks: '{n} stocks and indexes',
-  demoActiveTitle: 'Demo mode is on',
-  demoActiveDesc: 'This is a sample portfolio — feel free to touch everything. Changes here are not saved to the cloud, and your real data comes back when you exit the demo.',
   demoExitBtn: 'Exit demo',
   demoBanner: 'Demo mode — sample data',
   demoSyncBlocked: 'IBKR sync is off in demo mode — exit the demo first (in Settings).',
@@ -3488,7 +3484,6 @@ function renderDemoUi() {
   const ml = document.getElementById('menuDemoLbl'), ms = document.getElementById('menuDemoSub');
   if (ml) { ml.dataset.i18n = on ? 'demoExitBtn' : 'demoBtn'; ml.textContent = t(ml.dataset.i18n); }
   if (ms) { ms.dataset.i18n = on ? 'menuDemoExitSub' : 'menuDemoSub'; ms.textContent = t(ms.dataset.i18n); }
-  tog('demoActive', on);
   tog('demoBanner', on);
   tog('resetCard', !on);
 }
@@ -4163,7 +4158,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v293';
+const APP_VERSION = 'v294';
 
 
 function saveDBto(db) {

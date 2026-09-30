@@ -888,6 +888,14 @@ footer.fine { text-align: center; }
   box-shadow: 0 1px 3px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 .display-card .lang-opt:not(.active):active { color: var(--primary); }
+/* v294 (בקשת המשתמש): כרטיס התצוגה מינימליסטי — בלי קווי הפרדה ומסגרות, תוויות קטנות ושקטות, בוררים דקים יותר */
+.display-card > h2 { margin-bottom: 6px; }
+.display-card .display-row.stack { gap: 7px; padding: 8px 0; }
+.display-card .display-row.stack + .display-row.stack { border-top: 0; padding-top: 8px; }
+.display-card .display-row.stack .display-label { font-size: 13px; font-weight: 600; letter-spacing: .2px; color: var(--on-surface-var); padding-inline-start: 4px; }
+.display-card .lang-toggle { border: 0; padding: 3px; }
+.display-card .lang-opt { font-size: 15px; padding: 8px 10px; }
+.display-card .lang-opt.active { box-shadow: none; }
 
 /* ---- כרטיס חשבון ---- */
 .account-row { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
