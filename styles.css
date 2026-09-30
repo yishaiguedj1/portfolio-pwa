@@ -296,7 +296,7 @@ button, a, .tab, .icon-btn, .ss-add {
 .tab:active { transform: scale(.95); }
 /* v275 (בקשת המשתמש): טאב הסקירה = הסמל בלבד (הכיתוב נשאר לקוראי מסך). ירוק כשלא פעיל, בצבע הטקסט על הגלולה הירוקה */
 .tab.tab-icon { flex: 0 0 auto; padding-inline: 16px; }
-.tab-ico { width: 22px; height: 22px; flex: none; display: block; }
+.tab-ico { width: 28px; height: 28px; margin-block: -3px; flex: none; display: block; } /* v276: גדול יותר (בקשת המשתמש) — שוליים שליליים: גובה הטאבים לא משתנה */
 .tab-ico path { fill: var(--primary); transition: fill .28s ease; }
 .tab.active .tab-ico path { fill: currentColor; }
 .tab.active {

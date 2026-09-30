@@ -59,5 +59,6 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 ok(/data-tab="overview"[^>]*><svg class="tab-ico"[^>]*aria-hidden="true"><path d="M/.test(html) && /<span class="sr-only" data-i18n="tabOverview">/.test(html), 'טאב הסקירה = סמל בלבד (הכיתוב לקוראי מסך)');
 ok(/\.tab-ico path \{ fill: var\(--primary\);/.test(css) && /\.tab\.active \.tab-ico path \{ fill: currentColor; \}/.test(css), 'הסמל ירוק / בצבע הטקסט כשפעיל');
 
+ok(/\.tab-ico \{ width: 28px; height: 28px; margin-block: -3px;/.test(css), 'v276: סמל הסקירה 28px בלי לשנות את גובה הטאבים');
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
