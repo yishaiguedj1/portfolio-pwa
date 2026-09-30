@@ -3916,7 +3916,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v274';
+const APP_VERSION = 'v275';
 
 
 function saveDBto(db) {
@@ -10534,7 +10534,7 @@ function scrollCardToTop(card) {
 }
 // v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל ומתחת) — לא גדול ולא קטן ממנו:
 // הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
-function fitCardToScreen(sym, card) {
+function fitCardToScreen(sym, card, smooth) {
   if (typeof window === 'undefined' || !window.innerHeight) return false;
   card = card || stockCardEl(sym);
   if (!card || !state.open[sym] || !card.getBoundingClientRect) return false;
@@ -10546,7 +10546,7 @@ function fitCardToScreen(sym, card) {
     card._fitRO = new ResizeObserver(() => {
       if (!state.open[sym] || card.classList.contains('anim')) return; // v271: בזמן אנימציית הפתיחה הגובה משתנה בכל פריים — ההתאמה בסופה (toggleStock/done)
       cancelAnimationFrame(card._fitRaf);
-      card._fitRaf = requestAnimationFrame(() => { if (fitCardToScreen(sym, card)) ensureChartData(sym, true); });
+      card._fitRaf = requestAnimationFrame(() => { if (fitCardToScreen(sym, card, true)) ensureChartData(sym, true); });
     });
     card._fitRO.observe(inner);
     const head = card.querySelector('.stock-head');
@@ -10559,6 +10559,17 @@ function fitCardToScreen(sym, card) {
   if (Math.abs(h - cv.clientHeight) < 2) return false;
   if (!state.chartH) state.chartH = {};
   state.chartH[sym] = h;
+  // v275: תיקון אחרי שהכרטיס כבר פתוח (תוכן שהגיע מאוחר) — הגרף משנה גובה בתנועה רכה, לא בקפיצה; מצויר מחדש בסוף
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (smooth && !reduce && typeof setTimeout === 'function') {
+    if (cv._fitTo != null && Math.abs(cv._fitTo - h) < 3) return false;
+    cv._fitTo = h;
+    cv.style.transition = 'height .45s var(--ease-spring, ease)';
+    cv.style.height = h + 'px';
+    clearTimeout(cv._fitT);
+    cv._fitT = setTimeout(() => { cv.style.transition = ''; cv._fitTo = null; if (card.isConnected && state.open[sym]) ensureChartData(sym, true); }, 470);
+    return false;
+  }
   cv.style.height = h + 'px';
   return true;
 }
@@ -10649,7 +10660,7 @@ function toggleStock(sym, card) {
       apply(1);
       for (const ev of evs) window.removeEventListener(ev, stopSteer);
       for (const it of items) { it.body.style.height = ''; it.card.classList.remove('anim'); }
-      if (opening && state.open[sym] && fitCardToScreen(sym, card)) ensureChartData(sym, true);
+      if (opening && state.open[sym] && fitCardToScreen(sym, card, true)) ensureChartData(sym, true);
       if (state.liveDeferred && state.liveDeferred.size) { const m = [...state.liveDeferred]; state.liveDeferred.clear(); renderLive(m); }
     },
   };
