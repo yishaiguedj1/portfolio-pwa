@@ -3868,7 +3868,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v264';
+const APP_VERSION = 'v265';
 
 
 function saveDBto(db) {
@@ -7598,28 +7598,101 @@ function hidePfTip() {
   if (tip) tip.classList.add('hidden');
   state.pfTipIdx = null;
 }
-function showPfTip(idx, xPx) {
+function showPfTip(idx) {
   const canvas = document.getElementById('pfChart');
   const map = canvas && canvas._pfMap;
   if (!map || map.n < 2) return;
-  const wrap = canvas.parentElement;
-  let tip = document.getElementById('pfTip');
-  if (!tip) {
-    tip = el('div', 'pf-tip hidden');
-    tip.id = 'pfTip';
-    wrap.appendChild(tip);
-  }
+  const tip = pfTipEl();
   const d = map.series[0].pts[idx].date;
   let html = '<b>' + fmtDateIL(d) + '</b>';
   for (const s of map.series) {
     html += '<div><span class="dot" style="background:' + s.color + '"></span>' +
       esc(s.name) + ' ' + fmtRetHTML(s.pts[idx].norm - 100) + '</div>';
   }
+  pfTipPlace(tip, html);
+}
+/* v265 (בקשת המשתמש): הבועה של גרף הביצועים — אותו עיצוב, תמיד בפינה השמאלית העליונה, מעל הגרף (לא מסתירה אותו) */
+function pfTipPlace(tip, html) {
   tip.innerHTML = html;
   tip.classList.remove('hidden');
-  const wrapW = wrap.clientWidth || 300;
-  tip.style.left = Math.min(Math.max(xPx - 70, 4), Math.max(wrapW - 160, 4)) + 'px';
-  tip.style.top = '8px';
+  tip.style.left = '0px';
+  tip.style.top = (-tip.offsetHeight - 4) + 'px';
+}
+function pfTipEl() {
+  let tip = document.getElementById('pfTip');
+  const canvas = document.getElementById('pfChart');
+  if (!tip && canvas) { tip = el('div', 'pf-tip hidden'); tip.id = 'pfTip'; canvas.parentElement.appendChild(tip); }
+  return tip;
+}
+/* v265: מדידה בשתי אצבעות בגרף הביצועים — התוצאה באותה בועה (תאריכים + תשואה לכל קו), בלי כפתור "מדידה" */
+function showPfMeasureTip(i1, i2) {
+  const canvas = document.getElementById('pfChart');
+  const map = canvas && canvas._pfMap, tip = pfTipEl();
+  if (!map || map.n < 2 || !tip) return;
+  const a = Math.min(i1, i2), b = Math.max(i1, i2), s0 = map.series[0];
+  let html = '<b>' + ltrNum(fmtDateIL(s0.pts[a].date) + ' – ' + fmtDateIL(s0.pts[b].date)) + '</b>';
+  for (const s of map.series) {
+    html += '<div><span class="dot" style="background:' + s.color + '"></span>' + esc(s.name) + ' ' + fmtRetHTML(retPct(s.pts[a].norm, s.pts[b].norm)) + '</div>';
+  }
+  pfTipPlace(tip, html);
+}
+function pfIdxAt(map, x) {
+  let idx = 0;
+  if (map.xs && map.xs.length === map.n) {
+    for (let i = 1; i < map.n; i++) if (Math.abs(map.xs[i] - x) < Math.abs(map.xs[idx] - x)) idx = i;
+  } else idx = Math.max(0, Math.min(map.n - 1, Math.round((x - map.padL) / map.plotW * (map.n - 1))));
+  return idx;
+}
+/* v265: מגע בגרף הביצועים — אצבע אחת: הבועה + סמן, גרירה מזיזה; שתי אצבעות בו־זמנית: מדידה (כמו בגרף המניה).
+   מצב "מתאריך" וכפתור "מדידה" — כמו קודם (onPfTap). */
+function pfAttachTouch(canvas) {
+  const ptrs = new Map();
+  let froze = false, raf = 0;
+  const repaint = () => { if (raf) return; raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => { raf = 0; paintPfChart(); }) : (paintPfChart(), 0); };
+  const xOf = (e) => e.clientX - canvas.getBoundingClientRect().left;
+  const upd = () => {
+    const map = canvas._pfMap;
+    if (!map || map.n < 2) return;
+    const xs = [...ptrs.values()];
+    if (xs.length >= 2) {
+      const a = pfIdxAt(map, xs[0]), b = pfIdxAt(map, xs[1]);
+      if (!froze) { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} }
+      froze = true;
+      state.pfTipIdx = null;
+      state.pfMeasure.pts = [a, b];
+      showPfMeasureTip(a, b);
+    } else if (xs.length === 1 && !froze) {
+      const i = pfIdxAt(map, xs[0]);
+      state.pfMeasure.pts = [];
+      showPfTip(i);
+      state.pfTipIdx = i;
+    } else return;
+    repaint();
+  };
+  canvas.addEventListener('pointerdown', (e) => {
+    if (state.pfPickDate || state.pfMeasure.on) { onPfTap(e); return; }
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (!ptrs.size) froze = false;
+    ptrs.set(e.pointerId, xOf(e));
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    upd();
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, xOf(e));
+    upd();
+  });
+  const end = (e, cancel) => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
+    if (cancel && !froze && !ptrs.size) { hidePfTip(); repaint(); } // גלילת הדף — לא התכוונו לגרף
+  };
+  canvas.addEventListener('pointerup', (e) => end(e, false));
+  canvas.addEventListener('pointercancel', (e) => end(e, true));
+  if (typeof document !== 'undefined') document.addEventListener('pointerdown', (e) => {
+    if (e.target === canvas || state.pfMeasure.on) return;
+    if (state.pfTipIdx !== null || state.pfMeasure.pts.length) { hidePfTip(); state.pfMeasure.pts = []; repaint(); }
+  }, true);
 }
 
 /* צ'יפ תוצאת המדידה בגרף הביצועים */
@@ -7628,7 +7701,7 @@ function updatePfMeasureChip() {
   const canvas = document.getElementById('pfChart');
   const map = canvas && canvas._pfMap;
   const ms = state.pfMeasure;
-  if (!chip || ms.pts.length < 2 || !map) {
+  if (!chip || !ms.on || ms.pts.length < 2 || !map) { // v265: מדידה בשתי אצבעות — בבועה, לא בשורה
     if (chip) { chip.classList.add('hidden'); chip.innerHTML = ''; }
     return;
   }
@@ -7706,7 +7779,7 @@ async function drawPfChart() {
   const legend = document.getElementById('pfLegend');
   if (!canvas) return;
   if (!canvas._pfTapAttached) {
-    canvas.addEventListener('pointerdown', onPfTap);
+    pfAttachTouch(canvas); // v265: אצבע אחת / שתי אצבעות (onPfTap נשאר למצבי "מתאריך" ו"מדידה")
     canvas._pfTapAttached = true;
   }
   renderPfChips();
@@ -10250,7 +10323,10 @@ function drawStockChart(sym, rows, intraday) {
   for (const i of ms.pts) drawMarker(i);
 
   // שמירת מיפוי למדידה
-  canvas._chartMap = { n: pts.length, padL: padL, plotW: plotW, pts: pts, padT: padT, plotH: plotH, min: min, max: max, up: up, intraday: intraday };
+  // v265: בסיס לשינוי "עד אותו רגע" בבועת הנגיעה — כמו שורת התשואה: 1D מול הסגירה הקודמת (כמו Google), אחרת תחילת הטווח
+  const dayRange = (state.range[sym] || 'year') === 'day' && !state.stockPick[sym];
+  const base = dayRange && qd && typeof qd.regPct === 'number' && isFinite(qd.regPct) && qd.regClose > 0 ? qd.regClose / (1 + qd.regPct / 100) : pts[0].close;
+  canvas._chartMap = { n: pts.length, padL: padL, plotW: plotW, pts: pts, padT: padT, plotH: plotH, min: min, max: max, up: up, intraday: intraday, base: base };
   scRender(canvas); // v264: הסמן/המדידה של המשתמש נשארים במקום גם כשהגרף מתעדכן בטיק החי
   if (canvas.classList) canvas.classList.add('drawn'); // v193
   canvas.classList.toggle('measuring', ms.on || ms.pts.length > 0);
@@ -10424,7 +10500,7 @@ function attachMeasure(canvas, sym) {
   });
 }
 
-/* v264 (בקשת המשתמש): נגיעה בגרף המניה — כמו בגוגל. אצבע אחת: קו אנכי + נקודה על הקו + בועה עם המחיר והתאריך
+/* v264 (בקשת המשתמש): נגיעה בגרף המניה — כמו בגוגל. אצבע אחת: קו אנכי מנוקד (v265) + נקודה על הקו + בועה עם המחיר, השינוי עד אותו רגע והתאריך
    (ושעה בגרף תוך־יומי), גרירה לצדדים מזיזה. שתי אצבעות בו־זמנית: מדידה — רצועה בין הנקודות ובועה עם התשואה, השינוי
    במחיר והתאריכים. בעכבר: ריחוף = מחיר, גרירה = מדידה. התוצאה נשארת אחרי ההרמה עד נגיעה אחרת (בגרף או מחוצה לו).
    ציור ב־DOM מעל הקנבס (לא ציור מחדש של הגרף בכל תזוזה). גלילה אנכית של הדף נשארת (touch-action: pan-y). */
@@ -10451,7 +10527,7 @@ function scRender(canvas) {
   if (!ov) {
     ov = el('div', 'sc-ov');
     ov.setAttribute('aria-live', 'polite');
-    ov.innerHTML = '<i class="sc-band"></i><i class="sc-line"></i><i class="sc-line sc-l2"></i><i class="sc-dot"></i><i class="sc-dot sc-d2"></i><div class="sc-tip"></div>';
+    ov.innerHTML = '<i class="sc-band"></i><i class="sc-line"></i><i class="sc-line sc-l2"></i><i class="sc-dot"></i><i class="sc-dot sc-d2"></i><div class="pf-tip sc-tip"></div>';
     wrap.appendChild(ov);
   }
   ov.classList.remove('hidden');
@@ -10463,31 +10539,32 @@ function scRender(canvas) {
     dot.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
     return { x, y };
   };
-  let html, cx, dotYs, tone;
+  let html, tone;
   if (sc.mode === 'm') {
     const m = scMeasure(map.pts, clamp(sc.a), clamp(sc.b));
     tone = m.pct >= 0 ? 'pos' : 'neg';
     const A = place(d1, l1, m.a), B = place(d2, l2, m.b);
     band.style.transform = 'translateX(' + A.x.toFixed(1) + 'px)'; band.style.width = Math.max(0, B.x - A.x).toFixed(1) + 'px';
     band.style.top = map.padT + 'px'; band.style.height = map.plotH + 'px';
-    html = '<b class="sc-ret ' + tone + '">' + fmtPct(m.pct, true) + '</b><span class="sc-chg ' + tone + '">' + fmtSignedPx(m.chg, sym) + '</span>' +
-      '<span class="sc-dt">' + ltrNum(esc(scDateTxt(map.pts[m.a], map.intraday)) + ' – ' + esc(scDateTxt(map.pts[m.b], map.intraday))) + '</span>';
-    cx = (A.x + B.x) / 2; dotYs = [A.y, B.y];
+    // v265: בסגנון הבועה של גרף הביצועים בסקירה (.pf-tip): תאריכים מודגשים, ושורה עם נקודה בצבע + הנתונים
+    html = '<b>' + ltrNum(esc(scDateTxt(map.pts[m.a], map.intraday)) + ' – ' + esc(scDateTxt(map.pts[m.b], map.intraday))) + '</b>' +
+      '<div><span class="dot"></span>' + esc(dispSym(sym)) + ' <span class="sc-pct ' + tone + '">' + fmtPct(m.pct, true) + '</span> <span class="sc-chg ' + tone + '">' + fmtSignedPx(m.chg, sym) + '</span></div>';
   } else {
     const i = clamp(sc.i), P = place(d1, l1, i);
     tone = map.up ? 'pos' : 'neg';
-    html = '<b class="sc-px">' + scPxTxt(sym, map.pts[i].close) + '</b><span class="sc-dt">' + esc(scDateTxt(map.pts[i], map.intraday)) + '</span>';
-    cx = P.x; dotYs = [P.y];
+    // v265: גם השינוי באחוזים עד אותו רגע (מתחילת הטווח; ב־1D מהסגירה הקודמת) — כמו בגוגל
+    const chg = map.base > 0 ? (map.pts[i].close / map.base - 1) * 100 : null;
+    html = '<b>' + esc(scDateTxt(map.pts[i], map.intraday)) + '</b>' +
+      '<div><span class="dot"></span>' + esc(dispSym(sym)) + ' <span class="sc-px">' + scPxTxt(sym, map.pts[i].close) + '</span>' +
+      (chg !== null && isFinite(chg) ? ' <span class="sc-pct ' + (chg >= 0 ? 'pos' : 'neg') + '">' + fmtPct(chg, true) + '</span>' : '') + '</div>';
   }
   ov.classList.toggle('m', sc.mode === 'm');
   ov.classList.toggle('neg', tone === 'neg');
   if (tip._html !== html) { tip.innerHTML = html; tip._html = html; }
-  // הבועה למעלה, ממורכזת מעל הנקודה/הרצועה ובתוך הגרף; נקודה שמתחתיה — הבועה יורדת לתחתית אזור הגרף
-  const W = wrap.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
-  const left = Math.max(0, Math.min(W - tw, cx - tw / 2));
-  const hitTop = dotYs.some((y) => y < th + 14);
-  const top = hitTop ? map.padT + map.plotH - th - 2 : 0;
-  tip.style.transform = 'translate(' + left.toFixed(1) + 'px,' + top.toFixed(1) + 'px)';
+  const dot = tip.querySelector('.dot');
+  if (dot) dot.style.background = cssVar(map.up ? '--gain' : '--loss', map.up ? '#137333' : '#B3261E');
+  // v265 (בקשת המשתמש): הבועה תמיד בפינה השמאלית העליונה, מעל הגרף — לא מסתירה אף חלק ממנו
+  tip.style.transform = 'translate(0px,' + (-tip.offsetHeight - 4) + 'px)';
 }
 function scSet(canvas, sc) {
   canvas._sc = sc;

@@ -27,6 +27,11 @@ ok(R("scDateTxt({ date: '2026-07-15', time: '10:30:00' }, '5d')") === '15/07 10:
 ok(strip(R("scPxTxt('NOW', 104.73)")) === '$104.73' && /7,212/.test(R("scPxTxt('LUMI.TA', 72.12)")) && /3,265\.58/.test(R("scPxTxt('^GSPC', 3265.58)")), 'מחיר ביחידת הגרף: דולר / אגורות / נקודות');
 ok(/scAttach\(canvas, sym\);/.test(app) && /scRender\(canvas\);/.test(app), 'מחובר לכל כרטיס מניה (תיק ורשימות מעקב — אותו buildStockCard) ונשמר בציור מחדש');
 ok(/xs\.length >= 2/.test(app) && /pointercancel/.test(app), 'שתי אצבעות = מדידה; גלילת הדף מבטלת נגיעה של אצבע אחת');
-ok(/\.stock-body \.chart-wrap canvas \{ touch-action: pan-y;/.test(css), 'גלילה אנכית של הדף נשארת מעל הגרף');
+ok(/\.stock-body \.chart-wrap canvas, #pfChart \{ touch-action: pan-y;/.test(css), 'גלילה אנכית של הדף נשארת מעל הגרף');
 ok(/scTwoFingerHint: 'טיפ/.test(app) && /scTwoFingerHint: 'Tip/.test(app), 'טיפ חד־פעמי בעברית ובאנגלית');
+// v265
+ok(/base: base \}/.test(app) && /map\.pts\[i\]\.close \/ map\.base - 1/.test(app), 'v265: בבועה גם השינוי עד אותו רגע (מתחילת הטווח; 1D מהסגירה הקודמת)');
+ok(/translate\(0px,' \+ \(-tip\.offsetHeight - 4\)/.test(app) && /tip\.style\.top = \(-tip\.offsetHeight - 4\)/.test(app), 'v265: הבועה בשני הגרפים — פינה שמאלית עליונה, מעל הגרף');
+ok(/pf-tip sc-tip/.test(app) && /radial-gradient\(circle, var\(--on-surface-var\)/.test(css), 'v265: עיצוב הבועה של גרף הביצועים + קו אנכי מנוקד');
+ok(/pfAttachTouch\(canvas\)/.test(app) && /showPfMeasureTip\(a, b\)/.test(app) && /!ms\.on \|\| ms\.pts\.length < 2/.test(app), 'v265: גרף הביצועים — שתי אצבעות = מדידה בבועה (שורת המדידה רק במצב הכפתור)');
 console.log('\n' + n + ' בדיקות עברו');
