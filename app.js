@@ -335,9 +335,8 @@ he: {
   appVersion: 'גרסת אפליקציה: ',
   clearCacheBtn: 'נקה מטמון ורענן',
   advancedTitle: 'אפשרויות מתקדמות',
-  widgetTitle: 'ווידג׳ט למסך הבית', widgetDesc: 'כל המניות בתיק על מסך הבית — מחיר, שינוי יומי ומסחר מוקדם/מאוחר. נגיעה במניה פותחת אותה כאן. דורש את אפליקציית האנדרואיד.',
+  widgetTitle: 'ווידג׳ט למסך הבית',
   widgetEmpty: 'אין עדיין מניות בתיק.',
-  widgetInApp: 'הווידג׳ט מתעדכן לבד: כשהתיק משתנה, הרשימה עוברת אליו בנגיעה הבאה באפליקציה.',
   widgetAppSyncBtn: 'סנכרון לווידג׳ט', widgetAppSynced: 'רשימת המניות נשלחה לווידג׳ט', widgetApkBtn: 'הורדת האפליקציה לאנדרואיד', widgetHowTitle: 'איך מתקינים',
   widgetStep1: 'מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים "התקנה ממקור לא ידוע".',
   widgetStep2: 'פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.',
@@ -873,9 +872,8 @@ en: {
   appVersion: 'App version: ',
   clearCacheBtn: 'Clear cache & reload',
   advancedTitle: 'Advanced options',
-  widgetTitle: 'Home-screen widget', widgetDesc: 'Your whole portfolio on the home screen — price, daily change and after-hours. Tap a stock to open it here. Requires the Android app.',
+  widgetTitle: 'Home-screen widget',
   widgetEmpty: 'No stocks in your portfolio yet.',
-  widgetInApp: 'The widget updates on its own: when your portfolio changes, the list moves to it on your next tap in the app.',
   widgetAppSyncBtn: 'Sync to widget', widgetAppSynced: 'Stock list sent to the widget', widgetApkBtn: 'Download the Android app', widgetHowTitle: 'How to install',
   widgetStep1: 'Download the app (APK file) and open it. The first time, allow "install unknown apps".',
   widgetStep2: 'Open THE SNOWBALL and tap the screen — your stock list moves to the widget.',
@@ -4165,7 +4163,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v291';
+const APP_VERSION = 'v292';
 
 
 function saveDBto(db) {
@@ -12504,7 +12502,6 @@ function renderWidgetCard() {
   const has = widgetItems().length > 0 || widgetWatchLists().length > 0, app = inAndroidApp(); // v249: גם רק רשימות מעקב
   const tog = (id, hide) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', hide); return el; };
   tog('widgetEmpty', has);
-  tog('widgetInApp', !app || !has);
   const as = tog('widgetAppSync', !app); // בתוך האפליקציה: סנכרון ידני; בדפדפן: הורדת האפליקציה
   if (as) as.disabled = !has;
   tog('widgetApk', app);

@@ -1451,6 +1451,12 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 }
 #ibkrCard #ibkrDisconnect.danger-btn:active, #ibkrCard .ibkr-btn-sec:active { background: color-mix(in srgb, var(--ibkr) 10%, transparent); }
 #ibkrCard .btn:disabled { opacity: .45; }
+/* v292 (בקשת המשתמש): "ניתוק" באותה שורה עם "סנכרן וייבא" — כרטיס קומפקטי יותר */
+#ibkrCard .ibkr-btns { flex-wrap: nowrap; align-items: stretch; }
+#ibkrCard .ibkr-btns > .btn { white-space: nowrap; padding-inline: 18px; }
+#ibkrCard .ibkr-btns #ibkrSyncImport { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#ibkrCard .ibkr-btns #ibkrDisconnect { flex: none; }
+@media (max-width: 380px) { #ibkrCard .ibkr-btns > .btn { font-size: 15px; padding-inline: 14px; } }
 #ibkrCard .btn .ic { stroke: currentColor; }
 #ibkrCard details > summary { color: var(--ibkr-ink); }
 

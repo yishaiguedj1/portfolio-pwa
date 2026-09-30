@@ -302,6 +302,15 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       <div id="accountInfo"><p class="fine" style="padding:0" data-i18n="loading">טוען…</p></div>
     </div>
 
+    <!-- v287→v292 (בקשת המשתמש): "אפשרויות מתקדמות" = שורה בהגדרות, מעל "תצוגה", שפותחת עמוד משלה (הווידג׳ט עבר לשם) -->
+    <div class="card row-card" id="advancedCard">
+      <button id="advancedOpen" class="row-link" type="button">
+        <span class="row-link-ic adv-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.2" fill="currentColor"/><circle cx="15" cy="12" r="2.2" fill="currentColor"/><circle cx="8" cy="18" r="2.2" fill="currentColor"/></svg></span>
+        <span class="row-link-txt" data-i18n="advancedTitle">אפשרויות מתקדמות</span>
+        <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
+      </button>
+    </div>
+
     <!-- v289 (בקשת המשתמש): שפה, ערכת נושא ומטבע — בכרטיס "תצוגה" אחד, שלושה בוררים זהים (שפה ← ערכה ← מטבע) -->
     <div class="card display-card">
       <h2 data-i18n="displayTitle">תצוגה</h2>
@@ -330,22 +339,13 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       </div>
     </div>
 
-    <!-- v287 (בקשת המשתמש): "אפשרויות מתקדמות" = שורה בהגדרות שפותחת עמוד משלה (הווידג׳ט עבר לשם) -->
-    <div class="card row-card" id="advancedCard">
-      <button id="advancedOpen" class="row-link" type="button">
-        <span class="row-link-ic adv-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.2" fill="currentColor"/><circle cx="15" cy="12" r="2.2" fill="currentColor"/><circle cx="8" cy="18" r="2.2" fill="currentColor"/></svg></span>
-        <span class="row-link-txt" data-i18n="advancedTitle">אפשרויות מתקדמות</span>
-        <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
-      </button>
-    </div>
-
     <div class="card" id="ibkrCard">
       <h2 data-i18n="ibkrTitle">חיבור ל־IBKR</h2>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
       <div class="fine" id="ibkrData" style="padding:0"></div>
       <div class="form-err hidden" id="ibkrNavWarn"></div>
       <div class="form-err hidden" id="ibkrErr"></div>
-      <div class="btn-row">
+      <div class="btn-row ibkr-btns">
         <button id="ibkrSyncImport" class="btn" type="button" data-i18n-html="ibkrSyncImportBtn">סנכרן וייבא מ־IBKR</button>
         <button id="ibkrDisconnect" class="btn danger-btn" type="button" data-i18n="ibkrDisconnectBtn">ניתוק</button>
       </div>
@@ -414,9 +414,7 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
     </div>
     <div class="card" id="widgetCard">
       <h2 data-i18n="widgetTitle">ווידג׳ט למסך הבית</h2>
-      <p class="fine" style="padding:0" data-i18n="widgetDesc">כל המניות בתיק על מסך הבית — מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה כאן. דורש את אפליקציית האנדרואיד.</p>
       <p class="fine hidden" id="widgetEmpty" style="padding:0" data-i18n="widgetEmpty">אין עדיין מניות בתיק.</p>
-      <p class="fine hidden" id="widgetInApp" style="padding:0" data-i18n="widgetInApp">הווידג׳ט מתעדכן לבד: כשהתיק משתנה, הרשימה עוברת אליו בנגיעה הבאה באפליקציה.</p>
       <div class="btn-row">
         <button id="widgetAppSync" class="btn hidden" type="button" data-i18n="widgetAppSyncBtn">סנכרון לווידג׳ט</button>
         <a id="widgetApk" class="btn" href="https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball.apk" rel="noopener" data-i18n="widgetApkBtn">הורדת האפליקציה לאנדרואיד</a>

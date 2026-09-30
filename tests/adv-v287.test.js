@@ -10,7 +10,7 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const fn = (name) => { const i = app.indexOf('function ' + name + '('); let d = 0, j = app.indexOf('{', i); for (let k = j; k < app.length; k++) { if (app[k] === '{') d++; else if (app[k] === '}' && !--d) return app.slice(i, k + 1); } return ''; };
 const set = html.slice(html.indexOf('id="tab-settings"'), html.indexOf('id="tab-advanced"'));
 const iDisp = set.indexOf('data-i18n="displayTitle"'), iAdv = set.indexOf('id="advancedCard"'), iIbkr = set.indexOf('id="ibkrCard"');
-ok(iDisp > 0 && iAdv > iDisp && iIbkr > iAdv, 'בהגדרות: תצוגה → אפשרויות מתקדמות → IBKR');
+ok(iAdv > 0 && iDisp > iAdv && iIbkr > iDisp, 'בהגדרות (v292): אפשרויות מתקדמות → תצוגה → IBKR');
 ok(/id="advancedOpen"[\s\S]*data-i18n="advancedTitle"/.test(set) && !/id="widgetCard"/.test(set), 'בהגדרות רק שורת קישור; הווידג׳ט לא שם');
 const pg = html.slice(html.indexOf('id="tab-advanced"'));
 ok(/class="tabpage"/.test(html.slice(html.indexOf('id="tab-advanced"') - 60, html.indexOf('id="tab-advanced"') + 40)) && /id="advancedBack"/.test(pg) && /id="widgetCard"/.test(pg), 'עמוד advanced: חזרה + כרטיס הווידג׳ט');
