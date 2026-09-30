@@ -113,6 +113,6 @@ ok(!pages['tab-stocks'].style.props.x && pages['tab-stocks'].style.props['--tab-
 // גרסאות
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(ver === 'v193' || /^v(19[3-9]|[2-9]\d\d)$/.test(ver), 'APP_VERSION ≥ v193');
-ok(sw.includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
 
 console.log('\n' + n + ' בדיקות עברו');

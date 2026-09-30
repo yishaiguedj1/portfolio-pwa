@@ -91,6 +91,6 @@ for (const id of ['newFundName', 'newFundKind', 'pensionFundAdd']) {
 const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 const ver = (src.match(/const APP_VERSION = 'v(\d+)'/) || [])[1];
 ok(!!ver, 'APP_VERSION נמצא ב־app.js');
-ok(sw.includes('portfolio-pwa-v' + ver), 'sw.js תואם ל־APP_VERSION (v' + ver + ')');
+ok(require('./_swver').swVersionOk(ver), 'sw.js תואם ל־APP_VERSION (v' + ver + ')');
 
 console.log(`\nכל הבדיקות עברו ✓ (סה"כ אסרטים: ${n})`);

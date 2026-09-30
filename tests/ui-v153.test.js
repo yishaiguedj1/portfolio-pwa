@@ -55,7 +55,7 @@ docEl.scrollHeight = 900; vm.runInContext("restoreScrollTo('stocks', 1400)", sb)
 ok(!vm.runInContext('scrollRestoring()', sb), 'תוכן שלא הגיע: מוותרים אחרי 8 שניות');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');
 // v284 (בקשת המשתמש): מעבר בין טאבים תמיד מראש העמוד; שחזור הגלילה השמורה רק בפתיחת האפליקציה (טאב אחרון)
 {

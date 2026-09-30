@@ -21,5 +21,5 @@ ok(!/\.menu-open \.icon-btn \{[^}]*background/.test(css), 'אותו סגנון �
 ok(/prefers-reduced-motion[\s\S]{0,200}\.icon-btn \.face/.test(css), 'מכבד "הפחת תנועה" במכשיר');
 ok(/menuCloseAria: 'סגירת התפריט'/.test(src) && /menuCloseAria: 'Close menu'/.test(src), 'תווית נגישות בעברית ובאנגלית');
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');

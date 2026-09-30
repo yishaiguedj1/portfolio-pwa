@@ -68,5 +68,5 @@ ok(/id="resetIbkr"[^>]*><span class="src-tag src-ibkr"[^>]*><img src="ibkr-logo\
 ok(/\.src-tag\.src-ibkr\s*\{/.test(css) && /\.danger-btn \.src-tag\s*\{/.test(css), 'CSS: תגית IBKR ותגית על כפתור אדום');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(sw.includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');

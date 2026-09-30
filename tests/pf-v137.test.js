@@ -83,6 +83,6 @@ const opts = { chunkGapMs: 1, tries: 1, endDate };
   ok(m3._chunks.some((c) => !c.ok) && !m3._chunks.some((c) => c.noData), 'הכשלונות מוצגים, לא מוסתרים כ"לפני החשבון"');
 
   const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-  ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+  ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('נכשל:', e && e.stack || e); process.exit(1); });

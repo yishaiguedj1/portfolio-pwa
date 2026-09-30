@@ -69,6 +69,6 @@ ok(/isIbkrMode\(\)\s*\?\s*manualFlowsILS/.test(src), 'רק במצב IBKR (במצ
 ok(/function netDepositsILS\(\) \{\n  return -DEPOSITS\.reduce/.test(src), 'netDepositsILS לא השתנה — התשואה/בסיס לא מושפעים');
 
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
 
 console.log('\n' + n + ' בדיקות עברו');

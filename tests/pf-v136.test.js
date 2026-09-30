@@ -85,6 +85,6 @@ const ymd = A('ibkrYmd');
   ok(m2.latestChunkOk === false && A('ibkrSyncIsComplete')(m2) === false, 'גם הניסיון הקודם נכשל → לא מייבאים, הודעה כרגיל');
 
   const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-  ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+  ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('נכשל:', e && e.stack || e); process.exit(1); });

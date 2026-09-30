@@ -140,7 +140,7 @@
 - `node tests/i18n-coverage.test.js` (711) — כל מחרוזת גלויה בעברית **ובאנגלית**.
 - `node tests/ui-v193.test.js` (≈45) — ביצועים ומעברים: ציור רק של הטאב הנראה, מפתח ציור לעוגה, אתחול מיידי, רשת, SW, אנימציות.
 - `node ibkr-proxy/tests/run.js` (62) — שרתון.
-- הכל: הלולאה ב־`.github/workflows/test.yml` (אין `tests/run-all.sh` בריפו). בדיקות תאימות `CACHE_NAME`↔`APP_VERSION` אדומות בין שלב התוכן לשלב ה־sw.js — צפוי, מתייבש אחרי דחיפת sw.js.
+- הכל: הלולאה ב־`.github/workflows/test.yml` (אין `tests/run-all.sh` בריפו). בדיקות תאימות `CACHE_NAME`↔`APP_VERSION` — דרך `tests/_swver.js` (`swVersionOk`): שווה **או גרסה אחת אחורה** (שלב התוכן בפרוטוקול הדו־שלבי) = תקין; sw.js לפני התוכן / פער גדול יותר = כשל. **לקח v288**: עד אז דרשו התאמה מדויקת — כל פריסה הכשילה ~26 בדיקות בקומיט התוכן, והמשתמש קיבל מייל "Run failed" על כל גרסה. בדיקת גרסה חדשה — רק דרך `swVersionOk`.
 - מוסכמה: בבדיקות multi-chunk מעבירים `{ chunkGapMs: 5 }` — זה מחליף את כל הקצב (בלי מגביל, בלי המתנת poll ראשונה). לבדיקת קצב אמיתי: `{ limiter: ibkrMakeLimiter({now, sleep}), sleep }` עם שעון מדומה.
 - 13 קבצי בדיקות מורשתיים מוחרגים מ־CI (רשימה ב־`.github/workflows/test.yml`): בודקים פונקציות/אלמנטים שהוסרו בריפקטורים (`buildTradesHistory`, `navToTwr`, `ibkrInceptionDate`, `ibkrNavHistory`, `ibkrPerfSums`, `ibkrChunks`). נשמרים כהיסטוריה; החייאה = כתיבה מחדש.
 

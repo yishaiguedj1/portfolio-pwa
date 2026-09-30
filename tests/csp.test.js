@@ -60,5 +60,5 @@ ok(fb.length === 3 && /sc\.integrity = SDK\[i\]\[1\];/.test(cloud) && /sc\.cross
 ok(!/<script src="https:\/\/www\.gstatic\.com/.test(html), 'אין תגי סקריפט חיצוניים חוסמים ב־index.html');
 
 const ver = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
+ok(require('./_swver').swVersionOk(ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');

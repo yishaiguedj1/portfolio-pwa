@@ -173,7 +173,7 @@ async function main() {
   // --- 8. גרסה דינמית ---
   ok(/const APP_VERSION = 'v\d+'/.test(src), 'APP_VERSION מוגדר');
   const cacheLine = fs.readFileSync(path.join(root, 'sw.js'), 'utf8').match(/const CACHE_NAME = '([^']+)'/);
-  ok(cacheLine && cacheLine[1].endsWith(src.match(/const APP_VERSION = '(v\d+)'/)[1]), 'CACHE_NAME תואם לגרסה');
+  ok(cacheLine && require('./_swver').swVersionOk(src.match(/const APP_VERSION = '(v\d+)'/)[1]), 'CACHE_NAME תואם לגרסה');
 
   console.log('\n' + n + ' בדיקות עברו');
 }
