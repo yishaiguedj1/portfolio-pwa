@@ -143,6 +143,8 @@ a { color: var(--link); }
    ממורכזים אנכית מול גובה הלוגו (align-items:center בשורה). */
 .appbar-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .appbar h1.brand { flex: none; overflow: visible; line-height: 0; font-size: 0; margin: 0; }
+html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = מעבר עמוד, לא "חזור" של הדפדפן */
+.appbar h1.brand { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* v279: לוגו → סקירה */
 .brand-logo {
   width: 128px; height: 128px; display: block; /* v198: הלוגו גדול ככל שהטור השני (מקור + כפתורים + שער) מאפשר בלי להגביה את ההדר */
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.16)) drop-shadow(0 4px 10px rgba(0,0,0,.10));

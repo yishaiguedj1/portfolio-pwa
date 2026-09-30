@@ -3923,7 +3923,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v278';
+const APP_VERSION = 'v279';
 
 
 function saveDBto(db) {
@@ -6199,6 +6199,7 @@ function positionTabIndicator() {
 /* v193: כיוון הכניסה של העמוד (ציר משותף, כמו Material/iOS) — לשונית "קדימה" = העמוד נכנס מהצד שאליו הולכים
    (ב־RTL הפוך). נכתב כמשתנה CSS על העמוד; האנימציה עצמה ב־styles.css (tabIn). */
 function setTabPageDirection(prev, name) {
+  document.querySelectorAll('.tabpage').forEach((s) => { if (s.style && s.style.animation) s.style.animation = ''; }); // v279: אחרי החלקה בין עמודים — אנימציית הכניסה חוזרת
   const page = document.getElementById('tab-' + name);
   if (!page || !page.style || !page.style.setProperty || prev === name) return;
   const fwd = TAB_ORDER.indexOf(name) > TAB_ORDER.indexOf(prev);
@@ -9928,6 +9929,125 @@ function wireWatchSwipe() {
   }, { passive: true });
 }
 
+/* v279: לחיצה על הלוגו בהדר → הסקירה (כבר בסקירה — לראש העמוד) */
+function wireBrandHome() {
+  const b = document.querySelector('.appbar .brand');
+  if (!b || b._home) return;
+  b._home = true;
+  b.addEventListener('click', () => {
+    try { if (mainMenuOpen()) setMainMenuOpen(false); } catch (e) {}
+    if (currentTabName() !== 'overview') { switchTab('overview'); return; }
+    cancelScrollRestore();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+  });
+}
+
+/* ---------------- v279: החלקה בין העמודים הראשיים ----------------
+   משיכה אופקית של העמוד עוברת לעמוד הסמוך בסדר הלשוניות; אחרי העמוד האחרון (פנסיה) — ההגדרות, כקיצור קבוע.
+   בכוונה לא קל: העמוד עוקב אחרי האצבע עם התנגדות, והמעבר רק במשיכה של ≥45% מרוחב המסך (ולא פחות מ־150px) —
+   בלי "הטלה" מהירה. תנועה שמתחילה אנכית = גלילה רגילה עד הסוף; נגיעה בגרף, בשדה, בפס גלילה אופקי, בטאבי הרשימות
+   או בקצה המסך (מחוות "חזור" של אנדרואיד) — לא נחשבת. בטאב המעקב — כל עוד יש רשימה נוספת בכיוון, ההחלקה על
+   הרשימה מחליפה רשימה (wireWatchSwipe); ברשימה הקיצונית — עוברת לעמוד. */
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings');
+const PAGE_SWIPE_FRAC = 0.45, PAGE_SWIPE_MIN = 150, PAGE_SWIPE_EDGE = 22;
+function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
+  if (cur === 'settings') return next ? null : PAGE_SWIPE_MAIN[PAGE_SWIPE_MAIN.length - 1];
+  const i = PAGE_SWIPE_MAIN.indexOf(cur);
+  if (i < 0) return null;
+  if (next) return i === PAGE_SWIPE_MAIN.length - 1 ? 'settings' : PAGE_SWIPE_MAIN[i + 1];
+  return i === 0 ? null : PAGE_SWIPE_MAIN[i - 1];
+}
+function pageSwipeBlocked(tg, root) {
+  if (!tg || !tg.closest) return true;
+  if (tg.closest('canvas, .sc-ov, input, textarea, select, [contenteditable="true"], .wl-tabs, .item-acts, .no-swipe, .stock.dragging')) return true;
+  for (let el = tg; el && el !== root && el.nodeType === 1; el = el.parentElement) { // פס גלילה אופקי (צ'יפים וכו')
+    if (el.scrollWidth > el.clientWidth + 2) {
+      const ox = getComputedStyle(el).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return true;
+    }
+  }
+  return false;
+}
+function wirePageSwipe() {
+  const root = document.querySelector('main');
+  if (!root || root._pageSwipe) return;
+  root._pageSwipe = true;
+  let g = null;
+  const isRtl = () => String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
+  const dragBusy = () => document.documentElement.classList.contains('drag-active') ||
+    [...document.querySelectorAll('#stockList, #wishlistList')].some((l) => l._dragging);
+  function release(page, back) {
+    if (!page || !page.style) return;
+    if (back) {
+      page.style.transition = 'transform .34s cubic-bezier(.2, .9, .25, 1), opacity .34s ease';
+      page.style.transform = ''; page.style.opacity = '';
+      setTimeout(() => { page.style.transition = ''; page.style.willChange = ''; }, 360);
+    } else { page.style.transition = ''; page.style.transform = ''; page.style.opacity = ''; page.style.willChange = ''; }
+  }
+  document.addEventListener('touchstart', (e) => {
+    if (g) cancel();
+    if (e.touches.length !== 1 || state.cardAnim || dragBusy()) return;
+    const cur = currentTabName();
+    if (cur !== 'settings' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
+    const t = e.touches[0], w = window.innerWidth || 400;
+    if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
+    const tg = e.target; // v279: גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים
+    if (!(root.contains(tg) || tg === document.body || tg === document.documentElement)) return;
+    if (pageSwipeBlocked(tg, root)) return;
+    const page = document.getElementById('tab-' + cur);
+    if (!page) return;
+    g = { x0: t.clientX, y0: t.clientY, cur, page, w, lock: 0, dx: 0, armed: false, tg,
+      inList: !!(tg.closest && tg.closest('#wishlistList')) };
+    // ההאזנה על האלמנט עצמו: רענון חי יכול להחליף אותו באמצע, ואז האירועים כבר לא מגיעים למסמך
+    tg.addEventListener('touchmove', move, { passive: false });
+    tg.addEventListener('touchend', end, { passive: true });
+    tg.addEventListener('touchcancel', cancel, { passive: true });
+  }, { passive: true });
+  const unhook = (s) => { if (!s || !s.tg) return; s.tg.removeEventListener('touchmove', move); s.tg.removeEventListener('touchend', end); s.tg.removeEventListener('touchcancel', cancel); };
+  function move(e) {
+    if (!g) return;
+    if (e.touches.length !== 1 || dragBusy()) { release(g.page, true); unhook(g); g = null; return; }
+    const t = e.touches[0], dx = t.clientX - g.x0, dy = t.clientY - g.y0;
+    if (!g.lock) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) { unhook(g); g = null; return; } // גלילה אנכית — לא נוגעים
+      const next = isRtl() ? dx > 0 : dx < 0;
+      if (g.cur === 'wishlist' && g.inList) { // רשימה נוספת בכיוון → ההחלקה של הרשימות
+        const ls = wlLists(), i = ls.findIndex((l) => l.id === wlActive().id), j = i + (next ? 1 : -1);
+        if (j >= 0 && j < ls.length) { unhook(g); g = null; return; }
+      }
+      g.lock = 1; g.next = next; g.to = pageSwipeTarget(g.cur, next);
+      g.page.style.animation = 'none'; g.page.style.transition = 'none'; g.page.style.willChange = 'transform';
+    }
+    if (e.cancelable) e.preventDefault();
+    const same = (isRtl() ? dx > 0 : dx < 0) === g.next;
+    const d = same ? Math.abs(dx) : 0;
+    g.dx = dx; g.dist = d;
+    const need = Math.max(PAGE_SWIPE_MIN, g.w * PAGE_SWIPE_FRAC);
+    // התנגדות: העמוד זז כ־40% מהאצבע; בלי עמוד בכיוון — רק רמז קטן
+    const move = g.to ? Math.min(d, g.w) * 0.4 : Math.min(28, d * 0.12);
+    const sign = dx < 0 ? -1 : 1;
+    g.page.style.transform = 'translate3d(' + (same ? sign * move : 0) + 'px,0,0)';
+    g.page.style.opacity = g.to ? String(1 - Math.min(1, d / need) * 0.35) : '';
+    const armed = !!g.to && d >= need;
+    if (armed && !g.armed) { try { navigator.vibrate && navigator.vibrate(8); } catch (err) {} }
+    g.armed = armed;
+  }
+  function end() {
+    if (!g) return;
+    const s = g; g = null;
+    unhook(s);
+    if (!s.lock) return;
+    if (s.armed && s.to && !dragBusy()) {
+      release(s.page, false);
+      switchTab(s.to);
+      return;
+    }
+    release(s.page, true);
+  }
+  function cancel() { if (g && g.lock) release(g.page, true); unhook(g); g = null; }
+}
+
 /* ---------------- v246: סידור בגרירה (לחיצה ארוכה) ----------------
    בטאב המניות וברשימות המעקב, רק במיון "סדר הוספה" (ובמניות — בלי סינון). לחיצה ארוכה (380ms, בלי תזוזה) מרימה את
    הכרטיס (רטט קצר, צל, הגדלה קלה), הוא עוקב אחרי האצבע, והשאר מפנים מקום בהחלקה (FLIP); ליד קצה המסך — גלילה אוטומטית.
@@ -12208,6 +12328,8 @@ function init() {
   // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
   try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym)), wlAddPicked, { indices: true }); } catch (e) {} // v245: רק מה שכבר ברשימה הפתוחה מוסתר
   try { wireWatchSwipe(); } catch (e) {} // v244: החלקה בין רשימות
+  try { wirePageSwipe(); } catch (e) {} // v279: החלקה בין העמודים
+  try { wireBrandHome(); } catch (e) {} // v279: לוגו → סקירה
   try { wireAllCardDrag(); } catch (e) {} // v246: סידור בגרירה
   try { initWatchSort(); } catch (e) {}
   // v101: טיקר חי לשער הדולר — מתחיל עם האפליקציה
