@@ -4126,7 +4126,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v282';
+const APP_VERSION = 'v283';
 
 
 function saveDBto(db) {
@@ -10104,7 +10104,10 @@ function renderWatchHead() {
   }));
   tabs.querySelector('.wl-tab.add').addEventListener('click', () => openWlNameSheet('new'));
   const on = tabs.querySelector('.wl-tab.on');
-  if (on && on.scrollIntoView && tabs.scrollWidth > tabs.clientWidth + 2) { try { on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch (e) {} }
+  // v283: רק גלילה אופקית של שורת הצ'יפים — scrollIntoView גלל גם את העמוד כולו (החביא את הטאבים מתחת להדר)
+  if (on && tabs.scrollBy && tabs.scrollWidth > tabs.clientWidth + 2) {
+    try { const a = on.getBoundingClientRect(), b = tabs.getBoundingClientRect(); tabs.scrollBy({ left: (a.left + a.width / 2) - (b.left + b.width / 2), behavior: 'smooth' }); } catch (e) {}
+  }
 }
 /* החלקה הצידה על הרשימה = הרשימה הבאה/הקודמת (ב־RTL: החלקה ימינה = הבאה). לא בתוך כרטיס פתוח/גרף/שורת הצ'יפים */
 /* v279: לחיצה על הלוגו בהדר → הסקירה (כבר בסקירה — לראש העמוד) */
@@ -10162,6 +10165,25 @@ function pageSwipeBlocked(tg, root) {
   }
   return false;
 }
+/* v283 (בקשת המשתמש): אחרי מעבר בהחלקה — תמיד לראש: עמוד → ראש העמוד; רשימת מעקב → ראש שורת טאבי הרשימות,
+   ממש מתחת להדר ולסרגל הלשוניות הדביקים (רק אם גללנו מתחתיה — אם היא כבר גלויה, לא זזים) */
+function swipeScrollTop(anchor, fromY) {
+  if (typeof window === 'undefined' || !window.scrollTo) return;
+  cancelScrollRestore();
+  if (anchor && !anchor._afterFrame && typeof requestAnimationFrame === 'function') {
+    // אחרי הציור: הרשימה החדשה כבר בדף, וגלילת הצ'יפ לתצוגה (scrollIntoView חלק, גם אנכי) — נעצרת כאן
+    return requestAnimationFrame(() => requestAnimationFrame(() => { anchor._afterFrame = true; try { swipeScrollTop(anchor, fromY); } finally { anchor._afterFrame = false; } }));
+  }
+  let y = 0;
+  if (anchor && anchor.getBoundingClientRect) {
+    const tabs = document.querySelector('.tabs'), bar = document.querySelector('.appbar');
+    let off = bar ? bar.getBoundingClientRect().height : 0;
+    if (tabs) { const cs = getComputedStyle(tabs); if (cs.position === 'sticky') off = Math.max(off, (parseFloat(cs.top) || 0) + tabs.offsetHeight); }
+    y = Math.max(0, anchor.getBoundingClientRect().top + (window.scrollY || 0) - off - 8);
+    if ((fromY === undefined ? (window.scrollY || 0) : fromY) <= y && (window.scrollY || 0) <= y) return; // הטאבים היו גלויים — לא זזים
+  }
+  window.scrollTo(0, y);
+}
 function wirePageSwipe() {
   const root = document.querySelector('main');
   if (!root || root._pageSwipe) return;
@@ -10199,15 +10221,22 @@ function wirePageSwipe() {
     if (!page) return;
     const list = document.getElementById('wishlistList');
     const watch = cur === 'wishlist' && wlLists().length > 1; // v282: בכל הטאב — גם ברשימה ריקה (אין כרטיס לגעת בו)
-    g = { x0: t.clientX, y0: t.clientY, cur, page, list, w, lock: 0, act: null, tg, watch, samples: [[clock(), t.clientX]] };
+    g = { x0: t.clientX, y0: t.clientY, cur, page, list, w, lock: 0, act: null, tg, watch, samples: [[clock(), t.clientX]], sy0: window.scrollY || 0 };
     // ההאזנה על האלמנט עצמו: רענון חי יכול להחליף אותו באמצע, ואז האירועים כבר לא מגיעים למסמך
+    // v283: וגם על המסמך — אלמנט שהוחלף ברענון חי לפעמים מפסיק לקבל אירועים; כל אירוע מטופל פעם אחת (seen)
     tg.addEventListener('touchmove', move, { passive: false });
     tg.addEventListener('touchend', end, { passive: true });
     tg.addEventListener('touchcancel', cancel, { passive: true });
   }, { passive: true });
+  // קבועים על המסמך (הוספה באמצע נגיעה משבשת את Chrome); חוזרים מיד כשאין מחווה
+  document.addEventListener('touchmove', (e) => { if (g) move(e); }, { passive: false });
+  document.addEventListener('touchend', (e) => { if (g) end(e); }, { passive: true });
+  document.addEventListener('touchcancel', (e) => { if (g) cancel(e); }, { passive: true });
   const unhook = (s) => { if (!s || !s.tg) return; s.tg.removeEventListener('touchmove', move); s.tg.removeEventListener('touchend', end); s.tg.removeEventListener('touchcancel', cancel); };
+  let lastEv = null, lastTs = -1; // אותו אירוע מגיע פעמיים (אלמנט + מסמך) — מטפלים פעם אחת
+  const seen = (e) => { if (!e) return true; if (e === lastEv && e.timeStamp === lastTs) return true; lastEv = e; lastTs = e.timeStamp; return false; };
   function move(e) {
-    if (!g) return;
+    if (!g || seen(e)) return;
     if (e.touches.length !== 1 || dragBusy()) { cancel(); return; }
     const t = e.touches[0], dx = t.clientX - g.x0, dy = t.clientY - g.y0;
     if (!g.lock) {
@@ -10252,8 +10281,8 @@ function wirePageSwipe() {
     }
     g.act = act;
   }
-  function end() {
-    if (!g) return;
+  function end(e) {
+    if (!g || seen(e)) return;
     const s = g; g = null;
     unhook(s);
     peek(null);
@@ -10267,14 +10296,15 @@ function wirePageSwipe() {
     if (act && !dragBusy()) {
       settle(s.page, false);
       if (s.watch) settle(s.list, false);
-      if (act === 'page') switchTab(s.to);
-      else wlSwitch(s.wlTo, s.next ? 1 : -1);
+      if (act === 'page') { switchTab(s.to); swipeScrollTop(); }
+      else { wlSwitch(s.wlTo, s.next ? 1 : -1); swipeScrollTop(document.getElementById('wlTabs'), s.sy0 || 0); }
       return;
     }
     settle(s.page, true);
     if (s.watch) settle(s.list, true);
   }
-  function cancel() {
+  function cancel(e) {
+    if (e && seen(e)) return;
     if (g && g.lock) { settle(g.page, true); if (g.watch) settle(g.list, true); }
     peek(null); unhook(g); g = null;
   }

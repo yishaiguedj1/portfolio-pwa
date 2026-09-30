@@ -46,6 +46,14 @@ ok(/tg\.addEventListener\('touchmove', move, \{ passive: false \}\)/.test(w), '�
 ok(/html, body \{ overscroll-behavior-x: none; \}/.test(css), 'בלי "חזור" של הדפדפן במשיכה אופקית');
 ok(/s\.style\.animation = ''/.test(fn('setTabPageDirection')) && /setTabPageDirection\(prev, name\)/.test(fn('switchTab')), 'מעבר עמוד מחזיר את אנימציית הכניסה');
 ok(/try \{ wirePageSwipe\(\); \}/.test(app), 'מחובר באתחול');
+// v283: אחרי מעבר בהחלקה — לראש העמוד / לראש טאבי הרשימות
+ok(/if \(act === 'page'\) \{ switchTab\(s\.to\); swipeScrollTop\(\); \}/.test(w), 'מעבר עמוד → ראש העמוד (גם כשנשמר מיקום גלילה)');
+ok(/swipeScrollTop\(document\.getElementById\('wlTabs'\), s\.sy0 \|\| 0\)/.test(w), 'מעבר רשימה → ראש טאבי הרשימות');
+const sst = fn('swipeScrollTop');
+ok(/cancelScrollRestore\(\)/.test(sst) && /position === 'sticky'/.test(sst), 'מתחת להדר ולסרגל הדביקים, בלי שחזור הגלילה');
+ok(!/on\.scrollIntoView\(\{ block: 'nearest'/.test(app) && /tabs\.scrollBy\(\{ left:/.test(app), 'צ׳יפ הרשימה נגלל אופקית בלבד (לא מזיז את העמוד)');
+ok(/document\.addEventListener\('touchmove', \(e\) => \{ if \(g\) move\(e\); \}, \{ passive: false \}\)/.test(w) && /const seen = /.test(w), 'גם על המסמך (אלמנט שהוחלף), כל אירוע פעם אחת');
+ok(!/sy0[\s\S]{0,5}y0: window/.test(w) && /y0: t\.clientY/.test(w), 'y0 = מיקום האצבע (לא נדרס)');
 
 // לוגו
 const bh = fn('wireBrandHome');
