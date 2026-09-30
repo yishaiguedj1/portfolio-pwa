@@ -1548,7 +1548,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .row-link:active { background: color-mix(in srgb, var(--on-surface) 7%, transparent); }
 .row-link-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; }
 .row-link-ic svg { width: 19px; height: 19px; }
-.adv-ic { background: #8E8E93; }
+.adv-ic { background: var(--primary); } /* v288: הירוק של הסמלים באפליקציה (בקשת המשתמש) */
 .row-link-txt { flex: 1; min-width: 0; }
 .row-link-chev { flex: none; width: 18px; height: 18px; color: var(--on-surface-var); opacity: .7; }
 .row-link-chev svg { width: 100%; height: 100%; }
