@@ -208,4 +208,21 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const kt = fs2.readFileSync(path2.join(__dirname, '..', 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
   ok(/val w = ColorProvider\(Color\(0xFFF2F2F7\), Color\(0xFF000000\)\)/.test(kt) && /val w2 = ColorProvider\(Color\(0xFFFFFFFF\), Color\(0xFF1C1C1E\)\)/.test(kt), 'ווידג׳ט: רקע וכרטיס בצבעי האפליקציה');
 }
+
+// v278: סימבול התצוגה בווידג׳ט = באפליקציה לכל נכס בקטלוג (BRENT, SPX, BTC, USD/ILS…)
+{
+  const vm2 = require('vm'), fs3 = require('fs'), path3 = require('path');
+  const appSrc = fs3.readFileSync(path3.join(__dirname, '..', 'app.js'), 'utf8');
+  const sb = { localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, document: { addEventListener() {}, getElementById: () => null, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, style: {} }) }, window: {}, navigator: {}, location: { origin: 'https://yishaiguedj1.github.io', pathname: '/portfolio-pwa/' }, AbortController, fetch: () => Promise.reject(new Error('x')), setTimeout, clearTimeout, console, TextEncoder, Image: class { set src(_) {} } };
+  vm2.createContext(sb); vm2.runInContext(appSrc, sb);
+  const cat = vm2.runInContext('MARKET_INDICES', sb);
+  const W2 = require('../ibkr-proxy/lib/widget-model');
+  const bad = [];
+  for (const x of cat) {
+    const c = W2.buildModel(W2.parseItems(x[0] + '~w~x'), {}, {}, { lang: 'he' }).cards[0];
+    const want = vm2.runInContext('dispSym(' + JSON.stringify(x[0]) + ')', sb);
+    if (!c || c.disp !== want) bad.push(x[0] + ':' + (c && c.disp) + '≠' + want);
+  }
+  ok(!bad.length, 'ווידג׳ט: סימבול תצוגה כמו באפליקציה לכל ' + cat.length + ' נכסי הקטלוג' + (bad.length ? ' — ' + bad.slice(0, 5).join(' ') : ''));
+}
 console.log('\n' + n + ' בדיקות עברו');

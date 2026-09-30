@@ -28,5 +28,5 @@ for (const f of ['ibkr-proxy/api/quotes.js', 'ibkr-proxy/api/history.js', 'ibkr-
 const M = require('../ibkr-proxy/lib/widget-model');
 const chart = { chart: { result: [{ meta: { currency: 'USD', symbol: '^GSPC', regularMarketPrice: 7671.07, previousClose: 7600, regularMarketTime: 1790366401 }, timestamp: [1790366401], indicators: { quote: [{ close: [7671.07] }] } }] } };
 const c = M.buildModel(M.parseItems('^GSPC~w~S＆P 500'), { '^GSPC': chart }, {}, { lang: 'he', nowMs: Date.parse('2026-09-26T12:00:00Z') }).cards[0];
-ok(c.disp === 'GSPC' && /נק׳/.test(c.price) && !/\$/.test(c.price) && c.logo === '' && c.name === 'S＆P 500', 'ווידג׳ט: מדד בנקודות, בלי לוגו, השם עם ＆');
+ok(c.disp === 'SPX' && /נק׳/.test(c.price) && !/\$/.test(c.price) && c.logo === '' && c.name === 'S＆P 500', 'ווידג׳ט: מדד בנקודות, בלי לוגו, השם עם ＆');
 console.log('\n' + n + ' בדיקות עברו');
