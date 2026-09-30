@@ -450,11 +450,11 @@ private fun WatchTabs(d: Dirn, lang: String, lists: List<WatchList>, sel: WatchL
     val parts = mutableListOf<Part>()
     if (start > 0) parts += { TabArrow(if (rtl) "›" else "‹", lists[start - 1].id) }
     win.forEachIndexed { k, l ->
-        if (k > 0 || start > 0) parts += { Spacer(GlanceModifier.width(6.dp)) }
+        if (k > 0 || start > 0) parts += { Spacer(GlanceModifier.width(8.dp)) }
         parts += { TabChip(l, l.id == (sel?.id ?: lists.first().id)) }
     }
     if (start + max < lists.size) {
-        parts += { Spacer(GlanceModifier.width(6.dp)) }
+        parts += { Spacer(GlanceModifier.width(8.dp)) }
         parts += { TabArrow(if (rtl) "‹" else "›", lists[start + max].id) }
     }
     DRow(d, GlanceModifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 30.dp, bottom = 8.dp), parts) // v271: מתחת ללוגו 98dp — שלא יסתיר את הטאבים
@@ -463,22 +463,23 @@ private fun WatchTabs(d: Dirn, lang: String, lists: List<WatchList>, sel: WatchL
 @Composable
 private fun RowScope.TabChip(l: WatchList, on: Boolean) {
     Box(
-        GlanceModifier.defaultWeight().height(32.dp).cornerRadius(16.dp).background(if (on) C.pos else C.pill)
+        // 30/09/2026 (בקשת המשתמש): טאבים גדולים ונוחים ללחיצה — 44dp (היה 32), טקסט 15 (היה 13)
+        GlanceModifier.defaultWeight().height(44.dp).cornerRadius(22.dp).background(if (on) C.pos else C.pill)
             .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to l.id))),
         contentAlignment = Alignment.Center,
     ) {
         Text(l.name, modifier = GlanceModifier.padding(start = 8.dp, end = 8.dp),
-            style = TextStyle(color = if (on) C.white else C.on, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+            style = TextStyle(color = if (on) C.white else C.on, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
     }
 }
 
 @Composable
 private fun TabArrow(glyph: String, target: String) {
     Box(
-        GlanceModifier.size(32.dp).cornerRadius(16.dp).background(C.pill)
+        GlanceModifier.size(44.dp).cornerRadius(22.dp).background(C.pill)
             .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to target))),
         contentAlignment = Alignment.Center,
     ) {
-        Text(glyph, style = TextStyle(color = C.pos, fontSize = 18.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+        Text(glyph, style = TextStyle(color = C.pos, fontSize = 22.sp, fontWeight = FontWeight.Bold), maxLines = 1)
     }
 }
