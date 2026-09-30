@@ -3870,7 +3870,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v271';
+const APP_VERSION = 'v272';
 
 
 function saveDBto(db) {
@@ -4923,6 +4923,7 @@ const LIVE_IDLE_AFTER = 15; // ~1 דקה בלי תזוזה (שוק סגור) →
 const live = { timer: null, busy: false, n: 0, still: 0, on: false };
 
 function liveCanTick() {
+  if (state.cardAnim) return false; // v272: לא מציירים בזמן אנימציית כרטיס
   if (typeof document !== 'undefined' && document.hidden) return false;
   if (live.busy || state.ibkrSyncing) return false;
   if (state.edit && Object.keys(state.edit).some((k) => state.edit[k])) return false;
@@ -5128,7 +5129,7 @@ async function liveTick() {
             lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session });
             updateSourceLabel();
           }
-          if (moved.length) renderLive(moved);
+          if (moved.length) { if (state.cardAnim) { (state.liveDeferred || (state.liveDeferred = new Set())); moved.forEach((x) => state.liveDeferred.add(x)); } else renderLive(moved); } // v272: אחרי האנימציה
         }
       } catch (e) { /* טיק שנכשל — הבא ינסה שוב */ }
       finally { live.busy = false; }
@@ -10133,8 +10134,17 @@ function weightTxt(sym) {
 /* v231: כרטיסי מניה לא נשארים פתוחים בלי סיבה (בקשת המשתמש) — פתיחת כרטיס סוגרת את האחרים, ויציאה מטאב המניות
    או מהאפליקציה (רקע) סוגרת את כולם, גם כרטיס שנפתח מהווידג'ט. הסגירה מיידית (בלי אנימציה) ומפצה את הגלילה,
    כדי שהכרטיס שנגעת בו לא יקפוץ מתחת לאצבע כשכרטיס פתוח מעליו נסגר. */
-function closeStockCards(except, keepEl) {
+function closeStockCards(except, keepEl, collect) {
   const syms = Object.keys(state.open).filter((s) => state.open[s] && s !== except);
+  if (collect) { // v272: מחזיר את הכרטיסים הפתוחים (לסגירה באנימציה משותפת) בלי לסגור אותם כאן
+    const out = [];
+    for (const s of syms) {
+      state.open[s] = false;
+      if (state.stockPick) state.stockPick[s] = false;
+      for (const c of (document.querySelectorAll ? document.querySelectorAll('.stock[data-sym="' + s + '"]') : [])) if (c && c.classList && c.classList.contains('open')) out.push(c);
+    }
+    return out;
+  }
   if (!syms.length) return;
   const before = keepEl && keepEl.getBoundingClientRect ? keepEl.getBoundingClientRect().top : null;
   for (const s of syms) {
@@ -10153,6 +10163,7 @@ function closeStockCards(except, keepEl) {
    פעמיים: מיד (גלילה חלקה), ושוב כשהאנימציה נגמרת — כרטיס בתחתית הדף מגיע לראש רק אחרי שהדף התארך */
 function scrollCardToTop(card) {
   if (!card || !card.getBoundingClientRect || typeof window === 'undefined' || !window.scrollTo) return;
+  if (state.cardAnim) return; // v272: אנימציית הכרטיס כבר מנווטת את הגלילה — גלילה נוספת הייתה נלחמת בה
   const bar = document.querySelector('.appbar');
   const off = (bar ? bar.getBoundingClientRect().height : 0) + 10;
   const top = card.getBoundingClientRect().top;
@@ -10191,43 +10202,106 @@ function fitCardToScreen(sym, card) {
   cv.style.height = h + 'px';
   return true;
 }
+/* v272: אנימציית פתיחה/סגירה של כרטיס מניה — מנוע אחד ב־JS (בקשת המשתמש: "חלקה לאורך כל הדרך, בלי קפיצות").
+   באותו פריים ובאותה עקומה: גובה הכרטיס שנפתח/נסגר, גובה כרטיס אחר שנסגר, והגלילה (ראש הכרטיס לראש המסך).
+   עד v271 הגובה היה מעבר CSS והגלילה smooth של הדפדפן — שתי עקומות שונות; בכרטיס בתחתית הדף הגלילה נעצרה
+   (הדף עוד לא התארך) והושלמה בקפיצה בסוף, וכרטיס פתוח אחר נסגר בבת אחת.
+   הגלילה = אינטרפולציה בין הגלילה ההתחלתית לסופית; מאחר שכל הגבהים באותה עקומה, היא אף פעם לא נחתכת בגבול הדף. */
+const CARD_ANIM_MS = 600;
+// קפיץ מרוסן קריטית (כמו UISpringTimingParameters עם dampingRatio 1): מתחיל ממהירות אפס — בלי "זינוק" בפריים הראשון —
+// מאיץ בעדינות ונעצר בלי חריגה. מנורמל כך שבסוף הזמן = 1 בדיוק.
+const CARD_SPRING_W = 8;
+const cardEase = (p) => { if (p <= 0) return 0; if (p >= 1) return 1; const w = CARD_SPRING_W, f = (x) => 1 - (1 + w * x) * Math.exp(-w * x); return f(p) / f(1); };
+function finishCardAnim() { if (state.cardAnim) state.cardAnim.finish(); }
+function cardAnimOffset() {
+  const bar = typeof document !== 'undefined' && document.querySelector('.appbar');
+  return (bar ? bar.getBoundingClientRect().height : 0) + 10;
+}
 function toggleStock(sym, card) {
-  if (!state.open[sym]) closeStockCards(sym, card);
-  state.open[sym] = !state.open[sym];
   const body = card.querySelector && card.querySelector('.stock-body');
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!body || reduce || !card.classList) {
-    card.classList.toggle('open', state.open[sym]);
+  if (!body || reduce || !card.classList || typeof requestAnimationFrame !== 'function' || typeof window === 'undefined' || !window.scrollTo) {
+    if (!state.open[sym]) closeStockCards(sym, card);
+    state.open[sym] = !state.open[sym];
+    if (card.classList) card.classList.toggle('open', state.open[sym]);
     if (state.open[sym]) { fitCardToScreen(sym, card); ensureChartData(sym); scrollCardToTop(card); }
     return;
   }
-  clearTimeout(card._animT);
-  const opening = !!state.open[sym];
-  const done = () => {
-    clearTimeout(card._animT); card.classList.remove('anim'); body.removeEventListener('transitionend', onEnd);
-    if (opening && state.open[sym]) {
-      if (fitCardToScreen(sym, card)) ensureChartData(sym, true); // תיקון עדין אחרי הפריסה הסופית
-      scrollCardToTop(card); // השלמה אחרי שהדף התארך
+  finishCardAnim();
+  cancelScrollRestore();
+  const opening = !state.open[sym];
+  const de = document.documentElement;
+  const S0 = window.scrollY || 0, vh = window.innerHeight, docH0 = de.scrollHeight;
+  const cardTop0 = card.getBoundingClientRect().top;
+  const items = []; // {card, body, from, to}
+  let docDelta = 0, aboveDelta = 0;
+  if (opening) {
+    // כרטיסים פתוחים אחרים נסגרים באותה תנועה (לא בבת אחת)
+    for (const c of closeStockCards(sym, null, true)) {
+      const b = c.querySelector('.stock-body'); if (!b) continue;
+      const hOpen = c.getBoundingClientRect().height, from = b.getBoundingClientRect().height;
+      c.classList.add('measure'); c.classList.remove('open'); const hClosed = c.getBoundingClientRect().height;
+      c.classList.add('open'); void c.offsetHeight; c.classList.remove('measure');
+      items.push({ card: c, body: b, from, to: 0, closing: true });
+      docDelta += hClosed - hOpen;
+      if (c.getBoundingClientRect().top < cardTop0) aboveDelta += hClosed - hOpen;
     }
-  };
-  const onEnd = (e) => { if (e.target === body) done(); };
-  body.addEventListener('transitionend', onEnd);
-  card._animT = setTimeout(done, 520);
-  if (state.open[sym]) {
-    // v271: גובה הגרף נמדד כשהכרטיס פתוח במלואו (בלי מעבר) — כך הגרף מצויר פעם אחת בגודל הסופי, לפני הפריים הראשון,
-    // ואין ציור/התאמה נוספים באמצע האנימציה או בסופה (אלה יצרו את ה"עיכוב")
+    state.open[sym] = true;
+    // גובה הגרף נמדד כשהכרטיס פתוח במלואו (בלי מעבר) — הגרף מצויר פעם אחת בגודל הסופי
+    const hClosed = card.getBoundingClientRect().height;
     card.classList.add('open', 'measure'); fitCardToScreen(sym, card);
-    card.classList.remove('open'); void body.offsetHeight; card.classList.remove('measure');
-    card.classList.add('anim'); // display:grid ב־0fr
-    void body.offsetHeight; // נקודת מוצא לפני המעבר
-    card.classList.add('open'); // → 1fr
+    const to = body.getBoundingClientRect().height, hOpen = card.getBoundingClientRect().height;
+    card.classList.remove('open'); void card.offsetHeight; card.classList.remove('measure');
+    body.style.height = '0px'; card.classList.add('anim'); void body.offsetHeight;
+    card.classList.add('open'); // התוכן נכנס בדהייה (CSS), הכותרת והחץ באותה עקומה
+    items.push({ card, body, from: 0, to });
+    docDelta += hOpen - hClosed;
     ensureChartData(sym);
-    scrollCardToTop(card);
   } else {
-    card.classList.add('anim');
-    void body.offsetHeight;
-    card.classList.remove('open'); // → 0fr, ואז display:none כשנגמר
+    state.open[sym] = false;
+    if (state.stockPick) state.stockPick[sym] = false;
+    const from = body.getBoundingClientRect().height, hOpen = card.getBoundingClientRect().height;
+    card.classList.add('measure'); card.classList.remove('open'); const hClosed = card.getBoundingClientRect().height;
+    card.classList.add('open'); void card.offsetHeight; card.classList.remove('measure');
+    body.style.height = from + 'px'; card.classList.add('anim'); void body.offsetHeight;
+    card.classList.remove('open'); // התוכן יוצא בדהייה מהירה
+    items.push({ card, body, from, to: 0, closing: true });
+    docDelta += hClosed - hOpen;
   }
+  for (const it of items) { it.card.classList.add('anim'); it.body.style.height = it.from + 'px'; if (it.closing) it.card.classList.remove('open'); }
+  const maxFinal = Math.max(0, docH0 + docDelta - vh);
+  const S1 = opening
+    ? Math.min(maxFinal, Math.max(0, cardTop0 + S0 + aboveDelta - cardAnimOffset()))
+    : Math.min(S0, maxFinal);
+  let t0 = null, raf = 0, steer = Math.abs(S1 - S0) > 0.5;
+  const stopSteer = () => { steer = false; };
+  const evs = ['touchstart', 'wheel', 'keydown'];
+  for (const ev of evs) window.addEventListener(ev, stopSteer, { passive: true, once: true });
+  const apply = (e) => {
+    for (const it of items) it.body.style.height = (it.from + (it.to - it.from) * e) + 'px';
+    if (steer) window.scrollTo({ top: S0 + (S1 - S0) * e, behavior: 'instant' });
+  };
+  const anim = {
+    finish() {
+      if (state.cardAnim !== anim) return;
+      state.cardAnim = null;
+      cancelAnimationFrame(raf);
+      apply(1);
+      for (const ev of evs) window.removeEventListener(ev, stopSteer);
+      for (const it of items) { it.body.style.height = ''; it.card.classList.remove('anim'); }
+      if (opening && state.open[sym] && fitCardToScreen(sym, card)) ensureChartData(sym, true);
+      if (state.liveDeferred && state.liveDeferred.size) { const m = [...state.liveDeferred]; state.liveDeferred.clear(); renderLive(m); }
+    },
+  };
+  state.cardAnim = anim;
+  const frame = (now) => {
+    if (state.cardAnim !== anim) return;
+    if (t0 === null) t0 = now; // מתחילים מהפריים הראשון שמצויר — בלי "לדלג" על תחילת התנועה
+    const p = Math.min(1, (now - t0) / CARD_ANIM_MS);
+    apply(cardEase(p));
+    if (p < 1) raf = requestAnimationFrame(frame); else anim.finish();
+  };
+  raf = requestAnimationFrame(frame);
 }
 
 function refreshStockBody(sym) {
