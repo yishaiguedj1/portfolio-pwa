@@ -219,11 +219,7 @@
       wrap.appendChild(info);
       box.appendChild(wrap);
       box.appendChild(btn);
-      const note = document.createElement('p');
-      note.className = 'fine';
-      note.style.padding = '0';
-      note.textContent = t('cloudConnected');
-      box.appendChild(note);
+      // v289: שורת "מחובר — הנתונים נשמרים בענן…" הוסרה (בקשת המשתמש)
       return;
     }
 

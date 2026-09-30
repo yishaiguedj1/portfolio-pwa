@@ -1562,3 +1562,24 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 [dir="ltr"] .subpage-back svg { transform: scaleX(-1); }
 .subpage-back:active { opacity: .55; }
 .subpage-title { margin: 6px 0 0; font-size: 30px; font-weight: 800; letter-spacing: -.4px; }
+
+/* v289: כרטיס "תצוגה" — שפה / ערכת נושא / מטבע: כותרת ומתחתיה בורר ברוחב מלא, שלושתם זהים */
+.display-row.stack { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0 6px; }
+.display-row.stack + .display-row.stack { border-top: 1px solid var(--card-border); padding-top: 14px; }
+.display-row.stack .lang-toggle { margin-top: 0; }
+.display-row.stack .display-label { font-size: 15px; color: var(--on-surface-var); }
+
+/* v289: רשימה בסגנון iOS (כרטיס "אפליקציה" בעמוד המתקדם) — שורות 52px, קו דק ביניהן, ערך באפור בצד, פעולה בירוק */
+.ios-list { border-radius: var(--radius-sm); background: var(--surface-2); overflow: hidden; }
+.ios-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 16px; box-sizing: border-box;
+  border: 0; background: transparent; font: inherit; font-size: 17px; color: var(--on-surface); text-align: start;
+}
+.ios-row + .ios-row { border-top: 1px solid color-mix(in srgb, var(--on-surface) 9%, transparent); }
+.ios-row-lbl { flex: 1; min-width: 0; font-weight: 500; }
+.ios-row-val { flex: none; color: var(--on-surface-var); font-variant-numeric: tabular-nums; font-weight: 500; }
+.ios-row-btn { cursor: pointer; color: var(--primary); -webkit-tap-highlight-color: transparent; transition: background .12s ease; }
+.ios-row-btn .ios-row-lbl { font-weight: 600; }
+.ios-row-btn:active { background: color-mix(in srgb, var(--on-surface) 7%, transparent); }
+.ios-row-ic { flex: none; width: 22px; height: 22px; display: grid; place-items: center; }
+.ios-row-ic svg { width: 20px; height: 20px; }

@@ -41,6 +41,8 @@ he: {
   loadingSource: 'מקור: טוען…',
   curToggleAria: 'החלפת מטבע — דולר / שקל',
   displayTitle: 'תצוגה',
+  appInfoTitle: 'אפליקציה', versionLbl: 'גרסה',
+  curUsdOpt: '$ דולר', curIlsOpt: '₪ שקל', langTitleBi: 'שפה / Language',
   curTitle: 'מטבע',
   langAria: 'בחירת שפה',
   menuAria: 'תפריט ראשי',
@@ -577,6 +579,8 @@ en: {
   loadingSource: 'Source: loading…',
   curToggleAria: 'Toggle currency — dollar / shekel',
   displayTitle: 'Display',
+  appInfoTitle: 'App', versionLbl: 'Version',
+  curUsdOpt: '$ Dollar', curIlsOpt: '₪ Shekel', langTitleBi: 'Language',
   curTitle: 'Currency',
   langAria: 'Choose language',
   menuAria: 'Main menu',
@@ -1111,8 +1115,20 @@ en: {
 };
 
 function getLang() {
-  try { const v = localStorage.getItem(LS_LANG); return v === 'en' ? 'en' : 'he'; }
+  const m = getLangMode();
+  return m === 'system' ? systemLang() : m;
+}
+/* v289: מצב השפה — 'he' | 'en' | 'system' (לפי שפת המכשיר). ברירת מחדל: עברית (לא 'system' — בלי הפתעה למי שלא בחר) */
+function getLangMode() {
+  try { const v = localStorage.getItem(LS_LANG); return v === 'en' || v === 'system' ? v : 'he'; }
   catch (e) { return 'he'; }
+}
+/* שפת המכשיר: עברית אם היא הראשונה ברשימת השפות שלו, אחרת אנגלית (טהורה עם פרמטר — נבדקת) */
+function systemLang(langs) {
+  let l = langs;
+  if (!l) { try { l = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language]; } catch (e) { l = []; } }
+  const first = String((l && l[0]) || '').toLowerCase();
+  return /^(he|iw)\b/.test(first) ? 'he' : 'en';
 }
 
 /* מחזיר מחרוזת מתורגמת; {var} מוחלף בערכים מ־vars. נופל לעברית ואז למפתח. */
@@ -1140,7 +1156,7 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
   document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
   const verEl = document.getElementById('appVersion');
-  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = t('appVersion') + APP_VERSION;
+  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = APP_VERSION; // v289: שורת "גרסה" — רק הערך
   renderLangToggle();
   try { renderThemeToggle(); } catch (e) {}
   try { renderPfNote(); } catch (e) {}
@@ -1154,8 +1170,9 @@ function applyI18n() {
 
 /* שומר שפה, מחיל על הדף ומרנדר מחדש את כל התוכן הדינמי. */
 function setLang(lang) {
-  const l = lang === 'en' ? 'en' : 'he';
-  try { localStorage.setItem(LS_LANG, l); } catch (e) {}
+  const mode = lang === 'en' || lang === 'system' ? lang : 'he';
+  try { localStorage.setItem(LS_LANG, mode); } catch (e) {}
+  const l = mode === 'system' ? systemLang() : mode;
   if (typeof state !== 'undefined') state.lang = l;
   const apply = () => {
     applyI18n();
@@ -1169,10 +1186,13 @@ function setLang(lang) {
 /* מצייר את מצב המתג (איזה כפתור פעיל). */
 function renderLangToggle() {
   const lang = (typeof state !== 'undefined' && state.lang) || getLang();
+  const mode = getLangMode();
   const heB = document.getElementById('langHe');
   const enB = document.getElementById('langEn');
-  if (heB) heB.classList.toggle('active', lang === 'he');
-  if (enB) enB.classList.toggle('active', lang === 'en');
+  const syB = document.getElementById('langSystem');
+  if (heB) heB.classList.toggle('active', mode === 'he');
+  if (enB) enB.classList.toggle('active', mode === 'en');
+  if (syB) syB.classList.toggle('active', mode === 'system');
   const lmHe = document.getElementById('langMenuHe');
   const lmEn = document.getElementById('langMenuEn');
   if (lmHe) lmHe.classList.toggle('active', lang === 'he');
@@ -4130,7 +4150,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v288';
+const APP_VERSION = 'v289';
 
 
 function saveDBto(db) {
@@ -12505,6 +12525,8 @@ function init() {
   const langEn = document.getElementById('langEn');
   if (langHe) langHe.addEventListener('click', () => setLang('he'));
   if (langEn) langEn.addEventListener('click', () => setLang('en'));
+  const langSys = document.getElementById('langSystem');
+  if (langSys) langSys.addEventListener('click', () => setLang('system'));
   // טאבים
   document.querySelectorAll('.tab').forEach((t) => {
     t.addEventListener('click', () => switchTab(t.dataset.tab));
@@ -12512,8 +12534,9 @@ function init() {
   // מטבע — כפתור בטאב ההגדרות + כפתור בהדר (v109) שמחליפים בין $ ל־₪; נשמר בין רענונים
   const paintCurBtn = () => {
     const lbl = state.currency === 'ILS' ? '₪' : '$';
-    const b = document.getElementById('setCurBtn');
-    if (b) b.textContent = lbl;
+    const bu = document.getElementById('curUSD'), bi = document.getElementById('curILS'); // v289: בורר מטבע בהגדרות
+    if (bu) bu.classList.toggle('active', state.currency !== 'ILS');
+    if (bi) bi.classList.toggle('active', state.currency === 'ILS');
     const h = document.getElementById('curToggleBtn');
     if (h) {
       if (!h.querySelector('.face-main')) h.innerHTML = btnFacesHTML('', '');
@@ -12527,8 +12550,9 @@ function init() {
     paintCurBtn();
     renderAll();
   };
-  const curBtn = document.getElementById('setCurBtn');
-  if (curBtn) curBtn.addEventListener('click', () => setCur(state.currency === 'ILS' ? 'USD' : 'ILS'));
+  const curU = document.getElementById('curUSD'), curI = document.getElementById('curILS');
+  if (curU) curU.addEventListener('click', () => { if (state.currency !== 'USD') setCur('USD'); });
+  if (curI) curI.addEventListener('click', () => { if (state.currency !== 'ILS') setCur('ILS'); });
   const curToggle = document.getElementById('curToggleBtn');
   if (curToggle) curToggle.addEventListener('click', (e) => {
     // v154: תפריט פתוח → הכפתור הוא מתג בהיר/כהה (התפריט נשאר פתוח)
@@ -12699,7 +12723,7 @@ function init() {
 
   // איפוס נתונים
   const verEl = document.getElementById('appVersion');
-  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = t('appVersion') + APP_VERSION;
+  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = APP_VERSION; // v289: שורת "גרסה" — רק הערך
   document.getElementById('resetData').addEventListener('click', () => {
     if (!confirm(t('resetConfirm'))) return;
 
