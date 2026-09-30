@@ -1,4 +1,4 @@
-// v279: החלקה אופקית בין העמודים הראשיים (משיכה מלאה בלבד, אחרי האחרון — הגדרות) + לוגו → סקירה
+// v279→v281: החלקה אופקית בין העמודים הראשיים (משיכה מלאה בלבד, אחרי האחרון — הגדרות) + לוגו → סקירה
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -22,14 +22,25 @@ ok(f('settings', true) === null && f('settings', false) === 'pension', 'מההג
 ok(f('nope', true) === null, 'עמוד לא ראשי — בלי החלקה');
 
 // לא קל מדי
-ok(/PAGE_SWIPE_FRAC = 0\.45, PAGE_SWIPE_MIN = 150/.test(app), 'סף: 45% מהרוחב, לפחות 150px');
+// v281: סף כמו הסטנדרט + הפרדה במעקב (טהורה)
+const dctx = {};
+vm.runInNewContext("const PAGE_SWIPE_FRAC = 0.33, PAGE_SWIPE_MIN = 96, PAGE_FLING_V = 0.45, PAGE_FLING_FRAC = 0.15, PAGE_FLING_MIN = 56;" +
+  "const WL_SWIPE_MIN = 48, WL_SWIPE_MAX_FRAC = 0.3, WL_PAGE_FRAC = 0.55;" + fn('pageSwipeDecide') + ';this.d = pageSwipeDecide;', dctx);
+const D = dctx.d, W = 412;
+ok(/PAGE_SWIPE_FRAC = 0\.33, PAGE_SWIPE_MIN = 96/.test(app) && /PAGE_FLING_V = 0\.45/.test(app) && /WL_SWIPE_MIN = 48, WL_SWIPE_MAX_FRAC = 0\.3, WL_PAGE_FRAC = 0\.55/.test(app), 'הקבועים בקוד = הקבועים בבדיקה');
+ok(D(110, W, 0.1, false) === null && D(140, W, 0.1, false) === 'page', 'משיכה איטית: שליש מהרוחב');
+ok(D(80, W, 0.8, false) === 'page' && D(40, W, 2, false) === null, 'הטלה מהירה: רק מ־15% מהרוחב');
+ok(D(90, W, 0, true) === 'list' && D(30, W, 0, true) === null, 'מעקב: החלקה קצרה = רשימה');
+ok(D(180, W, 0, true) === null, 'מעקב: אזור ביניים — כלום (הפרדה ודאית)');
+ok(D(240, W, 0, true) === 'page' && D(100, W, 3, true) === 'list', 'מעקב: רק משיכה ארוכה = עמוד; הטלה לא מעבירה עמוד');
+ok(!/function wireWatchSwipe/.test(app), 'מנגנון אחד לשתי המחוות (בלי מאזין כפול)');
 const w = fn('wirePageSwipe');
 ok(/Math\.abs\(dx\) < Math\.abs\(dy\) \* 1\.5\) \{ unhook\(g\); g = null; return; \}/.test(w), 'תנועה אנכית = גלילה, לא החלקה');
-ok(/const armed = !!g\.to && d >= need;/.test(w) && /if \(s\.armed && s\.to/.test(w), 'מעבר רק אחרי משיכה מלאה (בלי הטלה מהירה)');
+ok(/let act = pageSwipeDecide\(s\.d \|\| 0, s\.w, fwd \? v : 0, s\.watch\)/.test(w), 'ההחלטה בשחרור לפי מרחק + מהירות בכיוון');
 ok(/PAGE_SWIPE_EDGE/.test(w), 'קצה המסך (מחוות חזור) לא נחשב');
 ok(/canvas, \.sc-ov, input, textarea, select/.test(fn('pageSwipeBlocked')) && /\.wl-tabs/.test(fn('pageSwipeBlocked')), 'גרף/שדה/טאבי רשימות — לא מחליקים עמוד');
 ok(/overflowX/.test(fn('pageSwipeBlocked')), 'פס גלילה אופקי — לא מחליקים עמוד');
-ok(/g\.cur === 'wishlist' && g\.inList/.test(w), 'במעקב — קודם מעבר בין רשימות');
+ok(/const watch = cur === 'wishlist' && [\s\S]{0,80}wlLists\(\)\.length > 1/.test(w) && /wlSwitch\(s\.wlTo/.test(w), 'במעקב עם כמה רשימות — מצב שתי מחוות');
 ok(/dragBusy\(\)/.test(w) && /state\.cardAnim/.test(w), 'לא בזמן גרירה/אנימציית כרטיס');
 ok(/tg\.addEventListener\('touchmove', move, \{ passive: false \}\)/.test(w), 'האזנה על האלמנט — עמיד לרענון חי');
 ok(/html, body \{ overscroll-behavior-x: none; \}/.test(css), 'בלי "חזור" של הדפדפן במשיכה אופקית');

@@ -4126,7 +4126,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v280';
+const APP_VERSION = 'v281';
 
 
 function saveDBto(db) {
@@ -10107,31 +10107,6 @@ function renderWatchHead() {
   if (on && on.scrollIntoView && tabs.scrollWidth > tabs.clientWidth + 2) { try { on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch (e) {} }
 }
 /* החלקה הצידה על הרשימה = הרשימה הבאה/הקודמת (ב־RTL: החלקה ימינה = הבאה). לא בתוך כרטיס פתוח/גרף/שורת הצ'יפים */
-function wireWatchSwipe() {
-  const page = document.getElementById('wishlistList');
-  if (!page || page._swipe) return;
-  page._swipe = true;
-  let x0 = null, y0 = 0;
-  page.addEventListener('touchstart', (e) => {
-    const tg = e.target;
-    if (e.touches.length !== 1 || (tg.closest && tg.closest('.stock.open .stock-body, canvas, input'))) { x0 = null; return; }
-    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
-  }, { passive: true });
-  page.addEventListener('touchend', (e) => {
-    if (x0 === null) return;
-    if (page._dragging || document.documentElement.classList.contains('drag-active')) { x0 = null; return; } // v246: גרירה ≠ החלקה
-    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
-    const rtl = String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
-    const next = rtl ? dx > 0 : dx < 0;
-    const ls = wlLists(), i = ls.findIndex((l) => l.id === wlActive().id);
-    const j = i + (next ? 1 : -1);
-    if (j < 0 || j >= ls.length) return;
-    wlSwitch(ls[j].id, next ? 1 : -1);
-  }, { passive: true });
-}
-
 /* v279: לחיצה על הלוגו בהדר → הסקירה (כבר בסקירה — לראש העמוד) */
 function wireBrandHome() {
   const b = document.querySelector('.appbar .brand');
@@ -10145,20 +10120,36 @@ function wireBrandHome() {
   });
 }
 
-/* ---------------- v279: החלקה בין העמודים הראשיים ----------------
-   משיכה אופקית של העמוד עוברת לעמוד הסמוך בסדר הלשוניות; אחרי העמוד האחרון (פנסיה) — ההגדרות, כקיצור קבוע.
-   בכוונה לא קל: העמוד עוקב אחרי האצבע עם התנגדות, והמעבר רק במשיכה של ≥45% מרוחב המסך (ולא פחות מ־150px) —
-   בלי "הטלה" מהירה. תנועה שמתחילה אנכית = גלילה רגילה עד הסוף; נגיעה בגרף, בשדה, בפס גלילה אופקי, בטאבי הרשימות
-   או בקצה המסך (מחוות "חזור" של אנדרואיד) — לא נחשבת. בטאב המעקב — כל עוד יש רשימה נוספת בכיוון, ההחלקה על
-   הרשימה מחליפה רשימה (wireWatchSwipe); ברשימה הקיצונית — עוברת לעמוד. */
+/* ---------------- v279→v281: החלקה בין העמודים הראשיים (ובין רשימות המעקב) ----------------
+   משיכה אופקית עוברת לעמוד הסמוך בסדר הלשוניות; אחרי העמוד האחרון (פנסיה) — ההגדרות, כקיצור קבוע.
+   v281 (בקשת המשתמש: "קצת פחות קשה, כמו הסטנדרט"): כמו ViewPager/iOS — מעבר במשיכה של שליש מהרוחב, או בהטלה
+   מהירה (≥0.45px/ms — ViewPager: 400dp/s) של לפחות 15%; העמוד עוקב אחרי האצבע (50%). תנועה שמתחילה אנכית = גלילה רגילה; גרף, שדה,
+   פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
+   במעקב (יותר מרשימה אחת, נגיעה על הרשימה) — שתי מחוות נפרדות לפי אורך: קצרה (48px עד 30% מהרוחב) = רשימה
+   אחרת (הרשימה זזה, הצ'יפ של היעד מסומן); ארוכה (≥55%) = עמוד ראשי (העמוד כולו זז); ביניהן — כלום. בלי הטלה
+   לעמוד מתוך הרשימה, כדי שהקצרה לא תתפרש כעמוד. */
 const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings');
-const PAGE_SWIPE_FRAC = 0.45, PAGE_SWIPE_MIN = 150, PAGE_SWIPE_EDGE = 22;
+const PAGE_SWIPE_FRAC = 0.33, PAGE_SWIPE_MIN = 96, PAGE_SWIPE_EDGE = 22;
+const PAGE_FLING_V = 0.45, PAGE_FLING_FRAC = 0.15, PAGE_FLING_MIN = 56;
+const WL_SWIPE_MIN = 48, WL_SWIPE_MAX_FRAC = 0.3, WL_PAGE_FRAC = 0.55;
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
   if (cur === 'settings') return next ? null : PAGE_SWIPE_MAIN[PAGE_SWIPE_MAIN.length - 1];
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
   if (next) return i === PAGE_SWIPE_MAIN.length - 1 ? 'settings' : PAGE_SWIPE_MAIN[i + 1];
   return i === 0 ? null : PAGE_SWIPE_MAIN[i - 1];
+}
+/* מה ההחלקה עושה (טהורה, נבדקת): d = מרחק בכיוון, w = רוחב, v = מהירות בשחרור (px/ms), watch = על רשימת מעקב
+   עם כמה רשימות. מחזיר 'page' | 'list' | null. */
+function pageSwipeDecide(d, w, v, watch) {
+  if (watch) {
+    if (d >= w * WL_PAGE_FRAC) return 'page';
+    if (d >= WL_SWIPE_MIN && d < w * WL_SWIPE_MAX_FRAC) return 'list';
+    return null;
+  }
+  if (d >= Math.max(PAGE_SWIPE_MIN, w * PAGE_SWIPE_FRAC)) return 'page';
+  if (v >= PAGE_FLING_V && d >= Math.max(PAGE_FLING_MIN, w * PAGE_FLING_FRAC)) return 'page';
+  return null;
 }
 function pageSwipeBlocked(tg, root) {
   if (!tg || !tg.closest) return true;
@@ -10179,14 +10170,21 @@ function wirePageSwipe() {
   const isRtl = () => String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
   const dragBusy = () => document.documentElement.classList.contains('drag-active') ||
     [...document.querySelectorAll('#stockList, #wishlistList')].some((l) => l._dragging);
-  function release(page, back) {
-    if (!page || !page.style) return;
+  const clock = () => ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+  const buzz = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (err) {} };
+  function settle(node, back) { // חזרה רכה למקום (או איפוס מיידי לפני מעבר)
+    if (!node || !node.style) return;
+    if (node.id === 'wishlistList') { node.classList.remove('wl-slide'); node.style.animation = ''; } // אחרת אנימציית החלפת הרשימה חסומה
     if (back) {
-      page.style.transition = 'transform .34s cubic-bezier(.2, .9, .25, 1), opacity .34s ease';
-      page.style.transform = ''; page.style.opacity = '';
-      setTimeout(() => { page.style.transition = ''; page.style.willChange = ''; }, 360);
-    } else { page.style.transition = ''; page.style.transform = ''; page.style.opacity = ''; page.style.willChange = ''; }
+      node.style.transition = 'transform .34s cubic-bezier(.2, .9, .25, 1), opacity .34s ease';
+      node.style.transform = ''; node.style.opacity = '';
+      setTimeout(() => { node.style.transition = ''; node.style.willChange = ''; }, 360);
+    } else { node.style.transition = ''; node.style.transform = ''; node.style.opacity = ''; node.style.willChange = ''; }
   }
+  const peek = (id) => { // הצ'יפ של הרשימה שאליה נעבור
+    document.querySelectorAll('#wlTabs .wl-tab.swipe-peek').forEach((b) => { if (b.dataset.wl !== id) b.classList.remove('swipe-peek'); });
+    if (id) { const b = document.querySelector('#wlTabs .wl-tab[data-wl="' + id + '"]'); if (b) b.classList.add('swipe-peek'); }
+  };
   document.addEventListener('touchstart', (e) => {
     if (g) cancel();
     if (e.touches.length !== 1 || state.cardAnim || dragBusy()) return;
@@ -10194,13 +10192,14 @@ function wirePageSwipe() {
     if (cur !== 'settings' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
     const t = e.touches[0], w = window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
-    const tg = e.target; // v279: גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים
+    const tg = e.target; // גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים
     if (!(root.contains(tg) || tg === document.body || tg === document.documentElement)) return;
     if (pageSwipeBlocked(tg, root)) return;
     const page = document.getElementById('tab-' + cur);
     if (!page) return;
-    g = { x0: t.clientX, y0: t.clientY, cur, page, w, lock: 0, dx: 0, armed: false, tg,
-      inList: !!(tg.closest && tg.closest('#wishlistList')) };
+    const list = document.getElementById('wishlistList');
+    const watch = cur === 'wishlist' && !!(tg.closest && tg.closest('#wishlistList')) && wlLists().length > 1;
+    g = { x0: t.clientX, y0: t.clientY, cur, page, list, w, lock: 0, act: null, tg, watch, samples: [[clock(), t.clientX]] };
     // ההאזנה על האלמנט עצמו: רענון חי יכול להחליף אותו באמצע, ואז האירועים כבר לא מגיעים למסמך
     tg.addEventListener('touchmove', move, { passive: false });
     tg.addEventListener('touchend', end, { passive: true });
@@ -10209,46 +10208,76 @@ function wirePageSwipe() {
   const unhook = (s) => { if (!s || !s.tg) return; s.tg.removeEventListener('touchmove', move); s.tg.removeEventListener('touchend', end); s.tg.removeEventListener('touchcancel', cancel); };
   function move(e) {
     if (!g) return;
-    if (e.touches.length !== 1 || dragBusy()) { release(g.page, true); unhook(g); g = null; return; }
+    if (e.touches.length !== 1 || dragBusy()) { cancel(); return; }
     const t = e.touches[0], dx = t.clientX - g.x0, dy = t.clientY - g.y0;
     if (!g.lock) {
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
       if (Math.abs(dx) < Math.abs(dy) * 1.5) { unhook(g); g = null; return; } // גלילה אנכית — לא נוגעים
-      const next = isRtl() ? dx > 0 : dx < 0;
-      if (g.cur === 'wishlist' && g.inList) { // רשימה נוספת בכיוון → ההחלקה של הרשימות
-        const ls = wlLists(), i = ls.findIndex((l) => l.id === wlActive().id), j = i + (next ? 1 : -1);
-        if (j >= 0 && j < ls.length) { unhook(g); g = null; return; }
+      g.lock = 1; g.next = isRtl() ? dx > 0 : dx < 0;
+      g.to = pageSwipeTarget(g.cur, g.next);
+      if (g.watch) {
+        const ls = wlLists(), i = ls.findIndex((l) => l.id === wlActive().id), j = i + (g.next ? 1 : -1);
+        g.wlTo = (j >= 0 && j < ls.length) ? ls[j].id : null;
       }
-      g.lock = 1; g.next = next; g.to = pageSwipeTarget(g.cur, next);
-      g.page.style.animation = 'none'; g.page.style.transition = 'none'; g.page.style.willChange = 'transform';
+      for (const n of [g.page, g.watch ? g.list : null]) if (n) { n.style.animation = 'none'; n.style.transition = 'none'; n.style.willChange = 'transform'; }
     }
     if (e.cancelable) e.preventDefault();
-    const same = (isRtl() ? dx > 0 : dx < 0) === g.next;
+    const now = clock();
+    g.samples.push([now, t.clientX]);
+    while (g.samples.length > 2 && now - g.samples[0][0] > 100) g.samples.shift();
+    const same = (isRtl() ? dx > 0 : dx < 0) === g.next, sign = dx < 0 ? -1 : 1;
     const d = same ? Math.abs(dx) : 0;
-    g.dx = dx; g.dist = d;
-    const need = Math.max(PAGE_SWIPE_MIN, g.w * PAGE_SWIPE_FRAC);
-    // התנגדות: העמוד זז כ־40% מהאצבע; בלי עמוד בכיוון — רק רמז קטן
-    const move = g.to ? Math.min(d, g.w) * 0.4 : Math.min(28, d * 0.12);
-    const sign = dx < 0 ? -1 : 1;
-    g.page.style.transform = 'translate3d(' + (same ? sign * move : 0) + 'px,0,0)';
-    g.page.style.opacity = g.to ? String(1 - Math.min(1, d / need) * 0.35) : '';
-    const armed = !!g.to && d >= need;
-    if (armed && !g.armed) { try { navigator.vibrate && navigator.vibrate(8); } catch (err) {} }
-    g.armed = armed;
+    g.d = d;
+    let pageMove = 0, listMove = 0, act = null;
+    if (g.watch) {
+      const zone = g.w * WL_SWIPE_MAX_FRAC;
+      // קצרה: רק הרשימה זזה; מעבר לאזור — הרשימה חוזרת והעמוד כולו מתחיל לזוז
+      if (d < zone) listMove = g.wlTo ? d * 0.5 : Math.min(18, d * 0.1);
+      else pageMove = g.to ? (d - zone) * 0.7 : Math.min(28, (d - zone) * 0.12);
+      act = pageSwipeDecide(d, g.w, 0, true);
+      if (act === 'list' && !g.wlTo) act = null;
+    } else {
+      pageMove = g.to ? Math.min(d, g.w) * 0.5 : Math.min(28, d * 0.12);
+      act = pageSwipeDecide(d, g.w, 0, false);
+    }
+    if (act === 'page' && !g.to) act = null;
+    if (g.list && g.watch) g.list.style.transform = listMove ? 'translate3d(' + sign * listMove + 'px,0,0)' : '';
+    g.page.style.transform = pageMove ? 'translate3d(' + sign * pageMove + 'px,0,0)' : '';
+    const need = g.watch ? g.w * WL_PAGE_FRAC : Math.max(PAGE_SWIPE_MIN, g.w * PAGE_SWIPE_FRAC);
+    g.page.style.opacity = (g.to && pageMove) ? String(1 - Math.min(1, d / need) * 0.3) : '';
+    if (act !== g.act) {
+      if (act === 'page') buzz(12);
+      else if (act === 'list') buzz(5);
+      peek(act === 'list' ? g.wlTo : null);
+    }
+    g.act = act;
   }
   function end() {
     if (!g) return;
     const s = g; g = null;
     unhook(s);
+    peek(null);
     if (!s.lock) return;
-    if (s.armed && s.to && !dragBusy()) {
-      release(s.page, false);
-      switchTab(s.to);
+    const a = s.samples[0], b = s.samples[s.samples.length - 1];
+    const v = (b[0] > a[0]) ? Math.abs(b[1] - a[1]) / (b[0] - a[0]) : 0;
+    const fwd = s.samples.length > 1 && ((b[1] - a[1] > 0) === (isRtl() === s.next)); // ההטלה בכיוון המשיכה
+    let act = pageSwipeDecide(s.d || 0, s.w, fwd ? v : 0, s.watch);
+    if (act === 'page' && !s.to) act = null;
+    if (act === 'list' && !s.wlTo) act = null;
+    if (act && !dragBusy()) {
+      settle(s.page, false);
+      if (s.watch) settle(s.list, false);
+      if (act === 'page') switchTab(s.to);
+      else wlSwitch(s.wlTo, s.next ? 1 : -1);
       return;
     }
-    release(s.page, true);
+    settle(s.page, true);
+    if (s.watch) settle(s.list, true);
   }
-  function cancel() { if (g && g.lock) release(g.page, true); unhook(g); g = null; }
+  function cancel() {
+    if (g && g.lock) { settle(g.page, true); if (g.watch) settle(g.list, true); }
+    peek(null); unhook(g); g = null;
+  }
 }
 
 /* ---------------- v246: סידור בגרירה (לחיצה ארוכה) ----------------
@@ -12530,7 +12559,6 @@ function init() {
   try { initStockSort(); } catch (e) {}
   // v240: רשימת המעקב — אותו חיפוש ואותו מיון כמו בטאב המניות
   try { initStockSearch('wlSearch', () => new Set(wlItems().map((w) => w.sym)), wlAddPicked, { indices: true }); } catch (e) {} // v245: רק מה שכבר ברשימה הפתוחה מוסתר
-  try { wireWatchSwipe(); } catch (e) {} // v244: החלקה בין רשימות
   try { wirePageSwipe(); } catch (e) {} // v279: החלקה בין העמודים
   try { wireBrandHome(); } catch (e) {} // v279: לוגו → סקירה
   try { wireAllCardDrag(); } catch (e) {} // v246: סידור בגרירה

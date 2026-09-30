@@ -1505,3 +1505,6 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
   .ibkr-prog, .ip-bar span { animation: none; transition: none; }
   .ip-rep[data-state="now"] .ip-ico { animation-duration: 3s; }
 }
+
+/* v281: בהחלקה קצרה במעקב — הצ'יפ של הרשימה שאליה נעבור מסומן */
+#wlTabs .wl-tab.swipe-peek { box-shadow: inset 0 0 0 2px var(--primary); }
