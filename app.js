@@ -246,6 +246,7 @@ he: {
   sourceLabel: 'מקור: {src} · {lag}{sess}{stale}',
   lagLive: 'חי',
   lagDelayed: 'דיליי ~15 דקות',
+  srcDelayed: 'דיליי', srcSaved: 'שמור', srcLoading: 'טוען…',
   sessionPre: ' · מסחר־מוקדם',
   sessionPost: ' · מסחר־מאוחר',
   sessionNight: ' · מסחר־לילי',
@@ -771,6 +772,7 @@ en: {
   sourceLabel: 'Source: {src} · {lag}{sess}{stale}',
   lagLive: 'live',
   lagDelayed: '~15 min delay',
+  srcDelayed: 'Delayed', srcSaved: 'Saved', srcLoading: 'Loading…',
   sessionPre: ' · pre-market',
   sessionPost: ' · post-market',
   sessionNight: ' · overnight',
@@ -4333,7 +4335,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v299';
+const APP_VERSION = 'v300';
 
 
 function saveDBto(db) {
@@ -5736,13 +5738,35 @@ function applyQuotes(res) {
   updateSourceLabel();
 }
 
+/* v300 (בקשת המשתמש, הצעה א׳ מהתצוגה המקדימה): המקור ומצב השוק כקפסולות — כמו בועת שער הדולר.
+   קפסולה 1: נקודה (ירוקה = חי) + "חי" / "דיליי" / "שמור" | המקור. קפסולה 2 (רק מחוץ למסחר הרגיל): מצב השוק בצבע משלו. */
+const SRC_SESS_ICONS = {
+  pre: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="4"/><path d="M12 3v2M4.9 6.9l1.4 1.4M19.1 6.9l-1.4 1.4M3 17h18"/></svg>',
+  post: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>',
+  night: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/><circle cx="18" cy="5" r="1.4"/><circle cx="21" cy="9" r="1"/></svg>',
+};
+function sourceLabelHTML(st) { // טהורה (נבדקת)
+  const s = st || {};
+  if (!s.source) return '<span class="src-pill"><i class="src-dot off"></i><b>' + esc(t('srcLoading')) + '</b></span>';
+  const live = !s.stale && s.live && s.source === 'Yahoo';
+  const lbl = s.stale ? t('srcSaved') : live ? t('lagLive') : t('srcDelayed');
+  let html = '<span class="src-pill"><i class="src-dot' + (live ? '' : ' off') + '"></i><b>' + esc(lbl) + '</b><span class="src-sep"></span>' + esc(s.source) + '</span>';
+  const k = s.session;
+  if (k === 'pre' || k === 'post' || k === 'night') {
+    const name = k === 'pre' ? t('sessPreShort') : k === 'night' ? t('sessNightShort') : t('sessPostShort');
+    html += '<span class="src-sess ' + k + '">' + SRC_SESS_ICONS[k] + esc(name) + '</span>';
+  }
+  return html;
+}
 function updateSourceLabel() {
   const el = document.getElementById('sourceLabel');
-  if (el) {
-    const sess = state.session === 'pre' ? t('sessionPre') : state.session === 'post' ? t('sessionPost') : state.session === 'night' ? t('sessionNight') : '';
-    const lag = state.live && state.source === 'Yahoo' ? t('lagLive') : t('lagDelayed');
-    el.textContent = t('sourceLabel', { src: state.source || '—', lag: lag, sess: sess, stale: state.stale ? t('staleSuffix') : '' });
-  }
+  if (!el) return;
+  const html = sourceLabelHTML(state);
+  if (el._srcHtml === html && el.firstElementChild) return; // בלי ציור מחדש בכל טיק
+  el._srcHtml = html;
+  el.removeAttribute('data-i18n'); // מעכשיו רק כאן (לא textContent של החלפת שפה)
+  el.classList.add('src-row');
+  el.innerHTML = html;
 }
 
 const FX_SYM = 'USDILS=X';
