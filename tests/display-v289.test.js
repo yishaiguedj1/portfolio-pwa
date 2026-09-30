@@ -29,4 +29,5 @@ const acc = html.slice(html.indexOf('id="accountCard"'), html.indexOf('</div>', 
 ok(/id="appInfoCard"[\s\S]*id="appVersion"[\s\S]*id="clearCache"/.test(adv) && !/id="appVersion"|id="clearCache"/.test(acc), 'גרסה + ניקוי מטמון בעמוד המתקדם, לא בכרטיס החשבון');
 ok(!/t\('cloudConnected'\)/.test(fs.readFileSync(path.join(root, 'cloud.js'), 'utf8')), 'שורת "מחובר — הנתונים נשמרים בענן" הוסרה');
 ok(/verEl\.textContent = APP_VERSION;/.test(app) && /versionLbl: 'גרסה'/.test(app) && /versionLbl: 'Version'/.test(app), 'שורת "גרסה" — תווית + ערך');
+{ const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8'); ok(/\.display-card \.lang-opt\.active \{[^}]*background: var\(--primary\)[^}]*color: var\(--on-primary\)/.test(css), 'v293: הבחירה בכרטיס התצוגה בירוק הראשי'); }
 console.log('# ' + n + ' בדיקות עברו');
