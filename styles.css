@@ -1537,3 +1537,28 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .reset-veil:not(.in) { background: rgba(0,0,0,0); }
 .reset-veil:not(.in) .reset-sheet { transform: translateY(105%); }
 @media (prefers-reduced-motion: reduce) { .reset-veil, .reset-veil .reset-sheet { transition: none; } }
+
+/* ---------------- v287: שורת קישור בהגדרות (כמו iOS) + עמוד משנה "אפשרויות מתקדמות" ---------------- */
+.row-card { padding: 6px; }
+.row-link {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--on-surface); font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; text-align: start;
+  -webkit-tap-highlight-color: transparent; transition: background .15s ease;
+}
+.row-link:active { background: color-mix(in srgb, var(--on-surface) 7%, transparent); }
+.row-link-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; }
+.row-link-ic svg { width: 19px; height: 19px; }
+.adv-ic { background: #8E8E93; }
+.row-link-txt { flex: 1; min-width: 0; }
+.row-link-chev { flex: none; width: 18px; height: 18px; color: var(--on-surface-var); opacity: .7; }
+.row-link-chev svg { width: 100%; height: 100%; }
+[dir="ltr"] .row-link-chev svg { transform: scaleX(-1); }
+.subpage-head { margin: 4px 2px 14px; }
+.subpage-back {
+  display: inline-flex; align-items: center; gap: 2px; padding: 6px 8px 6px 4px; margin-inline-start: -6px; border: 0; border-radius: var(--radius-xs);
+  background: transparent; color: var(--primary); font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.subpage-back svg { width: 22px; height: 22px; }
+[dir="ltr"] .subpage-back svg { transform: scaleX(-1); }
+.subpage-back:active { opacity: .55; }
+.subpage-title { margin: 6px 0 0; font-size: 30px; font-weight: 800; letter-spacing: -.4px; }

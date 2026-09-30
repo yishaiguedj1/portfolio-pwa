@@ -332,6 +332,7 @@ he: {
   myAccount: 'החשבון שלי',
   appVersion: 'גרסת אפליקציה: ',
   clearCacheBtn: 'נקה מטמון ורענן',
+  advancedTitle: 'אפשרויות מתקדמות',
   widgetTitle: 'ווידג׳ט למסך הבית', widgetDesc: 'כל המניות בתיק על מסך הבית — מחיר, שינוי יומי ומסחר מוקדם/מאוחר. נגיעה במניה פותחת אותה כאן. דורש את אפליקציית האנדרואיד.',
   widgetEmpty: 'אין עדיין מניות בתיק.',
   widgetInApp: 'הווידג׳ט מתעדכן לבד: כשהתיק משתנה, הרשימה עוברת אליו בנגיעה הבאה באפליקציה.',
@@ -867,6 +868,7 @@ en: {
   myAccount: 'My account',
   appVersion: 'App version: ',
   clearCacheBtn: 'Clear cache & reload',
+  advancedTitle: 'Advanced options',
   widgetTitle: 'Home-screen widget', widgetDesc: 'Your whole portfolio on the home screen — price, daily change and after-hours. Tap a stock to open it here. Requires the Android app.',
   widgetEmpty: 'No stocks in your portfolio yet.',
   widgetInApp: 'The widget updates on its own: when your portfolio changes, the list moves to it on your next tap in the app.',
@@ -4128,7 +4130,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v286';
+const APP_VERSION = 'v287';
 
 
 function saveDBto(db) {
@@ -6373,9 +6375,9 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings'];
+const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings', 'advanced']; // v287: advanced = עמוד משנה של ההגדרות
 function tabRenderer(name) {
-  return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive }[name] || null;
+  return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive }[name] || null;
 }
 /* v193: גלולה ירוקה שמחליקה בין הלשוניות (במקום רקע שקופץ) — כמו בורר מקטעים של אפל. ממוקמת פיזית (offsetLeft),
    עובד ב־RTL וב־LTR ובתוך סרגל שגולל. הפעם הראשונה — בלי אנימציה. */
@@ -10168,11 +10170,12 @@ function wireBrandHome() {
    במעקב (יותר מרשימה אחת, בכל מקום בטאב — v282: גם ברשימה ריקה) — שתי מחוות נפרדות לפי אורך: קצרה (48px עד 30% מהרוחב) = רשימה
    אחרת (הרשימה זזה, הצ'יפ של היעד מסומן); ארוכה (≥55%) = עמוד ראשי (העמוד כולו זז); ביניהן — כלום. בלי הטלה
    לעמוד מתוך הרשימה, כדי שהקצרה לא תתפרש כעמוד. */
-const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings');
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced');
 const PAGE_SWIPE_FRAC = 0.33, PAGE_SWIPE_MIN = 96, PAGE_SWIPE_EDGE = 22;
 const PAGE_FLING_V = 0.45, PAGE_FLING_FRAC = 0.15, PAGE_FLING_MIN = 56;
 const WL_SWIPE_MIN = 48, WL_SWIPE_MAX_FRAC = 0.3, WL_PAGE_FRAC = 0.55;
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
+  if (cur === 'advanced') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
   if (cur === 'settings') return next ? null : PAGE_SWIPE_MAIN[PAGE_SWIPE_MAIN.length - 1];
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
@@ -10248,7 +10251,7 @@ function wirePageSwipe() {
     if (g) cancel();
     if (e.touches.length !== 1 || state.cardAnim || dragBusy()) return;
     const cur = currentTabName();
-    if (cur !== 'settings' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
+    if (cur !== 'settings' && cur !== 'advanced' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
     const t = e.touches[0], w = window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
     const tg = e.target; // גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים
@@ -12428,7 +12431,7 @@ function wireAppWidgetSync() {
 }
 /* v211: חלקים חיים בטאב ההגדרות (כרטיס הווידג'ט) — רק כשהטאב נראה */
 function renderSettingsLive() {
-  if (!tabShouldRender('settings')) return;
+  if (currentTabName() !== 'advanced' && !tabShouldRender('settings')) return; // v287: הווידג׳ט בעמוד "אפשרויות מתקדמות"
   try { renderWidgetCard(); } catch (e) {}
 }
 function renderWidgetCard() {
@@ -12711,6 +12714,10 @@ function init() {
     else doReset();
   });
 
+  // v287: "אפשרויות מתקדמות" — עמוד משנה של ההגדרות
+  const advO = document.getElementById('advancedOpen'), advB = document.getElementById('advancedBack');
+  if (advO) advO.addEventListener('click', () => switchTab('advanced'));
+  if (advB) advB.addEventListener('click', () => switchTab('settings'));
   // v286: גיליון אפשרויות האיפוס — הגיליון עובר ל־body (כרטיס עם transform/blur שובר position:fixed)
   wireResetSheet();
   // v146: איפוס נפרד + תיק דמו
