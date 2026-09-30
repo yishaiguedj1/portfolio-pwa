@@ -61,7 +61,7 @@ import java.util.Locale
 
 /**
  * הווידג'ט למסך הבית — גרסה B (תצוגות מקדימות native-1 → native3 שאושרה): כותרת עם "עודכן" + ↻ ובועת מצב השוק,
- * הלוגו 84dp במרכז עולה ~14dp על הכרטיס הראשון; מתחת — כל התיק ברשימה שנגללת (בלי פס גלילה), כרטיס 74dp לכל מניה:
+ * הלוגו 98dp במרכז עולה ~28dp על הכרטיס הראשון; מתחת — כל התיק ברשימה שנגללת (בלי פס גלילה), כרטיס 74dp לכל מניה:
  * לוגו, סימבול + תגית + שם, בועת הסשן של האפליקציה, מחיר + צ׳יפ. מימין לשמאל כמו באפליקציה.
  * בהיר/כהה לפי מצב המערכת. נגיעה בכרטיס → האפליקציה על אותה מניה (‎#stock=SYM, openStockFromHash באתר).
  */
@@ -200,13 +200,13 @@ private fun Content(context: Context, model: WidgetModel?, logos: Map<String, Bi
                 }
             }
         }
-        /* הלוגו של באפט (84dp) — בשכבה מעל הרשימה, עולה ~14dp על הכרטיס הראשון (תצוגה מקדימה ב׳ שאושרה).
+        /* הלוגו (98dp מ־30/09/2026, היה 84dp — בקשת המשתמש) — בשכבה מעל הרשימה, עולה ~28dp על הכרטיס הראשון (הכותרת לא גדלה).
            נגיעה בכל הלוגו — גם בחלק שמעל הכרטיס — פותחת את האפליקציה (בקשת המשתמש). רק ריבוע הלוגו לוחץ;
            מחוץ לו הנגיעה עוברת לכרטיס. גלילה שמתחילה על הלוגו לא גוללת (הוא תופס את המגע). */
         Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
             Image(
                 ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
-                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
+                modifier = GlanceModifier.size(98.dp).clickable(actionStartActivity(tabIntent(context, "stocks"))),
             )
         }
     }
@@ -432,7 +432,7 @@ private fun WatchContent(context: Context, lists: List<WatchList>, sel: WatchLis
         Box(GlanceModifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
             Image(
                 ImageProvider(R.drawable.widget_logo), contentDescription = lc.getString(R.string.app_name),
-                modifier = GlanceModifier.size(84.dp).clickable(actionStartActivity(tabIntent(context, "wishlist", sel?.id))),
+                modifier = GlanceModifier.size(98.dp).clickable(actionStartActivity(tabIntent(context, "wishlist", sel?.id))),
             )
         }
     }
@@ -457,7 +457,7 @@ private fun WatchTabs(d: Dirn, lang: String, lists: List<WatchList>, sel: WatchL
         parts += { Spacer(GlanceModifier.width(6.dp)) }
         parts += { TabArrow(if (rtl) "‹" else "›", lists[start + max].id) }
     }
-    DRow(d, GlanceModifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 8.dp), parts)
+    DRow(d, GlanceModifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 30.dp, bottom = 8.dp), parts) // v271: מתחת ללוגו 98dp — שלא יסתיר את הטאבים
 }
 
 @Composable
