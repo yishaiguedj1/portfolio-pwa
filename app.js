@@ -442,6 +442,7 @@ he: {
   errFundName: 'הזן שם לקרן החדשה',
 
   resetTitle: 'איפוס נתונים',
+  resetOptions: 'אפשרויות איפוס',
   resetDesc: 'איפוס מלא: מוחק הכל — ידני ו־IBKR — מהענן ומהטלפון. התיק מתחיל ריק.',
   resetBtn: 'איפוס מלא',
   resetConfirm: 'למחוק את כל הנתונים? הכל יימחק מהענן ומהטלפון (מניות, עסקאות, הפקדות, פנסיה, מזומן ונתוני IBKR), והתיק יתחיל ריק.\nלא ניתן לבטל.',
@@ -976,6 +977,7 @@ en: {
   errFundName: 'Enter a name for the new fund',
 
   resetTitle: 'Reset data',
+  resetOptions: 'Reset options',
   resetDesc: 'Full reset: deletes everything — manual and IBKR — from the cloud and this phone. The portfolio starts empty.',
   resetBtn: 'Full reset',
   resetConfirm: 'Delete all data? Everything will be deleted from the cloud and this phone (stocks, trades, deposits, pension, cash and IBKR data), and the portfolio will start empty.\nThis cannot be undone.',
@@ -4126,7 +4128,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v285';
+const APP_VERSION = 'v286';
 
 
 function saveDBto(db) {
@@ -10113,6 +10115,38 @@ function renderWatchHead() {
   }
 }
 /* החלקה הצידה על הרשימה = הרשימה הבאה/הקודמת (ב־RTL: החלקה ימינה = הבאה). לא בתוך כרטיס פתוח/גרף/שורת הצ'יפים */
+/* v286: כרטיס האיפוס = שורה אחת "אפשרויות איפוס" → גיליון בסגנון Apple: שלוש האפשרויות (אותם כפתורים, אותם
+   מזהים ואותו אישור לפני מחיקה) + "ביטול". בחירה סוגרת את הגיליון לפני האישור (שלב capture — לפני המאזין של הכפתור). */
+function openResetSheet() {
+  const v = document.getElementById('resetSheetVeil');
+  if (!v) return;
+  v.classList.remove('hidden', 'out');
+  void v.offsetWidth;
+  v.classList.add('in');
+  const o = document.getElementById('resetOpen');
+  if (o) o.setAttribute('aria-expanded', 'true');
+}
+function closeResetSheet() {
+  const v = document.getElementById('resetSheetVeil');
+  if (!v || v.classList.contains('hidden')) return;
+  v.classList.remove('in');
+  v.classList.add('out');
+  const o = document.getElementById('resetOpen');
+  if (o) o.setAttribute('aria-expanded', 'false');
+  setTimeout(() => { if (v.classList.contains('out')) v.classList.add('hidden'); v.classList.remove('out'); }, 260);
+}
+function wireResetSheet() {
+  const v = document.getElementById('resetSheetVeil'), o = document.getElementById('resetOpen');
+  if (!v || !o || v._wired) return;
+  v._wired = true;
+  if (v.parentNode !== document.body) document.body.appendChild(v);
+  o.addEventListener('click', openResetSheet);
+  v.addEventListener('click', (e) => { if (e.target === v) closeResetSheet(); });
+  v.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.reset-opt')) closeResetSheet(); }, true);
+  const c = document.getElementById('resetCancel');
+  if (c) c.addEventListener('click', closeResetSheet);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeResetSheet(); });
+}
 /* v279: לחיצה על הלוגו בהדר → הסקירה (כבר בסקירה — לראש העמוד) */
 function wireBrandHome() {
   const b = document.querySelector('.appbar .brand');
@@ -12677,6 +12711,8 @@ function init() {
     else doReset();
   });
 
+  // v286: גיליון אפשרויות האיפוס — הגיליון עובר ל־body (כרטיס עם transform/blur שובר position:fixed)
+  wireResetSheet();
   // v146: איפוס נפרד + תיק דמו
   const rmBtn = document.getElementById('resetManual');
   if (rmBtn) rmBtn.addEventListener('click', doResetManual);

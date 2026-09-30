@@ -1206,18 +1206,12 @@ footer.fine { text-align: center; }
 .demo-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 220px; margin-top: 16px; font-size: 17px; padding: 14px 30px; border-radius: var(--pill); box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 32%, transparent); }
 .demo-banner { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; font-weight: 600; font-size: 15px; background: color-mix(in srgb, var(--primary) 16%, var(--surface)); color: var(--on-surface); border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--card-border)); }
 .demo-banner.hidden, .demo-card.hidden { display: none; }
-.reset-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--card-border); }
-.reset-row:first-of-type { border-top: 0; }
-.reset-row .fine { flex: 1; }
-.reset-row .btn { flex-shrink: 0; }
-@media (max-width: 480px) { .reset-row { flex-direction: column; align-items: stretch; } }
 
 /* v147: תגית מקור IBKR — הלוגו של Interactive Brokers, באותו מבנה כמו "ידני" */
 .src-tag.src-ibkr { padding: 2px 6px; line-height: 0; background: color-mix(in srgb, #d71920 12%, transparent); }
 .src-tag.src-ibkr img { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
 .danger-btn .src-tag { margin-inline-start: 0; margin-inline-end: 8px; background: #fff; color: var(--primary); }
 .danger-btn .src-tag.src-ibkr { background: #fff; }
-.reset-row .btn { display: inline-flex; align-items: center; justify-content: center; }
 
 /* v151: הגדרות חיבור IBKR — שדות ארוכים (כתובת, טוקן) בעמודה אחת, בלי חיתוך באמצע */
 #ibkrConnDetails .form-grid { grid-template-columns: 1fr; }
@@ -1508,3 +1502,38 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 
 /* v281: בהחלקה קצרה במעקב — הצ'יפ של הרשימה שאליה נעבור מסומן */
 #wlTabs .wl-tab.swipe-peek { box-shadow: inset 0 0 0 2px var(--primary); }
+
+/* ---------------- v286: כרטיס איפוס קומפקטי + גיליון בסגנון Apple ---------------- */
+.reset-card { padding: 6px; }
+.reset-open {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--loss); font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; text-align: start;
+  -webkit-tap-highlight-color: transparent; transition: background .15s ease;
+}
+.reset-open:active { background: color-mix(in srgb, var(--loss) 10%, transparent); }
+.reset-open-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--loss); color: #fff; }
+.reset-open-ic svg { width: 19px; height: 19px; }
+.reset-open-txt { flex: 1; min-width: 0; }
+.reset-open-chev { flex: none; width: 18px; height: 18px; color: var(--on-surface-var); opacity: .7; }
+.reset-open-chev svg { width: 100%; height: 100%; }
+[dir="ltr"] .reset-open-chev svg { transform: scaleX(-1); }
+/* הגיליון: קבוצה מעוגלת עם קווים דקים בין השורות, "ביטול" נפרד — כמו גיליון פעולות הרסניות ב־iOS */
+.reset-sheet { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+.reset-sheet h3 { color: var(--on-surface-var); font-size: 14px; font-weight: 600; margin: 2px 0 12px; }
+.reset-group { border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); }
+.reset-opt, .reset-cancel {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 56px; padding: 12px 16px;
+  border: 0; background: transparent; font: inherit; font-size: 17.5px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background .12s ease;
+}
+.reset-opt { color: var(--loss); font-weight: 500; }
+.reset-opt + .reset-opt { border-top: 1px solid color-mix(in srgb, var(--on-surface) 10%, transparent); }
+.reset-opt.reset-all { font-weight: 700; }
+.reset-opt:active, .reset-cancel:active { background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
+.reset-opt .src-tag { margin: 0; }
+.reset-cancel { margin-top: 10px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--primary); font-weight: 700; }
+.reset-veil { transition: background-color .26s ease; }
+.reset-veil .reset-sheet { transition: transform .32s cubic-bezier(.2, .9, .25, 1); }
+.reset-veil:not(.in) { background: rgba(0,0,0,0); }
+.reset-veil:not(.in) .reset-sheet { transform: translateY(105%); }
+@media (prefers-reduced-motion: reduce) { .reset-veil, .reset-veil .reset-sheet { transition: none; } }
