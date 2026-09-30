@@ -3870,7 +3870,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v266';
+const APP_VERSION = 'v267';
 
 
 function saveDBto(db) {
@@ -7421,23 +7421,7 @@ function renderPfTools() {
   fromBtn.addEventListener('click', openPfFromSheet);
   wrap.appendChild(fromBtn);
 
-  // v126: כפתור מדידה — אותו רכיב כמו בגרף המניה. בלי מצב מדידה, לחיצה על
-  // הגרף מציגה רק את התשואות בנקודה (טולטיפ).
-  const mb = el('button', 'chip-btn' + (state.pfMeasure.on ? ' on' : ''), t('measure'));
-  mb.type = 'button';
-  mb.title = t('measureTitle');
-  mb.addEventListener('click', () => {
-    state.pfMeasure.on = !state.pfMeasure.on;
-    state.pfMeasure.pts = [];
-    state.pfPickDate = false;
-    // הסבר קצר בהודעה צפה — שורת הסבר קבועה הייתה מזיזה את הגרף מתחת לאצבע
-    if (state.pfMeasure.on) flash(t('measureOn'));
-    hidePfTip();
-    renderPfTools();
-    updatePfPickUI();
-    paintPfChart();
-  });
-  wrap.appendChild(mb);
+  // v267 (בקשת המשתמש): כפתור "מדידה" הוסר — מודדים בשתי אצבעות על הגרף (pfAttachTouch)
 
   if (state.pfCustomFrom) {
     const tag = el('span', 'pf-custom-tag', esc(t('pfCustom')) + ' · ' + fmtDateIL(state.pfCustomFrom));

@@ -64,8 +64,9 @@ tap(110);
 ok(S().pfMeasure.pts.join(',') === '2', 'מצב מדידה: לחיצה שלישית מתחילה מדידה חדשה');
 
 // הכפתור קיים בכלי הגרף, עם אותה מחרוזת כמו בגרף המניה
-ok(/function renderPfTools[\s\S]*?t\('measure'\)[\s\S]*?pfMeasure\.on = !state\.pfMeasure\.on/.test(src), 'כפתור "מדידה" בכלי גרף הביצועים מחליף מצב');
-ok(/el\('button', 'chip-btn' \+ \(state\.pfMeasure\.on \? ' on' : ''\), t\('measure'\)\)/.test(src), 'אותו רכיב chip-btn כמו בגרף המניה, מודגש כשפעיל');
+const tools = src.slice(src.indexOf('function renderPfTools'), src.indexOf('function closePfSheet'));
+ok(!/t\('measure'\)/.test(tools) && /pfAttachTouch\(canvas\)/.test(src), 'v267: כפתור "מדידה" הוסר מגרף הביצועים — מדידה בשתי אצבעות');
+ok(/showPfMeasureTip\(a, b\)/.test(src), 'v267: מדידה בשתי אצבעות מציגה את התוצאה בבועה');
 
 // גרסאות
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
