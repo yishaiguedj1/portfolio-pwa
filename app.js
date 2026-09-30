@@ -368,7 +368,7 @@ he: {
   importSnapshotNote: 'הנתונים הידניים נשמרו וישוחזרו בניתוק.',
   // סנכרון Flex — אופציה נוספת למשיכת נתונים
   ibkrConnTitle: 'הגדרות חיבור',
-  ibkrRangeTitle: 'טווח המשיכה',
+  ibkrRangeTitle: 'בחירת טווח למשיכה', ibkrDepthAuto: 'אוטומטי', ibkrDepthAria: 'עומק היסטוריה', ibkrFromAria: 'תאריך התחלה',
   ibkrFlexHowTitle: 'איך מגדירים את שאילתת ה־Flex?',
   ibkrSyncDesc: 'הנתונים נמשכים מ־IBKR דרך Flex Web Service: יוצרים שאילתת Flex ב־Client Portal ‏(Reports ← Flex Queries), ומפעילים Flex Web Service כדי לקבל token.',
   flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (לתשואה לפי חודש/שנה/YTD).',
@@ -377,10 +377,6 @@ he: {
   ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
   ibkrErrAppKey: 'השרתון דחה את הבקשה כי הוגדר בו APP_KEY. ב־Vercel: Settings ← Environment Variables ← מחק את APP_KEY ← Redeploy.',
   ibkrErrOrigin: 'השרתון מקבל בקשות רק מהאתר של האפליקציה. פתח את האפליקציה מהכתובת הרגילה שלה.',
-  ibkrFromDateLabel: 'או תאריך התחלה מדויק',
-  ibkrFromDatePh: 'אופציונלי — דורס את בחירת העומק',
-  ibkrFromDateNote: 'בוחרים כמה שנים אחורה למשוך במשיכה הראשונה — או תאריך מדויק, ללא הגבלה. כשכבר יש נתונים, הסנכרון ממשיך מהנקודה שהם נגמרו.',
-  ibkrDepthLabel: 'עומק היסטוריה למשיכה ראשונה',
   ibkrDepth1: 'שנה אחת',
   ibkrDepth2: 'שנתיים',
   ibkrDepth3: '3 שנים',
@@ -489,6 +485,7 @@ he: {
   ipKeepOpen: 'המסך נשאר דלוק עד הסיום — אפשר להשאיר את האפליקציה פתוחה',
   ipCount: 'דוח {n} מתוך {total}',
   ipCountShort: '{n} מתוך {total}',
+  ipCountAuto: 'דוח {n}', ipCountShortAuto: '{n} דוחות', ipAutoRange: 'כל השנים עם פעילות בחשבון',
   ipUntil: 'עד {d}',
   ipMergeDet: '{n} עסקאות · {k} תנועות מזומן · {d} ימי שווי',
   demoStepStocks: '{n} מניות ומדדים',
@@ -902,7 +899,7 @@ en: {
   importSnapshotNote: 'Manual data was snapshotted and will be restored on disconnect.',
   // Flex sync — an additional data-pull option
   ibkrConnTitle: 'Connection settings',
-  ibkrRangeTitle: 'Pull range',
+  ibkrRangeTitle: 'Choose pull range', ibkrDepthAuto: 'Automatic', ibkrDepthAria: 'History depth', ibkrFromAria: 'Start date',
   ibkrFlexHowTitle: 'How do I set up the Flex query?',
   ibkrSyncDesc: 'Data is pulled from IBKR via Flex Web Service: create a Flex query in the Client Portal (Reports → Flex Queries), and enable Flex Web Service to get a token.',
   flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (for month/year/YTD returns).',
@@ -911,10 +908,6 @@ en: {
   ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
   ibkrErrAppKey: 'The proxy rejected the request because APP_KEY is set on it. In Vercel: Settings → Environment Variables → delete APP_KEY → Redeploy.',
   ibkrErrOrigin: 'The proxy only accepts requests from the app’s own site. Open the app from its usual address.',
-  ibkrFromDateLabel: 'Or an exact start date',
-  ibkrFromDatePh: 'Optional — overrides the depth choice',
-  ibkrFromDateNote: 'Choose how many years back the first pull covers — or an exact date, with no limit. When data already exists, sync continues from where it ended.',
-  ibkrDepthLabel: 'History depth for first pull',
   ibkrDepth1: '1 year',
   ibkrDepth2: '2 years',
   ibkrDepth3: '3 years',
@@ -1023,6 +1016,7 @@ en: {
   ipKeepOpen: 'The screen stays on until it finishes — keep the app open',
   ipCount: 'Report {n} of {total}',
   ipCountShort: '{n} of {total}',
+  ipCountAuto: 'Report {n}', ipCountShortAuto: '{n} reports', ipAutoRange: 'Every year with account activity',
   ipUntil: 'to {d}',
   ipMergeDet: '{n} trades · {k} cash transactions · {d} value days',
   demoStepStocks: '{n} stocks and indexes',
@@ -1875,6 +1869,24 @@ function ibkrMakeLimiter(opts) {
    (גם "בדוק חיבור" וגם סנכרון). */
 const IBKR_LIMITER = ibkrMakeLimiter();
 const IBKR_HISTORY_YEARS_DEFAULT = 5; // עומק ברירת מחדל למשיכה ראשונה (בשנים)
+/* v296: "אוטומטי" (ברירת המחדל) — מושכים מהשנה הנוכחית אחורה, שנה אחרי שנה, עד השנה
+   שלפני פתיחת החשבון (flex_1003, או שתי שנים ריקות ברצף). תקרה ביטחונית בשנים. */
+const IBKR_AUTO_MAX_YEARS = 25;
+function ibkrAutoStartYmd(endD) {
+  const d = (endD && typeof endD.getTime === 'function') ? endD : new Date();
+  return String(d.getFullYear() - IBKR_AUTO_MAX_YEARS) + '0101';
+}
+/* עומק שנבחר: 'auto' או מספר שנים 1–10 (פונקציה טהורה, נבדקת) */
+function ibkrDepthChoice(v) {
+  const s = String(v == null ? '' : v).trim();
+  return /^(1|2|3|5|10)$/.test(s) ? s : 'auto';
+}
+/* דוח בלי שום פעילות — אין עסקאות, מזומן, NAV או פוזיציות (פונקציה טהורה) */
+function ibkrChunkEmpty(d) {
+  if (!d) return true;
+  const n = (k) => ((d[k] || []).length);
+  return !n('trades') && !n('cashTransactions') && !n('navHistory') && !n('navDaily') && !n('positions');
+}
 /* תאריך התחלה למשיכה ראשונה לפי עומק בשנים (פונקציה טהורה, נבדקת).
    מחליף את רצפת 2020 הקבועה: המשתמש בוחר כמה שנים באמת צריך (1–10),
    ותאריך מדויק נשאר בלתי מוגבל. */
@@ -2086,23 +2098,73 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
     }
   };
 
-  for (let i = 0; i < chunks.length; i++) {
+  // v296: מצב אוטומטי — מהחדש לישן, ועוצרים כשמגיעים לשנים שלפני החשבון
+  const auto = !!o.autoDepth;
+  const order = chunks.map((_, i) => i);
+  if (auto) order.reverse();
+  let fallbackDone = false, emptyStreak = 0;
+  // v136: החלק העדכני נכשל ב־1003 — הדוח של היום האחרון עוד לא פורסם (IBKR
+  // מפרסם בבוקר בארה"ב). ניסיון אחד שמסתיים יום מסחר אחד קודם, במקום להפיל
+  // את כל הסנכרון. סנכרון ההמשך הבא ישלים את היום החסר.
+  const latestFallback = async () => {
+    fallbackDone = true;
+    const lastChunk = chunks[chunks.length - 1];
+    const lastRes = lastChunk && chunkResults.find((c) => !c.ok && c.fd === lastChunk.fd && c.td === lastChunk.td);
+    if (merged._locked || merged._throttled || !lastRes || !/flex_1003/.test(lastRes.error || '')) return false;
+    const td2 = ibkrPrevWeekdayYmd(lastChunk.td);
+    if (td2 < lastChunk.fd) return false;
+    const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, lastChunk.fd, td2, [],
+      Object.assign({}, pollOpts, { no1003Retry: true }));
+    if (data) {
+      chunkResults.splice(chunkResults.indexOf(lastRes), 1);
+      latestTd = td2;
+      absorb(data, lastChunk.fd, td2);
+      return true;
+    }
+    note({ fd: lastChunk.fd, td: td2, state: 'fail', error: lastRes.error });
+    return false;
+  };
+  for (let k = 0; k < order.length; k++) {
+    const i = order[k];
     const { fd, td } = chunks[i];
-    if (onProgress) onProgress(i + 1, chunks.length, fd, td);
+    if (onProgress) onProgress(k + 1, auto ? 0 : chunks.length, fd, td);
     // הפוגה ידנית (בדיקות בלבד); בפועל המגביל המתגלגל שומר על הקצב
-    if (i > 0 && gapMs > 0) await new Promise((r) => setTimeout(r, gapMs));
+    if (k > 0 && gapMs > 0) await new Promise((r) => setTimeout(r, gapMs));
     const isLastChunk = i === chunks.length - 1;
     // v137: 1003 על תקופה ישנה לא ישתנה בניסיון חוזר — רק החלק העדכני (דוח שעוד לא פורסם) מקבל ניסיונות
     const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkResults,
       isLastChunk ? pollOpts : Object.assign({}, pollOpts, { no1003Retry: true }));
-    if (data) { consecFails = 0; absorb(data, fd, td); }
+    if (data && auto && !isLastChunk && ibkrChunkEmpty(data)) {
+      // v296: שנה ישנה בלי שום פעילות — לא נכנסת לתוצאה; שתיים ברצף = לפני פתיחת החשבון
+      const r = chunkResults[chunkResults.length - 1];
+      if (r) Object.assign(r, { ok: true, noData: true }); else chunkResults.push({ fd, td, ok: true, noData: true });
+      note({ fd, td, state: 'skip' });
+      consecFails = 0;
+      if (++emptyStreak >= 2) { merged._autoStop = true; break; }
+      continue;
+    }
+    if (data) { consecFails = 0; emptyStreak = 0; absorb(data, fd, td); }
     else {
       const lastRes = chunkResults[chunkResults.length - 1];
+      // v296: במצב אוטומטי — החלק העדכני קודם; 1003 שלו = הדוח של היום עוד לא פורסם
+      if (auto && isLastChunk && lastRes && /flex_1003/.test(lastRes.error || '')) {
+        if (await latestFallback()) { consecFails = 0; continue; }
+      }
+      // v296: שנה ישנה שמחזירה 1003 אחרי שכבר יש נתונים = לפני פתיחת החשבון — עוצרים כאן
+      if (auto && anyOk && !isLastChunk && lastRes && /flex_1003/.test(lastRes.error || '')) {
+        lastRes.beforeStart = true; note({ fd, td, state: 'skip' }); merged._autoStop = true; break;
+      }
       // v137: 1003 לפני שחלק כלשהו החזיר נתונים = שנים שלפני פתיחת החשבון (עומק 5 שנים
       // לחשבון בן 3). לא כשל — ממשיכים קדימה, לא נספר ברצף הכשלונות שעוצר את המשיכה.
       if (!anyOk && !isLastChunk && lastRes && /flex_1003/.test(lastRes.error || '')) { lastRes.beforeStart = true; note({ fd, td, state: 'skip' }); continue; }
       note({ fd, td, state: 'fail', error: lastRes && lastRes.error });
       consecFails++;
+      // v296: במצב אוטומטי החלק העדכני ראשון — בלעדיו אין יבוא, אז לא ממשיכים לשנים ישנות
+      if (auto && isLastChunk) {
+        if (lastRes && ibkrIsLockoutErr(lastRes.error)) merged._locked = true;
+        else { merged._stopped = true; if (lastRes && ibkrIsThrottleErr(lastRes.error)) merged._throttled = true; }
+        break;
+      }
       // נעילת טוקן — עוצרים מיד, אפילו לא מחכים לכשלון שני
       if (lastRes && ibkrIsLockoutErr(lastRes.error)) { merged._locked = true; break; }
       // שני כשלונות רצופים — עוצרים במקום לבזבז דקות ובקשות על חלקים נוספים.
@@ -2114,23 +2176,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       }
     }
   }
-  // v136: החלק העדכני נכשל ב־1003 — הדוח של היום האחרון עוד לא פורסם (IBKR
-  // מפרסם בבוקר בארה"ב). ניסיון אחד שמסתיים יום מסחר אחד קודם, במקום להפיל
-  // את כל הסנכרון. סנכרון ההמשך הבא ישלים את היום החסר.
-  const lastChunk = chunks[chunks.length - 1];
-  const lastRes = lastChunk && chunkResults.find((c) => !c.ok && c.fd === lastChunk.fd && c.td === lastChunk.td);
-  if (!merged._locked && !merged._throttled && lastRes && /flex_1003/.test(lastRes.error || '')) {
-    const td2 = ibkrPrevWeekdayYmd(lastChunk.td);
-    if (td2 >= lastChunk.fd) {
-      const data = await ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, lastChunk.fd, td2, [],
-        Object.assign({}, pollOpts, { no1003Retry: true }));
-      if (data) {
-        chunkResults.splice(chunkResults.indexOf(lastRes), 1);
-        latestTd = td2;
-        absorb(data, lastChunk.fd, td2);
-      } else note({ fd: lastChunk.fd, td: td2, state: 'fail', error: lastRes.error });
-    }
-  }
+  if (!fallbackDone) await latestFallback(); // v136 (במצב אוטומטי כבר רץ בתוך הלולאה)
   // v123: חלק בודד יכול ליפול מסיבה חולפת (קור-סטארט של השרתון, הפרעת רשת
   // רגעית) בלי שני כשלונות רצופים שהיו עוצרים את המשיכה — ואז נשמט בשקט,
   // גם כשהיבוא "הושלם" כי החלק האחרון הצליח. סבב ניסיון נוסף אחד לכל חלק
@@ -2294,12 +2340,9 @@ function renderIbkrCard() {
   const cdet = document.getElementById('ibkrConnDetails');
   if (cdet && !(cfg.token && cfg.queryId)) cdet.open = true;
   const data = cfg.data;
-  // עומק היסטוריה — בחירת המשתמש (נשמרת בטלפון), ברירת מחדל 5 שנים
+  // עומק היסטוריה — בחירת המשתמש (נשמרת בטלפון); v296: ברירת המחדל "אוטומטי"
   const dhe = document.getElementById('ibkrHistoryDepth');
-  if (dhe) {
-    const dv = String(cfg.historyYears || IBKR_HISTORY_YEARS_DEFAULT);
-    dhe.value = /^(1|2|3|5|10)$/.test(dv) ? dv : String(IBKR_HISTORY_YEARS_DEFAULT);
-  }
+  if (dhe) dhe.value = ibkrDepthChoice(cfg.historyDepth);
   // תאריך התחלה למשיכה — בחירת המשתמש (נשמרת בטלפון) או ברירת מחדל חכמה
   const fde = document.getElementById('ibkrFromDate');
   if (fde && !fde.value) {
@@ -3539,10 +3582,10 @@ async function ibkrSaveAndTest() {
   const fromDateEl = document.getElementById('ibkrFromDate');
   const fromDate = ((fromDateEl && fromDateEl.value) || '').trim();
   const dhe = document.getElementById('ibkrHistoryDepth');
-  const depthYears = Math.min(10, Math.max(1, parseInt((dhe && dhe.value) || '', 10) || IBKR_HISTORY_YEARS_DEFAULT));
+  const historyDepth = ibkrDepthChoice(dhe && dhe.value);
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
-  ibkrSaveCfg({ proxyUrl, token, queryId, appKey: '', fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '', historyYears: depthYears });
+  ibkrSaveCfg({ proxyUrl, token, queryId, appKey: '', fromDate: /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : '', historyDepth });
   ibkrSetBusy(true);
   renderIbkrCard();
   try {
@@ -3576,35 +3619,38 @@ function ibkrChunkFrac(st) {
   if (st.stage === 'wait') return 0.12 + 0.83 * (1 - Math.pow(0.72, st.n || 1));
   return 0.08;
 }
-function ibkrProgressOpen(chunks, startYmd, endYmd) {
+function ibkrProgressOpen(chunks, startYmd, endYmd, popts) {
+  const grow = !!(popts && popts.grow); // v296: אוטומטי — מספר הדוחות לא ידוע מראש, שורה לכל שנה שנמשכת
   const card = document.getElementById('ibkrCard');
   const noop = { chunk() {}, stage() {}, tick() {}, merging() {}, ready() { return Promise.resolve(); }, close() {}, fail() {} };
   if (!card || !chunks || !chunks.length) return noop;
   const old = card.querySelector('.ibkr-prog');
   if (old) old.remove();
   const iso = (y) => fmtDateIL(y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8));
-  const rows = chunks.map((c) => ({ fd: c.fd, td: c.td, state: 'wait', stage: '', n: 0 }));
+  const rows = grow ? [] : chunks.map((c) => ({ fd: c.fd, td: c.td, state: 'wait', stage: '', n: 0 }));
+  const repHTML = (r) => '<li class="ip-rep" data-state="wait"><span class="ip-ico" aria-hidden="true"></span>' +
+    (() => { const L = ibkrChunkLabel(r.fd, r.td); return '<span class="ip-yr"><b dir="ltr">' + esc(L.y) + '</b>' + (L.sub ? '<small>' + esc(L.sub) + '</small>' : '') + '</span>'; })() +
+    '<span class="ip-det">' + esc(t('ipRepWait')) + '</span></li>';
   const box = el('div', 'ibkr-prog');
   box.setAttribute('aria-live', 'polite');
   box.innerHTML =
     '<div class="ip-head"><span class="ip-logo" aria-hidden="true"><img src="ibkr-logo.png" alt="" width="26" height="26"></span>' +
       '<div class="ip-htxt"><h2>' + esc(t('ipTitle')) + '</h2><p class="ip-sub" dir="auto">' +
-      esc(iso(startYmd) + ' – ' + iso(endYmd)) + '</p></div></div>' +
+      esc(grow ? t('ipAutoRange') : iso(startYmd) + ' – ' + iso(endYmd)) + '</p></div></div>' +
     '<div class="ip-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span></span></div>' +
     '<div class="ip-meta"><span class="ip-count"></span><span class="ip-clock" dir="ltr">0:00</span></div>' +
     '<ol class="demo-steps ip-steps">' + [t('ipStepConnect'), t('ipStepReports'), t('ipStepMerge'), t('ipStepReview')].map((lbl) =>
       '<li class="demo-step" data-state="wait"><span class="ds-dot" aria-hidden="true"></span><span class="ds-txt"><span class="ds-lbl">' +
       esc(lbl) + '</span><span class="ds-det"></span></span></li>').join('') + '</ol>' +
     '<div class="ip-rep-h">' + esc(t('ipReportsHead')) + '</div>' +
-    '<ol class="ip-reps">' + rows.map((r) => '<li class="ip-rep" data-state="wait"><span class="ip-ico" aria-hidden="true"></span>' +
-      (() => { const L = ibkrChunkLabel(r.fd, r.td); return '<span class="ip-yr"><b dir="ltr">' + esc(L.y) + '</b>' + (L.sub ? '<small>' + esc(L.sub) + '</small>' : '') + '</span>'; })() +
-      '<span class="ip-det">' + esc(t('ipRepWait')) + '</span></li>').join('') + '</ol>' +
+    '<ol class="ip-reps">' + rows.map(repHTML).join('') + '</ol>' +
     '<p class="ip-note">' + esc(t('ipKeepOpen')) + '</p>' +
     '<div class="ip-err hidden"></div>';
   card.appendChild(box);
   card.classList.add('syncing');
   const bar = box.querySelector('.ip-bar'), count = box.querySelector('.ip-count'), clock = box.querySelector('.ip-clock');
   const steps = [...box.querySelectorAll('.ip-steps .demo-step')], repEls = [...box.querySelectorAll('.ip-rep')];
+  const repList = box.querySelector('.ip-reps');
   const t0 = Date.now();
   let shown = 0, phase = 0, closed = false;
   const setStep = (i, det) => {
@@ -3623,12 +3669,12 @@ function ibkrProgressOpen(chunks, startYmd, endYmd) {
   const paint = () => {
     const fin = rows.filter((r) => r.state === 'done' || r.state === 'skip' || r.state === 'fail').length;
     const cur = rows.findIndex((r) => r.state === 'now');
-    const f = phase >= 2 ? (phase >= 3 ? 1 : 0.95) : rows.reduce((a, r) => a + ibkrChunkFrac(r), 0) / rows.length * 0.92;
+    const f = phase >= 2 ? (phase >= 3 ? 1 : 0.95) : rows.reduce((a, r) => a + ibkrChunkFrac(r), 0) / Math.max(1, rows.length + (grow ? 1 : 0)) * 0.92;
     shown = Math.max(shown, Math.min(1, f));
     bar.firstChild.style.width = (shown * 100).toFixed(1) + '%';
     bar.setAttribute('aria-valuenow', String(Math.round(shown * 100)));
     const n = phase >= 2 ? rows.length : cur >= 0 ? cur + 1 : Math.max(1, fin);
-    count.textContent = t('ipCount', { n, total: rows.length }) + ' · ' + Math.round(shown * 100) + '%';
+    count.textContent = (grow && phase < 2 ? t('ipCountAuto', { n }) : t('ipCount', { n, total: rows.length })) + ' · ' + Math.round(shown * 100) + '%';
     rows.forEach((r, i) => {
       const li = repEls[i];
       if (li.dataset.state !== r.state) li.dataset.state = r.state;
@@ -3639,7 +3685,7 @@ function ibkrProgressOpen(chunks, startYmd, endYmd) {
       const connected = rows.some((r) => r.state !== 'wait' && (r.state !== 'now' || r.stage === 'wait'));
       setStep(connected ? 1 : 0);
     }
-    steps[1].querySelector('.ds-det').textContent = t('ipCountShort', { n: fin, total: rows.length });
+    steps[1].querySelector('.ds-det').textContent = grow && phase < 2 ? t('ipCountShortAuto', { n: fin }) : t('ipCountShort', { n: fin, total: rows.length });
   };
   const tick = () => {
     const sec = Math.floor((Date.now() - t0) / 1000);
@@ -3657,7 +3703,13 @@ function ibkrProgressOpen(chunks, startYmd, endYmd) {
   };
   return {
     chunk(x) {
-      const i = idxOf(x.fd);
+      let i = idxOf(x.fd);
+      if (i < 0 && grow && x.state === 'start') { // v296: שנה חדשה במשיכה האוטומטית — שורה חדשה בסוף (מהחדש לישן)
+        rows.push({ fd: x.fd, td: x.td, state: 'wait', stage: '', n: 0 });
+        repList.insertAdjacentHTML('beforeend', repHTML(rows[rows.length - 1]));
+        repEls.push(repList.lastElementChild);
+        i = rows.length - 1;
+      }
       if (i < 0) return;
       const r = rows[i];
       if (x.state === 'start') { r.state = 'now'; r.stage = 'request'; r.n = 0; }
@@ -3723,11 +3775,11 @@ async function ibkrSyncImport() {
   const fromStr = ((fde && fde.value) || cfg.fromDate || '').trim();
   // עומק היסטוריה בשנים — כמה שנים אחורה המשתמש באמת צריך (בחירתו, נשמרת בטלפון)
   const dhe = document.getElementById('ibkrHistoryDepth');
-  const depthYears = Math.min(10, Math.max(1, parseInt(((dhe && dhe.value) || cfg.historyYears || ''), 10) || IBKR_HISTORY_YEARS_DEFAULT));
-  ibkrSaveCfg({ historyYears: depthYears });
+  const historyDepth = ibkrDepthChoice((dhe && dhe.value) || cfg.historyDepth);
+  ibkrSaveCfg({ historyDepth });
   const endD = ibkrLastClosedDate();
   const endYmd = ibkrYmd(endD);
-  let startYmd, autoMode = false;
+  let startYmd, autoMode = false, autoAll = false;
   const hasData = ibkrHasImportedData(cfg.data);
   // v127: התאריך שהוצע אוטומטית בשדה (המשך מהנתונים הקיימים, או הערך הישן
   // שנשמר ממנו) הוא לא "תאריך ידני" — שמירתו כקבוע גרמה למשיכה חוזרת מאותו
@@ -3754,7 +3806,9 @@ async function ibkrSyncImport() {
     }
   } else {
     // משיכה ראשונה: מתחילים מהעומק שהמשתמש בחר — לא יותר ממה שצריך, לא פחות
-    startYmd = ibkrDepthStartYmd(endD, depthYears);
+    // v296: "אוטומטי" = כל השנים עם פעילות (מהחדש לישן, עוצרים לפני פתיחת החשבון)
+    autoAll = historyDepth === 'auto';
+    startYmd = autoAll ? ibkrAutoStartYmd(endD) : ibkrDepthStartYmd(endD, historyDepth);
     autoMode = true;
     ibkrSaveCfg({ fromDate: '' });
   }
@@ -3772,13 +3826,13 @@ async function ibkrSyncImport() {
   let stageTxt = '';
   const paint = () => { if (s) s.textContent = ibkrStatusLine(base, stageTxt, Date.now() - t0); };
   const ticker = setInterval(paint, 1000);
-  const ui = ibkrProgressOpen(ibkrDateChunks(startYmd, endYmd), startYmd, endYmd); // v280
+  const ui = ibkrProgressOpen(ibkrDateChunks(startYmd, endYmd), startYmd, endYmd, { grow: autoAll }); // v280; v296: אוטומטי — שורות נוספות תוך כדי
   let uiFailed = false;
   const uiFail = (msg, retry) => { uiFailed = true; ui.fail(msg, retry); };
   try {
     paint();
     const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
-      base = autoMode ? t('fetchHistoryAuto', { n: i, total }) : t('fetchHistory', { n: i, total });
+      base = autoMode ? t('fetchHistoryAuto', { n: i, total: total || '…' }) : t('fetchHistory', { n: i, total });
       stageTxt = '';
       paint();
     }, {
@@ -3789,6 +3843,7 @@ async function ibkrSyncImport() {
       },
       onChunk: (x) => ui.chunk(x),
       endDate: endD,
+      autoDepth: autoAll,
     });
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
     // פוזיציות ישנות כעדכניות.
@@ -3815,7 +3870,7 @@ async function ibkrSyncImport() {
     // המשיכה האוטומטית מתחילה בעומק שהמשתמש בחר. אם המידע שנמצא מגיע
     // עד קרוב לתחילת הטווח — ייתכן שהחשבון ישן יותר, ומציעים להעמיק.
     let deepNote = '';
-    if (autoMode) {
+    if (autoMode && !incoming._autoStop) { // v296: עצירה אוטומטית = הגענו לתחילת החשבון
       const earliest = ibkrEarliestDate(incoming);
       if (ibkrReachedStart(earliest, startYmd)) {
         deepNote = '\n' + t('ibkrFlexOlderHint', { date: fmtDateIL(startYmd.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')) });
@@ -4155,7 +4210,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v295';
+const APP_VERSION = 'v296';
 
 
 function saveDBto(db) {

@@ -54,7 +54,7 @@ ok(T.ibkrChunkFrac({ state: 'now', stage: 'request' }) < f1 && f1 < f5 && f5 < 1
   await T.ibkrFetchFullHistory(bad, 'https://p', 'tok', '1', '20250101', null, { chunkGapMs: 5, endDate: endD, onChunk: (x) => seen2.push(x.state) });
   ok(seen2.filter((s) => s === 'fail').length >= 2, 'חלקים שנכשלו מדווחים fail');
   // מקור אמת אחד לרשימת הדוחות
-  ok(/ibkrProgressOpen\(ibkrDateChunks\(startYmd, endYmd\), startYmd, endYmd\)/.test(app) && /endDate: endD,/.test(app), 'הכרטיס והמשיכה על אותם חלקים (אותו תאריך סיום)');
+  ok(/ibkrProgressOpen\(ibkrDateChunks\(startYmd, endYmd\), startYmd, endYmd[,)]/.test(app) && /endDate: endD,/.test(app), 'הכרטיס והמשיכה על אותם חלקים (אותו תאריך סיום)');
   ok(/uiFail\(head, !locked && !throttled\)/.test(app), 'נעילה/הגבלת קצב — בלי "נסו שוב" (ניסיון מיידי מאריך את החסימה)');
   ok(/await ui\.ready\(\);/.test(app) && /if \(!uiFailed\) ui\.close\(\);/.test(app), 'מוכן → אישור → נסגר; בכשל נשאר עם ההודעה');
   // עיצוב

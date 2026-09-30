@@ -346,18 +346,19 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
       </div>
       <div class="ib-more">
       <details class="fine" id="ibkrRangeDetails">
-        <summary data-i18n="ibkrRangeTitle">טווח המשיכה</summary>
-        <div class="form-grid">
-          <label><span data-i18n="ibkrDepthLabel">עומק היסטוריה למשיכה ראשונה</span><select id="ibkrHistoryDepth" dir="ltr">
+        <summary data-i18n="ibkrRangeTitle">בחירת טווח למשיכה</summary>
+        <!-- v296 (בקשת המשתמש): בלי תוויות והסברים; "אוטומטי" = כל השנים עם פעילות -->
+        <div class="form-grid ib-range">
+          <select id="ibkrHistoryDepth" data-i18n-aria="ibkrDepthAria" aria-label="עומק היסטוריה">
+            <option value="auto" data-i18n="ibkrDepthAuto" selected>אוטומטי</option>
             <option value="1" data-i18n="ibkrDepth1">שנה אחת</option>
             <option value="2" data-i18n="ibkrDepth2">שנתיים</option>
             <option value="3" data-i18n="ibkrDepth3">3 שנים</option>
-            <option value="5" data-i18n="ibkrDepth5" selected>5 שנים</option>
+            <option value="5" data-i18n="ibkrDepth5">5 שנים</option>
             <option value="10" data-i18n="ibkrDepth10">10 שנים</option>
-          </select></label>
-          <label><span data-i18n="ibkrFromDateLabel">או תאריך התחלה מדויק</span><input id="ibkrFromDate" type="date" dir="ltr" data-i18n-ph="ibkrFromDatePh" placeholder="אופציונלי — דורס את בחירת העומק"></label>
+          </select>
+          <input id="ibkrFromDate" type="date" dir="ltr" data-i18n-aria="ibkrFromAria" aria-label="תאריך התחלה">
         </div>
-        <p class="fine" style="padding:0" data-i18n="ibkrFromDateNote">בוחרים כמה שנים אחורה למשוך במשיכה הראשונה — או תאריך מדויק, ללא הגבלה. כשכבר יש נתונים, הסנכרון ממשיך מהנקודה שהם נגמרו.</p>
       </details>
       <details class="fine" id="ibkrConnDetails">
         <summary data-i18n="ibkrConnTitle">הגדרות חיבור</summary>
