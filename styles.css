@@ -456,6 +456,10 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
   transition: opacity .16s ease, transform .3s var(--ease-ios); }
 .stock.open .stock-body-in { opacity: 1; transform: none; transition: opacity .36s ease .08s, transform .6s var(--ease-spring); }
 .stock.anim .stock-body-in { will-change: opacity, transform; }
+/* v273: ערך שהגיע לאריח ריק / שורת התשואה בפעם הראשונה — דהייה רכה במקום הופעה בבת אחת */
+.kv-in { animation: kvIn .42s ease both; }
+@keyframes kvIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .kv-in { animation: none; } }
 .stock.measure .stock-body, .stock.measure .stock-body-in, .stock.measure .chev, .stock.measure .stock-head { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { .stock-body, .stock-body-in, .stock-head, .stock .chev { transition: none !important; } .stock-body-in { transform: none; } }
 .stock-head { transition: background-color .18s ease, padding .6s var(--ease-spring), gap .6s var(--ease-spring); } /* v272: באותה עקומה ומשך כמו הגובה (CARD_ANIM_MS) */
@@ -653,7 +657,8 @@ html.drag-active .tabpage { transform: none !important; animation: none !importa
   color: var(--on-surface-var); font-size: 15px; background: var(--veil);
   border-radius: var(--radius-sm);
 }
-.chart-loading.hidden { display: none; }
+/* v273: נכנס ויוצא בדהייה (לא display:none) — בלי הבהוב כשהנתונים מגיעים */
+.chart-loading.hidden { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .3s ease, visibility 0s linear .3s; }
 .chart-hint { font-size: 13px; color: var(--on-surface-var); margin-top: 8px; }
 
 /* ---- Rows (deposits / pension) ---- */

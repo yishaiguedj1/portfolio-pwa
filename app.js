@@ -3870,7 +3870,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v272';
+const APP_VERSION = 'v273';
 
 
 function saveDBto(db) {
@@ -5206,7 +5206,7 @@ function renderLive(syms) {
     }
     if (state.open[s]) {
       const g = card.querySelector('.stock-body .kv-grid');
-      if (g) { g.innerHTML = kvGridHTML(p, m); ensureChartData(s, true); }
+      if (g) { setKvGrid(g, kvGridHTML(p, m)); ensureChartData(s, true); }
     }
   }
   try { fitNumbers(); } catch (e) {}
@@ -5359,7 +5359,19 @@ function histWantsMax(sym) {
   const h = state.histMax[sym] || state.hist[sym];
   return !(h && h.length && from && h[0].date <= from);
 }
-async function getDaily(sym, force) {
+// v273: בקשה אחת לכל מניה בו־זמנית — הטעינה המוקדמת בנגיעה (chartPrefetch) והפתיחה עצמה חולקות אותה
+const dailyInflight = {};
+function getDaily(sym, force) {
+  if (force) return getDailyInner(sym, force);
+  const k = sym + '|' + (histWantsMax(sym) ? 'max' : 'd');
+  if (dailyInflight[k]) return dailyInflight[k];
+  const p = getDailyInner(sym, force);
+  dailyInflight[k] = p;
+  const clear = () => { if (dailyInflight[k] === p) delete dailyInflight[k]; };
+  p.then(clear, clear);
+  return p;
+}
+async function getDailyInner(sym, force) {
   // v229: מקסימום / "מתאריך" / בחירה בגרף — כל ההיסטוריה (period1=0). פעם אחת בסשן, אחר כך מהזיכרון
   const wantMax = histWantsMax(sym);
   if (!force && wantMax && state.histMax[sym]) return state.histMax[sym];
@@ -9903,6 +9915,8 @@ function buildStockCard(p) {
   head.type = 'button';
   head.innerHTML = stockHeadHTML(p, m);
   head.addEventListener('click', () => toggleStock(sym, card));
+  // v273: הנתונים לגרף מתחילים להיטען כבר בנגיעה (לפני שהאצבע עוזבת) — בפתיחה הם כבר כמעט תמיד מוכנים
+  head.addEventListener('pointerdown', () => { if (!state.open[sym]) chartPrefetch(sym); }, { passive: true });
   card.appendChild(head);
 
   // v100: אין יותר כפתורי עריכה/מחיקה גלובליים על הכרטיסים.
@@ -9959,6 +9973,24 @@ function watchKvHTML(p, m) {
     kvHTML(t('kvYtd'), ytd === null ? wait : fmtPct(ytd, true), cls(ytd)) +
     kvHTML(t('kvNextEarn'), erTxt);
 }
+// v273: עדכון אריחי הכרטיס במקום — אריח שהיה ריק ("—"/"…") ומקבל ערך נכנס בדהייה, לא קופץ
+const KV_EMPTY = new Set(['—', '…', '']);
+function setKvGrid(g, html) {
+  if (g.innerHTML === html) return;
+  if (typeof document === 'undefined' || !document.createElement) { g.innerHTML = html; return; }
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const olds = g.children, news = tmp.children;
+  if (olds.length !== news.length) { g.innerHTML = html; return; }
+  for (let i = 0; i < news.length; i++) {
+    const a = olds[i], b = news[i];
+    if (a.innerHTML === b.innerHTML) continue;
+    const va = a.querySelector('.v'), vb = b.querySelector('.v');
+    const wasEmpty = va && KV_EMPTY.has(va.textContent.trim()) && vb && !KV_EMPTY.has(vb.textContent.trim());
+    a.innerHTML = b.innerHTML;
+    if (wasEmpty) { a.classList.remove('kv-in'); void a.offsetWidth; a.classList.add('kv-in'); }
+  }
+}
 function kvGridHTML(p, m) {
   if (p.watch) return watchKvHTML(p, m);
   const sym = p.sym;
@@ -10000,7 +10032,7 @@ function buildStockBody(p, m) {
   const cwrap = el('div', 'chart-wrap');
   const canvas = el('canvas');
   canvas.id = 'chart-' + sym;
-  const loading = el('div', 'chart-loading', t('loadingData'));
+  const loading = el('div', 'chart-loading hidden', t('loadingData')); // v273: מוסתר עד שהטעינה באמת ארוכה (chartLoadingShow)
   loading.id = 'cload-' + sym;
   if (state.chartH && state.chartH[sym]) canvas.style.height = state.chartH[sym] + 'px'; // v238: הגובה שהותאם למסך
   cwrap.appendChild(canvas);
@@ -10316,10 +10348,23 @@ function refreshStockBody(sym) {
   ensureChartData(sym);
 }
 
+function chartPrefetch(sym) {
+  if (!isChartableSym(sym)) return;
+  const range = state.range[sym] || 'year';
+  try {
+    const p = INTRA_RANGES[range] && !state.stockPick[sym] ? getIntraday(sym, INTRA_RANGES[range]) : getDaily(sym, false);
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+// v273: "טוען נתונים" לא קופץ באמצע פתיחת הכרטיס — מופיע (בדהייה) רק אם הטעינה באמת ארוכה
+function chartLoadingShow(loading, sym, delay) {
+  clearTimeout(loading._showT);
+  loading._showT = setTimeout(() => { if (!loading._done) loading.classList.remove('hidden'); }, delay);
+}
 async function ensureChartData(sym, quiet) {
   const loading = stockNode(sym, 'cload-');
   const range = state.range[sym] || 'year';
-  if (loading && !quiet) { loading.classList.remove('hidden'); loading.textContent = t('loadingData'); }
+  if (loading && !quiet) { loading._done = false; loading.textContent = t('loadingData'); chartLoadingShow(loading, sym, CARD_ANIM_MS + 150); }
   try {
     if (INTRA_RANGES[range] && !state.stockPick[sym]) {
       const intra = await getIntraday(sym, INTRA_RANGES[range]);
@@ -10349,7 +10394,7 @@ async function ensureChartData(sym, quiet) {
     else if (pts && loading) loading.classList.add('hidden');
     // v240: ההיסטוריה הגיעה — האריחים שתלויים בה (ATH, 52 שבועות, מתחילת השנה) מתעדכנים מיד, לא בטיק הבא
     const card = stockCardEl(sym), g = card && card.querySelector('.kv-grid'), it = g && stockItemFor(sym, card);
-    if (it) { const html = kvGridHTML(it, metrics(sym)); if (g.innerHTML !== html) g.innerHTML = html; }
+    if (it) setKvGrid(g, kvGridHTML(it, metrics(sym)));
   } catch (e) {
     if (loading) { loading.textContent = t('noChartData'); loading.classList.remove('hidden'); }
   }
@@ -10377,7 +10422,7 @@ function drawStockChart(sym, rows, intraday) {
     }
     return null;
   }
-  if (loading) loading.classList.add('hidden');
+  if (loading) { loading._done = true; clearTimeout(loading._showT); loading.classList.add('hidden'); }
 
   const ms = measureState(sym);
   // ולידציה של אינדקסי מדידה מול אורך עדכני
@@ -10501,11 +10546,13 @@ function renderStockRangeSummary(sym, pts, lineCol) {
     if (rk === curR) { rangeName = t(labelKey); break; }
   }
   // v236: סמן המניה (● סימבול בצבע הקו) — מימין לשורת התשואה (v238: המשתמש אישר "ככה זה מדהים, תשאיר ככה")
+  const wasEmpty = box && !box.innerHTML; // v273: השורה מופיעה בפעם הראשונה — בדהייה
   if (box) box.innerHTML = '<span class="rs-sym"><span class="dot" style="background:' + lineCol + '"></span>' + esc(sym) + '</span>' +
     '<span class="rs-lbl">' + esc(t('stockRangeReturn')) + '</span>' +
     '<span class="rs-val ' + (r >= 0 ? 'pos' : 'neg') + '">' + fmtPct(r, true) + '</span>' +
     (rangeName ? '<span class="rs-range">' + esc(rangeName) + '</span>' : '');
   if (box) fitStockFoot(box);
+  if (box && wasEmpty && box.classList) { box.classList.remove('kv-in'); void box.offsetWidth; box.classList.add('kv-in'); }
   if (leg) leg.innerHTML = '<li><span class="dot" style="background:' + lineCol + '"></span>' +
     '<span class="lg-name">' + esc(sym) + '</span>' +
     '<span class="lg-pct">' + fmtRetHTML(r) + '</span></li>';

@@ -41,5 +41,15 @@ ok(/prefers-reduced-motion[^{]*\{[^}]*\.stock-body-in[^}]*transition:\s*none/.te
 ok(/const KV_SUB_HOLD = '\\u00a0';/.test(app), 'שורה משנית שומרת מקום');
 ok((fn('kvGridHTML').match(/KV_SUB_HOLD/g) || []).length === 2 && (fn('watchKvHTML').match(/KV_SUB_HOLD/g) || []).length === 3, 'אריחים שומרים גובה בתיק ובמעקב');
 
+
+// v273: כרטיס שלא נפתח לאחרונה (הנתונים לא בזיכרון) — בלי "קפיצה" בסוף: טעינה מוקדמת בנגיעה, בלי "טוען" באמצע, ערכים בדהייה
+ok(/head\.addEventListener\('pointerdown', \(\) => \{ if \(!state\.open\[sym\]\) chartPrefetch\(sym\); \}/.test(app), 'טעינה מוקדמת בנגיעה');
+ok(/if \(dailyInflight\[k\]\) return dailyInflight\[k\];/.test(fn('getDaily')), 'בקשת היסטוריה אחת לכל מניה (טעינה מוקדמת + פתיחה)');
+ok(/chartLoadingShow\(loading, sym, CARD_ANIM_MS \+ 150\)/.test(fn('ensureChartData')), '"טוען נתונים" רק אחרי סוף הפתיחה');
+ok(/el\('div', 'chart-loading hidden'/.test(app), 'שכבת הטעינה מוסתרת בבנייה');
+ok(/\.chart-loading\.hidden \{ opacity: 0; visibility: hidden;/.test(css), 'שכבת הטעינה יוצאת בדהייה');
+ok(/function setKvGrid\(/.test(app) && !/g\.innerHTML = kvGridHTML/.test(app) && !/if \(g\.innerHTML !== html\) g\.innerHTML = html;/.test(app), 'אריחים מתעדכנים במקום');
+ok(/\.kv-in \{ animation: kvIn/.test(css), 'ערך חדש באריח ריק — בדהייה');
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
