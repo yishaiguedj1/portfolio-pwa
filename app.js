@@ -470,6 +470,25 @@ he: {
   demoStepOf: '{n} מתוך {total}',
   demoStepServer: 'מהשרת — בבקשה אחת',
   demoRetry: 'נסו שוב',
+  ipTitle: 'מושכים נתונים מ־IBKR',
+  ipStepConnect: 'מתחברים ל־IBKR',
+  ipStepReports: 'מושכים את הדוחות',
+  ipStepMerge: 'מאחדים עסקאות, הפקדות ושווי יומי',
+  ipStepReview: 'סקירה ואישור',
+  ipReportsHead: 'הדוחות',
+  ipRepWait: 'בתור',
+  ipRepReq: 'שולחים בקשה…',
+  ipRepGen: 'IBKR מכין את הדוח · בדיקה {n}',
+  ipRepDone: '{n} עסקאות · {k} תנועות מזומן',
+  ipRepEmpty: 'התקבל · בלי עסקאות',
+  ipRepSkip: 'לפני פתיחת החשבון',
+  ipRepFail: 'לא התקבל',
+  ipRepStopped: 'לא נמשך',
+  ipKeepOpen: 'המסך נשאר דלוק עד הסיום — אפשר להשאיר את האפליקציה פתוחה',
+  ipCount: 'דוח {n} מתוך {total}',
+  ipCountShort: '{n} מתוך {total}',
+  ipUntil: 'עד {d}',
+  ipMergeDet: '{n} עסקאות · {k} תנועות מזומן · {d} ימי שווי',
   demoStepStocks: '{n} מניות ומדדים',
   demoActiveTitle: 'מצב דמו פעיל',
   demoActiveDesc: 'זה תיק לדוגמה — אפשר לגעת בהכל. שינויים כאן לא נשמרים בענן, והנתונים האמיתיים שלך חוזרים ביציאה מהדמו.',
@@ -985,6 +1004,25 @@ en: {
   demoStepOf: '{n} of {total}',
   demoStepServer: 'From the server — one request',
   demoRetry: 'Try again',
+  ipTitle: 'Pulling data from IBKR',
+  ipStepConnect: 'Connecting to IBKR',
+  ipStepReports: 'Downloading reports',
+  ipStepMerge: 'Merging trades, deposits and daily value',
+  ipStepReview: 'Review and confirm',
+  ipReportsHead: 'Reports',
+  ipRepWait: 'Queued',
+  ipRepReq: 'Sending request…',
+  ipRepGen: 'IBKR is preparing the report · check {n}',
+  ipRepDone: '{n} trades · {k} cash transactions',
+  ipRepEmpty: 'Received · no trades',
+  ipRepSkip: 'Before the account opened',
+  ipRepFail: 'Not received',
+  ipRepStopped: 'Not pulled',
+  ipKeepOpen: 'The screen stays on until it finishes — keep the app open',
+  ipCount: 'Report {n} of {total}',
+  ipCountShort: '{n} of {total}',
+  ipUntil: 'to {d}',
+  ipMergeDet: '{n} trades · {k} cash transactions · {d} value days',
   demoStepStocks: '{n} stocks and indexes',
   demoActiveTitle: 'Demo mode is on',
   demoActiveDesc: 'This is a sample portfolio — feel free to touch everything. Changes here are not saved to the cloud, and your real data comes back when you exit the demo.',
@@ -1905,6 +1943,7 @@ async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkRe
   let data = null, err = null;
   let plan = { attempts: 2, waitMs: 3000 };
   const stage = (pollOpts && pollOpts.onStage) || null;
+  if (pollOpts && pollOpts.onChunk) { try { pollOpts.onChunk({ fd, td, state: 'start' }); } catch (e) {} } // v280: כרטיס ההתקדמות
   for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
     let gotRef = false;
@@ -1939,7 +1978,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   const gapMs = manualPace ? o.chunkGapMs : 0;
   const limiter = ('limiter' in o) ? o.limiter : (manualPace ? null : IBKR_LIMITER);
   const pollOpts = {
-    tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep, onStage: o.onStage,
+    tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep, onStage: o.onStage, onChunk: o.onChunk,
     firstDelayMs: (typeof o.pollFirstMs === 'number') ? o.pollFirstMs : (manualPace ? o.chunkGapMs : undefined),
   };
   const endD = o.endDate || ibkrLastClosedDate();
@@ -1970,9 +2009,11 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       String(c.description || '').slice(0, 30)].join('|');
   };
 
+  const note = (x) => { if (o.onChunk) { try { o.onChunk(x); } catch (e) {} } }; // v280: מצב כל דוח לכרטיס ההתקדמות
   const absorb = (data, fd, td) => {
     anyOk = true;
     const m = (data && data.meta) || {};
+    note({ fd, td, state: 'done', trades: (data.trades || []).length, cash: (data.cashTransactions || []).length });
     chunkResults.push({
       fd, td, ok: true,
       trades: (data.trades || []).length, cash: (data.cashTransactions || []).length,
@@ -2043,7 +2084,8 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
       const lastRes = chunkResults[chunkResults.length - 1];
       // v137: 1003 לפני שחלק כלשהו החזיר נתונים = שנים שלפני פתיחת החשבון (עומק 5 שנים
       // לחשבון בן 3). לא כשל — ממשיכים קדימה, לא נספר ברצף הכשלונות שעוצר את המשיכה.
-      if (!anyOk && !isLastChunk && lastRes && /flex_1003/.test(lastRes.error || '')) { lastRes.beforeStart = true; continue; }
+      if (!anyOk && !isLastChunk && lastRes && /flex_1003/.test(lastRes.error || '')) { lastRes.beforeStart = true; note({ fd, td, state: 'skip' }); continue; }
+      note({ fd, td, state: 'fail', error: lastRes && lastRes.error });
       consecFails++;
       // נעילת טוקן — עוצרים מיד, אפילו לא מחכים לכשלון שני
       if (lastRes && ibkrIsLockoutErr(lastRes.error)) { merged._locked = true; break; }
@@ -2070,7 +2112,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
         chunkResults.splice(chunkResults.indexOf(lastRes), 1);
         latestTd = td2;
         absorb(data, lastChunk.fd, td2);
-      }
+      } else note({ fd: lastChunk.fd, td: td2, state: 'fail', error: lastRes.error });
     }
   }
   // v123: חלק בודד יכול ליפול מסיבה חולפת (קור-סטארט של השרתון, הפרעת רשת
@@ -2090,7 +2132,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
         const idx = chunkResults.indexOf(f);
         if (idx >= 0) chunkResults.splice(idx, 1);
         absorb(data, f.fd, f.td);
-      }
+      } else note({ fd: f.fd, td: f.td, state: 'fail', error: f.error });
     }
   }
   merged.trades.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
@@ -3487,6 +3529,154 @@ async function ibkrSaveAndTest() {
 
 /* סנכרון מ־IBKR (Flex Web Service) — מקור הנתונים היחיד של מצב IBKR.
    מושך דוח טרי דרך השרתון ומכניס אותו לאותו צינור יבוא מאוחד. */
+/* v280: כרטיס התקדמות של משיכה מ־IBKR — בתוך כרטיס IBKR (כמו בניית הדמו): שלבים, פס התקדמות,
+   "דוח X מתוך Y", שעון, ושורה לכל דוח (שנה) עם המצב שלו — נשלחה בקשה / IBKR מכין (בדיקה n) / כמה עסקאות
+   ותנועות מזומן נמשכו / לפני פתיחת החשבון / נכשל. הנתונים מ־onChunk/onStage של ibkrFetchFullHistory. */
+function ibkrChunkLabel(fd, td) { // טהורה, נבדקת: { y: תווית ראשית, sub: חלקי שנה }
+  const y = fd.slice(0, 4), d = (x) => x.slice(6, 8) + '/' + x.slice(4, 6);
+  if (fd === td) return { y: d(fd) + '/' + y, sub: '' };
+  if (td.slice(0, 4) !== y) return { y: d(fd) + '/' + y + '–' + d(td) + '/' + td.slice(0, 4), sub: '' };
+  if (fd.slice(4) === '0101' && td.slice(4) >= '1230') return { y, sub: '' };
+  if (fd.slice(4) === '0101') return { y, sub: t('ipUntil', { d: d(td) }) };
+  return { y, sub: d(fd) + '–' + d(td) };
+}
+/* חלק ההתקדמות (0..1) של דוח לפי המצב שלו — טהורה, נבדקת */
+function ibkrChunkFrac(st) {
+  if (!st || st.state === 'wait') return 0;
+  if (st.state === 'done' || st.state === 'skip' || st.state === 'fail') return 1;
+  if (st.stage === 'wait') return 0.12 + 0.83 * (1 - Math.pow(0.72, st.n || 1));
+  return 0.08;
+}
+function ibkrProgressOpen(chunks, startYmd, endYmd) {
+  const card = document.getElementById('ibkrCard');
+  const noop = { chunk() {}, stage() {}, tick() {}, merging() {}, ready() { return Promise.resolve(); }, close() {}, fail() {} };
+  if (!card || !chunks || !chunks.length) return noop;
+  const old = card.querySelector('.ibkr-prog');
+  if (old) old.remove();
+  const iso = (y) => fmtDateIL(y.slice(0, 4) + '-' + y.slice(4, 6) + '-' + y.slice(6, 8));
+  const rows = chunks.map((c) => ({ fd: c.fd, td: c.td, state: 'wait', stage: '', n: 0 }));
+  const box = el('div', 'ibkr-prog');
+  box.setAttribute('aria-live', 'polite');
+  box.innerHTML =
+    '<div class="ip-head"><span class="ip-logo" aria-hidden="true"><img src="ibkr-logo.png" alt="" width="26" height="26"></span>' +
+      '<div class="ip-htxt"><h2>' + esc(t('ipTitle')) + '</h2><p class="ip-sub" dir="auto">' +
+      esc(iso(startYmd) + ' – ' + iso(endYmd)) + '</p></div></div>' +
+    '<div class="ip-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span></span></div>' +
+    '<div class="ip-meta"><span class="ip-count"></span><span class="ip-clock" dir="ltr">0:00</span></div>' +
+    '<ol class="demo-steps ip-steps">' + [t('ipStepConnect'), t('ipStepReports'), t('ipStepMerge'), t('ipStepReview')].map((lbl) =>
+      '<li class="demo-step" data-state="wait"><span class="ds-dot" aria-hidden="true"></span><span class="ds-txt"><span class="ds-lbl">' +
+      esc(lbl) + '</span><span class="ds-det"></span></span></li>').join('') + '</ol>' +
+    '<div class="ip-rep-h">' + esc(t('ipReportsHead')) + '</div>' +
+    '<ol class="ip-reps">' + rows.map((r) => '<li class="ip-rep" data-state="wait"><span class="ip-ico" aria-hidden="true"></span>' +
+      (() => { const L = ibkrChunkLabel(r.fd, r.td); return '<span class="ip-yr"><b dir="ltr">' + esc(L.y) + '</b>' + (L.sub ? '<small>' + esc(L.sub) + '</small>' : '') + '</span>'; })() +
+      '<span class="ip-det">' + esc(t('ipRepWait')) + '</span></li>').join('') + '</ol>' +
+    '<p class="ip-note">' + esc(t('ipKeepOpen')) + '</p>' +
+    '<div class="ip-err hidden"></div>';
+  card.appendChild(box);
+  card.classList.add('syncing');
+  const bar = box.querySelector('.ip-bar'), count = box.querySelector('.ip-count'), clock = box.querySelector('.ip-clock');
+  const steps = [...box.querySelectorAll('.ip-steps .demo-step')], repEls = [...box.querySelectorAll('.ip-rep')];
+  const t0 = Date.now();
+  let shown = 0, phase = 0, closed = false;
+  const setStep = (i, det) => {
+    steps.forEach((li, k) => { li.dataset.state = k < i ? 'done' : k === i ? 'now' : 'wait'; });
+    if (det !== undefined && steps[i]) steps[i].querySelector('.ds-det').textContent = det;
+  };
+  const idxOf = (fd) => rows.findIndex((r) => r.fd === fd);
+  const detTxt = (r) => {
+    if (r.state === 'done') return (r.trades || r.cash) ? t('ipRepDone', { n: r.trades || 0, k: r.cash || 0 }) : t('ipRepEmpty');
+    if (r.state === 'skip') return t('ipRepSkip');
+    if (r.state === 'fail') return t('ipRepFail');
+    if (r.state === 'stopped') return t('ipRepStopped');
+    if (r.state === 'now') return r.stage === 'wait' ? t('ipRepGen', { n: r.n || 1 }) : t('ipRepReq');
+    return t('ipRepWait');
+  };
+  const paint = () => {
+    const fin = rows.filter((r) => r.state === 'done' || r.state === 'skip' || r.state === 'fail').length;
+    const cur = rows.findIndex((r) => r.state === 'now');
+    const f = phase >= 2 ? (phase >= 3 ? 1 : 0.95) : rows.reduce((a, r) => a + ibkrChunkFrac(r), 0) / rows.length * 0.92;
+    shown = Math.max(shown, Math.min(1, f));
+    bar.firstChild.style.width = (shown * 100).toFixed(1) + '%';
+    bar.setAttribute('aria-valuenow', String(Math.round(shown * 100)));
+    const n = phase >= 2 ? rows.length : cur >= 0 ? cur + 1 : Math.max(1, fin);
+    count.textContent = t('ipCount', { n, total: rows.length }) + ' · ' + Math.round(shown * 100) + '%';
+    rows.forEach((r, i) => {
+      const li = repEls[i];
+      if (li.dataset.state !== r.state) li.dataset.state = r.state;
+      const d = detTxt(r), de = li.querySelector('.ip-det');
+      if (de.textContent !== d) de.textContent = d;
+    });
+    if (phase < 2) { // מחוברים = IBKR קיבל בקשה (מכין דוח) או שדוח כבר הסתיים
+      const connected = rows.some((r) => r.state !== 'wait' && (r.state !== 'now' || r.stage === 'wait'));
+      setStep(connected ? 1 : 0);
+    }
+    steps[1].querySelector('.ds-det').textContent = t('ipCountShort', { n: fin, total: rows.length });
+  };
+  const tick = () => {
+    const sec = Math.floor((Date.now() - t0) / 1000);
+    clock.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  };
+  const timer = setInterval(tick, 1000);
+  setStep(0);
+  paint();
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(timer);
+    box.remove();
+    card.classList.remove('syncing', 'sync-failed');
+  };
+  return {
+    chunk(x) {
+      const i = idxOf(x.fd);
+      if (i < 0) return;
+      const r = rows[i];
+      if (x.state === 'start') { r.state = 'now'; r.stage = 'request'; r.n = 0; }
+      else { r.state = x.state; r.trades = x.trades; r.cash = x.cash; r.stage = ''; }
+      paint();
+    },
+    stage(st, n) {
+      const r = rows.find((q) => q.state === 'now');
+      if (!r) return;
+      r.stage = st; r.n = n || 0;
+      paint();
+    },
+    tick,
+    merging(info) {
+      phase = 2;
+      setStep(2, t('ipMergeDet', { n: info.trades, k: info.cash, d: info.days }));
+      paint();
+    },
+    ready() {
+      phase = 3;
+      setStep(3);
+      steps[2].dataset.state = 'done';
+      paint();
+      tick();
+      clearInterval(timer);
+      // הדיאלוג (confirm) חוסם את הציור — נותנים לדפדפן לצייר את "מוכן" קודם
+      return new Promise((res) => requestAnimationFrame(() => setTimeout(res, 380)));
+    },
+    close,
+    fail(msg, canRetry) {
+      clearInterval(timer);
+      card.classList.add('sync-failed');
+      steps.forEach((li) => { if (li.dataset.state === 'now') li.dataset.state = 'fail'; });
+      rows.forEach((r) => { if (r.state === 'now') r.state = 'fail'; else if (r.state === 'wait') r.state = 'stopped'; });
+      paint();
+      const e = box.querySelector('.ip-err');
+      e.innerHTML = '<p>' + esc(msg) + '</p><div class="ip-btns">' +
+        (canRetry ? '<button class="btn ibkr-btn" type="button" data-act="retry">' + esc(t('demoRetry')) + '</button>' : '') +
+        '<button class="btn ibkr-btn-sec" type="button" data-act="close">' + esc(t('btnClose')) + '</button></div>';
+      e.classList.remove('hidden');
+      box.querySelector('.ip-note').classList.add('hidden');
+      e.querySelector('[data-act="close"]').addEventListener('click', close);
+      const rb = e.querySelector('[data-act="retry"]');
+      if (rb) rb.addEventListener('click', () => { close(); ibkrSyncImport(); });
+    },
+  };
+}
+
 async function ibkrSyncImport() {
   ibkrClearErr();
   if (isDemoMode()) return ibkrShowErr(t('demoSyncBlocked'));
@@ -3553,6 +3743,9 @@ async function ibkrSyncImport() {
   let stageTxt = '';
   const paint = () => { if (s) s.textContent = ibkrStatusLine(base, stageTxt, Date.now() - t0); };
   const ticker = setInterval(paint, 1000);
+  const ui = ibkrProgressOpen(ibkrDateChunks(startYmd, endYmd), startYmd, endYmd); // v280
+  let uiFailed = false;
+  const uiFail = (msg, retry) => { uiFailed = true; ui.fail(msg, retry); };
   try {
     paint();
     const incoming = await ibkrFetchFullHistory(fetch, proxyUrl, cfg.token, cfg.queryId, startYmd, (i, total) => {
@@ -3563,7 +3756,10 @@ async function ibkrSyncImport() {
       onStage: (st, n) => {
         stageTxt = st === 'request' ? t('ibkrStageRequest') : t('ibkrStageWait', { n });
         paint();
+        ui.stage(st, n);
       },
+      onChunk: (x) => ui.chunk(x),
+      endDate: endD,
     });
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
     // פוזיציות ישנות כעדכניות.
@@ -3577,11 +3773,14 @@ async function ibkrSyncImport() {
       const notAvail = !locked && !throttled && fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
       renderIbkrCard();
       const head = locked ? t('importLocked') : throttled ? t('importThrottled') : (notAvail ? t('importNotAvailable') : t('importPartialBlocked'));
+      uiFail(head, !locked && !throttled); // נעילה/קצב — בלי "נסו שוב"
       return ibkrShowErr(head + (failText ? ' ' + failText : ''));
     }
+    ui.merging({ trades: (incoming.trades || []).length, cash: (incoming.cashTransactions || []).length, days: (incoming.navDaily || []).length });
     const imp = ibkrMapImport(incoming);
     if (!imp.positions.length && !(incoming.navPeriods || []).length && !(incoming.trades || []).length) {
       ibkrShowErr(t('importNoStocks') + (imp.skipped ? ' ' + t('importSkippedNote', { n: imp.skipped }).trim() : ''));
+      uiFail(t('importNoStocks'), false);
       return;
     }
     // המשיכה האוטומטית מתחילה בעומק שהמשתמש בחר. אם המידע שנמצא מגיע
@@ -3604,11 +3803,15 @@ async function ibkrSyncImport() {
       const gapStartIso = gapStart.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
       deepNote += '\n' + t('ibkrGapWarn', { detail: gapText, date: fmtDateIL(gapStartIso) });
     }
+    await ui.ready(); // "סקירה ואישור" נשאר מאחורי הדיאלוג; נסגר ב־finally
     ibkrReviewImport(ibkrCfg().data, incoming, deepNote);
   } catch (e) {
-    ibkrShowErr(t('importFailed', { err: ibkrFriendlyErr(e.message) }));
+    const msg = t('importFailed', { err: ibkrFriendlyErr(e.message) });
+    ibkrShowErr(msg);
+    uiFail(msg, !ibkrIsLockoutErr(e) && !ibkrIsThrottleErr(e));
   } finally {
     clearInterval(ticker);
+    if (!uiFailed) ui.close();
     try { if (wakeLock) wakeLock.release(); } catch (e) {}
     ibkrSetBusy(false);
     renderIbkrCard();
@@ -3923,7 +4126,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v279';
+const APP_VERSION = 'v280';
 
 
 function saveDBto(db) {

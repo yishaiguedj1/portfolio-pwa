@@ -2,6 +2,9 @@
    פלטת צבעי המערכת של iOS 26 (בהיר/כהה), זכוכית עם הדגשת hairline עליונה,
    RTL/LTR לוגי, טיפוגרפיה בסגנון אפל, קצב ריווח 8pt. */
 :root {
+  --ibkr: #A3182E;                  /* v280: בורדו של IBKR (כרטיס החיבור) */
+  --ibkr-press: #86101F;
+  --ibkr-ink: #8E1528;
   color-scheme: light;
   --font: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, "Noto Sans Hebrew", "Helvetica Neue", Arial, sans-serif;
 
@@ -64,6 +67,9 @@
 }
 
 [data-theme="dark"] {
+  --ibkr: #B82640;
+  --ibkr-press: #9A1B31;
+  --ibkr-ink: #FF8A9B;
   color-scheme: dark;
   --bg: #000000;                    /* iOS systemBackground */
   --search-fill: rgba(118, 118, 128, .24);
@@ -1431,3 +1437,71 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .gb-axis { position: relative; height: 20px; margin: 6px 0 0; margin-inline: var(--gb-ml, 52px) var(--gb-mr, 52px); }
 .gb-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .gb-bar, .gb-row > * { transition: none; } }
+
+/* ---------------- v280: כרטיס IBKR בגוון בורדו + כרטיס התקדמות המשיכה ----------------
+   אותו מבנה כמו כרטיס הדמו (גרדיאנט עדין + מסגרת), בגוון של IBKR. כפתורים: ראשי = בורדו מלא (כמו IBKR),
+   משני = מתאר בורדו; צורת גלולה (Material 3 / iOS). */
+#ibkrCard {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ibkr) 11%, var(--surface)), var(--surface) 70%);
+  border: 1px solid color-mix(in srgb, var(--ibkr) 30%, var(--card-border));
+}
+#ibkrCard > h2 { display: flex; align-items: center; }
+#ibkrCard > h2::before {
+  content: ''; flex: none; width: 26px; height: 26px; margin-inline-end: 10px; border-radius: 8px;
+  background: #fff url(ibkr-logo.png) center / 18px no-repeat; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ibkr) 22%, transparent);
+}
+#ibkrCard .btn, .ibkr-btn { background: var(--ibkr); color: #fff; border-radius: var(--pill); box-shadow: 0 1px 2px color-mix(in srgb, var(--ibkr) 35%, transparent); }
+#ibkrCard .btn:active, .ibkr-btn:active { background: var(--ibkr-press); }
+#ibkrCard #ibkrDisconnect.danger-btn, #ibkrCard .ibkr-btn-sec {
+  background: transparent; color: var(--ibkr-ink); border: 1.5px solid color-mix(in srgb, var(--ibkr) 55%, transparent); box-shadow: none;
+}
+#ibkrCard #ibkrDisconnect.danger-btn:active, #ibkrCard .ibkr-btn-sec:active { background: color-mix(in srgb, var(--ibkr) 10%, transparent); }
+#ibkrCard .btn:disabled { opacity: .45; }
+#ibkrCard .btn .ic { stroke: currentColor; }
+#ibkrCard details > summary { color: var(--ibkr-ink); }
+
+#ibkrCard.syncing > :not(.ibkr-prog) { display: none; }
+.ibkr-prog { animation: demoIn .35s cubic-bezier(.2, .9, .25, 1) both; --primary: var(--ibkr); --on-primary: #fff; }
+.ip-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.ip-logo { flex: none; width: 44px; height: 44px; border-radius: var(--radius-xs); background: #fff; display: grid; place-items: center;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ibkr) 20%, transparent), 0 2px 8px color-mix(in srgb, var(--ibkr) 18%, transparent); }
+.ip-htxt { min-width: 0; }
+.ibkr-prog .ip-head h2 { margin: 0; font-size: 20px; }
+.ip-sub { margin: 2px 0 0; font-size: 14px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.ip-bar { height: 8px; border-radius: var(--pill); background: color-mix(in srgb, var(--ibkr) 12%, var(--surface-2)); overflow: hidden; }
+.ip-bar span { display: block; height: 100%; width: 0; border-radius: inherit;
+  background: linear-gradient(90deg, var(--ibkr), color-mix(in srgb, var(--ibkr) 65%, #ff8fa0)); transition: width .45s cubic-bezier(.2, .9, .25, 1); }
+.ip-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 8px 2px 10px;
+  font-size: 14px; font-weight: 700; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.ip-clock { font-weight: 600; }
+.ip-steps .demo-step { padding: 8px 2px; }
+.ip-rep-h { margin: 14px 2px 6px; font-size: 13px; font-weight: 700; color: var(--on-surface-var); letter-spacing: .02em; }
+.ip-reps { list-style: none; margin: 0; padding: 4px 0; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid color-mix(in srgb, var(--ibkr) 14%, var(--card-border)); }
+.ip-rep { display: flex; align-items: center; gap: 10px; padding: 9px 14px; font-size: 15px; color: var(--on-surface-var); transition: color .25s ease; }
+.ip-rep + .ip-rep { border-top: 1px solid color-mix(in srgb, var(--on-surface) 7%, transparent); }
+.ip-yr { flex: none; min-width: 3.2em; display: flex; flex-direction: column; line-height: 1.2; color: var(--on-surface); font-variant-numeric: tabular-nums; text-align: start; }
+.ip-yr b { font-weight: 700; }
+.ip-yr small { font-size: 12px; font-weight: 500; color: var(--on-surface-var); }
+.ip-det { flex: 1; min-width: 0; font-size: 13.5px; text-align: end; font-variant-numeric: tabular-nums; }
+.ip-rep[data-state="now"] .ip-det { color: var(--ibkr-ink); font-weight: 600; }
+.ip-rep[data-state="done"] .ip-det { color: var(--on-surface); }
+.ip-rep[data-state="wait"], .ip-rep[data-state="stopped"] { opacity: .6; }
+.ip-rep[data-state="fail"] .ip-det { color: var(--loss); font-weight: 600; }
+.ip-ico { flex: none; width: 18px; height: 18px; border-radius: 50%; box-sizing: border-box; border: 2px solid var(--outline); position: relative; }
+.ip-rep[data-state="now"] .ip-ico { border-color: color-mix(in srgb, var(--ibkr) 25%, transparent); border-top-color: var(--ibkr); animation: dsSpin .8s linear infinite; }
+.ip-rep[data-state="done"] .ip-ico { background: var(--ibkr); border-color: var(--ibkr); }
+.ip-rep[data-state="done"] .ip-ico::after { content: ''; position: absolute; inset-inline-start: 5px; top: 2px; width: 4px; height: 8px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.ip-rep[data-state="skip"] .ip-ico { border-style: dashed; }
+.ip-rep[data-state="fail"] .ip-ico { border-color: var(--loss); background: color-mix(in srgb, var(--loss) 15%, transparent); }
+.ip-note { margin: 12px 2px 0; font-size: 13px; color: var(--on-surface-var); text-align: center; }
+.ip-note.hidden, .ip-err.hidden { display: none; }
+.ip-err { margin-top: 14px; text-align: center; }
+.ip-err p { margin: 0 0 12px; font-size: 14.5px; color: var(--on-surface); }
+.ip-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ip-btns .btn { min-width: 120px; }
+@media (prefers-reduced-motion: reduce) {
+  .ibkr-prog, .ip-bar span { animation: none; transition: none; }
+  .ip-rep[data-state="now"] .ip-ico { animation-duration: 3s; }
+}
