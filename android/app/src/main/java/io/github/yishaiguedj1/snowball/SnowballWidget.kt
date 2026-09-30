@@ -113,8 +113,9 @@ class RefreshAction : ActionCallback {
 
 // הצבעים של העיצוב המאושר (אותם משתנים כמו lib/widget-html.js: --w, --w2, --on, --var …)
 private object C {
-    val w = ColorProvider(Color(0xFFFFFFFF), Color(0xFF1C1D20))
-    val w2 = ColorProvider(Color(0xFFF2F4F3), Color(0xFF26282C))
+    // 30/09 (בקשת המשתמש): כמו באפליקציה — רקע systemGroupedBackground / שחור (‎--bg), כרטיס לבן / ‎#1C1C1E (‎.stock)
+    val w = ColorProvider(Color(0xFFF2F2F7), Color(0xFF000000))
+    val w2 = ColorProvider(Color(0xFFFFFFFF), Color(0xFF1C1C1E))
     val on = ColorProvider(Color(0xFF111413), Color(0xFFF3F5F4))
     val variant = ColorProvider(Color(0xFF5D6561), Color(0xFFA3A9A6))
     val pos = ColorProvider(Color(0xFF16A34A), Color(0xFF34C759))
@@ -125,6 +126,7 @@ private object C {
     val tagBg = ColorProvider(Color(0x24FF453A), Color(0x24FF453A))
     val manBg = ColorProvider(Color(0x2634C759), Color(0x2634C759))
     val white: GColor = ColorProvider(Color.White, Color.White)
+    val tileEdge = ColorProvider(Color(0xFFE3E3E8), Color(0xFF1C1C1E))
     val letter: GColor = ColorProvider(Color(0xFF3A3A3C), Color(0xFF3A3A3C))
     val dot = ColorProvider(Color(0xFF8E9490), Color(0xFF8E9490))
     val btnBorder = ColorProvider(Color(0xFFDFE2E0), Color(0xFF3C3E42))
@@ -267,9 +269,12 @@ private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bit
             .padding(start = 11.dp, end = 11.dp).clickable(actionStartActivity(stockIntent(context, r.sym, extra))),
         listOf(
             {
-                Box(GlanceModifier.size(40.dp).cornerRadius(11.dp).background(C.white), contentAlignment = Alignment.Center) {
-                    if (logo != null) Image(ImageProvider(logo), contentDescription = null, modifier = GlanceModifier.size(if (r.sym.endsWith(".TA")) 40.dp else 31.dp), contentScale = ContentScale.Fit)
-                    else Text(r.disp.take(1), style = TextStyle(color = C.letter, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+                // אריח לבן על כרטיס לבן — קו מתאר עדין כמו באפליקציה (בכהה הקו בצבע הכרטיס = לא נראה). אותו גודל 40dp
+                Box(GlanceModifier.size(40.dp).cornerRadius(11.dp).background(C.tileEdge).padding(1.dp), contentAlignment = Alignment.Center) {
+                    Box(GlanceModifier.fillMaxSize().cornerRadius(10.dp).background(C.white), contentAlignment = Alignment.Center) {
+                        if (logo != null) Image(ImageProvider(logo), contentDescription = null, modifier = GlanceModifier.size(if (r.sym.endsWith(".TA")) 38.dp else 31.dp), contentScale = ContentScale.Fit)
+                        else Text(r.disp.take(1), style = TextStyle(color = C.letter, fontSize = 17.sp, fontWeight = FontWeight.Bold))
+                    }
                 }
             },
             { Spacer(GlanceModifier.width(10.dp)) },

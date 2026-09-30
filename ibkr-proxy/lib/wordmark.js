@@ -20,10 +20,47 @@ const INK = {
   'Caterpillar_logo.svg': [0.016, 0.044, 0.986, 0.933],
   'Mobileye_logo_(new).svg': [0, 0.141, 1, 0.909],
   'Check_Point_logo_2022.svg': [0.044, 0.054, 0.99, 0.946],
+  // v277: בדיקה מקיפה (649 סמלים: 300 הגדולות בארה"ב, מניות ת"א, תיק הדמו) — כל לוגו עם שוליים של 3%+ בלי מסגרת
+  'Applied_Materials_Logo.svg': [0.012, 0.067, 0.988, 0.933], // AMAT
+  'Pmi_logo_text_only.svg': [0.006, 0.033, 0.994, 0.967], // PM
+  'Shell_wordmark_2019.svg': [0, 0.035, 1, 0.955], // SHEL
+  'Astrazeneca_text_logo.svg': [0, 0.018, 1, 0.968], // AZN
+  'John_Deere_text_only.png': [0, 0.104, 1, 1], // DE
+  'VertexPharma-logo2.png': [0.053, 0.135, 0.947, 0.896], // VRTX
+  'Bristol-Myers_Squibb_logo_(2020).svg': [0.002, 0.064, 0.998, 0.936], // BMY
+  'Logo_of_Booking_Holdings_Inc,(lock_up,_stacked_with_Brands,_full_color).PNG': [0.048, 0.015, 0.95, 0.978], // BKNG
+  'AppLovin-Logo.gif': [0.023, 0.31, 0.93, 0.73], // APP
+  'Vertiv_logo.svg': [0.01, 0.022, 0.958, 0.97], // VRT
+  '2019_HCA_logo.svg': [0.014, 0.033, 0.99, 0.967], // HCA
+  'Agnico-Eagle.svg': [0.022, 0.056, 0.978, 0.944], // AEM
+  'General-Dynamics-Logo.svg': [0.004, 0.174, 0.998, 0.826], // GD
+  'Johnson_Controls_old_logo.svg': [0.01, 0.061, 0.99, 0.939], // JCI
+  'American_Tower_Corporation_logo.svg': [0.01, 0.038, 0.99, 0.967], // AMT
+  'CPKC_Wordmark.svg': [0.026, 0.11, 0.98, 0.875], // CP
+  'SLB_Logo_2022.svg': [0.118, 0.172, 0.882, 0.825], // SLB
+  'Target_logo.svg': [0.038, 0.056, 0.962, 0.942], // TGT
+  'Digital_Realty_TM_Brandmark_RGB_Black.svg': [0.084, 0.187, 0.916, 0.809], // DLR
+  'United_Rentals_Logo.svg': [0, 0.032, 1, 0.961], // URI
+  'UMC-Logo.svg': [0.012, 0.086, 0.988, 0.914], // UMC
+  'PACCAR-logo.svg': [0.026, 0.06, 0.978, 0.931], // PCAR
+  'Ametek-Logo.svg': [0, 0.045, 1, 0.988], // AME
+  'Flad_of_Delek_2000.svg': [0, 0.071, 1, 1], // DLEKG.TA
+  'Bazan_logo.jpg': [0.19, 0.23, 0.814, 0.77], // ORL.TA
+  'Energix_Logo.svg': [0, 0.256, 1, 0.742], // ENRG.TA
+  'Castro_(clothing)_logo.png': [0, 0, 1, 0.925], // CAST.TA
+  'Terminal_X_Logo.jpg': [0.014, 0.193, 0.988, 0.807], // TRX.TA
+  'Spacecom_logo_as_at_2026.png': [0, 0.041, 1, 0.899], // SCC.TA
+  'Jungo_Connectivity_logo.jpg': [0.134, 0.109, 0.866, 0.891], // JNGO.TA
+  'Occidental-Petroleum-Logo.svg': [0.058, 0.042, 0.942, 0.958], // OXY
+  'Verisign_logo.svg': [0.016, 0.062, 1, 0.932], // VRSN
+  'D._R._Horton_logo.svg': [0, 0.226, 1, 0.818], // DHI
 };
 
+/* v277: לוגו שלא קריא בפס (אייקון גדול + טקסט זעיר בשתי שורות) — בלי לוגו אופקי, האפליקציה מציגה אייקון + שם */
+const NO_WM = new Set(['DLR', 'AMT']);
 /* טהורה: סימבול של Yahoo → { ticker, ex } לחיפוש ב־Wikidata */
 function tickerOf(sym) {
+  if (NO_WM.has(String(sym || '').toUpperCase())) return null;
   const s = String(sym || '').toUpperCase();
   if (/^\^/.test(s)) return null; // מדד
   if (/\.TA$/.test(s)) { const b = s.replace(/\.TA$/, ''); return /^[A-Z][A-Z0-9]{0,9}$/.test(b) ? { ticker: b, ex: [EX_TA] } : null; }
@@ -73,4 +110,4 @@ function pickThumbs(json) {
   return out;
 }
 
-module.exports = { tickerOf, sparqlFor, pickFiles, pickThumbs, OVERRIDES, INK, EX_TA, EX_US };
+module.exports = { NO_WM, tickerOf, sparqlFor, pickFiles, pickThumbs, OVERRIDES, INK, EX_TA, EX_US };

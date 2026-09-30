@@ -195,4 +195,17 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   ok(R('dropAppNavEntry()') === false && R('__backs') === 1, 'v254: בלי Navigation API — בלי שינוי');
   ok(/const fromApp = \/\(\?:\^#\|&\)app=\/\.test\(location\.hash \|\| ''\);[\s\S]{0,80}if \(fromApp\) dropAppNavEntry\(\)/.test(app), 'v254: רק בקישור מהאפליקציה (‎app=), לא בכל שינוי hash');
 }
+
+// v277: לוגואי ת"א לווידג׳ט — PNG לכל מזהה ב־TASE_LOGOS; צבעי הווידג׳ט = האפליקציה
+{
+  const fs2 = require('fs'), path2 = require('path');
+  const appSrc = fs2.readFileSync(path2.join(__dirname, '..', 'app.js'), 'utf8');
+  const blk = appSrc.slice(appSrc.indexOf('const TASE_LOGOS'), appSrc.indexOf("').split(' ')", appSrc.indexOf('const TASE_LOGOS')));
+  const ids = [...new Set((blk.match(/[A-Z0-9\-]+:([a-z0-9\-]+)/g) || []).map((x) => x.split(':')[1]))];
+  const png = require('../ibkr-proxy/lib/ta-logos.json');
+  const missing = ids.filter((id) => !png.includes(id) || !fs2.existsSync(path2.join(__dirname, '..', 'logos', 'ta', id + '.png')));
+  ok(ids.length >= 200 && !missing.length, 'לכל לוגו ת"א יש PNG לווידג׳ט (' + ids.length + ')' + (missing.length ? ' חסר: ' + missing.join(',') : ''));
+  const kt = fs2.readFileSync(path2.join(__dirname, '..', 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
+  ok(/val w = ColorProvider\(Color\(0xFFF2F2F7\), Color\(0xFF000000\)\)/.test(kt) && /val w2 = ColorProvider\(Color\(0xFFFFFFFF\), Color\(0xFF1C1C1E\)\)/.test(kt), 'ווידג׳ט: רקע וכרטיס בצבעי האפליקציה');
+}
 console.log('\n' + n + ' בדיקות עברו');

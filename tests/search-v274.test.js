@@ -58,4 +58,11 @@ const gen = fs.readFileSync(path.join(root, 'tools/stock-universe.js'), 'utf8');
 ok(/tvScan\('israel'/.test(gen) && /tvScan\('america'/.test(gen) && /keeping previous TASE rows/.test(gen), 'מחולל: TradingView לארה״ב ות״א, שומר שורות ת״א בכשל');
 const M = require('../ibkr-proxy/lib/widget-model');
 ok(/3\.0628/.test(M.fmtPrice(3.0628, 'USDILS=X', M.STR.he)) && /5\.255%/.test(M.fmtPrice(5.255, '^TNX', M.STR.he)) && /\$97\.44/.test(M.fmtPrice(97.44, 'BZ=F', M.STR.he)), 'ווידג׳ט: מט"ח/אג"ח/סחורה');
+
+// v277: לוגואים אופקיים (גרף הרווח) — בדיקה מקיפה: מסגרות חיתוך לשוליים, לוגו לא קריא → אייקון + שם; מטמון חדש בטלפון
+const WM = require('../ibkr-proxy/lib/wordmark');
+ok(Object.keys(WM.INK).length >= 35 && WM.INK['AppLovin-Logo.gif'] && WM.INK['Terminal_X_Logo.jpg'], 'INK: מסגרות לשוליים ריקים (' + Object.keys(WM.INK).length + ')');
+ok(Object.values(WM.INK).every((b) => b.length === 4 && b[2] - b[0] > 0.3 && b[3] - b[1] > 0.3 && b.every((v) => v >= 0 && v <= 1)), 'INK: כל מסגרת תקינה (כמו wmInkBox)');
+ok(WM.tickerOf('DLR') === null && WM.tickerOf('AMT') === null && WM.tickerOf('AAPL'), 'לוגו לא קריא בפס (DLR, AMT) — בלי לוגו אופקי');
+ok(/pwa_wordmarks_v4/.test(app) && !/pwa_wordmarks_v3/.test(app), 'מטמון הלוגואים בטלפון מתחדש (v4)');
 console.log('\n' + n + ' בדיקות עברו');

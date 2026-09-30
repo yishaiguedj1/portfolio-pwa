@@ -3916,7 +3916,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v276';
+const APP_VERSION = 'v277';
 
 
 function saveDBto(db) {
@@ -8526,7 +8526,7 @@ function localStockSearch(query) {
 /* ---------------- v256: גרף "רווח/הפסד מהקנייה" בסקירה — כל מניה = פס שבנוי מהלוגו האופקי שלה ----------------
    לוגואים אופקיים: השרתון (/api/wordmark ← Wikidata → Wikimedia Commons), מטמון בטלפון שבוע (חסר — יום).
    לוגו ריבועי/חסר (Apple, Tesla, מניה בלי לוגו) → "לוגו מורכב": האייקון הרגיל + שם החברה, באותו פס. */
-const LS_WORDMARK = 'pwa_wordmarks_v3'; // v259: עם מסגרת הדיו (bx); v260: v3 — GOOGL = Alphabet (דקות אחרי v259 השרתון החזיר Google)
+const LS_WORDMARK = 'pwa_wordmarks_v4'; // v259: עם מסגרת הדיו (bx); v260: v3 — GOOGL = Alphabet (דקות אחרי v259 השרתון החזיר Google)
 const WM_MIN_RATIO = 1.8; // רוחב/גובה — מתחת לזה הלוגו ריבועי מדי לפס
 let _wm = null, _wmBusy = false;
 function wmStore() {
