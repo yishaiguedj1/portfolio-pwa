@@ -10,6 +10,6 @@
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_loading_layout"
-    android:previewImage="@drawable/widget_preview"
+    android:previewImage="@drawable/widget_preview_watch"
     android:description="@string/wWatchDesc"
     android:widgetCategory="home_screen" />
