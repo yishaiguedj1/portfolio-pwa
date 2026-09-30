@@ -57,3 +57,12 @@ ok(!vm.runInContext('scrollRestoring()', sb), 'תוכן שלא הגיע: מוו�
 const ver = (src.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(fs.readFileSync(path.join(root, 'sw.js'), 'utf8').includes('portfolio-pwa-' + ver), 'CACHE_NAME תואם לגרסה');
 console.log('\n' + n + ' בדיקות עברו');
+// v284 (בקשת המשתמש): מעבר בין טאבים תמיד מראש העמוד; שחזור הגלילה השמורה רק בפתיחת האפליקציה (טאב אחרון)
+{
+  const s2 = require('fs').readFileSync(require('path').join(__dirname, '..', 'app.js'), 'utf8');
+  const i = s2.indexOf('function switchTab(name, opts)'), body = s2.slice(i, s2.indexOf('\n}\n', i));
+  if (!(i > 0 && /if \(opts && opts\.restore\) \{ restoreScrollTo\(name, getSavedScrollY\(name\)\); return; \}/.test(body) && /cancelScrollRestore\(\);\s*try \{ window\.scrollTo\(0, 0\); \}/.test(body))) { console.error('FAIL - מעבר טאב = ראש העמוד'); process.exit(1); }
+  console.log('ok - מעבר טאב = ראש העמוד (לא חזרה לאמצע)');
+  if (!/switchTab\(lastTab, \{ restore: true \}\)/.test(s2)) { console.error('FAIL - רענון משחזר גלילה'); process.exit(1); }
+  console.log('ok - רענון: הטאב האחרון חוזר לנקודת הגלילה');
+}

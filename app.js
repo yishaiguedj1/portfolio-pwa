@@ -4126,7 +4126,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v283';
+const APP_VERSION = 'v284';
 
 
 function saveDBto(db) {
@@ -6409,7 +6409,7 @@ function setTabPageDirection(prev, name) {
   const rtl = String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
   page.style.setProperty('--tab-dx', ((fwd !== rtl) ? 22 : -22) + 'px');
 }
-function switchTab(name) {
+function switchTab(name, opts) {
   const prev = currentTabName();
   if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
   let actTab = null;
@@ -6430,8 +6430,11 @@ function switchTab(name) {
   // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
   try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} }); // התאמת מספרים אחרי המעבר (fitNumbers)
-  // v85/v153: שחזור מיקום גלילה שמור לטאב הזה — גם כשהתוכן עוד נטען (restoreScrollTo)
-  restoreScrollTo(name, getSavedScrollY(name));
+  // v85/v153: שחזור מיקום גלילה שמור — רק בפתיחת האפליקציה (רענון חוזר לאותה נקודה).
+  // v284 (בקשת המשתמש): מעבר בין טאבים תמיד מתחיל מראש העמוד — חזרה לאמצע עמוד שכבר היה פתוח לא אסתטית
+  if (opts && opts.restore) { restoreScrollTo(name, getSavedScrollY(name)); return; }
+  cancelScrollRestore();
+  try { window.scrollTo(0, 0); } catch (e) {}
 }
 
 /* v153: שחזור גלילה עמיד. לפני כן: scrollTo אחד מיד אחרי המעבר, כשהדף עוד קצר (מחירים,
@@ -12564,7 +12567,7 @@ function init() {
   try {
     const lastTab = localStorage.getItem('pwa_lasttab_v1');
     if (lastTab && document.getElementById('tab-' + lastTab)) {
-      switchTab(lastTab);
+      switchTab(lastTab, { restore: true });
     }
   } catch (e) {}
   // v153: אין מעבר כפוי להגדרות בהפעלה (לשעבר: כשלא היה מפתח Twelve Data — הוסר ב־v220).
