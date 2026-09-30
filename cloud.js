@@ -200,41 +200,32 @@
       return;
     }
 
+    // v297 (בקשת המשתמש, אחרי תצוגה מקדימה): בסגנון Apple ID — תמונה + שם + מייל, ופעולה כשורת רשימה
+    const OUT_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/></svg>';
+    const PHONE_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18h2"/></svg>';
+    const CLOUD_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 9.1 4 4 0 0 0 6.5 19z"/></svg>';
+    const idRow = (avatarHTML, title, sub) => mk('<div class="acc-id">' + avatarHTML +
+      '<div class="acc-txt"><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></div></div>').firstChild;
+    const actRow = (cls, icon, label, onClick) => {
+      const list = mk('<div class="ios-list"><button type="button" class="ios-row ios-row-btn ' + cls + '">' +
+        '<span class="ios-row-ic" aria-hidden="true">' + icon + '</span><span class="ios-row-lbl">' + esc(label) + '</span></button></div>').firstChild;
+      list.querySelector('button').addEventListener('click', onClick);
+      return list;
+    };
+
     if (user) {
-      const wrap = document.createElement('div');
-      wrap.className = 'account-row';
-      const img = document.createElement('img');
-      img.alt = '';
-      img.src = user.photoURL || 'icon-192.png';
-      const info = document.createElement('div');
-      info.innerHTML =
-        '<b>' + esc(user.displayName || t('userLabel')) + '</b><br>' +
-        '<span class="fine" style="padding:0">' + esc(user.email || '') + '</span>';
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'chip-btn';
-      btn.textContent = t('signOut');
-      btn.addEventListener('click', signOut);
-      wrap.appendChild(img);
-      wrap.appendChild(info);
-      box.appendChild(wrap);
-      box.appendChild(btn);
+      const row = idRow('<img alt="" src="' + esc(user.photoURL || 'icon-192.png') + '">', user.displayName || t('userLabel'), user.email || '');
+      const img = row.querySelector('img');
+      if (img) img.addEventListener('error', () => { img.src = 'icon-192.png'; }, { once: true });
+      box.appendChild(row);
+      box.appendChild(actRow('acc-out', OUT_IC, t('signOut'), signOut));
       // v289: שורת "מחובר — הנתונים נשמרים בענן…" הוסרה (בקשת המשתמש)
       return;
     }
 
     if (localMode) {
-      const p = document.createElement('p');
-      p.className = 'fine';
-      p.style.padding = '0';
-      p.textContent = t('localMode');
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'chip-btn';
-      btn.textContent = t('googleSignIn');
-      btn.addEventListener('click', () => { localMode = false; showLogin(); });
-      box.appendChild(p);
-      box.appendChild(btn);
+      box.appendChild(idRow('<span class="acc-av" aria-hidden="true">' + PHONE_IC + '</span>', t('localModeTitle'), t('localModeSub')));
+      box.appendChild(actRow('', CLOUD_IC, t('googleSignIn'), () => { localMode = false; showLogin(); }));
       return;
     }
 

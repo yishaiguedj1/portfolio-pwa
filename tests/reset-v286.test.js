@@ -14,7 +14,7 @@ ok(/id="resetSheetVeil"[\s\S]*id="resetManual"[\s\S]*id="resetIbkr"[\s\S]*id="re
 ok(/resetOptions: 'אפשרויות איפוס'/.test(app) && /resetOptions: 'Reset options'/.test(app), 'מחרוזת בעברית ובאנגלית');
 ok(/if \(v\.parentNode !== document\.body\) document\.body\.appendChild\(v\)/.test(app), 'הגיליון עובר ל־body (position:fixed לא נשבר בתוך כרטיס)');
 ok(/closest\('\.reset-opt'\)\) closeResetSheet\(\); \}, true\)/.test(app), 'בחירה סוגרת את הגיליון לפני האישור (capture)');
-ok(/getElementById\('resetData'\)\.addEventListener\('click', \(\) => \{\s*if \(!confirm\(t\('resetConfirm'\)\)\) return;/.test(app), 'האישור לפני מחיקה נשמר');
+ok(/getElementById\('resetData'\)\.addEventListener\('click', \(\) => \{\s*askConfirm\(t\('resetConfirm'\), \(\) => \{/.test(app), 'האישור לפני מחיקה נשמר (v297: בחלון שלנו)');
 ok(/\.reset-opt \{ color: var\(--loss\)/.test(css) && /\.reset-cancel \{[^}]*color: var\(--primary\)/.test(css), 'עיצוב: אפשרויות באדום, ביטול נפרד');
 ok(/prefers-reduced-motion: reduce\) \{ \.reset-veil/.test(css), 'תנועה מופחתת');
 ok(!/\.reset-row/.test(css), 'כללי השורות הישנים הוסרו');

@@ -840,6 +840,41 @@ footer.fine { text-align: center; }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ---- v297: חלון אישור/הודעה שלנו (במקום confirm/alert של הדפדפן) — אותה קפסולת זכוכית של ה־Toast,
+   בגודל התוכן, בלי כותרת. כפתורי גלולה: ביטול שקוף, אישור ירוק, פעולה הרסנית אדומה. ---- */
+.dlg-veil {
+  position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 24px 20px;
+  background: rgba(0, 0, 0, .32); opacity: 0; transition: opacity .2s ease;
+}
+.dlg-veil.on { opacity: 1; }
+.dlg-veil.off { opacity: 0; transition-duration: .18s; }
+.dlg {
+  width: fit-content; min-width: min(264px, 100%); max-width: min(340px, 100%);
+  padding: 22px 18px 16px; border-radius: var(--radius-xl); text-align: center; color: #fff;
+  background: rgba(30, 32, 31, .9);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 255, 255, .16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 18px 48px rgba(0, 0, 0, .38);
+  transform: scale(.9); transition: transform .32s var(--ease-spring, cubic-bezier(.2, .9, .25, 1));
+}
+.dlg-veil.on .dlg { transform: none; }
+.dlg-veil.off .dlg { transform: scale(.96); }
+.dlg-msg { margin: 0 4px 18px; font-size: 16px; font-weight: 600; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; max-height: 62vh; overflow-y: auto; }
+.dlg.dlg-long { max-width: min(380px, 100%); }
+.dlg.dlg-long .dlg-msg { text-align: start; font-size: 15px; font-weight: 500; }
+.dlg-btns { display: flex; gap: 10px; }
+.dlg-btn {
+  flex: 1 1 0; min-width: 104px; min-height: 46px; border: 0; border-radius: var(--pill); padding: 11px 16px;
+  font: inherit; font-size: 15.5px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform .12s ease, filter .12s ease;
+}
+.dlg-btn:active { transform: scale(.97); filter: brightness(.92); }
+.dlg-cancel { background: rgba(255, 255, 255, .12); color: #fff; }
+.dlg-ok { background: var(--primary); color: var(--on-primary); }
+.dlg-ok.danger { background: var(--loss); color: #fff; }
+.dlg-btn:focus-visible { outline: 2px solid rgba(255, 255, 255, .7); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .dlg, .dlg-veil { transition: none; } }
+
 /* ---- מסך התחברות ---- */
 .login-overlay {
   position: fixed; inset: 0; z-index: 200;
@@ -900,6 +935,17 @@ footer.fine { text-align: center; }
 /* ---- כרטיס חשבון ---- */
 .account-row { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
 .account-row img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+/* v297: כרטיס החשבון בסגנון Apple ID — בלי כותרת, תמונה גדולה + שם + מייל, פעולה כשורת רשימה */
+#accountCard > h2 { display: none; }
+.acc-id { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.acc-id img, .acc-id .acc-av { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; flex: none; }
+.acc-id .acc-av { display: grid; place-items: center; background: color-mix(in srgb, var(--primary) 16%, var(--surface-2)); color: var(--primary); }
+.acc-id .acc-av svg { width: 28px; height: 28px; }
+.acc-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.acc-txt b { font-size: 19px; font-weight: 700; color: var(--on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acc-txt span { font-size: 14px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#accountCard .ios-list > button.ios-row { width: 100%; border: 0; background: transparent; font: inherit; text-align: start; }
+#accountCard .acc-out { color: var(--loss); }
 
 /* ---- רשימת מעקב (wishlist) ---- */
 .wl-card { padding: 14px 16px; }

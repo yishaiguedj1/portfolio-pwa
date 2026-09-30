@@ -305,7 +305,7 @@ he: {
   phOptional: 'אופציונלי',
   btnSave: 'שמור',
   btnCancel: 'ביטול',
-  btnOk: 'אישור',
+  btnOk: 'אישור', ibkrImportOk: 'ייבוא',
   saved: 'נשמר ✓',
   newDeposit: 'הפקדה חדשה',
   depositAdded: 'ההפקדה נוספה ✓',
@@ -515,6 +515,7 @@ he: {
   signOut: 'התנתקות',
   cloudConnected: 'מחובר — הנתונים נשמרים בענן ומסונכרנים אוטומטית בכל מכשיר.',
   localMode: 'מצב מקומי — הנתונים נשמרים רק בטלפון הזה.',
+  localModeTitle: 'מצב מקומי', localModeSub: 'הנתונים נשמרים רק בטלפון הזה',
   offlineMode: 'מצב לא מקוון — מוצגים נתונים מקומיים',
 
   fldSymbol: 'סימול (אנגלית)',
@@ -836,7 +837,7 @@ en: {
   phOptional: 'Optional',
   btnSave: 'Save',
   btnCancel: 'Cancel',
-  btnOk: 'OK',
+  btnOk: 'OK', ibkrImportOk: 'Import',
   saved: 'Saved ✓',
   newDeposit: 'New deposit',
   depositAdded: 'Deposit added ✓',
@@ -1046,6 +1047,7 @@ en: {
   signOut: 'Sign out',
   cloudConnected: 'Connected — data is saved in the cloud and syncs automatically on every device.',
   localMode: 'Local mode — data is stored on this phone only.',
+  localModeTitle: 'Local mode', localModeSub: 'Data is stored on this phone only',
   offlineMode: 'Offline — showing local data',
 
   fldSymbol: 'Symbol',
@@ -3045,21 +3047,87 @@ function resetIbkrData(db, ibkrMode) {
   db.source = 'manual';
 }
 
+/* v297 (בקשת המשתמש): חלון אישור/הודעה שלנו במקום confirm/alert של הדפדפן —
+   בלי הכותרת הגנרית "…github.io says", בסגנון הבועה של ההודעות באפליקציה, בגודל התוכן.
+   בלי DOM אמיתי (הבדיקות) — נופל ל־confirm/alert הסינכרוניים, אז ההתנהגות בבדיקות לא משתנה. */
+function dlgAvailable() {
+  return typeof document !== 'undefined' && !!document.body && typeof document.body.appendChild === 'function' &&
+    typeof document.createElement === 'function' && typeof requestAnimationFrame === 'function';
+}
+let _dlgClose = null;
+function askConfirm(msg, onYes, opts) {
+  const o = opts || {};
+  if (!dlgAvailable()) {
+    if (o.alert) { try { alert(msg); } catch (e) {} if (onYes) onYes(); return; }
+    let yes = false;
+    try { yes = confirm(msg); } catch (e) {}
+    if (yes) { if (onYes) onYes(); } else if (o.onNo) o.onNo();
+    return;
+  }
+  if (_dlgClose) _dlgClose(false, true);
+  const veil = document.createElement('div');
+  veil.className = 'dlg-veil';
+  const box = document.createElement('div');
+  box.className = 'dlg' + (o.alert ? ' dlg-alert' : '') + (String(msg || '').length > 110 ? ' dlg-long' : ''); // טקסט ארוך — מיושר לתחילת השורה
+  box.setAttribute('role', o.alert ? 'alertdialog' : 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  const p = document.createElement('p');
+  p.className = 'dlg-msg';
+  p.textContent = String(msg == null ? '' : msg);
+  const btns = document.createElement('div');
+  btns.className = 'dlg-btns';
+  const mk = (cls, label) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'dlg-btn ' + cls; b.textContent = label; btns.appendChild(b); return b; };
+  const cancel = o.alert ? null : mk('dlg-cancel', o.cancel || t('btnCancel'));
+  const ok = mk('dlg-ok' + (o.danger ? ' danger' : ''), o.ok || (o.alert ? t('btnClose') : t('btnOk')));
+  box.appendChild(p);
+  box.appendChild(btns);
+  veil.appendChild(box);
+  document.body.appendChild(veil);
+  requestAnimationFrame(() => veil.classList.add('on'));
+  const prevFocus = document.activeElement;
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); done(false); } };
+  let closed = false;
+  const done = (yes, silent) => {
+    if (closed) return;
+    closed = true;
+    _dlgClose = null;
+    document.removeEventListener('keydown', onKey, true);
+    veil.classList.remove('on');
+    veil.classList.add('off');
+    setTimeout(() => veil.remove(), 220);
+    try { if (prevFocus && prevFocus.focus) prevFocus.focus({ preventScroll: true }); } catch (e) {}
+    if (silent) return;
+    if (yes || o.alert) { if (onYes) onYes(); } else if (o.onNo) o.onNo();
+  };
+  _dlgClose = done;
+  ok.addEventListener('click', () => done(true));
+  if (cancel) cancel.addEventListener('click', () => done(false));
+  veil.addEventListener('click', (e) => { if (e.target === veil) done(false); });
+  document.addEventListener('keydown', onKey, true);
+  setTimeout(() => { try { ok.focus({ preventScroll: true }); } catch (e) {} }, 30);
+}
+function askAlert(msg, then) { askConfirm(msg, then || null, { alert: true }); }
+function askConfirmP(msg, opts) {
+  return new Promise((res) => askConfirm(msg, () => res(true), Object.assign({}, opts, { onNo: () => res(false) })));
+}
+
 function doResetManual() {
-  if (!confirm(t('resetManualConfirm'))) return;
-  resetManualData(DB, isIbkrMode());
-  saveDB(); renderAll();
-  flash(t('resetManualDone'));
+  askConfirm(t('resetManualConfirm'), () => {
+    resetManualData(DB, isIbkrMode());
+    saveDB(); renderAll();
+    flash(t('resetManualDone'));
+  }, { danger: true });
 }
 function doResetIbkr() {
   const hasIbkr = isIbkrMode() || !!ibkrCfg().data || DEPOSITS.some(isIbkrDeposit);
   if (!hasIbkr) { flash(t('resetIbkrNone')); return; }
-  if (!confirm(t('resetIbkrConfirm'))) return;
-  resetIbkrData(DB, isIbkrMode());
-  ibkrSaveCfg({ lastSync: 0, data: null }); // החיבור (token/Query ID) נשאר — אפשר לסנכרן מחדש
-  saveDB(); renderAll();
-  try { renderIbkrCard(); } catch (e) {}
-  flash(t('resetIbkrDone'));
+  askConfirm(t('resetIbkrConfirm'), () => {
+    resetIbkrData(DB, isIbkrMode());
+    ibkrSaveCfg({ lastSync: 0, data: null }); // החיבור (token/Query ID) נשאר — אפשר לסנכרן מחדש
+    saveDB(); renderAll();
+    try { renderIbkrCard(); } catch (e) {}
+    flash(t('resetIbkrDone'));
+  }, { danger: true });
 }
 
 /* ---------------- v146: תיק דמו ---------------- */
@@ -3386,7 +3454,7 @@ function demoProgressOpen() {
 
 async function demoCreate(btn, noConfirm) {
   if (_demoBusy || isDemoMode()) return;
-  if (!noConfirm && !confirm(t('demoConfirm'))) return;
+  if (!noConfirm && !(await askConfirmP(t('demoConfirm')))) return;
   _demoBusy = true;
   if (btn) btn.disabled = true;
   const ui = demoProgressOpen();
@@ -3530,17 +3598,18 @@ function renderDemoUi() {
 
 function ibkrDisconnect() {
   ibkrClearErr();
-  if (!confirm(t('disconnectConfirm'))) return;
-  // אבטחה: ניתוק מוחק מהטלפון גם את פרטי הגישה (token, Query ID, מפתח שרתון) — כפי שההודעה מבטיחה
-  ibkrSaveCfg({ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' });
-  for (const id of ['ibkrToken', 'ibkrQuery']) { const e = document.getElementById(id); if (e) e.value = ''; }
-  // שחזור הנתונים הידניים שהיו לפני הייבוא (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
-  const restored = ibkrRestoreManual();
-  DB.source = 'manual';
-  saveDB();
-  renderAll();
-  renderIbkrCard();
-  if (restored) flash(t('disconnectedRestored')); else flash(t('disconnected'));
+  askConfirm(t('disconnectConfirm'), () => {
+    // אבטחה: ניתוק מוחק מהטלפון גם את פרטי הגישה (token, Query ID, מפתח שרתון) — כפי שההודעה מבטיחה
+    ibkrSaveCfg({ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' });
+    for (const id of ['ibkrToken', 'ibkrQuery']) { const e = document.getElementById(id); if (e) e.value = ''; }
+    // שחזור הנתונים הידניים שהיו לפני הייבוא (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
+    const restored = ibkrRestoreManual();
+    DB.source = 'manual';
+    saveDB();
+    renderAll();
+    renderIbkrCard();
+    if (restored) flash(t('disconnectedRestored')); else flash(t('disconnected'));
+  }, { danger: true });
 }
 
 /* בדיקת יבוא מסנכרון IBKR: תצוגה מקדימה של מה חדש מול מה שכבר נשמר,
@@ -3563,15 +3632,13 @@ function ibkrReviewImport(existing, incoming, warnTxt) {
   if (deltaTxt === null) { flash(t('ibkrImportNothingNew')); return; }
   const meta = incoming.meta || {};
   const twr = rHeadlineTwr(incoming);
-  const okGo = confirm(t('ibkrImportConfirm', {
+  askConfirm(t('ibkrImportConfirm', {
     a: meta.fromDate ? fmtDateIL(meta.fromDate) : '—',
     b: meta.toDate ? fmtDateIL(meta.toDate) : '—',
     twr: (twr === null || twr === undefined) ? '—' : fmtPct(twr, true),
     delta: deltaTxt,
     warns: warnTxt || '',
-  }));
-  if (!okGo) return;
-  ibkrFinishImport(rMergeData(existing, incoming));
+  }), () => ibkrFinishImport(rMergeData(existing, incoming)), { ok: t('ibkrImportOk') });
 }
 
 async function ibkrSaveAndTest() {
@@ -4210,7 +4277,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v296';
+const APP_VERSION = 'v297';
 
 
 function saveDBto(db) {
@@ -8214,10 +8281,12 @@ function onPfTap(e) {
 
   if (state.pfPickDate) {
     const d = map.series[0].pts[idx].date;
-    if (confirm(t('pfConfirmFrom', { date: fmtDateIL(d) }))) {
+    askConfirm(t('pfConfirmFrom', { date: fmtDateIL(d) }), () => {
       state.pfCustomFrom = d;
       state.pfRange = 'custom';
-    }
+      updatePfPickUI();
+      drawPfChart();
+    });
     state.pfPickDate = false;
     state.pfMeasure.pts = [];
     updatePfPickUI();
@@ -9917,13 +9986,14 @@ function showTradeForm(host, opts) {
 function mtDeleteTrade(x) {
   const n = mtNorm(x);
   const rest = mtList().filter((y) => String(y.id) !== String(n.id));
-  if (mtOversold(rest, n.sym)) { alert(t('mtErrDeleteBreaks')); return false; }
-  if (!confirm(t('mtDelConfirm', { side: (n.side === 'BUY' ? t('buySide') : t('sellSide')), qty: n.qty, sym: n.sym, date: fmtDateIL(n.date) }))) return false;
-  DB.manualTrades = rest;
-  mtSyncPositions();
-  saveDB();
-  renderAll();
-  flash(t('mtDeleted'));
+  if (mtOversold(rest, n.sym)) { askAlert(t('mtErrDeleteBreaks')); return false; }
+  askConfirm(t('mtDelConfirm', { side: (n.side === 'BUY' ? t('buySide') : t('sellSide')), qty: n.qty, sym: n.sym, date: fmtDateIL(n.date) }), () => {
+    DB.manualTrades = rest;
+    mtSyncPositions();
+    saveDB();
+    renderAll();
+    flash(t('mtDeleted'));
+  }, { danger: true });
   return true;
 }
 
@@ -9985,24 +10055,25 @@ function deletePosition(p) {
   // v141: מניה לפי עסקאות — מוחקים גם את העסקאות שלה (אחרת היא "חוזרת" מהן)
   const own = p.fromTrades ? mtList().filter((x) => mtNorm(x).sym === p.sym) : [];
   const msg = own.length ? t('delTradesPosConfirm', { sym: p.sym, n: own.length }) : t('delStockConfirm', { name: p.name, sym: p.sym });
-  if (!confirm(msg)) return;
-  if (own.length) DB.manualTrades = mtList().filter((x) => mtNorm(x).sym !== p.sym);
-  const i = POSITIONS.findIndex((x) => x.sym === p.sym);
-  if (i >= 0) POSITIONS.splice(i, 1);
-  delete state.hist[p.sym];
-  for (const r of Object.values(INTRA_RANGES)) delete state.intra[p.sym + '|' + r];
-  delete state.quotes[p.sym];
-  delete state.open[p.sym];
-  delete state.range[p.sym];
-  try {
-    localStorage.removeItem(LS_HIST + p.sym);
-    localStorage.removeItem(LS_INTRA + p.sym); // ישן (עד v227)
-    localStorage.removeItem(LS_INTRA + p.sym + '|1d'); localStorage.removeItem(LS_INTRA + p.sym + '|5d');
-  } catch (e) {}
-  saveDB();
-  renderAll();
-  flash(t('stockDeleted'));
-  refreshQuotes().then(() => warmHistories());
+  askConfirm(msg, () => {
+    if (own.length) DB.manualTrades = mtList().filter((x) => mtNorm(x).sym !== p.sym);
+    const i = POSITIONS.findIndex((x) => x.sym === p.sym);
+    if (i >= 0) POSITIONS.splice(i, 1);
+    delete state.hist[p.sym];
+    for (const r of Object.values(INTRA_RANGES)) delete state.intra[p.sym + '|' + r];
+    delete state.quotes[p.sym];
+    delete state.open[p.sym];
+    delete state.range[p.sym];
+    try {
+      localStorage.removeItem(LS_HIST + p.sym);
+      localStorage.removeItem(LS_INTRA + p.sym); // ישן (עד v227)
+      localStorage.removeItem(LS_INTRA + p.sym + '|1d'); localStorage.removeItem(LS_INTRA + p.sym + '|5d');
+    } catch (e) {}
+    saveDB();
+    renderAll();
+    flash(t('stockDeleted'));
+    refreshQuotes().then(() => warmHistories());
+  }, { danger: true });
 }
 
 /* ---------------- רשימת מעקב (wishlist) — לא חלק מהתיק ---------------- */
@@ -10028,15 +10099,16 @@ function wlAddPicked(it) {
 }
 
 function wlRemove(w) {
-  if (!confirm(t('wlDelConfirm', { sym: w.sym }))) return;
-  const items = wlItems();
-  const i = items.findIndex((x) => x.sym === w.sym);
-  if (i >= 0) items.splice(i, 1);
-  if (!POSITIONS.some((p) => p.sym === w.sym)) delete state.quotes[w.sym];
-  state.open[w.sym] = false;
-  saveDB();
-  renderWishlist();
-  flash(t('wlRemoved'));
+  askConfirm(t('wlDelConfirm', { sym: w.sym }), () => {
+    const items = wlItems();
+    const i = items.findIndex((x) => x.sym === w.sym);
+    if (i >= 0) items.splice(i, 1);
+    if (!POSITIONS.some((p) => p.sym === w.sym)) delete state.quotes[w.sym];
+    state.open[w.sym] = false;
+    saveDB();
+    renderWishlist();
+    flash(t('wlRemoved'));
+  }, { danger: true });
 }
 
 /* v240: פריט מעקב בצורה של כרטיס מניה — בלי נתוני אחזקה (כמות, ממוצע, שווי, רווח, מקור) */
@@ -10135,12 +10207,17 @@ function wlDeleteList(id) {
   const i = DB.wlExtra.findIndex((x) => x.id === id);
   if (i < 0) return;
   const l = DB.wlExtra[i];
-  if ((l.items || []).length && !confirm(t('wlDelListConfirm', { name: l.name, n: l.items.length }))) return;
-  DB.wlExtra.splice(i, 1);
-  saveDB();
-  const ls = wlLists();
-  wlSwitch((ls[Math.min(i, ls.length - 1)] || ls[0]).id, -1); // הרשימה שלפניה
-  flash(t('wlListDeleted'));
+  const go = () => {
+    const k = DB.wlExtra.indexOf(l);
+    if (k < 0) return;
+    DB.wlExtra.splice(k, 1);
+    saveDB();
+    const ls = wlLists();
+    wlSwitch((ls[Math.min(k, ls.length - 1)] || ls[0]).id, -1); // הרשימה שלפניה
+    flash(t('wlListDeleted'));
+  };
+  if ((l.items || []).length) askConfirm(t('wlDelListConfirm', { name: l.name, n: l.items.length }), go, { danger: true });
+  else go();
 }
 /* גיליון תחתון (כמו ב־iOS): שם לרשימה חדשה או שינוי שם */
 function closeWlSheet() { const v = document.getElementById('wlSheetVeil'); if (v) v.remove(); }
@@ -12178,12 +12255,13 @@ function showAddDepositForm(ul) {
 function deleteDeposit(i) {
   const d = DEPOSITS[i];
   if (!d) return;
-  if (!confirm(t('delDepositConfirm', { date: d.date, amt: Math.abs(d.amount).toLocaleString('en-US') }))) return;
-  DEPOSITS.splice(i, 1);
-  saveDB();
-  renderDeposits();
-  renderOverview();
-  flash(t('depositDeleted'));
+  askConfirm(t('delDepositConfirm', { date: d.date, amt: Math.abs(d.amount).toLocaleString('en-US') }), () => {
+    DEPOSITS.splice(i, 1);
+    saveDB();
+    renderDeposits();
+    renderOverview();
+    flash(t('depositDeleted'));
+  }, { danger: true });
 }
 
 /* ---------------- רינדור: פנסיה ---------------- */
@@ -12332,11 +12410,12 @@ function showAddPensionDepositForm(ul) {
 function deletePensionDeposit(i) {
   const r = PENSION_DEPOSITS[i];
   if (!r) return;
-  if (!confirm(t('delPensionConfirm', { place: r.place, amt: Math.abs(r.amount).toLocaleString('en-US') }))) return;
-  PENSION_DEPOSITS.splice(i, 1);
-  saveDB();
-  renderPension();
-  flash(t('pensionDepositDeleted'));
+  askConfirm(t('delPensionConfirm', { place: r.place, amt: Math.abs(r.amount).toLocaleString('en-US') }), () => {
+    PENSION_DEPOSITS.splice(i, 1);
+    saveDB();
+    renderPension();
+    flash(t('pensionDepositDeleted'));
+  }, { danger: true });
 }
 
 /* ---------------- כללי ---------------- */
@@ -12813,8 +12892,7 @@ function init() {
   const verEl = document.getElementById('appVersion');
   if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = APP_VERSION; // v289: שורת "גרסה" — רק הערך
   document.getElementById('resetData').addEventListener('click', () => {
-    if (!confirm(t('resetConfirm'))) return;
-
+    askConfirm(t('resetConfirm'), () => { // v297: חלון שלנו
     const doReset = () => {
       try { localStorage.removeItem(LS_DB); } catch (e) {}
       try { localStorage.removeItem(LS_PREDEMO); } catch (e) {}
@@ -12824,6 +12902,7 @@ function init() {
     };
     if (window.Cloud && window.Cloud.resetCloud) window.Cloud.resetCloud().then(doReset);
     else doReset();
+    }, { danger: true });
   });
 
   wireBackNav(); // v290
