@@ -129,6 +129,11 @@ private object C {
     val tileEdge = ColorProvider(Color(0xFFE3E3E8), Color(0xFF1C1C1E))
     // 30/09 (בקשת המשתמש): הבועה כמו .ext-sess באפליקציה — רקע ‎--surface-2 (‎#E9E9EE / ‎#2C2C2E על ‎#1C1C1E), ירוק/אדום ‎--gain/‎--loss
     val bubBg = ColorProvider(Color(0xFFE9E9EE), Color(0xFF2C2C2E))
+    // 30/09 (בקשת המשתמש): מה שיושב על הרקע (טאבים, חיצים, רענון, שער הדולר) = בצבע הכרטיסים — בולט ואחיד (כמו קבוצות של אפל);
+    // הטאב הפעיל = כמו .tab.active באפליקציה: ‎--primary עם טקסט ‎--on-primary
+    val chip = ColorProvider(Color(0xFFFFFFFF), Color(0xFF1C1C1E))
+    val primary = ColorProvider(Color(0xFF30D158), Color(0xFF30D158))
+    val onPrimary = ColorProvider(Color(0xFF06281A), Color(0xFF06281A))
     val bubPos = ColorProvider(Color(0xFF30D158), Color(0xFF30D158))
     val bubNeg = ColorProvider(Color(0xFFFF453A), Color(0xFFFF453A))
     val letter: GColor = ColorProvider(Color(0xFF3A3A3C), Color(0xFF3A3A3C))
@@ -234,7 +239,7 @@ private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long) {
                         .clickable(actionRunCallback<RefreshAction>()),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(GlanceModifier.fillMaxSize().cornerRadius(16.dp).background(C.pill), contentAlignment = Alignment.Center) {
+                    Box(GlanceModifier.fillMaxSize().cornerRadius(16.dp).background(C.chip), contentAlignment = Alignment.Center) {
                         Image(ImageProvider(R.drawable.ic_widget_refresh), contentDescription = lc.getString(R.string.wRefresh), modifier = GlanceModifier.size(19.dp))
                     }
                 }
@@ -251,7 +256,8 @@ private fun Header(lc: Context, d: Dirn, fx: Fx?, updated: Long) {
 private fun FxPill(lc: Context, d: Dirn, fx: Fx) {
     val dot = if (!fx.open) C.dot else when (fx.dir) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.dot }
     Column(
-        GlanceModifier.cornerRadius(12.dp).background(C.pill).padding(start = 11.dp, end = 11.dp, top = 4.dp, bottom = 5.dp),
+        // 30/09 (בקשת המשתמש): בצבע של .fx-pill באפליקציה (‎--surface-2) — כמו הבועה
+        GlanceModifier.cornerRadius(12.dp).background(C.bubBg).padding(start = 11.dp, end = 11.dp, top = 4.dp, bottom = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         DRow(d, parts = listOf(
@@ -474,22 +480,22 @@ private fun WatchTabs(d: Dirn, lang: String, lists: List<WatchList>, sel: WatchL
 private fun RowScope.TabChip(l: WatchList, on: Boolean) {
     Box(
         // 30/09/2026 (בקשת המשתמש): טאבים גדולים ונוחים ללחיצה — 44dp (היה 32), טקסט 15 (היה 13)
-        GlanceModifier.defaultWeight().height(44.dp).cornerRadius(22.dp).background(if (on) C.pos else C.pill)
+        GlanceModifier.defaultWeight().height(44.dp).cornerRadius(22.dp).background(if (on) C.primary else C.chip)
             .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to l.id))),
         contentAlignment = Alignment.Center,
     ) {
         Text(l.name, modifier = GlanceModifier.padding(start = 8.dp, end = 8.dp),
-            style = TextStyle(color = if (on) C.white else C.on, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+            style = TextStyle(color = if (on) C.onPrimary else C.on, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
     }
 }
 
 @Composable
 private fun TabArrow(glyph: String, target: String) {
     Box(
-        GlanceModifier.size(44.dp).cornerRadius(22.dp).background(C.pill)
+        GlanceModifier.size(44.dp).cornerRadius(22.dp).background(C.chip)
             .clickable(actionRunCallback<SelectListAction>(actionParametersOf(LIST_PARAM to target))),
         contentAlignment = Alignment.Center,
     ) {
-        Text(glyph, style = TextStyle(color = C.pos, fontSize = 22.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+        Text(glyph, style = TextStyle(color = C.primary, fontSize = 22.sp, fontWeight = FontWeight.Bold), maxLines = 1)
     }
 }

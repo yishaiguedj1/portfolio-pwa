@@ -207,6 +207,8 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   ok(ids.length >= 200 && !missing.length, 'לכל לוגו ת"א יש PNG לווידג׳ט (' + ids.length + ')' + (missing.length ? ' חסר: ' + missing.join(',') : ''));
   const kt = fs2.readFileSync(path2.join(__dirname, '..', 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
   ok(/val w = ColorProvider\(Color\(0xFFF2F2F7\), Color\(0xFF000000\)\)/.test(kt) && /val w2 = ColorProvider\(Color\(0xFFFFFFFF\), Color\(0xFF1C1C1E\)\)/.test(kt), 'ווידג׳ט: רקע וכרטיס בצבעי האפליקציה');
+  ok(/background\(if \(on\) C\.primary else C\.chip\)/.test(kt) && /color = if \(on\) C\.onPrimary else C\.on/.test(kt) && /val onPrimary = ColorProvider\(Color\(0xFF06281A\)/.test(kt), 'ווידג׳ט: טאבים — פעיל כמו .tab.active באפליקציה, השאר בצבע הכרטיסים');
+  ok(/private fun FxPill[\s\S]{0,900}?background\(C\.bubBg\)/.test(kt), 'ווידג׳ט: בועת שער הדולר בצבע ‎--surface-2 כמו באפליקציה');
 }
 
 // v278: סימבול התצוגה בווידג׳ט = באפליקציה לכל נכס בקטלוג (BRENT, SPX, BTC, USD/ILS…)
