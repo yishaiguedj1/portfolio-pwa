@@ -62,7 +62,7 @@ const noSleep = async () => {};
 Object.keys(store).forEach((k) => delete store[k]);
 T.ibkrSaveCfg({ proxyUrl: 'https://proxy.example.com///', token: 'tok123', queryId: '999' });
 ok(T.ibkrCfg().token === 'tok123', 'שמירה/טעינה של הגדרות IBKR');
-ok(T.ibkrProxyBase() === 'https://proxy.example.com', 'ניקוי לוכסנים מסוף ה־URL');
+ok(T.ibkrProxyBase() === 'https://ibkr-proxy-wine.vercel.app', 'v299: תמיד כתובת השרתון הקבועה — כתובת ישנה שנשמרה בטלפון לא משפיעה');
 
 /* ---------- ibkrRequestReport ---------- */
 stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.interactivebrokers.com/x' }]);
@@ -287,9 +287,10 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
 
   /* ---------- עקביות קבצים ---------- */
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  for (const id of ['ibkrCard', 'ibkrProxy', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
+  for (const id of ['ibkrCard', 'ibkrToken', 'ibkrQuery', 'ibkrSaveTest', 'ibkrSyncImport', 'ibkrDisconnect', 'ibkrStatus', 'ibkrErr', 'ibkrData']) {
     ok(html.includes('id="' + id + '"'), 'index.html מכיל #' + id);
   }
+  ok(!html.includes('id="ibkrProxy"') && !html.includes('ibkrTokenNote'), 'v299: שדה כתובת השרתון והערת ה־token הוסרו');
   const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   ok(css.includes('.btn-row'), 'styles.css מכיל .btn-row');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');

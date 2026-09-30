@@ -45,7 +45,7 @@ const A = (k) => vm.runInContext(k, sb);
 
   // --- 3. שדה בהגדרות + שמירה ---
   ok(!/id="ibkrAppKey"/.test(html), 'v150: שדה "מפתח שרתון" הוסר מההגדרות (APP_KEY לא מוגדר ב־Vercel)');
-  ok(/ibkrSaveCfg\(\{ proxyUrl, token, queryId, appKey: '',/.test(src) && /if \(cfg\.appKey\) ibkrSaveCfg\(\{ appKey: '' \}\)/.test(src), 'v150: מפתח ישן שנשמר בטלפון נמחק');
+  ok(/ibkrSaveCfg\(\{ proxyUrl: '', token, queryId, appKey: '',/.test(src) && /if \(cfg\.appKey\) ibkrSaveCfg\(\{ appKey: '' \}\)/.test(src), 'v150: מפתח ישן שנשמר בטלפון נמחק');
 
   // --- 4. ניתוק מוחק פרטי גישה ---
   ok(/ibkrSaveCfg\(\{ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' \}\)/.test(src), 'ניתוק מוחק token, Query ID ומפתח שרתון');

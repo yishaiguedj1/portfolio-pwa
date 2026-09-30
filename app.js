@@ -372,9 +372,7 @@ he: {
   ibkrFlexHowTitle: 'איך מגדירים את שאילתת ה־Flex?',
   ibkrSyncDesc: 'הנתונים נמשכים מ־IBKR דרך Flex Web Service: יוצרים שאילתת Flex ב־Client Portal ‏(Reports ← Flex Queries), ומפעילים Flex Web Service כדי לקבל token.',
   flexGuide: 'מקטעים מומלצים בשאילתת ה־Flex: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (לתשואה לפי חודש/שנה/YTD).',
-  ibkrProxyLabel: 'כתובת השרתון',
   ibkrQueryPh: 'מ־IBKR',
-  ibkrTokenNote: 'ה־token נשמר בטלפון בלבד — לעולם לא בענן ולא בקוד.',
   ibkrErrAppKey: 'השרתון דחה את הבקשה כי הוגדר בו APP_KEY. ב־Vercel: Settings ← Environment Variables ← מחק את APP_KEY ← Redeploy.',
   ibkrErrOrigin: 'השרתון מקבל בקשות רק מהאתר של האפליקציה. פתח את האפליקציה מהכתובת הרגילה שלה.',
   ibkrBadFromDate: 'תאריך ההתחלה אינו תקין (עתידי או לא חוקי).',
@@ -899,9 +897,7 @@ en: {
   ibkrFlexHowTitle: 'How do I set up the Flex query?',
   ibkrSyncDesc: 'Data is pulled from IBKR via Flex Web Service: create a Flex query in the Client Portal (Reports → Flex Queries), and enable Flex Web Service to get a token.',
   flexGuide: 'Recommended Flex query sections: Trades · Cash Transactions · Open Positions · Cash Report · Change in NAV · Net Asset Value (NAV) in Base (for month/year/YTD returns).',
-  ibkrProxyLabel: 'Proxy URL',
   ibkrQueryPh: 'from IBKR',
-  ibkrTokenNote: 'The token is stored on this phone only — never in the cloud or in code.',
   ibkrErrAppKey: 'The proxy rejected the request because APP_KEY is set on it. In Vercel: Settings → Environment Variables → delete APP_KEY → Redeploy.',
   ibkrErrOrigin: 'The proxy only accepts requests from the app’s own site. Open the app from its usual address.',
   ibkrBadFromDate: 'Invalid start date (in the future or malformed).',
@@ -1791,7 +1787,9 @@ function ibkrSetBusy(busy) {
 const IBKR_PROXY_DEFAULT = 'https://ibkr-proxy-wine.vercel.app';
 
 function ibkrProxyBase() {
-  return (((ibkrCfg().proxyUrl || '') || IBKR_PROXY_DEFAULT).trim().replace(/\/+$/, ''));
+  // v298+ (בקשת המשתמש): שדה "כתובת השרתון" הוסר — תמיד הכתובת הקבועה; כתובת ישנה שנשמרה בטלפון לא משפיעה.
+  // השרתון עבר כתובת → לעדכן את IBKR_PROXY_DEFAULT כאן (וגם ALLOWED_ORIGINS בשרתון), לא לבקש מהמשתמש.
+  return IBKR_PROXY_DEFAULT.trim().replace(/\/+$/, '');
 }
 /* כותרות לשרתון. X-App-Key רדום (v150): השדה הוסר מההגדרות כי APP_KEY לא מוגדר ב־Vercel.
    להפעלה מחדש: להחזיר שדה שכותב ל־ibkrCfg().appKey (ראה v148 ביומן) + APP_KEY ב־Vercel. */
@@ -2375,10 +2373,8 @@ function ibkrFriendlyErr(msg) {
 function renderIbkrCard() {
   const cfg = ibkrCfg();
   // שחזור ערכי שדות הסנכרון (token נשמר בטלפון בלבד)
-  const px = document.getElementById('ibkrProxy');
   const tk = document.getElementById('ibkrToken');
   const qd = document.getElementById('ibkrQuery');
-  if (px && !px.value) px.value = cfg.proxyUrl || IBKR_PROXY_DEFAULT;
   if (tk && !tk.value) tk.value = cfg.token || '';
   if (qd && !qd.value) qd.value = cfg.queryId || '';
   // v150: שדה "מפתח שרתון" הוסר (APP_KEY לא מוגדר ב־Vercel) — מפתח ישן שנשמר נמחק
@@ -3683,12 +3679,12 @@ function ibkrReviewImport(existing, incoming, warnTxt, silent) {
 
 async function ibkrSaveAndTest() {
   ibkrClearErr();
-  const proxyUrl = (document.getElementById('ibkrProxy').value || '').trim().replace(/\/+$/, '');
+  const proxyUrl = ibkrProxyBase();
   const token = (document.getElementById('ibkrToken').value || '').trim();
   const queryId = (document.getElementById('ibkrQuery').value || '').trim();
   if (!proxyUrl) return ibkrShowErr(t('proxyUrlMissing'));
   if (!token || !queryId) return ibkrShowErr(t('credsMissing'));
-  ibkrSaveCfg({ proxyUrl, token, queryId, appKey: '', fromDate: '' });
+  ibkrSaveCfg({ proxyUrl: '', token, queryId, appKey: '', fromDate: '' });
   ibkrSetBusy(true);
   renderIbkrCard();
   try {
@@ -4337,7 +4333,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v298';
+const APP_VERSION = 'v299';
 
 
 function saveDBto(db) {
