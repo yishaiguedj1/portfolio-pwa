@@ -247,6 +247,7 @@ he: {
   lagLive: 'חי',
   lagDelayed: 'דיליי ~15 דקות',
   srcDelayed: 'דיליי', srcSaved: 'שמור', srcLoading: 'טוען…',
+  stOpen: 'השוק פתוח', stClosedWith: 'השוק סגור · {r}', stClosedFull: 'השוק סגור',
   sessionPre: ' · מסחר־מוקדם',
   sessionPost: ' · מסחר־מאוחר',
   sessionNight: ' · מסחר־לילי',
@@ -266,14 +267,14 @@ he: {
   sessNightTiny: 'מסחר־לילי',
   sessClosedTitle: 'השוק סגור — השינוי הוא מהמסחר המאוחר האחרון',
   hdWeekend: 'סופ״ש',
-  hdNewYear: 'ראש השנה',
+  hdNewYear: '1 בינואר',
   hdMlk: 'יום MLK',
-  hdPresidents: 'הנשיאים',
+  hdPresidents: 'יום הנשיאים',
   hdGoodFriday: 'שישי הטוב',
   hdMemorial: 'יום הזיכרון',
   hdJuneteenth: 'ג׳ונטינת׳',
   hdIndependence: '4 ביולי',
-  hdLabor: 'העבודה',
+  hdLabor: 'יום העבודה',
   hdThanksgiving: 'חג ההודיה',
   hdChristmas: 'חג המולד',
   staleSuffix: ' · מוצגים נתונים שמורים',
@@ -773,6 +774,7 @@ en: {
   lagLive: 'live',
   lagDelayed: '~15 min delay',
   srcDelayed: 'Delayed', srcSaved: 'Saved', srcLoading: 'Loading…',
+  stOpen: 'Market open', stClosedWith: 'Closed · {r}', stClosedFull: 'Market closed',
   sessionPre: ' · pre-market',
   sessionPost: ' · post-market',
   sessionNight: ' · overnight',
@@ -4335,7 +4337,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v300';
+const APP_VERSION = 'v301';
 
 
 function saveDBto(db) {
@@ -5622,7 +5624,7 @@ async function liveTick() {
           if (full) {
             live.still = moved.length ? 0 : live.still + 1;
             const sess = (Object.values(got).find((r) => r.session) || {}).session || '';
-            state.session = (sess === 'regular' || sess === 'closed') ? '' : sess;
+            state.session = sess === 'regular' ? '' : sess; // v301: 'closed' נשמר — קפסולת "השוק סגור"
             state.source = src;
             state.live = src === 'Yahoo';
             lsSet(LS_QUOTES, { at: state.quotesAt, fx: state.fx, quotes: state.quotes, source: state.source, session: state.session });
@@ -5738,30 +5740,43 @@ function applyQuotes(res) {
   updateSourceLabel();
 }
 
-/* v300 (בקשת המשתמש, הצעה א׳ מהתצוגה המקדימה): המקור ומצב השוק כקפסולות — כמו בועת שער הדולר.
-   קפסולה 1: נקודה (ירוקה = חי) + "חי" / "דיליי" / "שמור" | המקור. קפסולה 2 (רק מחוץ למסחר הרגיל): מצב השוק בצבע משלו. */
+/* v301 (בקשת המשתמש, אחרי תצוגה מקדימה): קפסולה אחת של מצב השוק — בלי שם המקור.
+   פתוח / מסחר־מוקדם / מסחר־מאוחר / מסחר־לילי: נקודה בצבע הקפסולה = מחירים חיים; נקודה אפורה + "· דיליי" = גיבוי או נתונים שמורים.
+   סגור: מנעול + "השוק סגור · <סופ״ש/חג>" לפי לוח NYSE (לא לפי המקור — הגיבוי מסמן מסחר מוקדם/מאוחר לפי השעה בלבד, גם בשבת).
+   נבדק: 18 מצבים × עברית/אנגלית × 320–412 — הכל נכנס (באנגלית "Closed · …", "Market closed" ארוך מדי עם שם חג). */
 const SRC_SESS_ICONS = {
   pre: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="4"/><path d="M12 3v2M4.9 6.9l1.4 1.4M19.1 6.9l-1.4 1.4M3 17h18"/></svg>',
   post: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>',
   night: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/><circle cx="18" cy="5" r="1.4"/><circle cx="21" cy="9" r="1"/></svg>',
+  closed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
 };
-function sourceLabelHTML(st) { // טהורה (נבדקת)
+/* מצב השוק להצגה (טהורה, נבדקת): open | pre | post | night | closed (+ reason = מפתח חג/סופ״ש) */
+function marketStatusKind(session, nowMs) {
+  if (session === 'night') return { kind: 'night' }; // מסחר לילי — גם ביום ראשון בערב (הלוח אומר "סופ״ש")
+  const reason = marketClosedReason(nowMs);
+  if (reason) return { kind: 'closed', reason };
+  if (session === 'pre' || session === 'post') return { kind: session };
+  if (session === 'closed') return { kind: 'closed', reason: null };
+  return { kind: 'open' };
+}
+function sourceLabelHTML(st, nowMs) { // טהורה (נבדקת)
   const s = st || {};
-  if (!s.source) return '<span class="src-pill"><i class="src-dot off"></i><b>' + esc(t('srcLoading')) + '</b></span>';
+  if (!s.source) return '<span class="st-pill closed">' + esc(t('srcLoading')) + '</span>';
   const live = !s.stale && s.live && s.source === 'Yahoo';
-  const lbl = s.stale ? t('srcSaved') : live ? t('lagLive') : t('srcDelayed');
-  let html = '<span class="src-pill"><i class="src-dot' + (live ? '' : ' off') + '"></i><b>' + esc(lbl) + '</b><span class="src-sep"></span>' + esc(s.source) + '</span>';
-  const k = s.session;
-  if (k === 'pre' || k === 'post' || k === 'night') {
-    const name = k === 'pre' ? t('sessPreShort') : k === 'night' ? t('sessNightShort') : t('sessPostShort');
-    html += '<span class="src-sess ' + k + '">' + SRC_SESS_ICONS[k] + esc(name) + '</span>';
+  const m = marketStatusKind(s.session, nowMs);
+  if (m.kind === 'closed') {
+    const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
+    const r = m.reason && names[m.reason];
+    return '<span class="st-pill closed">' + SRC_SESS_ICONS.closed + esc(r ? t('stClosedWith', { r }) : t('stClosedFull')) + '</span>';
   }
-  return html;
+  const lbl = m.kind === 'pre' ? t('sessPreShort') : m.kind === 'post' ? t('sessPostShort') : m.kind === 'night' ? t('sessNightShort') : t('stOpen');
+  return '<span class="st-pill ' + m.kind + (live ? '' : ' delay') + '"><i></i>' + (SRC_SESS_ICONS[m.kind] || '') + esc(lbl) +
+    (live ? '' : '<small>· ' + esc(t('srcDelayed')) + '</small>') + '</span>';
 }
 function updateSourceLabel() {
   const el = document.getElementById('sourceLabel');
   if (!el) return;
-  const html = sourceLabelHTML(state);
+  const html = sourceLabelHTML(state, Date.now());
   if (el._srcHtml === html && el.firstElementChild) return; // בלי ציור מחדש בכל טיק
   el._srcHtml = html;
   el.removeAttribute('data-i18n'); // מעכשיו רק כאן (לא textContent של החלפת שפה)

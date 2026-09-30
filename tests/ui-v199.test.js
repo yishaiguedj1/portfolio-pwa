@@ -47,7 +47,7 @@ for (const k of ['sessClosed', 'hdWeekend', 'hdNewYear', 'hdMlk', 'hdPresidents'
 ok(/\.ext-sess \{[^}]*flex-wrap: wrap/.test(css) && /\.ext-sess \{[^}]*max-width: 100%/.test(css), 'CSS: הבועה נשברת לשורה שנייה במקום לגלוש');
 ok(/\.ext-sess \.ext-lbl \{ white-space: nowrap; \}/.test(css) && /\.ext-sess \.ext-pct \{ white-space: nowrap; \}/.test(css), 'CSS: השבירה רק בין התווית לאחוז');
 // v202: קיצורים — הבועה בשתי שורות ליד המחיר בלי לעלות על שם החברה/תגית המקור
-for (const [k, v] of [['hdNewYear', 'ראש השנה'], ['hdMlk', 'יום MLK'], ['hdPresidents', 'הנשיאים'], ['hdGoodFriday', 'שישי הטוב'], ['hdIndependence', '4 ביולי'], ['hdLabor', 'העבודה']])
+for (const [k, v] of [['hdNewYear', '1 בינואר'], ['hdMlk', 'יום MLK'], ['hdPresidents', 'יום הנשיאים'], ['hdGoodFriday', 'שישי הטוב'], ['hdIndependence', '4 ביולי'], ['hdLabor', 'יום העבודה']])
   ok(R("STRINGS.he['" + k + "']") === v, 'קיצור (v202): ' + k + ' = ' + v);
 R("marketClosedReason = () => 'hdThanksgiving'");
 const heT = R("extSessionHTML({ session: 'closed', ext: { kind: 'post', price: 1, pct: -2.34 } })");
