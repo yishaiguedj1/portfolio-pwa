@@ -3870,7 +3870,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v267';
+const APP_VERSION = 'v268';
 
 
 function saveDBto(db) {
@@ -10067,6 +10067,19 @@ function buildStockBody(p, m) {
   if (picking) {
     cwrap.classList.add('picking');
     wrap.appendChild(el('div', 'chart-hint pick-hint', t('pfPickBubble'))); // רק במצב בחירת תאריך בגרף
+    // v268 (בקשת המשתמש): כמו בסקירה — סמן שזז בלי הגבלה, ו"המשך" / "ביטול" מתחת לגרף (בלי חלון אישור)
+    const bar = el('div', 'pf-pick-bar');
+    bar.id = 'spick-' + sym;
+    bar.innerHTML = '<button type="button" class="btn pf-pick-go" disabled></button><button type="button" class="chip-btn pf-pick-cancel"></button>';
+    bar.querySelector('.pf-pick-go').textContent = t('pfPickContinue');
+    bar.querySelector('.pf-pick-cancel').textContent = t('btnCancel');
+    bar.querySelector('.pf-pick-go').addEventListener('click', () => {
+      const c = stockNode(sym, 'chart-'), m = c && c._chartMap, sc = c && c._sc;
+      const d = sc && m && m.pts[sc.i] && m.pts[sc.i].date;
+      if (d) setStockFrom(sym, d);
+    });
+    bar.querySelector('.pf-pick-cancel').addEventListener('click', () => { state.stockPick[sym] = false; refreshStockBody(sym); });
+    cwrap.after(bar);
   }
 
   attachMeasure(canvas, sym);
@@ -10521,20 +10534,30 @@ function openStockFromSheet(sym) {
   document.body.appendChild(veil);
 }
 
+function stockPickAt(canvas, sym, clientX) {
+  const map = canvas._chartMap;
+  if (!map || map.n < 2) return;
+  const i = scIdx(map, clientX - canvas.getBoundingClientRect().left);
+  if (!canvas._sc || canvas._sc.i !== i) scSet(canvas, { mode: 'tip', i, pick: true });
+  const bar = stockNode(sym, 'spick-'), go = bar && bar.querySelector('.pf-pick-go');
+  if (go) go.disabled = false;
+}
 function attachMeasure(canvas, sym) {
+  canvas.addEventListener('pointermove', (e) => { if (state.stockPick[sym] && canvas._pickPtr === e.pointerId) stockPickAt(canvas, sym, e.clientX); });
+  const endPick = (e) => { if (canvas._pickPtr === e.pointerId) canvas._pickPtr = null; };
+  canvas.addEventListener('pointerup', endPick);
+  canvas.addEventListener('pointercancel', endPick);
   canvas.addEventListener('pointerdown', (e) => {
     const ms = measureState(sym);
     // v229: מצב "מתאריך" — נגיעה בגרף קובעת את תאריך ההתחלה (כמו "תשואה מתאריך" בגרף הביצועים)
     if (state.stockPick[sym]) {
+      // v268: הסמן (קו מנוקד + בועה עם תאריך ומחיר) זז בנגיעה ובגרירה; הבחירה רק ב"המשך"
       const map = canvas._chartMap;
       if (!map || map.n < 2) return;
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const idx = Math.max(0, Math.min(map.n - 1, Math.round((e.clientX - rect.left - map.padL) / map.plotW * (map.n - 1))));
-      const d = map.pts[idx] && map.pts[idx].date;
-      state.stockPick[sym] = false;
-      if (d && confirm(t('pfConfirmFrom', { date: fmtDateIL(d) }))) setStockFrom(sym, d);
-      else refreshStockBody(sym);
+      canvas._pickPtr = e.pointerId;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      stockPickAt(canvas, sym, e.clientX);
       return;
     }
     if (!ms.on) return; // v264: נגיעה/מדידה בשתי אצבעות — scAttach
@@ -10604,7 +10627,7 @@ function scRender(canvas) {
     const i = clamp(sc.i), P = place(d1, l1, i);
     tone = map.up ? 'pos' : 'neg';
     // v265: גם השינוי באחוזים עד אותו רגע (מתחילת הטווח; ב־1D מהסגירה הקודמת) — כמו בגוגל
-    const chg = map.base > 0 ? (map.pts[i].close / map.base - 1) * 100 : null;
+    const chg = map.base > 0 && !sc.pick ? (map.pts[i].close / map.base - 1) * 100 : null; // v268: בבחירת תאריך — רק תאריך ומחיר
     html = '<b>' + esc(scDateTxt(map.pts[i], map.intraday)) + '</b>' +
       '<div><span class="dot"></span>' + esc(dispSym(sym)) + ' <span class="sc-px">' + scPxTxt(sym, map.pts[i].close) + '</span>' +
       (chg !== null && isFinite(chg) ? ' <span class="sc-pct ' + (chg >= 0 ? 'pos' : 'neg') + '">' + fmtPct(chg, true) + '</span>' : '') + '</div>';
@@ -10684,7 +10707,7 @@ function scAttach(canvas, sym) {
     _scOutWired = true;
     // נגיעה מחוץ לגרף — הסמן/המדידה נעלמים (כמו בגרף הרווח/הפסד)
     document.addEventListener('pointerdown', (e) => {
-      document.querySelectorAll('.chart-wrap canvas').forEach((c) => { if (c._sc && e.target !== c) scSet(c, null); });
+      document.querySelectorAll('.chart-wrap canvas').forEach((c) => { if (c._sc && !c._sc.pick && e.target !== c) scSet(c, null); }); // v268: סמן הבחירה נשאר עד המשך/ביטול
     }, true);
   }
 }

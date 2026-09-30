@@ -38,4 +38,7 @@ ok(/pfAttachTouch\(canvas\)/.test(app) && /showPfMeasureTip\(a, b\)/.test(app) &
 ok(/function pfPickConfirm\(\)/.test(app) && /state\.pfCustomFrom = map\.series\[0\]\.pts\[i\]\.date;/.test(app) && /go\.disabled = !picked;/.test(app), 'v266: סימון בגרף הסקירה — "המשך" פעיל רק אחרי סימון, קובע את תאריך ההתחלה');
 ok(/if \(state\.pfPickDate\) \{ \/\/ v266/.test(app) && /pickAt\(xOf\(e\)\)/.test(app), 'v266: הסימון זז בנגיעה ובגרירה בלי הגבלה (בלי חלון אישור)');
 ok(/pfPickContinue: 'המשך'/.test(app) && /pfPickContinue: 'Continue'/.test(app), 'v266: "המשך" בעברית ובאנגלית');
+// v268
+ok(/bar\.id = 'spick-' \+ sym;/.test(app) && /function stockPickAt\(/.test(app) && !/confirm\(t\('pfConfirmFrom', \{ date: fmtDateIL\(d\) \}\)\)\) setStockFrom/.test(app), 'v268: סמן בגרף המניה — סמן שזז + המשך/ביטול, בלי חלון אישור');
+ok(/!sc\.pick \?/.test(app) && /!c\._sc\.pick && e\.target !== c/.test(app), 'v268: בבחירה — רק תאריך ומחיר, והסמן לא נעלם בנגיעה בכפתורים');
 console.log('\n' + n + ' בדיקות עברו');
