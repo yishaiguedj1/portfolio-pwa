@@ -64,7 +64,7 @@ ok(/if \(res && res\.ok\) cache\.put\(request, res\.clone\(\)\);/.test(sw), 'sw.
 ok(/\.tab-ind \{[^}]*transition: transform \.42s/.test(css) && /\.tabs\.has-ind \.tab\.active \{ background: transparent/.test(css), 'גלולה מחליקה בין הלשוניות');
 ok(/\.tabpage\.active \{ display: block; animation: tabIn/.test(css) && /@keyframes tabIn/.test(css), 'עמוד נכנס בציר משותף');
 ok(/\.stock-body \{ display: none; grid-template-rows: 0fr;/.test(css) && /\.stock\.open \.stock-body, \.stock\.anim \.stock-body \{ display: grid; \}/.test(css), 'גוף כרטיס סגור = display:none (בלי layout); נפתח באנימציית גובה');
-ok(/card\.classList\.add\('anim'\)/.test(src) && /body\.addEventListener\('transitionend', onEnd\)/.test(src) && /setTimeout\(done, 450\)/.test(src), 'toggleStock: מצב anim עם transitionend + נפילה לזמן קצוב');
+ok(/card\.classList\.add\('anim'\)/.test(src) && /body\.addEventListener\('transitionend', onEnd\)/.test(src) && /setTimeout\(done, 520\)/.test(src), 'toggleStock: מצב anim עם transitionend + נפילה לזמן קצוב');
 ok(/\.skel \{/.test(css) && /@keyframes skel/.test(css) && /const SKEL_HTML = /.test(src), 'שלד עד המחיר הראשון');
 ok(/\.drawn \{ opacity: 1/.test(css) && (src.match(/classList\.add\('drawn'\)/g) || []).length >= 3, 'קנבס מתבהר כשצויר (עוגה, ביצועים, מניה)');
 ok(/\[data-theme="dark"\] \.card \{ background: #1C1C1E; \}/.test(css), 'מצב כהה: כרטיס אטום (בלי backdrop-filter על רקע שחור)');

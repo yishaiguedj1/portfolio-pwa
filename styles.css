@@ -438,16 +438,23 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .day-chg .day-amt { font-weight: 600; font-size: 13.5px; margin-inline-start: 4px; white-space: nowrap; } /* v208: השינוי היומי בכסף ליד האחוז */
 .day-chg.pos, .pos { color: var(--gain); }
 .day-chg.neg, .neg { color: var(--loss); }
-.chev { color: var(--on-surface-var); transition: transform .2s; font-size: 17px; }
+.chev { color: var(--on-surface-var); transition: transform .42s cubic-bezier(.32, .72, 0, 1); font-size: 17px; }
 .stock.open .chev { transform: rotate(180deg); }
 
 /* v193: פתיחה/סגירה של הכרטיס באנימציית גובה חלקה (grid 0fr→1fr) במקום קפיצת display; התוכן בעוטף יחיד .stock-body-in */
-.stock-body { display: none; grid-template-rows: 0fr; transition: grid-template-rows .34s cubic-bezier(.2, .9, .25, 1); }
+/* v271: תנועה בסגנון אפל — עקומת "קפיץ" אחת (--ease-ios) לגובה, לכותרת ולחץ; התוכן נכנס בדהייה+החלקה קלה
+   ויוצא בדהייה מהירה לפני שהגובה נסגר. אין ציור גרף ואין מדידות בזמן האנימציה (app.js — toggleStock/fitCardToScreen) */
+.stock { --ease-ios: cubic-bezier(.32, .72, 0, 1); }
+.stock-body { display: none; grid-template-rows: 0fr; transition: grid-template-rows .42s var(--ease-ios); }
 .stock.open .stock-body, .stock.anim .stock-body { display: grid; }
 .stock-body > * { min-height: 0; overflow: hidden; }
 .stock.open .stock-body { grid-template-rows: 1fr; }
-.stock-body-in { border-top: 1px solid var(--separator); padding: 16px 18px 18px; }
-@media (prefers-reduced-motion: reduce) { .stock-body { transition: none; } }
+.stock-body-in { border-top: 1px solid var(--separator); padding: 16px 18px 18px; opacity: 0; transform: translateY(-10px) scale(.985); transform-origin: 50% 0;
+  transition: opacity .16s ease, transform .3s var(--ease-ios); }
+.stock.open .stock-body-in { opacity: 1; transform: none; transition: opacity .32s ease .05s, transform .42s var(--ease-ios); }
+.stock.anim .stock-body-in { will-change: opacity, transform; }
+.stock.measure .stock-body, .stock.measure .stock-body-in, .stock.measure .chev { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .stock-body, .stock-body-in, .stock-head, .stock .chev { transition: none !important; } .stock-body-in { transform: none; } }
 .stock-head { transition: background-color .18s ease; }
 .stock-head:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
 /* v193: כניסה מדורגת של כרטיסי המניות כשהרשימה נבנית לראשונה */

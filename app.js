@@ -3870,7 +3870,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v270';
+const APP_VERSION = 'v271';
 
 
 function saveDBto(db) {
@@ -9915,6 +9915,8 @@ function buildStockCard(p) {
   return card;
 }
 
+// v271: שורה משנית ריקה שומרת את גובה האריח — כשהנתון מגיע (היסטוריה/ציטוט) השורה לא גדלה והגרף לא קופץ
+const KV_SUB_HOLD = '\u00a0';
 /* v219: אריח בסגנון Apple — תווית בשורה אחת, ערך גדול, ושורה משנית קטנה (אחוז) בצבע משלה */
 function kvHTML(k, v, cls, sub, subCls) {
   return '<div class="kv"><div class="k">' + k + '</div><div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div>' +
@@ -9949,10 +9951,10 @@ function watchKvHTML(p, m) {
   const erTxt = er && er.date && daysUntil(er.date) >= 0 ? fmtDateIL(er.date) : '—';
   const oH = off(hi), oL = off(lo);
   return kvHTML(t('kvPrevClose'), prevClose ? fmtPx(prevClose, sym) : '—') +
-    kvHTML(t('kv52High'), hi ? fmtPx(hi, sym) : wait, '', oH !== null ? fmtPct(oH, true) : '', cls(oH)) +
-    kvHTML(t('kv52Low'), lo ? fmtPx(lo, sym) : wait, '', oL !== null ? fmtPct(oL, true) : '', cls(oL)) +
+    kvHTML(t('kv52High'), hi ? fmtPx(hi, sym) : wait, '', oH !== null ? fmtPct(oH, true) : KV_SUB_HOLD, cls(oH)) +
+    kvHTML(t('kv52Low'), lo ? fmtPx(lo, sym) : wait, '', oL !== null ? fmtPct(oL, true) : KV_SUB_HOLD, cls(oL)) +
     kvHTML('ATH', m.ath ? fmtPx(m.ath.price, sym) : wait, '',
-      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : '', cls(m.offAth)) +
+      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : KV_SUB_HOLD, cls(m.offAth)) +
     kvHTML(t('kvYtd'), ytd === null ? wait : fmtPct(ytd, true), cls(ytd)) +
     kvHTML(t('kvNextEarn'), erTxt);
 }
@@ -9967,7 +9969,7 @@ function kvGridHTML(p, m) {
     kvHTML(t('kvGL'),
       m.gl === null ? '—' : fmtSignedMoney(toCur(m.gl), cur),
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg',
-      m.gl === null || !(p.avg > 0) ? '' : fmtPct((m.price / p.avg - 1) * 100, true),
+      m.gl === null || !(p.avg > 0) ? KV_SUB_HOLD : fmtPct((m.price / p.avg - 1) * 100, true),
       m.gl === null ? '' : m.gl >= 0 ? 'pos' : 'neg') +
     kvHTML(t('kvWeight'), weightTxt(sym)) +
     (p.fromTrades ? (() => {
@@ -9978,7 +9980,7 @@ function kvGridHTML(p, m) {
     // v219 (בקשת המשתמש): ATH — המחיר, ומתחת המרחק ממנו באחוזים (במקום התאריך)
     kvHTML('ATH',
       m.ath ? fmtPx(m.ath.price, sym) : (state.hist[sym] ? '—' : '…'), '',
-      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : '',
+      m.ath && m.offAth !== null && isFinite(m.offAth) ? fmtPct(m.offAth, true) : KV_SUB_HOLD,
       m.offAth === null || Math.abs(m.offAth) < 0.005 ? '' : m.offAth > 0 ? 'pos' : 'neg');
 }
 function buildStockBody(p, m) {
@@ -10171,6 +10173,7 @@ function fitCardToScreen(sym, card) {
   // התוכן משתנה אחרי הפתיחה (ציטוט מגיע → שורת ATH, בועת סשן, שורת התשואה) — מתאימים מחדש כשהגודל משתנה
   if (!card._fitRO && typeof ResizeObserver === 'function') {
     card._fitRO = new ResizeObserver(() => {
+      if (!state.open[sym] || card.classList.contains('anim')) return; // v271: בזמן אנימציית הפתיחה הגובה משתנה בכל פריים — ההתאמה בסופה (toggleStock/done)
       cancelAnimationFrame(card._fitRaf);
       card._fitRaf = requestAnimationFrame(() => { if (fitCardToScreen(sym, card)) ensureChartData(sym, true); });
     });
@@ -10209,12 +10212,15 @@ function toggleStock(sym, card) {
   };
   const onEnd = (e) => { if (e.target === body) done(); };
   body.addEventListener('transitionend', onEnd);
-  card._animT = setTimeout(done, 450);
+  card._animT = setTimeout(done, 520);
   if (state.open[sym]) {
+    // v271: גובה הגרף נמדד כשהכרטיס פתוח במלואו (בלי מעבר) — כך הגרף מצויר פעם אחת בגודל הסופי, לפני הפריים הראשון,
+    // ואין ציור/התאמה נוספים באמצע האנימציה או בסופה (אלה יצרו את ה"עיכוב")
+    card.classList.add('open', 'measure'); fitCardToScreen(sym, card);
+    card.classList.remove('open'); void body.offsetHeight; card.classList.remove('measure');
     card.classList.add('anim'); // display:grid ב־0fr
     void body.offsetHeight; // נקודת מוצא לפני המעבר
     card.classList.add('open'); // → 1fr
-    fitCardToScreen(sym, card);
     ensureChartData(sym);
     scrollCardToTop(card);
   } else {
