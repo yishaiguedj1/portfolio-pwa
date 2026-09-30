@@ -40,7 +40,7 @@ ok(/let act = pageSwipeDecide\(s\.d \|\| 0, s\.w, fwd \? v : 0, s\.watch\)/.test
 ok(/PAGE_SWIPE_EDGE/.test(w), 'קצה המסך (מחוות חזור) לא נחשב');
 ok(/canvas, \.sc-ov, input, textarea, select/.test(fn('pageSwipeBlocked')) && /\.wl-tabs/.test(fn('pageSwipeBlocked')), 'גרף/שדה/טאבי רשימות — לא מחליקים עמוד');
 ok(/overflowX/.test(fn('pageSwipeBlocked')), 'פס גלילה אופקי — לא מחליקים עמוד');
-ok(/const watch = cur === 'wishlist' && [\s\S]{0,80}wlLists\(\)\.length > 1/.test(w) && /wlSwitch\(s\.wlTo/.test(w), 'במעקב עם כמה רשימות — מצב שתי מחוות');
+ok(/const watch = cur === 'wishlist' && wlLists\(\)\.length > 1;/.test(w) && /wlSwitch\(s\.wlTo/.test(w), 'במעקב עם כמה רשימות — מצב שתי מחוות בכל הטאב (גם רשימה ריקה)');
 ok(/dragBusy\(\)/.test(w) && /state\.cardAnim/.test(w), 'לא בזמן גרירה/אנימציית כרטיס');
 ok(/tg\.addEventListener\('touchmove', move, \{ passive: false \}\)/.test(w), 'האזנה על האלמנט — עמיד לרענון חי');
 ok(/html, body \{ overscroll-behavior-x: none; \}/.test(css), 'בלי "חזור" של הדפדפן במשיכה אופקית');

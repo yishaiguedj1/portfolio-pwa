@@ -4126,7 +4126,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v281';
+const APP_VERSION = 'v282';
 
 
 function saveDBto(db) {
@@ -10125,7 +10125,7 @@ function wireBrandHome() {
    v281 (בקשת המשתמש: "קצת פחות קשה, כמו הסטנדרט"): כמו ViewPager/iOS — מעבר במשיכה של שליש מהרוחב, או בהטלה
    מהירה (≥0.45px/ms — ViewPager: 400dp/s) של לפחות 15%; העמוד עוקב אחרי האצבע (50%). תנועה שמתחילה אנכית = גלילה רגילה; גרף, שדה,
    פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
-   במעקב (יותר מרשימה אחת, נגיעה על הרשימה) — שתי מחוות נפרדות לפי אורך: קצרה (48px עד 30% מהרוחב) = רשימה
+   במעקב (יותר מרשימה אחת, בכל מקום בטאב — v282: גם ברשימה ריקה) — שתי מחוות נפרדות לפי אורך: קצרה (48px עד 30% מהרוחב) = רשימה
    אחרת (הרשימה זזה, הצ'יפ של היעד מסומן); ארוכה (≥55%) = עמוד ראשי (העמוד כולו זז); ביניהן — כלום. בלי הטלה
    לעמוד מתוך הרשימה, כדי שהקצרה לא תתפרש כעמוד. */
 const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings');
@@ -10198,7 +10198,7 @@ function wirePageSwipe() {
     const page = document.getElementById('tab-' + cur);
     if (!page) return;
     const list = document.getElementById('wishlistList');
-    const watch = cur === 'wishlist' && !!(tg.closest && tg.closest('#wishlistList')) && wlLists().length > 1;
+    const watch = cur === 'wishlist' && wlLists().length > 1; // v282: בכל הטאב — גם ברשימה ריקה (אין כרטיס לגעת בו)
     g = { x0: t.clientX, y0: t.clientY, cur, page, list, w, lock: 0, act: null, tg, watch, samples: [[clock(), t.clientX]] };
     // ההאזנה על האלמנט עצמו: רענון חי יכול להחליף אותו באמצע, ואז האירועים כבר לא מגיעים למסמך
     tg.addEventListener('touchmove', move, { passive: false });
