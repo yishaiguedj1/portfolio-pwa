@@ -4150,7 +4150,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v289';
+const APP_VERSION = 'v290';
 
 
 function saveDBto(db) {
@@ -6433,6 +6433,33 @@ function setTabPageDirection(prev, name) {
   const rtl = String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
   page.style.setProperty('--tab-dx', ((fwd !== rtl) ? 22 : -22) + 'px');
 }
+/* ---------------- v290: כפתור/מחוות "חזור" של המכשיר ----------------
+   עד עכשיו "חזור" (החלקה מקצה המסך באנדרואיד) יצא מהאפליקציה. עכשיו לכל עמוד "עומק": טאב ראשי = 0, הגדרות = 1,
+   אפשרויות מתקדמות = 2 — ורשומה בהיסטוריה לכל רמה ({snb: עומק}). "חזור" מהמתקדמות → הגדרות, מההגדרות → הסקירה
+   (העמוד הראשי), ומהעמוד הראשי — יציאה כרגיל. מעבר ישיר לעמוד רדוד יותר (לשונית, "‹ הגדרות") מקצר את ההיסטוריה
+   בהתאם (history.go שלילי, בלי לטפל ב־popstate שנוצר ממנו). */
+function navDepth(name) { return name === 'advanced' ? 2 : name === 'settings' ? 1 : 0; }
+function navTabForDepth(d) { return d >= 2 ? 'advanced' : d === 1 ? 'settings' : 'overview'; }
+let _navSkipPop = 0;
+function navCurDepth() { try { const st = history.state; return (st && typeof st.snb === 'number') ? st.snb : 0; } catch (e) { return 0; } }
+function navSync(name, opts) {
+  if ((opts && opts.fromPop) || typeof history === 'undefined' || !history.pushState) return;
+  const cur = navCurDepth(), target = navDepth(name);
+  try {
+    if (target > cur) { for (let d = cur + 1; d <= target; d++) history.pushState(Object.assign({}, history.state || {}, { snb: d }), ''); }
+    else if (target < cur) { _navSkipPop++; history.go(target - cur); }
+  } catch (e) {}
+}
+function wireBackNav() {
+  if (typeof window === 'undefined' || !window.addEventListener || window._backNav) return;
+  window._backNav = true;
+  window.addEventListener('popstate', () => {
+    if (_navSkipPop > 0) { _navSkipPop--; return; } // אנחנו קיצרנו את ההיסטוריה — הטאב כבר הוחלף
+    const want = navTabForDepth(navCurDepth()), cur = currentTabName();
+    if (navDepth(cur) === navCurDepth()) return; // כבר במקום (למשל טאב ראשי ברמה 0)
+    switchTab(want, { fromPop: true });
+  });
+}
 function switchTab(name, opts) {
   const prev = currentTabName();
   if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
@@ -6456,6 +6483,7 @@ function switchTab(name, opts) {
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} }); // התאמת מספרים אחרי המעבר (fitNumbers)
   // v85/v153: שחזור מיקום גלילה שמור — רק בפתיחת האפליקציה (רענון חוזר לאותה נקודה).
   // v284 (בקשת המשתמש): מעבר בין טאבים תמיד מתחיל מראש העמוד — חזרה לאמצע עמוד שכבר היה פתוח לא אסתטית
+  navSync(name, opts); // v290: "חזור" של המכשיר — הגדרות/אפשרויות מתקדמות כרשומות בהיסטוריה
   if (opts && opts.restore) { restoreScrollTo(name, getSavedScrollY(name)); return; }
   cancelScrollRestore();
   try { window.scrollTo(0, 0); } catch (e) {}
@@ -12331,7 +12359,7 @@ function openStockFromHash() {
   const get = (k) => { const m = new RegExp('(?:^#|&)' + k + '=([^&#]+)').exec(h); return m ? decodeURIComponent(m[1]) : ''; };
   const tab = get('tab'), wl = get('wl'), sym = normalizeSym(get('stock'));
   if (!tab && !sym) return false;
-  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
   const watch = tab === 'wishlist';
   // v251: הרשימה מהקישור — ואם המניה לא בה (קישור ישן מהווידג'ט), הרשימה שבה המניה נמצאת בפועל
   let target = wl;
@@ -12367,6 +12395,7 @@ function dropAppNavEntry() {
     if (!nav || !nav.canGoBack || !nav.currentEntry || typeof nav.entries !== 'function') return false;
     const prev = nav.entries()[nav.currentEntry.index - 1];
     if (!prev || !prev.sameDocument || String(prev.url || '').split('#')[0] !== String(location.href).split('#')[0]) return false;
+    _navSkipPop++; // v290: זו חזרה פנימית (רשומת הקישור) — לא "חזור" של המשתמש
     history.back();
     return true;
   } catch (e) { return false; }
@@ -12403,7 +12432,7 @@ function appSessionFromHash() {
   try { sessionStorage.setItem(SS_APPSIG, m[1]); } catch (e) {}
   // מנקים רק את ‎app= (‎stock= מטופל ב־openStockFromHash)
   const rest = String(location.hash || '').replace(/^#/, '').split('&').filter((x) => x && !/^app=/.test(x)).join('&');
-  try { history.replaceState(null, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
+  try { history.replaceState(history.state, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
   try { renderWidgetCard(); } catch (e) {}
 }
 function inAndroidApp() { try { return !!sessionStorage.getItem(SS_APPSIG); } catch (e) { return false; } }
@@ -12738,6 +12767,7 @@ function init() {
     else doReset();
   });
 
+  wireBackNav(); // v290
   // v287: "אפשרויות מתקדמות" — עמוד משנה של ההגדרות
   const advO = document.getElementById('advancedOpen'), advB = document.getElementById('advancedBack');
   if (advO) advO.addEventListener('click', () => switchTab('advanced'));
