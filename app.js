@@ -344,7 +344,6 @@ he: {
 
   ibkrTitle: 'חיבור ל־IBKR',
   ibkrNever: 'טרם סונכרן — מוצגים הנתונים הידניים.',
-  ibkrSyncStatus: 'תקופה: {a}–{b} · סונכרן: {time}',
   ibkrImportConfirm: 'נמצא דוח IBKR:\nתקופה: {a} – {b}\nTWR רשמי: {twr}\n\n{delta}{warns}\n\nרק המידע החדש יתווסף — הקיים לא ישוכפל ולא יימחק. להמשיך?',
   ibkrImportDeltaFirst: 'סנכרון ראשון — ייובא במלואו.',
   ibkrImportDeltaPeriods: 'תקופות חדשות: {ranges}',
@@ -353,7 +352,7 @@ he: {
   ibkrImportDeltaDup: 'כבר קיימים וידולגו: {n} עסקאות · {m} תנועות מזומן',
   ibkrImportNothingNew: 'אין מידע חדש — כל הנתונים כבר קיימים באפליקציה.',
   ibkrDisconnectBtn: 'ניתוק',
-  ibkrDataSummary: 'פוזיציות: {n} · עסקאות בדוח: {m} · תנועות מזומן: {k}',
+  ibkrPeriodLbl: 'תקופה', ibkrLastSyncLbl: 'סנכרון אחרון', ibkrStatPos: 'פוזיציות', ibkrStatTrades: 'עסקאות', ibkrStatCash: 'תנועות מזומן',
   ibkrChunkFail: 'חלק {fd}–{td} נכשל ({err})',
   proxyUrlMissing: 'כתובת השרתון לא הוגדרה',
   credsMissing: 'חסרים Flex token או Query ID',
@@ -368,7 +367,7 @@ he: {
   importSkipped: '{n} דולגו',
   importSnapshotNote: 'הנתונים הידניים נשמרו וישוחזרו בניתוק.',
   // סנכרון Flex — אופציה נוספת למשיכת נתונים
-  ibkrConnTitle: 'הגדרות חיבור (שרתון · Query ID · token)',
+  ibkrConnTitle: 'הגדרות חיבור',
   ibkrRangeTitle: 'טווח המשיכה',
   ibkrFlexHowTitle: 'איך מגדירים את שאילתת ה־Flex?',
   ibkrSyncDesc: 'הנתונים נמשכים מ־IBKR דרך Flex Web Service: יוצרים שאילתת Flex ב־Client Portal ‏(Reports ← Flex Queries), ומפעילים Flex Web Service כדי לקבל token.',
@@ -879,7 +878,6 @@ en: {
 
   ibkrTitle: 'IBKR connection',
   ibkrNever: 'Not synced yet — showing manual data.',
-  ibkrSyncStatus: 'Period: {a}–{b} · synced: {time}',
   ibkrImportConfirm: 'Found an IBKR report:\nPeriod: {a} – {b}\nOfficial TWR: {twr}\n\n{delta}{warns}\n\nOnly new information will be added — existing data will not be duplicated or deleted. Continue?',
   ibkrImportDeltaFirst: 'First sync — will be fully imported.',
   ibkrImportDeltaPeriods: 'New periods: {ranges}',
@@ -888,7 +886,7 @@ en: {
   ibkrImportDeltaDup: 'Already exist, will be skipped: {n} trades · {m} cash movements',
   ibkrImportNothingNew: 'No new information — everything is already imported.',
   ibkrDisconnectBtn: 'Disconnect',
-  ibkrDataSummary: 'Positions: {n} · Statement trades: {m} · Cash movements: {k}',
+  ibkrPeriodLbl: 'Period', ibkrLastSyncLbl: 'Last sync', ibkrStatPos: 'Positions', ibkrStatTrades: 'Trades', ibkrStatCash: 'Cash moves',
   ibkrChunkFail: 'chunk {fd}–{td} failed ({err})',
   proxyUrlMissing: 'Proxy URL not set',
   credsMissing: 'Missing Flex token or Query ID',
@@ -903,7 +901,7 @@ en: {
   importSkipped: '{n} skipped',
   importSnapshotNote: 'Manual data was snapshotted and will be restored on disconnect.',
   // Flex sync — an additional data-pull option
-  ibkrConnTitle: 'Connection settings (proxy · Query ID · token)',
+  ibkrConnTitle: 'Connection settings',
   ibkrRangeTitle: 'Pull range',
   ibkrFlexHowTitle: 'How do I set up the Flex query?',
   ibkrSyncDesc: 'Data is pulled from IBKR via Flex Web Service: create a Flex query in the Client Portal (Reports → Flex Queries), and enable Flex Web Service to get a token.',
@@ -2320,22 +2318,21 @@ function renderIbkrCard() {
     if (!has) {
       s.textContent = t('ibkrNever');
     } else {
+      // v295: רשימה בסגנון Apple — תווית מימין, ערך משמאל
       const meta = data.meta || {};
-      s.textContent = t('ibkrSyncStatus', {
-        a: meta.fromDate ? fmtDateIL(meta.fromDate) : '—',
-        b: meta.toDate ? fmtDateIL(meta.toDate) : '—',
-        time: cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—',
-      });
+      const row = (k, v, ltr) => '<div class="ib-row"><span>' + esc(k) + '</span><span class="ib-v"' + (ltr ? ' dir="ltr"' : '') + '>' + esc(v) + '</span></div>';
+      s.innerHTML = '<div class="ib-sum">' +
+        row(t('ibkrPeriodLbl'), (meta.fromDate ? fmtDateIL(meta.fromDate) : '—') + ' – ' + (meta.toDate ? fmtDateIL(meta.toDate) : '—'), true) +
+        row(t('ibkrLastSyncLbl'), cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—') + '</div>';
     }
   }
   const d = document.getElementById('ibkrData');
   if (d) {
-    d.textContent = has
-      ? t('ibkrDataSummary', {
-          n: (data.positions || []).length,
-          m: (data.trades || []).length,
-          k: (data.cashTransactions || []).length,
-        })
+    // v295: שלושה מספרים גדולים במקום שורת טקסט
+    const tile = (n, k) => '<div><b>' + n + '</b><span>' + esc(k) + '</span></div>';
+    d.innerHTML = has
+      ? '<div class="ib-stats">' + tile((data.positions || []).length, t('ibkrStatPos')) +
+        tile((data.trades || []).length, t('ibkrStatTrades')) + tile((data.cashTransactions || []).length, t('ibkrStatCash')) + '</div>'
       : '';
   }
   // התראה בולטת כשהדוח חסר TWR רשמי — בלי זה אין תשואות, רק סכומים
@@ -4158,7 +4155,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v294';
+const APP_VERSION = 'v295';
 
 
 function saveDBto(db) {

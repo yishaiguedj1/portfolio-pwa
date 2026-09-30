@@ -335,15 +335,17 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 
     <div class="card" id="ibkrCard">
       <h2 data-i18n="ibkrTitle">חיבור ל־IBKR</h2>
+      <!-- v295 (בקשת המשתמש): סיכום נקי — שלושה מספרים + רשימה בסגנון Apple (תקופה, סנכרון אחרון) בגוון IBKR -->
+      <div id="ibkrData" class="ib-data"></div>
       <div class="fine" id="ibkrStatus" style="padding:0"></div>
-      <div class="fine" id="ibkrData" style="padding:0"></div>
       <div class="form-err hidden" id="ibkrNavWarn"></div>
       <div class="form-err hidden" id="ibkrErr"></div>
       <div class="btn-row ibkr-btns">
         <button id="ibkrSyncImport" class="btn" type="button" data-i18n-html="ibkrSyncImportBtn">סנכרן וייבא מ־IBKR</button>
         <button id="ibkrDisconnect" class="btn danger-btn" type="button" data-i18n="ibkrDisconnectBtn">ניתוק</button>
       </div>
-      <details class="fine" id="ibkrRangeDetails" style="padding:0;margin-top:8px">
+      <div class="ib-more">
+      <details class="fine" id="ibkrRangeDetails">
         <summary data-i18n="ibkrRangeTitle">טווח המשיכה</summary>
         <div class="form-grid">
           <label><span data-i18n="ibkrDepthLabel">עומק היסטוריה למשיכה ראשונה</span><select id="ibkrHistoryDepth" dir="ltr">
@@ -357,8 +359,8 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
         </div>
         <p class="fine" style="padding:0" data-i18n="ibkrFromDateNote">בוחרים כמה שנים אחורה למשוך במשיכה הראשונה — או תאריך מדויק, ללא הגבלה. כשכבר יש נתונים, הסנכרון ממשיך מהנקודה שהם נגמרו.</p>
       </details>
-      <details class="fine" id="ibkrConnDetails" style="padding:0;margin-top:8px">
-        <summary data-i18n="ibkrConnTitle">הגדרות חיבור (שרתון · Query ID · token)</summary>
+      <details class="fine" id="ibkrConnDetails">
+        <summary data-i18n="ibkrConnTitle">הגדרות חיבור</summary>
         <div class="form-grid">
           <label><span data-i18n="ibkrProxyLabel">כתובת השרתון</span><input id="ibkrProxy" type="text" dir="ltr" autocomplete="off" spellcheck="false" placeholder="https://…vercel.app"></label>
           <label>Query ID<input id="ibkrQuery" type="text" dir="ltr" inputmode="numeric" autocomplete="off" spellcheck="false" data-i18n-ph="ibkrQueryPh" placeholder="מ־IBKR"></label>
@@ -371,11 +373,12 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
           <button id="ibkrSaveTest" class="btn" type="button" data-i18n="ibkrSaveTest">שמור ובדוק חיבור</button>
         </div>
       </details>
-      <details class="fine" id="ibkrFlexHow" style="padding:0;margin-top:8px">
+      <details class="fine" id="ibkrFlexHow">
         <summary data-i18n="ibkrFlexHowTitle">איך מגדירים את שאילתת ה־Flex?</summary>
         <p class="fine" style="padding:0" data-i18n="ibkrSyncDesc">הנתונים נמשכים מ־IBKR דרך Flex Web Service.</p>
         <p class="fine" style="padding:0" data-i18n="flexGuide">מקטעים מומלצים בשאילתת ה־Flex.</p>
       </details>
+      </div>
     </div>
 
     <!-- v286 (בקשת המשתמש): כרטיס איפוס קומפקטי — שורה אחת, והאפשרויות בגיליון בסגנון Apple (בלי טקסטי הסבר) -->

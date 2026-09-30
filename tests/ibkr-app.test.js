@@ -120,9 +120,9 @@ stubFetch([{ ok: true, referenceCode: 'RC1', statementUrl: 'https://gdcdyn.inter
   ok(els.ibkrStatus.textContent.includes('טרם סונכרן'), 'סטטוס: טרם סונכרן כשאין נתונים');
   T.ibkrSaveCfg({ proxyUrl: 'https://p', token: 't', queryId: '1', lastSync: Date.now(), data: { positions: [{}, {}], trades: [{}], cashTransactions: [{}, {}, {}] } });
   T.renderIbkrCard();
-  ok(els.ibkrStatus.textContent.includes('סונכרן:'), 'סטטוס: מוצג זמן הסנכרון');
-  ok(els.ibkrData.textContent.includes('פוזיציות: 2') && els.ibkrData.textContent.includes('עסקאות בדוח: 1'),
-    'סיכום נתונים מוצג בכרטיס');
+  ok(els.ibkrStatus.innerHTML.includes('סנכרון אחרון') && els.ibkrStatus.innerHTML.includes('תקופה'), 'סטטוס (v295): רשימת תקופה + סנכרון אחרון');
+  ok(els.ibkrData.innerHTML.includes('<b>2</b><span>פוזיציות') && els.ibkrData.innerHTML.includes('<b>1</b><span>עסקאות') && els.ibkrData.innerHTML.includes('<b>3</b><span>תנועות מזומן'),
+    'סיכום נתונים (v295): שלושה אריחי מספרים');
 
   /* ---------- ibkrMapImport ---------- */
   const impData = {

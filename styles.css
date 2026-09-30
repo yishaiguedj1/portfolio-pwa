@@ -1472,7 +1472,36 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 #ibkrCard .ibkr-btns #ibkrDisconnect { flex: none; }
 @media (max-width: 380px) { #ibkrCard .ibkr-btns > .btn { font-size: 15px; padding-inline: 14px; } }
 #ibkrCard .btn .ic { stroke: currentColor; }
-#ibkrCard details > summary { color: var(--ibkr-ink); }
+/* v295 (בקשת המשתמש): כרטיס IBKR מינימליסטי — אריחי מספרים, רשימה בסגנון Apple, שורות הרחבה נקיות */
+#ibkrCard { --ib-tint: color-mix(in srgb, var(--ibkr) 9%, var(--surface-2)); --ib-line: color-mix(in srgb, var(--ibkr) 18%, var(--card-border)); }
+#ibkrCard .ib-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 2px 0 8px; }
+#ibkrCard .ib-stats > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: var(--radius-sm); background: var(--ib-tint); }
+#ibkrCard .ib-stats b { font-size: 22px; font-weight: 800; line-height: 1.15; color: var(--on-surface); font-variant-numeric: tabular-nums; }
+#ibkrCard .ib-stats span { font-size: 12.5px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#ibkrCard .ib-sum { border-radius: var(--radius-sm); background: var(--ib-tint); padding: 0 14px; }
+#ibkrCard .ib-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0; font-size: min(15px, 3.85vw); line-height: 1.3; }
+#ibkrCard .ib-row + .ib-row { border-top: 1px solid var(--ib-line); }
+#ibkrCard .ib-row > span:first-child { color: var(--on-surface-var); flex: none; }
+#ibkrCard .ib-v { color: var(--on-surface); font-weight: 600; font-variant-numeric: tabular-nums; unicode-bidi: isolate; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#ibkrCard .ib-more { margin-top: 12px; border-top: 1px solid var(--ib-line); }
+#ibkrCard .ib-more > details { padding: 0; margin: 0; border-bottom: 1px solid var(--ib-line); }
+#ibkrCard .ib-more > details:last-child { border-bottom: 0; }
+#ibkrCard .ib-more > details > summary {
+  list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 2px; font-size: 15px; font-weight: 600; color: var(--on-surface); cursor: pointer;
+}
+#ibkrCard .ib-more > details > summary::-webkit-details-marker { display: none; }
+#ibkrCard .ib-more > details > summary::after {
+  content: ''; flex: none; width: 8px; height: 8px; margin-inline-end: 4px;
+  border-inline-end: 2px solid var(--ibkr-ink); border-bottom: 2px solid var(--ibkr-ink);
+  transform: translateY(-2px) rotate(45deg); transition: transform .25s var(--ease-spring, ease);
+}
+#ibkrCard .ib-more > details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
+/* ב־RTL הקצה "inline-end" הוא הצד השני — הסיבוב הפוך כדי שהחץ יצביע למטה (סגור) / למעלה (פתוח) */
+[dir="rtl"] #ibkrCard .ib-more > details > summary::after { transform: translateY(-2px) rotate(-45deg); }
+[dir="rtl"] #ibkrCard .ib-more > details[open] > summary::after { transform: translateY(2px) rotate(135deg); }
+#ibkrCard .ib-more > details[open] { padding-bottom: 12px; }
+@media (prefers-reduced-motion: reduce) { #ibkrCard .ib-more > details > summary::after { transition: none; } }
 
 #ibkrCard.syncing > :not(.ibkr-prog) { display: none; }
 .ibkr-prog { animation: demoIn .35s cubic-bezier(.2, .9, .25, 1) both; --primary: var(--ibkr); --on-primary: #fff; }
