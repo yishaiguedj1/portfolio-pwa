@@ -127,6 +127,10 @@ private object C {
     val manBg = ColorProvider(Color(0x2634C759), Color(0x2634C759))
     val white: GColor = ColorProvider(Color.White, Color.White)
     val tileEdge = ColorProvider(Color(0xFFE3E3E8), Color(0xFF1C1C1E))
+    // 30/09 (בקשת המשתמש): הבועה כמו .ext-sess באפליקציה — רקע ‎--surface-2 (‎#E9E9EE / ‎#2C2C2E על ‎#1C1C1E), ירוק/אדום ‎--gain/‎--loss
+    val bubBg = ColorProvider(Color(0xFFE9E9EE), Color(0xFF2C2C2E))
+    val bubPos = ColorProvider(Color(0xFF30D158), Color(0xFF30D158))
+    val bubNeg = ColorProvider(Color(0xFFFF453A), Color(0xFFFF453A))
     val letter: GColor = ColorProvider(Color(0xFF3A3A3C), Color(0xFF3A3A3C))
     val dot = ColorProvider(Color(0xFF8E9490), Color(0xFF8E9490))
     val btnBorder = ColorProvider(Color(0xFFDFE2E0), Color(0xFF3C3E42))
@@ -135,6 +139,7 @@ private object C {
 private fun ltr(s: String) = "\u2066$s\u2069"
 private fun dirColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.on }
 private fun softColor(d: Dir) = when (d) { Dir.POS -> C.pos; Dir.NEG -> C.neg; Dir.FLAT -> C.variant }
+private fun bubColor(d: Dir) = when (d) { Dir.POS -> C.bubPos; Dir.NEG -> C.bubNeg; Dir.FLAT -> C.variant }
 private fun chipBg(d: Dir) = when (d) { Dir.POS -> C.posBg; Dir.NEG -> C.negBg; Dir.FLAT -> C.pill }
 
 private fun stockIntent(context: Context, sym: String, extra: String = ""): Intent =
@@ -316,7 +321,7 @@ private fun Card(context: Context, lc: Context, d: Dirn, r: WidgetRow, logo: Bit
 @Composable
 private fun SessionBubble(d: Dirn, b: Bubble) {
     if (b.closed) {
-        Column(GlanceModifier.cornerRadius(10.dp).background(C.pill).padding(start = 7.dp, end = 7.dp, top = 3.dp, bottom = 3.dp), horizontalAlignment = d.s) {
+        Column(GlanceModifier.cornerRadius(10.dp).background(C.bubBg).padding(start = 7.dp, end = 7.dp, top = 3.dp, bottom = 3.dp), horizontalAlignment = d.s) {
             DRow(d, parts = listOf(
                 { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(C.dot)) {} },
                 { Spacer(GlanceModifier.width(4.dp)) },
@@ -325,16 +330,16 @@ private fun SessionBubble(d: Dirn, b: Bubble) {
             if (b.l2.isNotEmpty() || b.pct.isNotEmpty()) DRow(d, parts = listOf(
                 { Text(b.l2, style = TextStyle(color = C.variant, fontSize = 10.5.sp, fontWeight = FontWeight.Medium), maxLines = 1) },
                 { Spacer(GlanceModifier.width(4.dp)) },
-                { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 10.5.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
+                { Text(ltr(b.pct), style = TextStyle(color = bubColor(b.dir), fontSize = 10.5.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
             ))
         }
     } else {
-        DRow(d, GlanceModifier.cornerRadius(10.dp).background(C.pill).padding(start = 9.dp, end = 9.dp, top = 3.dp, bottom = 3.dp), listOf(
-            { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(softColor(b.dir))) {} },
+        DRow(d, GlanceModifier.cornerRadius(10.dp).background(C.bubBg).padding(start = 9.dp, end = 9.dp, top = 3.dp, bottom = 3.dp), listOf(
+            { Box(GlanceModifier.size(6.dp).cornerRadius(3.dp).background(bubColor(b.dir))) {} },
             { Spacer(GlanceModifier.width(5.dp)) },
-            { Text(b.l1, style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
+            { Text(b.l1, style = TextStyle(color = bubColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
             { Spacer(GlanceModifier.width(5.dp)) },
-            { Text(ltr(b.pct), style = TextStyle(color = softColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
+            { Text(ltr(b.pct), style = TextStyle(color = bubColor(b.dir), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1) },
         ))
     }
 }
