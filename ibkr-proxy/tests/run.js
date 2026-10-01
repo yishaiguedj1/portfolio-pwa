@@ -467,5 +467,57 @@ function stubFetch(text, status = 200) {
     ok(taList.includes('bank-hapoalim') && taList.includes('elbit-systems') && taList.length >= 40, 'ווידג׳ט: רשימת לוגואי ת״א שהומרו ל־PNG');
   }
 
+  /* ---------- האקדמיה: /api/translate — תרגום בהקשר (Gemini, גיבוי בסיסי) ---------- */
+  {
+    const translate = require('../api/translate');
+    const calls = [];
+    const gem = (status, payload) => ({ status, json: async () => payload });
+    const okGem = (t, note) => gem(200, { candidates: [{ content: { parts: [{ text: JSON.stringify({ translation: t, note }) }] } }] });
+    const mm = (t) => ({ status: 200, json: async () => ({ responseData: { translatedText: t } }) });
+    const setFetch = (fn) => { global.fetch = async (url, opt) => { calls.push({ url: String(url), opt }); return fn(String(url), opt); }; };
+    const run = async (body, headers) => { const r = mockRes(); await translate(mockReq({ body, headers }), r); return r; };
+    const oldKey = process.env.GEMINI_API_KEY;
+
+    delete process.env.GEMINI_API_KEY; translate._cache.clear(); calls.length = 0;
+    setFetch((u) => (u.includes('mymemory') ? mm('החפיר') : gem(500, {})));
+    let r = await run({ text: 'moat', context: 'A wide moat protects the business.' });
+    ok(r.statusCode === 200 && r.payload.engine === 'basic' && r.payload.translation === 'החפיר' && !calls.some((c) => c.url.includes('googleapis')),
+      'translate: בלי מפתח — גיבוי בסיסי, בלי פנייה ל־Gemini');
+
+    process.env.GEMINI_API_KEY = 'test-key'; translate._cache.clear(); calls.length = 0;
+    setFetch((u) => (u.includes('gemini-flash-latest') ? okGem('חפיר כלכלי', 'יתרון תחרותי עמיד שמגן על העסק') : mm('x')));
+    r = await run({ text: 'moat', context: 'A wide moat protects the business.', title: 'מכתב באפט 2023' });
+    const g = calls.find((c) => c.url.includes('googleapis'));
+    const sent = g && JSON.parse(g.opt.body);
+    ok(r.statusCode === 200 && r.payload.engine === 'ai' && r.payload.translation === 'חפיר כלכלי' && r.payload.note.includes('יתרון'),
+      'translate: עם מפתח — תרגום AI בהקשר + הסבר מונח');
+    ok(g && g.opt.headers['x-goog-api-key'] === 'test-key' && !g.url.includes('test-key'), 'translate: המפתח בכותרת, לא בכתובת');
+    ok(sent && sent.contents[0].parts[0].text.includes('A wide moat protects the business.') && sent.contents[0].parts[0].text.includes('מכתב באפט 2023'),
+      'translate: נשלחים גם ההקשר וגם שם הספר');
+
+    translate._cache.clear(); calls.length = 0;
+    setFetch((u) => (u.includes('gemini-flash-latest') ? gem(404, {}) : u.includes('googleapis') ? okGem('צף') : mm('x')));
+    r = await run({ text: 'float', context: 'Insurance float is money we hold.' });
+    ok(r.payload.engine === 'ai' && r.payload.translation === 'צף' && calls.filter((c) => c.url.includes('googleapis')).length === 2,
+      'translate: מודל שלא קיים (404) — עוברים לבא ברשימה');
+
+    translate._cache.clear(); calls.length = 0;
+    setFetch((u) => (u.includes('googleapis') ? gem(429, {}) : mm('בסיסי')));
+    r = await run({ text: 'float', context: 'x' });
+    ok(r.payload.engine === 'basic' && r.payload.quota === true, 'translate: מכסת החינם נגמרה (429) — גיבוי בסיסי ומסומן');
+
+    calls.length = 0;
+    r = await run({ text: 'float', context: 'x' });
+    ok(r.payload.engine === 'basic' && calls.length === 0, 'translate: אותו קטע באותו הקשר — מהמטמון');
+
+    r = await run({ text: '   ' });
+    ok(r.statusCode === 400, 'translate: טקסט ריק → 400');
+    r = await run({ text: 'moat' }, { origin: 'https://evil.example' });
+    ok(r.statusCode === 403, 'translate: Origin זר נחסם');
+    const p = translate._prompt('moat', 'ctx', 'T', 'he');
+    ok(p.sys.includes('עברית') && p.sys.includes('CONTEXT'), 'translate: ההנחיה מבקשת תרגום לפי ההקשר');
+    if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
+  }
+
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

@@ -1,0 +1,120 @@
+/* האקדמיה — ספרייה וקורא (שלב 1). נטען רק עם library.js. משתני העיצוב מ־styles.css; רק כיווני־לוגיקה (start/end). */
+@font-face { font-family: "SNB Noto UI"; src: url("fonts/NotoSansHebrew-VF.woff2") format("woff2"); font-weight: 100 900; font-stretch: 62.5% 100%; font-display: swap; }
+html.lib-open, html.lib-open body { overflow: hidden; }
+.lib-root { position: fixed; inset: 0; z-index: 900; background: var(--bg); color: var(--on-surface); overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; padding-bottom: env(safe-area-inset-bottom); }
+.lib-root button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.lib-home { max-width: 760px; margin: 0 auto; padding: 0 0 28px; }
+.lib-top { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 16px 2px; }
+.lib-back { display: flex; align-items: center; gap: 2px; color: var(--primary) !important; font-size: 17px; }
+.lib-back svg { width: 24px; height: 24px; }
+[dir="ltr"] .lib-back svg { transform: scaleX(-1); }
+.lib-round { width: 42px; height: 42px; border-radius: var(--pill); background: var(--surface); box-shadow: var(--shadow); display: grid; place-items: center;
+  color: var(--primary); cursor: pointer; position: relative; overflow: hidden; }
+.lib-round svg { width: 24px; height: 24px; }
+.lib-round input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.lib-large { font-size: 34px; font-weight: 800; letter-spacing: -.5px; padding: 6px 16px 12px; margin: 0; }
+.lib-empty { padding: 8px 20px; color: var(--on-surface-var); font-size: 16px; line-height: 1.6; }
+.lib-chips { display: flex; gap: 8px; padding: 0 16px 12px; overflow-x: auto; scrollbar-width: none; }
+.lib-chips::-webkit-scrollbar { display: none; }
+.lib-chip { flex: none; padding: 8px 14px; border-radius: var(--pill); background: var(--surface) !important; box-shadow: var(--shadow); font-size: 15px; font-weight: 600; white-space: nowrap; }
+.lib-chip.on { background: var(--primary) !important; color: var(--on-primary) !important; box-shadow: none; }
+.lib-cont { display: flex; gap: 14px; align-items: center; width: calc(100% - 32px); margin: 0 16px 16px; padding: 12px; text-align: start;
+  background: var(--surface) !important; border-radius: var(--radius); box-shadow: var(--shadow); }
+.lc-meta { flex: 1; min-width: 0; }
+.lc-k { font-size: 13px; color: var(--on-surface-var); font-weight: 600; }
+.lc-title { font-size: 18px; font-weight: 700; margin: 2px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-p { font-size: 13px; color: var(--on-surface-var); margin-top: 6px; }
+.lib-bar, .lib-mini { display: block; height: 4px; border-radius: var(--pill); background: var(--surface-2); overflow: hidden; }
+.lib-bar i, .lib-mini i { display: block; height: 100%; background: var(--primary); }
+.lib-mini { flex: 1; height: 3px; }
+.lib-sortrow { display: flex; align-items: center; justify-content: space-between; padding: 2px 16px 10px; font-size: 14px; }
+.lib-sortbtn { display: flex; align-items: center; gap: 4px; color: var(--primary) !important; font-weight: 600; }
+.lib-sortbtn svg { width: 20px; height: 20px; }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 14px; padding: 0 16px; }
+.lib-item { display: block; text-align: start; padding: 0; }
+.lib-cover { aspect-ratio: 2 / 3; border-radius: 6px 10px 10px 6px; position: relative; overflow: hidden; color: #fff; padding-block: 10px; padding-inline: 14px 9px;
+  display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 6px 14px rgba(0,0,0,.14); }
+.lib-cover::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 6px; background: rgba(0,0,0,.18); } /* שדרה בצד הכריכה */
+.lc-top { font-size: 10px; font-weight: 600; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-yr { font-family: "SNB Noto UI", sans-serif; font-size: 34px; font-weight: 300; letter-spacing: -1px; line-height: 1; }
+.lc-name { font-family: "SNB Noto UI", sans-serif; font-size: 17px; font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+.lc-rule { height: 1px; background: rgba(255,255,255,.45); margin: 6px 0; }
+.lc-t { font-size: 10.5px; font-weight: 700; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.lib-cover.mini { width: 62px; flex: none; padding-block: 6px; padding-inline: 9px 5px; }
+.lib-cover.mini .lc-yr { font-size: 21px; }
+.lib-cover.mini .lc-t { font-size: 9px; }
+.lib-cap { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--on-surface-var); min-height: 18px; }
+.lib-badge { font-size: 11.5px; font-weight: 700; padding: 1px 7px; border-radius: var(--pill); background: var(--primary); color: var(--on-primary); }
+.lib-done { color: var(--primary); font-weight: 700; }
+
+/* גיליונות (מיון, תוכן עניינים, Aa, תרגום) */
+.lib-veil { position: fixed; inset: 0; z-index: 960; background: rgba(0,0,0,.32); display: flex; align-items: flex-end; animation: libFade .18s ease; }
+.lib-sheet { width: 100%; max-height: 82vh; overflow-y: auto; background: var(--surface); color: var(--on-surface); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: 8px 16px calc(22px + env(safe-area-inset-bottom)); animation: libUp .28s cubic-bezier(.2,.9,.25,1); }
+[data-theme="dark"] .lib-sheet, :root:not([data-theme="light"]) .lib-sheet { background: var(--surface); }
+.lib-grab { width: 38px; height: 5px; border-radius: var(--pill); background: var(--surface-2); margin: 0 auto 10px; }
+.lib-sh-t { font-size: 13px; font-weight: 600; color: var(--on-surface-var); margin: 6px 4px 8px; }
+.lib-ios { background: var(--bg); border-radius: var(--radius-sm); overflow: hidden; }
+.lib-row { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 13px 14px; font-size: 16.5px; text-align: start; }
+.lib-row + .lib-row { border-top: 1px solid var(--card-border); }
+.lib-check { color: var(--primary); font-weight: 800; }
+@keyframes libUp { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes libFade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lib-veil, .lib-sheet { animation: none; } }
+
+/* ---- הקורא ---- */
+.rd { position: fixed; inset: 0; z-index: 920; background: var(--rd-page, #fff); color: var(--rd-ink, #1a1a1a); }
+.rd foliate-view { position: absolute; inset: env(safe-area-inset-top) 0 calc(26px + env(safe-area-inset-bottom)) 0; display: block; }
+.rd-foot { position: absolute; inset-inline: 22px; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; justify-content: space-between;
+  font-size: 12px; color: var(--rd-ink2); pointer-events: none; }
+.rd-topbar, .rd-botbar { position: absolute; inset-inline: 0; background: var(--rd-page); color: var(--rd-ink); opacity: 0; pointer-events: none;
+  transition: opacity .18s ease, transform .22s ease; }
+.rd-topbar { top: 0; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--rd-rule); transform: translateY(-8px); }
+.rd-botbar { bottom: 0; padding: 12px 18px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid var(--rd-rule); transform: translateY(8px); }
+.rd.chrome .rd-topbar, .rd.chrome .rd-botbar { opacity: 1; pointer-events: auto; transform: none; }
+.rd-ttl { flex: 1; min-width: 0; text-align: center; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-acts { display: flex; gap: 4px; }
+.rd-ic { width: 40px; height: 40px; display: grid; place-items: center; color: var(--rd-ink) !important; }
+.rd-ic svg { width: 24px; height: 24px; }
+.rd-aa { width: auto; padding: 0 8px; display: inline-flex; align-items: baseline; justify-content: center; font: 700 19px/1 -apple-system, system-ui, sans-serif !important; letter-spacing: -.5px; }
+.rd-aa small { font-size: 14px; }
+.rd-chap { font-size: 13px; color: var(--rd-ink2); text-align: center; margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-slider { width: 100%; accent-color: var(--rd-ink); }
+.rd-nums { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--rd-ink2); margin-top: 8px; }
+.rd-pop { position: fixed; z-index: 940; display: flex; gap: 2px; padding: 6px; border-radius: var(--radius-xs); background: #2C2C2E; color: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.rd-pop button { color: #fff !important; padding: 8px 14px; font-size: 15px; font-weight: 600; border-radius: var(--radius-xs); }
+.rd-pop button:active { background: rgba(255,255,255,.12) !important; }
+
+/* גיליון Aa */
+.rd-seg, .rd-mini-seg { display: flex; background: var(--surface-2); border-radius: var(--pill); padding: 3px; }
+.rd-seg { margin: 4px 0 14px; }
+.rd-seg button, .rd-mini-seg button { flex: 1; padding: 8px 6px; border-radius: var(--pill); font-size: 14.5px; font-weight: 600; color: var(--on-surface-var) !important; }
+.rd-seg button.on, .rd-mini-seg button.on { background: var(--primary) !important; color: var(--on-primary) !important; }
+.rd-mini-seg { flex: 1; }
+.rd-pane.hidden, .tr-note.hidden, .tr-warn.hidden { display: none; }
+.rd-fontrow { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 12px 14px; margin-bottom: 8px;
+  border-radius: var(--radius-sm); background: var(--bg) !important; font-size: 18px; }
+.rd-fontrow.on { outline: 2px solid var(--primary); }
+.rd-ctl { display: flex; align-items: center; gap: 12px; padding: 10px 2px; }
+.rd-ctl .lbl { width: 64px; flex: none; font-size: 14px; font-weight: 600; color: var(--on-surface-var); }
+.rd-ctl .a1 { font-size: 15px; } .rd-ctl .a2 { font-size: 26px; }
+.rd-range { flex: 1; accent-color: var(--primary); }
+.rd-dots { flex: 1; display: flex; justify-content: space-between; }
+.rd-dots button { width: 36px; height: 36px; border-radius: 50%; background: var(--bg) !important; font-family: "SNB Noto UI", sans-serif; font-size: 17px; }
+.rd-dots button.on { background: var(--primary) !important; color: var(--on-primary) !important; }
+.rd-themes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.rd-themes button { aspect-ratio: 1 / 1.05; border-radius: var(--radius-sm); border: 1px solid var(--card-border) !important; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; }
+.rd-themes button .big { font-family: "SNB Noto UI", sans-serif; font-size: 22px; }
+.rd-themes button .sm { font-size: 12px; opacity: .8; }
+.rd-themes button.on { outline: 2.5px solid var(--primary); outline-offset: 2px; }
+.rd-toc .lib-row { font-size: 15.5px; }
+
+/* גיליון התרגום */
+.tr-src { font-size: 15px; color: var(--on-surface-var); margin: 4px 4px 10px; line-height: 1.5; }
+.tr-out { font-family: "SNB Noto UI", sans-serif; font-size: 20px; line-height: 1.55; margin: 0 4px 12px; }
+.tr-note { background: var(--bg); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 15px; line-height: 1.55; display: flex; flex-direction: column; gap: 4px; }
+.tr-note b { font-size: 12.5px; color: var(--on-surface-var); }
+.tr-warn { font-size: 12.5px; color: var(--on-surface-var); margin: 10px 4px 0; }

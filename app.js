@@ -247,6 +247,17 @@ he: {
   lagLive: 'חי',
   lagDelayed: 'דיליי ~15 דקות',
   srcDelayed: 'דיליי', srcSaved: 'שמור', srcLoading: 'טוען…',
+  libImport: 'הוספת ספר', libTitle: 'ספרייה', libEmpty: 'הספרייה ריקה. לחץ על + כדי להוסיף קובץ EPUB או AZW3 מהטלפון או מ־Google Drive.',
+  libNoAuthor: 'ללא כותב', libAll: 'הכל', libContinue: 'להמשיך לקרוא', libSortNew: 'לפי שנה · מהחדש', libSortOld: 'לפי שנה · מהישן',
+  libSortRecent: 'נקראו לאחרונה', libSortTitle: 'מיון', libCount: '{n} ספרים', libRead: '✓ נקרא', libNew: 'חדש',
+  libRemove: 'הסר', libRemoveQ: 'להסיר את "{t}" מהספרייה בטלפון?', libOpenErr: 'לא ניתן לפתוח את הקובץ',
+  menuLibrary: 'ספרייה', menuLibrarySub: 'מכתבים וספרים',
+  rdClose: 'סגירה', rdToc: 'תוכן העניינים', rdSettings: 'הגדרות תצוגה', rdMinLeftChap: 'עוד {m} דק׳ בפרק', rdMinLeftBook: 'עוד {m} דק׳ בספר',
+  rdTranslate: 'תרגום', rdCopy: 'העתק', rdCopied: 'הועתק',
+  trTitle: 'תרגום בהקשר', trLoading: 'מתרגם לפי ההקשר…', trNote: 'בהקשר הזה', trBasic: 'תרגום בסיסי — מנוע ה־AI לא זמין כרגע', trFail: 'התרגום נכשל. נסה שוב.',
+  rdFont: 'גופן', rdLayout: 'פריסה', rdTheme: 'ערכה', rdFontBook: 'הגופן של הקובץ', rdSize: 'גודל', rdWeight: 'עובי',
+  rdAlign: 'יישור', rdAlignStart: 'לימין', rdAlignJustify: 'לשני הצדדים', rdSpacing: 'ריווח', rdSpacing1: 'צפוף', rdSpacing2: 'רגיל', rdSpacing3: 'מרווח',
+  rdFlow: 'תצוגה', rdPages: 'עמודים', rdScroll: 'גלילה', rdWhite: 'לבן', rdSepia: 'ספיה', rdGreen: 'ירוק', rdBlack: 'שחור',
   stOpen: 'השוק פתוח', stClosedWith: 'השוק סגור · {r}', stClosedFull: 'השוק סגור',
   sessionPre: ' · מסחר־מוקדם',
   sessionPost: ' · מסחר־מאוחר',
@@ -774,6 +785,17 @@ en: {
   lagLive: 'live',
   lagDelayed: '~15 min delay',
   srcDelayed: 'Delayed', srcSaved: 'Saved', srcLoading: 'Loading…',
+  libImport: 'Add book', libTitle: 'Library', libEmpty: 'Your library is empty. Tap + to add an EPUB or AZW3 file from your phone or Google Drive.',
+  libNoAuthor: 'Unknown author', libAll: 'All', libContinue: 'Continue reading', libSortNew: 'By year · newest', libSortOld: 'By year · oldest',
+  libSortRecent: 'Recently read', libSortTitle: 'Sort', libCount: '{n} books', libRead: '✓ Read', libNew: 'New',
+  libRemove: 'Remove', libRemoveQ: 'Remove "{t}" from the library on this phone?', libOpenErr: "Couldn't open this file",
+  menuLibrary: 'Library', menuLibrarySub: 'Letters & books',
+  rdClose: 'Close', rdToc: 'Contents', rdSettings: 'Display settings', rdMinLeftChap: '{m} min left in chapter', rdMinLeftBook: '{m} min left in book',
+  rdTranslate: 'Translate', rdCopy: 'Copy', rdCopied: 'Copied',
+  trTitle: 'Translation in context', trLoading: 'Translating in context…', trNote: 'In this context', trBasic: 'Basic translation — the AI engine is unavailable right now', trFail: 'Translation failed. Try again.',
+  rdFont: 'Font', rdLayout: 'Layout', rdTheme: 'Theme', rdFontBook: 'Publisher font', rdSize: 'Size', rdWeight: 'Weight',
+  rdAlign: 'Alignment', rdAlignStart: 'Start', rdAlignJustify: 'Justified', rdSpacing: 'Spacing', rdSpacing1: 'Tight', rdSpacing2: 'Normal', rdSpacing3: 'Wide',
+  rdFlow: 'View', rdPages: 'Pages', rdScroll: 'Scroll', rdWhite: 'White', rdSepia: 'Sepia', rdGreen: 'Green', rdBlack: 'Black',
   stOpen: 'Market open', stClosedWith: 'Closed · {r}', stClosedFull: 'Market closed',
   sessionPre: ' · pre-market',
   sessionPost: ' · post-market',
@@ -4337,7 +4359,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v301';
+const APP_VERSION = 'v302';
 
 
 function saveDBto(db) {
@@ -13026,6 +13048,13 @@ function init() {
     if (offer) offer.classList.remove('hidden');
     Promise.resolve(demoCreate(document.getElementById('demoCreateBtn'))).finally(() => { try { renderDemoUi(); } catch (err) {} });
     setTimeout(() => { try { renderDemoUi(); } catch (err) {} }, 0); // ביטול באישור — הכרטיס חוזר למצבו
+  });
+  // האקדמיה (שלב 1): הספרייה והקורא — מודול נפרד שנטען רק כאן (library.js + vendor/foliate-js), כדי שהאפליקציה לא תגדל
+  const mLib = document.getElementById('menuLibraryBtn');
+  if (mLib) mLib.addEventListener('click', (e) => {
+    e.stopPropagation();
+    try { setMainMenuOpen(false); } catch (err) {}
+    import('./library.js').then((m) => m.openLibrary()).catch(() => { try { flash(t('libOpenErr')); } catch (err) {} });
   });
   const dBtn = document.getElementById('demoCreateBtn');
   if (dBtn) dBtn.addEventListener('click', () => demoCreate(dBtn));
