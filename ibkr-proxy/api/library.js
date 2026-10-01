@@ -6,6 +6,9 @@
    (או בתת־תיקייה אחת מתחתיה — למשל תיקייה לכל מנכ"ל), כך שאי אפשר לבקש דרך השרתון קובץ אחר שמשותף לחשבון. */
 const { guard } = require('../lib/ibkr');
 const { verifyIdToken, readerAllowed, driveToken, serviceAccount } = require('../lib/gauth');
+const { epubText } = require('../lib/epubtext');
+const { insight } = require('../lib/insight');
+const insightCache = new Map();   // id|md5 → ניתוח (חוסך קריאות ל־Gemini בין קוראים, כל עוד המופע חי)
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const BOOK_RE = /\.(epub|azw3|azw|mobi|kf8|fb2)$/i;
@@ -78,15 +81,29 @@ async function handler(req, res, deps = {}) {
   try {
     const cat = await listAll(deps.fetch);
     if (body.op === 'list') return res.status(200).json({ ok: true, items: cat.items });
-    if (body.op === 'file') {
+    if (body.op === 'file' || body.op === 'insight') {
       const id = String(body.id || '');
-      if (!ID_RE.test(id) || !cat.items.some((f) => f.id === id)) return res.status(404).json({ ok: false, error: 'not_found' });
+      const item = cat.items.find((f) => f.id === id);
+      if (!ID_RE.test(id) || !item) return res.status(404).json({ ok: false, error: 'not_found' });
+      const ckey = id + '|' + item.md5;
+      if (body.op === 'insight' && insightCache.has(ckey)) return res.status(200).json({ ok: true, insight: insightCache.get(ckey), md5: item.md5 });
       const token = await driveToken(deps.fetch);
       const meta = await (await driveGet('/' + id + '?fields=' + q('parents,size,name') + '&supportsAllDrives=true', token, deps.fetch)).json();
       if (!(meta.parents || []).some((p) => cat.folders.has(p))) return res.status(404).json({ ok: false, error: 'not_found' });
       const r = await driveGet('/' + id + '?alt=media&supportsAllDrives=true', token, deps.fetch);
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > MAX_FILE) return res.status(413).json({ ok: false, error: 'too_large' });
+      if (body.op === 'insight') {
+        if (limited('ins|' + user.uid, 12)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+        let doc; try { doc = epubText(buf); } catch (e) { return res.status(422).json({ ok: false, error: 'not_epub' }); }
+        if (doc.text.length < 500) return res.status(422).json({ ok: false, error: 'no_text' });
+        const diag = {};
+        const out = await (deps.insight || insight)(doc.title || meta.name, doc.text, deps.fetch, diag);
+        if (!out.insight) return res.status(out.error === 'quota' ? 429 : 502).json({ ok: false, error: out.error, diag });
+        insightCache.set(ckey, out.insight);
+        if (insightCache.size > 300) insightCache.clear();
+        return res.status(200).json({ ok: true, insight: out.insight, md5: item.md5 });
+      }
       res.setHeader('Content-Type', 'application/epub+zip');
       res.setHeader('Cache-Control', 'private, no-store');
       return res.status(200).send(buf);
@@ -101,4 +118,4 @@ async function handler(req, res, deps = {}) {
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._folderId = folderId;
-module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; hits.clear(); };
+module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; hits.clear(); insightCache.clear(); };

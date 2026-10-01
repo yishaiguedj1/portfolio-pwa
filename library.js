@@ -7,6 +7,7 @@
 import { makeBook } from './vendor/foliate-js/view.js';
 import { Overlayer } from './vendor/foliate-js/overlayer.js';
 import * as CFI from './vendor/foliate-js/epubcfi.js';
+import { THINKERS, GLOSSARY, TRACKS } from './academy-data.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 const LS_READER = 'pwa_reader_v1';
@@ -103,6 +104,21 @@ export function wrapQuote(text, maxW, measure, maxLines) {   // שורות לכ�
   if (cur) lines.push(cur);
   if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…'; }
   return lines;
+}
+/* ---------------- שלב 5: שכבת האקדמיה ---------------- */
+const isBuffett = (b) => /באפט|buffett/i.test((b && (b.author || '') + ' ' + (b.title || '')) || '');
+export function trackLetter(books, year) {      // המכתב של באפט מאותה שנה — עדיפות למכתב לבעלי המניות על פני מכתב שותפות
+  const c = books.filter((b) => b.year === year && isBuffett(b));
+  return c.find((b) => !/שותפות|partnership/i.test(b.title)) || c[0] || null;
+}
+export function trackSteps(track, books) {      // רק שלבים שיש להם מכתב בספרייה
+  return track.steps.map(([y, why]) => ({ y, why, book: trackLetter(books, y) })).filter((x) => x.book);
+}
+const normTerm = (s) => String(s || '').toLowerCase().replace(/[\u0591-\u05C7"״׳'’.,:;!?()\[\]–—-]/g, ' ').replace(/\s+/g, ' ').trim();
+export function glossaryMatch(text) {            // מונח מהמילון שמופיע בטקסט שסומן (עד 6 מילים)
+  const t = normTerm(text);
+  if (!t || t.split(' ').length > 6) return null;
+  return GLOSSARY.find(([he, en]) => { const a = normTerm(he), b = normTerm(en); return t === a || t === b || (a.length > 3 && t.includes(a)) || (b.length > 4 && t.includes(b)); }) || null;
 }
 export function sortBooks(list, sort) {
   const a = list.slice();
@@ -315,6 +331,10 @@ async function renderHome() {
   if (!root) return;
   if (ui.view && ui.view.book) return renderBook(ui.view.book);
   if (ui.view && ui.view.notes) return renderNotes();
+  if (ui.view && ui.view.track) return renderTrack(ui.view.track);
+  if (ui.view && ui.view.thinkers) return renderThinkers();
+  if (ui.view && ui.view.thinker) return renderThinker(ui.view.thinker);
+  if (ui.view && ui.view.glossary) return renderGlossary();
   const books = await allBooks();
   const home = root.querySelector('.lib-home');
   home.textContent = '';
@@ -361,6 +381,34 @@ async function renderHome() {
     card.append(cover(last, true), meta);
     card.addEventListener('click', () => openReader(last.id));
     home.append(card);
+  }
+  if (!ui.author) {
+    const letters = books.filter(isBuffett);
+    if (letters.length > 1) {
+      const done = letters.filter((b) => b.done).length;
+      const pr = h('div', 'ac-progress');
+      const bar = h('div', 'lib-bar'); const f = h('i'); f.style.width = Math.round(done / letters.length * 100) + '%'; bar.append(f);
+      pr.append(h('span', null, T('acReadOf', { n: done, t: letters.length })), bar);
+      home.append(pr);
+    }
+    const tracks = TRACKS.map((tr) => ({ tr, steps: trackSteps(tr, books) })).filter((x) => x.steps.length >= 2);
+    if (tracks.length) {
+      home.append(h('h2', 'ac-h', T('acTracks')));
+      const row = h('div', 'ac-tracks no-swipe');
+      tracks.forEach(({ tr, steps }) => {
+        const done = steps.filter((x) => x.book.done).length;
+        const c = h('button', 'ac-track'); c.type = 'button';
+        c.append(ring(done / steps.length), h('b', null, tr.he), h('span', null, tr.sub), h('small', null, T('acSteps', { n: done, t: steps.length })));
+        c.addEventListener('click', () => goView({ track: tr.id }));
+        row.append(c);
+      });
+      home.append(row);
+    }
+    const tiles = h('div', 'ac-tiles');
+    const tile = (k, sub, v) => { const b = h('button', 'ac-tile'); b.type = 'button'; b.append(h('b', null, T(k)), h('span', null, sub)); b.addEventListener('click', () => goView(v)); tiles.append(b); };
+    tile('acThinkers', THINKERS.length + ' ' + T('acPeople'), { thinkers: 1 });
+    tile('acGlossary', GLOSSARY.length + ' ' + T('acTerms'), { glossary: 1 });
+    home.append(tiles);
   }
   const sortRow = h('div', 'lib-sortrow');
   const sortBtn = h('button', 'lib-sortbtn'); sortBtn.type = 'button'; sortBtn.innerHTML = ICON.sort;
@@ -422,7 +470,10 @@ async function renderBook(id) {
   const cta = h('button', 'bk-cta', T(b.done ? 'bkAgain' : b.fraction > 0 ? 'bkContinue' : 'bkRead')); cta.type = 'button';
   cta.addEventListener('click', () => openReader(id, b.done ? { fromStart: true } : null));
   d.append(cta);
-  if (b.desc) {
+  const acBox = h('div', 'ac-ins');
+  d.append(acBox);
+  if (b.src === 'drive' && b.driveId) fillInsight(b, acBox);
+  if (b.desc && !b.ins) {
     const c = h('div', 'bk-card'); c.append(h('h4', null, T('bkAbout')));
     const pp = h('p', 'bk-desc', b.desc); pp.dir = 'auto';
     c.append(pp);
@@ -449,6 +500,94 @@ async function renderBook(id) {
   d.append(toc);
   home.append(top, d);
 }
+function ring(frac) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 36 36'); svg.setAttribute('class', 'ac-ring');
+  const c1 = document.createElementNS(NS, 'circle'); c1.setAttribute('cx', 18); c1.setAttribute('cy', 18); c1.setAttribute('r', 15); c1.setAttribute('class', 'bg');
+  const c2 = document.createElementNS(NS, 'circle'); c2.setAttribute('cx', 18); c2.setAttribute('cy', 18); c2.setAttribute('r', 15); c2.setAttribute('class', 'fg');
+  c2.setAttribute('stroke-dasharray', (Math.max(0, Math.min(1, frac)) * 94.25).toFixed(1) + ' 94.25');
+  svg.append(c1, c2);
+  return svg;
+}
+function subPage(title, sub) {
+  const home = root.querySelector('.lib-home');
+  home.textContent = '';
+  const top = h('div', 'lib-top');
+  const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, T('libTitle')));
+  back.addEventListener('click', () => history.back());
+  top.append(back);
+  home.append(top, h('h1', 'lib-large', title));
+  if (sub) home.append(h('p', 'ac-sub', sub));
+  return home;
+}
+async function renderTrack(id) {
+  const tr = TRACKS.find((x) => x.id === id); if (!tr) return;
+  const steps = trackSteps(tr, await allBooks());
+  if (!root || !ui.view || ui.view.track !== id) return;
+  const home = subPage(tr.he, tr.sub);
+  const list = h('div', 'ac-steps');
+  steps.forEach((st, i) => {
+    const r = h('button', 'ac-step' + (st.book.done ? ' done' : '')); r.type = 'button';
+    const dot = h('span', 'ac-dot', st.book.done ? '✓' : String(i + 1));
+    const meta = h('div', 'ac-step-m'); meta.append(h('b', null, st.why), h('span', null, st.book.title + (st.book.fraction > 0 && !st.book.done ? ' · ' + Math.round(st.book.fraction * 100) + '%' : '')));
+    r.append(dot, meta);
+    r.addEventListener('click', () => goView({ book: st.book.id }));
+    list.append(r);
+  });
+  home.append(list);
+}
+function renderThinkers() {
+  const home = subPage(T('acThinkers'), T('acThinkersSub'));
+  const list = h('div', 'ac-people');
+  THINKERS.forEach((p) => {
+    const r = h('button', 'ac-person'); r.type = 'button';
+    r.append(h('span', 'ac-av', p.he.replace(/[׳']/g, '').split(' ').map((w) => w[0]).join('').slice(0, 2)));
+    const m = h('div'); m.append(h('b', null, p.he), h('span', null, p.role + ' · ' + p.years)); r.append(m);
+    r.addEventListener('click', () => goView({ thinker: p.id }));
+    list.append(r);
+  });
+  home.append(list);
+}
+function renderThinker(id) {
+  const p = THINKERS.find((x) => x.id === id); if (!p) return;
+  const home = subPage(p.he, p.en + ' · ' + p.years + ' · ' + p.role);
+  const card = h('div', 'bk-card ac-card'); card.append(h('h4', null, T('acIdeas')));
+  const ul = h('ul', 'ac-ul'); p.ideas.forEach((x) => ul.append(h('li', null, x))); card.append(ul);
+  home.append(card);
+  if (p.quote) { const q = h('blockquote', 'ac-quote', '“' + p.quote + '”'); q.dir = 'ltr'; home.append(q); }
+  const bk = h('div', 'bk-card ac-card'); bk.append(h('h4', null, T('acBooks')));
+  p.books.forEach((x) => { const d = h('div', 'ac-book', x); d.dir = 'auto'; bk.append(d); });
+  home.append(bk);
+  const terms = GLOSSARY.filter((g) => g[3] === id);
+  if (terms.length) {
+    const tc = h('div', 'bk-card ac-card'); tc.append(h('h4', null, T('acTerms')));
+    terms.forEach((g) => tc.append(termRow(g)));
+    home.append(tc);
+  }
+}
+function termRow([he, en, def, who]) {
+  const r = h('div', 'ac-term');
+  const t = h('div', 'ac-term-h'); t.append(h('b', null, he)); if (en && en !== he) { const e = h('span', null, en); e.dir = 'ltr'; t.append(e); }
+  r.append(t, h('p', null, def));
+  const p = THINKERS.find((x) => x.id === who); if (p) r.append(h('small', null, p.he));
+  return r;
+}
+function renderGlossary() {
+  const home = subPage(T('acGlossary'), '');
+  const inp = h('input', 'ac-search'); inp.type = 'search'; inp.placeholder = T('acSearch'); inp.dir = 'auto';
+  const list = h('div', 'ac-terms');
+  const draw = () => {
+    const q = normTerm(inp.value);
+    list.textContent = '';
+    GLOSSARY.filter((g) => !q || normTerm(g[0] + ' ' + g[1] + ' ' + g[2]).includes(q))
+      .sort((a, b) => a[0].localeCompare(b[0], 'he')).forEach((g) => list.append(termRow(g)));
+    if (!list.childNodes.length) list.append(h('p', 'lib-empty', T('acNoTerm')));
+  };
+  inp.addEventListener('input', draw);
+  home.append(inp, list);
+  draw();
+}
+
 async function renderNotes() {
   const home = root.querySelector('.lib-home');
   const books = sortBooks((await allBooks()).filter((b) => liveAnn(b.ann).length), 'recent');
@@ -469,6 +608,53 @@ async function renderNotes() {
     home.append(sec);
   });
 }
+const insFlight = new Map();
+function fetchInsight(b) {
+  if (insFlight.has(b.id)) return insFlight.get(b.id);
+  const pr = (async () => {
+    const tk = await idToken(); if (!tk) throw new Error('signin');
+    const r = await libApi({ op: 'insight', idToken: tk, id: b.driveId });
+    const j = await r.json().catch(() => ({}));
+    if (!j.ok) throw new Error(j.error || 'failed');
+    b.ins = Object.assign({}, j.insight, { md5: j.md5 || b.md5, at: Date.now() });
+    await putBook(b);
+    return b.ins;
+  })().finally(() => insFlight.delete(b.id));
+  insFlight.set(b.id, pr);
+  return pr;
+}
+function fillInsight(b, box) {
+  const fresh = b.ins && (!b.md5 || b.ins.md5 === b.md5);
+  if (fresh) { box.append(...insightCards(b.ins)); return; }
+  const wait = h('div', 'bk-card ac-wait'); wait.append(h('h4', null, T('bkAbout')), h('p', null, T('acMaking')), h('i', 'ac-skel'), h('i', 'ac-skel s2'));
+  box.append(wait);
+  fetchInsight(b).then((ins) => { if (wait.isConnected) wait.replaceWith(...insightCards(ins)); }).catch((e) => {
+    if (!wait.isConnected) return;
+    wait.textContent = '';
+    wait.append(h('h4', null, T('bkAbout')), h('p', null, T(String(e.message) === 'quota' || String(e.message) === 'rate_limited' ? 'acQuota' : 'acFailed')));
+    const again = h('button', 'ac-retry', T('acRetry')); again.type = 'button';
+    again.addEventListener('click', () => { wait.remove(); fillInsight(b, box); });
+    wait.append(again);
+  });
+}
+function insightCards(ins) {
+  const out = [];
+  const card = (k, body) => { const c = h('div', 'bk-card ac-card'); c.append(h('h4', null, T(k))); body(c); out.push(c); };
+  card('bkAbout', (c) => { const p = h('p', 'bk-desc', ins.summary); p.dir = 'auto'; c.append(p); c.addEventListener('click', () => c.classList.toggle('open')); });
+  if (ins.ideas && ins.ideas.length) card('acIdeas', (c) => { const ul = h('ul', 'ac-ul'); ins.ideas.forEach((x) => ul.append(h('li', null, x))); c.append(ul); });
+  if (ins.lens && ins.lens.length) card('acLens', (c) => ins.lens.forEach((l) => {
+    const p = THINKERS.find((x) => x.id === l.thinker);
+    const r = h('button', 'ac-lens'); r.type = 'button';
+    r.append(h('b', null, p ? p.he : l.thinker), h('span', null, l.point));
+    if (p) r.addEventListener('click', () => goView({ thinker: p.id }));
+    c.append(r);
+  }));
+  if (ins.terms && ins.terms.length) card('acTermsHere', (c) => ins.terms.forEach((t) => c.append(termRow([t.he, t.en, t.def, '']))));
+  if (ins.question) card('acQuestion', (c) => { const p = h('p', 'ac-q', ins.question); p.dir = 'auto'; c.append(p); });
+  const note = h('p', 'ac-ai', T('acAiNote')); out.push(note);
+  return out;
+}
+
 function fmtDate(iso) {
   const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return '';
@@ -702,6 +888,8 @@ function buildPop({ text, cfi, block, ann }) {
   act('rdTranslate', () => translateSheet(text, block || text));
   act('rdCopy', async () => { try { await navigator.clipboard.writeText(text); if (typeof flash === 'function') flash(T('rdCopied')); } catch (e) {} });
   act('hlQuote', () => quoteCard(text));
+  const gm = glossaryMatch(text);
+  if (gm) act('acTerm', () => sheet(T('acTerm'), (sh) => sh.append(termRow(gm))));
   if (ann) act('hlDelete', () => deleteAnn(ann));
   selPop.append(row1, row2);
 }
@@ -1012,4 +1200,4 @@ export async function openLibrary() {
   renderHome();
 }
 
-export const _test = { bookExtras, HL_COLORS, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };

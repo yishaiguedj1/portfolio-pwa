@@ -6,12 +6,13 @@ let n = 0;
 function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.exit(1); } console.log('ok - ' + name); }
 const root = path.join(__dirname, '..');
 const lib = fs.readFileSync(path.join(root, 'library.js'), 'utf8');
+const acad = fs.readFileSync(path.join(root, 'academy-data.js'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
-const src = lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, _test };';
+const src = acad.replace(/^export const/gm, 'const') + '\n' + lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -95,6 +96,18 @@ ok(ql.length === 2 && ql[1].endsWith('…') && L.wrapQuote('קצר', 100, (t) =>
 const keys4 = ['hlNote', 'hlQuote', 'hlDelete', 'bmAdd', 'tabHl', 'tabBm', 'learnTitle', 'qShare'];
 ok(keys4.every((k) => lib.includes("'" + k + "'")), 'כל הפעולות של שלב 4 מחוברות בממשק');
 ok(/set\(\{ lib \}, \{ merge: true \}\)/.test(lib) && /lib\.a/.test(lib), 'הדגשות בענן: lib.a עם merge (לא נוגע בתיק)');
+
+// שלב 5 (v307) — שכבת האקדמיה
+const lib5 = [{ id: 'a', year: 1987, author: 'וורן א. באפט', title: 'מכתב באפט 1987' }, { id: 'p', year: 1965, author: 'וורן באפט', title: 'מכתב לשותפות 1965' },
+  { id: 'b', year: 1965, author: 'וורן באפט', title: 'מכתב באפט 1965' }, { id: 'c', year: 1992, author: 'Warren Buffett', title: 'Letter 1992' }];
+ok(L.trackLetter(lib5, 1965).id === 'b' && L.trackLetter(lib5, 1987).id === 'a' && L.trackLetter(lib5, 2001) === null, 'מסלול: מכתב לבעלי המניות קודם למכתב שותפות באותה שנה');
+const st = L.trackSteps(L.TRACKS.find((t) => t.id === 'basics'), lib5);
+ok(st.map((x) => x.y).join() === '1987,1992', 'מסלול: מוצגים רק שלבים שיש להם מכתב בספרייה');
+ok(L.TRACKS.every((t) => t.steps.every(([y, w]) => y >= 1957 && y <= 2030 && w)) && L.THINKERS.length >= 5, 'מסלולים והוגים תקינים');
+const ids = new Set(L.THINKERS.map((p) => p.id));
+ok(['graham', 'fisher', 'buffett', 'munger', 'ackman'].every((x) => ids.has(x)) && L.GLOSSARY.every((g) => g.length === 4 && g[0] && g[2] && ids.has(g[3])), 'כל ההוגים שהמשתמש ביקש + כל מונח משויך להוגה קיים');
+ok(L.glossaryMatch('מרווח ביטחון')[1] === 'Margin of safety' && L.glossaryMatch('the float')[0] === 'פלוט' && L.glossaryMatch('ה"מר שוק"') && L.glossaryMatch('שלום עולם') === null, 'זיהוי מונח בטקסט שסומן (עברית/אנגלית, עם ניקוד ומירכאות)');
+ok(/op: 'insight'/.test(lib) && /acAiNote/.test(lib) && !/GEMINI/.test(lib), 'ניתוח המכתב מגיע מהשרתון, עם ציון שנכתב בעזרת AI');
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),
