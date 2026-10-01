@@ -26,7 +26,7 @@ const defaults = { theme: 'white', size: 19, weight: 0, spacing: 1, justify: fal
 function loadSettings() { try { return Object.assign({}, defaults, JSON.parse(localStorage.getItem(LS_READER) || '{}')); } catch (e) { return Object.assign({}, defaults); } }
 function saveSettings() { try { localStorage.setItem(LS_READER, JSON.stringify(S)); } catch (e) {} }
 let S = loadSettings();
-const ui = { sort: 'new', author: '', view: null };   // view: null = בית, { book: id } = דף מכתב
+const ui = { sort: 'new', author: '', view: null, q: '' };   // view: null = בית, { book: id } = דף מכתב
 
 /* ---------------- IndexedDB: books = פרטים ומיקום (רשימה מהירה), files = הקובץ עצמו ---------------- */
 let _db = null;
@@ -298,6 +298,7 @@ const ICON = {
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"><path d="M7 4h10v16l-5-3.6L7 20z"/></svg>',
   notes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
 };
 let root = null;
@@ -353,6 +354,16 @@ async function renderHome() {
   if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
   else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
 
+  if (books.length > 3) {
+    const sw = h('div', 'lib-search');
+    sw.innerHTML = ICON.search;
+    const si = h('input'); si.type = 'search'; si.placeholder = T('libSearchPh'); si.dir = 'auto'; si.value = ui.q || ''; si.setAttribute('aria-label', T('libSearchPh'));
+    si.enterKeyHint = 'search';
+    si.addEventListener('input', () => { ui.q = si.value; applySearch(home); });
+    si.addEventListener('keydown', (e) => { if (e.key === 'Enter') si.blur(); });
+    sw.append(si);
+    home.append(sw);
+  }
   if (!books.length) {
     home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmpty')));
     return;
@@ -367,7 +378,7 @@ async function renderHome() {
   };
   chip(T('libAll'), '');
   Object.keys(authors).sort((a, b) => authors[b] - authors[a]).forEach((a) => chip(a, a));
-  if (Object.keys(authors).length > 1) home.append(chips);
+  if (Object.keys(authors).length > 1) { chips.classList.add('lib-hide-q'); home.append(chips); }
 
   const shown = sortBooks(books.filter((b) => !ui.author || (b.author || T('libNoAuthor')) === ui.author), ui.sort);
   const last = books.filter((b) => b.lastRead && !b.done).sort((a, b) => b.lastRead - a.lastRead)[0];
@@ -380,6 +391,7 @@ async function renderHome() {
       h('div', 'lc-p', Math.round(last.fraction * 100) + '%' + (left ? ' · ' + T('rdMinLeftBook', { m: left }) : '')));
     card.append(cover(last, true), meta);
     card.addEventListener('click', () => openReader(last.id));
+    card.classList.add('lib-hide-q');
     home.append(card);
   }
   if (!ui.author) {
@@ -389,12 +401,12 @@ async function renderHome() {
       const pr = h('div', 'ac-progress');
       const bar = h('div', 'lib-bar'); const f = h('i'); f.style.width = Math.round(done / letters.length * 100) + '%'; bar.append(f);
       pr.append(h('span', null, T('acReadOf', { n: done, t: letters.length })), bar);
-      home.append(pr);
+      pr.classList.add('lib-hide-q'); home.append(pr);
     }
     const tracks = TRACKS.map((tr) => ({ tr, steps: trackSteps(tr, books) })).filter((x) => x.steps.length >= 2);
     if (tracks.length) {
-      home.append(h('h2', 'ac-h', T('acTracks')));
-      const row = h('div', 'ac-tracks no-swipe');
+      const th = h('h2', 'ac-h lib-hide-q', T('acTracks')); home.append(th);
+      const row = h('div', 'ac-tracks no-swipe lib-hide-q');
       tracks.forEach(({ tr, steps }) => {
         const done = steps.filter((x) => x.book.done).length;
         const c = h('button', 'ac-track'); c.type = 'button';
@@ -404,7 +416,7 @@ async function renderHome() {
       });
       home.append(row);
     }
-    const tiles = h('div', 'ac-tiles');
+    const tiles = h('div', 'ac-tiles lib-hide-q');
     const tile = (k, sub, v) => { const b = h('button', 'ac-tile'); b.type = 'button'; b.append(h('b', null, T(k)), h('span', null, sub)); b.addEventListener('click', () => goView(v)); tiles.append(b); };
     tile('acThinkers', THINKERS.length + ' ' + T('acPeople'), { thinkers: 1 });
     tile('acGlossary', GLOSSARY.length + ' ' + T('acTerms'), { glossary: 1 });
@@ -414,11 +426,13 @@ async function renderHome() {
   const sortBtn = h('button', 'lib-sortbtn'); sortBtn.type = 'button'; sortBtn.innerHTML = ICON.sort;
   sortBtn.append(h('span', null, T(ui.sort === 'old' ? 'libSortOld' : ui.sort === 'recent' ? 'libSortRecent' : 'libSortNew')));
   sortBtn.addEventListener('click', openSortSheet);
-  sortRow.append(h('b', null, T('libCount', { n: shown.length })), sortBtn);
+  const cnt = h('b', 'lib-count', T('libCount', { n: shown.length })); cnt.dataset.n = String(shown.length);
+  sortRow.append(cnt, sortBtn);
   home.append(sortRow);
   const grid = h('div', 'lib-grid');
   shown.forEach((b) => {
     const it = h('button', 'lib-item'); it.type = 'button';
+    it.dataset.q = searchKey(b); it.dataset.i = String(shown.indexOf(b));
     const cap = h('div', 'lib-cap');
     if (b.done) cap.append(h('span', 'lib-done', T('libRead')));
     else if (b.fraction > 0) { const m = h('span', 'lib-mini'); const f = h('i'); f.style.width = Math.round(b.fraction * 100) + '%'; m.append(f); cap.append(m, h('span', null, Math.round(b.fraction * 100) + '%')); }
@@ -433,6 +447,9 @@ async function renderHome() {
     grid.append(it);
   });
   home.append(grid);
+  home.append(h('p', 'lib-empty lib-noq', T('libNoMatch')));
+  sortRow.after(h('p', 'lib-near', T('libNear')));
+  applySearch(home);
 }
 
 async function renderBook(id) {
@@ -659,6 +676,89 @@ function fmtDate(iso) {
   const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return '';
   try { return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString((typeof getLang === 'function' && getLang()) === 'en' ? 'en-US' : 'he-IL', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return iso; }
+}
+
+/* חיפוש בספרייה — סלחני כמו בגוגל: שם, כותב, שנה, מוציא ותקציר.
+   מבין טעויות כתיב (מרחק עריכה כולל החלפת סדר), כתיב מלא/חסר ואותיות סופיות (בופט≈באפט), מקלדת בשפה הלא נכונה
+   (ניררקאא = buffett), ושמות באנגלית לכותבים בעברית. מסנן ומדרג במקום — בלי לבנות את המסך מחדש (המקלדת נשארת פתוחה). */
+const FINALS = { 'ם': 'מ', 'ן': 'נ', 'ץ': 'צ', 'ף': 'פ', 'ך': 'כ' };
+const fold = (s) => normTerm(s).replace(/[םןץףך]/g, (c) => FINALS[c]);
+const skel = (w) => (/[א-ת]/.test(w) ? w[0] + w.slice(1).replace(/[אויה]/g, '') : w.replace(/(?!^)[aeiouy]/g, ''));
+const ALIASES = [[/באפט/, 'buffett berkshire ברקשייר'], [/buffett/i, 'באפט ברקשייר'], [/מאנגר/, 'munger'], [/munger/i, 'מאנגר'],
+  [/ברקשייר/, 'berkshire'], [/דיימון/, 'dimon jpmorgan'], [/dimon/i, 'דיימון']];
+const EN_HE = { q: '/', w: "'", e: 'ק', r: 'ר', t: 'א', y: 'ט', u: 'ו', i: 'ן', o: 'ם', p: 'פ', a: 'ש', s: 'ד', d: 'ג', f: 'כ', g: 'ע', h: 'י', j: 'ח', k: 'ל', l: 'ך', ';': 'ף', z: 'ז', x: 'ס', c: 'ב', v: 'ה', b: 'נ', n: 'מ', m: 'צ', ',': 'ת', '.': 'ץ' };
+const HE_EN = Object.fromEntries(Object.entries(EN_HE).map(([a, b]) => [b, a]));
+export function swapLayout(q) {         // טקסט שהוקלד במקלדת בשפה הלא נכונה
+  const he = /[א-ת]/.test(q);
+  return Array.from(String(q).toLowerCase()).map((c) => (he ? HE_EN[c] : EN_HE[c]) || c).join('');
+}
+export function editDist(a, b, max) {   // Damerau (OSA) עם עצירה מוקדמת
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const m = a.length, n = b.length;
+  let p2 = null, p1 = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i]; let best = i;
+    for (let j = 1; j <= n; j++) {
+      let v = Math.min(p1[j] + 1, cur[j - 1] + 1, p1[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (p2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, p2[j - 2] + 1);
+      cur.push(v); if (v < best) best = v;
+    }
+    if (best > max) return max + 1;
+    p2 = p1; p1 = cur;
+  }
+  return p1[n];
+}
+export function searchKey(b) {
+  let k = [b.title, b.author, b.pub, b.year || '', b.desc || '', b.ins && b.ins.summary || ''].join(' ');
+  ALIASES.forEach(([re, add]) => { if (re.test(k)) k += ' ' + add; });
+  return fold(k);
+}
+function wordScore(w, tokens) {         // 0 = לא נמצא; גבוה = התאמה טובה
+  let best = 0;
+  const th = w.length <= 3 ? 0 : w.length <= 5 ? 1 : 2;
+  const sw = skel(w);
+  const num = /^\d+$/.test(w);
+  for (const t of tokens) {
+    if (t === w) return 4;
+    if (num) {                          // שנה: רק מדויקת או שתי ספרות שהתחלפו (1897 ← 1987) — לא 1986/1988
+      if (t.length === w.length && /^\d+$/.test(t) && [...t].sort().join() === [...w].sort().join() && editDist(w, t, 1) <= 1) best = Math.max(best, 1.5);
+      continue;
+    }
+    if (t.startsWith(w) && w.length >= 2) best = Math.max(best, 3);
+    else if (w.length >= 3 && t.includes(w)) best = Math.max(best, 2.5);
+    if (best >= 3 || !th) continue;
+    const d = editDist(w, t.length > w.length + 2 ? t.slice(0, w.length + 1) : t, th);   // גם תחילת מילה ארוכה ("מכתוב" ≈ "מכתבים")
+    if (d <= th) best = Math.max(best, 2 - d * 0.5);
+    else if (sw.length >= 2 && (skel(t) === sw || editDist(sw, skel(t), 1) <= (sw.length >= 4 ? 1 : 0))) best = Math.max(best, 1);
+  }
+  return best;
+}
+export function searchScore(key, q) {   // 0 = לא מתאים; כל מילה בשאילתה חייבת להימצא
+  const tokens = key.split(' ').filter(Boolean);
+  const run = (qq) => {
+    const words = fold(qq).split(' ').filter(Boolean);
+    if (!words.length) return 1;
+    let sum = 0;
+    for (const w of words) { const sc = wordScore(w, tokens); if (!sc) return 0; sum += sc; }
+    return sum / words.length;
+  };
+  return Math.max(run(q), run(swapLayout(q)) * 0.9);
+}
+export function searchHit(key, q) { return searchScore(key, q) > 0; }
+function applySearch(home) {
+  const q = (ui.q || '').trim();
+  home.classList.toggle('searching', !!q);
+  const grid = home.querySelector('.lib-grid');
+  const items = Array.from(home.querySelectorAll('.lib-item'));
+  let n = 0, exact = 0;
+  const scored = items.map((it, i) => ({ it, sc: q ? searchScore(it.dataset.q || '', q) : 1, i: +(it.dataset.i || i) }));
+  exact = scored.filter((x) => x.sc >= 2.5).length;
+  scored.forEach((x) => { const on = x.sc > 0 && (!exact || x.sc >= 2.5); x.it.hidden = !on; if (on) n++; });   // יש התאמה מדויקת — בלי "קרובים"
+  if (grid) (q ? scored.slice().sort((a, b) => b.sc - a.sc || a.i - b.i) : scored.slice().sort((a, b) => a.i - b.i)).forEach((x) => grid.append(x.it));
+  const cnt = home.querySelector('.lib-count');
+  if (cnt) cnt.textContent = T('libCount', { n: q ? n : +cnt.dataset.n });
+  const none = home.querySelector('.lib-noq'); if (none) none.hidden = !(q && !n);
+  const near = home.querySelector('.lib-near'); if (near) near.hidden = !(q && n && !exact);
 }
 
 function askRemove(b) {

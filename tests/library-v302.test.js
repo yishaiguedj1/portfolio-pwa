@@ -12,7 +12,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
 const src = acad.replace(/^export const/gm, 'const') + '\n' + lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, _test };';
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -108,6 +108,17 @@ const ids = new Set(L.THINKERS.map((p) => p.id));
 ok(['graham', 'fisher', 'buffett', 'munger', 'ackman'].every((x) => ids.has(x)) && L.GLOSSARY.every((g) => g.length === 4 && g[0] && g[2] && ids.has(g[3])), 'כל ההוגים שהמשתמש ביקש + כל מונח משויך להוגה קיים');
 ok(L.glossaryMatch('מרווח ביטחון')[1] === 'Margin of safety' && L.glossaryMatch('the float')[0] === 'פלוט' && L.glossaryMatch('ה"מר שוק"') && L.glossaryMatch('שלום עולם') === null, 'זיהוי מונח בטקסט שסומן (עברית/אנגלית, עם ניקוד ומירכאות)');
 ok(/op: 'insight'/.test(lib) && /acAiNote/.test(lib) && !/GEMINI/.test(lib), 'ניתוח המכתב מגיע מהשרתון, עם ציון שנכתב בעזרת AI');
+
+// חיפוש בספרייה
+const k1 = L.searchKey({ title: 'מכתב באפט 2023', author: 'וורן א. באפט', year: 2023, desc: 'צ׳רלי מאנגר — האדריכל' });
+ok(L.searchHit(k1, '2023') && L.searchHit(k1, 'באפט מאנגר') && L.searchHit(k1, 'צ\'רלי') && !L.searchHit(k1, '1987') && L.searchHit(k1, ''), 'חיפוש: שם/כותב/שנה/תקציר, כמה מילים יחד, בלי תלות בגרש');
+ok(/lib-search/.test(lib) && /searching/.test(lib), 'שורת החיפוש מסננת במקום (בלי לבנות מחדש את המסך)');
+const k87 = L.searchKey({ title: 'מכתב באפט 1987', author: 'וורן א. באפט', year: 1987 });
+const k23 = L.searchKey({ title: 'מכתב באפט 2023', author: 'וורן א. באפט', year: 2023, desc: 'צ׳רלי מאנגר — האדריכל של ברקשייר' });
+const fz = [['באפת', k87], ['בופט 1987', k87], ['מכתוב באפט', k87], ['1897', k87], ['buffett 2023', k23], ['נוככקאא', k87], ['מנגר', k23], ['ברקשיר', k23], ['berkshre', k23], ['baffet', k87]];
+fz.forEach(([q, k]) => ok(L.searchHit(k, q), 'חיפוש סלחני: "' + q + '" נמצא'));
+ok(!L.searchHit(L.searchKey({ title: 'מכתב באפט 1986', author: 'וורן באפט', year: 1986 }), '1987') && !L.searchHit(k87, 'מאנגר') && !L.searchHit(k87, '2023') && !L.searchHit(k23, 'קוקה קולה'), 'חיפוש סלחני: לא מוצא מה שבאמת לא שם');
+ok(L.searchScore(k87, 'באפט') > L.searchScore(k87, 'באפת') && L.editDist('1987', '1897', 2) === 1 && L.swapLayout('נוככקאא') === 'buffett', 'דירוג: התאמה מדויקת לפני התאמה עם טעות; החלפת סדר = טעות אחת; מקלדת הפוכה');
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),
