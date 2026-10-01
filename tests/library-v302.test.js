@@ -11,7 +11,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
 const src = lib.replace(/^import .*$/m, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, _test };';
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -70,6 +70,17 @@ ok(plan.fetch.map((x) => x.id).join() === 'D3,D2' && plan.remove.length === 0, '
 const plan2 = L.driveSyncPlan(local, [{ id: 'D1', md5: 'x' }]);
 ok(plan2.remove.map((b) => b.id).join() === 'b', 'Drive: מכתב שהוסר מהתיקייה מוסר; ספר שיובא ידנית נשאר');
 ok(/idToken/.test(lib) && /\/api\/library/.test(lib) && !/GDRIVE|private_key/.test(lib), 'Drive: הטלפון שולח רק את אסימון ההתחברות — בלי מפתחות');
+
+// שלב 3 (v305) — דף מכתב + התקדמות בין מכשירים
+ok(L.readMinutes([{ size: 16000 }, { size: 16000, linear: 'no' }, { size: 3200 }]) === 12 && L.readMinutes([]) === 0, 'זמן קריאה כמו במנוע: 1600 תווים לדקה, בלי פרקים לא־ליניאריים');
+ok(L.plainText('<p>מכתב &amp; <b>תקציר</b></p>') === 'מכתב & תקציר', 'תקציר מ־dc:description — טקסט נקי בלי תגיות');
+ok(L.cloudKey('id-urn:uuid:12.34/x') === 'kid-urn_uuid_12_34_x', 'מפתח בענן בלי תווים בעייתיים');
+const loc = { lastRead: 100, cfi: 'a', fraction: 0.2, done: false };
+ok(L.mergeProgress(loc, { t: 50, c: 'b', f: 0.9 }) === null && L.mergeProgress(loc, null) === null, 'התקדמות ישנה מהענן לא דורסת את המקומית');
+const m = L.mergeProgress(loc, { t: 200, c: 'b', f: 0.9, d: true });
+ok(m && m.cfi === 'b' && m.fraction === 0.9 && m.done && m.lastRead === 200, 'התקדמות חדשה ממכשיר אחר — נכנסת');
+ok(/set\(\{ lib: \{ p \} \}, \{ merge: true \}\)/.test(lib) && !/set\(\{[^}]*\bdb\b/.test(lib), 'הענן: שדה lib נפרד עם merge — לא נוגע בתיק (db)');
+ok(/goView\(\{ book: b\.id \}\)/.test(lib) && /lv: v/.test(lib) && /history\.state\.lv/.test(lib), 'כריכה פותחת דף מכתב, ו"חזור" מחזיר ממנו לספרייה');
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),

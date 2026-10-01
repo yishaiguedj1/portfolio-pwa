@@ -247,7 +247,7 @@ he: {
   lagLive: 'חי',
   lagDelayed: 'דיליי ~15 דקות',
   srcDelayed: 'דיליי', srcSaved: 'שמור', srcLoading: 'טוען…',
-  libImport: 'הוספת ספר', libTitle: 'ספרייה', libDenied: 'החשבון שלך עדיין לא מורשה לספריית המכתבים המשותפת.', libSignIn: 'התחבר לחשבון Google באפליקציה כדי לקבל את ספריית המכתבים.', libSyncing: 'טוען את ספריית המכתבים…', libSyncProg: 'מוריד מכתבים מהספרייה… {n} מתוך {t}', libEmpty: 'הספרייה ריקה. לחץ על + כדי להוסיף קובץ EPUB או AZW3 מהטלפון או מ־Google Drive.',
+  libImport: 'הוספת ספר', libTitle: 'ספרייה', libDenied: 'החשבון שלך עדיין לא מורשה לספריית המכתבים המשותפת.', libSignIn: 'התחבר לחשבון Google באפליקציה כדי לקבל את ספריית המכתבים.', libSyncing: 'טוען את ספריית המכתבים…', libSyncProg: 'מוריד מכתבים מהספרייה… {n} מתוך {t}', bkChapters: 'פרקים', bkMinutes: 'דק׳ קריאה', bkReadPct: 'נקרא', bkRead: 'קרא', bkContinue: 'המשך קריאה', bkAgain: 'קרא שוב', bkAbout: 'בקצרה', libEmpty: 'הספרייה ריקה. לחץ על + כדי להוסיף קובץ EPUB או AZW3 מהטלפון או מ־Google Drive.',
   libNoAuthor: 'ללא כותב', libAll: 'הכל', libContinue: 'להמשיך לקרוא', libSortNew: 'לפי שנה · מהחדש', libSortOld: 'לפי שנה · מהישן',
   libSortRecent: 'נקראו לאחרונה', libSortTitle: 'מיון', libCount: '{n} ספרים', libRead: '✓ נקרא', libNew: 'חדש',
   libRemove: 'הסר', libRemoveQ: 'להסיר את "{t}" מהספרייה בטלפון?', libOpenErr: 'לא ניתן לפתוח את הקובץ',
@@ -785,7 +785,7 @@ en: {
   lagLive: 'live',
   lagDelayed: '~15 min delay',
   srcDelayed: 'Delayed', srcSaved: 'Saved', srcLoading: 'Loading…',
-  libImport: 'Add book', libTitle: 'Library', libDenied: "Your account isn't on the shared letters library yet.", libSignIn: 'Sign in with Google in the app to get the letters library.', libSyncing: 'Loading the letters library…', libSyncProg: 'Downloading letters… {n} of {t}', libEmpty: 'Your library is empty. Tap + to add an EPUB or AZW3 file from your phone or Google Drive.',
+  libImport: 'Add book', libTitle: 'Library', libDenied: "Your account isn't on the shared letters library yet.", libSignIn: 'Sign in with Google in the app to get the letters library.', libSyncing: 'Loading the letters library…', libSyncProg: 'Downloading letters… {n} of {t}', bkChapters: 'chapters', bkMinutes: 'min read', bkReadPct: 'read', bkRead: 'Read', bkContinue: 'Continue reading', bkAgain: 'Read again', bkAbout: 'In brief', libEmpty: 'Your library is empty. Tap + to add an EPUB or AZW3 file from your phone or Google Drive.',
   libNoAuthor: 'Unknown author', libAll: 'All', libContinue: 'Continue reading', libSortNew: 'By year · newest', libSortOld: 'By year · oldest',
   libSortRecent: 'Recently read', libSortTitle: 'Sort', libCount: '{n} books', libRead: '✓ Read', libNew: 'New',
   libRemove: 'Remove', libRemoveQ: 'Remove "{t}" from the library on this phone?', libOpenErr: "Couldn't open this file",
@@ -4359,7 +4359,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v304';
+const APP_VERSION = 'v305';
 
 
 function saveDBto(db) {

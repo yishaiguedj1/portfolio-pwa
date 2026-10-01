@@ -121,3 +121,27 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 
 /* שלב 2: הודעת הספרייה המשותפת (אין הרשאה) */
 .lib-note { margin: 0 20px 12px; font-size: 14px; color: var(--on-surface-var); }
+
+/* שלב 3: דף מכתב (לפי מוקאפ שלב 0) */
+.bk { padding: 4px 20px 32px; text-align: center; }
+.bk .bk-cover { width: 148px; margin: 8px auto 16px; padding-block: 14px; padding-inline: 16px 12px; }
+.bk .bk-cover .lc-yr { font-size: 50px; }
+.bk .bk-cover .lc-top { font-size: 12px; }
+.bk .bk-cover .lc-t { font-size: 13px; }
+.bk-title { font-size: 24px; font-weight: 800; margin: 0; line-height: 1.3; }
+.bk-sub { color: var(--on-surface-var); font-size: 15px; margin-top: 4px; }
+.bk-stats { display: flex; justify-content: center; gap: 24px; margin: 16px 0; font-size: 13px; color: var(--on-surface-var); }
+.bk-stats b { display: block; color: var(--on-surface); font-size: 17px; }
+.bk-cta { display: block; width: 100%; padding: 15px; border-radius: var(--pill); background: var(--primary) !important; color: var(--on-primary) !important;
+  font-size: 17px !important; font-weight: 700 !important; margin: 4px 0 18px; }
+.bk-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 12px; text-align: start; }
+.bk-card h4 { margin: 0 0 6px; font-size: 13px; color: var(--on-surface-var); font-weight: 700; }
+.bk-desc { margin: 0; font-family: "SNB Noto UI", sans-serif; font-size: 16px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.bk-card.open .bk-desc { -webkit-line-clamp: unset; display: block; }
+.bk-toc summary { font-size: 16px; font-weight: 700; cursor: pointer; list-style: none; display: flex; justify-content: space-between; }
+.bk-toc summary::-webkit-details-marker { display: none; }
+.bk-toc summary::after { content: "›"; color: var(--on-surface-var); font-size: 24px; line-height: 1; transition: transform .2s; }
+[dir="rtl"] .bk-toc summary::after { transform: scaleX(-1); }
+.bk-toc[open] summary::after { transform: rotate(90deg); }
+.bk-toc .lib-ios { margin-top: 10px; }
+.bk-toc .lib-row { font-size: 15px; }

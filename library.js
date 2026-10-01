@@ -23,7 +23,7 @@ const defaults = { theme: 'white', size: 19, weight: 0, spacing: 1, justify: fal
 function loadSettings() { try { return Object.assign({}, defaults, JSON.parse(localStorage.getItem(LS_READER) || '{}')); } catch (e) { return Object.assign({}, defaults); } }
 function saveSettings() { try { localStorage.setItem(LS_READER, JSON.stringify(S)); } catch (e) {} }
 let S = loadSettings();
-const ui = { sort: 'new', author: '' };
+const ui = { sort: 'new', author: '', view: null };   // view: null = בית, { book: id } = דף מכתב
 
 /* ---------------- IndexedDB: books = פרטים ומיקום (רשימה מהירה), files = הקובץ עצמו ---------------- */
 let _db = null;
@@ -63,6 +63,17 @@ export function bookYear(title, published) {
   const p = String(published || '').match(/\b(1[89]\d\d|20\d\d)\b/);
   return p ? +p[1] : 0;
 }
+/* זמן קריאה כמו במנוע (progress.js: 1600 תווים לדקה), רק פרקים "ליניאריים" */
+export function readMinutes(sections) {
+  const size = (sections || []).filter((x) => x && x.linear !== 'no').reduce((a, x) => a + (+x.size || 0), 0);
+  return size ? Math.max(1, Math.round(size / 1600)) : 0;
+}
+export function plainText(html) { return String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim(); }
+function bookExtras(book) {
+  const md = book.metadata || {};
+  return { minutes: readMinutes(book.sections), chapters: (book.toc || []).length, desc: plainText(langText(md.description)).slice(0, 1200),
+    pub: langText(md.publisher), date: String(md.published || '').slice(0, 10), meta: 2 };
+}
 export function sortBooks(list, sort) {
   const a = list.slice();
   if (sort === 'recent') return a.sort((x, y) => (y.lastRead || 0) - (x.lastRead || 0) || (y.year || 0) - (x.year || 0));
@@ -92,6 +103,7 @@ async function importFiles(files, extra) {
         lang: Array.isArray(md.language) ? md.language[0] : (md.language || ''), dir: book.dir || '',
         size: file.size, added: Date.now(), lastRead: 0, fraction: 0, cfi: '', done: false,
       };
+      Object.assign(rec, bookExtras(book));
       const old = (await allBooks()).find((b) => b.id === id);
       if (old) Object.assign(rec, { added: old.added, lastRead: old.lastRead, fraction: old.fraction, cfi: old.cfi, done: old.done });
       if (extra) Object.assign(rec, extra);
@@ -171,6 +183,55 @@ function syncDrive() {
   return syncing;
 }
 
+/* ---------------- שלב 3: התקדמות והגדרות בין מכשירים ----------------
+   שדה נפרד `lib` במסמך המשתמש ב־Firestore (users/{uid}) — כתיבה עם merge, כך ששמירת התיק (שדה db) לא נוגעת בו
+   והוא לא נוגע בתיק. p = התקדמות לכל ספר { c: CFI, f: אחוז, d: נקרא, t: זמן }, s = הגדרות הקורא. הכי עדכני מנצח. */
+export function cloudKey(id) { return 'k' + String(id || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 140); }
+export function mergeProgress(local, remote) {   // טהורה: מחזירה עדכון מקומי אם המרוחק חדש יותר, אחרת null
+  if (!remote || !(remote.t > (local.lastRead || 0))) return null;
+  return { cfi: remote.c || local.cfi || '', fraction: +remote.f || 0, done: !!remote.d || !!local.done, lastRead: remote.t };
+}
+function userRef() {
+  try {
+    if (typeof firebase === 'undefined' || !firebase.apps || !firebase.apps.length || !firebase.firestore) return null;
+    const u = firebase.auth().currentUser;
+    return u ? firebase.firestore().collection('users').doc(u.uid) : null;
+  } catch (e) { return null; }
+}
+let pendingP = {}, pushT = 0, settingsT = 0;
+function pushProgress(rec, now) {
+  pendingP[cloudKey(rec.id)] = { c: rec.cfi || '', f: Math.round((rec.fraction || 0) * 1000) / 1000, d: !!rec.done, t: rec.lastRead || Date.now() };
+  clearTimeout(pushT);
+  pushT = setTimeout(flushProgress, now ? 0 : 4000);
+}
+function flushProgress() {
+  clearTimeout(pushT);
+  const ref = userRef(); const p = pendingP;
+  if (!ref || !Object.keys(p).length) return;
+  pendingP = {};
+  ref.set({ lib: { p } }, { merge: true }).catch(() => { pendingP = Object.assign(p, pendingP); });
+}
+function pushSettings() {
+  S.t = Date.now(); saveSettings();
+  clearTimeout(settingsT);
+  settingsT = setTimeout(() => { const ref = userRef(); if (ref) ref.set({ lib: { s: S } }, { merge: true }).catch(() => {}); }, 3000);
+}
+async function pullCloud() {
+  const ref = userRef(); if (!ref) return 0;
+  let lib; try { const snap = await ref.get(); lib = snap.exists && snap.data().lib; } catch (e) { return 0; }
+  if (!lib) return 0;
+  let changed = 0;
+  if (lib.s && lib.s.t > (S.t || 0)) { S = Object.assign({}, defaults, lib.s); saveSettings(); }
+  const p = lib.p || {};
+  for (const b of await allBooks()) {
+    if (rd && rd.rec && rd.rec.id === b.id) continue;          // הספר הפתוח — המקומי קובע
+    const u = mergeProgress(b, p[cloudKey(b.id)]);
+    if (u) { Object.assign(b, u); await putBook(b); changed++; }
+  }
+  return changed;
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.hidden) flushProgress(); });
+
 /* ---------------- מבנה המסך ---------------- */
 const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ICON = {
@@ -200,8 +261,16 @@ function cover(b, mini) {
   return el;
 }
 
+function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
+  ui.view = v;
+  history.pushState(Object.assign({}, history.state || {}, { lib: 1, lv: v }), '');
+  renderHome();
+  if (root) root.scrollTop = 0;
+}
+
 async function renderHome() {
   if (!root) return;
+  if (ui.view && ui.view.book) return renderBook(ui.view.book);
   const books = await allBooks();
   const home = root.querySelector('.lib-home');
   home.textContent = '';
@@ -239,7 +308,9 @@ async function renderHome() {
     const card = h('button', 'lib-cont'); card.type = 'button';
     const meta = h('div', 'lc-meta');
     const bar = h('div', 'lib-bar'); const fill = h('i'); fill.style.width = Math.round(last.fraction * 100) + '%'; bar.append(fill);
-    meta.append(h('div', 'lc-k', T('libContinue')), h('div', 'lc-title', last.title), bar, h('div', 'lc-p', Math.round(last.fraction * 100) + '%'));
+    const left = last.minutes ? Math.max(1, Math.round(last.minutes * (1 - (last.fraction || 0)))) : 0;
+    meta.append(h('div', 'lc-k', T('libContinue')), h('div', 'lc-title', last.title), bar,
+      h('div', 'lc-p', Math.round(last.fraction * 100) + '%' + (left ? ' · ' + T('rdMinLeftBook', { m: left }) : '')));
     card.append(cover(last, true), meta);
     card.addEventListener('click', () => openReader(last.id));
     home.append(card);
@@ -258,14 +329,83 @@ async function renderHome() {
     else if (b.fraction > 0) { const m = h('span', 'lib-mini'); const f = h('i'); f.style.width = Math.round(b.fraction * 100) + '%'; m.append(f); cap.append(m, h('span', null, Math.round(b.fraction * 100) + '%')); }
     else cap.append(h('span', 'lib-badge', T('libNew')));
     it.append(cover(b), cap);
-    it.addEventListener('click', () => openReader(b.id));
+    it.addEventListener('click', () => goView({ book: b.id }));
     let timer = 0;
-    it.addEventListener('pointerdown', () => { timer = setTimeout(() => { timer = -1; askRemove(b); }, 650); });
+    // לחיצה ארוכה = הסרה — רק לספר שיובא ידנית (מכתב מהספרייה המשותפת היה חוזר בסנכרון הבא)
+    if (b.src !== 'drive') it.addEventListener('pointerdown', () => { timer = setTimeout(() => { timer = -1; askRemove(b); }, 650); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => it.addEventListener(ev, () => { if (timer > 0) clearTimeout(timer); }));
     it.addEventListener('click', (e) => { if (timer === -1) { e.stopImmediatePropagation(); timer = 0; } }, true);
     grid.append(it);
   });
   home.append(grid);
+}
+
+async function renderBook(id) {
+  const home = root.querySelector('.lib-home');
+  let b = (await allBooks()).find((x) => x.id === id);
+  if (!b) { ui.view = null; return renderHome(); }
+  let book = null;
+  if (!b.meta) {                          // ספר שיובא לפני v305 — משלימים זמן קריאה/פרקים/תקציר פעם אחת
+    try { const f = await getFile(id); book = await makeBook(f); Object.assign(b, bookExtras(book)); await putBook(b); } catch (e) {}
+  }
+  if (!root || !ui.view || ui.view.book !== id) return;
+  home.textContent = '';
+  const top = h('div', 'lib-top');
+  const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, T('libTitle')));
+  back.addEventListener('click', () => history.back());
+  top.append(back);
+  const d = h('div', 'bk');
+  const cv = cover(b); cv.classList.add('bk-cover');
+  d.append(cv, h('h2', 'bk-title', b.title));
+  // שם המוציא רק כשהוא בשפת הממשק (מוציא באנגלית במכתב עברי שובר את כיוון השורה); כל חלק מבודד לכיוון שלו
+  const heUi = !((typeof getLang === 'function' && getLang()) === 'en');
+  const by = [b.pub, b.author].find((x) => x && /[\u0590-\u05FF]/.test(x) === heUi) || '';
+  const parts = [by, fmtDate(b.date)].filter(Boolean);
+  if (parts.length) {
+    const sub = h('div', 'bk-sub');
+    parts.forEach((x, i) => { if (i) sub.append(' · '); const bd = document.createElement('bdi'); bd.textContent = x; sub.append(bd); });
+    d.append(sub);
+  }
+  const stats = h('div', 'bk-stats');
+  const stat = (v, k) => { const x = h('div'); x.append(h('b', null, v), h('span', null, k)); stats.append(x); };
+  if (b.chapters) stat(String(b.chapters), T('bkChapters'));
+  if (b.minutes) stat('~' + b.minutes, T('bkMinutes'));
+  stat(Math.round((b.fraction || 0) * 100) + '%', T('bkReadPct'));
+  d.append(stats);
+  const cta = h('button', 'bk-cta', T(b.done ? 'bkAgain' : b.fraction > 0 ? 'bkContinue' : 'bkRead')); cta.type = 'button';
+  cta.addEventListener('click', () => openReader(id, b.done ? { fromStart: true } : null));
+  d.append(cta);
+  if (b.desc) {
+    const c = h('div', 'bk-card'); c.append(h('h4', null, T('bkAbout')));
+    const pp = h('p', 'bk-desc', b.desc); pp.dir = 'auto';
+    c.append(pp);
+    c.addEventListener('click', () => c.classList.toggle('open'));
+    d.append(c);
+  }
+  const toc = h('details', 'bk-card bk-toc');
+  toc.append(h('summary', null, T('rdToc')));
+  toc.addEventListener('toggle', async () => {
+    if (!toc.open || toc.dataset.ok) return;
+    toc.dataset.ok = '1';
+    try { if (!book) book = await makeBook(await getFile(id)); } catch (e) { return; }
+    const list = h('div', 'lib-ios');
+    const walk = (items, depth) => (items || []).forEach((it) => {
+      const r = h('button', 'lib-row'); r.type = 'button'; r.style.paddingInlineStart = (14 + depth * 16) + 'px';
+      r.append(h('span', null, langText(it.label)));
+      r.addEventListener('click', () => openReader(id, { href: it.href }));
+      list.append(r);
+      walk(it.subitems, depth + 1);
+    });
+    walk(book.toc, 0);
+    toc.append(list);
+  });
+  d.append(toc);
+  home.append(top, d);
+}
+function fmtDate(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  try { return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString((typeof getLang === 'function' && getLang()) === 'en' ? 'en-US' : 'he-IL', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return iso; }
 }
 
 function askRemove(b) {
@@ -349,7 +489,7 @@ function applyReaderStyle() {
   if (r.setStyles) r.setStyles(bookCSS());
 }
 
-async function openReader(id) {
+async function openReader(id, opt) {
   const rec = (await allBooks()).find((b) => b.id === id);
   const file = await getFile(id);
   if (!rec || !file) return;
@@ -393,6 +533,7 @@ async function openReader(id) {
       const r = rd && rd.rec; if (!r) return;
       Object.assign(r, { cfi: d.cfi || r.cfi, fraction: frac, lastRead: Date.now(), done: r.done || frac >= 0.985 });
       putBook(r).catch(() => {});
+      pushProgress(r);
     }, 600);
   });
   view.addEventListener('load', (e) => wireDoc(e.detail.doc, setChrome));
@@ -401,7 +542,9 @@ async function openReader(id) {
     rd.book = view.book;
     if (rd.book && rd.book.dir) box.dir = rd.book.dir;
     applyReaderStyle();
-    await view.init({ lastLocation: rec.cfi || null, showTextStart: true });
+    const startAt = opt && (opt.href || opt.fromStart) ? null : (rec.cfi || null);
+    await view.init({ lastLocation: startAt, showTextStart: true });
+    if (opt && opt.href) await view.goTo(opt.href).catch(() => {});
   } catch (e) {
     if (typeof flash === 'function') flash(T('libOpenErr'));
     rd.closing = true;
@@ -411,6 +554,7 @@ async function openReader(id) {
 
 function closeReader() {
   if (!rd) return;
+  if (rd.rec) { clearTimeout(rd.saveT); pushProgress(rd.rec, true); }
   try { rd.view.close(); } catch (e) {}
   rd.els.box.remove();
   rd = null;
@@ -528,7 +672,7 @@ function openAa() {
     };
     const tFont = tabBtn('font', T('rdFont')); tabBtn('layout', T('rdLayout')); tabBtn('theme', T('rdTheme'));
     tFont.classList.add('on');
-    const redo = () => { saveSettings(); applyReaderStyle(); };
+    const redo = () => { pushSettings(); applyReaderStyle(); };
     // גופן
     const pf = h('div', 'rd-pane'); panes.font = pf;
     [['snb', 'Noto Sans Hebrew'], ['book', T('rdFontBook')]].forEach(([v, label]) => {
@@ -599,7 +743,9 @@ function onPop() {
       return;
     }
   }
+  if (lvl >= 1 && lvl < 2) ui.view = (history.state && history.state.lv) || null;
   if (lvl < 2 && rd) closeReader();
+  else if (lvl === 1 && root) { renderHome(); root.scrollTop = 0; }
   if (lvl < 1 && root) { hideSel(); root.remove(); root = null; document.documentElement.classList.remove('lib-open'); }
 }
 
@@ -612,10 +758,12 @@ export async function openLibrary() {
   document.documentElement.classList.add('lib-open');
   history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
+  ui.view = null;
   const first = syncDrive();
   await renderHome();
   await first;
+  await pullCloud();
   renderHome();
 }
 
-export const _test = { bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { bookExtras, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
