@@ -5,6 +5,8 @@
    שלב 2: הספרייה המשותפת — המכתבים מתיקיית ה־Drive של המשתמש דרך השרתון (/api/library), רק לקוראים מורשים.
    עיצוב: כמו אפליקציית קינדל (בקשת המשתמש) בשפה של THE SNOWBALL; יישור לימין כברירת מחדל, עובי 1 = Regular (400). */
 import { makeBook } from './vendor/foliate-js/view.js';
+import { Overlayer } from './vendor/foliate-js/overlayer.js';
+import * as CFI from './vendor/foliate-js/epubcfi.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 const LS_READER = 'pwa_reader_v1';
@@ -73,6 +75,34 @@ function bookExtras(book) {
   const md = book.metadata || {};
   return { minutes: readMinutes(book.sections), chapters: (book.toc || []).length, desc: plainText(langText(md.description)).slice(0, 1200),
     pub: langText(md.publisher), date: String(md.published || '').slice(0, 10), meta: 2 };
+}
+/* ---------------- שלב 4: הדגשות, הערות, סימניות ----------------
+   נשמרות ברשומת הספר (rec.ann) — מערך { id, c: CFI, x: הקטע, k: צבע, n: הערה, b: סימנייה, ch: פרק, f: אחוז, u: עדכון, d: נמחק }.
+   מחיקה = d:1 (מצבה), כדי שמכשיר אחר לא יחזיר אותה בסנכרון. */
+export const HL_COLORS = { y: '#FFD60A', g: '#30D158', b: '#64D2FF', p: '#FF6482' };
+export function mergeAnn(local, remote) {   // טהורה: מיזוג לפי id — העדכון האחרון מנצח (כולל מחיקות)
+  const out = new Map((local || []).map((a) => [a.id, a]));
+  let changed = false;
+  Object.entries(remote || {}).forEach(([id, r]) => {
+    if (!r) return;
+    const l = out.get(id);
+    if (!l || (r.u || 0) > (l.u || 0)) { out.set(id, Object.assign({ id }, r)); changed = true; }
+  });
+  return changed ? Array.from(out.values()) : null;
+}
+export function liveAnn(list, kind) {          // הדגשות/סימניות פעילות, לפי מיקום בספר
+  return (list || []).filter((a) => !a.d && (kind === 'bm' ? a.b : !a.b)).sort((a, b) => (a.f || 0) - (b.f || 0));
+}
+export function wrapQuote(text, maxW, measure, maxLines) {   // שורות לכרטיס הציטוט (מדידה מוזרקת — נבדקת)
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = []; let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (measure(t) <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…'; }
+  return lines;
 }
 export function sortBooks(list, sort) {
   const a = list.slice();
@@ -198,7 +228,7 @@ function userRef() {
     return u ? firebase.firestore().collection('users').doc(u.uid) : null;
   } catch (e) { return null; }
 }
-let pendingP = {}, pushT = 0, settingsT = 0;
+let pendingP = {}, pendingA = {}, pushT = 0, settingsT = 0;
 function pushProgress(rec, now) {
   pendingP[cloudKey(rec.id)] = { c: rec.cfi || '', f: Math.round((rec.fraction || 0) * 1000) / 1000, d: !!rec.done, t: rec.lastRead || Date.now() };
   clearTimeout(pushT);
@@ -206,10 +236,18 @@ function pushProgress(rec, now) {
 }
 function flushProgress() {
   clearTimeout(pushT);
-  const ref = userRef(); const p = pendingP;
-  if (!ref || !Object.keys(p).length) return;
-  pendingP = {};
-  ref.set({ lib: { p } }, { merge: true }).catch(() => { pendingP = Object.assign(p, pendingP); });
+  const ref = userRef(); const p = pendingP, a = pendingA;
+  if (!ref || (!Object.keys(p).length && !Object.keys(a).length)) return;
+  pendingP = {}; pendingA = {};
+  const lib = {}; if (Object.keys(p).length) lib.p = p; if (Object.keys(a).length) lib.a = a;
+  ref.set({ lib }, { merge: true }).catch(() => { pendingP = Object.assign(p, pendingP); pendingA = Object.assign(a, pendingA); });
+}
+function pushAnn(rec, ann) {
+  const k = cloudKey(rec.id);
+  const { id, ...rest } = ann;
+  (pendingA[k] = pendingA[k] || {})[id] = rest;
+  clearTimeout(pushT);
+  pushT = setTimeout(flushProgress, 1500);
 }
 function pushSettings() {
   S.t = Date.now(); saveSettings();
@@ -226,7 +264,10 @@ async function pullCloud() {
   for (const b of await allBooks()) {
     if (rd && rd.rec && rd.rec.id === b.id) continue;          // הספר הפתוח — המקומי קובע
     const u = mergeProgress(b, p[cloudKey(b.id)]);
-    if (u) { Object.assign(b, u); await putBook(b); changed++; }
+    const ann = mergeAnn(b.ann, (lib.a || {})[cloudKey(b.id)]);
+    if (u) Object.assign(b, u);
+    if (ann) b.ann = ann;
+    if (u || ann) { await putBook(b); changed++; }
   }
   return changed;
 }
@@ -239,6 +280,8 @@ const ICON = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   sort: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"><path d="M7 4h10v16l-5-3.6L7 20z"/></svg>',
+  notes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
 };
 let root = null;
@@ -271,6 +314,7 @@ function goView(v) {           // מעבר לדף בתוך הספרייה — ר
 async function renderHome() {
   if (!root) return;
   if (ui.view && ui.view.book) return renderBook(ui.view.book);
+  if (ui.view && ui.view.notes) return renderNotes();
   const books = await allBooks();
   const home = root.querySelector('.lib-home');
   home.textContent = '';
@@ -281,7 +325,10 @@ async function renderHome() {
   const inp = h('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.epub,.azw3,.azw,.mobi,.kf8,.fb2,application/epub+zip';
   inp.addEventListener('change', async () => { const n = await importFiles(Array.from(inp.files || [])); inp.value = ''; if (n) renderHome(); });
   add.append(inp);
-  top.append(back, add);
+  const learn = h('button', 'lib-round'); learn.type = 'button'; learn.innerHTML = ICON.notes; learn.setAttribute('aria-label', T('learnTitle')); learn.title = T('learnTitle');
+  learn.addEventListener('click', () => goView({ notes: 1 }));
+  const tr = h('div', 'lib-tr'); tr.append(learn, add);
+  top.append(back, tr);
   home.append(top, h('h1', 'lib-large', T('libTitle')));
   if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
   else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
@@ -402,6 +449,26 @@ async function renderBook(id) {
   d.append(toc);
   home.append(top, d);
 }
+async function renderNotes() {
+  const home = root.querySelector('.lib-home');
+  const books = sortBooks((await allBooks()).filter((b) => liveAnn(b.ann).length), 'recent');
+  if (!root || !ui.view || !ui.view.notes) return;
+  home.textContent = '';
+  const top = h('div', 'lib-top');
+  const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, T('libTitle')));
+  back.addEventListener('click', () => history.back());
+  top.append(back);
+  home.append(top, h('h1', 'lib-large', T('learnTitle')));
+  if (!books.length) { home.append(h('p', 'lib-empty', T('learnEmpty'))); return; }
+  books.forEach((b) => {
+    const list = liveAnn(b.ann);
+    const sec = h('section', 'learn-sec');
+    const head = h('div', 'learn-h'); head.append(h('b', null, b.title), h('span', null, T('learnCount', { n: list.length })));
+    sec.append(head);
+    list.forEach((a) => sec.append(annRow(a, () => openReader(b.id, { cfi: a.c }))));
+    home.append(sec);
+  });
+}
 function fmtDate(iso) {
   const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return '';
@@ -503,17 +570,27 @@ async function openReader(id, opt) {
   const ttl = h('span', 'rd-ttl', rec.title);
   const acts = h('span', 'rd-acts');
   const tocBtn = h('button', 'rd-ic'); tocBtn.type = 'button'; tocBtn.innerHTML = ICON.list; tocBtn.setAttribute('aria-label', T('rdToc'));
+  const bmBtn = h('button', 'rd-ic rd-bm'); bmBtn.type = 'button'; bmBtn.innerHTML = ICON.bookmark; bmBtn.setAttribute('aria-label', T('bmAdd'));
+  const ribbon = h('div', 'rd-ribbon');
   const aaBtn = h('button', 'rd-ic rd-aa'); aaBtn.type = 'button'; aaBtn.dir = 'ltr'; aaBtn.innerHTML = 'A<small>a</small>'; aaBtn.setAttribute('aria-label', T('rdSettings'));
-  acts.append(tocBtn, aaBtn); topBar.append(xBtn, ttl, acts);
+  acts.append(bmBtn, tocBtn, aaBtn); topBar.append(xBtn, ttl, acts);
   const botBar = h('div', 'rd-botbar');
   const chap = h('div', 'rd-chap'); const slider = h('input', 'rd-slider'); slider.type = 'range'; slider.min = '0'; slider.max = '1000'; slider.step = '1';
   const nums = h('div', 'rd-nums'); const nL = h('span'); const nR = h('span'); nums.append(nL, nR);
   botBar.append(chap, slider, nums);
-  box.append(view, foot, topBar, botBar);
+  box.append(view, ribbon, foot, topBar, botBar);
   root.append(box);
-  rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl }, chrome: false, saveT: 0 };
+  rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon }, chrome: false, saveT: 0, annTap: 0 };
+  rec.ann = rec.ann || [];
   const setChrome = (on) => { rd.chrome = on; box.classList.toggle('chrome', on); };
   tocBtn.addEventListener('click', openToc);
+  bmBtn.addEventListener('click', toggleBookmark);
+  view.addEventListener('create-overlay', () => liveAnn(rd && rd.rec.ann).forEach((a) => view.addAnnotation({ value: a.c }).catch(() => {})));
+  view.addEventListener('draw-annotation', (e) => {
+    const a = rd && rd.rec.ann.find((x) => x.c === e.detail.annotation.value && !x.d);
+    e.detail.draw(Overlayer.highlight, { color: HL_COLORS[(a && a.k) || 'y'] });
+  });
+  view.addEventListener('show-annotation', (e) => { rd.annTap = Date.now(); annPopup(e.detail.value, e.detail.range, e.detail.index); });
   aaBtn.addEventListener('click', openAa);
   slider.addEventListener('change', () => view.goToFraction(+slider.value / 1000));
 
@@ -527,6 +604,7 @@ async function openReader(id, opt) {
     nR.textContent = fR.textContent;
     chap.textContent = (d.tocItem && d.tocItem.label) || '';
     if (!slider.matches(':active')) slider.value = String(Math.round(frac * 1000));
+    rd.loc = d; markBookmark();
     hideSel();
     clearTimeout(rd.saveT);
     rd.saveT = setTimeout(() => {
@@ -536,13 +614,13 @@ async function openReader(id, opt) {
       pushProgress(r);
     }, 600);
   });
-  view.addEventListener('load', (e) => wireDoc(e.detail.doc, setChrome));
+  view.addEventListener('load', (e) => wireDoc(e.detail.doc, setChrome, e.detail.index));
   try {
     await view.open(file);
     rd.book = view.book;
     if (rd.book && rd.book.dir) box.dir = rd.book.dir;
     applyReaderStyle();
-    const startAt = opt && (opt.href || opt.fromStart) ? null : (rec.cfi || null);
+    const startAt = opt && opt.cfi ? opt.cfi : opt && (opt.href || opt.fromStart) ? null : (rec.cfi || null);
     await view.init({ lastLocation: startAt, showTextStart: true });
     if (opt && opt.href) await view.goTo(opt.href).catch(() => {});
   } catch (e) {
@@ -565,14 +643,18 @@ function closeReader() {
 /* נגיעות בתוך הספר: דפדוף רק בהחלקה (המנוע — paginator — גורר ומצמיד לעמוד, לפי כיוון הספר).
    נגיעה בשוליים כבר לא מדפדפת (v303, בקשת המשתמש: נגיעה במילה ליד הקצה לתרגום העבירה עמוד בטעות) —
    נגיעה בכל מקום רק מציגה/מסתירה את הסרגלים. */
-function wireDoc(doc, setChrome) {
+function wireDoc(doc, setChrome, index) {
   doc.addEventListener('click', (e) => {
     const sel = doc.getSelection && doc.getSelection();
     if (sel && !sel.isCollapsed && String(sel).trim()) return;
     if (e.target && e.target.closest && e.target.closest('a[href]')) return;
-    if (selPop) { hideSel(); return; }
-    setChrome(!(rd && rd.chrome));
+    setTimeout(() => {                         // נגיעה בהדגשה (show-annotation) — לא מחליפה סרגלים
+      if (!rd || Date.now() - rd.annTap < 400) return;
+      if (selPop) { hideSel(); return; }
+      setChrome(!rd.chrome);
+    }, 0);
   });
+  doc.__idx = index;
   let st = 0;
   doc.addEventListener('selectionchange', () => { clearTimeout(st); st = setTimeout(() => showSel(doc), 350); });
 }
@@ -594,19 +676,155 @@ function showSel(doc) {
   const fr = doc.defaultView && doc.defaultView.frameElement;
   const fb = fr ? fr.getBoundingClientRect() : { left: 0, top: 0 };
   hideSel();
-  selPop = h('div', 'rd-pop');
-  const tr = h('button', null, T('rdTranslate')); tr.type = 'button';
-  const cp = h('button', null, T('rdCopy')); cp.type = 'button';
-  tr.addEventListener('click', () => { const b = blockOf(range.commonAncestorContainer); hideSel(); translateSheet(text, b ? b.textContent : text); });
-  cp.addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); if (typeof flash === 'function') flash(T('rdCopied')); } catch (e) {} hideSel(); });
-  selPop.append(tr, cp);
+  const idx = doc.__idx;
+  const cfi = rd.view.getCFI(idx, range);
+  const block = blockOf(range.commonAncestorContainer);
+  buildPop({ text, cfi, range: range.cloneRange(), block: block ? block.textContent : text });
   root.append(selPop);
+  placePop(rr, fb);
+}
+
+/* בועה אחת לסימון חדש ולהדגשה קיימת: שורת צבעים (+ הערה), ומתחת תרגום · העתק · ציטוט (+ מחיקה בקיימת) */
+function buildPop({ text, cfi, block, ann }) {
+  selPop = h('div', 'rd-pop rd-pop2');
+  const row1 = h('div', 'rd-pop-row');
+  Object.keys(HL_COLORS).forEach((k) => {
+    const b = h('button', 'rd-dot' + (ann && ann.k === k ? ' on' : '')); b.type = 'button'; b.style.background = HL_COLORS[k];
+    b.setAttribute('aria-label', T('hlColor'));
+    b.addEventListener('click', () => { hideSel(); clearSelection(); saveHighlight({ text, cfi, k, ann }); });
+    row1.append(b);
+  });
+  const nb = h('button', 'rd-txt', T('hlNote')); nb.type = 'button';
+  nb.addEventListener('click', () => { hideSel(); clearSelection(); const a = ann || saveHighlight({ text, cfi, k: 'y' }); noteSheet(a); });
+  row1.append(nb);
+  const row2 = h('div', 'rd-pop-row');
+  const act = (k, fn) => { const b = h('button', 'rd-txt', T(k)); b.type = 'button'; b.addEventListener('click', () => { hideSel(); fn(); }); row2.append(b); };
+  act('rdTranslate', () => translateSheet(text, block || text));
+  act('rdCopy', async () => { try { await navigator.clipboard.writeText(text); if (typeof flash === 'function') flash(T('rdCopied')); } catch (e) {} });
+  act('hlQuote', () => quoteCard(text));
+  if (ann) act('hlDelete', () => deleteAnn(ann));
+  selPop.append(row1, row2);
+}
+function placePop(rr, fb) {
   const pw = selPop.offsetWidth, ph = selPop.offsetHeight;
   let top = fb.top + rr.bottom + 12;                       // מתחת לסימון — מעליו מופיע התפריט של Chrome
   if (top + ph > window.innerHeight - 50) top = fb.top + rr.top - ph - 12;
   const cx = fb.left + (rr.left + rr.right) / 2;
   selPop.style.top = Math.max(8, top) + 'px';
   selPop.style.left = Math.min(window.innerWidth - pw - 8, Math.max(8, cx - pw / 2)) + 'px';
+}
+function clearSelection() { try { const d = rd && rd.view.renderer.getContents()[0]; d && d.doc.getSelection().removeAllRanges(); } catch (e) {} }
+function annPopup(value, range, index) {
+  const ann = rd && rd.rec.ann.find((x) => x.c === value && !x.d);
+  if (!ann) return;
+  hideSel();
+  buildPop({ text: ann.x, cfi: ann.c, ann, block: '' });
+  root.append(selPop);
+  const doc = range.startContainer.ownerDocument;
+  const fr = doc.defaultView && doc.defaultView.frameElement;
+  placePop(range.getBoundingClientRect(), fr ? fr.getBoundingClientRect() : { left: 0, top: 0 });
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function saveHighlight({ text, cfi, k, ann }) {
+  const r = rd.rec;
+  const loc = rd.loc || {};
+  const a = ann || { id: uid(), c: cfi, x: String(text).slice(0, 600), ch: (loc.tocItem && langText(loc.tocItem.label)) || '', f: loc.fraction || 0 };
+  Object.assign(a, { k, u: Date.now() });
+  if (!ann) r.ann.push(a);
+  putBook(r).catch(() => {}); pushAnn(r, a);
+  rd.view.addAnnotation({ value: a.c }).catch(() => {});
+  return a;
+}
+function deleteAnn(a) {
+  Object.assign(a, { d: 1, u: Date.now() });
+  putBook(rd.rec).catch(() => {}); pushAnn(rd.rec, a);
+  if (!a.b) rd.view.deleteAnnotation({ value: a.c }).catch(() => {});
+  markBookmark();
+}
+function noteSheet(a) {
+  sheet(T('hlNote'), (sh, close) => {
+    const q = h('p', 'tr-src', '“' + a.x + '”'); q.dir = 'auto';
+    const ta = h('textarea', 'hl-ta'); ta.value = a.n || ''; ta.placeholder = T('hlNotePh'); ta.dir = 'auto'; ta.rows = 4;
+    const save = h('button', 'bk-cta', T('hlSave')); save.type = 'button';
+    save.addEventListener('click', () => {
+      a.n = ta.value.trim().slice(0, 2000); a.u = Date.now();
+      const rec = rd ? rd.rec : null;
+      if (rec) { putBook(rec).catch(() => {}); pushAnn(rec, a); }
+      close();
+    });
+    sh.append(q, ta, save);
+    setTimeout(() => ta.focus(), 250);
+  });
+}
+
+/* ---- סימניות: לפי העמוד הנוכחי (CFI של הטווח הגלוי) ---- */
+function pageHasBookmark() {
+  const loc = rd && rd.loc; if (!loc || !loc.cfi) return null;
+  try {
+    const a = CFI.collapse(loc.cfi), z = CFI.collapse(loc.cfi, true);
+    return liveAnn(rd.rec.ann, 'bm').find((b) => CFI.compare(b.c, a) >= 0 && CFI.compare(b.c, z) <= 0) || null;
+  } catch (e) { return null; }
+}
+function markBookmark() {
+  if (!rd) return;
+  const on = !!pageHasBookmark();
+  rd.els.ribbon.classList.toggle('on', on);
+  rd.els.bmBtn.classList.toggle('on', on);
+}
+function toggleBookmark() {
+  const cur = pageHasBookmark();
+  if (cur) { deleteAnn(cur); if (typeof flash === 'function') flash(T('bmRemoved')); return; }
+  const loc = rd.loc || {}; if (!loc.cfi) return;
+  const start = CFI.collapse(loc.cfi);
+  let excerpt = '';
+  try { excerpt = String(loc.range ? loc.range.toString() : '').replace(/\s+/g, ' ').trim().slice(0, 160); } catch (e) {}
+  const a = { id: uid(), c: start, x: excerpt, b: 1, ch: (loc.tocItem && langText(loc.tocItem.label)) || '', f: loc.fraction || 0, u: Date.now() };
+  rd.rec.ann.push(a);
+  putBook(rd.rec).catch(() => {}); pushAnn(rd.rec, a);
+  markBookmark();
+  if (typeof flash === 'function') flash(T('bmAdded'));
+}
+
+/* ---- כרטיס ציטוט: תמונה נקייה לשיתוף (קנבס, הפונט שלנו, בלי שום נתון אישי) ---- */
+async function quoteCard(text) {
+  const rec = rd && rd.rec; if (!rec) return;
+  const W = 1080, H = 1350, pad = 96;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  try { await document.fonts.load('500 52px "SNB Noto UI"'); await document.fonts.load('700 30px "SNB Noto UI"'); } catch (e) {}
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#16261C'); g.addColorStop(1, '#0B130E');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const rtl = /[\u0590-\u05FF]/.test(text);
+  x.direction = rtl ? 'rtl' : 'ltr'; x.textAlign = rtl ? 'right' : 'left';
+  const ax = rtl ? W - pad : pad;
+  x.fillStyle = '#30D158'; x.font = '700 150px "SNB Noto UI", sans-serif'; x.fillText(rtl ? '”' : '“', ax, pad + 120);
+  // הגופן הכי גדול שנכנס (ציטוט קצר = גדול), והגוש ממורכז אנכית בין המירכאות לחתימה
+  let size = 72; let lines;
+  for (; size >= 34; size -= 4) { x.font = '500 ' + size + 'px "SNB Noto UI", sans-serif'; lines = wrapQuote(text, W - pad * 2, (t) => x.measureText(t).width, 14); if (lines.length * size * 1.5 < H - 560) break; }
+  const top0 = pad + 200, bot0 = H - pad - 140, blockH = lines.length * size * 1.5;
+  const y0 = top0 + Math.max(0, (bot0 - top0 - blockH) / 2) + size;
+  x.fillStyle = '#F2F2F7';
+  lines.forEach((ln, i) => x.fillText(ln, ax, y0 + i * size * 1.5));
+  x.fillStyle = 'rgba(255,255,255,.55)'; x.font = '600 30px "SNB Noto UI", sans-serif';
+  x.fillText([rec.author, rec.year || ''].filter(Boolean).join(' · '), ax, H - pad - 56);
+  x.fillStyle = 'rgba(255,255,255,.35)'; x.font = '700 24px sans-serif'; x.direction = 'ltr'; x.textAlign = 'left';
+  x.fillText('THE SNOWBALL', pad, H - pad);
+  const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+  if (!blob) return;
+  const file = new File([blob], 'quote.png', { type: 'image/png' });
+  sheet(T('qTitle'), (sh) => {
+    const img = h('img', 'q-img'); img.src = URL.createObjectURL(blob); img.alt = '';
+    const row = h('div', 'q-row');
+    const share = h('button', 'bk-cta', T('qShare')); share.type = 'button';
+    share.addEventListener('click', async () => {
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
+        else { const a = document.createElement('a'); a.href = img.src; a.download = 'quote.png'; a.click(); }
+      } catch (e) {}
+    });
+    row.append(share);
+    sh.append(img, row);
+  });
 }
 
 export function contextFor(text, block) {
@@ -647,18 +865,46 @@ function translateSheet(text, block) {
 /* ---------------- תוכן עניינים + גיליון Aa ---------------- */
 function openToc() {
   if (!rd || !rd.book) return;
-  sheet(T('rdToc'), (sh, close) => {
-    const list = h('div', 'lib-ios rd-toc');
+  sheet('', (sh, close) => {
+    const tabs = h('div', 'rd-seg');
+    const panes = {};
+    const go = (target) => { close(); rd.view.goTo(target).catch(() => {}); };
+    const tab = (key, label) => {
+      const b = h('button', key === 'toc' ? 'on' : '', label); b.type = 'button';
+      b.addEventListener('click', () => { tabs.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); Object.keys(panes).forEach((k) => panes[k].classList.toggle('hidden', k !== key)); });
+      tabs.append(b);
+    };
+    tab('toc', T('tabToc')); tab('hl', T('tabHl')); tab('bm', T('tabBm'));
+    const toc = h('div', 'lib-ios rd-toc rd-pane');
     const walk = (items, depth) => (items || []).forEach((it) => {
       const r = h('button', 'lib-row'); r.type = 'button'; r.style.paddingInlineStart = (14 + depth * 16) + 'px';
       r.append(h('span', null, langText(it.label)));
-      r.addEventListener('click', () => { close(); rd.view.goTo(it.href).catch(() => {}); });
-      list.append(r);
+      r.addEventListener('click', () => go(it.href));
+      toc.append(r);
       walk(it.subitems, depth + 1);
     });
     walk(rd.book.toc, 0);
-    sh.append(list);
+    panes.toc = toc;
+    const annList = (kind, empty) => {
+      const box = h('div', 'rd-pane hidden');
+      const list = liveAnn(rd.rec.ann, kind);
+      if (!list.length) { box.append(h('p', 'lib-empty', T(empty))); return box; }
+      list.forEach((a) => box.append(annRow(a, () => go(a.c))));
+      return box;
+    };
+    panes.hl = annList('hl', 'noHl'); panes.bm = annList('bm', 'noBm');
+    sh.append(tabs, panes.toc, panes.hl, panes.bm);
   });
+}
+function annRow(a, onOpen) {
+  const r = h('button', 'ann-row'); r.type = 'button';
+  if (!a.b) r.style.setProperty('--hl', HL_COLORS[a.k] || HL_COLORS.y);
+  else r.classList.add('bm');
+  const q = h('div', 'ann-x', a.x || '—'); q.dir = 'auto'; r.append(q);
+  if (a.n) { const n = h('div', 'ann-n', a.n); n.dir = 'auto'; r.append(n); }
+  r.append(h('div', 'ann-m', [a.ch, Math.round((a.f || 0) * 100) + '%'].filter(Boolean).join(' · ')));
+  r.addEventListener('click', onOpen);
+  return r;
 }
 
 function openAa() {
@@ -766,4 +1012,4 @@ export async function openLibrary() {
   renderHome();
 }
 
-export const _test = { bookExtras, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { bookExtras, HL_COLORS, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };

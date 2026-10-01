@@ -145,3 +145,32 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 .bk-toc[open] summary::after { transform: rotate(90deg); }
 .bk-toc .lib-ios { margin-top: 10px; }
 .bk-toc .lib-row { font-size: 15px; }
+
+/* שלב 4: בועת סימון (צבעים + פעולות), סימנייה, הערות, "מה למדתי", כרטיס ציטוט */
+.rd-pop2 { flex-direction: column; gap: 4px; padding: 8px; }
+.rd-pop-row { display: flex; align-items: center; gap: 4px; }
+.rd-pop-row + .rd-pop-row { border-top: 1px solid rgba(255,255,255,.14); padding-top: 4px; }
+.rd-pop .rd-dot { width: 30px; height: 30px; padding: 0; border-radius: 50%; margin: 0 3px; box-shadow: inset 0 0 0 2px rgba(0,0,0,.15); }
+.rd-pop .rd-dot.on { box-shadow: 0 0 0 2.5px #fff; }
+.rd-pop .rd-txt { padding: 7px 11px; font-size: 14.5px; font-weight: 600; }
+.lib-tr { display: flex; gap: 10px; }
+.rd-bm.on { color: var(--primary) !important; }
+.rd-bm.on svg path { fill: currentColor; }
+.rd-ribbon { position: absolute; top: env(safe-area-inset-top); inset-inline-end: 26px; width: 16px; height: 26px; z-index: 2; pointer-events: none;
+  background: #FF453A; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); opacity: 0; transform: translateY(-8px); transition: opacity .2s, transform .25s; }
+.rd-ribbon.on { opacity: .9; transform: none; }
+.rd.chrome .rd-ribbon { opacity: 0; }   /* הסרגל העליון מציג את הסימנייה בכפתור — הסרט לא מסתיר את Aa */
+.hl-ta { width: 100%; box-sizing: border-box; border: 0; border-radius: var(--radius-sm); background: var(--bg); color: var(--on-surface); padding: 12px 14px;
+  font: 16px/1.5 "SNB Noto UI", sans-serif; resize: vertical; margin: 0 0 12px; }
+.ann-row { display: block; width: 100%; text-align: start; background: var(--surface) !important; border-radius: var(--radius-sm); padding: 12px 14px;
+  margin-bottom: 8px; border-inline-start: 4px solid var(--hl, var(--primary)) !important; box-shadow: var(--shadow); }
+.rd-pane .ann-row { background: var(--bg) !important; box-shadow: none; }
+.ann-row.bm { border-inline-start-color: #FF453A !important; }
+.ann-x { font-family: "SNB Noto UI", sans-serif; font-size: 15.5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.ann-n { margin-top: 6px; font-size: 14.5px; color: var(--primary); font-weight: 600; }
+.ann-m { margin-top: 6px; font-size: 12.5px; color: var(--on-surface-var); }
+.learn-sec { padding: 0 16px 10px; }
+.learn-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 10px 2px 8px; }
+.learn-h b { font-size: 17px; } .learn-h span { font-size: 13px; color: var(--on-surface-var); flex: none; }
+.q-img { display: block; width: 100%; max-width: 360px; margin: 0 auto 14px; border-radius: var(--radius-sm); box-shadow: var(--shadow); }
+@media (prefers-reduced-motion: reduce) { .rd-ribbon { transition: none; } }

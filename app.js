@@ -247,7 +247,7 @@ he: {
   lagLive: 'חי',
   lagDelayed: 'דיליי ~15 דקות',
   srcDelayed: 'דיליי', srcSaved: 'שמור', srcLoading: 'טוען…',
-  libImport: 'הוספת ספר', libTitle: 'ספרייה', libDenied: 'החשבון שלך עדיין לא מורשה לספריית המכתבים המשותפת.', libSignIn: 'התחבר לחשבון Google באפליקציה כדי לקבל את ספריית המכתבים.', libSyncing: 'טוען את ספריית המכתבים…', libSyncProg: 'מוריד מכתבים מהספרייה… {n} מתוך {t}', bkChapters: 'פרקים', bkMinutes: 'דק׳ קריאה', bkReadPct: 'נקרא', bkRead: 'קרא', bkContinue: 'המשך קריאה', bkAgain: 'קרא שוב', bkAbout: 'בקצרה', libEmpty: 'הספרייה ריקה. לחץ על + כדי להוסיף קובץ EPUB או AZW3 מהטלפון או מ־Google Drive.',
+  libImport: 'הוספת ספר', libTitle: 'ספרייה', libDenied: 'החשבון שלך עדיין לא מורשה לספריית המכתבים המשותפת.', libSignIn: 'התחבר לחשבון Google באפליקציה כדי לקבל את ספריית המכתבים.', libSyncing: 'טוען את ספריית המכתבים…', libSyncProg: 'מוריד מכתבים מהספרייה… {n} מתוך {t}', bkChapters: 'פרקים', bkMinutes: 'דק׳ קריאה', bkReadPct: 'נקרא', bkRead: 'קרא', bkContinue: 'המשך קריאה', bkAgain: 'קרא שוב', bkAbout: 'בקצרה', hlColor: 'הדגשה', hlNote: 'הערה', hlQuote: 'ציטוט', hlDelete: 'מחיקה', hlNotePh: 'מה חשבת כאן?', hlSave: 'שמירה', bmAdd: 'סימנייה', bmAdded: 'נוספה סימנייה', bmRemoved: 'הסימנייה הוסרה', tabToc: 'תוכן', tabHl: 'הדגשות', tabBm: 'סימניות', noHl: 'עוד אין הדגשות. סמנו טקסט ובחרו צבע.', noBm: 'עוד אין סימניות. הסימנייה נמצאת בסרגל העליון.', learnTitle: 'מה למדתי', learnEmpty: 'כאן יופיעו כל ההדגשות וההערות שלך מכל המכתבים.', learnCount: '{n} פריטים', qTitle: 'כרטיס ציטוט', qShare: 'שיתוף', libEmpty: 'הספרייה ריקה. לחץ על + כדי להוסיף קובץ EPUB או AZW3 מהטלפון או מ־Google Drive.',
   libNoAuthor: 'ללא כותב', libAll: 'הכל', libContinue: 'להמשיך לקרוא', libSortNew: 'לפי שנה · מהחדש', libSortOld: 'לפי שנה · מהישן',
   libSortRecent: 'נקראו לאחרונה', libSortTitle: 'מיון', libCount: '{n} ספרים', libRead: '✓ נקרא', libNew: 'חדש',
   libRemove: 'הסר', libRemoveQ: 'להסיר את "{t}" מהספרייה בטלפון?', libOpenErr: 'לא ניתן לפתוח את הקובץ',
@@ -785,7 +785,7 @@ en: {
   lagLive: 'live',
   lagDelayed: '~15 min delay',
   srcDelayed: 'Delayed', srcSaved: 'Saved', srcLoading: 'Loading…',
-  libImport: 'Add book', libTitle: 'Library', libDenied: "Your account isn't on the shared letters library yet.", libSignIn: 'Sign in with Google in the app to get the letters library.', libSyncing: 'Loading the letters library…', libSyncProg: 'Downloading letters… {n} of {t}', bkChapters: 'chapters', bkMinutes: 'min read', bkReadPct: 'read', bkRead: 'Read', bkContinue: 'Continue reading', bkAgain: 'Read again', bkAbout: 'In brief', libEmpty: 'Your library is empty. Tap + to add an EPUB or AZW3 file from your phone or Google Drive.',
+  libImport: 'Add book', libTitle: 'Library', libDenied: "Your account isn't on the shared letters library yet.", libSignIn: 'Sign in with Google in the app to get the letters library.', libSyncing: 'Loading the letters library…', libSyncProg: 'Downloading letters… {n} of {t}', bkChapters: 'chapters', bkMinutes: 'min read', bkReadPct: 'read', bkRead: 'Read', bkContinue: 'Continue reading', bkAgain: 'Read again', bkAbout: 'In brief', hlColor: 'Highlight', hlNote: 'Note', hlQuote: 'Quote', hlDelete: 'Delete', hlNotePh: 'Your thoughts…', hlSave: 'Save', bmAdd: 'Bookmark', bmAdded: 'Bookmark added', bmRemoved: 'Bookmark removed', tabToc: 'Contents', tabHl: 'Highlights', tabBm: 'Bookmarks', noHl: 'No highlights yet. Select text and pick a color.', noBm: 'No bookmarks yet. The bookmark is in the top bar.', learnTitle: 'What I learned', learnEmpty: 'All your highlights and notes from every letter will appear here.', learnCount: '{n} items', qTitle: 'Quote card', qShare: 'Share', libEmpty: 'Your library is empty. Tap + to add an EPUB or AZW3 file from your phone or Google Drive.',
   libNoAuthor: 'Unknown author', libAll: 'All', libContinue: 'Continue reading', libSortNew: 'By year · newest', libSortOld: 'By year · oldest',
   libSortRecent: 'Recently read', libSortTitle: 'Sort', libCount: '{n} books', libRead: '✓ Read', libNew: 'New',
   libRemove: 'Remove', libRemoveQ: 'Remove "{t}" from the library on this phone?', libOpenErr: "Couldn't open this file",
@@ -4359,7 +4359,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v305';
+const APP_VERSION = 'v306';
 
 
 function saveDBto(db) {

@@ -10,8 +10,8 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
-const src = lib.replace(/^import .*$/m, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, _test };';
+const src = lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -79,8 +79,22 @@ const loc = { lastRead: 100, cfi: 'a', fraction: 0.2, done: false };
 ok(L.mergeProgress(loc, { t: 50, c: 'b', f: 0.9 }) === null && L.mergeProgress(loc, null) === null, 'התקדמות ישנה מהענן לא דורסת את המקומית');
 const m = L.mergeProgress(loc, { t: 200, c: 'b', f: 0.9, d: true });
 ok(m && m.cfi === 'b' && m.fraction === 0.9 && m.done && m.lastRead === 200, 'התקדמות חדשה ממכשיר אחר — נכנסת');
-ok(/set\(\{ lib: \{ p \} \}, \{ merge: true \}\)/.test(lib) && !/set\(\{[^}]*\bdb\b/.test(lib), 'הענן: שדה lib נפרד עם merge — לא נוגע בתיק (db)');
+ok(/\.set\(\{ lib(: \{ [ps] \})? \}, \{ merge: true \}\)/.test(lib) && !/set\(\{[^}]*\bdb\b/.test(lib), 'הענן: שדה lib נפרד עם merge — לא נוגע בתיק (db)');
 ok(/goView\(\{ book: b\.id \}\)/.test(lib) && /lv: v/.test(lib) && /history\.state\.lv/.test(lib), 'כריכה פותחת דף מכתב, ו"חזור" מחזיר ממנו לספרייה');
+
+// שלב 4 (v306) — הדגשות, הערות, סימניות, כרטיס ציטוט
+const loc2 = [{ id: 'a', c: 'x', k: 'y', u: 10 }, { id: 'b', c: 'y', k: 'g', u: 10 }];
+const mm = L.mergeAnn(loc2, { a: { c: 'x', k: 'p', u: 20 }, b: { c: 'y', k: 'b', u: 5 }, c: { c: 'z', k: 'y', u: 30 } });
+ok(mm && mm.find((x) => x.id === 'a').k === 'p' && mm.find((x) => x.id === 'b').k === 'g' && mm.length === 3, 'הדגשות: מיזוג לפי id — העדכון האחרון מנצח, חדשות ממכשיר אחר נוספות');
+const del = L.mergeAnn(loc2, { a: { c: 'x', d: 1, u: 99 } });
+ok(del && L.liveAnn(del).map((x) => x.id).join() === 'b', 'מחיקה במכשיר אחר (מצבה) מוחקת גם כאן');
+ok(L.mergeAnn(loc2, { a: { c: 'x', k: 'y', u: 10 } }) === null && L.mergeAnn(loc2, null) === null, 'בלי שינוי — לא כותבים');
+ok(L.liveAnn([{ id: 1, f: .5 }, { id: 2, b: 1, f: .2 }, { id: 3, f: .1 }]).map((x) => x.id).join() === '3,1' && L.liveAnn([{ id: 2, b: 1 }], 'bm').length === 1, 'הדגשות וסימניות בנפרד, לפי מיקום בספר');
+const ql = L.wrapQuote('אחת שתיים שלוש ארבע חמש שש', 10, (t) => t.length, 2);
+ok(ql.length === 2 && ql[1].endsWith('…') && L.wrapQuote('קצר', 100, (t) => t.length, 3).join() === 'קצר', 'כרטיס ציטוט: שבירת שורות וקיצור עם …');
+const keys4 = ['hlNote', 'hlQuote', 'hlDelete', 'bmAdd', 'tabHl', 'tabBm', 'learnTitle', 'qShare'];
+ok(keys4.every((k) => lib.includes("'" + k + "'")), 'כל הפעולות של שלב 4 מחוברות בממשק');
+ok(/set\(\{ lib \}, \{ merge: true \}\)/.test(lib) && /lib\.a/.test(lib), 'הדגשות בענן: lib.a עם merge (לא נוגע בתיק)');
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),
