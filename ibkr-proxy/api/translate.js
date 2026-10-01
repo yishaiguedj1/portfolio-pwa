@@ -38,8 +38,9 @@ function prompt(text, context, title, lang) {
   return { sys, user };
 }
 
-async function gemini(text, context, title, lang) {
+async function gemini(text, context, title, lang, diag) {
   const key = process.env.GEMINI_API_KEY;
+  diag.key = !!key; // אבחון בלי לחשוף את המפתח: האם קיים, ומה החזיר כל מודל
   if (!key) return null;
   const { sys, user } = prompt(text, context, title, lang);
   const body = JSON.stringify({
@@ -57,7 +58,8 @@ async function gemini(text, context, title, lang) {
       const r = await fetch(GEMINI_URL + encodeURIComponent(model) + ':generateContent', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body, signal: ctl.signal,
       });
-      if (r.status === 404 || r.status === 400) continue; // המודל לא קיים/לא זמין — הבא ברשימה
+      diag[model] = r.status;
+      if (r.status === 404 || r.status === 400) { try { diag[model + ':err'] = String(((await r.json()).error || {}).message || '').slice(0, 160); } catch (e) {} continue; } // המודל לא קיים/לא זמין — הבא ברשימה
       if (r.status === 429) return { quota: true };        // מכסת החינם נגמרה — גיבוי בסיסי
       if (r.status !== 200) continue;
       const j = await r.json();
@@ -67,7 +69,7 @@ async function gemini(text, context, title, lang) {
       if (out && typeof out.translation === 'string' && out.translation.trim()) {
         return { translation: clean(out.translation, 2000), note: clean(out.note || '', 600), engine: 'ai', model };
       }
-    } catch (e) { /* המודל הבא */ } finally { clearTimeout(to); }
+    } catch (e) { diag[model + ':ex'] = String(e && e.message || e).slice(0, 80); } finally { clearTimeout(to); }
   }
   return null;
 }
@@ -100,11 +102,12 @@ module.exports = async (req, res) => {
   const key = lang + '|' + text + '|' + context;
   const hit = cache.get(key);
   if (hit) return res.status(200).json(hit);
-  let out = await gemini(text, context, title, lang);
+  const diag = {};
+  let out = await gemini(text, context, title, lang, diag);
   const quota = !!(out && out.quota);
   if (!out || quota) out = await basic(text, lang);
   if (!out) return res.status(502).json({ ok: false, error: 'translate_failed' });
-  const v = Object.assign({ ok: true, quota }, out);
+  const v = Object.assign({ ok: true, quota }, out, out.engine === 'ai' ? {} : { diag });
   cache.set(key, v);
   if (cache.size > 500) cache.clear();
   return res.status(200).json(v);
