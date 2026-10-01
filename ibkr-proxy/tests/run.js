@@ -519,5 +519,73 @@ function stubFetch(text, status = 200) {
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
   }
 
+  /* ---------- האקדמיה שלב 2: /api/library — Drive + אימות קוראים ---------- */
+  {
+    const crypto = require('crypto');
+    const gauth = require('../lib/gauth');
+    const lib = require('../api/library');
+    const env = ['GDRIVE_SA_KEY', 'LIBRARY_FOLDER_ID', 'LIBRARY_READERS'].map((k) => [k, process.env[k]]);
+    const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const sa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const keys = { k1: fb.publicKey.export({ type: 'spki', format: 'pem' }) };
+    const b64u = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const now = Math.floor(Date.now() / 1000);
+    const mkTok = (claims, key = fb.privateKey, kid = 'k1') => {
+      const hd = b64u({ alg: 'RS256', kid }); const bd = b64u(Object.assign({ aud: 'yishaiguedj1-c786e', iss: 'https://securetoken.google.com/yishaiguedj1-c786e', sub: 'u1', iat: now - 10, exp: now + 3000, email: 'reader@example.com', email_verified: true }, claims));
+      return hd + '.' + bd + '.' + crypto.sign('RSA-SHA256', Buffer.from(hd + '.' + bd), key).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    };
+    const u = await gauth.verifyIdToken(mkTok({}), { keys });
+    ok(u.uid === 'u1' && u.email === 'reader@example.com', 'library: אסימון Firebase תקין מאומת (חתימה + פרויקט)');
+    const bad = async (tk, why) => { try { await gauth.verifyIdToken(tk, { keys }); return false; } catch (e) { return e.message === why; } };
+    ok(await bad(mkTok({}, sa.privateKey), 'bad_token'), 'library: חתימה של מפתח אחר נדחית');
+    ok(await bad(mkTok({ aud: 'other-project', iss: 'https://securetoken.google.com/other-project' }), 'wrong_project'), 'library: אסימון של פרויקט אחר נדחה');
+    ok(await bad(mkTok({ exp: now - 5 }), 'expired'), 'library: אסימון שפג נדחה');
+    ok(await bad('a.b.c', 'bad_token') && await bad(mkTok({}, fb.privateKey, 'nope'), 'bad_token'), 'library: אסימון פגום / מפתח לא מוכר נדחה');
+    ok(gauth.readerAllowed(u, 'x@y.com, Reader@Example.com') && !gauth.readerAllowed(u, 'x@y.com') && gauth.readerAllowed(u, '*')
+      && !gauth.readerAllowed(Object.assign({}, u, { verified: false }), 'reader@example.com'), 'library: רשימת הרשאות לפי מייל מאומת ("*" = כל מחובר)');
+
+    process.env.GDRIVE_SA_KEY = Buffer.from(JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: sa.privateKey.export({ type: 'pkcs8', format: 'pem' }), token_uri: 'https://oauth2.googleapis.com/token' })).toString('base64');
+    process.env.LIBRARY_FOLDER_ID = 'ROOTFOLDER0001';
+    process.env.LIBRARY_READERS = 'reader@example.com';
+    const calls = [];
+    const J = (o, st = 200) => ({ status: st, json: async () => o, arrayBuffer: async () => Buffer.from('PK-epub'), headers: { get: () => '' } });
+    const fakeFetch = async (url, opt) => {
+      calls.push({ url, opt });
+      if (url.includes('oauth2.googleapis.com/token')) {
+        const a = decodeURIComponent(String(opt.body)).split('assertion=')[1].split('.');
+        const okSig = crypto.verify('RSA-SHA256', Buffer.from(a[0] + '.' + a[1]), sa.publicKey, Buffer.from(a[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
+        return okSig ? J({ access_token: 'AT', expires_in: 3600 }) : J({}, 400);
+      }
+      if (url.includes('alt=media')) return J({});
+      if (url.includes("'ROOTFOLDER0001'")) return J({ files: [{ id: 'SUBFOLDER0001', name: 'באפט', mimeType: 'application/vnd.google-apps.folder' }, { id: 'FILE00000001', name: 'מכתב 2023.epub', size: '61000', md5Checksum: 'aa', modifiedTime: 't' }, { id: 'FILE00000009', name: 'notes.txt', size: '10' }] });
+      if (url.includes("'SUBFOLDER0001'")) return J({ files: [{ id: 'FILE00000002', name: 'letter-2022.epub', size: '58000', md5Checksum: 'bb' }] });
+      if (url.includes('/FILE00000001?fields')) return J({ parents: ['ROOTFOLDER0001'] });
+      if (url.includes('/FILE00000002?fields')) return J({ parents: ['ELSEWHERE0001'] });
+      return J({}, 404);
+    };
+    const run = async (body, headers) => { const r = mockRes(); r.send = (b) => { r.payload = b; return r; }; await lib._handler(mockReq({ body, headers }), r, { verify: { keys }, fetch: fakeFetch }); return r; };
+    gauth._reset(); lib._reset();
+    let r = await run({ op: 'list', idToken: mkTok({}) });
+    ok(r.statusCode === 200 && r.payload.items.map((x) => x.id).join() === 'FILE00000001,FILE00000002', 'library: רשימה — EPUB מהתיקייה ומתת־תיקייה, בלי קבצים אחרים');
+    const tokCall = calls.find((c) => c.url.includes('oauth2'));
+    ok(tokCall && calls.filter((c) => c.url.includes('googleapis.com/drive')).every((c) => c.opt.headers.Authorization === 'Bearer AT'), 'library: חשבון השירות חותם JWT ומקבל אסימון גישה ל־Drive');
+    r = await run({ op: 'file', idToken: mkTok({}), id: 'FILE00000001' });
+    ok(r.statusCode === 200 && Buffer.isBuffer(r.payload) && r.headers['Content-Type'] === 'application/epub+zip', 'library: הורדת קובץ מהתיקייה');
+    r = await run({ op: 'file', idToken: mkTok({}), id: 'FILE00000002' });
+    ok(r.statusCode === 404, 'library: קובץ שההורה שלו מחוץ לתיקייה — נחסם');
+    r = await run({ op: 'file', idToken: mkTok({}), id: 'NOTINLIST0001' });
+    ok(r.statusCode === 404, 'library: קובץ שלא ברשימה — נחסם (לא דרך השרתון לקבצים אחרים שמשותפים לחשבון)');
+    r = await run({ op: 'list', idToken: mkTok({ email: 'stranger@example.com' }) });
+    ok(r.statusCode === 403 && r.payload.error === 'not_allowed', 'library: מחובר שלא ברשימת ההרשאות — 403');
+    r = await run({ op: 'list', idToken: 'garbage' });
+    ok(r.statusCode === 401 && r.payload.error === 'no_auth', 'library: בלי התחברות — 401');
+    r = await run({ op: 'list', idToken: mkTok({}) }, { origin: 'https://evil.example' });
+    ok(r.statusCode === 403, 'library: Origin זר נחסם');
+    delete process.env.GDRIVE_SA_KEY;
+    r = await run({ op: 'list', idToken: mkTok({}) });
+    ok(r.statusCode === 503 && r.payload.error === 'not_configured', 'library: בלי חשבון שירות — not_configured (האפליקציה שקטה)');
+    env.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; });
+  }
+
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

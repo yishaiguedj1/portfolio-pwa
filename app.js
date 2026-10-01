@@ -247,13 +247,13 @@ he: {
   lagLive: 'חי',
   lagDelayed: 'דיליי ~15 דקות',
   srcDelayed: 'דיליי', srcSaved: 'שמור', srcLoading: 'טוען…',
-  libImport: 'הוספת ספר', libTitle: 'ספרייה', libEmpty: 'הספרייה ריקה. לחץ על + כדי להוסיף קובץ EPUB או AZW3 מהטלפון או מ־Google Drive.',
+  libImport: 'הוספת ספר', libTitle: 'ספרייה', libDenied: 'החשבון שלך עדיין לא מורשה לספריית המכתבים המשותפת.', libSignIn: 'התחבר לחשבון Google באפליקציה כדי לקבל את ספריית המכתבים.', libSyncing: 'טוען את ספריית המכתבים…', libEmpty: 'הספרייה ריקה. לחץ על + כדי להוסיף קובץ EPUB או AZW3 מהטלפון או מ־Google Drive.',
   libNoAuthor: 'ללא כותב', libAll: 'הכל', libContinue: 'להמשיך לקרוא', libSortNew: 'לפי שנה · מהחדש', libSortOld: 'לפי שנה · מהישן',
   libSortRecent: 'נקראו לאחרונה', libSortTitle: 'מיון', libCount: '{n} ספרים', libRead: '✓ נקרא', libNew: 'חדש',
   libRemove: 'הסר', libRemoveQ: 'להסיר את "{t}" מהספרייה בטלפון?', libOpenErr: 'לא ניתן לפתוח את הקובץ',
   menuLibrary: 'ספרייה', menuLibrarySub: 'מכתבים וספרים',
   rdClose: 'סגירה', rdToc: 'תוכן העניינים', rdSettings: 'הגדרות תצוגה', rdMinLeftChap: 'עוד {m} דק׳ בפרק', rdMinLeftBook: 'עוד {m} דק׳ בספר',
-  rdTranslate: 'תרגום', rdCopy: 'העתק', rdCopied: 'הועתק',
+  rdTranslate: 'תרגום', rdCopy: 'העתק', rdCopied: 'הועתק', rdBackTwice: 'לחיצה נוספת על חזור — יציאה מהספר',
   trTitle: 'תרגום בהקשר', trLoading: 'מתרגם לפי ההקשר…', trNote: 'בהקשר הזה', trBasic: 'תרגום בסיסי — מנוע ה־AI לא זמין כרגע', trFail: 'התרגום נכשל. נסה שוב.',
   rdFont: 'גופן', rdLayout: 'פריסה', rdTheme: 'ערכה', rdFontBook: 'הגופן של הקובץ', rdSize: 'גודל', rdWeight: 'עובי',
   rdAlign: 'יישור', rdAlignStart: 'לימין', rdAlignJustify: 'לשני הצדדים', rdSpacing: 'ריווח', rdSpacing1: 'צפוף', rdSpacing2: 'רגיל', rdSpacing3: 'מרווח',
@@ -785,13 +785,13 @@ en: {
   lagLive: 'live',
   lagDelayed: '~15 min delay',
   srcDelayed: 'Delayed', srcSaved: 'Saved', srcLoading: 'Loading…',
-  libImport: 'Add book', libTitle: 'Library', libEmpty: 'Your library is empty. Tap + to add an EPUB or AZW3 file from your phone or Google Drive.',
+  libImport: 'Add book', libTitle: 'Library', libDenied: "Your account isn't on the shared letters library yet.", libSignIn: 'Sign in with Google in the app to get the letters library.', libSyncing: 'Loading the letters library…', libEmpty: 'Your library is empty. Tap + to add an EPUB or AZW3 file from your phone or Google Drive.',
   libNoAuthor: 'Unknown author', libAll: 'All', libContinue: 'Continue reading', libSortNew: 'By year · newest', libSortOld: 'By year · oldest',
   libSortRecent: 'Recently read', libSortTitle: 'Sort', libCount: '{n} books', libRead: '✓ Read', libNew: 'New',
   libRemove: 'Remove', libRemoveQ: 'Remove "{t}" from the library on this phone?', libOpenErr: "Couldn't open this file",
   menuLibrary: 'Library', menuLibrarySub: 'Letters & books',
   rdClose: 'Close', rdToc: 'Contents', rdSettings: 'Display settings', rdMinLeftChap: '{m} min left in chapter', rdMinLeftBook: '{m} min left in book',
-  rdTranslate: 'Translate', rdCopy: 'Copy', rdCopied: 'Copied',
+  rdTranslate: 'Translate', rdCopy: 'Copy', rdCopied: 'Copied', rdBackTwice: 'Press back again to leave the book',
   trTitle: 'Translation in context', trLoading: 'Translating in context…', trNote: 'In this context', trBasic: 'Basic translation — the AI engine is unavailable right now', trFail: 'Translation failed. Try again.',
   rdFont: 'Font', rdLayout: 'Layout', rdTheme: 'Theme', rdFontBook: 'Publisher font', rdSize: 'Size', rdWeight: 'Weight',
   rdAlign: 'Alignment', rdAlignStart: 'Start', rdAlignJustify: 'Justified', rdSpacing: 'Spacing', rdSpacing1: 'Tight', rdSpacing2: 'Normal', rdSpacing3: 'Wide',
@@ -4359,7 +4359,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v302';
+const APP_VERSION = 'v303';
 
 
 function saveDBto(db) {

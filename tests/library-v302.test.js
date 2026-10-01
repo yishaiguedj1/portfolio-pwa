@@ -11,7 +11,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
 const src = lib.replace(/^import .*$/m, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, _test };';
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -56,6 +56,20 @@ const heBlock = app.slice(app.indexOf('const STRINGS'), app.indexOf('\nen: {'));
 const enBlock = app.slice(app.indexOf('\nen: {'), app.indexOf('\nen: {') + 200000);
 const missing = keys.filter((k) => !new RegExp('\\b' + k + ':').test(heBlock) || !new RegExp('\\b' + k + ':').test(enBlock));
 ok(keys.length > 30 && !missing.length, 'כל ' + keys.length + ' המחרוזות של הספרייה קיימות בעברית ובאנגלית' + (missing.length ? ' (חסר: ' + missing + ')' : ''));
+
+// v303 — דפדוף בהחלקה בלבד (נגיעה ליד הקצה לתרגום העבירה עמוד), "חזור" כפול ליציאה מהספר
+const wire = lib.slice(lib.indexOf('function wireDoc'), lib.indexOf('/* ---------------- בועת סימון'));
+ok(!/goLeft|goRight|0\.3|0\.7/.test(wire), 'v303: נגיעה בתוך הספר לא מדפדפת — רק מציגה/מסתירה סרגלים (הדפדוף בהחלקה של המנוע)');
+const pop = lib.slice(lib.indexOf('function onPop'), lib.indexOf('export async function openLibrary'));
+ok(/BACK_TWICE_MS/.test(lib) && /pushState/.test(pop) && /rdBackTwice/.test(pop) && /rd\.closing/.test(pop), 'v303: "חזור" אחד בקורא נבלע (מוחזר לרשומה) — רק שניים תוך 2 שניות יוצאים; ✕ יוצא מיד');
+
+// שלב 2 — הספרייה המשותפת מה־Drive: מה להוריד ומה להסיר
+const local = [{ id: 'a', driveId: 'D1', md5: 'x' }, { id: 'b', driveId: 'D2', md5: 'y' }, { id: 'c' }];
+const plan = L.driveSyncPlan(local, [{ id: 'D1', md5: 'x' }, { id: 'D3', md5: 'z' }, { id: 'D2', md5: 'y2' }]);
+ok(plan.fetch.map((x) => x.id).join() === 'D3,D2' && plan.remove.length === 0, 'Drive: מורידים רק חדש/שהשתנה (md5), מה שכבר בטלפון — לא');
+const plan2 = L.driveSyncPlan(local, [{ id: 'D1', md5: 'x' }]);
+ok(plan2.remove.map((b) => b.id).join() === 'b', 'Drive: מכתב שהוסר מהתיקייה מוסר; ספר שיובא ידנית נשאר');
+ok(/idToken/.test(lib) && /\/api\/library/.test(lib) && !/GDRIVE|private_key/.test(lib), 'Drive: הטלפון שולח רק את אסימון ההתחברות — בלי מפתחות');
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),

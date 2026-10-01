@@ -1,7 +1,8 @@
 /* האקדמיה — ספרייה וקורא (שלב 1). נטען רק כשנכנסים לספרייה (import דינמי מ־app.js), כדי שהאפליקציה לא תגדל.
    מנוע: foliate-js (vendor/foliate-js, MIT) — EPUB 3 מלא + AZW3/MOBI של קינדל, דפדוף לפי כיוון הספר (עברית ← / אנגלית →).
    אבטחה: תוכן הספר רץ ב־iframe מ־blob באותו origin — ה־CSP של index.html (בלי blob ב־script-src) חוסם כל סקריפט בספר.
-   אחסון: הספרים והמיקום ב־IndexedDB בטלפון (לא localStorage — שם המכסה ~5MB ומשותפת לתיק). Drive + שרתון — שלב 2.
+   אחסון: הספרים והמיקום ב־IndexedDB בטלפון (לא localStorage — שם המכסה ~5MB ומשותפת לתיק).
+   שלב 2: הספרייה המשותפת — המכתבים מתיקיית ה־Drive של המשתמש דרך השרתון (/api/library), רק לקוראים מורשים.
    עיצוב: כמו אפליקציית קינדל (בקשת המשתמש) בשפה של THE SNOWBALL; יישור לימין כברירת מחדל, עובי 1 = Regular (400). */
 import { makeBook } from './vendor/foliate-js/view.js';
 
@@ -77,7 +78,7 @@ async function fileId(file) {
   } catch (e) { return 'f-' + hashStr(file.name + file.size); }
 }
 
-async function importFiles(files) {
+async function importFiles(files, extra) {
   let added = 0;
   for (const file of files) {
     try {
@@ -93,6 +94,7 @@ async function importFiles(files) {
       };
       const old = (await allBooks()).find((b) => b.id === id);
       if (old) Object.assign(rec, { added: old.added, lastRead: old.lastRead, fraction: old.fraction, cfi: old.cfi, done: old.done });
+      if (extra) Object.assign(rec, extra);
       await tx('files', 'readwrite', (st) => st.put(file, id));
       await putBook(rec);
       added++;
@@ -101,6 +103,60 @@ async function importFiles(files) {
     }
   }
   return added;
+}
+
+/* ---------------- שלב 2: הספרייה המשותפת מה־Drive (דרך השרתון) ----------------
+   בכל כניסה לספרייה: רשימת המכתבים מהשרתון (מאומת בהתחברות Google של האפליקציה) → מורידים רק מה שחדש או
+   השתנה (לפי md5 של Drive) → נשמר ב־IndexedDB, וכך הקריאה עובדת גם בלי אינטרנט. מכתב שהוסר מהתיקייה — מוסר.
+   בלי התחברות / בלי הרשאה / בלי רשת — שקט, והספרייה המקומית נשארת. */
+let syncing = null;
+let syncNote = '';
+async function idToken() {
+  try {
+    const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
+    return u ? await u.getIdToken() : '';
+  } catch (e) { return ''; }
+}
+function libApi(body) {
+  const base = (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {});
+  return fetch(base + '/api/library', { method: 'POST', headers, body: JSON.stringify(body) });
+}
+export function driveSyncPlan(local, items) {      // טהורה (נבדקת): מה להוריד ומה להסיר
+  const byDrive = new Map(local.filter((b) => b.driveId).map((b) => [b.driveId, b]));
+  const ids = new Set(items.map((i) => i.id));
+  return {
+    fetch: items.filter((i) => { const o = byDrive.get(i.id); return !o || (i.md5 && o.md5 !== i.md5); }),
+    remove: local.filter((b) => b.driveId && !ids.has(b.driveId)),
+  };
+}
+function syncDrive() {
+  if (syncing) return syncing;
+  syncing = (async () => {
+    const tk = await idToken();
+    if (!tk) { syncNote = 'signin'; return 0; }
+    const j = await libApi({ op: 'list', idToken: tk }).then((r) => r.json()).catch(() => null);
+    if (!j || !j.ok) { syncNote = j && j.error === 'not_allowed' ? 'denied' : ''; return 0; }
+    syncNote = '';
+    const plan = driveSyncPlan(await allBooks(), j.items || []);
+    let changed = 0;
+    for (const it of plan.fetch) {
+      try {
+        const r = await libApi({ op: 'file', idToken: tk, id: it.id });
+        if (!r.ok) continue;
+        const file = new File([await r.blob()], it.name, { type: 'application/epub+zip' });
+        changed += await importFiles([file], { driveId: it.id, md5: it.md5 || '', src: 'drive' });
+      } catch (e) { /* בפעם הבאה */ }
+    }
+    for (const b of plan.remove) {
+      if (rd && rd.rec && rd.rec.id === b.id) continue;   // לא מוחקים ספר פתוח
+      await tx('books', 'readwrite', (st) => st.delete(b.id));
+      await tx('files', 'readwrite', (st) => st.delete(b.id));
+      changed++;
+    }
+    return changed;
+  })().catch(() => 0).finally(() => { syncing = null; });
+  return syncing;
 }
 
 /* ---------------- מבנה המסך ---------------- */
@@ -146,9 +202,10 @@ async function renderHome() {
   add.append(inp);
   top.append(back, add);
   home.append(top, h('h1', 'lib-large', T('libTitle')));
+  if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
 
   if (!books.length) {
-    home.append(h('p', 'lib-empty', T('libEmpty')));
+    home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmpty')));
     return;
   }
   const authors = {};
@@ -289,7 +346,7 @@ async function openReader(id) {
   const foot = h('div', 'rd-foot'); const fL = h('span'); const fR = h('span'); foot.append(fL, fR);
   const topBar = h('div', 'rd-topbar');
   const xBtn = h('button', 'rd-ic'); xBtn.type = 'button'; xBtn.innerHTML = ICON.close; xBtn.setAttribute('aria-label', T('rdClose'));
-  xBtn.addEventListener('click', () => history.back());
+  xBtn.addEventListener('click', () => { rd.closing = true; history.back(); });
   const ttl = h('span', 'rd-ttl', rec.title);
   const acts = h('span', 'rd-acts');
   const tocBtn = h('button', 'rd-ic'); tocBtn.type = 'button'; tocBtn.innerHTML = ICON.list; tocBtn.setAttribute('aria-label', T('rdToc'));
@@ -334,6 +391,7 @@ async function openReader(id) {
     await view.init({ lastLocation: rec.cfi || null, showTextStart: true });
   } catch (e) {
     if (typeof flash === 'function') flash(T('libOpenErr'));
+    rd.closing = true;
     history.back();
   }
 }
@@ -347,19 +405,16 @@ function closeReader() {
   renderHome();
 }
 
-/* נגיעות בתוך הספר: שוליים = דפדוף (לפי כיוון המסך — המנוע יודע לאן "הבא" בספר עברי/אנגלי), מרכז = סרגלים */
+/* נגיעות בתוך הספר: דפדוף רק בהחלקה (המנוע — paginator — גורר ומצמיד לעמוד, לפי כיוון הספר).
+   נגיעה בשוליים כבר לא מדפדפת (v303, בקשת המשתמש: נגיעה במילה ליד הקצה לתרגום העבירה עמוד בטעות) —
+   נגיעה בכל מקום רק מציגה/מסתירה את הסרגלים. */
 function wireDoc(doc, setChrome) {
   doc.addEventListener('click', (e) => {
     const sel = doc.getSelection && doc.getSelection();
     if (sel && !sel.isCollapsed && String(sel).trim()) return;
     if (e.target && e.target.closest && e.target.closest('a[href]')) return;
-    const fr = doc.defaultView && doc.defaultView.frameElement;
-    const x = (fr ? fr.getBoundingClientRect().left : 0) + e.clientX;
-    const W = window.innerWidth;
-    if (rd && rd.chrome) { setChrome(false); return; }
-    if (x < W * 0.3) rd.view.goLeft();
-    else if (x > W * 0.7) rd.view.goRight();
-    else setChrome(true);
+    if (selPop) { hideSel(); return; }
+    setChrome(!(rd && rd.chrome));
   });
   let st = 0;
   doc.addEventListener('selectionchange', () => { clearTimeout(st); st = setTimeout(() => showSel(doc), 350); });
@@ -515,8 +570,22 @@ function openAa() {
 }
 
 /* ---------------- כניסה / יציאה + "חזור" של המכשיר ---------------- */
+/* בזמן קריאה: "חזור" אחד (גם החלקה מקצה המסך בטעות) לא מוציא מהספר — רק שני "חזור" תוך 2 שניות
+   (v303, בקשת המשתמש). גיליון פתוח (תוכן/Aa/תרגום) — "חזור" סוגר אותו. כפתור ✕ יוצא מיד. */
+const BACK_TWICE_MS = 2000;
 function onPop() {
   const lvl = (history.state && history.state.lib) || 0;
+  if (lvl < 2 && rd && !rd.closing) {
+    const veil = root && root.querySelector('.lib-veil');
+    const now = Date.now();
+    if (veil || selPop || now - (rd.backAt || 0) > BACK_TWICE_MS) {
+      history.pushState(Object.assign({}, history.state || {}, { lib: 2 }), '');
+      if (veil) veil.remove();
+      else if (selPop) hideSel();
+      else { rd.backAt = now; if (typeof flash === 'function') flash(T('rdBackTwice')); }
+      return;
+    }
+  }
   if (lvl < 2 && rd) closeReader();
   if (lvl < 1 && root) { hideSel(); root.remove(); root = null; document.documentElement.classList.remove('lib-open'); }
 }
@@ -530,7 +599,10 @@ export async function openLibrary() {
   document.documentElement.classList.add('lib-open');
   history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
+  const first = syncDrive();
   await renderHome();
+  await first;
+  renderHome();
 }
 
 export const _test = { bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };

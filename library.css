@@ -118,3 +118,6 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 .tr-note { background: var(--bg); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 15px; line-height: 1.55; display: flex; flex-direction: column; gap: 4px; }
 .tr-note b { font-size: 12.5px; color: var(--on-surface-var); }
 .tr-warn { font-size: 12.5px; color: var(--on-surface-var); margin: 10px 4px 0; }
+
+/* שלב 2: הודעת הספרייה המשותפת (אין הרשאה) */
+.lib-note { margin: 0 20px 12px; font-size: 14px; color: var(--on-surface-var); }
