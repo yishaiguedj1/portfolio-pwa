@@ -107,7 +107,7 @@ module.exports = async (req, res) => {
   const quota = !!(out && out.quota);
   if (!out || quota) out = await basic(text, lang);
   if (!out) return res.status(502).json({ ok: false, error: 'translate_failed' });
-  const v = Object.assign({ ok: true, quota }, out, out.engine === 'ai' ? {} : { diag });
+  const v = Object.assign({ ok: true, quota }, out, { diag });
   cache.set(key, v);
   if (cache.size > 500) cache.clear();
   return res.status(200).json(v);
