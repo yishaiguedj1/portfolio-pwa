@@ -111,6 +111,7 @@ async function importFiles(files, extra) {
    בלי התחברות / בלי הרשאה / בלי רשת — שקט, והספרייה המקומית נשארת. */
 let syncing = null;
 let syncNote = '';
+let syncProgress = null;   // { done, total } בזמן הורדה מה־Drive
 async function idToken() {
   try {
     const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
@@ -139,15 +140,26 @@ function syncDrive() {
     if (!j || !j.ok) { syncNote = j && j.error === 'not_allowed' ? 'denied' : ''; return 0; }
     syncNote = '';
     const plan = driveSyncPlan(await allBooks(), j.items || []);
-    let changed = 0;
-    for (const it of plan.fetch) {
-      try {
-        const r = await libApi({ op: 'file', idToken: tk, id: it.id });
-        if (!r.ok) continue;
-        const file = new File([await r.blob()], it.name, { type: 'application/epub+zip' });
-        changed += await importFiles([file], { driveId: it.id, md5: it.md5 || '', src: 'drive' });
-      } catch (e) { /* בפעם הבאה */ }
-    }
+    let changed = 0, done = 0;
+    const queue = plan.fetch.slice();
+    const total = queue.length;
+    // 4 הורדות במקביל; הספרייה מתעדכנת תוך כדי (בכניסה הראשונה — עשרות מכתבים)
+    const worker = async () => {
+      for (let it; (it = queue.shift());) {
+        try {
+          const r = await libApi({ op: 'file', idToken: tk, id: it.id });
+          if (r.ok) {
+            const file = new File([await r.blob()], it.name, { type: 'application/epub+zip' });
+            changed += await importFiles([file], { driveId: it.id, md5: it.md5 || '', src: 'drive' });
+          }
+        } catch (e) { /* בפעם הבאה */ }
+        done++;
+        syncProgress = { done, total };
+        if (done % 8 === 0 && root && !rd) renderHome();
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    syncProgress = null;
     for (const b of plan.remove) {
       if (rd && rd.rec && rd.rec.id === b.id) continue;   // לא מוחקים ספר פתוח
       await tx('books', 'readwrite', (st) => st.delete(b.id));
@@ -203,6 +215,7 @@ async function renderHome() {
   top.append(back, add);
   home.append(top, h('h1', 'lib-large', T('libTitle')));
   if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
+  else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
 
   if (!books.length) {
     home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmpty')));
