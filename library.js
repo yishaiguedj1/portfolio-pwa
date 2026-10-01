@@ -139,20 +139,27 @@ export function foldMap(t) {            // טקסט מקופל + מפה מכל �
   map.push(t.length);
   return { f, map };
 }
-export function ftFind(text, q, max = 40) {   // מיקומי התאמה בטקסט המקורי: [{ pos, len }]
-  const { f, map } = foldMap(text);
-  const fq = foldMap(String(q).trim().replace(/\s+/g, ' ')).f;
+const FOLD_RE = /[\u0591-\u05BD\u05BF-\u05C7]/g, FOLD_CH = /[םןץףך׳’‘״“”־–—]/g;
+export function foldQuick(t) {          // אותו קיפול בלי המפה — מהיר (replace מקורי); לסינון מוקדם של פרקים
+  return String(t).replace(FOLD_RE, '').replace(FOLD_CH, (c) => FOLD_MAP[c]).toLowerCase();
+}
+export function ftFind(text, q, max = 40, folded) {   // מיקומי התאמה בטקסט המקורי: [{ pos, len }]
+  // בלי ניקוד הקיפול הוא תו־לתו (אורך זהה) → המיקומים זהים, בלי לבנות מפה (שלב 8 — הרבה יותר מהר)
+  const quick = folded != null ? folded : foldQuick(text);
+  const fm = quick.length === text.length ? null : foldMap(text);
+  const f = fm ? fm.f : quick, at = fm ? (i) => fm.map[i] : (i) => i;
+  const fq = foldQuick(String(q).trim().replace(/\s+/g, ' '));
   if (fq.length < 2) return [];
   const out = [];
-  for (let i = f.indexOf(fq); i >= 0 && out.length < max; i = f.indexOf(fq, i + fq.length)) out.push({ pos: map[i], len: map[i + fq.length] - map[i] });
+  for (let i = f.indexOf(fq); i >= 0 && out.length < max; i = f.indexOf(fq, i + fq.length)) out.push({ pos: at(i), len: at(i + fq.length) - at(i) });
   if (out.length) return out;
   const words = fq.split(' ').filter((w) => w.length >= 2);
   if (words.length < 2) return [];
   let start = 0;                         // כל המילים באותה פסקה
   for (const para of f.split('\n')) {
     if (words.every((w) => para.includes(w))) {
-      const at = start + para.indexOf(words[0]);
-      out.push({ pos: map[at], len: map[at + words[0].length] - map[at], loose: true });
+      const p0 = start + para.indexOf(words[0]);
+      out.push({ pos: at(p0), len: at(p0 + words[0].length) - at(p0), loose: true });
       if (out.length >= max) break;
     }
     start += para.length + 1;
@@ -377,16 +384,23 @@ function indexAll() {                   // ברקע, ספר אחרי ספר; ל�
   return indexing;
 }
 async function ftSearch(q) {
-  if (!ftCache) ftCache = await tx('text', 'readonly', (st) => reqP(st.getAll()));
+  // משתנה מקומי: indexBook מאפס את ftCache באמצע (מרוץ — "ftCache is not iterable")
+  const cache = ftCache || (ftCache = await tx('text', 'readonly', (st) => reqP(st.getAll())));
   const books = new Map((await allBooks()).map((b) => [b.id, b]));
+  const fq = foldQuick(String(q).trim().replace(/\s+/g, ' '));
+  const words = fq.split(' ').filter((w) => w.length >= 2);
   const res = [];
-  for (const rec of ftCache) {
+  for (const rec of cache) {
     const b = books.get(rec.id); if (!b) continue;
     const hits = [];
     for (const sec of rec.secs) {
-      for (const m of ftFind(sec.t, q, 40 - hits.length)) {
+      // שלב 8: סינון מוקדם על טקסט מקופל שמור — המפה המלאה (foldMap) רק לפרק שבאמת מכיל את המילים
+      const f = sec._f || (sec._f = foldQuick(sec.t));
+      if (!f.includes(fq) && !(words.length >= 2 && words.every((w) => f.includes(w)))) continue;
+      let low = null;
+      for (const m of ftFind(sec.t, q, 40 - hits.length, f)) {
         const orig = sec.t.slice(m.pos, m.pos + m.len);
-        const low = sec.t.toLowerCase(), ol = orig.toLowerCase();
+        low = low || sec.t.toLowerCase(); const ol = orig.toLowerCase();
         let k = 0; for (let i = low.indexOf(ol); i >= 0 && i < m.pos; i = low.indexOf(ol, i + 1)) k++;
         hits.push(Object.assign({ sec: sec.i, k, orig, text: sec.t }, m));
       }
@@ -433,7 +447,7 @@ function goView(v) {           // מעבר לדף בתוך הספרייה — ר
   ui.view = v;
   history.pushState(Object.assign({}, history.state || {}, { lib: 1, lv: v }), '');
   renderHome();
-  if (root) root.scrollTop = 0;
+  if (root) { root.scrollTop = 0; try { root.focus({ preventScroll: true }); } catch (e) {} }
 }
 
 async function renderHome() {
@@ -547,6 +561,8 @@ async function renderHome() {
     else if (b.fraction > 0) { const m = h('span', 'lib-mini'); const f = h('i'); f.style.width = Math.round(b.fraction * 100) + '%'; m.append(f); cap.append(m, h('span', null, Math.round(b.fraction * 100) + '%')); }
     else cap.append(h('span', 'lib-badge', T('libNew')));
     it.append(cover(b), cap);
+    // שלב 8 (נגישות): קורא מסך שומע שם + מצב, לא את כל הטקסט הדקורטיבי של הכריכה
+    it.setAttribute('aria-label', b.title + ' · ' + (b.done ? T('libRead') : b.fraction > 0 ? Math.round(b.fraction * 100) + '% ' + T('bkReadPct') : T('libNew')));
     it.addEventListener('click', () => goView({ book: b.id }));
     let timer = 0;
     // לחיצה ארוכה = הסרה — רק לספר שיובא ידנית (מכתב מהספרייה המשותפת היה חוזר בסנכרון הבא)
@@ -634,7 +650,7 @@ async function renderBook(id) {
 }
 function ring(frac) {
   const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 36 36'); svg.setAttribute('class', 'ac-ring');
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 36 36'); svg.setAttribute('class', 'ac-ring'); svg.setAttribute('aria-hidden', 'true');
   const c1 = document.createElementNS(NS, 'circle'); c1.setAttribute('cx', 18); c1.setAttribute('cy', 18); c1.setAttribute('r', 15); c1.setAttribute('class', 'bg');
   const c2 = document.createElementNS(NS, 'circle'); c2.setAttribute('cx', 18); c2.setAttribute('cy', 18); c2.setAttribute('r', 15); c2.setAttribute('class', 'fg');
   c2.setAttribute('stroke-dasharray', (Math.max(0, Math.min(1, frac)) * 94.25).toFixed(1) + ' 94.25');
@@ -987,13 +1003,28 @@ function askRemove(b) {
 function sheet(title, build) {
   const veil = h('div', 'lib-veil');
   const sh = h('div', 'lib-sheet');
+  // שלב 8 (נגישות): דיאלוג אמיתי — קורא מסך יודע שנפתח חלון, הפוקוס נכנס אליו וחוזר למקומו בסגירה
+  sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.tabIndex = -1;
+  if (title) sh.setAttribute('aria-label', title);
+  const back = document.activeElement;
+  const close = () => { veil.remove(); if (back && back.isConnected && back.focus) try { back.focus({ preventScroll: true }); } catch (e) {} };
   sh.append(h('div', 'lib-grab'));
   if (title) sh.append(h('h3', 'lib-sh-t', title));
-  build(sh, () => veil.remove());
+  build(sh, close);
   veil.append(sh);
-  veil.addEventListener('click', (e) => { if (e.target === veil) veil.remove(); });
+  veil.addEventListener('click', (e) => { if (e.target === veil) close(); });
+  veil._close = close;
   root.append(veil);
+  try { sh.focus({ preventScroll: true }); } catch (e) {}
   return veil;
+}
+/* Escape (מקלדת) = "חזור": גיליון/בועה נסגרים, אחרת יציאה מהקורא/מהדף — באותו מסלול כמו כפתור החזור */
+function onEscape() {
+  const veil = root && root.querySelector('.lib-veil');
+  if (veil) { (veil._close || (() => veil.remove()))(); return; }
+  if (selPop) { hideSel(); return; }
+  if (rd) rd.backAt = Date.now();         // מקלדת — יציאה מיידית, בלי "לחץ שוב"
+  history.back();
 }
 
 function openSortSheet() {
@@ -1155,6 +1186,7 @@ function closeReader() {
    נגיעה בשוליים כבר לא מדפדפת (v303, בקשת המשתמש: נגיעה במילה ליד הקצה לתרגום העבירה עמוד בטעות) —
    נגיעה בכל מקום רק מציגה/מסתירה את הסרגלים. */
 function wireDoc(doc, setChrome, index) {
+  doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } });
   doc.addEventListener('click', (e) => {
     const sel = doc.getSelection && doc.getSelection();
     if (sel && !sel.isCollapsed && String(sel).trim()) return;
@@ -1496,7 +1528,7 @@ function onPop() {
     const now = Date.now();
     if (veil || selPop || now - (rd.backAt || 0) > BACK_TWICE_MS) {
       history.pushState(Object.assign({}, history.state || {}, { lib: 2 }), '');
-      if (veil) veil.remove();
+      if (veil) (veil._close || (() => veil.remove()))();
       else if (selPop) hideSel();
       else { rd.backAt = now; if (typeof flash === 'function') flash(T('rdBackTwice')); }
       return;
@@ -1512,6 +1544,16 @@ export async function openLibrary() {
   ensureCss();
   if (root) return;
   root = h('div', 'lib-root no-swipe');
+  root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));
+  root.tabIndex = -1;
+  if (!window._libKey) {                 // על document: אחרי מעבר דף האלמנט שבפוקוס נמחק והפוקוס נופל ל־body
+    window._libKey = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !root || e.defaultPrevented) return;
+      if (document.querySelector('.dlg-veil')) return;   // חלון אישור של האפליקציה פתוח — הוא מטפל בעצמו
+      e.preventDefault(); onEscape();
+    });
+  }
   root.append(h('div', 'lib-home'));
   document.body.append(root);
   document.documentElement.classList.add('lib-open');

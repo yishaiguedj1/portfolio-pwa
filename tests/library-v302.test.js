@@ -12,7 +12,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
 const src = acad.replace(/^export const/gm, 'const') + '\n' + lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, foldMap, ftFind, snippet, _test };';
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, foldMap, foldQuick, ftFind, snippet, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -132,6 +132,44 @@ const sn = L.snippet('א'.repeat(200) + ' מילה חשובה כאן ' + 'ב'.re
 ok(sn.hit === 'מילה' && sn.pre.startsWith('…') && sn.post.endsWith('…') && !/\n/.test(sn.pre), 'קטע תוצאה: סביב ההתאמה, עם …');
 ok(/op: 'me'/.test(lib) && /removeReader/.test(lib) && /ui\.admin/.test(lib), 'ניהול: מוצג רק כשהשרתון אומר שזה מנהל');
 ok(/view\.search\(\{ query: opt\.find\.q, index: opt\.find\.sec/.test(lib), 'נגיעה בתוצאה פותחת את הקורא בפרק ובמופע הנכון');
+
+// שלב 8: חיפוש מהיר — הקיפול המהיר זהה לקיפול עם המפה, והמיקומים נכונים עם ניקוד ובלעדיו
+const fsamp = 'בַּאפֶט אָמַר: "מרווח ביטחון" — ‘Margin’ של ברקשייר״ם ן־ץ';
+ok(L.foldQuick(fsamp) === L.foldMap(fsamp).f, 'קיפול מהיר = הקיפול המלא (ניקוד, סופיות, גרשיים, מקפים)');
+const plainTxt = 'פסקה ראשונה\nכאן כתוב מרווח ביטחון ואז שוב מרווח ביטחון';
+const fq1 = L.ftFind(plainTxt, 'מרווח ביטחון', 40, L.foldQuick(plainTxt));
+ok(fq1.length === 2 && fq1.every((m) => plainTxt.slice(m.pos, m.pos + m.len) === 'מרווח ביטחון'), 'חיפוש בטקסט בלי ניקוד — מיקומים ישירים (בלי מפה) ונכונים');
+ok(/sec\._f \|\| \(sec\._f = foldQuick/.test(lib) && /const cache = ftCache \|\|/.test(lib), 'חיפוש בטקסט: סינון מוקדם על קיפול שמור, ובלי מרוץ עם בניית האינדקס');
+
+// שלב 8: אופליין — כל קבצי הספרייה והקורא בטעינה מראש של ה־SW, וכולם קיימים
+const swSrc = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const appV = +(fs.readFileSync(path.join(root, 'app.js'), 'utf8').match(/APP_VERSION = 'v(\d+)'/) || [])[1];
+const swV = +(swSrc.match(/CACHE_NAME = 'portfolio-pwa-v(\d+)'/) || [])[1];
+// שלב התוכן של הפריסה הדו־שלבית (sw.js גרסה אחת אחורה, לפני v310) — sw.js החדש עוד לא נדחף
+const swPending = !/const LIB_SHELL/.test(swSrc) && swV === appV - 1 && appV <= 310;
+if (swPending) console.log('# דילוג על בדיקות ה־SW של הספרייה — שלב התוכן, sw.js נדחף בנפרד');
+else {
+const libShell = (swSrc.match(/const LIB_SHELL = \[([\s\S]*?)\];/) || [, ''])[1].match(/'\.\/[^']+'/g).map((x) => x.slice(3, -1));
+const needed = ['library.js', 'library.css', 'academy-data.js', 'fonts/NotoSansHebrew-VF.woff2'];
+const walk = (f, seen) => {                      // ייבואים סטטיים מ־library.js לעומק (בלי pdf/tts — הוסרו)
+  if (seen.has(f)) return; seen.add(f);
+  const src = fs.readFileSync(path.join(root, f), 'utf8');
+  for (const m of src.matchAll(/(?:from\s+|import\()\s*'(\.\/[^']+\.js)'/g)) {
+    const t = path.posix.normalize(path.posix.join(path.posix.dirname(f), m[1]));
+    if (fs.existsSync(path.join(root, t))) walk(t, seen);
+  }
+};
+const deps = new Set(); walk('library.js', deps);
+const missShell = needed.concat(Array.from(deps)).filter((f) => !libShell.includes(f));
+ok(!missShell.length && libShell.every((f) => fs.existsSync(path.join(root, f))), 'SW: כל ' + libShell.length + ' קבצי הספרייה נטענים מראש וקיימים' + (missShell.length ? ' (חסר: ' + missShell + ')' : ''));
+ok(/caches\.match\('\.\/library\.js'\)/.test(swSrc) && /cache\.addAll\(LIB_SHELL\)\.catch/.test(swSrc), 'SW: רק למי שכבר השתמש בספרייה, וכשל לא מפיל את ההתקנה');
+}
+
+// שלב 8: נגישות
+ok(/setAttribute\('role', 'dialog'\); sh\.setAttribute\('aria-modal', 'true'\)/.test(lib) && /back\.focus/.test(lib), 'נגישות: גיליון = דיאלוג, הפוקוס חוזר למקומו בסגירה');
+ok(/e\.key === 'Escape'/.test(lib) && /function onEscape/.test(lib), 'נגישות: Escape = חזור (גם בתוך מסמך הספר)');
+ok(/it\.setAttribute\('aria-label', b\.title/.test(lib) && /'ac-ring'\); svg\.setAttribute\('aria-hidden'/.test(lib), 'נגישות: כריכה עם שם ומצב, טבעות דקורטיביות מוסתרות');
+ok(/:focus-visible/.test(fs.readFileSync(path.join(root, 'library.css'), 'utf8')), 'נגישות: טבעת פוקוס למקלדת');
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),

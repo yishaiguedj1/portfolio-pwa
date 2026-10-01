@@ -256,3 +256,9 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 .adm-empty { margin: 0; font-size: 14px; color: var(--on-surface-var); }
 .adm-warn { font-size: 14px; line-height: 1.5; color: var(--on-surface-var); }
 .adm-refresh { display: block; margin: 6px 16px 20px; }
+
+/* שלב 8 — נגישות: טבעת פוקוס למקלדת בלבד (לא בנגיעה) */
+.lib-root :focus { outline: none; }
+.lib-root :focus-visible { outline: 2.5px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-xs); }
+.lib-root .lib-sheet:focus-visible { outline: none; }
+.lib-root .lib-row:focus-visible, .lib-root .ft-hit:focus-visible { outline-offset: -3px; }
