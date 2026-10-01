@@ -5,7 +5,8 @@
    כל בקשה: התחברות Firebase מאומתת + הקורא ברשימת ההרשאות (LIBRARY_READERS). קובץ נשלח רק אם הוא בתיקייה
    (או בתת־תיקייה אחת מתחתיה — למשל תיקייה לכל מנכ"ל), כך שאי אפשר לבקש דרך השרתון קובץ אחר שמשותף לחשבון. */
 const { guard } = require('../lib/ibkr');
-const { verifyIdToken, readerAllowed, driveToken, serviceAccount } = require('../lib/gauth');
+const { verifyIdToken, readerAllowed, driveToken, serviceAccount, isAdmin, emails } = require('../lib/gauth');
+const readers = require('../lib/readers');
 const { epubText } = require('../lib/epubtext');
 const { insight } = require('../lib/insight');
 const insightCache = new Map();   // id|md5 → ניתוח (חוסך קריאות ל־Gemini בין קוראים, כל עוד המופע חי)
@@ -76,7 +77,33 @@ async function handler(req, res, deps = {}) {
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) {
     return res.status(401).json({ ok: false, error: 'no_auth', why: String(e.message || e).slice(0, 40) });
   }
-  if (!readerAllowed(user)) return res.status(403).json({ ok: false, error: 'not_allowed', email: user.email });
+  let allowed = readerAllowed(user);
+  if (!allowed) {                                  // שלב 6: גם קוראים שנוספו מתוך האפליקציה (Firestore, רשימה חתומה)
+    const rl = await (deps.readers || readers).getReaders(deps.fetch);
+    allowed = readerAllowed(user, undefined, rl.list.map((x) => x.email));
+  }
+  if (!allowed) return res.status(403).json({ ok: false, error: 'not_allowed', email: user.email });
+  /* שלב 6: ניהול קוראים — רק למנהל (LIBRARY_ADMINS, או המייל הראשון ב־LIBRARY_READERS) */
+  if (body.op === 'me') return res.status(200).json({ ok: true, admin: isAdmin(user) });
+  if (['readers', 'addReader', 'removeReader', 'refresh'].includes(body.op)) {
+    if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+    const R = deps.readers || readers;
+    try {
+      if (body.op === 'refresh') { listCache = { at: 0, items: null, folders: null }; insightCache.clear(); }
+      let cur = await R.getReaders(deps.fetch, true);
+      if (body.op === 'addReader' || body.op === 'removeReader') {
+        if (cur.err) return res.status(503).json({ ok: false, error: 'store_' + cur.err });
+        const email = String(body.email || '').trim().toLowerCase();
+        if (!readers.EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: 'bad_email' });
+        let list = cur.list.filter((x) => x.email !== email);
+        if (body.op === 'addReader') list = list.concat([{ email, at: Date.now() }]).slice(-500);
+        await R.saveReaders(list, deps.fetch);
+        cur = { list, err: '' };
+      }
+      return res.status(200).json({ ok: true, env: emails(process.env.LIBRARY_READERS), open: /(^|[\s,;])\*([\s,;]|$)/.test(process.env.LIBRARY_READERS || ''),
+        app: cur.list, store: cur.err ? 'no_access' : 'ok', storeErr: cur.err || '' });
+    } catch (e) { return res.status(502).json({ ok: false, error: String(e.message || e).slice(0, 40) }); }
+  }
   if (limited(user.uid, 200)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   try {
     const cat = await listAll(deps.fetch);
@@ -118,4 +145,4 @@ async function handler(req, res, deps = {}) {
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._folderId = folderId;
-module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; hits.clear(); insightCache.clear(); };
+module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; hits.clear(); insightCache.clear(); readers._reset(); };

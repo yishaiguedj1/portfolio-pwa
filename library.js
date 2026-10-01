@@ -26,15 +26,20 @@ const defaults = { theme: 'white', size: 19, weight: 0, spacing: 1, justify: fal
 function loadSettings() { try { return Object.assign({}, defaults, JSON.parse(localStorage.getItem(LS_READER) || '{}')); } catch (e) { return Object.assign({}, defaults); } }
 function saveSettings() { try { localStorage.setItem(LS_READER, JSON.stringify(S)); } catch (e) {} }
 let S = loadSettings();
-const ui = { sort: 'new', author: '', view: null, q: '' };   // view: null = בית, { book: id } = דף מכתב
+const ui = { sort: 'new', author: '', view: null, q: '', admin: false };   // view: null = בית, { book: id } = דף מכתב
 
 /* ---------------- IndexedDB: books = פרטים ומיקום (רשימה מהירה), files = הקובץ עצמו ---------------- */
 let _db = null;
 function idb() {
   if (_db) return Promise.resolve(_db);
   return new Promise((res, rej) => {
-    const r = indexedDB.open('snb-library', 1);
-    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('books', { keyPath: 'id' }); d.createObjectStore('files'); };
+    const r = indexedDB.open('snb-library', 2);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains('books')) d.createObjectStore('books', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('files')) d.createObjectStore('files');
+      if (!d.objectStoreNames.contains('text')) d.createObjectStore('text', { keyPath: 'id' });   // שלב 6: טקסט לחיפוש מלא
+    };
     r.onsuccess = () => { _db = r.result; res(_db); };
     r.onerror = () => rej(r.error);
   });
@@ -119,6 +124,48 @@ export function glossaryMatch(text) {            // מונח מהמילון שמ
   const t = normTerm(text);
   if (!t || t.split(' ').length > 6) return null;
   return GLOSSARY.find(([he, en]) => { const a = normTerm(he), b = normTerm(en); return t === a || t === b || (a.length > 3 && t.includes(a)) || (b.length > 4 && t.includes(b)); }) || null;
+}
+/* ---------------- שלב 6: חיפוש בתוך הטקסט של כל המכתבים ----------------
+   אינדקס בטלפון (IndexedDB 'text'): לכל ספר — פסקאות לכל פרק. נבנה ברקע אחרי הסנכרון. החיפוש בלי ניקוד, בלי תלות
+   באותיות סופיות/גרשיים; ביטוי מדויק, ואם אין — כל המילים באותה פסקה. נגיעה בתוצאה פותחת את הקורא בדיוק שם. */
+const FOLD_MAP = { 'ם': 'מ', 'ן': 'נ', 'ץ': 'צ', 'ף': 'פ', 'ך': 'כ', '׳': "'", '’': "'", '‘': "'", '״': '"', '“': '"', '”': '"', '־': '-', '–': '-', '—': '-' };
+export function foldMap(t) {            // טקסט מקופל + מפה מכל תו מקופל למיקום במקור
+  let f = ''; const map = [];
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (c >= '\u0591' && c <= '\u05C7' && c !== '\u05BE') continue;   // ניקוד וטעמים
+    f += FOLD_MAP[c] || c.toLowerCase(); map.push(i);
+  }
+  map.push(t.length);
+  return { f, map };
+}
+export function ftFind(text, q, max = 40) {   // מיקומי התאמה בטקסט המקורי: [{ pos, len }]
+  const { f, map } = foldMap(text);
+  const fq = foldMap(String(q).trim().replace(/\s+/g, ' ')).f;
+  if (fq.length < 2) return [];
+  const out = [];
+  for (let i = f.indexOf(fq); i >= 0 && out.length < max; i = f.indexOf(fq, i + fq.length)) out.push({ pos: map[i], len: map[i + fq.length] - map[i] });
+  if (out.length) return out;
+  const words = fq.split(' ').filter((w) => w.length >= 2);
+  if (words.length < 2) return [];
+  let start = 0;                         // כל המילים באותה פסקה
+  for (const para of f.split('\n')) {
+    if (words.every((w) => para.includes(w))) {
+      const at = start + para.indexOf(words[0]);
+      out.push({ pos: map[at], len: map[at + words[0].length] - map[at], loose: true });
+      if (out.length >= max) break;
+    }
+    start += para.length + 1;
+  }
+  return out;
+}
+export function snippet(text, pos, len, around = 70) {   // { pre, hit, post } סביב ההתאמה, בגבולות מילים
+  let a = Math.max(0, pos - around), b = Math.min(text.length, pos + len + around);
+  const nl1 = text.lastIndexOf('\n', pos); if (nl1 >= a) a = nl1 + 1;
+  const nl2 = text.indexOf('\n', pos + len); if (nl2 >= 0 && nl2 < b) b = nl2;
+  if (a > 0) { const sp = text.indexOf(' ', a); if (sp > 0 && sp < pos) a = sp + 1; }
+  if (b < text.length) { const sp = text.lastIndexOf(' ', b); if (sp > pos + len) b = sp; }
+  return { pre: (a > 0 ? '…' : '') + text.slice(a, pos), hit: text.slice(pos, pos + len), post: text.slice(pos + len, b) + (b < text.length ? '…' : '') };
 }
 export function sortBooks(list, sort) {
   const a = list.slice();
@@ -289,6 +336,67 @@ async function pullCloud() {
 }
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.hidden) flushProgress(); });
 
+const BLOCK_SEL = 'p,li,h1,h2,h3,h4,h5,h6,blockquote,td,th,dd,dt,figcaption,pre';
+async function indexBook(b) {
+  const file = await getFile(b.id); if (!file) return;
+  const book = await makeBook(file);
+  const secs = [];
+  for (const [i, sec] of (book.sections || []).entries()) {
+    if (!sec.createDocument || sec.linear === 'no') continue;
+    try {
+      const doc = await sec.createDocument();
+      const blocks = Array.from(doc.querySelectorAll(BLOCK_SEL)).filter((el) => !el.querySelector(BLOCK_SEL));
+      const t = (blocks.length ? blocks.map((el) => el.textContent) : [doc.body ? doc.body.textContent : ''])
+        .map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+      if (t) secs.push({ i, t });
+    } catch (e) { /* פרק שלא נפתח — מדלגים */ }
+  }
+  await tx('text', 'readwrite', (st) => st.put({ id: b.id, v: (b.md5 || '') + '|' + b.size, secs }));
+  ftCache = null;
+}
+let indexing = null, ftCache = null, ftState = { done: 0, total: 0 };
+function indexAll() {                   // ברקע, ספר אחרי ספר; לא בזמן קריאה
+  if (indexing) return indexing;
+  indexing = (async () => {
+    const books = await allBooks();
+    const have = new Map((await tx('text', 'readonly', (st) => reqP(st.getAll()))).map((x) => [x.id, x.v]));
+    const todo = books.filter((b) => have.get(b.id) !== (b.md5 || '') + '|' + b.size);
+    ftState = { done: books.length - todo.length, total: books.length };
+    for (const b of todo) {
+      if (!root) break;
+      while (rd) await new Promise((r) => setTimeout(r, 1500));
+      try { await indexBook(b); } catch (e) {}
+      ftState.done++;
+      await new Promise((r) => setTimeout(r, 30));
+    }
+  })().finally(() => {
+    indexing = null;
+    const home = root && root.querySelector('.lib-home');   // חיפוש פתוח — לרענן אחרי שהאינדקס הושלם
+    if (home && (ui.q || '').trim().length >= 2 && home.querySelector('.lib-ft')) renderFt(home, ui.q.trim());
+  });
+  return indexing;
+}
+async function ftSearch(q) {
+  if (!ftCache) ftCache = await tx('text', 'readonly', (st) => reqP(st.getAll()));
+  const books = new Map((await allBooks()).map((b) => [b.id, b]));
+  const res = [];
+  for (const rec of ftCache) {
+    const b = books.get(rec.id); if (!b) continue;
+    const hits = [];
+    for (const sec of rec.secs) {
+      for (const m of ftFind(sec.t, q, 40 - hits.length)) {
+        const orig = sec.t.slice(m.pos, m.pos + m.len);
+        const low = sec.t.toLowerCase(), ol = orig.toLowerCase();
+        let k = 0; for (let i = low.indexOf(ol); i >= 0 && i < m.pos; i = low.indexOf(ol, i + 1)) k++;
+        hits.push(Object.assign({ sec: sec.i, k, orig, text: sec.t }, m));
+      }
+      if (hits.length >= 40) break;
+    }
+    if (hits.length) res.push({ b, hits, exact: hits.some((x) => !x.loose) });
+  }
+  return res.sort((a, c) => (c.exact - a.exact) || (c.hits.length - a.hits.length) || ((c.b.year || 0) - (a.b.year || 0)));
+}
+
 /* ---------------- מבנה המסך ---------------- */
 const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ICON = {
@@ -336,6 +444,7 @@ async function renderHome() {
   if (ui.view && ui.view.thinkers) return renderThinkers();
   if (ui.view && ui.view.thinker) return renderThinker(ui.view.thinker);
   if (ui.view && ui.view.glossary) return renderGlossary();
+  if (ui.view && ui.view.admin) return renderAdmin();
   const books = await allBooks();
   const home = root.querySelector('.lib-home');
   home.textContent = '';
@@ -344,7 +453,7 @@ async function renderHome() {
   back.addEventListener('click', () => history.back());
   const add = h('label', 'lib-round'); add.innerHTML = ICON.plus; add.title = T('libImport'); add.setAttribute('aria-label', T('libImport'));
   const inp = h('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.epub,.azw3,.azw,.mobi,.kf8,.fb2,application/epub+zip';
-  inp.addEventListener('change', async () => { const n = await importFiles(Array.from(inp.files || [])); inp.value = ''; if (n) renderHome(); });
+  inp.addEventListener('change', async () => { const n = await importFiles(Array.from(inp.files || [])); inp.value = ''; if (n) { renderHome(); indexAll(); } });
   add.append(inp);
   const learn = h('button', 'lib-round'); learn.type = 'button'; learn.innerHTML = ICON.notes; learn.setAttribute('aria-label', T('learnTitle')); learn.title = T('learnTitle');
   learn.addEventListener('click', () => goView({ notes: 1 }));
@@ -354,7 +463,7 @@ async function renderHome() {
   if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
   else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
 
-  if (books.length > 3) {
+  if (books.length) {                    // גם בספרייה קטנה — החיפוש מגיע גם לתוך הטקסט
     const sw = h('div', 'lib-search');
     sw.innerHTML = ICON.search;
     const si = h('input'); si.type = 'search'; si.placeholder = T('libSearchPh'); si.dir = 'auto'; si.value = ui.q || ''; si.setAttribute('aria-label', T('libSearchPh'));
@@ -448,6 +557,12 @@ async function renderHome() {
   });
   home.append(grid);
   home.append(h('p', 'lib-empty lib-noq', T('libNoMatch')));
+  const ft = h('div', 'lib-ft'); ft.hidden = true; home.append(ft);
+  if (ui.admin) {                        // שלב 6: ניהול — רק למנהל
+    const adm = h('button', 'lib-admin-link', T('admTitle')); adm.type = 'button';
+    adm.addEventListener('click', () => goView({ admin: 1 }));
+    home.append(adm);
+  }
   sortRow.after(h('p', 'lib-near', T('libNear')));
   applySearch(home);
 }
@@ -605,6 +720,59 @@ function renderGlossary() {
   draw();
 }
 
+async function adminApi(op, extra) {
+  const tk = await idToken(); if (!tk) throw new Error('signin');
+  const j = await libApi(Object.assign({ op, idToken: tk }, extra || {})).then((r) => r.json()).catch(() => ({ ok: false, error: 'net' }));
+  if (!j.ok) throw new Error(j.error || 'failed');
+  return j;
+}
+async function renderAdmin() {
+  const home = subPage(T('admTitle'), T('admSub'));
+  const box = h('div', 'adm'); home.append(box);
+  const draw = (j) => {
+    box.textContent = '';
+    if (j.store !== 'ok') box.append(h('p', 'bk-card ac-card adm-warn', T('admNoStore')));
+    const add = h('div', 'adm-add');
+    const inp = h('input', 'ac-search'); inp.type = 'email'; inp.placeholder = T('admEmailPh'); inp.dir = 'ltr'; inp.autocomplete = 'off';
+    const btn = h('button', 'adm-btn', T('admAdd')); btn.type = 'button'; btn.disabled = j.store !== 'ok';
+    btn.addEventListener('click', async () => {
+      const email = inp.value.trim(); if (!email) return;
+      btn.disabled = true;
+      try { draw(await adminApi('addReader', { email })); if (typeof flash === 'function') flash(T('admAdded')); }
+      catch (e) { btn.disabled = false; if (typeof flash === 'function') flash(T(String(e.message) === 'bad_email' ? 'admBadEmail' : 'admErr')); }
+    });
+    add.append(inp, btn); box.append(add);
+    const list = (title, items, removable) => {
+      const c = h('div', 'bk-card ac-card'); c.append(h('h4', null, title));
+      if (!items.length) c.append(h('p', 'adm-empty', T('admNone')));
+      items.forEach((x) => {
+        const r = h('div', 'adm-row'); const e = h('span', 'adm-mail', x.email || x); e.dir = 'ltr'; r.append(e);
+        if (removable) {
+          const del = h('button', 'mini-btn danger', T('libRemove')); del.type = 'button';
+          del.addEventListener('click', () => {
+            const go = async () => { try { draw(await adminApi('removeReader', { email: x.email })); } catch (er) { if (typeof flash === 'function') flash(T('admErr')); } };
+            if (typeof askConfirm === 'function') askConfirm(T('admRemoveQ', { e: x.email }), go, { danger: true, ok: T('libRemove') }); else go();
+          });
+          r.append(del);
+        } else r.append(h('small', null, 'Vercel'));
+        c.append(r);
+      });
+      box.append(c);
+    };
+    list(T('admApp'), j.app || [], true);
+    list(T('admEnv'), j.open ? [T('admOpen')] : (j.env || []), false);
+    const ref = h('button', 'ac-retry adm-refresh', T('admRefresh')); ref.type = 'button';
+    ref.addEventListener('click', async () => {
+      ref.disabled = true;
+      try { await adminApi('refresh'); const n = await syncDrive(); if (typeof flash === 'function') flash(T('admRefreshed', { n })); } catch (e) { if (typeof flash === 'function') flash(T('admErr')); }
+      ref.disabled = false;
+    });
+    box.append(ref);
+  };
+  box.append(h('p', 'lib-empty', T('libSyncing')));
+  try { draw(await adminApi('readers')); } catch (e) { box.textContent = ''; box.append(h('p', 'lib-empty', T('admErr'))); }
+}
+
 async function renderNotes() {
   const home = root.querySelector('.lib-home');
   const books = sortBooks((await allBooks()).filter((b) => liveAnn(b.ann).length), 'recent');
@@ -759,6 +927,52 @@ function applySearch(home) {
   if (cnt) cnt.textContent = T('libCount', { n: q ? n : +cnt.dataset.n });
   const none = home.querySelector('.lib-noq'); if (none) none.hidden = !(q && !n);
   const near = home.querySelector('.lib-near'); if (near) near.hidden = !(q && n && !exact);
+  const sr = home.querySelector('.lib-sortrow'); if (sr) sr.hidden = !!(q && !n);   // אין התאמה בשמות — בלי "0 ספרים"
+  clearTimeout(ftTimer);
+  const ft = home.querySelector('.lib-ft');
+  if (ft) { if (!q || q.length < 2) { ft.hidden = true; ft.textContent = ''; } else ftTimer = setTimeout(() => renderFt(home, q), 280); }
+}
+let ftTimer = 0, ftSeq = 0;
+async function renderFt(home, q) {
+  const ft = home.querySelector('.lib-ft'); if (!ft) return;
+  const seq = ++ftSeq;
+  const res = await ftSearch(q);
+  if (seq !== ftSeq || (ui.q || '').trim() !== q) return;
+  ft.textContent = ''; ft.hidden = false;
+  const total = res.reduce((a, r) => a + r.hits.length, 0);
+  const head = h('div', 'ft-head'); head.append(h('h2', 'ac-h', T('ftTitle')), h('span', null, total ? T('ftCount', { n: total >= 40 * res.length ? total + '+' : total }) : ''));
+  ft.append(head);
+  if (ftState.total && ftState.done < ftState.total) ft.append(h('p', 'lib-near', T('ftIndexing', { n: ftState.done, t: ftState.total })));
+  if (!res.length) { ft.append(h('p', 'lib-empty', T('ftNone'))); }
+  res.slice(0, 30).forEach(({ b, hits }) => {
+    const sec = h('section', 'ft-book');
+    const bh = h('div', 'learn-h'); bh.append(h('b', null, b.title), h('span', null, T('ftHits', { n: hits.length })));
+    sec.append(bh);
+    hits.slice(0, 3).forEach((x) => {
+      const sn = snippet(x.text, x.pos, x.len);
+      const row = h('button', 'ft-row'); row.type = 'button'; row.dir = 'auto';
+      const mk = h('mark', null, sn.hit);
+      row.append(document.createTextNode(sn.pre), mk, document.createTextNode(sn.post));
+      row.addEventListener('click', () => openReader(b.id, { find: { q: x.orig, sec: x.sec, k: x.k } }));
+      sec.append(row);
+    });
+    if (hits.length > 3) {
+      const more = h('button', 'ft-more', T('ftMore', { n: hits.length - 3 })); more.type = 'button';
+      more.addEventListener('click', () => {
+        more.remove();
+        hits.slice(3, 40).forEach((x) => {
+          const sn = snippet(x.text, x.pos, x.len);
+          const row = h('button', 'ft-row'); row.type = 'button'; row.dir = 'auto';
+          row.append(document.createTextNode(sn.pre), h('mark', null, sn.hit), document.createTextNode(sn.post));
+          row.addEventListener('click', () => openReader(b.id, { find: { q: x.orig, sec: x.sec, k: x.k } }));
+          sec.append(row);
+        });
+      });
+      sec.append(more);
+    }
+    ft.append(sec);
+  });
+  const none = home.querySelector('.lib-noq'); if (none && res.length) none.hidden = true;
 }
 
 function askRemove(b) {
@@ -909,6 +1123,17 @@ async function openReader(id, opt) {
     const startAt = opt && opt.cfi ? opt.cfi : opt && (opt.href || opt.fromStart) ? null : (rec.cfi || null);
     await view.init({ lastLocation: startAt, showTextStart: true });
     if (opt && opt.href) await view.goTo(opt.href).catch(() => {});
+    if (opt && opt.find) {                 // תוצאת חיפוש: ההתאמה ה־k בפרק, מודגשת במנוע
+      const cfis = [];
+      try {
+        for await (const r of view.search({ query: opt.find.q, index: opt.find.sec, draw: Overlayer.highlight, drawOptions: { color: '#30D158' } })) {
+          if (r && r.cfi) cfis.push(r.cfi);
+          if (cfis.length > opt.find.k) break;
+        }
+      } catch (e) {}
+      const c = cfis[Math.min(opt.find.k, cfis.length - 1)];
+      if (c) await view.goTo(c).catch(() => {});
+    }
   } catch (e) {
     if (typeof flash === 'function') flash(T('libOpenErr'));
     rd.closing = true;
@@ -1297,7 +1522,9 @@ export async function openLibrary() {
   await renderHome();
   await first;
   await pullCloud();
+  try { const tk = await idToken(); if (tk) { const j = await libApi({ op: 'me', idToken: tk }).then((r) => r.json()); ui.admin = !!(j && j.admin); } } catch (e) {}
   renderHome();
+  setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };

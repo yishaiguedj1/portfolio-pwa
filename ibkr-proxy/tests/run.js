@@ -620,6 +620,42 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403, 'insight: רק לקוראים מורשים');
     r = await run2({ op: 'insight', idToken: mkTok({}), id: 'FILE00000002' });
     ok(r.statusCode === 404, 'insight: קובץ מחוץ לתיקייה — נחסם גם כאן');
+    // שלב 6: ניהול קוראים — Firestore מדומה, חתימה, הרשאות מנהל
+    {
+      const store = { doc: null };
+      const fsFetch = async (url, opt = {}) => {
+        if (url.includes('firestore.googleapis.com')) {
+          if (opt.method === 'PATCH') { store.doc = JSON.parse(opt.body); return { status: 200, json: async () => store.doc }; }
+          return store.doc ? { status: 200, json: async () => store.doc } : { status: 404, json: async () => ({}) };
+        }
+        return fakeFetch(url, opt);
+      };
+      const run3 = async (body) => { const r = mockRes(); await lib._handler(mockReq({ body }), r, { verify: { keys }, fetch: fsFetch }); return r; };
+      process.env.LIBRARY_READERS = 'boss@example.com, reader@example.com';
+      lib._reset();
+      const boss = mkTok({ email: 'boss@example.com' });
+      let x = await run3({ op: 'me', idToken: boss });
+      ok(x.payload.admin === true && (await run3({ op: 'me', idToken: mkTok({}) })).payload.admin === false, 'readers: המנהל = המייל הראשון ב־LIBRARY_READERS (בלי LIBRARY_ADMINS)');
+      x = await run3({ op: 'addReader', idToken: mkTok({}), email: 'new@example.com' });
+      ok(x.statusCode === 403 && x.payload.error === 'not_admin', 'readers: קורא רגיל לא יכול להוסיף קוראים');
+      x = await run3({ op: 'addReader', idToken: boss, email: 'New@Example.com' });
+      ok(x.statusCode === 200 && x.payload.app.map((a) => a.email).join() === 'new@example.com' && store.doc.fields.sig.stringValue.length === 64, 'readers: המנהל מוסיף קורא — נשמר ב־Firestore עם חתימה');
+      x = await run3({ op: 'list', idToken: mkTok({ email: 'new@example.com' }) });
+      ok(x.statusCode === 200, 'readers: קורא שנוסף מהאפליקציה נכנס לספרייה');
+      store.doc.fields.readers.arrayValue.values.push({ stringValue: 'hacker@example.com|1' });
+      require('../lib/readers')._reset(); lib._reset();
+      x = await run3({ op: 'list', idToken: mkTok({ email: 'hacker@example.com' }) });
+      ok(x.statusCode === 403, 'readers: מי שהוסיף את עצמו ישירות ב־Firestore (בלי חתימה תקינה) — נחסם');
+      x = await run3({ op: 'list', idToken: mkTok({ email: 'new@example.com' }) });
+      ok(x.statusCode === 403, 'readers: רשימה שזויפה נפסלת כולה');
+      x = await run3({ op: 'addReader', idToken: boss, email: 'not-an-email' });
+      ok(x.statusCode === 400, 'readers: מייל לא תקין נדחה');
+      store.doc = null; require('../lib/readers')._reset();
+      await run3({ op: 'addReader', idToken: boss, email: 'a@example.com' });
+      x = await run3({ op: 'removeReader', idToken: boss, email: 'a@example.com' });
+      ok(x.statusCode === 200 && x.payload.app.length === 0 && x.payload.env.includes('boss@example.com'), 'readers: הסרה + רשימת Vercel מוצגת בנפרד');
+      process.env.LIBRARY_READERS = 'reader@example.com';
+    }
     delete process.env.GDRIVE_SA_KEY;
     r = await run({ op: 'list', idToken: mkTok({}) });
     ok(r.statusCode === 503 && r.payload.error === 'not_configured', 'library: בלי חשבון שירות — not_configured (האפליקציה שקטה)');

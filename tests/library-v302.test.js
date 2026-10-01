@@ -12,7 +12,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
 const src = acad.replace(/^export const/gm, 'const') + '\n' + lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, _test };';
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, foldMap, ftFind, snippet, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -119,6 +119,19 @@ const fz = [['באפת', k87], ['בופט 1987', k87], ['מכתוב באפט', k
 fz.forEach(([q, k]) => ok(L.searchHit(k, q), 'חיפוש סלחני: "' + q + '" נמצא'));
 ok(!L.searchHit(L.searchKey({ title: 'מכתב באפט 1986', author: 'וורן באפט', year: 1986 }), '1987') && !L.searchHit(k87, 'מאנגר') && !L.searchHit(k87, '2023') && !L.searchHit(k23, 'קוקה קולה'), 'חיפוש סלחני: לא מוצא מה שבאמת לא שם');
 ok(L.searchScore(k87, 'באפט') > L.searchScore(k87, 'באפת') && L.editDist('1987', '1897', 2) === 1 && L.swapLayout('נוככקאא') === 'buffett', 'דירוג: התאמה מדויקת לפני התאמה עם טעות; החלפת סדר = טעות אחת; מקלדת הפוכה');
+
+// שלב 6 (v309) — חיפוש בתוך המכתבים + ניהול
+const txt = 'פרק ראשון\nבַּאפֶט כתב על מרווח ביטחון ועל "מר שוק".\nמרווח הביטחון הוא כרית. ושוב: מרווח ביטחון!';
+let fh = L.ftFind(txt, 'מרווח ביטחון');
+ok(fh.length === 2 && txt.slice(fh[0].pos, fh[0].pos + fh[0].len) === 'מרווח ביטחון', 'חיפוש בטקסט: ביטוי מדויק, כל המופעים, מיקום במקור');
+fh = L.ftFind(txt, 'באפט');
+ok(fh.length === 1 && txt.slice(fh[0].pos, fh[0].pos + fh[0].len) === 'בַּאפֶט', 'חיפוש בטקסט: בלי תלות בניקוד — ההתאמה מסומנת במקור עם הניקוד');
+ok(L.ftFind(txt, 'מר שוק').length === 1 && L.ftFind(txt, 'מרווח כרית').length === 1 && L.ftFind(txt, 'מרווח כרית')[0].loose, 'חיפוש בטקסט: גרשיים, וכל המילים באותה פסקה כשאין ביטוי');
+ok(L.ftFind(txt, 'ק').length === 0 && L.ftFind(txt, 'קוקה קולה').length === 0, 'חיפוש בטקסט: אות אחת / מה שלא קיים — כלום');
+const sn = L.snippet('א'.repeat(200) + ' מילה חשובה כאן ' + 'ב'.repeat(200), 201, 4);
+ok(sn.hit === 'מילה' && sn.pre.startsWith('…') && sn.post.endsWith('…') && !/\n/.test(sn.pre), 'קטע תוצאה: סביב ההתאמה, עם …');
+ok(/op: 'me'/.test(lib) && /removeReader/.test(lib) && /ui\.admin/.test(lib), 'ניהול: מוצג רק כשהשרתון אומר שזה מנהל');
+ok(/view\.search\(\{ query: opt\.find\.q, index: opt\.find\.sec/.test(lib), 'נגיעה בתוצאה פותחת את הקורא בפרק ובמופע הנכון');
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),

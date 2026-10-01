@@ -43,11 +43,11 @@ async function verifyIdToken(token, opts = {}) {
 }
 
 /* רשימת הקוראים המורשים: LIBRARY_READERS = מיילים מופרדים בפסיק ("*" = כל משתמש מחובר) */
-function readerAllowed(user, list) {
+function readerAllowed(user, list, extra) {
   const raw = String(list == null ? process.env.LIBRARY_READERS || '' : list).toLowerCase();
   const set = raw.split(/[\s,;]+/).filter(Boolean);
   if (set.includes('*')) return true;
-  return !!(user && user.email && user.verified && set.includes(user.email));
+  return !!(user && user.email && user.verified && (set.includes(user.email) || (extra || []).includes(user.email)));
 }
 
 function serviceAccount() {
@@ -61,15 +61,16 @@ function serviceAccount() {
   } catch (e) { return null; }
 }
 
-let tok = { v: '', exp: 0 };
-async function driveToken(fetchImpl) {
+const toks = {};   // scope → { v, exp }
+async function saToken(scope, fetchImpl) {
   const now = Math.floor(Date.now() / 1000);
-  if (tok.v && tok.exp - 60 > now) return tok.v;
+  const t = toks[scope];
+  if (t && t.v && t.exp - 60 > now) return t.v;
   const sa = serviceAccount();
   if (!sa) throw new Error('not_configured');
   const aud = sa.token_uri || 'https://oauth2.googleapis.com/token';
   const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const body = b64url(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/drive.readonly', aud, iat: now, exp: now + 3600 }));
+  const body = b64url(JSON.stringify({ iss: sa.client_email, scope, aud, iat: now, exp: now + 3600 }));
   const sig = b64url(crypto.sign('RSA-SHA256', Buffer.from(head + '.' + body), sa.private_key));
   const r = await (fetchImpl || fetch)(aud, {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -77,8 +78,26 @@ async function driveToken(fetchImpl) {
   });
   if (r.status !== 200) throw new Error('sa_http_' + r.status);
   const j = await r.json();
-  tok = { v: j.access_token, exp: now + (j.expires_in || 3600) };
-  return tok.v;
+  toks[scope] = { v: j.access_token, exp: now + (j.expires_in || 3600) };
+  return j.access_token;
+}
+const driveToken = (f) => saToken('https://www.googleapis.com/auth/drive.readonly', f);
+const datastoreToken = (f) => saToken('https://www.googleapis.com/auth/datastore', f);
+
+/* שלב 6: מנהלי הספרייה — LIBRARY_ADMINS (מיילים), ואם לא הוגדר: המייל הראשון ב־LIBRARY_READERS */
+const emails = (raw) => String(raw || '').toLowerCase().split(/[\s,;]+/).filter((x) => x && x !== '*');
+function isAdmin(user) {
+  if (!user || !user.email || !user.verified) return false;
+  const admins = emails(process.env.LIBRARY_ADMINS);
+  return (admins.length ? admins : emails(process.env.LIBRARY_READERS).slice(0, 1)).includes(user.email);
+}
+/* חתימה על רשימת הקוראים שנשמרת ב־Firestore — רק השרתון (שמחזיק את המפתח) יכול לייצר אותה,
+   כך שגם אם חוקי Firestore מתירים כתיבה למשתמש, אי אפשר להוסיף את עצמך */
+function signList(list) {
+  const sa = serviceAccount(); if (!sa) return '';
+  const key = crypto.createHash('sha256').update('snb-readers|' + sa.private_key).digest();
+  return crypto.createHmac('sha256', key).update(JSON.stringify(list)).digest('hex');
 }
 
-module.exports = { verifyIdToken, readerAllowed, driveToken, serviceAccount, _reset: () => { certs = { at: 0, ttl: 0, keys: null }; tok = { v: '', exp: 0 }; } };
+module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, serviceAccount, isAdmin, signList, emails,
+  _reset: () => { certs = { at: 0, ttl: 0, keys: null }; Object.keys(toks).forEach((k) => delete toks[k]); } };
