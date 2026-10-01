@@ -64,6 +64,11 @@ async function handler(req, res, deps = {}) {
       saKey: !raw ? 'missing' : serviceAccount() ? 'ok' : (raw.startsWith('{') ? 'bad_json' : 'bad_format') + ':' + raw.length,
       folder: process.env.LIBRARY_FOLDER_ID ? 'ok' : 'missing', readers: process.env.LIBRARY_READERS ? 'ok' : 'missing' } });
   }
+  if (body.op === 'health') { // בדיקת הגדרה בלי התחברות: רק האם הרובוט ניגש לתיקייה וכמה מכתבים יש בה — בלי שמות
+    try { const cat = await listAll(deps.fetch); return res.status(200).json({ ok: true, count: cat.items.length }); } catch (e) {
+      return res.status(502).json({ ok: false, error: String(e && e.message || e).slice(0, 40) });
+    }
+  }
   let user;
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) {
     return res.status(401).json({ ok: false, error: 'no_auth', why: String(e.message || e).slice(0, 40) });

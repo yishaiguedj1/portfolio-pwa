@@ -581,6 +581,8 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 401 && r.payload.error === 'no_auth', 'library: בלי התחברות — 401');
     r = await run({ op: 'list', idToken: mkTok({}) }, { origin: 'https://evil.example' });
     ok(r.statusCode === 403, 'library: Origin זר נחסם');
+    r = await run({ op: 'health' });
+    ok(r.statusCode === 200 && r.payload.count === 2 && !JSON.stringify(r.payload).includes('epub'), 'library: בדיקת תקינות — רק מספר המכתבים, בלי שמות ובלי התחברות');
     ok(lib._folderId('https://drive.google.com/drive/folders/1AbCdEfGhIjK_l-9?usp=sharing') === '1AbCdEfGhIjK_l-9' && lib._folderId(' 1AbCdEfGhIjK ') === '1AbCdEfGhIjK'
       && lib._folderId('https://drive.google.com/open?id=1AbCdEfGhIjK') === '1AbCdEfGhIjK', 'library: מזהה התיקייה — גם מהקישור המלא');
     delete process.env.GDRIVE_SA_KEY;
