@@ -69,7 +69,11 @@ async function handler(req, res, deps = {}) {
       folder: process.env.LIBRARY_FOLDER_ID ? 'ok' : 'missing', readers: process.env.LIBRARY_READERS ? 'ok' : 'missing' } });
   }
   if (body.op === 'health') { // בדיקת הגדרה בלי התחברות: רק האם הרובוט ניגש לתיקייה וכמה מכתבים יש בה — בלי שמות
-    try { const cat = await listAll(deps.fetch); return res.status(200).json({ ok: true, count: cat.items.length }); } catch (e) {
+    try {
+      const cat = await listAll(deps.fetch);
+      const st = await (deps.readers || readers).getReaders(deps.fetch, true);   // שלב 6: האם חשבון השירות ניגש ל־Firestore (בלי לחשוף את הרשימה)
+      return res.status(200).json({ ok: true, count: cat.items.length, store: st.err ? 'no_access' : 'ok', storeErr: st.err || '' });
+    } catch (e) {
       return res.status(502).json({ ok: false, error: String(e && e.message || e).slice(0, 40) });
     }
   }
