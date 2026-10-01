@@ -57,7 +57,13 @@ async function handler(req, res, deps = {}) {
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   body = body || {};
-  if (!serviceAccount() || !process.env.LIBRARY_FOLDER_ID) return res.status(503).json({ ok: false, error: 'not_configured' });
+  if (!serviceAccount() || !process.env.LIBRARY_FOLDER_ID) {
+    // אבחון בלי לחשוף ערכים: איזה משתנה חסר / לא נקרא
+    const raw = String(process.env.GDRIVE_SA_KEY || '').trim();
+    return res.status(503).json({ ok: false, error: 'not_configured', diag: {
+      saKey: !raw ? 'missing' : serviceAccount() ? 'ok' : (raw.startsWith('{') ? 'bad_json' : 'bad_format') + ':' + raw.length,
+      folder: process.env.LIBRARY_FOLDER_ID ? 'ok' : 'missing', readers: process.env.LIBRARY_READERS ? 'ok' : 'missing' } });
+  }
   let user;
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) {
     return res.status(401).json({ ok: false, error: 'no_auth', why: String(e.message || e).slice(0, 40) });
