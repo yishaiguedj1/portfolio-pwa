@@ -14,6 +14,12 @@ const LIST_TTL = 60 * 1000;
 const MAX_FILE = 4 * 1024 * 1024; // מגבלת התשובה של Vercel ~4.5MB; מכתב טיפוסי ~60KB
 
 let listCache = { at: 0, items: null, folders: null };
+/* LIBRARY_FOLDER_ID: מזהה התיקייה — או הקישור המלא אליה (drive.google.com/drive/folders/<ID>?usp=sharing) */
+function folderId(raw) {
+  const s = String(raw || '').trim();
+  const m = s.match(/folders\/([A-Za-z0-9_-]{10,})/) || s.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+  return m ? m[1] : s;
+}
 const hits = new Map();
 function limited(key, max) {
   const now = Date.now();
@@ -33,7 +39,7 @@ const FLAGS = '&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=1
 
 async function listAll(fetchImpl) {
   if (listCache.items && Date.now() - listCache.at < LIST_TTL) return listCache;
-  const root = process.env.LIBRARY_FOLDER_ID;
+  const root = folderId(process.env.LIBRARY_FOLDER_ID);
   const token = await driveToken(fetchImpl);
   const fields = q('files(id,name,size,md5Checksum,modifiedTime,mimeType)');
   const inFolder = async (id) => (await (await driveGet('?q=' + q("'" + id + "' in parents and trashed=false") + '&fields=' + fields + FLAGS, token, fetchImpl)).json()).files || [];
@@ -83,4 +89,5 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
+module.exports._folderId = folderId;
 module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; hits.clear(); };
