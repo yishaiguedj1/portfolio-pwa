@@ -27,7 +27,7 @@ const defaults = { theme: 'white', size: 19, weight: 0, spacing: 1, justify: fal
 function loadSettings() { try { return Object.assign({}, defaults, JSON.parse(localStorage.getItem(LS_READER) || '{}')); } catch (e) { return Object.assign({}, defaults); } }
 function saveSettings() { try { localStorage.setItem(LS_READER, JSON.stringify(S)); } catch (e) {} }
 let S = loadSettings();
-const ui = { sort: 'new', author: '', view: null, q: '', admin: false };   // view: null = בית, { book: id } = דף מכתב
+const ui = { sort: 'new', author: '\u0001shelf', view: null, q: '', admin: false };   // v321: נכנסים תמיד ל"מדף ספרים"   // view: null = בית, { book: id } = דף מכתב
 /* v318: שתי ספריות — 'snb' = ספריית THE SNOWBALL (המכתבים מה־Drive המשותף), 'mine' = הספרים שהמשתמש העלה (עם גיבוי ל־Drive שלו) */
 const LS_SHELF = 'pwa_libshelf_v1';
 ui.shelf = (() => { try { return localStorage.getItem(LS_SHELF) === 'mine' ? 'mine' : 'snb'; } catch (e) { return 'snb'; } })();
@@ -653,6 +653,14 @@ function cover(b, mini) {
   return el;
 }
 
+/* v321: מעבר דף אחרי המתנה ארוכה (הורדה) — רק אם עדיין יש הפעלת משתמש; אחרת Chrome מסמן את הרשומה
+   לדילוג ו"חזור" מדלג על דפים. במקרה כזה — נשארים במקום והודעה. */
+function safeGoView(v) {
+  const ua = typeof navigator !== 'undefined' && navigator.userActivation;
+  if (!ua || ua.isActive) return goView(v);
+  if (root && !rd) renderHome();
+  flashSafe(T('libDlReady'));
+}
 function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
   saveLibScroll();
   ui.view = v;
@@ -734,7 +742,7 @@ async function renderHome() {
   shelfChip.classList.add('shelf'); shelfChip.insertAdjacentHTML('afterbegin', ICON.shelf);
   chip(T('libAll'), '');
   Object.keys(authors).sort((a, b) => authors[b] - authors[a]).forEach((a) => chip(a, a));
-  if (ui.author && ui.author !== SHELF && !authors[ui.author]) ui.author = '';
+  if (ui.author && ui.author !== SHELF && !authors[ui.author]) ui.author = SHELF;
   chips.classList.add('lib-hide-q'); home.append(chips);
   const onShelf = ui.author === SHELF;
 
@@ -823,7 +831,7 @@ async function renderHome() {
 /* ---------------- v318: שתי ספריות + גיבוי ל־Google Drive (ממשק) ---------------- */
 function setShelf(v) {
   if (ui.shelf === v) return;
-  ui.shelf = v; ui.author = ''; ui.q = '';
+  ui.shelf = v; ui.author = SHELF; ui.q = '';   // v321: כל ספרייה נפתחת במדף
   try { localStorage.setItem(LS_SHELF, v); } catch (e) {}
   renderHome().then(() => { if (root) root.scrollTop = 0; });
 }
@@ -880,7 +888,7 @@ function cloudItem(b, idx) {
   it.setAttribute('aria-label', b.title + ' · ' + T('libTapDownload'));
   it.addEventListener('click', () => downloadCloud(b, it, true));
   wireHold(it, () => {
-    const acts = [{ kind: 'edit', fn: () => downloadCloud(b, it, false).then((ok) => { if (ok) goView({ edit: b.id }); }) },
+    const acts = [{ kind: 'edit', fn: () => downloadCloud(b, it, false).then((ok) => { if (ok) safeGoView({ edit: b.id }); }) },
       { kind: 'del', fn: () => {
         const go = async () => { try { await BK.removeFromBackup([b.id]); flashSafe(T('bkRemoved', { n: 1 })); } catch (e) { flashSafe(bkErrText(e)); } await refreshCloud(true); if (root && !rd) renderHome(); };
         if (typeof askConfirm === 'function') askConfirm(T('bkRemoveQ', { t: b.title }), go, { danger: true, ok: T('bkDeleteOk') }); else go();
@@ -898,7 +906,7 @@ async function downloadCloud(b, it, open) {
   if (!ok) { if (!it.isConnected) return false; flashSafe(T('libDlErr')); return false; }
   if (cloudBooks) cloudBooks = cloudBooks.filter((x) => x.id !== b.id);
   indexAll();
-  if (open) goView({ book: b.id }); else if (root && !rd) renderHome();
+  if (open) safeGoView({ book: b.id }); else if (root && !rd) renderHome();
   return true;
 }
 function importInput(after) {
@@ -1213,7 +1221,7 @@ async function renderBackupBooks() {
     });
     wireHold(r, () => {
       if (selecting) return;
-      const acts = [{ kind: 'edit', fn: () => (x.onPhone ? goView({ edit: x.id }) : restoreIds([x.id], () => goView({ edit: x.id }))) }, { kind: 'del', fn: () => delIds([x.id]) }];
+      const acts = [{ kind: 'edit', fn: () => (x.onPhone ? goView({ edit: x.id }) : restoreIds([x.id], () => safeGoView({ edit: x.id }))) }, { kind: 'del', fn: () => delIds([x.id]) }];
       if (typeof showItemActions === 'function') showItemActions(r, acts);
     });
     box.append(r);
@@ -2131,8 +2139,22 @@ function onEscape() {
   const veil = root && root.querySelector('.lib-veil');
   if (veil) { (veil._close || (() => veil.remove()))(); return; }
   if (selPop) { hideSel(); return; }
-  if (rd) rd.backAt = Date.now();         // מקלדת — יציאה מיידית, בלי "לחץ שוב"
+  if (rd) return readerExit();          // מקלדת — יציאה מיידית, בלי "לחץ שוב"
   history.back();
+}
+function readerExit() {                  // ✕ / Escape / שגיאה — ישר לדף הספר (מדלגים גם על רשומת השומר)
+  if (!rd) return;
+  rd.closing = true;
+  const st = history.state || {};
+  if (st.lib === 2 && !st.guard) history.go(-2); else history.back();
+}
+function readerRearm() {                 // נגיעה בתוך הקורא אחרי "חזור" ראשון — השומר חוזר (יש הפעלת משתמש)
+  try {
+    const st = history.state || {};
+    if (!rd || rd.closing || st.lib !== 2 || !st.guard) return;
+    if (navigator.userActivation && !navigator.userActivation.isActive) return;
+    history.pushState(Object.assign({}, st, { guard: 0 }), '');
+  } catch (e) {}
 }
 
 function openSortSheet() {
@@ -2199,14 +2221,21 @@ async function openReader(id, opt) {
   const rec = (await allBooks()).find((b) => b.id === id);
   const file = await getFile(id);
   if (!rec || !file) return;
-  if (!(opt && opt.restored)) history.pushState(Object.assign({}, history.state || {}, { lib: 2, book: id }), '');
+  if (!(opt && opt.restored)) {
+    // v321: שתי רשומות בתוך הלחיצה — "שומר" ואז הקורא. "חזור" ראשון נוחת על השומר (הודעה), שני — לדף הספר.
+    // אסור pushState בתוך popstate: Chrome מסמן רשומה כזו (ואת זו שלפניה) "לדילוג", ו"חזור" יצא מהאפליקציה.
+    const st = Object.assign({}, history.state || {}, { lib: 2, book: id });
+    history.pushState(Object.assign({}, st, { guard: 1 }), '');
+    history.pushState(Object.assign({}, st, { guard: 0 }), '');
+  }
   else history.replaceState(Object.assign({}, history.state || {}, { lib: 2, book: id }), '');
   const box = h('div', 'rd');
+  box.addEventListener('pointerup', readerRearm, true);   // v321: נגיעה בסרגלים מחזירה את השומר
   const view = document.createElement('foliate-view');
   const foot = h('div', 'rd-foot'); const fL = h('span'); const fR = h('span'); foot.append(fL, fR);
   const topBar = h('div', 'rd-topbar');
   const xBtn = h('button', 'rd-ic'); xBtn.type = 'button'; xBtn.innerHTML = ICON.close; xBtn.setAttribute('aria-label', T('rdClose'));
-  xBtn.addEventListener('click', () => { rd.closing = true; history.back(); });
+  xBtn.addEventListener('click', () => readerExit());
   const ttl = h('span', 'rd-ttl', rec.title);
   const acts = h('span', 'rd-acts');
   const tocBtn = h('button', 'rd-ic'); tocBtn.type = 'button'; tocBtn.innerHTML = ICON.list; tocBtn.setAttribute('aria-label', T('rdToc'));
@@ -2276,8 +2305,7 @@ async function openReader(id, opt) {
     }
   } catch (e) {
     if (typeof flash === 'function') flash(T('libOpenErr'));
-    rd.closing = true;
-    history.back();
+    readerExit();
   }
 }
 
@@ -2295,6 +2323,7 @@ function closeReader() {
    נגיעה בשוליים כבר לא מדפדפת (v303, בקשת המשתמש: נגיעה במילה ליד הקצה לתרגום העבירה עמוד בטעות) —
    נגיעה בכל מקום רק מציגה/מסתירה את הסרגלים. */
 function wireDoc(doc, setChrome, index) {
+  doc.addEventListener('pointerup', readerRearm, true);
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } });
   doc.addEventListener('click', (e) => {
     const sel = doc.getSelection && doc.getSelection();
@@ -2629,22 +2658,18 @@ function openAa() {
 /* ---------------- כניסה / יציאה + "חזור" של המכשיר ---------------- */
 /* בזמן קריאה: "חזור" אחד (גם החלקה מקצה המסך בטעות) לא מוציא מהספר — רק שני "חזור" תוך 2 שניות
    (v303, בקשת המשתמש). גיליון פתוח (תוכן/Aa/תרגום) — "חזור" סוגר אותו. כפתור ✕ יוצא מיד. */
-const BACK_TWICE_MS = 2000;
 function onPop() {
-  const lvl = (history.state && history.state.lib) || 0;
-  if (lvl < 2 && rd && !rd.closing) {
+  const st = history.state || {};
+  const lvl = st.lib || 0;
+  if (lvl === 2 && st.guard && rd && !rd.closing) {   // "חזור" ראשון בקורא: נחת על השומר
     const veil = root && root.querySelector('.lib-veil');
-    const now = Date.now();
-    if (veil || selPop || now - (rd.backAt || 0) > BACK_TWICE_MS) {
-      history.pushState(Object.assign({}, history.state || {}, { lib: 2 }), '');
-      if (veil) (veil._close || (() => veil.remove()))();
-      else if (selPop) hideSel();
-      else { rd.backAt = now; if (typeof flash === 'function') flash(T('rdBackTwice')); }
-      return;
-    }
+    if (veil) (veil._close || (() => veil.remove()))();
+    else if (selPop) hideSel();
+    else if (typeof flash === 'function') flash(T('rdBackTwice'));
+    return;
   }
   if (lvl >= 1 && lvl < 2) ui.view = (history.state && history.state.lv) || null;
-  if (lvl < 2 && rd) closeReader();
+  if (lvl < 2 && rd) { closeReader(); if (root) root.scrollTop = 0; }
   else if (lvl === 1 && root) { renderHome(); root.scrollTop = 0; }
   if (lvl < 1 && root) { hideSel(); root.remove(); root = null; document.documentElement.classList.remove('lib-open'); }
 }
@@ -2692,6 +2717,7 @@ export async function openLibrary(opt) {
   if (!restore) history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');   // ברענון — הרשומות כבר בהיסטוריה
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
   ui.view = restore ? (restore.lv || null) : null;
+  if (!restore) { ui.author = SHELF; ui.q = ''; }   // v321: כל כניסה לספרייה — מדף ספרים
   let scT = 0;
   root.addEventListener('scroll', () => { clearTimeout(scT); scT = setTimeout(saveLibScroll, 150); }, { passive: true });
   try { await scopeLibrary(); } catch (e) {}   // v313: לפני ציור/סנכרון — רק הנתונים של החשבון הנוכחי

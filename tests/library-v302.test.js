@@ -63,7 +63,8 @@ ok(keys.length > 30 && !missing.length, 'כל ' + keys.length + ' המחרוזו
 const wire = lib.slice(lib.indexOf('function wireDoc'), lib.indexOf('/* ---------------- בועת סימון'));
 ok(!/goLeft|goRight|0\.3|0\.7/.test(wire), 'v303: נגיעה בתוך הספר לא מדפדפת — רק מציגה/מסתירה סרגלים (הדפדוף בהחלקה של המנוע)');
 const pop = lib.slice(lib.indexOf('function onPop'), lib.indexOf('export async function openLibrary'));
-ok(/BACK_TWICE_MS/.test(lib) && /pushState/.test(pop) && /rdBackTwice/.test(pop) && /rd\.closing/.test(pop), 'v303: "חזור" אחד בקורא נבלע (מוחזר לרשומה) — רק שניים תוך 2 שניות יוצאים; ✕ יוצא מיד');
+// v321: "חזור" אחד נוחת על רשומת שומר (הודעה), השני — לדף הספר; בלי pushState בתוך popstate (Chrome מדלג על רשומות כאלה ויוצא מהאפליקציה)
+ok(!/pushState/.test(pop) && /st\.guard/.test(pop) && /rdBackTwice/.test(pop) && /rd\.closing/.test(pop), 'v303→v321: "חזור" אחד בקורא — הודעה (רשומת שומר), שני — לדף הספר; ✕ יוצא מיד');
 
 // שלב 2 — הספרייה המשותפת מה־Drive: מה להוריד ומה להסיר
 const local = [{ id: 'a', driveId: 'D1', md5: 'x' }, { id: 'b', driveId: 'D2', md5: 'y' }, { id: 'c' }];

@@ -13,7 +13,7 @@ ok(/if \(b\.cloud\) return cloudItem\(b, idx\)/.test(lib) && /'lib-item cloud'/.
 ok(/\.lib-item\.cloud \.lib-cover \{ opacity: \.42/.test(css), 'הכריכה דהויה');
 ok(/cloudDown:/.test(lib) && /lib-cbadge/.test(lib) && /\.lib-cbadge \{/.test(css), 'סמל ענן עם חץ הורדה על הכריכה');
 ok(/T\('libInCloud'\)/.test(lib), 'כיתוב "בגיבוי" + גודל מתחת לכריכה');
-ok(/it\.addEventListener\('click', \(\) => downloadCloud\(b, it, true\)\)/.test(lib) && /if \(open\) goView\(\{ book: b\.id \}\)/.test(lib), 'נגיעה = הורדה, ואחריה דף הספר');
+ok(/it\.addEventListener\('click', \(\) => downloadCloud\(b, it, true\)\)/.test(lib) && /if \(open\) (safeGoView|goView)\(\{ book: b\.id \}\)/.test(lib), 'נגיעה = הורדה, ואחריה דף הספר');
 ok(/\.lib-item\.cloud\.loading \.lib-cbadge::after/.test(css), 'בזמן ההורדה — סימן טעינה במקום החץ');
 ok(/libDlAll/.test(lib), 'כמה ספרים בגיבוי — "הורדת כל הספרים מהגיבוי"');
 ok(/if \(books\.length \|\| cloudOnly\.length\) home\.append\(backupRow\(\)\)/.test(lib), 'גם כשכל הספרים בענן — שורת הגיבוי והחיפוש מוצגות');
