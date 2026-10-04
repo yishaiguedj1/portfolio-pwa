@@ -9,7 +9,7 @@ const css = fs.readFileSync(path.join(root, 'library.css'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const sty = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 
-ok(/function backfillCovers\(\)/.test(lib) && /if \(b\.coverV\) continue;/.test(lib), 'השלמת כריכה רק לספרים שלא נבדקו (coverV)');
+ok(/function backfillCovers\(\)/.test(lib) && /if \(b\.coverV( \|\| b\.coverCustom)?\) continue;/.test(lib), 'השלמת כריכה רק לספרים שלא נבדקו (coverV) — ולא דורסת כריכה שהמשתמש בחר (v316)');
 ok(/const cur = \(await allBooksRaw\(\)\)\.find\(\(x\) => x\.id === b\.id\);   \/\/ רשומה עדכנית/.test(lib), 'ההשלמה כותבת על הרשומה העדכנית (לא דורסת התקדמות)');
 ok(/rec\.coverV = 1;/.test(lib), 'ייבוא חדש מסומן כנבדק');
 ok(/await first;\s+backfillCovers\(\);/.test(lib), 'ההשלמה רצה בכניסה לספרייה, אחרי הסנכרון');

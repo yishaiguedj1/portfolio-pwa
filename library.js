@@ -77,7 +77,8 @@ export function scopeBook(b, cur, legacyTo) {   // טהורה (נבדקת): מת
 }
 export const bookVisible = (b, cur) => b.src === 'drive' || b.owner === cur;
 const allBooksRaw = () => tx('books', 'readonly', (st) => reqP(st.getAll()));
-const allBooks = async () => { const cur = libOwner(); return (await allBooksRaw()).filter((b) => bookVisible(b, cur)); };
+const allBooks = async () => { const cur = libOwner(); return (await allBooksRaw()).filter((b) => bookVisible(b, cur) && !b.hidden); };
+const hiddenBooks = async () => { const cur = libOwner(); return (await allBooksRaw()).filter((b) => bookVisible(b, cur) && b.hidden); };
 async function scopeLibrary() {
   const cur = libOwner(), legacyTo = libLegacyOwner();
   for (const b of await allBooksRaw()) if (scopeBook(b, cur, legacyTo)) await putBook(b);
@@ -230,6 +231,27 @@ async function coverThumb(book) {
   return new Promise((res) => cv.toBlob((b) => res(b ? { blob: b, w, h: hgt } : null), 'image/jpeg', 0.85));
 }
 
+/* עריכת פרטי ספר (v316) — הפרטים שהמשתמש ערך נשמרים ב־rec.edit ומוחלים מעל מה שבקובץ, גם אחרי שהקובץ מתעדכן.
+   השדות כמו ב־Calibre: כותר, כותר משנה, כותב + שם למיון, הוצאה, תאריך, שפה, סדרה + מספר, ISBN, נושאים, תקציר, כריכה */
+export const EDIT_FIELDS = ['title', 'subtitle', 'author', 'authorSort', 'pub', 'date', 'lang', 'series', 'seriesIdx', 'isbn', 'tags', 'desc'];
+export function applyEdit(rec, e) {   // טהורה (נבדקת)
+  if (!e) return rec;
+  EDIT_FIELDS.forEach((k) => { if (typeof e[k] === 'string') rec[k] = e[k].trim(); });
+  if (!rec.title) rec.title = '—';
+  const y = String(rec.date || '').match(/\b(1[5-9]\d\d|20\d\d)\b/);
+  rec.year = y ? +y[1] : bookYear(rec.title, '');
+  return rec;
+}
+async function coverFromBlob(blob, maxW) {   // תמונה (מהטלפון/מהרשת) → JPEG מוקטן לרשומה
+  const bmp = await createImageBitmap(blob);
+  const w = Math.min(maxW || 480, bmp.width), hgt = Math.round(bmp.height * w / bmp.width);
+  if (!w || !hgt) return null;
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = hgt;
+  cv.getContext('2d').drawImage(bmp, 0, 0, w, hgt);
+  if (bmp.close) bmp.close();
+  return new Promise((res) => cv.toBlob((b) => res(b ? { blob: b, w, h: hgt } : null), 'image/jpeg', 0.85));
+}
+
 /* v315: ספרים שיובאו לפני v314 (או שהקובץ שלהם לא השתנה מאז) — השלמת הכריכה מהקובץ השמור, ברקע, בלי הורדה */
 let backfilling = null;
 function backfillCovers() {
@@ -237,7 +259,7 @@ function backfillCovers() {
   backfilling = (async () => {
     let n = 0;
     for (const b of await allBooksRaw()) {
-      if (b.coverV) continue;
+      if (b.coverV || b.coverCustom) continue;
       try {
         const file = await getFile(b.id);
         const cv = file ? await coverThumb(await makeBook(file)).catch(() => null) : null;
@@ -278,6 +300,9 @@ async function importFiles(files, extra) {
       if (old) {
         scopeBook(old, libOwner(), libLegacyOwner());   // v313: ההתקדמות של החשבון הנוכחי, והשאר נשמר בצד
         Object.assign(rec, { added: old.added, lastRead: old.lastRead, fraction: old.fraction, cfi: old.cfi, done: old.done, ann: old.ann, byOwner: old.byOwner });
+        if (old.edit) { rec.edit = old.edit; applyEdit(rec, old.edit); }   // v316: הפרטים שהמשתמש ערך גוברים על הקובץ
+        if (old.coverCustom) Object.assign(rec, { cover: old.cover, coverRatio: old.coverRatio, coverCustom: 1, coverV: 1 });
+        if (old.hidden) rec.hidden = 1;
       }
       if (extra) Object.assign(rec, extra);
       await tx('files', 'readwrite', (st) => st.put(file, id));
@@ -312,7 +337,7 @@ export function driveSyncPlan(local, items) {      // טהורה (נבדקת): �
   const byDrive = new Map(local.filter((b) => b.driveId).map((b) => [b.driveId, b]));
   const ids = new Set(items.map((i) => i.id));
   return {
-    fetch: items.filter((i) => { const o = byDrive.get(i.id); return !o || (i.md5 && o.md5 !== i.md5); }),
+    fetch: items.filter((i) => { const o = byDrive.get(i.id); return !o || (!o.hidden && i.md5 && o.md5 !== i.md5); }),   // מוסתר — לא יורד שוב
     remove: local.filter((b) => b.driveId && !ids.has(b.driveId)),
   };
 }
@@ -554,6 +579,7 @@ async function renderHome() {
   if (ui.view && ui.view.thinker) return renderThinker(ui.view.thinker);
   if (ui.view && ui.view.glossary) return renderGlossary();
   if (ui.view && ui.view.admin) return renderAdmin();
+  if (ui.view && ui.view.edit) return renderEdit(ui.view.edit);
   const books = await allBooks();
   const home = root.querySelector('.lib-home');
   home.textContent = '';
@@ -659,16 +685,19 @@ async function renderHome() {
     // שלב 8 (נגישות): קורא מסך שומע שם + מצב, לא את כל הטקסט הדקורטיבי של הכריכה
     it.setAttribute('aria-label', b.title + ' · ' + (b.done ? T('libRead') : b.fraction > 0 ? Math.round(b.fraction * 100) + '% ' + T('bkReadPct') : T('libNew')));
     it.addEventListener('click', () => goView({ book: b.id }));
-    let timer = 0;
-    // לחיצה ארוכה = הסרה — רק לספר שיובא ידנית (מכתב מהספרייה המשותפת היה חוזר בסנכרון הבא)
-    if (b.src !== 'drive') it.addEventListener('pointerdown', () => { timer = setTimeout(() => { timer = -1; askRemove(b); }, 650); });
-    ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => it.addEventListener(ev, () => { if (timer > 0) clearTimeout(timer); }));
-    it.addEventListener('click', (e) => { if (timer === -1) { e.stopImmediatePropagation(); timer = 0; } }, true);
+    // v316: לחיצה ארוכה = עט (עריכה) + X (מחיקה/הסתרה) — אותם כפתורים ואותו מיקום כמו במניות (מעל הספר, בצד שמאל)
+    wireHold(it, () => bookActions(it, b));
     grid.append(it);
   });
   home.append(grid);
   home.append(h('p', 'lib-empty lib-noq', T('libNoMatch')));
   const ft = h('div', 'lib-ft'); ft.hidden = true; home.append(ft);
+  const hid = await hiddenBooks();
+  if (hid.length) {
+    const hb = h('button', 'lib-admin-link lib-hidden-link', T('libHidden', { n: hid.length })); hb.type = 'button';
+    hb.addEventListener('click', () => openHiddenSheet(hid));
+    home.append(hb);
+  }
   if (ui.admin) {                        // שלב 6: ניהול — רק למנהל
     const adm = h('button', 'lib-admin-link', T('admTitle')); adm.type = 'button';
     adm.addEventListener('click', () => goView({ admin: 1 }));
@@ -695,6 +724,8 @@ async function renderBook(id) {
   const d = h('div', 'bk');
   const cv = cover(b); cv.classList.add('bk-cover');
   d.append(cv, h('h2', 'bk-title', b.title));
+  if (b.subtitle) { const st = h('div', 'bk-subtitle', b.subtitle); st.dir = 'auto'; d.append(st); }
+  if (b.series) { const se = h('div', 'bk-series', b.series + (b.seriesIdx ? ' · ' + b.seriesIdx : '')); se.dir = 'auto'; d.append(se); }
   // שם המוציא רק כשהוא בשפת הממשק (מוציא באנגלית במכתב עברי שובר את כיוון השורה); כל חלק מבודד לכיוון שלו
   const heUi = !((typeof getLang === 'function' && getLang()) === 'en');
   const by = [b.pub, b.author].find((x) => x && /[\u0590-\u05FF]/.test(x) === heUi) || '';
@@ -743,6 +774,178 @@ async function renderBook(id) {
   d.append(toc);
   home.append(top, d);
 }
+
+/* ---------------- עריכת פרטי ספר + משיכה מהאינטרנט (v316) ----------------
+   כמו "עריכת מטא־דאטה" ו"הורדת מטא־דאטה" של Calibre: כל השדות המקובלים, כריכה מהטלפון או מהרשת, ומועמדים מארבעה מאגרים
+   (הספרייה הלאומית — הרשמי לעברית, Google Books, Open Library, Apple Books) דרך השרתון /api/bookmeta.
+   השינויים נשמרים ברשומת הספר בטלפון (rec.edit) — הקובץ ב־Drive לא משתנה, והעריכה שורדת גם עדכון שלו. */
+const SRC_LABEL = { nli: 'srcNli', google: 'srcGoogle', openlibrary: 'srcOpenlibrary', apple: 'srcApple' };
+function metaApi(body) {
+  const base = (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {});
+  return fetch(base + '/api/bookmeta', { method: 'POST', headers, body: JSON.stringify(body) });
+}
+async function remoteCover(url) {   // כריכה מהרשת — דרך השרתון (רשימת מארחים מאושרת), חוזרת כ־Blob
+  const r = await metaApi({ op: 'cover', url });
+  if (!r.ok || !/^image\//.test(r.headers.get('content-type') || '')) throw new Error('cover');
+  return r.blob();
+}
+/* ממלאים שדות שחסרים ברשומה מתוך הקובץ עצמו (כותר משנה, סדרה, ISBN, נושאים, שפה, שם למיון) */
+function fileDefaults(md) {
+  const ids = [].concat(md.identifier || []).map(langText).join(' ');
+  const isbn = (ids.match(/97[89][0-9-]{10,14}|\b\d{9}[\dX]\b/) || [''])[0].replace(/-/g, '');
+  const ser = md.belongsTo && md.belongsTo.series ? [].concat(md.belongsTo.series)[0] : null;
+  const au = [].concat(md.author || [])[0];
+  return { subtitle: langText(md.subtitle), series: ser ? langText(ser.name) : '', seriesIdx: ser && ser.position != null ? String(ser.position) : '',
+    isbn, tags: [].concat(md.subject || []).map(langText).filter(Boolean).join(', '), lang: [].concat(md.language || [])[0] || '',
+    authorSort: au && typeof au === 'object' && au.sortAs ? langText(au.sortAs) : '' };
+}
+async function renderEdit(id) {
+  const all = await allBooksRaw();
+  const b = all.find((x) => x.id === id);
+  if (!b) { ui.view = null; return renderHome(); }
+  let defs = {};
+  try { const f = await getFile(id); if (f) defs = fileDefaults((await makeBook(f)).metadata || {}); } catch (e) {}
+  if (!root || !ui.view || ui.view.edit !== id) return;
+  const home = subPage(T('edTitleT'));
+  const val = (k) => (b.edit && typeof b.edit[k] === 'string') ? b.edit[k] : (b[k] != null && b[k] !== '' ? String(b[k]) : (defs[k] || ''));
+  let newCover = null, coverReset = false, coverJob = null;   // coverJob — כריכה מהרשת שעוד בדרך (השמירה מחכה לה)
+  // כריכה
+  const cvBox = h('div', 'ed-cover');
+  const cvImg = h('div', 'ed-cv');
+  const paintCover = () => {
+    cvImg.textContent = '';
+    if (newCover) { const im = document.createElement('img'); im.src = URL.createObjectURL(newCover.blob); im.alt = ''; cvImg.append(im); cvImg.style.aspectRatio = String(newCover.w / newCover.h); }
+    else { const c = cover(coverReset ? Object.assign({}, b, { cover: null }) : b); cvImg.append(c); cvImg.style.aspectRatio = ''; }
+  };
+  paintCover();
+  const cvActs = h('div', 'ed-cv-acts');
+  const pick = h('label', 'ed-btn'); pick.append(h('span', null, T('edCoverPick')));
+  const fin = h('input'); fin.type = 'file'; fin.accept = 'image/*';
+  fin.addEventListener('change', async () => {
+    const f = fin.files && fin.files[0]; fin.value = '';
+    if (!f) return;
+    try { newCover = await coverFromBlob(f); coverReset = false; paintCover(); } catch (e) { if (typeof flash === 'function') flash(T('edCoverErr')); }
+  });
+  pick.append(fin);
+  cvActs.append(pick);
+  if (b.coverCustom) {
+    const rs = h('button', 'ed-btn ghost', T('edCoverReset')); rs.type = 'button';
+    rs.addEventListener('click', () => { newCover = null; coverReset = true; paintCover(); });
+    cvActs.append(rs);
+  }
+  cvBox.append(cvImg, cvActs);
+  home.append(cvBox);
+  // שדות
+  const form = h('div', 'bk-card ed-form');
+  const inputs = {};
+  const field = (k, label, opt) => {
+    const row = h('label', 'ed-row');
+    row.append(h('span', 'ed-lbl', T(label)));
+    const inp = h(opt && opt.multi ? 'textarea' : 'input', 'ed-in');
+    if (!(opt && opt.multi)) inp.type = 'text';
+    if (opt && opt.ltr) inp.dir = 'ltr'; else inp.dir = 'auto';
+    if (opt && opt.ph) inp.placeholder = opt.ph;
+    inp.value = val(k);
+    inp.addEventListener('input', () => row.classList.remove('filled'));
+    inputs[k] = inp;
+    row.append(inp);
+    form.append(row);
+  };
+  field('title', 'edTitle');
+  field('subtitle', 'edSubtitle');
+  field('author', 'edAuthor');
+  field('authorSort', 'edAuthorSort');
+  field('pub', 'edPub');
+  field('date', 'edDate', { ltr: true, ph: 'YYYY-MM-DD' });
+  field('lang', 'edLang', { ltr: true, ph: 'he / en' });
+  field('series', 'edSeries');
+  field('seriesIdx', 'edSeriesIdx', { ltr: true });
+  field('isbn', 'edIsbn', { ltr: true });
+  field('tags', 'edTags');
+  field('desc', 'edDesc', { multi: true });
+  // משיכה מהאינטרנט
+  const fetchBtn = h('button', 'ed-fetch', T('edFetch')); fetchBtn.type = 'button';
+  const results = h('div', 'ed-results');
+  const setVals = (r, onlyCover) => {
+    if (!onlyCover) {
+      const put = (k, v) => { if (v == null || v === '' || (Array.isArray(v) && !v.length)) return; inputs[k].value = Array.isArray(v) ? v.join(', ') : String(v); inputs[k].closest('.ed-row').classList.add('filled'); };
+      put('title', r.title); put('subtitle', r.subtitle); put('author', r.authors.join(', '));
+      put('authorSort', r.authorSort); put('pub', r.publisher); put('date', r.date || (r.year ? String(r.year) : ''));
+      put('lang', r.lang); put('series', r.series); put('seriesIdx', r.seriesIndex); put('isbn', r.isbn); put('tags', r.tags); put('desc', r.desc);
+    }
+    if (r.cover) {
+      cvBox.classList.add('loading');
+      coverJob = remoteCover(r.cover).then(coverFromBlob).then((c) => { if (c) { newCover = c; coverReset = false; paintCover(); } })
+        .catch(() => { if (typeof flash === 'function') flash(T('edCoverErr')); })
+        .finally(() => { coverJob = null; cvBox.classList.remove('loading'); });
+    }
+    if (typeof flash === 'function') flash(T(onlyCover ? 'edCoverSet' : 'edFilled'));
+    cvBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  fetchBtn.addEventListener('click', async () => {
+    fetchBtn.disabled = true; results.textContent = '';
+    results.append(h('p', 'lib-empty', T('edFetching')));
+    let j = null;
+    try {
+      j = await metaApi({ op: 'search', isbn: inputs.isbn.value, title: inputs.title.value, author: inputs.author.value.split(',')[0], lang: inputs.lang.value }).then((r) => r.json());
+    } catch (e) {}
+    fetchBtn.disabled = false; results.textContent = '';
+    const list = (j && j.ok && j.results) || [];
+    if (!list.length) { results.append(h('p', 'lib-empty', T(j && j.ok ? 'edNone' : 'edFetchErr'))); return; }
+    list.slice(0, 12).forEach((r) => {
+      const row = h('div', 'ed-res');
+      const th = h('div', 'ed-th');
+      if (r.cover) remoteCover(r.cover).then((bl) => { const im = document.createElement('img'); im.alt = ''; im.src = URL.createObjectURL(bl); th.append(im); }).catch(() => th.classList.add('none'));
+      else th.classList.add('none');
+      const m = h('div', 'ed-res-m');
+      const t1 = h('b', null, r.title + (r.subtitle ? ': ' + r.subtitle : '')); t1.dir = 'auto';
+      const t2 = h('span', null, [r.authors.join(', '), r.publisher, r.year || ''].filter(Boolean).join(' · ')); t2.dir = 'auto';
+      const t3 = h('small', 'ed-src', T(SRC_LABEL[r.src]) + (r.isbn ? ' · ISBN ' + r.isbn : ''));
+      m.append(t1, t2, t3);
+      const acts = h('div', 'ed-res-a');
+      const use = h('button', 'mini-btn', T('edUse')); use.type = 'button';
+      use.addEventListener('click', () => setVals(r, false));
+      acts.append(use);
+      if (r.cover) { const oc = h('button', 'mini-btn ghost', T('edCoverOnly')); oc.type = 'button'; oc.addEventListener('click', () => setVals(r, true)); acts.append(oc); }
+      row.append(th, m, acts);
+      results.append(row);
+    });
+  });
+  // שמירה
+  const save = h('button', 'bk-cta ed-save', T('edSave')); save.type = 'button';
+  save.addEventListener('click', async () => {
+    if (save.disabled) return;
+    if (coverJob) { save.disabled = true; await Promise.race([coverJob, new Promise((r) => setTimeout(r, 15000))]); save.disabled = false; }
+    const cur = (await allBooksRaw()).find((x) => x.id === id);
+    if (!cur) return;
+    const e = {};
+    EDIT_FIELDS.forEach((k) => { e[k] = inputs[k].value; });
+    cur.edit = e; applyEdit(cur, e);
+    if (newCover) Object.assign(cur, { cover: newCover.blob, coverRatio: newCover.w / newCover.h, coverCustom: 1, coverV: 1 });
+    else if (coverReset) { delete cur.coverCustom; delete cur.cover; delete cur.coverRatio; delete cur.coverV; }   // השלמת הכריכה מהקובץ תחזיר אותה
+    await putBook(cur);
+    if (coverReset) backfillCovers();
+    if (typeof flash === 'function') flash(T('edSaved'));
+    history.back();
+  });
+  home.append(form, fetchBtn, results, save);
+  // שחזור הפרטים מהקובץ (ביטול כל העריכות)
+  if (b.edit || b.coverCustom) {
+    const undo = h('button', 'lib-admin-link', T('edReset')); undo.type = 'button';
+    undo.addEventListener('click', () => {
+      const go = async () => {
+        const cur = (await allBooksRaw()).find((x) => x.id === id); if (!cur) return;
+        delete cur.edit; delete cur.coverCustom; delete cur.cover; delete cur.coverRatio; delete cur.coverV;
+        try { const f = await getFile(id); if (f) { cur.md5 = ''; await putBook(cur); await importFiles([f], { driveId: cur.driveId, md5: '', src: cur.src }); } } catch (er) { await putBook(cur); }
+        history.back();
+      };
+      if (typeof askConfirm === 'function') askConfirm(T('edResetQ'), go, { danger: true, ok: T('edResetOk') }); else go();
+    });
+    home.append(undo);
+  }
+}
+
 function ring(frac) {
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 36 36'); svg.setAttribute('class', 'ac-ring'); svg.setAttribute('aria-hidden', 'true');
@@ -1104,12 +1307,58 @@ async function renderFt(home, q) {
 }
 
 function askRemove(b) {
+  // מכתב מהספרייה המשותפת היה חוזר בסנכרון הבא — לכן הוא מוסתר (והקובץ נמחק מהטלפון), ואפשר להחזיר אותו
+  const drive = b.src === 'drive';
   const go = async () => {
-    await tx('books', 'readwrite', (st) => st.delete(b.id));
+    if (drive) {
+      const cur = (await allBooksRaw()).find((x) => x.id === b.id);
+      if (cur) { cur.hidden = 1; await putBook(cur); }
+    } else await tx('books', 'readwrite', (st) => st.delete(b.id));
     await tx('files', 'readwrite', (st) => st.delete(b.id));
-    renderHome();
+    if (ui.view && ui.view.book === b.id) history.back(); else renderHome();
   };
-  if (typeof askConfirm === 'function') askConfirm(T('libRemoveQ', { t: b.title }), go, { danger: true, ok: T('libRemove') });
+  if (typeof askConfirm === 'function') askConfirm(T(drive ? 'libHideQ' : 'libRemoveQ', { t: b.title }), go, { danger: true, ok: T(drive ? 'libHide' : 'libRemove') });
+  else go();
+}
+function openHiddenSheet(list) {
+  sheet(T('libHiddenT'), (sh, close) => {
+    const box = h('div', 'lib-ios');
+    list.forEach((b) => {
+      const r = h('div', 'lib-row'); r.append(h('span', null, b.title));
+      const bt = h('button', 'mini-btn', T('libRestore')); bt.type = 'button';
+      bt.addEventListener('click', async () => {
+        const cur = (await allBooksRaw()).find((x) => x.id === b.id);
+        if (cur) { delete cur.hidden; cur.md5 = ''; await putBook(cur); }   // md5 ריק → יורד שוב בסנכרון
+        r.remove(); if (!box.children.length) close();
+        syncDrive().then(() => renderHome());
+      });
+      r.append(bt); box.append(r);
+    });
+    sh.append(box);
+  });
+}
+/* לחיצה ארוכה בלי תזוזה (כמו במניות): הספר מורם, ובשחרור — הכפתורים. גלילה/תזוזה מבטלת */
+function wireHold(el, onHold) {
+  const LONG = 420, SLOP = 10;
+  let t = 0, sx = 0, sy = 0, held = false, swallow = false;
+  const cancel = () => { clearTimeout(t); t = 0; if (!held) el.classList.remove('pressing'); };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    held = false; sx = e.clientX; sy = e.clientY;
+    clearTimeout(t);
+    t = setTimeout(() => { t = 0; held = true; el.classList.add('pressing'); if (navigator.vibrate) try { navigator.vibrate(8); } catch (er) {} }, LONG);
+  });
+  el.addEventListener('pointermove', (e) => { if (t && Math.hypot(e.clientX - sx, e.clientY - sy) > SLOP) cancel(); });
+  el.addEventListener('pointerup', () => {
+    if (held) { held = false; swallow = true; el.classList.remove('pressing'); onHold(); }
+    else cancel();
+  });
+  el.addEventListener('pointercancel', () => { held = false; cancel(); el.classList.remove('pressing'); });
+  el.addEventListener('click', (e) => { if (swallow) { swallow = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+}
+function bookActions(host, b) {
+  const acts = [{ kind: 'edit', fn: () => goView({ edit: b.id }) }, { kind: 'del', fn: () => askRemove(b) }];
+  if (typeof showItemActions === 'function') showItemActions(host, acts);
 }
 
 function sheet(title, build) {
@@ -1689,6 +1938,8 @@ export async function openLibrary(opt) {
     });
   }
   root.append(h('div', 'lib-home'));
+  // v316: לחיצה ארוכה על כריכה פתחה את תפריט הדפדפן ("הורדת תמונה") — אצלנו לחיצה ארוכה = עריכה/מחיקה
+  root.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.lib-item, .lib-cover, .ed-cv, .ed-th')) e.preventDefault(); });
   document.body.append(root);
   document.documentElement.classList.add('lib-open');
   if (!restore) history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');   // ברענון — הרשומות כבר בהיסטוריה
