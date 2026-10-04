@@ -54,7 +54,8 @@ ok(T.ibkrSilentResult('fail', { latestChunkOk: false, _throttled: true, _chunks:
 // ממשק וחיווט
 ok(!/id="ibkrRangeDetails"/.test(html), 'בחירת הטווח הוסרה מהכרטיס');
 ok(/wireIbkrAutoSync\(\); \/\/ v298/.test(app) && /setInterval\(ibkrAutoSyncTick, 5 \* 60 \* 1000\)/.test(app) && /visibilitychange/.test(app), 'בדיקה בפתיחה, בחזרה לאפליקציה וכל 5 דקות');
-ok(/row\(t\('ibkrAutoLbl'\), t\('ibkrAutoVal'/.test(app) && /ibkrAutoVal: 'כל יום ב־\{h\}'/.test(app) && /ibkrAutoVal: 'Daily at \{h\}'/.test(app), 'בכרטיס: "עדכון אוטומטי · כל יום ב־14:00"');
+// v312 (בקשת המשתמש): השורה "עדכון אוטומטי · כל יום ב־14:00" הוחלפה במתג אחד "סנכרון אוטומטי"
+ok(/id="ibkrAutoSw" role="switch"/.test(app) && /ibkrAutoLbl: 'סנכרון אוטומטי'/.test(app) && /ibkrAutoLbl: 'Auto sync'/.test(app), 'בכרטיס: מתג "סנכרון אוטומטי"');
 ok(/if \(silent && !String\(warnTxt \|\| ''\)\.trim\(\)\) \{ ibkrFinishImport\(rMergeData\(existing, incoming\), true\); return; \}/.test(app), 'עדכון שקט מייבא בלי חלון אישור (רק אזהרה שואלת)');
 ok(/if \(silent && \(state\.ibkrSyncing \|\| isDemoMode\(\)\)\) return 'skip';/.test(app) && /if \(silent && !ibkrHasImportedData\(cfg\.data\)\) return 'skip';/.test(app), 'לא בזמן סנכרון ידני, לא בדמו, לא במשיכה ראשונה');
 ok(/if \(silent\) return; \/\/ v298: עדכון שקט לא מחליף נתונים שמורים/.test(app), 'עדכון שקט לא מחליף מטמון שלא תואם לתיק');

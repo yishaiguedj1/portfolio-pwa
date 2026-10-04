@@ -17,7 +17,7 @@ const sandbox = {
 vm.createContext(sandbox);
 const root = path.join(__dirname, '..');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-vm.runInContext(app + '\n;globalThis.__t = { ibkrBgPlan, ibkrSilentIsNet, ibkrAutoSyncDue, ibkrFetchFullHistory, IBKR_NET_RETRY_MS, IBKR_AUTO_RETRY_MS, ibkrAutoTargetMs };', sandbox, { filename: 'app.js' });
+vm.runInContext(app + '\n;globalThis.__t = { ibkrBgPlan, ibkrSilentIsNet, ibkrAutoSyncDue, ibkrAutoOn, ibkrBgEnsure, ibkrAutoToggle, ibkrSaveCfg, ibkrCfg, ibkrFetchFullHistory, IBKR_NET_RETRY_MS, IBKR_AUTO_RETRY_MS, ibkrAutoTargetMs };', sandbox, { filename: 'app.js' });
 const T = sandbox.__t;
 
 // החלקים המוכנים — רק רצף שמתחיל בדיוק ביום שאחרי הנתונים שבטלפון
@@ -49,9 +49,33 @@ ok(!T.ibkrAutoSyncDue(Object.assign({}, base, { autoTry: now - 16 * 60000, autoR
   // מבנה הקוד: עדכון שקט לא משאיר הודעה אדומה; ניתוק מוחק גם מהשרתון; ייבוא → ack
   ok(/if \(silent\) return result;\s+\/\/ v311/.test(app), 'עדכון שקט שנכשל — בלי הודעת שגיאה אדומה (התקלה מהצילום)');
   ok(/if \(res === 'ok' \|\| res === 'uptodate'\) ibkrClearErr\(\)/.test(app), 'עדכון שקט שהצליח — מנקה שגיאה ישנה מהמסך');
-  ok(/ibkrBgApi\(\{ op: 'disable' \}\)[\s\S]{0,200}bgOn: false/.test(app), 'ניתוק — ה־token המוצפן נמחק גם מהשרתון');
+  ok(/const hadBg = ibkrCfg\(\)\.bgOn;[\s\S]{0,400}bgPurge: !!hadBg \}\);\s+if \(hadBg\) ibkrBgPurge\(\)/.test(app), 'ניתוק — ה־token המוצפן נמחק גם מהשרתון (עם ניסיון חוזר)');
   ok(/ibkrSaveCfg\(\{ lastSync: Date\.now\(\), data: data \}\);\s+ibkrBgAck\(\)/.test(app), 'אחרי ייבוא — הדוח נמחק מהענן (ack)');
   ok(/role="switch" aria-checked=/.test(app) && /\.ib-sw/.test(fs.readFileSync(path.join(root, 'styles.css'), 'utf8')), 'מתג נגיש (role=switch) בכרטיס');
   ok(!/localStorage[^\n]*bgToken|bg[A-Za-z]*:\s*cfg\.token/.test(app), 'ה־token לא נשמר בשום מקום חדש בטלפון');
+
+  // v312: מתג אחד "סנכרון אוטומטי" — פעיל כברירת מחדל, מפעיל/מכבה גם את העדכון היומי וגם את הסנכרון ברקע
+  ok(T.ibkrAutoOn({}) && T.ibkrAutoOn({ autoOn: true }) && !T.ibkrAutoOn({ autoOn: false }), 'ברירת מחדל: פעיל (לא מוגדר = פעיל)');
+  const due = Object.assign({}, base, { lastSync: 0 });
+  ok(T.ibkrAutoSyncDue(due, now) && !T.ibkrAutoSyncDue(Object.assign({}, due, { autoOn: false }), now), 'כבוי — גם העדכון היומי בפתיחה נעצר');
+  // הרשמה שקטה בשרתון: עם התחברות — נשלחת פעם אחת, בלי חלון אישור
+  const calls = [];
+  sandbox.firebase = { apps: [1], auth: () => ({ currentUser: { getIdToken: async () => 'ID' } }) };
+  sandbox.fetch = async (url, o) => { calls.push({ url, body: JSON.parse(o.body) }); return { status: 200, json: async () => ({ ok: true, enabled: true }) }; };
+  T.ibkrSaveCfg(Object.assign({}, base, { bgOn: false, bgTry: 0, bgPurge: false, autoOn: undefined }));
+  await T.ibkrBgEnsure();
+  ok(calls.length === 1 && calls[0].body.op === 'enable' && calls[0].body.have === '2026-10-01' && T.ibkrCfg().bgOn === true, 'פעיל כברירת מחדל → נרשם לסנכרון ברקע לבד (בלי לשאול)');
+  await T.ibkrBgEnsure();
+  ok(calls.length === 1, 'כבר רשום — לא שולח שוב');
+  // כיבוי: מוחק מהשרתון; בלי רשת — נשאר "למחוק" עד שמצליח, ולא נרשם מחדש בינתיים
+  sandbox.fetch = async () => { throw new Error('Failed to fetch'); };
+  T.ibkrAutoToggle(false); await new Promise((r) => setTimeout(r, 20));
+  ok(T.ibkrCfg().autoOn === false && T.ibkrCfg().bgOn === false && T.ibkrCfg().bgPurge === true, 'כיבוי בלי רשת — המחיקה מהשרתון ממתינה לניסיון חוזר');
+  calls.length = 0;
+  sandbox.fetch = async (url, o) => { calls.push({ url, body: JSON.parse(o.body) }); return { status: 200, json: async () => ({ ok: true }) }; };
+  T.ibkrSaveCfg({ autoOn: true, bgTry: 0 });
+  await T.ibkrBgEnsure();
+  ok(calls.length === 0, 'מחיקה ממתינה — אין הרשמה חדשה לפניה');
+  T.ibkrSaveCfg({ autoOn: false });
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });
