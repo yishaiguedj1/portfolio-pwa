@@ -857,7 +857,7 @@ function stubFetch(text, status = 200) {
     const flaky = async (u) => { if (/googleapis/.test(u) && !g503++) return { status: 503, json: async () => ({ error: { message: 'Service temporarily unavailable' } }) }; return fake(u); };
     res = mockRes();
     await api(mockReq({ body: { op: 'search', title: 'Some Other Book' } }), res, { fetch: flaky });
-    ok(res.payload.status.google === 1 && g503 === 2, 'Google 503 רגעי — ניסיון אחד נוסף מצליח');
+    ok(res.payload.status.google === 1 && g503 >= 2, 'Google 503 רגעי — ניסיון אחד נוסף מצליח (+ השלמת כריכה לפי ISBN מהקטלוג)');
     {
       const calls = [];
       const ef = async (u) => {
