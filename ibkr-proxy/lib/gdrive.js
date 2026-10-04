@@ -3,6 +3,7 @@
    מוצפנת בכספת (lib/vault.js, AES-256-GCM, AAD = gdrive|uid|r) במסמך driveVault/{uid} — ולעולם לא מחזיר אותה לטלפון.
    הרשאה: drive.file בלבד — האפליקציה רואה רק קבצים שהיא עצמה יצרה (התיקייה "THE SNOWBALL — הספרייה שלי"), לא את שאר הדרייב.
    משתני סביבה ב־Vercel: GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET (לקוח OAuth מסוג Web באותו פרויקט Google).
+   משתנה חדש נכנס רק בבנייה חדשה של השרתון — Redeploy של פריסה שדולגה (ignoreCommand, קומיט שלא נוגע בשרתון) לא בונה.
    פעולות (כל אחת עם התחברות Firebase מאומתת):
      gdConfig → { clientId, configured }      (בלי התחברות — הלקוח ציבורי)
      gdStatus → { connected, email }
