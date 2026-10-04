@@ -23,7 +23,7 @@ AUTHORS = {
                             source='Berkshire Hathaway Inc., Thanksgiving letter, November 2025')}),
     'bezos': dict(
         title='מכתב בזוס %d', subtitle='מכתב לבעלי המניות של אמזון',
-        creator="ג'פרי פ. בזוס", file_as="בזוס, ג'פרי פ.", creator_en='Jeffrey P. Bezos',
+        creator="ג'ף בזוס", file_as="בזוס, ג'ף", creator_en='Jeff Bezos',   # בחירת המשתמש — כמו על הכריכה
         publisher='אמזון', publisher_en='Amazon.com, Inc.',
         series='מכתבי בזוס לבעלי המניות', subjects=('השקעות', 'מכתבי בעלי מניות', 'אמזון'),
         desc='המכתב השנתי לבעלי המניות של אמזון לשנת %d, בתרגום לעברית.',
