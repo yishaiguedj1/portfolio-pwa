@@ -49,7 +49,7 @@ async function handler(req, res, deps = {}) {
     const v = await searchAll(q, { fetch: f, googleKey: process.env.GOOGLE_BOOKS_KEY || '', timeout: deps.timeout });
     if (cache.size > 300) cache.clear();
     if (v.results.length) cache.set(ck, { at: Date.now(), v });
-    return res.status(200).json(Object.assign({ ok: true }, v));
+    return res.status(200).json(Object.assign({ ok: true, diag: { googleKey: !!process.env.GOOGLE_BOOKS_KEY } }, v));   // אבחון: רק אם יש מפתח, לא הערך
   }
   res.status(400).json({ ok: false, error: 'bad_op' });
 }

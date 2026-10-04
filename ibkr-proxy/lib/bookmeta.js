@@ -143,7 +143,12 @@ async function getJson(fetchImpl, url, ms) {
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
   try {
     const r = await fetchImpl(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: ac.signal });
-    if (r.status !== 200) throw new Error('http_' + r.status);
+    if (r.status !== 200) {
+      // אבחון: הודעת השגיאה של המקור (למשל "API key not valid" / "Books API has not been used in project") — בלי המפתח עצמו
+      let why = '';
+      try { const j = await r.json(); why = String((j && j.error && (j.error.status || j.error.message)) || '').replace(/key=[^&\s]+/g, 'key=…').slice(0, 60); } catch (e) {}
+      throw new Error('http_' + r.status + (why ? ' ' + why : ''));
+    }
     return await r.json();
   } finally { clearTimeout(t); }
 }
