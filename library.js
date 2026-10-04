@@ -512,6 +512,8 @@ async function pullCloud() {
   if (!lib) return 0;
   let changed = 0;
   if (lib.s && lib.s.t > (S.t || 0)) { S = Object.assign({}, defaults, lib.s); saveSettings(); }
+  const mc = mergeColls(collAll(), lib.c);       // v320: אסופות מהענן (מכשיר אחר)
+  if (mc) { collSave(mc); changed++; }
   const p = lib.p || {};
   for (const b of await allBooks()) {
     if (rd && rd.rec && rd.rec.id === b.id) continue;          // הספר הפתוח — המקומי קובע
@@ -608,6 +610,7 @@ const ICON = {
   cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/></svg>',
   cloudOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M9.3 13.6l2 2 3.6-3.8"/></svg>',
   cloudUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 16v-5M9.8 13l2.2-2.2 2.2 2.2"/></svg>',
+  shelf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h4v15H4zM10 4.5h4v15h-4zM16.3 5.2l3.6 1-3.6 13.8-3.6-1"/></svg>',
   cloudDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 10.5v5.5M9.8 13.8l2.2 2.2 2.2-2.2"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
   chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
@@ -670,6 +673,7 @@ async function renderHome() {
   if (ui.view && ui.view.edit) return renderEdit(ui.view.edit);
   if (ui.view && ui.view.backup) return renderBackup();
   if (ui.view && ui.view.bkbooks) return renderBackupBooks();
+  if (ui.view && ui.view.coll) return renderColl(ui.view.coll);
   const allB = await allBooks();
   const mine = ui.shelf === 'mine';
   const books = allB.filter((b) => shelfOf(b) === ui.shelf);
@@ -722,14 +726,19 @@ async function renderHome() {
   const chips = h('div', 'lib-chips no-swipe');
   const chip = (label, val) => {
     const c = h('button', 'lib-chip' + (ui.author === val ? ' on' : ''), label); c.type = 'button';
-    c.addEventListener('click', () => { ui.author = val; renderHome(); });
+    c.addEventListener('click', () => { ui.author = val; renderHome().then(() => { if (root) root.scrollTop = 0; }); });
     chips.append(c);
+    return c;
   };
+  const shelfChip = chip(T('colShelf'), SHELF);   // v320: "מדף ספרים" — לפני "הכל"
+  shelfChip.classList.add('shelf'); shelfChip.insertAdjacentHTML('afterbegin', ICON.shelf);
   chip(T('libAll'), '');
   Object.keys(authors).sort((a, b) => authors[b] - authors[a]).forEach((a) => chip(a, a));
-  if (Object.keys(authors).length > 1) { chips.classList.add('lib-hide-q'); home.append(chips); }
+  if (ui.author && ui.author !== SHELF && !authors[ui.author]) ui.author = '';
+  chips.classList.add('lib-hide-q'); home.append(chips);
+  const onShelf = ui.author === SHELF;
 
-  const shown = sortBooks(listed.filter((b) => !ui.author || (b.author || T('libNoAuthor')) === ui.author), ui.sort);
+  const shown = sortBooks(listed.filter((b) => !ui.author || onShelf || (b.author || T('libNoAuthor')) === ui.author), ui.sort);
   const last = books.filter((b) => b.lastRead && !b.done).sort((a, b) => b.lastRead - a.lastRead)[0];
   if (last) {
     const card = h('button', 'lib-cont'); card.type = 'button';
@@ -771,32 +780,18 @@ async function renderHome() {
     tile('acGlossary', GLOSSARY.length + ' ' + T('acTerms'), { glossary: 1 });
     home.append(tiles);
   }
-  const sortRow = h('div', 'lib-sortrow');
+  if (onShelf) shelvesView(home, listed);
+  const sortRow = h('div', 'lib-sortrow' + (onShelf ? ' lib-only-q' : ''));
   const sortBtn = h('button', 'lib-sortbtn'); sortBtn.type = 'button'; sortBtn.innerHTML = ICON.sort;
   sortBtn.append(h('span', null, T(ui.sort === 'old' ? 'libSortOld' : ui.sort === 'recent' ? 'libSortRecent' : 'libSortNew')));
   sortBtn.addEventListener('click', openSortSheet);
   const cnt = h('b', 'lib-count', T('libCount', { n: shown.length })); cnt.dataset.n = String(shown.length);
   sortRow.append(cnt, sortBtn);
   home.append(sortRow);
-  const grid = h('div', 'lib-grid');
-  shown.forEach((b) => {
-    if (b.cloud) { grid.append(cloudItem(b, shown.indexOf(b))); return; }
-    const it = h('button', 'lib-item'); it.type = 'button';
-    it.dataset.q = searchKey(b); it.dataset.i = String(shown.indexOf(b));
-    const cap = h('div', 'lib-cap');
-    if (b.done) cap.append(h('span', 'lib-done', T('libRead')));
-    else if (b.fraction > 0) { const m = h('span', 'lib-mini'); const f = h('i'); f.style.width = Math.round(b.fraction * 100) + '%'; m.append(f); cap.append(m, h('span', null, Math.round(b.fraction * 100) + '%')); }
-    else cap.append(h('span', 'lib-badge', T('libNew')));
-    it.append(cover(b), cap);
-    // שלב 8 (נגישות): קורא מסך שומע שם + מצב, לא את כל הטקסט הדקורטיבי של הכריכה
-    it.setAttribute('aria-label', b.title + ' · ' + (b.done ? T('libRead') : b.fraction > 0 ? Math.round(b.fraction * 100) + '% ' + T('bkReadPct') : T('libNew')));
-    it.addEventListener('click', () => goView({ book: b.id }));
-    // v316: לחיצה ארוכה = עט (עריכה) + X (מחיקה/הסתרה) — אותם כפתורים ואותו מיקום כמו במניות (מעל הספר, בצד שמאל)
-    wireHold(it, () => bookActions(it, b));
-    grid.append(it);
-  });
+  const grid = h('div', 'lib-grid' + (onShelf ? ' lib-only-q' : ''));   // במדף — הרשת מופיעה רק בחיפוש
+  shown.forEach((b, i) => grid.append(bookItem(b, i)));
   home.append(grid);
-  if (cloudOnly.length > 1) {              // v319: כמה ספרים בגיבוי — הורדה של כולם בלחיצה אחת
+  if (cloudOnly.length > 1 && !onShelf) {  // v319: כמה ספרים בגיבוי — הורדה של כולם בלחיצה אחת
     const all = h('button', 'lib-admin-link lib-hide-q', T('libDlAll', { n: cloudOnly.length })); all.type = 'button';
     all.addEventListener('click', async () => {
       all.disabled = true; all.textContent = T('bkRestoring', { n: 0, t: cloudOnly.length });
@@ -1225,6 +1220,216 @@ async function renderBackupBooks() {
   });
 }
 function flashSafe(m) { if (typeof flash === 'function') flash(m); }
+
+/* ---------------- v320: מדף ספרים — אסופות (כמו "אלבומים" באייפון; הרעיון של אסופות קינדל, בעיצוב Apple) ----------------
+   אסופות שלי: { id: { n: שם, s: 'snb'|'mine', b: [מזהי ספרים], u: עדכון, d: 1 = נמחקה } } — מקומי לכל חשבון
+   (pwa_libcoll_v1, ב־ACCOUNT_KEYS) ובענן (lib.c במסמך המשתמש, מיזוג לפי u). אוטומטיות — מחושבות מהספרים. */
+const SHELF = '\u0001shelf';           // ערך הצ'יפ "מדף ספרים" (במקום שם כותב)
+const LS_COLL = 'pwa_libcoll_v1';
+export function mergeColls(local, remote) {   // טהורה (נבדקת): לכל אסופה — העדכון האחרון מנצח (כולל מחיקה)
+  const out = Object.assign({}, local || {});
+  let changed = false;
+  for (const [id, r] of Object.entries(remote || {})) {
+    if (!r || typeof r !== 'object') continue;
+    const l = out[id];
+    if (!l || (r.u || 0) > (l.u || 0)) { out[id] = r; changed = true; }
+  }
+  return changed ? out : null;
+}
+export function autoColls(books, shelf, isLetter) {   // טהורה (נבדקת): אסופות שנבנות לבד מפרטי הספרים
+  const out = [];
+  const add = (key, name, list, min) => { if (list.length >= (min || 1)) out.push({ key, name, ids: list.map((b) => b.id), auto: true }); };
+  add('reading', { t: 'colReading' }, books.filter((b) => b.fraction > 0 && !b.done).sort((a, b) => (b.lastRead || 0) - (a.lastRead || 0)));
+  add('done', { t: 'colDone' }, books.filter((b) => b.done));
+  if (shelf === 'snb' && isLetter) add('partnership', { t: 'colPartnership' }, books.filter((b) => isLetter(b) && b.year && b.year <= 1969).sort((a, b) => a.year - b.year), 2);
+  const by = (field) => { const m = new Map(); books.forEach((b) => { const v = String(b[field] || '').trim(); if (v) m.set(v, (m.get(v) || []).concat([b])); }); return m; };
+  [...by('series')].sort((a, b) => b[1].length - a[1].length).forEach(([v, list]) => add('se:' + v, v, list.sort((a, b) => (+a.seriesIdx || a.year || 0) - (+b.seriesIdx || b.year || 0)), 2));
+  [...by('author')].sort((a, b) => b[1].length - a[1].length).forEach(([v, list]) => add('au:' + v, v, list.sort((a, b) => (b.year || 0) - (a.year || 0)), 2));
+  return out;
+}
+function collAll() { try { return (JSON.parse(localStorage.getItem(LS_COLL) || '{}') || {})[libOwner()] || {}; } catch (e) { return {}; } }
+function collSave(map) {
+  try { const all = JSON.parse(localStorage.getItem(LS_COLL) || '{}') || {}; all[libOwner()] = map; localStorage.setItem(LS_COLL, JSON.stringify(all)); } catch (e) {}
+}
+function collPut(id, c, push) {         // שמירה מקומית + לענן (merge של שדה אחד)
+  const map = collAll(); map[id] = c; collSave(map);
+  if (push !== false) { const ref = userRef(); if (ref) ref.set({ lib: { c: { [id]: c } } }, { merge: true }).catch(() => {}); }
+}
+const myColls = (shelf) => Object.entries(collAll()).filter(([, c]) => c && !c.d && c.s === shelf).map(([id, c]) => ({ key: 'c:' + id, id, name: c.n, ids: c.b || [], u: c.u || 0 }))
+  .sort((a, b) => String(a.name).localeCompare(String(b.name), 'he'));
+const collName = (c) => (c.name && typeof c.name === 'object' ? T(c.name.t) : c.name);
+function findColl(key, books) {
+  if (key.startsWith('c:')) return myColls(ui.shelf).find((c) => c.key === key) || null;
+  return autoColls(books, ui.shelf, isBuffett).find((c) => c.key === key) || null;
+}
+function collStack(list) {               // שלוש כריכות בערימה (האמצעית מלפנים)
+  const st = h('div', 'col-stack');
+  const pick = list.slice(0, 3);
+  const cls = ['c1', 'c2', 'c3'];
+  pick.forEach((b, i) => { const c = cover(b); c.classList.add(cls[i]); st.append(c); });
+  if (!pick.length) st.classList.add('empty');
+  return st;
+}
+function collCard(c, byId) {
+  const list = c.ids.map((id) => byId.get(id)).filter(Boolean);
+  const card = h('button', 'col-card'); card.type = 'button';
+  card.append(collStack(list), h('b', null, collName(c)), h('span', null, T('libCount', { n: list.length })));
+  card.setAttribute('aria-label', collName(c) + ' · ' + T('libCount', { n: list.length }));
+  card.addEventListener('click', () => goView({ coll: c.key }));
+  if (!c.auto) wireHold(card, () => {
+    if (typeof showItemActions === 'function') showItemActions(card, [{ kind: 'edit', fn: () => collNameSheet(c) }, { kind: 'del', fn: () => collDelete(c) }]);
+  });
+  return card;
+}
+function shelvesView(home, books) {      // הטאב "מדף ספרים"
+  const box = h('div', 'col-view lib-hide-q');
+  const byId = new Map(books.map((b) => [b.id, b]));
+  const mineC = myColls(ui.shelf);
+  box.append(h('h4', 'col-sec', T('colMine')));
+  const g1 = h('div', 'col-grid');
+  mineC.forEach((c) => g1.append(collCard(c, byId)));
+  const add = h('button', 'col-card add'); add.type = 'button';
+  const pl = h('span', 'col-plus'); pl.innerHTML = ICON.plus;
+  add.append(pl, h('b', null, T('colNew')));
+  add.addEventListener('click', () => collNameSheet(null));
+  g1.append(add);
+  box.append(g1);
+  const autos = autoColls(books, ui.shelf, isBuffett);
+  if (autos.length) {
+    box.append(h('h4', 'col-sec', T('colAuto')));
+    const g2 = h('div', 'col-grid');
+    autos.forEach((c) => g2.append(collCard(c, byId)));
+    box.append(g2);
+  }
+  home.append(box);
+}
+function collNameSheet(c, thenAdd, shelf) {   // אסופה חדשה / שינוי שם (thenAdd — ספר שנכנס לאסופה החדשה)
+  sheet(c ? T('colRename') : T('colNew'), (sh, close) => {
+    const inp = h('input', 'col-in'); inp.type = 'text'; inp.dir = 'auto'; inp.maxLength = 60; inp.placeholder = T('colNamePh'); inp.value = c ? collName(c) : '';
+    const ok = h('button', 'bk-cta'); ok.type = 'button'; ok.textContent = T(c ? 'edSave' : 'colCreate');
+    const go = () => {
+      const n = inp.value.trim(); if (!n) { inp.focus(); return; }
+      const id = c ? c.id : 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const prev = collAll()[id] || { s: shelf || ui.shelf, b: [] };
+      const b = prev.b.slice(); if (thenAdd && !b.includes(thenAdd)) b.push(thenAdd);
+      collPut(id, { n, s: prev.s || shelf || ui.shelf, b, u: Date.now() });
+      close();
+      if (thenAdd) flashSafe(T('colAdded', { c: n }));
+      if (root && !rd) renderHome();
+    };
+    ok.addEventListener('click', go);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    sh.append(inp, ok);
+    setTimeout(() => { try { inp.focus(); } catch (e) {} }, 60);
+  });
+}
+function collDelete(c) {
+  const go = () => {
+    const prev = collAll()[c.id] || {};
+    collPut(c.id, { n: prev.n || '', s: prev.s || ui.shelf, b: [], u: Date.now(), d: 1 });
+    if (ui.view && ui.view.coll === c.key) history.back(); else renderHome();
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('colDeleteQ', { c: collName(c) }), go, { danger: true, ok: T('bkDeleteOk') }); else go();
+}
+function collToggle(id, bookId, on) {
+  const prev = collAll()[id]; if (!prev) return;
+  const b = (prev.b || []).filter((x) => x !== bookId);
+  if (on) b.push(bookId);
+  collPut(id, Object.assign({}, prev, { b, u: Date.now() }));
+}
+function addToCollSheet(book) {          // לחיצה ארוכה על ספר → "הוספה לאסופה"
+  sheet(T('colAddTo', { t: book.title }), (sh, close) => {
+    const list = h('div', 'lib-ios');
+    myColls(shelfOf(book)).forEach((c) => {
+      let on = c.ids.includes(book.id);
+      const r = h('button', 'lib-row'); r.type = 'button';
+      const ck = h('span', 'lib-check', on ? '✓' : '');
+      r.append(h('span', null, c.name), ck);
+      r.addEventListener('click', () => { on = !on; ck.textContent = on ? '✓' : ''; collToggle(c.id, book.id, on); if (on) flashSafe(T('colAdded', { c: c.name })); });
+      list.append(r);
+    });
+    const nw = h('button', 'lib-row act'); nw.type = 'button'; nw.append(h('span', null, '＋ ' + T('colNew') + '…'));
+    nw.addEventListener('click', () => { close(); collNameSheet(null, book.id, shelfOf(book)); });
+    list.append(nw);
+    sh.append(list);
+  }).addEventListener('click', (e) => { if (e.target.classList.contains('lib-veil') && root && !rd) renderHome(); });
+}
+function bookItem(b, idx) {               // פריט ספר ברשת (בית / דף אסופה)
+  if (b.cloud) return cloudItem(b, idx);
+  const it = h('button', 'lib-item'); it.type = 'button';
+  it.dataset.q = searchKey(b); it.dataset.i = String(idx);
+  const cap = h('div', 'lib-cap');
+  if (b.done) cap.append(h('span', 'lib-done', T('libRead')));
+  else if (b.fraction > 0) { const m = h('span', 'lib-mini'); const f = h('i'); f.style.width = Math.round(b.fraction * 100) + '%'; m.append(f); cap.append(m, h('span', null, Math.round(b.fraction * 100) + '%')); }
+  else cap.append(h('span', 'lib-badge', T('libNew')));
+  it.append(cover(b), cap);
+  // שלב 8 (נגישות): קורא מסך שומע שם + מצב, לא את כל הטקסט הדקורטיבי של הכריכה
+  it.setAttribute('aria-label', b.title + ' · ' + (b.done ? T('libRead') : b.fraction > 0 ? Math.round(b.fraction * 100) + '% ' + T('bkReadPct') : T('libNew')));
+  it.addEventListener('click', () => goView({ book: b.id }));
+  // v316: לחיצה ארוכה = עט (עריכה) + X (מחיקה/הסתרה) — אותם כפתורים ואותו מיקום כמו במניות; v320: + הוספה לאסופה
+  wireHold(it, () => bookActions(it, b));
+  return it;
+}
+async function renderColl(key) {           // דף אסופה
+  const allB = await allBooks();
+  const books = allB.filter((b) => shelfOf(b) === ui.shelf);
+  const have = new Set(books.map((b) => b.id));
+  const listed = books.concat(ui.shelf === 'mine' && cloudBooks ? cloudBooks.filter((c) => !have.has(c.id)) : []);
+  const c = findColl(key, listed);
+  if (!c) { ui.view = null; return renderHome(); }
+  if (!root || !ui.view || ui.view.coll !== key) return;
+  const byId = new Map(listed.map((b) => [b.id, b]));
+  const list = c.ids.map((id) => byId.get(id)).filter(Boolean);
+  const home = root.querySelector('.lib-home');
+  home.textContent = '';
+  const top = h('div', 'lib-top');
+  const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, T('colShelf')));
+  back.addEventListener('click', () => history.back());
+  top.append(back);
+  if (!c.auto) {
+    const more = h('button', 'lib-round'); more.type = 'button'; more.innerHTML = ICON.more; more.setAttribute('aria-label', T('colRename'));
+    more.addEventListener('click', () => sheet(collName(c), (sh, close) => {
+      const l = h('div', 'lib-ios');
+      const rn = h('button', 'lib-row'); rn.type = 'button'; rn.append(h('span', null, T('colRename')));
+      rn.addEventListener('click', () => { close(); collNameSheet(c); });
+      const dl = h('button', 'lib-row danger'); dl.type = 'button'; dl.append(h('span', null, T('colDelete')));
+      dl.addEventListener('click', () => { close(); collDelete(c); });
+      l.append(rn, dl); sh.append(l);
+    }));
+    top.append(more);
+  }
+  const hero = h('div', 'col-hero');
+  const tx = h('div', 'col-hero-t');
+  const reading = list.filter((b) => b.fraction > 0 && !b.done).length;
+  tx.append(h('b', null, collName(c)), h('span', null, T('libCount', { n: list.length }) + (reading ? ' · ' + T('colReadingN', { n: reading }) : '')));
+  hero.append(collStack(list), tx);
+  home.append(top, hero);
+  if (!c.auto) {
+    const acts = h('div', 'col-acts');
+    const addB = h('button', 'col-pill'); addB.type = 'button'; addB.textContent = '＋ ' + T('colAddBooks');
+    addB.addEventListener('click', () => sheet(T('colAddBooks'), (sh, close) => {
+      const l = h('div', 'lib-ios col-pick');
+      sortBooks(listed, 'new').forEach((b) => {
+        let on = c.ids.includes(b.id);
+        const r = h('button', 'lib-row'); r.type = 'button';
+        const t1 = h('span', 'col-pick-t', b.title); t1.dir = 'auto';
+        const ck = h('span', 'lib-check', on ? '✓' : '');
+        r.append(cover(b, true), t1, ck);
+        r.addEventListener('click', () => { on = !on; ck.textContent = on ? '✓' : ''; collToggle(c.id, b.id, on); c.ids = (collAll()[c.id] || {}).b || []; });
+        l.append(r);
+      });
+      const done = h('button', 'bk-cta'); done.type = 'button'; done.textContent = T('colDoneBtn');
+      done.addEventListener('click', () => { close(); renderColl(key); });
+      sh.append(l, done);
+    }));
+    acts.append(addB);
+    home.append(acts);
+  }
+  if (!list.length) { home.append(h('p', 'lib-empty', T(c.auto ? 'libNoMatch' : 'colEmpty'))); return; }
+  const grid = h('div', 'lib-grid');
+  list.forEach((b, i) => grid.append(bookItem(b, i)));
+  home.append(grid);
+}
 
 async function renderBook(id) {
   const home = root.querySelector('.lib-home');
@@ -1899,7 +2104,7 @@ function wireHold(el, onHold) {
   el.addEventListener('click', (e) => { if (swallow) { swallow = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 }
 function bookActions(host, b) {
-  const acts = [{ kind: 'edit', fn: () => goView({ edit: b.id }) }, { kind: 'del', fn: () => askRemove(b) }];
+  const acts = [{ kind: 'edit', fn: () => goView({ edit: b.id }) }, { kind: 'coll', fn: () => addToCollSheet(b) }, { kind: 'del', fn: () => askRemove(b) }];
   if (typeof showItemActions === 'function') showItemActions(host, acts);
 }
 

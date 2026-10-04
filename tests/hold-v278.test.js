@@ -37,7 +37,7 @@ ok(/flipMove/.test(td) && /wl-tab-ph/.test(td), 'אותו סגנון כמו הכ
 
 // כפתורים וביטול
 const sa = fn('showItemActions');
-ok(/'icon-btn act-' \+ a\.kind/.test(sa) && /ICON_EDIT : ICON_CLOSE/.test(sa), 'כפתורים עגולים כמו בהדר: עט ו־X');
+ok(/'icon-btn act-' \+ a\.kind/.test(sa) && /ICON_EDIT : (a\.kind === 'coll' \? ICON_COLL : )?ICON_CLOSE/.test(sa), 'כפתורים עגולים כמו בהדר: עט ו־X');
 ok(/\.item-acts \.act-del \.ic \{ stroke: var\(--loss\); \}/.test(css), 'ה־X באדום');
 ok(/document\.addEventListener\('click', \(e\) => \{ if \(_itemActs && _itemActs\.cancelTap\) \{ e\.stopPropagation\(\); e\.preventDefault\(\); clearItemActions\(\); \} \}, true\)/.test(app), 'לחיצה במקום אחר מבטלת ולא עושה פעולה אחרת');
 ok(/box\.style\.top = Math\.round\(Math\.max\(8, r\.top - bh - 8\)\)/.test(sa) && /r\.left\)\)\) \+ 'px'/.test(sa), 'הכפתורים צפים ממש מעל, מיושרים לשמאל');
