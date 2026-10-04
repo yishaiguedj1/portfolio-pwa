@@ -12,7 +12,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
 const src = acad.replace(/^export const/gm, 'const') + '\n' + lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
-  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, foldMap, foldQuick, ftFind, snippet, _test };';
+  + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, foldMap, foldQuick, ftFind, snippet, scopeBook, bookVisible, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
 vm.createContext(sb);
@@ -170,6 +170,24 @@ ok(/setAttribute\('role', 'dialog'\); sh\.setAttribute\('aria-modal', 'true'\)/.
 ok(/e\.key === 'Escape'/.test(lib) && /function onEscape/.test(lib), 'נגישות: Escape = חזור (גם בתוך מסמך הספר)');
 ok(/it\.setAttribute\('aria-label', b\.title/.test(lib) && /'ac-ring'\); svg\.setAttribute\('aria-hidden'/.test(lib), 'נגישות: כריכה עם שם ומצב, טבעות דקורטיביות מוסתרות');
 ok(/:focus-visible/.test(fs.readFileSync(path.join(root, 'library.css'), 'utf8')), 'נגישות: טבעת פוקוס למקלדת');
+
+// v313: הפרדת חשבונות במכשיר אחד — התקדמות/הדגשות וספרים שיובאו ביד שייכים לחשבון
+{
+  const b = { id: 'x', src: 'drive', pOwner: 'A', cfi: 'c1', fraction: 0.5, done: false, lastRead: 9, ann: [{ id: 'h1' }] };
+  ok(L.scopeBook(b, 'B', '') && b.fraction === 0 && !b.cfi && b.ann.length === 0 && b.byOwner.A.fraction === 0.5 && b.byOwner.A.ann[0].id === 'h1', 'מכתב משותף: חשבון אחר לא רואה את ההתקדמות וההדגשות של הראשון');
+  b.fraction = 0.2; b.ann = [{ id: 'hB' }];
+  ok(L.scopeBook(b, 'A', '') && b.fraction === 0.5 && b.ann[0].id === 'h1' && b.byOwner.B.ann[0].id === 'hB', 'חזרה לחשבון הראשון — ההתקדמות שלו חוזרת, והשני נשמר בצד');
+  ok(L.scopeBook(b, 'A', '') === false, 'אותו חשבון — בלי שינוי');
+  const m = { id: 'm', src: '', owner: 'A', pOwner: 'A' };
+  ok(L.bookVisible(m, 'A') && !L.bookVisible(m, 'B') && L.bookVisible({ src: 'drive' }, 'B'), 'ספר שיובא ביד — רק לחשבון שייבא; מכתבי ה־Drive — לכולם');
+  const old = { id: 'o', fraction: 0.7, ann: [{ id: 'z' }] };   // מכשיר ותיק (בלי בעלים)
+  L.scopeBook(old, 'NEW', '');
+  ok(old.owner === 'legacy' && old.fraction === 0 && old.byOwner.legacy.fraction === 0.7 && !L.bookVisible(old, 'NEW'), 'מכשיר ותיק + חשבון שלא אומץ — לא רואה ספרים/התקדמות ישנים');
+  const old2 = { id: 'o2', fraction: 0.7 };
+  L.scopeBook(old2, 'U', 'U');
+  ok(old2.owner === 'U' && old2.fraction === 0.7 && L.bookVisible(old2, 'U'), 'מכשיר ותיק + החשבון שאומץ — הכל נשאר');
+  ok(/if \(u && libOwner\(\) !== u\.uid\) return null;/.test(lib) && /await scopeLibrary\(\)/.test(lib), 'הספרייה לא כותבת לענן התקדמות של חשבון אחר, ומתאימה את הרשומות לפני הכל');
+}
 
 // המנוע והפונט — עם רישיון, בגרסה קבועה
 ok(/^[0-9a-f]{40}\s*$/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/COMMIT'), 'utf8')) && /MIT License/.test(fs.readFileSync(path.join(root, 'vendor/foliate-js/LICENSE'), 'utf8')),

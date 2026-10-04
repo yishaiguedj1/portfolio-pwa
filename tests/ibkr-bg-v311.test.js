@@ -60,7 +60,8 @@ ok(!T.ibkrAutoSyncDue(Object.assign({}, base, { autoTry: now - 16 * 60000, autoR
   ok(T.ibkrAutoSyncDue(due, now) && !T.ibkrAutoSyncDue(Object.assign({}, due, { autoOn: false }), now), 'כבוי — גם העדכון היומי בפתיחה נעצר');
   // הרשמה שקטה בשרתון: עם התחברות — נשלחת פעם אחת, בלי חלון אישור
   const calls = [];
-  sandbox.firebase = { apps: [1], auth: () => ({ currentUser: { getIdToken: async () => 'ID' } }) };
+  sandbox.firebase = { apps: [1], auth: () => ({ currentUser: { uid: 'U1', getIdToken: async () => 'ID' } }) };
+  sandbox.localStorage.setItem('pwa_owner_v1', 'U1');   // v313: הנתונים במכשיר שייכים למחובר
   sandbox.fetch = async (url, o) => { calls.push({ url, body: JSON.parse(o.body) }); return { status: 200, json: async () => ({ ok: true, enabled: true }) }; };
   T.ibkrSaveCfg(Object.assign({}, base, { bgOn: false, bgTry: 0, bgPurge: false, autoOn: undefined }));
   await T.ibkrBgEnsure();

@@ -116,14 +116,18 @@
   function demoOn() { return typeof isDemoMode === 'function' && isDemoMode(); }
 
   /* שמירה לענן — עם השהיה קצרה כדי לא להציף בכתיבות */
+  /* v313: שמירה לענן רק אחרי שהנתונים של החשבון המחובר נטענו, ורק כשהנתונים במכשיר שייכים לו —
+     אחרת שמירה שהתחילה בזמן הטעינה הייתה כותבת את התיק של החשבון הקודם למסמך של החדש */
+  let ready = false;
+  function ownsLocal() { return !!user && (typeof accountOwner !== 'function' || accountOwner() === user.uid); }
   function scheduleSave() {
-    if (!user || !fs || localMode || demoOn()) return;
+    if (!user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 2000);
   }
 
   async function flushSave() {
-    if (!user || !fs || localMode || demoOn()) return;
+    if (!user || !fs || localMode || demoOn() || !ready || !ownsLocal()) return;
     clearTimeout(saveTimer);
     try {
       await userDoc().set({
@@ -140,7 +144,7 @@
 
   async function resetCloud() {
     clearTimeout(saveTimer);
-    if (!user || !fs || localMode) return;
+    if (!user || !fs || localMode || !ownsLocal()) return;
     try { await userDoc().delete(); } catch (e) {}
   }
 
@@ -261,11 +265,26 @@
 
   function watchAuth() {
     const fallback = bootFallback;
+    /* v313: מעבר בעלים → טעינה מחדש של הדף (שום דבר מהחשבון הקודם לא נשאר בזיכרון). שומר מפני לולאה. */
+    const switchOwner = (uid, hasDoc) => {
+      if (typeof accountSwitchTo !== 'function') return false;
+      let changed = false;
+      try { changed = accountSwitchTo(uid, hasDoc); } catch (e) { return 'stuck'; }
+      if (!changed) return false;
+      let last = 0;
+      try { last = +sessionStorage.getItem('pwa_owner_rl') || 0; sessionStorage.setItem('pwa_owner_rl', String(Date.now())); } catch (e) {}
+      if (Date.now() - last < 8000) return 'stuck';
+      location.reload();
+      return true;
+    };
     auth.onAuthStateChanged(async (u) => {
+      clearTimeout(saveTimer);
+      ready = false;
       user = u;
       // v193: דגל "היה מחובר" — app.js משתמש בו כדי לא לצייר תיק ריק לרגע כשהאחסון המקומי ריק אבל הענן מלא
       try { if (u) localStorage.setItem(LS_CLOUD_USER, '1'); else localStorage.removeItem(LS_CLOUD_USER); } catch (e) {}
       if (!u) {
+        if (switchOwner(null, null) === true) return;   // v313: התנתקות — הנתונים של החשבון יוצאים מהמכשיר הפעיל
         if (!localMode) showLogin();
         renderAccountCard();
         fallback(); // v193: לא מחובר — האפליקציה ממשיכה מקומית (startApp עמיד לקריאה חוזרת)
@@ -275,6 +294,10 @@
       renderAccountCard();
       try {
         const snap = await userDoc().get();
+        const sw = switchOwner(u.uid, !!(snap.exists && validCloudDb((snap.data() || {}).db)));
+        if (sw === true) return;                       // v313: הדף נטען מחדש עם הנתונים של החשבון הזה בלבד
+        if (sw === 'stuck') { fallback(); return; }    // לא הצלחנו להחליף — לא כותבים לענן בכלל (ready נשאר false)
+        ready = true;                                  // הנתונים במכשיר שייכים לחשבון הזה — מותר לשמור
         if (demoOn()) {
           /* מצב דמו: לא דורסים את הדמו בנתוני הענן (הם יחזרו ביציאה מהדמו) */
         } else if (snap.exists && validCloudDb(snap.data().db)) {
@@ -288,6 +311,10 @@
           await flushSave();
         }
       } catch (e) {
+        // בלי רשת: לא יודעים אם יש מסמך — מחליפים בעלים בזהירות (חשבון לא מוכר לא מקבל נתונים ישנים)
+        const sw = ready ? false : switchOwner(u.uid, null);
+        if (sw === true) return;
+        if (sw !== 'stuck') ready = true;
         if (typeof setBanner === 'function') setBanner(t('offlineMode'));
       }
       fallback();

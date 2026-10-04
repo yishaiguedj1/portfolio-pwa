@@ -53,7 +53,35 @@ async function tx(store, mode, fn) {
   });
 }
 const reqP = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-const allBooks = () => tx('books', 'readonly', (st) => reqP(st.getAll()));
+/* v313 — הפרדת חשבונות במכשיר אחד: התקדמות/הדגשות שייכות לחשבון (pOwner), ומה שלא שייך לו נשמר בצד (byOwner);
+   ספר שיובא ידנית שייך לחשבון שייבא אותו (owner) ומוסתר מאחרים. מכתבי ה־Drive המשותפים — גלויים לכולם. */
+const libOwner = () => { try { return localStorage.getItem('pwa_owner_v1') || 'local'; } catch (e) { return 'local'; } };
+const libLegacyOwner = () => { try { return localStorage.getItem('pwa_legacy_owner_v1') || ''; } catch (e) { return ''; } };
+const PERSONAL = ['cfi', 'fraction', 'done', 'lastRead', 'ann'];
+export function scopeBook(b, cur, legacyTo) {   // טהורה (נבדקת): מתאימה רשומה לחשבון הנוכחי; true = השתנתה
+  let ch = false;
+  if (b.src !== 'drive' && !b.owner) { b.owner = legacyTo || 'legacy'; ch = true; }   // מכשיר ותיק: רק למי שאומץ
+  const from = b.pOwner || legacyTo || 'legacy';
+  if (from !== cur) {
+    b.byOwner = b.byOwner || {};
+    const mine = {};
+    for (const f of PERSONAL) if (b[f] !== undefined) { mine[f] = b[f]; delete b[f]; }
+    if (Object.keys(mine).length) b.byOwner[from] = mine;
+    const back = b.byOwner[cur];
+    if (back) { Object.assign(b, back); delete b.byOwner[cur]; }
+    else Object.assign(b, { cfi: '', fraction: 0, done: false, lastRead: 0, ann: [] });
+    ch = true;
+  }
+  if (b.pOwner !== cur) { b.pOwner = cur; ch = true; }
+  return ch;
+}
+export const bookVisible = (b, cur) => b.src === 'drive' || b.owner === cur;
+const allBooksRaw = () => tx('books', 'readonly', (st) => reqP(st.getAll()));
+const allBooks = async () => { const cur = libOwner(); return (await allBooksRaw()).filter((b) => bookVisible(b, cur)); };
+async function scopeLibrary() {
+  const cur = libOwner(), legacyTo = libLegacyOwner();
+  for (const b of await allBooksRaw()) if (scopeBook(b, cur, legacyTo)) await putBook(b);
+}
 const putBook = (b) => tx('books', 'readwrite', (st) => st.put(b));
 const getFile = (id) => tx('files', 'readonly', (st) => reqP(st.get(id)));
 
@@ -202,10 +230,14 @@ async function importFiles(files, extra) {
         id, title, author: langText(md.author) || langText(md.publisher) || '', year: bookYear(title, md.published),
         lang: Array.isArray(md.language) ? md.language[0] : (md.language || ''), dir: book.dir || '',
         size: file.size, added: Date.now(), lastRead: 0, fraction: 0, cfi: '', done: false,
+        owner: libOwner(), pOwner: libOwner(),   // v313: של החשבון שייבא (מכתב Drive — גלוי לכולם לפי src)
       };
       Object.assign(rec, bookExtras(book));
-      const old = (await allBooks()).find((b) => b.id === id);
-      if (old) Object.assign(rec, { added: old.added, lastRead: old.lastRead, fraction: old.fraction, cfi: old.cfi, done: old.done });
+      const old = (await allBooksRaw()).find((b) => b.id === id);
+      if (old) {
+        scopeBook(old, libOwner(), libLegacyOwner());   // v313: ההתקדמות של החשבון הנוכחי, והשאר נשמר בצד
+        Object.assign(rec, { added: old.added, lastRead: old.lastRead, fraction: old.fraction, cfi: old.cfi, done: old.done, ann: old.ann, byOwner: old.byOwner });
+      }
       if (extra) Object.assign(rec, extra);
       await tx('files', 'readwrite', (st) => st.put(file, id));
       await putBook(rec);
@@ -295,6 +327,7 @@ function userRef() {
   try {
     if (typeof firebase === 'undefined' || !firebase.apps || !firebase.apps.length || !firebase.firestore) return null;
     const u = firebase.auth().currentUser;
+    if (u && libOwner() !== u.uid) return null;   // v313: ההתקדמות במכשיר של חשבון אחר — לא נכתבת לחשבון הזה
     return u ? firebase.firestore().collection('users').doc(u.uid) : null;
   } catch (e) { return null; }
 }
@@ -1560,6 +1593,7 @@ export async function openLibrary() {
   history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
   ui.view = null;
+  try { await scopeLibrary(); } catch (e) {}   // v313: לפני ציור/סנכרון — רק הנתונים של החשבון הנוכחי
   const first = syncDrive();
   await renderHome();
   await first;

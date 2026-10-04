@@ -102,8 +102,8 @@ ok(man.positions.length === 0 && man.deposits.length === 0 && man.cash.usd === 0
 // --- 4. תיק דמו: מ־v168 העתק של תיק באפט — הבדיקות ב־pf-v168.test.js ---
 
 // --- 5. מצב דמו לא נכתב לענן ולא נדרס ממנו ---
-ok(/function scheduleSave\(\) \{\n\s+if \([^)]*demoOn\(\)\) return;/.test(cloudSrc), 'ענן: לא שומרים במצב דמו (scheduleSave)');
-ok(/async function flushSave\(\) \{\n\s+if \([^)]*demoOn\(\)\) return;/.test(cloudSrc), 'ענן: לא שומרים במצב דמו (flushSave)');
+ok(/function scheduleSave\(\) \{\n\s+if \([^\n]*demoOn\(\)[^\n]*\) return;/.test(cloudSrc), 'ענן: לא שומרים במצב דמו (scheduleSave)');
+ok(/async function flushSave\(\) \{\n\s+if \([^\n]*demoOn\(\)[^\n]*\) return;/.test(cloudSrc), 'ענן: לא שומרים במצב דמו (flushSave)');
 ok(/if \(demoOn\(\)\) \{[\s\S]{0,200}\} else if \(snap\.exists/.test(cloudSrc), 'ענן: בטעינה במצב דמו לא דורסים את הדמו');
 ok(/stripLegacyDemo\(DB\)/.test(cloudSrc), 'ענן: מנקה רשומות דוגמה ישנות שנשמרו בענן');
 ok(/localStorage\.setItem\(LS_PREDEMO, JSON\.stringify\(DB\)\)/.test(src) && /Cloud\.flushSave\(\)[\s\S]{0,120}LS_PREDEMO/.test(src),

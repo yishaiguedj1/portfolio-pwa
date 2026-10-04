@@ -3187,6 +3187,7 @@ function doResetIbkr() {
   askConfirm(t('resetIbkrConfirm'), () => {
     resetIbkrData(DB, isIbkrMode());
     ibkrSaveCfg({ lastSync: 0, data: null }); // החיבור (token/Query ID) נשאר — אפשר לסנכרן מחדש
+    ibkrSaveCfg({ bgOn: false, bgTry: 0, bgPurge: true }); ibkrBgPurge().catch(() => {});   // v313: גם הרשומה בשרתון נמחקת (נרשמת מחדש אחרי הסנכרון הבא)
     saveDB(); renderAll();
     try { renderIbkrCard(); } catch (e) {}
     flash(t('resetIbkrDone'));
@@ -4092,6 +4093,7 @@ function ibkrSilentIsNet(incoming, err) {
 async function ibkrBgIdToken() {
   try {
     const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
+    if (u && accountOwner() !== u.uid) return '';   // v313: הנתונים במכשיר של חשבון אחר — לא שולחים כלום לשרתון בשמו
     return u ? await u.getIdToken() : '';
   } catch (e) { return ''; }
 }
@@ -4488,7 +4490,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v312';
+const APP_VERSION = 'v313';
 
 
 function saveDBto(db) {
@@ -4515,6 +4517,40 @@ function loadDB() {
   ensurePensionKinds(db);
   saveDBto(db);
   return db;
+}
+
+/* v313 — הפרדת חשבונות במכשיר אחד (באג פרטיות: אחרי התנתקות והתחברות לחשבון Google אחר, הנתונים המקומיים של
+   החשבון הקודם — התיק, נתוני IBKR כולל ה־token, עסקאות ידניות — נשארו פעילים ונכנסו לחשבון החדש).
+   כל הנתונים ה"אישיים" במכשיר שייכים לבעלים אחד (pwa_owner_v1 = uid, או 'local' כשלא מחובר). מעבר בעלים:
+   הנתונים של הקודם עוברים למחסן שלו (pwa_stash_v1:<uid>) ונמחקים מהמקום הפעיל, ושל החדש חוזרים מהמחסן שלו (או ריק),
+   ואז טעינה מחדש של הדף — כדי ששום דבר לא יישאר בזיכרון. מכשיר ותיק (בלי בעלים): הנתונים מאומצים רק כשלחשבון
+   שמתחבר כבר יש מסמך בענן; חשבון חדש מתחיל נקי (והנתונים הישנים נשמרים במחסן 'legacy'). */
+const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
+const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1'];
+function accountOwner(store) {
+  try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
+}
+/* מחזיר true כשהבעלים התחלף (צריך לטעון את הדף מחדש). cloudHasDoc: true/false/null (לא ידוע — למשל בלי רשת) */
+function accountSwitchTo(uid, cloudHasDoc, store) {
+  const ls = store || localStorage;
+  const to = uid || 'local';
+  let from = ls.getItem(LS_OWNER) || '';
+  if (from === to) return false;
+  if (!from) {
+    const hasData = ACCOUNT_KEYS.some((k) => ls.getItem(k) != null);
+    if (!hasData || to === 'local') { ls.setItem(LS_OWNER, to); return false; }
+    if (cloudHasDoc === true) { ls.setItem(LS_OWNER, to); ls.setItem(LS_LEGACY_OWNER, to); return false; }   // אותו אדם שחוזר
+    from = 'legacy';                                // חשבון חדש / לא ידוע — לא מקבל את הנתונים הישנים
+  }
+  const pack = {};
+  for (const k of ACCOUNT_KEYS) { const v = ls.getItem(k); if (v != null) pack[k] = v; ls.removeItem(k); }
+  try { if (Object.keys(pack).length) ls.setItem(LS_STASH + from, JSON.stringify(pack)); else ls.removeItem(LS_STASH + from); } catch (e) {}   // אין מקום — הפרטיות קודמת: הנתונים לא חוזרים לחשבון החדש
+  let back = null;
+  try { back = JSON.parse(ls.getItem(LS_STASH + to) || 'null'); } catch (e) {}
+  ls.removeItem(LS_STASH + to);
+  if (back) for (const k of ACCOUNT_KEYS) if (typeof back[k] === 'string') { try { ls.setItem(k, back[k]); } catch (e) {} }
+  ls.setItem(LS_OWNER, to);
+  return true;
 }
 const DB = loadDB();
 function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); try { scheduleAppWidgetSync(); } catch (e) {} } // v243: כל שינוי → לווידג'ט
@@ -13146,8 +13182,10 @@ function init() {
       try { localStorage.removeItem(LS_IBKR); } catch (e) {}
       location.reload();
     };
-    if (window.Cloud && window.Cloud.resetCloud) window.Cloud.resetCloud().then(doReset);
-    else doReset();
+    // v313: איפוס מלא מוחק גם את הרשומה המוצפנת של החשבון בשרתון (סנכרון ברקע)
+    const purge = ibkrBgApi({ op: 'disable' }).catch(() => {});
+    if (window.Cloud && window.Cloud.resetCloud) Promise.all([window.Cloud.resetCloud(), purge]).then(doReset, doReset);
+    else purge.then(doReset, doReset);
     }, { danger: true });
   });
 
