@@ -872,5 +872,94 @@ function stubFetch(text, status = 200) {
     api._reset();
   }
 
+  /* ---------- v318: גיבוי הספרייה הפרטית ל־Google Drive — חיבור, גישה זמנית, ניתוק (Google ו־Firestore מדומים) ---------- */
+  {
+    const crypto = require('crypto');
+    const gauth = require('../lib/gauth');
+    const gd = require('../lib/gdrive');
+    const lib = require('../api/library');
+    const env = ['GDRIVE_SA_KEY', 'GDRIVE_CLIENT_ID', 'GDRIVE_CLIENT_SECRET', 'IBKR_VAULT_KEY'].map((k) => [k, process.env[k]]);
+    const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const sa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    process.env.GDRIVE_SA_KEY = JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: sa.privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+    delete process.env.GDRIVE_CLIENT_ID; delete process.env.GDRIVE_CLIENT_SECRET; delete process.env.IBKR_VAULT_KEY;
+    gauth._reset();
+    const keys = { k1: fb.publicKey.export({ type: 'spki', format: 'pem' }) };
+    const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const tnow = Math.floor(Date.now() / 1000);
+    const tok = (sub, email) => {
+      const hd = b64u({ alg: 'RS256', kid: 'k1' }), bd = b64u({ aud: 'yishaiguedj1-c786e', iss: 'https://securetoken.google.com/yishaiguedj1-c786e', sub, iat: tnow - 5, exp: tnow + 3000, email, email_verified: true });
+      return hd + '.' + bd + '.' + crypto.sign('RSA-SHA256', Buffer.from(hd + '.' + bd), fb.privateKey).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    };
+    const U1 = tok('userUid00001', 'someone@example.com'), U2 = tok('userUid00002', 'other@example.com');
+    const store = new Map(); const calls = [];
+    let grant = { refresh: 'RT-SECRET-1', scope: 'openid email https://www.googleapis.com/auth/drive.file', bad: false };
+    const J = (o, st = 200) => ({ status: st, json: async () => o });
+    const idt = 'x.' + b64u({ email: 'drive.owner@example.com' }) + '.y';
+    const fake = async (url, opt = {}) => {
+      calls.push({ url, body: opt.body || '' });
+      if (url.includes('oauth2.googleapis.com/token')) {
+        const p = new URLSearchParams(opt.body || '');
+        if (p.get('grant_type') === 'urn:ietf:params:oauth:grant-type:jwt-bearer' || p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
+        if (p.get('grant_type') === 'authorization_code') return p.get('code') === 'GOOD' ? J(Object.assign({ access_token: 'AT1', expires_in: 3599, scope: grant.scope, id_token: idt }, grant.refresh ? { refresh_token: grant.refresh } : {})) : J({ error: 'invalid_grant' }, 400);
+        if (p.get('grant_type') === 'refresh_token') return grant.bad ? J({ error: 'invalid_grant' }, 400) : J({ access_token: 'AT2', expires_in: 3599 });
+      }
+      if (url.includes('oauth2.googleapis.com/revoke')) return J({});
+      const m = url.match(/documents\/driveVault\/([A-Za-z0-9]+)/);
+      if (m) {
+        const cur = store.get(m[1]);
+        if (opt.method === 'GET') return cur ? J({ fields: cur }) : J({}, 404);
+        if (opt.method === 'DELETE') { store.delete(m[1]); return J({}); }
+        if (opt.method === 'PATCH') { store.set(m[1], JSON.parse(opt.body).fields); return J({}); }
+      }
+      return J({}, 404);
+    };
+    const run = async (body) => { const r = mockRes(); await lib._handler(mockReq({ body }), r, { verify: { keys }, fetch: fake }); return r; };
+    const RED = 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html';
+    let r = await run({ op: 'gdConfig' });
+    ok(r.payload.ok && r.payload.configured === false && r.payload.clientId === '', 'גיבוי Drive: בלי GDRIVE_CLIENT_ID/SECRET — "לא מוגדר" (בלי לחשוף ערכים)');
+    r = await run({ op: 'gdStatus', idToken: U1 });
+    ok(r.statusCode === 503 && r.payload.error === 'gd_not_configured', 'גיבוי Drive: פעולה בלי הגדרה — 503 מוסבר');
+    process.env.GDRIVE_CLIENT_ID = 'cid.apps.googleusercontent.com'; process.env.GDRIVE_CLIENT_SECRET = 'csecret';
+    r = await run({ op: 'gdConfig' });
+    ok(r.payload.configured === true && r.payload.clientId === 'cid.apps.googleusercontent.com' && !JSON.stringify(r.payload).includes('csecret'), 'גיבוי Drive: מזהה הלקוח (ציבורי) חוזר, הסוד לעולם לא');
+    r = await run({ op: 'gdStatus' });
+    ok(r.statusCode === 401, 'גיבוי Drive: בלי התחברות — 401');
+    r = await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: 'https://evil.example/oauth.html' });
+    ok(r.statusCode === 400 && r.payload.error === 'bad_params', 'גיבוי Drive: כתובת חזרה זרה — נדחית');
+    r = await run({ op: 'gdConnect', idToken: U1, code: 'BAD', redirect: RED });
+    ok(r.statusCode === 400 && /^gd_/.test(r.payload.error) && !store.size, 'גיבוי Drive: קוד שגוי — שגיאה, בלי רשומה');
+    grant.scope = 'openid email';
+    r = await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: RED });
+    ok(r.payload.error === 'gd_no_scope' && !store.size && calls.some((c) => c.url.includes('/revoke')), 'גיבוי Drive: המשתמש לא אישר גישה ל־Drive — הגישה מבוטלת ולא נשמרת');
+    grant.scope = 'openid email https://www.googleapis.com/auth/drive.file';
+    r = await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: RED });
+    const rec = store.get('userUid00001');
+    ok(r.payload.ok && r.payload.access_token === 'AT1' && r.payload.email === 'drive.owner@example.com' && !('refresh_token' in r.payload), 'גיבוי Drive: חיבור — גישה זמנית + המייל, בלי ההרשאה הקבועה');
+    ok(rec && !JSON.stringify(rec).includes('RT-SECRET-1') && /^v1\./.test(rec.r.stringValue), 'גיבוי Drive: ההרשאה הקבועה נשמרת רק מוצפנת');
+    store.set('userUid00002', rec);   // רשומה שהועתקה למשתמש אחר — לא נפתחת (AAD לפי uid)
+    r = await run({ op: 'gdToken', idToken: U2 });
+    ok(r.payload.ok === false && r.payload.error === 'not_connected', 'גיבוי Drive: רשומה מוצפנת של משתמש אחר — לא נפתחת');
+    store.delete('userUid00002');
+    r = await run({ op: 'gdToken', idToken: U1 });
+    ok(r.payload.ok && r.payload.access_token === 'AT2' && calls.some((c) => /refresh_token=RT-SECRET-1/.test(c.body)), 'גיבוי Drive: גישה זמנית חדשה מההרשאה השמורה');
+    grant.refresh = '';
+    r = await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: RED });
+    ok(r.payload.ok && store.get('userUid00001'), 'גיבוי Drive: חיבור חוזר בלי הרשאה קבועה חדשה — נשארת הקודמת');
+    r = await run({ op: 'gdConnect', idToken: U2, code: 'GOOD', redirect: RED });
+    ok(r.payload.error === 'gd_no_refresh', 'גיבוי Drive: אין הרשאה קבועה בכלל — שגיאה ברורה');
+    grant.bad = true;
+    r = await run({ op: 'gdToken', idToken: U1 });
+    ok(r.payload.error === 'revoked' && !store.has('userUid00001'), 'גיבוי Drive: הגישה בוטלה בחשבון Google — הרשומה נמחקת');
+    grant.bad = false; grant.refresh = 'RT-SECRET-2';
+    await run({ op: 'gdConnect', idToken: U1, code: 'GOOD', redirect: RED });
+    const nRev = calls.filter((c) => c.url.includes('/revoke')).length;
+    r = await run({ op: 'gdDisconnect', idToken: U1 });
+    ok(r.payload.ok && !store.has('userUid00001') && calls.filter((c) => c.url.includes('/revoke')).length === nRev + 1 && /RT-SECRET-2/.test(calls.filter((c) => c.url.includes('/revoke')).pop().body), 'גיבוי Drive: ניתוק — ביטול אצל Google + מחיקת הרשומה');
+    ok(gd.REDIRECT_RE.test('http://localhost:8080/oauth.html') && !gd.REDIRECT_RE.test('https://yishaiguedj1.github.io/other/oauth.html'), 'גיבוי Drive: כתובת חזרה — רק עמוד האפליקציה (או localhost)');
+    env.forEach(([k, v]) => { if (v == null) delete process.env[k]; else process.env[k] = v; });
+    gauth._reset();
+  }
+
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

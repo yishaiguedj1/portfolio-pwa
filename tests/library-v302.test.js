@@ -11,7 +11,8 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 // library.js הוא ES module שמייבא את המנוע (דורש DOM) — מריצים את הקוד בלי שורת ה־import
-const src = acad.replace(/^export const/gm, 'const') + '\n' + lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
+const bkSrc = fs.readFileSync(path.join(root, 'libbackup.js'), 'utf8').replace(/^export (async )?(function|const|let)/gm, '$1$2');   // v318: מנוע הגיבוי (מיובא ב־library.js)
+const src = acad.replace(/^export const/gm, 'const') + '\n' + bkSrc + '\n' + lib.replace(/^import .*$/mg, '').replace(/^export (async )?(function|const|let)/gm, '$1$2')
   + '\n;globalThis.__L = { bookYear, sortBooks, langText, contextFor, driveSyncPlan, readMinutes, plainText, cloudKey, mergeProgress, mergeAnn, liveAnn, wrapQuote, trackLetter, trackSteps, glossaryMatch, THINKERS, GLOSSARY, TRACKS, searchKey, searchHit, searchScore, swapLayout, editDist, foldMap, foldQuick, ftFind, snippet, scopeBook, bookVisible, _test };';
 const store = {};
 const sb = { document: { baseURI: 'https://example.test/portfolio-pwa/' }, URL, localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, console };
@@ -161,7 +162,10 @@ const walk = (f, seen) => {                      // ייבואים סטטיים 
 };
 const deps = new Set(); walk('library.js', deps);
 const missShell = needed.concat(Array.from(deps)).filter((f) => !libShell.includes(f));
-ok(!missShell.length && libShell.every((f) => fs.existsSync(path.join(root, f))), 'SW: כל ' + libShell.length + ' קבצי הספרייה נטענים מראש וקיימים' + (missShell.length ? ' (חסר: ' + missShell + ')' : ''));
+// שלב התוכן של הפריסה הדו־שלבית (sw.js גרסה אחת אחורה): קובץ ספרייה חדש עוד לא ברשימה — נכנס עם sw.js (v318)
+const contentPhase = swV === appV - 1;
+if (contentPhase && missShell.length) console.log('# שלב התוכן — ' + missShell + ' ייכנס ל־LIB_SHELL עם sw.js');
+ok((!missShell.length || contentPhase) && libShell.every((f) => fs.existsSync(path.join(root, f))), 'SW: כל ' + libShell.length + ' קבצי הספרייה נטענים מראש וקיימים' + (missShell.length && !contentPhase ? ' (חסר: ' + missShell + ')' : ''));
 ok(/caches\.match\('\.\/library\.js'\)/.test(swSrc) && /cache\.addAll\(LIB_SHELL\)\.catch/.test(swSrc), 'SW: רק למי שכבר השתמש בספרייה, וכשל לא מפיל את ההתקנה');
 }
 

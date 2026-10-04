@@ -8,6 +8,7 @@ import { makeBook } from './vendor/foliate-js/view.js';
 import { Overlayer } from './vendor/foliate-js/overlayer.js';
 import * as CFI from './vendor/foliate-js/epubcfi.js';
 import { THINKERS, GLOSSARY, TRACKS } from './academy-data.js';
+import { createBackup, isPrivate } from './libbackup.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 const LS_READER = 'pwa_reader_v1';
@@ -27,6 +28,10 @@ function loadSettings() { try { return Object.assign({}, defaults, JSON.parse(lo
 function saveSettings() { try { localStorage.setItem(LS_READER, JSON.stringify(S)); } catch (e) {} }
 let S = loadSettings();
 const ui = { sort: 'new', author: '', view: null, q: '', admin: false };   // view: null = בית, { book: id } = דף מכתב
+/* v318: שתי ספריות — 'snb' = ספריית THE SNOWBALL (המכתבים מה־Drive המשותף), 'mine' = הספרים שהמשתמש העלה (עם גיבוי ל־Drive שלו) */
+const LS_SHELF = 'pwa_libshelf_v1';
+ui.shelf = (() => { try { return localStorage.getItem(LS_SHELF) === 'mine' ? 'mine' : 'snb'; } catch (e) { return 'snb'; } })();
+const shelfOf = (b) => (b && b.src === 'drive' ? 'snb' : 'mine');
 
 /* ---------------- IndexedDB: books = פרטים ומיקום (רשימה מהירה), files = הקובץ עצמו ---------------- */
 let _db = null;
@@ -277,7 +282,7 @@ function backfillCovers() {
   return backfilling;
 }
 
-async function importFiles(files, extra) {
+async function importFiles(files, extra, outIds) {
   let added = 0;
   for (const file of files) {
     try {
@@ -305,8 +310,10 @@ async function importFiles(files, extra) {
         if (old.hidden) rec.hidden = 1;
       }
       if (extra) Object.assign(rec, extra);
+      if (rec.src !== 'drive') rec.bkD = Date.now();   // v318: ספר פרטי חדש/שהשתנה — לגיבוי הבא
       await tx('files', 'readwrite', (st) => st.put(file, id));
       await putBook(rec);
+      if (outIds) outIds.push(id);
       added++;
     } catch (e) {
       if (typeof flash === 'function') flash(T('libOpenErr') + ': ' + file.name);
@@ -333,6 +340,66 @@ function libApi(body) {
   const headers = Object.assign({ 'Content-Type': 'application/json' }, typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {});
   return fetch(base + '/api/library', { method: 'POST', headers, body: JSON.stringify(body) });
 }
+/* ---------------- v318: גיבוי הספרייה הפרטית ל־Google Drive של המשתמש (libbackup.js) ---------------- */
+let oauthCancel = null;
+function waitCode(w, url, state) {      // הקוד חוזר מ־oauth.html (אותו origin) ב־BroadcastChannel, או באחסון כגיבוי
+  return new Promise((resolve) => {
+    let bc = null, poll = 0, to = 0;
+    const done = (v) => {
+      clearInterval(poll); clearTimeout(to); oauthCancel = null;
+      try { bc && bc.close(); } catch (e) {}
+      window.removeEventListener('storage', onStore);
+      try { localStorage.removeItem('pwa_oauth_v1'); } catch (e) {}
+      resolve(v);
+    };
+    const take = (m) => { if (m && m.state === state) done({ code: m.code, error: m.error }); };
+    const fromLs = () => { try { const m = JSON.parse(localStorage.getItem('pwa_oauth_v1') || 'null'); if (m) take(m); } catch (e) {} };
+    const onStore = (e) => { if (e.key === 'pwa_oauth_v1') fromLs(); };
+    try { bc = new BroadcastChannel('snb-oauth'); bc.onmessage = (e) => take(e.data); } catch (e) {}
+    window.addEventListener('storage', onStore);
+    poll = setInterval(fromLs, 600);
+    to = setTimeout(() => done(null), 5 * 60 * 1000);
+    oauthCancel = () => done(null);
+    let win = w;
+    try { if (win && !win.closed) win.location.href = url; else win = window.open(url, 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { win = null; }
+    if (!win) done({ error: 'popup_blocked' });
+  });
+}
+const BK = createBackup({
+  owner: libOwner, libApi, idToken, allBooksRaw, putBook, getFile,
+  importFiles: (files, extra, out) => importFiles(files, extra, out), applyEdit, mergeAnn: (a, b) => mergeAnn(a, b),
+  redirectUri: () => new URL('oauth.html', document.baseURI).href,
+  openWindow: () => { try { return window.open('', 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { return null; } },
+  waitCode,
+  onAuto: () => { if (root && !rd && (ui.shelf === 'mine' || (ui.view && ui.view.backup))) renderHome(); },
+});
+const signedIn = () => { try { return !!(typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser); } catch (e) { return false; } };
+const signedEmail = () => { try { return firebase.auth().currentUser.email || ''; } catch (e) { return ''; } };
+let bkStatusAt = 0;
+function bkAdopt() {                    // מכשיר חדש / אחרי ניקוי: ההרשאה כבר בשרתון — מאמצים בשקט, פעם בעשר דקות לכל היותר
+  if (!signedIn() || BK.settings().email || Date.now() - bkStatusAt < 6e5) return;
+  bkStatusAt = Date.now();
+  BK.status().then((j) => { if (j && j.connected && root && !rd) renderHome(); }).catch(() => {});
+}
+function fmtBytes(n) {
+  if (!n) return '0 MB';
+  if (n >= 1e9) return (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + ' GB';
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + ' MB';
+  return Math.max(1, Math.round(n / 1e3)) + ' KB';
+}
+function fmtWhen(ts) {
+  if (!ts) return T('bkNever');
+  const d = new Date(ts), now = new Date();
+  const loc = document.documentElement.lang === 'en' ? 'en-GB' : 'he-IL';
+  const hm = d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return T('bkToday', { t: hm });
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return T('bkYesterday', { t: hm });
+  return d.toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + hm;
+}
+const BK_ERR = { gd_not_configured: 'bkErrSetup', gd_denied: 'bkErrDenied', gd_cancel: 'bkErrCancel', gd_no_scope: 'bkErrScope', gd_no_refresh: 'bkErrRefresh', gd_popup: 'bkErrPopup', revoked: 'bkErrRevoked', not_connected: 'bkErrRevoked', drive_http_403: 'bkErrQuota' };
+const bkErrText = (e) => T(BK_ERR[(e && (e.code || e.message)) || e] || 'bkErrGeneric');
+
 export function driveSyncPlan(local, items) {      // טהורה (נבדקת): מה להוריד ומה להסיר
   const byDrive = new Map(local.filter((b) => b.driveId).map((b) => [b.driveId, b]));
   const ids = new Set(items.map((i) => i.id));
@@ -523,6 +590,12 @@ const ICON = {
   notes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>',
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/></svg>',
+  cloudOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M9.3 13.6l2 2 3.6-3.8"/></svg>',
+  cloudUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 16v-5M9.8 13l2.2-2.2 2.2 2.2"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
 };
 let root = null;
 
@@ -580,28 +653,40 @@ async function renderHome() {
   if (ui.view && ui.view.glossary) return renderGlossary();
   if (ui.view && ui.view.admin) return renderAdmin();
   if (ui.view && ui.view.edit) return renderEdit(ui.view.edit);
-  const books = await allBooks();
+  if (ui.view && ui.view.backup) return renderBackup();
+  if (ui.view && ui.view.bkbooks) return renderBackupBooks();
+  const allB = await allBooks();
+  const mine = ui.shelf === 'mine';
+  const books = allB.filter((b) => shelfOf(b) === ui.shelf);
+  const nMine = allB.filter((b) => shelfOf(b) === 'mine').length;
   const home = root.querySelector('.lib-home');
   home.textContent = '';
   const top = h('div', 'lib-top');
   const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, 'THE SNOWBALL'));
   back.addEventListener('click', () => history.back());
   const add = h('label', 'lib-round'); add.innerHTML = ICON.plus; add.title = T('libImport'); add.setAttribute('aria-label', T('libImport'));
-  const inp = h('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.epub,.azw3,.azw,.mobi,.kf8,.fb2,application/epub+zip';
-  inp.addEventListener('change', async () => { const n = await importFiles(Array.from(inp.files || [])); inp.value = ''; if (n) { renderHome(); indexAll(); } });
-  add.append(inp);
+  add.append(importInput());
   const learn = h('button', 'lib-round'); learn.type = 'button'; learn.innerHTML = ICON.notes; learn.setAttribute('aria-label', T('learnTitle')); learn.title = T('learnTitle');
   learn.addEventListener('click', () => goView({ notes: 1 }));
-  const tr = h('div', 'lib-tr'); tr.append(learn, add);
+  const more = h('button', 'lib-round'); more.type = 'button'; more.innerHTML = ICON.more; more.setAttribute('aria-label', T('libMineMenu')); more.title = T('libMineMenu');
+  more.addEventListener('click', openMineMenu);
+  const tr = h('div', 'lib-tr'); tr.append(learn);
+  if (mine) tr.append(more, add);
   top.append(back, tr);
   home.append(top, h('h1', 'lib-large', T('libTitle')));
-  if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
-  else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
+  home.append(shelfSeg(nMine));
+  if (!mine) {
+    if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
+    else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
+  } else {
+    bkAdopt();
+    if (books.length) home.append(backupRow());
+  }
 
   if (books.length) {                    // גם בספרייה קטנה — החיפוש מגיע גם לתוך הטקסט
     const sw = h('div', 'lib-search');
     sw.innerHTML = ICON.search;
-    const si = h('input'); si.type = 'search'; si.placeholder = T('libSearchPh'); si.dir = 'auto'; si.value = ui.q || ''; si.setAttribute('aria-label', T('libSearchPh'));
+    const si = h('input'); si.type = 'search'; si.placeholder = T(mine ? 'libSearchMinePh' : 'libSearchPh'); si.dir = 'auto'; si.value = ui.q || ''; si.setAttribute('aria-label', T('libSearchPh'));
     si.enterKeyHint = 'search';
     si.addEventListener('input', () => { ui.q = si.value; applySearch(home); });
     si.addEventListener('keydown', (e) => { if (e.key === 'Enter') si.blur(); });
@@ -609,7 +694,8 @@ async function renderHome() {
     home.append(sw);
   }
   if (!books.length) {
-    home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmpty')));
+    if (mine) { home.append(mineEmpty()); return; }
+    home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));
     return;
   }
   const authors = {};
@@ -638,7 +724,7 @@ async function renderHome() {
     card.classList.add('lib-hide-q');
     home.append(card);
   }
-  if (!ui.author) {
+  if (!ui.author && !mine) {
     const letters = books.filter(isBuffett);
     if (letters.length > 1) {
       const done = letters.filter((b) => b.done).length;
@@ -692,13 +778,13 @@ async function renderHome() {
   home.append(grid);
   home.append(h('p', 'lib-empty lib-noq', T('libNoMatch')));
   const ft = h('div', 'lib-ft'); ft.hidden = true; home.append(ft);
-  const hid = await hiddenBooks();
+  const hid = mine ? [] : await hiddenBooks();
   if (hid.length) {
     const hb = h('button', 'lib-admin-link lib-hidden-link', T('libHidden', { n: hid.length })); hb.type = 'button';
     hb.addEventListener('click', () => openHiddenSheet(hid));
     home.append(hb);
   }
-  if (ui.admin) {                        // שלב 6: ניהול — רק למנהל
+  if (ui.admin && !mine) {               // שלב 6: ניהול — רק למנהל
     const adm = h('button', 'lib-admin-link', T('admTitle')); adm.type = 'button';
     adm.addEventListener('click', () => goView({ admin: 1 }));
     home.append(adm);
@@ -706,6 +792,361 @@ async function renderHome() {
   sortRow.after(h('p', 'lib-near', T('libNear')));
   applySearch(home);
 }
+
+/* ---------------- v318: שתי ספריות + גיבוי ל־Google Drive (ממשק) ---------------- */
+function setShelf(v) {
+  if (ui.shelf === v) return;
+  ui.shelf = v; ui.author = ''; ui.q = '';
+  try { localStorage.setItem(LS_SHELF, v); } catch (e) {}
+  renderHome().then(() => { if (root) root.scrollTop = 0; });
+}
+function shelfSeg(nMine) {                 // בורר מקטעים בסגנון iOS
+  const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
+  const one = (v, label, n) => {
+    const b = h('button', 'lib-seg-b' + (ui.shelf === v ? ' on' : '')); b.type = 'button';
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', ui.shelf === v ? 'true' : 'false');
+    b.append(h('span', null, label));
+    if (n) b.append(h('small', null, String(n)));
+    b.addEventListener('click', () => setShelf(v));
+    seg.append(b);
+  };
+  one('snb', 'THE SNOWBALL', 0);
+  one('mine', T('libMine'), nMine);
+  seg.classList.toggle('mine', ui.shelf === 'mine');
+  return seg;
+}
+function backupRow() {                     // שורת מצב הגיבוי בראש "הספרייה שלי" — נגיעה = מסך הגיבוי
+  const s = BK.settings();
+  const row = h('button', 'lib-bkrow lib-hide-q'); row.type = 'button';
+  const ic = h('span', 'lib-bkic'); const sub = h('span');
+  let title;
+  if (!signedIn()) { ic.innerHTML = ICON.cloud; title = T('bkRowOff'); sub.textContent = T('bkRowSignIn'); }
+  else if (!s.email) { ic.innerHTML = ICON.cloud; title = T('bkRowOff'); sub.textContent = T('bkRowConnect'); row.classList.add('off'); }
+  else if (BK.busy()) { ic.innerHTML = ICON.cloudUp; title = T('bkRowBusy'); sub.textContent = s.email; }
+  else if (s.err) { ic.innerHTML = ICON.cloud; title = T('bkRowErr'); sub.textContent = bkErrText(s.err); row.classList.add('err'); }
+  else { ic.innerHTML = ICON.cloudOk; title = T('bkRowOn'); sub.textContent = [fmtWhen(s.lastAt), s.lastAt ? T('bkBooks', { n: s.count || 0 }) : '', s.lastAt ? fmtBytes(s.bytes) : ''].filter(Boolean).join(' · '); }
+  const tx = h('span', 'lib-bktx'); tx.append(h('b', null, title), sub);
+  const ch = h('span', 'lib-bkch'); ch.innerHTML = ICON.chev;
+  row.append(ic, tx, ch);
+  row.addEventListener('click', () => goView({ backup: 1 }));
+  return row;
+}
+function importInput(after) {
+  const inp = h('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.epub,.azw3,.azw,.mobi,.kf8,.fb2,application/epub+zip';
+  inp.addEventListener('change', async () => {
+    const n = await importFiles(Array.from(inp.files || [])); inp.value = '';
+    if (after) after();
+    if (n) { if (ui.shelf !== 'mine') setShelf('mine'); else renderHome(); indexAll(); BK.schedule(); }
+  });
+  return inp;
+}
+function mineEmpty() {                     // ספרייה פרטית ריקה: הוספה, ואם יש גיבוי — שחזור בלחיצה אחת
+  const box = h('div', 'lib-mine-empty');
+  const card = h('div', 'lib-bkcard');
+  const ic = h('div', 'lib-bkbig'); ic.innerHTML = ICON.plus;
+  card.append(ic, h('b', null, T('libMineEmptyT')), h('p', null, T('libMineEmpty')));
+  const add = h('label', 'bk-cta'); add.append(h('span', null, T('libImport')), importInput());
+  card.append(add);
+  box.append(card);
+  const rs = h('div', 'lib-restore-slot');
+  box.append(rs);
+  if (signedIn() && BK.settings().email) {
+    BK.overview().then((o) => {
+      if (!o || !o.exists || !o.books.length || !rs.isConnected) return;
+      rs.append(restoreCard(o));
+    }).catch(() => {});
+  }
+  return box;
+}
+function restoreCard(o) {
+  const card = h('div', 'lib-bkcard');
+  const ic = h('div', 'lib-bkbig drive'); ic.innerHTML = ICON.cloud;
+  card.append(ic, h('b', null, T('bkFound')), h('p', null, T('bkBooks', { n: o.books.length }) + ' · ' + fmtBytes(o.bytes) + '\n' + T('bkLast') + ': ' + fmtWhen(o.at)));
+  const go = h('button', 'bk-cta'); go.type = 'button'; go.textContent = T('bkRestoreAll');
+  const prog = h('div', 'lib-bkprog'); prog.hidden = true;
+  const bar = h('div', 'lib-bar'); const fill = h('i'); fill.style.width = '0%'; bar.append(fill);
+  const pt = h('span'); prog.append(pt, bar);
+  go.addEventListener('click', async () => {
+    go.disabled = true; prog.hidden = false; pt.textContent = T('bkRestoring', { n: 0, t: o.books.length });
+    try {
+      const n = await BK.restore(null, (d, t) => { pt.textContent = T('bkRestoring', { n: d, t }); fill.style.width = Math.round(d / Math.max(1, t) * 100) + '%'; });
+      if (typeof flash === 'function') flash(T('bkRestored', { n }));
+      indexAll();
+    } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); }
+    if (root && !rd) renderHome();
+  });
+  card.append(go, prog);
+  return card;
+}
+function openMineMenu() {                  // ⋯ בספרייה שלי: גיבוי, ייבוא, איפוס
+  sheet(T('libMine'), (sh, close) => {
+    const list = h('div', 'lib-ios');
+    const bk = h('button', 'lib-row'); bk.type = 'button'; bk.append(h('span', null, T('bkTitle')));
+    const bi = h('span', 'lib-rowic'); bi.innerHTML = ICON.cloud; bk.append(bi);
+    bk.addEventListener('click', () => { close(); goView({ backup: 1 }); });
+    const im = h('label', 'lib-row'); im.append(h('span', null, T('libImport')));
+    const ii = h('span', 'lib-rowic'); ii.innerHTML = ICON.plus; im.append(ii, importInput(close));
+    const rs = h('button', 'lib-row danger'); rs.type = 'button'; rs.append(h('span', null, T('libResetMine')));
+    const ri = h('span', 'lib-rowic'); ri.innerHTML = ICON.trash; rs.append(ri);
+    rs.addEventListener('click', () => { close(); openResetSheet(); });
+    list.append(bk, im, rs);
+    sh.append(list);
+  });
+}
+/* איפוס הספרייה שלי — רק הספרים שהעלה החשבון הזה; מכתבי THE SNOWBALL לא מושפעים. ברירת המחדל: הגיבוי נשאר */
+async function resetMine() {
+  const cur = libOwner();
+  const ids = (await allBooksRaw()).filter((b) => isPrivate(b, cur)).map((b) => b.id);
+  for (const id of ids) {
+    await tx('books', 'readwrite', (st) => st.delete(id));
+    await tx('files', 'readwrite', (st) => st.delete(id));
+    await tx('text', 'readwrite', (st) => st.delete(id)).catch(() => {});
+    const u = coverUrls.get(id); if (u) { URL.revokeObjectURL(u.url); coverUrls.delete(id); }
+  }
+  ftCache = null;
+  return ids.length;
+}
+async function openResetSheet() {
+  const n = (await allBooks()).filter((b) => shelfOf(b) === 'mine').length;
+  const connected = signedIn() && !!BK.settings().email;
+  sheet('', (sh, close) => {
+    sh.append(h('h3', 'lib-sh-big', T('libResetMine')), h('p', 'lib-sh-p', T('libResetQ', { n })));
+    let alsoBackup = false;
+    if (connected) {
+      const opts = h('div', 'lib-opts'); opts.setAttribute('role', 'radiogroup');
+      const opt = (v, k, sub) => {
+        const o = h('button', 'lib-opt' + (alsoBackup === v ? ' on' : '')); o.type = 'button'; o.setAttribute('role', 'radio'); o.setAttribute('aria-checked', alsoBackup === v ? 'true' : 'false');
+        const tx = h('span'); tx.append(h('b', null, T(k)), h('small', null, T(sub)));
+        o.append(h('i', 'lib-rd'), tx);
+        o.addEventListener('click', () => { alsoBackup = v; opts.querySelectorAll('.lib-opt').forEach((x, i) => { const on = (i === 1) === v; x.classList.toggle('on', on); x.setAttribute('aria-checked', on ? 'true' : 'false'); }); });
+        opts.append(o);
+      };
+      opt(false, 'libResetKeep', 'libResetKeepSub');
+      opt(true, 'libResetAll', 'libResetAllSub');
+      sh.append(opts);
+    }
+    const go = h('button', 'lib-btn danger'); go.type = 'button'; go.textContent = T('libResetOk');
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      try {
+        if (alsoBackup) await BK.deleteAll();
+        await resetMine();
+        close();
+        if (typeof flash === 'function') flash(T(alsoBackup ? 'libResetDoneAll' : 'libResetDone'));
+      } catch (e) { go.disabled = false; if (typeof flash === 'function') flash(bkErrText(e)); return; }
+      if (ui.view) history.back(); else renderHome();
+    });
+    const no = h('button', 'lib-btn'); no.type = 'button'; no.textContent = T('libCancel');
+    no.addEventListener('click', close);
+    sh.append(go, no);
+  });
+}
+function iosSection(home, title, foot) {
+  if (title) home.append(h('h4', 'lib-sec', title));
+  const list = h('div', 'lib-ios lib-card');
+  home.append(list);
+  if (foot) home.append(h('p', 'lib-foot', foot));
+  return list;
+}
+function iosRow(list, label, val, onClick, cls) {
+  const r = h(onClick ? 'button' : 'div', 'lib-row' + (cls ? ' ' + cls : ''));
+  if (onClick) { r.type = 'button'; r.addEventListener('click', onClick); }
+  r.append(h('span', 'lib-row-l', label));
+  if (val != null) { const v = h('span', 'lib-row-v'); if (typeof val === 'string') v.textContent = val; else v.append(val); r.append(v); }
+  list.append(r);
+  return r;
+}
+function swEl(on, onChange, label) {
+  const b = h('button', 'lib-sw'); b.type = 'button'; b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', on ? 'true' : 'false'); b.setAttribute('aria-label', label);
+  b.append(h('i'));
+  b.addEventListener('click', (e) => { e.stopPropagation(); const v = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', v ? 'true' : 'false'); onChange(v); });
+  return b;
+}
+const FREQ = [['change', 'bkFreqChange'], ['daily', 'bkFreqDaily'], ['weekly', 'bkFreqWeekly']];
+async function renderBackup() {
+  const home = subPage(T('bkTitle'));
+  home.classList.add('lib-bkpage');
+  const back = home.querySelector('.lib-back span'); if (back) back.textContent = T('libMine');
+  const hero = h('div', 'lib-bkhero');
+  const ic = h('div', 'lib-bkbig drive'); ic.innerHTML = ICON.cloud;
+  hero.append(ic, h('p', null, T('bkHero')));
+  home.append(hero);
+  const s = BK.settings();
+  if (!signedIn()) { home.append(h('p', 'lib-empty', T('bkNeedSignIn'))); return; }
+  if (!s.email) {
+    const st = h('p', 'lib-foot center');
+    const go = h('button', 'bk-cta lib-bkconnect'); go.type = 'button'; go.textContent = T('bkConnect');
+    go.addEventListener('click', () => {
+      go.disabled = true; st.textContent = T('bkWaiting');
+      const p = BK.connect(signedEmail());       // החלון נפתח כאן, בתוך הלחיצה
+      const cancel = h('button', 'lib-admin-link', T('libCancel')); cancel.type = 'button';
+      cancel.addEventListener('click', () => { if (oauthCancel) oauthCancel(); });
+      st.after(cancel);
+      p.then(async () => {
+        if (typeof flash === 'function') flash(T('bkConnected'));
+        if (ui.view && ui.view.backup) await renderBackup();
+        const has = (await allBooksRaw()).some((b) => isPrivate(b, libOwner()));
+        if (has) runBackup();
+      }).catch((e) => { go.disabled = false; st.textContent = bkErrText(e); cancel.remove(); });
+    });
+    home.append(go, st, h('p', 'lib-foot', T('bkPrivacy')));
+    BK.config().then((c) => { if (!c.configured && st.isConnected && !st.textContent) st.textContent = T('bkErrSetup'); }).catch(() => {});
+    return;
+  }
+  // גיבוי אחרון + גיבוי עכשיו
+  const l1 = iosSection(home, T('bkLast'));
+  const lastV = s.lastAt ? T('bkBooks', { n: s.count || 0 }) + ' · ' + fmtBytes(s.bytes) : '';
+  iosRow(l1, fmtWhen(s.lastAt), lastV);
+  if (s.err) iosRow(l1, bkErrText(s.err), null, null, 'err');
+  const nowBtn = iosRow(l1, BK.busy() ? T('bkRunning') : T('bkNow'), null, () => runBackup(nowBtn), 'act');
+  // הגדרות
+  const l2 = iosSection(home, T('bkSettings'));
+  iosRow(l2, T('bkAccount'), s.email);
+  iosRow(l2, T('bkAuto'), swEl(s.auto !== false, (v) => { BK.saveSettings({ auto: v }); if (v) BK.schedule(2000); renderBackup(); }, T('bkAuto')));
+  if (s.auto !== false) {
+    const fv = h('span', 'lib-row-v'); fv.append(document.createTextNode(T((FREQ.find((f) => f[0] === s.freq) || FREQ[0])[1])));
+    const ch = h('span', 'lib-bkch'); ch.innerHTML = ICON.chev; fv.append(ch);
+    const fr = iosRow(l2, T('bkFreq'), fv, () => openFreqSheet());
+    fr.classList.add('nav');
+  }
+  iosRow(l2, T('bkProg'), swEl(s.prog !== false, (v) => { BK.saveSettings({ prog: v }); }, T('bkProg')));
+  home.append(h('p', 'lib-foot', T('bkAutoNote')));
+  // בגיבוי
+  const l3 = iosSection(home, T('bkInBackup'));
+  const cv = h('span', 'lib-row-v'); cv.append(document.createTextNode(s.count != null ? String(s.count || 0) : '…'));
+  const ch3 = h('span', 'lib-bkch'); ch3.innerHTML = ICON.chev; cv.append(ch3);
+  iosRow(l3, T('bkBooksT'), cv, () => goView({ bkbooks: 1 })).classList.add('nav');
+  const qRow = h('div', 'lib-row lib-quota');
+  const qTop = h('div', 'lib-quota-t'); const qL = h('span', 'lib-row-l', T('bkQuota')); const qV = h('span', 'lib-row-v', '…'); qTop.append(qL, qV);
+  const qBar = h('div', 'lib-qbar'); const qUse = h('i'); const qMine = h('u'); qBar.append(qUse, qMine);
+  const qSub = h('small', null, T('bkOurs', { b: fmtBytes(s.bytes || 0) }));
+  qRow.append(qTop, qBar, qSub); l3.append(qRow);
+  if (s.root) {
+    const open = h('a', 'lib-row act'); open.href = 'https://drive.google.com/drive/folders/' + encodeURIComponent(s.root); open.target = '_blank'; open.rel = 'noopener';
+    open.append(h('span', 'lib-row-l', T('bkOpenDrive'))); l3.append(open);
+  }
+  BK.quota().then((q) => {
+    if (!q.limit) { qV.textContent = fmtBytes(q.usage); return; }
+    qV.textContent = T('bkQuotaOf', { u: fmtBytes(q.usage), l: fmtBytes(q.limit) });
+    qUse.style.width = Math.min(100, q.usage / q.limit * 100).toFixed(1) + '%';
+    qMine.style.width = Math.max(0.6, Math.min(100, (s.bytes || 0) / q.limit * 100)).toFixed(2) + '%';
+  }).catch(() => { qV.textContent = '—'; });
+  // מחיקה וניתוק
+  const l4 = iosSection(home, '');
+  iosRow(l4, T('bkDeleteAll'), null, () => {
+    const go = async () => { try { await BK.deleteAll(); if (typeof flash === 'function') flash(T('bkDeleted')); } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); } if (ui.view && ui.view.backup) renderBackup(); };
+    if (typeof askConfirm === 'function') askConfirm(T('bkDeleteAllQ'), go, { danger: true, ok: T('bkDeleteOk') }); else go();
+  }, 'danger');
+  iosRow(l4, T('bkDisconnect'), null, () => {
+    const go = async () => { try { await BK.disconnect(); if (typeof flash === 'function') flash(T('bkDisconnected')); } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); } if (ui.view && ui.view.backup) renderBackup(); };
+    if (typeof askConfirm === 'function') askConfirm(T('bkDisconnectQ'), go, { danger: true, ok: T('bkDisconnectOk') }); else go();
+  }, 'danger');
+  home.append(h('p', 'lib-foot', T('bkDeleteNote')));
+}
+async function runBackup(btn) {
+  if (BK.busy()) return;
+  const lbl = btn && btn.querySelector('.lib-row-l');
+  if (lbl) lbl.textContent = T('bkRunning');
+  if (btn) btn.disabled = true;
+  try {
+    await BK.backupNow((d, t) => { if (lbl && lbl.isConnected) lbl.textContent = T('bkRunningN', { n: d, t }); });
+    if (typeof flash === 'function') flash(T('bkDone'));
+  } catch (e) {
+    BK.saveSettings({ err: String(e.code || e.message || 'failed').slice(0, 40), errAt: Date.now() });
+    if (typeof flash === 'function') flash(bkErrText(e));
+  }
+  if (root && !rd) renderHome();
+}
+function openFreqSheet() {
+  sheet(T('bkFreq'), (sh, close) => {
+    const list = h('div', 'lib-ios');
+    const cur = BK.settings().freq || 'change';
+    FREQ.forEach(([v, k]) => {
+      const r = h('button', 'lib-row'); r.type = 'button'; r.append(h('span', null, T(k)));
+      if (cur === v) r.append(h('span', 'lib-check', '✓'));
+      r.addEventListener('click', () => { BK.saveSettings({ freq: v }); close(); BK.schedule(2000); renderBackup(); });
+      list.append(r);
+    });
+    sh.append(list);
+  });
+}
+/* ספרים בגיבוי: מה בטלפון ומה רק בגיבוי; נגיעה = פתיחה / הורדה; לחיצה ארוכה = עריכה / מחיקה מהגיבוי; "בחירה" = כמה יחד */
+async function renderBackupBooks() {
+  const home = subPage(T('bkBooksT'));
+  const back = home.querySelector('.lib-back span'); if (back) back.textContent = T('bkTitle');
+  const top = home.querySelector('.lib-top');
+  const selBtn = h('button', 'lib-textbtn', T('bkSelect')); selBtn.type = 'button';
+  top.append(selBtn);
+  const box = h('div', 'lib-ios lib-card lib-bklist');
+  box.append(h('div', 'lib-row', T('bkLoading')));
+  home.append(box);
+  const foot = h('p', 'lib-foot', T('bkBooksNote'));
+  home.append(foot);
+  const bar = h('div', 'lib-selbar'); bar.hidden = true;
+  const bRestore = h('button', 'lib-btn', ''); bRestore.type = 'button';
+  const bDel = h('button', 'lib-btn danger', ''); bDel.type = 'button';
+  bar.append(bRestore, bDel);
+  home.append(bar);
+  let o;
+  try { o = await BK.overview(); } catch (e) { box.textContent = ''; box.append(h('div', 'lib-row err', bkErrText(e))); return; }
+  if (!root || !ui.view || !ui.view.bkbooks) return;
+  box.textContent = '';
+  if (!o.books.length) { box.append(h('div', 'lib-row', T('bkEmpty'))); selBtn.hidden = true; return; }
+  const local = new Map((await allBooks()).map((b) => [b.id, b]));
+  const picked = new Set();
+  let selecting = false;
+  const paintBar = () => {
+    bar.hidden = !selecting;
+    const n = picked.size;
+    const off = [...picked].filter((id) => !local.has(id)).length;
+    bRestore.textContent = T('bkRestoreN', { n: off }); bRestore.disabled = !off;
+    bDel.textContent = T('bkDeleteN', { n }); bDel.disabled = !n;
+  };
+  selBtn.addEventListener('click', () => {
+    selecting = !selecting; picked.clear();
+    selBtn.textContent = T(selecting ? 'libCancel' : 'bkSelect');
+    box.classList.toggle('selecting', selecting);
+    box.querySelectorAll('.lib-bkbook').forEach((r) => r.classList.remove('picked'));
+    paintBar();
+  });
+  const restoreIds = async (ids, then) => {
+    flashSafe(T('bkRestoring', { n: 0, t: ids.length }));
+    try { const n = await BK.restore(ids); flashSafe(T('bkRestored', { n })); indexAll(); if (then) then(); else if (ui.view && ui.view.bkbooks) renderBackupBooks(); }
+    catch (e) { flashSafe(bkErrText(e)); }
+  };
+  const delIds = (ids) => {
+    const go = async () => { try { await BK.removeFromBackup(ids); flashSafe(T('bkRemoved', { n: ids.length })); } catch (e) { flashSafe(bkErrText(e)); } if (ui.view && ui.view.bkbooks) renderBackupBooks(); };
+    if (typeof askConfirm === 'function') askConfirm(T(ids.length > 1 ? 'bkRemoveManyQ' : 'bkRemoveQ', { n: ids.length, t: (o.books.find((x) => x.id === ids[0]) || {}).title || '' }), go, { danger: true, ok: T('bkDeleteOk') }); else go();
+  };
+  bRestore.addEventListener('click', () => { const ids = [...picked].filter((id) => !local.has(id)); if (ids.length) restoreIds(ids); });
+  bDel.addEventListener('click', () => { if (picked.size) delIds([...picked]); });
+  o.books.forEach((x) => {
+    const r = h('button', 'lib-row lib-bkbook'); r.type = 'button';
+    const lb = local.get(x.id);
+    const th = h('span', 'lib-bkth');
+    if (lb) th.append(cover(lb, true));
+    else if (x.coverId) BK.coverBlob(x.coverId).then((bl) => { if (!bl) return; const im = document.createElement('img'); im.alt = ''; im.src = URL.createObjectURL(bl); th.append(im); th.classList.add('img'); }).catch(() => {});
+    const m = h('span', 'lib-bkm');
+    const t1 = h('b', null, x.title); t1.dir = 'auto';
+    const t2 = h('small', null, [x.author, fmtBytes(x.size)].filter(Boolean).join(' · ')); t2.dir = 'auto';
+    m.append(t1, t2);
+    const tag = h('span', 'lib-tag' + (x.onPhone ? ' on' : ''), T(x.onPhone ? 'bkOnPhone' : 'bkOnlyBackup'));
+    const ck = h('span', 'lib-ck');
+    r.append(ck, th, m, tag);
+    r.addEventListener('click', () => {
+      if (selecting) { if (picked.has(x.id)) picked.delete(x.id); else picked.add(x.id); r.classList.toggle('picked', picked.has(x.id)); paintBar(); return; }
+      if (x.onPhone) goView({ book: x.id });
+      else restoreIds([x.id]);
+    });
+    wireHold(r, () => {
+      if (selecting) return;
+      const acts = [{ kind: 'edit', fn: () => (x.onPhone ? goView({ edit: x.id }) : restoreIds([x.id], () => goView({ edit: x.id }))) }, { kind: 'del', fn: () => delIds([x.id]) }];
+      if (typeof showItemActions === 'function') showItemActions(r, acts);
+    });
+    box.append(r);
+  });
+}
+function flashSafe(m) { if (typeof flash === 'function') flash(m); }
 
 async function renderBook(id) {
   const home = root.querySelector('.lib-home');
@@ -924,8 +1365,10 @@ async function renderEdit(id) {
     cur.edit = e; applyEdit(cur, e);
     if (newCover) Object.assign(cur, { cover: newCover.blob, coverRatio: newCover.w / newCover.h, coverCustom: 1, coverV: 1 });
     else if (coverReset) { delete cur.coverCustom; delete cur.cover; delete cur.coverRatio; delete cur.coverV; }   // השלמת הכריכה מהקובץ תחזיר אותה
+    if (cur.src !== 'drive') cur.bkD = Date.now();   // v318: העריכה עוברת גם לגיבוי
     await putBook(cur);
     if (coverReset) backfillCovers();
+    BK.schedule();
     if (typeof flash === 'function') flash(T('edSaved'));
     history.back();
   });
@@ -1269,7 +1712,7 @@ let ftTimer = 0, ftSeq = 0;
 async function renderFt(home, q) {
   const ft = home.querySelector('.lib-ft'); if (!ft) return;
   const seq = ++ftSeq;
-  const res = await ftSearch(q);
+  const res = (await ftSearch(q)).filter((r) => shelfOf(r.b) === ui.shelf);   // v318: רק בספרייה שנבחרה
   if (seq !== ftSeq || (ui.q || '').trim() !== q) return;
   ft.textContent = ''; ft.hidden = false;
   const total = res.reduce((a, r) => a + r.hits.length, 0);
@@ -1311,6 +1754,7 @@ async function renderFt(home, q) {
 function askRemove(b) {
   // מכתב מהספרייה המשותפת היה חוזר בסנכרון הבא — לכן הוא מוסתר (והקובץ נמחק מהטלפון), ואפשר להחזיר אותו
   const drive = b.src === 'drive';
+  if (!drive && b.bk && signedIn() && BK.settings().email) return askRemoveBacked(b);   // v318: ספר מגובה — גם מהגיבוי?
   const go = async () => {
     if (drive) {
       const cur = (await allBooksRaw()).find((x) => x.id === b.id);
@@ -1321,6 +1765,24 @@ function askRemove(b) {
   };
   if (typeof askConfirm === 'function') askConfirm(T(drive ? 'libHideQ' : 'libRemoveQ', { t: b.title }), go, { danger: true, ok: T(drive ? 'libHide' : 'libRemove') });
   else go();
+}
+function askRemoveBacked(b) {
+  sheet('', (sh, close) => {
+    sh.append(h('h3', 'lib-sh-big', b.title), h('p', 'lib-sh-p', T('libRemoveBkQ')));
+    const done = () => { if (ui.view && ui.view.book === b.id) history.back(); else renderHome(); };
+    const local = async () => { await tx('books', 'readwrite', (st) => st.delete(b.id)); await tx('files', 'readwrite', (st) => st.delete(b.id)); };
+    const a = h('button', 'lib-btn danger'); a.type = 'button'; a.textContent = T('libRemoveBoth');
+    a.addEventListener('click', async () => {
+      a.disabled = true;
+      try { await BK.removeFromBackup([b.id]); } catch (e) { a.disabled = false; flashSafe(bkErrText(e)); return; }
+      await local(); close(); flashSafe(T('libRemovedBoth')); done();
+    });
+    const p = h('button', 'lib-btn'); p.type = 'button'; p.textContent = T('libRemovePhone');
+    p.addEventListener('click', async () => { await local(); close(); flashSafe(T('libRemovedPhone')); done(); });
+    const no = h('button', 'lib-btn ghost'); no.type = 'button'; no.textContent = T('libCancel');
+    no.addEventListener('click', close);
+    sh.append(a, p, no);
+  });
 }
 function openHiddenSheet(list) {
   sheet(T('libHiddenT'), (sh, close) => {
@@ -1958,6 +2420,7 @@ export async function openLibrary(opt) {
   }
   await first;
   backfillCovers();
+  BK.schedule(8000);                       // v318: גיבוי אוטומטי של הספרייה הפרטית, אם הגיע הזמן
   await pullCloud();
   try { const tk = await idToken(); if (tk) { const j = await libApi({ op: 'me', idToken: tk }).then((r) => r.json()); ui.admin = !!(j && j.admin); } } catch (e) {}
   renderHome();

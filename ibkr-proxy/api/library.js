@@ -9,6 +9,7 @@ const { verifyIdToken, readerAllowed, driveToken, serviceAccount, isAdmin, email
 const readers = require('../lib/readers');
 const { epubText } = require('../lib/epubtext');
 const { insight } = require('../lib/insight');
+const gdrive = require('../lib/gdrive');
 const insightCache = new Map();   // id|md5 → ניתוח (חוסך קריאות ל־Gemini בין קוראים, כל עוד המופע חי)
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
@@ -61,6 +62,14 @@ async function handler(req, res, deps = {}) {
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   body = body || {};
+  /* v318: גיבוי הספרייה הפרטית ל־Google Drive של המשתמש עצמו — כל משתמש מחובר (לא תלוי ברשימת הקוראים) */
+  if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured() });
+  if (/^gd[A-Z]/.test(String(body.op || ''))) {
+    let gu;
+    try { gu = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+    if (limited('gd|' + gu.uid, 60)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    return gdrive.handle(body, gu, res, deps);
+  }
   if (!serviceAccount() || !process.env.LIBRARY_FOLDER_ID) {
     // אבחון בלי לחשוף ערכים: איזה משתנה חסר / לא נקרא
     const raw = String(process.env.GDRIVE_SA_KEY || '').trim();

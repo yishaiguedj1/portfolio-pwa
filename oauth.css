@@ -1,0 +1,4 @@
+/* עמוד החזרה מחלון ההסכמה של Google (גיבוי הספרייה, v318) */
+html, body { margin: 0; height: 100%; background: #F2F2F7; color: #1C1C1E; font: 17px/1.5 system-ui, sans-serif; }
+@media (prefers-color-scheme: dark) { html, body { background: #000; color: #fff; } }
+main { min-height: 100%; display: grid; place-items: center; padding: 24px; text-align: center; box-sizing: border-box; }
