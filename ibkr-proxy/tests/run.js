@@ -850,6 +850,14 @@ function stubFetch(text, status = 200) {
     res = mockRes();
     await api(mockReq({ body: { op: 'search', title: 'x' }, headers: { origin: 'https://evil.example.com' } }), res, { fetch: fake });
     ok(res.statusCode === 403, 'פרטי ספר: Origin לא מאושר — נחסם');
+    const mg = bm.mergeByIsbn([bm.parseNli(NLI)[0], Object.assign(bm.parseGoogle(GOOGLE)[0], { isbn: '9789655451230' })]);
+    ok(mg[0].src === 'nli' && /^https:/.test(mg[0].cover) && mg[0].desc === 'The classic text' && mg[0].publisher === 'סיאל', 'מיזוג לפי ISBN: רשומת הספרייה הלאומית מקבלת כריכה ותקציר מ־Google, ושומרת על הפרטים שלה');
+    ok(bm.clean('\u200fקיצור תולדות האנושות /\u200f') === 'קיצור תולדות האנושות', 'ניקוי תווי כיווניות וסימני קטלוג מכותרות');
+    let g503 = 0;
+    const flaky = async (u) => { if (/googleapis/.test(u) && !g503++) return { status: 503, json: async () => ({ error: { message: 'Service temporarily unavailable' } }) }; return fake(u); };
+    res = mockRes();
+    await api(mockReq({ body: { op: 'search', title: 'Some Other Book' } }), res, { fetch: flaky });
+    ok(res.payload.status.google === 1 && g503 === 2, 'Google 503 רגעי — ניסיון אחד נוסף מצליח');
     api._reset();
   }
 

@@ -15,7 +15,7 @@ const decodeXml = (s) => String(s || '').replace(/&lt;/g, '<').replace(/&gt;/g, 
 const stripHtml = (s) => decodeXml(String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '')).replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 /* סימני פיסוק של קטלוג בסוף שדה (" :", " /", ",", ";") — לא נקודה אחרי ראשי תיבות */
 function clean(s) {
-  let t = String(s || '').replace(/\s+/g, ' ').trim().replace(/[\s,:;/=]+$/, '').trim();
+  let t = String(s || '').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim().replace(/[\s,:;/=]+$/, '').trim();
   if (/\.$/.test(t) && !/(^|\s)\S{1,2}\.$/.test(t)) t = t.slice(0, -1).trim();
   return t.replace(/^\[(.*)\]$/, '$1');
 }
@@ -114,8 +114,9 @@ function nliUrl(q) {
   else {
     if (q.title) parts.push('alma.title="' + esc(q.title) + '"');
     if (q.author) parts.push('alma.creator="' + esc(q.author) + '"');
+    if (q.lang === 'he') parts.push('alma.language=heb');   // הקטלוג לא ממיין לפי רלוונטיות — בלי זה מהדורות זרות (Sapiens) תופסות את הראש
   }
-  return 'https://nli.alma.exlibrisgroup.com/view/sru/972NNL_INST?version=1.2&operation=searchRetrieve&recordSchema=marcxml&maximumRecords=6&query=' + encodeURIComponent(parts.join(' and '));
+  return 'https://nli.alma.exlibrisgroup.com/view/sru/972NNL_INST?version=1.2&operation=searchRetrieve&recordSchema=marcxml&maximumRecords=20&query=' + encodeURIComponent(parts.join(' and '));
 }
 
 /* ---------- Apple Books ---------- */
@@ -164,7 +165,7 @@ async function searchAll(q, deps = {}) {
   const f = deps.fetch || fetch, ms = deps.timeout || 8000, key = deps.googleKey || '';
   const jobs = {
     nli: () => getText(f, nliUrl(q), ms).then(parseNli),
-    google: () => getJson(f, googleUrl(q, key), ms).then(parseGoogle),
+    google: () => getJson(f, googleUrl(q, key), ms).catch((e) => (/http_5\d\d/.test(e.message) ? getJson(f, googleUrl(q, key), ms) : Promise.reject(e))).then(parseGoogle),   // 503 רגעי — ניסיון אחד נוסף
     openlibrary: () => getJson(f, openLibraryUrl(q), ms).then(parseOpenLibrary),
     apple: () => getJson(f, appleUrl(q), ms).then(parseApple),
   };
@@ -173,14 +174,32 @@ async function searchAll(q, deps = {}) {
   const results = [], status = {};
   settled.forEach((s, i) => {
     status[names[i]] = s.status === 'fulfilled' ? s.value.length : 'err:' + String((s.reason && s.reason.message) || s.reason).slice(0, 40);
-    if (s.status === 'fulfilled') results.push(...s.value.slice(0, 5));
+    if (s.status === 'fulfilled') results.push(...s.value);
   });
   // תקציר מ־Open Library נמצא רק ברשומת היצירה — משלימים לתוצאה הראשונה
   const ol = results.find((r) => r.src === 'openlibrary' && !r.desc && /^\/works\//.test(r.id));
   if (ol) {
     try { const w = await getJson(f, 'https://openlibrary.org' + ol.id + '.json', 4000); const d = w.description; ol.desc = stripHtml(typeof d === 'string' ? d : (d && d.value) || ''); } catch (e) {}
   }
-  return { results: rank(results, q), status };
+  // מדרגים הכל ואז עד 6 מכל מקור (אם חותכים לפני הדירוג — הקטלוג, שלא ממוין לפי רלוונטיות, מאבד את ההתאמות הטובות)
+  const per = {};
+  const ranked = rank(mergeByIsbn(results), q).filter((r) => (per[r.src] = (per[r.src] || 0) + 1) <= 6);
+  return { results: ranked, status };
+}
+/* כמו Calibre: אותו ספר (אותו ISBN) מכמה מקורות — כל רשומה מקבלת מהאחרות את מה שחסר לה (כריכה, תקציר, עמודים, הוצאה) */
+function mergeByIsbn(list) {
+  const by = {};
+  list.forEach((r) => { if (r.isbn) (by[r.isbn] = by[r.isbn] || []).push(r); });
+  Object.values(by).forEach((grp) => {
+    if (grp.length < 2) return;
+    grp.forEach((r) => grp.forEach((o) => {
+      if (o === r) return;
+      ['cover', 'desc', 'publisher', 'subtitle'].forEach((k) => { if (!r[k] && o[k]) r[k] = o[k]; });
+      if (!r.pages && o.pages) r.pages = o.pages;
+      if (!r.tags.length && o.tags.length) r.tags = o.tags.slice();
+    }));
+  });
+  return list;
 }
 /* דירוג: ISBN זהה, כותר תואם, ובעברית — הספרייה הלאומית קודם; באנגלית — Google ואז Open Library */
 function rank(list, q) {
@@ -194,7 +213,7 @@ function rank(list, q) {
     if (qt && t === qt) s += 40; else if (qt && (t.includes(qt) || qt.includes(t))) s += 20;
     if (qa && r.authors.some((a) => norm(a).includes(qa) || qa.includes(norm(a)))) s += 15;
     if (r.cover) s += 3; if (r.desc) s += 2; if (r.isbn) s += 2;
-    return s - order[r.src] * 2;
+    return s - order[r.src] * (q.lang === 'he' ? 6 : 2);   // בעברית — הקטלוג הרשמי קודם
   };
   return list.map((r) => Object.assign(r, { score: score(r) })).sort((a, b) => b.score - a.score);
 }
@@ -205,4 +224,4 @@ function coverAllowed(u) {
   try { const x = new URL(u); return x.protocol === 'https:' && COVER_HOSTS.some((re) => re.test(x.hostname)); } catch (e) { return false; }
 }
 
-module.exports = { searchAll, normQuery, parseGoogle, parseOpenLibrary, parseNli, parseApple, googleUrl, openLibraryUrl, nliUrl, appleUrl, rank, coverAllowed, displayName, clean, stripHtml };
+module.exports = { mergeByIsbn, searchAll, normQuery, parseGoogle, parseOpenLibrary, parseNli, parseApple, googleUrl, openLibraryUrl, nliUrl, appleUrl, rank, coverAllowed, displayName, clean, stripHtml };
