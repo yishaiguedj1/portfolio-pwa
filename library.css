@@ -276,6 +276,7 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 .lib-item .lib-cover { transition: transform .18s ease, box-shadow .18s ease; }
 .lib-item.pressing .lib-cover, .lib-item.holding .lib-cover { transform: scale(1.05); box-shadow: 0 10px 26px rgba(0,0,0,.28); }
 html.lib-open .item-acts.floating { z-index: 1002; }   /* הכפתורים של המניות צפים מעל שכבת הספרייה (900) */
+html.lib-open .dlg-veil { z-index: 1003; }   /* v317: חלון האישור של האפליקציה (300) נפתח מתחת לספרייה — שחזור/הסתרה "לא הגיבו" */
 @media (prefers-reduced-motion: reduce) { .lib-item .lib-cover { transition: none; } .lib-item.pressing .lib-cover, .lib-item.holding .lib-cover { transform: none; } }
 .lib-root .mini-btn { border: 1px solid var(--outline, var(--card-border)); background: var(--surface); border-radius: var(--radius-xs); padding: 6px 12px; font-size: 13.5px; font-weight: 700; color: var(--primary); }
 .lib-root .mini-btn.ghost { color: var(--on-surface-var); }

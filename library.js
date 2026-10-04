@@ -937,7 +937,9 @@ async function renderEdit(id) {
       const go = async () => {
         const cur = (await allBooksRaw()).find((x) => x.id === id); if (!cur) return;
         delete cur.edit; delete cur.coverCustom; delete cur.cover; delete cur.coverRatio; delete cur.coverV;
-        try { const f = await getFile(id); if (f) { cur.md5 = ''; await putBook(cur); await importFiles([f], { driveId: cur.driveId, md5: '', src: cur.src }); } } catch (er) { await putBook(cur); }
+        // הקובץ השמור נקרא מחדש: הפרטים והכריכה שבו חוזרים, ההתקדמות וההדגשות נשמרות (אותו md5 — בלי הורדה מחדש)
+        try { const f = await getFile(id); if (f) { await putBook(cur); await importFiles([f], { driveId: cur.driveId, md5: cur.md5 || '', src: cur.src }); } } catch (er) { await putBook(cur); }
+        if (typeof flash === 'function') flash(T('edRestored'));
         history.back();
       };
       if (typeof askConfirm === 'function') askConfirm(T('edResetQ'), go, { danger: true, ok: T('edResetOk') }); else go();
