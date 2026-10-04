@@ -15,6 +15,7 @@ const { chromium } = require(process.env.PW_PATH || '/opt/node22/lib/node_module
 const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true) : d; };
 const OUT = path.resolve(String(arg('out', 'qa-motion-out')));
+const MONKEY = +arg('monkey', 0), SEED = +arg('seed', 7);
 const THEME = arg('theme', 'light'), WIDTH = +arg('width', 390), RM = !!arg('rm', false), LANG = arg('lang', 'he');
 const CPU = +arg('cpu', 1), NET = arg('net', ''), ONLY = arg('only', ''), FRAMES = !!arg('frames', false), DBG = !!arg('debug-scroll', false), MAXSTEPS = +arg('steps', 0);
 const BASE = 'http://localhost:8792';
@@ -110,6 +111,35 @@ const INIT = `(() => {
   M.mark = (name) => { M.flushStep(); M.cur = { name, t0: now(), cls: 0, clsMax: 0, shifts: [], longTasks: [], frameGaps: [], scrollJumps: [], heightChanges: 0 }; };
   M.flushStep = () => { if (M.cur) { M.cur.t1 = now(); M.steps.push(M.cur); M.cur = null; } };
   M.take = () => { M.flushStep(); const s = M.steps; M.steps = []; return s; };
+  // בדיקות שלמות אחרי כל צעד (אחרי ההתייצבות): מחסנית החלונות מול ההיסטוריה, דגלים שלא נתקעו, שכבות יתומות
+  M.check = async () => {
+    const bad = []; const st = history.state || {}; const H = document.documentElement;
+    if (!window.__lib && document.querySelector('.lib-root')) { try { window.__lib = await import('./library.js'); } catch (e) {} }
+    const L = window.__lib && window.__lib._test ? window.__lib._test.state() : null;
+    try {
+      if (typeof _backPending !== 'undefined' && _backPending) bad.push('_backPending=' + _backPending);
+      if (typeof _navSkipPop !== 'undefined' && _navSkipPop) bad.push('_navSkipPop=' + _navSkipPop);
+      if (typeof _modals !== 'undefined' && _modals.length !== (st.modal || 0)) bad.push('modals=' + _modals.length + ' state.modal=' + (st.modal || 0));
+      if (H.classList.contains('lib-restoring')) bad.push('lib-restoring תקוע');
+      if (H.classList.contains('lib-open') !== !!document.querySelector('.lib-root')) bad.push('lib-open ≠ .lib-root');
+      if (document.querySelectorAll('.lib-veil.out').length) bad.push('גיליון .out יתום');
+      if (document.querySelectorAll('.dlg-veil').length > 1) bad.push('שני חלונות אישור');
+      if (document.querySelectorAll('.item-acts').length > 1) bad.push('שתי קבוצות כפתורי לחיצה ארוכה');
+      if (H.dataset.libVt) bad.push('data-lib-vt תקוע=' + H.dataset.libVt);
+      if (H.dataset.modalPop || H.dataset.navSkip) bad.push('דגל popstate תקוע');
+      const menuOpen = !!document.getElementById('menuDrop') && !document.getElementById('menuDrop').classList.contains('hidden');
+      if (menuOpen && !(st.modal > 0)) bad.push('תפריט פתוח בלי רשומה');
+      if (L) {
+        if (L.sheetSkip) bad.push('sheetSkip=' + L.sheetSkip);
+        if (L.vt) bad.push('VT.inside תקוע');
+        if (L.root && (st.lib || 0) < 1) bad.push('ספרייה פתוחה בלי lib ברשומה');
+        if (!L.root && st.lib) bad.push('רשומת lib בלי ספרייה');
+        if (L.rd !== ((st.lib || 0) >= 2)) bad.push('קורא=' + L.rd + ' מול lib=' + (st.lib || 0));
+        if (L.root && L.veils !== (st.sheet || 0)) bad.push('גיליונות=' + L.veils + ' מול state.sheet=' + (st.sheet || 0));
+      }
+    } catch (e) { bad.push('check: ' + e.message); }
+    return bad;
+  };
   try {
     new PerformanceObserver((l) => { for (const e of l.getEntries()) { if (e.hadRecentInput || !M.cur) continue; M.cur.cls += e.value; M.cur.clsMax = Math.max(M.cur.clsMax, e.value);
       const src = (e.sources || []).slice(0, 2).map((s) => { const n = s.node; if (!n) return '?'; let d = n.nodeType === 1 ? n : n.parentElement; return d ? (d.tagName.toLowerCase() + (d.id ? '#' + d.id : '') + (d.className && typeof d.className === 'string' ? '.' + d.className.trim().split(/\\s+/).slice(0, 2).join('.') : '')) : '?'; });
@@ -215,6 +245,8 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore }; retur
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)));
+  // שגיאות קונסול (בלי כשלי רשת של ה־API המדומה)
+  page.on('console', (m) => { if (m.type() !== 'error') return; const t = m.text(); if (/Failed to load resource|net::|the server responded|503|Content Security Policy/.test(t)) return; errors.push('console: ' + t.slice(0, 160)); });
   const cdp = await ctx.newCDPSession(page);
   if (CPU > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });
   const caster = makeCaster(cdp, OUT);
@@ -234,8 +266,11 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore }; retur
     await caster.start();
     const t0 = Date.now();
     let err = '';
+    const nErr0 = errors.length;
     try { await fn(); } catch (e) { err = String(e.message).split('\n')[0].slice(0, 120) + ' @' + page.url().slice(BASE.length, BASE.length + 40); }
     await page.waitForTimeout(settle);
+    if (!err && errors.length > nErr0) err = 'שגיאת דף: ' + errors.slice(nErr0).join(' · ').slice(0, 200);
+    if (!err && page.url().startsWith(BASE)) { const inv = await page.evaluate(() => (window.__motion && window.__motion.check) ? window.__motion.check() : []).catch(() => []); if (inv.length) err = 'שלמות: ' + inv.join(' · '); }
     const frames = await caster.stop();
     const exited = !page.url().startsWith(BASE);
     const [m] = exited ? [null] : await page.evaluate(() => window.__motion.take());
@@ -243,6 +278,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore }; retur
     if (!FRAMES && !opt.keep && !(fr.flash || fr.flicker || (m && m.scrollJumps.length))) frames.forEach((f) => { try { fs.unlinkSync(f.f); } catch (e) {} });
     else { const d = path.join(OUT, 'frames-' + name.replace(/[^\w֐-׿-]+/g, '_')); fs.mkdirSync(d, { recursive: true }); frames.forEach((f, i) => { try { fs.renameSync(f.f, path.join(d, 'f' + String(i).padStart(3, '0') + '.jpg')); } catch (e) {} }); }
     if (!err && opt.expect && !exited) { const okHere = await page.locator(opt.expect).first().count().catch(() => 0); if (!okHere) err = 'לא במקום הצפוי (' + opt.expect + ')'; }
+    if (err && !exited) { try { err += ' · ' + await page.evaluate(() => 'state=' + JSON.stringify(history.state) + ' modals=' + (typeof _modals !== 'undefined' ? _modals.length : '?') + ' pend=' + (typeof _backPending !== 'undefined' ? _backPending : '?') + ' תפריט=' + (document.getElementById('menuDrop') && !document.getElementById('menuDrop').classList.contains('hidden')) + ' דף=' + ((document.querySelector('.tabpage.active') || {}).id || '-')); } catch (e) {} }
     if (err && !exited) { try { err += ' · מצב: ' + await page.evaluate(() => { if (document.querySelector('.rd')) return 'קורא'; const r = document.querySelector('.lib-root'); if (r) { const on = r.querySelector('.lib-chip.on'); return 'ספרייה/' + (r.querySelector('.bk-cta') ? 'דף' : on ? on.textContent.trim() : (r.querySelector('.lib-large') || {}).textContent); } const t = document.querySelector('.tab.active'); return 'אפליקציה/' + (t ? t.dataset.tab : '?'); }); } catch (e) {} }
     const row = { name, ms: Date.now() - t0 - settle, cls: +(m ? m.cls : 0).toFixed(4), clsMax: +(m ? m.clsMax : 0).toFixed(4), shifts: m ? m.shifts.slice(0, 6) : [], longTasks: m ? m.longTasks : [], frameGaps: m ? m.frameGaps : [], scrollJumps: m ? m.scrollJumps : [], heightChanges: m ? m.heightChanges : 0, flash: fr.flash, maxDiff: fr.maxDiff, frames: fr.frames, flicker: fr.flicker || 0, exited, err, scrollLog: m && m.scrollLog ? m.scrollLog.slice(0, 40) : undefined };
     row.bad = row.cls > (opt.cls == null ? 0.02 : opt.cls) || row.scrollJumps.length > 0 || row.flash > 0 || row.flicker > 0 || row.frameGaps.some((g) => g > 250) || !!row.err || (exited && !opt.exitOk);
@@ -254,12 +290,13 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore }; retur
   const tapTab = (t) => page.click('.tab[data-tab="' + t + '"]');
   const jsClick = (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) throw new Error('אין ' + q); e.click(); }, sel);   // בלי הגלילה האוטומטית של Playwright (scrollIntoViewIfNeeded)
   const back = () => page.goBack().catch(() => {});
+  const hold = async (sel) => { const bx = await page.locator(sel).first().boundingBox(); if (!bx) throw new Error('אין ' + sel); const tp = { x: bx.x + bx.width / 2, y: bx.y + bx.height / 2 }; await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [tp] }); await sleep(700); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
   const scrollWin = (y) => page.evaluate((y) => window.scrollTo(0, y), y);
   const scrollLib = (y) => page.evaluate((y) => { const r = document.querySelector('.lib-root'); if (r) r.scrollTop = y; }, y);
   const reload = async (st) => { await page.reload({ waitUntil: 'load' }); await sleep(st || 2500); };
 
   /* ---------- האפליקציה ---------- */
-  if (ONLY !== 'lib') {
+  if (ONLY !== 'lib' && ONLY !== 'monkey') {
     await step('app: טעינה ראשונה (סקירה)', async () => { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2500); }, { settle: 1500 });
     for (const t of ['stocks', 'trades', 'wishlist', 'deposits', 'pension', 'overview']) await step('app: טאב ' + t, () => tapTab(t), { scroll: true });
     await step('app: פתיחת תפריט', () => jsClick('#menuBtn'));
@@ -293,10 +330,34 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore }; retur
     await step('app: רענון בפנסיה', () => reload(), { settle: 2000 });
     await step('app: טאב עסקאות', () => tapTab('trades'));
     await step('app: רענון בעסקאות', () => reload(), { settle: 2000 });
+    // v323: "חזור" סוגר כל חלון — בועת סינון, תפריט רשימות + גיליון, כפתורי לחיצה ארוכה, חלון אישור; ורצפים מהירים
+    await step('app: טאב הפקדות (2)', () => tapTab('deposits'), { scroll: true });
+    await step('app: בועת סינון', () => page.click('#depositsSrcFilter .src-btn'), { expect: '#depositsSrcFilter.open' });
+    await step('app: חזור ← סוגר את הבועה', back, { expect: '#tab-deposits.active:has(#depositsSrcFilter:not(.open))' });
+    await step('app: סינון → ידני', async () => { await page.click('#depositsSrcFilter .src-btn'); await sleep(300); await page.click('#depositsSrcFilter .src-opt[data-srcf="manual"]'); }, { expect: '#depositsSrcFilter:not(.open)' });
+    await step('app: סינון → הכל', async () => { await page.click('#depositsSrcFilter .src-btn'); await sleep(300); await page.click('#depositsSrcFilter .src-opt[data-srcf="all"]'); }, { expect: '#depositsSrcFilter:not(.open)' });
+    await step('app: טאב מעקב (2)', () => tapTab('wishlist'), { scroll: true });
+    await step('app: תפריט הרשימות', () => page.click('.wl-title-btn'), { expect: '.wl-pop:not(.hidden)' });
+    await step('app: רשימה חדשה (גיליון)', () => page.click('.wl-pop [data-act="new"]'), { expect: '#wlSheetVeil' });
+    await step('app: חזור ← סוגר את הגיליון', back, { expect: '#tab-wishlist.active:not(:has(#wlSheetVeil))' });
+    await step('app: תפריט הרשימות + חזור', async () => { await page.click('.wl-title-btn'); await sleep(300); await back(); }, { expect: '#tab-wishlist.active:has(.wl-pop.hidden)' });
+    await step('app: טאב מניות (2)', () => tapTab('stocks'), { scroll: true });
+    await step('app: לחיצה ארוכה על מניה', () => hold('#stockList .stock >> nth=1'), { pre: '#stockList .stock >> nth=1', expect: '.item-acts' });
+    await step('app: חזור ← מבטל את הכפתורים', back, { expect: '#tab-stocks.active:not(:has(.item-acts))' });
+    await step('app: לחיצה ארוכה → מחיקה (חלון אישור)', async () => { await hold('#stockList .stock >> nth=1'); await sleep(400); await page.click('.item-acts .act-del'); }, { pre: '#stockList .stock >> nth=1', expect: '.dlg-veil' });
+    await step('app: חזור ← ביטול החלון', back, { expect: '#tab-stocks.active:not(:has(.dlg-veil))' });
+    await step('app: המניה נשארה', async () => { const n = await page.locator('#stockList .stock').count(); if (n < 2) throw new Error('המניה נמחקה אחרי ביטול'); }, { settle: 100 });
+    await step('app: חלון אישור → אישור בכפתור', async () => { await hold('#stockList .stock >> nth=1'); await sleep(400); await page.click('.item-acts .act-del'); await sleep(400); await page.click('.dlg-cancel'); }, { pre: '#stockList .stock >> nth=1', expect: '#tab-stocks.active:not(:has(.dlg-veil))' });
+    await step('app: תפריט → הגדרות → מתקדמות → חזור×2 מהר', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(700); await page.click('#advancedOpen'); await sleep(900); await back(); await back(); }, { settle: 1500, expect: '#tab-overview.active' });
+    await step('app: תפריט נפתח ונסגר מהר ואז הגדרות', async () => { await jsClick('#menuBtn'); await sleep(80); await jsClick('#menuBtn'); await sleep(80); await jsClick('#menuBtn'); await sleep(200); await jsClick('#langBtn'); }, { settle: 1200, expect: 'body:has(#tab-settings.active):has(#menuDrop.hidden)' });
+    await step('app: חזור ← סקירה (2)', back, { expect: '#tab-overview.active' });
+    await step('app: ספרייה מהתפריט ואז חזור', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1800); await back(); }, { settle: 1500, expect: '#tab-overview.active' });
+    await step('app: רענון עם תפריט פתוח', async () => { await jsClick('#menuBtn'); await sleep(400); await reload(); }, { settle: 1500, expect: '#menuDrop.hidden' });
+    await step('app: אחרי הרענון — תפריט + חזור', async () => { await jsClick('#menuBtn'); await sleep(400); await back(); }, { expect: 'body:has(#tab-overview.active):has(#menuDrop.hidden)' });
   }
 
   /* ---------- הספרייה ---------- */
-  if (ONLY !== 'app') {
+  if (ONLY !== 'app' && ONLY !== 'monkey') {
     if (ONLY === 'lib') { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
     await page.evaluate(() => { localStorage.setItem('pwa_libshelf_v1', 'mine'); });
     if (MAXSTEPS && nSteps >= MAXSTEPS) { /* מכסת צעדים */ }
@@ -361,6 +422,26 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore }; retur
     await step('lib: חזור ← מגיבוי', back, { expect: '.lib-grid .lib-item' });
     await step('lib: חיפוש', async () => { await page.fill('.lib-search input', 'rich'); await sleep(600); }, { cls: 0.5 });   // התוצאות מתחת לשדה מסתדרות מחדש — מותר; השדה עצמו לא זז (v322)
     await step('lib: ניקוי חיפוש', async () => { await page.fill('.lib-search input', ''); await sleep(400); });
+    // v323: גיליונות עם רשומת היסטוריה — מיון, Aa, תפריט אסופה (גיליון מתוך גיליון), Escape, רצפים מהירים
+    await step('lib: גיליון מיון', () => page.click('.lib-sortbtn'), { pre: '.lib-sortrow', expect: '.lib-veil' });
+    await step('lib: חזור ← סוגר את המיון', back, { expect: '.lib-root:not(:has(.lib-veil:not(.out)))' });
+    await step('lib: מיון → בחירה', async () => { await page.click('.lib-sortbtn'); await sleep(400); await page.click('.lib-veil .lib-row >> nth=1'); }, { expect: '.lib-root:not(:has(.lib-veil:not(.out)))' });
+    await step('lib: מיון → Escape', async () => { await page.click('.lib-sortbtn'); await sleep(400); await page.keyboard.press('Escape'); }, { expect: '.lib-root:not(:has(.lib-veil:not(.out)))' });
+    await step('lib: גיליון נפתח ונסגר מהר ×3', async () => { for (let i = 0; i < 3; i++) { await page.click('.lib-sortbtn'); await sleep(120); await page.keyboard.press('Escape'); await sleep(120); } }, { settle: 1200, expect: '.lib-root:not(:has(.lib-veil:not(.out)))' });
+    await step('lib: מדף → אסופה שלי', async () => { await page.click('.lib-chip.shelf'); await sleep(600); await page.click('.col-card.mine >> nth=0'); }, { expect: '.col-hero' });
+    await step('lib: תפריט ⋯ של האסופה', () => page.click('.lib-home .lib-top .lib-round'), { pre: '.lib-top', expect: '.lib-veil' });
+    await step('lib: שינוי שם (גיליון מתוך גיליון)', () => page.click('.lib-veil .lib-row >> nth=0'), { expect: '.lib-veil .col-in' });
+    await step('lib: חזור ← סוגר את שינוי השם', back, { expect: '.col-hero:not(:has(.lib-veil))' });
+    await step('lib: חזור ← מדף (2)', back, { expect: '.col-grid' });
+    await step('lib: דף ספר + חזור×2 מהר', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(600); await jsClick('.lib-item'); await sleep(900); await back(); await back(); }, { settle: 1500, expect: '#tab-overview.active' });
+    await step('lib: פתיחה מחדש', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-seg' });
+    await step('lib: "מה למדתי"', async () => { await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-tr .lib-round >> nth=1'); }, { expect: '.lib-root' });
+    await step('lib: חזור ← מהעמוד', back, { expect: '.lib-seg' });
+    await step('lib: ספר → קריאה → Aa', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(500); await jsClick('.lib-item'); await sleep(1000); await page.click('.bk-cta'); await sleep(2500); await page.touchscreen.tap(195, 420); await sleep(400); await page.click('.rd-topbar .rd-aa'); }, { settle: 1200, expect: '.rd .lib-veil, .lib-root .lib-veil' });
+    await step('lib: חזור ← סוגר Aa', back, { expect: '.rd' });
+    await step('lib: חזור×2 מהר מהקורא', async () => { await back(); await back(); }, { settle: 1500, expect: '.bk-cta' });
+    await step('lib: קריאה → ✕ מיד', async () => { await page.click('.bk-cta'); await sleep(300); await page.evaluate(() => { const b = [...document.querySelectorAll('.rd-topbar .rd-ic')].find((x) => /סגירה|Close/.test(x.getAttribute('aria-label') || '')); if (b) b.click(); }); }, { settle: 1500, expect: '.bk-cta' });
+    await step('lib: חזור ← הכל (3)', back, { expect: '.lib-grid' });
     await step('lib: רענון בבית הספרייה', () => reload(3000), { settle: 2000 });
     await step('lib: דף ספר (2)', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(500); await page.click('.lib-item >> nth=0'); }, { settle: 1200 });
     await step('lib: רענון בדף ספר', () => reload(3000), { settle: 2000 });
@@ -370,6 +451,35 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore }; retur
     await step('lib: חזור ← בית', back, { expect: '.lib-seg' });
     await step('lib: חזור ← יציאה מהספרייה', back, { settle: 1200, expect: '.tab.active' });
     await step('lib: חזור ← יציאה מהאפליקציה (צפוי)', back, { settle: 600, exitOk: true });
+  }
+
+  /* ---------- מצב "קוף": פעולות אקראיות עם בדיקות שלמות אחרי כל אחת ---------- */
+  if (MONKEY > 0) {
+    let seed = SEED; const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const SAFE_SKIP = '.dlg-ok.danger, #resetData, #resetManual, #resetIbkr, .reset-opt, #ibkrDisconnect, #ibkrSync, input[type=file], label:has(input[type=file]), #menuDemoBtn, .lib-row.danger, [data-act="del"], .act-del, .lib-admin-link, .bk-danger, #themeDark, #themeLight, #themeSystem, #langHe, #langEn, #langSystem';
+    const pick = () => page.evaluate((skip) => {
+      const vis = (e) => { const r = e.getBoundingClientRect(); if (r.width < 8 || r.height < 8 || r.bottom < 0 || r.top > innerHeight) return false; const cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.pointerEvents === 'none' || +cs.opacity < .2) return false; const c = document.elementFromPoint(r.left + r.width / 2, Math.min(innerHeight - 1, r.top + r.height / 2)); return !!c && (c === e || e.contains(c) || c.contains(e)); };
+      const els = [...document.querySelectorAll('button, .tab, .lib-item, .lib-chip, .col-card, .stock-head, .lib-row, .src-opt, .lib-seg-b, .range-btn, .chip-btn, .lib-round, .bk-cta, .rd-ic, .col-pill, [role=button]')].filter((e) => !e.disabled && !e.closest(skip) && !e.matches(skip) && vis(e));
+      if (!els.length) return null;
+      const e = els[Math.floor(Math.random() * els.length)]; const r = e.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: Math.min(innerHeight - 2, r.top + r.height / 2), d: (e.tagName + (e.id ? '#' + e.id : '') + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/)[0] : '') + ' ' + (e.textContent || '').trim().slice(0, 18)).replace(/\s+/g, ' ') };
+    }, SAFE_SKIP);
+    if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
+    for (let i = 1; i <= MONKEY; i++) {
+      let r = rnd();
+      // "חזור" בשורש (בלי חלון/ספרייה/עמוד משנה) יוצא מהאפליקציה — זו ההתנהגות הנכונה, לא באג; אז במקום זה נוגעים
+      const canBack = await page.evaluate(() => { const st = history.state || {}; return !!(st.modal || st.lib || st.snb || st.sheet || (typeof _modals !== 'undefined' && _modals.length)); }).catch(() => false);
+      if (r >= 0.62 && r < 0.84 && !canBack) r = 0.3;
+      let name, fn;
+      if (r < 0.62) { const t = await pick(); if (!t) { name = 'קוף ' + i + ': (אין מה ללחוץ) Escape'; fn = () => page.keyboard.press('Escape'); } else { name = 'קוף ' + i + ': נגיעה ' + t.d; fn = () => page.touchscreen.tap(t.x, t.y); } }
+      else if (r < 0.84) { name = 'קוף ' + i + ': חזור'; fn = back; }
+      else if (r < 0.92) { const y = Math.floor(rnd() * 900); name = 'קוף ' + i + ': גלילה ' + y; fn = async () => { await page.evaluate((y) => { const r = document.querySelector('.lib-root'); if (r) r.scrollTop = y; else window.scrollTo(0, y); }, y); }; }
+      else if (r < 0.96) { name = 'קוף ' + i + ': Escape'; fn = () => page.keyboard.press('Escape'); }
+      else { name = 'קוף ' + i + ': רענון'; fn = () => reload(2500); }
+      const isScroll = /גלילה|רענון/.test(name);
+      await step(name, fn, { settle: 700, scroll: isScroll, cls: /נגיעה|רענון/.test(name) ? 0.5 : 0.02 });
+      if (!page.url().startsWith(BASE)) { results[results.length - 1].err = (results[results.length - 1].err || '') + ' [יצא מהאפליקציה]'; results[results.length - 1].bad = true; await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
+    }
   }
 
   const bad = results.filter((r) => r.bad);

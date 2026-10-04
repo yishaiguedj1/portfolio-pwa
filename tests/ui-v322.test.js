@@ -47,9 +47,9 @@ ok(/prefers-reduced-motion: reduce\) \{ \.lib-root, \.lib-root\.leaving, \.rd \{
 
 /* ---------- ספרייה: גיליון עם רשומת היסטוריה ---------- */
 const sheet = fn(lib, 'sheet');
-ok(/root\.append\(veil\);\s+afterBack\(\(\) => \{[^\n]*history\.pushState\(Object\.assign\(\{\}, st0, \{ sheet: \(st0\.sheet \|\| 0\) \+ 1 \}\)/.test(sheet), 'sheet(): רשומת היסטוריה {sheet:n} אחרי הצירוף ל־DOM (בתוך הלחיצה)');
+ok(/root\.append\(veil\);[\s\S]{0,400}afterBack\(\(\) => \{[^\n]*history\.pushState\(Object\.assign\(\{\}, st0, \{ sheet: \(st0\.sheet \|\| 0\) \+ 1 \}\)/.test(sheet) && /if \(!\(ua && !ua\.isActive\)\) afterBack/.test(sheet), 'sheet(): רשומת היסטוריה {sheet:n} אחרי הצירוף ל־DOM, רק עם הפעלת משתמש');
 ok(/if \(pushed && history\.state && history\.state\.sheet\) \{ sheetSkip\+\+;[^\n]*history\.back\(\); \}/.test(sheet), 'סגירה תוכנתית = history.back() שנבלע (sheetSkip)');
-ok(/if \(sheetSkip > 0\) \{ sheetSkip--;/.test(pop) && /if \(veils\.length > \(st\.sheet \|\| 0\)\) \{ const v = veils\[veils\.length - 1\]; \(v\._close/.test(pop), 'onPop: "חזור" סוגר את הגיליון העליון, ה־back שלנו נבלע');
+ok(/if \(sheetSkip > 0\) \{ sheetSkip--;/.test(pop) && /if \(veils\.length > \(st\.sheet \|\| 0\)\) \{[\s\S]{0,200}const v = veils\[veils\.length - 1\]; const own = !!v\._pushed; \(v\._close/.test(pop), 'onPop: "חזור" סוגר את הגיליון העליון, ה־back שלנו נבלע');
 ok(/if \(ds\.modalPop \|\| ds\.navSkip\) return;/.test(pop) && /dataset\.navSkip = '1';/.test(app) && /dataset\.modalPop = '1';/.test(app), 'onPop: חלון של האפליקציה שנסגר ב"חזור" או ב־back שלה — הספרייה לא מנווטת (modalPop/navSkip)');
 ok(/function closeSheetThen\(veil, fn\)/.test(lib), 'closeSheetThen — פתיחת הבא רק אחרי שה־back של הגיליון נחת');
 ok(!/close\(\); goView\(/.test(lib) && !/close\(\); collNameSheet\(/.test(lib) && !/close\(\); openResetSheet\(\)/.test(lib) && !/close\(\); collDelete\(/.test(lib), 'אין "close(); X()" שדוחף רשומה בזמן ש־back בדרך');

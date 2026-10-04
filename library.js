@@ -664,6 +664,8 @@ function safeGoView(v) {
 /* v322: pushState מיד אחרי סגירת חלון/תפריט של האפליקציה (history.back בדרך) היה נוחת על הרשומה הלא נכונה —
    app.js חושף snbAfterBack שמריץ את הקריאה אחרי שה־back נחת (ומיד כשאין back בדרך) */
 const afterBack = (fn) => (typeof window !== 'undefined' && typeof window.snbAfterBack === 'function') ? window.snbAfterBack(fn) : fn();
+/* v323: רשומה חדשה לא יורשת שרידי גיליון/חלון מהרשומה הנוכחית (sheet/modal) — אחרת "חזור" לא סוגר גיליון שנפתח מעליה */
+function cleanState(extra) { const st = Object.assign({}, history.state || {}, extra); delete st.sheet; delete st.modal; return st; }
 /* ---------------- v322: מעברים חלקים בספרייה ----------------
    כל ציור של דף עובר דרך libTransition: View Transitions (Chrome/Safari) — הדף הישן מצולם, הדף החדש נבנה (גם כש־IndexedDB
    עוד עונה) ורק אז מונפש: 'push' = הדף החדש נכנס מהצד הקדמי (RTL: משמאל), 'pop' = חזרה בכיוון ההפוך, 'fade' = הצלבה
@@ -710,7 +712,7 @@ function pinScroll(y) {                  // הדף מתארך אחרי הציו�
 function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
   saveLibScroll();
   ui.view = v;
-  afterBack(() => history.pushState(Object.assign({}, history.state || {}, { lib: 1, lv: v }), ''));
+  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v }), ''));
   navigateTo('push', 0).then(() => { if (root) try { root.focus({ preventScroll: true }); } catch (e) {} });
 }
 
@@ -1325,7 +1327,7 @@ function collStack(list) {               // שלוש כריכות בערימה (
 }
 function collCard(c, byId) {
   const list = c.ids.map((id) => byId.get(id)).filter(Boolean);
-  const card = h('button', 'col-card'); card.type = 'button';
+  const card = h('button', 'col-card ' + (c.auto ? 'auto' : 'mine')); card.type = 'button';
   card.append(collStack(list), h('b', null, collName(c)), h('span', null, T('libCount', { n: list.length })));
   card.setAttribute('aria-label', collName(c) + ' · ' + T('libCount', { n: list.length }));
   card.addEventListener('click', () => goView({ coll: c.key }));
@@ -2188,7 +2190,9 @@ function sheet(title, build) {
   veil.addEventListener('click', (e) => { if (e.target === veil) close(); });
   veil._close = close;
   root.append(veil);
-  afterBack(() => { try { const st0 = history.state || {}; if (st0.lib && veil.isConnected) { history.pushState(Object.assign({}, st0, { sheet: (st0.sheet || 0) + 1 }), ''); pushed = true; } } catch (e) {} });
+  // v323: רשומה רק עם הפעלת משתמש (כמו modalPush ב־app.js) — גיליון שנפתח מקוד אסינכרוני נסגר ב"חזור" בלי לבלוע את הניווט
+  const ua = typeof navigator !== 'undefined' && navigator.userActivation;
+  if (!(ua && !ua.isActive)) afterBack(() => { try { const st0 = history.state || {}; if (st0.lib && veil.isConnected) { history.pushState(Object.assign({}, st0, { sheet: (st0.sheet || 0) + 1 }), ''); pushed = true; veil._pushed = true; } } catch (e) {} });
   try { sh.focus({ preventScroll: true }); } catch (e) {}
   return veil;
 }
@@ -2288,7 +2292,7 @@ async function openReader(id, opt) {
   if (!(opt && opt.restored)) {
     // v321: שתי רשומות בתוך הלחיצה — "שומר" ואז הקורא. "חזור" ראשון נוחת על השומר (הודעה), שני — לדף הספר.
     // אסור pushState בתוך popstate: Chrome מסמן רשומה כזו (ואת זו שלפניה) "לדילוג", ו"חזור" יצא מהאפליקציה.
-    const st = Object.assign({}, history.state || {}, { lib: 2, book: id });
+    const st = cleanState({ lib: 2, book: id });
     history.pushState(Object.assign({}, st, { guard: 1 }), '');
     history.pushState(Object.assign({}, st, { guard: 0 }), '');
   }
@@ -2736,7 +2740,10 @@ function onPop() {
   const st = history.state || {};
   const lvl = st.lib || 0;
   const veils = root ? Array.from(root.querySelectorAll('.lib-veil:not(.out)')) : [];
-  if (veils.length > (st.sheet || 0)) { const v = veils[veils.length - 1]; (v._close || (() => v.remove()))(); return; }   // v322: "חזור" סוגר את הגיליון העליון (יש לו רשומה משלו)
+  if (veils.length > (st.sheet || 0)) {   // v322: "חזור" סוגר את הגיליון העליון (יש לו רשומה משלו); v323: גיליון בלי רשומה — נסגר וממשיכים בניווט
+    const v = veils[veils.length - 1]; const own = !!v._pushed; (v._close || (() => v.remove()))();
+    if (own) return;
+  }
   if (lvl === 2 && st.guard && rd && !rd.closing) {   // "חזור" ראשון בקורא: נחת על השומר
     if (selPop) hideSel();
     else if (typeof flash === 'function') flash(T('rdBackTwice'));
@@ -2832,4 +2839,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };

@@ -4496,7 +4496,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v322';
+const APP_VERSION = 'v323';
 
 
 function saveDBto(db) {
@@ -6878,6 +6878,10 @@ function navBack(delta) { _navSkipPop++; _backPending++; try { history.go(delta)
 function modalPush(close) {
   const rec = { close, pushed: false, done: false, n: _modals.length + 1 };
   _modals.push(rec);
+  // v323: רשומה רק כשיש הפעלת משתמש — pushState בלי נגיעה (למשל askAlert אחרי שגיאת סנכרון) גורם ל־Chrome לסמן את הרשומה
+  // הקודמת "לדילוג", ו"חזור" היה קופץ שתי רשומות אחורה. חלון בלי רשומה נסגר ב"חזור" בלי לבלוע את הניווט (wireBackNav).
+  const ua = typeof navigator !== 'undefined' && navigator.userActivation;
+  if (ua && !ua.isActive) return rec;
   afterBack(() => { if (rec.done) return; try { history.pushState(Object.assign({}, history.state || {}, { modal: rec.n }), ''); rec.pushed = true; } catch (e) {} });
   return rec;
 }
@@ -6903,10 +6907,10 @@ function wireBackNav() {
     }
     const stModal = (history.state && history.state.modal) || 0;
     if (_modals.length > stModal) {   // "חזור" על חלון פתוח — סוגר אותו (והספרייה לא מנווטת: modalPop)
-      document.documentElement.dataset.modalPop = '1';
-      while (_modals.length > stModal) { const m = _modals.pop(); m.popping = true; m.done = true; try { m.close(); } catch (e) {} }
-      setTimeout(() => { delete document.documentElement.dataset.modalPop; }, 0);
-      return;
+      let pushedClosed = false;
+      while (_modals.length > stModal) { const m = _modals.pop(); m.popping = true; m.done = true; if (m.pushed) pushedClosed = true; try { m.close(); } catch (e) {} }
+      // חלון עם רשומה משלו — ה"חזור" הזה היה שלו; חלון בלי רשומה (נפתח בלי נגיעה) — ה"חזור" ניווט אמיתי, ממשיכים
+      if (pushedClosed) { document.documentElement.dataset.modalPop = '1'; setTimeout(() => { delete document.documentElement.dataset.modalPop; }, 0); return; }
     }
     const want = navTabForDepth(navCurDepth()), cur = currentTabName();
     if (navDepth(cur) === navCurDepth()) return; // כבר במקום (למשל טאב ראשי ברמה 0)
@@ -6934,6 +6938,7 @@ function switchTab(name, opts) {
   // v85: שמירת הטאב האחרון — חזרה לאותו עמוד אחרי רענון
   try { localStorage.setItem('pwa_lasttab_v1', name); } catch (e) {}
   requestAnimationFrame(() => { try { fitNumbers(); } catch (e) {} }); // התאמת מספרים אחרי המעבר (fitNumbers)
+  if (name !== prev) { try { closeSrcPops(); clearItemActions(); } catch (e) {} } // v323: בועה/כפתורים פתוחים בטאב שעוזבים — נסגרים (רשומת החלון לא נשארת)
   // v85/v153: שחזור מיקום גלילה שמור — רק בפתיחת האפליקציה (רענון חוזר לאותה נקודה).
   // v284 (בקשת המשתמש): מעבר בין טאבים תמיד מתחיל מראש העמוד — חזרה לאמצע עמוד שכבר היה פתוח לא אסתטית
   navSync(name, opts); // v290: "חזור" של המכשיר — הגדרות/אפשרויות מתקדמות כרשומות בהיסטוריה
@@ -13133,6 +13138,8 @@ function init() {
       switchTab(lastTab, { restore: true });
     }
   } catch (e) {}
+  // v323: אחרי רענון הרשומה עלולה לשאת שרידי חלון/גיליון שכבר לא פתוחים (modal/sheet) — מנקים, אחרת "חזור" לא סוגר חלון חדש שנפתח מעליה
+  try { const st = history.state; if (st && (st.modal || st.sheet)) { const c = Object.assign({}, st); delete c.modal; delete c.sheet; history.replaceState(c, ''); } } catch (e) {}
   // v315: רענון בזמן שהספרייה פתוחה — חוזרים לספרייה, לאותו דף/ספר ולאותו מקום (הרשומות כבר בהיסטוריה של הדפדפן)
   try {
     const hs = typeof history !== 'undefined' && history.state;
