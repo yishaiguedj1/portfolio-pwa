@@ -43,6 +43,7 @@ function mockRes() {
   r.status = (c) => { r.statusCode = c; return r; };
   r.json = (o) => { r.payload = o; return r; };
   r.end = () => r;
+  r.send = (b) => { r.payload = b; return r; };
   return r;
 }
 
@@ -790,6 +791,66 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403, 'סנכרון ברקע: Origin לא מאושר — נחסם');
     env.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; });
     gauth._reset();
+  }
+
+  /* ---------- פרטי ספר מהאינטרנט (bookmeta) — 4 מקורות מדומים, בלי רשת ---------- */
+  {
+    const bm = require('../lib/bookmeta');
+    const api = require('../api/bookmeta');
+    const NLI = `<searchRetrieveResponse><records><record><recordData><record xmlns="http://www.loc.gov/MARC21/slim">
+<controlfield tag="001">990012345</controlfield><controlfield tag="008">191104s2010    is            000 0 heb d</controlfield>
+<datafield ind1=" " ind2=" " tag="020"><subfield code="a">978-965-545-123-0</subfield></datafield>
+<datafield ind1="1" ind2=" " tag="100"><subfield code="a">גראהם, בנג'מין,</subfield></datafield>
+<datafield ind1="1" ind2="0" tag="245"><subfield code="a">המשקיע הנבון :</subfield><subfield code="b">מדריך מעשי /</subfield></datafield>
+<datafield ind1=" " ind2="1" tag="264"><subfield code="a">תל אביב :</subfield><subfield code="b">סיאל,</subfield><subfield code="c">2010.</subfield></datafield>
+<datafield ind1=" " ind2=" " tag="300"><subfield code="a">623 עמודים ;</subfield></datafield>
+<datafield ind1=" " ind2="0" tag="650"><subfield code="a">השקעות.</subfield></datafield>
+<datafield ind1="1" ind2=" " tag="700"><subfield code="a">צוויג, ג'ייסון.</subfield></datafield>
+</record></recordData></record></records></searchRetrieveResponse>`;
+    const GOOGLE = { items: [{ id: 'g1', volumeInfo: { title: 'The Intelligent Investor', subtitle: 'The Definitive Book on Value Investing', authors: ['Benjamin Graham'], publisher: 'Harper', publishedDate: '2006-02-21', description: '<p>The <b>classic</b> text</p>', industryIdentifiers: [{ type: 'ISBN_10', identifier: '0060555661' }, { type: 'ISBN_13', identifier: '9780060555665' }], pageCount: 640, categories: ['Business & Economics'], language: 'en', imageLinks: { thumbnail: 'http://books.google.com/books/content?id=g1&printsec=frontcover&img=1&zoom=1&edge=curl' } } }] };
+    const OL = { docs: [{ key: '/works/OL1W', title: 'The intelligent investor', author_name: ['Benjamin Graham'], publisher: ['Harper'], first_publish_year: 1949, isbn: ['9780060555665'], language: ['eng'], cover_i: 42, subject: ['Investments'] }] };
+    const APPLE = { results: [{ trackId: 7, trackName: 'The Intelligent Investor', artistName: 'Benjamin Graham', releaseDate: '2009-03-17T07:00:00Z', description: 'Desc', genres: ['Books', 'Investing'], artworkUrl100: 'https://is1-ssl.mzstatic.com/image/thumb/x/100x100bb.jpg' }] };
+    const urls = [];
+    const fake = async (u) => {
+      urls.push(String(u));
+      const j = (o) => ({ status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+      if (/alma\.exlibrisgroup/.test(u)) return { status: 200, text: async () => NLI };
+      if (/googleapis\.com\/books/.test(u)) return j(GOOGLE);
+      if (/openlibrary\.org\/works/.test(u)) return j({ description: { value: 'From the works record' } });
+      if (/openlibrary\.org\/search/.test(u)) return j(OL);
+      if (/itunes\.apple\.com/.test(u)) return j(APPLE);
+      return { status: 404 };
+    };
+    const n1 = bm.parseNli(NLI)[0];
+    ok(n1.title === 'המשקיע הנבון' && n1.subtitle === 'מדריך מעשי' && n1.authors[0] === "בנג'מין גראהם" && n1.authors[1] === "ג'ייסון צוויג" && n1.authorSort === "גראהם, בנג'מין"
+      && n1.publisher === 'סיאל' && n1.year === 2010 && n1.lang === 'he' && n1.isbn === '9789655451230' && n1.pages === 623 && n1.tags[0] === 'השקעות', 'ספרייה לאומית: MARC → כותר, כותב (שם תצוגה + שם מיון), הוצאה, שנה, שפה, ISBN, עמודים, נושא');
+    const g1 = bm.parseGoogle(GOOGLE)[0];
+    ok(g1.isbn === '9780060555665' && g1.desc === 'The classic text' && /^https:/.test(g1.cover) && !/edge=curl/.test(g1.cover) && g1.year === 2006, 'Google Books: ISBN-13, תקציר בלי HTML, כריכה ב־https בגודל גדול');
+    const a1 = bm.parseApple(APPLE)[0];
+    ok(/1200x1200bb/.test(a1.cover) && a1.tags.join() === 'Investing', 'Apple Books: כריכה ברזולוציה גבוהה, בלי הז\'אנר "Books"');
+    ok(bm.normQuery({ title: 'המשקיע הנבון' }).lang === 'he' && bm.normQuery({ isbn: '978-0-06-055566-5' }).isbn === '9780060555665' && bm.normQuery({}) === null, 'קלט: שפה מזוהה מהטקסט, ISBN מנוקה, בלי כותר/ISBN — נדחה');
+    let res = mockRes();
+    await api(mockReq({ body: { op: 'search', title: 'The Intelligent Investor', author: 'Graham' } }), res, { fetch: fake });
+    ok(res.statusCode === 200 && res.payload.ok && res.payload.status.google === 1 && res.payload.status.nli === 1 && res.payload.status.apple === 1 && res.payload.status.openlibrary === 1, 'חיפוש: ארבעת המקורות נשאלים במקביל');
+    ok(res.payload.results[0].src === 'google' && res.payload.results.find((x) => x.src === 'openlibrary').desc === 'From the works record', 'דירוג באנגלית: Google ראשון; תקציר Open Library מרשומת היצירה');
+    res = mockRes();
+    await api(mockReq({ body: { op: 'search', title: 'המשקיע הנבון' } }), res, { fetch: fake });
+    ok(res.payload.results[0].src === 'nli', 'דירוג בעברית: הספרייה הלאומית ראשונה');
+    res = mockRes();
+    await api(mockReq({ body: { op: 'cover', url: 'https://evil.example.com/x.jpg' } }), res, { fetch: fake });
+    ok(res.statusCode === 400 && bm.coverAllowed('https://covers.openlibrary.org/b/id/1-L.jpg') && bm.coverAllowed('https://is5-ssl.mzstatic.com/a.jpg') && !bm.coverAllowed('http://books.google.com/x') && !bm.coverAllowed('https://books.google.com.evil.com/x'), 'כריכות: רק ממארחי המקורות וב־https (לא פרוקסי כללי)');
+    res = mockRes();
+    const imgFetch = async (u) => ({ status: 200, url: u, headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array(5000).buffer });
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: imgFetch });
+    ok(res.statusCode === 200 && res.headers['Content-Type'] === 'image/jpeg' && res.payload.length === 5000, 'כריכה מאושרת — מוחזרת כתמונה');
+    res = mockRes();
+    const redir = async (u) => ({ status: 200, url: 'https://evil.example.com/a.jpg', headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array(5000).buffer });
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: redir });
+    ok(res.statusCode === 400, 'כריכה שהופנתה למארח לא מאושר — נחסמת');
+    res = mockRes();
+    await api(mockReq({ body: { op: 'search', title: 'x' }, headers: { origin: 'https://evil.example.com' } }), res, { fetch: fake });
+    ok(res.statusCode === 403, 'פרטי ספר: Origin לא מאושר — נחסם');
+    api._reset();
   }
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
