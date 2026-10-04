@@ -502,7 +502,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-ph { margin: 16px 0; border: 2px dashed var(--outline); border-radius: var(--radius-xl); box-sizing: border-box; }
 html.drag-active, html.drag-active body { -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
 /* הדף של הטאב נשאר עם transform מאנימציית הכניסה — אז position:fixed נמדד ממנו ולא מהמסך; בזמן גרירה בלי transform */
-html.drag-active .tabpage { transform: none !important; animation: none !important; }
+html.drag-active .tabpage { transform: none !important; }   /* v324: בלי animation:none — ביטול האנימציה והחזרתה אחרי הגרירה הריצו את tabIn מחדש (העמוד הבהב אחרי לחיצה ארוכה); !important על transform גובר גם על אנימציה רצה */
 @media (prefers-reduced-motion: reduce) { .stock.dragging { transform: none; transition: none; } }
 /* v278 (בקשת המשתמש): לחיצה ארוכה ושחרור בלי תזוזה → עריכה/מחיקה. הכרטיס נשאר מורם; כפתורים עגולים כמו בהדר — עט ירוק, X אדום,
    צפים ממש מעל הכרטיס/הטאב בצד השמאלי (showItemActions) */

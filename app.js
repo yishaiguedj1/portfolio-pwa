@@ -4496,7 +4496,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v323';
+const APP_VERSION = 'v324';
 
 
 function saveDBto(db) {
@@ -10101,7 +10101,7 @@ function renderStocks() {
   let idx = 0;
   for (const p of sortPositionsList(shown, mode, mOf, DB.stockOrder)) {
     const card = buildStockCard(p);
-    if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); }
+    if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); card.addEventListener('animationend', () => card.classList.remove('enter'), { once: true }); } // v324: בלי enter אחרי הכניסה — החזרה ל־DOM בסוף גרירה/לחיצה ארוכה הריצה את cardIn מחדש
     idx++;
     list.appendChild(card);
   }
@@ -11193,7 +11193,7 @@ function renderWishlist(opts) {
   let idx = 0;
   for (const w of sortWatchList(items, getWatchSort(), (s) => metrics(s).dayChg)) {
     const card = buildStockCard(wlItem(w));
-    if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); }
+    if (wasEmpty && idx < 10 && card.style && card.style.setProperty) { card.classList.add('enter'); card.style.setProperty('--i', idx); card.addEventListener('animationend', () => card.classList.remove('enter'), { once: true }); } // v324: בלי enter אחרי הכניסה — החזרה ל־DOM בסוף גרירה/לחיצה ארוכה הריצה את cardIn מחדש
     idx++;
     list.appendChild(card);
   }

@@ -2210,7 +2210,7 @@ function onEscape() {
   history.back();
 }
 function readerExit() {                  // ✕ / Escape / שגיאה — ישר לדף הספר (מדלגים גם על רשומת השומר)
-  if (!rd) return;
+  if (!rd || rd.closing) return;         // v324: ✕ פעמיים מהר = שתי חזרות כפולות — יצא מהספרייה (נמצא ב־QA)
   rd.closing = true;
   const st = history.state || {};
   if (st.lib === 2 && !st.guard) history.go(-2); else history.back();
