@@ -217,6 +217,19 @@ async function fileId(file) {
   } catch (e) { return 'f-' + hashStr(file.name + file.size); }
 }
 
+/* כריכה מתוך הקובץ (04/10/2026): תמונה מוקטנת נשמרת ברשומת הספר — הספרייה מציגה אותה במקום הכריכה הטיפוגרפית */
+async function coverThumb(book) {
+  const blob = await (book.getCover ? book.getCover() : null);
+  if (!blob || typeof createImageBitmap !== 'function') return null;
+  const bmp = await createImageBitmap(blob);
+  const w = Math.min(480, bmp.width), hgt = Math.round(bmp.height * w / bmp.width);
+  if (!w || !hgt) return null;
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = hgt;
+  cv.getContext('2d').drawImage(bmp, 0, 0, w, hgt);
+  if (bmp.close) bmp.close();
+  return new Promise((res) => cv.toBlob((b) => res(b ? { blob: b, w, h: hgt } : null), 'image/jpeg', 0.85));
+}
+
 async function importFiles(files, extra) {
   let added = 0;
   for (const file of files) {
@@ -233,6 +246,8 @@ async function importFiles(files, extra) {
         owner: libOwner(), pOwner: libOwner(),   // v313: של החשבון שייבא (מכתב Drive — גלוי לכולם לפי src)
       };
       Object.assign(rec, bookExtras(book));
+      const cv = await coverThumb(book).catch(() => null);
+      if (cv) { rec.cover = cv.blob; rec.coverRatio = cv.w / cv.h; }
       const old = (await allBooksRaw()).find((b) => b.id === id);
       if (old) {
         scopeBook(old, libOwner(), libLegacyOwner());   // v313: ההתקדמות של החשבון הנוכחי, והשאר נשמר בצד
@@ -306,6 +321,8 @@ function syncDrive() {
     syncProgress = null;
     for (const b of plan.remove) {
       if (rd && rd.rec && rd.rec.id === b.id) continue;   // לא מוחקים ספר פתוח
+      const cur = (await allBooksRaw()).find((x) => x.id === b.id);
+      if (!cur || cur.driveId !== b.driveId) continue;   // הספר כבר עבר לקובץ אחר באותו מזהה (למשל גרסה מעודכנת בתיקייה אחרת)
       await tx('books', 'readwrite', (st) => st.delete(b.id));
       await tx('files', 'readwrite', (st) => st.delete(b.id));
       changed++;
@@ -464,7 +481,25 @@ function ensureCss() {
   document.head.appendChild(l);
 }
 
+const coverUrls = new Map();   // id → { blob, url } — כתובת אחת לכל תמונה, משתחררת כשהתמונה מתחלפת
+function coverUrl(b) {
+  if (!(b.cover instanceof Blob)) return '';
+  const c = coverUrls.get(b.id);
+  if (c && c.blob === b.cover) return c.url;
+  if (c) URL.revokeObjectURL(c.url);
+  const url = URL.createObjectURL(b.cover);
+  coverUrls.set(b.id, { blob: b.cover, url });
+  return url;
+}
 function cover(b, mini) {
+  const src = coverUrl(b);
+  if (src) {
+    const el = h('div', 'lib-cover img' + (mini ? ' mini' : ''));
+    if (b.coverRatio) el.style.aspectRatio = String(b.coverRatio);
+    const im = document.createElement('img'); im.src = src; im.alt = ''; im.decoding = 'async';
+    el.append(im);
+    return el;
+  }
   const c = COVER_COLORS[hashStr(b.author || b.title) % COVER_COLORS.length];
   const el = h('div', 'lib-cover' + (mini ? ' mini' : ''));
   el.style.background = 'linear-gradient(160deg,' + c[0] + ',' + c[1] + ')';

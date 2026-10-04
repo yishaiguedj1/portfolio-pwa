@@ -12,5 +12,5 @@ html, body { margin: 0; }
 </style></head><body>
 <div class="c"><div class="t1">ברקשייר האת'וויי</div><div class="t2">מכתב לבעלי המניות</div>
 <div class="yr" id="yr">1987</div><img class="pt" src="portrait4.png"><div class="nm">וורן א. באפט</div></div>
-<script>document.getElementById('yr').textContent = new URLSearchParams(location.search).get('y') || '1987';</script>
+<script>const q = new URLSearchParams(location.search); document.getElementById('yr').textContent = q.get('y') || '1987'; if (q.get('t2')) document.querySelector('.t2').textContent = q.get('t2');</script>
 </body></html>
