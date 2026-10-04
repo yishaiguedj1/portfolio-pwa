@@ -181,9 +181,16 @@ async function searchAll(q, deps = {}) {
   if (ol) {
     try { const w = await getJson(f, 'https://openlibrary.org' + ol.id + '.json', 4000); const d = w.description; ol.desc = stripHtml(typeof d === 'string' ? d : (d && d.value) || ''); } catch (e) {}
   }
+  // כריכה לספר עברי: לספרייה הלאומית אין כריכות, ו־Google לא תמיד מוצא לפי שם/כותב בעברית — מבקשים מ־Google לפי ה־ISBN של
+  // שתי ההתאמות הראשונות של הקטלוג (המיזוג לפי ISBN מוסיף את הכריכה והתקציר)
+  if (!deps.noEnrich) {
+    const need = rank(results.slice(), q).filter((r) => r.src === 'nli' && r.isbn && !results.some((o) => o.src === 'google' && o.isbn === r.isbn)).slice(0, 2);
+    const extra = await Promise.allSettled(need.map((r) => getJson(f, googleUrl({ isbn: r.isbn }, key), ms).then(parseGoogle)));
+    extra.forEach((x) => { if (x.status === 'fulfilled') results.push(...x.value.slice(0, 1).map((g) => Object.assign(g, { enrich: 1 }))); });
+  }
   // מדרגים הכל ואז עד 6 מכל מקור (אם חותכים לפני הדירוג — הקטלוג, שלא ממוין לפי רלוונטיות, מאבד את ההתאמות הטובות)
   const per = {};
-  const ranked = rank(mergeByIsbn(results), q).filter((r) => (per[r.src] = (per[r.src] || 0) + 1) <= 6);
+  const ranked = rank(mergeByIsbn(results), q).filter((r) => !r.enrich && (per[r.src] = (per[r.src] || 0) + 1) <= 6);
   return { results: ranked, status };
 }
 /* כמו Calibre: אותו ספר (אותו ISBN) מכמה מקורות — כל רשומה מקבלת מהאחרות את מה שחסר לה (כריכה, תקציר, עמודים, הוצאה) */

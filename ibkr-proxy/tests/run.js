@@ -858,6 +858,17 @@ function stubFetch(text, status = 200) {
     res = mockRes();
     await api(mockReq({ body: { op: 'search', title: 'Some Other Book' } }), res, { fetch: flaky });
     ok(res.payload.status.google === 1 && g503 === 2, 'Google 503 רגעי — ניסיון אחד נוסף מצליח');
+    {
+      const calls = [];
+      const ef = async (u) => {
+        calls.push(u);
+        if (/alma\.exlibrisgroup/.test(u)) return { status: 200, text: async () => NLI };
+        if (/googleapis\.com\/books/.test(u)) return /isbn%3A9789655451230/.test(u) ? { status: 200, json: async () => ({ items: [{ id: 'gx', volumeInfo: { title: 'המשקיע הנבון', industryIdentifiers: [{ identifier: '9789655451230' }], imageLinks: { thumbnail: 'https://books.google.com/books/content?id=gx&img=1' }, description: 'תקציר' } }] }) } : { status: 200, json: async () => ({}) };
+        return { status: 200, json: async () => ({}) };
+      };
+      const out = await bm.searchAll(bm.normQuery({ title: 'המשקיע הנבון' }), { fetch: ef });
+      ok(out.results.length === 1 && out.results[0].src === 'nli' && /books\.google/.test(out.results[0].cover) && out.results[0].desc === 'תקציר' && calls.some((u) => /isbn%3A9789655451230/.test(u)), 'ספר עברי: כריכה ותקציר מ־Google לפי ה־ISBN של הספרייה הלאומית — בלי רשומה כפולה');
+    }
     api._reset();
   }
 
