@@ -230,6 +230,31 @@ async function coverThumb(book) {
   return new Promise((res) => cv.toBlob((b) => res(b ? { blob: b, w, h: hgt } : null), 'image/jpeg', 0.85));
 }
 
+/* v315: ספרים שיובאו לפני v314 (או שהקובץ שלהם לא השתנה מאז) — השלמת הכריכה מהקובץ השמור, ברקע, בלי הורדה */
+let backfilling = null;
+function backfillCovers() {
+  if (backfilling) return backfilling;
+  backfilling = (async () => {
+    let n = 0;
+    for (const b of await allBooksRaw()) {
+      if (b.coverV) continue;
+      try {
+        const file = await getFile(b.id);
+        const cv = file ? await coverThumb(await makeBook(file)).catch(() => null) : null;
+        const cur = (await allBooksRaw()).find((x) => x.id === b.id);   // רשומה עדכנית — לא לדרוס התקדמות שנשמרה בינתיים
+        if (!cur) continue;
+        if (cv) { cur.cover = cv.blob; cur.coverRatio = cv.w / cv.h; n++; }
+        cur.coverV = 1;
+        await putBook(cur);
+        if (cv && n % 6 === 0 && root && !rd) renderHome();
+      } catch (e) { /* בפעם הבאה */ }
+    }
+    if (n && root && !rd) renderHome();
+    return n;
+  })().finally(() => { backfilling = null; });
+  return backfilling;
+}
+
 async function importFiles(files, extra) {
   let added = 0;
   for (const file of files) {
@@ -248,6 +273,7 @@ async function importFiles(files, extra) {
       Object.assign(rec, bookExtras(book));
       const cv = await coverThumb(book).catch(() => null);
       if (cv) { rec.cover = cv.blob; rec.coverRatio = cv.w / cv.h; }
+      rec.coverV = 1;
       const old = (await allBooksRaw()).find((b) => b.id === id);
       if (old) {
         scopeBook(old, libOwner(), libLegacyOwner());   // v313: ההתקדמות של החשבון הנוכחי, והשאר נשמר בצד
@@ -512,6 +538,7 @@ function cover(b, mini) {
 }
 
 function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
+  saveLibScroll();
   ui.view = v;
   history.pushState(Object.assign({}, history.state || {}, { lib: 1, lv: v }), '');
   renderHome();
@@ -846,12 +873,29 @@ async function renderAdmin() {
     list(T('admApp'), j.app || [], true);
     list(T('admEnv'), j.open ? [T('admOpen')] : (j.env || []), false);
     const ref = h('button', 'ac-retry adm-refresh', T('admRefresh')); ref.type = 'button';
+    const res = h('p', 'adm-res');
     ref.addEventListener('click', async () => {
-      ref.disabled = true;
-      try { await adminApi('refresh'); const n = await syncDrive(); if (typeof flash === 'function') flash(T('admRefreshed', { n })); } catch (e) { if (typeof flash === 'function') flash(T('admErr')); }
-      ref.disabled = false;
+      if (ref.disabled) return;
+      ref.disabled = true; res.textContent = '';
+      const label = T('admRefresh');
+      ref.textContent = T('admRefreshing');
+      const tick = setInterval(() => {   // התקדמות ההורדה על הכפתור עצמו
+        ref.textContent = syncProgress && syncProgress.total ? T('libSyncProg', { n: syncProgress.done, t: syncProgress.total }) : T('admRefreshing');
+      }, 300);
+      let msg;
+      try {
+        if (syncing) await syncing;          // סנכרון שכבר רץ (למשל מהכניסה לספרייה) — מחכים לו, ואז רענון אמיתי
+        await adminApi('refresh');
+        const n = await syncDrive();
+        const c = await backfillCovers();
+        msg = T('admRefreshed', { n: n + c });
+      } catch (e) { msg = T('admErr'); }
+      clearInterval(tick);
+      ref.textContent = label; ref.disabled = false;
+      res.textContent = msg;
+      if (typeof flash === 'function') flash(msg);
     });
-    box.append(ref);
+    box.append(ref, res);
   };
   box.append(h('p', 'lib-empty', T('libSyncing')));
   try { draw(await adminApi('readers')); } catch (e) { box.textContent = ''; box.append(h('p', 'lib-empty', T('admErr'))); }
@@ -1159,7 +1203,8 @@ async function openReader(id, opt) {
   const rec = (await allBooks()).find((b) => b.id === id);
   const file = await getFile(id);
   if (!rec || !file) return;
-  history.pushState(Object.assign({}, history.state || {}, { lib: 2 }), '');
+  if (!(opt && opt.restored)) history.pushState(Object.assign({}, history.state || {}, { lib: 2, book: id }), '');
+  else history.replaceState(Object.assign({}, history.state || {}, { lib: 2, book: id }), '');
   const box = h('div', 'rd');
   const view = document.createElement('foliate-view');
   const foot = h('div', 'rd-foot'); const fL = h('span'); const fR = h('span'); foot.append(fL, fR);
@@ -1608,9 +1653,30 @@ function onPop() {
   if (lvl < 1 && root) { hideSel(); root.remove(); root = null; document.documentElement.classList.remove('lib-open'); }
 }
 
-export async function openLibrary() {
+/* v315: מיקום הגלילה בספרייה לכל דף — לשחזור אחרי רענון (sessionStorage: רק בלשונית הזו) */
+const SCROLL_KEY = 'pwa_libscroll_v1';
+const viewKey = () => JSON.stringify(ui.view || null);
+function saveLibScroll() {
+  if (!root || rd) return;
+  try { const m = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || '{}'); m[viewKey()] = Math.round(root.scrollTop); sessionStorage.setItem(SCROLL_KEY, JSON.stringify(m)); } catch (e) {}
+}
+function restoreLibScroll() {
+  let y = 0;
+  try { y = +(JSON.parse(sessionStorage.getItem(SCROLL_KEY) || '{}')[viewKey()] || 0); } catch (e) {}
+  if (!y || !root) return;
+  const t0 = Date.now();
+  const tryIt = () => {   // התוכן נטען בהדרגה — מנסים עד שהדף ארוך מספיק (עד 4 שניות)
+    if (!root) return;
+    root.scrollTop = y;
+    if (Math.abs(root.scrollTop - y) > 2 && Date.now() - t0 < 4000) setTimeout(tryIt, 120);
+  };
+  tryIt();
+}
+
+export async function openLibrary(opt) {
   ensureCss();
   if (root) return;
+  const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));
   root.tabIndex = -1;
@@ -1625,13 +1691,20 @@ export async function openLibrary() {
   root.append(h('div', 'lib-home'));
   document.body.append(root);
   document.documentElement.classList.add('lib-open');
-  history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');
+  if (!restore) history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');   // ברענון — הרשומות כבר בהיסטוריה
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
-  ui.view = null;
+  ui.view = restore ? (restore.lv || null) : null;
+  let scT = 0;
+  root.addEventListener('scroll', () => { clearTimeout(scT); scT = setTimeout(saveLibScroll, 150); }, { passive: true });
   try { await scopeLibrary(); } catch (e) {}   // v313: לפני ציור/סנכרון — רק הנתונים של החשבון הנוכחי
   const first = syncDrive();
   await renderHome();
+  if (restore) {
+    if (restore.lib >= 2 && restore.book) openReader(restore.book, { restored: true });
+    else restoreLibScroll();
+  }
   await first;
+  backfillCovers();
   await pullCloud();
   try { const tk = await idToken(); if (tk) { const j = await libApi({ op: 'me', idToken: tk }).then((r) => r.json()); ui.admin = !!(j && j.admin); } } catch (e) {}
   renderHome();

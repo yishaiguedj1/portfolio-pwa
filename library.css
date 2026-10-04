@@ -265,3 +265,7 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 .lib-root :focus-visible { outline: 2.5px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-xs); }
 .lib-root .lib-sheet:focus-visible { outline: none; }
 .lib-root .lib-row:focus-visible, .lib-root .ft-hit:focus-visible { outline-offset: -3px; }
+
+/* v315: הודעות האפליקציה (flash) מעל שכבת הספרייה — בלי זה הן הוצגו מתחתיה (z-index 99 מול 900) ולא נראו */
+#toast.toast { z-index: 1000; }
+.adm-res { margin: 8px 4px 0; font-size: 14px; color: var(--on-surface-var); }
