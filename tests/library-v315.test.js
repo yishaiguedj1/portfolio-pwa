@@ -13,8 +13,8 @@ ok(/function backfillCovers\(\)/.test(lib) && /if \(b\.coverV( \|\| b\.coverCust
 ok(/const cur = \(await allBooksRaw\(\)\)\.find\(\(x\) => x\.id === b\.id\);   \/\/ רשומה עדכנית/.test(lib), 'ההשלמה כותבת על הרשומה העדכנית (לא דורסת התקדמות)');
 ok(/rec\.coverV = 1;/.test(lib), 'ייבוא חדש מסומן כנבדק');
 ok(/await first;\s+backfillCovers\(\);/.test(lib), 'ההשלמה רצה בכניסה לספרייה, אחרי הסנכרון');
-ok(/hs && hs\.lib\) import\('\.\/library\.js'\)\.then\(\(m\) => m\.openLibrary\(\{ restore: hs \}\)\)/.test(app), 'אחרי רענון כשהספרייה הייתה פתוחה — האפליקציה פותחת אותה שוב');
-ok(/if \(!restore\) history\.pushState/.test(lib), 'בשחזור לא נוספת רשומת היסטוריה (כבר קיימת)');
+ok(/hs && hs\.lib\) \{[\s\S]{0,400}import\('\.\/library\.js'\)\.then\(\(m\) => m\.openLibrary\(\{ restore: hs \}\)\)/.test(app), 'אחרי רענון כשהספרייה הייתה פתוחה — האפליקציה פותחת אותה שוב');
+ok(/if \(!restore\) afterBack\(\(\) => history\.pushState/.test(lib), 'בשחזור לא נוספת רשומת היסטוריה (כבר קיימת)');
 ok(/\{ lib: 2, book: id \}/.test(lib) && /openReader\(restore\.book, \{ restored: true \}\)/.test(lib), 'בתוך ספר — חוזרים לאותו ספר');
 ok(/ui\.view = restore \? \(restore\.lv \|\| null\) : null;/.test(lib), 'בדף בתוך הספרייה — חוזרים לאותו דף');
 ok(/sessionStorage\.setItem\(SCROLL_KEY/.test(lib) && /function restoreLibScroll/.test(lib), 'מקום הגלילה נשמר ומשוחזר');

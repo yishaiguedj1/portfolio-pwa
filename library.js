@@ -661,15 +661,60 @@ function safeGoView(v) {
   if (root && !rd) renderHome();
   flashSafe(T('libDlReady'));
 }
+/* v322: pushState מיד אחרי סגירת חלון/תפריט של האפליקציה (history.back בדרך) היה נוחת על הרשומה הלא נכונה —
+   app.js חושף snbAfterBack שמריץ את הקריאה אחרי שה־back נחת (ומיד כשאין back בדרך) */
+const afterBack = (fn) => (typeof window !== 'undefined' && typeof window.snbAfterBack === 'function') ? window.snbAfterBack(fn) : fn();
+/* ---------------- v322: מעברים חלקים בספרייה ----------------
+   כל ציור של דף עובר דרך libTransition: View Transitions (Chrome/Safari) — הדף הישן מצולם, הדף החדש נבנה (גם כש־IndexedDB
+   עוד עונה) ורק אז מונפש: 'push' = הדף החדש נכנס מהצד הקדמי (RTL: משמאל), 'pop' = חזרה בכיוון ההפוך, 'fade' = הצלבה
+   (צ'יפים/מיון/רענון). הקורא נסגר באנימציית CSS משלו (closeReader). בלי התמיכה / reduced-motion — ציור רגיל.
+   הגלילה נקבעת בתוך המעבר (אחרי הבנייה) — אין פריים שבו הדף הישן קופץ לראש לפני שהוחלף (נמצא ב־QA של v322). */
+const VT = { inside: false };
+const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function libTransition(kind, update) {
+  const run = async () => { VT.inside = true; try { await update(); } finally { VT.inside = false; } };
+  if (VT.inside || !kind || kind === 'none' || !root || reduceMotion() || typeof document.startViewTransition !== 'function' || document.hidden) return run();
+  document.documentElement.dataset.libVt = kind;
+  let vt;
+  try { vt = document.startViewTransition(run); } catch (e) { return run(); }
+  vt.finished.catch(() => {}).then(() => { if (document.documentElement.dataset.libVt === kind) delete document.documentElement.dataset.libVt; });
+  return vt.updateCallbackDone.catch(() => {});
+}
+function renderHome(kind) { return libTransition(kind || 'none', renderHomeNow); }
+function navigateTo(kind, y) {           // ציור הדף הנוכחי (ui.view) + גלילה ליעד — בתוך אותו מעבר
+  return libTransition(kind, async () => { await renderHomeNow(); pinScroll(y || 0); });
+}
+let pinT = 0;
+function navScroll(y) {                  // גלילה תוכנתית של מעבר דף — מסומנת (data-nav-scroll) כדי שכלי המדידה לא יספור אותה כקפיצה
+  const r = root; if (!r) return;
+  r.dataset.navScroll = '1';
+  r.scrollTop = y;
+  requestAnimationFrame(() => requestAnimationFrame(() => { delete r.dataset.navScroll; }));
+}
+function pinScroll(y) {                  // הדף מתארך אחרי הציור (כריכות, אסופות) — חוזרים ליעד עד שהגובה מספיק; נגיעה של המשתמש מבטלת
+  clearTimeout(pinT);
+  if (!root) return;
+  navScroll(y);
+  if (!y) return;
+  const r = root, t0 = Date.now();
+  const stop = () => { clearTimeout(pinT); r.removeEventListener('touchstart', stop); r.removeEventListener('wheel', stop); };
+  r.addEventListener('touchstart', stop, { passive: true }); r.addEventListener('wheel', stop, { passive: true });
+  const tick = () => {
+    if (root !== r || rd) return stop();
+    if (Math.abs(r.scrollTop - y) > 2 && r.scrollHeight - r.clientHeight >= y) navScroll(y);
+    if (Math.abs(r.scrollTop - y) <= 2 || Date.now() - t0 > 2500) return stop();
+    pinT = setTimeout(tick, 100);
+  };
+  pinT = setTimeout(tick, 60);
+}
 function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
   saveLibScroll();
   ui.view = v;
-  history.pushState(Object.assign({}, history.state || {}, { lib: 1, lv: v }), '');
-  renderHome();
-  if (root) { root.scrollTop = 0; try { root.focus({ preventScroll: true }); } catch (e) {} }
+  afterBack(() => history.pushState(Object.assign({}, history.state || {}, { lib: 1, lv: v }), ''));
+  navigateTo('push', 0).then(() => { if (root) try { root.focus({ preventScroll: true }); } catch (e) {} });
 }
 
-async function renderHome() {
+async function renderHomeNow() {
   if (!root) return;
   if (ui.view && ui.view.book) return renderBook(ui.view.book);
   if (ui.view && ui.view.notes) return renderNotes();
@@ -734,7 +779,7 @@ async function renderHome() {
   const chips = h('div', 'lib-chips no-swipe');
   const chip = (label, val) => {
     const c = h('button', 'lib-chip' + (ui.author === val ? ' on' : ''), label); c.type = 'button';
-    c.addEventListener('click', () => { ui.author = val; renderHome().then(() => { if (root) root.scrollTop = 0; }); });
+    c.addEventListener('click', () => { if (ui.author === val) return; ui.author = val; navigateTo('fade', 0); });
     chips.append(c);
     return c;
   };
@@ -833,7 +878,7 @@ function setShelf(v) {
   if (ui.shelf === v) return;
   ui.shelf = v; ui.author = SHELF; ui.q = '';   // v321: כל ספרייה נפתחת במדף
   try { localStorage.setItem(LS_SHELF, v); } catch (e) {}
-  renderHome().then(() => { if (root) root.scrollTop = 0; });
+  navigateTo('fade', 0);
 }
 function shelfSeg(nMine) {                 // בורר מקטעים בסגנון iOS
   const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
@@ -852,7 +897,7 @@ function shelfSeg(nMine) {                 // בורר מקטעים בסגנון
 }
 function backupRow() {                     // שורת מצב הגיבוי בראש "הספרייה שלי" — נגיעה = מסך הגיבוי
   const s = BK.settings();
-  const row = h('button', 'lib-bkrow lib-hide-q'); row.type = 'button';
+  const row = h('button', 'lib-bkrow'); row.type = 'button';   // v322: נשארת גם בחיפוש — היא מעל שדה החיפוש, והסתרתה הזיזה אותו
   const ic = h('span', 'lib-bkic'); const sub = h('span');
   let title;
   if (!signedIn()) { ic.innerHTML = ICON.cloud; title = T('bkRowOff'); sub.textContent = T('bkRowSignIn'); }
@@ -962,12 +1007,12 @@ function openMineMenu() {                  // ⋯ בספרייה שלי: גיב�
     const list = h('div', 'lib-ios');
     const bk = h('button', 'lib-row'); bk.type = 'button'; bk.append(h('span', null, T('bkTitle')));
     const bi = h('span', 'lib-rowic'); bi.innerHTML = ICON.cloud; bk.append(bi);
-    bk.addEventListener('click', () => { close(); goView({ backup: 1 }); });
+    bk.addEventListener('click', () => closeSheetThen(sh.parentNode, () => goView({ backup: 1 })));
     const im = h('label', 'lib-row'); im.append(h('span', null, T('libImport')));
     const ii = h('span', 'lib-rowic'); ii.innerHTML = ICON.plus; im.append(ii, importInput(close));
     const rs = h('button', 'lib-row danger'); rs.type = 'button'; rs.append(h('span', null, T('libResetMine')));
     const ri = h('span', 'lib-rowic'); ri.innerHTML = ICON.trash; rs.append(ri);
-    rs.addEventListener('click', () => { close(); openResetSheet(); });
+    rs.addEventListener('click', () => closeSheetThen(sh.parentNode, openResetSheet));
     list.append(bk, im, rs);
     sh.append(list);
   });
@@ -1357,7 +1402,7 @@ function addToCollSheet(book) {          // לחיצה ארוכה על ספר �
       list.append(r);
     });
     const nw = h('button', 'lib-row act'); nw.type = 'button'; nw.append(h('span', null, '＋ ' + T('colNew') + '…'));
-    nw.addEventListener('click', () => { close(); collNameSheet(null, book.id, shelfOf(book)); });
+    nw.addEventListener('click', () => closeSheetThen(sh.parentNode, () => collNameSheet(null, book.id, shelfOf(book))));
     list.append(nw);
     sh.append(list);
   }).addEventListener('click', (e) => { if (e.target.classList.contains('lib-veil') && root && !rd) renderHome(); });
@@ -1399,9 +1444,9 @@ async function renderColl(key) {           // דף אסופה
     more.addEventListener('click', () => sheet(collName(c), (sh, close) => {
       const l = h('div', 'lib-ios');
       const rn = h('button', 'lib-row'); rn.type = 'button'; rn.append(h('span', null, T('colRename')));
-      rn.addEventListener('click', () => { close(); collNameSheet(c); });
+      rn.addEventListener('click', () => closeSheetThen(sh.parentNode, () => collNameSheet(c)));
       const dl = h('button', 'lib-row danger'); dl.type = 'button'; dl.append(h('span', null, T('colDelete')));
-      dl.addEventListener('click', () => { close(); collDelete(c); });
+      dl.addEventListener('click', () => closeSheetThen(sh.parentNode, () => collDelete(c)));
       l.append(rn, dl); sh.append(l);
     }));
     top.append(more);
@@ -2116,6 +2161,10 @@ function bookActions(host, b) {
   if (typeof showItemActions === 'function') showItemActions(host, acts);
 }
 
+let sheetSkip = 0, sheetClosed = null;
+/* v322: לגיליון יש רשומת היסטוריה משלו ({sheet:1}) — "חזור" של המכשיר סוגר אותו ולא עוזב את הדף/הקורא (עד v321 תוכן העניינים
+   "אכל" את רשומת השומר). סגירה תוכנתית = history.back() שלנו (sheetSkip). גיליון שנפתח בזמן שרשומה כזו כבר קיימת
+   (רצף מתוך גיליון אחר) משתמש בה. closeSheetThen(veil, fn): פותחים את הבא רק אחרי שה־back של הקודם נחת. */
 function sheet(title, build) {
   const veil = h('div', 'lib-veil');
   const sh = h('div', 'lib-sheet');
@@ -2123,7 +2172,15 @@ function sheet(title, build) {
   sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.tabIndex = -1;
   if (title) sh.setAttribute('aria-label', title);
   const back = document.activeElement;
-  const close = () => { veil.remove(); if (back && back.isConnected && back.focus) try { back.focus({ preventScroll: true }); } catch (e) {} };
+  let pushed = false;
+  const close = () => {
+    if (!veil.isConnected) return;
+    veil.classList.add('out');
+    setTimeout(() => veil.remove(), reduceMotion() ? 0 : 160);
+    if (back && back.isConnected && back.focus) try { back.focus({ preventScroll: true }); } catch (e) {}
+    if (pushed && history.state && history.state.sheet) { sheetSkip++; sheetClosed = new Promise((res) => { veil._settled = res; }); history.back(); }
+    else sheetClosed = null;
+  };
   sh.append(h('div', 'lib-grab'));
   if (title) sh.append(h('h3', 'lib-sh-t', title));
   build(sh, close);
@@ -2131,8 +2188,14 @@ function sheet(title, build) {
   veil.addEventListener('click', (e) => { if (e.target === veil) close(); });
   veil._close = close;
   root.append(veil);
+  afterBack(() => { try { const st0 = history.state || {}; if (st0.lib && veil.isConnected) { history.pushState(Object.assign({}, st0, { sheet: (st0.sheet || 0) + 1 }), ''); pushed = true; } } catch (e) {} });
   try { sh.focus({ preventScroll: true }); } catch (e) {}
   return veil;
+}
+function closeSheetThen(veil, fn) {        // סגירה ואז פתיחה של הבא — אחרי שה־back של הגיליון נחת (אחרת הרשומה החדשה נבלעת)
+  const c = veil && veil._close ? veil._close : null;
+  if (c) c();
+  if (sheetClosed) { const p = sheetClosed; sheetClosed = null; p.then(fn); } else fn();
 }
 /* Escape (מקלדת) = "חזור": גיליון/בועה נסגרים, אחרת יציאה מהקורא/מהדף — באותו מסלול כמו כפתור החזור */
 function onEscape() {
@@ -2163,7 +2226,7 @@ function openSortSheet() {
     [['new', 'libSortNew'], ['old', 'libSortOld'], ['recent', 'libSortRecent']].forEach(([v, k]) => {
       const r = h('button', 'lib-row'); r.type = 'button'; r.append(h('span', null, T(k)));
       if (ui.sort === v) r.append(h('span', 'lib-check', '✓'));
-      r.addEventListener('click', () => { ui.sort = v; close(); renderHome(); });
+      r.addEventListener('click', () => { ui.sort = v; close(); renderHome('fade'); });
       list.append(r);
     });
     sh.append(list);
@@ -2218,6 +2281,7 @@ function applyReaderStyle() {
 }
 
 async function openReader(id, opt) {
+  saveLibScroll();                        // v322: הדף שמתחת חוזר לאותו מקום אחרי הקריאה
   const rec = (await allBooks()).find((b) => b.id === id);
   const file = await getFile(id);
   if (!rec || !file) return;
@@ -2229,7 +2293,7 @@ async function openReader(id, opt) {
     history.pushState(Object.assign({}, st, { guard: 0 }), '');
   }
   else history.replaceState(Object.assign({}, history.state || {}, { lib: 2, book: id }), '');
-  const box = h('div', 'rd');
+  const box = h('div', 'rd loading' + (opt && opt.restored ? ' restored' : ''));     // v322: .loading עד העמוד הראשון — סימן טעינה במקום דף ריק; restored = בלי אנימציית כניסה
   box.addEventListener('pointerup', readerRearm, true);   // v321: נגיעה בסרגלים מחזירה את השומר
   const view = document.createElement('foliate-view');
   const foot = h('div', 'rd-foot'); const fL = h('span'); const fR = h('span'); foot.append(fL, fR);
@@ -2265,6 +2329,8 @@ async function openReader(id, opt) {
 
   view.addEventListener('relocate', (e) => {
     const d = e.detail || {};
+    box.classList.remove('loading');
+    curtainDown();
     const frac = d.fraction || 0;
     const left = d.time && isFinite(d.time.section) ? Math.max(1, Math.round(d.time.section)) : 0;
     fL.textContent = left ? T('rdMinLeftChap', { m: left }) : '';
@@ -2285,6 +2351,8 @@ async function openReader(id, opt) {
   });
   view.addEventListener('load', (e) => wireDoc(e.detail.doc, setChrome, e.detail.index));
   try {
+    // v322: פענוח הספר רק אחרי שאנימציית הכניסה נגמרה — עבודה כבדה באמצע הדהייה גרמה לפריים קופץ (נמדד במצב כהה)
+    if (!(opt && opt.restored) && !reduceMotion()) await new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 360); });
     await view.open(file);
     rd.book = view.book;
     if (rd.book && rd.book.dir) box.dir = rd.book.dir;
@@ -2311,12 +2379,15 @@ async function openReader(id, opt) {
 
 function closeReader() {
   if (!rd) return;
-  if (rd.rec) { clearTimeout(rd.saveT); pushProgress(rd.rec, true); }
-  try { rd.view.close(); } catch (e) {}
-  rd.els.box.remove();
-  rd = null;
+  const r = rd; rd = null;
+  if (r.rec) { clearTimeout(r.saveT); pushProgress(r.rec, true); }
   hideSel();
-  renderHome();
+  // v322: הקורא דוהה מעל הדף באנימציית CSS על האלמנט עצמו (צילום View Transition לא כולל את ה־iframe — יצא דף לבן ריק);
+  // הדף שמתחת מצויר בזמן שהקורא עדיין אטום, עם הגלילה שנשמרה בפתיחה; המנוע נסגר רק בסוף.
+  const box = r.els.box;
+  box.classList.add('out');
+  const gone = reduceMotion() ? Promise.resolve() : new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 340); });
+  return (async () => { await renderHomeNow(); pinScroll(savedLibScroll()); await gone; try { r.view.close(); } catch (e) {} box.remove(); })();
 }
 
 /* נגיעות בתוך הספר: דפדוף רק בהחלקה (המנוע — paginator — גורר ומצמיד לעמוד, לפי כיוון הספר).
@@ -2659,24 +2730,47 @@ function openAa() {
 /* בזמן קריאה: "חזור" אחד (גם החלקה מקצה המסך בטעות) לא מוציא מהספר — רק שני "חזור" תוך 2 שניות
    (v303, בקשת המשתמש). גיליון פתוח (תוכן/Aa/תרגום) — "חזור" סוגר אותו. כפתור ✕ יוצא מיד. */
 function onPop() {
+  if (sheetSkip > 0) { sheetSkip--; const v = root && root.querySelector('.lib-veil.out'); if (v && v._settled) v._settled(); return; }   // v322: סגירה תוכנתית של גיליון — ה־back שלנו
+  const ds = document.documentElement.dataset;
+  if (ds.modalPop || ds.navSkip) return; // v322: חלון של האפליקציה נסגר ב"חזור" / ה־back שלה (סגירת כפתורי לחיצה ארוכה) — לא ניווט של הספרייה
   const st = history.state || {};
   const lvl = st.lib || 0;
+  const veils = root ? Array.from(root.querySelectorAll('.lib-veil:not(.out)')) : [];
+  if (veils.length > (st.sheet || 0)) { const v = veils[veils.length - 1]; (v._close || (() => v.remove()))(); return; }   // v322: "חזור" סוגר את הגיליון העליון (יש לו רשומה משלו)
   if (lvl === 2 && st.guard && rd && !rd.closing) {   // "חזור" ראשון בקורא: נחת על השומר
-    const veil = root && root.querySelector('.lib-veil');
-    if (veil) (veil._close || (() => veil.remove()))();
-    else if (selPop) hideSel();
+    if (selPop) hideSel();
     else if (typeof flash === 'function') flash(T('rdBackTwice'));
     return;
   }
   if (lvl >= 1 && lvl < 2) ui.view = (history.state && history.state.lv) || null;
-  if (lvl < 2 && rd) { closeReader(); if (root) root.scrollTop = 0; }
-  else if (lvl === 1 && root) { renderHome(); root.scrollTop = 0; }
-  if (lvl < 1 && root) { hideSel(); root.remove(); root = null; document.documentElement.classList.remove('lib-open'); }
+  if (lvl < 2 && rd) closeReader();
+  else if (lvl === 1 && root) navigateTo('pop', savedLibScroll());
+  if (lvl < 1 && root) closeLibrary();
+}
+/* v322: יציאה מהספרייה — השכבה יוצאת בתנועה (לא נעלמת בבת אחת) */
+/* v322: רענון בזמן שהספרייה פתוחה — index.html מוריד "וילון" בצבע הרקע לפני הציור הראשון (html.lib-restoring), כדי שהמשתמש
+   לא יראה את הסקירה ואז את הספרייה ואז את הספר; יורד כשהדף/העמוד הראשון מוכן (ולכל היותר אחרי 6 שניות — app.js) */
+function curtainDown() {
+  const e = document.documentElement;
+  if (!e.classList.contains('lib-restoring')) return;
+  e.classList.remove('lib-restoring');
+  setTimeout(() => { e.classList.remove('lib-curtain'); e.style.removeProperty('--curtain'); }, 400);
+}
+function closeLibrary() {
+  const r = root; root = null;
+  hideSel();
+  document.documentElement.classList.remove('lib-open');
+  if (reduceMotion()) { r.remove(); return; }
+  r.classList.add('leaving');
+  setTimeout(() => r.remove(), 260);
 }
 
 /* v315: מיקום הגלילה בספרייה לכל דף — לשחזור אחרי רענון (sessionStorage: רק בלשונית הזו) */
 const SCROLL_KEY = 'pwa_libscroll_v1';
 const viewKey = () => JSON.stringify(ui.view || null);
+function savedLibScroll() {
+  try { return +(JSON.parse(sessionStorage.getItem(SCROLL_KEY) || '{}')[viewKey()] || 0); } catch (e) { return 0; }
+}
 function saveLibScroll() {
   if (!root || rd) return;
   try { const m = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || '{}'); m[viewKey()] = Math.round(root.scrollTop); sessionStorage.setItem(SCROLL_KEY, JSON.stringify(m)); } catch (e) {}
@@ -2714,7 +2808,7 @@ export async function openLibrary(opt) {
   root.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.lib-item, .lib-cover, .ed-cv, .ed-th')) e.preventDefault(); });
   document.body.append(root);
   document.documentElement.classList.add('lib-open');
-  if (!restore) history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), '');   // ברענון — הרשומות כבר בהיסטוריה
+  if (!restore) afterBack(() => history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), ''));   // ברענון — הרשומות כבר בהיסטוריה
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
   ui.view = restore ? (restore.lv || null) : null;
   if (!restore) { ui.author = SHELF; ui.q = ''; }   // v321: כל כניסה לספרייה — מדף ספרים
@@ -2724,8 +2818,9 @@ export async function openLibrary(opt) {
   const first = syncDrive();
   await renderHome();
   if (restore) {
-    if (restore.lib >= 2 && restore.book) openReader(restore.book, { restored: true });
-    else restoreLibScroll();
+    root.classList.add('restored');        // v322: בלי אנימציית כניסה אחרי רענון
+    if (restore.lib >= 2 && restore.book) openReader(restore.book, { restored: true }).catch(() => {}).then(() => { if (!rd) curtainDown(); });
+    else { restoreLibScroll(); curtainDown(); }
   }
   await first;
   backfillCovers();

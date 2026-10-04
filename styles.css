@@ -1712,3 +1712,9 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 #ibkrCard .ib-sw[aria-checked="true"] i { inset-inline-start: 23px; }
 #ibkrCard .ib-sw:focus-visible { outline: 2.5px solid var(--ibkr); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { #ibkrCard .ib-sw, #ibkrCard .ib-sw i { transition: none; } }
+
+/* v322: רענון בזמן שהספרייה פתוחה — וילון (מעל שכבת הספרייה 900, מתחת לקורא 920) עד שהדף/העמוד הראשון מוכן; בצבע הרקע,
+   או בצבע דף הקורא (--curtain, מהסקריפט ב־index.html) כשחוזרים לספר — ואז דוהה */
+html.lib-curtain body::after { content: ""; position: fixed; inset: 0; z-index: 910; background: var(--curtain, var(--bg)); opacity: 0; transition: opacity .25s ease; pointer-events: none; }
+html.lib-restoring body::after { opacity: 1; transition: none; }
+html.lib-open, html.lib-open body { overflow: hidden; }

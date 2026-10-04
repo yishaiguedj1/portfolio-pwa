@@ -3024,6 +3024,7 @@ function closeSrcPops(except) {
   document.querySelectorAll('.src-filter.open').forEach((w) => {
     if (w === except) return;
     w.classList.remove('open');
+    if (w._modal) { const m = w._modal; w._modal = null; modalDone(m); }
     const b = w.querySelector('.src-btn, .range-btn'); if (b) b.setAttribute('aria-expanded', 'false');
     const p = w.querySelector('.src-pop'); if (p) p.classList.add('hidden');
   });
@@ -3049,6 +3050,8 @@ function renderSrcFilter(tab) {
     e.stopPropagation();
     const open = !wrap.classList.contains('open');
     closeSrcPops(wrap);
+    if (open && !wrap._modal) wrap._modal = modalPush(() => closeSrcPops());   // v322: "חזור" סוגר את הבועה
+    else if (!open && wrap._modal) { const m = wrap._modal; wrap._modal = null; modalDone(m); }
     wrap.classList.toggle('open', open);
     pop.classList.toggle('hidden', !open);
     btn.setAttribute('aria-expanded', String(open));
@@ -3151,10 +3154,12 @@ function askConfirm(msg, onYes, opts) {
   const prevFocus = document.activeElement;
   const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); done(false); } };
   let closed = false;
+  const dlgModal = modalPush(() => done(false));   // v322: "חזור" = ביטול
   const done = (yes, silent) => {
     if (closed) return;
     closed = true;
     _dlgClose = null;
+    modalDone(dlgModal);
     document.removeEventListener('keydown', onKey, true);
     veil.classList.remove('on');
     veil.classList.add('off');
@@ -4491,7 +4496,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v321';
+const APP_VERSION = 'v322';
 
 
 function saveDBto(db) {
@@ -6854,17 +6859,55 @@ let _navSkipPop = 0;
 function navCurDepth() { try { const st = history.state; return (st && typeof st.snb === 'number') ? st.snb : 0; } catch (e) { return 0; } }
 function navSync(name, opts) {
   if ((opts && opts.fromPop) || typeof history === 'undefined' || !history.pushState) return;
-  const cur = navCurDepth(), target = navDepth(name);
-  try {
-    if (target > cur) { for (let d = cur + 1; d <= target; d++) history.pushState(Object.assign({}, history.state || {}, { snb: d }), ''); }
-    else if (target < cur) { _navSkipPop++; history.go(target - cur); }
-  } catch (e) {}
+  afterBack(() => {
+    const cur = navCurDepth(), target = navDepth(name);
+    try {
+      if (target > cur) { for (let d = cur + 1; d <= target; d++) history.pushState(Object.assign({}, history.state || {}, { snb: d }), ''); }
+      else if (target < cur) navBack(target - cur);
+    } catch (e) {}
+  });
 }
+/* v322: "חזור" של המכשיר סוגר חלונות — תפריט, גיליונות (איפוס/שם רשימה/דוח), askConfirm/askAlert, בועת הסינון, כפתורי
+   לחיצה ארוכה. כל חלון פתוח = רשומת היסטוריה אחת ({modal:n}); modalPush בפתיחה, modalDone בסגירה (back שלנו, נבלע ב־_navSkipPop).
+   history.back() אסינכרוני — pushState שבא מיד אחריו (מעבר טאב מהתפריט, דף בספרייה) נדחה עד שה־back נחת: navBack/afterBack. */
+const _modals = [];
+let _backPending = 0;
+const _afterBack = [];
+function afterBack(fn) { if (_backPending > 0) _afterBack.push(fn); else fn(); }
+function navBack(delta) { _navSkipPop++; _backPending++; try { history.go(delta); } catch (e) { _navSkipPop--; _backPending--; } }
+function modalPush(close) {
+  const rec = { close, pushed: false, done: false, n: _modals.length + 1 };
+  _modals.push(rec);
+  afterBack(() => { if (rec.done) return; try { history.pushState(Object.assign({}, history.state || {}, { modal: rec.n }), ''); rec.pushed = true; } catch (e) {} });
+  return rec;
+}
+function modalDone(rec) {
+  if (!rec || rec.done) return;
+  rec.done = true;
+  const i = _modals.indexOf(rec); if (i >= 0) _modals.splice(i, 1);
+  if (rec.popping || !rec.pushed) return;
+  try { if (history.state && history.state.modal === rec.n) navBack(-1); } catch (e) {}
+}
+if (typeof window !== 'undefined') window.snbAfterBack = afterBack;
 function wireBackNav() {
   if (typeof window === 'undefined' || !window.addEventListener || window._backNav) return;
   window._backNav = true;
   window.addEventListener('popstate', () => {
-    if (_navSkipPop > 0) { _navSkipPop--; return; } // אנחנו קיצרנו את ההיסטוריה — הטאב כבר הוחלף
+    if (_navSkipPop > 0) { // אנחנו קיצרנו את ההיסטוריה — הטאב/החלון כבר טופל (והספרייה לא מנווטת: navSkip)
+      _navSkipPop--;
+      document.documentElement.dataset.navSkip = '1';
+      setTimeout(() => { delete document.documentElement.dataset.navSkip; }, 0);
+      if (_backPending > 0) _backPending--;
+      if (!_backPending && _afterBack.length) _afterBack.splice(0).forEach((f) => { try { f(); } catch (e) {} });
+      return;
+    }
+    const stModal = (history.state && history.state.modal) || 0;
+    if (_modals.length > stModal) {   // "חזור" על חלון פתוח — סוגר אותו (והספרייה לא מנווטת: modalPop)
+      document.documentElement.dataset.modalPop = '1';
+      while (_modals.length > stModal) { const m = _modals.pop(); m.popping = true; m.done = true; try { m.close(); } catch (e) {} }
+      setTimeout(() => { delete document.documentElement.dataset.modalPop; }, 0);
+      return;
+    }
     const want = navTabForDepth(navCurDepth()), cur = currentTabName();
     if (navDepth(cur) === navCurDepth()) return; // כבר במקום (למשל טאב ראשי ברמה 0)
     switchTab(want, { fromPop: true });
@@ -7323,6 +7366,7 @@ const CAL_ICON_CUR = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="cu
 function closeEarnCalSheet() {
   const v = document.getElementById('earnCalVeil');
   if (!v) return;
+  if (v._modal) { const m = v._modal; v._modal = null; modalDone(m); }
   v.classList.remove('show');
   setTimeout(() => { try { v.remove(); } catch (e) {} }, 220);
 }
@@ -7337,6 +7381,7 @@ function openEarnCalSheet(r, name) {
   const when = d === 0 ? t('earnToday') : d === 1 ? t('earnTomorrow') : t('earnInDays', { n: d });
   const veil = el('div', 'pf-sheet-veil earn-veil');
   veil.id = 'earnCalVeil';
+  veil._modal = modalPush(closeEarnCalSheet);   // v322
   const sh = el('div', 'pf-sheet earn-sheet');
   sh.setAttribute('role', 'dialog');
   sh.setAttribute('aria-modal', 'true');
@@ -10503,12 +10548,13 @@ function wlDeleteList(id) {
   else go();
 }
 /* גיליון תחתון (כמו ב־iOS): שם לרשימה חדשה או שינוי שם */
-function closeWlSheet() { const v = document.getElementById('wlSheetVeil'); if (v) v.remove(); }
+function closeWlSheet() { const v = document.getElementById('wlSheetVeil'); if (v) { v.remove(); if (v._modal) modalDone(v._modal); } }
 function openWlNameSheet(mode) {
   closeWlSheet();
   const cur = wlActive();
   const veil = el('div', 'pf-sheet-veil');
   veil.id = 'wlSheetVeil';
+  veil._modal = modalPush(closeWlSheet);   // v322
   const sh = el('div', 'pf-sheet wl-sheet');
   sh.innerHTML = '<div class="sheet-grab" aria-hidden="true"></div><h3>' + esc(mode === 'new' ? t('wlNewList') : t('wlRenameList')) + '</h3>' +
     '<input type="text" id="wlNameInp" maxlength="30" autocomplete="off" enterkeyhint="done" placeholder="' + esc(t('wlNamePh')) + '" value="' + (mode === 'new' ? '' : esc(cur.name)) + '">' +
@@ -10553,6 +10599,8 @@ function renderWatchHead() {
     e.stopPropagation();
     const open = !wrap.classList.contains('open');
     closeSrcPops(wrap);
+    if (open && !wrap._modal) wrap._modal = modalPush(() => closeSrcPops());   // v322: "חזור" סוגר את הבועה
+    else if (!open && wrap._modal) { const m = wrap._modal; wrap._modal = null; modalDone(m); }
     wrap.classList.toggle('open', open);
     pop.classList.toggle('hidden', !open);
     btn.setAttribute('aria-expanded', String(open));
@@ -10587,9 +10635,11 @@ function renderWatchHead() {
 /* החלקה הצידה על הרשימה = הרשימה הבאה/הקודמת (ב־RTL: החלקה ימינה = הבאה). לא בתוך כרטיס פתוח/גרף/שורת הצ'יפים */
 /* v286: כרטיס האיפוס = שורה אחת "אפשרויות איפוס" → גיליון בסגנון Apple: שלוש האפשרויות (אותם כפתורים, אותם
    מזהים ואותו אישור לפני מחיקה) + "ביטול". בחירה סוגרת את הגיליון לפני האישור (שלב capture — לפני המאזין של הכפתור). */
+let _resetModal = null;
 function openResetSheet() {
   const v = document.getElementById('resetSheetVeil');
   if (!v) return;
+  if (v.classList.contains('hidden')) _resetModal = modalPush(closeResetSheet);   // v322
   v.classList.remove('hidden', 'out');
   void v.offsetWidth;
   v.classList.add('in');
@@ -10599,6 +10649,7 @@ function openResetSheet() {
 function closeResetSheet() {
   const v = document.getElementById('resetSheetVeil');
   if (!v || v.classList.contains('hidden')) return;
+  if (_resetModal) { const m = _resetModal; _resetModal = null; modalDone(m); }
   v.classList.remove('in');
   v.classList.add('out');
   const o = document.getElementById('resetOpen');
@@ -10964,6 +11015,7 @@ let _itemActs = null;
 function clearItemActions() {
   if (!_itemActs) return;
   const a = _itemActs; _itemActs = null;
+  if (a.modal) modalDone(a.modal);
   a.host.classList.remove('holding');
   a.box.classList.add('out');
   setTimeout(() => a.box.remove(), 180);
@@ -10988,7 +11040,7 @@ function showItemActions(host, acts) {
   const bw = box.offsetWidth || 110, bh = box.offsetHeight || 56;
   box.style.top = Math.round(Math.max(8, r.top - bh - 8)) + 'px';
   box.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - bw - 8, r.left))) + 'px';
-  _itemActs = { host, box, at: Date.now() };
+  _itemActs = { host, box, at: Date.now(), modal: modalPush(clearItemActions) };   // v322: "חזור" מבטל
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   // לחיצה מחוץ לכפתורים — מבטלת את מצב העריכה ו"נבלעת" (לא פותחת כרטיס/טאב)
@@ -13084,7 +13136,12 @@ function init() {
   // v315: רענון בזמן שהספרייה פתוחה — חוזרים לספרייה, לאותו דף/ספר ולאותו מקום (הרשומות כבר בהיסטוריה של הדפדפן)
   try {
     const hs = typeof history !== 'undefined' && history.state;
-    if (hs && hs.lib) import('./library.js').then((m) => m.openLibrary({ restore: hs })).catch(() => {});
+    if (hs && hs.lib) {
+      // v322: הווילון (index.html, html.lib-restoring) יורד כשהספרייה מוכנה; בכשל טעינה או אחרי 6 שניות — יורד בכל מקרה
+      const down = () => { const e = document.documentElement; e.classList.remove('lib-restoring'); setTimeout(() => { e.classList.remove('lib-curtain'); e.style.removeProperty('--curtain'); }, 400); };
+      setTimeout(down, 6000);
+      import('./library.js').then((m) => m.openLibrary({ restore: hs })).catch(() => { down(); document.documentElement.classList.remove('lib-open'); });
+    }
   } catch (e) {}
   // v153: אין מעבר כפוי להגדרות בהפעלה (לשעבר: כשלא היה מפתח Twelve Data — הוסר ב־v220).
   // v85: שמירת מיקום גלילה לכל טאב
@@ -13342,10 +13399,14 @@ function mainMenuOpen() {
   const d = document.getElementById('menuDrop');
   return !!d && !d.classList.contains('hidden');
 }
+let _menuModal = null;
 function setMainMenuOpen(open) {
   const d = document.getElementById('menuDrop');
   const btn = document.getElementById('menuBtn');
   if (!d || !btn) return;
+  const was = !d.classList.contains('hidden');
+  if (open && !was) _menuModal = modalPush(() => setMainMenuOpen(false));           // v322: "חזור" סוגר את התפריט
+  else if (!open && _menuModal) { const m = _menuModal; _menuModal = null; modalDone(m); }
   d.classList.toggle('hidden', !open);
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   const acts = document.querySelector('.appbar-actions');

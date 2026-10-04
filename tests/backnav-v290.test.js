@@ -12,7 +12,7 @@ const H = { stack: [{ state: null }], i: 0, pops: 0,
   pushState(s) { this.stack = this.stack.slice(0, this.i + 1); this.stack.push({ state: s }); this.i++; },
   go(d) { this.i += d; this.pops++; } };
 const ctx = { history: H };
-vm.runInNewContext('let _navSkipPop = 0;' + fn('navDepth') + fn('navTabForDepth') + fn('navCurDepth') + fn('navSync') + ';this.sync = navSync; this.tab = navTabForDepth; this.skip = () => _navSkipPop;', ctx);
+vm.runInNewContext('let _navSkipPop = 0, _backPending = 0; const _afterBack = [];' + fn('afterBack') + fn('navBack') + fn('navDepth') + fn('navTabForDepth') + fn('navCurDepth') + fn('navSync') + ';this.sync = navSync; this.tab = navTabForDepth; this.skip = () => _navSkipPop;', ctx);
 ctx.sync('settings'); ok(H.stack.length === 2 && H.state.snb === 1, 'הגדרות = רשומה ברמה 1');
 ctx.sync('advanced'); ok(H.stack.length === 3 && H.state.snb === 2, 'מתקדמות = רשומה ברמה 2');
 ok(ctx.tab(1) === 'settings' && ctx.tab(0) === 'overview' && ctx.tab(2) === 'advanced', 'חזור: מתקדמות → הגדרות → סקירה');

@@ -2,7 +2,34 @@
 @font-face { font-family: "SNB Noto UI"; src: url("fonts/NotoSansHebrew-VF.woff2") format("woff2"); font-weight: 100 900; font-stretch: 62.5% 100%; font-display: swap; }
 html.lib-open, html.lib-open body { overflow: hidden; }
 .lib-root { position: fixed; inset: 0; z-index: 900; background: var(--bg); color: var(--on-surface); overflow-y: auto; overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch; padding-bottom: env(safe-area-inset-bottom); }
+  -webkit-overflow-scrolling: touch; padding-bottom: env(safe-area-inset-bottom); view-transition-name: lib-root; animation: libRootIn .3s cubic-bezier(.2,.9,.25,1); }
+.lib-root.leaving { animation: libRootOut .24s cubic-bezier(.4,0,1,1) forwards; pointer-events: none; }
+.lib-root.restored { animation: none; }   /* אחרי רענון — בלי כניסה */
+@keyframes libRootIn { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes libRootOut { to { opacity: 0; transform: translateY(28px); } }
+/* v322: מעברים בין דפי הספרייה (View Transitions). push = הדף החדש נכנס מהקצה המוביל והישן נסוג מעט מאחור (iOS);
+   pop = ההפך; fade = הצלבה. הקורא נסגר באנימציית CSS משלו (.rd.out). ב־RTL הכיוון הפוך (--vt-x). רק lib-root מונפש — השורש לא. */
+:root { --vt-x: 100%; --vt-ease: cubic-bezier(.32,.72,0,1); }
+html[dir="rtl"] { --vt-x: -100%; }
+html[data-lib-vt]::view-transition-group(root) { animation: none; }
+html[data-lib-vt]::view-transition-old(root), html[data-lib-vt]::view-transition-new(root) { animation: none; }
+html[data-lib-vt]::view-transition-image-pair(lib-root) { isolation: auto; }
+html[data-lib-vt]::view-transition-old(lib-root), html[data-lib-vt]::view-transition-new(lib-root) { mix-blend-mode: normal; }
+html[data-lib-vt="push"]::view-transition-old(lib-root) { animation: vtOutBack .34s var(--vt-ease) both; }
+html[data-lib-vt="push"]::view-transition-new(lib-root) { animation: vtInFront .34s var(--vt-ease) both; box-shadow: 0 0 24px rgba(0,0,0,.18); }
+html[data-lib-vt="pop"]::view-transition-old(lib-root) { animation: vtOutFront .3s var(--vt-ease) both; z-index: 2; box-shadow: 0 0 24px rgba(0,0,0,.18); }
+html[data-lib-vt="pop"]::view-transition-new(lib-root) { animation: vtInBack .3s var(--vt-ease) both; }
+html[data-lib-vt="fade"]::view-transition-old(lib-root) { animation: vtFadeOut .16s ease both; }
+html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .22s ease both; }
+@keyframes vtInFront { from { transform: translateX(var(--vt-x)); } to { transform: none; } }
+@keyframes vtOutBack { from { transform: none; opacity: 1; } to { transform: translateX(calc(var(--vt-x) * -.3)); opacity: .55; } }
+@keyframes vtOutFront { from { transform: none; } to { transform: translateX(var(--vt-x)); } }
+@keyframes vtInBack { from { transform: translateX(calc(var(--vt-x) * -.3)); opacity: .55; } to { transform: none; opacity: 1; } }
+@keyframes vtFadeOut { to { opacity: 0; } }
+@keyframes vtFadeIn { from { opacity: 0; } }
+@keyframes rdOut { to { opacity: 0; transform: scale(.96); } }
+@keyframes rdIn { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lib-root, .lib-root.leaving, .rd { animation: none !important; } }
 .lib-root button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 .lib-home { max-width: 760px; margin: 0 auto; padding: 0 0 28px; }
 .lib-top { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 16px 2px; }
@@ -53,6 +80,10 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 
 /* גיליונות (מיון, תוכן עניינים, Aa, תרגום) */
 .lib-veil { position: fixed; inset: 0; z-index: 960; background: rgba(0,0,0,.32); display: flex; align-items: flex-end; animation: libFade .18s ease; }
+.lib-veil.out { animation: libFadeOut .16s ease forwards; pointer-events: none; }
+.lib-veil.out .lib-sheet { animation: libDown .16s cubic-bezier(.4,0,1,1) forwards; }
+@keyframes libFadeOut { to { opacity: 0; } }
+@keyframes libDown { to { transform: translateY(100%); } }
 .lib-sheet { width: 100%; max-height: 82vh; overflow-y: auto; background: var(--surface); color: var(--on-surface); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding: 8px 16px calc(22px + env(safe-area-inset-bottom)); animation: libUp .28s cubic-bezier(.2,.9,.25,1); }
 [data-theme="dark"] .lib-sheet, :root:not([data-theme="light"]) .lib-sheet { background: var(--surface); }
@@ -67,7 +98,14 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .lib-veil, .lib-sheet { animation: none; } }
 
 /* ---- הקורא ---- */
-.rd { position: fixed; inset: 0; z-index: 920; background: var(--rd-page, #fff); color: var(--rd-ink, #1a1a1a); }
+.rd { position: fixed; inset: 0; z-index: 920; background: var(--rd-page, #fff); color: var(--rd-ink, #1a1a1a); animation: rdIn .3s cubic-bezier(.2,.9,.25,1); }
+.rd.restored { animation: none; }
+.rd.out { animation: rdOut .28s cubic-bezier(.4,0,1,1) forwards; pointer-events: none; }   /* v322: סגירה — דוהה ומתכווץ מעל הדף */
+/* v322: עד העמוד הראשון — הדף שקוף + סימן טעינה (במקום מלבן ריק שקופץ לטקסט) */
+.rd foliate-view { transition: opacity .25s ease; }
+.rd.loading foliate-view { opacity: 0; }
+.rd.loading::before { content: ""; position: absolute; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  border: 2.5px solid var(--rd-rule, rgba(0,0,0,.12)); border-top-color: var(--rd-ink2, #666); animation: libSpin .8s linear infinite; }
 .rd foliate-view { position: absolute; inset: env(safe-area-inset-top) 0 calc(26px + env(safe-area-inset-bottom)) 0; display: block; }
 .rd-foot { position: absolute; inset-inline: 22px; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; justify-content: space-between;
   font-size: 12px; color: var(--rd-ink2); pointer-events: none; }
