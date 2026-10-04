@@ -35,7 +35,7 @@ ok(T.ibkrSilentIsNet(null, new Error('Failed to fetch')) && T.ibkrSilentIsNet({ 
 ok(!T.ibkrSilentIsNet({ _chunks: [{ ok: false, error: 'flex_1003' }] }) && !T.ibkrSilentIsNet(null, new Error('flex_1025')), 'הדוח עוד לא פורסם / נעילה — לא "רשת"');
 const now = Date.parse('2026-10-04T12:00:00Z');
 const target = T.ibkrAutoTargetMs(now);
-const base = { token: '123456789012', queryId: '123456', data: { positions: [{ symbol: 'A' }], trades: [], navPeriods: [], meta: { toDate: '2026-10-01' } }, lastSync: target - 1000 };
+const base = { token: '123456789012', queryId: '999999', data: { positions: [{ symbol: 'A' }], trades: [], navPeriods: [], meta: { toDate: '2026-10-01' } }, lastSync: target - 1000 };
 ok(T.ibkrAutoSyncDue(Object.assign({}, base, { autoTry: now - 16 * 60000, autoRetry: true, autoRetryMs: T.IBKR_NET_RETRY_MS }), now), 'אחרי תקלת רשת — מנסים שוב אחרי 15 דקות');
 ok(!T.ibkrAutoSyncDue(Object.assign({}, base, { autoTry: now - 16 * 60000, autoRetry: true }), now), 'תקלה אחרת — עדיין 3 שעות');
 
