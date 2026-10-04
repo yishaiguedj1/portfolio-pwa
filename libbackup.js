@@ -44,7 +44,7 @@ export function planBook(b, entry, listing) {
 export function backupList(manifest, local) {
   const have = new Set(local.map((b) => b.id));
   return Object.entries((manifest && manifest.books) || {}).map(([id, e]) => ({ id, title: (e.meta && e.meta.title) || '—', author: (e.meta && e.meta.author) || '',
-    size: (e.file && +e.file.size) || 0, coverId: e.cover && e.cover.id, coverRatio: e.coverRatio || 0, onPhone: have.has(id), up: e.up || 0 }))
+    size: (e.file && +e.file.size) || 0, year: (e.meta && e.meta.year) || 0, coverId: e.cover && e.cover.id, coverRatio: e.coverRatio || 0, onPhone: have.has(id), up: e.up || 0 }))
     .sort((a, b) => (b.onPhone - a.onPhone) || String(a.title).localeCompare(String(b.title), 'he'));
 }
 export function manifestBytes(m) {
@@ -212,10 +212,13 @@ export function createBackup(env) {
   }
 
   /* ---------- גיבוי ---------- */
+  /* פעולות על הגיבוי רצות בתור, אחת אחרי השנייה — הורדה שמתבקשת בזמן גיבוי אוטומטי מחכה לו (לא נבלעת) */
+  let chain = Promise.resolve(), pending = 0;
   function run(fn) {
-    if (busy) return busy;
-    busy = fn().finally(() => { busy = null; });
-    return busy;
+    pending++; busy = true;
+    const p = chain.then(fn);
+    chain = p.catch(() => {});
+    return p.finally(() => { if (--pending === 0) busy = null; });
   }
   function backupNow(onProgress) {
     return run(async () => {

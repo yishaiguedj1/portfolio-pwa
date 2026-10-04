@@ -376,6 +376,20 @@ const BK = createBackup({
 const signedIn = () => { try { return !!(typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser); } catch (e) { return false; } };
 const signedEmail = () => { try { return firebase.auth().currentUser.email || ''; } catch (e) { return ''; } };
 let bkStatusAt = 0;
+/* v319: ספרים שבגיבוי ולא בטלפון — מוצגים ב"הספרייה שלי" דהויים, עם ענן וחץ הורדה (נגיעה = הורדה) */
+let cloudBooks = null, cloudLoading = null;
+const cloudCovers = new Map();   // coverId → כתובת תמונה (פעם אחת לכל כניסה)
+function refreshCloud(force) {
+  if (!signedIn() || !BK.settings().email) { cloudBooks = null; return Promise.resolve(); }
+  if (cloudLoading && !force) return cloudLoading;
+  cloudLoading = BK.overview().then((o) => {
+    const before = JSON.stringify((cloudBooks || []).map((x) => x.id));
+    cloudBooks = (o && o.exists ? o.books : []).filter((x) => !x.onPhone)
+      .map((x) => ({ id: x.id, title: x.title, author: x.author, year: x.year || 0, size: x.size, coverId: x.coverId, coverRatio: x.coverRatio, cloud: true }));
+    if (JSON.stringify(cloudBooks.map((x) => x.id)) !== before && root && !rd && ui.shelf === 'mine' && !ui.view) renderHome();
+  }).catch(() => {}).finally(() => { cloudLoading = null; });
+  return cloudLoading;
+}
 function bkAdopt() {                    // מכשיר חדש / אחרי ניקוי: ההרשאה כבר בשרתון — מאמצים בשקט, פעם בעשר דקות לכל היותר
   if (!signedIn() || BK.settings().email || Date.now() - bkStatusAt < 6e5) return;
   bkStatusAt = Date.now();
@@ -594,6 +608,7 @@ const ICON = {
   cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/></svg>',
   cloudOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M9.3 13.6l2 2 3.6-3.8"/></svg>',
   cloudUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 16v-5M9.8 13l2.2-2.2 2.2 2.2"/></svg>',
+  cloudDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 10.5v5.5M9.8 13.8l2.2 2.2 2.2-2.2"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
   chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
 };
@@ -659,6 +674,9 @@ async function renderHome() {
   const mine = ui.shelf === 'mine';
   const books = allB.filter((b) => shelfOf(b) === ui.shelf);
   const nMine = allB.filter((b) => shelfOf(b) === 'mine').length;
+  const have = new Set(books.map((b) => b.id));
+  const cloudOnly = mine && cloudBooks ? cloudBooks.filter((c) => !have.has(c.id)) : [];   // v319: בגיבוי ולא בטלפון
+  if (mine && cloudBooks === null) refreshCloud();
   const home = root.querySelector('.lib-home');
   home.textContent = '';
   const top = h('div', 'lib-top');
@@ -680,10 +698,10 @@ async function renderHome() {
     else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
   } else {
     bkAdopt();
-    if (books.length) home.append(backupRow());
+    if (books.length || cloudOnly.length) home.append(backupRow());
   }
 
-  if (books.length) {                    // גם בספרייה קטנה — החיפוש מגיע גם לתוך הטקסט
+  if (books.length || cloudOnly.length) {   // גם בספרייה קטנה — החיפוש מגיע גם לתוך הטקסט
     const sw = h('div', 'lib-search');
     sw.innerHTML = ICON.search;
     const si = h('input'); si.type = 'search'; si.placeholder = T(mine ? 'libSearchMinePh' : 'libSearchPh'); si.dir = 'auto'; si.value = ui.q || ''; si.setAttribute('aria-label', T('libSearchPh'));
@@ -693,13 +711,14 @@ async function renderHome() {
     sw.append(si);
     home.append(sw);
   }
-  if (!books.length) {
+  if (!books.length && !cloudOnly.length) {
     if (mine) { home.append(mineEmpty()); return; }
     home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));
     return;
   }
+  const listed = books.concat(cloudOnly);
   const authors = {};
-  books.forEach((b) => { const a = b.author || T('libNoAuthor'); authors[a] = (authors[a] || 0) + 1; });
+  listed.forEach((b) => { const a = b.author || T('libNoAuthor'); authors[a] = (authors[a] || 0) + 1; });
   const chips = h('div', 'lib-chips no-swipe');
   const chip = (label, val) => {
     const c = h('button', 'lib-chip' + (ui.author === val ? ' on' : ''), label); c.type = 'button';
@@ -710,7 +729,7 @@ async function renderHome() {
   Object.keys(authors).sort((a, b) => authors[b] - authors[a]).forEach((a) => chip(a, a));
   if (Object.keys(authors).length > 1) { chips.classList.add('lib-hide-q'); home.append(chips); }
 
-  const shown = sortBooks(books.filter((b) => !ui.author || (b.author || T('libNoAuthor')) === ui.author), ui.sort);
+  const shown = sortBooks(listed.filter((b) => !ui.author || (b.author || T('libNoAuthor')) === ui.author), ui.sort);
   const last = books.filter((b) => b.lastRead && !b.done).sort((a, b) => b.lastRead - a.lastRead)[0];
   if (last) {
     const card = h('button', 'lib-cont'); card.type = 'button';
@@ -761,6 +780,7 @@ async function renderHome() {
   home.append(sortRow);
   const grid = h('div', 'lib-grid');
   shown.forEach((b) => {
+    if (b.cloud) { grid.append(cloudItem(b, shown.indexOf(b))); return; }
     const it = h('button', 'lib-item'); it.type = 'button';
     it.dataset.q = searchKey(b); it.dataset.i = String(shown.indexOf(b));
     const cap = h('div', 'lib-cap');
@@ -776,6 +796,18 @@ async function renderHome() {
     grid.append(it);
   });
   home.append(grid);
+  if (cloudOnly.length > 1) {              // v319: כמה ספרים בגיבוי — הורדה של כולם בלחיצה אחת
+    const all = h('button', 'lib-admin-link lib-hide-q', T('libDlAll', { n: cloudOnly.length })); all.type = 'button';
+    all.addEventListener('click', async () => {
+      all.disabled = true; all.textContent = T('bkRestoring', { n: 0, t: cloudOnly.length });
+      grid.querySelectorAll('.lib-item.cloud').forEach((x) => x.classList.add('loading'));
+      try { const n = await BK.restore(cloudOnly.map((x) => x.id), (d, t) => { all.textContent = T('bkRestoring', { n: d, t }); }); flashSafe(T('bkRestored', { n })); indexAll(); }
+      catch (e) { flashSafe(bkErrText(e)); }
+      cloudBooks = null;
+      if (root && !rd) renderHome();
+    });
+    home.append(all);
+  }
   home.append(h('p', 'lib-empty lib-noq', T('libNoMatch')));
   const ft = h('div', 'lib-ft'); ft.hidden = true; home.append(ft);
   const hid = mine ? [] : await hiddenBooks();
@@ -831,6 +863,49 @@ function backupRow() {                     // שורת מצב הגיבוי בר�
   row.addEventListener('click', () => goView({ backup: 1 }));
   return row;
 }
+function cloudItem(b, idx) {
+  const it = h('button', 'lib-item cloud'); it.type = 'button';
+  it.dataset.q = searchKey(b); it.dataset.i = String(idx);
+  const cv = cover(Object.assign({}, b, { cover: null }));
+  const fill = (url) => {
+    const im = document.createElement('img'); im.src = url; im.alt = ''; im.decoding = 'async';
+    cv.className = 'lib-cover img'; cv.textContent = ''; cv.style.background = '';
+    if (b.coverRatio) cv.style.aspectRatio = String(b.coverRatio);
+    cv.append(im);
+  };
+  if (b.coverId && cloudCovers.has(b.coverId)) fill(cloudCovers.get(b.coverId));
+  else if (b.coverId) BK.coverBlob(b.coverId).then((bl) => { if (!bl) return; const u = URL.createObjectURL(bl); cloudCovers.set(b.coverId, u); if (it.isConnected) fill(u); }).catch(() => {});
+  const wrap = h('div', 'lib-cwrap');
+  const badge = h('span', 'lib-cbadge'); badge.innerHTML = ICON.cloudDown;
+  wrap.append(cv, badge);
+  const cap = h('div', 'lib-cap');
+  const ci = h('span', 'lib-cic'); ci.innerHTML = ICON.cloud;
+  cap.append(ci, h('span', null, T('libInCloud') + (b.size ? ' · ' + fmtBytes(b.size) : '')));
+  it.append(wrap, cap);
+  it.setAttribute('aria-label', b.title + ' · ' + T('libTapDownload'));
+  it.addEventListener('click', () => downloadCloud(b, it, true));
+  wireHold(it, () => {
+    const acts = [{ kind: 'edit', fn: () => downloadCloud(b, it, false).then((ok) => { if (ok) goView({ edit: b.id }); }) },
+      { kind: 'del', fn: () => {
+        const go = async () => { try { await BK.removeFromBackup([b.id]); flashSafe(T('bkRemoved', { n: 1 })); } catch (e) { flashSafe(bkErrText(e)); } await refreshCloud(true); if (root && !rd) renderHome(); };
+        if (typeof askConfirm === 'function') askConfirm(T('bkRemoveQ', { t: b.title }), go, { danger: true, ok: T('bkDeleteOk') }); else go();
+      } }];
+    if (typeof showItemActions === 'function') showItemActions(it, acts);
+  });
+  return it;
+}
+async function downloadCloud(b, it, open) {
+  if (it.classList.contains('loading')) return false;
+  it.classList.add('loading');
+  let ok = false;
+  try { ok = (await BK.restore([b.id])) > 0; } catch (e) { flashSafe(bkErrText(e)); }
+  it.classList.remove('loading');
+  if (!ok) { if (!it.isConnected) return false; flashSafe(T('libDlErr')); return false; }
+  if (cloudBooks) cloudBooks = cloudBooks.filter((x) => x.id !== b.id);
+  indexAll();
+  if (open) goView({ book: b.id }); else if (root && !rd) renderHome();
+  return true;
+}
 function importInput(after) {
   const inp = h('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.epub,.azw3,.azw,.mobi,.kf8,.fb2,application/epub+zip';
   inp.addEventListener('change', async () => {
@@ -870,6 +945,7 @@ function restoreCard(o) {
     go.disabled = true; prog.hidden = false; pt.textContent = T('bkRestoring', { n: 0, t: o.books.length });
     try {
       const n = await BK.restore(null, (d, t) => { pt.textContent = T('bkRestoring', { n: d, t }); fill.style.width = Math.round(d / Math.max(1, t) * 100) + '%'; });
+      cloudBooks = null;
       if (typeof flash === 'function') flash(T('bkRestored', { n }));
       indexAll();
     } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); }
@@ -904,6 +980,7 @@ async function resetMine() {
     const u = coverUrls.get(id); if (u) { URL.revokeObjectURL(u.url); coverUrls.delete(id); }
   }
   ftCache = null;
+  cloudBooks = null;                     // v319: מה שנמחק מהטלפון ונשאר בגיבוי — יופיע דהוי, להורדה
   return ids.length;
 }
 async function openResetSheet() {
@@ -1034,11 +1111,11 @@ async function renderBackup() {
   // מחיקה וניתוק
   const l4 = iosSection(home, '');
   iosRow(l4, T('bkDeleteAll'), null, () => {
-    const go = async () => { try { await BK.deleteAll(); if (typeof flash === 'function') flash(T('bkDeleted')); } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); } if (ui.view && ui.view.backup) renderBackup(); };
+    const go = async () => { cloudBooks = null; try { await BK.deleteAll(); if (typeof flash === 'function') flash(T('bkDeleted')); } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); } if (ui.view && ui.view.backup) renderBackup(); };
     if (typeof askConfirm === 'function') askConfirm(T('bkDeleteAllQ'), go, { danger: true, ok: T('bkDeleteOk') }); else go();
   }, 'danger');
   iosRow(l4, T('bkDisconnect'), null, () => {
-    const go = async () => { try { await BK.disconnect(); if (typeof flash === 'function') flash(T('bkDisconnected')); } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); } if (ui.view && ui.view.backup) renderBackup(); };
+    const go = async () => { cloudBooks = null; try { await BK.disconnect(); if (typeof flash === 'function') flash(T('bkDisconnected')); } catch (e) { if (typeof flash === 'function') flash(bkErrText(e)); } if (ui.view && ui.view.backup) renderBackup(); };
     if (typeof askConfirm === 'function') askConfirm(T('bkDisconnectQ'), go, { danger: true, ok: T('bkDisconnectOk') }); else go();
   }, 'danger');
   home.append(h('p', 'lib-foot', T('bkDeleteNote')));
@@ -1111,11 +1188,12 @@ async function renderBackupBooks() {
   });
   const restoreIds = async (ids, then) => {
     flashSafe(T('bkRestoring', { n: 0, t: ids.length }));
+    cloudBooks = null;
     try { const n = await BK.restore(ids); flashSafe(T('bkRestored', { n })); indexAll(); if (then) then(); else if (ui.view && ui.view.bkbooks) renderBackupBooks(); }
     catch (e) { flashSafe(bkErrText(e)); }
   };
   const delIds = (ids) => {
-    const go = async () => { try { await BK.removeFromBackup(ids); flashSafe(T('bkRemoved', { n: ids.length })); } catch (e) { flashSafe(bkErrText(e)); } if (ui.view && ui.view.bkbooks) renderBackupBooks(); };
+    const go = async () => { cloudBooks = null; try { await BK.removeFromBackup(ids); flashSafe(T('bkRemoved', { n: ids.length })); } catch (e) { flashSafe(bkErrText(e)); } if (ui.view && ui.view.bkbooks) renderBackupBooks(); };
     if (typeof askConfirm === 'function') askConfirm(T(ids.length > 1 ? 'bkRemoveManyQ' : 'bkRemoveQ', { n: ids.length, t: (o.books.find((x) => x.id === ids[0]) || {}).title || '' }), go, { danger: true, ok: T('bkDeleteOk') }); else go();
   };
   bRestore.addEventListener('click', () => { const ids = [...picked].filter((id) => !local.has(id)); if (ids.length) restoreIds(ids); });
@@ -2421,6 +2499,7 @@ export async function openLibrary(opt) {
   await first;
   backfillCovers();
   BK.schedule(8000);                       // v318: גיבוי אוטומטי של הספרייה הפרטית, אם הגיע הזמן
+  refreshCloud(true);                      // v319: ספרים שבגיבוי ולא בטלפון
   await pullCloud();
   try { const tk = await idToken(); if (tk) { const j = await libApi({ op: 'me', idToken: tk }).then((r) => r.json()); ui.admin = !!(j && j.admin); } } catch (e) {}
   renderHome();

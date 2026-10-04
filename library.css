@@ -426,3 +426,21 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 /* v318: במצב כהה --surface שקוף־למחצה — גיליון מעל רשת כריכות חייב רקע אטום */
 [data-theme="dark"] .lib-sheet { background: #1C1C1E; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lib-sheet { background: #1C1C1E; } }
+
+/* v319: ספר שבגיבוי בלבד — דהוי, עם ענן וחץ הורדה; נגיעה = הורדה */
+.lib-cwrap { position: relative; }
+.lib-item.cloud .lib-cover { opacity: .42; filter: saturate(.35); box-shadow: none; }
+.lib-cbadge { position: absolute; top: 50%; inset-inline-start: 50%; width: 46px; height: 46px; margin-block-start: -23px; margin-inline-start: -23px;
+  border-radius: var(--pill); display: grid; place-items: center; color: var(--primary-dark); background: var(--surface);
+  box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+.lib-cbadge svg { width: 28px; height: 28px; }
+[data-theme="light"] .lib-cbadge { color: #1a9b45; }
+.lib-item.cloud .lib-cap { color: var(--on-surface-var); }
+.lib-cic { display: inline-flex; }
+.lib-cic svg { width: 15px; height: 15px; }
+.lib-item.cloud.loading .lib-cbadge svg { display: none; }
+.lib-item.cloud.loading .lib-cbadge::after { content: ""; width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--primary-container); border-top-color: var(--primary); animation: libSpin .8s linear infinite; }
+@keyframes libSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lib-item.cloud.loading .lib-cbadge::after { animation-duration: 2.4s; } }
+[data-theme="dark"] .lib-cbadge { background: #2C2C2E; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lib-cbadge { background: #2C2C2E; } }
