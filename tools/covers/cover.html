@@ -16,7 +16,7 @@ html, body { margin: 0; }
 <div class="c"><div class="t1">ברקשייר האת'וויי</div><div class="t2">מכתב לבעלי המניות</div>
 <div class="yr" id="yr">1987</div><img class="pt" src="portrait4.png"><div class="nm">וורן א. באפט</div></div>
 <script>
-/* פרמטרים: y=שנה, t1/t2/nm=טקסטים, bg/acc=צבעים, mo=מוטיב במקום הדיוקן (mo2=שורת משנה). בלי פרמטרים — הכריכה של באפט */
+/* פרמטרים: y=שנה, t1/t2/nm=טקסטים, bg/acc=צבעים, pt=קובץ הדיוקן, mo=מוטיב במקום הדיוקן (mo2=שורת משנה). בלי פרמטרים — הכריכה של באפט */
 const q = new URLSearchParams(location.search);
 document.getElementById('yr').textContent = q.get('y') || '1987';
 if (q.get('t2')) document.querySelector('.t2').textContent = q.get('t2');
@@ -24,6 +24,7 @@ if (q.get('t1')) document.querySelector('.t1').textContent = q.get('t1');
 if (q.get('nm')) document.querySelector('.nm').textContent = q.get('nm');
 if (q.get('bg')) document.querySelector('.c').style.background = q.get('bg');
 if (q.get('acc')) document.getElementById('yr').style.color = q.get('acc');
+if (q.get('pt')) document.querySelector('.pt').src = q.get('pt');
 if (q.get('mo')) {
   const mo = document.createElement('div'); mo.className = 'mo';
   const b = document.createElement('b'); b.textContent = q.get('mo'); if (q.get('acc')) b.style.color = q.get('acc');

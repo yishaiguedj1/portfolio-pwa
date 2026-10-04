@@ -5,7 +5,7 @@ from skimage.restoration import denoise_tv_chambolle
 from skimage.morphology import remove_small_objects, remove_small_holes, binary_opening, disk
 from scipy import ndimage as ndi
 S = sys.argv[1]
-P = dict(tv=0.16, dark=0.30, xs=3.4, xe=0.018, minl=900, hlo=0.36, hhi=0.52, period=13.0)
+P = dict(tv=0.16, dark=0.30, xs=3.4, xe=0.018, minl=900, hlo=0.36, hhi=0.52, period=13.0, suit=0.2, suity=0.62, hcov=0.7, open=0, fend=0.98, flen=0.16)
 for a in sys.argv[2:]: k, v = a.split('='); P[k] = float(v)
 im = np.asarray(Image.open(S + '/crop2.jpg').convert('L'), dtype=np.float32) / 255
 m = np.asarray(Image.open(S + '/mask2.png'), dtype=np.float32) / 255
@@ -26,7 +26,7 @@ ln = remove_small_objects(ln, int(P['minl']))
 tone = gaussian(g, 7)
 ph = ((xx * 0.75 + yy) / P['period']) % 1.0
 dk = np.clip((P['hhi'] - tone) / (P['hhi'] - P['hlo']), 0, 1)
-hatch = (np.abs(ph - 0.5) * 2 > 1 - dk * 0.7) & (dk > 0.12)
+hatch = (np.abs(ph - 0.5) * 2 > 1 - dk * P['hcov']) & (dk > 0.12)   # hcov = כיסוי מרבי בצל עמוק
 # 4) שיער: קווי קווצות דקים רק באזור השיער (בהיר, בחלק העליון)
 from skimage.morphology import skeletonize, binary_dilation
 def thin(mask, minlen, w=1):         # קו דק ורציף בעובי אחיד במקום כתם
@@ -86,13 +86,14 @@ def elongated(mask, ratio=3.0):          # רק קווים מוארכים — ב
 wr = elongated(wr); hl = elongated(hl, 2.5)
 ink = feat | ln | hatch | hl | wr
 print("hair zone", int(hairzone.sum()), "hair lines", int(hl.sum()), "face zone", int(facezone.sum()), "wrinkles", int(wr.sum()), "feat", int(feat.sum()))
-suit = (gaussian(im, 8) < 0.2) & (yy > H * 0.62)
+suit = (gaussian(im, 8) < P['suit']) & (yy > H * P['suity'])   # בגד כהה בתחתית (באפט: חליפה; בזוס: חולצה)
 mm &= ~suit
+if P['open']: mm = ndi.binary_opening(mm, structure=disk(int(P['open'])))   # מנקה שאריות דקות לאורך שולי הבגד
 lab, n = ndi.label(mm)
 if n > 1: sz = ndi.sum(mm, lab, range(1, n + 1)); mm = lab == (1 + int(np.argmax(sz)))
 paper = mm & ~ink
 paper = remove_small_objects(paper, 500); paper = remove_small_holes(paper, 150) & ~(feat | ln | hl | wr)
-fade = np.clip((H * 0.98 - yy) / (H * 0.16), 0, 1)
+fade = np.clip((H * P['fend'] - yy) / (H * P['flen']), 0, 1)   # דהייה בתחתית
 a = gaussian(paper.astype(np.float32), 0.8) * fade
 out = np.zeros((H, W, 4), np.uint8); out[..., :3] = 255; out[..., 3] = (np.clip(a * 1.25, 0, 1) * 255).astype(np.uint8)
 img = Image.fromarray(out); img = img.crop(img.getchannel('A').getbbox())
