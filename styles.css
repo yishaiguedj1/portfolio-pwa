@@ -1704,3 +1704,11 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .demo-ic { background: linear-gradient(135deg, #FFD60A, #FF9F0A); }
 /* כרטיס ההצעה בראש הסקירה — מרווח כמו שאר הכרטיסים */
 #tab-overview > #demoOffer { margin-bottom: 14px; }
+
+/* v311: מתג "עדכון ברקע" בכרטיס IBKR — בסגנון iOS, בגוון הכרטיס; RTL דרך מאפיינים לוגיים */
+#ibkrCard .ib-sw { position: relative; flex: none; width: 50px; height: 30px; border: 0; padding: 0; border-radius: var(--pill); background: var(--ib-line); cursor: pointer; transition: background .2s ease; }
+#ibkrCard .ib-sw i { position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: inset-inline-start .2s ease; }
+#ibkrCard .ib-sw[aria-checked="true"] { background: var(--ibkr); }
+#ibkrCard .ib-sw[aria-checked="true"] i { inset-inline-start: 23px; }
+#ibkrCard .ib-sw:focus-visible { outline: 2.5px solid var(--ibkr); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { #ibkrCard .ib-sw, #ibkrCard .ib-sw i { transition: none; } }

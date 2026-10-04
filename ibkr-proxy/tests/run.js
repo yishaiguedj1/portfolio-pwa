@@ -662,5 +662,135 @@ function stubFetch(text, status = 200) {
     env.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; });
   }
 
+  /* ---------- סנכרון IBKR ברקע: /api/ibkr-sync + כספת מוצפנת (Firestore מדומה, IBKR מדומה) ---------- */
+  {
+    const crypto = require('crypto'), fs = require('fs'), path = require('path');
+    const gauth = require('../lib/gauth');
+    const vault = require('../lib/vault');
+    const D = require('../lib/ibkrdates');
+    const sync = require('../api/ibkr-sync');
+    const env = ['GDRIVE_SA_KEY', 'LIBRARY_READERS', 'IBKR_VAULT_KEY', 'IBKR_SYNC_USERS', 'CRON_SECRET'].map((k) => [k, process.env[k]]);
+    ['IBKR_VAULT_KEY', 'IBKR_SYNC_USERS', 'CRON_SECRET'].forEach((k) => delete process.env[k]);
+    const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const sa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    process.env.GDRIVE_SA_KEY = JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: sa.privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+    process.env.LIBRARY_READERS = 'owner@example.com, reader@example.com';
+    gauth._reset();
+    const keys = { k1: fb.publicKey.export({ type: 'spki', format: 'pem' }) };
+    const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const tnow = Math.floor(Date.now() / 1000);
+    const tok = (sub, email) => {
+      const hd = b64u({ alg: 'RS256', kid: 'k1' }), bd = b64u({ aud: 'yishaiguedj1-c786e', iss: 'https://securetoken.google.com/yishaiguedj1-c786e', sub, iat: tnow - 5, exp: tnow + 3000, email, email_verified: true });
+      return hd + '.' + bd + '.' + crypto.sign('RSA-SHA256', Buffer.from(hd + '.' + bd), fb.privateKey).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    };
+    const OWNER = tok('ownerUid0001', 'owner@example.com'), OTHER = tok('otherUid0002', 'reader@example.com');
+
+    // כספת: סודיות, שלמות, קשירה למשתמש ולשדה
+    const sealed = vault.seal({ t: '123456789012345678', q: '999999' }, 'u1|c');
+    ok(/^v1\.s\./.test(sealed) && !sealed.includes('123456789012345678') && vault.seal({ a: 1 }, 'x') !== vault.seal({ a: 1 }, 'x'), 'כספת: מוצפן (לא טקסט גלוי), IV אקראי — אותו ערך מוצפן אחרת בכל פעם');
+    ok(vault.open(sealed, 'u1|c').t === '123456789012345678', 'כספת: נפתח עם אותו משתמש ושדה');
+    ok(vault.open(sealed, 'u2|c') === null && vault.open(sealed, 'u1|a') === null, 'כספת: ערך שהועתק למשתמש/שדה אחר — לא נפתח (AAD)');
+    const parts = sealed.split('.'); const ct = Buffer.from(parts[3].replace(/-/g, '+').replace(/_/g, '/'), 'base64'); ct[2] ^= 1;
+    ok(vault.open(parts.slice(0, 3).join('.') + '.' + ct.toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'), 'u1|c') === null && vault.open('garbage', 'u1|c') === null, 'כספת: שינוי של ביט אחד / זבל — נדחה (GCM)');
+    process.env.IBKR_VAULT_KEY = crypto.randomBytes(32).toString('base64');
+    const sealedE = vault.seal({ z: 1 }, 'u1|c');
+    ok(/^v1\.e\./.test(sealedE) && vault.open(sealed, 'u1|c') && vault.open(sealedE, 'u1|c').z === 1, 'כספת: מפתח ייעודי (IBKR_VAULT_KEY) גובר, ורשומות ישנות עדיין נפתחות');
+    delete process.env.IBKR_VAULT_KEY;
+    ok(vault.open(sealedE, 'u1|c') === null, 'כספת: בלי המפתח — אי אפשר לפתוח');
+
+    // התאריכים בשרתון = התאריכים באפליקציה (אחרת החלקים לא יתאימו)
+    const appSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'app.js'), 'utf8');
+    const grab = (name) => appSrc.match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n}\\n'))[0];
+    const A = new Function(['ibkrYmd', 'ibkrDateChunks', 'ibkrLastClosedDate', 'ibkrHasWeekday', 'ibkrAutoTargetMs'].map(grab).join('\n') + '\nconst IBKR_AUTO_HOUR_IL = ' + (appSrc.match(/const IBKR_AUTO_HOUR_IL = (\d+)/) || [])[1] + ';\nreturn { ibkrYmd, ibkrDateChunks, ibkrLastClosedDate, ibkrHasWeekday, ibkrAutoTargetMs };')();
+    const ranges = [['20261001', '20261004'], ['20251215', '20260105'], ['20240101', '20241231'], ['20230601', '20260930'], ['20261003', '20261004']];
+    const times = [Date.UTC(2026, 9, 5, 12, 10), Date.UTC(2026, 9, 4, 22, 30), Date.UTC(2026, 0, 1, 3, 0), Date.UTC(2026, 2, 29, 11, 59), Date.UTC(2026, 10, 2, 12, 5)];
+    ok(ranges.every(([a, b]) => JSON.stringify(D.dateChunks(a, b)) === JSON.stringify(A.ibkrDateChunks(a, b)) && D.hasWeekday(a, b) === A.ibkrHasWeekday(a, b))
+      && times.every((t) => D.lastClosedYmd(t) === A.ibkrYmd(A.ibkrLastClosedDate(new Date(t))) && D.autoTargetMs(t) === A.ibkrAutoTargetMs(t)), 'סנכרון ברקע: חלוקה לחלקים, יום סגירה ושעת היעד — זהים לאפליקציה');
+
+    // Firestore מדומה
+    const store = new Map(); let ver = 0; const fsCalls = [];
+    const J = (o, st = 200) => ({ status: st, json: async () => o });
+    const fakeFetch = async (url, opt = {}) => {
+      if (url.includes('oauth2.googleapis.com/token')) return J({ access_token: 'AT', expires_in: 3600 });
+      fsCalls.push({ url, method: opt.method });
+      const m = url.match(/documents\/ibkrVault(?:\/([A-Za-z0-9]+))?(?:\?(.*))?$/); if (!m) return J({}, 404);
+      const [, uid, qs = ''] = m; const q = new URLSearchParams(qs);
+      if (!uid) return J({ documents: [...store.entries()].map(([k, v]) => ({ name: 'projects/p/databases/(default)/documents/ibkrVault/' + k, fields: v.fields, updateTime: v.updateTime })) });
+      const cur = store.get(uid);
+      if (opt.method === 'GET') return cur ? J({ fields: cur.fields, updateTime: cur.updateTime }) : J({}, 404);
+      if (opt.method === 'DELETE') { store.delete(uid); return J({}); }
+      if (opt.method === 'PATCH') {
+        const pre = q.get('currentDocument.updateTime');
+        if (pre && (!cur || cur.updateTime !== pre)) return J({ error: { status: 'FAILED_PRECONDITION' } }, 400);
+        const mask = q.getAll('updateMask.fieldPaths'); const body = JSON.parse(opt.body).fields;
+        const fields = mask.length ? Object.assign({}, cur ? cur.fields : {}, ...mask.map((k) => ({ [k]: body[k] }))) : body;
+        store.set(uid, { fields, updateTime: 't' + (++ver) }); return J({ fields, updateTime: 't' + ver });
+      }
+      return J({}, 400);
+    };
+    // IBKR מדומה: SendRequest → קוד, GetStatement → פעם אחת "בהכנה" ואז הדוח
+    let ib = { send: 0, get: 0, mode: 'ok' };
+    const fakeIbkr = async (p) => {
+      if (p.includes('/SendRequest')) { ib.send++; ib.lastSend = p; return ib.mode === 'throttle' ? { status: 200, text: '<FlexStatementResponse><Status>Fail</Status><ErrorCode>1018</ErrorCode><ErrorMessage>Too many</ErrorMessage></FlexStatementResponse>' } : { status: 200, text: '<FlexStatementResponse><Status>Success</Status><ReferenceCode>REF123456</ReferenceCode><Url>https://gdcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement</Url></FlexStatementResponse>' }; }
+      ib.get++; return { status: 200, text: ib.get % 2 ? PENDING_XML : READY_XML };
+    };
+    const NOW = Date.UTC(2026, 9, 5, 12, 10);   // שני 15:10 שעון ישראל
+    const deps = { verify: { keys }, fetch: fakeFetch, ibkrGetMulti: fakeIbkr, sleep: async () => {}, now: NOW };
+    const post = async (body) => { const r = mockRes(); await sync._handler(mockReq({ body }), r, deps); return r; };
+    const cronRun = async (headers = {}) => { const r = mockRes(); await sync._handler({ method: 'GET', headers, query: {} }, r, deps); return r; };
+
+    let r = await post({ op: 'enable', idToken: OTHER, token: '123456789012345678', queryId: '999999', have: '2026-09-30' });
+    ok(r.statusCode === 403 && !store.size, 'סנכרון ברקע: משתמש שאינו מורשה (לא המנהל) — נחסם, שום דבר לא נשמר');
+    r = await post({ op: 'enable', token: '123456789012345678', queryId: '999999', have: '2026-09-30' });
+    ok(r.statusCode === 401, 'סנכרון ברקע: בלי התחברות מאומתת — 401');
+    r = await post({ op: 'enable', idToken: OWNER, token: '123456789012345678', queryId: '999999', have: '2026-09-30' });
+    const rec = store.get('ownerUid0001');
+    ok(r.statusCode === 200 && rec && !JSON.stringify(rec).includes('123456789012345678') && !JSON.stringify(rec).includes('999999') && !JSON.stringify(rec).includes('20261001'), 'סנכרון ברקע: ה־token, ה־Query ID ונקודת ההמשך נשמרים בענן רק מוצפנים');
+    ok(vault.open(rec.fields.a.stringValue, 'ownerUid0001|a').from === '20261001', 'סנכרון ברקע: ממשיכים ביום שאחרי הנתונים שבטלפון');
+    r = await post({ op: 'status', idToken: OWNER });
+    ok(r.payload.enabled && r.payload.allowed && !('token' in r.payload) && !JSON.stringify(r.payload).includes('123456789012345678'), 'סנכרון ברקע: סטטוס — בלי להחזיר את ה־token');
+
+    r = await cronRun();
+    ok(r.statusCode === 200 && r.payload.runs.owne === 'ok' && ib.send === 1 && /fd=20261001&td=20261004/.test(ib.lastSend), 'קרון: מושך מ־IBKR בדיוק את החלק החסר (מהיום שאחרי עד יום הסגירה)');
+    ok(!JSON.stringify(store.get('ownerUid0001')).includes('AAPL') && !JSON.stringify(r.payload).includes('AAPL'), 'קרון: הדוח נשמר מוצפן, והתשובה בלי נתונים');
+    const sends = ib.send; r = await cronRun(); await cronRun();
+    ok(ib.send === sends && r.payload.runs.owne === 'skip', 'קרון: קריאות חוזרות באותו יום (גם מבחוץ) — לא פונות ל־IBKR שוב');
+
+    r = await post({ op: 'pull', idToken: OWNER, have: '2026-09-30' });
+    ok(r.payload.chunks.length === 1 && r.payload.chunks[0].fd === '20261001' && r.payload.chunks[0].td === '20261004' && r.payload.chunks[0].data.trades[0].symbol === 'AAPL', 'משיכה מהענן: החלק המוכן חוזר מפוענח, בדיוק בצורה של flex-statement');
+    r = await post({ op: 'pull', idToken: OTHER, have: '2026-09-30' });
+    ok(r.statusCode === 403, 'משיכה מהענן: משתמש אחר לא מקבל את הדוח');
+    r = await post({ op: 'ack', idToken: OWNER, have: '2026-10-04' });
+    const after = store.get('ownerUid0001');
+    ok(r.statusCode === 200 && vault.open(after.fields.s.stringValue, 'ownerUid0001|s').chunks.length === 0 && vault.open(after.fields.a.stringValue, 'ownerUid0001|a').from === '20261005', 'אחרי ייבוא: הדוח נמחק מהענן ונקודת ההמשך מתקדמת');
+
+    // הגבלת קצב של IBKR — עוצרים, לא מנסים שוב
+    store.get('ownerUid0001').fields.run = { integerValue: '0' };
+    store.get('ownerUid0001').fields.a = { stringValue: vault.seal({ from: '20260928' }, 'ownerUid0001|a') };
+    ib = { send: 0, get: 0, mode: 'throttle' };
+    r = await cronRun();
+    ok(r.payload.runs.owne === 'flex_1018' && ib.send === 1 && ib.get === 0 && store.get('ownerUid0001').fields.err.stringValue === 'flex_1018', 'קרון: הגבלת קצב (1018) — בקשה אחת, שומר קוד שגיאה, בלי ניסיון חוזר');
+
+    // רשומה מזויפת (נכתבה ישירות ל־Firestore בלי המפתח) — לא נפתחת ולא פונה ל־IBKR
+    store.set('fakeUid00003', { fields: { c: { stringValue: 'v1.s.AAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAAAAAAAA' }, a: { stringValue: 'x' }, run: { integerValue: '0' } }, updateTime: 'tf' });
+    ib = { send: 0, get: 0, mode: 'ok' }; store.get('ownerUid0001').fields.run = { integerValue: String(NOW) };
+    r = await cronRun();
+    ok(r.payload.runs.fake === 'bad' && ib.send === 0, 'קרון: רשומה מזויפת בלי המפתח — נפסלת, בלי פנייה ל־IBKR');
+
+    process.env.CRON_SECRET = 'cron-secret-123';
+    r = await cronRun();
+    const r2 = await cronRun({ authorization: 'Bearer cron-secret-123' });
+    ok(r.statusCode === 401 && r2.statusCode === 200, 'קרון: עם CRON_SECRET — רק Vercel Cron (Bearer) יכול להפעיל');
+    delete process.env.CRON_SECRET;
+
+    r = await post({ op: 'disable', idToken: OWNER });
+    const r3 = await post({ op: 'pull', idToken: OWNER, have: '2026-10-04' });
+    ok(r.statusCode === 200 && !store.has('ownerUid0001') && r3.payload.enabled === false, 'ביטול: הרשומה (כולל ה־token המוצפן) נמחקת מהענן');
+    r = await (async () => { const x = mockRes(); await sync._handler(mockReq({ body: { op: 'status', idToken: OWNER }, headers: { origin: 'https://evil.example.com' } }), x, deps); return x; })();
+    ok(r.statusCode === 403, 'סנכרון ברקע: Origin לא מאושר — נחסם');
+    env.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; });
+    gauth._reset();
+  }
+
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

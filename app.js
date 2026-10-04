@@ -319,6 +319,9 @@ he: {
   btnSave: 'שמור',
   btnCancel: 'ביטול',
   btnOk: 'אישור', ibkrImportOk: 'ייבוא',
+  ibkrBgLbl: 'עדכון ברקע', ibkrBgEnable: 'הפעלה', ibkrBgOn: 'העדכון ברקע הופעל — הנתונים יחכו לך מעודכנים', ibkrBgOff: 'העדכון ברקע כובה — הפרטים נמחקו מהשרת', ibkrBgOffFail: 'כובה בטלפון, אבל המחיקה מהשרת לא הצליחה — נסו שוב כשיש רשת',
+  ibkrBgConfirm: 'עדכון גם כשהאפליקציה סגורה: כל יום אחרי 14:00 השרת ימשוך את הנתונים מ־IBKR, והם יחכו לך מוכנים.\n\nה־token וה־Query ID יישמרו בשרת מוצפנים (AES‑256), לא יחזרו לעולם לטלפון, ומשמשים רק לקריאת דוחות — לא למסחר. גם הדוחות נשמרים מוצפנים ונמחקים מיד אחרי שנטענו. כיבוי או ניתוק מוחקים הכל מהשרת.',
+  ibkrBgNeedSync: 'קודם צריך סנכרון אחד מוצלח מ־IBKR — אחר כך אפשר להפעיל עדכון ברקע.', ibkrBgSignIn: 'עדכון ברקע דורש התחברות לחשבון Google באפליקציה.', ibkrBgNotAllowed: 'החשבון הזה לא מורשה לעדכון ברקע.', ibkrBgFail: 'לא הצלחתי להפעיל עדכון ברקע כרגע — נסו שוב בעוד כמה דקות.',
   ibkrAutoLbl: 'עדכון אוטומטי', ibkrAutoVal: 'כל יום ב־{h}', ibkrAutoSynced: 'עודכן אוטומטית מ־IBKR',
   saved: 'נשמר ✓',
   newDeposit: 'הפקדה חדשה',
@@ -857,6 +860,9 @@ en: {
   btnSave: 'Save',
   btnCancel: 'Cancel',
   btnOk: 'OK', ibkrImportOk: 'Import',
+  ibkrBgLbl: 'Background update', ibkrBgEnable: 'Turn on', ibkrBgOn: 'Background update is on — your data will be ready when you open the app', ibkrBgOff: 'Background update is off — your details were deleted from the server', ibkrBgOffFail: 'Turned off on this phone, but deleting from the server failed — try again when online',
+  ibkrBgConfirm: 'Update even when the app is closed: every day after 14:00 the server pulls your data from IBKR, so it is ready when you open the app.\n\nYour token and Query ID are stored on the server encrypted (AES-256), never sent back to the phone, and can only read reports — not trade. Reports are stored encrypted too and deleted as soon as they are loaded. Turning this off or disconnecting deletes everything from the server.',
+  ibkrBgNeedSync: 'Sync from IBKR once first — then you can turn on background update.', ibkrBgSignIn: 'Background update requires signing in with Google in the app.', ibkrBgNotAllowed: 'This account isn’t allowed to use background update.', ibkrBgFail: 'Couldn’t turn on background update right now — try again in a few minutes.',
   ibkrAutoLbl: 'Auto update', ibkrAutoVal: 'Daily at {h}', ibkrAutoSynced: 'Updated automatically from IBKR',
   saved: 'Saved ✓',
   newDeposit: 'New deposit',
@@ -1754,6 +1760,7 @@ function ibkrClearErr() {
    כך שאף פעם לא עוברות יותר מ־24 שעות משימוש לשימוש בלי עדכון. */
 const IBKR_AUTO_HOUR_IL = 14;
 const IBKR_AUTO_RETRY_MS = 3 * 3600 * 1000;
+const IBKR_NET_RETRY_MS = 15 * 60 * 1000;   // v311: תקלת רשת רגעית — ניסיון חוזר מהיר
 /* רגע היעד האחרון (ms): היום ב־14:00 שעון ישראל, או אתמול אם עוד לא הגענו (טהורה, נבדקת) */
 function ibkrAutoTargetMs(now) {
   const ms = (typeof now === 'number') ? now : Date.now();
@@ -1775,7 +1782,7 @@ function ibkrAutoSyncDue(cfg, now) {
   const target = ibkrAutoTargetMs(now);
   if ((cfg.lastSync || 0) >= target) return false;
   const tried = cfg.autoTry || 0;
-  if (tried >= target && !(cfg.autoRetry && now - tried >= IBKR_AUTO_RETRY_MS)) return false; // ניסיון אחד לחלון (+ אחד אחרי 3 שעות בתקלה חולפת)
+  if (tried >= target && !(cfg.autoRetry && now - tried >= (cfg.autoRetryMs || IBKR_AUTO_RETRY_MS))) return false; // ניסיון אחד לחלון (+ אחד אחרי 3 שעות בתקלה חולפת)
   return true;
 }
 let _ibkrAutoRunning = false;
@@ -1790,7 +1797,8 @@ async function ibkrAutoSyncTick() {
     _ibkrLastRes = '';
     const r0 = await ibkrSyncImport({ silent: true });
     const res = (typeof r0 === 'string' && r0 !== 'fail') ? r0 : _ibkrLastRes;
-    if (res === 'retry') ibkrSaveCfg({ autoRetry: true });
+    if (res === 'retry') ibkrSaveCfg({ autoRetry: true, autoRetryMs: _ibkrLastNet ? IBKR_NET_RETRY_MS : 0 });
+    if (res === 'ok' || res === 'uptodate') ibkrClearErr();
   } catch (e) {
   } finally { _ibkrAutoRunning = false; }
 }
@@ -2043,6 +2051,8 @@ async function ibkrFetchChunk(fetchFn, proxyUrl, token, queryId, fd, td, chunkRe
   let plan = { attempts: 2, waitMs: 3000 };
   const stage = (pollOpts && pollOpts.onStage) || null;
   if (pollOpts && pollOpts.onChunk) { try { pollOpts.onChunk({ fd, td, state: 'start' }); } catch (e) {} } // v280: כרטיס ההתקדמות
+  const pre = pollOpts && pollOpts.prefetched && pollOpts.prefetched[fd + '|' + td];
+  if (pre) return pre;                     // v311: הוכן בשרתון בזמן שהאפליקציה הייתה סגורה — בלי פנייה ל־IBKR
   for (let attempt = 0; attempt < plan.attempts && !data; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, plan.waitMs));
     let gotRef = false;
@@ -2077,7 +2087,7 @@ async function ibkrFetchFullHistory(fetchFn, proxyUrl, token, queryId, startYmd,
   const gapMs = manualPace ? o.chunkGapMs : 0;
   const limiter = ('limiter' in o) ? o.limiter : (manualPace ? null : IBKR_LIMITER);
   const pollOpts = {
-    tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep, onStage: o.onStage, onChunk: o.onChunk,
+    tries: o.pollTries || o.tries, delayMs: o.pollDelayMs || o.delayMs, limiter, sleep: o.sleep, onStage: o.onStage, onChunk: o.onChunk, prefetched: o.prefetched,
     firstDelayMs: (typeof o.pollFirstMs === 'number') ? o.pollFirstMs : (manualPace ? o.chunkGapMs : undefined),
   };
   const endD = o.endDate || ibkrLastClosedDate();
@@ -2422,7 +2432,11 @@ function renderIbkrCard() {
       s.innerHTML = '<div class="ib-sum">' +
         row(t('ibkrPeriodLbl'), (meta.fromDate ? fmtDateIL(meta.fromDate) : '—') + ' – ' + (meta.toDate ? fmtDateIL(meta.toDate) : '—'), true) +
         row(t('ibkrLastSyncLbl'), cfg.lastSync ? fmtTimeIL(cfg.lastSync) : '—') +
-        row(t('ibkrAutoLbl'), t('ibkrAutoVal', { h: String(IBKR_AUTO_HOUR_IL).padStart(2, '0') + ':00' })) + '</div>';
+        row(t('ibkrAutoLbl'), t('ibkrAutoVal', { h: String(IBKR_AUTO_HOUR_IL).padStart(2, '0') + ':00' })) +
+        // v311: סנכרון גם כשהאפליקציה סגורה — מתג
+        '<div class="ib-row"><span>' + esc(t('ibkrBgLbl')) + '</span><button type="button" class="ib-sw" id="ibkrBgSw" role="switch" aria-checked="' + (cfg.bgOn ? 'true' : 'false') + '" aria-label="' + esc(t('ibkrBgLbl')) + '"><i></i></button></div></div>';
+      const sw = document.getElementById('ibkrBgSw');
+      if (sw) sw.addEventListener('click', () => ibkrBgToggle(!ibkrCfg().bgOn));
     }
   }
   const d = document.getElementById('ibkrData');
@@ -3654,7 +3668,9 @@ function ibkrDisconnect() {
   ibkrClearErr();
   askConfirm(t('disconnectConfirm'), () => {
     // אבטחה: ניתוק מוחק מהטלפון גם את פרטי הגישה (token, Query ID, מפתח שרתון) — כפי שההודעה מבטיחה
+    if (ibkrCfg().bgOn) ibkrBgApi({ op: 'disable' }).catch(() => {});   // v311: ה־token המוצפן נמחק גם מהשרתון
     ibkrSaveCfg({ lastSync: 0, data: null, token: '', queryId: '', appKey: '', statementUrl: '' });
+    ibkrSaveCfg({ bgOn: false });
     for (const id of ['ibkrToken', 'ibkrQuery']) { const e = document.getElementById(id); if (e) e.value = ''; }
     // שחזור הנתונים הידניים שהיו לפני הייבוא (אם נשמר צילום) — לא משאירים נתוני IBKR כ"ידניים"
     const restored = ibkrRestoreManual();
@@ -3717,6 +3733,8 @@ async function ibkrSaveAndTest() {
     const rep = await ibkrRequestReport(fetch, proxyUrl, token, queryId, '', '', IBKR_LIMITER);
     ibkrSaveCfg({ statementUrl: rep.statementUrl || '' });
     flash(t('connOk'));
+    const c2 = ibkrCfg();
+    if (c2.bgOn && ibkrBgHave(c2)) ibkrBgApi({ op: 'enable', token, queryId, have: ibkrBgHave(c2) }).catch(() => {});   // v311: פרטים חדשים — גם בכספת
   } catch (e) {
     ibkrShowErr(t('testFailed', { err: ibkrFriendlyErr(e.message) }));
   }
@@ -3905,9 +3923,9 @@ async function ibkrSyncImport(opts) {
   const fde = null;
   const fromStr = '';
   const historyDepth = 'auto';
-  const endD = ibkrLastClosedDate();
-  const endYmd = ibkrYmd(endD);
-  let startYmd, autoMode = false, autoAll = false;
+  let endD = ibkrLastClosedDate();
+  let endYmd = ibkrYmd(endD);
+  let startYmd, autoMode = false, autoAll = false, prefetched = null;
   const hasData = ibkrHasImportedData(cfg.data);
   // v127: התאריך שהוצע אוטומטית בשדה (המשך מהנתונים הקיימים, או הערך הישן
   // שנשמר ממנו) הוא לא "תאריך ידני" — שמירתו כקבוע גרמה למשיכה חוזרת מאותו
@@ -3926,6 +3944,15 @@ async function ibkrSyncImport(opts) {
     ibkrSaveCfg({ fromDate: '' });
     // השדה יתמלא מחדש אחרי הסנכרון מהנתונים המעודכנים — לא נשאר ערך ישן
     if (fde) fde.value = '';
+    // v311: סנכרון ברקע — החלקים שהשרתון כבר הכין (מוצפנים) במקום לחכות ל־IBKR.
+    // בעדכון השקט — עוצרים בסוף מה שמוכן (מיידי, בלי שגיאות); בלחיצה — רק חלקים זהים, והשאר מ־IBKR.
+    if (ibkrHasWeekday(startYmd, endYmd) && cfg.bgOn) {
+      const plan = ibkrBgPlan(((await ibkrBgPull(cfg)) || {}).chunks, startYmd);
+      if (plan) {
+        prefetched = plan.map;
+        if (silent && plan.lastTd < endYmd) { endD = new Date(+plan.lastTd.slice(0, 4), +plan.lastTd.slice(4, 6) - 1, +plan.lastTd.slice(6, 8)); endYmd = plan.lastTd; }
+      }
+    }
     // כבר מעודכן (או שנותרו רק ימי סופ"ש, שעליהם IBKR לא מפיק דוח)
     if (!ibkrHasWeekday(startYmd, endYmd)) {
       if (fde) fde.value = '';
@@ -3974,6 +4001,7 @@ async function ibkrSyncImport(opts) {
       onChunk: (x) => ui.chunk(x),
       endDate: endD,
       autoDepth: autoAll,
+      prefetched,
     });
     incomingRef = incoming;
     // אם החלק העדכני נכשל — לא שומרים ולא מייבאים. אסור להתקין
@@ -3987,6 +4015,7 @@ async function ibkrSyncImport(opts) {
       const throttled = !locked && (!!incoming._throttled || fails.some((c) => ibkrIsThrottleErr(c.error)));
       const notAvail = !locked && !throttled && fails.length > 0 && fails.every((c) => /flex_1003/.test(c.error || ''));
       renderIbkrCard();
+      if (silent) return result;           // v311: שקט — בלי הודעה אדומה
       const head = locked ? t('importLocked') : throttled ? t('importThrottled') : (notAvail ? t('importNotAvailable') : t('importPartialBlocked'));
       uiFail(head, !locked && !throttled); // נעילה/קצב — בלי "נסו שוב"
       return ibkrShowErr(head + (failText ? ' ' + failText : ''));
@@ -4034,12 +4063,12 @@ async function ibkrSyncImport(opts) {
     try { if (wakeLock) wakeLock.release(); } catch (e) {}
     ibkrSetBusy(false);
     renderIbkrCard();
-    if (silent) _ibkrLastRes = ibkrSilentResult(result, incomingRef, errRef);
+    if (silent) { _ibkrLastRes = ibkrSilentResult(result, incomingRef, errRef); _ibkrLastNet = ibkrSilentIsNet(incomingRef, errRef); }
   }
   return result;
 }
 /* תוצאת עדכון שקט לתזמון (טהורה, נבדקת): ok / retry (תקלה חולפת — ניסיון נוסף בעוד 3 שעות) / fail (נעילה/קצב — לא היום) */
-let _ibkrLastRes = '';
+let _ibkrLastRes = '', _ibkrLastNet = false;
 function ibkrSilentResult(result, incoming, err) {
   if (result === 'ok') return 'ok';
   if (err) return (ibkrIsLockoutErr(err) || ibkrIsThrottleErr(err)) ? 'fail' : 'retry';
@@ -4049,6 +4078,82 @@ function ibkrSilentResult(result, incoming, err) {
     return hard ? 'fail' : 'retry';
   }
   return 'fail';
+}
+
+/* v311: תקלה רגעית של רשת (טלפון שננעל/עבר לרקע באמצע, "Failed to fetch") — ניסיון חוזר כבר בעוד 15 דקות,
+   לא בעוד 3 שעות (טהורה, נבדקת) */
+const IBKR_NET_RE = /failed to fetch|networkerror|load failed|fetch_failed|proxy_http_0|ibkr_http_0|timeout|aborted/i;
+function ibkrSilentIsNet(incoming, err) {
+  if (err) return IBKR_NET_RE.test(String((err && err.message) || err));
+  const fails = ((incoming && incoming._chunks) || []).filter((c) => !c.ok);
+  return fails.length > 0 && fails.every((c) => IBKR_NET_RE.test(String(c.error || '')));
+}
+
+/* ---------- v311: סנכרון IBKR ברקע (גם כשהאפליקציה סגורה) ----------
+   השרתון (api/ibkr-sync.js) מושך פעם ביום את מה שחסר ושומר אותו מוצפן (AES-256-GCM, מפתח רק ב־Vercel);
+   כאן: הפעלה/כיבוי, ובסנכרון — שימוש בחלקים המוכנים במקום לחכות ל־IBKR, ואז מחיקתם מהענן (ack).
+   ה־token עובר לשרתון פעם אחת בהפעלה (HTTPS) ולא חוזר לעולם; ההחלטה — של המשתמש (04/10/2026). */
+async function ibkrBgIdToken() {
+  try {
+    const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
+    return u ? await u.getIdToken() : '';
+  } catch (e) { return ''; }
+}
+async function ibkrBgApi(body) {
+  const idToken = await ibkrBgIdToken();
+  if (!idToken) return { ok: false, error: 'no_auth' };
+  try {
+    const r = await fetchWithTimeout(fetch, ibkrProxyBase() + '/api/ibkr-sync', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify(Object.assign({ idToken }, body)) }, 20000);
+    const j = await r.json();
+    return j || { ok: false, error: 'bad' };
+  } catch (e) { return { ok: false, error: 'net' }; }
+}
+function ibkrBgHave(cfg) {
+  const m = (cfg && cfg.data && cfg.data.meta) || {};
+  return /^\d{4}-\d{2}-\d{2}$/.test(m.toDate || '') ? m.toDate : '';
+}
+/* מפת החלקים המוכנים לשימוש (טהורה, נבדקת): רק רצף שמתחיל בדיוק ב־startYmd — כך אין חפיפה עם מה שכבר בטלפון.
+   מחזירה { map: {'fd|td': data}, lastTd } או null */
+function ibkrBgPlan(chunks, startYmd) {
+  const list = (chunks || []).filter((c) => c && /^\d{8}$/.test(c.fd) && /^\d{8}$/.test(c.td) && c.data && c.fd >= startYmd)
+    .sort((a, b) => (a.fd < b.fd ? -1 : 1));
+  if (!list.length || list[0].fd !== startYmd) return null;
+  const map = {}; let lastTd = '';
+  for (const c of list) {
+    if (lastTd && c.fd > ibkrYmd(new Date(+lastTd.slice(0, 4), +lastTd.slice(4, 6) - 1, +lastTd.slice(6, 8) + 1))) break;   // חור — עוצרים
+    map[c.fd + '|' + c.td] = c.data; if (c.td > lastTd) lastTd = c.td;
+  }
+  return { map, lastTd };
+}
+async function ibkrBgPull(cfg) {
+  if (!cfg.bgOn) return null;
+  const have = ibkrBgHave(cfg);
+  if (!have) return null;
+  const j = await ibkrBgApi({ op: 'pull', have });
+  if (j && j.ok && j.enabled === false) ibkrSaveCfg({ bgOn: false });   // בוטל במכשיר אחר / נמחק
+  return j && j.ok ? j : null;
+}
+function ibkrBgAck() {
+  const cfg = ibkrCfg();
+  if (!cfg.bgOn || !ibkrBgHave(cfg)) return;
+  ibkrBgApi({ op: 'ack', have: ibkrBgHave(cfg) }).catch(() => {});
+}
+async function ibkrBgToggle(on) {
+  const cfg = ibkrCfg();
+  if (!on) {
+    ibkrSaveCfg({ bgOn: false }); renderIbkrCard();
+    const j = await ibkrBgApi({ op: 'disable' });
+    flash(j && j.ok ? t('ibkrBgOff') : t('ibkrBgOffFail'));
+    return;
+  }
+  if (!cfg.token || !cfg.queryId || !ibkrBgHave(cfg)) return askAlert(t('ibkrBgNeedSync'));
+  if (!(await ibkrBgIdToken())) return askAlert(t('ibkrBgSignIn'));
+  askConfirm(t('ibkrBgConfirm'), async () => {
+    const j = await ibkrBgApi({ op: 'enable', token: cfg.token, queryId: cfg.queryId, have: ibkrBgHave(cfg) });
+    if (j && j.ok) { ibkrSaveCfg({ bgOn: true }); flash(t('ibkrBgOn')); }
+    else askAlert(j && j.error === 'not_allowed' ? t('ibkrBgNotAllowed') : j && j.error === 'no_auth' ? t('ibkrBgSignIn') : t('ibkrBgFail'));
+    renderIbkrCard();
+  }, { ok: t('ibkrBgEnable') });
 }
 
 /* שורת מצב של משיכה (פונקציה טהורה, נבדקת): "חלק 2 מתוך 6 · שלב · 1:05". */
@@ -4117,6 +4222,7 @@ function ibkrFinishImport(data, auto) {
     saveDB();
   }
   ibkrSaveCfg({ lastSync: Date.now(), data: data });
+  ibkrBgAck();                             // v311: מה שיובא נמחק מהכספת בענן, ונקודת ההמשך שם מתקדמת
   renderAll();
   renderIbkrCard();
   let msg = t('importDone', { added: added, kept: kept });
@@ -4359,7 +4465,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v310';
+const APP_VERSION = 'v311';
 
 
 function saveDBto(db) {

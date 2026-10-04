@@ -166,7 +166,8 @@ async function main() {
     const importIdx = syncBody.indexOf('ibkrReviewImport(');
     ok(importIdx === -1 || checkIdx < importIdx,
       'הבדיקה מתבצעת לפני כל יבוא — אין דריסת נתונים טובים בחלקיים');
-    ok(/ibkrSyncIsComplete\([\s\S]{0,800}return ibkrShowErr/.test(syncBody),
+    // v311: החלון הורחב ל־1000 — נוספה יציאה מוקדמת שקטה (עדכון אוטומטי, גם היא בלי יבוא)
+    ok(/ibkrSyncIsComplete\([\s\S]{0,1000}return ibkrShowErr/.test(syncBody) && /ibkrSyncIsComplete\([\s\S]{0,700}if \(silent\) return result;/.test(syncBody),
       'כשלון שלמות -> חזרה מוקדמת עם שגיאה, בלי יבוא');
   }
 
