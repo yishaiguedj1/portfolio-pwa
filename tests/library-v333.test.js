@@ -49,7 +49,7 @@ ok(/CSS\.highlights\.set\('snb-tap'/.test(lib) && /::highlight\(snb-tap\)/.test(
 
 // ---------- עיצוב ----------
 ok(/\.tr-card \{[^}]*position: absolute;[^}]*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\)/.test(css) && /\.rd\[data-dark="1"\] \.tr-card \{ background: #1C1C1E;/.test(css), 'כרטיס מלמטה, בצבע הדף; בכהה משטח מוגבה');
-ok(/\.tr-grab \{/.test(css) && /\.tr-main \{[^}]*font-size: 25px/.test(css) && /\.tr-ctx \{/.test(css), 'ידית, תרגום גדול, בועת "בהקשר"');
+ok(/\.tr-grab \{/.test(css) && /\.tr-dsec \.tr-main \{[^}]*font-size: 20px/.test(css) && /\.tr-ctx-t \{/.test(css), 'ידית, תרגום גדול (מ־v334 בראש קבוצת המילון), "בהקשר" כמקטע');
 ok(/prefers-reduced-motion: reduce\) \{ \.tr-card/.test(css), 'reduced-motion');
 
 // ---------- Gemini: מכסה ----------
