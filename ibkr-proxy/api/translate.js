@@ -7,6 +7,10 @@
 const { guard } = require('../lib/ibkr');
 const { TRANSLATE_MODELS, badScript, fixScript } = require('../lib/gmodels');
 const { mistralJSON, mistralProbe } = require('../lib/mistral');
+const { createAiStore } = require('../lib/aicache');
+const { verifyIdToken } = require('../lib/gauth');
+const aiStore = createAiStore();
+const deps = {};                                 // בדיקות: store / verify מדומים
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const MODELS = TRANSLATE_MODELS;
@@ -43,7 +47,7 @@ function prompt(text, context, title, lang) {
   return { sys, user };
 }
 
-async function gemini(text, context, title, lang, diag) {
+async function gemini(text, context, title, lang, diag, models) {
   const key = process.env.GEMINI_API_KEY;
   diag.key = !!key; // אבחון בלי לחשוף את המפתח: האם קיים, ומה החזיר כל מודל
   if (!key) return null;
@@ -58,7 +62,7 @@ async function gemini(text, context, title, lang, diag) {
     },
   });
   let q429 = 0, tried = 0, mended = null;
-  for (const model of MODELS()) {
+  for (const model of models || MODELS()) {
     tried++;
     const ctl = new AbortController();
     const to = setTimeout(() => ctl.abort(), AI_MS);
@@ -71,6 +75,8 @@ async function gemini(text, context, title, lang, diag) {
       if (r.status === 429) { q429++; continue; }        // v333: למודל הזה נגמרה המכסה — לכל מודל מכסה נפרדת, ממשיכים
       if (r.status !== 200) continue;
       const j = await r.json();
+      const um = j.usageMetadata || {};          // v339: מדידת טוקנים (קלט, פלט, חשיבה) — לבחירת הדגם לפי עלות אמיתית
+      diag[model + ':tok'] = [um.promptTokenCount || 0, um.candidatesTokenCount || 0, um.thoughtsTokenCount || 0];
       const raw = (((j.candidates || [])[0] || {}).content || {}).parts;
       const txt = (raw || []).map((p) => p.text || '').join('');
       const out = JSON.parse(txt);
@@ -179,23 +185,40 @@ module.exports = async (req, res) => {
   const key = lang + '|' + text + '|' + context + '|' + only;
   const hit = cache.get(key);
   if (hit) return res.status(200).json(hit);
+  // v339: מטמון משותף (Firestore) — תשובה שכבר חושבה לקורא אחר, בלי לפנות ל־AI ובלי לספור במכסה
+  const store = deps.store || aiStore;
+  const sk = [lang, text, context];
+  const shared = only ? null : await store.get('ctx', sk);
+  if (shared) { const v = Object.assign({ ok: true, quota: false }, shared, { cached: true }); cache.set(key, v); return res.status(200).json(v); }
+  // v339: מפסק יומי + מגבלה לכל קורא (מחובר — לפי uid; לא מחובר — לפי כתובת, תקרה נמוכה)
+  let who = 'ip:' + ip;
+  if (body.idToken) { try { const u = await verifyIdToken(body.idToken, deps.verify || {}); if (u && u.uid) who = u.uid; } catch (e) {} }
+  const gate = await store.allow(who, 'ctx');
+  if (!gate.ok) {
+    const b = await basic(text, lang);
+    return res.status(200).json(Object.assign({ ok: true, quota: false, limited: gate.why }, b || { translation: '', note: '', engine: 'none' }));
+  }
   const diag = {};
   let out = only === 'gemini' ? null : await mistral(text, context, title, lang, diag);
   const mq = !!(out && out.quota);
   if (mq) out = null;
   let gq = false;
-  if (!out && only !== 'mistral') { out = await gemini(text, context, title, lang, diag); gq = !!(out && out.quota); if (gq) out = null; }
+  // השוואה: gmodels = רשימת דגמי Gemini לבדיקה (רק עם only=gemini, עד 4, שמות תקינים)
+  const gm = only === 'gemini' && Array.isArray(body.gmodels) ? body.gmodels.filter((m) => /^gemini-[a-z0-9.-]{3,40}$/.test(m)).slice(0, 4) : null;
+  if (!out && only !== 'mistral') { out = await gemini(text, context, title, lang, diag, gm && gm.length ? gm : null); gq = !!(out && out.quota); if (gq) out = null; }
   // "מכסה" רק כשכל הספקים שנוסו החזירו מכסה (בלי מפתח — לא נחשב)
   const quota = !out && (only === 'mistral' ? mq : only === 'gemini' ? gq : (mq || !diag.mistralKey) && gq);
   if (!out) out = await basic(text, lang);
   if (!out) return res.status(502).json({ ok: false, error: 'translate_failed' });
   const v = Object.assign({ ok: true, quota }, out, { diag });
+  if (!only && out.engine === 'ai') await store.set('ctx', sk, { translation: out.translation, note: out.note || '', wiki: out.wiki || '', engine: 'ai', provider: out.provider, model: out.model });
   cache.set(key, v);
   if (cache.size > 500) cache.clear();
   return res.status(200).json(v);
 };
 
 module.exports._prompt = prompt;
+module.exports._deps = deps;
 module.exports._parseGt = parseGt;
 module.exports._cache = cache;
 module.exports._hits = hits;

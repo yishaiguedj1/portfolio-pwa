@@ -9,6 +9,8 @@ const { verifyIdToken, readerAllowed, driveToken, serviceAccount, isAdmin, email
 const readers = require('../lib/readers');
 const { epubText } = require('../lib/epubtext');
 const { insight } = require('../lib/insight');
+const { createAiStore } = require('../lib/aicache');
+const aiStore = createAiStore();
 const gdrive = require('../lib/gdrive');
 const insightCache = new Map();   // id|md5 → ניתוח (חוסך קריאות ל־Gemini בין קוראים, כל עוד המופע חי)
 
@@ -127,6 +129,11 @@ async function handler(req, res, deps = {}) {
       if (!ID_RE.test(id) || !item) return res.status(404).json({ ok: false, error: 'not_found' });
       const ckey = id + '|' + item.md5;
       if (body.op === 'insight' && insightCache.has(ckey)) return res.status(200).json({ ok: true, insight: insightCache.get(ckey), md5: item.md5 });
+      const store = deps.aiStore || aiStore;
+      if (body.op === 'insight') {                // v339: ניתוח משותף — כל מכתב (לפי md5) מנותח פעם אחת לכל הקוראים
+        const sh = await store.get('ins', [id, item.md5]);
+        if (sh) { insightCache.set(ckey, sh); return res.status(200).json({ ok: true, insight: sh, md5: item.md5, cached: true }); }
+      }
       const token = await driveToken(deps.fetch);
       const meta = await (await driveGet('/' + id + '?fields=' + q('parents,size,name') + '&supportsAllDrives=true', token, deps.fetch)).json();
       if (!(meta.parents || []).some((p) => cat.folders.has(p))) return res.status(404).json({ ok: false, error: 'not_found' });
@@ -137,9 +144,12 @@ async function handler(req, res, deps = {}) {
         if (limited('ins|' + user.uid, 12)) return res.status(429).json({ ok: false, error: 'rate_limited' });
         let doc; try { doc = epubText(buf); } catch (e) { return res.status(422).json({ ok: false, error: 'not_epub' }); }
         if (doc.text.length < 500) return res.status(422).json({ ok: false, error: 'no_text' });
+        const gate = await store.allow(user.uid, 'ins');   // v339: מפסק יומי
+        if (!gate.ok) return res.status(429).json({ ok: false, error: 'quota', limited: gate.why });
         const diag = {};
         const out = await (deps.insight || insight)(doc.title || meta.name, doc.text, deps.fetch, diag);
         if (!out.insight) return res.status(out.error === 'quota' ? 429 : 502).json({ ok: false, error: out.error, diag });
+        await store.set('ins', [id, item.md5], out.insight);
         insightCache.set(ckey, out.insight);
         if (insightCache.size > 300) insightCache.clear();
         return res.status(200).json({ ok: true, insight: out.insight, md5: item.md5 });

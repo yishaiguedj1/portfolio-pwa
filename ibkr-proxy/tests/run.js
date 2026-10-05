@@ -7,6 +7,7 @@ const history = require('../api/history');
 const quotes = require('../api/quotes');
 
 let n = 0;
+process.env.AI_ANON_DAILY = process.env.AI_ANON_DAILY || '1000000';   // v339: בבדיקות הישנות — בלי מגבלה יומית לכתובת
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
 
 /* ---------- statementBaseFrom (SSRF guard) ---------- */
@@ -1049,6 +1050,72 @@ function stubFetch(text, status = 200) {
     ok(gd.REDIRECT_RE.test('http://localhost:8080/oauth.html') && !gd.REDIRECT_RE.test('https://yishaiguedj1.github.io/other/oauth.html'), 'גיבוי Drive: כתובת חזרה — רק עמוד האפליקציה (או localhost)');
     env.forEach(([k, v]) => { if (v == null) delete process.env[k]; else process.env[k] = v; });
     gauth._reset();
+  }
+
+  /* ---------- v339: מטמון AI משותף + מפסק יומי + מגבלה לכל קורא (Firestore מדומה) ---------- */
+  {
+    const { createAiStore, aiKey } = require('../lib/aicache');
+    const docs = {}; const counters = {}; const calls = [];
+    const fsFetch = async (u, opt) => {
+      calls.push({ u, m: opt.method });
+      const name = u.split('/documents/')[1];
+      if (u.endsWith(':commit')) {
+        const w = JSON.parse(opt.body).writes[0].transform;
+        const day = w.document.split('/aiUse/')[1]; counters[day] = counters[day] || {};
+        const tr = w.fieldTransforms.map((f) => { counters[day][f.fieldPath] = (counters[day][f.fieldPath] || 0) + 1; return { integerValue: String(counters[day][f.fieldPath]) }; });
+        return { status: 200, json: async () => ({ writeResults: [{ transformResults: tr }] }) };
+      }
+      if (opt.method === 'PATCH') { docs[name] = JSON.parse(opt.body); return { status: 200, json: async () => ({}) }; }
+      if (docs[name]) return { status: 200, json: async () => docs[name] };
+      return { status: 404, json: async () => ({}) };
+    };
+    const st = createAiStore({ fetch: fsFetch, token: async () => 't' });
+    ok(aiKey('ctx', ['he', 'moat', 'a']) === aiKey('ctx', ['he', 'moat', 'a']) && aiKey('ctx', ['he', 'moat', 'a']) !== aiKey('ctx', ['he', 'moat', 'b']) && /^ctx_[0-9a-f]{40}$/.test(aiKey('ctx', ['x'])), 'aicache: מפתח לפי שפה+מילה+הקשר (sha256, בלי הטקסט עצמו)');
+    ok(await st.get('ctx', ['he', 'moat', 'c']) === null, 'aicache: חסר — null');
+    await st.set('ctx', ['he', 'moat', 'c'], { translation: 'חפיר', model: 'g' });
+    st._memCache.clear();
+    const g = await st.get('ctx', ['he', 'moat', 'c']);
+    ok(g && g.translation === 'חפיר' && !JSON.stringify(docs).includes('moat'), 'aicache: נשמר ב־Firestore ונקרא בחזרה (מופע אחר) — בלי המילה/ההקשר במסמך');
+    process.env.AI_USER_DAILY = '3'; process.env.AI_DAILY_LIMIT = '5'; process.env.AI_ANON_DAILY = '2';
+    const r1 = []; for (let i = 0; i < 4; i++) r1.push((await st.allow('uidA', 'ctx')).ok);
+    ok(r1.join() === 'true,true,true,false', 'מגבלה לכל קורא: 3 ביום, הרביעית נחסמת');
+    const an = createAiStore({ fetch: fsFetch, token: async () => 't' });
+    Object.keys(counters).forEach((k) => delete counters[k]);
+    const r3 = []; for (let i = 0; i < 3; i++) r3.push((await an.allow('ip:1.2.3.4', 'ctx')).ok);
+    ok(r3.join() === 'true,true,false' && (await an.allow('uidZ', 'ctx')).ok, 'לא מחובר — תקרה נמוכה (2) לפי כתובת, בלי לפגוע בקורא מחובר');
+    Object.keys(counters).forEach((k) => delete counters[k]); for (let i = 0; i < 5; i++) await an.allow('u' + i, 'ctx');
+    const d = await st.allow('uidB', 'ctx');
+    ok(!d.ok && d.why === 'daily', 'מפסק יומי: מעבר לתקרה הכוללת — ה־AI כבוי לכולם');
+    // Firestore לא זמין → מונים בזיכרון עם אותן תקרות
+    const down = createAiStore({ fetch: async () => { throw new Error('down'); }, token: async () => 't' });
+    const r2 = []; for (let i = 0; i < 4; i++) r2.push((await down.allow('uidC', 'ctx')).ok);
+    ok(r2.join() === 'true,true,true,false' && down._mem.day, 'Firestore לא זמין — מונים בזיכרון, אותה מגבלה (אף פעם לא בלי הגבלה)');
+    process.env.AI_USER_DAILY = ''; process.env.AI_DAILY_LIMIT = ''; process.env.AI_ANON_DAILY = '1000000';
+
+    // התרגום: מטמון משותף לפני AI, מפסק לפני AI, שמירה אחרי AI
+    const translate = require('../api/translate');
+    const oldG = process.env.GEMINI_API_KEY, oldM = process.env.MISTRAL_API_KEY;
+    process.env.GEMINI_API_KEY = 'g'; delete process.env.MISTRAL_API_KEY;
+    const ai = []; const saved = [];
+    const fake = { hit: null, gate: { ok: true },
+      get: async () => fake.hit, set: async (k, p, v) => saved.push(v), allow: async (who) => { fake.who = who; return fake.gate; } };
+    translate._deps.store = fake; translate._deps.verify = { fake: true };
+    const prevFetch = global.fetch;
+    global.fetch = async (u) => { ai.push(String(u)); if (String(u).includes('googleapis')) return { status: 200, json: async () => ({ usageMetadata: { promptTokenCount: 300, candidatesTokenCount: 40 }, candidates: [{ content: { parts: [{ text: JSON.stringify({ translation: 'חפיר כלכלי', note: 'n', wiki: 'Economic moat' }) }] } }] }) }; return { status: 200, json: async () => ({ responseData: { translatedText: 'בסיסי' } }) }; };
+    const run = async (body) => { const r = mockRes(); await translate(mockReq({ body }), r); return r; };
+    translate._cache.clear(); fake.hit = { translation: 'משותף', note: '', wiki: 'W', engine: 'ai', provider: 'gemini', model: 'gemini-x' };
+    let r = await run({ text: 'moat', context: 'c1' });
+    ok(r.payload.cached && r.payload.translation === 'משותף' && !ai.length, 'תרגום: תשובה מהמטמון המשותף — בלי פנייה ל־AI');
+    translate._cache.clear(); fake.hit = null; fake.gate = { ok: false, why: 'user' };
+    r = await run({ text: 'moat', context: 'c2' });
+    ok(r.payload.limited === 'user' && r.payload.engine === 'basic' && !ai.some((u) => u.includes('googleapis')), 'תרגום: מעבר למגבלה — בלי AI (תרגום בסיסי), עם סיבה');
+    translate._cache.clear(); fake.gate = { ok: true }; ai.length = 0;
+    r = await run({ text: 'moat', context: 'c3' });
+    ok(r.payload.engine === 'ai' && saved.length === 1 && saved[0].translation === 'חפיר כלכלי' && saved[0].wiki === 'Economic moat' && fake.who.startsWith('ip:'), 'תרגום: תשובת AI נשמרת למטמון המשותף; לא מחובר = לפי כתובת');
+    ok(JSON.stringify(r.payload.diag).includes('"gemini-flash-lite-latest:tok":[300,40,0]'), 'מדידת טוקנים לכל דגם באבחון (קלט, פלט, חשיבה)');
+    global.fetch = prevFetch; delete translate._deps.store; delete translate._deps.verify;
+    if (oldG === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldG;
+    if (oldM !== undefined) process.env.MISTRAL_API_KEY = oldM;
   }
 
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
