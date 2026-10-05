@@ -46,7 +46,7 @@ async function insight(title, text, fetchImpl, diag = {}) {
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: sys }] },
     contents: [{ role: 'user', parts: [{ text: user }] }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 3000, responseMimeType: 'application/json', responseSchema: SCHEMA },
+    generationConfig: { temperature: 0.3, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA },
   });
   const started = Date.now();
   let q429 = 0, tried = 0;

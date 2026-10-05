@@ -47,7 +47,8 @@ async function gemini(text, context, title, lang, diag) {
     systemInstruction: { parts: [{ text: sys }] },
     contents: [{ role: 'user', parts: [{ text: user }] }],
     generationConfig: {
-      temperature: 0.2, maxOutputTokens: 600, responseMimeType: 'application/json',
+      temperature: 0.2, maxOutputTokens: 2048,   // v333: במודלי "חשיבה" טוקני החשיבה נספרים כאן — 600 חתך את ה־JSON (נמדד חי)
+      responseMimeType: 'application/json',
       responseSchema: { type: 'OBJECT', properties: { translation: { type: 'STRING' }, note: { type: 'STRING' } }, required: ['translation'] },
     },
   });
