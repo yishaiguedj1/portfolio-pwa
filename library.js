@@ -3266,7 +3266,8 @@ async function fetchTranslation(text, context, title) {
   const base = (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
   const headers = Object.assign({ 'Content-Type': 'application/json' }, typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {});
   const lang = (typeof getLang === 'function' && getLang()) || 'he';
-  const r = await fetch(base + '/api/translate', { method: 'POST', headers, body: JSON.stringify({ text: text.slice(0, 400), context, title, to: lang }) });
+  let tok = ''; try { tok = await idToken(); } catch (e) {}   // v339: קורא מחובר — מגבלה יומית לפי חשבון (לא לפי כתובת)
+  const r = await fetch(base + '/api/translate', { method: 'POST', headers, body: JSON.stringify(Object.assign({ text: text.slice(0, 400), context, title, to: lang }, tok ? { idToken: tok } : {})) });
   const j = await r.json();
   if (!j || !j.ok) throw new Error((j && j.error) || 'translate_failed');
   trCache.set(key, j);
@@ -3415,7 +3416,7 @@ async function wjson(u) {
 async function wikiSummary(lang, title, enTitle) {
   const j = await wjson('https://' + lang + '.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(String(title).replace(/ /g, '_')));
   if (!j || j.type === 'disambiguation' || !j.extract) return null;
-  return { lang, title: j.title, sub: [enTitle && enTitle !== j.title ? enTitle : '', j.description || ''].filter(Boolean).join(' · '),
+  return { lang, title: j.title, desc: j.description || '', sub: [enTitle && enTitle !== j.title ? enTitle : '', j.description || ''].filter(Boolean).join(' · '),
     extract: gtClip(j.extract, 1400), thumb: (j.thumbnail || {}).source || '', url: ((j.content_urls || {}).mobile || {}).page || '' };
 }
 /* v337 (בקשת המשתמש): ויקיפדיה לכל מילה — לא רק למונחים. קודם שם הערך מה־AI (לפי ההקשר), ואם אין/לא נמצא —
@@ -3455,9 +3456,27 @@ function wikiLookup(enTitle, word) {
     }
     return null;
   })();
-  p.catch(() => wikiCache.delete(k));
-  wikiCache.set(k, p); if (wikiCache.size > 200) wikiCache.clear();
-  return p;
+  const out = p.then((r) => wikiInLang(r));
+  out.catch(() => wikiCache.delete(k));
+  wikiCache.set(k, out); if (wikiCache.size > 200) wikiCache.clear();
+  return out;
+}
+/* v339 (בקשת המשתמש): ויקיפדיה תמיד בשפת המשתמש — ערך שאין לו גרסה בשפה הזו מתורגם (כותרת + תקציר) באותו מנוע של
+   Google שמתרגם את המילה; השם המקורי נשאר בשורת המשנה, והקרדיט מציין "תורגם". תקלה — נשאר במקור */
+async function gtLong(text, tl) {
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4000);
+  try {
+    const r = await fetch(GT_URL + '&sl=auto&tl=' + tl + '&hl=' + tl + '&q=' + encodeURIComponent(String(text).slice(0, 1500)), { signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    const o = r.ok ? parseGt(await r.json()) : null;
+    return o && o.translation ? o.translation : '';
+  } catch (e) { return ''; } finally { clearTimeout(to); }
+}
+async function wikiInLang(w) {
+  const tl = uiLang();
+  if (!w || w.lang === tl) return w;
+  const [title, extract, desc] = await Promise.all([gtLong(w.title, tl), gtLong(w.extract, tl), w.desc ? gtLong(w.desc, tl) : '']);
+  if (!extract) return w;
+  return Object.assign({}, w, { title: title || w.title, extract, sub: [w.title, desc].filter(Boolean).join(' · '), tr: w.lang });
 }
 function wikiSection(c, w, seq) {
   if (!w || seq !== trSeq || !c.isConnected) return;
@@ -3468,7 +3487,7 @@ function wikiSection(c, w, seq) {
   top.append(tt);
   if (w.thumb) { const im = h('img', 'wk-img'); im.alt = ''; im.referrerPolicy = 'no-referrer'; im.loading = 'lazy'; im.src = w.thumb; im.addEventListener('error', () => im.remove()); top.append(im); }
   const tx = h('div', 'wk-tx', w.extract); tx.dir = 'auto';
-  const ft = h('div', 'wk-foot'); ft.append(h('span', null, T('trWiki') + ' · CC BY-SA'));
+  const ft = h('div', 'wk-foot'); ft.append(h('span', null, T('trWiki') + ' · CC BY-SA' + (w.tr ? ' · ' + T('trWikiTr') : '')));
   if (w.url) { const a = h('button', 'wk-more', T('trWikiMore')); a.type = 'button'; a.addEventListener('click', (e) => { e.stopPropagation(); window.open(w.url, '_blank', 'noopener'); }); ft.append(a); }
   body.append(top, tx, ft);
   c.append(sec);
@@ -3545,7 +3564,8 @@ function trShow(text, block, doc, range, sel) {
   fetchTranslation(text, contextFor(text, block || text), (rd.rec && rd.rec.title) || '').then((j) => {
     if (seq !== trSeq) return;
     const ai = j && j.engine === 'ai';
-    if (!ai) ctx.remove();
+    if (!ai && j && j.limited) { cb.textContent = ''; cb.append(h('div', 'tr-ctx-n', T(j.limited === 'user' ? 'trLimitUser' : 'trLimitDay'))); cb.classList.add('in'); }   // v339: מגבלה יומית — שורה קצרה, לא היעלמות שקטה
+    else if (!ai) ctx.remove();
     else {
       cb.textContent = '';
       model.textContent = aiModelLabel(j.model); model.title = j.model || '';

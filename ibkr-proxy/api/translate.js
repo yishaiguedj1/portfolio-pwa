@@ -199,15 +199,14 @@ module.exports = async (req, res) => {
     return res.status(200).json(Object.assign({ ok: true, quota: false, limited: gate.why }, b || { translation: '', note: '', engine: 'none' }));
   }
   const diag = {};
-  let out = only === 'gemini' ? null : await mistral(text, context, title, lang, diag);
-  const mq = !!(out && out.quota);
-  if (mq) out = null;
-  let gq = false;
   // השוואה: gmodels = רשימת דגמי Gemini לבדיקה (רק עם only=gemini, עד 4, שמות תקינים)
   const gm = only === 'gemini' && Array.isArray(body.gmodels) ? body.gmodels.filter((m) => /^gemini-[a-z0-9.-]{3,40}$/.test(m)).slice(0, 4) : null;
-  if (!out && only !== 'mistral') { out = await gemini(text, context, title, lang, diag, gm && gm.length ? gm : null); gq = !!(out && out.quota); if (gq) out = null; }
+  // v339: Gemini Flash-Lite ראשון (מדויק יותר במונחים — השוואה חיה 05/10/2026), Ministral (חינמי) גיבוי
+  let gq = false, mq = false, out = null;
+  if (only !== 'mistral') { out = await gemini(text, context, title, lang, diag, gm && gm.length ? gm : null); gq = !!(out && out.quota); if (gq) out = null; }
+  if (!out && only !== 'gemini') { out = await mistral(text, context, title, lang, diag); mq = !!(out && out.quota); if (mq) out = null; }
   // "מכסה" רק כשכל הספקים שנוסו החזירו מכסה (בלי מפתח — לא נחשב)
-  const quota = !out && (only === 'mistral' ? mq : only === 'gemini' ? gq : (mq || !diag.mistralKey) && gq);
+  const quota = !out && (only === 'mistral' ? mq : only === 'gemini' ? gq : gq && (mq || !diag.mistralKey));
   if (!out) out = await basic(text, lang);
   if (!out) return res.status(502).json({ ok: false, error: 'translate_failed' });
   const v = Object.assign({ ok: true, quota }, out, { diag });

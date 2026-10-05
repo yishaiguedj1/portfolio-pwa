@@ -44,7 +44,7 @@ ok(/else if \(trCard\) hideTr\(\);/.test(lib) && /if \(trCard\) \{ hideTr\(\); r
 ok(/box\.addEventListener\('click', \(e\) => \{[\s\S]{0,300}setChrome\(!rd\.chrome\);/.test(lib), 'הסרגלים נפתחים גם בנגיעה בשולי העמוד');
 ok(!/act\('rdTranslate'/.test(lib) && !/function translateSheet/.test(lib), 'v336: חלון הסימון הוטמע בכרטיס התרגום — אין כפתור "תרגום" נפרד');
 ok(/if \(seq !== trSeq\) return;/.test(lib), 'תשובה מאוחרת של מילה קודמת לא דורסת');
-ok(/const ai = j && j\.engine === 'ai';\s*if \(!ai\) ctx\.remove\(\);/.test(lib), 'בלי AI (מכסה/רשת) — "בהקשר" פשוט לא מוצג, בלי הודעת שגיאה');
+ok(/const ai = j && j\.engine === 'ai';[\s\S]{0,300}else if \(!ai\) ctx\.remove\(\);/.test(lib), 'בלי AI (מכסה/רשת) — "בהקשר" פשוט לא מוצג (v339: במגבלה יומית — שורה קצרה)');
 ok(/CSS\.highlights\.set\('snb-tap'/.test(lib) && /::highlight\(snb-tap\)/.test(lib), 'המילה מסומנת בעדינות בלי לגעת ב־DOM של הספר');
 
 // ---------- עיצוב ----------

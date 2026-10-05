@@ -487,7 +487,7 @@ function stubFetch(text, status = 200) {
       'translate: בלי מפתח — גיבוי בסיסי, בלי פנייה ל־Gemini');
 
     process.env.GEMINI_API_KEY = 'test-key'; translate._cache.clear(); calls.length = 0;
-    setFetch((u) => (u.includes('gemini-flash-latest') ? okGem('חפיר כלכלי', 'יתרון תחרותי עמיד שמגן על העסק') : mm('x')));
+    setFetch((u) => (u.includes('gemini-3.5-flash-lite') ? okGem('חפיר כלכלי', 'יתרון תחרותי עמיד שמגן על העסק') : mm('x')));
     r = await run({ text: 'moat', context: 'A wide moat protects the business.', title: 'מכתב באפט 2023' });
     const g = calls.find((c) => c.url.includes('googleapis'));
     const sent = g && JSON.parse(g.opt.body);
@@ -498,22 +498,22 @@ function stubFetch(text, status = 200) {
       'translate: נשלחים גם ההקשר וגם שם הספר');
 
     translate._cache.clear(); calls.length = 0;
-    setFetch((u) => (u.includes('gemini-flash-lite-latest') ? gem(404, {}) : u.includes('googleapis') ? okGem('צף') : mm('x')));
+    setFetch((u) => (u.includes('gemini-3.5-flash-lite') ? gem(404, {}) : u.includes('googleapis') ? okGem('צף') : mm('x')));
     r = await run({ text: 'float', context: 'Insurance float is money we hold.' });
     ok(r.payload.engine === 'ai' && r.payload.translation === 'צף' && calls.filter((c) => c.url.includes('googleapis')).length === 2,
       'translate: מודל שלא קיים (404) — עוברים לבא ברשימה');
 
     // v333: התרגום פונה קודם ל־Flash-Lite (מכסה חינמית גדולה פי ~25), ו־429 של מודל אחד לא עוצר
     translate._cache.clear(); calls.length = 0;
-    setFetch((u) => (u.includes('gemini-flash-lite-latest') ? gem(429, {}) : u.includes('googleapis') ? okGem('צף ביטוחי') : mm('x')));
+    setFetch((u) => (u.includes('gemini-3.5-flash-lite') ? gem(429, {}) : u.includes('googleapis') ? okGem('צף ביטוחי') : mm('x')));
     r = await run({ text: 'float', context: 'Insurance float.' });
     const gm = calls.filter((c) => c.url.includes('googleapis')).map((c) => c.url.split('/models/')[1].split(':')[0]);
-    ok(gm[0] === 'gemini-flash-lite-latest' && r.payload.engine === 'ai' && r.payload.quota === false && r.payload.translation === 'צף ביטוחי',
+    ok(gm[0] === 'gemini-3.5-flash-lite' && r.payload.engine === 'ai' && r.payload.quota === false && r.payload.translation === 'צף ביטוחי',
       'translate: 429 במודל הראשון — ממשיכים למודל הבא (לכל מודל מכסה נפרדת), בלי "מכסה" למשתמש');
     translate._cache.clear(); calls.length = 0;
-    setFetch((u) => (u.includes('gemini-flash-lite-latest') ? okGem('חפير עמוק') : u.includes('googleapis') ? okGem('חפיר') : mm('x')));
+    setFetch((u) => (u.includes('gemini-3.5-flash-lite') ? okGem('חפير עמוק') : u.includes('googleapis') ? okGem('חפיר') : mm('x')));
     r = await run({ text: 'moat', context: 'wide moat' });
-    ok(r.payload.translation === 'חפיר' && r.payload.diag['gemini-flash-lite-latest:err'] === 'mixed_script', 'translate: עברית עם אותיות ערביות ("חפير" — נמצא חי) נפסלת');
+    ok(r.payload.translation === 'חפיר' && r.payload.diag['gemini-3.5-flash-lite:err'] === 'mixed_script', 'translate: עברית עם אותיות ערביות ("חפير" — נמצא חי) נפסלת');
     translate._cache.clear(); calls.length = 0;
     setFetch((u) => (u.includes('googleapis') ? okGem('חפير כלכלי') : mm('בסיסי')));
     r = await run({ text: 'moat', context: 'durable moat' });
@@ -578,21 +578,26 @@ function stubFetch(text, status = 200) {
     const run = async (body) => { const r = mockRes(); await translate(mockReq({ body }), r); return r; };
     const set = (fn) => { global.fetch = async (u, opt) => { calls.push({ u: String(u), opt }); return fn(String(u), opt); }; };
     translate._cache.clear(); translate._hits.clear(); calls.length = 0;
-    set((u) => (u.includes('mistral.ai') ? mOk({ translation: 'חפיר כלכלי', note: 'יתרון תחרותי עמיד', wiki: 'Economic moat' }) : gOk({ translation: 'x' })));
+    set((u) => (u.includes('googleapis') ? gOk({ translation: 'חפיר כלכלי', note: 'יתרון תחרותי עמיד', wiki: 'Economic moat' }) : mOk({ translation: 'x' })));
     let r = await run({ text: 'moat', context: 'a wide moat', title: 'T' });
-    const sent = JSON.parse(calls[0].opt.body);
-    ok(r.payload.provider === 'mistral' && r.payload.model === 'ministral-14b-latest' && r.payload.wiki === 'Economic moat' && !calls.some((c) => c.u.includes('googleapis')),
-      'context: Mistral ראשון — תרגום, הערה, שם ערך ויקיפדיה ושם המודל; בלי פנייה ל־Gemini');
-    ok(sent.response_format.type === 'json_object' && /wiki/.test(sent.messages[0].content) && sent.messages[1].content.includes('a wide moat'), 'context: JSON בלבד, ההנחיה מבקשת גם ערך ויקיפדיה, וההקשר נשלח');
+    ok(r.payload.provider === 'gemini' && r.payload.model === 'gemini-3.5-flash-lite' && r.payload.wiki === 'Economic moat' && !calls.some((c) => c.u.includes('mistral.ai')),
+      'context v339: Gemini 3.5 Flash-Lite ראשון — תרגום, הערה, שם ערך ושם המודל; בלי פנייה ל־Mistral');
     translate._cache.clear(); calls.length = 0;
-    set((u) => (u.includes('mistral.ai') ? { status: 429, json: async () => ({}) } : gOk({ translation: 'צף', note: '', wiki: '' })));
+    set((u) => (u.includes('googleapis') ? { status: 429, json: async () => ({}) } : mOk({ translation: 'חפיר כלכלי', note: 'יתרון תחרותי עמיד', wiki: 'Economic moat' })));
+    r = await run({ text: 'moat', context: 'a wide moat 2', title: 'T' });
+    const sent = JSON.parse(calls.find((c) => c.u.includes('mistral.ai')).opt.body);
+    ok(r.payload.provider === 'mistral' && r.payload.model === 'ministral-14b-latest' && r.payload.quota === false && r.payload.wiki === 'Economic moat',
+      'context v339: כל Gemini במכסה — Ministral 14B (חינמי) כגיבוי, בלי "מכסה" למשתמש');
+    ok(sent.response_format.type === 'json_object' && /wiki/.test(sent.messages[0].content) && sent.messages[1].content.includes('a wide moat 2'), 'context: JSON בלבד, ההנחיה מבקשת גם ערך ויקיפדיה, וההקשר נשלח');
+    translate._cache.clear(); calls.length = 0;
+    const mm = (t) => ({ status: 200, json: async () => ({ responseData: { translatedText: t } }) });
+    set((u) => (u.includes('googleapis') ? { status: 429, json: async () => ({}) } : u.includes('mistral.ai') ? { status: 429, json: async () => ({}) } : mm('בסיסי')));
     r = await run({ text: 'float', context: 'insurance float' });
-    ok(r.payload.provider === 'gemini' && /lite/.test(r.payload.model) && r.payload.quota === false && calls.filter((c) => c.u.includes('mistral.ai')).length === 2,
-      'context: Mistral במכסה (שני המודלים) — Gemini Flash-Lite, בלי "מכסה" למשתמש');
+    ok(r.payload.engine === 'basic' && r.payload.quota === true, 'context: כולם במכסה — תרגום בסיסי + "מכסה"');
     translate._cache.clear(); calls.length = 0;
-    set((u) => (u.includes('mistral.ai') ? mOk({ translation: 'חפير', note: '' }) : gOk({ translation: 'חפיר' })));
+    set((u) => (u.includes('googleapis') ? { status: 429, json: async () => ({}) } : u.includes('mistral.ai') ? mOk({ translation: 'חפير', note: '' }) : mm('בסיסי')));
     r = await run({ text: 'moat', context: 'c' });
-    ok(r.payload.provider === 'gemini' && r.payload.translation === 'חפיר', 'context: כתב מעורב מ־Mistral נפסל — Gemini');
+    ok(r.payload.provider !== 'mistral' && r.payload.translation !== 'חפير', 'context: כתב מעורב מ־Mistral נפסל');
     translate._cache.clear(); calls.length = 0;
     set((u) => (u.includes('mistral.ai') ? mOk({ translation: 'ממיסטרל' }) : gOk({ translation: 'מג׳מיני' })));
     r = await run({ text: 'moat', context: 'c', only: 'gemini' });
@@ -1112,7 +1117,7 @@ function stubFetch(text, status = 200) {
     translate._cache.clear(); fake.gate = { ok: true }; ai.length = 0;
     r = await run({ text: 'moat', context: 'c3' });
     ok(r.payload.engine === 'ai' && saved.length === 1 && saved[0].translation === 'חפיר כלכלי' && saved[0].wiki === 'Economic moat' && fake.who.startsWith('ip:'), 'תרגום: תשובת AI נשמרת למטמון המשותף; לא מחובר = לפי כתובת');
-    ok(JSON.stringify(r.payload.diag).includes('"gemini-flash-lite-latest:tok":[300,40,0]'), 'מדידת טוקנים לכל דגם באבחון (קלט, פלט, חשיבה)');
+    ok(JSON.stringify(r.payload.diag).includes('"gemini-3.5-flash-lite:tok":[300,40,0]'), 'מדידת טוקנים לכל דגם באבחון (קלט, פלט, חשיבה)');
     global.fetch = prevFetch; delete translate._deps.store; delete translate._deps.verify;
     if (oldG === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldG;
     if (oldM !== undefined) process.env.MISTRAL_API_KEY = oldM;
