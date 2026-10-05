@@ -51,7 +51,7 @@ const beginSrc = src.split('function begin(')[1].split('\n  function move(')[0];
 ok(!/jump\(/.test(beginSrc) && /if \(go\) await jump\(s\.dir\);/.test(src), 'המעבר האמיתי — רק בסוף דפדוף שהושלם; ביטול — בלי מעבר');
 ok(/ensureNeighbor\('next'\); ensureNeighbor\('prev'\);/.test(src) && /env\.loadSection\(i\)/.test(src) && /st\.textContent = env\.bookCss\(\)/.test(src), 'פרק שכן נטען מראש, באותו עיצוב — גב הדף עם טקסט גם בין פרקים');
 ok(/ct\.plain = dir/.test(lib) && /\(d > 0 \? r\.next\(\) : r\.prev\(\)\)/.test(lib), 'הפרק השכן עוד לא מוכן — מעבר רגיל (ההחלקה לא נבלעת)');
-ok(M.curlRadiusAt(W, 0) === M.curlRadius(W) && M.curlRadiusAt(W, 0.5) > W * 0.18 && near(M.curlRadiusAt(W, 1), M.curlRadius(W)), 'גלגול אמיתי: הגליל גדל באמצע הדפדוף (הדף מתרומם) וקטן בנחיתה');
+ok(near(M.curlRadiusAt(W, 0), W * 0.05) && near(M.curlRadiusAt(W, 0.5), W * 0.07) && near(M.curlRadiusAt(W, 1), W * 0.05), 'כמו בקינדל: גליל דק שגדל מעט באמצע הדפדוף');
 ok(/u_ls\.xy \+ \(pos\.xy - u_ls\.xy\) \* \(u_ls\.z/.test(src) && /LIGHT = Array\.from\(\{ length: 32 \}/.test(src) && /gl\.stencilOp\(gl\.KEEP, gl\.KEEP, gl\.INCR\)/.test(src), 'צל רך פיזיקלי: מקור אור שטחי, 32 דגימות, כל פיקסל נספר פעם אחת לדגימה');
 ok(/curlEase\(k, m0\)/.test(src) && /SPEED = 1\.0/.test(src), 'מהירות כמעט קבועה (~שנייה לעמוד — קצת לאט מקינדל, בקשת המשתמש)');
 ok(/if \(c\.active\(\)\) c\.finishNow\(\);/.test(lib), 'דפדוף מהיר ברצף — הקודם מסתיים מיד');

@@ -29,11 +29,11 @@ export function reflectMatrix(M, n) {             // שיקוף סביב הקו 
    d ≤ πr — על הגליל (נראה כרצועה אפורה חלקה ברוחב r מעבר לציר, בלי טקסט — דחוס); d > πr — שטוח והפוך מעל הדף,
    במיקום πr − d — כלומר שיקוף סביב קו שמוזז ב־πr/2 מהציר. */
 export function curlRadius(W) { return Math.max(14, Math.min(44, W * 0.075)); }
-/* v343 (בקשת המשתמש: "שיתגלגל כמו במציאות ולא ייגרר"): דף אמיתי מעוגן בשדרה ומתרומם — רדיוס הגליל גדל לקראת אמצע
-   הדפדוף (הדף עומד גבוה), וקטן שוב כשהדף נוחת הפוך בצד השני. בלי "החלקה" של הכנף — רק סיבוב סביב השדרה */
+/* v343: רדיוס הגליל לאורך הדפדוף — כמו בקינדל: גליל צר, שגדל מעט באמצע הדפדוף ונסגר בנחיתה.
+   (ניסיון של גליל גדול — "דף שעומד גבוה" — נפסל ע״י המשתמש: "לא נראה משהו, שיהיה כמו בקינדל") */
 export function curlRadiusAt(W, p) {               // טהורה
-  const r0 = curlRadius(W), k = Math.sin(Math.PI * Math.max(0, Math.min(1, p)));
-  return r0 + (W * 0.21 - r0) * Math.pow(k, 0.85);
+  const k = Math.sin(Math.PI * Math.max(0, Math.min(1, p)));
+  return Math.max(12, W * (0.05 + 0.02 * k));     // גליל דק כמו בקינדל (רוב הדף בכנף, לא על הגליל)
 }
 /* T = האורך המרבי של החומר מעבר לציר (גליל + כנף). בקינדל הגליל "גורר" את הדף: בדפדוף אוטומטי הכנף נשארת צרה
    (~חמישית מסך) ועוברת לרוחב העמוד, במקום להתרחב עד שהיא מכסה את כל המסך. מה שמעבר ל־T — "מחליק" עם הגליל:
@@ -371,7 +371,8 @@ export function createCurl(env) {
     footFor(c, withFoot);
   }
 
-  const T_DRAG = 0.55, T_AUTO = 0.2;                 // כנף מרבית בגרירה / בדפדוף אוטומטי (×W)
+  const T_DRAG = 0.55, T_AUTO = 0.2;                 // כנף מרבית בגרירה / בדפדוף אוטומטי (×W) — שכבות ה־DOM
+  const T_GL = 0.5;                                  // בתלת־ממד: גליל + כנף עד חצי מסך (כנף ~30% כמו בסרטונים של קינדל; מעוגן בשדרה עד אז)
   // מהירות הגליל ברוחבי מסך לשנייה — בקינדל נמדד ~1.3 (0.7 שנ׳ לעמוד); בקשת המשתמש: קצת יותר לאט, כדי להרגיש את הדפדוף
   const SPEED = 1.0;
   let g = null, raf = 0, q = Promise.resolve(), busy = false;
@@ -387,7 +388,7 @@ export function createCurl(env) {
   function draw() {
     if (!g) return;
     const { W, H } = g, th = env.page();
-    const G = GL ? curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadiusAt(W, g.p), null) : curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadius(W), g.T);
+    const G = GL ? curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadiusAt(W, g.p), W * T_GL) : curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadius(W), g.T);
     const into = [-G.n[0], -G.n[1]];                 // לכיוון הצד שמתהפך
     const pr = Math.PI * G.r;
     // עוצמת הצללים: עולה עם הקיפול ודועכת כשהדף כמעט עבר — בלי "קפיצה" בפריים הראשון/האחרון
@@ -398,7 +399,7 @@ export function createCurl(env) {
       GL.resize(Math.round(W * dpr), Math.round(H * dpr));
       GL.render({ W, H, M: G.M, n: G.n, r: G.r, shift: G.shift, cam: H * 2.6,
         shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.9 : 0.5), blur: 2.2 * dpr,   // בדיקות: __pcShadowK
-        paper: rgb01(th.page), wash: th.dark ? 0.38 : 0.3, dark: th.dark });
+        paper: rgb01(th.page), wash: th.dark ? 0.32 : 0.22, dark: th.dark });
       return;
     }
     // צל רך על הדף שמתגלה — מקצה הגליל והלאה, דועך אקספוננציאלית
