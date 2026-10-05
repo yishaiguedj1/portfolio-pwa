@@ -817,3 +817,11 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .tr-unmark svg { width: 18px; height: 18px; }
 .tr-hw.phrase .tr-word { font-size: 17px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .tr-pal { animation: none; } .tr-sw::before { transition: none; } }
+
+/* v337: ידיות הבחירה שלנו (במקום הבחירה של הדפדפן — בלי תפריט ההעתקה של המכשיר ובלי סרגל Google).
+   עיגול ירוק עם גבעול לקצה המילה, אזור נגיעה 40px */
+.rd-hdl { position: absolute; z-index: 26; width: 40px; height: 40px; translate: -20px -4px; touch-action: none; display: grid; justify-items: center; align-content: start; }
+.rd-hdl i { width: 2px; height: 10px; background: var(--primary); border-radius: 1px; }
+.rd-hdl i::after { content: ''; display: block; width: 16px; height: 16px; margin-top: 8px; translate: -7px 0; border-radius: 50%; background: var(--primary); box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: transform .15s; }
+.rd-hdl.drag i::after { transform: scale(1.2); }
+@media (prefers-reduced-motion: reduce) { .rd-hdl i::after { transition: none; } }

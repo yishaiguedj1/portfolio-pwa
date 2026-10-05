@@ -36,7 +36,8 @@ function prompt(text, context, title, lang) {
     'If the selection is a professional term or idiom (finance, accounting, insurance, law), add one short sentence in ' + target +
     ' explaining what it means here; otherwise leave "note" empty. ' +
     'Also return "wiki": the exact title of the English Wikipedia article about the concept as it is used HERE (for example "moat" in an investing letter -> "Economic moat"; a company or person -> its article), ' +
-    'or an empty string when the selection is an ordinary word that does not merit an encyclopedia article. ' +
+    'For an ordinary word give the article about its base concept (for example "wished" -> "Wish", "ethos" -> "Ethos"); ' +
+    'leave it empty only for function words (articles, prepositions, pronouns, conjunctions). ' +
     'Reply only with a JSON object with the fields "translation", "note" and "wiki".';
   const user = 'TITLE: ' + (title || '-') + '\nCONTEXT: ' + (context || '-') + '\nSELECTED: ' + text;
   return { sys, user };

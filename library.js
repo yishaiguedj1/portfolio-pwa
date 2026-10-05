@@ -2373,6 +2373,10 @@ function bookCSS() {
     img, svg { max-width: 100%; height: auto; }
     ::selection { background: rgba(48, 209, 88, .32); }
     ::highlight(snb-tap) { background-color: rgba(100, 210, 255, .36); }
+    /* v337: בלי בחירה של הדפדפן — אחרת לחיצה ארוכה מקפיצה את תפריט ההעתקה של המכשיר ואת "Touch to Search" של Google.
+       הסימון שלנו: צביעה (CSS Highlight) + ידיות גרירה משלנו, וההעתקה מהכרטיס */
+    html, body { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }
+    ::highlight(snb-sel) { background-color: rgba(52, 199, 89, .34); }
   `;
 }
 
@@ -2617,6 +2621,7 @@ function wireDoc(doc, setChrome, index) {
   doc.addEventListener('touchmove', (e) => { const t = e.touches[0]; if (hold && t && Math.hypot(t.clientX - hold.x, t.clientY - hold.y) > 10) holdOff(); }, { passive: true });
   doc.addEventListener('touchend', () => { if (hold && rd) rd.tapAt = Date.now(); holdOff(); }, { passive: true });
   doc.addEventListener('touchcancel', holdOff, { passive: true });
+  doc.addEventListener('contextmenu', (e) => e.preventDefault());   // v337: בלי תפריט/בחירה של המכשיר בלחיצה ארוכה
   doc.__idx = index;
   let st = 0;
   doc.addEventListener('selectionchange', () => { clearTimeout(st); st = setTimeout(() => showSel(doc), 140); });
@@ -2639,8 +2644,7 @@ function holdSelect(doc, x, y) {
   if (!w) return;
   rd.holdAt = Date.now(); rd.holdRange = w.range;
   if (rd.chrome && rd.setChrome) rd.setChrome(false);
-  try { const sel = doc.getSelection(); sel.removeAllRanges(); sel.addRange(w.range); } catch (e) { return; }
-  showSel(doc);
+  openSel(doc, w.range);
   try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {}
 }
 const WORD_CH = /[\p{L}\p{M}\p{N}'’\-\u05BE\u05F3\u05F4"]/u;
@@ -2702,7 +2706,13 @@ function showSel(doc) {
   if (!text || !rd) return;                  // בחירה שהתבטלה (גם אחרי הדגשה) — הכרטיס נשאר פתוח
   if (foreignTapSel(Date.now(), rd.tapAt, rd.holdAt, selMode)) { try { sel.removeAllRanges(); } catch (e) {} return; }
   if (selMode && trCard._sel.t === text) return;
-  const range = sel.getRangeAt(0);
+  openSel(doc, sel.getRangeAt(0).cloneRange());
+}
+function openSel(doc, range) {               // v337: הכרטיס במצב סימון לטווח — מסומן בצבע שלנו, עם ידיות (לא בחירה של הדפדפן)
+  const text = String(range).replace(/\s+/g, ' ').trim();
+  if (!text || !rd) return;
+  try { doc.getSelection().removeAllRanges(); } catch (e) {}
+  selPaint(doc, range);
   const block = blockOf(range.commonAncestorContainer);
   const hit = annOverlapping(doc, range);   // v326: סימון על הדגשה קיימת — כמו בקינדל: אפשר להחליף צבע או להסיר, בלי עותק נוסף
   const bt = block ? block.textContent : text;
@@ -2767,7 +2777,80 @@ function selBar(c, sel, text) {
   bar.append(side, acts);
   return { bar, acts };
 }
-function clearSelection() { try { const d = rd && rd.view.renderer.getContents()[0]; d && d.doc.getSelection().removeAllRanges(); } catch (e) {} }
+function clearSelection() {
+  try { const d = rd && rd.view.renderer.getContents()[0]; d && d.doc.getSelection().removeAllRanges(); } catch (e) {}
+  selPaint(null);
+}
+/* v337: הבחירה שלנו — צביעה ב־CSS Highlight (בלי לגעת ב־DOM של הספר) + שתי ידיות לגרירה, כמו בקינדל */
+let selCur = null;                         // { doc, range, hs, he }
+function selPaint(doc, range) {
+  if (selCur) { try { selCur.doc.defaultView.CSS.highlights.delete('snb-sel'); } catch (e) {} selCur.hs.remove(); selCur.he.remove(); selCur = null; }
+  if (!doc || !range || !rd) return;
+  try { const w = doc.defaultView; if (w.CSS && w.CSS.highlights && w.Highlight) w.CSS.highlights.set('snb-sel', new w.Highlight(range)); } catch (e) {}
+  const mk = (cls) => { const b = h('div', 'rd-hdl ' + cls); b.setAttribute('aria-hidden', 'true'); b.append(h('i')); rd.els.box.append(b); return b; };
+  selCur = { doc, range, hs: mk('s'), he: mk('e') };
+  selPlace();
+  selDrag(selCur.hs, true); selDrag(selCur.he, false);
+}
+function caretRect(range, atStart) {
+  const r = range.cloneRange(); r.collapse(atStart);
+  const q = r.getClientRects()[0] || r.getBoundingClientRect();
+  if (q && (q.height || q.width)) return q;
+  const all = range.getClientRects(); const e = all[atStart ? 0 : all.length - 1];
+  if (!e) return null;
+  const rtl = getComputedStyle(range.startContainer.parentElement || range.startContainer).direction === 'rtl';
+  const x = atStart === rtl ? e.right : e.left;
+  return { left: x, right: x, top: e.top, bottom: e.bottom };
+}
+function selPlace() {
+  if (!selCur) return;
+  const fr = selCur.doc.defaultView.frameElement.getBoundingClientRect(), bx = rd.els.box.getBoundingClientRect();
+  [[selCur.hs, true], [selCur.he, false]].forEach(([el, st]) => {
+    const q = caretRect(selCur.range, st);
+    if (!q) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.style.left = (fr.left - bx.left + q.left) + 'px';
+    el.style.top = (fr.top - bx.top + q.bottom) + 'px';
+  });
+}
+export function selExtend(cmp, range, pt, start) {   // הידית נגררה לנקודה pt — הטווח החדש (בגבולות מילה), בלי להתהפך — טהורה (cmp: השוואת נקודות)
+  if (start) return cmp(pt.s, range.e) < 0 ? { s: pt.s, e: range.e } : { s: range.s, e: range.e };
+  return cmp(pt.e, range.s) > 0 ? { s: range.s, e: pt.e } : { s: range.s, e: range.e };
+}
+function selDrag(el, start) {
+  let raf = 0, last = null;
+  const doc = () => selCur && selCur.doc;
+  const move = (x, y) => {
+    const d = doc(); if (!d) return;
+    const fr = d.defaultView.frameElement.getBoundingClientRect();
+    const px = x - fr.left, py = y - fr.top - 22;          // מעט מעל האצבע — רואים את המילה
+    let node, off;
+    try { const c = d.caretRangeFromPoint ? d.caretRangeFromPoint(px, py) : null; if (!c) return; node = c.startContainer; off = c.startOffset; } catch (e) { return; }
+    if (!node || node.nodeType !== 3) return;
+    const b = wordBounds(node.data, off) || [off, off];
+    const R = selCur.range;
+    const cmp = (a, z) => { const r1 = d.createRange(); r1.setStart(a[0], a[1]); const r2 = d.createRange(); r2.setStart(z[0], z[1]); return r1.compareBoundaryPoints(Range.START_TO_START, r2); };
+    const n = selExtend(cmp, { s: [R.startContainer, R.startOffset], e: [R.endContainer, R.endOffset] }, { s: [node, b[0]], e: [node, b[1]] }, start);
+    const r = d.createRange(); r.setStart(n.s[0], n.s[1]); r.setEnd(n.e[0], n.e[1]);
+    if (!String(r).trim()) return;
+    selCur.range = r;
+    try { d.defaultView.CSS.highlights.set('snb-sel', new d.defaultView.Highlight(r)); } catch (e) {}
+    selPlace();
+  };
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); el.setPointerCapture(e.pointerId); el.classList.add('drag'); });
+  el.addEventListener('pointermove', (e) => {
+    if (!el.classList.contains('drag')) return;
+    last = [e.clientX, e.clientY];
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (last) move(last[0], last[1]); });
+  });
+  const up = (e) => {
+    if (!el.classList.contains('drag')) return;
+    el.classList.remove('drag'); e.stopPropagation();
+    if (selCur) { const d = selCur.doc, r = selCur.range; openSel(d, r); }   // הכרטיס מתעדכן לקטע החדש
+  };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  el.addEventListener('click', (e) => e.stopPropagation());
+}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function saveHighlight({ text, cfi, k, ann }) {
   const r = rd.rec;
@@ -3332,30 +3415,42 @@ async function wikiSummary(lang, title, enTitle) {
   return { lang, title: j.title, sub: [enTitle && enTitle !== j.title ? enTitle : '', j.description || ''].filter(Boolean).join(' · '),
     extract: gtClip(j.extract, 1400), thumb: (j.thumbnail || {}).source || '', url: ((j.content_urls || {}).mobile || {}).page || '' };
 }
-export function wikiExact(word, title) {   // בלי AI: מציגים רק כשהערך הוא בדיוק המילה (או רבים שלה) — אחרת "moat" נותן תעלה של טירה
-  const a = String(word || '').toLowerCase().trim(), b = String(title || '').toLowerCase().trim();
-  return !!a && (a === b || a === b + 's' || a + 's' === b || a === b + 'es');
+/* v337 (בקשת המשתמש): ויקיפדיה לכל מילה — לא רק למונחים. קודם שם הערך מה־AI (לפי ההקשר), ואם אין/לא נמצא —
+   חיפוש כותרת על המילה (3 תוצאות, הראשונה שאינה דף פירושונים). ממשק בעברית — הערך העברי כשיש קישור בין־לשוני */
+async function wikiTitle(enTitle) {
+  if (uiLang() === 'he') {
+    const ll = await wjson('https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=he&redirects=1&format=json&formatversion=2&origin=*&titles=' + encodeURIComponent(enTitle));
+    const pg = ll && ll.query && ll.query.pages && ll.query.pages[0];
+    const heT = pg && pg.langlinks && pg.langlinks[0] && pg.langlinks[0].title;
+    if (heT) { const r = await wikiSummary('he', heT, pg.title || enTitle); if (r) return r; }
+  }
+  return wikiSummary('en', enTitle);
+}
+export function wikiQueries(q) {          // מה לחפש: המילה, ובעברית גם בלי תחיליות (ה/ו/ב/ל/מ/ש/כ — "האתוס" → "אתוס") — טהורה
+  const out = q ? [q] : [];
+  if (/^[\u05D0-\u05EA]/.test(q)) { let w = q; for (let i = 0; i < 2 && w.length > 3 && /^[הובלמשכ]/.test(w); i++) { w = w.slice(1); out.push(w); } }
+  return out;
+}
+export function wikiWord(word) {           // המילה לחיפוש: בלי ניקוד וסימני פיסוק בקצוות; מילה של אות אחת — בלי ויקיפדיה — טהורה
+  const w = String(word || '').replace(/[\u0591-\u05C7]/g, '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').trim();
+  return w.length >= 2 ? w.slice(0, 80) : '';
 }
 function wikiLookup(enTitle, word) {
-  const k = (enTitle || '') + '|' + (enTitle ? '' : word) + '|' + uiLang();
+  const q = wikiWord(word);
+  const k = (enTitle || '') + '|' + q + '|' + uiLang();
   if (wikiCache.has(k)) return wikiCache.get(k);
   const p = (async () => {
-    const he = uiLang() === 'he';
-    if (!enTitle) {                         // גיבוי בלי AI: חיפוש כותרת והתאמה מדויקת
-      const lang = /[֐-׿]/.test(word) ? 'he' : 'en';
-      const s = await wjson('https://' + lang + '.wikipedia.org/w/rest.php/v1/search/title?q=' + encodeURIComponent(word) + '&limit=1');
-      const t = s && s.pages && s.pages[0] && s.pages[0].title;
-      if (!t || !wikiExact(word.replace(/[֑-ׇ]/g, ''), t)) return null;
-      if (lang === 'he' || !he) return wikiSummary(lang, t);
-      enTitle = t;
+    if (enTitle) { const r = await wikiTitle(enTitle); if (r) return r; }
+    if (!q) return null;
+    const lang = /[\u0590-\u05FF]/.test(q) ? 'he' : 'en';
+    for (const w of wikiQueries(q)) {
+      const s = await wjson('https://' + lang + '.wikipedia.org/w/rest.php/v1/search/title?q=' + encodeURIComponent(w) + '&limit=3');
+      for (const pg of (s && s.pages) || []) {
+        const r = lang === 'he' ? await wikiSummary('he', pg.title) : await wikiTitle(pg.title);
+        if (r) return r;
+      }
     }
-    if (he) {
-      const ll = await wjson('https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=he&redirects=1&format=json&formatversion=2&origin=*&titles=' + encodeURIComponent(enTitle));
-      const pg = ll && ll.query && ll.query.pages && ll.query.pages[0];
-      const heT = pg && pg.langlinks && pg.langlinks[0] && pg.langlinks[0].title;
-      if (heT) { const r = await wikiSummary('he', heT, pg.title || enTitle); if (r) return r; }
-    }
-    return wikiSummary('en', enTitle);
+    return null;
   })();
   p.catch(() => wikiCache.delete(k));
   wikiCache.set(k, p); if (wikiCache.size > 200) wikiCache.clear();
@@ -3426,7 +3521,7 @@ function trShow(text, block, doc, range, sel) {
   dsec.classList.add('tr-dsec', 'nodict'); dbody.append(main); dictHost.append(dsec);
   c.append(grab, bar, head, dictHost, ctx);
   let gtText = '';
-  cp.addEventListener('click', async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(gtText || text); flashSafe(T('rdCopied')); } catch (er) {} });
+  cp.addEventListener('click', async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(sel ? sel.text : text); flashSafe(T('rdCopied')); } catch (er) {} });
   const tl = trTarget(text);
   gtQuick(text, tl).then((o) => {
     if (seq !== trSeq) return;
@@ -3455,7 +3550,7 @@ function trShow(text, block, doc, range, sel) {
       if (j.note) { const n = h('div', 'tr-ctx-n', j.note); n.dir = 'auto'; cb.append(n); }
       cb.classList.add('in');
     }
-    if (ai && !j.wiki) return;              // לפי ה־AI זו מילה רגילה — בלי ערך אנציקלופדי
+    // v337: לכל מילה — שם הערך מה־AI, ואם אין — חיפוש
     wikiLookup(ai ? j.wiki : '', text).then((w) => wikiSection(c, w, seq)).catch(() => {});
   }).catch(() => {
     if (seq !== trSeq) return;

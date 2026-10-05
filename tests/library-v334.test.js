@@ -33,9 +33,9 @@ ok(g.syn.join() === 'dealer,agent,middleman,intermediary', 'נרדפות: בלי
 ok(/dt=md&dt=ss&dt=rm/.test(lib) && /dt=md&dt=ss&dt=rm/.test(fs.readFileSync(path.join(root, 'ibkr-proxy/api/translate.js'), 'utf8')), 'הבקשה ל־Google כוללת הגדרות, נרדפות והגייה');
 
 // ---------- ויקיפדיה ----------
-const wikiExact = pure('wikiExact');
-ok(wikiExact('Broker', 'Broker') && wikiExact('brokers', 'Broker') && !wikiExact('moat', 'Moath al-Alwi') && !wikiExact('', 'x'), 'בלי AI — רק התאמה מדויקת (אחרת "moat" = תעלה של טירה)');
-ok(/if \(ai && !j\.wiki\) return;/.test(lib), 'לפי ה־AI מילה רגילה — בלי ויקיפדיה');
+const wikiWord = pure('wikiWord');
+ok(wikiWord('“wished,”') === 'wished' && wikiWord('הָאֶתוֹס') === 'האתוס' && wikiWord('a') === '', 'v337: ויקיפדיה לכל מילה — המילה לחיפוש בלי ניקוד ופיסוק');
+ok(!/if \(ai && !j\.wiki\) return;/.test(lib) && /wikiLookup\(ai \? j\.wiki : '', text\)/.test(lib), 'v337 (בקשת המשתמש): ויקיפדיה לכל מילה — גם כשה־AI לא נתן ערך');
 ok(/prop=langlinks&lllang=he/.test(lib) && /api\/rest_v1\/page\/summary\//.test(lib) && /j\.type === 'disambiguation'/.test(lib), 'ערך בעברית דרך הקישור מהאנגלית; בלי דפי פירושונים');
 ok(/connect-src[^;]*https:\/\/en\.wikipedia\.org https:\/\/he\.wikipedia\.org/.test(html), 'CSP מאפשר את ויקיפדיה');
 ok(/T\('trWiki'\) \+ ' · CC BY-SA'/.test(lib), 'קרדיט לפי הרישיון');

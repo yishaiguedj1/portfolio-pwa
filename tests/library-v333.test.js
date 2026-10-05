@@ -36,7 +36,7 @@ ok(/const trTarget = \(text\) => \(uiLang\(\) === 'he' && \/\[\\u0590-\\u05FF\]\
 // ---------- התנהגות ----------
 ok(!/doc\.addEventListener\('pointerdown', \(e\) => \{[\s\S]{0,260}gtQuick\(w\.text/.test(lib), 'v336: נגיעה קצרה לא מתרגמת (וגם לא טוענת מראש) — רק לחיצה ארוכה');
 ok(!/if \(w\) \{ if \(rd\.chrome\) setChrome\(false\); trShow\(/.test(lib) && /if \(trCard\) \{ hideTr\(\); return; \}\s*setChrome\(!rd\.chrome\);/.test(lib), 'v336 (כמו בקינדל): נגיעה קצרה — סוגרת כרטיס, ואז סרגלים');
-ok(/const HOLD_MS = 320;/.test(lib) && /sel\.addRange\(w\.range\); \} catch \(e\) \{ return; \}\s*showSel\(doc\);/.test(lib), 'לחיצה ארוכה: 320ms → המילה נבחרת וחלון הסימון מיד (בלי לחכות ל־Chrome)');
+ok(/const HOLD_MS = 320;/.test(lib) && /if \(rd\.chrome && rd\.setChrome\) rd\.setChrome\(false\);\s*openSel\(doc, w\.range\);/.test(lib), 'לחיצה ארוכה: 320ms → המילה מסומנת והכרטיס מיד (v337: בחירה שלנו, לא של Chrome)');
 ok(/setTimeout\(\(\) => showSel\(doc\), 140\)/.test(lib) && /if \(selMode && trCard\._sel\.t === text\) return;/.test(lib), 'שינוי בחירה — 140ms, בלי בנייה מחדש כשלא השתנה');
 ok(/Date\.now\(\) - \(rd\.holdAt \|\| 0\) < 1500\) \{\s*try \{ sel\.removeAllRanges\(\); sel\.addRange\(rd\.holdRange\)/.test(lib), 'שחרור האצבע שמקפל את הבחירה — המילה חוזרת, החלון נשאר');
 ok(/const moved = pageMoved\(rd\.loc, d\)/.test(lib) && /if \(moved\) \{ hideSel\(\); hideTr\(\); \}/.test(lib), 'המנוע שולח relocate גם בנגיעה בלי תזוזה — נסגר רק בהחלפת עמוד (נמצא ב־QA)');

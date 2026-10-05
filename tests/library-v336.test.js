@@ -12,7 +12,7 @@ const { swVersionOk } = require('./_swver.js');
 const fn = (name) => (lib.match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n}\\n')) || [''])[0];
 
 ok(!/buildPop|placePop|'rd-pop rd-pop2'/.test(lib), 'הבועה הצפה הישנה הוסרה');
-ok(/trShow\(text, bt, doc, range, \{ text, cfi: rd\.view\.getCFI\(doc\.__idx, range\), t: text \}\)/.test(fn('showSel')), 'בחירה (לחיצה ארוכה/ידיות) = כרטיס התרגום במצב סימון');
+ok(/trShow\(text, bt, doc, range, \{ text, cfi: rd\.view\.getCFI\(doc\.__idx, range\), t: text \}\)/.test(fn('openSel')) && /openSel\(doc, sel\.getRangeAt\(0\)\.cloneRange\(\)\)/.test(fn('showSel')), 'בחירה (לחיצה ארוכה/ידיות) = כרטיס התרגום במצב סימון');
 ok(/trShow\(ann\.x, [^)]*, doc, range, \{ text: ann\.x, cfi: ann\.c, ann/.test(fn('annPopup')), 'נגיעה בהדגשה קיימת — אותו כרטיס, עם הצבע שלה');
 const click = (lib.match(/doc\.addEventListener\('click', \(e\) => \{[\s\S]*?\n  \}\);/) || [''])[0];
 ok(click && !/trShow|wordAt/.test(click) && /setChrome\(!rd\.chrome\)/.test(click), 'נגיעה קצרה: בלי תרגום — סרגלים בלבד (כמו בקינדל)');
@@ -26,5 +26,5 @@ ok(/if \(c\._sel\) clearSelection\(\);/.test(fn('hideTr')), 'סגירת הכרט
 ok(/if \(!text \|\| !rd\) return;/.test(fn('showSel')), 'בחירה שהתבטלה (גם אחרי הדגשה) — הכרטיס נשאר');
 ok(/@media \(prefers-reduced-motion: reduce\) \{ \.tr-pal \{ animation: none; \}/.test(css), 'בלי אנימציה ב־reduced-motion');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(v === 'v336' && swVersionOk(v), 'גרסה v336');
+ok(!!v && swVersionOk(v), 'גרסה');
 console.log(`\n${n} בדיקות עברו`);
