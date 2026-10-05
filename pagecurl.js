@@ -143,7 +143,10 @@ void main() {
   vec3 No = v_th > 0.0 ? normalize(vec3(into * sin(v_th), -cos(v_th))) : vec3(0.0, 0.0, 1.0);
   bool frontSide = No.z < 0.0;
   vec3 N = frontSide ? -No : No;
-  vec3 col = frontSide ? tex : mix(tex, u_paper, u_wash);
+  // דף אחד נקי כמו בקינדל: על הגליל — נייר חלק עם הצללה בלבד (הטקסט שם דחוס מדי ונראה כ"עוד דף"); הטקסט ההפוך
+  // מופיע רק על הכנף השטוחה, במעבר רך מראש הגליל
+  vec3 back = mix(tex, u_paper, u_wash);
+  vec3 col = mix(u_paper, back, smoothstep(2.75, 3.1, v_th));
   vec3 L = normalize(vec3(-0.18, -0.4, 1.0)), H = normalize(L + vec3(0.0, 0.0, 1.0));   // אותו מקור אור של הצל
   float dif = max(dot(N, L), 0.0), spec = pow(max(dot(N, H), 0.0), 48.0);
   float b = 0.5 + 0.56 * dif;                                     // שטוח (N = z) ≈ 1
@@ -399,7 +402,7 @@ export function createCurl(env) {
       GL.resize(Math.round(W * dpr), Math.round(H * dpr));
       GL.render({ W, H, M: G.M, n: G.n, r: G.r, shift: G.shift, cam: H * 2.6,
         shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.9 : 0.5), blur: 2.2 * dpr,   // בדיקות: __pcShadowK
-        paper: rgb01(th.page), wash: th.dark ? 0.32 : 0.22, dark: th.dark });
+        paper: rgb01(th.page), wash: th.dark ? 0.4 : 0.34, dark: th.dark });
       return;
     }
     // צל רך על הדף שמתגלה — מקצה הגליל והלאה, דועך אקספוננציאלית
