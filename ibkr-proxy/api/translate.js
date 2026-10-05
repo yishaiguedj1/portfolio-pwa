@@ -162,7 +162,10 @@ module.exports = async (req, res) => {
   const title = clean(body.title, 120);
   const lang = LANGS[body.to] ? body.to : 'he';
   if (!text) return res.status(400).json({ ok: false, error: 'bad_params' });
-  if (body.mode === 'mistralProbe') return res.status(200).json(Object.assign({ ok: true }, await mistralProbe()));   // v338: אבחון חשבון Mistral
+  if (body.mode === 'mistralProbe') {          // v338: אבחון חשבון Mistral; models = עד 6 שמות מודל לבדיקה
+    const ms = Array.isArray(body.models) ? body.models.filter((m) => /^[a-z0-9.-]{3,40}$/.test(m)).slice(0, 6) : null;
+    return res.status(200).json(Object.assign({ ok: true }, await mistralProbe(ms && ms.length ? { models: ms } : {})));
+  }   // v338: אבחון חשבון Mistral
   if (body.mode === 'quick') {
     const qk = 'q|' + lang + '|' + text;
     if (cache.has(qk)) return res.status(200).json(cache.get(qk));
