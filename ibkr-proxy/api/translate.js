@@ -68,7 +68,7 @@ async function gemini(text, context, title, lang, diag) {
       const raw = (((j.candidates || [])[0] || {}).content || {}).parts;
       const txt = (raw || []).map((p) => p.text || '').join('');
       const out = JSON.parse(txt);
-      if (badScript(out && out.translation, lang) || badScript(out && out.note, lang)) { diag[model + ':err'] = 'mixed_script'; continue; }
+      if (badScript(out && out.translation, lang) || badScript(out && out.note, lang)) { diag[model + ':err'] = 'mixed_script'; diag[model + ':txt'] = clean((out.translation || '') + ' | ' + (out.note || ''), 160); continue; }
       if (out && typeof out.translation === 'string' && out.translation.trim()) {
         return { translation: clean(out.translation, 2000), note: clean(out.note || '', 600), engine: 'ai', model };
       }
