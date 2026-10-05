@@ -95,7 +95,7 @@ ok(L.mergeAnn(loc2, { a: { c: 'x', k: 'y', u: 10 } }) === null && L.mergeAnn(loc
 ok(L.liveAnn([{ id: 1, f: .5 }, { id: 2, b: 1, f: .2 }, { id: 3, f: .1 }]).map((x) => x.id).join() === '3,1' && L.liveAnn([{ id: 2, b: 1 }], 'bm').length === 1, 'הדגשות וסימניות בנפרד, לפי מיקום בספר');
 const ql = L.wrapQuote('אחת שתיים שלוש ארבע חמש שש', 10, (t) => t.length, 2);
 ok(ql.length === 2 && ql[1].endsWith('…') && L.wrapQuote('קצר', 100, (t) => t.length, 3).join() === 'קצר', 'כרטיס ציטוט: שבירת שורות וקיצור עם …');
-const keys4 = ['hlNote', 'hlQuote', 'hlDelete', 'bmAdd', 'tabHl', 'tabBm', 'learnTitle', 'qShare'];
+const keys4 = ['hlNote', 'hlQuote', 'hlRemove', 'bmAdd', 'tabHl', 'tabBm', 'learnTitle', 'qShare'];   // v326: "מחיקה" בבועה הוחלף בכפתור "הסרת הסימון" (hlRemove)
 ok(keys4.every((k) => lib.includes("'" + k + "'")), 'כל הפעולות של שלב 4 מחוברות בממשק');
 ok(/set\(\{ lib \}, \{ merge: true \}\)/.test(lib) && /lib\.a/.test(lib), 'הדגשות בענן: lib.a עם merge (לא נוגע בתיק)');
 

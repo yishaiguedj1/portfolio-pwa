@@ -133,6 +133,39 @@ export function mergeAnn(local, remote) {   // טהורה: מיזוג לפי id 
 export function liveAnn(list, kind) {          // הדגשות/סימניות פעילות, לפי מיקום בספר
   return (list || []).filter((a) => !a.d && (kind === 'bm' ? a.b : !a.b)).sort((a, b) => (a.f || 0) - (b.f || 0));
 }
+/* v326: אותה הדגשה נשמרה כמה פעמים (סימון חוזר של אותו קטע לפני שהבועה זיהתה הדגשה קיימת — "able" ×3 בצילום).
+   מחזירה את ה־id של העותקים המיותרים (אותו CFI), כשהעדכני נשאר. טהורה (נבדקת). */
+export function annDupes(list) {
+  const best = new Map(); const out = [];
+  (list || []).forEach((a) => {
+    if (!a || a.d || a.b || !a.c) return;
+    const o = best.get(a.c);
+    if (!o) { best.set(a.c, a); return; }
+    if ((a.u || 0) > (o.u || 0)) { out.push(o.id); best.set(a.c, a); } else out.push(a.id);
+  });
+  return out;
+}
+/* סינון דף "מה למדתי" (כמו המחברת של קינדל): t = all | hl | note | bm, k = צבע אחד או null. טהורה (נבדקת). */
+export function annFilter(list, f) {
+  const t = (f && f.t) || 'all', k = f && f.k;
+  return (list || []).filter((a) => {
+    if (!a || a.d) return false;
+    if (t === 'bm') return !!a.b;
+    if (a.b) return t === 'all' && !k;
+    if (t === 'note' && !String(a.n || '').trim()) return false;
+    if (k && (a.k || 'y') !== k) return false;
+    return true;
+  }).sort((a, b) => (a.f || 0) - (b.f || 0));
+}
+/* כל ההדגשות של ספר כטקסט לשיתוף/העתקה (כמו "ייצוא מחברת" בקינדל). טהורה (נבדקת). */
+export function annExportText(title, author, list) {
+  const head = [title, author].filter(Boolean).join(' — ');
+  const items = (list || []).filter((a) => a && !a.d && !a.b).map((a) => {
+    const meta = [a.ch, Math.round((a.f || 0) * 100) + '%'].filter(Boolean).join(' · ');
+    return '“' + String(a.x || '').trim() + '”' + (String(a.n || '').trim() ? '\n✎ ' + String(a.n).trim() : '') + (meta ? '\n(' + meta + ')' : '');
+  });
+  return [head].concat(items).filter(Boolean).join('\n\n');
+}
 export function wrapQuote(text, maxW, measure, maxLines) {   // שורות לכרטיס הציטוט (מדידה מוזרקת — נבדקת)
   const words = String(text).split(/\s+/).filter(Boolean);
   const lines = []; let cur = '';
@@ -613,6 +646,11 @@ const ICON = {
   shelf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h4v15H4zM10 4.5h4v15h-4zM16.3 5.2l3.6 1-3.6 13.8-3.6-1"/></svg>',
   cloudDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 10.5v5.5M9.8 13.8l2.2 2.2 2.2-2.2"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  unmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.2"/><path d="M6.3 17.7L17.7 6.3"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5zM12 6.5v13"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M6 11v8a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19v-8"/></svg>',
+  quote: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 6.5C6.6 7.3 4.5 9.7 4.5 13.3V18h5.6v-5.4H7.4c0-2 1-3.3 3-3.9zM19.5 6.5c-3.4.8-5.5 3.2-5.5 6.8V18h5.6v-5.4h-2.7c0-2 1-3.3 3-3.9z"/></svg>',
   chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
 };
 let root = null;
@@ -1887,25 +1925,68 @@ async function renderAdmin() {
   try { draw(await adminApi('readers')); } catch (e) { box.textContent = ''; box.append(h('p', 'lib-empty', T('admErr'))); }
 }
 
+/* v326: "מה למדתי" = המחברת של קינדל בעיצוב Apple: סינון (הכל/הדגשות/הערות/סימניות + צבע), לכל פריט ⋯ / לחיצה ארוכה
+   = גיליון פעולות (צבע, הערה, העתקה, ציטוט, מעבר למקום, הסרה), שיתוף כל ההדגשות של ספר, ובלי עותקים כפולים */
+const learnF = { t: 'all', k: null };
 async function renderNotes() {
   const home = root.querySelector('.lib-home');
-  const books = sortBooks((await allBooks()).filter((b) => liveAnn(b.ann).length), 'recent');
+  const all = sortBooks((await allBooks()).filter((b) => (b.ann || []).some((a) => !a.d)), 'recent');
   if (!root || !ui.view || !ui.view.notes) return;
+  all.forEach((b) => annCleanDupes(b));
+  const rerender = () => { const y = root.scrollTop; renderNotes().then(() => navScroll(y)); };
   home.textContent = '';
   const top = h('div', 'lib-top');
   const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, T('libTitle')));
   back.addEventListener('click', () => history.back());
   top.append(back);
   home.append(top, h('h1', 'lib-large', T('learnTitle')));
-  if (!books.length) { home.append(h('p', 'lib-empty', T('learnEmpty'))); return; }
-  books.forEach((b) => {
-    const list = liveAnn(b.ann);
+  if (!all.length) { home.append(h('p', 'lib-empty', T('learnEmpty'))); return; }
+  // סינון: מקטעים + צבעים (צבע לא רלוונטי לסימניות)
+  const filt = h('div', 'learn-filter');
+  const seg = h('div', 'rd-seg learn-seg'); seg.setAttribute('role', 'tablist');
+  [['all', T('learnAll')], ['hl', T('tabHl')], ['note', T('learnNotes')], ['bm', T('tabBm')]].forEach(([v, label]) => {
+    const btn = h('button', learnF.t === v ? 'on' : '', label); btn.type = 'button'; btn.setAttribute('role', 'tab'); btn.setAttribute('aria-selected', String(learnF.t === v));
+    btn.addEventListener('click', () => { learnF.t = v; if (v === 'bm') learnF.k = null; rerender(); });
+    seg.append(btn);
+  });
+  filt.append(seg);
+  if (learnF.t !== 'bm') {
+    const cols = h('div', 'learn-colors'); cols.setAttribute('aria-label', T('learnColor'));
+    Object.keys(HL_COLORS).forEach((k) => {
+      const btn = h('button', learnF.k === k ? 'on' : ''); btn.type = 'button'; btn.style.background = HL_COLORS[k];
+      btn.setAttribute('aria-pressed', String(learnF.k === k)); btn.setAttribute('aria-label', T('learnColor'));
+      btn.addEventListener('click', () => { learnF.k = learnF.k === k ? null : k; rerender(); });
+      cols.append(btn);
+    });
+    filt.append(cols);
+  }
+  home.append(filt);
+  let shown = 0;
+  all.forEach((b) => {
+    const list = annFilter(b.ann, learnF);
+    if (!list.length) return;
+    shown++;
     const sec = h('section', 'learn-sec');
-    const head = h('div', 'learn-h'); head.append(h('b', null, b.title), h('span', null, T('learnCount', { n: list.length })));
+    const head = h('div', 'learn-h');
+    const hl = (b.ann || []).filter((a) => !a.d && !a.b);
+    head.append(h('b', null, b.title), h('span', null, T('learnCount', { n: list.length })));
+    if (hl.length) {
+      const ex = h('button', 'learn-exp'); ex.type = 'button'; ex.innerHTML = ICON.share; ex.setAttribute('aria-label', T('learnExport')); ex.title = T('learnExport');
+      ex.addEventListener('click', async () => {
+        const text = annExportText(b.title, b.author, liveAnn(b.ann));
+        try {
+          if (navigator.share) await navigator.share({ title: b.title, text });
+          else { await navigator.clipboard.writeText(text); flashSafe(T('rdCopied')); }
+        } catch (e) { if (e && e.name !== 'AbortError') { try { await navigator.clipboard.writeText(text); flashSafe(T('rdCopied')); } catch (er) {} } }
+      });
+      head.append(ex);
+    }
     sec.append(head);
-    list.forEach((a) => sec.append(annRow(a, () => openReader(b.id, { cfi: a.c }))));
+    list.forEach((a) => sec.append(annRow(a, () => openReader(b.id, { cfi: a.c }),
+      () => annActions(b, a, { open: () => openReader(b.id, { cfi: a.c }), after: rerender }))));
     home.append(sec);
   });
+  if (!shown) home.append(h('p', 'lib-empty', T('learnNoMatch')));
 }
 const insFlight = new Map();
 function fetchInsight(b) {
@@ -2319,6 +2400,7 @@ async function openReader(id, opt) {
   root.append(box);
   rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon }, chrome: false, saveT: 0, annTap: 0 };
   rec.ann = rec.ann || [];
+  annCleanDupes(rec);
   const setChrome = (on) => { rd.chrome = on; box.classList.toggle('chrome', on); };
   tocBtn.addEventListener('click', openToc);
   bmBtn.addEventListener('click', toggleBookmark);
@@ -2423,6 +2505,18 @@ function blockOf(node) {
   while (el && el.parentElement && !/^(P|LI|TD|TH|BLOCKQUOTE|H[1-6]|DD|DT|FIGCAPTION|CAPTION)$/.test(el.tagName)) el = el.parentElement;
   return el;
 }
+function annOverlapping(doc, range) {     // הדגשה פעילה שחופפת לסימון (באותו פרק)
+  if (!rd || !range) return null;
+  for (const a of liveAnn(rd.rec.ann)) {
+    try {
+      const r = rd.view.resolveCFI(a.c);
+      if (r.index !== doc.__idx) continue;
+      const ar = r.anchor(doc);
+      if (ar && range.compareBoundaryPoints(Range.START_TO_END, ar) > 0 && range.compareBoundaryPoints(Range.END_TO_START, ar) < 0) return a;
+    } catch (e) {}
+  }
+  return null;
+}
 function showSel(doc) {
   const sel = doc.getSelection && doc.getSelection();
   const text = sel ? String(sel).replace(/\s+/g, ' ').trim() : '';
@@ -2433,9 +2527,10 @@ function showSel(doc) {
   const fb = fr ? fr.getBoundingClientRect() : { left: 0, top: 0 };
   hideSel();
   const idx = doc.__idx;
-  const cfi = rd.view.getCFI(idx, range);
   const block = blockOf(range.commonAncestorContainer);
-  buildPop({ text, cfi, range: range.cloneRange(), block: block ? block.textContent : text });
+  const hit = annOverlapping(doc, range);   // v326: סימון על הדגשה קיימת — כמו בקינדל: אפשר להחליף צבע או להסיר, בלי עותק נוסף
+  if (hit) buildPop({ text: hit.x, cfi: hit.c, ann: hit, block: block ? block.textContent : hit.x });
+  else buildPop({ text, cfi: rd.view.getCFI(idx, range), range: range.cloneRange(), block: block ? block.textContent : text });
   root.append(selPop);
   placePop(rr, fb);
 }
@@ -2450,8 +2545,14 @@ function buildPop({ text, cfi, block, ann }) {
     b.addEventListener('click', () => { hideSel(); clearSelection(); saveHighlight({ text, cfi, k, ann }); });
     row1.append(b);
   });
-  const nb = h('button', 'rd-txt', T('hlNote')); nb.type = 'button';
-  nb.addEventListener('click', () => { hideSel(); clearSelection(); const a = ann || saveHighlight({ text, cfi, k: 'y' }); noteSheet(a); });
+  if (ann && !ann.b) {                      // v326: הסרת הסימון — עיגול עם קו אלכסוני, כמו ב־Apple Books
+    const rm = h('button', 'rd-dot rd-clear'); rm.type = 'button'; rm.innerHTML = ICON.unmark;
+    rm.setAttribute('aria-label', T('hlRemove')); rm.title = T('hlRemove');
+    rm.addEventListener('click', () => { hideSel(); clearSelection(); annRemove(rd.rec, ann); });
+    row1.append(rm);
+  }
+  const nb = h('button', 'rd-txt', ann && String(ann.n || '').trim() ? T('hlEditNote') : T('hlNote')); nb.type = 'button';
+  nb.addEventListener('click', () => { hideSel(); clearSelection(); const a = ann || saveHighlight({ text, cfi, k: 'y' }); noteSheet(a, rd.rec); });
   row1.append(nb);
   const row2 = h('div', 'rd-pop-row');
   const act = (k, fn) => { const b = h('button', 'rd-txt', T(k)); b.type = 'button'; b.addEventListener('click', () => { hideSel(); fn(); }); row2.append(b); };
@@ -2460,7 +2561,6 @@ function buildPop({ text, cfi, block, ann }) {
   act('hlQuote', () => quoteCard(text));
   const gm = glossaryMatch(text);
   if (gm) act('acTerm', () => sheet(T('acTerm'), (sh) => sh.append(termRow(gm))));
-  if (ann) act('hlDelete', () => deleteAnn(ann));
   selPop.append(row1, row2);
 }
 function placePop(rr, fb) {
@@ -2487,31 +2587,90 @@ function saveHighlight({ text, cfi, k, ann }) {
   const r = rd.rec;
   const loc = rd.loc || {};
   const a = ann || { id: uid(), c: cfi, x: String(text).slice(0, 600), ch: (loc.tocItem && langText(loc.tocItem.label)) || '', f: loc.fraction || 0 };
-  Object.assign(a, { k, u: Date.now() });
   if (!ann) r.ann.push(a);
-  putBook(r).catch(() => {}); pushAnn(r, a);
-  rd.view.addAnnotation({ value: a.c }).catch(() => {});
+  annTouch(r, a, { k });
   return a;
 }
-function deleteAnn(a) {
-  Object.assign(a, { d: 1, u: Date.now() });
-  putBook(rd.rec).catch(() => {}); pushAnn(rd.rec, a);
-  if (!a.b) rd.view.deleteAnnotation({ value: a.c }).catch(() => {});
-  markBookmark();
+/* v326: עדכון הדגשה/סימנייה בכל מקום (קורא, תוכן העניינים, "מה למדתי") — שמירה, ענן, ובקורא פתוח של אותו ספר גם ציור מחדש */
+function annTouch(rec, a, patch) {
+  Object.assign(a, patch, { u: Date.now() });
+  putBook(rec).catch(() => {}); pushAnn(rec, a);
+  if (rd && rd.rec && rd.rec.id === rec.id) {
+    if (rd.rec !== rec) { const x = rd.rec.ann.find((y) => y.id === a.id); if (x) Object.assign(x, a); }
+    if (!a.b) (a.d ? rd.view.deleteAnnotation({ value: a.c }) : rd.view.addAnnotation({ value: a.c })).catch(() => {});
+    else markBookmark();
+  }
 }
-function noteSheet(a) {
-  sheet(T('hlNote'), (sh, close) => {
-    const q = h('p', 'tr-src', '“' + a.x + '”'); q.dir = 'auto';
+function annCleanDupes(rec) {              // מצבה לעותקים כפולים של אותה הדגשה (נשמר בענן — מכשיר אחר לא יחזיר אותם)
+  const ids = annDupes(rec.ann);
+  if (!ids.length) return false;
+  rec.ann.forEach((a) => { if (ids.includes(a.id)) { Object.assign(a, { d: 1, u: Date.now() }); pushAnn(rec, a); } });
+  putBook(rec).catch(() => {});
+  return true;
+}
+function deleteAnn(a, rec) { annTouch(rec || rd.rec, a, { d: 1 }); }
+function annRemove(rec, a, after) {        // הסרת סימון: מיד; עם הערה — קודם אישור (ההערה נמחקת איתו)
+  const go = () => { annTouch(rec, a, { d: 1 }); flashSafe(a.b ? T('bmRemoved') : T('hlRemoved')); if (after) after(); };
+  if (!a.b && String(a.n || '').trim() && typeof askConfirm === 'function') askConfirm(T('hlRemoveNoteQ'), go, { danger: true, ok: T('hlRemove') });
+  else go();
+}
+function noteSheet(a, rec, after) {
+  sheet(String(a.n || '').trim() ? T('hlEditNote') : T('hlAddNote'), (sh, close) => {
+    const q = h('p', 'ann-sh-q', '“' + a.x + '”'); q.dir = 'auto'; q.style.setProperty('--hl', HL_COLORS[a.k] || HL_COLORS.y);
     const ta = h('textarea', 'hl-ta'); ta.value = a.n || ''; ta.placeholder = T('hlNotePh'); ta.dir = 'auto'; ta.rows = 4;
     const save = h('button', 'bk-cta', T('hlSave')); save.type = 'button';
     save.addEventListener('click', () => {
-      a.n = ta.value.trim().slice(0, 2000); a.u = Date.now();
-      const rec = rd ? rd.rec : null;
-      if (rec) { putBook(rec).catch(() => {}); pushAnn(rec, a); }
+      const r = rec || (rd && rd.rec);
+      if (r) annTouch(r, a, { n: ta.value.trim().slice(0, 2000) });
       close();
+      if (after) after();
     });
     sh.append(q, ta, save);
     setTimeout(() => ta.focus(), 250);
+  });
+}
+/* v326: גיליון פעולות להדגשה — כמו המחברת של קינדל, בעיצוב Apple: צבע, הערה, העתקה, ציטוט, מעבר למקום, הסרה */
+function annActions(rec, a, opt) {
+  const o = opt || {};
+  const after = () => { if (o.after) o.after(); };
+  sheet('', (sh) => {
+    const veil = () => sh.parentNode;
+    const q = h('p', 'ann-sh-q', '“' + (a.x || '—') + '”'); q.dir = 'auto';
+    if (a.b) q.classList.add('bm'); else q.style.setProperty('--hl', HL_COLORS[a.k] || HL_COLORS.y);
+    sh.append(q);
+    if (!a.b) {
+      const cols = h('div', 'ann-colors'); cols.setAttribute('role', 'radiogroup'); cols.setAttribute('aria-label', T('hlColor'));
+      Object.keys(HL_COLORS).forEach((k) => {
+        const b = h('button', (a.k || 'y') === k ? 'on' : ''); b.type = 'button'; b.style.background = HL_COLORS[k];
+        b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String((a.k || 'y') === k)); b.setAttribute('aria-label', T('hlColor'));
+        b.addEventListener('click', () => {
+          annTouch(rec, a, { k });
+          cols.querySelectorAll('button').forEach((x) => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
+          q.style.setProperty('--hl', HL_COLORS[k]);
+          after();
+        });
+        cols.append(b);
+      });
+      sh.append(cols);
+    }
+    const list = h('div', 'lib-ios ann-acts');
+    const row = (icon, label, fn, cls) => {
+      const r = h('button', 'lib-row' + (cls ? ' ' + cls : '')); r.type = 'button';
+      const ic = h('span', 'lib-rowic'); ic.innerHTML = icon;
+      r.append(h('span', 'lib-row-l', label), ic);
+      r.addEventListener('click', fn);
+      list.append(r);
+    };
+    if (o.open) row(ICON.open, T('annOpen'), () => closeSheetThen(veil(), o.open));
+    if (!a.b) row(ICON.notes, String(a.n || '').trim() ? T('hlEditNote') : T('hlAddNote'), () => closeSheetThen(veil(), () => noteSheet(a, rec, after)));
+    row(ICON.copy, T('annCopy'), async () => {
+      const txt = '“' + String(a.x || '').trim() + '”' + (String(a.n || '').trim() ? '\n✎ ' + String(a.n).trim() : '') + (rec.title ? '\n— ' + rec.title : '');
+      try { await navigator.clipboard.writeText(txt); flashSafe(T('rdCopied')); } catch (e) {}
+      const v = veil(); if (v && v._close) v._close();
+    });
+    if (!a.b) row(ICON.quote, T('annShareQuote'), () => closeSheetThen(veil(), () => quoteCard(a.x, rec)));
+    row(ICON.trash, a.b ? T('annDeleteBm') : T('hlRemove'), () => closeSheetThen(veil(), () => annRemove(rec, a, after)), 'danger');
+    sh.append(list);
   });
 }
 
@@ -2544,8 +2703,8 @@ function toggleBookmark() {
 }
 
 /* ---- כרטיס ציטוט: תמונה נקייה לשיתוף (קנבס, הפונט שלנו, בלי שום נתון אישי) ---- */
-async function quoteCard(text) {
-  const rec = rd && rd.rec; if (!rec) return;
+async function quoteCard(text, recIn) {
+  const rec = recIn || (rd && rd.rec); if (!rec) return;
   const W = 1080, H = 1350, pad = 96;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d');
@@ -2647,21 +2806,29 @@ function openToc() {
       const box = h('div', 'rd-pane hidden');
       const list = liveAnn(rd.rec.ann, kind);
       if (!list.length) { box.append(h('p', 'lib-empty', T(empty))); return box; }
-      list.forEach((a) => box.append(annRow(a, () => go(a.c))));
+      list.forEach((a) => box.append(annRow(a, () => go(a.c), () => closeSheetThen(sh.parentNode, () => annActions(rd.rec, a, { open: () => rd && rd.view.goTo(a.c).catch(() => {}) })))));
       return box;
     };
     panes.hl = annList('hl', 'noHl'); panes.bm = annList('bm', 'noBm');
     sh.append(tabs, panes.toc, panes.hl, panes.bm);
   });
 }
-function annRow(a, onOpen) {
-  const r = h('button', 'ann-row'); r.type = 'button';
+function annRow(a, onOpen, onMore) {
+  const r = h('div', 'ann-row'); r.tabIndex = 0; r.setAttribute('role', 'button');
   if (!a.b) r.style.setProperty('--hl', HL_COLORS[a.k] || HL_COLORS.y);
   else r.classList.add('bm');
   const q = h('div', 'ann-x', a.x || '—'); q.dir = 'auto'; r.append(q);
-  if (a.n) { const n = h('div', 'ann-n', a.n); n.dir = 'auto'; r.append(n); }
+  if (String(a.n || '').trim()) { const n = h('div', 'ann-n'); const ic = h('span', 'ann-nic'); ic.innerHTML = ICON.notes; const t = h('span', null, a.n); t.dir = 'auto'; n.append(ic, t); r.append(n); }
   r.append(h('div', 'ann-m', [a.ch, Math.round((a.f || 0) * 100) + '%'].filter(Boolean).join(' · ')));
   r.addEventListener('click', onOpen);
+  r.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } });
+  if (onMore) {
+    r.classList.add('has-more');
+    const m = h('button', 'ann-more'); m.type = 'button'; m.innerHTML = ICON.more; m.setAttribute('aria-label', T('annMore'));
+    m.addEventListener('click', (e) => { e.stopPropagation(); onMore(); });
+    r.append(m);
+    wireHold(r, onMore);
+  }
   return r;
 }
 
