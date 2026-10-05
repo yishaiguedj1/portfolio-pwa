@@ -642,6 +642,8 @@ const ICON = {
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
   cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/></svg>',
   cloudOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M9.3 13.6l2 2 3.6-3.8"/></svg>',
+  cloudErr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 11.2v3"/><path d="M12 16.4v.1"/></svg>',
+  cloudOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M4 4l16 16"/></svg>',
   cloudUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 16v-5M9.8 13l2.2-2.2 2.2 2.2"/></svg>',
   shelf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h4v15H4zM10 4.5h4v15h-4zM16.3 5.2l3.6 1-3.6 13.8-3.6-1"/></svg>',
   cloudDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/><path d="M12 10.5v5.5M9.8 13.8l2.2 2.2 2.2-2.2"/></svg>',
@@ -788,14 +790,15 @@ async function renderHomeNow() {
   const tr = h('div', 'lib-tr'); tr.append(learn);
   if (mine) tr.append(more, add);
   top.append(back, tr);
-  home.append(top, h('h1', 'lib-large', T('libTitle')));
+  // v327 (בקשת המשתמש, בהשראת Google Photos): מצב הגיבוי = בועה קטנה בשורת הכותרת, לא כרטיס מעל החיפוש
+  const hrow = h('div', 'lib-hrow');
+  hrow.append(h('h1', 'lib-large', T('libTitle')));
+  if (mine) { bkAdopt(); if (books.length || cloudOnly.length) hrow.append(backupPill()); }
+  home.append(top, hrow);
   home.append(shelfSeg(nMine));
   if (!mine) {
     if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
     else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
-  } else {
-    bkAdopt();
-    if (books.length || cloudOnly.length) home.append(backupRow());
   }
 
   if (books.length || cloudOnly.length) {   // גם בספרייה קטנה — החיפוש מגיע גם לתוך הטקסט
@@ -935,21 +938,29 @@ function shelfSeg(nMine) {                 // בורר מקטעים בסגנון
   seg.classList.toggle('mine', ui.shelf === 'mine');
   return seg;
 }
-function backupRow() {                     // שורת מצב הגיבוי בראש "הספרייה שלי" — נגיעה = מסך הגיבוי
+let pillPrev = '';
+export function bkPillState(signed, s, busy) {   // טהורה (נבדקת): off | busy | err | ok
+  if (!signed || !s || !s.email) return 'off';
+  if (busy) return 'busy';
+  if (s.err) return 'err';
+  return s.lastAt ? 'ok' : 'off';
+}
+function backupPill() {                    // בועת מצב הגיבוי (ענן + ✓ / חץ / !) — נגיעה = מסך הגיבוי
   const s = BK.settings();
-  const row = h('button', 'lib-bkrow'); row.type = 'button';   // v322: נשארת גם בחיפוש — היא מעל שדה החיפוש, והסתרתה הזיזה אותו
-  const ic = h('span', 'lib-bkic'); const sub = h('span');
-  let title;
-  if (!signedIn()) { ic.innerHTML = ICON.cloud; title = T('bkRowOff'); sub.textContent = T('bkRowSignIn'); }
-  else if (!s.email) { ic.innerHTML = ICON.cloud; title = T('bkRowOff'); sub.textContent = T('bkRowConnect'); row.classList.add('off'); }
-  else if (BK.busy()) { ic.innerHTML = ICON.cloudUp; title = T('bkRowBusy'); sub.textContent = s.email; }
-  else if (s.err) { ic.innerHTML = ICON.cloud; title = T('bkRowErr'); sub.textContent = bkErrText(s.err); row.classList.add('err'); }
-  else { ic.innerHTML = ICON.cloudOk; title = T('bkRowOn'); sub.textContent = [fmtWhen(s.lastAt), s.lastAt ? T('bkBooks', { n: s.count || 0 }) : '', s.lastAt ? fmtBytes(s.bytes) : ''].filter(Boolean).join(' · '); }
-  const tx = h('span', 'lib-bktx'); tx.append(h('b', null, title), sub);
-  const ch = h('span', 'lib-bkch'); ch.innerHTML = ICON.chev;
-  row.append(ic, tx, ch);
-  row.addEventListener('click', () => goView({ backup: 1 }));
-  return row;
+  const st = bkPillState(signedIn(), s, BK.busy());
+  const pill = h('button', 'lib-bkpill ' + st); pill.type = 'button';
+  if (st === 'ok' && pillPrev === 'busy') pill.classList.add('done');   // הגיבוי הסתיים עכשיו — ה־✓ "נכתב"
+  pillPrev = st;
+  const ic = h('span', 'lib-bkpic');
+  ic.innerHTML = st === 'ok' ? ICON.cloudOk : st === 'busy' ? ICON.cloudUp : st === 'err' ? ICON.cloudErr : ICON.cloudOff;
+  const label = st === 'ok' ? T('bkPillOk') : st === 'busy' ? T('bkPillBusy') : st === 'err' ? T('bkPillErr') : T('bkPillOff');
+  pill.append(ic, h('span', 'lib-bkplbl', label));
+  // לקורא המסך — הפרטים המלאים (מה שהיה בכרטיס)
+  const full = st === 'ok' ? [T('bkRowOn'), fmtWhen(s.lastAt), T('bkBooks', { n: s.count || 0 }), fmtBytes(s.bytes)].filter(Boolean).join(' · ')
+    : st === 'busy' ? T('bkRowBusy') : st === 'err' ? T('bkRowErr') + ' · ' + bkErrText(s.err) : (signedIn() ? T('bkRowConnect') : T('bkRowSignIn'));
+  pill.setAttribute('aria-label', full); pill.title = full;
+  pill.addEventListener('click', () => goView({ backup: 1 }));
+  return pill;
 }
 function cloudItem(b, idx) {
   const it = h('button', 'lib-item cloud'); it.type = 'button';

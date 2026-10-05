@@ -437,7 +437,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('lib: חזור ← מעריכה', back, { expect: '.lib-grid .lib-item' });
     await step('lib: תפריט ⋯', () => page.click('.lib-tr .lib-round:nth-child(2)'), { pre: '.lib-tr', expect: '.lib-veil' });   // הכפתור בראש הדף — הגלילה אליו היא של Playwright
     await step('lib: חזור ← סגירת תפריט', back, { expect: '.lib-root:not(:has(.lib-veil)) .lib-grid' });
-    await step('lib: מסך הגיבוי', async () => { await page.click('.lib-bkrow'); await sleep(600); }, { pre: '.lib-bkrow', expect: '.lib-bkpage' });
+    await step('lib: מסך הגיבוי', async () => { await page.click('.lib-bkpill'); await sleep(600); }, { pre: '.lib-bkpill', expect: '.lib-bkpage' });   // v327: הכרטיס הוחלף בבועה בשורת הכותרת
     await step('lib: חזור ← מגיבוי', back, { expect: '.lib-grid .lib-item' });
     await step('lib: חיפוש', async () => { await page.fill('.lib-search input', 'rich'); await sleep(600); }, { cls: 0.5 });   // התוצאות מתחת לשדה מסתדרות מחדש — מותר; השדה עצמו לא זז (v322)
     await step('lib: ניקוי חיפוש', async () => { await page.fill('.lib-search input', ''); await sleep(400); });

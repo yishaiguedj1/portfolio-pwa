@@ -55,7 +55,7 @@ ok(/function closeSheetThen\(veil, fn\)/.test(lib), 'closeSheetThen — פתיח
 ok(!/close\(\); goView\(/.test(lib) && !/close\(\); collNameSheet\(/.test(lib) && !/close\(\); openResetSheet\(\)/.test(lib) && !/close\(\); collDelete\(/.test(lib), 'אין "close(); X()" שדוחף רשומה בזמן ש־back בדרך');
 ok(/const afterBack = \(fn\) => \(typeof window !== 'undefined' && typeof window\.snbAfterBack === 'function'\) \? window\.snbAfterBack\(fn\) : fn\(\);/.test(lib), 'afterBack בספרייה דרך window.snbAfterBack של האפליקציה');
 ok(/if \(!restore\) afterBack\(\(\) => history\.pushState\(Object\.assign\(\{\}, history\.state \|\| \{\}, \{ lib: 1 \}\), ''\)\);/.test(lib), 'פתיחת הספרייה מהתפריט — pushState אחרי שסגירת התפריט נחתה');
-ok(/h\('button', 'lib-bkrow'\)/.test(lib) && !/'lib-bkrow lib-hide-q'/.test(lib), 'שורת הגיבוי (מעל שדה החיפוש) לא מוסתרת בחיפוש — השדה לא זז מתחת לאצבע');
+ok(/h\('button', 'lib-bkpill ' \+ st\)/.test(lib) && !/lib-bkpill[^']*lib-hide-q/.test(lib), 'שורת הגיבוי (מעל שדה החיפוש) לא מוסתרת בחיפוש — השדה לא זז מתחת לאצבע');
 
 /* ---------- אפליקציה: "חזור" סוגר חלונות ---------- */
 ok(/if \(typeof window !== 'undefined'\) window\.snbAfterBack = afterBack;/.test(app), 'window.snbAfterBack חשוף לספרייה');

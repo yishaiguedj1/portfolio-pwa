@@ -16,7 +16,7 @@ ok(/T\('libInCloud'\)/.test(lib), 'כיתוב "בגיבוי" + גודל מתחת
 ok(/it\.addEventListener\('click', \(\) => downloadCloud\(b, it, true\)\)/.test(lib) && /if \(open\) (safeGoView|goView)\(\{ book: b\.id \}\)/.test(lib), 'נגיעה = הורדה, ואחריה דף הספר');
 ok(/\.lib-item\.cloud\.loading \.lib-cbadge::after/.test(css), 'בזמן ההורדה — סימן טעינה במקום החץ');
 ok(/libDlAll/.test(lib), 'כמה ספרים בגיבוי — "הורדת כל הספרים מהגיבוי"');
-ok(/if \(books\.length \|\| cloudOnly\.length\) home\.append\(backupRow\(\)\)/.test(lib), 'גם כשכל הספרים בענן — שורת הגיבוי והחיפוש מוצגות');
+ok(/if \(books\.length \|\| cloudOnly\.length\) hrow\.append\(backupPill\(\)\)/.test(lib), 'גם כשכל הספרים בענן — שורת הגיבוי והחיפוש מוצגות');
 ok(/cloudBooks = null;\s+\/\/ v319/.test(lib), 'אחרי איפוס — מה שנשאר בגיבוי מופיע להורדה');
 ok(/let chain = Promise\.resolve\(\), pending = 0;/.test(bk) && !/if \(busy\) return busy;/.test(bk), 'פעולות הגיבוי בתור — הורדה בזמן גיבוי אוטומטי לא נבלעת');
 ok(/year: \(e\.meta && e\.meta\.year\) \|\| 0/.test(bk), 'שנה ברשימת הגיבוי (למיון)');
