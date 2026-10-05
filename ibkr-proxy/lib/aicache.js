@@ -82,7 +82,16 @@ function createAiStore(deps = {}) {
     if (kind !== 'ins' && c[uf] > (anon ? L.anon : L.user)) return { ok: false, why: 'user' };
     return { ok: true };
   }
-  return { get, set, allow, _mem: mem, _memCache: memCache };
+  /* אבחון: כתיבה וקריאה אמיתיות ב־Firestore (בלי הזיכרון) + מונה — האם המטמון והמונים באמת משותפים */
+  async function probe() {
+    const parts = ['probe', String(Date.now())];
+    await set('ctx', parts, { translation: 'probe' });
+    memCache.delete(aiKey('ctx', parts));
+    const back = await get('ctx', parts);
+    const c = await bump(['probe']);
+    return { cache: !!(back && back.translation === 'probe'), counters: !c._mem, n: c.probe };
+  }
+  return { get, set, allow, probe, _mem: mem, _memCache: memCache };
 }
 
 module.exports = { createAiStore, aiKey, limits };

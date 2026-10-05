@@ -172,6 +172,7 @@ module.exports = async (req, res) => {
     const ms = Array.isArray(body.models) ? body.models.filter((m) => /^[a-z0-9.-]{3,40}$/.test(m)).slice(0, 6) : null;
     return res.status(200).json(Object.assign({ ok: true }, await mistralProbe(ms && ms.length ? { models: ms } : {})));
   }   // v338: אבחון חשבון Mistral
+  if (body.mode === 'storeProbe') return res.status(200).json(Object.assign({ ok: true }, await (deps.store || aiStore).probe()));   // v339: אבחון המטמון המשותף
   if (body.mode === 'quick') {
     const qk = 'q|' + lang + '|' + text;
     if (cache.has(qk)) return res.status(200).json(cache.get(qk));
