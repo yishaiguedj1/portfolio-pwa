@@ -2,7 +2,9 @@
    מפתח: MISTRAL_API_KEY במשתני הסביבה של Vercel בלבד. במסלול החינמי — לכבות "שימוש בנתונים לאימון" בחשבון.
    נשלח רק טקסט מהספר. מחזיר את אותו מבנה כמו Gemini: { translation, note, wiki, model }. */
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
-const MISTRAL_MODELS = () => [process.env.MISTRAL_MODEL, 'mistral-medium-latest', 'mistral-small-latest'].filter((m, i, a) => m && a.indexOf(m) === i);
+// v338: במסלול החינמי של החשבון Medium/Small/Magistral = 0 בקשות בדקה ו־Large חסום (נמדד באבחון 05/10/2026) —
+// Ministral 14B (188 בקשות ו־625 אלף טוקנים בדקה) ראשון, 8B גיבוי. מסלול בתשלום — MISTRAL_MODEL ב־Vercel.
+const MISTRAL_MODELS = () => [process.env.MISTRAL_MODEL, 'ministral-14b-latest', 'ministral-8b-latest'].filter((m, i, a) => m && a.indexOf(m) === i);
 
 async function mistralJSON(sys, user, diag, opt = {}) {
   const key = process.env.MISTRAL_API_KEY;

@@ -72,7 +72,7 @@ async function insight(title, text, fetchImpl, diag = {}) {
   }
   // v334: כל מודלי Gemini נכשלו — Mistral Medium כגיבוי אחרון (הקשר של 256 אלף טוקנים, מכתב שלם נכנס)
   const m = await mistralJSON(sys + ' Reply only with a JSON object with the fields summary, ideas, lens, terms, question.', user, diag,
-    { models: ['mistral-medium-latest'], ms: Math.max(8000, 55000 - (Date.now() - started)), maxTokens: 3000, fetch: fetchImpl });
+    { models: [process.env.MISTRAL_MODEL || 'ministral-14b-latest'], ms: Math.max(8000, 55000 - (Date.now() - started)), maxTokens: 3000, fetch: fetchImpl });
   const mo = m.out && cleanInsight(m.out);
   if (mo) return { insight: Object.assign(mo, { model: m.model }) };
   return { error: q429 && q429 === tried && (m.error === 'quota' || m.error === 'no_key') ? 'quota' : 'ai_failed' };

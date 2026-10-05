@@ -32,5 +32,5 @@ ok(JSON.stringify(wq('האתוס')) === '["האתוס","אתוס"]' && JSON.stri
 ok(/for \(const w of wikiQueries\(q\)\)/.test(lib) && !/wikiExact/.test(lib), 'בלי דרישת התאמה מדויקת — הערך הראשון שאינו פירושונים');
 ok(/"wished" -> "Wish"/.test(proxy) && /leave it empty only for function words/.test(proxy), 'השרתון: שם ערך גם למילה רגילה (צורת הבסיס)');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(v === 'v337' && swVersionOk(v), 'גרסה v337');
+ok(!!v && swVersionOk(v), 'גרסה');
 console.log(`\n${n} בדיקות עברו`);

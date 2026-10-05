@@ -3347,6 +3347,9 @@ function hideTr(instant) {
 export function aiModelLabel(m) {
   m = String(m || '').toLowerCase();
   if (!m) return '';
+  const mb = m.match(/ministral-(\d+b)/);
+  if (mb) return 'Ministral ' + mb[1].toUpperCase();              // v338: Ministral 14B / 8B (המסלול החינמי)
+  if (m.includes('nemo')) return 'Mistral Nemo';
   if (m.includes('mistral')) return 'Mistral ' + (m.includes('small') ? 'Small' : m.includes('large') ? 'Large' : 'Medium');
   if (m.includes('gemini')) return 'Gemini ' + (m.includes('lite') ? 'Flash‑Lite' : m.includes('pro') ? 'Pro' : 'Flash');
   return m;

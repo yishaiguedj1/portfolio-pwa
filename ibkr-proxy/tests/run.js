@@ -561,7 +561,7 @@ function stubFetch(text, status = 200) {
     process.env.MISTRAL_API_KEY = 'mk'; const calls2 = [];
     o = await insight('T', 'text', async (u, opt) => { calls2.push({ u: String(u), opt }); if (String(u).includes('mistral.ai')) return { status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify({ summary: 'תקציר ממיסטרל', ideas: ['א'], question: 'ש' }) } }] }) }; return { status: 429, json: async () => ({}) }; });
     const mc = calls2.find((c) => c.u.includes('mistral.ai'));
-    ok(o.insight && o.insight.summary === 'תקציר ממיסטרל' && o.insight.model === 'mistral-medium-latest', 'insight: כל Gemini במכסה — Mistral Medium כגיבוי אחרון, והמודל מדווח');
+    ok(o.insight && o.insight.summary === 'תקציר ממיסטרל' && o.insight.model === 'ministral-14b-latest', 'insight: כל Gemini במכסה — Ministral 14B כגיבוי אחרון, והמודל מדווח');
     ok(mc && mc.opt.headers.Authorization === 'Bearer mk' && !mc.u.includes('mk'), 'insight: מפתח Mistral בכותרת, לא בכתובת');
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
     if (oldM === undefined) delete process.env.MISTRAL_API_KEY; else process.env.MISTRAL_API_KEY = oldM;
@@ -580,7 +580,7 @@ function stubFetch(text, status = 200) {
     set((u) => (u.includes('mistral.ai') ? mOk({ translation: 'חפיר כלכלי', note: 'יתרון תחרותי עמיד', wiki: 'Economic moat' }) : gOk({ translation: 'x' })));
     let r = await run({ text: 'moat', context: 'a wide moat', title: 'T' });
     const sent = JSON.parse(calls[0].opt.body);
-    ok(r.payload.provider === 'mistral' && r.payload.model === 'mistral-medium-latest' && r.payload.wiki === 'Economic moat' && !calls.some((c) => c.u.includes('googleapis')),
+    ok(r.payload.provider === 'mistral' && r.payload.model === 'ministral-14b-latest' && r.payload.wiki === 'Economic moat' && !calls.some((c) => c.u.includes('googleapis')),
       'context: Mistral ראשון — תרגום, הערה, שם ערך ויקיפדיה ושם המודל; בלי פנייה ל־Gemini');
     ok(sent.response_format.type === 'json_object' && /wiki/.test(sent.messages[0].content) && sent.messages[1].content.includes('a wide moat'), 'context: JSON בלבד, ההנחיה מבקשת גם ערך ויקיפדיה, וההקשר נשלח');
     translate._cache.clear(); calls.length = 0;

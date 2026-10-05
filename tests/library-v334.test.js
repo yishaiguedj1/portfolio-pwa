@@ -14,7 +14,7 @@ const pure = (name, pre) => new Function((pre || '') + lib.match(new RegExp('exp
 
 // ---------- שם המודל ----------
 const aiModelLabel = pure('aiModelLabel');
-ok(aiModelLabel('mistral-medium-latest') === 'Mistral Medium' && aiModelLabel('mistral-small-latest') === 'Mistral Small', 'Mistral Medium / Small');
+ok(aiModelLabel('mistral-medium-latest') === 'Mistral Medium' && aiModelLabel('mistral-small-latest') === 'Mistral Small' && aiModelLabel('ministral-14b-latest') === 'Ministral 14B' && aiModelLabel('ministral-8b-latest') === 'Ministral 8B', 'Mistral Medium / Small / Ministral 14B / 8B (v338)');
 ok(aiModelLabel('gemini-3.5-flash-lite') === 'Gemini Flash‑Lite' && aiModelLabel('gemini-flash-latest') === 'Gemini Flash' && aiModelLabel('') === '', 'Gemini Flash‑Lite / Flash; בלי מודל — ריק');
 ok(/model\.textContent = aiModelLabel\(j\.model\)/.test(lib) && /T\('acAiNote'\) \+ \(ins\.model \? ' · ' \+ aiModelLabel\(ins\.model\) : ''\)/.test(lib), 'תווית המודל ב"בהקשר הזה" ובניתוח המכתב');
 
