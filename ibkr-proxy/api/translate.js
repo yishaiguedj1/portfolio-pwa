@@ -182,7 +182,7 @@ module.exports = async (req, res) => {
     return res.status(200).json(v);
   }
   const only = body.only === 'mistral' || body.only === 'gemini' ? body.only : '';   // השוואת איכות (שלב 2) — ספק אחד בלבד
-  const key = lang + '|' + text + '|' + context + '|' + only;
+  const key = lang + '|' + text + '|' + context + '|' + only + '|' + (Array.isArray(body.gmodels) ? body.gmodels.join(',') : '');   // השוואה: גם לפי הדגם
   const hit = cache.get(key);
   if (hit) return res.status(200).json(hit);
   // v339: מטמון משותף (Firestore) — תשובה שכבר חושבה לקורא אחר, בלי לפנות ל־AI ובלי לספור במכסה
