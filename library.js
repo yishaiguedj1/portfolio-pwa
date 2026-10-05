@@ -2244,7 +2244,7 @@ function wireHold(el, onHold) {
   });
   el.addEventListener('pointermove', (e) => { if (t && Math.hypot(e.clientX - sx, e.clientY - sy) > SLOP) cancel(); });
   el.addEventListener('pointerup', () => {
-    if (held) { held = false; swallow = true; el.classList.remove('pressing'); onHold(); }
+    if (held) { held = false; swallow = true; setTimeout(() => { swallow = false; }, 600); el.classList.remove('pressing'); onHold(); }   // v328: ה־click אחרי לחיצה ארוכה לא תמיד מגיע לאלמנט (נוחת על הגיליון שנפתח) — בלי איפוס, הנגיעה הבאה נבלעה
     else cancel();
   });
   el.addEventListener('pointercancel', () => { held = false; cancel(); el.classList.remove('pressing'); });
@@ -2279,7 +2279,9 @@ function sheet(title, build) {
   if (title) sh.append(h('h3', 'lib-sh-t', title));
   build(sh, close);
   veil.append(sh);
-  veil.addEventListener('click', (e) => { if (e.target === veil) close(); });
+  const openedAt = Date.now();
+  // v328: לחיצה ארוכה פותחת גיליון בשחרור האצבע — ה־click שהדפדפן שולח אחריו נחת על הרקע וסגר אותו מיד; קליקים ב־450ms הראשונים לא סוגרים
+  veil.addEventListener('click', (e) => { if (e.target === veil && Date.now() - openedAt > 450) close(); });
   veil._close = close;
   root.append(veil);
   // v323: רשומה רק עם הפעלת משתמש (כמו modalPush ב־app.js) — גיליון שנפתח מקוד אסינכרוני נסגר ב"חזור" בלי לבלוע את הניווט
@@ -2827,10 +2829,18 @@ function openToc() {
 function annRow(a, onOpen, onMore) {
   const r = h('div', 'ann-row'); r.tabIndex = 0; r.setAttribute('role', 'button');
   if (!a.b) r.style.setProperty('--hl', HL_COLORS[a.k] || HL_COLORS.y);
-  else r.classList.add('bm');
+  else {                                   // v328: סימנייה נראית כמו סימנייה — סרט אדום בראש הכרטיס + תווית, בלי פס צבע (שהתבלבל עם הדגשה ורודה)
+    r.classList.add('bm');
+    r.append(h('span', 'ann-ribbon'));
+  }
   const q = h('div', 'ann-x', a.x || '—'); q.dir = 'auto'; r.append(q);
   if (String(a.n || '').trim()) { const n = h('div', 'ann-n'); const ic = h('span', 'ann-nic'); ic.innerHTML = ICON.notes; const t = h('span', null, a.n); t.dir = 'auto'; n.append(ic, t); r.append(n); }
-  r.append(h('div', 'ann-m', [a.ch, Math.round((a.f || 0) * 100) + '%'].filter(Boolean).join(' · ')));
+  const m = h('div', 'ann-m');
+  if (a.b) { const tag = h('span', 'ann-bmtag'); const ic = h('span', 'ann-bmic'); ic.innerHTML = ICON.bookmark; tag.append(ic, h('span', null, T('annBmLabel'))); m.append(tag); }
+  m.append(document.createTextNode([a.ch, Math.round((a.f || 0) * 100) + '%'].filter(Boolean).join(' · ')));
+  r.append(m);
+  // v328: לחיצה ארוכה על הטקסט פתחה את סימון הטקסט של המערכת (העתק / Google Translate) במקום תפריט העריכה שלנו
+  r.addEventListener('contextmenu', (e) => e.preventDefault());
   r.addEventListener('click', onOpen);
   r.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } });
   if (onMore) {

@@ -240,7 +240,19 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .learn-exp svg { width: 18px; height: 18px; }
 @media (prefers-reduced-motion: reduce) { .ann-row, .ann-colors button, .learn-colors button { transition: none; } }
 .rd-pane .ann-row { background: var(--bg) !important; box-shadow: none; }
-.ann-row.bm { border-inline-start-color: #FF453A !important; }
+.ann-row.bm { border-inline-start: 0 !important; padding-inline-start: 44px; }
+/* v328: סימנייה — סרט אדום שיורד מהקצה העליון של הכרטיס (כמו בקורא) + תווית עם אייקון; הקטע מהעמוד בטון משני */
+.ann-ribbon { position: absolute; top: 0; inset-inline-start: 16px; width: 15px; height: 24px; background: #FF3B30;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%); border-radius: 2px 2px 0 0; }
+.ann-row.bm .ann-x { color: var(--on-surface-var); -webkit-line-clamp: 2; font-size: 15px; }
+.ann-bmtag { display: inline-flex; align-items: center; gap: 4px; color: #FF3B30; font-weight: 700; margin-inline-end: 6px; }
+.ann-bmic { display: inline-flex; }
+.ann-bmic svg { width: 13px; height: 13px; fill: currentColor; }
+[data-theme="dark"] .ann-ribbon, [data-theme="dark"] .ann-bmtag { color: #FF453A; }
+[data-theme="dark"] .ann-ribbon { background: #FF453A; }
+/* v328: לחיצה ארוכה = תפריט העריכה שלנו, לא סימון הטקסט של המערכת */
+.ann-row, .ann-row * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.ann-m { display: flex; align-items: center; flex-wrap: wrap; }
 .ann-x { font-family: "SNB Noto UI", sans-serif; font-size: 15.5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .ann-n { margin-top: 6px; font-size: 14.5px; color: var(--primary); font-weight: 600; }
 .ann-m { margin-top: 6px; font-size: 12.5px; color: var(--on-surface-var); }
