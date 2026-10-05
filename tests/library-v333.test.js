@@ -34,15 +34,15 @@ ok(/body: JSON\.stringify\(\{ text: text\.slice\(0, 400\), mode: 'quick', to: tl
 ok(/const trTarget = \(text\) => \(uiLang\(\) === 'he' && \/\[\\u0590-\\u05FF\]\/\.test\(text\) \? 'en' : uiLang\(\)\);/.test(lib), 'מילה בעברית בממשק עברי — לאנגלית');
 
 // ---------- התנהגות ----------
-ok(/doc\.addEventListener\('pointerdown', \(e\) => \{[\s\S]{0,260}gtQuick\(w\.text, trTarget\(w\.text\)\)/.test(lib), 'התרגום מתחיל כבר בירידת האצבע — מוכן כשהיא עולה');
-ok(/if \(w\) \{ if \(rd\.chrome\) setChrome\(false\); trShow\(/.test(lib) && /if \(trCard\) \{ hideTr\(\); return; \}\s*setChrome\(!rd\.chrome\);/.test(lib), 'נגיעה במילה = תרגום; במקום ריק — סוגר כרטיס, ואז סרגלים');
+ok(!/doc\.addEventListener\('pointerdown', \(e\) => \{[\s\S]{0,260}gtQuick\(w\.text/.test(lib), 'v336: נגיעה קצרה לא מתרגמת (וגם לא טוענת מראש) — רק לחיצה ארוכה');
+ok(!/if \(w\) \{ if \(rd\.chrome\) setChrome\(false\); trShow\(/.test(lib) && /if \(trCard\) \{ hideTr\(\); return; \}\s*setChrome\(!rd\.chrome\);/.test(lib), 'v336 (כמו בקינדל): נגיעה קצרה — סוגרת כרטיס, ואז סרגלים');
 ok(/const HOLD_MS = 320;/.test(lib) && /sel\.addRange\(w\.range\); \} catch \(e\) \{ return; \}\s*showSel\(doc\);/.test(lib), 'לחיצה ארוכה: 320ms → המילה נבחרת וחלון הסימון מיד (בלי לחכות ל־Chrome)');
-ok(/setTimeout\(\(\) => showSel\(doc\), 140\)/.test(lib) && /if \(selPop && selPop\._t === text\) return;/.test(lib), 'שינוי בחירה — 140ms (היה 350), בלי בנייה מחדש כשלא השתנה');
+ok(/setTimeout\(\(\) => showSel\(doc\), 140\)/.test(lib) && /if \(selMode && trCard\._sel\.t === text\) return;/.test(lib), 'שינוי בחירה — 140ms, בלי בנייה מחדש כשלא השתנה');
 ok(/Date\.now\(\) - \(rd\.holdAt \|\| 0\) < 1500\) \{\s*try \{ sel\.removeAllRanges\(\); sel\.addRange\(rd\.holdRange\)/.test(lib), 'שחרור האצבע שמקפל את הבחירה — המילה חוזרת, החלון נשאר');
 ok(/const moved = pageMoved\(rd\.loc, d\)/.test(lib) && /if \(moved\) \{ hideSel\(\); hideTr\(\); \}/.test(lib), 'המנוע שולח relocate גם בנגיעה בלי תזוזה — נסגר רק בהחלפת עמוד (נמצא ב־QA)');
 ok(/else if \(trCard\) hideTr\(\);/.test(lib) && /if \(trCard\) \{ hideTr\(\); return; \}\s*if \(rd\) return readerExit\(\);/.test(lib), '"חזור" ו־Escape סוגרים את הכרטיס');
 ok(/box\.addEventListener\('click', \(e\) => \{[\s\S]{0,300}setChrome\(!rd\.chrome\);/.test(lib), 'הסרגלים נפתחים גם בנגיעה בשולי העמוד');
-ok(/act\('rdTranslate', \(\) => \{ clearSelection\(\); trShow\(/.test(lib) && !/function translateSheet/.test(lib), '"תרגום" בחלון הסימון — אותו כרטיס (הדף הישן הוסר)');
+ok(!/act\('rdTranslate'/.test(lib) && !/function translateSheet/.test(lib), 'v336: חלון הסימון הוטמע בכרטיס התרגום — אין כפתור "תרגום" נפרד');
 ok(/if \(seq !== trSeq\) return;/.test(lib), 'תשובה מאוחרת של מילה קודמת לא דורסת');
 ok(/const ai = j && j\.engine === 'ai';\s*if \(!ai\) ctx\.remove\(\);/.test(lib), 'בלי AI (מכסה/רשת) — "בהקשר" פשוט לא מוצג, בלי הודעת שגיאה');
 ok(/CSS\.highlights\.set\('snb-tap'/.test(lib) && /::highlight\(snb-tap\)/.test(lib), 'המילה מסומנת בעדינות בלי לגעת ב־DOM של הספר');

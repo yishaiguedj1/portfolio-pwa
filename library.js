@@ -2313,7 +2313,7 @@ function closeSheetThen(veil, fn) {        // סגירה ואז פתיחה של 
 function onEscape() {
   const veil = root && root.querySelector('.lib-veil');
   if (veil) { (veil._close || (() => veil.remove()))(); return; }
-  if (selPop) { hideSel(); return; }
+  if (trCard && trCard._closePal && trCard.querySelector('.tr-pal')) { trCard._closePal(); return; }
   if (trCard) { hideTr(); return; }
   if (rd) return readerExit();          // מקלדת — יציאה מיידית, בלי "לחץ שוב"
   history.back();
@@ -2454,6 +2454,7 @@ async function openReader(id, opt) {
   annCleanDupes(rec);
   ribbon3dSetup(box, ribbon);   // v330: סימנייה תלת־ממדית — נטענת ברקע; עד שמוכנה (או בלי WebGL) נשאר סרט ה־SVG
   const setChrome = (on) => { rd.chrome = on; box.classList.toggle('chrome', on); };
+  rd.setChrome = setChrome;
   tocBtn.addEventListener('click', openToc);
   bmBtn.addEventListener('click', toggleBookmark);
   view.addEventListener('create-overlay', () => liveAnn(rd && rd.rec.ann).forEach((a) => view.addAnnotation({ value: a.c }).catch(() => {})));
@@ -2591,24 +2592,15 @@ async function ribbon3dSetup(box, btn) {
 function wireDoc(doc, setChrome, index) {
   doc.addEventListener('pointerup', readerRearm, true);
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } });
-  // v333 (בקשת המשתמש): נגיעה אחת במילה = כרטיס תרגום מלמטה (כמו Google Translate); נגיעה במקום ריק = סרגלים.
-  // התרגום מתחיל כבר ב־pointerdown — עד שהאצבע עולה הוא לרוב כבר כאן
-  doc.addEventListener('pointerdown', (e) => {
-    if (e.isPrimary === false || (e.target && e.target.closest && e.target.closest('a[href]'))) return;
-    const w = wordAt(doc, e.clientX, e.clientY);
-    if (w) gtQuick(w.text, trTarget(w.text)).catch(() => {});
-  }, { passive: true });
+  // v336 (בקשת המשתמש — כמו בקינדל): נגיעה קצרה = סרגלים בלבד (או סגירת הכרטיס); התרגום והסימון — רק בלחיצה ארוכה
   doc.addEventListener('click', (e) => {
     if (!(e.target && e.target.closest && e.target.closest('a[href]'))) blockTouchSearch(doc, e);
     if (rd && Date.now() - (rd.holdAt || 0) < 900) return;          // שחרור אחרי לחיצה ארוכה
     const sel = doc.getSelection && doc.getSelection();
     if (sel && !sel.isCollapsed && String(sel).trim()) return;
     if (e.target && e.target.closest && e.target.closest('a[href]')) return;
-    const w = wordAt(doc, e.clientX, e.clientY);
     setTimeout(() => {                         // נגיעה בהדגשה (show-annotation) — לא מחליפה סרגלים
       if (!rd || Date.now() - rd.annTap < 400) return;
-      if (selPop) { hideSel(); return; }
-      if (w) { if (rd.chrome) setChrome(false); trShow(w.text, blockText(w.range.startContainer), doc, w.range); return; }
       if (trCard) { hideTr(); return; }
       setChrome(!rd.chrome);
     }, 0);
@@ -2646,7 +2638,7 @@ function holdSelect(doc, x, y) {
   const w = wordAt(doc, x, y);
   if (!w) return;
   rd.holdAt = Date.now(); rd.holdRange = w.range;
-  hideTr();
+  if (rd.chrome && rd.setChrome) rd.setChrome(false);
   try { const sel = doc.getSelection(); sel.removeAllRanges(); sel.addRange(w.range); } catch (e) { return; }
   showSel(doc);
   try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {}
@@ -2701,77 +2693,81 @@ function annOverlapping(doc, range) {     // הדגשה פעילה שחופפת 
 function showSel(doc) {
   const sel = doc.getSelection && doc.getSelection();
   const text = sel ? String(sel).replace(/\s+/g, ' ').trim() : '';
-  // שחרור האצבע אחרי לחיצה ארוכה יכול לקפל את הבחירה (נגיעה שמציבה סמן) — מחזירים את המילה, החלון נשאר
-  if (!text && rd && selPop && rd.holdRange && Date.now() - (rd.holdAt || 0) < 1500) {
+  const selMode = !!(trCard && trCard._sel);
+  // שחרור האצבע אחרי לחיצה ארוכה יכול לקפל את הבחירה (נגיעה שמציבה סמן) — מחזירים את המילה, הכרטיס נשאר
+  if (!text && rd && selMode && rd.holdRange && Date.now() - (rd.holdAt || 0) < 1500) {
     try { sel.removeAllRanges(); sel.addRange(rd.holdRange); } catch (e) {}
     return;
   }
-  if (!text || !rd) { hideSel(); return; }
-  if (foreignTapSel(Date.now(), rd.tapAt, rd.holdAt, !!selPop)) { try { sel.removeAllRanges(); } catch (e) {} return; }
-  if (selPop && selPop._t === text) return;
-  hideTr();
+  if (!text || !rd) return;                  // בחירה שהתבטלה (גם אחרי הדגשה) — הכרטיס נשאר פתוח
+  if (foreignTapSel(Date.now(), rd.tapAt, rd.holdAt, selMode)) { try { sel.removeAllRanges(); } catch (e) {} return; }
+  if (selMode && trCard._sel.t === text) return;
   const range = sel.getRangeAt(0);
-  const rr = range.getBoundingClientRect();
-  const fr = doc.defaultView && doc.defaultView.frameElement;
-  const fb = fr ? fr.getBoundingClientRect() : { left: 0, top: 0 };
-  hideSel();
-  const idx = doc.__idx;
   const block = blockOf(range.commonAncestorContainer);
   const hit = annOverlapping(doc, range);   // v326: סימון על הדגשה קיימת — כמו בקינדל: אפשר להחליף צבע או להסיר, בלי עותק נוסף
-  if (hit) buildPop({ text: hit.x, cfi: hit.c, ann: hit, block: block ? block.textContent : hit.x });
-  else buildPop({ text, cfi: rd.view.getCFI(idx, range), range: range.cloneRange(), block: block ? block.textContent : text });
-  selPop._t = text;
-  root.append(selPop);
-  placePop(rr, fb);
+  const bt = block ? block.textContent : text;
+  if (hit) trShow(hit.x, bt, doc, range, { text: hit.x, cfi: hit.c, ann: hit, t: text });
+  else trShow(text, bt, doc, range, { text, cfi: rd.view.getCFI(doc.__idx, range), t: text });
 }
-
-/* בועה אחת לסימון חדש ולהדגשה קיימת: שורת צבעים (+ הערה), ומתחת תרגום · העתק · ציטוט (+ מחיקה בקיימת) */
-function buildPop({ text, cfi, block, ann }) {
-  selPop = h('div', 'rd-pop rd-pop2');
-  const row1 = h('div', 'rd-pop-row');
-  Object.keys(HL_COLORS).forEach((k) => {
-    const b = h('button', 'rd-dot' + (ann && ann.k === k ? ' on' : '')); b.type = 'button'; b.style.background = HL_COLORS[k];
-    b.setAttribute('aria-label', T('hlColor'));
-    b.addEventListener('click', () => { hideSel(); clearSelection(); saveHighlight({ text, cfi, k, ann }); });
-    row1.append(b);
-  });
-  if (ann && !ann.b) {                      // v326: הסרת הסימון — עיגול עם קו אלכסוני, כמו ב־Apple Books
-    const rm = h('button', 'rd-dot rd-clear'); rm.type = 'button'; rm.innerHTML = ICON.unmark;
-    rm.setAttribute('aria-label', T('hlRemove')); rm.title = T('hlRemove');
-    rm.addEventListener('click', () => { hideSel(); clearSelection(); annRemove(rd.rec, ann); });
-    row1.append(rm);
-  }
-  const nb = h('button', 'rd-txt', ann && String(ann.n || '').trim() ? T('hlEditNote') : T('hlNote')); nb.type = 'button';
-  nb.addEventListener('click', () => { hideSel(); clearSelection(); const a = ann || saveHighlight({ text, cfi, k: 'y' }); noteSheet(a, rd.rec); });
-  row1.append(nb);
-  const row2 = h('div', 'rd-pop-row');
-  const act = (k, fn) => { const b = h('button', 'rd-txt', T(k)); b.type = 'button'; b.addEventListener('click', () => { hideSel(); fn(); }); row2.append(b); };
-  act('rdTranslate', () => { clearSelection(); trShow(text, block || text, null, null); });
-  act('rdCopy', async () => { try { await navigator.clipboard.writeText(text); if (typeof flash === 'function') flash(T('rdCopied')); } catch (e) {} });
-  act('hlQuote', () => quoteCard(text));
-  const gm = glossaryMatch(text);
-  if (gm) act('acTerm', () => sheet(T('acTerm'), (sh) => sh.append(termRow(gm))));
-  selPop.append(row1, row2);
-}
-function placePop(rr, fb) {
-  const pw = selPop.offsetWidth, ph = selPop.offsetHeight;
-  let top = fb.top + rr.bottom + 12;                       // מתחת לסימון — מעליו מופיע התפריט של Chrome
-  if (top + ph > window.innerHeight - 50) top = fb.top + rr.top - ph - 12;
-  const cx = fb.left + (rr.left + rr.right) / 2;
-  selPop.style.top = Math.max(8, top) + 'px';
-  selPop.style.left = Math.min(window.innerWidth - pw - 8, Math.max(8, cx - pw / 2)) + 'px';
-}
-function clearSelection() { try { const d = rd && rd.view.renderer.getContents()[0]; d && d.doc.getSelection().removeAllRanges(); } catch (e) {} }
-function annPopup(value, range, index) {
+function annPopup(value, range, index) {    // נגיעה בהדגשה קיימת — אותו כרטיס, עם הצבע שלה ו"הסרת הסימון"
   const ann = rd && rd.rec.ann.find((x) => x.c === value && !x.d);
   if (!ann) return;
-  hideSel();
-  buildPop({ text: ann.x, cfi: ann.c, ann, block: '' });
-  root.append(selPop);
   const doc = range.startContainer.ownerDocument;
-  const fr = doc.defaultView && doc.defaultView.frameElement;
-  placePop(range.getBoundingClientRect(), fr ? fr.getBoundingClientRect() : { left: 0, top: 0 });
+  const block = blockOf(range.commonAncestorContainer);
+  trShow(ann.x, block ? block.textContent : ann.x, doc, range, { text: ann.x, cfi: ann.c, ann, t: ann.x });
 }
+/* v336 (בקשת המשתמש): חלון הסימון הוטמע בכרטיס התרגום — שורת פעולות אחת, מינימליסטית, בראש הכרטיס.
+   צד אחד: עיגול צבע אחד (הצבע האחרון / של ההדגשה) שנפתח לבורר צבעים, הערה, ציטוט, מונח; הצד השני: השמעה, העתקה, Google */
+const HL_LAST = 'pwa_hlcolor_v1';
+function hlLast() { try { const k = localStorage.getItem(HL_LAST); return HL_COLORS[k] ? k : 'b'; } catch (e) { return 'b'; } }
+const ICON_NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+const ICON_TERM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>';
+function selBar(c, sel, text) {
+  const bar = h('div', 'tr-bar');
+  const side = h('div', 'tr-bar-s');
+  if (sel) {
+    const sw = h('button', 'tr-sw'); sw.type = 'button'; sw.setAttribute('aria-haspopup', 'true'); sw.setAttribute('aria-expanded', 'false');
+    const paint = () => { const k = (sel.ann && !sel.ann.d && sel.ann.k) || hlLast(); sw.style.setProperty('--sw', HL_COLORS[k]); sw.classList.toggle('on', !!(sel.ann && !sel.ann.d)); sw.setAttribute('aria-label', T('hlColor')); };
+    paint();
+    let pal = null;
+    const closePal = () => { if (!pal) return; const p = pal; pal = null; sw.setAttribute('aria-expanded', 'false'); bar.classList.remove('pal-open'); p.remove(); };
+    sw.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (pal) return closePal();
+      pal = h('div', 'tr-pal'); pal.setAttribute('role', 'menu');
+      Object.keys(HL_COLORS).forEach((k) => {
+        const d = h('button', 'tr-dot' + (sel.ann && !sel.ann.d && sel.ann.k === k ? ' on' : '')); d.type = 'button'; d.style.setProperty('--sw', HL_COLORS[k]);
+        d.setAttribute('aria-label', T('hlColor'));
+        d.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          try { localStorage.setItem(HL_LAST, k); } catch (er) {}
+          sel.ann = saveHighlight({ text: sel.text, cfi: sel.cfi, k, ann: sel.ann && !sel.ann.d ? sel.ann : null });
+          clearSelection(); paint(); closePal();
+          try { if (navigator.vibrate) navigator.vibrate(6); } catch (er) {}
+        });
+        pal.append(d);
+      });
+      if (sel.ann && !sel.ann.d && !sel.ann.b) {
+        const rm = h('button', 'tr-dot tr-unmark'); rm.type = 'button'; rm.innerHTML = ICON.unmark; rm.setAttribute('aria-label', T('hlRemove'));
+        rm.addEventListener('click', (ev) => { ev.stopPropagation(); annRemove(rd.rec, sel.ann); sel.ann = null; clearSelection(); paint(); closePal(); });
+        pal.append(rm);
+      }
+      sw.setAttribute('aria-expanded', 'true');
+      sw.after(pal); bar.classList.add('pal-open');   // העיגול נפתח לשורת צבעים במקום כלי הסימון (כמו iOS) — בלי חלון צף
+    });
+    c._closePal = closePal;
+    const ib = (cls, icon, label, fn) => { const b = h('button', 'tr-ib ' + cls); b.type = 'button'; b.innerHTML = icon; b.setAttribute('aria-label', T(label)); b.title = T(label); b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); return b; };
+    side.append(sw,
+      ib('tr-note', ICON_NOTE, sel.ann && String(sel.ann.n || '').trim() ? 'hlEditNote' : 'hlNote', () => { const a = sel.ann && !sel.ann.d ? sel.ann : saveHighlight({ text: sel.text, cfi: sel.cfi, k: hlLast() }); hideTr(true); noteSheet(a, rd.rec); }),
+      ib('tr-quote', ICON.quote, 'hlQuote', () => { hideTr(true); quoteCard(sel.text); }));
+    const gm = glossaryMatch(sel.text);
+    if (gm) side.append(ib('tr-term', ICON_TERM, 'acTerm', () => sheet(T('acTerm'), (sh) => sh.append(termRow(gm)))));
+  }
+  const acts = h('div', 'tr-acts');
+  bar.append(side, acts);
+  return { bar, acts };
+}
+function clearSelection() { try { const d = rd && rd.view.renderer.getContents()[0]; d && d.doc.getSelection().removeAllRanges(); } catch (e) {} }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function saveHighlight({ text, cfi, k, ann }) {
   const r = rd.rec;
@@ -3259,6 +3255,7 @@ function hideTr(instant) {
   if (!trCard) return;
   const c = trCard; trCard = null; trSeq++;
   trUnmark(c);
+  if (c._sel) clearSelection();
   if (instant || reduceMotion()) { c.remove(); return; }
   c.classList.add('out');
   setTimeout(() => c.remove(), 220);
@@ -3378,7 +3375,7 @@ function wikiSection(c, w, seq) {
   body.append(top, tx, ft);
   c.append(sec);
 }
-function trShow(text, block, doc, range) {
+function trShow(text, block, doc, range, sel) {
   if (!rd) return;
   text = String(text || '').replace(/\s+/g, ' ').trim();
   if (!text) return;
@@ -3391,8 +3388,9 @@ function trShow(text, block, doc, range) {
   }
   c._at = Date.now();
   c._doc = doc;
+  c._sel = sel || null;
   if (doc && range) {
-    trMark(doc, range);
+    if (!sel) trMark(doc, range);           // במצב סימון — הבחירה עצמה מסמנת
     try {                                    // הצד שמול המילה — המילה והשורות סביבה נשארות גלויות
       const fr = doc.defaultView.frameElement.getBoundingClientRect(), q = range.getBoundingClientRect();
       const dock = trDock(fr.top + (q.top + q.bottom) / 2, window.innerHeight);
@@ -3411,12 +3409,12 @@ function trShow(text, block, doc, range) {
     sp.addEventListener('click', (e) => { e.stopPropagation(); say(text, c._src); });
     head.append(sp);
   }
-  const hw = h('div', 'tr-hw'); const subl = h('div', 'tr-hsub'); subl.append(lang, ipa); hw.append(word, subl);
+  const hw = h('div', 'tr-hw' + (text.includes(' ') ? ' phrase' : '')); const subl = h('div', 'tr-hsub'); subl.append(lang, ipa); hw.append(word, subl);
   // v335 (בקשת המשתמש): לחצן Google קטן — ההרחבה של Google (מה ש־Touch to Search של Chrome הציג) בלי הסרגל ובלי הבאג
   const gg = h('button', 'tr-gg'); gg.type = 'button'; gg.innerHTML = ICON_G; gg.setAttribute('aria-label', T('trGoogle'));
   gg.addEventListener('click', (e) => { e.stopPropagation(); googleUrl(text) && window.open(googleUrl(text), '_blank', 'noopener'); });
-  const acts = h('div', 'tr-acts'); acts.append(...head.childNodes, cp, gg);
-  head.append(hw, acts);
+  const { bar, acts } = selBar(c, sel, text); acts.append(...head.childNodes, cp, gg);
+  head.append(hw);
   const main = h('div', 'tr-main'); main.dir = 'auto'; main.append(h('div', 'tr-sk'));
   const dictHost = h('div', 'tr-dicthost');
   // "בהקשר הזה" — תמיד עם שם המודל שענה
@@ -3426,7 +3424,7 @@ function trShow(text, block, doc, range) {
   // התרגום בראש קבוצת המילון (קופסה אחת); המילון מקופל כברירת מחדל — התרגום והמשמעות הראשונה, "הצג עוד" לשאר
   const { sec: dsec, body: dbody } = trSection('dict', [h('span', null, T('trDict'))], false);
   dsec.classList.add('tr-dsec', 'nodict'); dbody.append(main); dictHost.append(dsec);
-  c.append(grab, head, dictHost, ctx);
+  c.append(grab, bar, head, dictHost, ctx);
   let gtText = '';
   cp.addEventListener('click', async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(gtText || text); flashSafe(T('rdCopied')); } catch (er) {} });
   const tl = trTarget(text);

@@ -39,8 +39,8 @@ ok(/^The Snowball — Alice Schroeder/.test(ex) && /“he”/.test(ex) && /✎ �
 
 // הקורא: סימון על הדגשה קיימת = הבועה של הקיימת (לא עותק חדש), עם כפתור הסרה
 ok(/function annOverlapping\(doc, range\)/.test(lib) && /compareBoundaryPoints\(Range\.START_TO_END, ar\) > 0 && range\.compareBoundaryPoints\(Range\.END_TO_START, ar\) < 0/.test(lib), 'זיהוי חפיפה בין הסימון להדגשה קיימת');
-ok(/const hit = annOverlapping\(doc, range\);[\s\S]{0,120}if \(hit\) buildPop\(\{ text: hit\.x, cfi: hit\.c, ann: hit/.test(lib), 'סימון חוזר פותח את ההדגשה הקיימת');
-ok(/rd-dot rd-clear[\s\S]{0,200}ICON\.unmark[\s\S]{0,300}annRemove\(rd\.rec, ann\)/.test(lib), 'בועה: כפתור "הסרת הסימון" (עיגול עם קו)');
+ok(/const hit = annOverlapping\(doc, range\);[\s\S]{0,200}if \(hit\) trShow\(hit\.x, bt, doc, range, \{ text: hit\.x, cfi: hit\.c, ann: hit/.test(lib), 'סימון חוזר פותח את ההדגשה הקיימת (v336: בכרטיס)');
+ok(/tr-dot tr-unmark[\s\S]{0,200}ICON\.unmark[\s\S]{0,300}annRemove\(rd\.rec, sel\.ann\)/.test(lib), 'שורת הצבעים: כפתור "הסרת הסימון" (עיגול עם קו)');
 ok(/annRemove[\s\S]{0,300}askConfirm\(T\('hlRemoveNoteQ'\)/.test(lib), 'הדגשה עם הערה — אישור לפני הסרה');
 ok(/annCleanDupes\(rec\);/.test(lib) && /all\.forEach\(\(b\) => annCleanDupes\(b\)\)/.test(lib), 'ניקוי כפילויות קיימות — בפתיחת ספר ובמחברת');
 ok(/function annTouch\(rec, a, patch\)[\s\S]{0,500}pushAnn\(rec, a\)[\s\S]{0,400}deleteAnnotation/.test(lib), 'עדכון אחד לכל המקומות: שמירה, ענן, ציור מחדש בקורא');
@@ -54,7 +54,7 @@ ok(/annExportText\(b\.title, b\.author/.test(lib), 'שיתוף כל ההדגשו
 ok(/async function quoteCard\(text, recIn\)/.test(lib), 'כרטיס ציטוט גם מחוץ לקורא');
 ok(!/const r = h\('button', 'ann-row'\)/.test(lib), 'השורה לא כפתור (בתוכה כפתור ⋯ — כפתור בתוך כפתור לא תקין)');
 // עיצוב
-ok(/\.rd-pop \.rd-clear \{/.test(css) && /\.ann-colors button\.on::after/.test(css) && /\.ann-more \{/.test(css) && /\.learn-colors button\.on/.test(css), 'עיצוב: כפתור הסרה, צבעים עם ✓, ⋯, סינון צבע');
+ok(/\.tr-card \.tr-unmark \{/.test(css) && /\.ann-colors button\.on::after/.test(css) && /\.ann-more \{/.test(css) && /\.learn-colors button\.on/.test(css), 'עיצוב: כפתור הסרה, צבעים עם ✓, ⋯, סינון צבע');
 ok(/prefers-reduced-motion: reduce\) \{ \.ann-row, \.ann-colors button/.test(css), 'reduced-motion');
 // מחרוזות בשתי השפות
 ['hlRemove', 'hlRemoved', 'hlRemoveNoteQ', 'hlEditNote', 'hlAddNote', 'annOpen', 'annCopy', 'annShareQuote', 'annDeleteBm', 'annMore', 'learnAll', 'learnNotes', 'learnColor', 'learnNoMatch', 'learnExport']

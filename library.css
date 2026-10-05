@@ -793,3 +793,27 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-row.act { color: var(--primary-dark); font-weight: 600; }
 [data-theme="light"] .lib-row.act { color: #1a9b45; }
 @media (prefers-reduced-motion: reduce) { .col-card { transition: none; } }
+
+/* v336: חלון הסימון הוטמע בכרטיס — שורת פעולות אחת בראשו. צד אחד: עיגול צבע (נפתח לשורת צבעים), הערה, ציטוט;
+   הצד השני: השמעה, העתקה, Google. אייקונים בלבד, בלי מסגרות — נקי כמו סרגל הכלים של iOS */
+.tr-bar { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 0 -6px 6px; min-height: 36px; }
+.tr-bar-s { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.tr-sw, .tr-ib { width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; background: none; flex: none; }
+.tr-card .tr-ib { color: #1A9B45; }
+.rd[data-dark="1"] .tr-card .tr-ib { color: #30D158; }
+.tr-ib svg { width: 21px; height: 21px; }
+.tr-sw:active, .tr-ib:active { background: color-mix(in srgb, var(--rd-ink) 8%, transparent); }
+.tr-sw::before { content: ''; width: 22px; height: 22px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); transition: transform .2s cubic-bezier(.2,.9,.25,1); }
+.tr-sw.on::before { box-shadow: 0 0 0 2px color-mix(in srgb, var(--rd-page) 93%, var(--rd-ink)), 0 0 0 3.5px var(--sw); }
+.rd[data-dark="1"] .tr-sw.on::before { box-shadow: 0 0 0 2px #1C1C1E, 0 0 0 3.5px var(--sw); }
+.tr-sw[aria-expanded="true"]::before { transform: scale(.82); }
+.tr-bar.pal-open .tr-ib { display: none; }
+.tr-pal { display: flex; align-items: center; gap: 6px; padding: 0 4px; animation: trPal .22s cubic-bezier(.2,.9,.25,1); }
+@keyframes trPal { from { opacity: 0; transform: scale(.85); } }
+.tr-card .tr-dot { width: 28px; height: 28px; margin: 0; padding: 0; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); flex: none; display: grid; place-items: center; }
+.tr-dot.on { box-shadow: 0 0 0 2px color-mix(in srgb, var(--rd-page) 93%, var(--rd-ink)), 0 0 0 3.5px var(--sw); }
+.rd[data-dark="1"] .tr-dot.on { box-shadow: 0 0 0 2px #1C1C1E, 0 0 0 3.5px var(--sw); }
+.tr-card .tr-unmark { background: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--rd-ink) 25%, transparent); color: #FF3B30; }
+.tr-unmark svg { width: 18px; height: 18px; }
+.tr-hw.phrase .tr-word { font-size: 17px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .tr-pal { animation: none; } .tr-sw::before { transition: none; } }
