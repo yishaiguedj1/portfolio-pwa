@@ -24,10 +24,10 @@ ok(JSON.stringify(wordBounds('שָׁלוֹם עולם', 2)) === '[0,7]', 'מיל
 // ---------- Google ----------
 const parseGt = pure('parseGt', "const NIQQUD = /[\\u0591-\\u05C7]/g; const gtClip = (x, n) => String(x == null ? '' : x).replace(/\\s+/g, ' ').trim().slice(0, n);");
 const g = parseGt({ sentences: [{ trans: 'תְעָלַת מָגֵן', orig: 'moat' }, { translit: 'x' }], dict: [{ pos: 'שם עצם', terms: ['תְעָלַת מָגֵן', 'חפיר', 'חפיר'] }, { pos: 'פועל', terms: [] }], src: 'en' });
-ok(g.translation === 'תעלת מגן' && g.dict.length === 1 && g.dict[0].terms.join() === 'תעלת מגן,חפיר' && g.src === 'en', 'Google: תרגום וחלקי דיבר, בלי ניקוד, בלי כפולים, בלי חלק דיבר ריק');
+ok(g.translation === 'תְעָלַת מָגֵן' && g.dict.length === 1 && g.dict[0].terms.join() === 'תְעָלַת מָגֵן,חפיר' && g.src === 'en', 'Google: תרגום וחלקי דיבר, עם הניקוד (v334), בלי כפולים, בלי חלק דיבר ריק');
 ok(parseGt(null) === null && parseGt({ sentences: [] }) === null, 'תשובה ריקה → null');
 ok(tr.includes("const NIQQUD = /[\\u0591-\\u05C7]/g;") && /function parseGt\(j\)/.test(tr), 'אותו פענוח גם בשרתון (גיבוי)');
-ok(/const GT_URL = 'https:\/\/clients5\.google\.com\/translate_a\/single\?client=dict-chrome-ex&dt=t&dt=bd&dj=1';/.test(lib), 'ישירות מהטלפון — נקודת הקצה של תוסף המילון של Chrome (CORS פתוח, בלי מפתח)');
+ok(/const GT_URL = 'https:\/\/clients5\.google\.com\/translate_a\/single\?client=dict-chrome-ex&dt=t&dt=bd[^']*&dj=1';/.test(lib), 'ישירות מהטלפון — נקודת הקצה של תוסף המילון של Chrome (CORS פתוח, בלי מפתח)');
 ok(/connect-src[^;]*https:\/\/clients5\.google\.com/.test(html), 'CSP מאפשר את Google Translate');
 ok(/credentials: 'omit', referrerPolicy: 'no-referrer'/.test(lib), 'בלי עוגיות ובלי כתובת האתר');
 ok(/body: JSON\.stringify\(\{ text: text\.slice\(0, 400\), mode: 'quick', to: tl \}\)/.test(lib), 'בכשל — אותה פנייה דרך השרתון');
@@ -39,22 +39,23 @@ ok(/if \(w\) \{ if \(rd\.chrome\) setChrome\(false\); trShow\(/.test(lib) && /if
 ok(/const HOLD_MS = 320;/.test(lib) && /sel\.addRange\(w\.range\); \} catch \(e\) \{ return; \}\s*showSel\(doc\);/.test(lib), 'לחיצה ארוכה: 320ms → המילה נבחרת וחלון הסימון מיד (בלי לחכות ל־Chrome)');
 ok(/setTimeout\(\(\) => showSel\(doc\), 140\)/.test(lib) && /if \(selPop && selPop\._t === text\) return;/.test(lib), 'שינוי בחירה — 140ms (היה 350), בלי בנייה מחדש כשלא השתנה');
 ok(/Date\.now\(\) - \(rd\.holdAt \|\| 0\) < 1500\) \{\s*try \{ sel\.removeAllRanges\(\); sel\.addRange\(rd\.holdRange\)/.test(lib), 'שחרור האצבע שמקפל את הבחירה — המילה חוזרת, החלון נשאר');
-ok(/const moved = !rd\.loc \|\| rd\.loc\.cfi !== d\.cfi;/.test(lib) && /if \(moved\) \{ hideSel\(\); hideTr\(\); \}/.test(lib), 'המנוע שולח relocate גם בנגיעה בלי תזוזה — נסגר רק בהחלפת עמוד (נמצא ב־QA)');
+ok(/const moved = pageMoved\(rd\.loc, d\)/.test(lib) && /if \(moved\) \{ hideSel\(\); hideTr\(\); \}/.test(lib), 'המנוע שולח relocate גם בנגיעה בלי תזוזה — נסגר רק בהחלפת עמוד (נמצא ב־QA)');
 ok(/else if \(trCard\) hideTr\(\);/.test(lib) && /if \(trCard\) \{ hideTr\(\); return; \}\s*if \(rd\) return readerExit\(\);/.test(lib), '"חזור" ו־Escape סוגרים את הכרטיס');
 ok(/box\.addEventListener\('click', \(e\) => \{[\s\S]{0,300}setChrome\(!rd\.chrome\);/.test(lib), 'הסרגלים נפתחים גם בנגיעה בשולי העמוד');
 ok(/act\('rdTranslate', \(\) => \{ clearSelection\(\); trShow\(/.test(lib) && !/function translateSheet/.test(lib), '"תרגום" בחלון הסימון — אותו כרטיס (הדף הישן הוסר)');
 ok(/if \(seq !== trSeq\) return;/.test(lib), 'תשובה מאוחרת של מילה קודמת לא דורסת');
-ok(/j\.engine !== 'ai'[^\n]*ctx\.remove\(\)/.test(lib), 'בלי AI (מכסה/רשת) — "בהקשר" פשוט לא מוצג, בלי הודעת שגיאה');
+ok(/const ai = j && j\.engine === 'ai';\s*if \(!ai\) ctx\.remove\(\);/.test(lib), 'בלי AI (מכסה/רשת) — "בהקשר" פשוט לא מוצג, בלי הודעת שגיאה');
 ok(/CSS\.highlights\.set\('snb-tap'/.test(lib) && /::highlight\(snb-tap\)/.test(lib), 'המילה מסומנת בעדינות בלי לגעת ב־DOM של הספר');
 
 // ---------- עיצוב ----------
 ok(/\.tr-card \{[^}]*position: absolute;[^}]*bottom: calc\(8px \+ env\(safe-area-inset-bottom\)\)/.test(css) && /\.rd\[data-dark="1"\] \.tr-card \{ background: #1C1C1E;/.test(css), 'כרטיס מלמטה, בצבע הדף; בכהה משטח מוגבה');
-ok(/\.tr-grab \{/.test(css) && /\.tr-main \{[^}]*font-size: 25px/.test(css) && /\.tr-ctx \{/.test(css), 'ידית, תרגום גדול, בועת "בהקשר"');
+ok(/\.tr-grab \{/.test(css) && /\.tr-dsec \.tr-main \{[^}]*font-size: 20px/.test(css) && /\.tr-ctx-t \{/.test(css), 'ידית, תרגום גדול (מ־v334 בראש קבוצת המילון), "בהקשר" כמקטע');
 ok(/prefers-reduced-motion: reduce\) \{ \.tr-card/.test(css), 'reduced-motion');
 
 // ---------- Gemini: מכסה ----------
 delete process.env.GEMINI_MODEL;
-ok(/lite/.test(gm.TRANSLATE_MODELS()[0]) && !/lite/.test(gm.INSIGHT_MODELS()[0]) && gm.INSIGHT_MODELS().some((m) => /lite/.test(m)), 'תרגום: Flash-Lite קודם (מכסה גדולה); ניתוח: Flash קודם, Lite כגיבוי');
+delete process.env.GEMINI_INSIGHT_MODEL;
+ok(/lite/.test(gm.TRANSLATE_MODELS()[0]) && /lite/.test(gm.INSIGHT_MODELS()[0]) && gm.INSIGHT_MODELS().some((m) => !/lite/.test(m)), 'תרגום: Flash-Lite קודם; ניתוח (מ־v334, החלטת המשתמש): גם Flash-Lite קודם, Flash גיבוי');
 ok(gm.badScript('חפير', 'he') && !gm.badScript('חפיר', 'he') && !gm.badScript('خندق', 'ar'), 'עברית עם אותיות ערביות — נפסלת');
 ok(/if \(r\.status === 429\) \{ q429\+\+; continue; \}/.test(tr) && /return q429 && q429 === tried \? \{ quota: true \} : null;/.test(tr), '429 במודל אחד — ממשיכים; "מכסה" רק כשכולם 429');
 console.log('# ' + n + ' בדיקות עברו');

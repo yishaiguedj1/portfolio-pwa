@@ -517,8 +517,8 @@ function stubFetch(text, status = 200) {
     translate._cache.clear(); calls.length = 0;
     setFetch((u) => (u.includes('clients5.google.com') ? { status: 200, json: async () => ({ sentences: [{ trans: 'תְעָלַת מָגֵן', orig: 'moat' }], dict: [{ pos: 'שם עצם', terms: ['תְעָלַת מָגֵן', 'חפיר', 'חפיר'] }], src: 'en' }) } : gem(500, {})));
     r = await run({ text: 'moat', mode: 'quick' });
-    ok(r.payload.engine === 'google' && r.payload.translation === 'תעלת מגן' && r.payload.dict[0].terms.join() === 'תעלת מגן,חפיר' && r.payload.src === 'en' && !calls.some((c) => c.url.includes('googleapis')),
-      'translate quick: תרגום + חלקי דיבר, בלי ניקוד ובלי כפילויות, בלי Gemini');
+    ok(r.payload.engine === 'google' && r.payload.translation === 'תְעָלַת מָגֵן' && r.payload.dict[0].terms.join() === 'תְעָלַת מָגֵן,חפיר' && r.payload.src === 'en' && !calls.some((c) => c.url.includes('googleapis')),
+      'translate quick: תרגום + חלקי דיבר, עם הניקוד (v334 — בלעדיו כתיב מנוקד נשבר) ובלי כפילויות, בלי Gemini');
 
     translate._cache.clear(); calls.length = 0;
     setFetch((u) => (u.includes('googleapis') ? gem(429, {}) : mm('בסיסי')));
