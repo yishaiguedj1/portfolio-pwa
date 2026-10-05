@@ -3259,20 +3259,6 @@ export function contextFor(text, block) {
   const s = Math.max(0, (i < 0 ? 0 : i) - 700);
   return b.slice(s, s + 1500);
 }
-const trCache = new Map();
-async function fetchTranslation(text, context, title) {
-  const key = text + '|' + context;
-  if (trCache.has(key)) return trCache.get(key);
-  const base = (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
-  const headers = Object.assign({ 'Content-Type': 'application/json' }, typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {});
-  const lang = (typeof getLang === 'function' && getLang()) || 'he';
-  let tok = ''; try { tok = await idToken(); } catch (e) {}   // v339: קורא מחובר — מגבלה יומית לפי חשבון (לא לפי כתובת)
-  const r = await fetch(base + '/api/translate', { method: 'POST', headers, body: JSON.stringify(Object.assign({ text: text.slice(0, 400), context, title, to: lang }, tok ? { idToken: tok } : {})) });
-  const j = await r.json();
-  if (!j || !j.ok) throw new Error((j && j.error) || 'translate_failed');
-  trCache.set(key, j);
-  return j;
-}
 /* ---- v333: כרטיס תרגום מהיר (בקשת המשתמש — כמו הכרטיס של Google Translate, בעיצוב שלנו) ----
    שתי שכבות: (1) Google — תרגום, חלקי דיבר ותרגומים חלופיים, ישירות מהטלפון (נקודת הקצה של תוסף המילון של Chrome:
    בלי מפתח, בלי מכסה, ~0.3 שנ׳; גיבוי דרך השרתון); (2) Gemini — "בהקשר": מה המילה אומרת במשפט הזה + הסבר מונח.
@@ -3300,7 +3286,8 @@ export function parseGt(j) {               // תשובת Google → תרגום +
   const syn = [];
   // נרדפות: בלי משלב מסומן (סלנג/לא רשמי) ובלי צירופים שמכילים את המילה עצמה
   ((j.synsets || [])[0] || { entry: [] }).entry.forEach((e) => { if (!e.label_info) (e.synonym || []).forEach((s) => { if (syn.length < 4 && !syn.includes(s) && s.length < 24 && !(orig && s.toLowerCase().includes(orig))) syn.push(s); }); });
-  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8), ipa: gtClip(tl.src_translit, 60), syn };
+  const base = gtClip(((j.dict || []).find((d) => d.base_form) || {}).base_form, 60);   // v340: צורת הבסיס (followed → follow) — לחיפוש בוויקיפדיה
+  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8), ipa: gtClip(tl.src_translit, 60), syn, base };
 }
 const uiLang = () => (typeof getLang === 'function' && getLang()) || 'he';
 // מילה בעברית בממשק עברי — לאנגלית (תרגום לאותה שפה לא עוזר)
@@ -3478,6 +3465,16 @@ async function wikiInLang(w) {
   if (!extract) return w;
   return Object.assign({}, w, { title: title || w.title, extract, sub: [w.title, desc].filter(Boolean).join(' · '), tr: w.lang });
 }
+/* v340 (בקשת המשתמש): "בהקשר הזה" (AI) הוסר מהקורא — ויקיפדיה לפי המילון של Google, שנמצא מדויק לא פחות.
+   אנגלית: צורת הבסיס מהמילון (followed → follow); עברית: המילה (גם בלי תחיליות), ואם אין ערך — התרגום לאנגלית,
+   ומשם לערך המקביל בשפת המשתמש */
+async function wikiFromDict(text, o) {
+  const he = /^(iw|he)/.test((o && o.src) || '') || /[\u0590-\u05FF]/.test(text);
+  const first = await wikiLookup('', he ? text : ((o && o.base) || text));
+  if (first || !he || !o || !o.translation) return first;
+  const en = String(o.translation).replace(/[\u0591-\u05C7]/g, '').replace(/^(the|a|an)\s+/i, '').trim();
+  return en && !/[\u0590-\u05FF]/.test(en) ? wikiLookup('', en) : null;
+}
 function wikiSection(c, w, seq) {
   if (!w || seq !== trSeq || !c.isConnected) return;
   const { sec, body } = trSection('wiki', [h('span', null, T('trWiki'))], false);
@@ -3534,14 +3531,10 @@ function trShow(text, block, doc, range, sel) {
   head.append(hw);
   const main = h('div', 'tr-main'); main.dir = 'auto'; main.append(h('div', 'tr-sk'));
   const dictHost = h('div', 'tr-dicthost');
-  // "בהקשר הזה" — תמיד עם שם המודל שענה
-  const model = h('span', 'tr-model');
-  const { sec: ctx, body: cb } = trSection('', [h('span', null, T('trNote')), model], true);
-  ctx.classList.add('tr-ctx'); cb.classList.add('tr-ctx-b'); cb.append(h('div', 'tr-sk'), h('div', 'tr-sk short'));
   // התרגום בראש קבוצת המילון (קופסה אחת); המילון מקופל כברירת מחדל — התרגום והמשמעות הראשונה, "הצג עוד" לשאר
   const { sec: dsec, body: dbody } = trSection('dict', [h('span', null, T('trDict'))], false);
   dsec.classList.add('tr-dsec', 'nodict'); dbody.append(main); dictHost.append(dsec);
-  c.append(grab, bar, head, dictHost, ctx);
+  c.append(grab, bar, head, dictHost);
   let gtText = '';
   cp.addEventListener('click', async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(sel ? sel.text : text); flashSafe(T('rdCopied')); } catch (er) {} });
   const tl = trTarget(text);
@@ -3559,25 +3552,10 @@ function trShow(text, block, doc, range, sel) {
     } else if (o.ipa) ipa.textContent = '/' + o.ipa + '/';
     const rows = dictRows(o, heSrc);
     if (rows) { dbody.append(rows); dsec.classList.remove('nodict'); }
-  }).catch(() => { if (seq === trSeq) { main.textContent = T('trFail'); main.classList.add('in', 'err'); } });
-  // שכבת ה־AI: מה המילה אומרת כאן (לפי המשפט/הפסקה) + הסבר מונח + שם הערך בוויקיפדיה. אחריה — ויקיפדיה
-  fetchTranslation(text, contextFor(text, block || text), (rd.rec && rd.rec.title) || '').then((j) => {
-    if (seq !== trSeq) return;
-    const ai = j && j.engine === 'ai';
-    if (!ai && j && j.limited) { cb.textContent = ''; cb.append(h('div', 'tr-ctx-n', T(j.limited === 'user' ? 'trLimitUser' : 'trLimitDay'))); cb.classList.add('in'); }   // v339: מגבלה יומית — שורה קצרה, לא היעלמות שקטה
-    else if (!ai) ctx.remove();
-    else {
-      cb.textContent = '';
-      model.textContent = aiModelLabel(j.model); model.title = j.model || '';
-      const t = h('div', 'tr-ctx-t', j.translation); t.dir = 'auto'; cb.append(t);
-      if (j.note) { const n = h('div', 'tr-ctx-n', j.note); n.dir = 'auto'; cb.append(n); }
-      cb.classList.add('in');
-    }
-    // v337: לכל מילה — שם הערך מה־AI, ואם אין — חיפוש
-    wikiLookup(ai ? j.wiki : '', text).then((w) => wikiSection(c, w, seq)).catch(() => {});
+    wikiFromDict(text, o).then((w) => wikiSection(c, w, seq)).catch(() => {});
   }).catch(() => {
     if (seq !== trSeq) return;
-    ctx.remove();
+    main.textContent = T('trFail'); main.classList.add('in', 'err');
     wikiLookup('', text).then((w) => wikiSection(c, w, seq)).catch(() => {});
   });
 }

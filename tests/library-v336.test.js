@@ -16,7 +16,7 @@ ok(/trShow\(text, bt, doc, range, \{ text, cfi: rd\.view\.getCFI\(doc\.__idx, ra
 ok(/trShow\(ann\.x, [^)]*, doc, range, \{ text: ann\.x, cfi: ann\.c, ann/.test(fn('annPopup')), 'נגיעה בהדגשה קיימת — אותו כרטיס, עם הצבע שלה');
 const click = (lib.match(/doc\.addEventListener\('click', \(e\) => \{[\s\S]*?\n  \}\);/) || [''])[0];
 ok(click && !/trShow|wordAt/.test(click) && /setChrome\(!rd\.chrome\)/.test(click), 'נגיעה קצרה: בלי תרגום — סרגלים בלבד (כמו בקינדל)');
-ok(/c\.append\(grab, bar, head, dictHost, ctx\)/.test(lib) && /const \{ bar, acts \} = selBar\(c, sel, text\)/.test(lib), 'שורת הפעולות בראש הכרטיס, מעל המילה');
+ok(/c\.append\(grab, bar, head, dictHost\)/.test(lib) && /const \{ bar, acts \} = selBar\(c, sel, text\)/.test(lib), 'שורת הפעולות בראש הכרטיס, מעל המילה');
 const sb = fn('selBar');
 ok(/tr-sw/.test(sb) && /sw\.after\(pal\); bar\.classList\.add\('pal-open'\)/.test(sb) && /\.tr-bar\.pal-open \.tr-ib \{ display: none; \}/.test(css), 'עיגול צבע אחד שנפתח לשורת צבעים בתוך הסרגל (בלי חלון צף)');
 ok(/hlLast\(\)/.test(sb) && /localStorage\.setItem\(HL_LAST, k\)/.test(sb) && /return HL_COLORS\[k\] \? k : 'b'/.test(lib), 'העיגול = הצבע האחרון (ברירת מחדל כחול)');

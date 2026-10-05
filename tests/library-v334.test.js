@@ -16,7 +16,7 @@ const pure = (name, pre) => new Function((pre || '') + lib.match(new RegExp('exp
 const aiModelLabel = pure('aiModelLabel');
 ok(aiModelLabel('mistral-medium-latest') === 'Mistral Medium' && aiModelLabel('mistral-small-latest') === 'Mistral Small' && aiModelLabel('ministral-14b-latest') === 'Ministral 14B' && aiModelLabel('ministral-8b-latest') === 'Ministral 8B', 'Mistral Medium / Small / Ministral 14B / 8B (v338)');
 ok(aiModelLabel('gemini-3.5-flash-lite') === 'Gemini Flash‑Lite' && aiModelLabel('gemini-flash-latest') === 'Gemini Flash' && aiModelLabel('') === '', 'Gemini Flash‑Lite / Flash; בלי מודל — ריק');
-ok(/model\.textContent = aiModelLabel\(j\.model\)/.test(lib) && /T\('acAiNote'\) \+ \(ins\.model \? ' · ' \+ aiModelLabel\(ins\.model\) : ''\)/.test(lib), 'תווית המודל ב"בהקשר הזה" ובניתוח המכתב');
+ok(/T\('acAiNote'\) \+ \(ins\.model \? ' · ' \+ aiModelLabel\(ins\.model\) : ''\)/.test(lib), 'תווית המודל בניתוח המכתב (v340: "בהקשר הזה" הוסר מהקורא)');
 
 // ---------- מילון: פענוח Google (זהה בשרתון ובאפליקציה) ----------
 const src = (s) => s.match(/function parseGt\(j\) \{[\s\S]*?\n\}\n/)[0];
@@ -35,7 +35,7 @@ ok(/dt=md&dt=ss&dt=rm/.test(lib) && /dt=md&dt=ss&dt=rm/.test(fs.readFileSync(pat
 // ---------- ויקיפדיה ----------
 const wikiWord = pure('wikiWord');
 ok(wikiWord('“wished,”') === 'wished' && wikiWord('הָאֶתוֹס') === 'האתוס' && wikiWord('a') === '', 'v337: ויקיפדיה לכל מילה — המילה לחיפוש בלי ניקוד ופיסוק');
-ok(!/if \(ai && !j\.wiki\) return;/.test(lib) && /wikiLookup\(ai \? j\.wiki : '', text\)/.test(lib), 'v337 (בקשת המשתמש): ויקיפדיה לכל מילה — גם כשה־AI לא נתן ערך');
+ok(/wikiFromDict\(text, o\)/.test(lib), 'ויקיפדיה לכל מילה (v340: לפי המילון)');
 ok(/prop=langlinks&lllang=he/.test(lib) && /api\/rest_v1\/page\/summary\//.test(lib) && /j\.type === 'disambiguation'/.test(lib), 'ערך בעברית דרך הקישור מהאנגלית; בלי דפי פירושונים');
 ok(/connect-src[^;]*https:\/\/en\.wikipedia\.org https:\/\/he\.wikipedia\.org/.test(html), 'CSP מאפשר את ויקיפדיה');
 ok(/T\('trWiki'\) \+ ' · CC BY-SA'/.test(lib), 'קרדיט לפי הרישיון');

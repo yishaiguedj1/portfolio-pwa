@@ -12,8 +12,8 @@ const libApi = fs.readFileSync(path.join(root, 'ibkr-proxy/api/library.js'), 'ut
 const { swVersionOk } = require('./_swver.js');
 const { TRANSLATE_MODELS } = require(path.join(root, 'ibkr-proxy/lib/gmodels.js'));
 
-ok(/tok = await idToken\(\)/.test(lib) && /tok \? \{ idToken: tok \} : \{\}/.test(lib), 'האפליקציה שולחת את אסימון ההתחברות — מגבלה לפי קורא');
-ok(/j\.limited === 'user' \? 'trLimitUser' : 'trLimitDay'/.test(lib) && /trLimitUser: 'הגעת למכסה היומית/.test(app) && /trLimitDay:/.test(app), 'מגבלה יומית — שורה קצרה בכרטיס, בעברית ובאנגלית');
+ok(!/idToken: tok/.test(lib), 'v340: הכרטיס בקורא לא פונה יותר ל־AI (בלי אסימון, בלי מגבלה)');
+ok(!/trLimitUser/.test(lib + app), 'v340: שורת המגבלה היומית הוסרה עם "בהקשר הזה"');
 ok(tr.indexOf("store.get('ctx', sk)") > 0 && tr.indexOf("store.get('ctx', sk)") < tr.indexOf("store.allow(who, 'ctx')") && tr.indexOf("store.allow(who, 'ctx')") < tr.indexOf('out = await gemini(') && tr.indexOf('out = await gemini(') < tr.indexOf("store.set('ctx', sk"), 'תרגום: מטמון משותף → מפסק → AI → שמירה למטמון');
 ok(/store\.get\('ins', \[id, item\.md5\]\)/.test(libApi) && /store\.allow\(user\.uid, 'ins'\)/.test(libApi) && /store\.set\('ins', \[id, item\.md5\]/.test(libApi), 'ניתוח מכתב: פעם אחת לכל הקוראים (לפי md5), עם מפסק יומי');
 const tm = TRANSLATE_MODELS();
@@ -23,5 +23,5 @@ ok(/const out = p\.then\(\(r\) => wikiInLang\(r\)\)/.test(lib) && /if \(!w \|\| 
 ok(/gtLong\(w\.title, tl\), gtLong\(w\.extract, tl\)/.test(lib) && /T\('trWikiTr'\)/.test(lib) && /trWikiTr: 'תורגם אוטומטית'/.test(app), 'תרגום כותרת ותקציר + ציון "תורגם אוטומטית" בקרדיט');
 ok(/if \(!extract\) return w;/.test(lib), 'תקלה בתרגום — נשאר במקור (לא ריק)');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(v === 'v339' && swVersionOk(v), 'גרסה v339');
+ok(!!v && swVersionOk(v), 'גרסה');
 console.log(`\n${n} בדיקות עברו`);

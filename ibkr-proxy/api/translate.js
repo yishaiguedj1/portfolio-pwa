@@ -119,7 +119,8 @@ function parseGt(j) {               // תשובת Google → תרגום + מיל
   const syn = [];
   // נרדפות: בלי משלב מסומן (סלנג/לא רשמי) ובלי צירופים שמכילים את המילה עצמה
   ((j.synsets || [])[0] || { entry: [] }).entry.forEach((e) => { if (!e.label_info) (e.synonym || []).forEach((s) => { if (syn.length < 4 && !syn.includes(s) && s.length < 24 && !(orig && s.toLowerCase().includes(orig))) syn.push(s); }); });
-  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8), ipa: gtClip(tl.src_translit, 60), syn };
+  const base = gtClip(((j.dict || []).find((d) => d.base_form) || {}).base_form, 60);   // v340: צורת הבסיס (followed → follow) — לחיפוש בוויקיפדיה
+  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8), ipa: gtClip(tl.src_translit, 60), syn, base };
 }
 async function quick(text, lang) {
   const ctl = new AbortController();
