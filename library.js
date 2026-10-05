@@ -2486,7 +2486,9 @@ async function openReader(id, opt) {
     chap.textContent = (d.tocItem && d.tocItem.label) || '';
     if (!slider.matches(':active') && !rd.scrubbing) { slider.value = String(Math.round(frac * 1000)); scrub.style.setProperty('--p', Math.round(frac * 1000) / 10 + '%'); }
     if (rd.back && Date.now() - rd.back.t > 1200 && ++rd.back.turns > 3) { rd.back = null; showBackPos(); }   // קוראים הלאה — "חזרה" נעלמת
-    const moved = !rd.loc || rd.loc.cfi !== d.cfi;   // v333: המנוע שולח relocate גם בנגיעה בלי תזוזה — הכרטיס נסגר רק בהחלפת עמוד
+    // v334: "העמוד זז" לפי פרק + מספר עמוד — לא לפי מחרוזת ה־CFI: בנגיעה עם רעד של אצבע המנוע "מצמיד" את העמוד
+    // (~0.5 שנ׳), והטווח הגלוי נמדד מחדש בהיסט של שבר פיקסל — ה־CFI משתנה בתו־שניים והכרטיס נסגר (דיווח המשתמש: "קופץ ונעלם")
+    const moved = pageMoved(rd.loc, d) && !(trCard && Date.now() - (trCard._at || 0) < 900 && !pageMoved(rd.loc, d, true));
     rd.loc = d; markBookmark();
     if (moved) { hideSel(); hideTr(); }
     clearTimeout(rd.saveT);
@@ -2916,6 +2918,13 @@ function toggleBookmark() {
   if (typeof flash === 'function') flash(T('bmAdded'));
 }
 
+export function pageMoved(a, b, strict) {   // האם עברנו עמוד: פרק אחר או מספר עמוד אחר (strict: גם שבר התקדמות > 0.2%) — טהורה
+  if (!a || !b) return true;
+  if (a.index !== b.index) return true;
+  const la = a.location && a.location.current, lb = b.location && b.location.current;
+  if (la != null && lb != null) return la !== lb;
+  return strict ? Math.abs((a.fraction || 0) - (b.fraction || 0)) > 0.002 : a.cfi !== b.cfi;
+}
 /* ---- v331: ציר ההתקדמות — סימניות, עצירה מגנטית עם רטט, תצוגה מקדימה, חזרה למקום ---- */
 const SCRUB_THUMB = 22;                    // רוחב האגודל ב־CSS — מיקום הסימניות על הציר ומיקום התצוגה המקדימה מחושבים לפיו
 export function readingDir(book, title) { // כיוון הקריאה: מה־OPF, אחרת לפי שפת הספר, אחרת לפי השם
@@ -3263,7 +3272,7 @@ function trSection(key, headNodes, defOpen) {   // מקטע בסגנון Apple: 
     const st = trSecState(); const open = key in st ? !!st[key] : defOpen;
     const paint = (o) => { sec.classList.toggle('fold', !o); tog.textContent = T(o ? 'trLess' : 'trMore'); tog.setAttribute('aria-expanded', String(o)); };
     paint(open);
-    tog.addEventListener('click', (e) => { e.stopPropagation(); const o = sec.classList.contains('fold'); paint(o); trSecSave(key, o); });
+    tog.addEventListener('click', (e) => { e.stopPropagation(); const o = sec.classList.contains('fold'); paint(o); trSecSave(key, o); if (o && trCard) trCard.classList.add('full'); });
     hd.append(tog);
   }
   return { sec, body };
@@ -3362,8 +3371,17 @@ function trShow(text, block, doc, range) {
     c = h('div', 'tr-card'); c.setAttribute('role', 'dialog'); c.setAttribute('aria-label', T('rdTranslate'));
     rd.els.box.append(c); trCard = c; wireTrDrag(c);
   }
+  c._at = Date.now();
   c._doc = doc;
-  if (doc && range) trMark(doc, range);
+  if (doc && range) {
+    trMark(doc, range);
+    try {                                    // הצד שמול המילה — המילה והשורות סביבה נשארות גלויות
+      const fr = doc.defaultView.frameElement.getBoundingClientRect(), q = range.getBoundingClientRect();
+      const dock = trDock(fr.top + (q.top + q.bottom) / 2, window.innerHeight);
+      if (c.classList.contains('top') !== (dock === 'top')) { c.classList.toggle('top', dock === 'top'); c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; }
+    } catch (e) {}
+  }
+  c.classList.remove('full');
   const seq = ++trSeq;
   const grab = h('div', 'tr-grab');
   const head = h('div', 'tr-head');
@@ -3384,8 +3402,10 @@ function trShow(text, block, doc, range) {
   const model = h('span', 'tr-model');
   const { sec: ctx, body: cb } = trSection('', [h('span', null, T('trNote')), model], true);
   ctx.classList.add('tr-ctx'); cb.classList.add('tr-ctx-b'); cb.append(h('div', 'tr-sk'), h('div', 'tr-sk short'));
-  const mainGrp = h('div', 'tr-main-g'); mainGrp.append(main);
-  c.append(grab, head, mainGrp, dictHost, ctx);
+  // התרגום בראש קבוצת המילון (קופסה אחת); המילון מקופל כברירת מחדל — התרגום והמשמעות הראשונה, "הצג עוד" לשאר
+  const { sec: dsec, body: dbody } = trSection('dict', [h('span', null, T('trDict'))], false);
+  dsec.classList.add('tr-dsec', 'nodict'); dbody.append(main); dictHost.append(dsec);
+  c.append(grab, head, dictHost, ctx);
   let gtText = '';
   cp.addEventListener('click', async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(gtText || text); flashSafe(T('rdCopied')); } catch (er) {} });
   const tl = trTarget(text);
@@ -3402,7 +3422,7 @@ function trShow(text, block, doc, range) {
       if (o.ipa) ipa.textContent = o.ipa;
     } else if (o.ipa) ipa.textContent = '/' + o.ipa + '/';
     const rows = dictRows(o, heSrc);
-    if (rows) { const { sec, body } = trSection('dict', [h('span', null, T('trDict'))], true); body.append(rows); dictHost.append(sec); }
+    if (rows) { dbody.append(rows); dsec.classList.remove('nodict'); }
   }).catch(() => { if (seq === trSeq) { main.textContent = T('trFail'); main.classList.add('in', 'err'); } });
   // שכבת ה־AI: מה המילה אומרת כאן (לפי המשפט/הפסקה) + הסבר מונח + שם הערך בוויקיפדיה. אחריה — ויקיפדיה
   fetchTranslation(text, contextFor(text, block || text), (rd.rec && rd.rec.title) || '').then((j) => {
@@ -3424,13 +3444,23 @@ function trShow(text, block, doc, range) {
     wikiLookup('', text).then((w) => wikiSection(c, w, seq)).catch(() => {});
   });
 }
-function wireTrDrag(c) {                   // החלקה למטה סוגרת (כמו גיליון של Apple)
+/* v334: כמו גיליון של Apple עם שני גבהים — נפתח בגובה בינוני (לא מסתיר את הדף), גרירה לכיוון מרכז המסך = מלא,
+   גרירה לכיוון הקצה = קטן ואז סגירה. כרטיס עליון (מילה בחצי התחתון) — הכיוונים הפוכים */
+export function trDock(wordY, viewH) { return wordY > viewH * 0.5 ? 'top' : 'bottom'; }   // הצד שמול המילה — טהורה
+function wireTrDrag(c) {
   let y0 = null, dy = 0;
-  c.addEventListener('pointerdown', (e) => { if (c.scrollTop > 0) return; y0 = e.clientY; dy = 0; c.style.transition = 'none'; });
-  c.addEventListener('pointermove', (e) => { if (y0 == null) return; dy = Math.max(0, e.clientY - y0); c.style.transform = dy ? 'translateY(' + dy + 'px)' : ''; });
+  c.addEventListener('pointerdown', (e) => { if (c.scrollTop > 0 && !c.classList.contains('top')) return; y0 = e.clientY; dy = 0; c.style.transition = 'none'; });
+  c.addEventListener('pointermove', (e) => {
+    if (y0 == null) return;
+    const out = c.classList.contains('top') ? y0 - e.clientY : e.clientY - y0;   // תזוזה לכיוון הקצה (= סגירה)
+    dy = out;
+    const t = Math.max(0, out);
+    c.style.transform = t ? 'translateY(' + (c.classList.contains('top') ? -t : t) + 'px)' : '';
+  });
   const up = () => {
-    if (y0 == null) return; y0 = null; c.style.transition = '';
-    if (dy > 70) hideTr(); else c.style.transform = '';
+    if (y0 == null) return; y0 = null; c.style.transition = ''; c.style.transform = '';
+    if (dy < -40) c.classList.add('full');                     // לכיוון המרכז — גובה מלא
+    else if (dy > 70) { if (c.classList.contains('full')) c.classList.remove('full'); else hideTr(); }
   };
   c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
 }

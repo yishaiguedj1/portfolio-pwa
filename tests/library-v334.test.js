@@ -41,9 +41,18 @@ ok(/connect-src[^;]*https:\/\/en\.wikipedia\.org https:\/\/he\.wikipedia\.org/.t
 ok(/T\('trWiki'\) \+ ' · CC BY-SA'/.test(lib), 'קרדיט לפי הרישיון');
 
 // ---------- ממשק ----------
-ok(/trSection\('dict', \[h\('span', null, T\('trDict'\)\)\], true\)/.test(lib) && /trSection\('wiki', \[W, h\('span', null, T\('trWiki'\)\)\], false\)/.test(lib), 'מילון פתוח כברירת מחדל, ויקיפדיה מקופלת');
+ok(/trSection\('wiki', \[h\('span', null, T\('trWiki'\)\)\], false\)/.test(lib), 'ויקיפדיה מקופלת כברירת מחדל');
 ok(/localStorage\.setItem\('pwa_trsec_v1'/.test(lib), 'מצב המקטעים נזכר');
 ok(/u\.lang = .*'he-IL' : 'en-US'/.test(lib), 'השמעה בקול המכשיר, עברית או אנגלית');
-ok(/\.tr-sec\.fold \.tr-sec-b \{[^}]*mask-image/.test(css) && /\.tr-model \{/.test(css) && /\.dc-syn span \{/.test(css), 'עיצוב: מקופל נמוג, תווית מודל, גלולות נרדפות');
+ok(/\.tr-sec\.fold \.tr-sec-b \{[^}]*mask-image/.test(css) && /\.tr-model \{/.test(css) && /\.dc-syn span:not\(:last-child\)::after/.test(css), 'עיצוב Apple: מקופל נמוג, תווית מודל, נרדפות בשורה');
 for (const k of ['trDict', 'trSyn', 'trSay', 'trWiki', 'trWikiMore']) ok((app.match(new RegExp('\\b' + k + ": '", 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
+// ---------- באג "קופץ ונעלם" (דיווח המשתמש) + מיקום הכרטיס ----------
+const pageMoved = pure('pageMoved');
+ok(pageMoved({ index: 3, location: { current: 5 }, cfi: 'a' }, { index: 3, location: { current: 5 }, cfi: 'b' }) === false, 'אותו פרק ואותו עמוד עם CFI שונה מעט (הצמדה אחרי רעד אצבע) — לא נחשב מעבר עמוד');
+ok(pageMoved({ index: 3, location: { current: 5 } }, { index: 3, location: { current: 6 } }) && pageMoved({ index: 3 }, { index: 4 }), 'עמוד אחר או פרק אחר — מעבר');
+ok(/const moved = pageMoved\(rd\.loc, d\)/.test(lib) && /c\._at = Date\.now\(\);/.test(lib), 'הכרטיס נסגר רק במעבר עמוד אמיתי');
+const trDock = pure('trDock');
+ok(trDock(200, 844) === 'bottom' && trDock(600, 844) === 'top', 'הכרטיס נפתח בצד שמול המילה');
+ok(/\.tr-card \{ max-height: 46vh;/.test(css) && /\.tr-card\.full \{ max-height: 84vh; \}/.test(css) && /\.tr-card\.top \{/.test(css), 'גובה בינוני כברירת מחדל, מלא בגרירה/"הצג עוד", כרטיס עליון');
+ok(/dbody\.append\(main\)/.test(lib) && /trSection\('dict', \[h\('span', null, T\('trDict'\)\)\], false\)/.test(lib), 'התרגום בתוך קבוצת המילון; מקופל כברירת מחדל (קומפקטי)');
 console.log('# ' + n + ' בדיקות עברו');

@@ -39,7 +39,7 @@ ok(/if \(w\) \{ if \(rd\.chrome\) setChrome\(false\); trShow\(/.test(lib) && /if
 ok(/const HOLD_MS = 320;/.test(lib) && /sel\.addRange\(w\.range\); \} catch \(e\) \{ return; \}\s*showSel\(doc\);/.test(lib), 'לחיצה ארוכה: 320ms → המילה נבחרת וחלון הסימון מיד (בלי לחכות ל־Chrome)');
 ok(/setTimeout\(\(\) => showSel\(doc\), 140\)/.test(lib) && /if \(selPop && selPop\._t === text\) return;/.test(lib), 'שינוי בחירה — 140ms (היה 350), בלי בנייה מחדש כשלא השתנה');
 ok(/Date\.now\(\) - \(rd\.holdAt \|\| 0\) < 1500\) \{\s*try \{ sel\.removeAllRanges\(\); sel\.addRange\(rd\.holdRange\)/.test(lib), 'שחרור האצבע שמקפל את הבחירה — המילה חוזרת, החלון נשאר');
-ok(/const moved = !rd\.loc \|\| rd\.loc\.cfi !== d\.cfi;/.test(lib) && /if \(moved\) \{ hideSel\(\); hideTr\(\); \}/.test(lib), 'המנוע שולח relocate גם בנגיעה בלי תזוזה — נסגר רק בהחלפת עמוד (נמצא ב־QA)');
+ok(/const moved = pageMoved\(rd\.loc, d\)/.test(lib) && /if \(moved\) \{ hideSel\(\); hideTr\(\); \}/.test(lib), 'המנוע שולח relocate גם בנגיעה בלי תזוזה — נסגר רק בהחלפת עמוד (נמצא ב־QA)');
 ok(/else if \(trCard\) hideTr\(\);/.test(lib) && /if \(trCard\) \{ hideTr\(\); return; \}\s*if \(rd\) return readerExit\(\);/.test(lib), '"חזור" ו־Escape סוגרים את הכרטיס');
 ok(/box\.addEventListener\('click', \(e\) => \{[\s\S]{0,300}setChrome\(!rd\.chrome\);/.test(lib), 'הסרגלים נפתחים גם בנגיעה בשולי העמוד');
 ok(/act\('rdTranslate', \(\) => \{ clearSelection\(\); trShow\(/.test(lib) && !/function translateSheet/.test(lib), '"תרגום" בחלון הסימון — אותו כרטיס (הדף הישן הוסר)');
