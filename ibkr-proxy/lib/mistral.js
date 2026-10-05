@@ -21,7 +21,7 @@ async function mistralJSON(sys, user, diag, opt = {}) {
           messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
       });
       diag['mistral:' + model] = r.status;
-      if (r.status === 429) { q429++; continue; }
+      if (r.status === 429) { q429++; try { const e = await r.json(); diag['mistral:' + model + ':err'] = String(e.message || e.detail || JSON.stringify(e)).slice(0, 160); } catch (e) {} continue; }
       if (r.status !== 200) { try { diag['mistral:' + model + ':err'] = String(((await r.json()).message || '')).slice(0, 120); } catch (e) {} continue; }
       const j = await r.json();
       const txt = (((j.choices || [])[0] || {}).message || {}).content || '';
