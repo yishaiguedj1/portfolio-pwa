@@ -113,22 +113,25 @@ const polyCss = (pts, ox, oy) => (pts.length < 3 ? 'polygon(0 0, 0 0, 0 0)'
    מרכז המסך — הקצה העליון של הכנף מתעקם כמו בקינדל. בגב הדף — הטקסטורה (צייר העמוד) הפוכה, מעט דהויה (נייר דק),
    ותאורה לכל פיקסל (Lambert + Blinn). צל: מעבר נפרד — הצללית המורמת מוטלת על המישור, בחצי רזולוציה, טשטוש גאוסי. */
 const VS = `attribute vec2 a_uv;
-uniform vec2 u_size, u_M, u_n, u_C; uniform vec3 u_ls; uniform float u_r, u_shift, u_cam, u_shadow;
+uniform vec2 u_size, u_M, u_n, u_C, u_ax; uniform vec3 u_ls; uniform float u_r, u_shift, u_cam, u_shadow, u_kc;
 varying vec2 v_uv; varying float v_d, v_arc, v_th, v_z;
 void main() {
   vec2 P = a_uv * u_size;
   float d = -dot(P - u_M, u_n), arc = d - u_shift;
   vec2 into = -u_n, Pa = P - into * d;
+  // גליל חרוטי (כמו בקינדל): הרדיוס גדל לאורך הציר הרחק מנקודת האחיזה — שם הגלגול חד, ובצד השני הנייר מתרומם
+  // ומתעקל, והכנף נוטה (גבוהה יותר בצד הרחב) — הטקסט ההפוך מקוצר בפרספקטיבה
+  float rr = u_r * clamp(1.0 + u_kc * dot(P - u_M, u_ax) / u_size.y, 0.6, 3.6);
   float PI = 3.14159265, th = 0.0; vec3 pos;
   if (d < 0.0) pos = vec3(P, 0.0);
   else if (arc < 0.0) pos = vec3(Pa, 0.0);                       // אזור ההחלקה: מתכווץ לקו המגע (בלי משולשים מתוחים)
-  else if (arc < PI * u_r) { th = arc / u_r; pos = vec3(Pa + into * (u_r * sin(th)), u_r * (1.0 - cos(th))); }
-  else { th = PI; pos = vec3(Pa - into * (arc - PI * u_r), 2.0 * u_r); }
+  else if (arc < PI * rr) { th = arc / rr; pos = vec3(Pa + into * (rr * sin(th)), rr * (1.0 - cos(th))); }
+  else { th = PI; pos = vec3(Pa - into * (arc - PI * rr), 2.0 * rr); }
   v_uv = a_uv; v_d = d; v_arc = arc; v_th = th; v_z = pos.z;
   vec2 s;
   if (u_shadow > 0.5) s = u_ls.xy + (pos.xy - u_ls.xy) * (u_ls.z / max(u_ls.z - pos.z, 1.0));   // הצל: הטלה פרספקטיבית מנקודה על מקור האור אל מישור הדף
   else s = u_C + (pos.xy - u_C) * (u_cam / (u_cam - pos.z));     // פרספקטיבה
-  gl_Position = vec4(s.x / u_size.x * 2.0 - 1.0, 1.0 - s.y / u_size.y * 2.0, 0.5 - pos.z / (8.0 * u_r + 1.0), 1.0);
+  gl_Position = vec4(s.x / u_size.x * 2.0 - 1.0, 1.0 - s.y / u_size.y * 2.0, 0.5 - pos.z / (30.0 * u_r + 1.0), 1.0);
 }`;
 const FS = `precision highp float;
 uniform sampler2D u_tex; uniform vec3 u_paper; uniform vec2 u_n; uniform float u_wash, u_dark, u_shadow, u_r, u_hasTex;
@@ -203,6 +206,7 @@ export function createCurlGL(canvas) {
     const a = gl.getAttribLocation(pm.p, 'a_uv'); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
     gl.uniform2f(u.u_size, st.W, st.H); gl.uniform2f(u.u_M, st.M[0], st.M[1]); gl.uniform2f(u.u_n, st.n[0], st.n[1]);
     gl.uniform2f(u.u_C, st.W / 2, st.H / 2); if (ls) gl.uniform3f(u.u_ls, ls[0], ls[1], ls[2]);
+    gl.uniform2f(u.u_ax, st.ax[0], st.ax[1]); gl.uniform1f(u.u_kc, st.kc);
     gl.uniform1f(u.u_r, st.r); gl.uniform1f(u.u_shift, st.shift); gl.uniform1f(u.u_cam, st.cam); gl.uniform1f(u.u_shadow, shadow ? 1 : 0);
     gl.uniform3f(u.u_paper, st.paper[0], st.paper[1], st.paper[2]); gl.uniform1f(u.u_wash, shadow ? k : st.wash); gl.uniform1f(u.u_dark, st.dark ? 1 : 0);
     gl.uniform1f(u.u_hasTex, hasTex ? 1 : 0);
@@ -391,7 +395,7 @@ export function createCurl(env) {
   function draw() {
     if (!g) return;
     const { W, H } = g, th = env.page();
-    const G = GL ? curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadiusAt(W, g.p), W * T_GL) : curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadius(W), g.T);
+    const G = GL ? curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadius(W), g.T) : curlGeom(W, H, g.p, g.phi, g.gy, g.rtl, curlRadius(W), g.T);
     const into = [-G.n[0], -G.n[1]];                 // לכיוון הצד שמתהפך
     const pr = Math.PI * G.r;
     // עוצמת הצללים: עולה עם הקיפול ודועכת כשהדף כמעט עבר — בלי "קפיצה" בפריים הראשון/האחרון
@@ -400,9 +404,12 @@ export function createCurl(env) {
     if (GL) {
       const dpr = g.dpr;
       GL.resize(Math.round(W * dpr), Math.round(H * dpr));
-      GL.render({ W, H, M: G.M, n: G.n, r: G.r, shift: G.shift, cam: H * 2.6,
-        shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.9 : 0.5), blur: 2.2 * dpr,   // בדיקות: __pcShadowK
-        paper: rgb01(th.page), wash: th.dark ? 0.4 : 0.34, dark: th.dark });
+      const up = g.gy > H / 2;                         // אחיזה בחצי התחתון — הרדיוס גדל כלפי מעלה
+      let ax = [-G.n[1], G.n[0]]; if ((ax[1] < 0) !== up) ax = [-ax[0], -ax[1]];
+      const kc = (typeof window !== 'undefined' && window.__pcKC != null) ? window.__pcKC : 0.5;   // בדיקות: __pcKC
+      GL.render({ W, H, M: G.M, n: G.n, r: G.r, shift: G.shift, cam: H * 2.6, ax, kc,
+        shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.8 : 0.32), blur: 3 * dpr,   // בדיקות: __pcShadowK
+        paper: rgb01(th.page), wash: th.dark ? 0.36 : 0.28, dark: th.dark });
       return;
     }
     // צל רך על הדף שמתגלה — מקצה הגליל והלאה, דועך אקספוננציאלית
@@ -524,6 +531,7 @@ export function createCurl(env) {
     destroy() { cancelAnimationFrame(raf); g = null; for (const e of [A, shade, roll, Bw, glc]) e.remove(); if (GL) GL.destroy(); },
     gl: () => !!GL,
     _state: () => (g ? { p: g.p, phi: g.phi, dir: g.dir } : null),
+    _pose: (p, phi) => { if (g) { g.p = p; if (phi != null) g.phi = phi; draw(); } },   // כלי כיול: תנוחה סטטית
     _nb: () => ({ prev: { idx: nb.prev.idx, ready: nb.prev.ready, pages: nb.prev.pages }, next: { idx: nb.next.idx, ready: nb.next.ready, pages: nb.next.pages } }),
   };
 }
