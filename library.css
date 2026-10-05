@@ -197,10 +197,33 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .lib-tr { display: flex; gap: 10px; }
 .rd-bm.on { color: var(--primary) !important; }
 .rd-bm.on svg path { fill: currentColor; }
-.rd-ribbon { position: absolute; top: env(safe-area-inset-top); inset-inline-end: 26px; width: 16px; height: 26px; z-index: 2; pointer-events: none;
-  background: #FF453A; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); opacity: 0; transform: translateY(-8px); transition: opacity .2s, transform .25s; }
-.rd-ribbon.on { opacity: .9; transform: none; }
-.rd.chrome .rd-ribbon { opacity: 0; }   /* הסרגל העליון מציג את הסימנייה בכפתור — הסרט לא מסתיר את Aa */
+/* v329 (בקשת המשתמש, בהשראת קינדל, בעיצוב Apple): סרט סימנייה תמיד בראש העמוד.
+   כבוי = מתאר אפור נקי בצבע הדף, "מציץ" מהקצה; פעיל = ירוק מלא (הירוק של הכפתורים) ויורד מעט יותר. כשהסרגל העליון פתוח — יורד מתחתיו. */
+.rd-ribbon { position: absolute; top: env(safe-area-inset-top); inset-inline-end: 18px; z-index: 3; width: 46px; height: 54px; padding: 0;
+  display: flex; justify-content: center; align-items: flex-start; background: none !important; -webkit-tap-highlight-color: transparent;
+  transition: top .22s ease; }
+.rd-ribbon svg { width: 28px; height: 46px; overflow: visible; transform: translateY(-12px); transition: transform .3s cubic-bezier(.2,.9,.25,1.2);
+  filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.12)); }
+.rd-ribbon.on svg { transform: translateY(-3px); }
+.rd-ribbon .rb-out { fill: var(--rd-page, #fff); stroke: color-mix(in srgb, var(--rd-ink2, #8e8e93) 80%, transparent); stroke-width: 1.7; transition: stroke .2s ease; }
+.rd-ribbon .rb-fill { fill: var(--primary); stroke: color-mix(in srgb, var(--primary) 78%, #000); stroke-width: 1.2; clip-path: inset(0 0 100% 0); transition: clip-path .3s ease; }
+.rd-ribbon.on .rb-fill { clip-path: inset(0 0 0 0); }
+.rd-ribbon .rb-shine { fill: none; stroke: rgba(255,255,255,.35); stroke-width: 1.4; stroke-linecap: round; opacity: 0; transition: opacity .25s ease .15s; }
+.rd-ribbon.on .rb-shine { opacity: 1; }
+.rd-ribbon:active svg { transform: translateY(-9px) scale(.94); }
+.rd-ribbon.on:active svg { transform: translateY(-1px) scale(.94); }
+.rd.chrome .rd-ribbon { top: calc(61px + env(safe-area-inset-top)); }   /* כמו בקינדל — מתחת לסרגל העליון, לא מסתיר את Aa */
+/* שלבים: הוספה — נשמט + קפיצה, הירוק נשפך מלמעלה; הסרה — הירוק מתרוקן, ואז מתקפל למעלה */
+.rd-ribbon.anim-on svg { animation: rbDrop .62s cubic-bezier(.2,.8,.3,1) both; }
+.rd-ribbon.anim-on .rb-fill { animation: rbPour .42s .08s ease-out both; }
+.rd-ribbon.anim-on .rb-shine { animation: rbShine .5s .3s ease-out both; }
+.rd-ribbon.anim-off .rb-fill { animation: rbDrain .26s ease-in both; }
+.rd-ribbon.anim-off svg { animation: rbRise .5s .14s cubic-bezier(.3,0,.2,1) both; }
+@keyframes rbDrop { 0% { transform: translateY(-12px); } 40% { transform: translateY(5px) scaleY(1.04); } 62% { transform: translateY(-5px); } 80% { transform: translateY(-2px); } 100% { transform: translateY(-3px); } }
+@keyframes rbPour { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes rbShine { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes rbDrain { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 100% 0); } }
+@keyframes rbRise { 0% { transform: translateY(-3px); } 35% { transform: translateY(1px); } 100% { transform: translateY(-12px); } }
 .hl-ta { width: 100%; box-sizing: border-box; border: 0; border-radius: var(--radius-sm); background: var(--bg); color: var(--on-surface); padding: 12px 14px;
   font: 16px/1.5 "SNB Noto UI", sans-serif; resize: vertical; margin: 0 0 12px; }
 .ann-row { display: block; width: 100%; text-align: start; background: var(--surface) !important; border-radius: var(--radius-sm); padding: 12px 14px;
@@ -260,7 +283,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .learn-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 10px 2px 8px; }
 .learn-h b { font-size: 17px; } .learn-h span { font-size: 13px; color: var(--on-surface-var); flex: none; }
 .q-img { display: block; width: 100%; max-width: 360px; margin: 0 auto 14px; border-radius: var(--radius-sm); box-shadow: var(--shadow); }
-@media (prefers-reduced-motion: reduce) { .rd-ribbon { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .rd-ribbon, .rd-ribbon svg, .rd-ribbon .rb-fill, .rd-ribbon .rb-shine { transition: none; animation: none !important; } }
 
 /* שלב 5: שכבת האקדמיה — התקדמות, מסלולים, הוגים, מילון, ניתוח מכתב */
 .ac-progress { display: flex; flex-direction: column; gap: 6px; margin: 0 16px 14px; font-size: 13.5px; color: var(--on-surface-var); font-weight: 600; }

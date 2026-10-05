@@ -2402,7 +2402,10 @@ async function openReader(id, opt) {
   const acts = h('span', 'rd-acts');
   const tocBtn = h('button', 'rd-ic'); tocBtn.type = 'button'; tocBtn.innerHTML = ICON.list; tocBtn.setAttribute('aria-label', T('rdToc'));
   const bmBtn = h('button', 'rd-ic rd-bm'); bmBtn.type = 'button'; bmBtn.innerHTML = ICON.bookmark; bmBtn.setAttribute('aria-label', T('bmAdd'));
-  const ribbon = h('div', 'rd-ribbon');
+  // v329 (בקשת המשתמש, בהשראת קינדל): סרט סימנייה תמיד בראש העמוד — מתאר אפור נקי כשאין סימנייה, ירוק מלא כשיש; נגיעה = הוספה/הסרה
+  const ribbon = h('button', 'rd-ribbon'); ribbon.type = 'button'; ribbon.setAttribute('aria-label', T('bmAdd')); ribbon.setAttribute('aria-pressed', 'false');
+  ribbon.innerHTML = RIBBON_SVG;
+  ribbon.addEventListener('click', (e) => { e.stopPropagation(); toggleBookmark(); });
   const aaBtn = h('button', 'rd-ic rd-aa'); aaBtn.type = 'button'; aaBtn.dir = 'ltr'; aaBtn.innerHTML = 'A<small>a</small>'; aaBtn.setAttribute('aria-label', T('rdSettings'));
   acts.append(bmBtn, tocBtn, aaBtn); topBar.append(xBtn, ttl, acts);
   const botBar = h('div', 'rd-botbar');
@@ -2611,7 +2614,7 @@ function annTouch(rec, a, patch) {
   if (rd && rd.rec && rd.rec.id === rec.id) {
     if (rd.rec !== rec) { const x = rd.rec.ann.find((y) => y.id === a.id); if (x) Object.assign(x, a); }
     if (!a.b) (a.d ? rd.view.deleteAnnotation({ value: a.c }) : rd.view.addAnnotation({ value: a.c })).catch(() => {});
-    else markBookmark();
+    else markBookmark(true);               // v329: הסרת סימנייה (גם מתוכן העניינים) — הסרט מתקפל באנימציה
   }
 }
 function annCleanDupes(rec) {              // מצבה לעותקים כפולים של אותה הדגשה (נשמר בענן — מכשיר אחר לא יחזיר אותם)
@@ -2695,15 +2698,28 @@ function pageHasBookmark() {
     return liveAnn(rd.rec.ann, 'bm').find((b) => CFI.compare(b.c, a) >= 0 && CFI.compare(b.c, z) <= 0) || null;
   } catch (e) { return null; }
 }
-function markBookmark() {
+/* v329: סרט בעיצוב קינדל — שכבת מתאר (צבע הדף + קו אפור) ומעליה שכבת מילוי ירוקה שנחשפת מלמעלה למטה */
+const RIBBON_PATH = 'M4 1.5h16a1.5 1.5 0 0 1 1.5 1.5v33.2c0 1.15-1.24 1.87-2.24 1.3L12 33.3l-7.26 4.2c-1 .57-2.24-.15-2.24-1.3V3A1.5 1.5 0 0 1 4 1.5z';
+const RIBBON_SVG = '<svg viewBox="0 0 24 40" aria-hidden="true"><path class="rb-out" d="' + RIBBON_PATH + '"/><path class="rb-fill" d="' + RIBBON_PATH + '"/><path class="rb-shine" d="M7 4v26"/></svg>';
+function markBookmark(animate) {
   if (!rd) return;
   const on = !!pageHasBookmark();
-  rd.els.ribbon.classList.toggle('on', on);
+  const rb = rd.els.ribbon;
+  const was = rb.classList.contains('on');
+  rb.classList.toggle('on', on);
+  rb.setAttribute('aria-pressed', String(on)); rb.setAttribute('aria-label', on ? T('annDeleteBm') : T('bmAdd'));
   rd.els.bmBtn.classList.toggle('on', on);
+  if (animate && was !== on && !reduceMotion()) {
+    // אנימציה בשלבים: בהוספה — הסרט "נשמט" למטה עם קפיצה קטנה והירוק נשפך מלמעלה; בהסרה — הירוק מתרוקן ואז הסרט מתקפל למעלה
+    rb.classList.remove('anim-on', 'anim-off'); void rb.offsetWidth;
+    rb.classList.add(on ? 'anim-on' : 'anim-off');
+    clearTimeout(rb._animT); rb._animT = setTimeout(() => rb.classList.remove('anim-on', 'anim-off'), 700);
+    try { if (navigator.vibrate) navigator.vibrate(on ? 12 : 8); } catch (e) {}
+  }
 }
 function toggleBookmark() {
   const cur = pageHasBookmark();
-  if (cur) { deleteAnn(cur); if (typeof flash === 'function') flash(T('bmRemoved')); return; }
+  if (cur) { annTouch(rd.rec, cur, { d: 1 }); if (typeof flash === 'function') flash(T('bmRemoved')); return; }
   const loc = rd.loc || {}; if (!loc.cfi) return;
   const start = CFI.collapse(loc.cfi);
   let excerpt = '';
@@ -2711,7 +2727,7 @@ function toggleBookmark() {
   const a = { id: uid(), c: start, x: excerpt, b: 1, ch: (loc.tocItem && langText(loc.tocItem.label)) || '', f: loc.fraction || 0, u: Date.now() };
   rd.rec.ann.push(a);
   putBook(rd.rec).catch(() => {}); pushAnn(rd.rec, a);
-  markBookmark();
+  markBookmark(true);
   if (typeof flash === 'function') flash(T('bmAdded'));
 }
 
