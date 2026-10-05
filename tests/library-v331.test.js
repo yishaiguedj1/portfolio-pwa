@@ -41,13 +41,13 @@ ok(s2.endsWith('…') && s2.length <= 62 && !/\s…$/.test(s2), 'נחתך בסו
 ok(scrubSnippet('', 0.5) === '' && scrubSnippet('abc', 0) === 'abc', 'מקרי קצה');
 
 // ---------- מבנה ----------
-ok(/const scrub = h\('div', 'rd-scrub'\); const marks = h\('div', 'rd-bmarks'\)/.test(lib) && /scrub\.append\(marks, slider, prev\);/.test(lib) && /botBar\.append\(chap, scrub, nums\);/.test(lib), 'ציר: סימניות מתחת לאגודל, תצוגה מקדימה מעליו');
+ok(/const scrub = h\('div', 'rd-scrub'\); const track = h\('div', 'rd-track'\); const marks = h\('div', 'rd-bmarks'\)/.test(lib) && /scrub\.append\(track, marks, slider, prev\);/.test(lib) && /botBar\.append\(chap, scrub, nums\);/.test(lib), 'ציר: סימניות מתחת לאגודל, תצוגה מקדימה מעליו');
 ok(/scrub\.dir = readingDir\(rd\.book, rec\.title\);/.test(lib), 'הציר בכיוון הספר (הממשק נשאר בעברית)');
 ok(/rd\.els\.bmBtn\.classList\.toggle\('on', on\);\s*renderBmMarks\(\);/.test(lib) && /if \(m\._key === key\) return;/.test(lib), 'הסימניות על הציר מתעדכנות עם כל שינוי — ובלי לבנות מחדש כשאין שינוי');
 ok(/const hit = rd\.scrubbing \? scrubSnap\(/.test(lib), 'עצירה מגנטית רק בגרירה באצבע (במקלדת צעד קטן היה "נתקע")');
 ok(/if \(hit\) \{ try \{ if \(navigator\.vibrate\) navigator\.vibrate\(10\); \} catch \(e\) \{\} \}/.test(lib), 'רטט עדין בכניסה לסימנייה (פעם אחת לכל כניסה)');
 ok(/if \(hit && hit\.c\) rd\.view\.goTo\(hit\.c\)\.catch\(\(\) => rd\.view\.goToFraction\(v\)\);/.test(lib), 'שחרור על סימנייה — בדיוק לעמוד המסומן (CFI), לא "בערך"');
-ok(/if \(hit && hit\.x\) \{ el\.pvTx\.textContent = hit\.x; return; \}/.test(lib) && /secText\(at\.i\)\.then/.test(lib), 'תצוגה מקדימה: על סימנייה — הקטע שלה; אחרת — שורות הפתיחה מהפרק');
+ok(/if \(hit\.t === 'bm'\) el\.pvTx\.textContent = hit\.x;/.test(lib) && /secText\(at\.i\)\.then/.test(lib), 'תצוגה מקדימה: על סימנייה — הקטע שלה; אחרת — שורות הפתיחה מהפרק');
 ok(/function preloadSecText\(rec\)/.test(lib) && /tx\('text', 'readonly', \(st\) => reqP\(st\.get\(rec\.id\)\)\)/.test(lib) && /function docText\(doc\)/.test(lib) && /const t = docText\(await sec\.createDocument\(\)\);/.test(lib), 'טקסט התצוגה: מהאינדקס של החיפוש כשקיים, אחרת מהפרק (חילוץ משותף)');
 ok(/if \(rd && rd\.pvSeq === seq\)/.test(lib), 'טקסט שמגיע באיחור לא דורס מיקום חדש יותר');
 ok(/if \(from && from\.cfi && Math\.abs\(from\.f - v\) > 0\.004 && !rd\.back\)/.test(lib) && /rd\.view\.goTo\(b\.cfi\)/.test(lib) && /\+\+rd\.back\.turns > 3/.test(lib), 'קינדל: "חזרה ל־X%" למקום שלפני הקפיצה הראשונה; נעלם אחרי כמה עמודים');
@@ -56,7 +56,7 @@ ok(/slider\.setAttribute\('aria-label', T\('rdProgress'\)\)/.test(lib) && /aria-
 
 // ---------- עיצוב ----------
 ok(/\.rd-slider::-webkit-slider-thumb \{[^}]*width: 22px; height: 22px;[^}]*border-radius: 50%; background: #fff;/.test(css) && /const SCRUB_THUMB = 22;/.test(lib), 'אגודל לבן עגול (Apple), והחישוב משתמש באותו רוחב');
-ok(/\.rd-scrub\[dir="rtl"\] \.rd-slider::-webkit-slider-runnable-track \{ background: linear-gradient\(to left/.test(css), 'המסילה מתמלאת בכיוון הספר');
+ok(/\.rd-scrub\[dir="rtl"\] \.rd-track \{ background: linear-gradient\(to left/.test(css), 'המסילה מתמלאת בכיוון הספר (מ־v332 — שכבה משלה מתחת לסימונים)');
 ok(/\.rd-bmark \{[^}]*inset-inline-start: calc\(11px \+ var\(--f\) \* \(100% - 22px\)\)/.test(css), 'סימנייה על הציר בדיוק במרכז האגודל באותו מיקום');
 ok(/\.rd-bmark\.hit \{ transform: translateY\(-5px\) scale\(1\.55\)/.test(css), 'סימנייה שהאגודל עליה — מתרוממת מעליו');
 ok(/\.rd-prev \{[^}]*background: var\(--rd-page\)/.test(css) && /\.rd\[data-dark="1"\] \.rd-prev \{ background: #1C1C1E;/.test(css) && /\.rd-prev\.bm \{[^}]*rgba\(48,209,88/.test(css), 'תצוגה מקדימה = עמוד קטן בצבעי הקורא; בכהה משטח מוגבה; טבעת ירוקה על סימנייה');

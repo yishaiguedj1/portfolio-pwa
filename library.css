@@ -130,24 +130,33 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .rd-aa small { font-size: 14px; }
 .rd-chap { font-size: 13px; color: var(--rd-ink2); text-align: center; margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* v331: ציר ההתקדמות (Apple + קינדל): מסילה דקה שמתמלאת בכיוון הספר, אגודל לבן עגול; סימניות על הציר; תצוגה מקדימה מעל האגודל */
-.rd-scrub { position: relative; height: 32px; display: flex; align-items: center; }
-.rd-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 32px; margin: 0; background: transparent; position: relative; z-index: 1; touch-action: none; --p: 0%;
+.rd-scrub { position: relative; height: 32px; display: flex; align-items: center; --p: 0%;
   --trk: color-mix(in srgb, var(--rd-ink) 14%, transparent); --fil: color-mix(in srgb, var(--rd-ink) 58%, transparent); }
+.rd-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 32px; margin: 0; background: transparent; position: relative; z-index: 1; touch-action: none; }
+/* v332: המסילה = שכבה משלה מתחת לסימונים (המסילה של ה־input הייתה מכסה אותם); ה־input שקוף ומעליה רק האגודל */
+.rd-track { position: absolute; top: 14px; inset-inline: 11px; height: 4px; border-radius: 4px; pointer-events: none;
+  background: linear-gradient(to right, var(--fil) var(--p), var(--trk) var(--p)); }
+.rd-scrub[dir="rtl"] .rd-track { background: linear-gradient(to left, var(--fil) var(--p), var(--trk) var(--p)); }
 .rd-slider:focus-visible { outline: none; }
 .rd-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent), 0 1.5px 4px rgba(0,0,0,.26); }
-.rd-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(to right, var(--fil) var(--p), var(--trk) var(--p)); }
-.rd-scrub[dir="rtl"] .rd-slider::-webkit-slider-runnable-track { background: linear-gradient(to left, var(--fil) var(--p), var(--trk) var(--p)); }
+.rd-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: transparent; }
 .rd-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: -9px; border: 0; border-radius: 50%; background: #fff;
   box-shadow: 0 1.5px 4px rgba(0,0,0,.26), 0 0 0 .5px rgba(0,0,0,.1); transition: transform .2s cubic-bezier(.2,.9,.25,1.2); }
 .rd-slider:active::-webkit-slider-thumb { transform: scale(1.15); }
-.rd-slider::-moz-range-track { height: 4px; border-radius: 4px; background: var(--trk); }
-.rd-slider::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--fil); }
+.rd-slider::-moz-range-track { height: 4px; border-radius: 4px; background: transparent; }
 .rd-slider::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 1.5px 4px rgba(0,0,0,.26), 0 0 0 .5px rgba(0,0,0,.1); }
 /* סימנייה על הציר = סרט ירוק קטן שנשען על המסילה, בדיוק במקום שבו האגודל עומד עליה; כשהאגודל עליה — מתרומם מעליו */
 .rd-bmarks { position: absolute; inset: 0; pointer-events: none; }
 .rd-bmark { position: absolute; top: 3px; inset-inline-start: calc(11px + var(--f) * (100% - 22px)); width: 8px; height: 12.5px; margin-inline-start: -4px;
   transform-origin: 50% 100%; transition: transform .26s cubic-bezier(.2,.9,.25,1.25); filter: drop-shadow(0 .5px .6px rgba(0,0,0,.25)); }
 .rd-bmark svg { width: 100%; height: 100%; display: block; }
+/* v332: הדגשה = קו אנכי דק בצבע שלה שחוצה את המסילה; הערה = נקודה בצבע שלה. מתאר בצבע הסרגל מפריד אותם מהמסילה ומשכנים */
+.rd-hlmark { position: absolute; top: 10px; inset-inline-start: calc(11px + var(--f) * (100% - 22px)); width: 3px; height: 12px; margin-inline-start: -1.5px;
+  border-radius: 2px; background: var(--c); box-shadow: 0 0 0 1px var(--rd-page); pointer-events: none; transition: transform .22s cubic-bezier(.2,.9,.3,1.25); }
+.rd-hlmark.note { top: 11px; width: 10px; height: 10px; margin-inline-start: -5px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--rd-page); }
+.rd-hlmark.hit { transform: scale(1.5); }
+.rd-scrub[data-hit] .rd-slider::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--hit), 0 1.5px 4px rgba(0,0,0,.26); }
+.rd-scrub[data-hit] .rd-slider::-moz-range-thumb { box-shadow: 0 0 0 3px var(--hit), 0 1.5px 4px rgba(0,0,0,.26); }
 .rd-bmark.hit { transform: translateY(-5px) scale(1.55); z-index: 2; }
 /* תצוגה מקדימה — "עמוד קטן" בצבעי הקורא מעל האגודל: הפרק, שורות הפתיחה, האחוז, ו"סימנייה" כשעומדים עליה */
 .rd-prev { position: absolute; bottom: calc(100% + 40px); left: 0; width: 216px; padding: 12px 14px 10px; border-radius: 16px; background: var(--rd-page); color: var(--rd-ink);
@@ -164,13 +173,22 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .rd-prev-bm.on { display: inline-flex; }
 .rd[data-dark="1"] .rd-prev-bm { color: #30D158; }
 .rd-prev-bm svg { width: 9px; height: 14px; flex: none; }
+.rd-prev.mk { box-shadow: 0 12px 32px rgba(0,0,0,.18), 0 0 0 1.5px color-mix(in srgb, var(--hc) 75%, transparent); }
+.rd[data-dark="1"] .rd-prev.mk { box-shadow: 0 12px 32px rgba(0,0,0,.6), 0 0 0 1.5px color-mix(in srgb, var(--hc) 75%, transparent); }
+.rd-prev-bm[data-k="hl"], .rd-prev-bm[data-k="note"], .rd[data-dark="1"] .rd-prev-bm[data-k="hl"], .rd[data-dark="1"] .rd-prev-bm[data-k="note"] { color: var(--rd-ink); }
+.rd-prev-ic { flex: none; display: block; background: var(--hc); }
+.rd-prev-ic.hl { width: 3px; height: 12px; border-radius: 2px; }
+.rd-prev-ic.note { width: 9px; height: 9px; border-radius: 50%; }
+.rd-prev-note { font-weight: 600; }
+.rd-prev-mk { background: color-mix(in srgb, var(--hc) 40%, transparent); border-radius: 3px; padding: 0 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.rd[data-dark="1"] .rd-prev-mk { background: color-mix(in srgb, var(--hc) 32%, transparent); }
 /* קינדל: אחרי קפיצה בציר — "חזרה ל־X%" */
 .rd-backpos { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px 3px 10px; border: 0; border-radius: var(--pill); background: color-mix(in srgb, var(--rd-ink) 8%, transparent);
   color: var(--rd-ink); font: 600 12px/1.4 "SNB Noto UI", sans-serif; cursor: pointer; animation: rdBackIn .3s cubic-bezier(.2,.9,.25,1.2) both; }
 .rd-backpos svg { width: 13px; height: 13px; flex: none; }
 .rd-backpos.hidden { display: none; }
 @keyframes rdBackIn { from { opacity: 0; transform: scale(.9); } }
-@media (prefers-reduced-motion: reduce) { .rd-prev, .rd-bmark, .rd-slider::-webkit-slider-thumb, .rd-backpos { transition: none; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rd-prev, .rd-bmark, .rd-hlmark, .rd-slider::-webkit-slider-thumb, .rd-backpos { transition: none; animation: none; } }
 .rd-nums { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--rd-ink2); margin-top: 8px; }
 .rd-pop { position: fixed; z-index: 940; display: flex; gap: 2px; padding: 6px; border-radius: var(--radius-xs); background: #2C2C2E; color: #fff;
   box-shadow: 0 8px 24px rgba(0,0,0,.3); }
