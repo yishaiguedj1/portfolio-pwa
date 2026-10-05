@@ -2,7 +2,7 @@
    תקציר, רעיונות מרכזיים, "בעיני השקעות ערך" (קישור לגראהם/פישר/באפט/מאנגר/אקמן ועוד), מונחים ושאלה למחשבה.
    כל הטענות חייבות להישען על הטקסט (ההנחיה אוסרת להמציא מספרים/ציטוטים). מפתח: GEMINI_API_KEY (Vercel בלבד). */
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const MODELS = () => [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'].filter(Boolean);
+const { INSIGHT_MODELS: MODELS } = require('./gmodels');
 const THINKERS = ['graham', 'fisher', 'buffett', 'munger', 'ackman', 'lynch', 'marks', 'klarman', 'greenblatt', 'pabrai'];
 
 function insightPrompt(title, text) {
@@ -49,9 +49,11 @@ async function insight(title, text, fetchImpl, diag = {}) {
     generationConfig: { temperature: 0.3, maxOutputTokens: 3000, responseMimeType: 'application/json', responseSchema: SCHEMA },
   });
   const started = Date.now();
+  let q429 = 0, tried = 0;
   for (const model of MODELS()) {
     const left = 52000 - (Date.now() - started);
     if (left < 8000) break;
+    tried++;
     const ctl = new AbortController();
     const to = setTimeout(() => ctl.abort(), left);
     try {
@@ -59,7 +61,7 @@ async function insight(title, text, fetchImpl, diag = {}) {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body, signal: ctl.signal,
       });
       diag[model] = r.status;
-      if (r.status === 429) return { error: 'quota' };
+      if (r.status === 429) { q429++; continue; }      // v333: לכל מודל מכסה נפרדת — ממשיכים ל־Lite
       if (r.status !== 200) continue;
       const j = await r.json();
       const raw = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map((p) => p.text || '').join('');
@@ -67,6 +69,6 @@ async function insight(title, text, fetchImpl, diag = {}) {
       if (out) return { insight: Object.assign(out, { model }) };
     } catch (e) { diag[model + ':ex'] = String(e && e.message || e).slice(0, 60); } finally { clearTimeout(to); }
   }
-  return { error: 'ai_failed' };
+  return { error: q429 && q429 === tried ? 'quota' : 'ai_failed' };
 }
 module.exports = { insight, insightPrompt, cleanInsight, THINKERS };

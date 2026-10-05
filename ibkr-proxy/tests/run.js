@@ -497,10 +497,28 @@ function stubFetch(text, status = 200) {
       'translate: נשלחים גם ההקשר וגם שם הספר');
 
     translate._cache.clear(); calls.length = 0;
-    setFetch((u) => (u.includes('gemini-flash-latest') ? gem(404, {}) : u.includes('googleapis') ? okGem('צף') : mm('x')));
+    setFetch((u) => (u.includes('gemini-flash-lite-latest') ? gem(404, {}) : u.includes('googleapis') ? okGem('צף') : mm('x')));
     r = await run({ text: 'float', context: 'Insurance float is money we hold.' });
     ok(r.payload.engine === 'ai' && r.payload.translation === 'צף' && calls.filter((c) => c.url.includes('googleapis')).length === 2,
       'translate: מודל שלא קיים (404) — עוברים לבא ברשימה');
+
+    // v333: התרגום פונה קודם ל־Flash-Lite (מכסה חינמית גדולה פי ~25), ו־429 של מודל אחד לא עוצר
+    translate._cache.clear(); calls.length = 0;
+    setFetch((u) => (u.includes('gemini-flash-lite-latest') ? gem(429, {}) : u.includes('googleapis') ? okGem('צף ביטוחי') : mm('x')));
+    r = await run({ text: 'float', context: 'Insurance float.' });
+    const gm = calls.filter((c) => c.url.includes('googleapis')).map((c) => c.url.split('/models/')[1].split(':')[0]);
+    ok(gm[0] === 'gemini-flash-lite-latest' && r.payload.engine === 'ai' && r.payload.quota === false && r.payload.translation === 'צף ביטוחי',
+      'translate: 429 במודל הראשון — ממשיכים למודל הבא (לכל מודל מכסה נפרדת), בלי "מכסה" למשתמש');
+    translate._cache.clear(); calls.length = 0;
+    setFetch((u) => (u.includes('gemini-flash-lite-latest') ? okGem('חפير עמוק') : u.includes('googleapis') ? okGem('חפיר') : mm('x')));
+    r = await run({ text: 'moat', context: 'wide moat' });
+    ok(r.payload.translation === 'חפיר' && r.payload.diag['gemini-flash-lite-latest:err'] === 'mixed_script', 'translate: עברית עם אותיות ערביות ("חפير" — נמצא חי) נפסלת');
+    // מצב מהיר: הכרטיס של Google Translate
+    translate._cache.clear(); calls.length = 0;
+    setFetch((u) => (u.includes('clients5.google.com') ? { status: 200, json: async () => ({ sentences: [{ trans: 'תְעָלַת מָגֵן', orig: 'moat' }], dict: [{ pos: 'שם עצם', terms: ['תְעָלַת מָגֵן', 'חפיר', 'חפיר'] }], src: 'en' }) } : gem(500, {})));
+    r = await run({ text: 'moat', mode: 'quick' });
+    ok(r.payload.engine === 'google' && r.payload.translation === 'תעלת מגן' && r.payload.dict[0].terms.join() === 'תעלת מגן,חפיר' && r.payload.src === 'en' && !calls.some((c) => c.url.includes('googleapis')),
+      'translate quick: תרגום + חלקי דיבר, בלי ניקוד ובלי כפילויות, בלי Gemini');
 
     translate._cache.clear(); calls.length = 0;
     setFetch((u) => (u.includes('googleapis') ? gem(429, {}) : mm('בסיסי')));
@@ -517,6 +535,18 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403, 'translate: Origin זר נחסם');
     const p = translate._prompt('moat', 'ctx', 'T', 'he');
     ok(p.sys.includes('עברית') && p.sys.includes('CONTEXT'), 'translate: ההנחיה מבקשת תרגום לפי ההקשר');
+    if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
+  }
+  /* v333: ניתוח מכתב — Flash קודם (איכות), ו־429 ממשיך ל־Lite במקום "המכסה נגמרה" */
+  {
+    const { insight } = require('../lib/insight');
+    const oldKey = process.env.GEMINI_API_KEY; process.env.GEMINI_API_KEY = 'k';
+    const seen = [];
+    const good = { status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'תקציר', ideas: ['א'], question: 'ש' }) }] } }] }) };
+    let o = await insight('T', 'text', async (u) => { const m = String(u).split('/models/')[1].split(':')[0]; seen.push(m); return /lite/.test(m) ? good : { status: 429, json: async () => ({}) }; });
+    ok(seen[0] === 'gemini-flash-latest' && o.insight && /lite/.test(o.insight.model), 'insight: Flash במכסה (429) — ממשיכים ל־Flash-Lite ומחזירים ניתוח');
+    o = await insight('T', 'text', async () => ({ status: 429, json: async () => ({}) }));
+    ok(o.error === 'quota', 'insight: "מכסה" רק כשכל המודלים החזירו 429');
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
   }
 

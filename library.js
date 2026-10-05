@@ -2314,6 +2314,7 @@ function onEscape() {
   const veil = root && root.querySelector('.lib-veil');
   if (veil) { (veil._close || (() => veil.remove()))(); return; }
   if (selPop) { hideSel(); return; }
+  if (trCard) { hideTr(); return; }
   if (rd) return readerExit();          // מקלדת — יציאה מיידית, בלי "לחץ שוב"
   history.back();
 }
@@ -2371,6 +2372,7 @@ function bookCSS() {
     pre { white-space: pre-wrap !important; }
     img, svg { max-width: 100%; height: auto; }
     ::selection { background: rgba(48, 209, 88, .32); }
+    ::highlight(snb-tap) { background-color: rgba(100, 210, 255, .36); }
   `;
 }
 
@@ -2462,6 +2464,14 @@ async function openReader(id, opt) {
   view.addEventListener('show-annotation', (e) => { rd.annTap = Date.now(); annPopup(e.detail.value, e.detail.range, e.detail.index); });
   aaBtn.addEventListener('click', openAa);
   wireScrub();
+  // v333: נגיעה במילה = תרגום, אז הסרגלים נפתחים גם מנגיעה בשולי העמוד (למעלה/למטה, מחוץ לטקסט)
+  box.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!rd || (t.closest && t.closest('button, input, a, .rd-topbar, .rd-botbar, .tr-card, .rd-pop, .rd-ribbon3d'))) return;
+    if (selPop) { hideSel(); clearSelection(); return; }
+    if (trCard) { hideTr(); return; }
+    setChrome(!rd.chrome);
+  });
 
   view.addEventListener('relocate', (e) => {
     const d = e.detail || {};
@@ -2476,8 +2486,9 @@ async function openReader(id, opt) {
     chap.textContent = (d.tocItem && d.tocItem.label) || '';
     if (!slider.matches(':active') && !rd.scrubbing) { slider.value = String(Math.round(frac * 1000)); scrub.style.setProperty('--p', Math.round(frac * 1000) / 10 + '%'); }
     if (rd.back && Date.now() - rd.back.t > 1200 && ++rd.back.turns > 3) { rd.back = null; showBackPos(); }   // קוראים הלאה — "חזרה" נעלמת
+    const moved = !rd.loc || rd.loc.cfi !== d.cfi;   // v333: המנוע שולח relocate גם בנגיעה בלי תזוזה — הכרטיס נסגר רק בהחלפת עמוד
     rd.loc = d; markBookmark();
-    hideSel();
+    if (moved) { hideSel(); hideTr(); }
     clearTimeout(rd.saveT);
     rd.saveT = setTimeout(() => {
       const r = rd && rd.rec; if (!r) return;
@@ -2524,7 +2535,7 @@ function closeReader() {
   if (!rd) return;
   const r = rd; rd = null;
   if (r.rec) { clearTimeout(r.saveT); pushProgress(r.rec, true); }
-  hideSel();
+  hideSel(); hideTr(true);
   // v322: הקורא דוהה מעל הדף באנימציית CSS על האלמנט עצמו (צילום View Transition לא כולל את ה־iframe — יצא דף לבן ריק);
   // הדף שמתחת מצויר בזמן שהקורא עדיין אטום, עם הגלילה שנשמרה בפתיחה; המנוע נסגר רק בסוף.
   const box = r.els.box;
@@ -2578,20 +2589,80 @@ async function ribbon3dSetup(box, btn) {
 function wireDoc(doc, setChrome, index) {
   doc.addEventListener('pointerup', readerRearm, true);
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); onEscape(); } });
+  // v333 (בקשת המשתמש): נגיעה אחת במילה = כרטיס תרגום מלמטה (כמו Google Translate); נגיעה במקום ריק = סרגלים.
+  // התרגום מתחיל כבר ב־pointerdown — עד שהאצבע עולה הוא לרוב כבר כאן
+  doc.addEventListener('pointerdown', (e) => {
+    if (e.isPrimary === false || (e.target && e.target.closest && e.target.closest('a[href]'))) return;
+    const w = wordAt(doc, e.clientX, e.clientY);
+    if (w) gtQuick(w.text, trTarget(w.text)).catch(() => {});
+  }, { passive: true });
   doc.addEventListener('click', (e) => {
+    if (rd && Date.now() - (rd.holdAt || 0) < 900) return;          // שחרור אחרי לחיצה ארוכה
     const sel = doc.getSelection && doc.getSelection();
     if (sel && !sel.isCollapsed && String(sel).trim()) return;
     if (e.target && e.target.closest && e.target.closest('a[href]')) return;
+    const w = wordAt(doc, e.clientX, e.clientY);
     setTimeout(() => {                         // נגיעה בהדגשה (show-annotation) — לא מחליפה סרגלים
       if (!rd || Date.now() - rd.annTap < 400) return;
       if (selPop) { hideSel(); return; }
+      if (w) { if (rd.chrome) setChrome(false); trShow(w.text, blockText(w.range.startContainer), doc, w.range); return; }
+      if (trCard) { hideTr(); return; }
       setChrome(!rd.chrome);
     }, 0);
   });
+  // v333: לחיצה ארוכה = חלון הסימון וההערה מיד (320ms, עם רטט) — לא מחכים לבחירת הטקסט של Chrome (~0.5 שנ׳) ועוד השהיה
+  let hold = null;
+  const holdOff = () => { if (hold) { clearTimeout(hold.t); hold = null; } };
+  doc.addEventListener('touchstart', (e) => {
+    holdOff();
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0], x = t.clientX, y = t.clientY;
+    hold = { x, y, t: setTimeout(() => { hold = null; holdSelect(doc, x, y); }, HOLD_MS) };
+  }, { passive: true });
+  doc.addEventListener('touchmove', (e) => { const t = e.touches[0]; if (hold && t && Math.hypot(t.clientX - hold.x, t.clientY - hold.y) > 10) holdOff(); }, { passive: true });
+  doc.addEventListener('touchend', holdOff, { passive: true });
+  doc.addEventListener('touchcancel', holdOff, { passive: true });
   doc.__idx = index;
   let st = 0;
-  doc.addEventListener('selectionchange', () => { clearTimeout(st); st = setTimeout(() => showSel(doc), 350); });
+  doc.addEventListener('selectionchange', () => { clearTimeout(st); st = setTimeout(() => showSel(doc), 140); });
 }
+const HOLD_MS = 320;
+function holdSelect(doc, x, y) {
+  if (!rd) return;
+  const w = wordAt(doc, x, y);
+  if (!w) return;
+  rd.holdAt = Date.now(); rd.holdRange = w.range;
+  hideTr();
+  try { const sel = doc.getSelection(); sel.removeAllRanges(); sel.addRange(w.range); } catch (e) { return; }
+  showSel(doc);
+  try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {}
+}
+const WORD_CH = /[\p{L}\p{M}\p{N}'’\-\u05BE\u05F3\u05F4"]/u;
+export function wordBounds(t, i) {           // גבולות המילה סביב תו i (אותיות/ניקוד/ספרות/גרש/מקף) — טהורה
+  t = String(t || '');
+  if (!(i < t.length && WORD_CH.test(t[i]))) { if (i > 0 && WORD_CH.test(t[i - 1])) i--; else return null; }
+  let s = i, e = i + 1;
+  while (s > 0 && WORD_CH.test(t[s - 1])) s--;
+  while (e < t.length && WORD_CH.test(t[e])) e++;
+  while (s < e && /['’\-\u05BE"]/.test(t[s])) s++;
+  while (e > s && /['’\-\u05BE"]/.test(t[e - 1])) e--;
+  if (s >= e || !/\p{L}/u.test(t.slice(s, e))) return null;   // מספר בלבד — לא מתרגמים
+  return [s, e];
+}
+function wordAt(doc, x, y) {                 // המילה מתחת לאצבע — רק אם הנגיעה באמת עליה (לא בשוליים/בין שורות)
+  let node, off;
+  try {
+    if (doc.caretPositionFromPoint) { const p = doc.caretPositionFromPoint(x, y); if (!p) return null; node = p.offsetNode; off = p.offset; }
+    else if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(x, y); if (!r) return null; node = r.startContainer; off = r.startOffset; }
+  } catch (e) { return null; }
+  if (!node || node.nodeType !== 3) return null;
+  const b = wordBounds(node.data, off);
+  if (!b) return null;
+  const r = doc.createRange(); r.setStart(node, b[0]); r.setEnd(node, b[1]);
+  const on = [...r.getClientRects()].some((q) => x >= q.left - 3 && x <= q.right + 3 && y >= q.top - 3 && y <= q.bottom + 3);
+  return on ? { range: r, text: node.data.slice(b[0], b[1]) } : null;
+}
+const blockText = (n) => { const b = blockOf(n); return b ? b.textContent : ''; };
 
 /* ---------------- בועת סימון + תרגום בהקשר ---------------- */
 let selPop = null;
@@ -2616,7 +2687,14 @@ function annOverlapping(doc, range) {     // הדגשה פעילה שחופפת 
 function showSel(doc) {
   const sel = doc.getSelection && doc.getSelection();
   const text = sel ? String(sel).replace(/\s+/g, ' ').trim() : '';
+  // שחרור האצבע אחרי לחיצה ארוכה יכול לקפל את הבחירה (נגיעה שמציבה סמן) — מחזירים את המילה, החלון נשאר
+  if (!text && rd && selPop && rd.holdRange && Date.now() - (rd.holdAt || 0) < 1500) {
+    try { sel.removeAllRanges(); sel.addRange(rd.holdRange); } catch (e) {}
+    return;
+  }
   if (!text || !rd) { hideSel(); return; }
+  if (selPop && selPop._t === text) return;
+  hideTr();
   const range = sel.getRangeAt(0);
   const rr = range.getBoundingClientRect();
   const fr = doc.defaultView && doc.defaultView.frameElement;
@@ -2627,6 +2705,7 @@ function showSel(doc) {
   const hit = annOverlapping(doc, range);   // v326: סימון על הדגשה קיימת — כמו בקינדל: אפשר להחליף צבע או להסיר, בלי עותק נוסף
   if (hit) buildPop({ text: hit.x, cfi: hit.c, ann: hit, block: block ? block.textContent : hit.x });
   else buildPop({ text, cfi: rd.view.getCFI(idx, range), range: range.cloneRange(), block: block ? block.textContent : text });
+  selPop._t = text;
   root.append(selPop);
   placePop(rr, fb);
 }
@@ -2652,7 +2731,7 @@ function buildPop({ text, cfi, block, ann }) {
   row1.append(nb);
   const row2 = h('div', 'rd-pop-row');
   const act = (k, fn) => { const b = h('button', 'rd-txt', T(k)); b.type = 'button'; b.addEventListener('click', () => { hideSel(); fn(); }); row2.append(b); };
-  act('rdTranslate', () => translateSheet(text, block || text));
+  act('rdTranslate', () => { clearSelection(); trShow(text, block || text, null, null); });
   act('rdCopy', async () => { try { await navigator.clipboard.writeText(text); if (typeof flash === 'function') flash(T('rdCopied')); } catch (e) {} });
   act('hlQuote', () => quoteCard(text));
   const gm = glossaryMatch(text);
@@ -3092,19 +3171,122 @@ async function fetchTranslation(text, context, title) {
   trCache.set(key, j);
   return j;
 }
-function translateSheet(text, block) {
-  sheet(T('trTitle'), (sh) => {
-    const src = h('p', 'tr-src', text); src.dir = 'auto';
-    const out = h('p', 'tr-out', T('trLoading')); out.dir = 'auto';
-    const note = h('div', 'tr-note hidden');
-    const warn = h('p', 'tr-warn hidden', T('trBasic'));
-    sh.append(src, out, note, warn);
-    fetchTranslation(text, contextFor(text, block), (rd && rd.rec && rd.rec.title) || '').then((j) => {
-      out.textContent = j.translation;
-      if (j.note) { note.textContent = ''; note.append(h('b', null, T('trNote')), h('span', null, j.note)); note.classList.remove('hidden'); }
-      if (j.engine !== 'ai') warn.classList.remove('hidden');
-    }).catch(() => { out.textContent = T('trFail'); });
-  });
+/* ---- v333: כרטיס תרגום מהיר (בקשת המשתמש — כמו הכרטיס של Google Translate, בעיצוב שלנו) ----
+   שתי שכבות: (1) Google — תרגום, חלקי דיבר ותרגומים חלופיים, ישירות מהטלפון (נקודת הקצה של תוסף המילון של Chrome:
+   בלי מפתח, בלי מכסה, ~0.3 שנ׳; גיבוי דרך השרתון); (2) Gemini — "בהקשר": מה המילה אומרת במשפט הזה + הסבר מונח.
+   השכבה השנייה לא חוסמת את הראשונה; בלי AI (מכסה/רשת) — היא פשוט לא מוצגת. */
+const GT_URL = 'https://clients5.google.com/translate_a/single?client=dict-chrome-ex&dt=t&dt=bd&dj=1';
+const NIQQUD = /[\u0591-\u05C7]/g;
+const gtClip = (x, n) => String(x == null ? '' : x).replace(/\s+/g, ' ').trim().slice(0, n);
+export function parseGt(j) {               // תשובת Google → { translation, dict:[{pos, terms}], src } — טהורה (זהה לשרתון)
+  if (!j || !Array.isArray(j.sentences)) return null;
+  const tr = j.sentences.map((x) => x.trans || '').join('').replace(NIQQUD, '').trim();
+  if (!tr) return null;
+  const dict = (j.dict || []).slice(0, 3).map((d) => ({ pos: gtClip(d.pos, 30), terms: [...new Set((d.terms || []).map((t) => gtClip(t, 40).replace(NIQQUD, '')))].filter(Boolean).slice(0, 4) })).filter((d) => d.terms.length);
+  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8) };
+}
+const uiLang = () => (typeof getLang === 'function' && getLang()) || 'he';
+// מילה בעברית בממשק עברי — לאנגלית (תרגום לאותה שפה לא עוזר)
+const trTarget = (text) => (uiLang() === 'he' && /[\u0590-\u05FF]/.test(text) ? 'en' : uiLang());
+const gtCache = new Map();
+function gtQuick(text, tl) {
+  const k = tl + '|' + text.toLowerCase();
+  if (gtCache.has(k)) return gtCache.get(k);
+  const p = (async () => {
+    try {
+      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 2500);
+      const r = await fetch(GT_URL + '&sl=auto&tl=' + tl + '&hl=' + uiLang() + '&q=' + encodeURIComponent(text.slice(0, 400)), { signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+      clearTimeout(to);
+      if (r.ok) { const o = parseGt(await r.json()); if (o) return o; }
+    } catch (e) {}
+    const base = (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';   // גיבוי: אותה פנייה דרך השרתון
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {});
+    const j = await (await fetch(base + '/api/translate', { method: 'POST', headers, body: JSON.stringify({ text: text.slice(0, 400), mode: 'quick', to: tl }) })).json();
+    if (j && j.ok) return j;
+    throw new Error('gt_failed');
+  })();
+  p.catch(() => gtCache.delete(k));
+  gtCache.set(k, p); if (gtCache.size > 300) gtCache.clear();
+  return p;
+}
+function langName(code) {
+  try { return new Intl.DisplayNames([uiLang()], { type: 'language' }).of(code === 'iw' ? 'he' : code) || ''; } catch (e) { return ''; }
+}
+const ICON_SPARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9zM19 15l.9 2.1 2.1.9-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.9z"/></svg>';
+let trCard = null, trSeq = 0;
+function trMark(doc, range) {              // המילה שבתרגום מסומנת בעדינות (CSS Custom Highlight — בלי לגעת ב־DOM של הספר)
+  try { const w = doc.defaultView; if (range && w.CSS && w.CSS.highlights && w.Highlight) w.CSS.highlights.set('snb-tap', new w.Highlight(range)); } catch (e) {}
+}
+function trUnmark(c) { try { c._doc.defaultView.CSS.highlights.delete('snb-tap'); } catch (e) {} }
+function hideTr(instant) {
+  if (!trCard) return;
+  const c = trCard; trCard = null; trSeq++;
+  trUnmark(c);
+  if (instant || reduceMotion()) { c.remove(); return; }
+  c.classList.add('out');
+  setTimeout(() => c.remove(), 220);
+}
+function trShow(text, block, doc, range) {
+  if (!rd) return;
+  text = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!text) return;
+  hideSel();
+  let c = trCard;
+  if (c) { trUnmark(c); c.textContent = ''; }   // כרטיס פתוח — מתחלף במקום, בלי אנימציה נוספת
+  else {
+    c = h('div', 'tr-card'); c.setAttribute('role', 'dialog'); c.setAttribute('aria-label', T('rdTranslate'));
+    rd.els.box.append(c); trCard = c; wireTrDrag(c);
+  }
+  c._doc = doc;
+  if (doc && range) trMark(doc, range);
+  const seq = ++trSeq;
+  const grab = h('div', 'tr-grab');
+  const head = h('div', 'tr-head');
+  const lang = h('span', 'tr-lang'); const word = h('span', 'tr-word', text); word.dir = 'auto';
+  const cp = h('button', 'tr-copy'); cp.type = 'button'; cp.innerHTML = ICON.copy; cp.setAttribute('aria-label', T('rdCopy'));
+  head.append(word, lang, cp);
+  const main = h('div', 'tr-main'); main.dir = 'auto'; main.append(h('div', 'tr-sk'));
+  const dict = h('div', 'tr-dict');
+  const ctx = h('div', 'tr-ctx');
+  const ch = h('div', 'tr-ctx-h'); ch.innerHTML = ICON_SPARK; ch.append(h('span', null, T('trNote')));
+  const cb = h('div', 'tr-ctx-b'); cb.append(h('div', 'tr-sk'), h('div', 'tr-sk short'));
+  ctx.append(ch, cb);
+  c.append(grab, head, main, dict, ctx);
+  let gtText = '';
+  cp.addEventListener('click', async () => { try { await navigator.clipboard.writeText(gtText || text); flashSafe(T('rdCopied')); } catch (e) {} });
+  const tl = trTarget(text);
+  gtQuick(text, tl).then((o) => {
+    if (seq !== trSeq) return;
+    gtText = o.translation;
+    main.textContent = o.translation; main.classList.add('in');
+    if (o.src && o.src !== tl) lang.textContent = langName(o.src);
+    for (const d of o.dict || []) {
+      const alt = d.terms.filter((t) => t !== o.translation);
+      if (!alt.length) continue;
+      const r = h('div', 'tr-pos'); r.dir = 'auto';
+      r.append(h('b', null, d.pos), h('span', null, alt.join(', ')));
+      dict.append(r);
+    }
+  }).catch(() => { if (seq === trSeq) { main.textContent = T('trFail'); main.classList.add('in', 'err'); } });
+  // שכבת ה־AI: מה המילה אומרת כאן (לפי המשפט/הפסקה) + הסבר מונח
+  fetchTranslation(text, contextFor(text, block || text), (rd.rec && rd.rec.title) || '').then((j) => {
+    if (seq !== trSeq) return;
+    if (!j || j.engine !== 'ai' || (!j.note && j.translation === gtText)) { ctx.remove(); return; }
+    cb.textContent = '';
+    const t = h('div', 'tr-ctx-t', j.translation); t.dir = 'auto'; cb.append(t);
+    if (j.note) { const n = h('div', 'tr-ctx-n', j.note); n.dir = 'auto'; cb.append(n); }
+    cb.classList.add('in');
+  }).catch(() => { if (seq === trSeq) ctx.remove(); });
+}
+function wireTrDrag(c) {                   // החלקה למטה סוגרת (כמו גיליון של Apple)
+  let y0 = null, dy = 0;
+  c.addEventListener('pointerdown', (e) => { if (c.scrollTop > 0) return; y0 = e.clientY; dy = 0; c.style.transition = 'none'; });
+  c.addEventListener('pointermove', (e) => { if (y0 == null) return; dy = Math.max(0, e.clientY - y0); c.style.transform = dy ? 'translateY(' + dy + 'px)' : ''; });
+  const up = () => {
+    if (y0 == null) return; y0 = null; c.style.transition = '';
+    if (dy > 70) hideTr(); else c.style.transform = '';
+  };
+  c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
 }
 
 /* ---------------- תוכן עניינים + גיליון Aa ---------------- */
@@ -3252,6 +3434,7 @@ function onPop() {
   }
   if (lvl === 2 && st.guard && rd && !rd.closing) {   // "חזור" ראשון בקורא: נחת על השומר
     if (selPop) hideSel();
+    else if (trCard) hideTr();               // v333: "חזור" סוגר את כרטיס התרגום
     else if (typeof flash === 'function') flash(T('rdBackTwice'));
     return;
   }
@@ -3271,7 +3454,7 @@ function curtainDown() {
 }
 function closeLibrary() {
   const r = root; root = null;
-  hideSel();
+  hideSel(); hideTr(true);
   document.documentElement.classList.remove('lib-open');
   if (reduceMotion()) { r.remove(); return; }
   r.classList.add('leaving');
