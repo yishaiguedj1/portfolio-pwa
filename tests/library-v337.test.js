@@ -29,7 +29,7 @@ ok(/navigator\.clipboard\.writeText\(sel \? sel\.text : text\)/.test(lib), 'הע
 // ויקיפדיה לכל מילה
 const wq = pure('wikiQueries');
 ok(JSON.stringify(wq('האתוס')) === '["האתוס","אתוס"]' && JSON.stringify(wq('ובהשקעה')) === '["ובהשקעה","בהשקעה","השקעה"]' && JSON.stringify(wq('ethos')) === '["ethos"]', 'עברית: גם בלי תחיליות ("האתוס" → "אתוס")');
-ok(/for \(const w of wikiQueries\(q\)\)/.test(lib) && !/wikiExact/.test(lib), 'בלי דרישת התאמה מדויקת — הערך הראשון שאינו פירושונים');
+ok(/for \(const s of wikiQueries\(q\)\)/.test(lib) && !/wikiExact/.test(lib), 'בלי דרישת התאמה מדויקת — הערך הראשון שאינו פירושונים');
 ok(/"wished" -> "Wish"/.test(proxy) && /leave it empty only for function words/.test(proxy), 'השרתון: שם ערך גם למילה רגילה (צורת הבסיס)');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
 ok(!!v && swVersionOk(v), 'גרסה');

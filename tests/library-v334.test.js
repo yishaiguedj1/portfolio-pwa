@@ -35,8 +35,8 @@ ok(/dt=md&dt=ss&dt=rm/.test(lib) && /dt=md&dt=ss&dt=rm/.test(fs.readFileSync(pat
 // ---------- ויקיפדיה ----------
 const wikiWord = pure('wikiWord');
 ok(wikiWord('“wished,”') === 'wished' && wikiWord('הָאֶתוֹס') === 'האתוס' && wikiWord('a') === '', 'v337: ויקיפדיה לכל מילה — המילה לחיפוש בלי ניקוד ופיסוק');
-ok(/wikiFromDict\(text, o\)/.test(lib), 'ויקיפדיה לכל מילה (v340: לפי המילון)');
-ok(/prop=langlinks&lllang=he/.test(lib) && /api\/rest_v1\/page\/summary\//.test(lib) && /j\.type === 'disambiguation'/.test(lib), 'ערך בעברית דרך הקישור מהאנגלית; בלי דפי פירושונים');
+ok(/wikiKindle\(text\)/.test(lib), 'ויקיפדיה לכל מילה (v341: כמו בקינדל)');
+ok(/prop=langlinks&lllang=' \+ tl/.test(lib) && /api\/rest_v1\/page\/summary\//.test(lib) && /j\.type === 'disambiguation'/.test(lib), 'ערך בשפת המשתמש דרך הקישור הבין־לשוני; בלי דפי פירושונים');
 ok(/connect-src[^;]*https:\/\/en\.wikipedia\.org https:\/\/he\.wikipedia\.org/.test(html), 'CSP מאפשר את ויקיפדיה');
 ok(/T\('trWiki'\) \+ ' · CC BY-SA'/.test(lib), 'קרדיט לפי הרישיון');
 

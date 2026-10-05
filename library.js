@@ -3406,17 +3406,6 @@ async function wikiSummary(lang, title, enTitle) {
   return { lang, title: j.title, desc: j.description || '', sub: [enTitle && enTitle !== j.title ? enTitle : '', j.description || ''].filter(Boolean).join(' · '),
     extract: gtClip(j.extract, 1400), thumb: (j.thumbnail || {}).source || '', url: ((j.content_urls || {}).mobile || {}).page || '' };
 }
-/* v337 (בקשת המשתמש): ויקיפדיה לכל מילה — לא רק למונחים. קודם שם הערך מה־AI (לפי ההקשר), ואם אין/לא נמצא —
-   חיפוש כותרת על המילה (3 תוצאות, הראשונה שאינה דף פירושונים). ממשק בעברית — הערך העברי כשיש קישור בין־לשוני */
-async function wikiTitle(enTitle) {
-  if (uiLang() === 'he') {
-    const ll = await wjson('https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=he&redirects=1&format=json&formatversion=2&origin=*&titles=' + encodeURIComponent(enTitle));
-    const pg = ll && ll.query && ll.query.pages && ll.query.pages[0];
-    const heT = pg && pg.langlinks && pg.langlinks[0] && pg.langlinks[0].title;
-    if (heT) { const r = await wikiSummary('he', heT, pg.title || enTitle); if (r) return r; }
-  }
-  return wikiSummary('en', enTitle);
-}
 export function wikiQueries(q) {          // מה לחפש: המילה, ובעברית גם בלי תחיליות (ה/ו/ב/ל/מ/ש/כ — "האתוס" → "אתוס") — טהורה
   const out = q ? [q] : [];
   if (/^[\u05D0-\u05EA]/.test(q)) { let w = q; for (let i = 0; i < 2 && w.length > 3 && /^[הובלמשכ]/.test(w); i++) { w = w.slice(1); out.push(w); } }
@@ -3425,28 +3414,6 @@ export function wikiQueries(q) {          // מה לחפש: המילה, ובעב
 export function wikiWord(word) {           // המילה לחיפוש: בלי ניקוד וסימני פיסוק בקצוות; מילה של אות אחת — בלי ויקיפדיה — טהורה
   const w = String(word || '').replace(/[\u0591-\u05C7]/g, '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').trim();
   return w.length >= 2 ? w.slice(0, 80) : '';
-}
-function wikiLookup(enTitle, word) {
-  const q = wikiWord(word);
-  const k = (enTitle || '') + '|' + q + '|' + uiLang();
-  if (wikiCache.has(k)) return wikiCache.get(k);
-  const p = (async () => {
-    if (enTitle) { const r = await wikiTitle(enTitle); if (r) return r; }
-    if (!q) return null;
-    const lang = /[\u0590-\u05FF]/.test(q) ? 'he' : 'en';
-    for (const w of wikiQueries(q)) {
-      const s = await wjson('https://' + lang + '.wikipedia.org/w/rest.php/v1/search/title?q=' + encodeURIComponent(w) + '&limit=3');
-      for (const pg of (s && s.pages) || []) {
-        const r = lang === 'he' ? await wikiSummary('he', pg.title) : await wikiTitle(pg.title);
-        if (r) return r;
-      }
-    }
-    return null;
-  })();
-  const out = p.then((r) => wikiInLang(r));
-  out.catch(() => wikiCache.delete(k));
-  wikiCache.set(k, out); if (wikiCache.size > 200) wikiCache.clear();
-  return out;
 }
 /* v339 (בקשת המשתמש): ויקיפדיה תמיד בשפת המשתמש — ערך שאין לו גרסה בשפה הזו מתורגם (כותרת + תקציר) באותו מנוע של
    Google שמתרגם את המילה; השם המקורי נשאר בשורת המשנה, והקרדיט מציין "תורגם". תקלה — נשאר במקור */
@@ -3465,20 +3432,53 @@ async function wikiInLang(w) {
   if (!extract) return w;
   return Object.assign({}, w, { title: title || w.title, extract, sub: [w.title, desc].filter(Boolean).join(' · '), tr: w.lang });
 }
-/* v340 (בקשת המשתמש): "בהקשר הזה" (AI) הוסר מהקורא — ויקיפדיה לפי המילון של Google, שנמצא מדויק לא פחות.
-   אנגלית: צורת הבסיס מהמילון (followed → follow); עברית: המילה (גם בלי תחיליות), ואם אין ערך — התרגום לאנגלית,
-   ומשם לערך המקביל בשפת המשתמש */
-async function wikiFromDict(text, o) {
-  const he = /^(iw|he)/.test((o && o.src) || '') || /[\u0590-\u05FF]/.test(text);
-  const first = await wikiLookup('', he ? text : ((o && o.base) || text));
-  if (first || !he || !o || !o.translation) return first;
-  const en = String(o.translation).replace(/[\u0591-\u05C7]/g, '').replace(/^(the|a|an)\s+/i, '').trim();
-  return en && !/[\u0590-\u05FF]/.test(en) ? wikiLookup('', en) : null;
+/* v341 (בקשת המשתמש): ויקיפדיה כמו בקינדל — החיפוש הוא על הטקסט שנבחר כמו שהוא (מילה או ביטוי), בוויקיפדיה של שפת
+   הספר (מילה בכתב אחר — בשפה של הכתב), והתוצאה הראשונה של מנוע החיפוש של ויקיפדיה (שמטפל בהפניות ובנטיות).
+   אין ערך — הכרטיס אומר את זה (כמו בקינדל), לא נעלם. התוספת שלנו: הערך בשפת המשתמש — הערך המקביל, ואם אין — תרגום אוטומטי */
+export function wikiLangFor(q, bookLang) {  // באיזו ויקיפדיה לחפש — טהורה
+  const l = String(bookLang || '').toLowerCase().replace(/^iw/, 'he').slice(0, 2);
+  if (/[\u0590-\u05FF]/.test(q)) return 'he';
+  if (/[\u0600-\u06FF]/.test(q)) return /^(ar|fa|ur)$/.test(l) ? l : 'ar';
+  if (/[a-z]/i.test(q)) return /^[a-z]{2}$/.test(l) && l !== 'he' && l !== 'ar' && l !== 'fa' ? l : 'en';
+  return /^[a-z]{2}$/.test(l) ? l : 'en';
+}
+function bookLang() {
+  try { return String([].concat((rd && rd.book && rd.book.metadata && rd.book.metadata.language) || [])[0] || ''); } catch (e) { return ''; }
+}
+async function wikiOtherLang(src, w, tl) {   // הערך המקביל בשפת המשתמש (קישור בין־לשוני)
+  const ll = await wjson('https://' + src + '.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=' + tl + '&redirects=1&format=json&formatversion=2&origin=*&titles=' + encodeURIComponent(w.title));
+  const pg = ll && ll.query && ll.query.pages && ll.query.pages[0];
+  const t = pg && pg.langlinks && pg.langlinks[0] && pg.langlinks[0].title;
+  if (!t) return null;
+  const r = await wikiSummary(tl, t);
+  return r ? Object.assign(r, { sub: [w.title, r.desc].filter(Boolean).join(' · ') }) : null;
+}
+function wikiKindle(text) {
+  const q = wikiWord(text);
+  if (!q) return Promise.resolve(null);
+  const lang = wikiLangFor(q, bookLang()), tl = uiLang();
+  const k = 'k|' + lang + '|' + q + '|' + tl;
+  if (wikiCache.has(k)) return wikiCache.get(k);
+  const out = (async () => {
+    let w = null;
+    for (const s of wikiQueries(q)) {        // בעברית גם בלי תחיליות — מנוע החיפוש העברי לא מסיר אותן
+      const j = await wjson('https://' + lang + '.wikipedia.org/w/api.php?action=query&list=search&srlimit=3&srprop=&format=json&formatversion=2&origin=*&srsearch=' + encodeURIComponent(s));
+      for (const pg of (j && j.query && j.query.search) || []) { w = await wikiSummary(lang, pg.title); if (w) break; }
+      if (w) break;
+    }
+    if (!w) return { none: true };
+    if (w.lang === tl) return w;
+    return (await wikiOtherLang(lang, w, tl)) || wikiInLang(w);
+  })();
+  out.catch(() => wikiCache.delete(k));
+  wikiCache.set(k, out); if (wikiCache.size > 200) wikiCache.clear();
+  return out;
 }
 function wikiSection(c, w, seq) {
   if (!w || seq !== trSeq || !c.isConnected) return;
   const { sec, body } = trSection('wiki', [h('span', null, T('trWiki'))], false);
   sec.classList.add('wk');
+  if (w.none) { body.append(h('div', 'wk-none', T('trWikiNone'))); c.append(sec); return; }
   const top = h('div', 'wk-title'); const tt = h('div'); tt.dir = 'auto';
   tt.append(h('b', null, w.title)); if (w.sub) tt.append(h('small', null, w.sub));
   top.append(tt);
@@ -3538,6 +3538,7 @@ function trShow(text, block, doc, range, sel) {
   let gtText = '';
   cp.addEventListener('click', async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(sel ? sel.text : text); flashSafe(T('rdCopied')); } catch (er) {} });
   const tl = trTarget(text);
+  wikiKindle(text).then((w) => wikiSection(c, w, seq)).catch(() => {});
   gtQuick(text, tl).then((o) => {
     if (seq !== trSeq) return;
     gtText = o.translation; c._src = o.src;
@@ -3552,11 +3553,9 @@ function trShow(text, block, doc, range, sel) {
     } else if (o.ipa) ipa.textContent = '/' + o.ipa + '/';
     const rows = dictRows(o, heSrc);
     if (rows) { dbody.append(rows); dsec.classList.remove('nodict'); }
-    wikiFromDict(text, o).then((w) => wikiSection(c, w, seq)).catch(() => {});
   }).catch(() => {
     if (seq !== trSeq) return;
     main.textContent = T('trFail'); main.classList.add('in', 'err');
-    wikiLookup('', text).then((w) => wikiSection(c, w, seq)).catch(() => {});
   });
 }
 /* v334: כמו גיליון של Apple עם שני גבהים — נפתח בגובה בינוני (לא מסתיר את הדף), גרירה לכיוון מרכז המסך = מלא,

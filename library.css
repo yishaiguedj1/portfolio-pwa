@@ -310,6 +310,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .wk-title small { display: block; font-size: 12.5px; color: var(--rd-ink2); }
 .wk-img { width: 48px; height: 48px; border-radius: 9px; object-fit: cover; flex: none; margin-inline-start: auto; }
 .tr-sec.fold .wk-img, .tr-sec.fold .wk-foot { display: none; }
+.wk-none { font-size: 14px; color: var(--rd-ink2); padding: 2px 0; }
 .wk-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: .5px solid color-mix(in srgb, var(--rd-ink) 15%, transparent); font-size: 12px; color: var(--rd-ink2); }
 .tr-card .wk-more { color: #1A9B45; background: none; border: 0; font-size: 13.5px; padding: 0; }
 .rd[data-dark="1"] .tr-card .wk-more { color: #30D158; }

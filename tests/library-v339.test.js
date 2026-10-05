@@ -19,7 +19,7 @@ ok(/store\.get\('ins', \[id, item\.md5\]\)/.test(libApi) && /store\.allow\(user\
 const tm = TRANSLATE_MODELS();
 ok(tm[0] === 'gemini-3.5-flash-lite' && !tm.some((m) => /gemini-(flash-latest|3\.8-flash|2\.5)/.test(m)), 'תרגום: Flash-Lite בלבד (3.5 ראשון), בלי Flash היקר ובלי 2.5 שהוסר');
 ok(tr.indexOf('out = await gemini(') < tr.indexOf('out = await mistral('), 'Gemini ראשון, Ministral (חינמי) גיבוי');
-ok(/const out = p\.then\(\(r\) => wikiInLang\(r\)\)/.test(lib) && /if \(!w \|\| w\.lang === tl\) return w;/.test(lib), 'ויקיפדיה תמיד בשפת המשתמש — ערך בשפה אחרת מתורגם');
+ok(/\|\| wikiInLang\(w\)/.test(lib) && /if \(!w \|\| w\.lang === tl\) return w;/.test(lib), 'ויקיפדיה תמיד בשפת המשתמש — ערך בשפה אחרת מתורגם');
 ok(/gtLong\(w\.title, tl\), gtLong\(w\.extract, tl\)/.test(lib) && /T\('trWikiTr'\)/.test(lib) && /trWikiTr: 'תורגם אוטומטית'/.test(app), 'תרגום כותרת ותקציר + ציון "תורגם אוטומטית" בקרדיט');
 ok(/if \(!extract\) return w;/.test(lib), 'תקלה בתרגום — נשאר במקור (לא ריק)');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
