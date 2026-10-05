@@ -3,6 +3,7 @@
    כל הטענות חייבות להישען על הטקסט (ההנחיה אוסרת להמציא מספרים/ציטוטים). מפתח: GEMINI_API_KEY (Vercel בלבד). */
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const { INSIGHT_MODELS: MODELS } = require('./gmodels');
+const { mistralJSON } = require('./mistral');
 const THINKERS = ['graham', 'fisher', 'buffett', 'munger', 'ackman', 'lynch', 'marks', 'klarman', 'greenblatt', 'pabrai'];
 
 function insightPrompt(title, text) {
@@ -69,6 +70,11 @@ async function insight(title, text, fetchImpl, diag = {}) {
       if (out) return { insight: Object.assign(out, { model }) };
     } catch (e) { diag[model + ':ex'] = String(e && e.message || e).slice(0, 60); } finally { clearTimeout(to); }
   }
-  return { error: q429 && q429 === tried ? 'quota' : 'ai_failed' };
+  // v334: כל מודלי Gemini נכשלו — Mistral Medium כגיבוי אחרון (הקשר של 256 אלף טוקנים, מכתב שלם נכנס)
+  const m = await mistralJSON(sys + ' Reply only with a JSON object with the fields summary, ideas, lens, terms, question.', user, diag,
+    { models: ['mistral-medium-latest'], ms: Math.max(8000, 55000 - (Date.now() - started)), maxTokens: 3000, fetch: fetchImpl });
+  const mo = m.out && cleanInsight(m.out);
+  if (mo) return { insight: Object.assign(mo, { model: m.model }) };
+  return { error: q429 && q429 === tried && (m.error === 'quota' || m.error === 'no_key') ? 'quota' : 'ai_failed' };
 }
 module.exports = { insight, insightPrompt, cleanInsight, THINKERS };

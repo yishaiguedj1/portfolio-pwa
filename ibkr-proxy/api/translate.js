@@ -6,6 +6,7 @@
    והאפליקציה מציינת שזה תרגום בסיסי. רק טקסט מהספר — שום נתון של המשתמש. */
 const { guard } = require('../lib/ibkr');
 const { TRANSLATE_MODELS, badScript } = require('../lib/gmodels');
+const { mistralJSON } = require('../lib/mistral');
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const MODELS = TRANSLATE_MODELS;
@@ -33,7 +34,10 @@ function prompt(text, context, title, lang) {
     '(the surrounding sentence/paragraph of the book named in TITLE). Choose the sense that fits the context, keep the author\'s tone, ' +
     'keep names, tickers and numbers as they are. Write only in the script of ' + target + ' (never mix in letters of other alphabets). If the selection is already in ' + target + ', explain it briefly in ' + target + ' instead. ' +
     'If the selection is a professional term or idiom (finance, accounting, insurance, law), add one short sentence in ' + target +
-    ' explaining what it means here; otherwise leave "note" empty. Reply only with the JSON fields.';
+    ' explaining what it means here; otherwise leave "note" empty. ' +
+    'Also return "wiki": the exact title of the English Wikipedia article about the concept as it is used HERE (for example "moat" in an investing letter -> "Economic moat"; a company or person -> its article), ' +
+    'or an empty string when the selection is an ordinary word that does not merit an encyclopedia article. ' +
+    'Reply only with a JSON object with the fields "translation", "note" and "wiki".';
   const user = 'TITLE: ' + (title || '-') + '\nCONTEXT: ' + (context || '-') + '\nSELECTED: ' + text;
   return { sys, user };
 }
@@ -49,7 +53,7 @@ async function gemini(text, context, title, lang, diag) {
     generationConfig: {
       temperature: 0.2, maxOutputTokens: 2048,   // v333: במודלי "חשיבה" טוקני החשיבה נספרים כאן — 600 חתך את ה־JSON (נמדד חי)
       responseMimeType: 'application/json',
-      responseSchema: { type: 'OBJECT', properties: { translation: { type: 'STRING' }, note: { type: 'STRING' } }, required: ['translation'] },
+      responseSchema: { type: 'OBJECT', properties: { translation: { type: 'STRING' }, note: { type: 'STRING' }, wiki: { type: 'STRING' } }, required: ['translation'] },
     },
   });
   let q429 = 0, tried = 0;
@@ -71,7 +75,7 @@ async function gemini(text, context, title, lang, diag) {
       const out = JSON.parse(txt);
       if (badScript(out && out.translation, lang) || badScript(out && out.note, lang)) { diag[model + ':err'] = 'mixed_script'; diag[model + ':txt'] = clean((out.translation || '') + ' | ' + (out.note || ''), 160); continue; }
       if (out && typeof out.translation === 'string' && out.translation.trim()) {
-        return { translation: clean(out.translation, 2000), note: clean(out.note || '', 600), engine: 'ai', model };
+        return { translation: clean(out.translation, 2000), note: clean(out.note || '', 600), wiki: clean(out.wiki || '', 120), engine: 'ai', provider: 'gemini', model };
       }
     } catch (e) { diag[model + ':ex'] = String(e && e.message || e).slice(0, 80); } finally { clearTimeout(to); }
   }
@@ -99,6 +103,17 @@ async function quick(text, lang) {
     const out = parseGt(await r.json());
     return out ? Object.assign(out, { engine: 'google' }) : null;
   } catch (e) { return null; } finally { clearTimeout(to); }
+}
+
+/* v334: "בהקשר הזה" — Mistral ראשון (מכסה גדולה), Gemini גיבוי. אותה הנחיה, אותו מבנה, ואותה פסילה של כתב מעורב */
+async function mistral(text, context, title, lang, diag) {
+  const { sys, user } = prompt(text, context, title, lang);
+  const r = await mistralJSON(sys, user, diag);
+  if (!r.out) return r.error === 'quota' ? { quota: true } : null;
+  const o = r.out;
+  if (typeof o.translation !== 'string' || !o.translation.trim()) return null;
+  if (badScript(o.translation, lang) || badScript(o.note, lang)) { diag['mistral:' + r.model + ':err'] = 'mixed_script'; return null; }
+  return { translation: clean(o.translation, 2000), note: clean(o.note || '', 600), wiki: clean(o.wiki || '', 120), engine: 'ai', provider: 'mistral', model: r.model };
 }
 
 async function basic(text, lang) {
@@ -135,13 +150,19 @@ module.exports = async (req, res) => {
     cache.set(qk, v);
     return res.status(200).json(v);
   }
-  const key = lang + '|' + text + '|' + context;
+  const only = body.only === 'mistral' || body.only === 'gemini' ? body.only : '';   // השוואת איכות (שלב 2) — ספק אחד בלבד
+  const key = lang + '|' + text + '|' + context + '|' + only;
   const hit = cache.get(key);
   if (hit) return res.status(200).json(hit);
   const diag = {};
-  let out = await gemini(text, context, title, lang, diag);
-  const quota = !!(out && out.quota);
-  if (!out || quota) out = await basic(text, lang);
+  let out = only === 'gemini' ? null : await mistral(text, context, title, lang, diag);
+  const mq = !!(out && out.quota);
+  if (mq) out = null;
+  let gq = false;
+  if (!out && only !== 'mistral') { out = await gemini(text, context, title, lang, diag); gq = !!(out && out.quota); if (gq) out = null; }
+  // "מכסה" רק כשכל הספקים שנוסו החזירו מכסה (בלי מפתח — לא נחשב)
+  const quota = !out && (only === 'mistral' ? mq : only === 'gemini' ? gq : (mq || !diag.mistralKey) && gq);
+  if (!out) out = await basic(text, lang);
   if (!out) return res.status(502).json({ ok: false, error: 'translate_failed' });
   const v = Object.assign({ ok: true, quota }, out, { diag });
   cache.set(key, v);

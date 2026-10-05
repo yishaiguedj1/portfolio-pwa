@@ -5,8 +5,8 @@
 const uniq = (a) => a.filter((m, i) => m && a.indexOf(m) === i);
 // תרגום: קצר ותדיר — המהיר והזול קודם
 const TRANSLATE_MODELS = () => uniq([process.env.GEMINI_MODEL, 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash']);
-// ניתוח מכתב: פעם אחת לכל מכתב (נשמר בטלפון) — האיכותי קודם, ובמכסה ממשיכים ל־Lite
-const INSIGHT_MODELS = () => uniq([process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite']);
+// ניתוח מכתב (v334, החלטת המשתמש): Flash-Lite ראשון — מכסה גדולה והקשר של מיליון טוקנים; Flash גיבוי, ואחריו Mistral (lib/insight.js)
+const INSIGHT_MODELS = () => uniq([process.env.GEMINI_INSIGHT_MODEL, 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash']);
 // תשובה בעברית שמכילה אותיות ערביות ("חפير" — נמצא בתשובה חיה) — פסולה, עוברים למודל הבא
 const badScript = (s, lang) => lang === 'he' && /[؀-ۿ]/.test(String(s || ''));
 module.exports = { TRANSLATE_MODELS, INSIGHT_MODELS, badScript };

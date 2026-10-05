@@ -537,17 +537,59 @@ function stubFetch(text, status = 200) {
     ok(p.sys.includes('עברית') && p.sys.includes('CONTEXT'), 'translate: ההנחיה מבקשת תרגום לפי ההקשר');
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
   }
-  /* v333: ניתוח מכתב — Flash קודם (איכות), ו־429 ממשיך ל־Lite במקום "המכסה נגמרה" */
+  /* v334: ניתוח מכתב — Flash-Lite ראשון (החלטת המשתמש), Flash גיבוי, Mistral אחרון */
   {
     const { insight } = require('../lib/insight');
-    const oldKey = process.env.GEMINI_API_KEY; process.env.GEMINI_API_KEY = 'k';
+    const oldKey = process.env.GEMINI_API_KEY, oldM = process.env.MISTRAL_API_KEY; process.env.GEMINI_API_KEY = 'k'; delete process.env.MISTRAL_API_KEY;
     const seen = [];
     const good = { status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'תקציר', ideas: ['א'], question: 'ש' }) }] } }] }) };
-    let o = await insight('T', 'text', async (u) => { const m = String(u).split('/models/')[1].split(':')[0]; seen.push(m); return /lite/.test(m) ? good : { status: 429, json: async () => ({}) }; });
-    ok(seen[0] === 'gemini-flash-latest' && o.insight && /lite/.test(o.insight.model), 'insight: Flash במכסה (429) — ממשיכים ל־Flash-Lite ומחזירים ניתוח');
+    const name = (u) => (String(u).includes('/models/') ? String(u).split('/models/')[1].split(':')[0] : 'mistral');
+    let o = await insight('T', 'text', async (u) => { const m = name(u); seen.push(m); return /lite/.test(m) ? { status: 429, json: async () => ({}) } : good; });
+    ok(/lite/.test(seen[0]) && o.insight && !/lite/.test(o.insight.model), 'insight: Flash-Lite ראשון; במכסה (429) — ממשיכים ל־Flash');
     o = await insight('T', 'text', async () => ({ status: 429, json: async () => ({}) }));
-    ok(o.error === 'quota', 'insight: "מכסה" רק כשכל המודלים החזירו 429');
+    ok(o.error === 'quota', 'insight: "מכסה" רק כשכל המודלים החזירו 429 (בלי מפתח Mistral)');
+    process.env.MISTRAL_API_KEY = 'mk'; const calls2 = [];
+    o = await insight('T', 'text', async (u, opt) => { calls2.push({ u: String(u), opt }); if (String(u).includes('mistral.ai')) return { status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify({ summary: 'תקציר ממיסטרל', ideas: ['א'], question: 'ש' }) } }] }) }; return { status: 429, json: async () => ({}) }; });
+    const mc = calls2.find((c) => c.u.includes('mistral.ai'));
+    ok(o.insight && o.insight.summary === 'תקציר ממיסטרל' && o.insight.model === 'mistral-medium-latest', 'insight: כל Gemini במכסה — Mistral Medium כגיבוי אחרון, והמודל מדווח');
+    ok(mc && mc.opt.headers.Authorization === 'Bearer mk' && !mc.u.includes('mk'), 'insight: מפתח Mistral בכותרת, לא בכתובת');
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
+    if (oldM === undefined) delete process.env.MISTRAL_API_KEY; else process.env.MISTRAL_API_KEY = oldM;
+  }
+  /* v334: "בהקשר הזה" — Mistral ראשון, Gemini גיבוי, שם המודל בתשובה */
+  {
+    const translate = require('../api/translate');
+    const oldG = process.env.GEMINI_API_KEY, oldM = process.env.MISTRAL_API_KEY;
+    process.env.GEMINI_API_KEY = 'g'; process.env.MISTRAL_API_KEY = 'm';
+    const calls = [];
+    const mOk = (o) => ({ status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify(o) } }] }) });
+    const gOk = (o) => ({ status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(o) }] } }] }) });
+    const run = async (body) => { const r = mockRes(); await translate(mockReq({ body }), r); return r; };
+    const set = (fn) => { global.fetch = async (u, opt) => { calls.push({ u: String(u), opt }); return fn(String(u), opt); }; };
+    translate._cache.clear(); translate._hits.clear(); calls.length = 0;
+    set((u) => (u.includes('mistral.ai') ? mOk({ translation: 'חפיר כלכלי', note: 'יתרון תחרותי עמיד', wiki: 'Economic moat' }) : gOk({ translation: 'x' })));
+    let r = await run({ text: 'moat', context: 'a wide moat', title: 'T' });
+    const sent = JSON.parse(calls[0].opt.body);
+    ok(r.payload.provider === 'mistral' && r.payload.model === 'mistral-medium-latest' && r.payload.wiki === 'Economic moat' && !calls.some((c) => c.u.includes('googleapis')),
+      'context: Mistral ראשון — תרגום, הערה, שם ערך ויקיפדיה ושם המודל; בלי פנייה ל־Gemini');
+    ok(sent.response_format.type === 'json_object' && /wiki/.test(sent.messages[0].content) && sent.messages[1].content.includes('a wide moat'), 'context: JSON בלבד, ההנחיה מבקשת גם ערך ויקיפדיה, וההקשר נשלח');
+    translate._cache.clear(); calls.length = 0;
+    set((u) => (u.includes('mistral.ai') ? { status: 429, json: async () => ({}) } : gOk({ translation: 'צף', note: '', wiki: '' })));
+    r = await run({ text: 'float', context: 'insurance float' });
+    ok(r.payload.provider === 'gemini' && /lite/.test(r.payload.model) && r.payload.quota === false && calls.filter((c) => c.u.includes('mistral.ai')).length === 2,
+      'context: Mistral במכסה (שני המודלים) — Gemini Flash-Lite, בלי "מכסה" למשתמש');
+    translate._cache.clear(); calls.length = 0;
+    set((u) => (u.includes('mistral.ai') ? mOk({ translation: 'חפير', note: '' }) : gOk({ translation: 'חפיר' })));
+    r = await run({ text: 'moat', context: 'c' });
+    ok(r.payload.provider === 'gemini' && r.payload.translation === 'חפיר', 'context: כתב מעורב מ־Mistral נפסל — Gemini');
+    translate._cache.clear(); calls.length = 0;
+    set((u) => (u.includes('mistral.ai') ? mOk({ translation: 'ממיסטרל' }) : gOk({ translation: 'מג׳מיני' })));
+    r = await run({ text: 'moat', context: 'c', only: 'gemini' });
+    ok(r.payload.provider === 'gemini' && !calls.some((c) => c.u.includes('mistral.ai')), 'השוואה: only=gemini — רק Gemini');
+    r = await run({ text: 'moat', context: 'c', only: 'mistral' });
+    ok(r.payload.provider === 'mistral' && r.payload.translation === 'ממיסטרל', 'השוואה: only=mistral — רק Mistral');
+    if (oldG === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldG;
+    if (oldM === undefined) delete process.env.MISTRAL_API_KEY; else process.env.MISTRAL_API_KEY = oldM;
   }
 
   /* ---------- האקדמיה שלב 2: /api/library — Drive + אימות קוראים ---------- */
