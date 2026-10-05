@@ -16,6 +16,8 @@ const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true) : d; };
 const OUT = path.resolve(String(arg('out', 'qa-motion-out')));
 const MONKEY = +arg('monkey', 0), SEED = +arg('seed', 7);
+const SESSION = String(arg('session', 'CLOSED')).toUpperCase(), SNAP = arg('snap', ''), COMPARE = arg('compare', '');
+const LIVE = { tick: 0, fail: false, slowHist: false };   // v325: המחירים זזים בכל בקשה (ספרות מתגלגלות), כשל מוזרק, היסטוריה איטית
 const THEME = arg('theme', 'light'), WIDTH = +arg('width', 390), RM = !!arg('rm', false), LANG = arg('lang', 'he');
 const CPU = +arg('cpu', 1), NET = arg('net', ''), ONLY = arg('only', ''), FRAMES = !!arg('frames', false), DBG = !!arg('debug-scroll', false), MAXSTEPS = +arg('steps', 0);
 const BASE = 'http://localhost:8792';
@@ -52,6 +54,7 @@ function epub(title, author, ident, lang, series) {
     { name: 'OEBPS/c1.xhtml', data: ch(1) }, { name: 'OEBPS/c2.xhtml', data: ch(2) },
   ]);
 }
+const BULK = Array.from({ length: 50 }, (_, i) => ({ name: 'bulk' + i + '.epub', data: epub('ספר עומס מספר ' + i, ['כותב א', 'כותב ב', 'כותב ג'][i % 3], 'id-bulk-' + i, 'he') }));
 const BOOKS = [
   ['m1', 'Rich Dad Poor Dad', 'Robert Kiyosaki', 'en'], ['m2', "Rich Dad's Cashflow Quadrant", 'Robert Kiyosaki', 'en'], ['m3', 'The Subtle Art', 'Mark Manson', 'en'],
   ['m4', 'קיצור תולדות האנושות', 'יובל נח הררי', 'he'], ['m5', 'The Snowball', 'Alice Schroeder', 'en'], ['m6', 'לחשוב מהר, לחשוב לאט', 'דניאל כהנמן', 'he'],
@@ -74,15 +77,15 @@ const DB = {
 
 /* ---------- רשת מדומה: שרתון (מחירים/היסטוריה/לוגואים/ספרייה), Firebase, Yahoo, לוגואים ---------- */
 function quoteJson(sym) {
-  const p = PX[sym] || 100;
+  const p = (PX[sym] || 100) * (1 + Math.sin(LIVE.tick / 3 + (sym.length)) * 0.002);   // תנודה קטנה בכל בקשה — גלגול ספרות בלי שינוי פריסה
   const now = Math.floor(Date.now() / 1000), day = now - (now % 86400);
   const ts = [], cl = [];
   for (let i = 0; i < 60; i++) { ts.push(day + 14.5 * 3600 + i * 60); cl.push(p * (1 + Math.sin(i / 7) * 0.004)); }
-  return { chart: { result: [{ meta: { currency: sym.endsWith('.TA') ? 'ILA' : 'USD', regularMarketPrice: p, chartPreviousClose: p * 0.991, previousClose: p * 0.991, gmtoffset: -14400, regularMarketTime: ts[ts.length - 1], currentTradingPeriod: { regular: { start: day + 13.5 * 3600, end: day + 20 * 3600 }, pre: { start: day + 8 * 3600, end: day + 13.5 * 3600 }, post: { start: day + 20 * 3600, end: day + 24 * 3600 } }, longName: sym + ' Inc.' }, timestamp: ts, indicators: { quote: [{ close: cl }] } }], error: null }, x: { state: 'CLOSED', reg: { p: p, ch: p * 0.009, pct: 0.9 }, post: { p: p * 1.001, ch: p * 0.001, pct: 0.1, t: now } } };
+  return { chart: { result: [{ meta: { currency: sym.endsWith('.TA') ? 'ILA' : 'USD', regularMarketPrice: p, chartPreviousClose: p * 0.991, previousClose: p * 0.991, gmtoffset: -14400, regularMarketTime: ts[ts.length - 1], currentTradingPeriod: { regular: { start: day + 13.5 * 3600, end: day + 20 * 3600 }, pre: { start: day + 8 * 3600, end: day + 13.5 * 3600 }, post: { start: day + 20 * 3600, end: day + 24 * 3600 } }, longName: sym + ' Inc.' }, timestamp: ts, indicators: { quote: [{ close: cl }] } }], error: null }, x: { state: SESSION, reg: { p: p, ch: p * 0.009, pct: 0.9 }, pre: { p: p * 0.998, ch: -p * 0.002, pct: -0.2, t: now }, post: { p: p * 1.001, ch: p * 0.001, pct: 0.1, t: now }, night: { p: p * 1.002, ch: p * 0.002, pct: 0.2, t: now } } };
 }
 function histJson(syms, range) {
   const out = {};
-  const days = range === '1d' || range === '5d' ? 0 : range === 'max' ? 2600 : 1300;
+  const days = range === '1d' || range === '5d' ? 0 : (range === 'max' || /7y|10y/.test(String(range))) ? 2700 : 1300;
   const today = Math.floor(Date.now() / 86400000);
   for (const s of syms) {
     const p = PX[s] || 100, t = [], c = [];
@@ -95,13 +98,15 @@ function histJson(syms, range) {
 async function routes(ctx) {
   const J = (r, o, st) => r.fulfill({ status: st || 200, contentType: 'application/json', body: JSON.stringify(o), headers: { 'access-control-allow-origin': '*' } });
   await ctx.route(/gstatic|googleapis|firebase|yahoo|cnbc|stooq|frankfurter|er-api|wikimedia|financialmodelingprep|tradingview|accounts\.google/, (r) => r.abort());
-  await ctx.route(/\/api\/quotes/, (r) => { const b = JSON.parse(r.request().postData() || '{}'); const data = {}; (b.syms || []).forEach((s) => { data[s] = quoteJson(s); }); setTimeout(() => J(r, { ok: true, data }), NET === 'slow' ? 900 : 40); });
-  await ctx.route(/\/api\/history/, (r) => { const b = JSON.parse(r.request().postData() || '{}'); setTimeout(() => J(r, { ok: true, data: histJson(b.syms || [], b.range) }), NET === 'slow' ? 1400 : 60); });
+  // v325: ב־Playwright הניתוב שנרשם אחרון גובר — התפיסה הכללית של /api/ חייבת להירשם ראשונה, אחרת כל הסטאבים (מחירים, היסטוריה) החזירו 503 והגרפים לא צוירו
+  await ctx.route(/\/api\//, (r) => J(r, { ok: false }, 503));
+  await ctx.route(/\/api\/quotes/, (r) => { LIVE.tick++; if (LIVE.fail) return J(r, { ok: false }, 503); const b = JSON.parse(r.request().postData() || '{}'); const data = {}; (b.syms || []).forEach((s) => { data[s] = quoteJson(s); }); setTimeout(() => J(r, { ok: true, data }), NET === 'slow' ? 900 : 40); });
+  await ctx.route(/\/api\/history/, (r) => { if (LIVE.fail) return J(r, { ok: false }, 503); const b = JSON.parse(r.request().postData() || '{}'); setTimeout(() => J(r, { ok: true, data: histJson(b.syms || [], b.range) }), (NET === 'slow' || LIVE.slowHist) ? 1400 : 60); });
   await ctx.route(/\/api\/wordmark/, (r) => J(r, { ok: true, data: {} }));
+  await ctx.route(/\/api\/translate/, (r) => setTimeout(() => J(r, { ok: true, translation: 'תרגום בדיקה', note: 'הערת הקשר', engine: 'ai' }), 300));
   await ctx.route(/\/api\/search/, (r) => J(r, { ok: true, results: [] }));
   await ctx.route(/\/api\/library/, (r) => { const b = JSON.parse(r.request().postData() || '{}'); if (b.op === 'gdConfig') return J(r, { ok: true, configured: false, clientId: '' }); if (b.op === 'me') return J(r, { ok: true, admin: false }); return J(r, { ok: false, error: 'not_configured' }, 503); });
-  await ctx.route(/\/api\//, (r) => J(r, { ok: false }, 503));
-  await ctx.route(/\/\.qa-books\/(.+)$/, (r) => { const n = decodeURIComponent(r.request().url().split('/.qa-books/')[1]); const f = BOOKS.find((x) => x.name === n); if (!f) return r.fulfill({ status: 404 }); r.fulfill({ status: 200, contentType: 'application/epub+zip', body: f.data }); });
+  await ctx.route(/\/\.qa-books\/(.+)$/, (r) => { const n = decodeURIComponent(r.request().url().split('/.qa-books/')[1]); const f = BOOKS.find((x) => x.name === n) || BULK.find((x) => x.name === n); if (!f) return r.fulfill({ status: 404 }); r.fulfill({ status: 200, contentType: 'application/epub+zip', body: f.data }); });
 }
 
 /* ---------- מדידה בתוך הדף ---------- */
@@ -155,7 +160,8 @@ const INIT = `(() => {
     // קפיצה = שינוי גדול בפריים אחד כשלפניו הגלילה עמדה (אנימציה של גלילה זזה בכל פריים — לא נספרת)
     const jw = lastY >= 0 ? y - lastY : 0, jl = lastLibY >= 0 && ly >= 0 ? ly - lastLibY : 0;
     if (M.cur && !M.touching && !M.expectScroll) {
-      if (Math.abs(jw) > 120 && Math.abs(dW[1]) < 6 && Math.abs(dW[0]) < 6) M.cur.scrollJumps.push({ el: 'window', from: Math.round(lastY), to: Math.round(y), t: Math.round(t - M.cur.t0) });
+      // v325: גלילה לראש העמוד של מעבר טאב מסומנת data-nav-scroll על <html> (navScrollTop ב־app.js) — לא קפיצה
+      if (Math.abs(jw) > 120 && Math.abs(dW[1]) < 6 && Math.abs(dW[0]) < 6 && !document.documentElement.dataset.navScroll) M.cur.scrollJumps.push({ el: 'window', from: Math.round(lastY), to: Math.round(y), t: Math.round(t - M.cur.t0) });
       // גלילה של מעבר דף בספרייה (דף חדש מראשו / חזרה למקום השמור) מסומנת data-nav-scroll — לא קפיצה
       if (Math.abs(jl) > 120 && Math.abs(dL[1]) < 6 && Math.abs(dL[0]) < 6 && !(lr && lr.dataset.navScroll)) M.cur.scrollJumps.push({ el: 'lib', from: Math.round(lastLibY), to: Math.round(ly), t: Math.round(t - M.cur.t0) });
     }
@@ -195,17 +201,21 @@ const PY = `
 import sys, json
 from PIL import Image, ImageChops, ImageStat
 files = json.loads(sys.argv[1]); bg = tuple(json.loads(sys.argv[2])); top = int(sys.argv[3])
-prev = None; out = []
+prev = None; out = []; hist = []
 for f in files:
     im = Image.open(f).convert('RGB'); w, h = im.size
     im = im.crop((0, top, w, h)).resize((w // 2, (h - top) // 2))
     px = im.getdata(); n = len(px)
     blank = sum(1 for p in px if abs(p[0]-bg[0]) < 14 and abs(p[1]-bg[1]) < 14 and abs(p[2]-bg[2]) < 14) / n
-    diff = 0.0
+    diff = 0.0; rev = 99.0
     if prev is not None:
         d = ImageChops.difference(im, prev).convert('L'); st = ImageStat.Stat(d); diff = st.mean[0]
-    out.append({'blank': round(blank, 3), 'diff': round(diff, 2)})
-    prev = im
+    # rev = המרחק המינימלי מאחת מ־2–4 המסגרות שלפני הקודמת: קטן = התוכן "חזר" למה שהיה (ריצוד), גדול = אנימציה שהמשיכה
+    for old in hist[-4:-1]:
+        r = ImageStat.Stat(ImageChops.difference(im, old).convert('L')).mean[0]
+        if r < rev: rev = r
+    out.append({'blank': round(blank, 3), 'diff': round(diff, 2), 'rev': round(rev, 2)})
+    prev = im; hist.append(im); hist = hist[-5:]
 print(json.dumps(out))
 `;
 function analyzeFrames(frames, bg, top) {
@@ -218,15 +228,16 @@ function analyzeFrames(frames, bg, top) {
     maxDiff = Math.max(maxDiff, rows[i].diff);
     // הבהוב: מסגרת (או שתיים) כמעט ריקה בין שתי מסגרות עם תוכן — מה שהמשתמש רואה כ"רענון"
     if (rows[i].blank > 0.93 && rows[i - 1].blank < 0.8 && rows[Math.min(rows.length - 1, i + 2)].blank < 0.8) { blankRun++; if (blankRun === 1) flash++; } else blankRun = 0;
-    // ריצוד: קפיצה חדה (diff>18) ואז תוך 1–3 מסגרות עוד קפיצה חדה — תוכן שהוחלף פעמיים (ציור מחדש), לא אנימציה רציפה
-    if (rows[i].diff > 18 && i + 3 < rows.length) { const nxt = rows.slice(i + 1, i + 4).map((r) => r.diff); if (Math.max(...nxt) > 18 && Math.min(rows[i + 1].diff, rows[i + 2].diff) < 2) flicker++; }
+    // ריצוד: קפיצה חדה (diff>18) ואז תוך 1–3 מסגרות עוד קפיצה חדה **שמחזירה את התוכן למה שהיה לפני** (rev<4) — ציור כפול/החלפה הלוך־ושוב.
+    // v325: בלי בדיקת החזרה, פריים כפול באמצע אנימציה רציפה (מסך שלא התעדכן ב־screencast) נספר כריצוד — "כרטיס פתוח" אחרי חזרת מחירים
+    if (rows[i].diff > 18 && i + 3 < rows.length) { const nxt = rows.slice(i + 1, i + 4); if (nxt.some((r) => r.diff > 18 && r.rev < 4)) flicker++; }
   }
   return { frames: rows.length, flash, flicker, maxDiff: +maxDiff.toFixed(1), blanks: rows.map((r) => r.blank), diffs: rows.map((r) => r.diff) };
 }
 
 /* ---------- הרצה ---------- */
 // ייצוא לסקריפטי אבחון: require('./qa-motion.js') מחזיר את הקבצים בלי להריץ
-if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; return; }
+if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, routes, INIT }; return; }
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const ctx = await browser.newContext({ viewport: { width: WIDTH, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block', hasTouch: true, ignoreHTTPSErrors: true,
@@ -242,7 +253,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
       }
     } catch (e) {}
   }, { db: DB, theme: THEME, lang: LANG });
-  const page = await ctx.newPage();
+  let page = await ctx.newPage();   // let — מקטע האופליין מחליף זמנית לדף בהקשר עם Service Worker
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)));
   // שגיאות קונסול (בלי כשלי רשת של ה־API המדומה)
@@ -259,7 +270,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     if (MAXSTEPS && nSteps >= MAXSTEPS) return; nSteps++;
     const settle = opt.settle || 900;
     if (!page.url().startsWith(BASE)) { process.stdout.write('  (הדף עזב ל־' + page.url().slice(0, 60) + ' — חוזרים)\n'); await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
-    if (opt.pre) { try { await page.locator(opt.pre).first().scrollIntoViewIfNeeded(); await sleep(250); } catch (e) {} }   // הגלילה האוטומטית של Playwright — מחוץ למדידה
+    if (opt.pre) { try { await page.locator(opt.pre).first().evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })); await sleep(250); } catch (e) {} }   // גלילה למרכז לפני הצעד (מחוץ למדידה) — בתחתית המסך שורת הטאבים מכסה ו־page.click נתקע
     await page.evaluate((x) => { if (window.__motion) window.__motion.expectScroll = !!x; }, !!opt.scroll);
     const bg = await bgOf(), top = await topOf();
     await page.evaluate((n) => window.__motion.mark(n), name);
@@ -281,7 +292,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     if (err && !exited) { try { err += ' · ' + await page.evaluate(() => 'state=' + JSON.stringify(history.state) + ' modals=' + (typeof _modals !== 'undefined' ? _modals.length : '?') + ' pend=' + (typeof _backPending !== 'undefined' ? _backPending : '?') + ' תפריט=' + (document.getElementById('menuDrop') && !document.getElementById('menuDrop').classList.contains('hidden')) + ' דף=' + ((document.querySelector('.tabpage.active') || {}).id || '-')); } catch (e) {} }
     if (err && !exited) { try { err += ' · מצב: ' + await page.evaluate(() => { if (document.querySelector('.rd')) return 'קורא'; const r = document.querySelector('.lib-root'); if (r) { const on = r.querySelector('.lib-chip.on'); return 'ספרייה/' + (r.querySelector('.bk-cta') ? 'דף' : on ? on.textContent.trim() : (r.querySelector('.lib-large') || {}).textContent); } const t = document.querySelector('.tab.active'); return 'אפליקציה/' + (t ? t.dataset.tab : '?'); }); } catch (e) {} }
     const row = { name, ms: Date.now() - t0 - settle, cls: +(m ? m.cls : 0).toFixed(4), clsMax: +(m ? m.clsMax : 0).toFixed(4), shifts: m ? m.shifts.slice(0, 6) : [], longTasks: m ? m.longTasks : [], frameGaps: m ? m.frameGaps : [], scrollJumps: m ? m.scrollJumps : [], heightChanges: m ? m.heightChanges : 0, flash: fr.flash, maxDiff: fr.maxDiff, frames: fr.frames, flicker: fr.flicker || 0, exited, err, scrollLog: m && m.scrollLog ? m.scrollLog.slice(0, 40) : undefined };
-    row.bad = row.cls > (opt.cls == null ? 0.02 : opt.cls) || row.scrollJumps.length > 0 || row.flash > 0 || row.flicker > 0 || row.frameGaps.some((g) => g > 250) || !!row.err || (exited && !opt.exitOk);
+    row.bad = row.cls > (opt.cls == null ? 0.02 : opt.cls) || row.scrollJumps.length > 0 || row.flash > 0 || (row.flicker > 0 && !opt.flickerOk) || row.frameGaps.some((g) => g > (opt.gap || 250)) || !!row.err || (exited && !opt.exitOk);
     results.push(row);
     if (DBG && row.scrollJumps.length && row.scrollLog) row.scrollLog.forEach((l) => process.stdout.write('    ' + l.join('  ') + '\n'));
     process.stdout.write((row.bad ? '✗ ' : '✓ ') + name + '  cls=' + row.cls + ' gaps=' + row.frameGaps.join('/') + ' jumps=' + row.scrollJumps.length + ' flash=' + row.flash + ' flicker=' + row.flicker + (row.exited ? ' [יצא מהאפליקציה]' : '') + (row.err ? '  ERR ' + row.err : '') + '\n');
@@ -290,7 +301,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
   const tapTab = (t) => page.click('.tab[data-tab="' + t + '"]');
   const jsClick = (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) throw new Error('אין ' + q); e.click(); }, sel);   // בלי הגלילה האוטומטית של Playwright (scrollIntoViewIfNeeded)
   const back = () => page.goBack().catch(() => {});
-  const hold = async (sel) => { const bx = await page.locator(sel).first().boundingBox(); if (!bx) throw new Error('אין ' + sel); const tp = { x: bx.x + bx.width / 2, y: bx.y + bx.height / 2 }; await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [tp] }); await sleep(700); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
+  const hold = async (sel) => { const bx = await page.locator(sel).first().boundingBox(); if (!bx) throw new Error('אין ' + sel); const tp = { x: bx.x + bx.width / 2, y: bx.y + bx.height / 2 }; const vp = page.viewportSize(); if (tp.y < 0 || tp.y > vp.height - 64 || tp.x < 0 || tp.x > vp.width) throw new Error('נקודת הלחיצה הארוכה מחוץ למסך/מתחת לשורת הטאבים (' + Math.round(tp.x) + ',' + Math.round(tp.y) + ') — להוסיף pre על האלמנט עצמו'); await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [tp] }); await sleep(700); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
   const scrollWin = (y) => page.evaluate((y) => window.scrollTo(0, y), y);
   const scrollLib = (y) => page.evaluate((y) => { const r = document.querySelector('.lib-root'); if (r) r.scrollTop = y; }, y);
   const reload = async (st) => { await page.reload({ waitUntil: 'load' }); await sleep(st || 2500); };
@@ -317,7 +328,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
   };
 
   /* ---------- האפליקציה ---------- */
-  if (ONLY !== 'lib' && ONLY !== 'monkey' && ONLY !== 'ext') {
+  if (ONLY !== 'lib' && ONLY !== 'monkey' && ONLY !== 'ext' && ONLY !== 'ext2' && ONLY !== 'ext3' && ONLY !== 'ext4') {
     await step('app: טעינה ראשונה (סקירה)', async () => { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2500); }, { settle: 1500 });
     for (const t of ['stocks', 'trades', 'wishlist', 'deposits', 'pension', 'overview']) await step('app: טאב ' + t, () => tapTab(t), { scroll: true });
     await step('app: פתיחת תפריט', () => jsClick('#menuBtn'));
@@ -369,7 +380,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     await step('app: חזור ← ביטול החלון', back, { expect: '#tab-stocks.active:not(:has(.dlg-veil))' });
     await step('app: המניה נשארה', async () => { const n = await page.locator('#stockList .stock').count(); if (n < 2) throw new Error('המניה נמחקה אחרי ביטול'); }, { settle: 100 });
     await step('app: חלון אישור → אישור בכפתור', async () => { await hold('#stockList .stock >> nth=1'); await sleep(400); await page.click('.item-acts .act-del'); await sleep(400); await page.click('.dlg-cancel'); }, { pre: '#stockList .stock >> nth=1', expect: '#tab-stocks.active:not(:has(.dlg-veil))' });
-    await step('app: תפריט → הגדרות → מתקדמות → חזור×2 מהר', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(700); await page.click('#advancedOpen'); await sleep(900); await back(); await back(); }, { settle: 1500, expect: '#tab-overview.active' });
+    await step('app: תפריט → הגדרות → מתקדמות → חזור×2 מהר', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(700); await page.click('#advancedOpen'); await sleep(900); await back(); await back(); }, { settle: 1500, scroll: true, expect: '#tab-overview.active' });
     await step('app: תפריט נפתח ונסגר מהר ואז הגדרות', async () => { await jsClick('#menuBtn'); await sleep(80); await jsClick('#menuBtn'); await sleep(80); await jsClick('#menuBtn'); await sleep(200); await jsClick('#langBtn'); }, { settle: 1200, expect: 'body:has(#tab-settings.active):has(#menuDrop.hidden)' });
     await step('app: חזור ← סקירה (2)', back, { expect: '#tab-overview.active' });
     await step('app: ספרייה מהתפריט ואז חזור', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1800); await back(); }, { settle: 1500, expect: '#tab-overview.active' });
@@ -378,7 +389,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
   }
 
   /* ---------- הספרייה ---------- */
-  if (ONLY !== 'app' && ONLY !== 'monkey' && ONLY !== 'ext') {
+  if (ONLY !== 'app' && ONLY !== 'monkey' && ONLY !== 'ext' && ONLY !== 'ext2' && ONLY !== 'ext3' && ONLY !== 'ext4') {
     if (ONLY === 'lib') { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
     await page.evaluate(() => { localStorage.setItem('pwa_libshelf_v1', 'mine'); });
     if (MAXSTEPS && nSteps >= MAXSTEPS) { /* מכסת צעדים */ }
@@ -443,7 +454,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     await step('lib: חזור ← מדף (2)', back, { expect: '.col-grid' });
     await step('lib: דף ספר + חזור×2 מהר', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(600); await jsClick('.lib-item'); await sleep(900); await back(); await back(); }, { settle: 1500, expect: '#tab-overview.active' });
     await step('lib: פתיחה מחדש', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-seg' });
-    await step('lib: "מה למדתי"', async () => { await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-tr .lib-round >> nth=1'); }, { expect: '.lib-root' });
+    await step('lib: "מה למדתי"', async () => { await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-tr .lib-round[aria-label="מה למדתי"], .lib-tr .lib-round[aria-label="What I learned"]'); }, { expect: '.learn-sec, .lib-empty' });   // v325: nth=1 היה תפריט ⋯ (גיליון), לא הדף
     await step('lib: חזור ← מהעמוד', back, { expect: '.lib-seg' });
     await step('lib: ספר → קריאה → Aa', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(500); await jsClick('.lib-item'); await sleep(1000); await page.click('.bk-cta'); await sleep(2500); await page.touchscreen.tap(195, 420); await sleep(400); await page.click('.rd-topbar .rd-aa'); }, { settle: 1200, expect: '.rd .lib-veil, .lib-root .lib-veil' });
     await step('lib: חזור ← סוגר Aa', back, { expect: '.rd' });
@@ -488,7 +499,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     await step('ext: החלקה חזרה', async () => { const y = await swipeY(); await swipe(nx(W - 30), y, nx(30), y); await sleep(500); const a = await activeTab(); if (a === before) throw new Error('הטאב לא השתנה (' + a + ')'); }, { scroll: true, settle: 900 });
     await step('ext: החלקה קצרה — לא מחליפה עמוד', async () => { const b = await activeTab(); const y = await swipeY(); await swipe(nx(30), y, nx(90), y); await sleep(500); const a = await activeTab(); if (a !== b) throw new Error('החלקה קצרה החליפה עמוד'); }, { settle: 600 });
     await step('ext: טאב מעקב', () => tapTab('wishlist'), { scroll: true });
-    await step('ext: החלקה קצרה במעקב = רשימה אחרת', async () => { const b = await page.evaluate(() => (document.querySelector('#wlTabs .wl-tab.on') || {}).textContent); const y = await swipeY(); await swipe(nx(40), y, nx(140), y); await sleep(600); const a = await page.evaluate(() => (document.querySelector('#wlTabs .wl-tab.on') || {}).textContent); if (a === b) throw new Error('הרשימה לא התחלפה'); }, { settle: 900 });
+    await step('ext: החלקה קצרה במעקב = רשימה אחרת', async () => { const b = await page.evaluate(() => (document.querySelector('#wlTabs .wl-tab.on') || {}).textContent); const y = await swipeY(); await swipe(nx(40), y, nx(40 + Math.min(100, Math.round(W * 0.25))), y); /* 48px–30% מהרוחב = רשימה; ב־320 100px כבר באזור המת */ await sleep(600); const a = await page.evaluate(() => (document.querySelector('#wlTabs .wl-tab.on') || {}).textContent); if (a === b) throw new Error('הרשימה לא התחלפה'); }, { settle: 900 });
     await step('ext: החלקה ארוכה במעקב = עמוד אחר', async () => { const y = await swipeY(); await swipe(nx(30), y, nx(W - 20), y); await sleep(500); const a = await activeTab(); if (a === 'tab-wishlist') throw new Error('נשארנו במעקב'); }, { scroll: true, settle: 900 });
     // טפסים ושמירה אחרי רענון
     await step('ext: טאב הפקדות + מצב עריכה', async () => { await tapTab('deposits'); await sleep(500); await page.click('#editDepositsBtn'); }, { scroll: true, expect: '#depositList .chip-btn' });
@@ -520,7 +531,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     await step('ext: הגדרות → English', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(700); await page.click('#langEn'); }, { cls: 1, scroll: true, settle: 1500, pre: '#langEn' });
     await step('ext: חזרה לעברית', () => page.click('#langHe'), { cls: 1, scroll: true, settle: 1500, pre: '#langHe' });
     await step('ext: מטבע ₪ ואז $', async () => { await page.click('#curToggleBtn'); await sleep(500); await page.click('#curToggleBtn'); }, { cls: 0.5, settle: 900 });
-    await step('ext: חזור ← סקירה', back, { expect: '#tab-overview.active' });
+    await step('ext: חזור ← סקירה', back, { scroll: true, expect: '#tab-overview.active' });
     // קישור עמוק מהווידג׳ט
     await step('ext: קישור עמוק #stock=AAPL', async () => { await page.goto(BASE + '/index.html#stock=AAPL', { waitUntil: 'load' }); await sleep(3500); }, { scroll: true, settle: 1500, expect: '#tab-stocks.active #stockList .stock.open[data-sym="AAPL"]' });
     await step('ext: חזור אחרי קישור עמוק', back, { settle: 1200, exitOk: true });
@@ -533,9 +544,9 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     await step('ext: נגיעה בהדגשה → בועה', async () => { await page.evaluate(() => { const fv = document.querySelector('.rd foliate-view'); const c = fv.renderer.getContents(); const d = c[c.length - 1].doc; const p = d.querySelector('p'); const r = p.getBoundingClientRect(); const fr = d.defaultView.frameElement.getBoundingClientRect(); window.__hl = { x: fr.left + r.left + 20, y: fr.top + r.top + 8 }; }); const pt = await page.evaluate(() => window.__hl); await page.touchscreen.tap(pt.x, pt.y); await sleep(700); }, { expect: '.rd' });
     await step('ext: Escape (בועה אם פתוחה, ואז יציאה)', async () => { if (await page.$('.rd-pop')) { await page.keyboard.press('Escape'); await sleep(300); } await page.keyboard.press('Escape'); }, { settle: 1200, expect: '.bk-cta' });
     await step('ext: קריאה שוב — ההדגשה נשמרה', async () => { await page.click('.bk-cta'); await sleep(2500); const r = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open('snb-library'); q.onsuccess = () => { const t = q.result.transaction('books'); const g = t.objectStore('books').get('id-qa-m6'); g.onsuccess = () => res({ ann: ((g.result || {}).ann || []).filter((a) => !a.d).length, drawn: (() => { try { const fv = document.querySelector('.rd foliate-view'); const c = fv.renderer.getContents(); const d = c[c.length - 1].doc; return d.querySelectorAll('svg *').length; } catch (e) { return -1; } })() }); }; q.onerror = () => res({ ann: -1 }); })); if (!(r.ann > 0)) throw new Error('ההדגשה לא נשמרה (ann=' + r.ann + ', מצוירים=' + r.drawn + ')'); }, { settle: 1200, expect: '.rd' });
-    await step('ext: Aa → ערכה שחורה', async () => { await showChrome(); await page.click('.rd-topbar .rd-aa'); await sleep(500); await page.click('.rd-seg button >> nth=2'); await sleep(300); await page.click('.rd-themes button >> nth=3'); await sleep(300); await page.keyboard.press('Escape'); await sleep(300); const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.rd')).backgroundColor); if (!/rgb\(0, 0, 0\)/.test(bg)) throw new Error('רקע: ' + bg); }, { settle: 900, expect: '.rd' });
+    await step('ext: Aa → ערכה שחורה', async () => { await showChrome(); await page.click('.rd-topbar .rd-aa'); await sleep(500); await page.click('.rd-seg button >> nth=2'); await sleep(300); await page.click('.rd-themes button >> nth=3'); await sleep(300); await page.keyboard.press('Escape'); await sleep(300); const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.rd')).backgroundColor); if (!/rgb\(0, 0, 0\)/.test(bg)) throw new Error('רקע: ' + bg); }, { settle: 900, expect: '.rd', flickerOk: true });   // גיליון → החלפת ערכה לבן/שחור → סגירה: שלושה שינויים גדולים בכוונה
     await step('ext: רענון בערכה שחורה', async () => { await reload(3500); const bg = await page.evaluate(() => { const r = document.querySelector('.rd'); return r ? getComputedStyle(r).backgroundColor : 'אין קורא'; }); if (!/rgb\(0, 0, 0\)/.test(bg)) throw new Error('רקע אחרי רענון: ' + bg); }, { settle: 2500, expect: '.rd' });
-    await step('ext: חזרה לערכה לבנה', async () => { await showChrome(); await page.click('.rd-topbar .rd-aa'); await sleep(500); await page.click('.rd-seg button >> nth=2'); await sleep(300); await page.click('.rd-themes button >> nth=0'); await sleep(300); await page.keyboard.press('Escape'); }, { settle: 900, expect: '.rd' });
+    await step('ext: חזרה לערכה לבנה', async () => { await showChrome(); await page.click('.rd-topbar .rd-aa'); await sleep(500); await page.click('.rd-seg button >> nth=2'); await sleep(300); await page.click('.rd-themes button >> nth=0'); await sleep(300); await page.keyboard.press('Escape'); }, { settle: 900, expect: '.rd', flickerOk: true });
     await step('ext: ✕ פעמיים מהר — נשארים בדף הספר', async () => { await page.evaluate(() => { const b = [...document.querySelectorAll('.rd-topbar .rd-ic')].find((x) => /סגירה|Close/.test(x.getAttribute('aria-label') || '')); if (b) { b.click(); b.click(); } }); }, { settle: 1500, expect: '.bk-cta' });
     await step('ext: קריאה (3)', async () => { await page.click('.bk-cta'); await sleep(2500); }, { settle: 1200, expect: '.rd' });
     await step('ext: ✕ מהקורא', async () => { await page.evaluate(() => { const b = [...document.querySelectorAll('.rd-topbar .rd-ic')].find((x) => /סגירה|Close/.test(x.getAttribute('aria-label') || '')); if (b) b.click(); }); }, { settle: 1300, expect: '.bk-cta' });
@@ -543,6 +554,257 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
     await step('ext: מקלדת (חלון נמוך) בחיפוש', async () => { await page.focus('.lib-search input'); await page.setViewportSize({ width: W, height: 480 }); await sleep(400); await page.keyboard.type('rich'); await sleep(600); }, { cls: 1, scroll: true, settle: 900, expect: '.lib-search input' });
     await step('ext: סגירת המקלדת', async () => { await page.setViewportSize({ width: W, height: 844 }); await page.fill('.lib-search input', ''); }, { cls: 1, scroll: true, settle: 900 });
     await step('ext: חזור ← יציאה מהספרייה', back, { settle: 1200, expect: '.tab.active' });
+  }
+
+  /* ---------- שלב 4 (v325): אופליין, דמו, גרפים, דיאלוגי איפוס, IBKR, פנסיה, ספרייה לעומק, עומס, נגישות ---------- */
+  if (ONLY === 'ext2' || !ONLY) {
+    const W = WIDTH;
+    const showChrome = async () => { for (let i = 0; i < 3; i++) { if (await page.$('.rd.chrome')) return; await page.touchscreen.tap(195, 420); await sleep(450); } };
+    const twoFinger = async (sel, dx) => { const bx = await page.locator(sel).first().boundingBox(); if (!bx) throw new Error('אין ' + sel); const y = bx.y + bx.height / 2; const a = { x: bx.x + bx.width * 0.3, y }, b = { x: bx.x + bx.width * 0.7, y };
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] }); await sleep(60); await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a, b] }); await sleep(120);
+      for (let i = 1; i <= 4; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [a, { x: b.x + dx * i / 4, y }] }); await sleep(40); }
+      await sleep(300); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
+    const oneFinger = async (sel) => { const bx = await page.locator(sel).first().boundingBox(); if (!bx) throw new Error('אין ' + sel); const pt = { x: bx.x + bx.width * 0.4, y: bx.y + bx.height / 2 }; await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] }); await sleep(250); await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: pt.x + 30, y: pt.y }] }); await sleep(250); return pt; };
+    const endTouch = () => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
+    // --- נגישות: כל כפתור/קישור נראה עם שם נגיש ---
+    const a11y = (where) => step('ext2: נגישות — ' + where, async () => { const bad = await page.evaluate(() => { const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }; const name = (e) => (e.getAttribute('aria-label') || e.getAttribute('title') || e.textContent || '').trim() || (e.querySelector('img[alt]') || {}).alt || (e.getAttribute('aria-labelledby') ? 'x' : ''); return [...document.querySelectorAll('button, a[href], [role=button]')].filter((e) => vis(e) && !name(e)).slice(0, 6).map((e) => e.tagName + (e.id ? '#' + e.id : '') + '.' + String(e.className).split(' ')[0]); }); if (bad.length) throw new Error('כפתורים בלי שם נגיש: ' + bad.join(', ')); }, { settle: 100 });
+    await step('ext2: סקירה', () => tapTab('overview'), { scroll: true });
+    await a11y('סקירה');
+    // --- גרף הביצועים: נגיעה באצבע אחת (בועה) ושתיים (מדידה) ---
+    await step('ext2: גרף הביצועים — אצבע אחת', async () => { await oneFinger('#pfChart'); const ok = await page.$('.pf-tip'); const dg = await page.evaluate(() => { const c = document.getElementById('pfChart'); return 'drawn=' + c.classList.contains('drawn') + ' h=' + c.getBoundingClientRect().height + ' tipIdx=' + state.pfTipIdx + ' rows=' + ((state.pfRows || state.perfRows || []).length); }); await endTouch(); if (!ok) throw new Error('אין בועה (' + dg + ')'); }, { pre: '#pfChart', settle: 600 });
+    await step('ext2: גרף הביצועים — שתי אצבעות (מדידה)', async () => { await twoFinger('#pfChart', 40); }, { pre: '#pfChart', settle: 600 });
+    // --- כרטיס מניה: טווחים, תפריט שנים, נגיעה באצבע אחת ושתיים ---
+    await step('ext2: טאב מניות', () => tapTab('stocks'), { scroll: true });
+    await step('ext2: כרטיס פתוח', async () => { await page.click('#stockList .stock >> nth=0 >> .stock-head'); await sleep(900); }, { scroll: true, settle: 1200, pre: '#stockList .stock >> nth=0', expect: '#stockList .stock.open' });
+    // כפתורי הטווח בתוך כרטיס פתוח — לחיצה דרך DOM (page.click גולל, והכרטיס מצמיד את עצמו לראש → "מלחמת גלילה")
+    const rangeClick = (txt) => page.evaluate((t) => { const b = [...document.querySelectorAll('.stock.open .range-btn')].find((x) => x.textContent.trim().replace(/▾/, '').trim() === t); if (!b) throw new Error('אין טווח ' + t); b.click(); }, txt);
+    for (const r of ['1D', '5D', '1M', '3M', 'YTD']) await step('ext2: טווח ' + r, () => rangeClick(r), { settle: 900, cls: 0.1, scroll: true });
+    await step('ext2: תפריט שנים → 3Y', async () => { await rangeClick('1Y'); await sleep(400); const ok = await page.evaluate(() => { const o = [...document.querySelectorAll('.stock.open button, .range-pop button')].find((x) => /^3Y$/.test(x.textContent.trim())); if (o) { o.click(); return true; } return false; }); if (!ok) await page.keyboard.press('Escape'); }, { settle: 1200, cls: 0.1, scroll: true });
+    await step('ext2: גרף המניה — אצבע אחת', async () => { await oneFinger('.stock.open canvas'); const ok = await page.$('.stock.open .sc-tip'); const dg = await page.evaluate(() => { const c = document.querySelector('.stock.open canvas'); return 'drawn=' + c.classList.contains('drawn') + ' sc=' + !!c._sc + ' ov=' + !!document.querySelector('.stock.open .sc-ov'); }); await endTouch(); if (!ok) throw new Error('אין בועה (' + dg + ')'); }, { pre: '.stock.open canvas', settle: 600 });
+    await step('ext2: גרף המניה — שתי אצבעות', async () => { await twoFinger('.stock.open canvas', 50); }, { pre: '.stock.open canvas', settle: 600 });
+    await a11y('כרטיס מניה פתוח');
+    await step('ext2: סגירת הכרטיס', async () => { await page.click('#stockList .stock.open .stock-head'); await sleep(900); }, { scroll: true, settle: 1200, pre: '#stockList .stock.open' });
+    // --- פנסיה: הוספת קרן, שמירה, רענון ---
+    await step('ext2: טאב פנסיה', () => tapTab('pension'), { scroll: true });
+    await a11y('פנסיה');
+    const fundsN = await page.evaluate(() => (DB.pensionFunds || []).length);
+    await step('ext2: הוספת קרן פנסיה', async () => { await page.evaluate(() => { const e = document.getElementById('newFundName'); e.value = 'קרן QA'; e.dispatchEvent(new Event('input', { bubbles: true })); }); await jsClick('#pensionFundAdd'); }, { pre: '#pensionFundAdd', cls: 0.5, expect: '.fund-editor' });
+    await step('ext2: שמירת הקרנות + רענון', async () => { await jsClick('#pensionFundsSave'); await sleep(500); await reload(); const n = await page.evaluate(() => (DB.pensionFunds || []).length); if (n !== fundsN + 1) throw new Error('קרנות: ' + n + ' במקום ' + (fundsN + 1)); }, { settle: 1500 });
+    // --- הגדרות: דיאלוגי איפוס (ביטול), IBKR — שגיאת חיבור, מתקדמות ---
+    await step('ext2: הגדרות', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); }, { settle: 1200, scroll: true, expect: '#tab-settings.active' });
+    await a11y('הגדרות');
+    for (const id of ['resetManual', 'resetData']) {
+      await step('ext2: איפוס → ' + id + ' → חלון אישור → ביטול', async () => { await page.click('#resetOpen'); await sleep(500); await page.click('#' + id); await sleep(500); const d = await page.$('.dlg-veil'); if (!d) throw new Error('אין חלון אישור'); await page.click('.dlg-cancel'); }, { pre: '#resetOpen', settle: 900, expect: 'body:not(:has(.dlg-veil)):has(#resetSheetVeil.hidden)' });
+    }
+    await step('ext2: IBKR — פרטי חיבור שגויים → שגיאה (לא קריסה)', async () => { await page.evaluate(() => { const d = document.getElementById('ibkrConnDetails'); if (d) d.open = true; const t = document.getElementById('ibkrToken'), q = document.getElementById('ibkrQuery'); t.value = 'qa-token-not-real'; q.value = '123456'; t.dispatchEvent(new Event('input', { bubbles: true })); q.dispatchEvent(new Event('input', { bubbles: true })); }); await jsClick('#ibkrSaveTest'); await sleep(4000); const ok = await page.evaluate(() => { const e = document.getElementById('ibkrErr'); const s = document.getElementById('ibkrStatus'); return (e && !e.classList.contains('hidden') && e.textContent.trim()) || (s && s.textContent.trim()); }); if (!ok) throw new Error('אין הודעת שגיאה/מצב'); }, { pre: '#ibkrSaveTest', settle: 1200, cls: 0.5 });
+    await step('ext2: IBKR — ניתוק (ניקוי הפרטים)', async () => { await page.evaluate(() => { try { const b = document.getElementById('ibkrDisconnect'); if (b) b.click(); } catch (e) {} }); await sleep(500); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); }, { pre: '#ibkrDisconnect', settle: 1200, cls: 0.5 });
+    await step('ext2: מתקדמות', () => page.click('#advancedOpen'), { pre: '#advancedOpen', scroll: true, expect: '#tab-advanced.active' });
+    await a11y('מתקדמות');
+    await step('ext2: חזור ×2 ← סקירה', async () => { await back(); await sleep(600); await back(); }, { settle: 1200, expect: '#tab-overview.active' });
+    // --- תיק הדמו: טעינה (אישור), יציאה ---
+    await step('ext2: דמו — טעינה מהתפריט', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuDemoBtn'); await sleep(600); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); for (let i = 0; i < 40; i++) { await sleep(1000); if (await page.evaluate(() => isDemoMode())) break; } const on = await page.evaluate(() => isDemoMode()); if (!on) throw new Error('הדמו לא נטען'); }, { gap: 1300, settle: 2500, cls: 1, scroll: true });   // בניית הדמו (demoBuild) היא חישוב סינכרוני אחד מאחורי כרטיס התקדמות — תחת CPU×4 ~1.1 שנ׳ (≈270ms בטלפון); חד־פעמי, מתועד
+    await step('ext2: דמו — טאב מניות', () => tapTab('stocks'), { gap: 800, scroll: true, settle: 1500 });   // ציור ראשון של ~90 כרטיסים אחרי הדמו
+    await step('ext2: דמו — רענון נשאר בדמו', async () => { await reload(3000); const on = await page.evaluate(() => isDemoMode()); if (!on) throw new Error('הדמו נעלם ברענון'); }, { settle: 2000 });
+    await step('ext2: דמו — יציאה', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuDemoBtn'); await sleep(600); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); await sleep(3500); const on = await page.evaluate(() => isDemoMode()); if (on) throw new Error('עדיין בדמו'); const n = await page.evaluate(() => DB.positions.length); if (!n) throw new Error('התיק לא שוחזר'); }, { settle: 2500, cls: 1, scroll: true, exitOk: true });
+    if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
+    // --- ספרייה לעומק ---
+    if (await ensureLibSeeded()) { await page.evaluate(() => history.back()); await sleep(800); }
+    await step('ext2: ספרייה מהתפריט', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-seg' });
+    await step('ext2: THE SNOWBALL', () => page.click('.lib-seg-b:nth-child(1)'), { scroll: true });
+    await step('ext2: צ\'יפ הכל', () => page.click('.lib-chip:nth-child(2)'), { scroll: true, expect: '.lib-grid .lib-item' });
+    await a11y('ספרייה');
+    const hidN = await page.evaluate(() => (document.querySelector('.lib-hidden-link') || { textContent: '' }).textContent);
+    await step('ext2: הסתרת מכתב (לחיצה ארוכה → X → אישור)', async () => { await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-del'); await sleep(500); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); }, { pre: '.lib-grid .lib-item >> nth=0', settle: 1500, cls: 1, expect: '.lib-hidden-link' });
+    await step('ext2: שחזור המכתב המוסתר', async () => { await page.click('.lib-hidden-link'); await sleep(500); await page.click('.lib-veil .mini-btn >> nth=0'); await sleep(800); if (await page.$('.lib-veil:not(.out)')) await page.keyboard.press('Escape'); }, { pre: '.lib-hidden-link', settle: 1500, cls: 1 });
+    await step('ext2: המכתב חזר', async () => { const t = await page.evaluate(() => (document.querySelector('.lib-hidden-link') || { textContent: '' }).textContent); if (t && t === hidN + 'x') throw new Error('x'); const n = await page.locator('.lib-grid .lib-item').count(); if (n < 9) throw new Error('מכתבים: ' + n); }, { settle: 100 });
+    // אריחי האקדמיה (הוגים/מילון/מסלולים) מופיעים ב"הכל" של THE SNOWBALL (לא במדף)
+    await step('ext2: הוגים (אריח)', async () => { await page.click('.ac-tile >> nth=0'); }, { pre: '.ac-tiles', settle: 1200, expect: '.lib-root:not(:has(.ac-tiles))' });
+    await step('ext2: חזור ← הכל', back, { expect: '.ac-tiles' });
+    await step('ext2: מילון (אריח 2)', async () => { await page.click('.ac-tile >> nth=1'); }, { pre: '.ac-tiles', settle: 1200, expect: '.lib-root:not(:has(.ac-tiles))' });
+    await step('ext2: חזור ← הכל (2)', back, { expect: '.ac-tiles' });
+    // עריכת ספר + שחזור מהקובץ
+    await step('ext2: הספרייה שלי → עריכה', async () => { await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-edit'); }, { settle: 1200, cls: 1, expect: '.ed-form' });
+    await step('ext2: שינוי כותרת ושמירה', async () => { await page.evaluate(() => { const i = document.querySelector('.ed-form .ed-in'); i.value = 'כותרת QA'; i.dispatchEvent(new Event('input', { bubbles: true })); }); await jsClick('.ed-save'); }, { settle: 1500, expect: '.lib-grid' });   // שמירה = "חזור" לדף שממנו נכנסו (הרשת)
+    await step('ext2: הכותרת החדשה ברשת', async () => { const t = await page.evaluate(() => document.querySelector('.lib-home').textContent); if (!/כותרת QA/.test(t)) throw new Error('הכותרת לא השתנתה'); }, { settle: 100 });
+    await step('ext2: עריכה (2)', async () => { await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-edit'); }, { pre: '.lib-grid .lib-item >> nth=0', settle: 1200, cls: 1, expect: '.lib-admin-link' });
+    // הקישור בתחתית הטופס — page.click גולל אליו בעצמו (נראה כקפיצה 0→919 בלי שום גלילה של האפליקציה; אומת עם stack); pre מרכז אותו לפני המדידה
+    await step('ext2: שחזור מהקובץ', async () => { await page.click('.ed-form ~ .lib-admin-link, .lib-home .lib-admin-link'); await sleep(500); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); }, { pre: '.lib-admin-link', settle: 2500, cls: 1, expect: '.lib-grid' });
+    await step('ext2: הכותרת המקורית חזרה', async () => { const t = await page.evaluate(() => document.querySelector('.lib-home').textContent); if (/כותרת QA/.test(t)) throw new Error('הכותרת לא שוחזרה'); }, { settle: 100 });
+    // חיפוש בטקסט → קפיצה לקורא
+    await step('ext2: חיפוש בטקסט', async () => { await page.focus('.lib-search input'); await page.keyboard.type('פסקה'); await sleep(2500); }, { pre: '.lib-search input', cls: 1, expect: '.ft-row' });   // page.focus גולל לשדה (ב־320 הספרייה הייתה גלולה) — pre לפני המדידה
+    await step('ext2: קפיצה לתוצאה', () => page.click('.ft-row >> nth=0'), { pre: '.ft-row', settle: 3000, expect: '.rd' });
+    // קורא: תוכן עניינים → פרק, סימנייה, מצב גלילה, גודל גופן
+    await step('ext2: תוכן עניינים → פרק 2', async () => { await showChrome(); await page.click('.rd-topbar .rd-ic[aria-label="תוכן העניינים"], .rd-topbar .rd-ic[aria-label="Contents"]'); await sleep(600); const rows = page.locator('.lib-veil .lib-row'); const n = await rows.count(); await rows.nth(Math.min(1, n - 1)).click(); }, { settle: 1500, expect: '.rd:not(:has(.lib-veil:not(.out)))' });
+    await step('ext2: סימנייה — הוספה', async () => { await showChrome(); await page.click('.rd-topbar .rd-bm'); }, { settle: 800, expect: '.rd-bm.on' });
+    await step('ext2: סימנייה — הסרה', async () => { await showChrome(); await page.click('.rd-topbar .rd-bm'); }, { settle: 800, expect: '.rd-bm:not(.on)' });
+    await step('ext2: Aa → מצב גלילה', async () => { await showChrome(); await page.click('.rd-topbar .rd-aa'); await sleep(500); await page.click('.rd-seg button >> nth=1'); await sleep(300); await page.click('.rd-mini-seg button:has-text("גלילה"), .rd-mini-seg button:has-text("Scroll")'); await sleep(800); await page.keyboard.press('Escape'); await sleep(400); const f = await page.evaluate(() => (document.querySelector('.rd foliate-view').renderer || {}).getAttribute ? document.querySelector('.rd foliate-view').renderer.getAttribute('flow') : ''); if (f !== 'scrolled') throw new Error('flow=' + f); }, { settle: 1200, expect: '.rd' });
+    await step('ext2: גלילה בתוך הספר', async () => { await page.evaluate(() => { const fv = document.querySelector('.rd foliate-view'); const c = fv.renderer.getContents(); const d = c[c.length - 1].doc; d.defaultView.scrollBy(0, 400); }); }, { settle: 800, expect: '.rd' });
+    await step('ext2: Aa → חזרה לעמודים + גופן גדול', async () => { await showChrome(); await page.click('.rd-topbar .rd-aa'); await sleep(500); await page.click('.rd-seg button >> nth=1'); await sleep(300); await page.click('.rd-mini-seg button:has-text("עמודים"), .rd-mini-seg button:has-text("Pages")'); await sleep(600); await page.click('.rd-seg button >> nth=0'); await sleep(300); await page.evaluate(() => { const r = document.querySelector('.rd-range'); r.value = '26'; r.dispatchEvent(new Event('input', { bubbles: true })); }); await sleep(600); await page.evaluate(() => { const r = document.querySelector('.rd-range'); r.value = '19'; r.dispatchEvent(new Event('input', { bubbles: true })); }); await sleep(400); await page.keyboard.press('Escape'); }, { settle: 1200, expect: '.rd' });
+    // הקורא נפתח מתוצאת חיפוש בטקסט (לא מדף הספר) — ✕ חוזר לרשת עם החיפוש, לא לדף הספר
+    await step('ext2: ✕ ← רשת החיפוש', async () => { await page.evaluate(() => { const b = [...document.querySelectorAll('.rd-topbar .rd-ic')].find((x) => /סגירה|Close/.test(x.getAttribute('aria-label') || '')); if (b) b.click(); }); }, { settle: 1300, expect: '.lib-search input' });
+    await step('ext2: ניקוי החיפוש', async () => { await page.fill('.lib-search input', ''); }, { settle: 600, cls: 1 });
+    // עומס: עוד 50 ספרים — ציור הבית והחיפוש בזמן סביר
+    await step('ext2: ייבוא 50 ספרים נוספים', async () => { const names = []; for (let i = 0; i < 50; i++) names.push('bulk' + i + '.epub'); await page.evaluate(async (names) => { const dt = new DataTransfer(); for (const n of names) { const bl = await (await fetch('/.qa-books/' + n)).blob(); dt.items.add(new File([bl], n, { type: 'application/epub+zip' })); } const inp = document.querySelector('.lib-root input[type=file]'); inp.files = dt.files; inp.dispatchEvent(new Event('change')); }, names); for (let i = 0; i < 60; i++) { await sleep(1000); const n = await page.locator('.lib-grid .lib-item').count(); if (n >= 55) break; } }, { settle: 2000, cls: 1, scroll: true });
+    await step('ext2: 56 ספרים — מדף', async () => { const t0 = Date.now(); await page.click('.lib-chip.shelf'); await page.waitForSelector('.col-grid'); const ms = Date.now() - t0; if (ms > 3000) throw new Error('המדף צויר ב־' + ms + 'ms'); }, { settle: 1200 });
+    await step('ext2: 56 ספרים — הכל + חיפוש', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(800); const t0 = Date.now(); await page.focus('.lib-search input'); await page.keyboard.type('bulk4'); await sleep(300); const ms = Date.now() - t0; if (ms > 2500) throw new Error('חיפוש ' + ms + 'ms'); }, { settle: 1200, cls: 1 });
+    await step('ext2: ניקוי + יציאה מהספרייה', async () => { await page.fill('.lib-search input', ''); await sleep(300); await back(); }, { settle: 1200, cls: 1, expect: '.tab.active' });
+    // --- אופליין: הקשר נפרד עם Service Worker — האפליקציה והספרייה נטענות בלי רשת ---
+    {
+      const ctx2 = await browser.newContext({ viewport: { width: W, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'allow', hasTouch: true, ignoreHTTPSErrors: true, colorScheme: THEME === 'dark' ? 'dark' : 'light', locale: LANG === 'en' ? 'en-GB' : 'he-IL' });
+      await routes(ctx2); await ctx2.addInitScript(INIT);
+      await ctx2.addInitScript(({ db, theme, lang }) => { try { if (!localStorage.getItem('__qa_seeded')) { localStorage.setItem('pwa_db_v1', JSON.stringify(db)); localStorage.setItem('pwa_owner_v1', 'local'); localStorage.setItem('pwa_theme_v1', theme); localStorage.setItem('pwa_lang_v1', lang); localStorage.setItem('__qa_seeded', '1'); } } catch (e) {} }, { db: DB, theme: THEME, lang: LANG });
+      const page1 = page; const page2 = await ctx2.newPage(); page2.on('pageerror', (e) => errors.push('offline: ' + String(e.message).slice(0, 120)));
+      page = page2;
+      await step('ext2: אופליין — טעינה + התקנת Service Worker', async () => { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); for (let i = 0; i < 30; i++) { await sleep(500); const ok = await page.evaluate(async () => { try { const r = await navigator.serviceWorker.getRegistration(); if (!r || !r.active) return false; const ks = await caches.keys(); return ks.some((k) => /portfolio-pwa-v/.test(k)); } catch (e) { return false; } }); if (ok) break; } await sleep(2500); }, { settle: 500 });
+      await step('ext2: אופליין — ניתוק הרשת ורענון', async () => { await ctx2.setOffline(true); await page.reload({ waitUntil: 'load' }); await sleep(2500); }, { settle: 1500, expect: '.tab.active' });
+      await step('ext2: אופליין — טאב מניות', () => page.click('.tab[data-tab="stocks"]'), { scroll: true, expect: '#tab-stocks.active #stockList .stock' });
+      await step('ext2: אופליין — הספרייה נפתחת מהמטמון', async () => { await page.evaluate(() => document.getElementById('menuBtn').click()); await sleep(300); await page.evaluate(() => document.getElementById('menuLibraryBtn').click()); await sleep(2500); }, { settle: 1500, expect: '.lib-root .lib-seg' });
+      await step('ext2: אופליין — חזור', () => page.goBack().catch(() => {}), { settle: 1200, expect: '.tab.active' });
+      await ctx2.setOffline(false);
+      await ctx2.close();
+      page = page1;
+    }
+  }
+
+  /* ---------- שלב 5 (v325): מחירים חיים, מצבי סשן, הזרקת כשלים, היסטוריה איטית, ת"א ומדדים, ערכה/שפה בזמן כרטיס/ספרייה, תקציבי ביצועים, צילומי בסיס ---------- */
+  if (ONLY === 'ext3' || !ONLY) {
+    const snapDir = SNAP ? path.join(SNAP) : ''; if (snapDir) fs.mkdirSync(snapDir, { recursive: true });
+    const snapDiffs = [];
+    const snap = async (name) => {   // צילום בסיס (--snap <dir>) או השוואה לבסיס (--compare <dir>): שיעור פיקסלים שונים
+      const f = name.replace(/[^\w֐-׿-]+/g, '_') + '.png';
+      if (snapDir) { await page.screenshot({ path: path.join(snapDir, f) }); return; }
+      if (!COMPARE) return;
+      const cur = path.join(OUT, 'snap-' + f); await page.screenshot({ path: cur });
+      const base = path.join(COMPARE, f); if (!fs.existsSync(base)) { snapDiffs.push(name + ': אין בסיס'); return; }
+      let out = '1'; try { out = execFileSync('python3', ['-c', 'import sys\nfrom PIL import Image, ImageChops\na=Image.open(sys.argv[1]).convert("RGB");b=Image.open(sys.argv[2]).convert("RGB")\nif a.size!=b.size: print(1.0); sys.exit()\nd=ImageChops.difference(a,b).convert("L").point(lambda v: 255 if v>24 else 0)\nh=d.histogram(); print(h[255]/(a.size[0]*a.size[1]))', cur, base], { encoding: 'utf8' }); } catch (e) {}
+      const ratio = +String(out || '1').trim(); if (ratio > 0.01) snapDiffs.push(name + ': ' + (ratio * 100).toFixed(1) + '%');
+    };
+    const bannerVisible = () => page.evaluate(() => { const b = document.getElementById('statusBanner'); return !!b && !b.classList.contains('hidden'); });
+    if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
+    // --- תקציבי ביצועים: טעינה קרה ---
+    await step('ext3: ביצועים — טעינה קרה', async () => { await page.goto('about:blank'); await sleep(200); const t0 = Date.now(); await page.goto(BASE + '/index.html', { waitUntil: 'commit' }); await page.waitForSelector('.tab.active', { timeout: 15000 }); const tTab = Date.now() - t0; await page.waitForSelector('#stockList .stock, .cards-3 .stat-value', { timeout: 15000 }); const tData = Date.now() - t0; const nav = await page.evaluate(() => { const n = performance.getEntriesByType('navigation')[0]; return n ? Math.round(n.domContentLoadedEventEnd) : -1; }); const budget = CPU > 1 ? 9000 : 3500; if (tData > budget) throw new Error('טעינה ' + tData + 'ms (> ' + budget + '); טאב ' + tTab + 'ms, DOMContentLoaded ' + nav + 'ms'); process.stdout.write('    (טעינה: טאב ' + tTab + 'ms · נתונים ' + tData + 'ms · DCL ' + nav + 'ms)\n'); await sleep(2000); }, { settle: 1500, scroll: true, cls: 1 });
+    await snap('סקירה');
+    // --- מחירים חיים: 12 שניות במניות עם ספרות מתגלגלות — בלי קפיצות פריסה ---
+    await step('ext3: טאב מניות', () => tapTab('stocks'), { scroll: true });
+    await step('ext3: 12 שניות מחירים מתגלגלים — בלי קפיצה', async () => { await sleep(12000); }, { settle: 300 });
+    // תג הסשן בכרטיס לפי מצב השוק שהסטאב מדווח (--session)
+    await step('ext3: תג הסשן (' + SESSION + ')', async () => { const want = { PRE: /מוקדם|Pre/, POST: /מאוחר|After|Post/, OVERNIGHT: /לילי|Overnight|Night/, CLOSED: /סגור|Closed/, REGULAR: null }[SESSION]; const t = await page.evaluate(() => [...document.querySelectorAll('#stockList .stock .stock-ext')].map((e) => e.textContent.trim()).filter(Boolean).join(' | ')); if (want && !want.test(t)) throw new Error('תג: "' + t.slice(0, 80) + '"'); if (!want && /מוקדם|מאוחר|לילי/.test(t)) throw new Error('תג סשן במסחר רגיל: ' + t.slice(0, 80)); }, { settle: 100 });
+    await snap('מניות');
+    await step('ext3: כרטיס פתוח + 8 שניות מחירים', async () => { await page.click('#stockList .stock >> nth=0 >> .stock-head'); await sleep(1200); }, { scroll: true, settle: 8000, pre: '#stockList .stock >> nth=0', expect: '#stockList .stock.open canvas.drawn' });
+    await snap('כרטיס פתוח');
+    // --- היסטוריה איטית: כרטיס אחר (ללא נתונים בזיכרון) — "טוען" ואז גרף, בלי קפיצה ---
+    await step('ext3: היסטוריה איטית — מעבר לכרטיס אחר', async () => { LIVE.slowHist = true; await page.evaluate(() => { try { state.hist = {}; } catch (e) {} }); await page.click('#stockList .stock >> nth=3 >> .stock-head'); await sleep(3500); LIVE.slowHist = false; }, { scroll: true, settle: 1500, pre: '#stockList .stock >> nth=3', expect: '#stockList .stock.open canvas.drawn' });
+    await step('ext3: סגירת הכרטיס', async () => { await page.click('#stockList .stock.open .stock-head'); await sleep(900); }, { scroll: true, settle: 1200, pre: '#stockList .stock.open' });
+    // --- הזרקת כשל רשת: הבאנר מופיע ונעלם — ומה זה עושה לפריסה ---
+    // כשל בלולאה החיה: המחירים הקיימים נשארים ומסומנים "דיליי"/stale (באנר רק כשאין מחירים בכלל) — ובלי קריסה
+    const staleNow = () => page.evaluate(() => !!state.stale || ((document.getElementById('sourceLabel') || {}).textContent || '').includes('דיליי') || (!!document.getElementById('statusBanner') && !document.getElementById('statusBanner').classList.contains('hidden')));
+    await step('ext3: כשל מחירים → סימון "דיליי"/stale', async () => { LIVE.fail = true; for (let i = 0; i < 110; i++) { await sleep(500); if (await staleNow()) break; } if (!(await staleNow())) throw new Error('אין סימון stale/דיליי/באנר אחרי 55 שניות'); }, { settle: 800, cls: 1 });
+    await snap('באנר כשל');
+    await step('ext3: המחירים חזרו → הסימון נעלם', async () => { LIVE.fail = false; for (let i = 0; i < 60; i++) { await sleep(500); if (!(await staleNow())) break; } if (await staleNow()) throw new Error('הסימון נשאר אחרי 30 שניות'); }, { settle: 800, cls: 1 });
+    // --- ערכה ושפה בזמן כרטיס פתוח ---
+    await step('ext3: כרטיס פתוח', async () => { await page.click('#stockList .stock >> nth=1 >> .stock-head'); await sleep(1000); }, { scroll: true, settle: 1200, pre: '#stockList .stock >> nth=1', expect: '#stockList .stock.open' });
+    await step('ext3: ערכה כהה עם כרטיס פתוח', async () => { await page.evaluate(() => { try { setThemeMode(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); } catch (e) {} }); }, { settle: 1200, cls: 0.5, expect: '#stockList .stock.open canvas.drawn' });
+    await step('ext3: ערכה חזרה', async () => { await page.evaluate(() => { try { setThemeMode(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); } catch (e) {} }); }, { settle: 1200, cls: 0.5 });
+    await step('ext3: סגירה', async () => { await page.click('#stockList .stock.open .stock-head'); await sleep(900); }, { scroll: true, settle: 1200, pre: '#stockList .stock.open' });
+    // --- מדד ברשימת המעקב (חיפוש מקומי) + מניית ת"א בתיק ---
+    await step('ext3: מעקב → הוספת SPX מהחיפוש', async () => { await tapTab('wishlist'); await sleep(700); await page.evaluate(() => { const i = document.getElementById('wlSearchInput'); i.value = 'SPX'; i.dispatchEvent(new Event('input', { bubbles: true })); }); await sleep(900); const ok = await page.evaluate(() => { const r = [...document.querySelectorAll('#wlSearchResults .stock-search-item')].find((x) => /SPX|S&P/.test(x.textContent)); if (r) { r.click(); return true; } return false; }); if (!ok) throw new Error('SPX לא נמצא בחיפוש המקומי'); }, { scroll: true, settle: 1500, cls: 1, expect: '#wishlistList .stock[data-sym="^GSPC"], #wishlistList .stock[data-sym="SPX"]' });
+    await step('ext3: SPX מוצג בנקודות', async () => { const t = await page.evaluate(() => (document.querySelector('#wishlistList .stock[data-sym="^GSPC"], #wishlistList .stock[data-sym="SPX"]') || {}).textContent || ''); if (!/נק|pts/.test(t)) throw new Error('בלי "נק׳": ' + t.slice(0, 80)); }, { settle: 100 });
+    await step('ext3: הסרת SPX (לחיצה ארוכה → X)', async () => { await hold('#wishlistList .stock[data-sym="^GSPC"], #wishlistList .stock[data-sym="SPX"]'); await sleep(400); await page.click('.item-acts .act-del'); await sleep(400); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); }, { pre: '#wishlistList .stock[data-sym="^GSPC"], #wishlistList .stock[data-sym="SPX"]', settle: 1200, cls: 1, scroll: true });   // pre על SPX עצמו — הוא אחרון ברשימה, ומרכוז הכרטיס הראשון השאיר אותו מתחת לשורת הטאבים (הנגיעה פספסה)
+    await step('ext3: מניות → הוספת TEVA.TA', async () => { await tapTab('stocks'); await sleep(600); await page.evaluate(() => { state.edit.stocks = true; renderStocks(); }); await sleep(400); await page.click('#stockList .add-card'); await sleep(400); await page.evaluate(() => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }; set('ap-sym', 'TEVA.TA'); set('ap-full', 'Teva'); set('ap-shares', '10'); set('ap-avg', '1500'); }); await jsClick('#ap-save'); }, { pre: '#stockList', scroll: true, settle: 2500, cls: 1, expect: '#stockList .stock[data-sym="TEVA.TA"]' });
+    await step('ext3: TEVA.TA — מחיר באגורות', async () => { for (let i = 0; i < 10; i++) { await sleep(500); const t = await page.evaluate(() => (document.querySelector('#stockList .stock[data-sym="TEVA.TA"] .stock-price') || {}).textContent || ''); if (/אג|ag/.test(t)) return; } throw new Error('המחיר לא באגורות'); }, { settle: 100 });
+    await step('ext3: מחיקת TEVA.TA', async () => { await page.evaluate(() => { state.edit.stocks = false; }); await hold('#stockList .stock[data-sym="TEVA.TA"]'); await sleep(400); await page.click('.item-acts .act-del'); await sleep(400); await page.click('.dlg-ok'); }, { pre: '#stockList .stock[data-sym="TEVA.TA"]', settle: 1200, cls: 1, scroll: true, expect: '#stockList:not(:has(.stock[data-sym="TEVA.TA"]))' });
+    // --- שפה בזמן שהספרייה פתוחה ---
+    if (await ensureLibSeeded()) { await page.evaluate(() => history.back()); await sleep(800); }
+    await step('ext3: ספרייה', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); }, { settle: 1200, expect: '.lib-seg' });
+    await snap('ספרייה — מדף');
+    await step('ext3: ערכה כהה בספרייה', async () => { await page.evaluate(() => { try { setThemeMode('dark'); } catch (e) {} }); }, { settle: 1200, cls: 0.5, expect: '.lib-root' });
+    await snap('ספרייה — כהה');
+    await step('ext3: ערכה בהירה בספרייה', async () => { await page.evaluate(() => { try { setThemeMode('light'); } catch (e) {} }); }, { settle: 1200, cls: 0.5, expect: '.lib-root' });
+    await step('ext3: יציאה מהספרייה', back, { settle: 1200, expect: '.tab.active' });
+    await step('ext3: ביצועים — פתיחת כרטיס < 1200ms', async () => { await tapTab('stocks'); await sleep(800); const t0 = Date.now(); await page.click('#stockList .stock >> nth=1 >> .stock-head'); await page.waitForSelector('#stockList .stock.open canvas.drawn', { timeout: 8000 }); const ms = Date.now() - t0; if (ms > (CPU > 1 ? 3500 : 1200)) throw new Error('פתיחת כרטיס ' + ms + 'ms'); process.stdout.write('    (פתיחת כרטיס עם גרף: ' + ms + 'ms)\n'); }, { scroll: true, settle: 1200, cls: 0.5, pre: '#stockList .stock >> nth=1' });
+    await step('ext3: סגירה (2)', async () => { await page.click('#stockList .stock.open .stock-head'); await sleep(900); }, { scroll: true, settle: 1200, pre: '#stockList .stock.open' });   // לחיצה אמיתית — לחיצה סינתטית לא נחשבת "קלט אחרון" וכל אנימציית הסגירה נספרת כקפיצה
+    if (snapDiffs.length) results.push({ name: 'ext3: השוואה לצילומי הבסיס', ms: 0, cls: 0, clsMax: 0, shifts: [], longTasks: [], frameGaps: [], scrollJumps: [], heightChanges: 0, flash: 0, maxDiff: 0, frames: 0, flicker: 0, exited: false, err: 'שינוי חזותי: ' + snapDiffs.join(' · '), bad: true });
+  }
+
+  /* ---------- שלב 6 (v325, --only ext4): טפסים לעומק, רשימות מעקב, סקירה במגע, מטבע, לחץ מהיר, ספרייה — אסופות/הערה/תרגום/ציטוט, מקלדת ---------- */
+  if (ONLY === 'ext4' || !ONLY) {
+    const showChrome = async () => { for (let i = 0; i < 3; i++) { if (await page.$('.rd.chrome')) return; await page.touchscreen.tap(195, 420); await sleep(450); } };
+    const setVal = (sel, v) => page.evaluate(([q, val]) => { const e = document.querySelector(q); if (!e) throw new Error('אין ' + q); e.value = val; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, [sel, v]);
+    const clickText = (sel, re) => page.evaluate(([q, r]) => { const b = [...document.querySelectorAll(q)].find((x) => new RegExp(r).test(x.textContent.trim())); if (!b) throw new Error('אין ' + q + ' ~ ' + r); b.click(); }, [sel, re.source]);
+    const selectText = () => page.evaluate(() => { const fv = document.querySelector('.rd foliate-view'); const c = fv.renderer.getContents(); const d = c[c.length - 1].doc; const p = d.querySelector('p') || d.body; const sel = d.getSelection(); sel.removeAllRanges(); const r = d.createRange(); r.setStart(p.firstChild || p, 0); r.setEnd(p.firstChild || p, Math.min(12, (p.firstChild && p.firstChild.length) || 1)); sel.addRange(r); d.dispatchEvent(new Event('selectionchange')); });
+    const nodes = () => page.evaluate(() => document.querySelectorAll('*').length);
+    await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2500);
+
+    // --- מניה "לפי ממוצע": עריכה מהכרטיס ---
+    await step('ext4: טאב מניות + כרטיס פתוח', async () => { await tapTab('stocks'); await sleep(600); await page.click('#stockList .stock >> nth=0 >> .stock-head'); await sleep(900); }, { scroll: true, settle: 1200, expect: '#stockList .stock.open' });
+    await step('ext4: ערוך (מהכרטיס) → טופס', () => page.click('#stockList .stock.open .stock-edit .chip-btn'), { pre: '#stockList .stock.open .stock-edit', settle: 900, cls: 1, scroll: true, expect: '#ep-shares' });
+    await step('ext4: שינוי כמות + שמירה', async () => { const sym = await page.evaluate(() => document.querySelector('#stockList .stock.open').dataset.sym); const before = await page.evaluate((s) => DB.positions.find((p) => p.sym === s).shares, sym); await setVal('#ep-shares', String(before + 1)); await jsClick('#ep-save'); await sleep(700); const after = await page.evaluate((s) => DB.positions.find((p) => p.sym === s).shares, sym); if (after !== before + 1) throw new Error('הכמות לא נשמרה: ' + before + ' → ' + after); }, { settle: 1200, cls: 1, scroll: true, expect: '#stockList .stock' });
+    await step('ext4: רענון — הכמות נשמרה', async () => { const s = await page.evaluate(() => JSON.stringify(DB.positions.map((p) => [p.sym, p.shares]))); await reload(2500); const s2 = await page.evaluate(() => JSON.stringify(DB.positions.map((p) => [p.sym, p.shares]))); if (s !== s2) throw new Error('אחרי רענון: ' + s2); }, { scroll: true, settle: 1500, cls: 1, exitOk: true });
+
+    // --- עסקאות ידניות: ולידציה, עריכה, מחיקה ---
+    await step('ext4: טאב עסקאות', () => tapTab('trades'), { scroll: true, expect: '#tab-trades.active' });
+    await step('ext4: עסקה ידנית — טופס', () => page.click('#addManualTradeBtn'), { pre: '#addManualTradeBtn', settle: 900, cls: 1, expect: '.mt-form' });
+    await step('ext4: מכירה בלי אחזקה → שגיאת ולידציה', async () => { await page.click('.mt-form [data-side="SELL"]'); await setVal('.mt-form .mt-sym', 'QAT'); await setVal('.mt-form .mt-qty', '5'); await setVal('.mt-form .mt-price', '10'); await jsClick('.mt-form .mt-save'); }, { pre: '.mt-form .mt-save', settle: 600, cls: 1, expect: '.mt-form .form-err:not(.hidden)' });
+    await step('ext4: קנייה נשמרת (פוזיציה לפי עסקאות)', async () => { await page.click('.mt-form [data-side="BUY"]'); await jsClick('.mt-form .mt-save'); await sleep(800); const r = await page.evaluate(() => ({ n: (DB.manualTrades || []).length, pos: !!DB.positions.find((p) => p.sym === 'QAT' && p.fromTrades && p.shares === 5) })); if (r.n !== 1 || !r.pos) throw new Error('עסקה/פוזיציה: ' + JSON.stringify(r)); }, { pre: '.mt-form .mt-save', settle: 1200, cls: 1, scroll: true, expect: '#tradeList .rows > li, #tradeList li' });
+    await step('ext4: מכירת יתר → שגיאה', async () => { await page.click('#addManualTradeBtn'); await sleep(400); await page.click('.mt-form [data-side="SELL"]'); await setVal('.mt-form .mt-sym', 'QAT'); await setVal('.mt-form .mt-qty', '10'); await setVal('.mt-form .mt-price', '11'); await jsClick('.mt-form .mt-save'); }, { pre: '#addManualTradeBtn', settle: 600, cls: 1, scroll: true, expect: '.mt-form .form-err:not(.hidden)' });
+    await step('ext4: ביטול הטופס', () => jsClick('.mt-form .mt-cancel'), { settle: 600, cls: 1, scroll: true, expect: '#tab-trades:not(:has(.mt-form))' });
+    await step('ext4: עריכת העסקה (שורה) → כמות 7', async () => { await page.click('#tradeList .mini-btn:not(.danger) >> nth=0'); await sleep(500); await setVal('.mt-form .mt-qty', '7'); await jsClick('.mt-form .mt-save'); await sleep(800); const q = await page.evaluate(() => (DB.manualTrades[0] || {}).qty); if (q !== 7) throw new Error('כמות אחרי עריכה: ' + q); }, { pre: '#tradeList .mini-btn', settle: 1200, cls: 1, scroll: true, expect: '#tab-trades:not(:has(.mt-form))' });
+    await step('ext4: מחיקת העסקה (אישור)', async () => { await page.click('#tradeList .mini-btn.danger >> nth=0'); await sleep(400); await page.click('.dlg-ok'); await sleep(700); const r = await page.evaluate(() => ({ n: (DB.manualTrades || []).length, pos: !!DB.positions.find((p) => p.sym === 'QAT') })); if (r.n !== 0 || r.pos) throw new Error('אחרי מחיקה: ' + JSON.stringify(r)); }, { pre: '#tradeList .mini-btn.danger', settle: 1200, cls: 1, scroll: true, expect: '#tab-trades.active' });
+
+    // --- הפקדות: עריכה ומחיקה בשורה ---
+    await step('ext4: טאב הפקדות + עריכה', async () => { await tapTab('deposits'); await sleep(500); await page.click('#editDepositsBtn'); }, { scroll: true, expect: '#depositList .mini-btn' });
+    await step('ext4: עריכת הפקדה (שורה) → סכום +1', async () => { const before = await page.evaluate(() => DEPOSITS.length); await page.click('#depositList .mini-btn:not(.danger) >> nth=0'); await sleep(500); const amt = await page.evaluate(() => { const i = document.querySelector('#depositList [id$="-amt"]'); return i ? +i.value : NaN; }); if (!(amt > 0)) throw new Error('שדה סכום: ' + amt); await setVal('#depositList [id$="-amt"]', String(amt + 1)); await jsClick('#depositList [id$="-save"]'); await sleep(700); const n = await page.evaluate(() => DEPOSITS.length); if (n !== before) throw new Error('מספר ההפקדות השתנה: ' + before + ' → ' + n); const saved = await page.evaluate((a) => DEPOSITS.some((d) => Math.abs(d.amount) === a), amt + 1); if (!saved) throw new Error('הסכום החדש לא נשמר'); }, { pre: '#depositList .mini-btn', settle: 1200, cls: 1, scroll: true, expect: '#depositList:not(:has(.form-li))' });
+    await step('ext4: מחיקת הפקדה (אישור)', async () => { const before = await page.evaluate(() => DEPOSITS.length); await page.click('#depositList .mini-btn.danger >> nth=0'); await sleep(400); await page.click('.dlg-ok'); await sleep(700); const n = await page.evaluate(() => DEPOSITS.length); if (n !== before - 1) throw new Error('הפקדות: ' + before + ' → ' + n); }, { pre: '#depositList .mini-btn.danger', settle: 1200, cls: 1, scroll: true, expect: '#tab-deposits.active' });
+    await step('ext4: יציאה ממצב עריכה (הפקדות)', () => page.click('#editDepositsBtn'), { pre: '#editDepositsBtn', settle: 900, cls: 1, scroll: true, expect: '#depositList:not(:has(.mini-btn))' });
+
+    // --- רשימות מעקב: יצירה, הוספה, מעבר, שינוי שם, מחיקה בלחיצה ארוכה ---
+    await step('ext4: מעקב → רשימה חדשה "QA"', async () => { await tapTab('wishlist'); await sleep(600); await page.click('.wl-title-btn'); await sleep(350); await page.click('.wl-pop [data-act="new"]'); await sleep(500); await setVal('#wlNameInp', 'QA'); await page.click('#wlNameOk'); }, { scroll: true, settle: 1200, cls: 1, expect: '.wl-title-txt:has-text("QA")' });
+    await step('ext4: הוספת KO לרשימה החדשה', async () => { await page.evaluate(() => { const i = document.getElementById('wlSearchInput'); i.value = 'KO'; i.dispatchEvent(new Event('input', { bubbles: true })); }); await sleep(900); await clickText('#wlSearchResults .stock-search-item', /Coca-Cola/); }, { pre: '#wlSearchInput', scroll: true, settle: 1500, cls: 1, expect: '#wishlistList .stock[data-sym="KO"]' });
+    await step('ext4: טאב הרשימה הראשית', () => page.click('#wlTabs .wl-tab:not(.add) >> nth=0'), { pre: '#wlTabs', settle: 1000, cls: 1, scroll: true, expect: '#tab-wishlist:not(:has(.wl-title-txt:has-text("QA")))' });
+    await step('ext4: חזרה לרשימת QA', () => clickText('#wlTabs .wl-tab:not(.add)', /QA/), { pre: '#wlTabs', settle: 1000, cls: 1, scroll: true, expect: '.wl-title-txt:has-text("QA")' });
+    await step('ext4: שינוי שם → QA2', async () => { await page.click('.wl-title-btn'); await sleep(350); await page.click('.wl-pop [data-act="rename"]'); await sleep(500); await setVal('#wlNameInp', 'QA2'); await page.click('#wlNameOk'); }, { pre: '.wl-title-btn', settle: 1200, cls: 1, scroll: true, expect: '.wl-title-txt:has-text("QA2")' });
+    await step('ext4: לחיצה ארוכה על הטאב → מחיקת הרשימה (אישור)', async () => { const id = await page.evaluate(() => wlActiveId()); await hold('#wlTabs .wl-tab[data-wl="' + id + '"]'); await sleep(400); await page.click('.item-acts .act-del'); await sleep(400); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); await sleep(600); const left = await page.evaluate(() => (DB.wlExtra || []).some((l) => l.name === 'QA2')); if (left) throw new Error('הרשימה לא נמחקה'); }, { pre: '#wlTabs', settle: 1200, cls: 1, scroll: true, expect: '#tab-wishlist:not(:has(.wl-title-txt:has-text("QA2")))' });
+    await step('ext4: רענון — הרשימות נשמרו', async () => { await reload(2500); const r = await page.evaluate(() => ({ extra: (DB.wlExtra || []).length, qa: (DB.wlExtra || []).some((l) => /^QA/.test(l.name)) })); if (r.qa) throw new Error('QA חזרה אחרי רענון: ' + JSON.stringify(r)); }, { scroll: true, settle: 1500, cls: 1, exitOk: true });
+
+    // --- סקירה: עוגה וגרף רווח במגע ---
+    await step('ext4: סקירה — נגיעה בעוגה (הרמת פרוסה)', async () => { await tapTab('overview'); await sleep(800); await page.locator('#pieChart').evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })); await sleep(300); /* מעבר טאב = ראש העמוד (v284) — העוגה שוב מחוץ למסך אחרי ה־pre */ const hit = await page.evaluate(() => { const c = document.getElementById('pieChart'); const g = state.pieGeom; if (!c || !g) return null; const r = c.getBoundingClientRect(); const mid = (g.r + g.R) / 2; return { x: r.left + g.cx + mid, y: r.top + g.cy, keys: Object.keys(g) }; }); /* אמצע הטבעת (r פנימי, R חיצוני), מימין למרכז */ if (!hit) throw new Error('אין גאומטריית עוגה'); await page.touchscreen.tap(hit.x, hit.y); await sleep(700); const a = await page.evaluate(() => state.pieActive || null); if (!a) { const d = await page.evaluate(([x, y]) => { const c = document.getElementById('pieChart'); const r = c.getBoundingClientRect(); const e = document.elementFromPoint(x, y); return { hit: pieHitSym(state.pieGeom, x - r.left, y - r.top), el: e && (e.id || e.className), acts: document.querySelectorAll('.item-acts').length, modal: JSON.stringify(history.state) }; }, [hit.x, hit.y]); throw new Error('לא הורמה פרוסה: ' + JSON.stringify(d)); } }, { pre: '#pieChart', settle: 1000, cls: 0.1, scroll: true });
+    await step('ext4: נגיעה שנייה — הפרוסה יורדת', async () => { await page.evaluate(() => { state.pieActive = null; pieAnimateLift(null); }); }, { settle: 900, cls: 0.1 });
+    await step('ext4: גרף רווח — נגיעה בפס', async () => { if (!(await page.$('#gainBars .gb-row'))) throw new Error('אין פסי רווח'); await page.click('#gainBars .gb-row >> nth=0'); await sleep(500); }, { pre: '#gainBars', settle: 1000, cls: 0.1, scroll: true, expect: '#gainBars .gb-row.active' });
+    await step('ext4: גרף רווח — נגיעה בחוץ מורידה', async () => { await page.evaluate(() => document.body.click()); }, { pre: '#gainBars', settle: 800, cls: 0.1, expect: '#gainBars:not(:has(.gb-row.active))' });
+
+    // --- מטבע ₪ בכל המסכים ---
+    await step('ext4: מטבע → ₪', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(700); await page.click('#curILS'); }, { pre: '#curILS', cls: 1, scroll: true, settle: 1200 });
+    await step('ext4: ₪ בסקירה ובמניות', async () => { await tapTab('overview'); await sleep(700); const ov = await page.evaluate(() => document.querySelector('.cards-3').textContent); if (!/₪/.test(ov)) throw new Error('סקירה בלי ₪: ' + ov.slice(0, 60)); await tapTab('stocks'); await sleep(700); const st = await page.evaluate(() => document.querySelector('#stockList').textContent); if (!/₪/.test(st)) throw new Error('מניות בלי ₪'); }, { scroll: true, settle: 800, cls: 1 });
+    await step('ext4: מטבע → $', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(700); await page.click('#curUSD'); await sleep(400); await tapTab('overview'); await sleep(600); const ov = await page.evaluate(() => document.querySelector('.cards-3').textContent); if (!/\$/.test(ov)) throw new Error('סקירה בלי $'); }, { pre: '#curUSD', cls: 1, scroll: true, settle: 1200 });
+
+    // --- לחץ מהיר ויציבות ---
+    await step('ext4: 20 טאבים ב־80ms', async () => { const order = ['stocks', 'trades', 'deposits', 'pension', 'wishlist', 'overview']; for (let i = 0; i < 20; i++) { await page.evaluate((t) => document.querySelector('.tab[data-tab="' + t + '"]').click(), order[i % order.length]); await sleep(80); } await sleep(900); const r = await page.evaluate(() => ({ active: document.querySelectorAll('.tabpage.active').length, acts: document.querySelectorAll('.item-acts').length, anims: document.getAnimations().filter((a) => a.playState === 'running').length })); if (r.active !== 1 || r.acts) throw new Error('מצב אחרי לחץ: ' + JSON.stringify(r)); }, { scroll: true, settle: 1200, cls: 1, flickerOk: true, gap: 600 });
+    await step('ext4: כרטיס פתוח + 10 שניות חיים — צמתי DOM יציבים', async () => { await tapTab('stocks'); await sleep(700); await page.click('#stockList .stock >> nth=1 >> .stock-head'); await sleep(1200); const n0 = await nodes(); await sleep(10000); const n1 = await nodes(); if (Math.abs(n1 - n0) > 40) throw new Error('צמתים: ' + n0 + ' → ' + n1); }, { scroll: true, settle: 1200, cls: 1, pre: '#stockList .stock >> nth=1', expect: '#stockList .stock.open' });
+    await step('ext4: סגירה', () => page.click('#stockList .stock.open .stock-head'), { scroll: true, settle: 1200, cls: 1 });
+
+    // --- ספרייה: אסופות, הערה, תרגום (סטאב), ציטוט, "מה למדתי" ---
+    await step('ext4: ספרייה → הספרייה שלי → הכל', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); await ensureLibSeeded(); if (!(await page.$('.lib-root'))) { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1500); } await page.click('.lib-seg-b:nth-child(2)'); await sleep(500); await page.click('.lib-chip:nth-child(2)'); await sleep(500); }, { settle: 1500, cls: 1, scroll: true, expect: '.lib-grid .lib-item' });
+    await step('ext4: לחיצה ארוכה → אסופה חדשה "אסופת QA"', async () => { await hold('.lib-grid .lib-item >> nth=0'); await sleep(400); await page.click('.item-acts .act-coll'); await sleep(700); await page.click('.lib-veil .lib-row.act'); await sleep(700); await setVal('.lib-veil .col-in', 'אסופת QA'); await page.click('.lib-veil .bk-cta'); await sleep(900); }, { pre: '.lib-grid .lib-item >> nth=0', settle: 1500, cls: 1, scroll: true, expect: '.lib-root:not(:has(.lib-veil:not(.out)))' });
+    await step('ext4: מדף — האסופה מופיעה', () => page.click('.lib-chip:nth-child(1)'), { pre: '.lib-chip:nth-child(1)', settle: 1500, cls: 1, scroll: true, expect: '.col-card.mine:has-text("אסופת QA")' });
+    await step('ext4: דף האסופה', () => clickText('.col-card.mine', /אסופת QA/), { pre: '.col-card.mine', settle: 1500, cls: 1, scroll: true, expect: '.col-hero' });
+    await step('ext4: ⋯ → מחיקת האסופה (אישור)', async () => { await page.click('.lib-top .lib-round'); await sleep(600); await page.click('.lib-veil .lib-row.danger'); await sleep(600); if (await page.$('.dlg-veil')) await page.click('.dlg-ok'); await sleep(900); const left = await page.evaluate(() => !![...document.querySelectorAll('.col-card')].find((c) => /אסופת QA/.test(c.textContent))); if (left) throw new Error('האסופה עדיין מוצגת'); }, { pre: '.lib-top .lib-round', settle: 1500, cls: 1, scroll: true, expect: '.lib-root:not(:has(.col-hero))' });
+    await step('ext4: הכל → ספר → קריאה', async () => { await page.click('.lib-chip:nth-child(2)'); await sleep(500); await jsClick('.lib-item'); await sleep(1000); await page.click('.bk-cta'); await sleep(2500); }, { settle: 1500, cls: 1, scroll: true, expect: '.rd' });
+    await step('ext4: סימון → הערה (גיליון) → שמירה', async () => { await selectText(); await sleep(800); await clickText('.rd-pop .rd-txt', /^(הערה|Note)$/); await sleep(700); await setVal('.lib-veil .hl-ta', 'הערת QA'); await page.click('.lib-veil .bk-cta'); await sleep(700); const ok = await page.evaluate(() => new Promise((res) => { const q = indexedDB.open('snb-library'); q.onsuccess = () => { const g = q.result.transaction('books').objectStore('books').get('id-qa-m6'); g.onsuccess = () => res(((g.result || {}).ann || []).some((a) => !a.d && a.n === 'הערת QA')); }; q.onerror = () => res(false); })); if (!ok) throw new Error('ההערה לא נשמרה ב־IndexedDB'); }, { settle: 1200, cls: 1, expect: '.rd:not(:has(.lib-veil:not(.out)))' });
+    await step('ext4: סימון → תרגום (סטאב) → תוצאה', async () => { await selectText(); await sleep(800); await clickText('.rd-pop .rd-txt', /^(תרגום|Translate)$/); for (let i = 0; i < 20; i++) { await sleep(300); const t = await page.evaluate(() => (document.querySelector('.lib-veil .tr-out') || {}).textContent || ''); if (/תרגום בדיקה/.test(t)) break; } const t = await page.evaluate(() => (document.querySelector('.lib-veil .tr-out') || {}).textContent || ''); if (!/תרגום בדיקה/.test(t)) throw new Error('תרגום: ' + t); }, { settle: 1000, cls: 1, expect: '.lib-veil .tr-out' });
+    await step('ext4: Escape סוגר את גיליון התרגום', () => page.keyboard.press('Escape'), { settle: 900, cls: 1, expect: '.rd:not(:has(.lib-veil:not(.out)))' });
+    await step('ext4: סימון → ציטוט (כרטיס תמונה)', async () => { await selectText(); await sleep(800); await clickText('.rd-pop .rd-txt', /^(ציטוט|Quote)$/); }, { settle: 2500, cls: 1, expect: '.lib-veil .q-img' });
+    await step('ext4: Escape סוגר את הציטוט', () => page.keyboard.press('Escape'), { settle: 900, cls: 1, expect: '.rd:not(:has(.lib-veil:not(.out)))' });
+    await step('ext4: ✕ מהקורא', async () => { await page.evaluate(() => { const b = [...document.querySelectorAll('.rd-topbar .rd-ic')].find((x) => /סגירה|Close/.test(x.getAttribute('aria-label') || '')); if (b) b.click(); }); }, { settle: 1300, cls: 1, expect: '.bk-cta' });
+    await step('ext4: חזור ← הכל', back, { settle: 1200, cls: 1, expect: '.lib-grid' });
+    await step('ext4: "מה למדתי" מציג את ההערה', async () => { await page.click('.lib-tr .lib-round[aria-label="מה למדתי"], .lib-tr .lib-round[aria-label="What I learned"]'); await sleep(900); const t = await page.evaluate(() => (document.querySelector('.lib-home') || {}).textContent || ''); if (!/הערת QA/.test(t)) throw new Error('ההערה לא בדף'); }, { pre: '.lib-tr', settle: 1500, cls: 1, scroll: true, expect: '.learn-sec' });
+    await step('ext4: חזור ← הכל (2)', back, { settle: 1200, cls: 1, expect: '.lib-grid' });
+    await step('ext4: חזור ← יציאה מהספרייה', back, { settle: 1200, cls: 1, expect: '.tab.active' });
+
+    // --- מקלדת: Tab עד "אפשרויות מתקדמות" ואז Enter ---
+    await step('ext4: הגדרות — ניווט במקלדת (Tab) → Enter על "מתקדמות"', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(900); await page.evaluate(() => { document.getElementById('advancedOpen').focus(); }); const f = await page.evaluate(() => document.activeElement && document.activeElement.id); if (f !== 'advancedOpen') throw new Error('פוקוס: ' + f); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab'); const f2 = await page.evaluate(() => document.activeElement && document.activeElement.id); if (f2 !== 'advancedOpen') throw new Error('פוקוס אחרי Tab/Shift+Tab: ' + f2); await page.keyboard.press('Enter'); }, { settle: 1200, cls: 1, scroll: true, expect: '#tab-advanced.active' });
+    await step('ext4: Escape/חזור ← הגדרות', back, { settle: 1200, cls: 1, scroll: true, expect: '#tab-settings.active' });
+    await step('ext4: חזור ← סקירה', back, { settle: 1200, cls: 1, scroll: true, expect: '#tab-overview.active' });
   }
 
   /* ---------- מצב "קוף": פעולות אקראיות עם בדיקות שלמות אחרי כל אחת ---------- */
@@ -569,7 +831,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB }; r
       else if (r < 0.96) { name = 'קוף ' + i + ': Escape'; fn = () => page.keyboard.press('Escape'); }
       else { name = 'קוף ' + i + ': רענון'; fn = () => reload(2500); }
       const isScroll = /גלילה|רענון/.test(name);
-      await step(name, fn, { settle: 700, scroll: isScroll, cls: /נגיעה|רענון/.test(name) ? 0.5 : 0.02 });
+      await step(name, fn, { settle: 700, scroll: isScroll, cls: /נגיעה|רענון/.test(name) ? 0.5 : 0.02, flickerOk: /רענון/.test(name) });   // רענון: ה־screencast מערבב פריימים של המסמך הישן והחדש (ישן→חדש→ישן) — לא ריצוד של האפליקציה; הרענונים הייעודיים ב־app/lib נבדקים בלי ההקלה
       if (!page.url().startsWith(BASE)) { results[results.length - 1].err = (results[results.length - 1].err || '') + ' [יצא מהאפליקציה]'; results[results.length - 1].bad = true; await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
     }
   }

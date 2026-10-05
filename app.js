@@ -4496,7 +4496,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v324';
+const APP_VERSION = 'v325';
 
 
 function saveDBto(db) {
@@ -5612,6 +5612,7 @@ function quoteSymbols() {
    (מטמון 1.5 שניות שם) — 30 בקשות בדקה מהטלפון, במקום ~100 ישירות ל־Yahoo לפני v164. */
 const LIVE_FAST_MS = 2000;
 const LIVE_ALL_EVERY = 2;
+const LIVE_STALE_MS = 30000; // v325: כשל רצוף בלולאה החיה מעבר לזה → המחירים הקיימים מסומנים "דיליי" (stale)
 const LIVE_IDLE_MS = 60000;
 const LIVE_IDLE_AFTER = 15; // ~1 דקה בלי תזוזה (שוק סגור) → טיק לדקה
 const live = { timer: null, busy: false, n: 0, still: 0, on: false };
@@ -5812,8 +5813,7 @@ async function liveTick() {
         if (Object.keys(got).length) {
           const moved = liveMerge(got);
           state.quotesAt = Date.now();
-          if (state.stale) setBanner(null); // v160: מחירים חזרו — מסירים את "לא התקבלו מחירים"
-          state.stale = false;
+          if (state.stale) { setBanner(null); state.stale = false; updateSourceLabel(); } // v160: מחירים חזרו — מסירים את "לא התקבלו מחירים"; v325: והקפסולה חוזרת ל"חי" מיד
           if (full) {
             live.still = moved.length ? 0 : live.still + 1;
             const sess = (Object.values(got).find((r) => r.session) || {}).session || '';
@@ -5824,6 +5824,11 @@ async function liveTick() {
             updateSourceLabel();
           }
           if (moved.length) { if (state.cardAnim) { (state.liveDeferred || (state.liveDeferred = new Set())); moved.forEach((x) => state.liveDeferred.add(x)); } else renderLive(moved); } // v272: אחרי האנימציה
+        } else if (full && !state.stale && state.quotesAt && Date.now() - state.quotesAt > LIVE_STALE_MS) {
+          // v325 (נמצא ב־QA): עד כאן כשל בלולאה החיה לא סימן כלום — הקפסולה נשארה "חי" עם מחירים ישנים ללא הגבלה.
+          // המחירים הקיימים נשארים (בלי באנר — הוא רק כשאין מחירים בכלל), אבל הקפסולה עוברת ל"דיליי" עד שהבקשות חוזרות.
+          state.stale = true;
+          updateSourceLabel();
         }
       } catch (e) { /* טיק שנכשל — הבא ינסה שוב */ }
       finally { live.busy = false; }
@@ -6944,7 +6949,17 @@ function switchTab(name, opts) {
   navSync(name, opts); // v290: "חזור" של המכשיר — הגדרות/אפשרויות מתקדמות כרשומות בהיסטוריה
   if (opts && opts.restore) { restoreScrollTo(name, getSavedScrollY(name)); return; }
   cancelScrollRestore();
+  navScrollTop();
+}
+/* v325: גלילה תוכנתית של מעבר טאב (ראש העמוד) — מסומנת data-nav-scroll על <html> לשני פריימים, כדי שכלי המדידה
+   (tools/qa-motion.js) לא יספור אותה כקפיצת גלילה (אותו מנגנון כמו navScroll בספרייה) */
+function navScrollTop() {
+  if (typeof window === 'undefined' || !window.scrollTo) return;
+  const de = document.documentElement;
+  try { de.dataset.navScroll = '1'; } catch (e) {}
   try { window.scrollTo(0, 0); } catch (e) {}
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(() => { try { delete de.dataset.navScroll; } catch (e) {} }));
+  else { try { delete de.dataset.navScroll; } catch (e) {} }
 }
 
 /* v153: שחזור גלילה עמיד. לפני כן: scrollTo אחד מיד אחרי המעבר, כשהדף עוד קצר (מחירים,

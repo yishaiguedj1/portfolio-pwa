@@ -37,5 +37,5 @@ ok(/yahooRecovered\(\)\.catch/.test(src) && /delete histNegCache\[sym\]/.test(sr
 ok(/if \(symCur\(sym\) !== 'USD'( \|\| mktKind\(sym\))?\) return null; \/\/ v160: Stooq/.test(src), 'Stooq רק לארה"ב (לא poli.ta.us)');
 ok(/loading\.textContent = t\('histRetryLater'\)/.test(src) && /histRetryLater: 'Price history/.test(src), 'בלי היסטוריה — הודעה ברורה, לא "טוען" לנצח');
 ok(/'prev', 'prevClose'/.test(src), 'רשת הביטחון לאגורות מתקנת גם את הסגירה הקודמת');
-ok(/if \(state\.stale\) setBanner\(null\);/.test(src), 'מחירים חזרו — ההודעה "לא התקבלו מחירים" יורדת');
+ok(/if \(state\.stale\) \{ setBanner\(null\); state\.stale = false; updateSourceLabel\(\); \}/.test(src), 'מחירים חזרו — ההודעה "לא התקבלו מחירים" יורדת');
 console.log('\n' + n + ' בדיקות עברו');

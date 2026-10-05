@@ -351,7 +351,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .tabpage { display: none; }
 /* v193: העמוד נכנס בציר משותף (Material/iOS) — מחליק מהצד שאליו עברנו (--tab-dx נקבע ב־switchTab לפי הכיוון ו־RTL) ומתבהר */
 .tabpage.active { display: block; animation: tabIn .32s cubic-bezier(.2, .9, .25, 1) both; }
-@keyframes tabIn { from { opacity: 0; transform: translate3d(var(--tab-dx, 0px), 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes tabIn { from { opacity: .55; transform: translate3d(var(--tab-dx, 0px), 0, 0); } to { opacity: 1; transform: none; } }   /* v325: לא מ־0 — הישן כבר display:none והחדש היה שקוף לפריים שלם = מסך ריק (במצב כהה הבהוב שחור, נמדד ב־QA) */
 @keyframes fade { from { opacity: .4; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .tabpage.active { animation: fade .15s ease; } }
 
@@ -478,7 +478,7 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-body > * { min-height: 0; overflow: hidden; }
 /* v272: בזמן האנימציה הגובה נקבע ב־JS בכל פריים (toggleStock) — התוכן בגובהו הטבעי ונחשף/נחתך מלמטה */
 .stock.anim .stock-body { overflow: hidden; }
-.stock.anim .stock-body > * { overflow: visible; align-self: start; }
+.stock.anim .stock-body > * { overflow: visible; align-self: start; min-width: 0; max-width: 100%; }   /* v325: עם overflow:visible רוחב המינימום של פריט grid = רוחב התוכן — ב־320px הגוף היה 371px בזמן האנימציה והתכווץ ל־286 בסופה (קפיצה אופקית של כל התוכן, CLS 0.06; נמדד ב־QA) */
 .stock.measure .stock-body { height: auto !important; }
 .stock-body-in { border-top: 1px solid var(--separator); padding: 16px 18px 18px; opacity: 0; transform: translateY(-10px) scale(.985); transform-origin: 50% 0;
   transition: opacity .16s ease, transform .3s var(--ease-ios); }
