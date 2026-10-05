@@ -258,7 +258,7 @@ he: {
   trTitle: 'תרגום בהקשר', trLoading: 'מתרגם לפי ההקשר…', trNote: 'בהקשר הזה', trBasic: 'תרגום בסיסי — מנוע ה־AI לא זמין כרגע', trFail: 'התרגום נכשל. נסה שוב.',
   rdFont: 'גופן', rdLayout: 'פריסה', rdTheme: 'ערכה', rdFontBook: 'הגופן של הקובץ', rdSize: 'גודל', rdWeight: 'עובי',
   rdAlign: 'יישור', rdAlignStart: 'לימין', rdAlignJustify: 'לשני הצדדים', rdSpacing: 'ריווח', rdSpacing1: 'צפוף', rdSpacing2: 'רגיל', rdSpacing3: 'מרווח',
-  rdFlow: 'תצוגה', rdPages: 'עמודים', rdScroll: 'גלילה', rdWhite: 'לבן', rdSepia: 'ספיה', rdGreen: 'ירוק', rdBlack: 'שחור',
+  rdFlow: 'תצוגה', rdPages: 'עמודים', rdScroll: 'גלילה', rdAuto: 'אוטומטי', rdWhite: 'לבן', rdSepia: 'ספיה', rdGreen: 'ירוק', rdBlack: 'שחור',
   stOpen: 'השוק פתוח', stClosedWith: 'השוק סגור · {r}', stClosedFull: 'השוק סגור',
   sessionPre: ' · מסחר־מוקדם',
   sessionPost: ' · מסחר־מאוחר',
@@ -796,7 +796,7 @@ en: {
   trTitle: 'Translation in context', trLoading: 'Translating in context…', trNote: 'In this context', trBasic: 'Basic translation — the AI engine is unavailable right now', trFail: 'Translation failed. Try again.',
   rdFont: 'Font', rdLayout: 'Layout', rdTheme: 'Theme', rdFontBook: 'Publisher font', rdSize: 'Size', rdWeight: 'Weight',
   rdAlign: 'Alignment', rdAlignStart: 'Start', rdAlignJustify: 'Justified', rdSpacing: 'Spacing', rdSpacing1: 'Tight', rdSpacing2: 'Normal', rdSpacing3: 'Wide',
-  rdFlow: 'View', rdPages: 'Pages', rdScroll: 'Scroll', rdWhite: 'White', rdSepia: 'Sepia', rdGreen: 'Green', rdBlack: 'Black',
+  rdFlow: 'View', rdPages: 'Pages', rdScroll: 'Scroll', rdAuto: 'Auto', rdWhite: 'White', rdSepia: 'Sepia', rdGreen: 'Green', rdBlack: 'Black',
   stOpen: 'Market open', stClosedWith: 'Closed · {r}', stClosedFull: 'Market closed',
   sessionPre: ' · pre-market',
   sessionPost: ' · post-market',
@@ -4496,7 +4496,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v329';
+const APP_VERSION = 'v330';
 
 
 function saveDBto(db) {

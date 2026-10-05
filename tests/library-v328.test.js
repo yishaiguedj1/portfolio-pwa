@@ -11,9 +11,9 @@ ok(/\.ann-row, \.ann-row \* \{ -webkit-user-select: none; user-select: none; -we
 ok(/r\.addEventListener\('contextmenu', \(e\) => e\.preventDefault\(\)\);/.test(lib), 'שורה: תפריט ההקשר של הדפדפן חסום');
 ok(/const openedAt = Date\.now\(\);[\s\S]{0,300}if \(e\.target === veil && Date\.now\(\) - openedAt > 450\) close\(\);/.test(lib), 'גיליון: ה־click שאחרי לחיצה ארוכה לא סוגר אותו מיד');
 ok(/swallow = true; setTimeout\(\(\) => \{ swallow = false; \}, 600\);/.test(lib), 'לחיצה ארוכה: הנגיעה הבאה לא נבלעת');
-ok(/r\.classList\.add\('bm'\);\s*r\.append\(h\('span', 'ann-ribbon'\)\);/.test(lib), 'סימנייה: סרט בראש הכרטיס');
+ok(/r\.classList\.add\('bm'\);[\s\S]{0,60}const rb = h\('span', 'ann-ribbon'\); rb\.innerHTML = ribbonMiniSVG\(\); r\.append\(rb\);/.test(lib), 'סימנייה: סרט בראש הכרטיס (מ־v330 — סרט SVG כמו בספר)');
 ok(/if \(a\.b\) \{ const tag = h\('span', 'ann-bmtag'\);[\s\S]{0,120}ICON\.bookmark[\s\S]{0,80}T\('annBmLabel'\)/.test(lib), 'סימנייה: תווית עם אייקון');
 ok(/\.ann-row\.bm \{ border-inline-start: 0 !important;/.test(css), 'סימנייה: בלי פס צבע (התבלבל עם הדגשה ורודה)');
-ok(/\.ann-ribbon \{[^}]*clip-path: polygon/.test(css) && /\.ann-row\.bm \.ann-x \{ color: var\(--on-surface-var\)/.test(css), 'סימנייה: סרט + קטע העמוד בטון משני');
+ok(/\.ann-ribbon \{[^}]*position: absolute/.test(css) && /\.ann-ribbon svg \{/.test(css) && /\.ann-row\.bm \.ann-x \{ color: var\(--on-surface-var\)/.test(css), 'סימנייה: סרט (מ־v330 SVG במקום clip-path) + קטע העמוד בטון משני');
 ok((app.match(/\bannBmLabel: '/g) || []).length === 2, 'מחרוזת בעברית ובאנגלית');
 console.log('# ' + n + ' בדיקות עברו');

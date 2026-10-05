@@ -23,8 +23,19 @@ const THEMES = {
 };
 const COVER_COLORS = [['#23426B', '#142944'], ['#3D3D3D', '#1E1E1E'], ['#5B4636', '#3A2C22'], ['#2E5A4E', '#1B3A32'], ['#5A2E3D', '#3A1C27'], ['#3F4A6B', '#272F47']];
 
-const defaults = { theme: 'white', size: 19, weight: 0, spacing: 1, justify: false, font: 'snb', flow: 'paginated' };
-function loadSettings() { try { return Object.assign({}, defaults, JSON.parse(localStorage.getItem(LS_READER) || '{}')); } catch (e) { return Object.assign({}, defaults); } }
+// v330: ערכת ברירת המחדל = 'auto' — הקורא הולך אחרי האפליקציה (בהיר → דף לבן, כהה → דף שחור עם טקסט אפור־בהיר, כמו
+// מצב כהה של קינדל), ומתחלף מיד כשהאפליקציה מתחלפת. בחירה ידנית ב־Aa (themeSet) גוברת
+const defaults = { theme: 'auto', size: 19, weight: 0, spacing: 1, justify: false, font: 'snb', flow: 'paginated' };
+export function normSettings(o) {          // הגדרות ישנות: 'white' שנשמר כברירת מחדל (בלי בחירה ידנית) → 'auto'
+  const r = Object.assign({}, defaults, o || {});
+  if (!THEMES[r.theme] && r.theme !== 'auto') r.theme = 'auto';
+  if (r.theme === 'white' && !r.themeSet) r.theme = 'auto';
+  return r;
+}
+function loadSettings() { try { return normSettings(JSON.parse(localStorage.getItem(LS_READER) || '{}')); } catch (e) { return normSettings({}); } }
+const appDark = () => typeof document !== 'undefined' && !!document.documentElement && document.documentElement.getAttribute('data-theme') === 'dark';
+export function themeKey(st, dark) { return st.theme === 'auto' ? (dark ? 'black' : 'white') : st.theme; }
+const curTheme = () => THEMES[themeKey(S, appDark())] || THEMES.white;
 function saveSettings() { try { localStorage.setItem(LS_READER, JSON.stringify(S)); } catch (e) {} }
 let S = loadSettings();
 const ui = { sort: 'new', author: '\u0001shelf', view: null, q: '', admin: false };   // v321: נכנסים תמיד ל"מדף ספרים"   // view: null = בית, { book: id } = דף מכתב
@@ -544,7 +555,7 @@ async function pullCloud() {
   let lib; try { const snap = await ref.get(); lib = snap.exists && snap.data().lib; } catch (e) { return 0; }
   if (!lib) return 0;
   let changed = 0;
-  if (lib.s && lib.s.t > (S.t || 0)) { S = Object.assign({}, defaults, lib.s); saveSettings(); }
+  if (lib.s && lib.s.t > (S.t || 0)) { S = normSettings(lib.s); saveSettings(); }
   const mc = mergeColls(collAll(), lib.c);       // v320: אסופות מהענן (מכשיר אחר)
   if (mc) { collSave(mc); changed++; }
   const p = lib.p || {};
@@ -2335,7 +2346,7 @@ function openSortSheet() {
 let rd = null; // { view, book, rec, els, chrome, saveT }
 
 function bookCSS() {
-  const th = THEMES[S.theme] || THEMES.white;
+  const th = curTheme();
   const w = WEIGHTS[S.weight] || 400;
   const ourFont = S.font !== 'book';
   return `
@@ -2352,7 +2363,7 @@ function bookCSS() {
     td.num, .num { font-variant-numeric: tabular-nums; }
     span.en { white-space: nowrap; }
     a, a:link, a:visited { color: ${th.link} !important; }
-    ${S.theme !== 'white' ? `body *:not(img):not(svg):not(svg *) { color: inherit !important; background-color: transparent !important; }
+    ${th !== THEMES.white ? `body *:not(img):not(svg):not(svg *) { color: inherit !important; background-color: transparent !important; }
     a, a * { color: ${th.link} !important; }` : 'p.note, .note, caption { color: ' + th.ink2 + ' !important; }'}
     pre { white-space: pre-wrap !important; }
     img, svg { max-width: 100%; height: auto; }
@@ -2362,11 +2373,12 @@ function bookCSS() {
 
 function applyReaderStyle() {
   if (!rd) return;
-  const th = THEMES[S.theme] || THEMES.white;
+  const th = curTheme();
   const box = rd.els.box;
   box.style.setProperty('--rd-page', th.page); box.style.setProperty('--rd-ink', th.ink);
   box.style.setProperty('--rd-ink2', th.ink2); box.style.setProperty('--rd-rule', th.rule);
   box.dataset.dark = th.dark ? '1' : '';
+  if (rd.r3d) rd.r3d.setPage(th.page, th.dark);
   const r = rd.view.renderer;
   if (!r) return;
   r.setAttribute('flow', S.flow === 'scrolled' ? 'scrolled' : 'paginated');
@@ -2376,6 +2388,11 @@ function applyReaderStyle() {
   r.setAttribute('max-column-count', '2');
   if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) r.setAttribute('animated', '');
   if (r.setStyles) r.setStyles(bookCSS());
+}
+
+// v330: האפליקציה עברה בהיר↔כהה (ידנית או לפי המערכת) — קורא פתוח בערכה האוטומטית מתחלף מיד, כמו בקינדל
+if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
+  new MutationObserver(() => { if (rd && S.theme === 'auto') applyReaderStyle(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 }
 
 async function openReader(id, opt) {
@@ -2417,6 +2434,7 @@ async function openReader(id, opt) {
   rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon }, chrome: false, saveT: 0, annTap: 0 };
   rec.ann = rec.ann || [];
   annCleanDupes(rec);
+  ribbon3dSetup(box, ribbon);   // v330: סימנייה תלת־ממדית — נטענת ברקע; עד שמוכנה (או בלי WebGL) נשאר סרט ה־SVG
   const setChrome = (on) => { rd.chrome = on; box.classList.toggle('chrome', on); };
   tocBtn.addEventListener('click', openToc);
   bmBtn.addEventListener('click', toggleBookmark);
@@ -2457,6 +2475,11 @@ async function openReader(id, opt) {
     if (!(opt && opt.restored) && !reduceMotion()) await new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 360); });
     await view.open(file);
     rd.book = view.book;
+    // v330: פרק בלי <head> (קובץ פגום; ב־XHTML הדפדפן לא משלים אותו) — המנוע מזריק את העיצוב רק ל־head,
+    // ובלעדיו הערכה, הגופן והגודל לא חלים (נמצא בתצוגה הכהה: דף לבן בערכה השחורה)
+    if (rd.book && rd.book.transformTarget) rd.book.transformTarget.addEventListener('data', ({ detail }) => {
+      if (/html/.test(detail.type || '')) detail.data = Promise.resolve(detail.data).then((d) => (typeof d === 'string' ? ensureHead(d) : d));
+    });
     if (rd.book && rd.book.dir) box.dir = rd.book.dir;
     applyReaderStyle();
     const startAt = opt && opt.cfi ? opt.cfi : opt && (opt.href || opt.fromStart) ? null : (rec.cfi || null);
@@ -2487,9 +2510,48 @@ function closeReader() {
   // v322: הקורא דוהה מעל הדף באנימציית CSS על האלמנט עצמו (צילום View Transition לא כולל את ה־iframe — יצא דף לבן ריק);
   // הדף שמתחת מצויר בזמן שהקורא עדיין אטום, עם הגלילה שנשמרה בפתיחה; המנוע נסגר רק בסוף.
   const box = r.els.box;
+  if (r.r3dOff) r.r3dOff();
   box.classList.add('out');
   const gone = reduceMotion() ? Promise.resolve() : new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 340); });
-  return (async () => { await renderHomeNow(); pinScroll(savedLibScroll()); await gone; try { r.view.close(); } catch (e) {} box.remove(); })();
+  return (async () => { await renderHomeNow(); pinScroll(savedLibScroll()); await gone; try { r.view.close(); } catch (e) {} if (r.r3d) r.r3d.destroy(); box.remove(); })();
+}
+/* v330 (בקשת המשתמש: "סימנייה כמו בעולם האמיתי — תלת־ממדית, מתרוממת באוויר עם צל"): המנוע ב־ribbon3d.js
+   (סימולציית בד + WebGL + צל ממקור אור שטחי). הקנבס בתוך כפתור הסרט — זז איתו כשהסרגל העליון נפתח; הכפתור נשאר
+   אזור הנגיעה והנגישות. בלי WebGL / שגיאה — סרט ה־SVG (v329) נשאר כמו שהוא. */
+async function ribbon3dSetup(box, btn) {
+  if (typeof WebGLRenderingContext === 'undefined') return;
+  // ההכנה (טעינת המודול + הידור השיידרים) רק אחרי אנימציית הכניסה ופענוח הספר, כשהתהליך פנוי —
+  // סינכרונית באמצע הפתיחה היא יצרה פריים של ~0.25 שנ׳ (נמדד בכלי המעברים)
+  await new Promise((res) => setTimeout(res, 900));
+  await new Promise((res) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(res, { timeout: 2000 }) : setTimeout(res, 200)));
+  if (!rd || rd.els.box !== box) return;
+  let mod;
+  try { mod = await import('./ribbon3d.js'); } catch (e) { return; }
+  if (!rd || rd.els.box !== box) return;
+  const cv = h('canvas', 'rd-ribbon3d'); cv.setAttribute('aria-hidden', 'true');
+  btn.prepend(cv);
+  const eng = await mod.createRibbonAsync(cv, { reduceMotion, onLand: () => { try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {} } });
+  if (!eng || !rd || rd.els.box !== box) { if (eng) eng.destroy(); cv.remove(); return; }
+  const lay = () => {
+    if (!cv.isConnected) return;
+    const r = cv.getBoundingClientRect();
+    if (!r.width) return;
+    eng.layout({ w: r.width, h: r.height, ax: btn.getBoundingClientRect().left + btn.offsetWidth / 2 - r.left, cx: innerWidth / 2 - r.left, cy: innerHeight / 2 - r.top, dpr: devicePixelRatio || 1 });
+  };
+  lay();
+  const th = curTheme();
+  eng.setPage(th.page, th.dark);
+  eng.set(btn.classList.contains('on'), false);
+  rd.r3d = eng;
+  requestAnimationFrame(() => { if (rd && rd.r3d === eng) box.classList.add('r3d'); });   // הצלבה מהסרט השטוח לתלת־ממדי
+  // אצבע על הסרט: הקצה מתרומם קצת עם הצל (משוב מוחשי), ואז הלחיצה מפעילה את ההוספה/ההסרה מאותו מצב
+  const down = () => eng.press(true), up = () => eng.press(false);
+  btn.addEventListener('pointerdown', down);
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) btn.addEventListener(ev, up);
+  btn.addEventListener('transitionend', lay);
+  cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); box.classList.remove('r3d'); if (rd && rd.r3d === eng) rd.r3d = null; });
+  addEventListener('resize', lay);
+  rd.r3dOff = () => removeEventListener('resize', lay);
 }
 
 /* נגיעות בתוך הספר: דפדוף רק בהחלקה (המנוע — paginator — גורר ומצמיד לעמוד, לפי כיוון הספר).
@@ -2691,12 +2753,36 @@ function annActions(rec, a, opt) {
 }
 
 /* ---- סימניות: לפי העמוד הנוכחי (CFI של הטווח הגלוי) ---- */
+/* v330 (באג שהמשתמש דיווח): סימנייה הופיעה גם בעמוד שלפני העמוד המסומן. הסימנייה נשמרת בתחילת העמוד, וסוף הטווח של
+   העמוד הקודם הוא בדיוק אותה נקודה (נמדד: עמוד 1 = [/2 , /6/1:300], עמוד 2 = [/6/1:300 , /8/1:863]) — וההשוואה כללה את הסוף.
+   עכשיו הטווח חצי־פתוח [תחילה, סוף): נקודה בסוף שייכת לעמוד הבא. עמוד ריק (תחילה = סוף) — רק נקודה בדיוק שם. טהורה (נבדקת). */
+// מוסיף <head> ריק לפרק שאין לו (אחרי תגית <html>), כדי שהמנוע יוכל להזריק את עיצוב הקורא
+export function ensureHead(src) {
+  if (typeof src !== 'string' || /<head[\s>/]/i.test(src)) return src;
+  return src.replace(/<html\b[^>]*>/i, (m) => m + '<head></head>');
+}
+export function bmOnPage(c, a, z, cmp) {
+  if (cmp(c, a) < 0) return false;
+  const e = cmp(c, z);
+  if (e < 0) return true;
+  return e === 0 && cmp(a, z) === 0;
+}
 function pageHasBookmark() {
   const loc = rd && rd.loc; if (!loc || !loc.cfi) return null;
   try {
     const a = CFI.collapse(loc.cfi), z = CFI.collapse(loc.cfi, true);
-    return liveAnn(rd.rec.ann, 'bm').find((b) => CFI.compare(b.c, a) >= 0 && CFI.compare(b.c, z) <= 0) || null;
+    return liveAnn(rd.rec.ann, 'bm').find((b) => bmOnPage(b.c, a, z, CFI.compare)) || null;
   } catch (e) { return null; }
+}
+/* v330: סרט קטן לכרטיס סימנייה במחברת — אותה צורה כמו בקורא, סאטן ירוק (מעבר צבע לרוחב: שוליים כהים, ברק במרכז) */
+let rbSeq = 0;
+function ribbonMiniSVG() {
+  const g = 'snbRb' + (++rbSeq);
+  return '<svg viewBox="0 0 24 40" aria-hidden="true"><defs><linearGradient id="' + g + '" x1="0" x2="1" y1="0" y2="0">' +
+    '<stop offset="0" stop-color="#15843A"/><stop offset=".16" stop-color="#22B04B"/><stop offset=".36" stop-color="#5BE67F"/>' +
+    '<stop offset=".52" stop-color="#34D35C"/><stop offset=".82" stop-color="#22B04B"/><stop offset="1" stop-color="#127832"/></linearGradient></defs>' +
+    '<path d="' + RIBBON_PATH + '" fill="url(#' + g + ')" stroke="#127832" stroke-width=".7"/>' +
+    '<path d="M4 1.5h16v3.2H4z" fill="#000" fill-opacity=".14"/></svg>';
 }
 /* v329: סרט בעיצוב קינדל — שכבת מתאר (צבע הדף + קו אפור) ומעליה שכבת מילוי ירוקה שנחשפת מלמעלה למטה */
 const RIBBON_PATH = 'M4 1.5h16a1.5 1.5 0 0 1 1.5 1.5v33.2c0 1.15-1.24 1.87-2.24 1.3L12 33.3l-7.26 4.2c-1 .57-2.24-.15-2.24-1.3V3A1.5 1.5 0 0 1 4 1.5z';
@@ -2709,6 +2795,7 @@ function markBookmark(animate) {
   rb.classList.toggle('on', on);
   rb.setAttribute('aria-pressed', String(on)); rb.setAttribute('aria-label', on ? T('annDeleteBm') : T('bmAdd'));
   rd.els.bmBtn.classList.toggle('on', on);
+  if (rd.r3d) rd.r3d.set(on, !!animate && was !== on);   // v330: הסרט התלת־ממדי — פעולת משתמש = התרוממות ונחיתה; החלפת עמוד = מיד
   if (animate && was !== on && !reduceMotion()) {
     // אנימציה בשלבים: בהוספה — הסרט "נשמט" למטה עם קפיצה קטנה והירוק נשפך מלמעלה; בהסרה — הירוק מתרוקן ואז הסרט מתקפל למעלה
     rb.classList.remove('anim-on', 'anim-off'); void rb.offsetWidth;
@@ -2844,12 +2931,15 @@ function openToc() {
 }
 function annRow(a, onOpen, onMore) {
   const r = h('div', 'ann-row'); r.tabIndex = 0; r.setAttribute('role', 'button');
-  if (!a.b) r.style.setProperty('--hl', HL_COLORS[a.k] || HL_COLORS.y);
-  else {                                   // v328: סימנייה נראית כמו סימנייה — סרט אדום בראש הכרטיס + תווית, בלי פס צבע (שהתבלבל עם הדגשה ורודה)
+  if (!a.b) { r.style.setProperty('--hl', HL_COLORS[a.k] || HL_COLORS.y); r.dataset.k = a.k || 'y'; }
+  else {                                   // v330: סימנייה בעיצוב הסרט של הקורא (ירוק סאטן עם חריץ), יורדת מהקצה העליון של הכרטיס
     r.classList.add('bm');
-    r.append(h('span', 'ann-ribbon'));
+    const rb = h('span', 'ann-ribbon'); rb.innerHTML = ribbonMiniSVG(); r.append(rb);
   }
-  const q = h('div', 'ann-x', a.x || '—'); q.dir = 'auto'; r.append(q);
+  const q = h('div', 'ann-x'); q.dir = 'auto';
+  if (a.b) q.textContent = a.x || '—';
+  else q.append(h('span', 'ann-mark', a.x || '—'));   // v330: הקטע מסומן במרקר בצבע שלו — כמו בספר, ברור איזה סימון באיזה צבע
+  r.append(q);
   if (String(a.n || '').trim()) { const n = h('div', 'ann-n'); const ic = h('span', 'ann-nic'); ic.innerHTML = ICON.notes; const t = h('span', null, a.n); t.dir = 'auto'; n.append(ic, t); r.append(n); }
   const m = h('div', 'ann-m');
   if (a.b) { const tag = h('span', 'ann-bmtag'); const ic = h('span', 'ann-bmic'); ic.innerHTML = ICON.bookmark; tag.append(ic, h('span', null, T('annBmLabel'))); m.append(tag); }
@@ -2921,12 +3011,12 @@ function openAa() {
     // ערכה
     const pt = h('div', 'rd-pane hidden'); panes.theme = pt;
     const themes = h('div', 'rd-themes');
-    [['white', 'rdWhite'], ['sepia', 'rdSepia'], ['green', 'rdGreen'], ['black', 'rdBlack']].forEach(([v, k]) => {
-      const th = THEMES[v];
+    [['auto', 'rdAuto'], ['white', 'rdWhite'], ['sepia', 'rdSepia'], ['green', 'rdGreen'], ['black', 'rdBlack']].forEach(([v, k]) => {
       const b = h('button', S.theme === v ? 'on' : ''); b.type = 'button';
-      b.style.background = th.page; b.style.color = th.ink;
+      if (v === 'auto') b.classList.add('auto');   // חצי לבן / חצי שחור — "כמו האפליקציה"
+      else { const th = THEMES[v]; b.style.background = th.page; b.style.color = th.ink; }
       b.append(h('span', 'big', 'א'), h('span', 'sm', T(k)));
-      b.addEventListener('click', () => { S.theme = v; themes.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); redo(); });
+      b.addEventListener('click', () => { S.theme = v; S.themeSet = v === 'auto' ? 0 : 1; themes.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); redo(); });
       themes.append(b);
     });
     pt.append(themes);

@@ -430,8 +430,9 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('lib: חזור ← שומר (הודעה)', back, { expect: '.rd' });
     await step('lib: חזור ← דף הספר', back, { settle: 1300, keep: true, expect: '.bk-cta' });
     await step('lib: חזור ← הכל (גלילה שמורה)', back, { settle: 1200, keep: true, expect: '.lib-grid .lib-item' });
-    // היעד = הגלילה שהייתה ממש לפני הלחיצה (הדף יכול להיות קצר מ־500 — "הספרייה שלי" עם 6 ספרים)
-    await step('lib: בדיקת גלילה שמורה', async () => { const r = await page.evaluate(() => ({ y: document.querySelector('.lib-root').scrollTop, want: window.__dbgTop })); if (!(r.want > 50) || Math.abs(r.y - r.want) > 2) throw new Error('הגלילה לא שוחזרה (' + r.y + ' במקום ' + r.want + ')'); }, { settle: 100 });
+    // היעד = הגלילה שהייתה ממש לפני הלחיצה (הדף יכול להיות קצר מ־500 — "הספרייה שלי" עם 6 ספרים;
+    // מ־v327 הגיבוי הוא גלולה בכותרת ולא כרטיס, והדף קצר עוד יותר — סף 20px)
+    await step('lib: בדיקת גלילה שמורה', async () => { const r = await page.evaluate(() => ({ y: document.querySelector('.lib-root').scrollTop, want: window.__dbgTop })); if (!(r.want >= 20) || Math.abs(r.y - r.want) > 2) throw new Error('הגלילה לא שוחזרה (' + r.y + ' במקום ' + r.want + ')'); }, { settle: 100 });
     await step('lib: לחיצה ארוכה', async () => { const bx = await page.locator('.lib-item >> nth=1').boundingBox(); await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: bx.x + bx.width / 2, y: bx.y + bx.height / 2 }] }); await sleep(650); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); });
     await step('lib: עריכה', async () => { await page.click('.item-acts .act-edit'); await sleep(900); }, { settle: 1200, expect: '.ed-form' });
     await step('lib: חזור ← מעריכה', back, { expect: '.lib-grid .lib-item' });
