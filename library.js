@@ -572,6 +572,11 @@ async function pullCloud() {
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.hidden) flushProgress(); });
 
 const BLOCK_SEL = 'p,li,h1,h2,h3,h4,h5,h6,blockquote,td,th,dd,dt,figcaption,pre';
+function docText(doc) {                 // הטקסט של פרק: בלוק לכל שורה (משותף לאינדקס החיפוש ולתצוגה המקדימה בציר)
+  const blocks = Array.from(doc.querySelectorAll(BLOCK_SEL)).filter((el) => !el.querySelector(BLOCK_SEL));
+  return (blocks.length ? blocks.map((el) => el.textContent) : [doc.body ? doc.body.textContent : ''])
+    .map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
 async function indexBook(b) {
   const file = await getFile(b.id); if (!file) return;
   const book = await makeBook(file);
@@ -579,10 +584,7 @@ async function indexBook(b) {
   for (const [i, sec] of (book.sections || []).entries()) {
     if (!sec.createDocument || sec.linear === 'no') continue;
     try {
-      const doc = await sec.createDocument();
-      const blocks = Array.from(doc.querySelectorAll(BLOCK_SEL)).filter((el) => !el.querySelector(BLOCK_SEL));
-      const t = (blocks.length ? blocks.map((el) => el.textContent) : [doc.body ? doc.body.textContent : ''])
-        .map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+      const t = docText(await sec.createDocument());
       if (t) secs.push({ i, t });
     } catch (e) { /* פרק שלא נפתח — מדלגים */ }
   }
@@ -642,6 +644,7 @@ async function ftSearch(q) {
 /* ---------------- מבנה המסך ---------------- */
 const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ICON = {
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   sort: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3"/></svg>',
@@ -2427,11 +2430,24 @@ async function openReader(id, opt) {
   acts.append(bmBtn, tocBtn, aaBtn); topBar.append(xBtn, ttl, acts);
   const botBar = h('div', 'rd-botbar');
   const chap = h('div', 'rd-chap'); const slider = h('input', 'rd-slider'); slider.type = 'range'; slider.min = '0'; slider.max = '1000'; slider.step = '1';
-  const nums = h('div', 'rd-nums'); const nL = h('span'); const nR = h('span'); nums.append(nL, nR);
-  botBar.append(chap, slider, nums);
+  slider.setAttribute('aria-label', T('rdProgress'));
+  // v331 (בקשת המשתמש, Apple + רעיונות קינדל): ציר ההתקדמות — סימניות על הציר, עצירה "מגנטית" עם רטט כשעוברים עליהן,
+  // תצוגה מקדימה קטנה מעל האגודל (כמו YouTube), ו"חזרה ל־X%" אחרי קפיצה (כמו קינדל). הכיוון — כיוון הספר
+  const scrub = h('div', 'rd-scrub'); const marks = h('div', 'rd-bmarks'); marks.setAttribute('aria-hidden', 'true');
+  const prev = h('div', 'rd-prev'); prev.setAttribute('aria-hidden', 'true');
+  const pvCh = h('div', 'rd-prev-ch'), pvTx = h('div', 'rd-prev-tx'), pvFt = h('div', 'rd-prev-ft'), pvPct = h('span', 'rd-prev-pct'), pvBm = h('span', 'rd-prev-bm');
+  pvCh.dir = 'auto'; pvTx.dir = 'auto';
+  pvBm.innerHTML = ribbonMiniSVG(); pvBm.append(h('b', '', T('annBmLabel')));
+  pvFt.append(pvPct, pvBm); prev.append(pvCh, pvTx, pvFt);
+  scrub.append(marks, slider, prev);
+  const nums = h('div', 'rd-nums'); const nL = h('span'); const nR = h('span');
+  const backPos = h('button', 'rd-backpos hidden'); backPos.type = 'button';
+  nums.append(nL, backPos, nR);
+  botBar.append(chap, scrub, nums);
   box.append(view, ribbon, foot, topBar, botBar);
   root.append(box);
-  rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon }, chrome: false, saveT: 0, annTap: 0 };
+  rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon, scrub, marks, prev, pvCh, pvTx, pvPct, pvBm, backPos }, chrome: false, saveT: 0, annTap: 0, pvSeq: 0 };
+  preloadSecText(rec);
   rec.ann = rec.ann || [];
   annCleanDupes(rec);
   ribbon3dSetup(box, ribbon);   // v330: סימנייה תלת־ממדית — נטענת ברקע; עד שמוכנה (או בלי WebGL) נשאר סרט ה־SVG
@@ -2445,7 +2461,7 @@ async function openReader(id, opt) {
   });
   view.addEventListener('show-annotation', (e) => { rd.annTap = Date.now(); annPopup(e.detail.value, e.detail.range, e.detail.index); });
   aaBtn.addEventListener('click', openAa);
-  slider.addEventListener('change', () => view.goToFraction(+slider.value / 1000));
+  wireScrub();
 
   view.addEventListener('relocate', (e) => {
     const d = e.detail || {};
@@ -2458,7 +2474,8 @@ async function openReader(id, opt) {
     nL.textContent = d.time && isFinite(d.time.total) ? T('rdMinLeftBook', { m: Math.max(1, Math.round(d.time.total)) }) : '';
     nR.textContent = fR.textContent;
     chap.textContent = (d.tocItem && d.tocItem.label) || '';
-    if (!slider.matches(':active')) slider.value = String(Math.round(frac * 1000));
+    if (!slider.matches(':active') && !rd.scrubbing) { slider.value = String(Math.round(frac * 1000)); slider.style.setProperty('--p', Math.round(frac * 1000) / 10 + '%'); }
+    if (rd.back && Date.now() - rd.back.t > 1200 && ++rd.back.turns > 3) { rd.back = null; showBackPos(); }   // קוראים הלאה — "חזרה" נעלמת
     rd.loc = d; markBookmark();
     hideSel();
     clearTimeout(rd.saveT);
@@ -2481,6 +2498,7 @@ async function openReader(id, opt) {
       if (/html/.test(detail.type || '')) detail.data = Promise.resolve(detail.data).then((d) => (typeof d === 'string' ? ensureHead(d) : d));
     });
     if (rd.book && rd.book.dir) box.dir = rd.book.dir;
+    scrub.dir = readingDir(rd.book, rec.title);   // v331: ספר אנגלי — הציר משמאל לימין גם כשהממשק בעברית
     applyReaderStyle();
     const startAt = opt && opt.cfi ? opt.cfi : opt && (opt.href || opt.fromStart) ? null : (rec.cfi || null);
     await view.init({ lastLocation: startAt, showTextStart: true });
@@ -2795,6 +2813,7 @@ function markBookmark(animate) {
   rb.classList.toggle('on', on);
   rb.setAttribute('aria-pressed', String(on)); rb.setAttribute('aria-label', on ? T('annDeleteBm') : T('bmAdd'));
   rd.els.bmBtn.classList.toggle('on', on);
+  renderBmMarks();
   if (rd.r3d) rd.r3d.set(on, !!animate && was !== on);   // v330: הסרט התלת־ממדי — פעולת משתמש = התרוממות ונחיתה; החלפת עמוד = מיד
   if (animate && was !== on && !reduceMotion()) {
     // אנימציה בשלבים: בהוספה — הסרט "נשמט" למטה עם קפיצה קטנה והירוק נשפך מלמעלה; בהסרה — הירוק מתרוקן ואז הסרט מתקפל למעלה
@@ -2816,6 +2835,152 @@ function toggleBookmark() {
   putBook(rd.rec).catch(() => {}); pushAnn(rd.rec, a);
   markBookmark(true);
   if (typeof flash === 'function') flash(T('bmAdded'));
+}
+
+/* ---- v331: ציר ההתקדמות — סימניות, עצירה מגנטית עם רטט, תצוגה מקדימה, חזרה למקום ---- */
+const SCRUB_THUMB = 22;                    // רוחב האגודל ב־CSS — מיקום הסימניות על הציר ומיקום התצוגה המקדימה מחושבים לפיו
+export function readingDir(book, title) { // כיוון הקריאה: מה־OPF, אחרת לפי שפת הספר, אחרת לפי השם
+  if (book && (book.dir === 'rtl' || book.dir === 'ltr')) return book.dir;
+  const lang = String([].concat((book && book.metadata && book.metadata.language) || [])[0] || '');
+  if (lang) return /^(he|iw|ar|fa|ur|yi|ps|dv|ckb)(\b|-|_)/i.test(lang) ? 'rtl' : 'ltr';
+  return /[\u0590-\u05FF\u0600-\u06FF]/.test(String(title || '')) ? 'rtl' : 'ltr';
+}
+export function sectionAt(fr, f) {         // גבולות הפרקים (0..1, n+1 ערכים) + מיקום בספר → הפרק והמיקום היחסי בתוכו
+  if (!fr || fr.length < 2) return null;
+  let i = 0;
+  for (let k = 0; k < fr.length - 1; k++) if (fr[k] <= f + 1e-9) i = k;
+  const span = fr[i + 1] - fr[i];
+  return { i, w: span > 0 ? Math.min(1, Math.max(0, (f - fr[i]) / span)) : 0 };
+}
+export function scrubSnap(v, bms, wPx, cur) {   // v: 0..1000; סימנייה בטווח 10px מהאגודל (יציאה ב־15px — בלי ריצוד בגבול)
+  let best = null, bd = Infinity;
+  for (const b of bms) { const d = Math.abs(b.f * 1000 - v) / 1000 * wPx; if (d < bd) { bd = d; best = b; } }
+  return best && bd <= (best.id === cur ? 15 : 10) ? best : null;
+}
+export function scrubSnippet(t, w, n) {    // שורות הפתיחה של העמוד במיקום w בפרק — מתחילת משפט/פסקה קרובה
+  if (!t) return '';
+  n = n || 220;
+  let p = Math.floor(Math.min(1, Math.max(0, w)) * t.length);
+  const back = t.slice(Math.max(0, p - 140), p);
+  const m = Math.max(back.lastIndexOf('\n'), back.lastIndexOf('. '), back.lastIndexOf('? '), back.lastIndexOf('! '), back.lastIndexOf('.” '), back.lastIndexOf('." '));
+  if (m >= 0) p = p - back.length + m + 1;
+  else { const sp = t.lastIndexOf(' ', p); if (sp >= 0 && sp > p - 30) p = sp + 1; }
+  let out = t.slice(p, p + n).replace(/\s+/g, ' ').trim().replace(/^[.?!”"']+\s*/, '');
+  if (p + n < t.length) out = out.replace(/\s+\S*$/, '') + '…';
+  return out;
+}
+function preloadSecText(rec) {             // מהאינדקס של החיפוש (אם כבר נבנה) — התצוגה המקדימה מיידית
+  tx('text', 'readonly', (st) => reqP(st.get(rec.id))).then((x) => {
+    if (!rd || rd.rec !== rec || !x || !x.secs) return;
+    const c = rd.ptext || (rd.ptext = new Map());
+    for (const sc of x.secs) if (!c.has(sc.i)) c.set(sc.i, Promise.resolve(sc.t));
+  }).catch(() => {});
+}
+function secText(i) {
+  if (!rd || !rd.book) return Promise.resolve('');
+  const c = rd.ptext || (rd.ptext = new Map());
+  if (!c.has(i)) {
+    const sec = rd.book.sections && rd.book.sections[i];
+    c.set(i, sec && sec.createDocument ? sec.createDocument().then(docText).catch(() => '') : Promise.resolve(''));
+  }
+  return c.get(i);
+}
+const scrubBms = () => liveAnn(rd.rec.ann, 'bm').filter((b) => b.f >= 0 && b.f <= 1);
+function renderBmMarks() {
+  if (!rd || !rd.els.marks) return;
+  const bms = scrubBms(), m = rd.els.marks;
+  const key = bms.map((b) => b.id + ':' + (+b.f).toFixed(4)).join(',');
+  if (m._key === key) return;
+  m._key = key; m.textContent = '';
+  for (const b of bms) {
+    const k = h('span', 'rd-bmark'); k.dataset.id = b.id;
+    k.style.setProperty('--f', (+b.f).toFixed(4)); k.innerHTML = ribbonMiniSVG();
+    m.append(k);
+  }
+}
+function scrubTrack() {
+  const r = rd.els.slider.getBoundingClientRect();
+  return { r, w: Math.max(1, r.width - SCRUB_THUMB), rtl: rd.els.scrub.dir === 'rtl' };
+}
+function scrubStart() {
+  if (!rd) return;
+  rd.scrubbing = true;
+  rd.scrubOrigin = rd.loc && rd.loc.cfi ? { cfi: rd.loc.cfi, f: rd.loc.fraction || 0 } : null;
+  rd.els.prev.classList.add('on');
+  scrubInput();
+}
+function scrubEnd() {
+  if (!rd) return;
+  rd.scrubbing = false;
+  rd.els.prev.classList.remove('on');
+}
+function scrubInput() {
+  if (!rd) return;
+  const el = rd.els, t = scrubTrack();
+  let v = +el.slider.value;
+  // עצירה מגנטית: רק בגרירה באצבע (במקלדת — צעד קטן היה "נתקע" בסימנייה)
+  const hit = rd.scrubbing ? scrubSnap(v, scrubBms(), t.w, rd.scrubHit && rd.scrubHit.id) : null;
+  if (hit) { v = Math.round(hit.f * 1000); if (+el.slider.value !== v) el.slider.value = String(v); }
+  if ((hit && hit.id) !== (rd.scrubHit && rd.scrubHit.id)) {
+    rd.scrubHit = hit;
+    el.marks.querySelectorAll('.rd-bmark').forEach((k) => k.classList.toggle('hit', !!hit && k.dataset.id === hit.id));
+    if (hit) { try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) {} }   // רטט עדין: "את על הסימנייה"
+  }
+  el.slider.style.setProperty('--p', v / 10 + '%');
+  el.slider.setAttribute('aria-valuetext', Math.round(v / 10) + '%');
+  if (rd.scrubbing) scrubPreview(v / 1000, hit, t);
+}
+function scrubPreview(f, hit, t) {
+  const el = rd.els, p = el.prev;
+  const x = t.rtl ? t.r.right - SCRUB_THUMB / 2 - f * t.w : t.r.left + SCRUB_THUMB / 2 + f * t.w;
+  const sr = el.scrub.getBoundingClientRect(), cw = p.offsetWidth || 216;
+  const left = Math.max(12, Math.min(innerWidth - 12 - cw, x - cw / 2));
+  p.style.left = Math.round(left - sr.left) + 'px';
+  el.pvPct.textContent = Math.round(f * 100) + '%';
+  el.pvBm.classList.toggle('on', !!hit); p.classList.toggle('bm', !!hit);
+  const at = sectionAt(rd.view.getSectionFractions ? rd.view.getSectionFractions() : null, f);
+  let ch = hit && hit.ch ? hit.ch : '';
+  if (!ch && at && rd.view.getProgressOf) { try { const it = rd.view.getProgressOf(at.i).tocItem; ch = it ? langText(it.label) : ''; } catch (e) {} }
+  el.pvCh.textContent = ch || rd.rec.title || '';
+  const seq = ++rd.pvSeq;
+  if (hit && hit.x) { el.pvTx.textContent = hit.x; return; }   // על סימנייה — הקטע ששמור בה (בדיוק העמוד המסומן)
+  if (!at) return;
+  secText(at.i).then((txt) => { if (rd && rd.pvSeq === seq) el.pvTx.textContent = scrubSnippet(txt, at.w) || '…'; });
+}
+function scrubCommit() {
+  if (!rd) return;
+  const hit = rd.scrubHit, from = rd.scrubOrigin, v = +rd.els.slider.value / 1000;
+  scrubEnd();
+  rd.scrubHit = null; rd.scrubOrigin = null;
+  rd.els.marks.querySelectorAll('.rd-bmark.hit').forEach((k) => k.classList.remove('hit'));
+  // קינדל: אחרי קפיצה בציר — "חזרה ל־X%" למקום שבו הייתם (נשמר המקום שלפני הקפיצה הראשונה)
+  if (from && from.cfi && Math.abs(from.f - v) > 0.004 && !rd.back) { rd.back = { cfi: from.cfi, f: from.f, turns: 0, t: Date.now() }; showBackPos(); }
+  else if (rd.back) rd.back.t = Date.now();
+  if (hit && hit.c) rd.view.goTo(hit.c).catch(() => rd.view.goToFraction(v));   // על סימנייה — בדיוק לעמוד המסומן
+  else rd.view.goToFraction(v);
+}
+function showBackPos() {
+  if (!rd) return;
+  const b = rd.back, el = rd.els.backPos;
+  el.classList.toggle('hidden', !b);
+  if (!b) return;
+  el.innerHTML = ICON.undo;
+  el.append(h('span', '', T('rdBackTo', { p: Math.round(b.f * 100) + '%' })));
+  el.setAttribute('aria-label', T('rdBackTo', { p: Math.round(b.f * 100) + '%' }));
+}
+function wireScrub() {
+  const el = rd.els, s = el.slider;
+  s.addEventListener('pointerdown', scrubStart);
+  s.addEventListener('input', scrubInput);
+  s.addEventListener('change', scrubCommit);
+  // שחרור בלי שינוי ערך (נגיעה באגודל בלי גרירה) — בלי "change": רק מסתירים
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) s.addEventListener(ev, () => setTimeout(() => { if (rd && rd.scrubbing && !s.matches(':active')) scrubEnd(); }, 0));
+  el.backPos.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const b = rd && rd.back; if (!b) return;
+    rd.back = null; showBackPos();
+    rd.view.goTo(b.cfi).catch(() => rd.view.goToFraction(b.f));
+  });
 }
 
 /* ---- כרטיס ציטוט: תמונה נקייה לשיתוף (קנבס, הפונט שלנו, בלי שום נתון אישי) ---- */
