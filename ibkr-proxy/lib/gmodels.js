@@ -9,4 +9,7 @@ const TRANSLATE_MODELS = () => uniq([process.env.GEMINI_MODEL, 'gemini-flash-lit
 const INSIGHT_MODELS = () => uniq([process.env.GEMINI_INSIGHT_MODEL, 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash']);
 // תשובה בעברית שמכילה אותיות ערביות ("חפير" — נמצא בתשובה חיה) — פסולה, עוברים למודל הבא
 const badScript = (s, lang) => lang === 'he' && /[؀-ۿ]/.test(String(s || ''));
-module.exports = { TRANSLATE_MODELS, INSIGHT_MODELS, badScript };
+// v335: תיקון אחרון לאות ערבית שגלשה לעברית ("חפير" → "חפיר") — רק כשכל המודלים נכשלו כך, עדיף על תרגום בסיסי בלי הקשר
+const AR_HE = { 'ا': 'א', 'أ': 'א', 'إ': 'א', 'آ': 'א', 'ب': 'ב', 'ت': 'ת', 'ث': 'ת', 'ج': 'ג', 'ح': 'ח', 'خ': 'ח', 'د': 'ד', 'ذ': 'ד', 'ر': 'ר', 'ز': 'ז', 'س': 'ס', 'ش': 'ש', 'ص': 'צ', 'ض': 'צ', 'ط': 'ט', 'ظ': 'ט', 'ع': 'ע', 'غ': 'ג', 'ف': 'פ', 'ق': 'ק', 'ك': 'כ', 'ل': 'ל', 'م': 'מ', 'ن': 'נ', 'ه': 'ה', 'ة': 'ה', 'و': 'ו', 'ي': 'י', 'ى': 'י', 'ء': '' };
+const fixScript = (s) => String(s || '').replace(/[\u0600-\u06FF]/g, (c) => (c in AR_HE ? AR_HE[c] : c));
+module.exports = { TRANSLATE_MODELS, INSIGHT_MODELS, badScript, fixScript };

@@ -2599,6 +2599,7 @@ function wireDoc(doc, setChrome, index) {
     if (w) gtQuick(w.text, trTarget(w.text)).catch(() => {});
   }, { passive: true });
   doc.addEventListener('click', (e) => {
+    if (!(e.target && e.target.closest && e.target.closest('a[href]'))) blockTouchSearch(doc, e);
     if (rd && Date.now() - (rd.holdAt || 0) < 900) return;          // שחרור אחרי לחיצה ארוכה
     const sel = doc.getSelection && doc.getSelection();
     if (sel && !sel.isCollapsed && String(sel).trim()) return;
@@ -2622,13 +2623,24 @@ function wireDoc(doc, setChrome, index) {
     hold = { x, y, t: setTimeout(() => { hold = null; holdSelect(doc, x, y); }, HOLD_MS) };
   }, { passive: true });
   doc.addEventListener('touchmove', (e) => { const t = e.touches[0]; if (hold && t && Math.hypot(t.clientX - hold.x, t.clientY - hold.y) > 10) holdOff(); }, { passive: true });
-  doc.addEventListener('touchend', holdOff, { passive: true });
+  doc.addEventListener('touchend', () => { if (hold && rd) rd.tapAt = Date.now(); holdOff(); }, { passive: true });
   doc.addEventListener('touchcancel', holdOff, { passive: true });
   doc.__idx = index;
   let st = 0;
   doc.addEventListener('selectionchange', () => { clearTimeout(st); st = setTimeout(() => showSel(doc), 140); });
 }
 const HOLD_MS = 320;
+/* v335: "Touch to Search" של Chrome (סרגל Google מלמטה) — בנגיעה במילה Chrome בוחר אותה בעצמו, הבחירה הפעילה
+   את חלון הסימון, וזה סגר את כרטיס התרגום ("קופץ ונעלם"). Chrome מדלג על הסרגל כשהדף שינה את ה־DOM בזמן
+   הנגיעה או טיפל בה — לכן שינוי DOM סינכרוני + preventDefault. גיבוי: בחירה שמופיעה מיד אחרי נגיעה קצרה
+   (בלי לחיצה ארוכה) — לא שלנו, מבטלים אותה בשקט (foreignTapSel). */
+function blockTouchSearch(doc, e) {
+  try { e.preventDefault(); } catch (x) {}
+  try { const s = doc.createElement('span'); s.hidden = true; doc.body.append(s); s.remove(); } catch (x) {}
+}
+export function foreignTapSel(now, tapAt, holdAt, popOpen) {   // בחירה שנולדה מנגיעה קצרה = של הדפדפן — טהורה
+  return !popOpen && now - (tapAt || 0) < 2000 && now - (holdAt || 0) > 2000;
+}
 function holdSelect(doc, x, y) {
   if (!rd) return;
   const w = wordAt(doc, x, y);
@@ -2695,6 +2707,7 @@ function showSel(doc) {
     return;
   }
   if (!text || !rd) { hideSel(); return; }
+  if (foreignTapSel(Date.now(), rd.tapAt, rd.holdAt, !!selPop)) { try { sel.removeAllRanges(); } catch (e) {} return; }
   if (selPop && selPop._t === text) return;
   hideTr();
   const range = sel.getRangeAt(0);
@@ -3306,6 +3319,11 @@ function dictRows(o, heSrc) {              // מקטע המילון: לכל חל
 }
 /* ---- v334: ויקיפדיה (כמו בקינדל) — ישירות מהטלפון, בלי מפתח. הערך נבחר לפי ההקשר (שם הערך מה־AI),
    ובלי AI — רק התאמה מדויקת של המילה. עברית כשיש ערך בעברית, אחרת אנגלית ---- */
+const ICON_G = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.4zM12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22zm-5.6-8a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9zM12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.7 9.4 5.9 12 5.9z"/></svg>';
+export function googleUrl(text) {            // חיפוש Google על המילה/הקטע (מילון, תרגום, ערכים) — טהורה
+  const q = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  return q ? 'https://www.google.com/search?hl=he&q=' + encodeURIComponent(q) : '';
+}
 const wikiCache = new Map();
 async function wjson(u) {
   const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4500);
@@ -3394,7 +3412,10 @@ function trShow(text, block, doc, range) {
     head.append(sp);
   }
   const hw = h('div', 'tr-hw'); const subl = h('div', 'tr-hsub'); subl.append(lang, ipa); hw.append(word, subl);
-  const acts = h('div', 'tr-acts'); acts.append(...head.childNodes, cp);
+  // v335 (בקשת המשתמש): לחצן Google קטן — ההרחבה של Google (מה ש־Touch to Search של Chrome הציג) בלי הסרגל ובלי הבאג
+  const gg = h('button', 'tr-gg'); gg.type = 'button'; gg.innerHTML = ICON_G; gg.setAttribute('aria-label', T('trGoogle'));
+  gg.addEventListener('click', (e) => { e.stopPropagation(); googleUrl(text) && window.open(googleUrl(text), '_blank', 'noopener'); });
+  const acts = h('div', 'tr-acts'); acts.append(...head.childNodes, cp, gg);
   head.append(hw, acts);
   const main = h('div', 'tr-main'); main.dir = 'auto'; main.append(h('div', 'tr-sk'));
   const dictHost = h('div', 'tr-dicthost');

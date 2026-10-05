@@ -273,10 +273,11 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .tr-ipa { font-size: 13.5px; color: var(--rd-ink2); }
 .tr-ipa:empty { display: none; }
 .tr-acts { display: flex; gap: 2px; flex: none; }
-.tr-say, .tr-acts .tr-copy { width: 34px; height: 34px; margin: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: #1A9B45; }
-.rd[data-dark="1"] .tr-say, .rd[data-dark="1"] .tr-acts .tr-copy { color: #30D158; }
+.tr-say, .tr-acts .tr-copy, .tr-acts .tr-gg { width: 34px; height: 34px; margin: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: #1A9B45; }
+.rd[data-dark="1"] .tr-say, .rd[data-dark="1"] .tr-acts .tr-copy, .rd[data-dark="1"] .tr-acts .tr-gg { color: #30D158; }
 .tr-say svg, .tr-acts .tr-copy svg { width: 20px; height: 20px; }
-.tr-say:active, .tr-acts .tr-copy:active { background: color-mix(in srgb, var(--rd-ink) 8%, transparent); }
+.tr-acts .tr-gg svg { width: 17px; height: 17px; }   /* v335: ה־G קטן מעט מהשאר — לחצן משני */
+.tr-say:active, .tr-acts .tr-copy:active, .tr-acts .tr-gg:active { background: color-mix(in srgb, var(--rd-ink) 8%, transparent); }
 .tr-sec-b { background: var(--rd-page); border-radius: 12px; }
 .rd[data-dark="1"] .tr-sec-b { background: #2C2C2E; }
 .tr-sec { margin-top: 14px; }
