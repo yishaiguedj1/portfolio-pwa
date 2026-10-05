@@ -831,8 +831,9 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
    הסימנייה (6) · הסרגלים (7). השכבות תמיד ב־DOM (שכפול iframe שזז נטען מחדש) — מוסתרות במנוחה */
 .rd foliate-view { z-index: 2; }
 .rd-topbar, .rd-botbar { z-index: 7; }
-.pc-a, .pc-shade, .pc-roll, .pc-b { position: absolute; inset: 0; pointer-events: none; visibility: hidden; overflow: hidden; contain: strict; }
+.pc-a, .pc-shade, .pc-roll, .pc-b, .pc-gl { position: absolute; inset: 0; pointer-events: none; visibility: hidden; overflow: hidden; contain: strict; }
 .pc-shade, .pc-roll { z-index: 4; }
+.pc-gl { z-index: 5; width: 100%; height: 100%; contain: none; }
 .pc-b { z-index: 5; }
 .pc-pane { position: absolute; overflow: hidden; }
 .pc-frame { position: absolute; border: 0; margin: 0; padding: 0; background: transparent; pointer-events: none; }

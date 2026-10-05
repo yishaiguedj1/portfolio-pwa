@@ -2636,7 +2636,7 @@ function wireDoc(doc, setChrome, index) {
 }
 const HOLD_MS = 320;
 /* ---- v342: דפדוף בקיפול דף (pagecurl.js) ---- */
-let curlStyleVer = 0, curlT = 0, ct = null;
+let curlStyleVer = 0, curlT = 0, ct = null, curlTex = null, curlFont = null;
 function curlFrame() {
   try { const c = rd.view.renderer.getContents(); const d = c && c[0] && c[0].doc; return d && d.defaultView ? d.defaultView.frameElement : null; } catch (e) { return null; }
 }
@@ -2649,14 +2649,37 @@ async function curlSetup(box) {
   if (reduceMotion()) return;
   let mod;
   try { mod = await import('./pagecurl.js'); } catch (e) { return; }
+  try {                                      // צייר העמוד + הגופן שלנו גם במסמך הראשי (הקנבס מצייר בו)
+    curlTex = await import('./pagetex.js');
+    if (!curlFont && typeof FontFace === 'function') { curlFont = new FontFace('SNB Noto', 'url("' + FONT_URL + '")', { weight: '100 900', stretch: '62.5% 100%' }); document.fonts.add(curlFont); curlFont.load().catch(() => {}); }
+  } catch (e) { curlTex = null; }
   if (!rd || rd.els.box !== box) return;
   rd.curl = mod.createCurl({
     box, view: rd.view, foot: rd.els.foot,
+    now: () => (typeof window !== 'undefined' && window.__pcNow ? window.__pcNow() : performance.now()),   // בדיקות: שעון נשלט
     frame: curlFrame, rtl: curlRtl,
     page: () => curTheme(),
     styleKey: () => curlStyleVer,
     canTurn: (dir) => { const r = rd && rd.view.renderer; return !!r && (dir > 0 ? !r.atEnd : !r.atStart); },
-    prevInSection: () => { const r = rd && rd.view.renderer; return !!r && r.page >= 2; },
+    renderer: () => rd && rd.view.renderer,
+    bookCss: () => bookCSS(),
+    adjacent: (dir) => {                      // הפרק השכן בסדר הקריאה (מדלג על פרקים לא־לינאריים, כמו המנוע)
+      const r = rd && rd.view.renderer, secs = rd && rd.book && rd.book.sections; if (!r || !secs) return null;
+      const c = r.getContents()[0]; if (!c) return null;
+      for (let i = c.index + dir; i >= 0 && i < secs.length; i += dir) if (secs[i] && secs[i].linear !== 'no') return i;
+      return null;
+    },
+    loadSection: (i) => rd.book.sections[i].load(),
+    // v343: גב הדף בתלת־ממד — צייר העמוד (pagetex.js) מהפריסה האמיתית, ברזולוציית המסך
+    paint: (o) => {
+      if (!curlTex) return null;
+      const real = curlFrame(), cont = real && real.parentElement && real.parentElement.parentElement;
+      if (!cont) return null;
+      const br = rd.els.box.getBoundingClientRect();
+      return curlTex.paintPage({ doc: o.frame.contentDocument, frame: o.frame, box: rd.els.box, region: cont.getBoundingClientRect(), W: br.width, H: br.height,
+        dpr: o.dpr, page: curTheme().page, shiftX: o.shiftX, foot: o.foot ? rd.els.foot : null,
+        overlay: o.overlay ? [...real.parentElement.children].filter((e) => e !== real) : null });
+    },
     jump: async (dir) => {                    // דפדוף מיידי במנוע (מתחת לשכבות הקיפול)
       const r = rd && rd.view.renderer; if (!r) return;
       const had = r.hasAttribute('animated'); r.removeAttribute('animated');
@@ -2694,14 +2717,19 @@ function curlTouch(e, ox, oy, holdOff) {
       if (holdOff) holdOff();
       if ((rd.holdAt || 0) > ct.wall || Math.abs(dx) < Math.abs(dy) * 1.15) { ct.dead = true; return; }
       const dir = (curlRtl() ? dx > 0 : dx < 0) ? 1 : -1;
-      if (!c.begin(dir, ct.x, ct.y)) { ct.dead = true; return; }
+      if (!c.begin(dir, ct.x, ct.y)) { ct.dead = true; ct.plain = dir; return; }
       ct.on = true;
     }
-    c.move(x, y, performance.now());
+    c.move(x, y);
     return;
   }
   if (e.type === 'touchend' || e.type === 'touchcancel') {
     if (ct.on) { e.stopPropagation(); if (holdOff) holdOff(); c.end(e.type === 'touchcancel' ? 'cancel' : undefined); }
+    else if (ct.plain && e.type === 'touchend') {   // הפרק השכן עוד לא מוכן לקיפול — מעבר רגיל של המנוע (בלי לאבד את ההחלקה)
+      e.stopPropagation();
+      const r = rd.view.renderer, d = ct.plain;
+      if (r && (d > 0 ? !r.atEnd : !r.atStart)) (d > 0 ? r.next() : r.prev());
+    }
     ct = null;
   }
 }
@@ -3896,4 +3924,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { curl: () => rd && rd.curl, state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };

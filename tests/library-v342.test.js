@@ -32,13 +32,13 @@ const gr = M.curlGeom(W, H, 0.25, 0, 400, true);
 ok(near(Math.min(...gr.front.map((p) => p[0])), 100) && near(Math.max(...gr.front.map((p) => p[0])), 400), 'ספר RTL: הקצה החופשי משמאל, השדרה מימין');
 const ge = M.curlGeom(W, H, M.curlEnd(W, H, 0), 0, 400, false);
 ok(near(area(ge.front), 0) && near(area(ge.roll), 0), 'סוף הדפדוף: הדף והגליל מחוץ למסך');
-const gt = M.curlGeom(W, H, 0.4, M.curlTilt(0.4, 400, 0, H), 400, false);
+const gt = M.curlGeom(W, H, 0.4, M.curlTilt(0.4, 720, 0, H), 720, false);
 const top = gt.front.filter((p) => p[1] === 0).map((p) => p[0]), bot = gt.front.filter((p) => p[1] === H).map((p) => p[0]);
-ok(Math.max(...bot) < Math.max(...top) - 60, 'הטיה כמו בקינדל — הפינה התחתונה מובילה (גם באחיזה באמצע)');
+ok(Math.max(...bot) < Math.max(...top) - 40 && Math.abs(M.curlTilt(0.4, 400, 0, H)) < 0.08, 'הטיה כמו בקינדל — אחיזה בתחתית: הפינה התחתונה מובילה');
 ok(M.curlTilt(0, 700, 0, H) === 0 && Math.abs(M.curlTilt(1, 700, 0, H)) < 1e-9, 'הטיה 0 בתחילת ובסוף הדפדוף');
 ok(M.curlProgress(1, 0, W, H) === 0 && near(M.curlProgress(-1, 0, W, H), M.curlEnd(W, H, 0)) && M.curlProgress(1, 200, W, H) > 0.25, 'התקדמות לפי האצבע (אחורה — מתחיל כשהדף הקודם מחוץ למסך)');
-ok(M.curlCommit(1, 0.05, 0.002) && !M.curlCommit(1, 0.05, 0) && M.curlCommit(1, 0.3, 0) && !M.curlCommit(1, 0.3, -0.002), 'קדימה: החלקה מהירה או חצי דרך — מדפדף; אצבע שחזרה — מבטל');
-ok(M.curlCommit(-1, 1.0, -0.002) && !M.curlCommit(-1, 1.0, 0) && M.curlCommit(-1, 0.6, 0), 'אחורה: אותו כלל בכיוון ההפוך');
+ok(M.curlCommit(1, 0.05, 0.002) && !M.curlCommit(1, 0.05, 0) && M.curlCommit(1, 0.3, 0) && !M.curlCommit(1, 0.3, -0.002) && M.curlCommit(1, 0.03, 0.0002), 'קדימה: האצבע זזה לכיוון — מדפדף (גם החלקה קצרה שמאטה); עצירה — לפי המרחק; חזרה — מבטל');
+ok(M.curlCommit(-1, 1.0, -0.002, 1.08) && !M.curlCommit(-1, 1.07, 0, 1.08) && M.curlCommit(-1, 0.6, 0, 1.08), 'אחורה: אותו כלל בכיוון ההפוך');
 ok(/linear-gradient\(/.test(M.gradAt(W, H, [200, 400], [1, 0], [[0, 'red'], [10, 'blue']])), 'מעבר צבע לאורך הציר');
 // החיבור לקורא
 ok(/import\('\.\/pagecurl\.js'\)/.test(lib) && /if \(reduceMotion\(\)\) return;/.test(lib.split('async function curlSetup')[1].slice(0, 80)), 'נטען בעצלתיים; תנועה מופחתת — ההחלקה הרגילה');
@@ -46,11 +46,19 @@ ok(/curlTouch\(e, r\.left, r\.top, holdOff\);\s*\}, \{ capture: true, passive: f
 ok(/view\.addEventListener\(ty, \(e\) => curlTouch\(e, 0, 0, null\), \{ capture: true, passive: false \}\)/.test(lib), 'גם בשולי העמוד');
 ok(/e\.stopPropagation\(\); if \(e\.cancelable\) e\.preventDefault\(\);/.test(lib), 'הגרירה של המנוע לא מקבלת את התנועה');
 ok(/r\.removeAttribute\('animated'\)/.test(lib) && /q = q\.then\(\(\) => env\.jump\(dir\)\)/.test(src), 'מעבר עמוד מיידי במנוע, בתור (המנוע נעול 100ms אחרי כל מעבר)');
+// v343: המנוע לא זז בזמן המחווה (החלפת מסמך הפרק באמצע נגיעה בלעה את האצבע)
+const beginSrc = src.split('function begin(')[1].split('\n  function move(')[0];
+ok(!/jump\(/.test(beginSrc) && /if \(go\) await jump\(s\.dir\);/.test(src), 'המעבר האמיתי — רק בסוף דפדוף שהושלם; ביטול — בלי מעבר');
+ok(/ensureNeighbor\('next'\); ensureNeighbor\('prev'\);/.test(src) && /env\.loadSection\(i\)/.test(src) && /st\.textContent = env\.bookCss\(\)/.test(src), 'פרק שכן נטען מראש, באותו עיצוב — גב הדף עם טקסט גם בין פרקים');
+ok(/ct\.plain = dir/.test(lib) && /\(d > 0 \? r\.next\(\) : r\.prev\(\)\)/.test(lib), 'הפרק השכן עוד לא מוכן — מעבר רגיל (ההחלקה לא נבלעת)');
+ok(M.curlRadiusAt(W, 0) === M.curlRadius(W) && M.curlRadiusAt(W, 0.5) > W * 0.18 && near(M.curlRadiusAt(W, 1), M.curlRadius(W)), 'גלגול אמיתי: הגליל גדל באמצע הדפדוף (הדף מתרומם) וקטן בנחיתה');
+ok(/u_ls\.xy \+ \(pos\.xy - u_ls\.xy\) \* \(u_ls\.z/.test(src) && /LIGHT = Array\.from\(\{ length: 32 \}/.test(src) && /gl\.stencilOp\(gl\.KEEP, gl\.KEEP, gl\.INCR\)/.test(src), 'צל רך פיזיקלי: מקור אור שטחי, 32 דגימות, כל פיקסל נספר פעם אחת לדגימה');
+ok(/curlEase\(k, m0\)/.test(src) && /SPEED = 1\.0/.test(src), 'מהירות כמעט קבועה (~שנייה לעמוד — קצת לאט מקינדל, בקשת המשתמש)');
 ok(/if \(c\.active\(\)\) c\.finishNow\(\);/.test(lib), 'דפדוף מהיר ברצף — הקודם מסתיים מיד');
 ok(/curlPrebuild\(\)/.test(lib.split("view.addEventListener('relocate'")[1].slice(0, 2500)) && /curlStyleVer\+\+/.test(lib), 'שכפול הפרק נבנה מראש אחרי מעבר עמוד ושינוי עיצוב');
 ok(/if \(r\.curl\) r\.curl\.destroy\(\)/.test(lib), 'ניקוי בסגירת הקורא');
 ok(/setAttribute\('sandbox', 'allow-same-origin'\)/.test(src), 'השכפול בלי סקריפטים');
 ok(/\.rd foliate-view \{ z-index: 2; \}/.test(css) && /\.rd-ribbon \{[^}]*z-index: 6;/.test(css) && /\.rd-topbar, \.rd-botbar \{ z-index: 7; \}/.test(css), 'שכבות: הסימנייה והסרגלים מעל הדפדוף');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(v === 'v342' && swVersionOk(v), 'גרסה v342');
+ok(!!v && swVersionOk(v), 'גרסה');
 console.log(`\n${n} בדיקות עברו`);
