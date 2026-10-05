@@ -2056,7 +2056,7 @@ function insightCards(ins) {
   }));
   if (ins.terms && ins.terms.length) card('acTermsHere', (c) => ins.terms.forEach((t) => c.append(termRow([t.he, t.en, t.def, '']))));
   if (ins.question) card('acQuestion', (c) => { const p = h('p', 'ac-q', ins.question); p.dir = 'auto'; c.append(p); });
-  const note = h('p', 'ac-ai', T('acAiNote')); out.push(note);
+  const note = h('p', 'ac-ai', T('acAiNote') + (ins.model ? ' · ' + aiModelLabel(ins.model) : '')); out.push(note);   // v334: שם המודל
   return out;
 }
 
@@ -3175,15 +3175,30 @@ async function fetchTranslation(text, context, title) {
    שתי שכבות: (1) Google — תרגום, חלקי דיבר ותרגומים חלופיים, ישירות מהטלפון (נקודת הקצה של תוסף המילון של Chrome:
    בלי מפתח, בלי מכסה, ~0.3 שנ׳; גיבוי דרך השרתון); (2) Gemini — "בהקשר": מה המילה אומרת במשפט הזה + הסבר מונח.
    השכבה השנייה לא חוסמת את הראשונה; בלי AI (מכסה/רשת) — היא פשוט לא מוצגת. */
-const GT_URL = 'https://clients5.google.com/translate_a/single?client=dict-chrome-ex&dt=t&dt=bd&dj=1';
+const GT_URL = 'https://clients5.google.com/translate_a/single?client=dict-chrome-ex&dt=t&dt=bd&dt=md&dt=ss&dt=rm&dj=1';   // v334: + הגדרות, נרדפות, הגייה (מילון)
 const NIQQUD = /[\u0591-\u05C7]/g;
 const gtClip = (x, n) => String(x == null ? '' : x).replace(/\s+/g, ' ').trim().slice(0, n);
-export function parseGt(j) {               // תשובת Google → { translation, dict:[{pos, terms}], src } — טהורה (זהה לשרתון)
+export function parseGt(j) {               // תשובת Google → תרגום + מילון (חלקי דיבר, הגדרה, דוגמה, נרדפות, הגייה) — טהורה (זהה בשרתון ובאפליקציה)
   if (!j || !Array.isArray(j.sentences)) return null;
-  const tr = j.sentences.map((x) => x.trans || '').join('').replace(NIQQUD, '').trim();
+  // v334: הניקוד נשאר — בלעדיו כתיב מנוקד נשבר ("מְתַוֵךְ" → "מתוך"); בטקסט רציף Google לא מנקד ממילא
+  const tr = j.sentences.map((x) => x.trans || '').join('').trim();
   if (!tr) return null;
-  const dict = (j.dict || []).slice(0, 3).map((d) => ({ pos: gtClip(d.pos, 30), terms: [...new Set((d.terms || []).map((t) => gtClip(t, 40).replace(NIQQUD, '')))].filter(Boolean).slice(0, 4) })).filter((d) => d.terms.length);
-  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8) };
+  const tl = j.sentences.find((x) => x.src_translit) || {};
+  const orig = j.sentences.map((x) => x.orig || '').join('').trim().toLowerCase();
+  const defs = {};
+  (j.definitions || []).forEach((d) => { const e = (d.entry || [])[0]; if (e && !defs[d.pos]) defs[d.pos] = { gloss: gtClip(e.gloss, 220), ex: gtClip(String(e.example || '').replace(/<\/?b>/g, ''), 160) }; });
+  const dict = (j.dict || []).slice(0, 2).map((d) => {
+    const ents = d.entry || [];
+    const terms = [...new Set((d.terms || ents.map((e) => e.word)).map((t) => gtClip(t, 40)))].filter(Boolean).slice(0, 3);
+    const back = [...new Set([].concat(...ents.map((e) => e.reverse_translation || [])).map((t) => gtClip(t, 40)))].filter(Boolean).slice(0, 6);
+    const df = defs[d.pos] || {};
+    return { pos: gtClip(d.pos, 30), terms, back, def: df.gloss || '', ex: df.ex || '' };
+  }).filter((d) => d.terms.length);
+  Object.keys(defs).forEach((pos) => { if (dict.length < 2 && !dict.some((d) => d.pos === pos)) dict.push({ pos: gtClip(pos, 30), terms: [], back: [], def: defs[pos].gloss, ex: defs[pos].ex }); });
+  const syn = [];
+  // נרדפות: בלי משלב מסומן (סלנג/לא רשמי) ובלי צירופים שמכילים את המילה עצמה
+  ((j.synsets || [])[0] || { entry: [] }).entry.forEach((e) => { if (!e.label_info) (e.synonym || []).forEach((s) => { if (syn.length < 4 && !syn.includes(s) && s.length < 24 && !(orig && s.toLowerCase().includes(orig))) syn.push(s); }); });
+  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8), ipa: gtClip(tl.src_translit, 60), syn };
 }
 const uiLang = () => (typeof getLang === 'function' && getLang()) || 'he';
 // מילה בעברית בממשק עברי — לאנגלית (תרגום לאותה שפה לא עוזר)
@@ -3226,13 +3241,123 @@ function hideTr(instant) {
   c.classList.add('out');
   setTimeout(() => c.remove(), 220);
 }
+/* v334: שם המודל המדויק לכל תשובת AI (בקשת המשתמש — לדעת תמיד מאיזה מודל הגיעה התשובה) — טהורה */
+export function aiModelLabel(m) {
+  m = String(m || '').toLowerCase();
+  if (!m) return '';
+  if (m.includes('mistral')) return 'Mistral ' + (m.includes('small') ? 'Small' : m.includes('large') ? 'Large' : 'Medium');
+  if (m.includes('gemini')) return 'Gemini ' + (m.includes('lite') ? 'Flash‑Lite' : m.includes('pro') ? 'Pro' : 'Flash');
+  return m;
+}
+/* מצב המקטעים בכרטיס (מילון/ויקיפדיה פתוח או מקופל) — נוחות לכל קורא, רק בטלפון */
+function trSecState() { try { return JSON.parse(localStorage.getItem('pwa_trsec_v1') || '{}') || {}; } catch (e) { return {}; } }
+function trSecSave(k, open) { try { const st = trSecState(); st[k] = open ? 1 : 0; localStorage.setItem('pwa_trsec_v1', JSON.stringify(st)); } catch (e) {} }
+const ICON_SAY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+function trSection(key, headNodes, defOpen) {   // מקטע בסגנון Apple: כותרת אפורה מעל קבוצה לבנה; מקופל = 3 שורות שנמוגות + "הצג עוד"
+  const sec = h('div', 'tr-sec');
+  const hd = h('div', 'tr-sec-h'); hd.append(...headNodes);
+  const body = h('div', 'tr-sec-b');
+  sec.append(hd, body);
+  if (key) {
+    const tog = h('button', 'tr-tog'); tog.type = 'button';
+    const st = trSecState(); const open = key in st ? !!st[key] : defOpen;
+    const paint = (o) => { sec.classList.toggle('fold', !o); tog.textContent = T(o ? 'trLess' : 'trMore'); tog.setAttribute('aria-expanded', String(o)); };
+    paint(open);
+    tog.addEventListener('click', (e) => { e.stopPropagation(); const o = sec.classList.contains('fold'); paint(o); trSecSave(key, o); });
+    hd.append(tog);
+  }
+  return { sec, body };
+}
+function say(text, src) {                  // השמעה בקול המובנה של המכשיר — חינם, בלי רשת
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = /^(iw|he)/.test(src || '') || /[֐-׿]/.test(text) ? 'he-IL' : 'en-US';
+    u.rate = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch (e) {}
+}
+function dictRows(o, heSrc) {              // מקטע המילון: לכל חלק דיבר — תרגומים, הגדרה, דוגמה; ובסוף נרדפות
+  const box = document.createDocumentFragment(); let n = 0;
+  for (const d of o.dict || []) {
+    if (!d.terms.length && !d.def) continue;
+    const r = h('div', 'dc-pos'); const l = h('div', 'dc-l');
+    l.append(h('b', null, d.pos));
+    if (d.terms.length) { const t = h('span', 'dc-tr', d.terms.join(' · ')); t.dir = heSrc ? 'ltr' : 'auto'; l.append(t); }
+    r.append(l);
+    if (d.def) { const x = h('div', 'dc-def', d.def); x.dir = 'ltr'; r.append(x); }
+    if (d.ex) { const x = h('div', 'dc-ex', '“' + d.ex + '”'); x.dir = 'ltr'; r.append(x); }
+    else if (heSrc && d.back.length) { const x = h('div', 'dc-ex', d.back.slice(0, 4).join(', ')); x.dir = 'rtl'; r.append(x); }
+    box.append(r); n++;
+  }
+  if (o.syn && o.syn.length) {
+    const sy = h('div', 'dc-syn'); sy.dir = 'ltr';
+    sy.append(h('small', null, T('trSyn')), ...o.syn.map((w) => h('span', null, w)));
+    box.append(sy); n++;
+  }
+  return n ? box : null;
+}
+/* ---- v334: ויקיפדיה (כמו בקינדל) — ישירות מהטלפון, בלי מפתח. הערך נבחר לפי ההקשר (שם הערך מה־AI),
+   ובלי AI — רק התאמה מדויקת של המילה. עברית כשיש ערך בעברית, אחרת אנגלית ---- */
+const wikiCache = new Map();
+async function wjson(u) {
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4500);
+  try { const r = await fetch(u, { signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' }); return r.ok ? await r.json() : null; } catch (e) { return null; } finally { clearTimeout(to); }
+}
+async function wikiSummary(lang, title, enTitle) {
+  const j = await wjson('https://' + lang + '.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(String(title).replace(/ /g, '_')));
+  if (!j || j.type === 'disambiguation' || !j.extract) return null;
+  return { lang, title: j.title, sub: [enTitle && enTitle !== j.title ? enTitle : '', j.description || ''].filter(Boolean).join(' · '),
+    extract: gtClip(j.extract, 1400), thumb: (j.thumbnail || {}).source || '', url: ((j.content_urls || {}).mobile || {}).page || '' };
+}
+export function wikiExact(word, title) {   // בלי AI: מציגים רק כשהערך הוא בדיוק המילה (או רבים שלה) — אחרת "moat" נותן תעלה של טירה
+  const a = String(word || '').toLowerCase().trim(), b = String(title || '').toLowerCase().trim();
+  return !!a && (a === b || a === b + 's' || a + 's' === b || a === b + 'es');
+}
+function wikiLookup(enTitle, word) {
+  const k = (enTitle || '') + '|' + (enTitle ? '' : word) + '|' + uiLang();
+  if (wikiCache.has(k)) return wikiCache.get(k);
+  const p = (async () => {
+    const he = uiLang() === 'he';
+    if (!enTitle) {                         // גיבוי בלי AI: חיפוש כותרת והתאמה מדויקת
+      const lang = /[֐-׿]/.test(word) ? 'he' : 'en';
+      const s = await wjson('https://' + lang + '.wikipedia.org/w/rest.php/v1/search/title?q=' + encodeURIComponent(word) + '&limit=1');
+      const t = s && s.pages && s.pages[0] && s.pages[0].title;
+      if (!t || !wikiExact(word.replace(/[֑-ׇ]/g, ''), t)) return null;
+      if (lang === 'he' || !he) return wikiSummary(lang, t);
+      enTitle = t;
+    }
+    if (he) {
+      const ll = await wjson('https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=he&redirects=1&format=json&formatversion=2&origin=*&titles=' + encodeURIComponent(enTitle));
+      const pg = ll && ll.query && ll.query.pages && ll.query.pages[0];
+      const heT = pg && pg.langlinks && pg.langlinks[0] && pg.langlinks[0].title;
+      if (heT) { const r = await wikiSummary('he', heT, pg.title || enTitle); if (r) return r; }
+    }
+    return wikiSummary('en', enTitle);
+  })();
+  p.catch(() => wikiCache.delete(k));
+  wikiCache.set(k, p); if (wikiCache.size > 200) wikiCache.clear();
+  return p;
+}
+function wikiSection(c, w, seq) {
+  if (!w || seq !== trSeq || !c.isConnected) return;
+  const { sec, body } = trSection('wiki', [h('span', null, T('trWiki'))], false);
+  sec.classList.add('wk');
+  const top = h('div', 'wk-title'); const tt = h('div'); tt.dir = 'auto';
+  tt.append(h('b', null, w.title)); if (w.sub) tt.append(h('small', null, w.sub));
+  top.append(tt);
+  if (w.thumb) { const im = h('img', 'wk-img'); im.alt = ''; im.referrerPolicy = 'no-referrer'; im.loading = 'lazy'; im.src = w.thumb; im.addEventListener('error', () => im.remove()); top.append(im); }
+  const tx = h('div', 'wk-tx', w.extract); tx.dir = 'auto';
+  const ft = h('div', 'wk-foot'); ft.append(h('span', null, T('trWiki') + ' · CC BY-SA'));
+  if (w.url) { const a = h('button', 'wk-more', T('trWikiMore')); a.type = 'button'; a.addEventListener('click', (e) => { e.stopPropagation(); window.open(w.url, '_blank', 'noopener'); }); ft.append(a); }
+  body.append(top, tx, ft);
+  c.append(sec);
+}
 function trShow(text, block, doc, range) {
   if (!rd) return;
   text = String(text || '').replace(/\s+/g, ' ').trim();
   if (!text) return;
   hideSel();
   let c = trCard;
-  if (c) { trUnmark(c); c.textContent = ''; }   // כרטיס פתוח — מתחלף במקום, בלי אנימציה נוספת
+  if (c) { trUnmark(c); c.textContent = ''; c.scrollTop = 0; }   // כרטיס פתוח — מתחלף במקום, בלי אנימציה נוספת
   else {
     c = h('div', 'tr-card'); c.setAttribute('role', 'dialog'); c.setAttribute('aria-label', T('rdTranslate'));
     rd.els.box.append(c); trCard = c; wireTrDrag(c);
@@ -3243,40 +3368,61 @@ function trShow(text, block, doc, range) {
   const grab = h('div', 'tr-grab');
   const head = h('div', 'tr-head');
   const lang = h('span', 'tr-lang'); const word = h('span', 'tr-word', text); word.dir = 'auto';
+  const ipa = h('span', 'tr-ipa'); ipa.dir = 'ltr';
   const cp = h('button', 'tr-copy'); cp.type = 'button'; cp.innerHTML = ICON.copy; cp.setAttribute('aria-label', T('rdCopy'));
-  head.append(word, lang, cp);
+  if (typeof speechSynthesis !== 'undefined' && text.length < 80) {
+    const sp = h('button', 'tr-say'); sp.type = 'button'; sp.innerHTML = ICON_SAY; sp.setAttribute('aria-label', T('trSay'));
+    sp.addEventListener('click', (e) => { e.stopPropagation(); say(text, c._src); });
+    head.append(sp);
+  }
+  const hw = h('div', 'tr-hw'); const subl = h('div', 'tr-hsub'); subl.append(lang, ipa); hw.append(word, subl);
+  const acts = h('div', 'tr-acts'); acts.append(...head.childNodes, cp);
+  head.append(hw, acts);
   const main = h('div', 'tr-main'); main.dir = 'auto'; main.append(h('div', 'tr-sk'));
-  const dict = h('div', 'tr-dict');
-  const ctx = h('div', 'tr-ctx');
-  const ch = h('div', 'tr-ctx-h'); ch.innerHTML = ICON_SPARK; ch.append(h('span', null, T('trNote')));
-  const cb = h('div', 'tr-ctx-b'); cb.append(h('div', 'tr-sk'), h('div', 'tr-sk short'));
-  ctx.append(ch, cb);
-  c.append(grab, head, main, dict, ctx);
+  const dictHost = h('div', 'tr-dicthost');
+  // "בהקשר הזה" — תמיד עם שם המודל שענה
+  const model = h('span', 'tr-model');
+  const { sec: ctx, body: cb } = trSection('', [h('span', null, T('trNote')), model], true);
+  ctx.classList.add('tr-ctx'); cb.classList.add('tr-ctx-b'); cb.append(h('div', 'tr-sk'), h('div', 'tr-sk short'));
+  const mainGrp = h('div', 'tr-main-g'); mainGrp.append(main);
+  c.append(grab, head, mainGrp, dictHost, ctx);
   let gtText = '';
-  cp.addEventListener('click', async () => { try { await navigator.clipboard.writeText(gtText || text); flashSafe(T('rdCopied')); } catch (e) {} });
+  cp.addEventListener('click', async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(gtText || text); flashSafe(T('rdCopied')); } catch (er) {} });
   const tl = trTarget(text);
   gtQuick(text, tl).then((o) => {
     if (seq !== trSeq) return;
-    gtText = o.translation;
+    gtText = o.translation; c._src = o.src;
     main.textContent = o.translation; main.classList.add('in');
     if (o.src && o.src !== tl) lang.textContent = langName(o.src);
-    for (const d of o.dict || []) {
-      const alt = d.terms.filter((t) => t !== o.translation);
-      if (!alt.length) continue;
-      const r = h('div', 'tr-pos'); r.dir = 'auto';
-      r.append(h('b', null, d.pos), h('span', null, alt.join(', ')));
-      dict.append(r);
-    }
+    const heSrc = /^(iw|he)/.test(o.src || '');
+    if (heSrc) {                            // מילה בעברית: הצורה המנוקדת + תעתיק
+      const plain = text.replace(/[֑-ׇ]/g, '');
+      const voc = [].concat(...(o.dict || []).map((d) => d.back)).find((b) => b.replace(/[֑-ׇ]/g, '') === plain);
+      if (voc) word.textContent = voc;
+      if (o.ipa) ipa.textContent = o.ipa;
+    } else if (o.ipa) ipa.textContent = '/' + o.ipa + '/';
+    const rows = dictRows(o, heSrc);
+    if (rows) { const { sec, body } = trSection('dict', [h('span', null, T('trDict'))], true); body.append(rows); dictHost.append(sec); }
   }).catch(() => { if (seq === trSeq) { main.textContent = T('trFail'); main.classList.add('in', 'err'); } });
-  // שכבת ה־AI: מה המילה אומרת כאן (לפי המשפט/הפסקה) + הסבר מונח
+  // שכבת ה־AI: מה המילה אומרת כאן (לפי המשפט/הפסקה) + הסבר מונח + שם הערך בוויקיפדיה. אחריה — ויקיפדיה
   fetchTranslation(text, contextFor(text, block || text), (rd.rec && rd.rec.title) || '').then((j) => {
     if (seq !== trSeq) return;
-    if (!j || j.engine !== 'ai' || (!j.note && j.translation === gtText)) { ctx.remove(); return; }
-    cb.textContent = '';
-    const t = h('div', 'tr-ctx-t', j.translation); t.dir = 'auto'; cb.append(t);
-    if (j.note) { const n = h('div', 'tr-ctx-n', j.note); n.dir = 'auto'; cb.append(n); }
-    cb.classList.add('in');
-  }).catch(() => { if (seq === trSeq) ctx.remove(); });
+    const ai = j && j.engine === 'ai';
+    if (!ai) ctx.remove();
+    else {
+      cb.textContent = '';
+      model.textContent = aiModelLabel(j.model); model.title = j.model || '';
+      const t = h('div', 'tr-ctx-t', j.translation); t.dir = 'auto'; cb.append(t);
+      if (j.note) { const n = h('div', 'tr-ctx-n', j.note); n.dir = 'auto'; cb.append(n); }
+      cb.classList.add('in');
+    }
+    if (ai && !j.wiki) return;              // לפי ה־AI זו מילה רגילה — בלי ערך אנציקלופדי
+    wikiLookup(ai ? j.wiki : '', text).then((w) => wikiSection(c, w, seq)).catch(() => {});
+  }).catch(() => {
+    if (seq !== trSeq) return;
+    ctx.remove();
+    wikiLookup('', text).then((w) => wikiSection(c, w, seq)).catch(() => {});
+  });
 }
 function wireTrDrag(c) {                   // החלקה למטה סוגרת (כמו גיליון של Apple)
   let y0 = null, dy = 0;

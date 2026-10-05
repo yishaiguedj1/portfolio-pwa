@@ -85,14 +85,30 @@ async function gemini(text, context, title, lang, diag) {
 /* v333: תרגום מהיר כמו הכרטיס של Google Translate — אותה נקודה שתוסף המילון של Chrome משתמש בה: תרגום,
    חלקי דיבר ותרגומים חלופיים, בלי מפתח ובלי מכסה. האפליקציה פונה אליה ישירות מהטלפון (מהיר יותר);
    כאן — גיבוי כשהפנייה הישירה נכשלה. */
-const GT_URL = 'https://clients5.google.com/translate_a/single?client=dict-chrome-ex&dt=t&dt=bd&dj=1';
+const GT_URL = 'https://clients5.google.com/translate_a/single?client=dict-chrome-ex&dt=t&dt=bd&dt=md&dt=ss&dt=rm&dj=1';
 const NIQQUD = /[\u0591-\u05C7]/g;
-function parseGt(j) {
+const gtClip = clean;
+function parseGt(j) {               // תשובת Google → תרגום + מילון (חלקי דיבר, הגדרה, דוגמה, נרדפות, הגייה) — טהורה (זהה בשרתון ובאפליקציה)
   if (!j || !Array.isArray(j.sentences)) return null;
-  const tr = j.sentences.map((x) => x.trans || '').join('').replace(NIQQUD, '').trim();
+  // v334: הניקוד נשאר — בלעדיו כתיב מנוקד נשבר ("מְתַוֵךְ" → "מתוך"); בטקסט רציף Google לא מנקד ממילא
+  const tr = j.sentences.map((x) => x.trans || '').join('').trim();
   if (!tr) return null;
-  const dict = (j.dict || []).slice(0, 3).map((d) => ({ pos: clean(d.pos, 30), terms: [...new Set((d.terms || []).map((t) => clean(t, 40).replace(NIQQUD, '')))].filter(Boolean).slice(0, 4) })).filter((d) => d.terms.length);
-  return { translation: clean(tr, 2000), dict, src: clean(j.src, 8) };
+  const tl = j.sentences.find((x) => x.src_translit) || {};
+  const orig = j.sentences.map((x) => x.orig || '').join('').trim().toLowerCase();
+  const defs = {};
+  (j.definitions || []).forEach((d) => { const e = (d.entry || [])[0]; if (e && !defs[d.pos]) defs[d.pos] = { gloss: gtClip(e.gloss, 220), ex: gtClip(String(e.example || '').replace(/<\/?b>/g, ''), 160) }; });
+  const dict = (j.dict || []).slice(0, 2).map((d) => {
+    const ents = d.entry || [];
+    const terms = [...new Set((d.terms || ents.map((e) => e.word)).map((t) => gtClip(t, 40)))].filter(Boolean).slice(0, 3);
+    const back = [...new Set([].concat(...ents.map((e) => e.reverse_translation || [])).map((t) => gtClip(t, 40)))].filter(Boolean).slice(0, 6);
+    const df = defs[d.pos] || {};
+    return { pos: gtClip(d.pos, 30), terms, back, def: df.gloss || '', ex: df.ex || '' };
+  }).filter((d) => d.terms.length);
+  Object.keys(defs).forEach((pos) => { if (dict.length < 2 && !dict.some((d) => d.pos === pos)) dict.push({ pos: gtClip(pos, 30), terms: [], back: [], def: defs[pos].gloss, ex: defs[pos].ex }); });
+  const syn = [];
+  // נרדפות: בלי משלב מסומן (סלנג/לא רשמי) ובלי צירופים שמכילים את המילה עצמה
+  ((j.synsets || [])[0] || { entry: [] }).entry.forEach((e) => { if (!e.label_info) (e.synonym || []).forEach((s) => { if (syn.length < 4 && !syn.includes(s) && s.length < 24 && !(orig && s.toLowerCase().includes(orig))) syn.push(s); }); });
+  return { translation: gtClip(tr, 2000), dict, src: gtClip(j.src, 8), ipa: gtClip(tl.src_translit, 60), syn };
 }
 async function quick(text, lang) {
   const ctl = new AbortController();

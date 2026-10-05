@@ -255,6 +255,7 @@ he: {
   menuLibrary: 'ספרייה', menuLibrarySub: 'מכתבים וספרים',
   rdClose: 'סגירה', rdToc: 'תוכן העניינים', rdSettings: 'הגדרות תצוגה', rdMinLeftChap: 'עוד {m} דק׳ בפרק', rdMinLeftBook: 'עוד {m} דק׳ בספר', rdProgress: 'מיקום בספר', rdBackTo: 'חזרה ל־{p}',
   rdTranslate: 'תרגום', rdCopy: 'העתק', rdCopied: 'הועתק', rdBackTwice: 'לחיצה נוספת על חזור — חזרה לדף הספר', libDlReady: 'הספר ירד — נגיעה בו פותחת אותו',
+  trMore: 'הצג עוד', trLess: 'הצג פחות', trDict: 'מילון', trSyn: 'נרדפות', trSay: 'השמעה', trWiki: 'ויקיפדיה', trWikiMore: 'לערך המלא',
   trTitle: 'תרגום בהקשר', trLoading: 'מתרגם לפי ההקשר…', trNote: 'בהקשר הזה', trBasic: 'תרגום בסיסי — מנוע ה־AI לא זמין כרגע', trFail: 'התרגום נכשל. נסה שוב.',
   rdFont: 'גופן', rdLayout: 'פריסה', rdTheme: 'ערכה', rdFontBook: 'הגופן של הקובץ', rdSize: 'גודל', rdWeight: 'עובי',
   rdAlign: 'יישור', rdAlignStart: 'לימין', rdAlignJustify: 'לשני הצדדים', rdSpacing: 'ריווח', rdSpacing1: 'צפוף', rdSpacing2: 'רגיל', rdSpacing3: 'מרווח',
@@ -793,6 +794,7 @@ en: {
   menuLibrary: 'Library', menuLibrarySub: 'Letters & books',
   rdClose: 'Close', rdToc: 'Contents', rdSettings: 'Display settings', rdMinLeftChap: '{m} min left in chapter', rdMinLeftBook: '{m} min left in book', rdProgress: 'Position in book', rdBackTo: 'Back to {p}',
   rdTranslate: 'Translate', rdCopy: 'Copy', rdCopied: 'Copied', rdBackTwice: 'Press back again to return to the book page', libDlReady: 'Downloaded — tap the book to open it',
+  trMore: 'Show more', trLess: 'Show less', trDict: 'Dictionary', trSyn: 'Synonyms', trSay: 'Pronounce', trWiki: 'Wikipedia', trWikiMore: 'Full article',
   trTitle: 'Translation in context', trLoading: 'Translating in context…', trNote: 'In this context', trBasic: 'Basic translation — the AI engine is unavailable right now', trFail: 'Translation failed. Try again.',
   rdFont: 'Font', rdLayout: 'Layout', rdTheme: 'Theme', rdFontBook: 'Publisher font', rdSize: 'Size', rdWeight: 'Weight',
   rdAlign: 'Alignment', rdAlignStart: 'Start', rdAlignJustify: 'Justified', rdSpacing: 'Spacing', rdSpacing1: 'Tight', rdSpacing2: 'Normal', rdSpacing3: 'Wide',
@@ -4496,7 +4498,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v333';
+const APP_VERSION = 'v334';
 
 
 function saveDBto(db) {
