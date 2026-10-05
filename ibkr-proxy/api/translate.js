@@ -5,7 +5,7 @@
    ב־Vercel, לעולם לא בקוד). בלי מפתח / כשהמכסה נגמרה — גיבוי תרגום מילולי (MyMemory) עם engine:'basic',
    והאפליקציה מציינת שזה תרגום בסיסי. רק טקסט מהספר — שום נתון של המשתמש. */
 const { guard } = require('../lib/ibkr');
-const { TRANSLATE_MODELS, badScript } = require('../lib/gmodels');
+const { TRANSLATE_MODELS, badScript, fixScript } = require('../lib/gmodels');
 const { mistralJSON } = require('../lib/mistral');
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -56,7 +56,7 @@ async function gemini(text, context, title, lang, diag) {
       responseSchema: { type: 'OBJECT', properties: { translation: { type: 'STRING' }, note: { type: 'STRING' }, wiki: { type: 'STRING' } }, required: ['translation'] },
     },
   });
-  let q429 = 0, tried = 0;
+  let q429 = 0, tried = 0, mended = null;
   for (const model of MODELS()) {
     tried++;
     const ctl = new AbortController();
@@ -73,12 +73,16 @@ async function gemini(text, context, title, lang, diag) {
       const raw = (((j.candidates || [])[0] || {}).content || {}).parts;
       const txt = (raw || []).map((p) => p.text || '').join('');
       const out = JSON.parse(txt);
-      if (badScript(out && out.translation, lang) || badScript(out && out.note, lang)) { diag[model + ':err'] = 'mixed_script'; diag[model + ':txt'] = clean((out.translation || '') + ' | ' + (out.note || ''), 160); continue; }
+      if (badScript(out && out.translation, lang) || badScript(out && out.note, lang)) { diag[model + ':err'] = 'mixed_script'; diag[model + ':txt'] = clean((out.translation || '') + ' | ' + (out.note || ''), 160);
+        const t2 = fixScript(out.translation), n2 = fixScript(out.note);
+        if (!mended && t2.trim() && !badScript(t2, lang) && !badScript(n2, lang)) mended = { translation: clean(t2, 2000), note: clean(n2, 600), wiki: clean(out.wiki || '', 120), engine: 'ai', provider: 'gemini', model };
+        continue; }
       if (out && typeof out.translation === 'string' && out.translation.trim()) {
         return { translation: clean(out.translation, 2000), note: clean(out.note || '', 600), wiki: clean(out.wiki || '', 120), engine: 'ai', provider: 'gemini', model };
       }
     } catch (e) { diag[model + ':ex'] = String(e && e.message || e).slice(0, 80); } finally { clearTimeout(to); }
   }
+  if (mended) return mended;                                 // v335: כולם החזירו אות ערבית — הגרסה המתוקנת, עם ויקיפדיה
   return q429 && q429 === tried ? { quota: true } : null;   // "מכסה" רק כשכל המודלים החזירו 429
 }
 
