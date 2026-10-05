@@ -360,7 +360,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .rd-bm.on svg path { fill: currentColor; }
 /* v329 (בקשת המשתמש, בהשראת קינדל, בעיצוב Apple): סרט סימנייה תמיד בראש העמוד.
    כבוי = מתאר אפור נקי בצבע הדף, "מציץ" מהקצה; פעיל = ירוק מלא (הירוק של הכפתורים) ויורד מעט יותר. כשהסרגל העליון פתוח — יורד מתחתיו. */
-.rd-ribbon { position: absolute; top: env(safe-area-inset-top); inset-inline-end: 18px; z-index: 3; width: 46px; height: 54px; padding: 0;
+.rd-ribbon { position: absolute; top: env(safe-area-inset-top); inset-inline-end: 18px; z-index: 6; width: 46px; height: 54px; padding: 0;
   display: flex; justify-content: center; align-items: flex-start; background: none !important; -webkit-tap-highlight-color: transparent;
   transition: top .22s ease; }
 .rd-ribbon svg { width: 28px; height: 46px; overflow: visible; transform: translateY(-12px); transition: transform .3s cubic-bezier(.2,.9,.25,1.2);
@@ -826,3 +826,16 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .rd-hdl i::after { content: ''; display: block; width: 16px; height: 16px; margin-top: 8px; translate: -7px 0; border-radius: 50%; background: var(--primary); box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: transform .15s; }
 .rd-hdl.drag i::after { transform: scale(1.2); }
 @media (prefers-reduced-motion: reduce) { .rd-hdl i::after { transition: none; } }
+
+/* v342: דפדוף בקיפול דף כמו בקינדל (pagecurl.js). שכבות: מתחת (1) · המנוע (2) · הדף השטוח (3) · צל הקיפול (4) · הכנף (5) ·
+   הסימנייה (6) · הסרגלים (7). השכבות תמיד ב־DOM (שכפול iframe שזז נטען מחדש) — מוסתרות במנוחה */
+.rd foliate-view { z-index: 2; }
+.rd-topbar, .rd-botbar { z-index: 7; }
+.pc-a, .pc-shade, .pc-roll, .pc-b { position: absolute; inset: 0; pointer-events: none; visibility: hidden; overflow: hidden; contain: strict; }
+.pc-shade, .pc-roll { z-index: 4; }
+.pc-b { z-index: 5; }
+.pc-pane { position: absolute; overflow: hidden; }
+.pc-frame { position: absolute; border: 0; margin: 0; padding: 0; background: transparent; pointer-events: none; }
+.pc-extra { position: absolute; inset: 0; }
+.pc-sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
+.pc-tint { position: absolute; inset: 0; }

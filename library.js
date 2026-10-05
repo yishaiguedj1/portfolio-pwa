@@ -2397,6 +2397,7 @@ function applyReaderStyle() {
   r.setAttribute('max-column-count', '2');
   if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) r.setAttribute('animated', '');
   if (r.setStyles) r.setStyles(bookCSS());
+  curlStyleVer++; curlPrebuild();
 }
 
 // v330: האפליקציה עברה בהיר↔כהה (ידנית או לפי המערכת) — קורא פתוח בערכה האוטומטית מתחלף מיד, כמו בקינדל
@@ -2456,6 +2457,7 @@ async function openReader(id, opt) {
   preloadSecText(rec);
   rec.ann = rec.ann || [];
   annCleanDupes(rec);
+  curlSetup(box);   // v342: דפדוף בקיפול דף כמו בקינדל — נטען ברקע; עד שמוכן (או בתנועה מופחתת) — ההחלקה של המנוע
   ribbon3dSetup(box, ribbon);   // v330: סימנייה תלת־ממדית — נטענת ברקע; עד שמוכנה (או בלי WebGL) נשאר סרט ה־SVG
   const setChrome = (on) => { rd.chrome = on; box.classList.toggle('chrome', on); };
   rd.setChrome = setChrome;
@@ -2494,7 +2496,7 @@ async function openReader(id, opt) {
     // v334: "העמוד זז" לפי פרק + מספר עמוד — לא לפי מחרוזת ה־CFI: בנגיעה עם רעד של אצבע המנוע "מצמיד" את העמוד
     // (~0.5 שנ׳), והטווח הגלוי נמדד מחדש בהיסט של שבר פיקסל — ה־CFI משתנה בתו־שניים והכרטיס נסגר (דיווח המשתמש: "קופץ ונעלם")
     const moved = pageMoved(rd.loc, d) && !(trCard && Date.now() - (trCard._at || 0) < 900 && !pageMoved(rd.loc, d, true));
-    rd.loc = d; markBookmark();
+    rd.loc = d; markBookmark(); curlPrebuild();
     if (moved) { hideSel(); hideTr(); }
     clearTimeout(rd.saveT);
     rd.saveT = setTimeout(() => {
@@ -2505,6 +2507,7 @@ async function openReader(id, opt) {
     }, 600);
   });
   view.addEventListener('load', (e) => wireDoc(e.detail.doc, setChrome, e.detail.index));
+  for (const ty of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) view.addEventListener(ty, (e) => curlTouch(e, 0, 0, null), { capture: true, passive: false });   // v342: החלקה בשולי העמוד
   try {
     // v322: פענוח הספר רק אחרי שאנימציית הכניסה נגמרה — עבודה כבדה באמצע הדהייה גרמה לפריים קופץ (נמדד במצב כהה)
     if (!(opt && opt.restored) && !reduceMotion()) await new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 360); });
@@ -2549,7 +2552,7 @@ function closeReader() {
   if (r.r3dOff) r.r3dOff();
   box.classList.add('out');
   const gone = reduceMotion() ? Promise.resolve() : new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 340); });
-  return (async () => { await renderHomeNow(); pinScroll(savedLibScroll()); await gone; try { r.view.close(); } catch (e) {} if (r.r3d) r.r3d.destroy(); box.remove(); })();
+  return (async () => { await renderHomeNow(); pinScroll(savedLibScroll()); await gone; try { r.view.close(); } catch (e) {} if (r.r3d) r.r3d.destroy(); if (r.curl) r.curl.destroy(); box.remove(); })();
 }
 /* v330 (בקשת המשתמש: "סימנייה כמו בעולם האמיתי — תלת־ממדית, מתרוממת באוויר עם צל"): המנוע ב־ribbon3d.js
    (סימולציית בד + WebGL + צל ממקור אור שטחי). הקנבס בתוך כפתור הסרט — זז איתו כשהסרגל העליון נפתח; הכפתור נשאר
@@ -2621,12 +2624,87 @@ function wireDoc(doc, setChrome, index) {
   doc.addEventListener('touchmove', (e) => { const t = e.touches[0]; if (hold && t && Math.hypot(t.clientX - hold.x, t.clientY - hold.y) > 10) holdOff(); }, { passive: true });
   doc.addEventListener('touchend', () => { if (hold && rd) rd.tapAt = Date.now(); holdOff(); }, { passive: true });
   doc.addEventListener('touchcancel', holdOff, { passive: true });
+  // v342: דפדוף בקיפול — לפני המנוע (capture): ההחלקה האופקית מפעילה את הקיפול, והגרירה של המנוע לא מקבלת את התנועה
+  for (const ty of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) doc.addEventListener(ty, (e) => {
+    const fr = doc.defaultView && doc.defaultView.frameElement; const r = fr ? fr.getBoundingClientRect() : { left: 0, top: 0 };
+    curlTouch(e, r.left, r.top, holdOff);
+  }, { capture: true, passive: false });
   doc.addEventListener('contextmenu', (e) => e.preventDefault());   // v337: בלי תפריט/בחירה של המכשיר בלחיצה ארוכה
   doc.__idx = index;
   let st = 0;
   doc.addEventListener('selectionchange', () => { clearTimeout(st); st = setTimeout(() => showSel(doc), 140); });
 }
 const HOLD_MS = 320;
+/* ---- v342: דפדוף בקיפול דף (pagecurl.js) ---- */
+let curlStyleVer = 0, curlT = 0, ct = null;
+function curlFrame() {
+  try { const c = rd.view.renderer.getContents(); const d = c && c[0] && c[0].doc; return d && d.defaultView ? d.defaultView.frameElement : null; } catch (e) { return null; }
+}
+function curlRtl() {
+  const f = curlFrame(), d = f && f.contentDocument;
+  if (!d || !d.body) return false;
+  return d.body.dir === 'rtl' || d.documentElement.dir === 'rtl' || d.defaultView.getComputedStyle(d.body).direction === 'rtl';
+}
+async function curlSetup(box) {
+  if (reduceMotion()) return;
+  let mod;
+  try { mod = await import('./pagecurl.js'); } catch (e) { return; }
+  if (!rd || rd.els.box !== box) return;
+  rd.curl = mod.createCurl({
+    box, view: rd.view, foot: rd.els.foot,
+    frame: curlFrame, rtl: curlRtl,
+    page: () => curTheme(),
+    styleKey: () => curlStyleVer,
+    canTurn: (dir) => { const r = rd && rd.view.renderer; return !!r && (dir > 0 ? !r.atEnd : !r.atStart); },
+    prevInSection: () => { const r = rd && rd.view.renderer; return !!r && r.page >= 2; },
+    jump: async (dir) => {                    // דפדוף מיידי במנוע (מתחת לשכבות הקיפול)
+      const r = rd && rd.view.renderer; if (!r) return;
+      const had = r.hasAttribute('animated'); r.removeAttribute('animated');
+      try { await (dir > 0 ? r.next() : r.prev()); } finally { if (had && rd && rd.view.renderer === r) r.setAttribute('animated', ''); }
+    },
+    onDone: () => curlPrebuild(),
+  });
+  curlPrebuild();
+}
+function curlPrebuild() {                    // שכפול מסמך הפרק מראש, בזמן מנוחה — שהקיפול יתחיל בלי עיכוב
+  clearTimeout(curlT);
+  curlT = setTimeout(() => {
+    const go = () => { if (rd && rd.curl) rd.curl.prebuild(); };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 1500 }); else go();
+  }, 450);
+}
+const curlOn = () => !!(rd && rd.curl && S.flow !== 'scrolled' && !reduceMotion());
+function curlTouch(e, ox, oy, holdOff) {
+  if (!curlOn()) return;
+  const c = rd.curl, t0 = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+  if (e.type === 'touchstart') {
+    if (e.touches.length !== 1) { if (ct && ct.on) c.end('cancel'); ct = null; return; }
+    if (c.active()) c.finishNow();            // דפדוף מהיר ברצף — הקודם מסתיים מיד
+    ct = { x: t0.clientX + ox, y: t0.clientY + oy, wall: Date.now(), on: false, dead: false };
+    return;
+  }
+  if (!ct) return;
+  if (e.type === 'touchmove') {
+    if (e.touches.length !== 1) { if (ct.on) c.end('cancel'); ct.on = false; ct.dead = true; return; }   // צביטה — למנוע
+    e.stopPropagation(); if (e.cancelable) e.preventDefault();
+    if (ct.dead || !t0) return;
+    const x = t0.clientX + ox, y = t0.clientY + oy, dx = x - ct.x, dy = y - ct.y;
+    if (!ct.on) {
+      if (Math.hypot(dx, dy) < 10) return;
+      if (holdOff) holdOff();
+      if ((rd.holdAt || 0) > ct.wall || Math.abs(dx) < Math.abs(dy) * 1.15) { ct.dead = true; return; }
+      const dir = (curlRtl() ? dx > 0 : dx < 0) ? 1 : -1;
+      if (!c.begin(dir, ct.x, ct.y)) { ct.dead = true; return; }
+      ct.on = true;
+    }
+    c.move(x, y, performance.now());
+    return;
+  }
+  if (e.type === 'touchend' || e.type === 'touchcancel') {
+    if (ct.on) { e.stopPropagation(); if (holdOff) holdOff(); c.end(e.type === 'touchcancel' ? 'cancel' : undefined); }
+    ct = null;
+  }
+}
 /* v335: "Touch to Search" של Chrome (סרגל Google מלמטה) — בנגיעה במילה Chrome בוחר אותה בעצמו, הבחירה הפעילה
    את חלון הסימון, וזה סגר את כרטיס התרגום ("קופץ ונעלם"). Chrome מדלג על הסרגל כשהדף שינה את ה־DOM בזמן
    הנגיעה או טיפל בה — לכן שינוי DOM סינכרוני + preventDefault. גיבוי: בחירה שמופיעה מיד אחרי נגיעה קצרה

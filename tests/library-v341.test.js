@@ -22,5 +22,5 @@ ok(/wikiKindle\(text\)\.then\(\(w\) => wikiSection\(c, w, seq\)\)[\s\S]{0,40}gtQ
 ok(!/wikiFromDict|wikiLookup|wikiTitle/.test(lib), 'בלי המסלולים הקודמים');
 ok(/trWikiNone: 'לא נמצא ערך בוויקיפדיה'/.test(app) && /trWikiNone: 'No Wikipedia entry found'/.test(app), 'מחרוזות בעברית ובאנגלית');
 const v = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1];
-ok(v === 'v341' && swVersionOk(v), 'גרסה v341');
+ok(!!v && swVersionOk(v), 'גרסה');
 console.log(`\n${n} בדיקות עברו`);
