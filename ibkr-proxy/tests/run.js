@@ -598,6 +598,14 @@ function stubFetch(text, status = 200) {
     ok(r.payload.provider === 'gemini' && !calls.some((c) => c.u.includes('mistral.ai')), 'השוואה: only=gemini — רק Gemini');
     r = await run({ text: 'moat', context: 'c', only: 'mistral' });
     ok(r.payload.provider === 'mistral' && r.payload.translation === 'ממיסטרל', 'השוואה: only=mistral — רק Mistral');
+    // v338: אבחון חשבון Mistral — תקינות המפתח, מודלים, וכותרות המגבלה, בלי לחשוף את המפתח
+    calls.length = 0;
+    set((u) => (u.endsWith('/v1/models') ? { status: 200, json: async () => ({ data: [{ id: 'mistral-small-latest' }, { id: 'x-2501' }] }) }
+      : { status: 429, headers: new Map([['x-ratelimit-limit-tokens-minute', '0'], ['content-type', 'json']]), json: async () => ({ message: 'Rate limit exceeded' }) }));
+    r = await run({ text: 'x', mode: 'mistralProbe' });
+    const pj = JSON.stringify(r.payload);
+    ok(r.payload.models === 200 && r.payload.modelCount === 2 && r.payload.chat['mistral-small-latest'].status === 429 && r.payload.chat['mistral-small-latest'].h['x-ratelimit-limit-tokens-minute'] === '0' && !pj.includes('"m"') && !/Bearer/.test(pj),
+      'v338: אבחון Mistral — מודלים, סטטוס לכל מודל, כותרות מגבלה; בלי המפתח');
     if (oldG === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldG;
     if (oldM === undefined) delete process.env.MISTRAL_API_KEY; else process.env.MISTRAL_API_KEY = oldM;
   }

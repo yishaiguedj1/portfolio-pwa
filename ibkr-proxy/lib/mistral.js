@@ -31,4 +31,30 @@ async function mistralJSON(sys, user, diag, opt = {}) {
   }
   return { error: q429 && q429 === tried ? 'quota' : 'ai_failed' };
 }
-module.exports = { mistralJSON, MISTRAL_MODELS };
+/* v338: אבחון החשבון (429 "Rate limit exceeded" כבר בבקשה הראשונה) — האם המפתח תקף, אילו מודלים זמינים, ומה המגבלות
+   שהשרת מחזיר בכותרות (x-ratelimit*). בלי ערך המפתח ובלי טקסט מהספר. */
+async function mistralProbe(opt = {}) {
+  const key = process.env.MISTRAL_API_KEY;
+  const out = { key: !!key };
+  if (!key) return out;
+  const f = opt.fetch || fetch;
+  const hdrs = (r) => { const o = {}; try { r.headers.forEach((v, k) => { if (/ratelimit|retry-after/i.test(k)) o[k] = String(v).slice(0, 40); }); } catch (e) {} return o; };
+  try {
+    const r = await f('https://api.mistral.ai/v1/models', { headers: { Authorization: 'Bearer ' + key } });
+    out.models = r.status;
+    if (r.status === 200) { const j = await r.json(); const ids = ((j && j.data) || []).map((m) => m.id); out.modelCount = ids.length; out.sample = ids.filter((x) => /latest$/.test(x)).slice(0, 12); }
+    else { try { out.modelsErr = String((await r.json()).message || '').slice(0, 160); } catch (e) {} }
+  } catch (e) { out.modelsEx = String(e && e.message || e).slice(0, 80); }
+  out.chat = {};
+  for (const model of opt.models || ['mistral-small-latest', 'ministral-8b-latest', 'open-mistral-nemo']) {
+    try {
+      const r = await f(MISTRAL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: 'user', content: 'Say OK' }] }) });
+      const row = { status: r.status, h: hdrs(r) };
+      if (r.status !== 200) { try { const e = await r.json(); row.err = String(e.message || e.detail || JSON.stringify(e)).slice(0, 200); } catch (e) {} }
+      out.chat[model] = row;
+    } catch (e) { out.chat[model] = { ex: String(e && e.message || e).slice(0, 80) }; }
+  }
+  return out;
+}
+module.exports = { mistralJSON, MISTRAL_MODELS, mistralProbe };

@@ -6,7 +6,7 @@
    והאפליקציה מציינת שזה תרגום בסיסי. רק טקסט מהספר — שום נתון של המשתמש. */
 const { guard } = require('../lib/ibkr');
 const { TRANSLATE_MODELS, badScript, fixScript } = require('../lib/gmodels');
-const { mistralJSON } = require('../lib/mistral');
+const { mistralJSON, mistralProbe } = require('../lib/mistral');
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const MODELS = TRANSLATE_MODELS;
@@ -162,6 +162,7 @@ module.exports = async (req, res) => {
   const title = clean(body.title, 120);
   const lang = LANGS[body.to] ? body.to : 'he';
   if (!text) return res.status(400).json({ ok: false, error: 'bad_params' });
+  if (body.mode === 'mistralProbe') return res.status(200).json(Object.assign({ ok: true }, await mistralProbe()));   // v338: אבחון חשבון Mistral
   if (body.mode === 'quick') {
     const qk = 'q|' + lang + '|' + text;
     if (cache.has(qk)) return res.status(200).json(cache.get(qk));
