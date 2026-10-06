@@ -4498,7 +4498,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v347';
+const APP_VERSION = 'v348';
 
 
 function saveDBto(db) {

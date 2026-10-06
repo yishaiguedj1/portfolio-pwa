@@ -1403,7 +1403,7 @@ function shelvesView(home, books) {      // הטאב "מדף ספרים"
   const box = h('div', 'col-view lib-hide-q');
   const byId = new Map(books.map((b) => [b.id, b]));
   const mineC = myColls(ui.shelf);
-  box.append(h('h4', 'col-sec', T('colMine')));
+  const mine = [h('h4', 'col-sec', T('colMine'))];
   const g1 = h('div', 'col-grid');
   mineC.forEach((c) => g1.append(collCard(c, byId)));
   const add = h('button', 'col-card add'); add.type = 'button';
@@ -1411,14 +1411,16 @@ function shelvesView(home, books) {      // הטאב "מדף ספרים"
   add.append(pl, h('b', null, T('colNew')));
   add.addEventListener('click', () => collNameSheet(null));
   g1.append(add);
-  box.append(g1);
+  mine.push(g1);
+  const auto = [];
   const autos = autoColls(books, ui.shelf, isBuffett);
   if (autos.length) {
-    box.append(h('h4', 'col-sec', T('colAuto')));
     const g2 = h('div', 'col-grid');
     autos.forEach((c) => g2.append(collCard(c, byId)));
-    box.append(g2);
+    auto.push(h('h4', 'col-sec', T('colAuto')), g2);
   }
+  // v348 (בקשת המשתמש): ב־THE SNOWBALL האוטומטיות קודם; ב"הספרייה שלי" — האסופות שלי קודם
+  box.append(...(ui.shelf === 'snb' ? [...auto, ...mine] : [...mine, ...auto]));
   home.append(box);
 }
 function collNameSheet(c, thenAdd, shelf) {   // אסופה חדשה / שינוי שם (thenAdd — ספר שנכנס לאסופה החדשה)
