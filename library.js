@@ -2272,6 +2272,7 @@ function bookActions(host, b) {
 }
 
 let sheetSkip = 0, sheetClosed = null;
+const BACK_TWICE_MS = 2000;               // v349: שני "חזור" בתוך הזמן הזה = יציאה מהספר
 /* v322: לגיליון יש רשומת היסטוריה משלו ({sheet:1}) — "חזור" של המכשיר סוגר אותו ולא עוזב את הדף/הקורא (עד v321 תוכן העניינים
    "אכל" את רשומת השומר). סגירה תוכנתית = history.back() שלנו (sheetSkip). גיליון שנפתח בזמן שרשומה כזו כבר קיימת
    (רצף מתוך גיליון אחר) משתמש בה. closeSheetThen(veil, fn): פותחים את הבא רק אחרי שה־back של הקודם נחת. */
@@ -2320,16 +2321,31 @@ function onEscape() {
   if (rd) return readerExit();          // מקלדת — יציאה מיידית, בלי "לחץ שוב"
   history.back();
 }
-function readerExit() {                  // ✕ / Escape / שגיאה — ישר לדף הספר (מדלגים גם על רשומת השומר)
+function readerExit() {                  // ✕ / Escape / שגיאה / "חזור" כפול — ישר לדף הספר
   if (!rd || rd.closing) return;         // v324: ✕ פעמיים מהר = שתי חזרות כפולות — יצא מהספרייה (נמצא ב־QA)
+  // v349 (באג חמור שהמשתמש דיווח: "חזור"/✕ לא מוציאים מהספר, לסירוגין): עד כאן ✕ חישב כמה רשומות לחזור (go(-2)) —
+  // ו־✕ מיד אחרי סגירת גיליון (החזרה שלו עוד בדרך) או רשומה כפולה מ־readerRearm חזרו למקום הלא נכון, ו־rd.closing נשאר
+  // דלוק לתמיד: ה־✕ נחסם וכל "חזור" בקורא התעלם. עכשיו בלי ספירה: הקורא נסגר מיד, וחוזרים אחורה — כל רשומת קורא
+  // שנוחתים עליה כשהקורא כבר סגור מדולגת (onPop), עד דף הספר.
   rd.closing = true;
+  const view = (history.state && history.state.lv) || ui.view;
+  ui.view = view;
+  exitSkip = Date.now();
+  closeReader();
+  readerLeaveHistory();
+}
+let exitSkip = 0;                         // v349: יציאה מהקורא בתהליך — הרשומות של הקורא מדולגות עד דף הספר
+function readerLeaveHistory() {
   const st = history.state || {};
-  if (st.lib === 2 && !st.guard) history.go(-2); else history.back();
+  if ((st.lib || 0) < 2) { exitSkip = 0; return; }
+  try { history.back(); } catch (e) {}
+  // ה־back נבלע (חזרה פנימית של האפליקציה/גיליון באותו רגע) — בודקים שוב, עד 3 שניות
+  setTimeout(() => { if (!rd && exitSkip && Date.now() - exitSkip < 3000 && ((history.state || {}).lib || 0) >= 2) readerLeaveHistory(); }, 400);
 }
 function readerRearm() {                 // נגיעה בתוך הקורא אחרי "חזור" ראשון — השומר חוזר (יש הפעלת משתמש)
   try {
     const st = history.state || {};
-    if (!rd || rd.closing || st.lib !== 2 || !st.guard) return;
+    if (!rd || rd.closing || st.lib !== 2 || !st.guard || st.sheet) return;   // v349: לא מעל רשומת גיליון (רשומה כפולה בלבלה את "חזור")
     if (navigator.userActivation && !navigator.userActivation.isActive) return;
     history.pushState(Object.assign({}, st, { guard: 0 }), '');
   } catch (e) {}
@@ -2493,6 +2509,7 @@ async function openReader(id, opt) {
     nL.textContent = d.time && isFinite(d.time.total) ? T('rdMinLeftBook', { m: Math.max(1, Math.round(d.time.total)) }) : '';
     nR.textContent = fR.textContent;
     chap.textContent = (d.tocItem && d.tocItem.label) || '';
+    if (!rd) return;                     // v349: relocate מאוחר אחרי שהקורא נסגר
     if (!slider.matches(':active') && !rd.scrubbing) { slider.value = String(Math.round(frac * 1000)); scrub.style.setProperty('--p', Math.round(frac * 1000) / 10 + '%'); }
     if (rd.back && Date.now() - rd.back.t > 1200 && ++rd.back.turns > 3) { rd.back = null; showBackPos(); }   // קוראים הלאה — "חזרה" נעלמת
     // v334: "העמוד זז" לפי פרק + מספר עמוד — לא לפי מחרוזת ה־CFI: בנגיעה עם רעד של אצבע המנוע "מצמיד" את העמוד
@@ -3871,7 +3888,7 @@ function openAa() {
 /* בזמן קריאה: "חזור" אחד (גם החלקה מקצה המסך בטעות) לא מוציא מהספר — רק שני "חזור" תוך 2 שניות
    (v303, בקשת המשתמש). גיליון פתוח (תוכן/Aa/תרגום) — "חזור" סוגר אותו. כפתור ✕ יוצא מיד. */
 function onPop() {
-  if (sheetSkip > 0) { sheetSkip--; const v = root && root.querySelector('.lib-veil.out'); if (v && v._settled) v._settled(); return; }   // v322: סגירה תוכנתית של גיליון — ה־back שלנו
+  if (sheetSkip > 0) { sheetSkip--; if (!sheetSkip) sheetClosed = null; const v = root && root.querySelector('.lib-veil.out'); if (v && v._settled) v._settled(); return; }   // v322: סגירה תוכנתית של גיליון — ה־back שלנו
   const ds = document.documentElement.dataset;
   if (ds.modalPop || ds.navSkip) return; // v322: חלון של האפליקציה נסגר ב"חזור" / ה־back שלה (סגירת כפתורי לחיצה ארוכה) — לא ניווט של הספרייה
   const st = history.state || {};
@@ -3881,11 +3898,21 @@ function onPop() {
     const v = veils[veils.length - 1]; const own = !!v._pushed; (v._close || (() => v.remove()))();
     if (own) return;
   }
-  if (lvl === 2 && st.guard && rd && !rd.closing) {   // "חזור" ראשון בקורא: נחת על השומר
+  if (lvl === 2 && !rd) {                  // v349: רשומת קורא שהקורא שלה כבר סגור — מדלגים עליה (יציאה, או רשומה כפולה ישנה)
+    try { history.back(); } catch (e) {}
+    return;
+  }
+  if (lvl === 2 && rd && !rd.closing) {     // "חזור" בתוך הקורא (השומר, או רשומה כפולה)
     if (selPop) hideSel();
     else if (trCard) hideTr();               // v333: "חזור" סוגר את כרטיס התרגום
-    else if (typeof flash === 'function') flash(T('rdBackTwice'));
+    else if (Date.now() - (rd.backAt || 0) < BACK_TWICE_MS) readerExit();   // v349: "חזור" שני תוך 2 שנ׳ — יוצא תמיד, בכל רשומה
+    else { rd.backAt = Date.now(); if (typeof flash === 'function') flash(T('rdBackTwice')); }
     return;
+  }
+  if (lvl === 2) return;                   // יציאה בתהליך
+  if (exitSkip && lvl < 2) {               // v349: היציאה הגיעה לדף הספר — הקורא כבר נסגר והדף צויר
+    exitSkip = 0;
+    if (lvl >= 1) { ui.view = (history.state && history.state.lv) || ui.view; return; }
   }
   if (lvl >= 1 && lvl < 2) ui.view = (history.state && history.state.lv) || null;
   if (lvl < 2 && rd) closeReader();

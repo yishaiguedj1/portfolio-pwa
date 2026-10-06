@@ -70,7 +70,9 @@ export function paintPage(o) {
   // 2) טקסט — מילה מילה במיקום המדויק שלה; מילה שנשברה בין שורות — לפי גרפמות
   const seg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
   const rg = doc.createRange();
-  const tw = doc.createTreeWalker(doc.body || doc.documentElement, 4);
+  const top = doc.body || doc.documentElement;
+  if (!top) { ctx.restore(); return cv; } // v349: המסמך נפרק (הקורא נסגר באמצע הציור) — דף ריק
+  const tw = doc.createTreeWalker(top, 4);
   const metr = new Map();
   let n;
   while ((n = tw.nextNode())) {
