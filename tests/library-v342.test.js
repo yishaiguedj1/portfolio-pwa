@@ -53,7 +53,7 @@ ok(/ensureNeighbor\('next'\); ensureNeighbor\('prev'\);/.test(src) && /env\.load
 ok(/ct\.plain = dir/.test(lib) && /\(d > 0 \? r\.next\(\) : r\.prev\(\)\)/.test(lib), 'הפרק השכן עוד לא מוכן — מעבר רגיל (ההחלקה לא נבלעת)');
 ok(/curlGeom\(W, H, g\.p, g\.phi, g\.gy, g\.rtl, curlRadius\(W\), g\.T\)/.test(src) && /u_kc/.test(src), 'הסגנון שהמשתמש אהב: גליל צר קבוע + כנף מוגבלת; חרוט עדין לאורך הציר (כמו בקינדל)');
 ok(/u_ls\.xy \+ \(pos\.xy - u_ls\.xy\) \* \(u_ls\.z/.test(src) && /LIGHT = Array\.from\(\{ length: 32 \}/.test(src) && /gl\.stencilOp\(gl\.KEEP, gl\.KEEP, gl\.INCR\)/.test(src), 'צל רך פיזיקלי: מקור אור שטחי, 32 דגימות, כל פיקסל נספר פעם אחת לדגימה');
-ok(/curlEase\(k, m0\)/.test(src) && /SPEED = 1\.0/.test(src), 'מהירות כמעט קבועה (~שנייה לעמוד — קצת לאט מקינדל, בקשת המשתמש)');
+ok(/curlEase\(k, m0\)/.test(src) && /SPEED = 0\.62/.test(src) && /Math\.min\(1700,/.test(src), 'מהירות כמעט קבועה (~1.6 שנ׳ לעמוד — לאט מקינדל, בקשת המשתמש, v343 סבב 6)');
 ok(/if \(c\.active\(\)\) c\.finishNow\(\);/.test(lib), 'דפדוף מהיר ברצף — הקודם מסתיים מיד');
 ok(/curlPrebuild\(\)/.test(lib.split("view.addEventListener('relocate'")[1].slice(0, 2500)) && /curlStyleVer\+\+/.test(lib), 'שכפול הפרק נבנה מראש אחרי מעבר עמוד ושינוי עיצוב');
 ok(/if \(r\.curl\) r\.curl\.destroy\(\)/.test(lib), 'ניקוי בסגירת הקורא');

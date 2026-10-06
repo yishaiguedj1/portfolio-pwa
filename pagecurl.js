@@ -149,7 +149,7 @@ void main() {
   // דף אחד נקי כמו בקינדל: על הגליל — נייר חלק עם הצללה בלבד (הטקסט שם דחוס מדי ונראה כ"עוד דף"); הטקסט ההפוך
   // מופיע רק על הכנף השטוחה, במעבר רך מראש הגליל
   vec3 back = mix(tex, u_paper, u_wash);
-  vec3 col = mix(u_paper, back, smoothstep(2.75, 3.1, v_th));
+  vec3 col = mix(u_paper, back, smoothstep(2.2, 2.85, v_th));   // הטקסט ההפוך מתחיל כבר בחלק העליון של הגליל — דף מלא, לא חלקי
   vec3 L = normalize(vec3(-0.18, -0.4, 1.0)), H = normalize(L + vec3(0.0, 0.0, 1.0));   // אותו מקור אור של הצל
   float dif = max(dot(N, L), 0.0), spec = pow(max(dot(N, H), 0.0), 48.0);
   float b = 0.5 + 0.56 * dif;                                     // שטוח (N = z) ≈ 1
@@ -381,7 +381,7 @@ export function createCurl(env) {
   const T_DRAG = 0.55, T_AUTO = 0.2;                 // כנף מרבית בגרירה / בדפדוף אוטומטי (×W) — שכבות ה־DOM
   const T_GL = 0.5;                                  // בתלת־ממד: גליל + כנף עד חצי מסך (כנף ~30% כמו בסרטונים של קינדל; מעוגן בשדרה עד אז)
   // מהירות הגליל ברוחבי מסך לשנייה — בקינדל נמדד ~1.3 (0.7 שנ׳ לעמוד); בקשת המשתמש: קצת יותר לאט, כדי להרגיש את הדפדוף
-  const SPEED = 1.0;
+  const SPEED = 0.62;                               // סבב 6: "עדיין עובר מהר" — ~1.6 שנ׳ לעמוד
   let g = null, raf = 0, q = Promise.resolve(), busy = false;
   const jump = (dir) => (q = q.then(() => env.jump(dir)).catch(() => {}));
   function clipView(pts) {
@@ -409,7 +409,7 @@ export function createCurl(env) {
       const kc = (typeof window !== 'undefined' && window.__pcKC != null) ? window.__pcKC : 0.5;   // בדיקות: __pcKC
       GL.render({ W, H, M: G.M, n: G.n, r: G.r, shift: G.shift, cam: H * 2.6, ax, kc,
         shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.8 : 0.32), blur: 3 * dpr,   // בדיקות: __pcShadowK
-        paper: rgb01(th.page), wash: th.dark ? 0.36 : 0.28, dark: th.dark });
+        paper: rgb01(th.page), wash: th.dark ? 0.2 : 0.12, dark: th.dark });
       return;
     }
     // צל רך על הדף שמתגלה — מקצה הגליל והלאה, דועך אקספוננציאלית
@@ -489,10 +489,10 @@ export function createCurl(env) {
     const s = g, p0 = s.p, phi0 = s.phi, T0 = s.T;
     const target = (go ? s.dir > 0 : s.dir < 0) ? curlEnd(s.W, s.H, phi0) : -0.02 - Math.abs(Math.tan(phi0)) * s.H / s.W;
     const dist = Math.abs(target - p0);
-    const dur = Math.max(320, Math.min(1150, dist / SPEED * 1000));
+    const dur = Math.max(520, Math.min(1700, dist / SPEED * 1000));
     const vTo = Math.sign(target - p0) * s.v;          // מהירות האצבע בכיוון היעד (p למילישנייה)
-    const m0 = Math.max(0.9, Math.min(1.7, dist > 0 ? vTo * dur / dist : 1));
-    const Tend = s.W * T_AUTO + Math.PI * curlRadius(s.W);
+    const m0 = Math.max(0.9, Math.min(1.25, dist > 0 ? vTo * dur / dist : 1));
+    const Tend = s.W * (GL ? T_GL : T_AUTO) + Math.PI * curlRadius(s.W);   // בתלת־ממד הכנף נשארת רחבה ומלאה עד הסוף (כמו בקינדל)
     s.anim = { go, t0: 0, dur };
     const step = () => {
       if (g !== s) return;
