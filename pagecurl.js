@@ -28,7 +28,7 @@ export function reflectMatrix(M, n) {             // שיקוף סביב הקו 
 /* גליל (כמו בקינדל — לא קפל חד): הדף מתגלגל סביב גליל ברדיוס r שהציר שלו על הקו. חומר הדף במרחק d מעבר לציר:
    d ≤ πr — על הגליל (נראה כרצועה אפורה חלקה ברוחב r מעבר לציר, בלי טקסט — דחוס); d > πr — שטוח והפוך מעל הדף,
    במיקום πr − d — כלומר שיקוף סביב קו שמוזז ב־πr/2 מהציר. */
-export function curlRadius(W) { return Math.max(10, Math.min(28, W * 0.042)); }   // סבב 6: גליל דק — חצי ההיקף (πr) בולע פחות דף, והכנף עם הטקסט ההפוך מלאה ורחבה כמו בקינדל
+export function curlRadius(W) { return Math.max(12, Math.min(32, W * 0.052)); }   // סבב 6–7: גליל דק — חצי ההיקף (πr) בולע מעט דף, והכנף מלאה; ברוחב הגליל הנראה בצילומי הקינדל (~5%)
 /* v343: רדיוס הגליל לאורך הדפדוף — כמו בקינדל: גליל צר, שגדל מעט באמצע הדפדוף ונסגר בנחיתה.
    (ניסיון של גליל גדול — "דף שעומד גבוה" — נפסל ע״י המשתמש: "לא נראה משהו, שיהיה כמו בקינדל") */
 export function curlRadiusAt(W, p) {               // טהורה
@@ -76,7 +76,7 @@ export function shadowStops(a, lam, start) {      // צל רך שדועך אקס
   return out;
 }
 export function curlEase(k, m0) {                 // מהירות כמעט קבועה כמו בקינדל, ממשיכה ממהירות האצבע ומאטה רק בסוף — טהורה
-  const m1 = 0.45;
+  const m1 = 0.12;                                // סבב 7: נחיתה רכה — בקינדל הגליל זוחל לאט את הקטע האחרון עד הקצה
   return (k * k * k - 2 * k * k + k) * m0 + (-2 * k * k * k + 3 * k * k) + (k * k * k - k * k) * m1;
 }
 export function curlEnd(W, H, phi) {               // p שבו הדף כולו הפך (הגליל מחוץ למסך) — טהורה
@@ -408,7 +408,7 @@ export function createCurl(env) {
       let ax = [-G.n[1], G.n[0]]; if ((ax[1] < 0) !== up) ax = [-ax[0], -ax[1]];
       const kc = (typeof window !== 'undefined' && window.__pcKC != null) ? window.__pcKC : 0.5;   // בדיקות: __pcKC
       GL.render({ W, H, M: G.M, n: G.n, r: G.r, shift: G.shift, cam: H * 2.6, ax, kc,
-        shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.8 : 0.32), blur: 3 * dpr,   // בדיקות: __pcShadowK
+        shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.8 : 0.5), blur: 7 * dpr,   // סבב 7: צל רך ורחב יותר ליד הגליל, כמו בקינדל   // בדיקות: __pcShadowK
         paper: rgb01(th.page), wash: th.dark ? 0.2 : 0.12, dark: th.dark });
       return;
     }
