@@ -2342,14 +2342,14 @@ let staleFrom = 0;                        // תחילת רצף הדילוג — 
 function readerLeaveHistory() {
   if (rd) return;
   if (((history.state || {}).lib || 0) < 2) { exitSkip = 0; staleFrom = 0; return; }
-  if (staleBackAt && Date.now() - staleBackAt < 1000) { setTimeout(readerLeaveHistory, 150); return; }
+  if (staleBackAt && Date.now() - staleBackAt < 500) { setTimeout(readerLeaveHistory, 100); return; }
   if (!staleFrom || Date.now() - staleFrom > 6000) staleFrom = Date.now();
   else if (Date.now() - staleFrom > 4000) { exitSkip = 0; staleFrom = 0; return; }
   staleBackAt = Date.now();
   try { history.back(); } catch (e) { staleBackAt = 0; }
-  setTimeout(readerLeaveHistory, 1050);    // ה־back לא בוצע (נמדד: back מיד אחרי popstate נבלע לפעמים) — שוב
+  setTimeout(readerLeaveHistory, 550);     // ה־back לא בוצע (נמדד: back מיד אחרי popstate נבלע לפעמים) — שוב
 }
-function skipStale() { setTimeout(readerLeaveHistory, 0); }
+function skipStale() { setTimeout(readerLeaveHistory, 60); }   // back מיד אחרי popstate לפעמים לא מבוצע (נמדד) — השהיה קטנה
 function readerRearm() {                 // נגיעה בתוך הקורא אחרי "חזור" ראשון — השומר חוזר (יש הפעלת משתמש)
   try {
     const st = history.state || {};
