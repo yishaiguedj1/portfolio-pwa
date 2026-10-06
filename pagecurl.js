@@ -79,6 +79,7 @@ export function shadowStops(a, lam, start) {      // צל רך שדועך אקס
    במהירות **קבועה** (~1.37 רוחבי מסך לשנייה) עד ממש הקצה, ובולם רק ב־~5% האחרונים של הדרך (4–5 פריימים).
    (עד v344: Hermite עם "זנב" איטי וארוך בסוף — נראה כמו דף שנגרר.) BRAKE = אורך הבלימה (ב־p) */
 export const BRAKE = 0.05;
+export const EDGE_R = 0.4;                       // היכן נעצר הגליל בסוף (ברדיוסים מעבר לקצה): רובו עדיין על המסך
 export function rushSpeed(speed, rush) { return speed * (1 + 0.9 * Math.max(0, Math.min(3, rush || 0))); }   // טהורה
 export function rushDur(dist, speed, rush) {      // משך (מ״ש): מהירות קבועה + בלימה לינארית באורך de — טהורה
   const V = rushSpeed(speed, rush), de = Math.min(BRAKE, dist / 2);
@@ -510,7 +511,9 @@ export function createCurl(env) {
     // כמו בקינדל (נמדד, v345): מהירות קבועה מהשחרור ובלימה קצרה רק בקצה (kindleEase); הכנף מצטמצמת ל־~25% מהמסך
     // ויוצאת מהמסך יחד עם הגליל; ההטיה מתיישרת
     const s = g, p0 = s.p, phi0 = s.phi, T0 = s.T;
-    const target = (go ? s.dir > 0 : s.dir < 0) ? curlEnd(s.W, s.H, phi0) : -0.02 - Math.abs(Math.tan(phi0)) * s.H / s.W;
+    // v345: היעד = הגליל על קצה המסך (לא מעבר לו) — כמו בקינדל, הבלימה נראית: הגליל נעצר על הקצה ואז הדף מתחלף.
+    // (עד v344 היעד היה מחוץ למסך — כל הבלימה קרתה מחוץ לתמונה והגליל "ברח" במהירות מלאה.) ההטיה מתאפסת לפני הסוף.
+    const target = (go ? s.dir > 0 : s.dir < 0) ? 1 + EDGE_R * curlRadius(s.W) / s.W : -0.02 - Math.abs(Math.tan(phi0)) * s.H / s.W;
     const dist = Math.abs(target - p0);
     const dur = rushDur(dist, SPEED, s.rush || 0);
     stats.durs.push(Math.round(dur));

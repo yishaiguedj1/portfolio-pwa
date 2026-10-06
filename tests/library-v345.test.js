@@ -24,4 +24,5 @@ const sp = Number((/const SPEED = ([\d.]+)/.exec(src) || [])[1]);
 ok(sp < 1.37 && sp > 1.37 * 0.7, 'מהירות ' + sp + ' — קצת יותר איטית מהקינדל (1.37)');
 ok(/const T_GL = 0\.25/.test(src), 'כנף ~25% מהמסך בדפדוף האוטומטי (נמדד בקינדל)');
 ok(!/curlEase\(k, m0\)/.test(src), 'בלי עקומת Hermite עם הזנב האיטי');
+ok(/const target = \(go \? s\.dir > 0 : s\.dir < 0\) \? 1 \+ EDGE_R \* curlRadius\(s\.W\) \/ s\.W/.test(src) && M.EDGE_R > 0 && M.EDGE_R < 1, 'הגליל נעצר על קצה המסך (הבלימה נראית, כמו בקינדל) — לא מחוץ למסך');
 console.log(n + ' בדיקות עברו');
