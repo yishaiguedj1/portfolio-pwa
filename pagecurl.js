@@ -149,7 +149,7 @@ void main() {
   // דף אחד נקי כמו בקינדל: על הגליל — נייר חלק עם הצללה בלבד (הטקסט שם דחוס מדי ונראה כ"עוד דף"); הטקסט ההפוך
   // מופיע רק על הכנף השטוחה, במעבר רך מראש הגליל
   vec3 back = mix(tex, u_paper, u_wash);
-  vec3 col = mix(u_paper, back, smoothstep(2.2, 2.85, v_th));   // הטקסט ההפוך מתחיל כבר בחלק העליון של הגליל — דף מלא, לא חלקי
+  vec3 col = mix(u_paper, back, smoothstep(1.62, 2.0, v_th));   // סבב 8 (כמו בקינדל): הטקסט ההפוך ממשיך גם על החצי העליון של הגליל — דחוס ומוצלל
   vec3 L = normalize(vec3(-0.18, -0.4, 1.0)), H = normalize(L + vec3(0.0, 0.0, 1.0));   // אותו מקור אור של הצל
   float dif = max(dot(N, L), 0.0), spec = pow(max(dot(N, H), 0.0), 48.0);
   float b = 0.5 + 0.56 * dif;                                     // שטוח (N = z) ≈ 1
@@ -409,7 +409,7 @@ export function createCurl(env) {
       const kc = (typeof window !== 'undefined' && window.__pcKC != null) ? window.__pcKC : 0.5;   // בדיקות: __pcKC
       GL.render({ W, H, M: G.M, n: G.n, r: G.r, shift: G.shift, cam: H * 2.6, ax, kc,
         shadowK: (typeof window !== 'undefined' && window.__pcShadowK != null ? window.__pcShadowK : 1) * vis * (th.dark ? 0.8 : 0.5), blur: 7 * dpr,   // סבב 7: צל רך ורחב יותר ליד הגליל, כמו בקינדל   // בדיקות: __pcShadowK
-        paper: rgb01(th.page), wash: th.dark ? 0.2 : 0.12, dark: th.dark });
+        paper: rgb01(th.page), wash: th.dark ? 0.17 : 0.13, dark: th.dark });   // wash (סבב 8): מכויל מול צילום הקינדל — ליבת אות ההפוכה 70/255 (נמדד בשניהם, כולל התאורה)
       return;
     }
     // צל רך על הדף שמתגלה — מקצה הגליל והלאה, דועך אקספוננציאלית
