@@ -326,6 +326,13 @@ export function createCurl(env) {
   off(false);
   const show = (L, pn) => { for (const k in P) if (P[k].pane.parentNode === L) P[k].pane.style.visibility = P[k] === pn ? 'inherit' : 'hidden'; };
 
+  /* v349 (באג חמור: "חזור" לא מוציא מהספר): כל `fr.src = url` על iframe שכבר נטען מוסיף רשומה להיסטוריה של הדפדפן
+     (היסטוריה משותפת לדף ולמסגרות) — "חזור" של המכשיר הלך אחורה בתוך המסגרת הנסתרת ולא עשה כלום, פעם לכל מעבר פרק.
+     location.replace מחליף את הרשומה של המסגרת במקום להוסיף. */
+  function frameGo(fr, url) {
+    try { if (fr.getAttribute('src') && fr.contentWindow) { fr.contentWindow.location.replace(url); return; } } catch (e) {}
+    fr.src = url;
+  }
   /* שכפול מסמך — רק כשהמקור/הגודל/העיצוב השתנו */
   function importDoc(c, srcDoc, key) {
     if (c.src === srcDoc && c.key === key && c.fr.contentDocument && c.fr.contentDocument.body) return true;
@@ -386,7 +393,7 @@ export function createCurl(env) {
       const url = await env.loadSection(i);
       if (n.key !== key) return false;
       const c = n.c, real = env.frame(), rd0 = real.contentDocument;
-      await new Promise((res) => { c.fr.addEventListener('load', res, { once: true }); c.fr.src = url; });
+      await new Promise((res) => { c.fr.addEventListener('load', res, { once: true }); frameGo(c.fr, url); });
       if (n.key !== key) return false;
       const d = c.fr.contentDocument; if (!d || !d.body) return false;
       if (d.head) { const st = d.createElement('style'); st.textContent = env.bookCss(); d.head.append(st); }

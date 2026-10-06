@@ -72,7 +72,8 @@ export function paintPage(o) {
   const rg = doc.createRange();
   const top = doc.body || doc.documentElement;
   if (!top) { ctx.restore(); return cv; } // v349: המסמך נפרק (הקורא נסגר באמצע הציור) — דף ריק
-  const tw = doc.createTreeWalker(top, 4);
+  let tw;
+  try { tw = doc.createTreeWalker(top, 4); } catch (e) { ctx.restore(); return cv; }
   const metr = new Map();
   let n;
   while ((n = tw.nextNode())) {

@@ -2334,14 +2334,22 @@ function readerExit() {                  // ✕ / Escape / שגיאה / "חזו�
   closeReader();
   readerLeaveHistory();
 }
-let exitSkip = 0;                         // v349: יציאה מהקורא בתהליך — הרשומות של הקורא מדולגות עד דף הספר
+let exitSkip = 0;          // v349: יציאה מהקורא בתהליך — הרשומות של הקורא מדולגות עד דף הספר
+let staleBackAt = 0;                      // back שלנו שעוד לא נחת (popstate)
+/* v349: חזרה אחורה עד שיוצאים מרשומות הקורא — back אחד בכל פעם: הבא רק אחרי שהקודם נחת (onPop) או אחרי שנייה בלי
+   תגובה (נבלע). back בתוך popstate לא מבוצע בדפדפן (נמדד) — תמיד מ־setTimeout. כמה back ממתינים יחד = חזרה רחוקה מדי. */
+let staleFrom = 0;                        // תחילת רצף הדילוג — עד 4 שנ׳ (לא לולאה אינסופית)
 function readerLeaveHistory() {
-  const st = history.state || {};
-  if ((st.lib || 0) < 2) { exitSkip = 0; return; }
-  try { history.back(); } catch (e) {}
-  // ה־back נבלע (חזרה פנימית של האפליקציה/גיליון באותו רגע) — בודקים שוב, עד 3 שניות
-  setTimeout(() => { if (!rd && exitSkip && Date.now() - exitSkip < 3000 && ((history.state || {}).lib || 0) >= 2) readerLeaveHistory(); }, 400);
+  if (rd) return;
+  if (((history.state || {}).lib || 0) < 2) { exitSkip = 0; staleFrom = 0; return; }
+  if (staleBackAt && Date.now() - staleBackAt < 1000) { setTimeout(readerLeaveHistory, 150); return; }
+  if (!staleFrom || Date.now() - staleFrom > 6000) staleFrom = Date.now();
+  else if (Date.now() - staleFrom > 4000) { exitSkip = 0; staleFrom = 0; return; }
+  staleBackAt = Date.now();
+  try { history.back(); } catch (e) { staleBackAt = 0; }
+  setTimeout(readerLeaveHistory, 1050);    // ה־back לא בוצע (נמדד: back מיד אחרי popstate נבלע לפעמים) — שוב
 }
+function skipStale() { setTimeout(readerLeaveHistory, 0); }
 function readerRearm() {                 // נגיעה בתוך הקורא אחרי "חזור" ראשון — השומר חוזר (יש הפעלת משתמש)
   try {
     const st = history.state || {};
@@ -2565,6 +2573,7 @@ function closeReader() {
   const r = rd; rd = null;
   if (r.rec) { clearTimeout(r.saveT); pushProgress(r.rec, true); }
   hideSel(); hideTr(true);
+  if (root) root.querySelectorAll('.lib-veil').forEach((v) => v.remove());   // v349: גיליון של הקורא (Aa/תוכן) נסגר איתו
   // v322: הקורא דוהה מעל הדף באנימציית CSS על האלמנט עצמו (צילום View Transition לא כולל את ה־iframe — יצא דף לבן ריק);
   // הדף שמתחת מצויר בזמן שהקורא עדיין אטום, עם הגלילה שנשמרה בפתיחה; המנוע נסגר רק בסוף.
   const box = r.els.box;
@@ -3888,6 +3897,12 @@ function openAa() {
 /* בזמן קריאה: "חזור" אחד (גם החלקה מקצה המסך בטעות) לא מוציא מהספר — רק שני "חזור" תוך 2 שניות
    (v303, בקשת המשתמש). גיליון פתוח (תוכן/Aa/תרגום) — "חזור" סוגר אותו. כפתור ✕ יוצא מיד. */
 function onPop() {
+  staleBackAt = 0;                       // v349: ה־back שלנו (אם היה) נחת
+  if (!rd && ((history.state || {}).lib || 0) === 2) {   // v349: רשומת קורא שהקורא שלה כבר סגור — מדלגים עליה (יציאה, או רשומה
+    sheetSkip = 0; sheetClosed = null;                    // כפולה ישנה), לפני כל דבר אחר; back בתוך popstate לא מבוצע (נמדד) — אחרי האירוע
+    skipStale();
+    return;
+  }
   if (sheetSkip > 0) { sheetSkip--; if (!sheetSkip) sheetClosed = null; const v = root && root.querySelector('.lib-veil.out'); if (v && v._settled) v._settled(); return; }   // v322: סגירה תוכנתית של גיליון — ה־back שלנו
   const ds = document.documentElement.dataset;
   if (ds.modalPop || ds.navSkip) return; // v322: חלון של האפליקציה נסגר ב"חזור" / ה־back שלה (סגירת כפתורי לחיצה ארוכה) — לא ניווט של הספרייה
@@ -3897,10 +3912,6 @@ function onPop() {
   if (veils.length > (st.sheet || 0)) {   // v322: "חזור" סוגר את הגיליון העליון (יש לו רשומה משלו); v323: גיליון בלי רשומה — נסגר וממשיכים בניווט
     const v = veils[veils.length - 1]; const own = !!v._pushed; (v._close || (() => v.remove()))();
     if (own) return;
-  }
-  if (lvl === 2 && !rd) {                  // v349: רשומת קורא שהקורא שלה כבר סגור — מדלגים עליה (יציאה, או רשומה כפולה ישנה)
-    try { history.back(); } catch (e) {}
-    return;
   }
   if (lvl === 2 && rd && !rd.closing) {     // "חזור" בתוך הקורא (השומר, או רשומה כפולה)
     if (selPop) hideSel();
