@@ -79,11 +79,27 @@ export function shadowStops(a, lam, start) {      // צל רך שדועך אקס
    במהירות **קבועה** (~1.37 רוחבי מסך לשנייה) עד ממש הקצה, ובולם רק ב־~5% האחרונים של הדרך (4–5 פריימים).
    (עד v344: Hermite עם "זנב" איטי וארוך בסוף — נראה כמו דף שנגרר.) BRAKE = אורך הבלימה (ב־p) */
 export const BRAKE = 0.05;
+export const CURL_TAU = 70;                       // v346: מעבר ממהירות האצבע למהירות הקבועה (מ״ש)
 export const EDGE_R = 0.4;                       // היכן נעצר הגליל בסוף (ברדיוסים מעבר לקצה): רובו עדיין על המסך
 export function rushSpeed(speed, rush) { return speed * (1 + 0.9 * Math.max(0, Math.min(3, rush || 0))); }   // טהורה
 export function rushDur(dist, speed, rush) {      // משך (מ״ש): מהירות קבועה + בלימה לינארית באורך de — טהורה
   const V = rushSpeed(speed, rush), de = Math.min(BRAKE, dist / 2);
   return Math.max(60, (dist + de) / V * 1000);
+}
+/* v346: התנועה מהשחרור, פריים־פריים — טהורה. dist = הדרך (p), V = המהירות הקבועה (p/ms), v0 = מהירות האצבע לכיוון היעד.
+   מתחילה במהירות האצבע, מתקרבת ל־V אקספוננציאלית (CURL_TAU), ובולמת בתאוטה קבועה כך שנעצרת בדיוק ביעד. */
+export function curlMotion(dist, V, v0) {
+  const de = Math.min(BRAKE, dist / 2), acc = (V * V) / (2 * Math.max(1e-6, de));
+  let pos = 0, vel = Math.max(0, Math.min(3 * V, v0 || 0)), v = vel;
+  return {
+    step(dt) {
+      vel += (V - vel) * (1 - Math.exp(-dt / CURL_TAU));
+      const rem = dist - pos;
+      v = Math.min(vel, Math.sqrt(2 * acc * Math.max(0, rem)));
+      pos = Math.min(dist, pos + v * dt);
+      return { pos, v, done: !(dist > 0) || dist - pos < 1e-4 };
+    },
+  };
 }
 export function kindleEase(k, dist) {             // חלק הדרך שעבר בזמן k ∈ [0,1] — מהירות קבועה ואז בלימה — טהורה
   if (!(dist > 0)) return 1;
@@ -347,10 +363,11 @@ export function createCurl(env) {
     }
     footFor(c, withFoot);
   }
-  function footFor(c, on) {
+  function footFor(c, on) {                         // on: true = שורת התחתית כמו שהיא; {l, r} = עם הערכים של הדף הזה (v346)
     const L = c.pane.parentNode, old = L.querySelector(':scope > .pc-foot'); if (old) old.remove();
     if (!on || !env.foot) return;
     const br = env.box.getBoundingClientRect(), fr = env.foot.getBoundingClientRect(), f = env.foot.cloneNode(true);
+    if (typeof on === 'object') { const sp = f.querySelectorAll('span'); if (sp[0]) sp[0].textContent = on.l; if (sp[1]) sp[1].textContent = on.r; }
     f.classList.add('pc-foot');
     Object.assign(f.style, { position: 'absolute', inset: 'auto', left: fr.left - br.left + 'px', top: fr.top - br.top + 'px', width: fr.width + 'px', height: fr.height + 'px', margin: '0', visibility: 'inherit', clipPath: 'none' });
     L.append(f);
@@ -491,6 +508,9 @@ export function createCurl(env) {
     } catch (e) {}
   }
   const idle = (f) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(f, { timeout: 300 }) : setTimeout(f, 30));
+  function footPred(index, page, pages) {           // הטקסט של שורת התחתית בעמוד (index, page) — כמו שהמנוע יחשב
+    try { return (env.footText && env.footText(index, page, pages)) || false; } catch (e) { return false; }
+  }
   function begin(dir, x, y) {                        // true = התחיל; 'wait' = עוד רגע (דפדוף קודם מסתיים / הפרק השכן נטען); false = אי אפשר
     if (g || busy) return 'wait';
     if (!env.canTurn(dir)) return false;
@@ -507,12 +527,15 @@ export function createCurl(env) {
     A.style.background = th.page; B.style.background = th.page;
     if (dir > 0) {                                   // מתחת: העמוד הבא; הכנף: העמוד הנוכחי; המנוע — הדף שמתקפל
       A.style.zIndex = '1'; A.style.clipPath = '';
-      if (cross) { placeNeighbor(P.anext, n, false, false); show(A, P.anext); } else { placeCur(P.acur, 1, false); show(A, P.acur); }
+      // v346: הדף שנחשף מגיע עם שורת התחתית שלו (האחוז והזמן של הדף הבא, מחושבים מראש) — בלי "רענון" אחרי המעבר
+      s.foot = footPred(cross ? n.idx : r.getContents()[0].index, cross ? 1 : r.page + 1, cross ? n.pages + 2 : r.pages);
+      if (cross) { placeNeighbor(P.anext, n, false, s.foot); show(A, P.anext); } else { placeCur(P.acur, 1, s.foot); show(A, P.acur); }
       placeCur(P.bcur, 0, true); show(B, P.bcur);
     } else {                                         // מעל המנוע: העמוד הקודם (החלק השטוח) + הכנף מאותו עמוד
       A.style.zIndex = '3';
-      if (cross) { placeNeighbor(P.aprev, n, true, false); show(A, P.aprev); placeNeighbor(P.bprev, n, true, false); P.bprev.fr.style.width = P.aprev.fr.style.width; show(B, P.bprev); }
-      else { placeCur(P.acur, -1, false); show(A, P.acur); placeCur(P.bcur, -1, false); show(B, P.bcur); }
+      s.foot = footPred(cross ? n.idx : r.getContents()[0].index, cross ? n.pages : r.page - 1, cross ? n.pages + 2 : r.pages);
+      if (cross) { placeNeighbor(P.aprev, n, true, s.foot); show(A, P.aprev); placeNeighbor(P.bprev, n, true, false); P.bprev.fr.style.width = P.aprev.fr.style.width; show(B, P.bprev); }
+      else { placeCur(P.acur, -1, s.foot); show(A, P.acur); placeCur(P.bcur, -1, false); show(B, P.bcur); }
     }
     Object.assign(B.style, { width: g.W + 'px', height: g.H + 'px' });
     g.dpr = Math.min(2.5, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
@@ -564,15 +587,21 @@ export function createCurl(env) {
     stats.durs.push(Math.round(dur));
     const Tend = GL ? T_GL : s.W * T_AUTO + Math.PI * curlRadius(s.W);
     s.anim = { go, t0: 0, dur };
+    // v346: פיזיקה פשוטה בכל פריים במקום עקומה סגורה — האנימציה מתחילה **במהירות האצבע** ועוברת בהדרגה (τ≈70ms)
+    // למהירות הקבועה של קינדל, ובולמת בתאוטה קבועה עד הקצה. נמדד בסרטון המשתמש (90Hz): בשחרור המהירות קפצה
+    // מ־~5 ל־~2.3 פיקסלים לפריים בבת אחת — "עצירה קטנה" ברגע שמרימים את האצבע.
+    const mo = curlMotion(dist, rushSpeed(SPEED, s.rush || 0) / 1000, (Math.sign(target - p0) || 1) * (s.v || 0));
+    let last = 0;
     const step = () => {
       if (g !== s) return;
       const now = clock();
-      s.anim.t0 = s.anim.t0 || now;
-      const k = Math.min(1, (now - s.anim.t0) / dur), e = kindleEase(k, dist);
-      s.p = p0 + (target - p0) * e; s.phi = phi0 * (1 - Math.min(1, k * 1.6));
-      s.T = Tend === T0 ? T0 : T0 + (Tend - T0) * Math.min(1, k * 2.2);
+      const dt = last ? Math.min(50, Math.max(0, now - last)) : 0; last = now;
+      const { pos, done } = mo.step(dt);
+      const e = dist > 0 ? pos / dist : 1;
+      s.p = done ? target : p0 + (target - p0) * e; s.phi = phi0 * (1 - Math.min(1, e * 1.6));
+      s.T = Tend === T0 ? T0 : T0 + (Tend - T0) * Math.min(1, e * 2.2);
       draw();
-      if (k < 1) raf = requestAnimationFrame(step); else finish();
+      if (!done) raf = requestAnimationFrame(step); else finish();
     };
     raf = requestAnimationFrame(step);
   }
@@ -586,6 +615,7 @@ export function createCurl(env) {
       // כל זמן ההמתנה למנוע (בטלפון 6–8 פריימים — "תקיעה בסוף כל עמוד", נמדד בסרטון של המשתמש). מתחת כבר מוצג
       // שכפול מדויק של הדף הבא (A), והמנוע חתוך/מוסתר — אז ההמתנה עצמה לא נראית
       for (const e of turnedLayers) e.style.visibility = 'hidden';
+      if (s.foot && env.setFoot) env.setFoot(s.foot);  // שורת התחתית האמיתית = מה שכבר מוצג על הדף החדש (לא מתחלפת לעין)
       await jump(s.dir);                             // המעבר האמיתי — פעם אחת, מתחת לשכפול
     }
     off(false);

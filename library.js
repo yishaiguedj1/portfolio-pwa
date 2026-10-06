@@ -2636,7 +2636,7 @@ function wireDoc(doc, setChrome, index) {
 }
 const HOLD_MS = 320;
 /* ---- v342: דפדוף בקיפול דף (pagecurl.js) ---- */
-let curlStyleVer = 0, curlPlainN = 0, curlPlainW = 0, curlT = 0, ct = null, curlTex = null, curlFont = null;
+let curlProg = null, curlSP = null, curlStyleVer = 0, curlPlainN = 0, curlPlainW = 0, curlT = 0, ct = null, curlTex = null, curlFont = null;
 function curlFrame() {
   try { const c = rd.view.renderer.getContents(); const d = c && c[0] && c[0].doc; return d && d.defaultView ? d.defaultView.frameElement : null; } catch (e) { return null; }
 }
@@ -2655,6 +2655,7 @@ async function curlSetup(box) {
   if (reduceMotion()) return;
   let mod;
   try { mod = await import('./pagecurl.js'); } catch (e) { return; }
+  try { curlSP = (await import('./vendor/foliate-js/progress.js')).SectionProgress; } catch (e) { curlSP = null; }
   try {                                      // צייר העמוד + הגופן שלנו גם במסמך הראשי (הקנבס מצייר בו)
     curlTex = await import('./pagetex.js');
     if (!curlFont && typeof FontFace === 'function') { curlFont = new FontFace('SNB Noto', 'url("' + FONT_URL + '")', { weight: '100 900', stretch: '62.5% 100%' }); document.fonts.add(curlFont); curlFont.load().catch(() => {}); }
@@ -2692,6 +2693,15 @@ async function curlSetup(box) {
       try { await (dir > 0 ? r.next() : r.prev()); } finally { if (had && rd && rd.view.renderer === r) r.setAttribute('animated', ''); }
     },
     onDone: () => curlPrebuild(),
+    // v346: שורת התחתית של הדף שנחשף — אותו חישוב של המנוע (fraction = (page−1)/(pages−2), SectionProgress 1500/1600)
+    footText: (index, page, pages) => {
+      if (rd && rd.book && curlSP && (!curlProg || curlProg._book !== rd.book)) { curlProg = new curlSP(rd.book.sections, 1500, 1600); curlProg._book = rd.book; }
+      if (!curlProg || !(pages > 2) || page < 1 || page > pages - 2) return null;
+      const p = curlProg.getProgress(index, (page - 1) / (pages - 2), 1 / (pages - 2));
+      const left = p.time && isFinite(p.time.section) ? Math.max(1, Math.round(p.time.section)) : 0;
+      return { l: left ? T('rdMinLeftChap', { m: left }) : '', r: Math.round((p.fraction || 0) * 100) + '%' };
+    },
+    setFoot: (f) => { if (!rd) return; rd.els.fL.textContent = f.l; rd.els.fR.textContent = f.r; },
   });
   // v344: בזמן דפדוף התצוגה של הספר חתוכה (clip-path) לחלק שעוד לא התהפך — ונגיעה מחוץ לחיתוך לא מגיעה למסמך הספר
   // (בדיקת הנגיעה מכבדת clip-path). בדפדוף מהיר ברצף ההחלקה הבאה נבלעה בשקט. לכן גם שכבת הקורא מקשיבה — רק
