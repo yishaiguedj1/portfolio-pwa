@@ -392,7 +392,9 @@ export function createCurl(env) {
   }
 
   const T_DRAG = 0.55, T_AUTO = 0.2;                 // כנף מרבית בגרירה / בדפדוף אוטומטי (×W) — שכבות ה־DOM
-  const T_GL = 0.25;                                  // בתלת־ממד: גליל + כנף עד חצי מסך (כנף ~30% כמו בסרטונים של קינדל; מעוגן בשדרה עד אז)
+  // v346 (בקשת המשתמש): בתלת־ממד — שיקוף מלא, בלי הגבלת כנף: ככל שהדף מורם, נחשף יותר מהגב שלו (כמו דף אמיתי),
+  // במקום רצועה ברוחב קבוע שנגררת עם הגליל לצד (v343–v345: T_GL 0.5/0.25 — "נראה כאילו נגרר")
+  const T_GL = Infinity;
   // מהירות הגליל ברוחבי מסך לשנייה — בקינדל נמדד ~1.3 (0.7 שנ׳ לעמוד); בקשת המשתמש: קצת יותר לאט, כדי להרגיש את הדפדוף
   const SPEED = 1.12;                               // v345: קינדל נמדד 1.37 רוחבי מסך/שנ׳ — בקשת המשתמש: "קצת פחות איטי, אבל עדיין קצת יותר איטי מהקינדל" (~20%)
   let g = null, raf = 0, q = Promise.resolve(), busy = false;
@@ -458,7 +460,7 @@ export function createCurl(env) {
     if (cross && !(n.ready && n.idx === env.adjacent(dir))) { ensureNeighbor(dir > 0 ? 'next' : 'prev'); return 'wait'; }
     if (cross && dir < 0 && !importDoc(P.bprev, n.src, 'nb|' + n.key)) return false;
     const br = env.box.getBoundingClientRect(), th = env.page();
-    const s = g = { dir, W: br.width, H: br.height, rtl: env.rtl(), sx: x, sy: y, gy: Math.max(0, Math.min(br.height, y - br.top)), p: dir > 0 ? 0 : curlEnd(br.width, br.height, 0), phi: 0, v: 0, lt: 0, lp: 0, T: br.width * T_DRAG };
+    const s = g = { dir, W: br.width, H: br.height, rtl: env.rtl(), sx: x, sy: y, gy: Math.max(0, Math.min(br.height, y - br.top)), p: dir > 0 ? 0 : curlEnd(br.width, br.height, 0), phi: 0, v: 0, lt: 0, lp: 0, T: GL ? T_GL : br.width * T_DRAG };
     A.style.background = th.page; B.style.background = th.page;
     if (dir > 0) {                                   // מתחת: העמוד הבא; הכנף: העמוד הנוכחי; המנוע — הדף שמתקפל
       A.style.zIndex = '1'; A.style.clipPath = '';
@@ -517,7 +519,7 @@ export function createCurl(env) {
     const dist = Math.abs(target - p0);
     const dur = rushDur(dist, SPEED, s.rush || 0);
     stats.durs.push(Math.round(dur));
-    const Tend = s.W * (GL ? T_GL : T_AUTO) + Math.PI * curlRadius(s.W);   // v345: כנף ~25% בדפדוף האוטומטי — נמדד בקינדל
+    const Tend = GL ? T_GL : s.W * T_AUTO + Math.PI * curlRadius(s.W);
     s.anim = { go, t0: 0, dur };
     const step = () => {
       if (g !== s) return;
@@ -525,7 +527,7 @@ export function createCurl(env) {
       s.anim.t0 = s.anim.t0 || now;
       const k = Math.min(1, (now - s.anim.t0) / dur), e = kindleEase(k, dist);
       s.p = p0 + (target - p0) * e; s.phi = phi0 * (1 - Math.min(1, k * 1.6));
-      s.T = T0 + (Tend - T0) * Math.min(1, k * 2.2);
+      s.T = Tend === T0 ? T0 : T0 + (Tend - T0) * Math.min(1, k * 2.2);
       draw();
       if (k < 1) raf = requestAnimationFrame(step); else finish();
     };
