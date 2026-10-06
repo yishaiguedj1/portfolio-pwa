@@ -6,16 +6,14 @@ function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.e
 const root = path.join(__dirname, '..');
 const src = fs.readFileSync(path.join(root, 'pagecurl.js'), 'utf8');
 const lib = fs.readFileSync(path.join(root, 'library.js'), 'utf8');
-const M = {}, names = [...src.matchAll(/^export function (\w+)/gm)].map((m) => m[1]);
+const M = {}, names = [...src.matchAll(/^export (?:function|const) (\w+)/gm)].map((m) => m[1]);
 new Function('M', src.replace(/^export /gm, '').replace(/^const (VS|FS|BLUR|COMP|QUAD|LIGHT)\b/gm, 'var $1') + '\n' + names.map((k) => 'M.' + k + ' = ' + k + ';').join('\n'))(M);
 
-// משך הדפדוף: דפדוף איטי — בדיוק כמו שאושר; רצף — מתקצר בהדרגה
-const full = 1.06, sp = 0.62;
-ok(M.rushDur(full, sp, 0) === Math.max(520, Math.min(1700, full / sp * 1000)), 'בלי רצף — המשך שאושר ב־v343 (בלי שינוי)');
-const d = [0, 1, 2, 3].map((r) => M.rushDur(full, sp, r));
+// משך הדפדוף: v345 — מהירות קבועה (SPEED) + בלימה; רצף — מהיר יותר
+const sp = 1.12;
+const d = [0, 1, 2, 3].map((r) => M.rushDur(0.6, sp, r));
 ok(d[0] > d[1] && d[1] > d[2] && d[2] > d[3], 'כל דרגת רצף — מהיר יותר: ' + d.map(Math.round).join(' → '));
-ok(d[3] < 500 && d[3] > 300, 'הכי מהיר ~0.4 שנ׳ — לא מעכב, אבל עדיין אנימציה');
-ok(M.rushDur(full, sp, 9) === d[3] && M.rushDur(full, sp, -1) === d[0], 'דרגת הרצף מוגבלת ל־0..3');
+ok(M.rushDur(0.6, sp, 9) === d[3] && M.rushDur(0.6, sp, -1) === d[0], 'דרגת הרצף מוגבלת ל־0..3');
 ok(/rush = now - lastBegin < RUSH_GAP \? Math\.min\(3, rush \+ 1\) : 0/.test(src) && /RUSH_GAP = 1000/.test(src), 'רצף = התחלה פחות משנייה אחרי הקודמת; עצירה — חוזר לאיטי');
 ok(/const dur = rushDur\(dist, SPEED, s\.rush \|\| 0\)/.test(src), 'המשך מחושב לפי הרצף של המחווה');
 

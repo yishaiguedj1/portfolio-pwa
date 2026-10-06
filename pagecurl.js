@@ -75,14 +75,21 @@ export function shadowStops(a, lam, start) {      // צל רך שדועך אקס
   out.push([start + 5.5 * lam, 'rgba(0,0,0,0)']);
   return out;
 }
-export function curlEase(k, m0) {                 // מהירות כמעט קבועה כמו בקינדל, ממשיכה ממהירות האצבע ומאטה רק בסוף — טהורה
-  const m1 = 0.12;                                // סבב 7: נחיתה רכה — בקינדל הגליל זוחל לאט את הקטע האחרון עד הקצה
-  return (k * k * k - 2 * k * k + k) * m0 + (-2 * k * k * k + 3 * k * k) + (k * k * k - k * k) * m1;
+/* v345: התנועה של קינדל, כפי שנמדדה פריים־פריים ב־8 דפדופים בסרטונים של המשתמש (60fps): מרגע השחרור הגליל נע
+   במהירות **קבועה** (~1.37 רוחבי מסך לשנייה) עד ממש הקצה, ובולם רק ב־~5% האחרונים של הדרך (4–5 פריימים).
+   (עד v344: Hermite עם "זנב" איטי וארוך בסוף — נראה כמו דף שנגרר.) BRAKE = אורך הבלימה (ב־p) */
+export const BRAKE = 0.05;
+export function rushSpeed(speed, rush) { return speed * (1 + 0.9 * Math.max(0, Math.min(3, rush || 0))); }   // טהורה
+export function rushDur(dist, speed, rush) {      // משך (מ״ש): מהירות קבועה + בלימה לינארית באורך de — טהורה
+  const V = rushSpeed(speed, rush), de = Math.min(BRAKE, dist / 2);
+  return Math.max(60, (dist + de) / V * 1000);
 }
-/* v344: משך הדפדוף האוטומטי — טהורה. rush = 0: כמו שאושר (0.52–1.7 שנ׳, SPEED); כל דרגת רצף מאיצה פי 1.9/2.8/3.7 */
-export function rushDur(dist, speed, rush) {
-  const k = 1 + 0.9 * Math.max(0, Math.min(3, rush || 0));
-  return Math.max(520 / k, Math.min(1700 / k, dist / (speed * k) * 1000));
+export function kindleEase(k, dist) {             // חלק הדרך שעבר בזמן k ∈ [0,1] — מהירות קבועה ואז בלימה — טהורה
+  if (!(dist > 0)) return 1;
+  const de = Math.min(BRAKE, dist / 2), T = dist + de, t = Math.max(0, Math.min(1, k)) * T, t1 = dist - de;   // ביחידות של 1/V
+  if (t <= t1) return t / dist;
+  const u = t - t1;                                // בלימה: a = V²/(2de) → s = u − u²/(4de)
+  return Math.min(1, (t1 + u - (u * u) / (4 * de)) / dist);
 }
 export function curlEnd(W, H, phi) {               // p שבו הדף כולו הפך (הגליל מחוץ למסך) — טהורה
   return 1 + (curlRadius(W) + 6 + Math.abs(Math.tan(phi)) * H) / W;
@@ -384,9 +391,9 @@ export function createCurl(env) {
   }
 
   const T_DRAG = 0.55, T_AUTO = 0.2;                 // כנף מרבית בגרירה / בדפדוף אוטומטי (×W) — שכבות ה־DOM
-  const T_GL = 0.5;                                  // בתלת־ממד: גליל + כנף עד חצי מסך (כנף ~30% כמו בסרטונים של קינדל; מעוגן בשדרה עד אז)
+  const T_GL = 0.25;                                  // בתלת־ממד: גליל + כנף עד חצי מסך (כנף ~30% כמו בסרטונים של קינדל; מעוגן בשדרה עד אז)
   // מהירות הגליל ברוחבי מסך לשנייה — בקינדל נמדד ~1.3 (0.7 שנ׳ לעמוד); בקשת המשתמש: קצת יותר לאט, כדי להרגיש את הדפדוף
-  const SPEED = 0.62;                               // סבב 6: "עדיין עובר מהר" — ~1.6 שנ׳ לעמוד
+  const SPEED = 1.12;                               // v345: קינדל נמדד 1.37 רוחבי מסך/שנ׳ — בקשת המשתמש: "קצת פחות איטי, אבל עדיין קצת יותר איטי מהקינדל" (~20%)
   let g = null, raf = 0, q = Promise.resolve(), busy = false;
   const RUSH_GAP = 1000;                             // v344: מרווח בין תחילות דפדוף שנחשב "רצף מהיר" (מ״ש)
   let rush = 0, lastBegin = -1e9;
@@ -500,22 +507,20 @@ export function createCurl(env) {
     animateTo(go);
   }
   function animateTo(go) {
-    // כמו בקינדל: הגליל ממשיך במהירות כמעט קבועה, ממשיך את תנופת האצבע ומאט רק בסוף; הכנף מצטמצמת לרצועה צרה
-    // שעוברת לרוחב העמוד; ההטיה מתיישרת
+    // כמו בקינדל (נמדד, v345): מהירות קבועה מהשחרור ובלימה קצרה רק בקצה (kindleEase); הכנף מצטמצמת ל־~25% מהמסך
+    // ויוצאת מהמסך יחד עם הגליל; ההטיה מתיישרת
     const s = g, p0 = s.p, phi0 = s.phi, T0 = s.T;
     const target = (go ? s.dir > 0 : s.dir < 0) ? curlEnd(s.W, s.H, phi0) : -0.02 - Math.abs(Math.tan(phi0)) * s.H / s.W;
     const dist = Math.abs(target - p0);
     const dur = rushDur(dist, SPEED, s.rush || 0);
     stats.durs.push(Math.round(dur));
-    const vTo = Math.sign(target - p0) * s.v;          // מהירות האצבע בכיוון היעד (p למילישנייה)
-    const m0 = Math.max(0.9, Math.min(1.25, dist > 0 ? vTo * dur / dist : 1));
-    const Tend = s.W * (GL ? T_GL : T_AUTO) + Math.PI * curlRadius(s.W);   // בתלת־ממד הכנף נשארת רחבה ומלאה עד הסוף (כמו בקינדל)
+    const Tend = s.W * (GL ? T_GL : T_AUTO) + Math.PI * curlRadius(s.W);   // v345: כנף ~25% בדפדוף האוטומטי — נמדד בקינדל
     s.anim = { go, t0: 0, dur };
     const step = () => {
       if (g !== s) return;
       const now = clock();
       s.anim.t0 = s.anim.t0 || now;
-      const k = Math.min(1, (now - s.anim.t0) / dur), e = curlEase(k, m0);
+      const k = Math.min(1, (now - s.anim.t0) / dur), e = kindleEase(k, dist);
       s.p = p0 + (target - p0) * e; s.phi = phi0 * (1 - Math.min(1, k * 1.6));
       s.T = T0 + (Tend - T0) * Math.min(1, k * 2.2);
       draw();
