@@ -197,7 +197,8 @@ export function createCurlGL(canvas) {
   const qb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, qb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
   const mkTex = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v); return t; };
   const pageTex = mkTex();
-  let hasTex = false, fb = [], fw = 0, fh = 0;
+  let hasTex = false, fb = [], fw = 0, fh = 0, cur = pageTex;
+  const slots = [];                                  // v346: גב הדף מוכן מראש — עד 3 טקסטורות לפי מפתח (קדימה/אחורה/קודם)
   function fbos(w, h) {                              // שני משטחים בחצי רזולוציה לצל ולטשטוש
     if (w === fw && h === fh) return;
     fw = w; fh = h;
@@ -223,15 +224,24 @@ export function createCurlGL(canvas) {
     gl.uniform1f(u.u_r, st.r); gl.uniform1f(u.u_shift, st.shift); gl.uniform1f(u.u_cam, st.cam); gl.uniform1f(u.u_shadow, shadow ? 1 : 0);
     gl.uniform3f(u.u_paper, st.paper[0], st.paper[1], st.paper[2]); gl.uniform1f(u.u_wash, shadow ? k : st.wash); gl.uniform1f(u.u_dark, st.dark ? 1 : 0);
     gl.uniform1f(u.u_hasTex, hasTex ? 1 : 0);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, pageTex); gl.uniform1i(u.u_tex, 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, cur); gl.uniform1i(u.u_tex, 0);
     gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
   }
   return {
     setTexture(cv) {
-      gl.bindTexture(gl.TEXTURE_2D, pageTex);
+      cur = pageTex; gl.bindTexture(gl.TEXTURE_2D, pageTex);
       try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, cv); hasTex = true; } catch (e) { hasTex = false; }
     },
     clearTexture() { hasTex = false; },
+    has: (key) => slots.some((x) => x.key === key),
+    prepare(key, cv) {                               // העלאה מראש (בזמן מנוחה) — לא בתחילת המחווה
+      if (slots.some((x) => x.key === key)) return;
+      let sl;
+      if (slots.length < 3) { sl = { t: mkTex(), key: null }; slots.push(sl); } else { sl = slots.shift(); slots.push(sl); }
+      sl.key = null; gl.bindTexture(gl.TEXTURE_2D, sl.t);
+      try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, cv); sl.key = key; } catch (e) {}
+    },
+    use(key) { const sl = slots.find((x) => x.key === key); if (!sl) return false; cur = sl.t; hasTex = true; return true; },
     resize(w, h) { if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; } },
     render(st) {                                     // st: W, H, M, n, r, shift, cam, sh (הטלת הצל), shadowK, paper, wash, dark
       const cw = canvas.width, ch = canvas.height, hw = Math.max(1, cw >> 1), hh = Math.max(1, ch >> 1);
@@ -295,6 +305,7 @@ export function createCurl(env) {
   env.box.append(A, shade, roll, Bw);
   if (GL) env.box.append(glc);
   const layers = GL ? [A, glc] : [A, shade, roll, Bw];
+  const turnedLayers = GL ? [glc] : [shade, roll, Bw];   // הדף שמתהפך (גליל, כנף, צל) — בלי השכפול שמתחת
   const off = (on) => { for (const e of layers) e.style.visibility = on ? 'visible' : 'hidden'; };
   off(false);
   const show = (L, pn) => { for (const k in P) if (P[k].pane.parentNode === L) P[k].pane.style.visibility = P[k] === pn ? 'inherit' : 'hidden'; };
@@ -448,6 +459,38 @@ export function createCurl(env) {
       ? [[s0, 'rgba(255,255,255,.08)'], [s0 + len * 0.5, 'rgba(255,255,255,.04)'], [s0 + len, 'rgba(255,255,255,.02)']]
       : [[s0, 'rgba(255,255,255,.35)'], [s0 + 3, 'rgba(255,255,255,.2)'], [s0 + len * 0.45, 'rgba(0,0,0,.03)'], [s0 + len, 'rgba(0,0,0,.09)']]) + ', ' + wash;
   }
+  /* v346: גב הדף מוכן מראש. המפתח: המסמך, העמוד, העיצוב והגודל, ההדגשות, הערכה והרזולוציה — כל שינוי = ציור מחדש */
+  let docN = 0, warmed = false;
+  const dprNow = () => Math.min(2.5, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
+  function backKey(dir) {
+    const real = env.frame(), r = env.renderer(), d = real && real.contentDocument; if (!d || !r) return null;
+    if (!d.__pcId) d.__pcId = ++docN;
+    const ov = real.parentElement ? real.parentElement.querySelectorAll('rect').length : 0;
+    return [dir, d.__pcId, r.page, curKey(), env.page().page, ov, dprNow()].join('|');
+  }
+  function paintBack(dir, dpr) {                     // העמוד שמתקפל: קדימה — הנוכחי; אחורה באותו פרק — הקודם
+    const real = env.frame();
+    return dir > 0 ? env.paint({ frame: real, shiftX: 0, foot: true, overlay: true, dpr })
+      : env.paint({ frame: real, shiftX: -1 * geom().cr.width * (env.rtl() ? 1 : -1), foot: false, overlay: true, dpr });
+  }
+  function prepBack(dir) {
+    if (!GL || g || busy) return;
+    const r = env.renderer(); if (!r || !env.canTurn(dir)) return;
+    if (dir < 0 && r.page - 1 < 1) return;          // אחורה לפרק הקודם — נצבע בתחילת המחווה (נדיר)
+    const key = backKey(dir); if (!key || GL.has(key)) return;
+    let cv = null; try { cv = paintBack(dir, dprNow()); } catch (e) { cv = null; }
+    if (cv) GL.prepare(key, cv);
+  }
+  function warmGL() {                                // הידור/הקצאה של הצללים והמאגרים לפני המחווה הראשונה
+    if (!GL || warmed || g || busy) return;
+    warmed = true;
+    try {
+      const br = env.box.getBoundingClientRect(), dpr = dprNow();
+      GL.resize(Math.round(br.width * dpr), Math.round(br.height * dpr));
+      GL.render({ W: br.width, H: br.height, M: [br.width + 50, br.height / 2], n: [-1, 0], r: curlRadius(br.width), shift: 0, cam: br.height * 2.6, ax: [0, 1], kc: 0.5, shadowK: 0, blur: 7 * dpr, paper: [1, 1, 1], wash: 0.13, dark: false });
+    } catch (e) {}
+  }
+  const idle = (f) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(f, { timeout: 300 }) : setTimeout(f, 30));
   function begin(dir, x, y) {                        // true = התחיל; 'wait' = עוד רגע (דפדוף קודם מסתיים / הפרק השכן נטען); false = אי אפשר
     if (g || busy) return 'wait';
     if (!env.canTurn(dir)) return false;
@@ -474,13 +517,13 @@ export function createCurl(env) {
     Object.assign(B.style, { width: g.W + 'px', height: g.H + 'px' });
     g.dpr = Math.min(2.5, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
     if (GL) {                                        // גב הדף: הציור המדויק של העמוד שמתקפל, ברזולוציית המסך
-      let cv = null;
-      try {
-        if (dir > 0) cv = env.paint({ frame: real, shiftX: 0, foot: true, overlay: true, dpr: g.dpr });
-        else if (cross) cv = env.paint({ frame: P.aprev.fr, shiftX: 0, foot: false, overlay: false, dpr: g.dpr });
-        else cv = env.paint({ frame: real, shiftX: -1 * geom().cr.width * (env.rtl() ? 1 : -1), foot: false, overlay: true, dpr: g.dpr });
-      } catch (e) { cv = null; }
-      if (cv) GL.setTexture(cv); else GL.clearTexture();
+      // v346: בדרך כלל כבר מוכן (prebuild בזמן מנוחה) — בלי ציור והעלאה ברגע שהאצבע זזה (נמדד: 100–400ms בטלפון מואט)
+      const key = dir > 0 || !cross ? backKey(dir) : null;
+      if (!(key && GL.use(key))) {
+        let cv = null;
+        try { cv = cross && dir < 0 ? env.paint({ frame: P.aprev.fr, shiftX: 0, foot: false, overlay: false, dpr: g.dpr }) : paintBack(dir, g.dpr); } catch (e) { cv = null; }
+        if (cv && key) { GL.prepare(key, cv); GL.use(key); } else if (cv) GL.setTexture(cv); else GL.clearTexture();
+      }
     }
     // v344: קצב הדפדוף — מחווה שמתחילה פחות משנייה אחרי הקודמת = דפדוף מהיר ברצף: האנימציה מתקצרת בהדרגה
     // (עד פי 3.7), כדי לא לעכב; דפדוף איטי (שנייה ומעלה בין דפים) — בדיוק כמו עכשיו
@@ -538,7 +581,13 @@ export function createCurl(env) {
     cancelAnimationFrame(raf);
     g = null;
     const go = s.anim ? s.anim.go : false;
-    if (go) await jump(s.dir);                       // המעבר האמיתי — פעם אחת, כשהשכבות מכסות את המסך במצב הסופי
+    if (go) {
+      // v346: הגליל הגיע לקצה — הדף שהתהפך נעלם מיד, כמו בקינדל (פריים אחד). עד עכשיו הגליל נשאר קפוא על הקצה
+      // כל זמן ההמתנה למנוע (בטלפון 6–8 פריימים — "תקיעה בסוף כל עמוד", נמדד בסרטון של המשתמש). מתחת כבר מוצג
+      // שכפול מדויק של הדף הבא (A), והמנוע חתוך/מוסתר — אז ההמתנה עצמה לא נראית
+      for (const e of turnedLayers) e.style.visibility = 'hidden';
+      await jump(s.dir);                             // המעבר האמיתי — פעם אחת, מתחת לשכפול
+    }
     off(false);
     clipView(null);
     A.style.clipPath = ''; Bw.style.clipPath = '';
@@ -555,6 +604,8 @@ export function createCurl(env) {
       if (g || busy) return;
       try { syncCur(); } catch (e) {}
       ensureNeighbor('next'); ensureNeighbor('prev');
+      // v346: גב הדף לשני הכיוונים — כל אחד בזמן מנוחה נפרד (לא חוסם מחווה שמתחילה)
+      idle(() => { warmGL(); prepBack(1); idle(() => prepBack(-1)); });
     },
     destroy() { cancelAnimationFrame(raf); g = null; for (const e of [A, shade, roll, Bw, glc]) e.remove(); if (GL) GL.destroy(); },
     gl: () => !!GL,

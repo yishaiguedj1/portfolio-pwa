@@ -48,7 +48,7 @@ ok(/e\.stopPropagation\(\); if \(e\.cancelable\) e\.preventDefault\(\);/.test(li
 ok(/r\.removeAttribute\('animated'\)/.test(lib) && /q = q\.then\(\(\) => env\.jump\(dir\)\)/.test(src), 'מעבר עמוד מיידי במנוע, בתור (המנוע נעול 100ms אחרי כל מעבר)');
 // v343: המנוע לא זז בזמן המחווה (החלפת מסמך הפרק באמצע נגיעה בלעה את האצבע)
 const beginSrc = src.split('function begin(')[1].split('\n  function move(')[0];
-ok(!/jump\(/.test(beginSrc) && /if \(go\) await jump\(s\.dir\);/.test(src), 'המעבר האמיתי — רק בסוף דפדוף שהושלם; ביטול — בלי מעבר');
+ok(!/jump\(/.test(beginSrc) && /if \(go\) \{[\s\S]{0,600}?turnedLayers[\s\S]{0,120}?await jump\(s\.dir\);/.test(src), 'המעבר האמיתי — רק בסוף דפדוף שהושלם; ביטול — בלי מעבר');
 ok(/ensureNeighbor\('next'\); ensureNeighbor\('prev'\);/.test(src) && /env\.loadSection\(i\)/.test(src) && /st\.textContent = env\.bookCss\(\)/.test(src), 'פרק שכן נטען מראש, באותו עיצוב — גב הדף עם טקסט גם בין פרקים');
 ok(/ct\.plain = dir/.test(lib) && /\(d > 0 \? r\.next\(\) : r\.prev\(\)\)/.test(lib), 'הפרק השכן עוד לא מוכן — מעבר רגיל (ההחלקה לא נבלעת)');
 ok(/curlGeom\(W, H, g\.p, g\.phi, g\.gy, g\.rtl, curlRadius\(W\), g\.T\)/.test(src) && /u_kc/.test(src), 'הסגנון שהמשתמש אהב: גליל צר קבוע + כנף מוגבלת; חרוט עדין לאורך הציר (כמו בקינדל)');

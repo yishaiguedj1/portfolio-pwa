@@ -5622,6 +5622,9 @@ const live = { timer: null, busy: false, n: 0, still: 0, on: false };
 function liveCanTick() {
   if (state.cardAnim) return false; // v272: לא מציירים בזמן אנימציית כרטיס
   if (typeof document !== 'undefined' && document.hidden) return false;
+  // v346: הספרייה/הקורא פתוחים מעל התיק — בלי משיכת מחירים וציור התיק המוסתר כל 2 שנ׳ (נמדד: 77–104ms בטלפון
+  // מואט — תקיעה מקרית באמצע דפדוף). חוזר לבד כשהספרייה נסגרת (הטיק הבא)
+  if (typeof document !== 'undefined' && document.documentElement && document.documentElement.classList.contains('lib-open')) return false;
   if (live.busy || state.ibkrSyncing) return false;
   if (state.edit && Object.keys(state.edit).some((k) => state.edit[k])) return false;
   const a = typeof document !== 'undefined' ? document.activeElement : null;
