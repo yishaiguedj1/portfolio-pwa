@@ -22,7 +22,7 @@ ok(Math.abs(M.rushDur(D, 1.12, 0) - (D + M.BRAKE) / 1.12 * 1000) < 1e-6, 'משך
 // מהירות: קינדל 1.37 רוחבי מסך/שנ׳ — אצלנו קצת יותר לאט (בקשת המשתמש)
 const sp = Number((/const SPEED = ([\d.]+)/.exec(src) || [])[1]);
 ok(sp < 1.37 && sp > 1.37 * 0.7, 'מהירות ' + sp + ' — קצת יותר איטית מהקינדל (1.37)');
-ok(/const T_GL = Infinity/.test(src) && /T: GL \? T_GL : br\.width \* T_DRAG/.test(src), 'v346: שיקוף מלא בתלת־ממד — הגב נחשף ככל שהדף מורם, בלי רצועה שנגררת (בקשת המשתמש)');
+ok(/const T_GL = Infinity/.test(src) && /T: GL \? T_GL : br\.width \* T_DRAG/.test(src), 'v345: שיקוף מלא בתלת־ממד — הגב נחשף ככל שהדף מורם, בלי רצועה שנגררת (בקשת המשתמש)');
 ok(!/curlEase\(k, m0\)/.test(src), 'בלי עקומת Hermite עם הזנב האיטי');
 ok(/const target = \(go \? s\.dir > 0 : s\.dir < 0\) \? 1 \+ EDGE_R \* curlRadius\(s\.W\) \/ s\.W/.test(src) && M.EDGE_R > 0 && M.EDGE_R < 1, 'הגליל נעצר על קצה המסך (הבלימה נראית, כמו בקינדל) — לא מחוץ למסך');
 console.log(n + ' בדיקות עברו');
