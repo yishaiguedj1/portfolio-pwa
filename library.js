@@ -2636,14 +2636,20 @@ function wireDoc(doc, setChrome, index) {
 }
 const HOLD_MS = 320;
 /* ---- v342: דפדוף בקיפול דף (pagecurl.js) ---- */
-let curlStyleVer = 0, curlT = 0, ct = null, curlTex = null, curlFont = null;
+let curlStyleVer = 0, curlPlainN = 0, curlPlainW = 0, curlT = 0, ct = null, curlTex = null, curlFont = null;
 function curlFrame() {
   try { const c = rd.view.renderer.getContents(); const d = c && c[0] && c[0].doc; return d && d.defaultView ? d.defaultView.frameElement : null; } catch (e) { return null; }
 }
 function curlRtl() {
+  // v344: באמצע מעבר בין פרקים המנוע עוד טוען את הפרק החדש — המסמך ריק, ו"לא RTL" הפך החלקה קדימה לאחורה
+  // (הדפדוף נתקע/חזר עמוד בדפדוף מהיר). לכן: רק ממסמך עם תוכן, ושמירה לספר; לפני כן — כיוון הספר (OPF/שפה)
   const f = curlFrame(), d = f && f.contentDocument;
-  if (!d || !d.body) return false;
-  return d.body.dir === 'rtl' || d.documentElement.dir === 'rtl' || d.defaultView.getComputedStyle(d.body).direction === 'rtl';
+  if (d && d.body && d.body.childElementCount && d.readyState === 'complete') {
+    rd.curlDir = d.body.dir === 'rtl' || d.documentElement.dir === 'rtl' || d.defaultView.getComputedStyle(d.body).direction === 'rtl';
+    return rd.curlDir;
+  }
+  if (rd && rd.curlDir != null) return rd.curlDir;
+  return !!(rd && readingDir(rd.book, rd.rec && rd.rec.title) === 'rtl');
 }
 async function curlSetup(box) {
   if (reduceMotion()) return;
@@ -2687,14 +2693,44 @@ async function curlSetup(box) {
     },
     onDone: () => curlPrebuild(),
   });
+  // v344: בזמן דפדוף התצוגה של הספר חתוכה (clip-path) לחלק שעוד לא התהפך — ונגיעה מחוץ לחיתוך לא מגיעה למסמך הספר
+  // (בדיקת הנגיעה מכבדת clip-path). בדפדוף מהיר ברצף ההחלקה הבאה נבלעה בשקט. לכן גם שכבת הקורא מקשיבה — רק
+  // לנגיעות שלא באו מהספר עצמו (אירועים מה־iframe לא מגיעים לכאן) ולא מסרגלים/כרטיסים/כפתורים
+  const outside = (e) => !(e.target && e.target.closest && e.target.closest('.rd-topbar, .rd-botbar, .tr-card, .lib-sheet, .lib-veil, .rd-prev, button, input, a, [role="button"]'));
+  for (const ty of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) box.addEventListener(ty, (e) => {
+    if (ty === 'touchstart' ? outside(e) : ct) curlTouch(e, 0, 0, null);
+  }, { capture: true, passive: false });
   curlPrebuild();
 }
-function curlPrebuild() {                    // שכפול מסמך הפרק מראש, בזמן מנוחה — שהקיפול יתחיל בלי עיכוב
-  clearTimeout(curlT);
+function curlPrebuild() {                    // שכפול מסמך הפרק + הפרקים השכנים מראש — שהקיפול יתחיל בלי עיכוב
+  // v344: מיד אחרי כל דפדוף (לא דחייה של 450ms שמתאפסת בכל מעבר — בדפדוף מהיר היא לא רצה אף פעם והפרק הבא לא נטען)
+  if (curlT) return;
   curlT = setTimeout(() => {
+    curlT = 0;
     const go = () => { if (rd && rd.curl) rd.curl.prebuild(); };
-    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 1500 }); else go();
-  }, 450);
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 200 }); else go();
+  }, 40);
+}
+/* v344: מחווה שלא יכלה להתחיל מיד (הדפדוף הקודם עוד מסתיים / הפרק השכן נטען) — מחכה כמה פריימים במקום ליפול
+   למעבר הפשוט. אם האצבע כבר עזבה — הדף מתהפך עד הסוף. רק אחרי 2.5 שנ׳ בלי הצלחה — מעבר רגיל של המנוע. */
+const CURL_WAIT_MS = 2500;
+function curlWait(w) {
+  const c = rd && rd.curl; if (!c || w.done) return;
+  if (c.active()) c.finishNow();             // דפדוף קודם שעוד רץ — מסתיים מיד (המשתמש כבר בדף הבא)
+  const res = c.begin(w.dir, w.x, w.y);
+  if (res === true) {
+    w.done = true;
+    if (w.up) c.turn(); else { ct = w.ct; ct.on = true; ct.wait = null; c.move(w.lx, w.ly); }
+    return;
+  }
+  if (res === false || Date.now() - w.t0 > CURL_WAIT_MS) {
+    w.done = true;
+    if (w.ct === ct) { ct.wait = null; ct.dead = true; }
+    if (w.up || w.ct !== ct) { curlPlainW++; const r = rd && rd.view.renderer; if (r && (w.dir > 0 ? !r.atEnd : !r.atStart)) (w.dir > 0 ? r.next() : r.prev()); }
+    else ct.plain = w.dir;
+    return;
+  }
+  requestAnimationFrame(() => curlWait(w));
 }
 const curlOn = () => !!(rd && rd.curl && S.flow !== 'scrolled' && !reduceMotion());
 function curlTouch(e, ox, oy, holdOff) {
@@ -2712,22 +2748,27 @@ function curlTouch(e, ox, oy, holdOff) {
     e.stopPropagation(); if (e.cancelable) e.preventDefault();
     if (ct.dead || !t0) return;
     const x = t0.clientX + ox, y = t0.clientY + oy, dx = x - ct.x, dy = y - ct.y;
-    if (!ct.on) {
+    if (!ct.on && !ct.wait) {                 // ממתין אחד לכל מחווה (לא בכל תנועת אצבע)
       if (Math.hypot(dx, dy) < 10) return;
       if (holdOff) holdOff();
       if ((rd.holdAt || 0) > ct.wall || Math.abs(dx) < Math.abs(dy) * 1.15) { ct.dead = true; return; }
       const dir = (curlRtl() ? dx > 0 : dx < 0) ? 1 : -1;
-      if (!c.begin(dir, ct.x, ct.y)) { ct.dead = true; ct.plain = dir; return; }
-      ct.on = true;
+      const res = c.begin(dir, ct.x, ct.y);
+      if (res === 'wait') { ct.wait = { ct, dir, x: ct.x, y: ct.y, lx: x, ly: y, t0: Date.now(), up: false, done: false }; requestAnimationFrame(() => curlWait(ct.wait)); }
+      else if (!res) { ct.dead = true; ct.plain = dir; return; }
+      else ct.on = true;
     }
+    if (ct.wait) { ct.wait.lx = x; ct.wait.ly = y; return; }
     c.move(x, y);
     return;
   }
   if (e.type === 'touchend' || e.type === 'touchcancel') {
-    if (ct.on) { e.stopPropagation(); if (holdOff) holdOff(); c.end(e.type === 'touchcancel' ? 'cancel' : undefined); }
+    if (ct.wait) { e.stopPropagation(); if (e.type === 'touchend') ct.wait.up = true; else ct.wait.done = true; }   // ממשיך לחכות — יתהפך כשמוכן
+    else if (ct.on) { e.stopPropagation(); if (holdOff) holdOff(); c.end(e.type === 'touchcancel' ? 'cancel' : undefined); }
     else if (ct.plain && e.type === 'touchend') {   // הפרק השכן עוד לא מוכן לקיפול — מעבר רגיל של המנוע (בלי לאבד את ההחלקה)
       e.stopPropagation();
       const r = rd.view.renderer, d = ct.plain;
+      curlPlainN++;
       if (r && (d > 0 ? !r.atEnd : !r.atStart)) (d > 0 ? r.next() : r.prev());
     }
     ct = null;
@@ -3924,4 +3965,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { curl: () => rd && rd.curl, state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };

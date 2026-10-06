@@ -79,6 +79,11 @@ export function curlEase(k, m0) {                 // מהירות כמעט קב�
   const m1 = 0.12;                                // סבב 7: נחיתה רכה — בקינדל הגליל זוחל לאט את הקטע האחרון עד הקצה
   return (k * k * k - 2 * k * k + k) * m0 + (-2 * k * k * k + 3 * k * k) + (k * k * k - k * k) * m1;
 }
+/* v344: משך הדפדוף האוטומטי — טהורה. rush = 0: כמו שאושר (0.52–1.7 שנ׳, SPEED); כל דרגת רצף מאיצה פי 1.9/2.8/3.7 */
+export function rushDur(dist, speed, rush) {
+  const k = 1 + 0.9 * Math.max(0, Math.min(3, rush || 0));
+  return Math.max(520 / k, Math.min(1700 / k, dist / (speed * k) * 1000));
+}
 export function curlEnd(W, H, phi) {               // p שבו הדף כולו הפך (הגליל מחוץ למסך) — טהורה
   return 1 + (curlRadius(W) + 6 + Math.abs(Math.tan(phi)) * H) / W;
 }
@@ -383,6 +388,9 @@ export function createCurl(env) {
   // מהירות הגליל ברוחבי מסך לשנייה — בקינדל נמדד ~1.3 (0.7 שנ׳ לעמוד); בקשת המשתמש: קצת יותר לאט, כדי להרגיש את הדפדוף
   const SPEED = 0.62;                               // סבב 6: "עדיין עובר מהר" — ~1.6 שנ׳ לעמוד
   let g = null, raf = 0, q = Promise.resolve(), busy = false;
+  const RUSH_GAP = 1000;                             // v344: מרווח בין תחילות דפדוף שנחשב "רצף מהיר" (מ״ש)
+  let rush = 0, lastBegin = -1e9;
+  const stats = { begins: 0, maxRush: 0, durs: [] };   // לבדיקות
   const jump = (dir) => (q = q.then(() => env.jump(dir)).catch(() => {}));
   function clipView(pts) {
     const vr = env.view.getBoundingClientRect(), br = env.box.getBoundingClientRect();
@@ -430,13 +438,16 @@ export function createCurl(env) {
       ? [[s0, 'rgba(255,255,255,.08)'], [s0 + len * 0.5, 'rgba(255,255,255,.04)'], [s0 + len, 'rgba(255,255,255,.02)']]
       : [[s0, 'rgba(255,255,255,.35)'], [s0 + 3, 'rgba(255,255,255,.2)'], [s0 + len * 0.45, 'rgba(0,0,0,.03)'], [s0 + len, 'rgba(0,0,0,.09)']]) + ', ' + wash;
   }
-  function begin(dir, x, y) {                        // false = אי אפשר עכשיו (המתקשר עושה מעבר רגיל בשחרור)
-    if (busy || !env.canTurn(dir)) return false;
-    const real = env.frame(), r = env.renderer();
-    if (!real || !r || !syncCur()) return false;
+  function begin(dir, x, y) {                        // true = התחיל; 'wait' = עוד רגע (דפדוף קודם מסתיים / הפרק השכן נטען); false = אי אפשר
+    if (g || busy) return 'wait';
+    if (!env.canTurn(dir)) return false;
+    const real = env.frame(), r = env.renderer(), d0 = real && real.contentDocument;
+    // המנוע באמצע טעינת פרק (מסמך ריק / עמוד אחד) — מחכים; שכפול עכשיו היה מצלם דף ריק
+    if (!d0 || d0.readyState !== 'complete' || !d0.body || !d0.body.childElementCount || !r || r.pages < 3) return 'wait';
+    if (!syncCur()) return 'wait';
     const cross = dir > 0 ? r.page + 1 > r.pages - 2 : r.page - 1 < 1;
     const n = nb[dir > 0 ? 'next' : 'prev'];
-    if (cross && !(n.ready && n.idx === env.adjacent(dir))) { ensureNeighbor(dir > 0 ? 'next' : 'prev'); return false; }
+    if (cross && !(n.ready && n.idx === env.adjacent(dir))) { ensureNeighbor(dir > 0 ? 'next' : 'prev'); return 'wait'; }
     if (cross && dir < 0 && !importDoc(P.bprev, n.src, 'nb|' + n.key)) return false;
     const br = env.box.getBoundingClientRect(), th = env.page();
     const s = g = { dir, W: br.width, H: br.height, rtl: env.rtl(), sx: x, sy: y, gy: Math.max(0, Math.min(br.height, y - br.top)), p: dir > 0 ? 0 : curlEnd(br.width, br.height, 0), phi: 0, v: 0, lt: 0, lp: 0, T: br.width * T_DRAG };
@@ -461,10 +472,15 @@ export function createCurl(env) {
       } catch (e) { cv = null; }
       if (cv) GL.setTexture(cv); else GL.clearTexture();
     }
+    // v344: קצב הדפדוף — מחווה שמתחילה פחות משנייה אחרי הקודמת = דפדוף מהיר ברצף: האנימציה מתקצרת בהדרגה
+    // (עד פי 3.7), כדי לא לעכב; דפדוף איטי (שנייה ומעלה בין דפים) — בדיוק כמו עכשיו
+    const now = clock();
+    rush = now - lastBegin < RUSH_GAP ? Math.min(3, rush + 1) : 0;
+    lastBegin = now; s.rush = rush;
+    stats.begins++; stats.maxRush = Math.max(stats.maxRush, rush);
     draw();
     off(true);
     busy = true;
-    void s;
     return true;
   }
   function move(x, y) {
@@ -489,7 +505,8 @@ export function createCurl(env) {
     const s = g, p0 = s.p, phi0 = s.phi, T0 = s.T;
     const target = (go ? s.dir > 0 : s.dir < 0) ? curlEnd(s.W, s.H, phi0) : -0.02 - Math.abs(Math.tan(phi0)) * s.H / s.W;
     const dist = Math.abs(target - p0);
-    const dur = Math.max(520, Math.min(1700, dist / SPEED * 1000));
+    const dur = rushDur(dist, SPEED, s.rush || 0);
+    stats.durs.push(Math.round(dur));
     const vTo = Math.sign(target - p0) * s.v;          // מהירות האצבע בכיוון היעד (p למילישנייה)
     const m0 = Math.max(0.9, Math.min(1.25, dist > 0 ? vTo * dur / dist : 1));
     const Tend = s.W * (GL ? T_GL : T_AUTO) + Math.PI * curlRadius(s.W);   // בתלת־ממד הכנף נשארת רחבה ומלאה עד הסוף (כמו בקינדל)
@@ -520,6 +537,7 @@ export function createCurl(env) {
   }
   return {
     begin, move, end,
+    turn() { if (g && !g.anim) animateTo(true); },   // v344: הדף מתהפך עד הסוף (מחווה שהסתיימה בזמן שחיכתה)
     active: () => !!g,
     busy: () => busy,
     finishNow() { if (g && g.anim) { const s = g; s.p = (s.anim.go ? s.dir > 0 : s.dir < 0) ? curlEnd(s.W, s.H, 0.6) : -0.6; draw(); finish(); } },
@@ -531,6 +549,7 @@ export function createCurl(env) {
     destroy() { cancelAnimationFrame(raf); g = null; for (const e of [A, shade, roll, Bw, glc]) e.remove(); if (GL) GL.destroy(); },
     gl: () => !!GL,
     _state: () => (g ? { p: g.p, phi: g.phi, dir: g.dir } : null),
+    _stats: () => stats,
     _pose: (p, phi) => { if (g) { g.p = p; if (phi != null) g.phi = phi; draw(); } },   // כלי כיול: תנוחה סטטית
     _nb: () => ({ prev: { idx: nb.prev.idx, ready: nb.prev.ready, pages: nb.prev.pages }, next: { idx: nb.next.idx, ready: nb.next.ready, pages: nb.next.pages } }),
   };
