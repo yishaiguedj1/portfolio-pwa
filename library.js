@@ -2367,7 +2367,7 @@ function bookCSS() {
     table, thead, tbody, tfoot, tr, th, td, hr { border-color: ${th.rule} !important; }
     ${ourFont ? 'table { font-stretch: 90%; }' : ''}
     td.num, .num { font-variant-numeric: tabular-nums; }
-    span.en { white-space: nowrap; }
+    p, li, blockquote, dd, td, th, h1, h2, h3, h4, h5, h6 { overflow-wrap: break-word; } /* v348: שום שורה לא רחבה מהעמוד — אחרת גולשת לעמודים הבאים */
     a, a:link, a:visited { color: ${th.link} !important; }
     ${th !== THEMES.white ? `body *:not(img):not(svg):not(svg *) { color: inherit !important; background-color: transparent !important; }
     a, a * { color: ${th.link} !important; }` : 'p.note, .note, caption { color: ' + th.ink2 + ' !important; }'}
