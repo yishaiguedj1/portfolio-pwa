@@ -142,6 +142,170 @@ def run(args):
         return 2
 
 
+# ---------------------------------------------------------------- עלות וטוקנים (v359)
+PROJECTS = Path(os.environ.get('SNB_CLAUDE_PROJECTS', str(Path.home() / '.claude' / 'projects')))
+# דולר למיליון טוקנים: קלט, פלט, קריאה מהמטמון. כתיבה למטמון = פי 1.25 מהקלט (5 דק׳) / פי 2 (שעה)
+PRICES = {
+    'claude-opus-5-5': (4.0, 20.0, 0.20),
+    'claude-sonnet-5-5': (2.0, 10.0, 0.20),
+    'claude-haiku-4-5': (1.0, 5.0, 0.10),
+}
+USE_KINDS = ('main', 'tl', 'rv', 'sub')       # תיאום (הסשן הראשי) · תרגום · ביקורת · סוכן־משנה אחר
+USE_MAX = 6
+MODEL_RE = re.compile(r'^claude-[a-z0-9-]{1,50}$')
+
+
+def price_of(model):
+    """המחירון לפי מזהה המודל (גם עם סיומת תאריך / חלון הקשר, למשל claude-opus-5-5[1m]). לא מוכר → None."""
+    m = re.sub(r'\[.*$', '', str(model or ''))
+    for k, v in PRICES.items():
+        if m == k or m.startswith(k + '-'):
+            return v
+    return None
+
+
+def cost_of(model, i, o, cr, c5, c1):
+    p = price_of(model)
+    if not p:
+        return None
+    return (i * p[0] + o * p[1] + cr * p[2] + c5 * p[0] * 1.25 + c1 * p[0] * 2) / 1e6
+
+
+def _first_prompt(recs):
+    """ההנחיה הראשונה בקובץ של סוכן־משנה (רשומת user הראשונה) — לפיה יודעים אם זה התרגום או הביקורת."""
+    for r in recs:
+        if r.get('type') != 'user':
+            continue
+        c = (r.get('message') or {}).get('content')
+        if isinstance(c, list):
+            c = ' '.join(str(x.get('text') or '') for x in c if isinstance(x, dict) and x.get('type') == 'text')
+        return str(c or '')
+    return ''
+
+
+def _calls(path):
+    """הקריאות ל־API בקובץ יומן אחד, לפי הסדר. אותה הודעה נרשמת כמה פעמים (רשומה לכל חלק בתשובה —
+    חשיבה, טקסט, כלי) עם אותו usage — לכל message.id נלקחת רק הרשומה האחרונה."""
+    recs, calls, order = [], {}, []
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(r, dict):
+                    continue
+                recs.append(r)
+                m = r.get('message') if r.get('type') == 'assistant' else None
+                if not isinstance(m, dict) or not m.get('id') or not isinstance(m.get('usage'), dict):
+                    continue
+                if str(m.get('model') or '').startswith('<'):        # <synthetic> — לא קריאה ל־API
+                    continue
+                if m['id'] not in calls:
+                    order.append(m['id'])
+                calls[m['id']] = m
+    except OSError:
+        pass
+    return recs, [calls[k] for k in order]
+
+
+def _num(x):
+    try:
+        return max(0, int(x or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _tally(calls):
+    """סכום לקבוצה, לפי מודל. מחזיר {מודל: שורה} — בדרך כלל מודל אחד."""
+    by = {}
+    for m in calls:
+        u = m['usage']
+        cc = u.get('cache_creation') if isinstance(u.get('cache_creation'), dict) else None
+        c5 = _num(cc.get('ephemeral_5m_input_tokens')) if cc else _num(u.get('cache_creation_input_tokens'))
+        c1 = _num(cc.get('ephemeral_1h_input_tokens')) if cc else 0
+        model = str(m.get('model') or '')
+        row = by.setdefault(model, {'m': model, 'n': 0, 'i': 0, 'o': 0, 'cr': 0, 'c5': 0, 'c1': 0})
+        row['n'] += 1
+        row['i'] += _num(u.get('input_tokens'))
+        row['o'] += _num(u.get('output_tokens'))
+        row['cr'] += _num(u.get('cache_read_input_tokens'))
+        row['c5'] += c5
+        row['c1'] += c1
+    return by
+
+
+def _open_cost(calls):
+    """"עלות הפתיחה" של סוכן־משנה: הכתיבה למטמון בקריאה הראשונה שלו (ההקשר שהוא בונה מאפס)."""
+    if not calls:
+        return 0, None
+    m = calls[0]
+    u = m['usage']
+    cc = u.get('cache_creation') if isinstance(u.get('cache_creation'), dict) else None
+    c5 = _num(cc.get('ephemeral_5m_input_tokens')) if cc else _num(u.get('cache_creation_input_tokens'))
+    c1 = _num(cc.get('ephemeral_1h_input_tokens')) if cc else 0
+    return c5 + c1, cost_of(m.get('model'), 0, 0, 0, c5, c1)
+
+
+def _finish_row(kind, row, extra=None):
+    usd = cost_of(row['m'], row['i'], row['o'], row['cr'], row['c5'], row['c1'])
+    out = dict(row, k=kind, usd=None if usd is None else round(usd, 4))
+    if not MODEL_RE.match(out['m']):
+        out['m'] = 'claude-unknown'
+    out.update(extra or {})
+    return out
+
+
+def usage(root=None):
+    """v359: הטוקנים והעלות של העבודה מתוך יומני הסשן (~/.claude/projects/**/*.jsonl).
+    קבוצות: הסשן הראשי (תיאום), וכל קובץ בתיקייה subagents/ = סוכן־משנה אחד — תרגום או ביקורת לפי ההנחיה הראשונה בו.
+    לכל שורה: מודל, קריאות, קלט, פלט, קריאה מהמטמון, כתיבה למטמון (5 דק׳ / שעה), עלות בדולרים (מודל לא מוכר — None),
+    ולסוכן־משנה גם "עלות הפתיחה" (op = טוקנים, oc = דולרים). עד USE_MAX שורות; רק מספרים ומזהה מודל."""
+    root = Path(root or PROJECTS)
+    main_calls, subs = [], []
+    for p in sorted(root.rglob('*.jsonl')) if root.is_dir() else []:
+        recs, calls = _calls(p)
+        if 'subagents' in p.parts:
+            prompt = _first_prompt(recs)
+            kind = 'tl' if 'TRANSLATE.md' in prompt else 'rv' if 'REVIEW.md' in prompt else 'sub'
+            if calls:
+                subs.append((kind, calls))
+        else:
+            main_calls += calls
+    rows = [_finish_row('main', r) for r in _tally(main_calls).values()]
+    for kind, calls in subs:
+        ot, oc = _open_cost(calls)
+        for r in _tally(calls).values():
+            first = r['m'] == str(calls[0].get('model') or '')
+            rows.append(_finish_row(kind, r, {'op': ot if first else 0,
+                                              'oc': (None if oc is None else round(oc, 4)) if first else 0}))
+    rows.sort(key=lambda r: USE_KINDS.index(r['k']))
+    if len(rows) > USE_MAX:                       # יותר מדי שורות — מאחדים לפי סוג ומודל
+        merged = {}
+        for r in rows:
+            key = (r['k'], r['m'])
+            if key not in merged:
+                merged[key] = dict(r)
+                continue
+            t = merged[key]
+            for f in ('n', 'i', 'o', 'cr', 'c5', 'c1', 'op'):
+                t[f] = t.get(f, 0) + r.get(f, 0)
+            for f in ('usd', 'oc'):
+                if f in t:
+                    t[f] = None if t[f] is None or r.get(f) is None else round(t[f] + r[f], 4)
+        rows = list(merged.values())[:USE_MAX]
+    return rows
+
+
+def usage_safe():
+    """לדיווח האחרון: תקלה בקריאת היומנים לא מפילה את סוף העבודה. אין יומנים → None (לא נשלח)."""
+    try:
+        return usage() or None
+    except Exception:            # noqa: BLE001 — מידע משני
+        return None
+
+
 # ---------------------------------------------------------------- מצב העבודה בסשן
 def save_state(st):
     STATE.parent.mkdir(parents=True, exist_ok=True)
@@ -202,7 +366,7 @@ class Ctx:
         now = time.time()
         if not force and not extra and st == self.last[0] and now - self.last[1] < 15 and abs((p or 0) - self.last[2]) < 0.1:
             return                                  # אותו שלב, פחות מ־15 שנ׳ ופחות מ־10% — לא שווה כתיבה
-        body = dict(extra)
+        body = {k: v for k, v in extra.items() if v is not None}
         if st:
             body['st'] = st
         if p is not None:
@@ -358,9 +522,38 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     return tail
 
 
+def engine_modules():
+    """v359: רשימת המודולים — אחת, מתוך setup.sh (השורה SNB_MODULES), כך שההתקנה ובדיקת המוכנות לא נפרדות."""
+    m = re.search(r'^SNB_MODULES="([a-z0-9_ ]+)"', (HERE / 'setup.sh').read_text(encoding='utf-8'), re.M)
+    return m.group(1).split() if m else []
+
+
+_PROBE = """import importlib, sys
+bad = 0
+for m in sys.argv[1:]:
+    try:
+        importlib.import_module(m)
+    except Exception:
+        print(m)
+        bad = 1
+sys.exit(bad)
+"""
+
+
+def env_missing():
+    """המודולים שחסרים (או שבורים — import נכשל) בסביבת vt. ריק = מוכן."""
+    mods = engine_modules()
+    if not os.path.exists(VT_PY):
+        return mods
+    r = subprocess.run([VT_PY, '-c', _PROBE] + mods, capture_output=True, text=True)
+    if r.returncode == 0:
+        return []
+    got = [x.strip() for x in (r.stdout or '').splitlines() if x.strip() in mods]
+    return got or mods
+
+
 def env_ready():
-    probe = [VT_PY, '-c', 'import numpy, soundfile, onnx_asr, torch, torchaudio, qwen_asr']
-    return os.path.exists(VT_PY) and subprocess.run(probe, capture_output=True).returncode == 0
+    return not env_missing()
 
 
 SETUP_PID = STATE.parent / 'setup.pid'
@@ -372,7 +565,7 @@ def setup_cmd():
 
 def setup_env():
     """ההתקנה מתוך העבודה לא כותבת את ~/.claude/settings.json — ההגדרות של הסשן נקבעות רק מתמונת המצב של הסביבה."""
-    return dict(os.environ, SNB_SETUP_NO_SETTINGS='1')
+    return dict(os.environ, SNB_SETUP_NO_SETTINGS='1', SNB_SETUP_LOG=str(STATE.parent / 'setup.log'))
 
 
 def start_setup_bg():
@@ -413,8 +606,10 @@ def ensure_env(ctx):
         waited += 3
     if not env_ready():
         subprocess.run(setup_cmd(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=setup_env())
-    if not env_ready():
-        raise SystemExit('✗ ההתקנה של מנועי התמלול נכשלה — אולי הרשת של הסביבה חוסמת (Hugging Face / PyTorch).')
+    miss = env_missing()
+    if miss:
+        raise SystemExit('✗ ההתקנה של מנועי התמלול נכשלה — חסרים: ' + ', '.join(miss) +
+                         '. אולי הרשת של הסביבה חוסמת (Hugging Face / PyTorch / GitHub). הפרטים: ' + str(STATE.parent / 'setup.log'))
 
 
 def guarded(fn):
@@ -492,7 +687,7 @@ def stage(args):
 def fail(args):
     ctx = Ctx(load_state())
     err = args.err if ERR_RE.match(args.err or '') else 'worker'
-    ctx.report(fail=True, err=err, msg=args.msg, force=True)
+    ctx.report(fail=True, err=err, msg=args.msg, force=True, usage=usage_safe())
     print('✓ העבודה סומנה "נכשלה" (' + err + ').')
     return 0
 
@@ -547,7 +742,7 @@ def finish(args):
         fid = drive_upload(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
-    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True)
+    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe())
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 

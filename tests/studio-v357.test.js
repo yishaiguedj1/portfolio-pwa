@@ -42,9 +42,9 @@ try {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'snbw-'));
   const envr = Object.assign({}, process.env, { HOME: home, SNB_SETUP_LITE: '1' });   // v358: בלי התקנת מנועי vt
   execFileSync('bash', [path.join(root, 'translator/setup.sh')], { env: envr, stdio: 'pipe' });
-  execFileSync('bash', [path.join(root, 'translator/setup.sh')], { env: envr, stdio: 'pipe' });   // פעמיים — בלי כפילויות
+  execFileSync('bash', [path.join(root, 'translator/setup.sh')], { env: envr, stdio: 'pipe' });   // פעמיים — בלי כפילויות (v359: 6 כללי deny — גם התראות ותזמונים)
   const cfg = JSON.parse(fs.readFileSync(path.join(home, '.claude/settings.json'), 'utf8'));
-  ok(cfg.claudeMdExcludes.length === 2 && cfg.permissions.deny.length === 3 && cfg.permissions.deny.includes('Bash(git push *)'), 'setup.sh: כותב ~/.claude/settings.json תקין, ובהרצה חוזרת בלי כפילויות');
+  ok(cfg.claudeMdExcludes.length === 2 && cfg.permissions.deny.length === 6 && cfg.permissions.deny.includes('Bash(git push *)'), 'setup.sh: כותב ~/.claude/settings.json תקין, ובהרצה חוזרת בלי כפילויות');
   const home2 = fs.mkdtempSync(path.join(os.tmpdir(), 'snbw-'));   // מתוך העבודה (job.py) — בלי לגעת בהגדרות
   execFileSync('bash', [path.join(root, 'translator/setup.sh')], { env: Object.assign({}, envr, { HOME: home2, SNB_SETUP_NO_SETTINGS: '1' }), stdio: 'pipe' });
   ok(!fs.existsSync(path.join(home2, '.claude/settings.json')), 'setup.sh: עם SNB_SETUP_NO_SETTINGS לא כותב את ~/.claude/settings.json');

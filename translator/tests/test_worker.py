@@ -27,7 +27,10 @@ import os, re, sys, pathlib
 a = sys.argv[1:]
 if a[:1] == ['-c']:
     rf = os.environ.get('FAKE_READY')
-    sys.exit(0 if not rf or os.path.exists(rf) else 1)
+    if not rf or os.path.exists(rf):
+        sys.exit(0)
+    print(a[-1])                            # כמו הבדיקה האמיתית: שורה לכל מודול חסר (כאן — האחרון ברשימה)
+    sys.exit(1)
 a = a[2:]                                   # "-m vt"
 cmd, name = a[0], (a[1] if len(a) > 1 else '')
 name = re.sub(r'[^\w\-]+', '-', name.strip().lower(), flags=re.UNICODE).strip('-') or 'interview'   # כמו vt האמיתי
@@ -162,7 +165,8 @@ class TestWorker(unittest.TestCase):
         vtpy.write_text(FAKE_VT)
         vtpy.chmod(0o755)
         self.env = dict(os.environ, SNB_STATE=str(self.tmp / 'state'), VT_PY=str(vtpy), VT_WORK=str(self.tmp / 'work'),
-                        VT_BIN=str(self.tmp / 'nobin'), FAKE_LOG=str(self.tmp / 'vt.log'))
+                        VT_BIN=str(self.tmp / 'nobin'), FAKE_LOG=str(self.tmp / 'vt.log'),
+                        SNB_CLAUDE_PROJECTS=str(self.tmp / 'projects'))   # לא היומנים האמיתיים של מי שמריץ את הבדיקות
         self.base = 'http://127.0.0.1:%d' % self.fake.port
 
     def tearDown(self):
@@ -263,6 +267,122 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('fail', '--err', 'Bad Code!', '--msg', 'נתקע')
         self.assertEqual(code, 0, out)
         self.assertEqual(self.fake.reports[-1]['err'], 'worker', 'קוד שגיאה לא תקין → worker')
+        self.assertNotIn('usage', self.fake.reports[-1], 'בלי יומנים — בלי usage')
+
+    # ---------------------------------------------------------------- v359: עלות וטוקנים
+    def logs(self):
+        """יומני סשן מדומים במבנה האמיתי של Claude Code: הסשן הראשי + subagents/agent-*.jsonl."""
+        root = self.tmp / 'projects' / '-home-user-portfolio-pwa'
+        sess = root / 'sess-1'
+        (sess / 'subagents').mkdir(parents=True, exist_ok=True)
+
+        def asst(mid, model, i, o, cr, c5, c1, part='text'):
+            return {'type': 'assistant', 'message': {'id': mid, 'model': model, 'content': [{'type': part}],
+                    'usage': {'input_tokens': i, 'output_tokens': o, 'cache_read_input_tokens': cr,
+                              'cache_creation_input_tokens': c5 + c1,
+                              'cache_creation': {'ephemeral_5m_input_tokens': c5, 'ephemeral_1h_input_tokens': c1}}}}
+
+        def write(path, recs):
+            path.write_text('\n'.join(json.dumps(r, ensure_ascii=False) if isinstance(r, dict) else r for r in recs) + '\n')
+
+        S = 'claude-sonnet-5-5'
+        write(root / 'sess-1.jsonl', [
+            {'type': 'user', 'message': {'content': 'routine-fire-payload'}},
+            asst('msg_A', S, 10, 100, 0, 0, 20000, 'thinking'),       # אותה הודעה שלוש פעמים (חשיבה, טקסט, כלי)
+            asst('msg_A', S, 10, 100, 0, 0, 20000, 'text'),
+            asst('msg_A', S, 10, 100, 0, 0, 20000, 'tool_use'),
+            asst('msg_B', S, 2, 50, 20000, 0, 1000),
+            {'type': 'assistant', 'message': {'id': 'msg_X', 'model': '<synthetic>', 'usage': {'input_tokens': 999, 'output_tokens': 999}}},
+            'not json {',
+        ])
+        O = 'claude-opus-5-5'
+        write(sess / 'subagents' / 'agent-a1.jsonl', [
+            {'type': 'user', 'isSidechain': True, 'message': {'content': 'תרגם את העבודה לפי translator/TRANSLATE.md. הפרויקט: /x'}},
+            {'type': 'user', 'message': {'content': 'שומר: REVIEW.md'}},    # רק ההנחיה הראשונה קובעת
+            asst('msg_T1', O, 3, 1000, 0, 120000, 0),
+            asst('msg_T1', O, 3, 1000, 0, 120000, 0),
+            asst('msg_T2', O, 1, 4000, 120000, 5000, 0),
+        ])
+        write(sess / 'subagents' / 'agent-b2.jsonl', [
+            {'type': 'user', 'message': {'content': [{'type': 'text', 'text': 'בקר לפי translator/REVIEW.md. הפרויקט: /x'}]}},
+            asst('msg_R1', 'claude-sonnet-5-5', 2, 500, 0, 100000, 0),
+        ])
+        write(sess / 'subagents' / 'agent-c3.jsonl', [
+            {'type': 'user', 'message': {'content': 'חפש משהו'}},
+            asst('msg_H1', 'claude-haiku-5-5', 1, 1, 0, 1000, 0),
+        ])
+        return self.tmp / 'projects'
+
+    def test_usage(self):
+        sys.path.insert(0, str(HERE))
+        import job as J
+        rows = J.usage(self.logs())
+        self.assertEqual([r['k'] for r in rows], ['main', 'tl', 'rv', 'sub'])
+        main, tl, rv, sub = rows
+        # הסשן הראשי: msg_A פעם אחת (לא שלוש), msg_B, בלי <synthetic> ובלי השורה השבורה
+        self.assertEqual((main['n'], main['i'], main['o'], main['cr'], main['c5'], main['c1']), (2, 12, 150, 20000, 0, 21000))
+        self.assertAlmostEqual(main['usd'], (12 * 2 + 150 * 10 + 20000 * 0.2 + 21000 * 2 * 2) / 1e6, places=4)
+        self.assertNotIn('op', main, 'לסשן הראשי אין "עלות פתיחה"')
+        # התרגום: לפי TRANSLATE.md בהנחיה הראשונה; msg_T1 פעם אחת
+        self.assertEqual((tl['m'], tl['n'], tl['o'], tl['c5'], tl['cr']), ('claude-opus-5-5', 2, 5000, 125000, 120000))
+        self.assertAlmostEqual(tl['usd'], (4 * 4 + 5000 * 20 + 120000 * 0.2 + 125000 * 4 * 1.25) / 1e6, places=4)
+        self.assertEqual(tl['op'], 120000, 'עלות הפתיחה = הכתיבה למטמון בקריאה הראשונה')
+        self.assertAlmostEqual(tl['oc'], 120000 * 4 * 1.25 / 1e6, places=4)
+        self.assertEqual((rv['m'], rv['op']), ('claude-sonnet-5-5', 100000))
+        self.assertAlmostEqual(rv['oc'], 100000 * 2 * 1.25 / 1e6, places=4)
+        # מודל לא מוכר — בלי מחיר
+        self.assertEqual((sub['m'], sub['usd'], sub['oc'], sub['op']), ('claude-haiku-5-5', None, None, 1000))
+        self.assertEqual(J.usage(self.tmp / 'nothing'), [])
+        self.assertIsNone(J.price_of('gpt-4o'))
+        self.assertEqual(J.price_of('claude-opus-5-5[1m]'), J.PRICES['claude-opus-5-5'])
+
+    def test_usage_merge_max6(self):
+        sys.path.insert(0, str(HERE))
+        import job as J
+        root = self.logs()
+        subs = next(root.rglob('subagents'))
+        src = (subs / 'agent-a1.jsonl').read_text()
+        for n in range(6):                         # עוד שישה מתרגמים (ניסיונות חוזרים) — יותר מ־6 שורות
+            (subs / ('agent-x%d.jsonl' % n)).write_text(src.replace('msg_T', 'msg_T%d_' % n))
+        rows = J.usage(root)
+        self.assertLessEqual(len(rows), 6)
+        tl = [r for r in rows if r['k'] == 'tl']
+        self.assertEqual(len(tl), 1, 'מאוחדים לפי סוג ומודל')
+        self.assertEqual(tl[0]['n'], 14)
+        self.assertEqual(tl[0]['op'], 7 * 120000)
+
+    def test_finish_and_fail_send_usage(self):
+        self.logs()
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        last = self.fake.reports[-1]
+        self.assertTrue(last.get('done'))
+        self.assertEqual([r['k'] for r in last['usage']], ['main', 'tl', 'rv', 'sub'], 'finish שולח usage בדיווח האחרון')
+        code, out = self.job('fail', '--err', 'stuck')
+        self.assertEqual(code, 0, out)
+        self.assertTrue(self.fake.reports[-1].get('fail') and self.fake.reports[-1].get('usage'), 'גם fail שולח usage')
+
+    def test_missing_module_named(self):
+        # ההתקנה לא הצליחה: ההודעה אומרת בדיוק איזה מודול חסר
+        env = {'FAKE_READY': str(self.tmp / 'never'), 'SNB_SETUP': 'true'}
+        code, out = self.job('run', '--job', JOB, '--key', KEY, '--server', self.base, '--drive-api', self.base + '/drive/v3', env=env)
+        self.assertEqual(code, 0, out)
+        code, out = self.job('prepare', env=env)
+        self.assertNotEqual(code, 0)
+        self.assertIn('חסרים: qwen_asr', out)
+        self.assertIn('setup.log', out)
+
+    def test_one_module_list(self):
+        sys.path.insert(0, str(HERE))
+        import job as J
+        mods = J.engine_modules()
+        self.assertEqual(mods, ['numpy', 'soundfile', 'onnx_asr', 'torch', 'torchaudio', 'qwen_asr'])
+        sh = (HERE / 'setup.sh').read_text()
+        self.assertNotIn('import numpy, soundfile', sh, 'בלי רשימה כפולה ב־setup.sh')
+        self.assertNotIn("'import numpy", (HERE / 'job.py').read_text(), 'בלי רשימה כפולה ב־job.py')
 
 
 if __name__ == '__main__':

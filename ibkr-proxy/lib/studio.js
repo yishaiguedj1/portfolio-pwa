@@ -87,6 +87,36 @@ function normOut(list) {
   return out.length ? out : null;
 }
 
+/* v359: הטוקנים והעלות של העבודה (מהעובד, בדיווח האחרון — finish/fail). עד 6 שורות: סוג (תיאום/תרגום/ביקורת/סוכן־משנה),
+   מזהה מודל רק בתבנית claude-…, וכל השאר מספרים. משהו לא תקין → null (וכל הנתון נזרק — לא חלקי) */
+const USE_KINDS = ['main', 'tl', 'rv', 'sub'];
+const USE_MODEL_RE = /^claude-[a-z0-9-]{1,50}$/;
+const USE_INTS = ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op'];
+const USE_USD = ['usd', 'oc'];
+function normUsage(list) {
+  if (!Array.isArray(list) || !list.length || list.length > 6) return null;
+  const out = [];
+  for (const r of list) {
+    if (!r || typeof r !== 'object' || Array.isArray(r) || !USE_KINDS.includes(r.k) || !USE_MODEL_RE.test(String(r.m || ''))) return null;
+    const row = { k: r.k, m: r.m };
+    for (const f of USE_INTS) {
+      if (r[f] == null && f === 'op') continue;
+      const v = r[f];
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 1e11) return null;
+      row[f] = v;
+    }
+    for (const f of USE_USD) {
+      if (!(f in r)) continue;
+      const v = r[f];
+      if (v === null) { row[f] = null; continue; }           // מודל בלי מחירון
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1e5) return null;
+      row[f] = Math.round(v * 1e4) / 1e4;
+    }
+    out.push(row);
+  }
+  return out;
+}
+
 /* ---------- מזהים ומפתחות ---------- */
 const newJobId = () => 'j' + crypto.randomBytes(15).toString('base64url');
 const newKey = () => crypto.randomBytes(32).toString('base64url');
@@ -144,6 +174,7 @@ function publicJob(job, now) {
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [] },
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
+    use: Array.isArray(job.use) ? job.use : null,   // v359: טוקנים ועלות
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
@@ -174,7 +205,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -203,6 +234,6 @@ function fromFields(f) {
 module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };
