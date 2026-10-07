@@ -31,6 +31,8 @@ elif "$VENV/bin/python" -c 'import onnx_asr, torch, qwen_asr' >/dev/null 2>&1; t
 #  - בלי ה־CLAUDE.md של הפרויקט: כ־100 אלף טוקנים בכל הפעלה, והעובד צריך רק את translator/RUNBOOK.md
 #  - בלי דחיפה ב־git ובלי כלי ניהול הסשנים: הכלל בריפו שמתיר דחיפה ל־main נועד לסשן הפיתוח, והעובד קורא תוכן לא מהימן
 #    (תמלילים). deny גובר על allow בכל שכבות ההגדרות.
+#  - רק בבניית תמונת המצב: כשהעבודה עצמה מריצה את הסקריפט (job.py, SNB_SETUP_NO_SETTINGS=1) — לא נוגעים בהגדרות של הסשן שכבר רץ
+if [ -z "${SNB_SETUP_NO_SETTINGS:-}" ]; then
 python3 - <<'PY' || true
 import json, os
 p = os.path.expanduser('~/.claude/settings.json')
@@ -49,5 +51,6 @@ for r in ['Bash(git push *)', 'Bash(git push)', 'mcp__claude-code-remote']:
         deny.append(r)
 json.dump(s, open(p, 'w'), ensure_ascii=False, indent=2)
 PY
+fi
 echo "סטודיו התרגום: הסביבה מוכנה"
 exit 0

@@ -43,6 +43,13 @@ ERR_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 CHUNK = 32 * 1024 * 1024        # העלאה ל־Drive: כפולה של 256KB
 
 
+def vt_slug(name):
+    """השם שבו vt שומר את הפרויקט — זהה ל־slugify ב־translator/vt/project.py (אותיות קטנות, בלי - בקצוות).
+    מזהה העבודה כולל אותיות גדולות, ולפניו חיפשנו את התיקייה והתוצרים בשם המקורי (output_name_mismatch ב־99%)."""
+    s = re.sub(r'[^\w\-]+', '-', name.strip().lower(), flags=re.UNICODE).strip('-')
+    return s or 'interview'
+
+
 def http(method, url, body=None, headers=None, timeout=30):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers=dict({'User-Agent': UA}, **(headers or {})))
@@ -127,6 +134,7 @@ def run(args):
         print('✓ עבודת תרגום נלקחה: ' + spec_line(spec))
         if start_setup_bg():
             print('· מנועי התמלול מותקנים ברקע (prepare ימתין להם בעצמו)')
+        print('הפרויקט: ' + str(VT_WORK / vt_slug(args.job)))
         print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py prepare')
         return 0
     except Stop as e:
@@ -176,7 +184,7 @@ class Ctx:
 
     @property
     def name(self):
-        return self.st['job']
+        return vt_slug(self.st['job'])
 
     @property
     def pdir(self):
@@ -263,7 +271,7 @@ _OPEN = urllib.request.build_opener(_NoRedirect).open      # ב־Drive ‏308 = 
 def drive_upload(ctx, path, name, kind, mime, on_progress=None):
     """העלאה מתחדשת לתיקיית העבודה. מחזיר את מזהה הקובץ ב־Drive."""
     size = path.stat().st_size
-    meta = {'name': name, 'parents': [ctx.st['folder']], 'appProperties': {'snbJob': ctx.name, 'snbOut': kind}}
+    meta = {'name': name, 'parents': [ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], 'snbOut': kind}}
     st, j, hd = http('POST', ctx.upload + '/files?uploadType=resumable&fields=id',
                      meta, headers={'Authorization': 'Bearer ' + ctx.token(), 'X-Upload-Content-Type': mime,
                                     'X-Upload-Content-Length': str(size)})
@@ -362,6 +370,11 @@ def setup_cmd():
     return os.environ.get('SNB_SETUP', 'bash ' + str(HERE / 'setup.sh')).split()
 
 
+def setup_env():
+    """ההתקנה מתוך העבודה לא כותבת את ~/.claude/settings.json — ההגדרות של הסשן נקבעות רק מתמונת המצב של הסביבה."""
+    return dict(os.environ, SNB_SETUP_NO_SETTINGS='1')
+
+
 def start_setup_bg():
     """v358: מנוע שחסר בתמונת המצב של הסביבה (setup.sh השתנה מאז שנבנתה) מותקן ברקע מרגע לקיחת העבודה —
     במקביל להעלאת הסרטון, להורדה ולקריאת מדריך הסגנון. כך אין צורך לעדכן ידנית את סקריפט ההתקנה ב־claude.ai:
@@ -370,7 +383,8 @@ def start_setup_bg():
         return False
     STATE.parent.mkdir(parents=True, exist_ok=True)
     log = open(STATE.parent / 'setup.log', 'ab')
-    p = subprocess.Popen(setup_cmd(), stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    p = subprocess.Popen(setup_cmd(), stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True,
+                         env=setup_env())
     SETUP_PID.write_text(str(p.pid))
     return True
 
@@ -398,7 +412,7 @@ def ensure_env(ctx):
         time.sleep(3)
         waited += 3
     if not env_ready():
-        subprocess.run(setup_cmd(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(setup_cmd(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=setup_env())
     if not env_ready():
         raise SystemExit('✗ ההתקנה של מנועי התמלול נכשלה — אולי הרשת של הסביבה חוסמת (Hugging Face / PyTorch).')
 

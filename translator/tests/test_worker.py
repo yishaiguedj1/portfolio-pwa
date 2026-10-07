@@ -16,19 +16,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-JOB = 'jAbCdEfGhIjKlMnOpQrSt'
+JOB = 'jAbCdEfGhIjKlMnOpQrS-'      # אותיות גדולות ו־- בסוף, כמו מזהה אמיתי
+SLUG = 'jabcdefghijklmnopqrs'      # השם שבו vt שומר את הפרויקט (slugify)
 KEY = 'K' * 40 + '_-9'
 TOKEN = 'ya29.DRIVE-SECRET-TOKEN'
 VIDEO = bytes(range(256)) * 4000          # ~1MB
 
 FAKE_VT = r'''#!/usr/bin/env python3
-import os, sys, pathlib
+import os, re, sys, pathlib
 a = sys.argv[1:]
 if a[:1] == ['-c']:
     rf = os.environ.get('FAKE_READY')
     sys.exit(0 if not rf or os.path.exists(rf) else 1)
 a = a[2:]                                   # "-m vt"
 cmd, name = a[0], (a[1] if len(a) > 1 else '')
+name = re.sub(r'[^\w\-]+', '-', name.strip().lower(), flags=re.UNICODE).strip('-') or 'interview'   # כמו vt האמיתי
 w = pathlib.Path(os.environ['VT_WORK']) / name
 log = pathlib.Path(os.environ['FAKE_LOG'])
 log.open('a').write(' '.join(a) + '\n')
@@ -178,6 +180,7 @@ class TestWorker(unittest.TestCase):
         code, out = self.take()
         self.assertEqual(code, 0, out)
         self.assertIn('עבודת תרגום נלקחה', out)
+        self.assertIn('הפרויקט: ' + str(self.tmp / 'work' / SLUG), out)
         self.assertNotIn(KEY, out)
         self.assertNotIn(TOKEN, out)
         st = self.tmp / 'state' / 'job.json'
@@ -186,7 +189,7 @@ class TestWorker(unittest.TestCase):
 
         code, out = self.job('prepare')
         self.assertEqual(code, 0, out)
-        size = (self.tmp / 'work' / JOB / 'src_size').read_text()
+        size = (self.tmp / 'work' / SLUG / 'src_size').read_text()
         self.assertEqual(int(size), len(VIDEO), 'ההורדה הושלמה אחרי ניתוק (Range)')
         self.assertTrue(any(r.get('st') == 'tr' and 0.5 < (r.get('p') or 0) < 0.95 for r in self.fake.reports), 'אחוזים מ־vt → התקדמות השלב')
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
@@ -230,7 +233,7 @@ class TestWorker(unittest.TestCase):
         # המנועים חסרים: run מפעיל את ההתקנה ברקע, prepare מחכה לה — בלי פעולה של המשתמש
         ready = self.tmp / 'ready'
         setup = self.tmp / 'setup.sh'
-        setup.write_text('sleep 2; touch "%s"\n' % ready)
+        setup.write_text('echo "[$SNB_SETUP_NO_SETTINGS]" >> "%s.env"; sleep 2; touch "%s"\n' % (ready, ready))
         env = {'FAKE_READY': str(ready), 'SNB_SETUP': 'bash ' + str(setup)}
         code, out = self.job('run', '--job', JOB, '--key', KEY, '--server', self.base, '--drive-api', self.base + '/drive/v3', env=env)
         self.assertEqual(code, 0, out)
@@ -239,6 +242,7 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('prepare', env=env)
         self.assertEqual(code, 0, out)
         self.assertTrue(ready.exists())
+        self.assertEqual(Path(str(ready) + '.env').read_text().split(), ['[1]'], 'ההתקנה מתוך העבודה לא כותבת את הגדרות הסשן')
         self.assertTrue((self.tmp / 'state' / 'setup.pid').exists(), 'ההתקנה הופעלה ברקע כבר ב־run')
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
         self.assertEqual(cmds[0], 'new', 'vt רץ רק אחרי שההתקנה הסתיימה')
