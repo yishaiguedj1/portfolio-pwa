@@ -1,7 +1,7 @@
 /* Service Worker — תיק ההשקעות PWA
  * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
  */
-const CACHE_NAME = 'portfolio-pwa-v353';
+const CACHE_NAME = 'portfolio-pwa-v354';
 
 const APP_SHELL = [
   './',
@@ -31,12 +31,17 @@ const LIB_SHELL = [
   './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js'
 ];
 
+/* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם) */
+const STUDIO_SHELL = ['./studio.js', './studio.css'];
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL)
         .then(() => caches.match('./library.js'))
-        .then((used) => used && cache.addAll(LIB_SHELL).catch(() => {})))
+        .then((used) => used && cache.addAll(LIB_SHELL).catch(() => {}))
+        .then(() => caches.match('./studio.js'))
+        .then((used) => used && cache.addAll(STUDIO_SHELL).catch(() => {})))
       .then(() => self.skipWaiting())
       .catch(() => self.skipWaiting())
   );
