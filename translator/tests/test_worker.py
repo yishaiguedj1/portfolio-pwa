@@ -21,9 +21,10 @@ SLUG = 'jabcdefghijklmnopqrs'      # השם שבו vt שומר את הפרויק
 KEY = 'K' * 40 + '_-9'
 TOKEN = 'ya29.DRIVE-SECRET-TOKEN'
 VIDEO = bytes(range(256)) * 4000          # ~1MB
+AUDIO = bytes(range(255, -1, -1)) * 300    # ~77KB
 
 FAKE_VT = r'''#!/usr/bin/env python3
-import os, re, sys, pathlib
+import os, re, sys, json, pathlib
 a = sys.argv[1:]
 if a[:1] == ['-c']:
     rf = os.environ.get('FAKE_READY')
@@ -31,6 +32,10 @@ if a[:1] == ['-c']:
         sys.exit(0)
     print(a[-1])                            # כמו הבדיקה האמיתית: שורה לכל מודול חסר (כאן — האחרון ברשימה)
     sys.exit(1)
+if a and a[0].endswith('sync.py'):           # v360: מדידת ההיסט בין הקולות
+    pathlib.Path(os.environ['FAKE_LOG']).open('a').write('sync\n')
+    print(os.environ.get('FAKE_SYNC', '0.250000 0.990'))
+    sys.exit(0)
 a = a[2:]                                   # "-m vt"
 cmd, name = a[0], (a[1] if len(a) > 1 else '')
 name = re.sub(r'[^\w\-]+', '-', name.strip().lower(), flags=re.UNICODE).strip('-') or 'interview'   # כמו vt האמיתי
@@ -40,9 +45,17 @@ log.open('a').write(' '.join(a) + '\n')
 if cmd == 'new':
     w.mkdir(parents=True, exist_ok=True)
     src = a[a.index('--source') + 1]
+    (w / 'meta.json').write_text(json.dumps({'source': src}))
+elif cmd == 'ingest':                       # כמו vt: המקור מ־meta.json, הקישור source.<סיומת>, audio16k.wav
+    src = json.loads((w / 'meta.json').read_text())['source']
+    if not list(w.glob('source.*')) or '--force' in a:
+        os.link(src, w / ('source' + pathlib.Path(src).suffix))
     (w / 'src_size').write_text(str(os.path.getsize(src)))
+    (w / 'audio16k.wav').write_text('wav:' + src)
 elif cmd == 'asr':
     print('תמלול 50%'); print('תמלול 100%')
+    (w / 'asr').mkdir(exist_ok=True)
+    (w / 'asr' / 'parakeet.json').write_text(json.dumps({'words': [{'w': 'Hello', 's': 1.0, 'e': 1.5}, {'w': 'world', 's': 0.1, 'e': 0.2}]}))
 elif cmd == 'tr-check':
     n = os.environ.get('FAKE_ERRS', '0')
     print('תורגמו 10/10 · שגיאות ' + n + ' · מעל תקציב 0')
@@ -64,7 +77,7 @@ class Fake:
         self.reports, self.files, self.uploads = [], {}, {}
         self.kind, self.spec, self.video_after = 'tr', {'name': 'Interview_2026.mp4', 'size': len(VIDEO), 'to': ['he'], 'from': 'auto',
                                                          'mode': 'opus-medium', 'out': ['compact'], 'dur': 4620}, 0
-        self.claims, self.cut_once, self.upload_drop = 0, True, True
+        self.claims, self.cut_once, self.upload_drop, self.audio = 0, True, True, True
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -96,7 +109,7 @@ class Fake:
                 op = body.get('op')
                 if op == 'claim':
                     fake.claims += 1
-                    files = {'a': {'id': 'AUDIO000001', 'size': 10}}
+                    files = {'a': {'id': 'AUDIO000001', 'name': 'Interview_2026.audio.m4a', 'size': len(AUDIO)}} if fake.audio else {}
                     if fake.claims > fake.video_after:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
@@ -110,6 +123,8 @@ class Fake:
                 return self._send(400, {'ok': False})
 
             def do_GET(self):
+                if self.path.startswith('/drive/v3/files/AUDIO000001?alt=media'):
+                    return self._send(200, raw=AUDIO)
                 if self.path.startswith('/drive/v3/files/VIDEO000001?alt=media'):
                     if self.headers.get('Authorization') != 'Bearer ' + TOKEN:
                         return self._send(401)
@@ -193,15 +208,24 @@ class TestWorker(unittest.TestCase):
 
         code, out = self.job('prepare')
         self.assertEqual(code, 0, out)
-        size = (self.tmp / 'work' / SLUG / 'src_size').read_text()
-        self.assertEqual(int(size), len(VIDEO), 'ההורדה הושלמה אחרי ניתוק (Range)')
+        W = self.tmp / 'work' / SLUG
+        self.assertEqual(int((W / 'src_size').read_text()), len(AUDIO), 'v360: התמלול מהקול שעלה ראשון')
         self.assertTrue(any(r.get('st') == 'tr' and 0.5 < (r.get('p') or 0) < 0.95 for r in self.fake.reports), 'אחוזים מ־vt → התקדמות השלב')
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
-        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'shots', 'edit-export'])
+        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'edit-export'], 'מהקול: בלי חילופי שוטים (צריכים וידאו)')
+        self.assertIn('מהקול', out)
 
         code, out = self.job('align')
         self.assertEqual(code, 0, out)
         self.assertTrue(any(r.get('st') == 'al' and r.get('p') == 1 for r in self.fake.reports))
+        self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'הסרטון צורף (וההורדה הושלמה אחרי ניתוק — Range)')
+        self.assertEqual([p.name for p in W.glob('source.*')], ['source.mp4'], 'הקול כבר לא המקור')
+        self.assertTrue((W / 'audio16k.first.wav').exists())
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][4:]
+        self.assertEqual(cmds, ['ingest', 'sync', 'shots', 'edit-import', 'align', 'plan', 'tr-prep'])
+        words = json.loads((W / 'asr' / 'parakeet.json').read_text())['words']
+        self.assertEqual([(w['s'], w['e']) for w in words], [(1.25, 1.75), (0.35, 0.45)], 'זמני המילים הוזזו לציר הזמן של הסרטון')
+        self.assertIn('היסט +0.250', out)
 
         code, out = self.job('stage', 'tl', '--p', '0.4', '--msg', 'מתרגם')
         self.assertEqual(code, 0, out)
@@ -227,11 +251,72 @@ class TestWorker(unittest.TestCase):
         self.assertNotIn(KEY, out)
 
     def test_waits_for_video(self):
-        self.fake.video_after = 2
+        # v360: הקול כבר ב־Drive — התמלול לא מחכה לסרטון; היישור מחכה לו
+        self.fake.video_after = 3
+        self.assertEqual(self.take()[0], 0)
+        code, out = self.job('prepare', env={'SNB_POLL': '0.2'})
+        self.assertEqual(code, 0, out)
+        self.assertNotIn('מחכה', out)
+        code, out = self.job('align', env={'SNB_POLL': '0.2'})
+        self.assertEqual(code, 0, out)
+        self.assertIn('מחכה', out)
+        self.assertTrue(any(r.get('st') == 'al' and r.get('msg') == 'מחכה שהסרטון יסיים לעלות' for r in self.fake.reports))
+
+    def test_no_audio(self):
+        # אין קובץ קול (קודק שאי אפשר להעתיק): מחכים לסרטון ומתמללים ממנו — כמו לפני v360
+        self.fake.audio, self.fake.video_after = False, 2
         self.assertEqual(self.take()[0], 0)
         code, out = self.job('prepare', env={'SNB_POLL': '0.2'})
         self.assertEqual(code, 0, out)
         self.assertIn('מחכה', out)
+        self.assertEqual(int((self.tmp / 'work' / SLUG / 'src_size').read_text()), len(VIDEO))
+        self.assertEqual(self.job('align')[0], 0)
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
+        self.assertEqual(cmds, ['new', 'ingest', 'asr', 'shots', 'edit-export', 'edit-import', 'align', 'plan', 'tr-prep'], 'בלי צירוף ובלי מדידת היסט')
+
+    def test_sync_unsure(self):
+        # ההיסט לא ודאי → תמלול מחדש מהסרטון (בלי טוקנים), בלי להזיז זמנים
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        code, out = self.job('align', env={'FAKE_SYNC': '3.874 0.003'})
+        self.assertEqual(code, 0, out)
+        self.assertIn('לא ודאי', out)
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][4:]
+        self.assertEqual(cmds[:4], ['ingest', 'sync', 'asr', 'shots'])
+        words = json.loads((self.tmp / 'work' / SLUG / 'asr' / 'parakeet.json').read_text())['words']
+        self.assertEqual(words[0]['s'], 1.0, 'בלי הזזה — התמלול החדש כבר על ציר הזמן של הסרטון')
+
+    def test_sync_module(self):
+        # sync.py האמיתי על אותות סינתטיים: היסט חיובי/שלילי מדויק לדגימה, קבצים שונים — ודאות אפסית
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy')
+        import wave
+        sr, rng = 16000, np.random.default_rng(7)
+        t = np.arange(sr * 60) / sr
+        env = (np.sin(2 * np.pi * 0.7 * t) > 0.2) * 1.0
+        env[:sr * 3] = 0
+        a = rng.normal(0, 3000, len(t)) * env
+
+        def wav(name, x):
+            p = self.tmp / name
+            with wave.open(str(p), 'wb') as f:
+                f.setnchannels(1); f.setsampwidth(2); f.setframerate(sr)
+                f.writeframes(np.clip(x, -32767, 32767).astype('<i2').tobytes())
+            return str(p)
+
+        def run(b):
+            r = subprocess.run([sys.executable, str(HERE / 'sync.py'), wav('a.wav', a), wav('b.wav', b)], capture_output=True, text=True)
+            off, conf = (float(x) for x in r.stdout.split())
+            return off, conf
+        off, conf = run(np.concatenate([np.zeros(int(0.37 * sr)), a]) + rng.normal(0, 200, len(a) + int(0.37 * sr)))
+        self.assertAlmostEqual(off, 0.37, places=4)
+        self.assertGreater(conf, 0.9)
+        off, conf = run(a[int(0.0213 * sr):])
+        self.assertAlmostEqual(off, -0.0213, places=4)
+        off, conf = run(rng.normal(0, 3000, len(a)))
+        self.assertLess(conf, 0.2)
 
     def test_setup_in_background(self):
         # המנועים חסרים: run מפעיל את ההתקנה ברקע, prepare מחכה לה — בלי פעולה של המשתמש
