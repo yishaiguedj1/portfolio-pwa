@@ -74,7 +74,7 @@ ok(/בלי התראות ובלי בדיקות חוזרות מתוזמנות/.tes
 
 /* ---------- 4. גרסה ---------- */
 const ver = (app.match(/const APP_VERSION = '(v\d+)'/) || [])[1];
-ok(ver === 'v356', 'APP_VERSION = v356');
+ok(+String(ver).slice(1) >= 356, 'APP_VERSION ≥ v356');
 ok(swVersionOk(ver), 'sw.js תואם (שווה או גרסה אחת אחורה בשלב התוכן)');
 
 console.log('# ' + n + ' בדיקות עברו');

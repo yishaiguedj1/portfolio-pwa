@@ -1130,12 +1130,13 @@ function stubFetch(text, status = 200) {
     const vault = require('../lib/vault');
     const S = require('../lib/studio');
     const studio = require('../api/studio');
-    const envKeys = ['GDRIVE_SA_KEY', 'GDRIVE_CLIENT_ID', 'GDRIVE_CLIENT_SECRET', 'IBKR_VAULT_KEY', 'LIBRARY_READERS', 'LIBRARY_ADMINS', 'STUDIO_USERS'];
+    const envKeys = ['GDRIVE_SA_KEY', 'GDRIVE_CLIENT_ID', 'GDRIVE_CLIENT_SECRET', 'STUDIO_GDRIVE_CLIENT_ID', 'STUDIO_GDRIVE_CLIENT_SECRET', 'IBKR_VAULT_KEY', 'LIBRARY_READERS', 'LIBRARY_ADMINS', 'STUDIO_USERS'];
     const env = envKeys.map((k) => [k, process.env[k]]);
     const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     const sa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     process.env.GDRIVE_SA_KEY = JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: sa.privateKey.export({ type: 'pkcs8', format: 'pem' }) });
     process.env.GDRIVE_CLIENT_ID = 'cid.apps.googleusercontent.com'; process.env.GDRIVE_CLIENT_SECRET = 'csecret';
+    process.env.STUDIO_GDRIVE_CLIENT_ID = 'scid.apps.googleusercontent.com'; process.env.STUDIO_GDRIVE_CLIENT_SECRET = 'ssecret';   // v357: לקוח נפרד לסטודיו
     process.env.LIBRARY_READERS = 'owner@example.com, reader@example.com'; process.env.STUDIO_USERS = 'friend@example.com';
     delete process.env.IBKR_VAULT_KEY; delete process.env.LIBRARY_ADMINS;
     gauth._reset(); studio._reset();
@@ -1159,7 +1160,12 @@ function stubFetch(text, status = 200) {
       if (url.includes('oauth2.googleapis.com/token')) {
         const p = new URLSearchParams(opt.body || '');
         if (p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
-        if (p.get('grant_type') === 'refresh_token') return p.get('refresh_token') === 'RT-1' ? J({ access_token: 'DRIVE-AT', expires_in: 3599 }) : J({ error: 'invalid_grant' }, 400);
+        // v357: לסטודיו לקוח OAuth משלו — ההרשאה של הסטודיו עובדת רק איתו, וזו של גיבוי הספרייה לא מגיעה לסטודיו
+        const cid = p.get('client_id');
+        if (p.get('grant_type') === 'refresh_token') return p.get('refresh_token') === 'SRT-1' && cid === 'scid.apps.googleusercontent.com' ? J({ access_token: 'DRIVE-AT', expires_in: 3599 })
+          : p.get('refresh_token') === 'RT-1' && cid === 'cid.apps.googleusercontent.com' ? J({ access_token: 'LIB-AT', expires_in: 3599 }) : J({ error: 'invalid_grant' }, 400);
+        if (p.get('grant_type') === 'authorization_code' && p.get('code') === 'SCODE' && cid === 'scid.apps.googleusercontent.com' && p.get('client_secret') === 'ssecret')
+          return J({ access_token: 'S-AT1', expires_in: 3599, refresh_token: 'SRT-1', scope: 'openid email https://www.googleapis.com/auth/drive.file', id_token: 'x.' + b64u({ email: 'drive.owner@example.com' }) + '.y' });
         return J({}, 400);
       }
       if (url.startsWith('https://api.anthropic.com/')) {
@@ -1228,8 +1234,23 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403 && r.payload.error === 'forbidden_origin', 'סטודיו: פעולת טלפון בלי Origin של האפליקציה — חסומה');
     r = await run({ op: 'status', idToken: FRIEND });
     ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected === false, 'סטודיו: משתמש מ־STUDIO_USERS מורשה (בלי חיבור ובלי Drive משלו)');
+    // v357: Drive של הסטודיו — לקוח OAuth נפרד. החיבור של גיבוי הספרייה (driveVault) לא נחשב כאן
     r = await run({ op: 'status', idToken: OWNER });
-    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping', 'סטודיו: מצב — Drive מחובר מהגיבוי, עדיין לא Claude; העובד יודע רק "בדיקת חיבור" (שלב 2)');
+    ok(r.payload.ok && r.payload.drive.connected === false && r.payload.drive.configured === true, 'סטודיו: החיבור של גיבוי הספרייה לא נותן גישה לסטודיו (לקוח OAuth אחר)');
+    r = await run({ op: 'drive', idToken: OWNER });
+    ok(!r.payload.ok && r.payload.error === 'not_connected' && !JSON.stringify(r.payload).includes('LIB-AT'), 'סטודיו: בלי חיבור משלו — אין גישה ל־Drive (גם לא של הספרייה)');
+    r = await run({ op: 'gdConfig' });
+    ok(r.payload.ok && r.payload.configured && r.payload.clientId === 'scid.apps.googleusercontent.com', 'סטודיו: gdConfig — המזהה של לקוח הסטודיו (ציבורי, בלי התחברות)');
+    r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://evil.example/oauth.html' });
+    ok(r.statusCode === 400 && r.payload.error === 'bad_params' && !db.has('studioDrive/ownerUid0001'), 'סטודיו: כתובת חזרה זרה — נדחית');
+    const lib0 = JSON.stringify(db.get('driveVault/ownerUid0001'));
+    r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html' });
+    const sd = db.get('studioDrive/ownerUid0001');
+    ok(r.payload.ok && r.payload.email === 'drive.owner@example.com' && !('refresh_token' in r.payload) && sd && !JSON.stringify(sd).includes('SRT-1')
+      && vault.open(sd.fields.r.stringValue, 'sdrive|ownerUid0001|r').rt === 'SRT-1' && vault.open(sd.fields.r.stringValue, 'gdrive|ownerUid0001|r') === null
+      && JSON.stringify(db.get('driveVault/ownerUid0001')) === lib0, 'סטודיו: חיבור Drive — נשמר מוצפן ב־studioDrive (AAD משלו), בלי לגעת בחיבור של הספרייה ובלי להחזיר את ההרשאה הקבועה');
+    r = await run({ op: 'status', idToken: OWNER });
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע רק "בדיקת חיבור" (שלב 2)');
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });

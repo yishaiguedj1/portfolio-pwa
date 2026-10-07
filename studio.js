@@ -369,16 +369,18 @@ const net = createNet({
   idToken: idTok,
   online: () => typeof navigator === 'undefined' || navigator.onLine !== false,
 });
-/* חיבור Google Drive — אותו חיבור של גיבוי הספרייה (libbackup.js); החלון נפתח בתוך הלחיצה */
+/* חיבור Google Drive — אותו מנגנון של גיבוי הספרייה (libbackup.js), אבל לקוח OAuth נפרד בשרתון (v357); החלון נפתח בתוך הלחיצה */
 let gdc = null;
 function gd() {
   if (!gdc) gdc = createBackup({
     owner: () => { try { return localStorage.getItem('pwa_owner_v1') || 'local'; } catch (e) { return 'local'; } },
-    libApi: (body) => net.libApi(body), idToken: idTok,
+    libApi: (body) => net.driveApi(body), idToken: idTok,
     redirectUri: () => new URL('oauth.html', document.baseURI).href,
     openWindow: () => { try { return window.open('', 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { return null; } },
     waitCode: waitOAuthCode,
     allBooksRaw: async () => [], putBook: async () => {}, getFile: async () => null,
+    // לא לגעת בהגדרות של גיבוי הספרייה (pwa_libbk_v1) — החיבור כאן אחר; המצב מגיע מהשרתון (status)
+    ls: (() => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; })(),
   });
   return gdc;
 }
@@ -1493,7 +1495,7 @@ function pageSettings(p) {
     p.append(secT(T('studioSecConnect')), list(
       rowNav({ tile: tile('key', 'green'), label: T('studioWizard'), sub: T('studioNotConn') + ' · ' + T('studioWizardS'), onClick: () => go('connect'), k: 'wizard' })));
   }
-  // Google Drive — שם הסרטונים והתוצרים (אותו חיבור של גיבוי הספרייה)
+  // Google Drive — שם הסרטונים והתוצרים (חיבור נפרד מגיבוי הספרייה, v357)
   const dr = store.drive;
   const drow = h('div', 'st-row st-ric');
   const dl = h('span', 'st-l'); dl.append(h('b', null, 'Google Drive'));

@@ -16,7 +16,7 @@ const styles = read('styles.css');
 
 /* ---------- 1. פונקציות טהורות (המודול בלי export, ב־Node 20 של ה־CI) ---------- */
 // v355: studio.js מייבא את studionet.js ו־libbackup.js — כאן במקומם תחליפים (הבדיקות של המודולים האלה ב־studio-v355)
-const STUBS = { createNet: () => ({ api: async () => ({ ok: false }), libApi: async () => null, jobFolder: async () => '', upload: async () => ({}) }),
+const STUBS = { createNet: () => ({ api: async () => ({ ok: false }), driveApi: async () => null, jobFolder: async () => '', upload: async () => ({}) }),
   probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}), progressModel: () => ({ stages: [], left: 0, pct: 0 }),
   createBackup: () => ({}), waitOAuthCode: () => {} };
 const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');

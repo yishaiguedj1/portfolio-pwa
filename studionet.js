@@ -251,8 +251,8 @@ export function createNet(env) {
     }
   }
 
-  /* חיבור Drive (חלון ההסכמה) עובר דרך /api/library — אותו חיבור של גיבוי הספרייה (libbackup.js מקבל Response) */
-  const libApi = (body) => E.fetch(E.base() + '/api/library', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}), body: JSON.stringify(body) });
+  /* חיבור Drive (חלון ההסכמה; libbackup.js מקבל Response) — v357: לקוח OAuth נפרד לסטודיו, דרך /api/studio ולא השרתון של הספרייה */
+  const driveApi = (body) => E.fetch(E.base() + '/api/studio', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}), body: JSON.stringify(body) });
 
-  return { api, libApi, driveToken, jobFolder, upload, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, jobFolder, upload, _forget: () => { dtok = null; } };
 }
