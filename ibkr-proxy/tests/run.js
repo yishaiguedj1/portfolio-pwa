@@ -1168,6 +1168,7 @@ function stubFetch(text, status = 200) {
         if (fireMode === 401) return J({ type: 'error', error: { type: 'authentication_error', message: 'bad' } }, 401);
         if (fireMode === 429) return J({ type: 'error', error: { type: 'rate_limit_error', message: 'slow' } }, 429, { 'retry-after': '1800' });
         if (fireMode === 'paused') return J({ type: 'error', error: { type: 'invalid_request_error', message: 'Routine is paused' } }, 400);
+        if (fireMode === 500) return J({ type: 'error', error: { type: 'api_error', message: 'Internal <b>x</b>' } }, 500, { 'request-id': 'req_011CXtest<script>' });
         return J({ type: 'routine_fire', claude_code_session_id: 'session_01TESTSESSION' + fires.length, claude_code_session_url: 'https://claude.ai/code/session_01TESTSESSION' + fires.length });
       }
       const dm = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/([A-Za-z0-9_-]+)\?/);
@@ -1270,6 +1271,13 @@ function stubFetch(text, status = 200) {
     now += 61e3; fireMode = 'throw';
     r = await run({ op: 'test', idToken: OWNER });
     ok(r.payload.error === 'routine_net' && fires.length === 5, 'סטודיו: תקלת רשת בהפעלה — לא מנסים שוב לבד (אחרת ייפתחו שני סשנים)');
+    ok(r.payload.detail === 'Error' && r.payload.job.ed === 'Error', 'סטודיו: תקלת רשת — גם היא עם פרטים לאבחון');
+    now += 61e3; fireMode = 500;
+    r = await run({ op: 'test', idToken: OWNER });
+    ok(r.payload.error === 'routine_down' && r.payload.detail === 'HTTP 500 · api_error · req_011CXtestscript' && r.payload.job.ed === r.payload.detail && fires.length === 6,
+      'סטודיו: 500 מ־Anthropic — "לא זמין כרגע" + פרטים לתמיכה (סטטוס, סוג, מזהה בקשה — רק תווים בטוחים, בלי ההודעה החופשית)');
+    r = await run({ op: 'job', idToken: OWNER, job: r.payload.job.id });
+    ok(r.payload.job.ed === 'HTTP 500 · api_error · req_011CXtestscript', 'סטודיו: הפרטים נשמרים בעבודה (נקראים גם אחרי רענון)');
     ok([...db.keys()].filter((k) => k.startsWith('studioJobs/')).length === 3, 'סטודיו: נשמרות רק 3 בדיקות החיבור האחרונות');
     fireMode = 'ok';
 

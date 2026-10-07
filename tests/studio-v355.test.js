@@ -209,7 +209,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/x\.upload\.onprogress/.test(net0) && /STALL_MS/.test(net0), 'העלאה: התקדמות בתוך החתיכה, וזיהוי חיבור שנתקע');
   ok(/navigator\.wakeLock\.request\('screen'\)/.test(st) && /visibilitychange[\s\S]{0,120}wakeOn\(\)/.test(st), 'מסך דולק בזמן העלאה — וחוזר אחרי שחוזרים לאפליקציה');
   ok(/navigator\.connection\.type === 'cellular'/.test(st) && /store\.settings\.wifi && isCellular\(\)/.test(st), '"רק ב־Wi‑Fi": בסלולר ההעלאה מחכה');
-  ok(/const APP_VERSION = 'v355'/.test(app), 'APP_VERSION = v355');
+  ok(+((app.match(/const APP_VERSION = 'v(\d+)'/) || [])[1] || 0) >= 355, 'APP_VERSION — v355 ומעלה');
   ok(fs.existsSync(path.join(root, 'ibkr-proxy/api/studio.js')) && /"api\/studio\.js": \{"maxDuration": 30\}/.test(read('ibkr-proxy/vercel.json')), 'השרתון: api/studio.js ב־vercel.json (הפונקציה ה־12)');
   ok(fs.readdirSync(path.join(root, 'ibkr-proxy/api')).filter((x) => x.endsWith('.js')).length <= 12, 'לא יותר מ־12 פונקציות ב־Vercel Hobby');
 

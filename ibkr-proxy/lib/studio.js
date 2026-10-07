@@ -95,6 +95,13 @@ function fireError(status, j) {
   if (status >= 500) return 'routine_down';
   return 'routine_http_' + status;
 }
+/* v356: פרטים לאבחון הפעלה שנכשלה — הסטטוס, סוג השגיאה של Anthropic ומזהה הבקשה (לפנייה לתמיכה).
+   רק תווים בטוחים ובלי ההודעה החופשית — מוצג בטלפון כמו שהוא */
+function fireDetail(status, j, reqId) {
+  const type = String((j && j.error && j.error.type) || '').replace(/[^a-z_]/g, '').slice(0, 40);
+  const rid = String(reqId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+  return ['HTTP ' + (Number(status) | 0), type, rid].filter(Boolean).join(' · ');
+}
 function fireSession(j) {
   const id = String((j && j.claude_code_session_id) || ''), url = String((j && j.claude_code_session_url) || '');
   if (!SESSION_RE.test(id)) return null;
@@ -118,7 +125,7 @@ function publicJob(job, now) {
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || 0,
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv) },
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
-    prog: job.prog || null,
+    prog: job.prog || null, ed: job.ed || '',
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
@@ -178,6 +185,6 @@ function fromFields(f) {
 module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireSession, recentFires,
+  normRoutine, hintOf, normSpec, normFile, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

@@ -140,6 +140,8 @@ button.st-row:not(:disabled):active { background: var(--st-fill); }
 .st-filecard .st-l b { font-size: 15px; line-height: 1.3; }
 .st-l small.st-ok { color: var(--on-primary-container); font-weight: 600; }
 .st-l small.st-warn { color: var(--st-amber); font-weight: 600; }
+/* v356: פרטים לתמיכה בהפעלה שנכשלה (HTTP 500 · api_error · req_…) — שורה משלה, נשברת גם באמצע מזהה ארוך */
+.st-l small.st-ecode { display: block; margin-top: 4px; font-size: 12px; opacity: .85; overflow-wrap: anywhere; }
 .st-linkish { color: var(--primary); font-weight: 600; }
 .st-chips { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 10px 16px 2px; }
 .st-chips::-webkit-scrollbar { display: none; }
