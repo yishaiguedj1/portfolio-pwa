@@ -1,0 +1,5 @@
+mediabunny 1.61.3 (npm) — dist/bundles/mediabunny.min.mjs
+sha256 d7b3a90e82158a7022729cbd4f861daf73cbb4f69d23349d2aefc9c8281cf70c
+מקור: https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/dist/bundles/mediabunny.min.mjs · רישיון MPL-2.0 (LICENSE)
+בשימוש: studionet.js — חילוץ רצועת הקול בלי קידוד (Conversion עם video.discard) וקריאת אורך הסרטון.
+לא לעדכן אוטומטית: גרסה חדשה = לבדוק שוב חילוץ על MKV/MP4/MOV אמיתיים, ושהמסלול לא יוצר Worker מ־blob (ה־CSP חוסם).

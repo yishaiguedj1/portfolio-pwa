@@ -8,7 +8,7 @@ import { makeBook } from './vendor/foliate-js/view.js';
 import { Overlayer } from './vendor/foliate-js/overlayer.js';
 import * as CFI from './vendor/foliate-js/epubcfi.js';
 import { THINKERS, GLOSSARY, TRACKS } from './academy-data.js';
-import { createBackup, isPrivate } from './libbackup.js';
+import { createBackup, isPrivate, waitOAuthCode, oauth } from './libbackup.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 const LS_READER = 'pwa_reader_v1';
@@ -385,36 +385,12 @@ function libApi(body) {
   return fetch(base + '/api/library', { method: 'POST', headers, body: JSON.stringify(body) });
 }
 /* ---------------- v318: גיבוי הספרייה הפרטית ל־Google Drive של המשתמש (libbackup.js) ---------------- */
-let oauthCancel = null;
-function waitCode(w, url, state) {      // הקוד חוזר מ־oauth.html (אותו origin) ב־BroadcastChannel, או באחסון כגיבוי
-  return new Promise((resolve) => {
-    let bc = null, poll = 0, to = 0;
-    const done = (v) => {
-      clearInterval(poll); clearTimeout(to); oauthCancel = null;
-      try { bc && bc.close(); } catch (e) {}
-      window.removeEventListener('storage', onStore);
-      try { localStorage.removeItem('pwa_oauth_v1'); } catch (e) {}
-      resolve(v);
-    };
-    const take = (m) => { if (m && m.state === state) done({ code: m.code, error: m.error }); };
-    const fromLs = () => { try { const m = JSON.parse(localStorage.getItem('pwa_oauth_v1') || 'null'); if (m) take(m); } catch (e) {} };
-    const onStore = (e) => { if (e.key === 'pwa_oauth_v1') fromLs(); };
-    try { bc = new BroadcastChannel('snb-oauth'); bc.onmessage = (e) => take(e.data); } catch (e) {}
-    window.addEventListener('storage', onStore);
-    poll = setInterval(fromLs, 600);
-    to = setTimeout(() => done(null), 5 * 60 * 1000);
-    oauthCancel = () => done(null);
-    let win = w;
-    try { if (win && !win.closed) win.location.href = url; else win = window.open(url, 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { win = null; }
-    if (!win) done({ error: 'popup_blocked' });
-  });
-}
 const BK = createBackup({
   owner: libOwner, libApi, idToken, allBooksRaw, putBook, getFile,
   importFiles: (files, extra, out) => importFiles(files, extra, out), applyEdit, mergeAnn: (a, b) => mergeAnn(a, b),
   redirectUri: () => new URL('oauth.html', document.baseURI).href,
   openWindow: () => { try { return window.open('', 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { return null; } },
-  waitCode,
+  waitCode: waitOAuthCode,
   onAuto: () => { if (root && !rd && (ui.shelf === 'mine' || (ui.view && ui.view.backup))) renderHome(); },
 });
 const signedIn = () => { try { return !!(typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser); } catch (e) { return false; } };
@@ -1170,7 +1146,7 @@ async function renderBackup() {
       go.disabled = true; st.textContent = T('bkWaiting');
       const p = BK.connect(signedEmail());       // החלון נפתח כאן, בתוך הלחיצה
       const cancel = h('button', 'lib-admin-link', T('libCancel')); cancel.type = 'button';
-      cancel.addEventListener('click', () => { if (oauthCancel) oauthCancel(); });
+      cancel.addEventListener('click', () => { if (oauth.cancel) oauth.cancel(); });
       st.after(cancel);
       p.then(async () => {
         if (typeof flash === 'function') flash(T('bkConnected'));

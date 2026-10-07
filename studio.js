@@ -1,10 +1,15 @@
-/* סטודיו התרגום (שלב 1 מתוך התוכנית): שלד — רשימת פרויקטים, פרויקט חדש (טיוטה), הגדרות ואשף החיבור.
+/* סטודיו התרגום. שלב 1 (v354): שלד — רשימת פרויקטים, פרויקט חדש (טיוטה), הגדרות ואשף החיבור.
+   שלב 2 (v355): החיבור ל־Claude נשמר מוצפן בשרתון (אשף עם העתקה + "שמירה ובדיקה" אמיתית), עבודות בשרתון, העלאה מתחדשת
+   ל־Google Drive של המשתמש (הקול קודם, מסך דולק, "רק ב־Wi‑Fi") ומסך ההתקדמות בשפה פשוטה. כל הרשת — ב־studionet.js;
+   כאן רק הממשק (tests/studio-v354 אוכף: בלי פנייה ישירה לרשת מהקובץ הזה).
    נטען רק בלחיצה על "תרגום סרטונים" בתפריט (import דינמי מ־app.js, כמו library.js) — האפליקציה לא גדלה.
-   התרגום עצמו ירוץ בענן של Claude של המשתמש (Routine) — מהשלבים הבאים. בשלב הזה אין שום פנייה לרשת.
-   אחסון: טיוטות והגדרות ב־localStorage של החשבון (pwa_studio_v1, ב־ACCOUNT_KEYS) — רק פרטים קטנים, אף פעם לא הקובץ.
-   "חזור" של המכשיר: רשומה לכל דף — { studio: עומק, sv: דף, sp: פרמטר } (שאר השדות, כולל snb של האפליקציה, נשמרים);
-   רענון בזמן שהסטודיו פתוח חוזר לאותו דף (app.js קורא את history.state באתחול → openStudio({ restore })).
-   מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, ו־tests/studio-v354 מאמת שהוא קיים בשתי השפות. */
+   אחסון: הגדרות, טיוטות ומצב העבודות ב־localStorage של החשבון (pwa_studio_v1, ב־ACCOUNT_KEYS) — רק פרטים קטנים,
+   אף פעם לא הקובץ ואף פעם לא המפתח של ה־Routine (הוא רק בכספת בשרתון). קובץ שנבחר: ידית (File System Access) ב־IndexedDB
+   כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
+   "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
+   מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel } from './studionet.js';
+import { createBackup, waitOAuthCode } from './libbackup.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -28,10 +33,22 @@ export const OUTS = ['same', 'compact', 'mkv'];
 export const CONNS = ['sub', 'copy', 'api'];
 const TERMS_MAX = 1000;
 const COMPACT_RATIO = 0.53;   // "דחוס" ≈ חצי מהמקור (נמדד על הראיון של אקמן)
+const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
+const FID_RE = /^[A-Za-z0-9_-]{10,100}$/;
+const UPURI_RE = /^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files\?/;   // כתובת העלאה של Drive — לא שום כתובת אחרת
+const STATES = ['new', 'queued', 'running', 'done', 'failed', 'cancelled'];
+const FINAL = ['done', 'failed', 'cancelled'];
+/* החיבור ל־Claude: אותה בדיקת צורה כמו בשרתון (lib/studio.js) — כדי לענות מיד על הדבקה שגויה */
+const ROUTINE_URL_RE = /^https:\/\/api\.anthropic\.com\/v1\/claude_code\/routines\/trig_[A-Za-z0-9]{8,64}\/fire$/;
+const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
+/* מה מעתיקים בשלב 1 של האשף: הכתובות לרשת של הסביבה, וסקריפט ההתקנה (שורה אחת שמריצה את translator/setup.sh מהריפו —
+   כך מה שיתווסף בשלב 3 לא דורש הדבקה חוזרת) */
+const SETUP_LINE = 'curl -fsSL https://raw.githubusercontent.com/yishaiguedj1/portfolio-pwa/main/translator/setup.sh | bash || true';
+const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co'];
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
-  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub' };
+  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false };
 }
 function normOut(o) {
   const d = { same: true, compact: false, mkv: false };
@@ -50,6 +67,7 @@ export function normSettings(o) {
   s.out = normOut(o.out);
   if (STYLES.includes(o.style)) s.style = o.style;
   if (CONNS.includes(o.conn)) s.conn = o.conn;
+  s.wifi = o.wifi === true;
   return s;
 }
 export function normDraft(d) {
@@ -66,12 +84,47 @@ export function normDraft(d) {
     terms: String(d.terms || '').slice(0, TERMS_MAX),
   };
 }
+const num = (x) => Math.max(0, Math.floor(Number(x) || 0));
+/* עבודה (שלב 2): הפרטים ששלחנו לשרתון, מצב ההעלאה בטלפון (כתובות ההעלאה של Drive, כמה עלה) והמצב האחרון מהשרתון */
+export function normJob(j) {
+  if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
+  const sp = j.spec && typeof j.spec === 'object' ? j.spec : {};
+  const spec = {
+    name: String(sp.name || '').slice(0, 200), size: num(sp.size), type: String(sp.type || '').slice(0, 60), dur: num(sp.dur),
+    from: sp.from === 'auto' || SOURCE_LANGS.includes(sp.from) ? sp.from : 'auto', to: normTo(sp.to),
+    mode: MODES.some((m) => m.id === sp.mode) ? sp.mode : DEFAULT_MODE,
+    out: Array.isArray(sp.out) ? sp.out.filter((k, i) => OUTS.includes(k) && sp.out.indexOf(k) === i) : ['same'],
+    style: STYLES.includes(sp.style) ? sp.style : 'bold', terms: String(sp.terms || '').slice(0, TERMS_MAX),
+  };
+  const u = j.up && typeof j.up === 'object' ? j.up : {};
+  const part = (x) => {
+    x = x && typeof x === 'object' ? x : {};
+    return { done: x.done === true, id: FID_RE.test(String(x.id || '')) ? x.id : '', size: num(x.size),
+      uri: UPURI_RE.test(String(x.uri || '')) ? String(x.uri).slice(0, 2000) : '', sent: num(x.sent) };
+  };
+  const up = { folder: FID_RE.test(String(u.folder || '')) ? u.folder : '', a: part(u.a), v: part(u.v),
+    noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
+    wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took) };
+  const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
+  const s = j.srv && typeof j.srv === 'object' ? j.srv : null;
+  const srv = s ? {
+    state: STATES.includes(s.state) ? s.state : 'new', err: String(s.err || '').slice(0, 40), fired: num(s.fired), ended: num(s.ended),
+    prog: s.prog && typeof s.prog === 'object' && !Array.isArray(s.prog) ? s.prog : null,
+    sess: s.sess && typeof s.sess.url === 'string' && /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/.test(s.sess.url) ? { url: s.sess.url } : null,
+  } : null;
+  return { id: j.id, created: num(j.created), spec, up, fp, srv };
+}
 export function normStore(o) {
   const src = o && typeof o === 'object' ? o : {};
   const seen = new Set();
   const drafts = (Array.isArray(src.drafts) ? src.drafts : []).map(normDraft)
     .filter((d) => d && !seen.has(d.id) && seen.add(d.id)).slice(0, 200);
-  return { settings: normSettings(src.settings), drafts };
+  const seenJ = new Set();
+  const jobs = (Array.isArray(src.jobs) ? src.jobs : []).map(normJob)
+    .filter((j) => j && !seenJ.has(j.id) && seenJ.add(j.id)).slice(0, 100);
+  const c = src.conn && typeof src.conn === 'object' ? { hint: String(src.conn.hint || '').slice(0, 24), ok: num(src.conn.ok), since: num(src.conn.since) } : null;
+  const d = src.drive && typeof src.drive === 'object' ? { connected: src.drive.connected === true, email: String(src.drive.email || '').slice(0, 120), configured: src.drive.configured !== false } : null;
+  return { settings: normSettings(src.settings), drafts, jobs, conn: c, drive: d };
 }
 /* טיוטה מהטופס: רק פרטי הקובץ (שם, גודל, סוג) — הקובץ עצמו לא נשמר */
 export function newDraft(form, created, id) {
@@ -108,6 +161,23 @@ export function langName(code, ui) {
   try { return new Intl.DisplayNames([ui || 'he'], { type: 'language' }).of(code) || code; } catch (e) { return code; }
 }
 const nativeName = (c) => { const n = langName(c, c); return n.charAt(0).toLocaleUpperCase(c) + n.slice(1); };
+/* אותו קובץ? (המשך העלאה אחרי רענון — בוחרים שוב, ובודקים שזה באמת הוא): שם + גודל מדויק בבייטים.
+   לא תאריך השינוי — באנדרואיד קובץ מהגלריה מקבל לפעמים תאריך חדש בכל בחירה. בסוף השרתון מאמת שוב את הגודל מול Drive */
+export function sameFile(file, fp) {
+  if (!file || !fp) return false;
+  return file.name === fp.name && file.size === fp.size && fp.size > 0;
+}
+/* העבודה מנקודת המבט של המשתמש: מה קורה עכשיו (מצב השרתון + ההעלאה בטלפון) */
+export function jobPhase(rec, run) {
+  const s = rec.srv ? rec.srv.state : 'new';
+  if (s === 'done' || s === 'failed' || s === 'cancelled') return s;
+  if (run && run.active) return run.wait ? 'wait' : run.phase === 'extract' || run.phase === 'prep' ? 'extract' : run.phase === 'audio' ? 'audio' : 'video';
+  if (run && run.phase === 'error') return 'error';
+  if (s === 'queued' || s === 'running') return s;
+  const upDone = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
+  if (!upDone) return run && run.need ? 'need' : 'paused';
+  return rec.up.started ? 'queued' : 'ready';
+}
 
 /* ---------------- מחרוזות לפי מזהה (כל מפתח מילולי) ---------------- */
 function modeSub(id) {
@@ -162,12 +232,65 @@ function styleName(k) {
     default: return T('studioStyleBold');
   }
 }
+/* שלבי העבודה — שם פשוט ומשפט הסבר (מהתוכנית: "שגם ילד וגם אדם מבוגר יבינו") */
+function stageName(id, to) {
+  switch (id) {
+    case 'up': return T('studioStgUp');
+    case 'tr': return T('studioStgTr');
+    case 'al': return T('studioStgAl');
+    case 'tl': return T('studioStgTl', { lang: to });
+    case 'rv': return T('studioStgRv');
+    case 'bn': return T('studioStgBn');
+    default: return T('studioStgSv');
+  }
+}
+function stageSub(id) {
+  switch (id) {
+    case 'up': return T('studioStgUpS');
+    case 'tr': return T('studioStgTrS');
+    case 'al': return T('studioStgAlS');
+    case 'tl': return T('studioStgTlS');
+    case 'rv': return T('studioStgRvS');
+    case 'bn': return T('studioStgBnS');
+    default: return T('studioStgSvS');
+  }
+}
+/* שגיאות — משפט אחד שאומר מה קרה ומה עושים */
+function errText(code, extra) {
+  switch (code) {
+    case 'signin': case 'no_auth': return T('studioErrSignin');
+    case 'not_allowed': return T('studioErrDenied');
+    case 'net': case 'http_0': return T('studioErrNet');
+    case 'drive_full': return T('studioErrDriveFull');
+    case 'not_connected': case 'revoked': case 'drive_auth': return T('studioErrDrive');
+    case 'conn_missing': return T('studioErrConn');
+    case 'gd_not_configured': return T('studioDriveNoCfg');
+    case 'too_many': return T('studioErrTooMany');
+    case 'file_size': case 'file_bad': case 'file_missing': return T('studioErrFile');
+    case 'routine_auth': return T('studioErrRAuth');
+    case 'routine_missing': return T('studioErrRMissing');
+    case 'routine_paused': return T('studioErrRPaused');
+    case 'routine_forbidden': return T('studioErrRForbidden');
+    case 'routine_rate': return T('studioErrRRate', { m: Math.max(1, Math.ceil(((extra && extra.retry) || 3600) / 60)) });
+    case 'routine_down': case 'routine_reply': return T('studioErrRDown');
+    case 'routine_net': return T('studioErrRNet');
+    case 'no_claim': return T('studioErrNoClaim');
+    case 'budget': return T('studioErrBudget');
+    case 'wait': return T('studioErrWait', { s: Math.max(1, (extra && extra.retry) || 60) });
+    case 'worker_not_ready': return T('studioWaitWorker');
+    case 'bad_url': return T('studioErrBadUrl');
+    case 'bad_key': return T('studioErrBadKey');
+    case 'vault_not_configured': return T('studioErrVault');
+    case 'stalled': return T('studioErrNet');
+    default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
+  }
+}
 
 /* ---------------- מצב ואחסון ---------------- */
 let root = null;
 let store = normStore(null);
 let form = null;                  // טופס פרויקט חדש/עריכה — בזיכרון בין הטופס לדף בחירת השפות; נמחק ביציאה לרשימה
-const ui = { view: 'home', param: null };
+const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' } };
 const scrolls = {};               // מיקום הגלילה של כל דף — "חזור" מחזיר אליו
 
 const uiLang = () => (document.documentElement.lang === 'en' ? 'en' : 'he');
@@ -181,12 +304,15 @@ function load() {
 function save() {
   try { localStorage.setItem(LS_STUDIO, JSON.stringify(store)); return true; } catch (e) { flashSafe(T('studioSaveErr')); return false; }
 }
+let saveT = 0;                    // שמירה מרוכזת בזמן העלאה (כמה כמה שניות, לא בכל חתיכה)
+const saveSoon = () => { if (!saveT) saveT = setTimeout(() => { saveT = 0; save(); }, 3000); };
 const newId = () => 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 function freshForm(d) {
   const s = d || store.settings;
   return {
     id: d ? d.id : null,
     file: d && d.name ? { name: d.name, size: d.size, type: d.type } : null,
+    fileObj: null, handle: null,    // הקובץ עצמו — רק בזיכרון, רק עד ההתחלה
     from: d ? d.from : 'auto',
     to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style,
     terms: d ? d.terms : '',
@@ -201,6 +327,313 @@ function fileNameEl(name) {
   const b = document.createElement('bdi');
   String(name).split(/(?<=[_.\-])/).forEach((part, i) => { if (i) b.append(document.createElement('wbr')); b.append(part); });
   return b;
+}
+/* זמנים בשפה פשוטה */
+function fmtLeft(sec) {             // "55 דקות" / "שעה ו־40 דק׳" — בראש מסך ההתקדמות
+  const m = Math.round(Math.max(0, sec) / 60);
+  if (m < 1) return T('studioLt1');
+  if (m < 60) return T('studioMinLong', { m });
+  return T('studioHM', { h: Math.floor(m / 60), m: m % 60 });
+}
+function fmtShort(sec) {            // "8 דק׳" / "1:05 ש׳" — בשורות השלבים
+  const m = Math.max(1, Math.round(Math.max(0, sec) / 60));
+  return m < 60 ? T('studioMinShort', { m }) : T('studioHMShort', { t: fmtHM(m) });
+}
+function fmtClock(ms) {
+  try {
+    const o = { hour: '2-digit', minute: '2-digit' };
+    if (new Date(ms).toDateString() !== new Date().toDateString()) o.weekday = 'short';
+    return new Intl.DateTimeFormat(uiLang(), o).format(ms);
+  } catch (e) { return ''; }
+}
+/* אורך סרטון: "2:30" / "1:17:05" */
+function fmtDur(sec) {
+  const t = Math.max(0, Math.round(sec)), hh = Math.floor(t / 3600), mm = Math.floor((t % 3600) / 60), ss = String(t % 60).padStart(2, '0');
+  return hh ? hh + ':' + String(mm).padStart(2, '0') + ':' + ss : mm + ':' + ss;
+}
+const fmtDate = (ms) => { try { return new Intl.DateTimeFormat(uiLang(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(ms); } catch (e) { return ''; } };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* ---------------- רשת (studionet.js) ---------------- */
+async function idTok() {
+  try {
+    const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
+    return u ? await u.getIdToken() : '';
+  } catch (e) { return ''; }
+}
+const proxyBase = () => (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
+const net = createNet({
+  base: proxyBase,
+  headers: () => (typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {}),
+  idToken: idTok,
+  online: () => typeof navigator === 'undefined' || navigator.onLine !== false,
+});
+/* חיבור Google Drive — אותו חיבור של גיבוי הספרייה (libbackup.js); החלון נפתח בתוך הלחיצה */
+let gdc = null;
+function gd() {
+  if (!gdc) gdc = createBackup({
+    owner: () => { try { return localStorage.getItem('pwa_owner_v1') || 'local'; } catch (e) { return 'local'; } },
+    libApi: (body) => net.libApi(body), idToken: idTok,
+    redirectUri: () => new URL('oauth.html', document.baseURI).href,
+    openWindow: () => { try { return window.open('', 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { return null; } },
+    waitCode: waitOAuthCode,
+    allBooksRaw: async () => [], putBook: async () => {}, getFile: async () => null,
+  });
+  return gdc;
+}
+let statusAt = 0;
+async function refreshStatus(force) {
+  if (!force && Date.now() - statusAt < 20000) return;
+  statusAt = Date.now();
+  const j = await net.api('status');
+  if (j.ok) {
+    ui.access = 'ok'; ui.kinds = Array.isArray(j.kinds) ? j.kinds : [];
+    store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
+    store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
+    save();
+  } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
+  repaint();
+}
+let jobsAt = 0;
+async function refreshJobs(force) {
+  if (!force && Date.now() - jobsAt < 10000) return;
+  jobsAt = Date.now();
+  const j = await net.api('jobs');
+  if (!j.ok || !Array.isArray(j.jobs)) return;
+  if (Array.isArray(j.kinds)) ui.kinds = j.kinds;
+  const have = new Map(store.jobs.map((x) => [x.id, x]));
+  const ids = new Set();
+  for (const sj of j.jobs) {
+    if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
+    ids.add(sj.id);
+    const loc = have.get(sj.id);
+    if (loc) loc.srv = normJob({ id: sj.id, srv: sj }).srv;
+    else {                         // עבודה ממכשיר אחר / אחרי ניקוי — מה שכבר עלה רשום בשרתון
+      const f = sj.files || {};
+      const rec = normJob({ id: sj.id, created: sj.created, spec: sj.spec, srv: sj,
+        up: { a: { done: !!f.a, id: f.a && f.a.id, size: f.a && f.a.size }, v: { done: !!f.v, id: f.v && f.v.id, size: f.v && f.v.size } } });
+      if (rec) store.jobs.push(rec);
+    }
+  }
+  store.jobs = store.jobs.filter((x) => ids.has(x.id) || (runs.get(x.id) && runs.get(x.id).active)).sort((a, b) => b.created - a.created);
+  save();
+  repaint();
+}
+const jobRec = (id) => store.jobs.find((x) => x.id === id) || null;
+
+/* ---------------- ידיות לקבצים (File System Access) — המשך אחרי רענון בלי לבחור שוב ---------------- */
+function hdb() {
+  return new Promise((ok, no) => {
+    const r = indexedDB.open('snb-studio', 1);
+    r.onupgradeneeded = () => { try { r.result.createObjectStore('handles'); } catch (e) {} };
+    r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+  });
+}
+async function handleOp(mode, id, val) {
+  if (typeof indexedDB === 'undefined') return null;
+  try {
+    const db = await hdb();
+    return await new Promise((ok) => {
+      const tx = db.transaction('handles', mode === 'get' ? 'readonly' : 'readwrite'), os = tx.objectStore('handles');
+      const rq = mode === 'get' ? os.get(id) : mode === 'put' ? os.put(val, id) : os.delete(id);
+      rq.onsuccess = () => ok(mode === 'get' ? rq.result || null : null); rq.onerror = () => ok(null);
+    });
+  } catch (e) { return null; }
+}
+const canPickHandle = () => typeof window !== 'undefined' && typeof window.showOpenFilePicker === 'function';
+async function pickWithHandle() {
+  try {
+    const [hnd] = await window.showOpenFilePicker({ multiple: false, types: [{ description: 'Video', accept: { 'video/*': ['.mp4', '.mov', '.mkv', '.m4v', '.webm', '.avi'] } }] });
+    return { file: await hnd.getFile(), handle: hnd };
+  } catch (e) { return e && e.name === 'AbortError' ? { cancel: true } : null; }
+}
+
+/* ---------------- ההעלאה — רצה ברקע גם כשיוצאים מהסטודיו (כל עוד האפליקציה פתוחה) ---------------- */
+const runs = new Map();           // id → { active, phase, p, sent, total, rate, wait, err, need, ctl, file, t0 }
+let wl = null, wlWant = false;    // מסך דולק בזמן העלאה (אנדרואיד משהה לשוניות ברקע)
+async function wakeOn() {
+  wlWant = true;
+  if (wl || typeof navigator === 'undefined' || !navigator.wakeLock || document.visibilityState !== 'visible') return;
+  try { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } catch (e) { wl = null; }
+}
+function wakeOffIfIdle() {
+  if ([...runs.values()].some((r) => r.active)) return;
+  wlWant = false;
+  try { if (wl) wl.release(); } catch (e) {}
+  wl = null;
+}
+const isCellular = () => { try { return !!navigator.connection && navigator.connection.type === 'cellular'; } catch (e) { return false; } };
+const typeKnown = () => { try { return !!navigator.connection && typeof navigator.connection.type === 'string'; } catch (e) { return false; } };
+function waitChange(ms) {
+  return new Promise((res) => {
+    let done = false;
+    const c = typeof navigator !== 'undefined' ? navigator.connection : null;
+    const fin = () => {
+      if (done) return; done = true; clearTimeout(tm);
+      window.removeEventListener('online', fin); window.removeEventListener('offline', fin);
+      try { if (c) c.removeEventListener('change', fin); } catch (e) {}
+      res();
+    };
+    const tm = setTimeout(fin, ms);
+    window.addEventListener('online', fin); window.addEventListener('offline', fin);
+    try { if (c) c.addEventListener('change', fin); } catch (e) {}
+  });
+}
+/* עוצרים כשאין רשת, או כשבחרו "רק ב־Wi‑Fi" והחיבור סלולרי — וממשיכים לבד כשזה משתנה */
+async function gate(run) {
+  for (;;) {
+    if (run.ctl.signal.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    const why = navigator.onLine === false ? 'offline' : store.settings.wifi && isCellular() ? 'wifi' : '';
+    if (run.wait !== why) { run.wait = why; paintSoon(); }
+    if (!why) return;
+    await waitChange(5000);
+  }
+}
+function tickRate(run, bytes) {
+  const now = Date.now();
+  if (!run.rs || bytes < run.rs.b) { run.rs = { t: now, b: bytes }; return; }
+  const dt = (now - run.rs.t) / 1000;
+  if (dt >= 2) { const r = (bytes - run.rs.b) / dt; run.rate = run.rate ? run.rate * 0.65 + r * 0.35 : r; run.rs = { t: now, b: bytes }; }
+}
+const isAbortErr = (e) => !!e && (e.name === 'AbortError' || e.code === 'aborted');
+async function register(id, which, fid, folder) {
+  const j = await net.api('file', { job: id, which, id: fid, folder });
+  if (!j.ok) throw Object.assign(new Error(j.error || 'file'), { code: j.error || 'file' });
+  const rec = jobRec(id); if (rec && j.job) rec.srv = normJob({ id, srv: j.job }).srv;
+}
+/* "התחלה": השרתון מפעיל את ה־Routine. בשלב 2 העובד יודע רק "בדיקת חיבור" — התשובה worker_not_ready והעבודה ממתינה */
+async function tryStart(id) {
+  const rec = jobRec(id); if (!rec || rec.up.started) return;
+  const j = await net.api('start', { job: id });
+  if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
+  if (j.ok) { rec.up.started = Date.now(); rec.up.wait = ''; }
+  else rec.up.wait = String(j.error || 'failed').slice(0, 40);
+  save(); paintSoon();
+}
+function startRun(id, file) {
+  const prev = runs.get(id);
+  if (prev && prev.active) return;
+  const run = { active: true, phase: 'prep', p: 0, sent: 0, total: 0, rate: 0, wait: '', err: '', need: false, file, t0: Date.now(), ctl: new AbortController() };
+  runs.set(id, run);
+  runJob(id, run);
+}
+async function runJob(id, run) {
+  const rec = jobRec(id);
+  if (!rec) { run.active = false; return; }
+  const up = rec.up, file = run.file, sig = run.ctl.signal;
+  wakeOn(); paintSoon();
+  try {
+    if (!up.folder) { up.folder = await net.jobFolder(id, fileTitle(rec.spec.name)); save(); }
+    // 1. הקול — מחולץ בטלפון בלי קידוד ועולה ראשון (Claude מתחיל לעבוד בזמן שהסרטון עולה)
+    if (!up.a.done && !up.noAudio) {
+      run.phase = 'extract'; run.p = 0; paintSoon();
+      let ex;
+      try { ex = await extractAudio(file, { onProgress: (p) => { run.p = p; paintSoon(); }, signal: sig }); }
+      catch (e) { if (isAbortErr(e)) throw e; ex = { none: 'extract' }; }
+      if (ex.none) { up.noAudio = ex.none; save(); }
+      else {
+        const size = ex.blob.size;
+        run.phase = 'audio'; run.p = 0; run.sent = 0; run.total = size; run.rs = null; paintSoon();
+        const f = await net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
+          meta: { name: fileTitle(rec.spec.name) + ' — ' + T('studioAudioFile') + '.' + ex.ext, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'a' } },
+          onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); },
+          onWait: () => paintSoon() });
+        await register(id, 'a', f.id, up.folder);
+        up.a = { done: true, id: f.id, size: Number(f.size) || size, uri: '', sent: size };
+        up.took = Math.round((Date.now() - run.t0) / 1000);
+        save();
+      }
+    }
+    if (up.a.done) await tryStart(id);
+    // 2. הסרטון המלא — אותו קובץ בדיוק (השרתון מאמת את הגודל מול Drive)
+    if (!up.v.done) {
+      run.phase = 'video'; run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; run.rs = null; paintSoon();
+      const f = await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: () => gate(run),
+        uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); },
+        meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
+        onProgress: (b) => { up.v.sent = b; run.sent = b; run.p = b / file.size; tickRate(run, b); paintSoon(); saveSoon(); },
+        onWait: () => paintSoon() });
+      await register(id, 'v', f.id, up.folder);
+      up.v = { done: true, id: f.id, size: Number(f.size) || file.size, uri: '', sent: file.size };
+      if (!up.took) up.took = Math.round((Date.now() - run.t0) / 1000);
+      save();
+      handleOp('del', id);
+    }
+    if (!up.started) await tryStart(id);
+    run.phase = 'done'; run.file = null;
+  } catch (e) {
+    if (isAbortErr(e)) run.phase = 'paused';
+    else { run.phase = 'error'; run.err = e.code || e.message || 'error'; }
+  } finally {
+    run.active = false; run.wait = '';
+    save(); wakeOffIfIdle(); repaint();
+  }
+}
+function stopRun(id) { const r = runs.get(id); if (r && r.active) r.ctl.abort(); }
+/* המשך אחרי רענון / עצירה: הקובץ מהזיכרון, מהידית השמורה, או שמבקשים לבחור שוב (ובודקים שזה אותו קובץ) */
+async function resumeJob(id, byUser) {
+  const rec = jobRec(id); if (!rec) return;
+  const run = runs.get(id);
+  let file = run && run.file;
+  if (!file) {
+    const hnd = await handleOp('get', id);
+    if (hnd && typeof hnd.getFile === 'function') {
+      try {
+        let perm = typeof hnd.queryPermission === 'function' ? await hnd.queryPermission({ mode: 'read' }) : 'granted';
+        if (perm !== 'granted' && byUser && typeof hnd.requestPermission === 'function') perm = await hnd.requestPermission({ mode: 'read' });
+        if (perm === 'granted') file = await hnd.getFile();
+      } catch (e) {}
+    }
+  }
+  if (!file || !sameFile(file, rec.fp)) {
+    if (file && byUser) flashSafe(T('studioWrongFile'));
+    runs.set(id, Object.assign(run || {}, { active: false, need: true, phase: 'need' }));
+    repaint();
+    return;
+  }
+  startRun(id, file);
+}
+function repickFor(id) {           // "בחרו שוב את הסרטון" — אותו קובץ בדיוק, וממשיכים מאיפה שעצרנו
+  const rec = jobRec(id); if (!rec) return;
+  const go2 = (file, handle) => {
+    if (!sameFile(file, rec.fp)) { flashSafe(T('studioWrongFile')); return; }
+    if (handle) handleOp('put', id, handle);
+    startRun(id, file);
+  };
+  if (canPickHandle()) { pickWithHandle().then((r) => { if (r && r.file) go2(r.file, r.handle); else if (!r) pickInput(go2); }); return; }
+  pickInput(go2);
+}
+function pickInput(cb) {
+  const inp = document.createElement('input'); inp.type = 'file';
+  inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
+  inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) cb(f, null); });
+  inp.click();
+}
+
+/* ---------------- בדיקת חיבור: הפעלה אמיתית של ה־Routine + המתנה ש־Claude יענה ---------------- */
+let testRun = null;               // { st: fire|wait|ok|err, job, sess, err, retry, drive, claimed }
+async function runTest() {
+  if (testRun && (testRun.st === 'fire' || testRun.st === 'wait')) return;
+  testRun = { st: 'fire' }; repaint();
+  const j = await net.api('test');
+  if (!j.ok) { testRun = { st: 'err', err: j.error || 'failed', retry: j.retry || 0, sess: j.job && j.job.sess ? j.job.sess.url : '' }; repaint(); return; }
+  const me = testRun = { st: 'wait', job: j.job.id, sess: j.job.sess ? j.job.sess.url : '', t0: Date.now() };
+  repaint();
+  for (let i = 0; i < 120 && testRun === me; i++) {        // עד כ־7 דקות (סשן חדש עולה בדקה–שתיים)
+    await sleep(i < 30 ? 3000 : 6000);
+    if (testRun !== me) return;
+    const r = await net.api('job', { job: me.job });
+    if (!r.ok || !r.job) continue;
+    if (r.job.state === 'done') {
+      const drive = !!(r.job.prog && r.job.prog.ck && r.job.prog.ck.drive);
+      testRun = drive ? null : { st: 'ok', drive, sess: me.sess };   // הכל תקין — הודעה קצרה, והשורה "נבדק" מתעדכנת
+      if (drive) flashSafe(T('studioTestOk'));
+      statusAt = 0; refreshStatus(true); break;
+    }
+    if (r.job.state === 'failed' || r.job.state === 'cancelled') { testRun = { st: 'err', err: r.job.err || 'failed', sess: me.sess }; break; }
+    if (r.job.state === 'running' && !me.claimed) { me.claimed = true; repaint(); }
+  }
+  repaint();
 }
 
 /* ---------------- "חזור" ---------------- */
@@ -230,19 +663,34 @@ export function chainFor(v, p) {
   return out;
 }
 
+function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
+  if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
+}
 function go(view, param) {
   if (!root) return;
   const p = param == null ? null : param;
   scrolls[viewKey()] = root.scrollTop;
+  leaving();
   ui.view = view; ui.param = p;
   if (CW_OK) { stack.push({ v: view, p }); syncState(); }
   else afterBack(() => { try { history.pushState(cleanState({ studio: depth() + 1, sv: view, sp: p }), ''); } catch (e) {} });
+  render('push');
+}
+/* במקום הדף הנוכחי (מהטופס לדף ההתקדמות) — "חזור" משם חוזר לרשימה, לא לטופס */
+function replaceView(view, param) {
+  if (!root) return;
+  const p = param == null ? null : param;
+  leaving();
+  ui.view = view; ui.param = p;
+  if (CW_OK) { stack = [{ v: 'home', p: null }, { v: view, p }]; syncState(); }
+  else afterBack(() => { try { if (root && history.state && history.state.studio) history.replaceState(cleanState({ studio: depth(), sv: view, sp: p }), ''); } catch (e) {} });
   render('push');
 }
 function back() {
   if (!root) return;
   if (CW_OK && stack.length > 1) {
     scrolls[viewKey()] = root.scrollTop;
+    leaving();
     stack.pop();
     const top = stack[stack.length - 1];
     ui.view = top.v; ui.param = top.p;
@@ -277,6 +725,7 @@ function onPop(e) {
   if (!st.studio) { closeStudio(uaT); appToOverview(); return; }
   if (CW_OK) return;                       // עם CloseWatcher הדפים לא ברשומות (כאן רק "קדימה" חזרה לרשומה שלנו)
   scrolls[viewKey()] = root.scrollTop;
+  leaving();
   ui.view = st.sv || 'home'; ui.param = st.sp == null ? null : st.sp;
   render('pop', uaT);
 }
@@ -307,6 +756,12 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   out: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
+  cloud: '<path d="M7 18.5h10.2a4.3 4.3 0 0 0 .5-8.6A6 6 0 0 0 6.2 9.3 4.6 4.6 0 0 0 7 18.5z"/>',
+  up: '<path d="M12 19V7M7 11.5l5-5 5 5"/>',
+  wifi: '<path d="M4.5 9.5a11 11 0 0 1 15 0M7.5 12.8a6.6 6.6 0 0 1 9 0"/><circle cx="12" cy="16.5" r="1.4" fill="currentColor" stroke="none"/>',
+  pause: '<path d="M9 6.5v11M15 6.5v11"/>',
+  alert: '<path d="M12 4.5l8.5 15h-17z"/><path d="M12 10v4.2"/><circle cx="12" cy="16.9" r=".9" fill="currentColor" stroke="none"/>',
+  x: '<path d="M7 7l10 10M17 7L7 17"/>',
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -324,6 +779,16 @@ function btn(cls, label, onClick, k) {
   if (onClick) b.addEventListener('click', onClick);
   return b;
 }
+/* קישור החוצה (claude.ai, Drive) — תמיד בלשונית חדשה ובלי גישה חזרה לאפליקציה */
+function extLink(cls, href, label, icon, k) {
+  const a = h('a', cls); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  if (k) a.dataset.k = k;
+  if (icon) a.append(ico(icon));
+  a.append(h('span', null, label));
+  return a;
+}
+/* עדכון במקום (התקדמות, זמנים) — בלי לבנות את הדף מחדש בכל רגע, כדי שנגיעה בכפתור לא "תיפול" בין שני ציורים */
+function live(el, fn) { el.dataset.live = '1'; el._live = fn; fn(el); return el; }
 /* סרגל עליון: חזרה (חץ + שם הדף הקודם) או "ביטול", כותרת קטנה באמצע, ופעולה בצד השני */
 function navBar(o) {
   const bar = h('div', 'st-nav');
@@ -372,11 +837,46 @@ function rowRadio(o) {
   if (o.badge) r.append(h('span', 'st-badge gray', o.badge));
   return r;
 }
+/* שורה עם מתג (כן/לא) */
+function rowSwitch(o) {
+  const r = btn('st-row', null, o.onClick, o.k);
+  r.setAttribute('role', 'switch'); r.setAttribute('aria-checked', o.on ? 'true' : 'false');
+  r.append(rowTxt(o.label, o.sub), h('span', 'st-sw' + (o.on ? ' on' : '')));
+  return r;
+}
 function kvRow(k, v, iso) {
   const r = h('div', 'st-row st-kvrow');
   const val = h('span', 'st-v'); if (iso) val.append(typeof v === 'string' ? h('bdi', null, v) : v); else val.textContent = v;
   r.append(h('span', 'st-k', k), val);
   return r;
+}
+/* הודעה בראש דף: התחברות, הרשאה, רשת. פעולות שדורשות את השרתון כבויות רק כשבטוח שלא יעבדו (לא מחובר / לא מורשה) */
+const blocked = () => ui.access === 'signin' || ui.access === 'denied';
+function banner(kind, txt, action) {
+  const b = h('div', 'st-banner ' + kind);
+  b.append(ico(kind === 'warn' ? 'alert' : 'cloud'), h('span', null, txt));
+  if (action) b.append(action);
+  return b;
+}
+function accessBanner() {
+  if (ui.access === 'signin') return banner('warn', T('studioErrSignin'));
+  if (ui.access === 'denied') return banner('warn', T('studioErrDenied'));
+  if (ui.access === 'offline') return banner('info', T('studioOffline'));
+  if (ui.access === 'error') return banner('info', T('studioErrServer'));
+  return null;
+}
+async function copyText(txt, okMsg) {
+  try { await navigator.clipboard.writeText(txt); flashSafe(okMsg || T('studioCopied')); return true; }
+  catch (e) { flashSafe(T('studioCopyFail')); return false; }
+}
+/* קופסת טקסט להעתקה (כתובות, סקריפט, הנחיה) — הטקסט גלוי, והכפתור מעתיק */
+function copyBox(txt, label, k, prose) {
+  const wrap = h('div', 'st-copybox');
+  const pre = h('div', 'st-code' + (prose ? ' prose' : ''), txt); pre.dir = 'auto';
+  const b = btn('st-wbtn', null, () => copyText(txt), k);
+  b.append(ico('copy'), h('span', null, label));
+  wrap.append(pre, b);
+  return wrap;
 }
 
 /* בורר מצב התרגום — כרטיס המצב הנבחר (המומלץ בולט) + שתי קבוצות מאמץ + שורת המבחן */
@@ -443,22 +943,135 @@ function toggleLang(target, c, persist) {
   render('none');
 }
 
+/* ---------------- התקדמות (מודל משותף לרשימה ולמסך ההתקדמות) ---------------- */
+function upState(rec, run) {      // ההעלאה בטלפון במונחים של "השלב הראשון" (הקול) + הסרטון המלא בנפרד
+  const up = rec.up, dur = rec.spec.dur || 0;
+  const aDone = up.a.done || !!up.noAudio && up.v.done;
+  const active = !!(run && run.active && (run.phase === 'prep' || run.phase === 'extract' || run.phase === 'audio' || (up.noAudio && run.phase === 'video')));
+  let p = 0, left = 0;
+  const rate = (run && run.rate) || 0;
+  const audioBytes = up.a.size || Math.max(1, dur) * 16000;       // כ־128kbps — בערך מה שיוצא מראיון
+  if (run && run.phase === 'extract') { p = 0.25 * (run.p || 0); left = (1 - (run.p || 0)) * Math.max(10, dur * 0.004) + audioBytes / (rate || 1.5e6); }
+  else if (run && run.phase === 'audio') { p = 0.25 + 0.75 * (run.p || 0); left = Math.max(0, (run.total || audioBytes) - (run.sent || 0)) / (rate || 1.5e6); }
+  else if (run && run.phase === 'video' && up.noAudio) { p = run.p || 0; left = Math.max(0, rec.spec.size - (run.sent || 0)) / (rate || 1.5e6); }
+  return { active, done: aDone, p, left: Math.round(left), took: up.took, est: Math.max(30, Math.round(audioBytes / 1.5e6) + 20) };
+}
+function modelFor(rec) {
+  const run = runs.get(rec.id);
+  const est = stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0);
+  return progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog }, est, upState(rec, run), Date.now());
+}
+function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לשנייה · נשארו 8 דק׳"
+  const sent = run && run.phase === 'video' ? run.sent || 0 : rec.up.v.sent || 0, size = rec.spec.size;
+  const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
+  if (run && run.active && run.phase === 'video' && run.rate > 0) {
+    parts.push(T('studioPerSec', { v: fmtSize(run.rate) }));
+    parts.push(T('studioStageLeft', { t: fmtShort(Math.max(0, size - sent) / run.rate) }));
+  }
+  return parts.join(' · ');
+}
+/* העלאה שלא התחילה עבודה (העובד עוד לא מוכן / Claude לא מחובר): הראש מראה את ההעלאה, לא זמן תרגום שלא יקרה עכשיו */
+function uploadLeft(rec, run) {
+  const rate = (run && run.rate) || 1.5e6, up = rec.up, dur = rec.spec.dur || 0;
+  const aBytes = up.a.size || Math.max(1, dur) * 16000;
+  let left = 0, done = 0, all = rec.spec.size + (up.noAudio ? 0 : aBytes);
+  if (!up.noAudio) {
+    if (up.a.done) done += aBytes;
+    else if (run && run.phase === 'audio') { done += run.sent || 0; left += Math.max(0, (run.total || aBytes) - (run.sent || 0)) / rate; }
+    else left += aBytes / rate + (run && run.phase === 'extract' ? (1 - (run.p || 0)) * Math.max(10, dur * 0.004) : 0);
+  }
+  const vs = up.v.done ? rec.spec.size : run && run.phase === 'video' ? run.sent || 0 : up.v.sent || 0;
+  done += vs; left += Math.max(0, rec.spec.size - vs) / rate;
+  return { left: Math.round(left), pct: Math.max(0, Math.min(1, done / Math.max(1, all))), done, all };
+}
+function heroState(rec, run, ph) {
+  const m = modelFor(rec);
+  if (ph === 'done') return { pct: 1, check: true, big: T('studioNowDone'), sub: '' };
+  if (ph === 'failed' || ph === 'cancelled') return { pct: m.pct, big: ph === 'failed' ? T('studioBFailed') : T('studioBCancelled'), sub: '' };
+  if (ph === 'ready') return { pct: 1, check: true, big: T('studioReadyBig'),
+    sub: rec.up.wait === 'worker_not_ready' ? T('studioWaitWorkerS') : rec.up.wait === 'conn_missing' ? T('studioNeedConnS') : T('studioTotalEst', { t: fmtLeft(m.left) }) };
+  const u = uploadLeft(rec, run);
+  // ההעלאה עצרה / מחכה — בלי "נשארו בערך": מה שנשאר תלוי בחזרה של הרשת או בבחירה מחדש
+  if (ph === 'need' || ph === 'paused' || ph === 'error') return { pct: u.pct, big: T('studioUpStopBig'), sub: T('studioUpOf', { a: fmtSize(u.done), b: fmtSize(u.all) }) };
+  if (ph === 'wait') return { pct: u.pct, big: T('studioUpWaitBig'), sub: T('studioUpOf', { a: fmtSize(u.done), b: fmtSize(u.all) }) };
+  const parked = (!rec.srv || rec.srv.state === 'new') && !rec.up.started;
+  if (parked) return { pct: u.pct, big: T('studioLeftBig', { t: fmtLeft(u.left) }), sub: T('studioUpLeftS') };
+  return { pct: m.pct, big: T('studioLeftBig', { t: fmtLeft(m.left) }), sub: T('studioReadyAt', { t: fmtClock(Date.now() + m.left * 1000) }) };
+}
+/* מה קורה עכשיו — משפט אחד */
+function nowLine(rec, run, ph) {
+  if (ph === 'wait') return run.wait === 'wifi' ? T('studioWaitWifi') : T('studioWaitNet');
+  if (ph === 'extract') return T('studioNowExtract');
+  if (ph === 'audio') return T('studioNowAudio');
+  if (ph === 'video') return rec.up.noAudio ? T('studioNowVideoOnly') : T('studioNowVideo');
+  if (ph === 'need') return T('studioNeedFile');
+  if (ph === 'paused') return T('studioPausedNow');
+  if (ph === 'error') return errText(run.err);
+  if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
+  if (ph === 'queued') return T('studioNowQueued');
+  if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
+  if (ph === 'done') return T('studioNowDone');
+  if (ph === 'failed') return errText(rec.srv && rec.srv.err);
+  return T('studioNowCancelled');
+}
+function badgeFor(ph) {
+  switch (ph) {
+    case 'extract': case 'audio': case 'video': return ['green', T('studioBUp')];
+    case 'wait': case 'need': case 'paused': return ['amber', T('studioBPaused')];
+    case 'error': case 'failed': return ['red', T('studioBFailed')];
+    case 'ready': return ['gray', T('studioBReady')];
+    case 'queued': case 'running': return ['green', T('studioBRunning')];
+    case 'done': return ['green', T('studioBDone')];
+    default: return ['gray', T('studioBCancelled')];
+  }
+}
+
 /* ---------------- דפים ---------------- */
 function pageHome(p) {
-  const pill = btn('st-cpill', null, () => go('settings'), 'cpill');
-  pill.append(h('i'), h('span', null, T('studioConnPill')));
+  const pill = btn('st-cpill' + (store.conn ? ' on' : ''), null, () => go('settings'), 'cpill');
+  pill.append(h('i'), h('span', null, store.conn ? T('studioConnOn') : T('studioConnPill')));
   p.append(navBar({ back: 'THE SNOWBALL', end: pill }), large(T('studioTitle')));
+  const ab = accessBanner(); if (ab) p.append(ab);
   const nc = btn('st-newcard', null, () => { form = freshForm(null); go('new'); }, 'new');
   const plus = h('span', 'st-plus'); plus.append(ico('plus'));
   nc.append(plus, rowTxt(T('studioNew'), T('studioNewSub')));
   p.append(nc);
-  if (!store.drafts.length) {
+  if (!store.drafts.length && !store.jobs.length) {
     const e = h('div', 'st-empty');
     const ic = h('span', 'st-empty-ic'); ic.append(ico('film'));
     e.append(ic, h('b', null, T('studioEmptyT')), h('p', null, T('studioEmptyS')));
     p.append(e);
     return;
   }
+  if (store.jobs.length) {
+    const rows = store.jobs.map((rec) => {
+      const r = btn('st-proj', null, () => go('job', rec.id), 'j:' + rec.id);
+      const th = h('span', 'st-thumb'); th.append(ico('film'));
+      const bar = h('span', 'st-tprog'); const bi = h('i'); bar.append(bi); th.append(bar);
+      const info = h('span', 'st-pinfo');
+      const nm = h('b'); nm.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
+      const stat = h('span', 'st-pstat');
+      const bd = h('span', 'st-badge'); const tx = h('span', 'st-ptx');
+      stat.append(bd, tx);
+      const sm = h('small'); sm.append(langsText(rec.spec.from, rec.spec.to) + ' · ', h('bdi', 'st-nw', modeShort(modeById(rec.spec.mode))));
+      info.append(nm, sm, stat);
+      r.append(th, info);
+      live(r, () => {             // אחוז ומצב — מתעדכנים במקום
+        const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
+        const [c, l] = badgeFor(ph);
+        bd.className = 'st-badge ' + c; bd.textContent = l;
+        const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
+        tx.textContent = upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
+          : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(m.left) }) : '';
+        const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : m.pct;
+        bar.hidden = FINAL.includes(ph) || ph === 'ready';
+        bi.style.width = Math.round(100 * pct) + '%';
+      });
+      return r;
+    });
+    p.append(secT(T('studioSecJobs')), list(...rows));
+  }
+  if (!store.drafts.length) return;
   const rows = store.drafts.map((d) => {
     const r = btn('st-proj', null, () => go('project', d.id), 'p:' + d.id);
     const th = h('span', 'st-thumb'); th.append(ico('film'));
@@ -487,27 +1100,27 @@ function pageForm(p, editing) {
   saveTop.disabled = !f.file;
   p.append(navBar({ cancel: T('studioCancel'), title: editing ? T('studioEditT') : T('studioNew'), end: saveTop }));
 
-  // הסרטון — מהטלפון; נשמרים רק השם, הגודל והסוג
+  // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
-  inp.addEventListener('change', () => {
-    const file = inp.files && inp.files[0];
-    if (!file) return;
-    f.file = { name: file.name, size: file.size, type: file.type || '' };
-    render('none');
-  });
+  const took = (file, handle) => { f.fileObj = file; f.handle = handle || null; f.file = { name: file.name, size: file.size, type: file.type || '' }; render('none'); };
+  inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
+  const pick = () => {
+    if (canPickHandle()) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
+    inp.click();
+  };
   let card;
   if (f.file) {
-    card = btn('st-filecard', null, () => inp.click(), 'file');
+    card = btn('st-filecard', null, pick, 'file');
     card.setAttribute('aria-label', T('studioReplace') + ': ' + f.file.name);
     const th = h('span', 'st-thumb'); th.append(ico('film'));
     const txt = h('span', 'st-l');
     const nm = h('b'); nm.append(fileNameEl(f.file.name));
     const sz = h('small'); sz.append(fmtSize(f.file.size) + ' · ', h('span', 'st-linkish', T('studioReplace')));
-    txt.append(nm, sz, h('small', 'st-ok', T('studioPhoneOnly')));
+    txt.append(nm, sz, f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
     card.append(th, txt);
   } else {
-    card = btn('st-newcard pick', null, () => inp.click(), 'file');
+    card = btn('st-newcard pick', null, pick, 'file');
     const plus = h('span', 'st-plus'); plus.append(ico('film'));
     card.append(plus, rowTxt(T('studioPick'), T('studioNewSub')));
   }
@@ -543,10 +1156,13 @@ function pageForm(p, editing) {
   p.append(secT(T('studioSecOut')), outRows(f.out, f.file ? f.file.size : 0, (k) => { f.out[k] = !f.out[k]; render('none'); }));
   p.append(secT(T('studioSecStyle')), stylePicker(f.style, (k) => { f.style = k; render('none'); }));
 
-  // שמירה — בשלב הזה כטיוטה; התרגום ייפתח עם החיבור ל־Claude
-  const saveBtn = btn('st-btn wide', T('studioSaveDraft'), saveForm, 'save');
+  // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
+  const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioStart'), startFromForm, 'start');
+  startBtn.disabled = !f.fileObj || ui.starting;
+  const saveBtn = btn('st-btn tint wide', T('studioSaveDraft'), saveForm, 'save');
   saveBtn.disabled = !f.file;
-  p.append(h('div', 'st-gap'), saveBtn, note(f.file ? T('studioPhase2') : T('studioPickFirst')));
+  p.append(h('div', 'st-gap'), startBtn, h('div', 'st-gap sm'), saveBtn,
+    note(!f.file ? T('studioPickFirst') : !f.fileObj ? T('studioRepickNote') : T('studioStartNote')));
 }
 function saveForm() {
   const f = form;
@@ -560,6 +1176,37 @@ function saveForm() {
   flashSafe(T('studioSaved'));
   form = null;
   back();
+}
+/* "התחלה" מהטופס: התחברות + Drive מחובר → קריאה מהירה של הסרטון (אורך) → עבודה בשרתון → מסך ההתקדמות + ההעלאה */
+function startFromForm() {
+  const f = form;
+  if (!f || !f.fileObj || ui.starting) return;
+  if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
+  if (!store.drive || !store.drive.connected) {
+    if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
+    else connectDrive();
+    return;
+  }
+  ui.starting = true; render('none');
+  (async () => {
+    const file = f.fileObj;
+    const pr = await probeVideo(file);
+    const spec = { name: file.name, size: file.size, type: file.type || '', dur: pr.dur || 0, from: f.from, to: f.to,
+      mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
+    const j = await net.api('create', { spec });
+    ui.starting = false;
+    if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
+      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 }, up: {} });
+    store.jobs.unshift(rec);
+    if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
+    save();
+    if (f.handle) handleOp('put', rec.id, f.handle);
+    form = null;
+    if (!root) { startRun(rec.id, file); return; }
+    replaceView('job', rec.id);
+    startRun(rec.id, file);
+  })();
 }
 
 function pageLang(p) {
@@ -590,7 +1237,6 @@ function pageProject(p) {
   const t1 = h('h1', 'st-large clamp'); t1.append(h('bdi', null, d.name ? fileTitle(d.name) : T('studioUntitled')));
   const tag = h('div', 'st-ptag'); tag.append(h('span', 'st-badge gray', T('studioPhoneDraft')));
   p.append(t1, tag);
-  const fmtDate = (ms) => { try { return new Intl.DateTimeFormat(uiLang(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(ms); } catch (e) { return ''; } };
   p.append(list(
     kvRow(T('studioFile'), (() => { const s2 = h('span'); s2.append(fileNameEl(d.name || '—')); if (d.size) s2.append(' · ' + fmtSize(d.size)); return s2; })(), true),
     kvRow(T('studioSecLangs'), langsText(d.from, d.to)),
@@ -599,7 +1245,7 @@ function pageProject(p) {
     kvRow(T('studioSecStyle'), styleName(d.style)),
     d.terms ? kvRow(T('studioTermsK'), d.terms, true) : null,
     kvRow(T('studioCreated'), fmtDate(d.created))));
-  const edit = btn('st-btn tint wide', T('studioEdit'), () => { form = freshForm(d); go('edit', d.id); }, 'edit');
+  const start = btn('st-btn wide', T('studioStartDraft'), () => { form = freshForm(d); go('edit', d.id); }, 'edit');
   const del = btn('st-btn danger wide', T('studioDelete'), () => {
     const doDel = () => {
       store.drafts = store.drafts.filter((x) => x.id !== d.id);
@@ -610,24 +1256,243 @@ function pageProject(p) {
     if (typeof askConfirm === 'function') askConfirm(T('studioDeleteQ'), doDel, { danger: true, ok: T('studioDeleteOk') });
     else doDel();
   }, 'delete');
-  p.append(h('div', 'st-gap'), edit, h('div', 'st-gap sm'), del, note(T('studioPhase2')));
+  p.append(h('div', 'st-gap'), start, h('div', 'st-gap sm'), del, note(T('studioDraftNote')));
 }
 
+/* מסך ההתקדמות — "שגם ילד וגם אדם מבוגר יבינו": כמה נשאר, מתי יהיה מוכן, מה קורה עכשיו, ולכל שלב זמן */
+function pageJob(p) {
+  const rec = jobRec(ui.param);
+  if (!rec) { back(); return; }
+  const id = rec.id;
+  p.append(navBar({ back: T('studioShort') }));
+  const t1 = h('h1', 'st-large clamp'); t1.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
+  p.append(t1);
+  const ab = accessBanner(); if (ab) p.append(ab);
+  const run0 = runs.get(id), ph0 = jobPhase(rec, run0);
+  const toTxt = langsSum(rec.spec.to);
+
+  // למעלה: טבעת + "נשארו בערך…" + "יהיה מוכן בסביבות…"
+  const hero = h('div', 'st-hero');
+  const ring = h('span', 'st-ring');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 64 64'); svg.setAttribute('aria-hidden', 'true');
+  const mk = (cls) => { const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.setAttribute('cx', '32'); c.setAttribute('cy', '32'); c.setAttribute('r', '27'); c.setAttribute('class', cls); return c; };
+  const track = mk('trk'), arc = mk('arc');
+  svg.append(track, arc);
+  const pctEl = h('b');
+  ring.append(svg, pctEl);
+  const ht = h('span', 'st-hero-t');
+  const big = h('span', 'st-left-big'), sub = h('span', 'st-left-sub');
+  ht.append(big, sub);
+  hero.append(ring, ht);
+  live(hero, () => {
+    const r = jobRec(id); if (!r) return;
+    const run = runs.get(id), ph = jobPhase(r, run), hs = heroState(r, run, ph);
+    arc.style.strokeDashoffset = String(Math.round(170 * (1 - hs.pct)));
+    pctEl.textContent = hs.check ? '✓' : Math.round(hs.pct * 100) + '%';
+    big.textContent = hs.big; sub.textContent = hs.sub; sub.hidden = !hs.sub;
+  });
+  p.append(hero);
+
+  // מה קורה עכשיו — משפט אחד + דוגמה חיה
+  const nowc = h('div', 'st-nowc');
+  const nic = h('span', 'st-nowic');
+  nic.append(ico(ph0 === 'wait' ? (run0 && run0.wait === 'wifi' ? 'wifi' : 'cloud') : ph0 === 'error' || ph0 === 'failed' ? 'alert' : ph0 === 'need' || ph0 === 'paused' ? 'pause' : 'up'));
+  const ntx = h('span', 'st-l'); const nb = h('b'), ns = h('small');
+  const npb = h('span', 'st-pbar'); const npi = h('i'); npb.append(npi);
+  ntx.append(nb, ns, npb);
+  nowc.append(nic, ntx);
+  live(nowc, () => {
+    const r = jobRec(id); if (!r) return;
+    const run = runs.get(id), ph = jobPhase(r, run);
+    nb.textContent = nowLine(r, run, ph);
+    const ex = r.srv && r.srv.prog && r.srv.prog.ex;
+    ns.textContent = ph === 'extract' ? Math.round(100 * (run.p || 0)) + '%'
+      : ph === 'audio' ? T('studioUpOf', { a: fmtSize(run.sent || 0), b: fmtSize(run.total || 0) })
+      : ph === 'video' ? videoLine(r, run) : ph === 'running' && ex ? ex : '';
+    ns.hidden = !ns.textContent;
+    const up = ph === 'extract' || ph === 'audio' || ph === 'video';
+    npb.hidden = !up;
+    if (up) npi.style.width = Math.round(100 * (run.p || 0)) + '%';
+  });
+  // "מוכן" שרק מחכה לעדכון הבא / לחיבור — הראש כבר אומר את זה; בלי כרטיס כפול
+  const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
+  if (!quiet) p.append(nowc);
+  // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
+  const acts = [];
+  if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
+  else if (ph0 === 'paused' || ph0 === 'error') acts.push(btn('st-btn wide', ph0 === 'error' ? T('studioRetry') : T('studioResume'), () => resumeJob(id, true), 'resume'));
+  else if (ph0 === 'ready' && rec.up.wait === 'conn_missing') acts.push(btn('st-btn wide', T('studioConnectNow'), () => go('settings'), 'connect-now'));
+  else if (ph0 === 'ready' && ui.kinds.includes('tr') && rec.up.wait !== '') acts.push(btn('st-btn wide', T('studioStartNow'), () => { rec.up.wait = ''; tryStart(id); }, 'start-now'));
+  if (acts.length) p.append(h('div', 'st-gap sm'), ...acts);
+
+  // השלבים
+  const m0 = modelFor(rec);
+  const stl = h('div', 'st-stages');
+  for (const s of m0.stages) {
+    const row = h('div', 'st-stg ' + s.state);
+    const dot = h('span', 'dot');
+    if (s.state === 'done') dot.append(ico('check'));
+    else if (s.state === 'now') dot.append(h('span', 'st-spin'));
+    const txt = h('span', 'st-l');
+    txt.append(h('b', null, stageName(s.id, toTxt)), h('small', null, stageSub(s.id)));
+    const tm = h('span', 'st-stg-t');
+    row.append(dot, txt, tm);
+    if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * ((mm && mm.p) || 0)) + '%'; }); }
+    live(tm, () => {
+      const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id) || s;
+      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? T('studioStageLeft', { t: fmtShort(mm.left) }) : approx(fmtShort(mm.est));
+    });
+    stl.append(row);
+  }
+  p.append(secT(T('studioSecStages')), stl);
+
+  // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
+  if (!rec.up.noAudio && !rec.up.v.done && (ph0 === 'queued' || ph0 === 'running')) {
+    const vc = h('div', 'st-vcard');
+    const vt = h('span', 'st-l'); const vb = h('b', null, T('studioVideoT')), vs = h('small');
+    const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi);
+    vt.append(vb, vs, pb);
+    vc.append(tile('film', 'blue'), vt);
+    live(vc, () => {
+      const r = jobRec(id); if (!r) return;
+      const run = runs.get(id);
+      const sent = run && run.phase === 'video' ? run.sent || 0 : r.up.v.sent || 0;
+      pi.style.width = Math.round(100 * sent / Math.max(1, r.spec.size)) + '%';
+      vs.textContent = videoLine(r, run) + (run && run.phase === 'video' && run.active ? '' : ' · ' + T('studioVideoAfter'));
+    });
+    p.append(h('div', 'st-gap sm'), vc, note(T('studioKeepOpen')));
+  }
+
+  // פרטים טכניים — מוסתרים, למי שסקרן
+  const det = h('details', 'st-details');
+  if (ui.det) det.open = true;
+  det.addEventListener('toggle', () => { ui.det = det.open; });
+  const sum = h('summary', null, T('studioTech'));
+  const rows = [
+    kvRow(T('studioFile'), (() => { const s2 = h('span'); s2.append(fileNameEl(rec.spec.name || '—'), ' · ' + fmtSize(rec.spec.size)); return s2; })(), true),
+    rec.spec.dur ? kvRow(T('studioDur'), fmtDur(rec.spec.dur), true) : null,
+    kvRow(T('studioSecLangs'), langsText(rec.spec.from, rec.spec.to)),
+    kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),
+    kvRow(T('studioSecOut'), rec.spec.out.concat('srt').map(outShort).join(' + ')),
+    kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
+    rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
+    kvRow(T('studioCreated'), fmtDate(rec.created)),
+    kvRow(T('studioJobId'), rec.id, true),
+  ];
+  const links = h('div', 'st-wacts');
+  if (rec.up.folder) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
+  if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
+  det.append(sum, list(...rows), links);
+  p.append(h('div', 'st-gap sm'), det);
+
+  // ביטול / מחיקה
+  const fin = FINAL.includes(ph0);
+  const del = btn('st-btn danger wide', fin || ph0 === 'ready' || ph0 === 'paused' || ph0 === 'need' || ph0 === 'error' ? T('studioJobDel') : T('studioJobCancel'), () => {
+    const removing = fin || ph0 === 'ready' || ph0 === 'paused' || ph0 === 'need' || ph0 === 'error';
+    const doIt = async () => {
+      stopRun(id);
+      if (removing) {
+        if (!fin) await net.api('cancel', { job: id });
+        const j = await net.api('remove', { job: id });
+        if (!j.ok && j.error !== 'no_job') { flashSafe(errText(j.error)); return; }
+        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); save();
+        flashSafe(T('studioJobDeleted')); back();
+      } else {
+        const j = await net.api('cancel', { job: id });
+        if (j.job) { const r = jobRec(id); if (r) r.srv = normJob({ id, srv: j.job }).srv; }
+        save(); repaint();
+      }
+    };
+    if (typeof askConfirm === 'function') askConfirm(removing ? T('studioJobDelQ') : T('studioJobCancelQ'), doIt, { danger: true, ok: removing ? T('studioDeleteOk') : T('studioJobCancelOk') });
+    else doIt();
+  }, 'job-del');
+  p.append(h('div', 'st-gap'), del);
+}
+
+function connectDrive() {
+  if (ui.driveBusy) return;
+  ui.driveBusy = true;
+  let pr;
+  try { pr = gd().connect(); } catch (e) { pr = Promise.reject(e); }   // החלון נפתח כאן, בתוך הלחיצה
+  repaint();
+  pr.then(() => flashSafe(T('studioDriveOk')))
+    .catch((e) => {
+      const c = e && e.code;
+      flashSafe(c === 'gd_popup' ? T('studioDrivePopup') : c === 'gd_denied' || c === 'gd_cancel' ? T('studioDriveCancel') : c === 'gd_not_configured' ? T('studioDriveNoCfg') : T('studioDriveErr'));
+    })
+    .finally(() => { ui.driveBusy = false; statusAt = 0; refreshStatus(true); });
+}
+function testLine() {             // מצב בדיקת החיבור — שורה מתחת לכפתור
+  if (!testRun) return null;
+  const d = h('div', 'st-test ' + testRun.st);
+  if (testRun.st === 'fire' || testRun.st === 'wait') d.append(h('span', 'st-spin'));
+  else d.append(ico(testRun.st === 'ok' ? 'check' : 'alert'));
+  const txt = h('span', 'st-l');
+  if (testRun.st === 'fire') txt.append(h('b', null, T('studioTestFire')));
+  else if (testRun.st === 'wait') txt.append(h('b', null, testRun.claimed ? T('studioTestClaimed') : T('studioTestWait')), h('small', null, T('studioTestWaitS')));
+  else if (testRun.st === 'ok') txt.append(h('b', null, T('studioTestOk')), h('small', null, testRun.drive ? T('studioTestDriveOk') : T('studioTestDriveNo')));
+  else txt.append(h('b', null, T('studioTestErr')), h('small', null, errText(testRun.err, testRun)));
+  d.append(txt);
+  if (testRun.sess) d.append(extLink('st-link', testRun.sess, T('studioOpenSess'), null, 'test-sess'));
+  return d;
+}
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
   p.append(navBar({ back: T('studioShort') }), large(T('studioSettings')));
-  // בשלב הזה רק "המנוי שלי" פעיל — העתק־הדבק ומפתח API מגיעים בשלב 7
+  const ab = accessBanner(); if (ab) p.append(ab);
+  // רק "המנוי שלי" פעיל — העתק־הדבק ומפתח API מגיעים בשלב 7
   p.append(secT(T('studioSecClaude')), list(
     rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: true, k: 'cn:sub' }),
     rowRadio({ label: T('studioConnCopy'), sub: T('studioConnCopyS'), on: false, disabled: true, badge: T('studioSoon') }),
     rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: false, disabled: true, badge: T('studioSoon') })));
-  p.append(secT(T('studioSecConnect')), list(
-    rowNav({ tile: tile('key', 'green'), label: T('studioWizard'), sub: T('studioNotConn') + ' · ' + T('studioWizardS'), onClick: () => go('connect'), k: 'wizard' })));
+  // החיבור: מחובר (בדיקה, הגדרה מחדש, ניתוק) או האשף
+  const c = store.conn;
+  if (c) {
+    const st = c.ok ? T('studioConnChecked', { t: fmtDate(c.ok) }) : T('studioConnUnchecked');
+    const head = h('div', 'st-row st-ric');
+    const hn = h('span', 'st-l'); hn.append(h('b', null, T('studioConnOn')));
+    const hs = h('small'); hs.append(h('bdi', null, c.hint), ' · ' + st); hn.append(hs);
+    head.append(tile('key', 'green'), hn);
+    const busy = testRun && (testRun.st === 'fire' || testRun.st === 'wait');
+    const tb = btn('st-row st-act', busy ? T('studioTesting') : T('studioTestConn'), runTest, 'test');
+    tb.disabled = !!busy || blocked();
+    p.append(secT(T('studioSecConnect')), list(head, tb,
+      rowNav({ label: T('studioReconnect'), onClick: () => go('connect'), k: 'wizard' }),
+      btn('st-row st-act danger', T('studioDisconn'), disconnectClaude, 'disconnect')));
+    const tl = testLine(); if (tl) p.append(tl);
+  } else {
+    p.append(secT(T('studioSecConnect')), list(
+      rowNav({ tile: tile('key', 'green'), label: T('studioWizard'), sub: T('studioNotConn') + ' · ' + T('studioWizardS'), onClick: () => go('connect'), k: 'wizard' })));
+  }
+  // Google Drive — שם הסרטונים והתוצרים (אותו חיבור של גיבוי הספרייה)
+  const dr = store.drive;
+  const drow = h('div', 'st-row st-ric');
+  const dl = h('span', 'st-l'); dl.append(h('b', null, 'Google Drive'));
+  const dsub = h('small'); if (dr && dr.connected && dr.email) dsub.append(h('bdi', null, dr.email)); else dsub.textContent = T('studioDriveNot');
+  dl.append(dsub);
+  drow.append(tile('cloud', 'blue'), dl);
+  const drows = [drow];
+  if (!dr || !dr.connected) { const b = btn('st-row st-act', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'drive-connect'); b.disabled = ui.driveBusy || blocked(); drows.push(b); }
+  p.append(secT(T('studioSecDrive')), list(...drows), note(T('studioDriveNote')));
+  // העלאה
+  p.append(secT(T('studioSecUpload')), list(
+    rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' })));
   p.append(secT(T('studioSecDefaults')), list(
     rowNav({ label: T('studioSecMode'), value: modeShort(m), onClick: () => go('def', 'mode'), k: 'def:mode' }),
     rowNav({ label: T('studioTo'), value: langsSum(s.to), onClick: () => go('lang', 'def'), k: 'def:to' }),
     rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
     rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' })));
+}
+function disconnectClaude() {
+  const doIt = async () => {
+    const j = await net.api('disconnect');
+    if (!j.ok) { flashSafe(errText(j.error)); return; }
+    store.conn = null; testRun = null; save();
+    flashSafe(T('studioDisconnected')); repaint();
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioDisconnQ'), doIt, { danger: true, ok: T('studioDisconnOk') });
+  else doIt();
 }
 
 /* ברירת מחדל אחת (מצב / פלטים / מראה) — נשמרת מיד */
@@ -642,36 +1507,81 @@ function pageDef(p) {
   p.append(note(T('studioDefNote')));
 }
 
-/* אשף החיבור — שלושת השלבים של ההגדרה החד־פעמית. ההעתקה, השמירה בכספת והבדיקה דורשות את השרתון והעובד בענן (שלבים 2–3) */
+/* אשף החיבור — שלושת השלבים של ההגדרה החד־פעמית: סביבה, Routine עם טריגר API, הדבקה ובדיקה.
+   המפתח שמודבק נשלח לשרתון ונשמר שם רק מוצפן; בטלפון הוא רק בשדה, עד שהשמירה הצליחה (או שיוצאים מהדף) */
 function pageConnect(p) {
   p.append(navBar({ back: T('studioSettings') }), large(T('studioWizT')), h('p', 'st-lede', T('studioWizLede')));
-  const soon = (label, icon) => {
-    const b = btn('st-wbtn', null, null); b.disabled = true;
-    b.append(ico(icon), h('span', null, label), h('span', 'st-badge gray', T('studioSoon')));
-    return b;
-  };
+  const ab = accessBanner(); if (ab) p.append(ab);
   const open = h('a', 'st-wbtn'); open.href = 'https://claude.ai/code'; open.target = '_blank'; open.rel = 'noopener noreferrer';
   open.dataset.k = 'w:open';
   open.append(ico('out'), h('span', null, T('studioOpenCode')));
-  const field = (icon, label) => { const d = h('div', 'st-field'); d.setAttribute('aria-disabled', 'true'); d.append(ico(icon), h('span', null, label)); return d; };
+  let host = 'ibkr-proxy-wine.vercel.app';
+  try { host = new URL(proxyBase()).host || host; } catch (e) {}
+  const hosts = [host].concat(HOSTS_EXTRA).join('\n');
+  const w = ui.wiz;
+  const urlIn = h('input', 'st-in'); urlIn.type = 'url'; urlIn.inputMode = 'url'; urlIn.dir = 'ltr'; urlIn.autocomplete = 'off'; urlIn.spellcheck = false;
+  urlIn.placeholder = 'https://api.anthropic.com/v1/claude_code/routines/trig_…/fire'; urlIn.value = w.url; urlIn.dataset.k = 'w:url';
+  urlIn.setAttribute('aria-label', T('studioFUrl'));
+  urlIn.addEventListener('input', () => { w.url = urlIn.value; });
+  const keyIn = h('input', 'st-in'); keyIn.type = 'password'; keyIn.dir = 'ltr'; keyIn.autocomplete = 'off'; keyIn.spellcheck = false;
+  keyIn.placeholder = 'sk-ant-oat01-…'; keyIn.value = w.key; keyIn.dataset.k = 'w:key';
+  keyIn.setAttribute('aria-label', T('studioFKey'));
+  keyIn.addEventListener('input', () => { w.key = keyIn.value; });
+  const lab = (txt, inp) => { const l = h('label', 'st-flab'); l.append(h('span', null, txt), inp); return l; };
+  const saveB = btn('st-btn wide in-card', w.busy ? T('studioSaving') : T('studioSaveTest'), () => saveConn(), 'w:save');
+  saveB.disabled = w.busy || blocked();
+  const errEl = w.err ? h('p', 'st-ferr', w.err) : null;
   const steps = [
-    [T('studioW1T'), T('studioW1D'), [open, soon(T('studioCopySetup'), 'copy')]],
-    [T('studioW2T'), T('studioW2D'), [soon(T('studioCopyPrompt'), 'copy')]],
-    [T('studioW3T'), T('studioW3D'), [field('link', T('studioFUrl')), field('key', T('studioFKey')), soon(T('studioTestConn'), 'check')]],
+    [T('studioW1T'), T('studioW1D'), [open, copyBox(hosts, T('studioCopyHosts'), 'w:hosts'), copyBox(SETUP_LINE, T('studioCopySetup'), 'w:setup')]],
+    [T('studioW2T'), T('studioW2D'), [copyBox(T('studioPromptText'), T('studioCopyPrompt'), 'w:prompt', true)]],
+    [T('studioW3T'), T('studioW3D'), [lab(T('studioFUrl'), urlIn), lab(T('studioFKey'), keyIn), errEl, saveB, testLine()]],
   ];
   const ol = h('ol', 'st-wiz');
   for (const [tt, dd, acts] of steps) {
     const li = h('li');
     const body = h('div', 'st-wbody');
     body.append(h('b', null, tt), h('p', null, dd));
-    const a = h('div', 'st-wacts'); a.append(...acts); body.append(a);
+    const a = h('div', 'st-wacts'); a.append(...acts.filter(Boolean)); body.append(a);
     li.append(body); ol.append(li);
   }
   p.append(ol, note(T('studioWizNote')));
 }
+async function saveConn() {
+  const w = ui.wiz;
+  if (w.busy) return;
+  const url = String(w.url || '').trim(), key = String(w.key || '').trim().replace(/^Bearer\s+/i, '');
+  if (!ROUTINE_URL_RE.test(url)) { w.err = T('studioErrBadUrl'); render('none'); return; }
+  if (!ROUTINE_KEY_RE.test(key)) { w.err = T('studioErrBadKey'); render('none'); return; }
+  w.busy = true; w.err = ''; render('none');
+  const j = await net.api('connect', { url, key });
+  w.busy = false;
+  if (!j.ok) { w.err = errText(j.error); render('none'); return; }
+  w.key = '';                      // המפתח בשרתון (מוצפן) — לא נשאר בטלפון
+  store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: 0, since: num(j.conn.since) } : null;
+  save();
+  render('none');
+  runTest();
+}
 
 /* ---------------- ציור ---------------- */
 let renderSeq = 0;
+let lastShape = '';
+/* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
+function shapeKey() {
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || ''); };
+  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join(); }
+  if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
+  if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
+  return ui.view + '|' + ui.access;
+}
+let paintT = 0;
+function paintSoon() { if (!paintT) paintT = setTimeout(() => { paintT = 0; livePaint(); }, 250); }
+function livePaint() {
+  if (!root) return;
+  if (shapeKey() !== lastShape) { render('none'); return; }
+  for (const el of root.querySelectorAll('[data-live]')) { try { if (el._live) el._live(el); } catch (e) {} }
+}
+const repaint = () => { if (root) livePaint(); };
 function render(kind, still) {     // kind: none (ציור מחדש במקום) / push / pop; still = בלי אנימציה (Chrome כבר הנפיש)
   if (!root) return;
   const seq = ++renderSeq;
@@ -684,6 +1594,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'edit') pageForm(p, true);
   else if (ui.view === 'lang') pageLang(p);
   else if (ui.view === 'project') pageProject(p);
+  else if (ui.view === 'job') pageJob(p);
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
@@ -692,6 +1603,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   if ((kind === 'push' || kind === 'pop') && !still && !reduceMotion()) p.classList.add(kind === 'push' ? 'in-push' : 'in-pop');
   root.replaceChildren(p);
   root.scrollTop = keepY;
+  lastShape = shapeKey();
   if (kind === 'none' && fk) {
     const el = Array.from(root.querySelectorAll('[data-k]')).find((x) => x.dataset.k === fk);
     if (el) { try { el.focus({ preventScroll: true }); } catch (e) {} }
@@ -699,8 +1611,38 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
     try { root.focus({ preventScroll: true }); } catch (e) {}   // מעבר דף — הפוקוס עובר לשכבה ולא "נופל" לאפליקציה שמתחת
   }
   if (CW_OK && !cw) watch();             // מאזין "חזור" חסר (למשל אחרי רענון) — חוזר
+  if (kind !== 'none') onEnter();
+  schedulePoll();
 }
 const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* נכנסים לדף: מרעננים ממה שבשרתון (מצב החיבור, העבודות) */
+function onEnter() {
+  if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
+  else if (ui.view === 'settings' || ui.view === 'connect') refreshStatus();
+  else if (ui.view === 'job') pollNow();
+}
+/* מעקב אחרי עבודה פתוחה: כל 4 שניות כש־Claude עובד, לאט כשמחכים, בכלל לא כשהסתיימה או כשהמסך כבוי */
+let pollT = 0;
+function schedulePoll() {
+  clearTimeout(pollT); pollT = 0;
+  if (!root || document.hidden) return;
+  let ms = 0;
+  if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' ? 4000 : st === 'new' && r && r.up.started ? 15000 : 0; }
+  else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : 0;
+  if (ms) pollT = setTimeout(pollNow, ms);
+}
+let polling = false;
+async function pollNow() {
+  if (polling || !root) return;
+  polling = true;
+  try {
+    if (ui.view === 'job' && JOB_RE.test(String(ui.param || ''))) {
+      const id = ui.param, j = await net.api('job', { job: id });
+      const r = jobRec(id);
+      if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
+    } else if (ui.view === 'home') await refreshJobs(true);
+  } finally { polling = false; repaint(); schedulePoll(); }
+}
 
 /* ---------------- כניסה / יציאה ---------------- */
 function ensureCss() {
@@ -710,6 +1652,8 @@ function ensureCss() {
 }
 function closeStudio(instant) {
   const r = root; root = null; form = null; stack = [];
+  clearTimeout(pollT); pollT = 0;
+  ui.wiz = { url: '', key: '', busy: false, err: '' };   // ההעלאה ממשיכה ברקע; מה שהודבק באשף — לא נשאר
   try { if (cw) cw.destroy(); } catch (e) {}
   cw = null;
   document.documentElement.classList.remove('studio-open');
@@ -735,6 +1679,13 @@ export function openStudio(opt) {
       e.preventDefault(); back();
     });
   }
+  if (!window._stVis) {                    // חזרה לאפליקציה: מסך דולק שוב (אם מעלים) ומעקב מחדש
+    window._stVis = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { if (wlWant) wakeOn(); if (root) pollNow(); }
+      else { clearTimeout(pollT); pollT = 0; }
+    });
+  }
   document.body.append(root);
   document.documentElement.classList.add('studio-open');
   if (!restore) afterBack(() => { try { history.pushState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} });
@@ -753,9 +1704,17 @@ export function openStudio(opt) {
   render('none');
   if (restore) curtainDown();
   try { root.focus({ preventScroll: true }); } catch (e) {}
+  refreshStatus(true); refreshJobs(true);
+  // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
+  for (const rec of store.jobs) {
+    const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
+    const st = rec.srv ? rec.srv.state : 'new';
+    if (!done && !FINAL.includes(st) && !(runs.get(rec.id) && runs.get(rec.id).active) && rec.fp) resumeJob(rec.id, false);
+  }
 }
 
 export const _test = {
-  state: () => ({ open: !!root, view: ui.view, param: ui.param, drafts: store.drafts.length, form: !!form, cw: CW_OK, watching: !!cw, stack: stack.length }),
+  state: () => ({ open: !!root, view: ui.view, param: ui.param, drafts: store.drafts.length, jobs: store.jobs.length, form: !!form, cw: CW_OK, watching: !!cw, stack: stack.length,
+    access: ui.access, conn: !!store.conn, test: testRun ? testRun.st : '', runs: [...runs.entries()].map(([id, r]) => ({ id, phase: r.phase, active: r.active, wait: r.wait, err: r.err, p: r.p })) }),
   closeRequest: () => closeRequest(),   // QA: כמו "חזור" של אנדרואיד (Playwright לא יכול לשלוח אותו)
 };

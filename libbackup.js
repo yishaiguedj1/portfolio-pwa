@@ -51,6 +51,32 @@ export function manifestBytes(m) {
   return Object.values((m && m.books) || {}).reduce((a, e) => a + ((e.file && +e.file.size) || 0) + ((e.cover && +e.cover.size) || 0), 0);
 }
 
+/* חלון ההסכמה של Google: הקוד חוזר מ־oauth.html (אותו origin) ב־BroadcastChannel, או באחסון כגיבוי.
+   משותף לספרייה ולסטודיו (v355). oauth.cancel — ביטול מהממשק ("ביטול" בזמן ההמתנה לחלון) */
+export const oauth = { cancel: null };
+export function waitOAuthCode(w, url, state) {
+  return new Promise((resolve) => {
+    let bc = null, poll = 0, to = 0;
+    const done = (v) => {
+      clearInterval(poll); clearTimeout(to); oauth.cancel = null;
+      try { bc && bc.close(); } catch (e) {}
+      window.removeEventListener('storage', onStore);
+      try { localStorage.removeItem('pwa_oauth_v1'); } catch (e) {}
+      resolve(v);
+    };
+    const take = (m) => { if (m && m.state === state) done({ code: m.code, error: m.error }); };
+    const fromLs = () => { try { const m = JSON.parse(localStorage.getItem('pwa_oauth_v1') || 'null'); if (m) take(m); } catch (e) {} };
+    const onStore = (e) => { if (e.key === 'pwa_oauth_v1') fromLs(); };
+    try { bc = new BroadcastChannel('snb-oauth'); bc.onmessage = (e) => take(e.data); } catch (e) {}
+    window.addEventListener('storage', onStore);
+    poll = setInterval(fromLs, 600);
+    to = setTimeout(() => done(null), 5 * 60 * 1000);
+    oauth.cancel = () => done(null);
+    let win = w;
+    try { if (win && !win.closed) win.location.href = url; else win = window.open(url, 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { win = null; }
+    if (!win) done({ error: 'popup_blocked' });
+  });
+}
 /* ---------- המנוע ---------- */
 export function createBackup(env) {
   const E = Object.assign({ fetch: (...a) => fetch(...a), now: () => Date.now(), ls: typeof localStorage !== 'undefined' ? localStorage : null }, env);
