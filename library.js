@@ -2512,7 +2512,7 @@ async function openReader(id, opt) {
     const d = e.detail || {};
     box.classList.remove('loading');
     curtainDown();
-    if (!rd.armed) { rd.armed = 1; requestAnimationFrame(() => requestAnimationFrame(readerRearm)); }   // v350: העמוד הראשון צויר — רשומת הקורא
+    if (rd && !rd.armed) { rd.armed = 1; requestAnimationFrame(() => requestAnimationFrame(readerRearm)); }   // v350: העמוד הראשון צויר — רשומת הקורא
     const frac = d.fraction || 0;
     const left = d.time && isFinite(d.time.section) ? Math.max(1, Math.round(d.time.section)) : 0;
     fL.textContent = left ? T('rdMinLeftChap', { m: left }) : '';
