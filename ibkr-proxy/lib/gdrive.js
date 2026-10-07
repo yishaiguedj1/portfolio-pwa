@@ -11,7 +11,8 @@
      gdToken → { access_token, expires_in, email } | error:'revoked'
      gdDisconnect → ביטול ההרשאה אצל Google + מחיקת הרשומה
    v357 — לסטודיו התרגום לקוח OAuth נפרד (gdrive.studio): STUDIO_GDRIVE_CLIENT_ID/SECRET, רשומה ב־studioDrive/{uid} (AAD sdrive|uid|r).
-   עם drive.file כל לקוח רואה רק את הקבצים שהוא יצר — העובד בענן (שמעבד תמלילים, תוכן לא מהימן) לא מגיע לגיבוי הספרייה. */
+   עם drive.file כל לקוח רואה רק את הקבצים שהוא יצר — העובד בענן (שמעבד תמלילים, תוכן לא מהימן) לא מגיע לגיבוי הספרייה.
+   משתני הסטודיו הוגדרו ב־Vercel ב־07/10/2026. */
 const vault = require('./vault');
 const { datastoreToken } = require('./gauth');
 
