@@ -19,7 +19,7 @@ ok(/function navigateTo\(kind, y\)[\s\S]{0,200}await renderHomeNow\(\); pinScrol
 const goView = fn(lib, 'goView');
 ok(/navigateTo\('push', 0\)/.test(goView) && !/root\.scrollTop = 0/.test(goView) && /afterBack\(\(\) => history\.pushState/.test(goView), 'goView: מעבר push, בלי איפוס גלילה ישיר, pushState דרך afterBack');
 const pop = fn(lib, 'onPop');
-ok(/navigateTo\('pop', savedLibScroll\(\)\)/.test(pop), '"חזור" = מעבר pop + הגלילה השמורה של הדף שחוזרים אליו');
+ok(/navigateTo\(uaT \? 'none' : 'pop', savedLibScroll\(\)\)/.test(pop), '"חזור" = מעבר pop + הגלילה השמורה של הדף שחוזרים אליו');
 ok(/navigateTo\('fade', 0\)/.test(lib) && /renderHome\('fade'\)/.test(lib), 'צ\'יפים / בורר ספרייה / מיון — הצלבה');
 ok(!/pushState/.test(pop), 'עדיין אין pushState בתוך popstate (v321)');
 const cr = fn(lib, 'closeReader');
@@ -35,7 +35,7 @@ ok(/setTimeout\(down, 6000\);/.test(app) && /catch\(\(\) => \{ down\(\); documen
 ok(/async function openReader\(id, opt\) \{\s+saveLibScroll\(\);/.test(lib), 'פתיחת ספר שומרת את הגלילה של הדף שמתחת');
 ok(/h\('div', 'rd loading' \+/.test(lib) && /box\.classList\.remove\('loading'\)/.test(lib), 'הקורא נפתח במצב טעינה עד העמוד הראשון');
 ok(/function pinScroll\(y\)/.test(lib) && /touchstart/.test(fn(lib, 'pinScroll')) && /scrollHeight - r\.clientHeight >= y/.test(fn(lib, 'pinScroll')), 'pinScroll — חוזר ליעד כשהדף מתארך אחרי הציור, נגיעה מבטלת');
-ok(/function closeLibrary\(\)/.test(lib) && /classList\.add\('leaving'\)/.test(fn(lib, 'closeLibrary')) && /closeLibrary\(\)/.test(pop), 'יציאה מהספרייה בתנועה (leaving), לא היעלמות');
+ok(/function closeLibrary\(instant\)/.test(lib) && /classList\.add\('leaving'\)/.test(fn(lib, 'closeLibrary')) && /closeLibrary\(uaT\)/.test(pop), 'יציאה מהספרייה בתנועה (leaving), לא היעלמות');
 // CSS
 ok(/\.lib-root \{[^}]*view-transition-name: lib-root/.test(css), 'שם View Transition: lib-root');
 ['push', 'pop', 'fade'].forEach((k) => ok(new RegExp('html\\[data-lib-vt="' + k + '"\\]::view-transition-(old|new)\\(lib-root\\)').test(css), 'CSS למעבר ' + k));

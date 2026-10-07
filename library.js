@@ -2321,7 +2321,7 @@ function onEscape() {
   if (rd) return readerExit();          // מקלדת — יציאה מיידית, בלי "לחץ שוב"
   history.back();
 }
-function readerExit() {                  // ✕ / Escape / שגיאה / "חזור" כפול — ישר לדף הספר
+function readerExit(instant) {            // ✕ / Escape / שגיאה / "חזור" כפול — ישר לדף הספר
   if (!rd || rd.closing) return;         // v324: ✕ פעמיים מהר = שתי חזרות כפולות — יצא מהספרייה (נמצא ב־QA)
   // v349 (באג חמור שהמשתמש דיווח: "חזור"/✕ לא מוציאים מהספר, לסירוגין): עד כאן ✕ חישב כמה רשומות לחזור (go(-2)) —
   // ו־✕ מיד אחרי סגירת גיליון (החזרה שלו עוד בדרך) או רשומה כפולה מ־readerRearm חזרו למקום הלא נכון, ו־rd.closing נשאר
@@ -2331,7 +2331,7 @@ function readerExit() {                  // ✕ / Escape / שגיאה / "חזו�
   const view = (history.state && history.state.lv) || ui.view;
   ui.view = view;
   exitSkip = Date.now();
-  closeReader();
+  closeReader({ instant: instant === true });
   readerLeaveHistory();
 }
 let exitSkip = 0;          // v349: יציאה מהקורא בתהליך — הרשומות של הקורא מדולגות עד דף הספר
@@ -2439,9 +2439,11 @@ async function openReader(id, opt) {
   if (!(opt && opt.restored)) {
     // v321: שתי רשומות בתוך הלחיצה — "שומר" ואז הקורא. "חזור" ראשון נוחת על השומר (הודעה), שני — לדף הספר.
     // אסור pushState בתוך popstate: Chrome מסמן רשומה כזו (ואת זו שלפניה) "לדילוג", ו"חזור" יצא מהאפליקציה.
+    // v350: רשומת הקורא (guard:0) נדחפת רק אחרי שהעמוד הראשון מוצג (readerArm) — Chrome מצלם רשומה ברגע שעוזבים אותה,
+    // ובמשיכה מצד המסך מציג את הצילום של היעד. כששתי הרשומות נדחפו יחד, הצילום של השומר היה דף הספר — "חזור" אחד
+    // הבזיק את דף הספר ואז הקורא חזר ("קפיצה", הסרטון של המשתמש). עכשיו הצילום של השומר = הקורא עצמו.
     const st = cleanState({ lib: 2, book: id });
     history.pushState(Object.assign({}, st, { guard: 1 }), '');
-    history.pushState(Object.assign({}, st, { guard: 0 }), '');
   }
   else history.replaceState(Object.assign({}, history.state || {}, { lib: 2, book: id }), '');
   const box = h('div', 'rd loading' + (opt && opt.restored ? ' restored' : ''));     // v322: .loading עד העמוד הראשון — סימן טעינה במקום דף ריק; restored = בלי אנימציית כניסה
@@ -2510,6 +2512,7 @@ async function openReader(id, opt) {
     const d = e.detail || {};
     box.classList.remove('loading');
     curtainDown();
+    if (!rd.armed) { rd.armed = 1; requestAnimationFrame(() => requestAnimationFrame(readerRearm)); }   // v350: העמוד הראשון צויר — רשומת הקורא
     const frac = d.fraction || 0;
     const left = d.time && isFinite(d.time.section) ? Math.max(1, Math.round(d.time.section)) : 0;
     fL.textContent = left ? T('rdMinLeftChap', { m: left }) : '';
@@ -2568,8 +2571,9 @@ async function openReader(id, opt) {
   }
 }
 
-function closeReader() {
+function closeReader(opt) {
   if (!rd) return;
+  const instant = !!(opt && opt.instant);
   const r = rd; rd = null;
   if (r.rec) { clearTimeout(r.saveT); pushProgress(r.rec, true); }
   hideSel(); hideTr(true);
@@ -2578,8 +2582,9 @@ function closeReader() {
   // הדף שמתחת מצויר בזמן שהקורא עדיין אטום, עם הגלילה שנשמרה בפתיחה; המנוע נסגר רק בסוף.
   const box = r.els.box;
   if (r.r3dOff) r.r3dOff();
-  box.classList.add('out');
-  const gone = reduceMotion() ? Promise.resolve() : new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 340); });
+  if (!instant) box.classList.add('out');
+  else box.style.visibility = 'hidden';   // v350: אחרי אנימציית ה"חזור" של Chrome — דף הספר כבר על המסך, בלי דהייה נוספת של הקורא
+  const gone = instant || reduceMotion() ? Promise.resolve() : new Promise((res) => { box.addEventListener('animationend', res, { once: true }); setTimeout(res, 340); });
   return (async () => { await renderHomeNow(); pinScroll(savedLibScroll()); await gone; try { r.view.close(); } catch (e) {} if (r.r3d) r.r3d.destroy(); if (r.curl) r.curl.destroy(); box.remove(); })();
 }
 /* v330 (בקשת המשתמש: "סימנייה כמו בעולם האמיתי — תלת־ממדית, מתרוממת באוויר עם צל"): המנוע ב־ribbon3d.js
@@ -3896,7 +3901,8 @@ function openAa() {
 /* ---------------- כניסה / יציאה + "חזור" של המכשיר ---------------- */
 /* בזמן קריאה: "חזור" אחד (גם החלקה מקצה המסך בטעות) לא מוציא מהספר — רק שני "חזור" תוך 2 שניות
    (v303, בקשת המשתמש). גיליון פתוח (תוכן/Aa/תרגום) — "חזור" סוגר אותו. כפתור ✕ יוצא מיד. */
-function onPop() {
+function onPop(e) {
+  const uaT = !!(e && e.hasUAVisualTransition);   // v350: Chrome כבר הציג אנימציית "חזור" משלו (משיכה מצד המסך) — בלי אנימציה שנייה
   staleBackAt = 0;                       // v349: ה־back שלנו (אם היה) נחת
   if (!rd && ((history.state || {}).lib || 0) === 2) {   // v349: רשומת קורא שהקורא שלה כבר סגור — מדלגים עליה (יציאה, או רשומה
     sheetSkip = 0; sheetClosed = null;                    // כפולה ישנה), לפני כל דבר אחר; back בתוך popstate לא מבוצע (נמדד) — אחרי האירוע
@@ -3916,7 +3922,7 @@ function onPop() {
   if (lvl === 2 && rd && !rd.closing) {     // "חזור" בתוך הקורא (השומר, או רשומה כפולה)
     if (selPop) hideSel();
     else if (trCard) hideTr();               // v333: "חזור" סוגר את כרטיס התרגום
-    else if (Date.now() - (rd.backAt || 0) < BACK_TWICE_MS) readerExit();   // v349: "חזור" שני תוך 2 שנ׳ — יוצא תמיד, בכל רשומה
+    else if (Date.now() - (rd.backAt || 0) < BACK_TWICE_MS) readerExit(uaT);   // v349: "חזור" שני תוך 2 שנ׳ — יוצא תמיד, בכל רשומה
     else { rd.backAt = Date.now(); if (typeof flash === 'function') flash(T('rdBackTwice')); }
     return;
   }
@@ -3926,9 +3932,9 @@ function onPop() {
     if (lvl >= 1) { ui.view = (history.state && history.state.lv) || ui.view; return; }
   }
   if (lvl >= 1 && lvl < 2) ui.view = (history.state && history.state.lv) || null;
-  if (lvl < 2 && rd) closeReader();
-  else if (lvl === 1 && root) navigateTo('pop', savedLibScroll());
-  if (lvl < 1 && root) closeLibrary();
+  if (lvl < 2 && rd) closeReader({ instant: uaT });
+  else if (lvl === 1 && root) navigateTo(uaT ? 'none' : 'pop', savedLibScroll());
+  if (lvl < 1 && root) { closeLibrary(uaT); appToOverview(); }
 }
 /* v322: יציאה מהספרייה — השכבה יוצאת בתנועה (לא נעלמת בבת אחת) */
 /* v322: רענון בזמן שהספרייה פתוחה — index.html מוריד "וילון" בצבע הרקע לפני הציור הראשון (html.lib-restoring), כדי שהמשתמש
@@ -3939,13 +3945,19 @@ function curtainDown() {
   e.classList.remove('lib-restoring');
   setTimeout(() => { e.classList.remove('lib-curtain'); e.style.removeProperty('--curtain'); }, 400);
 }
-function closeLibrary() {
+function closeLibrary(instant) {
   const r = root; root = null;
   hideSel(); hideTr(true);
   document.documentElement.classList.remove('lib-open');
-  if (reduceMotion()) { r.remove(); return; }
+  if (instant === true || reduceMotion()) { r.remove(); return; }
   r.classList.add('leaving');
   setTimeout(() => r.remove(), 260);
+}
+
+/* v350 (בקשת המשתמש): "חזור" מהעמוד הראשי של הספרייה — לסקירה, לא לטאב שהיה פתוח לפני (app.js עובר לסקירה כבר
+   בפתיחה מטאב ראשי; מהגדרות — כאן, ב־switchTab רגיל שמסדר גם את ההיסטוריה) */
+function appToOverview() {
+  try { if (typeof switchTab === 'function' && typeof currentTabName === 'function' && currentTabName() !== 'overview') switchTab('overview'); } catch (e) {}
 }
 
 /* v315: מיקום הגלילה בספרייה לכל דף — לשחזור אחרי רענון (sessionStorage: רק בלשונית הזו) */

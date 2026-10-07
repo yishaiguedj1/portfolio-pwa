@@ -4498,7 +4498,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v349';
+const APP_VERSION = 'v350';
 
 
 function saveDBto(db) {
@@ -13311,6 +13311,9 @@ function init() {
   if (mLib) mLib.addEventListener('click', (e) => {
     e.stopPropagation();
     try { setMainMenuOpen(false); } catch (err) {}
+    // v350 (בקשת המשתמש): "חזור" מהספרייה נוחת על הסקירה — עוברים אליה כבר עכשיו, מתחת לספרייה שנכנסת, כדי שגם צילום
+    // הרשומה ש־Chrome מציג במשיכה מצד המסך יהיה הסקירה (מטאב ראשי בלבד — מהגדרות המעבר בסגירה, library.js)
+    try { if (navCurDepth() === 0 && currentTabName() !== 'overview') switchTab('overview'); } catch (err) {}
     import('./library.js').then((m) => m.openLibrary()).catch(() => { try { flash(t('libOpenErr')); } catch (err) {} });
   });
   const dBtn = document.getElementById('demoCreateBtn');
