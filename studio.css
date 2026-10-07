@@ -1,0 +1,204 @@
+/* סטודיו התרגום (שלב 1) — שכבה במסך מלא מעל האפליקציה, כמו הספרייה. נטען רק כשנכנסים לסטודיו (studio.js → ensureCss).
+   העיצוב לפי התצוגה המקדימה שאושרה: רשימות מקובצות בסגנון iOS, כותרת גדולה וסרגל עליון, עם הירוק של האפליקציה.
+   בהיר/כהה דרך הטוקנים של styles.css ([data-theme="dark"]); יישור לוגי בלבד (start/end); עיגולי פינות דרך המשתנים. */
+
+html.studio-open, html.studio-open body { overflow: hidden; }
+.st-root { position: fixed; inset: 0; z-index: 900; background: var(--bg); color: var(--on-surface); font-family: var(--font);
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; outline: none;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom)); animation: stIn .3s cubic-bezier(.2,.9,.25,1);
+  --st-fill: var(--search-fill); --st-ter: #8E8E93; --st-card: var(--surface); --st-x: 1; }
+[data-theme="dark"] .st-root { --st-ter: #636366; --st-card: #1C1C1E; }   /* במצב כהה --surface שקוף למחצה — כרטיס אטום */
+html[dir="rtl"] .st-root { --st-x: -1; }
+.st-root.leaving { animation: stOut .24s cubic-bezier(.4,0,1,1) forwards; pointer-events: none; }
+.st-root.restored { animation: none; }   /* אחרי רענון — בלי כניסה */
+@keyframes stIn { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes stOut { to { opacity: 0; transform: translateY(28px); } }
+/* מעבר בין דפים: הדף החדש נכנס מהצד המוביל (ב־RTL משמאל). מתחיל מ־.55 ולא מ־0 — בלי פריים ריק (לקח v325); הרקע של השכבה אטום */
+.st-page { max-width: 640px; margin-inline: auto; }
+.st-page.in-push { animation: stPush .32s cubic-bezier(.2,.9,.25,1); }
+.st-page.in-pop { animation: stPop .32s cubic-bezier(.2,.9,.25,1); }
+@keyframes stPush { from { opacity: .55; transform: translateX(calc(var(--st-x) * 36px)); } to { opacity: 1; transform: none; } }
+@keyframes stPop { from { opacity: .55; transform: translateX(calc(var(--st-x) * -36px)); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .st-root, .st-root.leaving, .st-page { animation: none !important; } }
+
+/* איפוס כפתורים בלי משקל — כל מחלקה של רכיב גוברת עליו (".lib-root button" גבר על צבעי רכיבים — לקח v334) */
+:where(.st-root button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; -webkit-tap-highlight-color: transparent; }
+:where(.st-root button:disabled) { cursor: default; }
+.st-root :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---------- סרגל עליון וכותרות ---------- */
+.st-nav { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  min-height: 44px; padding: calc(6px + env(safe-area-inset-top)) 10px 6px; background: var(--bg); }
+.st-nav-s { justify-self: start; min-width: 0; max-width: 100%; display: flex; }
+.st-nav-e { justify-self: end; min-width: 0; max-width: 100%; display: flex; }
+.st-nav-t { justify-self: center; max-width: 100%; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-back, .st-txt { display: inline-flex; align-items: center; gap: 2px; min-height: 40px; max-width: 100%; padding: 6px 4px; color: var(--primary); font-size: 17px; font-weight: 600; white-space: nowrap; }
+.st-back svg { width: 22px; height: 22px; flex: none; stroke-width: 2.4; }
+[dir="ltr"] .st-back svg { transform: scaleX(-1); }
+.st-back-l { overflow: hidden; text-overflow: ellipsis; }
+.st-txt { font-weight: 500; }
+.st-txt.bold { font-weight: 700; }
+.st-txt:disabled { color: var(--st-ter); }
+.st-back:active, .st-txt:not(:disabled):active { opacity: .55; }
+.st-large { margin: 2px 0 10px; padding-inline: 16px; font-size: 32px; font-weight: 800; letter-spacing: -.5px; line-height: 1.15; }
+.st-large.clamp { font-size: 26px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.st-sec-t { margin: 22px 16px 7px; font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
+.st-note { margin: 8px 18px 0; color: var(--on-surface-var); font-size: 13px; line-height: 1.45; }
+.st-lede { margin: 0 16px 6px; color: var(--on-surface-var); font-size: 15px; line-height: 1.5; }
+.st-nw { white-space: nowrap; }   /* שם מודל/קובץ קצר — שלם בשורה אחת */
+.st-gap { height: 20px; }
+.st-gap.sm { height: 10px; }
+
+/* ---------- רשימות ושורות ---------- */
+.st-list { margin-inline: 16px; background: var(--st-card); border-radius: var(--radius-sm); overflow: hidden; }
+.st-row { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 10px 14px; position: relative; text-align: start; }
+.st-row + .st-row::before { content: ""; position: absolute; top: 0; inset-inline-start: 14px; inset-inline-end: 0; border-top: 1px solid var(--separator); }
+.st-row.st-ric + .st-row.st-ric::before { inset-inline-start: 58px; }
+button.st-row:not(:disabled):active { background: var(--st-fill); }
+.st-row.off { opacity: .55; }
+.st-l { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.st-l b { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.st-l small { font-size: 13px; color: var(--on-surface-var); line-height: 1.35; }
+.st-v { flex: none; max-width: 50%; color: var(--on-surface-var); font-size: 15px; text-align: end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-chev { width: 16px; height: 16px; flex: none; color: var(--st-ter); stroke-width: 2.4; }
+[dir="ltr"] .st-chev { transform: scaleX(-1); }
+.st-kvrow { min-height: 46px; align-items: flex-start; justify-content: space-between; }
+.st-k { flex: none; max-width: 45%; font-size: 15.5px; line-height: 1.4; }
+.st-kvrow .st-v { flex: 0 1 auto; min-width: 0; max-width: none; line-height: 1.4; white-space: normal; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.st-tile { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; color: #fff; }
+.st-tile svg { width: 18px; height: 18px; }
+.st-tile.t-green { background: var(--primary); color: var(--on-primary); }
+.st-tile.t-blue { background: var(--sys-blue); }
+.st-tile.t-teal { background: linear-gradient(135deg, #64D2FF, #0A84FF); }
+.st-check, .st-radio { box-sizing: border-box; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--st-ter); flex: none; display: grid; place-items: center; color: transparent; position: relative; }
+.st-check svg { width: 14px; height: 14px; stroke-width: 3; }
+.st-check.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.st-check.lock { opacity: .55; }
+.st-radio.on { border-color: var(--primary); }
+.st-radio.on::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--primary); }
+.st-badge { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 2px 8px; border-radius: var(--pill); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.st-badge.gray { background: var(--st-fill); color: var(--on-surface-var); }
+
+/* ---------- דף הבית ---------- */
+.st-cpill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding-inline: 11px; border-radius: var(--pill); background: var(--st-fill); color: var(--on-surface); font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.st-cpill i { width: 7px; height: 7px; border-radius: 50%; background: var(--st-ter); }
+.st-cpill:active { opacity: .7; }
+.st-newcard { box-sizing: border-box; display: flex; align-items: center; gap: 14px; width: calc(100% - 32px); margin: 2px 16px 4px; padding: 14px; border-radius: var(--radius); background: var(--st-card); box-shadow: var(--shadow-sm); text-align: start; }
+.st-newcard:active { transform: scale(.985); }
+.st-newcard.pick { margin-top: 0; }
+.st-plus { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none; background: var(--primary); color: var(--on-primary); }
+.st-plus svg { width: 26px; height: 26px; stroke-width: 2.6; }
+.st-newcard .st-l b { font-size: 17px; }
+.st-newcard .st-l small { font-size: 13.5px; }
+.st-empty { margin: 40px 32px 0; display: grid; justify-items: center; gap: 6px; text-align: center; color: var(--on-surface-var); }
+.st-empty-ic { width: 64px; height: 64px; margin-bottom: 6px; border-radius: 20px; display: grid; place-items: center; background: var(--st-fill); }
+.st-empty-ic svg { width: 32px; height: 32px; }
+.st-empty b { font-size: 17px; color: var(--on-surface); }
+.st-empty p { margin: 0; max-width: 34ch; font-size: 14.5px; line-height: 1.5; }
+.st-proj { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; position: relative; text-align: start; }
+.st-proj + .st-proj::before { content: ""; position: absolute; top: 0; inset-inline: 14px 0; border-top: 1px solid var(--separator); }
+.st-proj:active { background: var(--st-fill); }
+.st-thumb { width: 96px; aspect-ratio: 16 / 9; flex: none; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(150deg, #48484A, #1C1C1E); color: rgba(255, 255, 255, .6); }
+.st-thumb svg { width: 26px; height: 26px; stroke-width: 2; }
+.st-pinfo { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.st-pinfo b { font-size: 15px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-pinfo small { font-size: 12.5px; color: var(--on-surface-var); }
+.st-pstat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--on-surface-var); }
+
+/* ---------- פרויקט חדש ---------- */
+.st-filecard { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: calc(100% - 32px); margin: 0 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--st-card); text-align: start; }
+.st-filecard .st-thumb { width: 64px; border-radius: 8px; }
+.st-filecard .st-thumb svg { width: 22px; height: 22px; }
+.st-filecard .st-l { gap: 2px; }
+.st-filecard .st-l b { font-size: 15px; line-height: 1.3; }
+.st-l small.st-ok { color: var(--on-primary-container); font-weight: 600; }
+.st-linkish { color: var(--primary); font-weight: 600; }
+.st-chips { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 10px 16px 2px; }
+.st-chips::-webkit-scrollbar { display: none; }
+.st-chip { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 10px; background: var(--st-fill); color: var(--on-surface); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.st-chk { width: 14px; height: 14px; stroke-width: 3; }
+.st-chip.on { background: var(--on-surface); color: var(--bg); }
+.st-ta { box-sizing: border-box; display: block; width: calc(100% - 32px); min-height: 76px; margin: 0 16px; padding: 12px 14px; border: 0; border-radius: var(--radius-sm);
+  background: var(--st-card); color: var(--on-surface); font: inherit; font-size: 16px; line-height: 1.5; resize: none; outline: none; }
+.st-ta:focus { box-shadow: 0 0 0 2px var(--primary) inset; }
+.st-ta::placeholder { color: var(--st-ter); }
+
+/* מצב התרגום — המומלץ בולט עם סרט, ומתחתיו שתי קבוצות מאמץ */
+.st-mode-best { position: relative; display: grid; gap: 10px; margin: 14px 16px 0; padding: 16px 14px 14px; border-radius: var(--radius); background: var(--st-card); box-shadow: 0 0 0 2px var(--primary) inset; }
+.st-mode-best.other { box-shadow: 0 0 0 2px var(--separator) inset; }
+.st-ribbon { position: absolute; top: -10px; inset-inline-start: 14px; max-width: calc(100% - 28px); padding: 3px 10px; border-radius: var(--pill); background: var(--primary); color: var(--on-primary);
+  font-size: 12px; font-weight: 800; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 8px rgba(48, 209, 88, .35); }
+.st-mode-best.other .st-ribbon { background: var(--surface-2); color: var(--on-surface); box-shadow: none; }
+[data-theme="dark"] .st-mode-best.other .st-ribbon { background: #2C2C2E; }
+.st-mh { display: flex; align-items: center; gap: 10px; }
+.st-mh .st-tile { width: 40px; height: 40px; border-radius: var(--radius-xs); }
+.st-mh .st-tile svg { width: 22px; height: 22px; }
+.st-mh .st-l b { font-size: 17px; }
+.st-meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.st-meter { display: grid; align-content: start; gap: 5px; padding: 8px 10px; border-radius: var(--radius-xs); background: var(--bg); }
+.st-meter small { font-size: 11.5px; font-weight: 600; line-height: 1.25; color: var(--on-surface-var); }
+.st-meter b { font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-bars { display: flex; gap: 3px; }
+.st-bars i { flex: 1; height: 5px; border-radius: 3px; background: var(--st-fill); }
+.st-bars i.on { background: var(--primary); }
+.st-bars.amber i.on { background: var(--sys-orange); }
+.st-mode-grp { display: grid; gap: 9px; margin: 10px 16px 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--st-card); }
+.st-gh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.st-gh b { font-size: 15.5px; }
+.st-gh small { font-size: 12.5px; color: var(--on-surface-var); }
+.st-effort { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.st-effort button { display: grid; justify-items: center; gap: 1px; min-width: 0; min-height: 50px; padding: 8px 3px; border-radius: var(--radius-xs); background: var(--st-fill); color: var(--on-surface); }
+.st-effort button b { font-size: 14.5px; }
+.st-effort button small { max-width: 100%; font-size: 11px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-effort .star { color: var(--on-primary-container); font-weight: 800; }
+.st-effort button[aria-checked="true"] { background: var(--primary); color: var(--on-primary); }
+.st-effort button[aria-checked="true"] small { color: var(--on-primary); opacity: .85; }
+.st-modesum { margin: 10px 18px 0; font-size: 13px; line-height: 1.5; color: var(--on-surface-var); }
+.st-modesum b { color: var(--on-surface); }
+
+/* מראה הכתוביות — דוגמה על "סצנה" כהה */
+.st-styles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 16px; }
+.st-sty { position: relative; overflow: hidden; aspect-ratio: 16 / 10; border-radius: var(--radius-xs); box-shadow: 0 0 0 1px var(--separator);
+  background: radial-gradient(120% 70% at 30% 20%, rgba(255, 214, 160, .35), transparent 60%), linear-gradient(165deg, #4B5D73 0%, #2A3747 50%, #151C24 100%); }
+.st-sty.on { box-shadow: 0 0 0 3px var(--primary); }
+.st-sty .n { position: absolute; top: 5px; inset-inline-start: 7px; font-size: 11.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #000; }
+.st-sty .s { position: absolute; inset-inline: 4px; bottom: 6px; font-size: 10.5px; line-height: 1.25; text-align: center; color: #fff; }
+.st-sty .s-bold { font-weight: 800; text-shadow: 0 0 1px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000, 0 0 4px #000; }
+.st-sty .s-classic { font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, .9); }
+.st-sty .s-karaoke { font-weight: 800; text-shadow: 0 2px 4px #000; }
+.st-sty .s-karaoke em { font-style: normal; color: #FFD60A; }
+
+/* כפתורים */
+.st-btn { box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 13px 20px; border-radius: var(--pill);
+  background: var(--primary); color: var(--on-primary); font-size: 17px; font-weight: 700; }
+.st-btn.wide { width: calc(100% - 32px); margin-inline: 16px; }
+.st-btn.tint { background: var(--primary-container); color: var(--on-primary-container); }
+.st-btn.danger { background: transparent; color: var(--loss); box-shadow: 0 0 0 1.5px var(--loss) inset; }   /* הרסני משני = מתאר אדום */
+.st-btn:disabled { background: var(--st-fill); color: var(--st-ter); box-shadow: none; }
+.st-btn:not(:disabled):active { transform: scale(.98); }
+
+/* ---------- פרויקט ---------- */
+.st-ptag { margin: -4px 0 14px; padding-inline: 16px; }
+
+/* ---------- אשף החיבור ---------- */
+.st-wiz { list-style: none; display: grid; gap: 10px; margin: 14px 16px 0; padding: 0; counter-reset: st; }
+.st-wiz li { counter-increment: st; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 14px; border-radius: var(--radius); background: var(--st-card); }
+.st-wiz li::before { content: counter(st); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-container); color: var(--on-primary-container); font-size: 13px; font-weight: 800; }
+.st-wbody { display: grid; gap: 6px; min-width: 0; }
+.st-wbody b { font-size: 16px; }
+.st-wbody p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--on-surface-var); }
+.st-wacts { display: grid; gap: 8px; margin-top: 4px; }
+.st-wbtn { box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 12px; border-radius: var(--radius-xs);
+  background: var(--primary-container); color: var(--on-primary-container); font-size: 15px; font-weight: 600; text-decoration: none; text-align: start; }
+.st-wbtn svg { width: 18px; height: 18px; flex: none; }
+.st-wbtn > span:not(.st-badge) { flex: 1; min-width: 0; }
+.st-wbtn:disabled { background: var(--st-fill); color: var(--on-surface-var); }
+a.st-wbtn:active { opacity: .7; }
+.st-field { box-sizing: border-box; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 12px; border-radius: var(--radius-xs); background: var(--bg); color: var(--st-ter); font-size: 14.5px; }
+.st-field svg { width: 16px; height: 16px; flex: none; }
+
+/* חלונות והודעות של האפליקציה שהסטודיו פותח — מעל השכבה (900), כמו בספרייה (לקח v317) */
+#toast.toast { z-index: 1000; }
+html.studio-open .item-acts.floating { z-index: 1002; }
+html.studio-open .dlg-veil { z-index: 1003; }

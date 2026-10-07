@@ -1702,6 +1702,7 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .menu-row-t { font-size: 16.5px; font-weight: 700; }
 .menu-row-s { font-size: 13px; font-weight: 500; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .demo-ic { background: linear-gradient(135deg, #FFD60A, #FF9F0A); }
+.studio-ic { background: linear-gradient(135deg, #FF5E57, #FF2D55); }   /* v354: סטודיו התרגום */
 /* כרטיס ההצעה בראש הסקירה — מרווח כמו שאר הכרטיסים */
 #tab-overview > #demoOffer { margin-bottom: 14px; }
 

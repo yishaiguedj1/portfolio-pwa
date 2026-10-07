@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <!-- אבטחה (v149): מדיניות תוכן — רק המקורות שהאפליקציה באמת משתמשת בהם. מקור חדש = להוסיף כאן, אחרת הדפדפן חוסם בשקט. tests/csp.test.js בודק. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Tb2sGdeo5TX9lnD5Hh6BwSCNIj9Us7EYKxTtP+TBdug=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://financialmodelingprep.com https://s3-symbol-logo.tradingview.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data: blob:; connect-src 'self' https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://*.googleapis.com https://clients5.google.com https://en.wikipedia.org https://he.wikipedia.org https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src blob: https://yishaiguedj1-c786e.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-8sR1sBlNN166w2yEFc+P5kuQy2re1UIFM5aa1z/+AHc=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://financialmodelingprep.com https://s3-symbol-logo.tradingview.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data: blob:; connect-src 'self' https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://*.googleapis.com https://clients5.google.com https://en.wikipedia.org https://he.wikipedia.org https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src blob: https://yishaiguedj1-c786e.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title data-i18n="appTitle">תיק ההשקעות</title>
 <meta name="description" content="דשבורד תיק ההשקעות — מחירים חיים, הפקדות, פנסיה. אפליקציית ווב להתקנה.">
@@ -11,8 +11,8 @@
 <script>
 /* מחיל ערכת נושא (בהיר/כהה) לפני הציור הראשון — מונע הבהוב. */
 try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',d?'#000000':'#30D158');
-/* v322: רענון בזמן שהספרייה פתוחה — וילון בצבע הרקע עד שהספרייה/הספר מוכנים (בלי לראות את הסקירה באמצע) */
-var h=history.state;if(h&&h.lib){var e=document.documentElement;e.classList.add('lib-open','lib-curtain','lib-restoring');
+/* v322: רענון בזמן שהספרייה פתוחה — וילון בצבע הרקע עד שהספרייה/הספר מוכנים (בלי לראות את הסקירה באמצע). v354: גם הסטודיו */
+var h=history.state;if(h&&(h.lib||h.studio)){var e=document.documentElement;e.classList.add(h.lib?'lib-open':'studio-open','lib-curtain','lib-restoring');
 if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t=r.theme;if(!t||t==='auto'||(t==='white'&&!r.themeSet))t=d?'black':'white';var p={white:'#FFFFFF',sepia:'#F6EFE1',green:'#E8F0E3',black:'#000000'}[t];if(p)e.style.setProperty('--curtain',p);}}})();}catch(e){}
 </script>
 <meta name="mobile-web-app-capable" content="yes">
@@ -61,6 +61,14 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
             <button id="menuLibraryBtn" class="row-link menu-row" type="button">
               <span class="row-link-ic demo-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 7.5h7"/></svg></span>
               <span class="row-link-txt"><span class="menu-row-t" data-i18n="menuLibrary">ספרייה</span><span class="menu-row-s" data-i18n="menuLibrarySub">מכתבים וספרים</span></span>
+              <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
+            </button>
+          </div>
+          <!-- סטודיו התרגום (שלב 1): תרגום סרטונים — מודול studio.js נטען בלחיצה -->
+          <div class="menu-section menu-demo">
+            <button id="menuStudioBtn" class="row-link menu-row" type="button">
+              <span class="row-link-ic studio-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" stroke="none"/></svg></span>
+              <span class="row-link-txt"><span class="menu-row-t" data-i18n="menuStudio">תרגום סרטונים</span><span class="menu-row-s" data-i18n="menuStudioSub">כתוביות בכל שפה</span></span>
               <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
             </button>
           </div>
