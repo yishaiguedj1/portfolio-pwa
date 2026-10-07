@@ -622,50 +622,133 @@ def guarded(fn):
     return wrap
 
 
-@guarded
-def prepare(args):
-    ctx = Ctx(load_state())
+def wait_video(ctx, stage, msg):
+    """מחכים שהסרטון יסיים לעלות מהטלפון (מעדכנים את השרתון פעם בחמש דקות — הטלפון מציג את ההעלאה בעצמו)."""
     poll = float(os.environ.get('SNB_POLL', '30'))
     n = 0
     while not (ctx.st.get('files') or {}).get('v'):
         if n == 0:
             print('מחכה שהסרטון יסיים לעלות מהטלפון…')
-        if n % 10 == 0:                          # פעם בחמש דקות מספיק — הטלפון מציג את ההעלאה בעצמו
-            ctx.report('up', None, 'מחכה שהסרטון יסיים לעלות', force=True)
+        if n % 10 == 0:
+            ctx.report(stage, None, msg, force=True)
         time.sleep(poll)
         n += 1
         if n * poll > 12 * 3600:
             ctx.report(fail=True, err='upload_timeout', force=True)
             raise SystemExit('✗ הסרטון לא הגיע תוך 12 שעות.')
         ctx.refresh()
-    v = ctx.st['files']['v']
-    ext = (os.path.splitext(v.get('name') or '')[1] or '.mp4').lower()
+    return ctx.st['files']['v']
+
+
+def in_path(ctx, f, kind):
+    """הקובץ שהורד מ־Drive: הסרטון ב־_in/<שם>.<סיומת>, הקול ב־_in/<שם>.audio.<סיומת> (שניהם יכולים להיות שם יחד)."""
+    default = '.mp4' if kind == 'v' else '.m4a'
+    ext = (os.path.splitext(f.get('name') or '')[1] or default).lower()
     if not re.match(r'^\.[a-z0-9]{2,5}$', ext):
-        ext = '.mp4'
-    src = VT_WORK / '_in' / (ctx.name + ext)
-    ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
-    drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
+        ext = default
+    return VT_WORK / '_in' / (ctx.name + ('.audio' if kind == 'a' else '') + ext)
+
+
+@guarded
+def prepare(args):
+    """v360: התמלול מתחיל מהקול שהטלפון העלה ראשון — בלי לחכות לסרטון (שממשיך לעלות במקביל).
+    הסרטון מצטרף ב־align (attach_video). אין קובץ קול (קודק שאי אפשר להעתיק) — מחכים לסרטון כמו קודם."""
+    ctx = Ctx(load_state())
+    files = ctx.st.get('files') or {}
+    a = files.get('a') if (files.get('a') or {}).get('id') else None
+    if a:
+        src = in_path(ctx, a, 'a')
+        ctx.report('tr', 0, 'מוריד את הקול מ־Drive', force=True)
+        drive_download(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול מ־Drive'))
+    else:
+        v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
+        src = in_path(ctx, v, 'v')
+        ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
+        drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
     title = os.path.splitext(str(ctx.st['spec'].get('name') or ctx.name))[0][:120]
     vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
     vt(ctx, ['ingest', ctx.name])
     ctx.report('tr', 0.15, 'כותבים כל מילה שנאמרת', force=True)
     vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'tr', 0.15, 0.95)
-    vt(ctx, ['shots', ctx.name])
+    if not a:
+        vt(ctx, ['shots', ctx.name])             # חילופי שוטים צריכים וידאו — מהקול זה קורה ב־attach_video
     vt(ctx, ['edit-export', ctx.name])
+    ctx.st['src'] = 'a' if a else 'v'
+    save_state(ctx.st)
     ctx.report('tr', 1, 'התמליל מוכן — Claude מגיה אותו', force=True)
-    print('✓ התמלול הסתיים.')
+    print('✓ התמלול הסתיים' + (' (מהקול — הסרטון יצורף ב־align).' if a else '.'))
     print('ההגהה: ' + str(ctx.pdir / 'en.edit.txt') + '  →  תיקונים ב־' + str(ctx.pdir / 'en.patch.txt'))
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
 
 
+SYNC_MIN_CONF = 0.6      # מתחת לזה ההיסט לא ודאי → מתמללים מחדש מהסרטון (בלי טוקנים, וההגהה נשמרת)
+
+
+def shift_words(pdir, off):
+    """מזיז את זמני המילים בכל קובצי התמלול (asr/*.json) — מציר הזמן של הקול לציר הזמן של הסרטון."""
+    n = 0
+    for p in sorted((pdir / 'asr').glob('*.json')):
+        d = json.loads(p.read_text(encoding='utf-8'))
+        for w in d.get('words') or []:
+            for k in ('s', 'e'):
+                if isinstance(w.get(k), (int, float)):
+                    w[k] = round(max(0.0, w[k] + off), 3)
+        p.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+        n += 1
+    return n
+
+
+def attach_video(ctx):
+    """v360: הסרטון מצטרף לפרויקט שתומלל מהקול: מקור חדש לפרויקט (vt ingest), מדידת ההיסט בין הקולות (sync.py)
+    והזזת זמני המילים — כך שהיישור, הכתוביות והצריבה על ציר הזמן של הסרטון. היסט לא ודאי → תמלול מחדש מהסרטון."""
+    v = wait_video(ctx, 'al', 'מחכה שהסרטון יסיים לעלות')
+    src = in_path(ctx, v, 'v')
+    ctx.report('al', 0, 'מוריד את הסרטון מ־Drive', force=True)
+    drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון מ־Drive'))
+    pd = ctx.pdir
+    first = pd / 'audio16k.first.wav'
+    if (pd / 'audio16k.wav').exists():
+        (pd / 'audio16k.wav').replace(first)
+    for old in pd.glob('source.*'):              # הקול כבר לא המקור (vt בוחר את source.* הראשון בסדר האלפביתי)
+        old.unlink()
+    mp = pd / 'meta.json'
+    meta = json.loads(mp.read_text(encoding='utf-8'))
+    meta['source'] = str(src)
+    mp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
+    vt(ctx, ['ingest', ctx.name, '--force'])
+    off, conf = 0.0, 0.0
+    if first.exists():
+        r = subprocess.run([VT_PY, str(HERE / 'sync.py'), str(first), str(pd / 'audio16k.wav')], capture_output=True, text=True)
+        try:
+            off, conf = (float(x) for x in (r.stdout or '').split()[:2])
+        except ValueError:
+            off, conf = 0.0, 0.0
+    if conf >= SYNC_MIN_CONF:
+        if abs(off) >= 0.0005:
+            shift_words(pd, off)
+        print('✓ הסרטון צורף · היסט %+.3f שנ׳ (ודאות %.2f)' % (off, conf))
+    else:
+        print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — מתמללים מחדש מהסרטון (בלי טוקנים, ההגהה נשמרת)' % conf)
+        ctx.report('al', 0.05, 'כותבים שוב מהסרטון עצמו', force=True)
+        vt(ctx, ['asr', ctx.name, '--engine', 'parakeet'], 'al', 0.05, 0.3)
+    vt(ctx, ['shots', ctx.name])
+    ctx.st['src'] = 'v'
+    ctx.st['sync'] = {'off': round(off, 4), 'conf': round(conf, 3)}
+    save_state(ctx.st)
+
+
 @guarded
 def align(args):
     ctx = Ctx(load_state())
+    base = 0.0
+    if ctx.st.get('src') == 'a':
+        attach_video(ctx)
+        base = 0.3                               # ההורדה וההתאמה כבר הזיזו את השלב — הפס לא חוזר אחורה
     vt(ctx, ['edit-import', ctx.name])
-    ctx.report('al', 0, 'מתאימים כל מילה לרגע שבו נאמרה', force=True)
-    vt(ctx, ['align', ctx.name], 'al', 0.0, 0.9)
+    ctx.report('al', base, 'מתאימים כל מילה לרגע שבו נאמרה', force=True)
+    vt(ctx, ['align', ctx.name], 'al', base, 0.9)
     vt(ctx, ['plan', ctx.name])
     vt(ctx, ['tr-prep', ctx.name])
     ctx.report('al', 1, 'הכתוביות מתוכננות — מתחילים לתרגם', force=True)
