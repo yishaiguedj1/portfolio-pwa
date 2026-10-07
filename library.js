@@ -2350,6 +2350,21 @@ function readerLeaveHistory() {
   setTimeout(readerLeaveHistory, 550);     // ה־back לא בוצע (נמדד: back מיד אחרי popstate נבלע לפעמים) — שוב
 }
 function skipStale() { setTimeout(readerLeaveHistory, 60); }   // back מיד אחרי popstate לפעמים לא מבוצע (נמדד) — השהיה קטנה
+/* v351 (סרטון המשתמש: משיכה מצד שמאל עדיין "קופצת"): Chrome מצלם את רשומת השומר ברגע שעוזבים אותה — הצילום יצא
+   באמצע אנימציית הכניסה של הקורא (עמוד הספרייה דהוי מתחת לטקסט) או עם סימן הטעינה. במשיכה מימין Chrome לא מציג צילום,
+   ולכן שם לא הייתה קפיצה. רשומת הקורא נדחפת רק כשהקורא מוצג במלואו: בלי loading, אחרי אנימציית הכניסה, ועוד מרווח
+   לפריימים שהטלפון מציג באיחור. עדיין בתוך הפעלת המשתמש (5 שנ׳ מהלחיצה); אם פגה — readerRearm בנגיעה הבאה. */
+function readerArm(box) {
+  const t0 = Date.now();
+  const go = () => {
+    if (!rd || rd.els.box !== box || rd.closing) return;
+    const anim = (box.getAnimations ? box.getAnimations() : []).some((a) => a.playState === 'running');
+    if ((box.classList.contains('loading') || anim) && Date.now() - t0 < 2500) { setTimeout(go, 60); return; }
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(readerRearm, READER_ARM_SETTLE_MS)));
+  };
+  go();
+}
+const READER_ARM_SETTLE_MS = 350;
 function readerRearm() {                 // נגיעה בתוך הקורא אחרי "חזור" ראשון — השומר חוזר (יש הפעלת משתמש)
   try {
     const st = history.state || {};
@@ -2512,7 +2527,7 @@ async function openReader(id, opt) {
     const d = e.detail || {};
     box.classList.remove('loading');
     curtainDown();
-    if (rd && !rd.armed) { rd.armed = 1; requestAnimationFrame(() => requestAnimationFrame(readerRearm)); }   // v350: העמוד הראשון צויר — רשומת הקורא
+    if (rd && !rd.armed) { rd.armed = 1; readerArm(box); }   // v350: העמוד הראשון צויר — רשומת הקורא
     const frac = d.fraction || 0;
     const left = d.time && isFinite(d.time.section) ? Math.max(1, Math.round(d.time.section)) : 0;
     fL.textContent = left ? T('rdMinLeftChap', { m: left }) : '';
