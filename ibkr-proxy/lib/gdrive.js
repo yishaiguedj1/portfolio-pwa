@@ -59,6 +59,28 @@ function emailOf(idt) {
 }
 const revoke = (deps, token) => (deps.fetch || fetch)(REVOKE_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form({ token }) }).catch(() => null);
 
+/* גישה זמנית (שעה) מההרשאה הקבועה — לגיבוי הספרייה, ומ־v355 גם לסטודיו (העלאה מהטלפון; הורדה והעלאה בעובד בענן) */
+async function accessToken(deps, uid) {
+  if (!configured()) return { ok: false, error: 'gd_not_configured' };
+  const rec = await readRec(deps, uid);
+  if (!rec || !rec.rt) return { ok: false, error: 'not_connected' };
+  const c = cfg();
+  const t = await tokenCall(deps, { refresh_token: rec.rt, client_id: c.id, client_secret: c.secret, grant_type: 'refresh_token' });
+  if (t.status === 400 && t.j.error === 'invalid_grant') {   // המשתמש ביטל את הגישה בחשבון Google — מנקים
+    await delRec(deps, uid);
+    return { ok: false, error: 'revoked' };
+  }
+  if (t.status !== 200 || !t.j.access_token) return { ok: false, error: 'gd_http_' + t.status };
+  const expiresIn = t.j.expires_in || 3600;
+  return { ok: true, token: t.j.access_token, expiresIn, exp: Date.now() + expiresIn * 1000, email: rec.email || '' };
+}
+/* האם Drive מחובר (בלי לבקש גישה) */
+async function driveState(deps, uid) {
+  if (!configured()) return { configured: false, connected: false, email: '' };
+  const rec = await readRec(deps, uid);
+  return { configured: true, connected: !!(rec && rec.rt), email: rec ? rec.email || '' : '' };
+}
+
 async function handle(body, user, res, deps = {}) {
   if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
   if (!configured()) return res.status(503).json({ ok: false, error: 'gd_not_configured', diag: { id: !!cfg().id, secret: !!cfg().secret, vault: vault.configured() } });
@@ -86,15 +108,9 @@ async function handle(body, user, res, deps = {}) {
       return res.status(200).json({ ok: true, access_token: t.j.access_token, expires_in: t.j.expires_in || 3600, email });
     }
     if (body.op === 'gdToken') {
-      const rec = await readRec(deps, uid);
-      if (!rec || !rec.rt) return res.status(200).json({ ok: false, error: 'not_connected' });
-      const t = await tokenCall(deps, { refresh_token: rec.rt, client_id: c.id, client_secret: c.secret, grant_type: 'refresh_token' });
-      if (t.status === 400 && t.j.error === 'invalid_grant') {   // המשתמש ביטל את הגישה בחשבון Google — מנקים
-        await delRec(deps, uid);
-        return res.status(200).json({ ok: false, error: 'revoked' });
-      }
-      if (t.status !== 200 || !t.j.access_token) return res.status(502).json({ ok: false, error: 'gd_http_' + t.status });
-      return res.status(200).json({ ok: true, access_token: t.j.access_token, expires_in: t.j.expires_in || 3600, email: rec.email || '' });
+      const t = await accessToken(deps, uid);
+      if (!t.ok) return res.status(/^gd_http_/.test(t.error) ? 502 : 200).json({ ok: false, error: t.error });
+      return res.status(200).json({ ok: true, access_token: t.token, expires_in: t.expiresIn, email: t.email });
     }
     if (body.op === 'gdDisconnect') {
       const rec = await readRec(deps, uid).catch(() => null);
@@ -108,4 +124,4 @@ async function handle(body, user, res, deps = {}) {
   }
 }
 
-module.exports = { handle, configured, cfg, REDIRECT_RE, SCOPE_FILE, emailOf };
+module.exports = { handle, configured, cfg, accessToken, driveState, REDIRECT_RE, SCOPE_FILE, emailOf };

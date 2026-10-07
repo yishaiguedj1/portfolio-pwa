@@ -218,7 +218,7 @@ function fakeDrive() {
   ok(/drive\.file/.test(B.SCOPES) && !/auth\/drive[ "']/.test(bkSrc), 'הרשאה drive.file בלבד (לא כל הדרייב)');
   const oauthJs = fs.readFileSync(path.join(root, 'oauth.js'), 'utf8'), oauthHtml = fs.readFileSync(path.join(root, 'oauth.html'), 'utf8');
   ok(/history\.replaceState/.test(oauthJs) && /BroadcastChannel\('snb-oauth'\)/.test(oauthJs) && /default-src 'none'/.test(oauthHtml) && !/<script>/.test(oauthHtml), 'oauth.html: CSP מחמיר, בלי סקריפט inline, הקוד נמחק מהכתובת');
-  ok(/localStorage\.removeItem\('pwa_oauth_v1'\)/.test(lib), 'הקוד נמחק מהאחסון מיד אחרי השימוש');
+  ok(/localStorage\.removeItem\('pwa_oauth_v1'\)/.test(bkSrc) && /waitCode: waitOAuthCode/.test(lib), 'הקוד נמחק מהאחסון מיד אחרי השימוש (v355: בפונקציה המשותפת ב־libbackup.js)');
   // כל מחרוזת בספרייה — בעברית ובאנגלית
   const keys = [...new Set([...lib.matchAll(/T\('([A-Za-z]+)'/g)].map((m) => m[1]))];
   const heBlock = app.slice(app.indexOf('he: {'), app.indexOf('en: {')), enBlock = app.slice(app.indexOf('en: {'));

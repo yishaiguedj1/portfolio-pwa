@@ -1123,5 +1123,252 @@ function stubFetch(text, status = 200) {
     if (oldM !== undefined) process.env.MISTRAL_API_KEY = oldM;
   }
 
+  /* ---------- v355: סטודיו התרגום — /api/studio (Firestore, Drive, Google ו־Anthropic מדומים) ---------- */
+  {
+    const crypto = require('crypto');
+    const gauth = require('../lib/gauth');
+    const vault = require('../lib/vault');
+    const S = require('../lib/studio');
+    const studio = require('../api/studio');
+    const envKeys = ['GDRIVE_SA_KEY', 'GDRIVE_CLIENT_ID', 'GDRIVE_CLIENT_SECRET', 'IBKR_VAULT_KEY', 'LIBRARY_READERS', 'LIBRARY_ADMINS', 'STUDIO_USERS'];
+    const env = envKeys.map((k) => [k, process.env[k]]);
+    const fb = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const sa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    process.env.GDRIVE_SA_KEY = JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: sa.privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+    process.env.GDRIVE_CLIENT_ID = 'cid.apps.googleusercontent.com'; process.env.GDRIVE_CLIENT_SECRET = 'csecret';
+    process.env.LIBRARY_READERS = 'owner@example.com, reader@example.com'; process.env.STUDIO_USERS = 'friend@example.com';
+    delete process.env.IBKR_VAULT_KEY; delete process.env.LIBRARY_ADMINS;
+    gauth._reset(); studio._reset();
+    const keys = { k1: fb.publicKey.export({ type: 'spki', format: 'pem' }) };
+    const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const tnow = Math.floor(Date.now() / 1000);
+    const tok = (sub, email) => {
+      const hd = b64u({ alg: 'RS256', kid: 'k1' }), bd = b64u({ aud: 'yishaiguedj1-c786e', iss: 'https://securetoken.google.com/yishaiguedj1-c786e', sub, iat: tnow - 5, exp: tnow + 3000, email, email_verified: true });
+      return hd + '.' + bd + '.' + crypto.sign('RSA-SHA256', Buffer.from(hd + '.' + bd), fb.privateKey).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    };
+    const OWNER = tok('ownerUid0001', 'owner@example.com'), READER = tok('readerUid002', 'reader@example.com'), FRIEND = tok('friendUid03', 'friend@example.com');
+    const RKEY = 'sk-ant-oat01-' + 'Q'.repeat(60) + '_x-Y9AA', RURL = 'https://api.anthropic.com/v1/claude_code/routines/trig_01ABCDEFGHJKLMNOPQRSTUVW/fire';
+
+    // Firestore מדומה: כמה אוספים, כתיבה חלקית (updateMask) ושאילתת runQuery לפי uid
+    const db = new Map();   // 'col/id' → { fields }
+    const calls = [];
+    let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0);
+    const J = (o, st = 200, hd = {}) => ({ status: st, json: async () => o, headers: { get: (k) => hd[String(k).toLowerCase()] || null } });
+    const fake = async (url, opt = {}) => {
+      calls.push({ url, method: opt.method || 'GET', body: opt.body || '' });
+      if (url.includes('oauth2.googleapis.com/token')) {
+        const p = new URLSearchParams(opt.body || '');
+        if (p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
+        if (p.get('grant_type') === 'refresh_token') return p.get('refresh_token') === 'RT-1' ? J({ access_token: 'DRIVE-AT', expires_in: 3599 }) : J({ error: 'invalid_grant' }, 400);
+        return J({}, 400);
+      }
+      if (url.startsWith('https://api.anthropic.com/')) {
+        fires.push({ url, headers: opt.headers, body: JSON.parse(opt.body || '{}') });
+        if (fireMode === 'throw') throw new Error('net');
+        if (fireMode === 401) return J({ type: 'error', error: { type: 'authentication_error', message: 'bad' } }, 401);
+        if (fireMode === 429) return J({ type: 'error', error: { type: 'rate_limit_error', message: 'slow' } }, 429, { 'retry-after': '1800' });
+        if (fireMode === 'paused') return J({ type: 'error', error: { type: 'invalid_request_error', message: 'Routine is paused' } }, 400);
+        return J({ type: 'routine_fire', claude_code_session_id: 'session_01TESTSESSION' + fires.length, claude_code_session_url: 'https://claude.ai/code/session_01TESTSESSION' + fires.length });
+      }
+      const dm = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/([A-Za-z0-9_-]+)\?/);
+      if (dm) {
+        if ((opt.headers || {}).Authorization !== 'Bearer DRIVE-AT') return J({}, 401);
+        const f = driveFiles.get(dm[1]);
+        return f ? J(f) : J({}, 404);
+      }
+      if (url.endsWith('/documents:runQuery')) {
+        const q = JSON.parse(opt.body).structuredQuery;
+        const uid = q.where.fieldFilter.value.stringValue;
+        return J([...db.entries()].filter(([k, v]) => k.startsWith('studioJobs/') && v.fields.uid && v.fields.uid.stringValue === uid)
+          .map(([k, v]) => ({ document: { name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields } })).concat([{ readTime: 'x' }]));
+      }
+      const m = url.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)(?:\?(.*))?$/);
+      if (!m) return J({}, 404);
+      const k = m[1] + '/' + m[2], cur = db.get(k);
+      if (opt.method === 'GET') return cur ? J({ fields: cur.fields }) : J({}, 404);
+      if (opt.method === 'DELETE') { db.delete(k); return J({}); }
+      if (opt.method === 'PATCH') {
+        const mask = new URLSearchParams(m[3] || '').getAll('updateMask.fieldPaths');
+        const body = JSON.parse(opt.body).fields;
+        const fields = mask.length ? Object.assign({}, cur ? cur.fields : {}, ...mask.map((f) => ({ [f]: body[f] }))) : body;
+        db.set(k, { fields }); return J({ fields });
+      }
+      return J({}, 400);
+    };
+    db.set('driveVault/ownerUid0001', { fields: { r: { stringValue: vault.seal({ rt: 'RT-1', email: 'drive.owner@example.com' }, 'gdrive|ownerUid0001|r') } } });
+    const deps = () => ({ verify: { keys }, fetch: fake, now });
+    const payloads = [];
+    const run = async (body, headers) => { const r = mockRes(); await studio._handler(mockReq({ body, headers }), r, deps()); payloads.push(JSON.stringify(r.payload)); return r; };
+    const wrk = async (body) => { const r = mockRes(); await studio._handler({ method: 'POST', headers: {}, body }, r, deps()); payloads.push(JSON.stringify(r.payload)); return r; };
+    const keyOf = (f) => (/key=([A-Za-z0-9_-]{43})/.exec(f.body.text) || [])[1];
+    const jobOf = (f) => (/job=(j[A-Za-z0-9_-]{20})/.exec(f.body.text) || [])[1];
+
+    // טהורות
+    ok(S.normRoutine('  ' + RURL + ' ', 'Bearer ' + RKEY + '\n').trig === 'trig_01ABCDEFGHJKLMNOPQRSTUVW' && S.normRoutine('https://api.anthropic.com.evil.com/v1/claude_code/routines/trig_01ABCDEFGH/fire', RKEY).error === 'bad_url'
+      && S.normRoutine(RURL.replace('https', 'http'), RKEY).error === 'bad_url' && S.normRoutine(RURL, 'sk-ant-api03-' + 'x'.repeat(40)).error === 'bad_key', 'סטודיו: כתובת ומפתח של Routine — רווחים ו־Bearer מתנקים, כתובת/מפתח מסוג אחר נדחים');
+    const sp = S.normSpec({ name: 'Ackman\u0000 interview.mkv', size: 3.2 * 1024 ** 3, to: ['he', 'he', 'xx', 'en'], mode: 'nope', out: ['same', 'mkv', 'zip'], terms: 'Bill Ackman', from: 'en', dur: 4620.4 });
+    ok(sp && sp.name === 'Ackman interview.mkv' && sp.to.join() === 'he,en' && sp.mode === 'opus-medium' && sp.out.join() === 'same,mkv' && sp.dur === 4620 && !S.normSpec({ name: 'x', size: 0, to: ['he'] }) && !S.normSpec({ name: 'x', size: 5, to: ['xx'] }), 'סטודיו: פרטי עבודה — מנוקים ומוגבלים (שפות כפולות/לא מוכרות, מצב לא מוכר, גודל 0)');
+    let rep = S.applyReport({ prog: null }, { st: 'tr', p: 0.4, msg: 'כותבים\u0007 כל מילה', ex: 'דקה 3 מתוך 77' }, 1000);
+    rep = S.applyReport({ prog: rep.prog }, { st: 'al', p: 7 }, 5000);
+    ok(rep.prog.stg.tr.s === 1000 && rep.prog.stg.tr.e === 5000 && rep.prog.stg.al.s === 5000 && rep.prog.p === 1 && rep.prog.st === 'al' && !/\u0007/.test(rep.prog.msg || 'כותבים כל מילה'), 'סטודיו: דיווח — שלב חדש סוגר את הקודם עם זמן אמיתי, אחוז מוגבל ל־0–1, תווי בקרה מנוקים');
+    const fin = S.applyReport({ prog: rep.prog }, { fail: true, err: 'Bad Code!' }, 9000);
+    ok(fin.state === 'failed' && fin.err === 'worker' && fin.prog.stg.al.e === 9000 && S.applyReport({}, { st: 'zz' }, 1).prog.st === '', 'סטודיו: כשל — קוד שגיאה לא תקין הופך ל־worker; שלב לא מוכר נדחה');
+
+    // הרשאות
+    let r = await run({ op: 'status' });
+    ok(r.statusCode === 401, 'סטודיו: בלי התחברות — 401');
+    r = await run({ op: 'status', idToken: READER });
+    ok(r.statusCode === 403 && r.payload.error === 'not_allowed', 'סטודיו: קורא בספרייה שאינו המנהל ולא ב־STUDIO_USERS — חסום');
+    r = await run({ op: 'status', idToken: OWNER }, {});
+    ok(r.statusCode === 403 && r.payload.error === 'forbidden_origin', 'סטודיו: פעולת טלפון בלי Origin של האפליקציה — חסומה');
+    r = await run({ op: 'status', idToken: FRIEND });
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected === false, 'סטודיו: משתמש מ־STUDIO_USERS מורשה (בלי חיבור ובלי Drive משלו)');
+    r = await run({ op: 'status', idToken: OWNER });
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping', 'סטודיו: מצב — Drive מחובר מהגיבוי, עדיין לא Claude; העובד יודע רק "בדיקת חיבור" (שלב 2)');
+
+    // חיבור: כספת
+    r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });
+    ok(r.statusCode === 400 && r.payload.error === 'bad_url' && !db.has('studioVault/ownerUid0001'), 'סטודיו: כתובת שאינה של Anthropic — נדחית, שום דבר לא נשמר');
+    r = await run({ op: 'connect', idToken: OWNER, url: RURL, key: ' Bearer ' + RKEY });
+    const vdoc = db.get('studioVault/ownerUid0001');
+    ok(r.payload.ok && r.payload.conn.hint === 'trig_…STUVW'.replace('STUVW', 'TUVW') && !JSON.stringify(r.payload).includes(RKEY), 'סטודיו: חיבור נשמר — בתשובה רק "trig_…" + 4 תווים, בלי המפתח');
+    ok(vdoc && !JSON.stringify(vdoc).includes(RKEY) && !JSON.stringify(vdoc).includes('trig_01ABCDEFGHJKLMNOPQRSTUVW') && vault.open(vdoc.fields.r.stringValue, 'studio|ownerUid0001|r').k === RKEY
+      && vault.open(vdoc.fields.r.stringValue, 'studio|friendUid03|r') === null, 'סטודיו: בכספת המפתח והכתובת מוצפנים (AES-GCM), קשורים למשתמש — לא נפתחים למשתמש אחר');
+
+    // בדיקת חיבור: הפעלה + העובד מדווח
+    r = await run({ op: 'test', idToken: OWNER });
+    const f1 = fires[0], K1 = keyOf(f1), JP = jobOf(f1);
+    ok(r.payload.ok && fires.length === 1 && f1.url === RURL && f1.headers.Authorization === 'Bearer ' + RKEY && f1.headers['anthropic-version'] === '2023-06-01'
+      && r.payload.job.state === 'queued' && r.payload.job.sess.url === 'https://claude.ai/code/session_01TESTSESSION1' && JP === r.payload.job.id && K1, 'סטודיו: בדיקת חיבור — הפעלה אחת עם הכותרות של התיעוד; בטקסט רק מזהה עבודה ומפתח עבודה');
+    const jdoc = db.get('studioJobs/' + JP);
+    ok(!JSON.stringify(jdoc).includes(K1) && jdoc.fields.kh.stringValue === S.keyHash(K1) && !JSON.stringify(r.payload).includes(K1), 'סטודיו: מפתח העבודה לא נשמר ולא חוזר לטלפון — רק ה־SHA-256 שלו');
+    r = await run({ op: 'test', idToken: OWNER });
+    ok(r.statusCode === 429 && r.payload.error === 'wait' && fires.length === 1, 'סטודיו: בדיקה חוזרת תוך דקה — לא מפעילה שוב');
+    r = await wrk({ op: 'claim', job: JP, key: K1.slice(0, -1) + (K1.endsWith('A') ? 'B' : 'A') });
+    ok(r.statusCode === 403 && r.payload.stop, 'סטודיו: עובד עם מפתח שגוי — 403 ו"עצור"');
+    r = await wrk({ op: 'claim', job: JP, key: K1 });
+    ok(r.payload.ok && r.payload.job.kind === 'ping' && r.payload.drive.token === 'DRIVE-AT' && !('kh' in r.payload.job) && JSON.parse(db.get('studioJobs/' + JP).fields.state ? '"' + db.get('studioJobs/' + JP).fields.state.stringValue + '"' : '""') === 'running', 'סטודיו: העובד לוקח את העבודה — מקבל את פרטיה וגישה ל־Drive לשעה; המצב "רץ"');
+    r = await wrk({ op: 'report', job: JP, key: K1, done: true, checks: { drive: true }, msg: 'החיבור תקין' });
+    ok(r.payload.ok && r.payload.state === 'done', 'סטודיו: העובד מדווח "הסתיים"');
+    r = await run({ op: 'status', idToken: OWNER });
+    ok(r.payload.conn && r.payload.conn.ok === now, 'סטודיו: בדיקת חיבור שהסתיימה מסמנת את החיבור כ"נבדק"');
+    r = await run({ op: 'job', idToken: OWNER, job: JP });
+    ok(r.payload.job.state === 'done' && r.payload.job.prog.ck.drive === true && r.payload.job.prog.msg === 'החיבור תקין', 'סטודיו: הטלפון רואה את תוצאת הבדיקה (גם Drive מהסשן)');
+    r = await wrk({ op: 'report', job: JP, key: K1, st: 'tr' });
+    ok(r.payload.stop && r.payload.state === 'done', 'סטודיו: אחרי שהעבודה הסתיימה — המפתח רק מחזיר "עצור"');
+
+    // שגיאות הפעלה
+    now += 61e3; fireMode = 401;
+    r = await run({ op: 'test', idToken: OWNER });
+    ok(!r.payload.ok && r.payload.error === 'routine_auth' && r.payload.job.state === 'failed' && fires.length === 2, 'סטודיו: מפתח Routine שבוטל/שגוי (401) — שגיאה ברורה, העבודה נכשלה, בלי ניסיון נוסף');
+    now += 61e3; fireMode = 429;
+    r = await run({ op: 'test', idToken: OWNER });
+    ok(r.payload.error === 'routine_rate' && r.payload.retry === 1800 && fires.length === 3, 'סטודיו: מגבלת ההפעלות של Anthropic (429) — עם זמן ההמתנה מהכותרת');
+    now += 61e3; fireMode = 'paused';
+    r = await run({ op: 'test', idToken: OWNER });
+    ok(r.payload.error === 'routine_paused', 'סטודיו: Routine מושהה — מזוהה');
+    now += 61e3; fireMode = 'throw';
+    r = await run({ op: 'test', idToken: OWNER });
+    ok(r.payload.error === 'routine_net' && fires.length === 5, 'סטודיו: תקלת רשת בהפעלה — לא מנסים שוב לבד (אחרת ייפתחו שני סשנים)');
+    ok([...db.keys()].filter((k) => k.startsWith('studioJobs/')).length === 3, 'סטודיו: נשמרות רק 3 בדיקות החיבור האחרונות');
+    fireMode = 'ok';
+
+    // עבודה: יצירה, קבצים, התחלה
+    r = await run({ op: 'create', idToken: OWNER, spec: { name: 'x', size: 0, to: ['he'] } });
+    ok(r.statusCode === 400 && r.payload.error === 'bad_spec', 'סטודיו: עבודה בלי קובץ אמיתי — נדחית');
+    const SPEC = { name: 'Ackman_TKP_interview.mkv', size: 294649856, type: 'video/x-matroska', dur: 4620, from: 'en', to: ['he'], mode: 'opus-medium', out: ['same'], style: 'bold', terms: 'Bill Ackman' };
+    r = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JT = r.payload.job.id;
+    ok(r.payload.ok && r.payload.job.state === 'new' && r.payload.job.kind === 'tr' && r.payload.job.spec.size === SPEC.size, 'סטודיו: עבודת תרגום נוצרת במצב "חדשה" (מעלים לפני ההפעלה)');
+    r = await run({ op: 'jobs', idToken: OWNER });
+    ok(r.payload.jobs.length === 1 && r.payload.jobs[0].id === JT, 'סטודיו: רשימת העבודות — בלי בדיקות החיבור');
+    r = await run({ op: 'job', idToken: FRIEND, job: JT });
+    ok(r.statusCode === 404, 'סטודיו: משתמש אחר לא רואה את העבודה');
+    driveFiles.set('fold1234567890', { id: 'fold1234567890' });
+    driveFiles.set('aud1234567890', { id: 'aud1234567890', name: 'קול.m4a', size: '73400320', mimeType: 'audio/mp4', parents: ['fold1234567890'], trashed: false });
+    driveFiles.set('vid1234567890', { id: 'vid1234567890', name: SPEC.name, size: String(SPEC.size), mimeType: 'video/x-matroska', parents: ['fold1234567890'], trashed: false });
+    driveFiles.set('elsewhere12345', { id: 'elsewhere12345', name: 'x', size: '5', parents: ['otherFolder123'], trashed: false });
+    driveFiles.set('vidbad12345678', { id: 'vidbad12345678', name: 'x.mkv', size: '1000', parents: ['fold1234567890'], trashed: false });
+    r = await run({ op: 'start', idToken: OWNER, job: JT });
+    ok(r.statusCode === 409 && r.payload.error === 'no_files', 'סטודיו: אי אפשר להתחיל לפני שקובץ עלה');
+    r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'a', id: 'elsewhere12345', folder: 'fold1234567890' });
+    ok(r.payload.error === 'file_bad', 'סטודיו: קובץ שלא בתיקיית העבודה — נדחה (מאומת מול Drive)');
+    r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'v', id: 'vidbad12345678', folder: 'fold1234567890' });
+    ok(r.payload.error === 'file_size', 'סטודיו: וידאו בגודל שונה מהמקור — נדחה');
+    r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    ok(r.payload.ok && r.payload.job.files.a.size === 73400320 && r.payload.job.files.v === null, 'סטודיו: הקול נרשם (הגודל מ־Drive)');
+    const nFires = fires.length;
+    r = await run({ op: 'start', idToken: OWNER, job: JT });
+    ok(!r.payload.ok && r.payload.error === 'worker_not_ready' && fires.length === nFires && r.payload.job.state === 'new', 'סטודיו (שלב 2): העובד עוד לא יודע לתרגם — לא מפעילים Routine סתם; העבודה ממתינה');
+    r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+    ok(r.payload.ok && r.payload.job.files.v.size === SPEC.size && r.payload.job.files.a, 'סטודיו: הווידאו נרשם — שני הקבצים נשמרים (שדות נפרדים, בלי דריסה)');
+
+    // שלב 3 (מדומה): העובד יודע לתרגם → הפעלה, החלפת מפתח, ביטול
+    S.WORKER_KINDS.push('tr');
+    fireMode = 'throw';
+    r = await run({ op: 'start', idToken: OWNER, job: JT });
+    const Ka = keyOf(fires[fires.length - 1]);
+    ok(r.payload.error === 'routine_net' && r.payload.job.state === 'new', 'סטודיו: הפעלה שנכשלה ברשת — העבודה חוזרת ל"חדשה" (אפשר לנסות שוב ביד)');
+    r = await wrk({ op: 'claim', job: JT, key: Ka });
+    ok(r.statusCode === 403, 'סטודיו: המפתח של הפעלה שנכשלה — לא תקף');
+    fireMode = 'ok';
+    r = await run({ op: 'start', idToken: OWNER, job: JT });
+    const Kb = keyOf(fires[fires.length - 1]);
+    ok(r.payload.ok && r.payload.job.state === 'queued' && Kb && Kb !== Ka, 'סטודיו: הפעלה — מפתח עבודה חדש לכל הפעלה');
+    r = await wrk({ op: 'report', job: JT, key: Kb, st: 'tr', p: 0.25, msg: 'כותבים כל מילה', ex: 'דקה 19 מתוך 77', eta: 360 });
+    ok(r.payload.ok && r.payload.state === 'running', 'סטודיו: דיווח ראשון מעביר ל"רץ" גם בלי claim');
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.prog.st === 'tr' && r.payload.job.prog.p === 0.25 && r.payload.job.prog.eta === 360 && r.payload.job.prog.ex === 'דקה 19 מתוך 77' && r.payload.job.prog.stg.tr.s === now, 'סטודיו: הטלפון רואה שלב, אחוז, זמן שנשאר ודוגמה חיה');
+    r = await wrk({ op: 'token', job: JT, key: Kb });
+    ok(r.payload.ok && r.payload.drive.token === 'DRIVE-AT', 'סטודיו: העובד מקבל גישה חדשה ל־Drive (לעבודה ארוכה)');
+    r = await run({ op: 'remove', idToken: OWNER, job: JT });
+    ok(r.statusCode === 409 && r.payload.error === 'active', 'סטודיו: אי אפשר למחוק עבודה שרצה — קודם ביטול');
+    r = await run({ op: 'cancel', idToken: OWNER, job: JT });
+    ok(r.payload.job.state === 'cancelled', 'סטודיו: ביטול');
+    r = await wrk({ op: 'report', job: JT, key: Kb, st: 'al' });
+    ok(r.payload.stop && r.payload.state === 'cancelled', 'סטודיו: אחרי ביטול — העובד מקבל "עצור" בדיווח הבא');
+    now += S.KEY_TTL + 1;
+    r = await wrk({ op: 'claim', job: JT, key: Kb });
+    ok(r.statusCode === 403, 'סטודיו: מפתח עבודה פג אחרי 48 שעות');
+    r = await run({ op: 'remove', idToken: OWNER, job: JT });
+    ok(r.payload.ok && !db.has('studioJobs/' + JT), 'סטודיו: מחיקת עבודה שבוטלה');
+
+    // הפעלה שאף סשן לא לקח
+    r = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JS = r.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JS, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    r = await run({ op: 'start', idToken: OWNER, job: JS });
+    const Ks = keyOf(fires[fires.length - 1]);
+    now += 31 * 60e3;
+    r = await run({ op: 'job', idToken: OWNER, job: JS });
+    ok(r.payload.job.state === 'failed' && r.payload.job.err === 'no_claim', 'סטודיו: הופעל ואף סשן לא לקח את העבודה תוך 30 דק׳ — "נכשל" עם סיבה');
+    r = await wrk({ op: 'claim', job: JS, key: Ks });
+    ok(r.payload.stop, 'סטודיו: עובד שמגיע מאוחר מדי — "עצור"');
+    S.WORKER_KINDS.splice(S.WORKER_KINDS.indexOf('tr'), 1);
+
+    // מגבלות וקלט מהעובד
+    for (let i = 0; i < 6; i++) r = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    ok(r.statusCode === 409 && r.payload.error === 'too_many', 'סטודיו: עד 5 עבודות פתוחות בבת אחת');
+    r = await wrk({ op: 'report', job: JS, key: Ks, msg: 'x'.repeat(20000) });
+    ok(r.statusCode === 413, 'סטודיו: דיווח ענק מהעובד — נדחה');
+    r = await wrk({ op: 'claim', job: '../etc', key: Ks });
+    ok(r.statusCode === 400, 'סטודיו: מזהה עבודה לא תקין — נדחה');
+    r = await run({ op: 'drive', idToken: OWNER });
+    ok(r.payload.ok && r.payload.token === 'DRIVE-AT' && r.payload.email === 'drive.owner@example.com', 'סטודיו: גישה זמנית ל־Drive לטלפון (העלאה)');
+    r = await run({ op: 'drive', idToken: FRIEND });
+    ok(!r.payload.ok && r.payload.error === 'not_connected', 'סטודיו: בלי Drive מחובר — שגיאה ברורה');
+
+    // ניתוק
+    r = await run({ op: 'disconnect', idToken: OWNER });
+    ok(r.payload.ok && !db.has('studioVault/ownerUid0001'), 'סטודיו: ניתוק מוחק את הרשומה מהכספת');
+    now += 61e3;
+    r = await run({ op: 'test', idToken: OWNER });
+    ok(r.payload.error === 'conn_missing', 'סטודיו: אחרי ניתוק — אין הפעלה (conn_missing — לא מתבלבל עם Drive)');
+    ok(payloads.every((p) => !p.includes(RKEY) && !p.includes('RT-1')), 'סטודיו: המפתח של ה־Routine וההרשאה הקבועה של Drive לא הופיעו באף תשובה');
+
+    env.forEach(([k, v]) => { if (v == null) delete process.env[k]; else process.env[k] = v; });
+    gauth._reset(); studio._reset();
+  }
+
   console.log(`\nכל ${n} הבדיקות עברו ✓`);
 })().catch((e) => { console.error('נכשל:', e.message); process.exit(1); });

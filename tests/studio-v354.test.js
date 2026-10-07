@@ -15,8 +15,12 @@ const sw = read('sw.js');
 const styles = read('styles.css');
 
 /* ---------- 1. פונקציות טהורות (המודול בלי export, ב־Node 20 של ה־CI) ---------- */
-const body = st.replace(/^export (const|function) /gm, '$1 ');
-const S = new Function('t', body + '\nreturn { defaultSettings, normSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined);
+// v355: studio.js מייבא את studionet.js ו־libbackup.js — כאן במקומם תחליפים (הבדיקות של המודולים האלה ב־studio-v355)
+const STUBS = { createNet: () => ({ api: async () => ({ ok: false }), libApi: async () => null, jobFolder: async () => '', upload: async () => ({}) }),
+  probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}), progressModel: () => ({ stages: [], left: 0, pct: 0 }),
+  createBackup: () => ({}), waitOAuthCode: () => {} };
+const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
+const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
 ok(S.LS_STUDIO === 'pwa_studio_v1', 'מפתח האחסון: pwa_studio_v1');
 const def = S.defaultSettings();
 ok(def.mode === 'opus-medium' && S.DEFAULT_MODE === 'opus-medium', 'ברירת המחדל: Opus 5.5 · Medium');
@@ -125,9 +129,11 @@ ok(undef.length === 0, 'כל משתנה CSS בסטודיו מוגדר (שם שג
 /* ---------- 6. אבטחה ופרטיות ---------- */
 const inner = st.split('\n').filter((l) => /innerHTML/.test(l));
 ok(inner.length === 1 && /s\.innerHTML = ICON\[k\];/.test(inner[0]), 'innerHTML רק לסמלים הקבועים — כל טקסט דרך textContent');
-ok(!/\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket/.test(st), 'שלב 1: בלי שום פנייה לרשת');
+ok(!/\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket/.test(st), 'הממשק לא פונה לרשת בעצמו — רק דרך studionet.js (שלב 2)');
 ok(!/localStorage\.setItem\((?!LS_STUDIO)/.test(st), 'כותב רק למפתח שלו ב־localStorage');
-ok(!/token|sk-ant|apiKey/i.test(code.replace(/T\('[^']*'\)/g, '')), 'אין שדה מפתח/אסימון בקוד הסטודיו בשלב הזה');
+// שלב 2: יש שדה למפתח של ה־Routine — שדה סיסמה, נמחק מהזיכרון אחרי שמירה מוצלחת וביציאה מהדף, ולעולם לא נכנס לאחסון
+ok(/keyIn\.type = 'password'/.test(st) && /w\.key = '';/.test(st) && /ui\.wiz = \{ url: ui\.wiz\.url, key: '', busy: false, err: '' \}/.test(st)
+  && !JSON.stringify(S.normStore({ settings: { k: 'sk-ant-oat01-' + 'a'.repeat(30) }, conn: { hint: 'trig_…abcd', k: 'sk-ant-oat01-' + 'a'.repeat(30), u: 'https://x' } })).includes('sk-ant'), 'המפתח של ה־Routine: שדה סיסמה, נמחק אחרי השמירה וביציאה, ולא נכנס לאחסון בטלפון');
 ok(/open\.rel = 'noopener noreferrer'/.test(st), 'קישור חיצוני (claude.ai/code) עם noopener');
 ok(!/\bconfirm\(|\balert\(|\bprompt\(/.test(code.replace(/askConfirm\(/g, '')), 'בלי חלונות הדפדפן — askConfirm של האפליקציה (dlg-v297)');
 
