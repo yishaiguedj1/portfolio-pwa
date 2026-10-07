@@ -84,10 +84,9 @@ async function fire(deps, v, uid, text) {
       body: JSON.stringify({ text }) });
     let j = null; try { j = await r.json(); } catch (e) {}
     const hdr = (k) => (r.headers && typeof r.headers.get === 'function' ? r.headers.get(k) : null);
-    if (r.status === 200) {
-      const sess = S.fireSession(j);
-      return sess ? { ok: true, sess } : { ok: false, error: 'routine_reply', detail: S.fireDetail(200, j, hdr('request-id')) };
-    }
+    // התיעוד: הבקשה חוזרת רק אחרי שהסשן נפתח — כל 2xx = Claude נפתח, גם כשמבנה התשובה לא מוכר (ממשק ניסיוני).
+    // עד התיקון: מזהה cse_ לא זוהה → "נכשל" והמפתח נמחק, וה־Claude שכבר נפתח נדחה ב־bad_key (קרה אצל המשתמש)
+    if (r.status >= 200 && r.status < 300) return { ok: true, sess: S.fireSession(j) };
     const ra = parseInt(hdr('retry-after') || '', 10);
     return { ok: false, error: S.fireError(r.status, j), retry: Number.isFinite(ra) ? Math.min(ra, 7200) : undefined,
       detail: S.fireDetail(r.status, j, hdr('request-id')) };   // v356: לאבחון — מוצג בטלפון ("פרטים לתמיכה")

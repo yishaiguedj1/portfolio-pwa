@@ -1169,7 +1169,11 @@ function stubFetch(text, status = 200) {
         if (fireMode === 429) return J({ type: 'error', error: { type: 'rate_limit_error', message: 'slow' } }, 429, { 'retry-after': '1800' });
         if (fireMode === 'paused') return J({ type: 'error', error: { type: 'invalid_request_error', message: 'Routine is paused' } }, 400);
         if (fireMode === 500) return J({ type: 'error', error: { type: 'api_error', message: 'Internal <b>x</b>' } }, 500, { 'request-id': 'req_011CXtest<script>' });
-        return J({ type: 'routine_fire', claude_code_session_id: 'session_01TESTSESSION' + fires.length, claude_code_session_url: 'https://claude.ai/code/session_01TESTSESSION' + fires.length });
+        if (fireMode === 'odd') return J({ type: 'routine_fire', session: { id: 'x' } });   // 200 במבנה לא מוכר
+        if (fireMode === 'nojson') return { status: 200, json: async () => { throw new Error('not json'); }, headers: { get: () => null } };
+        if (fireMode === 'docs') return J({ type: 'routine_fire', claude_code_session_id: 'session_01DOCSSESSION' + fires.length, claude_code_session_url: 'https://claude.ai/code/session_01DOCSSESSION' + fires.length });
+        // כמו בפועל (07/10/2026): המזהה cse_… — בתיעוד session_…
+        return J({ type: 'routine_fire', claude_code_session_id: 'cse_01TESTSESSION' + fires.length, claude_code_session_url: 'https://claude.ai/code/cse_01TESTSESSION' + fires.length });
       }
       const dm = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/([A-Za-z0-9_-]+)\?/);
       if (dm) {
@@ -1293,6 +1297,28 @@ function stubFetch(text, status = 200) {
     ok(r.payload.job.state === 'failed' && r.payload.job.err === 'routine_down' && r.payload.job.ed === 'HTTP 500 · api_error · req_011CXtestscript',
       'סטודיו: 500 וסשן לא הגיע בזמן — נכשלת עם השגיאה של Anthropic (לא "לא התחיל" שמפנה לרשת), והפרטים נשמרים');
     ok([...db.keys()].filter((k) => k.startsWith('studioJobs/')).length === 3, 'סטודיו: נשמרות רק 3 בדיקות החיבור האחרונות');
+    // מה שקרה אצל המשתמש (07/10/2026): Anthropic החזיר 200 עם מזהה cse_… (בתיעוד session_…), השרתון פסל את התשובה,
+    // סימן "נכשל" ומחק את המפתח — וה־Claude שכבר נפתח נדחה ב־bad_key. עכשיו: כל 2xx = נפתח
+    const fsx = (o) => JSON.stringify(S.fireSession(o));
+    ok(fsx({ claude_code_session_id: 'cse_01S4ogTESTxyz', claude_code_session_url: 'https://claude.ai/code/cse_01S4ogTESTxyz' }) === JSON.stringify({ id: 'cse_01S4ogTESTxyz', url: 'https://claude.ai/code/session_01S4ogTESTxyz' })
+      && fsx({ claude_code_session_id: 'session_01HJKLMNOPQRSTUVWXYZ', claude_code_session_url: 'https://claude.ai/code/session_01HJKLMNOPQRSTUVWXYZ' }) === JSON.stringify({ id: 'session_01HJKLMNOPQRSTUVWXYZ', url: 'https://claude.ai/code/session_01HJKLMNOPQRSTUVWXYZ' })
+      && S.fireSession({ claude_code_session_id: 'cse_01S4ogTESTxyz' }).url === 'https://claude.ai/code/session_01S4ogTESTxyz'
+      && S.fireSession({ claude_code_session_id: 'cse_01S4ogTESTxyz', claude_code_session_url: 'https://evil.example/code/session_01S4ogTESTxyz' }).url === 'https://claude.ai/code/session_01S4ogTESTxyz'
+      && S.fireSession({ claude_code_session_id: 'cse_<b>x</b>12345678' }) === null && S.fireSession({ claude_code_session_id: 'session_01AB' }) === null && S.fireSession(null) === null,
+      'סטודיו: מזהה הסשן — cse_ (בפועל) ו־session_ (בתיעוד); הכתובת לטלפון תמיד claude.ai/code/session_…, וכתובת ממארח אחר נבנית מהמזהה');
+    for (const mode of ['ok', 'odd', 'nojson', 'docs']) {
+      now += 61e3; fireMode = mode;
+      r = await run({ op: 'test', idToken: OWNER });
+      const nf = fires.length, Jx = r.payload.job && r.payload.job.id, Kx = keyOf(fires[nf - 1]);
+      const want = { ok: 'https://claude.ai/code/session_01TESTSESSION' + nf, docs: 'https://claude.ai/code/session_01DOCSSESSION' + nf }[mode] || '';
+      ok(r.payload.ok && !r.payload.unsure && !r.payload.error && r.payload.job.state === 'queued' && r.payload.job.err === '' && (r.payload.job.sess ? r.payload.job.sess.url : '') === want,
+        'סטודיו: 200 (' + mode + ') — Claude נפתח: העבודה ממתינה לו, בלי שגיאה' + (want ? '' : ' (מבנה לא מוכר — בלי קישור לסשן, אבל לא "נכשל")'));
+      const wx = await wrk({ op: 'claim', job: Jx, key: Kx });
+      ok(wx.payload.ok && !wx.payload.stop && wx.payload.job.state === 'running', 'סטודיו: 200 (' + mode + ') — ה־Claude שנפתח מתקבל (לא bad_key)');
+      await wrk({ op: 'report', job: Jx, key: Kx, done: true, checks: { drive: true } });
+      r = await run({ op: 'job', idToken: OWNER, job: Jx });
+      ok(r.payload.job.state === 'done' && r.payload.job.err === '', 'סטודיו: 200 (' + mode + ') — הבדיקה מסתיימת בהצלחה');
+    }
     fireMode = 'ok';
 
     // עבודה: יצירה, קבצים, התחלה

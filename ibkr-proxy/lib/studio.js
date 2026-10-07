@@ -10,7 +10,8 @@ const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 const FILE_ID_RE = /^[A-Za-z0-9_-]{10,100}$/;
-const SESSION_RE = /^session_[A-Za-z0-9]{8,80}$/;
+// מזהה הסשן בתשובת ההפעלה: בתיעוד session_…, בפועל cse_… (07/10/2026) — שתי קידומות לאותו סשן
+const SESSION_RE = /^(?:session|cse)_([A-Za-z0-9]{8,80})$/;
 const SESSION_URL_RE = /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]{8,80}$/;
 const ERR_RE = /^[a-z0-9_]{1,40}$/;
 const KEY_TTL = 48 * 3600e3;
@@ -102,10 +103,13 @@ function fireDetail(status, j, reqId) {
   const rid = String(reqId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
   return ['HTTP ' + (Number(status) | 0), type, rid].filter(Boolean).join(' · ');
 }
+/* הסשן מתוך תשובה מוצלחת. הכתובת בטלפון תמיד בצורת session_ (כך נפתח סשן ב־claude.ai) — אם לא הגיעה כזו, נבנית מהמזהה.
+   מבנה לא מוכר → null, וזה עדיין לא כשל: ההפעלה הצליחה (ראו fire ב־api/studio.js) */
 function fireSession(j) {
-  const id = String((j && j.claude_code_session_id) || ''), url = String((j && j.claude_code_session_url) || '');
-  if (!SESSION_RE.test(id)) return null;
-  return { id, url: SESSION_URL_RE.test(url) ? url : '' };
+  const m = SESSION_RE.exec(String((j && j.claude_code_session_id) || ''));
+  if (!m) return null;
+  const url = String((j && j.claude_code_session_url) || '');
+  return { id: m[0], url: SESSION_URL_RE.test(url) ? url : 'https://claude.ai/code/session_' + m[1] };
 }
 /* תקציב ההפעלות: חותמות הזמן של השעה האחרונה */
 const recentFires = (fh, now) => (Array.isArray(fh) ? fh : []).filter((t) => now - t < 3600e3).slice(-50);
