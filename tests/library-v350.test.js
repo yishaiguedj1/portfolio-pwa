@@ -11,7 +11,7 @@ const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const body = (src, name) => { const i = src.indexOf('function ' + name + '('); return src.slice(i, src.indexOf('\n}\n', i)); };
 const open = body(lib, 'openReader'), pop = body(lib, 'onPop'), cr = body(lib, 'closeReader'), cl = body(lib, 'closeLibrary');
 ok(!/guard: 0 \}\), ''\)/.test(open), 'בפתיחה רק רשומת השומר — רשומת הקורא אחרי הציור');
-ok(/if \(rd && !rd\.armed\) \{ rd\.armed = 1; readerArm\(box\); \}/.test(lib), 'העמוד הראשון צויר → רשומת הקורא (צילום השומר = הקורא)');
+ok(/if \(rd && !rd\.armed && !CW_OK\) \{ rd\.armed = 1; readerArm\(box\); \}/.test(lib), 'העמוד הראשון צויר → רשומת הקורא (צילום השומר = הקורא)');
 ok(/const uaT = !!\(e && e\.hasUAVisualTransition\);/.test(pop), '"חזור" ש־Chrome כבר הנפיש מזוהה (hasUAVisualTransition)');
 ok(/closeReader\(\{ instant: uaT \}\)/.test(pop) && /readerExit\(uaT\)/.test(pop) && /navigateTo\(uaT \? 'none' : 'pop'/.test(pop) && /closeLibrary\(uaT\)/.test(pop), 'אחרי אנימציה של Chrome — בלי אנימציה שנייה (קורא, דף, ספרייה)');
 ok(/if \(!instant\) box\.classList\.add\('out'\);/.test(cr) && /const gone = instant \|\|/.test(cr), 'סגירה מיידית של הקורא — בלי דהייה');

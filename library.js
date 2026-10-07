@@ -2350,6 +2350,29 @@ function readerLeaveHistory() {
   setTimeout(readerLeaveHistory, 550);     // ה־back לא בוצע (נמדד: back מיד אחרי popstate נבלע לפעמים) — שוב
 }
 function skipStale() { setTimeout(readerLeaveHistory, 60); }   // back מיד אחרי popstate לפעמים לא מבוצע (נמדד) — השהיה קטנה
+/* v352 (המשתמש: "עדיין יש את הקפיצה" במשיכה משמאל, גם אחרי v350–v351): כל עוד "חזור" הוא ניווט בהיסטוריה, Chrome
+   מחליק במשיכה משמאל צילום של הרשומה הקודמת — והתזמון של הצילום לא בשליטתנו. CloseWatcher (Chrome 120+) מקבל את "חזור" של
+   אנדרואיד (משיכה מכל צד או כפתור) כבקשת סגירה, בלי ניווט ובלי צילום: ראשון = הבועה בלבד, שני תוך BACK_TWICE_MS = יציאה
+   באנימציה שלנו. מאזין חדש אחרי כל בקשה (בלי הפעלת משתמש מותר אחד "חינם", ונגיעה בספר מחדשת). בלי תמיכה — השומר בהיסטוריה. */
+const CW_OK = typeof window !== 'undefined' && typeof window.CloseWatcher === 'function';
+function readerWatch() {
+  if (!rd || rd.closing) return;
+  try { if (rd.cw) rd.cw.destroy(); } catch (e) {}
+  let w;
+  try { w = new CloseWatcher(); } catch (e) { rd.cw = null; return; }
+  rd.cw = w;
+  w.onclose = () => { if (rd && rd.cw === w) { rd.cw = null; readerCloseRequest(); } };
+}
+function readerCloseRequest() {
+  if (!rd || rd.closing) return;
+  const veils = root ? Array.from(root.querySelectorAll('.lib-veil:not(.out)')) : [];
+  if (veils.length) { const v = veils[veils.length - 1]; (v._close || (() => v.remove()))(); }
+  else if (selPop) hideSel();
+  else if (trCard) hideTr();
+  else if (Date.now() - (rd.backAt || 0) < BACK_TWICE_MS) { readerExit(); return; }
+  else { rd.backAt = Date.now(); if (typeof flash === 'function') flash(T('rdBackTwice')); }
+  readerWatch();
+}
 /* v351 (סרטון המשתמש: משיכה מצד שמאל עדיין "קופצת"): Chrome מצלם את רשומת השומר ברגע שעוזבים אותה — הצילום יצא
    באמצע אנימציית הכניסה של הקורא (עמוד הספרייה דהוי מתחת לטקסט) או עם סימן הטעינה. במשיכה מימין Chrome לא מציג צילום,
    ולכן שם לא הייתה קפיצה. רשומת הקורא נדחפת רק כשהקורא מוצג במלואו: בלי loading, אחרי אנימציית הכניסה, ועוד מרווח
@@ -2368,6 +2391,7 @@ const READER_ARM_SETTLE_MS = 350;
 function readerRearm() {                 // נגיעה בתוך הקורא אחרי "חזור" ראשון — השומר חוזר (יש הפעלת משתמש)
   try {
     const st = history.state || {};
+    if (CW_OK) { if (rd && !rd.cw && !rd.closing) readerWatch(); return; }   // v352: נגיעה = הפעלת משתמש → מאזין חדש אם חסר
     if (!rd || rd.closing || st.lib !== 2 || !st.guard || st.sheet) return;   // v349: לא מעל רשומת גיליון (רשומה כפולה בלבלה את "חזור")
     if (navigator.userActivation && !navigator.userActivation.isActive) return;
     history.pushState(Object.assign({}, st, { guard: 0 }), '');
@@ -2457,8 +2481,9 @@ async function openReader(id, opt) {
     // v350: רשומת הקורא (guard:0) נדחפת רק אחרי שהעמוד הראשון מוצג (readerArm) — Chrome מצלם רשומה ברגע שעוזבים אותה,
     // ובמשיכה מצד המסך מציג את הצילום של היעד. כששתי הרשומות נדחפו יחד, הצילום של השומר היה דף הספר — "חזור" אחד
     // הבזיק את דף הספר ואז הקורא חזר ("קפיצה", הסרטון של המשתמש). עכשיו הצילום של השומר = הקורא עצמו.
+    // v352: עם CloseWatcher (Chrome 120+) "חזור" לא נוגע בהיסטוריה — רשומה אחת לקורא, בלי שומר (readerWatch)
     const st = cleanState({ lib: 2, book: id });
-    history.pushState(Object.assign({}, st, { guard: 1 }), '');
+    history.pushState(Object.assign({}, st, { guard: CW_OK ? 0 : 1 }), '');
   }
   else history.replaceState(Object.assign({}, history.state || {}, { lib: 2, book: id }), '');
   const box = h('div', 'rd loading' + (opt && opt.restored ? ' restored' : ''));     // v322: .loading עד העמוד הראשון — סימן טעינה במקום דף ריק; restored = בלי אנימציית כניסה
@@ -2497,6 +2522,7 @@ async function openReader(id, opt) {
   box.append(view, ribbon, foot, topBar, botBar);
   root.append(box);
   rd = { view, rec, els: { box, foot, fL, fR, chap, slider, nL, nR, ttl, bmBtn, ribbon, scrub, marks, prev, pvCh, pvTx, pvPct, pvBm, backPos }, chrome: false, saveT: 0, annTap: 0, pvSeq: 0 };
+  if (CW_OK) readerWatch();                // v352: "חזור" של אנדרואיד = בקשת סגירה, לא ניווט (בלי צילום של Chrome)
   preloadSecText(rec);
   rec.ann = rec.ann || [];
   annCleanDupes(rec);
@@ -2527,7 +2553,7 @@ async function openReader(id, opt) {
     const d = e.detail || {};
     box.classList.remove('loading');
     curtainDown();
-    if (rd && !rd.armed) { rd.armed = 1; readerArm(box); }   // v350: העמוד הראשון צויר — רשומת הקורא
+    if (rd && !rd.armed && !CW_OK) { rd.armed = 1; readerArm(box); }   // v350: העמוד הראשון צויר — רשומת הקורא
     const frac = d.fraction || 0;
     const left = d.time && isFinite(d.time.section) ? Math.max(1, Math.round(d.time.section)) : 0;
     fL.textContent = left ? T('rdMinLeftChap', { m: left }) : '';
@@ -2590,6 +2616,7 @@ function closeReader(opt) {
   if (!rd) return;
   const instant = !!(opt && opt.instant);
   const r = rd; rd = null;
+  try { if (r.cw) r.cw.destroy(); } catch (e) {}   // v352
   if (r.rec) { clearTimeout(r.saveT); pushProgress(r.rec, true); }
   hideSel(); hideTr(true);
   if (root) root.querySelectorAll('.lib-veil').forEach((v) => v.remove());   // v349: גיליון של הקורא (Aa/תוכן) נסגר איתו
@@ -4042,4 +4069,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
