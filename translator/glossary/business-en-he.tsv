@@ -1,0 +1,173 @@
+# מילון מונחים עסקיים — אנגלית→עברית לכתוביות של ראיונות מנכ"לים.
+# עמודה 1: מונח באנגלית · עמודה 2: עברית (חלופות ב־/, הראשונה מועדפת) · עמודה 3: הערה
+# להעתיק לכל ראיון רק את המונחים שמופיעים בו, אל tr/glossary.tsv, ולהתאים להקשר.
+# --- תפקידים וארגון ---
+CEO	מנכ"ל/מנכ"לית	לפי מגדר
+CFO	סמנכ"ל הכספים/סמנכ"לית הכספים
+CTO	סמנכ"ל הטכנולוגיות/ה־CTO
+COO	סמנכ"ל התפעול
+chairman	יו"ר/יושב הראש
+board	דירקטוריון/הדירקטוריון
+board member	חבר דירקטוריון
+founder	מייסד/מייסדת
+co-founder	שותף מייסד/שותפה מייסדת
+executive	מנהל בכיר/בכירים	"execs" = הבכירים
+leadership team	צוות ההנהלה/ההנהלה
+management	הנהלה/ניהול	לפי הקשר: הגוף או הפעולה
+headcount	מספר העובדים/מצבת העובדים
+layoffs	פיטורים
+hiring	גיוס עובדים/גיוס
+talent	אנשים מוכשרים/כישרונות
+culture	תרבות ארגונית/התרבות	בחברה: "התרבות של החברה"
+employee	עובד/עובדת
+team	צוות
+# --- כספים ---
+revenue	הכנסות
+sales	מכירות/הכנסות
+profit	רווח
+profitability	רווחיות
+margin	שיעור רווח/מרווח
+gross margin	שיעור הרווח הגולמי/הרווח הגולמי
+operating income	רווח תפעולי
+net income	רווח נקי
+cash flow	תזרים מזומנים/תזרים
+free cash flow	תזרים מזומנים חופשי
+EBITDA	EBITDA
+burn rate	קצב שריפת המזומנים/קצב השריפה
+runway	הזמן עד שייגמר הכסף/מסלול	לפי הקשר: "כמה זמן נשאר לנו כסף"
+break-even	נקודת איזון/איזון
+unit economics	כלכלת היחידה/הרווחיות לכל לקוח
+pricing	תמחור
+subscription	מנוי
+recurring revenue	הכנסות חוזרות
+ARR	הכנסות חוזרות שנתיות/ARR
+guidance	תחזית
+forecast	תחזית
+quarter	רבעון
+fiscal year	שנת הכספים/שנת כספים
+earnings	דוחות/רווחים	"earnings call" = שיחת ועידה על הדוחות
+earnings call	שיחת המשקיעים/שיחת הוועידה על הדוחות
+balance sheet	מאזן
+debt	חוב
+interest rate	ריבית
+inflation	אינפלציה
+recession	מיתון
+budget	תקציב
+cost	עלות/עלויות
+capex	השקעות הוניות/הוצאות הוניות
+# --- הון ושוק ---
+valuation	שווי/הערכת שווי
+market cap	שווי שוק
+IPO	הנפקה/הנפקה ראשונית
+go public	לצאת להנפקה/להנפיק
+public company	חברה ציבורית
+private company	חברה פרטית
+shareholder	בעל מניות/בעלי מניות
+stock	מניה/מניות
+shares	מניות
+equity	הון/מניות	"equity stake" = נתח במניות
+stock options	אופציות
+dilution	דילול
+dividend	דיבידנד
+buyback	רכישה עצמית/רכישה חוזרת של מניות
+investor	משקיע/משקיעים
+venture capital	הון סיכון
+VC	קרן הון סיכון/משקיעי הון סיכון/קרנות הון סיכון
+funding round	סבב גיוס
+raise	גיוס/לגייס	"we raised $50M" = גייסנו 50 מיליון דולר
+seed round	סבב סיד/סבב ראשון
+Series A	סבב A
+term sheet	מזכר הבנות/טרם שיט
+acquisition	רכישה
+acquire	לרכוש
+merger	מיזוג
+exit	אקזיט/מימוש
+hedge fund	קרן גידור
+private equity	קרנות פרייבט אקוויטי/השקעות פרטיות
+analyst	אנליסט/אנליסטים
+Wall Street	וול סטריט
+# --- אסטרטגיה ומוצר ---
+strategy	אסטרטגיה
+roadmap	מפת דרכים/תוכנית
+vision	חזון
+mission	ייעוד/משימה
+moat	יתרון תחרותי/חפיר	"חפיר" רק אם הדובר מתעכב על המטאפורה
+competitive advantage	יתרון תחרותי
+market share	נתח שוק
+competitor	מתחרה/מתחרים
+competition	תחרות/המתחרים
+go-to-market	היציאה לשוק/אסטרטגיית השיווק והמכירה
+product-market fit	התאמה בין המוצר לשוק/התאמת מוצר לשוק
+startup	סטארט־אפ/חברת סטארט־אפ
+scale	להגדיל/לצמוח/היקף	"at scale" = בהיקף גדול
+growth	צמיחה
+customer	לקוח/לקוחות
+user	משתמש/משתמשים
+churn	נטישה/נטישת לקוחות
+retention	שימור/שימור לקוחות
+engagement	מעורבות
+feedback	משוב/פידבק
+launch	השקה/להשיק
+product	מוצר
+feature	פיצ'ר/יכולת
+platform	פלטפורמה
+ecosystem	אקו־סיסטם/מערכת אקולוגית
+supply chain	שרשרת האספקה
+manufacturing	ייצור
+partnership	שותפות
+deal	עסקה
+contract	חוזה
+brand	מותג
+marketing	שיווק
+sales team	צוות המכירות
+B2B	B2B/מכירה לעסקים
+B2C	B2C/מכירה לצרכנים
+SaaS	תוכנה כשירות/SaaS
+bet	הימור
+risk	סיכון
+regulation	רגולציה
+regulator	רגולטור
+compliance	ציות לרגולציה/רגולציה
+lawsuit	תביעה
+# --- טכנולוגיה ---
+AI	בינה מלאכותית/AI	AI כשהמקום צפוף או כשזו שפת הדובר
+artificial intelligence	בינה מלאכותית
+AGI	בינה מלאכותית כללית/AGI
+machine learning	למידת מכונה
+model	מודל
+large language model	מודל שפה גדול
+training	אימון	"training a model" = אימון מודל
+inference	הסקה/הרצה	לפי הקשר
+compute	כוח מחשוב
+chip	שבב
+chips	שבבים
+GPU	מעבד גרפי/GPU
+semiconductor	מוליכים למחצה/שבבים
+data center	מרכז נתונים/חוות שרתים
+cloud	ענן
+software	תוכנה
+hardware	חומרה
+open source	קוד פתוח
+API	API/ממשק
+app	אפליקציה
+algorithm	אלגוריתם
+data	נתונים/דאטה
+cybersecurity	סייבר/אבטחת מידע
+engineer	מהנדס/מהנדסת
+engineering	הנדסה/פיתוח	"engineering team" = צוות הפיתוח
+R&D	מחקר ופיתוח/מו"פ
+# --- ניהול ומנהיגות ---
+leadership	מנהיגות
+decision	החלטה
+accountability	אחריותיות/לקיחת אחריות
+first principles	עקרונות יסוד/מאפס	"first principles thinking" = חשיבה מהיסוד
+long-term	לטווח ארוך
+short-term	לטווח קצר
+mindset	תפיסה/גישה/דפוס חשיבה
+execution	ביצוע
+focus	מיקוד
+priority	עדיפות/סדרי עדיפויות
+milestone	אבן דרך
+deadline	דדליין/מועד יעד
+pivot	שינוי כיוון/פיבוט
+trade-off	פשרה/מחיר	"there's a trade-off" = יש כאן מחיר

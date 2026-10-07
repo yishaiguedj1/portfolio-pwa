@@ -29,14 +29,15 @@ const server = http.createServer((req, res) => {
     if (mode === 'deny') return send(403, { error: 'host_not_allowed' }, { 'x-deny-reason': 'host_not_allowed' });
     if (body.job !== JOB || body.key !== KEY) return send(403, { ok: false, error: 'bad_key', stop: true });
     if (mode === 'stop') return send(200, { ok: false, stop: true, state: 'cancelled' });
-    if (body.op === 'claim') return send(200, { ok: true, job: { id: JOB, kind: mode === 'tr' ? 'tr' : 'ping', state: 'running' }, drive: { token: TOKEN, exp: Date.now() + 3600e3 } });
+    if (body.op === 'claim') return send(200, { ok: true, job: { id: JOB, kind: mode === 'tr' ? 'tr' : 'ping', state: 'running', spec: { name: 'x.mp4', to: ['he'], from: 'auto', out: ['compact'] }, folder: 'FOLDER00001' }, drive: { token: TOKEN, exp: Date.now() + 3600e3 } });
     if (body.op === 'report') return send(200, { ok: true, stop: false, state: body.done ? 'done' : body.fail ? 'failed' : 'running' });
     return send(400, { ok: false });
   });
 });
 
+const STATE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'snbw-'));   // v358: קובץ העבודה — לא בבית האמיתי
 const py = (args) => new Promise((resolve) => {
-  execFile('python3', [path.join(ROOT, 'translator', 'job.py')].concat(args), { timeout: 60000 }, (err, stdout, stderr) =>
+  execFile('python3', [path.join(ROOT, 'translator', 'job.py')].concat(args), { timeout: 60000, env: Object.assign({}, process.env, { SNB_STATE: STATE }) }, (err, stdout, stderr) =>
     resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, out: String(stdout) + String(stderr) }));
 });
 
@@ -54,7 +55,8 @@ server.listen(0, '127.0.0.1', async () => {
     seen.length = 0; mode = 'tr';
     r = await run();
     const f = seen.find((x) => x.op === 'report');
-    ok(r.code === 1 && f && f.fail === true && f.err === 'worker_not_ready', 'העובד (שלב 2): עבודת תרגום — מסמן "עוד לא" בשרתון ולא מנסה לתרגם');
+    ok(r.code === 0 && !f && /עבודת תרגום נלקחה/.test(r.out) && /job\.py prepare/.test(r.out) && !r.out.includes(KEY),
+      'העובד (v358): עבודת תרגום — נלקחת, בלי "נכשל", והצעד הבא מודפס (prepare)');
 
     seen.length = 0; mode = 'stop';
     r = await run();

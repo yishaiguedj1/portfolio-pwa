@@ -23,7 +23,7 @@ try {
     if (st.isDirectory()) walk(rel); else files.push(rel); } };
   walk('');
 }
-const textExt = /\.(js|md|html|css|json|yml|yaml|webmanifest|txt|py|sh)$/i;   // v355: גם העובד בענן (translator/)
+const textExt = /\.(js|md|html|css|json|yml|yaml|webmanifest|txt|py|sh|tsv)$/i;   // v355: גם העובד בענן (translator/)
 files = files.filter((f) => textExt.test(f) && fs.existsSync(path.join(root, f)));
 ok(files.length > 20, 'נסרקו ' + files.length + ' קבצים');
 

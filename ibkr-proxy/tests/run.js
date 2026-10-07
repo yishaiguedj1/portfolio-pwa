@@ -1250,7 +1250,7 @@ function stubFetch(text, status = 200) {
       && vault.open(sd.fields.r.stringValue, 'sdrive|ownerUid0001|r').rt === 'SRT-1' && vault.open(sd.fields.r.stringValue, 'gdrive|ownerUid0001|r') === null
       && JSON.stringify(db.get('driveVault/ownerUid0001')) === lib0, 'סטודיו: חיבור Drive — נשמר מוצפן ב־studioDrive (AAD משלו), בלי לגעת בחיבור של הספרייה ובלי להחזיר את ההרשאה הקבועה');
     r = await run({ op: 'status', idToken: OWNER });
-    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע רק "בדיקת חיבור" (שלב 2)');
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור ולתרגם');
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });
@@ -1366,14 +1366,11 @@ function stubFetch(text, status = 200) {
     ok(r.payload.error === 'file_size', 'סטודיו: וידאו בגודל שונה מהמקור — נדחה');
     r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
     ok(r.payload.ok && r.payload.job.files.a.size === 73400320 && r.payload.job.files.v === null, 'סטודיו: הקול נרשם (הגודל מ־Drive)');
-    const nFires = fires.length;
-    r = await run({ op: 'start', idToken: OWNER, job: JT });
-    ok(!r.payload.ok && r.payload.error === 'worker_not_ready' && fires.length === nFires && r.payload.job.state === 'new', 'סטודיו (שלב 2): העובד עוד לא יודע לתרגם — לא מפעילים Routine סתם; העבודה ממתינה');
+    ok(S.WORKER_KINDS.includes('tr'), 'סטודיו (v358): העובד יודע לתרגם — "start" מפעיל את ה־Routine');
     r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
     ok(r.payload.ok && r.payload.job.files.v.size === SPEC.size && r.payload.job.files.a, 'סטודיו: הווידאו נרשם — שני הקבצים נשמרים (שדות נפרדים, בלי דריסה)');
 
-    // שלב 3 (מדומה): העובד יודע לתרגם → הפעלה, החלפת מפתח, ביטול
-    S.WORKER_KINDS.push('tr');
+    // שלב 3: הפעלה, החלפת מפתח, תוצרים, ביטול
     fireMode = 401;   // v356: כשל ודאי (מפתח שבוטל). 5xx/רשת = "לא ודאי" — העבודה ממתינה (נבדק למעלה בבדיקות החיבור)
     r = await run({ op: 'start', idToken: OWNER, job: JT });
     const Ka = keyOf(fires[fires.length - 1]);
@@ -1390,6 +1387,17 @@ function stubFetch(text, status = 200) {
     ok(r.payload.job.prog.st === 'tr' && r.payload.job.prog.p === 0.25 && r.payload.job.prog.eta === 360 && r.payload.job.prog.ex === 'דקה 19 מתוך 77' && r.payload.job.prog.stg.tr.s === now, 'סטודיו: הטלפון רואה שלב, אחוז, זמן שנשאר ודוגמה חיה');
     r = await wrk({ op: 'token', job: JT, key: Kb });
     ok(r.payload.ok && r.payload.drive.token === 'DRIVE-AT', 'סטודיו: העובד מקבל גישה חדשה ל־Drive (לעבודה ארוכה)');
+    // v358: תוצרים — רק קבצים שבאמת בתיקיית העבודה ב־Drive
+    driveFiles.set('outc1234567890', { id: 'outc1234567890', name: 'x (עברית).mp4', size: '156000000', parents: ['fold1234567890'], trashed: false });
+    driveFiles.set('outs1234567890', { id: 'outs1234567890', name: 'x.he.srt', size: '90000', parents: ['fold1234567890'], trashed: false });
+    r = await wrk({ op: 'report', job: JT, key: Kb, out: [{ id: 'elsewhere12345', name: 'x', size: 5, k: 'compact' }] });
+    ok(r.statusCode === 400 && r.payload.error === 'out_bad', 'סטודיו: תוצר שלא בתיקיית העבודה — נדחה (מאומת מול Drive)');
+    r = await wrk({ op: 'report', job: JT, key: Kb, out: [{ id: 'outc1234567890', name: 'a', size: 1, k: 'compact' }, { id: 'outs1234567890', name: 'b', size: 1, k: 'compact' }] });
+    ok(r.statusCode === 400 && r.payload.error === 'out_bad', 'סטודיו: אותו סוג תוצר פעמיים / סוג לא מוכר — נדחה');
+    r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, out: [{ id: 'outc1234567890', name: 'x (עברית).mp4', size: 1, k: 'compact' }, { id: 'outs1234567890', name: 'x.he.srt', size: 1, k: 'srt' }] });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.files.o.length === 2 && r.payload.job.files.o[0].size === 156000000 && r.payload.job.files.o[1].k === 'srt' && r.payload.job.prog.st === 'sv',
+      'סטודיו: התוצרים נשמרים (הגודל מ־Drive) והטלפון רואה אותם');
     r = await run({ op: 'remove', idToken: OWNER, job: JT });
     ok(r.statusCode === 409 && r.payload.error === 'active', 'סטודיו: אי אפשר למחוק עבודה שרצה — קודם ביטול');
     r = await run({ op: 'cancel', idToken: OWNER, job: JT });
@@ -1413,7 +1421,6 @@ function stubFetch(text, status = 200) {
     ok(r.payload.job.state === 'failed' && r.payload.job.err === 'no_claim', 'סטודיו: הופעל ואף סשן לא לקח את העבודה תוך 30 דק׳ — "נכשל" עם סיבה');
     r = await wrk({ op: 'claim', job: JS, key: Ks });
     ok(r.payload.stop, 'סטודיו: עובד שמגיע מאוחר מדי — "עצור"');
-    S.WORKER_KINDS.splice(S.WORKER_KINDS.indexOf('tr'), 1);
 
     // מגבלות וקלט מהעובד
     for (let i = 0; i < 6; i++) r = await run({ op: 'create', idToken: OWNER, spec: SPEC });

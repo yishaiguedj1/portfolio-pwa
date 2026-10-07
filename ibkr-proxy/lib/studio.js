@@ -22,11 +22,12 @@ const FINAL = ['done', 'failed', 'cancelled'];
 const ACTIVE = ['new', 'queued', 'running'];
 const KINDS = ['ping', 'tr'];
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
-const WORKER_KINDS = ['ping'];
+const WORKER_KINDS = ['ping', 'tr'];   // v358: העובד מתרגם (שלב 3)
 const MODES = ['opus-medium', 'opus-high', 'opus-max', 'sonnet-medium', 'sonnet-high'];
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv'];
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt'];   // v358: תוצרים שהעובד מעלה לתיקיית העבודה
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
 const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש
 const MAX_STORED = 100;                     // מעבר לזה — הישנות שהסתיימו נמחקות
@@ -72,6 +73,18 @@ function normFile(f) {
   const size = Math.floor(Number(f.size) || 0);
   if (!(size > 0)) return null;
   return { id: f.id, name: clean(f.name, 200), size, mime: String(f.mimeType || f.mime || '').slice(0, 80) };
+}
+
+/* v358: רשימת התוצרים מהעובד — עד 6, כל אחד מזהה Drive + סוג מוכר (האימות מול Drive — בשרתון) */
+function normOut(list) {
+  if (!Array.isArray(list)) return null;
+  const out = [];
+  for (const o of list.slice(0, 6)) {
+    const f = normFile(o);
+    if (!f || !OUT_KINDS.includes(o && o.k) || out.some((x) => x.k === o.k)) return null;
+    out.push({ id: f.id, name: f.name, size: f.size, k: o.k });
+  }
+  return out.length ? out : null;
 }
 
 /* ---------- מזהים ומפתחות ---------- */
@@ -128,7 +141,7 @@ function publicJob(job, now) {
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || 0,
-    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv) },
+    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [] },
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
   };
@@ -161,7 +174,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'sess', 'prog', 'fh'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -190,6 +203,6 @@ function fromFields(f) {
 module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

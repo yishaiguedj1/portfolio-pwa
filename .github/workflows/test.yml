@@ -46,3 +46,16 @@ jobs:
           [ ${#failed[@]} -eq 0 ]
       - name: proxy tests
         run: node ibkr-proxy/tests/run.js
+
+  # v358: העובד בענן של סטודיו התרגום (translator/vt) — Python. ספריות הליבה בלבד (בלי מנועי התמלול/היישור הכבדים)
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: core deps
+        run: python3 -m venv /tmp/vtv && /tmp/vtv/bin/pip install --quiet -r translator/vt-requirements.txt
+      - name: vt + worker tests
+        working-directory: translator
+        run: /tmp/vtv/bin/python -m unittest discover -s tests

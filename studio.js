@@ -112,6 +112,10 @@ export function normJob(j) {
     prog: s.prog && typeof s.prog === 'object' && !Array.isArray(s.prog) ? s.prog : null,
     sess: s.sess && typeof s.sess.url === 'string' && /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/.test(s.sess.url) ? { url: s.sess.url } : null,
     ed: typeof s.ed === 'string' ? s.ed.slice(0, 140) : '',   // v356: פרטי ההפעלה שנכשלה (סטטוס · סוג · מזהה בקשה)
+    // v358: התוצרים בתיקיית העבודה ב־Drive (מהשרתון: files.o; בשמירה המקומית: out)
+    out: (Array.isArray(s.out) ? s.out : s.files && Array.isArray(s.files.o) ? s.files.o : []).slice(0, 6)
+      .filter((o) => o && FID_RE.test(String(o.id || '')) && ['compact', 'same', 'mkv', 'srt'].includes(o.k))
+      .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -1404,6 +1408,7 @@ function pageJob(p) {
     rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,
   ];
   const links = h('div', 'st-wacts');
+  for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
   if (rec.up.folder) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
   if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
   det.append(sum, list(...rows), links);

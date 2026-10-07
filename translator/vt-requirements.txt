@@ -1,0 +1,6 @@
+# ליבה — בנייה, תזמון, QC, צריבה (ffmpeg נדרש במערכת, עם libass/fribidi/harfbuzz)
+numpy
+soundfile
+pillow
+requests
+fonttools

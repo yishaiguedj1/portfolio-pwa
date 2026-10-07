@@ -150,6 +150,20 @@ async function worker(req, res, body, deps) {
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     // report
     const up = S.applyReport(job, body, now);
+    if (body.out != null) {
+      // v358: תוצרים — כל קובץ חייב להיות בתיקיית העבודה ב־Drive (הלקוח של הסטודיו רואה רק מה שהאפליקציה יצרה)
+      const outs = S.normOut(body.out);
+      if (!outs || !job.folder) return res.status(400).json({ ok: false, error: 'out_bad' });
+      const t = await gdrive.accessToken(deps, job.uid);
+      if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
+      for (const o of outs) {
+        const r = await (deps.fetch || fetch)(DRIVE + o.id + '?fields=id,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
+        let meta = null; try { meta = await r.json(); } catch (e) {}
+        if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(job.folder))) return res.status(400).json({ ok: false, error: 'out_bad' });
+        o.size = Math.floor(Number(meta.size) || o.size);
+      }
+      up.fo = outs;
+    }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }
     await patchJob(deps, id, up);
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});

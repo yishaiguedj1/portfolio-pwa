@@ -40,7 +40,7 @@ ok(/'Bash\(git push \*\)'/.test(sh) && /'mcp__claude-code-remote'/.test(sh), 'se
 let ran = false;
 try {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'snbw-'));
-  const envr = Object.assign({}, process.env, { HOME: home });
+  const envr = Object.assign({}, process.env, { HOME: home, SNB_SETUP_LITE: '1' });   // v358: בלי התקנת מנועי vt
   execFileSync('bash', [path.join(root, 'translator/setup.sh')], { env: envr, stdio: 'pipe' });
   execFileSync('bash', [path.join(root, 'translator/setup.sh')], { env: envr, stdio: 'pipe' });   // פעמיים — בלי כפילויות
   const cfg = JSON.parse(fs.readFileSync(path.join(home, '.claude/settings.json'), 'utf8'));
