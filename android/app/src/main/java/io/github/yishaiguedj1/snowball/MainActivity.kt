@@ -81,7 +81,9 @@ class MainActivity : Activity() {
         val d = i?.data
         val base = if (d != null && d.scheme == "https" && d.host == SITE_HOST && (d.path ?: "").startsWith(SITE_PATH)) d.toString()
         else getString(R.string.launchUrl)
-        val app = "app=" + WidgetStore.sig(this)
+        // v353: ‎n=<זמן> — כתובת שונה בכל פתיחה. הלוגו בווידג'ט שולח תמיד אותה כתובת (‎#tab=stocks), ונגיעה חוזרת
+        // לא תמיד הגיעה לדף ("לפעמים לא עובד"); כרטיס מניה — כתובת שונה לכל מניה. האתר מוחק את ‎n= (appSessionFromHash)
+        val app = "app=" + WidgetStore.sig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
         return Uri.parse(if (base.contains('#')) "$base&$app" else "$base#$app")
     }
 

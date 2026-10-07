@@ -193,7 +193,16 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   ok(R('dropAppNavEntry()') === false, 'v254: אין אחורה — לא נוגעים');
   R("window.navigation = undefined;");
   ok(R('dropAppNavEntry()') === false && R('__backs') === 1, 'v254: בלי Navigation API — בלי שינוי');
-  ok(/const fromApp = \/\(\?:\^#\|&\)app=\/\.test\(location\.hash \|\| ''\);[\s\S]{0,80}if \(fromApp\) dropAppNavEntry\(\)/.test(app), 'v254: רק בקישור מהאפליקציה (‎app=), לא בכל שינוי hash');
+  ok(/const fromApp = \/\(\?:\^#\|&\)app=\/\.test\(location\.hash \|\| ''\);[\s\S]{0,400}if \(fromApp && dropAppNavEntry\(\)\) afterBack\(/.test(app), 'v254: רק בקישור מהאפליקציה (‎app=), לא בכל שינוי hash');
+  // v353: לוגו הווידג'ט "לא תמיד עובד" — כתובת ייחודית לכל פתיחה, ניקוי ‎n=, רשת ביטחון בחזרה למסך, יישור ההיסטוריה
+  ok(/"&n=" \+ java\.lang\.Long\.toString\(System\.currentTimeMillis\(\), 36\)/.test(kt), 'v353: MainActivity מוסיף ‎n=<זמן> — כתובת שונה בכל נגיעה בלוגו');
+  R("history.replaceState = (s, _, u) => { const i = String(u).indexOf('#'); location.hash = i < 0 ? '' : String(u).slice(i); };");
+  R("location.hash = '#tab=stocks&app=0&n=k2x9'; appSessionFromHash();");
+  ok(R('location.hash') === '#tab=stocks', 'v353: ‎app= ו־‎n= נמחקים, ‎tab= נשאר לטיפול');
+  R("location.hash = '#app=0&n=k2x9'; appSessionFromHash();");
+  ok(R('location.hash') === '', 'v353: פתיחה רגילה מהאפליקציה — כתובת נקייה (בלי ‎#n=)');
+  ok(/document\.addEventListener\('visibilitychange', onShow\)/.test(app) && /\(\?:tab\|stock\)=/.test(app), 'v353: קישור שממתין בכתובת מטופל כשהדף חוזר למסך');
+  ok(/function appLinkUnwind\(\)[\s\S]{0,300}navCurDepth\(\) - navDepth\(currentTabName\(\)\)\) \+ \(st\.modal \|\| 0\)[\s\S]{0,60}navBack\(-n\)/.test(app), 'v353: אחרי הקישור חוזרים מעל רשומות עמוד משנה/חלון');
 }
 
 // v277: לוגואי ת"א לווידג׳ט — PNG לכל מזהה ב־TASE_LOGOS; צבעי הווידג׳ט = האפליקציה

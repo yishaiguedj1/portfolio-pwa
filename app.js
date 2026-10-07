@@ -4498,7 +4498,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v352';
+const APP_VERSION = 'v353';
 
 
 function saveDBto(db) {
@@ -12895,9 +12895,18 @@ function dropAppNavEntry() {
     const prev = nav.entries()[nav.currentEntry.index - 1];
     if (!prev || !prev.sameDocument || String(prev.url || '').split('#')[0] !== String(location.href).split('#')[0]) return false;
     _navSkipPop++; // v290: זו חזרה פנימית (רשומת הקישור) — לא "חזור" של המשתמש
+    _backPending++; // v353: מה שתלוי בהיסטוריה (navSync) מחכה שהחזרה תנחת
     history.back();
     return true;
   } catch (e) { return false; }
+}
+/* v353: אחרי קישור מהווידג'ט (dropAppNavEntry) הרשומה הנוכחית יכולה להיות של עמוד משנה (‎snb) ושל חלון שנסגר (‎modal) —
+   חוזרים מעליהן לרשומת הטאב הראשי, כמו מעבר טאב רגיל. רשומות הספרייה (‎lib) — לא נוגעים (הספרייה מטפלת בהן). */
+function appLinkUnwind() {
+  const st = history.state || {};
+  if (st.lib) return;
+  const n = Math.max(0, navCurDepth() - navDepth(currentTabName())) + (st.modal || 0);
+  if (n > 0) navBack(-n);
 }
 function openStockCard(sym, tab) {
   tab = tab === 'wishlist' ? 'wishlist' : 'stocks';
@@ -12930,7 +12939,8 @@ function appSessionFromHash() {
   if (!m) return;
   try { sessionStorage.setItem(SS_APPSIG, m[1]); } catch (e) {}
   // מנקים רק את ‎app= (‎stock= מטופל ב־openStockFromHash)
-  const rest = String(location.hash || '').replace(/^#/, '').split('&').filter((x) => x && !/^app=/.test(x)).join('&');
+  // v353: ‎n= — מזהה ייחודי לכל פתיחה מהאפליקציה (MainActivity), נמחק יחד עם ‎app=
+  const rest = String(location.hash || '').replace(/^#/, '').split('&').filter((x) => x && !/^(app|n)=/.test(x)).join('&');
   try { history.replaceState(history.state, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
   try { renderWidgetCard(); } catch (e) {}
 }
@@ -13143,9 +13153,17 @@ function init() {
     window.addEventListener('hashchange', () => {
       const fromApp = /(?:^#|&)app=/.test(location.hash || '');
       try { openStockFromHash(); } catch (e) {}
-      if (fromApp) dropAppNavEntry(); // v254
+      // v254; v353: הרשומה הקודמת יכולה להיות של עמוד משנה/חלון (הגדרות, מתקדמות) — אחרי החזרה מיישרים את
+      // ההיסטוריה לטאב שנפתח, אחרת "חזור" הבא קפץ להגדרות
+      if (fromApp && dropAppNavEntry()) afterBack(() => { try { appLinkUnwind(); } catch (e) {} });
     });
     setTimeout(() => { try { openStockFromHash(); } catch (e) {} }, 0);
+    // v353: רשת ביטחון — קישור שהגיע כשהדף היה מוקפא ברקע (ה־hashchange לא תמיד מגיע) מטופל כשהדף חוזר למסך
+    const linkPending = () => /(?:^#|&)(?:tab|stock)=/.test(location.hash || '');
+    const onShow = () => { if (!document.hidden && linkPending()) { try { openStockFromHash(); } catch (e) {} } };
+    document.addEventListener('visibilitychange', onShow);
+    window.addEventListener('pageshow', onShow);
+    window.addEventListener('focus', onShow);
   } catch (e) {}
 
   try { localStorage.removeItem('pwa_tdkey_v1'); } catch (e) {} // v220: Twelve Data הוסר — מוחקים מפתח ישן מהטלפון
