@@ -78,6 +78,7 @@ class Fake:
         self.kind, self.spec, self.video_after = 'tr', {'name': 'Interview_2026.mp4', 'size': len(VIDEO), 'to': ['he'], 'from': 'auto',
                                                          'mode': 'opus-medium', 'out': ['compact'], 'dur': 4620}, 0
         self.claims, self.cut_once, self.upload_drop, self.audio = 0, True, True, True
+        self.qa, self.answer, self.answer_after, self.ask_polls, self.ask_limit = None, None, 1, 0, False
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -109,16 +110,24 @@ class Fake:
                 op = body.get('op')
                 if op == 'claim':
                     fake.claims += 1
+                    if fake.qa and fake.qa['a'] is None and fake.answer is not None:
+                        fake.ask_polls += 1
+                        if fake.ask_polls >= fake.answer_after:
+                            fake.qa['a'] = {'i': 0, 't': fake.answer}
                     files = {'a': {'id': 'AUDIO000001', 'name': 'Interview_2026.audio.m4a', 'size': len(AUDIO)}} if fake.audio else {}
                     if fake.claims > fake.video_after:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
-                                                                  'folder': 'FOLDER00001', 'files': files},
+                                                                  'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa},
                                             'drive': {'token': TOKEN}})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
                 if op == 'report':
+                    if body.get('ask') and fake.ask_limit:
+                        return self._send(409, {'ok': False, 'error': 'ask_limit'})
                     fake.reports.append(body)
+                    if body.get('ask'):
+                        fake.qa = {'id': body['ask']['id'], 'a': None}
                     return self._send(200, {'ok': True, 'stop': False})
                 return self._send(400, {'ok': False})
 
@@ -335,6 +344,35 @@ class TestWorker(unittest.TestCase):
         self.assertTrue((self.tmp / 'state' / 'setup.pid').exists(), 'ההתקנה הופעלה ברקע כבר ב־run')
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
         self.assertEqual(cmds[0], 'new', 'vt רץ רק אחרי שההתקנה הסתיימה')
+
+    def test_ask_answered(self):
+        # שאלה באמצע העבודה: נשלחת לשרתון עם התשובות המוכנות, והתשובה מהטלפון היא השורה האחרונה בפלט
+        self.assertEqual(self.take()[0], 0)
+        self.fake.answer, self.fake.answer_after = 'ביל אקמאן', 2
+        code, out = self.job('ask', '--q', 'איך כותבים את שם הדובר?', '--opt', 'ביל אקמן', '--opt', 'ביל אקמאן', '--default', '1',
+                             env={'SNB_ASK_POLL': '0.1'})
+        self.assertEqual(code, 0, out)
+        ask = next(r['ask'] for r in self.fake.reports if r.get('ask'))
+        self.assertRegex(ask['id'], r'^q[a-z0-9]{1,12}$')
+        self.assertEqual((ask['o'], ask['d'], ask['w']), (['ביל אקמן', 'ביל אקמאן'], 1, 480))
+        self.assertEqual(out.strip().splitlines()[-1], 'תשובה: ביל אקמאן')
+
+    def test_ask_timeout(self):
+        # לא ענו בזמן → ברירת המחדל, ודיווח לשרתון (הטלפון מפסיק להציג שאלה פתוחה)
+        self.assertEqual(self.take()[0], 0)
+        code, out = self.job('ask', '--q', 'לתרגם את שם התוכנית?', '--opt', 'כן', '--opt', 'לא', '--default', '1', '--wait', '60',
+                             env={'SNB_ASK_POLL': '0.1', 'SNB_ASK_WAIT_SCALE': '0.01'})
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out.strip().splitlines()[-1], 'ברירת מחדל: לא')
+        self.assertTrue(any(r.get('askTimeout') for r in self.fake.reports))
+
+    def test_ask_limit(self):
+        # השרתון לא מקבל עוד שאלות → מחליטים לבד, בלי ניסיונות חוזרים
+        self.assertEqual(self.take()[0], 0)
+        self.fake.ask_limit = True
+        code, out = self.job('ask', '--q', 'עוד שאלה?')
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out.strip().splitlines()[-1], 'אין תשובה — להחליט לבד')
 
     def test_lang_unsupported(self):
         self.fake.spec = dict(self.fake.spec, to=['ru'])

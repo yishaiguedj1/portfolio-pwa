@@ -767,6 +767,45 @@ def stage(args):
 
 
 @guarded
+def ask(args):
+    """שלב 3 סבב ד׳: שאלה קצרה למשתמש באמצע העבודה. מופיעה בטלפון בדף העבודה; מחכים לתשובה עד --wait שניות,
+    ואם לא ענו — ממשיכים עם ברירת המחדל (והטלפון מראה שהמשכנו). השורה האחרונה בפלט היא מה שהסשן ממשיך איתו:
+    "תשובה: …" / "ברירת מחדל: …" / "אין תשובה — להחליט לבד"."""
+    ctx = Ctx(load_state())
+    opts = [o.strip() for o in (args.opt or []) if o and o.strip()][:4]
+    d = args.default if opts and 0 <= args.default < len(opts) else (0 if opts else -1)
+    wait = max(60, min(1800, int(args.wait)))
+    qid = 'q' + format(int(time.time() * 1000) % (36 ** 8), 'x')[-12:]
+    try:
+        ctx.report(ask={'id': qid, 'q': args.q, 'o': opts, 'd': d, 'w': wait}, force=True)
+    except SystemExit as e:
+        if 'ask_limit' in str(e):
+            print('· כבר נשאלו מספיק שאלות בעבודה הזו — להחליט לבד.')
+            print('אין תשובה — להחליט לבד' if d < 0 else 'ברירת מחדל: ' + opts[d])
+            return 0
+        raise
+    print('השאלה נשלחה לטלפון — מחכה לתשובה עד %d דק׳.' % round(wait / 60))
+    poll = float(os.environ.get('SNB_ASK_POLL', '10'))
+    end = time.time() + wait * float(os.environ.get('SNB_ASK_WAIT_SCALE', '1'))   # בדיקות: זמן מקוצר
+    while time.time() < end:
+        time.sleep(poll)
+        qa = (ctx.c.call('claim').get('job') or {}).get('qa') or {}
+        if qa.get('id') != qid:
+            break                                     # שאלה אחרת החליפה אותה — לא אמור לקרות
+        a = qa.get('a')
+        if a:
+            print('תשובה: ' + str(a.get('t') or ''))
+            return 0
+    try:
+        ctx.report(askTimeout=qid, force=True)
+    except SystemExit:
+        pass
+    print('· לא ענו בזמן.')
+    print('אין תשובה — להחליט לבד' if d < 0 else 'ברירת מחדל: ' + opts[d])
+    return 0
+
+
+@guarded
 def fail(args):
     ctx = Ctx(load_state())
     err = args.err if ERR_RE.match(args.err or '') else 'worker'
@@ -846,6 +885,11 @@ def main(argv=None):
     s.add_argument('--msg')
     f = sub.add_parser('finish', help='בדיקה, בנייה, צריבה והעלאת התוצרים')
     f.add_argument('--force', action='store_true', help=argparse.SUPPRESS)
+    q = sub.add_parser('ask', help='שאלה קצרה למשתמש (בטלפון), עם תשובות מוכנות וברירת מחדל')
+    q.add_argument('--q', required=True)
+    q.add_argument('--opt', action='append')
+    q.add_argument('--default', type=int, default=0)
+    q.add_argument('--wait', type=int, default=480)
     e = sub.add_parser('fail', help='סימון העבודה כ"נכשלה"')
     e.add_argument('--err', default='worker')
     e.add_argument('--msg')
@@ -853,7 +897,7 @@ def main(argv=None):
     v.add_argument('rest', nargs=argparse.REMAINDER)
     a = p.parse_args(argv)
     if a.cmd != 'run':
-        return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'vt': vt_cmd}[a.cmd](a)
+        return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1

@@ -164,6 +164,19 @@ async function worker(req, res, body, deps) {
       }
       up.fo = outs;
     }
+    if (body.ask != null) {
+      // שאלה באמצע העבודה — מוצגת בטלפון עד שעונים או עד שהעובד ממשיך עם ברירת המחדל
+      const qa = S.normAsk(body.ask);
+      if (!qa) return res.status(400).json({ ok: false, error: 'ask_bad' });
+      if ((job.qn || 0) >= S.ASK_MAX) return res.status(409).json({ ok: false, error: 'ask_limit' });   // לא 429: העובד מנסה שוב לבד על 429
+      up.qa = Object.assign(qa, { at: now, a: null });
+      up.qn = (job.qn || 0) + 1;
+    }
+    if (body.askTimeout != null && job.qa && !job.qa.a && String(body.askTimeout) === job.qa.id) {
+      // לא ענית בזמן — העובד ממשיך עם ברירת המחדל, והטלפון מראה את זה במקום שאלה פתוחה
+      const d = job.qa.d;
+      up.qa = Object.assign({}, job.qa, { a: { i: d, t: d >= 0 ? job.qa.o[d] : '', auto: true, at: now } });
+    }
     if (body.usage != null) {
       // v359: טוקנים ועלות (בדיווח האחרון). נתון לא תקין נזרק בשקט — לא מפילים בגללו את סוף העבודה
       const use = S.normUsage(body.usage);
@@ -285,6 +298,15 @@ async function handler(req, res, deps = {}) {
       const f = await fireJob(deps, uid, v, job, now);
       const j = await readJob(deps, job.id);
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+    }
+    if (op === 'answer') {
+      // תשובה לשאלה של Claude — פעם אחת, לשאלה הנוכחית בלבד, כל עוד העבודה רצה
+      if (st !== 'queued' && st !== 'running') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
+      const a = S.normAnswer(job.qa, body);
+      if (!a) return res.status(400).json({ ok: false, error: 'bad_answer', job: view(job) });
+      job.qa = Object.assign({}, job.qa, { a: Object.assign(a, { at: now }) });
+      await patchJob(deps, job.id, { qa: job.qa, updated: now });
+      return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'cancel') {
       if (!S.FINAL.includes(st)) {

@@ -301,3 +301,17 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-cost.total .st-l { font-size: 16px; font-weight: 700; }
 .st-cost.total .st-v { font-weight: 700; }
 .st-cost.off-model .st-l b { color: var(--st-amber); }
+
+/* שלב 3 סבב ד׳: "Claude שואל" — שאלה באמצע העבודה (בולטת בענבר עד שעונים; אחרי — שורה אחת שקטה) */
+.st-ask { margin: 12px 16px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); box-shadow: 0 0 0 2px var(--st-amber) inset; display: grid; gap: 10px; }
+.st-ask-h { display: flex; align-items: center; gap: 8px; color: var(--st-amber); font-size: 15px; }
+.st-ask-h svg { width: 22px; height: 22px; flex: none; }
+.st-ask-q { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.st-ask-o { display: grid; gap: 8px; }
+.st-ask-o .st-btn.wide { width: 100%; margin-inline: 0; }
+.st-ask-in { width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; }
+.st-ask-n { color: var(--on-surface-var); font-size: 13px; line-height: 1.4; }
+.st-ask.done { display: flex; align-items: center; gap: 8px; padding: 10px 14px; box-shadow: none; color: var(--on-surface-var); font-size: 14px; }
+.st-ask.done svg { width: 18px; height: 18px; flex: none; color: var(--primary); }
+.st-ask.done span { overflow-wrap: anywhere; }
+.st-btn.ghost { background: var(--st-fill); color: var(--on-surface); }

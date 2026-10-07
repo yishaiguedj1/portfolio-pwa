@@ -25,7 +25,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const row = { k: 'tl', m: 'claude-opus-5-5', n: 3, i: 1, o: 2, cr: 3, c5: 4, c1: 5, usd: 1.23456, op: 4, oc: 0.5 };
   ok(S.normUsage([row])[0].usd === 1.2346 && S.normUsage([Object.assign({}, row, { m: 'claude-x"><img' })]) === null
     && S.normUsage(Array(7).fill(row)) === null && S.normUsage([Object.assign({}, row, { n: '3' })]) === null, 'השרתון: normUsage — עד 6 שורות, מספרים בלבד, מודל claude-[a-z0-9-]+');
-  ok(/'use'\]/.test(lib) && /use: Array\.isArray\(job\.use\)/.test(lib), 'השרתון: נשמר בעבודה (JSON) ומוחזר ב־publicJob');
+  ok(/JSON_FIELDS = \[[^\]]*'use'/.test(lib) && /use: Array\.isArray\(job\.use\)/.test(lib), 'השרתון: נשמר בעבודה (JSON) ומוחזר ב־publicJob');
   ok(/S\.normUsage\(body\.usage\)/.test(api) && /use: null, updated: now/.test(api), 'השרתון: מהדיווח של העובד; הפעלה חוזרת מאפסת');
 
   /* ---------- 3. הטלפון ---------- */
