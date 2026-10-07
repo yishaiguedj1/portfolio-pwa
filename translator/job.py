@@ -125,6 +125,8 @@ def run(args):
         save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api,
                     'folder': job.get('folder') or '', 'spec': spec, 'files': job.get('files') or {}})
         print('✓ עבודת תרגום נלקחה: ' + spec_line(spec))
+        if start_setup_bg():
+            print('· מנועי התמלול מותקנים ברקע (prepare ימתין להם בעצמו)')
         print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py prepare')
         return 0
     except Stop as e:
@@ -348,14 +350,56 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     return tail
 
 
-def ensure_env(ctx):
-    """הסביבה מוכנה? אחרת — setup.sh (בסביבה עם תמונת מצב זה כבר קרה; כאן זה רק גיבוי)."""
+def env_ready():
     probe = [VT_PY, '-c', 'import numpy, soundfile, onnx_asr, torch, torchaudio, qwen_asr']
-    if os.path.exists(VT_PY) and subprocess.run(probe, capture_output=True).returncode == 0:
+    return os.path.exists(VT_PY) and subprocess.run(probe, capture_output=True).returncode == 0
+
+
+SETUP_PID = STATE.parent / 'setup.pid'
+
+
+def setup_cmd():
+    return os.environ.get('SNB_SETUP', 'bash ' + str(HERE / 'setup.sh')).split()
+
+
+def start_setup_bg():
+    """v358: מנוע שחסר בתמונת המצב של הסביבה (setup.sh השתנה מאז שנבנתה) מותקן ברקע מרגע לקיחת העבודה —
+    במקביל להעלאת הסרטון, להורדה ולקריאת מדריך הסגנון. כך אין צורך לעדכן ידנית את סקריפט ההתקנה ב־claude.ai:
+    תמונת המצב מתרעננת לבד בערך פעם בשבוע (ומושכת את setup.sh העדכני מהריפו), ובינתיים זה קורה כאן."""
+    if env_ready():
+        return False
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    log = open(STATE.parent / 'setup.log', 'ab')
+    p = subprocess.Popen(setup_cmd(), stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    SETUP_PID.write_text(str(p.pid))
+    return True
+
+
+def setup_running():
+    try:
+        pid = int(SETUP_PID.read_text())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return False
+    try:                                         # תהליך שהסתיים אבל עוד לא נאסף (zombie) — לא "רץ"
+        st = Path('/proc/%d/stat' % pid).read_text().split()
+        return st[2] != 'Z'
+    except OSError:
+        return True
+
+
+def ensure_env(ctx):
+    """המנועים מותקנים? אם ההתקנה ברקע עוד רצה — מחכים לה; אם לא התחילה — מריצים עכשיו."""
+    if env_ready():
         return
-    ctx.report('tr', 0, 'מכין את הסביבה (פעם אחת)', force=True)
-    subprocess.run(['bash', str(HERE / 'setup.sh'), '--full'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if subprocess.run(probe, capture_output=True).returncode != 0:
+    ctx.report('tr', 0, 'משלים את התקנת המנועים', force=True)
+    waited = 0
+    while setup_running() and waited < 25 * 60:
+        time.sleep(3)
+        waited += 3
+    if not env_ready():
+        subprocess.run(setup_cmd(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if not env_ready():
         raise SystemExit('✗ ההתקנה של מנועי התמלול נכשלה — אולי הרשת של הסביבה חוסמת (Hugging Face / PyTorch).')
 
 
@@ -372,7 +416,6 @@ def guarded(fn):
 @guarded
 def prepare(args):
     ctx = Ctx(load_state())
-    ensure_env(ctx)
     poll = float(os.environ.get('SNB_POLL', '30'))
     n = 0
     while not (ctx.st.get('files') or {}).get('v'):
@@ -393,6 +436,7 @@ def prepare(args):
     src = VT_WORK / '_in' / (ctx.name + ext)
     ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
     drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
+    ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
     title = os.path.splitext(str(ctx.st['spec'].get('name') or ctx.name))[0][:120]
     vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
     vt(ctx, ['ingest', ctx.name])

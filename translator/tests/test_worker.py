@@ -25,7 +25,8 @@ FAKE_VT = r'''#!/usr/bin/env python3
 import os, sys, pathlib
 a = sys.argv[1:]
 if a[:1] == ['-c']:
-    sys.exit(0)
+    rf = os.environ.get('FAKE_READY')
+    sys.exit(0 if not rf or os.path.exists(rf) else 1)
 a = a[2:]                                   # "-m vt"
 cmd, name = a[0], (a[1] if len(a) > 1 else '')
 w = pathlib.Path(os.environ['VT_WORK']) / name
@@ -224,6 +225,23 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('prepare', env={'SNB_POLL': '0.2'})
         self.assertEqual(code, 0, out)
         self.assertIn('מחכה', out)
+
+    def test_setup_in_background(self):
+        # המנועים חסרים: run מפעיל את ההתקנה ברקע, prepare מחכה לה — בלי פעולה של המשתמש
+        ready = self.tmp / 'ready'
+        setup = self.tmp / 'setup.sh'
+        setup.write_text('sleep 2; touch "%s"\n' % ready)
+        env = {'FAKE_READY': str(ready), 'SNB_SETUP': 'bash ' + str(setup)}
+        code, out = self.job('run', '--job', JOB, '--key', KEY, '--server', self.base, '--drive-api', self.base + '/drive/v3', env=env)
+        self.assertEqual(code, 0, out)
+        self.assertIn('ברקע', out)
+        self.assertFalse(ready.exists(), 'run לא מחכה להתקנה')
+        code, out = self.job('prepare', env=env)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(ready.exists())
+        self.assertTrue((self.tmp / 'state' / 'setup.pid').exists(), 'ההתקנה הופעלה ברקע כבר ב־run')
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
+        self.assertEqual(cmds[0], 'new', 'vt רץ רק אחרי שההתקנה הסתיימה')
 
     def test_lang_unsupported(self):
         self.fake.spec = dict(self.fake.spec, to=['ru'])

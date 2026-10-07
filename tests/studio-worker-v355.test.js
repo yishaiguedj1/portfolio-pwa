@@ -37,7 +37,7 @@ const server = http.createServer((req, res) => {
 
 const STATE = fs.mkdtempSync(path.join(require('os').tmpdir(), 'snbw-'));   // v358: קובץ העבודה — לא בבית האמיתי
 const py = (args) => new Promise((resolve) => {
-  execFile('python3', [path.join(ROOT, 'translator', 'job.py')].concat(args), { timeout: 60000, env: Object.assign({}, process.env, { SNB_STATE: STATE }) }, (err, stdout, stderr) =>
+  execFile('python3', [path.join(ROOT, 'translator', 'job.py')].concat(args), { timeout: 60000, env: Object.assign({}, process.env, { SNB_STATE: STATE, SNB_SETUP: 'true' }) }, (err, stdout, stderr) =>
     resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, out: String(stdout) + String(stderr) }));
 });
 
