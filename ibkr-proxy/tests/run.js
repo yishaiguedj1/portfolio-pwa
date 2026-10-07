@@ -1398,6 +1398,35 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'job', idToken: OWNER, job: JT });
     ok(r.payload.job.files.o.length === 2 && r.payload.job.files.o[0].size === 156000000 && r.payload.job.files.o[1].k === 'srt' && r.payload.job.prog.st === 'sv',
       'סטודיו: התוצרים נשמרים (הגודל מ־Drive) והטלפון רואה אותם');
+    // v359: טוקנים ועלות — עד 6 שורות, רק מספרים, מזהה מודל claude-…; נתון לא תקין נזרק בלי להפיל את הדיווח
+    const USE = [
+      { k: 'main', m: 'claude-sonnet-5-5', n: 40, i: 120, o: 9000, cr: 2400000, c5: 0, c1: 60000, usd: 0.71 },
+      { k: 'tl', m: 'claude-opus-5-5', n: 12, i: 30, o: 52000, cr: 900000, c5: 130000, c1: 0, usd: 2.0, op: 126000, oc: 0.63 },
+      { k: 'rv', m: 'claude-opus-5-5', n: 6, i: 10, o: 8000, cr: 400000, c5: 128000, c1: 0, usd: 0.88123456, op: 128000, oc: 0.64 },
+      { k: 'sub', m: 'claude-haiku-5-5', n: 1, i: 5, o: 5, cr: 0, c5: 1000, c1: 0, usd: null, op: 1000, oc: null },
+    ];
+    const bads = [
+      USE.concat(USE.slice(0, 3)),                                             // 7 שורות
+      [Object.assign({}, USE[0], { m: 'gpt-4o' })],                            // מודל זר
+      [Object.assign({}, USE[0], { m: 'claude-<b>x</b>' })],                   // תבנית
+      [Object.assign({}, USE[0], { i: '120' })],                               // מחרוזת במקום מספר
+      [Object.assign({}, USE[0], { o: -1 })],                                  // שלילי
+      [Object.assign({}, USE[0], { usd: 'free' })],
+      [Object.assign({}, USE[0], { k: 'evil' })],
+      'x', [], [null],
+    ];
+    let badStored = false;
+    for (const b of bads) {
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, usage: b });
+      const j2 = (await run({ op: 'job', idToken: OWNER, job: JT })).payload.job;
+      if (!r.payload.ok || j2.use) badStored = true;
+    }
+    ok(!badStored, 'סטודיו: עלות — נתון לא תקין (7 שורות, מודל זר, מחרוזת, שלילי, סוג לא מוכר) נזרק, והדיווח עצמו עובר');
+    r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, usage: USE.map((x, i) => i === 0 ? Object.assign({ evil: '<script>' }, x) : x) });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    const U = r.payload.job.use;
+    ok(Array.isArray(U) && U.length === 4 && U[1].oc === 0.63 && U[1].op === 126000 && U[2].usd === 0.8812 && U[3].usd === null && !('op' in U[0]) && !('evil' in U[0])
+      && !JSON.stringify(U).includes('script'), 'סטודיו: עלות — נשמרת בעבודה ומוחזרת לטלפון (שדות מוכרים בלבד, דולרים מעוגלים, מודל בלי מחירון = null)');
     r = await run({ op: 'remove', idToken: OWNER, job: JT });
     ok(r.statusCode === 409 && r.payload.error === 'active', 'סטודיו: אי אפשר למחוק עבודה שרצה — קודם ביטול');
     r = await run({ op: 'cancel', idToken: OWNER, job: JT });

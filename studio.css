@@ -293,3 +293,11 @@ a.st-wbtn:active { opacity: .7; }
 #toast.toast { z-index: 1000; }
 html.studio-open .item-acts.floating { z-index: 1002; }
 html.studio-open .dlg-veil { z-index: 1003; }
+
+/* v359: כרטיס "עלות" בדף העבודה */
+.st-cost .st-l small { font-variant-numeric: tabular-nums; }
+.st-cost .st-v { color: var(--on-surface); font-variant-numeric: tabular-nums; }
+.st-cost.total { min-height: 46px; }
+.st-cost.total .st-l { font-size: 16px; font-weight: 700; }
+.st-cost.total .st-v { font-weight: 700; }
+.st-cost.off-model .st-l b { color: var(--st-amber); }

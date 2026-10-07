@@ -44,7 +44,8 @@ const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
 /* מה מעתיקים בשלב 1 של האשף: הכתובות לרשת של הסביבה, וסקריפט ההתקנה (שורה אחת שמריצה את translator/setup.sh מהריפו —
    כך מה שיתווסף בשלב 3 לא דורש הדבקה חוזרת) */
 const SETUP_LINE = 'curl -fsSL https://raw.githubusercontent.com/yishaiguedj1/portfolio-pwa/main/translator/setup.sh | bash || true';
-const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co'];
+// v359: גם PyTorch (torch של CPU), GitHub (ffmpeg מ־Releases, setup.sh מ־raw) ו־dl.fbaipublicfiles.com (מודל היישור MMS) — מההרצה האמיתית
+const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co', '*.pytorch.org', 'github.com', '*.githubusercontent.com', 'dl.fbaipublicfiles.com'];
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
@@ -116,8 +117,61 @@ export function normJob(j) {
     out: (Array.isArray(s.out) ? s.out : s.files && Array.isArray(s.files.o) ? s.files.o : []).slice(0, 6)
       .filter((o) => o && FID_RE.test(String(o.id || '')) && ['compact', 'same', 'mkv', 'srt'].includes(o.k))
       .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
+    use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
+}
+/* v359: טוקנים ועלות של עבודה — אותה בדיקה כמו בשרתון (lib/studio.js normUsage): עד 6 שורות, מודל claude-…, מספרים בלבד */
+const USE_KINDS = ['main', 'tl', 'rv', 'sub'];
+export function normUse(a) {
+  if (!Array.isArray(a) || !a.length || a.length > 6) return null;
+  const out = [];
+  for (const r of a) {
+    if (!r || typeof r !== 'object' || !USE_KINDS.includes(r.k) || !/^claude-[a-z0-9-]{1,50}$/.test(String(r.m || ''))) return null;
+    const row = { k: r.k, m: r.m };
+    for (const f of ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op']) row[f] = num(r[f]);
+    for (const f of ['usd', 'oc']) row[f] = r[f] == null ? null : (Number.isFinite(+r[f]) && +r[f] >= 0 ? +r[f] : null);
+    out.push(row);
+  }
+  return out;
+}
+/* "claude-opus-5-5" → "Opus 5.5" (מזהה אחר — כמו שהוא) */
+export function modelLabel(id) {
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)\b/.exec(String(id || ''));
+  return m ? m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + '.' + m[3] : String(id || '');
+}
+/* 1234567 → "1.2M" · 85000 → "85K" · 900 → "900" */
+export function fmtTok(n) {
+  n = num(n);
+  if (n >= 1e6) return (n >= 1e7 ? Math.round(n / 1e6) : (n / 1e6).toFixed(1)) + 'M';
+  if (n >= 1e3) return Math.round(n / 1e3) + 'K';
+  return String(n);
+}
+/* $2.00 · פחות מסנט — "<$0.01" · אפס — "$0" */
+export function fmtUsd(v) {
+  v = Number(v) || 0;
+  if (v <= 0) return '$0';
+  if (v < 0.01) return '<$0.01';
+  return '$' + v.toFixed(2);
+}
+/* כרטיס "עלות": שורה לכל שלב (תיאום / תרגום / ביקורת / סוכן־משנה אחר), סכום כולל, והאם סוכן־משנה רץ על מודל אחר מהמצב שנבחר.
+   מודל בלי מחירון — usd null: השורה בלי מחיר והסכום מסומן "לפחות" */
+export function costView(use, modeId) {
+  const rows = normUse(use);
+  if (!rows) return null;
+  const fam = modeById(modeId).fam;
+  const seen = {};
+  let total = 0, partial = false;
+  const out = rows.map((r) => {
+    seen[r.k] = (seen[r.k] || 0) + 1;
+    if (r.usd == null) partial = true; else total += r.usd;
+    const sub = r.k !== 'main';
+    const tok = r.i + r.o + r.cr + r.c5 + r.c1;
+    const off = (r.k === 'tl' || r.k === 'rv') && !new RegExp('^claude-' + fam + '-').test(r.m);
+    return { k: r.k, nth: seen[r.k], model: modelLabel(r.m), tok, usd: r.usd, open: sub && r.op ? { tok: r.op, usd: r.oc } : null, off };
+  });
+  for (const r of out) if (seen[r.k] < 2) r.nth = 0;   // מספור רק כשיש כמה מאותו סוג
+  return { rows: out, total, partial, want: modelLabel('claude-' + fam + '-5-5'), warn: out.filter((r) => r.off) };
 }
 export function normStore(o) {
   const src = o && typeof o === 'object' ? o : {};
@@ -1285,6 +1339,41 @@ function pageProject(p) {
   p.append(h('div', 'st-gap'), start, h('div', 'st-gap sm'), del, note(T('studioDraftNote')));
 }
 
+/* v359: כרטיס "עלות" בדף העבודה */
+function costLabel(k) {
+  switch (k) {
+    case 'main': return T('studioCostMain');
+    case 'tl': return T('studioCostTl');
+    case 'rv': return T('studioCostRv');
+    default: return T('studioCostSub');
+  }
+}
+function usdEl(v, plus) { const b = h('bdi', null, v == null ? '—' : fmtUsd(v) + (plus ? '+' : '')); b.dir = 'ltr'; return b; }   // "+" בתוך הבידוד — אחרת ב־RTL הוא קופץ לצד השני
+function costCard(cv) {
+  const rows = cv.rows.map((r) => {
+    const row = h('div', 'st-row st-cost' + (r.off ? ' off-model' : ''));
+    const l = h('span', 'st-l');
+    l.append(h('b', null, costLabel(r.k) + (r.nth ? ' ' + r.nth : '')));
+    const sm = h('small');
+    sm.append(h('bdi', null, r.model), ' · ' + T('studioCostTok', { n: fmtTok(r.tok) }));
+    if (r.open) { sm.append(' · ' + T('studioCostOpen') + ' '); sm.append(r.open.usd == null ? T('studioCostTok', { n: fmtTok(r.open.tok) }) : usdEl(r.open.usd)); }
+    if (r.usd == null) sm.append(' · ' + T('studioCostNoPrice'));
+    l.append(sm);
+    const v = h('span', 'st-v'); v.append(usdEl(r.usd));
+    row.append(l, v);
+    row.dataset.k = 'cost:' + r.k + (r.nth || '');
+    return row;
+  });
+  const tot = h('div', 'st-row st-cost total');
+  const tv = h('span', 'st-v'); tv.append(usdEl(cv.total, cv.partial));
+  tot.append(h('span', 'st-l', T('studioCostTotal')), tv);
+  tot.dataset.k = 'cost:total';
+  const out = [secT(T('studioSecCost'))];
+  for (const w of cv.warn) out.push(banner('warn', w.k === 'tl' ? T('studioCostWarnTl', { got: w.model, want: cv.want }) : T('studioCostWarnRv', { got: w.model, want: cv.want })));
+  out.push(list(...rows, tot), note(T('studioCostNote')));
+  return out;
+}
+
 /* מסך ההתקדמות — "שגם ילד וגם אדם מבוגר יבינו": כמה נשאר, מתי יהיה מוכן, מה קורה עכשיו, ולכל שלב זמן */
 function pageJob(p) {
   const rec = jobRec(ui.param);
@@ -1372,6 +1461,10 @@ function pageJob(p) {
     stl.append(row);
   }
   p.append(secT(T('studioSecStages')), stl);
+
+  // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
+  const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
+  if (cv) p.append(...costCard(cv));
 
   // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
   if (!rec.up.noAudio && !rec.up.v.done && (ph0 === 'queued' || ph0 === 'running')) {
@@ -1618,7 +1711,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || ''); };
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : ''); };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join(); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;

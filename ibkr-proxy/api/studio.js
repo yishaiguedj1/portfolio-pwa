@@ -101,7 +101,7 @@ const UNSURE = ['routine_down', 'routine_net'];
 async function fireJob(deps, uid, v, job, now) {
   const key = S.newKey();
   const fh = S.recentFires(v.fh, now);
-  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', updated: now });
+  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, updated: now });
   const f = await fire(deps, v, uid, S.fireText(job.id, key));
   if (!f.ok && UNSURE.includes(f.error)) {
     // v356: 5xx או תקלת רשת — ייתכן שהסשן כבר נפתח (קרה אצל המשתמש: "לא זמין", והסשן הגיע ונדחה ב־bad_key).
@@ -163,6 +163,11 @@ async function worker(req, res, body, deps) {
         o.size = Math.floor(Number(meta.size) || o.size);
       }
       up.fo = outs;
+    }
+    if (body.usage != null) {
+      // v359: טוקנים ועלות (בדיווח האחרון). נתון לא תקין נזרק בשקט — לא מפילים בגללו את סוף העבודה
+      const use = S.normUsage(body.usage);
+      if (use) up.use = use;
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }
     await patchJob(deps, id, up);
