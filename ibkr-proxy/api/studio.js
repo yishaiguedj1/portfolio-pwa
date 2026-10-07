@@ -83,25 +83,36 @@ async function fire(deps, v, uid, text) {
       headers: { Authorization: 'Bearer ' + conn.k, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }) });
     let j = null; try { j = await r.json(); } catch (e) {}
+    const hdr = (k) => (r.headers && typeof r.headers.get === 'function' ? r.headers.get(k) : null);
     if (r.status === 200) {
       const sess = S.fireSession(j);
-      return sess ? { ok: true, sess } : { ok: false, error: 'routine_reply' };
+      return sess ? { ok: true, sess } : { ok: false, error: 'routine_reply', detail: S.fireDetail(200, j, hdr('request-id')) };
     }
-    const ra = r.headers && typeof r.headers.get === 'function' ? parseInt(r.headers.get('retry-after') || '', 10) : NaN;
-    return { ok: false, error: S.fireError(r.status, j), retry: Number.isFinite(ra) ? Math.min(ra, 7200) : undefined };
+    const ra = parseInt(hdr('retry-after') || '', 10);
+    return { ok: false, error: S.fireError(r.status, j), retry: Number.isFinite(ra) ? Math.min(ra, 7200) : undefined,
+      detail: S.fireDetail(r.status, j, hdr('request-id')) };   // v356: לאבחון — מוצג בטלפון ("פרטים לתמיכה")
   } catch (e) {
-    return { ok: false, error: 'routine_net' };   // ייתכן שהבקשה הגיעה — לא מנסים שוב לבד
+    // ייתכן שהבקשה הגיעה — לא מנסים שוב לבד
+    return { ok: false, error: 'routine_net', detail: String((e && e.name) || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30) };
   } finally { clearTimeout(to); }
 }
-/* מפתח חדש → נשמר לפני ההפעלה (העובד יכול להגיע מהר) → הפעלה → הסשן נשמר; כשל = חוזרים למצב הקודם */
+/* מפתח חדש → נשמר לפני ההפעלה (העובד יכול להגיע מהר) → הפעלה → הסשן נשמר; כשל ודאי = חוזרים למצב הקודם */
+const UNSURE = ['routine_down', 'routine_net'];
 async function fireJob(deps, uid, v, job, now) {
   const key = S.newKey();
   const fh = S.recentFires(v.fh, now);
-  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', updated: now });
+  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', updated: now });
   const f = await fire(deps, v, uid, S.fireText(job.id, key));
+  if (!f.ok && UNSURE.includes(f.error)) {
+    // v356: 5xx או תקלת רשת — ייתכן שהסשן כבר נפתח (קרה אצל המשתמש: "לא זמין", והסשן הגיע ונדחה ב־bad_key).
+    // לא מבטלים: המפתח נשאר בתוקף והעבודה ממתינה. נלקחה — ממשיכה כרגיל; לא נלקחה בזמן — נכשלת עם השגיאה של Anthropic (effState)
+    await patchJob(deps, job.id, { warn: f.error, ed: f.detail || '', updated: now });
+    await patchVault(deps, uid, { tt: now, fh: fh.concat(now) });   // ייתכן שנפתח סשן — נספר בתקציב
+    return { ok: true, unsure: f.error, detail: f.detail || '' };
+  }
   if (!f.ok) {
     const back = job.kind === 'ping' ? { state: 'failed', err: f.error, ended: now, kh: '' } : { state: 'new', err: f.error, kh: '', fired: job.fired || 0 };
-    await patchJob(deps, job.id, Object.assign(back, { updated: now }));
+    await patchJob(deps, job.id, Object.assign(back, { ed: f.detail || '', updated: now }));
     if (f.error !== 'routine_net') await patchVault(deps, uid, { tt: now });
     return f;
   }
@@ -132,14 +143,14 @@ async function worker(req, res, body, deps) {
     };
     if (body.op === 'claim') {
       const patch = { updated: now };
-      if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; job.state = 'running'; }
+      if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; patch.warn = ''; job.state = 'running'; }
       await patchJob(deps, id, patch);
       return res.status(200).json({ ok: true, job: S.workerJob(job), drive: await driveFor(), now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     // report
     const up = S.applyReport(job, body, now);
-    if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; }
+    if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }
     await patchJob(deps, id, up);
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});
     return res.status(200).json({ ok: true, stop: false, state: up.state || job.state });
@@ -202,7 +213,7 @@ async function handler(req, res, deps = {}) {
       await patchJob(deps, job.id, job);
       const f = await fireJob(deps, uid, v, job, now);
       const j = await readJob(deps, job.id);
-      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? {} : { error: f.error, retry: f.retry }));
+      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
     }
     if (op === 'create') {
       const spec = S.normSpec(body.spec);
@@ -251,7 +262,7 @@ async function handler(req, res, deps = {}) {
       if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return res.status(429).json({ ok: false, error: 'budget' });
       const f = await fireJob(deps, uid, v, job, now);
       const j = await readJob(deps, job.id);
-      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? {} : { error: f.error, retry: f.retry }));
+      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
     }
     if (op === 'cancel') {
       if (!S.FINAL.includes(st)) {

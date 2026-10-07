@@ -134,7 +134,7 @@ ok(!/localStorage\.setItem\((?!LS_STUDIO)/.test(st), 'כותב רק למפתח �
 // שלב 2: יש שדה למפתח של ה־Routine — שדה סיסמה, נמחק מהזיכרון אחרי שמירה מוצלחת וביציאה מהדף, ולעולם לא נכנס לאחסון
 ok(/keyIn\.type = 'password'/.test(st) && /w\.key = '';/.test(st) && /ui\.wiz = \{ url: ui\.wiz\.url, key: '', busy: false, err: '' \}/.test(st)
   && !JSON.stringify(S.normStore({ settings: { k: 'sk-ant-oat01-' + 'a'.repeat(30) }, conn: { hint: 'trig_…abcd', k: 'sk-ant-oat01-' + 'a'.repeat(30), u: 'https://x' } })).includes('sk-ant'), 'המפתח של ה־Routine: שדה סיסמה, נמחק אחרי השמירה וביציאה, ולא נכנס לאחסון בטלפון');
-ok(/open\.rel = 'noopener noreferrer'/.test(st), 'קישור חיצוני (claude.ai/code) עם noopener');
+ok(/\.rel = 'noopener noreferrer'/.test(st) && /'https:\/\/claude\.ai\/code'/.test(st), 'קישור חיצוני (claude.ai/code) עם noopener');   // v356: דרך link() של האשף
 ok(!/\bconfirm\(|\balert\(|\bprompt\(/.test(code.replace(/askConfirm\(/g, '')), 'בלי חלונות הדפדפן — askConfirm של האפליקציה (dlg-v297)');
 
 console.log('\n' + n + ' בדיקות עברו');

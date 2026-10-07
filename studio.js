@@ -111,6 +111,7 @@ export function normJob(j) {
     state: STATES.includes(s.state) ? s.state : 'new', err: String(s.err || '').slice(0, 40), fired: num(s.fired), ended: num(s.ended),
     prog: s.prog && typeof s.prog === 'object' && !Array.isArray(s.prog) ? s.prog : null,
     sess: s.sess && typeof s.sess.url === 'string' && /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/.test(s.sess.url) ? { url: s.sess.url } : null,
+    ed: typeof s.ed === 'string' ? s.ed.slice(0, 140) : '',   // v356: פרטי ההפעלה שנכשלה (סטטוס · סוג · מזהה בקשה)
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -616,8 +617,10 @@ async function runTest() {
   if (testRun && (testRun.st === 'fire' || testRun.st === 'wait')) return;
   testRun = { st: 'fire' }; repaint();
   const j = await net.api('test');
-  if (!j.ok) { testRun = { st: 'err', err: j.error || 'failed', retry: j.retry || 0, sess: j.job && j.job.sess ? j.job.sess.url : '' }; repaint(); return; }
-  const me = testRun = { st: 'wait', job: j.job.id, sess: j.job.sess ? j.job.sess.url : '', t0: Date.now() };
+  const ed = (x) => String((x && (x.detail || (x.job && x.job.ed))) || '').slice(0, 140);
+  if (!j.ok) { testRun = { st: 'err', err: j.error || 'failed', retry: j.retry || 0, sess: j.job && j.job.sess ? j.job.sess.url : '', ed: ed(j) }; repaint(); return; }
+  // v356: "לא ודאי" — Anthropic החזיר 5xx/רשת, אבל הסשן אולי נפתח: מחכים לו (השרתון לא ביטל את המפתח)
+  const me = testRun = { st: 'wait', job: j.job.id, sess: j.job.sess ? j.job.sess.url : '', t0: Date.now(), unsure: !!j.unsure, ed: j.unsure ? ed(j) : '' };
   repaint();
   for (let i = 0; i < 120 && testRun === me; i++) {        // עד כ־7 דקות (סשן חדש עולה בדקה–שתיים)
     await sleep(i < 30 ? 3000 : 6000);
@@ -630,7 +633,7 @@ async function runTest() {
       if (drive) flashSafe(T('studioTestOk'));
       statusAt = 0; refreshStatus(true); break;
     }
-    if (r.job.state === 'failed' || r.job.state === 'cancelled') { testRun = { st: 'err', err: r.job.err || 'failed', sess: me.sess }; break; }
+    if (r.job.state === 'failed' || r.job.state === 'cancelled') { testRun = { st: 'err', err: r.job.err || 'failed', sess: me.sess, ed: ed(r) }; break; }
     if (r.job.state === 'running' && !me.claimed) { me.claimed = true; repaint(); }
   }
   repaint();
@@ -870,6 +873,23 @@ async function copyText(txt, okMsg) {
   catch (e) { flashSafe(T('studioCopyFail')); return false; }
 }
 /* קופסת טקסט להעתקה (כתובות, סקריפט, הנחיה) — הטקסט גלוי, והכפתור מעתיק */
+/* שורת הוראה בעברית עם שמות מסכים באנגלית: כל רצף לטיני בבידוד (<bdi>). בלי זה חץ בין שתי מילים לטיניות
+   ("API ← Generate token") נבלע ברצף LTR אחד ונקרא הפוך, ושבירת שורה מערבבת את הסדר (נמצא בצילום של v356).
+   הרצף מסתיים באות/ספרה — נקודה או נקודתיים בסוף נשארים בחוץ (אחרת הם עוברים לצד הלא נכון של המילה). */
+const LATIN_RUN = /[A-Za-z0-9](?:[A-Za-z0-9./_+-]*[A-Za-z0-9])?(?: [A-Za-z0-9](?:[A-Za-z0-9./_+-]*[A-Za-z0-9])?)*/g;
+function bidiP(text) {
+  const p = h('p');
+  if (!/[֐-׿]/.test(text)) { p.textContent = text; return p; }
+  let i = 0;
+  for (const m of text.matchAll(LATIN_RUN)) {
+    if (m.index > i) p.append(text.slice(i, m.index));
+    p.append(h('bdi', null, m[0]));
+    i = m.index + m[0].length;
+  }
+  if (i < text.length) p.append(text.slice(i));
+  return p;
+}
+
 function copyBox(txt, label, k, prose) {
   const wrap = h('div', 'st-copybox');
   const pre = h('div', 'st-code' + (prose ? ' prose' : ''), txt); pre.dir = 'auto';
@@ -1379,6 +1399,7 @@ function pageJob(p) {
     rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
+    rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,
   ];
   const links = h('div', 'st-wacts');
   if (rec.up.folder) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
@@ -1430,9 +1451,16 @@ function testLine() {             // מצב בדיקת החיבור — שורה
   else d.append(ico(testRun.st === 'ok' ? 'check' : 'alert'));
   const txt = h('span', 'st-l');
   if (testRun.st === 'fire') txt.append(h('b', null, T('studioTestFire')));
+  else if (testRun.st === 'wait' && testRun.unsure && !testRun.claimed) {
+    txt.append(h('b', null, T('studioTestUnsure')), h('small', null, T('studioTestUnsureS')));
+    if (testRun.ed) { const c = h('small', 'st-ecode'); c.append(T('studioErrCodeL') + ': ', h('bdi', null, testRun.ed)); txt.append(c); }
+  }
   else if (testRun.st === 'wait') txt.append(h('b', null, testRun.claimed ? T('studioTestClaimed') : T('studioTestWait')), h('small', null, T('studioTestWaitS')));
   else if (testRun.st === 'ok') txt.append(h('b', null, T('studioTestOk')), h('small', null, testRun.drive ? T('studioTestDriveOk') : T('studioTestDriveNo')));
-  else txt.append(h('b', null, T('studioTestErr')), h('small', null, errText(testRun.err, testRun)));
+  else {
+    txt.append(h('b', null, T('studioTestErr')), h('small', null, errText(testRun.err, testRun)));
+    if (testRun.ed) { const c = h('small', 'st-ecode'); c.append(T('studioErrCodeL') + ': ', h('bdi', null, testRun.ed)); txt.append(c); }
+  }
   d.append(txt);
   if (testRun.sess) d.append(extLink('st-link', testRun.sess, T('studioOpenSess'), null, 'test-sess'));
   return d;
@@ -1512,9 +1540,11 @@ function pageDef(p) {
 function pageConnect(p) {
   p.append(navBar({ back: T('studioSettings') }), large(T('studioWizT')), h('p', 'st-lede', T('studioWizLede')));
   const ab = accessBanner(); if (ab) p.append(ab);
-  const open = h('a', 'st-wbtn'); open.href = 'https://claude.ai/code'; open.target = '_blank'; open.rel = 'noopener noreferrer';
-  open.dataset.k = 'w:open';
-  open.append(ico('out'), h('span', null, T('studioOpenCode')));
+  const link = (href, k, label) => {
+    const a = h('a', 'st-wbtn'); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dataset.k = k;
+    a.append(ico('out'), h('span', null, label));
+    return a;
+  };
   let host = 'ibkr-proxy-wine.vercel.app';
   try { host = new URL(proxyBase()).host || host; } catch (e) {}
   const hosts = [host].concat(HOSTS_EXTRA).join('\n');
@@ -1531,17 +1561,30 @@ function pageConnect(p) {
   const saveB = btn('st-btn wide in-card', w.busy ? T('studioSaving') : T('studioSaveTest'), () => saveConn(), 'w:save');
   saveB.disabled = w.busy || blocked();
   const errEl = w.err ? h('p', 'st-ferr', w.err) : null;
+  /* v356: כל פעולה בשורה משלה, והכפתור שלה מיד אחריה — בסדר שבו מבצעים ב־claude.ai.
+     הטריגר API נבחר לפני Create (בלעדיו הכפתור אפור), והכתובת והמפתח — שלב נפרד אחרי השמירה. */
   const steps = [
-    [T('studioW1T'), T('studioW1D'), [open, copyBox(hosts, T('studioCopyHosts'), 'w:hosts'), copyBox(SETUP_LINE, T('studioCopySetup'), 'w:setup')]],
-    [T('studioW2T'), T('studioW2D'), [copyBox(T('studioPromptText'), T('studioCopyPrompt'), 'w:prompt', true)]],
-    [T('studioW3T'), T('studioW3D'), [lab(T('studioFUrl'), urlIn), lab(T('studioFKey'), keyIn), errEl, saveB, testLine()]],
+    [T('studioW1T'), [T('studioW1a'), link('https://claude.ai/code', 'w:open', T('studioOpenCode')),
+      T('studioW1b'), copyBox(hosts, T('studioCopyHosts'), 'w:hosts'),
+      T('studioW1c'), copyBox(SETUP_LINE, T('studioCopySetup'), 'w:setup')]],
+    [T('studioW2T'), [T('studioW2a'), link('https://claude.ai/code/routines', 'w:routines', T('studioOpenRoutines')),
+      T('studioW2b'), copyBox(T('studioPromptText'), T('studioCopyPrompt'), 'w:prompt', true),
+      T('studioW2c')]],
+    [T('studioW3T'), [T('studioW3a'), T('studioW3b')]],
+    [T('studioW4T'), [T('studioW4D'), lab(T('studioFUrl'), urlIn), lab(T('studioFKey'), keyIn), errEl, saveB, testLine()]],
   ];
   const ol = h('ol', 'st-wiz');
-  for (const [tt, dd, acts] of steps) {
+  for (const [tt, items] of steps) {
     const li = h('li');
     const body = h('div', 'st-wbody');
-    body.append(h('b', null, tt), h('p', null, dd));
-    const a = h('div', 'st-wacts'); a.append(...acts.filter(Boolean)); body.append(a);
+    body.append(h('b', null, tt));
+    let grp = null;                  // הכפתורים שאחרי שורה — בקבוצה אחת מתחתיה
+    for (const it of items) {
+      if (!it) continue;
+      if (typeof it === 'string') { body.append(bidiP(it)); grp = null; continue; }
+      if (!grp) { grp = h('div', 'st-wacts'); body.append(grp); }
+      grp.append(it);
+    }
     li.append(body); ol.append(li);
   }
   p.append(ol, note(T('studioWizNote')));

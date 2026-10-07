@@ -1168,6 +1168,7 @@ function stubFetch(text, status = 200) {
         if (fireMode === 401) return J({ type: 'error', error: { type: 'authentication_error', message: 'bad' } }, 401);
         if (fireMode === 429) return J({ type: 'error', error: { type: 'rate_limit_error', message: 'slow' } }, 429, { 'retry-after': '1800' });
         if (fireMode === 'paused') return J({ type: 'error', error: { type: 'invalid_request_error', message: 'Routine is paused' } }, 400);
+        if (fireMode === 500) return J({ type: 'error', error: { type: 'api_error', message: 'Internal <b>x</b>' } }, 500, { 'request-id': 'req_011CXtest<script>' });
         return J({ type: 'routine_fire', claude_code_session_id: 'session_01TESTSESSION' + fires.length, claude_code_session_url: 'https://claude.ai/code/session_01TESTSESSION' + fires.length });
       }
       const dm = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/([A-Za-z0-9_-]+)\?/);
@@ -1269,7 +1270,28 @@ function stubFetch(text, status = 200) {
     ok(r.payload.error === 'routine_paused', 'סטודיו: Routine מושהה — מזוהה');
     now += 61e3; fireMode = 'throw';
     r = await run({ op: 'test', idToken: OWNER });
-    ok(r.payload.error === 'routine_net' && fires.length === 5, 'סטודיו: תקלת רשת בהפעלה — לא מנסים שוב לבד (אחרת ייפתחו שני סשנים)');
+    ok(r.payload.ok && r.payload.unsure === 'routine_net' && r.payload.job.state === 'queued' && fires.length === 5,
+      'סטודיו: תקלת רשת בהפעלה — "לא ודאי": לא מנסים שוב לבד (אחרת שני סשנים) וגם לא מבטלים — מחכים לסשן');
+    ok(r.payload.detail === 'Error' && r.payload.job.ed === 'Error', 'סטודיו: תקלת רשת — עם פרטים לאבחון');
+    // v356 — מה שקרה אצל המשתמש: Anthropic החזיר 500, אבל הסשן נפתח והגיע עם המפתח. עד v355 העבודה סומנה "נכשלה" והמפתח נמחק → bad_key
+    now += 61e3; fireMode = 500;
+    r = await run({ op: 'test', idToken: OWNER });
+    const J5 = r.payload.job.id, K5 = keyOf(fires[fires.length - 1]);
+    ok(r.payload.ok && r.payload.unsure === 'routine_down' && r.payload.job.state === 'queued' && r.payload.detail === 'HTTP 500 · api_error · req_011CXtestscript'
+      && r.payload.job.ed === r.payload.detail && fires.length === 6,
+      'סטודיו: 500 מ־Anthropic — העבודה ממתינה (לא נכשלת), עם פרטים לתמיכה (סטטוס, סוג, מזהה בקשה — רק תווים בטוחים)');
+    let w5 = await wrk({ op: 'claim', job: J5, key: K5 });
+    ok(w5.payload.ok && !w5.payload.stop && w5.payload.job.state === 'running', 'סטודיו: הסשן שנפתח למרות ה־500 מתקבל (לא bad_key)');
+    w5 = await wrk({ op: 'report', job: J5, key: K5, done: true, checks: { drive: true } });
+    r = await run({ op: 'job', idToken: OWNER, job: J5 });
+    ok(r.payload.job.state === 'done' && r.payload.job.err === '', 'סטודיו: ...והבדיקה מסתיימת בהצלחה');
+    now += 61e3; fireMode = 500;
+    r = await run({ op: 'test', idToken: OWNER });
+    const J6 = r.payload.job.id;
+    now += 7 * 60e3;
+    r = await run({ op: 'job', idToken: OWNER, job: J6 });
+    ok(r.payload.job.state === 'failed' && r.payload.job.err === 'routine_down' && r.payload.job.ed === 'HTTP 500 · api_error · req_011CXtestscript',
+      'סטודיו: 500 וסשן לא הגיע בזמן — נכשלת עם השגיאה של Anthropic (לא "לא התחיל" שמפנה לרשת), והפרטים נשמרים');
     ok([...db.keys()].filter((k) => k.startsWith('studioJobs/')).length === 3, 'סטודיו: נשמרות רק 3 בדיקות החיבור האחרונות');
     fireMode = 'ok';
 
@@ -1305,10 +1327,10 @@ function stubFetch(text, status = 200) {
 
     // שלב 3 (מדומה): העובד יודע לתרגם → הפעלה, החלפת מפתח, ביטול
     S.WORKER_KINDS.push('tr');
-    fireMode = 'throw';
+    fireMode = 401;   // v356: כשל ודאי (מפתח שבוטל). 5xx/רשת = "לא ודאי" — העבודה ממתינה (נבדק למעלה בבדיקות החיבור)
     r = await run({ op: 'start', idToken: OWNER, job: JT });
     const Ka = keyOf(fires[fires.length - 1]);
-    ok(r.payload.error === 'routine_net' && r.payload.job.state === 'new', 'סטודיו: הפעלה שנכשלה ברשת — העבודה חוזרת ל"חדשה" (אפשר לנסות שוב ביד)');
+    ok(r.payload.error === 'routine_auth' && r.payload.job.state === 'new', 'סטודיו: הפעלה שנדחתה — העבודה חוזרת ל"חדשה" (אפשר לנסות שוב ביד)');
     r = await wrk({ op: 'claim', job: JT, key: Ka });
     ok(r.statusCode === 403, 'סטודיו: המפתח של הפעלה שנכשלה — לא תקף');
     fireMode = 'ok';
