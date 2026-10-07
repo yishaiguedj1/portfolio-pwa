@@ -61,6 +61,17 @@ ok(KEYS.every((k) => runs(HE[k]).every((r) => /[A-Za-z0-9]$/.test(r))), 'רצף 
 /* ---------- 3. העובד: הפעלה בלי עבודה (Run now) לא מריצה כלום ---------- */
 ok(/אין בלוק כזה/.test(runbook) && /Run now/.test(runbook) && /לא מריצים שום דבר/.test(runbook), 'RUNBOOK: בלי בלוק או בלי ערכים תקינים — לא מריצים כלום ומסיימים');
 
+/* ---------- 3ב. הפעלה "לא ודאית" (5xx/רשת): הסשן אולי נפתח — מחכים לו (קרה אצל המשתמש: "לא זמין" ואז bad_key) ---------- */
+const api = read('ibkr-proxy/api/studio.js'), lib = read('ibkr-proxy/lib/studio.js');
+ok(/const UNSURE = \['routine_down', 'routine_net'\]/.test(api) && /UNSURE\.includes\(f\.error\)/.test(api), 'השרתון: 5xx ותקלת רשת = "לא ודאי"');
+const un = api.slice(api.indexOf('UNSURE.includes(f.error)'), api.indexOf('if (!f.ok) {', api.indexOf('UNSURE.includes(f.error)')));
+ok(/warn: f\.error/.test(un) && !/kh: ''/.test(un) && !/state: 'failed'/.test(un) && /unsure: f\.error/.test(un), 'לא ודאי: המפתח נשאר בתוקף, העבודה לא נכשלת, הטלפון מקבל unsure');
+ok(/err: job\.warn \|\| 'no_claim'/.test(lib), 'לא נלקח בזמן אחרי הפעלה לא ודאית — נכשל עם השגיאה של Anthropic');
+ok((api.match(/warn = ''/g) || []).length >= 1 && /up\.warn = ''/.test(api), 'claim/דיווח ראשון מנקים את הסימון');
+ok(/unsure: !!j\.unsure/.test(st) && /T\('studioTestUnsure'\)/.test(st) && /T\('studioTestUnsureS'\)/.test(st), 'הטלפון: "Anthropic החזיר שגיאה — מחכים עד כ־6 דקות" (במקום כישלון מיד)');
+ok(HE.studioTestUnsure && EN.studioTestUnsure && /6/.test(HE.studioTestUnsureS) && /6/.test(EN.studioTestUnsureS), 'המחרוזות בשתי השפות');
+ok(/בלי התראות ובלי בדיקות חוזרות מתוזמנות/.test(runbook), 'RUNBOOK: העובד לא שולח התראות ולא מתזמן בדיקות (הסשן של המשתמש שלח התראה)');
+
 /* ---------- 4. גרסה ---------- */
 const ver = (app.match(/const APP_VERSION = '(v\d+)'/) || [])[1];
 ok(ver === 'v356', 'APP_VERSION = v356');

@@ -619,7 +619,8 @@ async function runTest() {
   const j = await net.api('test');
   const ed = (x) => String((x && (x.detail || (x.job && x.job.ed))) || '').slice(0, 140);
   if (!j.ok) { testRun = { st: 'err', err: j.error || 'failed', retry: j.retry || 0, sess: j.job && j.job.sess ? j.job.sess.url : '', ed: ed(j) }; repaint(); return; }
-  const me = testRun = { st: 'wait', job: j.job.id, sess: j.job.sess ? j.job.sess.url : '', t0: Date.now() };
+  // v356: "לא ודאי" — Anthropic החזיר 5xx/רשת, אבל הסשן אולי נפתח: מחכים לו (השרתון לא ביטל את המפתח)
+  const me = testRun = { st: 'wait', job: j.job.id, sess: j.job.sess ? j.job.sess.url : '', t0: Date.now(), unsure: !!j.unsure, ed: j.unsure ? ed(j) : '' };
   repaint();
   for (let i = 0; i < 120 && testRun === me; i++) {        // עד כ־7 דקות (סשן חדש עולה בדקה–שתיים)
     await sleep(i < 30 ? 3000 : 6000);
@@ -1450,6 +1451,10 @@ function testLine() {             // מצב בדיקת החיבור — שורה
   else d.append(ico(testRun.st === 'ok' ? 'check' : 'alert'));
   const txt = h('span', 'st-l');
   if (testRun.st === 'fire') txt.append(h('b', null, T('studioTestFire')));
+  else if (testRun.st === 'wait' && testRun.unsure && !testRun.claimed) {
+    txt.append(h('b', null, T('studioTestUnsure')), h('small', null, T('studioTestUnsureS')));
+    if (testRun.ed) { const c = h('small', 'st-ecode'); c.append(T('studioErrCodeL') + ': ', h('bdi', null, testRun.ed)); txt.append(c); }
+  }
   else if (testRun.st === 'wait') txt.append(h('b', null, testRun.claimed ? T('studioTestClaimed') : T('studioTestWait')), h('small', null, T('studioTestWaitS')));
   else if (testRun.st === 'ok') txt.append(h('b', null, T('studioTestOk')), h('small', null, testRun.drive ? T('studioTestDriveOk') : T('studioTestDriveNo')));
   else {
