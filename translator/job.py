@@ -397,6 +397,13 @@ def mirror_prog(st, p):
         pass
 
 
+_EV_SENT = {}
+# v365: פקודת vt → סוג האירוע בקטלוג (תמלול / יישור / בדיקה / צריבה / קליטה)
+VT_KIND = {'asr': 'asr', 'new': 'ingest', 'ingest': 'ingest', 'shots': 'ingest', 'edit-export': 'align', 'edit-import': 'align',
+           'align': 'align', 'plan': 'align', 'tr-prep': 'align', 'tr-check': 'check', 'tr-merge': 'render', 'build': 'render',
+           'render': 'render'}
+
+
 class Ctx:
     """עבודה פעילה: לקוח לשרתון, גישה ל־Drive ודיווח התקדמות (לכל היותר פעם ב־15 שנ׳ לאותו שלב)."""
 
@@ -441,6 +448,19 @@ class Ctx:
             mirror_prog(st, p)
 
 
+    def event(self, c, k, ok=False):
+        """v365: אירוע למגדל הפיקוח (רכיב · סוג מהקטלוג בשרתון). אותו אירוע לכל היותר פעם בדקה; תקלה בדיווח לא עוצרת עבודה."""
+        key, now = (c, k, ok), time.time()
+        if now - _EV_SENT.get(key, 0) < 60:
+            return
+        _EV_SENT[key] = now
+        try:
+            self.c.call('report', ev=[{'c': c, 'k': k, 'ok': ok}])
+        except Stop:
+            raise
+        except BaseException:      # noqa: BLE001 — כולל SystemExit מ־Client: דיווח שנכשל לא מפיל את העבודה
+            pass
+
     def refresh(self):
         """פרטי העבודה העדכניים (הקבצים מהטלפון ממשיכים לעלות אחרי שהעבודה התחילה)."""
         job = self.c.call('claim').get('job') or {}
@@ -477,16 +497,23 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
                     if on_progress and size:
                         on_progress(got / size)
             if not size or dest.stat().st_size >= size:
+                if tries:
+                    ctx.event('drive', 'dl_retry', ok=True)           # v365: Drive חזר — ההתראה נסגרת
                 return dest
         except urllib.error.HTTPError as e:
             if e.code == 403 and denied(dict(e.headers or {})):
+                ctx.event('claude', 'net')
                 raise SystemExit('✗ הרשת של הסביבה חוסמת את Drive — להוסיף www.googleapis.com ל־Allowed domains.')
             if e.code not in (401, 429) and e.code < 500:
+                ctx.event('drive', 'dl_fail')
                 raise SystemExit('✗ ההורדה מ־Drive נכשלה (' + str(e.code) + ').')
         except (urllib.error.URLError, TimeoutError, OSError):
             pass
         tries += 1
+        if tries == 2:
+            ctx.event('drive', 'dl_retry')
         if tries > 8:
+            ctx.event('drive', 'dl_fail')
             raise SystemExit('✗ ההורדה מ־Drive נקטעה שוב ושוב.')
         time.sleep(min(30, 2 ** tries))
 
@@ -513,7 +540,7 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut'):
     loc = next((v for k, v in hd.items() if k.lower() == 'location'), '')
     if st != 200 or not loc:
         raise SystemExit('✗ פתיחת העלאה ל־Drive נכשלה (' + str(st) + ').')
-    sent, tries = 0, 0
+    sent, tries, retried = 0, 0, False
     with open(path, 'rb') as f:
         while True:
             f.seek(sent)
@@ -525,6 +552,8 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut'):
                 with _OPEN(req, timeout=300) as r:
                     out = json.loads(r.read() or b'{}')
                     if out.get('id'):
+                        if retried:
+                            ctx.event('drive', 'up_retry', ok=True)       # v365: Drive חזר — ההתראה נסגרת
                         return out['id']
                     raise SystemExit('✗ Drive לא החזיר מזהה לקובץ.')
             except urllib.error.HTTPError as e:
@@ -536,11 +565,16 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut'):
                         on_progress(sent / size)
                     continue
                 if e.code not in (429,) and e.code < 500:
+                    ctx.event('drive', 'up_fail')
                     raise SystemExit('✗ ההעלאה ל־Drive נכשלה (' + str(e.code) + ').')
             except (urllib.error.URLError, TimeoutError, OSError):
                 pass
             tries += 1
+            retried = True
+            if tries == 2:
+                ctx.event('drive', 'up_retry')
             if tries > 8:
+                ctx.event('drive', 'up_fail')
                 raise SystemExit('✗ ההעלאה ל־Drive נקטעה שוב ושוב.')
             time.sleep(min(30, 2 ** tries))
             # אחרי תקלה — שואלים את Drive כמה הגיע
@@ -584,6 +618,7 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     rc = proc.wait()
     if rc != 0:
         print('\n'.join(tail))
+        ctx.event('vt', VT_KIND.get(args[0], 'other'))
         raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
     return tail
@@ -675,6 +710,7 @@ def ensure_env(ctx, st='tr'):
         subprocess.run(setup_cmd(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=setup_env())
     miss = env_missing()
     if miss:
+        ctx.event('vt', 'setup')
         raise SystemExit('✗ ההתקנה של מנועי התמלול נכשלה — חסרים: ' + ', '.join(miss) +
                          '. אולי הרשת של הסביבה חוסמת (Hugging Face / PyTorch / GitHub). הפרטים: ' + str(STATE.parent / 'setup.log'))
 

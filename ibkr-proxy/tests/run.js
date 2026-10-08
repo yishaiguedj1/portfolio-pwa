@@ -1616,6 +1616,72 @@ function stubFetch(text, status = 200) {
       && S.normTower({ lv: 'ok', fp: FPX }).fp === undefined && S.normTower({ lv: 'red', why: 'loop', fp: 'bad' }).fp === undefined,
     'סטודיו: ספר התיקונים — עד 30 תקלות; טביעה/סוג לא תקינים — נזרקים; טביעה רק בעצירה');
 
+    // v365: מגדל הפיקוח 2.0 — אירועים מכל המקורות → התראות (איחוד, קיבוץ, סגירה), בריאות, זמינות ו־MTTR
+    const O = require('../lib/studioops');
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JO = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JO, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    await run({ op: 'start', idToken: OWNER, job: JO });
+    const Ko = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JO, key: Ko });
+    await wrk({ op: 'report', job: JO, key: Ko, ev: [{ c: 'drive', k: 'dl_retry' }, { c: 'evil', k: 'x' }, { c: 'drive', k: '<b>' }] });
+    await wrk({ op: 'report', job: JO, key: Ko, ev: [{ c: 'drive', k: 'dl_retry' }, { c: 'drive', k: 'dl_fail' }] });
+    await wrk({ op: 'report', job: JO, key: Ko, tower: { lv: 'warn', x: 2.2 } });
+    rr = await run({ op: 'status', idToken: OWNER });
+    let OP = rr.payload.ops;
+    const closed0 = OP.closed30;
+    const dr = OP.open.find((g) => g.c === 'drive');
+    ok(OP.open.length === 2 && dr && dr.k === 'dl_fail' && dr.s === 2 && dr.rel === 1 && dr.n === 3 && dr.j === JO && OP.comp.drive === 2 && OP.comp.claude === 3 && OP.comp.phone === 0,
+      'סטודיו: מגדל 2.0 — אירועים זהים מתאחדים (מונה), קשורים מקובצים לפי רכיב ועבודה (הראשית = החמורה), סוג לא מהקטלוג נזרק');
+    ok(OP.score === 100 - 20 - 4 - 8 + 2 || OP.score === 70, 'סטודיו: מגדל 2.0 — ציון הבריאות יורד לפי ההתראות הפתוחות (P2 = 20, P3 = 8, P4 = 2)');
+    ok(!JSON.stringify(db.get('studioOps/ownerUid0001')).includes('<b>'), 'סטודיו: מגדל 2.0 — רק סוגים מהקטלוג נשמרים (בלי טקסט חופשי)');
+    now += 10 * 60e3;
+    await wrk({ op: 'report', job: JO, key: Ko, tower: { lv: 'ok', x: 1.1 }, ev: [{ c: 'drive', k: 'dl_retry', ok: true }] });
+    rr = await run({ op: 'status', idToken: OWNER });
+    OP = rr.payload.ops;
+    ok(OP.comp.claude === 0 && OP.open.length === 1 && OP.open[0].k === 'dl_fail' && OP.open[0].rel === 0 && OP.closed30 === closed0 + 1 && typeof OP.mttr === 'number',
+      'סטודיו: מגדל 2.0 — חזרה לתקין / אירוע ok סוגרים את ההתראה, וזמן התיקון נכנס לממוצע (MTTR)');
+    rr = await run({ op: 'event', idToken: OWNER, job: JO, ev: [{ c: 'phone', k: 'stall' }, { c: 'vt', k: 'asr' }] });
+    ok(rr.payload.ok, 'סטודיו: מגדל 2.0 — אירוע מהטלפון');
+    rr = await run({ op: 'event', idToken: OWNER, job: JO, ev: [{ c: 'vt', k: 'asr' }] });
+    ok(rr.statusCode === 400, 'סטודיו: מגדל 2.0 — הטלפון מדווח רק על הטלפון ועל Drive');
+    now += 20 * 60e3;
+    await wrk({ op: 'report', job: JO, key: Ko, done: true });
+    rr = await run({ op: 'status', idToken: OWNER });
+    OP = rr.payload.ops;
+    ok(OP.open.length === 0 && OP.score === 100 && OP.comp.drive === 0 && OP.avail < 100 && OP.avail > 99,
+      'סטודיו: מגדל 2.0 — עבודה שהסתיימה סוגרת את ההתראות שלה; זמינות 30 יום = הזמן בלי התראות P1–P2');
+    // הפעלה שנכשלה → התראה ל־Routine; הצלחה סוגרת
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JO2 = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JO2, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    fireMode = 401;
+    await run({ op: 'start', idToken: OWNER, job: JO2 });
+    rr = await run({ op: 'status', idToken: OWNER });
+    ok(rr.payload.ops.comp.routine === 2 && rr.payload.ops.open.some((g) => g.k === 'fire' && g.j === JO2), 'סטודיו: מגדל 2.0 — הפעלה של ה־Routine שנכשלה = התראה P2 על ה־Routine');
+    fireMode = 'ok';
+    await run({ op: 'start', idToken: OWNER, job: JO2 });
+    rr = await run({ op: 'status', idToken: OWNER });
+    ok(rr.payload.ops.comp.routine === 0, 'סטודיו: מגדל 2.0 — הפעלה שהצליחה סוגרת את ההתראה');
+    now += S.STALE_MS + 1;
+    const Ko2 = keyOf(fires[fires.length - 1]);
+    rr = await run({ op: 'jobs', idToken: OWNER });
+    await run({ op: 'jobs', idToken: OWNER });
+    rr = await run({ op: 'status', idToken: OWNER });
+    ok(rr.payload.ops.comp.claude === 0 && rr.payload.ops.comp.routine === 2 && rr.payload.ops.open.find((g) => g.k === 'no_claim').n === 1,
+      'סטודיו: מגדל 2.0 — הופעל ואף סשן לא לקח = התראה על ה־Routine, פעם אחת (צפייה חוזרת לא מגדילה את המונה)');
+    await run({ op: 'cancel', idToken: OWNER, job: JO2 });
+    rr = await run({ op: 'status', idToken: OWNER });
+    ok(rr.payload.ops.open.length === 0, 'סטודיו: מגדל 2.0 — ביטול סוגר את ההתראות של העבודה');
+    void Ko2;
+    // טהור: התראה בלי עבודה נסגרת לבד אחרי חצי שעה; עד 150 התראות; איחוד מקטעים לזמינות
+    let al0 = O.opsApply([], [{ c: 'phone', k: 'stall' }], '', 1000);
+    ok(O.opsView(al0, 1000 + O.GLOBAL_TTL - 1).open.length === 1 && O.opsView(al0, 1000 + O.GLOBAL_TTL + 1).open.length === 0, 'סטודיו: מגדל 2.0 — התראה בלי עבודה נסגרת לבד אחרי חצי שעה בלי חזרה');
+    ok(O.unionMs([[0, 10], [5, 20], [30, 40]], 0, 100) === 30, 'סטודיו: מגדל 2.0 — זמינות: מקטעים חופפים נספרים פעם אחת');
+    let big = []; for (let i = 0; i < 200; i++) big = O.opsApply(big, [{ c: 'vt', k: 'asr' }], 'j' + ('0000000000000000000' + i).slice(-20), i) || big;
+    ok(big.length === O.AL_MAX, 'סטודיו: מגדל 2.0 — עד 150 התראות');
+    studio._reset();   // הבלוק הזה שלח הרבה בקשות — מאפסים את מגבלת הקצב בזיכרון לפני הבדיקות הבאות
+
     // הפעלה שאף סשן לא לקח
     r = await run({ op: 'create', idToken: OWNER, spec: SPEC });
     const JS = r.payload.job.id;

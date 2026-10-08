@@ -142,6 +142,17 @@ export function normTw(t) {
     nj: t.b === 'u' ? n(t.nj) : 0,     // v363: "הרגיל" נלמד מ־nj עבודות שלך (0 = המדידות שלנו)
     fp: /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '' };   // v364: טביעת האצבע של העצירה (ספר התיקונים)
 }
+/* v365: מגדל הפיקוח 2.0 — בריאות, זמינות, MTTR, מצב לכל רכיב והתראות פתוחות (מהשרתון, op status). רק מספרים ומזהים מהקטלוג */
+export const OPS_COMPONENTS = ['phone', 'drive', 'server', 'routine', 'claude', 'vt'];
+export function normOps(o) {
+  if (!o || typeof o !== 'object') return null;
+  const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null);
+  const comp = {};
+  for (const c of OPS_COMPONENTS) comp[c] = Number.isInteger(o.comp && o.comp[c]) && o.comp[c] >= 0 && o.comp[c] <= 4 ? o.comp[c] : 0;
+  const open = (Array.isArray(o.open) ? o.open : []).filter((a) => a && OPS_COMPONENTS.includes(a.c) && /^[a-z_]{2,12}$/.test(String(a.k || '')) && Number.isInteger(a.s) && a.s >= 1 && a.s <= 4)
+    .slice(0, 20).map((a) => ({ c: a.c, k: a.k, s: a.s, j: JOB_RE.test(String(a.j || '')) ? a.j : '', n: num(a.n, 1, 1e6) || 1, l: num(a.l, 0, 1e15) || 0, rel: num(a.rel, 0, 100) || 0 }));
+  return { score: num(o.score, 0, 100) ?? 100, avail: num(o.avail, 0, 100) ?? 100, mttr: num(o.mttr, 0, 1e6), comp, open };
+}
 /* v364: ספר התיקונים (מהשרתון, op status) — התיקון הוא טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד */
 export function normFb(a) {
   if (!Array.isArray(a)) return null;
@@ -422,7 +433,7 @@ function errText(code, extra) {
 let root = null;
 let store = normStore(null);
 let form = null;                  // טופס פרויקט חדש/עריכה — בזיכרון בין הטופס לדף בחירת השפות; נמחק ביציאה לרשימה
-const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null };
+const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null };
 const scrolls = {};               // מיקום הגלילה של כל דף — "חזור" מחזיר אליו
 
 const uiLang = () => (document.documentElement.lang === 'en' ? 'en' : 'he');
@@ -526,6 +537,7 @@ async function refreshStatus(force) {
     store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
     ui.norm = normNorms(j.norm) || ui.norm;
     ui.fb = normFb(j.fb) || ui.fb;
+    ui.ops = normOps(j.ops) || ui.ops;
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -707,14 +719,22 @@ async function runJob(id, run) {
     }
     if (!up.started) await tryStart(id);
     run.phase = 'done'; run.file = null;
+    if (run.evd) opsEvent(id, [{ c: 'phone', k: 'upload', ok: true }, { c: 'phone', k: 'stall', ok: true }]);   // v365: ההעלאה הצליחה — ההתראות נסגרות
   } catch (e) {
     if (isAbortErr(e)) run.phase = 'paused';
-    else { run.phase = 'error'; run.err = e.code || e.message || 'error'; }
+    else {
+      run.phase = 'error'; run.err = e.code || e.message || 'error';
+      // v365: מגדל הפיקוח — העלאה שנכשלה (לא ביטול, לא "אין רשת" של הטלפון) נרשמת כאירוע
+      const k = run.err === 'drive_full' ? ['drive', 'full'] : /^(not_connected|revoked|drive_auth)$/.test(run.err) ? ['drive', 'auth'] : run.err === 'stalled' ? ['phone', 'stall'] : run.err === 'net' ? null : ['phone', 'upload'];
+      if (k) { run.evd = true; opsEvent(id, [{ c: k[0], k: k[1] }]); }
+    }
   } finally {
     run.active = false; run.wait = '';
     save(); wakeOffIfIdle(); repaint();
   }
 }
+/* v365: אירוע למגדל הפיקוח מהטלפון — בלי לחכות ובלי לעצור כלום אם נכשל */
+function opsEvent(id, ev) { try { net.api('event', { job: id, ev }).catch(() => {}); } catch (e) {} }
 function stopRun(id) { const r = runs.get(id); if (r && r.active) r.ctl.abort(); }
 /* המשך אחרי רענון / עצירה: הקובץ מהזיכרון, מהידית השמורה, או שמבקשים לבחור שוב (ובודקים שזה אותו קובץ) */
 async function resumeJob(id, byUser) {
@@ -1483,6 +1503,97 @@ function towerStopCard(rec) {
   c.append(btn('st-link', T('studioTwHow'), () => go('tower'), 'tower-how'));
   return c;
 }
+/* v365: מגדל הפיקוח 2.0 — כרטיס הבריאות (ציון, זמינות 30 יום, MTTR), מפת השירות (שרשרת הרכיבים) והתראות פתוחות */
+function opsComp(c) {
+  switch (c) {
+    case 'phone': return T('studioCmpPhone');
+    case 'drive': return 'Drive';
+    case 'server': return T('studioCmpServer');
+    case 'routine': return 'Routine';
+    case 'claude': return 'Claude';
+    default: return T('studioCmpVt');
+  }
+}
+function opsAlert(c, k) {
+  switch (c + ':' + k) {
+    case 'phone:upload': return T('studioAlPhoneUpload');
+    case 'phone:stall': return T('studioAlPhoneStall');
+    case 'drive:up_retry': return T('studioAlDriveUpRetry');
+    case 'drive:dl_retry': return T('studioAlDriveDlRetry');
+    case 'drive:up_fail': return T('studioAlDriveUpFail');
+    case 'drive:dl_fail': return T('studioAlDriveDlFail');
+    case 'drive:auth': return T('studioAlDriveAuth');
+    case 'drive:full': return T('studioAlDriveFull');
+    case 'routine:fire': return T('studioAlRoutineFire');
+    case 'routine:unsure': return T('studioAlRoutineUnsure');
+    case 'routine:rate': return T('studioAlRoutineRate');
+    case 'routine:no_claim': return T('studioAlRoutineNoClaim');
+    case 'claude:stale': return T('studioAlClaudeStale');
+    case 'claude:tw_warn': return T('studioAlClaudeTwWarn');
+    case 'claude:tw_stop': return T('studioAlClaudeTwStop');
+    case 'claude:net': return T('studioAlClaudeNet');
+    case 'vt:setup': return T('studioAlVtSetup');
+    case 'vt:ingest': return T('studioAlVtIngest');
+    case 'vt:asr': return T('studioAlVtAsr');
+    case 'vt:align': return T('studioAlVtAlign');
+    case 'vt:check': return T('studioAlVtCheck');
+    case 'vt:render': return T('studioAlVtRender');
+    default: return T('studioAlVtOther');
+  }
+}
+function opsAgo(ms) {
+  const m = Math.max(1, Math.round((Date.now() - ms) / 60e3));
+  return m < 60 ? T('studioAgoM', { n: m }) : m < 48 * 60 ? T('studioAgoH', { n: Math.round(m / 60) }) : T('studioAgoD', { n: Math.round(m / 1440) });
+}
+const fmtPct1 = (v) => (Math.round(v * 10) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL', { maximumFractionDigits: 1 }) + '%';
+function opsSection(o) {
+  const out = [];
+  // כרטיס הבריאות
+  const card = h('div', 'st-health');
+  card.dataset.k = 'ops-health';
+  const lvl = o.score >= 95 ? 'g' : o.score >= 70 ? 'a' : 'r';
+  const ring = h('span', 'st-hring ' + lvl);
+  ring.style.setProperty('--v', String(o.score));
+  ring.append(h('b', null, String(Math.round(o.score))));
+  const t = h('span', 'st-l');
+  const word = o.score >= 95 ? T('studioOpsGood') : o.score >= 70 ? T('studioOpsOk') : o.score >= 40 ? T('studioOpsFair') : T('studioOpsBad');
+  t.append(h('b', null, T('studioOpsTitle', { w: word })),
+    h('small', null, !o.open.length ? T('studioOpsNoAlerts') : o.open.length === 1 ? T('studioOpsOneAlert', { a: opsAlert(o.open[0].c, o.open[0].k) }) : T('studioOpsNAlerts', { n: o.open.length })));
+  const top = h('div', 'st-hrow'); top.append(ring, t);
+  const kpi = (k, v) => { const d = h('div', 'st-kpi'); d.append(h('small', null, k), h('b', null, v)); return d; };
+  const kpis = h('div', 'st-kpis');
+  kpis.append(kpi(T('studioOpsAvail'), fmtPct1(o.avail)), kpi(T('studioOpsMttr'), o.mttr == null ? '—' : fmtShort(o.mttr * 60)), kpi(T('studioOpsOpen'), String(o.open.length)));
+  card.append(top, kpis);
+  out.push(card);
+  // מפת השירות — לפי סדר השרשרת; רכיב עם התראה פתוחה צבוע לפי החומרה
+  const map = h('div', 'st-smap');
+  map.setAttribute('role', 'list'); map.setAttribute('aria-label', T('studioOpsMap'));
+  OPS_COMPONENTS.forEach((c, i) => {
+    const sv = o.comp[c];
+    const n = h('span', 'st-snode' + (sv ? ' bad s' + Math.min(sv, 3) : ''));
+    n.setAttribute('role', 'listitem');
+    n.append(h('i', 'st-sdot ' + (!sv ? 'g' : sv <= 2 ? 'r' : 'a')), h('bdi', null, opsComp(c)));
+    if (i) map.append(h('span', 'st-sarr', '←'));
+    map.append(n);
+  });
+  out.push(secT(T('studioOpsMap')), map);
+  // התראות פתוחות
+  if (o.open.length) {
+    out.push(secT(T('studioOpsOpenT')), list(...o.open.map((a) => {
+      const rec = a.j ? jobRec(a.j) : null;
+      const r = rec ? btn('st-row st-ric', null, () => go('job', rec.id), 'al:' + a.c + a.k + a.j) : h('div', 'st-row st-ric');
+      const l = h('span', 'st-l');
+      const sub = h('small');
+      sub.append((a.n === 1 ? T('studioOpsEvent1') : T('studioOpsEvents', { n: a.n })) + (rec ? ' · ' : ''));
+      if (rec) sub.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
+      sub.append(' · ' + opsAgo(a.l) + (a.rel ? ' · ' + (a.rel === 1 ? T('studioOpsRel1') : T('studioOpsRel', { n: a.rel })) : ''));
+      l.append(h('b', null, opsAlert(a.c, a.k)), sub);
+      r.append(h('i', 'st-sdot ' + (a.s <= 2 ? 'r' : a.s === 3 ? 'a' : 'n')), l, h('span', 'st-pri p' + a.s, 'P' + a.s));
+      return r;
+    })));
+  }
+  return out;
+}
 function fbWhy(w) {
   switch (w) {
     case 'cost': return T('studioFbWhyCost');
@@ -1497,6 +1608,7 @@ const fbStage = (st) => { const c = { tr: 'asr', al: 'al', tl: 'tl', rv: 'rv' }[
 function pageTower(p) {
   p.append(navBar({ back: T('studioBack') }), large(T('studioTwT')), h('p', 'st-lede', T('studioTwLede')));
   const ab = accessBanner(); if (ab) p.append(ab);
+  if (ui.ops) p.append(...opsSection(ui.ops));   // v365: בריאות הסטודיו, מפת השירות והתראות פתוחות
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
     const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
@@ -1973,7 +2085,7 @@ function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : ''); };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : ''); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb);
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops);
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
   return ui.view + '|' + ui.access;
 }
