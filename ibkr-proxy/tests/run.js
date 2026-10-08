@@ -1571,6 +1571,51 @@ function stubFetch(text, status = 200) {
       'סטודיו: עד 40 דגימות (האחרונות); סרטון קצר נמדד כ־10 דק׳');
     ok(S.normTower({ lv: 'ok', x: 1, b: 'u', nj: 3 }).nj === 3 && !('b' in S.normTower({ lv: 'ok', b: 'evil' })), 'סטודיו: מגדל הפיקוח מדווח אם "הרגיל" נלמד מהעבודות שלך');
 
+    // v364: ספר התיקונים — עצירה נרשמת לפי טביעת אצבע, Claude רושם תיקון בהמשך, העבודה הבאה מקבלת אותו, "טופל לבד" נספר
+    const FPX = 'a1b2c3d4e5f6';
+    let rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JF = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JF, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    await run({ op: 'start', idToken: OWNER, job: JF });
+    let Kf = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JF, key: Kf });
+    await wrk({ op: 'report', job: JF, key: Kf, st: 'tl', p: 0.4 });
+    await wrk({ op: 'report', job: JF, key: Kf, fix: { fp: FPX, t: 'לפני שיש עצירה' } });
+    ok(!JSON.stringify(db.get('studioStats/ownerUid0001') || {}).includes('לפני שיש עצירה'), 'סטודיו: ספר התיקונים — תיקון לתקלה שלא נרשמה אצל המשתמש — נזרק');
+    await wrk({ op: 'report', job: JF, key: Kf, fail: true, err: 'tower_stop', tower: { lv: 'red', why: 'loop', n: 6, x: 1.2, fp: FPX } });
+    rr = await run({ op: 'status', idToken: OWNER });
+    let FB = rr.payload.fb;
+    ok(FB.length === 1 && FB[0].fp === FPX && FB[0].why === 'loop' && FB[0].st === 'tl' && FB[0].n === 1 && FB[0].fix === '' && FB[0].auto === 0,
+      'סטודיו: ספר התיקונים — עצירה של המגדל נרשמת (טביעה, סוג, שלב, כמה פעמים) והטלפון רואה אותה');
+    rr = await run({ op: 'resume', idToken: OWNER, job: JF });
+    Kf = keyOf(fires[fires.length - 1]);
+    rr = await wrk({ op: 'claim', job: JF, key: Kf });
+    ok(rr.payload.job.ls && rr.payload.job.ls.fp === FPX && rr.payload.job.ls.why === 'loop' && rr.payload.job.ls.st === 'tl' && rr.payload.job.fb.length === 0,
+      'סטודיו: ספר התיקונים — ההמשך מקבל את העצירה הקודמת (לאבחון); בלי תיקון עדיין — ספר ריק לעובד');
+    await wrk({ op: 'report', job: JF, key: Kf, fix: { fp: FPX, t: 'מפצלים כתובית ארוכה https://evil.example/x `rm -rf` <b>לשתיים</b>' + 'א'.repeat(300) } });
+    rr = await run({ op: 'status', idToken: OWNER });
+    FB = rr.payload.fb;
+    ok(FB[0].fix.startsWith('מפצלים כתובית ארוכה') && FB[0].fix.length <= S.FIX_MAX && !/https|evil|`|<|>/.test(FB[0].fix),
+      'סטודיו: ספר התיקונים — התיקון נשמר מנוקה (בלי קישורים, קוד ותגיות; עד 160 תווים)');
+    await wrk({ op: 'report', job: JF, key: Kf, done: true });
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JF2 = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JF2, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    await run({ op: 'start', idToken: OWNER, job: JF2 });
+    const Kf2 = keyOf(fires[fires.length - 1]);
+    rr = await wrk({ op: 'claim', job: JF2, key: Kf2 });
+    ok(rr.payload.job.fb.length === 1 && rr.payload.job.fb[0].fp === FPX && rr.payload.job.fb[0].fix === FB[0].fix && rr.payload.job.ls === null,
+      'סטודיו: ספר התיקונים — העבודה הבאה מקבלת את התקלות המוכרות עם התיקון');
+    await wrk({ op: 'report', job: JF2, key: Kf2, fixUsed: FPX });
+    await wrk({ op: 'report', job: JF2, key: Kf2, fixUsed: 'ffffffffffff' });
+    rr = await run({ op: 'status', idToken: OWNER });
+    ok(rr.payload.fb.length === 1 && rr.payload.fb[0].auto === 1, 'סטודיו: ספר התיקונים — המגדל הזכיר את התיקון = "טופל לבד" (טביעה לא מוכרת — נזרקת)');
+    await wrk({ op: 'report', job: JF2, key: Kf2, done: true });
+    let fbl = []; for (let i = 0; i < 40; i++) fbl = S.fbStop(fbl, { fp: ('00000000000' + i.toString(16)).slice(-12), why: 'cost' }, 'tl', i) || fbl;
+    ok(fbl.length === S.FB_MAX && S.fbStop([], { fp: 'XYZ', why: 'loop' }, 'tl', 1) === null && S.fbStop([], { fp: FPX, why: 'evil' }, 'tl', 1) === null
+      && S.normTower({ lv: 'ok', fp: FPX }).fp === undefined && S.normTower({ lv: 'red', why: 'loop', fp: 'bad' }).fp === undefined,
+    'סטודיו: ספר התיקונים — עד 30 תקלות; טביעה/סוג לא תקינים — נזרקים; טביעה רק בעצירה');
+
     // הפעלה שאף סשן לא לקח
     r = await run({ op: 'create', idToken: OWNER, spec: SPEC });
     const JS = r.payload.job.id;

@@ -85,6 +85,7 @@ class Fake:
         self.ck, self.corrupt, self.deleted = [], set(), []          # v361: נקודות שמירה (מה שהשרתון מחזיר בלקיחה)
         self.stop_all = False                                         # v362: העבודה בוטלה — כל קריאה מקבלת "עצור"
         self.nm = None                                                # v363: "הרגיל" של המשתמש (מהשרתון בלקיחה)
+        self.fb, self.ls = [], None                                   # v364: ספר התיקונים והעצירה שלפני ההמשך
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -127,7 +128,7 @@ class Fake:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
-                                                                  'nm': fake.nm},
+                                                                  'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls},
                                             'drive': {'token': TOKEN}})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
@@ -537,6 +538,28 @@ class TestWorker(unittest.TestCase):
         self.fake.nm = 'junk'
         self.take()
         self.assertIsNone(json.loads((self.tmp / 'state' / 'job.json').read_text())['nm'], 'לא תקין — בלי')
+
+    def test_fixbook_resume(self):
+        # v364: המשך אחרי עצירה של המגדל — בלי תיקון רשום: מבקשים אבחון ו־fix; עם תיקון: מדפיסים אותו
+        self.fake.ls = {'fp': 'a1b2c3d4e5f6', 'why': 'loop', 'st': 'tl'}
+        code, out = self.take()
+        self.assertEqual(code, 0, out)
+        self.assertIn('נעצרה בפעם הקודמת במגדל הפיקוח', out)
+        self.assertIn('job.py fix --text', out)
+        code, out = self.job('fix', '--text', 'ok')
+        self.assertEqual(code, 1, 'קצר מדי')
+        code, out = self.job('fix', '--text', 'מפצלים\nכתובית ארוכה לשתיים')
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.fake.reports[-1]['fix'], {'fp': 'a1b2c3d4e5f6', 't': 'מפצלים כתובית ארוכה לשתיים'})
+        self.fake.fb = [{'fp': 'a1b2c3d4e5f6', 'why': 'loop', 'st': 'tl', 'fix': 'מפצלים כתובית ארוכה לשתיים'}, {'fp': 'bad', 'why': 'loop', 'fix': 'x'}]
+        code, out = self.take()
+        self.assertIn('«מפצלים כתובית ארוכה לשתיים»', out)
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual([e['fp'] for e in st['fb']], ['a1b2c3d4e5f6'], 'רק רשומות תקינות')
+        self.fake.ls = None
+        self.take()
+        code, out = self.job('fix', '--text', 'משהו ארוך מספיק')
+        self.assertEqual(code, 1, 'בלי עצירה — אין למה לרשום')
 
     def test_lang_unsupported(self):
         self.fake.spec = dict(self.fake.spec, to=['ru'])

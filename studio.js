@@ -139,7 +139,16 @@ export function normTw(t) {
   if (!t || typeof t !== 'object' || !['ok', 'warn', 'red'].includes(t.lv)) return null;
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
   return { lv: t.lv, x: n(t.x), usd: n(t.usd), exp: n(t.exp), why: TW_WHY.includes(t.why) ? t.why : '', n: n(t.n), min: n(t.min),
-    nj: t.b === 'u' ? n(t.nj) : 0 };   // v363: "הרגיל" נלמד מ־nj עבודות שלך (0 = המדידות שלנו)
+    nj: t.b === 'u' ? n(t.nj) : 0,     // v363: "הרגיל" נלמד מ־nj עבודות שלך (0 = המדידות שלנו)
+    fp: /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '' };   // v364: טביעת האצבע של העצירה (ספר התיקונים)
+}
+/* v364: ספר התיקונים (מהשרתון, op status) — התיקון הוא טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד */
+export function normFb(a) {
+  if (!Array.isArray(a)) return null;
+  const n = (v) => (Number.isInteger(v) && v >= 0 ? Math.min(v, 1e4) : 0);
+  return a.filter((e) => e && /^[0-9a-f]{12}$/.test(String(e.fp || '')) && TW_WHY.includes(e.why)).slice(0, 30).map((e) => ({
+    fp: e.fp, why: e.why, st: ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'].includes(e.st) ? e.st : '', n: n(e.n), auto: n(e.auto),
+    fix: typeof e.fix === 'string' ? e.fix.slice(0, 160) : '', at: typeof e.at === 'number' ? e.at : 0 }));
 }
 /* v363: "הרגיל" לכל מצב (מהשרתון, op status) — לשעת סרטון; d = עוד אין מספיק עבודות, אז המדידות שלנו */
 export function normNorms(o) {
@@ -413,7 +422,7 @@ function errText(code, extra) {
 let root = null;
 let store = normStore(null);
 let form = null;                  // טופס פרויקט חדש/עריכה — בזיכרון בין הטופס לדף בחירת השפות; נמחק ביציאה לרשימה
-const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null };
+const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null };
 const scrolls = {};               // מיקום הגלילה של כל דף — "חזור" מחזיר אליו
 
 const uiLang = () => (document.documentElement.lang === 'en' ? 'en' : 'he');
@@ -516,6 +525,7 @@ async function refreshStatus(force) {
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
     store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
     ui.norm = normNorms(j.norm) || ui.norm;
+    ui.fb = normFb(j.fb) || ui.fb;
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -1462,6 +1472,8 @@ function towerStopCard(rec) {
   head.append(ico('shield'), h('b', null, T('studioTwStopT')));
   const row = (k, v) => { const r = h('div', 'st-tstop-r'); r.append(h('span', 'k', k), h('span', 'v', v)); return r; };
   c.append(head, row(T('studioTwWhat'), towerWhy(tw)), row(T('studioTwMeans'), T('studioTwMeansV')));
+  const known = tw.fp && ui.fb ? ui.fb.find((e) => e.fp === tw.fp && e.fix) : null;   // v364: תקלה מוכרת — מה Claude יעשה בהמשך
+  if (known) { const r = row(T('studioFbKnown'), known.fix); r.lastChild.dir = 'auto'; c.append(r); }
   if (tw.x || tw.usd) {
     const nums = h('span', 'v');
     nums.append(T('studioTwNums', { x: fmtX(tw.x) }) + ' · ', usdEl(tw.usd));
@@ -1471,6 +1483,16 @@ function towerStopCard(rec) {
   c.append(btn('st-link', T('studioTwHow'), () => go('tower'), 'tower-how'));
   return c;
 }
+function fbWhy(w) {
+  switch (w) {
+    case 'cost': return T('studioFbWhyCost');
+    case 'cap': return T('studioFbWhyCap');
+    case 'loop': return T('studioFbWhyLoop');
+    case 'calls': return T('studioFbWhyCalls');
+    default: return T('studioFbWhyIdle');
+  }
+}
+const fbStage = (st) => { const c = { tr: 'asr', al: 'al', tl: 'tl', rv: 'rv' }[st]; return c ? ckName(c) : ''; };
 /* v363: מסך "מגדל הפיקוח" — מה קורה עכשיו, "הרגיל" שלך לכל מצב (נלמד מהעבודות שלך), מתי עוצרים, ועצירות אחרונות */
 function pageTower(p) {
   p.append(navBar({ back: T('studioBack') }), large(T('studioTwT')), h('p', 'st-lede', T('studioTwLede')));
@@ -1488,6 +1510,21 @@ function pageTower(p) {
     const sub = !tw ? T('studioTwWaitRep') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
     return jobRow(rec, sub, tw && tw.lv === 'warn' ? 'orange' : 'green', 'tw:' + rec.id);
   }) : [h('div', 'st-row st-muted', T('studioTwNone'))])));
+  // v364: ספר התיקונים — כל תקלה שעצרה עבודה, מה Claude רשם לעשות כשהיא חוזרת, וכמה פעמים זה טופל לבד
+  if (ui.fb && ui.fb.length) {
+    p.append(secT(T('studioFbT')), list(...ui.fb.slice(0, 8).map((e) => {
+      const st = fbStage(e.st);
+      const r = h('div', 'st-row st-fb');
+      r.dataset.k = 'fb:' + e.fp;
+      const l = h('span', 'st-l');
+      const fx = h('small', e.fix ? null : 'st-muted', e.fix || T('studioFbNoFix'));
+      if (e.fix) fx.dir = 'auto';   // התיקון בשפה ש־Claude כתב — לא בהכרח שפת הממשק
+      const cnt = h('small', 'st-fbn', e.auto ? (e.auto === 1 ? T('studioFbAuto1') : T('studioFbAutoN', { n: e.auto })) : (e.n === 1 ? T('studioFbStop1') : T('studioFbStopN', { n: e.n })));
+      l.append(h('b', null, fbWhy(e.why) + (st ? ' · ' + st : '')), fx, cnt);   // המונה בשורה משלו — התיקון מקבל את כל הרוחב
+      r.append(l);
+      return r;
+    })));
+  }
   // הרגיל — המצב שבשימוש בברירת המחדל, וכל מצב שכבר נלמד מהעבודות שלך
   const nm = ui.norm;
   let learned = false;
@@ -1934,9 +1971,9 @@ let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : ''); };
-  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join(); }
+  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : ''); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm);
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb);
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
   return ui.view + '|' + ui.access;
 }
@@ -1987,7 +2024,7 @@ function onEnter() {
   if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
   else if (ui.view === 'settings' || ui.view === 'connect') refreshStatus();
   else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
-  else if (ui.view === 'job') pollNow();
+  else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
 }
 /* מעקב אחרי עבודה פתוחה: כל 4 שניות כש־Claude עובד, לאט כשמחכים, בכלל לא כשהסתיימה או כשהמסך כבוי */
 let pollT = 0;
