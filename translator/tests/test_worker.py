@@ -83,6 +83,7 @@ class Fake:
         self.claims, self.cut_once, self.upload_drop, self.audio = 0, True, True, True
         self.qa, self.answer, self.answer_after, self.ask_polls, self.ask_limit = None, None, 1, 0, False
         self.ck, self.corrupt, self.deleted = [], set(), []          # v361: נקודות שמירה (מה שהשרתון מחזיר בלקיחה)
+        self.stop_all = False                                         # v362: העבודה בוטלה — כל קריאה מקבלת "עצור"
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -112,6 +113,8 @@ class Fake:
                 if body.get('job') != JOB or body.get('key') != KEY:
                     return self._send(403, {'ok': False, 'error': 'bad_key', 'stop': True})
                 op = body.get('op')
+                if fake.stop_all:
+                    return self._send(200, {'ok': False, 'stop': True, 'state': 'cancelled'})
                 if op == 'claim':
                     fake.claims += 1
                     if fake.qa and fake.qa['a'] is None and fake.answer is not None:

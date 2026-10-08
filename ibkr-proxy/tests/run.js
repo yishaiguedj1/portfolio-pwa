@@ -1513,6 +1513,21 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'resume', idToken: OWNER, job: JT });
     const Kd = keyOf(fires[fires.length - 1]);
     ok(r.payload.ok && r.payload.job.state === 'queued' && Kd !== Kc && !r.payload.job.stale, 'סטודיו: עבודה שנתקעה — אפשר להמשיך');
+    // v362: מגדל הפיקוח — מצב מה־Hook בסשן; עצירה = "נכשלה" עם tower_stop והפרטים; המשך מאפס
+    await wrk({ op: 'report', job: JT, key: Kd, tower: { lv: 'ok', x: 1.14, usd: 3.456, exp: 3.2 } });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.tw && r.payload.job.tw.lv === 'ok' && r.payload.job.tw.x === 1.1 && r.payload.job.tw.usd === 3.46 && r.payload.job.tw.at === now, 'סטודיו: מגדל הפיקוח — הטלפון רואה "הכל תקין · פי X מהרגיל"');
+    for (const bad of [{ lv: 'evil' }, { lv: 'red', why: 'evil', x: 9 }, 'x', [1]]) await wrk({ op: 'report', job: JT, key: Kd, tower: bad });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.tw.lv === 'ok' && r.payload.job.state === 'running', 'סטודיו: מגדל הפיקוח — מצב לא תקין נזרק בשקט');
+    r = await wrk({ op: 'report', job: JT, key: Kd, fail: true, err: 'tower_stop', tower: { lv: 'red', why: 'loop', n: 6, x: 2.1, usd: 4, exp: 1.9, evil: '<b>' } });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.state === 'failed' && r.payload.job.err === 'tower_stop' && r.payload.job.tw.why === 'loop' && r.payload.job.tw.n === 6 && !('evil' in r.payload.job.tw),
+      'סטודיו: מגדל הפיקוח עצר — העבודה "נכשלה" עם הסיבה והמספרים');
+    r = await wrk({ op: 'claim', job: JT, key: Kd });
+    ok(r.payload.stop === true, 'סטודיו: אחרי העצירה — כל פנייה של העובד מקבלת "עצור" (גם בלי גישה ל־Drive)');
+    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    ok(r.payload.ok && r.payload.job.tw === null && r.payload.job.state === 'queued', 'סטודיו: "להמשיך" אחרי עצירה של המגדל — מתחיל נקי');
     db.get('studioJobs/' + JT).fields.fires = { integerValue: String(S.RESUME_MAX) };
     await run({ op: 'cancel', idToken: OWNER, job: JT });
     r = await run({ op: 'resume', idToken: OWNER, job: JT });

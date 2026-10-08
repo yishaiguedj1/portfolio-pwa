@@ -56,6 +56,8 @@ else echo "סטודיו התרגום: התקנת מנועי vt לא הושלמה
 #    (תמלילים). deny גובר על allow בכל שכבות ההגדרות.
 #  - v359: בלי התראות ובלי תזמונים (PushNotification, CronCreate, ScheduleWakeup; send_later כבר חסום עם claude-code-remote) —
 #    האפליקציה מציגה את ההתקדמות, והעובד שלח התראות למרות ההנחיה
+#  - v362: מגדל הפיקוח — Hook לפני כל פעולה (גם בסוכני־משנה) שעוצר עבודה שצורכת טוקנים בצורה לא סבירה (translator/tower.py).
+#    רק בסביבה הזו; בלי עבודה פעילה הוא יוצא מיד, וכל תקלה בו = הפעולה מותרת
 #  - רק בבניית תמונת המצב: כשהעבודה עצמה מריצה את הסקריפט (job.py, SNB_SETUP_NO_SETTINGS=1) — לא נוגעים בהגדרות של הסשן שכבר רץ
 if [ -z "${SNB_SETUP_NO_SETTINGS:-}" ]; then
 python3 - <<'PY' || true
@@ -74,6 +76,10 @@ deny = s.setdefault('permissions', {}).setdefault('deny', [])
 for r in ['Bash(git push *)', 'Bash(git push)', 'mcp__claude-code-remote', 'PushNotification', 'CronCreate', 'ScheduleWakeup']:
     if r not in deny:
         deny.append(r)
+TOWER = 'f="$CLAUDE_PROJECT_DIR/translator/tower-hook.sh"; [ -f "$f" ] && exec sh "$f"; exit 0'
+pre = s.setdefault('hooks', {}).setdefault('PreToolUse', [])
+if not any(h.get('command') == TOWER for e in pre for h in e.get('hooks', [])):
+    pre.append({'matcher': '*', 'hooks': [{'type': 'command', 'command': TOWER, 'timeout': 20}]})
 json.dump(s, open(p, 'w'), ensure_ascii=False, indent=2)
 PY
 fi

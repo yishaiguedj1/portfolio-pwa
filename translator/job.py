@@ -141,6 +141,11 @@ def run(args):
         save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api,
                     'folder': job.get('folder') or '', 'spec': spec, 'files': job.get('files') or {},
                     'ck': cks, 'ckids': {c['s']: c['id'] for c in cks}})
+        for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
+            try:
+                (STATE.parent / old).unlink()
+            except OSError:
+                pass
         print('✓ עבודת תרגום נלקחה: ' + spec_line(spec))
         if start_setup_bg():
             print('· מנועי התמלול מותקנים ברקע (prepare ימתין להם בעצמו)')
@@ -350,6 +355,23 @@ def spec_line(spec):
         ' · מצב ' + str(spec.get('mode') or 'opus-medium') + ' · תוצרים: ' + '+'.join((spec.get('out') or []) + ['srt'])
 
 
+def mirror_prog(st, p):
+    """v362: ההתקדמות האחרונה בקובץ מקומי — מגדל הפיקוח (tower.py) מזהה ממנו תקיעה (chg = מתי זזה לאחרונה)."""
+    path = STATE.parent / 'prog.json'
+    try:
+        old = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        old = {}
+    now = time.time()
+    moved = old.get('st') != st or (p is not None and abs((old.get('p') or 0) - p) >= 0.005)
+    d = {'st': st, 'p': p if p is not None else old.get('p') if old.get('st') == st else 0, 'at': now,
+         'chg': now if moved or not old.get('chg') else old['chg']}
+    try:
+        path.write_text(json.dumps(d), encoding='utf-8')
+    except OSError:
+        pass
+
+
 class Ctx:
     """עבודה פעילה: לקוח לשרתון, גישה ל־Drive ודיווח התקדמות (לכל היותר פעם ב־15 שנ׳ לאותו שלב)."""
 
@@ -390,6 +412,9 @@ class Ctx:
             body['msg'] = msg
         self.c.call('report', **body)
         self.last = (st, now, p if p is not None else -1.0)
+        if st:
+            mirror_prog(st, p)
+
 
     def refresh(self):
         """פרטי העבודה העדכניים (הקבצים מהטלפון ממשיכים לעלות אחרי שהעבודה התחילה)."""
