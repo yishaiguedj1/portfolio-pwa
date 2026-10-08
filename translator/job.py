@@ -140,7 +140,8 @@ def run(args):
         cks = [c for c in (job.get('ck') or []) if isinstance(c, dict) and c.get('s') in CK_STAGES and FILE_ID_RE.match(str(c.get('id') or ''))]
         save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api,
                     'folder': job.get('folder') or '', 'spec': spec, 'files': job.get('files') or {},
-                    'ck': cks, 'ckids': {c['s']: c['id'] for c in cks}})
+                    'ck': cks, 'ckids': {c['s']: c['id'] for c in cks},
+                    'nm': job.get('nm') if isinstance(job.get('nm'), dict) else None})   # v363: "הרגיל" שלך — למגדל הפיקוח
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
             try:
                 (STATE.parent / old).unlink()
