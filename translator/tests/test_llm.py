@@ -1,13 +1,9 @@
-"""בדיקות למנוע השפה (llm.py) — ספקים מדומים בלבד, בלי רשת ובלי מפתחות אמיתיים."""
+"""בדיקות למנוע השפה (llm.py) — לקוח Claude מדומה בלבד, בלי רשת ובלי מפתחות אמיתיים."""
 
 from __future__ import annotations
 
-import io
-import json
-import os
 import sys
 import unittest
-import urllib.error
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -120,63 +116,6 @@ class AnthropicTests(unittest.TestCase):
         import job
         for m, p in llm.ANTHROPIC_PRICES.items():
             self.assertEqual(job.PRICES[m], p, f'המחירון ב־llm.py וב־job.py זהה ({m})')
-
-
-class FakeResp(io.BytesIO):
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
-
-
-class OpenRouterTests(unittest.TestCase):
-    def setUp(self):
-        os.environ['OPENROUTER_API_KEY'] = 'test-key-not-real'
-
-    def tearDown(self):
-        os.environ.pop('OPENROUTER_API_KEY', None)
-
-    def spec(self):
-        return llm.Spec('openrouter', 'deepseek/deepseek-v4-pro-0813', 'high',
-                        {'order': ['ionstream'], 'allow_fallbacks': False, 'zdr': True})
-
-    def test_body_route_and_real_cost(self):
-        seen = []
-
-        def opener(req, timeout=0):
-            seen.append(json.loads(req.data.decode()))
-            self.assertEqual(req.headers['Authorization'], 'Bearer test-key-not-real')
-            return FakeResp(json.dumps({'choices': [{'message': {'content': '#1 שלום'}, 'finish_reason': 'stop'}],
-                                        'usage': {'prompt_tokens': 1000, 'completion_tokens': 200, 'cost': 0.0123,
-                                                  'prompt_tokens_details': {'cached_tokens': 600}}}).encode())
-        e = llm.Engine(self.spec(), opener=opener, sleep=lambda s: None)
-        r = e.complete('tl', 'מדריך', 'חלק 1')
-        self.assertEqual(r.text, '#1 שלום')
-        b = seen[0]
-        self.assertEqual(b['provider'], {'order': ['ionstream'], 'allow_fallbacks': False, 'zdr': True})
-        self.assertEqual(b['reasoning'], {'effort': 'high'})
-        self.assertEqual(r.usage, {'i': 400, 'o': 200, 'cr': 600, 'c5': 0, 'c1': 0})
-        self.assertEqual(r.usd, 0.0123, 'העלות שחויבה בפועל')
-
-    def test_retry_then_auth_error(self):
-        calls = []
-
-        def opener(req, timeout=0):
-            calls.append(1)
-            if len(calls) == 1:
-                raise urllib.error.HTTPError('u', 503, 'busy', {}, io.BytesIO(b''))
-            raise urllib.error.HTTPError('u', 402, 'no credit', {}, io.BytesIO(b''))
-        e = llm.Engine(self.spec(), opener=opener, sleep=lambda s: None)
-        with self.assertRaises(llm.LLMError) as cm:
-            e.complete('tl', 'X', 'Y')
-        self.assertEqual((cm.exception.code, len(calls)), ('api_auth', 2))
-
-    def test_no_key(self):
-        os.environ.pop('OPENROUTER_API_KEY', None)
-        with self.assertRaises(llm.LLMError) as cm:
-            llm.Engine(self.spec()).complete('tl', 'X', 'Y')
-        self.assertEqual(cm.exception.code, 'no_api_key')
 
 
 if __name__ == '__main__':

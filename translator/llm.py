@@ -4,25 +4,20 @@
 עוברת דרך complete() עם אותו Engine. אין נפילה למודל אחר באמצע: סירוב או שגיאה = כשל גלוי
 (בכוונה בלי fallbacks של Anthropic — דרישת המשתמש: בלי ערבוב מודלים באותה עבודה).
 
-ספקים:
-  • anthropic  — Claude ישירות (Messages API, ספריית anthropic הרשמית, streaming + get_final_message,
-                 מטמון הנחיות: cache_control על הבלוק הקבוע).
-  • openrouter — מודלים אחרים (למשל DeepSeek) ב־chat/completions, עם ספק נעול ובלי שמירת נתונים.
+ספק: Claude ישירות (Messages API, ספריית anthropic הרשמית, streaming + get_final_message, מטמון הנחיות:
+cache_control על הבלוק הקבוע). ספק אחר יתווסף רק אם מודל אחר יעבור את מבחן TED — DeepSeek V4 Pro לא עבר
+(08/10/2026: פי 2–6 שגיאות מהותיות, השמיט תוויות דובר), ולכן אין כאן OpenRouter. ספק חדש = מתודה אחת ב־Engine.
 
-המפתחות רק במשתני הסביבה של המכונה (ANTHROPIC_API_KEY / OPENROUTER_API_KEY) — לא בקבצים, לא בלוגים,
-לא בדיווח לשרתון. הקוד הזה אף פעם לא מדפיס אותם.
+המפתח רק במשתני הסביבה של המכונה (ANTHROPIC_API_KEY) — לא בקבצים, לא בלוגים, לא בדיווח לשרתון.
+הקוד הזה אף פעם לא מדפיס אותו.
 
-עלות: מחושבת מכל קריאה לפי ה־usage שהספק החזיר (ב־OpenRouter — הסכום שחויב בפועל), ומצטברת
+עלות: מחושבת מכל קריאה לפי ה־usage שהספק החזיר, ומצטברת
 לשורות בפורמט של normUsage בשרתון: {k, m, n, i, o, cr, c5, c1, usd}.
 """
 
 from __future__ import annotations
 
-import json
 import os
-import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass, field
 
 # דולר למיליון טוקנים: (קלט, פלט, קריאה מהמטמון). כתיבה למטמון ל־5 דק׳ = פי 1.25 מהקלט.
@@ -35,7 +30,7 @@ ANTHROPIC_PRICES = {
 HAIKU_LONG = (0.50, 2.50, 0.05)      # Haiku 5.5 — בקשה מעל 100K טוקנים קלט
 HAIKU_LONG_AT = 100_000
 
-# מצבי התרגום (MODES בטלפון ובשרתון): ספק + מודל + מאמץ. מצב חדש (למשל DeepSeek אחרי מבחן TED) = שורה כאן.
+# מצבי התרגום (MODES בטלפון ובשרתון): ספק + מודל + מאמץ. מצב חדש = שורה כאן.
 MODES = {
     'opus-medium': ('anthropic', 'claude-opus-5-5', 'medium'),
     'opus-high': ('anthropic', 'claude-opus-5-5', 'high'),
@@ -43,9 +38,6 @@ MODES = {
     'sonnet-medium': ('anthropic', 'claude-sonnet-5-5', 'medium'),
     'sonnet-high': ('anthropic', 'claude-sonnet-5-5', 'high'),
 }
-
-OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
-RETRY_HTTP = (408, 429, 500, 502, 503, 504, 529)
 
 
 class LLMError(RuntimeError):
@@ -61,7 +53,6 @@ class Spec:
     provider: str
     model: str
     effort: str | None = None
-    route: dict | None = None         # OpenRouter: {'order': [...], 'allow_fallbacks': False, 'zdr': True}
 
     @classmethod
     def of(cls, mode: str) -> 'Spec':
@@ -112,13 +103,11 @@ class Result:
 class Engine:
     """מנוע אחד לכל עבודה. ledger צובר את העלות; cap_usd = תקרת העבודה (נבדקת לפני כל קריאה)."""
 
-    def __init__(self, spec: Spec, cap_usd: float | None = None, client=None, opener=None, sleep=time.sleep):
+    def __init__(self, spec: Spec, cap_usd: float | None = None, client=None):
         self.spec = spec
         self.cap = cap_usd
         self.ledger = Ledger()
         self._client = client          # בבדיקות: לקוח מדומה עם messages.stream(...)
-        self._open = opener or urllib.request.urlopen
-        self._sleep = sleep
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
@@ -130,14 +119,12 @@ class Engine:
             raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
         if self.spec.provider == 'anthropic':
             res = self._anthropic(system_fixed, system_extra, prompt, max_tokens)
-        elif self.spec.provider == 'openrouter':
-            res = self._openrouter(system_fixed, system_extra, prompt, max_tokens)
         else:
             raise LLMError('provider_unknown', self.spec.provider)
         self.ledger.add(k, self.spec.model, res.usage, res.usd)     # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
         if res.stop == 'refusal':
             raise LLMError('model_refusal', 'המודל סירב לבקשה (בלי מעבר למודל אחר — מודל אחד לכל עבודה)')
-        if res.stop in ('max_tokens', 'length'):
+        if res.stop == 'max_tokens':
             raise LLMError('max_tokens', 'התשובה נקטעה — מחלקים לחלקים קטנים יותר')
         return res
 
@@ -184,47 +171,3 @@ class Engine:
                  'cr': int(getattr(u, 'cache_read_input_tokens', 0) or 0), 'c5': max(c5, 0), 'c1': c1}
         usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
         return Result(text, usage, usd, stop)
-
-    # ------------------------------------------------------------------ OpenRouter
-    def _openrouter(self, fixed: str, extra: str, prompt: str, max_tokens: int) -> Result:
-        key = os.environ.get('OPENROUTER_API_KEY')
-        if not key:
-            raise LLMError('no_api_key', 'חסר OPENROUTER_API_KEY בסודות של המכונה')
-        sys_text = fixed + ('\n\n' + extra if extra else '')
-        body = {'model': self.spec.model, 'max_tokens': max_tokens, 'temperature': 0.2,
-                'messages': [{'role': 'system', 'content': sys_text}, {'role': 'user', 'content': prompt}],
-                'usage': {'include': True}}
-        if self.spec.effort:
-            body['reasoning'] = {'effort': self.spec.effort}
-        if self.spec.route:
-            body['provider'] = dict(self.spec.route)
-        data = json.dumps(body).encode()
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {key}', 'X-Title': 'snb-studio'}
-        last = None
-        for i in range(4):
-            try:
-                req = urllib.request.Request(OPENROUTER_URL, data=data, headers=headers, method='POST')
-                with self._open(req, timeout=1800) as r:
-                    j = json.loads(r.read().decode())
-                if 'choices' not in j:
-                    raise LLMError('api_error', json.dumps(j)[:200])
-                ch = j['choices'][0]
-                stop = ch.get('finish_reason')
-                u = j.get('usage') or {}
-                det = u.get('prompt_tokens_details') or {}
-                cr = int(det.get('cached_tokens') or 0)
-                usage = {'i': int(u.get('prompt_tokens') or 0) - cr, 'o': int(u.get('completion_tokens') or 0),
-                         'cr': cr, 'c5': 0, 'c1': 0}
-                usd = u.get('cost')
-                return Result(ch['message'].get('content') or '', usage, float(usd) if usd is not None else None, stop)
-            except urllib.error.HTTPError as e:
-                if e.code in (401, 402, 403):
-                    raise LLMError('api_auth', f'HTTP {e.code} מ־OpenRouter (מפתח/קרדיט)') from e
-                if e.code not in RETRY_HTTP:
-                    raise LLMError('api_error', f'HTTP {e.code}') from e
-                last = LLMError('api_rate' if e.code == 429 else 'api_error', f'HTTP {e.code}')
-            except (urllib.error.URLError, TimeoutError) as e:
-                last = LLMError('api_network', str(e)[:200])
-            if i < 3:
-                self._sleep(5 * 2 ** i)
-        raise last or LLMError('api_error')
