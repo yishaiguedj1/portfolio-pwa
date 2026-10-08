@@ -386,6 +386,7 @@ def run_auto(jobmod, args) -> int:
         ctx = J.Ctx(J.load_state())
         pl = Pipeline(ctx, J, eng)
         pl.translate()
+        J.save_ck(ctx, 'tl')                 # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
         fixed, left = pl.review()
         print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')
         pl.save_usage()
