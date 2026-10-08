@@ -11370,7 +11370,13 @@ function quotesPending() { return !state.quotesAt && !state.stale; }
 /* v193: כותרת הכרטיס (לוגו, סימבול, שם, מחיר, שינוי) — משותף לבנייה ולעדכון החי, בלי לבנות כרטיס שלם בכל טיק */
 /* v205: המחיר בכרטיס גדול (27px); מחיר ארוך במיוחד ("$12,345.67", "226,240 אג׳") מוקטן בשלב אחד או שניים כדי שהשורה לא תגלוש */
 function stockPriceSizeCls(txt) {
-  const n = String(txt || '').replace(/<[^>]*>/g, '').replace(/[<>\u2066-\u2069]/g, '').length;
+  // ספירת התווים הנראים (מחוץ לתגיות, בלי תווי בידוד כיוון) — רק מדידה, לא ניקוי לתצוגה
+  let n = 0, tag = false;
+  for (const ch of String(txt || '')) {
+    if (ch === '<') tag = true;
+    else if (ch === '>') tag = false;
+    else if (!tag && (ch < '\u2066' || ch > '\u2069')) n++;
+  }
   return n >= 10 ? ' px-xl' : n >= 9 ? ' px-lg' : '';
 }
 function stockHeadHTML(p, m) {
