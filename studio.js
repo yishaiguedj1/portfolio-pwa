@@ -1640,7 +1640,7 @@ function opsSection(o) {
   const top = h('div', 'st-hrow'); top.append(ring, t);
   const kpi = (k, v) => { const d = h('div', 'st-kpi'); d.append(h('small', null, k), h('b', null, v)); return d; };
   const kpis = h('div', 'st-kpis');
-  kpis.append(kpi(T('studioOpsAvail'), fmtPct1(o.avail)), kpi(T('studioOpsMttr'), o.mttr == null ? '—' : fmtShort(o.mttr * 60)), kpi(T('studioOpsOpen'), String(o.open.length)));
+  kpis.append(kpi(T('studioOpsAvail'), fmtPct1(o.avail)), kpi(T('studioOpsMttr'), o.mttr == null ? '—' : fmtShort(o.mttr * 60)));   // v368: מספר ההתראות — רק בשורה שמעל (בלי כפילות)
   card.append(top, kpis);
   out.push(card);
   // מפת השירות — לפי סדר השרשרת; רכיב עם התראה פתוחה צבוע לפי החומרה
@@ -1664,7 +1664,9 @@ function opsSection(o) {
     det.addEventListener('toggle', () => { ui.digOpen = det.open; });
     det.append(h('summary', null, T('studioOpsDigestT', { n: o.digest.lo })));
     if (quiet.length) det.append(list(...quiet.flatMap(alertRows)));
-    if (o.digest.top.length) det.append(note(T('studioOpsDigestTop', { l: o.digest.top.map((x) => opsAlert(x.c, x.k) + ' (' + x.n + ')').join(' · ') })));
+    // מה שכבר פתוח למעלה לא חוזר כאן — רק סוגים שהיו היום ונסגרו
+    const also = o.digest.top.filter((x) => !quiet.some((a) => a.c === x.c && a.k === x.k));
+    if (also.length) det.append(note(T('studioOpsDigestTop', { l: also.map((x) => opsAlert(x.c, x.k) + ' (' + x.n + ')').join(' · ') })));
     out.push(det);
   }
   if (o.mu.length) {
@@ -1776,7 +1778,8 @@ function pageTower(p) {
   const kill = btn('st-row st-ric' + (ui.halt ? '' : ' st-danger'), null, () => (ui.halt ? setHalt(false) : askHalt()), 'halt');
   kill.append(tile('power', ui.halt ? 'green' : 'red'), rowTxt(ui.halt ? T('studioHaltOff') : T('studioHaltOn'), ui.halt ? T('studioHaltOffS') : T('studioHaltOnS')));
   kill.disabled = blocked() || haltBusy;
-  p.append(secT(T('studioCtlT')), list(rowNav({ tile: tile('sliders', 'blue'), label: T('studioRlT'), sub: rulesSum(ui.rl), onClick: () => go('rules'), k: 'rules' }), kill));
+  // כשהסוכנים עצורים — "להחזיר" רק בבאנר שלמעלה (בלי כפתור כפול)
+  p.append(secT(T('studioCtlT')), list(rowNav({ tile: tile('sliders', 'blue'), label: T('studioRlT'), sub: rulesSum(ui.rl), onClick: () => go('rules'), k: 'rules' }), ui.halt ? null : kill));
   // v364: ספר התיקונים — כל תקלה שעצרה עבודה, מה Claude רשם לעשות כשהיא חוזרת, וכמה פעמים זה טופל לבד
   if (ui.fb && ui.fb.length) {
     p.append(secT(T('studioFbT')), list(...ui.fb.slice(0, 8).map((e) => {
@@ -1800,11 +1803,6 @@ function pageTower(p) {
       return r;
     })));
   }
-  // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד"
-  const fm = ui.fm === 'auto' ? 'auto' : 'suggest';
-  p.append(secT(T('studioFmT')), list(
-    rowRadio({ label: T('studioFmSug'), sub: T('studioFmSugS'), on: fm === 'suggest', onClick: () => setFixMode('suggest'), k: 'fm:suggest', disabled: blocked() }),
-    rowRadio({ label: T('studioFmAuto'), sub: T('studioFmAutoS'), on: fm === 'auto', onClick: () => setFixMode('auto'), k: 'fm:auto', disabled: blocked() })));
   // הרגיל — המצב שבשימוש בברירת המחדל, וכל מצב שכבר נלמד מהעבודות שלך
   const nm = ui.norm;
   let learned = false;
@@ -1826,8 +1824,7 @@ function pageTower(p) {
   const rule = (txt) => h('div', 'st-row st-rule', txt);   // כללים — טקסט רגיל, לא כותרות
   p.append(secT(T('studioTwSecRules')), list(rule(learned ? T('studioTwR1U') : T('studioTwR1')), rule(T('studioTwR2')), rule(T('studioTwR3')), rule(T('studioTwR4'))),
     note(T('studioTwRulesNote')));
-  const stops = store.jobs.filter(towerStopped);
-  if (stops.length) p.append(secT(T('studioTwSecStops')), list(...stops.slice(0, 5).map((rec) => jobRow(rec, towerWhy(rec.srv.tw), 'red', 'ts:' + rec.id))));
+  // v368: "עצירות אחרונות" הוסר — עצירה של המגדל היא התראה דחופה למעלה (נגיעה → העבודה, עם כרטיס העצירה)
 }
 /* v367: מתג החירום — "עצור את כל הסוכנים" (מבטל את מפתחות העבודות, המגדל עוצר את הסשן, הפעלות מושהות) ו"להחזיר" */
 let haltBusy = false;
@@ -1896,6 +1893,12 @@ function pageRules(p) {
     on: rl.mx === id, onClick: () => setRules({ mx: id }), k: 'rm:' + (id || 'all'), disabled: off }))));
   // אישור לפני צריבה — 5 כתוביות לדוגמה בטלפון
   p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
+  // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד".
+  // v368: עבר לכאן ממסך המגדל — כל מה שאתה קובע לסוכנים במקום אחד
+  const fm = ui.fm === 'auto' ? 'auto' : 'suggest';
+  p.append(secT(T('studioFmT')), list(
+    rowRadio({ label: T('studioFmSug'), sub: T('studioFmSugS'), on: fm === 'suggest', onClick: () => setFixMode('suggest'), k: 'fm:suggest', disabled: blocked() }),
+    rowRadio({ label: T('studioFmAuto'), sub: T('studioFmAutoS'), on: fm === 'auto', onClick: () => setFixMode('auto'), k: 'fm:auto', disabled: blocked() })));
 }
 /* v367: שער — הגענו לתקציב / לפני הצריבה. הטקסט מהקטלוג; הכתוביות לדוגמה (מהתרגום) — רק כטקסט */
 function gateCard(rec, qa) {
@@ -2371,7 +2374,7 @@ function shapeKey() {
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : ''); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join();
   if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + ui.alOpen;
-  if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl);
+  if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm;
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
   return ui.view + '|' + ui.access;
 }

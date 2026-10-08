@@ -177,6 +177,8 @@ async function doResume(deps, uid, job, now, body, auto) {
   await patchJob(deps, job.id, patch);
   Object.assign(job, patch);
   const f = await fireJob(deps, uid, v, job, now, true);
+  // v368: ההמשך הופעל — ההתראות של העצירה הקודמת נסגרות (אחרת "המגדל עצר" נשאר דחוף כשהעבודה כבר רצה)
+  if (f.ok) await raise(deps, uid, ['claude:tw_stop', 'claude:stale', 'claude:budget', 'routine:no_claim'].map((x) => ({ c: x.split(':')[0], k: x.split(':')[1], ok: true })), job.id, now);
   const j = await readJob(deps, job.id);
   return { status: 200, json: Object.assign({ ok: f.ok, job: S.publicJob(j, now) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }) };
 }
@@ -189,6 +191,16 @@ async function autoRecover(deps, uid, jobs, now) {
     if (r.json.ok) await raise(deps, uid, [{ c: 'claude', k: 'auto' }], j.id, now);
   }
   return due.length;
+}
+
+/* קובץ שהעובד העלה — קיים, לא בפח, ובתיקיית העבודה ב־Drive (הלקוח של הסטודיו רואה רק מה שהאפליקציה יצרה). מחזיר את הגודל, או null */
+async function driveFileInFolder(deps, uid, folder, fid) {
+  const t = await gdrive.accessToken(deps, uid);
+  if (!t.ok) return { error: t.error };
+  const r = await (deps.fetch || fetch)(DRIVE + fid + '?fields=id,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
+  let meta = null; try { meta = await r.json(); } catch (e) {}
+  if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(folder))) return null;
+  return { size: Number(meta.size) || 0 };
 }
 
 /* ---------- העובד בענן ---------- */
@@ -228,13 +240,11 @@ async function worker(req, res, body, deps) {
       // v358: תוצרים — כל קובץ חייב להיות בתיקיית העבודה ב־Drive (הלקוח של הסטודיו רואה רק מה שהאפליקציה יצרה)
       const outs = S.normOut(body.out);
       if (!outs || !job.folder) return res.status(400).json({ ok: false, error: 'out_bad' });
-      const t = await gdrive.accessToken(deps, job.uid);
-      if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
       for (const o of outs) {
-        const r = await (deps.fetch || fetch)(DRIVE + o.id + '?fields=id,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
-        let meta = null; try { meta = await r.json(); } catch (e) {}
-        if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(job.folder))) return res.status(400).json({ ok: false, error: 'out_bad' });
-        o.size = Math.floor(Number(meta.size) || o.size);
+        const m = await driveFileInFolder(deps, job.uid, job.folder, o.id);
+        if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
+        if (!m) return res.status(400).json({ ok: false, error: 'out_bad' });
+        o.size = Math.floor(m.size || o.size);
       }
       up.fo = outs;
     }
@@ -276,12 +286,10 @@ async function worker(req, res, body, deps) {
       // v361: נקודת שמירה — הארכיון חייב להיות בתיקיית העבודה ב־Drive (כמו התוצרים)
       const ck = S.normCk(body.ck);
       if (!ck || !job.folder) return res.status(400).json({ ok: false, error: 'ck_bad' });
-      const t = await gdrive.accessToken(deps, job.uid);
-      if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
-      const r = await (deps.fetch || fetch)(DRIVE + ck.id + '?fields=id,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
-      let meta = null; try { meta = await r.json(); } catch (e) {}
-      if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(job.folder))) return res.status(400).json({ ok: false, error: 'ck_bad' });
-      ck.size = Math.floor(Number(meta.size) || ck.size);
+      const m = await driveFileInFolder(deps, job.uid, job.folder, ck.id);
+      if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
+      if (!m) return res.status(400).json({ ok: false, error: 'ck_bad' });
+      ck.size = Math.floor(m.size || ck.size);
       up.ck = S.addCk(job.ck, ck, now);
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }

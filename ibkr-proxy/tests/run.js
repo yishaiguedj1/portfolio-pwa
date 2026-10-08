@@ -1727,12 +1727,15 @@ function stubFetch(text, status = 200) {
     ok(rr.payload.ops.open.some((a) => a.c === 'claude' && a.k === 'auto' && a.j === JRC && a.s === 4), 'סטודיו: תקלה חולפת — "המשכנו לבד" נרשם במגדל (מידע, P4)');
     Krc = keyOf(fires[fires.length - 1]);
     await wrk({ op: 'claim', job: JRC, key: Krc });
+    await wrk({ op: 'report', job: JRC, key: Krc, tower: { lv: 'red', why: 'loop', x: 1, usd: 1, exp: 1, n: 10 } });
+    ok((await run({ op: 'status', idToken: OWNER })).payload.ops.open.some((a) => a.k === 'tw_stop' && a.j === JRC), 'סטודיו: (הכנה) המגדל עצר — התראה דחופה');
     await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'net' });
     now += S.RECOVER_WAIT + 1;
     rr = await run({ op: 'job', idToken: OWNER, job: JRC });
     ok(rr.payload.job.state === 'failed' && rr.payload.job.rec === 0 && fires.length === nf8 + 1, 'סטודיו: תקלה חולפת — המשך אוטומטי רק פעם אחת לעבודה; בפעם השנייה — "נכשלה" באמת');
     rr = await run({ op: 'resume', idToken: OWNER, job: JRC });
     ok(rr.payload.ok && fires.length === nf8 + 2, 'סטודיו: תקלה חולפת — "המשך" ידני עדיין זמין');
+    ok(!(await run({ op: 'status', idToken: OWNER })).payload.ops.open.some((a) => a.k === 'tw_stop' && a.j === JRC), 'סטודיו: "המשך" סוגר את ההתראה של העצירה הקודמת (לא נשארת "דחופה" כשהעבודה רצה)');
     Krc = keyOf(fires[fires.length - 1]);
     await wrk({ op: 'claim', job: JRC, key: Krc });
     await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'tl_bad' });
