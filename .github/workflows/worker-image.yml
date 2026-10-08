@@ -83,6 +83,9 @@ jobs:
   promote:
     # פרודקשן = רק באישור שלך (Environment "production" עם Required reviewers). השרת מושך את prod בתוך רבע שעה.
     needs: build
+    # מנעול: עד שהאישור מוגדר (Environment "production" עם Required reviewers), prod לא זז בכלל.
+    # אחרי ההגדרה: Settings ← Secrets and variables ← Actions ← Variables ← SNB_PROMOTE = on (infra/README.md)
+    if: vars.SNB_PROMOTE == 'on'
     runs-on: ubuntu-latest
     environment: production
     permissions:

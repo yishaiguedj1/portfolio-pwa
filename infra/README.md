@@ -38,7 +38,7 @@
 **א. חשבונות (בטלפון):**
 1. **Hetzner:** הרשמה ל־Cloud, אימות דו־שלבי, ופרויקט ריק בשם `snowball`.
 2. **Anthropic Console:** מפתח API בשם `snowball-server` ותקרת הוצאה חודשית (Limits). את המפתח שומרים לרגע ההדבקה בשרת.
-3. **GitHub — אישור לפרודקשן:** Settings ← Environments ← New environment בשם `production` ← Required reviewers ← אתה.
+3. **GitHub — אישור לפרודקשן:** Settings ← Environments ← New environment בשם `production` ← Required reviewers ← אתה. אחר כך Settings ← Secrets and variables ← Actions ← Variables ← New repository variable: `SNB_PROMOTE` = `on`. עד אז `prod` לא זז בכלל — מנעול נגד קידום בלי אישור.
 4. **ניטור (רשות):** בדיקה חינמית ב־healthchecks.io עם תקופה של 10 דקות. מקבלים כתובת שמדביקים ב־`snb-setup`, ומייל כשהשרת מפסיק לפעום.
 
 **ב. התמונה הראשונה:** אחרי המיזוג ל־`main` והאישור הראשון, ב־GitHub: הפרופיל ← Packages ← `snb-worker` ← Package settings ← Change visibility ← **Public**. אין בה סודות, והקוד ממילא ציבורי. כך השרת מוריד אותה בלי סיסמה.
