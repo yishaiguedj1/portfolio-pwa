@@ -5,7 +5,10 @@
 בלי סרטון ובלי תמלול: כל המודלים מקבלים בדיוק את אותו מקור, אותו מדריך סגנון, אותו תדריך
 ואותו מילון — בקריאות API ישירות דרך OpenRouter (מפתח אחד לכל המודלים).
 
-השלבים:
+הכל בפקודה אחת (עם תקרת הוצאה, וממשיך מאותה נקודה אם נקטע):
+  python3 translator/tools/mt_bench.py all --max-usd 4.5
+
+או שלב אחר שלב:
   python3 translator/tools/mt_bench.py prep                      # הורדת הכתוביות + קובץ המקור
   python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high --provider ionstream --zdr
   python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high --provider deepseek   # דיוק מלא, לייחוס
@@ -359,6 +362,54 @@ def cmd_sample(a):
     print(d / 'sample.md')
 
 
+# ── all: כל המבחן בפקודה אחת ─────────────────────────────────────────────────
+
+# המועמד (DeepSeek אצל Ionstream, בלי שמירת נתונים), הייחוס בדיוק מלא (DeepSeek עצמה — TED ציבורי),
+# ושני הקווים של היום (Opus ו־Sonnet) — באותם תנאים בדיוק
+PLAN_RUNS = [
+    ('deepseek/deepseek-v4-pro-0813', 'high', 'ionstream', True),
+    ('deepseek/deepseek-v4-pro-0813', 'high', 'deepseek', False),
+    ('anthropic/claude-opus-5.5', 'medium', None, False),
+    ('anthropic/claude-sonnet-5.5', 'medium', None, False),
+]
+PLAN_JUDGES = ['google/gemini-3.1-pro-preview', 'openai/gpt-6.1-sol']
+
+
+def spent(d: Path) -> float:
+    tot = 0.0
+    for f in d.glob('out/*/usage.json'):
+        tot += sum(c['usage'].get('cost', 0) or 0 for c in json.loads(f.read_text())['calls'])
+    for f in d.glob('judge/*/chunk_*.json'):
+        tot += (json.loads(f.read_text(encoding='utf-8')).get('usage') or {}).get('cost', 0) or 0
+    return tot
+
+
+def cmd_all(a):
+    """prep → 4 ריצות → check → 2 שופטים → report + sample. נעצר אם ההוצאה עוברת את התקרה."""
+    d = work_dir(a)
+    if not (d / 'meta.json').exists():
+        cmd_prep(a)
+
+    def guard():
+        s = spent(d)
+        print(f'  הוצאה עד עכשיו: ${s:.3f} (תקרה ${a.max_usd})', flush=True)
+        if s > a.max_usd:
+            sys.exit('נעצר: ההוצאה עברה את התקרה')
+
+    for model, effort, provider, zdr in PLAN_RUNS:
+        if (d / 'out' / slug(model, effort, provider) / 'usage.json').exists():
+            continue                                    # כבר רץ — המשך מאותה נקודה
+        cmd_run(argparse.Namespace(**{**vars(a), 'model': model, 'effort': effort, 'provider': provider, 'zdr': zdr}))
+        guard()
+    cmd_check(a)
+    for j in PLAN_JUDGES:
+        cmd_judge(argparse.Namespace(**{**vars(a), 'model': j, 'effort': None, 'only': None, 'seed': 7}))
+        guard()
+    cmd_report(a)
+    cmd_sample(argparse.Namespace(**{**vars(a), 'n': 20, 'seed': 11}))
+    print(f'סה"כ הוצאה: ${spent(d):.3f}')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--dir', help='תיקיית העבודה (ברירת מחדל ~/.snb-bench)')
@@ -377,12 +428,14 @@ def main():
     j.add_argument('--only', nargs='*', help='רק תוצרים שהשם שלהם מכיל את אחת המחרוזות')
     j.add_argument('--seed', type=int, default=7)
     sp.add_parser('report')
+    al = sp.add_parser('all')
+    al.add_argument('--max-usd', type=float, default=4.5)
     s = sp.add_parser('sample')
     s.add_argument('--n', type=int, default=20)
     s.add_argument('--seed', type=int, default=11)
     a = p.parse_args()
     {'prep': cmd_prep, 'run': cmd_run, 'check': cmd_check, 'judge': cmd_judge,
-     'report': cmd_report, 'sample': cmd_sample}[a.cmd](a)
+     'report': cmd_report, 'sample': cmd_sample, 'all': cmd_all}[a.cmd](a)
 
 
 if __name__ == '__main__':
