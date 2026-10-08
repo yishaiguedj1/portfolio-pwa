@@ -1,0 +1,24 @@
+rules_version = '2';
+// כללי הגישה ל־Firestore של THE SNOWBALL (הפרויקט yishaiguedj1-c786e).
+// הטלפון ניגש רק למסמך שלו: users/{uid} — התיק, ההגדרות, התקדמות הקריאה (שדה lib).
+// כל השאר (studioJobs, studioVault, studioServers, studioStats, studioOps, ibkrVault, driveVault, studioDrive,
+// academy, aiCache, aiUse) — רק השרתון, דרך חשבון השירות (שעוקף את הכללים). מהטלפון: אסור, גם לקרוא.
+// העלאה: Firebase Console ← Firestore ← Rules ← להדביק את הקובץ הזה ← Publish (firestore/README.md).
+// בדיקות: firestore/rules.test.mjs מול האמולטור הרשמי (ב־CI: test.yml, firestore-rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, delete: if signedInAs(uid);
+      // כתיבה: רק למסמך שלך, ובלי שדות שהשרתון מנהל (אף אחד מהם לא נכתב מהטלפון היום — זה מונע שימוש לרעה בעתיד)
+      allow create, update: if signedInAs(uid)
+        && !request.resource.data.keys().hasAny(['admin', 'role', 'isAdmin', 'studio', 'vault']);
+    }
+    // ברירת מחדל: הכל סגור
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

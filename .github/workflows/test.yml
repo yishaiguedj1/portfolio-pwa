@@ -59,3 +59,24 @@ jobs:
       - name: vt + worker tests
         working-directory: translator
         run: /tmp/vtv/bin/python -m unittest discover -s tests
+
+  # כללי הגישה ל־Firestore (firestore/firestore.rules) מול האמולטור הרשמי — כל משתמש רק את המסמך שלו, השאר רק השרתון
+  firestore-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: install (נעול — package-lock.json)
+        working-directory: firestore
+        run: npm ci --no-audit --no-fund
+      - name: rules tests
+        working-directory: firestore
+        run: npm test

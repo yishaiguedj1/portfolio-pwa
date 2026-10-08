@@ -1,0 +1,42 @@
+# סריקת אבטחה של הקוד (CodeQL) — חינם לריפו ציבורי. מוצאת דפוסים מסוכנים (הזרקה, XSS, סודות בקוד, workflows פגיעים)
+# בכל PR ובכל דחיפה ל־main, ופעם בשבוע על הכל. הממצאים ב־Security ← Code scanning (לא חוסם מיזוג, עד שתחליט אחרת).
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * 0'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # העלאת הממצאים
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python, actions]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - vendor/**
+              - translator/vt/tests/**
+              - '**/tests/**'
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: /language:${{ matrix.language }}
