@@ -33,6 +33,12 @@ const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת 
 const MAX_STORED = 100;                     // מעבר לזה — הישנות שהסתיימו נמחקות
 const FIRE_HOUR = 20;                       // הפעלות בשעה למשתמש (ל־Routine מותר 30 — שומרים מרווח לתיקונים ול"הפעל עכשיו")
 const TEST_GAP = 60e3;                      // בדיקת חיבור — לכל היותר פעם בדקה
+/* שלב 3 סבב ה׳: נקודות שמירה — אחרי תמלול (asr), יישור (al), תרגום (tl) וביקורת (rv). כל אחת = ארכיון קטן של הפרויקט
+   בתיקיית העבודה ב־Drive (בלי הסרטון והקול). "המשך" מפעיל את ה־Routine שוב, והעובד ממשיך מהאחרונה — בלי לתמלל ולתרגם מחדש */
+const CK_STAGES = ['asr', 'al', 'tl', 'rv'];
+const CK_MAX_SIZE = 512 * 1024 ** 2;
+const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח שעתיים = הסשן נפל (התרגום מדווח על כל חלק)
+const RESUME_MAX = 10;                      // הפעלות לעבודה אחת (כולל הראשונה) — מעבר לזה משהו חוזר על עצמו
 
 /* ---------- קלט ---------- */
 /* הכתובת והמפתח כמו שהם מודבקים (רווחים, "Bearer " בטעות) — ואז בדיקת צורה קפדנית */
@@ -117,6 +123,155 @@ function normUsage(list) {
   return out;
 }
 
+/* v361: נקודת שמירה מהעובד (האימות מול Drive — בשרתון, כמו התוצרים) */
+function normCk(c) {
+  if (!c || typeof c !== 'object' || !CK_STAGES.includes(c.s) || !FILE_ID_RE.test(String(c.id || ''))) return null;
+  const size = Math.floor(Number(c.size) || 0);
+  if (!(size > 0) || size > CK_MAX_SIZE) return null;
+  return { s: c.s, id: c.id, size };
+}
+/* הרשימה השמורה: אחת לכל שלב (חדשה מחליפה ישנה של אותו שלב), לפי סדר השלבים */
+function addCk(list, ck, now) {
+  const out = (Array.isArray(list) ? list : []).filter((x) => x && CK_STAGES.includes(x.s) && x.s !== ck.s);
+  out.push(Object.assign({}, ck, { at: now }));
+  return out.sort((a, b) => CK_STAGES.indexOf(a.s) - CK_STAGES.indexOf(b.s)).slice(-CK_STAGES.length);
+}
+const lastCk = (list) => (Array.isArray(list) && list.length ? list[list.length - 1] : null);
+/* העבודה "רצה" אבל לא דיווחה שעתיים — הסשן נפל (מיכל שנסגר, תקלה בצד של Claude) */
+const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed) && now - (job.updated || 0) > STALE_MS;
+/* אפשר להמשיך? עבודת תרגום עם קבצים, שנכשלה / בוטלה / נתקעה, ולא הופעלה יותר מדי פעמים */
+function canResume(job, now) {
+  if (!job || job.kind !== 'tr' || !(job.fa || job.fv)) return 'state';
+  const st = effState(job, now).state;
+  if (!(st === 'failed' || st === 'cancelled' || isStale(job, now))) return 'state';
+  if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
+  return '';
+}
+/* v362: מגדל הפיקוח — מצב מהעובד (ה־Hook בסשן): רמה, סיבה (בעצירה), פי כמה מהרגיל, עלות לפי מחירון ה־API והצפוי עד עכשיו */
+const TW_LV = ['ok', 'warn', 'red'];
+const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
+function normTower(t) {
+  if (!t || typeof t !== 'object' || !TW_LV.includes(t.lv)) return null;
+  const n = (v, max, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(Math.min(v, max) * 10 ** d) / 10 ** d : 0);
+  const out = { lv: t.lv, x: n(t.x, 1000, 1), usd: n(t.usd, 1e5, 2), exp: n(t.exp, 1e5, 2) };
+  if (t.b === 'u') { out.b = 'u'; out.nj = Math.round(n(t.nj, 1000, 0)); }   // v363: "הרגיל" נלמד מהעבודות של המשתמש (nj = כמה)
+  if (t.lv === 'red' && FP_RE.test(String(t.fp || ''))) out.fp = t.fp;   // v364: טביעת האצבע של התקלה — לספר התיקונים
+  if (t.lv === 'red') {
+    if (!TW_WHY.includes(t.why)) return null;
+    out.why = t.why;
+    if (t.n != null) out.n = Math.round(n(t.n, 1000, 0));
+    if (t.min != null) out.min = Math.round(n(t.min, 1440, 0));
+  }
+  return out;
+}
+
+/* v363: "הרגיל" נלמד מהעבודות של המשתמש — לכל עבודת תרגום שהסתיימה בהפעלה אחת: המצב, אורך הסרטון והעלות
+   (מחירון ה־API, מהדיווח של העובד). החציון לשעת סרטון, לכל מצב, מ־NORM_MIN עבודות; עד אז — המדידות שלנו (NORM_DEF,
+   **זהה ל־PER_HOUR + FIXED ב־translator/tower.py** — הבדיקה משווה). עבודה שהופעלה שוב (המשך אחרי עצירה/תקלה) לא נכנסת:
+   הסשנים הנוספים מנפחים את העלות, ותקלה לא אמורה ללמד את המגדל ש"זה רגיל". */
+const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
+const NORM_DEF = { 'opus-medium': 6.0, 'opus-high': 8.5, 'opus-max': 13.0, 'sonnet-medium': 3.0, 'sonnet-high': 4.2 };
+const NORM_FIXED = 1.5;
+function normSample(job, use, now) {
+  const sp = job && job.spec;
+  if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
+  if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
+  const u = use.reduce((s, r) => s + (r.usd || 0), 0);
+  if (!(u > 0) || u > 1e4) return null;
+  return { m: sp.mode, d: Math.round(sp.dur), u: Math.round(u * 100) / 100, at: now };
+}
+function addSample(list, s) {
+  return (Array.isArray(list) ? list : []).filter((x) => x && MODES.includes(x.m) && x.d > 0 && x.u > 0).concat(s ? [s] : []).slice(-NORM_KEEP);
+}
+const median = (a) => { const s = a.slice().sort((x, y) => x - y), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+/* לשעת סרטון (אורך מינימלי 10 דק׳ — בסרטון קצר עלות הפתיחה שולטת). ph = החציון, mx = הכבדה ביותר, n = כמה עבודות */
+function learnedNorm(list, mode) {
+  const rates = addSample(list, null).filter((x) => x.m === mode).map((x) => x.u / (Math.max(x.d, NORM_DUR_MIN) / 3600));
+  if (rates.length < NORM_MIN) return null;
+  const r2 = (v) => Math.round(v * 100) / 100;
+  return { ph: r2(median(rates)), mx: r2(Math.max(...rates)), n: rates.length };
+}
+/* לטלפון (מסך "מגדל הפיקוח"): לכל מצב — הנלמד, או ברירת המחדל (d: true) */
+function normsView(list) {
+  const out = {};
+  for (const m of MODES) {
+    const l = learnedNorm(list, m);
+    out[m] = l || { ph: NORM_DEF[m], n: addSample(list, null).filter((x) => x.m === m).length, d: true };
+  }
+  return out;
+}
+
+/* v364: ספר התיקונים — כל עצירה של המגדל נרשמת לפי טביעת אצבע (סוג · שלב · השגיאה שחזרה, בלי טקסט חופשי) ב־studioStats/{uid}.fb.
+   התיקון = משפט קצר ש־Claude רושם אחרי שאבחן את העצירה (בהמשך העבודה). בעבודה הבאה, כשאותה תקלה מתחילה לחזור, המגדל מזכיר
+   לו את התיקון לפני העצירה ("טופל לבד"). הטקסט מגיע מסשן שמעבד תוכן לא מהימן — מוגבל באורך, בלי כתובות וקוד, מוצג כטקסט בלבד,
+   ובחזרה ל־Claude הוא ממוסגר כמידע (tower.py) */
+const FP_RE = /^[0-9a-f]{12}$/;
+const FB_MAX = 30, FIX_MAX = 160;
+function normFixText(t) {
+  const x = clean(t, 400).replace(/https?:\/\/\S+|www\.\S+/gi, '').replace(/[`<>{}\[\]\\$|]/g, '').replace(/\s+/g, ' ').trim().slice(0, FIX_MAX);
+  return x.length >= 4 ? x : '';
+}
+function fbList(a) {
+  return (Array.isArray(a) ? a : []).filter((e) => e && FP_RE.test(String(e.fp || '')) && TW_WHY.includes(e.why)).slice(-FB_MAX);
+}
+/* עצירה חדשה של המגדל → רשומה (או עוד פעם לרשומה קיימת) */
+function fbStop(list, tw, st, now) {
+  if (!tw || !FP_RE.test(String(tw.fp || '')) || !TW_WHY.includes(tw.why)) return null;
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  let e = out.find((x) => x.fp === tw.fp);
+  if (!e) { e = { fp: tw.fp, why: tw.why, st: STAGES.includes(st) ? st : '', n: 0, auto: 0, fix: '', at: now }; out.push(e); }
+  e.n = (e.n || 0) + 1; e.at = now;
+  return out.slice(-FB_MAX);
+}
+/* v366: מסלול התיקונים של המשתמש — "הצעות לאישור" (ברירת המחדל, כמו Supervised ב־ServiceNow ומאמר ידע שעובר בדיקה לפני פרסום)
+   או "עצמאי" (Claude מחליט לבד). ההצעה משמשת את Claude בעבודה שבה נכתבה; לעבודות הבאות היא עוברת רק אחרי אישור */
+const FIX_MODES = ['suggest', 'auto'];
+const normFixMode = (m) => (m === 'auto' ? 'auto' : 'suggest');
+/* Claude רשם תיקון לתקלה (רק לרשומה שכבר קיימת אצל המשתמש). במסלול "הצעות" — הצעה (px); תיקון קודם שאושר נשאר בשימוש עד ההחלטה */
+function fbFix(list, fp, text, now, mode) {
+  const t = normFixText(text);
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  const e = out.find((x) => x.fp === fp);
+  if (!e || !t) return null;
+  if (normFixMode(mode) === 'auto') { e.fix = t; e.fx = now; delete e.px; delete e.pa; }
+  else if (t !== e.fix) { e.px = t; e.pa = now; }
+  return out;
+}
+/* v366: המשתמש החליט על הצעה — לשמור (הופכת לתיקון) או לא (נמחקת; התיקון הקודם, אם יש, נשאר) */
+function fbDecide(list, fp, ok, now) {
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  const e = out.find((x) => x.fp === fp);
+  if (!e || !e.px) return null;
+  if (ok === true) { e.fix = e.px; e.fx = now; }
+  delete e.px; delete e.pa;
+  return out;
+}
+/* המגדל הזכיר תיקון מוכר לפני שהתקלה הגיעה לעצירה */
+function fbUsed(list, fp, now) {
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  const e = out.find((x) => x.fp === fp);
+  if (!e) return null;
+  e.auto = (e.auto || 0) + 1; e.ua = now;
+  return out;
+}
+/* לעובד: רק תקלות שיש להן תיקון (שאושר — הצעה שממתינה לא נכנסת) */
+const fbForWorker = (list) => fbList(list).filter((e) => e.fix).map((e) => ({ fp: e.fp, why: e.why, st: e.st, fix: e.fix }));
+/* לטלפון: הכל, מהחדשה */
+const fbView = (list) => fbList(list).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
+  .map((e) => ({ fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', px: e.px || '', at: e.at || 0 }));
+
+/* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
+function mergeUse(a, b) {
+  const rows = [];
+  for (const r of [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])) {
+    const k = rows.find((x) => x.k === r.k && x.m === r.m);
+    if (!k) { rows.push(Object.assign({}, r)); continue; }
+    for (const f of USE_INTS) if (r[f] != null) k[f] = (k[f] || 0) + r[f];
+    for (const f of USE_USD) if (f in r) k[f] = k[f] === null || r[f] === null ? null : Math.round(((k[f] || 0) + (r[f] || 0)) * 1e4) / 1e4;
+  }
+  return rows.length ? rows.slice(0, 6) : null;
+}
+
 /* שאלה קצרה מהעובד באמצע העבודה (שלב 3, סבב ד׳): מזהה, שאלה, עד 4 תשובות מוכנות, ברירת מחדל וזמן המתנה.
    הטקסט מגיע מ־Claude ומוצג בטלפון כטקסט (textContent) — כאן רק אורך ותווים. שאלה חדשה מחליפה קודמת */
 const ASK_ID_RE = /^q[a-z0-9]{1,12}$/;
@@ -199,14 +354,23 @@ function publicJob(job, now) {
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [] },
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
-    use: Array.isArray(job.use) ? job.use : null,   // v359: טוקנים ועלות
+    use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
     qa: job.qa && job.qa.id ? job.qa : null,        // שאלה מ־Claude (והתשובה, אם כבר ענית)
+    ck: lastCk(job.ck) ? { s: lastCk(job.ck).s, at: lastCk(job.ck).at || 0 } : null,   // v361: נקודת השמירה האחרונה
+    stale: isStale(job, now),                       // v361: "רצה" בלי דיווח שעתיים — אפשר להמשיך
+    fires: job.fires || 0,
+    tw: job.tw && TW_LV.includes(job.tw.lv) ? job.tw : null,   // v362: מגדל הפיקוח
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job) {
-  return { id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
-    qa: job.qa && job.qa.id ? { id: job.qa.id, a: job.qa.a || null } : null };
+function workerJob(job, nm, fb, fm) {
+  return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+    fm: normFixMode(fm),     // v366: מסלול התיקונים — העובד אומר ל־Claude אם התיקון נשמר או מחכה לאישור
+    fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
+    ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
+    qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null } : null,   // v361: גם השאלה — להמשך בסשן חדש
+    ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
 function applyReport(job, r, now) {
@@ -219,6 +383,8 @@ function applyReport(job, r, now) {
     prog.stg[st] = { s: now, e: 0 };
     prog.st = st; prog.p = 0; delete prog.eta;
   }
+  // v361: אחרי "המשך" — השלב שבו העבודה נעצרה נפתח שוב (נסגר כשהיא נכשלה)
+  else if (st && prog.stg[st] && prog.stg[st].e && r.done !== true && r.fail !== true) prog.stg[st] = Object.assign({}, prog.stg[st], { e: 0 });
   if (r.p != null && Number.isFinite(+r.p)) prog.p = Math.max(0, Math.min(1, +r.p));
   if (r.msg != null) prog.msg = clean(r.msg, 240);
   if (r.ex != null) prog.ex = clean(r.ex, 240);
@@ -232,7 +398,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -261,6 +427,9 @@ function fromFields(f) {
 module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
+  NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
+  FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
+  CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

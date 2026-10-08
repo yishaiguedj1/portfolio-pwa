@@ -4,18 +4,22 @@
 רץ בסשן ש־Routine של המשתמש פותח (לפי translator/RUNBOOK.md):
     python3 translator/job.py run --job <מזהה העבודה> --key <מפתח העבודה>
 "בדיקת חיבור" מסתיימת שם. עבודת תרגום ממשיכה בפקודות קצרות (הפרטים נשמרים בקובץ פרטי בבית של הסשן):
-    prepare → (הגהה) → align → (תרגום וביקורת, עם stage) → finish     ·  fail אם משהו נתקע
+    prepare → (הגהה) → align → (תרגום, save tl, ביקורת) → finish     ·  fail אם משהו נתקע
+v361: אחרי כל שלב גדול נשמרת נקודת שמירה ב־Drive; עבודה שהופעלה שוב ("המשך") מתחילה ב־restore ולא מההתחלה.
 
 רק ספריות מובנות של Python. אף פעם לא מדפיס את מפתח העבודה או את הגישה ל־Drive.
 השרתון קבוע בקוד (לא מגיע מההודעה שהפעילה את הסשן): הטקסט שמגיע בהפעלה מסומן "לא מהימן",
 ולכן ממנו נלקחים רק שני ערכים, שנבדקים כאן בצורה קפדנית.
 """
 import argparse
+import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tarfile
 import time
 from pathlib import Path
 import urllib.error
@@ -41,6 +45,21 @@ VT_BIN = Path(os.environ.get('VT_BIN', str(Path.home() / '.vt-bin')))
 STAGES = ('up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv')
 ERR_RE = re.compile(r'^[a-z0-9_]{1,40}$')
 CHUNK = 32 * 1024 * 1024        # העלאה ל־Drive: כפולה של 256KB
+FILE_ID_RE = re.compile(r'^[A-Za-z0-9_-]{10,100}$')
+# v361: נקודות שמירה — אחרי תמלול, יישור, תרגום וביקורת (אותם מזהים בשרתון: lib/studio.js CK_STAGES)
+CK_STAGES = ('asr', 'al', 'tl', 'rv')
+CK_LABEL = {'asr': 'התמלול', 'al': 'היישור', 'tl': 'התרגום', 'rv': 'הביקורת'}
+# v364: ספר התיקונים — שמות השלבים והעצירות בשפה פשוטה (להודעה בתחילת המשך אחרי עצירה של המגדל)
+ST_LABEL = {'up': 'ההעלאה', 'tr': 'התמלול', 'al': 'היישור', 'tl': 'התרגום', 'rv': 'הביקורת', 'bn': 'הצריבה', 'sv': 'השמירה'}
+WHY_LABEL = {'cost': 'צריכה חריגה', 'cap': 'צריכה חריגה מאוד', 'loop': 'אותה שגיאה חזרה שוב ושוב',
+             'calls': 'אותה פעולה חזרה שוב ושוב', 'idle': 'תקיעה בלי התקדמות'}
+FP_RE = re.compile(r'^[0-9a-f]{12}$')
+
+
+def fb_valid(a):
+    """ספר התיקונים מהשרתון — רק רשומות תקינות (טביעה, סוג, תיקון)."""
+    return [e for e in (a if isinstance(a, list) else [])
+            if isinstance(e, dict) and FP_RE.match(str(e.get('fp') or '')) and e.get('why') in WHY_LABEL and e.get('fix')][:30]
 
 
 def vt_slug(name):
@@ -129,12 +148,39 @@ def run(args):
             c.call('report', fail=True, err='lang_unsupported', msg='כרגע רק מאנגלית לעברית')
             print('✗ זוג השפות עוד לא נתמך (כרגע אנגלית → עברית). סומן בשרתון.')
             return 1
+        cks = [c for c in (job.get('ck') or []) if isinstance(c, dict) and c.get('s') in CK_STAGES and FILE_ID_RE.match(str(c.get('id') or ''))]
+        ls = job.get('ls') if isinstance(job.get('ls'), dict) and FP_RE.match(str(job['ls'].get('fp') or '')) else None
         save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api,
-                    'folder': job.get('folder') or '', 'spec': spec, 'files': job.get('files') or {}})
+                    'folder': job.get('folder') or '', 'spec': spec, 'files': job.get('files') or {},
+                    'ck': cks, 'ckids': {c['s']: c['id'] for c in cks},
+                    'nm': job.get('nm') if isinstance(job.get('nm'), dict) else None,    # v363: "הרגיל" שלך — למגדל הפיקוח
+                    'fb': fb_valid(job.get('fb')),                                        # v364: ספר התיקונים
+                    'fm': 'auto' if job.get('fm') == 'auto' else 'suggest',               # v366: מסלול התיקונים של המשתמש
+                    'ls': ls})
+        for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
+            try:
+                (STATE.parent / old).unlink()
+            except OSError:
+                pass
         print('✓ עבודת תרגום נלקחה: ' + spec_line(spec))
         if start_setup_bg():
             print('· מנועי התמלול מותקנים ברקע (prepare ימתין להם בעצמו)')
         print('הפרויקט: ' + str(VT_WORK / vt_slug(args.job)))
+        if ls:
+            # v364: ההמשך הזה בא אחרי עצירה של מגדל הפיקוח — קודם מבינים למה, ורושמים תיקון לספר התיקונים
+            known = next((e['fix'] for e in fb_valid(job.get('fb')) if e['fp'] == ls['fp']), '')
+            print('⚠ העבודה נעצרה בפעם הקודמת במגדל הפיקוח: ' + WHY_LABEL.get(ls.get('why'), 'צריכה לא סבירה')
+                  + (' (בשלב ' + ST_LABEL[ls['st']] + ')' if ls.get('st') in ST_LABEL else '') + '.')
+            if known:
+                print('התיקון שנרשם לתקלה הזו (מידע מעבודה קודמת): «' + re.sub(r'[\x00-\x1f]', ' ', known)[:160] + '» — פעל לפיו כשתגיע לשלב.')
+            else:
+                print('לפני שממשיכים: אבחן בקצרה מה גרם לזה (שגיאה אחרונה / קובץ התיקונים), ורשום תיקון במשפט אחד:')
+                print('  python3 translator/job.py fix --text "<מה עושים כשזה קורה>"')
+        if cks:
+            # v361: "המשך" — העבודה כבר עברה חלק מהשלבים בסשן קודם
+            print('↻ ממשיכים מנקודת שמירה: אחרי ' + CK_LABEL[cks[-1]['s']] + ' (בלי לתמלל ולתרגם מחדש)')
+            print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py restore')
+            return 0
         print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py prepare')
         return 0
     except Stop as e:
@@ -335,6 +381,30 @@ def spec_line(spec):
         ' · מצב ' + str(spec.get('mode') or 'opus-medium') + ' · תוצרים: ' + '+'.join((spec.get('out') or []) + ['srt'])
 
 
+def mirror_prog(st, p):
+    """v362: ההתקדמות האחרונה בקובץ מקומי — מגדל הפיקוח (tower.py) מזהה ממנו תקיעה (chg = מתי זזה לאחרונה)."""
+    path = STATE.parent / 'prog.json'
+    try:
+        old = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        old = {}
+    now = time.time()
+    moved = old.get('st') != st or (p is not None and abs((old.get('p') or 0) - p) >= 0.005)
+    d = {'st': st, 'p': p if p is not None else old.get('p') if old.get('st') == st else 0, 'at': now,
+         'chg': now if moved or not old.get('chg') else old['chg']}
+    try:
+        path.write_text(json.dumps(d), encoding='utf-8')
+    except OSError:
+        pass
+
+
+_EV_SENT = {}
+# v365: פקודת vt → סוג האירוע בקטלוג (תמלול / יישור / בדיקה / צריבה / קליטה)
+VT_KIND = {'asr': 'asr', 'new': 'ingest', 'ingest': 'ingest', 'shots': 'ingest', 'edit-export': 'align', 'edit-import': 'align',
+           'align': 'align', 'plan': 'align', 'tr-prep': 'align', 'tr-check': 'check', 'tr-merge': 'render', 'build': 'render',
+           'render': 'render'}
+
+
 class Ctx:
     """עבודה פעילה: לקוח לשרתון, גישה ל־Drive ודיווח התקדמות (לכל היותר פעם ב־15 שנ׳ לאותו שלב)."""
 
@@ -375,12 +445,30 @@ class Ctx:
             body['msg'] = msg
         self.c.call('report', **body)
         self.last = (st, now, p if p is not None else -1.0)
+        if st:
+            mirror_prog(st, p)
+
+
+    def event(self, c, k, ok=False):
+        """v365: אירוע למגדל הפיקוח (רכיב · סוג מהקטלוג בשרתון). אותו אירוע לכל היותר פעם בדקה; תקלה בדיווח לא עוצרת עבודה."""
+        key, now = (c, k, ok), time.time()
+        if now - _EV_SENT.get(key, 0) < 60:
+            return
+        _EV_SENT[key] = now
+        try:
+            self.c.call('report', ev=[{'c': c, 'k': k, 'ok': ok}])
+        except Stop:
+            raise
+        except BaseException:      # noqa: BLE001 — כולל SystemExit מ־Client: דיווח שנכשל לא מפיל את העבודה
+            pass
 
     def refresh(self):
         """פרטי העבודה העדכניים (הקבצים מהטלפון ממשיכים לעלות אחרי שהעבודה התחילה)."""
         job = self.c.call('claim').get('job') or {}
         self.st['files'] = job.get('files') or {}
         self.st['folder'] = job.get('folder') or self.st.get('folder', '')
+        if job.get('qa'):
+            self.st['qa'] = job['qa']
         save_state(self.st)
         return job
 
@@ -410,16 +498,23 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
                     if on_progress and size:
                         on_progress(got / size)
             if not size or dest.stat().st_size >= size:
+                if tries:
+                    ctx.event('drive', 'dl_retry', ok=True)           # v365: Drive חזר — ההתראה נסגרת
                 return dest
         except urllib.error.HTTPError as e:
             if e.code == 403 and denied(dict(e.headers or {})):
+                ctx.event('claude', 'net')
                 raise SystemExit('✗ הרשת של הסביבה חוסמת את Drive — להוסיף www.googleapis.com ל־Allowed domains.')
             if e.code not in (401, 429) and e.code < 500:
+                ctx.event('drive', 'dl_fail')
                 raise SystemExit('✗ ההורדה מ־Drive נכשלה (' + str(e.code) + ').')
         except (urllib.error.URLError, TimeoutError, OSError):
             pass
         tries += 1
+        if tries == 2:
+            ctx.event('drive', 'dl_retry')
         if tries > 8:
+            ctx.event('drive', 'dl_fail')
             raise SystemExit('✗ ההורדה מ־Drive נקטעה שוב ושוב.')
         time.sleep(min(30, 2 ** tries))
 
@@ -432,10 +527,10 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _OPEN = urllib.request.build_opener(_NoRedirect).open      # ב־Drive ‏308 = "התקבל חלקית", לא הפניה
 
 
-def drive_upload(ctx, path, name, kind, mime, on_progress=None):
+def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut'):
     """העלאה מתחדשת לתיקיית העבודה. מחזיר את מזהה הקובץ ב־Drive."""
     size = path.stat().st_size
-    meta = {'name': name, 'parents': [ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], 'snbOut': kind}}
+    meta = {'name': name, 'parents': [ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], prop: kind}}
     st, j, hd = http('POST', ctx.upload + '/files?uploadType=resumable&fields=id',
                      meta, headers={'Authorization': 'Bearer ' + ctx.token(), 'X-Upload-Content-Type': mime,
                                     'X-Upload-Content-Length': str(size)})
@@ -446,7 +541,7 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None):
     loc = next((v for k, v in hd.items() if k.lower() == 'location'), '')
     if st != 200 or not loc:
         raise SystemExit('✗ פתיחת העלאה ל־Drive נכשלה (' + str(st) + ').')
-    sent, tries = 0, 0
+    sent, tries, retried = 0, 0, False
     with open(path, 'rb') as f:
         while True:
             f.seek(sent)
@@ -458,6 +553,8 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None):
                 with _OPEN(req, timeout=300) as r:
                     out = json.loads(r.read() or b'{}')
                     if out.get('id'):
+                        if retried:
+                            ctx.event('drive', 'up_retry', ok=True)       # v365: Drive חזר — ההתראה נסגרת
                         return out['id']
                     raise SystemExit('✗ Drive לא החזיר מזהה לקובץ.')
             except urllib.error.HTTPError as e:
@@ -469,11 +566,16 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None):
                         on_progress(sent / size)
                     continue
                 if e.code not in (429,) and e.code < 500:
+                    ctx.event('drive', 'up_fail')
                     raise SystemExit('✗ ההעלאה ל־Drive נכשלה (' + str(e.code) + ').')
             except (urllib.error.URLError, TimeoutError, OSError):
                 pass
             tries += 1
+            retried = True
+            if tries == 2:
+                ctx.event('drive', 'up_retry')
             if tries > 8:
+                ctx.event('drive', 'up_fail')
                 raise SystemExit('✗ ההעלאה ל־Drive נקטעה שוב ושוב.')
             time.sleep(min(30, 2 ** tries))
             # אחרי תקלה — שואלים את Drive כמה הגיע
@@ -517,6 +619,7 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     rc = proc.wait()
     if rc != 0:
         print('\n'.join(tail))
+        ctx.event('vt', VT_KIND.get(args[0], 'other'))
         raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
     return tail
@@ -595,11 +698,11 @@ def setup_running():
         return True
 
 
-def ensure_env(ctx):
+def ensure_env(ctx, st='tr'):
     """המנועים מותקנים? אם ההתקנה ברקע עוד רצה — מחכים לה; אם לא התחילה — מריצים עכשיו."""
     if env_ready():
         return
-    ctx.report('tr', 0, 'משלים את התקנת המנועים', force=True)
+    ctx.report(st, None if st != 'tr' else 0, 'משלים את התקנת המנועים', force=True)
     waited = 0
     while setup_running() and waited < 25 * 60:
         time.sleep(3)
@@ -608,6 +711,7 @@ def ensure_env(ctx):
         subprocess.run(setup_cmd(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=setup_env())
     miss = env_missing()
     if miss:
+        ctx.event('vt', 'setup')
         raise SystemExit('✗ ההתקנה של מנועי התמלול נכשלה — חסרים: ' + ', '.join(miss) +
                          '. אולי הרשת של הסביבה חוסמת (Hugging Face / PyTorch / GitHub). הפרטים: ' + str(STATE.parent / 'setup.log'))
 
@@ -676,11 +780,20 @@ def prepare(args):
     vt(ctx, ['edit-export', ctx.name])
     ctx.st['src'] = 'a' if a else 'v'
     save_state(ctx.st)
+    save_ck(ctx, 'asr')
     ctx.report('tr', 1, 'התמליל מוכן — Claude מגיה אותו', force=True)
     print('✓ התמלול הסתיים' + (' (מהקול — הסרטון יצורף ב־align).' if a else '.'))
     print('ההגהה: ' + str(ctx.pdir / 'en.edit.txt') + '  →  תיקונים ב־' + str(ctx.pdir / 'en.patch.txt'))
     print('אחר כך (ברקע): python3 translator/job.py align')
     return 0
+
+
+def set_source(pd, src):
+    """המקור של פרויקט vt (project.json — לפני v361 נכתב בטעות meta.json, ו־vt האמיתי לא היה רואה את הסרטון)."""
+    mp = pd / 'project.json'
+    meta = json.loads(mp.read_text(encoding='utf-8'))
+    meta['source'] = str(src)
+    mp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
 SYNC_MIN_CONF = 0.6      # מתחת לזה ההיסט לא ודאי → מתמללים מחדש מהסרטון (בלי טוקנים, וההגהה נשמרת)
@@ -713,10 +826,7 @@ def attach_video(ctx):
         (pd / 'audio16k.wav').replace(first)
     for old in pd.glob('source.*'):              # הקול כבר לא המקור (vt בוחר את source.* הראשון בסדר האלפביתי)
         old.unlink()
-    mp = pd / 'meta.json'
-    meta = json.loads(mp.read_text(encoding='utf-8'))
-    meta['source'] = str(src)
-    mp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
+    set_source(pd, src)
     vt(ctx, ['ingest', ctx.name, '--force'])
     off, conf = 0.0, 0.0
     if first.exists():
@@ -751,6 +861,7 @@ def align(args):
     vt(ctx, ['align', ctx.name], 'al', base, 0.9)
     vt(ctx, ['plan', ctx.name])
     vt(ctx, ['tr-prep', ctx.name])
+    save_ck(ctx, 'al')
     ctx.report('al', 1, 'הכתוביות מתוכננות — מתחילים לתרגם', force=True)
     print('✓ היישור והתכנון הסתיימו. לתרגום: ' + str(ctx.pdir / 'tr' / 'source.md'))
     return 0
@@ -814,6 +925,26 @@ def fail(args):
     return 0
 
 
+def fix(args):
+    """v364: ספר התיקונים — אחרי אבחון של עצירה (בהמשך העבודה), משפט אחד: מה עושים כשהתקלה הזו חוזרת."""
+    st = load_state()
+    ls = st.get('ls') or {}
+    if not FP_RE.match(str(ls.get('fp') or '')):
+        print('✗ אין עצירה של מגדל הפיקוח בהפעלה הזו — אין למה לרשום תיקון.')
+        return 1
+    t = re.sub(r'\s+', ' ', re.sub(r'[\x00-\x1f\x7f]', ' ', args.text or '')).strip()
+    if len(t) < 4:
+        print('✗ התיקון קצר מדי — משפט אחד: מה עושים כשזה קורה.')
+        return 1
+    Ctx(st).report(fix={'fp': ls['fp'], 't': t[:160]}, force=True)
+    if st.get('fm') == 'auto':
+        print('✓ התיקון נרשם בספר התיקונים. בפעם הבאה שהתקלה תתחיל לחזור, המגדל יזכיר אותו.')
+    else:
+        # v366: מסלול "הצעות לאישור" — בעבודה הזו פועלים לפי התיקון; לעבודות הבאות הוא ייכנס רק אחרי שהמשתמש יאשר
+        print('✓ התיקון נשלח למשתמש כהצעה. בעבודה הזו פעל לפיו; לעבודות הבאות הוא ייכנס רק אחרי שהמשתמש יאשר.')
+    return 0
+
+
 def vt_cmd(args):
     """קיצור לסשן: פקודת vt על הפרויקט של העבודה, עם הסביבה הנכונה (למשל: job.py vt tr-check)."""
     st = load_state()
@@ -840,6 +971,7 @@ def finish(args):
     errs = re.findall(r'שגיאות (\d+)', '\n'.join(vt(ctx, ['tr-check', ctx.name])))
     if (not errs or int(errs[-1]) > 0) and not args.force:
         raise SystemExit('✗ tr-check מצא שגיאות — לתקן ב־tr/fixes_zfinal.txt ולהריץ שוב: grep -A2 "שגיא" ' + str(ctx.pdir / 'tr' / 'check.md'))
+    save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
     vt(ctx, ['build', ctx.name])
     if want:
@@ -869,6 +1001,182 @@ def finish(args):
     return 0
 
 
+# ---------------------------------------------------------------- נקודות שמירה (v361)
+# ארכיון של הפרויקט בלי המדיה (הסרטון, הקול והצריבות כבר ב־Drive או נוצרים מחדש בלי טוקנים) — כמה MB לשעת סרטון
+CK_SKIP_DIRS = {'out', '_dl', 'preview'}
+CK_SKIP_EXT = {'.mp4', '.mkv', '.mov', '.webm', '.m4v', '.ts', '.m4a', '.mp3', '.wav', '.ogg', '.opus', '.flac', '.aac'}
+CK_FILE_MAX = 64 * 1024 * 1024
+CK_TOTAL_MAX = 512 * 1024 * 1024
+CK_INFO = '_snb.json'
+CK_NEXT = {   # מאיזה שלב בעבודה ממשיכים אחרי כל נקודה (השלב בטלפון, ומה הסשן עושה)
+    'asr': ('tr', 'הגהה: קרא את en.edit.txt פעם אחת ותקן ב־en.patch.txt (RUNBOOK סעיף 2, שלב 2), ואז align ברקע.'),
+    'al': ('tl', 'מלא את tr/brief.md ו־tr/glossary.tsv (קרא את en.edit.txt פעם אחת), ואז תרגום ו־save tl (RUNBOOK סעיף 2, שלבים 3–4).'),
+    'tl': ('rv', 'ביקורת (RUNBOOK סעיף 2, שלב 5), ואז finish ברקע.'),
+    'rv': ('bn', 'python3 translator/job.py finish ברקע (RUNBOOK סעיף 2, שלב 6).'),
+}
+
+
+def ck_files(pdir):
+    """הקבצים שנכנסים לנקודת השמירה (נתיבים יחסיים, בסדר קבוע)."""
+    out = []
+    for p in sorted(pdir.rglob('*')):
+        rel = p.relative_to(pdir)
+        if p.is_symlink() or not p.is_file() or rel.parts[0] in CK_SKIP_DIRS or rel.name == CK_INFO:
+            continue
+        # source.* = המקור בשורש הפרויקט (קישור לסרטון) — לא tr/source.md, קובץ התרגום
+        if p.suffix.lower() in CK_SKIP_EXT or (len(rel.parts) == 1 and rel.name.startswith('source.')) or p.stat().st_size > CK_FILE_MAX:
+            continue
+        out.append(rel)
+    return out
+
+
+def ck_pack(pdir, s, info, dest):
+    """tar.gz של הפרויקט + _snb.json (השלב, מאיפה תומלל, ההיסט). בלי מפתח העבודה ובלי גישה ל־Drive — רק תוצרי vt."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    meta = json.dumps(dict(info, v=1, s=s, at=int(time.time())), ensure_ascii=False).encode('utf-8')
+    with tarfile.open(dest, 'w:gz', compresslevel=6) as t:
+        ti = tarfile.TarInfo(CK_INFO)
+        ti.size, ti.mtime = len(meta), int(time.time())
+        t.addfile(ti, io.BytesIO(meta))
+        for rel in ck_files(pdir):
+            t.add(str(pdir / rel), arcname=rel.as_posix(), recursive=False)
+    return dest
+
+
+def ck_unpack(src, dest):
+    """פתיחה בטוחה: רק קבצים ותיקיות רגילים, נתיבים יחסיים בלי .., עד CK_TOTAL_MAX. מחזיר את _snb.json."""
+    with tarfile.open(src, 'r:gz') as t:
+        members, total = [], 0
+        for m in t.getmembers():
+            parts = Path(m.name).parts
+            if m.name.startswith(('/', '\\')) or '..' in parts or not parts or not (m.isfile() or m.isdir()):
+                raise ValueError('נתיב לא תקין בארכיון')
+            total += m.size
+            if total > CK_TOTAL_MAX:
+                raise ValueError('הארכיון גדול מדי')
+            members.append(m)
+        if CK_INFO not in [m.name for m in members]:
+            raise ValueError('חסר ' + CK_INFO)
+        dest.mkdir(parents=True, exist_ok=True)
+        for m in members:
+            out = dest.joinpath(*Path(m.name).parts)
+            if m.isdir():
+                out.mkdir(parents=True, exist_ok=True)
+                continue
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with t.extractfile(m) as f, open(out, 'wb') as w:
+                shutil.copyfileobj(f, w)
+    info = json.loads((dest / CK_INFO).read_text(encoding='utf-8'))
+    (dest / CK_INFO).unlink()
+    if info.get('s') not in CK_STAGES or not (dest / 'project.json').exists():
+        raise ValueError('נקודת שמירה לא שלמה')
+    return info
+
+
+def drive_delete(ctx, fid):
+    """מחיקת קובץ שהעובד העלה (נקודת שמירה ישנה). כשל — לא חשוב (נשאר קובץ קטן בתיקייה)."""
+    req = urllib.request.Request(ctx.api + '/files/' + fid + '?supportsAllDrives=true', method='DELETE',
+                                 headers={'Authorization': 'Bearer ' + ctx.token(), 'User-Agent': UA})
+    try:
+        with _OPEN(req, timeout=30):
+            return True
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return False
+
+
+def save_ck(ctx, s):
+    """נקודת שמירה ב־Drive + דיווח לשרתון. לעולם לא מפילה את העבודה: תקלה = הודעה, וממשיכים בלי."""
+    try:
+        path = VT_WORK / '_ck' / (ctx.name + '.' + s + '.tar.gz')
+        ck_pack(ctx.pdir, s, {'src': ctx.st.get('src') or 'v', 'sync': ctx.st.get('sync') or None}, path)
+        size = path.stat().st_size
+        fid = drive_upload(ctx, path, 'נקודת שמירה — ' + CK_LABEL[s] + '.tar.gz', s, 'application/gzip', prop='snbCk')
+        ctx.report(ck={'s': s, 'id': fid, 'size': size}, force=True)
+        old = (ctx.st.get('ckids') or {}).get(s)
+        if old and old != fid:
+            drive_delete(ctx, old)
+        ctx.st.setdefault('ckids', {})[s] = fid
+        save_state(ctx.st)
+        path.unlink()
+        print('✓ נקודת שמירה: אחרי ' + CK_LABEL[s] + ' (%d KB)' % max(1, round(size / 1024)))
+        return True
+    except Stop:
+        raise
+    except (SystemExit, OSError, ValueError, tarfile.TarError) as e:
+        print('· נקודת השמירה לא נשמרה (' + str(e).strip()[:120] + ') — ממשיכים בלי.')
+        return False
+
+
+@guarded
+def save(args):
+    """שמירה ידנית אחרי התרגום (RUNBOOK: אחרי שהסוכן המתרגם סיים — לפני הביקורת)."""
+    ctx = Ctx(load_state())
+    if args.s not in ('tl', 'rv'):
+        raise SystemExit('✗ שומרים כך רק אחרי התרגום (tl) או הביקורת (rv).')
+    return 0 if save_ck(ctx, args.s) else 1
+
+
+@guarded
+def restore(args):
+    """v361: "המשך" — מורידים את נקודת השמירה האחרונה (ואם היא פגומה — את הקודמת), משחזרים את הפרויקט,
+    מורידים את הסרטון (או את הקול, אם עוד לא צורף) ומקלטים אותו מחדש. בלי טוקנים. בסוף — מה הסשן עושה עכשיו."""
+    ctx = Ctx(load_state())
+    cks = ctx.st.get('ck') or []
+    pd = ctx.pdir
+    info, used = None, None
+    for c in reversed(cks):
+        st_next = CK_NEXT[c['s']][0]
+        ctx.report(st_next, None, 'ממשיכים מנקודת השמירה', force=True)
+        tgz = VT_WORK / '_ck' / ('in.' + c['s'] + '.tar.gz')
+        tmp = pd.with_name(pd.name + '.restore')
+        try:
+            if tgz.exists():
+                tgz.unlink()
+            drive_download(ctx, c['id'], tgz, int(c.get('size') or 0))
+            shutil.rmtree(tmp, ignore_errors=True)
+            info = ck_unpack(tgz, tmp)
+        except (SystemExit, OSError, ValueError, tarfile.TarError) as e:
+            print('· נקודת השמירה של ' + CK_LABEL[c['s']] + ' לא נפתחה (' + str(e).strip()[:100] + ') — מנסים את הקודמת.')
+            shutil.rmtree(tmp, ignore_errors=True)
+            info = None
+            continue
+        shutil.rmtree(pd, ignore_errors=True)
+        tmp.replace(pd)
+        tgz.unlink()
+        used = c['s']
+        break
+    if not info:
+        ctx.st['ck'] = []
+        save_state(ctx.st)
+        ctx.report('tr', 0, 'אין נקודת שמירה תקינה — מתחילים מההתחלה', force=True)
+        print('· אין נקודת שמירה תקינה — מתחילים מההתחלה.')
+        print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py prepare')
+        return 0
+    st_next, todo = CK_NEXT[used]
+    ctx.refresh()
+    files = ctx.st.get('files') or {}
+    kind = 'a' if info.get('src') == 'a' and (files.get('a') or {}).get('id') else 'v'
+    f = files['a'] if kind == 'a' else wait_video(ctx, st_next, 'מחכה שהסרטון יסיים לעלות')
+    src = in_path(ctx, f, kind)
+    ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + ' מ־Drive', force=True)
+    drive_download(ctx, f['id'], src, int(f.get('size') or 0))
+    ensure_env(ctx, st_next)
+    set_source(pd, src)
+    vt(ctx, ['ingest', ctx.name, '--force'])
+    ctx.st['src'] = kind
+    if info.get('sync'):
+        ctx.st['sync'] = info['sync']
+    ctx.st['resumed'] = used
+    save_state(ctx.st)
+    ctx.report(st_next, 1 if used == 'asr' else 0, 'התמליל מוכן — Claude מגיה אותו' if used == 'asr' else 'ממשיכים מאותה נקודה', force=True)
+    print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')
+    qa = ctx.st.get('qa') or {}
+    if qa.get('a') and qa.get('q'):
+        print('תשובה קודמת של המשתמש — "' + str(qa['q']) + '": ' + str(qa['a'].get('t') or ''))
+    print('הצעד הבא: ' + todo)
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='העובד בענן של סטודיו התרגום')
     sub = p.add_subparsers(dest='cmd', required=True)
@@ -883,6 +1191,9 @@ def main(argv=None):
     s.add_argument('st')
     s.add_argument('--p', type=float)
     s.add_argument('--msg')
+    sub.add_parser('restore', help='המשך: שחזור הפרויקט מנקודת השמירה האחרונה')
+    sv = sub.add_parser('save', help='נקודת שמירה אחרי התרגום (tl) / הביקורת (rv)')
+    sv.add_argument('s')
     f = sub.add_parser('finish', help='בדיקה, בנייה, צריבה והעלאת התוצרים')
     f.add_argument('--force', action='store_true', help=argparse.SUPPRESS)
     q = sub.add_parser('ask', help='שאלה קצרה למשתמש (בטלפון), עם תשובות מוכנות וברירת מחדל')
@@ -893,11 +1204,14 @@ def main(argv=None):
     e = sub.add_parser('fail', help='סימון העבודה כ"נכשלה"')
     e.add_argument('--err', default='worker')
     e.add_argument('--msg')
+    x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
+    x.add_argument('--text', required=True)
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
     a = p.parse_args(argv)
     if a.cmd != 'run':
-        return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd}[a.cmd](a)
+        return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
+                'save': save, 'restore': restore, 'fix': fix}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1

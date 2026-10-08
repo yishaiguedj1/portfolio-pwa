@@ -7,6 +7,7 @@
      drive → גישה זמנית ל־Drive (שעה) להעלאה מהטלפון
      gdConfig (בלי התחברות) · gdConnect · gdStatus · gdToken · gdDisconnect → חיבור Drive של הסטודיו (v357: לקוח OAuth נפרד, studioDrive/{uid})
      create { spec } · file { job, which: a|v, id, folder } · start { job } · jobs · job { job } · cancel { job } · remove { job }
+     resume { job } → v361: הפעלה חוזרת של עבודה שנכשלה / בוטלה / נתקעה — העובד ממשיך מנקודת השמירה האחרונה
    מהעובד בענן (שרת לשרת, בלי Origin; מזוהה רק במפתח העבודה):
      claim { job, key } → פרטי העבודה + גישה ל־Drive לשעה · token { job, key } → גישה חדשה · report { job, key, st, p, ... } → התקדמות
    מצב העבודות ב־Firestore (studioJobs/{id}, studioVault/{uid}) דרך חשבון השירות — הטלפון לא קורא משם ישירות.
@@ -16,6 +17,7 @@ const { verifyIdToken, datastoreToken, isAdmin, emails } = require('../lib/gauth
 const vault = require('../lib/vault');
 const gdrive = require('../lib/gdrive').studio;   // v357: לקוח OAuth נפרד לסטודיו — לא רואה את גיבוי הספרייה
 const S = require('../lib/studio');
+const O = require('../lib/studioops');
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
 const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents';
@@ -71,6 +73,25 @@ async function listJobs(deps, uid) {
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
 const readVault = (deps, uid) => readDoc(deps, 'studioVault', uid);
+/* v363: "הרגיל" של המשתמש — דגימה לכל עבודה שהסתיימה (studioStats/{uid}, נפרד מהכספת: ניתוק Claude לא מוחק את ההיסטוריה) */
+/* v365: מגדל הפיקוח 2.0 — אירועים והתראות (lib/studioops.js) ב־studioOps/{uid}. תקלה כאן לעולם לא מפילה את הפעולה עצמה */
+async function raise(deps, uid, evs, j, now, once) {
+  if (!evs || !evs.length) return;
+  try {
+    const d = await readDoc(deps, 'studioOps', uid);
+    const al = O.opsApply(d && d.al, evs, j, now, once);
+    if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
+  } catch (e) {}
+}
+async function closeJobOps(deps, uid, j, now) {
+  try {
+    const d = await readDoc(deps, 'studioOps', uid);
+    const al = d && O.opsCloseJob(d.al, j, now);
+    if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
+  } catch (e) {}
+}
+const readStats = async (deps, uid) => { try { const d = await readDoc(deps, 'studioStats', uid); return d || {}; } catch (e) { return {}; } };
+const readNs = async (deps, uid) => { const d = await readStats(deps, uid); return Array.isArray(d.ns) ? d.ns : []; };
 const patchVault = (deps, uid, o) => patchDoc(deps, 'studioVault', uid, o);
 
 /* ---------- הפעלת ה־Routine ---------- */
@@ -98,11 +119,12 @@ async function fire(deps, v, uid, text) {
 }
 /* מפתח חדש → נשמר לפני ההפעלה (העובד יכול להגיע מהר) → הפעלה → הסשן נשמר; כשל ודאי = חוזרים למצב הקודם */
 const UNSURE = ['routine_down', 'routine_net'];
-async function fireJob(deps, uid, v, job, now) {
+async function fireJob(deps, uid, v, job, now, resume) {
   const key = S.newKey();
   const fh = S.recentFires(v.fh, now);
-  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, updated: now });
+  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, tw: null, updated: now });
   const f = await fire(deps, v, uid, S.fireText(job.id, key));
+  if (job.kind === 'tr') await raise(deps, uid, f.ok ? [{ c: 'routine', k: 'fire', ok: true }, { c: 'routine', k: 'rate', ok: true }] : [O.fireEvent(f.error)].filter(Boolean), job.id, now);
   if (!f.ok && UNSURE.includes(f.error)) {
     // v356: 5xx או תקלת רשת — ייתכן שהסשן כבר נפתח (קרה אצל המשתמש: "לא זמין", והסשן הגיע ונדחה ב־bad_key).
     // לא מבטלים: המפתח נשאר בתוקף והעבודה ממתינה. נלקחה — ממשיכה כרגיל; לא נלקחה בזמן — נכשלת עם השגיאה של Anthropic (effState)
@@ -111,7 +133,8 @@ async function fireJob(deps, uid, v, job, now) {
     return { ok: true, unsure: f.error, detail: f.detail || '' };
   }
   if (!f.ok) {
-    const back = job.kind === 'ping' ? { state: 'failed', err: f.error, ended: now, kh: '' } : { state: 'new', err: f.error, kh: '', fired: job.fired || 0 };
+    // המשך שלא הופעל — חוזרים ל"נכשלה" (עם השגיאה של ההפעלה), לא ל"חדשה"
+    const back = job.kind === 'ping' || resume ? { state: 'failed', err: f.error, ended: now, kh: '' } : { state: 'new', err: f.error, kh: '', fired: job.fired || 0 };
     await patchJob(deps, job.id, Object.assign(back, { ed: f.detail || '', updated: now }));
     if (f.error !== 'routine_net') await patchVault(deps, uid, { tt: now });
     return f;
@@ -139,13 +162,16 @@ async function worker(req, res, body, deps) {
     if (S.FINAL.includes(e.state)) return res.status(200).json({ ok: false, stop: true, state: e.state });
     const driveFor = async () => {
       const t = await gdrive.accessToken(deps, job.uid).catch(() => ({ ok: false, error: 'gd_failed' }));
+      if (job.kind === 'tr') await raise(deps, job.uid, [{ c: 'drive', k: 'auth', ok: !!t.ok }], id, now);   // v365
       return t.ok ? { token: t.token, exp: t.exp } : { error: t.error };
     };
     if (body.op === 'claim') {
       const patch = { updated: now };
       if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; patch.warn = ''; job.state = 'running'; }
       await patchJob(deps, id, patch);
-      return res.status(200).json({ ok: true, job: S.workerJob(job), drive: await driveFor(), now });
+      const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
+      const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
+      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm), drive: await driveFor(), now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     // report
@@ -179,12 +205,50 @@ async function worker(req, res, body, deps) {
     }
     if (body.usage != null) {
       // v359: טוקנים ועלות (בדיווח האחרון). נתון לא תקין נזרק בשקט — לא מפילים בגללו את סוף העבודה
+      // v361: אחרי "המשך" — יחד עם הסשנים הקודמים (use0)
       const use = S.normUsage(body.usage);
-      if (use) up.use = use;
+      if (use) up.use = S.mergeUse(job.use0, use);
+    }
+    if (body.tower != null) {
+      // v362: מגדל הפיקוח — מצב תקין/חריג, ובעצירה הסיבה והמספרים (מגיע יחד עם fail: tower_stop). לא תקין — נזרק בשקט
+      const tw = S.normTower(body.tower);
+      if (tw) up.tw = Object.assign(tw, { at: now });
+    }
+    if (body.ck != null) {
+      // v361: נקודת שמירה — הארכיון חייב להיות בתיקיית העבודה ב־Drive (כמו התוצרים)
+      const ck = S.normCk(body.ck);
+      if (!ck || !job.folder) return res.status(400).json({ ok: false, error: 'ck_bad' });
+      const t = await gdrive.accessToken(deps, job.uid);
+      if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
+      const r = await (deps.fetch || fetch)(DRIVE + ck.id + '?fields=id,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
+      let meta = null; try { meta = await r.json(); } catch (e) {}
+      if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(job.folder))) return res.status(400).json({ ok: false, error: 'ck_bad' });
+      ck.size = Math.floor(Number(meta.size) || ck.size);
+      up.ck = S.addCk(job.ck, ck, now);
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }
     await patchJob(deps, id, up);
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});
+    // v364: ספר התיקונים — עצירה של המגדל נרשמת לפי טביעת האצבע; Claude רושם תיקון (אחרי אבחון בהמשך); המגדל הזכיר תיקון מוכר.
+    // תקלה כאן לא מפילה את הדיווח עצמו
+    if (job.kind === 'tr' && (up.tw && up.tw.lv === 'red' && up.tw.fp || body.fix != null || body.fixUsed != null)) {
+      const stats = await readStats(deps, job.uid);
+      let fb = null;
+      if (up.tw && up.tw.lv === 'red' && up.tw.fp) fb = S.fbStop(stats.fb, up.tw, (job.prog && job.prog.st) || '', now);
+      else if (body.fix != null && body.fix && typeof body.fix === 'object') fb = S.fbFix(stats.fb, String(body.fix.fp || ''), body.fix.t, now, stats.fm);   // v366: הצעה או תיקון — לפי המסלול
+      else if (body.fixUsed != null) fb = S.fbUsed(stats.fb, String(body.fixUsed), now);
+      if (fb) await patchDoc(deps, 'studioStats', job.uid, { fb, updated: now }).catch(() => {});
+    }
+    if (job.kind === 'tr') {
+      // v365: אירועים מהעובד (vt, Drive, רשת) ומהמגדל → התראות; סוף העבודה סוגר את כולן
+      if (up.state === 'done') await closeJobOps(deps, job.uid, id, now);
+      else await raise(deps, job.uid, O.normEvents(body.ev).concat(up.tw ? O.towerEvents(up.tw) : []), id, now);
+    }
+    if (job.kind === 'tr' && up.state === 'done') {
+      // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
+      const smp = S.normSample(job, up.use || job.use, now);
+      if (smp) await patchDoc(deps, 'studioStats', job.uid, { ns: S.addSample(await readNs(deps, job.uid), smp), updated: now }).catch(() => {});
+    }
     return res.status(200).json({ ok: true, stop: false, state: up.state || job.state });
   } catch (err) {
     return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
@@ -218,8 +282,24 @@ async function handler(req, res, deps = {}) {
     if (op === 'status') {
       const v = await readVault(deps, uid);
       const d = await gdrive.driveState(deps, uid).catch(() => ({ configured: gdrive.configured(), connected: false, email: '' }));
+      const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
-        drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(), now });
+        drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
+        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: O.opsView((await readDoc(deps, 'studioOps', uid).catch(() => null) || {}).al, now), now });
+    }
+    if (op === 'fixMode') {
+      // v366: מסלול התיקונים — "הצעות לאישור" (ברירת מחדל) או "עצמאי"
+      if (!S.FIX_MODES.includes(body.mode)) return res.status(400).json({ ok: false, error: 'bad_mode' });
+      await patchDoc(deps, 'studioStats', uid, { fm: body.mode, updated: now });
+      return res.status(200).json({ ok: true, fm: body.mode });
+    }
+    if (op === 'fbDecide') {
+      // v366: החלטה על הצעת תיקון של Claude — לשמור או לא
+      const st = await readStats(deps, uid);
+      const fb = S.fbDecide(st.fb, String(body.fp || ''), body.ok === true, now);
+      if (!fb) return res.status(404).json({ ok: false, error: 'no_proposal', fb: S.fbView(st.fb) });
+      await patchDoc(deps, 'studioStats', uid, { fb, updated: now });
+      return res.status(200).json({ ok: true, fb: S.fbView(fb) });
     }
     if (op === 'connect') {
       const c = S.normRoutine(body.url, body.key);
@@ -262,6 +342,12 @@ async function handler(req, res, deps = {}) {
     }
     if (op === 'jobs') {
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      // v365: עבודה שנתקעה / שאף סשן לא לקח — התראה (פעם אחת לעבודה; הצפייה החוזרת לא מגדילה את המונה)
+      for (const j of all) {
+        const e = S.effState(j, now);
+        if (S.isStale(j, now)) await raise(deps, uid, [{ c: 'claude', k: 'stale' }], j.id, now, true);
+        else if (e.state === 'failed' && e.err === 'no_claim' && j.state === 'queued') await raise(deps, uid, [{ c: 'routine', k: 'no_claim' }], j.id, now, true);
+      }
       return res.status(200).json({ ok: true, jobs: all.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now });
     }
     const job = await mine(body.job);
@@ -308,7 +394,33 @@ async function handler(req, res, deps = {}) {
       await patchJob(deps, job.id, { qa: job.qa, updated: now });
       return res.status(200).json({ ok: true, job: view(job) });
     }
+    if (op === 'resume') {
+      // v361: "המשך מאותה נקודה" — מפתח חדש והפעלה חוזרת של ה־Routine; העובד מוריד את נקודת השמירה האחרונה וממשיך ממנה.
+      // הטוקנים של הסשנים הקודמים נשמרים (use0) ומתווספים לדיווח הבא
+      const why = S.canResume(job, now);
+      if (why) return res.status(409).json({ ok: false, error: why, job: view(job) });
+      const v = await readVault(deps, uid);
+      if (!v || !v.r) return res.status(200).json({ ok: false, error: 'conn_missing' });
+      if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return res.status(429).json({ ok: false, error: 'budget' });
+      const use0 = S.mergeUse(job.use0, job.use);
+      // v364: העצירה של המגדל (אם הייתה) עוברת לסשן הבא — לאבחון ולרישום תיקון; fireJob מאפס את tw
+      const ls = job.tw && job.tw.lv === 'red' && job.tw.fp ? { fp: job.tw.fp, why: job.tw.why || '', st: (job.prog && job.prog.st) || '' } : null;
+      await patchJob(deps, job.id, { use0, ls, ended: 0, updated: now });
+      job.ls = ls;
+      job.use0 = use0;
+      const f = await fireJob(deps, uid, v, job, now, true);
+      const j = await readJob(deps, job.id);
+      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+    }
+    if (op === 'event') {
+      // v365: אירוע מהטלפון (העלאה שנכשלה / נתקעה, Drive מלא) — רק מהקטלוג
+      const evs = O.normEvents(body.ev).filter((e) => e.c === 'phone' || e.c === 'drive');
+      if (!evs.length) return res.status(400).json({ ok: false, error: 'bad_event' });
+      await raise(deps, uid, evs, job.id, now);
+      return res.status(200).json({ ok: true });
+    }
     if (op === 'cancel') {
+      await closeJobOps(deps, uid, job.id, now);
       if (!S.FINAL.includes(st)) {
         await patchJob(deps, job.id, { state: 'cancelled', ended: now, updated: now });
         job.state = 'cancelled'; job.ended = now;
@@ -316,8 +428,9 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'remove') {
-      if (st === 'queued' || st === 'running') return res.status(409).json({ ok: false, error: 'active' });
+      if ((st === 'queued' || st === 'running') && !S.isStale(job, now)) return res.status(409).json({ ok: false, error: 'active' });   // נתקעה — אפשר למחוק
       await delDoc(deps, 'studioJobs', job.id);
+      await closeJobOps(deps, uid, job.id, now);
       return res.status(200).json({ ok: true });
     }
     return res.status(400).json({ ok: false, error: 'bad_op' });

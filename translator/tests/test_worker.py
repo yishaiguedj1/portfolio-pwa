@@ -42,16 +42,21 @@ name = re.sub(r'[^\w\-]+', '-', name.strip().lower(), flags=re.UNICODE).strip('-
 w = pathlib.Path(os.environ['VT_WORK']) / name
 log = pathlib.Path(os.environ['FAKE_LOG'])
 log.open('a').write(' '.join(a) + '\n')
+if os.environ.get('FAKE_FAIL') == cmd:      # v365: פקודה שנכשלת — לאירוע של מגדל הפיקוח
+    print('boom'); sys.exit(3)
 if cmd == 'new':
     w.mkdir(parents=True, exist_ok=True)
     src = a[a.index('--source') + 1]
-    (w / 'meta.json').write_text(json.dumps({'source': src}))
-elif cmd == 'ingest':                       # כמו vt: המקור מ־meta.json, הקישור source.<סיומת>, audio16k.wav
-    src = json.loads((w / 'meta.json').read_text())['source']
+    (w / 'project.json').write_text(json.dumps({'name': name, 'source': src}))
+elif cmd == 'ingest':                       # כמו vt: המקור מ־project.json (v361: לא meta.json), הקישור source.<סיומת>, audio16k.wav
+    src = json.loads((w / 'project.json').read_text())['source']
     if not list(w.glob('source.*')) or '--force' in a:
         os.link(src, w / ('source' + pathlib.Path(src).suffix))
     (w / 'src_size').write_text(str(os.path.getsize(src)))
     (w / 'audio16k.wav').write_text('wav:' + src)
+elif cmd == 'tr-prep':
+    (w / 'tr').mkdir(exist_ok=True)
+    (w / 'tr' / 'source.md').write_text('# source')
 elif cmd == 'asr':
     print('תמלול 50%'); print('תמלול 100%')
     (w / 'asr').mkdir(exist_ok=True)
@@ -79,6 +84,11 @@ class Fake:
                                                          'mode': 'opus-medium', 'out': ['compact'], 'dur': 4620}, 0
         self.claims, self.cut_once, self.upload_drop, self.audio = 0, True, True, True
         self.qa, self.answer, self.answer_after, self.ask_polls, self.ask_limit = None, None, 1, 0, False
+        self.ck, self.corrupt, self.deleted = [], set(), []          # v361: נקודות שמירה (מה שהשרתון מחזיר בלקיחה)
+        self.stop_all = False                                         # v362: העבודה בוטלה — כל קריאה מקבלת "עצור"
+        self.nm = None                                                # v363: "הרגיל" של המשתמש (מהשרתון בלקיחה)
+        self.fb, self.ls = [], None                                   # v364: ספר התיקונים והעצירה שלפני ההמשך
+        self.fm = None                                                # v366: מסלול התיקונים (בלי — כמו שרתון ישן)
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -108,6 +118,8 @@ class Fake:
                 if body.get('job') != JOB or body.get('key') != KEY:
                     return self._send(403, {'ok': False, 'error': 'bad_key', 'stop': True})
                 op = body.get('op')
+                if fake.stop_all:
+                    return self._send(200, {'ok': False, 'stop': True, 'state': 'cancelled'})
                 if op == 'claim':
                     fake.claims += 1
                     if fake.qa and fake.qa['a'] is None and fake.answer is not None:
@@ -118,7 +130,8 @@ class Fake:
                     if fake.claims > fake.video_after:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
-                                                                  'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa},
+                                                                  'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
+                                                                  'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm},
                                             'drive': {'token': TOKEN}})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
@@ -150,7 +163,15 @@ class Fake:
                         self.connection.close()
                         return
                     return self._send(206 if rng else 200, raw=chunk)
+                fid = self.path.split('/files/')[-1].split('?')[0]
+                up = next((u for u in fake.uploads.values() if u.get('id') == fid), None)
+                if up and 'alt=media' in self.path:                # נקודת שמירה שהועלתה קודם
+                    return self._send(200, raw=b'x' * len(up['data']) if fid in fake.corrupt else up['data'])   # פגום, באותו גודל
                 return self._send(404)
+
+            def do_DELETE(self):
+                fake.deleted.append(self.path.split('/files/')[-1].split('?')[0])
+                return self._send(204, raw=b'')
 
             def do_PUT(self):
                 uid = self.path.rsplit('/', 1)[-1]
@@ -244,7 +265,7 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('finish', env={'FAKE_ERRS': '2'})
         self.assertEqual(code, 1, out)
         self.assertIn('tr-check', out)
-        self.assertFalse(self.fake.uploads, 'עם שגיאות — לא מעלים כלום')
+        self.assertFalse([u for u in self.fake.uploads.values() if 'snbOut' in u['meta']['appProperties']], 'עם שגיאות — לא מעלים תוצרים')
 
         code, out = self.job('finish')
         self.assertEqual(code, 0, out)
@@ -252,12 +273,148 @@ class TestWorker(unittest.TestCase):
         self.assertTrue(done.get('done'))
         kinds = sorted(o['k'] for o in done['out'])
         self.assertEqual(kinds, ['compact', 'srt'], 'רק התוצרים שנבחרו + SRT')
-        up = {u['meta']['appProperties']['snbOut']: u for u in self.fake.uploads.values()}
+        up = {u['meta']['appProperties']['snbOut']: u for u in self.fake.uploads.values() if 'snbOut' in u['meta']['appProperties']}
         self.assertEqual(len(up['compact']['data']), 700000, 'העלאה מתחדשת — הקובץ המלא אחרי 308 חלקי')
         self.assertEqual(up['compact']['meta']['parents'], ['FOLDER00001'])
         self.assertEqual(up['compact']['meta']['name'], 'Interview_2026 (עברית).mp4')
         self.assertTrue(any(r.get('st') == 'sv' for r in self.fake.reports))
         self.assertNotIn(KEY, out)
+
+    # ---------------------------------------------------------------- v361: נקודות שמירה והמשך
+    def cks(self):
+        return [r['ck'] for r in self.fake.reports if r.get('ck')]
+
+    def new_container(self):
+        """סשן חדש = מיכל חדש: בלי תיקיית העבודה ובלי קובץ המצב (רק מה שב־Drive ובשרתון)"""
+        import shutil
+        shutil.rmtree(self.tmp / 'work', ignore_errors=True)
+        shutil.rmtree(self.tmp / 'state', ignore_errors=True)
+        (self.tmp / 'vt.log').write_text('')
+        self.fake.ck = [dict(c) for c in {c['s']: c for c in self.cks()}.values()]
+        self.fake.reports.clear()
+
+    def test_checkpoints(self):
+        import io as _io, tarfile as _tar
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        W = self.tmp / 'work' / SLUG
+        (W / 'audio_api.ogg').write_bytes(b'o' * 100)
+        code, out = self.job('align')
+        self.assertEqual(code, 0, out)
+        self.assertIn('נקודת שמירה: אחרי היישור', out)
+        code, out = self.job('save', 'tl')
+        self.assertEqual(code, 0, out)
+        code, out = self.job('save', 'tl')                       # שוב — מחליפה את הקודמת
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.job('save', 'bn')[0], 1, 'רק tl / rv')
+        self.assertEqual(self.job('finish')[0], 0)
+        ck = self.cks()
+        self.assertEqual([c['s'] for c in ck], ['asr', 'al', 'tl', 'tl', 'rv'])
+        self.assertEqual(self.fake.deleted, [ck[2]['id']], 'נקודה ישנה של אותו שלב נמחקת מ־Drive')
+        up = {u['id']: u for u in self.fake.uploads.values() if u.get('id')}
+        al = up[ck[1]['id']]
+        self.assertEqual(al['meta']['appProperties'], {'snbJob': JOB, 'snbCk': 'al'})
+        self.assertEqual(al['meta']['parents'], ['FOLDER00001'])
+        self.assertEqual(al['meta']['name'], 'נקודת שמירה — היישור.tar.gz')
+        self.assertEqual(ck[1]['size'], len(al['data']))
+        with _tar.open(fileobj=_io.BytesIO(al['data']), mode='r:gz') as t:
+            names = sorted(t.getnames())
+            info = json.loads(t.extractfile('_snb.json').read())
+        self.assertIn('project.json', names)
+        self.assertIn('asr/parakeet.json', names)
+        self.assertIn('tr/source.md', names)
+        self.assertFalse([n for n in names if n.startswith(('source.', 'out/')) or n.endswith(('.wav', '.ogg', '.mp4', '.m4a'))], names)
+        self.assertEqual((info['s'], info['src']), ('al', 'v'))
+        self.assertEqual(info['sync']['off'], 0.25)
+        rv = up[ck[-1]['id']]
+        with _tar.open(fileobj=_io.BytesIO(rv['data']), mode='r:gz') as t:
+            self.assertFalse([n for n in t.getnames() if n.startswith('out/')], 'בלי הצריבות')
+
+    def test_resume_from_latest(self):
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        W = self.tmp / 'work' / SLUG
+        before = json.loads((W / 'asr' / 'parakeet.json').read_text())
+        self.new_container()
+        code, out = self.take()
+        self.assertEqual(code, 0, out)
+        self.assertIn('↻ ממשיכים מנקודת שמירה: אחרי היישור', out)
+        self.assertIn('job.py restore', out)
+        self.assertNotIn('job.py prepare', out)
+        code, out = self.job('restore')
+        self.assertEqual(code, 0, out)
+        self.assertIn('הצעד הבא: מלא את tr/brief.md', out)
+        self.assertEqual(json.loads((W / 'asr' / 'parakeet.json').read_text()), before, 'התמלול המוזז חזר כמו שהוא — בלי תמלול מחדש')
+        self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'הסרטון הורד וקולט מחדש')
+        self.assertEqual(json.loads((W / 'project.json').read_text())['source'], str(self.tmp / 'work' / '_in' / (SLUG + '.mp4')))
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
+        self.assertEqual(cmds, ['ingest'], 'בלי asr ובלי align — רק קליטת הסרטון')
+        self.assertTrue(any(r.get('st') == 'tl' and r.get('msg') == 'ממשיכים מאותה נקודה' for r in self.fake.reports))
+        self.assertNotIn(KEY, out)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertTrue(self.fake.reports[-1].get('done'))
+
+    def test_resume_corrupt_falls_back(self):
+        # האחרונה פגומה → הקודמת (אחרי התמלול, מהקול) — ואז align מצרף את הסרטון כרגיל
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.new_container()
+        self.fake.corrupt = {self.fake.ck[-1]['id']}
+        self.assertEqual(self.take()[0], 0)
+        code, out = self.job('restore')
+        self.assertEqual(code, 0, out)
+        self.assertIn('היישור לא נפתחה', out)
+        self.assertIn('הצעד הבא: הגהה', out)
+        W = self.tmp / 'work' / SLUG
+        self.assertEqual(int((W / 'src_size').read_text()), len(AUDIO), 'נקודת התמלול — מהקול')
+        self.assertFalse((W / 'tr').exists())
+        code, out = self.job('align')
+        self.assertEqual(code, 0, out)
+        self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO))
+
+    def test_resume_none_valid(self):
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.new_container()
+        self.fake.corrupt = {c['id'] for c in self.fake.ck}
+        self.assertEqual(self.take()[0], 0)
+        code, out = self.job('restore')
+        self.assertEqual(code, 0, out)
+        self.assertIn('מתחילים מההתחלה', out)
+        self.assertIn('job.py prepare', out)
+        self.assertEqual(self.job('prepare')[0], 0)
+
+    def test_unpack_safe(self):
+        import importlib.util, io as _io, tarfile as _tar
+        spec = importlib.util.spec_from_file_location('jobmod', HERE / 'job.py')
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+
+        def arch(entries):
+            p = self.tmp / ('a%d.tgz' % len(list(self.tmp.glob('a*.tgz'))))
+            with _tar.open(p, 'w:gz') as t:
+                for name, kind in entries:
+                    ti = _tar.TarInfo(name)
+                    if kind == 'link':
+                        ti.type, ti.linkname = _tar.SYMTYPE, '/etc/passwd'
+                        t.addfile(ti)
+                    else:
+                        data = b'{"s": "al"}' if name == '_snb.json' else b'{}'
+                        ti.size = len(data)
+                        t.addfile(ti, _io.BytesIO(data))
+            return p
+        dest = self.tmp / 'out'
+        for bad in ([('_snb.json', 'f'), ('../evil.txt', 'f')], [('_snb.json', 'f'), ('/abs.txt', 'f')],
+                    [('_snb.json', 'f'), ('x', 'link')], [('project.json', 'f')]):
+            with self.assertRaises(ValueError, msg=str(bad)):
+                m.ck_unpack(arch(bad), dest)
+        self.assertFalse((self.tmp / 'evil.txt').exists())
+        info = m.ck_unpack(arch([('_snb.json', 'f'), ('project.json', 'f'), ('asr/x.json', 'f')]), self.tmp / 'ok')
+        self.assertEqual(info['s'], 'al')
+        self.assertFalse((self.tmp / 'ok' / '_snb.json').exists())
 
     def test_waits_for_video(self):
         # v360: הקול כבר ב־Drive — התמלול לא מחכה לסרטון; היישור מחכה לו
@@ -373,6 +530,67 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('ask', '--q', 'עוד שאלה?')
         self.assertEqual(code, 0, out)
         self.assertEqual(out.strip().splitlines()[-1], 'אין תשובה — להחליט לבד')
+
+    def test_norm_saved(self):
+        # v363: "הרגיל" מהשרתון נשמר בקובץ המצב — מגדל הפיקוח קורא אותו משם
+        self.fake.nm = {'ph': 3.2, 'mx': 4.1, 'n': 5}
+        code, out = self.take()
+        self.assertEqual(code, 0, out)
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual(st['nm'], {'ph': 3.2, 'mx': 4.1, 'n': 5})
+        self.fake.nm = 'junk'
+        self.take()
+        self.assertIsNone(json.loads((self.tmp / 'state' / 'job.json').read_text())['nm'], 'לא תקין — בלי')
+
+    def test_fixbook_resume(self):
+        # v364: המשך אחרי עצירה של המגדל — בלי תיקון רשום: מבקשים אבחון ו־fix; עם תיקון: מדפיסים אותו
+        self.fake.ls = {'fp': 'a1b2c3d4e5f6', 'why': 'loop', 'st': 'tl'}
+        code, out = self.take()
+        self.assertEqual(code, 0, out)
+        self.assertIn('נעצרה בפעם הקודמת במגדל הפיקוח', out)
+        self.assertIn('job.py fix --text', out)
+        code, out = self.job('fix', '--text', 'ok')
+        self.assertEqual(code, 1, 'קצר מדי')
+        code, out = self.job('fix', '--text', 'מפצלים\nכתובית ארוכה לשתיים')
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.fake.reports[-1]['fix'], {'fp': 'a1b2c3d4e5f6', 't': 'מפצלים כתובית ארוכה לשתיים'})
+        self.fake.fb = [{'fp': 'a1b2c3d4e5f6', 'why': 'loop', 'st': 'tl', 'fix': 'מפצלים כתובית ארוכה לשתיים'}, {'fp': 'bad', 'why': 'loop', 'fix': 'x'}]
+        code, out = self.take()
+        self.assertIn('«מפצלים כתובית ארוכה לשתיים»', out)
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual([e['fp'] for e in st['fb']], ['a1b2c3d4e5f6'], 'רק רשומות תקינות')
+        self.fake.ls = None
+        self.take()
+        code, out = self.job('fix', '--text', 'משהו ארוך מספיק')
+        self.assertEqual(code, 1, 'בלי עצירה — אין למה לרשום')
+
+    def test_fix_mode(self):
+        # v366: מסלול "הצעות לאישור" (ברירת המחדל) — ההודעה אומרת שהתיקון ממתין למשתמש; "עצמאי" — שהוא נרשם
+        self.fake.ls = {'fp': 'a1b2c3d4e5f6', 'why': 'loop', 'st': 'tl'}
+        self.take()
+        self.assertEqual(json.loads((self.tmp / 'state' / 'job.json').read_text())['fm'], 'suggest', 'בלי מסלול מהשרתון — הצעות')
+        code, out = self.job('fix', '--text', 'מריצים פעם אחת')
+        self.assertEqual(code, 0, out)
+        self.assertIn('כהצעה', out)
+        self.fake.fm = 'auto'
+        self.take()
+        code, out = self.job('fix', '--text', 'מריצים פעם אחת')
+        self.assertIn('נרשם בספר התיקונים', out)
+        self.assertNotIn('כהצעה', out)
+        self.fake.fm = 'evil'
+        self.take()
+        self.assertEqual(json.loads((self.tmp / 'state' / 'job.json').read_text())['fm'], 'suggest', 'לא מוכר — הצעות')
+
+    def test_ops_events(self):
+        # v365: אירועים למגדל הפיקוח — Drive שהתאושש אחרי ניתוק (ok), ו־vt שנכשל (תמלול) — רק סוגים מהקטלוג, בלי טקסט
+        self.fake.audio = False                                        # בלי קול — prepare מוריד את הסרטון (שם הניתוק המדומה)
+        self.take()
+        code, out = self.job('prepare', env={'FAKE_FAIL': 'asr'})
+        self.assertNotEqual(code, 0, out)
+        evs = [e for r in self.fake.reports for e in (r.get('ev') or [])]
+        self.assertIn({'c': 'drive', 'k': 'dl_retry', 'ok': True}, evs, 'ההורדה נקטעה וחזרה — סוגרים את ההתראה')
+        self.assertIn({'c': 'vt', 'k': 'asr', 'ok': False}, evs)
+        self.assertTrue(all(set(e) == {'c', 'k', 'ok'} for e in evs))
 
     def test_lang_unsupported(self):
         self.fake.spec = dict(self.fake.spec, to=['ru'])
