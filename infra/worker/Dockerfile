@@ -37,6 +37,8 @@ RUN python -m venv /opt/vt \
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
 ARG FFMPEG_SHA256
+# הקומיט שממנו נבנתה התמונה — מוצג במסך השרת באפליקציה (הדופק)
+ARG SNB_VERSION=dev
 LABEL org.opencontainers.image.source=https://github.com/yishaiguedj1/portfolio-pwa \
       org.opencontainers.image.description="THE SNOWBALL — העובד של סטודיו התרגום" \
       snb.ffmpeg.sha256=${FFMPEG_SHA256}
@@ -58,7 +60,8 @@ ENV PATH=/opt/vt/bin:/opt/ffmpeg:/usr/local/bin:/usr/bin:/bin \
     VT_PY=/opt/vt/bin/python VT_BIN=/opt/ffmpeg VT_WORK=/work SNB_STATE=/state \
     SNB_SETUP=/bin/false \
     HF_HOME=/cache/hf TORCH_HOME=/cache/torch XDG_CACHE_HOME=/cache/xdg \
-    HF_HUB_DISABLE_TELEMETRY=1 DO_NOT_TRACK=1
+    HF_HUB_DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 \
+    SNB_VERSION=${SNB_VERSION}
 
 USER 10001:10001
 WORKDIR /app

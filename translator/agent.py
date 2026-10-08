@@ -58,18 +58,44 @@ def token() -> str:
     return t
 
 
-def poll(server: str, tok: str) -> dict:
-    """{'job': {'id', 'key', 'kind'}} או {'job': None}. שגיאה → {'error': ...} (הלולאה מחכה ומנסה שוב)."""
+def host_info(busy: str = '') -> dict:
+    """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
+    hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy}
     try:
-        st, j, hd = J.http('POST', server + '/api/studio', {'op': 'poll', 'v': 1},
+        du = shutil.disk_usage(str(J.VT_WORK if J.VT_WORK.exists() else '/'))
+        hb['disk'] = round(100 * du.used / du.total, 1)
+        hb['free'] = round(du.free / 1e9, 1)
+    except OSError:
+        pass
+    try:
+        hb['load'] = round(os.getloadavg()[0], 2)
+    except OSError:
+        pass
+    try:
+        mi = dict(ln.split(':', 1) for ln in Path('/proc/meminfo').read_text().splitlines() if ':' in ln)
+        tot, av = int(mi['MemTotal'].split()[0]), int(mi['MemAvailable'].split()[0])
+        hb['mem'] = round(100 * (tot - av) / tot, 1)
+        hb['up'] = int(float(Path('/proc/uptime').read_text().split()[0]))
+    except (OSError, KeyError, ValueError, ZeroDivisionError):
+        pass
+    return hb
+
+
+def poll(server: str, tok: str, op: str = 'poll', busy: str = '') -> dict:
+    """{'job': {'id', 'key', 'kind'}} או {'job': None}. שגיאה → {'error': ...} (הלולאה מחכה ומנסה שוב).
+    op='beat' — רק דופק (באמצע עבודה), בלי לבקש עבודה."""
+    try:
+        st, j, hd = J.http('POST', server + '/api/studio', {'op': op, 'v': 1, 'hb': host_info(busy)},
                            headers={'Authorization': 'Bearer ' + tok}, timeout=30)
     except (OSError, ValueError) as e:
         return {'error': 'network', 'detail': type(e).__name__}
+    if st == 401:
+        return {'error': 'auth'}          # הטוקן בוטל (השרת הוסר באפליקציה) — מחכים הרבה, לא מציפים
     if st == 200 and j.get('ok'):
         jb = j.get('job')
         if isinstance(jb, dict) and J.JOB_RE.match(str(jb.get('id') or '')) and J.KEY_RE.match(str(jb.get('key') or '')):
             return {'job': {'id': jb['id'], 'key': jb['key'], 'kind': jb.get('kind') or 'tr'}}
-        return {'job': None}
+        return {'job': None, 'paused': j.get('paused') is True}
     return {'error': 'http_' + str(st)}
 
 
@@ -94,9 +120,14 @@ def heartbeat():
         pass
 
 
-def beat_loop():
+_busy = ''
+
+
+def beat_loop(server: str = '', tok: str = ''):
     while not _stop:
         heartbeat()
+        if server and _busy:
+            poll(server, tok, 'beat', _busy)      # באמצע עבודה: מסך השרת יודע שהוא חי ועל מה הוא עובד
         for _ in range(BEAT_S):
             if _stop:
                 return
@@ -136,8 +167,10 @@ def run_child(args: list[str], timeout: int) -> int:
 
 
 def handle(jb: dict, server: str) -> int:
+    global _busy
     J.VT_WORK.mkdir(parents=True, exist_ok=True)
     BUSY.write_text(jb['id'])
+    _busy = jb['id']
     try:
         base = ['run', '--job', jb['id'], '--key', jb['key']]
         if server != J.SERVER:                 # בדיקות בלבד (localhost) — job.py בודק שוב בעצמו
@@ -155,6 +188,7 @@ def handle(jb: dict, server: str) -> int:
                     pass
         return rc
     finally:
+        _busy = ''
         cleanup()
         try:
             BUSY.unlink()
@@ -169,7 +203,7 @@ def main(once: bool = False) -> int:
     cleanup()                                  # שאריות מהפעלה קודמת שנקטעה (כיבוי, עדכון)
     print('✓ הסוכן פעיל — שואל את השרתון אם יש עבודה', flush=True)
     if not once:
-        threading.Thread(target=beat_loop, daemon=True).start()
+        threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
     backoff = POLL_S
     while not _stop:
         r = poll(server, tok)
@@ -181,7 +215,10 @@ def main(once: bool = False) -> int:
             if once:
                 return rc
             continue
-        if r.get('error'):
+        if r.get('error') == 'auth':
+            backoff = MAX_BACKOFF_S
+            print('✗ השרתון לא מכיר את טוקן השרת (בוטל באפליקציה?) — snb-setup עם טוקן חדש', flush=True)
+        elif r.get('error'):
             backoff = min(MAX_BACKOFF_S, backoff * 2)
             print('· השרתון לא זמין (' + r['error'] + ') — עוד ' + str(int(backoff)) + ' שנ׳', flush=True)
         else:

@@ -20,7 +20,7 @@ KEY = 'K' * 40 + '_-9'
 
 class Fake:
     def __init__(self):
-        self.polls, self.reports, self.auth, self.next_job, self.fail = 0, [], [], None, 0
+        self.polls, self.reports, self.auth, self.next_job, self.fail, self.hb = 0, [], [], None, 0, []
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -43,6 +43,7 @@ class Fake:
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
                 if body.get('op') == 'poll':
                     fake.polls += 1
+                    fake.hb.append(body.get('hb'))
                     fake.auth.append(self.headers.get('Authorization'))
                     if fake.fail:
                         fake.fail -= 1
@@ -92,6 +93,10 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.fake.polls, 1)
         self.assertEqual(self.fake.auth, ['Bearer ' + WTOK])
         self.assertNotIn(WTOK, r.stdout + r.stderr, 'הטוקן לא מודפס לעולם')
+        hb = self.fake.hb[0]
+        self.assertEqual(hb['busy'], '')
+        self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up'}, set(), 'בלי שום שדה מעבר למספרים ולגרסה')
 
     def test_runs_job_and_cleans_everything(self):
         work = self.tmp / 'work'
