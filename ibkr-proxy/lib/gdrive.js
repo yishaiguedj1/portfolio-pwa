@@ -94,9 +94,11 @@ function makeDrive(o) {
         return res.status(200).json({ ok: true, connected: !!(rec && rec.rt), email: rec ? rec.email || '' : '' });
       }
       if (body.op === 'gdConnect') {
-        const code = String(body.code || ''), redirect = String(body.redirect || '');
-        if (!code || code.length > 512 || !REDIRECT_RE.test(redirect)) return res.status(400).json({ ok: false, error: 'bad_params' });
-        const t = await tokenCall(deps, { code, client_id: c.id, client_secret: c.secret, redirect_uri: redirect, grant_type: 'authorization_code' });
+        const code = String(body.code || ''), redirect = String(body.redirect || ''), verifier = body.verifier == null ? '' : String(body.verifier);
+        if (!code || code.length > 512 || !REDIRECT_RE.test(redirect) || (verifier && !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))) return res.status(400).json({ ok: false, error: 'bad_params' });
+        // PKCE: הקוד הונפק עם code_challenge — Google מחליף אותו רק עם ה־verifier מהטלפון (קוד שיורט — לא שמיש, גם דרך השרתון).
+        // גרסה ישנה של האפליקציה (בלי PKCE) — עדיין עובדת עד שהיא מתעדכנת
+        const t = await tokenCall(deps, Object.assign({ code, client_id: c.id, client_secret: c.secret, redirect_uri: redirect, grant_type: 'authorization_code' }, verifier ? { code_verifier: verifier } : {}));
         if (t.status !== 200 || !t.j.access_token) return res.status(400).json({ ok: false, error: 'gd_' + String(t.j.error || 'code').slice(0, 24) });
         const scopes = String(t.j.scope || '').split(/\s+/);
         if (!scopes.includes(SCOPE_FILE)) {      // המשתמש הוריד את הסימון של Drive בחלון ההסכמה

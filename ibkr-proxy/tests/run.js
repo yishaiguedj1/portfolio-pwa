@@ -1283,6 +1283,14 @@ function stubFetch(text, status = 200) {
     ok(r.payload.ok && r.payload.email === 'drive.owner@example.com' && !('refresh_token' in r.payload) && sd && !JSON.stringify(sd).includes('SRT-1')
       && vault.open(sd.fields.r.stringValue, 'sdrive|ownerUid0001|r').rt === 'SRT-1' && vault.open(sd.fields.r.stringValue, 'gdrive|ownerUid0001|r') === null
       && JSON.stringify(db.get('driveVault/ownerUid0001')) === lib0, 'סטודיו: חיבור Drive — נשמר מוצפן ב־studioDrive (AAD משלו), בלי לגעת בחיבור של הספרייה ובלי להחזיר את ההרשאה הקבועה');
+    // שלב 4: PKCE — ה־verifier מהטלפון עובר להחלפת הקוד מול Google; verifier לא תקין — נדחה בלי לפנות ל־Google
+    const VER = 'v'.repeat(20) + '-._~' + 'A'.repeat(40);
+    r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: VER });
+    const tkBody = new URLSearchParams(calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).pop().body);
+    ok(r.payload.ok && tkBody.get('code_verifier') === VER && tkBody.get('code') === 'SCODE', 'PKCE: ה־verifier עובר ל־Google בהחלפת הקוד');
+    const nTok = calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length;
+    r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: 'short&bad' });
+    ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
     ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור ולתרגם');
 
