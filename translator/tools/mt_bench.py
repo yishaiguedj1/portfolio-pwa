@@ -11,7 +11,7 @@
 או שלב אחר שלב:
   python3 translator/tools/mt_bench.py prep                      # הורדת הכתוביות + קובץ המקור
   python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high --provider ionstream --zdr
-  python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high --provider deepseek   # דיוק מלא, לייחוס
+  python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high --provider coreweave/fp8 --zdr   # דיוק מלא (fp8), לייחוס
   python3 translator/tools/mt_bench.py run anthropic/claude-opus-5.5 --effort medium
   python3 translator/tools/mt_bench.py check                     # tr-check + תווים זרים לכל מודל
   python3 translator/tools/mt_bench.py judge google/gemini-3.1-pro-preview
@@ -368,7 +368,8 @@ def cmd_sample(a):
 # ושני הקווים של היום (Opus ו־Sonnet) — באותם תנאים בדיוק
 PLAN_RUNS = [
     ('deepseek/deepseek-v4-pro-0813', 'high', 'ionstream', True),
-    ('deepseek/deepseek-v4-pro-0813', 'high', 'deepseek', False),
+    # ייחוס בדיוק המקורי (fp8) אצל ספק שלא שומר נתונים — השרתים של DeepSeek עצמה חסומים בחשבון (מאמנים על הנתונים)
+    ('deepseek/deepseek-v4-pro-0813', 'high', 'coreweave/fp8', True),
     ('anthropic/claude-opus-5.5', 'medium', None, False),
     ('anthropic/claude-sonnet-5.5', 'medium', None, False),
 ]
