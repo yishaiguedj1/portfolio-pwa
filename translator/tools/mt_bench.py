@@ -7,7 +7,8 @@
 
 השלבים:
   python3 translator/tools/mt_bench.py prep                      # הורדת הכתוביות + קובץ המקור
-  python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high
+  python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high --provider ionstream --zdr
+  python3 translator/tools/mt_bench.py run deepseek/deepseek-v4-pro-0813 --effort high --provider deepseek   # דיוק מלא, לייחוס
   python3 translator/tools/mt_bench.py run anthropic/claude-opus-5.5 --effort medium
   python3 translator/tools/mt_bench.py check                     # tr-check + תווים זרים לכל מודל
   python3 translator/tools/mt_bench.py judge google/gemini-3.1-pro-preview
@@ -74,8 +75,10 @@ def work_dir(a) -> Path:
     return d
 
 
-def slug(model: str, effort: str | None) -> str:
+def slug(model: str, effort: str | None, provider: str | None = None) -> str:
     s = re.sub(r'[^A-Za-z0-9._-]+', '_', model)
+    if provider:
+        s += '@' + re.sub(r'[^A-Za-z0-9._-]+', '_', provider)
     return f'{s}__{effort}' if effort else s
 
 
@@ -90,7 +93,8 @@ def http_json(url: str, body: dict | None = None, timeout: int = 900) -> dict:
         return json.loads(r.read().decode())
 
 
-def chat(model: str, messages: list[dict], effort: str | None, fake: bool = False) -> dict:
+def chat(model: str, messages: list[dict], effort: str | None, fake: bool = False,
+         provider: str | None = None, zdr: bool = False) -> dict:
     """קריאה אחת ל־OpenRouter. 429/5xx — עד 4 ניסיונות. מחזיר {text, usage}."""
     if fake:                                 # בדיקה בלי רשת: מחזיר "תרגום" מזויף לכל שורה במקור
         last = messages[-1]['content']
@@ -99,13 +103,21 @@ def chat(model: str, messages: list[dict], effort: str | None, fake: bool = Fals
     body = {'model': model, 'messages': messages, 'temperature': 0.2, 'usage': {'include': True}}
     if effort:
         body['reasoning'] = {'effort': effort}
+    # ספק קבוע = אותו ספק (ואותו כימות) שישמש בייצור; בלי נפילה לספק אחר באמצע המבחן
+    route = {}
+    if provider:
+        route.update({'order': [provider], 'allow_fallbacks': False})
+    if zdr:
+        route.update({'zdr': True, 'data_collection': 'deny'})
+    if route:
+        body['provider'] = route
     for i in range(4):
         try:
             r = http_json(API, body)
             if 'choices' not in r:
                 raise RuntimeError(json.dumps(r)[:500])
             return {'text': r['choices'][0]['message'].get('content') or '', 'usage': r.get('usage', {}),
-                    'finish': r['choices'][0].get('finish_reason')}
+                    'finish': r['choices'][0].get('finish_reason'), 'provider': r.get('provider')}
         except urllib.error.HTTPError as e:
             msg = e.read().decode(errors='replace')[:400]
             if e.code in (401, 402, 403):
@@ -173,7 +185,7 @@ def system_prompt(d: Path) -> str:
 def cmd_run(a):
     d = work_dir(a)
     cues, _, meta = load(d)
-    out = d / 'out' / slug(a.model, a.effort)
+    out = d / 'out' / slug(a.model, a.effort, a.provider)
     out.mkdir(parents=True, exist_ok=True)
     msgs = [{'role': 'system', 'content': system_prompt(d)}]
     usage, t0 = [], time.time()
@@ -182,14 +194,16 @@ def cmd_run(a):
         ask = f'תרגם את חלק {k}/{meta["parts"]} מהמקור — כל הכתוביות שבו, בפורמט `#מספר טקסט`.'
         msgs.append({'role': 'user', 'content': ask})
         print(f'{a.model}: חלק {k}/{meta["parts"]}…', flush=True)
-        r = chat(a.model, msgs, a.effort, a.fake)
+        r = chat(a.model, msgs, a.effort, a.fake, a.provider, a.zdr)
         text = r['text']
         if a.fake:
             ids = [c['id'] for c in by_part[k - 1]] if k - 1 < len(by_part) else []
             text = '\n'.join(f'#{i} תרגום בדיקה {i}' for i in ids)
         (out / f'batch_{k:03d}.he.txt').write_text(text, encoding='utf-8')
         msgs.append({'role': 'assistant', 'content': text})
-        usage.append({'part': k, 'usage': r.get('usage', {}), 'finish': r.get('finish')})
+        usage.append({'part': k, 'usage': r.get('usage', {}), 'finish': r.get('finish'), 'provider': r.get('provider')})
+        if r.get('finish') not in (None, 'stop'):
+            print(f"  אזהרה: הסתיים ב־{r.get('finish')} (אולי נחתך)", flush=True)
     (out / 'usage.json').write_text(json.dumps({'model': a.model, 'effort': a.effort, 'sec': round(time.time() - t0),
                                                 'calls': usage}, indent=1), encoding='utf-8')
     he = {}
@@ -354,6 +368,8 @@ def main():
     r = sp.add_parser('run')
     r.add_argument('model')
     r.add_argument('--effort', choices=['low', 'medium', 'high'], default=None)
+    r.add_argument('--provider', help='ספק קבוע ב־OpenRouter (למשל ionstream, deepinfra, deepseek)')
+    r.add_argument('--zdr', action='store_true', help='רק ספקים שלא שומרים נתונים')
     sp.add_parser('check')
     j = sp.add_parser('judge')
     j.add_argument('model')
