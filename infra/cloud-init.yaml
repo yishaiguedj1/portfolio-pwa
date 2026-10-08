@@ -213,7 +213,7 @@ write_files:
       }
       AK=$(ask_secret "מפתח ה־API של Anthropic (מתחיל ב־sk-ant-; לא יוצג):")
       case "$AK" in sk-ant-*) ;; *) echo "✗ זה לא נראה כמו מפתח של Anthropic"; exit 1 ;; esac
-      WT=$(ask_secret "טוקן השרת (מהאפליקציה: סטודיו ← הגדרות ← השרת שלי; לא יוצג):")
+      WT=$(ask_secret "טוקן השרת (מהאפליקציה: סטודיו ← הגדרות ← השרת ← הוספת שרת; לא יוצג):")
       printf '%s' "$WT" | grep -Eq '^[A-Za-z0-9_-]{32,128}$' || { echo "✗ טוקן השרת לא בצורה הנכונה"; exit 1; }
       printf '%s\n> ' "כתובת דופק לניטור (למשל healthchecks.io) — אופציונלי, Enter כדי לדלג:"
       IFS= read -r HB
