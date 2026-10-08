@@ -74,6 +74,24 @@ class TestRules(unittest.TestCase):
         self.assertEqual(self.a(3.0, 0.5, chg=now - 25 * 60, then=2.0)[0], 'ok', 'תקוע אבל כמעט בלי צריכה (למשל מחכה לתשובה)')
         self.assertEqual(self.a(3.0, 0.5, chg=now - 10 * 60, then=0.0)[0], 'ok', 'פחות מ־20 דקות')
 
+    def test_learned_norm(self):
+        # v363: "הרגיל" שנלמד מהעבודות של המשתמש
+        self.assertIsNone(T.valid_norm({'ph': 3, 'mx': 4, 'n': 2}), 'פחות מ־3 עבודות — המדידות שלנו')
+        self.assertIsNone(T.valid_norm({'ph': 0, 'mx': 4, 'n': 5}))
+        self.assertIsNone(T.valid_norm({'ph': 'x', 'n': 5}))
+        self.assertIsNone(T.valid_norm('junk'))
+        nm = {'ph': 4.0, 'mx': 6.0, 'n': 5}
+        self.assertAlmostEqual(T.expected_usd({'dur': 3600, 'mode': 'opus-max'}, nm), 4.0, msg='החציון שלך, לא הקבוע של המצב')
+        self.assertAlmostEqual(T.expected_usd({'dur': 300}, nm), 4.0 * 600 / 3600, msg='סרטון קצר — כמו 10 דק׳ (כמו בשרתון)')
+        self.assertEqual(T.thresholds(None), (4.0, 5.0))
+        self.assertEqual(T.thresholds(nm), (4.0, 5.0), 'הכבדה ביותר פי 1.5 — הסף נשאר פי 4')
+        self.assertEqual(T.thresholds({'ph': 4.0, 'mx': 12.0, 'n': 3}), (6.0, 7.5), 'עבודה פי 3 כבר קרתה — אדום רק מפי 6, ורשת הביטחון מעליו')
+        # עבודה כבדה כמו הכבדה ביותר שהייתה — לא נעצרת; כפולה ממנה — כן
+        exp = T.expected_usd({'dur': 3600}, {'ph': 4.0, 'mx': 12.0, 'n': 3})
+        red_x, cap_x = T.thresholds({'ph': 4.0, 'mx': 12.0, 'n': 3})
+        self.assertNotEqual(T.assess(0, 12.0, exp, 1.0, [], [], None, None, red_x, cap_x)[0], 'red')
+        self.assertEqual(T.assess(0, 25.0, exp, 1.0, [], [], None, None, red_x, cap_x)[:2], ('red', 'cost'))
+
     def test_fingerprint(self):
         a = T.fingerprint('✗ tr-check: כתובית 412 ארוכה מ־42 תווים /root/vt-work/x/tr/check.md')
         b = T.fingerprint('✗ tr-check: כתובית 413 ארוכה מ־42 תווים /root/vt-work/y/tr/check.md\nעוד שורה')
@@ -203,6 +221,23 @@ class TestHook(unittest.TestCase):
         (self.state / 'tower.json').write_text(json.dumps(tw))
         self.spend(50_000)
         self.assertIsNone(self.hook(), 'דגל אדום של הפעלה קודמת לא עוצר את ההמשך')
+
+    def test_learned_norm_hook(self):
+        # v363: אצלך עבודה כזו עולה בדרך כלל 3$ לשעה — 8$ באמצע התרגום = פי 6.3 → עוצרים, והדיווח אומר "לפי 4 העבודות שלך"
+        self.set_job(nm={'ph': 3.0, 'mx': 4.0, 'n': 4})
+        self.spend(400_000)
+        out = self.hook()
+        self.assertIs(out['continue'], False)
+        tw = self.fake.reports[-1]['tower']
+        self.assertEqual((tw['why'], tw['b'], tw['nj']), ('cost', 'u', 4))
+
+    def test_learned_heavy_not_stopped(self):
+        # אותו דבר, אבל כבר הייתה אצלך עבודה פי 5 מהחציון — 8$ הם עוד בטווח (צהוב, בלי לעצור)
+        self.set_job(nm={'ph': 3.0, 'mx': 15.0, 'n': 4})
+        self.spend(400_000)
+        self.assertIsNone(self.hook())
+        tw = [r['tower'] for r in self.fake.reports if r.get('tower')][-1]
+        self.assertEqual((tw['lv'], tw['b']), ('warn', 'u'))
 
     def test_broken_input_allows(self):
         r = subprocess.run(['sh', str(HERE / 'tower-hook.sh')], input='not json', capture_output=True, text=True, timeout=60, env=self.env)

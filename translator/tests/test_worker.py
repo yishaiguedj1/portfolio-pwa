@@ -84,6 +84,7 @@ class Fake:
         self.qa, self.answer, self.answer_after, self.ask_polls, self.ask_limit = None, None, 1, 0, False
         self.ck, self.corrupt, self.deleted = [], set(), []          # v361: נקודות שמירה (מה שהשרתון מחזיר בלקיחה)
         self.stop_all = False                                         # v362: העבודה בוטלה — כל קריאה מקבלת "עצור"
+        self.nm = None                                                # v363: "הרגיל" של המשתמש (מהשרתון בלקיחה)
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -125,7 +126,8 @@ class Fake:
                     if fake.claims > fake.video_after:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
-                                                                  'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck},
+                                                                  'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
+                                                                  'nm': fake.nm},
                                             'drive': {'token': TOKEN}})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
@@ -524,6 +526,17 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('ask', '--q', 'עוד שאלה?')
         self.assertEqual(code, 0, out)
         self.assertEqual(out.strip().splitlines()[-1], 'אין תשובה — להחליט לבד')
+
+    def test_norm_saved(self):
+        # v363: "הרגיל" מהשרתון נשמר בקובץ המצב — מגדל הפיקוח קורא אותו משם
+        self.fake.nm = {'ph': 3.2, 'mx': 4.1, 'n': 5}
+        code, out = self.take()
+        self.assertEqual(code, 0, out)
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual(st['nm'], {'ph': 3.2, 'mx': 4.1, 'n': 5})
+        self.fake.nm = 'junk'
+        self.take()
+        self.assertIsNone(json.loads((self.tmp / 'state' / 'job.json').read_text())['nm'], 'לא תקין — בלי')
 
     def test_lang_unsupported(self):
         self.fake.spec = dict(self.fake.spec, to=['ru'])

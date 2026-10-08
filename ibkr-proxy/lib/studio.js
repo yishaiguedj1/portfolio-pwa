@@ -154,11 +154,48 @@ function normTower(t) {
   if (!t || typeof t !== 'object' || !TW_LV.includes(t.lv)) return null;
   const n = (v, max, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(Math.min(v, max) * 10 ** d) / 10 ** d : 0);
   const out = { lv: t.lv, x: n(t.x, 1000, 1), usd: n(t.usd, 1e5, 2), exp: n(t.exp, 1e5, 2) };
+  if (t.b === 'u') { out.b = 'u'; out.nj = Math.round(n(t.nj, 1000, 0)); }   // v363: "הרגיל" נלמד מהעבודות של המשתמש (nj = כמה)
   if (t.lv === 'red') {
     if (!TW_WHY.includes(t.why)) return null;
     out.why = t.why;
     if (t.n != null) out.n = Math.round(n(t.n, 1000, 0));
     if (t.min != null) out.min = Math.round(n(t.min, 1440, 0));
+  }
+  return out;
+}
+
+/* v363: "הרגיל" נלמד מהעבודות של המשתמש — לכל עבודת תרגום שהסתיימה בהפעלה אחת: המצב, אורך הסרטון והעלות
+   (מחירון ה־API, מהדיווח של העובד). החציון לשעת סרטון, לכל מצב, מ־NORM_MIN עבודות; עד אז — המדידות שלנו (NORM_DEF,
+   **זהה ל־PER_HOUR + FIXED ב־translator/tower.py** — הבדיקה משווה). עבודה שהופעלה שוב (המשך אחרי עצירה/תקלה) לא נכנסת:
+   הסשנים הנוספים מנפחים את העלות, ותקלה לא אמורה ללמד את המגדל ש"זה רגיל". */
+const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
+const NORM_DEF = { 'opus-medium': 6.0, 'opus-high': 8.5, 'opus-max': 13.0, 'sonnet-medium': 3.0, 'sonnet-high': 4.2 };
+const NORM_FIXED = 1.5;
+function normSample(job, use, now) {
+  const sp = job && job.spec;
+  if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
+  if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
+  const u = use.reduce((s, r) => s + (r.usd || 0), 0);
+  if (!(u > 0) || u > 1e4) return null;
+  return { m: sp.mode, d: Math.round(sp.dur), u: Math.round(u * 100) / 100, at: now };
+}
+function addSample(list, s) {
+  return (Array.isArray(list) ? list : []).filter((x) => x && MODES.includes(x.m) && x.d > 0 && x.u > 0).concat(s ? [s] : []).slice(-NORM_KEEP);
+}
+const median = (a) => { const s = a.slice().sort((x, y) => x - y), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+/* לשעת סרטון (אורך מינימלי 10 דק׳ — בסרטון קצר עלות הפתיחה שולטת). ph = החציון, mx = הכבדה ביותר, n = כמה עבודות */
+function learnedNorm(list, mode) {
+  const rates = addSample(list, null).filter((x) => x.m === mode).map((x) => x.u / (Math.max(x.d, NORM_DUR_MIN) / 3600));
+  if (rates.length < NORM_MIN) return null;
+  const r2 = (v) => Math.round(v * 100) / 100;
+  return { ph: r2(median(rates)), mx: r2(Math.max(...rates)), n: rates.length };
+}
+/* לטלפון (מסך "מגדל הפיקוח"): לכל מצב — הנלמד, או ברירת המחדל (d: true) */
+function normsView(list) {
+  const out = {};
+  for (const m of MODES) {
+    const l = learnedNorm(list, m);
+    out[m] = l || { ph: NORM_DEF[m], n: addSample(list, null).filter((x) => x.m === m).length, d: true };
   }
   return out;
 }
@@ -266,8 +303,9 @@ function publicJob(job, now) {
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job) {
-  return { id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
+function workerJob(job, nm) {
+  return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
 }
@@ -297,7 +335,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -327,6 +365,7 @@ module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
+  NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
   CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

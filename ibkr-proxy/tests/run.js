@@ -1539,6 +1539,38 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'remove', idToken: OWNER, job: JT });
     ok(r.payload.ok && !db.has('studioJobs/' + JT), 'סטודיו: מחיקת עבודה שבוטלה');
 
+    // v363: "הרגיל" נלמד מהעבודות של המשתמש — דגימה לכל עבודה שהסתיימה בהפעלה אחת; החציון לשעת סרטון מ־3 עבודות
+    r = await run({ op: 'status', idToken: OWNER });
+    ok(r.payload.norm && r.payload.norm['opus-medium'].d === true && r.payload.norm['opus-medium'].ph === 6 && r.payload.norm['sonnet-high'].ph === 4.2,
+      'סטודיו: בלי היסטוריה — "הרגיל" = המדידות שלנו (לכל מצב)');
+    const nmJob = async (usd) => {
+      const c = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const id = c.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: id, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: id });
+      const k = keyOf(fires[fires.length - 1]);
+      const cl = await wrk({ op: 'claim', job: id, key: k });
+      await wrk({ op: 'report', job: id, key: k, done: true, usage: [{ k: 'main', m: 'claude-opus-5-5', n: 9, i: 10, o: 1000, cr: 0, c5: 0, c1: 0, usd }] });
+      return cl.payload.job;
+    };
+    const w1 = await nmJob(6.42);                                    // 4620 שנ׳ = 1.283 שעות → 5$ לשעה
+    ok(w1.nm === null, 'סטודיו: העובד לא מקבל "רגיל" לפני שיש 3 עבודות במצב הזה');
+    await nmJob(12.83); await nmJob(7.7);                              // 10$ ו־6$ לשעה
+    r = await run({ op: 'status', idToken: OWNER });
+    const NM = r.payload.norm['opus-medium'];
+    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['opus-high'].d === true, 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
+    const sdoc = db.get('studioStats/ownerUid0001');
+    ok(sdoc && !/Ackman|aud1234567890|fold/.test(JSON.stringify(sdoc)), 'סטודיו: ההיסטוריה — רק מצב, אורך ועלות (בלי שמות קבצים)');
+    const w4 = await nmJob(30);
+    ok(w4.nm && w4.nm.ph === 6 && w4.nm.mx === 10 && w4.nm.n === 3, 'סטודיו: העובד מקבל את "הרגיל" שלך למצב של העבודה (בלקיחה)');
+    ok(S.normSample({ kind: 'tr', fires: 2, spec: SPEC }, [{ usd: 5 }], 1) === null && S.normSample({ kind: 'tr', fires: 1, spec: SPEC }, [{ usd: 5 }, { usd: null }], 1) === null
+      && S.normSample({ kind: 'ping', fires: 1, spec: SPEC }, [{ usd: 5 }], 1) === null && S.normSample({ kind: 'tr', fires: 1, spec: Object.assign({}, SPEC, { dur: 0 }) }, [{ usd: 5 }], 1) === null,
+    'סטודיו: לא לומדים מעבודה שהופעלה שוב (המשך), ממודל בלי מחירון, מבדיקת חיבור או בלי אורך');
+    let many = []; for (let i = 0; i < 50; i++) many = S.addSample(many, { m: 'opus-max', d: 600, u: 1 + i, at: i });
+    ok(many.length === 40 && many[0].u === 11 && S.learnedNorm([{ m: 'opus-max', d: 60, u: 1 }, { m: 'opus-max', d: 60, u: 1 }, { m: 'opus-max', d: 60, u: 1 }], 'opus-max').ph === 6,
+      'סטודיו: עד 40 דגימות (האחרונות); סרטון קצר נמדד כ־10 דק׳');
+    ok(S.normTower({ lv: 'ok', x: 1, b: 'u', nj: 3 }).nj === 3 && !('b' in S.normTower({ lv: 'ok', b: 'evil' })), 'סטודיו: מגדל הפיקוח מדווח אם "הרגיל" נלמד מהעבודות שלך');
+
     // הפעלה שאף סשן לא לקח
     r = await run({ op: 'create', idToken: OWNER, spec: SPEC });
     const JS = r.payload.job.id;

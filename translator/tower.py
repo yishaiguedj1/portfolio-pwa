@@ -12,7 +12,8 @@ setup.sh כותב אותו ל־~/.claude/settings.json בבניית תמונת �
   פי 2 מהרגיל = צהוב ("חריג, עוקבים") — בלי לעצור.
 עצירה (דגל אדום): מדווח לשרתון (העבודה "נכשלה" עם הפרטים — הטלפון מציג "עצרנו את העבודה" ו"המשך מאותה נקודה"),
 ומכאן כל פעולה של Claude ושל סוכני־המשנה נחסמת ו־Claude נעצר (continue: false). "הרגיל" = מחירון ה־API של העבודה
-(job.usage) מול הצפוי לפי אורך הסרטון והמצב שנבחר. תקלה במגדל עצמו לא עוצרת שום דבר (כל שגיאה → פעולה מותרת).
+(job.usage) מול הצפוי לפי אורך הסרטון והמצב שנבחר — מ־v363 לפי העבודות הקודמות שלך כשיש לפחות 3 במצב הזה
+(החציון לשעת סרטון; הסף האדום לפחות פי 2 מהכבדה ביותר). תקלה במגדל עצמו לא עוצרת שום דבר (כל שגיאה → פעולה מותרת).
 """
 import hashlib
 import json
@@ -37,6 +38,7 @@ FIXED = 1.5
 # כמה מהטוקנים כל שלב צורך בדרך כלל — "יחסית להתקדמות": עבודה באמצע נמדדת מול חצי מהצפוי
 WEIGHT = (('up', 0.0), ('tr', 0.08), ('al', 0.07), ('tl', 0.55), ('rv', 0.25), ('bn', 0.03), ('sv', 0.02))
 FRAC_MIN = 0.2                  # בתחילת העבודה — לא מודדים מול כמעט־אפס
+NORM_MIN, NORM_DUR_MIN = 3, 600 # "רגיל" נלמד — מ־3 עבודות; סרטון קצר נמדד כ־10 דק׳ (זהה ל־NORM_MIN/NORM_DUR_MIN בשרתון)
 RED_X, WARN_X, CAP_X = 4.0, 2.0, 5.0
 MIN_EXCESS = 3.0                # $ מעל הצפוי — סטייה קטנה בעבודה קטנה לא עוצרת
 LOOP_ERRS, LOOP_CALLS = 6, 10
@@ -45,11 +47,36 @@ POLL_TOOLS = {'BashOutput', 'TaskOutput', 'TaskGet', 'TaskList', 'TodoWrite', 'K
 
 
 # ---------------------------------------------------------------- חישובים (טהורים — נבדקים בנפרד)
-def expected_usd(spec):
-    """כמה עבודה כזו עולה בדרך כלל (בדולרים לפי מחירון ה־API). אורך לא ידוע = שעה."""
+def valid_norm(nm):
+    """"הרגיל" שנלמד מהעבודות של המשתמש (מהשרתון, v363) — או None."""
+    if not isinstance(nm, dict):
+        return None
+    try:
+        ph, mx, n = float(nm.get('ph')), float(nm.get('mx') or 0), int(nm.get('n') or 0)
+    except (TypeError, ValueError):
+        return None
+    if not (0 < ph < 1e4) or n < NORM_MIN:
+        return None
+    return {'ph': ph, 'mx': max(mx, ph), 'n': n}
+
+
+def expected_usd(spec, nm=None):
+    """כמה עבודה כזו עולה בדרך כלל (בדולרים לפי מחירון ה־API). אורך לא ידוע = שעה.
+    v363: כשיש "רגיל" נלמד — החציון של המשתמש לשעת סרטון (כולל הפתיחה; סרטון קצר נמדד כ־10 דק׳, כמו בשרתון)."""
     spec = spec or {}
+    nm = valid_norm(nm)
+    if nm:
+        return nm['ph'] * max(spec.get('dur') or 3600, NORM_DUR_MIN) / 3600.0
     hours = (spec.get('dur') or 3600) / 3600.0
     return FIXED + PER_HOUR.get(spec.get('mode') or 'opus-medium', PER_HOUR['opus-medium']) * hours
+
+
+def thresholds(nm=None):
+    """הספים (פי כמה מהרגיל): אדום = הגבוה מבין פי 4 מהחציון ופי 2 מהעבודה הכבדה ביותר שהייתה (v363) —
+    כך עבודה כבדה שכבר קרתה אצלך לא תיעצר. רשת הביטחון (פי 5 לכל העבודה) תמיד מעל האדום."""
+    nm = valid_norm(nm)
+    red = max(RED_X, 2.0 * nm['mx'] / nm['ph']) if nm else RED_X
+    return red, max(CAP_X, red * 1.25)
 
 
 def progress_frac(st, p):
@@ -70,14 +97,14 @@ def fingerprint(text):
     return hashlib.sha1(t.encode('utf-8', 'replace')).hexdigest()[:12]
 
 
-def assess(now, usd, exp_total, frac, errs, calls, prog_chg, usd_then):
+def assess(now, usd, exp_total, frac, errs, calls, prog_chg, usd_then, red_x=RED_X, cap_x=CAP_X):
     """המצב: ('ok'|'warn'|'red', סיבה, פרטים). errs/calls = [(זמן, טביעה)] · usd_then = הצריכה לפני IDLE_SEC."""
     so_far = exp_total * max(frac, FRAC_MIN)
     x = round(usd / so_far, 1) if so_far > 0 else 0.0
     info = {'x': x, 'usd': round(usd, 2), 'exp': round(so_far, 2)}
-    if usd > CAP_X * exp_total:
+    if usd > cap_x * exp_total:
         return 'red', 'cap', info
-    if x >= RED_X and usd - so_far >= MIN_EXCESS:
+    if x >= red_x and usd - so_far >= MIN_EXCESS:
         return 'red', 'cost', info
     for kind, lst, lim in (('loop', errs, LOOP_ERRS), ('calls', calls, LOOP_CALLS)):
         cnt = {}
@@ -196,9 +223,13 @@ def check(st, tw, now):
     samples = [s for s in tw.get('samples', []) if now - s[0] <= IDLE_SEC + 600] + [[now, round(usd, 4)]]
     tw['samples'] = samples[-200:]
     then = [s[1] for s in samples if now - s[0] >= IDLE_SEC]
-    lv, why, info = assess(now, usd, expected_usd(st.get('spec')), frac, recent_errors(now),
+    nm = valid_norm(st.get('nm'))
+    red_x, cap_x = thresholds(nm)
+    lv, why, info = assess(now, usd, expected_usd(st.get('spec'), nm), frac, recent_errors(now),
                            [(t, k) for t, k in tw.get('calls', [])], prog.get('chg') or prog.get('at'),
-                           then[-1] if then else None)
+                           then[-1] if then else None, red_x, cap_x)
+    if nm:
+        info = dict(info, b='u', nj=nm['n'])     # הטלפון: "לפי N העבודות שלך"
     tw['lv'], tw['info'] = lv, info
     c = J.Client(st['server'], st['job'], st['key'])
     try:
