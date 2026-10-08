@@ -117,6 +117,31 @@ function normUsage(list) {
   return out;
 }
 
+/* שאלה קצרה מהעובד באמצע העבודה (שלב 3, סבב ד׳): מזהה, שאלה, עד 4 תשובות מוכנות, ברירת מחדל וזמן המתנה.
+   הטקסט מגיע מ־Claude ומוצג בטלפון כטקסט (textContent) — כאן רק אורך ותווים. שאלה חדשה מחליפה קודמת */
+const ASK_ID_RE = /^q[a-z0-9]{1,12}$/;
+const ASK_WAIT_MAX = 30 * 60;
+const ASK_MAX = 5;                       // שאלות לעבודה — Claude אמור לשאול לכל היותר 2 (RUNBOOK); מעבר לזה לולאה
+function normAsk(a) {
+  if (!a || typeof a !== 'object' || !ASK_ID_RE.test(String(a.id || ''))) return null;
+  const q = clean(a.q, 300);
+  if (!q) return null;
+  const o = (Array.isArray(a.o) ? a.o : []).slice(0, 12).map((x) => clean(x, 80)).filter(Boolean).slice(0, 4);
+  const d = Number.isInteger(a.d) && a.d >= 0 && a.d < o.length ? a.d : (o.length ? 0 : -1);
+  const w = Math.max(60, Math.min(ASK_WAIT_MAX, Math.round(Number(a.w) || 480)));
+  return { id: a.id, q, o, d, w };
+}
+/* התשובה מהטלפון: אחת מהתשובות המוכנות (i) או טקסט חופשי (t) — רק כשאין תשובות מוכנות */
+function normAnswer(qa, body) {
+  if (!qa || qa.a || String(body.qid || '') !== qa.id) return null;
+  if (qa.o.length) {
+    const i = Number(body.i);
+    return Number.isInteger(i) && i >= 0 && i < qa.o.length ? { i, t: qa.o[i] } : null;
+  }
+  const t = clean(body.t, 200);
+  return t ? { i: -1, t } : null;
+}
+
 /* ---------- מזהים ומפתחות ---------- */
 const newJobId = () => 'j' + crypto.randomBytes(15).toString('base64url');
 const newKey = () => crypto.randomBytes(32).toString('base64url');
@@ -175,11 +200,13 @@ function publicJob(job, now) {
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
     use: Array.isArray(job.use) ? job.use : null,   // v359: טוקנים ועלות
+    qa: job.qa && job.qa.id ? job.qa : null,        // שאלה מ־Claude (והתשובה, אם כבר ענית)
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
 function workerJob(job) {
-  return { id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) } };
+  return { id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
+    qa: job.qa && job.qa.id ? { id: job.qa.id, a: job.qa.a || null } : null };
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
 function applyReport(job, r, now) {
@@ -205,7 +232,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -234,6 +261,6 @@ function fromFields(f) {
 module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

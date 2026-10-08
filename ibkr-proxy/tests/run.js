@@ -1427,6 +1427,41 @@ function stubFetch(text, status = 200) {
     const U = r.payload.job.use;
     ok(Array.isArray(U) && U.length === 4 && U[1].oc === 0.63 && U[1].op === 126000 && U[2].usd === 0.8812 && U[3].usd === null && !('op' in U[0]) && !('evil' in U[0])
       && !JSON.stringify(U).includes('script'), 'סטודיו: עלות — נשמרת בעבודה ומוחזרת לטלפון (שדות מוכרים בלבד, דולרים מעוגלים, מודל בלי מחירון = null)');
+    // שלב 3 סבב ד׳: שאלה קצרה באמצע העבודה — מהעובד לטלפון ובחזרה
+    r = await wrk({ op: 'report', job: JT, key: Kb, ask: { id: 'bad id', q: 'x' } });
+    ok(r.statusCode === 400 && r.payload.error === 'ask_bad', 'סטודיו: שאלה — מזהה לא תקין נדחה');
+    r = await wrk({ op: 'report', job: JT, key: Kb, ask: { id: 'q1', q: 'איך כותבים את שם הדובר?\u0000', o: ['ביל אקמן', 'ביל אקמאן', '', 'x'.repeat(200), 'חמישית'], d: 1, w: 99999 } });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    let QA = r.payload.job.qa;
+    ok(QA && QA.id === 'q1' && QA.o.length === 4 && QA.o[2].length === 80 && QA.o[3] === 'חמישית' && QA.d === 1 && QA.w === 1800 && QA.a === null && !/\u0000/.test(QA.q),
+      'סטודיו: שאלה — נשמרת ומוחזרת לטלפון (עד 4 תשובות, ריקות נזרקות, אורך מוגבל, המתנה עד 30 דק׳)');
+    r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q0', i: 0 });
+    ok(r.statusCode === 400 && r.payload.error === 'bad_answer', 'סטודיו: תשובה לשאלה אחרת — נדחית');
+    r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q1', i: 4 });
+    ok(r.statusCode === 400, 'סטודיו: תשובה מחוץ לרשימה — נדחית');
+    r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q1', i: 1, t: 'משהו אחר' });
+    ok(r.payload.ok && r.payload.job.qa.a.i === 1 && r.payload.job.qa.a.t === 'ביל אקמאן', 'סטודיו: תשובה מהטלפון — התשובה המוכנה שנבחרה (לא טקסט חופשי כשיש תשובות)');
+    r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q1', i: 0 });
+    ok(r.statusCode === 400, 'סטודיו: אי אפשר לענות פעמיים');
+    r = await wrk({ op: 'claim', job: JT, key: Kb });
+    ok(r.payload.job.qa.id === 'q1' && r.payload.job.qa.a.t === 'ביל אקמאן' && !('q' in r.payload.job.qa), 'סטודיו: העובד מקבל את התשובה (בלי לשלוח לו שוב את השאלה)');
+    r = await wrk({ op: 'report', job: JT, key: Kb, ask: { id: 'q2', q: 'מה המגדר של הדובר השני?' } });
+    r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q2', i: 0 });
+    ok(r.statusCode === 400, 'סטודיו: שאלה פתוחה — בלי טקסט אין תשובה');
+    r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q2', t: '  אישה  ' });
+    ok(r.payload.ok && r.payload.job.qa.a.t === 'אישה' && r.payload.job.qa.a.i === -1, 'סטודיו: שאלה פתוחה — טקסט חופשי; שאלה חדשה מחליפה את הקודמת');
+    r = await wrk({ op: 'report', job: JT, key: Kb, ask: { id: 'q3', q: 'לתרגם את שם התוכנית?', o: ['כן', 'לא'], d: 1 } });
+    r = await wrk({ op: 'report', job: JT, key: Kb, askTimeout: 'q2' });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.qa.id === 'q3' && r.payload.job.qa.a === null, 'סטודיו: "לא ענית בזמן" לשאלה ישנה — לא נוגע בשאלה הנוכחית');
+    r = await wrk({ op: 'report', job: JT, key: Kb, askTimeout: 'q3' });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.qa.a && r.payload.job.qa.a.auto === true && r.payload.job.qa.a.t === 'לא', 'סטודיו: לא ענית בזמן — הטלפון רואה שהעבודה המשיכה עם ברירת המחדל');
+    r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q3', i: 0 });
+    ok(r.statusCode === 400, 'סטודיו: אחרי ברירת המחדל — אי אפשר לענות');
+    for (const q of ['q4', 'q5']) await wrk({ op: 'report', job: JT, key: Kb, ask: { id: q, q: 'עוד?' } });
+    r = await wrk({ op: 'report', job: JT, key: Kb, ask: { id: 'q6', q: 'ועוד?' } });
+    ok(r.statusCode === 409 && r.payload.error === 'ask_limit', 'סטודיו: לכל היותר 5 שאלות לעבודה (לולאה לא מציפה את הטלפון)');
     r = await run({ op: 'remove', idToken: OWNER, job: JT });
     ok(r.statusCode === 409 && r.payload.error === 'active', 'סטודיו: אי אפשר למחוק עבודה שרצה — קודם ביטול');
     r = await run({ op: 'cancel', idToken: OWNER, job: JT });

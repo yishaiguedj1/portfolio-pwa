@@ -118,8 +118,22 @@ export function normJob(j) {
       .filter((o) => o && FID_RE.test(String(o.id || '')) && ['compact', 'same', 'mkv', 'srt'].includes(o.k))
       .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
+    qa: normQa(s.qa),      // שאלה מ־Claude באמצע העבודה (והתשובה)
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
+}
+/* שלב 3 סבב ד׳: שאלה מ־Claude באמצע העבודה — אותה בדיקה כמו בשרתון (lib/studio.js normAsk). הטקסט מוצג רק כטקסט */
+export function normQa(q) {
+  if (!q || typeof q !== 'object' || !/^q[a-z0-9]{1,12}$/.test(String(q.id || '')) || typeof q.q !== 'string' || !q.q) return null;
+  const o = (Array.isArray(q.o) ? q.o : []).filter((x) => typeof x === 'string' && x).slice(0, 4).map((x) => x.slice(0, 80));
+  const d = Number.isInteger(q.d) && q.d >= 0 && q.d < o.length ? q.d : -1;
+  const a = q.a && typeof q.a === 'object' ? { i: Number.isInteger(q.a.i) ? q.a.i : -1, t: String(q.a.t || '').slice(0, 200), auto: q.a.auto === true } : null;
+  return { id: q.id, q: q.q.slice(0, 300), o, d, w: num(q.w) || 480, at: num(q.at), a };
+}
+/* יש שאלה פתוחה שמחכה לתשובה (והעבודה עוד רצה) */
+export function qaPending(rec) {
+  const s = rec && rec.srv;
+  return !!(s && s.qa && !s.qa.a && (s.state === 'queued' || s.state === 'running'));
 }
 /* v359: טוקנים ועלות של עבודה — אותה בדיקה כמו בשרתון (lib/studio.js normUsage): עד 6 שורות, מודל claude-…, מספרים בלבד */
 const USE_KINDS = ['main', 'tl', 'rv', 'sub'];
@@ -824,6 +838,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   wifi: '<path d="M4.5 9.5a11 11 0 0 1 15 0M7.5 12.8a6.6 6.6 0 0 1 9 0"/><circle cx="12" cy="16.5" r="1.4" fill="currentColor" stroke="none"/>',
   pause: '<path d="M9 6.5v11M15 6.5v11"/>',
   alert: '<path d="M12 4.5l8.5 15h-17z"/><path d="M12 10v4.2"/><circle cx="12" cy="16.9" r=".9" fill="currentColor" stroke="none"/>',
+  help: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-7l-4 3v-3H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M10 9.6a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.3"/><circle cx="12" cy="14.6" r=".9" fill="currentColor" stroke="none"/>',
   x: '<path d="M7 7l10 10M17 7L7 17"/>',
 };
 function ico(k, cls) {
@@ -1138,7 +1153,7 @@ function pageHome(p) {
       r.append(th, info);
       live(r, () => {             // אחוז ומצב — מתעדכנים במקום
         const run = runs.get(rec.id), ph = jobPhase(rec, run), m = modelFor(rec);
-        const [c, l] = badgeFor(ph);
+        const [c, l] = qaPending(rec) ? ['amber', T('studioBAsk')] : badgeFor(ph);
         bd.className = 'st-badge ' + c; bd.textContent = l;
         const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
         tx.textContent = upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
@@ -1339,6 +1354,54 @@ function pageProject(p) {
   p.append(h('div', 'st-gap'), start, h('div', 'st-gap sm'), del, note(T('studioDraftNote')));
 }
 
+/* שלב 3 סבב ד׳: "Claude שואל" — שאלה קצרה באמצע העבודה. תשובה מוכנה בנגיעה, או טקסט כשאין תשובות מוכנות.
+   לא ענית עד הזמן שכתוב — העבודה ממשיכה עם ברירת המחדל (העובד מדווח, והכרטיס מתחלף לשורה אחת) */
+let askBusy = false;
+async function sendAnswer(id, qid, ans) {
+  if (askBusy) return;
+  askBusy = true; repaint();
+  try {
+    const j = await net.api('answer', Object.assign({ job: id, qid }, ans));
+    const r = jobRec(id);
+    if (j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
+    if (!j.ok) flashSafe(errText(j.error));
+  } finally { askBusy = false; render('none'); }
+}
+function askCard(rec) {
+  const qa = rec.srv && rec.srv.qa;
+  if (!qa || FINAL.includes(rec.srv.state)) return null;
+  const c = h('div', 'st-ask' + (qa.a ? ' done' : ''));
+  c.dataset.k = 'ask';
+  if (qa.a) {                                   // כבר טופלה — שורה אחת
+    const tx = qa.a.auto ? (qa.d >= 0 ? T('studioAskAuto', { a: qa.a.t }) : T('studioAskAutoFree')) : T('studioAskDone', { a: qa.a.t });
+    c.append(ico('check'), h('span', null, tx));
+    return c;
+  }
+  const head = h('div', 'st-ask-h');
+  head.append(ico('help'), h('b', null, T('studioAskT')));
+  const q = h('p', 'st-ask-q', qa.q); q.dir = 'auto';
+  c.append(head, q);
+  const opts = h('div', 'st-ask-o');
+  if (qa.o.length) {
+    qa.o.forEach((o, i) => {
+      const b = btn('st-btn ' + (i === qa.d ? 'tint' : 'ghost') + ' wide', null, () => sendAnswer(rec.id, qa.id, { i }), 'ask:' + i);
+      const t = h('bdi', null, o); t.dir = 'auto'; b.append(t);
+      b.disabled = askBusy;
+      opts.append(b);
+    });
+  } else {
+    const ta = h('textarea', 'st-in st-ask-in'); ta.rows = 2; ta.maxLength = 200; ta.dir = 'auto'; ta.dataset.k = 'ask:t';
+    ta.setAttribute('aria-label', T('studioAskT'));
+    const send = btn('st-btn wide', T('studioAskSend'), () => { const t = ta.value.trim(); if (t) sendAnswer(rec.id, qa.id, { t }); }, 'ask:send');
+    send.disabled = askBusy;
+    opts.append(ta, send);
+  }
+  c.append(opts);
+  const until = fmtClock((qa.at || Date.now()) + qa.w * 1000);
+  c.append(h('small', 'st-ask-n', qa.d >= 0 ? T('studioAskDefault', { t: until, a: qa.o[qa.d] }) : T('studioAskFree', { t: until })));
+  return c;
+}
+
 /* v359: כרטיס "עלות" בדף העבודה */
 function costLabel(k) {
   switch (k) {
@@ -1408,6 +1471,8 @@ function pageJob(p) {
     big.textContent = hs.big; sub.textContent = hs.sub; sub.hidden = !hs.sub;
   });
   p.append(hero);
+  const ask = askCard(rec);   // שאלה מ־Claude — מעל הכל, כי היא מחכה לך
+  if (ask) p.append(ask);
 
   // מה קורה עכשיו — משפט אחד + דוגמה חיה
   const nowc = h('div', 'st-nowc');
@@ -1432,7 +1497,7 @@ function pageJob(p) {
   });
   // "מוכן" שרק מחכה לעדכון הבא / לחיבור — הראש כבר אומר את זה; בלי כרטיס כפול
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
-  if (!quiet) p.append(nowc);
+  if (!quiet && !qaPending(rec)) p.append(nowc);   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];
   if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
@@ -1711,7 +1776,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : ''); };
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : ''); };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join(); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
