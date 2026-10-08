@@ -103,6 +103,7 @@ async function fire(deps, v, uid, text) {
   if (!conn || !conn.u || !conn.k) return { ok: false, error: 'conn_missing' };
   const ac = typeof AbortController === 'function' ? new AbortController() : null;
   const to = ac ? setTimeout(() => ac.abort(), FIRE_TIMEOUT) : 0;
+  const t0 = Date.now();
   try {
     const r = await (deps.fetch || fetch)(conn.u, { method: 'POST', signal: ac ? ac.signal : undefined,
       headers: { Authorization: 'Bearer ' + conn.k, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
@@ -111,13 +112,14 @@ async function fire(deps, v, uid, text) {
     const hdr = (k) => (r.headers && typeof r.headers.get === 'function' ? r.headers.get(k) : null);
     // התיעוד: הבקשה חוזרת רק אחרי שהסשן נפתח — כל 2xx = Claude נפתח, גם כשמבנה התשובה לא מוכר (ממשק ניסיוני).
     // עד התיקון: מזהה cse_ לא זוהה → "נכשל" והמפתח נמחק, וה־Claude שכבר נפתח נדחה ב־bad_key (קרה אצל המשתמש)
-    if (r.status >= 200 && r.status < 300) return { ok: true, sess: S.fireSession(j) };
+    const fr = { s: r.status, ms: Date.now() - t0 };   // v369: מה Anthropic החזיר ותוך כמה זמן — לאבחון ("Claude לא התחיל")
+    if (r.status >= 200 && r.status < 300) return { ok: true, sess: S.fireSession(j), fr };
     const ra = parseInt(hdr('retry-after') || '', 10);
     return { ok: false, error: S.fireError(r.status, j), retry: Number.isFinite(ra) ? Math.min(ra, 7200) : undefined,
-      detail: S.fireDetail(r.status, j, hdr('request-id')) };   // v356: לאבחון — מוצג בטלפון ("פרטים לתמיכה")
+      detail: S.fireDetail(r.status, j, hdr('request-id')), fr };   // v356: לאבחון — מוצג בטלפון ("פרטים לתמיכה")
   } catch (e) {
     // ייתכן שהבקשה הגיעה — לא מנסים שוב לבד
-    return { ok: false, error: 'routine_net', detail: String((e && e.name) || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30) };
+    return { ok: false, error: 'routine_net', detail: String((e && e.name) || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 30), fr: { s: 0, ms: Date.now() - t0 } };
   } finally { clearTimeout(to); }
 }
 /* מפתח חדש → נשמר לפני ההפעלה (העובד יכול להגיע מהר) → הפעלה → הסשן נשמר; כשל ודאי = חוזרים למצב הקודם */
@@ -125,8 +127,10 @@ const UNSURE = ['routine_down', 'routine_net'];
 async function fireJob(deps, uid, v, job, now, resume) {
   const key = S.newKey();
   const fh = S.recentFires(v.fh, now);
-  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, tw: null, rw: 0, updated: now });
+  // v369: fr = { s: -1 } עד שיש תשובה — אם הפונקציה נקטעת באמצע ההפעלה, הטלפון יודע שלא ידוע מה Anthropic ענה
+  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, tw: null, rw: 0, fr: { s: -1, ms: 0 }, updated: now });
   const f = await fire(deps, v, uid, S.fireText(job.id, key));
+  if (f.fr) await patchJob(deps, job.id, { fr: f.fr }).catch(() => {});
   if (job.kind === 'tr') await raise(deps, uid, f.ok ? [{ c: 'routine', k: 'fire', ok: true }, { c: 'routine', k: 'rate', ok: true }] : [O.fireEvent(f.error)].filter(Boolean), job.id, now);
   if (!f.ok && UNSURE.includes(f.error)) {
     // v356: 5xx או תקלת רשת — ייתכן שהסשן כבר נפתח (קרה אצל המשתמש: "לא זמין", והסשן הגיע ונדחה ב־bad_key).
@@ -405,6 +409,15 @@ async function handler(req, res, deps = {}) {
       if (!mu) return res.status(400).json({ ok: false, error: 'bad_mute' });
       await patchDoc(deps, 'studioOps', uid, { mu, updated: now });
       return res.status(200).json({ ok: true, ops: O.opsView(d.al, now, mu) });
+    }
+    if (op === 'ack') {
+      // v369: "אשר" — ההתראה ידועה לך (נשארת פתוחה ובציון, יורדת מהבאנר בבית)
+      const no = Number(body.no);
+      if (!Number.isInteger(no) || no < 1) return res.status(400).json({ ok: false, error: 'bad_alert' });
+      const d = await readDoc(deps, 'studioOps', uid).catch(() => null) || {};
+      const al = O.opsAck(d.al, no, now);
+      if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
+      return res.status(200).json({ ok: true, ops: O.opsView(al || d.al, now, d.mu) });
     }
     if (op === 'connect') {
       const c = S.normRoutine(body.url, body.key);

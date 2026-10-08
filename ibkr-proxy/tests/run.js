@@ -1667,6 +1667,51 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v369: רשומת התראה (מספר, ציר, אישור), מגמה לשבוע, ותוצאת ההפעלה בעבודה
+    now += 3600e3 + 1;
+    {
+      const O9 = require('../lib/studioops');
+      const JA = 'j' + 'C'.repeat(20);
+      let t0 = 6e12, al = O9.opsApply([], [{ c: 'drive', k: 'dl_retry' }], JA, t0);
+      al = O9.opsApply(al, [{ c: 'routine', k: 'fire' }], JA, t0 + 1);
+      al = O9.opsApply(al, [{ c: 'drive', k: 'dl_retry' }], JA, t0 + 2);
+      ok(al[0].no === 1 && al[1].no === 2 && JSON.stringify(al[0].h.map((x) => x[1])) === '["o","a"]', 'סטודיו: מגדל 2.0 — לכל התראה מספר רץ (ALR) וציר פעילות (נפתחה, קרה שוב)');
+      const ak = O9.opsAck(al, 1, t0 + 3);
+      ok(ak && ak[0].ak === t0 + 3 && ak[0].h.pop()[1] === 'k' && O9.opsAck(ak, 1, t0 + 4) === null && O9.opsAck(ak, 99, t0 + 4) === null, 'סטודיו: "אשר" — פעם אחת, רק להתראה פתוחה שקיימת');
+      let rr8 = O9.opsApply(ak, [{ c: 'drive', k: 'dl_retry', ok: true }], JA, t0 + 5);
+      rr8 = O9.opsApply(rr8, [{ c: 'drive', k: 'dl_retry' }], JA, t0 + 6);
+      ok(rr8[0].ak === 0 && rr8[0].no === 1 && rr8[0].h.slice(-2).map((x) => x[1]).join() === 'x,r', 'סטודיו: נסגרה ונפתחה שוב — אותו מספר, והאישור הקודם מתבטל');
+      const big = O9.opsApply([], Array.from({ length: 6 }, () => ({ c: 'vt', k: 'asr' })), JA, t0);
+      let b2 = big; for (let i = 0; i < 20; i++) b2 = O9.opsApply(b2, [{ c: 'vt', k: 'asr' }], JA, t0 + i + 1);
+      ok(b2[0].h.length === O9.H_MAX, 'סטודיו: הציר שומר רק את האחרונים');
+      const V9 = O9.opsView(rr8, t0 + 7, null);
+      ok(V9.trend.score.length === 7 && V9.trend.avail.length === 7 && V9.trend.mttr.length === 7 && V9.trend.score[6] === V9.score, 'סטודיו: מגמה לשבוע — נקודה לכל יום, האחרונה = עכשיו');
+      ok(V9.open.find((g) => g.c === 'drive').no === 1 && Array.isArray(V9.open[0].h), 'סטודיו: התראה בתצוגה — עם המספר והציר');
+    }
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JFR9 = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JFR9, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    rr = await run({ op: 'start', idToken: OWNER, job: JFR9 });
+    ok(rr.payload.job.fr && rr.payload.job.fr.s === 200 && typeof rr.payload.job.fr.ms === 'number', 'סטודיו: תוצאת ההפעלה נשמרת בעבודה (200 + משך) — לאבחון "Claude לא התחיל"');
+    await wrk({ op: 'claim', job: JFR9, key: keyOf(fires[fires.length - 1]) });
+    await wrk({ op: 'report', job: JFR9, key: keyOf(fires[fires.length - 1]), ev: [{ c: 'vt', k: 'asr' }] });
+    rr = await run({ op: 'status', idToken: OWNER });
+    const al9 = rr.payload.ops.open.find((g) => g.j === JFR9 && g.k === 'asr');
+    ok(al9 && al9.no > 0 && al9.ak === 0, 'סטודיו: התראה חדשה מקבלת מספר');
+    rr = await run({ op: 'ack', idToken: OWNER, no: al9.no });
+    ok(rr.payload.ok && rr.payload.ops.open.find((g) => g.no === al9.no).ak === now, 'סטודיו: op ack — ההתראה מסומנת "אושרה"');
+    await wrk({ op: 'report', job: JFR9, key: keyOf(fires[fires.length - 1]), fail: true, err: 'tl_bad' });
+    now += 61e3; fireMode = 500;
+    rr = await run({ op: 'resume', idToken: OWNER, job: JFR9 });
+    ok(rr.payload.job.fr.s === 500, 'סטודיו: הפעלה שנכשלה — הקוד שחזר נשמר');
+    fireMode = 'ok';
+    rr = await run({ op: 'ack', idToken: OWNER, no: 'x' });
+    ok(rr.statusCode === 400, 'סטודיו: op ack — מספר לא תקין — 400');
+    await run({ op: 'cancel', idToken: OWNER, job: JFR9 });
+    await run({ op: 'remove', idToken: OWNER, job: JFR9 });
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v368: התראות חכמות ושקט — מהבהבת, ציון עדיפות, השתקה עם תפוגה, סיכום 24 שעות, והמשך אוטומטי אחרי תקלה חולפת
     now += 3600e3 + 1;
     {

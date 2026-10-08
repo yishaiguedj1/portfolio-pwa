@@ -123,6 +123,7 @@ export function normJob(j) {
     stale: s.stale === true, fires: num(s.fires),
     tw: normTw(s.tw),      // v362: מגדל הפיקוח
     rw: num(s.rec),        // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
+    fr: s.fr && typeof s.fr.s === 'number' && s.fr.s >= -1 && s.fr.s < 600 ? { s: s.fr.s, ms: num(s.fr.ms) } : null,   // v369: תוצאת ההפעלה האחרונה
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -174,13 +175,22 @@ export function normOps(o) {
   const open = (Array.isArray(o.open) ? o.open : []).filter((a) => a && OPS_COMPONENTS.includes(a.c) && /^[a-z_]{2,12}$/.test(String(a.k || '')) && Number.isInteger(a.s) && a.s >= 1 && a.s <= 4)
     .slice(0, 20).map((a) => ({ id: /^[0-9a-f]{12}$/.test(String(a.id || '')) ? a.id : a.c + a.k + (a.j || ''), c: a.c, k: a.k, s: a.s, j: JOB_RE.test(String(a.j || '')) ? a.j : '',
       n: num(a.n, 1, 1e6) || 1, f: num(a.f, 0, 1e15) || 0, l: num(a.l, 0, 1e15) || 0, rel: num(a.rel, 0, 100) || 0,
-      fl: a.fl === 1, r: num(a.r, 0, 1e4) || 0, nj: num(a.nj, 1, 100) || 1, ps: num(a.ps, 0, 1e9) || 0, m: num(a.m, 0, 1e15) || 0 }));   // v368: מהבהבת, עבודות שנפגעו, ציון עדיפות, מושתקת עד
+      fl: a.fl === 1, r: num(a.r, 0, 1e4) || 0, nj: num(a.nj, 1, 100) || 1, ps: num(a.ps, 0, 1e9) || 0, m: num(a.m, 0, 1e15) || 0,   // v368: מהבהבת, עבודות שנפגעו, ציון עדיפות, מושתקת עד
+      // v369: רשומת התראה — מספר (ALR…), אושרה, ציר פעילות, והתראות נוספות של אותו רכיב באותה עבודה
+      no: Number.isInteger(a.no) && a.no > 0 && a.no < 1e7 ? a.no : 0, ak: num(a.ak, 0, 1e15) || 0,
+      h: (Array.isArray(a.h) ? a.h : []).filter((x) => Array.isArray(x) && typeof x[0] === 'number' && ['o', 'a', 'x', 'r', 'k'].includes(x[1])).slice(-10).map((x) => [x[0], x[1]]),
+      sub: (Array.isArray(a.sub) ? a.sub : []).filter((x) => x && /^[a-z_]{2,12}$/.test(String(x.k || '')) && Number.isInteger(x.s)).slice(0, 10)
+        .map((x) => ({ no: Number.isInteger(x.no) ? x.no : 0, k: x.k, s: Math.min(4, Math.max(1, x.s)), n: num(x.n, 1, 1e6) || 1, l: num(x.l, 0, 1e15) || 0 })) }));
   // v368: סיכום 24 שעות והשתקות בתוקף
   const kind = (x) => x && OPS_COMPONENTS.includes(x.c) && /^[a-z_]{2,12}$/.test(String(x.k || ''));
   const d = o.digest && typeof o.digest === 'object' ? o.digest : {};
   const digest = { hi: num(d.hi, 0, 1e4) || 0, lo: num(d.lo, 0, 1e4) || 0, top: (Array.isArray(d.top) ? d.top : []).filter(kind).slice(0, 5).map((x) => ({ c: x.c, k: x.k, n: num(x.n, 1, 1e6) || 1 })) };
   const mu = (Array.isArray(o.mu) ? o.mu : []).filter(kind).slice(0, 20).map((x) => ({ c: x.c, k: x.k, until: num(x.until, 0, 1e15) || 0 })).filter((x) => x.until);
-  return { score: num(o.score, 0, 100) ?? 100, avail: num(o.avail, 0, 100) ?? 100, mttr: num(o.mttr, 0, 1e6), comp, open, digest, mu };
+  // v369: מגמה לשבוע — 7 נקודות לכל מדד (null = אין נתון באותו יום)
+  const tr = o.trend && typeof o.trend === 'object' ? o.trend : {};
+  const series = (a, hi) => (Array.isArray(a) ? a.slice(-7).map((v) => num(v, 0, hi)) : []);
+  const trend = { score: series(tr.score, 100), avail: series(tr.avail, 100), mttr: series(tr.mttr, 1e6) };
+  return { score: num(o.score, 0, 100) ?? 100, avail: num(o.avail, 0, 100) ?? 100, mttr: num(o.mttr, 0, 1e6), comp, open, digest, mu, trend };
 }
 /* v364: ספר התיקונים (מהשרתון, op status) — התיקון הוא טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד */
 export function normFb(a) {
@@ -471,7 +481,7 @@ function errText(code, extra) {
 let root = null;
 let store = normStore(null);
 let form = null;                  // טופס פרויקט חדש/עריכה — בזיכרון בין הטופס לדף בחירת השפות; נמחק ביציאה לרשימה
-const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null, alOpen: '',
+const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null, alAll: false, alTab: 'd', muPick: 0,
   rl: normRules(null), halt: 0 };   // v367: החוקים שלך ומתג החירום (מהשרתון)
 const scrolls = {};               // מיקום הגלילה של כל דף — "חזור" מחזיר אליו
 
@@ -891,7 +901,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1624,51 +1634,70 @@ function opsAgo(ms) {
   return m < 60 ? T('studioAgoM', { n: m }) : m < 48 * 60 ? T('studioAgoH', { n: Math.round(m / 60) }) : T('studioAgoD', { n: Math.round(m / 1440) });
 }
 const fmtPct1 = (v) => (Math.round(v * 10) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL', { maximumFractionDigits: 1 }) + '%';
+/* v369: מגדל הפיקוח בעיצוב התוכנית — המבנה של ServiceNow (Horizon) עם המראה של הסטודיו.
+   חומרה → צבע: 1 קריטי (אדום), 2 חמור (כתום), 3 קל (צהוב), 4 מידע (כחול) — הפס בצד, הגלולה והנקודות */
+const SEV_CLS = ['', 'c', 'h', 'w', 'i'];
+function sevName(s) {
+  switch (s) {
+    case 1: return T('studioSev1');
+    case 2: return T('studioSev2');
+    case 3: return T('studioSev3');
+    default: return T('studioSev4');
+  }
+}
+const alrNo = (no) => 'ALR' + String(no || 0).padStart(7, '0');
+const pill = (cls, txt) => h('span', 'st-pill ' + cls, txt);
+/* קו מגמה (SVG) — 7 נקודות, null מדולג */
+function spark(vals) {
+  const pts = vals.map((v, i) => [i, v]).filter((x) => x[1] != null);
+  if (pts.length < 2) return null;
+  const ys = pts.map((x) => x[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
+  const X = (i) => (i / 6) * 100, Y = (v) => 19 - ((v - lo) / span) * 15;
+  const d = pts.map((x, k) => (k ? 'L' : 'M') + X(x[0]).toFixed(1) + ' ' + Y(x[1]).toFixed(1)).join(' ');
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 100 22'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'st-spark'); svg.setAttribute('aria-hidden', 'true');
+  const area = document.createElementNS(NS, 'path'); area.setAttribute('class', 'a');
+  area.setAttribute('d', d + ' L' + X(pts[pts.length - 1][0]).toFixed(1) + ' 22 L' + X(pts[0][0]).toFixed(1) + ' 22Z');
+  const line = document.createElementNS(NS, 'path'); line.setAttribute('class', 's'); line.setAttribute('d', d);
+  svg.append(area, line);
+  return svg;
+}
+/* אריח "ציון יחיד": תווית, ערך, שינוי מלפני שבוע (ירוק = לטובה) וקו מגמה */
+function scoreTile(label, value, vals, betterUp, fmt) {
+  const t = h('div', 'st-sc');
+  t.append(h('small', null, label), h('b', null, value));
+  const ok = vals.filter((v) => v != null);
+  if (ok.length >= 2) {
+    const dlt = ok[ok.length - 1] - ok[0];
+    if (Math.abs(dlt) >= 0.05) {
+      const good = betterUp ? dlt > 0 : dlt < 0;
+      t.append(h('span', 'st-trd ' + (good ? 'up' : 'dn'), (dlt > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dlt))));
+    }
+  }
+  const sv = spark(vals); if (sv) t.append(sv);
+  return t;
+}
 function opsSection(o) {
   const out = [];
-  // כרטיס הבריאות
-  const card = h('div', 'st-health');
-  card.dataset.k = 'ops-health';
-  const lvl = o.score >= 95 ? 'g' : o.score >= 70 ? 'a' : 'r';
-  const ring = h('span', 'st-hring ' + lvl);
-  ring.style.setProperty('--v', String(o.score));
-  ring.append(h('b', null, String(Math.round(o.score))));
-  const t = h('span', 'st-l');
-  const word = o.score >= 95 ? T('studioOpsGood') : o.score >= 70 ? T('studioOpsOk') : o.score >= 40 ? T('studioOpsFair') : T('studioOpsBad');
-  t.append(h('b', null, T('studioOpsTitle', { w: word })),
-    h('small', null, !o.open.length ? T('studioOpsNoAlerts') : o.open.length === 1 ? T('studioOpsOneAlert', { a: opsAlert(o.open[0].c, o.open[0].k) }) : T('studioOpsNAlerts', { n: o.open.length })));
-  const top = h('div', 'st-hrow'); top.append(ring, t);
-  const kpi = (k, v) => { const d = h('div', 'st-kpi'); d.append(h('small', null, k), h('b', null, v)); return d; };
-  const kpis = h('div', 'st-kpis');
-  kpis.append(kpi(T('studioOpsAvail'), fmtPct1(o.avail)), kpi(T('studioOpsMttr'), o.mttr == null ? '—' : fmtShort(o.mttr * 60)));   // v368: מספר ההתראות — רק בשורה שמעל (בלי כפילות)
-  card.append(top, kpis);
-  out.push(card);
-  // מפת השירות — לפי סדר השרשרת; רכיב עם התראה פתוחה צבוע לפי החומרה
-  const map = h('div', 'st-smap');
-  map.setAttribute('role', 'list'); map.setAttribute('aria-label', T('studioOpsMap'));
-  OPS_COMPONENTS.forEach((c, i) => {
-    const sv = o.comp[c];
-    const n = h('span', 'st-snode' + (sv ? ' bad s' + Math.min(sv, 3) : ''));
-    n.setAttribute('role', 'listitem');
-    n.append(h('i', 'st-sdot ' + (!sv ? 'g' : sv <= 2 ? 'r' : 'a')), h('bdi', null, opsComp(c)));
-    if (i) map.append(h('span', 'st-sarr', '←'));
-    map.append(n);
-  });
-  out.push(secT(T('studioOpsMap')), map);
-  // v368: דחופות (P1–P2) — כאן ובבית, לפי ציון העדיפות; קלות (P3–P4) — בסיכום 24 שעות; מושתקות — מקופלות
-  const urgent = o.open.filter((a) => a.s <= 2 && !a.m), quiet = o.open.filter((a) => a.s >= 3 && !a.m);
-  if (urgent.length) out.push(secT(T('studioOpsOpenT')), list(...urgent.flatMap(alertRows)));
-  if (o.digest.lo || quiet.length) {
-    const det = h('details', 'st-details st-dig');
-    if (ui.digOpen) det.open = true;
-    det.addEventListener('toggle', () => { ui.digOpen = det.open; });
-    det.append(h('summary', null, T('studioOpsDigestT', { n: o.digest.lo })));
-    if (quiet.length) det.append(list(...quiet.flatMap(alertRows)));
-    // מה שכבר פתוח למעלה לא חוזר כאן — רק סוגים שהיו היום ונסגרו
-    const also = o.digest.top.filter((x) => !quiet.some((a) => a.c === x.c && a.k === x.k));
-    if (also.length) det.append(note(T('studioOpsDigestTop', { l: also.map((x) => opsAlert(x.c, x.k) + ' (' + x.n + ')').join(' · ') })));
-    out.push(det);
+  const t = o.trend || { score: [], avail: [], mttr: [] };
+  const fmt1 = (v) => (Math.round(v * 10) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL', { maximumFractionDigits: 1 });
+  const sc = h('div', 'st-scores');
+  sc.dataset.k = 'ops-scores';
+  sc.append(scoreTile(T('studioTwScore'), String(Math.round(o.score)), t.score, true, (v) => String(Math.round(v))),
+    scoreTile(T('studioTwAvail'), fmtPct1(o.avail), t.avail, true, fmt1),
+    scoreTile(T('studioOpsMttr'), o.mttr == null ? '—' : fmtShort(o.mttr * 60), t.mttr, false, (v) => String(Math.round(v))));
+  out.push(sc);
+  // התראות פתוחות — לפי ציון העדיפות; ארבע ראשונות, "הכל" מרחיב
+  const live = o.open.filter((a) => !a.m);
+  if (live.length) {
+    const head = h('div', 'st-sec-t st-sec-row');
+    head.append(h('span', null, T('studioOpsOpenT')));
+    if (live.length > 4) head.append(btn('st-linkb', ui.alAll ? T('studioTwLess') : T('studioTwAll', { n: live.length }), () => { ui.alAll = !ui.alAll; render('none'); }, 'al-all'));
+    out.push(head, list(...(ui.alAll ? live : live.slice(0, 4)).map(alertRow)));
   }
+  const also = o.digest.top.filter((x) => !live.some((a) => a.c === x.c && a.k === x.k));   // סוגים שהיו היום ונסגרו
+  if (also.length) out.push(note(T('studioOpsDigestTop', { l: also.map((x) => opsAlert(x.c, x.k) + ' (' + x.n + ')').join(' · ') })));
   if (o.mu.length) {
     const det = h('details', 'st-details st-dig');
     if (ui.muOpen) det.open = true;
@@ -1683,41 +1712,36 @@ function opsSection(o) {
   }
   return out;
 }
-/* v368: שורת התראה — נגיעה פותחת את הפרטים (כמו רשומת התראה ב־ServiceNow): מתי נפתחה, כמה עבודות, ציון העדיפות, מהבהבת,
-   ופעולות: לעבודה, השתקה לסוג הזה (שעה / 4 שעות / יום) */
-function alertRows(a) {
-  const rec = a.j ? jobRec(a.j) : null;
-  const open = ui.alOpen === a.id;
-  const r = btn('st-row st-ric', null, () => { ui.alOpen = open ? '' : a.id; render('none'); }, 'al:' + a.id);
-  r.setAttribute('aria-expanded', open ? 'true' : 'false');
-  const l = h('span', 'st-l');
-  const sub = h('small');
-  sub.append((a.n === 1 ? T('studioOpsEvent1') : T('studioOpsEvents', { n: a.n })) + (rec ? ' · ' : ''));
-  if (rec) sub.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
-  sub.append(' · ' + opsAgo(a.l) + (a.rel ? ' · ' + (a.rel === 1 ? T('studioOpsRel1') : T('studioOpsRel', { n: a.rel })) : ''));
-  const b = h('b', null, opsAlert(a.c, a.k));
-  if (a.fl) b.append(' ', h('span', 'st-flap', T('studioOpsFlap')));
-  l.append(b, sub);
-  r.append(h('i', 'st-sdot ' + (a.s <= 2 ? 'r' : a.s === 3 ? 'a' : 'n')), l, h('span', 'st-pri p' + a.s, 'P' + a.s));
-  if (!open) return [r];
-  const x = h('div', 'st-alx');
-  const kv = (k, v) => { const d = h('div', 'st-alkv'); d.append(h('small', null, k), h('b', null, v)); return d; };
-  const g = h('div', 'st-algrid');
-  g.append(kv(T('studioAlOpened'), opsAgo(a.f || a.l)), kv(T('studioAlJobs'), String(a.nj)), kv(T('studioAlScore'), Math.round(a.ps).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL')));
-  x.append(g);
-  if (a.fl) x.append(h('p', 'st-alnote', T('studioOpsFlapS', { n: a.r + 1 })));
-  const acts = h('div', 'st-alacts');   // השתקה בשורה אחת; "לעבודה" בשורה משלו
-  if (a.m) acts.append(h('small', null, T('studioMutedUntil', { t: fmtClock(a.m) })), btn('st-mini ghost', T('studioUnmute'), () => muteKind(a.c, a.k, 0), 'al-um:' + a.id));
-  else {
-    acts.append(h('small', null, T('studioMuteL')));
-    for (const [hh, lbl] of [[1, T('studioMute1')], [4, T('studioMute4')], [24, T('studioMute24')]]) acts.append(btn('st-mini ghost', lbl, () => muteKind(a.c, a.k, hh), 'al-m' + hh + ':' + a.id));
-  }
-  x.append(acts);
-  if (rec) { const ja = h('div', 'st-alacts'); ja.append(btn('st-mini tint', T('studioAlToJob'), () => go('job', rec.id), 'al-job:' + a.id)); x.append(ja); }
-  return [r, x];
+/* מפת השירות — לפי סדר השרשרת; רכיב עם התראה פתוחה מסומן בצבע החומרה */
+function serviceMap(o) {
+  const map = h('div', 'st-smap');
+  map.setAttribute('role', 'list'); map.setAttribute('aria-label', T('studioOpsMap'));
+  OPS_COMPONENTS.forEach((c, i) => {
+    const sv = o.comp[c];
+    const n = h('span', 'st-snode' + (sv ? ' bad s' + Math.min(sv, 3) : ''));
+    n.setAttribute('role', 'listitem');
+    n.append(h('i', 'st-sdot ' + (!sv ? 'g' : sv <= 2 ? 'r' : 'a')), h('bdi', null, opsComp(c)));
+    if (i) map.append(h('span', 'st-sarr', '←'));
+    map.append(n);
+  });
+  return [secT(T('studioOpsMap')), map];
 }
-/* v368: התראות דחופות פתוחות (P1–P2, לא מושתקות) — לפי ציון העדיפות */
-const urgentAlerts = () => (ui.ops ? ui.ops.open.filter((a) => a.s <= 2 && !a.m) : []);
+/* שורת התראה ברשימה: מספר וזמן, "רכיב · מה קרה", גלולת חומרה, ופרטים בשורה אחת. נגיעה → רשומת ההתראה */
+function alertRow(a) {
+  const rec = a.j ? jobRec(a.j) : null;
+  const r = btn('st-alr ' + SEV_CLS[a.s], null, () => { ui.alTab = 'd'; ui.muPick = 0; go('alert', a.no); }, 'al:' + a.no);
+  const tg = h('span', 'st-alr-t');
+  const id = h('span'); id.append(h('bdi', null, alrNo(a.no)), ' · ', h('bdi', null, opsComp(a.c)));   // הרכיב כאן — בכותרת הוא כבר חלק מהשם
+  tg.append(id, h('span', null, opsAgo(a.l)));
+  const b = h('b', null, opsAlert(a.c, a.k));
+  const sub = h('small');
+  if (rec) sub.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')), ' · ');
+  sub.append((a.n === 1 ? T('studioOpsEvent1') : T('studioOpsEvents', { n: a.n })) + (a.fl ? ' · ' + T('studioOpsFlap') : '') + (a.ak ? ' · ' + T('studioAlAcked') : ''));
+  r.append(tg, b, pill(SEV_CLS[a.s], sevName(a.s)), sub);
+  return r;
+}
+/* v368: התראות דחופות פתוחות (P1–P2, לא מושתקות; v369: ולא "אושרו") — לפי ציון העדיפות */
+const urgentAlerts = () => (ui.ops ? ui.ops.open.filter((a) => a.s <= 2 && !a.m && !a.ak) : []);
 function urgentBanner() {
   const u = urgentAlerts();
   if (!u.length) return null;
@@ -1725,6 +1749,115 @@ function urgentBanner() {
   const t = h('span', null, u.length === 1 ? T('studioUrgent1', { a: opsAlert(u[0].c, u[0].k) }) : T('studioUrgentN', { n: u.length }));
   b.append(ico('alert'), t, ico('chev', 'st-chev'));
   return b;
+}
+/* v369: רשומת התראה (מסך 2 בתוכנית) — כרטיס כותרת עם פס חומרה ותוויות, טאבים (פרטים · ציר · קשורות), ובתחתית השתקה ואישור */
+function evName(e) {
+  switch (e) {
+    case 'o': return T('studioEvO');
+    case 'a': return T('studioEvA');
+    case 'x': return T('studioEvX');
+    case 'r': return T('studioEvR');
+    default: return T('studioEvK');
+  }
+}
+function fireTxt(fr) {
+  if (!fr) return '—';
+  if (fr.s === -1) return T('studioAlFireCut');
+  if (fr.s === 0) return T('studioAlFireNone');
+  return ltr(String(fr.s)) + ' · ' + T('studioSecs', { n: (Math.round(fr.ms / 100) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL') });
+}
+let ackBusy = false;
+async function ackAlert(no) {
+  if (ackBusy) return;
+  ackBusy = true; render('none');
+  try {
+    const j = await net.api('ack', { no });
+    const o = j.ok && normOps(j.ops);
+    if (o) { ui.ops = o; save(); }
+    if (!j.ok) flashSafe(errText(j.error));
+  } finally { ackBusy = false; render('none'); }
+}
+function pageAlert(p) {
+  const no = Number(ui.param);
+  const all = ui.ops ? ui.ops.open : [];
+  const a = all.find((x) => x.no === no);
+  p.append(navBar({ back: T('studioTwShort'), title: alrNo(no) }));
+  if (!a) { p.append(h('div', 'st-empty st-empty-sm', T('studioAlGone'))); return; }
+  const rec = a.j ? jobRec(a.j) : null;
+  // כרטיס הכותרת
+  const band = h('div', 'st-band ' + SEV_CLS[a.s]);
+  band.append(h('small', null, T('studioAlKind', { c: opsComp(a.c) })), h('b', null, opsAlert(a.c, a.k)));
+  const pills = h('div', 'st-pills');
+  pills.append(pill(SEV_CLS[a.s] + ' pr', sevName(a.s)));
+  if (a.fl) pills.append(pill('m', T('studioOpsFlap')));
+  pills.append(pill('l', a.ak ? T('studioAlAcked') : T('studioAlOpen')));
+  if (a.m) pills.append(pill('l', T('studioAlMuted')));
+  band.append(pills);
+  p.append(band);
+  // טאבים
+  const rel = a.sub.map((x) => ({ no: x.no, c: a.c, k: x.k, s: x.s, l: x.l, j: a.j }))
+    .concat(all.filter((x) => x.no !== a.no && ((a.j && x.j === a.j) || x.c === a.c)).map((x) => ({ no: x.no, c: x.c, k: x.k, s: x.s, l: x.l, j: x.j })));
+  const tab = ui.alTab || 'd';
+  const seg = h('div', 'st-seg');
+  seg.setAttribute('role', 'tablist');
+  for (const [k, lbl] of [['d', T('studioAlTabD')], ['t', T('studioAlTabT', { n: a.h.length })], ['r', T('studioAlTabR', { n: rel.length })]]) {
+    const b = btn('st-seg-b' + (tab === k ? ' on' : ''), lbl, () => { ui.alTab = k; render('none'); }, 'altab:' + k);
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', tab === k ? 'true' : 'false');
+    seg.append(b);
+  }
+  p.append(seg);
+  if (tab === 'd') {
+    const kv = (k, v) => { const d = h('div'); d.append(h('small', null, k)); const sp = h('span'); sp.append(v); d.append(sp); return d; };
+    const g = h('div', 'st-kvg');
+    g.append(kv(T('studioAlComp'), h('bdi', null, opsComp(a.c))), kv(T('studioAlJobs'), String(a.nj)), kv(T('studioAlTimes'), String(a.n)),
+      kv(T('studioAlScore'), h('bdi', null, Math.round(a.ps).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL'))), kv(T('studioAlOpened'), h('bdi', null, fmtClock(a.f || a.l))));
+    if (a.c === 'routine' && rec && rec.srv) g.append(kv(T('studioAlFire'), fireTxt(rec.srv.fr)));   // v369: מה Anthropic ענה להפעלה
+    const card = h('div', 'st-twcard'); card.append(g);
+    p.append(card);
+    if (a.fl) p.append(note(T('studioOpsFlapS', { n: a.r + 1 })));
+    // תיקון מוכר מספר התיקונים (לעצירה של המגדל) — טקסט בלבד
+    const fp = a.k === 'tw_stop' && rec && rec.srv && rec.srv.tw && rec.srv.tw.fp;
+    const known = fp && ui.fb ? ui.fb.find((e) => e.fp === fp && e.fix) : null;
+    if (known) {
+      const kc = h('div', 'st-twcard st-kb');
+      const fx = h('p', null, known.fix); fx.dir = 'auto';
+      kc.append(h('small', null, T('studioFbKnown')), fx);
+      p.append(kc);
+    }
+    if (rec) p.append(list(rowNav({ tile: tile('film', 'blue'), label: fileTitle(rec.spec.name) || T('studioUntitled'), sub: T('studioAlJob'), onClick: () => go('job', rec.id), k: 'al-job' })));
+  } else if (tab === 't') {
+    const tl = h('div', 'st-twcard st-tl');
+    for (const [t, e] of a.h.slice().reverse()) {
+      const ev = h('div', 'st-ev');
+      const d = h('span', 'st-ev-d ' + (e === 'x' || e === 'k' ? 'g' : e === 'o' || e === 'r' ? SEV_CLS[a.s] : ''));
+      if (e === 'x' || e === 'k') d.append(ico('check'));
+      const x = h('span', 'st-l'); x.append(h('b', null, evName(e)), h('small', null, fmtClock(t)));
+      ev.append(d, x);
+      tl.append(ev);
+    }
+    p.append(tl);
+  } else {
+    p.append(rel.length ? list(...rel.map((x) => {
+      const r = btn('st-row st-ric', null, () => { if (x.no) { ui.alTab = 'd'; go('alert', x.no); } }, 'alrel:' + x.no + x.k);
+      r.append(h('i', 'st-sdot ' + (x.s <= 2 ? 'r' : x.s === 3 ? 'a' : 'n')), rowTxt(opsAlert(x.c, x.k), alrNo(x.no) + ' · ' + opsAgo(x.l)), pill(SEV_CLS[x.s], sevName(x.s)));
+      return r;
+    })) : h('div', 'st-empty st-empty-sm', T('studioAlNoRel')));
+  }
+  // פעולות: השתקה (שעה / 4 שעות / יום) ואישור
+  const bar = h('div', 'st-abar');
+  if (ui.muPick === a.no && !a.m) {
+    const ch = h('div', 'st-mupick');
+    for (const [hh, lbl] of [[1, T('studioMute1')], [4, T('studioMute4')], [24, T('studioMute24')]]) ch.append(btn('st-mini ghost', lbl, () => { ui.muPick = 0; muteKind(a.c, a.k, hh); }, 'al-m' + hh));
+    bar.append(ch);
+  }
+  const row = h('div', 'st-abar-r');
+  row.append(a.m ? btn('st-btn ghost', T('studioUnmute'), () => muteKind(a.c, a.k, 0), 'al-um')
+    : btn('st-btn ghost', T('studioAlMute'), () => { ui.muPick = ui.muPick === a.no ? 0 : a.no; render('none'); }, 'al-mute'));
+  const ack = btn('st-btn', a.ak ? T('studioAlAcked') : T('studioAlAck'), () => ackAlert(a.no), 'al-ack');
+  ack.disabled = !!a.ak || ackBusy || blocked();
+  row.append(ack);
+  bar.append(row);
+  p.append(bar);
 }
 function fbWhy(w) {
   switch (w) {
@@ -1757,10 +1890,26 @@ async function decideFix(fp, ok) {
 const fbStage = (st) => { const c = { tr: 'asr', al: 'al', tl: 'tl', rv: 'rv' }[st]; return c ? ckName(c) : ''; };
 /* v363: מסך "מגדל הפיקוח" — מה קורה עכשיו, "הרגיל" שלך לכל מצב (נלמד מהעבודות שלך), מתי עוצרים, ועצירות אחרונות */
 function pageTower(p) {
-  p.append(navBar({ back: T('studioBack') }), large(T('studioTwT')), h('p', 'st-lede', T('studioTwLede')));
+  // v369: כותרת כמו בתוכנית — היום והתאריך, ומשפט אחד על המצב
+  const nUrg = urgentAlerts().length;
+  const hero = h('div', 'st-twhero');
+  const dt = new Date();
+  hero.append(h('small', null, dt.toLocaleDateString(uiLang() === 'en' ? 'en-US' : 'he-IL', { weekday: 'long' }) + ' · ' + dt.toLocaleDateString(uiLang() === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit' })),
+    h('h1', 'st-large', !ui.ops ? T('studioTwT') : !nUrg ? T('studioTwHello') : nUrg === 1 ? T('studioTwHello1') : T('studioTwHelloN', { n: nUrg })));
+  p.append(navBar({ back: T('studioBack'), title: T('studioTwT') }), hero);
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל
-  if (ui.ops) p.append(...opsSection(ui.ops));   // v365: בריאות הסטודיו, מפת השירות והתראות פתוחות
+  if (ui.ops) p.append(...opsSection(ui.ops));   // v365/v369: ציונים עם מגמה והתראות פתוחות
+  // v369: פעולות מהירות — רק מה שקיים
+  const qa = h('div', 'st-qa');
+  const qbtn = (icon, lbl, fn, k, cls) => { const b = btn('st-qa-b' + (cls ? ' ' + cls : ''), null, fn, k); const i = h('i'); i.append(ico(icon)); b.append(i, h('span', null, lbl)); return b; };
+  qa.append(qbtn('plus', T('studioQaNew'), () => { form = freshForm(null); go('new'); }, 'qa-new'));
+  const resumable = store.jobs.find((r) => canResume(r));
+  if (resumable) qa.append(qbtn('film', T('studioQaResume'), () => go('job', resumable.id), 'qa-resume'));
+  qa.append(qbtn('sliders', T('studioRlT'), () => go('rules'), 'qa-rules'));
+  if (!ui.halt) qa.append(qbtn('power', T('studioQaHalt'), () => askHalt(), 'qa-halt', 'neg'));   // עצורים — "להחזיר" רק בבאנר שלמעלה
+  p.append(secT(T('studioTwQuick')), qa);
+  if (ui.ops) p.append(...serviceMap(ui.ops));
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
     const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
@@ -1774,12 +1923,7 @@ function pageTower(p) {
     const sub = !tw ? T('studioTwWaitRep') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
     return jobRow(rec, sub, tw && tw.lv === 'warn' ? 'orange' : 'green', 'tw:' + rec.id);
   }) : [h('div', 'st-row st-muted', T('studioTwNone'))])));
-  // v367: שליטה (Govern / Secure) — החוקים שלך (שורה עם סיכום; הבחירה בדף משלו) ומתג החירום
-  const kill = btn('st-row st-ric' + (ui.halt ? '' : ' st-danger'), null, () => (ui.halt ? setHalt(false) : askHalt()), 'halt');
-  kill.append(tile('power', ui.halt ? 'green' : 'red'), rowTxt(ui.halt ? T('studioHaltOff') : T('studioHaltOn'), ui.halt ? T('studioHaltOffS') : T('studioHaltOnS')));
-  kill.disabled = blocked() || haltBusy;
-  // כשהסוכנים עצורים — "להחזיר" רק בבאנר שלמעלה (בלי כפתור כפול)
-  p.append(secT(T('studioCtlT')), list(rowNav({ tile: tile('sliders', 'blue'), label: T('studioRlT'), sub: rulesSum(ui.rl), onClick: () => go('rules'), k: 'rules' }), ui.halt ? null : kill));
+  // v369: "שליטה" (החוקים שלך ומתג החירום) — בפעולות המהירות למעלה, בלי שורות כפולות
   // v364: ספר התיקונים — כל תקלה שעצרה עבודה, מה Claude רשם לעשות כשהיא חוזרת, וכמה פעמים זה טופל לבד
   if (ui.fb && ui.fb.length) {
     p.append(secT(T('studioFbT')), list(...ui.fb.slice(0, 8).map((e) => {
@@ -2024,7 +2168,7 @@ function pageJob(p) {
   const toTxt = langsSum(rec.spec.to);
 
   // למעלה: טבעת + "נשארו בערך…" + "יהיה מוכן בסביבות…"
-  const hero = h('div', 'st-hero');
+  const hero = h('div', 'st-twhero');
   const ring = h('span', 'st-ring');
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 64 64'); svg.setAttribute('aria-hidden', 'true');
@@ -2373,7 +2517,8 @@ function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : '') + (recovering(rec) ? 'R' : ''); };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : ''); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join();
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + ui.alOpen;
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0);
+  if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm;
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
   return ui.view + '|' + ui.access;
@@ -2401,6 +2546,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'job') pageJob(p);
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);
+  else if (ui.view === 'alert') pageAlert(p);
   else if (ui.view === 'rules') pageRules(p);
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
@@ -2426,7 +2572,7 @@ function onEnter() {
   if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
   else if (ui.view === 'settings' || ui.view === 'connect') refreshStatus();
   else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
-  else if (ui.view === 'rules') refreshStatus(true);
+  else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
 }
 /* מעקב אחרי עבודה פתוחה: כל 4 שניות כש־Claude עובד, לאט כשמחכים, בכלל לא כשהסתיימה או כשהמסך כבוי */
