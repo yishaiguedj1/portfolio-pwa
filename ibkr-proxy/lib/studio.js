@@ -33,6 +33,12 @@ const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת 
 const MAX_STORED = 100;                     // מעבר לזה — הישנות שהסתיימו נמחקות
 const FIRE_HOUR = 20;                       // הפעלות בשעה למשתמש (ל־Routine מותר 30 — שומרים מרווח לתיקונים ול"הפעל עכשיו")
 const TEST_GAP = 60e3;                      // בדיקת חיבור — לכל היותר פעם בדקה
+/* שלב 3 סבב ה׳: נקודות שמירה — אחרי תמלול (asr), יישור (al), תרגום (tl) וביקורת (rv). כל אחת = ארכיון קטן של הפרויקט
+   בתיקיית העבודה ב־Drive (בלי הסרטון והקול). "המשך" מפעיל את ה־Routine שוב, והעובד ממשיך מהאחרונה — בלי לתמלל ולתרגם מחדש */
+const CK_STAGES = ['asr', 'al', 'tl', 'rv'];
+const CK_MAX_SIZE = 512 * 1024 ** 2;
+const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח שעתיים = הסשן נפל (התרגום מדווח על כל חלק)
+const RESUME_MAX = 10;                      // הפעלות לעבודה אחת (כולל הראשונה) — מעבר לזה משהו חוזר על עצמו
 
 /* ---------- קלט ---------- */
 /* הכתובת והמפתח כמו שהם מודבקים (רווחים, "Bearer " בטעות) — ואז בדיקת צורה קפדנית */
@@ -117,6 +123,42 @@ function normUsage(list) {
   return out;
 }
 
+/* v361: נקודת שמירה מהעובד (האימות מול Drive — בשרתון, כמו התוצרים) */
+function normCk(c) {
+  if (!c || typeof c !== 'object' || !CK_STAGES.includes(c.s) || !FILE_ID_RE.test(String(c.id || ''))) return null;
+  const size = Math.floor(Number(c.size) || 0);
+  if (!(size > 0) || size > CK_MAX_SIZE) return null;
+  return { s: c.s, id: c.id, size };
+}
+/* הרשימה השמורה: אחת לכל שלב (חדשה מחליפה ישנה של אותו שלב), לפי סדר השלבים */
+function addCk(list, ck, now) {
+  const out = (Array.isArray(list) ? list : []).filter((x) => x && CK_STAGES.includes(x.s) && x.s !== ck.s);
+  out.push(Object.assign({}, ck, { at: now }));
+  return out.sort((a, b) => CK_STAGES.indexOf(a.s) - CK_STAGES.indexOf(b.s)).slice(-CK_STAGES.length);
+}
+const lastCk = (list) => (Array.isArray(list) && list.length ? list[list.length - 1] : null);
+/* העבודה "רצה" אבל לא דיווחה שעתיים — הסשן נפל (מיכל שנסגר, תקלה בצד של Claude) */
+const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed) && now - (job.updated || 0) > STALE_MS;
+/* אפשר להמשיך? עבודת תרגום עם קבצים, שנכשלה / בוטלה / נתקעה, ולא הופעלה יותר מדי פעמים */
+function canResume(job, now) {
+  if (!job || job.kind !== 'tr' || !(job.fa || job.fv)) return 'state';
+  const st = effState(job, now).state;
+  if (!(st === 'failed' || st === 'cancelled' || isStale(job, now))) return 'state';
+  if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
+  return '';
+}
+/* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
+function mergeUse(a, b) {
+  const rows = [];
+  for (const r of [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : [])) {
+    const k = rows.find((x) => x.k === r.k && x.m === r.m);
+    if (!k) { rows.push(Object.assign({}, r)); continue; }
+    for (const f of USE_INTS) if (r[f] != null) k[f] = (k[f] || 0) + r[f];
+    for (const f of USE_USD) if (f in r) k[f] = k[f] === null || r[f] === null ? null : Math.round(((k[f] || 0) + (r[f] || 0)) * 1e4) / 1e4;
+  }
+  return rows.length ? rows.slice(0, 6) : null;
+}
+
 /* שאלה קצרה מהעובד באמצע העבודה (שלב 3, סבב ד׳): מזהה, שאלה, עד 4 תשובות מוכנות, ברירת מחדל וזמן המתנה.
    הטקסט מגיע מ־Claude ומוצג בטלפון כטקסט (textContent) — כאן רק אורך ותווים. שאלה חדשה מחליפה קודמת */
 const ASK_ID_RE = /^q[a-z0-9]{1,12}$/;
@@ -199,14 +241,18 @@ function publicJob(job, now) {
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [] },
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
-    use: Array.isArray(job.use) ? job.use : null,   // v359: טוקנים ועלות
+    use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
     qa: job.qa && job.qa.id ? job.qa : null,        // שאלה מ־Claude (והתשובה, אם כבר ענית)
+    ck: lastCk(job.ck) ? { s: lastCk(job.ck).s, at: lastCk(job.ck).at || 0 } : null,   // v361: נקודת השמירה האחרונה
+    stale: isStale(job, now),                       // v361: "רצה" בלי דיווח שעתיים — אפשר להמשיך
+    fires: job.fires || 0,
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
 function workerJob(job) {
   return { id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
-    qa: job.qa && job.qa.id ? { id: job.qa.id, a: job.qa.a || null } : null };
+    qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null } : null,   // v361: גם השאלה — להמשך בסשן חדש
+    ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
 function applyReport(job, r, now) {
@@ -219,6 +265,8 @@ function applyReport(job, r, now) {
     prog.stg[st] = { s: now, e: 0 };
     prog.st = st; prog.p = 0; delete prog.eta;
   }
+  // v361: אחרי "המשך" — השלב שבו העבודה נעצרה נפתח שוב (נסגר כשהיא נכשלה)
+  else if (st && prog.stg[st] && prog.stg[st].e && r.done !== true && r.fail !== true) prog.stg[st] = Object.assign({}, prog.stg[st], { e: 0 });
   if (r.p != null && Number.isFinite(+r.p)) prog.p = Math.max(0, Math.min(1, +r.p));
   if (r.msg != null) prog.msg = clean(r.msg, 240);
   if (r.ex != null) prog.ex = clean(r.ex, 240);
@@ -232,7 +280,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -261,6 +309,7 @@ function fromFields(f) {
 module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
+  CK_STAGES, STALE_MS, RESUME_MAX, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

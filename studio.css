@@ -278,6 +278,7 @@ a.st-wbtn:active { opacity: .7; }
 .st-stg-t { padding-top: 1px; font-size: 13.5px; font-weight: 600; color: var(--on-surface-var); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-stg.done .st-stg-t { color: var(--on-primary-container); }
 .st-stg.now .st-stg-t { color: var(--on-surface); }
+.st-pbar[hidden] { display: none; }
 .st-pbar { display: block; height: 6px; margin-top: 7px; border-radius: 3px; background: var(--st-fill); overflow: hidden; }
 .st-pbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--primary); transition: width .6s ease; }
 .st-vcard { display: flex; align-items: flex-start; gap: 12px; margin: 0 16px; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); }

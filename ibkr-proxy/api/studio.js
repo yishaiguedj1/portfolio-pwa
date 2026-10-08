@@ -7,6 +7,7 @@
      drive → גישה זמנית ל־Drive (שעה) להעלאה מהטלפון
      gdConfig (בלי התחברות) · gdConnect · gdStatus · gdToken · gdDisconnect → חיבור Drive של הסטודיו (v357: לקוח OAuth נפרד, studioDrive/{uid})
      create { spec } · file { job, which: a|v, id, folder } · start { job } · jobs · job { job } · cancel { job } · remove { job }
+     resume { job } → v361: הפעלה חוזרת של עבודה שנכשלה / בוטלה / נתקעה — העובד ממשיך מנקודת השמירה האחרונה
    מהעובד בענן (שרת לשרת, בלי Origin; מזוהה רק במפתח העבודה):
      claim { job, key } → פרטי העבודה + גישה ל־Drive לשעה · token { job, key } → גישה חדשה · report { job, key, st, p, ... } → התקדמות
    מצב העבודות ב־Firestore (studioJobs/{id}, studioVault/{uid}) דרך חשבון השירות — הטלפון לא קורא משם ישירות.
@@ -98,7 +99,7 @@ async function fire(deps, v, uid, text) {
 }
 /* מפתח חדש → נשמר לפני ההפעלה (העובד יכול להגיע מהר) → הפעלה → הסשן נשמר; כשל ודאי = חוזרים למצב הקודם */
 const UNSURE = ['routine_down', 'routine_net'];
-async function fireJob(deps, uid, v, job, now) {
+async function fireJob(deps, uid, v, job, now, resume) {
   const key = S.newKey();
   const fh = S.recentFires(v.fh, now);
   await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, updated: now });
@@ -111,7 +112,8 @@ async function fireJob(deps, uid, v, job, now) {
     return { ok: true, unsure: f.error, detail: f.detail || '' };
   }
   if (!f.ok) {
-    const back = job.kind === 'ping' ? { state: 'failed', err: f.error, ended: now, kh: '' } : { state: 'new', err: f.error, kh: '', fired: job.fired || 0 };
+    // המשך שלא הופעל — חוזרים ל"נכשלה" (עם השגיאה של ההפעלה), לא ל"חדשה"
+    const back = job.kind === 'ping' || resume ? { state: 'failed', err: f.error, ended: now, kh: '' } : { state: 'new', err: f.error, kh: '', fired: job.fired || 0 };
     await patchJob(deps, job.id, Object.assign(back, { ed: f.detail || '', updated: now }));
     if (f.error !== 'routine_net') await patchVault(deps, uid, { tt: now });
     return f;
@@ -179,8 +181,21 @@ async function worker(req, res, body, deps) {
     }
     if (body.usage != null) {
       // v359: טוקנים ועלות (בדיווח האחרון). נתון לא תקין נזרק בשקט — לא מפילים בגללו את סוף העבודה
+      // v361: אחרי "המשך" — יחד עם הסשנים הקודמים (use0)
       const use = S.normUsage(body.usage);
-      if (use) up.use = use;
+      if (use) up.use = S.mergeUse(job.use0, use);
+    }
+    if (body.ck != null) {
+      // v361: נקודת שמירה — הארכיון חייב להיות בתיקיית העבודה ב־Drive (כמו התוצרים)
+      const ck = S.normCk(body.ck);
+      if (!ck || !job.folder) return res.status(400).json({ ok: false, error: 'ck_bad' });
+      const t = await gdrive.accessToken(deps, job.uid);
+      if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
+      const r = await (deps.fetch || fetch)(DRIVE + ck.id + '?fields=id,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
+      let meta = null; try { meta = await r.json(); } catch (e) {}
+      if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(job.folder))) return res.status(400).json({ ok: false, error: 'ck_bad' });
+      ck.size = Math.floor(Number(meta.size) || ck.size);
+      up.ck = S.addCk(job.ck, ck, now);
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }
     await patchJob(deps, id, up);
@@ -308,6 +323,21 @@ async function handler(req, res, deps = {}) {
       await patchJob(deps, job.id, { qa: job.qa, updated: now });
       return res.status(200).json({ ok: true, job: view(job) });
     }
+    if (op === 'resume') {
+      // v361: "המשך מאותה נקודה" — מפתח חדש והפעלה חוזרת של ה־Routine; העובד מוריד את נקודת השמירה האחרונה וממשיך ממנה.
+      // הטוקנים של הסשנים הקודמים נשמרים (use0) ומתווספים לדיווח הבא
+      const why = S.canResume(job, now);
+      if (why) return res.status(409).json({ ok: false, error: why, job: view(job) });
+      const v = await readVault(deps, uid);
+      if (!v || !v.r) return res.status(200).json({ ok: false, error: 'conn_missing' });
+      if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return res.status(429).json({ ok: false, error: 'budget' });
+      const use0 = S.mergeUse(job.use0, job.use);
+      await patchJob(deps, job.id, { use0, ended: 0, updated: now });
+      job.use0 = use0;
+      const f = await fireJob(deps, uid, v, job, now, true);
+      const j = await readJob(deps, job.id);
+      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+    }
     if (op === 'cancel') {
       if (!S.FINAL.includes(st)) {
         await patchJob(deps, job.id, { state: 'cancelled', ended: now, updated: now });
@@ -316,7 +346,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'remove') {
-      if (st === 'queued' || st === 'running') return res.status(409).json({ ok: false, error: 'active' });
+      if ((st === 'queued' || st === 'running') && !S.isStale(job, now)) return res.status(409).json({ ok: false, error: 'active' });   // נתקעה — אפשר למחוק
       await delDoc(deps, 'studioJobs', job.id);
       return res.status(200).json({ ok: true });
     }

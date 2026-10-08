@@ -20,7 +20,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     && S.normAnswer(Object.assign({}, full, { a: { i: 0 } }), { qid: 'q1', i: 0 }) === null, 'השרתון: normAnswer — רק תשובה מוכנה כשיש, פעם אחת');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'answer'/.test(api) && /ask_limit/.test(api) && /409\)\.json\(\{ ok: false, error: 'ask_limit' \}\)/.test(api) && /askTimeout/.test(api), 'השרתון: answer מהטלפון, תקרת שאלות (409 — לא 429), "לא ענית בזמן"');
-  ok(S.workerJob({ id: 'j', kind: 'tr', qa: { id: 'q1', q: 'סוד', o: [], a: { t: 'x' } } }).qa.q === undefined, 'השרתון: העובד מקבל רק מזהה ותשובה');
+  const wq = S.workerJob({ id: 'j', kind: 'tr', qa: { id: 'q1', q: 'שאלה', o: ['א'], a: { t: 'x' } } }).qa;
+  ok(wq.a.t === 'x' && wq.o === undefined && wq.q === 'שאלה', 'השרתון: העובד מקבל את התשובה והשאלה (v361 — להמשך בסשן חדש), בלי רשימת התשובות');
 
   /* ---------- 2. הטלפון ---------- */
   const M = await import(path.join(root, 'studio.js'));
