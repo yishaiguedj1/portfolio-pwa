@@ -1573,6 +1573,7 @@ function stubFetch(text, status = 200) {
 
     // v364: ספר התיקונים — עצירה נרשמת לפי טביעת אצבע, Claude רושם תיקון בהמשך, העבודה הבאה מקבלת אותו, "טופל לבד" נספר
     const FPX = 'a1b2c3d4e5f6';
+    await run({ op: 'fixMode', idToken: OWNER, mode: 'auto' });   // v366: הבלוק הזה בודק את המסלול "עצמאי" (התיקון נשמר מיד)
     let rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
     const JF = rr.payload.job.id;
     await run({ op: 'file', idToken: OWNER, job: JF, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
@@ -1615,6 +1616,56 @@ function stubFetch(text, status = 200) {
     ok(fbl.length === S.FB_MAX && S.fbStop([], { fp: 'XYZ', why: 'loop' }, 'tl', 1) === null && S.fbStop([], { fp: FPX, why: 'evil' }, 'tl', 1) === null
       && S.normTower({ lv: 'ok', fp: FPX }).fp === undefined && S.normTower({ lv: 'red', why: 'loop', fp: 'bad' }).fp === undefined,
     'סטודיו: ספר התיקונים — עד 30 תקלות; טביעה/סוג לא תקינים — נזרקים; טביעה רק בעצירה');
+
+    // v366: מסלול התיקונים — "הצעות לאישור" (ברירת מחדל): התיקון של Claude ממתין, העובד לא מקבל אותו עד שהמשתמש שומר; "עצמאי" — מיד
+    ok(S.normFixMode(undefined) === 'suggest' && S.normFixMode('evil') === 'suggest', 'סטודיו: מסלול התיקונים — ברירת המחדל "הצעות לאישור"');
+    await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
+    const FPY = 'b1b2c3d4e5f6';
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JM = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JM, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    await run({ op: 'start', idToken: OWNER, job: JM });
+    let Km = keyOf(fires[fires.length - 1]);
+    rr = await wrk({ op: 'claim', job: JM, key: Km });
+    ok(rr.payload.job.fm === 'suggest', 'סטודיו: מסלול התיקונים — העובד יודע באיזה מסלול (כדי לומר ל־Claude שהתיקון ממתין)');
+    await wrk({ op: 'report', job: JM, key: Km, fail: true, err: 'tower_stop', tower: { lv: 'red', why: 'calls', n: 10, x: 1, fp: FPY } });
+    await run({ op: 'resume', idToken: OWNER, job: JM });
+    Km = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JM, key: Km });
+    await wrk({ op: 'report', job: JM, key: Km, fix: { fp: FPY, t: 'מריצים את הבדיקה פעם אחת ולא בלולאה' } });
+    rr = await run({ op: 'status', idToken: OWNER });
+    let fy = rr.payload.fb.find((e) => e.fp === FPY);
+    ok(fy && fy.fix === '' && fy.px === 'מריצים את הבדיקה פעם אחת ולא בלולאה', 'סטודיו: מסלול התיקונים — במסלול "הצעות" התיקון נשמר כהצעה (px), לא כתיקון');
+    await wrk({ op: 'report', job: JM, key: Km, done: true });
+    const nextFb = async () => {
+      const r1 = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const J = r1.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: J, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: J });
+      const K = keyOf(fires[fires.length - 1]);
+      const c = await wrk({ op: 'claim', job: J, key: K });
+      await wrk({ op: 'report', job: J, key: K, done: true });
+      return c.payload.job.fb;
+    };
+    ok(!(await nextFb()).some((e) => e.fp === FPY), 'סטודיו: מסלול התיקונים — הצעה שלא אושרה לא מגיעה לעבודות הבאות');
+    rr = await run({ op: 'fbDecide', idToken: OWNER, fp: 'ffffffffffff', ok: true });
+    ok(rr.statusCode === 404 && rr.payload.error === 'no_proposal', 'סטודיו: מסלול התיקונים — החלטה על טביעה בלי הצעה — 404');
+    rr = await run({ op: 'fbDecide', idToken: OWNER, fp: FPY, ok: true });
+    fy = rr.payload.fb.find((e) => e.fp === FPY);
+    ok(rr.payload.ok && fy.fix === 'מריצים את הבדיקה פעם אחת ולא בלולאה' && fy.px === '', 'סטודיו: מסלול התיקונים — "לשמור" הופך את ההצעה לתיקון');
+    ok((await nextFb()).some((e) => e.fp === FPY && e.fix), 'סטודיו: מסלול התיקונים — אחרי אישור העבודה הבאה מקבלת את התיקון');
+    let fbx = S.fbFix([{ fp: FPY, why: 'calls', st: 'tl', n: 1, fix: 'ישן' }], FPY, 'הצעה חדשה', 5, 'suggest');
+    ok(fbx[0].fix === 'ישן' && fbx[0].px === 'הצעה חדשה' && S.fbForWorker(fbx)[0].fix === 'ישן', 'סטודיו: מסלול התיקונים — הצעה חדשה לא מחליפה תיקון שאושר עד ההחלטה');
+    fbx = S.fbDecide(fbx, FPY, false, 6);
+    ok(fbx[0].fix === 'ישן' && !fbx[0].px, 'סטודיו: מסלול התיקונים — "לא" מוחק את ההצעה ומשאיר את התיקון הקודם');
+    rr = await run({ op: 'fixMode', idToken: OWNER, mode: 'evil' });
+    ok(rr.statusCode === 400, 'סטודיו: מסלול התיקונים — מסלול לא מוכר — 400');
+    rr = await run({ op: 'fixMode', idToken: OWNER, mode: 'auto' });
+    ok(rr.payload.ok && (await run({ op: 'status', idToken: OWNER })).payload.fm === 'auto', 'סטודיו: מסלול התיקונים — "עצמאי" נשמר בחשבון');
+    fbx = S.fbFix([{ fp: FPY, why: 'calls', st: 'tl', n: 1, fix: 'ישן', px: 'ממתין' }], FPY, 'חדש לגמרי', 7, 'auto');
+    ok(fbx[0].fix === 'חדש לגמרי' && !fbx[0].px, 'סטודיו: מסלול התיקונים — במסלול "עצמאי" התיקון נשמר מיד (והצעה ישנה נמחקת)');
+    await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
+    studio._reset();
 
     // v365: מגדל הפיקוח 2.0 — אירועים מכל המקורות → התראות (איחוד, קיבוץ, סגירה), בריאות, זמינות ו־MTTR
     const O = require('../lib/studioops');

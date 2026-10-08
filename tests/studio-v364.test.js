@@ -21,8 +21,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(fb.length === 1 && fb[0].n === 2, 'אותה תקלה שוב — אותה רשומה, n עולה');
   ok(S.normFixText('לפצל https://x.y/z `rm` <b>x</b> {a} $HOME | cat') === 'לפצל rm bx/b a HOME cat' && S.normFixText('ab') === '' && S.normFixText('א'.repeat(400)).length === 160,
     'טקסט התיקון: בלי קישורים, קוד ותגיות; 4–160 תווים');
-  ok(S.fbFix(fb, 'ffffffffffff', 'תיקון כלשהו', 7) === null && S.fbFix(fb, FP, 'מפצלים כתובית', 7)[0].fix === 'מפצלים כתובית', 'תיקון רק לתקלה שכבר נרשמה אצל המשתמש');
-  fb = S.fbFix(fb, FP, 'מפצלים כתובית', 7);
+  ok(S.fbFix(fb, 'ffffffffffff', 'תיקון כלשהו', 7, 'auto') === null && S.fbFix(fb, FP, 'מפצלים כתובית', 7, 'auto')[0].fix === 'מפצלים כתובית', 'תיקון רק לתקלה שכבר נרשמה אצל המשתמש (מסלול "עצמאי" — v366)');
+  fb = S.fbFix(fb, FP, 'מפצלים כתובית', 7, 'auto');
   ok(S.fbUsed(fb, FP, 8)[0].auto === 1 && S.fbUsed(fb, 'ffffffffffff', 8) === null, '"טופל לבד" — רק לתקלה מוכרת');
   const w = S.fbForWorker(S.fbStop(fb, { fp: 'bbbbbbbbbbbb', why: 'idle' }, 'al', 9));
   ok(w.length === 1 && w[0].fp === FP && !('n' in w[0]), 'לעובד — רק תקלות עם תיקון, בלי מונים');

@@ -88,6 +88,7 @@ class Fake:
         self.stop_all = False                                         # v362: העבודה בוטלה — כל קריאה מקבלת "עצור"
         self.nm = None                                                # v363: "הרגיל" של המשתמש (מהשרתון בלקיחה)
         self.fb, self.ls = [], None                                   # v364: ספר התיקונים והעצירה שלפני ההמשך
+        self.fm = None                                                # v366: מסלול התיקונים (בלי — כמו שרתון ישן)
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -130,7 +131,7 @@ class Fake:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
-                                                                  'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls},
+                                                                  'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm},
                                             'drive': {'token': TOKEN}})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
@@ -562,6 +563,23 @@ class TestWorker(unittest.TestCase):
         self.take()
         code, out = self.job('fix', '--text', 'משהו ארוך מספיק')
         self.assertEqual(code, 1, 'בלי עצירה — אין למה לרשום')
+
+    def test_fix_mode(self):
+        # v366: מסלול "הצעות לאישור" (ברירת המחדל) — ההודעה אומרת שהתיקון ממתין למשתמש; "עצמאי" — שהוא נרשם
+        self.fake.ls = {'fp': 'a1b2c3d4e5f6', 'why': 'loop', 'st': 'tl'}
+        self.take()
+        self.assertEqual(json.loads((self.tmp / 'state' / 'job.json').read_text())['fm'], 'suggest', 'בלי מסלול מהשרתון — הצעות')
+        code, out = self.job('fix', '--text', 'מריצים פעם אחת')
+        self.assertEqual(code, 0, out)
+        self.assertIn('כהצעה', out)
+        self.fake.fm = 'auto'
+        self.take()
+        code, out = self.job('fix', '--text', 'מריצים פעם אחת')
+        self.assertIn('נרשם בספר התיקונים', out)
+        self.assertNotIn('כהצעה', out)
+        self.fake.fm = 'evil'
+        self.take()
+        self.assertEqual(json.loads((self.tmp / 'state' / 'job.json').read_text())['fm'], 'suggest', 'לא מוכר — הצעות')
 
     def test_ops_events(self):
         # v365: אירועים למגדל הפיקוח — Drive שהתאושש אחרי ניתוק (ok), ו־vt שנכשל (תמלול) — רק סוגים מהקטלוג, בלי טקסט

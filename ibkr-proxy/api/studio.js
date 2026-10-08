@@ -171,7 +171,7 @@ async function worker(req, res, body, deps) {
       await patchJob(deps, id, patch);
       const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
       const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
-      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb)), drive: await driveFor(), now });
+      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm), drive: await driveFor(), now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     // report
@@ -235,7 +235,7 @@ async function worker(req, res, body, deps) {
       const stats = await readStats(deps, job.uid);
       let fb = null;
       if (up.tw && up.tw.lv === 'red' && up.tw.fp) fb = S.fbStop(stats.fb, up.tw, (job.prog && job.prog.st) || '', now);
-      else if (body.fix != null && body.fix && typeof body.fix === 'object') fb = S.fbFix(stats.fb, String(body.fix.fp || ''), body.fix.t, now);
+      else if (body.fix != null && body.fix && typeof body.fix === 'object') fb = S.fbFix(stats.fb, String(body.fix.fp || ''), body.fix.t, now, stats.fm);   // v366: הצעה או תיקון — לפי המסלול
       else if (body.fixUsed != null) fb = S.fbUsed(stats.fb, String(body.fixUsed), now);
       if (fb) await patchDoc(deps, 'studioStats', job.uid, { fb, updated: now }).catch(() => {});
     }
@@ -285,7 +285,21 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
-        norm: S.normsView(st.ns), fb: S.fbView(st.fb), ops: O.opsView((await readDoc(deps, 'studioOps', uid).catch(() => null) || {}).al, now), now });
+        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: O.opsView((await readDoc(deps, 'studioOps', uid).catch(() => null) || {}).al, now), now });
+    }
+    if (op === 'fixMode') {
+      // v366: מסלול התיקונים — "הצעות לאישור" (ברירת מחדל) או "עצמאי"
+      if (!S.FIX_MODES.includes(body.mode)) return res.status(400).json({ ok: false, error: 'bad_mode' });
+      await patchDoc(deps, 'studioStats', uid, { fm: body.mode, updated: now });
+      return res.status(200).json({ ok: true, fm: body.mode });
+    }
+    if (op === 'fbDecide') {
+      // v366: החלטה על הצעת תיקון של Claude — לשמור או לא
+      const st = await readStats(deps, uid);
+      const fb = S.fbDecide(st.fb, String(body.fp || ''), body.ok === true, now);
+      if (!fb) return res.status(404).json({ ok: false, error: 'no_proposal', fb: S.fbView(st.fb) });
+      await patchDoc(deps, 'studioStats', uid, { fb, updated: now });
+      return res.status(200).json({ ok: true, fb: S.fbView(fb) });
     }
     if (op === 'connect') {
       const c = S.normRoutine(body.url, body.key);
