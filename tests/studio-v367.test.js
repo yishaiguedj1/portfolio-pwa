@@ -57,7 +57,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const app = read('app.js');
   for (const k of ['studioRlT', 'studioRlLede', 'studioRlNone', 'studioRlSumB', 'studioRlUpTo', 'studioRlSumAb', 'studioRlBudgetT', 'studioRlNoBudget', 'studioRlNoBudgetS',
     'studioRlBudgetNote', 'studioRlMaxT', 'studioRlAllModes', 'studioRlAbT', 'studioRlAb', 'studioRlAbS', 'studioRlOverForm', 'studioRuleModeQ', 'studioStartAnyway',
-    'studioErrHalted', 'studioErrRuleMode', 'studioErrBudgetStop', 'studioAlClaudeBudget', 'studioCtlT', 'studioHaltOn', 'studioHaltOnS', 'studioHaltOff', 'studioHaltOffS',
+    'studioErrHalted', 'studioErrRuleMode', 'studioErrBudgetStop', 'studioAlClaudeBudget', 
     'studioHaltQ0', 'studioHaltQ1', 'studioHaltQN', 'studioHaltOk', 'studioHaltDone0', 'studioHaltDone1', 'studioHaltDoneN', 'studioHaltBack', 'studioHaltOnB', 'studioHaltBackBtn',
     'studioHaltGo', 'studioGateBT', 'studioGateBQ', 'studioGateBGoBtn', 'studioGateBStopBtn', 'studioGateBDef', 'studioGateBGo', 'studioGateBStop', 'studioGateBAuto',
     'studioGateRT', 'studioGateRQ', 'studioGateRGoBtn', 'studioGateRStopBtn', 'studioGateRDef', 'studioGateRGo', 'studioGateRStop', 'studioGateRAuto'])

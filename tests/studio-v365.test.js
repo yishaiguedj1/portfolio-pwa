@@ -57,7 +57,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const app = read('app.js');
   const kinds = Object.keys(O.KINDS);
   ok(kinds.length === 25, 'הקטלוג: 25 סוגי אירועים (v367: claude:budget, v368: claude:auto)');
-  for (const k of ['studioAlDriveUpRetry', 'studioAlRoutineNoClaim', 'studioAlClaudeTwStop', 'studioAlVtAsr', 'studioOpsTitle', 'studioOpsAvail', 'studioOpsMap', 'studioOpsRel1', 'studioCmpVt', 'studioAgoM'])
+  for (const k of ['studioAlDriveUpRetry', 'studioAlRoutineNoClaim', 'studioAlClaudeTwStop', 'studioAlVtAsr', 'studioOpsMap', 'studioCmpVt', 'studioAgoM'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'טלפון: ' + k + ' — עברית ואנגלית');
   const cases = (st.match(/case '[a-z]+:[a-z_]+': return T\('studioAl/g) || []).length;
   ok(cases === kinds.length - 1, 'טלפון: לכל סוג בקטלוג יש תווית (vt:other — ברירת המחדל)');

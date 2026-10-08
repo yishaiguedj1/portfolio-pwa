@@ -55,7 +55,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     && S.normTower({ lv: 'red', why: 'evil' }) === null && S.normTower({ lv: 'x' }) === null && S.normTower({ lv: 'ok', x: 1e9 }).x === 1000,
   'השרתון: normTower — רמה וסיבה מוכרות, מספרים מוגבלים');
   ok(S.publicJob({ id: 'j', kind: 'tr', state: 'running', tw: { lv: 'warn', x: 2.3 } }, 0).tw.lv === 'warn', 'השרתון: הטלפון רואה את מצב המגדל');
-  ok(/tw: null, (rw: 0, )?updated: now/.test(read('ibkr-proxy/api/studio.js')), 'השרתון: הפעלה / המשך — המגדל מתחיל נקי');
+  ok(/tw: null, (rw: 0, )?(fr: \{ s: -1, ms: 0 \}, )?updated: now/.test(read('ibkr-proxy/api/studio.js')), 'השרתון: הפעלה / המשך — המגדל מתחיל נקי');
 
   /* ---------- 4. הטלפון ---------- */
   const M = await import(path.join(root, 'studio.js'));

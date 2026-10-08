@@ -354,17 +354,6 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-btn.ghost { background: var(--st-fill); color: var(--on-surface); }
 
 /* v365: מגדל הפיקוח 2.0 — כרטיס הבריאות, מפת השירות והתראות */
-.st-health { margin: 4px 16px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); display: grid; gap: 12px; }
-.st-hrow { display: flex; align-items: center; gap: 14px; }
-.st-hring { --c: var(--primary); --v: 100; width: 60px; height: 60px; flex: none; border-radius: 50%; display: grid; place-items: center;
-  background: radial-gradient(closest-side, var(--st-card) 76%, transparent 78%), conic-gradient(var(--c) calc(var(--v) * 1%), var(--st-fill) 0); }
-.st-hring.a { --c: #FF9F0A; } .st-hring.r { --c: var(--loss); }
-.st-hring b { font-size: 18px; font-variant-numeric: tabular-nums; }
-.st-hrow .st-l b { font-size: 16px; }
-.st-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.st-kpi { background: var(--bg); border-radius: var(--radius-xs); padding: 8px 10px; display: grid; gap: 1px; min-width: 0; align-content: space-between; }
-.st-kpi small { font-size: 11.5px; color: var(--on-surface-var); font-weight: 600; line-height: 1.3; }
-.st-kpi b { font-size: 15.5px; font-variant-numeric: tabular-nums; }
 .st-smap { margin: 0 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--st-card); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .st-snode { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 10px; background: var(--bg); font-size: 13px; font-weight: 600; }
 .st-snode.bad { box-shadow: 0 0 0 1.5px var(--loss) inset; } .st-snode.bad.s3 { box-shadow: 0 0 0 1.5px #FF9F0A inset; }
@@ -387,19 +376,91 @@ html.studio-open .dlg-veil { z-index: 1003; }
 
 /* v368: התראות חכמות ושקט — פרטי התראה, מהבהבת, באנר דחוף */
 .st-flap { display: inline-block; padding: 1px 8px; border-radius: var(--pill); background: var(--st-amber-c); color: var(--st-amber); font-size: 12px; font-weight: 700; vertical-align: 1px; }
-.st-alx { padding: 2px 14px 12px; padding-inline-start: 58px; }
-.st-algrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.st-alkv { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.st-alkv small { font-size: 12px; color: var(--on-surface-var); }
-.st-alkv b { font-size: 15px; font-variant-numeric: tabular-nums; }
-.st-alnote { margin: 8px 0 0; font-size: 13.5px; color: var(--on-surface-var); line-height: 1.45; }
-.st-alacts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-.st-alacts > small { font-size: 13px; color: var(--on-surface-var); }
-.st-alacts .st-mini, .st-muted .st-mini { min-height: 32px; padding: 5px 13px; font-size: 14px; }
-.st-alacts .st-mini.ghost, .st-muted .st-mini.ghost { background: var(--st-fill); }   /* בתוך כרטיס — רקע הכרטיס היה מעלים את הכפתור */
-@media (max-width: 360px) { .st-alx { padding-inline-start: 14px; } .st-alkv b { font-size: 14px; } }
 .st-dig { margin-top: 6px; }
-.st-dig > .st-note { margin: 8px 2px 0; }
 .st-banner.st-urg { width: calc(100% - 32px); box-sizing: border-box; text-align: start; }
 .st-banner.st-urg .st-chev { width: 18px; height: 18px; opacity: .7; }
-.st-alx + .st-row::before { content: ""; position: absolute; top: 0; inset-inline-start: 58px; inset-inline-end: 0; border-top: 1px solid var(--separator); }
+
+/* v369: מגדל הפיקוח בעיצוב התוכנית — המבנה של ServiceNow (Horizon) עם המראה של הסטודיו.
+   צבעי חומרה (צבעי המערכת): c קריטי, h חמור, w קל, i מידע; m סגול (מהבהבת), l אפור (מצב) */
+.st-root { --sv-c: #FF3B30; --sv-c0: rgba(255,59,48,.12); --sv-c4: #C4161C; --sv-h: #FF9500; --sv-h0: rgba(255,149,0,.15); --sv-h4: #9A5B00;
+  --sv-w: #FFCC00; --sv-w0: rgba(255,204,0,.2); --sv-w4: #7A6000; --sv-i: #007AFF; --sv-i0: rgba(0,122,255,.12); --sv-i4: #0A58C2;
+  --sv-m: #AF52DE; --sv-m0: rgba(175,82,222,.14); --sv-m4: #8A2DB8; --sv-l: #8E8E93; --sv-l0: rgba(118,118,128,.14); --sv-l4: #48484A; }
+[data-theme="dark"] .st-root { --sv-c: #FF453A; --sv-c0: rgba(255,69,58,.2); --sv-c4: #FF8A80; --sv-h: #FF9F0A; --sv-h0: rgba(255,159,10,.2); --sv-h4: #FFB340;
+  --sv-w: #FFD60A; --sv-w0: rgba(255,214,10,.17); --sv-w4: #FFE066; --sv-i: #0A84FF; --sv-i0: rgba(10,132,255,.22); --sv-i4: #7CB8FF;
+  --sv-m: #BF5AF2; --sv-m0: rgba(191,90,242,.22); --sv-m4: #DDA6FF; --sv-l0: rgba(118,118,128,.26); --sv-l4: #C7C7CC; }
+.st-root .c { --k: var(--sv-c); --k0: var(--sv-c0); --k4: var(--sv-c4); } .st-root .h { --k: var(--sv-h); --k0: var(--sv-h0); --k4: var(--sv-h4); }
+.st-root .w { --k: var(--sv-w); --k0: var(--sv-w0); --k4: var(--sv-w4); } .st-root .i { --k: var(--sv-i); --k0: var(--sv-i0); --k4: var(--sv-i4); }
+.st-root .m { --k: var(--sv-m); --k0: var(--sv-m0); --k4: var(--sv-m4); } .st-root .l { --k: var(--sv-l); --k0: var(--sv-l0); --k4: var(--sv-l4); }
+.st-twhero { margin: 0 16px 4px; display: grid; gap: 2px; }
+.st-twhero small { font-size: 13px; color: var(--on-surface-var); font-weight: 600; }
+.st-twhero .st-large { margin: 0; padding: 0; font-size: 28px; }
+/* אריחי "ציון יחיד" */
+.st-scores { margin: 10px 16px 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.st-sc { background: var(--st-card); border-radius: 14px; padding: 10px 11px 8px; display: grid; gap: 2px; min-width: 0; align-content: start; }
+.st-sc small { font-size: 12px; color: var(--on-surface-var); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-sc > b { font-size: 22px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-trd { font-size: 11.5px; font-weight: 700; direction: ltr; justify-self: start; }
+.st-trd.up { color: #1FA64A; } .st-trd.dn { color: var(--sv-c); }
+[data-theme="dark"] .st-trd.up { color: #30D158; }
+.st-spark { width: 100%; height: 22px; display: block; margin-top: 2px; }
+.st-spark .a { fill: color-mix(in srgb, var(--primary) 18%, transparent); stroke: none; }
+.st-spark .s { fill: none; stroke: var(--primary); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.st-sec-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.st-linkb { color: var(--primary); font-size: 13.5px; font-weight: 600; }
+/* שורת התראה: פס חומרה בצד */
+.st-alr { box-sizing: border-box; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; padding: 11px 14px; text-align: start; position: relative;
+  border-inline-start: 4px solid var(--k, transparent); }
+.st-alr + .st-alr::before { content: ""; position: absolute; top: 0; inset-inline-start: 14px; inset-inline-end: 0; border-top: 1px solid var(--separator); }
+.st-alr:active { background: var(--st-fill); }
+.st-alr-t { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.st-alr > b { font-size: 15px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-alr > small { grid-column: 1 / -1; font-size: 12.5px; color: var(--on-surface-var); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* גלולת סטטוס עם נקודה */
+.st-pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: var(--pill); font-size: 12px; font-weight: 700; white-space: nowrap;
+  background: var(--k0); color: var(--k4); justify-self: end; }
+.st-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--k); flex: none; }
+.st-pill.pr { background: var(--k); color: #fff; } .st-pill.pr::before { background: #fff; }
+.st-pill.w.pr { color: #3D3000; } .st-pill.w.pr::before { background: #3D3000; }
+/* פעולות מהירות */
+.st-qa { margin: 0 16px; display: flex; gap: 10px; }
+.st-qa-b { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 5px; font-size: 12px; color: var(--on-surface-var); text-align: center; }
+.st-qa-b i { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-container); color: var(--on-primary-container); }
+.st-qa-b i svg { width: 21px; height: 21px; }
+.st-qa-b.neg i { background: var(--st-red-c); color: var(--loss); }
+.st-qa-b span { max-width: 100%; overflow-wrap: anywhere; line-height: 1.25; }
+.st-qa-b:active i { transform: scale(.94); }
+/* רשומת התראה */
+.st-band { margin: 6px 16px 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--st-card); border-inline-start: 4px solid var(--k, var(--primary)); display: grid; gap: 2px; }
+.st-band > small { font-size: 12.5px; color: var(--on-surface-var); } .st-band > b { font-size: 20px; font-weight: 800; letter-spacing: -.2px; }
+.st-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.st-pills .st-pill { justify-self: auto; }
+.st-seg { margin: 12px 16px 0; padding: 2px; display: flex; border-radius: 9px; background: var(--st-fill); }
+.st-seg-b { flex: 1; min-width: 0; padding: 6px 4px; border-radius: 7px; font-size: 13.5px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-seg-b.on { background: var(--st-card); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+[data-theme="dark"] .st-seg-b.on { background: #636366; }
+.st-twcard { margin: 12px 16px 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--st-card); }
+.st-kvg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.st-kvg > div { display: grid; gap: 2px; min-width: 0; }
+.st-kvg small { font-size: 12px; font-weight: 600; color: var(--on-surface-var); }
+.st-kvg span { font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-kb { border: 1px solid color-mix(in srgb, var(--sv-m) 35%, transparent); background: color-mix(in srgb, var(--sv-m) 8%, var(--st-card)); }
+.st-kb small { font-size: 12px; font-weight: 700; color: var(--sv-m4); }
+.st-kb p { margin: 4px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+/* ציר פעילות */
+.st-tl { display: grid; }
+.st-ev { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; position: relative; padding-bottom: 12px; }
+.st-ev::before { content: ""; position: absolute; inset-inline-start: 12px; top: 26px; bottom: 0; width: 2px; background: var(--separator); }
+.st-ev:last-child { padding-bottom: 0; } .st-ev:last-child::before { display: none; }
+.st-ev-d { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--k0, var(--st-fill)); color: var(--k4, var(--on-surface-var)); }
+.st-ev-d::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--k, var(--st-ter)); }
+.st-ev-d.g { --k0: var(--primary-container); --k4: var(--on-primary-container); } .st-ev-d.g::after { display: none; }
+.st-ev-d svg { width: 15px; height: 15px; }
+.st-ev .st-l b { font-size: 14.5px; } .st-ev .st-l small { font-variant-numeric: tabular-nums; }
+.st-empty-sm { margin: 24px 32px 0; font-size: 14.5px; }
+/* פעולות בתחתית הרשומה */
+.st-abar { position: sticky; bottom: 0; margin-top: 16px; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 92%, transparent); display: grid; gap: 8px; }
+.st-abar-r { display: flex; gap: 8px; } .st-abar-r .st-btn { flex: 1; min-height: 46px; padding-inline: 10px; }
+.st-mupick { display: flex; gap: 8px; justify-content: center; }
+.st-mupick .st-mini { min-height: 32px; padding: 5px 14px; font-size: 14px; background: var(--st-fill); }
+.st-muted .st-mini { min-height: 32px; padding: 5px 13px; font-size: 14px; background: var(--st-fill); }
+@media (max-width: 360px) { .st-scores { gap: 6px; } .st-sc { padding: 9px 8px 7px; } .st-sc > b { font-size: 18px; } .st-sc small { font-size: 11.5px; } }
