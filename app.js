@@ -4817,7 +4817,7 @@ const PIE_LOGO_CACHE = {};
    מזהים לפי הבהירות הממוצעת של הפיקסלים האטומים; אז האריח כהה (כמו אייקון אפליקציה). */
 function logoIsLight(img) {
   try {
-    if (/s3-symbol-logo\.tradingview\.com/.test(img.src || '')) return false; // רקע משלו
+    if (/^https:\/\/s3-symbol-logo\.tradingview\.com\//.test(img.src || '')) return false; // רקע משלו
     const w = Math.min(64, img.naturalWidth || 0), h = Math.min(64, img.naturalHeight || 0);
     if (w < 4 || h < 4) return false;
     const c = document.createElement('canvas');
@@ -5237,7 +5237,7 @@ async function fetchJSONTimeout(url, ms) {
 
 function num(v) {
   if (v === null || v === undefined) return null;
-  const n = parseFloat(String(v).replace(/,/g, '').replace('%', '').trim());
+  const n = parseFloat(String(v).replace(/,/g, '').replace(/%/g, '').trim());
   return isFinite(n) ? n : null;
 }
 
@@ -7381,7 +7381,7 @@ function earnGoogleUrl(ev) {
     '&dates=' + dates + '&details=' + encodeURIComponent(ev.desc);
 }
 function earnIcs(ev, nowSec) {
-  const escI = (v) => String(v).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  const escI = (v) => String(v).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
   const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//THE SNOWBALL//Earnings//HE', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
     'UID:' + ev.uid, 'DTSTAMP:' + calStamp(nowSec || Math.floor(Date.now() / 1000))];
   if (ev.timed) L.push('DTSTART:' + calStamp(ev.start), 'DTEND:' + calStamp(ev.end));
@@ -11290,7 +11290,7 @@ function logoImgFix(img) {
     const known = logoMeta()[src];
     if (known) { img.classList.toggle('inv', known === 2); return; } // v253: כבר נותח — בלי קנבס
     if (img.dataset.nocors) return; // נטען בלי CORS — אין ניתוח ואין זיכרון (אולי לא יעלה בפעם הבאה)
-    if (/s3-symbol-logo\.tradingview\.com/.test(img.src || '')) { setLogoMeta(src, 1); return; } // v159: לוגו רשמי עם רקע משלו — בלי היפוך צבעים
+    if (/^https:\/\/s3-symbol-logo\.tradingview\.com\//.test(img.src || '')) { setLogoMeta(src, 1); return; } // v159: לוגו רשמי עם רקע משלו — בלי היפוך צבעים
     const w = img.naturalWidth, h = img.naturalHeight;
     if (!w || !h || w < 4 || h < 4) return;
     setLogoMeta(src, 1); // נטען; אם יתברר שצריך להפוך — מתעדכן ל־2 למטה
@@ -11370,7 +11370,7 @@ function quotesPending() { return !state.quotesAt && !state.stale; }
 /* v193: כותרת הכרטיס (לוגו, סימבול, שם, מחיר, שינוי) — משותף לבנייה ולעדכון החי, בלי לבנות כרטיס שלם בכל טיק */
 /* v205: המחיר בכרטיס גדול (27px); מחיר ארוך במיוחד ("$12,345.67", "226,240 אג׳") מוקטן בשלב אחד או שניים כדי שהשורה לא תגלוש */
 function stockPriceSizeCls(txt) {
-  const n = String(txt || '').replace(/<[^>]*>/g, '').replace(/[\u2066-\u2069]/g, '').length;
+  const n = String(txt || '').replace(/<[^>]*>/g, '').replace(/[<>\u2066-\u2069]/g, '').length;
   return n >= 10 ? ' px-xl' : n >= 9 ? ' px-lg' : '';
 }
 function stockHeadHTML(p, m) {
@@ -12882,9 +12882,11 @@ function openStockFromHash() {
   }
   // v214: בפתיחה קרה מהווידג'ט התיק עוד נטען (ענן) — מחכים עד 8 שניות לפני שמוותרים
   const start = Date.now();
-  const has = () => (watch ? wlItems().some((w) => w.sym === sym) : POSITIONS.some((p) => p.sym === sym));
+  // הסימבול לפתיחה = זה שברשימה (לא הטקסט מהכתובת) — מה שמגיע מבחוץ לא נהיה מפתח ב־state
+  const find = () => (watch ? wlItems() : POSITIONS).find((w) => w.sym === sym);
   const whenReady = () => {
-    if (has()) return openStockCard(sym, watch ? 'wishlist' : 'stocks');
+    const it = find();
+    if (it) return openStockCard(it.sym, watch ? 'wishlist' : 'stocks');
     if (Date.now() - start < 8000) setTimeout(whenReady, 250);
   };
   whenReady();

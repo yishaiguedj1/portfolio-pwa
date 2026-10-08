@@ -72,6 +72,8 @@ ok(/^BEGIN:VCALENDAR\r\n/.test(ics) && /\r\nDTSTART:20261029T200000Z\r\n/.test(i
 const ics2 = T.earnIcs(ev2, 0);
 ok(/DTSTART;VALUE=DATE:20261117/.test(ics2) && /DTEND;VALUE=DATE:20261118/.test(ics2) && !/PT1H/.test(ics2), '.ics: יום שלם — תזכורת יום לפני בלבד');
 ok(/SUMMARY:[^\r]*\\,|SUMMARY:[^\r,]*\r/.test(T.earnIcs(T.earnCalEvent({ sym: 'X', date: '2026-10-01', time: '' }, 'A, B; C'), 0)), '.ics: פסיקים ונקודה־פסיק מוברחים');
+const icsSemi = T.earnIcs(T.earnCalEvent({ sym: 'X', date: '2026-10-01', time: '' }, 'A; B'), 0);
+ok(/SUMMARY:[^\r]*A\\; B/.test(icsSemi) && !/SUMMARY:[^\r]*[^\\]; /.test(icsSemi), '.ics: נקודה־פסיק מוברחת באמת (‎\\; — עד התיקון ‎\x27\\;\x27 ב־JS היה סתם ";", CodeQL)');
 
 /* השרתון: הדוח הבא מתוך v7/quote */
 const Q = require(path.join(__dirname, '..', 'ibkr-proxy', 'api', 'quotes.js'));

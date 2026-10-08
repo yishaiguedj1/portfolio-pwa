@@ -49,5 +49,5 @@ ok(/img-src[^;]*https:\/\/s3-symbol-logo\.tradingview\.com/.test(html), 'CSP מ�
 ok(!/image-stock\/' \+ encodeURIComponent\(normalizeSym\(s\.sym\)\)/.test(src), 'מקרא העוגה דרך logoSrc');
 ok(/if \(symCur\(sym\) === 'ILS'\) return fmtAg\(v, sym\);/.test(src), 'fmtPx: ת"א באגורות (מדד — בנקודות, v168)');
 ok(/function liveMerge\(got\) \{\n  taseFixQuotes/.test(src) && /function applyQuotes\(res\) \{\n  taseFixQuotes/.test(src), 'רשת הביטחון בכל מיזוג ציטוטים');
-ok(src.includes("if (/s3-symbol-logo\\.tradingview\\.com/.test(img.src || '')) { setLogoMeta(src, 1); return; }"), 'לוגו רשמי לא עובר היפוך צבעים (v253: נרשם בזיכרון כ"נטען, לא הפוך")');
+ok(src.includes("if (/^https:\\/\\/s3-symbol-logo\\.tradingview\\.com\\//.test(img.src || '')) { setLogoMeta(src, 1); return; }"), 'לוגו רשמי לא עובר היפוך צבעים (v253: נרשם בזיכרון כ"נטען, לא הפוך")');
 console.log('\n' + n + ' בדיקות עברו');
