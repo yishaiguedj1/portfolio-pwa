@@ -1427,6 +1427,23 @@ function stubFetch(text, status = 200) {
     const U = r.payload.job.use;
     ok(Array.isArray(U) && U.length === 4 && U[1].oc === 0.63 && U[1].op === 126000 && U[2].usd === 0.8812 && U[3].usd === null && !('op' in U[0]) && !('evil' in U[0])
       && !JSON.stringify(U).includes('script'), 'סטודיו: עלות — נשמרת בעבודה ומוחזרת לטלפון (שדות מוכרים בלבד, דולרים מעוגלים, מודל בלי מחירון = null)');
+    // v361: נקודות שמירה — כל ארכיון חייב להיות בתיקיית העבודה ב־Drive; אחת לכל שלב
+    driveFiles.set('ckas1234567890', { id: 'ckas1234567890', name: 'נקודת שמירה — התמלול.tar.gz', size: '2400000', parents: ['fold1234567890'], trashed: false });
+    driveFiles.set('ckal1234567890', { id: 'ckal1234567890', name: 'נקודת שמירה — היישור.tar.gz', size: '3100000', parents: ['fold1234567890'], trashed: false });
+    driveFiles.set('ckal2234567890', { id: 'ckal2234567890', name: 'נקודת שמירה — היישור.tar.gz', size: '3200000', parents: ['fold1234567890'], trashed: false });
+    r = await wrk({ op: 'report', job: JT, key: Kb, ck: { s: 'asr', id: 'elsewhere12345', size: 5 } });
+    ok(r.statusCode === 400 && r.payload.error === 'ck_bad', 'סטודיו: נקודת שמירה שלא בתיקיית העבודה — נדחית (מאומת מול Drive)');
+    r = await wrk({ op: 'report', job: JT, key: Kb, ck: { s: 'bn', id: 'ckas1234567890', size: 5 } });
+    ok(r.statusCode === 400 && r.payload.error === 'ck_bad', 'סטודיו: נקודת שמירה בשלב לא מוכר — נדחית');
+    await wrk({ op: 'report', job: JT, key: Kb, ck: { s: 'al', id: 'ckal1234567890', size: 1 } });
+    await wrk({ op: 'report', job: JT, key: Kb, ck: { s: 'asr', id: 'ckas1234567890', size: 1 } });
+    await wrk({ op: 'report', job: JT, key: Kb, ck: { s: 'al', id: 'ckal2234567890', size: 1 } });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.ck && r.payload.job.ck.s === 'al' && r.payload.job.ck.at === now && !('id' in r.payload.job.ck), 'סטודיו: הטלפון רואה אחרי איזה שלב נשמר (בלי מזהי הקבצים)');
+    r = await wrk({ op: 'claim', job: JT, key: Kb });
+    const CK = r.payload.job.ck;
+    ok(CK.length === 2 && CK[0].s === 'asr' && CK[1].s === 'al' && CK[1].id === 'ckal2234567890' && CK[1].size === 3200000,
+      'סטודיו: העובד מקבל את נקודות השמירה לפי סדר השלבים — אחת לכל שלב, החדשה מחליפה (והגודל מ־Drive)');
     // שלב 3 סבב ד׳: שאלה קצרה באמצע העבודה — מהעובד לטלפון ובחזרה
     r = await wrk({ op: 'report', job: JT, key: Kb, ask: { id: 'bad id', q: 'x' } });
     ok(r.statusCode === 400 && r.payload.error === 'ask_bad', 'סטודיו: שאלה — מזהה לא תקין נדחה');
@@ -1444,7 +1461,8 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q1', i: 0 });
     ok(r.statusCode === 400, 'סטודיו: אי אפשר לענות פעמיים');
     r = await wrk({ op: 'claim', job: JT, key: Kb });
-    ok(r.payload.job.qa.id === 'q1' && r.payload.job.qa.a.t === 'ביל אקמאן' && !('q' in r.payload.job.qa), 'סטודיו: העובד מקבל את התשובה (בלי לשלוח לו שוב את השאלה)');
+    ok(r.payload.job.qa.id === 'q1' && r.payload.job.qa.a.t === 'ביל אקמאן' && r.payload.job.qa.q === 'איך כותבים את שם הדובר?' && !('o' in r.payload.job.qa),
+      'סטודיו: העובד מקבל את התשובה (v361: וגם את השאלה — סשן שממשיך עבודה צריך לדעת על מה ענית)');
     r = await wrk({ op: 'report', job: JT, key: Kb, ask: { id: 'q2', q: 'מה המגדר של הדובר השני?' } });
     r = await run({ op: 'answer', idToken: OWNER, job: JT, qid: 'q2', i: 0 });
     ok(r.statusCode === 400, 'סטודיו: שאלה פתוחה — בלי טקסט אין תשובה');
@@ -1468,6 +1486,38 @@ function stubFetch(text, status = 200) {
     ok(r.payload.job.state === 'cancelled', 'סטודיו: ביטול');
     r = await wrk({ op: 'report', job: JT, key: Kb, st: 'al' });
     ok(r.payload.stop && r.payload.state === 'cancelled', 'סטודיו: אחרי ביטול — העובד מקבל "עצור" בדיווח הבא');
+    // v361: "המשך מאותה נקודה" — מפתח חדש והפעלה חוזרת; הטוקנים של הסשן הקודם נשמרים ומתווספים
+    const firesBefore = fires.length;
+    fireMode = 401;
+    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    ok(!r.payload.ok && r.payload.error === 'routine_auth' && r.payload.job.state === 'failed', 'סטודיו: המשך שלא הופעל — העבודה חוזרת ל"נכשלה" (לא ל"חדשה")');
+    fireMode = 'ok';
+    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    const Kc = keyOf(fires[fires.length - 1]);
+    ok(r.payload.ok && r.payload.job.state === 'queued' && Kc && Kc !== Kb && fires.length === firesBefore + 2 && r.payload.job.ck.s === 'al' && r.payload.job.ended === 0,
+      'סטודיו: המשך — מפתח חדש, הפעלה חוזרת, ונקודת השמירה נשארת');
+    ok(JSON.stringify(r.payload.job.use) === JSON.stringify(U), 'סטודיו: המשך — העלות של הסשן הקודם נשארת מוצגת');
+    r = await wrk({ op: 'claim', job: JT, key: Kb });
+    ok(r.statusCode === 403, 'סטודיו: המשך — המפתח הקודם כבר לא תקף (סשן ישן שהתעורר נעצר)');
+    r = await wrk({ op: 'claim', job: JT, key: Kc });
+    ok(r.payload.ok && r.payload.job.ck.length === 2, 'סטודיו: המשך — הסשן החדש מקבל את נקודות השמירה');
+    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    ok(r.statusCode === 409 && r.payload.error === 'state', 'סטודיו: אי אפשר "להמשיך" עבודה שרצה');
+    r = await wrk({ op: 'report', job: JT, key: Kc, st: 'tl', p: 0.5, usage: [USE[0]] });
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.use.length === 4 && r.payload.job.use[0].n === 80 && r.payload.job.use[0].o === 18000 && Math.abs(r.payload.job.use[0].usd - 1.42) < 1e-9 && r.payload.job.use[1].n === 12,
+      'סטודיו: המשך — הטוקנים של שני הסשנים מסוכמים לפי סוג ומודל');
+    now += S.STALE_MS + 1;
+    r = await run({ op: 'job', idToken: OWNER, job: JT });
+    ok(r.payload.job.state === 'running' && r.payload.job.stale === true, 'סטודיו: "רצה" בלי דיווח שעתיים — מסומנת "נתקעה"');
+    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    const Kd = keyOf(fires[fires.length - 1]);
+    ok(r.payload.ok && r.payload.job.state === 'queued' && Kd !== Kc && !r.payload.job.stale, 'סטודיו: עבודה שנתקעה — אפשר להמשיך');
+    db.get('studioJobs/' + JT).fields.fires = { integerValue: String(S.RESUME_MAX) };
+    await run({ op: 'cancel', idToken: OWNER, job: JT });
+    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    ok(r.statusCode === 409 && r.payload.error === 'resume_limit', 'סטודיו: לכל היותר 10 הפעלות לעבודה (המשך שחוזר על עצמו נעצר)');
+    r = await wrk({ op: 'report', job: JT, key: Kd, st: 'al' });
     now += S.KEY_TTL + 1;
     r = await wrk({ op: 'claim', job: JT, key: Kb });
     ok(r.statusCode === 403, 'סטודיו: מפתח עבודה פג אחרי 48 שעות');

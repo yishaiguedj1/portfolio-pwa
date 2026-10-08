@@ -44,6 +44,8 @@ export function progressModel(job, est, up, now) {
   const stg = prog.stg || {};
   const cur = prog.st || '';
   const ended = job && job.state === 'done';
+  // v361: נכשלה / בוטלה — השלב שבו נעצרה נסגר בשרתון, אבל הוא לא "הושלם" (בלי ✓; "המשך" פותח אותו מחדש)
+  const stopped = job && (job.state === 'failed' || job.state === 'cancelled');
   const stages = [];
   let left = 0, doneW = 0, allW = 0;
   for (const s of STAGES) {
@@ -53,7 +55,8 @@ export function progressModel(job, est, up, now) {
     if (s === 'up') {
       if (up && up.done) row = { id: s, state: 'done', took: up.took || 0 };
       else row = { id: s, state: up && up.active ? 'now' : 'wait', left: up && up.left > 0 ? up.left : e, p: up ? up.p || 0 : 0, est: e };
-    } else if (ended || (stg[s] && stg[s].e)) row = { id: s, state: 'done', took: stg[s] && stg[s].e ? Math.max(0, Math.round((stg[s].e - stg[s].s) / 1000)) : 0 };
+    } else if (stopped && s === cur) row = { id: s, state: 'wait', est: e };
+    else if (ended || (stg[s] && stg[s].e)) row = { id: s, state: 'done', took: stg[s] && stg[s].e ? Math.max(0, Math.round((stg[s].e - stg[s].s) / 1000)) : 0 };
     else if (s === cur && stg[s]) {
       const el = Math.max(0, (now - stg[s].s) / 1000), p = Math.max(0, Math.min(0.99, prog.p || 0));
       // העובד יודע הכי טוב (eta); אחרת לפי הקצב בפועל כשיש מספיק התקדמות; אחרת ההערכה פחות מה שעבר

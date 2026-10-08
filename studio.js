@@ -119,6 +119,8 @@ export function normJob(j) {
       .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     qa: normQa(s.qa),      // שאלה מ־Claude באמצע העבודה (והתשובה)
+    ck: normCk(s.ck),      // v361: נקודת השמירה האחרונה (אחרי איזה שלב)
+    stale: s.stale === true, fires: num(s.fires),
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -129,6 +131,25 @@ export function normQa(q) {
   const d = Number.isInteger(q.d) && q.d >= 0 && q.d < o.length ? q.d : -1;
   const a = q.a && typeof q.a === 'object' ? { i: Number.isInteger(q.a.i) ? q.a.i : -1, t: String(q.a.t || '').slice(0, 200), auto: q.a.auto === true } : null;
   return { id: q.id, q: q.q.slice(0, 300), o, d, w: num(q.w) || 480, at: num(q.at), a };
+}
+/* v361: נקודת השמירה האחרונה — אחרי תמלול / יישור / תרגום / ביקורת. CK_STAGE = השלב בטלפון שהיא סוגרת */
+const CK_STAGE = { asr: 'tr', al: 'al', tl: 'tl', rv: 'rv' };
+function ckName(s) {
+  switch (s) {
+    case 'asr': return T('studioCkAsr');
+    case 'al': return T('studioCkAl');
+    case 'tl': return T('studioCkTl');
+    default: return T('studioCkRv');
+  }
+}
+export function normCk(c) {
+  return c && typeof c === 'object' && Object.prototype.hasOwnProperty.call(CK_STAGE, c.s) ? { s: c.s, at: num(c.at) } : null;
+}
+/* אפשר "המשך"? עבודת תרגום שנכשלה / בוטלה / נתקעה (השרתון בודק שוב) */
+export function canResume(rec) {
+  const s = rec && rec.srv;
+  if (!s || !(rec.up.a.done || rec.up.v.done || rec.up.started)) return false;
+  return s.state === 'failed' || s.state === 'cancelled' || ((s.state === 'running' || s.state === 'queued') && s.stale);
 }
 /* יש שאלה פתוחה שמחכה לתשובה (והעבודה עוד רצה) */
 export function qaPending(rec) {
@@ -244,6 +265,7 @@ export function sameFile(file, fp) {
 export function jobPhase(rec, run) {
   const s = rec.srv ? rec.srv.state : 'new';
   if (s === 'done' || s === 'failed' || s === 'cancelled') return s;
+  if ((s === 'running' || s === 'queued') && rec.srv.stale) return 'stuck';   // v361: הסשן נפל — אפשר להמשיך
   if (run && run.active) return run.wait ? 'wait' : run.phase === 'extract' || run.phase === 'prep' ? 'extract' : run.phase === 'audio' ? 'audio' : 'video';
   if (run && run.phase === 'error') return 'error';
   if (s === 'queued' || s === 'running') return s;
@@ -355,6 +377,7 @@ function errText(code, extra) {
     case 'bad_key': return T('studioErrBadKey');
     case 'vault_not_configured': return T('studioErrVault');
     case 'stalled': return T('studioErrNet');
+    case 'resume_limit': return T('studioErrResumeLimit');
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
 }
@@ -575,6 +598,16 @@ async function register(id, which, fid, folder) {
   const j = await net.api('file', { job: id, which, id: fid, folder });
   if (!j.ok) throw Object.assign(new Error(j.error || 'file'), { code: j.error || 'file' });
   const rec = jobRec(id); if (rec && j.job) rec.srv = normJob({ id, srv: j.job }).srv;
+}
+/* v361: "המשך" — השרתון מפעיל את ה־Routine שוב עם מפתח חדש; העובד ממשיך מנקודת השמירה האחרונה */
+async function resumeSrv(id) {
+  const rec = jobRec(id); if (!rec || ui.resuming) return;
+  ui.resuming = id; render('none');
+  const j = await net.api('resume', { job: id });
+  ui.resuming = '';
+  if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
+  if (!j.ok) flashSafe(errText(j.error, j));
+  save(); render('none');
 }
 /* "התחלה": השרתון מפעיל את ה־Routine. בשלב 2 העובד יודע רק "בדיקת חיבור" — התשובה worker_not_ready והעבודה ממתינה */
 async function tryStart(id) {
@@ -1083,6 +1116,7 @@ function heroState(rec, run, ph) {
   const m = modelFor(rec);
   if (ph === 'done') return { pct: 1, check: true, big: T('studioNowDone'), sub: '' };
   if (ph === 'failed' || ph === 'cancelled') return { pct: m.pct, big: ph === 'failed' ? T('studioBFailed') : T('studioBCancelled'), sub: '' };
+  if (ph === 'stuck') return { pct: m.pct, big: T('studioStuckBig'), sub: '' };
   if (ph === 'ready') return { pct: 1, check: true, big: T('studioReadyBig'),
     sub: rec.up.wait === 'worker_not_ready' ? T('studioWaitWorkerS') : rec.up.wait === 'conn_missing' ? T('studioNeedConnS') : T('studioTotalEst', { t: fmtLeft(m.left) }) };
   const u = uploadLeft(rec, run);
@@ -1107,12 +1141,14 @@ function nowLine(rec, run, ph) {
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
   if (ph === 'failed') return errText(rec.srv && rec.srv.err);
+  if (ph === 'stuck') return T('studioNowStuck');
   return T('studioNowCancelled');
 }
 function badgeFor(ph) {
   switch (ph) {
     case 'extract': case 'audio': case 'video': return ['green', T('studioBUp')];
     case 'wait': case 'need': case 'paused': return ['amber', T('studioBPaused')];
+    case 'stuck': return ['amber', T('studioBStuck')];
     case 'error': case 'failed': return ['red', T('studioBFailed')];
     case 'ready': return ['gray', T('studioBReady')];
     case 'queued': case 'running': return ['green', T('studioBRunning')];
@@ -1477,7 +1513,7 @@ function pageJob(p) {
   // מה קורה עכשיו — משפט אחד + דוגמה חיה
   const nowc = h('div', 'st-nowc');
   const nic = h('span', 'st-nowic');
-  nic.append(ico(ph0 === 'wait' ? (run0 && run0.wait === 'wifi' ? 'wifi' : 'cloud') : ph0 === 'error' || ph0 === 'failed' ? 'alert' : ph0 === 'need' || ph0 === 'paused' ? 'pause' : 'up'));
+  nic.append(ico(ph0 === 'wait' ? (run0 && run0.wait === 'wifi' ? 'wifi' : 'cloud') : ph0 === 'error' || ph0 === 'failed' ? 'alert' : ph0 === 'need' || ph0 === 'paused' || ph0 === 'stuck' ? 'pause' : 'up'));
   const ntx = h('span', 'st-l'); const nb = h('b'), ns = h('small');
   const npb = h('span', 'st-pbar'); const npi = h('i'); npb.append(npi);
   ntx.append(nb, ns, npb);
@@ -1504,6 +1540,12 @@ function pageJob(p) {
   else if (ph0 === 'paused' || ph0 === 'error') acts.push(btn('st-btn wide', ph0 === 'error' ? T('studioRetry') : T('studioResume'), () => resumeJob(id, true), 'resume'));
   else if (ph0 === 'ready' && rec.up.wait === 'conn_missing') acts.push(btn('st-btn wide', T('studioConnectNow'), () => go('settings'), 'connect-now'));
   else if (ph0 === 'ready' && ui.kinds.includes('tr') && rec.up.wait !== '') acts.push(btn('st-btn wide', T('studioStartNow'), () => { rec.up.wait = ''; tryStart(id); }, 'start-now'));
+  else if (canResume(rec)) {
+    // v361: "המשך מאותה נקודה" — Claude מוריד את נקודת השמירה האחרונה וממשיך ממנה (בלי לתמלל ולתרגם מחדש)
+    const ck = rec.srv.ck;
+    acts.push(btn('st-btn wide', ui.resuming === id ? T('studioResuming') : ck ? T('studioResumeCk') : T('studioRetryAll'), () => resumeSrv(id), 'resume-srv'));
+    if (ck) acts.push(note(T('studioCkSaved', { s: ckName(ck.s) })));
+  }
   if (acts.length) p.append(h('div', 'st-gap sm'), ...acts);
 
   // השלבים
@@ -1776,7 +1818,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : ''); };
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : ''); };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join(); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
