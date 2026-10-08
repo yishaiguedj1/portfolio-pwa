@@ -25,7 +25,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(O.KINDS['claude:budget'] === 3, 'התראה "הגענו לתקציב" בקטלוג (P3)');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'rules'/.test(api) && /op === 'halt'/.test(api) && /kh: ''/.test(api) && /'halted'/.test(api), 'השרתון: חוקים, מתג החירום (מבטל את מפתחות העבודות), חסימת הפעלות');
-  ok((api.match(/await ruleBlock\(deps, uid, job, body\)/g) || []).length === 2 && /body\.ov !== true/.test(api), 'התחלה והמשך — מתג החירום ומצב מעל המקסימום (ov = "בכל זאת")');
+  ok(/await ruleBlock\(deps, uid, job, body\)/.test(api) && /await ruleBlock\(deps, uid, job, auto \? \{ ov: true \} : body\)/.test(api) && /await doResume\(deps, uid, job, now, body, false\)/.test(api) && /body\.ov !== true/.test(api),
+    'התחלה והמשך — מתג החירום ומצב מעל המקסימום (ov = "בכל זאת"; v368: ההמשך דרך doResume)');
   ok(/WORKER_OPS = new Set\(\['claim', 'token', 'report', 'qa'\]\)/.test(api), 'העובד בודק תשובה לשער בלי לבקש Drive');
 
   /* ---------- 2. העובד והמגדל ---------- */

@@ -1667,6 +1667,106 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v368: התראות חכמות ושקט — מהבהבת, ציון עדיפות, השתקה עם תפוגה, סיכום 24 שעות, והמשך אוטומטי אחרי תקלה חולפת
+    now += 3600e3 + 1;
+    {
+      const O8 = require('../lib/studioops');
+      const JA = 'j' + 'A'.repeat(20), JB = 'j' + 'B'.repeat(20);
+      let t0 = 5e12, al = O8.opsApply([], [{ c: 'drive', k: 'dl_retry' }], JA, t0);
+      for (let i = 0; i < 2; i++) { t0 += 60e3; al = O8.opsApply(al, [{ c: 'drive', k: 'dl_retry', ok: true }], JA, t0); t0 += 60e3; al = O8.opsApply(al, [{ c: 'drive', k: 'dl_retry' }], JA, t0); }
+      ok(al.length === 1 && al[0].r === 2 && al[0].fl === 1 && !al[0].x && al[0].n === 3, 'סטודיו: מגדל 2.0 — נסגרה ונפתחה שוב תוך שעה: אותה התראה (לא חדשה), ופעמיים = "מהבהבת"');
+      let al2 = O8.opsApply(al, [{ c: 'drive', k: 'dl_retry', ok: true }], JA, t0 + 1);
+      al2 = O8.opsApply(al2, [{ c: 'drive', k: 'dl_retry' }], JA, t0 + O8.FLAP_WIN + 2);
+      ok(al2.length === 2 && !al2[1].fl && al2[1].n === 1, 'סטודיו: מגדל 2.0 — אחרי שעה של שקט — התראה חדשה (כבר לא מהבהבת)');
+      // ציון עדיפות: סוג שפוגע בשתי עבודות קודם לחמור יותר שפוגע באחת; משקל הרכיב מכריע בין שווים
+      let ap = O8.opsApply([], [{ c: 'drive', k: 'up_retry' }], JA, t0);
+      ap = O8.opsApply(ap, [{ c: 'drive', k: 'up_retry' }], JB, t0);
+      ap = O8.opsApply(ap, [{ c: 'vt', k: 'asr' }], JA, t0);
+      ap = O8.opsApply(ap, [{ c: 'routine', k: 'fire' }], JB, t0);
+      const V = O8.opsView(ap, t0, null);
+      ok(V.open[0].k === 'up_retry' && V.open[0].nj === 2 && V.open[1].k === 'up_retry' && V.open[2].c === 'routine' && V.open[3].c === 'vt' && V.open[1].ps > V.open[2].ps,
+        'סטודיו: מגדל 2.0 — ציון עדיפות: עבודות שנפגעו › חומרה › משקל הרכיב (Routine לפני vt)');
+      ok(V.digest.hi === 2 && V.digest.lo === 2 && V.digest.top[0].c === 'drive' && V.digest.top[0].n === 2, 'סטודיו: מגדל 2.0 — סיכום 24 שעות: P1–P2 מול P3–P4, והסוגים הנפוצים');
+      ok(O8.muteSet({}, 'drive', 'evil', 1, t0) === null && O8.muteSet({}, 'drive', 'up_retry', 3, t0) === null && O8.muteSet({}, 'drive', 'up_retry', 1e6, t0) === null,
+        'סטודיו: השתקה — רק סוג מהקטלוג ו־1/4/24 שעות (בלי השתקות נצחיות)');
+      const mu = O8.muteSet({ 'drive:up_retry': t0 + 365 * 86400e3, 'evil:x': t0 + 1 }, 'vt', 'asr', 4, t0);
+      ok(JSON.stringify(mu) === JSON.stringify({ 'vt:asr': t0 + 4 * 3600e3 }), 'סטודיו: השתקה — השתקה "נצחית" או סוג לא מוכר שהגיעו מבחוץ — נזרקים');
+      const Vm = O8.opsView(ap, t0, mu);
+      ok(Vm.open.find((g) => g.c === 'vt').m === t0 + 4 * 3600e3 && Vm.score === V.score && O8.opsView(ap, t0 + 5 * 3600e3, mu).mu.length === 0,
+        'סטודיו: השתקה — מסומנת בהתראה, לא משנה את ציון הבריאות, ופגה לבד');
+    }
+    ok(S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('budget_stop', ['drive:up_retry']) && !S.isTransient('worker', ['vt:asr']) && S.isTransient('net', []),
+      'סטודיו: תקלה חולפת — Drive / רשת כן; עצירה של המגדל, התקציב או מתג החירום — אף פעם');
+    rr = await run({ op: 'mute', idToken: OWNER, c: 'drive', k: 'up_retry', h: 4 });
+    ok(rr.payload.ok && rr.payload.ops.mu.length === 1 && rr.payload.ops.mu[0].until === now + 4 * 3600e3, 'סטודיו: השתקה — נשמרת בחשבון, עם תפוגה');
+    ok((await run({ op: 'status', idToken: OWNER })).payload.ops.mu[0].k === 'up_retry', 'סטודיו: השתקה — הטלפון רואה אותה');
+    rr = await run({ op: 'mute', idToken: OWNER, c: 'drive', k: 'up_retry', h: 9 });
+    ok(rr.statusCode === 400 && rr.payload.error === 'bad_mute', 'סטודיו: השתקה — משך לא מהרשימה — 400');
+    rr = await run({ op: 'mute', idToken: OWNER, c: 'drive', k: 'up_retry', h: 0 });
+    ok(rr.payload.ok && rr.payload.ops.mu.length === 0, 'סטודיו: השתקה — ביטול');
+    // המתנה לפני כישלון: Drive נכשל → "נכשלה" עם חלון התאוששות → "המשך" אוטומטי אחד
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JRC = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JRC, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    await run({ op: 'start', idToken: OWNER, job: JRC });
+    let Krc = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JRC, key: Krc });
+    await wrk({ op: 'report', job: JRC, key: Krc, st: 'tr', p: 0.4, ck: { s: 'asr', id: 'ck01234567890', size: 99 } });
+    await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'worker', ev: [{ c: 'drive', k: 'dl_fail' }] });
+    rr = await run({ op: 'job', idToken: OWNER, job: JRC });
+    ok(rr.payload.job.state === 'failed' && rr.payload.job.rec === now + S.RECOVER_WAIT, 'סטודיו: תקלה חולפת (Drive) — "נכשלה" עם חלון התאוששות: ממשיכה לבד בעוד 3 דק׳');
+    let nf8 = fires.length;
+    now += S.RECOVER_WAIT - 1000;
+    rr = await run({ op: 'jobs', idToken: OWNER });
+    ok(fires.length === nf8 && rr.payload.jobs.find((j) => j.id === JRC).rec > now, 'סטודיו: תקלה חולפת — לפני סוף החלון לא מפעילים');
+    now += 2000;
+    rr = await run({ op: 'job', idToken: OWNER, job: JRC });
+    ok(fires.length === nf8 + 1 && rr.payload.job.state === 'queued' && rr.payload.job.rec === 0 && rr.payload.job.fires === 2,
+      'סטודיו: תקלה חולפת — בסוף החלון: "המשך" אוטומטי מנקודת השמירה');
+    rr = await run({ op: 'status', idToken: OWNER });
+    ok(rr.payload.ops.open.some((a) => a.c === 'claude' && a.k === 'auto' && a.j === JRC && a.s === 4), 'סטודיו: תקלה חולפת — "המשכנו לבד" נרשם במגדל (מידע, P4)');
+    Krc = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JRC, key: Krc });
+    await wrk({ op: 'report', job: JRC, key: Krc, tower: { lv: 'red', why: 'loop', x: 1, usd: 1, exp: 1, n: 10 } });
+    ok((await run({ op: 'status', idToken: OWNER })).payload.ops.open.some((a) => a.k === 'tw_stop' && a.j === JRC), 'סטודיו: (הכנה) המגדל עצר — התראה דחופה');
+    await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'net' });
+    now += S.RECOVER_WAIT + 1;
+    rr = await run({ op: 'job', idToken: OWNER, job: JRC });
+    ok(rr.payload.job.state === 'failed' && rr.payload.job.rec === 0 && fires.length === nf8 + 1, 'סטודיו: תקלה חולפת — המשך אוטומטי רק פעם אחת לעבודה; בפעם השנייה — "נכשלה" באמת');
+    rr = await run({ op: 'resume', idToken: OWNER, job: JRC });
+    ok(rr.payload.ok && fires.length === nf8 + 2, 'סטודיו: תקלה חולפת — "המשך" ידני עדיין זמין');
+    ok(!(await run({ op: 'status', idToken: OWNER })).payload.ops.open.some((a) => a.k === 'tw_stop' && a.j === JRC), 'סטודיו: "המשך" סוגר את ההתראה של העצירה הקודמת (לא נשארת "דחופה" כשהעבודה רצה)');
+    Krc = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JRC, key: Krc });
+    await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'tl_bad' });
+    rr = await run({ op: 'job', idToken: OWNER, job: JRC });
+    ok(rr.payload.job.rec === 0, 'סטודיו: כישלון שאינו חולף — בלי חלון התאוששות');
+    // "בטל" ומתג החירום עוצרים את ההמשך האוטומטי
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    const JRU = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JRU, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    await run({ op: 'start', idToken: OWNER, job: JRU });
+    let Kru = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JRU, key: Kru });
+    await wrk({ op: 'report', job: JRU, key: Kru, fail: true, err: 'drive_net' });
+    ok((await run({ op: 'job', idToken: OWNER, job: JRU })).payload.job.rec > 0, 'סטודיו: תקלה חולפת — קוד השגיאה drive_net לבד מספיק');
+    rr = await run({ op: 'cancel', idToken: OWNER, job: JRU });
+    ok(rr.payload.job.rec === 0, 'סטודיו: "בטל" — בלי המשך אוטומטי');
+    await run({ op: 'resume', idToken: OWNER, job: JRU });
+    Kru = keyOf(fires[fires.length - 1]);
+    await wrk({ op: 'claim', job: JRU, key: Kru });
+    await wrk({ op: 'report', job: JRU, key: Kru, fail: true, err: 'net' });
+    await run({ op: 'halt', idToken: OWNER, on: true });
+    nf8 = fires.length;
+    now += S.RECOVER_WAIT + 1;
+    rr = await run({ op: 'job', idToken: OWNER, job: JRU });
+    ok(rr.payload.job.rec === 0 && fires.length === nf8, 'סטודיו: מתג החירום — גם ההמשך האוטומטי לא קורה');
+    await run({ op: 'halt', idToken: OWNER, on: false });
+    await run({ op: 'remove', idToken: OWNER, job: JRU });
+    await run({ op: 'remove', idToken: OWNER, job: JRC });
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v367: החוקים שלך, מתג החירום ושערי אישור
     now += 3600e3 + 1;                       // תקציב ההפעלות לשעה מתחיל מחדש
     const SPECX = Object.assign({}, SPEC, { mode: 'opus-max' });

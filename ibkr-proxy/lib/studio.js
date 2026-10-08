@@ -38,6 +38,19 @@ const TEST_GAP = 60e3;                      // בדיקת חיבור — לכל 
 const CK_STAGES = ['asr', 'al', 'tl', 'rv'];
 const CK_MAX_SIZE = 512 * 1024 ** 2;
 const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח שעתיים = הסשן נפל (התרגום מדווח על כל חלק)
+/* v368: המתנה לפני כישלון — תקלה חולפת (Drive / רשת) מקבלת חלון התאוששות, ואז "המשך" אוטומטי אחד מנקודת השמירה.
+   רק אז "נכשלה" באמת. ההפעלה נספרת במכסה כמו כל הפעלה — לכן פעם אחת לעבודה (החלטה 1 בתוכנית) */
+const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
+const TRANSIENT_ERRS = ['net', 'drive', 'drive_net'];
+const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
+/* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
+const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind'];
+/* האם הכישלון חולף: קוד השגיאה שהעובד דיווח, או התראת Drive פתוחה של העבודה הזו ברגע הכישלון */
+function isTransient(err, openKinds) {
+  const e = String(err || '');
+  if (STOP_ERRS.includes(e)) return false;
+  return TRANSIENT_ERRS.includes(e) || (Array.isArray(openKinds) && openKinds.some((k) => TRANSIENT_KINDS.includes(k)));
+}
 const RESUME_MAX = 10;                      // הפעלות לעבודה אחת (כולל הראשונה) — מעבר לזה משהו חוזר על עצמו
 
 /* ---------- קלט ---------- */
@@ -146,6 +159,12 @@ function canResume(job, now) {
   if (!(st === 'failed' || st === 'cancelled' || isStale(job, now))) return 'state';
   if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
   return '';
+}
+/* v368: מתי ממשיכים לבד (0 = לא): נכשלה בתקלה חולפת, עוד לא המשכנו לבד, ואפשר להמשיך */
+function recoverAt(job, now) {
+  if (!job || !job.rw || (job.ar || 0) >= AUTO_RESUME_MAX) return 0;
+  if (effState(job, now).state !== 'failed' || canResume(job, now)) return 0;
+  return job.rw;
 }
 /* v362: מגדל הפיקוח — מצב מהעובד (ה־Hook בסשן): רמה, סיבה (בעצירה), פי כמה מהרגיל, עלות לפי מחירון ה־API והצפוי עד עכשיו */
 const TW_LV = ['ok', 'warn', 'red'];
@@ -399,6 +418,7 @@ function publicJob(job, now) {
     stale: isStale(job, now),                       // v361: "רצה" בלי דיווח שעתיים — אפשר להמשיך
     fires: job.fires || 0,
     tw: job.tw && TW_LV.includes(job.tw.lv) ? job.tw : null,   // v362: מגדל הפיקוח
+    rec: recoverAt(job, now),                       // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
@@ -440,7 +460,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'rl'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'rl', 'mu'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -473,6 +493,6 @@ module.exports = {
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
-  CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

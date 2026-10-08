@@ -37,7 +37,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(S.workerJob({ id: 'j', kind: 'tr', ck: L }).ck.length === 2 && S.workerJob({ id: 'j', kind: 'tr' }).ck.length === 0, 'השרתון: העובד מקבל את רשימת נקודות השמירה');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'resume'/.test(api) && /S\.canResume\(job, now\)/.test(api) && /fireJob\(deps, uid, v, job, now, true\)/.test(api) && /error: 'ck_bad'/.test(api)
-    && /meta\.parents\.includes\(job\.folder\)/.test(api), 'השרתון: resume + נקודת שמירה מאומתת מול Drive (בתיקיית העבודה)');
+    && /meta\.parents\.includes\(folder\)/.test(api) && /driveFileInFolder\(deps, job\.uid, job\.folder/.test(api), 'השרתון: resume + נקודת שמירה מאומתת מול Drive (בתיקיית העבודה)');
 
   /* ---------- 2. העובד ---------- */
   const job = read('translator/job.py');
