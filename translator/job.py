@@ -62,6 +62,21 @@ def fb_valid(a):
             if isinstance(e, dict) and FP_RE.match(str(e.get('fp') or '')) and e.get('why') in WHY_LABEL and e.get('fix')][:30]
 
 
+def rules_valid(r):
+    """v367: החוקים מהשרתון — תקציב לעבודה (דולרים, 0 = בלי) ואישור לפני צריבה. מה שלא תקין — כאילו אין חוק."""
+    r = r if isinstance(r, dict) else {}
+    b = _usd(r.get('b'))
+    return {'b': b if 1 <= b <= 500 else 0.0, 'ab': r.get('ab') is True}
+
+
+def _int(x):
+    return x if isinstance(x, int) and not isinstance(x, bool) and 0 <= x < 1000 else 0
+
+
+def _usd(x):
+    return float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) and 0 <= x < 1e5 else 0.0
+
+
 def vt_slug(name):
     """השם שבו vt שומר את הפרויקט — זהה ל־slugify ב־translator/vt/project.py (אותיות קטנות, בלי - בקצוות).
     מזהה העבודה כולל אותיות גדולות, ולפניו חיפשנו את התיקייה והתוצרים בשם המקורי (output_name_mismatch ב־99%)."""
@@ -156,6 +171,8 @@ def run(args):
                     'nm': job.get('nm') if isinstance(job.get('nm'), dict) else None,    # v363: "הרגיל" שלך — למגדל הפיקוח
                     'fb': fb_valid(job.get('fb')),                                        # v364: ספר התיקונים
                     'fm': 'auto' if job.get('fm') == 'auto' else 'suggest',               # v366: מסלול התיקונים של המשתמש
+                    'rl': rules_valid(job.get('rl')),                                     # v367: החוקים שלך (תקציב, אישור לפני צריבה)
+                    'bx': _int(job.get('bx')), 'u0': _usd(job.get('u0')),                 # v367: אישורים מעבר לתקציב, ומה שכבר עלה
                     'ls': ls,
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
@@ -933,6 +950,112 @@ def ask(args):
     return 0
 
 
+# ---------------------------------------------------------------- שערים (v367): הפרה של חוק — העבודה מחכה לך בטלפון
+GATE_POLL = float(os.environ.get('SNB_GATE_POLL', '10'))
+
+
+def gate_answer(c, gid):
+    """התשובה לשער: 'go' / 'stop' / None (עוד אין) / 'gone' (שער אחר במקומו). ברירת המחדל של שער (בלי תשובה בזמן) = 'stop'."""
+    j = c.call('qa')
+    qa = j.get('qa') or {}
+    if qa.get('id') != gid:
+        return 'gone'
+    a = qa.get('a')
+    if not a:
+        return None
+    return 'go' if a.get('i') == 0 and not a.get('auto') else 'stop'
+
+
+def gate_wait(c, gid, secs):
+    """מחכה לתשובה עד secs שניות (בדיקה כל כמה שניות, בלי Drive). מחזיר את התשובה או None."""
+    end = time.time() + secs
+    while True:
+        r = gate_answer(c, gid)
+        if r:
+            return r
+        if time.time() >= end:
+            return None
+        time.sleep(GATE_POLL)
+
+
+def gate_cmd(args):
+    """v367: מגדל הפיקוח עצר בתקציב שקבעת והשאלה בטלפון — מחכים לתשובה (עד 9 דק׳ בכל הרצה; בחזית)."""
+    st = load_state()
+    c = Client(st['server'], st['job'], st['key'])
+    try:
+        qa = c.call('qa').get('qa') or {}
+        if qa.get('g') != 'b':
+            print('אין אישור שממתין — המשך.')
+            return 0
+        r = gate_wait(c, qa['id'], float(os.environ.get('SNB_GATE_WAIT', '540')))
+    except Stop as e:
+        print('■ השרתון ביקש לעצור (' + str(e) + '). סכם בשורה אחת וסיים.')
+        return 2
+    if r is None:
+        print('· עדיין מחכה לתשובה בטלפון. הרץ שוב את אותה פקודה (בחזית).')
+        return 0
+    if r == 'go':
+        print('✓ המשתמש אישר להמשיך מעבר לתקציב — המשך מאיפה שעצרת.')
+        return 0
+    if r == 'gone':
+        print('אין אישור שממתין — המשך.')
+        return 0
+    try:
+        Ctx(st).report(fail=True, err='budget_stop', msg='עצרנו בתקציב שקבעת', force=True, usage=usage_safe())
+    except (Stop, SystemExit):
+        pass
+    print('■ המשתמש בחר לעצור בתקציב (או שלא ענה בזמן). אל תמשיך — סכם בשורה אחת וסיים. הכל שמור, ואפשר להמשיך מהטלפון.')
+    return 0
+
+
+SRT_TIME_RE = re.compile(r'^(\d{2}):(\d{2}):(\d{2})[,.]\d{3}\s*-->')
+
+
+def srt_samples(path, n=5):
+    """v367: כמה כתוביות לדוגמה, מפוזרות לאורך הסרטון (זמן + טקסט בלי תגיות), ומספר הכתוביות."""
+    try:
+        txt = Path(path).read_text(encoding='utf-8-sig', errors='replace')
+    except OSError:
+        return [], 0
+    cues = []
+    for blk in re.split(r'\n\s*\n', txt.replace('\r', '')):
+        lines = [x for x in blk.strip().split('\n') if x.strip()]
+        ti = next((i for i, x in enumerate(lines) if SRT_TIME_RE.match(x.strip())), -1)
+        if ti < 0:
+            continue
+        m = SRT_TIME_RE.match(lines[ti].strip())
+        h, mi, se = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        t = '%d:%02d:%02d' % (h, mi, se) if h else '%d:%02d' % (mi, se)
+        x = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>|\{[^}]*\}', '', ' '.join(lines[ti + 1:]))).strip()
+        if x:
+            cues.append({'t': t, 'x': x[:140]})
+    if len(cues) <= n:
+        return cues, len(cues)
+    step = (len(cues) - 1) / (n - 1)
+    return [cues[round(i * step)] for i in range(n)], len(cues)
+
+
+def approve_render(ctx, wait=None):
+    """v367: חוק "אישור לפני צריבה" — 5 כתוביות לדוגמה בטלפון; "לצרוב" / "רק קובץ כתוביות". בלי תשובה בזמן — רק כתוביות."""
+    cues, cnt = srt_samples(ctx.pdir / 'out' / 'he.srt')
+    ctx.report('bn', 0, 'מחכים לאישור שלך לפני הצריבה', force=True)
+    try:
+        gid = ctx.c.call('report', gate={'k': 'r', 'cues': cues, 'cnt': cnt}).get('gate') or ''
+    except SystemExit as e:
+        print('· האישור לפני הצריבה לא נשלח (' + str(e).strip()[:60] + ') — צורבים כרגיל.')
+        return True
+    if not gid:
+        return True
+    print('הכתוביות לדוגמה נשלחו לטלפון — מחכים לאישור לצריבה (עד 30 דק׳).')
+    r = gate_wait(ctx.c, gid, wait if wait is not None else 30 * 60 * float(os.environ.get('SNB_ASK_WAIT_SCALE', '1')))
+    if r is None:
+        try:
+            ctx.report(askTimeout=gid, force=True)
+        except SystemExit:
+            pass
+    return r == 'go'
+
+
 @guarded
 def fail(args):
     ctx = Ctx(load_state())
@@ -1011,6 +1134,9 @@ def finish(args):
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
     vt(ctx, ['build', ctx.name])
+    if want and (ctx.st.get('rl') or {}).get('ab') and not approve_render(ctx):
+        print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
+        want = []
     if want:
         ctx.report('bn', 0, 'מוסיפים את הכתוביות לסרטון', force=True)
         flags = (['--compact'] if 'compact' in want else []) + (['--burn'] if 'same' in want else []) + (['--mkv'] if 'mkv' in want else [])
@@ -1241,6 +1367,7 @@ def main(argv=None):
     e = sub.add_parser('fail', help='סימון העבודה כ"נכשלה"')
     e.add_argument('--err', default='worker')
     e.add_argument('--msg')
+    sub.add_parser('gate', help='מגדל הפיקוח עצר בתקציב — מחכים לתשובה שלך בטלפון')
     x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
     x.add_argument('--text', required=True)
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
@@ -1249,7 +1376,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
-                'save': save, 'restore': restore, 'auto': auto, 'fix': fix}[a.cmd](a)
+                'save': save, 'restore': restore, 'fix': fix, 'gate': gate_cmd, 'auto': auto}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1

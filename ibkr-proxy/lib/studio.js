@@ -38,6 +38,19 @@ const TEST_GAP = 60e3;                      // בדיקת חיבור — לכל 
 const CK_STAGES = ['asr', 'al', 'tl', 'rv'];
 const CK_MAX_SIZE = 512 * 1024 ** 2;
 const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח שעתיים = הסשן נפל (התרגום מדווח על כל חלק)
+/* v368: המתנה לפני כישלון — תקלה חולפת (Drive / רשת) מקבלת חלון התאוששות, ואז "המשך" אוטומטי אחד מנקודת השמירה.
+   רק אז "נכשלה" באמת. ההפעלה נספרת במכסה כמו כל הפעלה — לכן פעם אחת לעבודה (החלטה 1 בתוכנית) */
+const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
+const TRANSIENT_ERRS = ['net', 'drive', 'drive_net'];
+const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
+/* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
+const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind'];
+/* האם הכישלון חולף: קוד השגיאה שהעובד דיווח, או התראת Drive פתוחה של העבודה הזו ברגע הכישלון */
+function isTransient(err, openKinds) {
+  const e = String(err || '');
+  if (STOP_ERRS.includes(e)) return false;
+  return TRANSIENT_ERRS.includes(e) || (Array.isArray(openKinds) && openKinds.some((k) => TRANSIENT_KINDS.includes(k)));
+}
 const RESUME_MAX = 10;                      // הפעלות לעבודה אחת (כולל הראשונה) — מעבר לזה משהו חוזר על עצמו
 
 /* ---------- קלט ---------- */
@@ -146,6 +159,12 @@ function canResume(job, now) {
   if (!(st === 'failed' || st === 'cancelled' || isStale(job, now))) return 'state';
   if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
   return '';
+}
+/* v368: מתי ממשיכים לבד (0 = לא): נכשלה בתקלה חולפת, עוד לא המשכנו לבד, ואפשר להמשיך */
+function recoverAt(job, now) {
+  if (!job || !job.rw || (job.ar || 0) >= AUTO_RESUME_MAX) return 0;
+  if (effState(job, now).state !== 'failed' || canResume(job, now)) return 0;
+  return job.rw;
 }
 /* v362: מגדל הפיקוח — מצב מהעובד (ה־Hook בסשן): רמה, סיבה (בעצירה), פי כמה מהרגיל, עלות לפי מחירון ה־API והצפוי עד עכשיו */
 const TW_LV = ['ok', 'warn', 'red'];
@@ -297,6 +316,45 @@ function normAnswer(qa, body) {
   return t ? { i: -1, t } : null;
 }
 
+/* ---------- v367: החוקים שלך, מתג החירום ושערי אישור (AI Control Tower — Govern / Secure) ----------
+   חוקים (studioStats/{uid}.rl): תקציב לעבודה בדולרים לפי מחירון ה־API (0 = בלי), מצב מקסימלי ('' = כל המצבים),
+   אישור לפני צריבה. הפרה = התראה, והפעולה מחכה לך בטלפון ("שער" — שאלה שהשרתון בונה, בלי טקסט מ־Claude) */
+const RULE_BUDGET_MAX = 500;
+function normRules(r) {
+  const o = r && typeof r === 'object' ? r : {};
+  const b = Number(o.b);
+  return {
+    b: Number.isFinite(b) && b >= 1 ? Math.min(RULE_BUDGET_MAX, Math.round(b * 2) / 2) : 0,
+    mx: MODES.includes(o.mx) ? o.mx : '',
+    ab: o.ab === true,
+  };
+}
+/* המצב יקר מהמקסימום? לפי הצפוי לשעת סרטון (NORM_DEF): Sonnet Medium < Sonnet High < Opus Medium < Opus High < Opus Max */
+const modeOver = (mode, mx) => !!mx && MODES.includes(mode) && MODES.includes(mx) && NORM_DEF[mode] > NORM_DEF[mx];
+/* כמה כבר עלו הסשנים הקודמים של העבודה (אחרי "המשך") — התקציב הוא לכל העבודה, לא לסשן */
+const usdOf = (use) => Math.round((Array.isArray(use) ? use : []).reduce((s, r) => s + (r && typeof r.usd === 'number' ? r.usd : 0), 0) * 100) / 100;
+/* שער: b = הגענו לתקציב (להמשיך / לעצור), r = לפני הצריבה (לצרוב / רק קובץ כתוביות). ברירת המחדל — הזהירה (d = 1) */
+const GATE_KINDS = ['b', 'r'];
+const GATE_MAX = 8;                      // שערים לעבודה — מעבר לזה משהו חוזר על עצמו
+const GATE_WAIT = 30 * 60;
+const CUE_T_RE = /^\d{1,2}:\d{2}(?::\d{2})?$/;
+const newGateId = () => 'g' + crypto.randomBytes(6).toString('hex');
+function normGate(g, id) {
+  if (!g || typeof g !== 'object' || !GATE_KINDS.includes(g.k)) return null;
+  let n;
+  if (g.k === 'b') {
+    const usd = Number(g.usd), cap = Number(g.cap);
+    if (!(usd >= 0 && usd < 1e5) || !(cap > 0 && cap < 1e5)) return null;
+    n = { usd: Math.round(usd * 100) / 100, cap: Math.round(cap * 100) / 100 };
+  } else {
+    // 5 כתוביות לדוגמה מהתרגום — תוכן מהסרטון: בטלפון רק כטקסט
+    const cues = (Array.isArray(g.cues) ? g.cues : []).slice(0, 20)
+      .map((c) => ({ t: CUE_T_RE.test(String((c && c.t) || '')) ? c.t : '', x: clean(c && c.x, 140) })).filter((c) => c.x).slice(0, 5);
+    n = { cues, cnt: Math.max(0, Math.min(1e5, Math.floor(Number(g.cnt) || 0))) };
+  }
+  return { id, g: g.k, q: '', o: ['go', 'stop'], d: 1, w: GATE_WAIT, n };
+}
+
 /* ---------- מזהים ומפתחות ---------- */
 const newJobId = () => 'j' + crypto.randomBytes(15).toString('base64url');
 const newKey = () => crypto.randomBytes(32).toString('base64url');
@@ -366,19 +424,23 @@ function publicJob(job, now) {
     stale: isStale(job, now),                       // v361: "רצה" בלי דיווח שעתיים — אפשר להמשיך
     fires: job.fires || 0,
     tw: job.tw && TW_LV.includes(job.tw.lv) ? job.tw : null,   // v362: מגדל הפיקוח
+    rec: recoverAt(job, now),                       // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
     eng: job.eng === 'api' || job.spec && job.spec.eng === 'api' ? 'api' : 'sub',   // מצב API: השרת של המערכת
     sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job, nm, fb, fm) {
+function workerJob(job, nm, fb, fm, rl) {
   return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+    rl: normRules(rl),       // v367: החוקים שלך — תקציב ואישור לפני צריבה
+    bx: job.bx || 0,         // v367: כמה פעמים אישרת להמשיך מעבר לתקציב (התקציב גדל בכל פעם)
+    u0: usdOf(job.use0),     // v367: מה שהסשנים הקודמים כבר עלו
     fm: normFixMode(fm),     // v366: מסלול התיקונים — העובד אומר ל־Claude אם התיקון נשמר או מחכה לאישור
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
     id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
-    qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null } : null,   // v361: גם השאלה — להמשך בסשן חדש
+    qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
@@ -443,7 +505,7 @@ function serverView(s, now) {
 const monthKey = (now) => new Date(now).toISOString().slice(0, 7);
 const monthUsed = (mu, now) => (mu && mu.m === monthKey(now) ? Math.max(0, +mu.usd || 0) : 0);
 const addMonth = (mu, usd, now) => ({ m: monthKey(now), usd: Math.round((monthUsed(mu, now) + Math.max(0, +usd || 0)) * 1e4) / 1e4 });
-const usdOf = (use) => (Array.isArray(use) ? use : []).reduce((a, r) => a + (Number.isFinite(+(r && r.usd)) ? +r.usd : 0), 0);
+// usdOf — מוגדר למעלה (v367), מעוגל לסנטים
 /* תקרת העבודה בפועל: מה שהמשתמש בחר, אבל לא יותר ממה שנשאר החודש. פחות מדולר — לא מתחילים */
 function jobCap(spec, used, month) {
   const left = Math.max(0, month - used);
@@ -452,7 +514,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'mu', 'hb'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -482,10 +544,11 @@ module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
+  RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
-  CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, serverView, monthKey, monthUsed, addMonth, usdOf, jobCap,
+  serverMatches, normHb, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

@@ -89,6 +89,8 @@ class Fake:
         self.nm = None                                                # v363: "הרגיל" של המשתמש (מהשרתון בלקיחה)
         self.fb, self.ls = [], None                                   # v364: ספר התיקונים והעצירה שלפני ההמשך
         self.fm = None                                                # v366: מסלול התיקונים (בלי — כמו שרתון ישן)
+        self.rl, self.bx, self.u0 = None, 0, 0                        # v367: החוקים, אישורים מעבר לתקציב, מה שכבר עלה
+        self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -131,16 +133,32 @@ class Fake:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
-                                                                  'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm},
+                                                                  'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm,
+                                                                  'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0},
                                             'drive': {'token': TOKEN}})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
+                if op == 'qa':                                   # v367: בדיקת תשובה לשער
+                    q = fake.qa
+                    if q and q.get('g') and q['a'] is None and fake.gate_ans:
+                        fake.gate_polls += 1
+                        if fake.gate_polls >= fake.gate_after:
+                            q['a'] = {'i': 0 if fake.gate_ans == 'go' else 1, 't': fake.gate_ans}
+                            if fake.gate_ans == 'go' and q['g'] == 'b':
+                                fake.bx += 1
+                    return self._send(200, {'ok': True, 'qa': q, 'bx': fake.bx})
                 if op == 'report':
                     if body.get('ask') and fake.ask_limit:
                         return self._send(409, {'ok': False, 'error': 'ask_limit'})
                     fake.reports.append(body)
                     if body.get('ask'):
                         fake.qa = {'id': body['ask']['id'], 'a': None}
+                    if body.get('gate'):
+                        gid = 'g%012x' % len(fake.reports)
+                        fake.qa, fake.gate_polls = {'id': gid, 'g': body['gate']['k'], 'a': None}, 0
+                        return self._send(200, {'ok': True, 'stop': False, 'gate': gid})
+                    if body.get('askTimeout') and fake.qa and fake.qa.get('id') == body['askTimeout'] and fake.qa['a'] is None:
+                        fake.qa['a'] = {'i': 1, 't': 'stop', 'auto': True}
                     return self._send(200, {'ok': True, 'stop': False})
                 return self._send(400, {'ok': False})
 
@@ -580,6 +598,80 @@ class TestWorker(unittest.TestCase):
         self.fake.fm = 'evil'
         self.take()
         self.assertEqual(json.loads((self.tmp / 'state' / 'job.json').read_text())['fm'], 'suggest', 'לא מוכר — הצעות')
+
+    def test_rules_saved(self):
+        # v367: החוקים מהשרתון נשמרים בקובץ המצב (למגדל ול־finish); לא תקין — כאילו אין חוק
+        self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 12.5, 'ab': True, 'mx': 'opus-high'}, 2, 7.25
+        self.take()
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 12.5, 'ab': True}, 2, 7.25))
+        self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 'evil', 'ab': 'yes'}, -1, 'x'
+        self.take()
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 0.0, 'ab': False}, 0, 0.0))
+
+    def finish_with_gate(self, ans, env=None):
+        self.fake.rl, self.fake.gate_ans = {'b': 0, 'ab': True}, ans
+        self.take()
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        code, out = self.job('finish', env=dict({'SNB_GATE_POLL': '0.05'}, **(env or {})))
+        self.assertEqual(code, 0, out)
+        gates = [r['gate'] for r in self.fake.reports if r.get('gate')]
+        self.assertEqual(len(gates), 1)
+        self.assertEqual((gates[0]['k'], gates[0]['cnt'], gates[0]['cues']), ('r', 1, [{'t': '0:00', 'x': 'שלום'}]), 'כתוביות לדוגמה מ־he.srt')
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
+        kinds = [o['k'] for o in self.fake.reports[-1]['out']]
+        return out, cmds, kinds
+
+    def test_render_gate_go(self):
+        # v367: אישור לפני צריבה — "לצרוב": צורבים כרגיל
+        out, cmds, kinds = self.finish_with_gate('go')
+        self.assertIn('render', cmds)
+        self.assertEqual(kinds, ['compact', 'srt'])
+
+    def test_render_gate_stop(self):
+        # "רק קובץ כתוביות": בלי צריבה — רק he.srt עולה
+        out, cmds, kinds = self.finish_with_gate('stop')
+        self.assertNotIn('render', cmds)
+        self.assertEqual(kinds, ['srt'])
+        self.assertIn('בלי צריבה', out)
+
+    def test_render_gate_timeout(self):
+        # בלי תשובה בזמן: השרתון מקבל askTimeout (ברירת המחדל) — רק כתוביות
+        out, cmds, kinds = self.finish_with_gate(None, env={'SNB_ASK_WAIT_SCALE': '0.0002'})
+        self.assertNotIn('render', cmds)
+        self.assertEqual(kinds, ['srt'])
+        self.assertTrue(any(r.get('askTimeout', '').startswith('g') for r in self.fake.reports))
+
+    def test_gate_cmd(self):
+        # v367: job.py gate — מחכה לתשובה לשער התקציב שהמגדל פתח
+        self.take()
+        code, out = self.job('gate')
+        self.assertIn('אין אישור שממתין', out)
+        self.fake.qa, self.fake.gate_ans = {'id': 'g000000000001', 'g': 'b', 'a': None}, 'go'
+        code, out = self.job('gate', env={'SNB_GATE_POLL': '0.05'})
+        self.assertEqual(code, 0, out)
+        self.assertIn('אישר להמשיך', out)
+        self.fake.qa, self.fake.gate_ans = {'id': 'g000000000002', 'g': 'b', 'a': None}, 'stop'
+        code, out = self.job('gate', env={'SNB_GATE_POLL': '0.05'})
+        self.assertIn('בחר לעצור', out)
+        self.assertEqual(self.fake.reports[-1].get('err'), 'budget_stop')
+        self.fake.qa, self.fake.gate_ans = {'id': 'g000000000003', 'g': 'b', 'a': None}, None
+        code, out = self.job('gate', env={'SNB_GATE_POLL': '0.05', 'SNB_GATE_WAIT': '0.2'})
+        self.assertIn('עדיין מחכה', out)
+
+    def test_srt_samples(self):
+        sys.path.insert(0, str(HERE))
+        import job as J
+        p = self.tmp / 's.srt'
+        p.write_text('\ufeff' + '\n\n'.join('%d\n%02d:%02d:05,000 --> %02d:%02d:07,000\n<i>שורה %d</i>\n{\\an8}שנייה' % (i + 1, i // 60, i % 60, i // 60, i % 60, i)
+                                            for i in range(12)) + '\n', encoding='utf-8')
+        cues, n = J.srt_samples(p)
+        self.assertEqual(n, 12)
+        self.assertEqual([c['x'] for c in cues], ['שורה 0 שנייה', 'שורה 3 שנייה', 'שורה 6 שנייה', 'שורה 8 שנייה', 'שורה 11 שנייה'])
+        self.assertEqual(cues[0]['t'], '0:05')
+        self.assertEqual(J.srt_samples(self.tmp / 'none.srt'), ([], 0))
 
     def test_ops_events(self):
         # v365: אירועים למגדל הפיקוח — Drive שהתאושש אחרי ניתוק (ok), ו־vt שנכשל (תמלול) — רק סוגים מהקטלוג, בלי טקסט

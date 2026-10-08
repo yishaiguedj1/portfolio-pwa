@@ -37,7 +37,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(S.workerJob({ id: 'j', kind: 'tr', ck: L }).ck.length === 2 && S.workerJob({ id: 'j', kind: 'tr' }).ck.length === 0, 'השרתון: העובד מקבל את רשימת נקודות השמירה');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'resume'/.test(api) && /S\.canResume\(job, now\)/.test(api) && /fireJob\(deps, uid, v, job, now, true\)/.test(api) && /error: 'ck_bad'/.test(api)
-    && /meta\.parents\.includes\(job\.folder\)/.test(api), 'השרתון: resume + נקודת שמירה מאומתת מול Drive (בתיקיית העבודה)');
+    && /meta\.parents\.includes\(folder\)/.test(api) && /driveFileInFolder\(deps, job\.uid, job\.folder/.test(api), 'השרתון: resume + נקודת שמירה מאומתת מול Drive (בתיקיית העבודה)');
 
   /* ---------- 2. העובד ---------- */
   const job = read('translator/job.py');
@@ -65,7 +65,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const fj = { state: 'failed', prog: { st: 'tl', p: 0.4, stg: { tr: { s: 1, e: 2 }, al: { s: 2, e: 3 }, tl: { s: 3, e: 4 } } } };
   ok(N.progressModel(fj, {}, { done: true }, 1e7).stages.map((x) => x.state[0]).join('') === 'dddwwww', 'טלפון: עבודה שנכשלה — השלב שבו נעצרה בלי ✓ (השרתון סגר אותו בכישלון)');
   const st = read('studio.js');
-  ok(/net\.api\('resume', \{ job: id \}\)/.test(st) && /T\('studioResumeCk'\)/.test(st) && /T\('studioCkSaved'/.test(st), 'טלפון: הכפתור ושורת "נשמר אחרי"');
+  ok(/net\.api\('resume', (?:ov \? \{ job: id, ov: true \} : )?\{ job: id \}\)/.test(st) && /T\('studioResumeCk'\)/.test(st) && /T\('studioCkSaved'/.test(st), 'טלפון: הכפתור ושורת "נשמר אחרי"');
   const app = read('app.js');
   for (const k of ['studioResumeCk', 'studioRetryAll', 'studioResuming', 'studioCkSaved', 'studioStuckBig', 'studioNowStuck', 'studioBStuck', 'studioErrResumeLimit', 'studioCkAsr', 'studioCkAl', 'studioCkTl', 'studioCkRv'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'טלפון: ' + k + ' — עברית ואנגלית');
