@@ -315,7 +315,8 @@ async function worker(req, res, body, deps) {
     await patchJob(deps, id, up);
     if (spent > 0) {
       // מצב API: העלות נספרת בתקציב החודשי של המשתמש. תקלה כאן לא מפילה את הדיווח
-      try { const st = await readStats(deps, job.uid); await patchDoc(deps, 'studioStats', job.uid, { mu: S.addMonth(st.mu, spent, now), updated: now }); } catch (e) {}
+      const st = await readStats(deps, job.uid);
+      await patchDoc(deps, 'studioStats', job.uid, { mu: S.addMonth(st.mu, spent, now), updated: now }).catch(() => {});
     }
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});
     // v364: ספר התיקונים — עצירה של המגדל נרשמת לפי טביעת האצבע; Claude רושם תיקון (אחרי אבחון בהמשך); המגדל הזכיר תיקון מוכר.
