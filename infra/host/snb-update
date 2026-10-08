@@ -1,0 +1,27 @@
+#!/bin/sh
+# עדכון העובד לגרסה שאושרה (תג prod ב־GHCR). רץ כל רבע שעה (snb-update.timer) וידנית.
+#   1. לא באמצע עבודה (/work/.busy).
+#   2. מושכים את prod ולוקחים את ה־digest — מאז רק לפי digest (תג יכול לזוז, digest לא).
+#   3. מאמתים חתימה: נבנה ונחתם ב־worker-image.yml מהענף הראשי של הריפו. אחרת — לא מעדכנים.
+#   4. כותבים את ה־digest ל־/opt/snb/.env ומפעילים מחדש. התמונות הישנות נמחקות אחרי שבוע (לחזרה אחורה).
+set -eu
+# shellcheck source=snb-common.sh
+. /usr/local/lib/snb/common.sh
+[ -s "$SNB_ENV" ] || { snb_log "אין עדיין מפתחות — להריץ snb-setup"; exit 0; }
+if snb_busy && [ "${1:-}" != "--now" ]; then snb_log "עבודה רצה — העדכון יחכה לסיומה"; exit 0; fi
+docker pull -q "$SNB_IMG:prod" >/dev/null
+REF=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$SNB_IMG:prod" | grep "^$SNB_IMG@sha256:" | head -n1)
+case "$REF" in "$SNB_IMG@sha256:"*) ;; *) snb_log "✗ לא נמצא digest לתמונה"; exit 1 ;; esac
+CUR=$(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null || true)
+if [ "$REF" != "$CUR" ]; then
+	if ! cosign verify --certificate-identity-regexp "$SNB_SIGNER" --certificate-oidc-issuer "$SNB_ISSUER" "$REF" >/dev/null 2>&1; then
+		snb_log "✗ החתימה של $REF לא אומתה — נשארים בגרסה הנוכחית"
+		exit 1
+	fi
+	umask 022
+	printf 'SNB_IMAGE=%s\n' "$REF" >"$SNB_DIR/.env.tmp"
+	mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
+	snb_log "✓ גרסה חדשה מאומתת: $REF"
+fi
+snb_compose up -d --remove-orphans --quiet-pull >/dev/null 2>&1 || snb_compose up -d --remove-orphans
+docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true

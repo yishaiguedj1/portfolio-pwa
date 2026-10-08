@@ -1,0 +1,15 @@
+#!/bin/sh
+# תחזוקה לילית: אם הותקנה ליבה חדשה (unattended-upgrades) — אתחול, אבל רק כשאין עבודה.
+# עבודה רצה → מחכים ללילה הבא. אחרי האתחול Docker מעלה את העובד מעצמו (restart: unless-stopped).
+set -eu
+# shellcheck source=snb-common.sh
+. /usr/local/lib/snb/common.sh
+running=$(uname -r)
+newest=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sed 's|^/boot/vmlinuz-||' | sort -V | tail -n1)
+need=0
+[ -n "$newest" ] && [ "$newest" != "$running" ] && need=1
+[ -e /run/reboot-required ] && need=1
+[ "$need" = 1 ] || exit 0
+if snb_busy; then snb_log "נדרש אתחול לעדכון אבטחה — עבודה רצה, נדחה ללילה הבא"; exit 0; fi
+snb_log "אתחול לעדכון אבטחה ($running → ${newest:-?})"
+systemctl reboot
