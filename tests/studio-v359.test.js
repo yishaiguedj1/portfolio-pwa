@@ -15,7 +15,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/def usage\(root=None\)/.test(job) && /rglob\('\*\.jsonl'\)/.test(job) && /'subagents' in p\.parts/.test(job), 'job.py: usage() קורא את יומני הסשן, subagents/ = סוכן־משנה');
   ok(/calls\[m\['id'\]\] = m/.test(job), 'job.py: לכל message.id — רק הרשומה האחרונה');
   ok(/'TRANSLATE\.md' in prompt/.test(job) && /'REVIEW\.md' in prompt/.test(job), 'job.py: תרגום/ביקורת לפי ההנחיה הראשונה');
-  ok(/'claude-opus-5-5': \(4\.0, 20\.0, 0\.20\)/.test(job) && /'claude-sonnet-5-5': \(2\.0, 10\.0, 0\.20\)/.test(job) && /'claude-haiku-4-5': \(1\.0, 5\.0, 0\.10\)/.test(job)
+  ok(/'claude-opus-5-5': \(4\.0, 20\.0, 0\.20\)/.test(job) && /'claude-sonnet-5-5': \(2\.0, 10\.0, 0\.10\)/.test(job) && /'claude-haiku-5-5': \(0\.10, 0\.50, 0\.01\)/.test(job) && /'claude-haiku-4-5': \(1\.0, 5\.0, 0\.10\)/.test(job)
     && /c5 \* p\[0\] \* 1\.25 \+ c1 \* p\[0\] \* 2/.test(job), 'job.py: המחירון (קלט/פלט/מטמון; כתיבה ×1.25 ל־5 דק׳, ×2 לשעה)');
   ok(/fail=True, err=err, msg=args\.msg, force=True, usage=usage_safe\(\)/.test(job) && /done=True, out=out, [^\n]*usage=usage_safe\(\)/.test(job), 'job.py: finish וגם fail שולחים usage בדיווח האחרון');
 
