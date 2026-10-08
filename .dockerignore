@@ -1,0 +1,7 @@
+# קופסת העובד (infra/worker/Dockerfile) צריכה רק את translator/ ואת קובץ הספריות הנעול — כל השאר לא נכנס לתמונה
+*
+!translator/
+!infra/worker/requirements.lock
+translator/**/__pycache__
+translator/tests/
+translator/research/

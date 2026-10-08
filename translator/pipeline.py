@@ -374,24 +374,36 @@ def run_auto(jobmod, args) -> int:
     eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
     ns = SimpleNamespace(force=False)
     try:
-        if J.prepare(ns) != 0:
+        # המשך: השרת כבה/התעדכן באמצע עבודה, או שהמשתמש לחץ "המשך" — משחזרים מנקודת השמירה האחרונה
+        # ב־Drive ומדלגים על מה שכבר שולם (תמלול / הגהה / תרגום / ביקורת).
+        done = None
+        if st.get('ck'):
+            if J.restore(ns) != 0:
+                return 1
+            done = J.load_state().get('resumed')          # None = אין נקודה תקינה → מההתחלה
+        order = (None, 'asr', 'al', 'tl', 'rv')
+        after = order.index(done) if done in order else 0
+        if after < 1 and J.prepare(ns) != 0:
             return 1
+        if after < 2:
+            pl = Pipeline(J.Ctx(J.load_state()), J, eng)
+            qs = pl.proofread()
+            if qs:
+                pl.ask(qs)
+            if J.align(ns) != 0:
+                return 1
         ctx = J.Ctx(J.load_state())
         pl = Pipeline(ctx, J, eng)
-        qs = pl.proofread()
-        if qs:
-            pl.ask(qs)
-        if J.align(ns) != 0:
-            return 1
-        ctx = J.Ctx(J.load_state())
-        pl = Pipeline(ctx, J, eng)
-        pl.translate()
-        J.save_ck(ctx, 'tl')                 # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
-        fixed, left = pl.review()
-        print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')
+        if after < 3:
+            pl.translate()
+            J.save_ck(ctx, 'tl')             # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
+        if after < 4:
+            fixed, left = pl.review()
+            print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')
+            pl.save_usage()
+            if left:
+                raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
         pl.save_usage()
-        if left:
-            raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
         return J.finish(SimpleNamespace(force=False))
     except llm.LLMError as e:
         ctx = J.Ctx(J.load_state())

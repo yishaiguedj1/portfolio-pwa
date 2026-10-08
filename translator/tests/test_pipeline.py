@@ -230,5 +230,82 @@ class JobHooks(unittest.TestCase):
         self.assertTrue(re.search(r"'cap': job.get\('cap'\)", src))
 
 
+class RunAutoResume(unittest.TestCase):
+    """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
+
+    def flow(self, ck, resumed):
+        log = []
+        state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
+
+        class J:
+            def load_state(self):
+                return state
+
+            def save_state(self, st):
+                pass
+
+            def restore(self, a):
+                log.append('restore')
+                state['resumed'] = resumed
+                return 0
+
+            def prepare(self, a):
+                log.append('prepare')
+                return 0
+
+            def align(self, a):
+                log.append('align')
+                return 0
+
+            def save_ck(self, ctx, s):
+                log.append('ck:' + s)
+
+            def finish(self, a):
+                log.append('finish')
+                return 0
+
+            def Ctx(self, st):
+                return NS(st=st, report=lambda *a, **k: None)
+
+        class Pl:
+            def __init__(self, ctx, j, eng):
+                pass
+
+            def proofread(self):
+                log.append('proofread')
+                return []
+
+            def translate(self):
+                log.append('translate')
+
+            def review(self):
+                log.append('review')
+                return 0, 0
+
+            def save_usage(self):
+                pass
+
+        old = (P.Pipeline, P.llm.Engine)
+        P.Pipeline, P.llm.Engine = Pl, lambda spec, cap_usd=None: NS(ledger=NS(list=lambda: []))
+        try:
+            rc = P.run_auto(J(), NS())
+        finally:
+            P.Pipeline, P.llm.Engine = old
+        self.assertEqual(rc, 0)
+        return log
+
+    def test_fresh(self):
+        self.assertEqual(self.flow([], None), ['prepare', 'proofread', 'align', 'translate', 'ck:tl', 'review', 'finish'])
+
+    def test_resume_points(self):
+        ck = [{'s': 'asr', 'id': 'x'}]
+        self.assertEqual(self.flow(ck, 'asr'), ['restore', 'proofread', 'align', 'translate', 'ck:tl', 'review', 'finish'])
+        self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'finish'])
+        self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'finish'], 'אחרי התרגום — לא מתרגמים שוב')
+        self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
+        self.assertEqual(self.flow(ck, None), ['restore', 'prepare', 'proofread', 'align', 'translate', 'ck:tl', 'review', 'finish'],
+                         'נקודת שמירה פגומה → מההתחלה')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,47 @@
+# העובד בשרת — Docker Compose. מותקן ב־/opt/snb/compose.yaml (cloud-init), ומופעל מחדש רק דרך snb-update.
+# SNB_IMAGE = התמונה לפי digest (ghcr.io/…@sha256:…) — snb-update כותב אותו ל־/opt/snb/.env אחרי שאימת את החתימה.
+#
+# אבטחה:
+#   • בלי ports — אף אחד לא יכול להתחבר לקונטיינר מבחוץ. הוא רק פונה החוצה (השרתון, Drive, Anthropic, Hugging Face).
+#   • read_only + tmpfs: הקוד והספריות לא ניתנים לשינוי מבפנים; כתיבה רק לתיקיות העבודה/המטמון/מצב העבודה.
+#   • cap_drop ALL + no-new-privileges + משתמש 10001: גם קוד זדוני בתוך סרטון/תמליל לא מקבל הרשאות.
+#   • הגישה לשירות המטא־דאטה של Hetzner (169.254.169.254) חסומה בחומת האש של המארח (cloud-init, DOCKER-USER).
+#   • הסודות מקובץ env בהרשאות 600 של root — לא בתמונה, לא בריפו.
+name: snb
+
+services:
+  worker:
+    image: ${SNB_IMAGE:?SNB_IMAGE חסר — מריצים דרך snb-update}
+    restart: unless-stopped
+    env_file:
+      - /etc/snb/worker.env
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 14g
+    memswap_limit: 14g
+    cpus: 7.5
+    tmpfs:
+      - /tmp:size=2g,mode=1777,noexec,nosuid,nodev
+      - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev
+    volumes:
+      - work:/work
+      - cache:/cache
+    stop_grace_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+    healthcheck:       # הסוכן כותב /state/alive כל 5 דק׳ (חוט נפרד, גם באמצע עבודה) — ישן מ־15 דק׳ = תקוע
+      test: ["CMD", "/opt/vt/bin/python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/state/alive')<900 else 1)"]
+      interval: 5m
+      timeout: 10s
+      start_period: 2m
+
+volumes:
+  work: {}     # הסרטון והפרויקט של העבודה הנוכחית בלבד — מתרוקן בסוף כל עבודה (agent.cleanup)
+  cache: {}    # מודלי התמלול (Hugging Face / torch) — נשמרים בין עבודות ועדכונים, בלי מידע של משתמשים
