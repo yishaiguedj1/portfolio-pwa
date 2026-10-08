@@ -27,11 +27,23 @@ async function handler(req, res, deps = {}) {
     const url = String(body.url || '');
     if (!coverAllowed(url)) return res.status(400).json({ ok: false, error: 'bad_url' });
     try {
-      const r = await f(url, { redirect: 'follow', headers: { 'User-Agent': 'TheSnowball-Library/1.0' } });
+      // הפניות — ידנית, קפיצה אחר קפיצה: כל יעד נבדק *לפני* שפונים אליו (Open Library → archive.org).
+      // עם redirect: 'follow' השרתון היה פונה קודם לכל כתובת בדרך (גם פנימית) ובודק רק את הסוף — SSRF
+      let cur = url, r = null;
+      for (let hop = 0; ; hop++) {
+        r = await f(cur, { redirect: 'manual', headers: { 'User-Agent': 'TheSnowball-Library/1.0' } });
+        if (r.status < 300 || r.status >= 400) break;
+        const loc = r.headers.get('location');
+        if (!loc || hop >= 3) return res.status(502).json({ ok: false, error: 'cover_redirects' });
+        let next = '';
+        try { next = new URL(loc, cur).href; } catch (e) {}
+        if (!coverAllowed(next)) return res.status(400).json({ ok: false, error: 'bad_redirect' });
+        cur = next;
+      }
       const type = String(r.headers.get('content-type') || '');
       if (r.status !== 200 || !/^image\/(jpeg|png|webp|gif)/.test(type)) return res.status(502).json({ ok: false, error: 'cover_http_' + r.status });
-      // אחרי הפניה (Open Library → archive.org) — גם היעד חייב להיות ממארח מאושר
-      if (r.url && r.url !== url && !coverAllowed(r.url)) return res.status(400).json({ ok: false, error: 'bad_redirect' });
+      if (r.url && r.url !== cur && !coverAllowed(r.url)) return res.status(400).json({ ok: false, error: 'bad_redirect' });
+      if (+(r.headers.get('content-length') || 0) > MAX_COVER) return res.status(502).json({ ok: false, error: 'cover_size' });   // לפני הקריאה
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > MAX_COVER || buf.length < 200) return res.status(502).json({ ok: false, error: 'cover_size' });
       res.setHeader('Content-Type', type.split(';')[0]);

@@ -514,6 +514,12 @@ function stubFetch(text, status = 200) {
     setFetch((u) => (u.includes('gemini-3.5-flash-lite') ? okGem('חפير עמוק') : u.includes('googleapis') ? okGem('חפיר') : mm('x')));
     r = await run({ text: 'moat', context: 'wide moat' });
     ok(r.payload.translation === 'חפיר' && r.payload.diag['gemini-3.5-flash-lite:err'] === 'mixed_script', 'translate: עברית עם אותיות ערביות ("חפير" — נמצא חי) נפסלת');
+    ok(!('gemini-3.5-flash-lite:txt' in r.payload.diag), 'translate: האבחון בתשובה בלי קטעים מהפלט של המודל');
+    {
+      const pd = require('../api/translate')._publicDiag({ key: true, 'm': 404, 'm:err': 'Model not found: <b>x</b> secret', 'm:ex': 'boom', 'm:txt': 'out', 'm:tok': [1, 2, 3], 'n:err': 'mixed_script' });
+      ok(pd.key === true && pd.m === 404 && !('m:err' in pd) && !('m:ex' in pd) && !('m:txt' in pd) && pd['m:tok'].join() === '1,2,3' && pd['n:err'] === 'mixed_script',
+        'translate: האבחון הציבורי — רק קודים ומספרים, בלי הודעות חופשיות של הספקים');
+    }
     translate._cache.clear(); calls.length = 0;
     setFetch((u) => (u.includes('googleapis') ? okGem('חפير כלכלי') : mm('בסיסי')));
     r = await run({ text: 'moat', context: 'durable moat' });
@@ -943,6 +949,30 @@ function stubFetch(text, status = 200) {
     const redir = async (u) => ({ status: 200, url: 'https://evil.example.com/a.jpg', headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array(5000).buffer });
     await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: redir });
     ok(res.statusCode === 400, 'כריכה שהופנתה למארח לא מאושר — נחסמת');
+    // SSRF: הפניה לכתובת פנימית — נבדקת לפני שפונים אליה (השרתון לא מבקש אותה בכלל)
+    const asked = [];
+    const hops = async (u, opt) => {
+      asked.push(u);
+      if (opt.redirect !== 'manual') throw new Error('follow');
+      if (u.includes('openlibrary')) return { status: 302, url: u, headers: { get: (k) => (k === 'location' ? 'http://169.254.169.254/latest/meta-data' : null) } };
+      return { status: 200, url: u, headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array(5000).buffer };
+    };
+    res = mockRes();
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: hops });
+    ok(res.statusCode === 400 && res.payload.error === 'bad_redirect' && asked.length === 1, 'כריכה: הפניה לכתובת פנימית נחסמת לפני הבקשה (בלי SSRF)');
+    const asked2 = [];
+    const okHops = async (u) => {
+      asked2.push(u);
+      if (u.includes('openlibrary')) return { status: 302, url: u, headers: { get: (k) => (k === 'location' ? 'https://archive.org/download/x/x.jpg' : null) } };
+      return { status: 200, url: u, headers: { get: (k) => (k === 'content-type' ? 'image/jpeg' : null) }, arrayBuffer: async () => new Uint8Array(5000).buffer };
+    };
+    res = mockRes();
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: okHops });
+    ok(res.statusCode === 200 && asked2.length === 2 && asked2[1] === 'https://archive.org/download/x/x.jpg', 'כריכה: הפניה למארח מאושר (Open Library → archive.org) — עובדת');
+    let loops = 0;
+    res = mockRes();
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: async (u) => { loops++; return { status: 302, url: u, headers: { get: (k) => (k === 'location' ? '/b/again.jpg' : null) } }; } });
+    ok(res.statusCode === 502 && res.payload.error === 'cover_redirects' && loops === 4, 'כריכה: לולאת הפניות — עוצרים אחרי 3');
     res = mockRes();
     await api(mockReq({ body: { op: 'search', title: 'x' }, headers: { origin: 'https://evil.example.com' } }), res, { fetch: fake });
     ok(res.statusCode === 403, 'פרטי ספר: Origin לא מאושר — נחסם');
