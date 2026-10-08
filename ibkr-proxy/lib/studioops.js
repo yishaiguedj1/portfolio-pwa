@@ -22,6 +22,10 @@ const PENALTY = { 1: 40, 2: 20, 3: 8, 4: 2 };
    משקל רכיב: כמה עבודות תלויות בו (Routine/שרתון — כולן; vt — רק השלב שלו). השתקה — לסוג (רכיב · סוג), עם תפוגה, לכל היותר יום */
 const FLAP_WIN = 60 * 60e3, FLAP_N = 2, DAY = 86400e3, MUTE_H = [1, 4, 24], MUTE_MAX = 20;
 const WEIGHT = { routine: 5, server: 5, drive: 4, claude: 3, phone: 2, vt: 1 };
+/* v369: רשומת התראה כמו ב־ServiceNow — מספר רץ (ALR…), ציר פעילות קצר ואישור ("אני על זה").
+   הציר: [זמן, קוד] — o נפתחה · a קרה שוב · x נסגרה · r נפתחה שוב · k אושרה; עד H_MAX אחרונים */
+const H_MAX = 10, H_CODES = ['o', 'a', 'x', 'r', 'k'];
+const hist = (a, t, e) => { a.h = (Array.isArray(a.h) ? a.h : []).concat([[t, e]]).slice(-H_MAX); };
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 
 const alertId = (c, k, j) => crypto.createHash('sha1').update(c + '|' + k + '|' + (j || '')).digest('hex').slice(0, 12);
@@ -46,20 +50,22 @@ function opsApply(al, evs, j, now, once) {
   const out = alList(al, now).map((a) => Object.assign({}, a));
   const job = JOB_RE.test(String(j || '')) ? j : '';
   let changed = false;
+  let seq = out.reduce((m, a) => Math.max(m, a.no || 0), 0);   // v369: המספר הבא (הגבוה ביותר שנשמר + 1)
   for (const e of evs) {
     const id = alertId(e.c, e.k, job);
     const cur = out.find((a) => a.id === id && !isClosed(a, now));
-    if (e.ok) { if (cur) { cur.x = now; changed = true; } continue; }
-    if (cur) { if (!once) { cur.n += 1; cur.l = now; changed = true; } continue; }
+    if (e.ok) { if (cur) { cur.x = now; hist(cur, now, 'x'); changed = true; } continue; }
+    if (cur) { if (!once) { cur.n += 1; cur.l = now; hist(cur, now, 'a'); changed = true; } continue; }
     // v368: נסגרה לפני פחות משעה — אותה התראה נפתחת שוב (מונה פתיחות r); מ־FLAP_N פתיחות חוזרות — "מהבהבת"
     const prev = out.filter((a) => a.id === id && isClosed(a, now) && now - closedAt(a) < FLAP_WIN).pop();
     if (prev && !once) {
-      prev.x = 0; prev.n += 1; prev.l = now; prev.r = (prev.r || 0) + 1;
+      prev.x = 0; prev.n += 1; prev.l = now; prev.r = (prev.r || 0) + 1; prev.ak = 0;   // נפתחה שוב — האישור הקודם כבר לא תקף
       if (prev.r >= FLAP_N) prev.fl = 1;
+      hist(prev, now, 'r');
       changed = true;
       continue;
     }
-    out.push({ id, c: e.c, k: e.k, s: KINDS[e.c + ':' + e.k], j: job, n: 1, f: now, l: now, x: 0 });
+    out.push({ id, no: ++seq, c: e.c, k: e.k, s: KINDS[e.c + ':' + e.k], j: job, n: 1, f: now, l: now, x: 0, h: [[now, 'o']] });
     changed = true;
   }
   return changed ? out.slice(-AL_MAX) : null;
@@ -68,8 +74,16 @@ function opsApply(al, evs, j, now, once) {
 function opsCloseJob(al, j, now) {
   const out = alList(al, now).map((a) => Object.assign({}, a));
   let changed = false;
-  for (const a of out) if (a.j === j && !isClosed(a, now)) { a.x = now; changed = true; }
+  for (const a of out) if (a.j === j && !isClosed(a, now)) { a.x = now; hist(a, now, 'x'); changed = true; }
   return changed ? out : null;
+}
+/* v369: "אשר" — מישהו (אתה) יודע על ההתראה. נשארת פתוחה ובציון, אבל יורדת מהבאנר בבית. לפי המספר */
+function opsAck(al, no, now) {
+  const out = alList(al, now).map((a) => Object.assign({}, a));
+  const a = out.find((x) => x.no === no && !isClosed(x, now));
+  if (!a || a.ak) return null;
+  a.ak = now; hist(a, now, 'k');
+  return out;
 }
 /* איחוד מקטעי זמן (לחישוב זמינות) */
 function unionMs(iv, from, to) {
@@ -120,8 +134,9 @@ function opsView(al, now, mu) {
   const groups = new Map();
   for (const a of open.slice().sort((x, y) => x.s - y.s || y.l - x.l)) {
     const g = a.c + '|' + a.j;
-    if (!groups.has(g)) groups.set(g, { id: a.id, c: a.c, k: a.k, s: a.s, j: a.j, n: a.n, f: a.f, l: a.l, rel: 0, fl: a.fl ? 1 : 0, r: a.r || 0 });
-    else { const p = groups.get(g); p.rel += 1; p.n += a.n; p.l = Math.max(p.l, a.l); if (a.fl) p.fl = 1; }
+    const hh = (Array.isArray(a.h) ? a.h : []).filter((x) => Array.isArray(x) && typeof x[0] === 'number' && H_CODES.includes(x[1]));
+    if (!groups.has(g)) groups.set(g, { id: a.id, no: a.no || 0, c: a.c, k: a.k, s: a.s, j: a.j, n: a.n, f: a.f, l: a.l, rel: 0, fl: a.fl ? 1 : 0, r: a.r || 0, ak: a.ak || 0, h: hh, sub: [] });
+    else { const p = groups.get(g); p.rel += 1; p.n += a.n; p.l = Math.max(p.l, a.l); if (a.fl) p.fl = 1; p.sub.push({ no: a.no || 0, k: a.k, s: a.s, n: a.n, l: a.l }); }
   }
   const grp = Array.from(groups.values()).map((g) => {
     const key = g.c + ':' + g.k, nj = jobsOf(key);
@@ -134,7 +149,17 @@ function opsView(al, now, mu) {
   for (const a of day.filter((x) => x.s >= 3)) { const key = a.c + ':' + a.k; kinds.set(key, (kinds.get(key) || 0) + a.n); }
   const digest = { hi: day.filter((a) => a.s <= 2).length, lo: day.filter((a) => a.s >= 3).length,
     top: Array.from(kinds.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, n]) => ({ c: key.split(':')[0], k: key.split(':')[1], n })) };
-  return { score, avail: pct(unionMs(iv(''), from, now)), mttr, comp, open: grp.slice(0, 20), closed30: fixed.length, digest,
+  // v369: מגמה לשבוע (נקודה לכל יום, הימנית = היום) — ציון, זמינות 30 יום וזמן תיקון, כפי שהיו בסוף כל יום
+  const trend = { score: [], avail: [], mttr: [] };
+  for (let i = 6; i >= 0; i--) {
+    const t = now - i * DAY, f0 = t - KEEP;
+    const openAt = list.filter((a) => a.f <= t && (!isClosed(a, now) || closedAt(a) > t));
+    trend.score.push(Math.max(0, 100 - openAt.reduce((s, a) => s + (PENALTY[a.s] || 0), 0)));
+    trend.avail.push(Math.round(1000 * (1 - unionMs(list.filter((a) => a.s <= 2 && a.f <= t).map((a) => [a.f, isClosed(a, now) ? closedAt(a) : now]), f0, t) / KEEP)) / 10);
+    const fx = list.filter((a) => isClosed(a, now) && a.s <= 3 && closedAt(a) <= t && closedAt(a) >= f0);
+    trend.mttr.push(fx.length ? Math.round(fx.reduce((s, a) => s + (closedAt(a) - a.f), 0) / fx.length / 60e3) : null);
+  }
+  return { score, avail: pct(unionMs(iv(''), from, now)), mttr, comp, open: grp.slice(0, 20), closed30: fixed.length, digest, trend,
     mu: Object.entries(mutes).map(([key, until]) => ({ c: key.split(':')[0], k: key.split(':')[1], until })) };
 }
 /* מגדל הפיקוח (v362) → אירועים: חריג = התראה P3 שנסגרת כשחוזר לתקין, עצירה = P2 */
@@ -152,4 +177,4 @@ function fireEvent(err) {
   return { c: 'routine', k: 'fire' };
 }
 
-module.exports = { COMPONENTS, KINDS, AL_MAX, KEEP, GLOBAL_TTL, FLAP_WIN, FLAP_N, DAY, MUTE_H, WEIGHT, normMutes, muteSet, priScore, alertId, normEvents, opsApply, opsCloseJob, opsView, towerEvents, fireEvent, unionMs };
+module.exports = { COMPONENTS, KINDS, AL_MAX, KEEP, GLOBAL_TTL, FLAP_WIN, FLAP_N, DAY, MUTE_H, WEIGHT, H_MAX, normMutes, muteSet, priScore, opsAck, alertId, normEvents, opsApply, opsCloseJob, opsView, towerEvents, fireEvent, unionMs };

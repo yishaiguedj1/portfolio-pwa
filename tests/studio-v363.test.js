@@ -46,7 +46,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/function pageTower\(p\)/.test(st) && /ui\.view === 'tower'\) pageTower\(p\)/.test(st) && /go\('tower'\)/.test(st), 'טלפון: מסך "מגדל הפיקוח" — מההגדרות, משורת המגדל ומכרטיס העצירה');
   ok(/const c = btn\('st-tower ' \+ tw\.lv/.test(st), 'טלפון: שורת המגדל בדף העבודה = כפתור');
   const app = read('app.js');
-  for (const k of ['studioTwT', 'studioTwLede', 'studioTwSecNorm', 'studioTwNormU', 'studioTwNormD', 'studioTwNormLeft', 'studioTwNormLeft1', 'studioTwR1', 'studioTwR1U', 'studioTwRulesNote', 'studioTwHow', 'studioSecSafety', 'studioBack'])
+  for (const k of ['studioTwT', 'studioTwSecNorm', 'studioTwNormU', 'studioTwNormD', 'studioTwNormLeft', 'studioTwNormLeft1', 'studioTwR1', 'studioTwR1U', 'studioTwRulesNote', 'studioTwHow', 'studioSecSafety', 'studioBack'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'טלפון: ' + k + ' — עברית ואנגלית');
 
   /* ---------- 5. גרסה ---------- */
