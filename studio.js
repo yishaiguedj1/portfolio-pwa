@@ -159,7 +159,8 @@ export function normFb(a) {
   const n = (v) => (Number.isInteger(v) && v >= 0 ? Math.min(v, 1e4) : 0);
   return a.filter((e) => e && /^[0-9a-f]{12}$/.test(String(e.fp || '')) && TW_WHY.includes(e.why)).slice(0, 30).map((e) => ({
     fp: e.fp, why: e.why, st: ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'].includes(e.st) ? e.st : '', n: n(e.n), auto: n(e.auto),
-    fix: typeof e.fix === 'string' ? e.fix.slice(0, 160) : '', at: typeof e.at === 'number' ? e.at : 0 }));
+    fix: typeof e.fix === 'string' ? e.fix.slice(0, 160) : '', px: typeof e.px === 'string' ? e.px.slice(0, 160) : '',   // v366: הצעה שממתינה לאישור
+    at: typeof e.at === 'number' ? e.at : 0 }));
 }
 /* v363: "הרגיל" לכל מצב (מהשרתון, op status) — לשעת סרטון; d = עוד אין מספיק עבודות, אז המדידות שלנו */
 export function normNorms(o) {
@@ -537,6 +538,7 @@ async function refreshStatus(force) {
     store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
     ui.norm = normNorms(j.norm) || ui.norm;
     ui.fb = normFb(j.fb) || ui.fb;
+    ui.fm = j.fm === 'auto' ? 'auto' : 'suggest';   // v366: מסלול התיקונים (ברירת מחדל — הצעות לאישור)
     ui.ops = normOps(j.ops) || ui.ops;
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
@@ -1603,6 +1605,25 @@ function fbWhy(w) {
     default: return T('studioFbWhyIdle');
   }
 }
+/* v366: מסלול התיקונים ו"לשמור / לא" להצעה — בשרתון (המסלול שייך לחשבון, לא לטלפון) */
+let fixBusy = false;
+async function setFixMode(mode) {
+  if (fixBusy || ui.fm === mode) return;
+  const prev = ui.fm; ui.fm = mode; fixBusy = true; render('none');
+  try {
+    const j = await net.api('fixMode', { mode });
+    if (!j.ok) { ui.fm = prev; flashSafe(errText(j.error)); }
+  } finally { fixBusy = false; render('none'); }
+}
+async function decideFix(fp, ok) {
+  if (fixBusy) return;
+  fixBusy = true;
+  try {
+    const j = await net.api('fbDecide', { fp, ok });
+    const fb = normFb(j.fb); if (fb) ui.fb = fb;
+    flashSafe(!j.ok ? errText(j.error) : ok ? T('studioFbKept') : T('studioFbDropped'));
+  } finally { fixBusy = false; render('none'); }
+}
 const fbStage = (st) => { const c = { tr: 'asr', al: 'al', tl: 'tl', rv: 'rv' }[st]; return c ? ckName(c) : ''; };
 /* v363: מסך "מגדל הפיקוח" — מה קורה עכשיו, "הרגיל" שלך לכל מצב (נלמד מהעבודות שלך), מתי עוצרים, ועצירות אחרונות */
 function pageTower(p) {
@@ -1633,10 +1654,23 @@ function pageTower(p) {
       if (e.fix) fx.dir = 'auto';   // התיקון בשפה ש־Claude כתב — לא בהכרח שפת הממשק
       const cnt = h('small', 'st-fbn', e.auto ? (e.auto === 1 ? T('studioFbAuto1') : T('studioFbAutoN', { n: e.auto })) : (e.n === 1 ? T('studioFbStop1') : T('studioFbStopN', { n: e.n })));
       l.append(h('b', null, fbWhy(e.why) + (st ? ' · ' + st : '')), fx, cnt);   // המונה בשורה משלו — התיקון מקבל את כל הרוחב
+      if (e.px) {
+        // v366: הצעה של Claude שממתינה להחלטה — טקסט בלבד, ושני כפתורים
+        const pr = h('span', 'st-fbp'); const pt = h('small', null, e.px); pt.dir = 'auto';
+        const bs = h('span', 'st-fbb');
+        bs.append(btn('st-mini tint', T('studioFbKeep'), () => decideFix(e.fp, true), 'fbk:' + e.fp), btn('st-mini ghost', T('studioFbDrop'), () => decideFix(e.fp, false), 'fbd:' + e.fp));
+        pr.append(h('small', 'st-fbpl', T('studioFbPropL')), pt, bs);
+        l.append(pr);
+      }
       r.append(l);
       return r;
     })));
   }
+  // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד"
+  const fm = ui.fm === 'auto' ? 'auto' : 'suggest';
+  p.append(secT(T('studioFmT')), list(
+    rowRadio({ label: T('studioFmSug'), sub: T('studioFmSugS'), on: fm === 'suggest', onClick: () => setFixMode('suggest'), k: 'fm:suggest', disabled: blocked() }),
+    rowRadio({ label: T('studioFmAuto'), sub: T('studioFmAutoS'), on: fm === 'auto', onClick: () => setFixMode('auto'), k: 'fm:auto', disabled: blocked() })));
   // הרגיל — המצב שבשימוש בברירת המחדל, וכל מצב שכבר נלמד מהעבודות שלך
   const nm = ui.norm;
   let learned = false;

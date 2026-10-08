@@ -78,6 +78,15 @@ button.st-row:not(:disabled):active { background: var(--st-fill); }
 .st-row.st-rule { cursor: default; font-size: 15px; line-height: 1.45; min-height: 44px; }
 .st-row.st-fb { cursor: default; align-items: flex-start; }   /* v364: ספר התיקונים — התיקון בשורה השנייה, נשבר כרגיל */
 .st-row.st-fb small.st-fbn { margin-top: 3px; font-size: 12px; opacity: .8; }
+/* v366: הצעת תיקון של Claude שממתינה להחלטה — בתוך השורה, מתחת לתיקון */
+.st-fbp { display: grid; gap: 4px; margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-xs); background: var(--st-fill); }
+.st-fbp small { color: var(--on-surface); font-size: 14px; }
+.st-fbp small.st-fbpl { color: var(--on-surface-var); font-size: 12px; font-weight: 600; }
+.st-fbb { display: flex; gap: 8px; margin-top: 4px; }
+.st-mini { min-height: 34px; padding: 6px 16px; border-radius: var(--pill); font-size: 14.5px; font-weight: 700; }
+.st-mini.tint { background: var(--primary-container); color: var(--on-primary-container); }
+.st-mini.ghost { background: var(--st-card); color: var(--on-surface); }
+.st-mini:active { opacity: .6; }
 .st-row.st-fb small { white-space: normal; overflow-wrap: anywhere; }
 .st-check, .st-radio { box-sizing: border-box; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--st-ter); flex: none; display: grid; place-items: center; color: transparent; position: relative; }
 .st-check svg { width: 14px; height: 14px; stroke-width: 3; }

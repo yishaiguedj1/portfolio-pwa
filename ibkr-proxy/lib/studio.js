@@ -223,13 +223,27 @@ function fbStop(list, tw, st, now) {
   e.n = (e.n || 0) + 1; e.at = now;
   return out.slice(-FB_MAX);
 }
-/* Claude רשם תיקון לתקלה (רק לרשומה שכבר קיימת אצל המשתמש) */
-function fbFix(list, fp, text, now) {
+/* v366: מסלול התיקונים של המשתמש — "הצעות לאישור" (ברירת המחדל, כמו Supervised ב־ServiceNow ומאמר ידע שעובר בדיקה לפני פרסום)
+   או "עצמאי" (Claude מחליט לבד). ההצעה משמשת את Claude בעבודה שבה נכתבה; לעבודות הבאות היא עוברת רק אחרי אישור */
+const FIX_MODES = ['suggest', 'auto'];
+const normFixMode = (m) => (m === 'auto' ? 'auto' : 'suggest');
+/* Claude רשם תיקון לתקלה (רק לרשומה שכבר קיימת אצל המשתמש). במסלול "הצעות" — הצעה (px); תיקון קודם שאושר נשאר בשימוש עד ההחלטה */
+function fbFix(list, fp, text, now, mode) {
   const t = normFixText(text);
   const out = fbList(list).map((e) => Object.assign({}, e));
   const e = out.find((x) => x.fp === fp);
   if (!e || !t) return null;
-  e.fix = t; e.fx = now;
+  if (normFixMode(mode) === 'auto') { e.fix = t; e.fx = now; delete e.px; delete e.pa; }
+  else if (t !== e.fix) { e.px = t; e.pa = now; }
+  return out;
+}
+/* v366: המשתמש החליט על הצעה — לשמור (הופכת לתיקון) או לא (נמחקת; התיקון הקודם, אם יש, נשאר) */
+function fbDecide(list, fp, ok, now) {
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  const e = out.find((x) => x.fp === fp);
+  if (!e || !e.px) return null;
+  if (ok === true) { e.fix = e.px; e.fx = now; }
+  delete e.px; delete e.pa;
   return out;
 }
 /* המגדל הזכיר תיקון מוכר לפני שהתקלה הגיעה לעצירה */
@@ -240,11 +254,11 @@ function fbUsed(list, fp, now) {
   e.auto = (e.auto || 0) + 1; e.ua = now;
   return out;
 }
-/* לעובד: רק תקלות שיש להן תיקון */
+/* לעובד: רק תקלות שיש להן תיקון (שאושר — הצעה שממתינה לא נכנסת) */
 const fbForWorker = (list) => fbList(list).filter((e) => e.fix).map((e) => ({ fp: e.fp, why: e.why, st: e.st, fix: e.fix }));
 /* לטלפון: הכל, מהחדשה */
 const fbView = (list) => fbList(list).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
-  .map((e) => ({ fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', at: e.at || 0 }));
+  .map((e) => ({ fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', px: e.px || '', at: e.at || 0 }));
 
 /* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
 function mergeUse(a, b) {
@@ -349,8 +363,9 @@ function publicJob(job, now) {
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job, nm, fb) {
+function workerJob(job, nm, fb, fm) {
   return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+    fm: normFixMode(fm),     // v366: מסלול התיקונים — העובד אומר ל־Claude אם התיקון נשמר או מחכה לאישור
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
@@ -414,7 +429,7 @@ module.exports = {
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
-  FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView,
+  FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
   CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };
