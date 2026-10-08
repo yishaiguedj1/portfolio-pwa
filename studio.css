@@ -338,3 +338,26 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-tstop-r .v { font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
 .st-tstop .st-link { padding: 0; justify-self: start; text-align: start; cursor: pointer; }
 .st-btn.ghost { background: var(--st-fill); color: var(--on-surface); }
+
+/* v365: מגדל הפיקוח 2.0 — כרטיס הבריאות, מפת השירות והתראות */
+.st-health { margin: 4px 16px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); display: grid; gap: 12px; }
+.st-hrow { display: flex; align-items: center; gap: 14px; }
+.st-hring { --c: var(--primary); --v: 100; width: 60px; height: 60px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(closest-side, var(--st-card) 76%, transparent 78%), conic-gradient(var(--c) calc(var(--v) * 1%), var(--st-fill) 0); }
+.st-hring.a { --c: #FF9F0A; } .st-hring.r { --c: var(--loss); }
+.st-hring b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.st-hrow .st-l b { font-size: 16px; }
+.st-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.st-kpi { background: var(--bg); border-radius: var(--radius-xs); padding: 8px 10px; display: grid; gap: 1px; min-width: 0; align-content: space-between; }
+.st-kpi small { font-size: 11.5px; color: var(--on-surface-var); font-weight: 600; line-height: 1.3; }
+.st-kpi b { font-size: 15.5px; font-variant-numeric: tabular-nums; }
+.st-smap { margin: 0 16px; padding: 12px; border-radius: var(--radius-sm); background: var(--st-card); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.st-snode { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 10px; background: var(--bg); font-size: 13px; font-weight: 600; }
+.st-snode.bad { box-shadow: 0 0 0 1.5px var(--loss) inset; } .st-snode.bad.s3 { box-shadow: 0 0 0 1.5px #FF9F0A inset; }
+.st-sarr { color: var(--st-ter); font-size: 12px; }
+[dir="ltr"] .st-sarr { display: inline-block; transform: scaleX(-1); }
+.st-sdot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--st-ter); }
+.st-sdot.g { background: var(--primary); } .st-sdot.a { background: #FF9F0A; } .st-sdot.r { background: var(--loss); }
+.st-pri { flex: none; padding: 2px 8px; border-radius: var(--pill); font-size: 11.5px; font-weight: 700; background: var(--st-fill); color: var(--on-surface-var); }
+.st-pri.p1 { background: var(--loss); color: #fff; } .st-pri.p2 { background: var(--st-red-c); color: var(--loss); } .st-pri.p3 { background: var(--st-amber-c); color: var(--st-amber); }
+

@@ -42,6 +42,8 @@ name = re.sub(r'[^\w\-]+', '-', name.strip().lower(), flags=re.UNICODE).strip('-
 w = pathlib.Path(os.environ['VT_WORK']) / name
 log = pathlib.Path(os.environ['FAKE_LOG'])
 log.open('a').write(' '.join(a) + '\n')
+if os.environ.get('FAKE_FAIL') == cmd:      # v365: פקודה שנכשלת — לאירוע של מגדל הפיקוח
+    print('boom'); sys.exit(3)
 if cmd == 'new':
     w.mkdir(parents=True, exist_ok=True)
     src = a[a.index('--source') + 1]
@@ -560,6 +562,17 @@ class TestWorker(unittest.TestCase):
         self.take()
         code, out = self.job('fix', '--text', 'משהו ארוך מספיק')
         self.assertEqual(code, 1, 'בלי עצירה — אין למה לרשום')
+
+    def test_ops_events(self):
+        # v365: אירועים למגדל הפיקוח — Drive שהתאושש אחרי ניתוק (ok), ו־vt שנכשל (תמלול) — רק סוגים מהקטלוג, בלי טקסט
+        self.fake.audio = False                                        # בלי קול — prepare מוריד את הסרטון (שם הניתוק המדומה)
+        self.take()
+        code, out = self.job('prepare', env={'FAKE_FAIL': 'asr'})
+        self.assertNotEqual(code, 0, out)
+        evs = [e for r in self.fake.reports for e in (r.get('ev') or [])]
+        self.assertIn({'c': 'drive', 'k': 'dl_retry', 'ok': True}, evs, 'ההורדה נקטעה וחזרה — סוגרים את ההתראה')
+        self.assertIn({'c': 'vt', 'k': 'asr', 'ok': False}, evs)
+        self.assertTrue(all(set(e) == {'c', 'k', 'ok'} for e in evs))
 
     def test_lang_unsupported(self):
         self.fake.spec = dict(self.fake.spec, to=['ru'])
