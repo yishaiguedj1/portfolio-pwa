@@ -35,7 +35,7 @@ class Fake:
                 self.wfile.write(b)
 
             def do_GET(self):
-                if self.path == '/drive/v3/about?fields=user':
+                if self.path.startswith('/drive/v3/about') and self.headers.get('Authorization') == 'Bearer ya29.T':
                     return self._send(200, {'user': {'emailAddress': 'x@example.com'}})
                 return self._send(404, {})
 
@@ -100,7 +100,7 @@ class AgentTests(unittest.TestCase):
         self.fake.next_job = {'id': JOB, 'key': KEY, 'kind': 'ping'}
         r = self.agent()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue(any(x.get('done') for x in self.fake.reports), 'העבודה רצה ודווחה')
+        self.assertTrue(any(x.get('done') and x.get('checks') == {'drive': True} for x in self.fake.reports), 'העבודה רצה, Drive נגיש, ודווחה')
         self.assertEqual(list(work.iterdir()), [], 'אחרי העבודה לא נשאר כלום — גם לא .busy')
         self.assertFalse((self.tmp / 'state' / 'job.json').exists(), 'מפתח העבודה נמחק מהדיסק')
         self.assertNotIn(KEY, r.stdout + r.stderr)
