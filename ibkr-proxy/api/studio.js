@@ -102,7 +102,7 @@ const UNSURE = ['routine_down', 'routine_net'];
 async function fireJob(deps, uid, v, job, now, resume) {
   const key = S.newKey();
   const fh = S.recentFires(v.fh, now);
-  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, updated: now });
+  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, tw: null, updated: now });
   const f = await fire(deps, v, uid, S.fireText(job.id, key));
   if (!f.ok && UNSURE.includes(f.error)) {
     // v356: 5xx או תקלת רשת — ייתכן שהסשן כבר נפתח (קרה אצל המשתמש: "לא זמין", והסשן הגיע ונדחה ב־bad_key).
@@ -184,6 +184,11 @@ async function worker(req, res, body, deps) {
       // v361: אחרי "המשך" — יחד עם הסשנים הקודמים (use0)
       const use = S.normUsage(body.usage);
       if (use) up.use = S.mergeUse(job.use0, use);
+    }
+    if (body.tower != null) {
+      // v362: מגדל הפיקוח — מצב תקין/חריג, ובעצירה הסיבה והמספרים (מגיע יחד עם fail: tower_stop). לא תקין — נזרק בשקט
+      const tw = S.normTower(body.tower);
+      if (tw) up.tw = Object.assign(tw, { at: now });
     }
     if (body.ck != null) {
       // v361: נקודת שמירה — הארכיון חייב להיות בתיקיית העבודה ב־Drive (כמו התוצרים)

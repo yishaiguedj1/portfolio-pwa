@@ -121,6 +121,7 @@ export function normJob(j) {
     qa: normQa(s.qa),      // שאלה מ־Claude באמצע העבודה (והתשובה)
     ck: normCk(s.ck),      // v361: נקודת השמירה האחרונה (אחרי איזה שלב)
     stale: s.stale === true, fires: num(s.fires),
+    tw: normTw(s.tw),      // v362: מגדל הפיקוח
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -131,6 +132,18 @@ export function normQa(q) {
   const d = Number.isInteger(q.d) && q.d >= 0 && q.d < o.length ? q.d : -1;
   const a = q.a && typeof q.a === 'object' ? { i: Number.isInteger(q.a.i) ? q.a.i : -1, t: String(q.a.t || '').slice(0, 200), auto: q.a.auto === true } : null;
   return { id: q.id, q: q.q.slice(0, 300), o, d, w: num(q.w) || 480, at: num(q.at), a };
+}
+/* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
+const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
+export function normTw(t) {
+  if (!t || typeof t !== 'object' || !['ok', 'warn', 'red'].includes(t.lv)) return null;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+  return { lv: t.lv, x: n(t.x), usd: n(t.usd), exp: n(t.exp), why: TW_WHY.includes(t.why) ? t.why : '', n: n(t.n), min: n(t.min) };
+}
+/* עצרנו בגלל המגדל? (העבודה נכשלה עם tower_stop והפרטים הגיעו) */
+export function towerStopped(rec) {
+  const s = rec && rec.srv;
+  return !!(s && s.state === 'failed' && s.err === 'tower_stop' && s.tw && s.tw.lv === 'red');
 }
 /* v361: נקודת השמירה האחרונה — אחרי תמלול / יישור / תרגום / ביקורת. CK_STAGE = השלב בטלפון שהיא סוגרת */
 const CK_STAGE = { asr: 'tr', al: 'al', tl: 'tl', rv: 'rv' };
@@ -378,6 +391,7 @@ function errText(code, extra) {
     case 'vault_not_configured': return T('studioErrVault');
     case 'stalled': return T('studioErrNet');
     case 'resume_limit': return T('studioErrResumeLimit');
+    case 'tower_stop': return T('studioErrTower');
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
 }
@@ -873,6 +887,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   alert: '<path d="M12 4.5l8.5 15h-17z"/><path d="M12 10v4.2"/><circle cx="12" cy="16.9" r=".9" fill="currentColor" stroke="none"/>',
   help: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-7l-4 3v-3H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M10 9.6a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.3"/><circle cx="12" cy="14.6" r=".9" fill="currentColor" stroke="none"/>',
   x: '<path d="M7 7l10 10M17 7L7 17"/>',
+  shield: '<path d="M12 3.5l7 2.6v5.4c0 4.3-2.9 7.8-7 9-4.1-1.2-7-4.7-7-9V6.1z"/>',
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1403,6 +1418,44 @@ async function sendAnswer(id, qid, ans) {
     if (!j.ok) flashSafe(errText(j.error));
   } finally { askBusy = false; render('none'); }
 }
+/* v362: מגדל הפיקוח — שורה קטנה בזמן העבודה (תקין / חריג), וכרטיס "עצרנו את העבודה" כשהוא עצר */
+function towerWhy(tw) {
+  const x = fmtX(tw.x);
+  switch (tw.why) {
+    case 'cost': return T('studioTwWhyCost', { x });
+    case 'cap': return T('studioTwWhyCap');
+    case 'loop': return T('studioTwWhyLoop', { n: tw.n });
+    case 'calls': return T('studioTwWhyCalls', { n: tw.n });
+    default: return T('studioTwWhyIdle', { m: tw.min });
+  }
+}
+const fmtX = (x) => (Math.round(x * 10) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+function towerLine(rec) {
+  const s = rec.srv, tw = s && s.tw;
+  if (!tw || tw.lv === 'red' || !(s.state === 'running' || s.state === 'queued')) return null;
+  const c = h('div', 'st-tower ' + tw.lv);
+  c.dataset.k = 'tower';
+  const t = h('span');
+  t.textContent = (tw.lv === 'warn' ? T('studioTwWarn', { x: fmtX(tw.x) }) : T('studioTwOk', { x: fmtX(tw.x) }));
+  c.append(ico('shield'), t);
+  return c;
+}
+function towerStopCard(rec) {
+  if (!towerStopped(rec)) return null;
+  const tw = rec.srv.tw;
+  const c = h('div', 'st-tstop');
+  c.dataset.k = 'tower-stop';
+  const head = h('div', 'st-tstop-h');
+  head.append(ico('shield'), h('b', null, T('studioTwStopT')));
+  const row = (k, v) => { const r = h('div', 'st-tstop-r'); r.append(h('span', 'k', k), h('span', 'v', v)); return r; };
+  c.append(head, row(T('studioTwWhat'), towerWhy(tw)), row(T('studioTwMeans'), T('studioTwMeansV')));
+  if (tw.x || tw.usd) {
+    const nums = h('span', 'v');
+    nums.append(T('studioTwNums', { x: fmtX(tw.x) }) + ' · ', usdEl(tw.usd));
+    const r = h('div', 'st-tstop-r'); r.append(h('span', 'k', T('studioTwNumsK')), nums); c.append(r);
+  }
+  return c;
+}
 function askCard(rec) {
   const qa = rec.srv && rec.srv.qa;
   if (!qa || FINAL.includes(rec.srv.state)) return null;
@@ -1509,6 +1562,10 @@ function pageJob(p) {
   p.append(hero);
   const ask = askCard(rec);   // שאלה מ־Claude — מעל הכל, כי היא מחכה לך
   if (ask) p.append(ask);
+  const tstop = towerStopCard(rec);   // v362: מגדל הפיקוח עצר — מה קרה, מה זה אומר, המספרים
+  if (tstop) p.append(tstop);
+  const tline = towerLine(rec);
+  if (tline) p.append(tline);
 
   // מה קורה עכשיו — משפט אחד + דוגמה חיה
   const nowc = h('div', 'st-nowc');
@@ -1533,7 +1590,7 @@ function pageJob(p) {
   });
   // "מוכן" שרק מחכה לעדכון הבא / לחיבור — הראש כבר אומר את זה; בלי כרטיס כפול
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
-  if (!quiet && !qaPending(rec)) p.append(nowc);   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
+  if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];
   if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
@@ -1818,7 +1875,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : ''); };
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : ''); };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join(); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;

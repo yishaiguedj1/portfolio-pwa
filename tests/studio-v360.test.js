@@ -33,7 +33,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(M.normJob({ id: 'jAbCdEfGhIjKlMnOpQrSt', spec: {}, srv: { state: 'running', qa: { id: 'q3', q: 'x', o: ['כן'] } } }).srv.qa.id === 'q3', 'טלפון: normJob שומר את השאלה');
   const st = read('studio.js');
   ok(/function askCard\(rec\)/.test(st) && /net\.api\('answer'/.test(st) && /const ask = askCard\(rec\)/.test(st), 'טלפון: כרטיס "Claude שואל" בדף העבודה ושליחת התשובה');
-  ok(/qaPending\(rec\) \? \['amber', T\('studioBAsk'\)\]/.test(st) && /if \(!quiet && !qaPending\(rec\)\) p\.append\(nowc\)/.test(st), 'טלפון: תג "שאלה" ברשימה; בשאלה פתוחה — בלי כרטיס "מה קורה עכשיו" כפול');
+  ok(/qaPending\(rec\) \? \['amber', T\('studioBAsk'\)\]/.test(st) && /if \(!quiet && !qaPending\(rec\)( && [^)]+)?\) p\.append\(nowc\)/.test(st), 'טלפון: תג "שאלה" ברשימה; בשאלה פתוחה — בלי כרטיס "מה קורה עכשיו" כפול');
   ok(!/innerHTML\s*=\s*[^;]*qa\./.test(st) && /h\('p', 'st-ask-q', qa\.q\)/.test(st), 'טלפון: השאלה (טקסט מ־Claude) מוצגת כטקסט, לא כ־HTML');
   ok(/rec\.srv\.qa\.id \+ \(rec\.srv\.qa\.a \? 'a' : ''\)/.test(st), 'טלפון: הדף מצויר מחדש כשמגיעה שאלה או תשובה');
   const app = read('app.js');

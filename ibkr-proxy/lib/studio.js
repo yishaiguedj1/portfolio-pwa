@@ -147,6 +147,22 @@ function canResume(job, now) {
   if ((job.fires || 0) >= RESUME_MAX) return 'resume_limit';
   return '';
 }
+/* v362: מגדל הפיקוח — מצב מהעובד (ה־Hook בסשן): רמה, סיבה (בעצירה), פי כמה מהרגיל, עלות לפי מחירון ה־API והצפוי עד עכשיו */
+const TW_LV = ['ok', 'warn', 'red'];
+const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
+function normTower(t) {
+  if (!t || typeof t !== 'object' || !TW_LV.includes(t.lv)) return null;
+  const n = (v, max, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(Math.min(v, max) * 10 ** d) / 10 ** d : 0);
+  const out = { lv: t.lv, x: n(t.x, 1000, 1), usd: n(t.usd, 1e5, 2), exp: n(t.exp, 1e5, 2) };
+  if (t.lv === 'red') {
+    if (!TW_WHY.includes(t.why)) return null;
+    out.why = t.why;
+    if (t.n != null) out.n = Math.round(n(t.n, 1000, 0));
+    if (t.min != null) out.min = Math.round(n(t.min, 1440, 0));
+  }
+  return out;
+}
+
 /* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
 function mergeUse(a, b) {
   const rows = [];
@@ -246,6 +262,7 @@ function publicJob(job, now) {
     ck: lastCk(job.ck) ? { s: lastCk(job.ck).s, at: lastCk(job.ck).at || 0 } : null,   // v361: נקודת השמירה האחרונה
     stale: isStale(job, now),                       // v361: "רצה" בלי דיווח שעתיים — אפשר להמשיך
     fires: job.fires || 0,
+    tw: job.tw && TW_LV.includes(job.tw.lv) ? job.tw : null,   // v362: מגדל הפיקוח
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
@@ -280,7 +297,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -310,6 +327,6 @@ module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
-  CK_STAGES, STALE_MS, RESUME_MAX, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };
