@@ -2,6 +2,8 @@
    מעביר את הקוד לחלון של האפליקציה (אותו origin) ונסגר. הקוד לבדו לא שווה כלום בלי הסוד שבשרתון,
    ונמחק מכתובת העמוד ומהאחסון מיד. */
 (function () {
+  // שלב 4: לא בתוך מסגרת של אתר זר — העמוד הזה מקבל קוד הרשאה
+  if (self !== top) { document.documentElement.style.display = 'none'; return; }
   var p = new URLSearchParams(location.search);
   var msg = { code: p.get('code') || '', state: p.get('state') || '', error: p.get('error') || '', at: Date.now() };
   try { history.replaceState(null, '', location.pathname); } catch (e) {}

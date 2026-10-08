@@ -9,13 +9,17 @@ on:
   push:
     branches: [main]
     paths: ['android/**', '.github/workflows/android.yml']
+  # שלב 4: גם ב־PR — שגיאת קומפילציה נתפסת לפני המיזוג. ב־PR: בלי מפתח החתימה ובלי פרסום (רק בנייה)
+  pull_request:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:
   contents: write # פרסום ה־APK ב־Release (רק ה־workflow הזה; test.yml נשאר read)
 
 concurrency:
-  group: android
+  group: android-${{ github.ref }}    # PR לא מבטל בנייה של main (ולהפך)
   cancel-in-progress: true
 
 jobs:
@@ -24,6 +28,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false   # הבנייה (Gradle) מריצה קוד מהריפו — בלי טוקן כתיבה שמור ב־.git
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
@@ -35,6 +41,7 @@ jobs:
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
       - name: Keystore
         id: ks
+        if: github.event_name != 'pull_request'
         env:
           KS_B64: ${{ secrets.SNOWBALL_KEYSTORE_B64 }}
         run: |
@@ -61,7 +68,7 @@ jobs:
           path: the-snowball.apk
           retention-days: 14
       - name: Publish (android-latest)
-        if: steps.ks.outputs.signed == 'true'
+        if: github.event_name != 'pull_request' && steps.ks.outputs.signed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
