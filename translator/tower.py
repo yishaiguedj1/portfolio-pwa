@@ -14,6 +14,8 @@ setup.sh כותב אותו ל־~/.claude/settings.json בבניית תמונת �
 ומכאן כל פעולה של Claude ושל סוכני־המשנה נחסמת ו־Claude נעצר (continue: false). "הרגיל" = מחירון ה־API של העבודה
 (job.usage) מול הצפוי לפי אורך הסרטון והמצב שנבחר — מ־v363 לפי העבודות הקודמות שלך כשיש לפחות 3 במצב הזה
 (החציון לשעת סרטון; הסף האדום לפחות פי 2 מהכבדה ביותר). תקלה במגדל עצמו לא עוצרת שום דבר (כל שגיאה → פעולה מותרת).
+v367 — החוקים שלך: כשהעבודה מגיעה לתקציב שקבעת, המגדל פותח "שער" (השאלה בטלפון) וכל פעולה מחכה עד שעונים
+(חוץ מ־job.py gate, שמחכה לתשובה). "להמשיך" — התקציב גדל בעוד תקציב אחד; "לעצור" / בלי תשובה בחצי שעה — עצירה.
 """
 import hashlib
 import json
@@ -46,6 +48,8 @@ IDLE_SEC, IDLE_USD = 20 * 60, 1.5
 POLL_TOOLS = {'BashOutput', 'TaskOutput', 'TaskGet', 'TaskList', 'TodoWrite', 'KillShell', 'TaskStop'}
 # v364: ספר התיקונים — תקלה מוכרת (נעצרה בעבר ונרשם לה תיקון): מזכירים את התיקון כשהיא מתחילה לחזור, לפני הסף של העצירה
 KNOWN_ERRS, KNOWN_CALLS = 3, 5
+GATE_CHECK = float(os.environ.get('SNB_GATE_CHECK', '10'))   # v367: כל כמה שניות בודקים אם ענית (בדיקות: 0)
+GATE_WAIT = 30 * 60                                           # זהה ל־GATE_WAIT בשרתון
 FP_RE = re.compile(r'^[0-9a-f]{12}$')
 
 
@@ -231,6 +235,7 @@ WHY = {
     'calls': 'אותה פעולה חזרה {n} פעמים ב־15 דקות — סימן ללולאה',
     'idle': '{min} דקות בלי התקדמות, בזמן שהטוקנים ממשיכים להיצרך',
     'server': 'העבודה בוטלה או הועברה לסשן אחר',
+    'budget': 'העבודה הגיעה לתקציב שקבעת, והמשתמש בחר לעצור (או לא ענה בזמן)',
 }
 
 
@@ -245,6 +250,57 @@ def block(red):
     msg = stop_reason(red)
     return {'continue': False, 'stopReason': msg, 'hookSpecificOutput': {
         'hookEventName': 'PreToolUse', 'permissionDecision': 'deny', 'permissionDecisionReason': msg}}
+
+
+def gate_text(g):
+    """v367: העבודה מחכה לאישור שלך — הפעולה לא בוצעה, ו־Claude יודע מה להריץ."""
+    return ('⏸ מגדל הפיקוח: העבודה הגיעה לתקציב שקבעת (%s$ מתוך %s$) ומחכה לאישור של המשתמש בטלפון. הפעולה הזו לא בוצעה. '
+            'הרץ בחזית: python3 translator/job.py gate — הפקודה מחכה לתשובה ואומרת אם להמשיך.') % (g.get('usd', ''), g.get('cap', ''))
+
+
+def gate_block(g):
+    return {'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny', 'permissionDecisionReason': gate_text(g)}}
+
+
+def budget_cap(st, tw):
+    """התקציב שבתוקף עכשיו (דולרים) — התקציב שקבעת × (1 + כמה פעמים אישרת להמשיך). 0 = בלי חוק."""
+    b = J.rules_valid(st.get('rl'))['b']
+    return round(b * (1 + tw.get('bx', J._int(st.get('bx')))), 2) if b else 0.0
+
+
+def gate_step(st, tw, inp, name, now):
+    """שער תקציב פתוח: בודקים אם ענית; עד אז רק job.py gate (והמתנה לפקודות ברקע) מותרים."""
+    g = tw['gate']
+    cmd = str((inp.get('tool_input') or {}).get('command') or '') if name == 'Bash' else ''
+    waiting = 'job.py gate' in cmd or name in POLL_TOOLS
+    if now - g.get('chk', 0) >= GATE_CHECK:
+        g['chk'] = now
+        c = J.Client(st['server'], st['job'], st['key'])
+        try:
+            r = J.gate_answer(c, g['id'])
+            if r is None and now - g['at'] >= GATE_WAIT:
+                c.call('report', askTimeout=g['id'])       # בלי תשובה בזמן — ברירת המחדל: לעצור
+                r = 'stop'
+            if r in ('go', 'gone'):
+                tw.pop('gate', None)
+                if r == 'go':
+                    tw['bx'] = tw.get('bx', J._int(st.get('bx'))) + 1
+                return None
+            if r == 'stop':
+                red = {'why': 'budget', 'usd': g.get('usd'), 'cap': g.get('cap'), 'at': now}
+                try:
+                    c.call('report', fail=True, err='budget_stop', msg='עצרנו בתקציב שקבעת', usage=J.usage() or None)
+                except (J.Stop, SystemExit):
+                    pass                                      # job.py gate כבר דיווח
+                tw['red'] = red
+                return block(red)
+        except J.Stop:
+            red = {'why': 'server', 'at': now}
+            tw['red'] = red
+            return block(red)
+        except SystemExit:
+            pass                                              # השרתון לא זמין — ממשיכים לחכות
+    return None if waiting else gate_block(g)
 
 
 def check(st, tw, now):
@@ -279,6 +335,16 @@ def check(st, tw, now):
         if lv != tw.get('sent_lv') or now - tw.get('sent_at', 0) >= 300:
             c.call('report', tower=dict(info, lv=lv))
             tw['sent_lv'], tw['sent_at'] = lv, now
+        cap = budget_cap(st, tw)
+        spent = round(usd + J._usd(st.get('u0')), 2)          # כל העבודה — גם הסשנים הקודמים (אחרי "המשך")
+        if cap and spent >= cap and not tw.get('gate'):
+            try:
+                gid = c.call('report', gate={'k': 'b', 'usd': spent, 'cap': cap}).get('gate') or ''
+            except SystemExit:
+                gid = ''                                      # עד 8 שערים לעבודה / השרתון לא זמין — לא חוסמים בגלל זה
+            if gid:
+                tw['gate'] = {'id': gid, 'at': now, 'usd': spent, 'cap': cap}
+                return {'gate': tw['gate']}
         known = {e['fp']: e['fix'] for e in (st.get('fb') or []) if isinstance(e, dict)
                  and FP_RE.match(str(e.get('fp') or '')) and e.get('fix')}
         h = known_hint(prog.get('st'), errs, calls, names, known, tw.get('hinted') or {}, now)
@@ -312,6 +378,10 @@ def hook(stdin_text, now=None):
     except ValueError:
         inp = {}
     name = str(inp.get('tool_name') or '')
+    if tw.get('gate'):                                        # v367: מחכים לאישור שלך — עוד לא סופרים פעולות
+        out = gate_step(st, tw, inp, name, now)
+        store(tw)
+        return out
     if name and name not in POLL_TOOLS:
         key = hashlib.sha1((name + json.dumps(inp.get('tool_input'), sort_keys=True, ensure_ascii=False)).encode('utf-8')).hexdigest()[:12]
         tw['calls'] = [c for c in tw.get('calls', []) if now - c[0] <= WINDOW][-400:] + [[now, key, name[:40]]]
@@ -322,6 +392,9 @@ def hook(stdin_text, now=None):
     if red and 'hint' in red:
         store(tw)
         return hint(red['hint'])
+    if red and 'gate' in red:
+        store(tw)
+        return gate_block(red['gate'])
     if red:
         tw['red'] = red
     store(tw)

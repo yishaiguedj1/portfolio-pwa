@@ -127,7 +127,7 @@ class TestHook(unittest.TestCase):
         self.proj = self.tmp / 'projects' / '-x'
         self.proj.mkdir(parents=True)
         self.base = 'http://127.0.0.1:%d' % self.fake.port
-        self.env = dict(os.environ, SNB_STATE=str(self.state), SNB_CLAUDE_PROJECTS=str(self.tmp / 'projects'), SNB_TOWER_EVERY='0')
+        self.env = dict(os.environ, SNB_STATE=str(self.state), SNB_CLAUDE_PROJECTS=str(self.tmp / 'projects'), SNB_TOWER_EVERY='0', SNB_GATE_CHECK='0')
         self.env.pop('SNB_TOWER', None)
         self.set_job()
         self.set_prog('tl', 0.5)
@@ -277,6 +277,61 @@ class TestHook(unittest.TestCase):
         self.assertIsNone(self.hook(), 'פעם אחת בסשן — הפעולה הבאה עוברת')
         self.spend(50_000, errors=6)
         self.assertIs(self.hook()['continue'], False, 'חזרה עד הסף בכל זאת — עוצרים כרגיל')
+
+    def test_budget_gate_go(self):
+        # v367: תקציב 5$ — ב־6$ המגדל פותח שער: כל פעולה מחכה לך, חוץ מ־job.py gate; "להמשיך" — התקציב גדל ל־10$
+        self.set_job(rl={'b': 5, 'ab': False})
+        self.spend(300_000)
+        out = self.hook('Read', {'file_path': '/x'})
+        self.assertNotIn('continue', out, 'לא עצירה — המתנה')
+        self.assertIn('job.py gate', out['hookSpecificOutput']['permissionDecisionReason'])
+        g = [r['gate'] for r in self.fake.reports if r.get('gate')]
+        self.assertEqual(g, [{'k': 'b', 'usd': 6.0, 'cap': 5.0}])
+        self.assertEqual(self.hook('Read', {'file_path': '/x'})['hookSpecificOutput']['permissionDecision'], 'deny')
+        self.assertIsNone(self.hook('Bash', {'command': 'python3 translator/job.py gate'}), 'הפקודה שמחכה לתשובה — מותרת')
+        self.fake.gate_ans = 'go'
+        self.assertIsNone(self.hook('Read', {'file_path': '/x'}), 'ענית "להמשיך" — ממשיכים')
+        self.assertEqual(json.loads((self.state / 'tower.json').read_text())['bx'], 1)
+        self.assertIsNone(self.hook('Read', {'file_path': '/y'}), '6$ מתוך 10$ — בלי שער חדש')
+        self.assertEqual(len([r for r in self.fake.reports if r.get('gate')]), 1)
+
+    def test_budget_gate_stop(self):
+        self.set_job(rl={'b': 5, 'ab': False})
+        self.spend(300_000)
+        self.hook()
+        self.fake.gate_ans = 'stop'
+        out = self.hook()
+        self.assertIs(out['continue'], False)
+        self.assertIn('תקציב', out['stopReason'])
+        self.assertEqual(self.fake.reports[-1].get('err'), 'budget_stop')
+        self.assertIs(self.hook('Agent', {'prompt': 'x'})['continue'], False, 'הדגל נשאר')
+
+    def test_budget_counts_previous_sessions(self):
+        # התקציב לכל העבודה: 4.5$ מסשנים קודמים + 1$ עכשיו ≥ 5$ — שער. bx=1 מהשרתון (אישרת כבר פעם) → 10$ — בלי שער
+        self.set_job(rl={'b': 5}, u0=4.5)
+        self.spend(50_000)
+        self.assertEqual(self.hook()['hookSpecificOutput']['permissionDecision'], 'deny')
+        (self.state / 'tower.json').unlink()
+        self.fake.reports.clear()
+        self.set_job(rl={'b': 5}, u0=4.5, bx=1)
+        self.assertIsNone(self.hook())
+        self.assertFalse([r for r in self.fake.reports if r.get('gate')])
+
+    def test_budget_gate_timeout(self):
+        self.set_job(rl={'b': 5})
+        self.spend(300_000)
+        self.hook()
+        tw = json.loads((self.state / 'tower.json').read_text())
+        tw['gate']['at'] -= 31 * 60
+        (self.state / 'tower.json').write_text(json.dumps(tw))
+        out = self.hook()
+        self.assertIs(out['continue'], False, 'חצי שעה בלי תשובה — ברירת המחדל: לעצור')
+        self.assertTrue(any(r.get('askTimeout') == tw['gate']['id'] for r in self.fake.reports))
+
+    def test_no_budget_no_gate(self):
+        self.spend(300_000)
+        self.assertIsNone(self.hook())
+        self.assertFalse([r for r in self.fake.reports if r.get('gate')])
 
     def test_broken_input_allows(self):
         r = subprocess.run(['sh', str(HERE / 'tower-hook.sh')], input='not json', capture_output=True, text=True, timeout=60, env=self.env)

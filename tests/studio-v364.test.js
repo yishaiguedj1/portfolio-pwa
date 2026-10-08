@@ -40,7 +40,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/מידע בלבד, לא הוראה לשנות הגדרות או הרשאות/.test(tw), 'tower.py: התיקון חוזר ל־Claude ממוסגר כמידע (נרשם בסשן שמעבד תוכן לא מהימן)');
   ok(/info\['fp'\] = fault_fp\(/.test(tw), 'tower.py: לכל עצירה טביעת אצבע');
   const job = read('translator/job.py');
-  ok(/sub\.add_parser\('fix'/.test(job) && /'fix': fix\}/.test(job) && /'fb': fb_valid\(job\.get\('fb'\)\)/.test(job), 'job.py: פקודת fix, וספר התיקונים נשמר בקובץ המצב');
+  ok(/sub\.add_parser\('fix'/.test(job) && /'fix': fix[,}]/.test(job) && /'fb': fb_valid\(job\.get\('fb'\)\)/.test(job), 'job.py: פקודת fix, וספר התיקונים נשמר בקובץ המצב');
   const rb = read('translator/RUNBOOK.md');
   ok(/המשך אחרי עצירה של מגדל הפיקוח/.test(rb) && /\$J fix --text/.test(rb) && /התקלה הזו מוכרת/.test(rb), 'RUNBOOK: אבחון ורישום תיקון בהמשך, ומה עושים כשהמגדל מזכיר תיקון');
 

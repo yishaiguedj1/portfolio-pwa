@@ -127,11 +127,32 @@ export function normJob(j) {
 }
 /* שלב 3 סבב ד׳: שאלה מ־Claude באמצע העבודה — אותה בדיקה כמו בשרתון (lib/studio.js normAsk). הטקסט מוצג רק כטקסט */
 export function normQa(q) {
-  if (!q || typeof q !== 'object' || !/^q[a-z0-9]{1,12}$/.test(String(q.id || '')) || typeof q.q !== 'string' || !q.q) return null;
+  if (!q || typeof q !== 'object') return null;
+  // v367: שער (g) — השאלה נבנית בטלפון מהקטלוג (בלי טקסט מ־Claude): b = הגענו לתקציב, r = לפני הצריבה
+  const g = q.g === 'b' || q.g === 'r' ? q.g : '';
+  if (!(g ? /^g[a-z0-9]{1,12}$/ : /^q[a-z0-9]{1,12}$/).test(String(q.id || '')) || (!g && (typeof q.q !== 'string' || !q.q))) return null;
   const o = (Array.isArray(q.o) ? q.o : []).filter((x) => typeof x === 'string' && x).slice(0, 4).map((x) => x.slice(0, 80));
+  if (g && o.length !== 2) return null;
   const d = Number.isInteger(q.d) && q.d >= 0 && q.d < o.length ? q.d : -1;
   const a = q.a && typeof q.a === 'object' ? { i: Number.isInteger(q.a.i) ? q.a.i : -1, t: String(q.a.t || '').slice(0, 200), auto: q.a.auto === true } : null;
-  return { id: q.id, q: q.q.slice(0, 300), o, d, w: num(q.w) || 480, at: num(q.at), a };
+  const out = { id: q.id, q: g ? '' : q.q.slice(0, 300), o, d, w: num(q.w) || 480, at: num(q.at), a };
+  if (g) {
+    const n = q.n && typeof q.n === 'object' ? q.n : {};
+    const usd = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1e5 ? v : 0);
+    out.g = g;
+    out.n = g === 'b' ? { usd: usd(n.usd), cap: usd(n.cap) } : {
+      cnt: Math.min(num(n.cnt), 1e5),
+      cues: (Array.isArray(n.cues) ? n.cues : []).filter((c) => c && typeof c.x === 'string' && c.x).slice(0, 5)
+        .map((c) => ({ t: /^\d{1,2}:\d{2}(?::\d{2})?$/.test(String(c.t || '')) ? c.t : '', x: c.x.slice(0, 140) })) };
+  }
+  return out;
+}
+/* v367: החוקים שלך (מהשרתון, op status) — אותה בדיקה כמו בשרתון (lib/studio.js normRules) */
+export const RULE_BUDGETS = [5, 10, 20, 40];
+export function normRules(r) {
+  const o = r && typeof r === 'object' ? r : {};
+  const b = typeof o.b === 'number' && Number.isFinite(o.b) && o.b >= 1 && o.b <= 500 ? o.b : 0;
+  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true };
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
 const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
@@ -426,6 +447,9 @@ function errText(code, extra) {
     case 'stalled': return T('studioErrNet');
     case 'resume_limit': return T('studioErrResumeLimit');
     case 'tower_stop': return T('studioErrTower');
+    case 'halted': return T('studioErrHalted');
+    case 'rule_mode': return T('studioErrRuleMode');
+    case 'budget_stop': return T('studioErrBudgetStop');
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
 }
@@ -434,7 +458,8 @@ function errText(code, extra) {
 let root = null;
 let store = normStore(null);
 let form = null;                  // טופס פרויקט חדש/עריכה — בזיכרון בין הטופס לדף בחירת השפות; נמחק ביציאה לרשימה
-const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null };
+const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null,
+  rl: normRules(null), halt: 0 };   // v367: החוקים שלך ומתג החירום (מהשרתון)
 const scrolls = {};               // מיקום הגלילה של כל דף — "חזור" מחזיר אליו
 
 const uiLang = () => (document.documentElement.lang === 'en' ? 'en' : 'he');
@@ -540,6 +565,8 @@ async function refreshStatus(force) {
     ui.fb = normFb(j.fb) || ui.fb;
     ui.fm = j.fm === 'auto' ? 'auto' : 'suggest';   // v366: מסלול התיקונים (ברירת מחדל — הצעות לאישור)
     ui.ops = normOps(j.ops) || ui.ops;
+    ui.rl = normRules(j.rl);
+    ui.halt = num(j.halt);
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -652,19 +679,21 @@ async function register(id, which, fid, folder) {
   const rec = jobRec(id); if (rec && j.job) rec.srv = normJob({ id, srv: j.job }).srv;
 }
 /* v361: "המשך" — השרתון מפעיל את ה־Routine שוב עם מפתח חדש; העובד ממשיך מנקודת השמירה האחרונה */
-async function resumeSrv(id) {
+async function resumeSrv(id, ov) {
   const rec = jobRec(id); if (!rec || ui.resuming) return;
   ui.resuming = id; render('none');
-  const j = await net.api('resume', { job: id });
+  const j = await net.api('resume', ov ? { job: id, ov: true } : { job: id });
   ui.resuming = '';
   if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
-  if (!j.ok) flashSafe(errText(j.error, j));
+  // v367: מצב מעל המקסימום שבחוקים — הפעולה מחכה לאישור שלך
+  if (!j.ok && j.error === 'rule_mode' && typeof askConfirm === 'function') askConfirm(T('studioRuleModeQ'), () => resumeSrv(id, true), { ok: T('studioStartAnyway') });
+  else if (!j.ok) flashSafe(errText(j.error, j));
   save(); render('none');
 }
 /* "התחלה": השרתון מפעיל את ה־Routine. בשלב 2 העובד יודע רק "בדיקת חיבור" — התשובה worker_not_ready והעבודה ממתינה */
-async function tryStart(id) {
+async function tryStart(id, ov) {
   const rec = jobRec(id); if (!rec || rec.up.started) return;
-  const j = await net.api('start', { job: id });
+  const j = await net.api('start', ov ? { job: id, ov: true } : { job: id });   // v367: ov = "להתחיל בכל זאת" (מצב מעל המקסימום)
   if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
   if (j.ok) { rec.up.started = Date.now(); rec.up.wait = ''; }
   else rec.up.wait = String(j.error || 'failed').slice(0, 40);
@@ -827,7 +856,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -934,6 +963,8 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   help: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-7l-4 3v-3H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M10 9.6a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.3"/><circle cx="12" cy="14.6" r=".9" fill="currentColor" stroke="none"/>',
   x: '<path d="M7 7l10 10M17 7L7 17"/>',
   shield: '<path d="M12 3.5l7 2.6v5.4c0 4.3-2.9 7.8-7 9-4.1-1.2-7-4.7-7-9V6.1z"/>',
+  power: '<path d="M17.7 7a8 8 0 1 1-11.4 0"/><path d="M12 3.5v8"/>',
+  sliders: '<path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2.5 14h5M9.5 8h5M16.5 16h5"/>',
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1100,7 +1131,9 @@ function modePicker(cur, onPick) {
   const sum = h('p', 'st-modesum');
   const nb = h('b'); nb.append(h('bdi', 'st-nw', modeName(m)));   // מבודד — שם המודל לא "נדבק" לטקסט הלטיני שלפניו
   sum.append(T('studioSumPre') + ' ', nb, ' — ' + modeSum(m.id));
-  return [best, grp('opus'), grp('sonnet'), sum];
+  // v367: מעל המצב המקסימלי שבחוקים שלך — לפני שמתחילים נשאל אותך
+  const over = modeOverMax(m.id, ui.rl.mx) ? banner('warn', T('studioRlOverForm', { m: modeShort(modeById(ui.rl.mx)) })) : null;
+  return [best, grp('opus'), grp('sonnet'), sum, over].filter(Boolean);
 }
 /* מה לקבל — שלוש אפשרויות + SRT קבוע. ההערכה לפי גודל הקובץ (כשיש) */
 function outRows(out, size, onToggle) {
@@ -1203,7 +1236,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'done') return T('studioNowDone');
   if (ph === 'failed') return errText(rec.srv && rec.srv.err);
   if (ph === 'stuck') return T('studioNowStuck');
-  return T('studioNowCancelled');
+  return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
 }
 function badgeFor(ph) {
   switch (ph) {
@@ -1224,6 +1257,7 @@ function pageHome(p) {
   pill.append(h('i'), h('span', null, store.conn ? T('studioConnOn') : T('studioConnPill')));
   p.append(navBar({ back: 'THE SNOWBALL', end: pill }), large(T('studioTitle')));
   const ab = accessBanner(); if (ab) p.append(ab);
+  const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
   const nc = btn('st-newcard', null, () => { form = freshForm(null); go('new'); }, 'new');
   const plus = h('span', 'st-plus'); plus.append(ico('plus'));
   nc.append(plus, rowTxt(T('studioNew'), T('studioNewSub')));
@@ -1534,6 +1568,7 @@ function opsAlert(c, k) {
     case 'claude:tw_warn': return T('studioAlClaudeTwWarn');
     case 'claude:tw_stop': return T('studioAlClaudeTwStop');
     case 'claude:net': return T('studioAlClaudeNet');
+    case 'claude:budget': return T('studioAlClaudeBudget');
     case 'vt:setup': return T('studioAlVtSetup');
     case 'vt:ingest': return T('studioAlVtIngest');
     case 'vt:asr': return T('studioAlVtAsr');
@@ -1629,6 +1664,7 @@ const fbStage = (st) => { const c = { tr: 'asr', al: 'al', tl: 'tl', rv: 'rv' }[
 function pageTower(p) {
   p.append(navBar({ back: T('studioBack') }), large(T('studioTwT')), h('p', 'st-lede', T('studioTwLede')));
   const ab = accessBanner(); if (ab) p.append(ab);
+  const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל
   if (ui.ops) p.append(...opsSection(ui.ops));   // v365: בריאות הסטודיו, מפת השירות והתראות פתוחות
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
@@ -1643,6 +1679,11 @@ function pageTower(p) {
     const sub = !tw ? T('studioTwWaitRep') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
     return jobRow(rec, sub, tw && tw.lv === 'warn' ? 'orange' : 'green', 'tw:' + rec.id);
   }) : [h('div', 'st-row st-muted', T('studioTwNone'))])));
+  // v367: שליטה (Govern / Secure) — החוקים שלך (שורה עם סיכום; הבחירה בדף משלו) ומתג החירום
+  const kill = btn('st-row st-ric' + (ui.halt ? '' : ' st-danger'), null, () => (ui.halt ? setHalt(false) : askHalt()), 'halt');
+  kill.append(tile('power', ui.halt ? 'green' : 'red'), rowTxt(ui.halt ? T('studioHaltOff') : T('studioHaltOn'), ui.halt ? T('studioHaltOffS') : T('studioHaltOnS')));
+  kill.disabled = blocked() || haltBusy;
+  p.append(secT(T('studioCtlT')), list(rowNav({ tile: tile('sliders', 'blue'), label: T('studioRlT'), sub: rulesSum(ui.rl), onClick: () => go('rules'), k: 'rules' }), kill));
   // v364: ספר התיקונים — כל תקלה שעצרה עבודה, מה Claude רשם לעשות כשהיא חוזרת, וכמה פעמים זה טופל לבד
   if (ui.fb && ui.fb.length) {
     p.append(secT(T('studioFbT')), list(...ui.fb.slice(0, 8).map((e) => {
@@ -1695,9 +1736,118 @@ function pageTower(p) {
   const stops = store.jobs.filter(towerStopped);
   if (stops.length) p.append(secT(T('studioTwSecStops')), list(...stops.slice(0, 5).map((rec) => jobRow(rec, towerWhy(rec.srv.tw), 'red', 'ts:' + rec.id))));
 }
+/* v367: מתג החירום — "עצור את כל הסוכנים" (מבטל את מפתחות העבודות, המגדל עוצר את הסשן, הפעלות מושהות) ו"להחזיר" */
+let haltBusy = false;
+function askHalt() {
+  const n = store.jobs.filter((r) => r.srv && (r.srv.state === 'running' || r.srv.state === 'queued')).length;
+  const q = n === 1 ? T('studioHaltQ1') : n ? T('studioHaltQN', { n }) : T('studioHaltQ0');
+  if (typeof askConfirm === 'function') askConfirm(q, () => setHalt(true), { danger: true, ok: T('studioHaltOk') });
+}
+async function setHalt(on) {
+  if (haltBusy) return;
+  haltBusy = true; render('none');
+  try {
+    const j = await net.api('halt', { on });
+    if (!j.ok) { flashSafe(errText(j.error)); return; }
+    ui.halt = num(j.halt);
+    flashSafe(on ? (!j.n ? T('studioHaltDone0') : j.n === 1 ? T('studioHaltDone1') : T('studioHaltDoneN', { n: num(j.n) })) : T('studioHaltBack'));
+    if (on) await refreshJobs(true);
+  } finally { haltBusy = false; render('none'); }
+}
+function haltBanner() {
+  if (!ui.halt) return null;
+  const b = h('div', 'st-banner warn st-halt');
+  b.dataset.k = 'halt-banner';
+  const t = h('span', null, T('studioHaltOnB', { t: fmtClock(ui.halt) }));
+  const back = btn('st-mini tint', T('studioHaltBackBtn'), () => setHalt(false), 'halt-back');
+  back.disabled = haltBusy || blocked();
+  b.append(ico('power'), t, back);
+  return b;
+}
+/* v367: "החוקים שלך" — סיכום בשורה אחת */
+const MODE_ORDER = ['sonnet-medium', 'sonnet-high', 'opus-medium', 'opus-high', 'opus-max'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
+export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
+const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
+const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));
+function rulesSum(rl) {
+  const parts = [];
+  if (rl.b) parts.push(T('studioRlSumB', { v: budgetTxt(rl.b) }));
+  if (rl.mx) parts.push(T('studioRlUpTo', { m: modeShort(modeById(rl.mx)) }));
+  if (rl.ab) parts.push(T('studioRlSumAb'));
+  return parts.length ? parts.join(' · ') : T('studioRlNone');
+}
+let rulesBusy = false;
+async function setRules(patch) {
+  if (rulesBusy) return;
+  const prev = ui.rl;
+  ui.rl = normRules(Object.assign({}, ui.rl, patch));
+  rulesBusy = true; render('none');
+  try {
+    const j = await net.api('rules', { rl: ui.rl });
+    if (j.ok) ui.rl = normRules(j.rl);
+    else { ui.rl = prev; flashSafe(errText(j.error)); }
+  } finally { rulesBusy = false; render('none'); }
+}
+function pageRules(p) {
+  p.append(navBar({ back: T('studioTwT') }), large(T('studioRlT')), h('p', 'st-lede', T('studioRlLede')));
+  const ab = accessBanner(); if (ab) p.append(ab);
+  const rl = ui.rl, off = blocked() || rulesBusy;
+  // תקציב לעבודה — הגעת אליו: Claude עוצר ושואל בטלפון
+  const opts = [0].concat(RULE_BUDGETS);
+  if (rl.b && !opts.includes(rl.b)) opts.push(rl.b);
+  p.append(secT(T('studioRlBudgetT')), list(...opts.map((b) => rowRadio({ label: b ? budgetTxt(b) : T('studioRlNoBudget'), sub: b ? null : T('studioRlNoBudgetS'),
+    on: rl.b === b, onClick: () => setRules({ b }), k: 'rb:' + b, disabled: off }))), note(T('studioRlBudgetNote')));
+  // מצב מקסימלי — מצב יקר יותר מחכה לאישור שלך לפני שמתחילים
+  const mxs = [''].concat(MODE_ORDER.slice(0, -1));
+  p.append(secT(T('studioRlMaxT')), list(...mxs.map((id) => rowRadio({ label: id ? T('studioRlUpTo', { m: modeName(modeById(id)) }) : T('studioRlAllModes'),
+    on: rl.mx === id, onClick: () => setRules({ mx: id }), k: 'rm:' + (id || 'all'), disabled: off }))));
+  // אישור לפני צריבה — 5 כתוביות לדוגמה בטלפון
+  p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
+}
+/* v367: שער — הגענו לתקציב / לפני הצריבה. הטקסט מהקטלוג; הכתוביות לדוגמה (מהתרגום) — רק כטקסט */
+function gateCard(rec, qa) {
+  const b = qa.g === 'b';
+  const c = h('div', 'st-ask st-gate' + (qa.a ? ' done' : ''));
+  c.dataset.k = 'ask';
+  if (qa.a) {
+    const go2 = qa.a.i === 0 && !qa.a.auto;
+    const tx = b ? (go2 ? T('studioGateBGo') : qa.a.auto ? T('studioGateBAuto') : T('studioGateBStop'))
+      : (go2 ? T('studioGateRGo') : qa.a.auto ? T('studioGateRAuto') : T('studioGateRStop'));
+    c.append(ico('check'), h('span', null, tx));
+    return c;
+  }
+  const head = h('div', 'st-ask-h');
+  head.append(ico(b ? 'alert' : 'film'), h('b', null, b ? T('studioGateBT') : T('studioGateRT')));
+  c.append(head, h('p', 'st-ask-q', b ? T('studioGateBQ', { u: ltr(fmtUsd(qa.n.usd)), b: budgetTxt(qa.n.cap) }) : T('studioGateRQ', { n: qa.n.cnt })));
+  if (!b && qa.n.cues.length) {
+    const cl = h('div', 'st-cues');
+    for (const cu of qa.n.cues) {
+      const r = h('div', 'st-cue');
+      const tm = h('bdi', 'st-cue-t', cu.t); tm.dir = 'ltr';
+      const x = h('span', 'st-cue-x', cu.x); x.dir = 'auto';
+      r.append(tm, x);
+      cl.append(r);
+    }
+    c.append(cl);
+  }
+  const opts = h('div', 'st-ask-o');
+  const lbl = b ? [T('studioGateBGoBtn', { b: budgetTxt(budgetStep(qa)) }), T('studioGateBStopBtn')] : [T('studioGateRGoBtn'), T('studioGateRStopBtn')];
+  lbl.forEach((l, i) => {
+    const bt = btn('st-btn ' + (i === qa.d ? 'tint' : 'ghost') + ' wide', l, () => sendAnswer(rec.id, qa.id, { i }), 'ask:' + i);
+    bt.disabled = askBusy;
+    opts.append(bt);
+  });
+  c.append(opts);
+  const until = fmtClock((qa.at || Date.now()) + qa.w * 1000);
+  c.append(h('small', 'st-ask-n', b ? T('studioGateBDef', { t: until }) : T('studioGateRDef', { t: until })));
+  return c;
+}
+/* "להמשיך" מגדיל את התקציב בעוד תקציב אחד (החוק שקבעת) */
+const budgetStep = (qa) => ui.rl.b || qa.n.cap;
 function askCard(rec) {
   const qa = rec.srv && rec.srv.qa;
   if (!qa || FINAL.includes(rec.srv.state)) return null;
+  if (qa.g) return gateCard(rec, qa);
   const c = h('div', 'st-ask' + (qa.a ? ' done' : ''));
   c.dataset.k = 'ask';
   if (qa.a) {                                   // כבר טופלה — שורה אחת
@@ -1835,6 +1985,9 @@ function pageJob(p) {
   if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
   else if (ph0 === 'paused' || ph0 === 'error') acts.push(btn('st-btn wide', ph0 === 'error' ? T('studioRetry') : T('studioResume'), () => resumeJob(id, true), 'resume'));
   else if (ph0 === 'ready' && rec.up.wait === 'conn_missing') acts.push(btn('st-btn wide', T('studioConnectNow'), () => go('settings'), 'connect-now'));
+  // v367: מתג החירום פעיל — "להחזיר" במסך המגדל; מצב מעל המקסימום — "להתחיל בכל זאת"
+  else if (ph0 === 'ready' && rec.up.wait === 'halted' && ui.halt) acts.push(btn('st-btn wide', T('studioHaltGo'), () => go('tower'), 'halt-go'));
+  else if (ph0 === 'ready' && rec.up.wait === 'rule_mode') acts.push(btn('st-btn wide', T('studioStartAnyway'), () => { rec.up.wait = ''; tryStart(id, true); }, 'start-anyway'));
   else if (ph0 === 'ready' && ui.kinds.includes('tr') && rec.up.wait !== '') acts.push(btn('st-btn wide', T('studioStartNow'), () => { rec.up.wait = ''; tryStart(id); }, 'start-now'));
   else if (canResume(rec)) {
     // v361: "המשך מאותה נקודה" — Claude מוריד את נקודת השמירה האחרונה וממשיך ממנה (בלי לתמלל ולתרגם מחדש)
@@ -2117,9 +2270,10 @@ let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
   const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : ''); };
-  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : ''); }
-  if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0);
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops);
+  if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : ''); }
+  if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt;
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt;
+  if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl);
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
   return ui.view + '|' + ui.access;
 }
@@ -2146,6 +2300,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'job') pageJob(p);
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);
+  else if (ui.view === 'rules') pageRules(p);
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
   else pageHome(p);
@@ -2170,6 +2325,7 @@ function onEnter() {
   if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
   else if (ui.view === 'settings' || ui.view === 'connect') refreshStatus();
   else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
+  else if (ui.view === 'rules') refreshStatus(true);
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
 }
 /* מעקב אחרי עבודה פתוחה: כל 4 שניות כש־Claude עובד, לאט כשמחכים, בכלל לא כשהסתיימה או כשהמסך כבוי */
