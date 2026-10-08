@@ -125,7 +125,7 @@ const UNSURE = ['routine_down', 'routine_net'];
 async function fireJob(deps, uid, v, job, now, resume) {
   const key = S.newKey();
   const fh = S.recentFires(v.fh, now);
-  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, tw: null, updated: now });
+  await patchJob(deps, job.id, { state: 'queued', kh: S.keyHash(key), kx: now + S.KEY_TTL, fired: now, fires: (job.fires || 0) + 1, err: '', ed: '', warn: '', use: null, tw: null, rw: 0, updated: now });
   const f = await fire(deps, v, uid, S.fireText(job.id, key));
   if (job.kind === 'tr') await raise(deps, uid, f.ok ? [{ c: 'routine', k: 'fire', ok: true }, { c: 'routine', k: 'rate', ok: true }] : [O.fireEvent(f.error)].filter(Boolean), job.id, now);
   if (!f.ok && UNSURE.includes(f.error)) {
@@ -154,6 +154,41 @@ async function ruleBlock(deps, uid, job, body) {
   const rl = S.normRules(st.rl);
   if (job.spec && S.modeOver(job.spec.mode, rl.mx) && body.ov !== true) return { error: 'rule_mode', mx: rl.mx };
   return null;
+}
+
+/* v361: "המשך מאותה נקודה" — מפתח חדש והפעלה חוזרת של ה־Routine; העובד מוריד את נקודת השמירה האחרונה וממשיך ממנה.
+   הטוקנים של הסשנים הקודמים נשמרים (use0) ומתווספים לדיווח הבא. v368: גם "המשך" אוטומטי אחרי תקלה חולפת (auto) —
+   אותה דרך בדיוק, פעם אחת לעבודה (ar), והמצב שאישרת בהתחלה לא נשאל שוב (ov) */
+async function doResume(deps, uid, job, now, body, auto) {
+  const why = S.canResume(job, now);
+  if (why) return { status: 409, json: { ok: false, error: why } };
+  const stop = await ruleBlock(deps, uid, job, auto ? { ov: true } : body);   // v367
+  if (stop) return { status: 409, json: Object.assign({ ok: false }, stop) };
+  const v = await readVault(deps, uid);
+  if (!v || !v.r) return { status: 200, json: { ok: false, error: 'conn_missing' } };
+  if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return { status: 429, json: { ok: false, error: 'budget' } };
+  const use0 = S.mergeUse(job.use0, job.use);
+  // v364: העצירה של המגדל (אם הייתה) עוברת לסשן הבא — לאבחון ולרישום תיקון; fireJob מאפס את tw
+  const ls = job.tw && job.tw.lv === 'red' && job.tw.fp ? { fp: job.tw.fp, why: job.tw.why || '', st: (job.prog && job.prog.st) || '' } : null;
+  // v367: "המשך" אחרי שעצרת בתקציב = אישור להמשיך (התקציב גדל בעוד תקציב אחד)
+  const bx = job.err === 'budget_stop' ? (job.bx || 0) + 1 : (job.bx || 0);
+  const patch = { use0, ls, bx, ended: 0, updated: now };
+  if (auto) patch.ar = (job.ar || 0) + 1;   // נרשם לפני ההפעלה — שתי צפיות במקביל לא יפעילו פעמיים
+  await patchJob(deps, job.id, patch);
+  Object.assign(job, patch);
+  const f = await fireJob(deps, uid, v, job, now, true);
+  const j = await readJob(deps, job.id);
+  return { status: 200, json: Object.assign({ ok: f.ok, job: S.publicJob(j, now) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }) };
+}
+/* v368: עבודות שחלון ההתאוששות שלהן נגמר — ממשיכות לבד (נבדק בכל צפייה מהטלפון). מתג החירום / אין חיבור — מוותרים, והעבודה נשארת "נכשלה" */
+async function autoRecover(deps, uid, jobs, now) {
+  const due = jobs.filter((j) => j.kind === 'tr' && S.recoverAt(j, now) && now >= S.recoverAt(j, now));
+  for (const j of due) {
+    const r = await doResume(deps, uid, j, now, {}, true).catch(() => ({ json: { ok: false, error: 'failed' } }));
+    if (!r.json.ok && r.json.error !== 'budget') await patchJob(deps, j.id, { rw: 0, updated: now }).catch(() => {});   // תקציב ההפעלות — ננסה בצפייה הבאה
+    if (r.json.ok) await raise(deps, uid, [{ c: 'claude', k: 'auto' }], j.id, now);
+  }
+  return due.length;
 }
 
 /* ---------- העובד בענן ---------- */
@@ -250,6 +285,12 @@ async function worker(req, res, body, deps) {
       up.ck = S.addCk(job.ck, ck, now);
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }
+    if (job.kind === 'tr' && up.state === 'failed' && (job.ar || 0) < S.AUTO_RESUME_MAX) {
+      // v368: תקלה חולפת (Drive / רשת) — חלון התאוששות, ואז "המשך" אוטומטי אחד
+      let kinds = [];
+      try { kinds = O.opsView(((await readDoc(deps, 'studioOps', job.uid)) || {}).al, now).open.filter((a) => a.j === id).map((a) => a.c + ':' + a.k); } catch (e) {}
+      if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.RECOVER_WAIT;
+    }
     await patchJob(deps, id, up);
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});
     // v364: ספר התיקונים — עצירה של המגדל נרשמת לפי טביעת האצבע; Claude רושם תיקון (אחרי אבחון בהמשך); המגדל הזכיר תיקון מוכר.
@@ -301,6 +342,7 @@ async function handler(req, res, deps = {}) {
     return j && j.uid === uid ? j : null;
   };
   const view = (j) => S.publicJob(j, now);
+  const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
   try {
     if (op === 'status') {
       const v = await readVault(deps, uid);
@@ -308,7 +350,7 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
-        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: O.opsView((await readDoc(deps, 'studioOps', uid).catch(() => null) || {}).al, now),
+        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, now });   // v367: החוקים ומתג החירום
     }
     if (op === 'rules') {
@@ -330,6 +372,8 @@ async function handler(req, res, deps = {}) {
         await patchJob(deps, j.id, { state: 'cancelled', err: 'halted', kh: '', ended: now, updated: now });
         await closeJobOps(deps, uid, j.id, now);
       }
+      // v368: גם ההמשך האוטומטי שמחכה (אחרי תקלה חולפת) לא יקרה
+      for (const j of (await listJobs(deps, uid)).filter((x) => x.rw && !act.some((y) => y.id === x.id))) await patchJob(deps, j.id, { rw: 0, updated: now });
       return res.status(200).json({ ok: true, halt: now, n: act.length });
     }
     if (op === 'fixMode') {
@@ -345,6 +389,14 @@ async function handler(req, res, deps = {}) {
       if (!fb) return res.status(404).json({ ok: false, error: 'no_proposal', fb: S.fbView(st.fb) });
       await patchDoc(deps, 'studioStats', uid, { fb, updated: now });
       return res.status(200).json({ ok: true, fb: S.fbView(fb) });
+    }
+    if (op === 'mute') {
+      // v368: השתקה לסוג התראה (רכיב · סוג), עם תפוגה — שעה / 4 שעות / יום; h = 0 מבטל. לא מסתירה מהציון ומהזמינות, רק מהרעש
+      const d = await readDoc(deps, 'studioOps', uid).catch(() => null) || {};
+      const mu = O.muteSet(d.mu, String(body.c || ''), String(body.k || ''), body.h, now);
+      if (!mu) return res.status(400).json({ ok: false, error: 'bad_mute' });
+      await patchDoc(deps, 'studioOps', uid, { mu, updated: now });
+      return res.status(200).json({ ok: true, ops: O.opsView(d.al, now, mu) });
     }
     if (op === 'connect') {
       const c = S.normRoutine(body.url, body.key);
@@ -394,10 +446,13 @@ async function handler(req, res, deps = {}) {
         if (S.isStale(j, now)) await raise(deps, uid, [{ c: 'claude', k: 'stale' }], j.id, now, true);
         else if (e.state === 'failed' && e.err === 'no_claim' && j.state === 'queued') await raise(deps, uid, [{ c: 'routine', k: 'no_claim' }], j.id, now, true);
       }
-      return res.status(200).json({ ok: true, jobs: all.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now });
+      // v368: חלון ההתאוששות נגמר — "המשך" אוטומטי, והרשימה נקראת מחדש
+      const list = await autoRecover(deps, uid, all, now) ? (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping') : all;
+      return res.status(200).json({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now });
     }
-    const job = await mine(body.job);
+    let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });
+    if (op === 'job' && await autoRecover(deps, uid, [job], now)) job = await readJob(deps, job.id);   // v368
     const st = S.effState(job, now).state;
     if (op === 'job') return res.status(200).json({ ok: true, job: view(job), now });
     if (op === 'file') {
@@ -446,27 +501,9 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'resume') {
-      // v361: "המשך מאותה נקודה" — מפתח חדש והפעלה חוזרת של ה־Routine; העובד מוריד את נקודת השמירה האחרונה וממשיך ממנה.
-      // הטוקנים של הסשנים הקודמים נשמרים (use0) ומתווספים לדיווח הבא
-      const why = S.canResume(job, now);
-      if (why) return res.status(409).json({ ok: false, error: why, job: view(job) });
-      const stop = await ruleBlock(deps, uid, job, body);   // v367
-      if (stop) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, stop));
-      const v = await readVault(deps, uid);
-      if (!v || !v.r) return res.status(200).json({ ok: false, error: 'conn_missing' });
-      if (S.recentFires(v.fh, now).length >= S.FIRE_HOUR) return res.status(429).json({ ok: false, error: 'budget' });
-      const use0 = S.mergeUse(job.use0, job.use);
-      // v364: העצירה של המגדל (אם הייתה) עוברת לסשן הבא — לאבחון ולרישום תיקון; fireJob מאפס את tw
-      const ls = job.tw && job.tw.lv === 'red' && job.tw.fp ? { fp: job.tw.fp, why: job.tw.why || '', st: (job.prog && job.prog.st) || '' } : null;
-      // v367: "המשך" אחרי שעצרת בתקציב = אישור להמשיך (התקציב גדל בעוד תקציב אחד)
-      const bx = job.err === 'budget_stop' ? (job.bx || 0) + 1 : (job.bx || 0);
-      await patchJob(deps, job.id, { use0, ls, bx, ended: 0, updated: now });
-      job.bx = bx;
-      job.ls = ls;
-      job.use0 = use0;
-      const f = await fireJob(deps, uid, v, job, now, true);
-      const j = await readJob(deps, job.id);
-      return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+      const r = await doResume(deps, uid, job, now, body, false);
+      if (!r.json.job) r.json.job = view(job);
+      return res.status(r.status).json(r.json);
     }
     if (op === 'event') {
       // v365: אירוע מהטלפון (העלאה שנכשלה / נתקעה, Drive מלא) — רק מהקטלוג
@@ -477,6 +514,7 @@ async function handler(req, res, deps = {}) {
     }
     if (op === 'cancel') {
       await closeJobOps(deps, uid, job.id, now);
+      if (job.rw) { await patchJob(deps, job.id, { rw: 0, updated: now }); job.rw = 0; }   // v368: "בטל" גם עוצר את ההמשך האוטומטי
       if (!S.FINAL.includes(st)) {
         await patchJob(deps, job.id, { state: 'cancelled', ended: now, updated: now });
         job.state = 'cancelled'; job.ended = now;
