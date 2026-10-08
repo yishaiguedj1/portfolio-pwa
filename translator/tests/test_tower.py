@@ -92,6 +92,25 @@ class TestRules(unittest.TestCase):
         self.assertNotEqual(T.assess(0, 12.0, exp, 1.0, [], [], None, None, red_x, cap_x)[0], 'red')
         self.assertEqual(T.assess(0, 25.0, exp, 1.0, [], [], None, None, red_x, cap_x)[:2], ('red', 'cost'))
 
+    def test_fault_fp_and_known_hint(self):
+        # v364: ספר התיקונים — טביעה יציבה לפי סוג · שלב · מה שחזר; תזכורת רק לתקלה מוכרת, מ־3 שגיאות, פעם אחת
+        fp = T.fault_fp('loop', 'tl', 'e1')
+        self.assertEqual(fp, T.fault_fp('loop', 'tl', 'e1'))
+        self.assertNotEqual(fp, T.fault_fp('loop', 'rv', 'e1'))
+        self.assertRegex(fp, r'^[0-9a-f]{12}$')
+        now = 10000.0
+        errs = [(now - i, 'e1') for i in range(3)]
+        known = {fp: 'מפצלים כתובית ארוכה לשתיים'}
+        self.assertEqual(T.known_hint('tl', errs, [], {}, known, {}, now), (fp, known[fp]))
+        self.assertIsNone(T.known_hint('tl', errs[:2], [], {}, known, {}, now), 'פחות מ־3 — עוד לא')
+        self.assertIsNone(T.known_hint('tl', errs, [], {}, known, {fp: now - 5}, now), 'כבר הוזכר בסשן הזה')
+        self.assertIsNone(T.known_hint('tl', errs, [], {}, {}, {}, now), 'תקלה לא מוכרת — המגדל עובד כרגיל')
+        cfp = T.fault_fp('calls', 'tl', 'Read')
+        calls = [(now - i, 'k1') for i in range(5)]
+        self.assertEqual(T.known_hint('tl', [], calls, {'k1': 'Read'}, {cfp: 'x'}, {}, now)[0], cfp)
+        self.assertIn('מידע בלבד', T.hint_text('לפצל `rm` <b>'))
+        self.assertNotIn('`', T.hint_text('לפצל `rm`'))
+
     def test_fingerprint(self):
         a = T.fingerprint('✗ tr-check: כתובית 412 ארוכה מ־42 תווים /root/vt-work/x/tr/check.md')
         b = T.fingerprint('✗ tr-check: כתובית 413 ארוכה מ־42 תווים /root/vt-work/y/tr/check.md\nעוד שורה')
@@ -238,6 +257,26 @@ class TestHook(unittest.TestCase):
         self.assertIsNone(self.hook())
         tw = [r['tower'] for r in self.fake.reports if r.get('tower')][-1]
         self.assertEqual((tw['lv'], tw['b']), ('warn', 'u'))
+
+    def test_red_has_fingerprint(self):
+        self.spend(50_000, errors=6)
+        self.assertIs(self.hook()['continue'], False)
+        tw = self.fake.reports[-1]['tower']
+        self.assertEqual(tw['fp'], T.fault_fp('loop', 'tl', T.fingerprint('Exit code 1')), 'טביעה = לולאה · שלב התרגום · השגיאה שחזרה')
+
+    def test_known_fix_hint(self):
+        # תקלה מוכרת: אחרי 3 שגיאות זהות — הפעולה נחסמת פעם אחת עם התיקון, בלי לעצור; השרתון סופר "טופל לבד"
+        fp = T.fault_fp('loop', 'tl', T.fingerprint('Exit code 1'))
+        self.set_job(fb=[{'fp': fp, 'why': 'loop', 'st': 'tl', 'fix': 'מפצלים כתובית ארוכה לשתיים'}])
+        self.spend(50_000, errors=3)
+        out = self.hook()
+        self.assertNotIn('continue', out, 'לא עצירה')
+        self.assertEqual(out['hookSpecificOutput']['permissionDecision'], 'deny')
+        self.assertIn('מפצלים כתובית ארוכה לשתיים', out['hookSpecificOutput']['permissionDecisionReason'])
+        self.assertEqual([r.get('fixUsed') for r in self.fake.reports if r.get('fixUsed')], [fp])
+        self.assertIsNone(self.hook(), 'פעם אחת בסשן — הפעולה הבאה עוברת')
+        self.spend(50_000, errors=6)
+        self.assertIs(self.hook()['continue'], False, 'חזרה עד הסף בכל זאת — עוצרים כרגיל')
 
     def test_broken_input_allows(self):
         r = subprocess.run(['sh', str(HERE / 'tower-hook.sh')], input='not json', capture_output=True, text=True, timeout=60, env=self.env)

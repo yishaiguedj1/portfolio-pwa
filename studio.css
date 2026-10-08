@@ -76,6 +76,9 @@ button.st-row:not(:disabled):active { background: var(--st-fill); }
 .st-tile.t-red { background: linear-gradient(135deg, #FF5E57, #FF2D55); }
 .st-row.st-muted { color: var(--on-surface-var); cursor: default; }
 .st-row.st-rule { cursor: default; font-size: 15px; line-height: 1.45; min-height: 44px; }
+.st-row.st-fb { cursor: default; align-items: flex-start; }   /* v364: ספר התיקונים — התיקון בשורה השנייה, נשבר כרגיל */
+.st-row.st-fb small.st-fbn { margin-top: 3px; font-size: 12px; opacity: .8; }
+.st-row.st-fb small { white-space: normal; overflow-wrap: anywhere; }
 .st-check, .st-radio { box-sizing: border-box; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--st-ter); flex: none; display: grid; place-items: center; color: transparent; position: relative; }
 .st-check svg { width: 14px; height: 14px; stroke-width: 3; }
 .st-check.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }

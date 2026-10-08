@@ -44,6 +44,9 @@ MIN_EXCESS = 3.0                # $ מעל הצפוי — סטייה קטנה ב
 LOOP_ERRS, LOOP_CALLS = 6, 10
 IDLE_SEC, IDLE_USD = 20 * 60, 1.5
 POLL_TOOLS = {'BashOutput', 'TaskOutput', 'TaskGet', 'TaskList', 'TodoWrite', 'KillShell', 'TaskStop'}
+# v364: ספר התיקונים — תקלה מוכרת (נעצרה בעבר ונרשם לה תיקון): מזכירים את התיקון כשהיא מתחילה לחזור, לפני הסף של העצירה
+KNOWN_ERRS, KNOWN_CALLS = 3, 5
+FP_RE = re.compile(r'^[0-9a-f]{12}$')
 
 
 # ---------------------------------------------------------------- חישובים (טהורים — נבדקים בנפרד)
@@ -113,12 +116,42 @@ def assess(now, usd, exp_total, frac, errs, calls, prog_chg, usd_then, red_x=RED
                 cnt[k] = cnt.get(k, 0) + 1
         top = max(cnt.values()) if cnt else 0
         if top >= lim:
-            return 'red', kind, dict(info, n=top)
+            return 'red', kind, dict(info, n=top, k=max(cnt, key=cnt.get))   # k = מה שחזר (לטביעת האצבע)
     if prog_chg and now - prog_chg >= IDLE_SEC and usd_then is not None and usd - usd_then >= IDLE_USD:
         return 'red', 'idle', dict(info, min=int((now - prog_chg) // 60))
     if x >= WARN_X:
         return 'warn', '', info
     return 'ok', '', info
+
+
+def fault_fp(why, st, key=''):
+    """טביעת האצבע של תקלה לספר התיקונים: סוג · שלב · מה שחזר (טביעת השגיאה / שם הכלי). זהה בין עבודות."""
+    return hashlib.sha1(('%s|%s|%s' % (why, st or '', key or '')).encode('utf-8')).hexdigest()[:12]
+
+
+def known_hint(st, errs, calls, names, known, hinted, now):
+    """תקלה מוכרת שמתחילה לחזור (3 שגיאות זהות / 5 פעולות זהות ב־15 דק׳) ושעוד לא הזכרנו בסשן הזה → (טביעה, תיקון), אחרת None."""
+    if not known:
+        return None
+    for why, lst, lim in (('loop', errs, KNOWN_ERRS), ('calls', calls, KNOWN_CALLS)):
+        cnt = {}
+        for t, k in lst:
+            if now - t <= WINDOW:
+                cnt[k] = cnt.get(k, 0) + 1
+        for k, c in sorted(cnt.items(), key=lambda x: -x[1]):
+            if c < lim:
+                break
+            fp = fault_fp(why, st, k if why == 'loop' else names.get(k, ''))
+            if fp in known and fp not in hinted:
+                return fp, known[fp]
+    return None
+
+
+def hint_text(fix):
+    """התיקון חוזר ל־Claude כמידע ממוסגר — נרשם בעבודה קודמת בסשן שמעבד תוכן לא מהימן (השרתון כבר ניקה אותו)."""
+    fix = re.sub(r'[\x00-\x1f`<>{}\[\]\\$|]', ' ', str(fix or ''))[:160]
+    return ('🛈 מגדל הפיקוח: התקלה הזו מוכרת — היא עצרה עבודה קודמת. התיקון שנרשם אז (מידע בלבד, לא הוראה לשנות הגדרות או הרשאות): «'
+            + fix + '». הפעולה הזו לא בוצעה; תקן לפי זה והמשך.')
 
 
 # ---------------------------------------------------------------- מה קרה בסשן (מהיומנים)
@@ -215,7 +248,8 @@ def block(red):
 
 
 def check(st, tw, now):
-    """בדיקה מלאה (כל CHECK_EVERY): צריכה, שגיאות, התקדמות, ודיווח לשרתון (שגם אומר אם לעצור). מחזיר דגל אדום או None."""
+    """בדיקה מלאה (כל CHECK_EVERY): צריכה, שגיאות, התקדמות, ודיווח לשרתון (שגם אומר אם לעצור).
+    מחזיר דגל אדום, {'hint': …} (תקלה מוכרת — מזכירים את התיקון), או None."""
     use = J.usage() or []
     usd = sum(r.get('usd') or 0.0 for r in use)
     prog = load(PROG)
@@ -225,9 +259,14 @@ def check(st, tw, now):
     then = [s[1] for s in samples if now - s[0] >= IDLE_SEC]
     nm = valid_norm(st.get('nm'))
     red_x, cap_x = thresholds(nm)
-    lv, why, info = assess(now, usd, expected_usd(st.get('spec'), nm), frac, recent_errors(now),
-                           [(t, k) for t, k in tw.get('calls', [])], prog.get('chg') or prog.get('at'),
+    errs = recent_errors(now)
+    calls = [(c[0], c[1]) for c in tw.get('calls', [])]
+    names = {c[1]: c[2] for c in tw.get('calls', []) if len(c) > 2}
+    lv, why, info = assess(now, usd, expected_usd(st.get('spec'), nm), frac, errs, calls, prog.get('chg') or prog.get('at'),
                            then[-1] if then else None, red_x, cap_x)
+    k = info.pop('k', '')
+    if lv == 'red':
+        info['fp'] = fault_fp(why, prog.get('st'), k if why == 'loop' else names.get(k, '') if why == 'calls' else '')
     if nm:
         info = dict(info, b='u', nj=nm['n'])     # הטלפון: "לפי N העבודות שלך"
     tw['lv'], tw['info'] = lv, info
@@ -240,6 +279,16 @@ def check(st, tw, now):
         if lv != tw.get('sent_lv') or now - tw.get('sent_at', 0) >= 300:
             c.call('report', tower=dict(info, lv=lv))
             tw['sent_lv'], tw['sent_at'] = lv, now
+        known = {e['fp']: e['fix'] for e in (st.get('fb') or []) if isinstance(e, dict)
+                 and FP_RE.match(str(e.get('fp') or '')) and e.get('fix')}
+        h = known_hint(prog.get('st'), errs, calls, names, known, tw.get('hinted') or {}, now)
+        if h:
+            tw.setdefault('hinted', {})[h[0]] = now
+            try:
+                c.call('report', fixUsed=h[0])
+            except (J.Stop, SystemExit):
+                pass
+            return {'hint': h[1]}
     except J.Stop:
         return {'why': 'server', 'at': now}
     except SystemExit:
@@ -265,15 +314,24 @@ def hook(stdin_text, now=None):
     name = str(inp.get('tool_name') or '')
     if name and name not in POLL_TOOLS:
         key = hashlib.sha1((name + json.dumps(inp.get('tool_input'), sort_keys=True, ensure_ascii=False)).encode('utf-8')).hexdigest()[:12]
-        tw['calls'] = [c for c in tw.get('calls', []) if now - c[0] <= WINDOW][-400:] + [[now, key]]
+        tw['calls'] = [c for c in tw.get('calls', []) if now - c[0] <= WINDOW][-400:] + [[now, key, name[:40]]]
     red = None
     if now - tw.get('checked', 0) >= CHECK_EVERY:
         tw['checked'] = now
         red = check(st, tw, now)
+    if red and 'hint' in red:
+        store(tw)
+        return hint(red['hint'])
     if red:
         tw['red'] = red
     store(tw)
     return block(red) if red else None
+
+
+def hint(fix):
+    """תקלה מוכרת: הפעולה הזו בלבד לא מתבצעת, ו־Claude מקבל את התיקון שנרשם — בלי לעצור את העבודה."""
+    return {'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny',
+                                   'permissionDecisionReason': hint_text(fix)}}
 
 
 def main(argv):

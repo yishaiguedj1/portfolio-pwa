@@ -155,6 +155,7 @@ function normTower(t) {
   const n = (v, max, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(Math.min(v, max) * 10 ** d) / 10 ** d : 0);
   const out = { lv: t.lv, x: n(t.x, 1000, 1), usd: n(t.usd, 1e5, 2), exp: n(t.exp, 1e5, 2) };
   if (t.b === 'u') { out.b = 'u'; out.nj = Math.round(n(t.nj, 1000, 0)); }   // v363: "הרגיל" נלמד מהעבודות של המשתמש (nj = כמה)
+  if (t.lv === 'red' && FP_RE.test(String(t.fp || ''))) out.fp = t.fp;   // v364: טביעת האצבע של התקלה — לספר התיקונים
   if (t.lv === 'red') {
     if (!TW_WHY.includes(t.why)) return null;
     out.why = t.why;
@@ -199,6 +200,51 @@ function normsView(list) {
   }
   return out;
 }
+
+/* v364: ספר התיקונים — כל עצירה של המגדל נרשמת לפי טביעת אצבע (סוג · שלב · השגיאה שחזרה, בלי טקסט חופשי) ב־studioStats/{uid}.fb.
+   התיקון = משפט קצר ש־Claude רושם אחרי שאבחן את העצירה (בהמשך העבודה). בעבודה הבאה, כשאותה תקלה מתחילה לחזור, המגדל מזכיר
+   לו את התיקון לפני העצירה ("טופל לבד"). הטקסט מגיע מסשן שמעבד תוכן לא מהימן — מוגבל באורך, בלי כתובות וקוד, מוצג כטקסט בלבד,
+   ובחזרה ל־Claude הוא ממוסגר כמידע (tower.py) */
+const FP_RE = /^[0-9a-f]{12}$/;
+const FB_MAX = 30, FIX_MAX = 160;
+function normFixText(t) {
+  const x = clean(t, 400).replace(/https?:\/\/\S+|www\.\S+/gi, '').replace(/[`<>{}\[\]\\$|]/g, '').replace(/\s+/g, ' ').trim().slice(0, FIX_MAX);
+  return x.length >= 4 ? x : '';
+}
+function fbList(a) {
+  return (Array.isArray(a) ? a : []).filter((e) => e && FP_RE.test(String(e.fp || '')) && TW_WHY.includes(e.why)).slice(-FB_MAX);
+}
+/* עצירה חדשה של המגדל → רשומה (או עוד פעם לרשומה קיימת) */
+function fbStop(list, tw, st, now) {
+  if (!tw || !FP_RE.test(String(tw.fp || '')) || !TW_WHY.includes(tw.why)) return null;
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  let e = out.find((x) => x.fp === tw.fp);
+  if (!e) { e = { fp: tw.fp, why: tw.why, st: STAGES.includes(st) ? st : '', n: 0, auto: 0, fix: '', at: now }; out.push(e); }
+  e.n = (e.n || 0) + 1; e.at = now;
+  return out.slice(-FB_MAX);
+}
+/* Claude רשם תיקון לתקלה (רק לרשומה שכבר קיימת אצל המשתמש) */
+function fbFix(list, fp, text, now) {
+  const t = normFixText(text);
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  const e = out.find((x) => x.fp === fp);
+  if (!e || !t) return null;
+  e.fix = t; e.fx = now;
+  return out;
+}
+/* המגדל הזכיר תיקון מוכר לפני שהתקלה הגיעה לעצירה */
+function fbUsed(list, fp, now) {
+  const out = fbList(list).map((e) => Object.assign({}, e));
+  const e = out.find((x) => x.fp === fp);
+  if (!e) return null;
+  e.auto = (e.auto || 0) + 1; e.ua = now;
+  return out;
+}
+/* לעובד: רק תקלות שיש להן תיקון */
+const fbForWorker = (list) => fbList(list).filter((e) => e.fix).map((e) => ({ fp: e.fp, why: e.why, st: e.st, fix: e.fix }));
+/* לטלפון: הכל, מהחדשה */
+const fbView = (list) => fbList(list).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
+  .map((e) => ({ fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', at: e.at || 0 }));
 
 /* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
 function mergeUse(a, b) {
@@ -303,8 +349,10 @@ function publicJob(job, now) {
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job, nm) {
+function workerJob(job, nm, fb) {
   return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+    fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
+    ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
@@ -335,7 +383,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -366,6 +414,7 @@ module.exports = {
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
+  FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView,
   CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
 };

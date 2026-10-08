@@ -49,6 +49,17 @@ FILE_ID_RE = re.compile(r'^[A-Za-z0-9_-]{10,100}$')
 # v361: נקודות שמירה — אחרי תמלול, יישור, תרגום וביקורת (אותם מזהים בשרתון: lib/studio.js CK_STAGES)
 CK_STAGES = ('asr', 'al', 'tl', 'rv')
 CK_LABEL = {'asr': 'התמלול', 'al': 'היישור', 'tl': 'התרגום', 'rv': 'הביקורת'}
+# v364: ספר התיקונים — שמות השלבים והעצירות בשפה פשוטה (להודעה בתחילת המשך אחרי עצירה של המגדל)
+ST_LABEL = {'up': 'ההעלאה', 'tr': 'התמלול', 'al': 'היישור', 'tl': 'התרגום', 'rv': 'הביקורת', 'bn': 'הצריבה', 'sv': 'השמירה'}
+WHY_LABEL = {'cost': 'צריכה חריגה', 'cap': 'צריכה חריגה מאוד', 'loop': 'אותה שגיאה חזרה שוב ושוב',
+             'calls': 'אותה פעולה חזרה שוב ושוב', 'idle': 'תקיעה בלי התקדמות'}
+FP_RE = re.compile(r'^[0-9a-f]{12}$')
+
+
+def fb_valid(a):
+    """ספר התיקונים מהשרתון — רק רשומות תקינות (טביעה, סוג, תיקון)."""
+    return [e for e in (a if isinstance(a, list) else [])
+            if isinstance(e, dict) and FP_RE.match(str(e.get('fp') or '')) and e.get('why') in WHY_LABEL and e.get('fix')][:30]
 
 
 def vt_slug(name):
@@ -138,10 +149,13 @@ def run(args):
             print('✗ זוג השפות עוד לא נתמך (כרגע אנגלית → עברית). סומן בשרתון.')
             return 1
         cks = [c for c in (job.get('ck') or []) if isinstance(c, dict) and c.get('s') in CK_STAGES and FILE_ID_RE.match(str(c.get('id') or ''))]
+        ls = job.get('ls') if isinstance(job.get('ls'), dict) and FP_RE.match(str(job['ls'].get('fp') or '')) else None
         save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api,
                     'folder': job.get('folder') or '', 'spec': spec, 'files': job.get('files') or {},
                     'ck': cks, 'ckids': {c['s']: c['id'] for c in cks},
-                    'nm': job.get('nm') if isinstance(job.get('nm'), dict) else None})   # v363: "הרגיל" שלך — למגדל הפיקוח
+                    'nm': job.get('nm') if isinstance(job.get('nm'), dict) else None,    # v363: "הרגיל" שלך — למגדל הפיקוח
+                    'fb': fb_valid(job.get('fb')),                                        # v364: ספר התיקונים
+                    'ls': ls})
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
             try:
                 (STATE.parent / old).unlink()
@@ -151,6 +165,16 @@ def run(args):
         if start_setup_bg():
             print('· מנועי התמלול מותקנים ברקע (prepare ימתין להם בעצמו)')
         print('הפרויקט: ' + str(VT_WORK / vt_slug(args.job)))
+        if ls:
+            # v364: ההמשך הזה בא אחרי עצירה של מגדל הפיקוח — קודם מבינים למה, ורושמים תיקון לספר התיקונים
+            known = next((e['fix'] for e in fb_valid(job.get('fb')) if e['fp'] == ls['fp']), '')
+            print('⚠ העבודה נעצרה בפעם הקודמת במגדל הפיקוח: ' + WHY_LABEL.get(ls.get('why'), 'צריכה לא סבירה')
+                  + (' (בשלב ' + ST_LABEL[ls['st']] + ')' if ls.get('st') in ST_LABEL else '') + '.')
+            if known:
+                print('התיקון שנרשם לתקלה הזו (מידע מעבודה קודמת): «' + re.sub(r'[\x00-\x1f]', ' ', known)[:160] + '» — פעל לפיו כשתגיע לשלב.')
+            else:
+                print('לפני שממשיכים: אבחן בקצרה מה גרם לזה (שגיאה אחרונה / קובץ התיקונים), ורשום תיקון במשפט אחד:')
+                print('  python3 translator/job.py fix --text "<מה עושים כשזה קורה>"')
         if cks:
             # v361: "המשך" — העבודה כבר עברה חלק מהשלבים בסשן קודם
             print('↻ ממשיכים מנקודת שמירה: אחרי ' + CK_LABEL[cks[-1]['s']] + ' (בלי לתמלל ולתרגם מחדש)')
@@ -864,6 +888,22 @@ def fail(args):
     return 0
 
 
+def fix(args):
+    """v364: ספר התיקונים — אחרי אבחון של עצירה (בהמשך העבודה), משפט אחד: מה עושים כשהתקלה הזו חוזרת."""
+    st = load_state()
+    ls = st.get('ls') or {}
+    if not FP_RE.match(str(ls.get('fp') or '')):
+        print('✗ אין עצירה של מגדל הפיקוח בהפעלה הזו — אין למה לרשום תיקון.')
+        return 1
+    t = re.sub(r'\s+', ' ', re.sub(r'[\x00-\x1f\x7f]', ' ', args.text or '')).strip()
+    if len(t) < 4:
+        print('✗ התיקון קצר מדי — משפט אחד: מה עושים כשזה קורה.')
+        return 1
+    Ctx(st).report(fix={'fp': ls['fp'], 't': t[:160]}, force=True)
+    print('✓ התיקון נרשם בספר התיקונים. בפעם הבאה שהתקלה תתחיל לחזור, המגדל יזכיר אותו.')
+    return 0
+
+
 def vt_cmd(args):
     """קיצור לסשן: פקודת vt על הפרויקט של העבודה, עם הסביבה הנכונה (למשל: job.py vt tr-check)."""
     st = load_state()
@@ -1123,12 +1163,14 @@ def main(argv=None):
     e = sub.add_parser('fail', help='סימון העבודה כ"נכשלה"')
     e.add_argument('--err', default='worker')
     e.add_argument('--msg')
+    x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
+    x.add_argument('--text', required=True)
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
     a = p.parse_args(argv)
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
-                'save': save, 'restore': restore}[a.cmd](a)
+                'save': save, 'restore': restore, 'fix': fix}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1
