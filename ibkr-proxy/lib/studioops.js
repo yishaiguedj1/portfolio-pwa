@@ -11,7 +11,7 @@ const KINDS = {
   'phone:upload': 3, 'phone:stall': 3,
   'drive:up_retry': 4, 'drive:dl_retry': 4, 'drive:up_fail': 2, 'drive:dl_fail': 2, 'drive:auth': 2, 'drive:full': 2,
   'routine:fire': 2, 'routine:unsure': 3, 'routine:rate': 3, 'routine:no_claim': 2,
-  'claude:stale': 2, 'claude:tw_warn': 3, 'claude:tw_stop': 2, 'claude:net': 2,
+  'claude:stale': 2, 'claude:tw_warn': 3, 'claude:tw_stop': 2, 'claude:net': 2, 'claude:budget': 3,   // v367: הגענו לתקציב שקבעת — מחכה לך
   'vt:setup': 2, 'vt:ingest': 2, 'vt:asr': 2, 'vt:align': 2, 'vt:check': 3, 'vt:render': 2, 'vt:other': 2,
 };
 const AL_MAX = 150, KEEP = 30 * 86400e3, GLOBAL_TTL = 30 * 60e3, EV_MAX = 6;

@@ -297,6 +297,45 @@ function normAnswer(qa, body) {
   return t ? { i: -1, t } : null;
 }
 
+/* ---------- v367: החוקים שלך, מתג החירום ושערי אישור (AI Control Tower — Govern / Secure) ----------
+   חוקים (studioStats/{uid}.rl): תקציב לעבודה בדולרים לפי מחירון ה־API (0 = בלי), מצב מקסימלי ('' = כל המצבים),
+   אישור לפני צריבה. הפרה = התראה, והפעולה מחכה לך בטלפון ("שער" — שאלה שהשרתון בונה, בלי טקסט מ־Claude) */
+const RULE_BUDGET_MAX = 500;
+function normRules(r) {
+  const o = r && typeof r === 'object' ? r : {};
+  const b = Number(o.b);
+  return {
+    b: Number.isFinite(b) && b >= 1 ? Math.min(RULE_BUDGET_MAX, Math.round(b * 2) / 2) : 0,
+    mx: MODES.includes(o.mx) ? o.mx : '',
+    ab: o.ab === true,
+  };
+}
+/* המצב יקר מהמקסימום? לפי הצפוי לשעת סרטון (NORM_DEF): Sonnet Medium < Sonnet High < Opus Medium < Opus High < Opus Max */
+const modeOver = (mode, mx) => !!mx && MODES.includes(mode) && MODES.includes(mx) && NORM_DEF[mode] > NORM_DEF[mx];
+/* כמה כבר עלו הסשנים הקודמים של העבודה (אחרי "המשך") — התקציב הוא לכל העבודה, לא לסשן */
+const usdOf = (use) => Math.round((Array.isArray(use) ? use : []).reduce((s, r) => s + (r && typeof r.usd === 'number' ? r.usd : 0), 0) * 100) / 100;
+/* שער: b = הגענו לתקציב (להמשיך / לעצור), r = לפני הצריבה (לצרוב / רק קובץ כתוביות). ברירת המחדל — הזהירה (d = 1) */
+const GATE_KINDS = ['b', 'r'];
+const GATE_MAX = 8;                      // שערים לעבודה — מעבר לזה משהו חוזר על עצמו
+const GATE_WAIT = 30 * 60;
+const CUE_T_RE = /^\d{1,2}:\d{2}(?::\d{2})?$/;
+const newGateId = () => 'g' + crypto.randomBytes(6).toString('hex');
+function normGate(g, id) {
+  if (!g || typeof g !== 'object' || !GATE_KINDS.includes(g.k)) return null;
+  let n;
+  if (g.k === 'b') {
+    const usd = Number(g.usd), cap = Number(g.cap);
+    if (!(usd >= 0 && usd < 1e5) || !(cap > 0 && cap < 1e5)) return null;
+    n = { usd: Math.round(usd * 100) / 100, cap: Math.round(cap * 100) / 100 };
+  } else {
+    // 5 כתוביות לדוגמה מהתרגום — תוכן מהסרטון: בטלפון רק כטקסט
+    const cues = (Array.isArray(g.cues) ? g.cues : []).slice(0, 20)
+      .map((c) => ({ t: CUE_T_RE.test(String((c && c.t) || '')) ? c.t : '', x: clean(c && c.x, 140) })).filter((c) => c.x).slice(0, 5);
+    n = { cues, cnt: Math.max(0, Math.min(1e5, Math.floor(Number(g.cnt) || 0))) };
+  }
+  return { id, g: g.k, q: '', o: ['go', 'stop'], d: 1, w: GATE_WAIT, n };
+}
+
 /* ---------- מזהים ומפתחות ---------- */
 const newJobId = () => 'j' + crypto.randomBytes(15).toString('base64url');
 const newKey = () => crypto.randomBytes(32).toString('base64url');
@@ -363,13 +402,16 @@ function publicJob(job, now) {
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job, nm, fb, fm) {
+function workerJob(job, nm, fb, fm, rl) {
   return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+    rl: normRules(rl),       // v367: החוקים שלך — תקציב ואישור לפני צריבה
+    bx: job.bx || 0,         // v367: כמה פעמים אישרת להמשיך מעבר לתקציב (התקציב גדל בכל פעם)
+    u0: usdOf(job.use0),     // v367: מה שהסשנים הקודמים כבר עלו
     fm: normFixMode(fm),     // v366: מסלול התיקונים — העובד אומר ל־Claude אם התיקון נשמר או מחכה לאישור
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
-    qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null } : null,   // v361: גם השאלה — להמשך בסשן חדש
+    qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
@@ -398,7 +440,7 @@ function applyReport(job, r, now) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'rl'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -428,6 +470,7 @@ module.exports = {
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
+  RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
   CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
