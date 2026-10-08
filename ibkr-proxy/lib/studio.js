@@ -61,7 +61,7 @@ function normSpec(s) {
   if (!name || !(size > 0) || size > MAX_SIZE) return null;
   const to = uniq(s.to, (c) => LANGS.includes(c)).slice(0, 12);
   if (!to.length) return null;
-  return {
+  return Object.assign({
     name, size,
     type: String(s.type || '').slice(0, 60).replace(/[^\w.+/-]/g, ''),
     dur: Math.max(0, Math.min(24 * 3600, Math.round(Number(s.dur) || 0))),     // שניות (0 = לא ידוע)
@@ -71,7 +71,7 @@ function normSpec(s) {
     out: uniq(s.out, (k) => OUTS.includes(k)),                                  // SRT תמיד; ריק = SRT בלבד
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
-  };
+  }, s.eng === 'api' ? { eng: 'api', cap: normCap(s.cap) } : {});   // מצב API של המערכת — עם תקרת עבודה ($)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
 function normFile(f) {
@@ -341,6 +341,12 @@ const recentFires = (fh, now) => (Array.isArray(fh) ? fh : []).filter((t) => now
 /* הופעל ולא נלקח בזמן סביר → נכשל (נבדק בכל קריאה; נשמר בכתיבה הבאה) */
 function effState(job, now) {
   // v356: הפעלה "לא ודאית" (5xx/רשת — warn) שלא נלקחה: השגיאה של Anthropic, לא "לא התחיל" (שמפנה לרשת של הסביבה)
+  if (job && job.state === 'queued' && job.eng === 'api') {
+    // מצב API: העבודה בתור עד ששרת פנוי לוקח אותה. שרת לקח ולא התחיל בזמן / אף שרת לא לקח — נכשלה
+    if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim' };
+    if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server' };
+    return { state: 'queued', err: '' };
+  }
   if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim' };
   return { state: job ? job.state : 'failed', err: job ? job.err || '' : '' };
 }
@@ -360,6 +366,8 @@ function publicJob(job, now) {
     stale: isStale(job, now),                       // v361: "רצה" בלי דיווח שעתיים — אפשר להמשיך
     fires: job.fires || 0,
     tw: job.tw && TW_LV.includes(job.tw.lv) ? job.tw : null,   // v362: מגדל הפיקוח
+    eng: job.eng === 'api' || job.spec && job.spec.eng === 'api' ? 'api' : 'sub',   // מצב API: השרת של המערכת
+    sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
   };
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
@@ -368,6 +376,7 @@ function workerJob(job, nm, fb, fm) {
     fm: normFixMode(fm),     // v366: מסלול התיקונים — העובד אומר ל־Claude אם התיקון נשמר או מחכה לאישור
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
+    cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
     id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
@@ -397,8 +406,53 @@ function applyReport(job, r, now) {
   return out;
 }
 
+/* ---------- מצב "API של המערכת": השרת שלנו (Hetzner) ---------- */
+/* השרת לא מקבל חיבורים — הוא שואל (poll) ומדווח דופק (beat). מזוהה בטוקן שרת: "<מזהה 12>-<סוד 43>". נשמר רק ה־hash */
+const SRV_ID_RE = /^[a-z0-9]{12}$/;
+const SRV_TOKEN_RE = /^([a-z0-9]{12})-([A-Za-z0-9_-]{43})$/;
+const SRV_MAX = 5;                          // שרתים רשומים
+const SRV_ONLINE_MS = 12 * 60e3;            // שואל כל 20 שנ׳; באמצע עבודה — דופק כל 5 דק׳
+const API_QUEUE_WAIT = 6 * 3600e3;          // עבודה בתור בלי שאף שרת לקח אותה — "אין שרת זמין"
+const CAP_DEF = 10, CAP_MAX = 100, CAP_MIN_JOB = 1;
+const normCap = (c) => Math.max(CAP_MIN_JOB, Math.min(CAP_MAX, Math.round(Number(c) || CAP_DEF)));
+const newServerId = () => crypto.randomBytes(8).toString('hex').slice(0, 12);
+const newServerToken = (sid) => sid + '-' + crypto.randomBytes(32).toString('base64url');
+function parseServerToken(t) {
+  const m = SRV_TOKEN_RE.exec(String(t || ''));
+  return m ? { sid: m[1], tok: m[0] } : null;
+}
+function serverMatches(srv, tok) {
+  if (!srv || !/^[0-9a-f]{64}$/.test(String(srv.th || ''))) return false;
+  const a = Buffer.from(keyHash(tok), 'hex'), b = Buffer.from(srv.th, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+/* הדופק מהשרת — רק מספרים וגרסה; כל השאר נזרק */
+function normHb(h) {
+  h = h && typeof h === 'object' ? h : {};
+  const n = (x, lo, hi) => (Number.isFinite(+x) ? Math.max(lo, Math.min(hi, Math.round(+x * 10) / 10)) : null);
+  return { v: /^[0-9a-f]{7,40}$|^dev$/.test(String(h.v || '')) ? String(h.v).slice(0, 12) : '',
+    disk: n(h.disk, 0, 100), free: n(h.free, 0, 1e5), mem: n(h.mem, 0, 100), load: n(h.load, 0, 512), up: n(h.up, 0, 1e9),
+    busy: JOB_RE.test(String(h.busy || '')) ? h.busy : '' };
+}
+function serverView(s, now) {
+  if (!s || !SRV_ID_RE.test(String(s.id || ''))) return null;
+  return { id: s.id, name: clean(s.name, 40) || s.id, created: s.created || 0, seen: s.seen || 0,
+    online: !!s.seen && now - s.seen < SRV_ONLINE_MS, paused: s.paused === true, hb: s.hb ? normHb(s.hb) : null };
+}
+/* תקציב חודשי למשתמש (מפתח ה־API של המערכת): מה שכבר נוצל החודש — לפי העלות שהעובד דיווח */
+const monthKey = (now) => new Date(now).toISOString().slice(0, 7);
+const monthUsed = (mu, now) => (mu && mu.m === monthKey(now) ? Math.max(0, +mu.usd || 0) : 0);
+const addMonth = (mu, usd, now) => ({ m: monthKey(now), usd: Math.round((monthUsed(mu, now) + Math.max(0, +usd || 0)) * 1e4) / 1e4 });
+const usdOf = (use) => (Array.isArray(use) ? use : []).reduce((a, r) => a + (Number.isFinite(+(r && r.usd)) ? +r.usd : 0), 0);
+/* תקרת העבודה בפועל: מה שהמשתמש בחר, אבל לא יותר ממה שנשאר החודש. פחות מדולר — לא מתחילים */
+function jobCap(spec, used, month) {
+  const left = Math.max(0, month - used);
+  const cap = Math.min(normCap(spec && spec.cap), left);
+  return cap >= CAP_MIN_JOB ? Math.round(cap * 100) / 100 : 0;
+}
+
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al'];
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'mu', 'hb'];
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -432,4 +486,6 @@ module.exports = {
   FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
   CK_STAGES, STALE_MS, RESUME_MAX, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
+  SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
+  serverMatches, normHb, serverView, monthKey, monthUsed, addMonth, usdOf, jobCap,
 };
