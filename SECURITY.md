@@ -46,6 +46,8 @@
   - `tests/csp.test.js`.
   - `tests/security-stage4.test.js`: הגנה מהטמעה באתר זר, ‏SSRF, ‏PKCE, אימות הווידג׳ט, ותיקון כל action ל־SHA.
   - `firestore-rules`: בדיקת הכללים מול האמולטור.
-  - `translator/tests/test_infra.py`: הקשחת השרת.
+  - `translator/tests/test_infra.py`: הקשחת השרת, ובכלל זה **ffmpeg ≥ 8.1 בתמונת העובד** — libass ישן
+    פגיע ל־CVE-2026-61626/7 (כתיבה מחוץ לגבולות על קובץ ASS זדוני, בדיוק הווקטור של הצריבה).
+    הגנה שנייה בקוד: `_ass_escape` ב־vt מסלק `{\` ולוכסנים מכל טקסט שמגיע מהמודל.
 - **CodeQL:** סריקת קוד בכל PR ופעם בשבוע.
 - **Dependabot:** עדכוני כלים ותמונת הבסיס של העובד, כ־PR שמחכה למיזוג.

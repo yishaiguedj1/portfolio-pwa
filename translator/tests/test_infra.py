@@ -67,6 +67,13 @@ class Image(unittest.TestCase):
         self.assertRegex(d, r'(?m)^USER 10001:10001$')
         self.assertIn('SNB_SETUP=/bin/false', d, 'אין התקנות בזמן ריצה בתוך הקופסה')
         self.assertNotRegex(d, r'(?m)^(ENV|ARG)\s.*(ANTHROPIC|WORKER_TOKEN)', 'בלי סודות בתמונה')
+        # אבטחת הצריבה: CVE-2026-61626/7 — כתיבה מחוץ לגבולות ב־libass על ASS זדוני, בדיוק הווקטור
+        # שלנו. ffmpeg ≥ 8 (ענף n8.1 של BtbN מגיע עם libass מתוקן); הורדת גרסה = להיכשל כאן בכוונה.
+        m = re.search(r'ffmpeg-n(\d+)\.(\d+)', d)
+        self.assertIsNotNone(m, 'גרסת ffmpeg מוצהרת ב־Dockerfile')
+        self.assertGreaterEqual((int(m.group(1)), int(m.group(2))), (8, 1), 'ffmpeg לפחות 8.1 (libass מתוקן)')
+        self.assertIn("--enable-libass", d, 'libass חובה בבנייה')
+        self.assertIn('MALLOC_ARENA_MAX=2', d, 'בלי arenas של glibc לכל ליבה — היישור צמוד לתקרת הזיכרון')
 
     def test_lockfile_all_hashed_cpu_only(self):
         lock = read('infra/worker/requirements.lock')

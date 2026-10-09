@@ -21,7 +21,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -32,13 +34,15 @@ GUIDE = HERE / 'guides' / 'style-guide-he.md'
 DEFAULT_CAP_USD = float(os.environ.get('SNB_JOB_CAP_USD', '10'))     # תקרת עבודה אם השרתון לא שלח אחרת
 MAX_QUESTIONS = 2
 FIX_ROUNDS = 2
+# חלקי התרגום רצים במקביל אחרי שהקריאה הראשונה התחילה לענות (= הבלוק הקבוע כבר במטמון וכולם קוראים ממנו).
+TL_PARALLEL = max(1, int(os.environ.get('SNB_TL_PAR', '4')))
 
 LINE_RE = re.compile(r'^#(\d+)\s?(.*)$')
 PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
 ISSUE_RE = re.compile(r'^- #(\d+): (.*)$')
 # בעיות שחייבות תיקון (שגיאה/חסר) מול הערות שכדאי לשקול (מעל תקציב, מספר, מילון, שאלה)
-HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר')
-SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד')
+HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד', 'מקף דובר', 'תג עיצוב')
+SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד', 'סמל מטבע', 'ספרה בתחילת')
 
 SECTION_RE = re.compile(r'^=== (PATCH|BRIEF|GLOSSARY|QUESTIONS) ===\s*$', re.M)
 
@@ -187,14 +191,24 @@ TL_TASK = """אתה מתרגם מקצועי של כתוביות מאנגלית �
 - כתובית של שני דוברים: `||` בין הדוברים. `|` = שבירת שורה ידנית.
 - סמיכות, מספר ונספר, שם עצם ותואר, צירוף קבוע ושם אדם — לא בין שתי שורות.
 - מונחי המילון כפי שהם. שם שלא בטוחים בו — בתעתיק המקובל בעברית.
+- כתיב מלא, בלי שום ניקוד (הבדיקה פוסלת תווי ניקוד). מילה דו־משמעית — מנסחים מחדש במקום לנקד.
 - שומרים על התדריך: אותו קול, אותה פנייה ואותם שמות לאורך כל הראיון."""
 
 FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה. לכל כתובית ברשימה: שורה אחת `#מספר טקסט` עם הנוסח המתוקן (או `=`/`∅`
 כשזה הפתרון הנכון). בעיה מסוג "חייב" — חובה לפתור; הערה מסוג "לשקול" — מתקנים רק אם זה משפר בלי לפגוע במשמעות,
 ואם לא — מחזירים את הנוסח הקיים כמו שהוא. לא כותבים כתוביות שלא ברשימה."""
 
+JG_TASK = """אתה בודק איכות של כתוביות בעברית (מאנגלית). אתה לא מתקן ולא כותב תרגום — רק נותן ציון.
+במדגם: לכל כתובית `#מספר` והמקור באנגלית, ובשורה שאחריה `→` והתרגום.
+התשובה: שורה לכל כתובית, בדיוק בצורה `#מספר ציון קוד` — בלי שום טקסט אחר.
+ציון 1–5: 5 = מדויק וטבעי · 4 = טוב, הערה קלה · 3 = מובן אבל בעייתי · 2 = טעות מהותית · 1 = שגוי לגמרי.
+הקוד — הבעיה העיקרית: ok (אין) · mean (משמעות שגויה) · omit (חסר מידע) · add (נוסף מה שלא נאמר) ·
+gram (דקדוק / מגדר) · flu (עברית לא טבעית) · term (מונח / שם שגוי).
+כתובית קצרה מהמקור כי היא חלק ממשפט שנמשך — לא בעיה. לא להוריד ציון על טעם אישי."""
+
 RV_TASK = """אתה עורך כתוביות בכיר שבודק תרגום מאנגלית לעברית בהקשר נקי.
-רק בעיות אמיתיות: משמעות שגויה או חסרה, עברית לא טבעית, מונח לא עקבי, מספר/שם שגוי, שבירת שורה פוגעת.
+רק בעיות אמיתיות: משמעות שגויה או חסרה, עברית לא טבעית, מונח לא עקבי, מספר/שם שגוי, שבירת שורה פוגעת,
+ומגדר לא עקבי — פנייה ונטיות של כל דובר ונמען לפי טבלת הדוברים בתדריך, לאורך כל הראיון.
 לא טעם אישי ולא ניסוח מחדש של מה שתקין.
 התשובה: שורה לכל כתובית שמתקנים, `#מספר טקסט מתוקן` (דורס את התרגום), ולא שום דבר אחר. אין מה לתקן — תשובה ריקה."""
 
@@ -277,32 +291,59 @@ class Pipeline:
                             block('glossary', (td / 'glossary.tsv').read_text(encoding='utf-8') if (td / 'glossary.tsv').exists() else ''),
                             block('source', (td / 'source.md').read_text(encoding='utf-8'))])
 
-    def translate(self):
+    def _tl_part(self, p: dict, fixed: str, warm: threading.Event | None = None):
+        """תרגום חלק אחד (עם ניסיון נוסף לכתוביות שהמודל דילג עליהן) וכתיבת הקובץ שלו.
+        warm מסומן ברגע שהשרת התחיל לענות (= הבלוק הקבוע במטמון) — ובכל מקרה בסוף, שכשל לא יתקע את השאר."""
+        try:
+            ids = set(p['ids'])
+            got: dict[str, str] = {}
+            for attempt in range(2):                      # חלק שהמודל דילג בו על כתוביות — עוד ניסיון אחד לחסרות
+                want = ids - set(got)
+                ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got else
+                       'חסרו בתשובה הכתוביות האלה מאותו חלק — רק הן: ' + ' '.join('#' + k for k in sorted(want, key=int)))
+                res = self.eng.complete('tl', fixed, ask, max_tokens=32000,
+                                        on_first_token=(warm.set if warm and not attempt else None))
+                got.update(answer_lines(res.text, want))
+                if set(got) >= ids:
+                    break
+            (self.pd / 'tr' / p['file']).write_text(fmt_lines(got) + '\n', encoding='utf-8')
+        finally:
+            if warm:
+                warm.set()
+
+    def translate(self, fix: bool = True):
+        """fix=False במסלול המקבילי: tr-check רץ רק אחרי שהיישור ו־retime קבעו את התקציבים הסופיים."""
         ctx, td = self.ctx, self.pd / 'tr'
         _, parts = parse_source((td / 'source.md').read_text(encoding='utf-8'))
         if not parts:
             raise SystemExit('✗ tr/source.md ריק — אין מה לתרגם.')
         fixed = self.fixed_tl()       # זהה בכל הקריאות של השלב → נכנס למטמון פעם אחת
         n = len(parts)
-        ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
-        for i, p in enumerate(parts):
+        pending = []
+        for p in parts:
             out = td / p['file']
             ids = set(p['ids'])
             if out.exists() and set(answer_lines(out.read_text(encoding='utf-8'), ids)) >= ids:
                 continue                                  # כבר תורגם (המשך אחרי הפסקה)
-            got: dict[str, str] = {}
-            for attempt in range(2):                      # חלק שהמודל דילג בו על כתוביות — עוד ניסיון אחד לחסרות
-                want = ids - set(got)
-                ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got else
-                       'חסרו בתשובה הכתוביות האלה מאותו חלק — רק הן: ' + ' '.join('#' + k for k in sorted(want, key=int)))
-                res = self.eng.complete('tl', fixed, ask, max_tokens=32000)
-                got.update(answer_lines(res.text, want))
-                if set(got) >= ids:
-                    break
-            self.save_usage()
-            out.write_text(fmt_lines(got) + '\n', encoding='utf-8')
-            ctx.report('tl', (i + 1) / n, f'Claude מתרגם · חלק {i + 1} מתוך {n}')
-        self.fix_round('fixes.txt', fixed, 'tl')
+            pending.append(p)
+        done_n = n - len(pending)
+        ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
+        if pending:
+            # החלק הראשון כותב את המטמון; ברגע שהשרת התחיל לענות לו — שאר החלקים במקביל, כולם קוראים
+            # מהמטמון (קודם החלקים רצו בטור — אותו מחיר, הרבה יותר זמן קיר).
+            warm = threading.Event()
+            with ThreadPoolExecutor(max_workers=min(TL_PARALLEL, len(pending))) as ex:
+                futs = [ex.submit(self._tl_part, pending[0], fixed, warm)]
+                if len(pending) > 1:
+                    warm.wait(timeout=1800)
+                    futs += [ex.submit(self._tl_part, p, fixed) for p in pending[1:]]
+                for f in as_completed(futs):
+                    f.result()                            # שגיאה בחלק כלשהו עולה כאן
+                    done_n += 1
+                    self.save_usage()
+                    ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
+        if fix:
+            self.fix_round('fixes.txt', fixed, 'tl')
 
     def check(self) -> tuple[dict, dict, int]:
         lines = self.J.vt(self.ctx, ['tr-check', self.ctx.name])
@@ -345,6 +386,41 @@ class Pipeline:
                 break
         return n_err
 
+    # -------------------------------------------------------------- 5.5 שופט האיכות (v375, החלטה 4 — Haiku)
+    def judge(self):
+        """השופט במצב API: judge_prep (job.py) בונה מדגם מחבילת ביקורת טרייה, Haiku נותן ציון בלבד,
+        job.py judge מפענח. כבוי בחוקים (rl.jx) / מעט כתוביות — judge_prep מדלג. כשל שופט לא מפיל עבודה."""
+        try:
+            if self.J.judge_prep(SimpleNamespace()) != 0:
+                return
+        except SystemExit as e:
+            print(str(e))
+            return
+        st = self.J.load_state()
+        sample = self.pd / 'judge' / 'sample.md'
+        if not (st.get('jg') or {}).get('ids') or not sample.exists():
+            return
+        spent = self.eng.ledger.total()
+        if self.eng.cap is not None and spent is not None and spent >= self.eng.cap:
+            print('· תקרת העבודה נוצלה — מדלגים על השופט.')
+            return
+        self.ctx.report('rv', 0.9, 'שופט איכות עצמאי נותן ציון', force=True)
+        jeng = llm.Engine(llm.Spec('anthropic', 'claude-haiku-5-5', 'medium'), client=self.eng._client)
+        try:
+            res = jeng.complete('jg', '\n\n'.join([RULES, JG_TASK]),
+                                block('judge_sample', sample.read_text(encoding='utf-8')), max_tokens=4000)
+        except llm.LLMError as e:
+            print('· השופט נכשל (' + e.code + ') — ממשיכים בלעדיו.')
+            for r in jeng.ledger.list():                      # גם כשל עלה כסף — נרשם בספר הראשי
+                self.eng.ledger.add('jg', r['m'], r, r['usd'])
+            return
+        self.eng.ledger.add('jg', 'claude-haiku-5-5', res.usage, res.usd)
+        self.save_usage()
+        jd = self.pd / 'judge'
+        jd.mkdir(exist_ok=True)
+        (jd / 'verdict.txt').write_text(res.text.strip() + '\n', encoding='utf-8')
+        self.J.judge(SimpleNamespace())
+
     # -------------------------------------------------------------- 6. ביקורת
     def review(self):
         ctx = self.ctx
@@ -352,7 +428,9 @@ class Pipeline:
         for cmd in ('tr-merge', 'build', 'review-pack'):
             self.J.vt(ctx, [cmd, ctx.name])
         pkg = (self.pd / 'review' / 'package.md').read_text(encoding='utf-8')
-        fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text())])
+        bp = self.pd / 'tr' / 'brief.md'
+        fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text()),
+                             block('brief', bp.read_text(encoding='utf-8') if bp.exists() else '')])
         res = self.eng.complete('rv', fixed, block('review_package', pkg), max_tokens=32000)
         self.save_usage()
         ids = set(re.findall(r'#(\d+)', pkg))
@@ -397,12 +475,36 @@ def run_auto(jobmod, args) -> int:
                 J.save_ck(pl.ctx, 'asr', {'pr': 1})
             else:
                 print('· ההגהה, התדריך והמילון כבר בנקודת השמירה — לא משלמים עליהם שוב.')
-            if J.align(ns) != 0:
-                return 1
         ctx = J.Ctx(J.load_state())
         pl = Pipeline(ctx, J, eng)
+        parallel = after < 2 and ctx.st.get('src') != 'a' and hasattr(J, 'align_prep')
+        if after < 2 and not parallel:
+            # "הקול קודם": הצירוף של הסרטון עלול לתמלל מחדש — התכנון חייב לחכות ליישור (בטור, כמו קודם)
+            if J.align(ns) != 0:
+                return 1
+            ctx = J.Ctx(J.load_state())
+            pl = Pipeline(ctx, J, eng)
         if after < 3:
-            pl.translate()
+            if parallel:
+                # תרגום במקביל ליישור — plan רץ על זמני התמלול, היישור ברקע, retime מעדכן זמנים,
+                # ורק אז tr-check (התקציבים הסופיים). היישור יוצא מהנתיב הקריטי: ‎~25–30% פחות זמן קיר (10/10/2026).
+                J.align_prep(ctx)
+                err: list[BaseException] = []
+
+                def bg():
+                    try:
+                        J.align_run(ctx)
+                    except BaseException as e:      # noqa: BLE001 — SystemExit של vt חייב להיתפס
+                        err.append(e)
+                th = threading.Thread(target=bg, daemon=True)
+                th.start()
+                pl.translate(fix=False)
+                th.join()
+                if err:
+                    raise err[0]
+                pl.fix_round('fixes.txt', pl.fixed_tl(), 'tl')
+            else:
+                pl.translate()
             J.save_ck(ctx, 'tl')             # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
         if after < 4:
             fixed, left = pl.review()
@@ -410,6 +512,7 @@ def run_auto(jobmod, args) -> int:
             pl.save_usage()
             if left:
                 raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
+            pl.judge()                       # שופט האיכות (v375) — ציון בלבד, Haiku; כשל/כיבוי לא עוצרים
         pl.save_usage()
         return J.finish(SimpleNamespace(force=False))
     except llm.LLMError as e:

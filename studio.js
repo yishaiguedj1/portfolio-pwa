@@ -1228,6 +1228,18 @@ function rowSwitch(o) {
   r.append(rowTxt(o.label, o.sub), h('span', 'st-sw' + (o.on ? ' on' : '')));
   return r;
 }
+/* עבודה שנעצרה: השורה האחרונה שהעובד כתב ("vt align נכשל — נגמר הזיכרון") — הסיבה המדויקת,
+   שהקוד הכללי (errText) לא אומר. טקסט מהעובד = טקסט בלבד (לא HTML), בכיוון שלו. */
+function workerMsg(rec, ph) {
+  const m = rec && rec.srv && rec.srv.prog && rec.srv.prog.msg;
+  return (ph === 'failed' || ph === 'stuck' || ph === 'cancelled') && typeof m === 'string' && m.trim() ? m.trim().slice(0, 240) : '';
+}
+function workerMsgRow(rec, ph) {
+  const m = workerMsg(rec, ph);
+  if (!m) return null;
+  const v = h('span'); v.dir = 'auto'; v.textContent = m;
+  return kvRow(T('studioWorkerMsgL'), v, true);
+}
 function kvRow(k, v, iso) {
   const r = h('div', 'st-row st-kvrow');
   const val = h('span', 'st-v'); if (iso) val.append(typeof v === 'string' ? h('bdi', null, v) : v); else val.textContent = v;
@@ -2856,6 +2868,7 @@ function pageJob(p) {
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
     rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,
+    workerMsgRow(rec, ph0),
   ];
   const links = h('div', 'st-wacts');
   for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));

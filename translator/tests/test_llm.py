@@ -11,10 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import llm  # noqa: E402
 
 
-def fake_msg(text='שלום', stop='end_turn', i=100, o=50, cr=0, c5=0, c1=0):
+def fake_msg(text='שלום', stop='end_turn', i=100, o=50, cr=0, c5=0, c1=0, mid=None, think='', diag=None):
     cc = NS(ephemeral_1h_input_tokens=c1, ephemeral_5m_input_tokens=c5) if (c5 or c1) else None
     u = NS(input_tokens=i, output_tokens=o, cache_read_input_tokens=cr, cache_creation_input_tokens=c5 + c1, cache_creation=cc)
-    return NS(content=[NS(type='thinking', thinking=''), NS(type='text', text=text)], stop_reason=stop, usage=u)
+    return NS(content=[NS(type='thinking', thinking=think), NS(type='text', text=text)], stop_reason=stop, usage=u,
+              id=mid, diagnostics=diag)
 
 
 class FakeClient:
@@ -55,10 +56,47 @@ class AnthropicTests(unittest.TestCase):
         self.assertEqual(kw['model'], 'claude-opus-5-5')
         self.assertEqual(kw['output_config'], {'effort': 'medium'})
         self.assertEqual(kw['thinking'], {'type': 'adaptive'})
-        self.assertEqual(kw['system'][0]['cache_control'], {'type': 'ephemeral'}, 'הבלוק הקבוע במטמון')
+        self.assertEqual(kw['system'][0]['cache_control'], {'type': 'ephemeral', 'ttl': '1h'},
+                         'הבלוק הקבוע במטמון של שעה — עבודה נמשכת יותר מחלון ה־5 דקות')
         self.assertNotIn('cache_control', kw['system'][1], 'ההוראה המשתנה אחרי נקודת המטמון')
         self.assertNotIn('fallbacks', kw, 'מודל אחד לכל עבודה — בלי מעבר למודל אחר')
+        self.assertEqual(kw['extra_body'], {'diagnostics': {'previous_message_id': None}},
+                         'cache diagnostics בכל בקשה (GA, חינם)')
         self.assertAlmostEqual(r.usd, (200 * 4 + 80 * 20 + 9000 * 0.20) / 1e6)
+
+    def test_effort_pinned_even_without_spec(self):
+        c = FakeClient([fake_msg()])
+        e = llm.Engine(llm.Spec('anthropic', 'claude-opus-5-5', None), client=c)
+        e.complete('tl', 'X', 'Y')
+        self.assertEqual(c.calls[0]['output_config'], {'effort': 'medium'},
+                         'effort מקובע מפורשות תמיד — לא סומכים על ברירת המחדל של המודל')
+
+    def test_diagnostics_chain_and_thinking(self):
+        c = FakeClient([fake_msg(mid='msg_1', think='חשיבה ארוכה'), fake_msg(mid='msg_2', cr=500)])
+        e = llm.Engine(llm.Spec.of('opus-medium'), client=c)
+        e.complete('tl', 'X', '1')
+        e.complete('tl', 'X', '2')
+        self.assertIsNone(c.calls[0]['extra_body']['diagnostics']['previous_message_id'])
+        self.assertEqual(c.calls[1]['extra_body']['diagnostics']['previous_message_id'], 'msg_1',
+                         'ה־id של התשובה הקודמת נשלח בבקשה הבאה — בלעדיו טביעת האצבע לא נשמרת')
+        self.assertEqual(e.think['tl'], len('חשיבה ארוכה'), 'תווי החשיבה נרשמים לפי שלב')
+
+    def test_cache_warning_on_second_call_without_reads(self):
+        diag = {'cache_miss_reason': {'type': 'system_changed'}}
+        c = FakeClient([fake_msg(), fake_msg(cr=0, diag=diag), fake_msg(cr=700)])
+        e = llm.Engine(llm.Spec.of('opus-medium'), client=c)
+        e.complete('tl', 'X', '1')
+        e.complete('tl', 'X', '2')                       # קריאה שנייה עם אותו בלוק קבוע ובלי קריאת מטמון — אזהרה
+        self.assertEqual(e.cache_warns, 1)
+        e.complete('tl', 'X', '3')                       # קריאת מטמון תקינה — בלי אזהרה נוספת
+        self.assertEqual(e.cache_warns, 1)
+
+    def test_on_first_token_fires_once(self):
+        c = FakeClient([fake_msg()])
+        e = llm.Engine(llm.Spec.of('opus-medium'), client=c)
+        hits = []
+        e.complete('tl', 'X', 'Y', on_first_token=lambda: hits.append(1))
+        self.assertEqual(hits, [1], 'הקולבק נקרא פעם אחת גם כשללקוח המדומה אין זרם')
 
     def test_ledger_by_stage_and_one_model(self):
         c = FakeClient([fake_msg(i=1000, o=100, c5=20000), fake_msg(i=50, o=900, cr=20000), fake_msg(i=10, o=10)])
