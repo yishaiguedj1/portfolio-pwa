@@ -26,7 +26,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(S.isTransient('net', []) && S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('worker', []), 'תקלה חולפת — Drive / רשת בלבד, אף פעם לא עצירה מכוונת');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'mute'/.test(api) && /async function autoRecover/.test(api) && /if \(auto\) patch\.ar = /.test(api), 'השרתון: השתקה, והמשך אוטומטי שנרשם לפני ההפעלה (בלי כפילות)');
-  ok(/'rl', 'mu'(, 'fr')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'השתקות נשמרות כ־JSON (mu)');
+  ok(/'rl', 'mu'(, 'fr')?(, 'inc', 'mi')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'השתקות נשמרות כ־JSON (mu)');
   ok(/\$J fail --err <קוד>/.test(read('translator/RUNBOOK.md')) && /`--err net`/.test(read('translator/RUNBOOK.md')), 'RUNBOOK: תקלת Drive / רשת חוזרת → --err net (האפליקציה ממשיכה לבד)');
 
   /* ---------- 2. הטלפון ---------- */
@@ -39,7 +39,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(st.recovering(rec) && !st.recovering({ srv: { state: 'failed', rw: 0 } }) && !st.recovering({ srv: { state: 'running', rw: 5 } }), 'recovering — רק עבודה שנכשלה בתקלה חולפת');
   const sj = read('studio.js');
   ok(/const urgentAlerts = \(\) => \(ui\.ops \? ui\.ops\.open\.filter\(\(a\) => a\.s <= 2 && !a\.m/.test(sj) && /T\('studioOpsDigestTop'/.test(sj) && /T\('studioOpsMutedT'/.test(sj), 'מסך המגדל: דחופות בבאנר בבית, "היו גם היום", מושתקות מקופלות (v369: הרשימה לפי ציון עדיפות)');
-  ok(/const ub = urgentBanner\(\)/.test(sj), 'בית: באנר להתראה דחופה בלבד (P1–P2 שלא הושתקו)');
+  ok(/const ub = (?:mb \? null : )?urgentBanner\(\)/.test(sj), 'בית: באנר להתראה דחופה בלבד (P1–P2 שלא הושתקו)');
   ok(/rw: num\(s\.rec\)/.test(sj) && /T\('studioRecGo'\)/.test(sj) && /net\.api\('cancel'/.test(sj), 'עבודה מתאוששת: ספירה לאחור, "להמשיך עכשיו" ו"לא להמשיך לבד"');
   ok(/window\.snbStudioBusy = /.test(sj) && /window\.snbStudioBusy\(\)/.test(read('app.js')), 'חלון חסימה: גרסה חדשה לא מרעננת באמצע העלאה');
   ok(/case 'claude:auto': return T\('studioAlClaudeAuto'\)/.test(sj), 'תווית ל"המשכנו לבד"');

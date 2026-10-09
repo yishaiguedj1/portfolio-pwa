@@ -142,10 +142,26 @@ def drive_ok(token, api):
     return st == 200 and bool((j.get('user') or {}).get('emailAddress'))
 
 
+def env_version():
+    """v371: גרסת הסביבה של העובד — טביעה של קבצי translator/ בלבד (בלי הבדיקות). שינוי באפליקציה לא משנה אותה,
+    שינוי ב־setup.sh / job.py / vt / ההנחיות — כן. תקלה שמתחילה אחרי שינוי כזה מסומנת "אחרי שינוי בסביבה" (החשוד הראשון)."""
+    import hashlib
+    h = hashlib.sha1()
+    try:
+        for f in sorted(HERE.rglob('*')):
+            rel = f.relative_to(HERE).as_posix()
+            if not f.is_file() or rel.startswith('tests/') or '__pycache__' in rel or f.suffix == '.pyc':
+                continue
+            h.update(rel.encode() + b'\0' + f.read_bytes() + b'\0')
+    except OSError:
+        return ''
+    return h.hexdigest()[:12]
+
+
 def run(args):
     c = Client(args.server, args.job, args.key)
     try:
-        got = c.call('claim')
+        got = c.call('claim', ev=env_version())
         job = got.get('job') or {}
         token = (got.get('drive') or {}).get('token') or ''
         if job.get('kind') == 'ping':

@@ -24,6 +24,7 @@ const vault = require('../lib/vault');
 const gdrive = require('../lib/gdrive').studio;   // v357: לקוח OAuth נפרד לסטודיו — לא רואה את גיבוי הספרייה
 const S = require('../lib/studio');
 const O = require('../lib/studioops');
+const I = require('../lib/studioinc');   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
 const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents';
@@ -118,6 +119,32 @@ async function closeJobOps(deps, uid, j, now) {
     if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
   } catch (e) {}
 }
+/* v371: התקלות נגזרות מהעבודות (studioinc.js) — מסונכרנות בכל צפייה ברשימה. תקלה כאן לא מפילה את הצפייה */
+async function syncInc(deps, uid, jobs, now) {
+  try {
+    const d = await readDoc(deps, 'studioOps', uid) || {};
+    const st = await readStats(deps, uid);
+    const facts = jobs.filter((j) => j.kind === 'tr').map((j) => I.jobFacts(j, S.effState(j, now), S.isStale(j, now)));
+    let inc = I.incSync(d.inc, facts, d.al, st.fb, now);
+    const mi = I.majorSync(d.mi, inc || d.inc, d.al, now);
+    const marked = I.majorMark(inc || d.inc, mi || d.mi, now);
+    if (marked) inc = marked;
+    const patch = {};
+    if (inc) patch.inc = inc;
+    if (mi) patch.mi = mi;
+    if (inc || mi) await patchDoc(deps, 'studioOps', uid, Object.assign(patch, { updated: now }));
+    return { inc: inc || d.inc, mi: mi || d.mi, al: d.al };
+  } catch (e) { return null; }
+}
+/* התקלה הרחבה שחלה על העבודה הזו: Routine לא נוגע לעבודות במצב API, והשרת שלנו לא נוגע לעבודות של ה־Routine */
+const majorNow = async (deps, uid, job) => {
+  try {
+    const d = await readDoc(deps, 'studioOps', uid);
+    const mi = d && I.majorActive(d.mi) ? d.mi : null;
+    if (!mi || !job) return mi;
+    return (mi.c === 'routine' && apiJob(job)) || (mi.c === 'server' && !apiJob(job)) ? null : mi;
+  } catch (e) { return null; }
+};
 const readStats = async (deps, uid) => { try { const d = await readDoc(deps, 'studioStats', uid); return d || {}; } catch (e) { return {}; } };
 const readNs = async (deps, uid) => { const d = await readStats(deps, uid); return Array.isArray(d.ns) ? d.ns : []; };
 const patchVault = (deps, uid, o) => patchDoc(deps, 'studioVault', uid, o);
@@ -250,6 +277,9 @@ async function doResume(deps, uid, job, now, body, auto) {
   if (why) return { status: 409, json: { ok: false, error: why } };
   const stop = await ruleBlock(deps, uid, job, auto ? { ov: true } : body);   // v367
   if (stop) return { status: 409, json: Object.assign({ ok: false }, stop) };
+  // v371: תקלה רחבה — הפעלות מחכות עד שזה עובר; "להתחיל בכל זאת" (mo) עוקף. ההמשך האוטומטי תמיד מחכה
+  const mj = (auto || body.mo !== true) ? await majorNow(deps, uid, job) : null;
+  if (mj) return { status: 409, json: { ok: false, error: 'major', mi: { c: mj.c, e: mj.e, at: mj.at, n: mj.n || 0 } } };
   const api = apiJob(job);   // מצב API: אין Routine — העבודה חוזרת לתור של השרת
   const v = api ? null : await readVault(deps, uid);
   if (!api && (!v || !v.r)) return { status: 200, json: { ok: false, error: 'conn_missing' } };
@@ -278,12 +308,15 @@ async function doResume(deps, uid, job, now, body, auto) {
 /* v368: עבודות שחלון ההתאוששות שלהן נגמר — ממשיכות לבד (נבדק בכל צפייה מהטלפון). מתג החירום / אין חיבור — מוותרים, והעבודה נשארת "נכשלה" */
 async function autoRecover(deps, uid, jobs, now) {
   const due = jobs.filter((j) => j.kind === 'tr' && S.recoverAt(j, now) && now >= S.recoverAt(j, now));
+  let n = 0;
   for (const j of due) {
+    if (await majorNow(deps, uid, j)) continue;   // v371: בתקלה רחבה מחכים (rw נשאר) — ממשיכים כשהיא עוברת
+    n++;
     const r = await doResume(deps, uid, j, now, {}, true).catch(() => ({ json: { ok: false, error: 'failed' } }));
     if (!r.json.ok && r.json.error !== 'budget') await patchJob(deps, j.id, { rw: 0, updated: now }).catch(() => {});   // תקציב ההפעלות — ננסה בצפייה הבאה
     if (r.json.ok) await raise(deps, uid, [{ c: 'claude', k: 'auto' }], j.id, now);
   }
-  return due.length;
+  return n;
 }
 
 /* קובץ שהעובד העלה — קיים, לא בפח, ובתיקיית העבודה ב־Drive (הלקוח של הסטודיו רואה רק מה שהאפליקציה יצרה). מחזיר את הגודל, או null */
@@ -320,6 +353,7 @@ async function worker(req, res, body, deps) {
     if (body.op === 'claim') {
       const patch = { updated: now };
       if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; patch.warn = ''; job.state = 'running'; }
+      if (/^[0-9a-f]{12}$/.test(String(body.ev || ''))) patch.ev = body.ev;   // v371: גרסת הסביבה של העובד ("אחרי שינוי בסביבה")
       await patchJob(deps, id, patch);
       const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
       const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
@@ -461,6 +495,7 @@ async function handler(req, res, deps = {}) {
       admin: isAdmin(user), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
   };
   const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
+  const incFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return I.incView(d.inc, d.mi, d.al, now); };   // v371
   try {
     if (op === 'status') {
       const v = await readVault(deps, uid);
@@ -468,7 +503,7 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
-        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid),
+        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), now });   // v367: החוקים ומתג החירום
     }
     if (op === 'rules') {
@@ -598,7 +633,10 @@ async function handler(req, res, deps = {}) {
       }
       // v368: חלון ההתאוששות נגמר — "המשך" אוטומטי, והרשימה נקראת מחדש
       const list = await autoRecover(deps, uid, all, now) ? (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping') : all;
-      return res.status(200).json({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now });
+      // v371: התקלות — נגזרות מהרשימה המלאה (עבודה שנעלמה ממנה נמחקה)
+      const ic = await syncInc(deps, uid, list, now);
+      return res.status(200).json(Object.assign({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now },
+        ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now) } : {}));
     }
     let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });
@@ -631,6 +669,8 @@ async function handler(req, res, deps = {}) {
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
       const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
       if (stop) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, stop));
+      const mj = body.mo !== true ? await majorNow(deps, uid, job) : null;   // v371: תקלה רחבה — מחכים, או "להתחיל בכל זאת"
+      if (mj) return res.status(409).json({ ok: false, error: 'major', mi: { c: mj.c, e: mj.e, at: mj.at, n: mj.n || 0 }, job: view(job) });
       if (apiJob(job)) {
         const q = await queueApi(deps, uid, job, now);
         return res.status(200).json(Object.assign({ ok: q.ok, job: view(await readJob(deps, job.id)) }, q.ok ? {} : { error: q.error }));
@@ -679,6 +719,7 @@ async function handler(req, res, deps = {}) {
       if ((st === 'queued' || st === 'running') && !S.isStale(job, now)) return res.status(409).json({ ok: false, error: 'active' });   // נתקעה — אפשר למחוק
       await delDoc(deps, 'studioJobs', job.id);
       await closeJobOps(deps, uid, job.id, now);
+      try { const d = await readDoc(deps, 'studioOps', uid); const inc = d && I.incCloseJob(d.inc, job.id, now); if (inc) await patchDoc(deps, 'studioOps', uid, { inc, updated: now }); } catch (e) {}   // v371
       return res.status(200).json({ ok: true });
     }
     return res.status(400).json({ ok: false, error: 'bad_op' });

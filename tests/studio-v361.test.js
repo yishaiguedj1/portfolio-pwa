@@ -65,7 +65,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const fj = { state: 'failed', prog: { st: 'tl', p: 0.4, stg: { tr: { s: 1, e: 2 }, al: { s: 2, e: 3 }, tl: { s: 3, e: 4 } } } };
   ok(N.progressModel(fj, {}, { done: true }, 1e7).stages.map((x) => x.state[0]).join('') === 'dddwwww', 'טלפון: עבודה שנכשלה — השלב שבו נעצרה בלי ✓ (השרתון סגר אותו בכישלון)');
   const st = read('studio.js');
-  ok(/net\.api\('resume', (?:ov \? \{ job: id, ov: true \} : )?\{ job: id \}\)/.test(st) && /T\('studioResumeCk'\)/.test(st) && /T\('studioCkSaved'/.test(st), 'טלפון: הכפתור ושורת "נשמר אחרי"');
+  ok(/net\.api\('resume', (?:ov \? \{ job: id, ov: true \} : )?(?:\{ job: id \}\)|Object\.assign\(\{ job: id \})/.test(st) && /T\('studioResumeCk'\)/.test(st) && /T\('studioCkSaved'/.test(st), 'טלפון: הכפתור ושורת "נשמר אחרי"');
   const app = read('app.js');
   for (const k of ['studioResumeCk', 'studioRetryAll', 'studioResuming', 'studioCkSaved', 'studioStuckBig', 'studioNowStuck', 'studioBStuck', 'studioErrResumeLimit', 'studioCkAsr', 'studioCkAl', 'studioCkTl', 'studioCkRv'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'טלפון: ' + k + ' — עברית ואנגלית');

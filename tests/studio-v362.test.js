@@ -19,7 +19,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sh = read('translator/setup.sh');
   ok(/tower-hook\.sh/.test(sh) && /'PreToolUse'/.test(sh) && /'timeout': 20/.test(sh), 'setup.sh: ה־Hook נכתב להגדרות של הסביבה "סטודיו"');
   const hk = read('translator/tower-hook.sh');
-  ok(/\[ -f "\$S\/job\.json" \] \|\| exit 0/.test(hk) && /SNB_TOWER/.test(hk), 'tower-hook.sh: בלי עבודה פעילה — יוצא מיד, בלי Python');
+  ok(/\[ -f "\$S\/job\.json" \] \|\| \{ cat >\/dev\/null; exit 0; \}/.test(hk) && /SNB_TOWER/.test(hk), 'tower-hook.sh: בלי עבודה פעילה — יוצא מיד, בלי Python');
   let ran = false;
   try {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'snbt-'));
@@ -32,7 +32,13 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
       'setup.sh: Hook אחד לכל הכלים (גם בהרצה חוזרת), ושאר ההגדרות נשמרות');
     const out = execFileSync('sh', ['-c', pre[0].hooks[0].command], { env: Object.assign({}, envr, { CLAUDE_PROJECT_DIR: root }), input: '{"tool_name":"Bash"}' }).toString();
     ok(out === '', 'ה־Hook שנכתב רץ ושקט כשאין עבודה פעילה');
-    const out2 = execFileSync('sh', ['-c', pre[0].hooks[0].command], { env: Object.assign({}, envr, { CLAUDE_PROJECT_DIR: '/nonexistent' }), input: '{}' }).toString();
+    // v370: ה־Hook קורא את הקלט לפני יציאה מוקדמת — בלי זה ~8% מההרצות נכשלו ב־EPIPE (הכישלון "לסירוגין" ב־CI)
+    let epipe = 0;
+    for (let i = 0; i < 150; i++) {
+      try { execFileSync('sh', [path.join(root, 'translator/tower-hook.sh')], { env: envr, input: '{"tool_name":"Bash"}' }); } catch (e) { if (e.code === 'EPIPE') epipe++; else throw e; }
+    }
+    ok(epipe === 0, 'ה־Hook קורא את הקלט שלו — בלי EPIPE גם ב־150 הרצות');
+    const out2 = execFileSync('sh', ['-c', pre[0].hooks[0].command], { env: Object.assign({}, envr, { CLAUDE_PROJECT_DIR: '/nonexistent' }), stdio: ['ignore', 'pipe', 'pipe'] }).toString();
     ok(out2 === '', 'ה־Hook בלי הריפו (נתיב שגוי) — לא נכשל');
     ran = true;
   } catch (e) { if (e.code !== 'ENOENT') throw e; }

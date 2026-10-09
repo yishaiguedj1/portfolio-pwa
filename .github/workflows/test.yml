@@ -34,12 +34,12 @@ jobs:
           pass=0; failed=()
           for f in *.test.js; do
             case " $SKIP " in *" $f "*) echo "SKIP-legacy $f"; continue;; esac
-            timeout 150 node "$f" > "/tmp/test-$f.log" 2>&1
-            code=$?
+            # v370: "|| code=$?" — תחת bash -e שורה נפרדת עצרה את הלולאה לפני שורת FAIL והיומן
+            code=0; timeout 150 node "$f" > "/tmp/test-$f.log" 2>&1 || code=$?
             if [ $code -eq 0 ]; then
               pass=$((pass+1)); echo "PASS $f"
             else
-              failed+=("$f"); echo "FAIL $f (exit $code)"; tail -5 "/tmp/test-$f.log"
+              failed+=("$f"); echo "FAIL $f (exit $code)"; tail -40 "/tmp/test-$f.log"
             fi
           done
           echo "---- $pass passed, ${#failed[@]} failed ----"
