@@ -73,6 +73,7 @@ class Image(unittest.TestCase):
         self.assertIsNotNone(m, 'גרסת ffmpeg מוצהרת ב־Dockerfile')
         self.assertGreaterEqual((int(m.group(1)), int(m.group(2))), (8, 1), 'ffmpeg לפחות 8.1 (libass מתוקן)')
         self.assertIn("--enable-libass", d, 'libass חובה בבנייה')
+        self.assertIn('MALLOC_ARENA_MAX=2', d, 'בלי arenas של glibc לכל ליבה — היישור צמוד לתקרת הזיכרון')
 
     def test_lockfile_all_hashed_cpu_only(self):
         lock = read('infra/worker/requirements.lock')
