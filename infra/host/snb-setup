@@ -6,12 +6,14 @@ set -eu
 [ "$(id -u)" = 0 ] || { echo "Run as root"; exit 1; }
 umask 077
 mkdir -p /etc/snb
+# השאלה והמעבר לשורה — ל־stderr (המסך): הפונקציה רצה בתוך $(...), ו־stdout שלה הוא הערך בלבד.
+# לקח 09/10/2026: השאלה נבלעה במשתנה — המסך נשאר ריק, והמפתח נפסל כי התחיל בטקסט השאלה.
 ask_secret() {
-	printf '%s\n> ' "$1"
+	printf '%s\n> ' "$1" >&2
 	stty -echo 2>/dev/null || true
 	IFS= read -r v
 	stty echo 2>/dev/null || true
-	echo
+	echo >&2
 	printf '%s' "$v"
 }
 AK=$(ask_secret "Anthropic API key (starts with sk-ant-; hidden):")

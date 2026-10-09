@@ -148,6 +148,21 @@ class Pipeline(unittest.TestCase):
         self.assertIn('systemctl start --no-block snb-update.service', ci, 'יש מפתחות — מתחילים מיד')
         self.assertIn("CI_MARK = '  # SNB_SECRETS'", read('studio.js'), 'אותו סימון באפליקציה')
 
+    def test_setup_prompts_visible_and_values_clean(self):
+        # לקח 09/10/2026: השאלות הודפסו ל־stdout בתוך $(...) — נבלעו במשתנה, המסך ריק והמפתח נפסל
+        import subprocess, tempfile
+        src = read('infra/host/snb-setup')
+        with tempfile.TemporaryDirectory() as d:
+            s = src.replace('[ "$(id -u)" = 0 ]', 'true').replace('/etc/snb', d)
+            s = re.sub(r'(?m)^systemctl.*$', 'echo DONE', s)
+            key, tok = 'sk-ant-' + 'a' * 30, 'abcdefghijkl-' + 'B' * 43
+            r = subprocess.run(['sh', '-c', s], input=key + '\n' + tok + '\n\n', capture_output=True, text=True, timeout=20)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn('Anthropic API key', r.stderr, 'השאלה מוצגת על המסך')
+            env = open(d + '/worker.env').read()
+            self.assertIn('ANTHROPIC_API_KEY=' + key + '\n', env)
+            self.assertIn('SNB_WORKER_TOKEN=' + tok + '\n', env)
+
     def test_setup_secrets_file_private(self):
         s = read('infra/host/snb-setup')
         self.assertIn('umask 077', s)
