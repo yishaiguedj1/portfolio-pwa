@@ -36,7 +36,7 @@ function incList(inc, now) {
 function jobFacts(job, eff, stale) {
   return { id: job.id, st: eff.state, err: stale ? 'stale' : eff.err || (eff.state === 'failed' ? 'worker' : ''), bad: eff.state === 'failed' || !!stale,
     fires: num(job.fires), ar: num(job.ar), rw: num(job.rw), at: num(job.ended) || num(job.updated), fired: num(job.fired),
-    ev: /^[0-9a-f]{8,40}$/.test(String(job.ev || '')) ? job.ev : '', fp: job.tw && /^[0-9a-f]{12}$/.test(String(job.tw.fp || '')) ? job.tw.fp : '' };
+    ev: /^[0-9a-f]{8,40}$/.test(String(job.ev || '')) ? job.ev : '', fp: [job.tw, job.ls].map((t) => (t && /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '')).find(Boolean) || '' };   // v376: גם העצירה שלפני ה"המשך" (ls)
 }
 
 /* שורש סביר (Probable Root Cause): עד 3 מועמדים, ממוינים. משקלים קבועים — כל אחד מוסבר בטלפון במשפט מהקטלוג:
@@ -92,6 +92,7 @@ function incSync(inc, jobs, al, fb, now) {
       const at = Math.min(now, f.at || now);
       const x = cur || { no: ++seq, j: f.id, f: at, n: 0, h: [] };
       Object.assign(x, { c, e: ERR_RE.test(f.err) ? f.err : 'worker', s: sevOf(f, c, f.err), st: 'o', by: '', l: now, rt: 0, n: num(x.n) + 1, fs: f.fires, ar: f.ar });
+      if (f.fp) x.fp = f.fp;   // v376: הבעיה (טביעת האצבע של עצירת המגדל) — מקשרת תקלות לבעיה אחת
       hist(x, at, cur ? 'f' : 'o');
       if (!cur) out.push(x);
       changed = true;
