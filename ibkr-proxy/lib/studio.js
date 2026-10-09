@@ -428,7 +428,38 @@ function publicJob(job, now) {
     eng: job.eng === 'api' || job.spec && job.spec.eng === 'api' ? 'api' : 'sub',   // מצב API: השרת של המערכת
     sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
+    tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
   };
+}
+/* v373: עקיבה מהעובד (מהיומנים, בלי טוקנים): לכל סוכן n פעולות, e שנכשלו, s שניות; וקבוצות [מפתח, n, e].
+   רק מספרים ומפתחות בצורה קבועה (שם כלי, או job:/vt: + פקודה) — בלי טקסט חופשי. לא תקין — נזרק כולו */
+const TR_KEY_RE = /^(?:(?:job|vt):[a-z][a-z_-]{1,19}|[A-Za-z]{1,24})$/;
+function normTrace(t) {
+  if (!t || typeof t !== 'object' || !t.a || typeof t.a !== 'object') return null;
+  const int = (v, hi) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= hi ? v : null);
+  const a = {};
+  for (const [k, v] of Object.entries(t.a)) {
+    if (!USE_KINDS.includes(k) || !v || typeof v !== 'object') return null;
+    const n = int(v.n, 1e6), e = int(v.e, 1e6), sec = int(v.s, 1e7);
+    if (n == null || e == null || sec == null || e > n) return null;
+    a[k] = { n, e, s: sec };
+  }
+  if (!Object.keys(a).length) return null;
+  const g = [];
+  for (const x of (Array.isArray(t.g) ? t.g : []).slice(0, 8)) {
+    if (!Array.isArray(x) || !TR_KEY_RE.test(String(x[0] || ''))) return null;
+    const n = int(x[1], 1e6), e = int(x[2], 1e6);
+    if (n == null || e == null || e > n) return null;
+    g.push([x[0], n, e]);
+  }
+  return { a, g };
+}
+/* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (המתזמר), tl = TRANSLATE, rv = REVIEW */
+function normPv(p) {
+  if (!p || typeof p !== 'object') return null;
+  const out = {};
+  for (const k of ['rb', 'tl', 'rv']) if (/^[0-9a-f]{8}$/.test(String(p[k] || ''))) out[k] = p[k];
+  return Object.keys(out).length ? out : null;
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
 function workerJob(job, nm, fb, fm, rl) {
@@ -515,7 +546,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi'];   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv'];   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -542,6 +573,7 @@ function fromFields(f) {
 }
 
 module.exports = {
+  normTrace, normPv,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,

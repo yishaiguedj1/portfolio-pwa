@@ -1709,6 +1709,56 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v373: מלאי הסוכנים, עקיבה מהיומנים וגרסאות ההנחיות
+    now += 3600e3 + 1;
+    {
+      const S2 = require('../lib/studio');
+      const A2 = require('../lib/studioagents');
+      const tr = { a: { main: { n: 40, e: 2, s: 1800 }, tl: { n: 12, e: 0, s: 900 } }, g: [['vt:tr-check', 3, 1], ['Read', 20, 0], ['job:align', 1, 0]] };
+      ok(JSON.stringify(S2.normTrace(tr)) === JSON.stringify(tr), 'סטודיו: עקיבה — פעולות לכל סוכן וקבוצות, כמו שהן');
+      ok(S2.normTrace({ a: { evil: { n: 1, e: 0, s: 0 } } }) === null && S2.normTrace({ a: { main: { n: 1, e: 2, s: 0 } } }) === null
+        && S2.normTrace({ a: { main: { n: 1, e: 0, s: 0 } }, g: [['rm -rf /', 1, 0]] }) === null && S2.normTrace({ a: { main: { n: 1, e: 0, s: 0 } }, g: [['mcp__x__y', 1, 0]] }) === null,
+      'סטודיו: עקיבה — סוכן לא מוכר / יותר שגיאות מפעולות / מפתח חופשי — נזרק כולו');
+      ok(JSON.stringify(S2.normPv({ rb: 'abcdef01', tl: 'XYZ', rv: '12345678', x: 'abcdef01' })) === '{"rb":"abcdef01","rv":"12345678"}' && S2.normPv({}) === null, 'סטודיו: גרסאות ההנחיות — רק 8 תווי hex לכל סוכן מוכר');
+      const t0 = 9e12, D = 86400e3;
+      const mk = (id, d, st, pv, use, trc, mode) => ({ id, kind: 'tr', state: st, created: t0 - d * D, spec: { mode: mode || 'opus-medium' }, pv, use, tr: trc, ev: 'abcdef012345' });
+      const U = (k, m, usd) => ({ k, m, n: 1, i: 1, o: 1, cr: 0, c5: 0, c1: 0, usd });
+      const jobsA = [
+        mk('j' + 'a'.repeat(20), 40, 'done', { rb: '11111111', tl: 'aaaaaaaa' }, [U('main', 'claude-sonnet-5-5', 1), U('tl', 'claude-opus-5-5', 9)], null),
+        mk('j' + 'b'.repeat(20), 10, 'done', { rb: '11111111', tl: 'aaaaaaaa' }, [U('main', 'claude-sonnet-5-5', 0.5), U('tl', 'claude-opus-5-5', 3), U('rv', 'claude-opus-5-5', 1)], tr),
+        mk('j' + 'c'.repeat(20), 2, 'failed', { rb: '11111111', tl: 'bbbbbbbb' }, [U('main', 'claude-sonnet-5-5', 0.25), U('tl', 'claude-opus-5-5', null)], { a: { main: { n: 10, e: 4, s: 60 } }, g: [] }, 'opus-high'),
+        { id: 'j' + 'p'.repeat(20), kind: 'ping', state: 'done', created: t0 - D },
+      ];
+      const V = A2.agentsView(jobsA, t0);
+      const g = (k) => V.agents.find((x) => x.k === k);
+      ok(V.jobs === 2 && V.agents.map((x) => x.k).join() === 'main,tl,rv', 'סטודיו: מלאי — 30 יום, עבודות תרגום בלבד; מתזמר, מתרגם, מבקר');
+      ok(g('main').m === 'claude-sonnet-5-5' && g('main').usd === 0.75 && g('main').ok === 50 && g('main').n === 50 && g('main').e === 6 && g('main').ef === '', 'סטודיו: מלאי — מודל, עלות, אחוז הצלחה ופעולות מהעקיבה');
+      ok(g('tl').ef === 'high' && g('tl').partial && g('tl').usd === 3 && g('tl').pv === 'bbbbbbbb' && g('tl').pvNew && g('tl').pvs === 2, 'סטודיו: מלאי — מאמץ מהמצב, עלות חלקית, "גרסה חדשה" של ההנחיות');
+      ok(!g('main').pvNew && g('main').pvs === 1 && g('rv').jobs === 1 && V.ev.v === 'abcdef012345' && V.ev.n === 1, 'סטודיו: מלאי — בלי שינוי בהנחיות, וגרסת הסביבה');
+      ok(!JSON.stringify(V).includes('spec') && !JSON.stringify(V).includes('jaaaa'), 'סטודיו: מלאי — בלי פרטי עבודות');
+    }
+    {
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JG = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JG, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JG });
+      const KG = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JG, key: KG, ev: 'abcdef012345', pv: { rb: '22222222', tl: 'cccccccc', rv: 'dddddddd' } });
+      rr = await wrk({ op: 'report', job: JG, key: KG, done: true, usage: [{ k: 'main', m: 'claude-sonnet-5-5', n: 9, i: 10, o: 1000, cr: 0, c5: 0, c1: 0, usd: 0.4 }],
+        trace: { a: { main: { n: 33, e: 1, s: 600 } }, g: [['vt:align', 2, 0]] } });
+      ok(rr.payload.ok, 'סטודיו: דיווח עם עקיבה');
+      rr = await run({ op: 'job', idToken: OWNER, job: JG });
+      ok(rr.payload.job.tr && rr.payload.job.tr.a.main.n === 33 && rr.payload.job.tr.g[0][0] === 'vt:align', 'סטודיו: העקיבה מגיעה לטלפון (דף העבודה)');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const ag = rr.payload.ag;
+      ok(ag && ag.agents.some((x) => x.k === 'main' && x.pv === '22222222' && x.n >= 33) && ag.jobs >= 1, 'סטודיו: op jobs — מלאי הסוכנים מאותה רשימה (בלי קריאה נוספת)');
+      await wrk({ op: 'report', job: JG, key: KG, trace: { a: { main: { n: 1, e: 0, s: 0 } }, g: [['<b>', 1, 0]] } }).catch(() => {});
+      ok(JSON.parse(db.get('studioJobs/' + JG).fields.tr.stringValue).a.main.n === 33, 'סטודיו: עקיבה לא תקינה — נזרקת, הקודמת נשארת');
+      await run({ op: 'remove', idToken: OWNER, job: JG });
+    }
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v371: תקלות (P1–P4, מצב, מי טיפל, ציר), שורש סביר, תקלה רחבה והשהיית הפעלות
     now += 3600e3 + 1;
     {
