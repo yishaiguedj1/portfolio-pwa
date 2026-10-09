@@ -233,7 +233,7 @@ class JobHooks(unittest.TestCase):
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
 
-    def flow(self, ck, resumed):
+    def flow(self, ck, resumed, proofed=False):
         log = []
         state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
 
@@ -247,6 +247,7 @@ class RunAutoResume(unittest.TestCase):
             def restore(self, a):
                 log.append('restore')
                 state['resumed'] = resumed
+                state['proofed'] = proofed
                 return 0
 
             def prepare(self, a):
@@ -257,8 +258,8 @@ class RunAutoResume(unittest.TestCase):
                 log.append('align')
                 return 0
 
-            def save_ck(self, ctx, s):
-                log.append('ck:' + s)
+            def save_ck(self, ctx, s, extra=None):
+                log.append('ck:' + s + ('+pr' if (extra or {}).get('pr') else ''))
 
             def finish(self, a):
                 log.append('finish')
@@ -269,7 +270,7 @@ class RunAutoResume(unittest.TestCase):
 
         class Pl:
             def __init__(self, ctx, j, eng):
-                pass
+                self.ctx = ctx
 
             def proofread(self):
                 log.append('proofread')
@@ -295,16 +296,21 @@ class RunAutoResume(unittest.TestCase):
         return log
 
     def test_fresh(self):
-        self.assertEqual(self.flow([], None), ['prepare', 'proofread', 'align', 'translate', 'ck:tl', 'review', 'finish'])
+        self.assertEqual(self.flow([], None), ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'finish'])
 
     def test_resume_points(self):
         ck = [{'s': 'asr', 'id': 'x'}]
-        self.assertEqual(self.flow(ck, 'asr'), ['restore', 'proofread', 'align', 'translate', 'ck:tl', 'review', 'finish'])
+        self.assertEqual(self.flow(ck, 'asr'), ['restore', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'finish'])
         self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'finish'])
         self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'finish'], 'אחרי התרגום — לא מתרגמים שוב')
         self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
-        self.assertEqual(self.flow(ck, None), ['restore', 'prepare', 'proofread', 'align', 'translate', 'ck:tl', 'review', 'finish'],
+        self.assertEqual(self.flow(ck, None), ['restore', 'prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'finish'],
                          'נקודת שמירה פגומה → מההתחלה')
+
+    def test_resume_after_paid_proofread(self):
+        # 09/10/2026: העבודה הראשונה בשרת נכשלה ביישור אחרי ההגהה — "המשך" לא משלם על ההגהה שוב
+        ck = [{'s': 'asr', 'id': 'x'}]
+        self.assertEqual(self.flow(ck, 'asr', proofed=True), ['restore', 'align', 'translate', 'ck:tl', 'review', 'finish'])
 
 
 if __name__ == '__main__':
