@@ -40,8 +40,11 @@ HEAD = """#cloud-config
 # בריפו בלי סודות. את המפתחות מוסיפה האפליקציה במקום שורת הסימון ("קוד ההקמה").
 package_update: true
 package_upgrade: true
+# חבילות במפורש, גם "מומלצות": בתמונות של Hetzner Install-Recommends כבוי, וב־Debian 13 הפקודה docker
+# בחבילה נפרדת (docker-cli, רק "מומלצת" של docker.io). לקח 09/10/2026: השירות הותקן בלי הפקודה, ו־snb-update נכשל בשקט.
 packages:
   - docker.io
+  - docker-cli
   - docker-compose
   - cosign
   - nftables

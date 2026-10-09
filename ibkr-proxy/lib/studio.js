@@ -553,7 +553,9 @@ const API_QUEUE_WAIT = 6 * 3600e3;          // עבודה בתור בלי שאף
 const CAP_DEF = 10, CAP_MAX = 100, CAP_MIN_JOB = 1;
 const normCap = (c) => Math.max(CAP_MIN_JOB, Math.min(CAP_MAX, Math.round(Number(c) || CAP_DEF)));
 const newServerId = () => crypto.randomBytes(8).toString('hex').slice(0, 12);
-const newServerToken = (sid) => sid + '-' + crypto.randomBytes(32).toString('base64url');
+// הסוד — אותיות קטנות וספרות בלבד (172 ביט): בקונסולה של Hetzner מהטלפון תווים עם Shift (כמו _) מגיעים משובשים,
+// וטוקן עם _ אי אפשר להדביק (לקח 09/10/2026). הצורה נשארת זו של SRV_TOKEN_RE — טוקנים ישנים ממשיכים לעבוד.
+const newServerToken = (sid) => sid + '-' + crypto.randomBytes(22).toString('hex').slice(0, 43);
 function parseServerToken(t) {
   const m = SRV_TOKEN_RE.exec(String(t || ''));
   return m ? { sid: m[1], tok: m[0] } : null;

@@ -3,8 +3,11 @@
 # בריפו בלי סודות. את המפתחות מוסיפה האפליקציה במקום שורת הסימון ("קוד ההקמה").
 package_update: true
 package_upgrade: true
+# חבילות במפורש, גם "מומלצות": בתמונות של Hetzner Install-Recommends כבוי, וב־Debian 13 הפקודה docker
+# בחבילה נפרדת (docker-cli, רק "מומלצת" של docker.io). לקח 09/10/2026: השירות הותקן בלי הפקודה, ו־snb-update נכשל בשקט.
 packages:
   - docker.io
+  - docker-cli
   - docker-compose
   - cosign
   - nftables
@@ -154,6 +157,10 @@ write_files:
       # shellcheck source=snb-common.sh
       . /usr/local/lib/snb/common.sh
       [ -s "$SNB_ENV" ] || { snb_log "אין עדיין מפתחות — להריץ snb-setup"; exit 0; }
+      # כלי חסר = הודעה ביומן (journalctl -t snb), לא כישלון שקט באמצע set -e
+      for c in docker cosign; do
+      	command -v "$c" >/dev/null 2>&1 || { snb_log "✗ חסר הכלי $c — apt-get install -y docker-cli cosign"; exit 1; }
+      done
       if snb_busy && [ "${1:-}" != "--now" ]; then snb_log "עבודה רצה — העדכון יחכה לסיומה"; exit 0; fi
       docker pull -q "$SNB_IMG:prod" >/dev/null
       REF=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$SNB_IMG:prod" | grep "^$SNB_IMG@sha256:" | head -n1)
@@ -217,12 +224,14 @@ write_files:
       [ "$(id -u)" = 0 ] || { echo "Run as root"; exit 1; }
       umask 077
       mkdir -p /etc/snb
+      # השאלה והמעבר לשורה — ל־stderr (המסך): הפונקציה רצה בתוך $(...), ו־stdout שלה הוא הערך בלבד.
+      # לקח 09/10/2026: השאלה נבלעה במשתנה — המסך נשאר ריק, והמפתח נפסל כי התחיל בטקסט השאלה.
       ask_secret() {
-      	printf '%s\n> ' "$1"
+      	printf '%s\n> ' "$1" >&2
       	stty -echo 2>/dev/null || true
       	IFS= read -r v
       	stty echo 2>/dev/null || true
-      	echo
+      	echo >&2
       	printf '%s' "$v"
       }
       AK=$(ask_secret "Anthropic API key (starts with sk-ant-; hidden):")
