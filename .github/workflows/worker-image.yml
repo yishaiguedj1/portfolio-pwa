@@ -79,6 +79,9 @@ jobs:
           set -eu
           echo "$GH_TOKEN" | cosign login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           cosign sign --yes "$IMAGE@$DIGEST"
+          # גם בפורמט הישן (תג ‎.sig): בשרת cosign 2.5 של Debian 13, שלא מוצא את הפורמט החדש של cosign 3
+          # ("no signatures found" — נבדק על התמונה הראשונה). שתי החתימות מאותה זהות; cosign 3 מאמת כל אחת מהן.
+          cosign sign --yes --new-bundle-format=false --use-signing-config=false "$IMAGE@$DIGEST"
 
   promote:
     # פרודקשן = רק באישור שלך (Environment "production" עם Required reviewers). השרת מושך את prod בתוך רבע שעה.
