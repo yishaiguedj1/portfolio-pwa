@@ -742,7 +742,7 @@ class TestWorker(unittest.TestCase):
         ])
         write(sess / 'subagents' / 'agent-c3.jsonl', [
             {'type': 'user', 'message': {'content': 'חפש משהו'}},
-            asst('msg_H1', 'claude-haiku-5-5', 1, 1, 0, 1000, 0),
+            asst('msg_H1', 'claude-mystery-9', 1, 1, 0, 1000, 0),
         ])
         return self.tmp / 'projects'
 
@@ -754,7 +754,7 @@ class TestWorker(unittest.TestCase):
         main, tl, rv, sub = rows
         # הסשן הראשי: msg_A פעם אחת (לא שלוש), msg_B, בלי <synthetic> ובלי השורה השבורה
         self.assertEqual((main['n'], main['i'], main['o'], main['cr'], main['c5'], main['c1']), (2, 12, 150, 20000, 0, 21000))
-        self.assertAlmostEqual(main['usd'], (12 * 2 + 150 * 10 + 20000 * 0.2 + 21000 * 2 * 2) / 1e6, places=4)
+        self.assertAlmostEqual(main['usd'], (12 * 2 + 150 * 10 + 20000 * 0.1 + 21000 * 2 * 2) / 1e6, places=4)
         self.assertNotIn('op', main, 'לסשן הראשי אין "עלות פתיחה"')
         # התרגום: לפי TRANSLATE.md בהנחיה הראשונה; msg_T1 פעם אחת
         self.assertEqual((tl['m'], tl['n'], tl['o'], tl['c5'], tl['cr']), ('claude-opus-5-5', 2, 5000, 125000, 120000))
@@ -764,10 +764,12 @@ class TestWorker(unittest.TestCase):
         self.assertEqual((rv['m'], rv['op']), ('claude-sonnet-5-5', 100000))
         self.assertAlmostEqual(rv['oc'], 100000 * 2 * 1.25 / 1e6, places=4)
         # מודל לא מוכר — בלי מחיר
-        self.assertEqual((sub['m'], sub['usd'], sub['oc'], sub['op']), ('claude-haiku-5-5', None, None, 1000))
+        self.assertEqual((sub['m'], sub['usd'], sub['oc'], sub['op']), ('claude-mystery-9', None, None, 1000))
         self.assertEqual(J.usage(self.tmp / 'nothing'), [])
         self.assertIsNone(J.price_of('gpt-4o'))
         self.assertEqual(J.price_of('claude-opus-5-5[1m]'), J.PRICES['claude-opus-5-5'])
+        self.assertEqual(J.PRICES['claude-sonnet-5-5'][2], 0.10, 'Sonnet 5.5: קריאה מהמטמון = 0.05× מהקלט')
+        self.assertEqual(J.PRICES['claude-haiku-5-5'], (0.10, 0.50, 0.01))
 
     def test_usage_merge_max6(self):
         sys.path.insert(0, str(HERE))

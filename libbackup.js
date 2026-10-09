@@ -124,20 +124,31 @@ export function createBackup(env) {
     return tok.at;
   }
 
+  /* אקראיות קריפטוגרפית (לא Math.random) — ל־state ול־PKCE */
+  const b64u = (bytes) => { let s = ''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  const rand = (n) => b64u(globalThis.crypto.getRandomValues(new Uint8Array(n)));
+  async function pkce() {
+    const verifier = rand(48);                                                     // 64 תווים
+    const dig = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+    return { verifier, challenge: b64u(dig) };
+  }
   /* חלון ההסכמה של Google — נפתח בתוך הלחיצה (לפני כל await, אחרת הדפדפן חוסם), והקוד חוזר מ־oauth.html */
   function connect(hint) {
     const w = E.openWindow ? E.openWindow() : null;
     return (async () => {
       const cf = await config();
       if (!cf.configured) { if (w) try { w.close(); } catch (e) {} const e = new Error('gd_not_configured'); e.code = 'gd_not_configured'; throw e; }
-      const state = Math.random().toString(36).slice(2) + E.now().toString(36);
+      // PKCE (RFC 7636): סוד חד־פעמי שנשאר בטלפון. Google מחזיר קוד רק למי שמראה אותו — קוד שיורט בדרך לא שווה כלום
+      const { verifier, challenge } = await pkce();
+      const state = rand(18);
       const redirect = E.redirectUri();
       const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + [['client_id', cf.clientId], ['redirect_uri', redirect], ['response_type', 'code'], ['scope', SCOPES],
-        ['access_type', 'offline'], ['prompt', 'consent'], ['include_granted_scopes', 'true'], ['state', state]].concat(hint ? [['login_hint', hint]] : [])
+        ['access_type', 'offline'], ['prompt', 'consent'], ['include_granted_scopes', 'true'], ['state', state],
+        ['code_challenge', challenge], ['code_challenge_method', 'S256']].concat(hint ? [['login_hint', hint]] : [])
         .map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
       const got = await E.waitCode(w, url, state);       // { code } | { error }
       if (!got || !got.code) { const e = new Error(got && got.error === 'access_denied' ? 'gd_denied' : got && got.error === 'popup_blocked' ? 'gd_popup' : 'gd_cancel'); e.code = e.message; throw e; }
-      const j = await api({ op: 'gdConnect', code: got.code, redirect });
+      const j = await api({ op: 'gdConnect', code: got.code, redirect, verifier });
       if (!j.ok) { const e = new Error(j.error || 'gd_connect'); e.code = j.error; throw e; }
       tok = { at: j.access_token, exp: E.now() + (j.expires_in || 3600) * 1000, email: j.email };
       saveSettings({ email: j.email || '?' });

@@ -1,0 +1,28 @@
+# עדכוני גרסאות אוטומטיים (Dependabot) — כל שבוע, PR אחד לכל קבוצה. כלום לא נכנס לבד: כל עדכון הוא PR
+# שעובר את כל הבדיקות ומחכה למיזוג שלך. עדכוני אבטחה (Dependabot security updates) מגיעים מיד, בלי לחכות לשבוע.
+version: 2
+updates:
+  # הכלים של GitHub Actions — נעולים ל־SHA; Dependabot מעדכן גם את ה־SHA וגם את ההערה עם הגרסה
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: sunday, time: "06:00", timezone: Asia/Jerusalem }
+    groups:
+      actions: { patterns: ["*"] }
+    commit-message: { prefix: "עדכון כלים" }
+  # תמונת הבסיס של קופסת העובד (python:3.12-slim-trixie@sha256) — עדכוני אבטחה של Debian ו־Python
+  - package-ecosystem: docker
+    directory: /infra/worker
+    schedule: { interval: weekly, day: sunday, time: "06:00", timezone: Asia/Jerusalem }
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]   # רק תיקונים בתוך 3.12 — מעבר גרסה = החלטה
+    commit-message: { prefix: "עדכון בסיס העובד" }
+  # אפליקציית האנדרואיד (Gradle) — רק עדכוני אבטחה ותיקונים, לא גרסאות ראשיות
+  - package-ecosystem: gradle
+    directory: /android
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    commit-message: { prefix: "עדכון אנדרואיד" }

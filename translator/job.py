@@ -173,7 +173,8 @@ def run(args):
                     'fm': 'auto' if job.get('fm') == 'auto' else 'suggest',               # v366: מסלול התיקונים של המשתמש
                     'rl': rules_valid(job.get('rl')),                                     # v367: החוקים שלך (תקציב, אישור לפני צריבה)
                     'bx': _int(job.get('bx')), 'u0': _usd(job.get('u0')),                 # v367: אישורים מעבר לתקציב, ומה שכבר עלה
-                    'ls': ls})
+                    'ls': ls,
+                    'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
             try:
                 (STATE.parent / old).unlink()
@@ -208,9 +209,12 @@ def run(args):
 # ---------------------------------------------------------------- עלות וטוקנים (v359)
 PROJECTS = Path(os.environ.get('SNB_CLAUDE_PROJECTS', str(Path.home() / '.claude' / 'projects')))
 # דולר למיליון טוקנים: קלט, פלט, קריאה מהמטמון. כתיבה למטמון = פי 1.25 מהקלט (5 דק׳) / פי 2 (שעה)
+# המחירון הרשמי (platform.claude.com/docs/en/about-claude/pricing, נבדק 08/10/2026): ב־Opus 5.5 וב־Sonnet 5.5
+# קריאה מהמטמון = פי 0.05 מהקלט (לא פי 0.1). Haiku 5.5 — המחיר לבקשה עד 100K טוקנים (מעל: 0.50/2.50/0.05).
 PRICES = {
     'claude-opus-5-5': (4.0, 20.0, 0.20),
-    'claude-sonnet-5-5': (2.0, 10.0, 0.20),
+    'claude-sonnet-5-5': (2.0, 10.0, 0.10),
+    'claude-haiku-5-5': (0.10, 0.50, 0.01),
     'claude-haiku-4-5': (1.0, 5.0, 0.10),
 }
 USE_KINDS = ('main', 'tl', 'rv', 'sub')       # תיאום (הסשן הראשי) · תרגום · ביקורת · סוכן־משנה אחר
@@ -362,7 +366,14 @@ def usage(root=None):
 
 
 def usage_safe():
-    """לדיווח האחרון: תקלה בקריאת היומנים לא מפילה את סוף העבודה. אין יומנים → None (לא נשלח)."""
+    """לדיווח האחרון: תקלה בקריאת היומנים לא מפילה את סוף העבודה. אין יומנים → None (לא נשלח).
+    מצב API (pipeline): העלות האמיתית מה־ledger של המנוע, שנשמר במצב העבודה (api_usage) — לא יומני סשן."""
+    try:
+        api = (load_state() or {}).get('api_usage') if STATE.exists() else None
+        if isinstance(api, list) and api:
+            return api[:USE_MAX]
+    except (SystemExit, Exception):      # noqa: BLE001 — מידע משני
+        pass
     try:
         return usage() or None
     except Exception:            # noqa: BLE001 — מידע משני
@@ -894,23 +905,21 @@ def stage(args):
     return 0
 
 
-@guarded
-def ask(args):
-    """שלב 3 סבב ד׳: שאלה קצרה למשתמש באמצע העבודה. מופיעה בטלפון בדף העבודה; מחכים לתשובה עד --wait שניות,
-    ואם לא ענו — ממשיכים עם ברירת המחדל (והטלפון מראה שהמשכנו). השורה האחרונה בפלט היא מה שהסשן ממשיך איתו:
-    "תשובה: …" / "ברירת מחדל: …" / "אין תשובה — להחליט לבד"."""
-    ctx = Ctx(load_state())
-    opts = [o.strip() for o in (args.opt or []) if o and o.strip()][:4]
-    d = args.default if opts and 0 <= args.default < len(opts) else (0 if opts else -1)
-    wait = max(60, min(1800, int(args.wait)))
+def ask_user(ctx, q, opts, default=0, wait=480):
+    """שאלה קצרה למשתמש: מופיעה בטלפון, מחכים לתשובה עד wait שניות.
+    מחזיר (טקסט, איך): ('…', 'answer') / ('…', 'default') / ('', 'none' — להחליט לבד).
+    משמש גם את job.py ask (סשן ה־Routine) וגם את pipeline (מצב API)."""
+    opts = [o.strip() for o in (opts or []) if o and o.strip()][:4]
+    d = default if opts and 0 <= default < len(opts) else (0 if opts else -1)
+    fallback = ('', 'none') if d < 0 else (opts[d], 'default')
+    wait = max(60, min(1800, int(wait)))
     qid = 'q' + format(int(time.time() * 1000) % (36 ** 8), 'x')[-12:]
     try:
-        ctx.report(ask={'id': qid, 'q': args.q, 'o': opts, 'd': d, 'w': wait}, force=True)
+        ctx.report(ask={'id': qid, 'q': q, 'o': opts, 'd': d, 'w': wait}, force=True)
     except SystemExit as e:
         if 'ask_limit' in str(e):
             print('· כבר נשאלו מספיק שאלות בעבודה הזו — להחליט לבד.')
-            print('אין תשובה — להחליט לבד' if d < 0 else 'ברירת מחדל: ' + opts[d])
-            return 0
+            return fallback
         raise
     print('השאלה נשלחה לטלפון — מחכה לתשובה עד %d דק׳.' % round(wait / 60))
     poll = float(os.environ.get('SNB_ASK_POLL', '10'))
@@ -922,14 +931,22 @@ def ask(args):
             break                                     # שאלה אחרת החליפה אותה — לא אמור לקרות
         a = qa.get('a')
         if a:
-            print('תשובה: ' + str(a.get('t') or ''))
-            return 0
+            return str(a.get('t') or ''), 'answer'
     try:
         ctx.report(askTimeout=qid, force=True)
     except SystemExit:
         pass
     print('· לא ענו בזמן.')
-    print('אין תשובה — להחליט לבד' if d < 0 else 'ברירת מחדל: ' + opts[d])
+    return fallback
+
+
+@guarded
+def ask(args):
+    """שלב 3 סבב ד׳: שאלה קצרה למשתמש באמצע העבודה. השורה האחרונה בפלט היא מה שהסשן ממשיך איתו:
+    "תשובה: …" / "ברירת מחדל: …" / "אין תשובה — להחליט לבד"."""
+    ctx = Ctx(load_state())
+    text, how = ask_user(ctx, args.q, args.opt, args.default, args.wait)
+    print({'answer': 'תשובה: ', 'default': 'ברירת מחדל: '}.get(how, '') + text if how != 'none' else 'אין תשובה — להחליט לבד')
     return 0
 
 
@@ -1066,6 +1083,26 @@ def fix(args):
         # v366: מסלול "הצעות לאישור" — בעבודה הזו פועלים לפי התיקון; לעבודות הבאות הוא ייכנס רק אחרי שהמשתמש יאשר
         print('✓ התיקון נשלח למשתמש כהצעה. בעבודה הזו פעל לפיו; לעבודות הבאות הוא ייכנס רק אחרי שהמשתמש יאשר.')
     return 0
+
+
+def auto(args):
+    """מצב "API של המערכת": מנהל העבודה הוא סקריפט (pipeline.py), והמודל מקבל רק את עבודת השפה."""
+    import pipeline
+    try:
+        return pipeline.run_auto(sys.modules[__name__], args)
+    except Stop as e:
+        print('■ השרתון ביקש לעצור (' + str(e) + ').')
+        return 2
+    except SystemExit as e:              # כשל בשלב של הכלים (הורדה, vt, Drive) — מדווחים לטלפון במקום להיעלם בשקט
+        msg = str(e.code if e.code is not None else '')
+        if msg in ('', '0', '1', '2'):
+            raise
+        try:
+            Ctx(load_state()).report(fail=True, err='worker_step', msg=msg[:200], force=True, usage=usage_safe())
+        except (Stop, SystemExit, Exception):     # noqa: BLE001
+            pass
+        print(msg)
+        return 1
 
 
 def vt_cmd(args):
@@ -1333,12 +1370,13 @@ def main(argv=None):
     sub.add_parser('gate', help='מגדל הפיקוח עצר בתקציב — מחכים לתשובה שלך בטלפון')
     x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
     x.add_argument('--text', required=True)
+    sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
     a = p.parse_args(argv)
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
-                'save': save, 'restore': restore, 'fix': fix, 'gate': gate_cmd}[a.cmd](a)
+                'save': save, 'restore': restore, 'fix': fix, 'gate': gate_cmd, 'auto': auto}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1

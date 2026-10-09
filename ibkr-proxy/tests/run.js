@@ -514,6 +514,12 @@ function stubFetch(text, status = 200) {
     setFetch((u) => (u.includes('gemini-3.5-flash-lite') ? okGem('חפير עמוק') : u.includes('googleapis') ? okGem('חפיר') : mm('x')));
     r = await run({ text: 'moat', context: 'wide moat' });
     ok(r.payload.translation === 'חפיר' && r.payload.diag['gemini-3.5-flash-lite:err'] === 'mixed_script', 'translate: עברית עם אותיות ערביות ("חפير" — נמצא חי) נפסלת');
+    ok(!('gemini-3.5-flash-lite:txt' in r.payload.diag), 'translate: האבחון בתשובה בלי קטעים מהפלט של המודל');
+    {
+      const pd = require('../api/translate')._publicDiag({ key: true, 'm': 404, 'm:err': 'Model not found: <b>x</b> secret', 'm:ex': 'boom', 'm:txt': 'out', 'm:tok': [1, 2, 3], 'n:err': 'mixed_script' });
+      ok(pd.key === true && pd.m === 404 && !('m:err' in pd) && !('m:ex' in pd) && !('m:txt' in pd) && pd['m:tok'].join() === '1,2,3' && pd['n:err'] === 'mixed_script',
+        'translate: האבחון הציבורי — רק קודים ומספרים, בלי הודעות חופשיות של הספקים');
+    }
     translate._cache.clear(); calls.length = 0;
     setFetch((u) => (u.includes('googleapis') ? okGem('חפير כלכלי') : mm('בסיסי')));
     r = await run({ text: 'moat', context: 'durable moat' });
@@ -943,6 +949,30 @@ function stubFetch(text, status = 200) {
     const redir = async (u) => ({ status: 200, url: 'https://evil.example.com/a.jpg', headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array(5000).buffer });
     await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: redir });
     ok(res.statusCode === 400, 'כריכה שהופנתה למארח לא מאושר — נחסמת');
+    // SSRF: הפניה לכתובת פנימית — נבדקת לפני שפונים אליה (השרתון לא מבקש אותה בכלל)
+    const asked = [];
+    const hops = async (u, opt) => {
+      asked.push(u);
+      if (opt.redirect !== 'manual') throw new Error('follow');
+      if (u.includes('openlibrary')) return { status: 302, url: u, headers: { get: (k) => (k === 'location' ? 'http://169.254.169.254/latest/meta-data' : null) } };
+      return { status: 200, url: u, headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array(5000).buffer };
+    };
+    res = mockRes();
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: hops });
+    ok(res.statusCode === 400 && res.payload.error === 'bad_redirect' && asked.length === 1, 'כריכה: הפניה לכתובת פנימית נחסמת לפני הבקשה (בלי SSRF)');
+    const asked2 = [];
+    const okHops = async (u) => {
+      asked2.push(u);
+      if (u.includes('openlibrary')) return { status: 302, url: u, headers: { get: (k) => (k === 'location' ? 'https://archive.org/download/x/x.jpg' : null) } };
+      return { status: 200, url: u, headers: { get: (k) => (k === 'content-type' ? 'image/jpeg' : null) }, arrayBuffer: async () => new Uint8Array(5000).buffer };
+    };
+    res = mockRes();
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: okHops });
+    ok(res.statusCode === 200 && asked2.length === 2 && asked2[1] === 'https://archive.org/download/x/x.jpg', 'כריכה: הפניה למארח מאושר (Open Library → archive.org) — עובדת');
+    let loops = 0;
+    res = mockRes();
+    await api(mockReq({ body: { op: 'cover', url: 'https://covers.openlibrary.org/b/id/42-L.jpg' } }), res, { fetch: async (u) => { loops++; return { status: 302, url: u, headers: { get: (k) => (k === 'location' ? '/b/again.jpg' : null) } }; } });
+    ok(res.statusCode === 502 && res.payload.error === 'cover_redirects' && loops === 4, 'כריכה: לולאת הפניות — עוצרים אחרי 3');
     res = mockRes();
     await api(mockReq({ body: { op: 'search', title: 'x' }, headers: { origin: 'https://evil.example.com' } }), res, { fetch: fake });
     ok(res.statusCode === 403, 'פרטי ספר: Origin לא מאושר — נחסם');
@@ -1188,10 +1218,11 @@ function stubFetch(text, status = 200) {
         return f ? J(f) : J({}, 404);
       }
       if (url.endsWith('/documents:runQuery')) {
-        const q = JSON.parse(opt.body).structuredQuery;
-        const uid = q.where.fieldFilter.value.stringValue;
-        return J([...db.entries()].filter(([k, v]) => k.startsWith('studioJobs/') && v.fields.uid && v.fields.uid.stringValue === uid)
-          .map(([k, v]) => ({ document: { name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields } })).concat([{ readTime: 'x' }]));
+        // שוויונות בלבד (אחד או AND), כמו בשרתון
+        const q = JSON.parse(opt.body).structuredQuery, w = q.where, col = q.from[0].collectionId;
+        const fl = !w ? [] : w.fieldFilter ? [w.fieldFilter] : w.compositeFilter.filters.map((f) => f.fieldFilter);
+        return J([...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue))
+          .map(([k, v]) => ({ document: { name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields, updateTime: v.ut || 't0' } })).concat([{ readTime: 'x' }]));
       }
       const m = url.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)(?:\?(.*))?$/);
       if (!m) return J({}, 404);
@@ -1199,13 +1230,16 @@ function stubFetch(text, status = 200) {
       if (opt.method === 'GET') return cur ? J({ fields: cur.fields }) : J({}, 404);
       if (opt.method === 'DELETE') { db.delete(k); return J({}); }
       if (opt.method === 'PATCH') {
-        const mask = new URLSearchParams(m[3] || '').getAll('updateMask.fieldPaths');
+        const qp = new URLSearchParams(m[3] || '');
+        const mask = qp.getAll('updateMask.fieldPaths'), pre = qp.get('currentDocument.updateTime');
+        if (pre && (!cur || (cur.ut || 't0') !== pre)) return J({ error: { status: 'FAILED_PRECONDITION' } }, 400);   // מישהו אחר כתב בינתיים
         const body = JSON.parse(opt.body).fields;
         const fields = mask.length ? Object.assign({}, cur ? cur.fields : {}, ...mask.map((f) => ({ [f]: body[f] }))) : body;
-        db.set(k, { fields }); return J({ fields });
+        db.set(k, { fields, ut: 't' + (++utSeq) }); return J({ fields });
       }
       return J({}, 400);
     };
+    let utSeq = 0;
     db.set('driveVault/ownerUid0001', { fields: { r: { stringValue: vault.seal({ rt: 'RT-1', email: 'drive.owner@example.com' }, 'gdrive|ownerUid0001|r') } } });
     const deps = () => ({ verify: { keys }, fetch: fake, now });
     const payloads = [];
@@ -1249,6 +1283,14 @@ function stubFetch(text, status = 200) {
     ok(r.payload.ok && r.payload.email === 'drive.owner@example.com' && !('refresh_token' in r.payload) && sd && !JSON.stringify(sd).includes('SRT-1')
       && vault.open(sd.fields.r.stringValue, 'sdrive|ownerUid0001|r').rt === 'SRT-1' && vault.open(sd.fields.r.stringValue, 'gdrive|ownerUid0001|r') === null
       && JSON.stringify(db.get('driveVault/ownerUid0001')) === lib0, 'סטודיו: חיבור Drive — נשמר מוצפן ב־studioDrive (AAD משלו), בלי לגעת בחיבור של הספרייה ובלי להחזיר את ההרשאה הקבועה');
+    // שלב 4: PKCE — ה־verifier מהטלפון עובר להחלפת הקוד מול Google; verifier לא תקין — נדחה בלי לפנות ל־Google
+    const VER = 'v'.repeat(20) + '-._~' + 'A'.repeat(40);
+    r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: VER });
+    const tkBody = new URLSearchParams(calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).pop().body);
+    ok(r.payload.ok && tkBody.get('code_verifier') === VER && tkBody.get('code') === 'SCODE', 'PKCE: ה־verifier עובר ל־Google בהחלפת הקוד');
+    const nTok = calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length;
+    r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: 'short&bad' });
+    ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
     ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור ולתרגם');
 
@@ -1977,6 +2019,80 @@ function stubFetch(text, status = 200) {
     let big = []; for (let i = 0; i < 200; i++) big = O.opsApply(big, [{ c: 'vt', k: 'asr' }], 'j' + ('0000000000000000000' + i).slice(-20), i) || big;
     ok(big.length === O.AL_MAX, 'סטודיו: מגדל 2.0 — עד 150 התראות');
     studio._reset();   // הבלוק הזה שלח הרבה בקשות — מאפסים את מגבלת הקצב בזיכרון לפני הבדיקות הבאות
+
+    // ---- מצב "API של המערכת": השרת שלנו מושך עבודות (בלי Routine, בלי פורט פתוח) ----
+    process.env.STUDIO_API_USER_MONTH_USD = '12';
+    const srvRun = async (body, token) => { const x = mockRes(); await studio._handler({ method: 'POST', headers: token ? { authorization: 'Bearer ' + token } : {}, body }, x, deps()); payloads.push(JSON.stringify(x.payload)); return x; };
+    rr = await run({ op: 'srvCreate', idToken: FRIEND, name: 'x' });
+    ok(rr.statusCode === 403 && rr.payload.error === 'not_admin', 'מצב API: רק המנהל מוסיף שרתים');
+    rr = await run({ op: 'srvCreate', idToken: OWNER, name: 'Hetzner <b>1</b>' });
+    const STOK = rr.payload.token, SID = rr.payload.server.id;
+    ok(rr.payload.ok && /^[a-z0-9]{12}-[A-Za-z0-9_-]{43}$/.test(STOK) && rr.payload.server.name === 'Hetzner b1b' && !JSON.stringify(db.get('studioServers/' + SID)).includes(STOK.slice(13)),
+      'מצב API: טוקן שרת — מוצג פעם אחת; בשרתון רק ה־hash; שם מנוקה');
+    rr = await srvRun({ op: 'poll', hb: {} });
+    ok(rr.statusCode === 401, 'מצב API: שאילתה בלי טוקן — 401');
+    rr = await srvRun({ op: 'poll', hb: {} }, SID + '-' + 'A'.repeat(43));
+    ok(rr.statusCode === 401 && rr.payload.stop, 'מצב API: טוקן מזויף עם מזהה אמיתי — 401');
+    rr = await srvRun({ op: 'poll', hb: { v: 'abc1234', disk: 41.26, mem: 'x', busy: '../x', evil: '<b>' } }, STOK);
+    const sdoc1 = db.get('studioServers/' + SID);
+    ok(rr.payload.ok && rr.payload.job === null && +sdoc1.fields.seen.integerValue === now && !JSON.stringify(sdoc1).includes('evil') && JSON.parse(sdoc1.fields.hb.stringValue).disk === 41.3,
+      'מצב API: שאילתה בלי עבודות — "אין"; הדופק נשמר (רק מספרים וגרסה)');
+    const SPECA = Object.assign({}, SPEC, { eng: 'api', cap: 20 });
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+    const JA = rr.payload.job.id;
+    ok(rr.payload.job.spec.eng === 'api' && rr.payload.job.spec.cap === 20 && rr.payload.job.eng === 'api', 'מצב API: עבודה במצב API עם תקרה לעבודה');
+    await run({ op: 'file', idToken: OWNER, job: JA, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    const fires0 = fires.length;
+    const vsave = db.get('studioVault/ownerUid0001');
+    await run({ op: 'disconnect', idToken: OWNER });
+    rr = await run({ op: 'start', idToken: OWNER, job: JA });
+    ok(rr.payload.ok && rr.payload.job.state === 'queued' && fires.length === fires0 && !db.get('studioJobs/' + JA).fields.kh.stringValue,
+      'מצב API: התחלה = תור לשרת — בלי Routine, בלי חיבור ל־Claude, ועוד בלי מפתח עבודה');
+    db.set('studioVault/ownerUid0001', vsave);   // החיבור ל־Routine חוזר — הבדיקות הבאות של מצב המנוי צריכות אותו
+    rr = await run({ op: 'srvPause', idToken: OWNER, sid: SID, paused: true });
+    rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+    ok(rr.payload.ok && rr.payload.job === null && rr.payload.paused === true, 'מצב API: שרת מושהה לא מקבל עבודות');
+    await run({ op: 'srvPause', idToken: OWNER, sid: SID, paused: false });
+    rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+    const KA = rr.payload.job && rr.payload.job.key;
+    ok(rr.payload.job && rr.payload.job.id === JA && S.KEY_RE.test(KA) && db.get('studioJobs/' + JA).fields.sid.stringValue === SID, 'מצב API: השרת לוקח את העבודה ומקבל מפתח עבודה חדש');
+    rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+    ok(rr.payload.job === null, 'מצב API: עבודה שנלקחה לא ניתנת שוב (גם לא לשרת אחר)');
+    rr = await wrk({ op: 'claim', job: JA, key: KA });
+    ok(rr.payload.ok && rr.payload.job.cap === 12, 'מצב API: העובד מקבל את תקרת העבודה — לא יותר ממה שנשאר החודש (12, לא 20)');
+    rr = await run({ op: 'srvList', idToken: OWNER });
+    ok(rr.payload.ok && rr.payload.servers.length === 1 && rr.payload.servers[0].online && rr.payload.servers[0].job.id === JA && rr.payload.servers[0].job.name === SPEC.name,
+      'מצב API: מסך השרת — מחובר, ואיזו עבודה רצה עליו');
+    const USEA = [{ k: 'tl', m: 'claude-opus-5-5', n: 3, i: 100, o: 100, cr: 0, c5: 0, c1: 0, usd: 4.5 }];
+    await wrk({ op: 'report', job: JA, key: KA, st: 'tl', p: 0.5, usage: USEA });
+    await wrk({ op: 'report', job: JA, key: KA, done: true, usage: [Object.assign({}, USEA[0], { usd: 7.25 })] });
+    rr = await run({ op: 'status', idToken: OWNER });
+    ok(rr.payload.api.month === 7.25 && rr.payload.api.cap === 12 && rr.payload.api.admin === true && rr.payload.api.online === 1,
+      'מצב API: התקציב החודשי = העלות שדווחה, בלי לספור פעמיים (דיווח מצטבר)');
+    rr = await run({ op: 'status', idToken: FRIEND });
+    ok(rr.payload.api.month === 0 && rr.payload.api.admin === false && !('servers' in rr.payload) || rr.payload.api.admin === false, 'מצב API: כל משתמש — תקציב משלו; לא מנהל');
+    rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+    const JB = rr.payload.job.id;
+    await run({ op: 'file', idToken: OWNER, job: JB, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+    db.get('studioStats/ownerUid0001').fields.mu = { stringValue: JSON.stringify({ m: S.monthKey(now), usd: 11.5 }) };
+    rr = await run({ op: 'start', idToken: OWNER, job: JB });
+    ok(!rr.payload.ok && rr.payload.error === 'month_cap' && rr.payload.job.state === 'new', 'מצב API: נשאר פחות מדולר החודש — לא מתחילים');
+    db.get('studioStats/ownerUid0001').fields.mu = { stringValue: JSON.stringify({ m: '2026-09', usd: 99 }) };
+    rr = await run({ op: 'start', idToken: OWNER, job: JB });
+    ok(rr.payload.ok && rr.payload.job.state === 'queued', 'מצב API: חודש חדש — התקציב מתאפס');
+    now += S.API_QUEUE_WAIT + 1;
+    rr = await run({ op: 'job', idToken: OWNER, job: JB });
+    ok(rr.payload.job.state === 'failed' && rr.payload.job.err === 'no_server', 'מצב API: אף שרת לא לקח את העבודה תוך 6 שעות — "אין שרת זמין"');
+    await run({ op: 'cancel', idToken: OWNER, job: JB });
+    rr = await run({ op: 'srvList', idToken: OWNER });
+    ok(rr.payload.servers[0].online === false, 'מצב API: שרת שלא שאל 12 דק׳ — לא מחובר');
+    rr = await run({ op: 'srvRemove', idToken: OWNER, sid: SID });
+    rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+    ok(rr.statusCode === 401 && rr.payload.stop, 'מצב API: שרת שהוסר — הטוקן מת מיד');
+    ok(S.normSpec(SPEC).eng === undefined && S.normCap(1e9) === 100 && S.normCap(0) === 10 && S.jobCap({ cap: 5 }, 0, 30) === 5,
+      'מצב API: עבודה רגילה לא משתנה (המנוי); התקרה לעבודה 1–100 (ברירת מחדל 10)');
+    delete process.env.STUDIO_API_USER_MONTH_USD;
+    studio._reset();
 
     // הפעלה שאף סשן לא לקח
     r = await run({ op: 'create', idToken: OWNER, spec: SPEC });

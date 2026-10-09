@@ -1,0 +1,6 @@
+// עדכוני אבטחה אוטומטיים כל יום (unattended-upgrades, מקורות האבטחה של Debian).
+// אתחול אחרי עדכון ליבה — לא כאן (היה קוטע תרגום באמצע), אלא ב־snb-maint, רק כשאין עבודה.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+Unattended-Upgrade::Automatic-Reboot "false";

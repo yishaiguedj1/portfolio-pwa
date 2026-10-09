@@ -1,0 +1,108 @@
+# קופסת העובד של שרת התרגום (infra/worker/Dockerfile) — בנייה, חתימה וקידום לפרודקשן.
+#
+# "לפי הספר":
+#   • בונים פעם אחת. אותה תמונה (אותו digest) עוברת מ"פיתוח" ל"פרודקשן" — לא בונים מחדש לפרודקשן.
+#   • כל תמונה נחתמת בלי מפתח (Sigstore, זהות ה־workflow הזה מהענף הראשי). השרת מסרב לתמונה בלי החתימה הזו.
+#   • פרודקשן (תג prod) רק אחרי אישור אדם: GitHub Environment בשם "production" עם Required reviewers
+#     (הגדרה חד־פעמית בריפו — infra/README.md). השרת מושך רק את prod.
+#   • כל ה־actions נעולים ל־SHA; ההרשאות מינימליות ולכל job בנפרד.
+name: worker-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'translator/**'
+      - 'infra/worker/**'
+      - '.github/workflows/worker-image.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: worker-image
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/yishaiguedj1/snb-worker
+  FFMPEG_ASSET: ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write     # דחיפה ל־GHCR
+      id-token: write     # חתימה בלי מפתח (Sigstore)
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: בדיקות העובד (שער — בלי ירוק אין תמונה)
+        run: |
+          python3 -m venv /tmp/vtv && /tmp/vtv/bin/pip install --quiet -r translator/vt-requirements.txt
+          cd translator && /tmp/vtv/bin/python -m unittest discover -s tests
+          cd .. && python3 infra/build-cloud-init.py --check
+      - name: ffmpeg — ה־sha256 של הגרסה הנוכחית
+        id: ff
+        run: |
+          set -eu
+          sum=$(curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256" | awk -v f="$FFMPEG_ASSET" '$2==f{print $1}')
+          echo "$sum" | grep -Eq '^[0-9a-f]{64}$'
+          echo "sha=$sum" >> "$GITHUB_OUTPUT"
+      - name: בנייה ודחיפה
+        id: push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FF_SHA: ${{ steps.ff.outputs.sha }}
+        run: |
+          set -eu
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx create --use --name snb >/dev/null     # הדרייבר הרגיל לא תומך ב־SBOM/provenance
+          tag="$IMAGE:sha-${GITHUB_SHA}"
+          docker buildx build --provenance=mode=max --sbom=true --push \
+            --build-arg FFMPEG_SHA256="$FF_SHA" --build-arg SNB_VERSION="$GITHUB_SHA" \
+            -f infra/worker/Dockerfile -t "$tag" -t "$IMAGE:dev" \
+            --metadata-file /tmp/meta.json .
+          digest=$(python3 -c "import json;print(json.load(open('/tmp/meta.json'))['containerimage.digest'])")
+          echo "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          docker logout ghcr.io
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: חתימה (בלי מפתח — זהות ה־workflow)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -eu
+          echo "$GH_TOKEN" | cosign login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          cosign sign --yes "$IMAGE@$DIGEST"
+
+  promote:
+    # פרודקשן = רק באישור שלך (Environment "production" עם Required reviewers). השרת מושך את prod בתוך רבע שעה.
+    needs: build
+    # מנעול: עד שהאישור מוגדר (Environment "production" עם Required reviewers), prod לא זז בכלל.
+    # אחרי ההגדרה: Settings ← Secrets and variables ← Actions ← Variables ← SNB_PROMOTE = on (infra/README.md)
+    if: vars.SNB_PROMOTE == 'on'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      packages: write
+    steps:
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: אימות החתימה וקידום ל־prod (אותו digest, בלי בנייה מחדש)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          set -eu
+          ref="$IMAGE@$DIGEST"
+          cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/yishaiguedj1/portfolio-pwa/\.github/workflows/worker-image\.yml@refs/heads/main$' \
+            "$ref" >/dev/null
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create -t "$IMAGE:prod" "$ref"
+          docker logout ghcr.io
+          echo "✓ prod = $ref" >> "$GITHUB_STEP_SUMMARY"

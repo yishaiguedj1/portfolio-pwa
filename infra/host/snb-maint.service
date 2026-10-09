@@ -1,0 +1,6 @@
+[Unit]
+Description=THE SNOWBALL — אתחול אחרי עדכון ליבה, רק כשאין עבודה
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/snb-maint

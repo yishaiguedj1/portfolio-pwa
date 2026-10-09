@@ -109,8 +109,15 @@ object WidgetStore {
 
     /** מהאפליקציה (snowball://widget?s=…&l=…[&w=…]). מחזיר true אם משהו השתנה. s ריק מותר כשיש רשימות מעקב (v249) */
     fun setItems(c: Context, s: String, l: String, w: String = ""): Boolean {
-        if (s.isNotEmpty() && !ITEMS_RE.matches(s)) return false
-        val wOk = w.isEmpty() || (w.length <= 30000 && !w.contains('<') && runCatching { org.json.JSONArray(w) }.isSuccess)
+        if (s.isNotEmpty() && (!ITEMS_RE.matches(s) || !WidgetValidate.items(s))) return false
+        // שלב 4: רשימות המעקב — כל רשימה בצורה המדויקת שהאפליקציה שולחת (WidgetValidate), לא רק JSON תקין
+        val wOk = w.isEmpty() || (w.length <= 30000 && !w.contains('<') && runCatching {
+            val a = org.json.JSONArray(w)
+            a.length() <= WidgetValidate.MAX_LISTS && (0 until a.length()).all { k ->
+                val o = a.getJSONObject(k)
+                WidgetValidate.list(o.optString("i"), o.optString("n"), o.optString("s"))
+            }
+        }.getOrDefault(false))
         if (!wOk || (s.isEmpty() && w.isEmpty())) return false
         val lang = if (l == "en") "en" else "he"
         if (s == items(c) && lang == lang(c) && w == watch(c)) return false

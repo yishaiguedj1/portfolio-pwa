@@ -211,13 +211,26 @@ module.exports = async (req, res) => {
   const quota = !out && (only === 'mistral' ? mq : only === 'gemini' ? gq : gq && (mq || !diag.mistralKey));
   if (!out) out = await basic(text, lang);
   if (!out) return res.status(502).json({ ok: false, error: 'translate_failed' });
-  const v = Object.assign({ ok: true, quota }, out, { diag });
+  const v = Object.assign({ ok: true, quota }, out, { diag: publicDiag(diag) });
   if (!only && out.engine === 'ai') await store.set('ctx', sk, { translation: out.translation, note: out.note || '', wiki: out.wiki || '', engine: 'ai', provider: out.provider, model: out.model });
   cache.set(key, v);
   if (cache.size > 500) cache.clear();
   return res.status(200).json(v);
 };
 
+/* האבחון בתשובה — רק קודים ומספרים (סטטוס לכל דגם, קוד שגיאה קצר, טוקנים, האם יש מפתח).
+   בלי הודעות שגיאה חופשיות של הספקים ובלי קטעים מהפלט של המודל — התשובה הזו מגיעה לכל מי שפונה */
+function publicDiag(d) {
+  const out = {};
+  for (const [k, v] of Object.entries(d || {})) {
+    if (/:(txt|ex)$/.test(k)) continue;
+    if (typeof v === 'boolean' || typeof v === 'number') out[k] = v;
+    else if (Array.isArray(v) && v.every((x) => typeof x === 'number')) out[k] = v.slice(0, 4);
+    else if (typeof v === 'string' && /^[a-z0-9_]{1,30}$/.test(v)) out[k] = v;
+  }
+  return out;
+}
+module.exports._publicDiag = publicDiag;
 module.exports._prompt = prompt;
 module.exports._deps = deps;
 module.exports._parseGt = parseGt;

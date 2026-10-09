@@ -158,7 +158,7 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
   ok(/tabIntent\(context, "stocks"\)/.test(kt) && /tabIntent\(context, "wishlist", sel\?\.id\)/.test(kt) && /"&tab=wishlist&wl=" \+ Uri\.encode/.test(kt), 'v250: לוגו התיק → מניות, לוגו המעקב → מעקב (הרשימה שבווידג׳ט), מניה ממעקב → מעקב');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-  ok(/const tab = get\('tab'\), wl = get\('wl'\), sym = normalizeSym\(get\('stock'\)\);/.test(app) && /watch \? wlItems\(\)\.some/.test(app), 'v250: האתר פותח את הטאב/הרשימה/המניה מהקישור (גם מניה שלא בתיק)');
+  ok(/const tab = get\('tab'\), wl = get\('wl'\), sym = normalizeSym\(get\('stock'\)\);/.test(app) && /\(watch \? wlItems\(\) : POSITIONS\)\.find\(\(w\) => w\.sym === sym\)/.test(app) && /openStockCard\(it\.sym, /.test(app), 'v250: האתר פותח את הטאב/הרשימה/המניה מהקישור (גם מניה שלא בתיק)');
 }
 // v251: מזהה שורה בווידג'ט המעקב כולל את הרשימה (בלי שורות "תקועות" מהרשימה הקודמת); קישור ישן → הרשימה שבה המניה באמת
 {

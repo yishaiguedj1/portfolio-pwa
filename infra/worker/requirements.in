@@ -1,0 +1,13 @@
+# הספריות של העובד בשרת (מצב "API של המערכת"). הקובץ הנעול עם ה־hash של כל חבילה: requirements.lock
+# (נוצר מהקובץ הזה — infra/README.md, "עדכון ספריות"). torch/torchaudio מאינדקס ה־CPU (בלי CUDA — גיגה־בייטים מיותרים).
+--extra-index-url https://download.pytorch.org/whl/cpu
+numpy
+soundfile
+pillow
+requests
+fonttools
+onnx-asr[cpu,hub]
+torch==2.11.0+cpu
+torchaudio==2.11.0+cpu
+qwen-asr
+anthropic

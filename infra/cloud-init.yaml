@@ -1,0 +1,343 @@
+#cloud-config
+# THE SNOWBALL — שרת התרגום (Debian 13). נוצר אוטומטית מ־infra/ ע״י infra/build-cloud-init.py — לא לערוך ביד.
+# אין כאן סודות. אחרי שהשרת עולה: הקונסולה של Hetzner → root → snb-setup.
+package_update: true
+package_upgrade: true
+packages:
+  - docker.io
+  - docker-compose
+  - cosign
+  - nftables
+  - unattended-upgrades
+  - apt-listchanges
+ssh_pwauth: false
+write_files:
+  - path: /etc/nftables.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      #!/usr/sbin/nft -f
+      # חומת האש של השרת (THE SNOWBALL). נטענת באתחול (nftables.service), לפני Docker.
+      # בלי "flush ruleset" — כך טעינה מחדש לא מוחקת את הכללים ש־Docker מוסיף לעצמו; רק הטבלה שלנו מוחלפת.
+      #   • נכנס: הכל חסום — אין לשרת אף שירות פתוח (גם לא SSH). חוץ מתשובות לחיבורים שהשרת עצמו פתח.
+      #   • מהקונטיינרים: אסור לגשת לשירות המטא־דאטה של Hetzner (169.254.169.254) ולרשתות פנימיות —
+      #     גם אם קוד זדוני ירוץ בתוך העבודה, הוא לא יגיע לנתוני השרת או לרשת הפרטית.
+      table inet snb
+      delete table inet snb
+      table inet snb {
+      	chain input {
+      		type filter hook input priority 0; policy drop;
+      		iif "lo" accept
+      		ct state established,related accept
+      		ct state invalid drop
+      		meta l4proto ipv6-icmp icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+      		meta l4proto icmp icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
+      		icmp type echo-request limit rate 5/second accept
+      		udp sport 67 udp dport 68 accept
+      		# אופציונלי: SSH רק דרך Tailscale (רשת פרטית) — infra/README.md, "גישת ניהול"
+      		iifname "tailscale0" tcp dport 22 accept
+      	}
+      	chain forward {
+      		type filter hook forward priority -10; policy accept;
+      		ip daddr 169.254.0.0/16 drop
+      		ip daddr { 10.0.0.0/8, 100.64.0.0/10 } drop
+      	}
+      }
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    owner: root:root
+    content: |
+      {
+        "icc": false,
+        "no-new-privileges": true,
+        "live-restore": true,
+        "userland-proxy": false,
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "10m", "max-file": "3" }
+      }
+  - path: /etc/sysctl.d/90-snb.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # הקשחת ליבה (THE SNOWBALL)
+      kernel.kptr_restrict = 2
+      kernel.dmesg_restrict = 1
+      kernel.unprivileged_bpf_disabled = 1
+      net.core.bpf_jit_harden = 2
+      kernel.sysrq = 0
+      net.ipv4.conf.all.accept_redirects = 0
+      net.ipv4.conf.default.accept_redirects = 0
+      net.ipv4.conf.all.send_redirects = 0
+      net.ipv6.conf.all.accept_redirects = 0
+      net.ipv6.conf.default.accept_redirects = 0
+      net.ipv4.conf.all.rp_filter = 1
+      net.ipv4.conf.all.log_martians = 1
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: "0644"
+    owner: root:root
+    content: |
+      // עדכוני אבטחה אוטומטיים כל יום (unattended-upgrades, מקורות האבטחה של Debian).
+      // אתחול אחרי עדכון ליבה — לא כאן (היה קוטע תרגום באמצע), אלא ב־snb-maint, רק כשאין עבודה.
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+      Unattended-Upgrade::Automatic-Reboot "false";
+  - path: /etc/systemd/journald.conf.d/90-snb.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Journal]
+      SystemMaxUse=500M
+  - path: /etc/motd
+    permissions: "0644"
+    owner: root:root
+    content: |
+
+        THE SNOWBALL — שרת התרגום
+        ─────────────────────────
+        הפעלה ראשונה:  snb-setup      (מפתחות — פעם אחת)
+        מצב:           snb-status
+        עדכון עכשיו:   snb-update     (רק גרסה שאושרה ונחתמה)
+
+  - path: /usr/local/lib/snb/common.sh
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # פונקציות משותפות לכלי השרת (snb-update / snb-maint / snb-status / snb-setup). נטען עם ". /usr/local/lib/snb/common.sh".
+      # shellcheck disable=SC2034  # המשתנים בשימוש בכלים שטוענים את הקובץ
+      SNB_DIR=/opt/snb
+      SNB_ENV=/etc/snb/worker.env
+      SNB_IMG=ghcr.io/yishaiguedj1/snb-worker
+      # הזהות היחידה שמותר לה לחתום על התמונה: ה־workflow שבונה אותה, מהענף הראשי של הריפו (חתימה בלי מפתח — Sigstore)
+      SNB_SIGNER='^https://github\.com/yishaiguedj1/portfolio-pwa/\.github/workflows/worker-image\.yml@refs/heads/main$'
+      SNB_ISSUER=https://token.actions.githubusercontent.com
+
+      snb_log() { logger -t snb "$*" 2>/dev/null || true; echo "$*"; }
+
+      snb_compose() {
+      	if docker compose version >/dev/null 2>&1; then
+      		docker compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" "$@"
+      	else
+      		docker-compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" "$@"
+      	fi
+      }
+
+      # עבודה רצה עכשיו? (הסוכן כותב /work/.busy בזמן עבודה)
+      snb_busy() {
+      	w=$(docker volume inspect -f '{{.Mountpoint}}' snb_work 2>/dev/null) || return 1
+      	[ -n "$w" ] && [ -e "$w/.busy" ]
+      }
+  - path: /usr/local/sbin/snb-update
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/sh
+      # עדכון העובד לגרסה שאושרה (תג prod ב־GHCR). רץ כל רבע שעה (snb-update.timer) וידנית.
+      #   1. לא באמצע עבודה (/work/.busy).
+      #   2. מושכים את prod ולוקחים את ה־digest — מאז רק לפי digest (תג יכול לזוז, digest לא).
+      #   3. מאמתים חתימה: נבנה ונחתם ב־worker-image.yml מהענף הראשי של הריפו. אחרת — לא מעדכנים.
+      #   4. כותבים את ה־digest ל־/opt/snb/.env ומפעילים מחדש. התמונות הישנות נמחקות אחרי שבוע (לחזרה אחורה).
+      set -eu
+      # shellcheck source=snb-common.sh
+      . /usr/local/lib/snb/common.sh
+      [ -s "$SNB_ENV" ] || { snb_log "אין עדיין מפתחות — להריץ snb-setup"; exit 0; }
+      if snb_busy && [ "${1:-}" != "--now" ]; then snb_log "עבודה רצה — העדכון יחכה לסיומה"; exit 0; fi
+      docker pull -q "$SNB_IMG:prod" >/dev/null
+      REF=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$SNB_IMG:prod" | grep "^$SNB_IMG@sha256:" | head -n1)
+      case "$REF" in "$SNB_IMG@sha256:"*) ;; *) snb_log "✗ לא נמצא digest לתמונה"; exit 1 ;; esac
+      CUR=$(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null || true)
+      if [ "$REF" != "$CUR" ]; then
+      	if ! cosign verify --certificate-identity-regexp "$SNB_SIGNER" --certificate-oidc-issuer "$SNB_ISSUER" "$REF" >/dev/null 2>&1; then
+      		snb_log "✗ החתימה של $REF לא אומתה — נשארים בגרסה הנוכחית"
+      		exit 1
+      	fi
+      	umask 022
+      	printf 'SNB_IMAGE=%s\n' "$REF" >"$SNB_DIR/.env.tmp"
+      	mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
+      	snb_log "✓ גרסה חדשה מאומתת: $REF"
+      fi
+      snb_compose up -d --remove-orphans --quiet-pull >/dev/null 2>&1 || snb_compose up -d --remove-orphans
+      docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
+  - path: /usr/local/sbin/snb-maint
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/sh
+      # תחזוקה לילית: אם הותקנה ליבה חדשה (unattended-upgrades) — אתחול, אבל רק כשאין עבודה.
+      # עבודה רצה → מחכים ללילה הבא. אחרי האתחול Docker מעלה את העובד מעצמו (restart: unless-stopped).
+      set -eu
+      # shellcheck source=snb-common.sh
+      . /usr/local/lib/snb/common.sh
+      running=$(uname -r)
+      newest=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sed 's|^/boot/vmlinuz-||' | sort -V | tail -n1)
+      need=0
+      [ -n "$newest" ] && [ "$newest" != "$running" ] && need=1
+      [ -e /run/reboot-required ] && need=1
+      [ "$need" = 1 ] || exit 0
+      if snb_busy; then snb_log "נדרש אתחול לעדכון אבטחה — עבודה רצה, נדחה ללילה הבא"; exit 0; fi
+      snb_log "אתחול לעדכון אבטחה ($running → ${newest:-?})"
+      systemctl reboot
+  - path: /usr/local/sbin/snb-status
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/sh
+      # מצב השרת במבט אחד (לקונסולה של Hetzner).
+      # shellcheck source=snb-common.sh
+      . /usr/local/lib/snb/common.sh
+      echo "גרסה:   $(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null | sed 's/.*@sha256:\(............\).*/sha256:\1…/')"
+      echo "מפתחות: $([ -s "$SNB_ENV" ] && echo 'מוגדרים' || echo 'חסרים — snb-setup')"
+      echo "עבודה:  $(snb_busy && echo 'רצה עכשיו' || echo 'אין')"
+      snb_compose ps --format '{{.Name}}  {{.Status}}' 2>/dev/null || true
+      echo "דיסק:   $(df -h / | awk 'NR==2{print $3" מתוך "$2}')"
+      echo "--- שורות אחרונות מהעובד ---"
+      snb_compose logs --tail 15 worker 2>/dev/null || true
+  - path: /usr/local/sbin/snb-setup
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/sh
+      # הגדרה חד־פעמית של המפתחות בשרת (מהקונסולה של Hetzner). המפתחות לא מוצגים על המסך ולא נשמרים בשום מקום אחר:
+      #   /etc/snb/worker.env — בעלות root, הרשאות 600. Docker מעביר אותם לקונטיינר בלבד.
+      set -eu
+      [ "$(id -u)" = 0 ] || { echo "להריץ כ־root"; exit 1; }
+      umask 077
+      mkdir -p /etc/snb
+      ask_secret() {
+      	printf '%s\n> ' "$1"
+      	stty -echo 2>/dev/null || true
+      	IFS= read -r v
+      	stty echo 2>/dev/null || true
+      	echo
+      	printf '%s' "$v"
+      }
+      AK=$(ask_secret "מפתח ה־API של Anthropic (מתחיל ב־sk-ant-; לא יוצג):")
+      case "$AK" in sk-ant-*) ;; *) echo "✗ זה לא נראה כמו מפתח של Anthropic"; exit 1 ;; esac
+      WT=$(ask_secret "טוקן השרת (מהאפליקציה: סטודיו ← הגדרות ← השרת ← הוספת שרת; לא יוצג):")
+      printf '%s' "$WT" | grep -Eq '^[A-Za-z0-9_-]{32,128}$' || { echo "✗ טוקן השרת לא בצורה הנכונה"; exit 1; }
+      printf '%s\n> ' "כתובת דופק לניטור (למשל healthchecks.io) — אופציונלי, Enter כדי לדלג:"
+      IFS= read -r HB
+      case "$HB" in ""|https://*) ;; *) echo "✗ הכתובת חייבת להתחיל ב־https://"; exit 1 ;; esac
+      {
+      	printf 'ANTHROPIC_API_KEY=%s\n' "$AK"
+      	printf 'SNB_WORKER_TOKEN=%s\n' "$WT"
+      	if [ -n "$HB" ]; then printf 'SNB_HEARTBEAT_URL=%s\n' "$HB"; fi
+      } >/etc/snb/worker.env.tmp
+      chmod 600 /etc/snb/worker.env.tmp
+      mv /etc/snb/worker.env.tmp /etc/snb/worker.env
+      echo "✓ נשמר. מפעיל את העובד…"
+      systemctl start snb-update.service && /usr/local/sbin/snb-status
+  - path: /etc/systemd/system/snb-update.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=THE SNOWBALL — עדכון העובד לגרסה המאושרת (תג prod, חתימה מאומתת)
+      Wants=network-online.target
+      After=network-online.target docker.service
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/snb-update
+  - path: /etc/systemd/system/snb-update.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=THE SNOWBALL — בדיקת עדכון כל רבע שעה
+
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec=15min
+      RandomizedDelaySec=60
+
+      [Install]
+      WantedBy=timers.target
+  - path: /etc/systemd/system/snb-maint.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=THE SNOWBALL — אתחול אחרי עדכון ליבה, רק כשאין עבודה
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/snb-maint
+  - path: /etc/systemd/system/snb-maint.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=THE SNOWBALL — תחזוקה לילית
+
+      [Timer]
+      OnCalendar=*-*-* 03:30:00
+      RandomizedDelaySec=30min
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+  - path: /opt/snb/compose.yaml
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # העובד בשרת — Docker Compose. מותקן ב־/opt/snb/compose.yaml (cloud-init), ומופעל מחדש רק דרך snb-update.
+      # SNB_IMAGE = התמונה לפי digest (ghcr.io/…@sha256:…) — snb-update כותב אותו ל־/opt/snb/.env אחרי שאימת את החתימה.
+      #
+      # אבטחה:
+      #   • בלי ports — אף אחד לא יכול להתחבר לקונטיינר מבחוץ. הוא רק פונה החוצה (השרתון, Drive, Anthropic, Hugging Face).
+      #   • read_only + tmpfs: הקוד והספריות לא ניתנים לשינוי מבפנים; כתיבה רק לתיקיות העבודה/המטמון/מצב העבודה.
+      #   • cap_drop ALL + no-new-privileges + משתמש 10001: גם קוד זדוני בתוך סרטון/תמליל לא מקבל הרשאות.
+      #   • הגישה לשירות המטא־דאטה של Hetzner (169.254.169.254) חסומה בחומת האש של המארח (cloud-init, DOCKER-USER).
+      #   • הסודות מקובץ env בהרשאות 600 של root — לא בתמונה, לא בריפו.
+      name: snb
+
+      services:
+        worker:
+          image: ${SNB_IMAGE:?SNB_IMAGE חסר — מריצים דרך snb-update}
+          restart: unless-stopped
+          env_file:
+            - /etc/snb/worker.env
+          read_only: true
+          user: "10001:10001"
+          cap_drop: [ALL]
+          security_opt:
+            - no-new-privileges:true
+          pids_limit: 512
+          mem_limit: 14g
+          memswap_limit: 14g
+          cpus: 7.5
+          tmpfs:
+            - /tmp:size=2g,mode=1777,noexec,nosuid,nodev
+            - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev
+          volumes:
+            - work:/work
+            - cache:/cache
+          stop_grace_period: 90s
+          logging:
+            driver: json-file
+            options:
+              max-size: 10m
+              max-file: "5"
+          healthcheck:       # הסוכן כותב /state/alive כל 5 דק׳ (חוט נפרד, גם באמצע עבודה) — ישן מ־15 דק׳ = תקוע
+            test: ["CMD", "/opt/vt/bin/python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/state/alive')<900 else 1)"]
+            interval: 5m
+            timeout: 10s
+            start_period: 2m
+
+      volumes:
+        work: {}     # הסרטון והפרויקט של העבודה הנוכחית בלבד — מתרוקן בסוף כל עבודה (agent.cleanup)
+        cache: {}    # מודלי התמלול (Hugging Face / torch) — נשמרים בין עבודות ועדכונים, בלי מידע של משתמשים
+runcmd:
+  # חומת האש קודם — לפני ש־Docker עולה עם הכללים שלו
+  - systemctl enable --now nftables
+  - nft -f /etc/nftables.conf
+  - sysctl --system
+  - systemctl restart systemd-journald
+  - systemctl restart docker
+  # בלי SSH בכלל: הניהול דרך הקונסולה של Hetzner (או Tailscale — infra/README.md). פחות שירות פתוח = פחות לתקוף.
+  - systemctl disable --now ssh.socket ssh.service || true
+  - mkdir -p /etc/snb && chmod 700 /etc/snb
+  - systemctl daemon-reload
+  - systemctl enable --now snb-update.timer snb-maint.timer unattended-upgrades

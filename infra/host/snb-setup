@@ -1,0 +1,31 @@
+#!/bin/sh
+# הגדרה חד־פעמית של המפתחות בשרת (מהקונסולה של Hetzner). המפתחות לא מוצגים על המסך ולא נשמרים בשום מקום אחר:
+#   /etc/snb/worker.env — בעלות root, הרשאות 600. Docker מעביר אותם לקונטיינר בלבד.
+set -eu
+[ "$(id -u)" = 0 ] || { echo "להריץ כ־root"; exit 1; }
+umask 077
+mkdir -p /etc/snb
+ask_secret() {
+	printf '%s\n> ' "$1"
+	stty -echo 2>/dev/null || true
+	IFS= read -r v
+	stty echo 2>/dev/null || true
+	echo
+	printf '%s' "$v"
+}
+AK=$(ask_secret "מפתח ה־API של Anthropic (מתחיל ב־sk-ant-; לא יוצג):")
+case "$AK" in sk-ant-*) ;; *) echo "✗ זה לא נראה כמו מפתח של Anthropic"; exit 1 ;; esac
+WT=$(ask_secret "טוקן השרת (מהאפליקציה: סטודיו ← הגדרות ← השרת ← הוספת שרת; לא יוצג):")
+printf '%s' "$WT" | grep -Eq '^[A-Za-z0-9_-]{32,128}$' || { echo "✗ טוקן השרת לא בצורה הנכונה"; exit 1; }
+printf '%s\n> ' "כתובת דופק לניטור (למשל healthchecks.io) — אופציונלי, Enter כדי לדלג:"
+IFS= read -r HB
+case "$HB" in ""|https://*) ;; *) echo "✗ הכתובת חייבת להתחיל ב־https://"; exit 1 ;; esac
+{
+	printf 'ANTHROPIC_API_KEY=%s\n' "$AK"
+	printf 'SNB_WORKER_TOKEN=%s\n' "$WT"
+	if [ -n "$HB" ]; then printf 'SNB_HEARTBEAT_URL=%s\n' "$HB"; fi
+} >/etc/snb/worker.env.tmp
+chmod 600 /etc/snb/worker.env.tmp
+mv /etc/snb/worker.env.tmp /etc/snb/worker.env
+echo "✓ נשמר. מפעיל את העובד…"
+systemctl start snb-update.service && /usr/local/sbin/snb-status

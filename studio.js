@@ -31,6 +31,7 @@ const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
 export const OUTS = ['same', 'compact', 'mkv'];
 export const CONNS = ['sub', 'copy', 'api'];
+export const CAPS = [5, 10, 20, 50];   // מצב API: תקרה לעבודה אחת ($) — השרתון מגביל גם לפי מה שנשאר החודש
 const TERMS_MAX = 1000;
 const COMPACT_RATIO = 0.53;   // "דחוס" ≈ חצי מהמקור (נמדד על הראיון של אקמן)
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
@@ -49,7 +50,7 @@ const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co', '*.pytorch
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
-  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false };
+  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10 };
 }
 function normOut(o) {
   const d = { same: true, compact: false, mkv: false };
@@ -69,8 +70,26 @@ export function normSettings(o) {
   if (STYLES.includes(o.style)) s.style = o.style;
   if (CONNS.includes(o.conn)) s.conn = o.conn;
   s.wifi = o.wifi === true;
+  if (CAPS.includes(o.cap)) s.cap = o.cap;
   return s;
 }
+/* מצב "API של המערכת" מהשרתון (status): התקציב החודשי, כמה שרתים מחוברים, והאם אתה המנהל */
+export function normApi(a) {
+  if (!a || typeof a !== 'object') return null;
+  const n = (x) => (Number.isFinite(+x) && +x >= 0 ? +x : 0);
+  return { month: n(a.month), cap: n(a.cap), online: Math.floor(n(a.online)), servers: Math.floor(n(a.servers)), admin: a.admin === true };
+}
+/* השרתים (srvList, למנהל) — רק מה שמוצג; השם טקסט בלבד */
+export function normServers(list) {
+  if (!Array.isArray(list)) return null;
+  const n = (x) => (Number.isFinite(+x) ? +x : null);
+  return list.slice(0, 10).filter((x) => x && /^[a-z0-9]{12}$/.test(String(x.id || ''))).map((x) => ({
+    id: x.id, name: String(x.name || x.id).slice(0, 40), seen: Math.max(0, n(x.seen) || 0), online: x.online === true, paused: x.paused === true,
+    hb: x.hb && typeof x.hb === 'object' ? { v: /^[0-9a-f]{7,12}$|^dev$/.test(String(x.hb.v || '')) ? x.hb.v : '', disk: n(x.hb.disk), mem: n(x.hb.mem), free: n(x.hb.free) } : null,
+    job: x.job && JOB_RE.test(String(x.job.id || '')) ? { id: x.job.id, name: String(x.job.name || '').slice(0, 200) } : null }));
+}
+/* מצב שרת במילה אחת: מושהה גובר; אחרת מחובר/לא */
+export const srvState = (sv) => (sv.paused ? 'paused' : sv.online ? 'on' : 'off');
 export function normDraft(d) {
   if (!d || typeof d !== 'object' || typeof d.id !== 'string' || !/^[a-z0-9]{4,40}$/i.test(d.id)) return null;
   const s = normSettings(d);
@@ -118,6 +137,7 @@ export function normJob(j) {
       .filter((o) => o && FID_RE.test(String(o.id || '')) && ['compact', 'same', 'mkv', 'srt'].includes(o.k))
       .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
+    eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
     qa: normQa(s.qa),      // שאלה מ־Claude באמצע העבודה (והתשובה)
     ck: normCk(s.ck),      // v361: נקודת השמירה האחרונה (אחרי איזה שלב)
     stale: s.stale === true, fires: num(s.fires),
@@ -446,6 +466,9 @@ function errText(code, extra) {
   switch (code) {
     case 'signin': case 'no_auth': return T('studioErrSignin');
     case 'not_allowed': return T('studioErrDenied');
+    case 'month_cap': return T('studioErrMonthCap');
+    case 'no_server': return T('studioErrNoServer');
+    case 'not_admin': return T('studioErrNotAdmin');
     case 'net': case 'http_0': return T('studioErrNet');
     case 'drive_full': return T('studioErrDriveFull');
     case 'not_connected': case 'revoked': case 'drive_auth': return T('studioErrDrive');
@@ -482,7 +505,7 @@ let root = null;
 let store = normStore(null);
 let form = null;                  // טופס פרויקט חדש/עריכה — בזיכרון בין הטופס לדף בחירת השפות; נמחק ביציאה לרשימה
 const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null, alAll: false, alTab: 'd', muPick: 0,
-  rl: normRules(null), halt: 0 };   // v367: החוקים שלך ומתג החירום (מהשרתון)
+  rl: normRules(null), halt: 0, api: null, servers: null, srvQueue: 0, newToken: '', srvBusy: false };   // v367: החוקים שלך ומתג החירום (מהשרתון) · מצב API: מסך השרת
 const scrolls = {};               // מיקום הגלילה של כל דף — "חזור" מחזיר אליו
 
 const uiLang = () => (document.documentElement.lang === 'en' ? 'en' : 'he');
@@ -590,6 +613,7 @@ async function refreshStatus(force) {
     ui.ops = normOps(j.ops) || ui.ops;
     ui.rl = normRules(j.rl);
     ui.halt = num(j.halt);
+    ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -901,7 +925,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'server' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -909,6 +933,7 @@ export function chainFor(v, p) {
 
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
+  if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
 function go(view, param) {
   if (!root) return;
@@ -1280,7 +1305,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'paused') return T('studioPausedNow');
   if (ph === 'error') return errText(run.err);
   if (ph === 'ready') return rec.up.wait === 'worker_not_ready' ? T('studioWaitWorker') : rec.up.wait ? errText(rec.up.wait) : T('studioReady');
-  if (ph === 'queued') return T('studioNowQueued');
+  if (ph === 'queued') return rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
   if (ph === 'failed') return recovering(rec) ? T('studioRecLine') : errText(rec.srv && rec.srv.err);
@@ -1302,8 +1327,9 @@ function badgeFor(ph) {
 
 /* ---------------- דפים ---------------- */
 function pageHome(p) {
-  const pill = btn('st-cpill' + (store.conn ? ' on' : ''), null, () => go('settings'), 'cpill');
-  pill.append(h('i'), h('span', null, store.conn ? T('studioConnOn') : T('studioConnPill')));
+  const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
+  const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('settings'), 'cpill');
+  pill.append(h('i'), h('span', null, apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill')));
   p.append(navBar({ back: 'THE SNOWBALL', end: pill }), large(T('studioTitle')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
@@ -1469,6 +1495,7 @@ function startFromForm() {
     const pr = await probeVideo(file);
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: pr.dur || 0, from: f.from, to: f.to,
       mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
+    if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
     const j = await net.api('create', { spec });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
@@ -1910,6 +1937,10 @@ function pageTower(p) {
   if (!ui.halt) qa.append(qbtn('power', T('studioQaHalt'), () => askHalt(), 'qa-halt', 'neg'));   // עצורים — "להחזיר" רק בבאנר שלמעלה
   p.append(secT(T('studioTwQuick')), qa);
   if (ui.ops) p.append(...serviceMap(ui.ops));
+  if (ui.api && (ui.api.admin || ui.api.servers)) {   // מצב API: השרת של המערכת
+    p.append(list(rowNav({ tile: tile('cloud', ui.api.online ? 'green' : 'orange'), label: T('studioSrvT'),
+      sub: ui.api.online ? T('studioSrvOnN', { n: ui.api.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'tower-srv' })));
+  }
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
     const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
@@ -2370,14 +2401,22 @@ function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
   p.append(navBar({ back: T('studioShort') }), large(T('studioSettings')));
   const ab = accessBanner(); if (ab) p.append(ab);
-  // רק "המנוי שלי" פעיל — העתק־הדבק ומפתח API מגיעים בשלב 7
+  // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
+  const isApi = apiMode();
+  const pick = (c) => () => { s.conn = c; save(); render('none'); };
   p.append(secT(T('studioSecClaude')), list(
-    rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: true, k: 'cn:sub' }),
+    rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: !isApi, onClick: pick('sub'), k: 'cn:sub' }),
     rowRadio({ label: T('studioConnCopy'), sub: T('studioConnCopyS'), on: false, disabled: true, badge: T('studioSoon') }),
-    rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: false, disabled: true, badge: T('studioSoon') })));
-  // החיבור: מחובר (בדיקה, הגדרה מחדש, ניתוק) או האשף
+    rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: isApi, onClick: pick('api'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:api' })));
   const c = store.conn;
-  if (c) {
+  if (isApi) {
+    // השרת של המערכת: בלי אשף ובלי Routine — רק התקציב, התקרה לעבודה והשרת
+    const a = ui.api;
+    p.append(secT(T('studioSecApi')), list(
+      kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) })),
+      rowNav({ label: T('studioApiCap'), value: '$' + s.cap, onClick: () => go('def', 'cap'), k: 'def:cap' }),
+      rowNav({ tile: tile('cloud', a.online ? 'green' : 'orange'), label: T('studioSrvT'), sub: a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'server' })));
+  } else if (c) {
     const st = c.ok ? T('studioConnChecked', { t: fmtDate(c.ok) }) : T('studioConnUnchecked');
     const head = h('div', 'st-row st-ric');
     const hn = h('span', 'st-l'); hn.append(h('b', null, T('studioConnOn')));
@@ -2415,6 +2454,70 @@ function pageSettings(p) {
     rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
     rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' })));
 }
+/* ---------------- מסך השרת (מצב API של המערכת) ----------------
+   השרת לא פתוח לאינטרנט — הוא שואל את השרתון כל 20 שנ׳ ומדווח דופק. כאן רואים אותו ומנהלים אותו (המנהל בלבד):
+   מחובר / לא, גרסה, דיסק, זיכרון, מה הוא מתרגם, השהיה, הסרה (הטוקן מת מיד), והוספה (הטוקן מוצג פעם אחת) */
+const apiMode = () => store.settings.conn === 'api' && !!ui.api;
+async function refreshServers() {
+  if (!ui.api || !ui.api.admin) return;
+  const j = await net.api('srvList');
+  if (j.ok) { ui.servers = normServers(j.servers) || []; ui.srvQueue = num(j.queue); }
+  repaint();
+}
+async function srvAct(op, sv, extra) {
+  if (ui.srvBusy) return;
+  ui.srvBusy = true; render('none');
+  const j = await net.api(op, Object.assign({ sid: sv.id }, extra || {}));
+  ui.srvBusy = false;
+  if (j.ok) { ui.servers = normServers(j.servers) || []; ui.srvQueue = num(j.queue); }
+  else flashSafe(errText(j.error, j));
+  render('none');
+}
+async function addServer() {
+  if (ui.srvBusy) return;
+  ui.srvBusy = true; render('none');
+  const j = await net.api('srvCreate', {});
+  ui.srvBusy = false;
+  if (j.ok && /^[a-z0-9]{12}-[A-Za-z0-9_-]{43}$/.test(String(j.token || ''))) { ui.newToken = j.token; refreshStatus(true); await refreshServers(); }
+  else flashSafe(errText(j.error, j));
+  render('none');
+}
+function pageServer(p) {
+  p.append(navBar({ back: T('studioTwT') }), large(T('studioSrvT')), h('p', 'st-lede', T('studioSrvLede')));
+  const ab = accessBanner(); if (ab) p.append(ab);
+  const a = ui.api;
+  if (a) p.append(secT(T('studioApiMonthT')), list(kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) }))));
+  if (!a || !a.admin) { p.append(note(a && a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'))); return; }
+  if (ui.newToken) { const tk = h('div', 'st-tok'); tk.append(copyBox(ui.newToken, T('studioCopy'), 'srv-token')); p.append(secT(T('studioSrvNewT')), list(tk), note(T('studioSrvTokNote'))); }
+  const rows = [];
+  for (const sv of ui.servers || []) {
+    const stt = srvState(sv);
+    const r = h('div', 'st-row st-ric'); r.dataset.k = 'srv:' + sv.id;
+    const l = h('span', 'st-l'); const b = h('b'); b.append(h('bdi', null, sv.name));
+    const parts = [stt === 'on' ? T('studioSrvOn') : stt === 'paused' ? T('studioSrvPaused') : sv.seen ? T('studioSrvOff', { t: fmtDate(sv.seen) }) : T('studioSrvNever')];
+    if (sv.hb && stt !== 'off') {
+      if (sv.hb.disk != null) parts.push(T('studioSrvDisk', { n: Math.round(sv.hb.disk) }));
+      if (sv.hb.mem != null) parts.push(T('studioSrvMem', { n: Math.round(sv.hb.mem) }));
+    }
+    const sub = h('small', null, parts.join(' · '));
+    if (sv.hb && sv.hb.v) sub.append(' · ', h('bdi', null, sv.hb.v.slice(0, 7)));
+    l.append(b, sub);
+    if (sv.job) { const js = h('small'); js.append(T('studioSrvJob') + ' '); js.append(h('bdi', null, sv.job.name ? fileTitle(sv.job.name) : T('studioSrvJobOther'))); l.append(js); }
+    r.append(tile('cloud', stt === 'on' ? 'green' : stt === 'paused' ? 'orange' : 'red'), l);
+    // שתי פעולות קטנות בתוך השורה (לא שורה לכל פעולה) — השהיה / המשך, והסרה עם אישור
+    const pb = btn('st-mini fill', sv.paused ? T('studioSrvResume') : T('studioSrvPause'), () => srvAct('srvPause', sv, { paused: !sv.paused }), 'srv-pause:' + sv.id);
+    const rm = () => srvAct('srvRemove', sv);
+    const rb = btn('st-mini danger', T('studioSrvRemove'), () => (typeof askConfirm === 'function' ? askConfirm(T('studioSrvRemoveQ'), rm, { danger: true, ok: T('studioSrvRemove') }) : rm()), 'srv-rm:' + sv.id);
+    pb.disabled = rb.disabled = ui.srvBusy || blocked();
+    const bs = h('span', 'st-fbb'); bs.append(pb, rb); l.append(bs);
+    rows.push(r);
+  }
+  const add = btn('st-row st-act', ui.srvBusy ? T('studioSrvAdding') : T('studioSrvAdd'), addServer, 'srv-add');
+  add.disabled = ui.srvBusy || blocked();
+  p.append(secT(T('studioSrvListT')), list(...(rows.length ? rows : [h('div', 'st-row st-muted', ui.servers ? T('studioSrvEmpty') : T('studioLoading'))]), add));
+  if (ui.srvQueue) p.append(note(T('studioSrvQueue', { n: ui.srvQueue })));
+  p.append(note(T('studioSrvNote')));
+}
 function disconnectClaude() {
   const doIt = async () => {
     const j = await net.api('disconnect');
@@ -2434,6 +2537,7 @@ function pageDef(p) {
   if (k === 'mode') p.append(large(T('studioSecMode')), ...modePicker(s.mode, (id) => set(() => { s.mode = id; })));
   else if (k === 'out') p.append(large(T('studioSecOut')), outRows(s.out, 0, (o) => set(() => { s.out[o] = !s.out[o]; })));
   else if (k === 'style') p.append(large(T('studioSecStyle')), stylePicker(s.style, (st) => set(() => { s.style = st; })));
+  else if (k === 'cap') { p.append(large(T('studioApiCap')), list(...CAPS.map((c) => rowRadio({ label: '$' + c, on: s.cap === c, onClick: () => set(() => { s.cap = c; }), k: 'cap:' + c }))), note(T('studioApiCapNote'))); return; }
   else { back(); return; }
   p.append(note(T('studioDefNote')));
 }
@@ -2519,8 +2623,9 @@ function shapeKey() {
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join();
   if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0);
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
+  if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm;
-  if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy;
+  if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
   return ui.view + '|' + ui.access;
 }
 let paintT = 0;
@@ -2548,6 +2653,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'tower') pageTower(p);
   else if (ui.view === 'alert') pageAlert(p);
   else if (ui.view === 'rules') pageRules(p);
+  else if (ui.view === 'server') pageServer(p);
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
   else pageHome(p);
@@ -2573,6 +2679,7 @@ function onEnter() {
   else if (ui.view === 'settings' || ui.view === 'connect') refreshStatus();
   else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
+  else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
 }
 /* מעקב אחרי עבודה פתוחה: כל 4 שניות כש־Claude עובד, לאט כשמחכים, בכלל לא כשהסתיימה או כשהמסך כבוי */
@@ -2585,6 +2692,7 @@ function schedulePoll() {
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
   if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
   else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : recMs(store.jobs);
+  else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ms) pollT = setTimeout(pollNow, ms);
 }
 let polling = false;
@@ -2597,6 +2705,7 @@ async function pollNow() {
       const r = jobRec(id);
       if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
     } else if (ui.view === 'home') await refreshJobs(true);
+    else if (ui.view === 'server') await refreshServers();
   } finally { polling = false; repaint(); schedulePoll(); }
 }
 
