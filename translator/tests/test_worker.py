@@ -90,6 +90,7 @@ class Fake:
         self.fb, self.ls = [], None                                   # v364: ספר התיקונים והעצירה שלפני ההמשך
         self.fm = None                                                # v366: מסלול התיקונים (בלי — כמו שרתון ישן)
         self.rl, self.bx, self.u0 = None, 0, 0                        # v367: החוקים, אישורים מעבר לתקציב, מה שכבר עלה
+        self.pir = None                                               # v379: דוח אחרי תקלה שמחכה לסיכום
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
 
@@ -135,7 +136,7 @@ class Fake:
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
                                                                   'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm,
                                                                   'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0},
-                                            'drive': {'token': TOKEN}})
+                                            'drive': {'token': TOKEN}, 'pir': fake.pir})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
                 if op == 'qa':                                   # v367: בדיקת תשובה לשער
@@ -159,6 +160,8 @@ class Fake:
                         return self._send(200, {'ok': True, 'stop': False, 'gate': gid})
                     if body.get('askTimeout') and fake.qa and fake.qa.get('id') == body['askTimeout'] and fake.qa['a'] is None:
                         fake.qa['a'] = {'i': 1, 't': 'stop', 'auto': True}
+                    if body.get('pir'):
+                        return self._send(200, {'ok': True, 'stop': False, 'pir': True})
                     return self._send(200, {'ok': True, 'stop': False})
                 return self._send(400, {'ok': False})
 
@@ -585,6 +588,37 @@ class TestWorker(unittest.TestCase):
         self.take()
         code, out = self.job('fix', '--text', 'משהו ארוך מספיק')
         self.assertEqual(code, 1, 'בלי עצירה — אין למה לרשום')
+
+    def test_pir(self):
+        # v379: דוח אחרי תקלה — העובדות מהשרתון נשמרות (רק בצורה הקבועה), pir מציג אותן, pir --text שולח פעם אחת
+        self.fake.pir = {'no': 27, 'c': 'routine', 'e': 'routine_down', 's': 1, 'by': 'c', 'n': 2, 'm': 1, 'tti': 120, 'ttr': 2040, 'usd': 0.42, 'st': 'r',
+                         'rc': [{'t': 'wide', 'c': 'routine', 'k': 'routine_down', 'p': 60}, {'t': 'evil', 'c': 'x', 'k': 'y', 'p': 40}],
+                         'tl': [[-2, 'a', 'routine', 'fire'], [0, 'o'], [34, 'r'], [5, 'evil'], ['x', 'o']]}
+        code, out = self.take()
+        self.assertEqual(code, 0, out)
+        self.assertIn('דוח אחרי תקלה מחכה (INC0000027, P1)', out)
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual([r['t'] for r in st['pir']['rc']], ['wide'], 'סיבה לא מוכרת נזרקת')
+        self.assertEqual([e[1] for e in st['pir']['tl']], ['a', 'o', 'r'], 'שורה לא תקינה בציר נזרקת')
+        code, out = self.job('pir')
+        self.assertEqual(code, 0, out)
+        self.assertIn('זמן לזיהוי: 2 דק׳ · זמן לתיקון: 34 דק׳ · עלה בטעות: $0.42', out)
+        self.assertIn('חלק מתקלה רחבה', out)
+        self.assertIn('+34 · נפתרה', out)
+        code, out = self.job('pir', '--text', 'קצר')
+        self.assertEqual(code, 1, 'קצר מדי')
+        code, out = self.job('pir', '--text', 'ה־Routine החזיר 500 בשלוש הפעלות.\nהמפתח נשמר והעבודות חיכו. שתיים נלקחו כש־Anthropic חזר.')
+        self.assertEqual(code, 0, out)
+        self.assertIn('הסיכום נשמר', out)
+        sent = self.fake.reports[-1]['pir']
+        self.assertEqual(sent['no'], 27)
+        self.assertNotIn('\n', sent['t'])
+        self.assertIn('m', sent)
+        code, out = self.job('pir')
+        self.assertIn('אין דוח תקלה לכתוב', out, 'פעם אחת')
+        self.fake.pir = {'no': 'x', 'c': 'routine'}
+        code, out = self.take()
+        self.assertNotIn('דוח אחרי תקלה מחכה', out, 'עובדות לא תקינות — בלי דוח')
 
     def test_fix_mode(self):
         # v366: מסלול "הצעות לאישור" (ברירת המחדל) — ההודעה אומרת שהתיקון ממתין למשתמש; "עצמאי" — שהוא נרשם

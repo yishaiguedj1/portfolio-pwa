@@ -6,6 +6,7 @@
    הרשומה נגזרת מהעבודה (עיקרון 1): השרתון מסנכרן בכל צפייה ברשימת העבודות (incSync) — לא בכל מעבר מצב בנפרד.
    רק קודים וזמנים — בלי טקסט חופשי, בלי שמות קבצים. נשמר ב־studioOps/{uid} (inc, mi). הקובץ טהור — בלי רשת. */
 const { COMPONENTS, KINDS } = require('./studioops');
+const PIR = require('./studiopir');   // v379: דוח אחרי תקלה
 
 const INC_MAX = 60, KEEP = 30 * 86400e3, DAY = 86400e3, H_MAX = 16, RC_MAX = 3;
 /* הציר: o נפתחה · f נכשלה שוב · w המשכת · c Claude המשיך לבד · r נפתרה · x נסגרה · m חלק מתקלה רחבה */
@@ -36,6 +37,7 @@ function incList(inc, now) {
 function jobFacts(job, eff, stale) {
   return { id: job.id, st: eff.state, err: stale ? 'stale' : eff.err || (eff.state === 'failed' ? 'worker' : ''), bad: eff.state === 'failed' || !!stale,
     fires: num(job.fires), ar: num(job.ar), rw: num(job.rw), at: num(job.ended) || num(job.updated), fired: num(job.fired),
+    w: PIR.wastedUsd(job, eff.state),   // v379: מה עלה בטעות (לדוח אחרי תקלה)
     ev: /^[0-9a-f]{8,40}$/.test(String(job.ev || '')) ? job.ev : '', fp: [job.tw, job.ls].map((t) => (t && /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '')).find(Boolean) || '' };   // v376: גם העצירה שלפני ה"המשך" (ls)
 }
 
@@ -79,6 +81,7 @@ function incSync(inc, jobs, al, fb, now) {
   // הסביבה של העבודה האחרונה שהצליחה לפני כל עבודה (בשביל "אחרי שינוי בסביבה")
   const done = jobs.filter((f) => f.st === 'done' && f.ev).sort((a, b) => a.at - b.at);
   const prevEvOf = (f) => { let ev = ''; for (const d of done) if (d.id !== f.id && d.at <= (f.fired || f.at)) ev = d.ev; return ev; };
+  const resolved = (x, f) => { const pr = PIR.pirOnResolve(x, f, al); if (pr) x.pr = pr; };   // v379: המספרים של הדוח — פעם אחת, בפתרון
   const sevOf = (f, c, e) => Math.min(errInfo(e)[1], ...(Array.isArray(al) ? al : []).filter((a) => a && a.j === f.id && !a.x && (a.c + ':' + a.k) in KINDS).map((a) => a.s));
   for (const f of jobs) {
     const cur = out.filter((x) => x.j === f.id).pop();
@@ -92,6 +95,7 @@ function incSync(inc, jobs, al, fb, now) {
       const at = Math.min(now, f.at || now);
       const x = cur || { no: ++seq, j: f.id, f: at, n: 0, h: [] };
       Object.assign(x, { c, e: ERR_RE.test(f.err) ? f.err : 'worker', s: sevOf(f, c, f.err), st: 'o', by: '', l: now, rt: 0, n: num(x.n) + 1, fs: f.fires, ar: f.ar });
+      delete x.pr; delete x.ps; delete x.pq;   // v379: נפתחה שוב — הדוח ייכתב על כל התקלה כשתיפתר
       if (f.fp) x.fp = f.fp;   // v376: הבעיה (טביעת האצבע של עצירת המגדל) — מקשרת תקלות לבעיה אחת
       hist(x, at, cur ? 'f' : 'o');
       if (!cur) out.push(x);
@@ -99,14 +103,14 @@ function incSync(inc, jobs, al, fb, now) {
       continue;
     }
     if (!cur || cur.st === 'r' || cur.st === 'x') continue;
-    if (f.st === 'done') { cur.st = 'r'; cur.rt = Math.min(now, f.at || now); cur.l = now; if (!cur.by) cur.by = f.ar > num(cur.ar) ? 'c' : 'u'; hist(cur, cur.rt, 'r'); changed = true; continue; }
-    if (f.st === 'cancelled') { cur.st = 'x'; cur.rt = Math.min(now, f.at || now); cur.l = now; hist(cur, cur.rt, 'x'); changed = true; continue; }
+    if (f.st === 'done') { cur.st = 'r'; cur.rt = Math.min(now, f.at || now); cur.l = now; if (!cur.by) cur.by = f.ar > num(cur.ar) ? 'c' : 'u'; hist(cur, cur.rt, 'r'); resolved(cur, f); changed = true; continue; }
+    if (f.st === 'cancelled') { cur.st = 'x'; cur.rt = Math.min(now, f.at || now); cur.l = now; hist(cur, cur.rt, 'x'); resolved(cur, f); changed = true; continue; }
     if (cur.st === 'o' && (f.st === 'queued' || f.st === 'running') && f.fires > num(cur.fs)) {
       cur.st = 'w'; cur.by = f.ar > num(cur.ar) ? 'c' : 'u'; cur.l = now; hist(cur, Math.min(now, f.fired || now), cur.by === 'c' ? 'c' : 'w'); changed = true;
     }
   }
   // עבודה שנמחקה (לא ברשימה) — התקלה שלה נסגרת
-  for (const x of out) if ((x.st === 'o' || x.st === 'w') && !byId.has(x.j)) { x.st = 'x'; x.rt = now; x.l = now; hist(x, now, 'x'); changed = true; }
+  for (const x of out) if ((x.st === 'o' || x.st === 'w') && !byId.has(x.j)) { x.st = 'x'; x.rt = now; x.l = now; hist(x, now, 'x'); resolved(x, null); changed = true; }
   // השורש הסביר — מחושב מחדש לכל תקלה פתוחה (ההתראות וספר התיקונים מתעדכנים בזמן הטיפול)
   for (const x of out.filter((y) => y.st === 'o' || y.st === 'w')) {
     const f = byId.get(x.j);
@@ -120,10 +124,13 @@ function incSync(inc, jobs, al, fb, now) {
   return changed ? out.sort((a, b) => a.no - b.no).slice(-INC_MAX) : null;
 }
 /* עבודה שנמחקה דרך "מחק" — סוגרים מיד (בלי לחכות לרשימה הבאה) */
-function incCloseJob(inc, j, now) {
+function incCloseJob(inc, j, now, al, w) {
   const out = incList(inc, now).map((x) => Object.assign({}, x));
   let changed = false;
-  for (const x of out) if (x.j === j && (x.st === 'o' || x.st === 'w')) { x.st = 'x'; x.rt = now; x.l = now; hist(x, now, 'x'); changed = true; }
+  for (const x of out) if (x.j === j && (x.st === 'o' || x.st === 'w')) {
+    x.st = 'x'; x.rt = now; x.l = now; hist(x, now, 'x'); changed = true;
+    const pr = PIR.pirOnResolve(x, { w: num(w) }, al); if (pr) x.pr = pr;   // v379
+  }
   return changed ? out : null;
 }
 
@@ -190,7 +197,7 @@ function incView(inc, mi, al, now) {
     }
     tl.sort((p, q) => p[0] - q[0]);
     return { no: x.no, j: x.j, c: x.c, e: x.e, s: x.s, st: x.st, by: x.by || '', f: x.f, l: x.l, rt: x.rt || 0, n: x.n || 1, m: x.m || 0, ev: x.ev || 0,
-      rc: Array.isArray(x.rc) ? x.rc : [], tl: tl.slice(-24),
+      rc: Array.isArray(x.rc) ? x.rc : [], tl: tl.slice(-24), pir: PIR.pirView(x, now),   // v379
       sim: sim ? { no: sim.no, f: sim.f, by: sim.by || '', min: Math.max(1, Math.round((sim.rt - sim.f) / 60e3)) } : null,
       al: alerts.filter((y) => y.j === x.j && y.no).map((y) => ({ no: y.no, c: y.c, k: y.k, s: y.s, x: y.x ? 1 : 0 })).slice(-8) };
   });

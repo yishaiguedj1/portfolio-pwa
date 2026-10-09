@@ -232,12 +232,24 @@ export function normInc(o) {
       .map((r) => ({ t: r.t, c: r.c, k: String(r.k || ''), p: num(r.p, 0, 100), n: num(r.n, 0, 100) })),
     tl: (Array.isArray(x.tl) ? x.tl : []).filter((e) => Array.isArray(e) && typeof e[0] === 'number' && INC_EV.includes(e[1]) && (e[1] !== 'a' && e[1] !== 'k' || kind(e[2], e[3]))).slice(-24)
       .map((e) => (e[1] === 'a' || e[1] === 'k' ? [e[0], e[1], e[2], e[3], Number.isInteger(e[4]) ? e[4] : 0] : [e[0], e[1]])),
+    pir: normPir(x.pir),   // v379: דוח אחרי תקלה
     sim: x.sim && Number.isInteger(x.sim.no) ? { no: x.sim.no, f: num(x.sim.f, 0, 1e15), by: x.sim.by === 'c' || x.sim.by === 'u' ? x.sim.by : '', min: num(x.sim.min, 1, 1e6) || 1 } : null,
     al: (Array.isArray(x.al) ? x.al : []).filter((a) => a && Number.isInteger(a.no) && kind(a.c, a.k) && Number.isInteger(a.s)).slice(-8).map((a) => ({ no: a.no, c: a.c, k: a.k, s: Math.min(4, Math.max(1, a.s)), x: a.x ? 1 : 0 })),
   }));
   const m = o.mi;
   const mi = m && Number.isInteger(m.no) && OPS_COMPONENTS.includes(m.c) && ERR_CODE.test(String(m.e || '')) ? { no: m.no, c: m.c, e: m.e, at: num(m.at, 0, 1e15), x: num(m.x, 0, 1e15), n: num(m.n, 0, 100) } : null;
   return { list, open: num(o.open, 0, 1e4), mi };
+}
+/* v379: דוח אחרי תקלה (lib/studiopir.js pirView) — מספרים, מזהה מודל, והסיכום (טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד) */
+const MODEL_ID_RE = /^claude-[a-z0-9-]{1,50}$/;
+export function normPir(o) {
+  if (!o || typeof o !== 'object') return null;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e9 ? v : 0);
+  const out = { tti: n(o.tti), ttr: n(o.ttr), usd: n(o.usd), ps: null, wait: o.wait === true };
+  const ps = o.ps;
+  if (ps && typeof ps === 'object' && typeof ps.t === 'string' && ps.t.trim().length >= 20)
+    out.ps = { t: ps.t.slice(0, 420), m: MODEL_ID_RE.test(String(ps.m || '')) ? ps.m : '', at: n(ps.at), v: ps.v === 1 || ps.v === -1 ? ps.v : 0 };
+  return out;
 }
 export const majorOn = (inc) => !!(inc && inc.mi && !inc.mi.x);
 /* v373: עקיבה (מהשרתון, בעבודה) ומלאי הסוכנים (op jobs) — רק מספרים, מזהי מודל וקודים */
@@ -2152,6 +2164,44 @@ function incSummary(x) {
   if (x.st === 'r') return T('studioIncSumR', { d: fmtShort(Math.max(60, (x.rt - x.f) / 1000)), by: incByName(x.by) || T('studioIncByU') });
   return T('studioIncSumX');
 }
+/* v379: דוח אחרי תקלה — כמו ה־Major Incident Workbench: זמן לזיהוי, זמן לתיקון, מה עלה בטעות, וסיכום AI אחד עם הסימן והאזהרה */
+let pirBusy = false;
+async function pirVote(no, v) {
+  if (pirBusy) return;
+  pirBusy = true; render('none');
+  try {
+    const j = await net.api('pirVote', { no, v });
+    if (j.ok) setInc(j.inc, j.now); else flashSafe(errText(j.error));
+  } finally { pirBusy = false; render('none'); }
+}
+function pirSection(x) {
+  const r = x.pir;
+  if (!r) return [];
+  const kpi = h('div', 'st-scores'); kpi.dataset.k = 'pir-kpi';
+  kpi.append(scoreTile(T('studioPirTti'), r.tti ? fmtShort(r.tti) : T('studioPirNow'), [], false, String),
+    scoreTile(T('studioPirFails'), String(x.n), [], false, String), scoreTile(T('studioPirUsd'), fmtUsd(r.usd), [], false, String));   // זמן התיקון — כבר בשורה שבראש הדף
+  const out = [secT(T('studioPirT')), kpi];
+  const card = h('div', 'st-twcard st-ai'); card.dataset.k = 'pir-sum';
+  if (r.ps) {
+    const hd = h('small', 'st-ai-h'); const mk = h('i', 'st-ai-m'); mk.append(ico('spark'));
+    hd.append(mk, h('span', null, T('studioPirBy', { m: r.ps.m ? modelLabel(r.ps.m) : 'Claude' })));
+    const t = h('p', null, r.ps.t); t.dir = 'auto';   // טקסט מ־Claude — רק טקסט
+    const ft = h('div', 'st-ai-f');
+    ft.append(h('small', null, T('studioPirCheck')));
+    const vb = h('span', 'st-ai-v');
+    for (const [v, lbl, k] of [[1, '👍', 'pir-up'], [-1, '👎', 'pir-down']]) {
+      const b = btn('st-ai-b' + (r.ps.v === v ? ' on' : ''), lbl, () => pirVote(x.no, r.ps.v === v ? 0 : v), k);
+      b.setAttribute('aria-pressed', r.ps.v === v ? 'true' : 'false');
+      b.setAttribute('aria-label', v === 1 ? T('studioPirUp') : T('studioPirDown'));
+      if (pirBusy || blocked()) b.disabled = true;
+      vb.append(b);
+    }
+    ft.append(vb);
+    card.append(hd, t, ft);
+  } else card.append(h('small', 'st-muted', r.wait ? T('studioPirWait') : T('studioPirNone')));
+  out.push(card);
+  return out;
+}
 function pageInc(p) {
   const no = Number(ui.param);
   const x = ui.inc ? ui.inc.list.find((y) => y.no === no) : null;
@@ -2185,6 +2235,7 @@ function pageInc(p) {
       kv(x.rt ? T('studioIncClosedAt') : T('studioIncFails'), x.rt ? h('bdi', null, fmtClock(x.rt)) : String(x.n)));
     const card = h('div', 'st-twcard'); card.append(g);
     p.append(card);
+    p.append(...pirSection(x));   // v379: דוח אחרי תקלה (P1–P2 שנפתרה)
     // שורש סביר — עד 3, עם פס לפי הסבירות
     if (x.rc.length) {
       const rc = h('div', 'st-twcard st-rc');
@@ -3483,7 +3534,7 @@ function shapeKey() {
   if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378
   if (ui.view === 'value') return 'value|' + ui.access + '|' + JSON.stringify(ui.va) + (priceBusy ? 1 : 0);   // v377
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
-  if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
+  if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm;
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);

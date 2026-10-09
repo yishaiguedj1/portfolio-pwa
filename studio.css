@@ -535,3 +535,15 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-fnd .st-l > small:last-child { font-size: 12.5px; color: var(--on-surface-var); }
 .st-fnd .st-mini { flex: none; }
 .st-chev.open { transform: rotate(-90deg); } [dir="ltr"] .st-chev.open { transform: scaleX(-1) rotate(-90deg); }   /* פתוח = למטה */
+/* v379: דוח אחרי תקלה — סיכום AI עם הסימן הסגול, האזהרה והצבעה */
+.st-ai { display: grid; gap: 8px; }
+.st-ai-h { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--sv-m4); }
+.st-ai-m { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--sv-m0); color: var(--sv-m); font-style: normal; }
+.st-ai-m svg { width: 12px; height: 12px; }
+.st-ai > p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--on-surface); }
+.st-ai-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.st-ai-f > small { font-size: 12px; color: var(--on-surface-var); }
+.st-ai-v { display: flex; gap: 6px; flex: none; }
+.st-ai-b { width: 36px; height: 32px; border-radius: var(--pill); background: var(--st-fill); font-size: 16px; line-height: 1; }
+.st-ai-b.on { background: var(--sv-m0); box-shadow: 0 0 0 1.5px var(--sv-m) inset; }
+.st-ai-b:disabled { opacity: .5; }
