@@ -49,7 +49,7 @@
 |---|---|
 | Location | Nuremberg או Falkenstein (גרמניה) |
 | Image | Debian 13 |
-| Type | Shared vCPU ← CX43 (8 ליבות, 16GB) |
+| Type | Cost-Optimized ← CX43 (Intel/AMD, 8 ליבות, 16GB). **כשאין CX במלאי:** Arm64 (Ampere) ← CAX21 (4 ליבות, 8GB — הכי זול) או CAX31 (8 ליבות, 16GB — מהיר פי ~2). התמונה בנויה לשתי הארכיטקטורות, והגבולות של הקונטיינר נקבעים לפי השרת (`snb_limits`). הגדלה בהמשך: Rescale ב־Hetzner, בלי התקנה מחדש |
 | Networking | IPv4 + IPv6 (‏IPv4 נחוץ: GitHub עדיין בלי IPv6) |
 | SSH keys | בלי |
 | Firewalls | חדשה בשם `snb-closed`, **בלי אף כלל נכנס** |
@@ -75,9 +75,12 @@
 
 - **ספריות Python:** עורכים את `worker/requirements.in`, ואז (מהשורש):
   `uv pip compile --generate-hashes --python-version 3.12 --python-platform x86_64-manylinux_2_28 --index-strategy unsafe-best-match --no-emit-index-url --no-strip-extras -o infra/worker/requirements.lock infra/worker/requirements.in`
+  ואז הקובץ של Arm, על **אותן גרסאות בדיוק** (מתוך `infra/worker`):
+  `grep -E '^[a-z]' requirements.lock | sed 's/ \\$//; s/\[[^]]*\]//' > pins.txt && uv pip compile --generate-hashes --python-version 3.12 --python-platform aarch64-manylinux_2_28 --index-strategy unsafe-best-match --no-emit-index-url --no-strip-extras -c pins.txt -o requirements-arm64.lock requirements.in; rm pins.txt`
+  (הבדיקות נכשלות אם הגרסאות בשני הקבצים שונות.)
 - **תמונת הבסיס:** מחליפים את ה־digest ב־`worker/Dockerfile` (גרסת Python זהה).
 - **הגדרת השרת (`host/`, `compose.yaml`):** אחרי כל שינוי: `python3 infra/build-cloud-init.py`. הבדיקות נכשלות אם שוכחים. שרת קיים לא קורא את ההגדרה הראשונית שוב — שינוי כזה = שרת חדש מאותה הגדרה, ומחיקת הישן.
-- **ffmpeg:** ה־workflow לוקח את ה־sha256 של הבנייה הנוכחית של ענף 8.1 ורושם אותו בתווית התמונה (`snb.ffmpeg.sha256`).
+- **ffmpeg:** ה־workflow לוקח את ה־sha256 של הבנייה הנוכחית של ענף 8.1, לכל ארכיטקטורה, ורושם אותם בתוויות התמונה (`snb.ffmpeg.sha256.amd64`/`.arm64`). כל ארכיטקטורה נבנית על מכונה מהסוג שלה (`ubuntu-24.04-arm` — בלי אמולציה), וה־job ‏`merge` מאחד וחותם על ה־index.
 
 ## החיבור לאפליקציה
 
