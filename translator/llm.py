@@ -17,8 +17,14 @@ cache_control על הבלוק הקבוע). ספק אחר יתווסף רק אם 
 
 from __future__ import annotations
 
+import hashlib
 import os
+import threading
 from dataclasses import dataclass, field
+
+# הבלוק הקבוע נשמר במטמון לשעה (לא 5 דק׳): עבודה שלמה נמשכת יותר משעה, וטיימר ה־5 דקות נמדד
+# מתחילת הבקשה — ג׳נרציה של דקות אוכלת אותו. כתיבת 1h = פי 2 מהקלט, קריאה = 5% — משתלם מהקריאה השנייה.
+CACHE_TTL = os.environ.get('SNB_CACHE_TTL', '1h')
 
 # דולר למיליון טוקנים: (קלט, פלט, קריאה מהמטמון). כתיבה למטמון ל־5 דק׳ = פי 1.25 מהקלט.
 # המקור: platform.claude.com/docs/en/about-claude/pricing (נבדק 08/10/2026). זהה ל־PRICES ב־job.py.
@@ -98,6 +104,8 @@ class Result:
     usage: dict
     usd: float | None
     stop: str | None
+    think_chars: int = 0        # תווי חשיבה (adaptive thinking) — כמה מהפלט הוא חשיבה ולא תשובה
+    diag: object = None         # response.diagnostics (cache diagnostics, GA) — None = אין סטייה או אין מידע
 
 
 class Engine:
@@ -108,20 +116,37 @@ class Engine:
         self.cap = cap_usd
         self.ledger = Ledger()
         self._client = client          # בבדיקות: לקוח מדומה עם messages.stream(...)
+        self._lock = threading.Lock()  # קריאות התרגום רצות במקביל — ה־ledger והמעקבים משותפים
+        self._prev_id = None           # message id אחרון — נשלח ב־diagnostics של הקריאה הבאה
+        self._fixed_calls: dict = {}   # hash של הבלוק הקבוע → כמה קריאות — לאימות שהמטמון באמת נקרא
+        self.cache_warns = 0           # קריאות שהיו אמורות לקרוא מהמטמון (אותו בלוק, קריאה 2+) ולא קראו
+        self.think: dict = {}          # שלב → תווי חשיבה מצטברים (כמה מהפלט הוא חשיבה)
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
-                 system_extra: str = '') -> Result:
+                 system_extra: str = '', on_first_token=None) -> Result:
         """system_fixed = הבלוק הקבוע (מדריך, תדריך, מילון, המקור) — נכנס למטמון ומשותף לכל הקריאות של העבודה.
-        system_extra = הוראה קצרה שמשתנה (אחרי נקודת המטמון). prompt = הבקשה עצמה."""
-        spent = self.ledger.total()
+        system_extra = הוראה קצרה שמשתנה (אחרי נקודת המטמון). prompt = הבקשה עצמה.
+        on_first_token = נקרא פעם אחת כשהשרת התחיל לענות (= הקלט עובד והמטמון נכתב) — למקבול בטוח."""
+        with self._lock:
+            spent = self.ledger.total()
         if self.cap is not None and spent is not None and spent >= self.cap:
             raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
         if self.spec.provider == 'anthropic':
-            res = self._anthropic(system_fixed, system_extra, prompt, max_tokens)
+            res = self._anthropic(system_fixed, system_extra, prompt, max_tokens, on_first_token)
         else:
             raise LLMError('provider_unknown', self.spec.provider)
-        self.ledger.add(k, self.spec.model, res.usage, res.usd)     # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
+        fh = hashlib.sha1(system_fixed.encode('utf-8')).hexdigest()
+        with self._lock:
+            self.ledger.add(k, self.spec.model, res.usage, res.usd)  # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
+            self.think[k] = self.think.get(k, 0) + res.think_chars
+            n_fixed = self._fixed_calls[fh] = self._fixed_calls.get(fh, 0) + 1
+        if n_fixed >= 2 and not res.usage['cr']:
+            # מהקריאה השנייה עם אותו בלוק קבוע חייבת להיות קריאה מהמטמון. diagnostics מסביר סטייה
+            # בבקשה; diagnostics ריק + אפס קריאות = הרשומה פגה בצד השרת (לקצר פערים בין קריאות).
+            self.cache_warns += 1
+            why = _diag_reason(res.diag) or 'אין סטייה בבקשה — כנראה הרשומה פגה'
+            print(f'⚠ המטמון לא נקרא (שלב {k}, קריאה {n_fixed} עם אותו בלוק קבוע): {why}')
         if res.stop == 'refusal':
             raise LLMError('model_refusal', 'המודל סירב לבקשה (בלי מעבר למודל אחר — מודל אחד לכל עבודה)')
         if res.stop == 'max_tokens':
@@ -140,17 +165,28 @@ class Engine:
             self._client = anthropic.Anthropic(max_retries=4, timeout=1800)
         return self._client
 
-    def _anthropic(self, fixed: str, extra: str, prompt: str, max_tokens: int) -> Result:
-        system = [{'type': 'text', 'text': fixed, 'cache_control': {'type': 'ephemeral'}}]
+    def _anthropic(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
+        system = [{'type': 'text', 'text': fixed, 'cache_control': {'type': 'ephemeral', 'ttl': CACHE_TTL}}]
         if extra:
             system.append({'type': 'text', 'text': extra})
+        with self._lock:
+            prev_id = self._prev_id
         kw = dict(model=self.spec.model, max_tokens=max_tokens, system=system,
-                  messages=[{'role': 'user', 'content': prompt}], thinking={'type': 'adaptive'})
-        if self.spec.effort:
-            kw['output_config'] = {'effort': self.spec.effort}
+                  messages=[{'role': 'user', 'content': prompt}], thinking={'type': 'adaptive'},
+                  # effort מקובע מפורשות תמיד — ברירות המחדל של המודלים שונות (Opus 5.5 = medium) ואסור לסמוך עליהן.
+                  output_config={'effort': self.spec.effort or 'medium'},
+                  # cache diagnostics (GA, חינם): התשובה אומרת למה המטמון פוספס. חייב להישלח בכל בקשה —
+                  # טביעת האצבע נשמרת רק לבקשות שכללו diagnostics.
+                  extra_body={'diagnostics': {'previous_message_id': prev_id}})
         client = self._client_or_new()
         try:
             with client.messages.stream(**kw) as stream:
+                if on_first_token is not None:
+                    try:
+                        next(iter(stream), None)      # האירוע הראשון מגיע אחרי שהקלט עובד — המטמון כבר נכתב
+                    except TypeError:
+                        pass                          # לקוח מדומה בלי זרם — מדווחים מיד
+                    on_first_token()
                 msg = stream.get_final_message()
         except LLMError:
             raise
@@ -163,6 +199,11 @@ class Engine:
             raise LLMError(code, f'{name}: {str(e)[:200]}') from e
         stop = getattr(msg, 'stop_reason', None)
         text = ''.join(getattr(b, 'text', '') for b in msg.content if getattr(b, 'type', '') == 'text')
+        think = sum(len(getattr(b, 'thinking', '') or '') for b in msg.content if getattr(b, 'type', '') == 'thinking')
+        mid = getattr(msg, 'id', None)
+        if mid:
+            with self._lock:
+                self._prev_id = mid
         u = msg.usage
         cc = getattr(u, 'cache_creation', None)
         c1 = int(getattr(cc, 'ephemeral_1h_input_tokens', 0) or 0) if cc else 0
@@ -170,4 +211,15 @@ class Engine:
         usage = {'i': int(u.input_tokens or 0), 'o': int(u.output_tokens or 0),
                  'cr': int(getattr(u, 'cache_read_input_tokens', 0) or 0), 'c5': max(c5, 0), 'c1': c1}
         usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
-        return Result(text, usage, usd, stop)
+        return Result(text, usage, usd, stop, think_chars=think, diag=getattr(msg, 'diagnostics', None))
+
+
+def _diag_reason(diag) -> str | None:
+    """cache_miss_reason.type מתוך response.diagnostics — עובד גם על dict וגם על אובייקט SDK."""
+    if diag is None:
+        return None
+    cm = diag.get('cache_miss_reason') if isinstance(diag, dict) else getattr(diag, 'cache_miss_reason', None)
+    if cm is None:
+        return None
+    t = cm.get('type') if isinstance(cm, dict) else getattr(cm, 'type', None)
+    return str(t) if t else None
