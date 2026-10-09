@@ -145,6 +145,7 @@ export function normJob(j) {
     rw: num(s.rec),        // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
     fr: s.fr && typeof s.fr.s === 'number' && s.fr.s >= -1 && s.fr.s < 600 ? { s: s.fr.s, ms: num(s.fr.ms) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(s.tr),   // v373: עקיבה
+    q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -248,13 +249,27 @@ export function normTrace(t) {
   const g = (Array.isArray(t.g) ? t.g : []).filter((x) => Array.isArray(x) && TR_KEY.test(String(x[0] || ''))).slice(0, 8).map((x) => [x[0], int(x[1]), Math.min(int(x[2]), int(x[1]))]);
   return { a, g };
 }
+/* v374: מדד האיכות של הכתוביות ושומר ההזרקות (מהשרתון, בעבודה) — מספרים וקודים בלבד */
+const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
+export function normQuality(q) {
+  if (!q || typeof q !== 'object' || !Array.isArray(q.m)) return null;
+  const int = (v, hi) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= hi ? v : null);
+  const m = q.m.filter((x) => x && Q_KEYS.includes(x.k) && int(x.w, 100) != null && int(x.g, 100) != null && int(x.b, 1e6) != null && x.g <= x.w)
+    .map((x) => ({ k: x.k, w: x.w, g: x.g, b: x.b }));
+  const sc = int(q.s, 100), n = int(q.n, 1e6);
+  return sc == null || !n || m.length !== Q_KEYS.length ? null : { s: sc, n, m };
+}
+export function normInj(o) {
+  return o && Number.isInteger(o.n) && o.n > 0 && o.n < 1e5 ? { n: o.n, c: (Array.isArray(o.c) ? o.c : []).filter((x) => ['ign', 'role', 'tag', 'cmd', 'key'].includes(x)) } : null;
+}
+export const Q_PASS = 70;
 export function normAgents(o) {
   if (!o || typeof o !== 'object' || !Array.isArray(o.agents)) return null;
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(hi, v)) : 0);
   const agents = o.agents.filter((x) => x && ['main', 'tl', 'rv'].includes(x.k)).slice(0, 3).map((x) => ({
     k: x.k, m: /^claude-[a-z0-9-]{1,50}$/.test(String(x.m || '')) ? x.m : '', ef: ['low', 'medium', 'high', 'max'].includes(x.ef) ? x.ef : '',
     jobs: num(x.jobs, 1e4), usd: num(x.usd, 1e6), partial: x.partial === true, ok: typeof x.ok === 'number' ? num(x.ok, 100) : null,
-    n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true }));
+    n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true, q: typeof x.q === 'number' ? num(x.q, 100) : null }));
   const ev = o.ev && /^[0-9a-f]{12}$/.test(String(o.ev.v || '')) ? { v: o.ev.v, n: num(o.ev.n, 1e3) } : null;
   return { jobs: num(o.jobs, 1e4), agents, ev };
 }
@@ -1708,6 +1723,7 @@ function opsAlert(c, k) {
     case 'claude:net': return T('studioAlClaudeNet');
     case 'claude:budget': return T('studioAlClaudeBudget');
     case 'claude:auto': return T('studioAlClaudeAuto');
+    case 'claude:inject': return T('studioAlClaudeInject');
     case 'vt:setup': return T('studioAlVtSetup');
     case 'vt:ingest': return T('studioAlVtIngest');
     case 'vt:asr': return T('studioAlVtAsr');
@@ -2192,6 +2208,7 @@ function pageAgents(p) {
     g.append(kv(T('studioAgJobsK'), String(a.jobs)), kv(T('studioAgCost'), usdEl(a.usd, a.partial)),
       kv(T('studioAgOk'), a.ok == null ? '—' : ltr(a.ok + '%')), kv(T('studioAgActs'), a.n ? ltr(String(a.n)) + (a.e ? ' · ' + (a.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: a.e })) : '') : '—'),
       kv(T('studioAgTime'), a.s >= 60 ? fmtShort(a.s) : '—'), kv(T('studioAgPv'), a.pv ? h('bdi', 'st-mono', a.pv) : '—'));
+    if (a.k !== 'main') g.append(kv(T('studioQT'), a.q == null ? '—' : ltr(String(a.q))));   // v374: איכות ממוצעת של הכתוביות
     card.append(head, g);
     p.append(card);
   }
@@ -2482,6 +2499,38 @@ function costLabel(k) {
   }
 }
 function usdEl(v, plus) { const b = h('bdi', null, v == null ? '—' : fmtUsd(v) + (plus ? '+' : '')); b.dir = 'ltr'; return b; }   // "+" בתוך הבידוד — אחרת ב־RTL הוא קופץ לצד השני
+/* v374: איכות הכתוביות (מסך 6 בתוכנית — צ'קליסט משוקלל, סף מעבר 70) + שומר ההזרקות. בלי טוקנים — מהקובץ הסופי */
+function qName(k) {
+  switch (k) {
+    case 'cps': return T('studioQCps');
+    case 'len': return T('studioQLen');
+    case 'lines': return T('studioQLines');
+    case 'dur': return T('studioQDur');
+    case 'en': return T('studioQEn');
+    default: return T('studioQChk');
+  }
+}
+function qualityCard(q, ij) {
+  if (!q && !ij) return [];
+  const card = h('div', 'st-twcard st-qc');
+  card.dataset.k = 'quality';
+  if (q) {
+    const head = h('div', 'st-qh');
+    head.append(h('b', 'st-qs', String(q.s)), h('span', 'st-l', T('studioQOf', { n: q.n })), pill(q.s >= Q_PASS ? 'g' : 'h', q.s >= Q_PASS ? T('studioQPass') : T('studioQFail')));
+    card.append(head);
+    for (const x of q.m) {
+      const r = h('div', 'st-perm-r ' + (x.b ? 'n' : 'y'));
+      const i = h('i'); i.append(ico(x.b ? 'x' : 'check'));
+      const l = h('span', 'st-l'); l.append(qName(x.k));
+      if (x.b && x.k !== 'chk') l.append(h('small', null, T('studioQBad', { n: x.b })));
+      r.append(i, l, h('span', 'st-qp', ltr(x.g + '/' + x.w)));
+      r.dataset.k = 'q:' + x.k;
+      card.append(r);
+    }
+  }
+  if (ij) card.append(h('p', 'st-perm-b', T('studioQInj', { n: ij.n })));
+  return [secT(T('studioQT')), card];
+}
 function costCard(cv, tr) {
   const rows = cv.rows.map((r) => {
     const row = h('div', 'st-row st-cost' + (r.off ? ' off-model' : ''));
@@ -2636,6 +2685,7 @@ function pageJob(p) {
   }
   p.append(secT(T('studioSecStages')), stl);
 
+  if (rec.srv) p.append(...qualityCard(rec.srv.q, rec.srv.ij));   // v374: איכות הכתוביות + שומר ההזרקות
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr));

@@ -15,7 +15,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 1. העובד ---------- */
   const job = read('translator/job.py');
   ok(/def trace\(root=None\):/.test(job) && /def prompt_versions\(\):/.test(job) && /c\.call\('claim', ev=env_version\(\), pv=prompt_versions\(\)\)/.test(job), 'job.py: עקיבה מהיומנים וגרסאות ההנחיות ב־claim');
-  ok((job.match(/usage=usage_safe\(\), trace=trace_safe\(\)\)/g) || []).length === 4, 'job.py: כל דיווח סיום / כישלון שולח גם עקיבה');
+  ok((job.match(/usage=usage_safe\(\), trace=trace_safe\(\)(?:, quality=q)?\)/g) || []).length === 4, 'job.py: כל דיווח סיום / כישלון שולח גם עקיבה');
 
   /* ---------- 2. השרתון — טהור ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
@@ -24,7 +24,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(A.effortOf('opus-medium') === 'medium' && A.effortOf('sonnet-high') === 'high' && A.effortOf('x') === '', 'המאמץ מהמצב');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/ag: A\.agentsView\(list, now\)/.test(api) && /const pv = S\.normPv\(body\.pv\)/.test(api) && /const tr = S\.normTrace\(body\.trace\)/.test(api), 'השרתון: מלאי מאותה רשימה של op jobs, גרסאות מ־claim, עקיבה מהדיווח');
-  ok(/'tr', 'pv'\]/.test(read('ibkr-proxy/lib/studio.js')), 'עקיבה וגרסאות נשמרות כ־JSON');
+  ok(/'tr', 'pv'(, 'q', 'ij')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'עקיבה וגרסאות נשמרות כ־JSON');
 
   /* ---------- 3. ההרשאות שמוצגות = מה שנאכף ---------- */
   const setup = read('translator/setup.sh');

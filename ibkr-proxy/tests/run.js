@@ -1709,6 +1709,38 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v374: מדד האיכות של הכתוביות ושומר ההזרקות
+    now += 3600e3 + 1;
+    {
+      const S3 = require('../lib/studio');
+      const O3 = require('../lib/studioops');
+      const m = [['cps', 25, 20, 3], ['len', 15, 15, 0], ['lines', 10, 10, 0], ['dur', 15, 12, 2], ['en', 15, 15, 0], ['chk', 20, 20, 0]].map(([k, w, g, b]) => ({ k, w, g, b }));
+      const q = { s: 92, n: 40, m };
+      ok(JSON.stringify(S3.normQuality(q)) === JSON.stringify(q), 'סטודיו: מדד האיכות — כמו שהוא');
+      ok(S3.normQuality(Object.assign({}, q, { s: 99 })) === null && S3.normQuality({ s: 92, n: 40, m: m.slice(1) }) === null
+        && S3.normQuality({ s: 92, n: 40, m: m.map((x) => (x.k === 'cps' ? Object.assign({}, x, { g: 30 }) : x)) }) === null
+        && S3.normQuality({ s: 92, n: 40, m: m.map((x) => (x.k === 'cps' ? Object.assign({}, x, { k: 'evil' }) : x)) }) === null,
+      'סטודיו: מדד האיכות — סכום לא תואם / מדד חסר / נקודות מעל המשקל / מדד לא מוכר — נזרק');
+      ok(JSON.stringify(S3.normInj({ n: 3, c: ['ign', 'tag', 'ign', '<b>'] })) === '{"n":3,"c":["ign","tag"]}' && S3.normInj({ n: 0 }) === null && S3.normInj({ n: 'x' }) === null,
+        'סטודיו: שומר ההזרקות — מספר וקודים מוכרים בלבד');
+      ok(O3.KINDS['claude:inject'] === 3, 'סטודיו: קטלוג — "טקסט שנראה כמו הוראה" (P3, לא קופץ)');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JQ = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JQ, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JQ });
+      const KQ = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JQ, key: KQ });
+      await wrk({ op: 'report', job: JQ, key: KQ, inj: { n: 2, c: ['ign'] }, ev: [{ c: 'claude', k: 'inject' }] });
+      await wrk({ op: 'report', job: JQ, key: KQ, done: true, quality: q, usage: [{ k: 'tl', m: 'claude-opus-5-5', n: 1, i: 1, o: 1, cr: 0, c5: 0, c1: 0, usd: 1 }] });
+      rr = await run({ op: 'job', idToken: OWNER, job: JQ });
+      ok(rr.payload.job.q && rr.payload.job.q.s === 92 && rr.payload.job.ij && rr.payload.job.ij.n === 2, 'סטודיו: האיכות וההזרקות מגיעות לטלפון');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(rr.payload.ag.agents.find((x) => x.k === 'tl').q === 92, 'סטודיו: מלאי — איכות ממוצעת למתרגם');
+      await run({ op: 'remove', idToken: OWNER, job: JQ });
+    }
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v373: מלאי הסוכנים, עקיבה מהיומנים וגרסאות ההנחיות
     now += 3600e3 + 1;
     {

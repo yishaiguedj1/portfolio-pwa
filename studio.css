@@ -500,3 +500,10 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-perm-r.n i { background: var(--st-red-c); color: var(--loss); }
 .st-perm-b { margin: 4px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--on-surface-var); }
 .st-neg { color: var(--loss); }
+/* v374: איכות הכתוביות — ציון, צ'קליסט משוקלל (אותן שורות ✓/✕ של ההרשאות) */
+.st-qc { display: grid; gap: 8px; }
+.st-qh { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.st-qs { font-size: 32px; font-weight: 800; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.st-qh .st-l { flex: 1; min-width: 0; font-size: 13.5px; color: var(--on-surface-var); }
+.st-qc .st-perm-r .st-l { flex: 1; min-width: 0; display: grid; gap: 1px; } .st-qc .st-perm-r small { color: var(--on-surface-var); }
+.st-qp { font-size: 13px; font-weight: 700; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }

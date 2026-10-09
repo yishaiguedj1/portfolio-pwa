@@ -429,6 +429,7 @@ function publicJob(job, now) {
     sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
+    q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
   };
 }
 /* v373: עקיבה מהעובד (מהיומנים, בלי טוקנים): לכל סוכן n פעולות, e שנכשלו, s שניות; וקבוצות [מפתח, n, e].
@@ -454,7 +455,31 @@ function normTrace(t) {
   }
   return { a, g };
 }
-/* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (המתזמר), tl = TRANSLATE, rv = REVIEW */
+/* v374: מדד האיכות של הכתוביות (מהעובד, בלי טוקנים): s = 0–100, n כתוביות, m = מדדים קבועים {k, w משקל, g נקודות, b כתוביות שנכשלו} */
+const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
+function normQuality(q) {
+  if (!q || typeof q !== 'object' || !Array.isArray(q.m)) return null;
+  const int = (v, hi) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= hi ? v : null);
+  const s = int(q.s, 100), n = int(q.n, 1e6);
+  if (s == null || n == null || !n || q.m.length !== Q_KEYS.length) return null;
+  const m = [];
+  for (const x of q.m) {
+    if (!x || !Q_KEYS.includes(x.k) || m.some((y) => y.k === x.k)) return null;
+    const w = int(x.w, 100), g = int(x.g, 100), b = int(x.b, 1e6);
+    if (w == null || g == null || b == null || g > w) return null;
+    m.push({ k: x.k, w, g, b });
+  }
+  if (m.reduce((t, x) => t + x.g, 0) !== s) return null;
+  return { s, n, m };
+}
+/* v374: שומר ההזרקות — כמה שורות סומנו ובאילו סוגים (קודים קבועים, בלי טקסט) */
+const INJ_CODES = ['ign', 'role', 'tag', 'cmd', 'key'];
+function normInj(o) {
+  if (!o || typeof o !== 'object' || !Number.isInteger(o.n) || o.n < 1 || o.n > 1e5) return null;
+  const c = (Array.isArray(o.c) ? o.c : []).filter((x) => INJ_CODES.includes(x));
+  return { n: o.n, c: Array.from(new Set(c)) };
+}
+/* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (מנהל העבודה), tl = TRANSLATE, rv = REVIEW */
 function normPv(p) {
   if (!p || typeof p !== 'object') return null;
   const out = {};
@@ -546,7 +571,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv'];   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij'];   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -573,7 +598,7 @@ function fromFields(f) {
 }
 
 module.exports = {
-  normTrace, normPv,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
