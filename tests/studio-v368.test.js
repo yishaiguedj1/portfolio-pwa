@@ -26,7 +26,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(S.isTransient('net', []) && S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('worker', []), 'תקלה חולפת — Drive / רשת בלבד, אף פעם לא עצירה מכוונת');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/op === 'mute'/.test(api) && /async function autoRecover/.test(api) && /if \(auto\) patch\.ar = /.test(api), 'השרתון: השתקה, והמשך אוטומטי שנרשם לפני ההפעלה (בלי כפילות)');
-  ok(/'rl', 'mu'(, 'fr')?(, 'inc', 'mi')?(, 'tr', 'pv')?(, 'q', 'ij')?(, 'jd')?(, 'tg')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'השתקות נשמרות כ־JSON (mu)');
+  ok(/'rl', 'mu'(, 'fr')?(, 'inc', 'mi')?(, 'tr', 'pv')?(, 'q', 'ij')?(, 'jd')?(, 'tg')?(, 'sc')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'השתקות נשמרות כ־JSON (mu)');
   ok(/\$J fail --err <קוד>/.test(read('translator/RUNBOOK.md')) && /`--err net`/.test(read('translator/RUNBOOK.md')), 'RUNBOOK: תקלת Drive / רשת חוזרת → --err net (האפליקציה ממשיכה לבד)');
 
   /* ---------- 2. הטלפון ---------- */
