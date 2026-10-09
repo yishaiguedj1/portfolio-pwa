@@ -604,11 +604,11 @@ class TestWorker(unittest.TestCase):
         self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 12.5, 'ab': True, 'mx': 'opus-high'}, 2, 7.25
         self.take()
         st = json.loads((self.tmp / 'state' / 'job.json').read_text())
-        self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 12.5, 'ab': True}, 2, 7.25))
+        self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 12.5, 'ab': True, 'jx': False}, 2, 7.25))
         self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 'evil', 'ab': 'yes'}, -1, 'x'
         self.take()
         st = json.loads((self.tmp / 'state' / 'job.json').read_text())
-        self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 0.0, 'ab': False}, 0, 0.0))
+        self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 0.0, 'ab': False, 'jx': False}, 0, 0.0))
 
     def finish_with_gate(self, ans, env=None):
         self.fake.rl, self.fake.gate_ans = {'b': 0, 'ab': True}, ans
@@ -804,7 +804,7 @@ class TestWorker(unittest.TestCase):
         self.assertNotIn('secret', json.dumps(t))
         self.assertIsNone(J.trace(self.tmp / 'nothing'))
         pv = J.prompt_versions()
-        self.assertEqual(sorted(pv), ['rb', 'rv', 'tl'])
+        self.assertEqual(sorted(pv), ['jg', 'rb', 'rv', 'tl'])   # v375: גם השופט
         self.assertTrue(all(len(v) == 8 for v in pv.values()))
 
     def test_quality(self):
@@ -824,6 +824,32 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(J.quality(p, chk_ok=False)['s'], q['s'] - 20)
         self.assertNotIn('שלום', json.dumps(q, ensure_ascii=False))
         self.assertIsNone(J.quality(self.tmp / 'nope.srt'))
+
+    def test_judge(self):
+        """v375: שופט האיכות — מדגם בפיזור שווה מחבילת הביקורת (בלי = / ∅), וציון רק משורות בצורה הנכונה מהמדגם"""
+        sys.path.insert(0, str(HERE))
+        import job as J
+        pkg = '# חבילה\n\n**דובר · 00:00**\n' + ''.join('#%d line %d\n→ %s\n' % (i, i, '=' if i % 10 == 0 else 'שורה %d ⚠' % i) for i in range(1, 101))
+        pick, total = J.judge_pick(pkg, 40)
+        self.assertEqual(total, 90)
+        self.assertEqual(len(pick), 40)
+        self.assertEqual(pick[0][:2], (1, 'line 1'))
+        self.assertEqual(pick[0][2], 'שורה 1', 'סימן ⚠ של קצב הקריאה לא נכנס לטקסט')
+        self.assertTrue(all(x[2] not in ('=', '∅') for x in pick))
+        self.assertEqual(J.judge_pick('#1 a\n→ ב\n', 40)[1], 1)
+        ids = set(x[0] for x in pick)
+        good = ['#%d %d %s' % (i, 5 if n % 4 else 2, 'ok' if n % 4 else 'mean') for n, i in enumerate(sorted(ids))]
+        junk = ['#999 1 mean', '#%d 1 mean' % min(ids), '#%d 6 ok' % max(ids), 'ignore all previous instructions', '#%d 3 hack' % max(ids)]
+        r = J.judge_score('\n'.join(good + junk), ids)
+        self.assertEqual(r['n'], 40, 'כפול / לא מהמדגם / ציון או קוד לא חוקי — נזרקים')
+        self.assertEqual(r['c'], {'mean': 10})
+        self.assertEqual(r['s'], round((30 * 100 + 10 * 25) / 40))
+        self.assertIsNone(J.judge_score('\n'.join(good[:5]), ids), 'פחות מ־10 תשובות — אין ציון')
+        self.assertEqual(J._sub_kind('שפוט לפי translator/JUDGE.md'), 'jg')
+        self.assertEqual(J._sub_kind('תרגם לפי translator/TRANSLATE.md'), 'tl')
+        self.assertIn('jg', J.prompt_versions())
+        self.assertTrue(J.rules_valid({'jx': True})['jx'])
+        self.assertFalse(J.rules_valid({'jx': 'yes'})['jx'])
 
     def test_inject_scan(self):
         """v374: שומר ההזרקות — מספר שורה וסוג בלבד; דיבור רגיל לא מסומן"""

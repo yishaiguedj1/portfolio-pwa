@@ -146,6 +146,7 @@ export function normJob(j) {
     fr: s.fr && typeof s.fr.s === 'number' && s.fr.s >= -1 && s.fr.s < 600 ? { s: s.fr.s, ms: num(s.fr.ms) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(s.tr),   // v373: עקיבה
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
+    jd: normJudge(s.jd),                      // v375: שופט האיכות
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -176,7 +177,7 @@ export const RULE_BUDGETS = [5, 10, 20, 40];
 export function normRules(r) {
   const o = r && typeof r === 'object' ? r : {};
   const b = typeof o.b === 'number' && Number.isFinite(o.b) && o.b >= 1 && o.b <= 500 ? o.b : 0;
-  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true };
+  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true, jx: o.jx === true };   // v375: jx = שופט האיכות כבוי
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
 const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
@@ -239,7 +240,7 @@ export function normInc(o) {
 }
 export const majorOn = (inc) => !!(inc && inc.mi && !inc.mi.x);
 /* v373: עקיבה (מהשרתון, בעבודה) ומלאי הסוכנים (op jobs) — רק מספרים, מזהי מודל וקודים */
-const TR_KINDS = ['main', 'tl', 'rv', 'sub'], TR_KEY = /^(?:(?:job|vt):[a-z][a-z_-]{1,19}|[A-Za-z]{1,24})$/;
+const TR_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'], TR_KEY = /^(?:(?:job|vt):[a-z][a-z_-]{1,19}|[A-Za-z]{1,24})$/;
 export function normTrace(t) {
   if (!t || typeof t !== 'object' || !t.a || typeof t.a !== 'object') return null;
   const int = (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1e7 ? v : 0);
@@ -263,10 +264,21 @@ export function normInj(o) {
   return o && Number.isInteger(o.n) && o.n > 0 && o.n < 1e5 ? { n: o.n, c: (Array.isArray(o.c) ? o.c : []).filter((x) => ['ign', 'role', 'tag', 'cmd', 'key'].includes(x)) } : null;
 }
 export const Q_PASS = 70;
+/* v375: שופט האיכות (Haiku, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
+const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
+export function normJudge(o) {
+  if (!o || typeof o !== 'object') return null;
+  const int = (v, lo, hi) => (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi ? v : null);
+  const s = int(o.s, 0, 100), n = int(o.n, 1, 200), t = int(o.t, 1, 200), a = int(o.a, 1, 1e6);
+  if (s == null || n == null || t == null || a == null || n > t || t > a) return null;
+  const c = {};
+  for (const k of JG_CODES) { const x = o.c && int(o.c[k], 1, 200); if (x) c[k] = x; }
+  return { s, n, t, a, c };
+}
 export function normAgents(o) {
   if (!o || typeof o !== 'object' || !Array.isArray(o.agents)) return null;
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(hi, v)) : 0);
-  const agents = o.agents.filter((x) => x && ['main', 'tl', 'rv'].includes(x.k)).slice(0, 3).map((x) => ({
+  const agents = o.agents.filter((x) => x && ['main', 'tl', 'rv', 'jg'].includes(x.k)).slice(0, 4).map((x) => ({
     k: x.k, m: /^claude-[a-z0-9-]{1,50}$/.test(String(x.m || '')) ? x.m : '', ef: ['low', 'medium', 'high', 'max'].includes(x.ef) ? x.ef : '',
     jobs: num(x.jobs, 1e4), usd: num(x.usd, 1e6), partial: x.partial === true, ok: typeof x.ok === 'number' ? num(x.ok, 100) : null,
     n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true, q: typeof x.q === 'number' ? num(x.q, 100) : null }));
@@ -329,7 +341,7 @@ export function qaPending(rec) {
   return !!(s && s.qa && !s.qa.a && (s.state === 'queued' || s.state === 'running'));
 }
 /* v359: טוקנים ועלות של עבודה — אותה בדיקה כמו בשרתון (lib/studio.js normUsage): עד 6 שורות, מודל claude-…, מספרים בלבד */
-const USE_KINDS = ['main', 'tl', 'rv', 'sub'];
+const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'];   // v375: jg = שופט האיכות
 export function normUse(a) {
   if (!Array.isArray(a) || !a.length || a.length > 6) return null;
   const out = [];
@@ -2156,6 +2168,7 @@ function agentName(k) {
   switch (k) {
     case 'main': return T('studioAgMain');
     case 'tl': return T('studioAgTl');
+    case 'jg': return T('studioAgJg');
     default: return T('studioAgRv');
   }
 }
@@ -2163,6 +2176,7 @@ function agentAbbr(k) {
   switch (k) {
     case 'main': return T('studioAgMainA');
     case 'tl': return T('studioAgTlA');
+    case 'jg': return T('studioAgJgA');
     default: return T('studioAgRvA');
   }
 }
@@ -2377,6 +2391,7 @@ function rulesSum(rl) {
   if (rl.b) parts.push(T('studioRlSumB', { v: budgetTxt(rl.b) }));
   if (rl.mx) parts.push(T('studioRlUpTo', { m: modeShort(modeById(rl.mx)) }));
   if (rl.ab) parts.push(T('studioRlSumAb'));
+  if (rl.jx) parts.push(T('studioRlSumJx'));
   return parts.length ? parts.join(' · ') : T('studioRlNone');
 }
 let rulesBusy = false;
@@ -2406,6 +2421,8 @@ function pageRules(p) {
     on: rl.mx === id, onClick: () => setRules({ mx: id }), k: 'rm:' + (id || 'all'), disabled: off }))));
   // אישור לפני צריבה — 5 כתוביות לדוגמה בטלפון
   p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
+  // v375: שופט האיכות (Haiku, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
+  p.append(secT(T('studioRlJgT')), list(rowSwitch({ label: T('studioRlJg'), sub: T('studioRlJgS'), on: !rl.jx, onClick: () => { if (!off) setRules({ jx: !rl.jx }); }, k: 'rj' })));
   // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד".
   // v368: עבר לכאן ממסך המגדל — כל מה שאתה קובע לסוכנים במקום אחד
   const fm = ui.fm === 'auto' ? 'auto' : 'suggest';
@@ -2495,6 +2512,7 @@ function costLabel(k) {
     case 'main': return T('studioCostMain');
     case 'tl': return T('studioCostTl');
     case 'rv': return T('studioCostRv');
+    case 'jg': return T('studioCostJg');
     default: return T('studioCostSub');
   }
 }
@@ -2510,8 +2528,18 @@ function qName(k) {
     default: return T('studioQChk');
   }
 }
-function qualityCard(q, ij) {
-  if (!q && !ij) return [];
+function jgName(k) {
+  switch (k) {
+    case 'mean': return T('studioJgMean');
+    case 'omit': return T('studioJgOmit');
+    case 'add': return T('studioJgAdd');
+    case 'gram': return T('studioJgGram');
+    case 'flu': return T('studioJgFlu');
+    default: return T('studioJgTerm');
+  }
+}
+function qualityCard(q, ij, jd, jm) {
+  if (!q && !ij && !jd) return [];
   const card = h('div', 'st-twcard st-qc');
   card.dataset.k = 'quality';
   if (q) {
@@ -2527,6 +2555,19 @@ function qualityCard(q, ij) {
       r.dataset.k = 'q:' + x.k;
       card.append(r);
     }
+  }
+  if (jd) {
+    // v375: שופט האיכות — ציון מהמדגם, איזה מודל שפט (כל ממשק AI מראה מי ענה), והבעיות לפי סוג
+    const r = h('div', 'st-row st-jg');
+    const l = h('span', 'st-l');
+    const iss = Object.keys(jd.c).map((k) => jgName(k) + ' ' + jd.c[k]).join(' · ');
+    const sm = h('small');
+    if (jm) sm.append(h('bdi', null, jm), ' · ');
+    sm.append(T('studioJgOf', { n: jd.n, a: jd.a }) + ' · ' + (iss || T('studioJgNone')));
+    l.append(h('b', null, T('studioJgT')), sm);
+    r.append(l, h('span', 'st-qp', ltr(jd.s + '/100')));
+    r.dataset.k = 'q:jg';
+    card.append(r);
   }
   if (ij) card.append(h('p', 'st-perm-b', T('studioQInj', { n: ij.n })));
   return [secT(T('studioQT')), card];
@@ -2685,7 +2726,10 @@ function pageJob(p) {
   }
   p.append(secT(T('studioSecStages')), stl);
 
-  if (rec.srv) p.append(...qualityCard(rec.srv.q, rec.srv.ij));   // v374: איכות הכתוביות + שומר ההזרקות
+  if (rec.srv) {   // v374: איכות הכתוביות + שומר ההזרקות · v375: שופט האיכות (והמודל שלו — משורת העלות)
+    const jr = (rec.srv.use || []).find((r) => r.k === 'jg');
+    p.append(...qualityCard(rec.srv.q, rec.srv.ij, rec.srv.jd, jr ? modelLabel(jr.m) : ''));
+  }
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr));

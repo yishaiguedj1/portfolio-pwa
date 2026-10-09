@@ -67,7 +67,8 @@ def rules_valid(r):
     """v367: החוקים מהשרתון — תקציב לעבודה (דולרים, 0 = בלי) ואישור לפני צריבה. מה שלא תקין — כאילו אין חוק."""
     r = r if isinstance(r, dict) else {}
     b = _usd(r.get('b'))
-    return {'b': b if 1 <= b <= 500 else 0.0, 'ab': r.get('ab') is True}
+    return {'b': b if 1 <= b <= 500 else 0.0, 'ab': r.get('ab') is True,
+            'jx': r.get('jx') is True}                               # v375: שופט האיכות כבוי
 
 
 def _int(x):
@@ -234,7 +235,7 @@ PRICES = {
     'claude-haiku-5-5': (0.10, 0.50, 0.01),
     'claude-haiku-4-5': (1.0, 5.0, 0.10),
 }
-USE_KINDS = ('main', 'tl', 'rv', 'sub')       # תיאום (הסשן הראשי) · תרגום · ביקורת · סוכן־משנה אחר
+USE_KINDS = ('main', 'tl', 'rv', 'jg', 'sub')       # תיאום (הסשן הראשי) · תרגום · ביקורת · שופט האיכות (v375) · סוכן־משנה אחר
 USE_MAX = 6
 MODEL_RE = re.compile(r'^claude-[a-z0-9-]{1,50}$')
 
@@ -341,6 +342,11 @@ def _finish_row(kind, row, extra=None):
     return out
 
 
+def _sub_kind(prompt):
+    """סוכן־משנה לפי ההנחיה הראשונה שלו: מתרגם · מבקר · שופט האיכות (v375) · אחר"""
+    return 'tl' if 'TRANSLATE.md' in prompt else 'rv' if 'REVIEW.md' in prompt else 'jg' if 'JUDGE.md' in prompt else 'sub'
+
+
 def usage(root=None):
     """v359: הטוקנים והעלות של העבודה מתוך יומני הסשן (~/.claude/projects/**/*.jsonl).
     קבוצות: הסשן הראשי (תיאום), וכל קובץ בתיקייה subagents/ = סוכן־משנה אחד — תרגום או ביקורת לפי ההנחיה הראשונה בו.
@@ -352,7 +358,7 @@ def usage(root=None):
         recs, calls = _calls(p)
         if 'subagents' in p.parts:
             prompt = _first_prompt(recs)
-            kind = 'tl' if 'TRANSLATE.md' in prompt else 'rv' if 'REVIEW.md' in prompt else 'sub'
+            kind = _sub_kind(prompt)
             if calls:
                 subs.append((kind, calls))
         else:
@@ -416,7 +422,7 @@ def trace(root=None):
         kind = 'main'
         if 'subagents' in p.parts:
             pr = _first_prompt(recs)
-            kind = 'tl' if 'TRANSLATE.md' in pr else 'rv' if 'REVIEW.md' in pr else 'sub'
+            kind = _sub_kind(pr)
         uses, errs, ts = {}, set(), []
         for r in recs:
             t = _ts(r.get('timestamp'))
@@ -466,7 +472,7 @@ def prompt_versions():
     """v373: גרסת ההנחיות של כל סוכן — 8 התווים הראשונים של sha1 על הקובץ (RUNBOOK = המתזמר, TRANSLATE, REVIEW)."""
     import hashlib
     out = {}
-    for k, f in (('rb', 'RUNBOOK.md'), ('tl', 'TRANSLATE.md'), ('rv', 'REVIEW.md')):
+    for k, f in (('rb', 'RUNBOOK.md'), ('tl', 'TRANSLATE.md'), ('rv', 'REVIEW.md'), ('jg', 'JUDGE.md')):
         try:
             out[k] = hashlib.sha1((HERE / f).read_bytes()).hexdigest()[:8]
         except OSError:
@@ -1263,6 +1269,97 @@ def quality(path, chk_ok=True):
     return {'s': sc, 'n': n, 'm': m}
 
 
+# v375: שופט האיכות (Haiku) — מדגם של JG_N כתוביות מחבילת הביקורת; לכל אחת ציון 1–5 וקוד קבוע. רק מספרים וקודים חוזרים לשרתון
+JG_N = 40
+JG_CODES = ('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term')
+_JG_LINE = re.compile(r'^#(\d{1,6})\s+([1-5])\s+([a-z]{2,4})\s*$')
+
+
+def judge_pick(pkg_text, n=JG_N):
+    """מחבילת הביקורת (‎#מספר אנגלית / → עברית) — n כתוביות בפיזור שווה, רק כאלה שיש להן תרגום משלהן"""
+    pairs, cur = [], None
+    for ln in pkg_text.split('\n'):
+        m = re.match(r'^#(\d+) (.*)$', ln)
+        if m:
+            cur = (int(m.group(1)), m.group(2).strip())
+            continue
+        if cur and ln.startswith('→ '):
+            he = re.sub(r'\s*⚠$', '', ln[2:]).strip()
+            if he and he not in ('=', '∅') and cur[1]:
+                pairs.append((cur[0], cur[1], he))
+            cur = None
+    if len(pairs) <= n:
+        return pairs, len(pairs)
+    step = (len(pairs) - 1) / (n - 1)
+    return [pairs[round(i * step)] for i in range(n)], len(pairs)
+
+
+def judge_score(text, ids):
+    """התשובה של השופט: שורה לכל כתובית "#מספר ציון קוד". מה שלא בצורה / לא מהמדגם / כפול — נזרק.
+    s = 0–100 (ממוצע הציונים), c = כמה מכל סוג בעיה, n = כמה נשפטו מתוך t במדגם, a = כמה כתוביות בעבודה"""
+    got = {}
+    for ln in str(text or '').replace('\r', '').split('\n'):
+        m = _JG_LINE.match(ln.strip())
+        if not m or int(m.group(1)) not in ids or int(m.group(1)) in got or m.group(3) not in JG_CODES:
+            continue
+        got[int(m.group(1))] = (int(m.group(2)), m.group(3))
+    if len(got) < min(10, len(ids)):
+        return None
+    c = {}
+    for sc, code in got.values():
+        if code != 'ok':
+            c[code] = c.get(code, 0) + 1
+    s = round(sum((sc - 1) * 25 for sc, _ in got.values()) / len(got))
+    return {'s': s, 'n': len(got), 'c': c}
+
+
+@guarded
+def judge_prep(args):
+    ctx = Ctx(load_state())
+    if (ctx.st.get('rl') or {}).get('jx'):
+        print('· שופט האיכות כבוי בחוקים שלך — מדלגים ישר ל־finish.')
+        return 0
+    for c in (['tr-merge', ctx.name], ['build', ctx.name], ['review-pack', ctx.name]):
+        vt(ctx, c)
+    try:
+        pkg = (ctx.pdir / 'review' / 'package.md').read_text(encoding='utf-8')
+    except OSError:
+        raise SystemExit('✗ חבילת הביקורת לא נוצרה — מדלגים על השופט ל־finish.')
+    pick, total = judge_pick(pkg)
+    if len(pick) < 10:
+        print('· פחות מ־10 כתוביות — בלי שופט; ממשיכים ל־finish.')
+        return 0
+    d = ctx.pdir / 'judge'
+    d.mkdir(exist_ok=True)
+    (d / 'verdict.txt').unlink(missing_ok=True)
+    (d / 'sample.md').write_text('\n'.join('#%d %s\n→ %s' % x for x in pick) + '\n', encoding='utf-8')
+    ctx.st['jg'] = {'ids': [x[0] for x in pick], 'a': total}
+    save_state(ctx.st)
+    print('✓ מדגם לשופט: %d מתוך %d כתוביות → %s' % (len(pick), total, d / 'sample.md'))
+    return 0
+
+
+@guarded
+def judge(args):
+    ctx = Ctx(load_state())
+    jg = ctx.st.get('jg') or {}
+    ids = set(x for x in (jg.get('ids') or []) if isinstance(x, int))
+    try:
+        txt = (ctx.pdir / 'judge' / 'verdict.txt').read_text(encoding='utf-8')
+    except OSError:
+        txt = ''
+    r = judge_score(txt, ids) if ids else None
+    if not r:
+        print('· השופט לא החזיר תשובה תקינה — ממשיכים בלעדיו ל־finish.')
+        ctx.st.pop('jd', None)
+    else:
+        r.update({'t': len(ids), 'a': int(jg.get('a') or len(ids))})
+        ctx.st['jd'] = r
+        print('✓ שופט האיכות: %d/100 על %d כתוביות%s' % (r['s'], r['n'], (' · ' + ', '.join('%s %d' % kv for kv in sorted(r['c'].items()))) if r['c'] else ''))
+    save_state(ctx.st)
+    return 0
+
+
 def approve_render(ctx, wait=None):
     """v367: חוק "אישור לפני צריבה" — 5 כתוביות לדוגמה בטלפון; "לצרוב" / "רק קובץ כתוביות". בלי תשובה בזמן — רק כתוביות."""
     cues, cnt = srt_samples(ctx.pdir / 'out' / 'he.srt')
@@ -1391,7 +1488,8 @@ def finish(args):
         q = quality(ctx.pdir / 'out' / 'he.srt', chk_ok=not args.force)   # v374: מדד האיכות (בלי טוקנים)
     except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
         q = None
-    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q)
+    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q,
+               judge=ctx.st.get('jd'))                 # v375: שופט האיכות (Haiku) — אם רץ
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 
@@ -1601,6 +1699,8 @@ def main(argv=None):
     e = sub.add_parser('fail', help='סימון העבודה כ"נכשלה"')
     e.add_argument('--err', default='worker')
     e.add_argument('--msg')
+    sub.add_parser('judge-prep', help='שופט האיכות: מדגם של 40 כתוביות לסוכן Haiku (אחרי הביקורת)')
+    sub.add_parser('judge', help='שופט האיכות: קריאת התשובה (judge/verdict.txt) לציון')
     sub.add_parser('gate', help='מגדל הפיקוח עצר בתקציב — מחכים לתשובה שלך בטלפון')
     x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
     x.add_argument('--text', required=True)
@@ -1610,7 +1710,8 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
-                'save': save, 'restore': restore, 'fix': fix, 'gate': gate_cmd, 'auto': auto}[a.cmd](a)
+                'save': save, 'restore': restore, 'fix': fix, 'gate': gate_cmd, 'auto': auto,
+                'judge-prep': judge_prep, 'judge': judge}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1
