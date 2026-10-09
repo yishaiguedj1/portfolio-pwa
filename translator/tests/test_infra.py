@@ -90,6 +90,7 @@ class Pipeline(unittest.TestCase):
         self.assertRegex(w, r'(?m)^permissions: \{\}$')
         self.assertRegex(w, r'environment: production', 'פרודקשן רק באישור')
         self.assertIn('cosign sign --yes', w)
+        self.assertIn('--new-bundle-format=false', w, 'חתימה גם בפורמט שה־cosign של Debian בשרת מכיר')
         self.assertIn('imagetools create -t "$IMAGE:prod" "$ref"', w, 'קידום = אותו digest, בלי בנייה מחדש')
         self.assertIn('unittest discover', w, 'בלי בדיקות ירוקות אין תמונה')
 
