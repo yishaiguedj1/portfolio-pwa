@@ -771,6 +771,42 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(J.PRICES['claude-sonnet-5-5'][2], 0.10, 'Sonnet 5.5: קריאה מהמטמון = 0.05× מהקלט')
         self.assertEqual(J.PRICES['claude-haiku-5-5'], (0.10, 0.50, 0.01))
 
+    def test_trace(self):
+        """v372: עקיבה מהיומנים — פעולות, שגיאות ומשך לכל סוכן, וקבוצות לפי כלי / פקודה; בלי ארגומנטים ונתיבים"""
+        sys.path.insert(0, str(HERE))
+        import job as J
+        root = self.tmp / 'tproj' / 'p'
+        (root / 's' / 'subagents').mkdir(parents=True)
+
+        def use(i, name, inp, ts):
+            return {'type': 'assistant', 'timestamp': ts, 'message': {'id': 'm' + i, 'content': [{'type': 'tool_use', 'id': 't' + i, 'name': name, 'input': inp}]}}
+
+        def res(i, err, ts):
+            return {'type': 'user', 'timestamp': ts, 'message': {'content': [{'type': 'tool_result', 'tool_use_id': 't' + i, 'is_error': err}]}}
+
+        recs = [use('1', 'Bash', {'command': 'python3 translator/job.py vt tr-check --secret /home/x/Interview.mp4'}, '2026-10-09T10:00:00Z'), res('1', True, '2026-10-09T10:00:05Z'),
+                use('1', 'Bash', {'command': 'python3 translator/job.py vt tr-check --secret /home/x/Interview.mp4'}, '2026-10-09T10:00:00Z'),   # אותה פעולה פעמיים ביומן
+                use('2', 'Bash', {'command': 'python3 translator/job.py align'}, '2026-10-09T10:01:00Z'), res('2', False, '2026-10-09T10:02:00Z'),
+                use('3', 'Read', {'file_path': '/home/x/Interview.srt'}, '2026-10-09T10:03:00Z'),
+                use('4', 'mcp__evil__x', {}, '2026-10-09T10:04:00Z'), use('5', 'Bash', {'command': 'ls -la'}, '2026-10-09T10:05:00Z')]
+        (root / 's.jsonl').write_text('\n'.join(json.dumps(r) for r in recs) + '\n')
+        (root / 's' / 'subagents' / 'agent-1.jsonl').write_text('\n'.join(json.dumps(r) for r in [
+            {'type': 'user', 'timestamp': '2026-10-09T10:10:00Z', 'message': {'content': 'לפי translator/TRANSLATE.md'}},
+            use('9', 'Write', {'file_path': '/x/tr/a.md'}, '2026-10-09T10:20:00Z')]) + '\n')
+        t = J.trace(self.tmp / 'tproj')
+        self.assertEqual(t['a']['main'], {'n': 5, 'e': 1, 's': 300})
+        self.assertEqual(t['a']['tl'], {'n': 1, 'e': 0, 's': 600})
+        g = {k: (n, e) for k, n, e in t['g']}
+        self.assertEqual(g['vt:tr-check'], (1, 1))
+        self.assertEqual(g['job:align'], (1, 0))
+        self.assertEqual((g['Bash'], g['Read'], g['other'], g['Write']), ((1, 0), (1, 0), (1, 0), (1, 0)))
+        self.assertNotIn('Interview', json.dumps(t), 'בלי נתיבים ושמות קבצים')
+        self.assertNotIn('secret', json.dumps(t))
+        self.assertIsNone(J.trace(self.tmp / 'nothing'))
+        pv = J.prompt_versions()
+        self.assertEqual(sorted(pv), ['rb', 'rv', 'tl'])
+        self.assertTrue(all(len(v) == 8 for v in pv.values()))
+
     def test_usage_merge_max6(self):
         sys.path.insert(0, str(HERE))
         import job as J

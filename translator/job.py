@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tarfile
 import time
+from datetime import datetime
 from pathlib import Path
 import urllib.error
 import urllib.request
@@ -161,7 +162,7 @@ def env_version():
 def run(args):
     c = Client(args.server, args.job, args.key)
     try:
-        got = c.call('claim', ev=env_version())
+        got = c.call('claim', ev=env_version(), pv=prompt_versions())
         job = got.get('job') or {}
         token = (got.get('drive') or {}).get('token') or ''
         if job.get('kind') == 'ping':
@@ -379,6 +380,98 @@ def usage(root=None):
                     t[f] = None if t[f] is None or r.get(f) is None else round(t[f] + r[f], 4)
         rows = list(merged.values())[:USE_MAX]
     return rows
+
+
+TRACE_GROUPS = 8
+_JOB_CMD = re.compile(r'job\.py\s+([a-z][a-z_-]{1,19})')
+_VT_CMD = re.compile(r'job\.py\s+vt\s+([a-z][a-z_-]{1,19})')
+
+
+def _tool_key(name, inp):
+    """v372: קבוצה לכל פעולה — שם הכלי, ול־Bash הפקודה של job.py / vt. בלי ארגומנטים, נתיבים או טקסט חופשי."""
+    if name == 'Bash':
+        c = str((inp or {}).get('command') or '') if isinstance(inp, dict) else ''
+        m = _VT_CMD.search(c)
+        if m:
+            return 'vt:' + m.group(1)
+        m = _JOB_CMD.search(c)
+        return 'job:' + m.group(1) if m else 'Bash'
+    return name if isinstance(name, str) and re.fullmatch(r'[A-Za-z]{1,24}', name) else 'other'
+
+
+def _ts(v):
+    try:
+        return datetime.fromisoformat(str(v).replace('Z', '+00:00')).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def trace(root=None):
+    """v372: עקיבה מהיומנים (בלי טוקנים) — לכל סוכן (תיאום / תרגום / ביקורת): כמה פעולות, כמה נכשלו, כמה זמן עבד;
+    והקבוצות הנפוצות (כלי / פקודה) עם מספר הפעולות והשגיאות. כמו usage — אותם קבצים, אותה חלוקה לסוכנים."""
+    root = Path(root or PROJECTS)
+    agents, groups = {}, {}
+    for p in sorted(root.rglob('*.jsonl')) if root.is_dir() else []:
+        recs, _ = _calls(p)
+        kind = 'main'
+        if 'subagents' in p.parts:
+            pr = _first_prompt(recs)
+            kind = 'tl' if 'TRANSLATE.md' in pr else 'rv' if 'REVIEW.md' in pr else 'sub'
+        uses, errs, ts = {}, set(), []
+        for r in recs:
+            t = _ts(r.get('timestamp'))
+            if t:
+                ts.append(t)
+            m = r.get('message')
+            if not isinstance(m, dict) or not isinstance(m.get('content'), list):
+                continue
+            for c in m['content']:
+                if not isinstance(c, dict):
+                    continue
+                if c.get('type') == 'tool_use' and r.get('type') == 'assistant' and c.get('id'):
+                    uses[c['id']] = _tool_key(c.get('name'), c.get('input'))
+                elif c.get('type') == 'tool_result' and c.get('is_error'):
+                    errs.add(c.get('tool_use_id'))
+        if not uses and not ts:
+            continue
+        a = agents.setdefault(kind, {'n': 0, 'e': 0, 's': 0})
+        a['n'] += len(uses)
+        a['e'] += sum(1 for i in uses if i in errs)
+        if len(ts) > 1:
+            a['s'] += int(max(ts) - min(ts))
+        for i, k in uses.items():
+            g = groups.setdefault(k, [0, 0])
+            g[0] += 1
+            g[1] += 1 if i in errs else 0
+    if not agents:
+        return None
+    top = sorted(groups.items(), key=lambda kv: (-kv[1][0], kv[0]))[:TRACE_GROUPS]
+    return {'a': agents, 'g': [[k, n, e] for k, (n, e) in top]}
+
+
+def trace_safe():
+    """לדיווח האחרון — תקלה בקריאה לא מפילה את סוף העבודה. מצב API: אין יומני סשן → None."""
+    try:
+        if STATE.exists() and (load_state() or {}).get('api_usage'):
+            return None
+    except (SystemExit, Exception):      # noqa: BLE001
+        pass
+    try:
+        return trace()
+    except Exception:            # noqa: BLE001 — מידע משני
+        return None
+
+
+def prompt_versions():
+    """v372: גרסת ההנחיות של כל סוכן — 8 התווים הראשונים של sha1 על הקובץ (RUNBOOK = המתזמר, TRANSLATE, REVIEW)."""
+    import hashlib
+    out = {}
+    for k, f in (('rb', 'RUNBOOK.md'), ('tl', 'TRANSLATE.md'), ('rv', 'REVIEW.md')):
+        try:
+            out[k] = hashlib.sha1((HERE / f).read_bytes()).hexdigest()[:8]
+        except OSError:
+            pass
+    return out
 
 
 def usage_safe():
@@ -1017,7 +1110,7 @@ def gate_cmd(args):
         print('אין אישור שממתין — המשך.')
         return 0
     try:
-        Ctx(st).report(fail=True, err='budget_stop', msg='עצרנו בתקציב שקבעת', force=True, usage=usage_safe())
+        Ctx(st).report(fail=True, err='budget_stop', msg='עצרנו בתקציב שקבעת', force=True, usage=usage_safe(), trace=trace_safe())
     except (Stop, SystemExit):
         pass
     print('■ המשתמש בחר לעצור בתקציב (או שלא ענה בזמן). אל תמשיך — סכם בשורה אחת וסיים. הכל שמור, ואפשר להמשיך מהטלפון.')
@@ -1076,7 +1169,7 @@ def approve_render(ctx, wait=None):
 def fail(args):
     ctx = Ctx(load_state())
     err = args.err if ERR_RE.match(args.err or '') else 'worker'
-    ctx.report(fail=True, err=err, msg=args.msg, force=True, usage=usage_safe())
+    ctx.report(fail=True, err=err, msg=args.msg, force=True, usage=usage_safe(), trace=trace_safe())
     print('✓ העבודה סומנה "נכשלה" (' + err + ').')
     return 0
 
@@ -1114,7 +1207,7 @@ def auto(args):
         if msg in ('', '0', '1', '2'):
             raise
         try:
-            Ctx(load_state()).report(fail=True, err='worker_step', msg=msg[:200], force=True, usage=usage_safe())
+            Ctx(load_state()).report(fail=True, err='worker_step', msg=msg[:200], force=True, usage=usage_safe(), trace=trace_safe())
         except (Stop, SystemExit, Exception):     # noqa: BLE001
             pass
         print(msg)
@@ -1175,7 +1268,7 @@ def finish(args):
         fid = drive_upload(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
-    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe())
+    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe())
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 

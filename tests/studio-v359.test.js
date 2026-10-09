@@ -47,7 +47,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(cv2.partial && cv2.rows[1].nth === 1 && cv2.rows[3].nth === 2 && cv2.rows[0].nth === 0 && cv2.rows[3].usd === null, 'טלפון: מודל בלי מחירון — "+" בסכום; שני מתרגמים ממוספרים');
   ok(M.costView(null, 'opus-medium') === null && M.costView([{ k: 'main', m: 'gpt-4' }], 'opus-medium') === null, 'טלפון: בלי נתונים / נתון זר — בלי כרטיס');
   ok(M.normJob({ id: 'jAbCdEfGhIjKlMnOpQrSt', spec: {}, srv: { state: 'done', use: USE } }).srv.use.length === 3, 'טלפון: normJob שומר את העלות מהשרתון');
-  ok(/if \(cv\) p\.append\(\.\.\.costCard\(cv\)\)/.test(st) && /studioCostNote/.test(st) && /rec\.srv && rec\.srv\.use \? 'u' : ''/.test(st), 'טלפון: כרטיס "עלות" בדף העבודה (וציור מחדש כשהנתון מגיע)');
+  ok(/if \(cv\) p\.append\(\.\.\.costCard\(cv(?:, rec\.srv\.tr)?\)\)/.test(st) && /studioCostNote/.test(st) && /rec\.srv && rec\.srv\.use \? 'u' : ''/.test(st), 'טלפון: כרטיס "עלות" בדף העבודה (וציור מחדש כשהנתון מגיע)');
   const app = read('app.js');
   ok(/studioCostNote: "לפי מחירון ה־API — במנוי זה נספר במכסת השימוש ולא מחויב לפי טוקן"/.test(app) && /studioCostNote: "At API prices/.test(app), 'טלפון: ההערה על המנוי — עברית ואנגלית');
 

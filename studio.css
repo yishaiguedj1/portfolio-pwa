@@ -484,3 +484,18 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-sim b { font-size: 15px; } .st-sim span { font-size: 13.5px; color: var(--on-surface-var); }
 .st-banner.st-major .st-l { display: grid; gap: 1px; }
 .st-banner.st-major .st-l small { font-weight: 500; font-size: 13px; opacity: .9; }
+/* v372: מלאי הסוכנים — אריח קיצור לכל סוכן, כרטיס לכל סוכן, הרשאות (✓ / ✕) */
+.st-agt { width: 36px; height: 36px; flex: none; border-radius: 10px; display: grid; place-items: center; font-size: 13.5px; font-weight: 800; }
+.st-agt.a-main { background: var(--sv-i0); color: var(--sv-i4); } .st-agt.a-tl { background: var(--sv-m0); color: var(--sv-m4); } .st-agt.a-rv { background: var(--sv-h0); color: var(--sv-h4); }
+.st-agc { display: grid; gap: 12px; }
+.st-agh { display: flex; align-items: center; gap: 10px; }
+.st-agh .st-l { display: grid; gap: 1px; flex: 1; min-width: 0; } .st-agh .st-l b { font-size: 16px; } .st-agh .st-l small { font-size: 13px; color: var(--on-surface-var); }
+.st-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13.5px; letter-spacing: .3px; }
+.st-perm { display: grid; gap: 8px; }
+.st-perm-r { display: flex; align-items: center; gap: 10px; font-size: 14.5px; }
+.st-perm-r i { width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center; }
+.st-perm-r i svg { width: 14px; height: 14px; }
+.st-perm-r.y i { background: var(--primary-container); color: var(--on-primary-container); }
+.st-perm-r.n i { background: var(--st-red-c); color: var(--loss); }
+.st-perm-b { margin: 4px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--on-surface-var); }
+.st-neg { color: var(--loss); }

@@ -144,6 +144,7 @@ export function normJob(j) {
     tw: normTw(s.tw),      // v362: מגדל הפיקוח
     rw: num(s.rec),        // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
     fr: s.fr && typeof s.fr.s === 'number' && s.fr.s >= -1 && s.fr.s < 600 ? { s: s.fr.s, ms: num(s.fr.ms) } : null,   // v369: תוצאת ההפעלה האחרונה
+    tr: normTrace(s.tr),   // v372: עקיבה
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -236,6 +237,27 @@ export function normInc(o) {
   return { list, open: num(o.open, 0, 1e4), mi };
 }
 export const majorOn = (inc) => !!(inc && inc.mi && !inc.mi.x);
+/* v372: עקיבה (מהשרתון, בעבודה) ומלאי הסוכנים (op jobs) — רק מספרים, מזהי מודל וקודים */
+const TR_KINDS = ['main', 'tl', 'rv', 'sub'], TR_KEY = /^(?:(?:job|vt):[a-z][a-z_-]{1,19}|[A-Za-z]{1,24})$/;
+export function normTrace(t) {
+  if (!t || typeof t !== 'object' || !t.a || typeof t.a !== 'object') return null;
+  const int = (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1e7 ? v : 0);
+  const a = {};
+  for (const k of TR_KINDS) if (t.a[k] && typeof t.a[k] === 'object') a[k] = { n: int(t.a[k].n), e: Math.min(int(t.a[k].e), int(t.a[k].n)), s: int(t.a[k].s) };
+  if (!Object.keys(a).length) return null;
+  const g = (Array.isArray(t.g) ? t.g : []).filter((x) => Array.isArray(x) && TR_KEY.test(String(x[0] || ''))).slice(0, 8).map((x) => [x[0], int(x[1]), Math.min(int(x[2]), int(x[1]))]);
+  return { a, g };
+}
+export function normAgents(o) {
+  if (!o || typeof o !== 'object' || !Array.isArray(o.agents)) return null;
+  const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(hi, v)) : 0);
+  const agents = o.agents.filter((x) => x && ['main', 'tl', 'rv'].includes(x.k)).slice(0, 3).map((x) => ({
+    k: x.k, m: /^claude-[a-z0-9-]{1,50}$/.test(String(x.m || '')) ? x.m : '', ef: ['low', 'medium', 'high', 'max'].includes(x.ef) ? x.ef : '',
+    jobs: num(x.jobs, 1e4), usd: num(x.usd, 1e6), partial: x.partial === true, ok: typeof x.ok === 'number' ? num(x.ok, 100) : null,
+    n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true }));
+  const ev = o.ev && /^[0-9a-f]{12}$/.test(String(o.ev.v || '')) ? { v: o.ev.v, n: num(o.ev.n, 1e3) } : null;
+  return { jobs: num(o.jobs, 1e4), agents, ev };
+}
 /* v364: ספר התיקונים (מהשרתון, op status) — התיקון הוא טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד */
 export function normFb(a) {
   if (!Array.isArray(a)) return null;
@@ -529,7 +551,7 @@ function errText(code, extra) {
 let root = null;
 let store = normStore(null);
 let form = null;                  // טופס פרויקט חדש/עריכה — בזיכרון בין הטופס לדף בחירת השפות; נמחק ביציאה לרשימה
-const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null, alAll: false, alTab: 'd', muPick: 0, inc: null, incAt: 0, incAll: false, incTab: 'd',
+const ui = { view: 'home', param: null, access: '', kinds: [], starting: false, driveBusy: false, wiz: { url: '', key: '', busy: false, err: '' }, norm: null, fb: null, ops: null, alAll: false, alTab: 'd', muPick: 0, inc: null, incAt: 0, incAll: false, incTab: 'd', ag: null,
   rl: normRules(null), halt: 0, api: null, servers: null, srvQueue: 0, newToken: '', srvBusy: false };   // v367: החוקים שלך ומתג החירום (מהשרתון) · מצב API: מסך השרת
 const scrolls = {};               // מיקום הגלילה של כל דף — "חזור" מחזיר אליו
 
@@ -652,6 +674,7 @@ async function refreshJobs(force) {
   if (!j.ok || !Array.isArray(j.jobs)) return;
   if (Array.isArray(j.kinds)) ui.kinds = j.kinds;
   setInc(j.inc, j.now);   // v371: הרשימה מסנכרנת את התקלות בשרתון — העדכנית ביותר
+  ui.ag = normAgents(j.ag) || ui.ag;   // v372: מלאי הסוכנים
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
   for (const sj of j.jobs) {
@@ -962,7 +985,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'server' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2112,6 +2135,75 @@ function pageInc(p) {
   }
   if (row.childNodes.length) { bar.append(row); p.append(bar); }
 }
+/* ---------------- v372: מלאי הסוכנים והרשאות (מסך 5 בתוכנית — AI Control Tower: Discover · Inventory) ---------------- */
+function agentName(k) {
+  switch (k) {
+    case 'main': return T('studioAgMain');
+    case 'tl': return T('studioAgTl');
+    default: return T('studioAgRv');
+  }
+}
+function agentAbbr(k) {
+  switch (k) {
+    case 'main': return T('studioAgMainA');
+    case 'tl': return T('studioAgTlA');
+    default: return T('studioAgRvA');
+  }
+}
+function effortName(e) {
+  switch (e) {
+    case 'low': return 'Low';
+    case 'medium': return 'Medium';
+    case 'high': return 'High';
+    case 'max': return 'Max';
+    default: return '';
+  }
+}
+const agentModel = (a) => [a.m ? modelLabel(a.m) : '', effortName(a.ef)].filter(Boolean).join(' ');
+function agentTile(k) { const t = h('span', 'st-agt a-' + k, agentAbbr(k)); t.setAttribute('aria-hidden', 'true'); return t; }
+/* שורה לכל סוכן במגדל: מודל, עבודות, עלות; משמאל — אחוז ההצלחה. נגיעה → מסך המלאי */
+function agentsSection() {
+  const ag = ui.ag;
+  if (!ag || !ag.agents.length) return [];
+  return [secT(T('studioAgSec', { n: ag.jobs })), list(...ag.agents.map((a) => {
+    const r = btn('st-row st-ric', null, () => go('agents'), 'ag:' + a.k);
+    const l = h('span', 'st-l');
+    const sub = h('small');
+    sub.append(h('bdi', null, agentModel(a)), ' · ' + T('studioAgJobs', { n: a.jobs }) + ' · ');
+    sub.append(usdEl(a.usd, a.partial));
+    l.append(h('b', null, agentName(a.k)), sub);   // "הנחיות חדשות" — במסך המלאי (כאן השורה קצרה)
+    r.append(agentTile(a.k), l, h('span', 'st-v', a.ok == null ? '—' : ltr(a.ok + '%')));
+    return r;
+  }))];
+}
+function pageAgents(p) {
+  const ag = ui.ag;
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioAgT')), h('p', 'st-lede', ag ? T('studioAgLede', { n: ag.jobs }) : T('studioAgNone')));
+  if (ag) for (const a of ag.agents) {
+    const card = h('div', 'st-twcard st-agc');
+    card.dataset.k = 'agc:' + a.k;
+    const head = h('div', 'st-agh');
+    const hl = h('span', 'st-l'); const sm = h('small'); sm.append(h('bdi', null, agentModel(a) || '—'));
+    hl.append(h('b', null, agentName(a.k)), sm);
+    head.append(agentTile(a.k), hl);
+    if (a.pvNew) head.append(pill('m', T('studioAgPvNew')));
+    const kv = (k, v) => { const d = h('div'); d.append(h('small', null, k)); const sp = h('span'); sp.append(v); d.append(sp); return d; };
+    const g = h('div', 'st-kvg');
+    g.append(kv(T('studioAgJobsK'), String(a.jobs)), kv(T('studioAgCost'), usdEl(a.usd, a.partial)),
+      kv(T('studioAgOk'), a.ok == null ? '—' : ltr(a.ok + '%')), kv(T('studioAgActs'), a.n ? ltr(String(a.n)) + (a.e ? ' · ' + (a.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: a.e })) : '') : '—'),
+      kv(T('studioAgTime'), a.s >= 60 ? fmtShort(a.s) : '—'), kv(T('studioAgPv'), a.pv ? h('bdi', 'st-mono', a.pv) : '—'));
+    card.append(head, g);
+    p.append(card);
+  }
+  // הרשאות ורדיוס פגיעה — מה מותר לכל סוכן (אותו דבר לכולם: הם רצים באותו סשן). נאכף ב־setup.sh, בשרתון ובמגדל
+  const perms = h('div', 'st-twcard st-perm');
+  perms.append(h('small', 'st-rc-h', T('studioPermT')));
+  const line = (okv, txt) => { const r = h('div', 'st-perm-r ' + (okv ? 'y' : 'n')); const i = h('i'); i.append(ico(okv ? 'check' : 'x')); r.append(i, h('span', null, txt)); return r; };
+  perms.append(line(true, T('studioPermDrive')), line(true, T('studioPermKey')), line(false, T('studioPermPush')), line(false, T('studioPermNotify')), line(false, T('studioPermSessions')));
+  perms.append(h('p', 'st-perm-b', T('studioPermBlast')));
+  p.append(perms);
+  if (ag && ag.ev) p.append(note(T('studioAgEnv', { v: ag.ev.v, n: ag.ev.n })));
+}
 function fbWhy(w) {
   switch (w) {
     case 'cost': return T('studioFbWhyCost');
@@ -2169,6 +2261,7 @@ function pageTower(p) {
     p.append(list(rowNav({ tile: tile('cloud', ui.api.online ? 'green' : 'orange'), label: T('studioSrvT'),
       sub: ui.api.online ? T('studioSrvOnN', { n: ui.api.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'tower-srv' })));
   }
+  p.append(...agentsSection());   // v372: מלאי הסוכנים — 30 יום
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
     const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
@@ -2389,7 +2482,7 @@ function costLabel(k) {
   }
 }
 function usdEl(v, plus) { const b = h('bdi', null, v == null ? '—' : fmtUsd(v) + (plus ? '+' : '')); b.dir = 'ltr'; return b; }   // "+" בתוך הבידוד — אחרת ב־RTL הוא קופץ לצד השני
-function costCard(cv) {
+function costCard(cv, tr) {
   const rows = cv.rows.map((r) => {
     const row = h('div', 'st-row st-cost' + (r.off ? ' off-model' : ''));
     const l = h('span', 'st-l');
@@ -2398,6 +2491,8 @@ function costCard(cv) {
     sm.append(h('bdi', null, r.model), ' · ' + T('studioCostTok', { n: fmtTok(r.tok) }));
     if (r.open) { sm.append(' · ' + T('studioCostOpen') + ' '); sm.append(r.open.usd == null ? T('studioCostTok', { n: fmtTok(r.open.tok) }) : usdEl(r.open.usd)); }
     if (r.usd == null) sm.append(' · ' + T('studioCostNoPrice'));
+    const ta = tr && tr.a[r.k];   // v372: עקיבה — בשורה הראשונה של כל סוכן (לא כרטיס נפרד)
+    if (ta && r.nth <= 1) sm.append(' · ' + T('studioTrActs', { n: ta.n }) + (ta.s >= 60 ? ' · ' + fmtShort(ta.s) : ''));
     l.append(sm);
     const v = h('span', 'st-v'); v.append(usdEl(r.usd));
     row.append(l, v);
@@ -2410,7 +2505,23 @@ function costCard(cv) {
   tot.dataset.k = 'cost:total';
   const out = [secT(T('studioSecCost'))];
   for (const w of cv.warn) out.push(banner('warn', w.k === 'tl' ? T('studioCostWarnTl', { got: w.model, want: cv.want }) : T('studioCostWarnRv', { got: w.model, want: cv.want })));
-  out.push(list(...rows, tot), note(T('studioCostNote')));
+  out.push(list(...rows, tot));
+  if (tr && tr.g.length) {
+    // v372: עקיבה — הפעולות הנפוצות (מקופל: פרטים לפי הצורך)
+    const tot2 = Object.values(tr.a).reduce((x, a) => ({ n: x.n + a.n, e: x.e + a.e }), { n: 0, e: 0 });
+    const det = h('details', 'st-details st-dig');
+    det.append(h('summary', null, T('studioTrT', { n: tot2.n }) + (tot2.e ? ' · ' + (tot2.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: tot2.e })) : '')), list(...tr.g.map(([k, n, e]) => {
+      const r = h('div', 'st-row');
+      const lb = h('bdi', null, k.replace(/^vt:/, 'vt · ').replace(/^job:/, 'job.py · '));
+      const l = h('span', 'st-l'); const b = h('b'); b.append(lb); l.append(b);
+      if (e) l.append(h('small', 'st-neg', e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: e })));
+      r.append(l, h('span', 'st-v', ltr(n + '×')));
+      r.dataset.k = 'tr:' + k;
+      return r;
+    })));
+    out.push(det);
+  }
+  out.push(note(T('studioCostNote')));
   return out;
 }
 
@@ -2527,7 +2638,7 @@ function pageJob(p) {
 
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
-  if (cv) p.append(...costCard(cv));
+  if (cv) p.append(...costCard(cv, rec.srv.tr));
 
   // הסרטון המלא — עולה ברקע אחרי הקול (Claude צריך אותו רק לצריבה)
   if (!rec.up.noAudio && !rec.up.v.done && (ph0 === 'queued' || ph0 === 'running')) {
@@ -2853,8 +2964,9 @@ function shapeKey() {
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0);
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag);
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
+  if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm;
@@ -2886,6 +2998,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'tower') pageTower(p);
   else if (ui.view === 'alert') pageAlert(p);
   else if (ui.view === 'inc') pageInc(p);
+  else if (ui.view === 'agents') pageAgents(p);
   else if (ui.view === 'rules') pageRules(p);
   else if (ui.view === 'server') pageServer(p);
   else if (ui.view === 'def') pageDef(p);
@@ -2914,6 +3027,7 @@ function onEnter() {
   else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
+  else if (ui.view === 'agents') refreshJobs(true);
   else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
 }
