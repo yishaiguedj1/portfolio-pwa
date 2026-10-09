@@ -445,6 +445,10 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn('מחכה', out)
         self.assertTrue(any(r.get('st') == 'al' and r.get('msg') == 'מחכה שהסרטון יסיים לעלות' for r in self.fake.reports))
+        # v377: ההמתנה לסרטון מסומנת (wv) — השעון של יעד הזמן עוצר; הדיווח הבא (בלי wv) ממשיך אותו
+        waits = [r for r in self.fake.reports if r.get('wv') is True]
+        self.assertTrue(waits and all(r.get('st') == 'al' for r in waits))
+        self.assertTrue(any(r.get('st') and not r.get('wv') for r in self.fake.reports[self.fake.reports.index(waits[-1]) + 1:]))
 
     def test_no_audio(self):
         # אין קובץ קול (קודק שאי אפשר להעתיק): מחכים לסרטון ומתמללים ממנו — כמו לפני v360

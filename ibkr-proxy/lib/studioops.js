@@ -13,6 +13,7 @@ const KINDS = {
   'routine:fire': 2, 'routine:unsure': 3, 'routine:rate': 3, 'routine:no_claim': 2,
   'claude:stale': 2, 'claude:tw_warn': 3, 'claude:tw_stop': 2, 'claude:net': 2, 'claude:budget': 3,   // v367: הגענו לתקציב שקבעת — מחכה לך
   'claude:auto': 4,     // v368: המשכנו לבד אחרי תקלה חולפת (מידע — בסיכום היומי)
+  'claude:sla_time': 3, 'claude:sla_cost': 3,   // v377: הפרה של יעד הזמן / התקציב (בסיכום היומי)
   'claude:inject': 3,   // v374: שומר ההזרקות סימן בתמליל טקסט שנראה כמו הוראה (טופל כתוכן)
   'vt:setup': 2, 'vt:ingest': 2, 'vt:asr': 2, 'vt:align': 2, 'vt:check': 3, 'vt:render': 2, 'vt:other': 2,
 };

@@ -1709,6 +1709,81 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v377: יעדי שירות (SLA), ערך ותחזית — יעד זמן ותקציב מהלקיחה, שעון שעוצר בהמתנה, הפרה = P3, ערך החודש ומחיר מתרגם
+    now += 3600e3 + 1;
+    {
+      const L7 = require('../lib/studiosla');
+      const tg = L7.targets({ mode: 'opus-medium', dur: 4620 }, 6, 1.5);
+      ok(tg.t === Object.values(L7.stageTargets('opus-medium', 4620)).reduce((a, x) => a + x, 0) && tg.u === 9.2 && L7.targets({ mode: 'opus-medium', dur: 0 }, 6, 1.5) === null,
+        'סטודיו: יעדים — הזמן מטבלת מסך ההתקדמות, התקציב לפי "הרגיל" (בלי אורך — בלי יעד)');
+      const base = { kind: 'tr', state: 'running', c0: 1000, tg: { t: 1000, u: 4 }, prog: { st: 'tl', p: 0.2, stg: { tr: { s: 1, e: 2 }, al: { s: 2, e: 3 }, tl: { s: 3, e: 0 } } } };
+      ok(L7.slaView(Object.assign({}, base), 1000 + 300e3).t.lv === 'ok' && L7.slaView(Object.assign({}, base), 1000 + 600e3).t.lv === 'half', 'סטודיו: SLA — בזמן / עבר חצי');
+      ok(L7.slaView(Object.assign({}, base), 1000 + 800e3).t.lv === 'risk' && L7.slaView(Object.assign({}, base, { prog: { st: 'bn', p: 0.9, stg: { tr: { s: 1, e: 2 }, al: { s: 1, e: 2 }, tl: { s: 1, e: 2 }, rv: { s: 1, e: 2 }, bn: { s: 1, e: 0 } } } }), 1000 + 800e3).t.lv === 'half',
+        'סטודיו: SLA — 75% ומפגרת = בסיכון; 75% אבל ההתקדמות לפני הזמן — לא');
+      const brk = Object.assign({}, base);
+      ok(L7.slaView(brk, 1000 + 1100e3).t.lv === 'over' && L7.slaBreaches(brk, 1000 + 1100e3).map((e) => e.k).join() === 'sla_time' && !L7.slaBreaches(Object.assign({}, brk, { state: 'failed', ended: 1000 + 1100e3 }), 1000 + 1200e3).length,
+        'סטודיו: SLA — הפרה = התראה (רק לעבודה שרצה)');
+      const qaP = Object.assign({}, base, { qa: { at: 1000 + 100e3, a: null } });
+      const v1 = L7.slaView(qaP, 1000 + 700e3);
+      ok(v1.t.el === 100 && v1.t.paused === true, 'סטודיו: SLA — השעון עוצר בשאלה פתוחה');
+      ok(L7.slaView(Object.assign({}, base, { wv0: 1000 + 200e3 }), 1000 + 700e3).t.el === 200 && L7.slaView(Object.assign({}, base, { pz: 400e3 }), 1000 + 700e3).t.el === 300,
+        'סטודיו: SLA — השעון עוצר בהמתנה לסרטון ובזמן שנצבר (כישלון ← המשך)');
+      ok(L7.slaView(Object.assign({}, base, { state: 'done', ended: 1000 + 900e3, use: [{ k: 'tl', usd: 5 }] }), 2e9).u.lv === 'over'
+        && L7.slaView(Object.assign({}, base, { state: 'done', ended: 1000 + 900e3 }), 2e9).t.lv === 'met', 'סטודיו: SLA — עבודה שהסתיימה: עמדה ביעד / חרגה בתקציב');
+      ok(L7.slaView({ kind: 'ping', tg: { t: 1 }, c0: 1 }, 5) === null && L7.slaView(Object.assign({}, base, { tg: null }), 5) === null, 'סטודיו: SLA — רק לעבודת תרגום עם יעד');
+      ok(L7.normPrice(5) === 500 && L7.normPrice(0.1) === 0 && L7.normPrice('x') === 0 && L7.normPrice(101) === 0, 'סטודיו: מחיר מתרגם — טווח קבוע, בסנטים');
+      const mon = Date.UTC(2026, 9, 20);
+      const vj = [
+        { id: 'a', kind: 'tr', state: 'done', ended: Date.UTC(2026, 9, 5), spec: { mode: 'opus-medium', dur: 1800 }, use: [{ usd: 3 }], fires: 2, prog: { stg: { tr: { s: 10, e: 70010 }, tl: { s: 70010, e: 2070010 } } } },
+        { id: 'b', kind: 'tr', state: 'done', ended: Date.UTC(2026, 9, 6), spec: { mode: 'opus-medium', dur: 1800 }, use: [{ usd: null }], qn: 1 },
+        { id: 'c', kind: 'tr', state: 'done', ended: Date.UTC(2026, 8, 30), spec: { mode: 'opus-medium', dur: 600 }, use: [{ usd: 9 }] },
+        { id: 'd', kind: 'ping', state: 'done', ended: Date.UTC(2026, 9, 7) }];
+      const va = L7.valueView(vj, mon, 0);
+      ok(va.m === '2026-10' && va.n === 2 && va.min === 60 && va.usd === 3 && va.cpm === 0.1 && va.hp === 5 && va.hpd && va.saved === 147 && va.fc === 4.89,
+        'סטודיו: ערך — דקות החודש, עלות לדקה (רק מתומחרות), חסכת ותחזית');
+      ok(va.bn.s === 'tl' && va.bn.sh > 0.9 && va.ab.rs === 1 && va.ab.qa === 1 && L7.valueView(vj, mon, 1000).hp === 10 && !L7.valueView([], mon, 0).bn,
+        'סטודיו: ערך — צוואר הבקבוק, מסלולים חריגים, המחיר שלך');
+      ok(!/name|Ackman/.test(JSON.stringify(va)), 'סטודיו: ערך — בלי שמות קבצים');
+      // מקצה לקצה: לקיחה קובעת יעדים, המתנה לסרטון עוצרת את השעון, הפרה ← התראה, ערך + מחיר
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const J7 = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: J7, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: J7 });
+      const K7 = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: J7, key: K7 });
+      let j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
+      ok(j7.sla && j7.sla.t.tg === tg.t && j7.sla.u && j7.sla.u.tg > 0 && j7.sla.t.el === 0, 'סטודיו: הלקיחה קובעת את היעדים, והשעון מתחיל');
+      await wrk({ op: 'report', job: J7, key: K7, st: 'al', p: 0.1, wv: true });
+      now += 600e3;
+      j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
+      ok(j7.sla.t.paused && j7.sla.t.el === 0, 'סטודיו: מחכים לסרטון — השעון עוצר');
+      await wrk({ op: 'report', job: J7, key: K7, ev: [{ c: 'vt', k: 'asr' }] });
+      j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
+      ok(j7.sla.t.paused, 'סטודיו: אירוע בודד לא מסיים את ההמתנה לסרטון');
+      await wrk({ op: 'report', job: J7, key: K7, st: 'al', p: 0.5 });
+      now += 60e3;
+      j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
+      ok(!j7.sla.t.paused && j7.sla.t.el === 60 && j7.sla.t.pz === 600, 'סטודיו: הסרטון הגיע — השעון ממשיך, ההמתנה נרשמה');
+      now += (tg.t + 10) * 1000;
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const ops7 = (await run({ op: 'status', idToken: OWNER })).payload.ops;
+      ok(rr.payload.jobs.find((x) => x.id === J7).sla.t.lv === 'over' && JSON.stringify(ops7).includes('sla_time'), 'סטודיו: הפרה של יעד הזמן — התראה');
+      ok(rr.payload.va && rr.payload.va.hp === 5 && rr.payload.va.hpd === true, 'סטודיו: op jobs — הערך והמחיר (ברירת מחדל $5)');
+      rr = await run({ op: 'price', idToken: OWNER, hp: 999 });
+      ok(rr.statusCode === 400, 'סטודיו: מחיר מחוץ לטווח — 400');
+      rr = await run({ op: 'price', idToken: OWNER, hp: 10 });
+      ok(rr.payload.ok && rr.payload.hp === 10 && (await run({ op: 'jobs', idToken: OWNER })).payload.va.hp === 10, 'סטודיו: המחיר שלך נשמר ומשמש לחישוב');
+      await run({ op: 'price', idToken: OWNER, hp: 0 });
+      await wrk({ op: 'report', job: J7, key: K7, done: true });
+      rr = await run({ op: 'job', idToken: OWNER, job: J7 });
+      ok(rr.payload.job.sla.t.lv === 'over' && !JSON.stringify((await run({ op: 'status', idToken: OWNER })).payload.ops.open).includes('sla_time'), 'סטודיו: סוף העבודה סוגר את התראת ההפרה; היעד נשאר "חרגה"');
+      rr = await run({ op: 'remove', idToken: OWNER, job: J7 });
+      ok(rr.payload.ok, 'סטודיו: העבודה נמחקת');
+      const od7 = db.get('studioOps/ownerUid0001'); if (od7) { delete od7.fields.inc; delete od7.fields.mi; }
+    }
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v376: בעיות וספרי הפעלה — מספר קבוע, מצב נגזר, דירוג "שווה לתקן", קישור לתקלות, המשך במצב זול יותר (רק אחרי עצירה על עלות)
     now += 3600e3 + 1;
     {

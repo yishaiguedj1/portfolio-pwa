@@ -879,7 +879,7 @@ def wait_video(ctx, stage, msg):
         if n == 0:
             print('מחכה שהסרטון יסיים לעלות מהטלפון…')
         if n % 10 == 0:
-            ctx.report(stage, None, msg, force=True)
+            ctx.report(stage, None, msg, force=True, wv=True)   # v377: השעון של יעד הזמן עוצר — מחכים לטלפון
         time.sleep(poll)
         n += 1
         if n * poll > 12 * 3600:
