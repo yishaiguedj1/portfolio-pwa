@@ -1709,6 +1709,112 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v371: תקלות (P1–P4, מצב, מי טיפל, ציר), שורש סביר, תקלה רחבה והשהיית הפעלות
+    now += 3600e3 + 1;
+    {
+      const I = require('../lib/studioinc');
+      const O1 = require('../lib/studioops');
+      const JA = 'j' + 'D'.repeat(20), JB = 'j' + 'E'.repeat(20), JC = 'j' + 'F'.repeat(20);
+      const t0 = 7e12;
+      const fct = (id, st, err, o) => Object.assign({ id, st, err, bad: st === 'failed', fires: 1, ar: 0, rw: 0, at: t0, fired: t0 - 60e3, ev: '', fp: '' }, o || {});
+      let inc = I.incSync([], [fct(JA, 'failed', 'tower_stop')], [], [], t0 + 1);
+      ok(inc && inc.length === 1 && inc[0].no === 1 && inc[0].st === 'o' && inc[0].s === 2 && inc[0].c === 'claude' && inc[0].h[0][1] === 'o', 'סטודיו: תקלות — עבודה שנכשלה = תקלה פתוחה (מספר, חומרה, רכיב, ציר)');
+      ok(I.incSync(inc, [fct(JA, 'failed', 'tower_stop')], [], [], t0 + 2) === null, 'סטודיו: תקלות — צפייה חוזרת בלי שינוי לא כותבת');
+      let w = I.incSync(inc, [fct(JA, 'running', '', { bad: false, fires: 2 })], [], [], t0 + 3);
+      ok(w[0].st === 'w' && w[0].by === 'u' && w[0].h.pop()[1] === 'w', 'סטודיו: תקלות — "המשך" שלך = בטיפול, טיפלת אתה');
+      const wc = I.incSync(inc, [fct(JA, 'queued', '', { bad: false, fires: 2, ar: 1 })], [], [], t0 + 3);
+      ok(wc[0].by === 'c' && wc[0].h.pop()[1] === 'c', 'סטודיו: תקלות — המשך אוטומטי = Claude טיפל לבד');
+      const f2 = I.incSync(w, [fct(JA, 'failed', 'no_claim', { fires: 2 })], [], [], t0 + 4);
+      ok(f2[0].st === 'o' && f2[0].n === 2 && f2[0].e === 'no_claim' && f2[0].c === 'routine' && f2[0].h.pop()[1] === 'f' && f2.length === 1, 'סטודיו: תקלות — נכשלה שוב אחרי "המשך" = אותה תקלה נפתחת שוב (לא חדשה)');
+      const r = I.incSync(w, [fct(JA, 'done', '', { bad: false, fires: 2 })], [], [], t0 + 5);
+      ok(r[0].st === 'r' && r[0].rt && r[0].by === 'u', 'סטודיו: תקלות — העבודה הסתיימה = נפתרה');
+      const gone = I.incSync(inc, [], [], [], t0 + 6);
+      ok(gone[0].st === 'x', 'סטודיו: תקלות — עבודה שנמחקה = נסגרה');
+      ok(I.incCloseJob(inc, JA, t0 + 6)[0].st === 'x' && I.incCloseJob(inc, JB, t0 + 6) === null, 'סטודיו: תקלות — סגירה במחיקה, רק לעבודה הזו');
+      // שורש סביר: רכיב מוקדם יותר שנכשל (Drive לפני Claude), שינוי בסביבה, ספר התיקונים
+      let al = O1.opsApply([], [{ c: 'drive', k: 'dl_fail' }], JA, t0 - 30e3);
+      al = O1.opsApply(al, [{ c: 'vt', k: 'render' }], JA, t0 - 20e3);
+      const jobsRc = [fct(JA, 'failed', 'worker', { ev: 'aaaaaaaaaaaa', fp: 'abcdef012345' }), fct(JB, 'done', '', { bad: false, ev: 'bbbbbbbbbbbb', at: t0 - 86400e3 })];
+      const rc = I.incSync([], jobsRc, al, [{ fp: 'abcdef012345', fix: 'x' }], t0 + 1)[0].rc;
+      ok(rc.length === 3 && rc[0].t === 'known' && rc.some((x) => x.t === 'up' && x.c === 'drive' && x.k === 'dl_fail') && rc.some((x) => x.t === 'env') && !rc.some((x) => x.c === 'vt' && x.t !== 'env'),
+        'סטודיו: שורש סביר — תיקון מוכר, Drive שנכשל קודם בשרשרת, שינוי בסביבה (vt שאחרי Claude = תוצאה, לא סיבה)');
+      ok(Math.abs(rc.reduce((s2, x) => s2 + x.p, 0) - 100) <= 1, 'סטודיו: שורש סביר — אחוזים שמסתכמים ל־100');
+      const solo = I.incSync([], [fct(JA, 'failed', 'worker')], [], [], t0 + 1)[0];
+      ok(solo.rc.length === 1 && solo.rc[0].t === 'self' && !solo.ev, 'סטודיו: שורש סביר — בלי רמזים: הקוד עצמו');
+      // תקלה רחבה: אותו קוד בשתי עבודות תוך יום
+      const two = I.incSync([], [fct(JA, 'failed', 'no_claim'), fct(JB, 'failed', 'no_claim', { at: t0 + 60e3 })], [], [], t0 + 2 * 60e3);
+      ok(two.find((x) => x.j === JB).rc[0].t === 'wide', 'סטודיו: שורש סביר — "קורה גם בעבודה אחרת" בראש');
+      const mi = I.majorSync(null, two, [], t0 + 3 * 60e3);
+      ok(mi && mi.no === 1 && mi.c === 'routine' && mi.e === 'no_claim' && mi.n === 2 && !mi.x && I.majorActive(mi), 'סטודיו: תקלה רחבה — אותה תקלה בשתי עבודות');
+      const mk = I.majorMark(two, mi, t0 + 3 * 60e3);
+      ok(mk.every((x) => x.s === 1 && x.m === 1 && x.h.pop()[1] === 'm'), 'סטודיו: תקלה רחבה — התקלות שבתוכה עולות ל־P1');
+      ok(I.majorSync(mi, mk, [], t0 + 4 * 60e3) === null, 'סטודיו: תקלה רחבה — בלי שינוי, בלי כתיבה');
+      const solved = I.incSync(mk, [fct(JA, 'done', '', { bad: false, fires: 1 }), fct(JB, 'cancelled', '', { bad: false })], [], [], t0 + 5 * 60e3);
+      ok(solved.every((x) => x.st === 'r' || x.st === 'x'), 'סטודיו: תקלות — נפתרה / נסגרה גם כשהעבודה לא עברה "בטיפול"');
+      const end = I.majorSync(mi, solved, [], t0 + 6 * 60e3);
+      ok(end && end.x && !I.majorActive(end) && end.h.pop()[1] === 'r', 'סטודיו: תקלה רחבה — נסגרת לבד כשהתקלות נפתרו');
+      // רכיב שנכשל לכמה עבודות (התראה, עוד לפני "נכשלה")
+      let wa = O1.opsApply([], [{ c: 'drive', k: 'auth' }], JA, t0);
+      wa = O1.opsApply(wa, [{ c: 'drive', k: 'auth' }], JC, t0);
+      const mw = I.majorSync(null, [], wa, t0 + 1);
+      ok(mw && mw.c === 'drive' && mw.e === 'auth' && mw.n === 2, 'סטודיו: תקלה רחבה — התראת Drive פתוחה בשתי עבודות');
+      ok(I.majorSync(I.majorSync(null, [], O1.opsApply(wa, [{ c: 'drive', k: 'auth' }], JB, t0 + 2), t0 + 3), [], wa, t0 + 4).n === 2, 'סטודיו: תקלה רחבה — מספר העבודות מתעדכן');
+      // תצוגה: "קרה כבר" + ציר עם ההתראות של העבודה
+      const hist2 = I.incSync(r, [fct(JA, 'done', '', { bad: false, fires: 2 }), fct(JC, 'failed', 'tower_stop', { at: t0 + 9e5 })], O1.opsApply([], [{ c: 'claude', k: 'tw_stop' }], JC, t0 + 8e5), [], t0 + 1e6);
+      const V = I.incView(hist2, null, O1.opsApply([], [{ c: 'claude', k: 'tw_stop' }], JC, t0 + 8e5), t0 + 1e6);
+      const vc = V.list.find((x) => x.j === JC);
+      ok(V.list[0].j === JC && vc.sim && vc.sim.no === 1 && vc.tl.some((e) => e[1] === 'a' && e[3] === 'tw_stop') && vc.al.length === 1 && V.open === 1,
+        'סטודיו: תצוגה — פתוחות קודם, "קרה כבר" (הדומה שנפתרה), והציר כולל את ההתראות של העבודה');
+      ok(JSON.stringify(V).indexOf('fix') < 0 && !('fs' in vc) && !('ar' in vc), 'סטודיו: תצוגה — בלי טקסט התיקון ובלי שדות פנימיים');
+    }
+    {
+      // מקצה לקצה: שתי עבודות שה־Routine לא לקח → שתי תקלות + תקלה רחבה → הפעלה חדשה מחכה ("להתחיל בכל זאת" עוקף)
+      const mk = async () => { const x = await run({ op: 'create', idToken: OWNER, spec: SPEC }); await run({ op: 'file', idToken: OWNER, job: x.payload.job.id, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' }); return x.payload.job.id; };
+      const A1 = await mk(), A2 = await mk();
+      await run({ op: 'start', idToken: OWNER, job: A1 });
+      await run({ op: 'start', idToken: OWNER, job: A2 });
+      rr = await wrk({ op: 'claim', job: A1, key: keyOf(fires[fires.length - 2]), ev: 'abcdef012345' });
+      ok(rr.payload.ok, 'סטודיו: claim מקבל את גרסת הסביבה');
+      await wrk({ op: 'report', job: A1, key: keyOf(fires[fires.length - 2]), fail: true, err: 'worker_step' });
+      now += 31 * 60e3;   // A2 לא נלקחה
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const L = rr.payload.inc;
+      ok(L && L.list.some((x) => x.j === A1 && x.e === 'worker_step' && x.st === 'o') && L.list.some((x) => x.j === A2 && x.e === 'no_claim' && x.c === 'routine'), 'סטודיו: op jobs — תקלה לכל עבודה שנכשלה (גם "לא נלקחה")');
+      ok(!L.mi, 'סטודיו: שתי תקלות שונות — לא תקלה רחבה');
+      const A3 = await mk();
+      await run({ op: 'start', idToken: OWNER, job: A3 });
+      now += 31 * 60e3;
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(rr.payload.inc.mi && rr.payload.inc.mi.c === 'routine' && rr.payload.inc.mi.e === 'no_claim' && !rr.payload.inc.mi.x, 'סטודיו: op jobs — אותה תקלה בשתי עבודות = תקלה רחבה');
+      ok(rr.payload.inc.list.filter((x) => x.e === 'no_claim').every((x) => x.s === 1 && x.m), 'סטודיו: התקלות שבתקלה הרחבה — P1');
+      const A4 = await mk();
+      rr = await run({ op: 'start', idToken: OWNER, job: A4 });
+      ok(rr.statusCode === 409 && rr.payload.error === 'major' && rr.payload.mi.c === 'routine' && rr.payload.job, 'סטודיו: בתקלה רחבה — הפעלה חדשה מחכה (409 major)');
+      rr = await run({ op: 'resume', idToken: OWNER, job: A1 });
+      ok(rr.statusCode === 409 && rr.payload.error === 'major', 'סטודיו: בתקלה רחבה — גם "המשך" מחכה');
+      rr = await run({ op: 'start', idToken: OWNER, job: A4, mo: true });
+      ok(rr.payload.ok && rr.payload.job.state === 'queued', 'סטודיו: "להתחיל בכל זאת" (mo) — עוקף את ההשהיה');
+      // המשך אוטומטי אחרי תקלה חולפת — מחכה כל עוד התקלה הרחבה פעילה (rw נשאר, אף הפעלה לא נשלחה)
+      await wrk({ op: 'claim', job: A4, key: keyOf(fires[fires.length - 1]) });
+      await wrk({ op: 'report', job: A4, key: keyOf(fires[fires.length - 1]), fail: true, err: 'net' });
+      const nf = fires.length;
+      now += 4 * 60e3;
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const a4 = rr.payload.jobs.find((x) => x.id === A4);
+      ok(fires.length === nf && a4.state === 'failed' && a4.rec > 0, 'סטודיו: בתקלה רחבה — ההמשך האוטומטי מחכה (בלי הפעלה, חלון ההתאוששות נשמר)');
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.inc && rr.payload.inc.mi && rr.payload.inc.open >= 3, 'סטודיו: op status — התקלות והתקלה הרחבה למסך המגדל');
+      await run({ op: 'remove', idToken: OWNER, job: A2 });
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.inc.list.find((x) => x.j === A2).st === 'x', 'סטודיו: עבודה שנמחקה — התקלה שלה נסגרת מיד');
+      for (const id of [A1, A3, A4]) { await run({ op: 'cancel', idToken: OWNER, job: id }); await run({ op: 'remove', idToken: OWNER, job: id }); }
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(rr.payload.inc.mi && rr.payload.inc.mi.x, 'סטודיו: כל העבודות נסגרו — התקלה הרחבה נגמרה (הפעלות חוזרות)');      // התרחיש הזה השאיר תקלות "לא נלקחה" ביממה האחרונה — אחרת הן היו (בצדק) הופכות כשל דומה בבדיקה מאוחרת לתקלה רחבה
+      const od = db.get('studioOps/ownerUid0001'); if (od) { delete od.fields.inc; delete od.fields.mi; }
+    }
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v369: רשומת התראה (מספר, ציר, אישור), מגמה לשבוע, ותוצאת ההפעלה בעבודה
     now += 3600e3 + 1;
     {

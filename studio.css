@@ -464,3 +464,23 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-mupick .st-mini { min-height: 32px; padding: 5px 14px; font-size: 14px; background: var(--st-fill); }
 .st-muted .st-mini { min-height: 32px; padding: 5px 13px; font-size: 14px; background: var(--st-fill); }
 @media (max-width: 360px) { .st-scores { gap: 6px; } .st-sc { padding: 9px 8px 7px; } .st-sc > b { font-size: 18px; } .st-sc small { font-size: 11.5px; } }
+/* v371: תקלות — גלולת "נפתרה" ירוקה, משפט בכרטיס הכותרת, שורש סביר עם פס, "קרה כבר", באנר תקלה רחבה בשתי שורות */
+.st-root .g { --k: #34C759; --k0: rgba(52,199,89,.14); --k4: #1E7A35; }
+[data-theme="dark"] .st-root .g { --k: #30D158; --k0: rgba(48,209,88,.2); --k4: #7EE29A; }
+.st-band-s { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--on-surface); }
+.st-rc { display: grid; gap: 10px; }
+.st-rc-h { font-size: 12px; font-weight: 700; color: var(--on-surface-var); }
+.st-rc-r { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.st-rc-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--st-fill); color: var(--on-surface-var); }
+.st-rc-r.top .st-rc-n { background: var(--sv-m0); color: var(--sv-m4); }
+.st-rc-r .st-l { display: grid; gap: 5px; min-width: 0; }
+.st-rc-r .st-l b { font-size: 14.5px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.st-rc-bar { height: 4px; border-radius: 2px; background: var(--st-fill); overflow: hidden; }
+.st-rc-bar i { display: block; height: 100%; border-radius: 2px; background: var(--st-ter); }
+.st-rc-r.top .st-rc-bar i { background: var(--sv-m); }
+.st-rc-p { font-size: 13px; font-weight: 700; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.st-sim { display: grid; gap: 2px; width: calc(100% - 32px); box-sizing: border-box; text-align: start; }
+.st-sim small { font-size: 12px; font-weight: 700; color: var(--on-surface-var); }
+.st-sim b { font-size: 15px; } .st-sim span { font-size: 13.5px; color: var(--on-surface-var); }
+.st-banner.st-major .st-l { display: grid; gap: 1px; }
+.st-banner.st-major .st-l small { font-weight: 500; font-size: 13px; opacity: .9; }

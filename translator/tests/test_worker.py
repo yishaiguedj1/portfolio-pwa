@@ -820,5 +820,29 @@ class TestWorker(unittest.TestCase):
         self.assertNotIn("'import numpy", (HERE / 'job.py').read_text(), 'בלי רשימה כפולה ב־job.py')
 
 
+    def test_env_version(self):
+        """v371: גרסת הסביבה — טביעה של translator/ בלי הבדיקות; שינוי בקוד העובד משנה אותה, שינוי בבדיקות לא"""
+        sys.path.insert(0, str(HERE))
+        import job as J
+        old = J.HERE
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d)
+            (p / 'tests').mkdir()
+            (p / 'job.py').write_text('a')
+            (p / 'tests' / 't.py').write_text('x')
+            try:
+                J.HERE = p
+                v1 = J.env_version()
+                (p / 'tests' / 't.py').write_text('y')
+                v2 = J.env_version()
+                (p / 'job.py').write_text('b')
+                v3 = J.env_version()
+            finally:
+                J.HERE = old
+        self.assertRegex(v1, r'^[0-9a-f]{12}$')
+        self.assertEqual(v1, v2, 'שינוי בבדיקות — אותה גרסה')
+        self.assertNotEqual(v1, v3, 'שינוי בקוד העובד — גרסה חדשה')
+
+
 if __name__ == '__main__':
     unittest.main()
