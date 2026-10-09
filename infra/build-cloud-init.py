@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """מחולל infra/cloud-init.yaml — ההגדרה הראשונית של השרת, מתוך הקבצים ב־infra/host ו־infra/compose.yaml.
 
-את הקובץ שנוצר מדביקים פעם אחת ביצירת השרת ב־Hetzner ("Cloud config"). אין בו אף סוד: המפתחות נכנסים אחר כך
-ב־snb-setup מהקונסולה. (כל מה שנמצא ב־user-data נשאר זמין בשירות המטא־דאטה של Hetzner לכל חיי השרת.)
+בריפו הקובץ בלי אף סוד. את "קוד ההקמה" מרכיבה האפליקציה (סטודיו ← השרת ← הוספת שרת): היא מחליפה את שורת
+הסימון MARK ברשומה של /etc/snb/worker.env (מפתח Anthropic + טוקן השרת), בטלפון בלבד, והמשתמש מדביק אותו ב־Hetzner
+("Cloud config"). כך אין צורך בקונסולה (שלא מעבירה הדבקה ולא מציגה עברית). מה שב־user-data זמין לשירות המטא־דאטה
+של Hetzner לכל חיי השרת — רק ל־root בשרת: הקונטיינר חסום ממנו בחומת האש (nftables).
 
 הרצה:  python3 infra/build-cloud-init.py            (כותב את הקובץ)
        python3 infra/build-cloud-init.py --check    (הבדיקות: נכשל אם הקובץ לא מעודכן)
@@ -35,7 +37,7 @@ FILES = [
 
 HEAD = """#cloud-config
 # THE SNOWBALL — שרת התרגום (Debian 13). נוצר אוטומטית מ־infra/ ע״י infra/build-cloud-init.py — לא לערוך ביד.
-# אין כאן סודות. אחרי שהשרת עולה: הקונסולה של Hetzner → root → snb-setup.
+# בריפו בלי סודות. את המפתחות מוסיפה האפליקציה במקום שורת הסימון ("קוד ההקמה").
 package_update: true
 package_upgrade: true
 packages:
@@ -49,6 +51,9 @@ ssh_pwauth: false
 write_files:
 """
 
+# שורת הסימון: האפליקציה מחליפה אותה ברשומה של /etc/snb/worker.env (studio.js — cloudInitWithSecrets)
+MARK = '  # SNB_SECRETS'
+
 TAIL = """runcmd:
   # חומת האש קודם — לפני ש־Docker עולה עם הכללים שלו
   - systemctl enable --now nftables
@@ -61,6 +66,8 @@ TAIL = """runcmd:
   - mkdir -p /etc/snb && chmod 700 /etc/snb
   - systemctl daemon-reload
   - systemctl enable --now snb-update.timer snb-maint.timer unattended-upgrades
+  # יש מפתחות (קוד ההקמה מהאפליקציה) — מתחילים מיד, בלי לחכות רבע שעה לטיימר
+  - if [ -s /etc/snb/worker.env ]; then chmod 600 /etc/snb/worker.env; systemctl start --no-block snb-update.service; fi
 """
 
 
@@ -73,6 +80,7 @@ def render() -> str:
         out.append(''.join(('      ' + ln) if ln.strip() else '\n' for ln in text.splitlines(keepends=True)))
         if not text.endswith('\n'):
             out.append('\n')
+    out.append(MARK + '\n')
     out.append(TAIL)
     return ''.join(out)
 

@@ -255,6 +255,7 @@ a.st-wbtn:active { opacity: .7; }
 .st-code.prose { max-height: none; font: 14px/1.55 var(--font); overflow-wrap: normal; }   /* ההנחיה ל־Routine — טקסט רגיל, לא קוד */
 .st-nowc .st-pbar { margin-top: 9px; }
 /* שדות ההדבקה */
+.st-ci { display: grid; gap: 12px; }
 .st-flab { display: grid; gap: 5px; font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
 .st-in { box-sizing: border-box; width: 100%; min-height: 46px; padding: 10px 12px; border: 0; border-radius: var(--radius-xs); background: var(--bg); color: var(--on-surface);
   font: 15px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; outline: none; text-align: start; }

@@ -2704,6 +2704,27 @@ async function srvAct(op, sv, extra) {
   else flashSafe(errText(j.error, j));
   render('none');
 }
+/* "קוד ההקמה" של שרת חדש = התבנית מהריפו (infra/cloud-init.yaml, בלי סודות) + רשומה של /etc/snb/worker.env במקום
+   שורת הסימון. נבנה בטלפון בלבד: מפתח Anthropic לא נשלח לשום מקום ולא נשמר (לא ב־store ולא ב־ui) — רק בקוד
+   שמועתק ומודבק ב־Hetzner ("Cloud config"). הבדיקה על הצורה מונעת הזרקת YAML דרך השדה. */
+export const CI_MARK = '  # SNB_SECRETS';
+export function cloudInitWithSecrets(tpl, key, token) {
+  key = String(key || '').trim();
+  token = String(token || '');
+  if (!/^sk-ant-[A-Za-z0-9_-]{20,300}$/.test(key)) return { error: 'key' };
+  if (!/^[a-z0-9]{12}-[A-Za-z0-9_-]{43}$/.test(token)) return { error: 'token' };
+  const t = String(tpl || '');
+  if (!t.startsWith('#cloud-config') || t.split(CI_MARK + '\n').length !== 2) return { error: 'tpl' };
+  const entry = '  - path: /etc/snb/worker.env\n    permissions: "0600"\n    owner: root:root\n    content: |\n' +
+    '      ANTHROPIC_API_KEY=' + key + '\n      SNB_WORKER_TOKEN=' + token + '\n';
+  return { text: t.replace(CI_MARK + '\n', entry) };
+}
+async function copySetupCode(keyIn) {
+  const tpl = await net.cloudInitTemplate();
+  const r = cloudInitWithSecrets(tpl, keyIn.value, ui.newToken);
+  if (r.error) { flashSafe(r.error === 'key' ? T('studioCiBadKey') : T('studioCiFail')); return; }
+  if (await copyText(r.text, T('studioCiCopied'))) keyIn.value = '';
+}
 async function addServer() {
   if (ui.srvBusy) return;
   ui.srvBusy = true; render('none');
@@ -2719,7 +2740,20 @@ function pageServer(p) {
   const a = ui.api;
   if (a) p.append(secT(T('studioApiMonthT')), list(kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) }))));
   if (!a || !a.admin) { p.append(note(a && a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'))); return; }
-  if (ui.newToken) { const tk = h('div', 'st-tok'); tk.append(copyBox(ui.newToken, T('studioCopy'), 'srv-token')); p.append(secT(T('studioSrvNewT')), list(tk), note(T('studioSrvTokNote'))); }
+  if (ui.newToken) {
+    // קוד ההקמה: מדביקים כאן את מפתח Anthropic (לא נשמר ולא נשלח), מעתיקים, ומדביקים ב־Hetzner ב־Cloud config
+    const keyIn = h('input', 'st-in'); keyIn.type = 'password'; keyIn.dir = 'ltr'; keyIn.autocomplete = 'off'; keyIn.spellcheck = false;
+    keyIn.placeholder = 'sk-ant-…'; keyIn.setAttribute('aria-label', T('studioCiKey'));
+    const lab = h('label', 'st-flab'); lab.append(h('span', null, T('studioCiKey')), keyIn);
+    const cb = btn('st-btn wide in-card', T('studioCiCopy'), () => copySetupCode(keyIn), 'srv-ci');
+    cb.disabled = blocked();
+    const box = h('div', 'st-tok st-ci'); box.append(lab, cb);
+    p.append(secT(T('studioCiT')), list(box), note(T('studioCiNote')));
+    // הטוקן לבד — רק להחלפת מפתחות בשרת קיים (snb-setup); מקופל
+    const tk = h('div', 'st-tok'); tk.append(copyBox(ui.newToken, T('studioCopy'), 'srv-token'));
+    const more = h('details', 'st-details'); more.append(h('summary', null, T('studioSrvNewT')), list(tk), note(T('studioSrvTokNote')));
+    p.append(more);
+  }
   const rows = [];
   for (const sv of ui.servers || []) {
     const stt = srvState(sv);

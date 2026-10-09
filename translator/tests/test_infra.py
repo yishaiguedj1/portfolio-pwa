@@ -107,6 +107,13 @@ class Pipeline(unittest.TestCase):
         self.assertIn('snb_busy', u, 'לא מעדכנים באמצע עבודה')
         self.assertIn(':prod', u)
 
+    def test_setup_code_marker(self):
+        ci = read('infra/cloud-init.yaml')
+        self.assertEqual(ci.count('\n  # SNB_SECRETS\n'), 1, 'שורת סימון אחת לקוד ההקמה מהאפליקציה')
+        self.assertLess(ci.index('# SNB_SECRETS'), ci.index('\nruncmd:'), 'בתוך write_files')
+        self.assertIn('systemctl start --no-block snb-update.service', ci, 'יש מפתחות — מתחילים מיד')
+        self.assertIn("CI_MARK = '  # SNB_SECRETS'", read('studio.js'), 'אותו סימון באפליקציה')
+
     def test_setup_secrets_file_private(self):
         s = read('infra/host/snb-setup')
         self.assertIn('umask 077', s)
