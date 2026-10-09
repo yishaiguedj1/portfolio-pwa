@@ -152,7 +152,7 @@ class FlowTests(unittest.TestCase):
         kw = self.client.calls[0]
         self.assertIn('<transcript>', kw['messages'][0]['content'], 'התמליל = נתונים בתוך גבולות מסומנים')
         self.assertIn('<user_terms>\nBill Ackman', kw['messages'][0]['content'])
-        self.assertEqual(kw['system'][0]['cache_control'], {'type': 'ephemeral'})
+        self.assertEqual(kw['system'][0]['cache_control'], {'type': 'ephemeral', 'ttl': '1h'})
         self.assertEqual((self.pd / 'en.patch.txt').read_text(encoding='utf-8'), 'welcom. => welcome.\n')
         self.assertTrue((self.pd / 'tr' / 'glossary.tsv').read_text(encoding='utf-8').endswith('Netflix\tנטפליקס\n'))
         pl.ask(qs)
@@ -212,6 +212,25 @@ class FlowTests(unittest.TestCase):
         P.Pipeline(self.ctx, self.J, self.engine(h)).translate()
         self.assertEqual(len(seen), 1)
         self.assertIn('חלק 2/2', seen[0], 'חלק שכבר תורגם לא נשלח שוב')
+
+    def test_translate_parallel_after_first_token(self):
+        """החלק הראשון נשלח לבד; רק אחרי שהשרת התחיל לענות לו (= הבלוק הקבוע במטמון) שאר החלקים יוצאים."""
+        order = []
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            order.append('1' if 'חלק 1/2' in p else '2' if 'חלק 2/2' in p else '?')
+            if 'חלק 1/2' in p:
+                return msg('#1 שלום.\n#2 תודה.')
+            if 'חלק 2/2' in p:
+                return msg('#3 נטפליקס.')
+            raise AssertionError(p[:80])
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        pl.translate()
+        self.assertEqual(order[0], '1', 'החלק הראשון כותב את המטמון לפני שהשאר יוצאים')
+        self.assertEqual(sorted(order), ['1', '2'])
+        for f, want in (('batch_001.he.txt', '#1 שלום.'), ('batch_002.he.txt', '#3 נטפליקס.')):
+            self.assertIn(want, (self.pd / 'tr' / f).read_text(encoding='utf-8'))
 
     def test_untrusted_output_is_only_text(self):
         def h(kw):

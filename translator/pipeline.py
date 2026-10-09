@@ -21,7 +21,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -32,12 +34,14 @@ GUIDE = HERE / 'guides' / 'style-guide-he.md'
 DEFAULT_CAP_USD = float(os.environ.get('SNB_JOB_CAP_USD', '10'))     # תקרת עבודה אם השרתון לא שלח אחרת
 MAX_QUESTIONS = 2
 FIX_ROUNDS = 2
+# חלקי התרגום רצים במקביל אחרי שהקריאה הראשונה התחילה לענות (= הבלוק הקבוע כבר במטמון וכולם קוראים ממנו).
+TL_PARALLEL = max(1, int(os.environ.get('SNB_TL_PAR', '4')))
 
 LINE_RE = re.compile(r'^#(\d+)\s?(.*)$')
 PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
 ISSUE_RE = re.compile(r'^- #(\d+): (.*)$')
 # בעיות שחייבות תיקון (שגיאה/חסר) מול הערות שכדאי לשקול (מעל תקציב, מספר, מילון, שאלה)
-HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר')
+HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד')
 SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד')
 
 SECTION_RE = re.compile(r'^=== (PATCH|BRIEF|GLOSSARY|QUESTIONS) ===\s*$', re.M)
@@ -187,6 +191,7 @@ TL_TASK = """אתה מתרגם מקצועי של כתוביות מאנגלית �
 - כתובית של שני דוברים: `||` בין הדוברים. `|` = שבירת שורה ידנית.
 - סמיכות, מספר ונספר, שם עצם ותואר, צירוף קבוע ושם אדם — לא בין שתי שורות.
 - מונחי המילון כפי שהם. שם שלא בטוחים בו — בתעתיק המקובל בעברית.
+- כתיב מלא, בלי שום ניקוד (הבדיקה פוסלת תווי ניקוד). מילה דו־משמעית — מנסחים מחדש במקום לנקד.
 - שומרים על התדריך: אותו קול, אותה פנייה ואותם שמות לאורך כל הראיון."""
 
 FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה. לכל כתובית ברשימה: שורה אחת `#מספר טקסט` עם הנוסח המתוקן (או `=`/`∅`
@@ -277,6 +282,26 @@ class Pipeline:
                             block('glossary', (td / 'glossary.tsv').read_text(encoding='utf-8') if (td / 'glossary.tsv').exists() else ''),
                             block('source', (td / 'source.md').read_text(encoding='utf-8'))])
 
+    def _tl_part(self, p: dict, fixed: str, warm: threading.Event | None = None):
+        """תרגום חלק אחד (עם ניסיון נוסף לכתוביות שהמודל דילג עליהן) וכתיבת הקובץ שלו.
+        warm מסומן ברגע שהשרת התחיל לענות (= הבלוק הקבוע במטמון) — ובכל מקרה בסוף, שכשל לא יתקע את השאר."""
+        try:
+            ids = set(p['ids'])
+            got: dict[str, str] = {}
+            for attempt in range(2):                      # חלק שהמודל דילג בו על כתוביות — עוד ניסיון אחד לחסרות
+                want = ids - set(got)
+                ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got else
+                       'חסרו בתשובה הכתוביות האלה מאותו חלק — רק הן: ' + ' '.join('#' + k for k in sorted(want, key=int)))
+                res = self.eng.complete('tl', fixed, ask, max_tokens=32000,
+                                        on_first_token=(warm.set if warm and not attempt else None))
+                got.update(answer_lines(res.text, want))
+                if set(got) >= ids:
+                    break
+            (self.pd / 'tr' / p['file']).write_text(fmt_lines(got) + '\n', encoding='utf-8')
+        finally:
+            if warm:
+                warm.set()
+
     def translate(self):
         ctx, td = self.ctx, self.pd / 'tr'
         _, parts = parse_source((td / 'source.md').read_text(encoding='utf-8'))
@@ -284,24 +309,29 @@ class Pipeline:
             raise SystemExit('✗ tr/source.md ריק — אין מה לתרגם.')
         fixed = self.fixed_tl()       # זהה בכל הקריאות של השלב → נכנס למטמון פעם אחת
         n = len(parts)
-        ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
-        for i, p in enumerate(parts):
+        pending = []
+        for p in parts:
             out = td / p['file']
             ids = set(p['ids'])
             if out.exists() and set(answer_lines(out.read_text(encoding='utf-8'), ids)) >= ids:
                 continue                                  # כבר תורגם (המשך אחרי הפסקה)
-            got: dict[str, str] = {}
-            for attempt in range(2):                      # חלק שהמודל דילג בו על כתוביות — עוד ניסיון אחד לחסרות
-                want = ids - set(got)
-                ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got else
-                       'חסרו בתשובה הכתוביות האלה מאותו חלק — רק הן: ' + ' '.join('#' + k for k in sorted(want, key=int)))
-                res = self.eng.complete('tl', fixed, ask, max_tokens=32000)
-                got.update(answer_lines(res.text, want))
-                if set(got) >= ids:
-                    break
-            self.save_usage()
-            out.write_text(fmt_lines(got) + '\n', encoding='utf-8')
-            ctx.report('tl', (i + 1) / n, f'Claude מתרגם · חלק {i + 1} מתוך {n}')
+            pending.append(p)
+        done_n = n - len(pending)
+        ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
+        if pending:
+            # החלק הראשון כותב את המטמון; ברגע שהשרת התחיל לענות לו — שאר החלקים במקביל, כולם קוראים
+            # מהמטמון (עד v375 החלקים רצו בטור — אותו מחיר, הרבה יותר זמן קיר).
+            warm = threading.Event()
+            with ThreadPoolExecutor(max_workers=min(TL_PARALLEL, len(pending))) as ex:
+                futs = [ex.submit(self._tl_part, pending[0], fixed, warm)]
+                if len(pending) > 1:
+                    warm.wait(timeout=1800)
+                    futs += [ex.submit(self._tl_part, p, fixed) for p in pending[1:]]
+                for f in as_completed(futs):
+                    f.result()                            # שגיאה בחלק כלשהו עולה כאן
+                    done_n += 1
+                    self.save_usage()
+                    ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
         self.fix_round('fixes.txt', fixed, 'tl')
 
     def check(self) -> tuple[dict, dict, int]:
