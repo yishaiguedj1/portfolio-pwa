@@ -114,6 +114,8 @@ class Pipeline(unittest.TestCase):
         self.assertIn('--new-bundle-format=false', w, 'חתימה גם בפורמט שה־cosign של Debian בשרת מכיר')
         self.assertIn('imagetools create -t "$IMAGE:prod" "$ref"', w, 'קידום = אותו digest, בלי בנייה מחדש')
         self.assertIn('unittest discover', w, 'בלי בדיקות ירוקות אין תמונה')
+        self.assertNotRegex(w, r'(?m)^concurrency:', 'בלי קבוצה ל־workflow כולו — קידום שמחכה לאישור עצר כל בנייה אחריו')
+        self.assertIn('group: worker-image-promote', w)
 
     def test_signer_identity_same_in_ci_and_server(self):
         w = read('.github/workflows/worker-image.yml')

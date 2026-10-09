@@ -19,15 +19,16 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: worker-image
-  cancel-in-progress: false
-
 env:
   IMAGE: ghcr.io/yishaiguedj1/snb-worker
 
 jobs:
   build:
+    # המתנה לאישור הקידום (promote) לא חוסמת בנייה חדשה: לבנייה ולקידום קבוצות ריצה נפרדות.
+    # (לקח 09/10/2026: קבוצה אחת ל־workflow כולו — ריצה שחיכתה שעה לאישור עצרה כל בנייה אחריה.)
+    concurrency:
+      group: worker-image-build-${{ matrix.arch }}
+      cancel-in-progress: false
     # שתי ארכיטקטורות, כל אחת על מכונה מהסוג שלה (בלי אמולציה): Intel/AMD (CX) ו־Arm (CAX של Hetzner).
     # כל אחת נדחפת לתג זמני משלה; ה־job הבא מאחד אותן לתמונה אחת (index) — אותה תמונה בכל שרת, והשרת לוקח את שלו.
     strategy:
@@ -76,6 +77,9 @@ jobs:
           docker logout ghcr.io
 
   merge:
+    concurrency:
+      group: worker-image-merge
+      cancel-in-progress: false
     # מאחדים את שתי הארכיטקטורות לתמונה אחת, וחותמים עליה (על ה־index — זה מה שהשרת מושך ומאמת)
     needs: build
     runs-on: ubuntu-latest
@@ -121,6 +125,10 @@ jobs:
     # אחרי ההגדרה: Settings ← Secrets and variables ← Actions ← Variables ← SNB_PROMOTE = on (infra/README.md)
     if: vars.SNB_PROMOTE == 'on'
     runs-on: ubuntu-latest
+    # ריצה חדשה מחליפה קידום שעוד מחכה לאישור — מאשרים תמיד את התמונה האחרונה
+    concurrency:
+      group: worker-image-promote
+      cancel-in-progress: true
     environment: production
     permissions:
       packages: write
