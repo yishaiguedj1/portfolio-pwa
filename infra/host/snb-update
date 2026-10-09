@@ -8,6 +8,10 @@ set -eu
 # shellcheck source=snb-common.sh
 . /usr/local/lib/snb/common.sh
 [ -s "$SNB_ENV" ] || { snb_log "אין עדיין מפתחות — להריץ snb-setup"; exit 0; }
+# כלי חסר = הודעה ביומן (journalctl -t snb), לא כישלון שקט באמצע set -e
+for c in docker cosign; do
+	command -v "$c" >/dev/null 2>&1 || { snb_log "✗ חסר הכלי $c — apt-get install -y docker-cli cosign"; exit 1; }
+done
 if snb_busy && [ "${1:-}" != "--now" ]; then snb_log "עבודה רצה — העדכון יחכה לסיומה"; exit 0; fi
 docker pull -q "$SNB_IMG:prod" >/dev/null
 REF=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$SNB_IMG:prod" | grep "^$SNB_IMG@sha256:" | head -n1)

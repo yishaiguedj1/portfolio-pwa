@@ -132,12 +132,36 @@ class Pipeline(unittest.TestCase):
         self.assertIn('snb_busy', u, 'לא מעדכנים באמצע עבודה')
         self.assertIn(':prod', u)
 
+    def test_packages_explicit(self):
+        # Debian 13: הפקודה docker בחבילה נפרדת, ו־Hetzner לא מתקינה "מומלצות" — חייבת להופיע במפורש
+        ci = read('infra/cloud-init.yaml')
+        pk = ci[ci.index('packages:'):ci.index('write_files:')]
+        for need in ('docker.io', 'docker-cli', 'docker-compose', 'cosign', 'nftables'):
+            self.assertIn('  - ' + need + '\n', pk)
+        u = read('infra/host/snb-update')
+        self.assertLess(u.index('command -v'), u.index('docker pull'), 'כלי חסר נרשם ביומן לפני שמשתמשים בו')
+
     def test_setup_code_marker(self):
         ci = read('infra/cloud-init.yaml')
         self.assertEqual(ci.count('\n  # SNB_SECRETS\n'), 1, 'שורת סימון אחת לקוד ההקמה מהאפליקציה')
         self.assertLess(ci.index('# SNB_SECRETS'), ci.index('\nruncmd:'), 'בתוך write_files')
         self.assertIn('systemctl start --no-block snb-update.service', ci, 'יש מפתחות — מתחילים מיד')
         self.assertIn("CI_MARK = '  # SNB_SECRETS'", read('studio.js'), 'אותו סימון באפליקציה')
+
+    def test_setup_prompts_visible_and_values_clean(self):
+        # לקח 09/10/2026: השאלות הודפסו ל־stdout בתוך $(...) — נבלעו במשתנה, המסך ריק והמפתח נפסל
+        import subprocess, tempfile
+        src = read('infra/host/snb-setup')
+        with tempfile.TemporaryDirectory() as d:
+            s = src.replace('[ "$(id -u)" = 0 ]', 'true').replace('/etc/snb', d)
+            s = re.sub(r'(?m)^systemctl.*$', 'echo DONE', s)
+            key, tok = 'sk-ant-' + 'a' * 30, 'abcdefghijkl-' + 'B' * 43
+            r = subprocess.run(['sh', '-c', s], input=key + '\n' + tok + '\n\n', capture_output=True, text=True, timeout=20)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn('Anthropic API key', r.stderr, 'השאלה מוצגת על המסך')
+            env = open(d + '/worker.env').read()
+            self.assertIn('ANTHROPIC_API_KEY=' + key + '\n', env)
+            self.assertIn('SNB_WORKER_TOKEN=' + tok + '\n', env)
 
     def test_setup_secrets_file_private(self):
         s = read('infra/host/snb-setup')
