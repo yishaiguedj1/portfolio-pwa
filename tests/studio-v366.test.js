@@ -40,7 +40,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sj = read('studio.js');
   ok(/rowRadio\(\{ label: T\('studioFmSug'\)/.test(sj) && /rowRadio\(\{ label: T\('studioFmAuto'\)/.test(sj), 'מסך המגדל: שתי אפשרויות בחירה');
   ok(/ui\.fm = j\.fm === 'auto' \? 'auto' : 'suggest'/.test(sj), 'ברירת המחדל בטלפון — הצעות');
-  ok(/const pt = h\('small', null, e\.px\)/.test(sj) && !/innerHTML[^;]*px/.test(sj), 'ההצעה מוצגת כטקסט בלבד');
+  ok(/const pt = h\('small', null, (?:e|x)\.px\)/.test(sj) && !/innerHTML[^;]*px/.test(sj), 'ההצעה מוצגת כטקסט בלבד');
   ok(/net\.api\('fixMode'/.test(sj) && /net\.api\('fbDecide'/.test(sj), 'הבחירה וההחלטה נשמרות בשרתון');
   const app = read('app.js');
   for (const k of ['studioFmT', 'studioFmSug', 'studioFmSugS', 'studioFmAuto', 'studioFmAutoS', 'studioFbPropL', 'studioFbKeep', 'studioFbDrop', 'studioFbKept', 'studioFbDropped'])

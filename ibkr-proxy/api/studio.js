@@ -25,6 +25,7 @@ const gdrive = require('../lib/gdrive').studio;   // v357: לקוח OAuth נפר
 const S = require('../lib/studio');
 const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
+const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -134,7 +135,7 @@ async function syncInc(deps, uid, jobs, now) {
     if (inc) patch.inc = inc;
     if (mi) patch.mi = mi;
     if (inc || mi) await patchDoc(deps, 'studioOps', uid, Object.assign(patch, { updated: now }));
-    return { inc: inc || d.inc, mi: mi || d.mi, al: d.al };
+    return { inc: inc || d.inc, mi: mi || d.mi, al: d.al, fb: st.fb };
   } catch (e) { return null; }
 }
 /* התקלה הרחבה שחלה על העבודה הזו: Routine לא נוגע לעבודות במצב API, והשרת שלנו לא נוגע לעבודות של ה־Routine */
@@ -276,6 +277,13 @@ async function ruleBlock(deps, uid, job, body) {
 async function doResume(deps, uid, job, now, body, auto) {
   const why = S.canResume(job, now);
   if (why) return { status: 409, json: { ok: false, error: why } };
+  // v376: ספר ההפעלה "מצב זול יותר" — משנה את התוצאה, ולכן רק בלחיצה שלך (לא בהמשך האוטומטי) ורק אחרי עצירה על עלות
+  let dm = '';
+  if (body.mode != null && !auto) {
+    const from = job.spec && job.spec.mode;
+    if (!S.COST_STOP(job) || !S.cheaperModes(from).includes(body.mode)) return { status: 409, json: { ok: false, error: 'mode' } };
+    dm = from;
+  }
   const stop = await ruleBlock(deps, uid, job, auto ? { ov: true } : body);   // v367
   if (stop) return { status: 409, json: Object.assign({ ok: false }, stop) };
   // v371: תקלה רחבה — הפעלות מחכות עד שזה עובר; "להתחיל בכל זאת" (mo) עוקף. ההמשך האוטומטי תמיד מחכה
@@ -291,7 +299,8 @@ async function doResume(deps, uid, job, now, body, auto) {
   // v367: "המשך" אחרי שעצרת בתקציב = אישור להמשיך (התקציב גדל בעוד תקציב אחד)
   const bx = job.err === 'budget_stop' ? (job.bx || 0) + 1 : (job.bx || 0);
   const patch = { use0, ls, bx, ended: 0, updated: now };
-  if (auto) patch.ar = (job.ar || 0) + 1;   // נרשם לפני ההפעלה — שתי צפיות במקביל לא יפעילו פעמיים
+  if (auto) patch.ar = (job.ar || 0) + 1;
+  if (dm) patch.spec = Object.assign({}, job.spec, { mode: body.mode, dm });   // dm = המצב שממנו ירדנו (לספירת ספר ההפעלה)   // נרשם לפני ההפעלה — שתי צפיות במקביל לא יפעילו פעמיים
   await patchJob(deps, job.id, patch);
   Object.assign(job, patch);
   if (api) {
@@ -646,7 +655,9 @@ async function handler(req, res, deps = {}) {
       // v371: התקלות — נגזרות מהרשימה המלאה (עבודה שנעלמה ממנה נמחקה)
       const ic = await syncInc(deps, uid, list, now);
       return res.status(200).json(Object.assign({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now },
-        ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now) } : {}, { ag: A.agentsView(list, now) }));   // v373: מלאי הסוכנים — מאותה רשימה
+        ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now),
+          pb: P.problemsView(S.fbView(ic.fb), ic.inc, list, now), rb: P.runbooksView(ic.fb, list, now) } : {},   // v376: בעיות וספרי הפעלה
+        { ag: A.agentsView(list, now) }));   // v373: מלאי הסוכנים — מאותה רשימה
     }
     let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });

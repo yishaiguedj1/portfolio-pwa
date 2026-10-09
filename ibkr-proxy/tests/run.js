@@ -1709,6 +1709,64 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v376: בעיות וספרי הפעלה — מספר קבוע, מצב נגזר, דירוג "שווה לתקן", קישור לתקלות, המשך במצב זול יותר (רק אחרי עצירה על עלות)
+    now += 3600e3 + 1;
+    {
+      const S5 = require('../lib/studio');
+      const P5 = require('../lib/studioprob');
+      const FPa = 'aaaaaaaaaaa1', FPb = 'bbbbbbbbbbb2';
+      let fbx = S5.fbStop([{ fp: FPa, why: 'loop', st: 'tl', n: 2, auto: 0, fix: '', at: 1 }], { fp: FPb, why: 'cost' }, 'rv', 10);
+      ok(fbx.map((e) => e.no).join() === '1,2' && S5.fbView(fbx).every((e) => Number.isInteger(e.no)), 'סטודיו: בעיות — מספר קבוע (גם לרשומה ישנה בלי מספר)');
+      fbx = S5.fbStop(fbx, { fp: FPa, why: 'loop' }, 'tl', 20);
+      ok(fbx.find((e) => e.fp === FPa).no === 1 && fbx.find((e) => e.fp === FPa).n === 3, 'סטודיו: בעיות — חזרה לא משנה את המספר');
+      const jobsX = [
+        { id: 'j1', kind: 'tr', state: 'failed', created: now - 5e6, use: [{ k: 'tl', usd: 2.5 }] },
+        { id: 'j2', kind: 'tr', state: 'failed', created: now - 4e6, use0: [{ k: 'tl', usd: 1 }], use: [{ k: 'rv', usd: 0.5 }], ar: 1, spec: { mode: 'sonnet-high', dm: 'opus-medium' } },
+        { id: 'j3', kind: 'tr', state: 'done', created: now - 3e6, ended: 30 }, { id: 'j4', kind: 'tr', state: 'done', created: now - 2e6, ended: 31 }, { id: 'j5', kind: 'tr', state: 'done', created: now - 1e6, ended: 32 }];
+      const incX = [{ no: 7, j: 'j1', fp: FPa }, { no: 8, j: 'j2', fp: FPa }, { no: 9, j: 'j2', fp: 'not-a-fp' }];
+      const fbv = S5.fbView(fbx).map((e) => (e.fp === FPa ? Object.assign(e, { at: 40, fix: 'לפצל כתובית ארוכה' }) : Object.assign(e, { at: 20, px: 'הצעה' })));
+      const pv = P5.problemsView(fbv, incX, jobsX, now);
+      const pa = pv.list.find((x) => x.fp === FPa), pb = pv.list.find((x) => x.fp === FPb);
+      ok(pa.state === 'w' && pa.jobs === 2 && pa.usd === 4 && pa.inc.join() === '7,8' && pa.score === 12, 'סטודיו: בעיה — עקיפה ידועה, 2 עבודות, העלות שלהן והתקלות שלה');
+      ok(pb.state === 'f' && pb.after === 3 && pb.score === 0 && pv.list[0].fp === FPa && pv.open === 1, 'סטודיו: בעיה — 3 עבודות הצליחו מאז = "לא חזרה", ובסוף הדירוג');
+      ok(P5.problemsView(fbv.map((e) => Object.assign({}, e, { at: 50, fix: '', px: e.fp === FPb ? 'x' : '' })), [], jobsX, now).list.map((x) => x.state).sort().join() === 'd,n', 'סטודיו: בעיה — חדשה / אובחנה (הצעה שמחכה)');
+      const rbx = P5.runbooksView([{ fp: FPa, auto: 2, ua: now - 1000 }, { fp: FPb, auto: 5, ua: now - 40 * 864e5 }], jobsX, now);
+      ok(JSON.stringify(rbx) === '[{"k":"net","r":"s","n":1},{"k":"known","r":"s","n":2},{"k":"cheap","r":"c","n":1}]', 'סטודיו: ספרי הפעלה — כמה פעמים החודש, ומה בטוח / באישור');
+      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium' && !S5.cheaperModes('sonnet-medium').length, 'סטודיו: מצבים זולים יותר — מהקרוב');
+      ok(S5.COST_STOP({ err: 'budget_stop' }) && S5.COST_STOP({ err: 'tower_stop', tw: { why: 'cost' } }) && !S5.COST_STOP({ err: 'tower_stop', tw: { why: 'loop' } }) && !S5.COST_STOP({ err: 'net' }),
+        'סטודיו: "מצב זול יותר" רק אחרי עצירה על עלות');
+      // מקצה לקצה: עצירה על עלות → המשך במצב זול יותר
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JC = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JC, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JC });
+      let KC = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JC, key: KC });
+      await wrk({ op: 'report', job: JC, key: KC, fail: true, err: 'tower_stop', tower: { lv: 'red', why: 'loop', n: 6, x: 2, usd: 4, exp: 1.9, fp: 'cccccccccc33' } });
+      rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'sonnet-high' });
+      ok(rr.statusCode === 409 && rr.payload.error === 'mode', 'סטודיו: עצירה על לולאה — בלי "מצב זול יותר"');
+      // עצירה על עלות
+      await run({ op: 'resume', idToken: OWNER, job: JC });
+      KC = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JC, key: KC });
+      await wrk({ op: 'report', job: JC, key: KC, fail: true, err: 'tower_stop', tower: { lv: 'red', why: 'cost', x: 4.2, usd: 9, exp: 2, fp: 'dddddddddd44' } });
+      rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'opus-max' });
+      ok(rr.statusCode === 409 && rr.payload.error === 'mode', 'סטודיו: "מצב זול יותר" — מצב יקר יותר נדחה');
+      rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'sonnet-high' });
+      ok(rr.payload.ok && rr.payload.job.spec.mode === 'sonnet-high' && rr.payload.job.spec.dm === SPEC.mode, 'סטודיו: המשך במצב זול יותר — המצב החדש נשמר, והישן נרשם');
+      KC = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: JC, key: KC });
+      ok(rr.payload.job.spec.mode === 'sonnet-high', 'סטודיו: העובד מקבל את המצב הזול');
+      await wrk({ op: 'report', job: JC, key: KC, fail: true, err: 'net' });
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const pbj = rr.payload.pb;
+      ok(pbj && pbj.list.some((x) => x.fp === 'dddddddddd44' && x.inc.length >= 1) && rr.payload.rb.find((x) => x.k === 'cheap').n >= 1, 'סטודיו: op jobs — הבעיות (עם התקלות שלהן) וספרי ההפעלה');
+      await run({ op: 'remove', idToken: OWNER, job: JC });
+      const od5 = db.get('studioOps/ownerUid0001'); if (od5) { delete od5.fields.inc; delete od5.fields.mi; }   // תקלות מהתרחיש — לא לתרחישים הבאים
+    }
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v375: שופט האיכות (Haiku, על מדגם) — ציון, קודים קבועים, חוק לכיבוי, סוג עלות ומלאי
     now += 3600e3 + 1;
     {

@@ -233,6 +233,12 @@ function normFixText(t) {
 function fbList(a) {
   return (Array.isArray(a) ? a : []).filter((e) => e && FP_RE.test(String(e.fp || '')) && TW_WHY.includes(e.why)).slice(-FB_MAX);
 }
+/* v376: מספר קבוע לכל בעיה (B1, B2…) — רשומה ישנה בלי מספר מקבלת לפי סדר ההופעה, אחרי הגבוה שכבר ניתן */
+function fbNumber(list) {
+  let top = list.reduce((m, e) => Math.max(m, Number.isInteger(e.no) && e.no > 0 ? e.no : 0), 0);
+  for (const e of list) if (!(Number.isInteger(e.no) && e.no > 0)) e.no = ++top;
+  return list;
+}
 /* עצירה חדשה של המגדל → רשומה (או עוד פעם לרשומה קיימת) */
 function fbStop(list, tw, st, now) {
   if (!tw || !FP_RE.test(String(tw.fp || '')) || !TW_WHY.includes(tw.why)) return null;
@@ -240,7 +246,7 @@ function fbStop(list, tw, st, now) {
   let e = out.find((x) => x.fp === tw.fp);
   if (!e) { e = { fp: tw.fp, why: tw.why, st: STAGES.includes(st) ? st : '', n: 0, auto: 0, fix: '', at: now }; out.push(e); }
   e.n = (e.n || 0) + 1; e.at = now;
-  return out.slice(-FB_MAX);
+  return fbNumber(out).slice(-FB_MAX);
 }
 /* v366: מסלול התיקונים של המשתמש — "הצעות לאישור" (ברירת המחדל, כמו Supervised ב־ServiceNow ומאמר ידע שעובר בדיקה לפני פרסום)
    או "עצמאי" (Claude מחליט לבד). ההצעה משמשת את Claude בעבודה שבה נכתבה; לעבודות הבאות היא עוברת רק אחרי אישור */
@@ -276,8 +282,11 @@ function fbUsed(list, fp, now) {
 /* לעובד: רק תקלות שיש להן תיקון (שאושר — הצעה שממתינה לא נכנסת) */
 const fbForWorker = (list) => fbList(list).filter((e) => e.fix).map((e) => ({ fp: e.fp, why: e.why, st: e.st, fix: e.fix }));
 /* לטלפון: הכל, מהחדשה */
-const fbView = (list) => fbList(list).slice().sort((a, b) => (b.at || 0) - (a.at || 0))
-  .map((e) => ({ fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', px: e.px || '', at: e.at || 0 }));
+const fbView = (list) => fbNumber(fbList(list).map((e) => Object.assign({}, e))).sort((a, b) => (b.at || 0) - (a.at || 0))
+  .map((e) => ({ no: e.no, fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', px: e.px || '', at: e.at || 0 }));
+/* v376: מצבים שעולים בהמשך תור (מצב זול יותר אחרי עצירה על עלות) — לפי הצפוי לשעה, מהקרוב ביותר */
+const cheaperModes = (mode) => MODES.filter((m) => NORM_DEF[m] < (NORM_DEF[mode] || 0)).sort((a, b) => NORM_DEF[b] - NORM_DEF[a]);
+const COST_STOP = (job) => !!job && (job.err === 'budget_stop' || (job.err === 'tower_stop' && !!job.tw && (job.tw.why === 'cost' || job.tw.why === 'cap')));
 
 /* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
 function mergeUse(a, b) {
@@ -624,7 +633,7 @@ module.exports = {
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
-  FB_MAX, FIX_MAX, normFixText, fbList, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
+  FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,

@@ -15,7 +15,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   const FP = 'a1b2c3d4e5f6';
   let fb = S.fbStop([], { fp: FP, why: 'loop' }, 'tl', 5);
-  ok(fb.length === 1 && fb[0].n === 1 && fb[0].st === 'tl' && fb[0].fix === '' && Object.keys(fb[0]).sort().join() === 'at,auto,fix,fp,n,st,why',
+  ok(fb.length === 1 && fb[0].n === 1 && fb[0].st === 'tl' && fb[0].fix === '' && /^at,auto,fix,fp,n,(no,)?st,why$/.test(Object.keys(fb[0]).sort().join()),
     'עצירה → רשומה: טביעה, סוג, שלב, כמה פעמים — בלי טקסט חופשי');
   fb = S.fbStop(fb, { fp: FP, why: 'loop' }, 'tl', 6);
   ok(fb.length === 1 && fb[0].n === 2, 'אותה תקלה שוב — אותה רשומה, n עולה');
@@ -50,8 +50,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(F.length === 2 && F[0].fix === 'מפצלים' && F[1].st === '' && F[1].fix === '' && M.normFb('x') === null, 'טלפון: normFb — טביעה וסוג תקינים, התיקון רק מחרוזת');
   ok(M.normTw({ lv: 'red', why: 'loop', fp: FP }).fp === FP && M.normTw({ lv: 'red', fp: 'x' }).fp === '', 'טלפון: normTw שומר את טביעת העצירה');
   const st = read('studio.js');
-  ok(/secT\(T\('studioFbT'\)\)/.test(st) && /T\('studioFbKnown'\), known\.fix/.test(st), 'טלפון: מקטע "ספר התיקונים" במסך המגדל, ו"התיקון המוכר" בכרטיס העצירה');
-  ok(!/innerHTML[^;]*\.fix/.test(st) && /h\('small', e\.fix \? null : 'st-muted', e\.fix \|\| T\('studioFbNoFix'\)\)/.test(st), 'טלפון: התיקון (טקסט מ־Claude) מוצג כטקסט, לא כ־HTML');
+  ok(/secT\(T\('studioFbT'\)\)|function pbSection\(\)/.test(st) && /T\('studioFbKnown'\), known\.fix/.test(st), 'טלפון: מקטע "ספר התיקונים" במסך המגדל, ו"התיקון המוכר" בכרטיס העצירה');
+  ok(!/innerHTML[^;]*\.fix/.test(st) && /h\('(?:small|p)', (?:e|x)\.fix \? null : 'st-muted', (?:e|x)\.fix \|\| T\('studioFbNoFix'\)\)/.test(st), 'טלפון: התיקון (טקסט מ־Claude) מוצג כטקסט, לא כ־HTML');
   const app = read('app.js');
   for (const k of ['studioFbT', 'studioFbNoFix', 'studioFbKnown', 'studioFbAuto1', 'studioFbAutoN', 'studioFbStop1', 'studioFbStopN', 'studioFbWhyLoop', 'studioFbWhyIdle'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'טלפון: ' + k + ' — עברית ואנגלית');
