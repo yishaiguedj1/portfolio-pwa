@@ -2217,6 +2217,7 @@ function stubFetch(text, status = 200) {
     const STOK = rr.payload.token, SID = rr.payload.server.id;
     ok(rr.payload.ok && /^[a-z0-9]{12}-[A-Za-z0-9_-]{43}$/.test(STOK) && rr.payload.server.name === 'Hetzner b1b' && !JSON.stringify(db.get('studioServers/' + SID)).includes(STOK.slice(13)),
       'מצב API: טוקן שרת — מוצג פעם אחת; בשרתון רק ה־hash; שם מנוקה');
+    ok(/^[a-z0-9]{12}-[a-z0-9]{43}$/.test(STOK), 'מצב API: סוד הטוקן רק אותיות קטנות וספרות — אפשר להדביק בקונסולה של Hetzner (Shift משתבש)');
     rr = await srvRun({ op: 'poll', hb: {} });
     ok(rr.statusCode === 401, 'מצב API: שאילתה בלי טוקן — 401');
     rr = await srvRun({ op: 'poll', hb: {} }, SID + '-' + 'A'.repeat(43));
