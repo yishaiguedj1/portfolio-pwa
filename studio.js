@@ -1991,12 +1991,12 @@ function incRow(x, compact) {
   r.append(tg, h('b', null, (compact ? T('studioIncRowT') + ' · ' : '') + incTitle(x.e)), pill(incStCls(x.st), incStName(x.st)), sub);
   return r;
 }
-/* תקלה רחבה — באנר אחד (בבית ובמגדל): מה נשבר, כמה עבודות, ושההפעלות מחכות */
-function majorBanner() {
+/* תקלה רחבה — באנר אחד (בבית ובמגדל): מה נשבר, כמה עבודות, ושההפעלות מחכות. מהבית → המגדל (כמו באנר ההתראות); במגדל → התקלה */
+function majorBanner(inTower) {
   if (!majorOn(ui.inc)) return null;
   const mi = ui.inc.mi;
   const first = ui.inc.list.find((x) => x.m === mi.no && (x.st === 'o' || x.st === 'w'));
-  const b = btn('st-banner warn st-halt st-urg st-major', null, () => (first ? (ui.incTab = 'd', go('inc', first.no)) : go('tower')), 'major-banner');
+  const b = btn('st-banner warn st-halt st-urg st-major', null, () => (inTower && first ? (ui.incTab = 'd', go('inc', first.no)) : go('tower')), inTower ? 'major-banner-t' : 'major-banner');
   const t = h('span', 'st-l');
   t.append(h('b', null, T('studioMajorT', { c: opsComp(mi.c) })), h('small', null, T('studioMajorS', { n: mi.n || 2 })));
   b.append(ico('alert'), t, ico('chev', 'st-chev'));
@@ -2152,7 +2152,7 @@ function pageTower(p) {
   p.append(navBar({ back: T('studioBack'), title: T('studioTwT') }), hero);
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל
-  const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — הפעלות מחכות
+  const mb = majorBanner(true); if (mb) p.append(mb);   // v371: תקלה רחבה — הפעלות מחכות
   if (ui.ops) p.append(...opsSection(ui.ops));   // v365/v369: ציונים עם מגמה והתראות פתוחות
   p.append(...incSection());   // v371: תקלות — מה קרה לעבודות (ההתראות שמעל = האותות מהרכיבים)
   // v369: פעולות מהירות — רק מה שקיים
