@@ -1727,6 +1727,72 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v379: דוח אחרי תקלה — זמן לזיהוי ולתיקון ומה עלה בטעות (בפתרון, P1–P2), בקשת סיכום לסשן הבא, שמירה פעם אחת, 👍/👎
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const PIR = require('../lib/studiopir');
+      ok(PIR.wastedUsd({ use0: [{ usd: 1.5 }], use: [{ usd: 2 }] }, 'done') === 1.5 && PIR.wastedUsd({ use0: [{ usd: 1.5 }], use: [{ usd: 2 }] }, 'failed') === 3.5,
+        'סטודיו: דוח תקלה — מה עלה בטעות: הסשנים שנכשלו (ואם לא הסתיימה — גם האחרון)');
+      const x0 = { no: 4, j: 'jAAAAAAAAAAAAAAAAAAAA', s: 2, f: 10 * 60e3, st: 'r', rt: 40 * 60e3 };
+      ok(PIR.pirOnResolve(x0, { w: 0.4 }, [{ j: x0.j, f: 7 * 60e3 }, { j: 'jOther', f: 1 }]).tti === 180 && PIR.pirOnResolve(Object.assign({}, x0, { s: 3 }), { w: 1 }, []) === null,
+        'סטודיו: דוח תקלה — זמן לזיהוי מהאות הראשון של העבודה; רק P1–P2');
+      ok(PIR.normPirText('קצר') === '' && PIR.normPirText('<b>טקסט</b> עם קישור https://evil.example ו־`code` שאורכו מספיק').indexOf('evil') < 0 && PIR.normPirText('א'.repeat(900)).length === 420,
+        'סטודיו: דוח תקלה — הסיכום: טקסט בלבד, בלי קישורים וקוד, באורך מוגבל');
+      // מקצה לקצה: עבודה נכשלת (P2), ממשיכים, מסתיימת → הדוח; העבודה הבאה מקבלת בקשה לסיכום
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const J9 = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: J9, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: J9 });
+      let K9 = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: J9, key: K9 });
+      await wrk({ op: 'report', job: J9, key: K9, ev: [{ c: 'vt', k: 'asr' }] });
+      now += 120e3;
+      await wrk({ op: 'report', job: J9, key: K9, fail: true, err: 'worker_step', usage: [{ k: 'main', m: 'claude-sonnet-5-5', n: 9, i: 10, o: 1000, cr: 0, c5: 0, c1: 0, usd: 0.42 }] });
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      let x9 = rr.payload.inc.list.find((y) => y.j === J9);
+      ok(x9 && x9.s <= 2 && x9.st === 'o' && x9.pir === null, 'סטודיו: דוח תקלה — תקלה פתוחה: עוד אין דוח');
+      await run({ op: 'resume', idToken: OWNER, job: J9 });
+      K9 = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: J9, key: K9 });
+      ok(rr.payload.pir === null, 'סטודיו: דוח תקלה — לתקלה שעוד לא נפתרה לא מבקשים סיכום');
+      now += 34 * 60e3;
+      await wrk({ op: 'report', job: J9, key: K9, done: true });
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      x9 = rr.payload.inc.list.find((y) => y.j === J9);
+      ok(x9.st === 'r' && x9.pir && x9.pir.tti === 120 && x9.pir.ttr === 34 * 60 && x9.pir.usd === 0.42 && x9.pir.ps === null && x9.pir.wait === true,
+        'סטודיו: דוח תקלה — בפתרון: זמן לזיהוי, זמן לתיקון, עלה בטעות; הסיכום ייכתב בעבודה הבאה');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const J10 = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: J10, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: J10 });
+      const K10 = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: J10, key: K10 });
+      const pf = rr.payload.pir;
+      ok(pf && pf.no === x9.no && pf.tti === 120 && pf.usd === 0.42 && Array.isArray(pf.tl) && pf.tl.some((e) => e[1] === 'r') && !/aud1234|fold1234|Ackman|name/.test(JSON.stringify(pf)),
+        'סטודיו: דוח תקלה — הלקיחה הבאה מבקשת סיכום, עם עובדות בלבד (בלי קבצים ושמות)');
+      rr = await wrk({ op: 'report', job: J10, key: K10, pir: { no: x9.no, t: 'קצר', m: 'claude-sonnet-5-5' } });
+      ok(rr.payload.ok && rr.payload.pir === false, 'סטודיו: דוח תקלה — סיכום קצר מדי לא נשמר (והדיווח לא נופל)');
+      rr = await wrk({ op: 'report', job: J10, key: K10, pir: { no: x9.no, t: 'שלב היישור נכשל פעם אחת. ההמשך מנקודת השמירה עבר, והעבודה הסתיימה אחרי 34 דקות.', m: 'claude-sonnet-5-5' } });
+      ok(rr.payload.pir === true, 'סטודיו: דוח תקלה — הסיכום נשמר');
+      rr = await wrk({ op: 'report', job: J10, key: K10, pir: { no: x9.no, t: 'ניסיון שני לדרוס את הסיכום שכבר נשמר קודם.', m: 'claude-opus-5-5' } });
+      ok(rr.payload.pir === false, 'סטודיו: דוח תקלה — פעם אחת בלבד');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      x9 = rr.payload.inc.list.find((y) => y.j === J9);
+      ok(x9.pir.ps && x9.pir.ps.m === 'claude-sonnet-5-5' && /שלב היישור/.test(x9.pir.ps.t) && x9.pir.ps.v === 0, 'סטודיו: דוח תקלה — הסיכום והמודל שכתב אותו בטלפון');
+      ok((await run({ op: 'pirVote', idToken: OWNER, no: x9.no, v: 5 })).statusCode === 400, 'סטודיו: דוח תקלה — הצבעה לא תקינה = 400');
+      rr = await run({ op: 'pirVote', idToken: OWNER, no: x9.no, v: 1 });
+      ok(rr.payload.ok && rr.payload.inc.list.find((y) => y.no === x9.no).pir.ps.v === 1, 'סטודיו: דוח תקלה — 👍 נשמר');
+      // בקשה חוזרת — לכל היותר PIR_ASK פעמים לתקלה בלי סיכום
+      const od9 = db.get('studioOps/ownerUid0001');
+      const incs9 = S.fromFields(od9.fields).inc;
+      ok(incs9.find((y) => y.no === x9.no).pq === 1, 'סטודיו: דוח תקלה — מונה הבקשות');
+      await wrk({ op: 'report', job: J10, key: K10, done: true });
+      for (const id of [J9, J10]) await run({ op: 'remove', idToken: OWNER, job: id });
+      if (od9) { delete od9.fields.inc; delete od9.fields.mi; }
+    }
+    studio._reset();
+
     // v378: בדיקת מוכנות ותחזוקה — ממצאים עם עדיפות, ציון, תיקיות יתומות/כפולות, נקודות שמירה ורשומות ישנות, "נקה" לפח
     now += 3600e3 + 1;
     studio._reset();
