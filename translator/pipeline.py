@@ -41,8 +41,8 @@ LINE_RE = re.compile(r'^#(\d+)\s?(.*)$')
 PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
 ISSUE_RE = re.compile(r'^- #(\d+): (.*)$')
 # בעיות שחייבות תיקון (שגיאה/חסר) מול הערות שכדאי לשקול (מעל תקציב, מספר, מילון, שאלה)
-HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד')
-SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד')
+HARD = ('חסר תרגום', 'מעל 84', "'=' בלי", "חסר '||'", 'מספר לא קיים', 'מופיע ביותר', 'ניקוד', 'מקף דובר', 'תג עיצוב')
+SOFT = ('תקציב', 'המספר', 'מונח', 'סימן שאלה', 'קצר מאוד', 'סמל מטבע', 'ספרה בתחילת')
 
 SECTION_RE = re.compile(r'^=== (PATCH|BRIEF|GLOSSARY|QUESTIONS) ===\s*$', re.M)
 
@@ -303,7 +303,8 @@ class Pipeline:
             if warm:
                 warm.set()
 
-    def translate(self):
+    def translate(self, fix: bool = True):
+        """fix=False במסלול המקבילי: tr-check רץ רק אחרי שהיישור ו־retime קבעו את התקציבים הסופיים."""
         ctx, td = self.ctx, self.pd / 'tr'
         _, parts = parse_source((td / 'source.md').read_text(encoding='utf-8'))
         if not parts:
@@ -333,7 +334,8 @@ class Pipeline:
                     done_n += 1
                     self.save_usage()
                     ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
-        self.fix_round('fixes.txt', fixed, 'tl')
+        if fix:
+            self.fix_round('fixes.txt', fixed, 'tl')
 
     def check(self) -> tuple[dict, dict, int]:
         lines = self.J.vt(self.ctx, ['tr-check', self.ctx.name])
@@ -430,12 +432,36 @@ def run_auto(jobmod, args) -> int:
                 J.save_ck(pl.ctx, 'asr', {'pr': 1})
             else:
                 print('· ההגהה, התדריך והמילון כבר בנקודת השמירה — לא משלמים עליהם שוב.')
-            if J.align(ns) != 0:
-                return 1
         ctx = J.Ctx(J.load_state())
         pl = Pipeline(ctx, J, eng)
+        parallel = after < 2 and ctx.st.get('src') != 'a' and hasattr(J, 'align_prep')
+        if after < 2 and not parallel:
+            # "הקול קודם": הצירוף של הסרטון עלול לתמלל מחדש — התכנון חייב לחכות ליישור (בטור, כמו קודם)
+            if J.align(ns) != 0:
+                return 1
+            ctx = J.Ctx(J.load_state())
+            pl = Pipeline(ctx, J, eng)
         if after < 3:
-            pl.translate()
+            if parallel:
+                # v375: תרגום במקביל ליישור — plan רץ על זמני התמלול, היישור ברקע, retime מעדכן זמנים,
+                # ורק אז tr-check (התקציבים הסופיים). היישור יוצא מהנתיב הקריטי: ‎~25–30% פחות זמן קיר.
+                J.align_prep(ctx)
+                err: list[BaseException] = []
+
+                def bg():
+                    try:
+                        J.align_run(ctx)
+                    except BaseException as e:      # noqa: BLE001 — SystemExit של vt חייב להיתפס
+                        err.append(e)
+                th = threading.Thread(target=bg, daemon=True)
+                th.start()
+                pl.translate(fix=False)
+                th.join()
+                if err:
+                    raise err[0]
+                pl.fix_round('fixes.txt', pl.fixed_tl(), 'tl')
+            else:
+                pl.translate()
             J.save_ck(ctx, 'tl')             # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
         if after < 4:
             fixed, left = pl.review()

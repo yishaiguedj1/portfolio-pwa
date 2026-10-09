@@ -163,7 +163,7 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
     """בדיקת התרגום מול התכנון. מחזיר (שורות דוח, סיכום)."""
     issues: list[str] = []
     stats = {"total": len(cues), "translated": 0, "missing": 0, "over_budget": 0,
-             "numbers": 0, "latin": 0, "glossary": 0, "questions": 0, "short": 0, "errors": 0}
+             "numbers": 0, "latin": 0, "glossary": 0, "questions": 0, "short": 0, "style": 0, "errors": 0}
     ids = {str(c["id"]) for c in cues}
     for k in he:
         if k not in ids:
@@ -216,6 +216,21 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
         if NIKUD_RE.search(txt):
             issues.append(f"- #{k}: ניקוד בתרגום — כתוביות נכתבות בכתיב מלא בלי ניקוד (מילה דו־משמעית: לנסח מחדש)")
             stats["errors"] += 1
+        # כללי נטפליקס־עברית (המסמך הנורמטיבי הפומבי היחיד לכתוביות עבריות):
+        if re.match(r"^[-–־]", t.lstrip()):
+            issues.append(f"- #{k}: מקף דובר בתחילת הכתובית — המקף נוסף אוטומטית (לשני דוברים כותבים 'א || ב')")
+            stats["errors"] += 1
+        if re.search(r"</?[a-z]+>|\{\\", t):
+            issues.append(f"- #{k}: תג עיצוב בטקסט — בעברית בלי הטיה (italics) ובלי תגים")
+            stats["errors"] += 1
+        if re.search(r"[$€£₪]", txt):
+            issues.append(f"- #{k}: סמל מטבע — המטבע בשם המלא (\"3 מיליארד דולר\", לא \"$3B\") — לשקול")
+            stats["style"] += 1
+        for sent_start in re.findall(r"(?:^|[.?!…]\s+)(\S)", txt.replace("|", " ")):
+            if sent_start.isdigit():
+                issues.append(f"- #{k}: ספרה בתחילת משפט — מספר שפותח משפט נכתב במילים — לשקול")
+                stats["style"] += 1
+                break
         if has_latin(txt):
             issues.append(f"- #{k}: אותיות לועזיות: {', '.join(latin_runs(txt))} (בסדר רק לשם מותג/מונח שנשאר בלועזית)")
             stats["latin"] += 1
@@ -237,7 +252,8 @@ def check_report(issues: list[str], stats: dict) -> str:
     head = ["# בדיקת תרגום", "",
             f"- כתוביות: {stats['total']} · תורגמו: {stats['translated']} · חסרות: {stats['missing']}",
             f"- שגיאות: {stats['errors']} · מעל התקציב: {stats['over_budget']} · מספרים: {stats['numbers']}",
-            f"- לועזית: {stats['latin']} · מילון מונחים: {stats['glossary']} · שאלות: {stats['questions']} · קצרים: {stats['short']}",
+            f"- לועזית: {stats['latin']} · מילון מונחים: {stats['glossary']} · שאלות: {stats['questions']} · "
+            f"קצרים: {stats['short']} · סגנון: {stats.get('style', 0)}",
             ""]
     return "\n".join(head + (issues or ["אין הערות."])) + "\n"
 
