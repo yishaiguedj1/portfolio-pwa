@@ -132,6 +132,15 @@ class Pipeline(unittest.TestCase):
         self.assertIn('snb_busy', u, 'לא מעדכנים באמצע עבודה')
         self.assertIn(':prod', u)
 
+    def test_packages_explicit(self):
+        # Debian 13: הפקודה docker בחבילה נפרדת, ו־Hetzner לא מתקינה "מומלצות" — חייבת להופיע במפורש
+        ci = read('infra/cloud-init.yaml')
+        pk = ci[ci.index('packages:'):ci.index('write_files:')]
+        for need in ('docker.io', 'docker-cli', 'docker-compose', 'cosign', 'nftables'):
+            self.assertIn('  - ' + need + '\n', pk)
+        u = read('infra/host/snb-update')
+        self.assertLess(u.index('command -v'), u.index('docker pull'), 'כלי חסר נרשם ביומן לפני שמשתמשים בו')
+
     def test_setup_code_marker(self):
         ci = read('infra/cloud-init.yaml')
         self.assertEqual(ci.count('\n  # SNB_SECRETS\n'), 1, 'שורת סימון אחת לקוד ההקמה מהאפליקציה')
