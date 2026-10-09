@@ -26,6 +26,7 @@ const S = require('../lib/studio');
 const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
 const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
+const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ותחזית
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -135,7 +136,7 @@ async function syncInc(deps, uid, jobs, now) {
     if (inc) patch.inc = inc;
     if (mi) patch.mi = mi;
     if (inc || mi) await patchDoc(deps, 'studioOps', uid, Object.assign(patch, { updated: now }));
-    return { inc: inc || d.inc, mi: mi || d.mi, al: d.al, fb: st.fb };
+    return { inc: inc || d.inc, mi: mi || d.mi, al: d.al, fb: st.fb, hpc: st.hpc || 0 };
   } catch (e) { return null; }
 }
 /* התקלה הרחבה שחלה על העבודה הזו: Routine לא נוגע לעבודות במצב API, והשרת שלנו לא נוגע לעבודות של ה־Routine */
@@ -299,6 +300,8 @@ async function doResume(deps, uid, job, now, body, auto) {
   // v367: "המשך" אחרי שעצרת בתקציב = אישור להמשיך (התקציב גדל בעוד תקציב אחד)
   const bx = job.err === 'budget_stop' ? (job.bx || 0) + 1 : (job.bx || 0);
   const patch = { use0, ls, bx, ended: 0, updated: now };
+  // v377: הזמן שבין העצירה ל"המשך" לא נספר בשעון של יעד הזמן (מחכה לך)
+  if (job.ended && (job.state === 'failed' || job.state === 'cancelled')) { patch.pz = (job.pz || 0) + Math.max(0, now - job.ended); patch.wv0 = 0; }
   if (auto) patch.ar = (job.ar || 0) + 1;
   if (dm) patch.spec = Object.assign({}, job.spec, { mode: body.mode, dm });   // dm = המצב שממנו ירדנו (לספירת ספר ההפעלה)   // נרשם לפני ההפעלה — שתי צפיות במקביל לא יפעילו פעמיים
   await patchJob(deps, job.id, patch);
@@ -363,11 +366,14 @@ async function worker(req, res, body, deps) {
     if (body.op === 'claim') {
       const patch = { updated: now };
       if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; patch.warn = ''; job.state = 'running'; }
+      const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
+      const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
+      // v377: יעדי השירות — נקבעים פעם אחת, בלקיחה הראשונה (ההערכה שראית בהתחלה + "הרגיל" שלך עכשיו). השעון מתחיל כאן
+      if (!job.c0) patch.c0 = now;
+      if (job.kind === 'tr' && !job.tg) { const tg = L.targets(job.spec, nm ? nm.ph : S.NORM_DEF[job.spec && job.spec.mode], S.NORM_FIXED); if (tg) patch.tg = tg; }
       if (/^[0-9a-f]{12}$/.test(String(body.ev || ''))) patch.ev = body.ev;   // v371: גרסת הסביבה של העובד ("אחרי שינוי בסביבה")
       const pv = S.normPv(body.pv); if (pv) patch.pv = pv;   // v373: גרסת ההנחיות של כל סוכן (מלאי הסוכנים)
       await patchJob(deps, id, patch);
-      const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
-      const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
       return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl), drive: await driveFor(), now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
@@ -391,6 +397,7 @@ async function worker(req, res, body, deps) {
       const qa = S.normAsk(body.ask);
       if (!qa) return res.status(400).json({ ok: false, error: 'ask_bad' });
       if ((job.qn || 0) >= S.ASK_MAX) return res.status(409).json({ ok: false, error: 'ask_limit' });   // לא 429: העובד מנסה שוב לבד על 429
+      if (job.qa && job.qa.at) up.pz = (up.pz != null ? up.pz : job.pz || 0) + L.qaPause(job.qa, now);   // v377: השעון עצר בשאלה הקודמת
       up.qa = Object.assign(qa, { at: now, a: null });
       up.qn = (job.qn || 0) + 1;
     }
@@ -400,6 +407,7 @@ async function worker(req, res, body, deps) {
       if ((job.gn || 0) >= S.GATE_MAX) return res.status(409).json({ ok: false, error: 'gate_limit' });
       const qa = S.normGate(body.gate, S.newGateId());
       if (!qa) return res.status(400).json({ ok: false, error: 'gate_bad' });
+      if (job.qa && job.qa.at) up.pz = (up.pz != null ? up.pz : job.pz || 0) + L.qaPause(job.qa, now);   // v377
       up.qa = Object.assign(qa, { at: now, a: null });
       up.gn = (job.gn || 0) + 1;
       gateId = qa.id;
@@ -438,7 +446,10 @@ async function worker(req, res, body, deps) {
       ck.size = Math.floor(m.size || ck.size);
       up.ck = S.addCk(job.ck, ck, now);
     }
-    if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; }
+    if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; if (!job.c0) up.c0 = now; }
+    // v377: מחכים לסרטון מהטלפון (wv) — השעון של יעד הזמן עוצר; דיווח התקדמות הבא בלי wv ממשיך אותו (אירוע בודד — לא)
+    if (body.wv === true && job.kind === 'tr') { if (!job.wv0) up.wv0 = now; }
+    else if (job.wv0 && (body.st || body.done === true || body.fail === true)) { up.pz = (up.pz != null ? up.pz : job.pz || 0) + Math.max(0, now - job.wv0); up.wv0 = 0; }
     // Firestore שומר כאן מספרים שלמים — לכן סנטים (mucc), לא דולרים
     const spent = job.eng === 'api' && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
     if (spent > 0) up.mucc = Math.round(S.usdOf(up.use) * 100);
@@ -548,6 +559,13 @@ async function handler(req, res, deps = {}) {
       for (const j of (await listJobs(deps, uid)).filter((x) => x.rw && !act.some((y) => y.id === x.id))) await patchJob(deps, j.id, { rw: 0, updated: now });
       return res.status(200).json({ ok: true, halt: now, n: act.length });
     }
+    if (op === 'price') {
+      // v377: מחיר מתרגם אנושי לדקת סרטון (ל"חסכת"). 0 / ריק = ברירת המחדל ($5)
+      const hpc = body.hp == null || body.hp === 0 ? 0 : L.normPrice(body.hp);
+      if (body.hp != null && body.hp !== 0 && !hpc) return res.status(400).json({ ok: false, error: 'bad_price' });
+      await patchDoc(deps, 'studioStats', uid, { hpc, updated: now });
+      return res.status(200).json({ ok: true, hp: hpc ? hpc / 100 : L.HP_DEF, hpd: !hpc });
+    }
     if (op === 'fixMode') {
       // v366: מסלול התיקונים — "הצעות לאישור" (ברירת מחדל) או "עצמאי"
       if (!S.FIX_MODES.includes(body.mode)) return res.status(400).json({ ok: false, error: 'bad_mode' });
@@ -649,6 +667,8 @@ async function handler(req, res, deps = {}) {
         const e = S.effState(j, now);
         if (S.isStale(j, now)) await raise(deps, uid, [{ c: 'claude', k: 'stale' }], j.id, now, true);
         else if (e.state === 'failed' && e.err === 'no_claim' && j.state === 'queued' && !apiJob(j)) await raise(deps, uid, [{ c: 'routine', k: 'no_claim' }], j.id, now, true);
+        const br = L.slaBreaches(j, now);   // v377: הפרה של יעד הזמן / התקציב — P3, פעם אחת לעבודה
+        if (br.length) await raise(deps, uid, br, j.id, now, true);
       }
       // v368: חלון ההתאוששות נגמר — "המשך" אוטומטי, והרשימה נקראת מחדש
       const list = await autoRecover(deps, uid, all, now) ? (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping') : all;
@@ -657,7 +677,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json(Object.assign({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now },
         ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now),
           pb: P.problemsView(S.fbView(ic.fb), ic.inc, list, now), rb: P.runbooksView(ic.fb, list, now) } : {},   // v376: בעיות וספרי הפעלה
-        { ag: A.agentsView(list, now) }));   // v373: מלאי הסוכנים — מאותה רשימה
+        { ag: A.agentsView(list, now), va: L.valueView(list, now, ic ? ic.hpc : 0) }));   // v377: ערך, עלות ותחזית   // v373: מלאי הסוכנים — מאותה רשימה
     }
     let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });

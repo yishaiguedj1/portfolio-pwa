@@ -147,6 +147,7 @@ export function normJob(j) {
     tr: normTrace(s.tr),   // v373: עקיבה
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
+    sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -285,6 +286,36 @@ export function normRb(a) {
 /* v376: ספר ההפעלה "מצב זול יותר" — רק אחרי עצירה על עלות (תקציב / המגדל על עלות), ורק למצבים שעולים פחות (כמו בשרתון) */
 export const costStop = (srv) => !!srv && (srv.err === 'budget_stop' || (srv.err === 'tower_stop' && !!srv.tw && (srv.tw.why === 'cost' || srv.tw.why === 'cap')));
 export const cheaperModes = (id) => { const i = MODE_ORDER.indexOf(id); return i > 0 ? MODE_ORDER.slice(0, i).reverse() : []; };
+/* v377: יעדי שירות — השעון של יעד הזמן והתקציב (מהשרתון: lib/studiosla.js slaView). לא תקין — בלי כרטיס */
+const SLA_LV = ['ok', 'half', 'risk', 'over', 'met'];
+export function normSla(o) {
+  if (!o || typeof o !== 'object' || !o.t || typeof o.t !== 'object') return null;
+  const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= hi ? v : null);
+  const tg = num(o.t.tg, 1e6), el = num(o.t.el, 1e7), f = num(o.t.f, 1e4);
+  if (!tg || el == null || f == null || !SLA_LV.includes(o.t.lv)) return null;
+  const out = { t: { tg, el, pz: num(o.t.pz, 1e7) || 0, f, lv: o.t.lv, paused: o.t.paused === true }, pf: num(o.pf, 1) || 0 };
+  if (o.u && typeof o.u === 'object') {
+    const ut = num(o.u.tg, 1e5), sp = num(o.u.sp, 1e5), uf = num(o.u.f, 1e4);
+    if (ut && sp != null && uf != null && SLA_LV.includes(o.u.lv)) out.u = { tg: ut, sp, f: uf, lv: o.u.lv };
+  }
+  return out;
+}
+/* v377: ערך ועלות החודש, תחזית, צוואר בקבוק ומסלולים חריגים (lib/studiosla.js valueView) */
+export function normValue(o) {
+  if (!o || typeof o !== 'object' || !/^\d{4}-\d{2}$/.test(String(o.m || ''))) return null;
+  const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= -1e6 && v <= hi ? v : null);
+  const int = (v) => (Number.isInteger(v) && v >= 0 && v <= 1e5 ? v : 0);
+  const out = { m: o.m, n: int(o.n), min: Math.max(0, num(o.min, 1e6) || 0), usd: Math.max(0, num(o.usd, 1e6) || 0), cpm: num(o.cpm, 1e4),
+    hp: num(o.hp, 100) || 5, hpd: o.hpd === true, saved: num(o.saved, 1e7), fc: num(o.fc, 1e6) };
+  if (out.cpm != null && out.cpm < 0) out.cpm = null;
+  if (out.fc != null && out.fc < 0) out.fc = null;
+  const b = o.bn;
+  if (b && STAGE_IDS.includes(b.s) && num(b.sh, 1) != null) out.bn = { s: b.s, sh: Math.max(0, b.sh), x: num(b.x, 1e3), n: int(b.n) };
+  const a = o.ab || {};
+  out.ab = { n: int(a.n), rs: int(a.rs), qa: int(a.qa) };
+  return out;
+}
+const STAGE_IDS = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 /* v375: שופט האיכות (Haiku, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 export function normJudge(o) {
@@ -725,6 +756,7 @@ async function refreshJobs(force) {
   setInc(j.inc, j.now);   // v371: הרשימה מסנכרנת את התקלות בשרתון — העדכנית ביותר
   ui.ag = normAgents(j.ag) || ui.ag;   // v373: מלאי הסוכנים
   ui.pb = normPb(j.pb) || ui.pb; ui.rb = normRb(j.rb) || ui.rb;   // v376: בעיות וספרי הפעלה
+  ui.va = normValue(j.va) || ui.va;   // v377: ערך, עלות ותחזית
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
   for (const sj of j.jobs) {
@@ -1036,7 +1068,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1145,7 +1177,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   x: '<path d="M7 7l10 10M17 7L7 17"/>',
   shield: '<path d="M12 3.5l7 2.6v5.4c0 4.3-2.9 7.8-7 9-4.1-1.2-7-4.7-7-9V6.1z"/>',
   power: '<path d="M17.7 7a8 8 0 1 1-11.4 0"/><path d="M12 3.5v8"/>',
-  sliders: '<path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2.5 14h5M9.5 8h5M16.5 16h5"/>',
+  sliders: '<path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2.5 14h5M9.5 8h5M16.5 16h5"/>',  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',   // v377: ערך ועלות
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1760,6 +1792,8 @@ function opsAlert(c, k) {
     case 'claude:budget': return T('studioAlClaudeBudget');
     case 'claude:auto': return T('studioAlClaudeAuto');
     case 'claude:inject': return T('studioAlClaudeInject');
+    case 'claude:sla_time': return T('studioAlSlaTime');   // v377
+    case 'claude:sla_cost': return T('studioAlSlaCost');
     case 'vt:setup': return T('studioAlVtSetup');
     case 'vt:ingest': return T('studioAlVtIngest');
     case 'vt:asr': return T('studioAlVtAsr');
@@ -2337,6 +2371,100 @@ function rbSection() {
     return r;
   })), note(T('studioRbNote'))];
 }
+/* ---------------- v377: יעדי שירות, ערך ותחזית (מסך 3 + 8 בתוכנית — SLA · Measure · Process Mining) ---------------- */
+const SLA_CLS = { ok: 'g', met: 'g', half: 'i', risk: 'h', over: 'c' };
+function slaLvName(lv) {
+  switch (lv) {
+    case 'half': return T('studioSlaHalf');
+    case 'risk': return T('studioSlaRisk');
+    case 'over': return T('studioSlaOver');
+    case 'met': return T('studioSlaMet');
+    default: return T('studioSlaOk');
+  }
+}
+/* פס עם סימונים ב־50% וב־75% — כמו השעון של ServiceNow */
+function slaBar(f, lv) {
+  const b = h('span', 'st-slabar ' + SLA_CLS[lv]);
+  const i = h('i'); i.style.width = Math.round(Math.min(1, f) * 100) + '%';
+  b.append(i, h('em', 'm50'), h('em', 'm75'));
+  return b;
+}
+function slaRow(label, valTxt, f, lv, k) {
+  const r = h('div', 'st-row st-slarow');
+  r.dataset.k = k;
+  const l = h('span', 'st-l');
+  const v = h('small'); v.append(valTxt);
+  l.append(h('b', null, label), v, slaBar(f, lv));
+  r.append(l, pill(SLA_CLS[lv], slaLvName(lv)));
+  return r;
+}
+function slaCard(sla) {
+  const t = sla.t;
+  const rows = [slaRow(T('studioSlaTime'), T('studioSlaOf', { a: fmtShort(t.el), b: approx(fmtShort(t.tg)) }), t.f, t.lv, 'sla:t')];
+  if (sla.u) {
+    const v = h('span'); v.append(usdEl(sla.u.sp), ' ' + T('studioSlaOfU') + ' ', approx(fmtUsd(sla.u.tg)));
+    rows.push(slaRow(T('studioSlaCost'), v, sla.u.f, sla.u.lv, 'sla:u'));
+  }
+  const out = [secT(T('studioSlaT')), list(...rows)];
+  if (t.paused) out.push(note(T('studioSlaPaused')));
+  else if (t.pz >= 60) out.push(note(T('studioSlaPz', { t: fmtShort(t.pz) })));
+  return out;
+}
+function valueSection() {
+  const va = ui.va;
+  if (!va || (!va.n && !va.bn)) return [];
+  // הכותרת של המקטע כבר אומרת "ערך ועלות" — בשורה המספר עצמו (בלי כפילות)
+  const r = btn('st-row st-ric', null, () => go('value'), 'tower-value');
+  const l = h('span', 'st-l'), b = h('b');
+  if (!va.n) b.append(T('studioVaNone'));
+  else if (va.saved != null) { b.append(T('studioVaSavedK') + ' '); b.append(usdBig(Math.max(0, va.saved))); }
+  else b.append(T('studioVaMinS', { n: fmtNum(va.min) }));
+  l.append(b);
+  if (va.n && va.saved != null) l.append(h('small', null, T('studioVaMinS', { n: fmtNum(va.min) })));
+  r.append(tile('chart', 'green'), l, ico('chev', 'st-chev'));
+  return [secT(T('studioVaSec')), list(r)];
+}
+const fmtNum = (n) => { try { return new Intl.NumberFormat(uiLang(), { maximumFractionDigits: n < 10 ? 1 : 0 }).format(n); } catch (e) { return String(Math.round(n)); } };
+/* סכום שלם או גדול — בלי אגורות ועם מפריד אלפים ("$2,031", "$5"); קטן — כמו בכל הסטודיו ("$0.08") */
+export function fmtUsdWhole(v) {
+  v = Number(v) || 0;
+  if (v < 100 && !Number.isInteger(v)) return fmtUsd(v);
+  try { return '$' + new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(v)); } catch (e) { return '$' + Math.round(v); }
+}
+const usdBig = (v) => { const b = h('bdi', null, fmtUsdWhole(v)); b.dir = 'ltr'; return b; };
+const PRICES = [2, 5, 10, 20];
+let priceBusy = false;
+async function setPrice(hp) {
+  if (priceBusy || !ui.va || ui.va.hp === hp) return;
+  const prev = ui.va.hp; ui.va.hp = hp; priceBusy = true; render('none');
+  try {
+    const j = await net.api('price', { hp });
+    if (!j.ok) { ui.va.hp = prev; flashSafe(errText(j.error)); }
+    else { jobsAt = 0; await refreshJobs(true); }
+  } finally { priceBusy = false; render('none'); }
+}
+function pageValue(p) {
+  const va = ui.va;
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioVaT')));
+  if (!va) { p.append(h('div', 'st-empty st-empty-sm', T('studioVaNone'))); return; }
+  const cpm = h('span'); cpm.append(va.cpm == null ? '—' : usdEl(va.cpm < 0.01 ? 0.01 : va.cpm));
+  const sv = h('span'); sv.append(va.saved == null ? '—' : usdBig(Math.max(0, va.saved)));
+  const fc = h('span'); fc.append(va.fc == null ? T('studioVaFcNone') : usdEl(va.fc));
+  p.append(secT(T('studioVaMonth')), va.n ? list(kvRow(T('studioVaMin'), fmtNum(va.min)), kvRow(T('studioVaCpm'), cpm, true), kvRow(T('studioVaSavedK'), sv, true),
+    kvRow(T('studioVaFc'), fc, true)) : h('div', 'st-empty st-empty-sm', T('studioVaNone')));
+  if (va.bn) {
+    const pct = ltr(Math.round(va.bn.sh * 100) + '%');
+    // שם השלב בשורה, והמספרים מתחתיו — ב־320 שני טקסטים ארוכים זה לצד זה נשברו
+    const bn = h('div', 'st-row'); bn.dataset.k = 'va-bn';
+    bn.append(rowTxt(stageName(va.bn.s, ''), va.bn.x != null && va.bn.x >= 1.2 ? T('studioVaBn', { p: pct, x: fmtNum(va.bn.x) }) : T('studioVaBnOk', { p: pct })));
+    p.append(secT(T('studioVaBnT')), list(bn));
+  }
+  if (va.ab.n) p.append(secT(T('studioVaAbT')), list(kvRow(T('studioVaAbRs'), String(va.ab.rs)), kvRow(T('studioVaAbQa'), String(va.ab.qa))));
+  // המחיר שלך — לחישוב "חסכת" (החלטה 5: מתחילים מ־$5 לדקת סרטון); נקבע רק כאן
+  const opts = PRICES.includes(va.hp) ? PRICES : PRICES.concat(va.hp).sort((a, b) => a - b);
+  p.append(secT(T('studioVaPriceT')), list(...opts.map((x) => rowRadio({ label: T('studioVaPerMin', { u: fmtUsdWhole(x) }), on: va.hp === x,
+    onClick: () => setPrice(x), k: 'hp:' + x, disabled: blocked() || priceBusy }))), note(T('studioVaPriceNote')));
+}
 /* דף בעיה: מה חוזר, כמה פגע וכמה עלה, העקיפה (או ההצעה שמחכה לך), והתקלות שנגרמו ממנה */
 function pageProb(p) {
   const no = Number(ui.param);
@@ -2397,6 +2525,7 @@ function pageTower(p) {
       sub: ui.api.online ? T('studioSrvOnN', { n: ui.api.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'tower-srv' })));
   }
   p.append(...agentsSection());   // v373: מלאי הסוכנים — 30 יום
+  p.append(...valueSection());    // v377: ערך ועלות החודש
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
     const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
@@ -2814,6 +2943,7 @@ function pageJob(p) {
     stl.append(row);
   }
   p.append(secT(T('studioSecStages')), stl);
+  if (rec.srv && rec.srv.sla) p.append(...slaCard(rec.srv.sla));   // v377: יעד זמן ותקציב
 
   if (rec.srv) {   // v374: איכות הכתוביות + שומר ההזרקות · v375: שופט האיכות (והמודל שלו — משורת העלות)
     const jr = (rec.srv.use || []).find((r) => r.k === 'jg');
@@ -3184,6 +3314,7 @@ function shapeKey() {
   if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb);
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
+  if (ui.view === 'value') return 'value|' + ui.access + '|' + JSON.stringify(ui.va) + (priceBusy ? 1 : 0);   // v377
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
@@ -3217,6 +3348,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'alert') pageAlert(p);
   else if (ui.view === 'inc') pageInc(p);
   else if (ui.view === 'agents') pageAgents(p);
+  else if (ui.view === 'value') pageValue(p);   // v377
   else if (ui.view === 'prob') pageProb(p);   // v376
   else if (ui.view === 'rules') pageRules(p);
   else if (ui.view === 'server') pageServer(p);
@@ -3247,6 +3379,7 @@ function onEnter() {
   else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'agents') refreshJobs(true);
+  else if (ui.view === 'value') refreshJobs(true);   // v377
   else if (ui.view === 'prob') { refreshStatus(true); refreshJobs(true); }   // v376
   else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
