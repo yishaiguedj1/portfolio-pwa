@@ -56,7 +56,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/opsEvent\(id, \[\{ c: k\[0\], k: k\[1\] \}\]\)/.test(st) && /run\.err === 'net' \? null/.test(st), 'טלפון: העלאה שנכשלה → אירוע ("אין רשת" בטלפון — לא תקלה של הסטודיו)');
   const app = read('app.js');
   const kinds = Object.keys(O.KINDS);
-  ok(kinds.length === 25, 'הקטלוג: 25 סוגי אירועים (v367: claude:budget, v368: claude:auto)');
+  ok(kinds.length === 26, 'הקטלוג: 26 סוגי אירועים (v367: claude:budget, v368: claude:auto, v374: claude:inject)');
   for (const k of ['studioAlDriveUpRetry', 'studioAlRoutineNoClaim', 'studioAlClaudeTwStop', 'studioAlVtAsr', 'studioOpsMap', 'studioCmpVt', 'studioAgoM'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'טלפון: ' + k + ' — עברית ואנגלית');
   const cases = (st.match(/case '[a-z]+:[a-z_]+': return T\('studioAl/g) || []).length;

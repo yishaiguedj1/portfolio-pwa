@@ -18,7 +18,7 @@ function agentsView(jobs, now) {
   for (const [k, pk] of AGENTS) {
     const ran = list.filter((j) => Array.isArray(j.use) && j.use.some((r) => r && r.k === k) || j.tr && j.tr.a && j.tr.a[k]);
     if (!ran.length) continue;
-    let usd = 0, partial = false, n = 0, e = 0, sec = 0, model = '', pv = '', pvAt = 0;
+    let usd = 0, partial = false, n = 0, e = 0, sec = 0, model = '', pv = '', pvAt = 0, qs = 0, qn = 0;
     const pvs = new Set();
     for (const j of ran) {
       for (const r of (Array.isArray(j.use) ? j.use : []).filter((x) => x && x.k === k)) {
@@ -27,6 +27,7 @@ function agentsView(jobs, now) {
       }
       const t = j.tr && j.tr.a && j.tr.a[k];
       if (t) { n += t.n || 0; e += t.e || 0; sec += t.s || 0; }
+      if (k !== 'main' && j.q && typeof j.q.s === 'number') { qs += j.q.s; qn += 1; }   // v374: איכות הכתוביות — למתרגם ולמבקר
       const v = j.pv && /^[0-9a-f]{8}$/.test(String(j.pv[pk] || '')) ? j.pv[pk] : '';
       if (v) { if (v !== pv) { pv = v; pvAt = j.created || 0; } pvs.add(v); }
     }
@@ -35,7 +36,7 @@ function agentsView(jobs, now) {
     const last = ran[ran.length - 1];
     out.push({ k, m: model, ef: k === 'main' ? '' : effortOf(last.spec && last.spec.mode), jobs: ran.length, usd: r4(usd), partial,
       ok: ended.length ? Math.round(100 * ok / ended.length) : null, n, e, s: sec,
-      pv, pvs: pvs.size, pvNew: !!(pv && pvs.size > 1 && now - pvAt < NEW_MS) });
+      pv, pvs: pvs.size, pvNew: !!(pv && pvs.size > 1 && now - pvAt < NEW_MS), q: qn ? Math.round(qs / qn) : null });
   }
   // גרסת הסביבה (v371) — האחרונה, וכמה גרסאות היו בחודש
   const evs = list.filter((j) => /^[0-9a-f]{12}$/.test(String(j.ev || '')));
