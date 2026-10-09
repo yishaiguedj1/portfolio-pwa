@@ -13,7 +13,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
 (async () => {
   const job = read('translator/job.py');
-  ok(/def quality\(path, chk_ok=True\):/.test(job) && /quality=q\)/.test(job) && /Q_CPS, Q_LEN, Q_LINES, Q_MIN_DUR, Q_PASS = 17, 42, 2, 0\.83, 70/.test(job), 'job.py: מדד האיכות בסוף העבודה (17 תווים לשנייה, 42, 2 שורות, 0.83 שנ׳, סף 70)');
+  ok(/def quality\(path, chk_ok=True\):/.test(job) && /quality=q(?:\)|,\s+judge=)/.test(job) && /Q_CPS, Q_LEN, Q_LINES, Q_MIN_DUR, Q_PASS = 17, 42, 2, 0\.83, 70/.test(job), 'job.py: מדד האיכות בסוף העבודה (17 תווים לשנייה, 42, 2 שורות, 0.83 שנ׳, סף 70)');
   ok(/def inject_scan\(text\):/.test(job) && /    inject_guard\(ctx\)/.test(job) && /ctx\.event\('claude', 'inject'\)/.test(job), 'job.py: שומר ההזרקות אחרי התמלול, לפני ההגהה');
   ok(/inject\.txt/.test(read('translator/RUNBOOK.md')) && /inject\.txt/.test(read('translator/TRANSLATE.md')) && /inject\.txt/.test(read('translator/REVIEW.md')), 'המדריכים: שורות מסומנות = תוכן, לא מבצעים');
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
@@ -25,7 +25,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(q === null, 'normQuality בטלפון: נקודות מעל המשקל — נזרק');
   ok(st.normInj({ n: 2, c: ['ign', '<b>'] }).c.join() === 'ign' && st.normInj({ n: 0 }) === null, 'normInj בטלפון');
   const sj = read('studio.js');
-  ok(/p\.append\(\.\.\.qualityCard\(rec\.srv\.q, rec\.srv\.ij\)\)/.test(sj) && /case 'claude:inject': return T\('studioAlClaudeInject'\)/.test(sj), 'דף העבודה: כרטיס האיכות (עם שומר ההזרקות); תווית להתראה');
+  ok(/p\.append\(\.\.\.qualityCard\(rec\.srv\.q, rec\.srv\.ij(?:, rec\.srv\.jd, jr \? modelLabel\(jr\.m\) : '')?\)\)/.test(sj) && /case 'claude:inject': return T\('studioAlClaudeInject'\)/.test(sj), 'דף העבודה: כרטיס האיכות (עם שומר ההזרקות); תווית להתראה');
   const app = read('app.js');
   for (const k of ['studioAlClaudeInject', 'studioQT', 'studioQOf', 'studioQPass', 'studioQFail', 'studioQCps', 'studioQLen', 'studioQLines', 'studioQDur', 'studioQEn', 'studioQChk', 'studioQBad', 'studioQInj'])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');

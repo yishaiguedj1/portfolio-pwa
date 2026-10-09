@@ -108,7 +108,7 @@ function normOut(list) {
 
 /* v359: הטוקנים והעלות של העבודה (מהעובד, בדיווח האחרון — finish/fail). עד 6 שורות: סוג (תיאום/תרגום/ביקורת/סוכן־משנה),
    מזהה מודל רק בתבנית claude-…, וכל השאר מספרים. משהו לא תקין → null (וכל הנתון נזרק — לא חלקי) */
-const USE_KINDS = ['main', 'tl', 'rv', 'sub'];
+const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'];   // v375: jg = שופט האיכות (Haiku)
 const USE_MODEL_RE = /^claude-[a-z0-9-]{1,50}$/;
 const USE_INTS = ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op'];
 const USE_USD = ['usd', 'oc'];
@@ -327,6 +327,7 @@ function normRules(r) {
     b: Number.isFinite(b) && b >= 1 ? Math.min(RULE_BUDGET_MAX, Math.round(b * 2) / 2) : 0,
     mx: MODES.includes(o.mx) ? o.mx : '',
     ab: o.ab === true,
+    jx: o.jx === true,   // v375: שופט האיכות כבוי (ברירת המחדל — פועל, החלטה 4 בתוכנית)
   };
 }
 /* המצב יקר מהמקסימום? לפי הצפוי לשעת סרטון (NORM_DEF): Sonnet Medium < Sonnet High < Opus Medium < Opus High < Opus Max */
@@ -430,6 +431,7 @@ function publicJob(job, now) {
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
+    jd: normJudge(job.jd),                          // v375: שופט האיכות
   };
 }
 /* v373: עקיבה מהעובד (מהיומנים, בלי טוקנים): לכל סוכן n פעולות, e שנכשלו, s שניות; וקבוצות [מפתח, n, e].
@@ -479,11 +481,27 @@ function normInj(o) {
   const c = (Array.isArray(o.c) ? o.c : []).filter((x) => INJ_CODES.includes(x));
   return { n: o.n, c: Array.from(new Set(c)) };
 }
-/* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (מנהל העבודה), tl = TRANSLATE, rv = REVIEW */
+/* v375: שופט האיכות (Haiku, על מדגם): s = 0–100, n כתוביות שנשפטו מתוך t במדגם, a בעבודה, c = כמה מכל סוג בעיה (קודים קבועים) */
+const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
+function normJudge(o) {
+  if (!o || typeof o !== 'object') return null;
+  const int = (v, lo, hi) => (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi ? v : null);
+  const s = int(o.s, 0, 100), n = int(o.n, 1, 200), t = int(o.t, 1, 200), a = int(o.a, 1, 1e6);
+  if (s == null || n == null || t == null || a == null || n > t || t > a) return null;
+  const c = {};
+  for (const [k, v] of Object.entries(o.c && typeof o.c === 'object' ? o.c : {})) {
+    const x = int(v, 1, 200);
+    if (!JG_CODES.includes(k) || x == null) return null;
+    c[k] = x;
+  }
+  if (Object.values(c).reduce((x, y) => x + y, 0) > n) return null;
+  return { s, n, t, a, c };
+}
+/* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (מנהל העבודה), tl = TRANSLATE, rv = REVIEW, jg = JUDGE (v375) */
 function normPv(p) {
   if (!p || typeof p !== 'object') return null;
   const out = {};
-  for (const k of ['rb', 'tl', 'rv']) if (/^[0-9a-f]{8}$/.test(String(p[k] || ''))) out[k] = p[k];
+  for (const k of ['rb', 'tl', 'rv', 'jg']) if (/^[0-9a-f]{8}$/.test(String(p[k] || ''))) out[k] = p[k];
   return Object.keys(out).length ? out : null;
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
@@ -571,7 +589,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij'];   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd'];   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -598,7 +616,7 @@ function fromFields(f) {
 }
 
 module.exports = {
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,

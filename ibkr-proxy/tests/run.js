@@ -1709,6 +1709,40 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v375: שופט האיכות (Haiku, על מדגם) — ציון, קודים קבועים, חוק לכיבוי, סוג עלות ומלאי
+    now += 3600e3 + 1;
+    {
+      const S4 = require('../lib/studio');
+      const jd = { s: 88, n: 38, t: 40, a: 312, c: { mean: 2, flu: 3 } };
+      ok(JSON.stringify(S4.normJudge(jd)) === JSON.stringify(jd), 'סטודיו: שופט האיכות — כמו שהוא');
+      ok(S4.normJudge(Object.assign({}, jd, { s: 101 })) === null && S4.normJudge(Object.assign({}, jd, { n: 41 })) === null
+        && S4.normJudge(Object.assign({}, jd, { c: { evil: 1 } })) === null && S4.normJudge(Object.assign({}, jd, { c: { mean: 39 } })) === null
+        && S4.normJudge(Object.assign({}, jd, { t: 400 })) === null && S4.normJudge('x') === null,
+      'סטודיו: שופט האיכות — ציון / מספרים / קוד לא מוכר / יותר בעיות מכתוביות — נזרק');
+      ok(S4.normRules({ jx: true }).jx === true && S4.normRules({ jx: 'yes' }).jx === false && S4.normPv({ jg: 'abcdef12' }).jg === 'abcdef12',
+        'סטודיו: חוק "בלי שופט" וגרסת ההנחיות של השופט');
+      rr = await run({ op: 'rules', idToken: OWNER, rl: { jx: true } });
+      ok(rr.payload.rl.jx === true, 'סטודיו: כיבוי השופט נשמר בחוקים');
+      await run({ op: 'rules', idToken: OWNER, rl: {} });
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JJ = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JJ, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JJ });
+      const KJ = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JJ, key: KJ, pv: { rb: '11111111', jg: '22222222' } });
+      await wrk({ op: 'report', job: JJ, key: KJ, done: true, judge: jd, usage: [
+        { k: 'tl', m: 'claude-opus-5-5', n: 1, i: 1, o: 1, cr: 0, c5: 0, c1: 0, usd: 1 },
+        { k: 'jg', m: 'claude-haiku-5-5', n: 3, i: 1, o: 1, cr: 0, c5: 0, c1: 0, usd: 0.02 }] });
+      rr = await run({ op: 'job', idToken: OWNER, job: JJ });
+      ok(rr.payload.job.jd && rr.payload.job.jd.s === 88 && rr.payload.job.use.some((r) => r.k === 'jg'), 'סטודיו: הציון והעלות של השופט מגיעים לטלפון');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const ajg = rr.payload.ag.agents.find((x) => x.k === 'jg');
+      ok(ajg && ajg.m === 'claude-haiku-5-5' && ajg.q === 88 && ajg.ef === '' && ajg.pv === '22222222', 'סטודיו: מלאי — השופט עם המודל, הציון וגרסת ההנחיות שלו');
+      await run({ op: 'remove', idToken: OWNER, job: JJ });
+    }
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v374: מדד האיכות של הכתוביות ושומר ההזרקות
     now += 3600e3 + 1;
     {
@@ -2045,13 +2079,13 @@ function stubFetch(text, status = 200) {
     // v367: החוקים שלך, מתג החירום ושערי אישור
     now += 3600e3 + 1;                       // תקציב ההפעלות לשעה מתחיל מחדש
     const SPECX = Object.assign({}, SPEC, { mode: 'opus-max' });
-    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false}' && S.normRules({ b: 12.3, mx: 'opus-high', ab: true }).b === 12.5
+    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false}' && S.normRules({ b: 12.3, mx: 'opus-high', ab: true }).b === 12.5
       && S.normRules({ b: 1e9 }).b === S.RULE_BUDGET_MAX && S.normRules({ b: 0.5, mx: 'evil', ab: 'yes' }).b === 0 && S.normRules({ mx: 'evil', ab: 'yes' }).mx === '' && S.normRules({ ab: 'yes' }).ab === false,
     'סטודיו: חוקים — בלי חוקים כברירת מחדל; תקציב מעוגל לחצי דולר ועד 500; מצב/אישור לא תקינים — נזרקים');
     ok(S.modeOver('opus-max', 'opus-high') && S.modeOver('opus-medium', 'sonnet-high') && !S.modeOver('sonnet-high', 'opus-medium') && !S.modeOver('opus-max', '') && !S.modeOver('opus-high', 'opus-high'),
       'סטודיו: חוקים — "מצב מקסימלי" לפי המחיר הצפוי לשעה (Sonnet < Opus Medium < High < Max)');
     rr = await run({ op: 'rules', idToken: OWNER, rl: { b: 10, mx: 'opus-high', ab: true, evil: 1 } });
-    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"opus-high","ab":true}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
+    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"opus-high","ab":true,"jx":false}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
     rr = await run({ op: 'status', idToken: OWNER });
     ok(rr.payload.rl.b === 10 && rr.payload.halt === 0, 'סטודיו: חוקים — הטלפון רואה אותם (ומתג החירום כבוי)');
     // מצב מעל המקסימום — ההפעלה מחכה לאישור שלך (ov)
@@ -2066,7 +2100,7 @@ function stubFetch(text, status = 200) {
     ok(rr.payload.ok && fires.length === nf + 1, 'סטודיו: חוקים — "להתחיל בכל זאת" (ov) מפעיל');
     let Kr = keyOf(fires[fires.length - 1]);
     rr = await wrk({ op: 'claim', job: JR, key: Kr });
-    ok(JSON.stringify(rr.payload.job.rl) === '{"b":10,"mx":"opus-high","ab":true}' && rr.payload.job.bx === 0 && rr.payload.job.u0 === 0,
+    ok(JSON.stringify(rr.payload.job.rl) === '{"b":10,"mx":"opus-high","ab":true,"jx":false}' && rr.payload.job.bx === 0 && rr.payload.job.u0 === 0,
       'סטודיו: חוקים — העובד מקבל את התקציב והאישור לפני צריבה (ומה שכבר עלה: 0)');
     // שער תקציב — Claude הגיע ל־10$: העבודה מחכה לך; "להמשיך" מגדיל את התקציב
     rr = await wrk({ op: 'report', job: JR, key: Kr, gate: { k: 'b', usd: 10.27, cap: 10, q: '<b>evil</b>' } });

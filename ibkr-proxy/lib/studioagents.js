@@ -4,7 +4,7 @@
    (sha1 של RUNBOOK / TRANSLATE / REVIEW — "גרסה חדשה" = שינוי שנרשם). הכל נגזר מרשומות העבודות — בלי אחסון נוסף ובלי טוקנים.
    רק מספרים, מזהי מודל וקודים — בלי שמות קבצים. הקובץ טהור — בלי רשת. */
 const KEEP = 30 * 86400e3, NEW_MS = 7 * 86400e3;
-const AGENTS = [['main', 'rb'], ['tl', 'tl'], ['rv', 'rv']];   // סוכן → מפתח גרסת ההנחיות שלו
+const AGENTS = [['main', 'rb'], ['tl', 'tl'], ['rv', 'rv'], ['jg', 'jg']];   // v375: jg = שופט האיכות (Haiku, בלי מאמץ)   // סוכן → מפתח גרסת ההנחיות שלו
 const MODEL_RE = /^claude-[a-z0-9-]{1,50}$/;
 const EFFORTS = ['low', 'medium', 'high', 'max'];
 /* המאמץ של המתרגם והמבקר — מהמצב שנבחר (opus-medium → medium); מנהל העבודה — לפי ה־Routine (לא ידוע כאן) */
@@ -27,14 +27,15 @@ function agentsView(jobs, now) {
       }
       const t = j.tr && j.tr.a && j.tr.a[k];
       if (t) { n += t.n || 0; e += t.e || 0; sec += t.s || 0; }
-      if (k !== 'main' && j.q && typeof j.q.s === 'number') { qs += j.q.s; qn += 1; }   // v374: איכות הכתוביות — למתרגם ולמבקר
+      const qv = k === 'jg' ? j.jd : k !== 'main' ? j.q : null;   // v374: מדד האיכות — למתרגם ולמבקר · v375: לשופט — הציון שלו
+      if (qv && typeof qv.s === 'number') { qs += qv.s; qn += 1; }
       const v = j.pv && /^[0-9a-f]{8}$/.test(String(j.pv[pk] || '')) ? j.pv[pk] : '';
       if (v) { if (v !== pv) { pv = v; pvAt = j.created || 0; } pvs.add(v); }
     }
     const ended = ran.filter((j) => j.state === 'done' || j.state === 'failed');
     const ok = ended.filter((j) => j.state === 'done').length;
     const last = ran[ran.length - 1];
-    out.push({ k, m: model, ef: k === 'main' ? '' : effortOf(last.spec && last.spec.mode), jobs: ran.length, usd: r4(usd), partial,
+    out.push({ k, m: model, ef: k === 'main' || k === 'jg' ? '' : effortOf(last.spec && last.spec.mode), jobs: ran.length, usd: r4(usd), partial,
       ok: ended.length ? Math.round(100 * ok / ended.length) : null, n, e, s: sec,
       pv, pvs: pvs.size, pvNew: !!(pv && pvs.size > 1 && now - pvAt < NEW_MS), q: qn ? Math.round(qs / qn) : null });
   }
