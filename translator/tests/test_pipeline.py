@@ -252,9 +252,11 @@ class JobHooks(unittest.TestCase):
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
 
-    def flow(self, ck, resumed, proofed=False):
+    def flow(self, ck, resumed, proofed=False, src=None):
         log = []
         state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
+        if src:
+            state['src'] = src
 
         class J:
             def load_state(self):
@@ -277,6 +279,12 @@ class RunAutoResume(unittest.TestCase):
                 log.append('align')
                 return 0
 
+            def align_prep(self, ctx):
+                log.append('align_prep')
+
+            def align_run(self, ctx):
+                log.append('align_run')
+
             def save_ck(self, ctx, s, extra=None):
                 log.append('ck:' + s + ('+pr' if (extra or {}).get('pr') else ''))
 
@@ -295,8 +303,15 @@ class RunAutoResume(unittest.TestCase):
                 log.append('proofread')
                 return []
 
-            def translate(self):
+            def translate(self, fix=True):
                 log.append('translate')
+
+            def fixed_tl(self):
+                return ''
+
+            def fix_round(self, *a, **k):
+                log.append('fix')
+                return 0
 
             def review(self):
                 log.append('review')
@@ -314,22 +329,39 @@ class RunAutoResume(unittest.TestCase):
         self.assertEqual(rc, 0)
         return log
 
+    def check_parallel(self, log, expect_without_align_run, before='ck:tl'):
+        """align_run רץ בתהליכון רקע — הסדר מול translate לא דטרמיניסטי; בודקים מיקום יחסי בלבד."""
+        rest = [x for x in log if x != 'align_run']
+        self.assertEqual(rest, expect_without_align_run)
+        self.assertEqual(log.count('align_run'), 1)
+        self.assertGreater(log.index('align_run'), log.index('align_prep'), 'היישור מתחיל אחרי התכנון')
+        self.assertLess(log.index('align_run'), log.index(before), 'מחכים ליישור לפני נקודת השמירה')
+
     def test_fresh(self):
-        self.assertEqual(self.flow([], None), ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'finish'])
+        self.check_parallel(self.flow([], None),
+                            ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'finish'])
 
     def test_resume_points(self):
         ck = [{'s': 'asr', 'id': 'x'}]
-        self.assertEqual(self.flow(ck, 'asr'), ['restore', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'finish'])
+        self.check_parallel(self.flow(ck, 'asr'),
+                            ['restore', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'finish'])
         self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'finish'])
         self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'finish'], 'אחרי התרגום — לא מתרגמים שוב')
         self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
-        self.assertEqual(self.flow(ck, None), ['restore', 'prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'finish'],
-                         'נקודת שמירה פגומה → מההתחלה')
+        self.check_parallel(self.flow(ck, None),
+                            ['restore', 'prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'finish'],
+                            )
 
     def test_resume_after_paid_proofread(self):
         # 09/10/2026: העבודה הראשונה בשרת נכשלה ביישור אחרי ההגהה — "המשך" לא משלם על ההגהה שוב
         ck = [{'s': 'asr', 'id': 'x'}]
-        self.assertEqual(self.flow(ck, 'asr', proofed=True), ['restore', 'align', 'translate', 'ck:tl', 'review', 'finish'])
+        self.check_parallel(self.flow(ck, 'asr', proofed=True),
+                            ['restore', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'finish'])
+
+    def test_audio_first_stays_sequential(self):
+        # "הקול קודם": הצירוף עלול לתמלל מחדש והתכנון היה נפסל — נשארים בטור (align המלא)
+        self.assertEqual(self.flow([], None, src='a'),
+                         ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'finish'])
 
 
 if __name__ == '__main__':
