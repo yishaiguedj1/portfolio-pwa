@@ -68,6 +68,12 @@ class Aligner:
         dtype = torch.float32 if device == "cpu" else torch.bfloat16
         t0 = time.time()
         self.model = Qwen3ForcedAligner.from_pretrained(MODEL_ID, dtype=dtype, device_map=device)
+        # שכבות הקונבולוציה של המקודד רצות על כל שניות החלק בבת אחת (conv_chunksize=500 בהגדרות המודל):
+        # בחלק של 170 שנ׳ — כ־2GB רגעיים. כל שנייה מקודדת בנפרד, ולכן 16 בכל פעם = אותה תוצאה בדיוק
+        # (נבדק 09/10/2026: 797 מתוך 797 מילים זהות), שיא 6.76→6.05GB ו־99→79 שנ׳ על 5 דק׳ של TED.
+        at = getattr(getattr(getattr(self.model, "model", None), "thinker", None), "audio_tower", None)
+        if at is not None and getattr(at, "conv_chunksize", 0) > 16:
+            at.conv_chunksize = 16
         log(f"מודל היישור נטען ({time.time() - t0:.0f} שנ׳)")
 
     def align_chunk(self, audio: np.ndarray, sr: int, words: list[dict]) -> list[tuple[float, float] | None]:
