@@ -322,7 +322,7 @@ class Pipeline:
         ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
         if pending:
             # החלק הראשון כותב את המטמון; ברגע שהשרת התחיל לענות לו — שאר החלקים במקביל, כולם קוראים
-            # מהמטמון (עד v375 החלקים רצו בטור — אותו מחיר, הרבה יותר זמן קיר).
+            # מהמטמון (קודם החלקים רצו בטור — אותו מחיר, הרבה יותר זמן קיר).
             warm = threading.Event()
             with ThreadPoolExecutor(max_workers=min(TL_PARALLEL, len(pending))) as ex:
                 futs = [ex.submit(self._tl_part, pending[0], fixed, warm)]
@@ -443,8 +443,8 @@ def run_auto(jobmod, args) -> int:
             pl = Pipeline(ctx, J, eng)
         if after < 3:
             if parallel:
-                # v375: תרגום במקביל ליישור — plan רץ על זמני התמלול, היישור ברקע, retime מעדכן זמנים,
-                # ורק אז tr-check (התקציבים הסופיים). היישור יוצא מהנתיב הקריטי: ‎~25–30% פחות זמן קיר.
+                # תרגום במקביל ליישור — plan רץ על זמני התמלול, היישור ברקע, retime מעדכן זמנים,
+                # ורק אז tr-check (התקציבים הסופיים). היישור יוצא מהנתיב הקריטי: ‎~25–30% פחות זמן קיר (10/10/2026).
                 J.align_prep(ctx)
                 err: list[BaseException] = []
 

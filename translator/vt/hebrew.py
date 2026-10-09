@@ -269,7 +269,7 @@ def _fits(lines: list[str], max_chars: int, measure: Measurer | None, max_px: fl
 
 def dual_lines(a: str, b: str) -> list[str]:
     """שני דוברים בכתובית אחת: מקף צמוד (בלי רווח) לדובר השני בלבד — נטפליקס־עברית.
-    (עד v375 היה מקף לשני הדוברים — הנוהג הישן; המדריך העברי של נטפליקס קובע רק לשני.)"""
+    (עד 10/10/2026 היה מקף לשני הדוברים — הנוהג הישן; המדריך העברי של נטפליקס קובע רק לשני.)"""
     return [normalize_he(a).lstrip("-– "), "-" + normalize_he(b).lstrip("-– ")]
 
 
