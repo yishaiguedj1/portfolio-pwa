@@ -1,6 +1,6 @@
 #cloud-config
 # THE SNOWBALL — שרת התרגום (Debian 13). נוצר אוטומטית מ־infra/ ע״י infra/build-cloud-init.py — לא לערוך ביד.
-# אין כאן סודות. אחרי שהשרת עולה: הקונסולה של Hetzner → root → snb-setup.
+# בריפו בלי סודות. את המפתחות מוסיפה האפליקציה במקום שורת הסימון ("קוד ההקמה").
 package_update: true
 package_upgrade: true
 packages:
@@ -197,10 +197,11 @@ write_files:
     owner: root:root
     content: |
       #!/bin/sh
-      # הגדרה חד־פעמית של המפתחות בשרת (מהקונסולה של Hetzner). המפתחות לא מוצגים על המסך ולא נשמרים בשום מקום אחר:
+      # החלפת המפתחות בשרת (מהקונסולה של Hetzner). ההקמה עצמה — "קוד ההקמה" מהאפליקציה, בלי הסקריפט הזה.
+      # ההודעות באנגלית: הקונסולה של לינוקס לא מציגה עברית. המפתחות לא מוצגים על המסך ולא נשמרים בשום מקום אחר:
       #   /etc/snb/worker.env — בעלות root, הרשאות 600. Docker מעביר אותם לקונטיינר בלבד.
       set -eu
-      [ "$(id -u)" = 0 ] || { echo "להריץ כ־root"; exit 1; }
+      [ "$(id -u)" = 0 ] || { echo "Run as root"; exit 1; }
       umask 077
       mkdir -p /etc/snb
       ask_secret() {
@@ -211,13 +212,13 @@ write_files:
       	echo
       	printf '%s' "$v"
       }
-      AK=$(ask_secret "מפתח ה־API של Anthropic (מתחיל ב־sk-ant-; לא יוצג):")
-      case "$AK" in sk-ant-*) ;; *) echo "✗ זה לא נראה כמו מפתח של Anthropic"; exit 1 ;; esac
-      WT=$(ask_secret "טוקן השרת (מהאפליקציה: סטודיו ← הגדרות ← השרת ← הוספת שרת; לא יוצג):")
-      printf '%s' "$WT" | grep -Eq '^[A-Za-z0-9_-]{32,128}$' || { echo "✗ טוקן השרת לא בצורה הנכונה"; exit 1; }
-      printf '%s\n> ' "כתובת דופק לניטור (למשל healthchecks.io) — אופציונלי, Enter כדי לדלג:"
+      AK=$(ask_secret "Anthropic API key (starts with sk-ant-; hidden):")
+      case "$AK" in sk-ant-*) ;; *) echo "x Not an Anthropic key"; exit 1 ;; esac
+      WT=$(ask_secret "Server token (app: Studio > Settings > Server > Add server; hidden):")
+      printf '%s' "$WT" | grep -Eq '^[A-Za-z0-9_-]{32,128}$' || { echo "x Bad server token"; exit 1; }
+      printf '%s\n> ' "Heartbeat URL (e.g. healthchecks.io), optional - Enter to skip:"
       IFS= read -r HB
-      case "$HB" in ""|https://*) ;; *) echo "✗ הכתובת חייבת להתחיל ב־https://"; exit 1 ;; esac
+      case "$HB" in ""|https://*) ;; *) echo "x The URL must start with https://"; exit 1 ;; esac
       {
       	printf 'ANTHROPIC_API_KEY=%s\n' "$AK"
       	printf 'SNB_WORKER_TOKEN=%s\n' "$WT"
@@ -225,7 +226,7 @@ write_files:
       } >/etc/snb/worker.env.tmp
       chmod 600 /etc/snb/worker.env.tmp
       mv /etc/snb/worker.env.tmp /etc/snb/worker.env
-      echo "✓ נשמר. מפעיל את העובד…"
+      echo "Saved. Starting the worker..."
       systemctl start snb-update.service && /usr/local/sbin/snb-status
   - path: /etc/systemd/system/snb-update.service
     permissions: "0644"
@@ -329,6 +330,7 @@ write_files:
       volumes:
         work: {}     # הסרטון והפרויקט של העבודה הנוכחית בלבד — מתרוקן בסוף כל עבודה (agent.cleanup)
         cache: {}    # מודלי התמלול (Hugging Face / torch) — נשמרים בין עבודות ועדכונים, בלי מידע של משתמשים
+  # SNB_SECRETS
 runcmd:
   # חומת האש קודם — לפני ש־Docker עולה עם הכללים שלו
   - systemctl enable --now nftables
@@ -341,3 +343,5 @@ runcmd:
   - mkdir -p /etc/snb && chmod 700 /etc/snb
   - systemctl daemon-reload
   - systemctl enable --now snb-update.timer snb-maint.timer unattended-upgrades
+  # יש מפתחות (קוד ההקמה מהאפליקציה) — מתחילים מיד, בלי לחכות רבע שעה לטיימר
+  - if [ -s /etc/snb/worker.env ]; then chmod 600 /etc/snb/worker.env; systemctl start --no-block snb-update.service; fi

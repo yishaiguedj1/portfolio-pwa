@@ -21,8 +21,8 @@
 | `STUDIO_GDRIVE_CLIENT_ID/SECRET` | Vercel | חיבור Drive של הסטודיו (לקוח נפרד) | כמו בשורה הקודמת |
 | `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `GOOGLE_BOOKS_KEY` | Vercel | תרגום, ניתוח מכתבים, פרטי ספרים | יוצרים מפתח חדש אצל הספק ← Vercel ← Redeploy ← מוחקים את הישן |
 | `CRON_SECRET` | Vercel (רשות) | הפעלת הסנכרון היומי של IBKR | מחרוזת אקראית חדשה ← Vercel |
-| `ANTHROPIC_API_KEY` | השרת בלבד (`/etc/snb/worker.env`) | Claude במצב "API של המערכת" | Console של Anthropic ← מפתח חדש ← בשרת `snb-setup` ← מחיקת הישן ב־Console |
-| טוקן השרת | השרת (`worker.env`), בשרתון רק hash | לקחת עבודות מהתור | באפליקציה: מסך השרת ← הסרה ← הוספת שרת ← `snb-setup` |
+| `ANTHROPIC_API_KEY` | השרת בלבד (`/etc/snb/worker.env`, נכנס דרך "קוד ההקמה" — גם במטא־דאטה של Hetzner, רק ל־root בשרת). Workspace `snowball` עם תקרה, תוקף כ־3 חודשים | Claude במצב "API של המערכת" | Console של Anthropic ← מפתח חדש ← שרת חדש עם קוד הקמה חדש (או `snb-setup`) ← מחיקת הישן ב־Console |
+| טוקן השרת | השרת (`worker.env`, דרך קוד ההקמה), בשרתון רק hash | לקחת עבודות מהתור | באפליקציה: מסך השרת ← הסרה ← הוספת שרת ← קוד הקמה חדש |
 | מפתח עבודה | נוצר לכל הפעלה, בשרתון רק hash, תקף 48 שעות | עבודה אחת | מתחלף לבד |
 | מפתח ה־Routine | כספת בשרתון (`studioVault`) | הפעלת ה־Routine | claude.ai ← הטריגר ← מפתח חדש ← בסטודיו "הגדרה מחדש" |
 | token ו־Query ID של IBKR | כספת בשרתון (`ibkrVault`) | דוחות Flex | IBKR ← Flex Web Service ← טוקן חדש ← באפליקציה: ניתוק וחיבור |
