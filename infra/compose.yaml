@@ -21,9 +21,10 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 512
-    mem_limit: 14g
-    memswap_limit: 14g
-    cpus: 7.5
+    # לפי גודל השרת — snb_limits ב־snb-common.sh (כל ההפעלות עוברות דרך snb_compose)
+    mem_limit: ${SNB_MEM:-6g}
+    memswap_limit: ${SNB_MEM:-6g}
+    cpus: ${SNB_CPUS:-3.5}
     tmpfs:
       - /tmp:size=2g,mode=1777,noexec,nosuid,nodev
       - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev

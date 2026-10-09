@@ -13,13 +13,22 @@ ARG PY_IMAGE=python:3.12-slim-trixie@sha256:05cda9777409a9c3ffddd94a4c476b79f076
 
 # ---------------------------------------------------------------- ffmpeg (מאומת)
 FROM ${PY_IMAGE} AS ffmpeg
-ARG FFMPEG_URL=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
-# חובה מבחוץ: ה־sha256 של הקובץ (ה־workflow לוקח אותו מ־checksums.sha256 של אותה גרסה ורושם אותו בתווית התמונה)
-ARG FFMPEG_SHA256
-RUN set -eu; test -n "$FFMPEG_SHA256" || { echo 'חסר FFMPEG_SHA256'; exit 1; }; \
+# שתי ארכיטקטורות (Intel/AMD ו־Arm — שרתי CAX של Hetzner): אותה גרסה, הקובץ לפי הארכיטקטורה שנבנית
+ARG TARGETARCH
+ARG FFMPEG_BASE=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest
+# חובה מבחוץ: ה־sha256 של כל קובץ (ה־workflow לוקח אותם מ־checksums.sha256 של אותה גרסה ורושם אותם בתווית התמונה)
+ARG FFMPEG_SHA256_AMD64
+ARG FFMPEG_SHA256_ARM64
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      amd64) f=linux64; s="$FFMPEG_SHA256_AMD64" ;; \
+      arm64) f=linuxarm64; s="$FFMPEG_SHA256_ARM64" ;; \
+      *) echo "ארכיטקטורה לא נתמכת: $TARGETARCH"; exit 1 ;; \
+    esac; \
+    test -n "$s" || { echo 'חסר FFMPEG_SHA256'; exit 1; }; \
     apt-get update -qq && apt-get install -y -qq --no-install-recommends curl xz-utils ca-certificates >/dev/null; \
-    curl -fsSL -o /tmp/ff.tar.xz "$FFMPEG_URL"; \
-    echo "$FFMPEG_SHA256  /tmp/ff.tar.xz" | sha256sum -c -; \
+    curl -fsSL -o /tmp/ff.tar.xz "$FFMPEG_BASE-$f-gpl-8.1.tar.xz"; \
+    echo "$s  /tmp/ff.tar.xz" | sha256sum -c -; \
     mkdir -p /tmp/ff /opt/ffmpeg && tar -C /tmp/ff -xf /tmp/ff.tar.xz; \
     cp /tmp/ff/*/bin/ffmpeg /tmp/ff/*/bin/ffprobe /opt/ffmpeg/; \
     /opt/ffmpeg/ffmpeg -hide_banner -buildconf | grep -q -- '--enable-libsvtav1'; \
@@ -27,21 +36,26 @@ RUN set -eu; test -n "$FFMPEG_SHA256" || { echo 'חסר FFMPEG_SHA256'; exit 1; 
 
 # ---------------------------------------------------------------- ספריות Python (נעולות)
 FROM ${PY_IMAGE} AS deps
-COPY infra/worker/requirements.lock /tmp/requirements.lock
-RUN python -m venv /opt/vt \
+ARG TARGETARCH
+# אותן גרסאות בשתי הארכיטקטורות; לכל אחת קובץ נעול משלה (ה־hash של הגלגלים שונה) — infra/README.md
+COPY infra/worker/requirements.lock infra/worker/requirements-arm64.lock /tmp/
+RUN set -eu; lock=/tmp/requirements.lock; [ "$TARGETARCH" = arm64 ] && lock=/tmp/requirements-arm64.lock; \
+    python -m venv /opt/vt \
  && /opt/vt/bin/pip install --no-cache-dir -q --upgrade 'pip==25.*' \
  && /opt/vt/bin/pip install --no-cache-dir -q --require-hashes --only-binary=:all: --no-binary=sox \
-        --extra-index-url https://download.pytorch.org/whl/cpu -r /tmp/requirements.lock \
+        --extra-index-url https://download.pytorch.org/whl/cpu -r "$lock" \
  && /opt/vt/bin/python -c "import numpy, soundfile, onnx_asr, torch, torchaudio, qwen_asr, anthropic, PIL, fontTools; print('ok')"
 
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
-ARG FFMPEG_SHA256
+ARG FFMPEG_SHA256_AMD64
+ARG FFMPEG_SHA256_ARM64
 # הקומיט שממנו נבנתה התמונה — מוצג במסך השרת באפליקציה (הדופק)
 ARG SNB_VERSION=dev
 LABEL org.opencontainers.image.source=https://github.com/yishaiguedj1/portfolio-pwa \
       org.opencontainers.image.description="THE SNOWBALL — העובד של סטודיו התרגום" \
-      snb.ffmpeg.sha256=${FFMPEG_SHA256}
+      snb.ffmpeg.sha256.amd64=${FFMPEG_SHA256_AMD64} \
+      snb.ffmpeg.sha256.arm64=${FFMPEG_SHA256_ARM64}
 # רק מה שצריך: תעודות CA ו־tini. בלי curl, בלי compilers, בלי shell נוסף.
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends ca-certificates tini >/dev/null \

@@ -19,23 +19,28 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: worker-image
-  cancel-in-progress: false
-
 env:
   IMAGE: ghcr.io/yishaiguedj1/snb-worker
-  FFMPEG_ASSET: ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # המתנה לאישור הקידום (promote) לא חוסמת בנייה חדשה: לבנייה ולקידום קבוצות ריצה נפרדות.
+    # (לקח 09/10/2026: קבוצה אחת ל־workflow כולו — ריצה שחיכתה שעה לאישור עצרה כל בנייה אחריה.)
+    concurrency:
+      group: worker-image-build-${{ matrix.arch }}
+      cancel-in-progress: false
+    # שתי ארכיטקטורות, כל אחת על מכונה מהסוג שלה (בלי אמולציה): Intel/AMD (CX) ו־Arm (CAX של Hetzner).
+    # כל אחת נדחפת לתג זמני משלה; ה־job הבא מאחד אותן לתמונה אחת (index) — אותה תמונה בכל שרת, והשרת לוקח את שלו.
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write     # דחיפה ל־GHCR
-      id-token: write     # חתימה בלי מפתח (Sigstore)
-    outputs:
-      digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -45,29 +50,59 @@ jobs:
           python3 -m venv /tmp/vtv && /tmp/vtv/bin/pip install --quiet -r translator/vt-requirements.txt
           cd translator && /tmp/vtv/bin/python -m unittest discover -s tests
           cd .. && python3 infra/build-cloud-init.py --check
-      - name: ffmpeg — ה־sha256 של הגרסה הנוכחית
+      - name: ffmpeg — ה־sha256 של הגרסה הנוכחית (שתי הארכיטקטורות)
         id: ff
         run: |
           set -eu
-          sum=$(curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256" | awk -v f="$FFMPEG_ASSET" '$2==f{print $1}')
-          echo "$sum" | grep -Eq '^[0-9a-f]{64}$'
-          echo "sha=$sum" >> "$GITHUB_OUTPUT"
+          sums=$(curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256")
+          for a in linux64:amd64 linuxarm64:arm64; do
+            sum=$(printf '%s\n' "$sums" | awk -v f="ffmpeg-n8.1-latest-${a%%:*}-gpl-8.1.tar.xz" '$2==f{print $1}')
+            echo "$sum" | grep -Eq '^[0-9a-f]{64}$'
+            echo "${a#*:}=$sum" >> "$GITHUB_OUTPUT"
+          done
       - name: בנייה ודחיפה
-        id: push
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FF_SHA: ${{ steps.ff.outputs.sha }}
+          ARCH: ${{ matrix.arch }}
+          FF_AMD64: ${{ steps.ff.outputs.amd64 }}
+          FF_ARM64: ${{ steps.ff.outputs.arm64 }}
         run: |
           set -eu
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker buildx create --use --name snb >/dev/null     # הדרייבר הרגיל לא תומך ב־SBOM/provenance
+          docker buildx build --provenance=mode=max --sbom=true --push --platform "linux/$ARCH" \
+            --build-arg FFMPEG_SHA256_AMD64="$FF_AMD64" --build-arg FFMPEG_SHA256_ARM64="$FF_ARM64" \
+            --build-arg SNB_VERSION="$GITHUB_SHA" \
+            -f infra/worker/Dockerfile -t "$IMAGE:sha-${GITHUB_SHA}-$ARCH" .
+          docker logout ghcr.io
+
+  merge:
+    concurrency:
+      group: worker-image-merge
+      cancel-in-progress: false
+    # מאחדים את שתי הארכיטקטורות לתמונה אחת, וחותמים עליה (על ה־index — זה מה שהשרת מושך ומאמת)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write     # דחיפה ל־GHCR
+      id-token: write     # חתימה בלי מפתח (Sigstore)
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: איחוד
+        id: push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           tag="$IMAGE:sha-${GITHUB_SHA}"
-          docker buildx build --provenance=mode=max --sbom=true --push \
-            --build-arg FFMPEG_SHA256="$FF_SHA" --build-arg SNB_VERSION="$GITHUB_SHA" \
-            -f infra/worker/Dockerfile -t "$tag" -t "$IMAGE:dev" \
-            --metadata-file /tmp/meta.json .
-          digest=$(python3 -c "import json;print(json.load(open('/tmp/meta.json'))['containerimage.digest'])")
+          docker buildx imagetools create -t "$tag" -t "$IMAGE:dev" "$tag-amd64" "$tag-arm64"
+          digest=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' | python3 -c "import json,sys;print(json.load(sys.stdin)['digest'])")
           echo "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          # שתי הארכיטקטורות באמת בפנים (לא רק אחת)
+          archs=$(docker buildx imagetools inspect "$IMAGE@$digest" --raw | python3 -c "import json,sys;print(' '.join(sorted({m['platform']['architecture'] for m in json.load(sys.stdin)['manifests'] if m['platform']['os']=='linux'})))")
+          [ "$archs" = "amd64 arm64" ] || { echo "חסרה ארכיטקטורה: $archs"; exit 1; }
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           docker logout ghcr.io
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -85,11 +120,15 @@ jobs:
 
   promote:
     # פרודקשן = רק באישור שלך (Environment "production" עם Required reviewers). השרת מושך את prod בתוך רבע שעה.
-    needs: build
+    needs: merge
     # מנעול: עד שהאישור מוגדר (Environment "production" עם Required reviewers), prod לא זז בכלל.
     # אחרי ההגדרה: Settings ← Secrets and variables ← Actions ← Variables ← SNB_PROMOTE = on (infra/README.md)
     if: vars.SNB_PROMOTE == 'on'
     runs-on: ubuntu-latest
+    # ריצה חדשה מחליפה קידום שעוד מחכה לאישור — מאשרים תמיד את התמונה האחרונה
+    concurrency:
+      group: worker-image-promote
+      cancel-in-progress: true
     environment: production
     permissions:
       packages: write
@@ -98,7 +137,7 @@ jobs:
       - name: אימות החתימה וקידום ל־prod (אותו digest, בלי בנייה מחדש)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DIGEST: ${{ needs.build.outputs.digest }}
+          DIGEST: ${{ needs.merge.outputs.digest }}
         run: |
           set -eu
           ref="$IMAGE@$DIGEST"
