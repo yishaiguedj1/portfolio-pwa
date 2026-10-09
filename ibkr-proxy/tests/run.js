@@ -1709,7 +1709,7 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
-    // v372: מלאי הסוכנים, עקיבה מהיומנים וגרסאות ההנחיות
+    // v373: מלאי הסוכנים, עקיבה מהיומנים וגרסאות ההנחיות
     now += 3600e3 + 1;
     {
       const S2 = require('../lib/studio');

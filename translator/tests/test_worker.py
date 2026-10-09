@@ -772,7 +772,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(J.PRICES['claude-haiku-5-5'], (0.10, 0.50, 0.01))
 
     def test_trace(self):
-        """v372: עקיבה מהיומנים — פעולות, שגיאות ומשך לכל סוכן, וקבוצות לפי כלי / פקודה; בלי ארגומנטים ונתיבים"""
+        """v373: עקיבה מהיומנים — פעולות, שגיאות ומשך לכל סוכן, וקבוצות לפי כלי / פקודה; בלי ארגומנטים ונתיבים"""
         sys.path.insert(0, str(HERE))
         import job as J
         root = self.tmp / 'tproj' / 'p'

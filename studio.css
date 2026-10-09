@@ -255,6 +255,7 @@ a.st-wbtn:active { opacity: .7; }
 .st-code.prose { max-height: none; font: 14px/1.55 var(--font); overflow-wrap: normal; }   /* ההנחיה ל־Routine — טקסט רגיל, לא קוד */
 .st-nowc .st-pbar { margin-top: 9px; }
 /* שדות ההדבקה */
+.st-ci { display: grid; gap: 12px; }
 .st-flab { display: grid; gap: 5px; font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
 .st-in { box-sizing: border-box; width: 100%; min-height: 46px; padding: 10px 12px; border: 0; border-radius: var(--radius-xs); background: var(--bg); color: var(--on-surface);
   font: 15px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; outline: none; text-align: start; }
@@ -484,7 +485,7 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-sim b { font-size: 15px; } .st-sim span { font-size: 13.5px; color: var(--on-surface-var); }
 .st-banner.st-major .st-l { display: grid; gap: 1px; }
 .st-banner.st-major .st-l small { font-weight: 500; font-size: 13px; opacity: .9; }
-/* v372: מלאי הסוכנים — אריח קיצור לכל סוכן, כרטיס לכל סוכן, הרשאות (✓ / ✕) */
+/* v373: מלאי הסוכנים — אריח קיצור לכל סוכן, כרטיס לכל סוכן, הרשאות (✓ / ✕) */
 .st-agt { width: 36px; height: 36px; flex: none; border-radius: 10px; display: grid; place-items: center; font-size: 13.5px; font-weight: 800; }
 .st-agt.a-main { background: var(--sv-i0); color: var(--sv-i4); } .st-agt.a-tl { background: var(--sv-m0); color: var(--sv-m4); } .st-agt.a-rv { background: var(--sv-h0); color: var(--sv-h4); }
 .st-agc { display: grid; gap: 12px; }

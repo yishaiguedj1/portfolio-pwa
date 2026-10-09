@@ -25,7 +25,7 @@ const gdrive = require('../lib/gdrive').studio;   // v357: לקוח OAuth נפר
 const S = require('../lib/studio');
 const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
-const A = require('../lib/studioagents');   // v372: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
+const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
 const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents';
@@ -355,7 +355,7 @@ async function worker(req, res, body, deps) {
       const patch = { updated: now };
       if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; patch.warn = ''; job.state = 'running'; }
       if (/^[0-9a-f]{12}$/.test(String(body.ev || ''))) patch.ev = body.ev;   // v371: גרסת הסביבה של העובד ("אחרי שינוי בסביבה")
-      const pv = S.normPv(body.pv); if (pv) patch.pv = pv;   // v372: גרסת ההנחיות של כל סוכן (מלאי הסוכנים)
+      const pv = S.normPv(body.pv); if (pv) patch.pv = pv;   // v373: גרסת ההנחיות של כל סוכן (מלאי הסוכנים)
       await patchJob(deps, id, patch);
       const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
       const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
@@ -407,7 +407,7 @@ async function worker(req, res, body, deps) {
       if (use) up.use = S.mergeUse(job.use0, use);
     }
     if (body.trace != null) {
-      // v372: עקיבה (מהיומנים, בסוף העבודה) — לא תקין נזרק בשקט
+      // v373: עקיבה (מהיומנים, בסוף העבודה) — לא תקין נזרק בשקט
       const tr = S.normTrace(body.trace);
       if (tr) up.tr = tr;
     }
@@ -643,7 +643,7 @@ async function handler(req, res, deps = {}) {
       // v371: התקלות — נגזרות מהרשימה המלאה (עבודה שנעלמה ממנה נמחקה)
       const ic = await syncInc(deps, uid, list, now);
       return res.status(200).json(Object.assign({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now },
-        ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now) } : {}, { ag: A.agentsView(list, now) }));   // v372: מלאי הסוכנים — מאותה רשימה
+        ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now) } : {}, { ag: A.agentsView(list, now) }));   // v373: מלאי הסוכנים — מאותה רשימה
     }
     let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });

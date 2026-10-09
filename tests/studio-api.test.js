@@ -51,6 +51,21 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(!/localStorage|save\(\)[^\n]*newToken|newToken[^\n]*save\(\)/.test(src.slice(src.indexOf('function addServer'), src.indexOf('function pageServer'))), 'טוקן שרת: לא נשמר בטלפון');
   ok(!/net\.api\('start'[^\n]*conn/.test(src) && /disabled: !ui\.api/.test(src), 'הגדרות: "השרת של המערכת" זמין רק כשהשרתון מחזיר מצב API');
 
+  /* ---------- 2ב. קוד ההקמה (מפתח Anthropic + טוקן השרת בתוך ה־cloud-init, נבנה בטלפון) ---------- */
+  const tpl = read('infra/cloud-init.yaml');
+  const key = 'sk-ant-api03-' + 'A'.repeat(90) + '_x-Y';
+  const ci = st.cloudInitWithSecrets(tpl, key, t);
+  ok(ci.text && ci.text.startsWith('#cloud-config') && !ci.text.includes(st.CI_MARK) && ci.text.includes('ANTHROPIC_API_KEY=' + key) && ci.text.includes('SNB_WORKER_TOKEN=' + t)
+    && /path: \/etc\/snb\/worker\.env\n    permissions: "0600"/.test(ci.text), 'קוד ההקמה: הרשומה של worker.env במקום שורת הסימון, בהרשאות 600');
+  ok(ci.text.indexOf('/etc/snb/worker.env') < ci.text.indexOf('\nruncmd:'), 'קוד ההקמה: הרשומה בתוך write_files (לפני runcmd)');
+  ok(st.cloudInitWithSecrets(tpl, 'sk-ant-x\nruncmd: [evil]', t).error === 'key' && st.cloudInitWithSecrets(tpl, key + ' ', 'bad').error === 'token'
+    && st.cloudInitWithSecrets(tpl.replace(st.CI_MARK, ''), key, t).error === 'tpl' && st.cloudInitWithSecrets('<html>', key, t).error === 'tpl',
+    'קוד ההקמה: מפתח/טוקן בצורה אחרת (או תבנית לא נכונה) — נדחה, בלי הזרקת YAML');
+  const cs = src.slice(src.indexOf('async function copySetupCode'), src.indexOf('async function addServer'));
+  ok(/net\.cloudInitTemplate\(\)/.test(cs) && !/save\(|store\.|ui\.[a-z]+\s*=|localStorage|net\.api\(/.test(cs) && /keyIn\.value = ''/.test(cs),
+    'קוד ההקמה: המפתח לא נשמר ולא נשלח לשרתון (רק לתוך הקוד שמועתק), והשדה מתרוקן אחרי ההעתקה');
+  ok(/cloudInitTemplate[\s\S]{0,200}E\.fetch\('infra\/cloud-init\.yaml', \{ cache: 'no-store' \}\)/.test(read('studionet.js')), 'התבנית מאותו אתר, בלי מטמון');
+
   /* ---------- 3. העובד והשרת ---------- */
   const ag = read('translator/agent.py');
   ok(/def host_info\(/.test(ag) && /'op': op, 'v': 1, 'hb': host_info\(busy\)/.test(ag) && /poll\(server, tok, 'beat', _busy\)/.test(ag), 'הסוכן: דופק עם מצב השרת, וגם באמצע עבודה');
@@ -58,7 +73,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 4. מחרוזות ---------- */
   const app = read('app.js');
-  for (const k of ['studioSrvT', 'studioSrvLede', 'studioApiCap', 'studioErrMonthCap', 'studioErrNoServer', 'studioSrvTokNote', 'studioSrvRemoveQ']) {
+  for (const k of ['studioCiT', 'studioCiKey', 'studioCiCopy', 'studioCiCopied', 'studioCiBadKey', 'studioCiFail', 'studioCiNote', 'studioSrvT', 'studioSrvLede', 'studioApiCap', 'studioErrMonthCap', 'studioErrNoServer', 'studioSrvTokNote', 'studioSrvRemoveQ']) {
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת בעברית ובאנגלית: ' + k);
   }
   console.log('# ' + n + ' בדיקות עברו');

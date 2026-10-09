@@ -1,8 +1,8 @@
-// v372: סטודיו התרגום — מגדל הפיקוח 2.0, סבב "מלאי סוכנים ועקיבה" (ServiceNow AI Control Tower: Discover · Inventory,
+// v373: סטודיו התרגום — מגדל הפיקוח 2.0, סבב "מלאי סוכנים ועקיבה" (ServiceNow AI Control Tower: Discover · Inventory,
 // Observe · Traces, Secure · הרשאות). מלאי: מי עבד, באיזה מודל ומאמץ, באיזו גרסת הנחיות, כמה עלה, אחוז הצלחה;
 // עקיבה מהיומנים (פעולות, שגיאות, משך — בלי טוקנים); הרשאות ורדיוס פגיעה — ומה שמוצג נאכף בקוד.
-// הבדיקות המלאות: ibkr-proxy/tests/run.js (בלוק v372), translator/tests/test_worker.py (test_trace).
-// הרצה: node tests/studio-v372.test.js
+// הבדיקות המלאות: ibkr-proxy/tests/run.js (בלוק v373), translator/tests/test_worker.py (test_trace).
+// הרצה: node tests/studio-v373.test.js
 const fs = require('fs');
 const path = require('path');
 const { swVersionOk } = require('./_swver');
@@ -53,6 +53,6 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 5. גרסה ---------- */
   const ver = (app.match(/const APP_VERSION = '(v\d+)'/) || [])[1];
   const sw = (read('sw.js').match(/CACHE_NAME = '[^']*-(v\d+)'/) || [])[1];
-  ok(+ver.slice(1) >= 372 && swVersionOk(ver, sw), 'APP_VERSION ≥ v372 ו־sw.js תואם או גרסה אחת אחורה');
+  ok(+ver.slice(1) >= 373 && swVersionOk(ver, sw), 'APP_VERSION ≥ v373 ו־sw.js תואם או גרסה אחת אחורה');
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

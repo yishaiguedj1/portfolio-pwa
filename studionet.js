@@ -257,5 +257,12 @@ export function createNet(env) {
   /* חיבור Drive (חלון ההסכמה; libbackup.js מקבל Response) — v357: לקוח OAuth נפרד לסטודיו, דרך /api/studio ולא השרתון של הספרייה */
   const driveApi = (body) => E.fetch(E.base() + '/api/studio', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, E.headers ? E.headers() : {}), body: JSON.stringify(body) });
 
-  return { api, driveApi, driveToken, jobFolder, upload, _forget: () => { dtok = null; } };
+  /* תבנית "קוד ההקמה" של השרת (infra/cloud-init.yaml) — מאותו אתר שממנו נטענה האפליקציה, כלומר אותו מקור אמון
+     כמו הקוד עצמו. בלי מטמון: גרסה ישנה של התבנית = שרת שמוקם בהגדרה ישנה */
+  async function cloudInitTemplate() {
+    try { const r = await E.fetch('infra/cloud-init.yaml', { cache: 'no-store' }); if (r.ok) return await r.text(); } catch (e) {}
+    return '';
+  }
+
+  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, _forget: () => { dtok = null; } };
 }

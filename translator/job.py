@@ -388,7 +388,7 @@ _VT_CMD = re.compile(r'job\.py\s+vt\s+([a-z][a-z_-]{1,19})')
 
 
 def _tool_key(name, inp):
-    """v372: קבוצה לכל פעולה — שם הכלי, ול־Bash הפקודה של job.py / vt. בלי ארגומנטים, נתיבים או טקסט חופשי."""
+    """v373: קבוצה לכל פעולה — שם הכלי, ול־Bash הפקודה של job.py / vt. בלי ארגומנטים, נתיבים או טקסט חופשי."""
     if name == 'Bash':
         c = str((inp or {}).get('command') or '') if isinstance(inp, dict) else ''
         m = _VT_CMD.search(c)
@@ -407,7 +407,7 @@ def _ts(v):
 
 
 def trace(root=None):
-    """v372: עקיבה מהיומנים (בלי טוקנים) — לכל סוכן (תיאום / תרגום / ביקורת): כמה פעולות, כמה נכשלו, כמה זמן עבד;
+    """v373: עקיבה מהיומנים (בלי טוקנים) — לכל סוכן (תיאום / תרגום / ביקורת): כמה פעולות, כמה נכשלו, כמה זמן עבד;
     והקבוצות הנפוצות (כלי / פקודה) עם מספר הפעולות והשגיאות. כמו usage — אותם קבצים, אותה חלוקה לסוכנים."""
     root = Path(root or PROJECTS)
     agents, groups = {}, {}
@@ -463,7 +463,7 @@ def trace_safe():
 
 
 def prompt_versions():
-    """v372: גרסת ההנחיות של כל סוכן — 8 התווים הראשונים של sha1 על הקובץ (RUNBOOK = המתזמר, TRANSLATE, REVIEW)."""
+    """v373: גרסת ההנחיות של כל סוכן — 8 התווים הראשונים של sha1 על הקובץ (RUNBOOK = המתזמר, TRANSLATE, REVIEW)."""
     import hashlib
     out = {}
     for k, f in (('rb', 'RUNBOOK.md'), ('tl', 'TRANSLATE.md'), ('rv', 'REVIEW.md')):

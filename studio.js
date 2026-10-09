@@ -144,7 +144,7 @@ export function normJob(j) {
     tw: normTw(s.tw),      // v362: מגדל הפיקוח
     rw: num(s.rec),        // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
     fr: s.fr && typeof s.fr.s === 'number' && s.fr.s >= -1 && s.fr.s < 600 ? { s: s.fr.s, ms: num(s.fr.ms) } : null,   // v369: תוצאת ההפעלה האחרונה
-    tr: normTrace(s.tr),   // v372: עקיבה
+    tr: normTrace(s.tr),   // v373: עקיבה
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -237,7 +237,7 @@ export function normInc(o) {
   return { list, open: num(o.open, 0, 1e4), mi };
 }
 export const majorOn = (inc) => !!(inc && inc.mi && !inc.mi.x);
-/* v372: עקיבה (מהשרתון, בעבודה) ומלאי הסוכנים (op jobs) — רק מספרים, מזהי מודל וקודים */
+/* v373: עקיבה (מהשרתון, בעבודה) ומלאי הסוכנים (op jobs) — רק מספרים, מזהי מודל וקודים */
 const TR_KINDS = ['main', 'tl', 'rv', 'sub'], TR_KEY = /^(?:(?:job|vt):[a-z][a-z_-]{1,19}|[A-Za-z]{1,24})$/;
 export function normTrace(t) {
   if (!t || typeof t !== 'object' || !t.a || typeof t.a !== 'object') return null;
@@ -674,7 +674,7 @@ async function refreshJobs(force) {
   if (!j.ok || !Array.isArray(j.jobs)) return;
   if (Array.isArray(j.kinds)) ui.kinds = j.kinds;
   setInc(j.inc, j.now);   // v371: הרשימה מסנכרנת את התקלות בשרתון — העדכנית ביותר
-  ui.ag = normAgents(j.ag) || ui.ag;   // v372: מלאי הסוכנים
+  ui.ag = normAgents(j.ag) || ui.ag;   // v373: מלאי הסוכנים
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
   for (const sj of j.jobs) {
@@ -2135,7 +2135,7 @@ function pageInc(p) {
   }
   if (row.childNodes.length) { bar.append(row); p.append(bar); }
 }
-/* ---------------- v372: מלאי הסוכנים והרשאות (מסך 5 בתוכנית — AI Control Tower: Discover · Inventory) ---------------- */
+/* ---------------- v373: מלאי הסוכנים והרשאות (מסך 5 בתוכנית — AI Control Tower: Discover · Inventory) ---------------- */
 function agentName(k) {
   switch (k) {
     case 'main': return T('studioAgMain');
@@ -2261,7 +2261,7 @@ function pageTower(p) {
     p.append(list(rowNav({ tile: tile('cloud', ui.api.online ? 'green' : 'orange'), label: T('studioSrvT'),
       sub: ui.api.online ? T('studioSrvOnN', { n: ui.api.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'tower-srv' })));
   }
-  p.append(...agentsSection());   // v372: מלאי הסוכנים — 30 יום
+  p.append(...agentsSection());   // v373: מלאי הסוכנים — 30 יום
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
     const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
@@ -2491,7 +2491,7 @@ function costCard(cv, tr) {
     sm.append(h('bdi', null, r.model), ' · ' + T('studioCostTok', { n: fmtTok(r.tok) }));
     if (r.open) { sm.append(' · ' + T('studioCostOpen') + ' '); sm.append(r.open.usd == null ? T('studioCostTok', { n: fmtTok(r.open.tok) }) : usdEl(r.open.usd)); }
     if (r.usd == null) sm.append(' · ' + T('studioCostNoPrice'));
-    const ta = tr && tr.a[r.k];   // v372: עקיבה — בשורה הראשונה של כל סוכן (לא כרטיס נפרד)
+    const ta = tr && tr.a[r.k];   // v373: עקיבה — בשורה הראשונה של כל סוכן (לא כרטיס נפרד)
     if (ta && r.nth <= 1) sm.append(' · ' + T('studioTrActs', { n: ta.n }) + (ta.s >= 60 ? ' · ' + fmtShort(ta.s) : ''));
     l.append(sm);
     const v = h('span', 'st-v'); v.append(usdEl(r.usd));
@@ -2507,7 +2507,7 @@ function costCard(cv, tr) {
   for (const w of cv.warn) out.push(banner('warn', w.k === 'tl' ? T('studioCostWarnTl', { got: w.model, want: cv.want }) : T('studioCostWarnRv', { got: w.model, want: cv.want })));
   out.push(list(...rows, tot));
   if (tr && tr.g.length) {
-    // v372: עקיבה — הפעולות הנפוצות (מקופל: פרטים לפי הצורך)
+    // v373: עקיבה — הפעולות הנפוצות (מקופל: פרטים לפי הצורך)
     const tot2 = Object.values(tr.a).reduce((x, a) => ({ n: x.n + a.n, e: x.e + a.e }), { n: 0, e: 0 });
     const det = h('details', 'st-details st-dig');
     det.append(h('summary', null, T('studioTrT', { n: tot2.n }) + (tot2.e ? ' · ' + (tot2.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: tot2.e })) : '')), list(...tr.g.map(([k, n, e]) => {
@@ -2815,6 +2815,27 @@ async function srvAct(op, sv, extra) {
   else flashSafe(errText(j.error, j));
   render('none');
 }
+/* "קוד ההקמה" של שרת חדש = התבנית מהריפו (infra/cloud-init.yaml, בלי סודות) + רשומה של /etc/snb/worker.env במקום
+   שורת הסימון. נבנה בטלפון בלבד: מפתח Anthropic לא נשלח לשום מקום ולא נשמר (לא ב־store ולא ב־ui) — רק בקוד
+   שמועתק ומודבק ב־Hetzner ("Cloud config"). הבדיקה על הצורה מונעת הזרקת YAML דרך השדה. */
+export const CI_MARK = '  # SNB_SECRETS';
+export function cloudInitWithSecrets(tpl, key, token) {
+  key = String(key || '').trim();
+  token = String(token || '');
+  if (!/^sk-ant-[A-Za-z0-9_-]{20,300}$/.test(key)) return { error: 'key' };
+  if (!/^[a-z0-9]{12}-[A-Za-z0-9_-]{43}$/.test(token)) return { error: 'token' };
+  const t = String(tpl || '');
+  if (!t.startsWith('#cloud-config') || t.split(CI_MARK + '\n').length !== 2) return { error: 'tpl' };
+  const entry = '  - path: /etc/snb/worker.env\n    permissions: "0600"\n    owner: root:root\n    content: |\n' +
+    '      ANTHROPIC_API_KEY=' + key + '\n      SNB_WORKER_TOKEN=' + token + '\n';
+  return { text: t.replace(CI_MARK + '\n', entry) };
+}
+async function copySetupCode(keyIn) {
+  const tpl = await net.cloudInitTemplate();
+  const r = cloudInitWithSecrets(tpl, keyIn.value, ui.newToken);
+  if (r.error) { flashSafe(r.error === 'key' ? T('studioCiBadKey') : T('studioCiFail')); return; }
+  if (await copyText(r.text, T('studioCiCopied'))) keyIn.value = '';
+}
 async function addServer() {
   if (ui.srvBusy) return;
   ui.srvBusy = true; render('none');
@@ -2830,7 +2851,20 @@ function pageServer(p) {
   const a = ui.api;
   if (a) p.append(secT(T('studioApiMonthT')), list(kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) }))));
   if (!a || !a.admin) { p.append(note(a && a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'))); return; }
-  if (ui.newToken) { const tk = h('div', 'st-tok'); tk.append(copyBox(ui.newToken, T('studioCopy'), 'srv-token')); p.append(secT(T('studioSrvNewT')), list(tk), note(T('studioSrvTokNote'))); }
+  if (ui.newToken) {
+    // קוד ההקמה: מדביקים כאן את מפתח Anthropic (לא נשמר ולא נשלח), מעתיקים, ומדביקים ב־Hetzner ב־Cloud config
+    const keyIn = h('input', 'st-in'); keyIn.type = 'password'; keyIn.dir = 'ltr'; keyIn.autocomplete = 'off'; keyIn.spellcheck = false;
+    keyIn.placeholder = 'sk-ant-…'; keyIn.setAttribute('aria-label', T('studioCiKey'));
+    const lab = h('label', 'st-flab'); lab.append(h('span', null, T('studioCiKey')), keyIn);
+    const cb = btn('st-btn wide in-card', T('studioCiCopy'), () => copySetupCode(keyIn), 'srv-ci');
+    cb.disabled = blocked();
+    const box = h('div', 'st-tok st-ci'); box.append(lab, cb);
+    p.append(secT(T('studioCiT')), list(box), note(T('studioCiNote')));
+    // הטוקן לבד — רק להחלפת מפתחות בשרת קיים (snb-setup); מקופל
+    const tk = h('div', 'st-tok'); tk.append(copyBox(ui.newToken, T('studioCopy'), 'srv-token'));
+    const more = h('details', 'st-details'); more.append(h('summary', null, T('studioSrvNewT')), list(tk), note(T('studioSrvTokNote')));
+    p.append(more);
+  }
   const rows = [];
   for (const sv of ui.servers || []) {
     const stt = srvState(sv);
