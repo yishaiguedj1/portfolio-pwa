@@ -25,6 +25,9 @@ from .hebrew import normalize_he, visible_len, has_latin, latin_runs, numbers_in
 from .util import fmt_ts
 
 LINE_RE = re.compile(r"^#(\d+)\s?(.*)$")
+# תווי ניקוד בלבד (בלי פיסוק עברי שבאותו טווח: מקף 05BE, פסק 05C0, סוף פסוק 05C3, נו״ן הפוכה 05C6).
+# כתוביות עבריות נכתבות בכתיב מלא בלי ניקוד (הנוהג המקצועי; ניקוד גם מכפיל טוקנים פי 2–4).
+NIKUD_RE = re.compile(r"[ְ-ׇֽֿׁׂׅׄ]")
 
 
 def batches(cues: list[dict], size: int = 60) -> list[list[dict]]:
@@ -210,6 +213,9 @@ def check(cues: list[dict], he: dict[str, str], glossary: list[tuple[str, list[s
             if not number_ok_in_he(num, txt):
                 issues.append(f"- #{k}: המספר {num} מהמקור לא מופיע בתרגום")
                 stats["numbers"] += 1
+        if NIKUD_RE.search(txt):
+            issues.append(f"- #{k}: ניקוד בתרגום — כתוביות נכתבות בכתיב מלא בלי ניקוד (מילה דו־משמעית: לנסח מחדש)")
+            stats["errors"] += 1
         if has_latin(txt):
             issues.append(f"- #{k}: אותיות לועזיות: {', '.join(latin_runs(txt))} (בסדר רק לשם מותג/מונח שנשאר בלועזית)")
             stats["latin"] += 1

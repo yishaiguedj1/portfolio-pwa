@@ -229,6 +229,13 @@ class TestTranslate(unittest.TestCase):
         self.assertIn("שאלה", txt)
         self.assertEqual(st["glossary"], 0)
 
+    def test_nikud_is_error(self):
+        cues = [{"id": 1, "en": "Hello there.", "budget": 40, "spk": "S1"},
+                {"id": 2, "en": "Thanks.", "budget": 40, "spk": "S2"}]
+        issues, st = check(cues, {"1": "שָׁלוֹם לך.", "2": "תודה — באמת."}, [])
+        self.assertEqual(sum("ניקוד" in x for x in issues), 1, "ניקוד = שגיאה; מקף/גרש אינם ניקוד")
+        self.assertEqual(st["errors"], 1)
+
     def test_merges(self):
         cues = [{"id": 1, "en": "a", "speech_s": 0, "speech_e": 1, "w1": 1},
                 {"id": 2, "en": "b", "speech_s": 1.1, "speech_e": 2, "w1": 2},
