@@ -244,6 +244,50 @@ def budgets(cues: list[dict], timing: TimingRules, text: TextRules) -> None:
         c["ideal"] = int(min(max_chars, math.floor(timing.cps_target * avail)))
 
 
+def cps_merge(cues: list[dict], timing: TimingRules, text: TextRules, refit) -> tuple[list[dict], int]:
+    """מיזוג מונע־CPS אחרי התרגום: כתובית שגם אחרי כל ההארכה אין לה זמן קריאה (דגל reading_speed
+    מ־time_cues) מתאחדת עם שכנתה — אותו דובר, דיבור רציף — לכתובית אחת ארוכה יותר.
+
+    זה השלב שחסר בסולם של נטפליקס (הארכה → השאלה מהמרווח → מיזוג → רק בסוף קיצור טקסט):
+    בניסוי המתועד במחקר, הארכה לבדה הורידה חריגות קריאה מ־68% ל־29% והמיזוג ל־24% — בלי לשנות מילה.
+
+    refit(cue) מחשב מחדש lines/chars לפי הטקסט העברי (break_lines + מדידת הגופן) ומחזיר אם נכנס
+    בשתי שורות. המיזוג מתבצע רק כשהוא באמת פותר: הטקסט המאוחד נכנס, והקצב יורד מתחת לתקרה."""
+    out: list[dict] = []
+    merges = 0
+    max_chars = text.max_chars_line * text.max_lines
+    i = 0
+    while i < len(cues):
+        c = cues[i]
+        nxt = cues[i + 1] if i + 1 < len(cues) else None
+        slow = 'reading_speed' in (c.get('flags') or ()) or (nxt and 'reading_speed' in (nxt.get('flags') or ()))
+        can = (nxt is not None and slow
+               and c.get('spk') == nxt.get('spk') and not c.get('parts') and not nxt.get('parts')
+               and c.get('he') not in (None, '=', '∅') and nxt.get('he') not in (None, '=', '∅')
+               and nxt['speech_s'] - c['speech_e'] <= timing.chain_gap_s
+               and nxt['speech_e'] - c['speech_s'] <= timing.max_dur_s - 0.2)
+        if can:
+            trial = dict(c)
+            trial['he'] = (str(c['he']).rstrip() + ' ' + str(nxt['he']).lstrip()).strip()
+            trial['en'] = (c.get('en', '') + ' ' + nxt.get('en', '')).strip()
+            trial['speech_e'] = nxt['speech_e']
+            fits = refit(trial)
+            # הזמן הזמין למאוחדת: עד הדיבור של הכתובית שאחרי הבאה (או linger), כמו ב־budgets
+            nn = cues[i + 2]['speech_s'] if i + 2 < len(cues) else nxt['speech_e'] + 2.0
+            avail = min(nxt['speech_e'] + timing.linger_s, nn - 0.085) - c['speech_s']
+            avail = min(avail, timing.max_dur_s)
+            if fits and trial['chars'] <= max_chars and avail > 0 and trial['chars'] / avail <= timing.cps_max + 0.01:
+                trial['w1'] = nxt.get('w1', trial.get('w1'))
+                trial['cps_merged'] = [c['id'], nxt['id']]
+                out.append(trial)
+                merges += 1
+                i += 2
+                continue
+        out.append(c)
+        i += 1
+    return out, merges
+
+
 def retime(words: list[dict], cues: list[dict], timing: TimingRules, text: TextRules) -> dict:
     """זמני דיבור חדשים לכתוביות קיימות (אחרי יישור משופר) — בלי לשנות חלוקה ותרגום."""
     mark_backchannels(words)
