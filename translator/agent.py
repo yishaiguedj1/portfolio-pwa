@@ -196,11 +196,28 @@ def handle(jb: dict, server: str) -> int:
             pass
 
 
+WARM_WAIT_S = 900
+
+
+def start_warm():
+    """המודלים הכבדים יורדים ונבדקים כשהשרת עולה (warm.py, תהליך נפרד — הזיכרון שלו משתחרר כשהוא נגמר).
+    קובץ קטוע מתגלה כאן ולא אחרי שההגהה כבר שולמה, ועבודה לא מחכה להורדה של כ־3GB."""
+    def run():
+        try:
+            subprocess.run([sys.executable, str(Path(__file__).with_name('warm.py'))], timeout=WARM_WAIT_S)
+        except (OSError, subprocess.SubprocessError) as e:
+            print('· הכנת המודלים מראש נכשלה (' + type(e).__name__ + ') — העבודה תוריד אותם בעצמה', flush=True)
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    return t
+
+
 def main(once: bool = False) -> int:
     signal.signal(signal.SIGTERM, _on_term)
     signal.signal(signal.SIGINT, _on_term)
     server, tok = server_url(), token()
     cleanup()                                  # שאריות מהפעלה קודמת שנקטעה (כיבוי, עדכון)
+    warm = None if once else start_warm()
     print('✓ הסוכן פעיל — שואל את השרתון אם יש עבודה', flush=True)
     if not once:
         threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
@@ -209,6 +226,8 @@ def main(once: bool = False) -> int:
         r = poll(server, tok)
         if r.get('job'):
             print('→ עבודה ' + r['job']['id'][:6] + '…', flush=True)
+            if warm is not None and warm.is_alive():
+                warm.join(WARM_WAIT_S)           # ההורדה מראש עוד רצה — העבודה הייתה מורידה את אותם קבצים בעצמה
             rc = handle(r['job'], server)
             print('← סיום (' + str(rc) + ')', flush=True)
             backoff = POLL_S

@@ -757,7 +757,9 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     if rc != 0:
         print('\n'.join(tail))
         ctx.event('vt', VT_KIND.get(args[0], 'other'))
-        raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
+        # ‎-9 = התהליך נהרג מבחוץ — כמעט תמיד מגבלת הזיכרון של הקונטיינר (09/10/2026: vt align בשרת של 8GB)
+        why = ' — נגמר הזיכרון' if rc in (-9, 137) else ''
+        raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').')
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
     return tail
 
@@ -1456,11 +1458,12 @@ def drive_delete(ctx, fid):
         return False
 
 
-def save_ck(ctx, s):
-    """נקודת שמירה ב־Drive + דיווח לשרתון. לעולם לא מפילה את העבודה: תקלה = הודעה, וממשיכים בלי."""
+def save_ck(ctx, s, extra=None):
+    """נקודת שמירה ב־Drive + דיווח לשרתון. לעולם לא מפילה את העבודה: תקלה = הודעה, וממשיכים בלי.
+    extra = שדות נוספים ל־_snb.json (מצב API: pr=1 — ההגהה כבר בפנים, לא משלמים עליה שוב בהמשך)."""
     try:
         path = VT_WORK / '_ck' / (ctx.name + '.' + s + '.tar.gz')
-        ck_pack(ctx.pdir, s, {'src': ctx.st.get('src') or 'v', 'sync': ctx.st.get('sync') or None}, path)
+        ck_pack(ctx.pdir, s, dict({'src': ctx.st.get('src') or 'v', 'sync': ctx.st.get('sync') or None}, **(extra or {})), path)
         size = path.stat().st_size
         fid = drive_upload(ctx, path, 'נקודת שמירה — ' + CK_LABEL[s] + '.tar.gz', s, 'application/gzip', prop='snbCk')
         ctx.report(ck={'s': s, 'id': fid, 'size': size}, force=True)
@@ -1539,6 +1542,7 @@ def restore(args):
     if info.get('sync'):
         ctx.st['sync'] = info['sync']
     ctx.st['resumed'] = used
+    ctx.st['proofed'] = bool(info.get('pr'))       # מצב API: ההגהה, התדריך והמילון כבר בפרויקט ששוחזר
     save_state(ctx.st)
     ctx.report(st_next, 1 if used == 'asr' else 0, 'התמליל מוכן — Claude מגיה אותו' if used == 'asr' else 'ממשיכים מאותה נקודה', force=True)
     print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')

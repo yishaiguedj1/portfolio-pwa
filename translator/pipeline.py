@@ -386,10 +386,17 @@ def run_auto(jobmod, args) -> int:
         if after < 1 and J.prepare(ns) != 0:
             return 1
         if after < 2:
-            pl = Pipeline(J.Ctx(J.load_state()), J, eng)
-            qs = pl.proofread()
-            if qs:
-                pl.ask(qs)
+            st = J.load_state()
+            if not (done == 'asr' and st.get('proofed')):
+                pl = Pipeline(J.Ctx(st), J, eng)
+                qs = pl.proofread()
+                if qs:
+                    pl.ask(qs)
+                # 09/10/2026: ההגהה שולמה — שומרים אותה בנקודת השמירה של התמלול, כדי שכשל ביישור
+                # (העבודה הראשונה בשרת: נגמר הזיכרון) לא יגרום לשלם עליה שוב ב"המשך"
+                J.save_ck(pl.ctx, 'asr', {'pr': 1})
+            else:
+                print('· ההגהה, התדריך והמילון כבר בנקודת השמירה — לא משלמים עליהם שוב.')
             if J.align(ns) != 0:
                 return 1
         ctx = J.Ctx(J.load_state())

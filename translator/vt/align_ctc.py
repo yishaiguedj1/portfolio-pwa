@@ -82,7 +82,18 @@ class CtcAligner:
         self.torch = torch
         self.F = torchaudio.functional
         b = torchaudio.pipelines.MMS_FA
-        self.model = b.get_model(with_star=True)
+        try:
+            self.model = b.get_model(with_star=True)
+        except RuntimeError:
+            # torch.hub לא בודק גודל/hash: הורדה שנקטעה נשארת במטמון כקובץ פגום, וכל עבודה אחריה נכשלת
+            # ("failed finding central directory"). מוחקים את הקובץ ומורידים פעם אחת מחדש.
+            import os
+            cached = os.path.join(torch.hub.get_dir(), "checkpoints", os.path.basename(b._path))
+            if not os.path.exists(cached):
+                raise
+            log("מודל ה־CTC במטמון פגום — מוריד מחדש")
+            os.remove(cached)
+            self.model = b.get_model(with_star=True)
         self.dict = b.get_dict(star="*")
         self.star = self.dict["*"]
         log(f"מודל CTC ‏(MMS_FA) נטען ({time.time() - t0:.0f} שנ׳)")
