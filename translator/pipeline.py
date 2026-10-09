@@ -199,7 +199,8 @@ FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה
 ואם לא — מחזירים את הנוסח הקיים כמו שהוא. לא כותבים כתוביות שלא ברשימה."""
 
 RV_TASK = """אתה עורך כתוביות בכיר שבודק תרגום מאנגלית לעברית בהקשר נקי.
-רק בעיות אמיתיות: משמעות שגויה או חסרה, עברית לא טבעית, מונח לא עקבי, מספר/שם שגוי, שבירת שורה פוגעת.
+רק בעיות אמיתיות: משמעות שגויה או חסרה, עברית לא טבעית, מונח לא עקבי, מספר/שם שגוי, שבירת שורה פוגעת,
+ומגדר לא עקבי — פנייה ונטיות של כל דובר ונמען לפי טבלת הדוברים בתדריך, לאורך כל הראיון.
 לא טעם אישי ולא ניסוח מחדש של מה שתקין.
 התשובה: שורה לכל כתובית שמתקנים, `#מספר טקסט מתוקן` (דורס את התרגום), ולא שום דבר אחר. אין מה לתקן — תשובה ריקה."""
 
@@ -382,7 +383,9 @@ class Pipeline:
         for cmd in ('tr-merge', 'build', 'review-pack'):
             self.J.vt(ctx, [cmd, ctx.name])
         pkg = (self.pd / 'review' / 'package.md').read_text(encoding='utf-8')
-        fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text())])
+        bp = self.pd / 'tr' / 'brief.md'
+        fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text()),
+                             block('brief', bp.read_text(encoding='utf-8') if bp.exists() else '')])
         res = self.eng.complete('rv', fixed, block('review_package', pkg), max_tokens=32000)
         self.save_usage()
         ids = set(re.findall(r'#(\d+)', pkg))
