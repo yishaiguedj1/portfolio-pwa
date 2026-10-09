@@ -101,6 +101,8 @@ class Image(unittest.TestCase):
         di = read('.dockerignore').splitlines()
         self.assertEqual(di[1], '*', 'ברירת המחדל: שום דבר לא נכנס')
         self.assertIn('!translator/', di)
+        for f in ('requirements.lock', 'requirements-arm64.lock'):
+            self.assertIn('!infra/worker/' + f, di, 'קובץ שה־Dockerfile מעתיק חייב להיכנס להקשר: ' + f)
 
 
 class Pipeline(unittest.TestCase):
