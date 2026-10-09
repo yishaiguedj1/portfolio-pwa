@@ -19,7 +19,10 @@ import numpy as np
 from .util import log
 
 MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B"
-MAX_CHUNK_S = 170.0
+# 09/10/2026: 90 ולא 170 — נמדד על הרצאת TED של 5 דק׳ בתמונה של השרת: שיא הזיכרון 6.8GB → 6.05GB
+# (בשרת עם 8GB הקונטיינר מוגבל ל־~6.6GB, ו־vt align נהרג באמצע), אותם זמנים (חציון הפרש 4ms)
+# ופחות מילים "חשודות" (11 → 5). הזמן לא גדל (69 שנ׳ מול 82).
+MAX_CHUNK_S = 90.0
 
 
 def clean_token(w: str) -> str:

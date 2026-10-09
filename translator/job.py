@@ -757,7 +757,9 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     if rc != 0:
         print('\n'.join(tail))
         ctx.event('vt', VT_KIND.get(args[0], 'other'))
-        raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
+        # ‎-9 = התהליך נהרג מבחוץ — כמעט תמיד מגבלת הזיכרון של הקונטיינר (09/10/2026: vt align בשרת של 8GB)
+        why = ' — נגמר הזיכרון' if rc in (-9, 137) else ''
+        raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').')
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
     return tail
 
