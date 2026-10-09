@@ -198,6 +198,14 @@ FIX_TASK = """תיקון כתוביות שבדיקה אוטומטית סימנה
 כשזה הפתרון הנכון). בעיה מסוג "חייב" — חובה לפתור; הערה מסוג "לשקול" — מתקנים רק אם זה משפר בלי לפגוע במשמעות,
 ואם לא — מחזירים את הנוסח הקיים כמו שהוא. לא כותבים כתוביות שלא ברשימה."""
 
+JG_TASK = """אתה בודק איכות של כתוביות בעברית (מאנגלית). אתה לא מתקן ולא כותב תרגום — רק נותן ציון.
+במדגם: לכל כתובית `#מספר` והמקור באנגלית, ובשורה שאחריה `→` והתרגום.
+התשובה: שורה לכל כתובית, בדיוק בצורה `#מספר ציון קוד` — בלי שום טקסט אחר.
+ציון 1–5: 5 = מדויק וטבעי · 4 = טוב, הערה קלה · 3 = מובן אבל בעייתי · 2 = טעות מהותית · 1 = שגוי לגמרי.
+הקוד — הבעיה העיקרית: ok (אין) · mean (משמעות שגויה) · omit (חסר מידע) · add (נוסף מה שלא נאמר) ·
+gram (דקדוק / מגדר) · flu (עברית לא טבעית) · term (מונח / שם שגוי).
+כתובית קצרה מהמקור כי היא חלק ממשפט שנמשך — לא בעיה. לא להוריד ציון על טעם אישי."""
+
 RV_TASK = """אתה עורך כתוביות בכיר שבודק תרגום מאנגלית לעברית בהקשר נקי.
 רק בעיות אמיתיות: משמעות שגויה או חסרה, עברית לא טבעית, מונח לא עקבי, מספר/שם שגוי, שבירת שורה פוגעת,
 ומגדר לא עקבי — פנייה ונטיות של כל דובר ונמען לפי טבלת הדוברים בתדריך, לאורך כל הראיון.
@@ -378,6 +386,41 @@ class Pipeline:
                 break
         return n_err
 
+    # -------------------------------------------------------------- 5.5 שופט האיכות (v375, החלטה 4 — Haiku)
+    def judge(self):
+        """השופט במצב API: judge_prep (job.py) בונה מדגם מחבילת ביקורת טרייה, Haiku נותן ציון בלבד,
+        job.py judge מפענח. כבוי בחוקים (rl.jx) / מעט כתוביות — judge_prep מדלג. כשל שופט לא מפיל עבודה."""
+        try:
+            if self.J.judge_prep(SimpleNamespace()) != 0:
+                return
+        except SystemExit as e:
+            print(str(e))
+            return
+        st = self.J.load_state()
+        sample = self.pd / 'judge' / 'sample.md'
+        if not (st.get('jg') or {}).get('ids') or not sample.exists():
+            return
+        spent = self.eng.ledger.total()
+        if self.eng.cap is not None and spent is not None and spent >= self.eng.cap:
+            print('· תקרת העבודה נוצלה — מדלגים על השופט.')
+            return
+        self.ctx.report('rv', 0.9, 'שופט איכות עצמאי נותן ציון', force=True)
+        jeng = llm.Engine(llm.Spec('anthropic', 'claude-haiku-5-5', 'medium'), client=self.eng._client)
+        try:
+            res = jeng.complete('jg', '\n\n'.join([RULES, JG_TASK]),
+                                block('judge_sample', sample.read_text(encoding='utf-8')), max_tokens=4000)
+        except llm.LLMError as e:
+            print('· השופט נכשל (' + e.code + ') — ממשיכים בלעדיו.')
+            for r in jeng.ledger.list():                      # גם כשל עלה כסף — נרשם בספר הראשי
+                self.eng.ledger.add('jg', r['m'], r, r['usd'])
+            return
+        self.eng.ledger.add('jg', 'claude-haiku-5-5', res.usage, res.usd)
+        self.save_usage()
+        jd = self.pd / 'judge'
+        jd.mkdir(exist_ok=True)
+        (jd / 'verdict.txt').write_text(res.text.strip() + '\n', encoding='utf-8')
+        self.J.judge(SimpleNamespace())
+
     # -------------------------------------------------------------- 6. ביקורת
     def review(self):
         ctx = self.ctx
@@ -469,6 +512,7 @@ def run_auto(jobmod, args) -> int:
             pl.save_usage()
             if left:
                 raise llm.LLMError('check_errors', f'נשארו {left} שגיאות בבדיקה האוטומטית אחרי התיקונים')
+            pl.judge()                       # שופט האיכות (v375) — ציון בלבד, Haiku; כשל/כיבוי לא עוצרים
         pl.save_usage()
         return J.finish(SimpleNamespace(force=False))
     except llm.LLMError as e:
