@@ -69,7 +69,7 @@ class TestHebrew(unittest.TestCase):
         self.assertEqual(lines, ["שורה ראשונה", "שורה שנייה"])
 
     def test_dual(self):
-        self.assertEqual(dual_lines("באמת?", "- כן."), ["-באמת?", "-כן."])
+        self.assertEqual(dual_lines("באמת?", "- כן."), ["באמת?", "-כן."], "מקף צמוד לדובר השני בלבד (נטפליקס־עברית)")
 
     def test_rtl_mark(self):
         self.assertTrue(rtl("OpenAI הודיעה").startswith(RLM))
@@ -228,6 +228,41 @@ class TestTranslate(unittest.TestCase):
         self.assertIn("2024", txt)
         self.assertIn("שאלה", txt)
         self.assertEqual(st["glossary"], 0)
+
+    def test_cps_merge(self):
+        from vt.segment import cps_merge
+
+        def refit(c):
+            c["chars"] = len(c["he"])
+            c["lines"] = [c["he"]]
+            c["_fits"] = len(c["he"]) <= 84
+            return c["_fits"]
+        cues = [
+            {"id": 1, "spk": "S1", "speech_s": 0.0, "speech_e": 1.0, "he": "ש" * 30, "en": "a", "flags": ["reading_speed"]},
+            {"id": 2, "spk": "S1", "speech_s": 1.2, "speech_e": 3.4, "he": "ת" * 20, "en": "b", "flags": []},
+            {"id": 3, "spk": "S2", "speech_s": 9.0, "speech_e": 10.0, "he": "קצר", "en": "c", "flags": []},
+        ]
+        out, n = cps_merge([dict(c) for c in cues], C.TIMING, C.TEXT, refit)
+        self.assertEqual((n, len(out)), (1, 2))
+        self.assertEqual(out[0]["cps_merged"], [1, 2])
+        self.assertEqual(out[0]["speech_e"], 3.4)
+        self.assertEqual(out[0]["chars"], 51, "הטקסטים אוחדו ברווח אחד")
+        # בלי דגל קצב — אין מיזוג; דובר אחר — אין מיזוג
+        no_flag = [dict(c, flags=[]) for c in cues]
+        self.assertEqual(cps_merge(no_flag, C.TIMING, C.TEXT, refit)[1], 0)
+        other = [dict(cues[0]), dict(cues[1], spk="S2"), dict(cues[2])]
+        self.assertEqual(cps_merge(other, C.TIMING, C.TEXT, refit)[1], 0)
+        # מאוחדת שלא פותרת את הקצב (אין זמן גם יחד) — לא מתאחדת
+        tight = [dict(cues[0], he="ש" * 80), dict(cues[1], he="ת" * 80, speech_e=1.4),
+                 dict(cues[2], speech_s=1.6)]
+        self.assertEqual(cps_merge(tight, C.TIMING, C.TEXT, refit)[1], 0)
+
+    def test_nikud_is_error(self):
+        cues = [{"id": 1, "en": "Hello there.", "budget": 40, "spk": "S1"},
+                {"id": 2, "en": "Thanks.", "budget": 40, "spk": "S2"}]
+        issues, st = check(cues, {"1": "שָׁלוֹם לך.", "2": "תודה — באמת."}, [])
+        self.assertEqual(sum("ניקוד" in x for x in issues), 1, "ניקוד = שגיאה; מקף/גרש אינם ניקוד")
+        self.assertEqual(st["errors"], 1)
 
     def test_merges(self):
         cues = [{"id": 1, "en": "a", "speech_s": 0, "speech_e": 1, "w1": 1},

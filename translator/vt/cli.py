@@ -335,8 +335,8 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     meas = Measurer(C.FONTS_DIR / style.font_file, st.size, st.spacing, st.outline)
 
     final, warns = apply_merges(cues, he, tr.max_dur_s)
-    bad_fit = []
-    for c in final:
+
+    def refit(c):
         t = c["he"]
         if c.get("parts") and "||" in t:
             a_, b_ = t.split("||", 1)
@@ -346,9 +346,23 @@ def build(pr: Project, style_name: str | None = None) -> dict:
             lines, ok = break_lines(t.replace("||", " "), tx.max_chars_line, meas, st.max_line_px)
         c["lines"] = lines
         c["chars"] = sum(visible_len(x) for x in lines) + (len(lines) - 1)
-        if not ok:
-            bad_fit.append(c["id"])
+        c["_fits"] = ok
+        return ok
+
+    for c in final:
+        refit(c)
     time_cues(final, grid, shots, tr)
+    # מיזוג מונע־CPS: כתובית שנשארה מהירה מדי גם אחרי ההארכה מתאחדת עם שכנתה, והתזמון מחושב מחדש
+    from .segment import cps_merge
+    final, n_merged = cps_merge(final, tr, tx, refit)
+    if n_merged:
+        for c in final:
+            c["flags"] = []
+            for key in ("snap_in", "snap_out", "chained"):
+                c.pop(key, None)
+        time_cues(final, grid, shots, tr)
+        warns.append(f"מיזוג מונע־CPS: {n_merged} זוגות כתוביות אוחדו כדי לעמוד בקצב הקריאה")
+    bad_fit = [c["id"] for c in final if not c.pop("_fits", True)]
     issues = frame_check(final, grid)
     od = pr.out_dir
     od.mkdir(parents=True, exist_ok=True)
@@ -360,7 +374,7 @@ def build(pr: Project, style_name: str | None = None) -> dict:
     en_cues = [dict(c, en_lines=[c["en"]]) for c in final]
     write_text(od / "en.reference.srt", write_srt(en_cues, with_rlm=False, key="en_lines"))
     keep = ("id", "spk", "speech_s", "speech_e", "si", "so", "fi", "fo", "start", "end", "lines", "chars",
-            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged")
+            "cps", "flags", "en", "he", "snap_in", "snap_out", "chained", "merged", "cps_merged")
     write_json(od / "cues.final.json", [{k: c[k] for k in keep if k in c} for c in final])
     rep, stats = run_qc(final, words, tr, tx, grid.fps_f, shots, meas, st.max_line_px)
     extra = []
