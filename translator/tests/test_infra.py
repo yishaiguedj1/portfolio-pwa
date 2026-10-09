@@ -51,6 +51,11 @@ class Compose(unittest.TestCase):
                      '/etc/snb/worker.env', 'healthcheck:', 'mem_limit:', 'pids_limit:'):
             self.assertIn(need, c)
         self.assertNotIn('docker.sock', c, 'אסור לחשוף את Docker לקונטיינר (= root על השרת)')
+        # גבולות לפי גודל השרת בפועל — קבוע גדול מהשרת (cpus 7.5 בשרת של 4 ליבות) = הקונטיינר לא עולה
+        self.assertIn('cpus: ${SNB_CPUS:-', c)
+        self.assertIn('mem_limit: ${SNB_MEM:-', c)
+        common = read('infra/host/snb-common.sh')
+        self.assertLess(common.index('snb_compose() {'), common.index('\tsnb_limits\n'), 'כל הפעלה מחשבת את הגבולות')
 
 
 class Image(unittest.TestCase):
@@ -76,10 +81,28 @@ class Image(unittest.TestCase):
         self.assertIn(('torch', '2.11.0+cpu'), [(n.lower(), v) for n, v in reqs])
         self.assertIn('anthropic', names)
 
+    def test_two_architectures_same_versions(self):
+        # שרתי Arm (CAX) כשאין CX במלאי: אותה תמונה לשתי הארכיטקטורות, ואותן גרסאות בדיוק
+        pins = lambda f: re.findall(r'(?m)^([A-Za-z0-9_.\-\[\], ]+==\S+)', read(f))
+        self.assertEqual(pins('infra/worker/requirements.lock'), pins('infra/worker/requirements-arm64.lock'))
+        arm = read('infra/worker/requirements-arm64.lock')
+        self.assertIn('--python-platform aarch64-manylinux_2_28', arm)
+        for b in re.split(r'(?m)^(?=[A-Za-z])', arm):
+            if re.match(r'[A-Za-z]', b):
+                self.assertIn('--hash=sha256:', b, 'לכל חבילה hash: ' + b.split()[0])
+        d = read('infra/worker/Dockerfile')
+        self.assertIn('requirements-arm64.lock', d)
+        self.assertIn('arm64) f=linuxarm64; s="$FFMPEG_SHA256_ARM64"', d, 'ffmpeg של Arm, מאומת')
+        w = read('.github/workflows/worker-image.yml')
+        self.assertIn('ubuntu-24.04-arm', w, 'בנייה על מכונת Arm אמיתית, בלי אמולציה')
+        self.assertIn('[ "$archs" = "amd64 arm64" ]', w, 'לא נחתמת תמונה שחסרה בה ארכיטקטורה')
+
     def test_dockerignore_keeps_context_small(self):
         di = read('.dockerignore').splitlines()
         self.assertEqual(di[1], '*', 'ברירת המחדל: שום דבר לא נכנס')
         self.assertIn('!translator/', di)
+        for f in ('requirements.lock', 'requirements-arm64.lock'):
+            self.assertIn('!infra/worker/' + f, di, 'קובץ שה־Dockerfile מעתיק חייב להיכנס להקשר: ' + f)
 
 
 class Pipeline(unittest.TestCase):
@@ -93,6 +116,8 @@ class Pipeline(unittest.TestCase):
         self.assertIn('--new-bundle-format=false', w, 'חתימה גם בפורמט שה־cosign של Debian בשרת מכיר')
         self.assertIn('imagetools create -t "$IMAGE:prod" "$ref"', w, 'קידום = אותו digest, בלי בנייה מחדש')
         self.assertIn('unittest discover', w, 'בלי בדיקות ירוקות אין תמונה')
+        self.assertNotRegex(w, r'(?m)^concurrency:', 'בלי קבוצה ל־workflow כולו — קידום שמחכה לאישור עצר כל בנייה אחריו')
+        self.assertIn('group: worker-image-promote', w)
 
     def test_signer_identity_same_in_ci_and_server(self):
         w = read('.github/workflows/worker-image.yml')
