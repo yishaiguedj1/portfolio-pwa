@@ -915,8 +915,8 @@ class TestWorker(unittest.TestCase):
             {'type': 'user', 'timestamp': '2026-10-09T10:10:00Z', 'message': {'content': 'לפי translator/TRANSLATE.md'}},
             use('9', 'Write', {'file_path': '/x/tr/a.md'}, '2026-10-09T10:20:00Z')]) + '\n')
         t = J.trace(self.tmp / 'tproj')
-        self.assertEqual(t['a']['main'], {'n': 5, 'e': 1, 's': 300})
-        self.assertEqual(t['a']['tl'], {'n': 1, 'e': 0, 's': 600})
+        self.assertEqual(t['a']['main'], {'n': 5, 'e': 1, 's': 300, 'w': 1})   # v386: mcp = מחוץ לתפקיד
+        self.assertEqual(t['a']['tl'], {'n': 1, 'e': 0, 's': 600, 'w': 0})
         g = {k: (n, e) for k, n, e in t['g']}
         self.assertEqual(g['vt:tr-check'], (1, 1))
         self.assertEqual(g['job:align'], (1, 0))
@@ -927,6 +927,18 @@ class TestWorker(unittest.TestCase):
         pv = J.prompt_versions()
         self.assertEqual(sorted(pv), ['jg', 'rb', 'rv', 'tl'])   # v375: גם השופט
         self.assertTrue(all(len(v) == 8 for v in pv.values()))
+
+    def test_off_role(self):
+        """v386: "כלי נכון" — מה מחוץ לתפקיד של כל סוכן"""
+        sys.path.insert(0, str(HERE))
+        import job as J
+        for k in ('main', 'tl', 'rv', 'jg'):
+            self.assertTrue(J.off_role(k, 'WebFetch') and J.off_role(k, 'other'))
+        self.assertFalse(J.off_role('main', 'job:finish') or J.off_role('main', 'Agent'))
+        self.assertTrue(J.off_role('tl', 'job:finish') and J.off_role('rv', 'job:report') and J.off_role('tl', 'Agent'))
+        self.assertFalse(J.off_role('tl', 'job:stage') or J.off_role('rv', 'vt:tr-check') or J.off_role('tl', 'Edit') or J.off_role('rv', 'Bash'))
+        self.assertTrue(J.off_role('jg', 'vt:tr-check') and J.off_role('jg', 'Edit') and J.off_role('jg', 'job:stage'))
+        self.assertFalse(J.off_role('jg', 'Read') or J.off_role('jg', 'Write'))
 
     def test_quality(self):
         """v374: מדד האיכות — כל מדד = המשקל × חלק הכתוביות שעומדות בו; tr-check בכפייה = 0; בלי טקסט מהכתוביות"""

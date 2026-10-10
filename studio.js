@@ -454,9 +454,34 @@ export function normAgents(o) {
   const agents = o.agents.filter((x) => x && ['main', 'tl', 'rv', 'jg'].includes(x.k)).slice(0, 4).map((x) => ({
     k: x.k, m: /^claude-[a-z0-9-]{1,50}$/.test(String(x.m || '')) ? x.m : '', ef: ['low', 'medium', 'high', 'max'].includes(x.ef) ? x.ef : '',
     jobs: num(x.jobs, 1e4), usd: num(x.usd, 1e6), partial: x.partial === true, ok: typeof x.ok === 'number' ? num(x.ok, 100) : null,
-    n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true, q: typeof x.q === 'number' ? num(x.q, 100) : null }));
+    n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true, q: typeof x.q === 'number' ? num(x.q, 100) : null,
+    ...normEval(x), vs: (Array.isArray(x.vs) ? x.vs : []).filter((v) => v && /^[0-9a-f]{8}$/.test(String(v.p || ''))).slice(0, 3)
+      .map((v) => Object.assign({ p: v.p, jobs: num(v.jobs, 1e4), at: num(v.at, 1e14) }, normEval(v))) }));
   const ev = o.ev && /^[0-9a-f]{12}$/.test(String(o.ev.v || '')) ? { v: o.ev.v, n: num(o.ev.n, 1e3) } : null;
-  return { jobs: num(o.jobs, 1e4), agents, ev };
+  const risk = (Array.isArray(o.risk) ? o.risk : []).filter((r) => r && RISK_KEYS.includes(r.r) && ['w', 'm', 's'].includes(r.st)).slice(0, 3).map((r) => ({ r: r.r, st: r.st, n: num(r.n, 1e4) }));
+  return { jobs: num(o.jobs, 1e4), agents, ev, risk };
+}
+/* v386: מדדי הערכת סוכנים — שלמות (c), כלי נכון (t), קריאות תקינות (v), ציון (sc); w = פעולות מחוץ לתפקיד */
+const RISK_KEYS = ['inj', 'cost', 'loop'];
+function normEval(x) {
+  const p = (v) => (Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
+  return { c: p(x.c), t: p(x.t), v: p(x.v), sc: p(x.sc), w: Number.isInteger(x.w) && x.w >= 0 ? Math.min(x.w, 1e6) : 0 };
+}
+/* v386: "מומלץ לפעולה" (AI Control Tower) — מה כדאי לבדוק עכשיו; טהור. sh = מצב הצל של הספים (v384) */
+export const REC_DROP = 5, REC_TOOL = 95, REC_VALID = 85, REC_CMP = 80;
+export function agentRecs(ag, sh) {
+  const out = [];
+  for (const a of (ag && ag.agents) || []) {
+    const [v0, v1] = a.vs || [];
+    if (v0 && v1 && v0.sc != null && v1.sc != null && v0.sc < v1.sc - REC_DROP) out.push({ k: 'drop', a: a.k, from: v1.sc, to: v0.sc });
+    else if (a.pvNew && v0 && v0.jobs < 3) out.push({ k: 'new', a: a.k, n: 3 - v0.jobs });
+    if (a.t != null && a.t < REC_TOOL && a.w) out.push({ k: 'tool', a: a.k, n: a.w });
+    if (a.v != null && a.v < REC_VALID) out.push({ k: 'valid', a: a.k, n: a.v });
+    if (a.c != null && a.c < REC_CMP) out.push({ k: 'cmp', a: a.k, n: 100 - a.c });
+  }
+  const shn = Object.values(sh || {}).filter((n) => n > 0);
+  if (shn.length) out.push({ k: 'shadow', n: Math.max(...shn) });
+  return out;
 }
 /* v364: ספר התיקונים (מהשרתון, op status) — התיקון הוא טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד */
 export function normFb(a) {
@@ -2527,7 +2552,9 @@ function agentTile(k) { const t = h('span', 'st-agt a-' + k, agentAbbr(k)); t.se
 function agentsSection() {
   const ag = ui.ag;
   if (!ag || !ag.agents.length) return [];
-  return [secT(T('studioAgSec', { n: ag.jobs })), list(...ag.agents.map((a) => {
+  const recs = agentRecs(ag, ui.sh);   // v386: "מומלץ לפעולה" — שורה אחת בראש, הפרטים בבקרת הסוכנים
+  return [secT(T('studioAgSec', { n: ag.jobs })), list(recs.length ? rowNav({ tile: tile('alert', 'orange'), label: T('studioRecT'), sub: recText(recs[0]),
+    value: ltr(String(recs.length)), onClick: () => go('agents'), k: 'ag-recs' }) : null, ...ag.agents.map((a) => {
     const r = btn('st-row st-ric', null, () => go('agents'), 'ag:' + a.k);
     const l = h('span', 'st-l');
     const sub = h('small');
@@ -2538,9 +2565,45 @@ function agentsSection() {
     return r;
   }))];
 }
+function recText(r) {
+  const a = r.a ? agentName(r.a) : '';
+  switch (r.k) {
+    case 'drop': return T('studioRecDrop', { a, from: r.from, to: r.to });
+    case 'new': return r.n === 1 ? T('studioRecNew1', { a }) : T('studioRecNew', { a, n: r.n });
+    case 'tool': return r.n === 1 ? T('studioRecTool1', { a }) : T('studioRecTool', { a, n: r.n });
+    case 'valid': return T('studioRecValid', { a, n: r.n });
+    case 'cmp': return T('studioRecCmp', { a, n: r.n });
+    default: return r.n === 1 ? T('studioRecShadow1') : T('studioRecShadow', { n: r.n });
+  }
+}
+function riskName(r) {
+  switch (r) {
+    case 'inj': return T('studioRiskInj');
+    case 'cost': return T('studioRiskCost');
+    default: return T('studioRiskLoop');
+  }
+}
+function riskCtl(r) {
+  switch (r) {
+    case 'inj': return T('studioRiskInjC');
+    case 'cost': return T('studioRiskCostC');
+    default: return T('studioRiskLoopC');
+  }
+}
+const RISK_ST = { w: 'h', m: 'w', s: 'g' };
+function riskSt(st) { return st === 's' ? T('studioRiskS') : st === 'm' ? T('studioRiskM') : T('studioRiskW'); }
+const pctOr = (v) => (v == null ? '—' : ltr(v + '%'));
 function pageAgents(p) {
   const ag = ui.ag;
   p.append(navBar({ back: T('studioTwShort') }), large(T('studioAgT')), h('p', 'st-lede', ag ? T('studioAgLede', { n: ag.jobs }) : T('studioAgNone')));
+  // v386: מומלץ לפעולה — בראש
+  const recs = ag ? agentRecs(ag, ui.sh) : [];
+  if (recs.length) p.append(secT(T('studioRecT')), list(...recs.map((r, i) => {
+    const row = h('div', 'st-row st-ric');
+    row.dataset.k = 'rec:' + i;
+    row.append(tile(r.k === 'shadow' ? 'shield' : 'alert', r.k === 'drop' || r.k === 'valid' || r.k === 'cmp' ? 'orange' : 'blue'), rowTxt(recText(r)));
+    return row;
+  })));
   if (ag) for (const a of ag.agents) {
     const card = h('div', 'st-twcard st-agc');
     card.dataset.k = 'agc:' + a.k;
@@ -2553,11 +2616,36 @@ function pageAgents(p) {
     const g = h('div', 'st-kvg');
     g.append(kv(T('studioAgJobsK'), String(a.jobs)), kv(T('studioAgCost'), usdEl(a.usd, a.partial)),
       kv(T('studioAgOk'), a.ok == null ? '—' : ltr(a.ok + '%')), kv(T('studioAgActs'), a.n ? ltr(String(a.n)) + (a.e ? ' · ' + (a.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: a.e })) : '') : '—'),
-      kv(T('studioAgTime'), a.s >= 60 ? fmtShort(a.s) : '—'), kv(T('studioAgPv'), a.pv ? h('bdi', 'st-mono', a.pv) : '—'));
+      kv(T('studioAgTime'), a.s >= 60 ? fmtShort(a.s) : '—'), kv(T('studioEvSc'), a.sc == null ? '—' : ltr(String(a.sc))));   // v386: גרסת ההנחיות — במחזור החיים למטה
     if (a.k !== 'main') g.append(kv(T('studioQT'), a.q == null ? '—' : ltr(String(a.q))));   // v374: איכות ממוצעת של הכתוביות
     card.append(head, g);
+    if (a.sc != null) card.append(h('p', 'st-evl', T('studioEvLine', { c: pctOr(a.c), t: pctOr(a.t), v: pctOr(a.v) })));   // v386: שלמות · כלי נכון · קריאות תקינות
     p.append(card);
   }
+  // v386: מחזור החיים של ההנחיות — לכל סוכן: הגרסה הפעילה והקודמות, עם הציון של כל אחת
+  const life = ag ? ag.agents.filter((a) => a.vs.length) : [];
+  if (life.length) {
+    const rows = [];
+    for (const a of life) a.vs.forEach((v, i) => {
+      const r = h('div', 'st-row st-ric');
+      r.dataset.k = 'pv:' + a.k + ':' + v.p;
+      const sub = h('small');
+      sub.append(h('bdi', 'st-mono', v.p), ' · ' + T('studioAgJobs', { n: v.jobs }) + ' · ' + opsAgo(v.at));
+      const l = h('span', 'st-l'); l.append(h('b', null, agentName(a.k)), sub);
+      const val = h('span', 'st-v'); val.append(v.sc == null ? '—' : ltr(String(v.sc)));
+      r.append(agentTile(a.k), l, pill(i ? 'i' : 'g', i ? T('studioPvOld') : T('studioPvLive')), val);
+      rows.push(r);
+    });
+    p.append(secT(T('studioPvT')), list(...rows), note(T('studioPvNote')));
+  }
+  // v386: סיכון מול בקרה — מה מגן מכל סיכון, כמה חזק, וכמה פעמים פעל
+  if (ag && ag.risk.length) p.append(secT(T('studioRiskT')), list(...ag.risk.map((x) => {
+    const r = h('div', 'st-row');
+    r.dataset.k = 'risk:' + x.r;
+    const val = h('span', 'st-v'); val.append(ltr(String(x.n)));
+    r.append(rowTxt(riskName(x.r), riskCtl(x.r)), pill(RISK_ST[x.st], riskSt(x.st)), val);
+    return r;
+  })), note(T('studioRiskNote')));
   // הרשאות ורדיוס פגיעה — מה מותר לכל סוכן (אותו דבר לכולם: הם רצים באותו סשן). נאכף ב־setup.sh, בשרתון ובמגדל
   const perms = h('div', 'st-twcard st-perm');
   perms.append(h('small', 'st-rc-h', T('studioPermT')));

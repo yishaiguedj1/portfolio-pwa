@@ -2365,6 +2365,24 @@ function stubFetch(text, status = 200) {
       ok(JSON.parse(db.get('studioJobs/' + JG).fields.tr.stringValue).a.main.n === 33, 'סטודיו: עקיבה לא תקינה — נזרקת, הקודמת נשארת');
       await run({ op: 'remove', idToken: OWNER, job: JG });
     }
+    // v386: מדדי הערכת סוכנים (שלמות, כלי נכון, קריאות תקינות) לכל גרסת הנחיות, וסיכון מול בקרה — מאותה רשימה
+    {
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JE = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JE, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JE });
+      const KE = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JE, key: KE, ev: 'abcdef012345', pv: { rb: '33333333', tl: 'eeeeeeee', rv: 'ffffffff' } });
+      rr = await wrk({ op: 'report', job: JE, key: KE, done: true, usage: [{ k: 'tl', m: 'claude-opus-5-5', n: 9, i: 10, o: 1000, cr: 0, c5: 0, c1: 0, usd: 0.4 }],
+        trace: { a: { main: { n: 20, e: 0, s: 600, w: 0 }, tl: { n: 10, e: 1, s: 300, w: 1 } }, g: [['vt:align', 2, 0]] } });
+      ok(rr.payload.ok && JSON.parse(db.get('studioJobs/' + JE).fields.tr.stringValue).a.tl.w === 1, 'סטודיו: הערכת סוכנים — העקיבה שומרת פעולות מחוץ לתפקיד');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const tlA = rr.payload.ag.agents.find((x) => x.k === 'tl');
+      const vE = tlA && tlA.vs.find((x) => x.p === 'eeeeeeee');
+      ok(tlA && tlA.t === 90 && tlA.v === 90 && vE && vE.jobs === 1 && vE.t === 90, 'סטודיו: הערכת סוכנים — כלי נכון ופעולות תקינות, לגרסת ההנחיות');
+      ok(Array.isArray(rr.payload.ag.risk) && rr.payload.ag.risk.length === 3, 'סטודיו: סיכון מול בקרה — בתשובת הרשימה');
+      await run({ op: 'remove', idToken: OWNER, job: JE });
+    }
     now += 3600e3 + 1;
     studio._reset();
 

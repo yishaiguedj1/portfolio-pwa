@@ -490,6 +490,24 @@ def _tool_key(name, inp):
     return name if isinstance(name, str) and re.fullmatch(r'[A-Za-z]{1,24}', name) else 'other'
 
 
+# v386: "כלי נכון" (Agentic evaluation) — פעולה מחוץ לתפקיד של הסוכן. כולם: גלישה וכלים לא מוכרים (mcp);
+# המתרגם / המבקר: פקודות של מנהל העבודה (רק vt ו־stage מותרות) וסוכנים נוספים; השופט: רק קריאה וכתיבת הציון.
+ROLE_OFF_ALL = ('WebFetch', 'WebSearch', 'other')
+ROLE_SUB_JOB = ('job:vt', 'job:stage')
+
+
+def off_role(kind, key):
+    if key in ROLE_OFF_ALL:
+        return True
+    if kind in ('main', 'sub'):
+        return False
+    if key in ('Agent', 'Task', 'NotebookEdit'):
+        return True
+    if key.startswith('job:'):
+        return kind == 'jg' or key not in ROLE_SUB_JOB
+    return kind == 'jg' and (key.startswith('vt:') or key in ('Edit', 'MultiEdit'))
+
+
 def _ts(v):
     try:
         return datetime.fromisoformat(str(v).replace('Z', '+00:00')).timestamp()
@@ -525,9 +543,10 @@ def trace(root=None):
                     errs.add(c.get('tool_use_id'))
         if not uses and not ts:
             continue
-        a = agents.setdefault(kind, {'n': 0, 'e': 0, 's': 0})
+        a = agents.setdefault(kind, {'n': 0, 'e': 0, 's': 0, 'w': 0})
         a['n'] += len(uses)
         a['e'] += sum(1 for i in uses if i in errs)
+        a['w'] += sum(1 for k in uses.values() if off_role(kind, k))   # v386: מחוץ לתפקיד
         if len(ts) > 1:
             a['s'] += int(max(ts) - min(ts))
         for i, k in uses.items():

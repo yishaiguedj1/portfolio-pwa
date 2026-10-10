@@ -35,13 +35,59 @@ function agentsView(jobs, now) {
     const ended = ran.filter((j) => j.state === 'done' || j.state === 'failed');
     const ok = ended.filter((j) => j.state === 'done').length;
     const last = ran[ran.length - 1];
-    out.push({ k, m: model, ef: k === 'main' || k === 'jg' ? '' : effortOf(last.spec && last.spec.mode), jobs: ran.length, usd: r4(usd), partial,
+    // v386: הערכה לפי גרסת ההנחיות — הגרסאות האחרונות (החדשה ראשונה), כל אחת עם הציון שלה
+    const byV = new Map();
+    for (const j of ran) {
+      const v = j.pv && /^[0-9a-f]{8}$/.test(String(j.pv[pk] || '')) ? j.pv[pk] : '';
+      if (!v) continue;
+      if (!byV.has(v)) byV.set(v, []);
+      byV.get(v).push(j);
+    }
+    const vs = Array.from(byV.entries()).map(([p, js]) => Object.assign({ p, jobs: js.length, at: js[0].created || 0 }, evalOf(k, js)))
+      .sort((a, b) => b.at - a.at).slice(0, VS_MAX);
+    out.push(Object.assign({ k, m: model, ef: k === 'main' || k === 'jg' ? '' : effortOf(last.spec && last.spec.mode), jobs: ran.length, usd: r4(usd), partial,
       ok: ended.length ? Math.round(100 * ok / ended.length) : null, n, e, s: sec,
-      pv, pvs: pvs.size, pvNew: !!(pv && pvs.size > 1 && now - pvAt < NEW_MS), q: qn ? Math.round(qs / qn) : null });
+      pv, pvs: pvs.size, pvNew: !!(pv && pvs.size > 1 && now - pvAt < NEW_MS), q: qn ? Math.round(qs / qn) : null, vs }, evalOf(k, ran)));
   }
   // גרסת הסביבה (v371) — האחרונה, וכמה גרסאות היו בחודש
   const evs = list.filter((j) => /^[0-9a-f]{12}$/.test(String(j.ev || '')));
-  return { jobs: list.length, agents: out, ev: evs.length ? { v: evs[evs.length - 1].ev, n: new Set(evs.map((j) => j.ev)).size } : null };
+  return { jobs: list.length, agents: out, ev: evs.length ? { v: evs[evs.length - 1].ev, n: new Set(evs.map((j) => j.ev)).size } : null, risk: riskView(list) };
+}
+/* v386: מדדי הערכת סוכנים (ServiceNow: Agentic evaluation) — אחרי ריצה, מהיומנים, בלי טוקנים:
+   c שלמות = הסוכן השלים את החלק שלו (מנהל העבודה — העבודה הסתיימה; המתרגם / המבקר — השלב שלו נסגר; השופט — נתן ציון), מתוך העבודות שנגמרו;
+   t כלי נכון = פעולות בתוך התפקיד (העקיבה סופרת w — מחוץ לתפקיד; עקיבה ישנה בלי w לא נספרת);
+   v קריאות תקינות = פעולות שלא נכשלו. sc = ממוצע המדדים שיש. */
+const VS_MAX = 3;
+const STAGE_OF = { tl: 'tl', rv: 'rv' };
+function completed(k, j) {
+  if (k === 'main') return j.state === 'done';
+  if (k === 'jg') return !!(j.jd && typeof j.jd.s === 'number');
+  const g = j.prog && j.prog.stg && j.prog.stg[STAGE_OF[k]];
+  return !!(g && g.e);
+}
+const pct = (a, b) => (b > 0 ? Math.round(100 * a / b) : null);
+function evalOf(k, js) {
+  const ended = js.filter((j) => j.state === 'done' || j.state === 'failed');
+  let n = 0, e = 0, tn = 0, w = 0;
+  for (const j of js) {
+    const t = j.tr && j.tr.a && j.tr.a[k];
+    if (!t) continue;
+    n += t.n || 0; e += t.e || 0;
+    if (typeof t.w === 'number') { tn += t.n || 0; w += t.w; }
+  }
+  const c = pct(ended.filter((j) => completed(k, j)).length, ended.length), tl = pct(tn - w, tn), v = pct(n - e, n);
+  const have = [c, tl, v].filter((x) => x != null);
+  return { c, t: tl, v, w, sc: have.length ? Math.round(have.reduce((a, x) => a + x, 0) / have.length) : null };
+}
+/* v386: סיכון מול בקרה (AI Control Tower · Risk) — לכל סיכון: הבקרה שקיימת, כמה היא חזקה (קבוע — מה שנאכף בקוד), וכמה פעמים פעלה ב־30 יום */
+const RISKS = [['inj', 'm'], ['cost', 's'], ['loop', 's']];
+function riskView(list) {
+  const hit = {
+    inj: list.filter((j) => j.ij && j.ij.n > 0).length,
+    cost: list.filter((j) => j.err === 'budget_stop' || (j.tw && (j.tw.why === 'cost' || j.tw.why === 'cap') && (j.tw.lv === 'red' || j.err === 'tower_stop'))).length,
+    loop: list.filter((j) => (j.tw && (j.tw.why === 'loop' || j.tw.why === 'calls') && (j.tw.lv === 'red' || j.err === 'tower_stop')) || (Array.isArray(j.rh) && j.rh.length >= 2)).length,
+  };
+  return RISKS.map(([r, st]) => ({ r, st, n: hit[r] }));
 }
 
-module.exports = { KEEP, NEW_MS, AGENTS, effortOf, agentsView };
+module.exports = { KEEP, NEW_MS, AGENTS, effortOf, agentsView, VS_MAX, evalOf, completed, RISKS, riskView };

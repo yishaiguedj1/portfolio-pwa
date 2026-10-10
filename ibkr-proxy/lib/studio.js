@@ -494,6 +494,7 @@ function normTrace(t) {
     const n = int(v.n, 1e6), e = int(v.e, 1e6), sec = int(v.s, 1e7);
     if (n == null || e == null || sec == null || e > n) return null;
     a[k] = { n, e, s: sec };
+    if (v.w != null) { const w = int(v.w, 1e6); if (w == null || w > n) return null; a[k].w = w; }   // v386: פעולות מחוץ לתפקיד (אופציונלי — עקיבה ישנה בלי)
   }
   if (!Object.keys(a).length) return null;
   const g = [];
