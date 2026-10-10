@@ -30,6 +30,7 @@ const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ו
 const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נלמד לכל שלב
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
+const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -157,6 +158,33 @@ const readStats = async (deps, uid) => { try { const d = await readDoc(deps, 'st
 const patchVault = (deps, uid, o) => patchDoc(deps, 'studioVault', uid, o);
 
 /* ---------- הפעלת ה־Routine ---------- */
+/* שלב 4 (10/10/2026): התראות לטלפון. מפתחות ה־VAPID נוצרים פעם אחת ונשמרים מוצפנים בכספת (studioVault/_vapid —
+   מזהה שלא יכול להיות uid). יצירה רק אם אין (currentDocument.exists=false): שתי בקשות במקביל — אחת נשמרת, השנייה קוראת */
+const VAPID_DOC = '_vapid', VAPID_AAD = 'webpush|vapid';
+async function vapidKeys(deps) {
+  const d = await readDoc(deps, 'studioVault', VAPID_DOC).catch(() => null);
+  if (d && d.vk) { const v = vault.open(d.vk, VAPID_AAD); if (v && v.pub && v.d) return v; }
+  const v = W.genVapid();
+  const r = await fsCall(deps, 'PATCH', '/studioVault/' + VAPID_DOC + '?updateMask.fieldPaths=vk&updateMask.fieldPaths=pub&currentDocument.exists=false',
+    { fields: S.toFields({ vk: vault.seal(v, VAPID_AAD), pub: v.pub }) });
+  if (r.status === 200) return v;
+  const d2 = await readDoc(deps, 'studioVault', VAPID_DOC);
+  const v2 = d2 && d2.vk ? vault.open(d2.vk, VAPID_AAD) : null;
+  if (!v2 || !v2.pub) throw new Error('vapid');
+  return v2;
+}
+/* התראה לכל המכשירים של המשתמש — רק סוג האירוע ומזהה העבודה. תקלה כאן לא מפילה שום דבר */
+async function notify(deps, uid, kind, jobId, now) {
+  try {
+    const st = await readStats(deps, uid);
+    const subs = W.normSubs(st.wp);
+    if (!subs.length) return 0;
+    const r = await W.sendAll(deps, await vapidKeys(deps), subs, kind, jobId, now);
+    if (r.subs.length !== subs.length) await patchDoc(deps, 'studioStats', uid, { wp: r.subs, updated: now }).catch(() => {});
+    return r.sent;
+  } catch (e) { return 0; }
+}
+
 async function fire(deps, v, uid, text) {
   const conn = vault.open(v && v.r, AAD(uid));
   if (!conn || !conn.u || !conn.k) return { ok: false, error: 'conn_missing' };
@@ -585,6 +613,11 @@ async function worker(req, res, body, deps) {
       if (up.state === 'done') await closeJobOps(deps, job.uid, id, now, true);
       else await raise(deps, job.uid, O.normEvents(body.ev).concat(up.tw ? O.towerEvents(up.tw) : [], up.qa && up.qa.g === 'b' ? [{ c: 'claude', k: 'budget' }] : []), id, now);
     }
+    if (job.kind === 'tr') {
+      // שלב 4: התראה לטלפון — מוכן / נעצרה (לא כשממתינים להמשך אוטומטי) / שאלה / אישור
+      const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : '';
+      if (kind) await notify(deps, job.uid, kind, id, now);
+    }
     if (job.kind === 'tr' && up.state === 'done') {
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
       const smp = S.normSample(job, up.use || job.use, now);
@@ -687,8 +720,34 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
-        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
+        norm: S.normsView(st.ns), wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now), now });   // v367: החוקים ומתג החירום
+    }
+    if (op === 'push') {
+      // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
+      const act = String(body.act || '');
+      if (act === 'key') return res.status(200).json({ ok: true, key: (await vapidKeys(deps)).pub });
+      const st = await readStats(deps, uid);
+      if (act === 'on') {
+        const sub = W.normSub(Object.assign({}, body.sub, { l: body.lang }));
+        if (!sub) return res.status(400).json({ ok: false, error: 'bad_sub' });
+        const wp = W.addSub(st.wp, sub, now);
+        await patchDoc(deps, 'studioStats', uid, { wp, updated: now });
+        return res.status(200).json({ ok: true, n: wp.length });
+      }
+      if (act === 'off') {
+        const wp = W.dropSub(st.wp, body.e);
+        await patchDoc(deps, 'studioStats', uid, { wp, updated: now });
+        return res.status(200).json({ ok: true, n: wp.length });
+      }
+      if (act === 'test') {
+        if (limited('pt|' + uid, 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+        const subs = W.normSubs(st.wp);
+        const r = subs.length ? await W.sendAll(deps, await vapidKeys(deps), subs, 'test', '', now) : { subs, sent: 0 };
+        if (r.subs.length !== subs.length) await patchDoc(deps, 'studioStats', uid, { wp: r.subs, updated: now }).catch(() => {});
+        return res.status(200).json({ ok: true, sent: r.sent, n: r.subs.length });
+      }
+      return res.status(400).json({ ok: false, error: 'bad_act' });
     }
     if (op === 'rules') {
       // v367: החוקים שלך — נשמרים בחשבון; חלים על עבודות שמתחילות מעכשיו (והתקציב — גם על עבודה רצה, בבדיקה הבאה של המגדל אחרי "המשך")

@@ -1183,11 +1183,12 @@ function stubFetch(text, status = 200) {
     // Firestore מדומה: כמה אוספים, כתיבה חלקית (updateMask) ושאילתת runQuery לפי uid
     const db = new Map();   // 'col/id' → { fields }
     const calls = [];
-    let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0);
+    let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0), pushes = [];
     let driveQuota = { limit: '16106127360', usage: '1000' }, driveListFail = false;   // v378: המכסה ותקלה ברשימה
     const J = (o, st = 200, hd = {}) => ({ status: st, json: async () => o, headers: { get: (k) => hd[String(k).toLowerCase()] || null } });
     const fake = async (url, opt = {}) => {
       calls.push({ url, method: opt.method || 'GET', body: opt.body || '' });
+      if (url.startsWith('https://fcm.googleapis.com/fcm/send/')) { pushes.push({ url, headers: opt.headers, body: opt.body }); return J({}, url.includes('gone') ? 410 : 201); }   // שלב 4: שירות ה־push
       if (url.includes('oauth2.googleapis.com/token')) {
         const p = new URLSearchParams(opt.body || '');
         if (p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
@@ -2681,6 +2682,71 @@ function stubFetch(text, status = 200) {
     ok(r.payload.ok && r.payload.token === 'DRIVE-AT' && r.payload.email === 'drive.owner@example.com', 'סטודיו: גישה זמנית ל־Drive לטלפון (העלאה)');
     r = await run({ op: 'drive', idToken: FRIEND });
     ok(!r.payload.ok && r.payload.error === 'not_connected', 'סטודיו: בלי Drive מחובר — שגיאה ברורה');
+
+    // שלב 4 (10/10/2026): התראות לטלפון — Web Push עצמאי (RFC 8291/8292), מפתח VAPID בכספת, רק סוג האירוע
+    {
+      const W = require('../lib/webpush');
+      const body = W.encrypt({ p: 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', a: 'BTBZMqHH6r4Tts7J_aSIgg' },
+        'When I grow up, I want to be a watermelon', { asPriv: 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw', salt: 'DGv6ra1nlYgDCS1FRnbzlw' });
+      ok(W.b64u(body) === 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN',
+        'push: ההצפנה זהה לוקטור הבדיקה של RFC 8291');
+      const ua = crypto.createECDH('prime256v1'); ua.generateKeys();
+      const auth = crypto.randomBytes(16);
+      const sub = (e) => ({ endpoint: e, keys: { p256dh: W.b64u(ua.getPublicKey()), auth: W.b64u(auth) } });
+      ok(!W.normSub(sub('https://evil.com/fcm/send/x')) && !W.normSub(sub('http://fcm.googleapis.com/fcm/send/x')) && !W.normSub(sub('https://fcm.googleapis.com:8443/x'))
+        && W.normSub(sub('https://fcm.googleapis.com/fcm/send/abc')) && W.normSub(sub('https://web.push.apple.com/x')), 'push: רק שירותי push מוכרים ב־https (בלי SSRF)');
+      // פענוח בצד "הטלפון" (RFC 8291 הפוך) — לוודא שמה שנשלח הוא רק סוג האירוע
+      const decrypt = (buf) => {
+        const salt = buf.subarray(0, 16), idlen = buf[20], asPub = buf.subarray(21, 21 + idlen), ct = buf.subarray(21 + idlen);
+        const ikm = crypto.hkdfSync('sha256', ua.computeSecret(asPub), auth, Buffer.concat([Buffer.from('WebPush: info\0'), ua.getPublicKey(), asPub]), 32);
+        const cek = crypto.hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
+        const nonce = crypto.hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: nonce\0'), 12);
+        const d = crypto.createDecipheriv('aes-128-gcm', Buffer.from(cek), Buffer.from(nonce));
+        d.setAuthTag(ct.subarray(ct.length - 16));
+        const pt = Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()]);
+        return JSON.parse(pt.subarray(0, pt.length - 1).toString());
+      };
+      r = await run({ op: 'push', idToken: OWNER, act: 'key' });
+      const k1 = r.payload.key;
+      r = await run({ op: 'push', idToken: OWNER, act: 'key' });
+      const vd = db.get('studioVault/_vapid');
+      ok(k1 && k1.length === 87 && r.payload.key === k1 && vd && !vd.fields.d && vault.open(vd.fields.vk.stringValue, 'webpush|vapid').pub === k1, 'push: מפתח VAPID נוצר פעם אחת, הפרטי מוצפן בכספת');
+      r = await run({ op: 'push', idToken: OWNER, act: 'on', sub: sub('https://evil.com/x') });
+      ok(r.statusCode === 400, 'push: מנוי לשרת לא מוכר — נדחה');
+      await run({ op: 'push', idToken: OWNER, act: 'on', sub: sub('https://fcm.googleapis.com/fcm/send/dev1'), lang: 'en' });
+      r = await run({ op: 'push', idToken: OWNER, act: 'on', sub: sub('https://fcm.googleapis.com/fcm/send/gone2') });
+      ok(r.payload.n === 2, 'push: שני מכשירים');
+      pushes = [];
+      r = await run({ op: 'push', idToken: OWNER, act: 'test' });
+      const p0 = pushes[0];
+      ok(r.payload.sent === 1 && r.payload.n === 1 && pushes.length === 2 && p0.headers['Content-Encoding'] === 'aes128gcm' && /^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=/.test(p0.headers.Authorization) && p0.headers.TTL,
+        'push: התראת בדיקה — מוצפנת עם VAPID; מכשיר שהמנוי שלו בוטל (410) יוצא מהרשימה');
+      ok(decrypt(p0.body).t === 'Notifications work ✓', 'push: הטלפון מפענח — בשפה שבחר (אנגלית)');
+      r = await run({ op: 'status', idToken: OWNER });
+      ok(r.payload.wpN === 1, 'push: מספר המכשירים במצב הסטודיו');
+      // עבודה אמיתית: שאלה ← התראה, סיום ← התראה; בלי שם הקובץ
+      for (const j of (await run({ op: 'jobs', idToken: OWNER })).payload.jobs) if (j.state === 'new') await run({ op: 'remove', idToken: OWNER, job: j.id });
+      const c = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const jid = c.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: jid, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      now += 61 * 60e3;   // אחרי מגבלת ההפעלות לשעה של התרחישים הקודמים
+      const st0 = await run({ op: 'start', idToken: OWNER, job: jid, mo: true, ov: true });
+      const kk = keyOf(fires[fires.length - 1]);
+      const cl = await wrk({ op: 'claim', job: jid, key: kk });
+      ok(st0.payload.ok && cl.payload.ok, 'push: עבודת תרגום הופעלה ונלקחה (' + (st0.payload.error || '') + ')');
+      pushes = [];
+      await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.5 });
+      ok(pushes.length === 0, 'push: דיווח התקדמות רגיל — בלי התראה');
+      await wrk({ op: 'report', job: jid, key: kk, ask: { id: 'q1', q: 'Ackman או אקמן?', o: ['אקמן', 'Ackman'], d: 0, w: 600 } });
+      const m1 = decrypt(pushes[0].body);
+      ok(pushes.length === 1 && m1.k === 'ask' && m1.j === jid && m1.u.endsWith('#studio=' + jid), 'push: שאלה מ־Claude → התראה עם קישור לעבודה');
+      await wrk({ op: 'report', job: jid, key: kk, done: true });
+      const m2 = decrypt(pushes[1].body), all = pushes.map((x) => JSON.stringify(decrypt(x.body))).join();
+      ok(m2.k === 'done' && !/Ackman|interview|mkv/i.test(all), 'push: סיום → "התרגום מוכן"; בלי שם הקובץ ובלי תוכן העבודה');
+      r = await run({ op: 'push', idToken: OWNER, act: 'off', e: 'https://fcm.googleapis.com/fcm/send/dev1' });
+      ok(r.payload.n === 0, 'push: ביטול במכשיר');
+      await run({ op: 'remove', idToken: OWNER, job: jid });
+    }
 
     // ניתוק
     r = await run({ op: 'disconnect', idToken: OWNER });

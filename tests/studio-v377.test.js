@@ -30,7 +30,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/body\.wv === true/.test(api) && /\(body\.st \|\| body\.done === true \|\| body\.fail === true\)/.test(api), 'המתנה לסרטון: אירוע בודד לא מסיים אותה');
   ok(/patch\.pz = \(job\.pz \|\| 0\) \+ Math\.max\(0, now - job\.ended\)/.test(api), '"המשך": הזמן מאז העצירה לא נספר');
   ok(/va: L\.valueView\(list, now, ic \? ic\.hpc : 0\)/.test(api) && /op === 'price'/.test(api), 'הערך מגיע עם רשימת העבודות; המחיר נשמר ב־op אחד');
-  ok(/sla: SLA\.slaView\(job, now\)/.test(read('ibkr-proxy/lib/studio.js')) && /'tg'(, 'sc')?(, 'et', 'ep')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'publicJob מחזיר את היעדים');
+  ok(/sla: SLA\.slaView\(job, now\)/.test(read('ibkr-proxy/lib/studio.js')) && /'tg'(, 'sc')?(, 'et', 'ep')?(, 'wp')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'publicJob מחזיר את היעדים');
 
   /* ---------- 2. העובד ---------- */
   ok(/ctx\.report\(stage, None, msg, force=True, wv=True\)/.test(read('translator/job.py')), 'העובד: מחכים לסרטון — wv (השעון עוצר)');

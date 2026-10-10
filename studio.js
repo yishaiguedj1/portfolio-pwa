@@ -3378,6 +3378,15 @@ function pageSettings(p) {
   const drows = [drow];
   if (!dr || !dr.connected) { const b = btn('st-row st-act', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'drive-connect'); b.disabled = ui.driveBusy || blocked(); drows.push(b); }
   p.append(secT(T('studioSecDrive')), list(...drows), note(T('studioDriveNote')));
+  // שלב 4: התראות לטלפון — מתג אחד; בדיקה כשפועל
+  if (ui.push == null) refreshPush().then(() => { if (root && ui.view === 'settings') render('none'); });
+  const pst = ui.push || 'off';
+  const prow = rowSwitch({ label: T('studioPushT'), sub: ui.pushBusy ? T('studioPushBusy') : pst === 'on' ? T('studioPushOnS') : pst === 'denied' ? T('studioPushDenied') : pst === 'na' ? T('studioPushNa') : T('studioPushOffS'),
+    on: pst === 'on', onClick: () => (pst === 'on' ? pushOff() : pushOn()), k: 'push' });
+  if (pst === 'na' || pst === 'denied' || ui.pushBusy) prow.disabled = true;
+  const prows = [prow];
+  if (pst === 'on') prows.push(btn('st-row st-act', T('studioPushTest'), pushTest, 'push-test'));
+  p.append(secT(T('studioSecPush')), list(...prows));
   // העלאה
   p.append(secT(T('studioSecUpload')), list(
     rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' })));
@@ -3388,6 +3397,62 @@ function pageSettings(p) {
     rowNav({ label: T('studioTo'), value: langsSum(s.to), onClick: () => go('lang', 'def'), k: 'def:to' }),
     rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
     rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' })));
+}
+/* ---------------- שלב 4: התראות לטלפון (Web Push, 10/10/2026) ----------------
+   המפתח הציבורי מהשרתון; המנוי של הדפדפן נשלח אליו. ההתראות עצמן — רק סוג האירוע ומזהה העבודה (בלי שם קובץ).
+   requestPermission בתוך הנגיעה (פעולה ראשונה אחרי הלחיצה). ui.push: on / off / denied / na */
+const PUSH_OK = typeof window !== 'undefined' && typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+export function b64uBytes(s) {
+  const str = String(s || '');
+  const b = atob((str + '='.repeat((4 - str.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, (c) => c.charCodeAt(0));
+}
+async function pushSub() {
+  try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); } catch (e) { return null; }
+}
+async function refreshPush() {
+  if (!PUSH_OK) { ui.push = 'na'; return; }
+  const sub = await pushSub();
+  ui.push = Notification.permission === 'denied' ? 'denied' : sub && Notification.permission === 'granted' ? 'on' : 'off';
+}
+async function pushOn() {
+  if (ui.pushBusy || !PUSH_OK) return;
+  ui.pushBusy = true;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { ui.push = perm === 'denied' ? 'denied' : 'off'; return; }
+    render('none');
+    const k = await net.api('push', { act: 'key' });
+    if (!k.ok || !k.key) throw new Error(k.error || 'key');
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(k.key) });
+    const lang = String(document.documentElement.lang || 'he').startsWith('en') ? 'en' : 'he';
+    const j = await net.api('push', { act: 'on', sub: sub.toJSON(), lang });
+    if (!j.ok) throw new Error(j.error || 'on');
+    ui.push = 'on';
+    flashSafe(T('studioPushOnDone'));
+  } catch (e) {
+    flashSafe(T('studioPushErr'));
+  } finally {
+    ui.pushBusy = false;
+    if (root) render('none');
+  }
+}
+async function pushOff() {
+  if (ui.pushBusy) return;
+  ui.pushBusy = true;
+  try {
+    const sub = await pushSub();
+    if (sub) { await net.api('push', { act: 'off', e: sub.endpoint }); await sub.unsubscribe().catch(() => {}); }
+    ui.push = 'off';
+  } finally {
+    ui.pushBusy = false;
+    if (root) render('none');
+  }
+}
+async function pushTest() {
+  const j = await net.api('push', { act: 'test' });
+  flashSafe(j.ok && j.sent ? T('studioPushTestSent') : T('studioPushErr'));
 }
 /* ---------------- מסך השרת (מצב API של המערכת) ----------------
    השרת לא פתוח לאינטרנט — הוא שואל את השרתון כל 20 שנ׳ ומדווח דופק. כאן רואים אותו ומנהלים אותו (המנהל בלבד):
@@ -3745,7 +3810,8 @@ function closeStudio(instant) {
 }
 export function openStudio(opt) {
   ensureCss();
-  if (root) return;
+  const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
+  if (root) { if (jobLink && jobRec(jobLink)) go('job', jobLink); return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
   root = h('div', 'st-root no-swipe');
@@ -3785,7 +3851,10 @@ export function openStudio(opt) {
   render('none');
   if (restore) curtainDown();
   try { root.focus({ preventScroll: true }); } catch (e) {}
-  refreshStatus(true); refreshJobs(true);
+  refreshStatus(true);
+  const jobs0 = refreshJobs(true);
+  // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
+  if (jobLink) { if (jobRec(jobLink)) go('job', jobLink); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) go('job', jobLink); }); }
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);

@@ -201,7 +201,7 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   ok(R('location.hash') === '#tab=stocks', 'v353: ‎app= ו־‎n= נמחקים, ‎tab= נשאר לטיפול');
   R("location.hash = '#app=0&n=k2x9'; appSessionFromHash();");
   ok(R('location.hash') === '', 'v353: פתיחה רגילה מהאפליקציה — כתובת נקייה (בלי ‎#n=)');
-  ok(/document\.addEventListener\('visibilitychange', onShow\)/.test(app) && /\(\?:tab\|stock\)=/.test(app), 'v353: קישור שממתין בכתובת מטופל כשהדף חוזר למסך');
+  ok(/document\.addEventListener\('visibilitychange', onShow\)/.test(app) && /\(\?:tab\|stock(\|studio)?\)=/.test(app), 'v353: קישור שממתין בכתובת מטופל כשהדף חוזר למסך');
   ok(/function appLinkUnwind\(\)[\s\S]{0,300}navCurDepth\(\) - navDepth\(currentTabName\(\)\)\) \+ \(st\.modal \|\| 0\)[\s\S]{0,60}navBack\(-n\)/.test(app), 'v353: אחרי הקישור חוזרים מעל רשומות עמוד משנה/חלון');
 }
 
