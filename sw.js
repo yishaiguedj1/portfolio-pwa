@@ -1,7 +1,7 @@
 /* Service Worker — תיק ההשקעות PWA
  * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
  */
-const CACHE_NAME = 'portfolio-pwa-v380';
+const CACHE_NAME = 'portfolio-pwa-v381';
 
 const APP_SHELL = [
   './',
@@ -103,4 +103,28 @@ self.addEventListener('fetch', (event) => {
       });
     })
   );
+});
+
+// שלב 4 בסטודיו (10/10/2026): התראות לטלפון. התוכן מוצפן מקצה לקצה (RFC 8291) ומכיל רק כותרת, שורה,
+// סוג האירוע ומזהה העבודה — בלי שם קובץ. נגיעה = פתיחת האפליקציה על העבודה (‎#studio=<id>, openStockFromHash).
+self.addEventListener('push', (event) => {
+  let m = {};
+  try { m = event.data ? event.data.json() : {}; } catch (e) { m = {}; }
+  const title = String(m.t || 'THE SNOWBALL').slice(0, 80);
+  const url = /^https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/(#studio=j[A-Za-z0-9_-]{20})?$/.test(String(m.u || '')) ? m.u : './';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: String(m.b || '').slice(0, 160), icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
+    tag: m.j ? 'studio-' + m.j : 'studio', renotify: m.k === 'ask' || m.k === 'gate', data: { url },
+  }));
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || './', self.registration.scope).href;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      if (w.url.startsWith(self.registration.scope) && 'focus' in w) { try { await w.navigate(url); } catch (e) {} return w.focus(); }
+    }
+    return self.clients.openWindow(url);
+  })());
 });
