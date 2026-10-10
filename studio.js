@@ -22,8 +22,9 @@ export const MODES = [
   { id: 'opus-medium', fam: 'opus', effort: 'Medium', q: 4, u: 5, min: 105 },
   { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85, rec: true },
   { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 4, min: 95 },
-  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 75 },
-  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 80 },
+  // Haiku: min מהמדידות — זמן קבוע (תמלול, יישור, צריבה ‎~52 דק׳ לשעה) + חלק ה־LLM (Opus ‎~53) × המהירות היחסית
+  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 70 },
+  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76 },
 ];
 export const DEFAULT_MODE = 'sonnet-medium';
 // מצבים שהוסרו → המצב הקיים הקרוב (= LEGACY_MODES בשרתון ובעובד): עבודה / טיוטה / חוק ישנים ממשיכים לעבוד

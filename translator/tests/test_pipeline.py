@@ -127,6 +127,22 @@ class PureTests(unittest.TestCase):
         self.assertEqual((list(hard), list(soft)), (['1'], ['2']), 'לועזית (שם מותג) לא נשלחת לתיקון')
 
 
+class HaikuPureTests(unittest.TestCase):
+    def test_source_window_and_split_package(self):
+        head, parts = P.parse_source(SOURCE)
+        w = P.source_window(head, parts, 0, radius=0)
+        self.assertIn('#1 ≤40 Hello', w)
+        self.assertNotIn('#3', w, 'חלון של החלק בלבד')
+        self.assertIn('קטע מהמקור — חלקים 1–1 מתוך 2', w)
+        pkg = ('# חבילה\n\n## תדריך\n\nת\n\n## כתוביות (…)\n\n**S1 · 00:00:01**\n#1 Hello\n→ שלום\n#2 Thanks\n→ תודה\n'
+               '**S2 · 00:00:09**\n#3 Netflix\n→ נטפליקס\n')
+        sl = P.split_package(pkg, 2)
+        self.assertEqual(len(sl), 2)
+        self.assertTrue(all('## תדריך' in x for x in sl), 'כל קטע עם התדריך והמילון')
+        self.assertEqual([sorted(re.findall(r'#(\d+) ', x)) for x in sl], [['1', '2'], ['3']], 'בגבולות כתובית, בלי כפילות')
+        self.assertEqual(P.split_package('#1 a\n→ b\n', 3), ['#1 a\n→ b\n'], 'בלי כותרת — כמו שהיא')
+
+
 class FlowTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -266,7 +282,7 @@ class FlowTests(unittest.TestCase):
         J.judge_prep, J.judge, J.load_state = judge_prep, judge_read, lambda: getattr(J, 'st', {})
 
         def h(kw):
-            self.assertEqual(kw['model'], 'claude-haiku-5-5', 'השופט תמיד Haiku — לא המודל של העבודה')
+            self.assertEqual(kw['model'], 'claude-haiku-5-5', 'מתרגם Opus → השופט Haiku (משפחה אחרת, זול)')
             self.assertIn('<judge_sample>', kw['messages'][0]['content'], 'המדגם = נתונים בגבולות מסומנים')
             return msg('#1 5 ok\n#2 4 flu')
         pl = P.Pipeline(self.ctx, J, self.engine(h, 'opus-medium'))
@@ -274,6 +290,53 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(J.verdict, '#1 5 ok\n#2 4 flu\n')
         rows = {r['k']: r for r in pl.eng.ledger.list()}
         self.assertEqual(rows['jg']['m'], 'claude-haiku-5-5', 'עלות השופט נרשמת בספר של העבודה')
+
+    def test_haiku_over_card_windowed_and_review_slices(self):
+        """Haiku מעל סף ה־100K: כל חלק עם חלון מהמקור, והביקורת בקטעים — כל בקשה בכרטיס הזול."""
+        old = dict(llm.CARD_LIMIT)
+        llm.CARD_LIMIT['claude-haiku-5-5'] = 10                           # סף זעיר — תמיד "מעל"
+        try:
+            def h(kw):
+                p = kw['messages'][0]['content']
+                if 'חלק 1/2' in p:
+                    return msg('#1 שלום\n#2 תודה')
+                if 'חלק 2/2' in p:
+                    return msg('#3 נטפליקס')
+                if '<review_package>' in p:
+                    return msg('')
+                raise AssertionError(p[:80])
+            pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-medium'))
+            pl.translate()
+            src = [c['system'][0]['text'] for c in self.client.calls]
+            self.assertTrue(all('קטע מהמקור' in t for t in src), 'כל חלק עם חלון מהמקור')
+            self.assertEqual(pl.current(), {'1': 'שלום', '2': 'תודה', '3': 'נטפליקס'})
+            (self.pd / 'review').mkdir(exist_ok=True)
+            self.J.vt = (lambda ctx, args, _v=self.J.vt: (_v(ctx, args), (self.pd / 'review' / 'package.md').write_text(
+                '# ח\n\n## כתוביות (…)\n\n#1 Hello\n→ שלום\n#2 Thanks\n→ תודה\n#3 Netflix\n→ נטפליקס\n', encoding='utf-8')
+                if args[0] == 'review-pack' else None)[0])
+            n0 = len(self.client.calls)
+            pl.review()
+            rv = [c for c in self.client.calls[n0:] if '<review_package>' in c['messages'][0]['content']]
+            self.assertEqual(len(rv), 3, 'הביקורת בקטעים (עד כתובית אחת לקטע)')
+        finally:
+            llm.CARD_LIMIT.clear()
+            llm.CARD_LIMIT.update(old)
+
+    def test_judge_other_family_for_haiku(self):
+        J = self.J
+
+        def judge_prep(a):
+            d = self.pd / 'judge'
+            d.mkdir(exist_ok=True)
+            (d / 'sample.md').write_text('#1 Hello\n→ שלום\n', encoding='utf-8')
+            J.st = {'jg': {'ids': [1], 'a': 1}}
+            return 0
+        J.judge_prep, J.judge, J.load_state = judge_prep, (lambda a: 0), lambda: getattr(J, 'st', {})
+        seen = []
+        pl = P.Pipeline(self.ctx, J, self.engine(lambda kw: seen.append(kw['model']) or msg('#1 5 ok'), 'haiku-high'))
+        pl.judge()
+        self.assertEqual(seen, ['claude-sonnet-5-5'], 'מתרגם Haiku → שופט Sonnet (לא אותה משפחה)')
+        self.assertEqual({r['k']: r['m'] for r in pl.eng.ledger.list()}['jg'], 'claude-sonnet-5-5')
 
     def test_judge_skipped_when_prep_declines(self):
         J = self.J
