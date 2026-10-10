@@ -96,7 +96,8 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודי הבידוד')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertIn(hb['al'], ('o', 't'), 'שלב 4.1: מנוע היישור — קוד קבוע (בלי גרפים בבדיקה = torch)')
         self.assertIn(hb['iso'], ('g', 'r'), 'ת2: בידוד הקופסה — קוד קבוע')
         self.assertTrue(hb.get('iw', 'mem') in ('mem', 'missing', 'selftest', 'manual'))
 

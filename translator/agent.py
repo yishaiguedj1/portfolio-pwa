@@ -67,6 +67,9 @@ def host_info(busy: str = '') -> dict:
     why = os.environ.get('SNB_ISO_WHY', '')
     if hb['iso'] == 'r' and why in ('mem', 'missing', 'selftest', 'manual'):
         hb['iw'] = why
+    # שלב 4.1: מנוע היישור — o = גרפי ONNX INT8 בתמונה (/opt/aligner), t = torch (בלי גרפים / SNB_ALIGN=torch)
+    al_dir = os.environ.get('SNB_ALIGN_ONNX') or '/opt/aligner'
+    hb['al'] = 't' if os.environ.get('SNB_ALIGN', '').lower() == 'torch' or not os.path.isfile(os.path.join(al_dir, 'manifest.json')) else 'o'
     try:
         du = shutil.disk_usage(str(J.VT_WORK if J.VT_WORK.exists() else '/'))
         hb['disk'] = round(100 * du.used / du.total, 1)

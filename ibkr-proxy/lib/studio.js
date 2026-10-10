@@ -586,7 +586,8 @@ function normHb(h) {
     disk: n(h.disk, 0, 100), free: n(h.free, 0, 1e5), mem: n(h.mem, 0, 100), load: n(h.load, 0, 512), up: n(h.up, 0, 1e9),
     busy: JOB_RE.test(String(h.busy || '')) ? h.busy : '',
     // ת2: בידוד הקופסה — g = gVisor, r = רגיל (runc) + הסיבה מקטלוג קבוע
-    iso: h.iso === 'g' || h.iso === 'r' ? h.iso : '', iw: h.iso === 'r' && ['mem', 'missing', 'selftest', 'manual'].includes(h.iw) ? h.iw : '' };
+    iso: h.iso === 'g' || h.iso === 'r' ? h.iso : '', iw: h.iso === 'r' && ['mem', 'missing', 'selftest', 'manual'].includes(h.iw) ? h.iw : '',
+    al: h.al === 'o' || h.al === 't' ? h.al : '' };   // שלב 4.1: מנוע היישור (o = ONNX INT8)
 }
 function serverView(s, now) {
   if (!s || !SRV_ID_RE.test(String(s.id || ''))) return null;
