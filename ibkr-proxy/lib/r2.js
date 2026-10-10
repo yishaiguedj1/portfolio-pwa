@@ -131,7 +131,7 @@ async function head(c, deps, key) {
   const r = await raw(c, deps, { method: 'HEAD', key });
   if (r.status === 404) return null;
   if (r.status !== 200) await fail(r, 'head');
-  return { size: Number(r.headers.get('content-length') || 0), etag: String(r.headers.get('etag') || '').replace(/"/g, '') };
+  return { size: Number(r.headers.get('content-length') || 0), etag: String(r.headers.get('etag') || '').replace(/"/g, ''), type: String(r.headers.get('content-type') || '').slice(0, 80) };
 }
 async function del(c, deps, key) {
   if (!okKey(key)) throw new Error('bad_key');

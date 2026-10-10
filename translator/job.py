@@ -134,6 +134,24 @@ class Client:
             raise SystemExit('✗ השרתון החזיר ' + str(st) + ' ' + str(j.get('error') or ''))
         raise SystemExit('✗ השרתון לא עונה (' + self.host + ')')
 
+    def raw(self, op, **extra):
+        """ת4: כמו call, אבל מחזיר גם תשובת ok:false (r2_gone, r2_parts…) — מי שקורא מחליט. רשת / 429 / 5xx — עוד ניסיון."""
+        body = dict(extra, op=op, job=self.job, key=self.key)
+        for attempt in range(4):
+            try:
+                st, j, hd = http('POST', self.url, body)
+            except (urllib.error.URLError, TimeoutError, OSError):
+                st, j, hd = 0, {}, {}
+            if st == 403 and denied(hd):
+                raise SystemExit('✗ הרשת של הסביבה חוסמת את ' + self.host + ' — צריך להוסיף אותו ל־Allowed domains של הסביבה.')
+            if j.get('stop'):
+                raise Stop(j.get('state') or j.get('error') or 'stop')
+            if st in (0, 429) or st >= 500:
+                time.sleep(2 ** attempt)
+                continue
+            return j if isinstance(j, dict) else {}
+        raise SystemExit('✗ השרתון לא עונה (' + self.host + ')')
+
 
 def drive_ok(token, api):
     """האם הגישה ל־Drive עובדת מתוך הסשן (רשת + הרשאה). בלי להדפיס את הגישה."""
@@ -807,14 +825,43 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
         time.sleep(min(30, 2 ** tries))
 
 
+# ת4: עבודה במצב שרת שומרת ב־Cloudflare R2: התיקייה R2_<עבודה>, מזהה קובץ <תיקייה>_<אקראי> (translator/store.py)
+R2_FOLDER_RE = re.compile(r'^R2_j[A-Za-z0-9_-]{20}$')
+R2_ID_RE = re.compile(r'^R2_j[A-Za-z0-9_-]{20}_[A-Za-z0-9]{12}$')
+
+
+def is_r2_id(fid):
+    return bool(R2_ID_RE.match(str(fid or '')))
+
+
+def r2_store(ctx):
+    import store
+    return store, (lambda op, **kw: ctx.c.raw(op, **kw))
+
+
 def fetch_input(ctx, fid, dest, size, on_progress=None):
-    """נקודה אחת לכל קריאה של קובץ עבודה (מקור, קול, כתוביות, נקודת שמירה, בקשה). היום — Drive;
-    מעבר אחסון (R2) מחליף רק את הפונקציה הזו ואת put_output, לא את המקומות שקוראים להן."""
+    """נקודה אחת לכל קריאה של קובץ עבודה (מקור, קול, כתוביות, נקודת שמירה, בקשה) — R2 או Drive לפי המזהה.
+    מקור שבחרת ב־Drive (Picker) נשאר ב־Drive גם בעבודה של R2."""
+    if is_r2_id(fid):
+        store, call = r2_store(ctx)
+        try:
+            return store.download(call, fid, dest, on_progress)
+        except store.StoreError as e:
+            ctx.event('drive', 'dl_fail')
+            raise SystemExit('✗ ההורדה מהאחסון נכשלה (' + e.code + ').')
     return drive_download(ctx, fid, dest, size, on_progress)
 
 
 def put_output(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', replace=''):
-    """נקודה אחת לכל כתיבה של קובץ עבודה (תוצר, נקודת שמירה, איכויות צפייה; replace = תוכן חדש לאותו קובץ). היום — Drive."""
+    """נקודה אחת לכל כתיבה של קובץ עבודה (תוצר, נקודת שמירה, איכויות צפייה; replace = תוכן חדש לאותו קובץ).
+    עבודה שהתיקייה שלה ב־R2 — ל־R2; אחרת Drive."""
+    if R2_FOLDER_RE.match(str(ctx.st.get('folder') or '')):
+        store, call = r2_store(ctx)
+        try:
+            return store.upload(call, path, mime, name=name, replace=replace if is_r2_id(replace) else '', on_progress=on_progress)
+        except store.StoreError as e:
+            ctx.event('drive', 'up_fail')
+            raise SystemExit('✗ ההעלאה לאחסון נכשלה (' + e.code + ').')
     return drive_upload(ctx, path, name, kind, mime, on_progress, prop, replace)
 
 
@@ -2048,10 +2095,10 @@ def ladder_finish(ctx):
     except SystemExit as e:
         print('· איכויות הצפייה לא נשמרו (' + str(e).strip()[:120] + ') — המקור נשאר כמו שהיה.')
         for x in up:
-            http('DELETE', ctx.api + '/files/' + x['id'], headers={'Authorization': 'Bearer ' + ctx.token()})
+            drive_delete(ctx, x['id'])
         return None
     try:
-        n = drive_purge_revisions(ctx, v['id'])
+        n = 0 if is_r2_id(v['id']) else drive_purge_revisions(ctx, v['id'])   # ב־R2 התוכן הוחלף — אין גרסה קודמת
     except Exception:            # noqa: BLE001 — Drive ימחק את הגרסה הקודמת לבד אחרי 30 יום
         n = 0
     size = tp.stat().st_size
@@ -2195,6 +2242,9 @@ def ck_unpack(src, dest):
 
 def drive_delete(ctx, fid):
     """מחיקת קובץ שהעובד העלה (נקודת שמירה ישנה). כשל — לא חשוב (נשאר קובץ קטן בתיקייה)."""
+    if is_r2_id(fid):
+        store, call = r2_store(ctx)
+        return store.delete(call, fid)
     req = urllib.request.Request(ctx.api + '/files/' + fid + '?supportsAllDrives=true', method='DELETE',
                                  headers={'Authorization': 'Bearer ' + ctx.token(), 'User-Agent': UA})
     try:

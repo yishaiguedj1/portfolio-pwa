@@ -10,6 +10,7 @@
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
 import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
+import { isR2Folder, isR2Id } from './studiostore.js';   // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
@@ -54,6 +55,7 @@ const COMPACT_RATIO = 0.53;   // "דחוס" ≈ חצי מהמקור (נמדד ע
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 const FID_RE = /^[A-Za-z0-9_-]{10,100}$/;
 const UPURI_RE = /^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files\?/;   // כתובת העלאה של Drive — לא שום כתובת אחרת
+const R2_UPID_RE = /^[A-Za-z0-9+/=._~-]{8,600}$/;   // ת4: מזהה של העלאה בחלקים ב־R2 (לא כתובת — הקישורים מגיעים מהשרתון)
 const STATES = ['new', 'queued', 'running', 'done', 'failed', 'cancelled'];
 const FINAL = ['done', 'failed', 'cancelled'];
 /* החיבור ל־Claude: אותה בדיקת צורה כמו בשרתון (lib/studio.js) — כדי לענות מיד על הדבקה שגויה */
@@ -141,8 +143,9 @@ export function normJob(j) {
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
-    return { done: x.done === true, id: FID_RE.test(String(x.id || '')) ? x.id : '', size: num(x.size),
-      uri: UPURI_RE.test(String(x.uri || '')) ? String(x.uri).slice(0, 2000) : '', sent: num(x.sent) };
+    const r2 = x.r2 && typeof x.r2 === 'object' && R2_UPID_RE.test(String(x.r2.up || '')) && FID_RE.test(String(x.r2.id || '')) ? { id: x.r2.id, up: x.r2.up, ps: num(x.r2.ps) } : null;
+    return Object.assign({ done: x.done === true, id: FID_RE.test(String(x.id || '')) ? x.id : '', size: num(x.size),
+      uri: UPURI_RE.test(String(x.uri || '')) ? String(x.uri).slice(0, 2000) : '', sent: num(x.sent) }, r2 ? { r2 } : {});   // ת4: העלאה ל־R2 שבדרך
   };
   const up = { folder: FID_RE.test(String(u.folder || '')) ? u.folder : '', a: part(u.a), v: part(u.v),
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
@@ -1180,6 +1183,7 @@ async function runJob(id, run) {
         const size = ex.blob.size;
         run.phase = 'audio'; run.p = 0; run.sent = 0; run.total = size; run.rs = null; paintSoon();
         const f = await net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
+          r2: up.a.r2, onR2: (x) => { up.a.r2 = x; save(); },
           meta: { name: fileTitle(rec.spec.name) + ' — ' + T('studioAudioFile') + '.' + ex.ext, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'a' } },
           onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); },
           onWait: () => paintSoon() });
@@ -1194,7 +1198,7 @@ async function runJob(id, run) {
     if (!up.v.done) {
       run.phase = 'video'; run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; run.rs = null; paintSoon();
       const f = await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: () => gate(run),
-        uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); },
+        uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
         meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
         onProgress: (b) => { up.v.sent = b; run.sent = b; run.p = b / file.size; tickRate(run, b); paintSoon(); saveSoon(); },
         onWait: () => paintSoon() });
@@ -1955,7 +1959,8 @@ function startFromForm() {
     const ext = !f.fileObj;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
       fp: { name: file.name, size: file.size, lm: file.lastModified || 0 },
-      up: ext ? { ext: true, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {} });
+      up: Object.assign(ext ? { ext: true, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {},
+        isR2Folder(j.job.folder) ? { folder: j.job.folder } : {}) });   // ת4: עבודה במצב שרת — התיקייה ב־R2 (בלי תיקייה ב־Drive)
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
     save();
@@ -2044,8 +2049,11 @@ async function exportToDrive(rec) {
   if (rec.up.dx && rec.up.dx.f === dest.id) { flashSafe(T('studioDxDone', { n: dest.name || rec.up.dx.n })); return; }   // כבר שם
   dxBusy = rec.id; render('none');
   try {
-    for (const o of vids) await net.driveMove(o.id, rec.up.dx ? rec.up.dx.f : folder, dest.id);
-    if (srt) await net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt');
+    for (const o of vids) {
+      if (isR2Id(o.id)) await net.r2ToDrive(o.id, dest.id, fileTitle(rec.spec.name) + ' — ' + o.k + (o.k === 'mkv' ? '.mkv' : '.mp4'));   // ת4: מ־R2 — עותק לתיקייה שבחרת
+      else await net.driveMove(o.id, rec.up.dx ? rec.up.dx.f : folder, dest.id);
+    }
+    if (srt) await (isR2Id(srt.id) ? net.r2ToDrive(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt') : net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt'));
     rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: Date.now() };
     save();
     flashSafe(T('studioDxDone', { n: dest.name }));

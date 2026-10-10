@@ -6,7 +6,10 @@
       מאותו בייט. גודל החתיכה מסתגל למהירות (כפולה של 256KB, כמו ש־Drive דורש).
    3. חילוץ הקול בטלפון בלי קידוד מחדש (Mediabunny, vendor/mediabunny — נטען רק כשמתחילים עבודה).
    4. מודל הזמנים של מסך ההתקדמות (טהור).
+   5. ת4: עבודה במצב שרת שומרת ב־Cloudflare R2 (studiostore.js): התיקייה R2_<עבודה>, מזהה קובץ <תיקייה>_<אקראי> —
+      כל פונקציה כאן בוחרת R2 או Drive לפי המזהה, כך שהנגן, העורכים וסט הזהב לא השתנו.
    בלי DOM: התלויות מוזרקות (createNet(env)), ו־tests/studio-v355 בודק את המנוע ב־node עם Drive מדומה. */
+import { r2Upload, isR2Folder, isR2Id, r2JobOf } from './studiostore.js';
 
 const UP = 'https://www.googleapis.com/upload/drive/v3/files';
 const API = 'https://www.googleapis.com/drive/v3/files';
@@ -360,6 +363,12 @@ export function createNet(env) {
   /* העלאה של קובץ אחד. o: { blob, size, mime, meta, uri, onUri, onProgress(bytes), onWait(why|err), gate(), signal }
      מחזיר את הקובץ ש־Drive יצר ({ id, name, size, mimeType, parents }). אפשר לעצור (signal) ולהמשיך אחר כך עם אותה כתובת */
   async function upload(o) {
+    const parent = o.meta && Array.isArray(o.meta.parents) ? o.meta.parents[0] : '';
+    if (isR2Folder(parent)) {   // ת4: עבודה במצב שרת — ל־R2 (st = מצב ההעלאה השמור, להמשך אחרי רענון)
+      return r2Upload({ api, job: r2JobOf(parent), name: (o.meta && o.meta.name) || '', blob: o.blob, size: o.size, mime: o.mime,
+        signal: o.signal, gate: o.gate, onProgress: o.onProgress, onWait: o.onWait, onState: o.onR2, st: o.r2 },
+      { put: E.put, sleep: E.sleep, now: E.now, online: E.online });
+    }
     const size = o.size, mime = o.mime || 'application/octet-stream';
     let uri = o.uri || '', next = 0, fails = 0, need = !!uri, chunk = CHUNK_START;
     const stopped = () => o.signal && o.signal.aborted;
@@ -471,8 +480,50 @@ export function createNet(env) {
     return r.json();
   }
 
+  /* ת4: תוצר מ־R2 לתיקייה שבחרת ב־Drive — זורם: קוראים מ־R2 ושולחים ל־Drive בחתיכות (לא נטען כולו לזיכרון) */
+  async function r2ToDrive(id, to, name, onProgress) {
+    if (!isR2Id(id) || !DFID.test(String(to || ''))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const g = await r2Get(id);
+    const r = await E.fetch(g.url);
+    if (!r.ok || !r.body) throw Object.assign(new Error('r2_http_' + r.status), { code: 'r2_http_' + r.status });
+    const size = g.size, mime = g.type || 'application/octet-stream', CH = 32 * K256;
+    const uri = await initUpload({ name: String(name || '').slice(0, 200), parents: [to] }, size, mime);
+    const rd = r.body.getReader();
+    let parts = [], have = 0, sent = 0, last = null;
+    const flush = async (final) => {
+      while (have >= CH || (final && have > 0)) {
+        const all = new Blob(parts), n = final && have < CH ? have : CH, chunk = all.slice(0, n);
+        parts = [all.slice(n)]; have -= n;
+        const end = sent + n - 1;
+        last = await E.put(uri, chunk, { 'Content-Range': 'bytes ' + sent + '-' + end + '/' + size, 'Content-Type': mime });
+        if (!(last.status === 308 || last.status === 200 || last.status === 201)) throw Object.assign(new Error('drive_http_' + last.status), { code: 'drive_http_' + last.status });
+        sent = end + 1;
+        if (onProgress) onProgress(sent / size);
+      }
+    };
+    for (;;) {
+      const { value, done } = await rd.read();
+      if (done) break;
+      parts.push(value); have += value.byteLength;
+      if (have >= CH) await flush(false);
+    }
+    await flush(true);
+    if (sent !== size || !last || (last.status !== 200 && last.status !== 201)) throw Object.assign(new Error('drive_incomplete'), { code: 'drive_incomplete' });
+    return last.json || {};
+  }
+
   /* v387: סט הזהב — קובץ טקסט מ־Drive (התוצר שלנו / הייחוס), והעלאת הייחוס לתיקיית העבודה */
+  async function r2Get(id, name) {
+    const g = await api('r2url', Object.assign({ job: r2JobOf(id), id }, name ? { name } : {}));
+    if (!g || !g.ok || !g.url) throw Object.assign(new Error((g && g.error) || 'r2'), { code: (g && g.error) || 'r2' });
+    return g;
+  }
   async function driveText(id) {
+    if (isR2Id(id)) {
+      const r = await E.fetch((await r2Get(id)).url);
+      if (!r.ok) throw Object.assign(new Error('r2_http_' + r.status), { code: 'r2_http_' + r.status });
+      return r.text();
+    }
     const r = await E.fetch(API + '/' + encodeURIComponent(id) + '?alt=media', { headers: { Authorization: 'Bearer ' + await driveToken() } });
     if (!r.ok) throw await driveErr(r);
     return r.text();
@@ -501,6 +552,7 @@ export function createNet(env) {
   /* לשאלה של ה־SW: אסימון + גודל וסוג הקובץ (Content-Range נבנה ב־SW מהגודל — לא חשוף בתשובת CORS של Drive) */
   const mediaMeta = new Map();
   async function mediaInfo(id, fresh) {
+    if (isR2Id(id)) { const g = await r2Get(id); return { u: g.url, exp: g.exp || 0, size: g.size, type: g.type || '' }; }   // ת4: קישור חתום (שעה) — ה־SW מבקש ישירות מ־R2
     const t = await driveToken(fresh);
     let m = mediaMeta.get(id);
     if (!m) {
@@ -515,6 +567,10 @@ export function createNet(env) {
   async function driveJson(id) { return JSON.parse(await driveText(id)); }
   /* קובץ טקסט קטן לתיקיית העבודה (multipart) — הייחוס של סט הזהב, גרסה ערוכה של הכתוביות (מ2) */
   async function textUpload(folderId, name, mime, text, props) {
+    if (isR2Folder(folderId)) {   // ת4: לתיקייה של העבודה ב־R2
+      const blob = new Blob([text], { type: mime });
+      return (await r2Upload({ api, job: r2JobOf(folderId), name, blob, size: blob.size, mime }, { put: E.put, sleep: E.sleep, now: E.now, online: E.online })).id;
+    }
     if (!/^[A-Za-z0-9_-]{10,100}$/.test(String(folderId || ''))) throw Object.assign(new Error('folder'), { code: 'folder' });
     const b = 'snb' + Math.random().toString(36).slice(2);
     const meta = { name, parents: [folderId], mimeType: mime, appProperties: props || {} };
@@ -528,5 +584,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
 }

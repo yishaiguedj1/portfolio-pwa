@@ -31,6 +31,7 @@ const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נל
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const R2 = require('../lib/r2');   // ת4: האחסון ב־Cloudflare R2
+const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודיו ב־R2 (תיקייה R2_<עבודה>, מזהה <תיקייה>_<אקראי>)
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
@@ -41,7 +42,7 @@ const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() +
 const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
-const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa']);
+const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del']);
 const SERVER_OPS = new Set(['poll', 'beat']);
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
@@ -429,12 +430,52 @@ async function autoRecover(deps, uid, jobs, now) {
 
 /* קובץ שהעובד העלה — קיים, לא בפח, ובתיקיית העבודה ב־Drive (הלקוח של הסטודיו רואה רק מה שהאפליקציה יצרה). מחזיר את הגודל, או null */
 async function driveFileInFolder(deps, uid, folder, fid) {
+  if (SR.isFolder(folder)) {   // ת4: עבודה שהקבצים שלה ב־R2 — אותה בדיקה (קיים, בתיקייה, הגודל)
+    const c = R2.config();
+    if (!c.ok) return { error: 'r2_off' };
+    const m = await SR.fileIn(c, r2deps(deps), { uid, folder, id: fid, rec: await upRec(deps, fid) });
+    return m ? { id: fid, name: m.name, size: m.size, mime: m.mime } : null;
+  }
   const t = await gdrive.accessToken(deps, uid);
   if (!t.ok) return { error: t.error };
   const r = await (deps.fetch || fetch)(DRIVE + fid + '?fields=id,name,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
   let meta = null; try { meta = await r.json(); } catch (e) {}
   if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(folder))) return null;
   return { id: fid, name: String(meta.name || '').slice(0, 200), size: Number(meta.size) || 0 };
+}
+
+/* ---------- ת4: הקבצים ב־R2 ----------
+   רשומת העלאה לכל קובץ במסמך משלו (studioUp/<id>, עם f = התיקייה) — בלי לגעת במסמך העבודה שהעובד והטלפון כותבים אליו.
+   הטלפון מעלה ומוריד בתיקייה של העבודה שלו; העובד — בתיקייה של העבודה שהמפתח שלו פותח. */
+const r2deps = (deps) => ({ fetch: deps.fetch, now: () => deps.now || Date.now() });
+async function upRec(deps, id) { return SR.isId(id) ? readDoc(deps, 'studioUp', id).catch(() => null) : null; }
+async function r2Files(deps, op, body, uid, folder, by) {
+  if (!SR.isFolder(folder)) return [400, { ok: false, error: 'not_r2' }];
+  const c = R2.config();
+  if (!c.ok) return [503, { ok: false, error: 'r2_off' }];
+  const id = String(body.id || ''), rd = r2deps(deps);
+  if ((id || op !== 'up') && !SR.inFolder(id, folder)) return [400, { ok: false, error: 'bad_id' }];
+  const rec = id ? await upRec(deps, id) : null;
+  let out;
+  if (op === 'up') out = await SR.upStart(c, rd, { uid, folder, id, size: body.size, type: body.type, name: body.name, rec, by, replace: by === 'worker' && body.replace === true });
+  else if (op === 'parts') out = await SR.upParts(c, rd, { id, rec, up: body.up, uid });
+  else if (op === 'done') out = await SR.upDone(c, rd, { id, rec, up: body.up, uid });
+  else if (op === 'url') return [200, await SR.getUrl(c, rd, { uid, folder, id, by, name: body.name ? String(body.name) : '' })];
+  else if (op === 'del') { await SR.delFile(c, rd, { uid, folder, id, rec }); if (rec) await delDoc(deps, 'studioUp', id).catch(() => null); return [200, { ok: true }]; }
+  else return [400, { ok: false, error: 'bad_op' }];
+  const fid = out.res.id || id;
+  if (out.rec && fid) await patchDoc(deps, 'studioUp', fid, Object.assign({}, out.rec, { f: folder }));
+  return [200, out.res];
+}
+/* מחיקת עבודה: הקבצים ב־R2 נמחקים כשאף עבודה אחרת לא משתמשת בתיקייה (עבודות משנה וסט הזהב יורשים אותה) */
+async function r2Purge(deps, uid, job) {
+  if (!SR.isFolder(job.folder) || !R2.config().ok) return;
+  try {
+    if ((await listJobs(deps, uid)).some((j) => j.id !== job.id && j.folder === job.folder)) return;
+    const recs = await query(deps, 'studioUp', { f: job.folder }, 500).catch(() => []);
+    await SR.purgeFolder(R2.config(), r2deps(deps), { uid, folder: job.folder, recs });
+    for (const r of recs) await delDoc(deps, 'studioUp', r.id).catch(() => null);
+  } catch (e) {}
 }
 
 /* ---------- v378: בדיקת מוכנות ותחזוקה (lib/studioscan.js) ---------- */
@@ -486,6 +527,7 @@ async function driveTrash(deps, token, id) {
 /* מחיקת רשומת עבודה (כמו "מחיקה" בטלפון): הרשומה, ההתראות והתקלה שלה. הקבצים ב־Drive נשארים */
 async function removeJobRec(deps, uid, job, now) {
   await delDoc(deps, 'studioJobs', job.id);
+  await r2Purge(deps, uid, job);   // ת4
   if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2 · מ7: ההפקות מחדש וגיליונות ה־AI של העבודה הולכים איתה
     for (const r of (await listJobs(deps, uid)).filter((j) => (j.kind === 'rr' || j.kind === 'ai') && j.rp === job.id)) await delDoc(deps, 'studioJobs', r.id);
   }
@@ -573,6 +615,11 @@ async function worker(req, res, body, deps) {
       return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl), drive: await driveFor(), pir, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
+    if (body.op.startsWith('r2')) {   // ת4: הקבצים של העבודה ב־R2 (קלט, תוצרים, נקודות שמירה)
+      const op = { r2get: 'url', r2wup: 'up', r2wparts: 'parts', r2wdone: 'done', r2del: 'del' }[body.op];
+      const [code, out] = await r2Files(deps, op, body, job.uid, job.folder, 'worker');
+      return res.status(code).json(Object.assign({ now }, out));
+    }
     if (body.op === 'qa') return res.status(200).json({ ok: true, qa: job.qa && job.qa.id ? { id: job.qa.id, g: job.qa.g || '', a: job.qa.a || null } : null, bx: job.bx || 0, now });
     // report
     const up = S.applyReport(job, body, now);
@@ -964,7 +1011,11 @@ async function handler(req, res, deps = {}) {
         if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
         if (k === 'ck') {
           const byJob = new Map();
-          for (const c of SC.doneCheckpoints(jobs)) { await driveTrash(deps, t.token, c.id); n++; byJob.set(c.job, true); }
+          for (const c of SC.doneCheckpoints(jobs)) {
+            if (SR.isId(c.id)) await r2Files(deps, 'del', { id: c.id }, uid, SR.folderOfId(c.id), 'phone');   // ת4: נקודת שמירה ב־R2
+            else await driveTrash(deps, t.token, c.id);
+            n++; byJob.set(c.job, true);
+          }
           for (const id of byJob.keys()) await patchJob(deps, id, { ck: [] });
         } else {
           for (const x of (await cleanTargets(deps, uid, t.token, jobs, now))[k]) { await driveTrash(deps, t.token, x.id); n++; }
@@ -1010,6 +1061,7 @@ async function handler(req, res, deps = {}) {
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) await delDoc(deps, 'studioJobs', old.id);
       const job = { id: S.newJobId(), uid, kind: 'tr', state: 'new', created: now, updated: now, spec };
+      if (apiJob(job) && R2.config().ok) job.folder = SR.folderFor(job.id);   // ת4: עבודה במצב שרת — הקבצים ב־R2 (Routine נשאר ב־Drive)
       await patchJob(deps, job.id, job);
       return res.status(200).json({ ok: true, job: view(job) });
     }
@@ -1083,11 +1135,29 @@ async function handler(req, res, deps = {}) {
       job.gq = gq;
       return res.status(200).json({ ok: true, job: view(job) });
     }
+    if (op === 'r2up' || op === 'r2parts' || op === 'r2done' || op === 'r2url') {
+      // ת4: העלאה מהטלפון ל־R2 (בחלקים, עם המשך) וקישור צפייה / הורדה — רק בתיקייה של העבודה הזו
+      const [code, out] = await r2Files(deps, op.slice(2), body, uid, job.folder, 'phone');
+      return res.status(code).json(out);
+    }
     if (op === 'file') {
       if (job.kind !== 'tr' || st !== 'new' && st !== 'queued' && st !== 'running') return res.status(409).json({ ok: false, error: 'state' });
       const which = body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (SR.isFolder(folder) && !ext) {
+        // ת4: קובץ ב־R2 — קיים, בתיקייה של העבודה, והסרטון בגודל של המקור (מקור מ־Drive — ext — נשאר ב־Drive, בבדיקה שלמטה)
+        if (folder !== job.folder) return res.status(400).json({ ok: false, error: 'bad_params' });
+        const m = await driveFileInFolder(deps, uid, folder, fid);
+        if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
+        const f = m && S.normFile({ id: fid, name: m.name || (which === 'v' ? 'video' : 'audio'), size: m.size, mimeType: m.mime });
+        if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
+        if (which === 'v' && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
+        f.at = now;
+        await patchJob(deps, job.id, { ['f' + which]: f, updated: now });
+        job['f' + which] = f;
+        return res.status(200).json({ ok: true, job: view(job) });
+      }
       // מאמתים מול Drive עצמו: הקובץ קיים, בתיקיית העבודה, והווידאו בגודל של המקור — העובד יוריד בדיוק את זה
       const t = await gdrive.accessToken(deps, uid);
       if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
