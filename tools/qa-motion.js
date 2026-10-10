@@ -4,7 +4,7 @@
      - פריימים ארוכים (רווח בין rAF > 100ms) ומשימות ארוכות (longtask > 50ms)
      - קפיצות גלילה (window ו־.lib-root — שינוי של >120px בפריים אחד בלי מגע)
      - הבהובים: צילום רציף (CDP screencast) → מסגרת "ריקה" בין שתי מסגרות עם תוכן, וקפיצה חדה בין מסגרות
-   הרצה: node tools/qa-motion.js --out <dir> [--theme dark] [--width 360] [--rm] [--lang en] [--cpu 4] [--net slow] [--only lib|app] [--frames]
+   הרצה: node tools/qa-motion.js --out <dir> [--theme dark] [--width 360] [--rm] [--lang en] [--cpu 4] [--net slow] [--only lib|app|studio] [--frames]
    דורש שרת מקומי על 8792 (python3 -m http.server 8792 בשורש הריפו). כל הרשת החיצונית מדומה — אף פעם לא מול שרתים אמיתיים.
    התוצאה: <out>/report.json + <out>/report.md (ספים: cls>0.02, scrollJump>120, flash, frameGap>250ms). */
 const fs = require('fs');
@@ -330,7 +330,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
   };
 
   /* ---------- האפליקציה ---------- */
-  if (ONLY !== 'lib' && ONLY !== 'monkey' && ONLY !== 'ext' && ONLY !== 'ext2' && ONLY !== 'ext3' && ONLY !== 'ext4') {
+  if (ONLY !== 'lib' && ONLY !== 'monkey' && ONLY !== 'ext' && ONLY !== 'ext2' && ONLY !== 'ext3' && ONLY !== 'ext4' && ONLY !== 'studio') {
     await step('app: טעינה ראשונה (סקירה)', async () => { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2500); }, { settle: 1500 });
     for (const t of ['stocks', 'trades', 'wishlist', 'deposits', 'pension', 'overview']) await step('app: טאב ' + t, () => tapTab(t), { scroll: true });
     await step('app: פתיחת תפריט', () => jsClick('#menuBtn'));
@@ -391,7 +391,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
   }
 
   /* ---------- הספרייה ---------- */
-  if (ONLY !== 'app' && ONLY !== 'monkey' && ONLY !== 'ext' && ONLY !== 'ext2' && ONLY !== 'ext3' && ONLY !== 'ext4') {
+  if (ONLY !== 'app' && ONLY !== 'monkey' && ONLY !== 'ext' && ONLY !== 'ext2' && ONLY !== 'ext3' && ONLY !== 'ext4' && ONLY !== 'studio') {
     if (ONLY === 'lib') { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
     await page.evaluate(() => { localStorage.setItem('pwa_libshelf_v1', 'mine'); });
     if (MAXSTEPS && nSteps >= MAXSTEPS) { /* מכסת צעדים */ }
@@ -808,6 +808,57 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('ext4: הגדרות — ניווט במקלדת (Tab) → Enter על "מתקדמות"', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#langBtn'); await sleep(900); await page.evaluate(() => { document.getElementById('advancedOpen').focus(); }); const f = await page.evaluate(() => document.activeElement && document.activeElement.id); if (f !== 'advancedOpen') throw new Error('פוקוס: ' + f); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab'); const f2 = await page.evaluate(() => document.activeElement && document.activeElement.id); if (f2 !== 'advancedOpen') throw new Error('פוקוס אחרי Tab/Shift+Tab: ' + f2); await page.keyboard.press('Enter'); }, { settle: 1200, cls: 1, scroll: true, expect: '#tab-advanced.active' });
     await step('ext4: Escape/חזור ← הגדרות', back, { settle: 1200, cls: 1, scroll: true, expect: '#tab-settings.active' });
     await step('ext4: חזור ← סקירה', back, { settle: 1200, cls: 1, scroll: true, expect: '#tab-overview.active' });
+  }
+
+  /* ---------- מ9 (10/10/2026, --only studio): העורכים של סטודיו התרגום — נגן, כתוביות, הצעות, גיליון AI, חיתוך, רעיונות ---------- */
+  if (ONLY === 'studio' || !ONLY) {
+    const now = Date.now(), JD = 'j' + 'A'.repeat(18) + 'P1';
+    const VID = (() => { try { return fs.readFileSync(path.join(__dirname, '..', 'translator', 'tests', 'fixtures', 'tiny.webm')); } catch (e) { return null; } })()
+      || execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=15:duration=30', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=30', '-c:v', 'libvpx', '-b:v', '200k', '-c:a', 'libopus', '-shortest', '-f', 'webm', 'pipe:1'], { maxBuffer: 64e6 });
+    // 12 כתוביות כל 2.5 שנ׳: קצרה מדי (ניתנת להארכה) כל 5, ארוכה מדי (שבירה + הארכה) כל 4
+    const CUES = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, start: i * 2.5, end: i * 2.5 + (i % 5 === 1 ? 0.4 : 1.6), lines: i % 4 === 3 ? ['זו כתובית ארוכה מאוד שנאמרת מהר מדי לקריאה ' + i] : ['כתובית ' + i], en: 'Subtitle ' + i }));
+    const esc = () => page.keyboard.press('Escape');   // בסטודיו "חזור" = בקשת סגירה (CloseWatcher); בדסקטופ — Escape
+    const spec = { name: 'QA_Interview.mp4', size: 100, dur: 30, to: ['he'], from: 'auto', mode: 'sonnet-medium', out: ['compact'], style: 'bold' };
+    const job = { id: JD, kind: 'tr', state: 'done', created: now - 9e6, updated: now - 8e6, ended: now - 8e6, fires: 1, spec, folder: 'fold1234567890', ev: 0, vh: [],
+      files: { a: { id: 'aud1234567890', size: 5 }, v: { id: 'vid1234567890', size: VID.length }, o: [{ id: 'cmp1234567890', k: 'compact', size: 900 }, { id: 'srt1234567890', k: 'srt', size: 200 }, { id: 'cue1234567890', k: 'cues', size: 300 }] } };
+    let nUp = 0;
+    const SJ = (r, o) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
+    await page.route(/\/studio-media\//, (r) => { const m = /bytes=(\d+)-(\d*)/.exec(r.request().headers().range || ''); const a = m ? +m[1] : 0, z = m && m[2] ? +m[2] : VID.length - 1; r.fulfill({ status: m ? 206 : 200, headers: { 'content-type': 'video/webm', 'accept-ranges': 'bytes', 'content-range': 'bytes ' + a + '-' + z + '/' + VID.length, 'content-length': String(z - a + 1) }, body: VID.subarray(a, z + 1) }); });
+    await page.route(/www\.googleapis\.com\/(upload\/)?drive\//, (r) => { const u = r.request().url(); if (u.includes('cue1234567890?alt=media')) return SJ(r, CUES); if (u.includes('uploadType=multipart')) return SJ(r, { id: 'up' + (++nUp) + 'abcdefghijk' }); return r.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '{}' }); });
+    await page.route(/\/api\/studio/, (r) => { const b = JSON.parse(r.request().postData() || '{}');
+      if (b.op === 'status') return SJ(r, { ok: true, conn: { hint: 'trig_…ABCD', since: now, ok: now }, drive: { configured: true, connected: true, email: 'a@b.c' }, kinds: ['ping', 'tr', 'rr', 'ai'], fb: [], fm: 'suggest', rl: { b: 0, mx: '', ab: false }, halt: 0, now });
+      if (b.op === 'jobs') return SJ(r, { ok: true, jobs: [job], kinds: ['ping', 'tr', 'rr', 'ai'], now });
+      if (b.op === 'job') return SJ(r, { ok: true, job, now });
+      if (b.op === 'drive') return SJ(r, { ok: true, token: 'AT_abcdefghij', exp: now + 3600e3 });
+      if (b.op === 'cuesSave') { job.ev++; job.vh = job.vh.concat([Date.now()]); return SJ(r, { ok: true, job }); }
+      return SJ(r, { ok: false, error: 'x' }); });
+    const openStudioJob = () => page.evaluate(async ([id, j]) => {
+      localStorage.setItem('pwa_studio_v1', JSON.stringify({ settings: {}, drafts: [], jobs: [{ id, spec: j.spec, up: { folder: 'fold1234567890', started: j.created, a: { done: true, id: 'aud1234567890' }, v: { done: true, id: 'vid1234567890', size: 10 } }, srv: j }] }));
+      try { Object.defineProperty(navigator.serviceWorker, 'controller', { configurable: true, get: () => ({ postMessage() {} }) }); } catch (e) {}
+      window.firebase = { apps: [1], auth: () => ({ currentUser: { getIdToken: async () => 'tok' } }) };
+      const m = await import('./studio.js'); m.openStudio({ job: id });
+    }, [JD, job]);
+    if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
+    await step('studio: דף העבודה (תוצרים, עריכה, רעיונות)', openStudioJob, { settle: 1800, cls: 1, expect: '.st-root [data-k="subs"]' });
+    await step('studio: עורך הכתוביות (נגן + רשימה + הצעות)', () => page.click('[data-k="subs"]'), { settle: 2200, cls: 0.05, expect: '.st-se-row' });
+    await step('studio: פתיחת כתובית', () => page.click('[data-k="cue:3"]'), { pre: '[data-k="cue:3"]', settle: 900, expect: '[data-k="cue-ta:3"]' });
+    await step('studio: הקלדה — הבדיקות מתעדכנות', () => page.fill('[data-k="cue-ta:3"]', 'כתובית קצרה'), { settle: 700, expect: '.st-se-row.open:not(.bad)' });
+    await step('studio: פיצול וביטול', async () => { await page.click('[data-k="cue-split:3"]'); await sleep(300); await page.click('[data-k="se-undo"]'); }, { pre: '[data-k="cue-split:3"]', settle: 800, expect: '.st-se-row' });
+    await step('studio: "רק בעיות" וחזרה', async () => { await page.click('[data-k="se-only"]'); await sleep(400); await page.click('[data-k="se-only"]'); }, { pre: '[data-k="se-only"]', settle: 800, expect: '.st-se-row' });
+    await step('studio: הצעה — תיקון', () => page.click('[data-k^="sg-fix:"]'), { pre: '[data-k^="sg-fix:"]', settle: 800, cls: 0.05, expect: '.st-se' });
+    await step('studio: שמירה ל־Drive', () => page.click('[data-k="se-save"]'), { settle: 1200, expect: '[data-k="se-save"]:disabled' });
+    await step('studio: גיליון AI', () => page.click('[data-k="se-ai"]'), { pre: '[data-k="se-ai"]', settle: 900, expect: '[data-k="ai-add"]' });
+    await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
+    await step('studio: הפקה מחדש', () => page.click('[data-k="se-rr"]'), { pre: '[data-k="se-rr"]', settle: 1000, expect: '[data-k="rr-go"]' });
+    await step('studio: חיתוך (ציר + 9:16)', async () => { await page.click('[data-k="rr-cut"]'); await sleep(1500); await page.click('[data-k="ed-ar:9:16"]'); }, { pre: '[data-k="rr-cut"]', settle: 1200, cls: 0.05, expect: '.st-ed-tl' });
+    await step('studio: הסרת שקטים', () => page.click('[data-k="ed-silence"]'), { pre: '[data-k="ed-silence"]', settle: 800, expect: '.st-ed-tl' });
+    await step('studio: חזור ← הפקה מחדש', esc, { settle: 1300, expect: '[data-k="rr-cut"]' });
+    await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
+    await step('studio: חזור ← העבודה', esc, { settle: 1300, expect: '[data-k="ideas"]' });
+    await step('studio: רעיונות', () => page.click('[data-k="ideas"]'), { pre: '[data-k="ideas"]', settle: 1200, expect: '[data-k="id-k:chap"]' });
+    await step('studio: חזור ← העבודה (2)', esc, { settle: 1300, expect: '[data-k="ideas"]' });
+    await step('studio: צפייה (נגן)', () => page.click('[data-k="play"]'), { pre: '[data-k="play"]', settle: 1500, expect: '.st-pl video' });
+    await step('studio: חזור ← העבודה (3)', esc, { settle: 1300, expect: '[data-k="ideas"]' });
   }
 
   /* ---------- מצב "קוף": פעולות אקראיות עם בדיקות שלמות אחרי כל אחת ---------- */

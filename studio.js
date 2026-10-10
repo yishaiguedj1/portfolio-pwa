@@ -1297,7 +1297,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -3755,17 +3755,18 @@ const burnedOut = (rec) => outOf(rec, 'compact') || outOf(rec, 'same') || outOf(
 const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
 let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
 function playClose() { if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
+const plPaint = () => queueMicrotask(() => { if (shapeKey() !== lastShape) render('none'); });   // מ9: גם כשהטעינה מיידית (מהעורך) — בלי ציור מקונן
 async function playLoad(rec) {
   const me = pl;
   try {
     const co = outOf(rec, 'cues'), so = outOf(rec, 'srt');
-    let cues = [];
-    if (co) cues = normCues(await net.driveJson(co.id));
+    let cues = se && se.id === rec.id && se.ed ? se.ed.cues() : [];   // מ9: כבר בעורך — בלי טעינה (ובלי מסך "טוען" שמהבהב)
+    if (!cues.length && co) cues = normCues(await net.driveJson(co.id));
     if (!cues.length && so) cues = normCues(parseSrt(await net.driveText(so.id)));
     if (pl !== me) return;
     const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
     const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
-    if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; render('none'); return; }
+    if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, T });
     me.st = 'ok';
@@ -3773,7 +3774,7 @@ async function playLoad(rec) {
     if (pl !== me) return;
     me.st = 'err'; me.err = (e && e.code) || 'drive';
   }
-  render('none');
+  plPaint();
 }
 function issueName(k) {
   switch (k) {
@@ -4491,10 +4492,21 @@ function testLine() {             // מצב בדיקת החיבור — שורה
   if (testRun.sess) d.append(extLink('st-link', testRun.sess, T('studioOpenSess'), null, 'test-sess'));
   return d;
 }
+/* מ9: מדריך קצר — למשתמשים נוספים: מה עושים, באיזה סדר, ומה עולה כסף */
+function pageGuide(p) {
+  p.append(navBar({ back: T('studioSettings') }), large(T('studioGuide')));
+  const sec = (t, ...ls) => { p.append(secT(t)); for (const l of ls) p.append(note(l)); };
+  sec(T('studioGd1'), T('studioGd1a'), T('studioGd1b'));
+  sec(T('studioGd2'), T('studioGd2a'), T('studioGd2b'), T('studioGd2c'));
+  sec(T('studioGd3'), T('studioGd3a'), T('studioGd3b'));
+  sec(T('studioGd4'), T('studioGd4a'));
+  sec(T('studioGd5'), T('studioGd5a'));
+}
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
   p.append(navBar({ back: T('studioShort') }), large(T('studioSettings')));
   const ab = accessBanner(); if (ab) p.append(ab);
+  p.append(list(rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' })));   // מ9: מדריך קצר
   // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };
@@ -4921,6 +4933,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
+  else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);

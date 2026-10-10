@@ -253,6 +253,8 @@ function b(cls, label, fn, k, iconK) {
 /* opts: { cues (normCues), T, issueName(k), getTime(), seek(t), play(), flash(msg), onChange(cues, ver) }.
    מחזיר { el, cues(), ver(), time(t), setSaved(ver), destroy }. כתובית אחת פתוחה לעריכה בכל רגע (תיבת טקסט אחת — קל גם ל־1,500 כתוביות) */
 export function createSubsEditor(opts) {
+  const issMemo = new WeakMap();                       // מ9: הבדיקות לכל אובייקט כתובית — פעם אחת (בכל הקשה סופרים את כולן)
+  const issOf = (c) => { let v = issMemo.get(c); if (!v) { v = cueIssues(c); issMemo.set(c, v); } return v; };
   const T = opts.T || ((k) => k);
   const iname = opts.issueName || ((k) => k);
   const hist = createHistory((opts.cues || []).map((c) => Object.assign({}, c)));
@@ -300,7 +302,7 @@ export function createSubsEditor(opts) {
         if (apply(g.cues, null)) { if (opts.flash) opts.flash(T('studioSgFixed')); }
       }, 'sg-fix:' + g.i),
       b('', T('studioSgNo'), () => { dismissed.add(g.key); if (opts.onDismiss) opts.onDismiss(g.key); paintSug(); }, 'sg-no:' + g.i),
-      b('', T('studioSgShow'), () => { sel = g.i; paintList(); scrollTo(g.i); opts.seek(c.s); }, 'sg-go:' + g.i));
+      b('', T('studioSgShow'), () => { choose(g.i); opts.seek(c.s); }, 'sg-go:' + g.i));
       card.append(t, pv, acts);
       sugEl.append(card);
     }
@@ -313,7 +315,7 @@ export function createSubsEditor(opts) {
   }
   function paintBar() {
     undoB.disabled = !hist.canUndo(); redoB.disabled = !hist.canRedo();
-    const n = hist.cur.reduce((a, c) => a + (cueIssues(c).length ? 1 : 0), 0);
+    const n = hist.cur.reduce((a, c) => a + (issOf(c).length ? 1 : 0), 0);
     onlyB.textContent = n ? T('studioSeOnly', { n }) : T('studioSeNoIssues');
     onlyB.classList.toggle('on', only); onlyB.disabled = !n && !only;
     onlyB.setAttribute('aria-pressed', only ? 'true' : 'false');
@@ -325,25 +327,54 @@ export function createSubsEditor(opts) {
   const rows = new Map();     // אינדקס → שורה
   function visible() {
     const cs = hist.cur, m = q ? new Set(findMatches(cs, q)) : null, out = [];
-    cs.forEach((c, k) => { if ((!only || cueIssues(c).length || k === sel) && (!m || m.has(k))) out.push(k); });
+    cs.forEach((c, k) => { if ((!only || issOf(c).length || k === sel) && (!m || m.has(k))) out.push(k); });
     return out;
   }
+  /* מ9 (ביצועים): שורה סגורה שמורה לפי אובייקט הכתובית (הפעולות לא משנות במקום) — אחרי פיצול / מיזוג / ביטול
+     רק השורות החדשות נבנות, והשאר נשארות במקומן ב־DOM (בלי חישוב סגנון מחדש ל־1,500 שורות) */
+  const keep = new WeakMap();
   function paintList() {
     rows.clear();
-    const ks = visible();
-    listEl.replaceChildren(...ks.map(mkRow));
+    const ks = visible(), want = [];
+    for (const k of ks) {
+      const c = hist.cur[k];
+      let r = k !== sel ? keep.get(c) : null;
+      if (r) {
+        r.dataset.k = 'cue:' + k; r.firstChild.dataset.k = 'cue-t:' + k;
+        r.classList.toggle('act', k === act);
+        rows.set(k, r);
+      } else r = mkRow(k);
+      want.push(r);
+    }
+    const set = new Set(want);
+    let at = listEl.firstChild;
+    for (const r of want) {
+      while (at && !set.has(at)) { const nx = at.nextSibling; at.remove(); at = nx; }
+      if (r === at) { at = at.nextSibling; continue; }
+      listEl.insertBefore(r, at);
+    }
+    while (at) { const nx = at.nextSibling; at.remove(); at = nx; }
     if (!ks.length) listEl.append(el('div', 'st-se-empty', q ? T('studioSeNoMatch') : T('studioSeNoIssues')));
     if (searchOn && q) fn.textContent = T('studioSeFound', { n: ks.length });
   }
+  const idxOf = (c) => hist.cur.indexOf(c);
   function paintRow(k) {
     const old = rows.get(k);
     if (!old) return;
-    const nr = mkRow(k);
-    old.replaceWith(nr);
+    const nr = (k !== sel && keep.get(hist.cur[k])) || mkRow(k);
+    if (nr !== old) old.replaceWith(nr);
+    rows.set(k, nr);
+  }
+  /* מ9 (ביצועים): בחירה / סיום — רק שתי השורות שהשתנו, לא 1,500 (נמדד: 4 שנ׳ בטלפון חלש) */
+  function choose(k) {
+    const prev = sel;
+    sel = k;
+    if (prev >= 0 && prev !== k) paintRow(prev);
+    if (k >= 0) { if (rows.has(k)) paintRow(k); else paintList(); scrollTo(k); }
   }
   function issueChips(c) {
     const box = el('span', 'st-se-iss');
-    for (const x of cueIssues(c)) box.append(el('span', 'st-se-chip', iname(x)));
+    for (const x of issOf(c)) box.append(el('span', 'st-se-chip', iname(x)));
     return box;
   }
   function meta(c) {
@@ -355,9 +386,9 @@ export function createSubsEditor(opts) {
   }
   function mkRow(k) {
     const c = hist.cur[k], open = k === sel;
-    const r = el('div', 'st-se-row' + (open ? ' open' : '') + (k === act ? ' act' : '') + (cueIssues(c).length ? ' bad' : ''));
+    const r = el('div', 'st-se-row' + (open ? ' open' : '') + (k === act ? ' act' : '') + (issOf(c).length ? ' bad' : ''));
     r.setAttribute('role', 'listitem'); r.dataset.k = 'cue:' + k;
-    const tm = b('st-se-tm', '', () => { opts.seek(c.s); opts.play(); }, 'cue-t:' + k);
+    const tm = b('st-se-tm', '', () => { opts.seek(c.s); opts.play(); }, 'cue-t:' + k);   // c — האובייקט, לא האינדקס (שורה שמורה זזה)
     tm.append(el('bdi', null, fmtTc(c.s)));
     tm.setAttribute('aria-label', T('studioSePlayFrom', { t: fmtTc(c.s) }));
     const body = el('div', 'st-se-body');
@@ -371,7 +402,7 @@ export function createSubsEditor(opts) {
         hist.push(nx, 'txt:' + k, Date.now());
         const cc = hist.cur[k];
         chips.replaceWith(issueChips(cc)); mt.replaceWith(meta(cc));
-        r.classList.toggle('bad', cueIssues(cc).length > 0);
+        r.classList.toggle('bad', issOf(cc).length > 0);
         paintBar();
         if (opts.onChange) opts.onChange(hist.cur, hist.ver);
       });
@@ -383,9 +414,10 @@ export function createSubsEditor(opts) {
       const tx = el('div', 'st-se-tx'); tx.dir = 'rtl';
       for (const x of c.lines) tx.append(el('div', null, x));
       body.append(tx);
-      const iss = cueIssues(c);
+      const iss = issOf(c);
       if (iss.length) { const w = el('span', 'st-se-warn'); w.append(icon('warn')); w.setAttribute('aria-label', iss.map(iname).join(', ')); body.append(w); }
-      r.addEventListener('click', () => { sel = k; paintList(); scrollTo(k); });
+      r.addEventListener('click', () => { const i = idxOf(c); if (i >= 0) choose(i); });
+      keep.set(c, r);
     }
     r.append(tm, body);
     rows.set(k, r);
@@ -415,7 +447,7 @@ export function createSubsEditor(opts) {
     if (k < hist.cur.length - 1) ar.append(b('', T('studioSeMerge'), () => apply(mergeCues(hist.cur, k), k), 'cue-merge:' + k));
     ar.append(b(shiftOn ? 'on' : '', T('studioSeShift'), () => { shiftOn = !shiftOn; paintRow(k); }, 'cue-shift:' + k));
     ar.append(b('danger', T('studioSeDel'), () => apply(deleteCue(hist.cur, k), Math.min(k, hist.cur.length - 2)), 'cue-del:' + k));
-    ar.append(b('done', T('studioSeDone'), () => { sel = -1; paintList(); paintSug(); }, 'cue-done:' + k));
+    ar.append(b('done', T('studioSeDone'), () => { choose(-1); paintSug(); }, 'cue-done:' + k));
     box.append(tr, ar);
     if (shiftOn) {
       // סנכרון: כל הכתוביות מהזו והלאה זזות יחד (התרגום מוקדם / מאוחר מהדיבור)
@@ -443,7 +475,7 @@ export function createSubsEditor(opts) {
       const n = rows.get(k); if (n) n.classList.add('act');
       if (playing && sel < 0 && n) scrollTo(k);
     },
-    select(k) { sel = k; paintList(); scrollTo(k); },
+    select(k) { choose(k); },
     selected: () => sel,
     /* מ7: שינויים מגיליון ה־AI — צעד ביטול אחד */
     applyCues(next) { return apply(next, null); },

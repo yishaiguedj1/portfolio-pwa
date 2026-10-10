@@ -644,7 +644,9 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-se-list { display: grid; }
 .st-se-empty { padding: 28px 16px; text-align: center; color: var(--on-surface-var); font-size: 14px; }
 .st-se-row { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; align-items: start; padding: 10px 12px 10px 12px;
-  border-bottom: 1px solid var(--card-border); border-inline-start: 3px solid transparent; cursor: pointer; }
+  border-bottom: 1px solid var(--card-border); border-inline-start: 3px solid transparent; cursor: pointer;
+  content-visibility: auto; contain-intrinsic-size: auto 72px; }   /* מ9: שורות מחוץ למסך — בלי פריסה וציור (1,500 כתוביות) */
+.st-se-row.open { content-visibility: visible; }
 .st-se-row.act { border-inline-start-color: var(--primary); background: rgba(255, 255, 255, .04); }
 .st-se-row.open { cursor: default; background: var(--surface); grid-template-columns: minmax(0, 1fr); gap: 4px; }   /* פתוחה — כל הרוחב (גם ב־320) */
 .st-se-row.open .st-se-tm { justify-self: start; }

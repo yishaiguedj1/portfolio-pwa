@@ -103,6 +103,12 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/net\.api\('rerender'/.test(sj) && /net\.api\('start', \{ job: j\.job\.id \}\)/.test(sj), 'הפקה מחדש: יצירה ואז start רגיל (כל השמירות)');
   ok(/if \(sj\.kind === 'rr'\) \{/.test(sj), 'עבודות הפקה מחדש — לא ברשימה הראשית');
   const src = read('studiosubs.js');
+  // מ9: ביצועים בטלפון חלש (נמדד עם 1,500 כתוביות, מעבד מואט פי 4: בחירה 4 שנ׳ → 67ms, פיצול 2 שנ׳ → 90ms, ביטול 3 שנ׳ → 160ms)
+  ok(/const keep = new WeakMap\(\);/.test(src) && /let r = k !== sel \? keep\.get\(c\) : null;/.test(src) && /function choose\(k\)/.test(src) && !/sel = k; paintList\(\)/.test(src),
+    'ביצועים: בחירה מציירת שתי שורות; אחרי שינוי מבני — שורות שלא השתנו נשארות ב־DOM (מפתח = אובייקט הכתובית)');
+  ok(/\.st-se-row \{[^}]*content-visibility: auto/.test(read('studio.css')), 'ביצועים: שורות מחוץ למסך בלי פריסה (content-visibility)');
+  ok(/if \(ONLY === 'studio' \|\| !ONLY\)/.test(read('tools/qa-motion.js')), 'כלי המעברים: תרחישי העורכים (--only studio)');
+  ok(/x === 'guide'\) \? \['settings', null\]/.test(sj) && /function pageGuide\(p\)/.test(sj), 'מדריך קצר מההגדרות');
   ok(!/innerHTML/.test(src) && !/fetch\(/.test(src), 'העורך: בלי innerHTML (טקסט רק ב־textContent / value) ובלי רשת');
   // מפתחות התרגום של העורך — בעברית ובאנגלית (הבדיקה של studio-v354 סורקת רק את studio.js)
   const vm = require('vm');
