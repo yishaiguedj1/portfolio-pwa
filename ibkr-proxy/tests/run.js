@@ -2596,6 +2596,11 @@ function stubFetch(text, status = 200) {
     const sdoc1 = db.get('studioServers/' + SID);
     ok(rr.payload.ok && rr.payload.job === null && +sdoc1.fields.seen.integerValue === now && !JSON.stringify(sdoc1).includes('evil') && JSON.parse(sdoc1.fields.hb.stringValue).disk === 41.3,
       'מצב API: שאילתה בלי עבודות — "אין"; הדופק נשמר (רק מספרים וגרסה)');
+    {
+      const S2 = require('../lib/studio');
+      const g = S2.normHb({ iso: 'g', iw: 'mem' }), r = S2.normHb({ iso: 'r', iw: 'mem' }), bad = S2.normHb({ iso: '<b>', iw: 'rm -rf' });
+      ok(g.iso === 'g' && g.iw === '' && r.iso === 'r' && r.iw === 'mem' && bad.iso === '' && bad.iw === '', 'ת2: בידוד הקופסה בדופק — קודים קבועים בלבד (gVisor / רגיל + סיבה)');
+    }
     const SPECA = Object.assign({}, SPEC, { eng: 'api', cap: 20 });
     rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
     const JA = rr.payload.job.id;

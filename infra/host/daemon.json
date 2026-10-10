@@ -2,6 +2,7 @@
   "icc": false,
   "no-new-privileges": true,
   "live-restore": true,
+  "runtimes": { "runsc": { "path": "/usr/bin/runsc", "runtimeArgs": ["--platform=systrap"] } },
   "userland-proxy": false,
   "log-driver": "json-file",
   "log-opts": { "max-size": "10m", "max-file": "3" }

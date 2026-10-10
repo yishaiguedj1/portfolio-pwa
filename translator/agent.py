@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import random
 import re
 import shutil
@@ -61,6 +62,11 @@ def token() -> str:
 def host_info(busy: str = '') -> dict:
     """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
     hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy}
+    # ת2: האם הקופסה רצה בליבה מדומה (gVisor מחזיר release שמסתיים ב־gvisor), ואם לא — למה (snb_runtime במארח)
+    hb['iso'] = 'g' if platform.release().endswith('gvisor') else 'r'
+    why = os.environ.get('SNB_ISO_WHY', '')
+    if hb['iso'] == 'r' and why in ('mem', 'missing', 'selftest', 'manual'):
+        hb['iw'] = why
     try:
         du = shutil.disk_usage(str(J.VT_WORK if J.VT_WORK.exists() else '/'))
         hb['disk'] = round(100 * du.used / du.total, 1)

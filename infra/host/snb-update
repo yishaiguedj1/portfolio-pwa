@@ -27,5 +27,21 @@ if [ "$REF" != "$CUR" ]; then
 	mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
 	snb_log "✓ גרסה חדשה מאומתת: $REF"
 fi
+# gVisor: בדיקה עצמית לכל גרסה חדשה של התמונה — הקונטיינר באמת עולה תחת runsc ורואה ליבה מדומה.
+# נכשל → העובד רץ ב־runc (לא נעצר), והסיבה מגיעה למסך השרת (selftest). מצליח בגרסה הבאה → חוזרים ל־gVisor.
+snb_runtime
+if [ "$SNB_RUNTIME" = runsc ] || [ -e "$SNB_RT_OK.bad" ]; then
+	mkdir -p /var/lib/snb
+	if [ "$(cat "$SNB_RT_OK" 2>/dev/null || true)" != "$REF" ] && [ -x /usr/bin/runsc ]; then
+		if docker run --rm --runtime=runsc --network none --read-only --cap-drop ALL --entrypoint /opt/vt/bin/python "$REF" \
+			-c "import platform,sys; sys.exit(0 if platform.release().endswith('gvisor') else 1)" >/dev/null 2>&1; then
+			printf '%s\n' "$REF" >"$SNB_RT_OK"; rm -f "$SNB_RT_OK.bad"
+			snb_log "✓ gVisor: העובד רץ בליבה מדומה"
+		else
+			printf '%s\n' "$REF" >"$SNB_RT_OK.bad"; rm -f "$SNB_RT_OK"
+			snb_log "✗ gVisor: הבדיקה העצמית נכשלה — העובד רץ בלי בידוד ליבה (runc) עד הגרסה הבאה"
+		fi
+	fi
+fi
 snb_compose up -d --remove-orphans --quiet-pull >/dev/null 2>&1 || snb_compose up -d --remove-orphans
 docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true

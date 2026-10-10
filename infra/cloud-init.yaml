@@ -13,7 +13,43 @@ packages:
   - nftables
   - unattended-upgrades
   - apt-listchanges
+  # ת2: gVisor — ליבה מדומה לקופסת העובד (מהמאגר החתום שלמטה; snb_runtime מחליט מתי להפעיל)
+  - runsc
 ssh_pwauth: false
+apt:
+  sources:
+    gvisor:
+      source: "deb [arch=amd64,arm64 signed-by=$KEY_FILE] https://storage.googleapis.com/gvisor/releases release main"
+      key: |
+        -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+        mQINBF0meAYBEACcBYPOSBiKtid+qTQlbgKGPxUYt0cNZiQqWXylhYUT4PuNlNx5
+        s+sBLFvNTpdTrXMmZ8NkekyjD1HardWvebvJT4u+Ho/9jUr4rP71cNwNtocz/w8G
+        DsUXSLgH8SDkq6xw0L+5eGc78BBg9cOeBeFBm3UPgxTBXS9Zevoi2w1lzSxkXvjx
+        cGzltzMZfPXERljgLzp9AAfhg/2ouqVQm37fY+P/NDzFMJ1XHPIIp9KJl/prBVud
+        jJJteFZ5sgL6MwjBQq2kw+q2Jb8Zfjl0BeXDgGMN5M5lGhX2wTfiMbfo7KWyzRnB
+        RpSP3BxlLqYeQUuLG5Yx8z3oA3uBkuKaFOKvXtiScxmGM/+Ri2YM3m66imwDhtmP
+        AKwTPI3Re4gWWOffglMVSv2sUAY32XZ74yXjY1VhK3bN3WFUPGrgQx4X7GP0A1Te
+        lzqkT3VSMXieImTASosK5L5Q8rryvgCeI9tQLn9EpYFCtU3LXvVgTreGNEEjMOnL
+        dR7yOU+Fs775stn6ucqmdYarx7CvKUrNAhgEeHMonLe1cjYScF7NfLO1GIrQKJR2
+        DE0f+uJZ52inOkO8ufh3WVQJSYszuS3HCY7w5oj1aP38k/y9zZdZvVvwAWZaiqBQ
+        iwjVs6Kub76VVZZhRDf4iYs8k1Zh64nXdfQt250d8U5yMPF3wIJ+c1yhxwARAQAB
+        tCpUaGUgZ1Zpc29yIEF1dGhvcnMgPGd2aXNvci1ib3RAZ29vZ2xlLmNvbT6JAk4E
+        EwEKADgCGwMFCwkIBwIGFQoJCAsCBBYCAwECHgECF4AWIQRvHfheOnHCSRjnJ9Vv
+        xtVU4yvZQwUCYO4TxQAKCRBvxtVU4yvZQ9UoEACLPV7CnEA2bjCPi0NCWB/Mo1WL
+        evqv7Wv7vmXzI1K9DrqOhxuamQW75SVXg1df0hTJWbKFmDAip6NEC2Rg5P+A8hHj
+        nW/VG+q4ZFT662jDhnXQiO9L7EZzjyqNF4yWYzzgnqEu/SmGkDLDYiUCcGBqS2oE
+        EQfk7RHJSLMJXAnNDH7OUDgrirSssg/dlQ5uAHA9Au80VvC5fsTKza8b3Aydw3SV
+        iB8/Yuikbl8wKbpSGiXtR4viElXjNips0+mBqaUk2xpqSBrsfN+FezcInVXaXFeq
+        xtpq2/3M3DYbqCRjqeyd9wNi92FHdOusNrK4MYe0pAYbGjc65BwH+F0T4oJ8ZSJV
+        lIt+FZ0MqM1T97XadybYFsJh8qvajQpZEPL+zzNncc4f1d80e7+lwIZV/al0FZWW
+        Zlp7TpbeO/uW+lHs5W14YKwaQVh1whapKXTrATipNOOSCw2hnfrT8V7Hy55QWaGZ
+        f4/kfy929EeCP16d/LqOClv0j0RBr6NhRBQ0l/BE/mXjJwIk6nKwi+Yi4ek1ARi6
+        AlCMLn9AZF7aTGpvCiftzIrlyDfVZT5IX03TayxRHZ4b1Rj8eyJaHcjI49u83gkr
+        4LGX08lEawn9nxFSx4RCg2swGiYw5F436wwwAIozqJuDASeTa3QND3au5v0oYWnl
+        umDySUl5wPaAaALgzA==
+        =5/8T
+        -----END PGP PUBLIC KEY BLOCK-----
 write_files:
   - path: /etc/nftables.conf
     permissions: "0644"
@@ -54,6 +90,7 @@ write_files:
         "icc": false,
         "no-new-privileges": true,
         "live-restore": true,
+        "runtimes": { "runsc": { "path": "/usr/bin/runsc", "runtimeArgs": ["--platform=systrap"] } },
         "userland-proxy": false,
         "log-driver": "json-file",
         "log-opts": { "max-size": "10m", "max-file": "3" }
@@ -129,8 +166,32 @@ write_files:
       	export SNB_CPUS SNB_MEM
       }
 
+      # ת2 (10/10/2026): gVisor (runsc) — ליבה מדומה סביב קופסת העובד, שמעבדת תוכן לא מהימן (תמלילים, סרטונים).
+      # נמדד על 5 דק׳ TED: תמלול +6%, יישור +26–39%, זיכרון בשיא +0.45GB — לכן אוטומטית רק בשרת עם 12GB ומעלה
+      # (בשרת של 8GB הגבול של הקונטיינר הוא 7GB והיישור מגיע ל־6.5GB). כפייה: /etc/snb/runtime = runsc / runc.
+      # נפילה ל־runc תמיד גלויה: SNB_ISO_WHY עובר לקונטיינר, והסוכן מדווח אותו למסך השרת באפליקציה.
+      SNB_RT_OK=/var/lib/snb/runsc-ok
+      snb_runtime() {
+      	want=''
+      	[ -r /etc/snb/runtime ] && want=$(tr -cd 'a-z' </etc/snb/runtime)
+      	SNB_ISO_WHY=''
+      	if [ "$want" = runc ]; then
+      		SNB_ISO_WHY=manual
+      	elif [ "$want" != runsc ]; then
+      		kb=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
+      		if [ "$kb" -ge 11500000 ]; then want=runsc; else want=runc; SNB_ISO_WHY=mem; fi
+      	fi
+      	if [ "$want" = runsc ] && ! { [ -x /usr/bin/runsc ] && docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q '"runsc"'; }; then
+      		want=runc; SNB_ISO_WHY=missing
+      	fi
+      	if [ "$want" = runsc ] && [ -e "$SNB_RT_OK.bad" ]; then want=runc; SNB_ISO_WHY=selftest; fi
+      	SNB_RUNTIME=$want
+      	export SNB_RUNTIME SNB_ISO_WHY
+      }
+
       snb_compose() {
       	snb_limits
+      	snb_runtime
       	if docker compose version >/dev/null 2>&1; then
       		docker compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" "$@"
       	else
@@ -176,6 +237,22 @@ write_files:
       	mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
       	snb_log "✓ גרסה חדשה מאומתת: $REF"
       fi
+      # gVisor: בדיקה עצמית לכל גרסה חדשה של התמונה — הקונטיינר באמת עולה תחת runsc ורואה ליבה מדומה.
+      # נכשל → העובד רץ ב־runc (לא נעצר), והסיבה מגיעה למסך השרת (selftest). מצליח בגרסה הבאה → חוזרים ל־gVisor.
+      snb_runtime
+      if [ "$SNB_RUNTIME" = runsc ] || [ -e "$SNB_RT_OK.bad" ]; then
+      	mkdir -p /var/lib/snb
+      	if [ "$(cat "$SNB_RT_OK" 2>/dev/null || true)" != "$REF" ] && [ -x /usr/bin/runsc ]; then
+      		if docker run --rm --runtime=runsc --network none --read-only --cap-drop ALL --entrypoint /opt/vt/bin/python "$REF" \
+      			-c "import platform,sys; sys.exit(0 if platform.release().endswith('gvisor') else 1)" >/dev/null 2>&1; then
+      			printf '%s\n' "$REF" >"$SNB_RT_OK"; rm -f "$SNB_RT_OK.bad"
+      			snb_log "✓ gVisor: העובד רץ בליבה מדומה"
+      		else
+      			printf '%s\n' "$REF" >"$SNB_RT_OK.bad"; rm -f "$SNB_RT_OK"
+      			snb_log "✗ gVisor: הבדיקה העצמית נכשלה — העובד רץ בלי בידוד ליבה (runc) עד הגרסה הבאה"
+      		fi
+      	fi
+      fi
       snb_compose up -d --remove-orphans --quiet-pull >/dev/null 2>&1 || snb_compose up -d --remove-orphans
       docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
   - path: /usr/local/sbin/snb-maint
@@ -208,6 +285,7 @@ write_files:
       echo "גרסה:   $(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null | sed 's/.*@sha256:\(............\).*/sha256:\1…/')"
       echo "מפתחות: $([ -s "$SNB_ENV" ] && echo 'מוגדרים' || echo 'חסרים — snb-setup')"
       echo "עבודה:  $(snb_busy && echo 'רצה עכשיו' || echo 'אין')"
+      snb_runtime; echo "בידוד:  $SNB_RUNTIME${SNB_ISO_WHY:+ ($SNB_ISO_WHY)}"
       snb_compose ps --format '{{.Name}}  {{.Status}}' 2>/dev/null || true
       echo "דיסק:   $(df -h / | awk 'NR==2{print $3" מתוך "$2}')"
       echo "--- שורות אחרונות מהעובד ---"
@@ -313,6 +391,7 @@ write_files:
       #   • read_only + tmpfs: הקוד והספריות לא ניתנים לשינוי מבפנים; כתיבה רק לתיקיות העבודה/המטמון/מצב העבודה.
       #   • cap_drop ALL + no-new-privileges + משתמש 10001: גם קוד זדוני בתוך סרטון/תמליל לא מקבל הרשאות.
       #   • הגישה לשירות המטא־דאטה של Hetzner (169.254.169.254) חסומה בחומת האש של המארח (cloud-init, DOCKER-USER).
+      #   • gVisor (runsc) בשרת של 12GB ומעלה: גם פרצה בליבה לא יוצאת מהקופסה (ת2, 10/10/2026).
       #   • הסודות מקובץ env בהרשאות 600 של root — לא בתמונה, לא בריפו.
       name: snb
 
@@ -320,6 +399,10 @@ write_files:
         worker:
           image: ${SNB_IMAGE:?SNB_IMAGE חסר — מריצים דרך snb-update}
           restart: unless-stopped
+          # ת2: gVisor כשהשרת מתאים (snb_runtime ב־snb-common.sh); הסיבה לנפילה ל־runc נכנסת לקונטיינר ומוצגת באפליקציה
+          runtime: ${SNB_RUNTIME:-runc}
+          environment:
+            - SNB_ISO_WHY=${SNB_ISO_WHY:-}
           env_file:
             - /etc/snb/worker.env
           read_only: true

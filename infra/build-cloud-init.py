@@ -50,8 +50,10 @@ packages:
   - nftables
   - unattended-upgrades
   - apt-listchanges
+  # ת2: gVisor — ליבה מדומה לקופסת העובד (מהמאגר החתום שלמטה; snb_runtime מחליט מתי להפעיל)
+  - runsc
 ssh_pwauth: false
-write_files:
+""" + '{APT}' + """write_files:
 """
 
 # שורת הסימון: האפליקציה מחליפה אותה ברשומה של /etc/snb/worker.env (studio.js — cloudInitWithSecrets)
@@ -75,8 +77,20 @@ TAIL = """runcmd:
 
 
 
+# המאגר של gVisor: חתום במפתח הרשמי (טביעה 6F1DF85E3A71C24918E727D56FC6D554E32BD943 — נבדק מול InRelease
+# ו־sha256 של החבילה ב־10/10/2026). המפתח בקובץ בריפו (host/gvisor.key) — לא מורידים אותו בזמן ההקמה.
+GVISOR_FPR = '6F1DF85E3A71C24918E727D56FC6D554E32BD943'
+
+
+def apt_block() -> str:
+    key = (HERE / 'host' / 'gvisor.key').read_text(encoding='utf-8').strip().split('\n')
+    return ('apt:\n  sources:\n    gvisor:\n'
+            '      source: "deb [arch=amd64,arm64 signed-by=$KEY_FILE] https://storage.googleapis.com/gvisor/releases release main"\n'
+            '      key: |\n' + ''.join('        ' + ln + '\n' if ln else '\n' for ln in key))
+
+
 def render() -> str:
-    out = [HEAD]
+    out = [HEAD.replace('{APT}', apt_block())]
     for src, dst, mode in FILES:
         text = (HERE / src).read_text(encoding='utf-8')
         out.append(f'  - path: {dst}\n    permissions: "{mode}"\n    owner: root:root\n    content: |\n')

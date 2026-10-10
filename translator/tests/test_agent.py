@@ -96,7 +96,9 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up'}, set(), 'בלי שום שדה מעבר למספרים ולגרסה')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודי הבידוד')
+        self.assertIn(hb['iso'], ('g', 'r'), 'ת2: בידוד הקופסה — קוד קבוע')
+        self.assertTrue(hb.get('iw', 'mem') in ('mem', 'missing', 'selftest', 'manual'))
 
     def test_runs_job_and_cleans_everything(self):
         work = self.tmp / 'work'

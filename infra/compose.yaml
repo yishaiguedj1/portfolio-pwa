@@ -6,6 +6,7 @@
 #   • read_only + tmpfs: הקוד והספריות לא ניתנים לשינוי מבפנים; כתיבה רק לתיקיות העבודה/המטמון/מצב העבודה.
 #   • cap_drop ALL + no-new-privileges + משתמש 10001: גם קוד זדוני בתוך סרטון/תמליל לא מקבל הרשאות.
 #   • הגישה לשירות המטא־דאטה של Hetzner (169.254.169.254) חסומה בחומת האש של המארח (cloud-init, DOCKER-USER).
+#   • gVisor (runsc) בשרת של 12GB ומעלה: גם פרצה בליבה לא יוצאת מהקופסה (ת2, 10/10/2026).
 #   • הסודות מקובץ env בהרשאות 600 של root — לא בתמונה, לא בריפו.
 name: snb
 
@@ -13,6 +14,10 @@ services:
   worker:
     image: ${SNB_IMAGE:?SNB_IMAGE חסר — מריצים דרך snb-update}
     restart: unless-stopped
+    # ת2: gVisor כשהשרת מתאים (snb_runtime ב־snb-common.sh); הסיבה לנפילה ל־runc נכנסת לקונטיינר ומוצגת באפליקציה
+    runtime: ${SNB_RUNTIME:-runc}
+    environment:
+      - SNB_ISO_WHY=${SNB_ISO_WHY:-}
     env_file:
       - /etc/snb/worker.env
     read_only: true

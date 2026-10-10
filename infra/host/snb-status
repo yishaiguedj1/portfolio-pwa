@@ -5,6 +5,7 @@
 echo "גרסה:   $(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null | sed 's/.*@sha256:\(............\).*/sha256:\1…/')"
 echo "מפתחות: $([ -s "$SNB_ENV" ] && echo 'מוגדרים' || echo 'חסרים — snb-setup')"
 echo "עבודה:  $(snb_busy && echo 'רצה עכשיו' || echo 'אין')"
+snb_runtime; echo "בידוד:  $SNB_RUNTIME${SNB_ISO_WHY:+ ($SNB_ISO_WHY)}"
 snb_compose ps --format '{{.Name}}  {{.Status}}' 2>/dev/null || true
 echo "דיסק:   $(df -h / | awk 'NR==2{print $3" מתוך "$2}')"
 echo "--- שורות אחרונות מהעובד ---"

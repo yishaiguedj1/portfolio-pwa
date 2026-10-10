@@ -3,6 +3,7 @@
 לא מריצות Docker או שרת: קוראות את הקבצים ובודקות את מה שחייב להישאר נכון.
 הרצה: python3 -m unittest tests.test_infra   (מתוך translator/)
 """
+import json
 import re
 import subprocess
 import sys
@@ -147,6 +148,30 @@ class Pipeline(unittest.TestCase):
             self.assertIn('  - ' + need + '\n', pk)
         u = read('infra/host/snb-update')
         self.assertLess(u.index('command -v'), u.index('docker pull'), 'כלי חסר נרשם ביומן לפני שמשתמשים בו')
+
+    def test_gvisor(self):
+        # ת2 (10/10/2026): gVisor — מאגר חתום במפתח שבריפו, runtime ב־Docker, בדיקה עצמית לכל גרסה, ונפילה גלויה ל־runc
+        ci = read('infra/cloud-init.yaml')
+        pk = ci[ci.index('packages:'):ci.index('write_files:')]
+        self.assertIn('  - runsc\n', pk)
+        self.assertIn('signed-by=$KEY_FILE] https://storage.googleapis.com/gvisor/releases release main', ci)
+        key = read('infra/host/gvisor.key')
+        self.assertTrue(key.startswith('-----BEGIN PGP PUBLIC KEY BLOCK-----'))
+        self.assertIn(key.strip().split('\n')[2], ci, 'המפתח עצמו בקוד ההקמה — לא הורדה בזמן ההקמה')
+        self.assertIn("GVISOR_FPR = '6F1DF85E3A71C24918E727D56FC6D554E32BD943'", read('infra/build-cloud-init.py'))
+        d = json.loads(read('infra/host/daemon.json'))
+        self.assertEqual(d['runtimes']['runsc'], {'path': '/usr/bin/runsc', 'runtimeArgs': ['--platform=systrap']})
+        c = read('infra/compose.yaml')
+        self.assertIn('runtime: ${SNB_RUNTIME:-runc}', c)
+        self.assertIn('SNB_ISO_WHY=${SNB_ISO_WHY:-}', c)
+        common = read('infra/host/snb-common.sh')
+        self.assertLess(common.index('snb_compose() {'), common.index('\tsnb_runtime\n'), 'כל הפעלה בוחרת runtime')
+        for need in ('11500000', '/etc/snb/runtime', 'SNB_ISO_WHY=mem', 'SNB_ISO_WHY=missing', 'SNB_ISO_WHY=selftest', 'SNB_ISO_WHY=manual'):
+            self.assertIn(need, common)
+        u = read('infra/host/snb-update')
+        self.assertLess(u.index('--runtime=runsc --network none'), u.index('snb_compose up -d'), 'בדיקה עצמית לפני ההפעלה')
+        self.assertIn("endswith('gvisor')", u)
+        self.assertLess(u.index('cosign verify'), u.index('--runtime=runsc'), 'רק תמונה מאומתת רצה בבדיקה')
 
     def test_setup_code_marker(self):
         ci = read('infra/cloud-init.yaml')
