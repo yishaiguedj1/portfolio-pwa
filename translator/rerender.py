@@ -58,6 +58,28 @@ def norm_cues(raw, dur=0.0):
     return out
 
 
+PORTRAIT_SCALE = 1.35     # מ5: וידאו אנכי (9:16 / 4:5) — כתוביות גדולות יותר, בשורות קצרות
+PORTRAIT_LINE = 24
+
+
+def rewrap(lines, mx=PORTRAIT_LINE, most=3):
+    """שורות קצרות לווידאו אנכי: מילים ברצף עד mx תווים, עד most שורות (יותר — מגדילים את הרוחב)."""
+    words = ' '.join(lines).split()
+    while True:
+        out, cur = [], ''
+        for w in words:
+            if cur and len(cur) + 1 + len(w) > mx:
+                out.append(cur)
+                cur = w
+            else:
+                cur = (cur + ' ' + w).strip()
+        if cur:
+            out.append(cur)
+        if len(out) <= most or mx > 80:
+            return out
+        mx += 4
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='הפקה מחדש מכתוביות ערוכות (בלי טוקנים)')
     p.add_argument('--src', required=True)
@@ -67,7 +89,16 @@ def main(argv=None):
     p.add_argument('--style', default='bold')
     p.add_argument('--want', default='compact')
     p.add_argument('--work', default='')
+    p.add_argument('--edl0', default='')         # מ5: החיתוך שלפני התרגום (המקור → ציר הזמן של הכתוביות)
+    p.add_argument('--edl', default='')          # מ5: חיתוך חדש על ציר הזמן של הכתוביות
     a = p.parse_args(argv)
+    import edl as E
+    def _e(s):
+        try:
+            return E.norm_edl(json.loads(s)) if s else None
+        except ValueError:
+            raise SystemExit('✗ רשימת העריכות פגומה.')
+    e0, e1 = _e(a.edl0), _e(a.edl)
     from vt import config as C
     from vt.media import probe
     from vt.render import burn, mux_mkv, small_copy
@@ -77,19 +108,36 @@ def main(argv=None):
     src, od = Path(a.src), Path(a.out)
     od.mkdir(parents=True, exist_ok=True)
     want = [k for k in a.want.split(',') if k in OUTS]
+    ec = E.compose_edl(e0, e1)
+    if ec and (ec['k'] or ec['ar'] != 'src'):
+        cut = od / '_cut.mp4'
+        print('חיתוך: %d קטעים%s' % (len(ec['k']) or 1, '' if ec['ar'] == 'src' else ' · ' + ec['ar']), flush=True)
+        E.apply(src, cut, ec)
+        src = cut
     info = probe(src)
     v = info.get('video') or {'width': 1920, 'height': 1080}
     W, H = int(v.get('width') or 1920), int(v.get('height') or 1080)
     style = C.STYLES.get(a.style) or C.STYLES[C.DEFAULT_STYLE]
+    portrait = W < H
     try:
         raw = json.loads(Path(a.cues).read_text(encoding='utf-8-sig'))
     except (OSError, ValueError):
         raise SystemExit('✗ קובץ הכתוביות פגום.')
     if isinstance(raw, dict):
         raw = raw.get('cues')
+    if e1 and isinstance(raw, list):           # הכתוביות זזות עם החיתוך שאחרי התרגום
+        raw = E.map_cues(e1, [dict(c, start=_num(c.get('start', c.get('s'))), end=_num(c.get('end', c.get('e')))) for c in raw
+                              if isinstance(c, dict) and _num(c.get('start', c.get('s'))) is not None and _num(c.get('end', c.get('e'))) is not None])
     cues = norm_cues(raw, float(info.get('duration') or 0))
     if not cues:
         raise SystemExit('✗ אין כתוביות תקינות בקובץ.')
+    if portrait:
+        import dataclasses
+        f = PORTRAIT_SCALE
+        style = dataclasses.replace(style, size=style.size * f, spacing=style.spacing * f, outline=style.outline * f,
+                                    faux_bold=style.faux_bold * f, line_pitch=style.line_pitch * f)
+        for c in cues:
+            c['lines'] = rewrap(c['lines'])
     print('כתוביות: %d' % len(cues), flush=True)
     write_text(od / 'he.ass', write_ass(cues, style, W, H, a.name))
     write_text(od / 'he.player.ass', write_ass_compat(cues, style, W, H, a.name))

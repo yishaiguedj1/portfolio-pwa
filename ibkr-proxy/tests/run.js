@@ -1892,6 +1892,7 @@ function stubFetch(text, status = 200) {
       const R1 = rr.payload.job;
       ok(rr.payload.ok && R1.kind === 'rr' && R1.state === 'new' && R1.rp === JP && R1.files.c && R1.files.c.id === 'cue11234567890'
         && R1.spec.out.join() === 'small,mkv' && R1.spec.style === 'classic' && fires.length === f0, 'סטודיו: הפקה מחדש — עבודה "חדשה" מהכתוביות הנוכחיות (רק תוצרי וידאו), בלי להפעיל עדיין');
+      ok(!R1.spec.edl, 'סטודיו: הפקה מחדש — בלי חיתוך כשלא נבחר');
       rr = await run({ op: 'rerender', idToken: OWNER, job: JP });
       ok(rr.statusCode === 409 && rr.payload.error === 'rr_busy', 'סטודיו: הפקה מחדש — אחת בכל פעם לכל עבודה');
       rr = await run({ op: 'start', idToken: OWNER, job: R1.id });
@@ -1906,8 +1907,9 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.ok && R2.state === 'done' && R2.fo[0].k === 'small', 'סטודיו: הפקה מחדש — התוצר נשמר בעבודת ההפקה');
       const P2 = SR.fromFields(db.get('studioJobs/' + JP).fields);
       ok(P2.state === 'done' && P2.fo.length === 3, 'סטודיו: הפקה מחדש — העבודה המקורית לא משתנה');
-      rr = await run({ op: 'rerender', idToken: OWNER, job: JP });
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, edl: { k: [[30, 90], [0, 20]], ar: '9:16', x: 0.4, extra: 'x' } });
       ok(rr.payload.ok && !db.get('studioJobs/' + R1.id), 'סטודיו: הפקה מחדש — רק ההפקה האחרונה נשמרת');
+      ok(JSON.stringify(rr.payload.job.spec.edl) === '{"k":[[0,20],[30,90]],"ar":"9:16","x":0.4}', 'סטודיו: הפקה מחדש — החיתוך אחרי התרגום נשמר מנורמל (מ5)');
       const R3 = rr.payload.job.id;
       for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
       ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');

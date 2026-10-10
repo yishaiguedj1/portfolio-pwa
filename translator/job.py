@@ -1018,6 +1018,26 @@ def wait_video(ctx, stage, msg):
     return ctx.st['files']['v']
 
 
+def edl_src(ctx, src, kind):
+    """מ4: חיתוך לפני התרגום — הקטעים שנבחרו בטלפון (spec.edl), מיד אחרי ההורדה. הקול והסרטון נחתכים באותה עריכה
+    (sync.py מוצא היסט ~0), וכל השאר — תמלול, תרגום, צריבה — רואה רק את מה שנשאר. בלי עריכה — המקור כמו שהוא."""
+    import edl as E
+    e = E.norm_edl((ctx.st.get('spec') or {}).get('edl'))
+    if not e:
+        return src
+    out = src.with_name(src.stem + '.cut' + ('.m4a' if kind == 'a' else '.mp4'))
+    if not out.exists() or out.stat().st_mtime < src.stat().st_mtime:
+        tmp = out.with_name(out.stem + '.part' + out.suffix)
+        try:
+            E.apply(src, tmp, e, audio_only=kind == 'a', env=vt_env())
+        except (subprocess.CalledProcessError, OSError, ValueError) as x:
+            ctx.event('vt', 'other')
+            raise SystemExit('✗ החיתוך לפני התרגום נכשל (' + type(x).__name__ + ').')
+        tmp.replace(out)
+    print('· חיתוך לפני התרגום: ' + str(len(e['k']) or 1) + ' קטעים' + ('' if e['ar'] == 'src' else ' · ' + e['ar']))
+    return out
+
+
 def in_path(ctx, f, kind):
     """הקובץ שהורד מ־Drive: הסרטון ב־_in/<שם>.<סיומת>, הקול ב־_in/<שם>.audio.<סיומת> (שניהם יכולים להיות שם יחד)."""
     default = '.mp4' if kind == 'v' else '.m4a'
@@ -1083,11 +1103,13 @@ def prepare(args):
         src = in_path(ctx, a, 'a')
         ctx.report('tr', 0, 'מוריד את הקול מ־Drive', force=True)
         drive_download(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול מ־Drive'))
+        src = edl_src(ctx, src, 'a')
     else:
         v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
         src = in_path(ctx, v, 'v')
         ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
         drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
+        src = edl_src(ctx, src, 'v')
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
     title = os.path.splitext(str(ctx.st['spec'].get('name') or ctx.name))[0][:120]
     vt(ctx, ['new', ctx.name, '--source', str(src), '--title', title, '--force'])
@@ -1140,6 +1162,7 @@ def attach_video(ctx):
     src = in_path(ctx, v, 'v')
     ctx.report('al', 0, 'מוריד את הסרטון מ־Drive', force=True)
     drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון מ־Drive'))
+    src = edl_src(ctx, src, 'v')
     pd = ctx.pdir
     first = pd / 'audio16k.first.wav'
     if (pd / 'audio16k.wav').exists():
@@ -1743,8 +1766,14 @@ def render(args):
     ensure_env(ctx, 'bn')
     ctx.report('bn', 0, 'צורבים את הכתוביות שנערכו', force=True)
     od = work / 'out'
+    import edl as E
+    eds = []
+    for k in ('edl0', 'edl'):                    # מ5: החיתוך שלפני התרגום והחיתוך החדש (מספרים בלבד, אחרי norm_edl)
+        e = E.norm_edl(spec.get(k))
+        if e:
+            eds += ['--' + k, json.dumps(e, separators=(',', ':'))]
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
-                                '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')], 'bn')
+                                '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
     ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     out = []
@@ -2049,6 +2078,7 @@ def restore(args):
     src = in_path(ctx, f, kind)
     ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + ' מ־Drive', force=True)
     drive_download(ctx, f['id'], src, int(f.get('size') or 0))
+    src = edl_src(ctx, src, kind)
     ensure_env(ctx, st_next)
     set_source(pd, src)
     vt(ctx, ['ingest', ctx.name, '--force'])

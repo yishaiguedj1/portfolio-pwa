@@ -79,6 +79,33 @@ const clean = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f
 const uniq = (a, ok) => (Array.isArray(a) ? a : []).filter((x, i, arr) => ok(x) && arr.indexOf(x) === i);
 
 /* פרטי העבודה מהטלפון — רק מה שהעובד צריך; הכל נבדק ומוגבל */
+/* מ4–מ5: רשימת העריכות של עורך הווידאו — **זהה ל־normEdl ב־studioedl.js ול־norm_edl ב־translator/edl.py** (tests/studio-edl) */
+const EDL_SEG_MIN = 0.5, EDL_SEG_MAX = 60, EDL_JOIN = 0.05, EDL_ARS = ['src', '9:16', '1:1', '4:5'], EDL_MAX_T = 24 * 3600;
+function normEdl(e, dur) {
+  if (!e || typeof e !== 'object') return null;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN), r3 = (x) => Math.round(x * 1000) / 1000;
+  const lim = n(dur) > 0 ? Math.min(n(dur), EDL_MAX_T) : EDL_MAX_T;
+  const segs = [];
+  for (const p of (Array.isArray(e.k) ? e.k : []).slice(0, EDL_SEG_MAX * 4)) {
+    if (!Array.isArray(p) || p.length !== 2) continue;
+    const a = Math.max(0, n(p[0])), b = Math.min(lim, n(p[1]));
+    if (!(a >= 0) || !(b - a >= EDL_SEG_MIN)) continue;
+    segs.push([r3(a), r3(b)]);
+  }
+  segs.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const k = [];
+  for (const s of segs) {
+    const last = k[k.length - 1];
+    if (last && s[0] <= last[1] + EDL_JOIN) last[1] = Math.max(last[1], s[1]);
+    else k.push(s.slice());
+  }
+  const ar = EDL_ARS.includes(e.ar) ? e.ar : 'src';
+  const x = n(e.x) >= 0 && n(e.x) <= 1 ? Math.round(e.x * 100) / 100 : 0.5;
+  const whole = !k.length || (k.length === 1 && k[0][0] <= EDL_JOIN && n(dur) > 0 && k[0][1] >= n(dur) - EDL_JOIN);
+  if (whole && ar === 'src') return null;
+  if (k.length > EDL_SEG_MAX) return null;
+  return { k: whole ? [] : k, ar, x: ar === 'src' ? 0.5 : x };
+}
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -95,7 +122,8 @@ function normSpec(s) {
     out: uniq(s.out, (k) => OUTS.includes(k)),                                  // SRT תמיד; ריק = SRT בלבד
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
-  }, s.eng === 'api' ? { eng: 'api', cap: normCap(s.cap) } : {});   // מצב API של המערכת — עם תקרת עבודה ($)
+  }, normEdl(s.edl) ? { edl: normEdl(s.edl) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
+  s.eng === 'api' ? { eng: 'api', cap: normCap(s.cap) } : {});   // מצב API של המערכת — עם תקרת עבודה ($)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
 function normFile(f) {
@@ -528,6 +556,8 @@ function rrSpec(parent, body) {
   const sp = parent.spec || {};
   return { name: sp.name || '', size: sp.size || 0, type: sp.type || '', dur: sp.dur || 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(sp.mode),
     out: out.length ? out : ['compact'], style: STYLES.includes(body && body.style) ? body.style : STYLES.includes(sp.style) ? sp.style : STYLES[0], terms: '',
+    ...(normEdl(sp.edl) ? { edl0: normEdl(sp.edl) } : {}),                     // מ5: החיתוך שלפני התרגום (המקור → הכתוביות)
+    ...(normEdl(body && body.edl, sp.dur) ? { edl: normEdl(body.edl, sp.dur) } : {}),   // מ5: חיתוך אחרי התרגום (על ציר הזמן של הכתוביות)
     ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) };   // באותו מנוע כמו המקור; במצב השרת — בלי טוקנים, התקרה המינימלית
 }
 function rrJob(parent, body, id, uid, now) {
@@ -761,7 +791,7 @@ function fromFields(f) {
 module.exports = {
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, cuesSwap, rrSpec, rrJob,
+  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

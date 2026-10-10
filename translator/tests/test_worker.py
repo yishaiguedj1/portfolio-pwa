@@ -36,7 +36,7 @@ if a[:1] == ['-c']:
     sys.exit(1)
 if a and a[0].endswith('rerender.py'):       # מ2: הפקה מחדש (בלי vt build)
     o = dict(zip(a[1::2], a[2::2]))
-    pathlib.Path(os.environ['FAKE_LOG']).open('a').write('rerender ' + o['--want'] + ' ' + o['--style'] + '\n')
+    pathlib.Path(os.environ['FAKE_LOG']).open('a').write('rerender ' + o['--want'] + ' ' + o['--style'] + ''.join(' ' + k + '=' + o[k] for k in ('--edl0', '--edl') if k in o) + '\n')
     cues = json.loads(pathlib.Path(o['--cues']).read_text())
     print('כתוביות: %d' % len(cues)); print('צריבה 50%')
     od = pathlib.Path(o['--out']); od.mkdir(parents=True, exist_ok=True)
@@ -827,6 +827,50 @@ class TestWorker(unittest.TestCase):
         self.assertTrue(any(r.get('st') == 'bn' and 0 < (r.get('p') or 0) < 1 for r in self.fake.reports), 'אחוזים מהצריבה')
         self.assertFalse((self.tmp / 'work' / '_rr' / SLUG).exists(), 'קבצי העבודה נמחקו אחרי ההעלאה')
         self.assertNotIn('usage', done, 'בלי טוקנים — בלי שורת עלות')
+
+    def fake_ff(self):
+        """מ4: ffmpeg / ffprobe מדומים בתיקיית הכלים של vt (vt_env מוסיף אותה ל־PATH): מעתיקים את הקלט ורושמים את המסנן"""
+        b = self.tmp / 'ffbin'
+        b.mkdir(exist_ok=True)
+        (b / 'ffprobe').write_text('#!/bin/sh\necho \'{"streams":[{"codec_type":"video","width":1920,"height":1080},{"codec_type":"audio"}]}\'\n')
+        (b / 'ffmpeg').write_text('#!/usr/bin/env python3\nimport sys, shutil, os\na = sys.argv[1:]\n'
+                                  'open(os.environ["FAKE_LOG"], "a").write("ffmpeg " + a[a.index("-filter_complex") + 1] + "\\n")\n'
+                                  'shutil.copy(a[a.index("-i") + 1], a[-1])\n')
+        for x in ('ffprobe', 'ffmpeg'):
+            (b / x).chmod(0o755)
+        self.env['VT_BIN'] = str(b)
+
+    def test_edl_before(self):
+        # מ4: חיתוך לפני התרגום — הקול (וגם הסרטון כשהוא מצטרף) נחתך מיד אחרי ההורדה, ו־vt רואה רק את מה שנשאר
+        self.fake_ff()
+        self.fake.spec = dict(self.fake.spec, edl={'k': [[10, 70], [100, 160]], 'ar': '9:16', 'x': 0.5}, dur=120)
+        self.take()
+        code, out = self.job('prepare')
+        self.assertEqual(code, 0, out)
+        self.assertIn('חיתוך לפני התרגום: 2 קטעים · 9:16', out)
+        log = (self.tmp / 'vt.log').read_text().splitlines()
+        ff = [l for l in log if l.startswith('ffmpeg ')]
+        self.assertEqual(len(ff), 1)
+        self.assertIn('[0:a]atrim=start=10.000:end=70.000', ff[0])
+        self.assertNotIn('[0:v]', ff[0], 'מהקול — בלי וידאו ובלי crop')
+        new = next(l for l in log if l.startswith('new '))
+        self.assertIn('.audio.cut.m4a', new, 'vt מתמלל את הקול החתוך')
+        code, out = self.job('align')
+        self.assertEqual(code, 0, out)
+        ff = [l for l in (self.tmp / 'vt.log').read_text().splitlines() if l.startswith('ffmpeg ')]
+        self.assertEqual(len(ff), 2)
+        self.assertIn('[0:v]trim=start=100.000:end=160.000', ff[1])
+        self.assertIn('crop=606:1080:656:0', ff[1], 'הסרטון — גם יחס התמונה')
+
+    def test_rerender_edl(self):
+        # מ5: הפקה מחדש עם חיתוך — החיתוך שלפני התרגום (מהמקורית) והחדש עוברים ל־rerender.py (מספרים בלבד, אחרי norm_edl)
+        self.fake.kind = 'rr'
+        self.fake.spec = dict(self.fake.spec, out=['compact'], edl0={'k': [[0, 60]]}, edl={'k': [[5, 20]], 'ar': '1:1', 'x': 0.5, 'evil': '$(rm)'})
+        self.take()
+        code, out = self.job('render')
+        self.assertEqual(code, 0, out)
+        log = (self.tmp / 'vt.log').read_text().splitlines()
+        self.assertEqual(log, ['rerender compact bold --edl0={"k":[[0.0,60.0]],"ar":"src","x":0.5} --edl={"k":[[5.0,20.0]],"ar":"1:1","x":0.5}'])
 
     def test_rerender_cues(self):
         # מ2: הכתוביות מהטלפון = טקסט מהמשתמש — ניקוי, מיון, חפיפה, גבול הסרטון; מספור מחדש
