@@ -245,6 +245,43 @@ async function fireJob(deps, uid, v, job, now, resume) {
   return f;
 }
 
+/* ---------- ת7: ניטור השרתים ----------
+   GitHub Actions (studio-watch.yml) קורא כל 10 דק׳ ב־GET בלי גוף. שרת שדיווח ושותק מעל רבע שעה → התראה לטלפון של מי
+   שהוסיף אותו + התראה במגדל (server:down, נשארת פתוחה עד שהוא חוזר או מוסר). אידמפוטנטי: dn נרשם בתנאי updateTime —
+   קריאות במקביל = התראה אחת, ושרת שדיווח בינתיים לא מסומן. אופציונלי: STUDIO_WATCH_SECRET ב־Vercel + באותו שם ב־GitHub.
+   התשובה — רק מספר */
+async function watch(req, res, deps) {
+  res.setHeader('Cache-Control', 'no-store');
+  const secret = process.env.STUDIO_WATCH_SECRET;
+  if (secret && String((req.headers || {}).authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
+  if (limited('watch', 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  try {
+    let n = 0;
+    for (const s of S.serversDown(await query(deps, 'studioServers', null, S.SRV_MAX + 5), now)) {
+      const got = await patchIf(deps, 'studioServers', s.id, { dn: now, updated: now }, s._ut).catch(() => false);
+      if (!got || !UID_RE.test(String(s.by || ''))) continue;
+      n++;
+      await raise(deps, s.by, [{ c: 'server', k: 'down' }], '', now);
+      await notify(deps, s.by, 'srv_down', '', now);
+    }
+    return res.status(200).json({ ok: true, down: n });
+  } catch (e) { return res.status(502).json({ ok: false }); }
+}
+/* ההתראה במגדל אחת לכל המשתמש — נסגרת רק כשאף שרת אחר שלו לא מסומן */
+async function downClear(deps, uid, sid, now) {
+  if (!UID_RE.test(String(uid || ''))) return;
+  try {
+    const others = (await query(deps, 'studioServers', null, S.SRV_MAX + 5)).filter((x) => x.id !== sid && x.dn && x.by === uid);
+    if (!others.length) await raise(deps, uid, [{ c: 'server', k: 'down', ok: true }], '', now);
+  } catch (e) {}
+}
+async function serverBack(deps, srv, sid, now) {
+  if (!UID_RE.test(String(srv.by || ''))) return;
+  await downClear(deps, srv.by, sid, now);
+  await notify(deps, srv.by, 'srv_up', '', now);
+}
+
 /* ---------- מצב "API של המערכת": תור לשרת שלנו (בלי Routine) ---------- */
 /* העבודה נכנסת לתור; שרת פנוי לוקח אותה ב־poll ומקבל מפתח עבודה חדש (המפתח נוצר רק שם — לא מחכה בתור) */
 async function queueApi(deps, uid, job, now) {
@@ -274,6 +311,7 @@ async function server(req, res, body, deps) {
     if (!srv || !S.serverMatches(srv, p.tok)) return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
     const hb = S.normHb(body.hb);
     const seen = { seen: now, hb, updated: now };
+    if (srv.dn) { seen.dn = 0; await serverBack(deps, srv, p.sid, now); }   // ת7: שרת שסומן "לא מדווח" חזר
     if (body.op === 'beat' || srv.paused) {
       await patchDoc(deps, 'studioServers', p.sid, seen);
       return res.status(200).json({ ok: true, job: null, paused: srv.paused === true, now });
@@ -654,6 +692,7 @@ async function worker(req, res, body, deps) {
 
 /* ---------- הטלפון ---------- */
 async function handler(req, res, deps = {}) {
+  if (req.method === 'GET') return watch(req, res, deps);   // ת7: הבדיקה המתוזמנת (בלי גוף, בלי נתונים)
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   body = body || {};
@@ -821,9 +860,13 @@ async function handler(req, res, deps = {}) {
       }
       if (op !== 'srvList') {
         const sid = String(body.sid || '');
-        if (!S.SRV_ID_RE.test(sid) || !(await readDoc(deps, 'studioServers', sid))) return res.status(404).json({ ok: false, error: 'no_server' });
+        const sd = S.SRV_ID_RE.test(sid) ? await readDoc(deps, 'studioServers', sid) : null;
+        if (!sd) return res.status(404).json({ ok: false, error: 'no_server' });
         if (op === 'srvPause') await patchDoc(deps, 'studioServers', sid, { paused: body.paused === true, updated: now });
-        else await delDoc(deps, 'studioServers', sid);   // הטוקן מת מיד — השרת יקבל 401
+        else {
+          await delDoc(deps, 'studioServers', sid);   // הטוקן מת מיד — השרת יקבל 401
+          if (sd.dn) await downClear(deps, sd.by || uid, sid, now);   // ת7: שרת שנפל והוסר — ההתראה נסגרת
+        }
       }
       const list = await servers();
       const jobs = await query(deps, 'studioJobs', { eng: 'api' }, 100).catch(() => []);

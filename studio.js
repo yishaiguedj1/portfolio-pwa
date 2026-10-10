@@ -1918,6 +1918,7 @@ function opsAlert(c, k) {
     case 'claude:inject': return T('studioAlClaudeInject');
     case 'claude:sla_time': return T('studioAlSlaTime');   // v377
     case 'claude:sla_cost': return T('studioAlSlaCost');
+    case 'server:down': return T('studioAlServerDown');   // ת7: הבדיקה המתוזמנת
     case 'vt:setup': return T('studioAlVtSetup');
     case 'vt:ingest': return T('studioAlVtIngest');
     case 'vt:asr': return T('studioAlVtAsr');
