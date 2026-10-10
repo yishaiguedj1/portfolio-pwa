@@ -283,7 +283,9 @@ class Pipeline:
         edit_p = self.pd / 'en.edit.txt'
         edit = edit_p.read_text(encoding='utf-8')
         terms = str((ctx.st.get('spec') or {}).get('terms') or '').strip()
-        ctx.report('al', 0.0, 'Claude מגיה את התמליל ומכין תדריך', force=True)
+        # 10/10/2026: ההגהה נספרת בשלב התמליל (כמו במצב Routine) — עד היום הוצגה כחלק מ"מתאימים כל משפט",
+        # והטלפון הראה 7 דק׳ יישור כשהיישור עצמו לקח 3.5
+        ctx.report('tr', 1, 'Claude מגיה את התמליל ומכין תדריך', force=True)
         fixed = '\n\n'.join([RULES, PROOF_TASK, block('style_guide', guide_text()),
                              block('brief_template', (HERE / 'templates' / 'brief.md').read_text(encoding='utf-8'))])
         prompt = '\n\n'.join(x for x in [
@@ -521,6 +523,41 @@ class Pipeline:
         return len(got), left
 
 
+def start_attach(J, ctx):
+    """צירוף הסרטון בתהליכון רקע. None = אין צירוף במצב הזה (job.py ישן / בדיקה)."""
+    if not (hasattr(J, 'attach_video') and hasattr(J, 'align_prep')):
+        return None
+    quiet = ctx.quiet() if hasattr(ctx, 'quiet') else ctx
+    box: dict = {}
+
+    def run():
+        try:
+            J.attach_video(quiet)
+        except BaseException as e:          # noqa: BLE001 — SystemExit של vt / Stop מהשרתון: נזרקים בתהליכון הראשי
+            box['err'] = e
+    th = threading.Thread(target=run, name='attach', daemon=True)
+    th.start()
+    return th, box
+
+
+def join_attach(J, ctx, bg, poll: float = 5.0):
+    """מחכים לצירוף אחרי ההגהה. הסרטון עוד לא עלה — "מחכים לסרטון" (השעון של יעד הזמן עוצר, כמו ב־wait_video)."""
+    th, box = bg
+    told, n = None, 0
+    while th.is_alive():
+        has_v = bool(((ctx.st.get('files') or {}).get('v') or {}).get('id'))
+        if not has_v and (told != 'wait' or n % 60 == 0):
+            ctx.report('al', None, 'מחכה שהסרטון יסיים לעלות', force=True, wv=True)
+            told = 'wait'
+        elif has_v and told != 'go':
+            ctx.report('al', 0.02, 'מצרפים את הסרטון', force=True)
+            told = 'go'
+        th.join(poll)
+        n += 1
+    if box.get('err') is not None:
+        raise box['err']
+
+
 def run_auto(jobmod, args) -> int:
     """הכל, מקצה לקצה. נקרא מ־job.py auto (אחרי run)."""
     J = jobmod
@@ -544,12 +581,19 @@ def run_auto(jobmod, args) -> int:
         if after < 2:
             st = J.load_state()
             if not (done == 'asr' and st.get('proofed')):
-                pl = Pipeline(J.Ctx(st), J, eng)
+                ctx0 = J.Ctx(st)
+                # 10/10/2026 (קיצור היישור): "הקול קודם" — צירוף הסרטון (הורדה, קליטה, היסט, שוטים) רץ ברקע בזמן
+                # ש־Claude מגיה ובזמן השאלות; המעבד פנוי שם ממילא (מחכים לרשת / למשתמש). אותו מילון מצב, בלי דיווח.
+                bg = start_attach(J, ctx0) if ctx0.st.get('src') == 'a' else None
+                pl = Pipeline(ctx0, J, eng)
                 qs = pl.proofread()
                 if qs:
                     pl.ask(qs)
+                if bg:
+                    join_attach(J, ctx0, bg)
                 # 09/10/2026: ההגהה שולמה — שומרים אותה בנקודת השמירה של התמלול, כדי שכשל ביישור
-                # (העבודה הראשונה בשרת: נגמר הזיכרון) לא יגרום לשלם עליה שוב ב"המשך"
+                # (העבודה הראשונה בשרת: נגמר הזיכרון) לא יגרום לשלם עליה שוב ב"המשך". אחרי הצירוף — הנקודה עקבית
+                # (הסרטון הוא המקור, הזמנים כבר על הציר שלו)
                 J.save_ck(pl.ctx, 'asr', {'pr': 1})
             else:
                 print('· ההגהה, התדריך והמילון כבר בנקודת השמירה — לא משלמים עליהם שוב.')

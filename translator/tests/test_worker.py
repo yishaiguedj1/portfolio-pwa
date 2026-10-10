@@ -481,6 +481,15 @@ class TestWorker(unittest.TestCase):
         self.assertFalse([n for n in names if n.startswith(('source.', 'out/')) or n.endswith(('.wav', '.ogg', '.mp4', '.m4a'))], names)
         self.assertEqual((info['s'], info['src']), ('al', 'v'))
         self.assertEqual(info['sync']['off'], 0.25)
+        # 10/10/2026 (קיצור היישור): זמן כל פקודת vt + עובדות על השרת — בתוך נקודת השמירה, בלי פרט של המשתמש
+        self.assertIn('snb-timing.json', names)
+        with _tar.open(fileobj=_io.BytesIO(al['data']), mode='r:gz') as t:
+            tm = json.loads(t.extractfile('snb-timing.json').read())
+        cmds = [r[0] for r in tm['vt']]
+        for c in ('ingest', 'asr', 'edit-import', 'align', 'plan'):
+            self.assertIn(c, cmds)
+        self.assertTrue(all(isinstance(r[2], (int, float)) and r[2] >= 0 for r in tm['vt']))
+        self.assertEqual(set(tm['env']), {'cpus', 'cpu_max', 'arch', 'gvisor'})
         rv = up[ck[-1]['id']]
         with _tar.open(fileobj=_io.BytesIO(rv['data']), mode='r:gz') as t:
             self.assertFalse([n for n in t.getnames() if n.startswith('out/')], 'בלי הצריבות')

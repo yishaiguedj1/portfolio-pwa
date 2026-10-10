@@ -21,6 +21,7 @@ import signal
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -641,16 +642,20 @@ def usage_safe():
 
 
 # ---------------------------------------------------------------- מצב העבודה בסשן
+_STATE_LOCK = threading.Lock()   # צירוף הסרטון רץ ברקע בזמן ההגהה (מצב API) — שני תהליכונים כותבים את אותו מצב
+
+
 def save_state(st):
     STATE.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.chmod(STATE.parent, 0o700)
     except OSError:
         pass
-    tmp = STATE.with_suffix('.tmp')
-    tmp.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
-    os.chmod(tmp, 0o600)                      # מפתח העבודה — רק למשתמש של הסשן
-    tmp.replace(STATE)
+    with _STATE_LOCK:
+        tmp = STATE.with_suffix('.tmp')
+        tmp.write_text(json.dumps(dict(st), ensure_ascii=False), encoding='utf-8')
+        os.chmod(tmp, 0o600)                  # מפתח העבודה — רק למשתמש של הסשן
+        tmp.replace(STATE)
 
 
 def load_state():
@@ -766,6 +771,10 @@ class Ctx:
         except BaseException:      # noqa: BLE001 — כולל SystemExit מ־Client: דיווח שנכשל לא מפיל את העבודה
             pass
 
+    def quiet(self):
+        """אותה עבודה (אותו מילון מצב) בלי דיווח התקדמות — לעבודת רקע שלא אמורה להזיז את השלב בטלפון."""
+        return QuietCtx(self.st)
+
     def refresh(self):
         """פרטי העבודה העדכניים (הקבצים מהטלפון ממשיכים לעלות אחרי שהעבודה התחילה)."""
         job = self.c.call('claim').get('job') or {}
@@ -775,6 +784,16 @@ class Ctx:
             self.st['qa'] = job['qa']
         save_state(self.st)
         return job
+
+
+class QuietCtx(Ctx):
+    """צירוף הסרטון ברקע בזמן ההגהה: ההגהה היא מה שהמשתמש רואה, והרקע לא מקפיץ את השלב (גם לא "מחכים לסרטון" —
+    בזמן ההגהה לא מחכים לאף אחד). כישלון ושאלות כן עוברים."""
+
+    def report(self, st=None, p=None, msg=None, force=False, **extra):
+        if extra.get('fail') or extra.get('ask') or extra.get('askTimeout'):
+            return Ctx.report(self, st, p, msg, force, **extra)
+        return None
 
 
 # ---------------------------------------------------------------- Drive
@@ -951,8 +970,45 @@ def vt_env():
     return env
 
 
+_TIMING_LOCK = threading.Lock()
+
+
+def env_facts():
+    """מה שקובע מהירות בשרת (בלי שום פרט של המשתמש): ליבות מותרות, מכסת המעבד של הקונטיינר, ארכיטקטורה, gVisor."""
+    def rd(p, n=60):
+        try:
+            return Path(p).read_text(encoding='utf-8', errors='replace').strip()[:n]
+        except OSError:
+            return ''
+    try:
+        aff = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        aff = os.cpu_count() or 0
+    return {'cpus': aff, 'cpu_max': rd('/sys/fs/cgroup/cpu.max', 40), 'arch': os.uname().machine,
+            'gvisor': 'gvisor' in (rd('/proc/version', 200) + rd('/proc/self/cgroup', 200)).lower() or os.path.exists('/proc/gvisor')}
+
+
+def note_timing(ctx, cmd, t0, t1):
+    """מדידה (10/10/2026, קיצור היישור): כמה זמן לקחה כל פקודת vt → snb-timing.json בפרויקט, שנכנס לנקודת השמירה.
+    רק שם הפקודה ומספרים. כשל בכתיבה לא נוגע בעבודה."""
+    try:
+        p = ctx.pdir / 'snb-timing.json'
+        if not ctx.pdir.is_dir():
+            return
+        with _TIMING_LOCK:
+            try:
+                d = json.loads(p.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                d = {'env': env_facts(), 'vt': []}
+            d['vt'] = (d.get('vt') or [])[-200:] + [[cmd, round(t0, 1), round(t1 - t0, 2), threading.current_thread().name[:12]]]
+            p.write_text(json.dumps(d), encoding='utf-8')
+    except Exception:          # noqa: BLE001 — מדידה בלבד
+        pass
+
+
 def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
+    t0 = time.time()
     proc = subprocess.Popen([VT_PY, '-m', 'vt'] + args, cwd=str(HERE), env=vt_env(),
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     tail = []
@@ -973,6 +1029,7 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
         # ‎-9 = התהליך נהרג מבחוץ — כמעט תמיד מגבלת הזיכרון של הקונטיינר (09/10/2026: vt align בשרת של 8GB)
         why = ' — נגמר הזיכרון' if rc in (-9, 137) else ''
         raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').')
+    note_timing(ctx, args[0], t0, time.time())
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
     return tail
 
@@ -2039,6 +2096,12 @@ def ladder_run(args):
     try:
         os.nice(15)
     except OSError:
+        pass
+    try:
+        # 10/10/2026 (קיצור היישור): SCHED_IDLE — המעבד לאיכויות רק כשאף אחד אחר לא צריך אותו. nice לבד עדיין לוקח
+        # נתח מהיישור (ONNX על כל הליבות) ומהצריבה; האיכויות נחוצות רק בסוף, ובזמן התרגום והביקורת המעבד פנוי ממילא
+        os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))
+    except (AttributeError, OSError):
         pass
     r = LD.build(args.src, LADDER_DIR / 'out', log=lambda m: print(m, flush=True))
     st = {'job': args.job, 's': 'ok' if r.get('ok') else 'skip', 'why': r.get('why', ''), 'top': r.get('top'), 'rungs': r.get('rungs'),

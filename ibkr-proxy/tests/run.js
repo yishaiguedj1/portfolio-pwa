@@ -2321,7 +2321,8 @@ function stubFetch(text, status = 200) {
         const mk = (d, at) => ({ e: 'a', m: 'opus-medium', d, at, s: { tr: 100 + 10 * d / 60, al: 200, tl: 30, rv: 40, bn: 100, sv: 10 } });
         const one = E.etaModel([mk(600, 0)], 'a', 0).st.tr, many = E.etaModel([300, 600, 900, 1200, 1800, 2400, 600, 900, 300, 1200, 1500, 1800].map((d) => mk(d, 0)), 'a', 0);
         ok(Math.abs(many.st.tr[0] - 100) < 25 && Math.abs(many.st.tr[1] - 10) < 3, 'סטודיו: צפי — 12 עבודות: המודל לומד את הקבוע והשיפוע');
-        ok(one[0] + one[1] * 10 > 205 && one[0] + one[1] * 10 < 275, 'סטודיו: צפי — עבודה אחת מזיזה את ה־prior רק חלקית (shrinkage): בין 280 ל־200');
+        const pri10 = E.PRIOR.a.tr[0] + E.PRIOR.a.tr[1] * 10, one10 = one[0] + one[1] * 10;
+        ok(one10 > 205 && one10 < pri10 - 5, 'סטודיו: צפי — עבודה אחת מזיזה את ה־prior רק חלקית (shrinkage): בין ה־prior ל־200');
         ok(many.n === 12 && many.q[0] <= many.q[1] && many.q[1] <= many.q[2], 'סטודיו: צפי — מ־8 עבודות: קוונטילים מהעבר, בסדר עולה');
         ok(E.etaModel([], 'a', 0).q[1] > 0.29 && E.etaModel([], 'a', 0).q[1] < 0.3, 'סטודיו: צפי — לפני 8 עבודות: σ=0.35 קבוע');
         const job = { kind: 'tr', fires: 1, eng: 'api', spec: { dur: 300, mode: 'opus-medium' },

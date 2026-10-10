@@ -503,12 +503,90 @@ class RunAutoResume(unittest.TestCase):
                          ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'judge', 'finish'])
 
     def test_audio_first_attaches_then_parallel(self):
-        # 10/10/2026: הטלפון תמיד מעלה קול קודם — הסרטון מצטרף לפני התכנון, ואז התרגום רץ במקביל ליישור
-        self.check_parallel(self.flow([], None, src='a', attach=True),
-                            ['prepare', 'proofread', 'ck:asr+pr', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
+        # 10/10/2026: הטלפון תמיד מעלה קול קודם — הסרטון מצטרף ברקע בזמן ההגהה (קיצור היישור), לפני נקודת השמירה
+        # של ההגהה (הנקודה עקבית: הסרטון הוא המקור), ואז התרגום רץ במקביל ליישור
+        log = self.flow([], None, src='a', attach=True)
+        self.assertEqual(log.count('attach'), 1)
+        self.assertLess(log.index('attach'), log.index('ck:asr+pr'), 'הצירוף מסתיים לפני נקודת השמירה')
+        self.assertGreater(log.index('attach'), log.index('prepare'))
+        self.check_parallel([x for x in log if x != 'attach'],
+                            ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
         # המשך מנקודת התמלול של עבודה שהתחילה מהקול — גם כן מצרפים ואז במקביל
         self.check_parallel(self.flow([{'s': 'asr', 'id': 'x'}], 'asr', proofed=True, src='a', attach=True),
                             ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
+
+
+
+class AttachInBackground(unittest.TestCase):
+    """10/10/2026 (קיצור היישור): צירוף הסרטון רץ בזמן ההגהה — אמיתית במקביל, שקט, ושגיאה בו לא נבלעת."""
+
+    def J(self, attach):
+        return NS(attach_video=attach, align_prep=lambda c: None)
+
+    def test_runs_concurrently_with_main_thread(self):
+        import threading as T
+        started, release = T.Event(), T.Event()
+
+        def attach(c):
+            started.set()
+            release.wait(5)
+            c.st['src'] = 'v'
+        st = {'src': 'a', 'files': {'v': {'id': 'x'}}}
+        rep = []
+        ctx = NS(st=st, report=lambda *a, **k: rep.append((a, k)))
+        bg = P.start_attach(self.J(attach), ctx)
+        self.assertTrue(started.wait(5), 'הצירוף התחיל לפני שההגהה הסתיימה')
+        release.set()
+        P.join_attach(self.J(attach), ctx, bg, poll=0.01)
+        self.assertEqual(st['src'], 'v', 'אותו מילון מצב')
+
+    def test_quiet_ctx_used(self):
+        seen = []
+        ctx = NS(st={'files': {'v': {'id': 'x'}}}, report=lambda *a, **k: None, quiet=lambda: 'QUIET')
+        bg = P.start_attach(self.J(lambda c: seen.append(c)), ctx)
+        P.join_attach(self.J(None), ctx, bg, poll=0.01)
+        self.assertEqual(seen, ['QUIET'], 'הרקע לא מזיז את השלב בטלפון')
+
+    def test_error_raised_after_join(self):
+        def attach(c):
+            raise SystemExit('✗ vt ingest נכשל')
+        ctx = NS(st={'files': {'v': {'id': 'x'}}}, report=lambda *a, **k: None)
+        bg = P.start_attach(self.J(attach), ctx)
+        with self.assertRaises(SystemExit):
+            P.join_attach(self.J(attach), ctx, bg, poll=0.01)
+
+    def test_waiting_for_video_pauses_sla_clock(self):
+        import threading as T
+        go = T.Event()
+        st = {'files': {}}
+        rep = []
+        ctx = NS(st=st, report=lambda *a, **k: rep.append(k))
+        bg = P.start_attach(self.J(lambda c: go.wait(5)), ctx)
+        t = T.Timer(0.05, lambda: (st['files'].update(v={'id': 'x'}), T.Timer(0.05, go.set).start()))
+        t.start()
+        P.join_attach(self.J(None), ctx, bg, poll=0.01)
+        self.assertTrue(any(k.get('wv') for k in rep), 'מחכים לסרטון → wv (השעון עוצר)')
+        self.assertEqual(sum(1 for k in rep if k.get('wv')), 1, 'פעם אחת, לא בכל סיבוב')
+
+    def test_no_attach_in_old_worker(self):
+        self.assertIsNone(P.start_attach(NS(), NS(st={})))
+
+
+class QuietCtxWorker(unittest.TestCase):
+    def test_quiet_reports_only_failures(self):
+        import job as JJ
+        calls = []
+        q = JJ.QuietCtx.__new__(JJ.QuietCtx)
+        orig = JJ.Ctx.report
+        JJ.Ctx.report = lambda self, *a, **k: calls.append(k)
+        try:
+            q.report('al', 0.5, 'x', force=True)
+            q.report('al', None, 'מחכה', force=True, wv=True)
+            q.report(fail=True, err='upload_timeout', force=True)
+        finally:
+            JJ.Ctx.report = orig
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0].get('fail'))
 
 
 if __name__ == '__main__':
