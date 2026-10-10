@@ -2050,7 +2050,9 @@ AUX_FILES = (
 # ---------------------------------------------------------------- איכויות צפייה (כמו ב־YouTube)
 # ladder.py: המקור עצמו ארוז מחדש (בלי קידוד) + איכויות נמוכות קטנות. נבנה ברקע מרגע שהסרטון ירד, וב־finish:
 # האיכויות עולות לתיקיית העבודה והמקור מוחלף בגרסה הארוזה (אותו קובץ, אותו מזהה — בלי עותק נוסף).
-LADDER_DIR = STATE.parent / 'ladder'
+# 10/10/2026 (תקלה): בתיקיית העבודה (/work, דיסק) — לא ליד STATE: בשרת /state הוא tmpfs של 16MB, הסרטון הארוז מילא אותו
+# מיד, והעובד קרס בכתיבת קובץ המצב (OSError → worker_crash, "כנראה נגמר הזיכרון"), גם בכל "המשך".
+LADDER_DIR = VT_WORK / '_ladder'
 LADDER_WAIT = 15 * 60          # finish מחכה לכל היותר רבע שעה; לא מוכן — העבודה מסתיימת בלי איכויות (הנגן כמו קודם)
 
 
@@ -2069,6 +2071,15 @@ def ladder_running():
         return st[2] != 'Z'
     except (OSError, ValueError, IndexError):
         return False
+
+
+def ladder_stop():
+    """עוצר בנייה שרצה ברקע (קבוצת התהליכים כולה — גם ffmpeg). בסוף עבודה / ניקוי."""
+    if ladder_running():
+        try:
+            os.killpg(int((LADDER_DIR / 'pid').read_text()), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
 
 
 def ladder_start(ctx, src):
@@ -2134,11 +2145,7 @@ def ladder_finish(ctx):
         waited += 5
         st = ladder_state() or {}
     if st.get('s') != 'ok':
-        if ladder_running():
-            try:
-                os.killpg(int((LADDER_DIR / 'pid').read_text()), signal.SIGTERM)
-            except (OSError, ValueError):
-                pass
+        ladder_stop()
         print('· בלי איכויות צפייה (' + str(st.get('why') or 'time') + ') — הנגן מנגן את המקור כמו שהוא.')
         return None
     v = (ctx.refresh().get('files') or {}).get('v') or {}

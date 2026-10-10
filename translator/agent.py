@@ -145,6 +145,8 @@ def beat_loop(server: str = '', tok: str = ''):
 
 def cleanup():
     """מחיקה של כל מה שהעבודה השאירה על הדיסק — כולל הסרטונים. המודלים (מטמון) נשארים."""
+    J.ladder_stop()                              # איכויות הצפייה רצות בתהליך נפרד — לא ממשיכות לכתוב אחרי המחיקה
+    shutil.rmtree(J.STATE.parent / 'ladder', ignore_errors=True)   # שארית מגרסה קודמת (שם היא מילאה את /state)
     w = J.VT_WORK
     if w.is_dir():
         for p in w.iterdir():

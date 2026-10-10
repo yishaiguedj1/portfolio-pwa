@@ -792,7 +792,7 @@ async function handler(req, res, deps = {}) {
   if (WORKER_OPS.has(String(body.op || ''))) return worker(req, res, body, deps);
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
   if (guard(req, res)) return;
-  if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured() });   // המזהה ציבורי
+  if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
   if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });

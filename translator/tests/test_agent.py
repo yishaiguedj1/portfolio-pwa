@@ -166,6 +166,9 @@ class HandleUnit(unittest.TestCase):
             self.assertTrue(agent.BUSY.exists(), 'בזמן עבודה — קובץ busy (המעדכן לא מחליף גרסה)')
             (job.VT_WORK / 'proj').mkdir(parents=True, exist_ok=True)
             (job.VT_WORK / 'proj' / 'a.mp4').write_bytes(b'v')
+            job.LADDER_DIR.mkdir(parents=True, exist_ok=True)              # איכויות הצפייה — בתיקיית העבודה
+            (job.LADDER_DIR / 'top.mp4').write_bytes(b'v')
+            (job.STATE.parent / 'ladder').mkdir(parents=True, exist_ok=True)   # שארית מגרסה קודמת ב־/state
             if args[0] == 'auto':
                 raise RuntimeError('crash')
             return 0
@@ -181,6 +184,8 @@ class HandleUnit(unittest.TestCase):
             agent.handle({'id': JOB, 'key': KEY, 'kind': 'tr'}, job.SERVER)
         self.assertEqual(calls, ['run', 'auto'])
         self.assertEqual(list(job.VT_WORK.iterdir()), [], 'גם בקריסה — הסרטון נמחק')
+        self.assertFalse((job.STATE.parent / 'ladder').exists(), 'שארית האיכויות ב־/state (tmpfs של 16MB) נמחקת')
+        self.assertTrue(str(job.LADDER_DIR).startswith(str(job.VT_WORK)), 'האיכויות בדיסק העבודה, לא ב־/state (תקלה 10/10)')
 
 
 if __name__ == '__main__':
