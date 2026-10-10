@@ -229,31 +229,48 @@ export function parseSrt(text) {
   }
   return out.sort((x, y) => x.a - y.a);
 }
-/* chrF (Popović 2015): F של n־גרמים של תווים, n = 1..6, β = 2 (ההחזר שוקל כפול) — בלי רווחים ופיסוק, אותיות קטנות */
-const chrNorm = (s) => String(s || '').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
-function grams(s, n) {
-  const m = new Map(), a = Array.from(s);
-  for (let i = 0; i + n <= a.length; i++) { const g = a.slice(i, i + n).join(''); m.set(g, (m.get(g) || 0) + 1); }
-  return m;
-}
-export function chrF(hyp, ref, N = 6, beta = 2) {
-  const h = chrNorm(hyp), r = chrNorm(ref);
-  if (!h || !r) return h === r ? 100 : 0;
-  let P = 0, R = 0, k = 0;
-  for (let n = 1; n <= N; n++) {
-    const gh = grams(h, n), gr = grams(r, n);
-    let th = 0, tr = 0, mt = 0;
-    for (const v of gh.values()) th += v;
-    for (const v of gr.values()) tr += v;
-    if (!th || !tr) continue;
-    for (const [g, v] of gh) mt += Math.min(v, gr.get(g) || 0);
-    P += mt / th; R += mt / tr; k++;
+/* chrF++ — port זהה ל־translator/tedeval.py (תואם sacrebleu: nc 6, nw 2, β 2, בלי lowercase, בלי רווחים בתווים).
+   מאגר המדידות ו"סט הזהב" מודדים באותה נוסחה; שינוי כאן = גם שם (tests/studio-v387 בודק את אותם ערכי sacrebleu) */
+const CHRF_PUNCT = new Set(Array.from('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'));
+function chrfWords(s) {
+  const out = [];
+  for (const w of String(s).split(/\s+/).filter(Boolean)) {
+    const a = Array.from(w);
+    if (a.length === 1) out.push(w);
+    else if (CHRF_PUNCT.has(a[a.length - 1])) out.push(a.slice(0, -1).join(''), a[a.length - 1]);
+    else if (CHRF_PUNCT.has(a[0])) out.push(a[0], a.slice(1).join(''));
+    else out.push(w);
   }
-  if (!k) return 0;
-  P /= k; R /= k;
-  const b2 = beta * beta;
-  return P + R > 0 ? Math.round((1 + b2) * P * R / (b2 * P + R) * 1000) / 10 : 0;
+  return out;
 }
+function ngramStat(h, r, n) {
+  const count = (a) => { const m = new Map(); for (let i = 0; i + n <= a.length; i++) { const g = a.slice(i, i + n).join('\u0001'); m.set(g, (m.get(g) || 0) + 1); } return m; };
+  const gh = count(h), gr = count(r);
+  let th = 0, tr = 0, mt = 0;
+  for (const v of gh.values()) th += v;
+  for (const v of gr.values()) tr += v;
+  for (const [g, v] of gh) mt += Math.min(v, gr.get(g) || 0);
+  return [mt, th, tr];
+}
+export function chrfpp(hyp, ref, nc = 6, nw = 2, beta = 2) {
+  const ch = Array.from(String(hyp || '').split(/\s+/).join('')), cr = Array.from(String(ref || '').split(/\s+/).join(''));
+  const hw = chrfWords(hyp || ''), rw = chrfWords(ref || ''), st = [];
+  for (let n = 1; n <= nc; n++) st.push(ngramStat(ch, cr, n));
+  for (let n = 1; n <= nw; n++) st.push(ngramStat(hw, rw, n));
+  let ap = 0, ar = 0, eff = 0;
+  for (const [m, ht, rt] of st) if (ht > 0 && rt > 0) { ap += m / ht; ar += m / rt; eff++; }
+  if (!eff) return 0;
+  ap /= eff; ar /= eff;
+  if (ap + ar === 0) return 0;
+  const b2 = beta * beta;
+  return 100 * (1 + b2) * ap * ar / (b2 * ap + ar);
+}
+/* נרמול עברית לפני השוואה — זהה ל־norm_he: תווי כיוון וניקוד החוצה, גרשיים/מקף/שלוש־נקודות אחידים */
+export function normHe(s) {
+  return String(s || '').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '').replace(/[\u05b0-\u05bd\u05bf\u05c1\u05c2\u05c4\u05c5\u05c7]/g, '')
+    .replace(/[״“”]/g, '"').replace(/[׳‘’]/g, "'").replace(/[־–—]/g, '-').replace(/…/g, '...').split(/\s+/).filter(Boolean).join(' ');
+}
+const SOUND_ONLY = /^[\s(\[][^)\]]*[)\]][\s.!?]*$/;     // (מחיאות כפיים) — יורדת משני הצדדים, כמו ב־tedeval
 /* כמה מזמן הדיבור בתרגום האנושי מכוסה בכתוביות שלנו (%) */
 export function timeCover(hyp, ref) {
   let tot = 0, cov = 0;
@@ -263,11 +280,14 @@ export function timeCover(hyp, ref) {
   }
   return tot ? Math.round(Math.min(1, cov / tot) * 1000) / 10 : 0;
 }
-/* הציון של עבודה מול הייחוס: s = chrF על כל הטקסט לפי סדר הזמן, tm = כיסוי הזמן, n = כתוביות בייחוס */
+/* הציון של עבודה מול הייחוס (כמו chrf_doc של tedeval): s = chrF++ על כל הטקסט המנורמל לפי סדר הזמן
+   (בלי כתוביות של צלילים, ובלי שלנו לפני הכתובית הראשונה בייחוס), tm = כיסוי הזמן, n = כתוביות בייחוס */
 export function goldCompare(hypText, refText) {
-  const h = parseSrt(hypText), r = parseSrt(refText);
+  const r = parseSrt(refText).filter((c) => !SOUND_ONLY.test(c.t));
   if (!r.length) return null;
-  return { s: Math.round(chrF(h.map((c) => c.t).join(' '), r.map((c) => c.t).join(' '))), tm: Math.round(timeCover(h, r)), n: r.length };
+  const h = parseSrt(hypText).filter((c) => !SOUND_ONLY.test(c.t) && (c.a + c.b) / 2 >= r[0].a);
+  const doc = (cs) => normHe(cs.map((c) => c.t).join(' '));
+  return { s: Math.round(chrfpp(doc(h), doc(r))), tm: Math.round(timeCover(h, r)), n: r.length };
 }
 
 export function createNet(env) {

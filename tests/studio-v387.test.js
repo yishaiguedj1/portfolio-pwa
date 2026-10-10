@@ -1,5 +1,5 @@
 // v387: סטודיו התרגום — מגדל 2.0, סט הזהב (ServiceNow: Agentic evaluation · golden dataset) — תשתית:
-// עבודה שהסתיימה + תרגום אנושי (SRT) לייחוס; ציון דטרמיניסטי (chrF + כיסוי זמן), בלי AI ובלי טוקנים;
+// עבודה שהסתיימה + תרגום אנושי (SRT) לייחוס; ציון דטרמיניסטי (chrF++ זהה ל־tedeval + כיסוי זמן), בלי AI ובלי טוקנים;
 // הרצה חוזרת — רק בלחיצה, אחרי אומדן ואישור, דרך "התחלה" הרגילה (כל השמירות).
 // הבדיקות המלאות של השרתון: ibkr-proxy/tests/run.js (בלוק v387).
 // הרצה: node tests/studio-v387.test.js
@@ -13,17 +13,27 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
 (async () => {
   const N = await import(path.join(root, 'studionet.js'));
-  /* ---------- 1. SRT ו־chrF ---------- */
+  /* ---------- 1. SRT ו־chrF++ ---------- */
   const A = '﻿1\r\n00:00:01,000 --> 00:00:03,000\r\nשלום <i>עולם</i>\r\n\r\n2\r\n00:00:04,000 --> 00:00:06,500\r\nמה שלומך?\r\n\r\nפגום\r\n\r\n3\r\n00:00:09,000 --> 00:00:08,000\r\nהפוך\r\n';
   const pa = N.parseSrt(A);
   ok(pa.length === 2 && pa[0].a === 1000 && pa[0].b === 3000 && pa[0].t === 'שלום עולם' && pa[1].t === 'מה שלומך?', 'parseSrt: BOM, CRLF, תגיות; בלוק פגום וזמן הפוך — מדלגים');
   ok(N.parseSrt('').length === 0 && N.parseSrt('just text').length === 0, 'parseSrt: לא SRT — ריק');
-  ok(N.chrF('שלום עולם', 'שלום עולם') === 100 && N.chrF('abc', 'xyz') === 0, 'chrF: זהה = 100, אין משותף = 0');
-  ok(N.chrF('שלום, עולם!', 'שלום עולם') === 100 && N.chrF('Hello World', 'hello world') === 100, 'chrF: בלי רווחים, פיסוק ואותיות גדולות');
-  const near = N.chrF('מה שלומך היום', 'מה שלומך'), far = N.chrF('בוקר טוב', 'מה שלומך');
-  ok(near > far && near < 100, 'chrF: קרוב יותר = ציון גבוה יותר');
-  ok(N.chrF('שלום', 'שלום עולם יפה מאוד') < N.chrF('שלום עולם יפה', 'שלום עולם יפה מאוד'), 'chrF: β=2 — מה שהושמט מוריד (ההחזר שוקל כפול)');
-  ok(N.chrF('a b c', 'a b c') === N.chrF('a b c', 'a b c'), 'chrF: דטרמיניסטי');
+  // אותם ערכי sacrebleu 2.6.0 של translator/tests/test_tedeval.py — המימוש בטלפון = המימוש של מאגר המדידות
+  const SB = [['the cat sat on the mat', 'the cat sat on a mat', 72.030], ['שלום עולם, מה נשמע?', 'שלום עולם! מה נשמע?', 71.918],
+    ['זה תרגום ניסיון של כתובית ארוכה יותר — עם מקף עברי', 'זה ניסיון תרגום של כתובית ארוכה, עם מקף עברי', 67.163], ['a', 'a', 100], ['abc', 'xyz', 0],
+    ['', 'ref text', 0], ['קצר', 'קצר מאוד מאוד', 27.108], ['Hello world', 'hello World', 28.155], ['מספרים 123 ו־456.', 'מספרים 123 ו-456.', 66.940],
+    ['שתי שורות\nעם ירידת שורה', 'שתי שורות עם ירידת שורה', 100]];
+  ok(SB.every(([h, r, w]) => Math.abs(N.chrfpp(h, r) - w) < 5e-4), 'chrF++: זהה לערכי sacrebleu (כמו tedeval)');
+  ok(N.normHe('\u200fשָׁלוֹם…\u200e') === 'שלום...' && N.normHe('בית״ס  ו־כו׳') === 'בית"ס ו-כו\'', 'normHe: זהה ל־norm_he');
+  ok(!('chrF' in N), 'אין chrF תווי נפרד — מדד אחד');
+  // אותם מספרים בדיוק כמו tedeval.py על טקסטים עבריים (כשיש python3)
+  const { spawnSync } = require('child_process');
+  const pairs = [['‏שָׁלוֹם, עולם! "בית״ס"', 'שלום עולם — בית"ס'], ['(מחיאות כפיים) תודה רבה לכם.', 'תודה רבה.'], ['אני: ואז הוא אמר — "לא!"', 'ואז הוא אמר "לא".']];
+  const py = spawnSync('python3', ['-c', 'import sys,json; sys.path.insert(0, sys.argv[1]); import tedeval as T; print(json.dumps([T.chrfpp(T.norm_he(h), T.norm_he(r)) for h, r in json.loads(sys.stdin.read())]))', path.join(root, 'translator')], { input: JSON.stringify(pairs), encoding: 'utf8' });
+  if (py.status === 0) {
+    const want = JSON.parse(py.stdout);
+    ok(pairs.every(([h, r], i) => Math.abs(N.chrfpp(N.normHe(h), N.normHe(r)) - want[i]) < 1e-9), 'chrF++ ו־normHe: זהים ל־tedeval.py (python3)');
+  }
   /* ---------- 2. כיסוי זמן והציון ---------- */
   const hyp = [{ a: 1000, b: 2000, t: 'x' }, { a: 4000, b: 6500, t: 'y' }];
   ok(N.timeCover(hyp, pa) === 77.8, 'timeCover: כמה מזמן הדיבור בייחוס מכוסה בכתוביות שלנו');
@@ -32,6 +42,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(g && g.s === 100 && g.tm === 100 && g.n === 2, 'goldCompare: מול עצמו = 100/100');
   ok(N.goldCompare(A, 'no srt') === null, 'goldCompare: ייחוס לא תקין — בלי ציון');
   ok(N.GOLD_REF_MAX === 2 * 1024 * 1024, 'הייחוס עד 2MB');
+  ok(/gold: srv\.gq \? \{ chrf_doc: srv\.gq\.s, cover: srv\.gq\.tm/.test(read('studio.js')), 'נתוני המדידה (benchData) כוללים את ציון סט הזהב — מאגר מדידות אחד');
 
   /* ---------- 3. השרתון ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));

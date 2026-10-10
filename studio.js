@@ -4144,7 +4144,8 @@ export function benchData(rec) {
   return { date: new Date(rec.created || Date.now()).toISOString().slice(0, 10), dur_s: sp.dur || 0, engine: srv.eng === 'api' ? 'api' : 'routine',
     mode: sp.mode || '', models, usd, tok, tokd, stages_s: stages,
     wall_s: Number.isFinite(first) && srv.ended > first ? Math.round((srv.ended - first) / 1000) : 0,
-    quality: srv.q ? srv.q.s : null, cues: srv.q ? srv.q.n : null, judge: srv.jd ? srv.jd.s : null, state: srv.state || '' };
+    quality: srv.q ? srv.q.s : null, cues: srv.q ? srv.q.n : null, judge: srv.jd ? srv.jd.s : null, state: srv.state || '',
+    gold: srv.gq ? { chrf_doc: srv.gq.s, cover: srv.gq.tm, n: srv.gq.n } : null };   // v387: סט הזהב — chrF++ מסמך (אותה נוסחה של tedeval) מול הייחוס שהעלית
 }
 /* ת2 (10/10/2026): בידוד קופסת העובד — gVisor, או רגיל עם הסיבה (snb_runtime במארח) */
 function isoTxt(hb) {
