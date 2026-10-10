@@ -27,6 +27,42 @@ export function nextChunk(bytesPerSec) {
   if (!(bytesPerSec > 0)) return CHUNK_START;
   return Math.max(CHUNK_MIN, Math.min(CHUNK_MAX, Math.round(bytesPerSec * 15 / K256) * K256));
 }
+/* v380: זיכרון המונחים — מילון אחד לכל משתמש, קובץ TSV בתיקיית הסטודיו ב־Drive (appProperties snbGloss=1).
+   אותו פורמט של tr/glossary.tsv של vt: אנגלית<TAB>עברית (חלופות ב־/)[<TAB>הערה]. glClean/glParse זהים ל־gl_clean/gl_parse
+   בעובד (job.py) ול־glClean בשרתון — tests/studio-v380 משווה */
+export const GL_MAX = 400, GL_NAME = 'מילון מונחים.tsv';
+const GL_HEAD = '# מילון המונחים של סטודיו התרגום — אנגלית<TAB>עברית (חלופות מופרדות ב־/)<TAB>הערה. כל עבודה מקבלת רק את המונחים שמופיעים בסרטון.\n';
+export function glClean(v, n) {
+  const s = String(v == null ? '' : v).replace(/[\x00-\x1f\x7f<>`]/g, ' ').replace(/\s+/g, ' ').trim();
+  return s.includes('://') ? '' : s.slice(0, n);
+}
+export function glParse(text) {
+  const rows = [], seen = new Set();
+  for (const line of String(text || '').split(/\r?\n/)) {
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const c = line.split('\t');
+    if (c.length < 2) continue;
+    const en = glClean(c[0], 60), he = glClean(c[1], 80), n = c.length > 2 ? glClean(c[2], 100) : '';
+    if (!en || !he || seen.has(en.toLowerCase())) continue;
+    seen.add(en.toLowerCase());
+    rows.push([en, he, n]);
+    if (rows.length >= GL_MAX) break;
+  }
+  return rows;
+}
+export const glFormat = (rows) => GL_HEAD + rows.map((r) => r[0] + '\t' + r[1] + (r[2] ? '\t' + r[2] : '')).join('\n') + (rows.length ? '\n' : '');
+/* הוספה/עדכון (אותו מונח באנגלית — בלי תלות באותיות גדולות — מתעדכן), עד GL_MAX. מחזיר מערך חדש */
+export function glUpsert(rows, add) {
+  const out = rows.map((r) => r.slice());
+  for (const a of add) {
+    const en = glClean(a[0], 60), he = glClean(a[1], 80), n = glClean(a[2], 100);
+    if (!en || !he) continue;
+    const i = out.findIndex((r) => r[0].toLowerCase() === en.toLowerCase());
+    if (i >= 0) out[i] = [en, he, n]; else if (out.length < GL_MAX) out.push([en, he, n]);
+  }
+  return out;
+}
+
 /* זמן משוער לכל שלב, בשניות. מהתוכנית: ראיון של 77 דק׳ ב־Opus 5.5 · Medium = תמלול 8, יישור 5, תרגום 50, בדיקה 12,
    צריבה 23, שמירה 3 דקות. כלומר דקות עבודה לכל דקת סרטון. התרגום והבדיקה גדלים/קטנים לפי המצב (min של המצב מול 105 של
    המומלץ); השאר לא תלוי במצב. ההעלאה נמדדת בטלפון. כשהעבודות האמיתיות יצטברו — הקצב יכויל מהן (שלב 3). */
@@ -264,5 +300,34 @@ export function createNet(env) {
     return '';
   }
 
-  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, _forget: () => { dtok = null; } };
+  /* v380: המילון ב־Drive — {id, rows}. אין קובץ = רשימה ריקה (נוצר בשמירה הראשונה, בתיקיית הסטודיו) */
+  async function glossLoad() {
+    const qs = "appProperties has { key='snbGloss' and value='1' } and trashed=false";
+    const j = await dreq('GET', API + '?q=' + q(qs) + '&fields=files(id,size)&pageSize=3&spaces=drive');
+    const f = j && j.files && j.files[0];
+    if (!f) return { id: '', rows: [] };
+    const r = await E.fetch(API + '/' + f.id + '?alt=media', { headers: { Authorization: 'Bearer ' + await driveToken() } });
+    if (!r.ok) throw await driveErr(r);
+    return { id: f.id, rows: glParse(await r.text()) };
+  }
+  async function glossSave(id, rows) {
+    const body = glFormat(rows);
+    if (id) {
+      const r = await E.fetch(UP + '/' + id + '?uploadType=media&fields=id', { method: 'PATCH', body,
+        headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'text/tab-separated-values; charset=UTF-8' } });
+      if (!r.ok) throw await driveErr(r);
+      return id;
+    }
+    const root = await folder(ROOT_NAME, 'snbStudio', '1', '', 'הסרטונים והתרגומים של סטודיו התרגום ב־THE SNOWBALL.');
+    const b = 'snb' + Math.random().toString(36).slice(2);
+    const meta = { name: GL_NAME, parents: [root], mimeType: 'text/tab-separated-values', appProperties: { snbGloss: '1' } };
+    const mp = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + b +
+      '\r\nContent-Type: text/tab-separated-values; charset=UTF-8\r\n\r\n' + body + '\r\n--' + b + '--';
+    const r = await E.fetch(UP + '?uploadType=multipart&fields=id', { method: 'POST', body: mp,
+      headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'multipart/related; boundary=' + b } });
+    if (!r.ok) throw await driveErr(r);
+    return (await r.json()).id;
+  }
+
+  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, _forget: () => { dtok = null; } };
 }

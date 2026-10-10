@@ -24,7 +24,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(A.effortOf('opus-medium') === 'medium' && A.effortOf('sonnet-high') === 'high' && A.effortOf('x') === '', 'המאמץ מהמצב');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/ag: A\.agentsView\(list, now\)/.test(api) && /const pv = S\.normPv\(body\.pv\)/.test(api) && /const tr = S\.normTrace\(body\.trace\)/.test(api), 'השרתון: מלאי מאותה רשימה של op jobs, גרסאות מ־claim, עקיבה מהדיווח');
-  ok(/'tr', 'pv'(, 'q', 'ij')?(, 'jd')?(, 'tg')?(, 'sc')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'עקיבה וגרסאות נשמרות כ־JSON');
+  ok(/'tr', 'pv'(, 'q', 'ij')?(, 'jd')?(, 'tg')?(, '[a-z]+')*\]/.test(read('ibkr-proxy/lib/studio.js')), 'עקיבה וגרסאות נשמרות כ־JSON');
 
   /* ---------- 3. ההרשאות שמוצגות = מה שנאכף ---------- */
   const setup = read('translator/setup.sh');

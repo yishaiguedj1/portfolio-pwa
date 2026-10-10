@@ -508,6 +508,7 @@ async function worker(req, res, body, deps) {
     if (body.quality != null) { const q = S.normQuality(body.quality); if (q) up.q = q; }   // v374: מדד האיכות — לא תקין נזרק בשקט
     if (body.inj != null) { const ij = S.normInj(body.inj); if (ij) up.ij = ij; }          // v374: שומר ההזרקות
     if (body.judge != null) { const jd = S.normJudge(body.judge); if (jd) up.jd = jd; }    // v375: שופט האיכות
+    if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.trace != null) {
       // v373: עקיבה (מהיומנים, בסוף העבודה) — לא תקין נזרק בשקט
       const tr = S.normTrace(body.trace);
