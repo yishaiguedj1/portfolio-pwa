@@ -4502,7 +4502,7 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
-const APP_VERSION = 'v381';
+const APP_VERSION = 'v382';
 
 
 /* תחזוקה (10/10/2026 — הסיכון מסעיף 15 ב־CLAUDE.md): עד עכשיו חריגה ממכסת ה־localStorage (~5MB) נבלעה בשקט,
