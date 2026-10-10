@@ -7,7 +7,7 @@ const STAGES = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 // זהה ל־RATE ב־studionet.js (דקות עבודה לכל דקת סרטון; התרגום והבדיקה לפי המצב) — tests/studio-v377 משווה
 const RATE = { tr: 8 / 77, al: 5 / 77, tl: 50 / 77, rv: 12 / 77, bn: 23 / 77, sv: 3 / 77 };
 // זהה ל־min של MODES ב־studio.js
-const MODE_MIN = { 'sonnet-medium': 85, 'haiku-medium': 75, 'haiku-high': 80, 'sonnet-high': 95, 'opus-medium': 105 };
+const MODE_MIN = { 'sonnet-medium': 85, 'haiku-medium': 70, 'haiku-high': 76, 'sonnet-high': 95, 'opus-medium': 105 };
 const MARKS = [0.5, 0.75];                  // הסימונים על השעון, כמו ב־ServiceNow
 const HP_DEF = 5;                           // החלטה 5: מחיר מתרגם אנושי לדקת סרטון (משנים בדף הערך)
 const HP_MIN = 0.5, HP_MAX = 100;

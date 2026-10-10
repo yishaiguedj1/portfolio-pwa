@@ -175,6 +175,17 @@ def run_child(args: list[str], timeout: int) -> int:
         return 124
 
 
+def crash_code(rc: int) -> str:
+    """קוד היציאה של job.py auto → קוד שגיאה לדיווח, או '' כשאין מה לדווח (0 = הצליח, 1 = כבר דיווח, 2 = "עצור")."""
+    if rc in (0, 1, 2):
+        return ''
+    if rc == 124:
+        return 'job_timeout'
+    if rc in (137, -9) or rc < 0:
+        return 'worker_oom' if rc in (137, -9) else 'worker_crash'
+    return 'worker_crash'
+
+
 def handle(jb: dict, server: str) -> int:
     global _busy
     J.VT_WORK.mkdir(parents=True, exist_ok=True)
@@ -189,10 +200,13 @@ def handle(jb: dict, server: str) -> int:
         rc = run_child(base, RUN_TIMEOUT_S)
         if rc == 0 and jb.get('kind') == 'tr':
             rc = run_child(['auto'], AUTO_TIMEOUT_S)
-            if rc == 124:
+            err = crash_code(rc)
+            if err:
+                # 124 = חרגה מהזמן; 137 / אות = נהרגה (לרוב זיכרון); אחר = קריסה. בלי דיווח העבודה הייתה נשארת "רצה"
+                # עד STALE_MS (שעתיים). דיווח כפול (העבודה כבר דיווחה כישלון) — השרתון מחזיר רק "עצור".
+                msg = {'job_timeout': 'העבודה חרגה מהזמן המרבי', 'worker_oom': 'התהליך נהרג (כנראה נגמר הזיכרון)'}.get(err, f'התהליך נעצר (קוד {rc})')
                 try:
-                    J.Ctx(J.load_state()).report(fail=True, err='job_timeout', msg='העבודה חרגה מהזמן המרבי', force=True,
-                                                 usage=J.usage_safe())
+                    J.Ctx(J.load_state()).report(fail=True, err=err, msg=msg, force=True, usage=J.usage_safe())
                 except BaseException:     # noqa: BLE001 — הדיווח משני; הניקוי חשוב יותר
                     pass
         return rc

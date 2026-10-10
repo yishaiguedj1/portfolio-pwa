@@ -195,8 +195,10 @@ function normTower(t) {
    **זהה ל־PER_HOUR + FIXED ב־translator/tower.py** — הבדיקה משווה). עבודה שהופעלה שוב (המשך אחרי עצירה/תקלה) לא נכנסת:
    הסשנים הנוספים מנפחים את העלות, ותקלה לא אמורה ללמד את המגדל ש"זה רגיל". */
 const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
-// Haiku 5.5 (10/10/2026): הערכה — המחיר פי 20 זול מ־Sonnet, ובמצב Routine הסשן הראשי נשאר Sonnet; יוחלף במדידה מ־NORM_MIN עבודות
-const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-medium': 0.4, 'haiku-high': 0.6, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
+// Haiku 5.5 (10/10/2026): מחושב ממאגר המדידות — הטוקנים של Sonnet Medium (5 דק׳ TED) במחיר של Haiku (פי 20 זול) ×1.3
+// (הטוקנייזר שלו סופר יותר) = ‎~0.2$ לשעה במצב API; ב־Routine הסשן המתזמר נשאר Sonnet (‎~1.1$). 0.6/0.8 = בין השניים,
+// כך שאף מנוע לא מגיע ל"חריג" (פי 2) בלי סיבה. יוחלף ב"רגיל" הנלמד מ־NORM_MIN עבודות.
+const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-medium': 0.6, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
 const NORM_FIXED = 1.5;
 function normSample(job, use, now) {
   const sp = job && job.spec;

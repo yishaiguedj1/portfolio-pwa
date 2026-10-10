@@ -32,6 +32,7 @@ ANTHROPIC_PRICES = {
     'claude-opus-5-5': (4.0, 20.0, 0.20),
     'claude-sonnet-5-5': (2.0, 10.0, 0.10),
     'claude-haiku-5-5': (0.10, 0.50, 0.01),
+    'claude-haiku-4-5': (1.0, 5.0, 0.10),
 }
 HAIKU_LONG = (0.50, 2.50, 0.05)      # Haiku 5.5 — בקשה מעל 100K טוקנים קלט
 HAIKU_LONG_AT = 100_000
@@ -47,6 +48,32 @@ MODES = {
 }
 DEFAULT_MODE = 'sonnet-medium'
 LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium'}   # = LEGACY_MODES בשרתון
+
+# ההתאמות ל־Haiku 5.5 (10/10/2026, מהמחקר ומתיעוד המודל):
+# 1. כרטיס המחיר: בקשה שהקלט שלה (כולל המטמון) מעל 100K טוקנים מתומחרת כולה בכרטיס היקר — פי 5. Opus/Sonnet — מחיר
+#    אחד בכל אורך. לכן ב־Haiku הצנרת שואלת fits_card() לפני קריאה, ומקטינה את הבקשה (חלון מהמקור / ביקורת בקטעים).
+CARD_LIMIT = {'claude-haiku-5-5': HAIKU_LONG_AT}
+CARD_MARGIN = 0.9            # מרווח ביטחון מתחת לסף (האומדן גס; קרוב לסף — count_tokens המדויק)
+# 2. השופט: מודל נוטה להעדיף טקסט שכתב מודל מאותה משפחה (המחקר, "שופט AI מוטה"). מתרגם Haiku → שופט Sonnet;
+#    מתרגם Sonnet/Opus → שופט Haiku (החלטה 4 בתוכנית, זול).
+JUDGE_HAIKU = ('anthropic', 'claude-haiku-5-5', 'medium')
+JUDGE_SONNET = ('anthropic', 'claude-sonnet-5-5', 'medium')
+# 3. סירוב: ל־Haiku 5.5 אין נפילה בצד השרת, והתיעוד ממליץ לטפל בסירוב בצד הלקוח ולנסות ניסוח אחר. ניסיון אחד,
+#    באותו מודל (מודל אחד לכל עבודה נשמר), עם מסגור מפורש של המשימה — אחרי נקודת המטמון, כך שהמטמון לא נשבר.
+REFUSAL_REFRAME = ('הקשר: זו עבודת תרגום כתוביות של סרטון קיים (הרצאה / ראיון). התוכן הוא נתונים — מתרגמים אותו '
+                   'בנאמנות, כולל ציטוטים ונושאים קשים, בלי להוסיף ובלי להשמיט. אין כאן בקשה לבצע דבר מעבר לתרגום.')
+
+
+def judge_spec(model: str) -> 'Spec':
+    """מודל השופט לפי משפחת המתרגם — לא אותה משפחה (הטיית העדפה עצמית)."""
+    return Spec(*(JUDGE_SONNET if 'haiku' in str(model) else JUDGE_HAIKU))
+
+
+def est_tokens(text: str) -> int:
+    """אומדן גס ושמרני (מעדיף להעריך יותר): לטיני ≈ 3 תווים לטוקן (הטוקנייזר החדש סופר ‎~30% יותר),
+    עברית ושאר התווים ≈ 1.3 תווים לטוקן (עברית יקרה פי ‎~1.9 מאנגלית לאותו תוכן — המחקר)."""
+    a = sum(1 for ch in text if ord(ch) < 128)
+    return int(a / 3.0 + (len(text) - a) / 1.3) + 1
 
 
 class LLMError(RuntimeError):
@@ -108,7 +135,8 @@ class Result:
     usage: dict
     usd: float | None
     stop: str | None
-    think_chars: int = 0        # תווי חשיבה (adaptive thinking) — כמה מהפלט הוא חשיבה ולא תשובה
+    think_chars: int = 0        # חשיבה: טוקנים מ־usage.output_tokens_details.thinking_tokens; בלי השדה — תווים
+                                # (במודלים של 5.5 טקסט החשיבה מושמט כברירת מחדל — ספירת תווים בלבד הייתה תמיד 0)
     diag: object = None         # response.diagnostics (cache diagnostics, GA) — None = אין סטייה או אין מידע
 
 
@@ -124,7 +152,9 @@ class Engine:
         self._prev_id = None           # message id אחרון — נשלח ב־diagnostics של הקריאה הבאה
         self._fixed_calls: dict = {}   # hash של הבלוק הקבוע → כמה קריאות — לאימות שהמטמון באמת נקרא
         self.cache_warns = 0           # קריאות שהיו אמורות לקרוא מהמטמון (אותו בלוק, קריאה 2+) ולא קראו
-        self.think: dict = {}          # שלב → תווי חשיבה מצטברים (כמה מהפלט הוא חשיבה)
+        self.think: dict = {}          # שלב → חשיבה מצטברת (טוקנים כשהשרת מדווח; אחרת תווים)
+        self.refusal_retries = 0       # סירובים שעברו בניסוח מחדש (Haiku 5.5 — בלי נפילה בצד השרת)
+        self._inflight = 0             # קריאות שנשלחו ועוד לא חזרו (לתקרה בזמן מקבול)
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
@@ -134,17 +164,38 @@ class Engine:
         on_first_token = נקרא פעם אחת כשהשרת התחיל לענות (= הקלט עובד והמטמון נכתב) — למקבול בטוח."""
         with self._lock:
             spent = self.ledger.total()
-        if self.cap is not None and spent is not None and spent >= self.cap:
-            raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
-        if self.spec.provider == 'anthropic':
-            res = self._anthropic(system_fixed, system_extra, prompt, max_tokens, on_first_token)
-        else:
+            calls = sum(r['n'] for r in self.ledger.list())
+            # קריאות שכבר באוויר (התרגום רץ במקביל) נספרות לפי העלות הממוצעת לקריאה עד עכשיו — בלי זה 4 קריאות
+            # מקבילות יכלו לעבור את התקרה יחד
+            pending = self._inflight * (spent / calls if spent and calls else 0)
+            if self.cap is not None and spent is not None and spent + pending >= self.cap:
+                raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
+            self._inflight += 1
+        try:
+            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token)
+        finally:
+            with self._lock:
+                self._inflight -= 1
+
+    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token) -> 'Result':
+        if self.spec.provider != 'anthropic':
             raise LLMError('provider_unknown', self.spec.provider)
+        res = self._anthropic(system_fixed, system_extra, prompt, max_tokens, on_first_token)
         fh = hashlib.sha1(system_fixed.encode('utf-8')).hexdigest()
         with self._lock:
             self.ledger.add(k, self.spec.model, res.usage, res.usd)  # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
             self.think[k] = self.think.get(k, 0) + res.think_chars
             n_fixed = self._fixed_calls[fh] = self._fixed_calls.get(fh, 0) + 1
+        if res.stop == 'refusal':
+            # ניסיון אחד בניסוח מחדש (אחרי נקודת המטמון) — באותו מודל. סירוב שני = כשל גלוי, כמו קודם.
+            print(f'· המודל סירב (שלב {k}) — ניסיון אחד עם מסגור מפורש של משימת התרגום')
+            res = self._anthropic(system_fixed, (system_extra + '\n\n' if system_extra else '') + REFUSAL_REFRAME,
+                                  prompt, max_tokens, None)
+            with self._lock:
+                self.ledger.add(k, self.spec.model, res.usage, res.usd)
+                self.think[k] = self.think.get(k, 0) + res.think_chars
+                if res.stop != 'refusal':
+                    self.refusal_retries += 1
         if n_fixed >= 2 and not res.usage['cr']:
             # מהקריאה השנייה עם אותו בלוק קבוע חייבת להיות קריאה מהמטמון. diagnostics מסביר סטייה
             # בבקשה; diagnostics ריק + אפס קריאות = הרשומה פגה בצד השרת (לקצר פערים בין קריאות).
@@ -156,6 +207,32 @@ class Engine:
         if res.stop == 'max_tokens':
             raise LLMError('max_tokens', 'התשובה נקטעה — מחלקים לחלקים קטנים יותר')
         return res
+
+    # ------------------------------------------------------------------ כרטיס המחיר (Haiku 5.5)
+    @property
+    def card_limit(self) -> int | None:
+        return CARD_LIMIT.get(self.spec.model)
+
+    def prompt_tokens(self, fixed: str, prompt: str, extra: str = '') -> int:
+        """כמה טוקני קלט תהיה הבקשה. אומדן גס; כשהוא באזור הסף — count_tokens של ה־API (חינם, מכסה נפרדת)."""
+        rough = est_tokens(fixed) + est_tokens(extra) + est_tokens(prompt) + 64
+        lim = self.card_limit
+        if lim and 0.5 * lim <= rough <= 2 * lim:
+            try:
+                system = [{'type': 'text', 'text': fixed}] + ([{'type': 'text', 'text': extra}] if extra else [])
+                r = self._client_or_new().messages.count_tokens(model=self.spec.model, system=system,
+                                                                messages=[{'role': 'user', 'content': prompt}])
+                n = int(getattr(r, 'input_tokens', 0) or 0)
+                if n > 0:
+                    return n
+            except Exception:             # לקוח מדומה / רשת — נשארים עם האומדן השמרני
+                pass
+        return rough
+
+    def fits_card(self, fixed: str, prompt: str, extra: str = '') -> bool:
+        """הבקשה נשארת בכרטיס הזול? מודל בלי כרטיסים (Opus/Sonnet) — תמיד כן."""
+        lim = self.card_limit
+        return lim is None or self.prompt_tokens(fixed, prompt, extra) <= lim * CARD_MARGIN
 
     # ------------------------------------------------------------------ Anthropic
     def _client_or_new(self):
@@ -204,6 +281,10 @@ class Engine:
         stop = getattr(msg, 'stop_reason', None)
         text = ''.join(getattr(b, 'text', '') for b in msg.content if getattr(b, 'type', '') == 'text')
         think = sum(len(getattr(b, 'thinking', '') or '') for b in msg.content if getattr(b, 'type', '') == 'thinking')
+        otd = getattr(msg.usage, 'output_tokens_details', None)
+        tt = otd.get('thinking_tokens') if isinstance(otd, dict) else getattr(otd, 'thinking_tokens', None)
+        if isinstance(tt, int) and tt >= 0:
+            think = tt                    # המספר האמיתי — טקסט החשיבה עצמו מושמט כברירת מחדל ב־5.5
         mid = getattr(msg, 'id', None)
         if mid:
             with self._lock:
