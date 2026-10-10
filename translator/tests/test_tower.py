@@ -92,6 +92,23 @@ class TestRules(unittest.TestCase):
         self.assertNotEqual(T.assess(0, 12.0, exp, 1.0, [], [], None, None, red_x, cap_x)[0], 'red')
         self.assertEqual(T.assess(0, 25.0, exp, 1.0, [], [], None, None, red_x, cap_x)[:2], ('red', 'cost'))
 
+    def test_shadow(self):
+        # v384: מצב צל — הספים הישנים נאכפים, החדשים רק מזהירים
+        self.assertIsNone(T.valid_shadow(None))
+        self.assertIsNone(T.valid_shadow({'n': 0}))
+        self.assertIsNone(T.valid_shadow({'n': 9}))
+        self.assertEqual(T.valid_shadow({'n': 2, 'old': None}), {'n': 2, 'old': None})
+        self.assertEqual(T.valid_shadow({'n': 1, 'old': {'ph': 4.0, 'mx': 5.0}})['old']['ph'], 4.0)
+        nm, spec = {'ph': 3.0, 'mx': 4.0, 'n': 4}, {'dur': 3600, 'mode': 'opus-medium'}
+        frac = T.progress_frac('tl', 0.5)
+        self.assertEqual(T.shadow_assess(0, 8.0, spec, nm, None, frac, [], [], None, None)[0], 'red', 'בלי צל — החדשים עוצרים')
+        lv, why, info = T.shadow_assess(0, 8.0, spec, nm, {'n': 2, 'old': None}, frac, [], [], None, None)
+        self.assertEqual((lv, info.get('sh'), info.get('shn')), ('warn', 1, 2), 'בצל — רק אזהרה: "בספים החדשים היה נעצר"')
+        lv, why, info = T.shadow_assess(0, 30.0, spec, nm, {'n': 2, 'old': None}, frac, [], [], None, None)
+        self.assertEqual((lv, why), ('red', 'cost'), 'מה שהישנים עוצרים — נעצר גם בצל')
+        lv, why, info = T.shadow_assess(0, 1.0, spec, nm, {'n': 3, 'old': None}, frac, [], [], None, None)
+        self.assertEqual((lv, info.get('sh')), ('ok', None))
+
     def test_fault_fp_and_known_hint(self):
         # v364: ספר התיקונים — טביעה יציבה לפי סוג · שלב · מה שחזר; תזכורת רק לתקלה מוכרת, מ־3 שגיאות, פעם אחת
         fp = T.fault_fp('loop', 'tl', 'e1')
@@ -249,6 +266,15 @@ class TestHook(unittest.TestCase):
         self.assertIs(out['continue'], False)
         tw = self.fake.reports[-1]['tower']
         self.assertEqual((tw['why'], tw['b'], tw['nj']), ('cost', 'u', 4))
+
+    def test_shadow_hook(self):
+        # v384: אותה עבודה כמו test_learned_norm_hook, אבל הספים החדשים במצב צל — לא עוצרים, מדווחים צהוב עם sh=1
+        self.set_job(nm={'ph': 3.0, 'mx': 4.0, 'n': 4}, sh={'n': 2, 'old': None})
+        self.spend(400_000)
+        self.assertIsNone(self.hook())
+        tw = [r['tower'] for r in self.fake.reports if r.get('tower')][-1]
+        self.assertEqual((tw['lv'], tw.get('sh'), tw.get('shn')), ('warn', 1, 2))
+        self.assertFalse(any(r.get('fail') for r in self.fake.reports))
 
     def test_learned_heavy_not_stopped(self):
         # אותו דבר, אבל כבר הייתה אצלך עבודה פי 5 מהחציון — 8$ הם עוד בטווח (צהוב, בלי לעצור)

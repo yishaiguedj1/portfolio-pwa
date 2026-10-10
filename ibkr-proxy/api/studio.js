@@ -320,6 +320,12 @@ async function doResume(deps, uid, job, now, body, auto) {
   }
   const stop = await ruleBlock(deps, uid, job, auto ? { ov: true } : body);   // v367
   if (stop) return { status: 409, json: Object.assign({ ok: false }, stop) };
+  // v384: "המשך" חוזר — זו הפעם השלישית ב־24 שעות: לולאה. ההמשך האוטומטי מוותר (והתראה), ידני — רק באישור שלך (lo)
+  const rh = S.loopRecent(job, now);
+  if (rh.length >= S.LOOP_N - 1 && (auto || body.lo !== true)) {
+    await raise(deps, uid, [{ c: 'claude', k: 'loop' }], job.id, now, true);
+    return { status: 409, json: { ok: false, error: 'loop', n: rh.length + 1 } };
+  }
   // v371: תקלה רחבה — הפעלות מחכות עד שזה עובר; "להתחיל בכל זאת" (mo) עוקף. ההמשך האוטומטי תמיד מחכה
   const mj = (auto || body.mo !== true) ? await majorNow(deps, uid, job) : null;
   if (mj) return { status: 409, json: { ok: false, error: 'major', mi: { c: mj.c, e: mj.e, at: mj.at, n: mj.n || 0 } } };
@@ -333,6 +339,7 @@ async function doResume(deps, uid, job, now, body, auto) {
   // v367: "המשך" אחרי שעצרת בתקציב = אישור להמשיך (התקציב גדל בעוד תקציב אחד)
   const bx = job.err === 'budget_stop' ? (job.bx || 0) + 1 : (job.bx || 0);
   const patch = { use0, ls, bx, ended: 0, updated: now };
+  const rhNext = rh.concat([now]).slice(-S.LOOP_N - 2);   // v384: נרשם רק אחרי הפעלה שהצליחה (הפעלה שנכשלה לא פתחה סשן)
   // v377: הזמן שבין העצירה ל"המשך" לא נספר בשעון של יעד הזמן (מחכה לך)
   if (job.ended && (job.state === 'failed' || job.state === 'cancelled')) { patch.pz = (job.pz || 0) + Math.max(0, now - job.ended); patch.wv0 = 0; }
   if (auto) patch.ar = (job.ar || 0) + 1;
@@ -343,11 +350,13 @@ async function doResume(deps, uid, job, now, body, auto) {
     const q = await queueApi(deps, uid, job, now);
     if (!q.ok) await patchJob(deps, job.id, { state: 'failed', err: q.error, ended: now, updated: now });
     if (q.ok) await raise(deps, uid, ['claude:tw_stop', 'claude:stale', 'claude:budget'].map((x) => ({ c: x.split(':')[0], k: x.split(':')[1], ok: true })), job.id, now);
+    if (q.ok) await patchJob(deps, job.id, { rh: rhNext }).catch(() => {});
     return { status: 200, json: Object.assign({ ok: q.ok, job: S.publicJob(await readJob(deps, job.id), now) }, q.ok ? {} : { error: q.error }) };
   }
   const f = await fireJob(deps, uid, v, job, now, true);
   // v368: ההמשך הופעל — ההתראות של העצירה הקודמת נסגרות (אחרת "המגדל עצר" נשאר דחוף כשהעבודה כבר רצה)
   if (f.ok) await raise(deps, uid, ['claude:tw_stop', 'claude:stale', 'claude:budget', 'routine:no_claim'].map((x) => ({ c: x.split(':')[0], k: x.split(':')[1], ok: true })), job.id, now);
+  if (f.ok) await patchJob(deps, job.id, { rh: rhNext }).catch(() => {});
   const j = await readJob(deps, job.id);
   return { status: 200, json: Object.assign({ ok: f.ok, job: S.publicJob(j, now) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }) };
 }
@@ -469,6 +478,14 @@ async function worker(req, res, body, deps) {
       if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; patch.warn = ''; job.state = 'running'; }
       const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
       const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
+      // v384: מצב צל — בלקיחה הראשונה בלבד (בהמשך — אותו מצב צל של העבודה). תקלה כאן לא מפילה את הלקיחה
+      if (job.kind === 'tr' && job.spec && !job.c0) {
+        const m = job.spec.mode, th = Object.assign({}, stats.th || {});
+        const step = S.thStep(th[m], nm);
+        th[m] = step.next;
+        if (step.sh) { patch.sh = step.sh; job.sh = step.sh; }
+        await patchDoc(deps, 'studioStats', job.uid, { th, updated: now }).catch(() => {});
+      }
       // v377: יעדי השירות — נקבעים פעם אחת, בלקיחה הראשונה (ההערכה שראית בהתחלה + "הרגיל" שלך עכשיו). השעון מתחיל כאן
       if (!job.c0) patch.c0 = now;
       // 10/10/2026: התוכנית (p50 לכל שלב + אי־ודאות) מהמודל הנלמד; יעד הזמן = p90 + דקה ("חרגה" רק כשבאמת חריג)
@@ -728,7 +745,7 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
-        norm: S.normsView(st.ns), wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
+        norm: S.normsView(st.ns), sh: S.thView(st.th) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now), now });   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {

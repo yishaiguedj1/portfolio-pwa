@@ -1587,7 +1587,7 @@ function stubFetch(text, status = 200) {
       'סטודיו: מגדל הפיקוח עצר — העבודה "נכשלה" עם הסיבה והמספרים');
     r = await wrk({ op: 'claim', job: JT, key: Kd });
     ok(r.payload.stop === true, 'סטודיו: אחרי העצירה — כל פנייה של העובד מקבלת "עצור" (גם בלי גישה ל־Drive)');
-    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    r = await run({ op: 'resume', idToken: OWNER, job: JT, lo: true });   // v384: ה"המשך" השלישי של העבודה הזו ב־24 שעות — באישור
     ok(r.payload.ok && r.payload.job.tw === null && r.payload.job.state === 'queued', 'סטודיו: "להמשיך" אחרי עצירה של המגדל — מתחיל נקי');
     db.get('studioJobs/' + JT).fields.fires = { integerValue: String(S.RESUME_MAX) };
     await run({ op: 'cancel', idToken: OWNER, job: JT });
@@ -1726,6 +1726,82 @@ function stubFetch(text, status = 200) {
     fbx = S.fbFix([{ fp: FPY, why: 'calls', st: 'tl', n: 1, fix: 'ישן', px: 'ממתין' }], FPY, 'חדש לגמרי', 7, 'auto');
     ok(fbx[0].fix === 'חדש לגמרי' && !fbx[0].px, 'סטודיו: מסלול התיקונים — במסלול "עצמאי" התיקון נשמר מיד (והצעה ישנה נמחקת)');
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
+    studio._reset();
+
+    // v384: מתג חירום במצב אזהרה — מצב צל לספים חדשים (3 עבודות), ו"המשך" חוזר (3 ב־24 שעות) = לולאה
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      // יחידה: צעד הספים
+      let t = S.thStep(undefined, { ph: 5, mx: 6, n: 3 });
+      ok(t.sh === null && t.next.n === 0, 'סטודיו: מצב צל — רשומה ראשונה: הספים כבר בתוקף, בלי צל');
+      t = S.thStep(t.next, { ph: 5.4, mx: 6.2, n: 4 });
+      ok(t.sh === null && t.next.nm.ph === 5.4, 'סטודיו: מצב צל — שינוי קטן (8%) מתעדכן בשקט');
+      t = S.thStep(t.next, { ph: 8, mx: 9, n: 5 });
+      ok(t.sh && t.sh.n === 3 && t.sh.old.ph === 5.4 && t.next.n === 2, 'סטודיו: מצב צל — שינוי של 25%+ = 3 עבודות בצל, האכיפה בספים הקודמים');
+      t = S.thStep(t.next, { ph: 8.1, mx: 9, n: 6 }); t = S.thStep(t.next, { ph: 8.1, mx: 9, n: 7 });
+      ok(t.sh.n === 1 && t.next.n === 0 && S.thStep(t.next, { ph: 8.1, mx: 9, n: 8 }).sh === null, 'סטודיו: מצב צל — אחרי 3 עבודות: אכיפה בספים החדשים');
+      ok(S.thStep({ nm: { ph: 5, mx: 6 }, n: 0 }, { ph: 5, mx: 14 }).sh.n === 3, 'סטודיו: מצב צל — גם כשסף העצירה זז (עבודה כבדה חדשה) — צל');
+      ok(JSON.stringify(S.thView({ 'opus-medium': { n: 2 }, 'opus-high': { n: 0 }, evil: { n: 9 } })) === '{"opus-medium":2}', 'סטודיו: מצב צל — לטלפון רק מצבים בצל');
+      ok(S.RED_X === 4, 'סטודיו: מצב צל — RED_X זהה ל־tower.py');
+      // מקצה לקצה: מצב שעוד אין לו "רגיל" → נלמד → העבודה הבאה מקבלת מצב צל בלקיחה
+      const SP = Object.assign({}, SPEC, { mode: 'sonnet-high' });
+      const mk = async () => {
+        const c = await run({ op: 'create', idToken: OWNER, spec: SP });
+        const id = c.payload.job.id;
+        await run({ op: 'file', idToken: OWNER, job: id, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+        await run({ op: 'start', idToken: OWNER, job: id });
+        const k = keyOf(fires[fires.length - 1]);
+        return { id, k, c: (await wrk({ op: 'claim', job: id, key: k })).payload.job };
+      };
+      const A = await mk();
+      ok(A.c.sh === null, 'סטודיו: מצב צל — לפני ש"הרגיל" נלמד: בלי צל');
+      await wrk({ op: 'report', job: A.id, key: A.k, done: true });
+      const sd = db.get('studioStats/ownerUid0001');
+      const st0 = S.fromFields(sd.fields);
+      let ns = Array.isArray(st0.ns) ? st0.ns : [];
+      for (let i = 0; i < 3; i++) ns = S.addSample(ns, { m: 'sonnet-high', d: 3600, u: 4 + i, at: now - i });
+      sd.fields.ns = { stringValue: JSON.stringify(ns) };
+      const B = await mk();
+      ok(B.c.sh && B.c.sh.n === 3 && B.c.sh.old === null && B.c.nm && B.c.nm.ph === 5, 'סטודיו: מצב צל — "הרגיל" נלמד: העבודה מקבלת צל (האכיפה במדידות שלנו)');
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.sh['sonnet-high'] === 2, 'סטודיו: מצב צל — בטלפון: עוד 2 עבודות עד אכיפה');
+      // הדיווח של המגדל במצב צל נשמר (sh, shn)
+      await wrk({ op: 'report', job: B.id, key: B.k, tower: { lv: 'warn', x: 2.4, usd: 8, exp: 3.2, sh: 1, shn: 3 } });
+      ok((await run({ op: 'job', idToken: OWNER, job: B.id })).payload.job.tw.sh === 1, 'סטודיו: מצב צל — "בספים החדשים היה נעצר" מגיע לטלפון');
+      ok(S.normTower({ lv: 'ok', x: 1, sh: 1, shn: 2 }).sh === undefined && S.normTower({ lv: 'warn', x: 1, sh: 1, shn: 9 }).shn === 3, 'סטודיו: מצב צל — sh רק באזהרה, shn עד 3');
+      // "המשך" חוזר: שניים עוברים, השלישי ב־24 שעות = לולאה (409), עם אישור — עובר
+      let kb = B.k;
+      for (let i = 0; i < 2; i++) {
+        await wrk({ op: 'report', job: B.id, key: kb, fail: true, err: 'worker_step' });
+        rr = await run({ op: 'resume', idToken: OWNER, job: B.id });
+        ok(rr.payload.ok, 'סטודיו: "המשך" חוזר — המשך ' + (i + 1) + ' עובר');
+        kb = keyOf(fires[fires.length - 1]);
+        const cb = await wrk({ op: 'claim', job: B.id, key: kb });
+        if (i === 0) ok(cb.payload.job.sh && cb.payload.job.sh.n === 3, 'סטודיו: מצב צל — בהמשך אותה עבודה: אותו צל (לא נספר שוב)');
+      }
+      await wrk({ op: 'report', job: B.id, key: kb, fail: true, err: 'worker_step' });
+      const nf = fires.length;
+      rr = await run({ op: 'resume', idToken: OWNER, job: B.id });
+      ok(rr.statusCode === 409 && rr.payload.error === 'loop' && rr.payload.n === 3 && fires.length === nf, 'סטודיו: "המשך" שלישי ב־24 שעות — לולאה, בלי הפעלה');
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.ops.open.some((a) => a.c === 'claude' && a.k === 'loop' && a.j === B.id), 'סטודיו: "המשך" חוזר — התראה (claude:loop)');
+      rr = await run({ op: 'resume', idToken: OWNER, job: B.id, lo: true });
+      ok(rr.payload.ok && fires.length === nf + 1, 'סטודיו: "המשך" חוזר — באישור שלך ממשיכים');
+      // ההמשך האוטומטי (תקלת רשת) לא עוקף את הלולאה — מוותר ומנקה את חלון ההתאוששות
+      kb = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: B.id, key: kb });
+      await wrk({ op: 'report', job: B.id, key: kb, fail: true, err: 'net' });
+      ok(S.fromFields(db.get('studioJobs/' + B.id).fields).rw > 0, 'סטודיו: "המשך" חוזר — תקלה חולפת פותחת חלון התאוששות');
+      now += S.RECOVER_WAIT + 1000;
+      const nf2 = fires.length;
+      await run({ op: 'jobs', idToken: OWNER });
+      const jb = S.fromFields(db.get('studioJobs/' + B.id).fields);
+      ok(fires.length === nf2 && !jb.rw && jb.state === 'failed', 'סטודיו: "המשך" חוזר — ההמשך האוטומטי לא ממשיך לולאה (החלון נסגר, העבודה נשארת "נכשלה")');
+      for (const id of [A.id, B.id]) await run({ op: 'remove', idToken: OWNER, job: id });
+      const odL = db.get('studioOps/ownerUid0001');
+      if (odL) { delete odL.fields.inc; delete odL.fields.mi; }
+    }
     studio._reset();
 
     // v383: תקציב שגיאות — יעד 95% בלי התערבות (30 יום), כמה נשאר, קצב שריפה (7 ימים), העבודות שאכלו ממנו

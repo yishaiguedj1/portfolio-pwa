@@ -34,7 +34,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. העובד והמגדל ---------- */
   ok(/'nm': job\.get\('nm'\) if isinstance\(job\.get\('nm'\), dict\) else None/.test(read('translator/job.py')), 'job.py: "הרגיל" נשמר בקובץ המצב');
-  ok(/def thresholds\(nm=None\)/.test(tw) && /2\.0 \* nm\['mx'\] \/ nm\['ph'\]/.test(tw) && /expected_usd\(st\.get\('spec'\), nm\)/.test(tw), 'tower.py: הצפוי לפי החציון שלך, והסף האדום לפחות פי 2 מהכבדה ביותר');
+  ok(/def thresholds\(nm=None\)/.test(tw) && /2\.0 \* nm\['mx'\] \/ nm\['ph'\]/.test(tw) && /expected_usd\((st\.get\('spec'\)|spec), nm\)/.test(tw), 'tower.py: הצפוי לפי החציון שלך, והסף האדום לפחות פי 2 מהכבדה ביותר');
 
   /* ---------- 4. הטלפון ---------- */
   const M = await import(path.join(root, 'studio.js'));

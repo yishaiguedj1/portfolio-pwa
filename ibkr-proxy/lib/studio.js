@@ -181,6 +181,7 @@ function normTower(t) {
   const out = { lv: t.lv, x: n(t.x, 1000, 1), usd: n(t.usd, 1e5, 2), exp: n(t.exp, 1e5, 2) };
   if (t.b === 'u') { out.b = 'u'; out.nj = Math.round(n(t.nj, 1000, 0)); }   // v363: "הרגיל" נלמד מהעבודות של המשתמש (nj = כמה)
   if (t.lv === 'red' && FP_RE.test(String(t.fp || ''))) out.fp = t.fp;   // v364: טביעת האצבע של התקלה — לספר התיקונים
+  if (t.shn != null) { out.shn = Math.round(n(t.shn, 3, 0)); if (t.sh === 1 && t.lv === 'warn') out.sh = 1; }   // v384: מצב צל — "בספים החדשים היה נעצר"
   if (t.lv === 'red') {
     if (!TW_WHY.includes(t.why)) return null;
     out.why = t.why;
@@ -217,6 +218,33 @@ function learnedNorm(list, mode) {
   const r2 = (v) => Math.round(v * 100) / 100;
   return { ph: r2(median(rates)), mx: r2(Math.max(...rates)), n: rates.length };
 }
+/* v384: מצב צל לספים חדשים (ServiceNow: Kill switch · warn_only). כש"הרגיל" של מצב משתנה משמעותית — נלמד לראשונה, או החציון /
+   סף העצירה זזו ב־SH_DIFF ומעלה — הספים החדשים רצים SHADOW_N עבודות במצב צל: המגדל אוכף את הישנים (`old`; null = המדידות שלנו)
+   ורק מזהיר כשהחדשים היו עוצרים. שינוי קטן (חציון שזז מעט אחרי כל עבודה) — מתעדכן בשקט, בלי צל.
+   הרשומה לכל מצב ב־studioStats/{uid}.th: { nm, old, n }. RED_X זהה ל־tower.py */
+const SHADOW_N = 3, SH_DIFF = 0.25, RED_X = 4;
+const redOf = (nm) => (nm ? Math.max(RED_X, 2 * nm.mx / nm.ph) : RED_X);
+function thStep(prev, nm) {
+  const clean = (x) => (x && x.ph > 0 ? { ph: x.ph, mx: Math.max(x.mx || x.ph, x.ph), n: x.n || 0 } : null);
+  nm = clean(nm);
+  if (!prev || typeof prev !== 'object') return { next: { nm, old: null, n: 0 }, sh: null };   // הרשומה הראשונה — הספים כבר בתוקף, בלי צל
+  const pn = clean(prev.nm);
+  const changed = !pn !== !nm || (pn && nm && (Math.abs(nm.ph / pn.ph - 1) >= SH_DIFF || Math.abs(redOf(nm) / redOf(pn) - 1) >= SH_DIFF));
+  const next = changed ? { nm, old: pn, n: SHADOW_N } : { nm, old: clean(prev.old), n: Math.max(0, Math.min(SHADOW_N, prev.n | 0)) };
+  if (!next.n) return { next, sh: null };
+  const sh = { n: next.n, old: next.old };
+  next.n -= 1;
+  return { next, sh };
+}
+/* לטלפון: מצבים שהספים שלהם עוד במצב צל — כמה עבודות עד אכיפה */
+function thView(th) {
+  const out = {};
+  for (const m of MODES) { const e = th && th[m]; if (e && e.n > 0) out[m] = e.n; }
+  return out;
+}
+/* v384: "המשך" חוזר — 3 ב־24 שעות לאותה עבודה = לולאה: ההמשך האוטומטי נעצר, וידני רק באישור (lo) */
+const LOOP_N = 3, LOOP_WIN = 24 * 3600e3;
+const loopRecent = (job, now) => (Array.isArray(job.rh) ? job.rh : []).filter((t) => typeof t === 'number' && now - t < LOOP_WIN && t <= now);
 /* לטלפון (מסך "מגדל הפיקוח"): לכל מצב — הנלמד, או ברירת המחדל (d: true) */
 function normsView(list) {
   const out = {};
@@ -566,6 +594,7 @@ function workerJob(job, nm, fb, fm, rl) {
     id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
+    sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
     notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX) };   // v381: ההערות שכבר נקראו — להמשך בסשן חדש
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
@@ -644,7 +673,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh'];   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh'];   // v384: מצב צל וזיהוי "המשך" חוזר   // v381: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -673,6 +702,7 @@ function fromFields(f) {
 
 module.exports = {
   MODES, LEGACY_MODES, modeNow,
+  SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

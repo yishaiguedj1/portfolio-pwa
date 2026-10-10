@@ -198,7 +198,8 @@ export function normTw(t) {
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
   return { lv: t.lv, x: n(t.x), usd: n(t.usd), exp: n(t.exp), why: TW_WHY.includes(t.why) ? t.why : '', n: n(t.n), min: n(t.min),
     nj: t.b === 'u' ? n(t.nj) : 0,     // v363: "הרגיל" נלמד מ־nj עבודות שלך (0 = המדידות שלנו)
-    fp: /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '' };   // v364: טביעת האצבע של העצירה (ספר התיקונים)
+    fp: /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '',   // v364: טביעת האצבע של העצירה (ספר התיקונים)
+    sh: t.sh === 1 && t.lv === 'warn', shn: Number.isInteger(t.shn) && t.shn > 0 && t.shn <= 3 ? t.shn : 0 };   // v384: מצב צל
 }
 /* v365: מגדל הפיקוח 2.0 — בריאות, זמינות, MTTR, מצב לכל רכיב והתראות פתוחות (מהשרתון, op status). רק מספרים ומזהים מהקטלוג */
 export const OPS_COMPONENTS = ['phone', 'drive', 'server', 'routine', 'claude', 'vt'];
@@ -326,6 +327,12 @@ export function normSla(o) {
 /* v377: ערך ועלות החודש, תחזית, צוואר בקבוק ומסלולים חריגים (lib/studiosla.js valueView) */
 /* v383: תקציב שגיאות (lib/studioslo.js sloView) — יעד 95% בלי התערבות, כמה נשאר, קצב שריפה ב־7 ימים, העבודות שאכלו ממנו */
 const SLO_ST = ['ok', 'warn', 'fast', 'out', 'few'], SLO_C = ['fail', 'stale', 'resume'];
+/* v384: מצב צל — לכל מצב תרגום, כמה עבודות עוד רק מזהירות בספים החדשים */
+export function normSh(o) {
+  const out = {};
+  if (o && typeof o === 'object') for (const m of MODES.map((x) => x.id)) if (Number.isInteger(o[m]) && o[m] > 0 && o[m] <= 3) out[m] = o[m];
+  return out;
+}
 export function normSlo(o) {
   if (!o || typeof o !== 'object' || !SLO_ST.includes(o.st)) return null;
   const int = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
@@ -836,6 +843,7 @@ async function refreshStatus(force) {
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
     store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
     ui.norm = normNorms(j.norm) || ui.norm;
+    ui.sh = normSh(j.sh);   // v384: מצב צל לכל מצב (כמה עבודות עד אכיפה)
     ui.fb = normFb(j.fb) || ui.fb;
     ui.fm = j.fm === 'auto' ? 'auto' : 'suggest';   // v366: מסלול התיקונים (ברירת מחדל — הצעות לאישור)
     ui.ops = normOps(j.ops) || ui.ops;
@@ -970,16 +978,18 @@ async function register(id, which, fid, folder) {
   const rec = jobRec(id); if (rec && j.job) rec.srv = normJob({ id, srv: j.job }).srv;
 }
 /* v361: "המשך" — השרתון מפעיל את ה־Routine שוב עם מפתח חדש; העובד ממשיך מנקודת השמירה האחרונה */
-async function resumeSrv(id, ov, mo, mode) {
+async function resumeSrv(id, ov, mo, mode, lo) {
   const rec = jobRec(id); if (!rec || ui.resuming) return;
   ui.resuming = id; render('none');
-  const j = await net.api('resume', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}, mode ? { mode } : {}));
+  const j = await net.api('resume', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}, mode ? { mode } : {}, lo ? { lo: true } : {}));
   ui.resuming = '';
   if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
   if (j.ok && mode && j.job && j.job.spec && j.job.spec.mode === mode) rec.spec.mode = mode;   // v376: עברנו למצב הזול יותר
   // v367: מצב מעל המקסימום שבחוקים — הפעולה מחכה לאישור שלך
   if (!j.ok && j.error === 'rule_mode' && typeof askConfirm === 'function') askConfirm(T('studioRuleModeQ'), () => resumeSrv(id, true, mo, mode), { ok: T('studioStartAnyway') });
-  else if (!j.ok && j.error === 'major' && typeof askConfirm === 'function') askConfirm(T('studioMajorQ', { c: opsComp(j.mi && j.mi.c) }), () => resumeSrv(id, ov, true, mode), { ok: T('studioStartAnyway') });   // v371
+  else if (!j.ok && j.error === 'major' && typeof askConfirm === 'function') askConfirm(T('studioMajorQ', { c: opsComp(j.mi && j.mi.c) }), () => resumeSrv(id, ov, true, mode, lo), { ok: T('studioStartAnyway') });   // v371
+  // v384: "המשך" שלישי ב־24 שעות — כנראה לולאה; ממשיכים רק באישור מפורש
+  else if (!j.ok && j.error === 'loop' && typeof askConfirm === 'function') askConfirm(T('studioLoopQ', { n: Math.max(3, j.n | 0) }), () => resumeSrv(id, ov, mo, mode, true), { ok: T('studioLoopOk'), danger: true });
   else if (!j.ok) flashSafe(errText(j.error, j));
   save(); render('none');
 }
@@ -1931,7 +1941,7 @@ function towerLine(rec) {
   if (!tw || tw.lv === 'red' || !(s.state === 'running' || s.state === 'queued')) return null;
   const c = btn('st-tower ' + tw.lv, null, () => go('tower'), 'tower');   // v363: נגיעה = מסך "מגדל הפיקוח"
   const t = h('span');
-  t.textContent = (tw.lv === 'warn' ? T('studioTwWarn', { x: fmtX(tw.x) }) : T('studioTwOk', { x: fmtX(tw.x) }));
+  t.textContent = tw.sh ? T('studioShWarn') : (tw.lv === 'warn' ? T('studioTwWarn', { x: fmtX(tw.x) }) : T('studioTwOk', { x: fmtX(tw.x) }));   // v384: מצב צל
   c.append(ico('shield'), t, ico('chev', 'st-chev'));
   return c;
 }
@@ -1987,6 +1997,7 @@ function opsAlert(c, k) {
     case 'claude:budget': return T('studioAlClaudeBudget');
     case 'claude:auto': return T('studioAlClaudeAuto');
     case 'claude:inject': return T('studioAlClaudeInject');
+    case 'claude:loop': return T('studioAlClaudeLoop');   // v384
     case 'claude:sla_time': return T('studioAlSlaTime');   // v377
     case 'claude:sla_cost': return T('studioAlSlaCost');
     case 'vt:setup': return T('studioAlVtSetup');
@@ -2953,7 +2964,7 @@ function pageTower(p) {
   const act = store.jobs.filter((r) => r.srv && (r.srv.state === 'running' || r.srv.state === 'queued'));
   p.append(secT(T('studioTwSecNow')), list(...(act.length ? act.map((rec) => {
     const tw = rec.srv.tw;
-    const sub = !tw ? T('studioTwWaitRep') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
+    const sub = !tw ? T('studioTwWaitRep') : tw.sh ? T('studioShWarn') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
     return jobRow(rec, sub, tw && tw.lv === 'warn' ? 'orange' : 'green', 'tw:' + rec.id);
   }) : [h('div', 'st-row st-muted', T('studioTwNone'))])));
   // v369: "שליטה" (החוקים שלך ומתג החירום) — בפעולות המהירות למעלה, בלי שורות כפולות
@@ -2968,7 +2979,9 @@ function pageTower(p) {
       const v = nm[id];
       if (!v.d) learned = true;
       const left = Math.max(1, 3 - v.n);
-      const sub = !v.d ? T('studioTwNormU', { n: v.n }) : T('studioTwNormD') + ' · ' + (left === 1 ? T('studioTwNormLeft1') : T('studioTwNormLeft', { n: left }));
+      let sub = !v.d ? T('studioTwNormU', { n: v.n }) : T('studioTwNormD') + ' · ' + (left === 1 ? T('studioTwNormLeft1') : T('studioTwNormLeft', { n: left }));
+      const shn = ui.sh && ui.sh[id];
+      if (shn) sub += ' · ' + (shn === 1 ? T('studioShRow1') : T('studioShRow', { n: shn }));   // v384: הספים החדשים עוד רק מזהירים
       const r = h('div', 'st-row');
       const val = h('span', 'st-v'); val.append(usdEl(v.ph));
       r.append(rowTxt(modeName(modeById(id)), sub), val);
@@ -3960,11 +3973,11 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : ''); };   // v381: הערה שנקראה / ממתינה
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : ''); };   // v381: הערה שנקראה / ממתינה
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo);   // v383
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
   if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378

@@ -268,6 +268,7 @@ def run(args):
                     'folder': job.get('folder') or '', 'spec': spec, 'files': job.get('files') or {},
                     'ck': cks, 'ckids': {c['s']: c['id'] for c in cks},
                     'nm': job.get('nm') if isinstance(job.get('nm'), dict) else None,    # v363: "הרגיל" שלך — למגדל הפיקוח
+                    'sh': job.get('sh') if isinstance(job.get('sh'), dict) else None,    # v384: מצב צל — המגדל אוכף את הספים הישנים
                     'fb': fb_valid(job.get('fb')),                                        # v364: ספר התיקונים
                     'fm': 'auto' if job.get('fm') == 'auto' else 'suggest',               # v366: מסלול התיקונים של המשתמש
                     'rl': rules_valid(job.get('rl')),                                     # v367: החוקים שלך (תקציב, אישור לפני צריבה)
