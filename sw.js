@@ -1,7 +1,7 @@
 /* Service Worker — תיק ההשקעות PWA
  * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
  */
-const CACHE_NAME = 'portfolio-pwa-v383';
+const CACHE_NAME = 'portfolio-pwa-v384';
 
 const APP_SHELL = [
   './',
@@ -34,7 +34,7 @@ const LIB_SHELL = [
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
-const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js'];
+const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js'];   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -64,11 +64,75 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/* מ1 (10/10/2026): נגן הסטודיו — ./studio-media/<id> = פרוקסי טווחים (Range) לקובץ ב־Drive של המשתמש. = MEDIA_PATH ב־studionet.js
+   האסימון, הגודל והסוג מגיעים מהדף שמנגן (MessageChannel; הדף עונה רק לקבצים שהוא עצמו ביקש) — לא בכתובת, לא במטמון, לא בדיסק.
+   SW שהופעל מחדש שוכח — ומבקש שוב לבד. Content-Range לא חשוף בתשובת CORS של Drive — נבנה מהטווח ומהגודל
+   (מהספייק של הסשן המקביל: תקרה לבקשה פתוחה, 416, 401 = אסימון חדש פעם אחת, בלי מטמון). */
+const MEDIA_RE = /\/studio-media\/([A-Za-z0-9_-]{10,200})$/;
+const MEDIA_CAP = 4 * 1024 * 1024;               // בקשה פתוחה ("bytes=0-") — עד 4MB (8MB = עד 8MB מבוזבזים בכל דילוג)
+const MEDIA_CAP_RANGE = 64 * 1024 * 1024;        // טווח מפורש (קטע של איכויות הצפייה — hls.js) — כולו; הנגן מקבץ קטעים עד 24MB
+const mediaTok = new Map();                      // id → { t, exp, size, type }
+function mediaRange(h, size, cap) {
+  if (!h) return [0, Math.min(size, cap) - 1];
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(h).trim());
+  if (!m || (m[1] === '' && m[2] === '')) return null;
+  let a, b;
+  if (m[1] === '') { a = Math.max(0, size - Number(m[2])); b = size - 1; }
+  else { a = Number(m[1]); b = m[2] === '' ? a + cap - 1 : Number(m[2]); }
+  b = Math.min(b, size - 1, a + (m[1] !== '' && m[2] !== '' ? Math.max(cap, MEDIA_CAP_RANGE) : cap) - 1);
+  return a > b || a >= size ? null : [a, b];
+}
+/* R2 (ת4, הסשן המקביל): קישור חתום ישיר ל־R2 — רק https למארח של R2, בלי משתמש/סיסמה בכתובת */
+function r2Url(u) {
+  if (typeof u !== 'string' || u.length > 4096) return false;
+  try { const x = new URL(u); return x.protocol === 'https:' && /\.r2\.cloudflarestorage\.com$/.test(x.hostname) && !x.username && !x.password; } catch (e) { return false; }
+}
+function askToken(clientId, id, fresh) {
+  return self.clients.get(clientId).then((c) => new Promise((ok) => {
+    if (!c) { ok(null); return; }
+    const ch = new MessageChannel();
+    const tm = setTimeout(() => ok(null), 10000);
+    ch.port1.onmessage = (e) => {
+      clearTimeout(tm);
+      const d = e.data || {};
+      const size = Math.floor(Number(d.size) || 0);
+      const type = /^(video|audio)\/[\w.+-]{1,40}$/.test(String(d.type || '')) ? d.type : 'video/mp4', exp = Number(d.exp) || Date.now() + 30 * 60e3;
+      if (size > 0 && r2Url(d.u)) { ok({ u: d.u, exp, size, type }); return; }   // R2: קישור חתום (בלי Authorization)
+      ok(typeof d.t === 'string' && /^[\x21-\x7e]{10,4096}$/.test(d.t) && size > 0 ? { t: d.t, exp, size, type } : null);
+    };
+    c.postMessage({ snbMedia: id, fresh: !!fresh }, [ch.port2]);
+  }));
+}
+async function mediaFetch(event, id) {
+  for (let i = 0; i < 2; i++) {
+    let e = mediaTok.get(id);
+    if (!e || i === 1 || e.exp - 60e3 <= Date.now()) {
+      e = await askToken(event.clientId, id, i === 1);
+      if (!e) return new Response('', { status: 403 });
+      mediaTok.set(id, e);
+    }
+    const r = mediaRange(event.request.headers.get('range'), e.size, MEDIA_CAP);
+    if (!r) return new Response('', { status: 416, headers: { 'Content-Range': 'bytes */' + e.size } });
+    const rg = 'bytes=' + r[0] + '-' + r[1];
+    const res = e.u ? await fetch(e.u, { headers: { Range: rg }, cache: 'no-store', credentials: 'omit' })   // R2: הקישור החתום, בלי Authorization
+      : await fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', { headers: { Authorization: 'Bearer ' + e.t, Range: rg }, cache: 'no-store' });
+    if ((res.status === 401 || res.status === 403) && i === 0) { mediaTok.delete(id); continue; }   // האסימון פג — פעם אחת חדש
+    if (res.status !== 206 && !(res.status === 200 && r[0] === 0)) return new Response('', { status: 502 });
+    const end = res.status === 200 ? e.size - 1 : r[1];
+    return new Response(res.body, { status: 206, headers: {
+      'Content-Type': e.type, 'Content-Length': String(end - r[0] + 1), 'Content-Range': 'bytes ' + r[0] + '-' + end + '/' + e.size,
+      'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' } });
+  }
+  return new Response('', { status: 401 });
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  const mm = url.origin === self.location.origin && MEDIA_RE.exec(url.pathname);
+  if (mm) { event.respondWith(mediaFetch(event, mm[1])); return; }
 
   // בקשות API (Stooq וכדומה) — תמיד רשת בלבד, לעולם לא מהמטמון.
   // אם אין רשת, האפליקציה עצמה נופלת לנתונים שמורים ב-localStorage.
@@ -115,11 +179,15 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, {
     body: String(m.b || '').slice(0, 160), icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
     tag: m.j ? 'studio-' + m.j : 'studio', renotify: m.k === 'ask' || m.k === 'gate', data: { url },
+    // מ9: עבודה שהסתיימה — ישר לנגן או לעורך (האפליקציה בודקת שאפשר; אחרת נשארת בדף העבודה)
+    actions: m.k === 'done' && url !== './' ? [{ action: 'play', title: 'צפייה' }, { action: 'subs', title: 'עריכה' }] : [],
   }));
 });
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = new URL((event.notification.data && event.notification.data.url) || './', self.registration.scope).href;
+  let u = (event.notification.data && event.notification.data.url) || './';
+  if ((event.action === 'play' || event.action === 'subs') && u.includes('#studio=')) u += '&v=' + event.action;
+  const url = new URL(u, self.registration.scope).href;
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const w of wins) {
