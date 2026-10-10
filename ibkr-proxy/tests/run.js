@@ -1804,6 +1804,47 @@ function stubFetch(text, status = 200) {
     }
     studio._reset();
 
+    // v385: ציון חריגה 0–10 — זמן לכל שלב ועלות לכל סוכן מול הרגיל שלך; התראה רק בהתמדה (2 מתוך 3)
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const S9 = require('../lib/studio');
+      const ids = [];
+      const put = (i, trS) => {
+        const id = 'jANM' + String(i).padStart(17, '0');
+        ids.push(id);
+        db.set('studioJobs/' + id, { fields: S9.toFields({ uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 200 * 3600e3, updated: now - (100 - i) * 3600e3, ended: now - (100 - i) * 3600e3,
+          spec: { name: 'Ackman_Interview.mp4', size: 100, dur: 600, to: ['he'], from: 'en', mode: 'opus-medium', out: ['srt'] },
+          prog: { stg: { tr: { s: 1000, e: 1000 + trS * 1000 }, tl: { s: 5000, e: 5000 + 300e3 } } }, use: [{ k: 'tl', m: 'claude-opus-5-5', in: 1, out: 1, cr: 0, cw: 0, usd: 1.25 }] }) });
+      };
+      for (let i = 0; i < 8; i++) put(i, 60 + i);
+      put(8, 200); put(9, 61);
+      const alOf = () => { const d = db.get('studioOps/ownerUid0001'); const a = d ? S9.fromFields(d.fields).al : null; return (Array.isArray(a) ? a : []).filter((x) => x.k === 'anomaly'); };
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const an = rr.payload.an;
+      ok(an && an.n >= 10 && an.m.find((m) => m.k === 't:tr').f === 1 && an.act.length === 0, 'סטודיו: ציון חריגה — בתשובת הרשימה; קפיצה בודדת נספרת בתדירות בלי התמדה');
+      ok(!alOf().some((a) => !a.x), 'סטודיו: ציון חריגה — קפיצה בודדת לא פותחת התראה');
+      ok(!JSON.stringify(an).includes('Ackman'), 'סטודיו: ציון חריגה — בלי שמות קבצים');
+      put(10, 210);
+      now += 60e3;
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const m0 = rr.payload.an.m[0];
+      ok(m0.k === 't:tr' && m0.p && m0.s === 10 && rr.payload.an.j[ids[10]][0][0] === 't:tr', 'סטודיו: ציון חריגה — 2 מתוך 3 = חריג בהתמדה, ראשון ברשימה; לעבודה — השלב שחרג');
+      const open = alOf().filter((a) => !a.x);
+      ok(open.length === 1 && open[0].c === 'vt' && open[0].s === 4 && open[0].j === '', 'סטודיו: ציון חריגה — התראה אחת ל־vt (P4), בלי עבודה');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(alOf().filter((a) => !a.x).length === 1 && alOf()[0].n === 1, 'סטודיו: ציון חריגה — צפייה חוזרת לא מגדילה את המונה');
+      // שתי עבודות רגילות אחרי החריגה — חזר לרגיל, ההתראה נסגרת
+      put(11, 62); put(12, 63);
+      now += 60e3;
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(!rr.payload.an.m[0].p && alOf().every((a) => a.x), 'סטודיו: ציון חריגה — חזר לרגיל (1 מתוך 3) — ההתראה נסגרת');
+      for (const id of ids) await run({ op: 'remove', idToken: OWNER, job: id });
+      const odA = db.get('studioOps/ownerUid0001');
+      if (odA) { delete odA.fields.inc; delete odA.fields.mi; }
+    }
+    studio._reset();
+
     // v383: תקציב שגיאות — יעד 95% בלי התערבות (30 יום), כמה נשאר, קצב שריפה (7 ימים), העבודות שאכלו ממנו
     now += 3600e3 + 1;
     studio._reset();

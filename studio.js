@@ -341,6 +341,28 @@ export function normSlo(o) {
     burn: typeof o.burn === 'number' && o.burn >= 0 && o.burn < 1e3 ? o.burn : 0, n7: int(o.n7, 1e5), st: o.st, min: int(o.min, 100) || 5,
     list: (Array.isArray(o.list) ? o.list : []).filter((x) => x && JOB_RE.test(String(x.j || '')) && SLO_C.includes(x.c)).slice(0, 10).map((x) => ({ j: x.j, c: x.c, at: num(x.at) })) };
 }
+/* v385: ציון חריגה 0–10 (lib/studioanom.js anomView) — צורה קבועה */
+export const AN_KEYS = ['t:tr', 't:al', 't:tl', 't:rv', 't:bn', 't:sv', 'u:main', 'u:tl', 'u:rv'];
+const AN_C = ['vt', 'claude', 'drive'], AN_TR = ['u', 'd', 'f'];
+export function normAn(o) {
+  if (!o || typeof o !== 'object') return null;
+  const int = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
+  const sc = (v) => (typeof v === 'number' && v >= 0 && v <= 10 ? Math.round(v * 10) / 10 : null);
+  const pos = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1e6 ? v : null);
+  const out = { n: int(o.n, 1e5), min: int(o.min, 100) || 5, hi: sc(o.hi) || 6, j: {}, m: [] };
+  if (o.j && typeof o.j === 'object') for (const id of Object.keys(o.j).slice(0, 20)) {
+    if (!JOB_RE.test(id) || !Array.isArray(o.j[id])) continue;
+    const rows = o.j[id].filter((r) => Array.isArray(r) && AN_KEYS.includes(r[0]) && sc(r[1]) != null && pos(r[2]) != null && pos(r[3]) != null)
+      .slice(0, AN_KEYS.length).map((r) => [r[0], sc(r[1]), r[2], r[3]]);
+    if (rows.length) out.j[id] = rows;
+  }
+  for (const r of Array.isArray(o.m) ? o.m.slice(0, AN_KEYS.length) : []) {
+    if (!r || !AN_KEYS.includes(r.k) || !AN_C.includes(r.c) || sc(r.s) == null || pos(r.v) == null || pos(r.med) == null) continue;
+    out.m.push({ k: r.k, c: r.c, s: sc(r.s), v: r.v, med: r.med, tr: AN_TR.includes(r.tr) ? r.tr : 'f', f: int(r.f, 5), fn: int(r.fn, 5), p: r.p === true,
+      j: JOB_RE.test(String(r.j || '')) ? r.j : '', at: num(r.at) });
+  }
+  return out;
+}
 export function normValue(o) {
   if (!o || typeof o !== 'object' || !/^\d{4}-\d{2}$/.test(String(o.m || ''))) return null;
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= -1e6 && v <= hi ? v : null);
@@ -869,6 +891,7 @@ async function refreshJobs(force) {
   ui.pb = normPb(j.pb) || ui.pb; ui.rb = normRb(j.rb) || ui.rb;   // v376: בעיות וספרי הפעלה
   ui.va = normValue(j.va) || ui.va;   // v377: ערך, עלות ותחזית
   ui.slo = normSlo(j.slo) || ui.slo;   // v383: תקציב שגיאות
+  ui.an = normAn(j.an) || ui.an;   // v385: ציון חריגה
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
   for (const sj of j.jobs) {
@@ -1182,7 +1205,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1290,6 +1313,8 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   help: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-7l-4 3v-3H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M10 9.6a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.3"/><circle cx="12" cy="14.6" r=".9" fill="currentColor" stroke="none"/>',
   x: '<path d="M7 7l10 10M17 7L7 17"/>',
   shield: '<path d="M12 3.5l7 2.6v5.4c0 4.3-2.9 7.8-7 9-4.1-1.2-7-4.7-7-9V6.1z"/>',
+  clock: '<circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/>',   // v385
+  coin: '<circle cx="12" cy="12" r="8.6"/><path d="M14.6 9.2c-.5-.9-1.5-1.4-2.6-1.4-1.6 0-2.7.8-2.7 2s1.1 1.7 2.7 2 2.9.8 2.9 2.1-1.2 2.1-2.9 2.1c-1.2 0-2.3-.6-2.8-1.6M12 6v1.8M12 16.2V18"/>',
   power: '<path d="M17.7 7a8 8 0 1 1-11.4 0"/><path d="M12 3.5v8"/>',
   sliders: '<path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2.5 14h5M9.5 8h5M16.5 16h5"/>',  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',   // v377: ערך ועלות
 };
@@ -1998,6 +2023,9 @@ function opsAlert(c, k) {
     case 'claude:auto': return T('studioAlClaudeAuto');
     case 'claude:inject': return T('studioAlClaudeInject');
     case 'claude:loop': return T('studioAlClaudeLoop');   // v384
+    case 'claude:anomaly': return T('studioAlClaudeAnom');   // v385
+    case 'drive:anomaly': return T('studioAlDriveAnom');
+    case 'vt:anomaly': return T('studioAlVtAnom');
     case 'claude:sla_time': return T('studioAlSlaTime');   // v377
     case 'claude:sla_cost': return T('studioAlSlaCost');
     case 'vt:setup': return T('studioAlVtSetup');
@@ -2660,10 +2688,84 @@ function slaCard(sla) {
 const SLO_TILE = { ok: 'green', warn: 'orange', fast: 'orange', out: 'red', few: 'blue' };
 function sloSub(sl) { return sl.st === 'few' ? T('studioSloFew', { n: sl.n, m: sl.min }) : T('studioSloAtt', { a: fmtNum(sl.att), t: sl.t }); }
 function sloSection() {
-  const sl = ui.slo;
-  if (!sl || !sl.n) return [];
-  return [secT(T('studioSloSec')), list(rowNav({ tile: tile('shield', SLO_TILE[sl.st]), label: T('studioSloT'), sub: sloSub(sl),
-    value: sl.st === 'few' ? '' : sl.st === 'out' ? T('studioSloOut') : ltr(sl.left + '%'), onClick: () => go('slo'), k: 'tower-slo' }))];
+  const sl = ui.slo, an = ui.an;
+  const rows = [];
+  if (sl && sl.n) rows.push(rowNav({ tile: tile('shield', SLO_TILE[sl.st]), label: T('studioSloT'), sub: sloSub(sl),
+    value: sl.st === 'few' ? '' : sl.st === 'out' ? T('studioSloOut') : ltr(sl.left + '%'), onClick: () => go('slo'), k: 'tower-slo' }));
+  // v385: ציון חריגה — מה חריג בהתמדה (לא קפיצה בודדת)
+  if (an && an.n) {
+    const act = an.m.filter((r) => r.p), top = an.m.length ? an.m[0] : null;
+    rows.push(rowNav({ tile: tile('chart', act.length ? 'orange' : an.m.length ? 'green' : 'blue'), label: T('studioAnT'), sub: anSub(an),
+      value: top ? ltr(fmtNum(top.s)) : '', onClick: () => go('anom'), k: 'tower-anom' }));
+  }
+  return rows.length ? [secT(T('studioSloSec')), list(...rows)] : [];
+}
+/* v385: ציון חריגה */
+function anSub(an) {
+  const act = an.m.filter((r) => r.p);
+  if (!an.m.length) return T('studioAnFew', { n: Math.max(1, an.min + 1 - an.n) });
+  if (!act.length) return T('studioAnOk');
+  return act.length === 1 ? T('studioAnAct1', { m: anName(act[0].k) }) : T('studioAnAct', { n: act.length });
+}
+function anName(k) {
+  switch (k) {
+    case 't:tr': return T('studioAnTr');
+    case 't:al': return T('studioAnAl');
+    case 't:tl': return T('studioAnTl');
+    case 't:rv': return T('studioAnRv');
+    case 't:bn': return T('studioAnBn');
+    case 't:sv': return T('studioAnSv');
+    case 'u:tl': return T('studioAnUTl');
+    case 'u:rv': return T('studioAnURv');
+    default: return T('studioAnUMain');
+  }
+}
+const anCls = (s, hi) => (s >= 8 ? 'c' : s >= hi ? 'h' : s >= 3 ? 'w' : 'g');
+function anChip(s, hi, tr) {
+  const c = pill(anCls(s, hi), '');
+  c.append(ltr(fmtNum(s) + (tr === 'u' ? ' ▲' : tr === 'd' ? ' ▼' : '')));
+  return c;
+}
+const anRatio = (v, med) => (med > 0 ? fmtNum(Math.round(v / med * 10) / 10) : '—');
+/* בדף העבודה: השלבים שחרגו מהרגיל שלך, בערכים של העבודה הזו (זמן / עלות) */
+function anJobRows(rec) {
+  const an = ui.an, rows = an && an.j[rec.id];
+  const dur = rec.spec && rec.spec.dur > 0 ? rec.spec.dur : 0;
+  if (!rows || !dur) return [];
+  const show = rows.filter((r) => r[1] >= 3);
+  if (!show.length) return [];
+  return [secT(T('studioAnJobT')), list(...show.map(([k, sc, v, med]) => {
+    const r = h('div', 'st-row');
+    r.dataset.k = 'an:' + k;
+    const sub = h('span');
+    if (k[0] === 't') sub.append(T('studioAnVsT', { a: fmtShort(v * dur / 60), b: fmtShort(med * dur / 60) }));
+    else { sub.append(usdEl(v * dur / 3600), ' · ' + T('studioAnVsU') + ' '); sub.append(usdEl(med * dur / 3600)); }
+    const l = h('span', 'st-l'), sm = h('small'); sm.append(sub); l.append(h('b', null, anName(k)), sm);
+    r.append(l, anChip(sc, an.hi));
+    return r;
+  })), note(T('studioAnJobNote'))];
+}
+function pageAnom(p) {
+  const an = ui.an;
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioAnT')));
+  if (!an || !an.n) { p.append(h('div', 'st-empty st-empty-sm', T('studioAnNone'))); return; }
+  const act = an.m.filter((r) => r.p), top = an.m.length ? an.m[0] : null;
+  const hero = h('div', 'st-schero');
+  hero.append(h('b', 'st-schero-n' + (top ? ' t-' + (act.length ? 'orange' : 'green') : ''), top ? ltr(fmtNum(top.s)) : '—'),
+    rowTxt(!an.m.length ? T('studioAnFewT') : act.length ? T('studioAnActT') : T('studioAnOkT'), anSub(an)));
+  p.append(hero);
+  // רק מה שמעל הרגיל; השאר — שורה אחת (מינימליזם)
+  const up = an.m.filter((m) => m.s > 0 || m.p), rest = an.m.length - up.length;
+  if (an.m.length) {
+    p.append(secT(T('studioAnByM')), list(...up.map((m) => {
+      const r = m.j && jobRec(m.j) ? btn('st-row st-ric', null, () => go('job', m.j), 'anm:' + m.k) : h('div', 'st-row st-ric');
+      if (!r.dataset.k) r.dataset.k = 'anm:' + m.k;
+      const sub = T('studioAnX', { x: anRatio(m.v, m.med) }) + (m.f ? ' · ' + T('studioAnFreq', { f: m.f, n: m.fn }) : '');
+      r.append(tile(m.k[0] === 't' ? 'clock' : 'coin', m.p ? 'orange' : m.s >= 3 ? 'blue' : 'green'), rowTxt(anName(m.k), sub), anChip(m.s, an.hi, m.tr));
+      return r;
+    }), rest ? h('div', 'st-row st-muted', rest === 1 ? T('studioAnRest1') : T('studioAnRest', { n: rest })) : null));
+  }
+  p.append(note(T('studioAnNote')));
 }
 function sloCause(c) {
   switch (c) {
@@ -3484,6 +3586,7 @@ function pageJob(p) {
   const nc = noteCard(rec);   // v381: הערה ל־Claude — נקראת בנקודת השמירה הבאה
   if (nc) p.append(...nc);
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec.srv.sla));   // v377: יעד זמן ותקציב
+  p.append(...anJobRows(rec));   // v385: השלבים שחרגו מהרגיל שלך
 
   if (rec.srv) {   // v374: איכות הכתוביות + שומר ההזרקות · v375: שופט האיכות (והמודל שלו — משורת העלות)
     const jr = (rec.srv.use || []).find((r) => r.k === 'jg');
@@ -3977,12 +4080,13 @@ function shapeKey() {
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh);   // v383 · v384
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
   if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378
   if (ui.view === 'value') return 'value|' + ui.access + '|' + JSON.stringify(ui.va) + (priceBusy ? 1 : 0);   // v377
   if (ui.view === 'slo') return 'slo|' + ui.access + '|' + JSON.stringify(ui.slo) + store.jobs.length;   // v383
+  if (ui.view === 'anom') return 'anom|' + ui.access + '|' + JSON.stringify(ui.an) + store.jobs.length;   // v385
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
@@ -4019,6 +4123,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'agents') pageAgents(p);
   else if (ui.view === 'value') pageValue(p);   // v377
   else if (ui.view === 'slo') pageSlo(p);   // v383
+  else if (ui.view === 'anom') pageAnom(p);   // v385
   else if (ui.view === 'scan') pageScan(p);   // v378
   else if (ui.view === 'prob') pageProb(p);   // v376
   else if (ui.view === 'rules') pageRules(p);
@@ -4052,7 +4157,7 @@ function onEnter() {
   else if (ui.view === 'gloss') { refreshStatus(true); glossLoad(true); }   // v380: המילון — תמיד הגרסה העדכנית מ־Drive
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'agents') refreshJobs(true);
-  else if (ui.view === 'value' || ui.view === 'slo') refreshJobs(true);   // v377 · v383
+  else if (ui.view === 'value' || ui.view === 'slo' || ui.view === 'anom') refreshJobs(true);   // v377 · v383 · v385
   else if (ui.view === 'scan') { if (!ui.sc || Date.now() - ui.sc.at > SCAN_FRESH) runScan(); else refreshStatus(true); }   // v378: סריקה ישנה — סורקים שוב
   else if (ui.view === 'prob') { refreshStatus(true); refreshJobs(true); }   // v376
   else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }
