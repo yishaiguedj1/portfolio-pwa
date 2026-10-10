@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel } from './studionet.js';
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, glClean, glUpsert, GL_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
@@ -147,6 +147,7 @@ export function normJob(j) {
     tr: normTrace(s.tr),   // v373: עקיבה
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
+    gl: normGl(s.gl),                         // v380: זיכרון המונחים
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
@@ -340,6 +341,20 @@ export function normScan(o) {
     ok: (Array.isArray(o.ok) ? o.ok : []).filter((k) => SC_CHECKS.includes(k)), f, fb: num(o.fb) };
 }
 const STAGE_IDS = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+/* v380: זיכרון המונחים — u = מונחים מהמילון שלך שימשו, s = מונחים חדשים מהעבודה [[אנגלית, עברית]]. אותה בדיקה כמו בשרתון;
+   הטקסט נכתב בסשן שמעבד תוכן לא מהימן — מוצג רק כטקסט, ונכנס למילון רק בלחיצה שלך */
+export function normGl(o) {
+  if (!o || typeof o !== 'object') return null;
+  const u = Number.isInteger(o.u) && o.u >= 0 && o.u <= GL_MAX ? o.u : 0;
+  const s = [], seen = new Set();
+  for (const x of (Array.isArray(o.s) ? o.s : []).slice(0, 30)) {
+    if (!Array.isArray(x)) continue;
+    const en = glClean(x[0], 60), he = glClean(x[1], 80);
+    if (!en || !he || seen.has(en.toLowerCase())) continue;
+    seen.add(en.toLowerCase()); s.push([en, he]);
+  }
+  return u || s.length ? { u, s } : null;
+}
 /* v375: שופט האיכות (Haiku, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 export function normJudge(o) {
@@ -1093,7 +1108,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2851,6 +2866,8 @@ function pageRules(p) {
   p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
   // v375: שופט האיכות (Haiku, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
   p.append(secT(T('studioRlJgT')), list(rowSwitch({ label: T('studioRlJg'), sub: T('studioRlJgS'), on: !rl.jx, onClick: () => { if (!off) setRules({ jx: !rl.jx }); }, k: 'rj' })));
+  // v380: זיכרון המונחים — מילון אחד לכל העבודות (ב־Drive שלך); כל עבודה מקבלת רק את המונחים שמופיעים בסרטון
+  p.append(secT(T('studioGlSec')), list(rowNav({ tile: tile('globe', 'blue'), label: T('studioGlT'), sub: gl.st === 'ok' ? T('studioGlN', { n: gl.rows.length }) : T('studioGlSub'), onClick: () => go('gloss'), k: 'rules-gloss' })));
   // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד".
   // v368: עבר לכאן ממסך המגדל — כל מה שאתה קובע לסוכנים במקום אחד
   const fm = ui.fm === 'auto' ? 'auto' : 'suggest';
@@ -2965,6 +2982,104 @@ function jgName(k) {
     case 'flu': return T('studioJgFlu');
     default: return T('studioJgTerm');
   }
+}
+/* ---- v380: זיכרון המונחים ---- */
+const gl = { st: '', id: '', rows: [], err: '', busy: false, q: '', en: '', he: '' };
+async function glossLoad(force) {
+  if (gl.st === 'load' || (gl.st === 'ok' && !force)) return;
+  gl.st = 'load'; render('none');
+  try { const r = await net.glossLoad(); gl.id = r.id; gl.rows = r.rows; gl.st = 'ok'; gl.err = ''; }
+  catch (e) { gl.st = 'err'; gl.err = e && (e.code || e.message) || 'drive'; }
+  render('none');
+}
+async function glossWrite(rows, msg) {
+  if (gl.busy || gl.st !== 'ok') return false;
+  gl.busy = true; render('none');
+  try { gl.id = await net.glossSave(gl.id, rows); gl.rows = rows; if (msg) flashSafe(msg); return true; }
+  catch (e) { flashSafe(T('studioGlSaveErr')); return false; }
+  finally { gl.busy = false; render('none'); }
+}
+const glHas = (en) => gl.rows.some((r) => r[0].toLowerCase() === String(en).toLowerCase());
+function glRow(r) {
+  const row = h('div', 'st-row st-glr');
+  const l = btn('st-l st-gle', null, () => { gl.en = r[0]; gl.he = r[1]; render('none'); }, 'gl:' + r[0].toLowerCase());   // נגיעה = לעריכה בטופס
+  const en = h('b'); const eb = h('bdi', null, r[0]); eb.dir = 'ltr'; en.append(eb);
+  const he = h('small', null, r[1]); he.dir = 'auto';
+  l.append(en, he);
+  if (r[2]) { const n = h('small', 'st-muted', r[2]); n.dir = 'auto'; l.append(n); }
+  const del = btn('st-mini ghost', null, () => { glossWrite(gl.rows.filter((x) => x !== r), T('studioGlDeleted')); }, 'gld:' + r[0].toLowerCase());
+  del.append(ico('x')); del.setAttribute('aria-label', T('studioGlDel'));
+  if (gl.busy || blocked()) del.disabled = true;
+  row.append(l, del);
+  return row;
+}
+function pageGloss(p) {
+  p.append(navBar({ back: T('studioRlT'), title: T('studioGlT') }));
+  const ab = accessBanner(); if (ab) p.append(ab);
+  if (!store.drive || !store.drive.connected) { p.append(h('div', 'st-empty st-empty-sm', T('studioGlNoDrive'))); return; }
+  if (gl.st === 'err') {
+    p.append(h('div', 'st-empty st-empty-sm', T('studioGlErr')), btn('st-btn tint wide', T('studioGlRetry'), () => glossLoad(true), 'gl-retry'));
+    return;
+  }
+  if (gl.st !== 'ok') { p.append(h('div', 'st-empty st-empty-sm', T('studioGlLoading'))); return; }
+  // הוספה / עריכה: אותו מונח באנגלית מתעדכן
+  const f = h('div', 'st-twcard st-glf');
+  const en = h('input', 'st-in'); en.dir = 'auto'; en.maxLength = 60; en.placeholder = T('studioGlEn'); en.value = gl.en; en.dataset.k = 'gl-en'; en.autocomplete = 'off'; en.spellcheck = false;
+  const he = h('input', 'st-in'); he.dir = 'auto'; he.maxLength = 80; he.placeholder = T('studioGlHe'); he.value = gl.he; he.dataset.k = 'gl-he'; he.autocomplete = 'off';
+  en.setAttribute('aria-label', T('studioGlEn')); he.setAttribute('aria-label', T('studioGlHe'));
+  en.addEventListener('input', () => { gl.en = en.value; });
+  he.addEventListener('input', () => { gl.he = he.value; });
+  const edit = glHas(gl.en.trim());
+  const add = btn('st-btn tint wide', edit ? T('studioGlUpdate') : T('studioGlAdd'), async () => {
+    const e2 = glClean(gl.en, 60), h2 = glClean(gl.he, 80);
+    if (!e2 || !h2) { flashSafe(T('studioGlNeed')); return; }
+    if (!glHas(e2) && gl.rows.length >= GL_MAX) { flashSafe(T('studioGlFull', { n: GL_MAX })); return; }
+    const old = gl.rows.find((r) => r[0].toLowerCase() === e2.toLowerCase());
+    if (await glossWrite(glUpsert(gl.rows, [[e2, h2, old ? old[2] : '']]), T('studioGlSaved'))) { gl.en = ''; gl.he = ''; render('none'); }
+  }, 'gl-add');
+  if (gl.busy || blocked()) add.disabled = true;
+  f.append(en, he, add);
+  p.append(f, note(T('studioGlNote')));
+  if (!gl.rows.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioGlEmpty'))); return; }
+  if (gl.rows.length > 8) {
+    const sq = h('input', 'st-in'); sq.type = 'search'; sq.placeholder = T('studioGlSearch'); sq.value = gl.q; sq.dataset.k = 'gl-q'; sq.setAttribute('aria-label', T('studioGlSearch'));
+    sq.addEventListener('input', () => { gl.q = sq.value; render('none'); });
+    p.append(h('div', 'st-gap sm'), sq);
+  }
+  const qq = gl.q.trim().toLowerCase();
+  const rows = gl.rows.filter((r) => !qq || r[0].toLowerCase().includes(qq) || r[1].includes(gl.q.trim())).sort((a, b) => a[0].localeCompare(b[0]));
+  p.append(secT(T('studioGlN', { n: gl.rows.length })), rows.length ? list(...rows.map(glRow)) : h('div', 'st-empty st-empty-sm', T('studioGlNone')));
+}
+/* דף העבודה: כמה מונחים מהמילון שימשו, ומונחים חדשים שנקבעו בעבודה — כל אחד ב־+ או "להוסיף הכל" */
+function glossJobCard(g) {
+  if (gl.st === '' && store.drive && store.drive.connected && g.s.length) setTimeout(() => glossLoad(), 0);
+  const fresh = gl.st === 'ok' ? g.s.filter((x) => !glHas(x[0])) : g.s;
+  if (!g.u && !fresh.length) return [];
+  const card = h('div', 'st-twcard st-glc');
+  card.dataset.k = 'gloss';
+  if (g.u) card.append(h('p', 'st-perm-b', T('studioGlUsed', { n: g.u })));
+  if (fresh.length) {
+    card.append(h('b', 'st-glh', T('studioGlNewT')));
+    for (const x of fresh.slice(0, 12)) {
+      const r = h('div', 'st-row st-glr');
+      const l = h('span', 'st-l');
+      const en = h('b'); const eb = h('bdi', null, x[0]); eb.dir = 'ltr'; en.append(eb);
+      const he = h('small', null, x[1]); he.dir = 'auto';
+      l.append(en, he);
+      const b = btn('st-mini tint', null, () => glossWrite(glUpsert(gl.rows, [[x[0], x[1], '']]), T('studioGlAdded')), 'gla:' + x[0].toLowerCase());
+      b.append(ico('plus')); b.setAttribute('aria-label', T('studioGlAdd'));
+      if (gl.st !== 'ok' || gl.busy || blocked()) b.disabled = true;
+      r.append(l, b);
+      card.append(r);
+    }
+    if (fresh.length > 1) {
+      const all = btn('st-btn ghost wide', T('studioGlAddAll', { n: fresh.length }), () => glossWrite(glUpsert(gl.rows, fresh.map((x) => [x[0], x[1], ''])), T('studioGlAdded')), 'gl-all');
+      if (gl.st !== 'ok' || gl.busy || blocked()) all.disabled = true;
+      card.append(all);
+    }
+    if (gl.st === 'err') card.append(h('small', 'st-muted', T('studioGlErr')));
+  }
+  return [secT(T('studioGlJobT')), card];
 }
 function qualityCard(q, ij, jd, jm) {
   if (!q && !ij && !jd) return [];
@@ -3165,6 +3280,7 @@ function pageJob(p) {
     const jr = (rec.srv.use || []).find((r) => r.k === 'jg');
     p.append(...qualityCard(rec.srv.q, rec.srv.ij, rec.srv.jd, jr ? modelLabel(jr.m) : ''));
   }
+  if (rec.srv && rec.srv.gl) p.append(...glossJobCard(rec.srv.gl));   // v380: מונחים חדשים מהעבודה — למילון שלך, באישור
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr));
@@ -3536,7 +3652,8 @@ function shapeKey() {
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
-  if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm;
+  if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
+  if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
   return ui.view + '|' + ui.access;
 }
@@ -3570,6 +3687,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'scan') pageScan(p);   // v378
   else if (ui.view === 'prob') pageProb(p);   // v376
   else if (ui.view === 'rules') pageRules(p);
+  else if (ui.view === 'gloss') pageGloss(p);   // v380
   else if (ui.view === 'server') pageServer(p);
   else if (ui.view === 'def') pageDef(p);
   else if (ui.view === 'connect') pageConnect(p);
@@ -3596,6 +3714,7 @@ function onEnter() {
   else if (ui.view === 'settings' || ui.view === 'connect') refreshStatus();
   else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
+  else if (ui.view === 'gloss') { refreshStatus(true); glossLoad(true); }   // v380: המילון — תמיד הגרסה העדכנית מ־Drive
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'agents') refreshJobs(true);
   else if (ui.view === 'value') refreshJobs(true);   // v377
