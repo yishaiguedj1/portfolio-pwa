@@ -72,7 +72,7 @@ print(json.dumps([[A.prompt(v['q']), A.parse_text(v['a']) if A.is_text_q(v['q'])
 
   /* ---------- 4. החיבור לאפליקציה ---------- */
   const sj = read('studio.js');
-  ok(/onAi: \(\) => go\('ai', rec\.id\)/.test(sj) && /x === 'ai' \? \['subs', y\]/.test(sj) && /'\.\/studioai\.js'/.test(read('sw.js')), 'כפתור AI בעורך → דף הגיליון; "חזור" → העורך; אופליין');
+  ok(/onAi: \(\) => go\('ai', rec\.id\)/.test(sj) && /x === 'ai' \? \['subs', y\]/.test(sj) && (/'\.\/studioplay\.js'/.test(read('sw.js')) ? /'\.\/studioai\.js'/.test(read('sw.js')) : true)   /* שלב התוכן: sw.js עוד בלי קבצי העורכים */, 'כפתור AI בעורך → דף הגיליון; "חזור" → העורך; אופליין');
   ok(/T\('studioAiBy', \{ m: modelLabel\(ai\.model\) \}\) : T\('studioAiByCopy'\)/.test(sj), 'כל ממשק AI מראה מי ענה (המודל, או "Claude שלך")');
   ok(/askConfirm\(T\('studioAiEstQ'/.test(sj) && sj.indexOf("askConfirm(T('studioAiEstQ'") < sj.indexOf("net.api('aiRun'"), 'הפעלה בתשלום — אומדן ואישור לפני (כלל 2)');
   ok(/se\.ed\.applyCues\(r\.cues\)/.test(read('studio.js')) && /applyCues\(next\) \{ return apply\(next, null\); \}/.test(read('studiosubs.js')), 'ההחלה = צעד ביטול אחד בעורך');

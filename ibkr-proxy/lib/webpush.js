@@ -98,21 +98,19 @@ function message(kind, jobId, lang) {
 /* שליחה לכל המכשירים של אדם. מחזיר את הרשימה המעודכנת (מנוי שפג — 404/410 — יוצא ממנה) ומספר ההצלחות */
 async function sendAll(deps, v, subs, kind, jobId, now) {
   const f = deps.fetch || fetch;
-  const left = [];
-  let sent = 0;
-  for (const s of normSubs(subs)) {
+  // במקביל (עד SUB_MAX): בטור, מנוי תקוע אחד (5 שנ׳) כפול חמישה עיכב את הדיווח של העובד עד 25 שנ׳
+  const res = await Promise.all(normSubs(subs).map(async (s) => {
     const msg = message(kind, jobId, s.l);
-    if (!msg) { left.push(s); continue; }
+    if (!msg) return { s, keep: true, ok: false };
     try {
       const r = await f(s.e, { method: 'POST', headers: { TTL: String(TTL), Urgency: kind === 'done' ? 'normal' : 'high',
         'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', Authorization: vapidAuth(v, s.e, now) },
       body: encrypt(s, JSON.stringify(msg)), redirect: 'manual', signal: AbortSignal.timeout(5000) });
-      if (r.status === 404 || r.status === 410) continue;      // המנוי בוטל בטלפון
-      if (r.status >= 200 && r.status < 300) sent++;
-      left.push(s);
-    } catch (e) { left.push(s); }
-  }
-  return { subs: left, sent };
+      if (r.status === 404 || r.status === 410) return { s, keep: false, ok: false };      // המנוי בוטל בטלפון
+      return { s, keep: true, ok: r.status >= 200 && r.status < 300 };
+    } catch (e) { return { s, keep: true, ok: false }; }
+  }));
+  return { subs: res.filter((x) => x.keep).map((x) => x.s), sent: res.filter((x) => x.ok).length };
 }
 
 module.exports = { PUSH_HOSTS, SUB_MAX, KINDS, TEXT, endpointOk, normSub, normSubs, addSub, dropSub, genVapid, vapidAuth,

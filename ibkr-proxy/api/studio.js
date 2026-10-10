@@ -69,6 +69,13 @@ async function readDoc(deps, col, id) {
   if (r.status !== 200) throw new Error('fs_http_' + r.status);
   return Object.assign(S.fromFields(r.j && r.j.fields), { id });
 }
+/* כמו readDoc, עם updateTime (_ut) — לכתיבה בתנאי. נפרד: מסמך שנקרא ב־readDoc נכתב לפעמים בחזרה כמו שהוא */
+async function readDocT(deps, col, id) {
+  const r = await fsCall(deps, 'GET', '/' + col + '/' + id);
+  if (r.status === 404) return null;
+  if (r.status !== 200) throw new Error('fs_http_' + r.status);
+  return Object.assign(S.fromFields(r.j && r.j.fields), { id, _ut: r.j && r.j.updateTime || '' });
+}
 /* כתיבה חלקית (updateMask) — הטלפון והעובד כותבים שדות שונים באותו מסמך בלי לדרוס זה את זה */
 async function patchDoc(deps, col, id, obj) {
   const keys = Object.keys(obj).filter((k) => obj[k] !== undefined && k !== 'id');
@@ -613,8 +620,15 @@ async function worker(req, res, body, deps) {
     await patchJob(deps, id, up);
     if (spent > 0) {
       // מצב API: העלות נספרת בתקציב החודשי של המשתמש. תקלה כאן לא מפילה את הדיווח
-      const st = await readStats(deps, job.uid);
-      await patchDoc(deps, 'studioStats', job.uid, { mu: S.addMonth(st.mu, spent, now), updated: now }).catch(() => {});
+      // קריאה וכתיבה בתנאי (updateTime) — שני דיווחים במקביל (שתי עבודות) לא דורסים זה את הסכום של זה
+      for (let i = 0; i < 4; i++) {
+        const st = await readDocT(deps, 'studioStats', job.uid).catch(() => undefined);
+        if (st === undefined) break;
+        const o = { mu: S.addMonth(st && st.mu, spent, now), updated: now };
+        const ok = st && st._ut ? await patchIf(deps, 'studioStats', job.uid, o, st._ut).catch(() => true)
+          : await patchDoc(deps, 'studioStats', job.uid, o).then(() => true, () => true);
+        if (ok) break;
+      }
     }
     if (job.kind === 'ping' && up.state === 'done') await patchVault(deps, job.uid, { ok: now, okj: id }).catch(() => {});
     // v364: ספר התיקונים — עצירה של המגדל נרשמת לפי טביעת האצבע; Claude רושם תיקון (אחרי אבחון בהמשך); המגדל הזכיר תיקון מוכר.

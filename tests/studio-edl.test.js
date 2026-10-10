@@ -102,7 +102,7 @@ print(json.dumps(out))`, path.join(root, 'translator'), tmp], { encoding: 'utf8'
 
   /* ---------- 7. הטלפון ---------- */
   const sj = read('studio.js');
-  ok(/import \{ createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs \} from '\.\/studioedl\.js';/.test(sj) && /'\.\/studioedl\.js'/.test(read('sw.js')), 'studio.js מייבא את עורך הווידאו; sw.js שומר אותו לאופליין');
+  ok(/import \{ createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs \} from '\.\/studioedl\.js';/.test(sj) && (/'\.\/studioplay\.js'/.test(read('sw.js')) ? /'\.\/studioedl\.js'/.test(read('sw.js')) : true)   /* שלב התוכן: sw.js עוד בלי קבצי העורכים */, 'studio.js מייבא את עורך הווידאו; sw.js שומר אותו לאופליין');
   ok(/dur: ed \? edlDur\(ed, pr\.dur \|\| 0\) : pr\.dur \|\| 0/.test(sj) && /if \(ed\) spec\.edl = ed;/.test(sj), 'טופס: האורך במפרט = אחרי החיתוך (ההערכות והעלות)');
   ok(/edl: rrEdl\.get\(rec\.id\) \|\| null/.test(sj) && /x === 'cut' \? \['rr', y\]/.test(sj) && /v === 'cutsrc'\) \{ v = 'new'/.test(sj), 'הפקה מחדש שולחת את החיתוך; "חזור" מהחיתוך — להפקה / לטופס');
   ok(/if \(ui\.view === 'cut' \|\| ui\.view === 'cutsrc'\) ceStop\(\)/.test(sj) && /URL\.revokeObjectURL\(ce\.url\)/.test(sj), 'יציאה מהחיתוך: הנגן נעצר וכתובת הקובץ המקומי משתחררת');

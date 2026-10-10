@@ -19,6 +19,7 @@ const ERR_INFO = {
   no_claim: ['routine', 2], routine_auth: ['routine', 1], routine_forbidden: ['routine', 1], routine_missing: ['routine', 1],
   routine_paused: ['routine', 1], routine_rate: ['routine', 3], routine_down: ['routine', 2], routine_net: ['routine', 2], routine_bad: ['routine', 2],
   no_server: ['server', 2], job_timeout: ['server', 2], month_cap: ['server', 3], worker_unknown_kind: ['server', 3],
+  worker_oom: ['server', 2], worker_crash: ['server', 2],
   tower_stop: ['claude', 2], budget_stop: ['claude', 3], worker_step: ['claude', 2], stale: ['claude', 2], worker: ['claude', 2],
   lang_unsupported: ['claude', 4], upload_timeout: ['phone', 3], net: ['drive', 3], drive: ['drive', 3], drive_net: ['drive', 3],
   // מצב API (llm.py / pipeline.py): מפתח שנדחה / מודל שלא קיים = שום עבודת API לא תעבוד עד שמתקנים → P1

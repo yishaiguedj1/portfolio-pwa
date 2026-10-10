@@ -137,6 +137,17 @@ class AgentTests(unittest.TestCase):
 class HandleUnit(unittest.TestCase):
     """handle(): עבודת תרגום = run ואז auto; חריגת זמן = דיווח כשל; הניקוי קורה תמיד."""
 
+    def test_crash_code(self):
+        sys.path.insert(0, str(HERE))
+        import agent
+        # 0 = הצליח, 1 = כבר דיווח, 2 = "עצור" — בלי דיווח; כל השאר = דיווח (אחרת העבודה "רצה" עד STALE_MS)
+        self.assertEqual([agent.crash_code(rc) for rc in (0, 1, 2)], ['', '', ''])
+        self.assertEqual(agent.crash_code(124), 'job_timeout')
+        self.assertEqual(agent.crash_code(137), 'worker_oom', 'SIGKILL של מנהל הזיכרון')
+        self.assertEqual(agent.crash_code(-9), 'worker_oom')
+        self.assertEqual(agent.crash_code(-11), 'worker_crash')
+        self.assertEqual(agent.crash_code(3), 'worker_crash')
+
     def test_tr_runs_auto_and_cleanup_on_crash(self):
         tmp = Path(tempfile.mkdtemp())
         saved = {k: os.environ.get(k) for k in ('VT_WORK', 'SNB_STATE')}

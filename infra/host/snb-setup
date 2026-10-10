@@ -16,12 +16,26 @@ ask_secret() {
 	echo >&2
 	printf '%s' "$v"
 }
+# מה שכבר בשרת — כדי שאפשר יהיה להחליף רק את מפתח Anthropic (למשל כשהוא פג), בלי טוקן שרת חדש.
+# לקח 10/10/2026: הטוקן מוצג באפליקציה פעם אחת בלבד — בלי "Enter = להשאיר", החלפת מפתח דרשה רשומת שרת חדשה.
+OLD_WT=$(sed -n 's/^SNB_WORKER_TOKEN=//p' /etc/snb/worker.env 2>/dev/null || true)
+OLD_HB=$(sed -n 's/^SNB_HEARTBEAT_URL=//p' /etc/snb/worker.env 2>/dev/null || true)
 AK=$(ask_secret "Anthropic API key (starts with sk-ant-; hidden):")
 case "$AK" in sk-ant-*) ;; *) echo "x Not an Anthropic key"; exit 1 ;; esac
-WT=$(ask_secret "Server token (app: Studio > Settings > Server > Add server; hidden):")
+if [ -n "$OLD_WT" ]; then
+	WT=$(ask_secret "Server token - Enter to keep the current one (or a new one from the app; hidden):")
+	[ -n "$WT" ] || WT=$OLD_WT
+else
+	WT=$(ask_secret "Server token (app: Studio > Settings > Server > Add server; hidden):")
+fi
 printf '%s' "$WT" | grep -Eq '^[A-Za-z0-9_-]{32,128}$' || { echo "x Bad server token"; exit 1; }
-printf '%s\n> ' "Heartbeat URL (e.g. healthchecks.io), optional - Enter to skip:"
+if [ -n "$OLD_HB" ]; then
+	printf '%s\n> ' "Heartbeat URL - Enter to keep the current one, or type: none"
+else
+	printf '%s\n> ' "Heartbeat URL (e.g. healthchecks.io), optional - Enter to skip:"
+fi
 IFS= read -r HB
+if [ -z "$HB" ]; then HB=$OLD_HB; elif [ "$HB" = none ]; then HB=; fi
 case "$HB" in ""|https://*) ;; *) echo "x The URL must start with https://"; exit 1 ;; esac
 {
 	printf 'ANTHROPIC_API_KEY=%s\n' "$AK"
@@ -30,5 +44,5 @@ case "$HB" in ""|https://*) ;; *) echo "x The URL must start with https://"; exi
 } >/etc/snb/worker.env.tmp
 chmod 600 /etc/snb/worker.env.tmp
 mv /etc/snb/worker.env.tmp /etc/snb/worker.env
-echo "Saved. Starting the worker..."
+echo "Saved. Starting the worker... (if a job is running, the new key applies when it ends)"
 systemctl start snb-update.service && /usr/local/sbin/snb-status

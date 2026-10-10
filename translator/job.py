@@ -350,10 +350,16 @@ def price_of(model):
     return None
 
 
+HAIKU_LONG = (0.50, 2.50, 0.05)                      # = llm.HAIKU_LONG: בקשה מעל 100K טוקני קלט — הכרטיס היקר
+HAIKU_LONG_AT = 100_000
+
+
 def cost_of(model, i, o, cr, c5, c1):
     p = price_of(model)
     if not p:
         return None
+    if str(model).startswith('claude-haiku-5-5') and i + cr + c5 + c1 > HAIKU_LONG_AT:
+        p = HAIKU_LONG
     return (i * p[0] + o * p[1] + cr * p[2] + c5 * p[0] * 1.25 + c1 * p[0] * 2) / 1e6
 
 
@@ -1707,6 +1713,14 @@ def auto(args):
             pass
         print(msg)
         return 1
+    except Exception as e:               # noqa: BLE001 — חריגה לא צפויה (באג, OSError): כשל גלוי מיד, לא "רצה" עד STALE_MS
+        try:
+            # רק סוג החריגה — הטקסט שלה יכול לכלול נתיבים / שמות קבצים (פרטיות)
+            Ctx(load_state()).report(fail=True, err='worker_crash', msg=type(e).__name__[:60], force=True,
+                                     usage=usage_safe(), trace=trace_safe())
+        except (Stop, SystemExit, Exception):     # noqa: BLE001
+            pass
+        raise
 
 
 def vt_cmd(args):

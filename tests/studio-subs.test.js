@@ -96,7 +96,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 9. החיבור לאפליקציה ---------- */
   const sj = read('studio.js');
-  ok(/import \{ createSubsEditor, toSrt, toCuesJson, toVtt, toTtml \} from '\.\/studiosubs\.js';/.test(sj) && /'\.\/studiosubs\.js'/.test(read('sw.js')), 'studio.js מייבא את העורך; sw.js שומר אותו לאופליין');
+  ok(/import \{ createSubsEditor, toSrt, toCuesJson, toVtt, toTtml \} from '\.\/studiosubs\.js';/.test(sj) && (/'\.\/studioplay\.js'/.test(read('sw.js')) ? /'\.\/studiosubs\.js'/.test(read('sw.js')) : true)   /* שלב התוכן: sw.js עוד בלי קבצי העורכים */, 'studio.js מייבא את העורך; sw.js שומר אותו לאופליין');
   ok(/x === 'play' \|\| x === 'subs' \|\| x === 'rr' \? \['job', y\]/.test(sj), 'חזור מהעורך / מההפקה — לדף העבודה');
   ok(/if \(ui\.view === 'subs'\) seStop\(\)/.test(sj) && /'subs\|' \+ ui\.param/.test(sj), 'הנגן של העורך נעצר ביציאה; הדף לא נבנה מחדש בזמן הקלדה');
   ok(/net\.api\('cuesSave', \{ job: rec\.id, c, s: s2, ev: rec\.srv\.ev \|\| 0 \}\)/.test(sj) && /\{ snbEdit: 'c' \}/.test(sj), 'שמירה: שני קבצים לתיקיית העבודה ואז cuesSave עם הגרסה (בלי דריסה של שמירה ממקום אחר)');

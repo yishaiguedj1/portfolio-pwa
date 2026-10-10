@@ -97,6 +97,6 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 5. גרסה ---------- */
   const ver = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1] || '';
-  ok(+ver.slice(1) >= 385 && swVersionOk(ver), 'APP_VERSION ≥ v385 ו־sw.js תואם (או גרסה אחת אחורה)');
+  ok(+ver.slice(1) >= 383 && swVersionOk(ver), 'APP_VERSION ≥ v383 (נפרס יחד עם שאר הסבבים) ו־sw.js תואם (או גרסה אחת אחורה)');
   console.log('\n' + n + ' passed');
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -115,12 +115,12 @@ class AnthropicTests(unittest.TestCase):
 
     def test_refusal_and_truncation_are_recorded_then_raise(self):
         for stop, code in (('refusal', 'model_refusal'), ('max_tokens', 'max_tokens')):
-            c = FakeClient([fake_msg(stop=stop, i=10, o=500)])
+            c = FakeClient([fake_msg(stop=stop, i=10, o=500)] * (2 if stop == 'refusal' else 1))   # סירוב — ניסיון אחד נוסף
             e = llm.Engine(llm.Spec.of('sonnet-high'), client=c)
             with self.assertRaises(llm.LLMError) as cm:
                 e.complete('tl', 'X', 'Y')
             self.assertEqual(cm.exception.code, code)
-            self.assertEqual(e.ledger.list()[0]['o'], 500, 'הקריאה עלתה כסף — נרשמת לפני השגיאה')
+            self.assertEqual(e.ledger.list()[0]['o'], 500 * (2 if stop == 'refusal' else 1), 'כל קריאה עלתה כסף — נרשמת לפני השגיאה')
 
     def test_modes_haiku_and_removed(self):
         # 10/10/2026: Haiku 5.5 (medium/high), Sonnet Medium = ברירת המחדל, Opus High/Max הוסרו → Opus Medium
@@ -132,6 +132,48 @@ class AnthropicTests(unittest.TestCase):
         with self.assertRaises(llm.LLMError):
             llm.Spec.of('gpt')
 
+    def test_haiku_card_judge_tokens(self):
+        # 10/10/2026: ההתאמות ל־Haiku 5.5 — כרטיס המחיר מעל 100K, שופט ממשפחה אחרת, אומדן שמרני
+        self.assertEqual(llm.judge_spec('claude-haiku-5-5').model, 'claude-sonnet-5-5', 'מתרגם Haiku → שופט Sonnet')
+        for m in ('claude-sonnet-5-5', 'claude-opus-5-5'):
+            self.assertEqual(llm.judge_spec(m).model, 'claude-haiku-5-5')
+        self.assertGreater(llm.est_tokens('שלום עולם ' * 50), llm.est_tokens('hello world ' * 50), 'עברית יקרה יותר בטוקנים')
+        h, s = llm.Engine(llm.Spec.of('haiku-medium'), client=FakeClient([])), llm.Engine(llm.Spec.of('sonnet-medium'), client=FakeClient([]))
+        big = 'word ' * 120000                                            # ‎~200K טוקנים לפי האומדן
+        self.assertEqual((h.card_limit, s.card_limit), (100000, None))
+        self.assertFalse(h.fits_card(big, 'x'), 'Haiku: מעל הסף — לא נשאר בכרטיס הזול')
+        self.assertTrue(s.fits_card(big, 'x'), 'Sonnet/Opus: מחיר אחד בכל אורך')
+        self.assertTrue(h.fits_card('word ' * 1000, 'x'))
+
+        class Counting(FakeClient):
+            def count_tokens(self, **kw):
+                self.counted = kw
+                return NS(input_tokens=42000)
+        c = Counting([])
+        e = llm.Engine(llm.Spec.of('haiku-high'), client=c)
+        self.assertEqual(e.prompt_tokens('word ' * 40000, 'x'), 42000, 'באזור הסף — count_tokens המדויק (חינם)')
+        self.assertEqual(c.counted['model'], 'claude-haiku-5-5')
+
+    def test_refusal_retry_reframed_once(self):
+        c = FakeClient([fake_msg('', stop='refusal', o=5), fake_msg('#1 תרגום')])
+        e = llm.Engine(llm.Spec.of('haiku-medium'), client=c)
+        r = e.complete('tl', 'קבוע', 'חלק 1')
+        self.assertEqual((r.text, e.refusal_retries, e.ledger.list()[0]['n']), ('#1 תרגום', 1, 2), 'הסירוב עלה כסף — נרשם')
+        self.assertEqual(c.calls[1]['model'], 'claude-haiku-5-5', 'אותו מודל — בלי מעבר למודל אחר')
+        self.assertEqual(c.calls[1]['system'][0]['text'], 'קבוע', 'הבלוק הקבוע לא השתנה — המטמון נשמר')
+        self.assertIn('תרגום כתוביות', c.calls[1]['system'][1]['text'], 'המסגור אחרי נקודת המטמון')
+        c2 = FakeClient([fake_msg('', stop='refusal'), fake_msg('', stop='refusal')])
+        with self.assertRaises(llm.LLMError) as cm:
+            llm.Engine(llm.Spec.of('haiku-medium'), client=c2).complete('tl', 'X', 'Y')
+        self.assertEqual(cm.exception.code, 'model_refusal', 'סירוב שני = כשל גלוי')
+
+    def test_thinking_tokens_from_usage(self):
+        m = fake_msg('ok', think='')                                       # טקסט החשיבה מושמט כברירת מחדל ב־5.5
+        m.usage.output_tokens_details = NS(thinking_tokens=321)
+        e = llm.Engine(llm.Spec.of('sonnet-medium'), client=FakeClient([m]))
+        e.complete('tl', 'X', 'Y')
+        self.assertEqual(e.think['tl'], 321, 'החשיבה נמדדת בטוקנים מה־usage, לא מתווים שמושמטים')
+
     def test_budget_cap(self):
         c = FakeClient([fake_msg(i=0, o=100000)] * 3)     # $2 לכל קריאה ב־Opus
         e = llm.Engine(llm.Spec.of('opus-medium'), cap_usd=3.0, client=c)
@@ -141,6 +183,19 @@ class AnthropicTests(unittest.TestCase):
             e.complete('tl', 'X', '3')
         self.assertEqual(cm.exception.code, 'budget_cap')
         self.assertEqual(len(c.calls), 2, 'לא נשלחה קריאה שלישית')
+
+    def test_budget_cap_counts_inflight_calls(self):
+        # התרגום רץ ב־4 במקביל: קריאות שבאוויר נספרות לפי העלות הממוצעת — אחרת כולן עוברות את הבדיקה יחד
+        c = FakeClient([fake_msg(i=0, o=100000)] * 5)     # $2 לכל קריאה ב־Opus
+        e = llm.Engine(llm.Spec.of('opus-medium'), cap_usd=5.0, client=c)
+        e.complete('tl', 'X', '1')                        # $2 — ממוצע $2 לקריאה
+        e._inflight = 2                                   # שתי קריאות באוויר ≈ $4 → $6 ≥ $5
+        with self.assertRaises(llm.LLMError) as cm:
+            e.complete('tl', 'X', '2')
+        self.assertEqual(cm.exception.code, 'budget_cap')
+        e._inflight = 1                                   # אחת באוויר ≈ $2 → $4 < $5 — עוברת
+        e.complete('tl', 'X', '3')
+        self.assertEqual(e._inflight, 1, 'המונה חוזר אחרי הקריאה (גם בהצלחה)')
 
     def test_sdk_errors_mapped_to_short_codes(self):
         class RateLimitError(Exception):
@@ -164,6 +219,11 @@ class AnthropicTests(unittest.TestCase):
         import job
         for m, p in llm.ANTHROPIC_PRICES.items():
             self.assertEqual(job.PRICES[m], p, f'המחירון ב־llm.py וב־job.py זהה ({m})')
+        self.assertEqual(set(job.PRICES), set(llm.ANTHROPIC_PRICES), 'אותם מודלים בשני המחירונים')
+        self.assertEqual((job.HAIKU_LONG, job.HAIKU_LONG_AT), (llm.HAIKU_LONG, llm.HAIKU_LONG_AT))
+        # העלות מהיומנים (job.py) = העלות מה־API (llm.py), גם מעל 100K
+        for args in ((1000, 1000, 0, 0, 0), (60000, 1000, 50000, 0, 0), (120000, 2000, 0, 0, 0)):
+            self.assertAlmostEqual(job.cost_of('claude-haiku-5-5', *args), llm.cost_anthropic('claude-haiku-5-5', *args))
 
 
 if __name__ == '__main__':

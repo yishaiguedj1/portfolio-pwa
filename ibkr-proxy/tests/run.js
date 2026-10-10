@@ -1246,7 +1246,7 @@ function stubFetch(text, status = 200) {
       const m = url.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)(?:\?(.*))?$/);
       if (!m) return J({}, 404);
       const k = m[1] + '/' + m[2], cur = db.get(k);
-      if (opt.method === 'GET') return cur ? J({ fields: cur.fields }) : J({}, 404);
+      if (opt.method === 'GET') return cur ? J({ fields: cur.fields, updateTime: cur.ut || 't0' }) : J({}, 404);
       if (opt.method === 'DELETE') { db.delete(k); return J({}); }
       if (opt.method === 'PATCH') {
         const qp = new URLSearchParams(m[3] || '');
