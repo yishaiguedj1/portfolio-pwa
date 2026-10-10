@@ -12,8 +12,8 @@ import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, pla
 import { createBackup, waitOAuthCode } from './libbackup.js';
 import { createPlayer, normCues, issuesList, fmtT } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
-import { createEdlEditor, normEdl, edlDur } from './studioedl.js';
-import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS } from './studioai.js';
+import { createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
+import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -1297,7 +1297,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -3955,7 +3955,7 @@ function pageCut(p, before) {
   p.append(navBar({ back: before ? (form.id ? T('studioEditT') : T('studioNew')) : T('studioRrTitle'), title: T('studioEdTitle') }));
   if (!ce || ce.key !== key) {
     ceStop();
-    ce = { key, ctl: null, ed: null, url: '' };
+    ce = { key, ctl: null, ed: null, url: '', cues: null };
     let src = '', fb = '', burned = false, cues = [], edl = null, dur = 0;
     if (before) { ce.url = src = URL.createObjectURL(form.fileObj); edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
     else {
@@ -3971,6 +3971,39 @@ function pageCut(p, before) {
   }
   const top = h('div', 'st-se-top'); top.append(ce.ctl.el);
   p.append(top, ce.ed.el, note(before ? T('studioEdNoteBefore') : T('studioEdNoteAfter')));
+  if (before) return;
+  // מ8: לפי התמליל (חינם — הזמנים של הכתוביות): הסרת שקטים, ובחירה של מה נשאר
+  if (!ce.cues) {
+    ce.cues = se && se.id === rec.id && se.ed ? se.ed.cues() : [];
+    const co = outOf(rec, 'cues');
+    if (!ce.cues.length && co) { const me = ce; net.driveJson(co.id).then((j) => { if (ce === me) { me.cues = normCues(j); render('none'); } }, () => {}); }
+  }
+  if (!ce.cues.length || rec.spec.edl) return;   // נחתך כבר לפני התרגום — ציר הזמן של הנגן הוא הצרוב (פשוט: בלי כלי התמליל)
+  const cs = ce.cues, dur = rec.spec.dur || 0;
+  p.append(secT(T('studioEdByText')), list(rowNav({ tile: tile('spark', 'green'), label: T('studioEdSilence'), sub: T('studioEdSilenceS'),
+    onClick: () => ce.ed.set(intersectSegs(silenceSegs(cs, ce.ctl.video.duration || dur), ce.ed.segs()), T('studioEdSilenceNo')), k: 'ed-silence' })));   // בתוך מה שכבר נבחר
+  const det = h('details', 'st-details');
+  det.append(h('summary', null, T('studioEdPick', { n: cs.length })));
+  const box = h('div', 'st-list st-ed-cues');
+  const paint = () => {
+    const segs = ce.ed.segs();
+    box.replaceChildren(...cs.slice(0, 2000).map((c, i) => {
+      const on = segAt(segs, (c.s + c.e) / 2) >= 0;
+      const r = btn('st-row st-ed-cue' + (on ? '' : ' off'), null, () => {
+        const sg = ce.ed.segs();
+        ce.ed.set(on ? removeRange(sg, c.s, c.e) : addRange(sg, c.s, c.e), T('studioEdRemoveNo')); paint();
+      }, 'ed-cue:' + i);
+      const ck = h('span', 'st-check' + (on ? ' on' : '')); ck.append(ico('check'));
+      const tm = h('small', 'st-ai-tm'); tm.append(h('bdi', null, fmtT(c.s)));
+      const tx = h('span', 'st-l'); const d = h('div'); d.dir = 'rtl'; d.textContent = c.lines.join(' '); tx.append(tm, d);
+      r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', on ? 'true' : 'false');
+      r.append(ck, tx);
+      return r;
+    }));
+  };
+  det.addEventListener('toggle', () => { if (det.open) paint(); });
+  det.append(box);
+  p.append(det);
 }
 
 let rrBusy = false;
@@ -4039,34 +4072,41 @@ function aiShowResult(items, model) {
   if (!items.length) flashSafe(T('studioAiNone'));
   render('none');
 }
-async function aiRunJob(rec) {
-  const est = aiEstimate(ai.queue);
+/* בקשה (תור) בהפעלה אחת — אומדן ואישור, העלאת הבקשה לתיקיית העבודה, aiRun + start, ומעקב עד התשובה.
+   מחזיר { res, model } או null (בוטל); זורק { code } בתקלה. alive() = הדף עוד מחכה */
+async function aiJobRun(rec, queue, alive) {
+  const est = aiEstimate(queue);
   const yes = typeof askConfirm === 'function' ? await new Promise((ok) => askConfirm(T('studioAiEstQ', { n: est.rows, usd: fmtUsd(est.usd) }), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) })) : true;
-  if (!yes) return;
-  const me = ai;
-  me.busy = true; me.err = ''; render('none');
-  try {
-    const qid = await net.textUpload(jobFolder(rec), (fileTitle(rec.spec.name) || 'ai').slice(0, 80) + ' (AI).request.json', 'application/json', JSON.stringify(me.queue), { snbAi: 'q' });
-    const j = await net.api('aiRun', { job: rec.id, q: qid });
-    if (!j.ok || !j.job) throw Object.assign(new Error('x'), { code: j.error === 'ai_busy' ? 'ai_busy' : j.error });
-    const k = await net.api('start', { job: j.job.id });
-    if (!k.ok) throw Object.assign(new Error('x'), { code: k.error });
-    for (let t = 0; t < 225 && ai === me; t++) {                 // עד ~15 דק׳, כל 4 שנ׳
-      await new Promise((r) => setTimeout(r, 4000));
-      const x = await net.api('job', { job: j.job.id });
-      const v = x.ok && x.job ? normJob({ id: j.job.id, srv: x.job }) : null;
-      if (!v) continue;
-      if (v.srv.state === 'done') {
-        const o = v.srv.out.find((y) => y.k === 'aiout');
-        const res = o ? await net.driveJson(o.id) : null;
-        const model = v.srv.use && v.srv.use.length ? v.srv.use[0].m : '';
-        if (ai === me) aiShowResult(normItems(res && res.items, me.queue), model);
-        return;
-      }
-      if (v.srv.state === 'failed' || v.srv.state === 'cancelled') throw Object.assign(new Error('x'), { code: v.srv.err || 'failed' });
+  if (!yes) return null;
+  if (alive.start) alive.start();
+  const qid = await net.textUpload(jobFolder(rec), (fileTitle(rec.spec.name) || 'ai').slice(0, 80) + ' (AI).request.json', 'application/json', JSON.stringify(queue), { snbAi: 'q' });
+  const j = await net.api('aiRun', { job: rec.id, q: qid });
+  if (!j.ok || !j.job) throw Object.assign(new Error('x'), { code: j.error });
+  const k = await net.api('start', { job: j.job.id });
+  if (!k.ok) throw Object.assign(new Error('x'), { code: k.error });
+  for (let t = 0; t < 225 && alive(); t++) {                    // עד ~15 דק׳, כל 4 שנ׳
+    await new Promise((r) => setTimeout(r, 4000));
+    const x = await net.api('job', { job: j.job.id });
+    const v = x.ok && x.job ? normJob({ id: j.job.id, srv: x.job }) : null;
+    if (!v) continue;
+    if (v.srv.state === 'done') {
+      const o = v.srv.out.find((y) => y.k === 'aiout');
+      return { res: o ? await net.driveJson(o.id) : null, model: v.srv.use && v.srv.use.length ? v.srv.use[0].m : '' };
     }
+    if (v.srv.state === 'failed' || v.srv.state === 'cancelled') throw Object.assign(new Error('x'), { code: v.srv.err || 'failed' });
+  }
+  return null;
+}
+const aiErr = (code) => (code === 'ai_busy' ? T('studioAiBusy') : errText(code));
+async function aiRunJob(rec) {
+  const me = ai;
+  const alive = () => ai === me;
+  alive.start = () => { me.busy = true; me.err = ''; render('none'); };
+  try {
+    const r = await aiJobRun(rec, me.queue, alive);
+    if (r && alive()) aiShowResult(normItems(r.res && r.res.items, me.queue), r.model);
   } catch (e) {
-    if (ai === me) { me.busy = false; me.err = (e && e.code) || 'net'; flashSafe(me.err === 'ai_busy' ? T('studioAiBusy') : errText(me.err)); render('none'); }
+    if (alive()) { me.busy = false; me.err = (e && e.code) || 'net'; flashSafe(aiErr(me.err)); render('none'); }
   }
 }
 function pageAi(p) {
@@ -4140,6 +4180,71 @@ function pageAi(p) {
     ta.placeholder = T('studioAiPastePh'); ta.setAttribute('aria-label', T('studioAiPaste'));
     ta.addEventListener('input', () => { ai.answer = ta.value; });
     p.append(secT(T('studioAiPaste')), ta, h('div', 'st-gap sm'), btn('st-btn wide', T('studioAiCheck'), () => aiShowResult(parseAnswer(ai.answer, ai.queue), ''), 'ai-check'));
+  }
+}
+/* ---------------- מ8: רעיונות (AI לווידאו) ----------------
+   על כל התמליל: פרקים, כותרת ותיאור ליוטיוב, קטעים לשורטס (חיתוך 9:16 בלחיצה), ושאלה על הסרטון.
+   אותן שתי דרכים של גיליון ה־AI (העתק־הדבק / הפעלה אחת עם אומדן), והתשובה — טקסט להעתקה */
+let idea = null;   // { id, cues, k, n, mode, answer, text, model, busy }
+function ideaKindName(k) {
+  switch (k) {
+    case 'chap': return T('studioIdChap');
+    case 'yt': return T('studioIdYt');
+    case 'hl': return T('studioIdHl');
+    default: return T('studioIdAsk');
+  }
+}
+const ideaQueue = () => [{ k: idea.k, n: idea.n, rows: idea.cues.slice(0, AI_T_ROWS).map((c, i) => aiTRow(c, i + 1)) }];
+function pageIdeas(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  if (!idea || idea.id !== rec.id) {
+    idea = { id: rec.id, cues: se && se.id === rec.id && se.ed ? se.ed.cues() : null, k: 'chap', n: '', mode: '', answer: '', text: null, model: '', busy: false };
+    if (!idea.cues) { const me = idea; net.driveJson(outOf(rec, 'cues').id).then((j) => { if (idea === me) { me.cues = normCues(j); render('none'); } }, () => { if (idea === me) { me.cues = []; render('none'); } }); }
+  }
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled'), title: T('studioIdTitle') }));
+  if (!idea.cues) { p.append(h('div', 'st-empty st-empty-sm', T('studioSeLoading'))); return; }
+  if (!idea.cues.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioSeLoadErr'))); return; }
+  if (idea.text != null) {
+    p.append(note(idea.model ? T('studioAiBy', { m: modelLabel(idea.model) }) : T('studioAiByCopy')));
+    let shown = false;
+    if (idea.k === 'hl') {
+      const rs = parseRanges(idea.text);
+      shown = rs.length > 0;
+      if (rs.length) p.append(secT(T('studioIdHlT')), list(...rs.map((r, i) => rowNav({ tile: tile('film', 'blue'), label: r.title || fmtT(r.a), sub: '\u2066' + fmtT(r.a) + '–' + fmtT(r.b) + '\u2069 · ' + T('studioIdHlGo'),   // טווח מבודד — לא מתהפך ב־RTL
+        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5 }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));
+    }
+    const box = h('div', 'st-idea'); box.dir = 'auto'; box.textContent = idea.text || T('studioAiNone');
+    if (!shown) p.append(box);   // שורטס — הקטעים כבר ברשימה; הטקסט עדיין להעתקה
+    p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioIdCopy'), () => copyText(idea.text), 'id-copy'),
+      h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioAiAgain'), () => { idea.text = null; idea.mode = ''; idea.answer = ''; render('none'); }, 'id-again'));
+    return;
+  }
+  p.append(secT(T('studioAiWhat')), list(...TEXT_KINDS.map((k) => rowRadio({ label: ideaKindName(k), on: idea.k === k, onClick: () => { idea.k = k; idea.mode = ''; render('none'); }, k: 'id-k:' + k }))));
+  if (idea.k === 'ask') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 2; ta.maxLength = 300; ta.value = idea.n; ta.dir = 'auto'; ta.dataset.k = 'id-n';
+    ta.placeholder = T('studioIdAskPh'); ta.setAttribute('aria-label', T('studioIdAsk'));
+    ta.addEventListener('input', () => { idea.n = ta.value; });
+    p.append(ta);
+  }
+  if (idea.busy) { p.append(h('div', 'st-empty st-empty-sm', T('studioAiRunning'))); return; }
+  const ok2 = () => (idea.k !== 'ask' || idea.n.trim() ? true : (flashSafe(T('studioIdAskNo')), false));
+  p.append(secT(T('studioAiHow')), list(
+    rowNav({ tile: tile('copy', 'blue'), label: T('studioAiCopy'), sub: T('studioAiCopyS'), onClick: () => { if (!ok2()) return; copyText(aiPrompt(ideaQueue()), T('studioAiCopied')); idea.mode = 'copy'; render('none'); }, k: 'id-copyreq' }),
+    rowNav({ tile: tile('spark', 'green'), label: T('studioAiRun'), sub: T('studioAiRunS', { usd: fmtUsd(aiEstimate(ideaQueue()).usd) }), onClick: async () => {
+      if (!ok2()) return;
+      const me = idea, alive = () => idea === me;
+      alive.start = () => { me.busy = true; render('none'); };
+      try {
+        const r = await aiJobRun(rec, ideaQueue(), alive);
+        if (r && alive()) { me.busy = false; me.text = parseText(r.res && r.res.text); me.model = r.model; render('none'); }
+      } catch (e) { if (alive()) { me.busy = false; flashSafe(aiErr((e && e.code) || 'net')); render('none'); } }
+    }, k: 'id-run' })));
+  if (idea.mode === 'copy') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 6; ta.value = idea.answer; ta.dir = 'auto'; ta.dataset.k = 'id-ans';
+    ta.placeholder = T('studioIdPastePh'); ta.setAttribute('aria-label', T('studioAiPaste'));
+    ta.addEventListener('input', () => { idea.answer = ta.value; });
+    p.append(secT(T('studioAiPaste')), ta, h('div', 'st-gap sm'), btn('st-btn wide', T('studioAiCheck'), () => { idea.text = parseText(idea.answer); idea.model = ''; render('none'); }, 'id-check'));
   }
 }
 function pageJob(p) {
@@ -4216,6 +4321,7 @@ function pageJob(p) {
       tile: tile(o.k === 'srt' || o.k === 'en' ? 'globe' : 'film', o.k === 'srt' || o.k === 'en' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
+    canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
     jobFolder(rec) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
@@ -4780,8 +4886,9 @@ function shapeKey() {
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
   if (ui.view === 'subs') { const r = jobRec(ui.param); return 'subs|' + ui.param + '|' + (se ? se.st : '') + '|' + ui.access + '|' + (r && r.srv ? r.srv.ev + ':' + r.srv.vh.length : '') + (r && rrJobs.get(r.id) ? rrJobs.get(r.id).srv.state : ''); }   // מ2: לא נבנה מחדש בזמן הקלדה
   if (ui.view === 'rr') { const x = rrJobs.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
+  if (ui.view === 'ideas') return 'ideas|' + ui.param + '|' + ui.access + '|' + (idea ? idea.k + idea.mode + (idea.busy ? 'b' : '') + (idea.cues ? idea.cues.length : 'l') + (idea.text != null ? 't' + idea.text.length : '') : '');   // מ8
   if (ui.view === 'ai') return 'ai|' + ui.param + '|' + ui.access + '|' + (ai ? ai.k + ai.scope + ai.mode + ai.queue.length + (ai.busy ? 'b' : '') + (ai.items ? 'i' + ai.items.length + ':' + [...ai.acc].join('.') : '') : '');   // מ7
-  if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
+  if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key + (ce.cues ? ce.cues.length : '') : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
   if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
@@ -4813,6 +4920,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
   else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
+  else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);

@@ -1770,16 +1770,20 @@ def ai_done(args):
         text = (d / 'answer.txt').read_text(encoding='utf-8')
     except (OSError, ValueError):
         raise SystemExit('✗ חסרה התשובה: ' + str(d / 'answer.txt'))
-    items = A.parse_answer(text, queue)
+    if A.is_text_q(queue):                       # מ8: רעיון (פרקים, יוטיוב, שורטס, שאלה) — טקסט
+        items, res = [], {'v': 1, 'k': queue[0]['k'], 'text': A.parse_text(text)}
+    else:
+        items = A.parse_answer(text, queue)
+        res = {'v': 1, 'items': items}
     out_p = d / 'result.json'
-    out_p.write_text(json.dumps({'v': 1, 'items': items}, ensure_ascii=False), encoding='utf-8')
+    out_p.write_text(json.dumps(res, ensure_ascii=False), encoding='utf-8')
     title = os.path.splitext(str((ctx.st.get('spec') or {}).get('name') or ctx.name))[0][:120]
     name = title + ' (AI).json'
     fid = drive_upload(ctx, out_p, name, 'aiout', 'application/json')
     ctx.report(done=True, out=[{'id': fid, 'name': name, 'size': out_p.stat().st_size, 'k': 'aiout'}],
                msg='ההצעות מוכנות', force=True, usage=usage_safe() if not getattr(args, 'usage', None) else args.usage)
     shutil.rmtree(d, ignore_errors=True)
-    print('✓ %d הצעות נשלחו לטלפון.' % len(items))
+    print('✓ התשובה נשלחה לטלפון.' if 'text' in res else '✓ %d הצעות נשלחו לטלפון.' % len(items))
     return 0
 
 
@@ -1793,7 +1797,8 @@ def ai_auto(args):
     st = ctx.st
     eng = llm.Engine(llm.Spec.of(str((st.get('spec') or {}).get('mode') or llm.DEFAULT_MODE)), cap_usd=float(st.get('cap') or 1))
     try:
-        res = eng.complete('main', A.HEAD, (d / 'prompt.md').read_text(encoding='utf-8'), max_tokens=16000)
+        res = eng.complete('main', A.HEAD_T if A.is_text_q(json.loads((d / 'request.json').read_text(encoding='utf-8'))) else A.HEAD,
+                           (d / 'prompt.md').read_text(encoding='utf-8'), max_tokens=16000)
     except llm.LLMError as e:
         ctx.report(fail=True, err=e.code if re.match(r'^[a-z0-9_]{1,40}$', e.code) else 'api_error', force=True, usage=eng.ledger.list() or None)
         raise SystemExit('✗ ' + e.code)

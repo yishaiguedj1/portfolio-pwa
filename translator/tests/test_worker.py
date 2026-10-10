@@ -903,6 +903,28 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(res, {'v': 1, 'items': [{'id': 3, 'lines': ['קצר יותר'], 'note': ''}, {'id': 7, 'lines': None, 'note': 'לא ברור מה התכוון'}]})
         self.assertFalse(d.exists(), 'קבצי הבקשה נמחקו')
 
+    def test_ai_ideas(self):
+        # מ8: רעיון (שאלה על הסרטון) — הפרומפט עם התמליל בתוך <transcript>, התשובה נשמרת כטקסט נקי
+        global AIREQ
+        old = AIREQ
+        AIREQ = json.dumps([{'k': 'ask', 'n': 'מה העיקר?', 'rows': [{'id': 1, 't': 0, 'he': 'שלום'}, {'id': 2, 't': 75, 'he': 'עולם'}]}]).encode()
+        try:
+            self.fake.kind = 'ai'
+            self.take()
+            code, out = self.job('ai-prep')
+            self.assertEqual(code, 0, out)
+            d = self.tmp / 'work' / '_ai' / SLUG
+            p = (d / 'prompt.md').read_text(encoding='utf-8')
+            self.assertIn('<transcript>\n00:00\tשלום\n01:15\tעולם\n</transcript>', p)
+            self.assertIn('השאלה של המשתמש: «מה העיקר?»', p)
+            (d / 'answer.txt').write_text('  העיקר:\t השקעה \x07ארוכה\n\n\n\nזהו', encoding='utf-8')
+            code, out = self.job('ai-done')
+            self.assertEqual(code, 0, out)
+            up = next(u for u in self.fake.uploads.values() if u['meta']['appProperties'].get('snbOut') == 'aiout')
+            self.assertEqual(json.loads(up['data']), {'v': 1, 'k': 'ask', 'text': 'העיקר: השקעה ארוכה\n\nזהו'})
+        finally:
+            AIREQ = old
+
     def test_rerender_cues(self):
         # מ2: הכתוביות מהטלפון = טקסט מהמשתמש — ניקוי, מיון, חפיפה, גבול הסרטון; מספור מחדש
         sys.path.insert(0, str(HERE))

@@ -705,3 +705,8 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ai-warn svg { width: 20px; height: 20px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .st-ai-warn { color: #FFB340; } }
 :root[data-theme="dark"] .st-ai-warn { color: #FFB340; }
+.st-ed-cue.off .st-l { opacity: .45; text-decoration: line-through; }
+
+/* ---------- מ8: רעיונות ---------- */
+.st-idea { margin: 12px 16px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--st-card); white-space: pre-wrap; font-size: 15.5px; line-height: 1.55; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.st-ed-cues { max-height: 60vh; overflow: auto; }

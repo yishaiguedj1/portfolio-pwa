@@ -41,6 +41,14 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(JSON.stringify(E.toEdl(sg, 'src', 0.5, 30)) === '{"k":[[12,20]],"ar":"src","x":0.5}', 'toEdl');
   ok(JSON.stringify(E.cropBox(1920, 1080, '9:16', 0.5)) === '{"w":606,"h":1080,"x":656,"y":0}' && JSON.stringify(E.cropBox(1080, 1920, '1:1', 0.5)) === '{"w":1080,"h":1080,"x":0,"y":420}', 'cropBox (כמו crop של ffmpeg, מספרים זוגיים)');
 
+  /* ---------- 3ב. מ8: לפי התמליל ---------- */
+  const tc = [{ s: 1, e: 3 }, { s: 3.5, e: 5 }, { s: 10, e: 12 }, { s: 30, e: 31 }];
+  ok(JSON.stringify(E.silenceSegs(tc, 40)) === '[[0.75,5.25],[9.75,12.25],[29.75,31.25]]', 'silenceSegs: מה שנאמר ± רבע שנייה, שקט קצר נשאר');
+  ok(E.silenceSegs([{ s: 0.1, e: 39.5 }], 40) === null && E.silenceSegs([], 40) === null, 'silenceSegs: אין מה להסיר — null');
+  ok(JSON.stringify(E.removeRange([[0, 20], [25, 40]], 10, 30)) === '[[0,10],[30,40]]' && E.removeRange([[0, 5]], 0, 5) === null, 'removeRange');
+  ok(JSON.stringify(E.intersectSegs([[0.75, 5.25], [9.75, 12.25]], [[3, 11]])) === '[[3,5.25],[9.75,11]]' && E.intersectSegs([[0, 1]], [[5, 6]]) === null, 'intersectSegs: הסרת שקטים בתוך מה שכבר נבחר');
+  ok(JSON.stringify(E.addRange([[0, 10], [30, 40]], 10, 30)) === '[[0,40]]', 'addRange: מתאחד');
+
   /* ---------- 4. אותה לוגיקה בטלפון, בשרתון ובעובד ---------- */
   let seed = 7;
   const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
@@ -94,7 +102,7 @@ print(json.dumps(out))`, path.join(root, 'translator'), tmp], { encoding: 'utf8'
 
   /* ---------- 7. הטלפון ---------- */
   const sj = read('studio.js');
-  ok(/import \{ createEdlEditor, normEdl, edlDur \} from '\.\/studioedl\.js';/.test(sj) && /'\.\/studioedl\.js'/.test(read('sw.js')), 'studio.js מייבא את עורך הווידאו; sw.js שומר אותו לאופליין');
+  ok(/import \{ createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs \} from '\.\/studioedl\.js';/.test(sj) && /'\.\/studioedl\.js'/.test(read('sw.js')), 'studio.js מייבא את עורך הווידאו; sw.js שומר אותו לאופליין');
   ok(/dur: ed \? edlDur\(ed, pr\.dur \|\| 0\) : pr\.dur \|\| 0/.test(sj) && /if \(ed\) spec\.edl = ed;/.test(sj), 'טופס: האורך במפרט = אחרי החיתוך (ההערכות והעלות)');
   ok(/edl: rrEdl\.get\(rec\.id\) \|\| null/.test(sj) && /x === 'cut' \? \['rr', y\]/.test(sj) && /v === 'cutsrc'\) \{ v = 'new'/.test(sj), 'הפקה מחדש שולחת את החיתוך; "חזור" מהחיתוך — להפקה / לטופס');
   ok(/if \(ui\.view === 'cut' \|\| ui\.view === 'cutsrc'\) ceStop\(\)/.test(sj) && /URL\.revokeObjectURL\(ce\.url\)/.test(sj), 'יציאה מהחיתוך: הנגן נעצר וכתובת הקובץ המקומי משתחררת');

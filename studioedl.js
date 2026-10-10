@@ -127,6 +127,44 @@ export function trimAt(segs, t, edge) {
   else { if (t - a < SEG_MIN) return null; out[i] = [a, r3(t)]; }
   return out;
 }
+/* מ8: הסרת שקטים — בלי טוקנים: הזמנים של הכתוביות (מהתמלול) הם הדיבור. נשאר כל מה שנאמר ± pad,
+   שקט קצר מ־gap נשאר (נשימה, לא קטיעה). מחזיר קטעים, או null כשאין מה להסיר */
+export function silenceSegs(cues, dur, gap = 1.2, pad = 0.25) {
+  const d = num(dur) > 0 ? dur : Infinity, out = [];
+  for (const c of cues) {
+    const a = Math.max(0, c.s - pad), z = Math.min(d, c.e + pad);
+    if (!(z > a)) continue;
+    const last = out[out.length - 1];
+    if (last && a - last[1] < gap) last[1] = Math.max(last[1], r3(z));
+    else out.push([r3(a), r3(z)]);
+  }
+  const kept = out.filter(([a, z]) => z - a >= SEG_MIN);
+  if (!kept.length || kept.length > SEG_MAX) return null;
+  const total = kept.reduce((t, [a, z]) => t + z - a, 0);
+  return Number.isFinite(d) && d - total < 1 ? null : kept;
+}
+/* מ8: חיתוך לפי התמליל — הוצאת טווח [a, b) מהקטעים (כתובית שלא רוצים) */
+export function removeRange(segs, a, b) {
+  const out = [];
+  for (const [x, y] of segs) {
+    if (b <= x || a >= y) { out.push([x, y]); continue; }
+    if (a - x >= SEG_MIN) out.push([x, r3(a)]);
+    if (y - b >= SEG_MIN) out.push([r3(b), y]);
+  }
+  return out.length ? out : null;
+}
+/* חיתוך משותף: מה שנשאר בשתי הרשימות (הסרת שקטים בתוך מה שכבר נבחר); קטעים קצרים מ־SEG_MIN בחוץ */
+export function intersectSegs(x, y) {
+  if (!x || !y) return null;
+  const out = [];
+  for (const [a, b] of x) for (const [c, d] of y) { const s = Math.max(a, c), z = Math.min(b, d); if (z - s >= SEG_MIN) out.push([r3(s), r3(z)]); }
+  return out.length ? out.sort((p, q) => p[0] - q[0]) : null;
+}
+export function addRange(segs, a, b) {
+  const all = segs.concat([[r3(a), r3(b)]]).sort((x, y) => x[0] - y[0]), out = [];
+  for (const s of all) { const l = out[out.length - 1]; if (l && s[0] <= l[1] + JOIN_GAP) l[1] = Math.max(l[1], s[1]); else out.push(s.slice()); }
+  return out;
+}
 /* הקטעים חוזרים לעריכה (אחרי חיתוך קטע = מחיקה, קטעים צמודים נשארים נפרדים בעורך אבל מתאחדים ב־normEdl) */
 export const toEdl = (segs, ar, x, dur) => normEdl({ k: segs, ar, x }, dur);
 /* מה החיתוך במלבן (WxH המקור, יחס יעד) — אותו חישוב כמו ב־edl.py (crop של ffmpeg) */
@@ -232,6 +270,9 @@ export function createEdlEditor(opts) {
   paint();
   return {
     el: wrap, edl: cur,
+    segs: () => segs,
+    /* מ8: שינוי מבחוץ (הסרת שקטים, חיתוך לפי התמליל) — צעד ביטול רגיל */
+    set(next, failMsg) { act(next, failMsg || ''); },
     destroy() { if (ro) ro.disconnect(); crop.remove(); if (v) { v.removeEventListener('timeupdate', onTime); v.removeEventListener('seeked', paintHead); v.removeEventListener('loadedmetadata', onMeta); } },
   };
 }

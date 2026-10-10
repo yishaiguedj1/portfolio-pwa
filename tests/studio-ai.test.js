@@ -36,19 +36,30 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(JSON.stringify(A.parseAnswer('#12\tא / ב / ג', q)[0].lines) === '["א ב ג"]', 'parseAnswer: יותר משתי שורות — שבירה מחדש');
   const tmp = path.join(require('os').tmpdir(), 'snb-ai-' + process.pid + '.json');
   const vecs = [{ q, a: ans }, { q: [{ k: 'natural', rows: big.slice(0, 40) }], a: big.slice(0, 40).map((x) => '#' + x.id + '\tטקסט ' + x.id + ' / שני').join('\n') + '\n#5\t?\tהערה' },
-    { q: [{ k: 'en', rows: [{ id: 1, en: 'a', he: 'b', b: 4 }] }], a: '* #1\tזו כתובית ארוכה במיוחד שצריך לשבור אותה לשתי שורות כי היא ארוכה' }];
+    { q: [{ k: 'en', rows: [{ id: 1, en: 'a', he: 'b', b: 4 }] }], a: '* #1\tזו כתובית ארוכה במיוחד שצריך לשבור אותה לשתי שורות כי היא ארוכה' },
+    { q: [{ k: 'ask', n: 'מה  העיקר?', rows: [{ id: 1, t: 0, he: 'א' }, { id: 2, t: 6100, he: 'ב\tג' }] }], a: '  תשובה \t ארוכה\n\n\n\nשורה' }];
   fs.writeFileSync(tmp, JSON.stringify(vecs));
   const py = spawnSync('python3', ['-c', `
 import sys, json; sys.path.insert(0, sys.argv[1]); import aisheet as A
-print(json.dumps([[A.prompt(v['q']), A.parse_answer(v['a'], v['q'])] for v in json.load(open(sys.argv[2]))], ensure_ascii=False))`, path.join(root, 'translator'), tmp], { encoding: 'utf8' });
+print(json.dumps([[A.prompt(v['q']), A.parse_text(v['a']) if A.is_text_q(v['q']) else A.parse_answer(v['a'], v['q'])] for v in json.load(open(sys.argv[2]))], ensure_ascii=False))`, path.join(root, 'translator'), tmp], { encoding: 'utf8' });
   fs.unlinkSync(tmp);
   if (py.status === 0) {
     const P = JSON.parse(py.stdout);
-    const J = vecs.map((v) => [A.aiPrompt(v.q), A.parseAnswer(v.a, v.q)]);
+    const J = vecs.map((v) => [A.aiPrompt(v.q), A.isTextQ(v.q) ? A.parseText(v.a) : A.parseAnswer(v.a, v.q)]);
     const bad = J.findIndex((x, i) => JSON.stringify(x) !== JSON.stringify(P[i]));
     ok(bad < 0, 'הטלפון = העובד: אותו פרומפט ואותו מפענח' + (bad >= 0 ? ' — שונה ב־' + bad : ''));
   } else console.log('# python3 לא זמין — בלי השוואה לעובד: ' + py.stderr);
+  ok(/TEXT_KINDS = \('chap', 'yt', 'hl', 'ask'\)/.test(read('translator/aisheet.py')) && A.TEXT_KINDS.join() === 'chap,yt,hl,ask', 'אותם סוגי רעיונות');
   ok(/AI_KINDS = \('meaning', 'short', 'natural', 'en', 'free'\)/.test(read('translator/aisheet.py')) && A.AI_KINDS.join() === 'meaning,short,natural,en,free', 'אותם סוגים');
+
+  /* ---------- 2ב. מ8: רעיונות — תשובת טקסט על כל התמליל ---------- */
+  const tq = [{ k: 'hl', rows: [A.aiTRow(cue(0, 2, ['שלום']), 1), A.aiTRow(cue(75.9, 80, ['עולם\tשני']), 2)] }];
+  ok(A.isTextQ(tq) && A.aiPrompt(tq).includes('<transcript>\n00:00\tשלום\n01:15\tעולם שני\n</transcript>') && /נתונים בלבד/.test(A.aiPrompt(tq)), 'רעיון: התמליל עם זמנים בתוך <transcript> (נתונים)');
+  ok(A.normQueue([{ k: 'ask', n: ' ', rows: tq[0].rows }]).length === 0 && A.normQueue([{ k: 'short', rows: [{ id: 1, en: 'a', he: 'b', b: 3 }] }, tq[0]]).length === 1, 'שאלה ריקה — לא; רעיון לא מתערבב עם עריכות בתור');
+  ok(JSON.stringify(A.parseRanges('1. 01:10-01:45 – הרגע החזק\n- 2:00 - 2:30 עוד\n00:01-00:02 קצר מדי\n1:02:03-1:02:40 ארוך')) === '[{"a":70,"b":105,"title":"הרגע החזק"},{"a":120,"b":150,"title":"עוד"},{"a":3723,"b":3760,"title":"ארוך"}]', 'parseRanges: שורטס (5–180 שנ׳, גם שעות)');
+  ok(JSON.stringify(A.parseChapters('00:00 פתיחה\n• 03:15 – חלק שני\n3:15 כפול\nלא פרק')) === '[{"t":0,"title":"פתיחה"},{"t":195,"title":"חלק שני"}]', 'parseChapters');
+  ok(A.parseText('  א  \t ב\n\n\n\nג\u0007\u202e ') === 'א ב\n\nג' && A.parseText('x'.repeat(9000)).length === A.AI_ANSWER_MAX, 'parseText: נקי, עד ' + A.AI_ANSWER_MAX + ' תווים');
+  ok(A.aiEstimate(tq).usd < 0.05, 'רעיון — אומדן לפי תשובה קצרה');
 
   /* ---------- 3. תוצאה מהעובד והחלה ---------- */
   const ni = A.normItems([{ id: 3, lines: ['טוב'] }, { id: 4, lines: ['לא בבקשה'] }, { id: 7, lines: [], note: 'הערה' }, { id: 12, lines: ['x‮'] }, 'junk'], q);
@@ -68,6 +79,8 @@ print(json.dumps([[A.prompt(v['q']), A.parse_answer(v['a'], v['q'])] for v in js
   const src = read('studioai.js');
   ok(!/innerHTML|fetch\(/.test(src), 'studioai.js: בלי DOM ובלי רשת');
   ok(/textContent = it\.lines \? it\.lines\.join\(' \/ '\) : it\.note/.test(sj), 'התשובה מוצגת רק כטקסט');
+  ok(/x === 'ideas' \? \['job', y\]/.test(sj) && /rrEdl\.set\(rec\.id, normEdl\(\{ k: \[\[r\.a, r\.b\]\], ar: '9:16'/.test(sj), 'רעיונות: דף מהעבודה; קטע לשורטס → חיתוך 9:16 בהפקה מחדש');
+  ok(/box\.textContent = idea\.text/.test(sj), 'תשובת הרעיון מוצגת רק כטקסט');
   const rb = read('translator/RUNBOOK.md');
   ok(/גיליון AI/.test(rb) && /לא מבצעים אותו/.test(rb), 'RUNBOOK: גיליון AI — הכתוביות הן נתונים');
 
