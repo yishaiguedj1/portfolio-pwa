@@ -956,11 +956,52 @@ async function handler(req, res, deps = {}) {
           pb: P.problemsView(S.fbView(ic.fb), ic.inc, list, now), rb: P.runbooksView(ic.fb, list, now) } : {},   // v376: בעיות וספרי הפעלה
         { ag: A.agentsView(list, now), va: L.valueView(list, now, ic ? ic.hpc : 0), slo: SLO.sloView(list, now), an }));   // v383: תקציב שגיאות — מאותה רשימה   // v377: ערך, עלות ותחזית   // v373: מלאי הסוכנים — מאותה רשימה
     }
+    if (op === 'goldRun') {
+      // v387: הרצה חוזרת של סט הזהב — רק בלחיצה, אחרי אומדן ואישור בטלפון (ok:true). כאן רק נוצרות העבודות ("חדשות");
+      // הטלפון מתחיל כל אחת ב־op:'start' — עם כל השמירות הרגילות (מתג חירום, חוקים, תקלה רחבה, Routine / שרת)
+      if (body.ok !== true) return res.status(400).json({ ok: false, error: 'confirm' });
+      if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+      const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      const src = S.goldSources(all).slice(0, S.GOLD_MAX);
+      if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
+      if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
+      for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
+      const made = [];
+      for (const j of src) { const c = S.goldClone(j, S.newJobId(), uid, now); await patchJob(deps, c.id, c); made.push(view(c)); }
+      return res.status(200).json({ ok: true, jobs: made });
+    }
     let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });
     if (op === 'job' && await autoRecover(deps, uid, [job], now)) job = await readJob(deps, job.id);   // v368
     const st = S.effState(job, now).state;
     if (op === 'job') return res.status(200).json({ ok: true, job: view(job), now });
+    if (op === 'gold') {
+      // v387: לסמן עבודה שהסתיימה כ"זהב" עם תרגום אנושי לייחוס (הקובץ כבר בתיקיית העבודה ב־Drive), או להסיר (ref: null)
+      if (job.kind !== 'tr' || st !== 'done' || job.gs || !S.FILE_ID_RE.test(String(job.folder || ''))) return res.status(409).json({ ok: false, error: 'state' });
+      if (body.ref != null && !(Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'srt'))) return res.status(409).json({ ok: false, error: 'no_srt' });   // בלי SRT אין מה להשוות
+      if (body.ref == null) { await patchJob(deps, job.id, { gd: null, gq: null, updated: now }); job.gd = null; job.gq = null; return res.status(200).json({ ok: true, job: view(job) }); }
+      const ref = String(body.ref || '');
+      if (!S.FILE_ID_RE.test(ref)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const others = (await listJobs(deps, uid)).filter((j) => j.id !== job.id && S.normGd(j.gd));
+      if (others.length >= S.GOLD_MAX) return res.status(409).json({ ok: false, error: 'gold_full' });
+      const f = await driveFileInFolder(deps, uid, job.folder, ref);
+      if (!f) return res.status(400).json({ ok: false, error: 'file_bad' });
+      if (f.error) return res.status(200).json({ ok: false, error: f.error });
+      if (!(f.size > 0 && f.size <= S.GOLD_REF_MAX)) return res.status(400).json({ ok: false, error: 'file_size' });
+      const gd = { r: ref, n: f.size, at: now };
+      await patchJob(deps, job.id, { gd, gq: null, updated: now });
+      job.gd = gd; job.gq = null;
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'goldScore') {
+      // v387: הציון מול הייחוס (מחושב בטלפון — chrF + כיסוי זמן). לעבודת זהב, או להרצה חוזרת שלה
+      if (job.kind !== 'tr' || st !== 'done' || !(S.normGd(job.gd) || job.gs)) return res.status(409).json({ ok: false, error: 'state' });
+      const gq = S.normGq(Object.assign({}, body.gq, { at: now }));
+      if (!gq) return res.status(400).json({ ok: false, error: 'bad_params' });
+      await patchJob(deps, job.id, { gq, updated: now });
+      job.gq = gq;
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
     if (op === 'file') {
       if (job.kind !== 'tr' || st !== 'new' && st !== 'queued' && st !== 'running') return res.status(409).json({ ok: false, error: 'state' });
       const which = body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';

@@ -77,7 +77,7 @@ function doneCheckpoints(jobs) {
 /* רשומות ישנות: הסתיימו לפני יותר מ־90 יום (הקבצים ב־Drive נשארים, כמו במחיקה רגילה) */
 const FINAL = ['done', 'failed', 'cancelled'];
 function oldJobs(jobs, now) {
-  return (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && FINAL.includes(j.state) && (j.ended || j.updated || 0) > 0 && now - (j.ended || j.updated) > OLD_JOB);
+  return (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && !j.gd && FINAL.includes(j.state) && (j.ended || j.updated || 0) > 0 && now - (j.ended || j.updated) > OLD_JOB);   // v387: עבודת זהב לא "ישנה"
 }
 
 /* הממצאים מהעובדות. f = {claude:{conn, ok, servers}, drive:{cfg, conn, err, free, total}, fires:{n, max}, budget:{b, need},

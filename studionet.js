@@ -210,6 +210,66 @@ export async function extractAudio(file, o = {}) {
 }
 
 /* ---------------- השרתון + Drive ---------------- */
+/* ---------- v387: סט הזהב — השוואה דטרמיניסטית לתרגום אנושי (בלי AI, בלי טוקנים) ---------- */
+export const GOLD_REF_NAME = 'תרגום אנושי (ייחוס).srt', GOLD_REF_MAX = 2 * 1024 * 1024;
+const tc = (h, m, s, ms) => ((+h * 60 + +m) * 60 + +s) * 1000 + +ms;
+/* SRT → [{a, b, t}] (מילישניות, טקסט בלי תגיות). שורה פגומה — מדלגים */
+export function parseSrt(text) {
+  const out = [];
+  const blocks = String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n').split(/\n{2,}/);
+  for (const b of blocks) {
+    const lines = b.split('\n').filter((l) => l.trim() !== '');
+    const i = lines.findIndex((l) => l.includes('-->'));
+    if (i < 0) continue;
+    const m = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/.exec(lines[i]);
+    if (!m) continue;
+    const t = lines.slice(i + 1).join(' ').replace(/<[^>]*>/g, '').replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+    const a = tc(m[1], m[2], m[3], m[4].padEnd(3, '0')), z = tc(m[5], m[6], m[7], m[8].padEnd(3, '0'));
+    if (z > a && t) out.push({ a, b: z, t });
+  }
+  return out.sort((x, y) => x.a - y.a);
+}
+/* chrF (Popović 2015): F של n־גרמים של תווים, n = 1..6, β = 2 (ההחזר שוקל כפול) — בלי רווחים ופיסוק, אותיות קטנות */
+const chrNorm = (s) => String(s || '').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
+function grams(s, n) {
+  const m = new Map(), a = Array.from(s);
+  for (let i = 0; i + n <= a.length; i++) { const g = a.slice(i, i + n).join(''); m.set(g, (m.get(g) || 0) + 1); }
+  return m;
+}
+export function chrF(hyp, ref, N = 6, beta = 2) {
+  const h = chrNorm(hyp), r = chrNorm(ref);
+  if (!h || !r) return h === r ? 100 : 0;
+  let P = 0, R = 0, k = 0;
+  for (let n = 1; n <= N; n++) {
+    const gh = grams(h, n), gr = grams(r, n);
+    let th = 0, tr = 0, mt = 0;
+    for (const v of gh.values()) th += v;
+    for (const v of gr.values()) tr += v;
+    if (!th || !tr) continue;
+    for (const [g, v] of gh) mt += Math.min(v, gr.get(g) || 0);
+    P += mt / th; R += mt / tr; k++;
+  }
+  if (!k) return 0;
+  P /= k; R /= k;
+  const b2 = beta * beta;
+  return P + R > 0 ? Math.round((1 + b2) * P * R / (b2 * P + R) * 1000) / 10 : 0;
+}
+/* כמה מזמן הדיבור בתרגום האנושי מכוסה בכתוביות שלנו (%) */
+export function timeCover(hyp, ref) {
+  let tot = 0, cov = 0;
+  for (const c of ref) {
+    tot += c.b - c.a;
+    for (const x of hyp) { if (x.b <= c.a) continue; if (x.a >= c.b) break; cov += Math.min(c.b, x.b) - Math.max(c.a, x.a); }
+  }
+  return tot ? Math.round(Math.min(1, cov / tot) * 1000) / 10 : 0;
+}
+/* הציון של עבודה מול הייחוס: s = chrF על כל הטקסט לפי סדר הזמן, tm = כיסוי הזמן, n = כתוביות בייחוס */
+export function goldCompare(hypText, refText) {
+  const h = parseSrt(hypText), r = parseSrt(refText);
+  if (!r.length) return null;
+  return { s: Math.round(chrF(h.map((c) => c.t).join(' '), r.map((c) => c.t).join(' '))), tm: Math.round(timeCover(h, r)), n: r.length };
+}
+
 export function createNet(env) {
   const E = Object.assign({ fetch: (...a) => fetch(...a), now: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), put: xhrPut }, env);
   let dtok = null;      // { at, exp } — גישה זמנית ל־Drive (שעה), רק בזיכרון
@@ -365,5 +425,23 @@ export function createNet(env) {
     return (await r.json()).id;
   }
 
-  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, _forget: () => { dtok = null; } };
+  /* v387: סט הזהב — קובץ טקסט מ־Drive (התוצר שלנו / הייחוס), והעלאת הייחוס לתיקיית העבודה */
+  async function driveText(id) {
+    const r = await E.fetch(API + '/' + encodeURIComponent(id) + '?alt=media', { headers: { Authorization: 'Bearer ' + await driveToken() } });
+    if (!r.ok) throw await driveErr(r);
+    return r.text();
+  }
+  async function goldUpload(folderId, text) {
+    const b = 'snb' + Math.random().toString(36).slice(2);
+    const meta = { name: GOLD_REF_NAME, parents: [folderId], mimeType: 'application/x-subrip', appProperties: { snbRef: '1' } };
+    const mp = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + b +
+      '\r\nContent-Type: application/x-subrip; charset=UTF-8\r\n\r\n' + text + '\r\n--' + b + '--';
+    const r = await E.fetch(UP + '?uploadType=multipart&fields=id', { method: 'POST', body: mp,
+      headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'multipart/related; boundary=' + b } });
+    if (!r.ok) throw await driveErr(r);
+    return (await r.json()).id;
+  }
+
+
+  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, goldUpload, _forget: () => { dtok = null; } };
 }

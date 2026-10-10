@@ -1804,6 +1804,54 @@ function stubFetch(text, status = 200) {
     }
     studio._reset();
 
+    // v387: סט הזהב — סימון עבודה עם תרגום אנושי לייחוס, ציון, והרצה חוזרת (רק עם אישור; העבודות נוצרות "חדשות")
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const SG = require('../lib/studio');
+      const JGD = 'jGOLD' + '0'.repeat(16), JNS = 'jGOLDNOSRT' + '0'.repeat(11);
+      const base = { uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 5 * 86400e3, updated: now - 4 * 86400e3, ended: now - 4 * 86400e3, folder: 'fold1234567890',
+        spec: { name: 'Ackman_Interview.mp4', size: 100, dur: 600, to: ['he'], from: 'en', mode: 'opus-medium', out: ['compact'] },
+        fa: { id: 'aud1234567890', name: 'a', size: 5, mimeType: 'audio/mp4' } };
+      db.set('studioJobs/' + JGD, { fields: SG.toFields(Object.assign({}, base, { fo: [{ id: 'outs1234567890', k: 'srt', size: 9 }] })) });
+      db.set('studioJobs/' + JNS, { fields: SG.toFields(Object.assign({}, base, { fo: [{ id: 'outc1234567890', k: 'compact', size: 9 }] })) });
+      driveFiles.set('refs1234567890', { id: 'refs1234567890', name: 'ref.srt', size: '4000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('refbig12345678', { id: 'refbig12345678', name: 'big.srt', size: String(3 * 1024 * 1024), parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'gold', idToken: OWNER, job: JNS, ref: 'refs1234567890' });
+      ok(rr.statusCode === 409 && rr.payload.error === 'no_srt', 'סטודיו: סט הזהב — עבודה בלי SRT לא נכנסת (אין מה להשוואות)');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: 'elsewhere12345' });
+      ok(rr.statusCode === 400 && rr.payload.error === 'file_bad', 'סטודיו: סט הזהב — ייחוס שלא בתיקיית העבודה נדחה (מאומת מול Drive)');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: 'refbig12345678' });
+      ok(rr.statusCode === 400 && rr.payload.error === 'file_size', 'סטודיו: סט הזהב — ייחוס מעל 2MB נדחה');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true });
+      ok(rr.statusCode === 400 && rr.payload.error === 'no_gold', 'סטודיו: סט הזהב — בלי עבודות זהב אין מה להריץ');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: 'refs1234567890' });
+      ok(rr.payload.ok && rr.payload.job.gd && rr.payload.job.gd.r === 'refs1234567890' && rr.payload.job.gd.n === 4000 && rr.payload.job.gq === null, 'סטודיו: סט הזהב — העבודה מסומנת עם הייחוס');
+      rr = await run({ op: 'goldScore', idToken: OWNER, job: JGD, gq: { s: 140, tm: 50, n: 3 } });
+      ok(rr.statusCode === 400, 'סטודיו: סט הזהב — ציון לא תקין נדחה');
+      rr = await run({ op: 'goldScore', idToken: OWNER, job: JGD, gq: { s: 71, tm: 93, n: 120 } });
+      ok(rr.payload.ok && rr.payload.job.gq.s === 71 && rr.payload.job.gq.tm === 93, 'סטודיו: סט הזהב — הציון נשמר');
+      const firesBefore = fires.length;
+      rr = await run({ op: 'goldRun', idToken: OWNER });
+      ok(rr.statusCode === 400 && rr.payload.error === 'confirm', 'סטודיו: סט הזהב — הרצה רק עם אישור מפורש');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true });
+      const run1 = rr.payload.jobs && rr.payload.jobs[0];
+      ok(rr.payload.ok && rr.payload.jobs.length === 1 && run1.state === 'new' && run1.gs === JGD && run1.spec.out.includes('srt') && run1.files.a && fires.length === firesBefore,
+        'סטודיו: סט הזהב — נוצרת עבודה "חדשה" עם אותו מקור (ו־SRT), בלי להפעיל שום דבר בשרתון');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true });
+      ok(rr.statusCode === 409 && rr.payload.error === 'gold_busy', 'סטודיו: סט הזהב — הרצה קודמת עוד פתוחה — לא יוצרים שוב');
+      rr = await run({ op: 'gold', idToken: OWNER, job: run1.id, ref: 'refs1234567890' });
+      ok(rr.statusCode === 409, 'סטודיו: סט הזהב — הרצה חוזרת היא לא עבודת זהב בעצמה');
+      const SC2 = require('../lib/studioscan');
+      ok(SC2.oldJobs([Object.assign({}, base, { gd: { r: 'refs1234567890' }, ended: now - 400 * 86400e3 })], now).length === 0, 'סטודיו: סט הזהב — עבודת זהב לא נמחקת בניקוי "עבודות ישנות"');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: null });
+      ok(rr.payload.ok && rr.payload.job.gd === null && rr.payload.job.gq === null, 'סטודיו: סט הזהב — הסרה');
+      for (const id of [JGD, JNS, run1.id]) await run({ op: 'remove', idToken: OWNER, job: id });
+      const odG = db.get('studioOps/ownerUid0001');
+      if (odG) { delete odG.fields.inc; delete odG.fields.mi; }
+    }
+    studio._reset();
+
     // v385: ציון חריגה 0–10 — זמן לכל שלב ועלות לכל סוכן מול הרגיל שלך; התראה רק בהתמדה (2 מתוך 3)
     now += 3600e3 + 1;
     studio._reset();

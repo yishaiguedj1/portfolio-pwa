@@ -480,7 +480,29 @@ function publicJob(job, now) {
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v381: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
+    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq),   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
   };
+}
+/* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
+   gd = הייחוס {r מזהה הקובץ, n גודל, at}; gs = עבודה שהיא הרצה חוזרת של עבודת זהב (המקור); gq = הציון מול הייחוס {s chrF, tm כיסוי זמן, n כתוביות, at}.
+   הציון מחושב בטלפון (studionet.goldCompare — דטרמיניסטי, בלי AI). הרצה חוזרת = עבודות חדשות עם אותו מקור — רק בלחיצה, אחרי אומדן ואישור */
+const GOLD_MAX = 10, GOLD_REF_MAX = 2 * 1024 * 1024;
+function normGd(o) {
+  if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.r || ''))) return null;
+  return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: typeof o.at === 'number' ? o.at : 0 };
+}
+function normGq(o) {
+  if (!o || typeof o !== 'object') return null;
+  const p = (v) => (Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
+  const sc = p(o.s), tm = p(o.tm), n = Number.isInteger(o.n) && o.n > 0 && o.n <= 1e5 ? o.n : null;
+  return sc == null || tm == null || n == null ? null : { s: sc, tm, n, at: typeof o.at === 'number' ? o.at : 0 };
+}
+/* עבודות שבסט הזהב (שהסתיימו, עם ייחוס וקבצים) */
+const goldSources = (jobs) => (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && j.state === 'done' && normGd(j.gd) && (j.fa || j.fv) && FILE_ID_RE.test(String(j.folder || '')));
+/* הרצה חוזרת של עבודת זהב — עבודה חדשה עם אותו מקור (אותם קבצים ותיקייה), "חדשה" עד שמתחילים אותה */
+function goldClone(src, id, uid, now) {
+  const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
+  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec: Object.assign({}, src.spec, { out }), fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id };
 }
 /* v373: עקיבה מהעובד (מהיומנים, בלי טוקנים): לכל סוכן n פעולות, e שנכשלו, s שניות; וקבוצות [מפתח, n, e].
    רק מספרים ומפתחות בצורה קבועה (שם כלי, או job:/vt: + פקודה) — בלי טקסט חופשי. לא תקין — נזרק כולו */
@@ -674,7 +696,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh'];   // v384: מצב צל וזיהוי "המשך" חוזר   // v381: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh', 'gd', 'gq'];   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v381: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -704,6 +726,7 @@ function fromFields(f) {
 module.exports = {
   MODES, LEGACY_MODES, modeNow,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
+  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX } from './studionet.js';
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
@@ -159,8 +159,30 @@ export function normJob(j) {
     nt: normNote(s.nt),                       // v381: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
     ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
+    gd: normGd(s.gd), gs: JOB_RE.test(String(s.gs || '')) ? s.gs : '', gq: normGq(s.gq),   // v387: סט הזהב
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
+}
+/* v387: סט הזהב — אותה בדיקה כמו בשרתון (lib/studio.js normGd / normGq) */
+const FID_GD = /^[A-Za-z0-9_-]{10,100}$/;
+export function normGd(o) {
+  if (!o || typeof o !== 'object' || !FID_GD.test(String(o.r || ''))) return null;
+  return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: num(o.at) };
+}
+export function normGq(o) {
+  if (!o || typeof o !== 'object') return null;
+  const p = (v) => (Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
+  const sc = p(o.s), tm = p(o.tm), n = Number.isInteger(o.n) && o.n > 0 && o.n <= 1e5 ? o.n : null;
+  return sc == null || tm == null || n == null ? null : { s: sc, tm, n, at: num(o.at) };
+}
+/* v387: אומדן להרצת סט הזהב — "הרגיל" לשעה של כל מצב (נלמד או ברירת המחדל) × אורך הסרטון. טהור */
+export function goldEstimate(gold, norm) {
+  let usd = 0;
+  for (const r of gold || []) {
+    const ph = norm && norm[r.spec.mode] ? norm[r.spec.mode].ph : 3;
+    usd += ph * (r.spec.dur > 0 ? r.spec.dur : 3600) / 3600;
+  }
+  return Math.round(usd * 100) / 100;
 }
 /* שלב 3 סבב ד׳: שאלה מ־Claude באמצע העבודה — אותה בדיקה כמו בשרתון (lib/studio.js normAsk). הטקסט מוצג רק כטקסט */
 export function normQa(q) {
@@ -774,6 +796,10 @@ function errText(code, extra) {
     case 'resume_limit': return T('studioErrResumeLimit');
     case 'tower_stop': return T('studioErrTower');
     case 'halted': return T('studioErrHalted');
+    case 'gold_full': return T('studioErrGoldFull');   // v387: סט הזהב
+    case 'gold_busy': return T('studioErrGoldBusy');
+    case 'no_gold': return T('studioGoldNone');
+    case 'no_srt': return T('studioGoldNoSrt');
     case 'rule_mode': return T('studioErrRuleMode');
     case 'major': return T('studioErrMajor');   // v371
     case 'mode': return T('studioErrMode');   // v376
@@ -2638,6 +2664,7 @@ function pageAgents(p) {
     });
     p.append(secT(T('studioPvT')), list(...rows), note(T('studioPvNote')));
   }
+  p.append(...goldSection());   // v387: סט הזהב
   // v386: סיכון מול בקרה — מה מגן מכל סיכון, כמה חזק, וכמה פעמים פעל
   if (ag && ag.risk.length) p.append(secT(T('studioRiskT')), list(...ag.risk.map((x) => {
     const r = h('div', 'st-row');
@@ -3504,6 +3531,121 @@ function qualityCard(q, ij, jd, jm) {
   if (ij) card.append(h('p', 'st-perm-b', T('studioQInj', { n: ij.n })));
   return [secT(T('studioQT')), card];
 }
+/* ---------------- v387: סט הזהב (golden dataset) — השוואה דטרמיניסטית לתרגום אנושי ---------------- */
+let goldBusy = '';
+const srtOut = (rec) => ((rec.srv && rec.srv.out) || []).find((o) => o.k === 'srt') || null;
+function pickSrt(cb) {
+  const inp = document.createElement('input'); inp.type = 'file';
+  inp.accept = '.srt,application/x-subrip,text/plain';
+  inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) cb(f); });
+  inp.click();
+}
+function goldMark(rec) {
+  pickSrt(async (f) => {
+    if (f.size > GOLD_REF_MAX) { flashSafe(T('studioGoldBig')); return; }
+    const text = await f.text().catch(() => '');
+    if (!parseSrt(text).length) { flashSafe(T('studioGoldBad')); return; }
+    goldBusy = rec.id; render('none');
+    try {
+      const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
+      const ref = await net.goldUpload(folder, text);
+      const j = await net.api('gold', { job: rec.id, ref });
+      if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+      if (!j.ok) { flashSafe(errText(j.error)); return; }
+      save();
+      await goldScore(rec, true);
+    } catch (e) { flashSafe(T('studioGoldErr')); } finally { goldBusy = ''; render('none'); }
+  });
+}
+async function goldScore(rec, inner) {
+  const src = rec.srv && rec.srv.gs ? jobRec(rec.srv.gs) : rec;
+  const ref = src && src.srv && src.srv.gd, out = srtOut(rec);
+  if (!ref) { flashSafe(T('studioGoldNoRef')); return; }
+  if (!out) { flashSafe(T('studioGoldNoSrt')); return; }
+  if (!inner) { goldBusy = rec.id; render('none'); }
+  try {
+    const [hyp, rf] = await Promise.all([net.driveText(out.id), net.driveText(ref.r)]);
+    const gq = goldCompare(hyp, rf);
+    if (!gq) { flashSafe(T('studioGoldBad')); return; }
+    const j = await net.api('goldScore', { job: rec.id, gq });
+    if (j.job) { rec.srv = normJob({ id: rec.id, srv: j.job }).srv; save(); }
+    if (!j.ok) flashSafe(errText(j.error));
+  } catch (e) { flashSafe(T('studioGoldErr')); } finally { if (!inner) { goldBusy = ''; render('none'); } }
+}
+function goldUnmark(rec) {
+  const go2 = async () => {
+    goldBusy = rec.id; render('none');
+    try { const j = await net.api('gold', { job: rec.id, ref: null }); if (j.job) { rec.srv = normJob({ id: rec.id, srv: j.job }).srv; save(); } if (!j.ok) flashSafe(errText(j.error)); }
+    finally { goldBusy = ''; render('none'); }
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioGoldOffQ'), go2, { ok: T('studioGoldOff'), danger: true }); else go2();
+}
+const goldScoreTxt = (gq) => T('studioGoldScore', { tm: gq.tm });   // הציון עצמו — בערך שבצד (בלי כפילות)
+/* בדף עבודה שהסתיימה (עם SRT): להוסיף לסט הזהב / הציון / הרצה חוזרת מול המקור */
+function goldCard(rec) {
+  const s = rec.srv;
+  if (!s || s.state !== 'done' || !srtOut(rec)) return [];
+  const busy = goldBusy === rec.id;
+  if (s.gs) {
+    const src = jobRec(s.gs), sgq = src && src.srv && src.srv.gq;
+    const rows = [];
+    if (s.gq) {
+      const r = h('div', 'st-row'); r.dataset.k = 'gold:score';
+      const val = h('span', 'st-v'); val.append(ltr(String(s.gq.s)));
+      r.append(rowTxt(T('studioGoldRunT'), goldScoreTxt(s.gq) + (sgq ? ' · ' + T('studioGoldSrc', { s: sgq.s }) : '')), val);
+      rows.push(r);
+    } else rows.push(btn('st-row st-act', busy ? T('studioGoldCalc') : T('studioGoldCalcGo'), () => goldScore(rec), 'gold:calc'));
+    return [secT(T('studioGoldT')), list(...rows)];
+  }
+  if (s.gd) {
+    const rows = [];
+    const r = h('div', 'st-row'); r.dataset.k = 'gold:score';
+    const val = h('span', 'st-v'); val.append(s.gq ? ltr(String(s.gq.s)) : '—');
+    r.append(rowTxt(T('studioGoldIn'), s.gq ? goldScoreTxt(s.gq) : T('studioGoldNoScore')), val);
+    rows.push(r);
+    if (!s.gq) rows.push(btn('st-row st-act', busy ? T('studioGoldCalc') : T('studioGoldCalcGo'), () => goldScore(rec), 'gold:calc'));
+    rows.push(btn('st-row st-act danger', T('studioGoldOff'), () => goldUnmark(rec), 'gold:off'));
+    return [secT(T('studioGoldT')), list(...rows)];
+  }
+  return [secT(T('studioGoldT')), list(btn('st-row st-act', busy ? T('studioGoldAdding') : T('studioGoldAdd'), () => goldMark(rec), 'gold:add')), note(T('studioGoldAddNote'))];
+}
+/* בבקרת הסוכנים: העבודות שבסט הזהב, הציון האחרון של כל אחת, והרצה חוזרת — רק בלחיצה, אחרי אומדן ואישור */
+function goldSection() {
+  const gold = store.jobs.filter((r) => r.srv && r.srv.state === 'done' && r.srv.gd && !r.srv.gs);
+  const runs = store.jobs.filter((r) => r.srv && r.srv.gs);
+  const rows = gold.map((g) => {
+    const last = runs.filter((r) => r.srv.gs === g.id && r.srv.gq).sort((a, b) => b.created - a.created)[0];
+    const sub = (g.srv.gq ? T('studioGoldOwn', { s: g.srv.gq.s }) : T('studioGoldNoScore')) + (last ? ' · ' + T('studioGoldLast', { s: last.srv.gq.s }) : '');
+    return rowNav({ tile: tile('film', 'orange'), label: fileTitle(g.spec.name) || T('studioUntitled'), sub, value: last ? ltr(String(last.srv.gq.s)) : '', onClick: () => go('job', g.id), k: 'gold:' + g.id });
+  });
+  if (!rows.length) return [secT(T('studioGoldT')), list(h('div', 'st-row st-muted', T('studioGoldNone')))];
+  const active = runs.some((r) => ['new', 'queued', 'running'].includes(r.srv.state));
+  const run = btn('st-btn wide', active ? T('studioGoldRunning') : T('studioGoldRun', { n: gold.length }), active || goldBusy ? null : () => goldRunAsk(gold), 'gold-run');
+  if (active) run.disabled = true;
+  return [secT(T('studioGoldT')), list(...rows), run, note(T('studioGoldRunNote'))];
+}
+function goldRunAsk(gold) {
+  const usd = goldEstimate(gold, ui.norm);
+  const go2 = () => goldRun();
+  if (typeof askConfirm === 'function') askConfirm(gold.length === 1 ? T('studioGoldRunQ1', { usd: fmtUsd(usd) }) : T('studioGoldRunQ', { n: gold.length, usd: fmtUsd(usd) }), go2, { ok: T('studioGoldRunOk') });
+}
+async function goldRun() {
+  if (goldBusy) return;
+  goldBusy = 'run'; render('none');
+  try {
+    const j = await net.api('goldRun', { ok: true });
+    if (!j.ok || !Array.isArray(j.jobs)) { flashSafe(errText(j.error)); return; }
+    for (const sj of j.jobs) {
+      const f = sj.files || {};
+      const rec = normJob({ id: sj.id, created: sj.created, spec: sj.spec, srv: sj,
+        up: { a: { done: !!f.a, id: f.a && f.a.id, size: f.a && f.a.size }, v: { done: !!f.v, id: f.v && f.v.id, size: f.v && f.v.size } } });
+      if (rec && !jobRec(rec.id)) store.jobs.unshift(rec);
+    }
+    save();
+    for (const sj of j.jobs) await tryStart(sj.id);   // כל השמירות הרגילות של "התחלה"
+    flashSafe(T('studioGoldStarted', { n: j.jobs.length }));
+  } finally { goldBusy = ''; render('none'); }
+}
 function costCard(cv, tr) {
   const rows = cv.rows.map((r) => {
     const row = h('div', 'st-row st-cost' + (r.off ? ' off-model' : ''));
@@ -3681,6 +3823,7 @@ function pageJob(p) {
     p.append(...qualityCard(rec.srv.q, rec.srv.ij, rec.srv.jd, jr ? modelLabel(jr.m) : ''));
   }
   if (rec.srv && rec.srv.gl) p.append(...glossJobCard(rec.srv.gl));   // v380: מונחים חדשים מהעבודה — למילון שלך, באישור
+  p.append(...goldCard(rec));   // v387: סט הזהב — תרגום אנושי לייחוס, והציון מולו
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr));
