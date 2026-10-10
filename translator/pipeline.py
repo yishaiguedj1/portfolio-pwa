@@ -451,7 +451,7 @@ def run_auto(jobmod, args) -> int:
     """הכל, מקצה לקצה. נקרא מ־job.py auto (אחרי run)."""
     J = jobmod
     st = J.load_state()
-    mode = str((st.get('spec') or {}).get('mode') or 'opus-medium')
+    mode = str((st.get('spec') or {}).get('mode') or llm.DEFAULT_MODE)
     cap = st.get('cap')
     eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
     ns = SimpleNamespace(force=False)

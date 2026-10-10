@@ -176,7 +176,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     up: { folder: 'F'.repeat(20), a: { done: true, id: 'A'.repeat(20), size: 7, uri: 'https://evil.example/upload' }, v: { uri: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=X', sent: 50 } },
     fp: { name: 'a.mkv', size: 100, lm: 9 }, srv: { state: 'running', sess: { url: 'javascript:alert(1)' }, prog: { st: 'tr' } } };
   const nj = S.normJob(J);
-  ok(nj && nj.spec.to.join() === 'he' && nj.spec.mode === 'opus-medium' && nj.spec.out.join() === 'same' && nj.up.a.uri === '' && /^https:\/\/www\.googleapis\.com\/upload/.test(nj.up.v.uri) && nj.srv.sess === null && nj.srv.state === 'running',
+  ok(nj && nj.spec.to.join() === 'he' && nj.spec.mode === 'sonnet-medium' && nj.spec.out.join() === 'same' && nj.up.a.uri === '' && /^https:\/\/www\.googleapis\.com\/upload/.test(nj.up.v.uri) && nj.srv.sess === null && nj.srv.state === 'running',
     'עבודה שמורה: כתובת העלאה רק של Drive, קישור לסשן רק של claude.ai, שפות ומצבים מוכרים בלבד');
   ok(S.normJob({ id: '../x' }) === null && S.normJob(null) === null, 'מזהה עבודה לא תקין — נדחה');
   const ns = S.normStore({ jobs: [J, J, { id: 'bad' }], conn: { hint: 'trig_…abcd', ok: 5, k: 'SECRET' }, drive: { connected: true, email: 'a@b.c' }, settings: { wifi: true } });

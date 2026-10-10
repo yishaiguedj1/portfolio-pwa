@@ -686,7 +686,7 @@ class TestWorker(unittest.TestCase):
 
     def test_rules_saved(self):
         # v367: החוקים מהשרתון נשמרים בקובץ המצב (למגדל ול־finish); לא תקין — כאילו אין חוק
-        self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 12.5, 'ab': True, 'mx': 'opus-high'}, 2, 7.25
+        self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 12.5, 'ab': True, 'mx': 'sonnet-high'}, 2, 7.25
         self.take()
         st = json.loads((self.tmp / 'state' / 'job.json').read_text())
         self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 12.5, 'ab': True, 'jx': False}, 2, 7.25))

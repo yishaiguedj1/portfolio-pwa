@@ -35,7 +35,7 @@ ACTIVE_FOR = 50 * 3600          # קובץ עבודה ישן מזה — לא פ�
 CHECK_EVERY = float(os.environ.get('SNB_TOWER_EVERY', '30'))   # בדיקות: 0 = בכל פעולה
 WINDOW = 15 * 60
 # הצפוי לשעת סרטון, לפי מחירון ה־API (המבחנים: ראיון של שעה ב־Opus 5.5 Medium ≈ 5–6$) + פתיחת הסשן והסוכנים
-PER_HOUR = {'opus-medium': 6.0, 'opus-high': 8.5, 'opus-max': 13.0, 'sonnet-medium': 3.0, 'sonnet-high': 4.2}
+PER_HOUR = {'sonnet-medium': 3.0, 'haiku-medium': 0.4, 'haiku-high': 0.6, 'sonnet-high': 4.2, 'opus-medium': 6.0}
 FIXED = 1.5
 # כמה מהטוקנים כל שלב צורך בדרך כלל — "יחסית להתקדמות": עבודה באמצע נמדדת מול חצי מהצפוי
 WEIGHT = (('up', 0.0), ('tr', 0.08), ('al', 0.07), ('tl', 0.55), ('rv', 0.25), ('bn', 0.03), ('sv', 0.02))

@@ -49,11 +49,13 @@
 
    | המצב | model | effort |
    |---|---|---|
-   | `opus-medium` (ברירת המחדל) | opus | medium |
-   | `opus-high` | opus | high |
-   | `opus-max` | opus | max |
-   | `sonnet-medium` | sonnet | medium |
+   | `sonnet-medium` (ברירת המחדל) | sonnet | medium |
+   | `haiku-medium` | haiku | medium |
+   | `haiku-high` | haiku | high |
    | `sonnet-high` | sonnet | high |
+   | `opus-medium` | opus | medium |
+
+   מצב אחר שמופיע בעבודה ישנה (`opus-high` / `opus-max`) = `opus-medium`.
 
    ההנחיה לסוכן: "תרגם את העבודה לפי translator/TRANSLATE.md. הפרויקט: <הנתיב משורת "הפרויקט:" של run>". הוא מחזיר רק סיכום קצר.
    כשהוא מסיים: **`$J save tl`** (בחזית, שניות) — נקודת שמירה של התרגום, כדי שתקלה בהמשך לא תחייב לתרגם שוב.

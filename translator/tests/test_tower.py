@@ -81,7 +81,7 @@ class TestRules(unittest.TestCase):
         self.assertIsNone(T.valid_norm({'ph': 'x', 'n': 5}))
         self.assertIsNone(T.valid_norm('junk'))
         nm = {'ph': 4.0, 'mx': 6.0, 'n': 5}
-        self.assertAlmostEqual(T.expected_usd({'dur': 3600, 'mode': 'opus-max'}, nm), 4.0, msg='החציון שלך, לא הקבוע של המצב')
+        self.assertAlmostEqual(T.expected_usd({'dur': 3600, 'mode': 'haiku-high'}, nm), 4.0, msg='החציון שלך, לא הקבוע של המצב')
         self.assertAlmostEqual(T.expected_usd({'dur': 300}, nm), 4.0 * 600 / 3600, msg='סרטון קצר — כמו 10 דק׳ (כמו בשרתון)')
         self.assertEqual(T.thresholds(None), (4.0, 5.0))
         self.assertEqual(T.thresholds(nm), (4.0, 5.0), 'הכבדה ביותר פי 1.5 — הסף נשאר פי 4')

@@ -15,7 +15,7 @@ const PRIOR = {
   a: { tr: [60, 22], al: [150, 30], tl: [30, 2], rv: [40, 5], bn: [40, 28], sv: [10, 3] },   // tl: מ־10/10 התרגום רץ במקביל ליישור — נשאר רק סבב התיקונים
   r: { tr: [90, 6], al: [120, 4], tl: [180, 39], rv: [120, 9], bn: [60, 18], sv: [20, 2.5] },
 };
-const MODE_MIN = { 'opus-medium': 105, 'opus-high': 125, 'opus-max': 160, 'sonnet-medium': 85, 'sonnet-high': 95 };   // = MODES בטלפון
+const MODE_MIN = { 'sonnet-medium': 85, 'haiku-medium': 75, 'haiku-high': 80, 'sonnet-high': 95, 'opus-medium': 105 };   // = MODES בטלפון
 const LAMBDA = 3, HALF_LIFE = 30 * 86400e3, SIGMA0 = 0.35, NQ = 8, ET_MAX = 40;
 const Z = { 50: 0, 80: 0.8416, 90: 1.2816 };
 
