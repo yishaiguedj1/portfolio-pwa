@@ -56,6 +56,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/register\(id, 'v', up\.v\.id, up\.folder, true\)/.test(st) && /ext \? \{ ext: true \} : \{\}/.test(st), 'מקור מ־Drive — רישום בשרתון עם ext (מאומת שם: קיים, סרטון, בגודל)');
   ok(/const pr = f\.fileObj \? await probeVideo\(file\) : \{ dur: f\.drive\.dur \|\| 0 \}/.test(st), 'בלי לקרוא את הקובץ בטלפון — האורך מ־Drive');
   ok(/DocsView\(G\.ViewId\.DOCS_VIDEOS\)/.test(st) && /setSelectFolderEnabled\(true\)/.test(st) && /setAppId\(cfg\.app\)/.test(st), 'Google Picker: סרטונים / תיקייה, עם מספר הפרויקט (הרשאה לקובץ שנבחר)');
+  ok(/v\.setMode\(G\.DocsViewMode\.LIST\)/.test(st) && /for \(const v of views\) pb\.addView\(v\)/.test(st), 'ה־Picker: רשימה (שם, תאריך, גודל) — בלי ריבועי תמונה ממוזערת');
+  ok(/setParent\('root'\), T\('studioPkMine'\)\)/.test(st) && /setStarred\(true\), T\('studioPkStar'\)\)/.test(st) && /T\('studioPkVideos'\)/.test(st), 'ה־Picker: לשוניות — סרטונים · התיקיות שלי · מסומנים בכוכב');
+  ok(/typeof v\.setLabel === 'function'/.test(st), 'ה־Picker: שם ללשונית רק כשהגרסה של Google תומכת');
   ok(/if \(pickerClose\(\)\) \{ if \(root\) watch\(\); return; \}/.test(st), '"חזור" כשה־Picker פתוח — סוגר רק אותו');
   ok(/rec\.up\.ext\) \{ if \(\(!rec\.up\.extReg \|\| !rec\.up\.started\) && st === 'new'/.test(st), 'פתיחה מחדש: עבודה מ־Drive שלא נרשמה / התחילה — ממשיכה לבד');
   ok(/for \(const o of vids\) await net\.driveMove/.test(st) && /await net\.driveCopy\(srt\.id/.test(st), 'בסוף: הסרטון עובר, הכתוביות מועתקות');
@@ -65,7 +68,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const job = read('translator/job.py');
   ok(/\(\(ctx\.st\.get\('files'\) or \{\}\)\.get\('v'\) or \{\}\)\.get\('ext'\)/.test(job) && /v\.get\('ext'\)/.test(job), 'העובד: מקור מ־Drive — לא נוגעים בקובץ שלך (בלי החלפה לאיכויות)');
   const app = read('app.js');
-  for (const k of ['studioFromDrive', 'studioFromDriveSub', 'studioInDrive', 'studioInDriveNote', 'studioFromDriveBad', 'studioStartNoteDrive', 'studioDxPickT', 'studioDxT', 'studioDxSub', 'studioDxDone', 'studioDxErr', 'studioDxBusy'])
+  for (const k of ['studioFromDrive', 'studioFromDriveSub', 'studioInDrive', 'studioInDriveNote', 'studioFromDriveBad', 'studioStartNoteDrive', 'studioDxPickT', 'studioDxT', 'studioDxSub', 'studioDxDone', 'studioDxErr', 'studioDxBusy', 'studioPkVideos', 'studioPkMine', 'studioPkStar'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
   console.log(`\n${n} בדיקות עברו`);
 })().catch((e) => { console.error(e); process.exit(1); });
