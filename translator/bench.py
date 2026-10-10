@@ -8,6 +8,7 @@
 הרצה:
   python3 translator/bench.py add run.json        # הוספת ריצה (בדיקת צורה; מחושבים ‎/דקה)
   python3 translator/bench.py report               # טבלה לכל ריצה + ממוצע לכל מצב
+  python3 translator/bench.py fit                  # ניסוי 3.5: עלות = קבוע + שיפוע × דקות, לכל מצב
 """
 from __future__ import annotations
 
@@ -106,7 +107,45 @@ def report() -> int:
     return 0
 
 
+def fit_line(pts: list[tuple[float, float]]) -> tuple[float, float] | None:
+    """ריבועים מינימליים y = a + b·x; פחות משני אורכים שונים — אין קו (רק נקודה אחת שחוזרת)."""
+    if len({round(x, 3) for x, _ in pts}) < 2:
+        return None
+    n = len(pts)
+    mx = sum(x for x, _ in pts) / n
+    my = sum(y for _, y in pts) / n
+    sxx = sum((x - mx) ** 2 for x, _ in pts)
+    b = sum((x - mx) * (y - my) for x, y in pts) / sxx
+    return my - b * mx, b
+
+
+def fit() -> int:
+    """ניסוי 3.5: לכל מצב — הקבוע (מדריך, תדריך, שופט, פתיחת מטמון) והשיפוע לדקת סרטון, מכל הריצות המתומחרות.
+    מזה: מאיזה אורך העלות לדקה מפסיקה לרדת, ומה להכניס ל־NORM_DEF/PER_HOUR (שעה = a + 60·b)."""
+    by: dict[str, list[tuple[float, float]]] = {}
+    for r in load():
+        usd = sum((r.get('usd') or {}).values())
+        if usd > 0:
+            by.setdefault(r.get('mode', '?'), []).append((r['dur_s'] / 60, usd))
+    if not by:
+        print('אין עדיין ריצות מתומחרות.')
+        return 0
+    for mode, pts in sorted(by.items()):
+        lens = sorted({round(x, 1) for x, _ in pts})
+        line = fit_line(pts)
+        if not line:
+            print('  %-14s %d ריצות באורך אחד (%s דק׳) — צריך עוד אורך (10 / 20–30 דק׳) כדי להפריד קבוע משיפוע'
+                  % (mode, len(pts), ', '.join('%g' % x for x in lens)))
+            continue
+        a, b = line
+        print('  %-14s קבוע $%.2f + $%.3f לדקה · שעה ≈ $%.2f · לדקה ב־5/10/30 דק׳: $%.3f / $%.3f / $%.3f  (%d ריצות, אורכים %s)'
+              % (mode, a, b, a + 60 * b, a / 5 + b, a / 10 + b, a / 30 + b, len(pts), ', '.join('%g' % x for x in lens)))
+    return 0
+
+
 if __name__ == '__main__':
+    if len(sys.argv) == 2 and sys.argv[1] == 'fit':
+        raise SystemExit(fit())
     if len(sys.argv) >= 3 and sys.argv[1] == 'add':
         raise SystemExit(add(sys.argv[2]))
     if len(sys.argv) == 2 and sys.argv[1] == 'report':
