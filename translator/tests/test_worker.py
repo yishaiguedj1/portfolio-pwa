@@ -358,7 +358,7 @@ class TestWorker(unittest.TestCase):
 
     # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
     def seed_ladder(self, s='ok'):
-        d = self.tmp / 'state' / 'ladder'
+        d = self.tmp / 'work' / '_ladder'
         (d / 'out').mkdir(parents=True, exist_ok=True)
         (d / 'out' / 'top.mp4').write_bytes(b'T' * 500000)
         (d / 'out' / 'r720.mp4').write_bytes(b'7' * 300000)
@@ -372,7 +372,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(self.take()[0], 0)
         self.assertEqual(self.job('prepare')[0], 0)
         self.assertEqual(self.job('align')[0], 0)
-        self.assertFalse((self.tmp / 'state' / 'ladder').exists(), 'SNB_LADDER=off — לא נבנה ברקע')
+        self.assertFalse((self.tmp / 'work' / '_ladder').exists(), 'SNB_LADDER=off — לא נבנה ברקע')
         self.seed_ladder()
         code, out = self.job('finish')
         self.assertEqual(code, 0, out)
@@ -410,7 +410,7 @@ class TestWorker(unittest.TestCase):
         self.fake.audio, self.fake.v_ext = False, True
         self.assertEqual(self.take()[0], 0)
         self.assertEqual(self.job('prepare', env={'SNB_LADDER': ''})[0], 0)
-        self.assertFalse((self.tmp / 'state' / 'ladder').exists(), 'מקור מ־Drive — לא מתחילים לבנות')
+        self.assertFalse((self.tmp / 'work' / '_ladder').exists(), 'מקור מ־Drive — לא מתחילים לבנות')
         self.assertEqual(self.job('align')[0], 0)
         self.seed_ladder()                                    # גם אם משהו נשאר מקודם — לא מחליפים
         code, out = self.job('finish')
@@ -424,8 +424,9 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(self.job('prepare', env={'SNB_LADDER': ''})[0], 0)
         code, out = self.job('align', env={'SNB_LADDER': ''})
         self.assertEqual(code, 0, out)
-        st = self.tmp / 'state' / 'ladder' / 'state.json'
+        st = self.tmp / 'work' / '_ladder' / 'state.json'
         self.assertTrue(st.exists(), 'הבנייה התחילה ב־align (צירוף הסרטון)')
+        self.assertFalse((self.tmp / 'state' / 'ladder').exists(), 'לא ב־STATE — בשרת זה tmpfs של 16MB (תקלה 10/10)')
         for _ in range(100):
             if json.loads(st.read_text()).get('s') != 'run':
                 break
