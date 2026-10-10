@@ -52,7 +52,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const app = read('app.js');
   for (const k of ['studioSlaT', 'studioSlaTime', 'studioSlaCost', 'studioSlaOf', 'studioSlaOfU', 'studioSlaOk', 'studioSlaHalf', 'studioSlaRisk', 'studioSlaOver', 'studioSlaMet',
     'studioSlaPaused', 'studioSlaPz', 'studioAlSlaTime', 'studioAlSlaCost', 'studioVaSec', 'studioVaT', 'studioVaMinS', 'studioVaNone', 'studioVaMonth',
-    'studioVaMin', 'studioVaCpm', 'studioVaSavedK', 'studioVaFc', 'studioVaFcNone', 'studioVaBnT', 'studioVaBn', 'studioVaBnOk', 'studioVaAbT', 'studioVaAbRs', 'studioVaAbQa',
+    'studioVaMin', 'studioVaCpm', 'studioVaSavedK', 'studioVaFc', 'studioVaFcNone', 'studioVaBnT', 'studioVaBn', 'studioVaBnOk', 'studioVaAbT', 'studioVaAbQa',   // v383: studioVaAbRs עבר לתקציב השגיאות
     'studioVaPriceT', 'studioVaPerMin', 'studioVaPriceNote'])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 

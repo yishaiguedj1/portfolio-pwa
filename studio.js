@@ -8,8 +8,12 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX } from './studionet.js';
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
+import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq } from './studioplay.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
+import { createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
+import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -33,6 +37,12 @@ export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : LEGACY_MOD
 const REC_MODE = MODES.find((m) => m.rec);
 /* שפות: התמלול (Parakeet v2/v3, ivrit.ai, Omnilingual) מכסה גם שפות שלא ברשימה — זו רשימת הבחירה המהירה */
 export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko'];
+/* הסקירה (10/10/2026): מה שהעובד יודע היום (= LANG_READY בשרתון). השאר מוצג "בקרוב" ולא נבחר — לא נכשלים אחרי ההעלאה */
+export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
+export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
+/* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout'];
+export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
@@ -57,7 +67,7 @@ const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co', '*.pytorch
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
-  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 2 };
+  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 2, pq: 'src' };   // pq: איכות הצפייה בנגן (ברירת מחדל = המקור)
 }
 function normOut(o) {
   const d = { same: true, compact: false, mkv: false };
@@ -78,6 +88,7 @@ export function normSettings(o) {
   if (CONNS.includes(o.conn)) s.conn = o.conn;
   s.wifi = o.wifi === true;
   if (CAPS.includes(o.cap)) s.cap = o.cap;
+  s.pq = normPq(o.pq);
   return s;
 }
 /* מצב "API של המערכת" מהשרתון (status): התקציב החודשי, כמה שרתים מחוברים, והאם אתה המנהל */
@@ -111,6 +122,7 @@ export function normDraft(d) {
     from: d.from === 'auto' || SOURCE_LANGS.includes(d.from) ? d.from : 'auto',
     to: s.to, mode: s.mode, out: s.out, style: s.style,
     terms: String(d.terms || '').slice(0, TERMS_MAX),
+    ...(d.drive && FID_RE.test(String(d.drive.id || '')) ? { drive: { id: d.drive.id, dur: Math.max(0, Math.floor(Number(d.drive.dur) || 0)) } } : {}),   // מקור מ־Drive (נבחר ב־Picker)
   };
 }
 const num = (x) => Math.max(0, Math.floor(Number(x) || 0));
@@ -125,6 +137,7 @@ export function normJob(j) {
     out: Array.isArray(sp.out) ? sp.out.filter((k, i) => OUTS.includes(k) && sp.out.indexOf(k) === i) : ['same'],
     style: STYLES.includes(sp.style) ? sp.style : 'bold', terms: String(sp.terms || '').slice(0, TERMS_MAX),
   };
+  if (normEdl(sp.edl)) spec.edl = normEdl(sp.edl);   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
@@ -133,7 +146,9 @@ export function normJob(j) {
   };
   const up = { folder: FID_RE.test(String(u.folder || '')) ? u.folder : '', a: part(u.a), v: part(u.v),
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
-    wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took) };
+    wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took),
+    ext: u.ext === true, extReg: u.extReg === true,   // מקור מ־Drive: בלי העלאה; extReg = נרשם בשרתון
+    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null };   // התוצר נשמר בתיקייה שבחרת ב־Drive
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
   const s = j.srv && typeof j.srv === 'object' ? j.srv : null;
   const srv = s ? {
@@ -142,8 +157,8 @@ export function normJob(j) {
     sess: s.sess && typeof s.sess.url === 'string' && /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/.test(s.sess.url) ? { url: s.sess.url } : null,
     ed: typeof s.ed === 'string' ? s.ed.slice(0, 140) : '',   // v356: פרטי ההפעלה שנכשלה (סטטוס · סוג · מזהה בקשה)
     // v358: התוצרים בתיקיית העבודה ב־Drive (מהשרתון: files.o; בשמירה המקומית: out)
-    out: (Array.isArray(s.out) ? s.out : s.files && Array.isArray(s.files.o) ? s.files.o : []).slice(0, 6)
-      .filter((o) => o && FID_RE.test(String(o.id || '')) && ['compact', 'same', 'mkv', 'srt'].includes(o.k))
+    out: (Array.isArray(s.out) ? s.out : s.files && Array.isArray(s.files.o) ? s.files.o : []).slice(0, 10)
+      .filter((o) => o && FID_RE.test(String(o.id || '')) && OUT_ALL.includes(o.k))
       .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
@@ -157,10 +172,52 @@ export function normJob(j) {
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
+    nt: normNote(s.nt),                       // v382: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
     ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
+    gd: normGd(s.gd), gs: JOB_RE.test(String(s.gs || '')) ? s.gs : '', gq: normGq(s.gq),   // v387: סט הזהב
+    kind: s.kind === 'rr' ? 'rr' : 'tr', rp: JOB_RE.test(String(s.rp || '')) ? s.rp : '',   // מ2: הפקה מחדש (והעבודה המקורית)
+    ev: num(s.ev), vh: (Array.isArray(s.vh) ? s.vh : []).slice(0, 20).map(num),   // מ2: גרסת הכתוביות, ומתי נשמרה כל גרסה קודמת
+    folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
+    hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
+}
+/* v387: סט הזהב — אותה בדיקה כמו בשרתון (lib/studio.js normGd / normGq) */
+const FID_GD = /^[A-Za-z0-9_-]{10,100}$/;
+export function normGd(o) {
+  if (!o || typeof o !== 'object' || !FID_GD.test(String(o.r || ''))) return null;
+  return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: num(o.at) };
+}
+export function normGq(o) {
+  if (!o || typeof o !== 'object') return null;
+  const p = (v) => (Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
+  const sc = p(o.s), tm = p(o.tm), n = Number.isInteger(o.n) && o.n > 0 && o.n <= 1e5 ? o.n : null;
+  return sc == null || tm == null || n == null ? null : { s: sc, tm, n, at: num(o.at) };
+}
+export const NORM_FIXED = 1.5;   // **זהה ל־NORM_FIXED בשרתון** (lib/studio.js) — העלות הקבועה של עבודה (פתיחה, מדריכים)
+/* מ6 (כלל 2): אומדן לפני כל התחלה — זמן (דקות לשעת וידאו של המצב × האורך) ועלות ("הרגיל" שלך, אחרת ברירת המחדל).
+   במצב השרת — גם כמה נשאר מהתקציב החודשי. טהור */
+export function startEstimate(mode, dur, norm, api, apiOn) {
+  const d = dur > 0 ? dur : 0, m = modeById(mode);
+  if (!d) return { min: 0, usd: 0, left: null, over: false };
+  const usd = Math.round((goldEstimate([{ spec: { mode: m.id, dur: d } }], norm) + NORM_FIXED) * 100) / 100;   // + פתיחת הסשן (קבוע לכל עבודה)
+  const left = apiOn && api ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
+  return { min: Math.max(1, Math.round(m.min * d / 3600)), usd, left, over: left != null && usd > left };
+}
+function estText(e, apiOn) {
+  const t = e.min < 60 ? T('studioMinShort', { m: e.min }) : T('studioHMShort', { t: fmtHM(e.min) });
+  if (!apiOn) return T('studioEstSub', { t, usd: fmtUsd(e.usd) });
+  return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '');
+}
+/* v387: אומדן להרצת סט הזהב — "הרגיל" לשעה של כל מצב (נלמד או ברירת המחדל) × אורך הסרטון. טהור */
+export function goldEstimate(gold, norm) {
+  let usd = 0;
+  for (const r of gold || []) {
+    const ph = norm && norm[r.spec.mode] ? norm[r.spec.mode].ph : 3;
+    usd += ph * (r.spec.dur > 0 ? r.spec.dur : 3600) / 3600;
+  }
+  return Math.round(usd * 100) / 100;
 }
 /* שלב 3 סבב ד׳: שאלה מ־Claude באמצע העבודה — אותה בדיקה כמו בשרתון (lib/studio.js normAsk). הטקסט מוצג רק כטקסט */
 export function normQa(q) {
@@ -188,7 +245,8 @@ export function normQa(q) {
 export const RULE_BUDGETS = [5, 10, 20, 40];
 export function normRules(r) {
   const o = r && typeof r === 'object' ? r : {};
-  const b = typeof o.b === 'number' && Number.isFinite(o.b) && o.b >= 1 && o.b <= 500 ? o.b : 0;
+  const n = typeof o.b === 'number' ? o.b : NaN;   // הסקירה: כמו בשרתון — עיגול לחצי דולר, עד 500 (מה שמוצג = מה שנשמר)
+  const b = Number.isFinite(n) && n >= 1 ? Math.min(500, Math.round(n * 2) / 2) : 0;
   return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true, jx: o.jx === true };   // v375: jx = שופט האיכות כבוי
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
@@ -198,7 +256,8 @@ export function normTw(t) {
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
   return { lv: t.lv, x: n(t.x), usd: n(t.usd), exp: n(t.exp), why: TW_WHY.includes(t.why) ? t.why : '', n: n(t.n), min: n(t.min),
     nj: t.b === 'u' ? n(t.nj) : 0,     // v363: "הרגיל" נלמד מ־nj עבודות שלך (0 = המדידות שלנו)
-    fp: /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '' };   // v364: טביעת האצבע של העצירה (ספר התיקונים)
+    fp: /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '',   // v364: טביעת האצבע של העצירה (ספר התיקונים)
+    sh: t.sh === 1 && t.lv === 'warn', shn: Number.isInteger(t.shn) && t.shn > 0 && t.shn <= 3 ? t.shn : 0 };   // v384: מצב צל
 }
 /* v365: מגדל הפיקוח 2.0 — בריאות, זמינות, MTTR, מצב לכל רכיב והתראות פתוחות (מהשרתון, op status). רק מספרים ומזהים מהקטלוג */
 export const OPS_COMPONENTS = ['phone', 'drive', 'server', 'routine', 'claude', 'vt'];
@@ -324,6 +383,44 @@ export function normSla(o) {
   return out;
 }
 /* v377: ערך ועלות החודש, תחזית, צוואר בקבוק ומסלולים חריגים (lib/studiosla.js valueView) */
+/* v383: תקציב שגיאות (lib/studioslo.js sloView) — יעד 95% בלי התערבות, כמה נשאר, קצב שריפה ב־7 ימים, העבודות שאכלו ממנו */
+const SLO_ST = ['ok', 'warn', 'fast', 'out', 'few'], SLO_C = ['fail', 'stale', 'resume'];
+/* v384: מצב צל — לכל מצב תרגום, כמה עבודות עוד רק מזהירות בספים החדשים */
+export function normSh(o) {
+  const out = {};
+  if (o && typeof o === 'object') for (const m of MODES.map((x) => x.id)) if (Number.isInteger(o[m]) && o[m] > 0 && o[m] <= 3) out[m] = o[m];
+  return out;
+}
+export function normSlo(o) {
+  if (!o || typeof o !== 'object' || !SLO_ST.includes(o.st)) return null;
+  const int = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
+  const n = int(o.n, 1e5), bad = Math.min(n, int(o.bad, 1e5));
+  return { t: int(o.t, 100) || 95, n, good: n - bad, bad, att: n ? Math.round((n - bad) / n * 1000) / 10 : null, left: int(o.left, 100),
+    burn: typeof o.burn === 'number' && o.burn >= 0 && o.burn < 1e3 ? o.burn : 0, n7: int(o.n7, 1e5), st: o.st, min: int(o.min, 100) || 5,
+    list: (Array.isArray(o.list) ? o.list : []).filter((x) => x && JOB_RE.test(String(x.j || '')) && SLO_C.includes(x.c)).slice(0, 10).map((x) => ({ j: x.j, c: x.c, at: num(x.at) })) };
+}
+/* v385: ציון חריגה 0–10 (lib/studioanom.js anomView) — צורה קבועה */
+export const AN_KEYS = ['t:tr', 't:al', 't:tl', 't:rv', 't:bn', 't:sv', 'u:main', 'u:tl', 'u:rv', 'u:jg'];
+const AN_C = ['vt', 'claude', 'drive'], AN_TR = ['u', 'd', 'f'];
+export function normAn(o) {
+  if (!o || typeof o !== 'object') return null;
+  const int = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
+  const sc = (v) => (typeof v === 'number' && v >= 0 && v <= 10 ? Math.round(v * 10) / 10 : null);
+  const pos = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1e6 ? v : null);
+  const out = { n: int(o.n, 1e5), min: int(o.min, 100) || 5, hi: sc(o.hi) || 6, j: {}, m: [] };
+  if (o.j && typeof o.j === 'object') for (const id of Object.keys(o.j).slice(0, 20)) {
+    if (!JOB_RE.test(id) || !Array.isArray(o.j[id])) continue;
+    const rows = o.j[id].filter((r) => Array.isArray(r) && AN_KEYS.includes(r[0]) && sc(r[1]) != null && pos(r[2]) != null && pos(r[3]) != null)
+      .slice(0, AN_KEYS.length).map((r) => [r[0], sc(r[1]), r[2], r[3]]);
+    if (rows.length) out.j[id] = rows;
+  }
+  for (const r of Array.isArray(o.m) ? o.m.slice(0, AN_KEYS.length) : []) {
+    if (!r || !AN_KEYS.includes(r.k) || !AN_C.includes(r.c) || sc(r.s) == null || pos(r.v) == null || pos(r.med) == null) continue;
+    out.m.push({ k: r.k, c: r.c, s: sc(r.s), v: r.v, med: r.med, tr: AN_TR.includes(r.tr) ? r.tr : 'f', f: int(r.f, 5), fn: int(r.fn, 5), p: r.p === true,
+      j: JOB_RE.test(String(r.j || '')) ? r.j : '', at: num(r.at) });
+  }
+  return out;
+}
 export function normValue(o) {
   if (!o || typeof o !== 'object' || !/^\d{4}-\d{2}$/.test(String(o.m || ''))) return null;
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= -1e6 && v <= hi ? v : null);
@@ -388,6 +485,16 @@ export function normGl(o) {
   }
   return u || s.length ? { u, s } : null;
 }
+/* v382: הערה לעובד — p = מחכה לנקודת השמירה הבאה, h = נקראו (d = מתי), n מתוך max לעבודה. הטקסט שלך — מוצג רק כטקסט */
+const NOTE_LEN = 300;
+const noteText = (v) => { const s = String(v == null ? '' : v).replace(/[\x00-\x09\x0b-\x1f\x7f<>`]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim(); return s.length >= 2 ? s.slice(0, NOTE_LEN) : ''; };
+export function normNote(o) {
+  if (!o || typeof o !== 'object') return null;
+  const p = o.p && noteText(o.p.t) ? { t: noteText(o.p.t), at: num(o.p.at) } : null;
+  const h = (Array.isArray(o.h) ? o.h : []).slice(-5).map((x) => x && noteText(x.t) ? { t: noteText(x.t), at: num(x.at), d: num(x.d) } : null).filter(Boolean);
+  const max = Math.max(1, Math.min(10, num(o.max) || 5));
+  return p || h.length ? { p, h, n: Math.min(max, num(o.n) || h.length + (p ? 1 : 0)), max } : null;
+}
 /* v375: שופט האיכות (Haiku, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 export function normJudge(o) {
@@ -405,9 +512,34 @@ export function normAgents(o) {
   const agents = o.agents.filter((x) => x && ['main', 'tl', 'rv', 'jg'].includes(x.k)).slice(0, 4).map((x) => ({
     k: x.k, m: /^claude-[a-z0-9-]{1,50}$/.test(String(x.m || '')) ? x.m : '', ef: ['low', 'medium', 'high', 'max'].includes(x.ef) ? x.ef : '',
     jobs: num(x.jobs, 1e4), usd: num(x.usd, 1e6), partial: x.partial === true, ok: typeof x.ok === 'number' ? num(x.ok, 100) : null,
-    n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true, q: typeof x.q === 'number' ? num(x.q, 100) : null }));
+    n: num(x.n, 1e8), e: num(x.e, 1e8), s: num(x.s, 1e9), pv: /^[0-9a-f]{8}$/.test(String(x.pv || '')) ? x.pv : '', pvs: num(x.pvs, 100), pvNew: x.pvNew === true, q: typeof x.q === 'number' ? num(x.q, 100) : null,
+    ...normEval(x), vs: (Array.isArray(x.vs) ? x.vs : []).filter((v) => v && /^[0-9a-f]{8}$/.test(String(v.p || ''))).slice(0, 3)
+      .map((v) => Object.assign({ p: v.p, jobs: num(v.jobs, 1e4), at: num(v.at, 1e14) }, normEval(v))) }));
   const ev = o.ev && /^[0-9a-f]{12}$/.test(String(o.ev.v || '')) ? { v: o.ev.v, n: num(o.ev.n, 1e3) } : null;
-  return { jobs: num(o.jobs, 1e4), agents, ev };
+  const risk = (Array.isArray(o.risk) ? o.risk : []).filter((r) => r && RISK_KEYS.includes(r.r) && ['w', 'm', 's'].includes(r.st)).slice(0, 3).map((r) => ({ r: r.r, st: r.st, n: num(r.n, 1e4) }));
+  return { jobs: num(o.jobs, 1e4), agents, ev, risk };
+}
+/* v386: מדדי הערכת סוכנים — שלמות (c), כלי נכון (t), קריאות תקינות (v), ציון (sc); w = פעולות מחוץ לתפקיד */
+const RISK_KEYS = ['inj', 'cost', 'loop'];
+function normEval(x) {
+  const p = (v) => (Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
+  return { c: p(x.c), t: p(x.t), v: p(x.v), sc: p(x.sc), w: Number.isInteger(x.w) && x.w >= 0 ? Math.min(x.w, 1e6) : 0 };
+}
+/* v386: "מומלץ לפעולה" (AI Control Tower) — מה כדאי לבדוק עכשיו; טהור. sh = מצב הצל של הספים (v384) */
+export const REC_DROP = 5, REC_TOOL = 95, REC_VALID = 85, REC_CMP = 80;
+export function agentRecs(ag, sh) {
+  const out = [];
+  for (const a of (ag && ag.agents) || []) {
+    const [v0, v1] = a.vs || [];
+    if (v0 && v1 && v0.sc != null && v1.sc != null && v0.sc < v1.sc - REC_DROP) out.push({ k: 'drop', a: a.k, from: v1.sc, to: v0.sc });
+    else if (a.pvNew && v0 && v0.jobs < 3) out.push({ k: 'new', a: a.k, n: 3 - v0.jobs });
+    if (a.t != null && a.t < REC_TOOL && a.w) out.push({ k: 'tool', a: a.k, n: a.w });
+    if (a.v != null && a.v < REC_VALID) out.push({ k: 'valid', a: a.k, n: a.v });
+    if (a.c != null && a.c < REC_CMP) out.push({ k: 'cmp', a: a.k, n: 100 - a.c });
+  }
+  const shn = Object.values(sh || {}).filter((n) => n > 0);
+  if (shn.length) out.push({ k: 'shadow', n: Math.max(...shn) });
+  return out;
 }
 /* v364: ספר התיקונים (מהשרתון, op status) — התיקון הוא טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד */
 export function normFb(a) {
@@ -526,7 +658,8 @@ export function normStore(o) {
     .filter((j) => j && !seenJ.has(j.id) && seenJ.add(j.id)).slice(0, 100);
   const c = src.conn && typeof src.conn === 'object' ? { hint: String(src.conn.hint || '').slice(0, 24), ok: num(src.conn.ok), since: num(src.conn.since) } : null;
   const d = src.drive && typeof src.drive === 'object' ? { connected: src.drive.connected === true, email: String(src.drive.email || '').slice(0, 120), configured: src.drive.configured !== false } : null;
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d };
+  const sugx = (Array.isArray(src.sugx) ? src.sugx : []).filter((x) => typeof x === 'string' && /^[a-z]{2,8}[0-9a-z]{1,8}$/.test(x)).slice(-500);   // מ6: "לא להציע שוב" (טביעות, בלי טקסט)
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx };
 }
 /* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
    לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת */
@@ -542,6 +675,7 @@ export function newDraft(form, created, id) {
   return normDraft({
     id, created, name: f.name, size: f.size, type: f.type,
     from: form.from, to: form.to, mode: form.mode, out: form.out, style: form.style, terms: form.terms,
+    drive: form.drive ? { id: form.drive.id, dur: form.drive.dur || 0 } : null,
   });
 }
 /* 3.2GB · 312MB · 84KB (יחידות של 1024, בלי רווח — כמו בשאר האפליקציה) */
@@ -624,6 +758,8 @@ function outName(k) {
     case 'same': return T('studioOutSame');
     case 'compact': return T('studioOutCompact');
     case 'mkv': return T('studioOutMkv');
+    case 'small': return T('studioOutSmall');   // מ1
+    case 'en': return T('studioOutEn');
     default: return T('studioOutSrt');
   }
 }
@@ -635,7 +771,7 @@ function outSub(k) {
     default: return T('studioOutSrtS');
   }
 }
-const outShort = (k) => (k === 'srt' ? 'SRT' : k === 'same' ? T('studioOutSameShort') : outName(k));
+const outShort = (k) => (k === 'srt' ? 'SRT' : k === 'en' ? T('studioOutEnShort') : k === 'same' ? T('studioOutSameShort') : outName(k));
 const modeShort = (m) => FAM_NAME[m.fam] + ' ' + m.effort;   // לשורות צרות ("Opus Medium")
 function styleName(k) {
   switch (k) {
@@ -694,6 +830,7 @@ function errText(code, extra) {
     case 'budget': return T('studioErrBudget');
     case 'wait': return T('studioErrWait', { s: Math.max(1, (extra && extra.retry) || 60) });
     case 'worker_not_ready': return T('studioWaitWorker');
+    case 'lang_unsupported': return T('studioLangSoon');
     case 'bad_url': return T('studioErrBadUrl');
     case 'bad_key': return T('studioErrBadKey');
     case 'vault_not_configured': return T('studioErrVault');
@@ -701,10 +838,18 @@ function errText(code, extra) {
     case 'resume_limit': return T('studioErrResumeLimit');
     case 'tower_stop': return T('studioErrTower');
     case 'halted': return T('studioErrHalted');
+    case 'gold_full': return T('studioErrGoldFull');   // v387: סט הזהב
+    case 'gold_busy': return T('studioErrGoldBusy');
+    case 'no_gold': return T('studioGoldNone');
+    case 'no_srt': return T('studioGoldNoSrt');
     case 'rule_mode': return T('studioErrRuleMode');
     case 'major': return T('studioErrMajor');   // v371
     case 'mode': return T('studioErrMode');   // v376
-    case 'budget_stop': return T('studioErrBudgetStop');
+    case 'budget_stop': case 'budget_cap': return T('studioErrBudgetStop');
+    case 'api_auth': case 'api_model': return T('studioErrApiKey');   // הסקירה: קודי מצב API
+    case 'api_network': case 'api_timeout': case 'api_rate': return T('studioErrApiNet');
+    case 'model_refusal': return T('studioErrRefusal');
+    case 'check_errors': return T('studioErrChecks');
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
 }
@@ -737,6 +882,7 @@ function freshForm(d) {
     id: d ? d.id : null,
     file: d && d.name ? { name: d.name, size: d.size, type: d.type } : null,
     fileObj: null, handle: null,    // הקובץ עצמו — רק בזיכרון, רק עד ההתחלה
+    drive: d && d.drive && d.name ? { id: d.drive.id, name: d.name, size: d.size, type: d.type, dur: d.drive.dur || 0 } : null,   // או סרטון שכבר ב־Drive
     from: d ? d.from : 'auto',
     to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style,
     terms: d ? d.terms : '',
@@ -817,6 +963,7 @@ async function refreshStatus(force) {
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
     store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
     ui.norm = normNorms(j.norm) || ui.norm;
+    ui.sh = normSh(j.sh);   // v384: מצב צל לכל מצב (כמה עבודות עד אכיפה)
     ui.fb = normFb(j.fb) || ui.fb;
     ui.fm = j.fm === 'auto' ? 'auto' : 'suggest';   // v366: מסלול התיקונים (ברירת מחדל — הצעות לאישור)
     ui.ops = normOps(j.ops) || ui.ops;
@@ -826,6 +973,7 @@ async function refreshStatus(force) {
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
+    ui.picker = normPicker(j.pk);       // בחירה מ־Drive (Google Picker) — רק כשהוגדר מפתח בשרתון
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -841,10 +989,14 @@ async function refreshJobs(force) {
   ui.ag = normAgents(j.ag) || ui.ag;   // v373: מלאי הסוכנים
   ui.pb = normPb(j.pb) || ui.pb; ui.rb = normRb(j.rb) || ui.rb;   // v376: בעיות וספרי הפעלה
   ui.va = normValue(j.va) || ui.va;   // v377: ערך, עלות ותחזית
+  ui.slo = normSlo(j.slo) || ui.slo;   // v383: תקציב שגיאות
+  ui.an = normAn(j.an) || ui.an;   // v385: ציון חריגה
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
+  const rr = new Map();
   for (const sj of j.jobs) {
     if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
+    if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) rr.set(x.srv.rp, x); continue; }   // מ2
     ids.add(sj.id);
     const loc = have.get(sj.id);
     if (loc) loc.srv = normJob({ id: sj.id, srv: sj }).srv;
@@ -856,6 +1008,7 @@ async function refreshJobs(force) {
     }
   }
   store.jobs = store.jobs.filter((x) => ids.has(x.id) || (runs.get(x.id) && runs.get(x.id).active)).sort((a, b) => b.created - a.created);
+  rrJobs = rr;
   save();
   // v371: התקלה הרחבה עברה — עבודות שחיכו לה מתחילות לבד
   if (ui.inc && !majorOn(ui.inc)) for (const r of store.jobs.filter((x) => x.up.wait === 'major' && !x.up.started)) { r.up.wait = ''; tryStart(r.id); }
@@ -944,22 +1097,24 @@ function tickRate(run, bytes) {
   if (dt >= 2) { const r = (bytes - run.rs.b) / dt; run.rate = run.rate ? run.rate * 0.65 + r * 0.35 : r; run.rs = { t: now, b: bytes }; }
 }
 const isAbortErr = (e) => !!e && (e.name === 'AbortError' || e.code === 'aborted');
-async function register(id, which, fid, folder) {
-  const j = await net.api('file', { job: id, which, id: fid, folder });
+async function register(id, which, fid, folder, ext) {
+  const j = await net.api('file', Object.assign({ job: id, which, id: fid, folder }, ext ? { ext: true } : {}));
   if (!j.ok) throw Object.assign(new Error(j.error || 'file'), { code: j.error || 'file' });
   const rec = jobRec(id); if (rec && j.job) rec.srv = normJob({ id, srv: j.job }).srv;
 }
 /* v361: "המשך" — השרתון מפעיל את ה־Routine שוב עם מפתח חדש; העובד ממשיך מנקודת השמירה האחרונה */
-async function resumeSrv(id, ov, mo, mode) {
+async function resumeSrv(id, ov, mo, mode, lo) {
   const rec = jobRec(id); if (!rec || ui.resuming) return;
   ui.resuming = id; render('none');
-  const j = await net.api('resume', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}, mode ? { mode } : {}));
+  const j = await net.api('resume', Object.assign({ job: id }, ov ? { ov: true } : {}, mo ? { mo: true } : {}, mode ? { mode } : {}, lo ? { lo: true } : {}));
   ui.resuming = '';
   if (j.job) rec.srv = normJob({ id, srv: j.job }).srv;
   if (j.ok && mode && j.job && j.job.spec && j.job.spec.mode === mode) rec.spec.mode = mode;   // v376: עברנו למצב הזול יותר
   // v367: מצב מעל המקסימום שבחוקים — הפעולה מחכה לאישור שלך
   if (!j.ok && j.error === 'rule_mode' && typeof askConfirm === 'function') askConfirm(T('studioRuleModeQ'), () => resumeSrv(id, true, mo, mode), { ok: T('studioStartAnyway') });
-  else if (!j.ok && j.error === 'major' && typeof askConfirm === 'function') askConfirm(T('studioMajorQ', { c: opsComp(j.mi && j.mi.c) }), () => resumeSrv(id, ov, true, mode), { ok: T('studioStartAnyway') });   // v371
+  else if (!j.ok && j.error === 'major' && typeof askConfirm === 'function') askConfirm(T('studioMajorQ', { c: opsComp(j.mi && j.mi.c) }), () => resumeSrv(id, ov, true, mode, lo), { ok: T('studioStartAnyway') });   // v371
+  // v384: "המשך" שלישי ב־24 שעות — כנראה לולאה; ממשיכים רק באישור מפורש
+  else if (!j.ok && j.error === 'loop' && typeof askConfirm === 'function') askConfirm(T('studioLoopQ', { n: Math.max(3, j.n | 0) }), () => resumeSrv(id, ov, mo, mode, true), { ok: T('studioLoopOk'), danger: true });
   else if (!j.ok) flashSafe(errText(j.error, j));
   save(); render('none');
 }
@@ -1007,6 +1162,13 @@ async function runJob(id, run) {
   wakeOn(); paintSoon();
   try {
     if (!up.folder) { up.folder = await net.jobFolder(id, fileTitle(rec.spec.name)); save(); }
+    if (up.ext) {   // סרטון מ־Drive: נשאר במקומו — רק רישום בשרתון (מאומת מול Drive: קיים, בגודל, סרטון) והתחלה
+      run.phase = 'prep'; paintSoon();
+      if (!up.extReg) { await register(id, 'v', up.v.id, up.folder, true); up.extReg = true; save(); }
+      if (!up.started) await tryStart(id);
+      run.phase = 'done';
+      return;
+    }
     // 1. הקול — מחולץ בטלפון בלי קידוד ועולה ראשון (Claude מתחיל לעבוד בזמן שהסרטון עולה)
     if (!up.a.done && !up.noAudio) {
       run.phase = 'extract'; run.p = 0; paintSoon();
@@ -1151,14 +1313,17 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 }
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
-  if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
 }
 
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
+  if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
+  if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
+  if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
@@ -1207,8 +1372,11 @@ function watch() {                // מאזין אחד בכל רגע; חדש א�
 function closeRequest() {
   if (!root) return;
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
+  if (pickerClose()) { if (root) watch(); return; }   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
+  const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
   const dlg = document.querySelector('.dlg-veil.on');
   if (dlg) { const b = dlg.querySelector('.dlg-cancel') || dlg.querySelector('.dlg-ok'); if (b) b.click(); }
+  else if (plm) plm.click();
   else back();
   if (root) watch();
 }
@@ -1260,8 +1428,11 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   help: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-7l-4 3v-3H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M10 9.6a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.3"/><circle cx="12" cy="14.6" r=".9" fill="currentColor" stroke="none"/>',
   x: '<path d="M7 7l10 10M17 7L7 17"/>',
   shield: '<path d="M12 3.5l7 2.6v5.4c0 4.3-2.9 7.8-7 9-4.1-1.2-7-4.7-7-9V6.1z"/>',
+  clock: '<circle cx="12" cy="12" r="8.6"/><path d="M12 7.5V12l3 2"/>',   // v385
+  coin: '<circle cx="12" cy="12" r="8.6"/><path d="M14.6 9.2c-.5-.9-1.5-1.4-2.6-1.4-1.6 0-2.7.8-2.7 2s1.1 1.7 2.7 2 2.9.8 2.9 2.1-1.2 2.1-2.9 2.1c-1.2 0-2.3-.6-2.8-1.6M12 6v1.8M12 16.2V18"/>',
   power: '<path d="M17.7 7a8 8 0 1 1-11.4 0"/><path d="M12 3.5v8"/>',
   sliders: '<path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2.5 14h5M9.5 8h5M16.5 16h5"/>',  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',   // v377: ערך ועלות
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>', redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1329,11 +1500,13 @@ function rowExt(o) {
 }
 /* שורה עם עיגול סימון (בחירה מרובה) */
 function rowCheck(o) {
-  const r = o.locked ? h('div', 'st-row') : btn('st-row', null, o.onClick, o.k);
+  const r = o.locked ? h('div', 'st-row') : btn('st-row', null, o.disabled ? null : o.onClick, o.k);
+  if (o.disabled) { r.disabled = true; r.classList.add('off'); }
   const c = h('span', 'st-check' + (o.on ? ' on' : '') + (o.locked ? ' lock' : '')); c.append(ico('check'));
   if (!o.locked) { r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', o.on ? 'true' : 'false'); }
   r.append(c, rowTxt(o.label, o.sub));
   if (o.value) r.append(h('span', 'st-v', o.value));
+  if (o.badge) r.append(h('span', 'st-badge gray', o.badge));
   return r;
 }
 /* שורה עם עיגול בחירה (אחת מכמה) */
@@ -1673,7 +1846,7 @@ function pageForm(p, editing) {
   // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
-  const took = (file, handle) => { f.fileObj = file; f.handle = handle || null; f.file = { name: file.name, size: file.size, type: file.type || '' }; render('none'); };
+  const took = (file, handle) => { f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' }; render('none'); };
   inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
   const pick = () => {
     if (canPickHandle()) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
@@ -1687,7 +1860,7 @@ function pageForm(p, editing) {
     const txt = h('span', 'st-l');
     const nm = h('b'); nm.append(fileNameEl(f.file.name));
     const sz = h('small'); sz.append(fmtSize(f.file.size) + ' · ', h('span', 'st-linkish', T('studioReplace')));
-    txt.append(nm, sz, f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
+    txt.append(nm, sz, f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
     card.append(th, txt);
   } else {
     card = btn('st-newcard pick', null, pick, 'file');
@@ -1695,6 +1868,9 @@ function pageForm(p, editing) {
     card.append(plus, rowTxt(T('studioPick'), T('studioNewSub')));
   }
   p.append(inp, secT(T('studioSecVideo')), card);
+  if (ui.picker) p.append(list(rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
+    onClick: () => pickSourceFromDrive(f), k: 'from-drive' })));   // סרטון שכבר ב־Drive — בלי העלאה
+  if (f.fileObj || f.drive) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
   if (isIOS()) p.append(note(T('studioIosTip')));
 
   // שפות
@@ -1728,11 +1904,11 @@ function pageForm(p, editing) {
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioStart'), startFromForm, 'start');
-  startBtn.disabled = !f.fileObj || ui.starting;
+  startBtn.disabled = !(f.fileObj || f.drive) || ui.starting;
   const saveBtn = btn('st-btn tint wide', T('studioSaveDraft'), saveForm, 'save');
   saveBtn.disabled = !f.file;
   p.append(h('div', 'st-gap'), startBtn, h('div', 'st-gap sm'), saveBtn,
-    note(!f.file ? T('studioPickFirst') : !f.fileObj ? T('studioRepickNote') : T('studioStartNote')));
+    note(!f.file ? T('studioPickFirst') : !f.fileObj && !f.drive ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
 }
 function saveForm() {
   const f = form;
@@ -1750,34 +1926,131 @@ function saveForm() {
 /* "התחלה" מהטופס: התחברות + Drive מחובר → קריאה מהירה של הסרטון (אורך) → עבודה בשרתון → מסך ההתקדמות + ההעלאה */
 function startFromForm() {
   const f = form;
-  if (!f || !f.fileObj || ui.starting) return;
+  if (!f || !(f.fileObj || f.drive) || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
   if (!store.drive || !store.drive.connected) {
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
     else connectDrive();
     return;
   }
+  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
   ui.starting = true; render('none');
   (async () => {
-    const file = f.fileObj;
-    const pr = await probeVideo(file);
-    const spec = { name: file.name, size: file.size, type: file.type || '', dur: pr.dur || 0, from: f.from, to: f.to,
+    const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
+    const pr = f.fileObj ? await probeVideo(file) : { dur: f.drive.dur || 0 };
+    const ed = normEdl(f.edl, pr.dur || 0);   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
+    const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
       mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
+    if (ed) spec.edl = ed;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
+    // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
+    const est = startEstimate(spec.mode, spec.dur, ui.norm, ui.api, apiMode());
+    if (est.min && typeof askConfirm === 'function') {
+      const yes = await new Promise((ok) => askConfirm(estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      if (!yes || form !== f) { ui.starting = false; render('none'); return; }
+    }
     const j = await net.api('create', { spec });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    const ext = !f.fileObj;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 }, up: {} });
+      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 },
+      up: ext ? { ext: true, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {} });
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
     save();
     if (f.handle) handleOp('put', rec.id, f.handle);
     form = null;
-    if (!root) { startRun(rec.id, file); return; }
+    if (!root) { startRun(rec.id, ext ? null : file); return; }
     replaceView('job', rec.id);
-    startRun(rec.id, file);
+    startRun(rec.id, ext ? null : file);
   })();
+}
+
+/* ---------------- Google Drive: סרטון מ־Drive כמקור, ושמירת התוצר בתיקייה שבחרת ----------------
+   הרשאת הסטודיו היא drive.file — האפליקציה רואה רק מה שהיא יצרה או מה שבחרת ב־Picker (הקובץ / התיקייה האלה בלבד).
+   כך גם העובד (שמעבד תוכן לא מהימן) לא מגיע לשאר ה־Drive שלך. ה־Picker נטען רק בלחיצה (apis.google.com, ב־CSP). */
+export function normPicker(o) {
+  return o && /^[A-Za-z0-9_-]{20,80}$/.test(String(o.key || '')) && /^\d{6,20}$/.test(String(o.app || '')) ? { key: o.key, app: o.app } : null;
+}
+let pickerLoad = null, pickerNow = null;
+function loadPicker() {
+  if (window.google && window.google.picker) return Promise.resolve();
+  if (!pickerLoad) {
+    pickerLoad = new Promise((ok, no) => {
+      const go = () => window.gapi.load('picker', { callback: ok, onerror: no, timeout: 15000, ontimeout: no });
+      if (window.gapi && window.gapi.load) { go(); return; }
+      const sc = document.createElement('script'); sc.src = 'https://apis.google.com/js/api.js'; sc.async = true;
+      sc.addEventListener('load', go); sc.addEventListener('error', no);
+      document.head.append(sc);
+    }).catch((e) => { pickerLoad = null; throw e; });
+  }
+  return pickerLoad;
+}
+/* kind: 'video' (סרטון מקור) / 'folder' (לאן לשמור). מחזיר { id, name } או null (ביטול) */
+async function drivePick(kind) {
+  const cfg = ui.picker;
+  if (!cfg) throw Object.assign(new Error('picker'), { code: 'picker' });
+  const [tok] = await Promise.all([net.driveToken(), loadPicker()]);
+  const G = window.google.picker;
+  return new Promise((res) => {
+    const view = kind === 'folder'
+      ? new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder')
+      : new G.DocsView(G.ViewId.DOCS_VIDEOS).setIncludeFolders(true);
+    const done = (x) => { if (pickerNow && pickerNow.res === res) pickerNow = null; res(x); };
+    const pk = new G.PickerBuilder().setOAuthToken(tok).setDeveloperKey(cfg.key).setAppId(cfg.app).addView(view)
+      .setLocale(uiLang() === 'he' ? 'iw' : 'en').setTitle(kind === 'folder' ? T('studioDxPickT') : T('studioFromDrive'))
+      .setCallback((d) => {
+        const a = d && d[G.Response.ACTION];
+        if (a === G.Action.PICKED) { const doc = (d[G.Response.DOCUMENTS] || [])[0] || {}; done(doc[G.Document.ID] ? { id: doc[G.Document.ID], name: String(doc[G.Document.NAME] || '') } : null); }
+        else if (a === G.Action.CANCEL) done(null);
+      }).build();
+    pickerNow = { pk, res };
+    pk.setVisible(true);
+  });
+}
+/* "חזור" כשה־Picker פתוח — סוגר אותו (ולא את הדף) */
+function pickerClose() { if (!pickerNow) return false; const x = pickerNow; pickerNow = null; try { x.pk.setVisible(false); } catch (e) {} x.res(null); return true; }
+/* מהטופס: בוחרים סרטון ב־Drive → הפרטים מ־Drive (שם, גודל, אורך) — בלי להוריד ובלי להעלות */
+async function pickSourceFromDrive(f) {
+  if (!store.drive || !store.drive.connected) {
+    if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
+    return;
+  }
+  try {
+    const x = await drivePick('video');
+    if (!x || form !== f) return;
+    const m = await net.driveMeta(x.id);
+    if (!m || m.trashed || !(Number(m.size) > 0)) { flashSafe(T('studioFromDriveBad')); return; }
+    const dur = Math.round(Number(m.videoMediaMetadata && m.videoMediaMetadata.durationMillis) / 1000) || 0;
+    f.drive = { id: x.id, name: String(m.name || x.name).slice(0, 200), size: Number(m.size), type: String(m.mimeType || '').slice(0, 60), dur };
+    f.fileObj = null; f.handle = null; f.edl = null;
+    f.file = { name: f.drive.name, size: f.drive.size, type: f.drive.type };
+    render('none');
+  } catch (e) { flashSafe(errText(e && e.code || 'drive')); }
+}
+/* בסוף העבודה: התוצר לתיקייה שבחרת. הסרטון המתורגם עובר (בלי עותק — לא תופס אחסון פעמיים), הכתוביות מועתקות
+   (קטנות, והעורך וסט הזהב קוראים מהעותק שבתיקיית העבודה) */
+const DX_MOVE = ['same', 'compact', 'small', 'mkv'];
+let dxBusy = '';
+async function exportToDrive(rec) {
+  if (dxBusy || !rec) return;
+  const folder = jobFolder(rec), outs = (rec.srv && rec.srv.out) || [];
+  const vids = outs.filter((o) => DX_MOVE.includes(o.k)), srt = outs.find((o) => o.k === 'srt');
+  if (!folder || (!vids.length && !srt)) return;
+  let dest;
+  try { dest = await drivePick('folder'); } catch (e) { flashSafe(errText(e && e.code || 'drive')); return; }
+  if (!dest) return;
+  if (rec.up.dx && rec.up.dx.f === dest.id) { flashSafe(T('studioDxDone', { n: dest.name || rec.up.dx.n })); return; }   // כבר שם
+  dxBusy = rec.id; render('none');
+  try {
+    for (const o of vids) await net.driveMove(o.id, rec.up.dx ? rec.up.dx.f : folder, dest.id);
+    if (srt) await net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt');
+    rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: Date.now() };
+    save();
+    flashSafe(T('studioDxDone', { n: dest.name }));
+  } catch (e) { flashSafe(T('studioDxErr')); }
+  finally { dxBusy = ''; render('none'); }
 }
 
 function pageLang(p) {
@@ -1793,9 +2066,15 @@ function pageLang(p) {
   const rows = [];
   if (!multi) {
     rows.push(rowRadio({ label: T('studioAuto'), on: target.from === 'auto', onClick: () => { target.from = 'auto'; back(); }, k: 'l:auto' }));
-    for (const c of SOURCE_LANGS) rows.push(rowRadio({ label: langName(c, ul), sub: sub(c), on: target.from === c, onClick: () => { target.from = c; back(); }, k: 'l:' + c }));
+    for (const c of SOURCE_LANGS) {
+      const off = !LANG_READY.from.includes(c);
+      rows.push(rowRadio({ label: langName(c, ul), sub: sub(c), on: target.from === c, disabled: off, badge: off ? T('studioSoon') : null, onClick: () => { target.from = c; back(); }, k: 'l:' + c }));
+    }
   } else {
-    for (const c of TARGET_LANGS) rows.push(rowCheck({ label: langName(c, ul), sub: sub(c), on: target.to.includes(c), onClick: () => toggleLang(target, c, def), k: 'l:' + c }));
+    for (const c of TARGET_LANGS) {
+      const off = !LANG_READY.to.includes(c) && !target.to.includes(c);   // שנבחרה פעם — אפשר רק להסיר
+      rows.push(rowCheck({ label: langName(c, ul), sub: sub(c), on: target.to.includes(c), disabled: off, badge: off ? T('studioSoon') : null, onClick: () => toggleLang(target, c, def), k: 'l:' + c }));
+    }
   }
   p.append(list(...rows));
   if (multi) p.append(note(T('studioToSub')));
@@ -1832,6 +2111,57 @@ function pageProject(p) {
 
 /* שלב 3 סבב ד׳: "Claude שואל" — שאלה קצרה באמצע העבודה. תשובה מוכנה בנגיעה, או טקסט כשאין תשובות מוכנות.
    לא ענית עד הזמן שכתוב — העבודה ממשיכה עם ברירת המחדל (העובד מדווח, והכרטיס מתחלף לשורה אחת) */
+/* v382: הערה לעובד — שליחה מהטלפון; השרתון מוסר אותה בנקודת השמירה הבאה */
+let noteBusy = false;
+async function sendNote(id, t) {
+  if (noteBusy) return;
+  noteBusy = true; render('none');
+  try {
+    const j = await net.api('note', { job: id, t });
+    const r = jobRec(id);
+    if (j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
+    if (j.ok) { ui.noteOpen = false; ui.noteDraft = ''; flashSafe(T('studioNtSent')); } else flashSafe(j.error === 'note_limit' ? T('studioNtLimit') : errText(j.error));
+  } finally { noteBusy = false; render('none'); }
+}
+function noteCard(rec) {
+  const nt = rec.srv && rec.srv.nt;
+  const canSend = rec.srv && (rec.srv.state === 'queued' || rec.srv.state === 'running');
+  if (!nt && !canSend) return null;
+  const card = h('div', 'st-twcard st-ntc');
+  card.dataset.k = 'note';
+  for (const x of (nt ? nt.h : [])) {
+    const r = h('div', 'st-ntr');
+    const tx = h('p', null, x.t); tx.dir = 'auto';
+    r.append(h('small', null, T('studioNtRead', { t: fmtClock(x.d) })), tx);
+    card.append(r);
+  }
+  if (nt && nt.p) {
+    const r = h('div', 'st-ntr wait');
+    const tx = h('p', null, nt.p.t); tx.dir = 'auto';
+    r.append(h('small', null, T('studioNtWait')), tx);
+    card.append(r);
+  }
+  if (canSend) {
+    const full = nt && !nt.p && nt.n >= nt.max;
+    if (full) card.append(h('small', 'st-muted', T('studioNtFull', { n: nt.max })));
+    else if (!ui.noteOpen) {
+      const b = btn('st-row st-ric', null, () => { ui.noteOpen = true; render('none'); const t = root && root.querySelector('[data-k="note-t"]'); if (t) try { t.focus({ preventScroll: true }); } catch (e) {} }, 'note-open');
+      b.append(tile('spark', 'blue'), rowTxt(nt && nt.p ? T('studioNtReplace') : T('studioNtT'), T('studioNtSub')), ico('chev', 'st-chev'));
+      card.append(b);
+    } else {
+      const ta = h('textarea', 'st-in st-ask-in'); ta.rows = 3; ta.maxLength = NOTE_LEN; ta.dir = 'auto'; ta.dataset.k = 'note-t';
+      ta.placeholder = T('studioNtPh'); ta.setAttribute('aria-label', T('studioNtT')); ta.value = ui.noteDraft || '';
+      ta.addEventListener('input', () => { ui.noteDraft = ta.value; });
+      const row = h('div', 'st-ntb');
+      const send = btn('st-btn wide', noteBusy ? T('studioNtSending') : T('studioNtSend'), () => { const t = noteText(ui.noteDraft); if (t) sendNote(rec.id, t); else flashSafe(T('studioNtEmpty')); }, 'note-send');
+      const cancel = btn('st-btn ghost', T('studioNtCancel'), () => { ui.noteOpen = false; render('none'); }, 'note-cancel');
+      if (noteBusy || blocked()) send.disabled = true;
+      row.append(cancel, send);
+      card.append(ta, row);
+    }
+  }
+  return [secT(T('studioNtSec')), card];
+}
 let askBusy = false;
 async function sendAnswer(id, qid, ans) {
   if (askBusy) return;
@@ -1860,7 +2190,7 @@ function towerLine(rec) {
   if (!tw || tw.lv === 'red' || !(s.state === 'running' || s.state === 'queued')) return null;
   const c = btn('st-tower ' + tw.lv, null, () => go('tower'), 'tower');   // v363: נגיעה = מסך "מגדל הפיקוח"
   const t = h('span');
-  t.textContent = (tw.lv === 'warn' ? T('studioTwWarn', { x: fmtX(tw.x) }) : T('studioTwOk', { x: fmtX(tw.x) }));
+  t.textContent = tw.sh ? T('studioShWarn') : (tw.lv === 'warn' ? T('studioTwWarn', { x: fmtX(tw.x) }) : T('studioTwOk', { x: fmtX(tw.x) }));   // v384: מצב צל
   c.append(ico('shield'), t, ico('chev', 'st-chev'));
   return c;
 }
@@ -1916,6 +2246,10 @@ function opsAlert(c, k) {
     case 'claude:budget': return T('studioAlClaudeBudget');
     case 'claude:auto': return T('studioAlClaudeAuto');
     case 'claude:inject': return T('studioAlClaudeInject');
+    case 'claude:loop': return T('studioAlClaudeLoop');   // v384
+    case 'claude:anomaly': return T('studioAlClaudeAnom');   // v385
+    case 'drive:anomaly': return T('studioAlDriveAnom');
+    case 'vt:anomaly': return T('studioAlVtAnom');
     case 'claude:sla_time': return T('studioAlSlaTime');   // v377
     case 'claude:sla_cost': return T('studioAlSlaCost');
     case 'server:down': return T('studioAlServerDown');   // ת7: הבדיקה המתוזמנת
@@ -2161,7 +2495,6 @@ function pageAlert(p) {
 }
 /* ---------------- v371: תקלות (מסך 2 בתוכנית — Incident + Probable Root Cause + Major Incident) ---------------- */
 const incNo = (no) => 'INC' + String(no || 0).padStart(7, '0');
-const majNo = (no) => 'MAJ' + String(no || 0).padStart(7, '0');
 /* כותרת קצרה לפי הקוד (errText הוא הוראה ארוכה — לא כותרת) */
 function incTitle(e) {
   switch (e) {
@@ -2171,7 +2504,9 @@ function incTitle(e) {
     case 'no_server': case 'job_timeout': case 'worker_unknown_kind': case 'worker_oom': case 'worker_crash': return T('studioIncServer');
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
-    case 'budget_stop': return T('studioIncBudget');
+    case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
+    case 'api_auth': case 'api_model': return T('studioIncApiKey');
+    case 'api_network': case 'api_timeout': case 'api_rate': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');
     case 'net': case 'drive': case 'drive_net': return T('studioIncNet');
     case 'upload_timeout': return T('studioIncUpload');
@@ -2418,7 +2753,9 @@ function agentTile(k) { const t = h('span', 'st-agt a-' + k, agentAbbr(k)); t.se
 function agentsSection() {
   const ag = ui.ag;
   if (!ag || !ag.agents.length) return [];
-  return [secT(T('studioAgSec', { n: ag.jobs })), list(...ag.agents.map((a) => {
+  const recs = agentRecs(ag, ui.sh);   // v386: "מומלץ לפעולה" — שורה אחת בראש, הפרטים בבקרת הסוכנים
+  return [secT(T('studioAgSec', { n: ag.jobs })), list(recs.length ? rowNav({ tile: tile('alert', 'orange'), label: T('studioRecT'), sub: recText(recs[0]),
+    value: ltr(String(recs.length)), onClick: () => go('agents'), k: 'ag-recs' }) : null, ...ag.agents.map((a) => {
     const r = btn('st-row st-ric', null, () => go('agents'), 'ag:' + a.k);
     const l = h('span', 'st-l');
     const sub = h('small');
@@ -2429,9 +2766,45 @@ function agentsSection() {
     return r;
   }))];
 }
+function recText(r) {
+  const a = r.a ? agentName(r.a) : '';
+  switch (r.k) {
+    case 'drop': return T('studioRecDrop', { a, from: r.from, to: r.to });
+    case 'new': return r.n === 1 ? T('studioRecNew1', { a }) : T('studioRecNew', { a, n: r.n });
+    case 'tool': return r.n === 1 ? T('studioRecTool1', { a }) : T('studioRecTool', { a, n: r.n });
+    case 'valid': return T('studioRecValid', { a, n: r.n });
+    case 'cmp': return T('studioRecCmp', { a, n: r.n });
+    default: return r.n === 1 ? T('studioRecShadow1') : T('studioRecShadow', { n: r.n });
+  }
+}
+function riskName(r) {
+  switch (r) {
+    case 'inj': return T('studioRiskInj');
+    case 'cost': return T('studioRiskCost');
+    default: return T('studioRiskLoop');
+  }
+}
+function riskCtl(r) {
+  switch (r) {
+    case 'inj': return T('studioRiskInjC');
+    case 'cost': return T('studioRiskCostC');
+    default: return T('studioRiskLoopC');
+  }
+}
+const RISK_ST = { w: 'h', m: 'w', s: 'g' };
+function riskSt(st) { return st === 's' ? T('studioRiskS') : st === 'm' ? T('studioRiskM') : T('studioRiskW'); }
+const pctOr = (v) => (v == null ? '—' : ltr(v + '%'));
 function pageAgents(p) {
   const ag = ui.ag;
   p.append(navBar({ back: T('studioTwShort') }), large(T('studioAgT')), h('p', 'st-lede', ag ? T('studioAgLede', { n: ag.jobs }) : T('studioAgNone')));
+  // v386: מומלץ לפעולה — בראש
+  const recs = ag ? agentRecs(ag, ui.sh) : [];
+  if (recs.length) p.append(secT(T('studioRecT')), list(...recs.map((r, i) => {
+    const row = h('div', 'st-row st-ric');
+    row.dataset.k = 'rec:' + i;
+    row.append(tile(r.k === 'shadow' ? 'shield' : 'alert', r.k === 'drop' || r.k === 'valid' || r.k === 'cmp' ? 'orange' : 'blue'), rowTxt(recText(r)));
+    return row;
+  })));
   if (ag) for (const a of ag.agents) {
     const card = h('div', 'st-twcard st-agc');
     card.dataset.k = 'agc:' + a.k;
@@ -2444,11 +2817,37 @@ function pageAgents(p) {
     const g = h('div', 'st-kvg');
     g.append(kv(T('studioAgJobsK'), String(a.jobs)), kv(T('studioAgCost'), usdEl(a.usd, a.partial)),
       kv(T('studioAgOk'), a.ok == null ? '—' : ltr(a.ok + '%')), kv(T('studioAgActs'), a.n ? ltr(String(a.n)) + (a.e ? ' · ' + (a.e === 1 ? T('studioTrErr1') : T('studioTrErrs', { n: a.e })) : '') : '—'),
-      kv(T('studioAgTime'), a.s >= 60 ? fmtShort(a.s) : '—'), kv(T('studioAgPv'), a.pv ? h('bdi', 'st-mono', a.pv) : '—'));
+      kv(T('studioAgTime'), a.s >= 60 ? fmtShort(a.s) : '—'), kv(T('studioEvSc'), a.sc == null ? '—' : ltr(String(a.sc))));   // v386: גרסת ההנחיות — במחזור החיים למטה
     if (a.k !== 'main') g.append(kv(T('studioQT'), a.q == null ? '—' : ltr(String(a.q))));   // v374: איכות ממוצעת של הכתוביות
     card.append(head, g);
+    if (a.sc != null) card.append(h('p', 'st-evl', T('studioEvLine', { c: pctOr(a.c), t: pctOr(a.t), v: pctOr(a.v) })));   // v386: שלמות · כלי נכון · קריאות תקינות
     p.append(card);
   }
+  // v386: מחזור החיים של ההנחיות — לכל סוכן: הגרסה הפעילה והקודמות, עם הציון של כל אחת
+  const life = ag ? ag.agents.filter((a) => a.vs.length) : [];
+  if (life.length) {
+    const rows = [];
+    for (const a of life) a.vs.forEach((v, i) => {
+      const r = h('div', 'st-row st-ric');
+      r.dataset.k = 'pv:' + a.k + ':' + v.p;
+      const sub = h('small');
+      sub.append(h('bdi', 'st-mono', v.p), ' · ' + T('studioAgJobs', { n: v.jobs }) + ' · ' + opsAgo(v.at));
+      const l = h('span', 'st-l'); l.append(h('b', null, agentName(a.k)), sub);
+      const val = h('span', 'st-v'); val.append(v.sc == null ? '—' : ltr(String(v.sc)));
+      r.append(agentTile(a.k), l, pill(i ? 'i' : 'g', i ? T('studioPvOld') : T('studioPvLive')), val);
+      rows.push(r);
+    });
+    p.append(secT(T('studioPvT')), list(...rows), note(T('studioPvNote')));
+  }
+  p.append(...goldSection());   // v387: סט הזהב
+  // v386: סיכון מול בקרה — מה מגן מכל סיכון, כמה חזק, וכמה פעמים פעל
+  if (ag && ag.risk.length) p.append(secT(T('studioRiskT')), list(...ag.risk.map((x) => {
+    const r = h('div', 'st-row');
+    r.dataset.k = 'risk:' + x.r;
+    const val = h('span', 'st-v'); val.append(ltr(String(x.n)));
+    r.append(rowTxt(riskName(x.r), riskCtl(x.r)), pill(RISK_ST[x.st], riskSt(x.st)), val);
+    return r;
+  })), note(T('studioRiskNote')));
   // הרשאות ורדיוס פגיעה — מה מותר לכל סוכן (אותו דבר לכולם: הם רצים באותו סשן). נאכף ב־setup.sh, בשרתון ובמגדל
   const perms = h('div', 'st-twcard st-perm');
   perms.append(h('small', 'st-rc-h', T('studioPermT')));
@@ -2575,6 +2974,121 @@ function slaCard(sla) {
   else if (t.pz >= 60) out.push(note(T('studioSlaPz', { t: fmtShort(t.pz) })));
   return out;
 }
+/* v383: תקציב שגיאות — שורה במגדל (כמה נשאר) → דף slo */
+const SLO_TILE = { ok: 'green', warn: 'orange', fast: 'orange', out: 'red', few: 'blue' };
+function sloSub(sl) { return sl.st === 'few' ? T('studioSloFew', { n: sl.n, m: sl.min }) : T('studioSloAtt', { a: fmtNum(sl.att), t: sl.t }); }
+function sloSection() {
+  const sl = ui.slo, an = ui.an;
+  const rows = [];
+  if (sl && sl.n) rows.push(rowNav({ tile: tile('shield', SLO_TILE[sl.st]), label: T('studioSloT'), sub: sloSub(sl),
+    value: sl.st === 'few' ? '' : sl.st === 'out' ? T('studioSloOut') : ltr(sl.left + '%'), onClick: () => go('slo'), k: 'tower-slo' }));
+  // v385: ציון חריגה — מה חריג בהתמדה (לא קפיצה בודדת)
+  if (an && an.n) {
+    const act = an.m.filter((r) => r.p), top = an.m.length ? an.m[0] : null;
+    rows.push(rowNav({ tile: tile('chart', act.length ? 'orange' : an.m.length ? 'green' : 'blue'), label: T('studioAnT'), sub: anSub(an),
+      value: top ? ltr(fmtNum(top.s)) : '', onClick: () => go('anom'), k: 'tower-anom' }));
+  }
+  return rows.length ? [secT(T('studioSloSec')), list(...rows)] : [];
+}
+/* v385: ציון חריגה */
+function anSub(an) {
+  const act = an.m.filter((r) => r.p);
+  if (!an.m.length) return T('studioAnFew', { n: Math.max(1, an.min + 1 - an.n) });
+  if (!act.length) return T('studioAnOk');
+  return act.length === 1 ? T('studioAnAct1', { m: anName(act[0].k) }) : T('studioAnAct', { n: act.length });
+}
+function anName(k) {
+  switch (k) {
+    case 't:tr': return T('studioAnTr');
+    case 't:al': return T('studioAnAl');
+    case 't:tl': return T('studioAnTl');
+    case 't:rv': return T('studioAnRv');
+    case 't:bn': return T('studioAnBn');
+    case 't:sv': return T('studioAnSv');
+    case 'u:tl': return T('studioAnUTl');
+    case 'u:rv': return T('studioAnURv');
+    case 'u:jg': return T('studioAnUJg');
+    default: return T('studioAnUMain');
+  }
+}
+const anCls = (s, hi) => (s >= 8 ? 'c' : s >= hi ? 'h' : s >= 3 ? 'w' : 'g');
+function anChip(s, hi, tr) {
+  const c = pill(anCls(s, hi), '');
+  c.append(ltr(fmtNum(s) + (tr === 'u' ? ' ▲' : tr === 'd' ? ' ▼' : '')));
+  return c;
+}
+const anRatio = (v, med) => (med > 0 ? fmtNum(Math.round(v / med * 10) / 10) : '—');
+/* בדף העבודה: השלבים שחרגו מהרגיל שלך, בערכים של העבודה הזו (זמן / עלות) */
+function anJobRows(rec) {
+  const an = ui.an, rows = an && an.j[rec.id];
+  const dur = rec.spec && rec.spec.dur > 0 ? rec.spec.dur : 0;
+  if (!rows || !dur) return [];
+  const show = rows.filter((r) => r[1] >= 3);
+  if (!show.length) return [];
+  return [secT(T('studioAnJobT')), list(...show.map(([k, sc, v, med]) => {
+    const r = h('div', 'st-row');
+    r.dataset.k = 'an:' + k;
+    const sub = h('span');
+    if (k[0] === 't') sub.append(T('studioAnVsT', { a: fmtShort(v * dur / 60), b: fmtShort(med * dur / 60) }));
+    else { sub.append(usdEl(v * dur / 3600), ' · ' + T('studioAnVsU') + ' '); sub.append(usdEl(med * dur / 3600)); }
+    const l = h('span', 'st-l'), sm = h('small'); sm.append(sub); l.append(h('b', null, anName(k)), sm);
+    r.append(l, anChip(sc, an.hi));
+    return r;
+  })), note(T('studioAnJobNote'))];
+}
+function pageAnom(p) {
+  const an = ui.an;
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioAnT')));
+  if (!an || !an.n) { p.append(h('div', 'st-empty st-empty-sm', T('studioAnNone'))); return; }
+  const act = an.m.filter((r) => r.p), top = an.m.length ? an.m[0] : null;
+  const hero = h('div', 'st-schero');
+  hero.append(h('b', 'st-schero-n' + (top ? ' t-' + (act.length ? 'orange' : 'green') : ''), top ? ltr(fmtNum(top.s)) : '—'),
+    rowTxt(!an.m.length ? T('studioAnFewT') : act.length ? T('studioAnActT') : T('studioAnOkT'), anSub(an)));
+  p.append(hero);
+  // רק מה שמעל הרגיל; השאר — שורה אחת (מינימליזם)
+  const up = an.m.filter((m) => m.s > 0 || m.p), rest = an.m.length - up.length;
+  if (an.m.length) {
+    p.append(secT(T('studioAnByM')), list(...up.map((m) => {
+      const r = m.j && jobRec(m.j) ? btn('st-row st-ric', null, () => go('job', m.j), 'anm:' + m.k) : h('div', 'st-row st-ric');
+      if (!r.dataset.k) r.dataset.k = 'anm:' + m.k;
+      const sub = T('studioAnX', { x: anRatio(m.v, m.med) }) + (m.f ? ' · ' + T('studioAnFreq', { f: m.f, n: m.fn }) : '');
+      r.append(tile(m.k[0] === 't' ? 'clock' : 'coin', m.p ? 'orange' : m.s >= 3 ? 'blue' : 'green'), rowTxt(anName(m.k), sub), anChip(m.s, an.hi, m.tr));
+      return r;
+    }), rest ? h('div', 'st-row st-muted', rest === 1 ? T('studioAnRest1') : T('studioAnRest', { n: rest })) : null));
+  }
+  p.append(note(T('studioAnNote')));
+}
+function sloCause(c) {
+  switch (c) {
+    case 'fail': return T('studioSloCFail');
+    case 'stale': return T('studioSloCStale');
+    default: return T('studioSloCResume');
+  }
+}
+function pageSlo(p) {
+  const sl = ui.slo;
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioSloT')));
+  if (!sl || !sl.n) { p.append(h('div', 'st-empty st-empty-sm', T('studioSloNone'))); return; }
+  // אותו כרטיס ציון של בדיקת המוכנות: המספר (כמה נשאר) ומשפט אחד
+  const hero = h('div', 'st-schero');
+  const col = { ok: 'green', warn: 'orange', fast: 'orange', out: 'red', few: '' }[sl.st];
+  hero.append(h('b', 'st-schero-n' + (col ? ' t-' + col : ''), sl.st === 'few' ? '—' : ltr(sl.left + '%')),
+    rowTxt(sl.st === 'few' ? T('studioSloFewT') : sl.st === 'out' ? T('studioSloOutT') : sl.st === 'fast' ? T('studioSloFastT') : T('studioSloLeftT'), sloSub(sl)));
+  p.append(hero);
+  const rows = [kvRow(T('studioSloN'), String(sl.n)), kvRow(T('studioSloGood'), String(sl.good)), kvRow(T('studioSloBad'), String(sl.bad))];
+  if (sl.n7) rows.push(kvRow(T('studioSloBurn'), ltr('×' + fmtNum(sl.burn)), true));
+  p.append(secT(T('studioSloWin')), list(...rows));
+  if (sl.n7) p.append(note(sl.burn > 1 ? T('studioSloBurnHi') : T('studioSloBurnOk')));
+  if (sl.list.length) {
+    p.append(secT(T('studioSloUsed')), list(...sl.list.map((x) => {
+      const rec = jobRec(x.j);
+      const name = rec ? fileTitle(rec.spec.name) || T('studioUntitled') : T('studioSloGone');
+      return rec ? rowNav({ tile: tile('film', x.c === 'resume' ? 'orange' : 'red'), label: name, sub: sloCause(x.c) + ' · ' + opsAgo(x.at), onClick: () => go('job', x.j), k: 'slo-j:' + x.j })
+        : kvRow(name, sloCause(x.c));
+    })));
+  }
+  p.append(note(T('studioSloNote')));
+}
 function valueSection() {
   const va = ui.va;
   if (!va || (!va.n && !va.bn)) return [];
@@ -2624,7 +3138,8 @@ function pageValue(p) {
     bn.append(rowTxt(stageName(va.bn.s, ''), va.bn.x != null && va.bn.x >= 1.2 ? T('studioVaBn', { p: pct, x: fmtNum(va.bn.x) }) : T('studioVaBnOk', { p: pct })));
     p.append(secT(T('studioVaBnT')), list(bn));
   }
-  if (va.ab.n) p.append(secT(T('studioVaAbT')), list(kvRow(T('studioVaAbRs'), String(va.ab.rs)), kvRow(T('studioVaAbQa'), String(va.ab.qa))));
+  // v383: "עברו 'המשך'" עבר לתקציב השגיאות (שם רואים גם אילו עבודות ולמה) — כאן רק ההמתנה לתשובה שלך
+  if (va.ab.n) p.append(secT(T('studioVaAbT')), list(kvRow(T('studioVaAbQa'), String(va.ab.qa))));
   // המחיר שלך — לחישוב "חסכת" (החלטה 5: מתחילים מ־$5 לדקת סרטון); נקבע רק כאן
   const opts = PRICES.includes(va.hp) ? PRICES : PRICES.concat(va.hp).sort((a, b) => a - b);
   p.append(secT(T('studioVaPriceT')), list(...opts.map((x) => rowRadio({ label: T('studioVaPerMin', { u: fmtUsdWhole(x) }), on: va.hp === x,
@@ -2830,6 +3345,7 @@ function pageTower(p) {
   }
   p.append(...agentsSection());   // v373: מלאי הסוכנים — 30 יום
   p.append(...valueSection());    // v377: ערך ועלות החודש
+  p.append(...sloSection());      // v383: תקציב שגיאות
   p.append(...scanSection());     // v378: בדיקת מוכנות ותחזוקה
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
@@ -2841,7 +3357,7 @@ function pageTower(p) {
   const act = store.jobs.filter((r) => r.srv && (r.srv.state === 'running' || r.srv.state === 'queued'));
   p.append(secT(T('studioTwSecNow')), list(...(act.length ? act.map((rec) => {
     const tw = rec.srv.tw;
-    const sub = !tw ? T('studioTwWaitRep') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
+    const sub = !tw ? T('studioTwWaitRep') : tw.sh ? T('studioShWarn') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
     return jobRow(rec, sub, tw && tw.lv === 'warn' ? 'orange' : 'green', 'tw:' + rec.id);
   }) : [h('div', 'st-row st-muted', T('studioTwNone'))])));
   // v369: "שליטה" (החוקים שלך ומתג החירום) — בפעולות המהירות למעלה, בלי שורות כפולות
@@ -2856,7 +3372,9 @@ function pageTower(p) {
       const v = nm[id];
       if (!v.d) learned = true;
       const left = Math.max(1, 3 - v.n);
-      const sub = !v.d ? T('studioTwNormU', { n: v.n }) : T('studioTwNormD') + ' · ' + (left === 1 ? T('studioTwNormLeft1') : T('studioTwNormLeft', { n: left }));
+      let sub = !v.d ? T('studioTwNormU', { n: v.n }) : T('studioTwNormD') + ' · ' + (left === 1 ? T('studioTwNormLeft1') : T('studioTwNormLeft', { n: left }));
+      const shn = ui.sh && ui.sh[id];
+      if (shn) sub += ' · ' + (shn === 1 ? T('studioShRow1') : T('studioShRow', { n: shn }));   // v384: הספים החדשים עוד רק מזהירים
       const r = h('div', 'st-row');
       const val = h('span', 'st-v'); val.append(usdEl(v.ph));
       r.append(rowTxt(modeName(modeById(id)), sub), val);
@@ -2903,14 +3421,6 @@ const MODE_ORDER = ['haiku-medium', 'haiku-high', 'sonnet-medium', 'sonnet-high'
 export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
 const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
 const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));
-function rulesSum(rl) {
-  const parts = [];
-  if (rl.b) parts.push(T('studioRlSumB', { v: budgetTxt(rl.b) }));
-  if (rl.mx) parts.push(T('studioRlUpTo', { m: modeShort(modeById(rl.mx)) }));
-  if (rl.ab) parts.push(T('studioRlSumAb'));
-  if (rl.jx) parts.push(T('studioRlSumJx'));
-  return parts.length ? parts.join(' · ') : T('studioRlNone');
-}
 let rulesBusy = false;
 async function setRules(patch) {
   if (rulesBusy) return;
@@ -3189,6 +3699,121 @@ function qualityCard(q, ij, jd, jm) {
   if (ij) card.append(h('p', 'st-perm-b', T('studioQInj', { n: ij.n })));
   return [secT(T('studioQT')), card];
 }
+/* ---------------- v387: סט הזהב (golden dataset) — השוואה דטרמיניסטית לתרגום אנושי ---------------- */
+let goldBusy = '';
+const srtOut = (rec) => ((rec.srv && rec.srv.out) || []).find((o) => o.k === 'srt') || null;
+function pickSrt(cb) {
+  const inp = document.createElement('input'); inp.type = 'file';
+  inp.accept = '.srt,application/x-subrip,text/plain';
+  inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) cb(f); });
+  inp.click();
+}
+function goldMark(rec) {
+  pickSrt(async (f) => {
+    if (f.size > GOLD_REF_MAX) { flashSafe(T('studioGoldBig')); return; }
+    const text = await f.text().catch(() => '');
+    if (!parseSrt(text).length) { flashSafe(T('studioGoldBad')); return; }
+    goldBusy = rec.id; render('none');
+    try {
+      const folder = rec.up.folder || await net.jobFolder(rec.id, fileTitle(rec.spec.name));
+      const ref = await net.goldUpload(folder, text);
+      const j = await net.api('gold', { job: rec.id, ref });
+      if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+      if (!j.ok) { flashSafe(errText(j.error)); return; }
+      save();
+      await goldScore(rec, true);
+    } catch (e) { flashSafe(T('studioGoldErr')); } finally { goldBusy = ''; render('none'); }
+  });
+}
+async function goldScore(rec, inner) {
+  const src = rec.srv && rec.srv.gs ? jobRec(rec.srv.gs) : rec;
+  const ref = src && src.srv && src.srv.gd, out = srtOut(rec);
+  if (!ref) { flashSafe(T('studioGoldNoRef')); return; }
+  if (!out) { flashSafe(T('studioGoldNoSrt')); return; }
+  if (!inner) { goldBusy = rec.id; render('none'); }
+  try {
+    const [hyp, rf] = await Promise.all([net.driveText(out.id), net.driveText(ref.r)]);
+    const gq = goldCompare(hyp, rf);
+    if (!gq) { flashSafe(T('studioGoldBad')); return; }
+    const j = await net.api('goldScore', { job: rec.id, gq });
+    if (j.job) { rec.srv = normJob({ id: rec.id, srv: j.job }).srv; save(); }
+    if (!j.ok) flashSafe(errText(j.error));
+  } catch (e) { flashSafe(T('studioGoldErr')); } finally { if (!inner) { goldBusy = ''; render('none'); } }
+}
+function goldUnmark(rec) {
+  const go2 = async () => {
+    goldBusy = rec.id; render('none');
+    try { const j = await net.api('gold', { job: rec.id, ref: null }); if (j.job) { rec.srv = normJob({ id: rec.id, srv: j.job }).srv; save(); } if (!j.ok) flashSafe(errText(j.error)); }
+    finally { goldBusy = ''; render('none'); }
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioGoldOffQ'), go2, { ok: T('studioGoldOff'), danger: true }); else go2();
+}
+const goldScoreTxt = (gq) => T('studioGoldScore', { tm: gq.tm });   // הציון עצמו — בערך שבצד (בלי כפילות)
+/* בדף עבודה שהסתיימה (עם SRT): להוסיף לסט הזהב / הציון / הרצה חוזרת מול המקור */
+function goldCard(rec) {
+  const s = rec.srv;
+  if (!s || s.state !== 'done' || !srtOut(rec)) return [];
+  const busy = goldBusy === rec.id;
+  if (s.gs) {
+    const src = jobRec(s.gs), sgq = src && src.srv && src.srv.gq;
+    const rows = [];
+    if (s.gq) {
+      const r = h('div', 'st-row'); r.dataset.k = 'gold:score';
+      const val = h('span', 'st-v'); val.append(ltr(String(s.gq.s)));
+      r.append(rowTxt(T('studioGoldRunT'), goldScoreTxt(s.gq) + (sgq ? ' · ' + T('studioGoldSrc', { s: sgq.s }) : '')), val);
+      rows.push(r);
+    } else rows.push(btn('st-row st-act', busy ? T('studioGoldCalc') : T('studioGoldCalcGo'), () => goldScore(rec), 'gold:calc'));
+    return [secT(T('studioGoldT')), list(...rows)];
+  }
+  if (s.gd) {
+    const rows = [];
+    const r = h('div', 'st-row'); r.dataset.k = 'gold:score';
+    const val = h('span', 'st-v'); val.append(s.gq ? ltr(String(s.gq.s)) : '—');
+    r.append(rowTxt(T('studioGoldIn'), s.gq ? goldScoreTxt(s.gq) : T('studioGoldNoScore')), val);
+    rows.push(r);
+    if (!s.gq) rows.push(btn('st-row st-act', busy ? T('studioGoldCalc') : T('studioGoldCalcGo'), () => goldScore(rec), 'gold:calc'));
+    rows.push(btn('st-row st-act danger', T('studioGoldOff'), () => goldUnmark(rec), 'gold:off'));
+    return [secT(T('studioGoldT')), list(...rows)];
+  }
+  return [secT(T('studioGoldT')), list(btn('st-row st-act', busy ? T('studioGoldAdding') : T('studioGoldAdd'), () => goldMark(rec), 'gold:add')), note(T('studioGoldAddNote'))];
+}
+/* בבקרת הסוכנים: העבודות שבסט הזהב, הציון האחרון של כל אחת, והרצה חוזרת — רק בלחיצה, אחרי אומדן ואישור */
+function goldSection() {
+  const gold = store.jobs.filter((r) => r.srv && r.srv.state === 'done' && r.srv.gd && !r.srv.gs);
+  const runs = store.jobs.filter((r) => r.srv && r.srv.gs);
+  const rows = gold.map((g) => {
+    const last = runs.filter((r) => r.srv.gs === g.id && r.srv.gq).sort((a, b) => b.created - a.created)[0];
+    const sub = (g.srv.gq ? T('studioGoldOwn', { s: g.srv.gq.s }) : T('studioGoldNoScore')) + (last ? ' · ' + T('studioGoldLast', { s: last.srv.gq.s }) : '');
+    return rowNav({ tile: tile('film', 'orange'), label: fileTitle(g.spec.name) || T('studioUntitled'), sub, value: last ? ltr(String(last.srv.gq.s)) : '', onClick: () => go('job', g.id), k: 'gold:' + g.id });
+  });
+  if (!rows.length) return [secT(T('studioGoldT')), list(h('div', 'st-row st-muted', T('studioGoldNone')))];
+  const active = runs.some((r) => ['new', 'queued', 'running'].includes(r.srv.state));
+  const run = btn('st-btn wide', active ? T('studioGoldRunning') : T('studioGoldRun', { n: gold.length }), active || goldBusy ? null : () => goldRunAsk(gold), 'gold-run');
+  if (active) run.disabled = true;
+  return [secT(T('studioGoldT')), list(...rows), run, note(T('studioGoldRunNote'))];
+}
+function goldRunAsk(gold) {
+  const usd = goldEstimate(gold, ui.norm);
+  const go2 = () => goldRun();
+  if (typeof askConfirm === 'function') askConfirm(gold.length === 1 ? T('studioGoldRunQ1', { usd: fmtUsd(usd) }) : T('studioGoldRunQ', { n: gold.length, usd: fmtUsd(usd) }), go2, { ok: T('studioGoldRunOk') });
+}
+async function goldRun() {
+  if (goldBusy) return;
+  goldBusy = 'run'; render('none');
+  try {
+    const j = await net.api('goldRun', { ok: true });
+    if (!j.ok || !Array.isArray(j.jobs)) { flashSafe(errText(j.error)); return; }
+    for (const sj of j.jobs) {
+      const f = sj.files || {};
+      const rec = normJob({ id: sj.id, created: sj.created, spec: sj.spec, srv: sj,
+        up: { a: { done: !!f.a, id: f.a && f.a.id, size: f.a && f.a.size }, v: { done: !!f.v, id: f.v && f.v.id, size: f.v && f.v.size } } });
+      if (rec && !jobRec(rec.id)) store.jobs.unshift(rec);
+    }
+    save();
+    for (const sj of j.jobs) await tryStart(sj.id);   // כל השמירות הרגילות של "התחלה"
+    flashSafe(T('studioGoldStarted', { n: j.jobs.length }));
+  } finally { goldBusy = ''; render('none'); }
+}
 function costCard(cv, tr) {
   const rows = cv.rows.map((r) => {
     const row = h('div', 'st-row st-cost' + (r.off ? ' off-model' : ''));
@@ -3233,6 +3858,518 @@ function costCard(cv, tr) {
 }
 
 /* מסך ההתקדמות — "שגם ילד וגם אדם מבוגר יבינו": כמה נשאר, מתי יהיה מוכן, מה קורה עכשיו, ולכל שלב זמן */
+/* ---------------- מ1: הנגן ---------------- */
+// הסרטון המקורי (מה שהטלפון העלה) עם הכתוביות מעליו; לא מתנגן (MKV / קודק) — הסרטון הצרוב. הכתוביות מ־cues.final.json
+// (או מה־SRT בעבודות ישנות). אלמנט הנגן נשמר בין ציורים — וידאו שמוצא מהמסמך נעצר.
+const outOf = (rec, k) => ((rec.srv && rec.srv.out) || []).find((o) => o.k === k) || null;
+const burnedOut = (rec) => outOf(rec, 'compact') || outOf(rec, 'same') || outOf(rec, 'small');
+/* איכויות הצפייה של העבודה → מה שהנגן צריך (כתובת מלאה דרך ה־SW לכל קובץ); רק כשהראשונה היא הסרטון שהנגן מנגן */
+function ladderOf(rec) {
+  const hl = rec && rec.srv && rec.srv.hl, vid = rec && rec.up.v && rec.up.v.id;
+  if (!hl || !vid || hl[0].id !== vid || rec.spec.edl) return null;
+  const out = [];
+  for (const l of hl) { const u = net.mediaUrl(l.id); if (!u) return null; out.push(Object.assign({}, l, { url: new URL(u, location.href).href })); }
+  return out;
+}
+const pqSave = (q) => { if (store.settings.pq !== q) { store.settings.pq = q; save(); } };
+const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
+let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
+function playClose() { if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
+const plPaint = () => queueMicrotask(() => { if (shapeKey() !== lastShape) render('none'); });   // מ9: גם כשהטעינה מיידית (מהעורך) — בלי ציור מקונן
+async function playLoad(rec) {
+  const me = pl;
+  try {
+    const co = outOf(rec, 'cues'), so = outOf(rec, 'srt');
+    let cues = se && se.id === rec.id && se.ed ? se.ed.cues() : [];   // מ9: כבר בעורך — בלי טעינה (ובלי מסך "טוען" שמהבהב)
+    if (!cues.length && co) cues = normCues(await net.driveJson(co.id));
+    if (!cues.length && so) cues = normCues(parseSrt(await net.driveText(so.id)));
+    if (pl !== me) return;
+    const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+    const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+    if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
+    me.cues = cues; me.iss = issuesList(cues);
+    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, T,
+      ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave });   // איכויות כמו ב־YouTube
+    me.st = 'ok';
+  } catch (e) {
+    if (pl !== me) return;
+    me.st = 'err'; me.err = (e && e.code) || 'drive';
+  }
+  plPaint();
+}
+function issueName(k) {
+  switch (k) {
+    case 'cps': return T('studioIsCps');
+    case 'len': return T('studioIsLen');
+    case 'lines': return T('studioIsLines');
+    case 'dur': return T('studioIsDur');
+    default: return T('studioIsEn');
+  }
+}
+function pagePlay(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canPlay(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }));
+  if (!pl || pl.id !== rec.id) { playClose(); pl = { id: rec.id, st: 'load', ctl: null, cues: [], iss: [], err: '' }; playLoad(rec); }
+  if (pl.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioPlLoading'))); return; }
+  if (pl.st === 'err') {
+    const bo = burnedOut(rec);
+    p.append(h('div', 'st-empty st-empty-sm', pl.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')));
+    if (bo) p.append(list(rowExt({ href: 'https://drive.google.com/file/d/' + bo.id + '/view', tile: tile('film', 'green'), label: T('studioPlOpenDrive'), k: 'pl-drive' })));
+    return;
+  }
+  p.append(pl.ctl.el);
+  // הכתוביות שלא עומדות בכללים — נגיעה קופצת אליהן (מפת החום בפס מראה איפה)
+  if (pl.iss.length) {
+    const rows = pl.iss.slice(0, 50).map((x) => {
+      const r = btn('st-row st-ric', null, () => { pl.ctl.seek(Math.max(0, x.t - 0.3)); pl.ctl.play(); }, 'iss:' + x.i);
+      const c = pl.cues.find((q) => q.i === x.i);
+      const tm = h('span', 'st-pl-tm'); tm.append(h('bdi', null, fmtT(x.t)));
+      r.append(tm, rowTxt(c ? c.lines.join(' ') : '#' + x.i, x.k.map(issueName).join(' · ')));
+      return r;
+    });
+    p.append(secT(T('studioPlIssues', { n: pl.iss.length })), list(...rows));
+    if (pl.iss.length > 50) p.append(note(T('studioPlIssuesMore', { n: pl.iss.length - 50 })));
+  } else p.append(note(T('studioPlNoIssues')));
+}
+/* ---------------- מ2–מ3: עורך הכתוביות והפקה מחדש ----------------
+   הכתוביות מ־cues.final.json; עריכה בזיכרון (שורדת יציאה מהדף, לא רענון); "שמירה" = שני קבצים לתיקיית העבודה ב־Drive
+   (cues JSON + SRT) ו־op:'cuesSave' — הקודמת נשמרת בהיסטוריה. "הפקה מחדש" = עבודת rr: צריבה מהכתוביות הנוכחיות, בלי תרגום */
+const jobFolder = (rec) => (rec && ((rec.up && rec.up.folder) || (rec.srv && rec.srv.folder))) || '';
+const canEdit = (rec) => !!(rec && rec.srv && rec.srv.state === 'done' && rec.srv.kind === 'tr' && outOf(rec, 'cues') && jobFolder(rec));
+const RR_OUTS = ['compact', 'same', 'mkv', 'small'];
+const RR_STYLES = ['bold', 'classic'];     // מה שהצריבה של vt יודעת (קריוקי — רק בתרגום מלא, בעתיד)
+let rrJobs = new Map();                    // העבודה המקורית → ההפקה מחדש האחרונה (מ־op:'jobs'; לא ברשימה הראשית)
+let se = null;                             // { id, st, ed, ctl, saved, saving, err, upT, saveB }
+const seDirty = () => !!(se && se.ed && se.ed.ver() !== se.saved);
+function seStop() { if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
+async function seLoad(rec) {
+  const me = se;
+  try {
+    const cues = normCues(await net.driveJson(outOf(rec, 'cues').id));
+    if (se !== me) return;
+    if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
+    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id),
+      dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
+      getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
+      seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
+      onChange: () => { seSavePaint(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); } });
+    me.saved = me.ed.ver(); me.st = 'ok';
+  } catch (e) {
+    if (se !== me) return;
+    me.st = 'err'; me.err = (e && e.code) || 'drive';
+  }
+  render('none');
+}
+function seSavePaint() {
+  const b = se && se.saveB;
+  if (!b) return;
+  const d = seDirty();
+  b.disabled = !d || se.saving;
+  b.textContent = se.saving ? T('studioSaving') : d ? T('studioSeSave') : T('studioSeSavedShort');
+}
+async function seSave(then) {
+  const rec = se && jobRec(se.id);
+  if (!rec || !se.ed || se.saving) return;
+  const me = se, cues = me.ed.cues(), ver = me.ed.ver();
+  if (!cues.length) { flashSafe(T('studioSeEmpty')); return; }
+  me.saving = true; seSavePaint();
+  try {
+    const folder = jobFolder(rec), base = (fileTitle(rec.spec.name) || 'subs').slice(0, 80) + ' (' + T('studioSeVerName', { n: (rec.srv.ev || 0) + 1 }) + ')';
+    const c = await net.textUpload(folder, base + '.cues.json', 'application/json', toCuesJson(cues), { snbEdit: 'c' });
+    const s2 = await net.textUpload(folder, base + '.he.srt', 'application/x-subrip', toSrt(cues), { snbEdit: 's' });
+    const j = await net.api('cuesSave', { job: rec.id, c, s: s2, ev: rec.srv.ev || 0 });
+    if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+    if (!j.ok) flashSafe(j.error === 'stale' ? T('studioSeStale') : errText(j.error));
+    else { me.saved = ver; save(); flashSafe(T('studioSeSaved')); if (then) then(); }
+  } catch (e) {
+    flashSafe(errText((e && e.code) || 'drive'));
+  } finally {
+    me.saving = false; seSavePaint(); repaint();
+  }
+}
+function seRestore(rec, i) {
+  const doIt = async () => {
+    const j = await net.api('cuesRestore', { job: rec.id, i, ev: rec.srv.ev || 0 });
+    if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+    if (!j.ok) { flashSafe(j.error === 'stale' ? T('studioSeStale') : j.error === 'file_missing' ? T('studioSeVerGone') : errText(j.error)); repaint(); return; }
+    save(); seStop(); se = null; flashSafe(T('studioSeRestored')); render('none');   // העורך נטען מחדש מהגרסה ששוחזרה
+  };
+  if (typeof askConfirm === 'function') askConfirm(seDirty() ? T('studioSeRestoreQDirty') : T('studioSeRestoreQ'), doIt, { ok: T('studioSeRestore'), danger: seDirty() }); else doIt();
+}
+function pageSubs(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  if (!se || se.id !== rec.id) { seStop(); se = { id: rec.id, st: 'load', ed: null, ctl: null, saved: 0, saving: false, err: '', upT: 0, saveB: null }; seLoad(rec); }
+  const saveB = btn('st-txt bold', '', () => seSave(), 'se-save');
+  se.saveB = saveB; seSavePaint();
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled'), title: T('studioSeTitle'), end: se.st === 'ok' ? saveB : null }));
+  if (se.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioSeLoading'))); return; }
+  if (se.st === 'err') { p.append(h('div', 'st-empty st-empty-sm', T('studioSeLoadErr'))); return; }
+  if (!se.ctl) {
+    const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+    const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+    if (src || fb) {
+      const me = se;
+      se.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues: se.ed.cues(), T,
+        ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave,
+        onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
+    }
+  }
+  const top = h('div', 'st-se-top');
+  if (se.ctl) top.append(se.ctl.el); else top.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
+  p.append(top, se.ed.el);
+  // הפקה מחדש וגרסאות — מתחת לרשימה (פעולות של כל הקובץ)
+  p.append(list(rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', rec.id), k: 'se-rr' })));
+  // מ7: ייצוא — הכתוביות כמו שהן עכשיו בעורך (גם לפני שמירה), קובץ להורדה
+  const ex = h('details', 'st-details');
+  const dl = (ext, mime, txt) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: mime + ';charset=utf-8' }));
+    a.download = (fileTitle(rec.spec.name) || 'subs').slice(0, 80) + '.he.' + ext;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  const ttl = fileTitle(rec.spec.name) || '';
+  ex.append(h('summary', null, T('studioExT')), list(
+    rowNav({ label: 'SRT', sub: T('studioExSrt'), onClick: () => dl('srt', 'application/x-subrip', toSrt(se.ed.cues())), k: 'ex-srt' }),
+    rowNav({ label: 'WebVTT', sub: T('studioExVtt'), onClick: () => dl('vtt', 'text/vtt', toVtt(se.ed.cues())), k: 'ex-vtt' }),
+    rowNav({ label: 'TTML', sub: T('studioExTtml'), onClick: () => dl('ttml', 'application/ttml+xml', toTtml(se.ed.cues(), ttl)), k: 'ex-ttml' })));
+  p.append(ex);
+  const vh = rec.srv.vh || [];
+  if (vh.length) {
+    const det = h('details', 'st-details');
+    det.append(h('summary', null, T('studioSeVers', { n: vh.length })), list(...vh.map((at, i) => i).reverse().map((i) => {
+      const r = btn('st-row', null, () => seRestore(rec, i), 'se-ver:' + i);
+      r.append(rowTxt(T('studioSeVerName', { n: i + 1 }), vh[i] ? fmtClock(vh[i]) : ''), h('span', 'st-v', T('studioSeRestore')));
+      return r;
+    })));
+    p.append(det);
+  }
+}
+/* ---------- הפקה מחדש ---------- */
+function rrSub(rec) {
+  const r = rrJobs.get(rec.id);
+  if (!r) return T('studioRrSub');
+  const st = r.srv.state;
+  return st === 'done' ? T('studioRrDone') : st === 'failed' || st === 'cancelled' ? T('studioRrFailed') : T('studioRrRunning');
+}
+const rrOpt = { out: { compact: true }, style: '' };
+const rrEdl = new Map();                   // מ5: העבודה → החיתוך שאחרי התרגום (עד ההפקה; בזיכרון)
+let ce = null;                             // מ4–מ5: דף החיתוך הפתוח { key, ctl, ed, url }
+function ceStop() { if (ce) { if (ce.ed) ce.ed.destroy(); if (ce.ctl) ce.ctl.destroy(); if (ce.url) try { URL.revokeObjectURL(ce.url); } catch (e) {} } ce = null; }
+const fmtMin = (sec) => fmtT(sec);
+function edlSum(e, dur) {
+  if (!e) return T('studioEdNone');
+  const parts = [];
+  if (e.k.length) parts.push(e.k.length === 1 ? T('studioEdSumShort1', { t: fmtMin(edlDur(e, dur)) }) : T('studioEdSumShort', { n: e.k.length, t: fmtMin(edlDur(e, dur)) }));
+  if (e.ar !== 'src') parts.push(e.ar);
+  return parts.join(' · ');
+}
+/* עמוד החיתוך — אחרי התרגום (p = מזהה העבודה): הנגן על המקור עם הכתוביות; עבודה שנחתכה כבר לפני התרגום — על הסרטון הצרוב
+   (אותו ציר זמן של הכתוביות). לפני התרגום (p = null): הקובץ מהטלפון, עוד לפני ההעלאה */
+function pageCut(p, before) {
+  const rec = before ? null : jobRec(ui.param);
+  if (before ? !(form && (form.fileObj || form.drive)) : !rec || !canEdit(rec)) { back(); return; }
+  const key = before ? 'form' : rec.id;
+  p.classList.add('st-dark');
+  p.append(navBar({ back: before ? (form.id ? T('studioEditT') : T('studioNew')) : T('studioRrTitle'), title: T('studioEdTitle') }));
+  if (!ce || ce.key !== key) {
+    ceStop();
+    ce = { key, ctl: null, ed: null, url: '', cues: null };
+    let src = '', fb = '', burned = false, cues = [], edl = null, dur = 0;
+    if (before) { if (form.fileObj) ce.url = src = URL.createObjectURL(form.fileObj); else { src = net.mediaUrl(form.drive.id); dur = form.drive.dur || 0; } edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
+    else {
+      const e0 = rec.spec.edl || null, bo = burnedOut(rec);
+      if (!e0 && rec.up.v && rec.up.v.id) { src = net.mediaUrl(rec.up.v.id); fb = bo ? net.mediaUrl(bo.id) : ''; cues = se && se.id === rec.id && se.ed ? se.ed.cues() : []; }
+      else if (bo) { src = net.mediaUrl(bo.id); burned = true; }
+      edl = rrEdl.get(rec.id) || null; dur = rec.spec.dur || 0;
+    }
+    if (!src) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlNoSw'))); ce = null; return; }
+    ce.ctl = createPlayer({ src, fallback: fb, burned, cues, T });
+    ce.ed = createEdlEditor({ video: ce.ctl.video, frame: ce.ctl.el, dur, edl, T, flash: flashSafe,
+      onChange: (e) => { if (before) { if (form) form.edl = e; } else if (e) rrEdl.set(key, e); else rrEdl.delete(key); } });
+  }
+  const top = h('div', 'st-se-top'); top.append(ce.ctl.el);
+  p.append(top, ce.ed.el, note(before ? T('studioEdNoteBefore') : T('studioEdNoteAfter')));
+  if (before) return;
+  // מ8: לפי התמליל (חינם — הזמנים של הכתוביות): הסרת שקטים, ובחירה של מה נשאר
+  if (!ce.cues) {
+    ce.cues = se && se.id === rec.id && se.ed ? se.ed.cues() : [];
+    const co = outOf(rec, 'cues');
+    if (!ce.cues.length && co) { const me = ce; net.driveJson(co.id).then((j) => { if (ce === me) { me.cues = normCues(j); render('none'); } }, () => {}); }
+  }
+  if (!ce.cues.length || rec.spec.edl) return;   // נחתך כבר לפני התרגום — ציר הזמן של הנגן הוא הצרוב (פשוט: בלי כלי התמליל)
+  const cs = ce.cues, dur = rec.spec.dur || 0;
+  p.append(secT(T('studioEdByText')), list(rowNav({ tile: tile('spark', 'green'), label: T('studioEdSilence'), sub: T('studioEdSilenceS'),
+    onClick: () => ce.ed.set(intersectSegs(silenceSegs(cs, ce.ctl.video.duration || dur), ce.ed.segs()), T('studioEdSilenceNo')), k: 'ed-silence' })));   // בתוך מה שכבר נבחר
+  const det = h('details', 'st-details');
+  det.append(h('summary', null, T('studioEdPick', { n: cs.length })));
+  const box = h('div', 'st-list st-ed-cues');
+  const paint = () => {
+    const segs = ce.ed.segs();
+    box.replaceChildren(...cs.slice(0, 2000).map((c, i) => {
+      const on = segAt(segs, (c.s + c.e) / 2) >= 0;
+      const r = btn('st-row st-ed-cue' + (on ? '' : ' off'), null, () => {
+        const sg = ce.ed.segs();
+        ce.ed.set(on ? removeRange(sg, c.s, c.e) : addRange(sg, c.s, c.e), T('studioEdRemoveNo')); paint();
+      }, 'ed-cue:' + i);
+      const ck = h('span', 'st-check' + (on ? ' on' : '')); ck.append(ico('check'));
+      const tm = h('small', 'st-ai-tm'); tm.append(h('bdi', null, fmtT(c.s)));
+      const tx = h('span', 'st-l'); const d = h('div'); d.dir = 'rtl'; d.textContent = c.lines.join(' '); tx.append(tm, d);
+      r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', on ? 'true' : 'false');
+      r.append(ck, tx);
+      return r;
+    }));
+  };
+  det.addEventListener('toggle', () => { if (det.open) paint(); });
+  det.append(box);
+  p.append(det);
+}
+
+let rrBusy = false;
+async function rrStart(rec) {
+  if (rrBusy) return;
+  const out = RR_OUTS.filter((k) => rrOpt.out[k]);
+  if (!out.length) { flashSafe(T('studioRrPick')); return; }
+  rrBusy = true; repaint();
+  try {
+    const j = await net.api('rerender', { job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl: rrEdl.get(rec.id) || null });
+    if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
+    const x = normJob({ id: j.job.id, srv: j.job });
+    if (x) rrJobs.set(rec.id, x);
+    const k = await net.api('start', { job: j.job.id });
+    if (k.job && x) x.srv = normJob({ id: x.id, srv: k.job }).srv;
+    if (!k.ok) flashSafe(errText(k.error)); else rrEdl.delete(rec.id);
+  } catch (e) {
+    flashSafe(errText((e && e.code) || 'net'));
+  } finally { rrBusy = false; repaint(); schedulePoll(); }
+}
+function pageRr(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }), large(T('studioRrTitle')));
+  const r = rrJobs.get(rec.id), st = r ? r.srv.state : '';
+  if (r && (st === 'new' || st === 'queued' || st === 'running')) {
+    const pr = r.srv.prog || {}, stg = pr.st === 'up' ? T('studioRrStUp') : pr.st === 'sv' ? T('studioRrStSv') : st === 'running' ? T('studioRrStBn') : T('studioRrStWait');
+    const c = h('div', 'st-nowc'), ic = h('span', 'st-nowic'), l = h('span', 'st-l'), pb = h('span', 'st-pbar'), pi = h('i');
+    pb.append(pi); pi.style.width = Math.round(100 * (typeof pr.p === 'number' ? pr.p : 0)) + '%';
+    ic.append(ico('redo')); l.append(h('b', null, stg), pb); c.append(ic, l);
+    p.append(c);
+  } else if (r && st === 'done' && r.srv.out.length) {
+    p.append(secT(T('studioRrReady')), list(...r.srv.out.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view', tile: tile('film', 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'rr-out:' + o.k }))));
+  } else if (r && (st === 'failed' || st === 'cancelled')) p.append(banner('warn', T('studioRrFailedL', { e: errText(r.srv.err) })));
+  const active = r && ['new', 'queued', 'running'].includes(st);
+  if (active) return;
+  const dirty = seDirty() && se.id === rec.id;
+  p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdTitle'), value: edlSum(rrEdl.get(rec.id), rec.spec.dur), onClick: () => go('cut', rec.id), k: 'rr-cut' })));
+  p.append(secT(T('studioRrOuts')), list(...RR_OUTS.map((k) => rowCheck({ label: outName(k), sub: k === 'small' ? T('studioRrSmallSub') : outSub(k), on: !!rrOpt.out[k],
+    onClick: () => { rrOpt.out[k] = !rrOpt.out[k]; repaint(); }, k: 'rr-o:' + k }))));
+  const cur = rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold');
+  p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k }))));
+  if (dirty) p.append(note(T('studioRrDirty')));
+  p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
+  p.append(note(T('studioRrNote')));
+}
+/* ---------------- מ7: גיליון ה־AI ----------------
+   תור בקשות (פעולה קבועה או הוראה משלך, על הכתובית שנבחרה / עם בעיות / הכל) → העתק־הדבק ל־Claude שלך (בלי עלות נוספת)
+   או הפעלה אחת (Routine / שרת — אומדן ואישור) → השוואה ישן ← חדש עם אישור לכל כתובית → צעד ביטול אחד בעורך */
+let ai = null;   // { id, base, ver, queue, k, n, scope, mode: ''|'copy'|'run', answer, items, acc:Set, busy, model, err }
+function aiKindName(k) {
+  switch (k) {
+    case 'meaning': return T('studioAiMeaning');
+    case 'short': return T('studioAiShort');
+    case 'natural': return T('studioAiNatural');
+    case 'en': return T('studioAiEn');
+    default: return T('studioAiFree');
+  }
+}
+function aiScopeRows(cues, scope, sel) {
+  const idx = scope === 'sel' ? (sel >= 0 ? [sel] : []) : scope === 'iss' ? cues.map((c, i) => (issuesList([c]).length ? i : -1)).filter((i) => i >= 0) : cues.map((c, i) => i);
+  return idx.slice(0, AI_MAX_ROWS).map((i) => aiRow(cues[i], i + 1));
+}
+function aiShowResult(items, model) {
+  ai.items = items; ai.acc = new Set(items.filter((x) => x.lines).map((x) => x.id)); ai.model = model; ai.busy = false;
+  if (!items.length) flashSafe(T('studioAiNone'));
+  render('none');
+}
+/* בקשה (תור) בהפעלה אחת — אומדן ואישור, העלאת הבקשה לתיקיית העבודה, aiRun + start, ומעקב עד התשובה.
+   מחזיר { res, model } או null (בוטל); זורק { code } בתקלה. alive() = הדף עוד מחכה */
+async function aiJobRun(rec, queue, alive) {
+  const est = aiEstimate(queue);
+  const yes = typeof askConfirm === 'function' ? await new Promise((ok) => askConfirm(T('studioAiEstQ', { n: est.rows, usd: fmtUsd(est.usd) }), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) })) : true;
+  if (!yes) return null;
+  if (alive.start) alive.start();
+  const qid = await net.textUpload(jobFolder(rec), (fileTitle(rec.spec.name) || 'ai').slice(0, 80) + ' (AI).request.json', 'application/json', JSON.stringify(queue), { snbAi: 'q' });
+  const j = await net.api('aiRun', { job: rec.id, q: qid });
+  if (!j.ok || !j.job) throw Object.assign(new Error('x'), { code: j.error });
+  const k = await net.api('start', { job: j.job.id });
+  if (!k.ok) throw Object.assign(new Error('x'), { code: k.error });
+  for (let t = 0; t < 225 && alive(); t++) {                    // עד ~15 דק׳, כל 4 שנ׳
+    await new Promise((r) => setTimeout(r, 4000));
+    const x = await net.api('job', { job: j.job.id });
+    const v = x.ok && x.job ? normJob({ id: j.job.id, srv: x.job }) : null;
+    if (!v) continue;
+    if (v.srv.state === 'done') {
+      const o = v.srv.out.find((y) => y.k === 'aiout');
+      return { res: o ? await net.driveJson(o.id) : null, model: v.srv.use && v.srv.use.length ? v.srv.use[0].m : '' };
+    }
+    if (v.srv.state === 'failed' || v.srv.state === 'cancelled') throw Object.assign(new Error('x'), { code: v.srv.err || 'failed' });
+  }
+  return null;
+}
+const aiErr = (code) => (code === 'ai_busy' ? T('studioAiBusy') : errText(code));
+async function aiRunJob(rec) {
+  const me = ai;
+  const alive = () => ai === me;
+  alive.start = () => { me.busy = true; me.err = ''; render('none'); };
+  try {
+    const r = await aiJobRun(rec, me.queue, alive);
+    if (r && alive()) aiShowResult(normItems(r.res && r.res.items, me.queue), r.model);
+  } catch (e) {
+    if (alive()) { me.busy = false; me.err = (e && e.code) || 'net'; flashSafe(aiErr(me.err)); render('none'); }
+  }
+}
+function pageAi(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec) || !se || se.id !== rec.id || !se.ed) { back(); return; }
+  const cues = se.ed.cues();
+  if (!ai || ai.id !== rec.id) ai = { id: rec.id, base: cues, ver: se.ed.ver(), queue: [], k: 'meaning', n: '', scope: se.ed.selected() >= 0 ? 'sel' : 'iss', mode: '', answer: '', items: null, acc: new Set(), busy: false, model: '', err: '' };
+  p.append(navBar({ back: T('studioSeTitle'), title: T('studioAiTitle') }));
+  // תוצאות — השוואה ואישור
+  if (ai.items) {
+    const fixes = ai.items.filter((x) => x.lines);
+    p.append(note(ai.model ? T('studioAiBy', { m: modelLabel(ai.model) }) : T('studioAiByCopy')));
+    if (!ai.items.length) p.append(h('div', 'st-empty st-empty-sm', T('studioAiNone')));
+    p.append(list(...ai.items.map((it) => {
+      const c = ai.base[it.id - 1];
+      const r = it.lines ? btn('st-row st-ai-r', null, () => { if (ai.acc.has(it.id)) ai.acc.delete(it.id); else ai.acc.add(it.id); render('none'); }, 'ai-it:' + it.id) : h('div', 'st-row st-ai-r');
+      const ck = it.lines ? h('span', 'st-check' + (ai.acc.has(it.id) ? ' on' : '')) : h('span', 'st-ai-warn'); ck.append(ico(it.lines ? 'check' : 'alert'));
+      const tx = h('span', 'st-l');
+      const tm = h('small', 'st-ai-tm'); tm.append(h('bdi', null, c ? fmtT(c.s) : '#' + it.id));
+      const old = h('div', 'st-ai-old'); old.dir = 'rtl'; old.textContent = c ? c.lines.join(' / ') : '';
+      const nw = h('div', it.lines ? 'st-ai-new' : 'st-ai-note'); nw.dir = 'rtl'; nw.textContent = it.lines ? it.lines.join(' / ') : it.note;
+      tx.append(tm, old, nw); r.append(ck, tx);
+      if (it.lines) { r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', ai.acc.has(it.id) ? 'true' : 'false'); }
+      return r;
+    })));
+    const n = fixes.filter((x) => ai.acc.has(x.id)).length;
+    const go2 = btn('st-btn wide', n === 1 ? T('studioAiApply1') : T('studioAiApply', { n }), () => {
+      const r = applyItems(se.ed.cues(), ai.base, fixes, ai.acc);
+      if (r.n) se.ed.applyCues(r.cues);
+      flashSafe(r.skipped ? T('studioAiApplied2', { n: r.n, s: r.skipped }) : T('studioAiApplied', { n: r.n }));
+      ai = null; back();
+    }, 'ai-apply');
+    go2.disabled = !n;
+    p.append(h('div', 'st-gap'), go2, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioAiAgain'), () => { ai.items = null; ai.mode = ''; ai.answer = ''; render('none'); }, 'ai-again'));
+    return;
+  }
+  // הבקשה
+  p.append(secT(T('studioAiWhat')), list(...AI_KINDS.map((k) => rowRadio({ label: aiKindName(k), on: ai.k === k, onClick: () => { ai.k = k; render('none'); }, k: 'ai-k:' + k }))));
+  if (ai.k === 'free') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 2; ta.maxLength = 300; ta.value = ai.n; ta.dir = 'auto'; ta.dataset.k = 'ai-n';
+    ta.placeholder = T('studioAiFreePh'); ta.setAttribute('aria-label', T('studioAiFree'));
+    ta.addEventListener('input', () => { ai.n = ta.value; });
+    p.append(ta);
+  }
+  const sel = se.ed.selected(), nIss = cues.filter((c) => issuesList([c]).length).length;
+  p.append(secT(T('studioAiWhich')), list(
+    rowRadio({ label: T('studioAiSel'), disabled: sel < 0, on: ai.scope === 'sel', onClick: () => { ai.scope = 'sel'; render('none'); }, k: 'ai-s:sel' }),
+    rowRadio({ label: T('studioAiIss', { n: nIss }), disabled: !nIss, on: ai.scope === 'iss', onClick: () => { ai.scope = 'iss'; render('none'); }, k: 'ai-s:iss' }),
+    rowRadio({ label: T('studioAiAll', { n: cues.length }), on: ai.scope === 'all', onClick: () => { ai.scope = 'all'; render('none'); }, k: 'ai-s:all' })));
+  p.append(btn('st-btn tint wide', T('studioAiAdd'), () => {
+    const rows = aiScopeRows(se.ed.cues(), ai.scope, se.ed.selected());
+    const q = normQueue(ai.queue.concat([{ k: ai.k, rows, n: ai.n }]));
+    if (q.length === normQueue(ai.queue).length) { flashSafe(T('studioAiAddNo')); return; }
+    ai.queue = q; ai.base = se.ed.cues(); ai.ver = se.ed.ver(); ai.mode = ''; render('none');
+  }, 'ai-add'));
+  if (!ai.queue.length) { p.append(note(T('studioAiNote'))); return; }
+  // התור + איך להריץ
+  p.append(secT(T('studioAiQueue', { n: ai.queue.length })), list(...ai.queue.map((r, i) => {
+    const row = h('div', 'st-row');
+    row.append(rowTxt(aiKindName(r.k), (r.n ? '«' + r.n + '» · ' : '') + T('studioAiRows', { n: r.rows.length })),
+      btn('st-mini danger', T('studioSeDel'), () => { ai.queue.splice(i, 1); render('none'); }, 'ai-rm:' + i));
+    return row;
+  })));
+  if (ai.busy) { p.append(h('div', 'st-empty st-empty-sm', T('studioAiRunning'))); return; }
+  const prompt = aiPrompt(ai.queue);
+  p.append(secT(T('studioAiHow')), list(
+    rowNav({ tile: tile('copy', 'blue'), label: T('studioAiCopy'), sub: T('studioAiCopyS'), onClick: () => { copyText(prompt, T('studioAiCopied')); ai.mode = 'copy'; render('none'); }, k: 'ai-copy' }),
+    rowNav({ tile: tile('spark', 'green'), label: T('studioAiRun'), sub: T('studioAiRunS', { usd: fmtUsd(aiEstimate(ai.queue).usd) }), onClick: () => aiRunJob(rec), k: 'ai-run' })));
+  if (ai.mode === 'copy') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 6; ta.value = ai.answer; ta.dir = 'auto'; ta.dataset.k = 'ai-ans';
+    ta.placeholder = T('studioAiPastePh'); ta.setAttribute('aria-label', T('studioAiPaste'));
+    ta.addEventListener('input', () => { ai.answer = ta.value; });
+    p.append(secT(T('studioAiPaste')), ta, h('div', 'st-gap sm'), btn('st-btn wide', T('studioAiCheck'), () => aiShowResult(parseAnswer(ai.answer, ai.queue), ''), 'ai-check'));
+  }
+}
+/* ---------------- מ8: רעיונות (AI לווידאו) ----------------
+   על כל התמליל: פרקים, כותרת ותיאור ליוטיוב, קטעים לשורטס (חיתוך 9:16 בלחיצה), ושאלה על הסרטון.
+   אותן שתי דרכים של גיליון ה־AI (העתק־הדבק / הפעלה אחת עם אומדן), והתשובה — טקסט להעתקה */
+let idea = null;   // { id, cues, k, n, mode, answer, text, model, busy }
+function ideaKindName(k) {
+  switch (k) {
+    case 'chap': return T('studioIdChap');
+    case 'yt': return T('studioIdYt');
+    case 'hl': return T('studioIdHl');
+    default: return T('studioIdAsk');
+  }
+}
+const ideaQueue = () => [{ k: idea.k, n: idea.n, rows: idea.cues.slice(0, AI_T_ROWS).map((c, i) => aiTRow(c, i + 1)) }];
+function pageIdeas(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  if (!idea || idea.id !== rec.id) {
+    idea = { id: rec.id, cues: se && se.id === rec.id && se.ed ? se.ed.cues() : null, k: 'chap', n: '', mode: '', answer: '', text: null, model: '', busy: false };
+    if (!idea.cues) { const me = idea; net.driveJson(outOf(rec, 'cues').id).then((j) => { if (idea === me) { me.cues = normCues(j); render('none'); } }, () => { if (idea === me) { me.cues = []; render('none'); } }); }
+  }
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled'), title: T('studioIdTitle') }));
+  if (!idea.cues) { p.append(h('div', 'st-empty st-empty-sm', T('studioSeLoading'))); return; }
+  if (!idea.cues.length) { p.append(h('div', 'st-empty st-empty-sm', T('studioSeLoadErr'))); return; }
+  if (idea.text != null) {
+    p.append(note(idea.model ? T('studioAiBy', { m: modelLabel(idea.model) }) : T('studioAiByCopy')));
+    let shown = false;
+    if (idea.k === 'hl') {
+      const rs = parseRanges(idea.text);
+      shown = rs.length > 0;
+      if (rs.length) p.append(secT(T('studioIdHlT')), list(...rs.map((r, i) => rowNav({ tile: tile('film', 'blue'), label: r.title || fmtT(r.a), sub: '\u2066' + fmtT(r.a) + '–' + fmtT(r.b) + '\u2069 · ' + T('studioIdHlGo'),   // טווח מבודד — לא מתהפך ב־RTL
+        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5 }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));
+    }
+    const box = h('div', 'st-idea'); box.dir = 'auto'; box.textContent = idea.text || T('studioAiNone');
+    if (!shown) p.append(box);   // שורטס — הקטעים כבר ברשימה; הטקסט עדיין להעתקה
+    p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioIdCopy'), () => copyText(idea.text), 'id-copy'),
+      h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioAiAgain'), () => { idea.text = null; idea.mode = ''; idea.answer = ''; render('none'); }, 'id-again'));
+    return;
+  }
+  p.append(secT(T('studioAiWhat')), list(...TEXT_KINDS.map((k) => rowRadio({ label: ideaKindName(k), on: idea.k === k, onClick: () => { idea.k = k; idea.mode = ''; render('none'); }, k: 'id-k:' + k }))));
+  if (idea.k === 'ask') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 2; ta.maxLength = 300; ta.value = idea.n; ta.dir = 'auto'; ta.dataset.k = 'id-n';
+    ta.placeholder = T('studioIdAskPh'); ta.setAttribute('aria-label', T('studioIdAsk'));
+    ta.addEventListener('input', () => { idea.n = ta.value; });
+    p.append(ta);
+  }
+  if (idea.busy) { p.append(h('div', 'st-empty st-empty-sm', T('studioAiRunning'))); return; }
+  const ok2 = () => (idea.k !== 'ask' || idea.n.trim() ? true : (flashSafe(T('studioIdAskNo')), false));
+  p.append(secT(T('studioAiHow')), list(
+    rowNav({ tile: tile('copy', 'blue'), label: T('studioAiCopy'), sub: T('studioAiCopyS'), onClick: () => { if (!ok2()) return; copyText(aiPrompt(ideaQueue()), T('studioAiCopied')); idea.mode = 'copy'; render('none'); }, k: 'id-copyreq' }),
+    rowNav({ tile: tile('spark', 'green'), label: T('studioAiRun'), sub: T('studioAiRunS', { usd: fmtUsd(aiEstimate(ideaQueue()).usd) }), onClick: async () => {
+      if (!ok2()) return;
+      const me = idea, alive = () => idea === me;
+      alive.start = () => { me.busy = true; render('none'); };
+      try {
+        const r = await aiJobRun(rec, ideaQueue(), alive);
+        if (r && alive()) { me.busy = false; me.text = parseText(r.res && r.res.text); me.model = r.model; render('none'); }
+      } catch (e) { if (alive()) { me.busy = false; flashSafe(aiErr((e && e.code) || 'net')); render('none'); } }
+    }, k: 'id-run' })));
+  if (idea.mode === 'copy') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 6; ta.value = idea.answer; ta.dir = 'auto'; ta.dataset.k = 'id-ans';
+    ta.placeholder = T('studioIdPastePh'); ta.setAttribute('aria-label', T('studioAiPaste'));
+    ta.addEventListener('input', () => { idea.answer = ta.value; });
+    p.append(secT(T('studioAiPaste')), ta, h('div', 'st-gap sm'), btn('st-btn wide', T('studioAiCheck'), () => { idea.text = parseText(idea.answer); idea.model = ''; render('none'); }, 'id-check'));
+  }
+}
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
@@ -3300,11 +4437,17 @@ function pageJob(p) {
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
   // 10/10/2026: עבודה שהסתיימה — התוצרים עצמם במקום כרטיס "התרגום מוכן!" שני (הראש כבר אומר את זה);
   // עד עכשיו הקישורים היו רק בתוך "פרטים טכניים" המקופלים
-  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []) : [];
+  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)) : [];   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
   if (outs.length) {
+    if (canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view',
-      tile: tile(o.k === 'srt' ? 'globe' : 'film', o.k === 'srt' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
-    rec.up.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + rec.up.folder, tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
+      tile: tile(o.k === 'srt' || o.k === 'en' ? 'globe' : 'film', o.k === 'srt' || o.k === 'en' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
+    canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
+    canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
+    canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
+    ui.picker && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? rowNav({ tile: tile('cloud', 'green'), label: dxBusy === rec.id ? T('studioDxBusy') : T('studioDxT'),
+      sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
+    jobFolder(rec) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
@@ -3356,13 +4499,17 @@ function pageJob(p) {
     stl.append(row);
   }
   p.append(secT(T('studioSecStages')), stl);
+  const nc = noteCard(rec);   // v382: הערה ל־Claude — נקראת בנקודת השמירה הבאה
+  if (nc) p.append(...nc);
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec.srv.sla));   // v377: יעד זמן ותקציב
+  p.append(...anJobRows(rec));   // v385: השלבים שחרגו מהרגיל שלך
 
   if (rec.srv) {   // v374: איכות הכתוביות + שומר ההזרקות · v375: שופט האיכות (והמודל שלו — משורת העלות)
     const jr = (rec.srv.use || []).find((r) => r.k === 'jg');
     p.append(...qualityCard(rec.srv.q, rec.srv.ij, rec.srv.jd, jr ? modelLabel(jr.m) : ''));
   }
   if (rec.srv && rec.srv.gl) p.append(...glossJobCard(rec.srv.gl));   // v380: מונחים חדשים מהעבודה — למילון שלך, באישור
+  p.append(...goldCard(rec));   // v387: סט הזהב — תרגום אנושי לייחוס, והציון מולו
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
   if (cv) p.append(...costCard(cv, rec.srv.tr));
@@ -3469,10 +4616,21 @@ function testLine() {             // מצב בדיקת החיבור — שורה
   if (testRun.sess) d.append(extLink('st-link', testRun.sess, T('studioOpenSess'), null, 'test-sess'));
   return d;
 }
+/* מ9: מדריך קצר — למשתמשים נוספים: מה עושים, באיזה סדר, ומה עולה כסף */
+function pageGuide(p) {
+  p.append(navBar({ back: T('studioSettings') }), large(T('studioGuide')));
+  const sec = (t, ...ls) => { p.append(secT(t)); for (const l of ls) p.append(note(l)); };
+  sec(T('studioGd1'), T('studioGd1a'), T('studioGd1b'));
+  sec(T('studioGd2'), T('studioGd2a'), T('studioGd2b'), T('studioGd2c'));
+  sec(T('studioGd3'), T('studioGd3a'), T('studioGd3b'));
+  sec(T('studioGd4'), T('studioGd4a'));
+  sec(T('studioGd5'), T('studioGd5a'));
+}
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
   p.append(navBar({ back: T('studioShort') }), large(T('studioSettings')));
   const ab = accessBanner(); if (ab) p.append(ab);
+  p.append(list(rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' })));   // מ9: מדריך קצר
   // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };
@@ -3683,7 +4841,8 @@ export function benchData(rec) {
   return { date: new Date(rec.created || Date.now()).toISOString().slice(0, 10), dur_s: sp.dur || 0, engine: srv.eng === 'api' ? 'api' : 'routine',
     mode: sp.mode || '', models, usd, tok, tokd, stages_s: stages,
     wall_s: Number.isFinite(first) && srv.ended > first ? Math.round((srv.ended - first) / 1000) : 0,
-    quality: srv.q ? srv.q.s : null, cues: srv.q ? srv.q.n : null, judge: srv.jd ? srv.jd.s : null, state: srv.state || '' };
+    quality: srv.q ? srv.q.s : null, cues: srv.q ? srv.q.n : null, judge: srv.jd ? srv.jd.s : null, state: srv.state || '',
+    gold: srv.gq ? { chrf_doc: srv.gq.s, cover: srv.gq.tm, n: srv.gq.n } : null };   // v387: סט הזהב — chrF++ מסמך (אותה נוסחה של tedeval) מול הייחוס שהעלית
 }
 /* ת2 (10/10/2026): בידוד קופסת העובד — gVisor, או רגיל עם הסיבה (snb_runtime במארח) */
 function isoTxt(hb) {
@@ -3846,19 +5005,27 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : '') + (recovering(rec) ? 'R' : ''); };
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : ''); };   // v382: הערה שנקראה / ממתינה
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc);
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
   if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378
   if (ui.view === 'value') return 'value|' + ui.access + '|' + JSON.stringify(ui.va) + (priceBusy ? 1 : 0);   // v377
+  if (ui.view === 'slo') return 'slo|' + ui.access + '|' + JSON.stringify(ui.slo) + store.jobs.length;   // v383
+  if (ui.view === 'anom') return 'anom|' + ui.access + '|' + JSON.stringify(ui.an) + store.jobs.length;   // v385
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
+  if (ui.view === 'subs') { const r = jobRec(ui.param); return 'subs|' + ui.param + '|' + (se ? se.st : '') + '|' + ui.access + '|' + (r && r.srv ? r.srv.ev + ':' + r.srv.vh.length : '') + (r && rrJobs.get(r.id) ? rrJobs.get(r.id).srv.state : ''); }   // מ2: לא נבנה מחדש בזמן הקלדה
+  if (ui.view === 'rr') { const x = rrJobs.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
+  if (ui.view === 'ideas') return 'ideas|' + ui.param + '|' + ui.access + '|' + (idea ? idea.k + idea.mode + (idea.busy ? 'b' : '') + (idea.cues ? idea.cues.length : 'l') + (idea.text != null ? 't' + idea.text.length : '') : '');   // מ8
+  if (ui.view === 'ai') return 'ai|' + ui.param + '|' + ui.access + '|' + (ai ? ai.k + ai.scope + ai.mode + ai.queue.length + (ai.busy ? 'b' : '') + (ai.items ? 'i' + ai.items.length + ':' + [...ai.acc].join('.') : '') : '');   // מ7
+  if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key + (ce.cues ? ce.cues.length : '') : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
+  if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
   return ui.view + '|' + ui.access;
@@ -3884,12 +5051,22 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'lang') pageLang(p);
   else if (ui.view === 'project') pageProject(p);
   else if (ui.view === 'job') pageJob(p);
+  else if (ui.view === 'play') pagePlay(p);   // מ1
+  else if (ui.view === 'subs') pageSubs(p);   // מ2: עורך הכתוביות
+  else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
+  else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
+  else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
+  else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
+  else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך
+  else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);
   else if (ui.view === 'alert') pageAlert(p);
   else if (ui.view === 'inc') pageInc(p);
   else if (ui.view === 'agents') pageAgents(p);
   else if (ui.view === 'value') pageValue(p);   // v377
+  else if (ui.view === 'slo') pageSlo(p);   // v383
+  else if (ui.view === 'anom') pageAnom(p);   // v385
   else if (ui.view === 'scan') pageScan(p);   // v378
   else if (ui.view === 'prob') pageProb(p);   // v376
   else if (ui.view === 'rules') pageRules(p);
@@ -3923,10 +5100,11 @@ function onEnter() {
   else if (ui.view === 'gloss') { refreshStatus(true); glossLoad(true); }   // v380: המילון — תמיד הגרסה העדכנית מ־Drive
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'agents') refreshJobs(true);
-  else if (ui.view === 'value') refreshJobs(true);   // v377
+  else if (ui.view === 'value' || ui.view === 'slo' || ui.view === 'anom') refreshJobs(true);   // v377 · v383 · v385
   else if (ui.view === 'scan') { if (!ui.sc || Date.now() - ui.sc.at > SCAN_FRESH) runScan(); else refreshStatus(true); }   // v378: סריקה ישנה — סורקים שוב
   else if (ui.view === 'prob') { refreshStatus(true); refreshJobs(true); }   // v376
   else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }
+  else if (ui.view === 'rr') { refreshJobs(true); }   // מ2: ההפקה האחרונה של העבודה
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
 }
 /* מעקב אחרי עבודה פתוחה: כל 4 שניות כש־Claude עובד, לאט כשמחכים, בכלל לא כשהסתיימה או כשהמסך כבוי */
@@ -3939,6 +5117,7 @@ function schedulePoll() {
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
   if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
   else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : recMs(store.jobs);
+  else if (ui.view === 'rr') { const x = rrJobs.get(ui.param); ms = x && ['new', 'queued', 'running'].includes(x.srv.state) ? 4000 : 0; }   // מ2
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ms) pollT = setTimeout(pollNow, ms);
 }
@@ -3951,6 +5130,9 @@ async function pollNow() {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
       if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
+    } else if (ui.view === 'rr' && rrJobs.get(ui.param)) {
+      const x = rrJobs.get(ui.param), j = await net.api('job', { job: x.id });
+      if (j.ok && j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
     } else if (ui.view === 'home') await refreshJobs(true);
     else if (ui.view === 'server') await refreshServers();
   } finally { polling = false; repaint(); schedulePoll(); }
@@ -3977,7 +5159,8 @@ function closeStudio(instant) {
 export function openStudio(opt) {
   ensureCss();
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
-  if (root) { if (jobLink && jobRec(jobLink)) go('job', jobLink); return; }
+  const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
+  if (root) { if (jobLink && jobRec(jobLink)) goJobLink(jobLink, linkView); return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
   root = h('div', 'st-root no-swipe');
@@ -3989,7 +5172,8 @@ export function openStudio(opt) {
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || !root || e.defaultPrevented) return;
       if (document.querySelector('.dlg-veil')) return;   // חלון אישור של האפליקציה פתוח — הוא סוגר את עצמו
-      e.preventDefault(); back();
+      const plm = document.querySelector('.st-pl-menu:not([hidden])');
+      e.preventDefault(); if (plm) plm.click(); else back();
     });
   }
   if (!window._stVis) {                    // חזרה לאפליקציה: מסך דולק שוב (אם מעלים) ומעקב מחדש
@@ -4020,13 +5204,22 @@ export function openStudio(opt) {
   refreshStatus(true);
   const jobs0 = refreshJobs(true);
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
-  if (jobLink) { if (jobRec(jobLink)) go('job', jobLink); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) go('job', jobLink); }); }
+  if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
     const st = rec.srv ? rec.srv.state : 'new';
+    if (rec.up.ext) { if ((!rec.up.extReg || !rec.up.started) && st === 'new' && !(runs.get(rec.id) && runs.get(rec.id).active)) startRun(rec.id, null); continue; }   // מ־Drive — בלי קובץ בטלפון
     if (!done && !FINAL.includes(st) && !(runs.get(rec.id) && runs.get(rec.id).active) && rec.fp) resumeJob(rec.id, false);
   }
+}
+
+/* קישור מההתראה: דף העבודה, ומשם הנגן / העורך כשאפשר — "חזור" מהם חוזר לעבודה */
+function goJobLink(id, view) {
+  go('job', id);
+  const rec = jobRec(id);
+  if (view === 'play' && canPlay(rec)) go('play', id);
+  else if (view === 'subs' && canEdit(rec)) go('subs', id);
 }
 
 export const _test = {

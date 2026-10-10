@@ -494,8 +494,9 @@ class Pipeline:
     def review(self):
         ctx = self.ctx
         ctx.report('rv', 0.0, 'Claude בודק את התרגום בעיניים חדשות', force=True)
+        sty = getattr(self.J, 'vt_style', lambda spec: 'bold')(ctx.st.get('spec'))   # הסגנון מהטופס (כמו ב־finish)
         for cmd in ('tr-merge', 'build', 'review-pack'):
-            self.J.vt(ctx, [cmd, ctx.name])
+            self.J.vt(ctx, [cmd, ctx.name] + (['--style', sty] if cmd == 'build' else []))
         pkg = (self.pd / 'review' / 'package.md').read_text(encoding='utf-8')
         bp = self.pd / 'tr' / 'brief.md'
         fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text()),

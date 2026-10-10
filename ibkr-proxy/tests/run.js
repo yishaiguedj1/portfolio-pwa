@@ -1311,7 +1311,7 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: 'short&bad' });
     ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
-    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור ולתרגם');
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr,ai', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם, להפיק מחדש ולענות על גיליון AI');
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });
@@ -1430,6 +1430,31 @@ function stubFetch(text, status = 200) {
     ok(S.WORKER_KINDS.includes('tr'), 'סטודיו (v358): העובד יודע לתרגם — "start" מפעיל את ה־Routine');
     r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
     ok(r.payload.ok && r.payload.job.files.v.size === SPEC.size && r.payload.job.files.a, 'סטודיו: הווידאו נרשם — שני הקבצים נשמרים (שדות נפרדים, בלי דריסה)');
+    {
+      // מקור מ־Drive (Google Picker): הסרטון נשאר במקומו — ext, לא בתיקיית העבודה; עדיין: קיים, סרטון, בגודל של המקור
+      ok(S.pickerCfg({ STUDIO_PICKER_KEY: 'TESTpickerKEYtestPICKERkey000' }, '123456789012-abc.apps.googleusercontent.com').app === '123456789012'
+        && S.pickerCfg({}, '123456789012-abc.apps.googleusercontent.com') === null && S.pickerCfg({ STUDIO_PICKER_KEY: 'bad key!' }, '1234567-x') === null,
+        'סטודיו (Drive): הגדרות ה־Picker — מפתח מ־Vercel, מספר הפרויקט מהמזהה של לקוח ה־OAuth; בלי מפתח — בלי כפתור');
+      let rx = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JX = rx.payload.job.id;
+      driveFiles.set('mydrive1234567', { id: 'mydrive1234567', name: 'הרצאה.mkv', size: String(SPEC.size), mimeType: 'video/x-matroska', parents: ['userFolder123'], trashed: false });
+      driveFiles.set('mydoc123456789', { id: 'mydoc123456789', name: 'x.pdf', size: String(SPEC.size), mimeType: 'application/pdf', parents: ['userFolder123'], trashed: false });
+      driveFiles.set('mysmall1234567', { id: 'mysmall1234567', name: 'y.mp4', size: '1000', mimeType: 'video/mp4', parents: ['userFolder123'], trashed: false });
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mydrive1234567', folder: 'fold1234567890' });
+      ok(rx.payload.error === 'file_bad', 'סטודיו (Drive): בלי ext — קובץ מחוץ לתיקיית העבודה עדיין נדחה');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mydoc123456789', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.error === 'file_bad', 'סטודיו (Drive): מקור שאינו סרטון — נדחה');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mysmall1234567', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.error === 'file_size', 'סטודיו (Drive): בגודל אחר מהמקור — נדחה');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'a', id: 'mydrive1234567', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.error === 'file_bad', 'סטודיו (Drive): ext רק לסרטון (לא לקול)');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mydrive1234567', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.ok && rx.payload.job.files.v.ext === true && rx.payload.job.files.v.size === SPEC.size && rx.payload.job.files.a === null,
+        'סטודיו (Drive): סרטון שבחרת ב־Drive נרשם כמו שהוא (ext — העובד מוריד אותו, ולא נוגע בו)');
+      rx = await run({ op: 'remove', idToken: OWNER, job: JX });
+      ok(rx.payload.ok, 'סטודיו (Drive): עבודת הבדיקה נמחקה');
+      studio._reset();
+    }
 
     // שלב 3: הפעלה, החלפת מפתח, תוצרים, ביטול
     fireMode = 401;   // v356: כשל ודאי (מפתח שבוטל). 5xx/רשת = "לא ודאי" — העבודה ממתינה (נבדק למעלה בבדיקות החיבור)
@@ -1459,6 +1484,31 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'job', idToken: OWNER, job: JT });
     ok(r.payload.job.files.o.length === 2 && r.payload.job.files.o[0].size === 156000000 && r.payload.job.files.o[1].k === 'srt' && r.payload.job.prog.st === 'sv',
       'סטודיו: התוצרים נשמרים (הגודל מ־Drive) והטלפון רואה אותם');
+    {
+      // איכויות הצפייה (ladder.py): המקור הוחלף בגרסה הארוזה (אותו מזהה, גודל חדש) + איכויות נמוכות — הכל מאומת מול Drive
+      const VS = 294000000, top = { id: 'vid1234567890', w: 1920, h: 1080, bw: 6000000, abw: 5000000, c: 'avc1.640028,mp4a.40.2', size: VS };
+      const r7 = { id: 'r7201234567890', w: 1280, h: 720, bw: 1600000, abw: 1100000, c: 'avc1.64001f,mp4a.40.2', size: 60000000 };
+      const r3 = { id: 'r3601234567890', w: 640, h: 360, bw: 500000, abw: 300000, c: 'avc1.64001e,mp4a.40.2', size: 17000000 };
+      ok(S.normHl([top, r7, r3], 'vid1234567890').length === 3, 'סטודיו (איכויות): רשימה תקינה');
+      ok(S.normHl([r7, top, r3], 'vid1234567890') === null && S.normHl([top, r7, r7], 'vid1234567890') === null && S.normHl([top], 'vid1234567890') === null,
+        'סטודיו (איכויות): רק מהגבוהה לנמוכה, בלי כפילות, לפחות שתיים');
+      ok(S.normHl([top, r7], 'other12345678') === null && S.normHl([Object.assign({}, top, { c: 'avc1"><x' }), r7], 'vid1234567890') === null
+        && S.normHl([Object.assign({}, top, { abw: 9e6 }), r7], 'vid1234567890') === null, 'סטודיו (איכויות): הראשונה = המקור; קודקים ומספרים בצורה קשיחה');
+      driveFiles.set('r7201234567890', { id: 'r7201234567890', name: 'x (720p).mp4', size: '60000000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('r3601234567890', { id: 'r3601234567890', name: 'x (360p).mp4', size: '17000000', parents: ['otherFolder123'], trashed: false });
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [top, r7, r3], vs: VS });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.ok && r.payload.job.hl === null && r.payload.job.files.v.size === SPEC.size, 'סטודיו (איכויות): קובץ שלא בתיקיית העבודה / המקור לא הוחלף — מתעלמים (בלי להפיל את הדיווח)');
+      driveFiles.get('r3601234567890').parents = ['fold1234567890'];
+      const old = driveFiles.get('vid1234567890').size;
+      driveFiles.get('vid1234567890').size = String(VS);
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [top, r7, r3], vs: VS });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.job.hl.length === 3 && r.payload.job.hl[0].id === 'vid1234567890' && r.payload.job.hl[2].h === 360 && r.payload.job.files.v.size === VS,
+        'סטודיו (איכויות): נשמרות, והגודל של המקור מתעדכן (ההורדה הבאה של העובד לפי הגודל החדש)');
+      driveFiles.get('vid1234567890').size = old;
+      studio._reset();   // הקריאות הנוספות כאן — לא על חשבון מגבלת הדקה של הבדיקות שאחרי
+    }
     // v359: טוקנים ועלות — עד 6 שורות, רק מספרים, מזהה מודל claude-…; נתון לא תקין נזרק בלי להפיל את הדיווח
     const USE = [
       { k: 'main', m: 'claude-sonnet-5-5', n: 40, i: 120, o: 9000, cr: 2400000, c5: 0, c1: 60000, usd: 0.71 },
@@ -1587,7 +1637,7 @@ function stubFetch(text, status = 200) {
       'סטודיו: מגדל הפיקוח עצר — העבודה "נכשלה" עם הסיבה והמספרים');
     r = await wrk({ op: 'claim', job: JT, key: Kd });
     ok(r.payload.stop === true, 'סטודיו: אחרי העצירה — כל פנייה של העובד מקבלת "עצור" (גם בלי גישה ל־Drive)');
-    r = await run({ op: 'resume', idToken: OWNER, job: JT });
+    r = await run({ op: 'resume', idToken: OWNER, job: JT, lo: true });   // v384: ה"המשך" השלישי של העבודה הזו ב־24 שעות — באישור
     ok(r.payload.ok && r.payload.job.tw === null && r.payload.job.state === 'queued', 'סטודיו: "להמשיך" אחרי עצירה של המגדל — מתחיל נקי');
     db.get('studioJobs/' + JT).fields.fires = { integerValue: String(S.RESUME_MAX) };
     await run({ op: 'cancel', idToken: OWNER, job: JT });
@@ -1726,6 +1776,344 @@ function stubFetch(text, status = 200) {
     fbx = S.fbFix([{ fp: FPY, why: 'calls', st: 'tl', n: 1, fix: 'ישן', px: 'ממתין' }], FPY, 'חדש לגמרי', 7, 'auto');
     ok(fbx[0].fix === 'חדש לגמרי' && !fbx[0].px, 'סטודיו: מסלול התיקונים — במסלול "עצמאי" התיקון נשמר מיד (והצעה ישנה נמחקת)');
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
+    studio._reset();
+
+    // v384: מתג חירום במצב אזהרה — מצב צל לספים חדשים (3 עבודות), ו"המשך" חוזר (3 ב־24 שעות) = לולאה
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      // יחידה: צעד הספים
+      let t = S.thStep(undefined, { ph: 5, mx: 6, n: 3 });
+      ok(t.sh === null && t.next.n === 0, 'סטודיו: מצב צל — רשומה ראשונה: הספים כבר בתוקף, בלי צל');
+      t = S.thStep(t.next, { ph: 5.4, mx: 6.2, n: 4 });
+      ok(t.sh === null && t.next.nm.ph === 5.4, 'סטודיו: מצב צל — שינוי קטן (8%) מתעדכן בשקט');
+      t = S.thStep(t.next, { ph: 8, mx: 9, n: 5 });
+      ok(t.sh && t.sh.n === 3 && t.sh.old.ph === 5.4 && t.next.n === 2, 'סטודיו: מצב צל — שינוי של 25%+ = 3 עבודות בצל, האכיפה בספים הקודמים');
+      t = S.thStep(t.next, { ph: 8.1, mx: 9, n: 6 }); t = S.thStep(t.next, { ph: 8.1, mx: 9, n: 7 });
+      ok(t.sh.n === 1 && t.next.n === 0 && S.thStep(t.next, { ph: 8.1, mx: 9, n: 8 }).sh === null, 'סטודיו: מצב צל — אחרי 3 עבודות: אכיפה בספים החדשים');
+      ok(S.thStep({ nm: { ph: 5, mx: 6 }, n: 0 }, { ph: 5, mx: 14 }).sh.n === 3, 'סטודיו: מצב צל — גם כשסף העצירה זז (עבודה כבדה חדשה) — צל');
+      ok(JSON.stringify(S.thView({ 'opus-medium': { n: 2 }, 'opus-high': { n: 0 }, evil: { n: 9 } })) === '{"opus-medium":2}', 'סטודיו: מצב צל — לטלפון רק מצבים בצל');
+      ok(S.RED_X === 4, 'סטודיו: מצב צל — RED_X זהה ל־tower.py');
+      // מקצה לקצה: מצב שעוד אין לו "רגיל" → נלמד → העבודה הבאה מקבלת מצב צל בלקיחה
+      const SP = Object.assign({}, SPEC, { mode: 'sonnet-high' });
+      const mk = async () => {
+        const c = await run({ op: 'create', idToken: OWNER, spec: SP });
+        const id = c.payload.job.id;
+        await run({ op: 'file', idToken: OWNER, job: id, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+        await run({ op: 'start', idToken: OWNER, job: id });
+        const k = keyOf(fires[fires.length - 1]);
+        return { id, k, c: (await wrk({ op: 'claim', job: id, key: k })).payload.job };
+      };
+      const A = await mk();
+      ok(A.c.sh === null, 'סטודיו: מצב צל — לפני ש"הרגיל" נלמד: בלי צל');
+      await wrk({ op: 'report', job: A.id, key: A.k, done: true });
+      const sd = db.get('studioStats/ownerUid0001');
+      const st0 = S.fromFields(sd.fields);
+      let ns = Array.isArray(st0.ns) ? st0.ns : [];
+      for (let i = 0; i < 3; i++) ns = S.addSample(ns, { m: 'sonnet-high', d: 3600, u: 4 + i, at: now - i });
+      sd.fields.ns = { stringValue: JSON.stringify(ns) };
+      const B = await mk();
+      ok(B.c.sh && B.c.sh.n === 3 && B.c.sh.old === null && B.c.nm && B.c.nm.ph === 5, 'סטודיו: מצב צל — "הרגיל" נלמד: העבודה מקבלת צל (האכיפה במדידות שלנו)');
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.sh['sonnet-high'] === 2, 'סטודיו: מצב צל — בטלפון: עוד 2 עבודות עד אכיפה');
+      // הדיווח של המגדל במצב צל נשמר (sh, shn)
+      await wrk({ op: 'report', job: B.id, key: B.k, tower: { lv: 'warn', x: 2.4, usd: 8, exp: 3.2, sh: 1, shn: 3 } });
+      ok((await run({ op: 'job', idToken: OWNER, job: B.id })).payload.job.tw.sh === 1, 'סטודיו: מצב צל — "בספים החדשים היה נעצר" מגיע לטלפון');
+      ok(S.normTower({ lv: 'ok', x: 1, sh: 1, shn: 2 }).sh === undefined && S.normTower({ lv: 'warn', x: 1, sh: 1, shn: 9 }).shn === 3, 'סטודיו: מצב צל — sh רק באזהרה, shn עד 3');
+      // "המשך" חוזר: שניים עוברים, השלישי ב־24 שעות = לולאה (409), עם אישור — עובר
+      let kb = B.k;
+      for (let i = 0; i < 2; i++) {
+        await wrk({ op: 'report', job: B.id, key: kb, fail: true, err: 'worker_step' });
+        rr = await run({ op: 'resume', idToken: OWNER, job: B.id });
+        ok(rr.payload.ok, 'סטודיו: "המשך" חוזר — המשך ' + (i + 1) + ' עובר');
+        kb = keyOf(fires[fires.length - 1]);
+        const cb = await wrk({ op: 'claim', job: B.id, key: kb });
+        if (i === 0) ok(cb.payload.job.sh && cb.payload.job.sh.n === 3, 'סטודיו: מצב צל — בהמשך אותה עבודה: אותו צל (לא נספר שוב)');
+      }
+      await wrk({ op: 'report', job: B.id, key: kb, fail: true, err: 'worker_step' });
+      const nf = fires.length;
+      rr = await run({ op: 'resume', idToken: OWNER, job: B.id });
+      ok(rr.statusCode === 409 && rr.payload.error === 'loop' && rr.payload.n === 3 && fires.length === nf, 'סטודיו: "המשך" שלישי ב־24 שעות — לולאה, בלי הפעלה');
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.ops.open.some((a) => a.c === 'claude' && a.k === 'loop' && a.j === B.id), 'סטודיו: "המשך" חוזר — התראה (claude:loop)');
+      rr = await run({ op: 'resume', idToken: OWNER, job: B.id, lo: true });
+      ok(rr.payload.ok && fires.length === nf + 1, 'סטודיו: "המשך" חוזר — באישור שלך ממשיכים');
+      // ההמשך האוטומטי (תקלת רשת) לא עוקף את הלולאה — מוותר ומנקה את חלון ההתאוששות
+      kb = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: B.id, key: kb });
+      await wrk({ op: 'report', job: B.id, key: kb, fail: true, err: 'net' });
+      ok(S.fromFields(db.get('studioJobs/' + B.id).fields).rw > 0, 'סטודיו: "המשך" חוזר — תקלה חולפת פותחת חלון התאוששות');
+      now += S.RECOVER_WAIT + 1000;
+      const nf2 = fires.length;
+      await run({ op: 'jobs', idToken: OWNER });
+      const jb = S.fromFields(db.get('studioJobs/' + B.id).fields);
+      ok(fires.length === nf2 && !jb.rw && jb.state === 'failed', 'סטודיו: "המשך" חוזר — ההמשך האוטומטי לא ממשיך לולאה (החלון נסגר, העבודה נשארת "נכשלה")');
+      for (const id of [A.id, B.id]) await run({ op: 'remove', idToken: OWNER, job: id });
+      const odL = db.get('studioOps/ownerUid0001');
+      if (odL) { delete odL.fields.inc; delete odL.fields.mi; }
+    }
+    studio._reset();
+
+    // v387: סט הזהב — סימון עבודה עם תרגום אנושי לייחוס, ציון, והרצה חוזרת (רק עם אישור; העבודות נוצרות "חדשות")
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const SG = require('../lib/studio');
+      const JGD = 'jGOLD' + '0'.repeat(16), JNS = 'jGOLDNOSRT' + '0'.repeat(11);
+      const base = { uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 5 * 86400e3, updated: now - 4 * 86400e3, ended: now - 4 * 86400e3, folder: 'fold1234567890',
+        spec: { name: 'Ackman_Interview.mp4', size: 100, dur: 600, to: ['he'], from: 'en', mode: 'opus-medium', out: ['compact'] },
+        fa: { id: 'aud1234567890', name: 'a', size: 5, mimeType: 'audio/mp4' } };
+      db.set('studioJobs/' + JGD, { fields: SG.toFields(Object.assign({}, base, { fo: [{ id: 'outs1234567890', k: 'srt', size: 9 }] })) });
+      db.set('studioJobs/' + JNS, { fields: SG.toFields(Object.assign({}, base, { fo: [{ id: 'outc1234567890', k: 'compact', size: 9 }] })) });
+      driveFiles.set('refs1234567890', { id: 'refs1234567890', name: 'ref.srt', size: '4000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('refbig12345678', { id: 'refbig12345678', name: 'big.srt', size: String(3 * 1024 * 1024), parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'gold', idToken: OWNER, job: JNS, ref: 'refs1234567890' });
+      ok(rr.statusCode === 409 && rr.payload.error === 'no_srt', 'סטודיו: סט הזהב — עבודה בלי SRT לא נכנסת (אין מה להשוואות)');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: 'elsewhere12345' });
+      ok(rr.statusCode === 400 && rr.payload.error === 'file_bad', 'סטודיו: סט הזהב — ייחוס שלא בתיקיית העבודה נדחה (מאומת מול Drive)');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: 'refbig12345678' });
+      ok(rr.statusCode === 400 && rr.payload.error === 'file_size', 'סטודיו: סט הזהב — ייחוס מעל 2MB נדחה');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true });
+      ok(rr.statusCode === 400 && rr.payload.error === 'no_gold', 'סטודיו: סט הזהב — בלי עבודות זהב אין מה להריץ');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: 'refs1234567890' });
+      ok(rr.payload.ok && rr.payload.job.gd && rr.payload.job.gd.r === 'refs1234567890' && rr.payload.job.gd.n === 4000 && rr.payload.job.gq === null, 'סטודיו: סט הזהב — העבודה מסומנת עם הייחוס');
+      rr = await run({ op: 'goldScore', idToken: OWNER, job: JGD, gq: { s: 140, tm: 50, n: 3 } });
+      ok(rr.statusCode === 400, 'סטודיו: סט הזהב — ציון לא תקין נדחה');
+      rr = await run({ op: 'goldScore', idToken: OWNER, job: JGD, gq: { s: 71, tm: 93, n: 120 } });
+      ok(rr.payload.ok && rr.payload.job.gq.s === 71 && rr.payload.job.gq.tm === 93, 'סטודיו: סט הזהב — הציון נשמר');
+      const firesBefore = fires.length;
+      rr = await run({ op: 'goldRun', idToken: OWNER });
+      ok(rr.statusCode === 400 && rr.payload.error === 'confirm', 'סטודיו: סט הזהב — הרצה רק עם אישור מפורש');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true });
+      const run1 = rr.payload.jobs && rr.payload.jobs[0];
+      ok(rr.payload.ok && rr.payload.jobs.length === 1 && run1.state === 'new' && run1.gs === JGD && run1.spec.out.includes('srt') && run1.files.a && fires.length === firesBefore,
+        'סטודיו: סט הזהב — נוצרת עבודה "חדשה" עם אותו מקור (ו־SRT), בלי להפעיל שום דבר בשרתון');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true });
+      ok(rr.statusCode === 409 && rr.payload.error === 'gold_busy', 'סטודיו: סט הזהב — הרצה קודמת עוד פתוחה — לא יוצרים שוב');
+      rr = await run({ op: 'gold', idToken: OWNER, job: run1.id, ref: 'refs1234567890' });
+      ok(rr.statusCode === 409, 'סטודיו: סט הזהב — הרצה חוזרת היא לא עבודת זהב בעצמה');
+      const SC2 = require('../lib/studioscan');
+      ok(SC2.oldJobs([Object.assign({}, base, { gd: { r: 'refs1234567890' }, ended: now - 400 * 86400e3 })], now).length === 0, 'סטודיו: סט הזהב — עבודת זהב לא נמחקת בניקוי "עבודות ישנות"');
+      rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: null });
+      ok(rr.payload.ok && rr.payload.job.gd === null && rr.payload.job.gq === null, 'סטודיו: סט הזהב — הסרה');
+      for (const id of [JGD, JNS, run1.id]) await run({ op: 'remove', idToken: OWNER, job: id });
+      const odG = db.get('studioOps/ownerUid0001');
+      if (odG) { delete odG.fields.inc; delete odG.fields.mi; }
+    }
+    studio._reset();
+
+    // מ2: עורך הכתוביות — גרסה ערוכה (cues + SRT בתיקיית העבודה, הקודמת בהיסטוריה) והפקה מחדש (עבודת rr, בלי תרגום)
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const SR = require('../lib/studio');
+      const JP = 'jEDITPARENT' + '0'.repeat(10), JN = 'jEDITNOCUES' + '0'.repeat(10);
+      const base = { uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 86400e3, updated: now - 3600e3, ended: now - 3600e3, folder: 'fold1234567890',
+        spec: { name: 'Talk.mp4', size: 100, dur: 600, to: ['he'], from: 'en', mode: 'sonnet-medium', out: ['compact'], style: 'bold' },
+        fv: { id: 'vid1234567890', name: 'Talk.mp4', size: 100, mime: 'video/mp4' } };
+      db.set('studioJobs/' + JP, { fields: SR.toFields(Object.assign({}, base, { fo: [{ id: 'outc1234567890', name: 'c', k: 'compact', size: 9 }, { id: 'outs1234567890', name: 's', k: 'srt', size: 9 }, { id: 'cue01234567890', name: 'q', k: 'cues', size: 9 }] })) });
+      db.set('studioJobs/' + JN, { fields: SR.toFields(Object.assign({}, base, { fo: [{ id: 'outc1234567891', name: 'c', k: 'compact', size: 9 }] })) });
+      driveFiles.set('cue11234567890', { id: 'cue11234567890', name: 'Talk.cues.v1.json', size: '5000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('srt11234567890', { id: 'srt11234567890', name: 'Talk.v1.he.srt', size: '3000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('cuex1234567890', { id: 'cuex1234567890', name: 'x.json', size: '5000', parents: ['other123456789'], trashed: false });
+      rr = await run({ op: 'cuesSave', idToken: OWNER, job: JP, c: 'cuex1234567890', s: 'srt11234567890', ev: 0 });
+      ok(rr.statusCode === 400 && rr.payload.error === 'file_bad', 'סטודיו: עורך הכתוביות — קובץ שלא בתיקיית העבודה נדחה (מאומת מול Drive)');
+      rr = await run({ op: 'cuesSave', idToken: OWNER, job: JP, c: 'cue11234567890', s: 'srt11234567890', ev: 3 });
+      ok(rr.statusCode === 409 && rr.payload.error === 'stale', 'סטודיו: עורך הכתוביות — גרסה שנערכה בינתיים במקום אחר: לא דורסים');
+      rr = await run({ op: 'cuesSave', idToken: OWNER, job: JP, c: 'cue11234567890', s: 'srt11234567890', ev: 0 });
+      const fo = rr.payload.job && rr.payload.job.files.o;
+      ok(rr.payload.ok && fo.find((o) => o.k === 'cues').id === 'cue11234567890' && fo.find((o) => o.k === 'srt').id === 'srt11234567890' && fo.find((o) => o.k === 'compact')
+        && rr.payload.job.ev === 1 && rr.payload.job.vh.length === 1 && rr.payload.job.vh[0] === now, 'סטודיו: עורך הכתוביות — הגרסה החדשה במקום הקודמת, הקודמת בהיסטוריה');
+      const vh = SR.fromFields(db.get('studioJobs/' + JP).fields).vh;
+      ok(vh.length === 1 && vh[0].c === 'cue01234567890' && vh[0].s === 'outs1234567890', 'סטודיו: עורך הכתוביות — ההיסטוריה שומרת את מזהי הגרסה הקודמת');
+      driveFiles.set('cue01234567890', { id: 'cue01234567890', name: 'Talk.cues.json', size: '5000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('outs1234567890', { id: 'outs1234567890', name: 'Talk.he.srt', size: '3000', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'cuesRestore', idToken: OWNER, job: JP, i: 0, ev: 1 });
+      ok(rr.payload.ok && rr.payload.job.files.o.find((o) => o.k === 'cues').id === 'cue01234567890' && rr.payload.job.ev === 2 && rr.payload.job.vh.length === 1,
+        'סטודיו: עורך הכתוביות — חזרה לגרסה קודמת (והגרסה שהייתה נוכחית עוברת להיסטוריה)');
+      rr = await run({ op: 'cuesRestore', idToken: OWNER, job: JP, i: 0, ev: 2 });
+      ok(rr.payload.ok && rr.payload.job.files.o.find((o) => o.k === 'cues').id === 'cue11234567890' && rr.payload.job.ev === 3, 'סטודיו: עורך הכתוביות — וחזרה קדימה');
+      rr = await run({ op: 'cuesRestore', idToken: OWNER, job: JP, i: 5, ev: 3 });
+      ok(rr.statusCode === 409, 'סטודיו: עורך הכתוביות — גרסה שלא קיימת');
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JN });
+      ok(rr.statusCode === 409, 'סטודיו: הפקה מחדש — עבודה בלי קובץ כתוביות (cues) לא מופקת מחדש');
+      const f0 = fires.length;
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, out: ['small', 'srt', 'mkv'], style: 'classic' });
+      const R1 = rr.payload.job;
+      ok(rr.payload.ok && R1.kind === 'rr' && R1.state === 'new' && R1.rp === JP && R1.files.c && R1.files.c.id === 'cue11234567890'
+        && R1.spec.out.join() === 'small,mkv' && R1.spec.style === 'classic' && fires.length === f0, 'סטודיו: הפקה מחדש — עבודה "חדשה" מהכתוביות הנוכחיות (רק תוצרי וידאו), בלי להפעיל עדיין');
+      ok(!R1.spec.edl, 'סטודיו: הפקה מחדש — בלי חיתוך כשלא נבחר');
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP });
+      ok(rr.statusCode === 409 && rr.payload.error === 'rr_busy', 'סטודיו: הפקה מחדש — אחת בכל פעם לכל עבודה');
+      rr = await run({ op: 'start', idToken: OWNER, job: R1.id });
+      ok(rr.payload.ok && fires.length === f0 + 1, 'סטודיו: הפקה מחדש — מתחילה כמו כל עבודה (Routine)');
+      const kr = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: R1.id, key: kr });
+      ok(rr.payload.ok && rr.payload.job.kind === 'rr' && rr.payload.job.files.v.id === 'vid1234567890' && rr.payload.job.files.c.id === 'cue11234567890',
+        'סטודיו: הפקה מחדש — העובד מקבל את הסרטון ואת הכתוביות הערוכות');
+      driveFiles.set('rrout123456789', { id: 'rrout123456789', name: 'Talk (עברית, קטן).mp4', size: '2000', parents: ['fold1234567890'], trashed: false });
+      rr = await wrk({ op: 'report', job: R1.id, key: kr, done: true, out: [{ id: 'rrout123456789', name: 'Talk (עברית, קטן).mp4', size: 2000, k: 'small' }] });
+      const R2 = SR.fromFields(db.get('studioJobs/' + R1.id).fields);
+      ok(rr.payload.ok && R2.state === 'done' && R2.fo[0].k === 'small', 'סטודיו: הפקה מחדש — התוצר נשמר בעבודת ההפקה');
+      const P2 = SR.fromFields(db.get('studioJobs/' + JP).fields);
+      ok(P2.state === 'done' && P2.fo.length === 3, 'סטודיו: הפקה מחדש — העבודה המקורית לא משתנה');
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, edl: { k: [[30, 90], [0, 20]], ar: '9:16', x: 0.4, extra: 'x' } });
+      ok(rr.payload.ok && !db.get('studioJobs/' + R1.id), 'סטודיו: הפקה מחדש — רק ההפקה האחרונה נשמרת');
+      ok(JSON.stringify(rr.payload.job.spec.edl) === '{"k":[[0,20],[30,90]],"ar":"9:16","x":0.4}', 'סטודיו: הפקה מחדש — החיתוך אחרי התרגום נשמר מנורמל (מ5)');
+      const R3 = rr.payload.job.id;
+      // מ7: גיליון ה־AI בהפעלה אחת — הבקשה בתיקיית העבודה, עבודת ai "חדשה", start, העובד מקבל את הבקשה, התשובה = aiout
+      driveFiles.set('aiq1234567890', { id: 'aiq1234567890', name: 'Talk (AI).request.json', size: '900', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'outc1234567890x' });
+      ok(rr.statusCode === 400, 'סטודיו: גיליון AI — קובץ בקשה שלא בתיקיית העבודה נדחה');
+      rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' });
+      const A1 = rr.payload.job;
+      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'sonnet-medium', 'סטודיו: גיליון AI — עבודה "חדשה" (Sonnet Medium כברירת מחדל)');
+      ok((await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' })).payload.error === 'ai_busy', 'סטודיו: גיליון AI — אחד בכל פעם לכל עבודה');
+      const f2 = fires.length;
+      rr = await run({ op: 'start', idToken: OWNER, job: A1.id });
+      ok(rr.payload.ok && fires.length === f2 + 1, 'סטודיו: גיליון AI — מתחיל כמו כל עבודה');
+      const ka = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: A1.id, key: ka });
+      ok(rr.payload.ok && rr.payload.job.kind === 'ai' && rr.payload.job.files.q.id === 'aiq1234567890', 'סטודיו: גיליון AI — העובד מקבל את הבקשה');
+      driveFiles.set('aio1234567890', { id: 'aio1234567890', name: 'Talk (AI).json', size: '300', parents: ['fold1234567890'], trashed: false });
+      rr = await wrk({ op: 'report', job: A1.id, key: ka, done: true, out: [{ id: 'aio1234567890', name: 'Talk (AI).json', size: 300, k: 'aiout' }], usage: [{ k: 'main', m: 'claude-sonnet-5-5', n: 1, i: 900, o: 200, cr: 0, c5: 0, c1: 0, usd: 0.01 }] });
+      const A2 = SR.fromFields(db.get('studioJobs/' + A1.id).fields);
+      ok(rr.payload.ok && A2.state === 'done' && A2.fo[0].k === 'aiout' && A2.use[0].m === 'claude-sonnet-5-5', 'סטודיו: גיליון AI — התשובה והמודל שענה נשמרים');
+      for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
+      ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');
+      const odE = db.get('studioOps/ownerUid0001');
+      if (odE) { delete odE.fields.inc; delete odE.fields.mi; }
+    }
+    studio._reset();
+
+    // v385: ציון חריגה 0–10 — זמן לכל שלב ועלות לכל סוכן מול הרגיל שלך; התראה רק בהתמדה (2 מתוך 3)
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const S9 = require('../lib/studio');
+      const ids = [];
+      const put = (i, trS) => {
+        const id = 'jANM' + String(i).padStart(17, '0');
+        ids.push(id);
+        db.set('studioJobs/' + id, { fields: S9.toFields({ uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 200 * 3600e3, updated: now - (100 - i) * 3600e3, ended: now - (100 - i) * 3600e3,
+          spec: { name: 'Ackman_Interview.mp4', size: 100, dur: 600, to: ['he'], from: 'en', mode: 'opus-medium', out: ['srt'] },
+          prog: { stg: { tr: { s: 1000, e: 1000 + trS * 1000 }, tl: { s: 5000, e: 5000 + 300e3 } } }, use: [{ k: 'tl', m: 'claude-opus-5-5', in: 1, out: 1, cr: 0, cw: 0, usd: 1.25 }] }) });
+      };
+      for (let i = 0; i < 8; i++) put(i, 60 + i);
+      put(8, 200); put(9, 61);
+      const alOf = () => { const d = db.get('studioOps/ownerUid0001'); const a = d ? S9.fromFields(d.fields).al : null; return (Array.isArray(a) ? a : []).filter((x) => x.k === 'anomaly'); };
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const an = rr.payload.an;
+      ok(an && an.n >= 10 && an.m.find((m) => m.k === 't:tr').f === 1 && an.act.length === 0, 'סטודיו: ציון חריגה — בתשובת הרשימה; קפיצה בודדת נספרת בתדירות בלי התמדה');
+      ok(!alOf().some((a) => !a.x), 'סטודיו: ציון חריגה — קפיצה בודדת לא פותחת התראה');
+      ok(!JSON.stringify(an).includes('Ackman'), 'סטודיו: ציון חריגה — בלי שמות קבצים');
+      put(10, 210);
+      now += 60e3;
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const m0 = rr.payload.an.m[0];
+      ok(m0.k === 't:tr' && m0.p && m0.s === 10 && rr.payload.an.j[ids[10]][0][0] === 't:tr', 'סטודיו: ציון חריגה — 2 מתוך 3 = חריג בהתמדה, ראשון ברשימה; לעבודה — השלב שחרג');
+      const open = alOf().filter((a) => !a.x);
+      ok(open.length === 1 && open[0].c === 'vt' && open[0].s === 4 && open[0].j === '', 'סטודיו: ציון חריגה — התראה אחת ל־vt (P4), בלי עבודה');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(alOf().filter((a) => !a.x).length === 1 && alOf()[0].n === 1, 'סטודיו: ציון חריגה — צפייה חוזרת לא מגדילה את המונה');
+      // שתי עבודות רגילות אחרי החריגה — חזר לרגיל, ההתראה נסגרת
+      put(11, 62); put(12, 63);
+      now += 60e3;
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(!rr.payload.an.m[0].p && alOf().every((a) => a.x), 'סטודיו: ציון חריגה — חזר לרגיל (1 מתוך 3) — ההתראה נסגרת');
+      for (const id of ids) await run({ op: 'remove', idToken: OWNER, job: id });
+      const odA = db.get('studioOps/ownerUid0001');
+      if (odA) { delete odA.fields.inc; delete odA.fields.mi; }
+    }
+    studio._reset();
+
+    // v383: תקציב שגיאות — יעד 95% בלי התערבות (30 יום), כמה נשאר, קצב שריפה (7 ימים), העבודות שאכלו ממנו
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const SLO = require('../lib/studioslo');
+      const T0 = Date.UTC(2026, 9, 10);
+      let seq = 0;
+      const J = (o) => Object.assign({ id: 'jSLO' + String(++seq).padStart(17, '0'), kind: 'tr', fires: 1, ended: T0 - 86400e3, updated: T0 - 86400e3 }, o);
+      ok(SLO.classify(J({ state: 'done' }), T0).g === true && SLO.classify(J({ state: 'done', fires: 2, ar: 1 }), T0).g === true,
+        'סטודיו: תקציב שגיאות — הסתיימה, וגם אחרי המשך אוטומטי (תיקון עצמי) = טובה');
+      ok(SLO.classify(J({ state: 'done', fires: 2 }), T0).c === 'resume' && SLO.classify(J({ state: 'failed', err: 'worker_step' }), T0).c === 'fail'
+        && SLO.classify(J({ state: 'cancelled', err: 'tower_stop' }), T0).c === 'fail', 'סטודיו: תקציב שגיאות — "המשך" ידני / נכשלה (גם אם בוטלה אחרי הכישלון) = אוכלת מהתקציב');
+      ok(SLO.classify(J({ state: 'cancelled' }), T0) === null && SLO.classify(J({ state: 'failed', err: 'halted' }), T0) === null && SLO.classify(J({ state: 'running', claimed: T0 - 60e3, updated: T0 - 60e3 }), T0) === null
+        && SLO.classify(J({ kind: 'ping', state: 'done' }), T0) === null, 'סטודיו: תקציב שגיאות — ביטול שלך, מתג חירום, מה שרץ ובדיקת חיבור — לא נספרים');
+      ok(SLO.classify(J({ state: 'running', claimed: T0 - 5 * 3600e3, updated: T0 - 3 * 3600e3 }), T0).c === 'stale', 'סטודיו: תקציב שגיאות — נתקעה = אוכלת מהתקציב');
+      const goods = Array.from({ length: 38 }, () => J({ state: 'done' }));
+      let v = SLO.sloView(goods.concat([J({ state: 'failed', err: 'worker_step', ended: T0 - 20 * 86400e3, updated: T0 - 20 * 86400e3 })]), T0);
+      ok(v.n === 39 && v.bad === 1 && v.left === 49 && v.st === 'warn' && v.att === 97.4 && v.burn === 0, 'סטודיו: תקציב שגיאות — כשל אחד מ־39: נשאר 49%, בלי שריפה בשבוע האחרון');
+      v = SLO.sloView(goods.slice(0, 10).concat([J({ state: 'done', fires: 3 })]), T0);
+      ok(v.st === 'out' && v.left === 0 && v.burn > 1 && v.list[0].c === 'resume', 'סטודיו: תקציב שגיאות — 1 מ־11 = נגמר, קצב שריפה מעל ×1');
+      v = SLO.sloView(goods.slice(0, 3).concat([J({ state: 'done', ended: T0 - 40 * 86400e3, updated: T0 - 40 * 86400e3 })]), T0);
+      ok(v.n === 3 && v.st === 'few', 'סטודיו: תקציב שגיאות — מעט עבודות (פחות מ־5) = מוקדם למדוד; ישנה מ־30 יום לא נספרת');
+      ok(SLO.sloView(goods.concat(Array.from({ length: 15 }, () => J({ state: 'failed', err: 'x' }))), T0).list.length === SLO.BAD_MAX, 'סטודיו: תקציב שגיאות — עד 10 עבודות ברשימה');
+      // מקצה לקצה: הרשימה מחזירה את התקציב (בלי קריאה נוספת), ועבודה שהסתיימה נספרת
+      let rr0 = await run({ op: 'jobs', idToken: OWNER });
+      const g0 = rr0.payload.slo ? rr0.payload.slo.good : -1;
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JS = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JS, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JS });
+      const KS = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JS, key: KS });
+      await wrk({ op: 'report', job: JS, key: KS, done: true });
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(rr.payload.slo && rr.payload.slo.t === 95 && rr.payload.slo.good === g0 + 1 && !JSON.stringify(rr.payload.slo).includes('Ackman'), 'סטודיו: תקציב שגיאות — בתשובת הרשימה, עבודה שהסתיימה נספרת, בלי שמות');
+      await run({ op: 'remove', idToken: OWNER, job: JS });
+      const odS = db.get('studioOps/ownerUid0001');
+      if (odS) { delete odS.fields.inc; delete odS.fields.mi; }
+    }
+    studio._reset();
+
+    // v382: הערה לעובד — מהטלפון לעבודת תרגום שרצה, נמסרת בדיווח הבא על נקודת שמירה, עד NOTE_MAX, נקראה = היסטוריה
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      ok(S.normNoteText('  <b>שמות</b>\tבאנגלית `x`\u0007 ') === 'b שמות /b באנגלית x' && S.normNoteText('א') === '' && S.normNoteText('ב'.repeat(500)).length === 300,
+        'סטודיו: הערה — טקסט נקי (בלי תגיות, גרשיים הפוכים ותווי בקרה), באורך מוגבל');
+      ok(S.noteView({}) === null && S.noteView({ nt: { t: 'x', at: 1 } }) === null, 'סטודיו: הערה — בלי הערה תקינה אין תצוגה');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JN = rr.payload.job.id;
+      ok((await run({ op: 'note', idToken: OWNER, job: JN, t: 'שמות פרטיים באנגלית' })).statusCode === 409, 'סטודיו: הערה — לעבודה שעוד לא התחילה — 409');
+      await run({ op: 'file', idToken: OWNER, job: JN, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JN });
+      const KN = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: JN, key: KN });
+      ok(Array.isArray(rr.payload.job.notes) && rr.payload.job.notes.length === 0, 'סטודיו: הערה — בלקיחה: רשימת ההערות שנקראו (ריקה)');
+      ok((await run({ op: 'note', idToken: OWNER, job: JN, t: ' ' })).statusCode === 400, 'סטודיו: הערה — ריקה = 400');
+      rr = await run({ op: 'note', idToken: OWNER, job: JN, t: 'שמות פרטיים להשאיר באנגלית' });
+      ok(rr.payload.ok && rr.payload.job.nt.p.t === 'שמות פרטיים להשאיר באנגלית' && rr.payload.job.nt.n === 1, 'סטודיו: הערה — נשמרת וממתינה');
+      rr = await run({ op: 'note', idToken: OWNER, job: JN, t: 'שמות פרטיים בעברית, בלי תעתיק' });
+      ok(rr.payload.job.nt.p.t === 'שמות פרטיים בעברית, בלי תעתיק' && rr.payload.job.nt.n === 1, 'סטודיו: הערה — הערה שעוד לא נקראה מתחלפת, בלי ספירה נוספת');
+      rr = await wrk({ op: 'report', job: JN, key: KN, st: 'tr', p: 0.25 });
+      ok(!rr.payload.note, 'סטודיו: הערה — דיווח רגיל לא מוסר אותה (רק נקודת שמירה)');
+      rr = await wrk({ op: 'report', job: JN, key: KN, ck: { s: 'asr', id: 'ckas1234567890', size: 1 } });
+      ok(rr.payload.ok && rr.payload.note === 'שמות פרטיים בעברית, בלי תעתיק', 'סטודיו: הערה — נמסרת בתשובה לנקודת השמירה');
+      rr = await wrk({ op: 'report', job: JN, key: KN, ck: { s: 'al', id: 'ckal1234567890', size: 1 } });
+      ok(!rr.payload.note, 'סטודיו: הערה — נמסרת פעם אחת');
+      rr = await run({ op: 'job', idToken: OWNER, job: JN });
+      let nv = rr.payload.job.nt;
+      ok(nv.p === null && nv.h.length === 1 && nv.h[0].d === now && nv.n === 1 && nv.max === S.NOTE_MAX, 'סטודיו: הערה — אחרי המסירה: בהיסטוריה עם מתי נקראה');
+      for (let i = 2; i <= S.NOTE_MAX; i++) {
+        await run({ op: 'note', idToken: OWNER, job: JN, t: 'הערה מספר ' + i });
+        await wrk({ op: 'report', job: JN, key: KN, ck: { s: 'asr', id: 'ckas1234567890', size: 1 } });
+      }
+      rr = await run({ op: 'note', idToken: OWNER, job: JN, t: 'עוד אחת מעבר למגבלה' });
+      ok(rr.statusCode === 409 && rr.payload.error === 'note_limit' && rr.payload.job.nt.h.length === S.NOTE_MAX, 'סטודיו: הערה — עד NOTE_MAX לעבודה (409)');
+      // סשן חדש (המשך) מקבל את ההערות שכבר נקראו
+      await wrk({ op: 'report', job: JN, key: KN, fail: true, err: 'worker_step' });
+      await run({ op: 'resume', idToken: OWNER, job: JN });
+      rr = await wrk({ op: 'claim', job: JN, key: keyOf(fires[fires.length - 1]) });
+      ok(rr.payload.job.notes.length === S.NOTE_MAX && rr.payload.job.notes[0] === 'שמות פרטיים בעברית, בלי תעתיק', 'סטודיו: הערה — המשך בסשן חדש מקבל את ההערות שנקראו');
+      await wrk({ op: 'report', job: JN, key: keyOf(fires[fires.length - 1]), done: true });
+      ok((await run({ op: 'note', idToken: OWNER, job: JN, t: 'מאוחר מדי' })).statusCode === 409, 'סטודיו: הערה — לעבודה שהסתיימה — 409');
+      await run({ op: 'remove', idToken: OWNER, job: JN });
+      const odN = db.get('studioOps/ownerUid0001');
+      if (odN) { delete odN.fields.inc; delete odN.fields.mi; }
+    }
     studio._reset();
 
     // v379: דוח אחרי תקלה — זמן לזיהוי ולתיקון ומה עלה בטעות (בפתרון, P1–P2), בקשת סיכום לסשן הבא, שמירה פעם אחת, 👍/👎
@@ -1889,8 +2277,9 @@ function stubFetch(text, status = 200) {
     {
       const L7 = require('../lib/studiosla');
       const tg = L7.targets({ mode: 'opus-medium', dur: 4620 }, 6, 1.5);
-      ok(tg.t === Object.values(L7.stageTargets('opus-medium', 4620)).reduce((a, x) => a + x, 0) && tg.u === 9.2 && L7.targets({ mode: 'opus-medium', dur: 0 }, 6, 1.5) === null,
-        'סטודיו: יעדים — הזמן מטבלת מסך ההתקדמות, התקציב לפי "הרגיל" (בלי אורך — בלי יעד)');
+      const EP7 = require('../lib/studioeta');
+      ok(tg.t === EP7.planOf(EP7.PRIOR.r, 'opus-medium', 4620).t && tg.u === 9.2 && L7.targets({ mode: 'opus-medium', dur: 0 }, 6, 1.5) === null,
+        'סטודיו: יעדים — הזמן מהצפי (studioeta, ה־prior כשאין ep; בלקיחה — p90 של העבודה), התקציב לפי "הרגיל" (בלי אורך — בלי יעד)');
       const base = { kind: 'tr', state: 'running', c0: 1000, tg: { t: 1000, u: 4 }, prog: { st: 'tl', p: 0.2, stg: { tr: { s: 1, e: 2 }, al: { s: 2, e: 3 }, tl: { s: 3, e: 0 } } } };
       ok(L7.slaView(Object.assign({}, base), 1000 + 300e3).t.lv === 'ok' && L7.slaView(Object.assign({}, base), 1000 + 600e3).t.lv === 'half', 'סטודיו: SLA — בזמן / עבר חצי');
       ok(L7.slaView(Object.assign({}, base), 1000 + 800e3).t.lv === 'risk' && L7.slaView(Object.assign({}, base, { prog: { st: 'bn', p: 0.9, stg: { tr: { s: 1, e: 2 }, al: { s: 1, e: 2 }, tl: { s: 1, e: 2 }, rv: { s: 1, e: 2 }, bn: { s: 1, e: 0 } } } }), 1000 + 800e3).t.lv === 'half',
@@ -2158,6 +2547,24 @@ function stubFetch(text, status = 200) {
       await wrk({ op: 'report', job: JG, key: KG, trace: { a: { main: { n: 1, e: 0, s: 0 } }, g: [['<b>', 1, 0]] } }).catch(() => {});
       ok(JSON.parse(db.get('studioJobs/' + JG).fields.tr.stringValue).a.main.n === 33, 'סטודיו: עקיבה לא תקינה — נזרקת, הקודמת נשארת');
       await run({ op: 'remove', idToken: OWNER, job: JG });
+    }
+    // v386: מדדי הערכת סוכנים (שלמות, כלי נכון, קריאות תקינות) לכל גרסת הנחיות, וסיכון מול בקרה — מאותה רשימה
+    {
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JE = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JE, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JE });
+      const KE = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JE, key: KE, ev: 'abcdef012345', pv: { rb: '33333333', tl: 'eeeeeeee', rv: 'ffffffff' } });
+      rr = await wrk({ op: 'report', job: JE, key: KE, done: true, usage: [{ k: 'tl', m: 'claude-opus-5-5', n: 9, i: 10, o: 1000, cr: 0, c5: 0, c1: 0, usd: 0.4 }],
+        trace: { a: { main: { n: 20, e: 0, s: 600, w: 0 }, tl: { n: 10, e: 1, s: 300, w: 1 } }, g: [['vt:align', 2, 0]] } });
+      ok(rr.payload.ok && JSON.parse(db.get('studioJobs/' + JE).fields.tr.stringValue).a.tl.w === 1, 'סטודיו: הערכת סוכנים — העקיבה שומרת פעולות מחוץ לתפקיד');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      const tlA = rr.payload.ag.agents.find((x) => x.k === 'tl');
+      const vE = tlA && tlA.vs.find((x) => x.p === 'eeeeeeee');
+      ok(tlA && tlA.t === 90 && tlA.v === 90 && vE && vE.jobs === 1 && vE.t === 90, 'סטודיו: הערכת סוכנים — כלי נכון ופעולות תקינות, לגרסת ההנחיות');
+      ok(Array.isArray(rr.payload.ag.risk) && rr.payload.ag.risk.length === 3, 'סטודיו: סיכון מול בקרה — בתשובת הרשימה');
+      await run({ op: 'remove', idToken: OWNER, job: JE });
     }
     now += 3600e3 + 1;
     studio._reset();

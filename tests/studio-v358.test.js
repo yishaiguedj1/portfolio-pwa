@@ -41,7 +41,7 @@ ok(/fixes_review\.txt/.test(read('translator/REVIEW.md')) && /fixes\.txt/.test(r
 
 /* ---------- 4. השרתון והטלפון ---------- */
 const lib = read('ibkr-proxy/lib/studio.js'), api = read('ibkr-proxy/api/studio.js');
-ok(/const WORKER_KINDS = \['ping', 'tr'\]/.test(lib), 'השרתון: העובד מתרגם');
+ok(/const WORKER_KINDS = \['ping', 'tr'(, 'rr')?(, 'ai')?\]/.test(lib), 'השרתון: העובד מתרגם');
 ok(/function normOut/.test(lib) && /error: 'out_bad'/.test(api) && /meta\.parents\.includes\(folder\)/.test(api) && /driveFileInFolder\(deps, job\.uid, job\.folder/.test(api), 'השרתון: תוצרים — רק קבצים בתיקיית העבודה (מאומת מול Drive)');
 const st = read('studio.js');
 ok(/drive\.google\.com\/file\/d\/' \+ o\.id/.test(st) && /files\.o/.test(st), 'הטלפון: קישור לכל תוצר בדף העבודה');

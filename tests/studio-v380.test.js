@@ -42,12 +42,12 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(S.normGl({ u: -1, s: 'x' }) === null && S.normGl(null) === null && S.normGl({ u: 2.5, s: [] }) === null, 'normGl: לא תקין — כלום');
   ok(S.normGl({ u: 0, s: Array.from({ length: 50 }, (_, i) => ['t' + i, 'מ']) }).s.length === 30, 'normGl: עד 30 הצעות');
   const api = read('ibkr-proxy/api/studio.js'), lib = read('ibkr-proxy/lib/studio.js');
-  ok(/S\.normGl\(body\.gl\)/.test(api) && /'gl'\]/.test(lib) && /gl: normGl\(job\.gl\)/.test(lib), 'השרתון: נשמר מהדיווח (JSON) ומוחזר בעבודה');
+  ok(/S\.normGl\(body\.gl\)/.test(api) && /'gl'(, '[a-z]+')*\]/.test(lib) && /gl: normGl\(job\.gl\)/.test(lib), 'השרתון: נשמר מהדיווח (JSON) ומוחזר בעבודה');
 
   /* ---------- 3. העובד ---------- */
   const job = read('translator/job.py');
   ok((job.match(/vt\(ctx, \['tr-prep', ctx\.name\]\)\n    gl_merge\(ctx\)/g) || []).length === 2, 'job.py: המילון נכנס אחרי tr-prep — גם ב־align וגם ב־align_prep (מצב API)');
-  ok(/gl = gl_suggest\(ctx\)/.test(job) && /judge=ctx\.st\.get\('jd'\), gl=gl\)/.test(job), 'job.py: ההצעות נשלחות בסוף העבודה');
+  ok(/gl = gl_suggest\(ctx\)/.test(job) && /judge=ctx\.st\.get\('jd'\), gl=gl[,)]/.test(job), 'job.py: ההצעות נשלחות בסוף העבודה');
   ok(/def gl_load\(ctx\)[\s\S]*?except Exception:[\s\S]*?return None/.test(job), 'job.py: מילון שלא נטען לא מפיל עבודה');
   ok(/GL_MARK = '# — מהמילון שלך/.test(job) && /מהמילון שלך/.test(read('translator/RUNBOOK.md')) && /מהמילון שלך/.test(read('translator/TRANSLATE.md')),
     'RUNBOOK ו־TRANSLATE: השורות של המשתמש גוברות ולא משתנות');

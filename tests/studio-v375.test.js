@@ -42,7 +42,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/\.st-agt\.a-jg \{/.test(read('studio.css')), 'עיצוב: אריח לשופט');
   const app = read('app.js');
   for (const k of ['studioAgJg', 'studioAgJgA', 'studioCostJg', 'studioJgT', 'studioJgOf', 'studioJgNone', 'studioJgMean', 'studioJgOmit', 'studioJgAdd', 'studioJgGram',
-    'studioJgFlu', 'studioJgTerm', 'studioRlJgT', 'studioRlJg', 'studioRlJgS', 'studioRlSumJx'])
+    'studioJgFlu', 'studioJgTerm', 'studioRlJgT', 'studioRlJg', 'studioRlJgS'])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 
   /* ---------- 4. גרסה ---------- */

@@ -22,18 +22,23 @@ const CLAIM_WAIT = { ping: 6 * 60e3, tr: 30 * 60e3 };   // הופעל ולא נ�
 const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const FINAL = ['done', 'failed', 'cancelled'];
 const ACTIVE = ['new', 'queued', 'running'];
-const KINDS = ['ping', 'tr'];
+const KINDS = ['ping', 'tr', 'rr', 'ai'];   // מ2: rr = הפקה מחדש (כתוביות ערוכות / רשימת עריכות → צריבה; בלי טוקנים)
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
-const WORKER_KINDS = ['ping', 'tr'];   // v358: העובד מתרגם (שלב 3)
+const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. הראשון = ברירת המחדל (Sonnet Medium — המומלץ).
 const MODES = ['sonnet-medium', 'haiku-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
 const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || MODES[0]);
+/* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
+   של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
+const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
+const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isArray(sp.to) && sp.to.length > 0 && sp.to.every((c) => LANG_READY.to.includes(c));
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv'];
-const OUT_KINDS = ['compact', 'same', 'mkv', 'srt'];   // v358: תוצרים שהעובד מעלה לתיקיית העבודה
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout'];   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
+const OUT_MAX = 10;
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
 const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש
 const MAX_STORED = 100;                     // מעבר לזה — הישנות שהסתיימו נמחקות
@@ -47,10 +52,10 @@ const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח
 /* v368: המתנה לפני כישלון — תקלה חולפת (Drive / רשת) מקבלת חלון התאוששות, ואז "המשך" אוטומטי אחד מנקודת השמירה.
    רק אז "נכשלה" באמת. ההפעלה נספרת במכסה כמו כל הפעלה — לכן פעם אחת לעבודה (החלטה 1 בתוכנית) */
 const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
-const TRANSIENT_ERRS = ['net', 'drive', 'drive_net'];
+const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'api_network', 'api_timeout', 'api_rate'];   // הסקירה: גם רשת/קצב מול Anthropic במצב API
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
-const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind'];
+const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_model'];
 /* האם הכישלון חולף: קוד השגיאה שהעובד דיווח, או התראת Drive פתוחה של העבודה הזו ברגע הכישלון */
 function isTransient(err, openKinds) {
   const e = String(err || '');
@@ -74,6 +79,33 @@ const clean = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f
 const uniq = (a, ok) => (Array.isArray(a) ? a : []).filter((x, i, arr) => ok(x) && arr.indexOf(x) === i);
 
 /* פרטי העבודה מהטלפון — רק מה שהעובד צריך; הכל נבדק ומוגבל */
+/* מ4–מ5: רשימת העריכות של עורך הווידאו — **זהה ל־normEdl ב־studioedl.js ול־norm_edl ב־translator/edl.py** (tests/studio-edl) */
+const EDL_SEG_MIN = 0.5, EDL_SEG_MAX = 60, EDL_JOIN = 0.05, EDL_ARS = ['src', '9:16', '1:1', '4:5'], EDL_MAX_T = 24 * 3600;
+function normEdl(e, dur) {
+  if (!e || typeof e !== 'object') return null;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN), r3 = (x) => Math.round(x * 1000) / 1000;
+  const lim = n(dur) > 0 ? Math.min(n(dur), EDL_MAX_T) : EDL_MAX_T;
+  const segs = [];
+  for (const p of (Array.isArray(e.k) ? e.k : []).slice(0, EDL_SEG_MAX * 4)) {
+    if (!Array.isArray(p) || p.length !== 2) continue;
+    const a = Math.max(0, n(p[0])), b = Math.min(lim, n(p[1]));
+    if (!(a >= 0) || !(b - a >= EDL_SEG_MIN)) continue;
+    segs.push([r3(a), r3(b)]);
+  }
+  segs.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const k = [];
+  for (const s of segs) {
+    const last = k[k.length - 1];
+    if (last && s[0] <= last[1] + EDL_JOIN) last[1] = Math.max(last[1], s[1]);
+    else k.push(s.slice());
+  }
+  const ar = EDL_ARS.includes(e.ar) ? e.ar : 'src';
+  const x = n(e.x) >= 0 && n(e.x) <= 1 ? Math.round(e.x * 100) / 100 : 0.5;
+  const whole = !k.length || (k.length === 1 && k[0][0] <= EDL_JOIN && n(dur) > 0 && k[0][1] >= n(dur) - EDL_JOIN);
+  if (whole && ar === 'src') return null;
+  if (k.length > EDL_SEG_MAX) return null;
+  return { k: whole ? [] : k, ar, x: ar === 'src' ? 0.5 : x };
+}
 function normSpec(s) {
   if (!s || typeof s !== 'object') return null;
   const name = clean(s.name, 200), size = Math.floor(Number(s.size) || 0);
@@ -90,7 +122,8 @@ function normSpec(s) {
     out: uniq(s.out, (k) => OUTS.includes(k)),                                  // SRT תמיד; ריק = SRT בלבד
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
-  }, s.eng === 'api' ? { eng: 'api', cap: normCap(s.cap) } : {});   // מצב API של המערכת — עם תקרת עבודה ($)
+  }, normEdl(s.edl) ? { edl: normEdl(s.edl) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
+  s.eng === 'api' ? { eng: 'api', cap: normCap(s.cap) } : {});   // מצב API של המערכת — עם תקרת עבודה ($)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
 function normFile(f) {
@@ -100,16 +133,36 @@ function normFile(f) {
   return { id: f.id, name: clean(f.name, 200), size, mime: String(f.mimeType || f.mime || '').slice(0, 80) };
 }
 
-/* v358: רשימת התוצרים מהעובד — עד 6, כל אחד מזהה Drive + סוג מוכר (האימות מול Drive — בשרתון) */
+/* v358: רשימת התוצרים מהעובד — עד OUT_MAX, כל אחד מזהה Drive + סוג מוכר (האימות מול Drive — בשרתון) */
 function normOut(list) {
   if (!Array.isArray(list)) return null;
   const out = [];
-  for (const o of list.slice(0, 6)) {
+  for (const o of list.slice(0, OUT_MAX)) {
     const f = normFile(o);
     if (!f || !OUT_KINDS.includes(o && o.k) || out.some((x) => x.k === o.k)) return null;
     out.push({ id: f.id, name: f.name, size: f.size, k: o.k });
   }
   return out.length ? out : null;
+}
+
+/* איכויות צפייה כמו ב־YouTube (10/10/2026, translator/ladder.py): הראשונה = המקור עצמו (אותו קובץ, ארוז מחדש בלי קידוד —
+   המזהה של fv), אחריה האיכויות הנמוכות מהגבוהה לנמוכה. כל קובץ מאומת מול Drive בשרתון (בתיקיית העבודה, בגודל שדווח).
+   הטלפון בונה מהן את רשימות ההשמעה (האינדקס בתחילת כל קובץ) — אין כאן רשימות, רק מה שהנגן צריך לרשימה הראשית */
+const HL_MAX = 8;
+const HL_C_RE = /^[A-Za-z0-9.]{3,40}(,[A-Za-z0-9.]{3,40})?$/;
+function normHl(list, vid) {
+  if (!Array.isArray(list) || list.length < 2 || list.length > HL_MAX) return null;
+  const out = [];
+  for (const x of list) {
+    if (!x || typeof x !== 'object' || !FILE_ID_RE.test(String(x.id || '')) || out.some((y) => y.id === x.id)) return null;
+    const w = Math.floor(Number(x.w)), h = Math.floor(Number(x.h)), bw = Math.floor(Number(x.bw)), abw = Math.floor(Number(x.abw)), size = Math.floor(Number(x.size));
+    if (!(w >= 16 && w <= 8192 && h >= 16 && h <= 8192 && bw >= 1000 && bw <= 5e8 && abw >= 1000 && abw <= bw && size > 0)) return null;
+    if (!HL_C_RE.test(String(x.c || ''))) return null;
+    const short = Math.min(w, h);
+    if (out.length && short >= Math.min(out[out.length - 1].w, out[out.length - 1].h)) return null;   // מהגבוהה לנמוכה, בלי כפילות
+    out.push({ id: x.id, w, h, bw, abw, c: x.c, size });
+  }
+  return vid && out[0].id !== vid ? null : out;
 }
 
 /* v359: הטוקנים והעלות של העבודה (מהעובד, בדיווח האחרון — finish/fail). עד 6 שורות: סוג (תיאום/תרגום/ביקורת/סוכן־משנה),
@@ -181,6 +234,7 @@ function normTower(t) {
   const out = { lv: t.lv, x: n(t.x, 1000, 1), usd: n(t.usd, 1e5, 2), exp: n(t.exp, 1e5, 2) };
   if (t.b === 'u') { out.b = 'u'; out.nj = Math.round(n(t.nj, 1000, 0)); }   // v363: "הרגיל" נלמד מהעבודות של המשתמש (nj = כמה)
   if (t.lv === 'red' && FP_RE.test(String(t.fp || ''))) out.fp = t.fp;   // v364: טביעת האצבע של התקלה — לספר התיקונים
+  if (t.shn != null) { out.shn = Math.round(n(t.shn, 3, 0)); if (t.sh === 1 && t.lv === 'warn') out.sh = 1; }   // v384: מצב צל — "בספים החדשים היה נעצר"
   if (t.lv === 'red') {
     if (!TW_WHY.includes(t.why)) return null;
     out.why = t.why;
@@ -219,6 +273,33 @@ function learnedNorm(list, mode) {
   const r2 = (v) => Math.round(v * 100) / 100;
   return { ph: r2(median(rates)), mx: r2(Math.max(...rates)), n: rates.length };
 }
+/* v384: מצב צל לספים חדשים (ServiceNow: Kill switch · warn_only). כש"הרגיל" של מצב משתנה משמעותית — נלמד לראשונה, או החציון /
+   סף העצירה זזו ב־SH_DIFF ומעלה — הספים החדשים רצים SHADOW_N עבודות במצב צל: המגדל אוכף את הישנים (`old`; null = המדידות שלנו)
+   ורק מזהיר כשהחדשים היו עוצרים. שינוי קטן (חציון שזז מעט אחרי כל עבודה) — מתעדכן בשקט, בלי צל.
+   הרשומה לכל מצב ב־studioStats/{uid}.th: { nm, old, n }. RED_X זהה ל־tower.py */
+const SHADOW_N = 3, SH_DIFF = 0.25, RED_X = 4;
+const redOf = (nm) => (nm ? Math.max(RED_X, 2 * nm.mx / nm.ph) : RED_X);
+function thStep(prev, nm) {
+  const clean = (x) => (x && x.ph > 0 ? { ph: x.ph, mx: Math.max(x.mx || x.ph, x.ph), n: x.n || 0 } : null);
+  nm = clean(nm);
+  if (!prev || typeof prev !== 'object') return { next: { nm, old: null, n: 0 }, sh: null };   // הרשומה הראשונה — הספים כבר בתוקף, בלי צל
+  const pn = clean(prev.nm);
+  const changed = !pn !== !nm || (pn && nm && (Math.abs(nm.ph / pn.ph - 1) >= SH_DIFF || Math.abs(redOf(nm) / redOf(pn) - 1) >= SH_DIFF));
+  const next = changed ? { nm, old: pn, n: SHADOW_N } : { nm, old: clean(prev.old), n: Math.max(0, Math.min(SHADOW_N, prev.n | 0)) };
+  if (!next.n) return { next, sh: null };
+  const sh = { n: next.n, old: next.old };
+  next.n -= 1;
+  return { next, sh };
+}
+/* לטלפון: מצבים שהספים שלהם עוד במצב צל — כמה עבודות עד אכיפה */
+function thView(th) {
+  const out = {};
+  for (const m of MODES) { const e = th && th[m]; if (e && e.n > 0) out[m] = e.n; }
+  return out;
+}
+/* v384: "המשך" חוזר — 3 ב־24 שעות לאותה עבודה = לולאה: ההמשך האוטומטי נעצר, וידני רק באישור (lo) */
+const LOOP_N = 3, LOOP_WIN = 24 * 3600e3;
+const loopRecent = (job, now) => (Array.isArray(job.rh) ? job.rh : []).filter((t) => typeof t === 'number' && now - t < LOOP_WIN && t <= now);
 /* לטלפון (מסך "מגדל הפיקוח"): לכל מצב — הנלמד, או ברירת המחדל (d: true) */
 function normsView(list) {
   const out = {};
@@ -295,7 +376,7 @@ const fbView = (list) => fbNumber(fbList(list).map((e) => Object.assign({}, e)))
   .map((e) => ({ no: e.no, fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', px: e.px || '', at: e.at || 0 }));
 /* v376: מצבים שעולים בהמשך תור (מצב זול יותר אחרי עצירה על עלות) — לפי הצפוי לשעה, מהקרוב ביותר */
 const cheaperModes = (mode) => MODES.filter((m) => NORM_DEF[m] < (NORM_DEF[modeNow(mode)] || 0)).sort((a, b) => NORM_DEF[b] - NORM_DEF[a]);
-const COST_STOP = (job) => !!job && (job.err === 'budget_stop' || (job.err === 'tower_stop' && !!job.tw && (job.tw.why === 'cost' || job.tw.why === 'cap')));
+const COST_STOP = (job) => !!job && (job.err === 'budget_stop' || job.err === 'budget_cap' || (job.err === 'tower_stop' && !!job.tw && (job.tw.why === 'cost' || job.tw.why === 'cap')));
 
 /* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
 function mergeUse(a, b) {
@@ -427,14 +508,30 @@ function effState(job, now) {
   if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim' };
   return { state: job ? job.state : 'failed', err: job ? job.err || '' : '' };
 }
-const fileView = (f) => (f && f.id ? { id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 } : null);
+const fileView = (f) => (f && f.id ? Object.assign({ id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 }, f.ext ? { ext: true } : {}) : null);   // ext = מקור מ־Drive של המשתמש (נבחר ב־Picker) — לא בתיקיית העבודה, ולא נוגעים בו
+/* בחירת קבצים ותיקיות מ־Drive (Google Picker): מפתח דפדפן (מוגבל לאתר ול־Picker API — ב־Vercel, לא בריפו) ומספר הפרויקט
+   (מהמזהה של לקוח ה־OAuth של הסטודיו — "123…-xxx.apps.googleusercontent.com"). בלי מפתח — אין כפתור Drive בטלפון */
+function pickerCfg(env, clientId) {
+  const key = String((env && env.STUDIO_PICKER_KEY) || '').trim();
+  const app = String((env && env.STUDIO_PICKER_APP) || '').trim() || ((/^(\d{6,20})-/.exec(String(clientId || '')) || [])[1] || '');
+  return /^[A-Za-z0-9_-]{20,80}$/.test(key) && /^\d{6,20}$/.test(app) ? { key, app } : null;
+}
+/* קובץ וידאו מ־Drive כמקור (Picker): קיים, לא בפח, בגודל של המקור, וסרטון (לפי הסוג או הסיומת) */
+const EXT_VIDEO_RE = /\.(mp4|m4v|mov|mkv|webm|avi|mts|m2ts|3gp)$/i;
+function extVideoOk(meta) {
+  if (!meta || meta.trashed) return false;
+  const mt = String(meta.mimeType || '');
+  return /^video\//.test(mt) || ((mt === 'application/octet-stream' || mt === '') && EXT_VIDEO_RE.test(String(meta.name || '')));
+}
 /* מה הטלפון רואה — בלי המפתח (גם לא ה־hash) */
 function publicJob(job, now) {
   const e = effState(job, now);
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || 0,
-    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [] },
+    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq) },
+    folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
+    rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
     use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
@@ -452,8 +549,70 @@ function publicJob(job, now) {
     jd: normJudge(job.jd),                          // v375: שופט האיכות
     ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
+    nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
+    gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq),   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
+    hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
   };
+}
+/* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
+   gd = הייחוס {r מזהה הקובץ, n גודל, at}; gs = עבודה שהיא הרצה חוזרת של עבודת זהב (המקור); gq = הציון מול הייחוס {s chrF, tm כיסוי זמן, n כתוביות, at}.
+   הציון מחושב בטלפון (studionet.goldCompare — דטרמיניסטי, בלי AI). הרצה חוזרת = עבודות חדשות עם אותו מקור — רק בלחיצה, אחרי אומדן ואישור */
+// הסקירה (10/10): עד MAX_ACTIVE (5) — כל הסט רץ ביחד, בלי לעקוף את מגבלת העבודות הפעילות (מבחן TED = 4 הרצאות)
+const GOLD_MAX = 5, GOLD_REF_MAX = 2 * 1024 * 1024;
+function normGd(o) {
+  if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.r || ''))) return null;
+  return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: typeof o.at === 'number' ? o.at : 0 };
+}
+function normGq(o) {
+  if (!o || typeof o !== 'object') return null;
+  const p = (v) => (Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
+  const sc = p(o.s), tm = p(o.tm), n = Number.isInteger(o.n) && o.n > 0 && o.n <= 1e5 ? o.n : null;
+  return sc == null || tm == null || n == null ? null : { s: sc, tm, n, at: typeof o.at === 'number' ? o.at : 0 };
+}
+/* עבודות שבסט הזהב (שהסתיימו, עם ייחוס וקבצים) */
+const goldSources = (jobs) => (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && j.state === 'done' && normGd(j.gd) && (j.fa || j.fv) && FILE_ID_RE.test(String(j.folder || '')));
+/* הרצה חוזרת של עבודת זהב — עבודה חדשה עם אותו מקור (אותם קבצים ותיקייה), "חדשה" עד שמתחילים אותה */
+/* ---------- מ2 (10/10/2026): עורך הכתוביות והפקה מחדש ----------
+   הגרסה הערוכה = קובץ cues חדש (JSON, אותו פורמט של cues.final.json) + SRT בתיקיית העבודה; העבודה מחליפה אליהם את
+   ה־cues/srt שבתוצרים, והקודמים נשמרים בהיסטוריה (vh, עד VH_MAX) — "חזרה לגרסה" בלי להעלות שוב.
+   הפקה מחדש = עבודה חדשה (rr) מאותו מקור ובאותה תיקייה: הכתוביות הנוכחיות → צריבה (בלי Claude, בלי טוקנים) */
+const VH_MAX = 20;
+const CUES_MAX = 4 * 1024 * 1024;   // קובץ כתוביות ערוך (JSON / SRT) — שעתיים של כתוביות הן פחות מ־1MB
+const RR_OUTS = ['compact', 'same', 'mkv', 'small'];
+function cuesSwap(job, c, s, now) {
+  const fo = Array.isArray(job.fo) ? job.fo.slice() : [];
+  const old = { c: (fo.find((o) => o.k === 'cues') || {}).id || '', s: (fo.find((o) => o.k === 'srt') || {}).id || '', at: now };
+  const put = (f, k) => { const i = fo.findIndex((o) => o.k === k); const row = { id: f.id, name: f.name, size: f.size, k }; if (i >= 0) fo[i] = row; else fo.push(row); };
+  put(c, 'cues'); put(s, 'srt');
+  const vh = (Array.isArray(job.vh) ? job.vh : []).concat(old.c ? [old] : []).slice(-VH_MAX);
+  return { fo, vh, ev: (job.ev || 0) + 1 };
+}
+function rrSpec(parent, body) {
+  const out = uniq(Array.isArray(body && body.out) ? body.out : [], (k) => RR_OUTS.includes(k));
+  const sp = parent.spec || {};
+  return { name: sp.name || '', size: sp.size || 0, type: sp.type || '', dur: sp.dur || 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(sp.mode),
+    out: out.length ? out : ['compact'], style: STYLES.includes(body && body.style) ? body.style : STYLES.includes(sp.style) ? sp.style : STYLES[0], terms: '',
+    ...(normEdl(sp.edl) ? { edl0: normEdl(sp.edl) } : {}),                     // מ5: החיתוך שלפני התרגום (המקור → הכתוביות)
+    ...(normEdl(body && body.edl, sp.dur) ? { edl: normEdl(body.edl, sp.dur) } : {}),   // מ5: חיתוך אחרי התרגום (על ציר הזמן של הכתוביות)
+    ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) };   // באותו מנוע כמו המקור; במצב השרת — בלי טוקנים, התקרה המינימלית
+}
+function rrJob(parent, body, id, uid, now) {
+  const fc = (Array.isArray(parent.fo) ? parent.fo : []).find((o) => o.k === 'cues');
+  return { id, uid, kind: 'rr', state: 'new', created: now, updated: now, spec: rrSpec(parent, body), fv: parent.fv || null, fc: fc ? { id: fc.id, name: fc.name, size: fc.size } : null,
+    folder: parent.folder, rp: parent.id };
+}
+/* מ7: גיליון ה־AI בהפעלה אחת — הבקשה (תור, JSON) כבר בתיקיית העבודה; המצב — זול כברירת מחדל (Sonnet Medium) */
+const AI_Q_MAX = 512 * 1024;
+function aiJob(parent, fq, mode, id, uid, now) {
+  const sp = parent.spec || {};
+  return { id, uid, kind: 'ai', state: 'new', created: now, updated: now, folder: parent.folder, rp: parent.id, fq,
+    spec: { name: sp.name || '', size: sp.size || 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(mode || 'sonnet-medium'), out: [], style: STYLES[0], terms: '',
+      ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) } };
+}
+function goldClone(src, id, uid, now) {
+  const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
+  return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec: Object.assign({}, src.spec, { out }), fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id };
 }
 /* v373: עקיבה מהעובד (מהיומנים, בלי טוקנים): לכל סוכן n פעולות, e שנכשלו, s שניות; וקבוצות [מפתח, n, e].
    רק מספרים ומפתחות בצורה קבועה (שם כלי, או job:/vt: + פקודה) — בלי טקסט חופשי. לא תקין — נזרק כולו */
@@ -467,6 +626,7 @@ function normTrace(t) {
     const n = int(v.n, 1e6), e = int(v.e, 1e6), sec = int(v.s, 1e7);
     if (n == null || e == null || sec == null || e > n) return null;
     a[k] = { n, e, s: sec };
+    if (v.w != null) { const w = int(v.w, 1e6); if (w == null || w > n) return null; a[k].w = w; }   // v386: פעולות מחוץ לתפקיד (אופציונלי — עקיבה ישנה בלי)
   }
   if (!Object.keys(a).length) return null;
   const g = [];
@@ -535,6 +695,18 @@ function normGl(o) {
   }
   return u || s.length ? { u, s } : null;
 }
+/* v382: הערה לעובד (Pause + corrective input) — טקסט שלך מהטלפון לעבודה שרצה. נמסרת לעובד בתשובה לדיווח הבא על
+   נקודת שמירה (nt → nh עם d = מתי נקראה). עד NOTE_MAX לעבודה, NOTE_LEN תווים; בלי תווי בקרה, תגיות וגרשיים הפוכים */
+const NOTE_MAX = 5, NOTE_LEN = 300;
+function normNoteText(v) {
+  const s = String(v == null ? '' : v).replace(/[\x00-\x09\x0b-\x1f\x7f<>`]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
+  return s.length >= 2 ? s.slice(0, NOTE_LEN) : '';
+}
+function noteView(job) {
+  const p = job.nt && normNoteText(job.nt.t) ? { t: normNoteText(job.nt.t), at: job.nt.at || 0 } : null;
+  const h = (Array.isArray(job.nh) ? job.nh : []).filter((x) => x && normNoteText(x.t)).slice(-NOTE_MAX).map((x) => ({ t: normNoteText(x.t), at: x.at || 0, d: x.d || 0 }));
+  return p || h.length ? { p, h, n: job.nn || h.length + (p ? 1 : 0), max: NOTE_MAX } : null;
+}
 /* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (מנהל העבודה), tl = TRANSLATE, rv = REVIEW, jg = JUDGE (v375) */
 function normPv(p) {
   if (!p || typeof p !== 'object') return null;
@@ -552,9 +724,11 @@ function workerJob(job, nm, fb, fm, rl) {
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
-    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), c: fileView(job.fc), q: fileView(job.fq) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
-    ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
+    ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
+    sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
+    notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX) };   // v382: ההערות שכבר נקראו — להמשך בסשן חדש
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
 function applyReport(job, r, now) {
@@ -639,7 +813,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl'];   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl'];   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -667,11 +841,13 @@ function fromFields(f) {
 }
 
 module.exports = {
-  MODES, LEGACY_MODES, modeNow,
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean,
+  MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
+  SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
+  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,

@@ -18,7 +18,7 @@ const styles = read('styles.css');
 // v355: studio.js מייבא את studionet.js ו־libbackup.js — כאן במקומם תחליפים (הבדיקות של המודולים האלה ב־studio-v355)
 const STUBS = { createNet: () => ({ api: async () => ({ ok: false }), driveApi: async () => null, jobFolder: async () => '', upload: async () => ({}) }),
   probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}), progressModel: () => ({ stages: [], left: 0, pct: 0 }),
-  createBackup: () => ({}), waitOAuthCode: () => {} };
+  createBackup: () => ({}), waitOAuthCode: () => {}, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null };   // איכויות הצפייה (studioplay.js)
 const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
 const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, migrateSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
 ok(S.LS_STUDIO === 'pwa_studio_v1', 'מפתח האחסון: pwa_studio_v1');

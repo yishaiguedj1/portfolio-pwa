@@ -10,6 +10,7 @@
 
 const UP = 'https://www.googleapis.com/upload/drive/v3/files';
 const API = 'https://www.googleapis.com/drive/v3/files';
+export const MEDIA_PATH = './studio-media/';   // מ1: = MEDIA_RE ב־sw.js
 const FOLDER = 'application/vnd.google-apps.folder';
 export const ROOT_NAME = 'THE SNOWBALL — סטודיו';
 const K256 = 256 * 1024;
@@ -210,6 +211,96 @@ export async function extractAudio(file, o = {}) {
 }
 
 /* ---------------- השרתון + Drive ---------------- */
+/* ---------- v387: סט הזהב — השוואה דטרמיניסטית לתרגום אנושי (בלי AI, בלי טוקנים) ---------- */
+export const GOLD_REF_NAME = 'תרגום אנושי (ייחוס).srt', GOLD_REF_MAX = 2 * 1024 * 1024;
+const tc = (h, m, s, ms) => ((+h * 60 + +m) * 60 + +s) * 1000 + +ms;
+/* הסרת תגיות (<i>…</i>) בלי regex: כל מה שבין < ל־> יוצא, ושום < או > לא נשאר בטקסט */
+function stripTags(s) {
+  let out = '', inTag = false;
+  for (const ch of s) {
+    if (ch === '<') { inTag = true; continue; }
+    if (ch === '>') { inTag = false; continue; }
+    if (!inTag) out += ch;
+  }
+  return out;
+}
+/* SRT → [{a, b, t}] (מילישניות, טקסט בלי תגיות). שורה פגומה — מדלגים */
+export function parseSrt(text) {
+  const out = [];
+  const blocks = String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n').split(/\n{2,}/);
+  for (const b of blocks) {
+    const lines = b.split('\n').filter((l) => l.trim() !== '');
+    const i = lines.findIndex((l) => l.includes('-->'));
+    if (i < 0) continue;
+    const m = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/.exec(lines[i]);
+    if (!m) continue;
+    const t = stripTags(lines.slice(i + 1).join(' ')).replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+    const a = tc(m[1], m[2], m[3], m[4].padEnd(3, '0')), z = tc(m[5], m[6], m[7], m[8].padEnd(3, '0'));
+    if (z > a && t) out.push({ a, b: z, t });
+  }
+  return out.sort((x, y) => x.a - y.a);
+}
+/* chrF++ — port זהה ל־translator/tedeval.py (תואם sacrebleu: nc 6, nw 2, β 2, בלי lowercase, בלי רווחים בתווים).
+   מאגר המדידות ו"סט הזהב" מודדים באותה נוסחה; שינוי כאן = גם שם (tests/studio-v387 בודק את אותם ערכי sacrebleu) */
+const CHRF_PUNCT = new Set(Array.from('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'));
+function chrfWords(s) {
+  const out = [];
+  for (const w of String(s).split(/\s+/).filter(Boolean)) {
+    const a = Array.from(w);
+    if (a.length === 1) out.push(w);
+    else if (CHRF_PUNCT.has(a[a.length - 1])) out.push(a.slice(0, -1).join(''), a[a.length - 1]);
+    else if (CHRF_PUNCT.has(a[0])) out.push(a[0], a.slice(1).join(''));
+    else out.push(w);
+  }
+  return out;
+}
+function ngramStat(h, r, n) {
+  const count = (a) => { const m = new Map(); for (let i = 0; i + n <= a.length; i++) { const g = a.slice(i, i + n).join('\u0001'); m.set(g, (m.get(g) || 0) + 1); } return m; };
+  const gh = count(h), gr = count(r);
+  let th = 0, tr = 0, mt = 0;
+  for (const v of gh.values()) th += v;
+  for (const v of gr.values()) tr += v;
+  for (const [g, v] of gh) mt += Math.min(v, gr.get(g) || 0);
+  return [mt, th, tr];
+}
+export function chrfpp(hyp, ref, nc = 6, nw = 2, beta = 2) {
+  const ch = Array.from(String(hyp || '').split(/\s+/).join('')), cr = Array.from(String(ref || '').split(/\s+/).join(''));
+  const hw = chrfWords(hyp || ''), rw = chrfWords(ref || ''), st = [];
+  for (let n = 1; n <= nc; n++) st.push(ngramStat(ch, cr, n));
+  for (let n = 1; n <= nw; n++) st.push(ngramStat(hw, rw, n));
+  let ap = 0, ar = 0, eff = 0;
+  for (const [m, ht, rt] of st) if (ht > 0 && rt > 0) { ap += m / ht; ar += m / rt; eff++; }
+  if (!eff) return 0;
+  ap /= eff; ar /= eff;
+  if (ap + ar === 0) return 0;
+  const b2 = beta * beta;
+  return 100 * (1 + b2) * ap * ar / (b2 * ap + ar);
+}
+/* נרמול עברית לפני השוואה — זהה ל־norm_he: תווי כיוון וניקוד החוצה, גרשיים/מקף/שלוש־נקודות אחידים */
+export function normHe(s) {
+  return String(s || '').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '').replace(/[\u05b0-\u05bd\u05bf\u05c1\u05c2\u05c4\u05c5\u05c7]/g, '')
+    .replace(/[״“”]/g, '"').replace(/[׳‘’]/g, "'").replace(/[־–—]/g, '-').replace(/…/g, '...').split(/\s+/).filter(Boolean).join(' ');
+}
+const SOUND_ONLY = /^[\s(\[][^)\]]*[)\]][\s.!?]*$/;     // (מחיאות כפיים) — יורדת משני הצדדים, כמו ב־tedeval
+/* כמה מזמן הדיבור בתרגום האנושי מכוסה בכתוביות שלנו (%) */
+export function timeCover(hyp, ref) {
+  let tot = 0, cov = 0;
+  for (const c of ref) {
+    tot += c.b - c.a;
+    for (const x of hyp) { if (x.b <= c.a) continue; if (x.a >= c.b) break; cov += Math.min(c.b, x.b) - Math.max(c.a, x.a); }
+  }
+  return tot ? Math.round(Math.min(1, cov / tot) * 1000) / 10 : 0;
+}
+/* הציון של עבודה מול הייחוס (כמו chrf_doc של tedeval): s = chrF++ על כל הטקסט המנורמל לפי סדר הזמן
+   (בלי כתוביות של צלילים, ובלי שלנו לפני הכתובית הראשונה בייחוס), tm = כיסוי הזמן, n = כתוביות בייחוס */
+export function goldCompare(hypText, refText) {
+  const r = parseSrt(refText).filter((c) => !SOUND_ONLY.test(c.t));
+  if (!r.length) return null;
+  const h = parseSrt(hypText).filter((c) => !SOUND_ONLY.test(c.t) && (c.a + c.b) / 2 >= r[0].a);
+  const doc = (cs) => normHe(cs.map((c) => c.t).join(' '));
+  return { s: Math.round(chrfpp(doc(h), doc(r))), tm: Math.round(timeCover(h, r)), n: r.length };
+}
+
 export function createNet(env) {
   const E = Object.assign({ fetch: (...a) => fetch(...a), now: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), put: xhrPut }, env);
   let dtok = null;      // { at, exp } — גישה זמנית ל־Drive (שעה), רק בזיכרון
@@ -365,5 +456,87 @@ export function createNet(env) {
     return (await r.json()).id;
   }
 
-  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, _forget: () => { dtok = null; } };
+  /* Drive כמקור וכיעד (Google Picker — הרשאה לקובץ/לתיקייה שבחרת בלבד): פרטי סרטון שבחרת, והעברה / העתקה לתיקייה שבחרת */
+  const DFID = /^[A-Za-z0-9_-]{10,200}$/;
+  async function driveMeta(id) {
+    if (!DFID.test(String(id || ''))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const r = await E.fetch(API + '/' + id + '?fields=id,name,size,mimeType,trashed,videoMediaMetadata(durationMillis)', { headers: { Authorization: 'Bearer ' + await driveToken() } });
+    if (!r.ok) throw await driveErr(r);
+    return r.json();
+  }
+  /* העברה (בלי עותק — סרטון גדול לא תופס אחסון פעמיים): מתיקיית העבודה לתיקייה שבחרת */
+  async function driveMove(id, from, to) {
+    if (![id, from, to].every((x) => DFID.test(String(x || '')))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const r = await E.fetch(API + '/' + id + '?addParents=' + to + '&removeParents=' + from + '&fields=id,parents', { method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'application/json' }, body: '{}' });
+    if (!r.ok) throw await driveErr(r);
+    return r.json();
+  }
+  /* העתקה (לקבצים קטנים — כתוביות): המקור נשאר בתיקיית העבודה (העורך וסט הזהב קוראים ממנו) */
+  async function driveCopy(id, to, name) {
+    if (!DFID.test(String(id || '')) || !DFID.test(String(to || ''))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const r = await E.fetch(API + '/' + id + '/copy?fields=id', { method: 'POST',
+      headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'application/json' }, body: JSON.stringify({ parents: [to], name: String(name || '').slice(0, 200) }) });
+    if (!r.ok) throw await driveErr(r);
+    return r.json();
+  }
+
+  /* v387: סט הזהב — קובץ טקסט מ־Drive (התוצר שלנו / הייחוס), והעלאת הייחוס לתיקיית העבודה */
+  async function driveText(id) {
+    const r = await E.fetch(API + '/' + encodeURIComponent(id) + '?alt=media', { headers: { Authorization: 'Bearer ' + await driveToken() } });
+    if (!r.ok) throw await driveErr(r);
+    return r.text();
+  }
+  /* מ1: הנגן — הסרטון מ־Drive דרך ה־Service Worker (./studio-media/<id>): ה־SW מבקש כאן אסימון (MessageChannel) ומעביר
+     Range ל־Drive עם Authorization — הטוקן לא בכתובת. רק קבצים שהדף אישר (mediaAllow) — לא כל קובץ שמישהו מבקש */
+  const mediaAllow = new Set();
+  let mediaWired = false;
+  function mediaUrl(id) {
+    if (!/^[A-Za-z0-9_-]{10,200}$/.test(String(id || ''))) return '';
+    mediaAllow.add(id);
+    const sw = E.sw || (typeof navigator !== 'undefined' && navigator.serviceWorker);
+    if (!sw || !sw.controller) return '';               // בלי SW שולט — הקורא יבחר דרך אחרת (הורדה / פתיחה ב־Drive)
+    if (!mediaWired && typeof sw.addEventListener === 'function') {
+      mediaWired = true;
+      sw.addEventListener('message', (e) => {
+        const d = e && e.data;
+        const port = e && e.ports && e.ports[0];
+        if (!d || typeof d.snbMedia !== 'string' || !port) return;
+        if (!mediaAllow.has(d.snbMedia)) { port.postMessage({ t: '' }); return; }
+        mediaInfo(d.snbMedia, !!d.fresh).then((x) => port.postMessage(x), () => port.postMessage({ t: '' }));
+      });
+    }
+    return MEDIA_PATH + id;
+  }
+  /* לשאלה של ה־SW: אסימון + גודל וסוג הקובץ (Content-Range נבנה ב־SW מהגודל — לא חשוף בתשובת CORS של Drive) */
+  const mediaMeta = new Map();
+  async function mediaInfo(id, fresh) {
+    const t = await driveToken(fresh);
+    let m = mediaMeta.get(id);
+    if (!m) {
+      const r = await E.fetch(API + '/' + encodeURIComponent(id) + '?fields=size,mimeType', { headers: { Authorization: 'Bearer ' + t } });
+      if (!r.ok) throw await driveErr(r);
+      const j = await r.json();
+      m = { size: Math.floor(Number(j.size) || 0), type: String(j.mimeType || '') };
+      mediaMeta.set(id, m);
+    }
+    return { t: t || '', exp: (dtok && dtok.exp) || 0, size: m.size, type: m.type };
+  }
+  async function driveJson(id) { return JSON.parse(await driveText(id)); }
+  /* קובץ טקסט קטן לתיקיית העבודה (multipart) — הייחוס של סט הזהב, גרסה ערוכה של הכתוביות (מ2) */
+  async function textUpload(folderId, name, mime, text, props) {
+    if (!/^[A-Za-z0-9_-]{10,100}$/.test(String(folderId || ''))) throw Object.assign(new Error('folder'), { code: 'folder' });
+    const b = 'snb' + Math.random().toString(36).slice(2);
+    const meta = { name, parents: [folderId], mimeType: mime, appProperties: props || {} };
+    const mp = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + b +
+      '\r\nContent-Type: ' + mime + '; charset=UTF-8\r\n\r\n' + text + '\r\n--' + b + '--';
+    const r = await E.fetch(UP + '?uploadType=multipart&fields=id', { method: 'POST', body: mp,
+      headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'multipart/related; boundary=' + b } });
+    if (!r.ok) throw await driveErr(r);
+    return (await r.json()).id;
+  }
+  const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
+
+
+  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
 }

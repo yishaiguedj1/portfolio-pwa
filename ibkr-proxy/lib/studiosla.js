@@ -3,6 +3,7 @@
    יעד זמן = ההערכה שראית בהתחלה (אותה טבלה של מסך ההתקדמות); יעד תקציב = הצפוי לפי "הרגיל" שלך בזמן הלקיחה.
    השעון רץ מהלקיחה הראשונה ועוצר כשמחכים לך (שאלה / שער), כשמחכים לסרטון מהטלפון, ובין כישלון ל"המשך". */
 
+const ETA = require('./studioeta');
 const STAGES = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 // זהה ל־RATE ב־studionet.js (דקות עבודה לכל דקת סרטון; התרגום והבדיקה לפי המצב) — tests/studio-v377 משווה
 const RATE = { tr: 8 / 77, al: 5 / 77, tl: 50 / 77, rv: 12 / 77, bn: 23 / 77, sv: 3 / 77 };
@@ -13,6 +14,14 @@ const HP_DEF = 5;                           // החלטה 5: מחיר מתרגם
 const HP_MIN = 0.5, HP_MAX = 100;
 const DAY = 86400000;
 
+/* הסקירה (10/10/2026): הצפי של העבודה = מודל זמנים אחד (studioeta) — ep שנקבע בלקיחה, ואם אין — ה־prior של המנוע.
+   הטבלה הישנה (stageTargets, דקות לכל דקת סרטון) נשארת רק כמראה של stageEstimates בטלפון; בסרטון קצר היא טעתה פי 5–6 */
+function planOfJob(job) {
+  const ep = ETA.normEp(job && job.ep);
+  if (ep) return ep.s;
+  const sp = (job && job.spec) || {};
+  return ETA.planOf(ETA.PRIOR[job && job.eng === 'api' ? 'a' : 'r'], sp.mode, sp.dur).s;
+}
 /* יעד הזמן לכל שלב, בשניות (כמו stageEstimates בטלפון) */
 function stageTargets(mode, dur) {
   const durMin = (dur > 0 ? dur : 3600) / 60, k = (MODE_MIN[mode] || 105) / 105;
@@ -23,7 +32,7 @@ function stageTargets(mode, dur) {
 /* היעדים של העבודה — נקבעים פעם אחת, בלקיחה הראשונה. ph = "הרגיל" לשעת סרטון (נלמד או ברירת המחדל), fixed = עלות הפתיחה */
 function targets(spec, ph, fixed) {
   if (!spec || !(spec.dur > 0)) return null;
-  const st = stageTargets(spec.mode, spec.dur);
+  const st = planOfJob({ spec, eng: spec.eng });     // ברירת מחדל; בלקיחה הקריאה דורסת ב־etaTarget(ep) — p90 של העבודה
   const t = STAGES.reduce((a, s) => a + st[s], 0);
   const u = ph > 0 ? Math.round((ph * spec.dur / 3600 + (fixed || 0)) * 100) / 100 : 0;
   return { t, u };
@@ -33,9 +42,9 @@ function progFrac(job) {
   if (job && job.state === 'done') return 1;
   const prog = (job && job.prog) || {}, stg = prog.stg || {};
   let all = 0, done = 0;
-  const ep = job && job.ep && job.ep.s;      // 10/10/2026: משקל לפי התוכנית הנלמדת של העבודה (אם יש)
+  const ep = planOfJob(job);                 // משקל לפי הצפי של העבודה (studioeta)
   for (const s of STAGES) {
-    const w = ep && ep[s] > 0 ? ep[s] : RATE[s];
+    const w = ep[s] > 0 ? ep[s] : RATE[s];
     all += w;
     if (stg[s] && stg[s].e) done += w;
     else if (s === prog.st && stg[s]) done += w * Math.max(0, Math.min(1, +prog.p || 0));
@@ -124,7 +133,7 @@ function valueView(list, now, hpc) {
   const recent = jobs.filter((j) => j.state === 'done' && j.ended && now - j.ended <= 30 * DAY && j.spec && j.spec.dur > 0 && j.prog && j.prog.stg);
   const act = {}, exp = {};
   for (const j of recent) {
-    const tgs = stageTargets(j.spec.mode, j.spec.dur);
+    const tgs = planOfJob(j);                 // מול הצפי של העבודה, לא מול הטבלה הישנה
     for (const s of STAGES) {
       const g = j.prog.stg[s];
       if (!g || !g.s || !g.e || g.e < g.s) continue;

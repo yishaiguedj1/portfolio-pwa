@@ -39,7 +39,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. הטלפון ---------- */
   const st = await import(path.join(root, 'studio.js'));
-  ok(JSON.stringify(st.normRules({ b: 12.5, mx: 'sonnet-high', ab: true, x: 1 })) === '{"b":12.5,"mx":"sonnet-high","ab":true,"jx":false}' && st.normRules({ b: 900, mx: 'evil' }).b === 0, 'normRules בטלפון — כמו בשרתון');
+  ok(JSON.stringify(st.normRules({ b: 12.5, mx: 'sonnet-high', ab: true, x: 1 })) === '{"b":12.5,"mx":"sonnet-high","ab":true,"jx":false}' && st.normRules({ b: 900, mx: 'evil' }).b === 500 && st.normRules({ b: 7.3 }).b === 7.5 && st.normRules({ b: 0.5 }).b === 0
+    && [900, 7.3, 0.5, 12.5].every((b) => st.normRules({ b }).b === S.normRules({ b }).b), 'normRules בטלפון — כמו בשרתון (עיגול לחצי דולר, עד 500)');
   ok(order.slice(0, -1).every((id, i) => st.modeOverMax(order[i + 1], id) && !st.modeOverMax(id, order[i + 1])) && !st.modeOverMax('opus-max', ''), 'modeOverMax — אותו סדר כמו בשרתון');
   const q = st.normQa({ id: 'g000000000001', g: 'b', q: '<b>evil</b>', o: ['go', 'stop'], d: 1, w: 1800, n: { usd: 10.27, cap: 10 } });
   ok(q && q.g === 'b' && q.q === '' && q.n.cap === 10, 'normQa: שער תקציב (בלי טקסט חופשי)');
@@ -55,7 +56,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/const x = h\('span', 'st-cue-x', cu\.x\); x\.dir = 'auto'/.test(sj) && !/innerHTML[^;]*cu\./.test(sj), 'הכתוביות לדוגמה — טקסט בלבד');
   ok(/case 'claude:budget': return T\('studioAlClaudeBudget'\)/.test(sj), 'תווית להתראה "הגענו לתקציב"');
   const app = read('app.js');
-  for (const k of ['studioRlT', 'studioRlLede', 'studioRlNone', 'studioRlSumB', 'studioRlUpTo', 'studioRlSumAb', 'studioRlBudgetT', 'studioRlNoBudget', 'studioRlNoBudgetS',
+  for (const k of ['studioRlT', 'studioRlLede', 'studioRlUpTo', 'studioRlBudgetT', 'studioRlNoBudget', 'studioRlNoBudgetS',
     'studioRlBudgetNote', 'studioRlMaxT', 'studioRlAllModes', 'studioRlAbT', 'studioRlAb', 'studioRlAbS', 'studioRlOverForm', 'studioRuleModeQ', 'studioStartAnyway',
     'studioErrHalted', 'studioErrRuleMode', 'studioErrBudgetStop', 'studioAlClaudeBudget', 
     'studioHaltQ0', 'studioHaltQ1', 'studioHaltQN', 'studioHaltOk', 'studioHaltDone0', 'studioHaltDone1', 'studioHaltDoneN', 'studioHaltBack', 'studioHaltOnB', 'studioHaltBackBtn',

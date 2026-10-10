@@ -87,6 +87,34 @@ def thresholds(nm=None):
     return red, max(CAP_X, red * 1.25)
 
 
+def valid_shadow(sh):
+    """v384: מצב צל מהשרתון — {'n': עבודות עד אכיפה, 'old': "הרגיל" הקודם (None = המדידות שלנו)} או None."""
+    if not isinstance(sh, dict):
+        return None
+    try:
+        n = int(sh.get('n') or 0)
+    except (TypeError, ValueError):
+        return None
+    if not 0 < n <= 3:
+        return None
+    return {'n': n, 'old': valid_norm(dict(sh['old'], n=NORM_MIN)) if isinstance(sh.get('old'), dict) else None}
+
+
+def shadow_assess(now, usd, spec, nm, sh, frac, errs, calls, prog_chg, usd_then):
+    """v384: בלי מצב צל — הספים של "הרגיל". במצב צל — אוכפים את הישנים, והחדשים רק מזהירים:
+    אם החדשים היו עוצרים והישנים לא — צהוב עם sh=1 ("בספים החדשים היה נעצר"). מחזיר (lv, why, info)."""
+    red_x, cap_x = thresholds(nm)
+    new = assess(now, usd, expected_usd(spec, nm), frac, errs, calls, prog_chg, usd_then, red_x, cap_x)
+    if not sh:
+        return new
+    o_red, o_cap = thresholds(sh['old'])
+    lv, why, info = assess(now, usd, expected_usd(spec, sh['old']), frac, errs, calls, prog_chg, usd_then, o_red, o_cap)
+    info = dict(info, shn=sh['n'])
+    if new[0] == 'red' and lv != 'red':
+        return 'warn', why, dict(info, sh=1)
+    return lv, why, info
+
+
 def progress_frac(st, p):
     """כמה מהעבודה (במשקל הטוקנים) כבר מאחורינו."""
     done = 0.0
@@ -315,12 +343,11 @@ def check(st, tw, now):
     tw['samples'] = samples[-200:]
     then = [s[1] for s in samples if now - s[0] >= IDLE_SEC]
     nm = valid_norm(st.get('nm'))
-    red_x, cap_x = thresholds(nm)
     errs = recent_errors(now)
     calls = [(c[0], c[1]) for c in tw.get('calls', [])]
     names = {c[1]: c[2] for c in tw.get('calls', []) if len(c) > 2}
-    lv, why, info = assess(now, usd, expected_usd(st.get('spec'), nm), frac, errs, calls, prog.get('chg') or prog.get('at'),
-                           then[-1] if then else None, red_x, cap_x)
+    lv, why, info = shadow_assess(now, usd, st.get('spec'), nm, valid_shadow(st.get('sh')), frac, errs, calls,
+                                  prog.get('chg') or prog.get('at'), then[-1] if then else None)   # v384: מצב צל
     k = info.pop('k', '')
     if lv == 'red':
         info['fp'] = fault_fp(why, prog.get('st'), k if why == 'loop' else names.get(k, '') if why == 'calls' else '')

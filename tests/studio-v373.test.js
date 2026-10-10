@@ -46,7 +46,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(!/innerHTML/.test(sj.slice(sj.indexOf('function agentName'), sj.indexOf('function fbWhy'))), 'המלאי נבנה בלי innerHTML');
   const app = read('app.js');
   for (const k of ['studioTrActs', 'studioTrT', 'studioTrErrs', 'studioTrErr1', 'studioAgMain', 'studioAgTl', 'studioAgRv', 'studioAgMainA', 'studioAgTlA', 'studioAgRvA', 'studioAgSec', 'studioAgJobs',
-    'studioAgPvNew', 'studioAgT', 'studioAgLede', 'studioAgNone', 'studioAgJobsK', 'studioAgCost', 'studioAgOk', 'studioAgActs', 'studioAgTime', 'studioAgPv', 'studioPermT',
+    'studioAgPvNew', 'studioAgT', 'studioAgLede', 'studioAgNone', 'studioAgJobsK', 'studioAgCost', 'studioAgOk', 'studioAgActs', 'studioAgTime', 'studioPermT',   /* v386: studioAgPv הוסר — הגרסה במחזור החיים */
     'studioPermDrive', 'studioPermKey', 'studioPermPush', 'studioPermNotify', 'studioPermSessions', 'studioPermBlast', 'studioAgEnv'])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 
