@@ -33,8 +33,9 @@ function progFrac(job) {
   if (job && job.state === 'done') return 1;
   const prog = (job && job.prog) || {}, stg = prog.stg || {};
   let all = 0, done = 0;
+  const ep = job && job.ep && job.ep.s;      // 10/10/2026: משקל לפי התוכנית הנלמדת של העבודה (אם יש)
   for (const s of STAGES) {
-    const w = RATE[s];
+    const w = ep && ep[s] > 0 ? ep[s] : RATE[s];
     all += w;
     if (stg[s] && stg[s].e) done += w;
     else if (s === prog.st && stg[s]) done += w * Math.max(0, Math.min(1, +prog.p || 0));

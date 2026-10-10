@@ -1744,6 +1744,31 @@ function stubFetch(text, status = 200) {
       ok(va.bn.s === 'tl' && va.bn.sh > 0.9 && va.ab.rs === 1 && va.ab.qa === 1 && L7.valueView(vj, mon, 1000).hp === 10 && !L7.valueView([], mon, 0).bn,
         'סטודיו: ערך — צוואר הבקבוק, מסלולים חריגים, המחיר שלך');
       ok(!/name|Ackman/.test(JSON.stringify(va)), 'סטודיו: ערך — בלי שמות קבצים');
+      // 10/10/2026: צפי זמנים נלמד (studioeta.js) — a + b·דקות לכל שלב, ridge לעבר ה־prior, אי־ודאות מהעבר
+      {
+        const E = require('../lib/studioeta');
+        const p5 = E.etaPlan(E.etaModel([], 'a', 0), 'opus-medium', 300);
+        ok(p5.t > 600 && p5.t < 960 && p5.n === 0, 'סטודיו: צפי — prior של השרת: 5 דק׳ סרטון ≈ 13 דק׳ (המדידה הראשונה), לא "כ־7"');
+        const p30 = E.etaPlan(E.etaModel([], 'a', 0), 'opus-medium', 1800);
+        ok(p30.t / 30 < p5.t / 5, 'סטודיו: צפי — סרטון ארוך מהיר יותר לכל דקה (החלק הקבוע מתחלק)');
+        ok(E.etaPlan(null, 'opus-max', 600).s.tl > E.etaPlan(null, 'opus-medium', 600).s.tl, 'סטודיו: צפי — מצב כבד יותר = תרגום ארוך יותר');
+        ok(E.etaTarget(p5) > p5.t && E.etaTarget(null) === 0, 'סטודיו: צפי — יעד הזמן = p90 + דקה, מעל ה־p50');
+        // עבודות "אמיתיות" עם a=100, b=10 לשלב התמלול — המודל מתקרב אליהן, ובלי לקפוץ מדגימה אחת
+        const mk = (d, at) => ({ e: 'a', m: 'opus-medium', d, at, s: { tr: 100 + 10 * d / 60, al: 200, tl: 30, rv: 40, bn: 100, sv: 10 } });
+        const one = E.etaModel([mk(600, 0)], 'a', 0).st.tr, many = E.etaModel([300, 600, 900, 1200, 1800, 2400, 600, 900, 300, 1200, 1500, 1800].map((d) => mk(d, 0)), 'a', 0);
+        ok(Math.abs(many.st.tr[0] - 100) < 25 && Math.abs(many.st.tr[1] - 10) < 3, 'סטודיו: צפי — 12 עבודות: המודל לומד את הקבוע והשיפוע');
+        ok(one[0] + one[1] * 10 > 205 && one[0] + one[1] * 10 < 275, 'סטודיו: צפי — עבודה אחת מזיזה את ה־prior רק חלקית (shrinkage): בין 280 ל־200');
+        ok(many.n === 12 && many.q[0] <= many.q[1] && many.q[1] <= many.q[2], 'סטודיו: צפי — מ־8 עבודות: קוונטילים מהעבר, בסדר עולה');
+        ok(E.etaModel([], 'a', 0).q[1] > 0.29 && E.etaModel([], 'a', 0).q[1] < 0.3, 'סטודיו: צפי — לפני 8 עבודות: σ=0.35 קבוע');
+        const job = { kind: 'tr', fires: 1, eng: 'api', spec: { dur: 300, mode: 'opus-medium' },
+          prog: { stg: { tr: { s: 1000, e: 171000 }, al: { s: 171000, e: 501000 }, tl: { s: 501000, e: 561000 }, rv: { s: 561000, e: 0 } } } };
+        const sm = E.etaSample(job, 5);
+        ok(sm && sm.e === 'a' && sm.s.tr === 170 && sm.s.al === 330 && sm.s.rv == null && sm.d === 300, 'סטודיו: צפי — דגימה מזמני השלבים (שלב פתוח לא נכנס)');
+        ok(!E.etaSample(Object.assign({}, job, { fires: 2 }), 5) && !E.etaSample(Object.assign({}, job, { kind: 'ping' }), 5), 'סטודיו: צפי — "המשך" / בדיקת חיבור לא מלמדים');
+        ok(!/name|Ackman/.test(JSON.stringify(E.addEtSample([], Object.assign({ name: 'Ackman' }, sm)))), 'סטודיו: צפי — בלי שמות קבצים');
+        ok(E.addEtSample(new Array(45).fill(sm), sm).length === E.ET_MAX, 'סטודיו: צפי — עד 40 דגימות');
+        ok(!E.normEp({ s: { tr: 1 } }) && E.normEp(p5).t === p5.t && !E.normEp({ s: Object.assign({}, p5.s, { bn: -5 }) }), 'סטודיו: צפי — ep בצורה קבועה בלבד');
+      }
       // מקצה לקצה: לקיחה קובעת יעדים, המתנה לסרטון עוצרת את השעון, הפרה ← התראה, ערך + מחיר
       rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
       const J7 = rr.payload.job.id;
@@ -1752,7 +1777,11 @@ function stubFetch(text, status = 200) {
       const K7 = keyOf(fires[fires.length - 1]);
       await wrk({ op: 'claim', job: J7, key: K7 });
       let j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
-      ok(j7.sla && j7.sla.t.tg === tg.t && j7.sla.u && j7.sla.u.tg > 0 && j7.sla.t.el === 0, 'סטודיו: הלקיחה קובעת את היעדים, והשעון מתחיל');
+      // 10/10/2026: יעד הזמן = p90 של התוכנית הנלמדת + דקה (studioeta.js), לא הטבלה הישנה
+      const E7 = require('../lib/studioeta');
+      const tgT = E7.etaTarget(E7.etaPlan(E7.etaModel([], SPEC.eng === 'api' ? 'a' : 'r', 0), SPEC.mode, SPEC.dur));
+      ok(j7.ep && j7.ep.t > 0 && Object.keys(j7.ep.s).length === 6, 'סטודיו: הלקיחה קובעת את תוכנית הזמנים (p50 לכל שלב)');
+      ok(j7.sla && j7.sla.t.tg === tgT && j7.sla.u && j7.sla.u.tg > 0 && j7.sla.t.el === 0, 'סטודיו: הלקיחה קובעת את היעדים, והשעון מתחיל');
       await wrk({ op: 'report', job: J7, key: K7, st: 'al', p: 0.1, wv: true });
       now += 600e3;
       j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
@@ -1764,7 +1793,7 @@ function stubFetch(text, status = 200) {
       now += 60e3;
       j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
       ok(!j7.sla.t.paused && j7.sla.t.el === 60 && j7.sla.t.pz === 600, 'סטודיו: הסרטון הגיע — השעון ממשיך, ההמתנה נרשמה');
-      now += (tg.t + 10) * 1000;
+      now += (tgT + 10) * 1000;
       rr = await run({ op: 'jobs', idToken: OWNER });
       const ops7 = (await run({ op: 'status', idToken: OWNER })).payload.ops;
       ok(rr.payload.jobs.find((x) => x.id === J7).sla.t.lv === 'over' && JSON.stringify(ops7).includes('sla_time'), 'סטודיו: הפרה של יעד הזמן — התראה');

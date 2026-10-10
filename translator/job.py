@@ -1273,6 +1273,9 @@ def quality(path, chk_ok=True):
 JG_N = 40
 JG_CODES = ('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term')
 _JG_LINE = re.compile(r'^#(\d{1,6})\s+([1-5])\s+([a-z]{2,4})\s*$')
+# 10/10/2026: בעבודה האמיתית הראשונה השופט רץ (7K טוקנים) אבל לא הוצג ציון — כנראה סטייה קטנה מהצורה.
+# סובלני: תבליט / backticks / ':' / '|' / '/5' / אותיות גדולות. רק המספר, הציון והקוד מהקטלוג נלקחים — שום טקסט אחר.
+_JG_LOOSE = re.compile(r'^[\s>*`\-•]*#?\s*(\d{1,6})`?\s*[:.|)\-–]*\s*([1-5])(?:\s*/\s*5)?\s*[:.|,\-–]*\s*`?([A-Za-z]{2,4})`?[\s.*`]*$')
 
 
 def judge_pick(pkg_text, n=JG_N):
@@ -1299,10 +1302,11 @@ def judge_score(text, ids):
     s = 0–100 (ממוצע הציונים), c = כמה מכל סוג בעיה, n = כמה נשפטו מתוך t במדגם, a = כמה כתוביות בעבודה"""
     got = {}
     for ln in str(text or '').replace('\r', '').split('\n'):
-        m = _JG_LINE.match(ln.strip())
-        if not m or int(m.group(1)) not in ids or int(m.group(1)) in got or m.group(3) not in JG_CODES:
+        m = _JG_LINE.match(ln.strip()) or _JG_LOOSE.match(ln.strip())
+        code = m.group(3).lower() if m else ''
+        if not m or int(m.group(1)) not in ids or int(m.group(1)) in got or code not in JG_CODES:
             continue
-        got[int(m.group(1))] = (int(m.group(2)), m.group(3))
+        got[int(m.group(1))] = (int(m.group(2)), code)
     if len(got) < min(10, len(ids)):
         return None
     c = {}
@@ -1350,7 +1354,9 @@ def judge(args):
         txt = ''
     r = judge_score(txt, ids) if ids else None
     if not r:
-        print('· השופט לא החזיר תשובה תקינה — ממשיכים בלעדיו ל־finish.')
+        # אבחון ביומן העבודה בשרת (בלי טקסט של הכתוביות — רק הצורה של השורות הראשונות)
+        shape = [re.sub(r'[^\s#:|/\-.0-9a-z]', 'א', ln)[:40] for ln in txt.split('\n')[:3]]
+        print('· השופט לא החזיר תשובה תקינה (%d שורות; צורה: %s) — ממשיכים בלעדיו ל־finish.' % (len(txt.split('\n')), shape))
         ctx.st.pop('jd', None)
     else:
         r.update({'t': len(ids), 'a': int(jg.get('a') or len(ids))})

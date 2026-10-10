@@ -25,7 +25,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 2. השרתון ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   ok(S.JG_CODES.join() === 'mean,omit,add,gram,flu,term', 'השרתון: אותם קודים כמו בעובד (בלי ok)');
-  ok(/'q', 'ij', 'jd'(, 'tg')?\]/.test(read('ibkr-proxy/lib/studio.js')) && /S\.normJudge\(body\.judge\)/.test(read('ibkr-proxy/api/studio.js')), 'השרתון: הציון מאומת ונשמר');
+  ok(/'q', 'ij', 'jd'(, 'tg')?(, 'et', 'ep')?\]/.test(read('ibkr-proxy/lib/studio.js')) && /S\.normJudge\(body\.judge\)/.test(read('ibkr-proxy/api/studio.js')), 'השרתון: הציון מאומת ונשמר');
   ok(/\['jg', 'jg'\]/.test(read('ibkr-proxy/lib/studioagents.js')), 'מלאי: השופט כסוכן רביעי');
 
   /* ---------- 3. הטלפון ---------- */

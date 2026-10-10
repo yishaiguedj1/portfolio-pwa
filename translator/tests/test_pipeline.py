@@ -231,6 +231,16 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(sorted(order), ['1', '2'])
         for f, want in (('batch_001.he.txt', '#1 שלום.'), ('batch_002.he.txt', '#3 נטפליקס.')):
             self.assertIn(want, (self.pd / 'tr' / f).read_text(encoding='utf-8'))
+        self.assertIn('tl', [r[0] for r in self.ctx.reports], 'במסלול הרגיל — מדווחים על שלב התרגום')
+
+    def test_translate_quiet_in_parallel(self):
+        """10/10/2026: במסלול המקבילי היישור מדווח על השלב — התרגום שקט (אחרת השלב קופץ al↔tl והזמנים הנלמדים נשברים)"""
+        def h(kw):
+            p = kw['messages'][0]['content']
+            return msg('#1 שלום.\n#2 תודה.') if 'חלק 1/2' in p else msg('#3 נטפליקס.')
+        P.Pipeline(self.ctx, self.J, self.engine(h)).translate(fix=False, quiet=True)
+        self.assertNotIn('tl', [r[0] for r in self.ctx.reports])
+        self.assertIn('#3 נטפליקס.', (self.pd / 'tr' / 'batch_002.he.txt').read_text(encoding='utf-8'))
 
     def test_untrusted_output_is_only_text(self):
         def h(kw):
@@ -286,7 +296,7 @@ class JobHooks(unittest.TestCase):
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
 
-    def flow(self, ck, resumed, proofed=False, src=None):
+    def flow(self, ck, resumed, proofed=False, src=None, attach=False):
         log = []
         state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
         if src:
@@ -316,6 +326,11 @@ class RunAutoResume(unittest.TestCase):
             def align_prep(self, ctx):
                 log.append('align_prep')
 
+            if attach:
+                def attach_video(self, ctx):
+                    log.append('attach')
+                    state['src'] = 'v'
+
             def align_run(self, ctx):
                 log.append('align_run')
 
@@ -337,7 +352,7 @@ class RunAutoResume(unittest.TestCase):
                 log.append('proofread')
                 return []
 
-            def translate(self, fix=True):
+            def translate(self, fix=True, quiet=False):
                 log.append('translate')
 
             def fixed_tl(self):
@@ -399,6 +414,14 @@ class RunAutoResume(unittest.TestCase):
         # "הקול קודם": הצירוף עלול לתמלל מחדש והתכנון היה נפסל — נשארים בטור (align המלא)
         self.assertEqual(self.flow([], None, src='a'),
                          ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'judge', 'finish'])
+
+    def test_audio_first_attaches_then_parallel(self):
+        # 10/10/2026: הטלפון תמיד מעלה קול קודם — הסרטון מצטרף לפני התכנון, ואז התרגום רץ במקביל ליישור
+        self.check_parallel(self.flow([], None, src='a', attach=True),
+                            ['prepare', 'proofread', 'ck:asr+pr', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
+        # המשך מנקודת התמלול של עבודה שהתחילה מהקול — גם כן מצרפים ואז במקביל
+        self.check_parallel(self.flow([{'s': 'asr', 'id': 'x'}], 'asr', proofed=True, src='a', attach=True),
+                            ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
 
 
 if __name__ == '__main__':

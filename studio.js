@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel } from './studionet.js';
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
@@ -148,6 +148,7 @@ export function normJob(j) {
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
+    ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -202,7 +203,7 @@ export function normOps(o) {
       fl: a.fl === 1, r: num(a.r, 0, 1e4) || 0, nj: num(a.nj, 1, 100) || 1, ps: num(a.ps, 0, 1e9) || 0, m: num(a.m, 0, 1e15) || 0,   // v368: מהבהבת, עבודות שנפגעו, ציון עדיפות, מושתקת עד
       // v369: רשומת התראה — מספר (ALR…), אושרה, ציר פעילות, והתראות נוספות של אותו רכיב באותה עבודה
       no: Number.isInteger(a.no) && a.no > 0 && a.no < 1e7 ? a.no : 0, ak: num(a.ak, 0, 1e15) || 0,
-      h: (Array.isArray(a.h) ? a.h : []).filter((x) => Array.isArray(x) && typeof x[0] === 'number' && ['o', 'a', 'x', 'r', 'k'].includes(x[1])).slice(-10).map((x) => [x[0], x[1]]),
+      h: (Array.isArray(a.h) ? a.h : []).filter((x) => Array.isArray(x) && typeof x[0] === 'number' && ['o', 'a', 'x', 'r', 'k', 'v'].includes(x[1])).slice(-10).map((x) => [x[0], x[1]]),
       sub: (Array.isArray(a.sub) ? a.sub : []).filter((x) => x && /^[a-z_]{2,12}$/.test(String(x.k || '')) && Number.isInteger(x.s)).slice(0, 10)
         .map((x) => ({ no: Number.isInteger(x.no) ? x.no : 0, k: x.k, s: Math.min(4, Math.max(1, x.s)), n: num(x.n, 1, 1e6) || 1, l: num(x.l, 0, 1e15) || 0 })) }));
   // v368: סיכום 24 שעות והשתקות בתוקף
@@ -316,6 +317,28 @@ export function normValue(o) {
   return out;
 }
 const STAGE_IDS = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+/* 10/10/2026: צפי הזמנים — תוכנית לעבודה (ep) ומודל לכל מנוע (status.eta). אותה צורה כמו lib/studioeta.js */
+const ETA_KEYS = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+const qOk = (q) => Array.isArray(q) && q.length === 3 && q.every((v) => typeof v === 'number' && v >= -3 && v <= 3);
+export function normEp(o) {
+  if (!o || typeof o !== 'object' || !o.s || typeof o.s !== 'object') return null;
+  const s = {};
+  for (const k of ETA_KEYS) { const v = o.s[k]; if (typeof v !== 'number' || !(v >= 0 && v <= 86400)) return null; s[k] = v; }
+  return { s, q: qOk(o.q) ? o.q.slice() : Q_DEF.slice(), n: typeof o.n === 'number' && o.n >= 0 && o.n <= 1000 ? Math.round(o.n) : 0 };
+}
+export function normEta(o) {
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  for (const e of ['a', 'r']) {
+    const m = o[e];
+    if (!m || !m.st) continue;
+    const st = {};
+    let good = true;
+    for (const k of ETA_KEYS) { const ab = m.st[k]; if (!Array.isArray(ab) || ab.length !== 2 || !ab.every((v) => typeof v === 'number' && v >= 0 && v <= 1e5)) good = false; else st[k] = ab.slice(); }
+    if (good) out[e] = { st, q: qOk(m.q) ? m.q.slice() : Q_DEF.slice(), n: typeof m.n === 'number' && m.n >= 0 ? Math.round(m.n) : 0 };
+  }
+  return Object.keys(out).length ? out : null;
+}
 /* v375: שופט האיכות (Haiku, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 export function normJudge(o) {
@@ -742,6 +765,7 @@ async function refreshStatus(force) {
     ui.rl = normRules(j.rl);
     ui.halt = num(j.halt);
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
+    ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -1235,6 +1259,14 @@ function rowNav(o) {
   r.append(ico('chev', 'st-chev'));
   return r;
 }
+/* שורה שהיא קישור החוצה (Drive) — כמו rowNav, בלשונית חדשה */
+function rowExt(o) {
+  const a = h('a', 'st-row' + (o.tile ? ' st-ric' : '')); a.href = o.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  if (o.k) a.dataset.k = o.k;
+  if (o.tile) a.append(o.tile);
+  a.append(rowTxt(o.label, o.sub), ico('out', 'st-chev'));
+  return a;
+}
 /* שורה עם עיגול סימון (בחירה מרובה) */
 function rowCheck(o) {
   const r = o.locked ? h('div', 'st-row') : btn('st-row', null, o.onClick, o.k);
@@ -1403,10 +1435,26 @@ function upState(rec, run) {      // ההעלאה בטלפון במונחים ש
   else if (run && run.phase === 'video' && up.noAudio) { p = run.p || 0; left = Math.max(0, rec.spec.size - (run.sent || 0)) / (rate || 1.5e6); }
   return { active, done: aDone, p, left: Math.round(left), took: up.took, est: Math.max(30, Math.round(audioBytes / 1.5e6) + 20) };
 }
+/* 10/10/2026: התוכנית של העבודה — מהשרתון (נקבעה בלקיחה), אחרת מהמודל הנלמד, אחרת הטבלה הישנה */
+function planFor(rec) {
+  if (rec.srv && rec.srv.ep) return rec.srv.ep;
+  const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
+  const md = ui.eta && ui.eta[eng];
+  return (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
+}
 function modelFor(rec) {
   const run = runs.get(rec.id);
-  const est = stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0);
-  return progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog }, est, upState(rec, run), Date.now());
+  const pl = planFor(rec);
+  const m = progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog }, pl.s, upState(rec, run), Date.now(), pl.q);
+  m.n = pl.n || 0;
+  return m;
+}
+/* שעת הסיום שמוצגת (p80) — יציבה: יורדת מיד, עולה רק כשהפער גדול מדקה או מ־10% ממה שנשאר (מחקר הצפי, 10/10/2026) */
+const etaEnd = new Map();
+function shownEnd(id, leftSec) {
+  const now = Date.now(), raw = now + leftSec * 1000, prev = etaEnd.get(id);
+  if (!prev || raw < prev || raw - prev > Math.max(60e3, 0.1 * leftSec * 1000) || prev < now) { etaEnd.set(id, raw); return raw; }
+  return prev;
 }
 function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לשנייה · נשארו 8 דק׳"
   const sent = run && run.phase === 'video' ? run.sent || 0 : rec.up.v.sent || 0, size = rec.spec.size;
@@ -1441,14 +1489,18 @@ function heroState(rec, run, ph) {
   if (ph === 'failed' || ph === 'cancelled') return { pct: m.pct, big: ph === 'failed' ? T('studioBFailed') : T('studioBCancelled'), sub: '' };
   if (ph === 'stuck') return { pct: m.pct, big: T('studioStuckBig'), sub: '' };
   if (ph === 'ready') return { pct: 1, check: true, big: T('studioReadyBig'),
-    sub: rec.up.wait === 'worker_not_ready' ? T('studioWaitWorkerS') : rec.up.wait === 'conn_missing' ? T('studioNeedConnS') : T('studioTotalEst', { t: fmtLeft(m.left) }) };
+    sub: rec.up.wait === 'worker_not_ready' ? T('studioWaitWorkerS') : rec.up.wait === 'conn_missing' ? T('studioNeedConnS') : T('studioTotalEst', { t: fmtLeft(m.left80) }) };
   const u = uploadLeft(rec, run);
   // ההעלאה עצרה / מחכה — בלי "נשארו בערך": מה שנשאר תלוי בחזרה של הרשת או בבחירה מחדש
   if (ph === 'need' || ph === 'paused' || ph === 'error') return { pct: u.pct, big: T('studioUpStopBig'), sub: T('studioUpOf', { a: fmtSize(u.done), b: fmtSize(u.all) }) };
   if (ph === 'wait') return { pct: u.pct, big: T('studioUpWaitBig'), sub: T('studioUpOf', { a: fmtSize(u.done), b: fmtSize(u.all) }) };
   const parked = (!rec.srv || rec.srv.state === 'new') && !rec.up.started;
   if (parked) return { pct: u.pct, big: T('studioLeftBig', { t: fmtLeft(u.left) }), sub: T('studioUpLeftS') };
-  return { pct: m.pct, big: T('studioLeftBig', { t: fmtLeft(m.left) }), sub: T('studioReadyAt', { t: fmtClock(Date.now() + m.left * 1000) }) };
+  // p80 (שמרני — להקדים ולא לאחר); לפני 8 עבודות שהמודל למד מהן — טווח p50–p90, כי עוד אין מספיק נתונים לשעה אחת
+  const end = shownEnd(rec.id, m.left80), now = Date.now();
+  const sub = m.n >= 8 || m.left90 - m.left < 120 ? T('studioReadyAt', { t: fmtClock(end) })
+    : T('studioReadyRange', { a: fmtClock(now + m.left * 1000), b: fmtClock(now + m.left90 * 1000) });
+  return { pct: m.pct, big: T('studioLeftBig', { t: fmtLeft(Math.max(0, (end - now) / 1000)) }), sub };
 }
 /* מה קורה עכשיו — משפט אחד */
 function nowLine(rec, run, ph) {
@@ -1943,6 +1995,7 @@ function evName(e) {
     case 'a': return T('studioEvA');
     case 'x': return T('studioEvX');
     case 'r': return T('studioEvR');
+    case 'v': return T('studioEvV');
     default: return T('studioEvK');
   }
 }
@@ -2905,7 +2958,14 @@ function pageJob(p) {
   });
   // "מוכן" שרק מחכה לעדכון הבא / לחיבור — הראש כבר אומר את זה; בלי כרטיס כפול
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
-  if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
+  // 10/10/2026: עבודה שהסתיימה — התוצרים עצמם במקום כרטיס "התרגום מוכן!" שני (הראש כבר אומר את זה);
+  // עד עכשיו הקישורים היו רק בתוך "פרטים טכניים" המקופלים
+  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []) : [];
+  if (outs.length) {
+    p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view',
+      tile: tile(o.k === 'srt' ? 'globe' : 'film', o.k === 'srt' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
+    rec.up.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + rec.up.folder, tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null));
+  } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];
   if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
@@ -2998,11 +3058,12 @@ function pageJob(p) {
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
     rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,
+    kvRow(T('studioEtaK'), (() => { const n = planFor(rec).n || 0; return n ? T('studioEtaN', { n }) : T('studioEtaPrior'); })()),   // 10/10/2026: על מה הצפי מבוסס
     workerMsgRow(rec, ph0),
   ];
   const links = h('div', 'st-wacts');
-  for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
-  if (rec.up.folder) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
+  if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
+  if (rec.up.folder && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
   if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
   det.append(sum, list(...rows), links);
   p.append(h('div', 'st-gap sm'), det);

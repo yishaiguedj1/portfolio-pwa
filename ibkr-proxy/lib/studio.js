@@ -5,6 +5,7 @@
    הקובץ טהור (בלי רשת) — api/studio.js עושה את הקריאות, ו־tests/run.js בודק את שניהם. */
 const crypto = require('crypto');
 const SLA = require('./studiosla');   // v377: יעדי שירות
+const ETA = require('./studioeta');   // 10/10/2026: צפי זמנים נלמד
 
 const ROUTINE_URL_RE = /^https:\/\/api\.anthropic\.com\/v1\/claude_code\/routines\/(trig_[A-Za-z0-9]{8,64})\/fire$/;
 const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
@@ -442,6 +443,7 @@ function publicJob(job, now) {
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(job.jd),                          // v375: שופט האיכות
+    ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
   };
 }
@@ -602,7 +604,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg'];   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'et', 'ep'];   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {

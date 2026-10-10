@@ -849,6 +849,12 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(r['c'], {'mean': 10})
         self.assertEqual(r['s'], round((30 * 100 + 10 * 25) / 40))
         self.assertIsNone(J.judge_score('\n'.join(good[:5]), ids), 'פחות מ־10 תשובות — אין ציון')
+        # 10/10/2026: סטיות צורה של המודל (תבליט, נקודתיים, '/5', backticks, אותיות גדולות) — עדיין נקראות
+        loose = ['- #%d: 4/5 FLU' % i if n % 2 else '%d. 5 `ok`' % i for n, i in enumerate(sorted(ids))]
+        r2 = J.judge_score('\n'.join(loose), ids)
+        self.assertEqual(r2['n'], 40)
+        self.assertEqual(r2['c'], {'flu': 20})
+        self.assertIsNone(J.judge_score('\n'.join('#%d 5 okay' % i for i in ids), ids), 'קוד שלא בקטלוג — נזרק')
         self.assertEqual(J._sub_kind('שפוט לפי translator/JUDGE.md'), 'jg')
         self.assertEqual(J._sub_kind('תרגם לפי translator/TRANSLATE.md'), 'tl')
         self.assertIn('jg', J.prompt_versions())

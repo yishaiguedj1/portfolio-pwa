@@ -27,6 +27,7 @@ const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
 const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
 const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ותחזית
+const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נלמד לכל שלב
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -115,10 +116,12 @@ async function raise(deps, uid, evs, j, now, once) {
     if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
   } catch (e) {}
 }
-async function closeJobOps(deps, uid, j, now) {
+async function closeJobOps(deps, uid, j, now, ok) {
   try {
     const d = await readDoc(deps, 'studioOps', uid);
-    const al = d && O.opsCloseJob(d.al, j, now);
+    let al = d && O.opsCloseJob(d.al, j, now);
+    // 10/10/2026: עבודה שהסתיימה בהצלחה = הרכיבים בשרשרת עובדים → התראות בריאות של עבודות אחרות נסגרות
+    if (d && ok) al = O.opsRecover(al || d.al, j, now) || al;
     if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
   } catch (e) {}
 }
@@ -149,7 +152,6 @@ const majorNow = async (deps, uid, job) => {
   } catch (e) { return null; }
 };
 const readStats = async (deps, uid) => { try { const d = await readDoc(deps, 'studioStats', uid); return d || {}; } catch (e) { return {}; } };
-const readNs = async (deps, uid) => { const d = await readStats(deps, uid); return Array.isArray(d.ns) ? d.ns : []; };
 const patchVault = (deps, uid, o) => patchDoc(deps, 'studioVault', uid, o);
 
 /* ---------- הפעלת ה־Routine ---------- */
@@ -370,7 +372,17 @@ async function worker(req, res, body, deps) {
       const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
       // v377: יעדי השירות — נקבעים פעם אחת, בלקיחה הראשונה (ההערכה שראית בהתחלה + "הרגיל" שלך עכשיו). השעון מתחיל כאן
       if (!job.c0) patch.c0 = now;
-      if (job.kind === 'tr' && !job.tg) { const tg = L.targets(job.spec, nm ? nm.ph : S.NORM_DEF[job.spec && job.spec.mode], S.NORM_FIXED); if (tg) patch.tg = tg; }
+      // 10/10/2026: התוכנית (p50 לכל שלב + אי־ודאות) מהמודל הנלמד; יעד הזמן = p90 + דקה ("חרגה" רק כשבאמת חריג)
+      let ep = job.ep;
+      if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
+        ep = ETA.etaPlan(ETA.etaModel(stats.et, job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur);
+        patch.ep = ep;
+      }
+      if (job.kind === 'tr' && !job.tg) {
+        const tg = L.targets(job.spec, nm ? nm.ph : S.NORM_DEF[job.spec && job.spec.mode], S.NORM_FIXED);
+        if (tg && ep) tg.t = ETA.etaTarget(ep);
+        if (tg) patch.tg = tg;
+      }
       if (/^[0-9a-f]{12}$/.test(String(body.ev || ''))) patch.ev = body.ev;   // v371: גרסת הסביבה של העובד ("אחרי שינוי בסביבה")
       const pv = S.normPv(body.pv); if (pv) patch.pv = pv;   // v373: גרסת ההנחיות של כל סוכן (מלאי הסוכנים)
       await patchJob(deps, id, patch);
@@ -478,13 +490,21 @@ async function worker(req, res, body, deps) {
     }
     if (job.kind === 'tr') {
       // v365: אירועים מהעובד (vt, Drive, רשת) ומהמגדל → התראות; סוף העבודה סוגר את כולן
-      if (up.state === 'done') await closeJobOps(deps, job.uid, id, now);
+      if (up.state === 'done') await closeJobOps(deps, job.uid, id, now, true);
       else await raise(deps, job.uid, O.normEvents(body.ev).concat(up.tw ? O.towerEvents(up.tw) : [], up.qa && up.qa.g === 'b' ? [{ c: 'claude', k: 'budget' }] : []), id, now);
     }
     if (job.kind === 'tr' && up.state === 'done') {
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
       const smp = S.normSample(job, up.use || job.use, now);
-      if (smp) await patchDoc(deps, 'studioStats', job.uid, { ns: S.addSample(await readNs(deps, job.uid), smp), updated: now }).catch(() => {});
+      // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
+      const es = ETA.etaSample(Object.assign({}, job, up), now);
+      if (smp || es) {
+        const st0 = await readStats(deps, job.uid);
+        const patchS = { updated: now };
+        if (smp) patchS.ns = S.addSample(Array.isArray(st0.ns) ? st0.ns : [], smp);
+        if (es) patchS.et = ETA.addEtSample(st0.et, es);
+        await patchDoc(deps, 'studioStats', job.uid, patchS).catch(() => {});
+      }
     }
     return res.status(200).json(Object.assign({ ok: true, stop: false, state: up.state || job.state }, gateId ? { gate: gateId } : {}));
   } catch (err) {
@@ -534,7 +554,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
-        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), now });   // v367: החוקים ומתג החירום
+        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), eta: ETA.etaView(st.et, now), now });   // v367: החוקים ומתג החירום
     }
     if (op === 'rules') {
       // v367: החוקים שלך — נשמרים בחשבון; חלים על עבודות שמתחילות מעכשיו (והתקציב — גם על עבודה רצה, בבדיקה הבאה של המגדל אחרי "המשך")
