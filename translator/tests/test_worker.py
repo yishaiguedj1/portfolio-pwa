@@ -5,6 +5,7 @@
 הרצה: python3 -m unittest discover -s tests   (מתוך translator/)
 """
 import json
+import urllib.parse
 import os
 import stat
 import subprocess
@@ -57,6 +58,11 @@ elif cmd == 'ingest':                       # כמו vt: המקור מ־project.
 elif cmd == 'tr-prep':
     (w / 'tr').mkdir(exist_ok=True)
     (w / 'tr' / 'source.md').write_text('# source')
+    if not (w / 'tr' / 'glossary.tsv').exists():   # כמו vt: מהתבנית, רק אם אין
+        (w / 'tr' / 'glossary.tsv').write_text('# מילון מונחים לראיון הזה\n')
+elif cmd == 'plan':                         # v380: הכתוביות (לזיכרון המונחים)
+    (w / 'cues.en.json').write_text(json.dumps([{'id': 1, 'en': 'Our moat is wide, the CEO said.'},
+                                                {'id': 2, 'en': 'Free cash flow grew; buybacks too.'}]))
 elif cmd == 'asr':
     print('תמלול 50%'); print('תמלול 100%')
     (w / 'asr').mkdir(exist_ok=True)
@@ -91,6 +97,7 @@ class Fake:
         self.fm = None                                                # v366: מסלול התיקונים (בלי — כמו שרתון ישן)
         self.rl, self.bx, self.u0 = None, 0, 0                        # v367: החוקים, אישורים מעבר לתקציב, מה שכבר עלה
         self.pir = None                                               # v379: דוח אחרי תקלה שמחכה לסיכום
+        self.gloss = None                                             # v380: קובץ המילון ב־Drive (bytes) — None = אין
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
 
@@ -166,6 +173,12 @@ class Fake:
                 return self._send(400, {'ok': False})
 
             def do_GET(self):
+                if self.path.startswith('/drive/v3/files?q=') and 'snbGloss' in urllib.parse.unquote(self.path):   # v380
+                    if self.headers.get('Authorization') != 'Bearer ' + TOKEN:
+                        return self._send(401)
+                    return self._send(200, {'files': [{'id': 'GLOSS000001', 'size': str(len(fake.gloss))}] if fake.gloss is not None else []})
+                if self.path.startswith('/drive/v3/files/GLOSS000001?alt=media'):
+                    return self._send(200, raw=fake.gloss or b'')
                 if self.path.startswith('/drive/v3/files/AUDIO000001?alt=media'):
                     return self._send(200, raw=AUDIO)
                 if self.path.startswith('/drive/v3/files/VIDEO000001?alt=media'):
@@ -619,6 +632,40 @@ class TestWorker(unittest.TestCase):
         self.fake.pir = {'no': 'x', 'c': 'routine'}
         code, out = self.take()
         self.assertNotIn('דוח אחרי תקלה מחכה', out, 'עובדות לא תקינות — בלי דוח')
+
+    def test_glossary(self):
+        # v380: זיכרון המונחים — רק המונחים שמופיעים בסרטון נכנסים לעבודה (מתחת לשורת "מהמילון שלך", המשתמש גובר),
+        # הרצה חוזרת מחליפה את הבלוק, ובסוף — מונחים חדשים מהעבודה מוצעים (u = כמה מהמילון שימשו)
+        self.fake.gloss = 'Moat\tחפיר כלכלי\t<b>באפט</b>\n# הערה\nZebra\tזברה\nfree cash flow\tתזרים מזומנים חופשי\nmoat\tכפול\n'.encode()
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare', env={'SNB_POLL': '0.2'})[0], 0)
+        code, out = self.job('align', env={'SNB_POLL': '0.2'})
+        self.assertEqual(code, 0, out)
+        self.assertIn('מהמילון שלך: 2 מונחים שמופיעים בסרטון (מתוך 3)', out)
+        gp = self.tmp / 'work' / SLUG / 'tr' / 'glossary.tsv'
+        txt = gp.read_text()
+        self.assertIn('# — מהמילון שלך', txt)
+        self.assertIn('Moat\tחפיר כלכלי\tb באפט /b', txt, 'תגיות מנוקות')
+        self.assertIn('free cash flow\tתזרים מזומנים חופשי', txt)
+        self.assertNotIn('Zebra', txt, 'מונח שלא בסרטון לא נכנס')
+        self.assertNotIn('כפול', txt)
+        # Claude כתב מונחים משלו מעל הבלוק — כולל אותו מונח: בהרצה חוזרת המשתמש גובר והבלוק לא מוכפל
+        head, block = txt.split('# — מהמילון שלך')
+        gp.write_text(head + 'MOAT\tתעלה\nBuyback\tרכישה עצמית\n# — מהמילון שלך' + block)
+        code, out = self.job('align', env={'SNB_POLL': '0.2'})
+        self.assertEqual(code, 0, out)
+        txt = gp.read_text()
+        self.assertEqual(txt.count('# — מהמילון שלך'), 1)
+        self.assertNotIn('תעלה', txt)
+        self.assertIn('Buyback\tרכישה עצמית', txt)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.fake.reports[-1]['gl'], {'u': 2, 's': [['Buyback', 'רכישה עצמית']]})
+        # בלי מילון ב־Drive — העבודה ממשיכה, ואין הצעות (אין עם מה להשוות)
+        self.fake.gloss = None
+        self.assertEqual(self.job('align', env={'SNB_POLL': '0.2'})[0], 0)
+        self.assertEqual(self.job('finish')[0], 0)
+        self.assertEqual(self.fake.reports[-1]['gl'], {'u': 0, 's': [['Buyback', 'רכישה עצמית'], ['Moat', 'חפיר כלכלי'], ['free cash flow', 'תזרים מזומנים חופשי']]})
 
     def test_fix_mode(self):
         # v366: מסלול "הצעות לאישור" (ברירת המחדל) — ההודעה אומרת שהתיקון ממתין למשתמש; "עצמאי" — שהוא נרשם

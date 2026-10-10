@@ -34,7 +34,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/error: 'major'/.test(api) && /body\.mo !== true/.test(api) && /auto \|\| body\.mo !== true/.test(api), 'השרתון: התחלה ו"המשך" מחכים בתקלה רחבה; mo עוקף; ההמשך האוטומטי תמיד מחכה');
   ok(/mi\.c === 'routine' && apiJob\(job\)/.test(api), 'השרתון: תקלה רחבה ב־Routine לא עוצרת עבודות במצב API (ולהפך)');
   ok(/const ic = await syncInc\(deps, uid, list, now\)/.test(api) && /inc: await incFor\(uid\)/.test(api) && /I\.incCloseJob/.test(api), 'השרתון: סנכרון ברשימה, תצוגה במגדל, סגירה במחיקה');
-  ok(/patch\.ev = body\.ev/.test(api) && /'inc', 'mi'(, 'tr', 'pv')?(, 'q', 'ij')?(, 'jd')?(, 'tg')?(, 'sc')?(, 'et', 'ep')?(, 'wp')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'השרתון: גרסת הסביבה מה־claim; התקלות נשמרות כ־JSON');
+  ok(/patch\.ev = body\.ev/.test(api) && /'inc', 'mi'(, 'tr', 'pv')?(, 'q', 'ij')?(, 'jd')?(, 'tg')?(, '[a-z]+')*\]/.test(read('ibkr-proxy/lib/studio.js')), 'השרתון: גרסת הסביבה מה־claim; התקלות נשמרות כ־JSON');
 
   /* ---------- 3. העובד ---------- */
   const job = read('translator/job.py');

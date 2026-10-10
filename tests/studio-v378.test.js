@@ -22,7 +22,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/const other = await readJob\(deps, f\.job\)/.test(api), 'תיקייה של עבודה שקיימת אצל משתמש אחר — לא נוגעים');
   ok(/trashed: true/.test(api) && !/method: 'DELETE'[^\n]*drive/i.test(api), 'נקה = לפח של Drive (אפשר לשחזר), לא מחיקה');
   ok((api.match(/await removeJobRec\(/g) || []).length === 2, 'מחיקת רשומה — פונקציה אחת ("מחיקה" ורשומות ישנות)');
-  ok(/sc: await scFor\(uid\)/.test(api) && /'sc'(, 'et', 'ep')?(, 'wp')?\]/.test(read('ibkr-proxy/lib/studio.js')), 'הסריקה האחרונה נשמרת ומוצגת ב־status');
+  ok(/sc: await scFor\(uid\)/.test(api) && /'sc'(, '[a-z]+')*\]/.test(read('ibkr-proxy/lib/studio.js')), 'הסריקה האחרונה נשמרת ומוצגת ב־status');
 
   /* ---------- 2. הטלפון ---------- */
   const v = st.normScan({ at: 5, s: 86, n: 9, ok: ['claude', 'evil'], f: [{ k: 'orphans', p: 4, ch: 'orphans', n: 4, b: 1.8e9 }, { k: 'evil', p: 1 }, { k: 'ck', p: 9 }], fb: 1.8e9 });

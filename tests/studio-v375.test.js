@@ -15,7 +15,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 1. העובד והמדריכים ---------- */
   const job = read('translator/job.py');
   ok(/^JG_N = 40$/m.test(job) && /JG_CODES = \('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term'\)/.test(job), 'job.py: 40 כתוביות לדוגמה, קודים קבועים');
-  ok(/'judge-prep': judge_prep, 'judge': judge/.test(job) && /judge=ctx\.st\.get\('jd'\)\)/.test(job), 'job.py: judge-prep / judge, והציון נשלח עם סוף העבודה');
+  ok(/'judge-prep': judge_prep, 'judge': judge/.test(job) && /judge=ctx\.st\.get\('jd'\)[,)]/.test(job), 'job.py: judge-prep / judge, והציון נשלח עם סוף העבודה');
   ok(/if \(ctx\.st\.get\('rl'\) or \{\}\)\.get\('jx'\):/.test(job) && /'jx': r\.get\('jx'\) is True/.test(job), 'job.py: החוק "בלי שופט" — מדלגים');
   ok(/'jg' if 'JUDGE\.md' in prompt/.test(job) && /\('jg', 'JUDGE\.md'\)/.test(job), 'job.py: עלות, עקיבה וגרסת ההנחיות של השופט');
   const rb = read('translator/RUNBOOK.md'), jm = read('translator/JUDGE.md');
@@ -25,7 +25,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 2. השרתון ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   ok(S.JG_CODES.join() === 'mean,omit,add,gram,flu,term', 'השרתון: אותם קודים כמו בעובד (בלי ok)');
-  ok(/'q', 'ij', 'jd'(, 'tg')?(, 'sc')?(, 'et', 'ep')?(, 'wp')?\]/.test(read('ibkr-proxy/lib/studio.js')) && /S\.normJudge\(body\.judge\)/.test(read('ibkr-proxy/api/studio.js')), 'השרתון: הציון מאומת ונשמר');
+  ok(/'q', 'ij', 'jd'(, 'tg')?(, '[a-z]+')*\]/.test(read('ibkr-proxy/lib/studio.js')) && /S\.normJudge\(body\.judge\)/.test(read('ibkr-proxy/api/studio.js')), 'השרתון: הציון מאומת ונשמר');
   ok(/\['jg', 'jg'\]/.test(read('ibkr-proxy/lib/studioagents.js')), 'מלאי: השופט כסוכן רביעי');
 
   /* ---------- 3. הטלפון ---------- */

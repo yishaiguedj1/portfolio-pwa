@@ -548,3 +548,12 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ai-b { width: 36px; height: 32px; border-radius: var(--pill); background: var(--st-fill); font-size: 16px; line-height: 1; }
 .st-ai-b.on { background: var(--sv-m0); box-shadow: 0 0 0 1.5px var(--sv-m) inset; }
 .st-ai-b:disabled { opacity: .5; }
+/* v380: זיכרון המונחים — דף המילון וכרטיס "מונחים חדשים מהעבודה" */
+.st-glf { display: grid; gap: 8px; }
+.st-gle { text-align: start; padding: 0; background: none; color: inherit; cursor: pointer; }
+.st-glr .st-mini { flex: none; display: inline-grid; place-items: center; min-width: 40px; padding: 6px 10px; }
+.st-glr .st-mini svg { width: 18px; height: 18px; }
+.st-glr .st-mini:disabled { opacity: .45; }
+.st-glc { display: grid; gap: 6px; }
+.st-glh { font-size: 14px; font-weight: 700; margin-top: 2px; }
+.st-glc .st-row { padding-inline: 0; min-height: 52px; }

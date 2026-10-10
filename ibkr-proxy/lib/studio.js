@@ -444,6 +444,7 @@ function publicJob(job, now) {
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(job.jd),                          // v375: שופט האיכות
     ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
+    gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
   };
 }
@@ -509,6 +510,23 @@ function normJudge(o) {
   }
   if (Object.values(c).reduce((x, y) => x + y, 0) > n) return null;
   return { s, n, t, a, c };
+}
+/* v380: זיכרון המונחים — u = כמה מונחים מהמילון שלך שימשו, s = עד 30 מונחים חדשים מהעבודה [[אנגלית, עברית]].
+   הטקסט נכתב בסשן שמעבד תוכן לא מהימן — רק אחרי ניקוי (glClean, זהה לעובד ולטלפון), ובטלפון רק כטקסט ורק באישורך */
+const GL_SUG = 30;
+const glClean = (v, n) => { const s = String(v == null ? '' : v).replace(/[\x00-\x1f\x7f<>`]/g, ' ').replace(/\s+/g, ' ').trim(); return s.includes('://') ? '' : s.slice(0, n); };
+function normGl(o) {
+  if (!o || typeof o !== 'object') return null;
+  const u = Number.isInteger(o.u) && o.u >= 0 && o.u <= 400 ? o.u : 0;
+  const s = [], seen = new Set();
+  for (const x of (Array.isArray(o.s) ? o.s : []).slice(0, GL_SUG)) {
+    if (!Array.isArray(x)) continue;
+    const en = glClean(x[0], 60), he = glClean(x[1], 80);
+    if (!en || !he || seen.has(en.toLowerCase())) continue;
+    seen.add(en.toLowerCase());
+    s.push([en, he]);
+  }
+  return u || s.length ? { u, s } : null;
 }
 /* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (מנהל העבודה), tl = TRANSLATE, rv = REVIEW, jg = JUDGE (v375) */
 function normPv(p) {
@@ -607,7 +625,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp'];   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl'];   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -634,7 +652,7 @@ function fromFields(f) {
 }
 
 module.exports = {
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,

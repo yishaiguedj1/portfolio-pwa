@@ -23,6 +23,7 @@ import tarfile
 import time
 from datetime import datetime
 from pathlib import Path
+import urllib.parse
 import urllib.error
 import urllib.request
 
@@ -1122,6 +1123,112 @@ def attach_video(ctx):
     save_state(ctx.st)
 
 
+# ---------------------------------------------------------------- v380: זיכרון מונחים
+# מילון אחד לכל משתמש ב־Drive של הסטודיו (קובץ TSV, appProperties snbGloss=1 — אותו פורמט של tr/glossary.tsv).
+# אחרי tr-prep נכנסים לעבודה רק המונחים שמופיעים בתמליל (פחות טוקנים), מתחת לשורת GL_MARK — המשתמש גובר.
+# בסוף העבודה: מונחים חדשים שנקבעו בעבודה ולא במילון — הצעה בטלפון; נכנסים למילון רק באישור.
+GL_MAX, GL_SUG, GL_BYTES = 400, 30, 256 * 1024
+GL_MARK = '# — מהמילון שלך (המשתמש קבע — גובר על כל השאר) —'
+_GL_BAD = re.compile(r'[\x00-\x1f\x7f<>`]')
+
+
+def gl_clean(s, n):
+    """תא במילון: בלי תווי בקרה, תגיות וגרשיים הפוכים, בלי קישורים, באורך מוגבל — זהה ל־glClean בטלפון ובשרתון."""
+    s = re.sub(r'\s+', ' ', _GL_BAD.sub(' ', str(s or ''))).strip()
+    return '' if '://' in s else s[:n]
+
+
+def gl_parse(text):
+    """שורות 'אנגלית<TAB>עברית[<TAB>הערה]' → [(en, he, note)]; הערות (#) ושורות לא תקינות נזרקות, כפולים — הראשון."""
+    rows, seen = [], set()
+    for line in str(text or '').splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        c = line.split('\t')
+        if len(c) < 2:
+            continue
+        en, he = gl_clean(c[0], 60), gl_clean(c[1], 80)
+        note = gl_clean(c[2], 100) if len(c) > 2 else ''
+        if not en or not he or en.lower() in seen:
+            continue
+        seen.add(en.lower())
+        rows.append((en, he, note))
+        if len(rows) >= GL_MAX:
+            break
+    return rows
+
+
+def gl_line(r):
+    return r[0] + '\t' + r[1] + ('\t' + r[2] if len(r) > 2 and r[2] else '')
+
+
+def gl_load(ctx):
+    """המילון של המשתמש מ־Drive. None = לא הצלחנו לקרוא (לא עוצרים בגלל זה עבודה); [] = אין מילון."""
+    try:
+        q = "appProperties has { key='snbGloss' and value='1' } and trashed=false"
+        auth = {'Authorization': 'Bearer ' + ctx.token()}
+        st, j, _ = http('GET', ctx.api + '/files?q=' + urllib.parse.quote(q) + '&fields=files(id,size)&pageSize=3&spaces=drive', headers=auth)
+        if st != 200:
+            return None
+        files = j.get('files') or []
+        if not files:
+            return []
+        if int(files[0].get('size') or 0) > GL_BYTES:
+            return None
+        req = urllib.request.Request(ctx.api + '/files/' + files[0]['id'] + '?alt=media', headers=dict(auth, **{'User-Agent': UA}))
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return gl_parse(r.read(GL_BYTES).decode('utf-8', 'replace'))
+    except Exception:          # noqa: BLE001 — מילון שלא נטען לא מפיל עבודה
+        return None
+
+
+def _gl_word(term, low):
+    return re.search(r'(?<![a-z0-9])' + re.escape(term.lower()) + r'(?![a-z0-9])', low) is not None
+
+
+def gl_merge(ctx):
+    """אחרי tr-prep: המונחים מהמילון שמופיעים בתמליל → tr/glossary.tsv (מתחת ל־GL_MARK; שורה של העבודה עם אותו מונח יוצאת)."""
+    rows = gl_load(ctx)
+    if not rows:
+        if rows is None:
+            print('· המילון שלך לא נטען מ־Drive — ממשיכים בלעדיו.')
+        return 0
+    try:
+        cues = json.loads((ctx.pdir / 'cues.en.json').read_text(encoding='utf-8'))
+        low = ' '.join(str(c.get('en') or '') for c in cues).lower()
+    except (OSError, ValueError):
+        return 0
+    hit = [r for r in rows if _gl_word(r[0], low)]
+    gp = ctx.pdir / 'tr' / 'glossary.tsv'
+    old = gp.read_text(encoding='utf-8') if gp.exists() else ''
+    old = old.split(GL_MARK)[0]                    # הרצה חוזרת — הבלוק הקודם מתחלף
+    keys = {r[0].lower() for r in hit}
+    keep = [ln for ln in old.splitlines() if ln.lstrip().startswith('#') or ln.split('\t')[0].strip().lower() not in keys]
+    body = '\n'.join(keep).rstrip('\n') + '\n'
+    if hit:
+        body += GL_MARK + '\n' + '\n'.join(gl_line(r) for r in hit) + '\n'
+    gp.parent.mkdir(parents=True, exist_ok=True)
+    gp.write_text(body, encoding='utf-8')
+    print('✓ מהמילון שלך: ' + str(len(hit)) + ' מונחים שמופיעים בסרטון (מתוך ' + str(len(rows)) + ')')
+    return len(hit)
+
+
+def gl_suggest(ctx):
+    """בסוף העבודה: {u: כמה מונחים מהמילון שימשו, s: [[en, he]] חדשים מהעבודה} — או None. בלי מילון שנקרא — בלי הצעות."""
+    gp = ctx.pdir / 'tr' / 'glossary.tsv'
+    try:
+        proj = gl_parse(gp.read_text(encoding='utf-8')) if gp.exists() else []
+    except OSError:
+        return None
+    user = gl_load(ctx)
+    if user is None or not proj:
+        return None
+    uk = {r[0].lower() for r in user}
+    used = sum(1 for r in proj if r[0].lower() in uk)
+    new = [[r[0], r[1]] for r in proj if r[0].lower() not in uk][:GL_SUG]
+    return {'u': used, 's': new} if used or new else None
+
+
 @guarded
 def align(args):
     ctx = Ctx(load_state())
@@ -1134,6 +1241,7 @@ def align(args):
     vt(ctx, ['align', ctx.name], 'al', base, 0.9)
     vt(ctx, ['plan', ctx.name])
     vt(ctx, ['tr-prep', ctx.name])
+    gl_merge(ctx)                                # v380: המונחים מהמילון שלך שמופיעים בסרטון
     save_ck(ctx, 'al')
     ctx.report('al', 1, 'הכתוביות מתוכננות — מתחילים לתרגם', force=True)
     print('✓ היישור והתכנון הסתיימו. לתרגום: ' + str(ctx.pdir / 'tr' / 'source.md'))
@@ -1150,6 +1258,7 @@ def align_prep(ctx):
     vt(ctx, ['edit-import', ctx.name])
     vt(ctx, ['plan', ctx.name])
     vt(ctx, ['tr-prep', ctx.name])
+    gl_merge(ctx)                                # v380: המונחים מהמילון שלך שמופיעים בסרטון
     ctx.report('al', 0.05, 'הכתוביות תוכננו — היישור המדויק רץ במקביל לתרגום', force=True)
 
 
@@ -1576,8 +1685,12 @@ def finish(args):
         q = quality(ctx.pdir / 'out' / 'he.srt', chk_ok=not args.force)   # v374: מדד האיכות (בלי טוקנים)
     except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
         q = None
+    try:
+        gl = gl_suggest(ctx)                     # v380: מונחים חדשים מהעבודה — הצעה למילון שלך
+    except Exception:            # noqa: BLE001 — מידע משני
+        gl = None
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q,
-               judge=ctx.st.get('jd'))                 # v375: שופט האיכות (Haiku) — אם רץ
+               judge=ctx.st.get('jd'), gl=gl)      # v375: שופט האיכות (Haiku) — אם רץ
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 
