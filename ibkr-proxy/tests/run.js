@@ -3005,6 +3005,21 @@ function stubFetch(text, status = 200) {
     ok(rr.payload.ok && rr.payload.job === null && +sdoc1.fields.seen.integerValue === now && !JSON.stringify(sdoc1).includes('evil') && JSON.parse(sdoc1.fields.hb.stringValue).disk === 41.3,
       'מצב API: שאילתה בלי עבודות — "אין"; הדופק נשמר (רק מספרים וגרסה)');
     {
+      // 10/10/2026 (תקלת השרת בפריסה של v384): 'th' נכנס ל־JSON_FIELDS (ספי מצב הצל) — והוא גם ה־hash של טוקן השרת.
+      // שרת שנוצר לפני כן (th = hex גולמי) נדחה ב־401 מכל פנייה. שתי הצורות חייבות לעבוד, ו־th לא שדה JSON.
+      const S3 = require('../lib/studio');
+      ok(!S3.JSON_FIELDS.includes('th'), 'תיקון 10/10: th (ה־hash של טוקן השרת) לא שדה JSON — JSON_FIELDS חל על כל המסמכים');
+      const raw = db.get('studioServers/' + SID), hex = S3.keyHash(STOK);
+      db.set('studioServers/' + SID, Object.assign({}, raw, { fields: Object.assign({}, raw.fields, { th: { stringValue: hex } }) }));
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      ok(rr.statusCode === 200 && rr.payload.ok, 'תיקון 10/10: שרת ותיק (th כ־hex גולמי) מתקבל');
+      db.set('studioServers/' + SID, Object.assign({}, raw, { fields: Object.assign({}, raw.fields, { th: { stringValue: JSON.stringify(hex) } }) }));
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      ok(rr.statusCode === 200 && rr.payload.ok, 'תיקון 10/10: שרת שנוצר בזמן התקלה (th בגרשיים) מתקבל');
+      ok(!S3.serverMatches({ th: JSON.stringify(hex) }, SID + '-' + 'a'.repeat(43)), 'תיקון 10/10: טוקן שגוי עדיין נדחה גם בצורה בגרשיים');
+      db.set('studioServers/' + SID, raw);
+    }
+    {
       const S2 = require('../lib/studio');
       const g = S2.normHb({ iso: 'g', iw: 'mem' }), r = S2.normHb({ iso: 'r', iw: 'mem' }), bad = S2.normHb({ iso: '<b>', iw: 'rm -rf' });
       ok(g.iso === 'g' && g.iw === '' && r.iso === 'r' && r.iw === 'mem' && bad.iso === '' && bad.iw === '', 'ת2: בידוד הקופסה בדופק — קודים קבועים בלבד (gVisor / רגיל + סיבה)');

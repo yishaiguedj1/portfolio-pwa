@@ -276,7 +276,7 @@ function learnedNorm(list, mode) {
 /* v384: מצב צל לספים חדשים (ServiceNow: Kill switch · warn_only). כש"הרגיל" של מצב משתנה משמעותית — נלמד לראשונה, או החציון /
    סף העצירה זזו ב־SH_DIFF ומעלה — הספים החדשים רצים SHADOW_N עבודות במצב צל: המגדל אוכף את הישנים (`old`; null = המדידות שלנו)
    ורק מזהיר כשהחדשים היו עוצרים. שינוי קטן (חציון שזז מעט אחרי כל עבודה) — מתעדכן בשקט, בלי צל.
-   הרשומה לכל מצב ב־studioStats/{uid}.th: { nm, old, n }. RED_X זהה ל־tower.py */
+   הרשומה לכל מצב ב־studioStats/{uid}.thr: { nm, old, n } (לא th — זה ה־hash של טוקן השרת ב־studioServers, ו־JSON_FIELDS חל על כל המסמכים). RED_X זהה ל־tower.py */
 const SHADOW_N = 3, SH_DIFF = 0.25, RED_X = 4;
 const redOf = (nm) => (nm ? Math.max(RED_X, 2 * nm.mx / nm.ph) : RED_X);
 function thStep(prev, nm) {
@@ -773,8 +773,11 @@ function parseServerToken(t) {
   return m ? { sid: m[1], tok: m[0] } : null;
 }
 function serverMatches(srv, tok) {
-  if (!srv || !/^[0-9a-f]{64}$/.test(String(srv.th || ''))) return false;
-  const a = Buffer.from(keyHash(tok), 'hex'), b = Buffer.from(srv.th, 'hex');
+  // 10/10/2026: בין v384 לתיקון 'th' היה ב־JSON_FIELDS — שרת שנוצר אז נשמר עם th בגרשיים (JSON). מקבלים את שתי הצורות.
+  let th = String((srv && srv.th) || '');
+  if (/^"[0-9a-f]{64}"$/.test(th)) th = th.slice(1, -1);
+  if (!srv || !/^[0-9a-f]{64}$/.test(th)) return false;
+  const a = Buffer.from(keyHash(tok), 'hex'), b = Buffer.from(th, 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 /* הדופק מהשרת — רק מספרים וגרסה; כל השאר נזרק */
@@ -813,7 +816,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl'];   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl'];   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -840,7 +843,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = {
+module.exports = { JSON_FIELDS,
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
