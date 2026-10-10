@@ -51,6 +51,8 @@ function listen(server) {
   ok(r.status === 200 && r.json.b.op === 'status' && r.json.m === 'POST', 'JSON → req.body אובייקט, כמו Vercel');
   ok(Array.isArray(r.json.q.a) && r.json.q.a.join() === '1,2' && r.json.q.b === 'x', 'req.query (מפתח חוזר = מערך)');
   ok(r.json.ip === '5.6.7.8', 'כתובת הלקוח מכותרת השער בלבד (x-forwarded-for מבחוץ נדרס)');
+  r = await req(port, 'GET', '/api/echo?__proto__=x&constructor=y&ok=1');
+  ok(r.json.q.ok === '1' && !('__proto__' in r.json.q && r.json.q.__proto__ === 'x') && Object.keys(r.json.q).join() === 'ok' && ({}).x === undefined, 'בלי זיהום prototype משמות פרמטרים');
   r = await req(port, 'POST', '/api/echo', { body: 'not json', headers: { 'content-type': 'application/json' } });
   ok(r.json.b === 'not json', 'JSON לא תקין → מחרוזת (הפונקציות מטפלות בזה בעצמן)');
   r = await req(port, 'POST', '/api/echo', { body: 'x', headers: { 'content-type': 'text/plain', 'x-forwarded-for': '1.1.1.1' } });

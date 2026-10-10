@@ -59,9 +59,14 @@ function parseBody(buf, type) {
   return buf;
 }
 
+const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function queryOf(url) {
-  const q = {};
-  for (const [k, v] of url.searchParams) q[k] = k in q ? [].concat(q[k], v) : v;
+  // בלי prototype ובלי מפתחות מסוכנים — שם פרמטר מהכתובת לא יכול לזהם אובייקטים (CodeQL: remote property injection)
+  const q = Object.create(null);
+  for (const [k, v] of url.searchParams) {
+    if (BAD_KEYS.has(k)) continue;
+    q[k] = Object.prototype.hasOwnProperty.call(q, k) ? [].concat(q[k], v) : v;
+  }
   return q;
 }
 
