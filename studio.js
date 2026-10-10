@@ -10,6 +10,7 @@
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
 import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
+import { createPlayer, normCues, issuesList, fmtT } from './studioplay.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -35,6 +36,9 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 /* הסקירה (10/10/2026): מה שהעובד יודע היום (= LANG_READY בשרתון). השאר מוצג "בקרוב" ולא נבחר — לא נכשלים אחרי ההעלאה */
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
+/* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small'];
+export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
@@ -144,8 +148,8 @@ export function normJob(j) {
     sess: s.sess && typeof s.sess.url === 'string' && /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/.test(s.sess.url) ? { url: s.sess.url } : null,
     ed: typeof s.ed === 'string' ? s.ed.slice(0, 140) : '',   // v356: פרטי ההפעלה שנכשלה (סטטוס · סוג · מזהה בקשה)
     // v358: התוצרים בתיקיית העבודה ב־Drive (מהשרתון: files.o; בשמירה המקומית: out)
-    out: (Array.isArray(s.out) ? s.out : s.files && Array.isArray(s.files.o) ? s.files.o : []).slice(0, 6)
-      .filter((o) => o && FID_RE.test(String(o.id || '')) && ['compact', 'same', 'mkv', 'srt'].includes(o.k))
+    out: (Array.isArray(s.out) ? s.out : s.files && Array.isArray(s.files.o) ? s.files.o : []).slice(0, 10)
+      .filter((o) => o && FID_RE.test(String(o.id || '')) && OUT_ALL.includes(o.k))
       .map((o) => ({ id: o.id, k: o.k, size: num(o.size) })),
     use: normUse(s.use),   // v359: טוקנים ועלות (מהעובד, דרך השרתון)
     eng: s.eng === 'api' ? 'api' : 'sub',   // מצב API: העבודה רצה על השרת של המערכת (בתור עד ששרת פנוי)
@@ -724,6 +728,8 @@ function outName(k) {
     case 'same': return T('studioOutSame');
     case 'compact': return T('studioOutCompact');
     case 'mkv': return T('studioOutMkv');
+    case 'small': return T('studioOutSmall');   // מ1
+    case 'en': return T('studioOutEn');
     default: return T('studioOutSrt');
   }
 }
@@ -735,7 +741,7 @@ function outSub(k) {
     default: return T('studioOutSrtS');
   }
 }
-const outShort = (k) => (k === 'srt' ? 'SRT' : k === 'same' ? T('studioOutSameShort') : outName(k));
+const outShort = (k) => (k === 'srt' ? 'SRT' : k === 'en' ? T('studioOutEnShort') : k === 'same' ? T('studioOutSameShort') : outName(k));
 const modeShort = (m) => FAM_NAME[m.fam] + ' ' + m.effort;   // לשורות צרות ("Opus Medium")
 function styleName(k) {
   switch (k) {
@@ -1265,13 +1271,14 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
 }
 
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
+  if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
@@ -3702,6 +3709,70 @@ function costCard(cv, tr) {
 }
 
 /* מסך ההתקדמות — "שגם ילד וגם אדם מבוגר יבינו": כמה נשאר, מתי יהיה מוכן, מה קורה עכשיו, ולכל שלב זמן */
+/* ---------------- מ1: הנגן ---------------- */
+// הסרטון המקורי (מה שהטלפון העלה) עם הכתוביות מעליו; לא מתנגן (MKV / קודק) — הסרטון הצרוב. הכתוביות מ־cues.final.json
+// (או מה־SRT בעבודות ישנות). אלמנט הנגן נשמר בין ציורים — וידאו שמוצא מהמסמך נעצר.
+const outOf = (rec, k) => ((rec.srv && rec.srv.out) || []).find((o) => o.k === k) || null;
+const burnedOut = (rec) => outOf(rec, 'compact') || outOf(rec, 'same') || outOf(rec, 'small');
+const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
+let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
+function playClose() { if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
+async function playLoad(rec) {
+  const me = pl;
+  try {
+    const co = outOf(rec, 'cues'), so = outOf(rec, 'srt');
+    let cues = [];
+    if (co) cues = normCues(await net.driveJson(co.id));
+    if (!cues.length && so) cues = normCues(parseSrt(await net.driveText(so.id)));
+    if (pl !== me) return;
+    const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+    const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+    if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; render('none'); return; }
+    me.cues = cues; me.iss = issuesList(cues);
+    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, T });
+    me.st = 'ok';
+  } catch (e) {
+    if (pl !== me) return;
+    me.st = 'err'; me.err = (e && e.code) || 'drive';
+  }
+  render('none');
+}
+function issueName(k) {
+  switch (k) {
+    case 'cps': return T('studioIsCps');
+    case 'len': return T('studioIsLen');
+    case 'lines': return T('studioIsLines');
+    case 'dur': return T('studioIsDur');
+    default: return T('studioIsEn');
+  }
+}
+function pagePlay(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canPlay(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }));
+  if (!pl || pl.id !== rec.id) { playClose(); pl = { id: rec.id, st: 'load', ctl: null, cues: [], iss: [], err: '' }; playLoad(rec); }
+  if (pl.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioPlLoading'))); return; }
+  if (pl.st === 'err') {
+    const bo = burnedOut(rec);
+    p.append(h('div', 'st-empty st-empty-sm', pl.err === 'nosw' ? T('studioPlNoSw') : T('studioPlLoadErr')));
+    if (bo) p.append(list(rowExt({ href: 'https://drive.google.com/file/d/' + bo.id + '/view', tile: tile('film', 'green'), label: T('studioPlOpenDrive'), k: 'pl-drive' })));
+    return;
+  }
+  p.append(pl.ctl.el);
+  // הכתוביות שלא עומדות בכללים — נגיעה קופצת אליהן (מפת החום בפס מראה איפה)
+  if (pl.iss.length) {
+    const rows = pl.iss.slice(0, 50).map((x) => {
+      const r = btn('st-row st-ric', null, () => { pl.ctl.seek(Math.max(0, x.t - 0.3)); pl.ctl.play(); }, 'iss:' + x.i);
+      const c = pl.cues.find((q) => q.i === x.i);
+      const tm = h('span', 'st-pl-tm'); tm.append(h('bdi', null, fmtT(x.t)));
+      r.append(tm, rowTxt(c ? c.lines.join(' ') : '#' + x.i, x.k.map(issueName).join(' · ')));
+      return r;
+    });
+    p.append(secT(T('studioPlIssues', { n: pl.iss.length })), list(...rows));
+    if (pl.iss.length > 50) p.append(note(T('studioPlIssuesMore', { n: pl.iss.length - 50 })));
+  } else p.append(note(T('studioPlNoIssues')));
+}
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
@@ -3769,10 +3840,11 @@ function pageJob(p) {
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
   // 10/10/2026: עבודה שהסתיימה — התוצרים עצמם במקום כרטיס "התרגום מוכן!" שני (הראש כבר אומר את זה);
   // עד עכשיו הקישורים היו רק בתוך "פרטים טכניים" המקופלים
-  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []) : [];
+  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)) : [];   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
   if (outs.length) {
+    if (canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view',
-      tile: tile(o.k === 'srt' ? 'globe' : 'film', o.k === 'srt' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
+      tile: tile(o.k === 'srt' || o.k === 'en' ? 'globe' : 'film', o.k === 'srt' || o.k === 'en' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
     rec.up.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + rec.up.folder, tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
@@ -4335,6 +4407,7 @@ function shapeKey() {
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
+  if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
   return ui.view + '|' + ui.access;
@@ -4360,6 +4433,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'lang') pageLang(p);
   else if (ui.view === 'project') pageProject(p);
   else if (ui.view === 'job') pageJob(p);
+  else if (ui.view === 'play') pagePlay(p);   // מ1
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);
   else if (ui.view === 'alert') pageAlert(p);

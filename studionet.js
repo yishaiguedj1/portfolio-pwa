@@ -10,6 +10,7 @@
 
 const UP = 'https://www.googleapis.com/upload/drive/v3/files';
 const API = 'https://www.googleapis.com/drive/v3/files';
+export const MEDIA_PATH = './studio-media/';   // מ1: = MEDIA_RE ב־sw.js
 const FOLDER = 'application/vnd.google-apps.folder';
 export const ROOT_NAME = 'THE SNOWBALL — סטודיו';
 const K256 = 256 * 1024;
@@ -451,6 +452,42 @@ export function createNet(env) {
     if (!r.ok) throw await driveErr(r);
     return r.text();
   }
+  /* מ1: הנגן — הסרטון מ־Drive דרך ה־Service Worker (./studio-media/<id>): ה־SW מבקש כאן אסימון (MessageChannel) ומעביר
+     Range ל־Drive עם Authorization — הטוקן לא בכתובת. רק קבצים שהדף אישר (mediaAllow) — לא כל קובץ שמישהו מבקש */
+  const mediaAllow = new Set();
+  let mediaWired = false;
+  function mediaUrl(id) {
+    if (!/^[A-Za-z0-9_-]{10,200}$/.test(String(id || ''))) return '';
+    mediaAllow.add(id);
+    const sw = E.sw || (typeof navigator !== 'undefined' && navigator.serviceWorker);
+    if (!sw || !sw.controller) return '';               // בלי SW שולט — הקורא יבחר דרך אחרת (הורדה / פתיחה ב־Drive)
+    if (!mediaWired && typeof sw.addEventListener === 'function') {
+      mediaWired = true;
+      sw.addEventListener('message', (e) => {
+        const d = e && e.data;
+        const port = e && e.ports && e.ports[0];
+        if (!d || typeof d.snbMedia !== 'string' || !port) return;
+        if (!mediaAllow.has(d.snbMedia)) { port.postMessage({ t: '' }); return; }
+        mediaInfo(d.snbMedia, !!d.fresh).then((x) => port.postMessage(x), () => port.postMessage({ t: '' }));
+      });
+    }
+    return MEDIA_PATH + id;
+  }
+  /* לשאלה של ה־SW: אסימון + גודל וסוג הקובץ (Content-Range נבנה ב־SW מהגודל — לא חשוף בתשובת CORS של Drive) */
+  const mediaMeta = new Map();
+  async function mediaInfo(id, fresh) {
+    const t = await driveToken(fresh);
+    let m = mediaMeta.get(id);
+    if (!m) {
+      const r = await E.fetch(API + '/' + encodeURIComponent(id) + '?fields=size,mimeType', { headers: { Authorization: 'Bearer ' + t } });
+      if (!r.ok) throw await driveErr(r);
+      const j = await r.json();
+      m = { size: Math.floor(Number(j.size) || 0), type: String(j.mimeType || '') };
+      mediaMeta.set(id, m);
+    }
+    return { t: t || '', exp: (dtok && dtok.exp) || 0, size: m.size, type: m.type };
+  }
+  async function driveJson(id) { return JSON.parse(await driveText(id)); }
   async function goldUpload(folderId, text) {
     const b = 'snb' + Math.random().toString(36).slice(2);
     const meta = { name: GOLD_REF_NAME, parents: [folderId], mimeType: 'application/x-subrip', appProperties: { snbRef: '1' } };
@@ -463,5 +500,5 @@ export function createNet(env) {
   }
 
 
-  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, goldUpload, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, mediaUrl, _forget: () => { dtok = null; } };
 }

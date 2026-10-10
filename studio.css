@@ -568,3 +568,54 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ntb .st-btn.ghost { flex: none; }
 .st-ntb .st-btn.wide { flex: 1; width: auto; min-width: 0; margin: 0; }
 .st-ntc > .st-row { padding-inline: 0; }
+
+/* ---------- מ1 (10/10/2026): הנגן — כהה תמיד (כמו עורך התמונות של Apple, YouTube ו־CapCut), בשתי הערכות ---------- */
+.st-root:has(> .st-page.st-dark) { background: #000; color-scheme: dark; }
+.st-page.st-dark { color-scheme: dark; --bg: #000; --surface: #1C1C1E; --st-card: #1C1C1E; --on-surface: #F5F5F7; --on-surface-var: #98989D;
+  --card-border: rgba(255, 255, 255, .12); --search-fill: rgba(118, 118, 128, .24); --st-ter: #636366; color: #F5F5F7; }
+.st-pl { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; user-select: none; -webkit-user-select: none;
+  touch-action: manipulation; container-type: inline-size; }
+.st-pl-v { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.st-pl-sub { position: absolute; inset-inline: 4%; bottom: 8%; text-align: center; color: #fff; pointer-events: none; z-index: 2;
+  font-family: "Arimo", "Noto Sans Hebrew", Arial, sans-serif; font-weight: 700; font-size: clamp(13px, 4.2cqw, 26px); line-height: 1.24;
+  text-shadow: 0 0 1px #000, 1.5px 1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px -1.5px 0 #000, 0 0 5px rgba(0, 0, 0, .9); }
+.st-pl:fullscreen .st-pl-sub { font-size: clamp(18px, 3.4cqw, 44px); }
+.st-pl-ui { position: absolute; inset: 0; z-index: 3; background: rgba(0, 0, 0, .38); transition: opacity .2s ease; }
+.st-pl.hide .st-pl-ui { opacity: 0; pointer-events: none; }
+.st-pl:not(.hide) .st-pl-sub { bottom: 24%; }
+.st-pl.hide .st-pl-sub { bottom: 6%; }
+.st-pl-sub { transition: bottom .2s ease; }
+.st-pl-top { position: absolute; top: 6px; inset-inline-end: 6px; display: flex; gap: 2px; align-items: center; }
+.st-pl-mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 42px; pointer-events: none; }
+.st-pl-mid .st-pl-b { pointer-events: auto; }
+.st-pl-bot { position: absolute; inset-inline: 10px; bottom: 4px; }
+.st-pl-b { border: 0; background: transparent; color: #fff; display: inline-grid; place-items: center; cursor: pointer; border-radius: 50%; padding: 0;
+  -webkit-tap-highlight-color: transparent; }
+.st-pl-b svg { width: 22px; height: 22px; }
+.st-pl-top .st-pl-b { width: 40px; height: 40px; position: relative; }
+.st-pl-b.cc.on { color: #FFD60A; }
+.st-pl-b:disabled { opacity: .35; }
+.st-pl-ccl { position: absolute; bottom: 1px; inset-inline: 0; font-size: 9px; font-weight: 800; text-align: center; }
+.st-pl-b.sp { width: auto !important; min-width: 40px; padding-inline: 6px; border-radius: 10px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.st-pl-mid .st-pl-b { background: rgba(0, 0, 0, .35); }
+.st-pl-b.sm { width: 44px; height: 44px; } .st-pl-b.sm svg { width: 24px; height: 24px; }
+.st-pl-b.bg { width: 60px; height: 60px; } .st-pl-b.bg svg { width: 32px; height: 32px; }
+.st-pl-time { display: flex; justify-content: space-between; color: #fff; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; margin-bottom: 2px; }
+.st-pl-bar { position: relative; height: 22px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+.st-pl-track { position: relative; width: 100%; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .3); overflow: hidden; }
+.st-pl-bar:focus-visible .st-pl-track { outline: 2px solid #fff; outline-offset: 3px; }
+.st-pl-track i { position: absolute; inset-block: 0; inset-inline-start: 0; }   /* הנגן dir=ltr — inline-start = שמאל */
+.st-pl-track .buf { background: rgba(255, 255, 255, .45); }
+.st-pl-track .pl { background: var(--primary); }
+.st-pl-knob { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px rgba(48, 209, 88, .3); pointer-events: none; }
+.st-pl-heat { position: absolute; inset-inline: 0; bottom: 13px; height: 14px; pointer-events: none; }
+.st-pl-heat i { position: absolute; bottom: 0; width: calc(100% / 60); background: rgba(255, 159, 10, .75); border-radius: 2px 2px 0 0; }
+.st-pl-rip { position: absolute; top: 0; bottom: 0; width: 38%; z-index: 4; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 14px;
+  background: rgba(255, 255, 255, .14); opacity: 0; pointer-events: none; transition: opacity .35s; }
+.st-pl-rip.l { inset-inline-start: 0; border-radius: 0 50% 50% 0; } .st-pl-rip.r { inset-inline-end: 0; border-radius: 50% 0 0 50%; }
+.st-pl-rip.on { opacity: 1; transition: none; }
+.st-pl-err[hidden] { display: none; }
+.st-pl-err { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .7); font-size: 15px; padding: 16px; text-align: center; }
+.st-pl-ph { aspect-ratio: 16 / 9; display: grid; place-items: center; background: #000; color: #98989D; font-size: 14px; }
+.st-pl-tm { flex: none; min-width: 44px; color: #0A84FF; font-weight: 700; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .st-pl-ui, .st-pl-rip { transition: none; } }

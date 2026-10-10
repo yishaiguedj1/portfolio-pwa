@@ -1684,6 +1684,14 @@ OUT_FILES = (                                     # (סוג, קובץ של vt, �
     ('mkv', '{n}.he.mkv', ' (עברית).mkv', 'video/x-matroska'),
     ('srt', 'he.srt', '.he.srt', 'application/x-subrip'),
 )
+# מ1 (10/10/2026): קבצי עזר שתמיד עולים (אם vt יצר אותם) — הנגן, עורך הכתוביות ומסך ההצעות קוראים מ־cues;
+# VTT/ASS לנגנים אחרים; en = כתוביות בשפת המקור. תקלה בהעלאה של אחד מהם לא מפילה את העבודה
+AUX_FILES = (
+    ('cues', 'cues.final.json', '.cues.json', 'application/json'),
+    ('vtt', 'he.vtt', '.he.vtt', 'text/vtt'),
+    ('ass', 'he.ass', '.he.ass', 'text/x-ssa'),
+    ('en', 'en.reference.srt', '.en.srt', 'application/x-subrip'),
+)
 
 
 @guarded
@@ -1722,6 +1730,15 @@ def finish(args):
         fid = drive_upload(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
+    for k, fname, suffix, mime in AUX_FILES:
+        p = ctx.pdir / 'out' / fname
+        if not p.exists():
+            continue
+        try:
+            fid = drive_upload(ctx, p, title + suffix, k, mime)
+            out.append({'id': fid, 'name': title + suffix, 'size': p.stat().st_size, 'k': k})
+        except Exception as e:   # noqa: BLE001 — קובץ עזר; התוצרים העיקריים כבר עלו
+            print('· ' + p.name + ' לא עלה (' + type(e).__name__ + ') — ממשיכים בלעדיו')
     try:
         q = quality(ctx.pdir / 'out' / 'he.srt', chk_ok=not args.force)   # v374: מדד האיכות (בלי טוקנים)
     except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
