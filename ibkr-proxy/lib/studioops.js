@@ -17,6 +17,7 @@ const KINDS = {
   'claude:inject': 3,   // v374: שומר ההזרקות סימן בתמליל טקסט שנראה כמו הוראה (טופל כתוכן)
   'claude:loop': 2,     // v384: "המשך" שלישי ב־24 שעות לאותה עבודה — לולאה (ההמשך האוטומטי נעצר)
   'vt:anomaly': 4, 'claude:anomaly': 4, 'drive:anomaly': 4,   // v385: מדד חריג בהתמדה (2 מתוך 3 העבודות האחרונות) — מידע, בסיכום היומי
+  'server:down': 2,    // ת7: שרת שדיווח בעבר שותק מעל רבע שעה (הבדיקה המתוזמנת)
   'vt:setup': 2, 'vt:ingest': 2, 'vt:asr': 2, 'vt:align': 2, 'vt:check': 3, 'vt:render': 2, 'vt:other': 2,
 };
 const AL_MAX = 150, KEEP = 30 * 86400e3, GLOBAL_TTL = 30 * 60e3, EV_MAX = 6;
@@ -50,7 +51,9 @@ function normEvents(a) {
   }
   return out;
 }
-const isClosed = (a, now) => !!a.x || (!a.j && now - a.l > GLOBAL_TTL);   // התראה בלי עבודה נסגרת לבד אחרי חצי שעה בלי חזרה
+/* ת7: התראה שנסגרת רק כשהמצב חוזר (השרת דיווח שוב / הוסר) — לא לבד אחרי חצי שעה, כמו שאר ההתראות בלי עבודה */
+const STICKY = ['server:down'];
+const isClosed = (a, now) => !!a.x || (!a.j && !STICKY.includes(a.c + ':' + a.k) && now - a.l > GLOBAL_TTL);   // התראה בלי עבודה נסגרת לבד אחרי חצי שעה בלי חזרה
 const closedAt = (a) => a.x || a.l;
 function alList(al, now) {
   return (Array.isArray(al) ? al : []).filter((a) => a && typeof a.id === 'string' && (a.c + ':' + a.k) in KINDS && (!isClosed(a, now) || now - closedAt(a) < KEEP));
