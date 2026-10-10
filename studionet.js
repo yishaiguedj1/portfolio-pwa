@@ -224,7 +224,7 @@ export function parseSrt(text) {
     if (i < 0) continue;
     const m = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/.exec(lines[i]);
     if (!m) continue;
-    const t = lines.slice(i + 1).join(' ').replace(/<[^>]*>/g, '').replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+    const t = lines.slice(i + 1).join(' ').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
     const a = tc(m[1], m[2], m[3], m[4].padEnd(3, '0')), z = tc(m[5], m[6], m[7], m[8].padEnd(3, '0'));
     if (z > a && t) out.push({ a, b: z, t });
   }
