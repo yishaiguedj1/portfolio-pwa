@@ -619,3 +619,52 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-pl-ph { aspect-ratio: 16 / 9; display: grid; place-items: center; background: #000; color: #98989D; font-size: 14px; }
 .st-pl-tm { flex: none; min-width: 44px; color: #0A84FF; font-weight: 700; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .st-pl-ui, .st-pl-rip { transition: none; } }
+
+/* ---------- מ2–מ3: עורך הכתוביות ---------- */
+.st-se-top { position: sticky; top: 0; z-index: 4; background: #000; }
+.st-se { padding-bottom: 8px; }
+.st-se-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
+.st-se-sp { flex: 1; }
+.st-se-b { appearance: none; border: 0; background: var(--search-fill); color: var(--on-surface); font: inherit; font-size: 14px; border-radius: var(--pill);
+  min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; }
+.st-se-b:disabled { opacity: .38; cursor: default; }
+.st-se-b.ic { width: 36px; padding: 0; }
+.st-se-b svg { width: 20px; height: 20px; }
+.st-se-b.on, .st-se-b.chip.on { background: var(--primary); color: var(--on-primary); }
+.st-se-b.sm { min-height: 30px; padding: 0 9px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.st-se-b.now { color: var(--primary); }
+.st-se-b.danger { color: #FF453A; }
+.st-se-b.done { background: var(--primary); color: var(--on-primary); font-weight: 600; }
+.st-se-search { display: grid; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--card-border); }
+.st-se-search[hidden] { display: none; }
+.st-se-srow { display: flex; gap: 8px; }
+.st-se-in { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: inherit; background: var(--search-fill); border: 0; border-radius: var(--radius-xs); padding: 8px 12px; }
+.st-se-go { flex: none; }
+.st-se-n { font-size: 13px; color: var(--on-surface-var); min-height: 1em; }
+.st-se-list { display: grid; }
+.st-se-empty { padding: 28px 16px; text-align: center; color: var(--on-surface-var); font-size: 14px; }
+.st-se-row { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; align-items: start; padding: 10px 12px 10px 12px;
+  border-bottom: 1px solid var(--card-border); border-inline-start: 3px solid transparent; cursor: pointer; }
+.st-se-row.act { border-inline-start-color: var(--primary); background: rgba(255, 255, 255, .04); }
+.st-se-row.open { cursor: default; background: var(--surface); grid-template-columns: minmax(0, 1fr); gap: 4px; }   /* פתוחה — כל הרוחב (גם ב־320) */
+.st-se-row.open .st-se-tm { justify-self: start; }
+.st-se-tm { appearance: none; border: 0; background: none; color: var(--on-surface-var); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums;
+  padding: 3px 0; text-align: start; cursor: pointer; }
+.st-se-row.act .st-se-tm { color: var(--primary); }
+.st-se-body { position: relative; min-width: 0; }
+.st-se-tx { font-size: 16px; line-height: 1.42; overflow-wrap: anywhere; padding-inline-end: 22px; }
+.st-se-warn { position: absolute; inset-inline-end: 0; top: 2px; color: #FFD60A; }
+.st-se-warn svg { width: 16px; height: 16px; display: block; }
+.st-se-ta { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; line-height: 1.42; color: inherit; background: var(--search-fill);
+  border: 1.5px solid var(--primary); border-radius: var(--radius-xs); padding: 8px 10px; resize: none; field-sizing: content; min-height: 3.2em; }
+.st-se-mrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.st-se-meta { font-size: 12.5px; color: var(--on-surface-var); }
+.st-se-iss { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.st-se-chip { font-size: 12px; padding: 2px 8px; border-radius: var(--pill); background: rgba(255, 214, 10, .16); color: #FFD60A; }
+.st-se-acts { display: grid; gap: 8px; margin-top: 10px; }
+.st-se-trow { display: grid; gap: 6px; }
+.st-se-edge, .st-se-shift { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.st-se-el { font-size: 13px; color: var(--on-surface-var); min-width: 44px; }
+.st-se-ev { font-size: 14px; font-variant-numeric: tabular-nums; min-width: 52px; text-align: center; }
+.st-se-arow { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) { .st-se-row { transition: background-color .15s ease; } }

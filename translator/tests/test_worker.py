@@ -23,6 +23,7 @@ KEY = 'K' * 40 + '_-9'
 TOKEN = 'ya29.DRIVE-SECRET-TOKEN'
 VIDEO = bytes(range(256)) * 4000          # ~1MB
 AUDIO = bytes(range(255, -1, -1)) * 300    # ~77KB
+CUES = json.dumps([{'id': 1, 'start': 1, 'end': 2.5, 'lines': ['שלום']}, {'id': 2, 'start': 3, 'end': 4, 'lines': ['עולם']}]).encode()
 
 FAKE_VT = r'''#!/usr/bin/env python3
 import os, re, sys, json, pathlib
@@ -33,6 +34,15 @@ if a[:1] == ['-c']:
         sys.exit(0)
     print(a[-1])                            # כמו הבדיקה האמיתית: שורה לכל מודול חסר (כאן — האחרון ברשימה)
     sys.exit(1)
+if a and a[0].endswith('rerender.py'):       # מ2: הפקה מחדש (בלי vt build)
+    o = dict(zip(a[1::2], a[2::2]))
+    pathlib.Path(os.environ['FAKE_LOG']).open('a').write('rerender ' + o['--want'] + ' ' + o['--style'] + '\n')
+    cues = json.loads(pathlib.Path(o['--cues']).read_text())
+    print('כתוביות: %d' % len(cues)); print('צריבה 50%')
+    od = pathlib.Path(o['--out']); od.mkdir(parents=True, exist_ok=True)
+    for k, fn in (('compact', '.he.compact.mp4'), ('same', '.he.mp4'), ('mkv', '.he.mkv'), ('small', '.he.small.mp4')):
+        if k in o['--want'].split(','): (od / (o['--name'] + fn)).write_bytes(b'r' * 300000)
+    sys.exit(0)
 if a and a[0].endswith('sync.py'):           # v360: מדידת ההיסט בין הקולות
     pathlib.Path(os.environ['FAKE_LOG']).open('a').write('sync\n')
     print(os.environ.get('FAKE_SYNC', '0.250000 0.990'))
@@ -142,6 +152,8 @@ class Fake:
                     files = {'a': {'id': 'AUDIO000001', 'name': 'Interview_2026.audio.m4a', 'size': len(AUDIO)}} if fake.audio else {}
                     if fake.claims > fake.video_after:
                         files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
+                    if fake.kind == 'rr':                               # מ2: הכתוביות שנערכו בטלפון
+                        files = {'v': files['v'], 'c': {'id': 'CUES0000001', 'name': 'x.cues.edit.json', 'size': len(CUES)}}
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
                                                                   'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm,
@@ -185,6 +197,8 @@ class Fake:
                     return self._send(200, {'files': [{'id': 'GLOSS000001', 'size': str(len(fake.gloss))}] if fake.gloss is not None else []})
                 if self.path.startswith('/drive/v3/files/GLOSS000001?alt=media'):
                     return self._send(200, raw=fake.gloss or b'')
+                if self.path.startswith('/drive/v3/files/CUES0000001?alt=media'):
+                    return self._send(200, raw=CUES)
                 if self.path.startswith('/drive/v3/files/AUDIO000001?alt=media'):
                     return self._send(200, raw=AUDIO)
                 if self.path.startswith('/drive/v3/files/VIDEO000001?alt=media'):
@@ -794,6 +808,38 @@ class TestWorker(unittest.TestCase):
         src = (HERE / 'job.py').read_text(encoding='utf-8')
         self.assertNotIn("['build', ctx.name]", src)            # כל build עם --style
         self.assertIn("המונחים שביקשת", (HERE / 'RUNBOOK.md').read_text(encoding='utf-8'))
+
+    def test_rerender(self):
+        # מ2: הפקה מחדש — לקיחה, הורדת הסרטון והכתוביות הערוכות, rerender.py בסגנון שנבחר, העלאה; בלי תמלול/תרגום
+        self.fake.kind = 'rr'
+        self.fake.spec = dict(self.fake.spec, out=['compact', 'small'], style='classic')
+        code, out = self.take()
+        self.assertEqual(code, 0, out)
+        self.assertIn('job.py render', out)
+        self.assertNotIn(KEY, out)
+        code, out = self.job('render')
+        self.assertEqual(code, 0, out)
+        log = (self.tmp / 'vt.log').read_text().splitlines()
+        self.assertEqual(log, ['rerender compact,small classic'], 'רק ההפקה — בלי vt new/asr/build')
+        done = self.fake.reports[-1]
+        self.assertTrue(done.get('done'))
+        self.assertEqual([o['k'] for o in done['out']], ['compact', 'small'])
+        self.assertTrue(any(r.get('st') == 'bn' and 0 < (r.get('p') or 0) < 1 for r in self.fake.reports), 'אחוזים מהצריבה')
+        self.assertFalse((self.tmp / 'work' / '_rr' / SLUG).exists(), 'קבצי העבודה נמחקו אחרי ההעלאה')
+        self.assertNotIn('usage', done, 'בלי טוקנים — בלי שורת עלות')
+
+    def test_rerender_cues(self):
+        # מ2: הכתוביות מהטלפון = טקסט מהמשתמש — ניקוי, מיון, חפיפה, גבול הסרטון; מספור מחדש
+        sys.path.insert(0, str(HERE))
+        import rerender as R
+        cs = R.norm_cues([{'start': 5, 'end': 7, 'lines': ['ב\u202e', '']}, {'s': 1, 'e': 6, 'lines': 'א\nשנייה'},
+                          {'start': 'x', 'end': 2, 'lines': ['פגומה']}, {'start': 9, 'end': 8, 'lines': ['הפוכה']},
+                          {'start': 9, 'end': 30, 'lines': ['ארוכה מהסרטון']}, {'start': 40, 'end': 41, 'lines': ['אחרי הסוף']},
+                          {'start': 2, 'end': 3, 'lines': []}, 'junk', {'start': 11, 'end': 12, 'lines': ['1', '2', '3', '4']}], dur=20)
+        self.assertEqual([(c['id'], c['start'], c['end'], c['lines']) for c in cs],
+                         [(1, 1.0, 5.0, ['א', 'שנייה']), (2, 5.0, 7.0, ['ב']), (3, 9.0, 11.0, ['ארוכה מהסרטון']), (4, 11.0, 12.0, ['1', '2', '3'])])
+        self.assertEqual(len(R.norm_cues([{'start': i, 'end': i + 0.5, 'lines': ['x']} for i in range(9000)])), R.MAX_CUES)
+        self.assertEqual(R.norm_cues(None), [])
 
     def test_srt_samples(self):
         sys.path.insert(0, str(HERE))

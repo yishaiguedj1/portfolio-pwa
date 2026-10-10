@@ -1311,7 +1311,7 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: 'short&bad' });
     ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
-    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור ולתרגם');
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם ולהפיק מחדש');
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });
@@ -1849,6 +1849,70 @@ function stubFetch(text, status = 200) {
       for (const id of [JGD, JNS, run1.id]) await run({ op: 'remove', idToken: OWNER, job: id });
       const odG = db.get('studioOps/ownerUid0001');
       if (odG) { delete odG.fields.inc; delete odG.fields.mi; }
+    }
+    studio._reset();
+
+    // מ2: עורך הכתוביות — גרסה ערוכה (cues + SRT בתיקיית העבודה, הקודמת בהיסטוריה) והפקה מחדש (עבודת rr, בלי תרגום)
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const SR = require('../lib/studio');
+      const JP = 'jEDITPARENT' + '0'.repeat(10), JN = 'jEDITNOCUES' + '0'.repeat(10);
+      const base = { uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 86400e3, updated: now - 3600e3, ended: now - 3600e3, folder: 'fold1234567890',
+        spec: { name: 'Talk.mp4', size: 100, dur: 600, to: ['he'], from: 'en', mode: 'sonnet-medium', out: ['compact'], style: 'bold' },
+        fv: { id: 'vid1234567890', name: 'Talk.mp4', size: 100, mime: 'video/mp4' } };
+      db.set('studioJobs/' + JP, { fields: SR.toFields(Object.assign({}, base, { fo: [{ id: 'outc1234567890', name: 'c', k: 'compact', size: 9 }, { id: 'outs1234567890', name: 's', k: 'srt', size: 9 }, { id: 'cue01234567890', name: 'q', k: 'cues', size: 9 }] })) });
+      db.set('studioJobs/' + JN, { fields: SR.toFields(Object.assign({}, base, { fo: [{ id: 'outc1234567891', name: 'c', k: 'compact', size: 9 }] })) });
+      driveFiles.set('cue11234567890', { id: 'cue11234567890', name: 'Talk.cues.v1.json', size: '5000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('srt11234567890', { id: 'srt11234567890', name: 'Talk.v1.he.srt', size: '3000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('cuex1234567890', { id: 'cuex1234567890', name: 'x.json', size: '5000', parents: ['other123456789'], trashed: false });
+      rr = await run({ op: 'cuesSave', idToken: OWNER, job: JP, c: 'cuex1234567890', s: 'srt11234567890', ev: 0 });
+      ok(rr.statusCode === 400 && rr.payload.error === 'file_bad', 'סטודיו: עורך הכתוביות — קובץ שלא בתיקיית העבודה נדחה (מאומת מול Drive)');
+      rr = await run({ op: 'cuesSave', idToken: OWNER, job: JP, c: 'cue11234567890', s: 'srt11234567890', ev: 3 });
+      ok(rr.statusCode === 409 && rr.payload.error === 'stale', 'סטודיו: עורך הכתוביות — גרסה שנערכה בינתיים במקום אחר: לא דורסים');
+      rr = await run({ op: 'cuesSave', idToken: OWNER, job: JP, c: 'cue11234567890', s: 'srt11234567890', ev: 0 });
+      const fo = rr.payload.job && rr.payload.job.files.o;
+      ok(rr.payload.ok && fo.find((o) => o.k === 'cues').id === 'cue11234567890' && fo.find((o) => o.k === 'srt').id === 'srt11234567890' && fo.find((o) => o.k === 'compact')
+        && rr.payload.job.ev === 1 && rr.payload.job.vh.length === 1 && rr.payload.job.vh[0] === now, 'סטודיו: עורך הכתוביות — הגרסה החדשה במקום הקודמת, הקודמת בהיסטוריה');
+      const vh = SR.fromFields(db.get('studioJobs/' + JP).fields).vh;
+      ok(vh.length === 1 && vh[0].c === 'cue01234567890' && vh[0].s === 'outs1234567890', 'סטודיו: עורך הכתוביות — ההיסטוריה שומרת את מזהי הגרסה הקודמת');
+      driveFiles.set('cue01234567890', { id: 'cue01234567890', name: 'Talk.cues.json', size: '5000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('outs1234567890', { id: 'outs1234567890', name: 'Talk.he.srt', size: '3000', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'cuesRestore', idToken: OWNER, job: JP, i: 0, ev: 1 });
+      ok(rr.payload.ok && rr.payload.job.files.o.find((o) => o.k === 'cues').id === 'cue01234567890' && rr.payload.job.ev === 2 && rr.payload.job.vh.length === 1,
+        'סטודיו: עורך הכתוביות — חזרה לגרסה קודמת (והגרסה שהייתה נוכחית עוברת להיסטוריה)');
+      rr = await run({ op: 'cuesRestore', idToken: OWNER, job: JP, i: 0, ev: 2 });
+      ok(rr.payload.ok && rr.payload.job.files.o.find((o) => o.k === 'cues').id === 'cue11234567890' && rr.payload.job.ev === 3, 'סטודיו: עורך הכתוביות — וחזרה קדימה');
+      rr = await run({ op: 'cuesRestore', idToken: OWNER, job: JP, i: 5, ev: 3 });
+      ok(rr.statusCode === 409, 'סטודיו: עורך הכתוביות — גרסה שלא קיימת');
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JN });
+      ok(rr.statusCode === 409, 'סטודיו: הפקה מחדש — עבודה בלי קובץ כתוביות (cues) לא מופקת מחדש');
+      const f0 = fires.length;
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, out: ['small', 'srt', 'mkv'], style: 'classic' });
+      const R1 = rr.payload.job;
+      ok(rr.payload.ok && R1.kind === 'rr' && R1.state === 'new' && R1.rp === JP && R1.files.c && R1.files.c.id === 'cue11234567890'
+        && R1.spec.out.join() === 'small,mkv' && R1.spec.style === 'classic' && fires.length === f0, 'סטודיו: הפקה מחדש — עבודה "חדשה" מהכתוביות הנוכחיות (רק תוצרי וידאו), בלי להפעיל עדיין');
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP });
+      ok(rr.statusCode === 409 && rr.payload.error === 'rr_busy', 'סטודיו: הפקה מחדש — אחת בכל פעם לכל עבודה');
+      rr = await run({ op: 'start', idToken: OWNER, job: R1.id });
+      ok(rr.payload.ok && fires.length === f0 + 1, 'סטודיו: הפקה מחדש — מתחילה כמו כל עבודה (Routine)');
+      const kr = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: R1.id, key: kr });
+      ok(rr.payload.ok && rr.payload.job.kind === 'rr' && rr.payload.job.files.v.id === 'vid1234567890' && rr.payload.job.files.c.id === 'cue11234567890',
+        'סטודיו: הפקה מחדש — העובד מקבל את הסרטון ואת הכתוביות הערוכות');
+      driveFiles.set('rrout123456789', { id: 'rrout123456789', name: 'Talk (עברית, קטן).mp4', size: '2000', parents: ['fold1234567890'], trashed: false });
+      rr = await wrk({ op: 'report', job: R1.id, key: kr, done: true, out: [{ id: 'rrout123456789', name: 'Talk (עברית, קטן).mp4', size: 2000, k: 'small' }] });
+      const R2 = SR.fromFields(db.get('studioJobs/' + R1.id).fields);
+      ok(rr.payload.ok && R2.state === 'done' && R2.fo[0].k === 'small', 'סטודיו: הפקה מחדש — התוצר נשמר בעבודת ההפקה');
+      const P2 = SR.fromFields(db.get('studioJobs/' + JP).fields);
+      ok(P2.state === 'done' && P2.fo.length === 3, 'סטודיו: הפקה מחדש — העבודה המקורית לא משתנה');
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP });
+      ok(rr.payload.ok && !db.get('studioJobs/' + R1.id), 'סטודיו: הפקה מחדש — רק ההפקה האחרונה נשמרת');
+      const R3 = rr.payload.job.id;
+      for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
+      ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');
+      const odE = db.get('studioOps/ownerUid0001');
+      if (odE) { delete odE.fields.inc; delete odE.fields.mi; }
     }
     studio._reset();
 

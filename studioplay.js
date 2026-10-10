@@ -10,7 +10,7 @@ export const ISSUE_KINDS = ['cps', 'len', 'lines', 'dur', 'en'];
 const CUES_MAX = 20000, LINE_MAX = 300;
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
-const str = (v, n) => (typeof v === 'string' ? v.replace(/[\u0000-\u0008\u000b-\u001f]/g, '').slice(0, n) : '');
+const str = (v, n) => (typeof v === 'string' ? v.replace(/[\u0000-\u0008\u000b-\u001f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').slice(0, n) : '');   // מ2: גם סימני כיווניות (RLM של vt ב־SRT) — כמו quality() בעובד
 
 /* cues.final.json של vt (או SRT מפוענח) → [{i, s, e, lines, en, spk}] בשניות, ממוין, בלי פגומות */
 export function normCues(arr) {

@@ -22,9 +22,9 @@ const CLAIM_WAIT = { ping: 6 * 60e3, tr: 30 * 60e3 };   // הופעל ולא נ�
 const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const FINAL = ['done', 'failed', 'cancelled'];
 const ACTIVE = ['new', 'queued', 'running'];
-const KINDS = ['ping', 'tr'];
+const KINDS = ['ping', 'tr', 'rr'];   // מ2: rr = הפקה מחדש (כתוביות ערוכות / רשימת עריכות → צריבה; בלי טוקנים)
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
-const WORKER_KINDS = ['ping', 'tr'];   // v358: העובד מתרגם (שלב 3)
+const WORKER_KINDS = ['ping', 'tr', 'rr'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. הראשון = ברירת המחדל (Sonnet Medium — המומלץ).
 const MODES = ['sonnet-medium', 'haiku-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
@@ -465,7 +465,9 @@ function publicJob(job, now) {
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
     fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || 0,
-    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [] },
+    spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc) },
+    folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
+    rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
     sess: job.sess && job.sess.url ? { url: job.sess.url } : null,
     prog: job.prog || null, ed: job.ed || '',
     use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
@@ -506,6 +508,33 @@ function normGq(o) {
 /* עבודות שבסט הזהב (שהסתיימו, עם ייחוס וקבצים) */
 const goldSources = (jobs) => (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && j.state === 'done' && normGd(j.gd) && (j.fa || j.fv) && FILE_ID_RE.test(String(j.folder || '')));
 /* הרצה חוזרת של עבודת זהב — עבודה חדשה עם אותו מקור (אותם קבצים ותיקייה), "חדשה" עד שמתחילים אותה */
+/* ---------- מ2 (10/10/2026): עורך הכתוביות והפקה מחדש ----------
+   הגרסה הערוכה = קובץ cues חדש (JSON, אותו פורמט של cues.final.json) + SRT בתיקיית העבודה; העבודה מחליפה אליהם את
+   ה־cues/srt שבתוצרים, והקודמים נשמרים בהיסטוריה (vh, עד VH_MAX) — "חזרה לגרסה" בלי להעלות שוב.
+   הפקה מחדש = עבודה חדשה (rr) מאותו מקור ובאותה תיקייה: הכתוביות הנוכחיות → צריבה (בלי Claude, בלי טוקנים) */
+const VH_MAX = 20;
+const CUES_MAX = 4 * 1024 * 1024;   // קובץ כתוביות ערוך (JSON / SRT) — שעתיים של כתוביות הן פחות מ־1MB
+const RR_OUTS = ['compact', 'same', 'mkv', 'small'];
+function cuesSwap(job, c, s, now) {
+  const fo = Array.isArray(job.fo) ? job.fo.slice() : [];
+  const old = { c: (fo.find((o) => o.k === 'cues') || {}).id || '', s: (fo.find((o) => o.k === 'srt') || {}).id || '', at: now };
+  const put = (f, k) => { const i = fo.findIndex((o) => o.k === k); const row = { id: f.id, name: f.name, size: f.size, k }; if (i >= 0) fo[i] = row; else fo.push(row); };
+  put(c, 'cues'); put(s, 'srt');
+  const vh = (Array.isArray(job.vh) ? job.vh : []).concat(old.c ? [old] : []).slice(-VH_MAX);
+  return { fo, vh, ev: (job.ev || 0) + 1 };
+}
+function rrSpec(parent, body) {
+  const out = uniq(Array.isArray(body && body.out) ? body.out : [], (k) => RR_OUTS.includes(k));
+  const sp = parent.spec || {};
+  return { name: sp.name || '', size: sp.size || 0, type: sp.type || '', dur: sp.dur || 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(sp.mode),
+    out: out.length ? out : ['compact'], style: STYLES.includes(body && body.style) ? body.style : STYLES.includes(sp.style) ? sp.style : STYLES[0], terms: '',
+    ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) };   // באותו מנוע כמו המקור; במצב השרת — בלי טוקנים, התקרה המינימלית
+}
+function rrJob(parent, body, id, uid, now) {
+  const fc = (Array.isArray(parent.fo) ? parent.fo : []).find((o) => o.k === 'cues');
+  return { id, uid, kind: 'rr', state: 'new', created: now, updated: now, spec: rrSpec(parent, body), fv: parent.fv || null, fc: fc ? { id: fc.id, name: fc.name, size: fc.size } : null,
+    folder: parent.folder, rp: parent.id };
+}
 function goldClone(src, id, uid, now) {
   const out = Array.from(new Set((Array.isArray(src.spec && src.spec.out) ? src.spec.out : []).concat(['srt'])));   // ההשוואה צריכה SRT
   return { id, uid, kind: 'tr', state: 'new', created: now, updated: now, spec: Object.assign({}, src.spec, { out }), fa: src.fa || null, fv: src.fv || null, folder: src.folder, gs: src.id };
@@ -620,7 +649,7 @@ function workerJob(job, nm, fb, fm, rl) {
     fb: fb || [],            // v364: ספר התיקונים — תקלות מוכרות עם התיקון שלהן
     ls: job.ls && FP_RE.test(String(job.ls.fp || '')) ? job.ls : null,   // v364: העצירה שלפני ההמשך (לאבחון)
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
-    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
+    id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv), c: fileView(job.fc) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
@@ -702,7 +731,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh', 'gd', 'gq'];   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh'];   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -732,7 +761,7 @@ function fromFields(f) {
 module.exports = {
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
-  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone,
+  GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

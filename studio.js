@@ -11,6 +11,7 @@
 import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 import { createPlayer, normCues, issuesList, fmtT } from './studioplay.js';
+import { createSubsEditor, toSrt, toCuesJson } from './studiosubs.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -167,6 +168,9 @@ export function normJob(j) {
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
     ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
     gd: normGd(s.gd), gs: JOB_RE.test(String(s.gs || '')) ? s.gs : '', gq: normGq(s.gq),   // v387: סט הזהב
+    kind: s.kind === 'rr' ? 'rr' : 'tr', rp: JOB_RE.test(String(s.rp || '')) ? s.rp : '',   // מ2: הפקה מחדש (והעבודה המקורית)
+    ev: num(s.ev), vh: (Array.isArray(s.vh) ? s.vh : []).slice(0, 20).map(num),   // מ2: גרסת הכתוביות, ומתי נשמרה כל גרסה קודמת
+    folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -960,8 +964,10 @@ async function refreshJobs(force) {
   ui.an = normAn(j.an) || ui.an;   // v385: ציון חריגה
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
+  const rr = new Map();
   for (const sj of j.jobs) {
     if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
+    if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) rr.set(x.srv.rp, x); continue; }   // מ2
     ids.add(sj.id);
     const loc = have.get(sj.id);
     if (loc) loc.srv = normJob({ id: sj.id, srv: sj }).srv;
@@ -973,6 +979,7 @@ async function refreshJobs(force) {
     }
   }
   store.jobs = store.jobs.filter((x) => ids.has(x.id) || (runs.get(x.id) && runs.get(x.id).active)).sort((a, b) => b.created - a.created);
+  rrJobs = rr;
   save();
   // v371: התקלה הרחבה עברה — עבודות שחיכו לה מתחילות לבד
   if (ui.inc && !majorOn(ui.inc)) for (const r of store.jobs.filter((x) => x.up.wait === 'major' && !x.up.started)) { r.up.wait = ''; tryStart(r.id); }
@@ -1271,7 +1278,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1279,6 +1286,7 @@ export function chainFor(v, p) {
 
 function leaving() {              // יציאה מדף: המפתח שהודבק באשף לא נשאר בזיכרון
   if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
+  if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
@@ -1384,6 +1392,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   coin: '<circle cx="12" cy="12" r="8.6"/><path d="M14.6 9.2c-.5-.9-1.5-1.4-2.6-1.4-1.6 0-2.7.8-2.7 2s1.1 1.7 2.7 2 2.9.8 2.9 2.1-1.2 2.1-2.9 2.1c-1.2 0-2.3-.6-2.8-1.6M12 6v1.8M12 16.2V18"/>',
   power: '<path d="M17.7 7a8 8 0 1 1-11.4 0"/><path d="M12 3.5v8"/>',
   sliders: '<path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2.5 14h5M9.5 8h5M16.5 16h5"/>',  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',   // v377: ערך ועלות
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>', redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
 };
 function ico(k, cls) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -3773,6 +3782,156 @@ function pagePlay(p) {
     if (pl.iss.length > 50) p.append(note(T('studioPlIssuesMore', { n: pl.iss.length - 50 })));
   } else p.append(note(T('studioPlNoIssues')));
 }
+/* ---------------- מ2–מ3: עורך הכתוביות והפקה מחדש ----------------
+   הכתוביות מ־cues.final.json; עריכה בזיכרון (שורדת יציאה מהדף, לא רענון); "שמירה" = שני קבצים לתיקיית העבודה ב־Drive
+   (cues JSON + SRT) ו־op:'cuesSave' — הקודמת נשמרת בהיסטוריה. "הפקה מחדש" = עבודת rr: צריבה מהכתוביות הנוכחיות, בלי תרגום */
+const jobFolder = (rec) => (rec && ((rec.up && rec.up.folder) || (rec.srv && rec.srv.folder))) || '';
+const canEdit = (rec) => !!(rec && rec.srv && rec.srv.state === 'done' && rec.srv.kind === 'tr' && outOf(rec, 'cues') && jobFolder(rec));
+const RR_OUTS = ['compact', 'same', 'mkv', 'small'];
+const RR_STYLES = ['bold', 'classic'];     // מה שהצריבה של vt יודעת (קריוקי — רק בתרגום מלא, בעתיד)
+let rrJobs = new Map();                    // העבודה המקורית → ההפקה מחדש האחרונה (מ־op:'jobs'; לא ברשימה הראשית)
+let se = null;                             // { id, st, ed, ctl, saved, saving, err, upT, saveB }
+const seDirty = () => !!(se && se.ed && se.ed.ver() !== se.saved);
+function seStop() { if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
+async function seLoad(rec) {
+  const me = se;
+  try {
+    const cues = normCues(await net.driveJson(outOf(rec, 'cues').id));
+    if (se !== me) return;
+    if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
+    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe,
+      getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
+      seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
+      onChange: () => { seSavePaint(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); } });
+    me.saved = me.ed.ver(); me.st = 'ok';
+  } catch (e) {
+    if (se !== me) return;
+    me.st = 'err'; me.err = (e && e.code) || 'drive';
+  }
+  render('none');
+}
+function seSavePaint() {
+  const b = se && se.saveB;
+  if (!b) return;
+  const d = seDirty();
+  b.disabled = !d || se.saving;
+  b.textContent = se.saving ? T('studioSaving') : d ? T('studioSeSave') : T('studioSeSavedShort');
+}
+async function seSave(then) {
+  const rec = se && jobRec(se.id);
+  if (!rec || !se.ed || se.saving) return;
+  const me = se, cues = me.ed.cues(), ver = me.ed.ver();
+  if (!cues.length) { flashSafe(T('studioSeEmpty')); return; }
+  me.saving = true; seSavePaint();
+  try {
+    const folder = jobFolder(rec), base = (fileTitle(rec.spec.name) || 'subs').slice(0, 80) + ' (' + T('studioSeVerName', { n: (rec.srv.ev || 0) + 1 }) + ')';
+    const c = await net.textUpload(folder, base + '.cues.json', 'application/json', toCuesJson(cues), { snbEdit: 'c' });
+    const s2 = await net.textUpload(folder, base + '.he.srt', 'application/x-subrip', toSrt(cues), { snbEdit: 's' });
+    const j = await net.api('cuesSave', { job: rec.id, c, s: s2, ev: rec.srv.ev || 0 });
+    if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+    if (!j.ok) flashSafe(j.error === 'stale' ? T('studioSeStale') : errText(j.error));
+    else { me.saved = ver; save(); flashSafe(T('studioSeSaved')); if (then) then(); }
+  } catch (e) {
+    flashSafe(errText((e && e.code) || 'drive'));
+  } finally {
+    me.saving = false; seSavePaint(); repaint();
+  }
+}
+function seRestore(rec, i) {
+  const doIt = async () => {
+    const j = await net.api('cuesRestore', { job: rec.id, i, ev: rec.srv.ev || 0 });
+    if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+    if (!j.ok) { flashSafe(j.error === 'stale' ? T('studioSeStale') : j.error === 'file_missing' ? T('studioSeVerGone') : errText(j.error)); repaint(); return; }
+    save(); seStop(); se = null; flashSafe(T('studioSeRestored')); render('none');   // העורך נטען מחדש מהגרסה ששוחזרה
+  };
+  if (typeof askConfirm === 'function') askConfirm(seDirty() ? T('studioSeRestoreQDirty') : T('studioSeRestoreQ'), doIt, { ok: T('studioSeRestore'), danger: seDirty() }); else doIt();
+}
+function pageSubs(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  if (!se || se.id !== rec.id) { seStop(); se = { id: rec.id, st: 'load', ed: null, ctl: null, saved: 0, saving: false, err: '', upT: 0, saveB: null }; seLoad(rec); }
+  const saveB = btn('st-txt bold', '', () => seSave(), 'se-save');
+  se.saveB = saveB; seSavePaint();
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled'), title: T('studioSeTitle'), end: se.st === 'ok' ? saveB : null }));
+  if (se.st === 'load') { p.append(h('div', 'st-pl-ph', T('studioSeLoading'))); return; }
+  if (se.st === 'err') { p.append(h('div', 'st-empty st-empty-sm', T('studioSeLoadErr'))); return; }
+  if (!se.ctl) {
+    const srcId = rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+    const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
+    if (src || fb) {
+      const me = se;
+      se.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues: se.ed.cues(), T,
+        onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
+    }
+  }
+  const top = h('div', 'st-se-top');
+  if (se.ctl) top.append(se.ctl.el); else top.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
+  p.append(top, se.ed.el);
+  // הפקה מחדש וגרסאות — מתחת לרשימה (פעולות של כל הקובץ)
+  p.append(list(rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', rec.id), k: 'se-rr' })));
+  const vh = rec.srv.vh || [];
+  if (vh.length) {
+    const det = h('details', 'st-details');
+    det.append(h('summary', null, T('studioSeVers', { n: vh.length })), list(...vh.map((at, i) => i).reverse().map((i) => {
+      const r = btn('st-row', null, () => seRestore(rec, i), 'se-ver:' + i);
+      r.append(rowTxt(T('studioSeVerName', { n: i + 1 }), vh[i] ? fmtClock(vh[i]) : ''), h('span', 'st-v', T('studioSeRestore')));
+      return r;
+    })));
+    p.append(det);
+  }
+}
+/* ---------- הפקה מחדש ---------- */
+function rrSub(rec) {
+  const r = rrJobs.get(rec.id);
+  if (!r) return T('studioRrSub');
+  const st = r.srv.state;
+  return st === 'done' ? T('studioRrDone') : st === 'failed' || st === 'cancelled' ? T('studioRrFailed') : T('studioRrRunning');
+}
+const rrOpt = { out: { compact: true }, style: '' };
+let rrBusy = false;
+async function rrStart(rec) {
+  if (rrBusy) return;
+  const out = RR_OUTS.filter((k) => rrOpt.out[k]);
+  if (!out.length) { flashSafe(T('studioRrPick')); return; }
+  rrBusy = true; repaint();
+  try {
+    const j = await net.api('rerender', { job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold') });
+    if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
+    const x = normJob({ id: j.job.id, srv: j.job });
+    if (x) rrJobs.set(rec.id, x);
+    const k = await net.api('start', { job: j.job.id });
+    if (k.job && x) x.srv = normJob({ id: x.id, srv: k.job }).srv;
+    if (!k.ok) flashSafe(errText(k.error));
+  } catch (e) {
+    flashSafe(errText((e && e.code) || 'net'));
+  } finally { rrBusy = false; repaint(); schedulePoll(); }
+}
+function pageRr(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.append(navBar({ back: fileTitle(rec.spec.name) || T('studioUntitled') }), large(T('studioRrTitle')));
+  const r = rrJobs.get(rec.id), st = r ? r.srv.state : '';
+  if (r && (st === 'new' || st === 'queued' || st === 'running')) {
+    const pr = r.srv.prog || {}, stg = pr.st === 'up' ? T('studioRrStUp') : pr.st === 'sv' ? T('studioRrStSv') : st === 'running' ? T('studioRrStBn') : T('studioRrStWait');
+    const c = h('div', 'st-nowc'), ic = h('span', 'st-nowic'), l = h('span', 'st-l'), pb = h('span', 'st-pbar'), pi = h('i');
+    pb.append(pi); pi.style.width = Math.round(100 * (typeof pr.p === 'number' ? pr.p : 0)) + '%';
+    ic.append(ico('redo')); l.append(h('b', null, stg), pb); c.append(ic, l);
+    p.append(c);
+  } else if (r && st === 'done' && r.srv.out.length) {
+    p.append(secT(T('studioRrReady')), list(...r.srv.out.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view', tile: tile('film', 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'rr-out:' + o.k }))));
+  } else if (r && (st === 'failed' || st === 'cancelled')) p.append(banner('warn', T('studioRrFailedL', { e: errText(r.srv.err) })));
+  const active = r && ['new', 'queued', 'running'].includes(st);
+  if (active) return;
+  const dirty = seDirty() && se.id === rec.id;
+  p.append(secT(T('studioRrOuts')), list(...RR_OUTS.map((k) => rowCheck({ label: outName(k), sub: k === 'small' ? T('studioRrSmallSub') : outSub(k), on: !!rrOpt.out[k],
+    onClick: () => { rrOpt.out[k] = !rrOpt.out[k]; repaint(); }, k: 'rr-o:' + k }))));
+  const cur = rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold');
+  p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k }))));
+  if (dirty) p.append(note(T('studioRrDirty')));
+  p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
+  p.append(note(T('studioRrNote')));
+}
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
@@ -3845,7 +4004,9 @@ function pageJob(p) {
     if (canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view',
       tile: tile(o.k === 'srt' || o.k === 'en' ? 'globe' : 'film', o.k === 'srt' || o.k === 'en' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
-    rec.up.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + rec.up.folder, tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
+    canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
+    canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
+    jobFolder(rec) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
@@ -4407,6 +4568,8 @@ function shapeKey() {
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
+  if (ui.view === 'subs') { const r = jobRec(ui.param); return 'subs|' + ui.param + '|' + (se ? se.st : '') + '|' + ui.access + '|' + (r && r.srv ? r.srv.ev + ':' + r.srv.vh.length : '') + (r && rrJobs.get(r.id) ? rrJobs.get(r.id).srv.state : ''); }   // מ2: לא נבנה מחדש בזמן הקלדה
+  if (ui.view === 'rr') { const x = rrJobs.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
   if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
@@ -4434,6 +4597,8 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'project') pageProject(p);
   else if (ui.view === 'job') pageJob(p);
   else if (ui.view === 'play') pagePlay(p);   // מ1
+  else if (ui.view === 'subs') pageSubs(p);   // מ2: עורך הכתוביות
+  else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);
   else if (ui.view === 'alert') pageAlert(p);
@@ -4479,6 +4644,7 @@ function onEnter() {
   else if (ui.view === 'scan') { if (!ui.sc || Date.now() - ui.sc.at > SCAN_FRESH) runScan(); else refreshStatus(true); }   // v378: סריקה ישנה — סורקים שוב
   else if (ui.view === 'prob') { refreshStatus(true); refreshJobs(true); }   // v376
   else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }
+  else if (ui.view === 'rr') { refreshJobs(true); }   // מ2: ההפקה האחרונה של העבודה
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה
 }
 /* מעקב אחרי עבודה פתוחה: כל 4 שניות כש־Claude עובד, לאט כשמחכים, בכלל לא כשהסתיימה או כשהמסך כבוי */
@@ -4491,6 +4657,7 @@ function schedulePoll() {
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
   if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
   else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : recMs(store.jobs);
+  else if (ui.view === 'rr') { const x = rrJobs.get(ui.param); ms = x && ['new', 'queued', 'running'].includes(x.srv.state) ? 4000 : 0; }   // מ2
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ms) pollT = setTimeout(pollNow, ms);
 }
@@ -4503,6 +4670,9 @@ async function pollNow() {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
       if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
+    } else if (ui.view === 'rr' && rrJobs.get(ui.param)) {
+      const x = rrJobs.get(ui.param), j = await net.api('job', { job: x.id });
+      if (j.ok && j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
     } else if (ui.view === 'home') await refreshJobs(true);
     else if (ui.view === 'server') await refreshServers();
   } finally { polling = false; repaint(); schedulePoll(); }

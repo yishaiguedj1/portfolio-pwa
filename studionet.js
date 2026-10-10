@@ -488,17 +488,20 @@ export function createNet(env) {
     return { t: t || '', exp: (dtok && dtok.exp) || 0, size: m.size, type: m.type };
   }
   async function driveJson(id) { return JSON.parse(await driveText(id)); }
-  async function goldUpload(folderId, text) {
+  /* קובץ טקסט קטן לתיקיית העבודה (multipart) — הייחוס של סט הזהב, גרסה ערוכה של הכתוביות (מ2) */
+  async function textUpload(folderId, name, mime, text, props) {
+    if (!/^[A-Za-z0-9_-]{10,100}$/.test(String(folderId || ''))) throw Object.assign(new Error('folder'), { code: 'folder' });
     const b = 'snb' + Math.random().toString(36).slice(2);
-    const meta = { name: GOLD_REF_NAME, parents: [folderId], mimeType: 'application/x-subrip', appProperties: { snbRef: '1' } };
+    const meta = { name, parents: [folderId], mimeType: mime, appProperties: props || {} };
     const mp = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + b +
-      '\r\nContent-Type: application/x-subrip; charset=UTF-8\r\n\r\n' + text + '\r\n--' + b + '--';
+      '\r\nContent-Type: ' + mime + '; charset=UTF-8\r\n\r\n' + text + '\r\n--' + b + '--';
     const r = await E.fetch(UP + '?uploadType=multipart&fields=id', { method: 'POST', body: mp,
       headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'multipart/related; boundary=' + b } });
     if (!r.ok) throw await driveErr(r);
     return (await r.json()).id;
   }
+  const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, mediaUrl, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, textUpload, mediaUrl, _forget: () => { dtok = null; } };
 }

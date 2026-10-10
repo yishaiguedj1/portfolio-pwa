@@ -78,7 +78,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(JSON.stringify(st.OUT_ALL) === JSON.stringify(S.OUT_KINDS) && S.OUT_MAX === 10, 'סוגי התוצרים זהים בטלפון ובשרתון');
   ok(/AUX_FILES = \(\s*\n\s*\('cues', 'cues\.final\.json'/.test(job) && /for k, fname, suffix, mime in AUX_FILES:/.test(job) && /קובץ עזר; התוצרים העיקריים כבר עלו/.test(job), 'העובד מעלה את קבצי העזר (תקלה בהם לא מפילה את העבודה)');
   const sj = read('studio.js');
-  ok(/canPlay\(rec\)\) p\.append\(btn\('st-btn wide', T\('studioPlWatch'\)/.test(sj) && /x === 'play' \? \['job', y\]/.test(sj), 'דף העבודה: "צפייה" → דף הנגן (חזור → העבודה)');
+  ok(/canPlay\(rec\)\) p\.append\(btn\('st-btn wide', T\('studioPlWatch'\)/.test(sj) && /x === 'play' \|\| x === 'subs'/.test(sj), 'דף העבודה: "צפייה" → דף הנגן (חזור → העבודה)');
   ok(/if \(ui\.view === 'play'\) playClose\(\)/.test(sj) && /if \(ui\.view === 'play'\) return 'play\|'/.test(sj), 'הנגן נעצר ביציאה, ולא נבנה מחדש בכל עדכון');
   ok(!/innerHTML/.test(src), 'הנגן בלי innerHTML (טקסט הכתוביות — רק textContent)');
 

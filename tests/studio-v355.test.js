@@ -198,7 +198,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   if (swVer >= 355) ok(/const STUDIO_SHELL = \[[^\]]*'\.\/studionet\.js'[^\]]*'\.\/libbackup\.js'/.test(sw), 'sw.js: גם studionet.js ו־libbackup.js נטענים מראש (הסטודיו נפתח אופליין)');
   else ok(true, 'sw.js עוד בגרסה הקודמת (שלב התוכן בפרוטוקול הדו־שלבי)');
   const imports = [...st.matchAll(/^import .* from '\.\/([\w.-]+)';$/gm)].map((x) => x[1]);
-  ok(imports.sort().join() === 'libbackup.js,studionet.js,studioplay.js', 'studio.js מייבא רק את studionet.js, libbackup.js ו־studioplay.js (מ1: הנגן)');
+  ok(imports.sort().join() === 'libbackup.js,studionet.js,studioplay.js,studiosubs.js', 'studio.js מייבא רק את studionet.js, libbackup.js, studioplay.js ו־studiosubs.js (מ1: הנגן · מ2: העורך)');
   const csp = (html.match(/Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
   ok(/connect-src[^;]*https:\/\/\*\.googleapis\.com/.test(csp) && /connect-src[^;]*https:\/\/\*\.vercel\.app/.test(csp) && /worker-src 'self'/.test(csp), 'CSP: ההעלאה ל־Drive והשרתון מותרים; Worker רק מאותו מקור');
   const net0 = read('studionet.js');

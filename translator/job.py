@@ -252,6 +252,13 @@ def run(args):
             c.call('report', done=True, checks={'drive': d}, msg='החיבור תקין' if d else 'החיבור תקין, אבל אין גישה ל־Drive מהסשן')
             print('✓ בדיקת החיבור הסתיימה: השרתון ✓ · Drive ' + ('✓' if d else '✗'))
             return 0
+        if job.get('kind') == 'rr':
+            # מ2: הפקה מחדש מכתוביות שנערכו בטלפון — בלי תמלול, בלי תרגום ובלי טוקנים
+            save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api, 'kind': 'rr',
+                        'folder': job.get('folder') or '', 'spec': job.get('spec') or {}, 'files': job.get('files') or {}})
+            print('✓ עבודת הפקה מחדש נלקחה (הכתוביות שנערכו → צריבה; בלי תרגום).')
+            print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py render')
+            return 0
         if job.get('kind') != 'tr':
             c.call('report', fail=True, err='worker_unknown_kind')
             print('✗ סוג עבודה לא מוכר — סומן בשרתון.')
@@ -1474,7 +1481,7 @@ def quality(path, chk_ok=True):
             continue
         g = [int(v) for v in SRT_SPAN_RE.match(lines[ti].strip()).groups()]
         dur = (g[4] * 3600 + g[5] * 60 + g[6] + g[7] / 1000) - (g[0] * 3600 + g[1] * 60 + g[2] + g[3] / 1000)
-        tl = [re.sub(r'<[^>]*>|\{[^}]*\}', '', x).strip() for x in lines[ti + 1:]]
+        tl = [re.sub(r'<[^>]*>|\{[^}]*\}|[\u200e\u200f\u202a-\u202e\u2066-\u2069]', '', x).strip() for x in lines[ti + 1:]]   # מ2: סימן הכיווניות של vt (RLM) הוא לא תו שקוראים
         tl = [x for x in tl if x]
         if not tl:
             continue
@@ -1650,8 +1657,10 @@ def fix(args):
 
 def auto(args):
     """מצב "API של המערכת": מנהל העבודה הוא סקריפט (pipeline.py), והמודל מקבל רק את עבודת השפה."""
-    import pipeline
     try:
+        if load_state().get('kind') == 'rr':      # מ2: הפקה מחדש — אותה פקודה כמו ב־Routine, בלי מודל
+            return render(args)
+        import pipeline
         return pipeline.run_auto(sys.modules[__name__], args)
     except Stop as e:
         print('■ השרתון ביקש לעצור (' + str(e) + ').')
@@ -1676,6 +1685,87 @@ def vt_cmd(args):
         raise SystemExit('✗ חסרה פקודה, למשל: python3 translator/job.py vt tr-check')
     cmd = [VT_PY, '-m', 'vt', rest[0]] + ([st['job']] if rest[0] not in ('doctor', 'drive') else []) + rest[1:]
     return subprocess.run(cmd, cwd=str(HERE), env=vt_env()).returncode
+
+
+RR_FILES = (                                      # מ2: מה שההפקה מחדש יוצרת (rerender.py) — (סוג, קובץ, סיומת לשם, mime)
+    ('compact', '{n}.he.compact.mp4', ' (עברית).mp4', 'video/mp4'),
+    ('same', '{n}.he.mp4', ' (עברית, איכות מקור).mp4', 'video/mp4'),
+    ('mkv', '{n}.he.mkv', ' (עברית).mkv', 'video/x-matroska'),
+    ('small', '{n}.he.small.mp4', ' (עברית, קטן).mp4', 'video/mp4'),
+)
+RR_STYLES = ('bold', 'classic')
+
+
+def script(ctx, path, args, stage, lo=0.0, hi=1.0):
+    """סקריפט Python בסביבת vt (כמו vt()) — אחוזים מהפלט הולכים לשרתון."""
+    proc = subprocess.Popen([VT_PY, str(HERE / path)] + args, cwd=str(HERE), env=vt_env(),
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    tail = []
+    for line in proc.stdout:
+        line = line.rstrip()
+        tail = (tail + [line])[-12:]
+        m = re.search(r'(\d{1,3}(?:\.\d)?)%', line)
+        if m:
+            try:
+                ctx.report(stage, lo + (hi - lo) * min(1.0, float(m.group(1)) / 100))
+            except Stop:
+                proc.kill()
+                raise
+    rc = proc.wait()
+    if rc != 0:
+        print('\n'.join(tail))
+        ctx.event('vt', 'render')
+        raise SystemExit('✗ ' + path + ' נכשל (קוד ' + str(rc) + (' — נגמר הזיכרון' if rc in (-9, 137) else '') + ').')
+    return tail
+
+
+@guarded
+def render(args):
+    """מ2: הפקה מחדש — הורדת הסרטון והכתוביות הערוכות, צריבה בסגנון שנבחר, העלאה לתיקיית העבודה. בלי טוקנים."""
+    ctx = Ctx(load_state())
+    if ctx.st.get('kind') != 'rr':
+        raise SystemExit('✗ זו לא עבודת הפקה מחדש.')
+    spec = ctx.st.get('spec') or {}
+    files = ctx.st.get('files') or {}
+    v, cf = files.get('v') or {}, files.get('c') or {}
+    if not FILE_ID_RE.match(str(v.get('id') or '')) or not FILE_ID_RE.match(str(cf.get('id') or '')):
+        ctx.report(fail=True, err='rr_files', force=True)
+        raise SystemExit('✗ חסר הסרטון או קובץ הכתוביות.')
+    want = [k for k in (spec.get('out') or []) if k in ('compact', 'same', 'mkv', 'small')] or ['compact']
+    style = spec.get('style') if spec.get('style') in RR_STYLES else 'bold'
+    work = VT_WORK / '_rr' / ctx.name
+    src, cues = in_path(ctx, v, 'v'), work / 'cues.json'
+    ctx.report('up', 0, 'מורידים את הסרטון', force=True)
+    drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('up', f))
+    if cues.exists():
+        cues.unlink()                            # הגרסה הערוכה תמיד מחדש (אותו שם — גרסה אחרת)
+    drive_download(ctx, cf['id'], cues, int(cf.get('size') or 0))
+    ensure_env(ctx, 'bn')
+    ctx.report('bn', 0, 'צורבים את הכתוביות שנערכו', force=True)
+    od = work / 'out'
+    script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
+                                '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')], 'bn')
+    ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
+    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
+    out = []
+    picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES if k in want]
+    total = sum(p.stat().st_size for _, p, _, _ in picked if p.exists()) or 1
+    done = 0
+    for k, p, name, mime in picked:
+        if not p.exists():
+            raise SystemExit('✗ התוצר ' + p.name + ' לא נוצר.')
+        size = p.stat().st_size
+        fid = drive_upload(ctx, p, name, k, mime, lambda f, b=done, s=size: ctx.report('sv', (b + f * s) / total))
+        done += size
+        out.append({'id': fid, 'name': name, 'size': size, 'k': k})
+    ctx.report(done=True, out=out, msg='ההפקה מחדש מוכנה', force=True)
+    shutil.rmtree(work, ignore_errors=True)      # הקבצים כבר ב־Drive
+    try:
+        src.unlink()
+    except OSError:
+        pass
+    print('✓ ההפקה מחדש הסתיימה: ' + ', '.join(o['name'] for o in out))
+    return 0
 
 
 OUT_FILES = (                                     # (סוג, קובץ של vt, סיומת לשם, mime)
@@ -2011,6 +2101,7 @@ def main(argv=None):
     pr.add_argument('--text', default='')
     x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
     x.add_argument('--text', required=True)
+    sub.add_parser('render', help='הפקה מחדש: הכתוביות שנערכו בטלפון → צריבה (בלי טוקנים)')
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
@@ -2018,7 +2109,7 @@ def main(argv=None):
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
                 'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto,
-                'judge-prep': judge_prep, 'judge': judge}[a.cmd](a)
+                'judge-prep': judge_prep, 'judge': judge, 'render': render}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1

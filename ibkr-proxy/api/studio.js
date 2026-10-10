@@ -250,7 +250,7 @@ async function queueApi(deps, uid, job, now) {
     err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now });
   return { ok: true };
 }
-const apiJob = (job) => job.kind === 'tr' && job.spec && job.spec.eng === 'api';
+const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr') && job.spec && job.spec.eng === 'api';   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
 async function server(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
@@ -379,10 +379,10 @@ async function autoRecover(deps, uid, jobs, now) {
 async function driveFileInFolder(deps, uid, folder, fid) {
   const t = await gdrive.accessToken(deps, uid);
   if (!t.ok) return { error: t.error };
-  const r = await (deps.fetch || fetch)(DRIVE + fid + '?fields=id,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
+  const r = await (deps.fetch || fetch)(DRIVE + fid + '?fields=id,name,size,parents,trashed', { headers: { Authorization: 'Bearer ' + t.token } });
   let meta = null; try { meta = await r.json(); } catch (e) {}
   if (r.status !== 200 || !meta || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(folder))) return null;
-  return { size: Number(meta.size) || 0 };
+  return { id: fid, name: String(meta.name || '').slice(0, 200), size: Number(meta.size) || 0 };
 }
 
 /* ---------- v378: בדיקת מוכנות ותחזוקה (lib/studioscan.js) ---------- */
@@ -434,6 +434,9 @@ async function driveTrash(deps, token, id) {
 /* מחיקת רשומת עבודה (כמו "מחיקה" בטלפון): הרשומה, ההתראות והתקלה שלה. הקבצים ב־Drive נשארים */
 async function removeJobRec(deps, uid, job, now) {
   await delDoc(deps, 'studioJobs', job.id);
+  if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2: ההפקות מחדש של העבודה הולכות איתה
+    for (const r of (await listJobs(deps, uid)).filter((j) => j.kind === 'rr' && j.rp === job.id)) await delDoc(deps, 'studioJobs', r.id);
+  }
   await closeJobOps(deps, uid, job.id, now);
   try {   // v371 · v379: התקלה נסגרת, עם מה שעלה בטעות (לדוח)
     const d = await readDoc(deps, 'studioOps', uid);
@@ -1025,9 +1028,9 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'start') {
-      if (job.kind !== 'tr' || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
-      if (!job.fa && !job.fv) return res.status(409).json({ ok: false, error: 'no_files' });
-      if (!S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
+      if ((job.kind !== 'tr' && job.kind !== 'rr') || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
+      if (!job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
+      if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
       const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
       if (stop) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, stop));
@@ -1043,6 +1046,50 @@ async function handler(req, res, deps = {}) {
       const f = await fireJob(deps, uid, v, job, now);
       const j = await readJob(deps, job.id);
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
+    }
+    if (op === 'cuesSave') {
+      // מ2: גרסה ערוכה של הכתוביות — שני קבצים שהטלפון כבר העלה לתיקיית העבודה (cues JSON + SRT); הקודמים נשמרים בהיסטוריה
+      if (job.kind !== 'tr' || st !== 'done' || !S.FILE_ID_RE.test(String(job.folder || ''))) return res.status(409).json({ ok: false, error: 'state' });
+      const c = String(body.c || ''), s = String(body.s || '');
+      if (!S.FILE_ID_RE.test(c) || !S.FILE_ID_RE.test(s) || c === s) return res.status(400).json({ ok: false, error: 'bad_params' });
+      if ((body.ev | 0) !== (job.ev || 0)) return res.status(409).json({ ok: false, error: 'stale', job: view(job) });   // נערך במקום אחר בינתיים
+      const fc = await driveFileInFolder(deps, uid, job.folder, c);
+      if (fc && fc.error) return res.status(200).json({ ok: false, error: fc.error });
+      const fs = fc ? await driveFileInFolder(deps, uid, job.folder, s) : null;
+      if (fs && fs.error) return res.status(200).json({ ok: false, error: fs.error });
+      if (!fc || !fs || !(fc.size > 0 && fc.size <= S.CUES_MAX) || !(fs.size > 0 && fs.size <= S.CUES_MAX)) return res.status(400).json({ ok: false, error: 'file_bad' });
+      const up = S.cuesSwap(job, fc, fs, now);
+      await patchJob(deps, job.id, Object.assign({}, up, { updated: now }));
+      Object.assign(job, up);
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'cuesRestore') {
+      // מ2: חזרה לגרסה קודמת של הכתוביות (מההיסטוריה) — הנוכחית עוברת להיסטוריה, כמו בשמירה
+      const vh = Array.isArray(job.vh) ? job.vh : [];
+      const i = Number.isInteger(body.i) ? body.i : -1, e = vh[i];
+      if (job.kind !== 'tr' || st !== 'done' || !e || !job.folder) return res.status(409).json({ ok: false, error: 'state' });
+      if ((body.ev | 0) !== (job.ev || 0)) return res.status(409).json({ ok: false, error: 'stale', job: view(job) });
+      const fc = await driveFileInFolder(deps, uid, job.folder, e.c);
+      if (fc && fc.error) return res.status(200).json({ ok: false, error: fc.error });
+      const fs = fc && e.s ? await driveFileInFolder(deps, uid, job.folder, e.s) : null;
+      if (fs && fs.error) return res.status(200).json({ ok: false, error: fs.error });
+      if (!fc || !fs) return res.status(410).json({ ok: false, error: 'file_missing' });   // נמחקה מ־Drive
+      const up = S.cuesSwap(Object.assign({}, job, { vh: vh.filter((_, k) => k !== i) }), fc, fs, now);
+      await patchJob(deps, job.id, Object.assign({}, up, { updated: now }));
+      Object.assign(job, up);
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'rerender') {
+      // מ2: הפקה מחדש מהכתוביות הנוכחיות — עבודה חדשה (rr) באותה תיקייה; מתחילים אותה ב־op:'start' (כל השמירות הרגילות)
+      if (job.kind !== 'tr' || st !== 'done' || !job.fv || !(Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues'))) return res.status(409).json({ ok: false, error: 'state' });
+      if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+      const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      if (all.some((j) => j.kind === 'rr' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'rr_busy' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      for (const old of all.filter((j) => j.kind === 'rr' && j.rp === job.id && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק ההפקה האחרונה נשמרת
+      const r = S.rrJob(job, body, S.newJobId(), uid, now);
+      await patchJob(deps, r.id, r);
+      return res.status(200).json({ ok: true, job: view(r) });
     }
     if (op === 'answer') {
       // תשובה לשאלה של Claude — פעם אחת, לשאלה הנוכחית בלבד, כל עוד העבודה רצה
