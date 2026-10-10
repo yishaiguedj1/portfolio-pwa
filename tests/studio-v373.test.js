@@ -15,7 +15,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 1. העובד ---------- */
   const job = read('translator/job.py');
   ok(/def trace\(root=None\):/.test(job) && /def prompt_versions\(\):/.test(job) && /c\.call\('claim', ev=env_version\(\), pv=prompt_versions\(\)\)/.test(job), 'job.py: עקיבה מהיומנים וגרסאות ההנחיות ב־claim');
-  ok((job.match(/usage=usage_safe\(\), trace=trace_safe\(\)(?:, quality=q)?(?:\)|,\s+judge=)/g) || []).length === 4, 'job.py: כל דיווח סיום / כישלון שולח גם עקיבה');
+  ok((job.match(/usage=usage_safe\(\), trace=trace_safe\(\)(?:, quality=q)?(?:\)|,\s+judge=)/g) || []).length === 5, 'job.py: כל דיווח סיום / כישלון שולח גם עקיבה (כולל קריסה לא צפויה ב־auto)');
 
   /* ---------- 2. השרתון — טהור ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));

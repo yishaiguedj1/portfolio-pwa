@@ -355,6 +355,30 @@ class JobHooks(unittest.TestCase):
         self.assertIn("get('api_usage')", src, 'בסוף העבודה — העלות מה־ledger של המנוע')
         self.assertTrue(re.search(r"'cap': job.get\('cap'\)", src))
 
+    def test_auto_reports_unexpected_crash(self):
+        # חריגה לא צפויה ב־run_auto = כשל גלוי מיד (worker_crash), בלי טקסט החריגה (נתיבים) — ואז נזרקת הלאה
+        import job as JJ
+        sent = []
+
+        class C:
+            def __init__(self, st):
+                pass
+
+            def report(self, **kw):
+                sent.append(kw)
+        saved = (P.run_auto, JJ.Ctx, JJ.load_state, JJ.usage_safe, JJ.trace_safe)
+
+        def boom(j, a):
+            raise ValueError('/root/work/private-name.mp4')
+        P.run_auto, JJ.Ctx, JJ.load_state, JJ.usage_safe, JJ.trace_safe = boom, C, (lambda: {}), (lambda: None), (lambda: None)
+        try:
+            with self.assertRaises(ValueError):
+                JJ.auto(None)
+        finally:
+            P.run_auto, JJ.Ctx, JJ.load_state, JJ.usage_safe, JJ.trace_safe = saved
+        self.assertEqual(len(sent), 1)
+        self.assertEqual((sent[0]['fail'], sent[0]['err'], sent[0]['msg']), (True, 'worker_crash', 'ValueError'))
+
 
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""

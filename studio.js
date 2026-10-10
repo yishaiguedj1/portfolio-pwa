@@ -674,6 +674,7 @@ function errText(code, extra) {
     case 'not_allowed': return T('studioErrDenied');
     case 'month_cap': return T('studioErrMonthCap');
     case 'no_server': return T('studioErrNoServer');
+    case 'worker_oom': case 'worker_crash': return T('studioErrOom');
     case 'not_admin': return T('studioErrNotAdmin');
     case 'net': case 'http_0': return T('studioErrNet');
     case 'drive_full': return T('studioErrDriveFull');
@@ -2166,7 +2167,7 @@ function incTitle(e) {
     case 'no_claim': return T('studioIncNoClaim');
     case 'routine_auth': case 'routine_forbidden': case 'routine_missing': case 'routine_paused': return T('studioIncRoutine');
     case 'routine_rate': return T('studioIncRate');
-    case 'no_server': case 'job_timeout': case 'worker_unknown_kind': return T('studioIncServer');
+    case 'no_server': case 'job_timeout': case 'worker_unknown_kind': case 'worker_oom': case 'worker_crash': return T('studioIncServer');
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
     case 'budget_stop': return T('studioIncBudget');

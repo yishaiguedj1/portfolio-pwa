@@ -30,7 +30,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(S.workerJob({ id: 'j', kind: 'tr' }, nm).nm === nm && S.workerJob({ id: 'j', kind: 'tr' }).nm === null, 'העובד מקבל את "הרגיל" בלקיחה');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/'studioStats'/.test(api) && /S\.normSample\(job, up\.use \|\| job\.use, now\)/.test(api) && /norm: S\.normsView/.test(api), 'השרתון: דגימה בסוף עבודה, "רגיל" בלקיחה וב־status');
-  ok(/\.catch\(\(\) => \{\}\)/.test(api.slice(api.indexOf("'studioStats', job.uid"), api.indexOf("'studioStats', job.uid") + 200)), 'השרתון: תקלה בשמירת הדגימה לא מפילה את סוף העבודה');
+  ok(/\.catch\(\(\) => \{\}\)/.test(api.slice(api.indexOf("'studioStats', job.uid", api.indexOf('S.normSample(job')), api.indexOf("'studioStats', job.uid", api.indexOf('S.normSample(job')) + 400)), 'השרתון: תקלה בשמירת הדגימה לא מפילה את סוף העבודה');
 
   /* ---------- 3. העובד והמגדל ---------- */
   ok(/'nm': job\.get\('nm'\) if isinstance\(job\.get\('nm'\), dict\) else None/.test(read('translator/job.py')), 'job.py: "הרגיל" נשמר בקובץ המצב');

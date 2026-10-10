@@ -184,6 +184,19 @@ class AnthropicTests(unittest.TestCase):
         self.assertEqual(cm.exception.code, 'budget_cap')
         self.assertEqual(len(c.calls), 2, 'לא נשלחה קריאה שלישית')
 
+    def test_budget_cap_counts_inflight_calls(self):
+        # התרגום רץ ב־4 במקביל: קריאות שבאוויר נספרות לפי העלות הממוצעת — אחרת כולן עוברות את הבדיקה יחד
+        c = FakeClient([fake_msg(i=0, o=100000)] * 5)     # $2 לכל קריאה ב־Opus
+        e = llm.Engine(llm.Spec.of('opus-medium'), cap_usd=5.0, client=c)
+        e.complete('tl', 'X', '1')                        # $2 — ממוצע $2 לקריאה
+        e._inflight = 2                                   # שתי קריאות באוויר ≈ $4 → $6 ≥ $5
+        with self.assertRaises(llm.LLMError) as cm:
+            e.complete('tl', 'X', '2')
+        self.assertEqual(cm.exception.code, 'budget_cap')
+        e._inflight = 1                                   # אחת באוויר ≈ $2 → $4 < $5 — עוברת
+        e.complete('tl', 'X', '3')
+        self.assertEqual(e._inflight, 1, 'המונה חוזר אחרי הקריאה (גם בהצלחה)')
+
     def test_sdk_errors_mapped_to_short_codes(self):
         class RateLimitError(Exception):
             pass
@@ -206,6 +219,11 @@ class AnthropicTests(unittest.TestCase):
         import job
         for m, p in llm.ANTHROPIC_PRICES.items():
             self.assertEqual(job.PRICES[m], p, f'המחירון ב־llm.py וב־job.py זהה ({m})')
+        self.assertEqual(set(job.PRICES), set(llm.ANTHROPIC_PRICES), 'אותם מודלים בשני המחירונים')
+        self.assertEqual((job.HAIKU_LONG, job.HAIKU_LONG_AT), (llm.HAIKU_LONG, llm.HAIKU_LONG_AT))
+        # העלות מהיומנים (job.py) = העלות מה־API (llm.py), גם מעל 100K
+        for args in ((1000, 1000, 0, 0, 0), (60000, 1000, 50000, 0, 0), (120000, 2000, 0, 0, 0)):
+            self.assertAlmostEqual(job.cost_of('claude-haiku-5-5', *args), llm.cost_anthropic('claude-haiku-5-5', *args))
 
 
 if __name__ == '__main__':

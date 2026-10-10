@@ -32,6 +32,7 @@ ANTHROPIC_PRICES = {
     'claude-opus-5-5': (4.0, 20.0, 0.20),
     'claude-sonnet-5-5': (2.0, 10.0, 0.10),
     'claude-haiku-5-5': (0.10, 0.50, 0.01),
+    'claude-haiku-4-5': (1.0, 5.0, 0.10),
 }
 HAIKU_LONG = (0.50, 2.50, 0.05)      # Haiku 5.5 — בקשה מעל 100K טוקנים קלט
 HAIKU_LONG_AT = 100_000
@@ -153,6 +154,7 @@ class Engine:
         self.cache_warns = 0           # קריאות שהיו אמורות לקרוא מהמטמון (אותו בלוק, קריאה 2+) ולא קראו
         self.think: dict = {}          # שלב → חשיבה מצטברת (טוקנים כשהשרת מדווח; אחרת תווים)
         self.refusal_retries = 0       # סירובים שעברו בניסוח מחדש (Haiku 5.5 — בלי נפילה בצד השרת)
+        self._inflight = 0             # קריאות שנשלחו ועוד לא חזרו (לתקרה בזמן מקבול)
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
@@ -162,8 +164,20 @@ class Engine:
         on_first_token = נקרא פעם אחת כשהשרת התחיל לענות (= הקלט עובד והמטמון נכתב) — למקבול בטוח."""
         with self._lock:
             spent = self.ledger.total()
-        if self.cap is not None and spent is not None and spent >= self.cap:
-            raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
+            calls = sum(r['n'] for r in self.ledger.list())
+            # קריאות שכבר באוויר (התרגום רץ במקביל) נספרות לפי העלות הממוצעת לקריאה עד עכשיו — בלי זה 4 קריאות
+            # מקבילות יכלו לעבור את התקרה יחד
+            pending = self._inflight * (spent / calls if spent and calls else 0)
+            if self.cap is not None and spent is not None and spent + pending >= self.cap:
+                raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
+            self._inflight += 1
+        try:
+            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token)
+        finally:
+            with self._lock:
+                self._inflight -= 1
+
+    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token) -> 'Result':
         if self.spec.provider != 'anthropic':
             raise LLMError('provider_unknown', self.spec.provider)
         res = self._anthropic(system_fixed, system_extra, prompt, max_tokens, on_first_token)
