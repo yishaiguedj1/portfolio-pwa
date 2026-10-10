@@ -807,6 +807,17 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
         time.sleep(min(30, 2 ** tries))
 
 
+def fetch_input(ctx, fid, dest, size, on_progress=None):
+    """נקודה אחת לכל קריאה של קובץ עבודה (מקור, קול, כתוביות, נקודת שמירה, בקשה). היום — Drive;
+    מעבר אחסון (R2) מחליף רק את הפונקציה הזו ואת put_output, לא את המקומות שקוראים להן."""
+    return drive_download(ctx, fid, dest, size, on_progress)
+
+
+def put_output(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', replace=''):
+    """נקודה אחת לכל כתיבה של קובץ עבודה (תוצר, נקודת שמירה, איכויות צפייה; replace = תוכן חדש לאותו קובץ). היום — Drive."""
+    return drive_upload(ctx, path, name, kind, mime, on_progress, prop, replace)
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *a, **k):
         return None
@@ -1122,13 +1133,13 @@ def prepare(args):
     if a:
         src = in_path(ctx, a, 'a')
         ctx.report('tr', 0, 'מוריד את הקול מ־Drive', force=True)
-        drive_download(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול מ־Drive'))
+        fetch_input(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול מ־Drive'))
         src = edl_src(ctx, src, 'a')
     else:
         v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
         src = in_path(ctx, v, 'v')
         ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
-        drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
+        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
         ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
         src = edl_src(ctx, src, 'v')
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
@@ -1182,7 +1193,7 @@ def attach_video(ctx):
     v = wait_video(ctx, 'al', 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, v, 'v')
     ctx.report('al', 0, 'מוריד את הסרטון מ־Drive', force=True)
-    drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון מ־Drive'))
+    fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון מ־Drive'))
     ladder_start(ctx, src)                       # איכויות הצפייה — ברקע, במקביל ליישור ולתרגום
     src = edl_src(ctx, src, 'v')
     pd = ctx.pdir
@@ -1766,7 +1777,7 @@ def ai_prep(args):
     if req.exists():
         req.unlink()
     ctx.report('tl', 0, 'Claude עובר על הכתוביות', force=True)
-    drive_download(ctx, q['id'], req, int(q.get('size') or 0))
+    fetch_input(ctx, q['id'], req, int(q.get('size') or 0))
     try:
         queue = A.norm_queue(json.loads(req.read_text(encoding='utf-8')))
     except ValueError:
@@ -1802,7 +1813,7 @@ def ai_done(args):
     out_p.write_text(json.dumps(res, ensure_ascii=False), encoding='utf-8')
     title = os.path.splitext(str((ctx.st.get('spec') or {}).get('name') or ctx.name))[0][:120]
     name = title + ' (AI).json'
-    fid = drive_upload(ctx, out_p, name, 'aiout', 'application/json')
+    fid = put_output(ctx, out_p, name, 'aiout', 'application/json')
     ctx.report(done=True, out=[{'id': fid, 'name': name, 'size': out_p.stat().st_size, 'k': 'aiout'}],
                msg='ההצעות מוכנות', force=True, usage=usage_safe() if not getattr(args, 'usage', None) else args.usage)
     shutil.rmtree(d, ignore_errors=True)
@@ -1878,10 +1889,10 @@ def render(args):
     work = VT_WORK / '_rr' / ctx.name
     src, cues = in_path(ctx, v, 'v'), work / 'cues.json'
     ctx.report('up', 0, 'מורידים את הסרטון', force=True)
-    drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('up', f))
+    fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('up', f))
     if cues.exists():
         cues.unlink()                            # הגרסה הערוכה תמיד מחדש (אותו שם — גרסה אחרת)
-    drive_download(ctx, cf['id'], cues, int(cf.get('size') or 0))
+    fetch_input(ctx, cf['id'], cues, int(cf.get('size') or 0))
     ensure_env(ctx, 'bn')
     ctx.report('bn', 0, 'צורבים את הכתוביות שנערכו', force=True)
     od = work / 'out'
@@ -1903,7 +1914,7 @@ def render(args):
         if not p.exists():
             raise SystemExit('✗ התוצר ' + p.name + ' לא נוצר.')
         size = p.stat().st_size
-        fid = drive_upload(ctx, p, name, k, mime, lambda f, b=done, s=size: ctx.report('sv', (b + f * s) / total))
+        fid = put_output(ctx, p, name, k, mime, lambda f, b=done, s=size: ctx.report('sv', (b + f * s) / total))
         done += size
         out.append({'id': fid, 'name': name, 'size': size, 'k': k})
     ctx.report(done=True, out=out, msg='ההפקה מחדש מוכנה', force=True)
@@ -2030,10 +2041,10 @@ def ladder_finish(ctx):
     try:
         for r in rungs:
             p = Path(str(r.get('f') or ''))
-            fid = drive_upload(ctx, p, title + ' (%dp).mp4' % min(r['w'], r['h']), 'hl', 'video/mp4')
+            fid = put_output(ctx, p, title + ' (%dp).mp4' % min(r['w'], r['h']), 'hl', 'video/mp4')
             up.append(dict({k: r[k] for k in ('w', 'h', 'bw', 'abw', 'c')}, id=fid, size=p.stat().st_size))
         tp = Path(top['f'])
-        drive_upload(ctx, tp, title + '.mp4', 'v', 'video/mp4', replace=v['id'])
+        put_output(ctx, tp, title + '.mp4', 'v', 'video/mp4', replace=v['id'])
     except SystemExit as e:
         print('· איכויות הצפייה לא נשמרו (' + str(e).strip()[:120] + ') — המקור נשאר כמו שהיה.')
         for x in up:
@@ -2083,7 +2094,7 @@ def finish(args):
     done = 0
     for k, p, name, mime in files:
         base = done
-        fid = drive_upload(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
+        fid = put_output(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
     for k, fname, suffix, mime in AUX_FILES:
@@ -2091,7 +2102,7 @@ def finish(args):
         if not p.exists():
             continue
         try:
-            fid = drive_upload(ctx, p, title + suffix, k, mime)
+            fid = put_output(ctx, p, title + suffix, k, mime)
             out.append({'id': fid, 'name': title + suffix, 'size': p.stat().st_size, 'k': k})
         except Exception as e:   # noqa: BLE001 — קובץ עזר; התוצרים העיקריים כבר עלו
             print('· ' + p.name + ' לא עלה (' + type(e).__name__ + ') — ממשיכים בלעדיו')
@@ -2243,7 +2254,7 @@ def save_ck(ctx, s, extra=None):
         path = VT_WORK / '_ck' / (ctx.name + '.' + s + '.tar.gz')
         ck_pack(ctx.pdir, s, dict({'src': ctx.st.get('src') or 'v', 'sync': ctx.st.get('sync') or None}, **(extra or {})), path)
         size = path.stat().st_size
-        fid = drive_upload(ctx, path, 'נקודת שמירה — ' + CK_LABEL[s] + '.tar.gz', s, 'application/gzip', prop='snbCk')
+        fid = put_output(ctx, path, 'נקודת שמירה — ' + CK_LABEL[s] + '.tar.gz', s, 'application/gzip', prop='snbCk')
         r = ctx.report(ck={'s': s, 'id': fid, 'size': size}, force=True)
         if isinstance(r, dict) and r.get('note'):
             note_receive(ctx, r['note'])         # v382: הערה שלך — נמסרת בנקודת השמירה
@@ -2287,7 +2298,7 @@ def restore(args):
         try:
             if tgz.exists():
                 tgz.unlink()
-            drive_download(ctx, c['id'], tgz, int(c.get('size') or 0))
+            fetch_input(ctx, c['id'], tgz, int(c.get('size') or 0))
             shutil.rmtree(tmp, ignore_errors=True)
             info = ck_unpack(tgz, tmp)
         except (SystemExit, OSError, ValueError, tarfile.TarError) as e:
@@ -2315,7 +2326,7 @@ def restore(args):
     f = files['a'] if kind == 'a' else wait_video(ctx, st_next, 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, f, kind)
     ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + ' מ־Drive', force=True)
-    drive_download(ctx, f['id'], src, int(f.get('size') or 0))
+    fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
     if kind == 'v':
         ladder_start(ctx, src)
     src = edl_src(ctx, src, kind)
