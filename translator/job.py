@@ -1960,6 +1960,8 @@ def ladder_start(ctx, src):
     """מתחיל לבנות את האיכויות ברקע (פעם אחת לעבודה). חיתוך לפני התרגום / SNB_LADDER=off — בלי."""
     if os.environ.get('SNB_LADDER') == 'off' or (ctx.st.get('spec') or {}).get('edl') or ctx.st.get('kind', 'tr') != 'tr':
         return False
+    if ((ctx.st.get('files') or {}).get('v') or {}).get('ext'):
+        return False                             # סרטון שבחרת ב־Drive (לא בתיקיית העבודה) — לא נוגעים בקובץ שלך
     st = ladder_state()
     if st and st.get('job') == ctx.st['job'] and (st.get('s') == 'ok' or (st.get('s') == 'run' and ladder_running())):
         return False
@@ -2020,7 +2022,7 @@ def ladder_finish(ctx):
         return None
     v = (ctx.refresh().get('files') or {}).get('v') or {}
     top, rungs = st.get('top') or {}, st.get('rungs') or []
-    if not v.get('id') or not Path(str(top.get('f') or '')).exists() or not rungs:
+    if not v.get('id') or v.get('ext') or not Path(str(top.get('f') or '')).exists() or not rungs:
         return None
     title = os.path.splitext(str((ctx.st.get('spec') or {}).get('name') or ctx.name))[0][:120]
     ctx.report('sv', 0.9, 'שומרים את איכויות הצפייה', force=True)

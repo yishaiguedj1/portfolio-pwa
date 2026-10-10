@@ -122,6 +122,7 @@ export function normDraft(d) {
     from: d.from === 'auto' || SOURCE_LANGS.includes(d.from) ? d.from : 'auto',
     to: s.to, mode: s.mode, out: s.out, style: s.style,
     terms: String(d.terms || '').slice(0, TERMS_MAX),
+    ...(d.drive && FID_RE.test(String(d.drive.id || '')) ? { drive: { id: d.drive.id, dur: Math.max(0, Math.floor(Number(d.drive.dur) || 0)) } } : {}),   // מקור מ־Drive (נבחר ב־Picker)
   };
 }
 const num = (x) => Math.max(0, Math.floor(Number(x) || 0));
@@ -145,7 +146,9 @@ export function normJob(j) {
   };
   const up = { folder: FID_RE.test(String(u.folder || '')) ? u.folder : '', a: part(u.a), v: part(u.v),
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
-    wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took) };
+    wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took),
+    ext: u.ext === true, extReg: u.extReg === true,   // מקור מ־Drive: בלי העלאה; extReg = נרשם בשרתון
+    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null };   // התוצר נשמר בתיקייה שבחרת ב־Drive
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
   const s = j.srv && typeof j.srv === 'object' ? j.srv : null;
   const srv = s ? {
@@ -672,6 +675,7 @@ export function newDraft(form, created, id) {
   return normDraft({
     id, created, name: f.name, size: f.size, type: f.type,
     from: form.from, to: form.to, mode: form.mode, out: form.out, style: form.style, terms: form.terms,
+    drive: form.drive ? { id: form.drive.id, dur: form.drive.dur || 0 } : null,
   });
 }
 /* 3.2GB · 312MB · 84KB (יחידות של 1024, בלי רווח — כמו בשאר האפליקציה) */
@@ -878,6 +882,7 @@ function freshForm(d) {
     id: d ? d.id : null,
     file: d && d.name ? { name: d.name, size: d.size, type: d.type } : null,
     fileObj: null, handle: null,    // הקובץ עצמו — רק בזיכרון, רק עד ההתחלה
+    drive: d && d.drive && d.name ? { id: d.drive.id, name: d.name, size: d.size, type: d.type, dur: d.drive.dur || 0 } : null,   // או סרטון שכבר ב־Drive
     from: d ? d.from : 'auto',
     to: s.to.slice(), mode: s.mode, out: Object.assign({}, s.out), style: s.style,
     terms: d ? d.terms : '',
@@ -968,6 +973,7 @@ async function refreshStatus(force) {
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
+    ui.picker = normPicker(j.pk);       // בחירה מ־Drive (Google Picker) — רק כשהוגדר מפתח בשרתון
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -1091,8 +1097,8 @@ function tickRate(run, bytes) {
   if (dt >= 2) { const r = (bytes - run.rs.b) / dt; run.rate = run.rate ? run.rate * 0.65 + r * 0.35 : r; run.rs = { t: now, b: bytes }; }
 }
 const isAbortErr = (e) => !!e && (e.name === 'AbortError' || e.code === 'aborted');
-async function register(id, which, fid, folder) {
-  const j = await net.api('file', { job: id, which, id: fid, folder });
+async function register(id, which, fid, folder, ext) {
+  const j = await net.api('file', Object.assign({ job: id, which, id: fid, folder }, ext ? { ext: true } : {}));
   if (!j.ok) throw Object.assign(new Error(j.error || 'file'), { code: j.error || 'file' });
   const rec = jobRec(id); if (rec && j.job) rec.srv = normJob({ id, srv: j.job }).srv;
 }
@@ -1156,6 +1162,13 @@ async function runJob(id, run) {
   wakeOn(); paintSoon();
   try {
     if (!up.folder) { up.folder = await net.jobFolder(id, fileTitle(rec.spec.name)); save(); }
+    if (up.ext) {   // סרטון מ־Drive: נשאר במקומו — רק רישום בשרתון (מאומת מול Drive: קיים, בגודל, סרטון) והתחלה
+      run.phase = 'prep'; paintSoon();
+      if (!up.extReg) { await register(id, 'v', up.v.id, up.folder, true); up.extReg = true; save(); }
+      if (!up.started) await tryStart(id);
+      run.phase = 'done';
+      return;
+    }
     // 1. הקול — מחולץ בטלפון בלי קידוד ועולה ראשון (Claude מתחיל לעבוד בזמן שהסרטון עולה)
     if (!up.a.done && !up.noAudio) {
       run.phase = 'extract'; run.p = 0; paintSoon();
@@ -1359,6 +1372,7 @@ function watch() {                // מאזין אחד בכל רגע; חדש א�
 function closeRequest() {
   if (!root) return;
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
+  if (pickerClose()) { if (root) watch(); return; }   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
   const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
   const dlg = document.querySelector('.dlg-veil.on');
   if (dlg) { const b = dlg.querySelector('.dlg-cancel') || dlg.querySelector('.dlg-ok'); if (b) b.click(); }
@@ -1832,7 +1846,7 @@ function pageForm(p, editing) {
   // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
-  const took = (file, handle) => { f.fileObj = file; f.handle = handle || null; f.file = { name: file.name, size: file.size, type: file.type || '' }; render('none'); };
+  const took = (file, handle) => { f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' }; render('none'); };
   inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
   const pick = () => {
     if (canPickHandle()) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
@@ -1846,7 +1860,7 @@ function pageForm(p, editing) {
     const txt = h('span', 'st-l');
     const nm = h('b'); nm.append(fileNameEl(f.file.name));
     const sz = h('small'); sz.append(fmtSize(f.file.size) + ' · ', h('span', 'st-linkish', T('studioReplace')));
-    txt.append(nm, sz, f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
+    txt.append(nm, sz, f.drive ? h('small', 'st-ok', T('studioInDriveNote')) : f.fileObj ? h('small', 'st-ok', T('studioPhoneOnly')) : h('small', 'st-warn', T('studioRepick')));
     card.append(th, txt);
   } else {
     card = btn('st-newcard pick', null, pick, 'file');
@@ -1854,7 +1868,9 @@ function pageForm(p, editing) {
     card.append(plus, rowTxt(T('studioPick'), T('studioNewSub')));
   }
   p.append(inp, secT(T('studioSecVideo')), card);
-  if (f.fileObj) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
+  if (ui.picker) p.append(list(rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
+    onClick: () => pickSourceFromDrive(f), k: 'from-drive' })));   // סרטון שכבר ב־Drive — בלי העלאה
+  if (f.fileObj || f.drive) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
   if (isIOS()) p.append(note(T('studioIosTip')));
 
   // שפות
@@ -1888,11 +1904,11 @@ function pageForm(p, editing) {
 
   // התחלה: יוצרים עבודה בשרתון ומעלים ל־Drive (הקול קודם). טיוטה — אפשרות משנית
   const startBtn = btn('st-btn wide', ui.starting ? T('studioStarting') : T('studioStart'), startFromForm, 'start');
-  startBtn.disabled = !f.fileObj || ui.starting;
+  startBtn.disabled = !(f.fileObj || f.drive) || ui.starting;
   const saveBtn = btn('st-btn tint wide', T('studioSaveDraft'), saveForm, 'save');
   saveBtn.disabled = !f.file;
   p.append(h('div', 'st-gap'), startBtn, h('div', 'st-gap sm'), saveBtn,
-    note(!f.file ? T('studioPickFirst') : !f.fileObj ? T('studioRepickNote') : T('studioStartNote')));
+    note(!f.file ? T('studioPickFirst') : !f.fileObj && !f.drive ? T('studioRepickNote') : f.drive ? T('studioStartNoteDrive') : T('studioStartNote')));
 }
 function saveForm() {
   const f = form;
@@ -1910,7 +1926,7 @@ function saveForm() {
 /* "התחלה" מהטופס: התחברות + Drive מחובר → קריאה מהירה של הסרטון (אורך) → עבודה בשרתון → מסך ההתקדמות + ההעלאה */
 function startFromForm() {
   const f = form;
-  if (!f || !f.fileObj || ui.starting) return;
+  if (!f || !(f.fileObj || f.drive) || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
   if (!store.drive || !store.drive.connected) {
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
@@ -1920,8 +1936,8 @@ function startFromForm() {
   if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
   ui.starting = true; render('none');
   (async () => {
-    const file = f.fileObj;
-    const pr = await probeVideo(file);
+    const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
+    const pr = f.fileObj ? await probeVideo(file) : { dur: f.drive.dur || 0 };
     const ed = normEdl(f.edl, pr.dur || 0);   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
       mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
@@ -1936,17 +1952,105 @@ function startFromForm() {
     const j = await net.api('create', { spec });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
+    const ext = !f.fileObj;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 }, up: {} });
+      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 },
+      up: ext ? { ext: true, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {} });
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
     save();
     if (f.handle) handleOp('put', rec.id, f.handle);
     form = null;
-    if (!root) { startRun(rec.id, file); return; }
+    if (!root) { startRun(rec.id, ext ? null : file); return; }
     replaceView('job', rec.id);
-    startRun(rec.id, file);
+    startRun(rec.id, ext ? null : file);
   })();
+}
+
+/* ---------------- Google Drive: סרטון מ־Drive כמקור, ושמירת התוצר בתיקייה שבחרת ----------------
+   הרשאת הסטודיו היא drive.file — האפליקציה רואה רק מה שהיא יצרה או מה שבחרת ב־Picker (הקובץ / התיקייה האלה בלבד).
+   כך גם העובד (שמעבד תוכן לא מהימן) לא מגיע לשאר ה־Drive שלך. ה־Picker נטען רק בלחיצה (apis.google.com, ב־CSP). */
+export function normPicker(o) {
+  return o && /^[A-Za-z0-9_-]{20,80}$/.test(String(o.key || '')) && /^\d{6,20}$/.test(String(o.app || '')) ? { key: o.key, app: o.app } : null;
+}
+let pickerLoad = null, pickerNow = null;
+function loadPicker() {
+  if (window.google && window.google.picker) return Promise.resolve();
+  if (!pickerLoad) {
+    pickerLoad = new Promise((ok, no) => {
+      const go = () => window.gapi.load('picker', { callback: ok, onerror: no, timeout: 15000, ontimeout: no });
+      if (window.gapi && window.gapi.load) { go(); return; }
+      const sc = document.createElement('script'); sc.src = 'https://apis.google.com/js/api.js'; sc.async = true;
+      sc.addEventListener('load', go); sc.addEventListener('error', no);
+      document.head.append(sc);
+    }).catch((e) => { pickerLoad = null; throw e; });
+  }
+  return pickerLoad;
+}
+/* kind: 'video' (סרטון מקור) / 'folder' (לאן לשמור). מחזיר { id, name } או null (ביטול) */
+async function drivePick(kind) {
+  const cfg = ui.picker;
+  if (!cfg) throw Object.assign(new Error('picker'), { code: 'picker' });
+  const [tok] = await Promise.all([net.driveToken(), loadPicker()]);
+  const G = window.google.picker;
+  return new Promise((res) => {
+    const view = kind === 'folder'
+      ? new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder')
+      : new G.DocsView(G.ViewId.DOCS_VIDEOS).setIncludeFolders(true);
+    const done = (x) => { if (pickerNow && pickerNow.res === res) pickerNow = null; res(x); };
+    const pk = new G.PickerBuilder().setOAuthToken(tok).setDeveloperKey(cfg.key).setAppId(cfg.app).addView(view)
+      .setLocale(uiLang() === 'he' ? 'iw' : 'en').setTitle(kind === 'folder' ? T('studioDxPickT') : T('studioFromDrive'))
+      .setCallback((d) => {
+        const a = d && d[G.Response.ACTION];
+        if (a === G.Action.PICKED) { const doc = (d[G.Response.DOCUMENTS] || [])[0] || {}; done(doc[G.Document.ID] ? { id: doc[G.Document.ID], name: String(doc[G.Document.NAME] || '') } : null); }
+        else if (a === G.Action.CANCEL) done(null);
+      }).build();
+    pickerNow = { pk, res };
+    pk.setVisible(true);
+  });
+}
+/* "חזור" כשה־Picker פתוח — סוגר אותו (ולא את הדף) */
+function pickerClose() { if (!pickerNow) return false; const x = pickerNow; pickerNow = null; try { x.pk.setVisible(false); } catch (e) {} x.res(null); return true; }
+/* מהטופס: בוחרים סרטון ב־Drive → הפרטים מ־Drive (שם, גודל, אורך) — בלי להוריד ובלי להעלות */
+async function pickSourceFromDrive(f) {
+  if (!store.drive || !store.drive.connected) {
+    if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
+    return;
+  }
+  try {
+    const x = await drivePick('video');
+    if (!x || form !== f) return;
+    const m = await net.driveMeta(x.id);
+    if (!m || m.trashed || !(Number(m.size) > 0)) { flashSafe(T('studioFromDriveBad')); return; }
+    const dur = Math.round(Number(m.videoMediaMetadata && m.videoMediaMetadata.durationMillis) / 1000) || 0;
+    f.drive = { id: x.id, name: String(m.name || x.name).slice(0, 200), size: Number(m.size), type: String(m.mimeType || '').slice(0, 60), dur };
+    f.fileObj = null; f.handle = null; f.edl = null;
+    f.file = { name: f.drive.name, size: f.drive.size, type: f.drive.type };
+    render('none');
+  } catch (e) { flashSafe(errText(e && e.code || 'drive')); }
+}
+/* בסוף העבודה: התוצר לתיקייה שבחרת. הסרטון המתורגם עובר (בלי עותק — לא תופס אחסון פעמיים), הכתוביות מועתקות
+   (קטנות, והעורך וסט הזהב קוראים מהעותק שבתיקיית העבודה) */
+const DX_MOVE = ['same', 'compact', 'small', 'mkv'];
+let dxBusy = '';
+async function exportToDrive(rec) {
+  if (dxBusy || !rec) return;
+  const folder = jobFolder(rec), outs = (rec.srv && rec.srv.out) || [];
+  const vids = outs.filter((o) => DX_MOVE.includes(o.k)), srt = outs.find((o) => o.k === 'srt');
+  if (!folder || (!vids.length && !srt)) return;
+  let dest;
+  try { dest = await drivePick('folder'); } catch (e) { flashSafe(errText(e && e.code || 'drive')); return; }
+  if (!dest) return;
+  if (rec.up.dx && rec.up.dx.f === dest.id) { flashSafe(T('studioDxDone', { n: dest.name || rec.up.dx.n })); return; }   // כבר שם
+  dxBusy = rec.id; render('none');
+  try {
+    for (const o of vids) await net.driveMove(o.id, rec.up.dx ? rec.up.dx.f : folder, dest.id);
+    if (srt) await net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt');
+    rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: Date.now() };
+    save();
+    flashSafe(T('studioDxDone', { n: dest.name }));
+  } catch (e) { flashSafe(T('studioDxErr')); }
+  finally { dxBusy = ''; render('none'); }
 }
 
 function pageLang(p) {
@@ -3968,7 +4072,7 @@ function edlSum(e, dur) {
    (אותו ציר זמן של הכתוביות). לפני התרגום (p = null): הקובץ מהטלפון, עוד לפני ההעלאה */
 function pageCut(p, before) {
   const rec = before ? null : jobRec(ui.param);
-  if (before ? !(form && form.fileObj) : !rec || !canEdit(rec)) { back(); return; }
+  if (before ? !(form && (form.fileObj || form.drive)) : !rec || !canEdit(rec)) { back(); return; }
   const key = before ? 'form' : rec.id;
   p.classList.add('st-dark');
   p.append(navBar({ back: before ? (form.id ? T('studioEditT') : T('studioNew')) : T('studioRrTitle'), title: T('studioEdTitle') }));
@@ -3976,7 +4080,7 @@ function pageCut(p, before) {
     ceStop();
     ce = { key, ctl: null, ed: null, url: '', cues: null };
     let src = '', fb = '', burned = false, cues = [], edl = null, dur = 0;
-    if (before) { ce.url = src = URL.createObjectURL(form.fileObj); edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
+    if (before) { if (form.fileObj) ce.url = src = URL.createObjectURL(form.fileObj); else { src = net.mediaUrl(form.drive.id); dur = form.drive.dur || 0; } edl = form.edl || null; burned = true; }   // עוד אין כתוביות — בלי כפתור CC
     else {
       const e0 = rec.spec.edl || null, bo = burnedOut(rec);
       if (!e0 && rec.up.v && rec.up.v.id) { src = net.mediaUrl(rec.up.v.id); fb = bo ? net.mediaUrl(bo.id) : ''; cues = se && se.id === rec.id && se.ed ? se.ed.cues() : []; }
@@ -4341,6 +4445,8 @@ function pageJob(p) {
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
+    ui.picker && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? rowNav({ tile: tile('cloud', 'green'), label: dxBusy === rec.id ? T('studioDxBusy') : T('studioDxT'),
+      sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
@@ -5103,6 +5209,7 @@ export function openStudio(opt) {
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
     const st = rec.srv ? rec.srv.state : 'new';
+    if (rec.up.ext) { if ((!rec.up.extReg || !rec.up.started) && st === 'new' && !(runs.get(rec.id) && runs.get(rec.id).active)) startRun(rec.id, null); continue; }   // מ־Drive — בלי קובץ בטלפון
     if (!done && !FINAL.includes(st) && !(runs.get(rec.id) && runs.get(rec.id).active) && rec.fp) resumeJob(rec.id, false);
   }
 }

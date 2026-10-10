@@ -446,6 +446,31 @@ export function createNet(env) {
     return (await r.json()).id;
   }
 
+  /* Drive כמקור וכיעד (Google Picker — הרשאה לקובץ/לתיקייה שבחרת בלבד): פרטי סרטון שבחרת, והעברה / העתקה לתיקייה שבחרת */
+  const DFID = /^[A-Za-z0-9_-]{10,200}$/;
+  async function driveMeta(id) {
+    if (!DFID.test(String(id || ''))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const r = await E.fetch(API + '/' + id + '?fields=id,name,size,mimeType,trashed,videoMediaMetadata(durationMillis)', { headers: { Authorization: 'Bearer ' + await driveToken() } });
+    if (!r.ok) throw await driveErr(r);
+    return r.json();
+  }
+  /* העברה (בלי עותק — סרטון גדול לא תופס אחסון פעמיים): מתיקיית העבודה לתיקייה שבחרת */
+  async function driveMove(id, from, to) {
+    if (![id, from, to].every((x) => DFID.test(String(x || '')))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const r = await E.fetch(API + '/' + id + '?addParents=' + to + '&removeParents=' + from + '&fields=id,parents', { method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'application/json' }, body: '{}' });
+    if (!r.ok) throw await driveErr(r);
+    return r.json();
+  }
+  /* העתקה (לקבצים קטנים — כתוביות): המקור נשאר בתיקיית העבודה (העורך וסט הזהב קוראים ממנו) */
+  async function driveCopy(id, to, name) {
+    if (!DFID.test(String(id || '')) || !DFID.test(String(to || ''))) throw Object.assign(new Error('bad_id'), { code: 'bad_id' });
+    const r = await E.fetch(API + '/' + id + '/copy?fields=id', { method: 'POST',
+      headers: { Authorization: 'Bearer ' + await driveToken(), 'Content-Type': 'application/json' }, body: JSON.stringify({ parents: [to], name: String(name || '').slice(0, 200) }) });
+    if (!r.ok) throw await driveErr(r);
+    return r.json();
+  }
+
   /* v387: סט הזהב — קובץ טקסט מ־Drive (התוצר שלנו / הייחוס), והעלאת הייחוס לתיקיית העבודה */
   async function driveText(id) {
     const r = await E.fetch(API + '/' + encodeURIComponent(id) + '?alt=media', { headers: { Authorization: 'Bearer ' + await driveToken() } });
@@ -503,5 +528,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, textUpload, mediaUrl, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, jobFolder, upload, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
 }

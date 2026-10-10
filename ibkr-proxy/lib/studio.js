@@ -508,7 +508,21 @@ function effState(job, now) {
   if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim' };
   return { state: job ? job.state : 'failed', err: job ? job.err || '' : '' };
 }
-const fileView = (f) => (f && f.id ? { id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 } : null);
+const fileView = (f) => (f && f.id ? Object.assign({ id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 }, f.ext ? { ext: true } : {}) : null);   // ext = מקור מ־Drive של המשתמש (נבחר ב־Picker) — לא בתיקיית העבודה, ולא נוגעים בו
+/* בחירת קבצים ותיקיות מ־Drive (Google Picker): מפתח דפדפן (מוגבל לאתר ול־Picker API — ב־Vercel, לא בריפו) ומספר הפרויקט
+   (מהמזהה של לקוח ה־OAuth של הסטודיו — "123…-xxx.apps.googleusercontent.com"). בלי מפתח — אין כפתור Drive בטלפון */
+function pickerCfg(env, clientId) {
+  const key = String((env && env.STUDIO_PICKER_KEY) || '').trim();
+  const app = String((env && env.STUDIO_PICKER_APP) || '').trim() || ((/^(\d{6,20})-/.exec(String(clientId || '')) || [])[1] || '');
+  return /^[A-Za-z0-9_-]{20,80}$/.test(key) && /^\d{6,20}$/.test(app) ? { key, app } : null;
+}
+/* קובץ וידאו מ־Drive כמקור (Picker): קיים, לא בפח, בגודל של המקור, וסרטון (לפי הסוג או הסיומת) */
+const EXT_VIDEO_RE = /\.(mp4|m4v|mov|mkv|webm|avi|mts|m2ts|3gp)$/i;
+function extVideoOk(meta) {
+  if (!meta || meta.trashed) return false;
+  const mt = String(meta.mimeType || '');
+  return /^video\//.test(mt) || ((mt === 'application/octet-stream' || mt === '') && EXT_VIDEO_RE.test(String(meta.name || '')));
+}
 /* מה הטלפון רואה — בלי המפתח (גם לא ה־hash) */
 function publicJob(job, now) {
   const e = effState(job, now);
@@ -833,7 +847,7 @@ module.exports = {
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, normUsage, normAsk, normAnswer, ASK_MAX,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,

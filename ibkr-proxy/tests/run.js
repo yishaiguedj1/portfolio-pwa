@@ -1430,6 +1430,31 @@ function stubFetch(text, status = 200) {
     ok(S.WORKER_KINDS.includes('tr'), 'סטודיו (v358): העובד יודע לתרגם — "start" מפעיל את ה־Routine');
     r = await run({ op: 'file', idToken: OWNER, job: JT, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
     ok(r.payload.ok && r.payload.job.files.v.size === SPEC.size && r.payload.job.files.a, 'סטודיו: הווידאו נרשם — שני הקבצים נשמרים (שדות נפרדים, בלי דריסה)');
+    {
+      // מקור מ־Drive (Google Picker): הסרטון נשאר במקומו — ext, לא בתיקיית העבודה; עדיין: קיים, סרטון, בגודל של המקור
+      ok(S.pickerCfg({ STUDIO_PICKER_KEY: 'TESTpickerKEYtestPICKERkey000' }, '123456789012-abc.apps.googleusercontent.com').app === '123456789012'
+        && S.pickerCfg({}, '123456789012-abc.apps.googleusercontent.com') === null && S.pickerCfg({ STUDIO_PICKER_KEY: 'bad key!' }, '1234567-x') === null,
+        'סטודיו (Drive): הגדרות ה־Picker — מפתח מ־Vercel, מספר הפרויקט מהמזהה של לקוח ה־OAuth; בלי מפתח — בלי כפתור');
+      let rx = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JX = rx.payload.job.id;
+      driveFiles.set('mydrive1234567', { id: 'mydrive1234567', name: 'הרצאה.mkv', size: String(SPEC.size), mimeType: 'video/x-matroska', parents: ['userFolder123'], trashed: false });
+      driveFiles.set('mydoc123456789', { id: 'mydoc123456789', name: 'x.pdf', size: String(SPEC.size), mimeType: 'application/pdf', parents: ['userFolder123'], trashed: false });
+      driveFiles.set('mysmall1234567', { id: 'mysmall1234567', name: 'y.mp4', size: '1000', mimeType: 'video/mp4', parents: ['userFolder123'], trashed: false });
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mydrive1234567', folder: 'fold1234567890' });
+      ok(rx.payload.error === 'file_bad', 'סטודיו (Drive): בלי ext — קובץ מחוץ לתיקיית העבודה עדיין נדחה');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mydoc123456789', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.error === 'file_bad', 'סטודיו (Drive): מקור שאינו סרטון — נדחה');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mysmall1234567', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.error === 'file_size', 'סטודיו (Drive): בגודל אחר מהמקור — נדחה');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'a', id: 'mydrive1234567', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.error === 'file_bad', 'סטודיו (Drive): ext רק לסרטון (לא לקול)');
+      rx = await run({ op: 'file', idToken: OWNER, job: JX, which: 'v', id: 'mydrive1234567', folder: 'fold1234567890', ext: true });
+      ok(rx.payload.ok && rx.payload.job.files.v.ext === true && rx.payload.job.files.v.size === SPEC.size && rx.payload.job.files.a === null,
+        'סטודיו (Drive): סרטון שבחרת ב־Drive נרשם כמו שהוא (ext — העובד מוריד אותו, ולא נוגע בו)');
+      rx = await run({ op: 'remove', idToken: OWNER, job: JX });
+      ok(rx.payload.ok, 'סטודיו (Drive): עבודת הבדיקה נמחקה');
+      studio._reset();
+    }
 
     // שלב 3: הפעלה, החלפת מפתח, תוצרים, ביטול
     fireMode = 401;   // v356: כשל ודאי (מפתח שבוטל). 5xx/רשת = "לא ודאי" — העבודה ממתינה (נבדק למעלה בבדיקות החיבור)

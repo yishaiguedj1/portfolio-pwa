@@ -814,7 +814,8 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns), sh: S.thView(st.th) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
-        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now), now });   // v367: החוקים ומתג החירום
+        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -1078,7 +1079,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'file') {
       if (job.kind !== 'tr' || st !== 'new' && st !== 'queued' && st !== 'running') return res.status(409).json({ ok: false, error: 'state' });
       const which = body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
-      const fid = String(body.id || ''), folder = String(body.folder || '');
+      const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
       // מאמתים מול Drive עצמו: הקובץ קיים, בתיקיית העבודה, והווידאו בגודל של המקור — העובד יוריד בדיוק את זה
       const t = await gdrive.accessToken(deps, uid);
@@ -1088,7 +1089,8 @@ async function handler(req, res, deps = {}) {
       if (r.status === 404) return res.status(400).json({ ok: false, error: 'file_missing' });
       if (r.status !== 200 || !meta) return res.status(502).json({ ok: false, error: 'drive_http_' + r.status });
       const f = S.normFile(meta);
-      if (!f || meta.trashed || !(Array.isArray(meta.parents) && meta.parents.includes(folder))) return res.status(400).json({ ok: false, error: 'file_bad' });
+      if (!f || meta.trashed || (ext ? !S.extVideoOk(meta) : !(Array.isArray(meta.parents) && meta.parents.includes(folder)))) return res.status(400).json({ ok: false, error: 'file_bad' });
+      if (ext) f.ext = true;
       if (which === 'v' && job.spec && f.size !== job.spec.size) return res.status(400).json({ ok: false, error: 'file_size' });
       f.at = now;
       await patchJob(deps, job.id, { ['f' + which]: f, folder, updated: now });

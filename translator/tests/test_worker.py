@@ -112,6 +112,7 @@ class Fake:
         self.fm = None                                                # v366: מסלול התיקונים (בלי — כמו שרתון ישן)
         self.rl, self.bx, self.u0 = None, 0, 0                        # v367: החוקים, אישורים מעבר לתקציב, מה שכבר עלה
         self.pir = None                                               # v379: דוח אחרי תקלה שמחכה לסיכום
+        self.v_ext = False                                            # מקור מ־Drive (Picker) — לא בתיקיית העבודה
         self.gloss = None                                             # v380: קובץ המילון ב־Drive (bytes) — None = אין
         self.notes, self.note_next = [], None                         # v382: הערות שנקראו (בלקיחה) והערה שתימסר בנקודת השמירה הבאה
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
@@ -154,7 +155,7 @@ class Fake:
                             fake.qa['a'] = {'i': 0, 't': fake.answer}
                     files = {'a': {'id': 'AUDIO000001', 'name': 'Interview_2026.audio.m4a', 'size': len(AUDIO)}} if fake.audio else {}
                     if fake.claims > fake.video_after:
-                        files['v'] = {'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}
+                        files['v'] = dict({'id': 'VIDEO000001', 'name': 'Interview_2026.mp4', 'size': len(VIDEO)}, **({'ext': True} if fake.v_ext else {}))
                     if fake.kind == 'ai':                               # מ7: הבקשה של גיליון ה־AI
                         files = {'q': {'id': 'QREQ0000001', 'name': 'x.ai.json', 'size': len(AIREQ)}}
                     if fake.kind == 'rr':                               # מ2: הכתוביות שנערכו בטלפון
@@ -403,6 +404,19 @@ class TestWorker(unittest.TestCase):
         self.assertNotIn('hl', done, 'בלי איכויות — הדיווח בלי hl/vs')
         self.assertFalse([u for u in self.fake.uploads.values() if u.get('replace')], 'המקור לא נגעו בו')
         self.assertIn('בלי איכויות צפייה (gop)', out)
+
+    def test_ladder_drive_source(self):
+        # סרטון שבחרת ב־Drive (ext): לא נוגעים בקובץ שלך — בלי איכויות, בלי החלפה
+        self.fake.audio, self.fake.v_ext = False, True
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare', env={'SNB_LADDER': ''})[0], 0)
+        self.assertFalse((self.tmp / 'state' / 'ladder').exists(), 'מקור מ־Drive — לא מתחילים לבנות')
+        self.assertEqual(self.job('align')[0], 0)
+        self.seed_ladder()                                    # גם אם משהו נשאר מקודם — לא מחליפים
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertNotIn('hl', self.fake.reports[-1])
+        self.assertFalse([u for u in self.fake.uploads.values() if u.get('replace')], 'הקובץ שלך ב־Drive לא הוחלף')
 
     def test_ladder_start_bg(self):
         # התהליך שברקע מתחיל מיד אחרי הורדת הסרטון (בלי SNB_LADDER=off); "סרטון" מדומה → מדלג בלי להפיל כלום
