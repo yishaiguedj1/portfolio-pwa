@@ -59,12 +59,12 @@ function parseBody(buf, type) {
   return buf;
 }
 
-const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function queryOf(url) {
-  // בלי prototype ובלי מפתחות מסוכנים — שם פרמטר מהכתובת לא יכול לזהם אובייקטים (CodeQL: remote property injection)
+  // בלי prototype ובלי מפתחות מסוכנים — שם פרמטר מהכתובת לא יכול לזהם אובייקטים (CodeQL: remote property injection;
+  // השוואה מפורשת — את הבדיקה מול Set הכלי לא מזהה כהגנה)
   const q = Object.create(null);
   for (const [k, v] of url.searchParams) {
-    if (BAD_KEYS.has(k)) continue;
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
     q[k] = Object.prototype.hasOwnProperty.call(q, k) ? [].concat(q[k], v) : v;
   }
   return q;
