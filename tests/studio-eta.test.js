@@ -53,5 +53,17 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   ok(/tg\.t = ETA\.etaTarget\(ep\)/.test(api) && /patch\.ep = ep/.test(api), 'הלקיחה: תוכנית לעבודה + יעד זמן = p90 + דקה');
   ok(/ETA\.etaSample\(Object\.assign\(\{\}, job, up\), now\)/.test(api) && /eta: ETA\.etaView\(st\.et, now\)/.test(api), 'סוף העבודה מלמד; status מחזיר את המודל');
   ok(!/require\(/.test(read('ibkr-proxy/lib/studioeta.js')), 'studioeta.js טהור — בלי require');
+  // 5. מאגר המדידות: הנתונים המדויקים של עבודה שהסתיימה — בלי שם קובץ ובלי מזהי Drive
+  const bsrc = st.slice(st.indexOf('export function benchData('), st.indexOf('/* ת2 (10/10/2026): בידוד'));
+  const benchData = new Function(bsrc.replace('export function', 'function') + '; return benchData;')();
+  const t0 = 1e12;
+  const bd = benchData({ created: t0, spec: { name: 'Secret_Interview.mp4', dur: 300, mode: 'opus-medium' }, up: { folder: 'fold123' },
+    srv: { eng: 'api', state: 'done', ended: t0 + 814e3, q: { s: 99, n: 70 }, jd: { s: 88 }, out: [{ id: 'drv123' }],
+      prog: { stg: { tr: { s: t0, e: t0 + 173e3 }, al: { s: t0 + 173e3, e: t0 + 496e3 } } },
+      use: [{ k: 'tl', m: 'claude-opus-5-5', i: 1000, o: 2000, cr: 20000, c5: 0, c1: 6000, n: 4, usd: 0.22 }] } });
+  ok(bd.dur_s === 300 && bd.engine === 'api' && bd.stages_s.tr === 173 && bd.stages_s.al === 323 && bd.wall_s === 814, 'נתוני המדידה: זמני שלבים וזמן כולל בשניות');
+  ok(bd.tok.tl === 29000 && bd.tokd.tl.cw === 6000 && bd.usd.tl === 0.22 && bd.models.tl === 'claude-opus-5-5' && bd.quality === 99 && bd.judge === 88, 'נתוני המדידה: טוקנים (כולל מטמון), עלות, איכות ושופט');
+  ok(!/Secret|fold123|drv123|\.mp4/.test(JSON.stringify(bd)), 'נתוני המדידה: בלי שם קובץ ובלי מזהי Drive');
+  ok(/T\('studioBenchCopy'\)/.test(st) && (app.match(/studioBenchCopy: "/g) || []).length === 2, 'הכפתור + מחרוזת בשתי השפות');
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL - ' + e.message); process.exit(1); });

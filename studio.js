@@ -3270,6 +3270,7 @@ function pageJob(p) {
   if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
   if (rec.up.folder && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
   if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
+  if (ph0 === 'done' && rec.srv) links.append(btn('st-wbtn', T('studioBenchCopy'), () => copyText(JSON.stringify(benchData(rec)), T('studioBenchCopied')), 'bench-copy'));   // מאגר המדידות
   det.append(sum, list(...rows), links);
   p.append(h('div', 'st-gap sm'), det);
 
@@ -3436,6 +3437,25 @@ async function addServer() {
   if (j.ok && /^[a-z0-9]{12}-[A-Za-z0-9_-]{43}$/.test(String(j.token || ''))) { ui.newToken = j.token; refreshStatus(true); await refreshServers(); }
   else flashSafe(errText(j.error, j));
   render('none');
+}
+/* 10/10/2026 (מאגר המדידות, translator/bench.py): הנתונים המדויקים של עבודה שהסתיימה — להעתקה ולהדבקה לסשן הפיתוח.
+   מספרים, מודלים וזמנים בלבד: בלי שם הקובץ, בלי תוכן ובלי מזהים של Drive */
+export function benchData(rec) {
+  const srv = rec.srv || {}, sp = rec.spec || {}, stg = (srv.prog && srv.prog.stg) || {};
+  const stages = {};
+  for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) { const x = stg[k]; if (x && x.s > 0 && x.e > x.s) stages[k] = Math.round((x.e - x.s) / 1000); }
+  const models = {}, usd = {}, tok = {}, tokd = {};
+  for (const r of srv.use || []) {
+    models[r.k] = r.m;
+    if (r.usd != null) usd[r.k] = Math.round(r.usd * 1e4) / 1e4;
+    tokd[r.k] = { i: r.i || 0, o: r.o || 0, cr: r.cr || 0, cw: (r.c5 || 0) + (r.c1 || 0), n: r.n || 0 };
+    tok[r.k] = tokd[r.k].i + tokd[r.k].o + tokd[r.k].cr + tokd[r.k].cw;
+  }
+  const first = Math.min(...Object.values(stg).map((x) => (x && x.s) || Infinity));
+  return { date: new Date(rec.created || Date.now()).toISOString().slice(0, 10), dur_s: sp.dur || 0, engine: srv.eng === 'api' ? 'api' : 'routine',
+    mode: sp.mode || '', models, usd, tok, tokd, stages_s: stages,
+    wall_s: Number.isFinite(first) && srv.ended > first ? Math.round((srv.ended - first) / 1000) : 0,
+    quality: srv.q ? srv.q.s : null, cues: srv.q ? srv.q.n : null, judge: srv.jd ? srv.jd.s : null, state: srv.state || '' };
 }
 /* ת2 (10/10/2026): בידוד קופסת העובד — gVisor, או רגיל עם הסיבה (snb_runtime במארח) */
 function isoTxt(hb) {
