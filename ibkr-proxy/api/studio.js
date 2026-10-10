@@ -523,7 +523,7 @@ async function worker(req, res, body, deps) {
       up.qa = Object.assign(qa, { at: now, a: null });
       up.qn = (job.qn || 0) + 1;
     }
-    let gateId = '';
+    let gateId = '', note = '';   // v381: הערה שנמסרת בנקודת השמירה
     if (body.gate != null) {
       // v367: שער — הפרה של חוק (תקציב) או אישור לפני צריבה. השרתון בונה את השאלה (בלי טקסט מ־Claude); העבודה מחכה לך
       if ((job.gn || 0) >= S.GATE_MAX) return res.status(409).json({ ok: false, error: 'gate_limit' });
@@ -568,6 +568,12 @@ async function worker(req, res, body, deps) {
       if (!m) return res.status(400).json({ ok: false, error: 'ck_bad' });
       ck.size = Math.floor(m.size || ck.size);
       up.ck = S.addCk(job.ck, ck, now);
+      // v381: הערה שלך שמחכה — נמסרת עכשיו, בנקודת השמירה (העובד מדפיס אותה ל־Claude ומוסיף לתדריך)
+      if (job.kind === 'tr' && job.nt && S.normNoteText(job.nt.t)) {
+        note = S.normNoteText(job.nt.t);
+        up.nh = (Array.isArray(job.nh) ? job.nh : []).concat([{ t: note, at: job.nt.at || now, d: now }]).slice(-S.NOTE_MAX);
+        up.nt = null;
+      }
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; if (!job.c0) up.c0 = now; }
     // v377: מחכים לסרטון מהטלפון (wv) — השעון של יעד הזמן עוצר; דיווח התקדמות הבא בלי wv ממשיך אותו (אירוע בודד — לא)
@@ -632,7 +638,7 @@ async function worker(req, res, body, deps) {
         await patchDoc(deps, 'studioStats', job.uid, patchS).catch(() => {});
       }
     }
-    return res.status(200).json(Object.assign({ ok: true, stop: false, state: up.state || job.state }, gateId ? { gate: gateId } : {}, pirOk != null ? { pir: pirOk } : {}));
+    return res.status(200).json(Object.assign({ ok: true, stop: false, state: up.state || job.state }, gateId ? { gate: gateId } : {}, pirOk != null ? { pir: pirOk } : {}, note ? { note } : {}));
   } catch (err) {
     return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
   }
@@ -981,6 +987,18 @@ async function handler(req, res, deps = {}) {
       if (job.qa.g === 'b' && a.i === 0) { patch.bx = (job.bx || 0) + 1; job.bx = patch.bx; }   // v367: "להמשיך" — התקציב גדל בעוד תקציב אחד
       await patchJob(deps, job.id, patch);
       if (job.qa.g === 'b' && a.i === 0) await raise(deps, uid, [{ c: 'claude', k: 'budget', ok: true }], job.id, now);
+      return res.status(200).json({ ok: true, job: view(job) });
+    }
+    if (op === 'note') {
+      // v381: הערה לעובד — לעבודת תרגום שרצה / ממתינה; נקראת בנקודת השמירה הבאה. הערה שעוד לא נקראה מתחלפת
+      if (job.kind !== 'tr' || (st !== 'queued' && st !== 'running')) return res.status(409).json({ ok: false, error: 'state', job: view(job) });
+      const t = S.normNoteText(body.t);
+      if (!t) return res.status(400).json({ ok: false, error: 'bad_note', job: view(job) });
+      const sent = job.nn || (Array.isArray(job.nh) ? job.nh.length : 0) + (job.nt ? 1 : 0);
+      if (!job.nt && sent >= S.NOTE_MAX) return res.status(409).json({ ok: false, error: 'note_limit', job: view(job) });
+      job.nn = job.nt ? sent : sent + 1;                 // הערה שעוד לא נקראה מתחלפת — לא נספרת שוב
+      job.nt = { t, at: now };
+      await patchJob(deps, job.id, { nt: job.nt, nn: job.nn, updated: now });
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'resume') {

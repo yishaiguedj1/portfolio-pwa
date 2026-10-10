@@ -60,6 +60,8 @@ elif cmd == 'tr-prep':
     (w / 'tr' / 'source.md').write_text('# source')
     if not (w / 'tr' / 'glossary.tsv').exists():   # כמו vt: מהתבנית, רק אם אין
         (w / 'tr' / 'glossary.tsv').write_text('# מילון מונחים לראיון הזה\n')
+    if not (w / 'tr' / 'brief.md').exists():      # v381: התדריך (מהתבנית של vt)
+        (w / 'tr' / 'brief.md').write_text('# תדריך\n')
 elif cmd == 'plan':                         # v380: הכתוביות (לזיכרון המונחים)
     (w / 'cues.en.json').write_text(json.dumps([{'id': 1, 'en': 'Our moat is wide, the CEO said.'},
                                                 {'id': 2, 'en': 'Free cash flow grew; buybacks too.'}]))
@@ -98,6 +100,7 @@ class Fake:
         self.rl, self.bx, self.u0 = None, 0, 0                        # v367: החוקים, אישורים מעבר לתקציב, מה שכבר עלה
         self.pir = None                                               # v379: דוח אחרי תקלה שמחכה לסיכום
         self.gloss = None                                             # v380: קובץ המילון ב־Drive (bytes) — None = אין
+        self.notes, self.note_next = [], None                         # v381: הערות שנקראו (בלקיחה) והערה שתימסר בנקודת השמירה הבאה
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
 
@@ -142,7 +145,7 @@ class Fake:
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
                                                                   'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm,
-                                                                  'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0},
+                                                                  'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0, 'notes': fake.notes},
                                             'drive': {'token': TOKEN}, 'pir': fake.pir})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
@@ -169,6 +172,9 @@ class Fake:
                         fake.qa['a'] = {'i': 1, 't': 'stop', 'auto': True}
                     if body.get('pir'):
                         return self._send(200, {'ok': True, 'stop': False, 'pir': True})
+                    if body.get('ck') and fake.note_next:              # v381: הערה שלך — רק בנקודת שמירה, פעם אחת
+                        n, fake.note_next = fake.note_next, None
+                        return self._send(200, {'ok': True, 'stop': False, 'note': n})
                     return self._send(200, {'ok': True, 'stop': False})
                 return self._send(400, {'ok': False})
 
@@ -666,6 +672,36 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(self.job('align', env={'SNB_POLL': '0.2'})[0], 0)
         self.assertEqual(self.job('finish')[0], 0)
         self.assertEqual(self.fake.reports[-1]['gl'], {'u': 0, 's': [['Buyback', 'רכישה עצמית'], ['Moat', 'חפיר כלכלי'], ['free cash flow', 'תזרים מזומנים חופשי']]})
+
+    def test_note(self):
+        # v381: הערה לעובד — הערות שכבר נקראו מגיעות בלקיחה; הערה חדשה נמסרת בתשובה לנקודת שמירה: מודפסת ל־Claude,
+        # ונכנסת לתדריך (tr/brief.md) מתחת לשורת ההערות — בלי כפילות בהרצה חוזרת, ובלי תגיות/גרשיים הפוכים
+        self.fake.notes = ['להשאיר את שם החברה באנגלית', '<b>x</b>', 7]
+        self.assertEqual(self.take()[0], 0)
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual(st['notes'], ['להשאיר את שם החברה באנגלית', 'b x /b'])
+        self.fake.note_next = 'שמות פרטיים בעברית, `בלי` תעתיק'
+        code, out = self.job('prepare', env={'SNB_POLL': '0.2'})
+        self.assertEqual(code, 0, out)
+        self.assertIn('📝 הערה מהמשתמש (מהטלפון, עכשיו): שמות פרטיים בעברית, בלי תעתיק', out)
+        self.assertIn('תיכנס ל־tr/brief.md כשייווצר', out)
+        code, out = self.job('align', env={'SNB_POLL': '0.2'})
+        self.assertEqual(code, 0, out)
+        bp = self.tmp / 'work' / SLUG / 'tr' / 'brief.md'
+        txt = bp.read_text()
+        self.assertIn('## הערות מהמשתמש באמצע העבודה (גוברות)\n- להשאיר את שם החברה באנגלית\n- b x /b\n- שמות פרטיים בעברית, בלי תעתיק\n', txt)
+        self.assertTrue(txt.startswith('# תדריך'))
+        # Claude מילא את התדריך; הערה נוספת בנקודת השמירה של התרגום — הסעיף מוחלף, התדריך נשמר
+        bp.write_text(txt.split('## הערות')[0] + 'טון: רשמי\n\n## הערות' + txt.split('## הערות')[1])
+        self.fake.note_next = 'בלי ראשי תיבות'
+        code, out = self.job('save', 'tl')
+        self.assertEqual(code, 0, out)
+        self.assertIn('נוספה ל־tr/brief.md (גוברת)', out)
+        txt = bp.read_text()
+        self.assertEqual(txt.count('## הערות מהמשתמש'), 1)
+        self.assertIn('טון: רשמי', txt)
+        self.assertTrue(txt.rstrip().endswith('- בלי ראשי תיבות'))
+        self.assertEqual(json.loads((self.tmp / 'state' / 'job.json').read_text())['notes'][-1], 'בלי ראשי תיבות')
 
     def test_fix_mode(self):
         # v366: מסלול "הצעות לאישור" (ברירת המחדל) — ההודעה אומרת שהתיקון ממתין למשתמש; "עצמאי" — שהוא נרשם

@@ -1728,6 +1728,54 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v381: הערה לעובד — מהטלפון לעבודת תרגום שרצה, נמסרת בדיווח הבא על נקודת שמירה, עד NOTE_MAX, נקראה = היסטוריה
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      ok(S.normNoteText('  <b>שמות</b>\tבאנגלית `x`\u0007 ') === 'b שמות /b באנגלית x' && S.normNoteText('א') === '' && S.normNoteText('ב'.repeat(500)).length === 300,
+        'סטודיו: הערה — טקסט נקי (בלי תגיות, גרשיים הפוכים ותווי בקרה), באורך מוגבל');
+      ok(S.noteView({}) === null && S.noteView({ nt: { t: 'x', at: 1 } }) === null, 'סטודיו: הערה — בלי הערה תקינה אין תצוגה');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JN = rr.payload.job.id;
+      ok((await run({ op: 'note', idToken: OWNER, job: JN, t: 'שמות פרטיים באנגלית' })).statusCode === 409, 'סטודיו: הערה — לעבודה שעוד לא התחילה — 409');
+      await run({ op: 'file', idToken: OWNER, job: JN, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JN });
+      const KN = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: JN, key: KN });
+      ok(Array.isArray(rr.payload.job.notes) && rr.payload.job.notes.length === 0, 'סטודיו: הערה — בלקיחה: רשימת ההערות שנקראו (ריקה)');
+      ok((await run({ op: 'note', idToken: OWNER, job: JN, t: ' ' })).statusCode === 400, 'סטודיו: הערה — ריקה = 400');
+      rr = await run({ op: 'note', idToken: OWNER, job: JN, t: 'שמות פרטיים להשאיר באנגלית' });
+      ok(rr.payload.ok && rr.payload.job.nt.p.t === 'שמות פרטיים להשאיר באנגלית' && rr.payload.job.nt.n === 1, 'סטודיו: הערה — נשמרת וממתינה');
+      rr = await run({ op: 'note', idToken: OWNER, job: JN, t: 'שמות פרטיים בעברית, בלי תעתיק' });
+      ok(rr.payload.job.nt.p.t === 'שמות פרטיים בעברית, בלי תעתיק' && rr.payload.job.nt.n === 1, 'סטודיו: הערה — הערה שעוד לא נקראה מתחלפת, בלי ספירה נוספת');
+      rr = await wrk({ op: 'report', job: JN, key: KN, st: 'tr', p: 0.25 });
+      ok(!rr.payload.note, 'סטודיו: הערה — דיווח רגיל לא מוסר אותה (רק נקודת שמירה)');
+      rr = await wrk({ op: 'report', job: JN, key: KN, ck: { s: 'asr', id: 'ckas1234567890', size: 1 } });
+      ok(rr.payload.ok && rr.payload.note === 'שמות פרטיים בעברית, בלי תעתיק', 'סטודיו: הערה — נמסרת בתשובה לנקודת השמירה');
+      rr = await wrk({ op: 'report', job: JN, key: KN, ck: { s: 'al', id: 'ckal1234567890', size: 1 } });
+      ok(!rr.payload.note, 'סטודיו: הערה — נמסרת פעם אחת');
+      rr = await run({ op: 'job', idToken: OWNER, job: JN });
+      let nv = rr.payload.job.nt;
+      ok(nv.p === null && nv.h.length === 1 && nv.h[0].d === now && nv.n === 1 && nv.max === S.NOTE_MAX, 'סטודיו: הערה — אחרי המסירה: בהיסטוריה עם מתי נקראה');
+      for (let i = 2; i <= S.NOTE_MAX; i++) {
+        await run({ op: 'note', idToken: OWNER, job: JN, t: 'הערה מספר ' + i });
+        await wrk({ op: 'report', job: JN, key: KN, ck: { s: 'asr', id: 'ckas1234567890', size: 1 } });
+      }
+      rr = await run({ op: 'note', idToken: OWNER, job: JN, t: 'עוד אחת מעבר למגבלה' });
+      ok(rr.statusCode === 409 && rr.payload.error === 'note_limit' && rr.payload.job.nt.h.length === S.NOTE_MAX, 'סטודיו: הערה — עד NOTE_MAX לעבודה (409)');
+      // סשן חדש (המשך) מקבל את ההערות שכבר נקראו
+      await wrk({ op: 'report', job: JN, key: KN, fail: true, err: 'worker_step' });
+      await run({ op: 'resume', idToken: OWNER, job: JN });
+      rr = await wrk({ op: 'claim', job: JN, key: keyOf(fires[fires.length - 1]) });
+      ok(rr.payload.job.notes.length === S.NOTE_MAX && rr.payload.job.notes[0] === 'שמות פרטיים בעברית, בלי תעתיק', 'סטודיו: הערה — המשך בסשן חדש מקבל את ההערות שנקראו');
+      await wrk({ op: 'report', job: JN, key: keyOf(fires[fires.length - 1]), done: true });
+      ok((await run({ op: 'note', idToken: OWNER, job: JN, t: 'מאוחר מדי' })).statusCode === 409, 'סטודיו: הערה — לעבודה שהסתיימה — 409');
+      await run({ op: 'remove', idToken: OWNER, job: JN });
+      const odN = db.get('studioOps/ownerUid0001');
+      if (odN) { delete odN.fields.inc; delete odN.fields.mi; }
+    }
+    studio._reset();
+
     // v379: דוח אחרי תקלה — זמן לזיהוי ולתיקון ומה עלה בטעות (בפתרון, P1–P2), בקשת סיכום לסשן הבא, שמירה פעם אחת, 👍/👎
     now += 3600e3 + 1;
     studio._reset();

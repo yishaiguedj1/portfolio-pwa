@@ -450,6 +450,7 @@ function publicJob(job, now) {
     jd: normJudge(job.jd),                          // v375: שופט האיכות
     ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
+    nt: noteView(job),                              // v381: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
   };
 }
@@ -533,6 +534,18 @@ function normGl(o) {
   }
   return u || s.length ? { u, s } : null;
 }
+/* v381: הערה לעובד (Pause + corrective input) — טקסט שלך מהטלפון לעבודה שרצה. נמסרת לעובד בתשובה לדיווח הבא על
+   נקודת שמירה (nt → nh עם d = מתי נקראה). עד NOTE_MAX לעבודה, NOTE_LEN תווים; בלי תווי בקרה, תגיות וגרשיים הפוכים */
+const NOTE_MAX = 5, NOTE_LEN = 300;
+function normNoteText(v) {
+  const s = String(v == null ? '' : v).replace(/[\x00-\x09\x0b-\x1f\x7f<>`]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
+  return s.length >= 2 ? s.slice(0, NOTE_LEN) : '';
+}
+function noteView(job) {
+  const p = job.nt && normNoteText(job.nt.t) ? { t: normNoteText(job.nt.t), at: job.nt.at || 0 } : null;
+  const h = (Array.isArray(job.nh) ? job.nh : []).filter((x) => x && normNoteText(x.t)).slice(-NOTE_MAX).map((x) => ({ t: normNoteText(x.t), at: x.at || 0, d: x.d || 0 }));
+  return p || h.length ? { p, h, n: job.nn || h.length + (p ? 1 : 0), max: NOTE_MAX } : null;
+}
 /* v373: גרסת ההנחיות של כל סוכן (8 תווים מ־sha1): rb = RUNBOOK (מנהל העבודה), tl = TRANSLATE, rv = REVIEW, jg = JUDGE (v375) */
 function normPv(p) {
   if (!p || typeof p !== 'object') return null;
@@ -552,7 +565,8 @@ function workerJob(job, nm, fb, fm, rl) {
     cap: job.eng === 'api' && job.capc > 0 ? job.capc / 100 : null,   // מצב API: תקרת העבודה ($; נשמרת בסנטים) — כבר אחרי התקציב החודשי שנשאר
     id: job.id, kind: job.kind, state: job.state, spec: job.spec || null, folder: job.folder || '', files: { a: fileView(job.fa), v: fileView(job.fv) },
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
-    ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [] };   // v361: להמשך (מהאחרונה)
+    ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
+    notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX) };   // v381: ההערות שכבר נקראו — להמשך בסשן חדש
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
 function applyReport(job, r, now) {
@@ -630,7 +644,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl'];   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh'];   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -659,7 +673,7 @@ function fromFields(f) {
 
 module.exports = {
   MODES, LEGACY_MODES, modeNow,
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, normUsage, normAsk, normAnswer, ASK_MAX,

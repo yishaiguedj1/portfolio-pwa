@@ -156,6 +156,7 @@ export function normJob(j) {
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
+    nt: normNote(s.nt),                       // v381: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
     ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
   } : null;
@@ -386,6 +387,16 @@ export function normGl(o) {
     seen.add(en.toLowerCase()); s.push([en, he]);
   }
   return u || s.length ? { u, s } : null;
+}
+/* v381: הערה לעובד — p = מחכה לנקודת השמירה הבאה, h = נקראו (d = מתי), n מתוך max לעבודה. הטקסט שלך — מוצג רק כטקסט */
+const NOTE_LEN = 300;
+const noteText = (v) => { const s = String(v == null ? '' : v).replace(/[\x00-\x09\x0b-\x1f\x7f<>`]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim(); return s.length >= 2 ? s.slice(0, NOTE_LEN) : ''; };
+export function normNote(o) {
+  if (!o || typeof o !== 'object') return null;
+  const p = o.p && noteText(o.p.t) ? { t: noteText(o.p.t), at: num(o.p.at) } : null;
+  const h = (Array.isArray(o.h) ? o.h : []).slice(-5).map((x) => x && noteText(x.t) ? { t: noteText(x.t), at: num(x.at), d: num(x.d) } : null).filter(Boolean);
+  const max = Math.max(1, Math.min(10, num(o.max) || 5));
+  return p || h.length ? { p, h, n: Math.min(max, num(o.n) || h.length + (p ? 1 : 0)), max } : null;
 }
 /* v375: שופט האיכות (Haiku, על מדגם) — אותה בדיקה כמו בשרתון (lib/studio.js normJudge) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
@@ -1830,6 +1841,57 @@ function pageProject(p) {
 
 /* שלב 3 סבב ד׳: "Claude שואל" — שאלה קצרה באמצע העבודה. תשובה מוכנה בנגיעה, או טקסט כשאין תשובות מוכנות.
    לא ענית עד הזמן שכתוב — העבודה ממשיכה עם ברירת המחדל (העובד מדווח, והכרטיס מתחלף לשורה אחת) */
+/* v381: הערה לעובד — שליחה מהטלפון; השרתון מוסר אותה בנקודת השמירה הבאה */
+let noteBusy = false;
+async function sendNote(id, t) {
+  if (noteBusy) return;
+  noteBusy = true; render('none');
+  try {
+    const j = await net.api('note', { job: id, t });
+    const r = jobRec(id);
+    if (j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
+    if (j.ok) { ui.noteOpen = false; ui.noteDraft = ''; flashSafe(T('studioNtSent')); } else flashSafe(j.error === 'note_limit' ? T('studioNtLimit') : errText(j.error));
+  } finally { noteBusy = false; render('none'); }
+}
+function noteCard(rec) {
+  const nt = rec.srv && rec.srv.nt;
+  const canSend = rec.srv && (rec.srv.state === 'queued' || rec.srv.state === 'running');
+  if (!nt && !canSend) return null;
+  const card = h('div', 'st-twcard st-ntc');
+  card.dataset.k = 'note';
+  for (const x of (nt ? nt.h : [])) {
+    const r = h('div', 'st-ntr');
+    const tx = h('p', null, x.t); tx.dir = 'auto';
+    r.append(h('small', null, T('studioNtRead', { t: fmtClock(x.d) })), tx);
+    card.append(r);
+  }
+  if (nt && nt.p) {
+    const r = h('div', 'st-ntr wait');
+    const tx = h('p', null, nt.p.t); tx.dir = 'auto';
+    r.append(h('small', null, T('studioNtWait')), tx);
+    card.append(r);
+  }
+  if (canSend) {
+    const full = nt && !nt.p && nt.n >= nt.max;
+    if (full) card.append(h('small', 'st-muted', T('studioNtFull', { n: nt.max })));
+    else if (!ui.noteOpen) {
+      const b = btn('st-row st-ric', null, () => { ui.noteOpen = true; render('none'); const t = root && root.querySelector('[data-k="note-t"]'); if (t) try { t.focus({ preventScroll: true }); } catch (e) {} }, 'note-open');
+      b.append(tile('spark', 'blue'), rowTxt(nt && nt.p ? T('studioNtReplace') : T('studioNtT'), T('studioNtSub')), ico('chev', 'st-chev'));
+      card.append(b);
+    } else {
+      const ta = h('textarea', 'st-in st-ask-in'); ta.rows = 3; ta.maxLength = NOTE_LEN; ta.dir = 'auto'; ta.dataset.k = 'note-t';
+      ta.placeholder = T('studioNtPh'); ta.setAttribute('aria-label', T('studioNtT')); ta.value = ui.noteDraft || '';
+      ta.addEventListener('input', () => { ui.noteDraft = ta.value; });
+      const row = h('div', 'st-ntb');
+      const send = btn('st-btn wide', noteBusy ? T('studioNtSending') : T('studioNtSend'), () => { const t = noteText(ui.noteDraft); if (t) sendNote(rec.id, t); else flashSafe(T('studioNtEmpty')); }, 'note-send');
+      const cancel = btn('st-btn ghost', T('studioNtCancel'), () => { ui.noteOpen = false; render('none'); }, 'note-cancel');
+      if (noteBusy || blocked()) send.disabled = true;
+      row.append(cancel, send);
+      card.append(ta, row);
+    }
+  }
+  return [secT(T('studioNtSec')), card];
+}
 let askBusy = false;
 async function sendAnswer(id, qid, ans) {
   if (askBusy) return;
@@ -3353,6 +3415,8 @@ function pageJob(p) {
     stl.append(row);
   }
   p.append(secT(T('studioSecStages')), stl);
+  const nc = noteCard(rec);   // v381: הערה ל־Claude — נקראת בנקודת השמירה הבאה
+  if (nc) p.append(...nc);
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec.srv.sla));   // v377: יעד זמן ותקציב
 
   if (rec.srv) {   // v374: איכות הכתוביות + שומר ההזרקות · v375: שופט האיכות (והמודל שלו — משורת העלות)
@@ -3843,7 +3907,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : '') + (recovering(rec) ? 'R' : ''); };
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : ''); };   // v381: הערה שנקראה / ממתינה
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
