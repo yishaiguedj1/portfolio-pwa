@@ -12902,7 +12902,8 @@ function openStockFromHash() {
   const sj = get('studio');
   if (/^j[A-Za-z0-9_-]{20}$/.test(sj)) {
     try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-    import('./studio.js').then((m) => m.openStudio({ job: sj })).catch(() => { try { flash(t('studioOpenErr')); } catch (err) {} });
+    const sv = get('v');                       // פעולה בהתראה: ‎&v=play (צפייה) / ‎&v=subs (עריכה)
+    import('./studio.js').then((m) => m.openStudio({ job: sj, view: sv === 'play' || sv === 'subs' ? sv : '' })).catch(() => { try { flash(t('studioOpenErr')); } catch (err) {} });
     return true;
   }
   const tab = get('tab'), wl = get('wl'), sym = normalizeSym(get('stock'));

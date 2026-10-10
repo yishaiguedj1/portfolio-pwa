@@ -5037,7 +5037,8 @@ function closeStudio(instant) {
 export function openStudio(opt) {
   ensureCss();
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
-  if (root) { if (jobLink && jobRec(jobLink)) go('job', jobLink); return; }
+  const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
+  if (root) { if (jobLink && jobRec(jobLink)) goJobLink(jobLink, linkView); return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
   root = h('div', 'st-root no-swipe');
@@ -5080,13 +5081,21 @@ export function openStudio(opt) {
   refreshStatus(true);
   const jobs0 = refreshJobs(true);
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
-  if (jobLink) { if (jobRec(jobLink)) go('job', jobLink); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) go('job', jobLink); }); }
+  if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
     const st = rec.srv ? rec.srv.state : 'new';
     if (!done && !FINAL.includes(st) && !(runs.get(rec.id) && runs.get(rec.id).active) && rec.fp) resumeJob(rec.id, false);
   }
+}
+
+/* קישור מההתראה: דף העבודה, ומשם הנגן / העורך כשאפשר — "חזור" מהם חוזר לעבודה */
+function goJobLink(id, view) {
+  go('job', id);
+  const rec = jobRec(id);
+  if (view === 'play' && canPlay(rec)) go('play', id);
+  else if (view === 'subs' && canEdit(rec)) go('subs', id);
 }
 
 export const _test = {
