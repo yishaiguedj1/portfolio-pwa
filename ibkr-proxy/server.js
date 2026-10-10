@@ -60,14 +60,14 @@ function parseBody(buf, type) {
 }
 
 function queryOf(url) {
-  // בלי prototype ובלי מפתחות מסוכנים — שם פרמטר מהכתובת לא יכול לזהם אובייקטים (CodeQL: remote property injection;
-  // השוואה מפורשת — את הבדיקה מול Set הכלי לא מזהה כהגנה)
-  const q = Object.create(null);
+  // שם פרמטר מהכתובת לא נכתב כשם שדה באובייקט (CodeQL: remote property injection) — קודם Map, ואז fromEntries
+  // (יוצר שדות "רגילים" בלי setter של prototype). מפתחות מסוכנים — בכלל לא.
+  const m = new Map();
   for (const [k, v] of url.searchParams) {
     if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-    q[k] = Object.prototype.hasOwnProperty.call(q, k) ? [].concat(q[k], v) : v;
+    m.set(k, m.has(k) ? [].concat(m.get(k), v) : v);
   }
-  return q;
+  return Object.fromEntries(m);
 }
 
 function readBody(req) {
