@@ -44,6 +44,10 @@ const TOK = { t: 'TOKEN_abcdefghij', exp: Date.now() + 3600e3, size: 10e6, type:
   ok(asked.length === 1 && asked[0].snbMedia === ID, 'הדף נשאל פעם אחת (MessageChannel)');
   r = await run('bytes=9000000-');
   ok(r.status === 206 && r.headers['Content-Range'] === 'bytes 9000000-9999999/10000000' && asked.length === 1, 'טווח פתוח בסוף הקובץ; האסימון מהזיכרון (בלי לשאול שוב)');
+  if (/MEDIA_CAP_RANGE/.test(src)) {   // איכויות הצפייה: קטע של hls.js בטווח מפורש — כולו (לא נחתך ב־4MB)
+    r = await run('bytes=1000000-8999999');
+    ok(r.status === 206 && r.headers['Content-Range'] === 'bytes 1000000-8999999/10000000' && r.headers['Content-Length'] === '8000000', 'טווח מפורש (קטע של איכות) — כולו, עד 64MB');
+  }
   r = await run('bytes=20000000-');
   ok(r.status === 416 && r.headers['Content-Range'] === 'bytes */10000000', 'טווח מחוץ לקובץ = 416');
   r = await run('bytes=-100');

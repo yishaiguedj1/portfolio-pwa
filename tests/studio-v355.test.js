@@ -171,7 +171,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const st = read('studio.js');
   const ED = await import(path.join(root, 'studioedl.js'));   // מ4: normJob שומר את החיתוך — הפונקציה האמיתית
   const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: N.stageEstimates, progressModel: N.progressModel, createBackup: () => ({}), waitOAuthCode: () => {},
-    normEdl: ED.normEdl, edlDur: ED.edlDur };
+    normEdl: ED.normEdl, edlDur: ED.edlDur, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null };
   const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
   const S = new Function('t', '__stubs', body + '\nreturn { normJob, normStore, sameFile, jobPhase, normSettings };')(undefined, STUBS);
   const J = { id: 'jAAAAAAAAAAAAAAAAAAAA', created: 5, spec: { name: 'a.mkv', size: 100, to: ['he', 'zz'], mode: 'x', out: ['same', 'evil'] },

@@ -43,7 +43,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- אומדן לפני התחלה (כלל 2) ---------- */
   const body = sj.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
   const N = await import(path.join(root, 'studionet.js')), ED = await import(path.join(root, 'studioedl.js'));
-  const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: N.stageEstimates, progressModel: N.progressModel, createBackup: () => ({}), waitOAuthCode: () => {}, normEdl: ED.normEdl, edlDur: ED.edlDur };
+  const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: N.stageEstimates, progressModel: N.progressModel, createBackup: () => ({}), waitOAuthCode: () => {}, normEdl: ED.normEdl, edlDur: ED.edlDur, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null };
   const S = new Function('t', '__stubs', body + '\nreturn { startEstimate, NORM_FIXED };')(undefined, STUBS);
   const e1 = S.startEstimate('sonnet-medium', 1800, null, null, false);
   ok(e1.min === 43 && e1.usd === 3 && e1.left === null && !e1.over, 'Routine: זמן (85 דק׳ לשעה × חצי שעה) ושווה ערך בדולרים (כולל העלות הקבועה)');

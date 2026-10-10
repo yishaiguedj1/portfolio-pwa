@@ -1459,6 +1459,31 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'job', idToken: OWNER, job: JT });
     ok(r.payload.job.files.o.length === 2 && r.payload.job.files.o[0].size === 156000000 && r.payload.job.files.o[1].k === 'srt' && r.payload.job.prog.st === 'sv',
       'סטודיו: התוצרים נשמרים (הגודל מ־Drive) והטלפון רואה אותם');
+    {
+      // איכויות הצפייה (ladder.py): המקור הוחלף בגרסה הארוזה (אותו מזהה, גודל חדש) + איכויות נמוכות — הכל מאומת מול Drive
+      const VS = 294000000, top = { id: 'vid1234567890', w: 1920, h: 1080, bw: 6000000, abw: 5000000, c: 'avc1.640028,mp4a.40.2', size: VS };
+      const r7 = { id: 'r7201234567890', w: 1280, h: 720, bw: 1600000, abw: 1100000, c: 'avc1.64001f,mp4a.40.2', size: 60000000 };
+      const r3 = { id: 'r3601234567890', w: 640, h: 360, bw: 500000, abw: 300000, c: 'avc1.64001e,mp4a.40.2', size: 17000000 };
+      ok(S.normHl([top, r7, r3], 'vid1234567890').length === 3, 'סטודיו (איכויות): רשימה תקינה');
+      ok(S.normHl([r7, top, r3], 'vid1234567890') === null && S.normHl([top, r7, r7], 'vid1234567890') === null && S.normHl([top], 'vid1234567890') === null,
+        'סטודיו (איכויות): רק מהגבוהה לנמוכה, בלי כפילות, לפחות שתיים');
+      ok(S.normHl([top, r7], 'other12345678') === null && S.normHl([Object.assign({}, top, { c: 'avc1"><x' }), r7], 'vid1234567890') === null
+        && S.normHl([Object.assign({}, top, { abw: 9e6 }), r7], 'vid1234567890') === null, 'סטודיו (איכויות): הראשונה = המקור; קודקים ומספרים בצורה קשיחה');
+      driveFiles.set('r7201234567890', { id: 'r7201234567890', name: 'x (720p).mp4', size: '60000000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('r3601234567890', { id: 'r3601234567890', name: 'x (360p).mp4', size: '17000000', parents: ['otherFolder123'], trashed: false });
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [top, r7, r3], vs: VS });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.ok && r.payload.job.hl === null && r.payload.job.files.v.size === SPEC.size, 'סטודיו (איכויות): קובץ שלא בתיקיית העבודה / המקור לא הוחלף — מתעלמים (בלי להפיל את הדיווח)');
+      driveFiles.get('r3601234567890').parents = ['fold1234567890'];
+      const old = driveFiles.get('vid1234567890').size;
+      driveFiles.get('vid1234567890').size = String(VS);
+      r = await wrk({ op: 'report', job: JT, key: Kb, st: 'sv', p: 1, hl: [top, r7, r3], vs: VS });
+      r = await run({ op: 'job', idToken: OWNER, job: JT });
+      ok(r.payload.job.hl.length === 3 && r.payload.job.hl[0].id === 'vid1234567890' && r.payload.job.hl[2].h === 360 && r.payload.job.files.v.size === VS,
+        'סטודיו (איכויות): נשמרות, והגודל של המקור מתעדכן (ההורדה הבאה של העובד לפי הגודל החדש)');
+      driveFiles.get('vid1234567890').size = old;
+      studio._reset();   // הקריאות הנוספות כאן — לא על חשבון מגבלת הדקה של הבדיקות שאחרי
+    }
     // v359: טוקנים ועלות — עד 6 שורות, רק מספרים, מזהה מודל claude-…; נתון לא תקין נזרק בלי להפיל את הדיווח
     const USE = [
       { k: 'main', m: 'claude-sonnet-5-5', n: 40, i: 120, o: 9000, cr: 2400000, c5: 0, c1: 60000, usd: 0.71 },

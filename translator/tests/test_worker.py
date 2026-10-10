@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -223,6 +224,8 @@ class Fake:
                         self.connection.close()
                         return
                     return self._send(206 if rng else 200, raw=chunk)
+                if self.path.startswith('/drive/v3/files/VIDEO000001/revisions'):
+                    return self._send(200, {'revisions': [{'id': 'rev0001'}, {'id': 'rev0002'}]})
                 fid = self.path.split('/files/')[-1].split('?')[0]
                 up = next((u for u in fake.uploads.values() if u.get('id') == fid), None)
                 if up and 'alt=media' in self.path:                # נקודת שמירה שהועלתה קודם
@@ -232,6 +235,17 @@ class Fake:
             def do_DELETE(self):
                 fake.deleted.append(self.path.split('/files/')[-1].split('?')[0])
                 return self._send(204, raw=b'')
+
+            def do_PATCH(self):                              # איכויות הצפייה: תוכן חדש לקובץ קיים (אותו מזהה)
+                n = int(self.headers.get('Content-Length') or 0)
+                data = self.rfile.read(n) if n else b''
+                fid = self.path.split('/files/')[-1].split('?')[0]
+                if 'uploadType=resumable' not in self.path or self.headers.get('Authorization') != 'Bearer ' + TOKEN:
+                    return self._send(400)
+                uid = 'up%04d' % len(fake.uploads)
+                fake.uploads[uid] = {'meta': json.loads(data or b'{}'), 'data': b'', 'size': int(self.headers.get('X-Upload-Content-Length')),
+                                     'replace': fid}
+                return self._send(200, {}, {'Location': 'http://127.0.0.1:%d/session/%s' % (fake.port, uid)})
 
             def do_PUT(self):
                 uid = self.path.rsplit('/', 1)[-1]
@@ -249,7 +263,7 @@ class Fake:
                     return self._send(308, {}, {'Range': 'bytes=0-262143'})
                 up['data'] = up['data'][:start] + data
                 if len(up['data']) >= up['size']:
-                    fid = 'OUT' + uid.upper() + '00'
+                    fid = up.get('replace') or 'OUT' + uid.upper() + '00'
                     up['id'] = fid
                     return self._send(200, {'id': fid})
                 return self._send(308, {}, {'Range': 'bytes=0-%d' % (len(up['data']) - 1)})
@@ -271,7 +285,8 @@ class TestWorker(unittest.TestCase):
         vtpy.chmod(0o755)
         self.env = dict(os.environ, SNB_STATE=str(self.tmp / 'state'), VT_PY=str(vtpy), VT_WORK=str(self.tmp / 'work'),
                         VT_BIN=str(self.tmp / 'nobin'), FAKE_LOG=str(self.tmp / 'vt.log'),
-                        SNB_CLAUDE_PROJECTS=str(self.tmp / 'projects'))   # לא היומנים האמיתיים של מי שמריץ את הבדיקות
+                        SNB_CLAUDE_PROJECTS=str(self.tmp / 'projects'),   # לא היומנים האמיתיים של מי שמריץ את הבדיקות
+                        SNB_LADDER='off')                                   # איכויות הצפייה — בבדיקות משלהן (test_ladder_*)
         self.base = 'http://127.0.0.1:%d' % self.fake.port
 
     def tearDown(self):
@@ -339,6 +354,72 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(up['compact']['meta']['name'], 'Interview_2026 (עברית).mp4')
         self.assertTrue(any(r.get('st') == 'sv' for r in self.fake.reports))
         self.assertNotIn(KEY, out)
+
+    # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
+    def seed_ladder(self, s='ok'):
+        d = self.tmp / 'state' / 'ladder'
+        (d / 'out').mkdir(parents=True, exist_ok=True)
+        (d / 'out' / 'top.mp4').write_bytes(b'T' * 500000)
+        (d / 'out' / 'r720.mp4').write_bytes(b'7' * 300000)
+        (d / 'out' / 'r360.mp4').write_bytes(b'3' * 100000)
+        top = {'w': 1920, 'h': 1080, 'bw': 5000000, 'abw': 4000000, 'c': 'avc1.640028,mp4a.40.2', 'f': str(d / 'out' / 'top.mp4')}
+        rungs = [{'w': 640, 'h': 360, 'bw': 400000, 'abw': 300000, 'c': 'avc1.64001e,mp4a.40.2', 'f': str(d / 'out' / 'r360.mp4')},
+                 {'w': 1280, 'h': 720, 'bw': 1500000, 'abw': 1200000, 'c': 'avc1.64001f,mp4a.40.2', 'f': str(d / 'out' / 'r720.mp4')}]
+        (d / 'state.json').write_text(json.dumps({'job': JOB, 's': s, 'why': '' if s == 'ok' else 'gop', 'top': top, 'rungs': rungs}))
+
+    def test_ladder_finish(self):
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.assertFalse((self.tmp / 'state' / 'ladder').exists(), 'SNB_LADDER=off — לא נבנה ברקע')
+        self.seed_ladder()
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        done = self.fake.reports[-1]
+        self.assertTrue(done.get('done'))
+        hl = done['hl']
+        self.assertEqual([x['h'] for x in hl], [1080, 720, 360], 'המקור ראשון, ואז מהגבוהה לנמוכה')
+        self.assertEqual(hl[0]['id'], 'VIDEO000001', 'האיכות הגבוהה = הקובץ המקורי עצמו (אותו מזהה)')
+        self.assertEqual(done['vs'], 500000)
+        rep = [u for u in self.fake.uploads.values() if u.get('replace')]
+        self.assertEqual(len(rep), 1)
+        self.assertEqual((rep[0]['replace'], len(rep[0]['data']), rep[0]['meta']), ('VIDEO000001', 500000, {'name': 'Interview_2026.mp4'}))
+        low = {u['meta']['name']: u for u in self.fake.uploads.values() if (u['meta'].get('appProperties') or {}).get('snbOut') == 'hl'}
+        self.assertEqual(sorted(low), ['Interview_2026 (360p).mp4', 'Interview_2026 (720p).mp4'])
+        self.assertEqual(low['Interview_2026 (720p).mp4']['meta']['parents'], ['FOLDER00001'])
+        self.assertIn('VIDEO000001/revisions/rev0001', self.fake.deleted, 'הגרסה הקודמת של המקור נמחקת (לא 30 יום באחסון)')
+        self.assertNotIn('VIDEO000001/revisions/rev0002', self.fake.deleted, 'הנוכחית נשארת')
+        self.assertIn('איכויות צפייה: מקור (1080p) + 720p · 360p', out)
+
+    def test_ladder_not_ready(self):
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.seed_ladder('skip')
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        done = self.fake.reports[-1]
+        self.assertTrue(done.get('done'))
+        self.assertNotIn('hl', done, 'בלי איכויות — הדיווח בלי hl/vs')
+        self.assertFalse([u for u in self.fake.uploads.values() if u.get('replace')], 'המקור לא נגעו בו')
+        self.assertIn('בלי איכויות צפייה (gop)', out)
+
+    def test_ladder_start_bg(self):
+        # התהליך שברקע מתחיל מיד אחרי הורדת הסרטון (בלי SNB_LADDER=off); "סרטון" מדומה → מדלג בלי להפיל כלום
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare', env={'SNB_LADDER': ''})[0], 0)
+        code, out = self.job('align', env={'SNB_LADDER': ''})
+        self.assertEqual(code, 0, out)
+        st = self.tmp / 'state' / 'ladder' / 'state.json'
+        self.assertTrue(st.exists(), 'הבנייה התחילה ב־align (צירוף הסרטון)')
+        for _ in range(100):
+            if json.loads(st.read_text()).get('s') != 'run':
+                break
+            time.sleep(0.1)
+        self.assertEqual(json.loads(st.read_text())['s'], 'skip', 'קובץ שאינו סרטון — בלי איכויות')
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertNotIn('hl', self.fake.reports[-1])
 
     # ---------------------------------------------------------------- v361: נקודות שמירה והמשך
     def cks(self):

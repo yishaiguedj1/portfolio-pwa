@@ -543,6 +543,17 @@ async function worker(req, res, body, deps) {
       }
       up.fo = outs;
     }
+    if (body.hl != null && job.kind === 'tr' && job.fv && job.folder) {
+      // איכויות הצפייה: המקור הוחלף בגרסה הארוזה (אותו מזהה, גודל חדש = vs) + האיכויות הנמוכות. הכל מאומת מול Drive;
+      // משהו לא מסתדר — מתעלמים מהאיכויות (העבודה עצמה נגמרת כרגיל, והנגן מנגן את המקור כמו קודם)
+      const hl = S.normHl(body.hl, job.fv.id), vs = Math.floor(Number(body.vs));
+      let good = !!hl && vs > 0 && hl[0].size === vs;
+      for (const x of good ? hl : []) {
+        const m = await driveFileInFolder(deps, job.uid, job.folder, x.id);
+        if (!m || m.error || m.size !== x.size) { good = false; break; }
+      }
+      if (good) { up.hl = hl; up.fv = Object.assign({}, job.fv, { size: vs }); }
+    }
     if (body.ask != null) {
       // שאלה באמצע העבודה — מוצגת בטלפון עד שעונים או עד שהעובד ממשיך עם ברירת המחדל
       const qa = S.normAsk(body.ask);

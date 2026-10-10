@@ -10,7 +10,7 @@
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
 import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
-import { createPlayer, normCues, issuesList, fmtT } from './studioplay.js';
+import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges } from './studioai.js';
@@ -67,7 +67,7 @@ const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co', '*.pytorch
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
-  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 2 };
+  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 2, pq: 'src' };   // pq: איכות הצפייה בנגן (ברירת מחדל = המקור)
 }
 function normOut(o) {
   const d = { same: true, compact: false, mkv: false };
@@ -88,6 +88,7 @@ export function normSettings(o) {
   if (CONNS.includes(o.conn)) s.conn = o.conn;
   s.wifi = o.wifi === true;
   if (CAPS.includes(o.cap)) s.cap = o.cap;
+  s.pq = normPq(o.pq);
   return s;
 }
 /* מצב "API של המערכת" מהשרתון (status): התקציב החודשי, כמה שרתים מחוברים, והאם אתה המנהל */
@@ -175,6 +176,7 @@ export function normJob(j) {
     kind: s.kind === 'rr' ? 'rr' : 'tr', rp: JOB_RE.test(String(s.rp || '')) ? s.rp : '',   // מ2: הפקה מחדש (והעבודה המקורית)
     ev: num(s.ev), vh: (Array.isArray(s.vh) ? s.vh : []).slice(0, 20).map(num),   // מ2: גרסת הכתוביות, ומתי נשמרה כל גרסה קודמת
     folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
+    hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -1357,8 +1359,10 @@ function watch() {                // מאזין אחד בכל רגע; חדש א�
 function closeRequest() {
   if (!root) return;
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
+  const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
   const dlg = document.querySelector('.dlg-veil.on');
   if (dlg) { const b = dlg.querySelector('.dlg-cancel') || dlg.querySelector('.dlg-ok'); if (b) b.click(); }
+  else if (plm) plm.click();
   else back();
   if (root) watch();
 }
@@ -3754,6 +3758,15 @@ function costCard(cv, tr) {
 // (או מה־SRT בעבודות ישנות). אלמנט הנגן נשמר בין ציורים — וידאו שמוצא מהמסמך נעצר.
 const outOf = (rec, k) => ((rec.srv && rec.srv.out) || []).find((o) => o.k === k) || null;
 const burnedOut = (rec) => outOf(rec, 'compact') || outOf(rec, 'same') || outOf(rec, 'small');
+/* איכויות הצפייה של העבודה → מה שהנגן צריך (כתובת מלאה דרך ה־SW לכל קובץ); רק כשהראשונה היא הסרטון שהנגן מנגן */
+function ladderOf(rec) {
+  const hl = rec && rec.srv && rec.srv.hl, vid = rec && rec.up.v && rec.up.v.id;
+  if (!hl || !vid || hl[0].id !== vid || rec.spec.edl) return null;
+  const out = [];
+  for (const l of hl) { const u = net.mediaUrl(l.id); if (!u) return null; out.push(Object.assign({}, l, { url: new URL(u, location.href).href })); }
+  return out;
+}
+const pqSave = (q) => { if (store.settings.pq !== q) { store.settings.pq = q; save(); } };
 const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
 let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
 function playClose() { if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
@@ -3770,7 +3783,8 @@ async function playLoad(rec) {
     const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
-    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, T });
+    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, T,
+      ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave });   // איכויות כמו ב־YouTube
     me.st = 'ok';
   } catch (e) {
     if (pl !== me) return;
@@ -3895,6 +3909,7 @@ function pageSubs(p) {
     if (src || fb) {
       const me = se;
       se.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues: se.ed.cues(), T,
+        ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave,
         onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
     }
   }
@@ -5050,7 +5065,8 @@ export function openStudio(opt) {
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || !root || e.defaultPrevented) return;
       if (document.querySelector('.dlg-veil')) return;   // חלון אישור של האפליקציה פתוח — הוא סוגר את עצמו
-      e.preventDefault(); back();
+      const plm = document.querySelector('.st-pl-menu:not([hidden])');
+      e.preventDefault(); if (plm) plm.click(); else back();
     });
   }
   if (!window._stVis) {                    // חזרה לאפליקציה: מסך דולק שוב (אם מעלים) ומעקב מחדש

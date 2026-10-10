@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -787,6 +788,8 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
                     ctx.event('drive', 'dl_retry', ok=True)           # v365: Drive חזר — ההתראה נסגרת
                 return dest
         except urllib.error.HTTPError as e:
+            if e.code == 416 and have:              # הקובץ קטן ממה שנרשם (הוחלף בגרסה הארוזה) — כבר יש את כולו
+                return dest
             if e.code == 403 and denied(dict(e.headers or {})):
                 ctx.event('claude', 'net')
                 raise SystemExit('✗ הרשת של הסביבה חוסמת את Drive — להוסיף www.googleapis.com ל־Allowed domains.')
@@ -812,17 +815,21 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _OPEN = urllib.request.build_opener(_NoRedirect).open      # ב־Drive ‏308 = "התקבל חלקית", לא הפניה
 
 
-def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut'):
-    """העלאה מתחדשת לתיקיית העבודה. מחזיר את מזהה הקובץ ב־Drive."""
+def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', replace=''):
+    """העלאה מתחדשת לתיקיית העבודה. מחזיר את מזהה הקובץ ב־Drive.
+    replace = מזהה קובץ קיים: תוכן חדש לאותו קובץ (אותו מזהה — איכויות הצפייה מחליפות כך את המקור בגרסה הארוזה).
+    ב־Drive ההחלפה אטומית: עד שההעלאה מסתיימת הקובץ הקודם נשאר כמו שהוא."""
     size = path.stat().st_size
-    meta = {'name': name, 'parents': [ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], prop: kind}}
-    st, j, hd = http('POST', ctx.upload + '/files?uploadType=resumable&fields=id',
-                     meta, headers={'Authorization': 'Bearer ' + ctx.token(), 'X-Upload-Content-Type': mime,
-                                    'X-Upload-Content-Length': str(size)})
+    if replace:
+        meta, method, url = {'name': name}, 'PATCH', ctx.upload + '/files/' + replace + '?uploadType=resumable&fields=id'
+    else:
+        meta, method = {'name': name, 'parents': [ctx.st['folder']], 'appProperties': {'snbJob': ctx.st['job'], prop: kind}}, 'POST'
+        url = ctx.upload + '/files?uploadType=resumable&fields=id'
+    st, j, hd = http(method, url, meta, headers={'Authorization': 'Bearer ' + ctx.token(), 'X-Upload-Content-Type': mime,
+                                                 'X-Upload-Content-Length': str(size)})
     if st == 401:
-        st, j, hd = http('POST', ctx.upload + '/files?uploadType=resumable&fields=id',
-                         meta, headers={'Authorization': 'Bearer ' + ctx.token(True), 'X-Upload-Content-Type': mime,
-                                        'X-Upload-Content-Length': str(size)})
+        st, j, hd = http(method, url, meta, headers={'Authorization': 'Bearer ' + ctx.token(True), 'X-Upload-Content-Type': mime,
+                                                     'X-Upload-Content-Length': str(size)})
     loc = next((v for k, v in hd.items() if k.lower() == 'location'), '')
     if st != 200 or not loc:
         raise SystemExit('✗ פתיחת העלאה ל־Drive נכשלה (' + str(st) + ').')
@@ -1122,6 +1129,7 @@ def prepare(args):
         src = in_path(ctx, v, 'v')
         ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
         drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
+        ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
         src = edl_src(ctx, src, 'v')
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
     title = os.path.splitext(str(ctx.st['spec'].get('name') or ctx.name))[0][:120]
@@ -1175,6 +1183,7 @@ def attach_video(ctx):
     src = in_path(ctx, v, 'v')
     ctx.report('al', 0, 'מוריד את הסרטון מ־Drive', force=True)
     drive_download(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון מ־Drive'))
+    ladder_start(ctx, src)                       # איכויות הצפייה — ברקע, במקביל ליישור ולתרגום
     src = edl_src(ctx, src, 'v')
     pd = ctx.pdir
     first = pd / 'audio16k.first.wav'
@@ -1923,6 +1932,122 @@ AUX_FILES = (
 )
 
 
+# ---------------------------------------------------------------- איכויות צפייה (כמו ב־YouTube)
+# ladder.py: המקור עצמו ארוז מחדש (בלי קידוד) + איכויות נמוכות קטנות. נבנה ברקע מרגע שהסרטון ירד, וב־finish:
+# האיכויות עולות לתיקיית העבודה והמקור מוחלף בגרסה הארוזה (אותו קובץ, אותו מזהה — בלי עותק נוסף).
+LADDER_DIR = STATE.parent / 'ladder'
+LADDER_WAIT = 15 * 60          # finish מחכה לכל היותר רבע שעה; לא מוכן — העבודה מסתיימת בלי איכויות (הנגן כמו קודם)
+
+
+def ladder_state():
+    try:
+        return json.loads((LADDER_DIR / 'state.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+
+
+def ladder_running():
+    try:
+        pid = int((LADDER_DIR / 'pid').read_text())
+        os.kill(pid, 0)
+        st = Path('/proc/%d/stat' % pid).read_text().split()
+        return st[2] != 'Z'
+    except (OSError, ValueError, IndexError):
+        return False
+
+
+def ladder_start(ctx, src):
+    """מתחיל לבנות את האיכויות ברקע (פעם אחת לעבודה). חיתוך לפני התרגום / SNB_LADDER=off — בלי."""
+    if os.environ.get('SNB_LADDER') == 'off' or (ctx.st.get('spec') or {}).get('edl') or ctx.st.get('kind', 'tr') != 'tr':
+        return False
+    st = ladder_state()
+    if st and st.get('job') == ctx.st['job'] and (st.get('s') == 'ok' or (st.get('s') == 'run' and ladder_running())):
+        return False
+    shutil.rmtree(LADDER_DIR, ignore_errors=True)
+    LADDER_DIR.mkdir(parents=True, exist_ok=True)
+    (LADDER_DIR / 'state.json').write_text(json.dumps({'job': ctx.st['job'], 's': 'run', 'at': time.time()}), encoding='utf-8')
+    log = open(LADDER_DIR / 'ladder.log', 'ab')
+    p = subprocess.Popen([sys.executable, str(HERE / 'job.py'), 'ladder-run', '--job', ctx.st['job'], '--src', str(src)],
+                         stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True, env=vt_env())
+    (LADDER_DIR / 'pid').write_text(str(p.pid))
+    return True
+
+
+def ladder_run(args):
+    """התהליך שברקע (בעדיפות נמוכה — התרגום והיישור קודמים)."""
+    import ladder as LD
+    try:
+        os.nice(15)
+    except OSError:
+        pass
+    r = LD.build(args.src, LADDER_DIR / 'out', log=lambda m: print(m, flush=True))
+    st = {'job': args.job, 's': 'ok' if r.get('ok') else 'skip', 'why': r.get('why', ''), 'top': r.get('top'), 'rungs': r.get('rungs'),
+          'at': time.time()}
+    (LADDER_DIR / 'state.json').write_text(json.dumps(st), encoding='utf-8')
+    print('✓ איכויות מוכנות' if r.get('ok') else '· בלי איכויות (' + st['why'] + ')', flush=True)
+    return 0
+
+
+def drive_purge_revisions(ctx, fid):
+    """אחרי החלפת המקור: Drive שומר את הגרסה הקודמת עוד 30 יום (בחשבון האחסון) — מוחקים אותה מיד."""
+    auth = {'Authorization': 'Bearer ' + ctx.token()}
+    st, j, _ = http('GET', ctx.api + '/files/' + fid + '/revisions?fields=revisions(id)', headers=auth)
+    revs = [r.get('id') for r in (j.get('revisions') or []) if isinstance(r, dict) and r.get('id')] if st == 200 else []
+    for rid in revs[:-1]:                        # האחרונה = התוכן הנוכחי
+        http('DELETE', ctx.api + '/files/' + fid + '/revisions/' + urllib.parse.quote(str(rid), safe=''), headers=auth)
+    return max(0, len(revs) - 1)
+
+
+def ladder_finish(ctx):
+    """בסוף העבודה: מחכים לאיכויות (עד LADDER_WAIT), מעלים את הנמוכות, מחליפים את המקור בגרסה הארוזה.
+    כל תקלה — העבודה מסתיימת בלי איכויות (והמקור כמו שהיה). מחזיר {'hl', 'vs'} או None."""
+    st = ladder_state()
+    if not st or st.get('job') != ctx.st['job']:
+        return None
+    waited = 0
+    while st.get('s') == 'run' and ladder_running() and waited < LADDER_WAIT:
+        ctx.report('sv', None, 'מכינים איכויות צפייה')
+        time.sleep(5)
+        waited += 5
+        st = ladder_state() or {}
+    if st.get('s') != 'ok':
+        if ladder_running():
+            try:
+                os.killpg(int((LADDER_DIR / 'pid').read_text()), signal.SIGTERM)
+            except (OSError, ValueError):
+                pass
+        print('· בלי איכויות צפייה (' + str(st.get('why') or 'time') + ') — הנגן מנגן את המקור כמו שהוא.')
+        return None
+    v = (ctx.refresh().get('files') or {}).get('v') or {}
+    top, rungs = st.get('top') or {}, st.get('rungs') or []
+    if not v.get('id') or not Path(str(top.get('f') or '')).exists() or not rungs:
+        return None
+    title = os.path.splitext(str((ctx.st.get('spec') or {}).get('name') or ctx.name))[0][:120]
+    ctx.report('sv', 0.9, 'שומרים את איכויות הצפייה', force=True)
+    up = []
+    try:
+        for r in rungs:
+            p = Path(str(r.get('f') or ''))
+            fid = drive_upload(ctx, p, title + ' (%dp).mp4' % min(r['w'], r['h']), 'hl', 'video/mp4')
+            up.append(dict({k: r[k] for k in ('w', 'h', 'bw', 'abw', 'c')}, id=fid, size=p.stat().st_size))
+        tp = Path(top['f'])
+        drive_upload(ctx, tp, title + '.mp4', 'v', 'video/mp4', replace=v['id'])
+    except SystemExit as e:
+        print('· איכויות הצפייה לא נשמרו (' + str(e).strip()[:120] + ') — המקור נשאר כמו שהיה.')
+        for x in up:
+            http('DELETE', ctx.api + '/files/' + x['id'], headers={'Authorization': 'Bearer ' + ctx.token()})
+        return None
+    try:
+        n = drive_purge_revisions(ctx, v['id'])
+    except Exception:            # noqa: BLE001 — Drive ימחק את הגרסה הקודמת לבד אחרי 30 יום
+        n = 0
+    size = tp.stat().st_size
+    hl = [dict({k: top[k] for k in ('w', 'h', 'bw', 'abw', 'c')}, id=v['id'], size=size)] + sorted(up, key=lambda x: -min(x['w'], x['h']))
+    print('✓ איכויות צפייה: מקור (%dp) + %s%s' % (min(top['w'], top['h']), ' · '.join('%dp' % min(x['w'], x['h']) for x in hl[1:]),
+                                                   '' if not n else ' · הגרסה הקודמת של המקור נמחקה'))
+    return {'hl': hl, 'vs': size}
+
+
 @guarded
 def finish(args):
     ctx = Ctx(load_state())
@@ -1976,8 +2101,9 @@ def finish(args):
         gl = gl_suggest(ctx)                     # v380: מונחים חדשים מהעבודה — הצעה למילון שלך
     except Exception:            # noqa: BLE001 — מידע משני
         gl = None
+    hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q,
-               judge=ctx.st.get('jd'), gl=gl)      # v375: שופט האיכות (Haiku) — אם רץ
+               judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'])      # v375: שופט האיכות (Haiku) — אם רץ
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 
@@ -2188,6 +2314,8 @@ def restore(args):
     src = in_path(ctx, f, kind)
     ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + ' מ־Drive', force=True)
     drive_download(ctx, f['id'], src, int(f.get('size') or 0))
+    if kind == 'v':
+        ladder_start(ctx, src)
     src = edl_src(ctx, src, kind)
     ensure_env(ctx, st_next)
     set_source(pd, src)
@@ -2244,6 +2372,9 @@ def main(argv=None):
     sub.add_parser('ai-prep', help='גיליון AI: הורדת הבקשה ובניית הפרומפט')
     sub.add_parser('ai-done', help='גיליון AI: בדיקת התשובה ושליחתה לטלפון')
     sub.add_parser('render', help='הפקה מחדש: הכתוביות שנערכו בטלפון → צריבה (בלי טוקנים)')
+    lr = sub.add_parser('ladder-run', help='(פנימי) בניית איכויות הצפייה ברקע')
+    lr.add_argument('--job', required=True)
+    lr.add_argument('--src', required=True)
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
     v.add_argument('rest', nargs=argparse.REMAINDER)
@@ -2252,7 +2383,7 @@ def main(argv=None):
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
                 'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto,
                 'judge-prep': judge_prep, 'judge': judge, 'render': render,
-                'ai-prep': ai_prep, 'ai-done': ai_done}[a.cmd](a)
+                'ai-prep': ai_prep, 'ai-done': ai_done, 'ladder-run': ladder_run}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1

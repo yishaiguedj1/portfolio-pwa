@@ -145,6 +145,26 @@ function normOut(list) {
   return out.length ? out : null;
 }
 
+/* איכויות צפייה כמו ב־YouTube (10/10/2026, translator/ladder.py): הראשונה = המקור עצמו (אותו קובץ, ארוז מחדש בלי קידוד —
+   המזהה של fv), אחריה האיכויות הנמוכות מהגבוהה לנמוכה. כל קובץ מאומת מול Drive בשרתון (בתיקיית העבודה, בגודל שדווח).
+   הטלפון בונה מהן את רשימות ההשמעה (האינדקס בתחילת כל קובץ) — אין כאן רשימות, רק מה שהנגן צריך לרשימה הראשית */
+const HL_MAX = 8;
+const HL_C_RE = /^[A-Za-z0-9.]{3,40}(,[A-Za-z0-9.]{3,40})?$/;
+function normHl(list, vid) {
+  if (!Array.isArray(list) || list.length < 2 || list.length > HL_MAX) return null;
+  const out = [];
+  for (const x of list) {
+    if (!x || typeof x !== 'object' || !FILE_ID_RE.test(String(x.id || '')) || out.some((y) => y.id === x.id)) return null;
+    const w = Math.floor(Number(x.w)), h = Math.floor(Number(x.h)), bw = Math.floor(Number(x.bw)), abw = Math.floor(Number(x.abw)), size = Math.floor(Number(x.size));
+    if (!(w >= 16 && w <= 8192 && h >= 16 && h <= 8192 && bw >= 1000 && bw <= 5e8 && abw >= 1000 && abw <= bw && size > 0)) return null;
+    if (!HL_C_RE.test(String(x.c || ''))) return null;
+    const short = Math.min(w, h);
+    if (out.length && short >= Math.min(out[out.length - 1].w, out[out.length - 1].h)) return null;   // מהגבוהה לנמוכה, בלי כפילות
+    out.push({ id: x.id, w, h, bw, abw, c: x.c, size });
+  }
+  return vid && out[0].id !== vid ? null : out;
+}
+
 /* v359: הטוקנים והעלות של העבודה (מהעובד, בדיווח האחרון — finish/fail). עד 6 שורות: סוג (תיאום/תרגום/ביקורת/סוכן־משנה),
    מזהה מודל רק בתבנית claude-…, וכל השאר מספרים. משהו לא תקין → null (וכל הנתון נזרק — לא חלקי) */
 const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'];   // v375: jg = שופט האיכות (Haiku)
@@ -518,6 +538,7 @@ function publicJob(job, now) {
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
     gd: normGd(job.gd), gs: JOB_RE.test(String(job.gs || '')) ? job.gs : '', gq: normGq(job.gq),   // v387: סט הזהב — ייחוס, מקור ההרצה, הציון
+    hl: normHl(job.hl, job.fv && job.fv.id),       // איכויות הצפייה (הראשונה = המקור עצמו)
   };
 }
 /* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
@@ -771,7 +792,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq'];   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'th', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl'];   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -805,7 +826,7 @@ module.exports = {
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
-  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normUsage, normAsk, normAnswer, ASK_MAX,
+  normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,

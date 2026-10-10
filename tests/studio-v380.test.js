@@ -47,7 +47,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 3. העובד ---------- */
   const job = read('translator/job.py');
   ok((job.match(/vt\(ctx, \['tr-prep', ctx\.name\]\)\n    gl_merge\(ctx\)/g) || []).length === 2, 'job.py: המילון נכנס אחרי tr-prep — גם ב־align וגם ב־align_prep (מצב API)');
-  ok(/gl = gl_suggest\(ctx\)/.test(job) && /judge=ctx\.st\.get\('jd'\), gl=gl\)/.test(job), 'job.py: ההצעות נשלחות בסוף העבודה');
+  ok(/gl = gl_suggest\(ctx\)/.test(job) && /judge=ctx\.st\.get\('jd'\), gl=gl[,)]/.test(job), 'job.py: ההצעות נשלחות בסוף העבודה');
   ok(/def gl_load\(ctx\)[\s\S]*?except Exception:[\s\S]*?return None/.test(job), 'job.py: מילון שלא נטען לא מפיל עבודה');
   ok(/GL_MARK = '# — מהמילון שלך/.test(job) && /מהמילון שלך/.test(read('translator/RUNBOOK.md')) && /מהמילון שלך/.test(read('translator/TRANSLATE.md')),
     'RUNBOOK ו־TRANSLATE: השורות של המשתמש גוברות ולא משתנות');

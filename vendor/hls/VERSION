@@ -1,0 +1,7 @@
+hls.js 1.6.19 (npm) — dist/hls.light.min.js
+sha256 997b01f5943bbc5750c4f52c5e6671d161728104b03c75ec4ea4eb7db9628ab6
+npm integrity sha512-A//aZeaAgM5rgUCbTURD4gkfyw5Uag2/4Jky7CfDOukL/DN+P5DjbgK2BYteyP3/KnCkPfkGVkbLxQG2T0AbUQ==
+מקור: https://registry.npmjs.org/hls.js/-/hls.js-1.6.19.tgz · רישיון Apache-2.0 (LICENSE)
+בשימוש: studioplay.js — איכויות צפייה כמו ב־YouTube (אוטומטי / ידני) על הקבצים שהעובד ארז (translator/ladder.py). נטען רק כשיש איכויות.
+הגדרות: enableWorker:false (ה־CSP חוסם Worker מ־blob), pLoader משלנו (הרשימות נבנות בטלפון מה־sidx — בלי רשת).
+לא לעדכן אוטומטית: גרסה חדשה = לבדוק שוב ניגון עם טווחי בתים, מעבר איכות ידני ואוטומטי, וקפיצה בזמן — בדפדפן אמיתי.

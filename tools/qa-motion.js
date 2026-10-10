@@ -858,6 +858,9 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: רעיונות', () => page.click('[data-k="ideas"]'), { pre: '[data-k="ideas"]', settle: 1200, expect: '[data-k="id-k:chap"]' });
     await step('studio: חזור ← העבודה (2)', esc, { settle: 1300, expect: '[data-k="ideas"]' });
     await step('studio: צפייה (נגן)', () => page.click('[data-k="play"]'), { pre: '[data-k="play"]', settle: 1500, expect: '.st-pl video' });
+    // הגדרות הנגן (כמו ב־YouTube): הגלגל → גיליון; "חזור" סוגר רק את הגיליון ונשארים בנגן
+    await step('studio: הגדרות הנגן', () => page.evaluate(() => document.querySelector('.st-pl-b.gear').click()), { settle: 600, expect: '.st-pl-menu:not([hidden]) .st-pl-mr' });
+    await step('studio: חזור ← סוגר את ההגדרות', esc, { settle: 600, expect: '.st-pl video' });
     await step('studio: חזור ← העבודה (3)', esc, { settle: 1300, expect: '[data-k="ideas"]' });
   }
 
