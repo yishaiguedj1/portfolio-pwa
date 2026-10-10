@@ -682,3 +682,12 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ed-crop { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .st-ed-crop[hidden] { display: none; }
 .st-ed-win { position: absolute; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .58); outline: 1.5px solid rgba(255, 255, 255, .85); }
+
+/* ---------- מ6: הצעות לתיקון (בעורך הכתוביות) ---------- */
+.st-sg { display: grid; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--card-border); }
+.st-sg[hidden] { display: none; }
+.st-sg-c { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); border-inline-start: 3px solid #FFD60A; }
+.st-sg-t { font-size: 13.5px; }
+.st-sg-w { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.st-sg-p { font-size: 15px; line-height: 1.4; }
+.st-sg-a { display: flex; flex-wrap: wrap; gap: 6px; }

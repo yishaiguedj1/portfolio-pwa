@@ -2,7 +2,7 @@
    הנגן למעלה (studioplay.js) מציג את הכתוביות הערוכות בזמן אמת; כל כתובית: טקסט, תזמון, פיצול / מיזוג / מחיקה,
    בדיקות חיות (אותם כללים כמו מדד האיכות), חיפוש והחלפה, ביטול וחזרה.
    הלוגיקה טהורה ובלתי משנה (מחזירה מערך חדש) — נבדקת ב־node; ה־DOM רק ב־createSubsEditor. בלי רשת: studio.js שומר. */
-import { cueIssues, cueAt, Q_LEN } from './studioplay.js';
+import { cueIssues, cueAt, Q_LEN, Q_CPS, Q_LINES, Q_MIN_DUR } from './studioplay.js';
 
 export const MIN_DUR = 0.2;      // כתובית קצרה מזה לא נוצרת בפיצול / בהזזה (מדד האיכות מסמן מתחת ל־0.83)
 export const STEP = 0.1;         // צעד בכפתורי התזמון
@@ -151,6 +151,51 @@ export function replaceAll(cues, q, rep) {
   return { cues: n ? out : cues, n };
 }
 
+/* ---------- מ6: הצעות לתיקון — מבדיקות הקוד (חינם, בלי טוקנים). תיקון בלחיצה (ביטול רגיל), "לא להציע שוב" לפי טביעה ---------- */
+export const SUG_MAX = 3;
+export const GAP_MIN = 0.083;                 // שני פריימים בין כתוביות (כמו vt)
+const EXT_MAX = 2;                            // הארכה אוטומטית — עד 2 שנ׳
+export function sugKey(c, k) {                // טביעה: סוג + הטקסט (FNV-1a) — לא תלויה במיקום, שורדת עריכות אחרות
+  let x = 0x811c9dc5;
+  const t = k + '|' + c.lines.join('\n');
+  for (let i = 0; i < t.length; i++) { x ^= t.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; }
+  return k + x.toString(36);
+}
+const passes = (c) => !cueIssues(c).some((k) => k !== 'en');
+/* לכל כתובית עם בעיה — תיקון אחד שפותר אותה (אם יש): שבירת שורות מחדש ו/או הארכה לתוך הרווח (עד 2 שנ׳, בלי לגעת
+   בשכנות), ואם לא מספיק — מיזוג עם הבאה. מחזיר עד max: { i, k: 'wrap'|'ext'|'wrapext'|'merge', key, cues } */
+export function suggestions(cues, dismissed, max = SUG_MAX) {
+  const out = [], no = dismissed || new Set();
+  const ceil3 = (x) => Math.ceil(x * 1000 - 1e-6) / 1000, floor3 = (x) => Math.floor(x * 1000 + 1e-6) / 1000;
+  for (let i = 0; i < cues.length && out.length < max; i++) {
+    const c = cues[i], iss = cueIssues(c);
+    if (!iss.length || (iss.length === 1 && iss[0] === 'en')) continue;   // אנגלית שלא תורגמה — רק תרגום (גיליון ה־AI)
+    let fix = c, k = '';
+    if (iss.includes('len') || iss.includes('lines')) {
+      const lines = autoBreak(c.lines.join(' '));
+      if (lines.length <= Q_LINES) { fix = Object.assign({}, fix, { lines }); k = 'wrap'; }
+    }
+    if (iss.includes('cps') || iss.includes('dur')) {
+      const chars = fix.lines.reduce((t, x) => t + x.length, 0), need = Math.max(Q_MIN_DUR, chars / Q_CPS) - (c.e - c.s);
+      const next = cues[i + 1], prev = cues[i - 1];
+      const maxE = next ? next.s - GAP_MIN : Infinity, minS = prev ? prev.e + GAP_MIN : 0;
+      const roomE = Math.max(0, maxE - c.e), roomS = Math.max(0, c.s - minS);
+      if (need > 0 && need <= EXT_MAX && need <= roomE + roomS + 1e-9) {
+        const de = Math.min(need, roomE), ds = need - de;
+        fix = Object.assign({}, fix, { s: Math.max(minS, floor3(c.s - ds)), e: Math.min(maxE, ceil3(c.e + de)) });
+        k = k ? 'wrapext' : 'ext';
+      }
+    }
+    let next = null;
+    if (k && passes(fix)) { next = cues.slice(); next[i] = fix; }
+    else if (cues[i + 1]) { const m = mergeCues(cues, i); if (m && passes(m[i])) { next = m; k = 'merge'; } }
+    if (!next) continue;
+    const key = sugKey(c, k);
+    if (!no.has(key)) out.push({ i, k, key, cues: next });
+  }
+  return out;
+}
+
 /* ---------- ביטול וחזרה: מצבים שלמים (המערכים לא משתנים — זול). עריכת טקסט רצופה באותה כתובית = צעד אחד ---------- */
 export function createHistory(initial) {
   let past = [], future = [], cur = initial, tag = '', at = 0, ver = 0;
@@ -220,11 +265,36 @@ export function createSubsEditor(opts) {
   const sr = el('div', 'st-se-srow'); sr.append(fr, frB);
   sp.append(fq, sr, fn);
   const listEl = el('div', 'st-se-list'); listEl.setAttribute('role', 'list');
-  wrap.append(bar, sp, listEl);
+  const sugEl = el('div', 'st-sg');           // מ6: עד 3 הצעות לתיקון (בדיקות הקוד, חינם)
+  const dismissed = opts.dismissed || new Set();
+  wrap.append(bar, sp, sugEl, listEl);
+  const SUG_LBL = { wrap: () => T('studioSgWrap'), ext: () => T('studioSgExt'), wrapext: () => T('studioSgWrapExt'), merge: () => T('studioSgMerge') };
+  function paintSug() {
+    const ss = suggestions(hist.cur, dismissed);
+    sugEl.replaceChildren();
+    sugEl.hidden = !ss.length;
+    for (const g of ss) {
+      const c = hist.cur[g.i], nc = g.cues[g.i];
+      const card = el('div', 'st-sg-c');
+      const t = el('div', 'st-sg-t');
+      t.append(el('b', null, SUG_LBL[g.k]()), el('span', 'st-sg-w', ' · '));
+      const at = el('bdi', 'st-sg-w', fmtTc(c.s)); t.append(at);
+      const pv = el('div', 'st-sg-p'); pv.dir = 'rtl';
+      for (const x of nc.lines) pv.append(el('div', null, x));
+      const acts = el('div', 'st-sg-a');
+      acts.append(b('done', T('studioSgFix'), () => {
+        if (apply(g.cues, null)) { if (opts.flash) opts.flash(T('studioSgFixed')); }
+      }, 'sg-fix:' + g.i),
+      b('', T('studioSgNo'), () => { dismissed.add(g.key); if (opts.onDismiss) opts.onDismiss(g.key); paintSug(); }, 'sg-no:' + g.i),
+      b('', T('studioSgShow'), () => { sel = g.i; paintList(); scrollTo(g.i); opts.seek(c.s); }, 'sg-go:' + g.i));
+      card.append(t, pv, acts);
+      sugEl.append(card);
+    }
+  }
 
   function changed(structural) {
     paintBar();
-    if (structural) paintList(); else paintRow(sel);
+    if (structural) { paintList(); paintSug(); } else paintRow(sel);
     if (opts.onChange) opts.onChange(hist.cur, hist.ver);
   }
   function paintBar() {
@@ -309,7 +379,7 @@ export function createSubsEditor(opts) {
   }
   function apply(nx, keepSel) {
     if (!nx) return false;
-    if (hist.push(nx, '', Date.now())) { if (keepSel != null) sel = keepSel; changed(true); return true; }
+    if (hist.push(nx, '', Date.now())) { sel = keepSel != null ? keepSel : -1; changed(true); return true; }
     return false;
   }
   function actions(k, ta) {
@@ -331,7 +401,7 @@ export function createSubsEditor(opts) {
     if (k < hist.cur.length - 1) ar.append(b('', T('studioSeMerge'), () => apply(mergeCues(hist.cur, k), k), 'cue-merge:' + k));
     ar.append(b(shiftOn ? 'on' : '', T('studioSeShift'), () => { shiftOn = !shiftOn; paintRow(k); }, 'cue-shift:' + k));
     ar.append(b('danger', T('studioSeDel'), () => apply(deleteCue(hist.cur, k), Math.min(k, hist.cur.length - 2)), 'cue-del:' + k));
-    ar.append(b('done', T('studioSeDone'), () => { sel = -1; paintList(); }, 'cue-done:' + k));
+    ar.append(b('done', T('studioSeDone'), () => { sel = -1; paintList(); paintSug(); }, 'cue-done:' + k));
     box.append(tr, ar);
     if (shiftOn) {
       // סנכרון: כל הכתוביות מהזו והלאה זזות יחד (התרגום מוקדם / מאוחר מהדיבור)
@@ -346,7 +416,7 @@ export function createSubsEditor(opts) {
     const r = rows.get(k);
     if (r && r.scrollIntoView) try { r.scrollIntoView({ block: 'nearest' }); } catch (e) {}
   }
-  paintBar(); paintList();
+  paintBar(); paintList(); paintSug();
   return {
     el: wrap,
     cues: () => hist.cur, ver: () => hist.ver,

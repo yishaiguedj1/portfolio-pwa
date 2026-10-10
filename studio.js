@@ -188,6 +188,21 @@ export function normGq(o) {
   const sc = p(o.s), tm = p(o.tm), n = Number.isInteger(o.n) && o.n > 0 && o.n <= 1e5 ? o.n : null;
   return sc == null || tm == null || n == null ? null : { s: sc, tm, n, at: num(o.at) };
 }
+export const NORM_FIXED = 1.5;   // **זהה ל־NORM_FIXED בשרתון** (lib/studio.js) — העלות הקבועה של עבודה (פתיחה, מדריכים)
+/* מ6 (כלל 2): אומדן לפני כל התחלה — זמן (דקות לשעת וידאו של המצב × האורך) ועלות ("הרגיל" שלך, אחרת ברירת המחדל).
+   במצב השרת — גם כמה נשאר מהתקציב החודשי. טהור */
+export function startEstimate(mode, dur, norm, api, apiOn) {
+  const d = dur > 0 ? dur : 0, m = modeById(mode);
+  if (!d) return { min: 0, usd: 0, left: null, over: false };
+  const usd = Math.round((goldEstimate([{ spec: { mode: m.id, dur: d } }], norm) + NORM_FIXED) * 100) / 100;   // + פתיחת הסשן (קבוע לכל עבודה)
+  const left = apiOn && api ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
+  return { min: Math.max(1, Math.round(m.min * d / 3600)), usd, left, over: left != null && usd > left };
+}
+function estText(e, apiOn) {
+  const t = e.min < 60 ? T('studioMinShort', { m: e.min }) : T('studioHMShort', { t: fmtHM(e.min) });
+  if (!apiOn) return T('studioEstSub', { t, usd: fmtUsd(e.usd) });
+  return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '');
+}
 /* v387: אומדן להרצת סט הזהב — "הרגיל" לשעה של כל מצב (נלמד או ברירת המחדל) × אורך הסרטון. טהור */
 export function goldEstimate(gold, norm) {
   let usd = 0;
@@ -636,7 +651,8 @@ export function normStore(o) {
     .filter((j) => j && !seenJ.has(j.id) && seenJ.add(j.id)).slice(0, 100);
   const c = src.conn && typeof src.conn === 'object' ? { hint: String(src.conn.hint || '').slice(0, 24), ok: num(src.conn.ok), since: num(src.conn.since) } : null;
   const d = src.drive && typeof src.drive === 'object' ? { connected: src.drive.connected === true, email: String(src.drive.email || '').slice(0, 120), configured: src.drive.configured !== false } : null;
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d };
+  const sugx = (Array.isArray(src.sugx) ? src.sugx : []).filter((x) => typeof x === 'string' && /^[a-z]{2,8}[0-9a-z]{1,8}$/.test(x)).slice(-500);   // מ6: "לא להציע שוב" (טביעות, בלי טקסט)
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx };
 }
 /* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
    לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת */
@@ -1904,6 +1920,12 @@ function startFromForm() {
       mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
     if (ed) spec.edl = ed;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
+    // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
+    const est = startEstimate(spec.mode, spec.dur, ui.norm, ui.api, apiMode());
+    if (est.min && typeof askConfirm === 'function') {
+      const yes = await new Promise((ok) => askConfirm(estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      if (!yes || form !== f) { ui.starting = false; render('none'); return; }
+    }
     const j = await net.api('create', { spec });
     ui.starting = false;
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
@@ -3806,6 +3828,7 @@ async function seLoad(rec) {
     if (se !== me) return;
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
     me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe,
+      dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
       onChange: () => { seSavePaint(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); } });
