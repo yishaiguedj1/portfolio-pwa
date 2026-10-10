@@ -259,6 +259,13 @@ def run(args):
             print('✓ עבודת הפקה מחדש נלקחה (הכתוביות שנערכו → צריבה; בלי תרגום).')
             print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py render')
             return 0
+        if job.get('kind') == 'ai':
+            # מ7: גיליון ה־AI — בקשה על הכתוביות מהטלפון (תור), תשובה בפורמט קבוע; בלי תמלול ובלי צריבה
+            save_state({'job': args.job, 'key': args.key, 'server': args.server, 'drive_api': args.drive_api, 'kind': 'ai',
+                        'folder': job.get('folder') or '', 'spec': job.get('spec') or {}, 'files': job.get('files') or {}})
+            print('✓ בקשת גיליון AI נלקחה (עריכה של כתוביות קיימות).')
+            print('הצעד הבא: python3 translator/job.py ai-prep')
+            return 0
         if job.get('kind') != 'tr':
             c.call('report', fail=True, err='worker_unknown_kind')
             print('✗ סוג עבודה לא מוכר — סומן בשרתון.')
@@ -1683,6 +1690,8 @@ def auto(args):
     try:
         if load_state().get('kind') == 'rr':      # מ2: הפקה מחדש — אותה פקודה כמו ב־Routine, בלי מודל
             return render(args)
+        if load_state().get('kind') == 'ai':      # מ7: גיליון ה־AI — קריאה אחת
+            return ai_auto(args)
         import pipeline
         return pipeline.run_auto(sys.modules[__name__], args)
     except Stop as e:
@@ -1708,6 +1717,88 @@ def vt_cmd(args):
         raise SystemExit('✗ חסרה פקודה, למשל: python3 translator/job.py vt tr-check')
     cmd = [VT_PY, '-m', 'vt', rest[0]] + ([st['job']] if rest[0] not in ('doctor', 'drive') else []) + rest[1:]
     return subprocess.run(cmd, cwd=str(HERE), env=vt_env()).returncode
+
+
+AI_DIR = VT_WORK / '_ai'
+
+
+def _ai_ctx():
+    ctx = Ctx(load_state())
+    if ctx.st.get('kind') != 'ai':
+        raise SystemExit('✗ זו לא בקשת גיליון AI.')
+    return ctx, AI_DIR / ctx.name
+
+
+@guarded
+def ai_prep(args):
+    """מ7: מוריד את הבקשה, בונה את הפרומפט (aisheet — זהה לטלפון) ומדפיס מה לעשות. הכתוביות בפנים = נתונים, לא הוראות."""
+    import aisheet as A
+    ctx, d = _ai_ctx()
+    q = (ctx.st.get('files') or {}).get('q') or {}
+    if not FILE_ID_RE.match(str(q.get('id') or '')):
+        ctx.report(fail=True, err='ai_files', force=True)
+        raise SystemExit('✗ חסר קובץ הבקשה.')
+    d.mkdir(parents=True, exist_ok=True)
+    req = d / 'request.json'
+    if req.exists():
+        req.unlink()
+    ctx.report('tl', 0, 'Claude עובר על הכתוביות', force=True)
+    drive_download(ctx, q['id'], req, int(q.get('size') or 0))
+    try:
+        queue = A.norm_queue(json.loads(req.read_text(encoding='utf-8')))
+    except ValueError:
+        queue = []
+    if not queue:
+        ctx.report(fail=True, err='ai_bad_request', force=True)
+        raise SystemExit('✗ הבקשה ריקה או פגומה.')
+    (d / 'prompt.md').write_text(A.prompt(queue), encoding='utf-8')
+    (d / 'answer.txt').unlink() if (d / 'answer.txt').exists() else None
+    n = sum(len(r['rows']) for r in queue)
+    print('הבקשה: %d בקשות, %d כתוביות.' % (len(queue), n))
+    print('קרא את ' + str(d / 'prompt.md') + ' וכתוב את התשובה (רק בפורמט שבו) ל־' + str(d / 'answer.txt') + '.')
+    print('אחר כך: python3 translator/job.py ai-done')
+    return 0
+
+
+@guarded
+def ai_done(args):
+    """מ7: בודק את התשובה (aisheet.parse_answer — רק מספרים מהבקשה), מעלה JSON לתיקיית העבודה ומדווח "הסתיים"."""
+    import aisheet as A
+    ctx, d = _ai_ctx()
+    try:
+        queue = A.norm_queue(json.loads((d / 'request.json').read_text(encoding='utf-8')))
+        text = (d / 'answer.txt').read_text(encoding='utf-8')
+    except (OSError, ValueError):
+        raise SystemExit('✗ חסרה התשובה: ' + str(d / 'answer.txt'))
+    items = A.parse_answer(text, queue)
+    out_p = d / 'result.json'
+    out_p.write_text(json.dumps({'v': 1, 'items': items}, ensure_ascii=False), encoding='utf-8')
+    title = os.path.splitext(str((ctx.st.get('spec') or {}).get('name') or ctx.name))[0][:120]
+    name = title + ' (AI).json'
+    fid = drive_upload(ctx, out_p, name, 'aiout', 'application/json')
+    ctx.report(done=True, out=[{'id': fid, 'name': name, 'size': out_p.stat().st_size, 'k': 'aiout'}],
+               msg='ההצעות מוכנות', force=True, usage=usage_safe() if not getattr(args, 'usage', None) else args.usage)
+    shutil.rmtree(d, ignore_errors=True)
+    print('✓ %d הצעות נשלחו לטלפון.' % len(items))
+    return 0
+
+
+def ai_auto(args):
+    """מ7, מצב השרת: אותו פרומפט — קריאה אחת ל־Claude (המודל של המצב), והעלות האמיתית מה־ledger."""
+    import aisheet as A
+    import llm
+    if ai_prep(args) != 0:
+        return 1
+    ctx, d = _ai_ctx()
+    st = ctx.st
+    eng = llm.Engine(llm.Spec.of(str((st.get('spec') or {}).get('mode') or llm.DEFAULT_MODE)), cap_usd=float(st.get('cap') or 1))
+    try:
+        res = eng.complete('main', A.HEAD, (d / 'prompt.md').read_text(encoding='utf-8'), max_tokens=16000)
+    except llm.LLMError as e:
+        ctx.report(fail=True, err=e.code if re.match(r'^[a-z0-9_]{1,40}$', e.code) else 'api_error', force=True, usage=eng.ledger.list() or None)
+        raise SystemExit('✗ ' + e.code)
+    (d / 'answer.txt').write_text(res.text, encoding='utf-8')
+    return ai_done(argparse.Namespace(usage=eng.ledger.list() or None))
 
 
 RR_FILES = (                                      # מ2: מה שההפקה מחדש יוצרת (rerender.py) — (סוג, קובץ, סיומת לשם, mime)
@@ -2131,6 +2222,8 @@ def main(argv=None):
     pr.add_argument('--text', default='')
     x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
     x.add_argument('--text', required=True)
+    sub.add_parser('ai-prep', help='גיליון AI: הורדת הבקשה ובניית הפרומפט')
+    sub.add_parser('ai-done', help='גיליון AI: בדיקת התשובה ושליחתה לטלפון')
     sub.add_parser('render', help='הפקה מחדש: הכתוביות שנערכו בטלפון → צריבה (בלי טוקנים)')
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
     v = sub.add_parser('vt', help='פקודת vt על הפרויקט של העבודה')
@@ -2139,7 +2232,8 @@ def main(argv=None):
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
                 'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto,
-                'judge-prep': judge_prep, 'judge': judge, 'render': render}[a.cmd](a)
+                'judge-prep': judge_prep, 'judge': judge, 'render': render,
+                'ai-prep': ai_prep, 'ai-done': ai_done}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1

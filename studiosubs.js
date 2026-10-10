@@ -31,6 +31,18 @@ export const clean = (s) => String(s == null ? '' : s).replace(CTRL, '').replace
 export function toSrt(cues) {
   return '﻿' + cues.map((c, n) => (n + 1) + '\n' + srtTime(c.s) + ' --> ' + srtTime(c.e) + '\n' + c.lines.map((x) => RLM + clean(x)).join('\n') + '\n').join('\n');
 }
+/* מ7: ייצוא — WebVTT (נגני רשת) ו־TTML (פלטפורמות; xml:lang=he, direction=rtl) */
+function vttTime(sec) { return srtTime(sec).replace(',', '.'); }
+export function toVtt(cues) {
+  return 'WEBVTT\n\n' + cues.map((c, n) => (n + 1) + '\n' + vttTime(c.s) + ' --> ' + vttTime(c.e) + '\n' + c.lines.map((x) => RLM + clean(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('\n') + '\n').join('\n');
+}
+const xml = (s) => clean(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export function toTtml(cues, title) {
+  const t = (sec) => vttTime(sec);
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<tt xmlns="http://www.w3.org/ns/ttml" xmlns:tts="http://www.w3.org/ns/ttml#styling" xml:lang="he">\n' +
+    '<head><metadata><ttm:title xmlns:ttm="http://www.w3.org/ns/ttml#metadata">' + xml(title || '') + '</ttm:title></metadata></head>\n<body><div tts:direction="rtl">\n' +
+    cues.map((c) => '<p begin="' + t(c.s) + '" end="' + t(c.e) + '">' + c.lines.map(xml).join('<br/>') + '</p>').join('\n') + '\n</div></body>\n</tt>\n';
+}
 export function toCuesJson(cues) {
   return JSON.stringify(cues.map((c, n) => ({ id: n + 1, start: r3(c.s), end: r3(c.e), lines: c.lines.map(clean), en: c.en || '', spk: c.spk || '' })));
 }
@@ -221,6 +233,7 @@ const PATHS = {
   redo: 'M18.4 10.6A10.46 10.46 0 0 0 11.5 8 10.5 10.5 0 0 0 1.27 15.22l2.37.78A8 8 0 0 1 16.62 12.38L13 16h9V7z',
   search: 'M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z',
   warn: 'M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z',
+  ai: 'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25z',
 };
 function icon(k) {
   const s = document.createElementNS(SVG, 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
@@ -251,6 +264,7 @@ export function createSubsEditor(opts) {
   const onlyB = b('chip', '', () => { only = !only; sel = -1; paintList(); }, 'se-only');
   const findB = b('ic', T('studioSeFind'), () => { searchOn = !searchOn; paintSearch(); if (searchOn) fq.focus(); }, 'se-find', 'search');
   bar.append(undoB, redoB, onlyB, el('span', 'st-se-sp'), findB);
+  if (opts.onAi) bar.append(b('ic', T('studioAiTitle'), () => opts.onAi(), 'se-ai', 'ai'));   // מ7: גיליון ה־AI
   const sp = el('div', 'st-se-search'); sp.hidden = true;
   const fq = el('input', 'st-se-in'); fq.type = 'search'; fq.placeholder = T('studioSeFindPh'); fq.dir = 'auto'; fq.dataset.k = 'se-q';
   const fr = el('input', 'st-se-in'); fr.type = 'text'; fr.placeholder = T('studioSeReplPh'); fr.dir = 'auto'; fr.dataset.k = 'se-r';
@@ -430,6 +444,9 @@ export function createSubsEditor(opts) {
       if (playing && sel < 0 && n) scrollTo(k);
     },
     select(k) { sel = k; paintList(); scrollTo(k); },
+    selected: () => sel,
+    /* מ7: שינויים מגיליון ה־AI — צעד ביטול אחד */
+    applyCues(next) { return apply(next, null); },
     destroy() { rows.clear(); },
   };
 }

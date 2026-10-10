@@ -250,7 +250,7 @@ async function queueApi(deps, uid, job, now) {
     err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now });
   return { ok: true };
 }
-const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr') && job.spec && job.spec.eng === 'api';   // מ2: הפקה מחדש — באותו מנוע כמו המקור
+const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
 async function server(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
@@ -434,8 +434,8 @@ async function driveTrash(deps, token, id) {
 /* מחיקת רשומת עבודה (כמו "מחיקה" בטלפון): הרשומה, ההתראות והתקלה שלה. הקבצים ב־Drive נשארים */
 async function removeJobRec(deps, uid, job, now) {
   await delDoc(deps, 'studioJobs', job.id);
-  if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2: ההפקות מחדש של העבודה הולכות איתה
-    for (const r of (await listJobs(deps, uid)).filter((j) => j.kind === 'rr' && j.rp === job.id)) await delDoc(deps, 'studioJobs', r.id);
+  if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2 · מ7: ההפקות מחדש וגיליונות ה־AI של העבודה הולכים איתה
+    for (const r of (await listJobs(deps, uid)).filter((j) => (j.kind === 'rr' || j.kind === 'ai') && j.rp === job.id)) await delDoc(deps, 'studioJobs', r.id);
   }
   await closeJobOps(deps, uid, job.id, now);
   try {   // v371 · v379: התקלה נסגרת, עם מה שעלה בטעות (לדוח)
@@ -1028,8 +1028,8 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'start') {
-      if ((job.kind !== 'tr' && job.kind !== 'rr') || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
-      if (!job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
+      if (!['tr', 'rr', 'ai'].includes(job.kind) || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
+      if (job.kind === 'ai' ? !job.fq : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
       if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
       const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
@@ -1090,6 +1090,23 @@ async function handler(req, res, deps = {}) {
       const r = S.rrJob(job, body, S.newJobId(), uid, now);
       await patchJob(deps, r.id, r);
       return res.status(200).json({ ok: true, job: view(r) });
+    }
+    if (op === 'aiRun') {
+      // מ7: גיליון ה־AI בהפעלה אחת — הבקשה כבר בתיקיית העבודה (הטלפון העלה); עבודה "חדשה" שמתחילים ב־start (אחרי אומדן ואישור בטלפון)
+      if (job.kind !== 'tr' || st !== 'done' || !S.FILE_ID_RE.test(String(job.folder || ''))) return res.status(409).json({ ok: false, error: 'state' });
+      if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
+      const q = String(body.q || '');
+      if (!S.FILE_ID_RE.test(q)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      if (all.some((j) => j.kind === 'ai' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'ai_busy' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      const fq = await driveFileInFolder(deps, uid, job.folder, q);
+      if (fq && fq.error) return res.status(200).json({ ok: false, error: fq.error });
+      if (!fq || !(fq.size > 0 && fq.size <= S.AI_Q_MAX)) return res.status(400).json({ ok: false, error: 'file_bad' });
+      for (const old of all.filter((j) => j.kind === 'ai' && j.rp === job.id && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);
+      const a = S.aiJob(job, fq, body.mode, S.newJobId(), uid, now);
+      await patchJob(deps, a.id, a);
+      return res.status(200).json({ ok: true, job: view(a) });
     }
     if (op === 'answer') {
       // תשובה לשאלה של Claude — פעם אחת, לשאלה הנוכחית בלבד, כל עוד העבודה רצה

@@ -11,8 +11,9 @@
 import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 import { createPlayer, normCues, issuesList, fmtT } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson } from './studiosubs.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlDur } from './studioedl.js';
+import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -39,7 +40,7 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small'];
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout'];
 export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
@@ -1296,7 +1297,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -3827,7 +3828,7 @@ async function seLoad(rec) {
     const cues = normCues(await net.driveJson(outOf(rec, 'cues').id));
     if (se !== me) return;
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
-    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe,
+    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id),
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
@@ -3899,6 +3900,21 @@ function pageSubs(p) {
   p.append(top, se.ed.el);
   // הפקה מחדש וגרסאות — מתחת לרשימה (פעולות של כל הקובץ)
   p.append(list(rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', rec.id), k: 'se-rr' })));
+  // מ7: ייצוא — הכתוביות כמו שהן עכשיו בעורך (גם לפני שמירה), קובץ להורדה
+  const ex = h('details', 'st-details');
+  const dl = (ext, mime, txt) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: mime + ';charset=utf-8' }));
+    a.download = (fileTitle(rec.spec.name) || 'subs').slice(0, 80) + '.he.' + ext;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  const ttl = fileTitle(rec.spec.name) || '';
+  ex.append(h('summary', null, T('studioExT')), list(
+    rowNav({ label: 'SRT', sub: T('studioExSrt'), onClick: () => dl('srt', 'application/x-subrip', toSrt(se.ed.cues())), k: 'ex-srt' }),
+    rowNav({ label: 'WebVTT', sub: T('studioExVtt'), onClick: () => dl('vtt', 'text/vtt', toVtt(se.ed.cues())), k: 'ex-vtt' }),
+    rowNav({ label: 'TTML', sub: T('studioExTtml'), onClick: () => dl('ttml', 'application/ttml+xml', toTtml(se.ed.cues(), ttl)), k: 'ex-ttml' })));
+  p.append(ex);
   const vh = rec.srv.vh || [];
   if (vh.length) {
     const det = h('details', 'st-details');
@@ -4000,6 +4016,131 @@ function pageRr(p) {
   if (dirty) p.append(note(T('studioRrDirty')));
   p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
   p.append(note(T('studioRrNote')));
+}
+/* ---------------- מ7: גיליון ה־AI ----------------
+   תור בקשות (פעולה קבועה או הוראה משלך, על הכתובית שנבחרה / עם בעיות / הכל) → העתק־הדבק ל־Claude שלך (בלי עלות נוספת)
+   או הפעלה אחת (Routine / שרת — אומדן ואישור) → השוואה ישן ← חדש עם אישור לכל כתובית → צעד ביטול אחד בעורך */
+let ai = null;   // { id, base, ver, queue, k, n, scope, mode: ''|'copy'|'run', answer, items, acc:Set, busy, model, err }
+function aiKindName(k) {
+  switch (k) {
+    case 'meaning': return T('studioAiMeaning');
+    case 'short': return T('studioAiShort');
+    case 'natural': return T('studioAiNatural');
+    case 'en': return T('studioAiEn');
+    default: return T('studioAiFree');
+  }
+}
+function aiScopeRows(cues, scope, sel) {
+  const idx = scope === 'sel' ? (sel >= 0 ? [sel] : []) : scope === 'iss' ? cues.map((c, i) => (issuesList([c]).length ? i : -1)).filter((i) => i >= 0) : cues.map((c, i) => i);
+  return idx.slice(0, AI_MAX_ROWS).map((i) => aiRow(cues[i], i + 1));
+}
+function aiShowResult(items, model) {
+  ai.items = items; ai.acc = new Set(items.filter((x) => x.lines).map((x) => x.id)); ai.model = model; ai.busy = false;
+  if (!items.length) flashSafe(T('studioAiNone'));
+  render('none');
+}
+async function aiRunJob(rec) {
+  const est = aiEstimate(ai.queue);
+  const yes = typeof askConfirm === 'function' ? await new Promise((ok) => askConfirm(T('studioAiEstQ', { n: est.rows, usd: fmtUsd(est.usd) }), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) })) : true;
+  if (!yes) return;
+  const me = ai;
+  me.busy = true; me.err = ''; render('none');
+  try {
+    const qid = await net.textUpload(jobFolder(rec), (fileTitle(rec.spec.name) || 'ai').slice(0, 80) + ' (AI).request.json', 'application/json', JSON.stringify(me.queue), { snbAi: 'q' });
+    const j = await net.api('aiRun', { job: rec.id, q: qid });
+    if (!j.ok || !j.job) throw Object.assign(new Error('x'), { code: j.error === 'ai_busy' ? 'ai_busy' : j.error });
+    const k = await net.api('start', { job: j.job.id });
+    if (!k.ok) throw Object.assign(new Error('x'), { code: k.error });
+    for (let t = 0; t < 225 && ai === me; t++) {                 // עד ~15 דק׳, כל 4 שנ׳
+      await new Promise((r) => setTimeout(r, 4000));
+      const x = await net.api('job', { job: j.job.id });
+      const v = x.ok && x.job ? normJob({ id: j.job.id, srv: x.job }) : null;
+      if (!v) continue;
+      if (v.srv.state === 'done') {
+        const o = v.srv.out.find((y) => y.k === 'aiout');
+        const res = o ? await net.driveJson(o.id) : null;
+        const model = v.srv.use && v.srv.use.length ? v.srv.use[0].m : '';
+        if (ai === me) aiShowResult(normItems(res && res.items, me.queue), model);
+        return;
+      }
+      if (v.srv.state === 'failed' || v.srv.state === 'cancelled') throw Object.assign(new Error('x'), { code: v.srv.err || 'failed' });
+    }
+  } catch (e) {
+    if (ai === me) { me.busy = false; me.err = (e && e.code) || 'net'; flashSafe(me.err === 'ai_busy' ? T('studioAiBusy') : errText(me.err)); render('none'); }
+  }
+}
+function pageAi(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec) || !se || se.id !== rec.id || !se.ed) { back(); return; }
+  const cues = se.ed.cues();
+  if (!ai || ai.id !== rec.id) ai = { id: rec.id, base: cues, ver: se.ed.ver(), queue: [], k: 'meaning', n: '', scope: se.ed.selected() >= 0 ? 'sel' : 'iss', mode: '', answer: '', items: null, acc: new Set(), busy: false, model: '', err: '' };
+  p.append(navBar({ back: T('studioSeTitle'), title: T('studioAiTitle') }));
+  // תוצאות — השוואה ואישור
+  if (ai.items) {
+    const fixes = ai.items.filter((x) => x.lines);
+    p.append(note(ai.model ? T('studioAiBy', { m: modelLabel(ai.model) }) : T('studioAiByCopy')));
+    if (!ai.items.length) p.append(h('div', 'st-empty st-empty-sm', T('studioAiNone')));
+    p.append(list(...ai.items.map((it) => {
+      const c = ai.base[it.id - 1];
+      const r = it.lines ? btn('st-row st-ai-r', null, () => { if (ai.acc.has(it.id)) ai.acc.delete(it.id); else ai.acc.add(it.id); render('none'); }, 'ai-it:' + it.id) : h('div', 'st-row st-ai-r');
+      const ck = it.lines ? h('span', 'st-check' + (ai.acc.has(it.id) ? ' on' : '')) : h('span', 'st-ai-warn'); ck.append(ico(it.lines ? 'check' : 'alert'));
+      const tx = h('span', 'st-l');
+      const tm = h('small', 'st-ai-tm'); tm.append(h('bdi', null, c ? fmtT(c.s) : '#' + it.id));
+      const old = h('div', 'st-ai-old'); old.dir = 'rtl'; old.textContent = c ? c.lines.join(' / ') : '';
+      const nw = h('div', it.lines ? 'st-ai-new' : 'st-ai-note'); nw.dir = 'rtl'; nw.textContent = it.lines ? it.lines.join(' / ') : it.note;
+      tx.append(tm, old, nw); r.append(ck, tx);
+      if (it.lines) { r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', ai.acc.has(it.id) ? 'true' : 'false'); }
+      return r;
+    })));
+    const n = fixes.filter((x) => ai.acc.has(x.id)).length;
+    const go2 = btn('st-btn wide', n === 1 ? T('studioAiApply1') : T('studioAiApply', { n }), () => {
+      const r = applyItems(se.ed.cues(), ai.base, fixes, ai.acc);
+      if (r.n) se.ed.applyCues(r.cues);
+      flashSafe(r.skipped ? T('studioAiApplied2', { n: r.n, s: r.skipped }) : T('studioAiApplied', { n: r.n }));
+      ai = null; back();
+    }, 'ai-apply');
+    go2.disabled = !n;
+    p.append(h('div', 'st-gap'), go2, h('div', 'st-gap sm'), btn('st-btn tint wide', T('studioAiAgain'), () => { ai.items = null; ai.mode = ''; ai.answer = ''; render('none'); }, 'ai-again'));
+    return;
+  }
+  // הבקשה
+  p.append(secT(T('studioAiWhat')), list(...AI_KINDS.map((k) => rowRadio({ label: aiKindName(k), on: ai.k === k, onClick: () => { ai.k = k; render('none'); }, k: 'ai-k:' + k }))));
+  if (ai.k === 'free') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 2; ta.maxLength = 300; ta.value = ai.n; ta.dir = 'auto'; ta.dataset.k = 'ai-n';
+    ta.placeholder = T('studioAiFreePh'); ta.setAttribute('aria-label', T('studioAiFree'));
+    ta.addEventListener('input', () => { ai.n = ta.value; });
+    p.append(ta);
+  }
+  const sel = se.ed.selected(), nIss = cues.filter((c) => issuesList([c]).length).length;
+  p.append(secT(T('studioAiWhich')), list(
+    rowRadio({ label: T('studioAiSel'), disabled: sel < 0, on: ai.scope === 'sel', onClick: () => { ai.scope = 'sel'; render('none'); }, k: 'ai-s:sel' }),
+    rowRadio({ label: T('studioAiIss', { n: nIss }), disabled: !nIss, on: ai.scope === 'iss', onClick: () => { ai.scope = 'iss'; render('none'); }, k: 'ai-s:iss' }),
+    rowRadio({ label: T('studioAiAll', { n: cues.length }), on: ai.scope === 'all', onClick: () => { ai.scope = 'all'; render('none'); }, k: 'ai-s:all' })));
+  p.append(btn('st-btn tint wide', T('studioAiAdd'), () => {
+    const rows = aiScopeRows(se.ed.cues(), ai.scope, se.ed.selected());
+    const q = normQueue(ai.queue.concat([{ k: ai.k, rows, n: ai.n }]));
+    if (q.length === normQueue(ai.queue).length) { flashSafe(T('studioAiAddNo')); return; }
+    ai.queue = q; ai.base = se.ed.cues(); ai.ver = se.ed.ver(); ai.mode = ''; render('none');
+  }, 'ai-add'));
+  if (!ai.queue.length) { p.append(note(T('studioAiNote'))); return; }
+  // התור + איך להריץ
+  p.append(secT(T('studioAiQueue', { n: ai.queue.length })), list(...ai.queue.map((r, i) => {
+    const row = h('div', 'st-row');
+    row.append(rowTxt(aiKindName(r.k), (r.n ? '«' + r.n + '» · ' : '') + T('studioAiRows', { n: r.rows.length })),
+      btn('st-mini danger', T('studioSeDel'), () => { ai.queue.splice(i, 1); render('none'); }, 'ai-rm:' + i));
+    return row;
+  })));
+  if (ai.busy) { p.append(h('div', 'st-empty st-empty-sm', T('studioAiRunning'))); return; }
+  const prompt = aiPrompt(ai.queue);
+  p.append(secT(T('studioAiHow')), list(
+    rowNav({ tile: tile('copy', 'blue'), label: T('studioAiCopy'), sub: T('studioAiCopyS'), onClick: () => { copyText(prompt, T('studioAiCopied')); ai.mode = 'copy'; render('none'); }, k: 'ai-copy' }),
+    rowNav({ tile: tile('spark', 'green'), label: T('studioAiRun'), sub: T('studioAiRunS', { usd: fmtUsd(aiEstimate(ai.queue).usd) }), onClick: () => aiRunJob(rec), k: 'ai-run' })));
+  if (ai.mode === 'copy') {
+    const ta = h('textarea', 'st-ta'); ta.rows = 6; ta.value = ai.answer; ta.dir = 'auto'; ta.dataset.k = 'ai-ans';
+    ta.placeholder = T('studioAiPastePh'); ta.setAttribute('aria-label', T('studioAiPaste'));
+    ta.addEventListener('input', () => { ai.answer = ta.value; });
+    p.append(secT(T('studioAiPaste')), ta, h('div', 'st-gap sm'), btn('st-btn wide', T('studioAiCheck'), () => aiShowResult(parseAnswer(ai.answer, ai.queue), ''), 'ai-check'));
+  }
 }
 function pageJob(p) {
   const rec = jobRec(ui.param);
@@ -4639,6 +4780,7 @@ function shapeKey() {
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
   if (ui.view === 'subs') { const r = jobRec(ui.param); return 'subs|' + ui.param + '|' + (se ? se.st : '') + '|' + ui.access + '|' + (r && r.srv ? r.srv.ev + ':' + r.srv.vh.length : '') + (r && rrJobs.get(r.id) ? rrJobs.get(r.id).srv.state : ''); }   // מ2: לא נבנה מחדש בזמן הקלדה
   if (ui.view === 'rr') { const x = rrJobs.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
+  if (ui.view === 'ai') return 'ai|' + ui.param + '|' + ui.access + '|' + (ai ? ai.k + ai.scope + ai.mode + ai.queue.length + (ai.busy ? 'b' : '') + (ai.items ? 'i' + ai.items.length + ':' + [...ai.acc].join('.') : '') : '');   // מ7
   if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
   if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
@@ -4670,6 +4812,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'subs') pageSubs(p);   // מ2: עורך הכתוביות
   else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
   else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
+  else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);

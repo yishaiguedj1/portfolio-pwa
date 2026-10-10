@@ -1311,7 +1311,7 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://yishaiguedj1.github.io/portfolio-pwa/oauth.html', verifier: 'short&bad' });
     ok(r.statusCode === 400 && calls.filter((c) => c.url.includes('oauth2.googleapis.com/token')).length === nTok, 'PKCE: verifier בצורה לא תקינה — נדחה, בלי פנייה ל־Google');
     r = await run({ op: 'status', idToken: OWNER });
-    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם ולהפיק מחדש');
+    ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected && r.payload.drive.email === 'drive.owner@example.com' && r.payload.kinds.join() === 'ping,tr,rr,ai', 'סטודיו: מצב — Drive של הסטודיו מחובר, עדיין לא Claude; העובד יודע לבדוק חיבור, לתרגם, להפיק מחדש ולענות על גיליון AI');
 
     // חיבור: כספת
     r = await run({ op: 'connect', idToken: OWNER, url: 'https://evil.example/fire', key: RKEY });
@@ -1911,6 +1911,24 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.ok && !db.get('studioJobs/' + R1.id), 'סטודיו: הפקה מחדש — רק ההפקה האחרונה נשמרת');
       ok(JSON.stringify(rr.payload.job.spec.edl) === '{"k":[[0,20],[30,90]],"ar":"9:16","x":0.4}', 'סטודיו: הפקה מחדש — החיתוך אחרי התרגום נשמר מנורמל (מ5)');
       const R3 = rr.payload.job.id;
+      // מ7: גיליון ה־AI בהפעלה אחת — הבקשה בתיקיית העבודה, עבודת ai "חדשה", start, העובד מקבל את הבקשה, התשובה = aiout
+      driveFiles.set('aiq1234567890', { id: 'aiq1234567890', name: 'Talk (AI).request.json', size: '900', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'outc1234567890x' });
+      ok(rr.statusCode === 400, 'סטודיו: גיליון AI — קובץ בקשה שלא בתיקיית העבודה נדחה');
+      rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' });
+      const A1 = rr.payload.job;
+      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'sonnet-medium', 'סטודיו: גיליון AI — עבודה "חדשה" (Sonnet Medium כברירת מחדל)');
+      ok((await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' })).payload.error === 'ai_busy', 'סטודיו: גיליון AI — אחד בכל פעם לכל עבודה');
+      const f2 = fires.length;
+      rr = await run({ op: 'start', idToken: OWNER, job: A1.id });
+      ok(rr.payload.ok && fires.length === f2 + 1, 'סטודיו: גיליון AI — מתחיל כמו כל עבודה');
+      const ka = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: A1.id, key: ka });
+      ok(rr.payload.ok && rr.payload.job.kind === 'ai' && rr.payload.job.files.q.id === 'aiq1234567890', 'סטודיו: גיליון AI — העובד מקבל את הבקשה');
+      driveFiles.set('aio1234567890', { id: 'aio1234567890', name: 'Talk (AI).json', size: '300', parents: ['fold1234567890'], trashed: false });
+      rr = await wrk({ op: 'report', job: A1.id, key: ka, done: true, out: [{ id: 'aio1234567890', name: 'Talk (AI).json', size: 300, k: 'aiout' }], usage: [{ k: 'main', m: 'claude-sonnet-5-5', n: 1, i: 900, o: 200, cr: 0, c5: 0, c1: 0, usd: 0.01 }] });
+      const A2 = SR.fromFields(db.get('studioJobs/' + A1.id).fields);
+      ok(rr.payload.ok && A2.state === 'done' && A2.fo[0].k === 'aiout' && A2.use[0].m === 'claude-sonnet-5-5', 'סטודיו: גיליון AI — התשובה והמודל שענה נשמרים');
       for (const id of [JP, JN]) await run({ op: 'remove', idToken: OWNER, job: id });
       ok(!db.get('studioJobs/' + R3), 'סטודיו: הפקה מחדש — נמחקת יחד עם העבודה המקורית');
       const odE = db.get('studioOps/ownerUid0001');

@@ -691,3 +691,17 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-sg-w { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
 .st-sg-p { font-size: 15px; line-height: 1.4; }
 .st-sg-a { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------- מ7: גיליון ה־AI ---------- */
+.st-ai-r { align-items: flex-start; }
+.st-ai-tm { color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+.st-ai-old { color: var(--on-surface-var); text-decoration: line-through; font-size: 14px; }
+.st-ai-new { color: var(--primary); font-size: 15.5px; font-weight: 500; }
+.st-ai-note { color: #B25000; font-size: 14.5px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .st-ai-note { color: #FFB340; } }
+:root[data-theme="dark"] .st-ai-note { color: #FFB340; }
+
+.st-ai-warn { flex: none; width: 24px; height: 24px; display: grid; place-items: center; color: #B25000; }
+.st-ai-warn svg { width: 20px; height: 20px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .st-ai-warn { color: #FFB340; } }
+:root[data-theme="dark"] .st-ai-warn { color: #FFB340; }

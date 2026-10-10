@@ -84,13 +84,19 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(E.fmtTc(62.44) === '1:02.4' && E.fmtTc(3725) === '1:02:05.0' && E.fmtTc(-1) === '0:00.0', 'fmtTc: עשיריות');
   ok(!/‮/.test(E.toSrt([cue(1, 0, 1, ['א‮ב'])])), 'toSrt: בלי תווי כיווניות מהטקסט');
 
+  /* ---------- 7ב. ייצוא (מ7) ---------- */
+  const xv = E.toVtt([cue(1, 1, 2.5, ['שלום <b>&', 'עולם'])]);
+  ok(xv.startsWith('WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.500\n\u200fשלום &lt;b&gt;&amp;\n') && !/-->[^ ]/.test(xv.split('\n').slice(4).join('')), 'toVtt: זמנים עם נקודה, RLM, תגיות ו־& בורחים (לא מתפרשים בנגן)');
+  const xt = E.toTtml([cue(1, 1, 2.5, ['א <x>', 'ב'])], 'T&"');
+  ok(/xml:lang="he"/.test(xt) && /tts:direction="rtl"/.test(xt) && /<p begin="00:00:01\.000" end="00:00:02\.500">א &lt;x&gt;<br\/>ב<\/p>/.test(xt) && /T&amp;&quot;/.test(xt), 'toTtml: עברית מימין לשמאל, XML בטוח');
+
   /* ---------- 8. העובד — אותו ניקוי וגבולות (translator/rerender.py) ---------- */
   const rr = read('translator/rerender.py');
   ok(/MAX_LINES = 3/.test(rr) && /MIN_DUR = 0\.05/.test(rr) && /from vt\.subs import write_ass, write_ass_compat, write_srt, write_vtt/.test(rr), 'rerender.py: אותן פונקציות של vt build (עיצוב זהה)');
 
   /* ---------- 9. החיבור לאפליקציה ---------- */
   const sj = read('studio.js');
-  ok(/import \{ createSubsEditor, toSrt, toCuesJson \} from '\.\/studiosubs\.js';/.test(sj) && /'\.\/studiosubs\.js'/.test(read('sw.js')), 'studio.js מייבא את העורך; sw.js שומר אותו לאופליין');
+  ok(/import \{ createSubsEditor, toSrt, toCuesJson, toVtt, toTtml \} from '\.\/studiosubs\.js';/.test(sj) && /'\.\/studiosubs\.js'/.test(read('sw.js')), 'studio.js מייבא את העורך; sw.js שומר אותו לאופליין');
   ok(/x === 'play' \|\| x === 'subs' \|\| x === 'rr' \? \['job', y\]/.test(sj), 'חזור מהעורך / מההפקה — לדף העבודה');
   ok(/if \(ui\.view === 'subs'\) seStop\(\)/.test(sj) && /'subs\|' \+ ui\.param/.test(sj), 'הנגן של העורך נעצר ביציאה; הדף לא נבנה מחדש בזמן הקלדה');
   ok(/net\.api\('cuesSave', \{ job: rec\.id, c, s: s2, ev: rec\.srv\.ev \|\| 0 \}\)/.test(sj) && /\{ snbEdit: 'c' \}/.test(sj), 'שמירה: שני קבצים לתיקיית העבודה ואז cuesSave עם הגרסה (בלי דריסה של שמירה ממקום אחר)');
