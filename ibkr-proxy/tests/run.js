@@ -2743,6 +2743,43 @@ function stubFetch(text, status = 200) {
       await wrk({ op: 'report', job: jid, key: kk, done: true });
       const m2 = decrypt(pushes[1].body), all = pushes.map((x) => JSON.stringify(decrypt(x.body))).join();
       ok(m2.k === 'done' && !/Ackman|interview|mkv/i.test(all), 'push: סיום → "התרגום מוכן"; בלי שם הקובץ ובלי תוכן העבודה');
+      // ת7: ניטור — הבדיקה המתוזמנת (GET מ־GitHub Actions)
+      {
+        const cr = await run({ op: 'srvCreate', idToken: OWNER, name: 'mon' });
+        const T7 = cr.payload.token, S7 = cr.payload.server.id;
+        const get = async (h) => { const x = mockRes(); await studio._handler({ method: 'GET', headers: h || {} }, x, deps()); payloads.push(JSON.stringify(x.payload)); return x; };
+        const srvOpen = async () => ((await run({ op: 'status', idToken: OWNER })).payload.ops.open || []).some((a) => a.c === 'server' && a.k === 'down');
+        pushes = [];
+        let g = await get();
+        ok(g.statusCode === 200 && g.payload.down === 0 && pushes.length === 0, 'ת7: שרת שעוד לא התחבר — לא "נפל" (קוד הקמה שמחכה למלאי)');
+        await srvRun({ op: 'poll', hb: {} }, T7);
+        now += 14 * 60e3;
+        g = await get();
+        ok(g.payload.down === 0 && pushes.length === 0, 'ת7: שקט של פחות מרבע שעה — בלי התראה (עבודה ארוכה / שרתון שנפל לרגע)');
+        now += 2 * 60e3;
+        g = await get();
+        const m1 = pushes.length === 1 && decrypt(pushes[0].body);
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down',
+          'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספר');
+        ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
+        now += 40 * 60e3;
+        g = await get();
+        ok(g.payload.down === 0 && pushes.length === 1 && await srvOpen(), 'ת7: בלי התראה כפולה, וההתראה במגדל לא נסגרת לבד אחרי חצי שעה');
+        pushes = [];
+        await srvRun({ op: 'poll', hb: {} }, T7);
+        ok(pushes.length === 1 && decrypt(pushes[0].body).k === 'srv_up' && !+(db.get('studioServers/' + S7).fields.dn || {}).integerValue && !(await srvOpen()),
+          'ת7: השרת חזר → "חזר ✓", הסימון וההתראה במגדל נסגרים');
+        process.env.STUDIO_WATCH_SECRET = 'w-secret-1';
+        g = await get();
+        const g2 = await get({ authorization: 'Bearer w-secret-1' });
+        delete process.env.STUDIO_WATCH_SECRET;
+        ok(g.statusCode === 401 && g2.statusCode === 200, 'ת7: STUDIO_WATCH_SECRET (אופציונלי) נאכף כשמוגדר');
+        now += 16 * 60e3;
+        await get();
+        ok(await srvOpen(), 'ת7: נפל שוב');
+        await run({ op: 'srvRemove', idToken: OWNER, sid: S7 });
+        ok(!(await srvOpen()), 'ת7: שרת שנפל והוסר (נמחק ב־Hetzner) — ההתראה נסגרת');
+      }
       r = await run({ op: 'push', idToken: OWNER, act: 'off', e: 'https://fcm.googleapis.com/fcm/send/dev1' });
       ok(r.payload.n === 0, 'push: ביטול במכשיר');
       await run({ op: 'remove', idToken: OWNER, job: jid });

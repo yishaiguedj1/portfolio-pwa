@@ -1,0 +1,28 @@
+# ת7 — ניטור שרתי התרגום: כל 10 דקות שואלים את השרתון אם שרת שדיווח בעבר שותק מעל רבע שעה.
+# אם כן — השרתון שולח התראה לטלפון ופותח התראה במגדל (פעם אחת, עד שהשרת חוזר או מוסר).
+# ב־Vercel Hobby קרון רץ רק פעם ביום — לכן כאן. בלי actions חיצוניים ובלי הרשאות לריפו.
+# לא נכשל לעולם (גם כשהשרתון לא עונה): ריצה אדומה כל 10 דקות = מייל "Run failed" כל 10 דקות.
+# אופציונלי: STUDIO_WATCH_SECRET — אותו ערך ב־Vercel וב־Secrets של הריפו (בלי הסוד — הבדיקה פתוחה, ולא חושפת שום נתון).
+name: studio-watch
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: studio-watch
+  cancel-in-progress: false
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: בדיקת השרתים
+        env:
+          SECRET: ${{ secrets.STUDIO_WATCH_SECRET }}
+        run: |
+          args=(-sS -o r.json -w '%{http_code}' --max-time 60)
+          if [ -n "$SECRET" ]; then args+=(-H "Authorization: Bearer $SECRET"); fi
+          code=$(curl "${args[@]}" https://ibkr-proxy-wine.vercel.app/api/studio || echo 000)
+          echo "HTTP $code: $(head -c 200 r.json 2>/dev/null)"
+          if [ "$code" != 200 ]; then echo "::warning::השרתון לא ענה לבדיקה (HTTP $code)"; fi

@@ -614,6 +614,13 @@ function normHb(h) {
     iso: h.iso === 'g' || h.iso === 'r' ? h.iso : '', iw: h.iso === 'r' && ['mem', 'missing', 'selftest', 'manual'].includes(h.iw) ? h.iw : '',
     al: h.al === 'o' || h.al === 't' ? h.al : '' };   // שלב 4.1: מנוע היישור (o = ONNX INT8)
 }
+/* ת7 — ניטור: שרת שכבר דיווח ושותק מעל SRV_DOWN_MS "נפל". שרת שעוד לא התחבר (seen 0 — למשל קוד הקמה שמחכה למלאי)
+   לא נחשב; ומי שכבר סומן (dn) לא מתריע שוב עד שיחזור. העובד שואל כל 20 שנ׳, באמצע עבודה דופק כל 5 דק׳,
+   ובתקלה בשרתון מחכה עד 5 דק׳ — רבע שעה = בלי התראות שווא */
+const SRV_DOWN_MS = 15 * 60e3;
+function serversDown(list, now) {
+  return (Array.isArray(list) ? list : []).filter((s) => s && SRV_ID_RE.test(String(s.id || '')) && s.seen > 0 && now - s.seen > SRV_DOWN_MS && !s.dn);
+}
 function serverView(s, now) {
   if (!s || !SRV_ID_RE.test(String(s.id || ''))) return null;
   return { id: s.id, name: clean(s.name, 40) || s.id, created: s.created || 0, seen: s.seen || 0,
@@ -670,6 +677,6 @@ module.exports = {
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
-  SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
+  SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, serverView, monthKey, monthUsed, addMonth, jobCap,
 };
