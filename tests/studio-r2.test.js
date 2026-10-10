@@ -236,5 +236,26 @@ function fakeR2(o = {}) {
   ok(removed === 1 && !S3.objs.has(key1), 'מחיקת עבודה מוחקת את כל הקבצים שלה');
   ok(await SR.purgeJob(c, S3.deps, { uid: '..', job: J1 }) === 0, 'מחיקה עם uid לא תקין — כלום');
 
+  /* ---------- 7. בדיקת החיבור מהשרתון (GET ?r2=1) — רק כן/לא וקוד ---------- */
+  Object.assign(process.env, ENV);
+  const api = require(path.join(root, 'ibkr-proxy/api/studio.js'));
+  const call = async (q, S) => { const out = {}; const res = { setHeader() {}, status(c) { out.c = c; return res; }, json(j) { out.j = j; return res; } };
+    await api._handler({ method: 'GET', query: q, headers: {} }, res, { fetch: S.fetch, now: S.now }); return out; };
+  R2._reset(); api._reset();
+  const SH = fakeR2();
+  let hr = await call({ r2: '1' }, SH);
+  ok(hr.c === 200 && hr.j.r2.ok && hr.j.r2.eu && hr.j.r2.cors === true && !hr.j.r2.error, 'השרתון: R2 מחובר, באירופה, CORS תקין');
+  ok(!JSON.stringify(hr.j).includes('sekret') && !JSON.stringify(hr.j).includes(ACC), 'בתשובה אין מפתח ואין Account ID');
+  R2._reset();
+  hr = await call({ r2: '1' }, fakeR2({ cors: false }));
+  ok(hr.j.r2.ok === false && hr.j.r2.error === 'r2_cors', 'השרתון: CORS חסר — קוד ברור');
+  R2._reset();
+  await call({ r2: '1' }, SH);
+  ok((await call({ r2: '1' }, SH)).c === 429, 'בדיקת החיבור מוגבלת ל־3 בדקה');
+  for (const k of Object.keys(ENV)) delete process.env[k];
+  R2._reset(); api._reset();
+  hr = await call({ r2: '1' }, SH);
+  ok(hr.j.r2.ok === false && hr.j.r2.error === 'not_configured', 'בלי משתנים — not_configured');
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

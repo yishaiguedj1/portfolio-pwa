@@ -30,6 +30,7 @@ const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ו
 const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נלמד לכל שלב
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
+const R2 = require('../lib/r2');   // ת4: האחסון ב־Cloudflare R2
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
@@ -254,6 +255,12 @@ async function watch(req, res, deps) {
   res.setHeader('Cache-Control', 'no-store');
   const secret = process.env.STUDIO_WATCH_SECRET;
   if (secret && String((req.headers || {}).authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
+  /* ת4: בדיקת החיבור ל־R2 (?r2=1) — כותבת קובץ זעיר, קוראת ומוחקת, ובודקת CORS לאתר. בתשובה רק כן/לא וקוד שגיאה */
+  if (String((req.query || {}).r2 || '') === '1') {
+    if (limited('r2h', 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    const h = await R2.health(R2.config(), { fetch: deps.fetch, now: deps.now ? () => deps.now : undefined }, 'https://yishaiguedj1.github.io');
+    return res.status(200).json({ ok: true, r2: { ok: !!h.ok, eu: !!h.eu, cors: h.cors === undefined ? null : !!h.cors, error: String(h.error || '').slice(0, 60) } });
+  }
   if (limited('watch', 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   const now = deps.now || Date.now();
   try {
