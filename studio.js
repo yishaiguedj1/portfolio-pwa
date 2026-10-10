@@ -1973,6 +1973,7 @@ function startFromForm() {
 export function normPicker(o) {
   return o && /^[A-Za-z0-9_-]{20,80}$/.test(String(o.key || '')) && /^\d{6,20}$/.test(String(o.app || '')) ? { key: o.key, app: o.app } : null;
 }
+const PICK_VIDEO_TYPES = 'video/mp4,video/quicktime,video/x-matroska,video/webm,video/x-msvideo,video/3gpp,video/mp2t,video/x-m4v,video/mpeg';   // לשונית התיקיות: רק סרטונים (ותיקיות)
 let pickerLoad = null, pickerNow = null;
 function loadPicker() {
   if (window.google && window.google.picker) return Promise.resolve();
@@ -1994,11 +1995,18 @@ async function drivePick(kind) {
   const [tok] = await Promise.all([net.driveToken(), loadPicker()]);
   const G = window.google.picker;
   return new Promise((res) => {
-    const view = kind === 'folder'
-      ? new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder')
-      : new G.DocsView(G.ViewId.DOCS_VIDEOS).setIncludeFolders(true);
+    /* רשימה (לא רשת): שם, תאריך, גודל — בלי ריבועי תמונה ממוזערת שבורים. לשונית לכל דרך חיפוש; label רק כשהגרסה תומכת */
+    const L = (v, label) => { v.setMode(G.DocsViewMode.LIST); if (typeof v.setLabel === 'function') v.setLabel(label); return v; };
+    const views = kind === 'folder'
+      ? [L(new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder').setParent('root'), T('studioPkMine')),
+        L(new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder').setStarred(true), T('studioPkStar'))]
+      : [L(new G.DocsView(G.ViewId.DOCS_VIDEOS).setIncludeFolders(false), T('studioPkVideos')),   // כל הסרטונים — מהחדש לישן
+        L(new G.DocsView(G.ViewId.DOCS).setMimeTypes(PICK_VIDEO_TYPES).setIncludeFolders(true).setParent('root'), T('studioPkMine')),   // מעבר בין תיקיות כמו ב־Drive
+        L(new G.DocsView(G.ViewId.DOCS_VIDEOS).setStarred(true), T('studioPkStar'))];
     const done = (x) => { if (pickerNow && pickerNow.res === res) pickerNow = null; res(x); };
-    const pk = new G.PickerBuilder().setOAuthToken(tok).setDeveloperKey(cfg.key).setAppId(cfg.app).addView(view)
+    const pb = new G.PickerBuilder().setOAuthToken(tok).setDeveloperKey(cfg.key).setAppId(cfg.app);
+    for (const v of views) pb.addView(v);
+    const pk = pb
       .setLocale(uiLang() === 'he' ? 'iw' : 'en').setTitle(kind === 'folder' ? T('studioDxPickT') : T('studioFromDrive'))
       .setCallback((d) => {
         const a = d && d[G.Response.ACTION];
