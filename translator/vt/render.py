@@ -35,7 +35,11 @@ PROFILES = {
     # "same": אותה איכות וגודל כמו המקור — CRF מכויל כך שקצב הווידאו ≈ המקור × (1 + headroom).
     # preset 9: פי 1.5 מהיר מ־8 ב־0.1–0.3 נקודות VMAF פחות (לא מורגש). enable-tf=0: בלי סינון זמני
     # שמחליק מרקם (שיער, עור) — נבדק בעין בחיתוך 1:1. variance boost: יותר ביטים לאזורים חלקים/כהים.
-    "same": {"preset": 9, "headroom": 0.02, "params": "enable-tf=0:enable-variance-boost=1", "crfs": (40, 50)},
+    # 10/10/2026 (שלב 4.3) — preset 10: נמדד על 5 דק׳ TED אמיתיות (VMAF מול המקור + אותן כתוביות כמעט בלי אובדן):
+    #   מקור 1.1Mbps (CRF נחסם ב־18): הצריבה 43→28 שנ׳ (‎−34%), VMAF 96.89→96.62 (‎−0.27), גודל ×0.80→×0.87
+    #   מקור 300kbps (CRF מכויל):     33→25 שנ׳ (‎−25%), VMAF 94.35→93.82 (‎−0.53), גודל ×0.93→×0.91
+    #   preset 11 כבר ‎−1.5 VMAF — לא. החזרה: "preset": 9.
+    "same": {"preset": 10, "headroom": 0.02, "params": "enable-tf=0:enable-variance-boost=1", "crfs": (40, 50)},
     # "small": גרסה דחוסה (‎--compact): 65% מקצב המקור, preset 9, בלי variance boost.
     # נמדד בקטע מאקמן באותו קצב (~260kbps): preset 9 = VMAF 93.9 ב־87fps; preset 6 = 94.6 ב־28fps (פי 3 איטי);
     # preset 9 עם variance boost = 93.1 (בקצב נמוך הוא לוקח ביטים מהפנים). preset 6/7 מנצלים 3.6–3.7 ליבות —
@@ -97,6 +101,39 @@ def enc_args(codec: str, crf: int, preset: int | str, params: str = "") -> list[
     return ["-c:v", "libx264", "-preset", str(preset), "-crf", str(crf), "-pix_fmt", "yuv420p", "-profile:v", "high"]
 
 
+CRF_MIN, CRF_MAX = 18, 60
+CAL_MIN, CAL_MARGIN = 4, 4
+
+
+def spread_order(n: int) -> list[int]:
+    """סדר הדגימות כך שכל התחלה של הרשימה מפוזרת על כל הסרטון: 0, n-1, האמצע, הרבעים…
+    (בסדר רגיל 4 הדגימות הראשונות הן השליש הראשון בלבד — עצירה מוקדמת הייתה מוטה)."""
+    if n <= 2:
+        return list(range(n))
+    out, seen, q = [0, n - 1], {0, n - 1}, [(0, n - 1)]
+    while q:
+        a, b = q.pop(0)
+        m = (a + b) // 2
+        if m not in seen:
+            out.append(m)
+            seen.add(m)
+        if m - a > 1:
+            q.append((a, m))
+        if b - m > 1:
+            q.append((m, b))
+    return out + [i for i in range(n) if i not in seen]
+
+
+def _crf_raw(enc: dict, src_bytes: int, crfs: tuple[int, int], ratio: float) -> float:
+    """ה־CRF שצפוי לתת ratio × המקור (בלי עיגול ובלי גבולות) — מהדגימות שנאספו עד עכשיו."""
+    import math
+    r1, r2 = (enc[c] / max(src_bytes, 1) for c in crfs)
+    slope = (math.log(r2) - math.log(r1)) / (crfs[1] - crfs[0])
+    if not slope < 0:                      # דגימות שקטות/זהות — אין מגמה; החלטה רק בסוף (כמו קודם)
+        return float(crfs[0])
+    return (math.log(ratio) - math.log(r1)) / slope + crfs[0]
+
+
 def calibrate_crf(src: Path, ass: Path, info: dict, ratio: float, codec: str = "av1",
                   preset: int = 9, crfs: tuple[int, int] = (40, 50), n: int = 12, gop: int = 161,
                   params: str = "", packets: list | None = None) -> tuple[int, float]:
@@ -117,11 +154,19 @@ def calibrate_crf(src: Path, ass: Path, info: dict, ratio: float, codec: str = "
     pts = [t for t, _ in packets]
     fps = float(info.get("video", {}).get("fps_float") or 24)
     win = gop / fps
-    starts = [dur * (0.04 + 0.92 * i / max(1, n - 1)) for i in range(n)]
+    starts = [dur * (0.04 + 0.92 * i / max(1, n - 1)) for i in spread_order(n)]
     enc = {c: 0 for c in crfs}
     src_bytes = 0
     with tempfile.TemporaryDirectory() as td:
         for k, t in enumerate(starts):
+            # עצירה מוקדמת (שלב 4.3, 10/10/2026): מקור בקצב גבוה (סרטון מהטלפון, הרצאה ב־1Mbps) נחסם ב־CRF 18
+            # בכל מקרה — אחרי 4 דגימות מפוזרות על כל הסרטון ההחלטה ידועה, ושאר הכיול מבוזבז (נמדד: 24% מזמן
+            # הצריבה ב־5 דק׳). רק כשהחיזוי רחוק ≥4 מהגבול; קרוב לגבול — ממשיכים כרגיל.
+            if k >= CAL_MIN and src_bytes > 0 and min(enc.values()) > 0:
+                raw = _crf_raw(enc, src_bytes, crfs, ratio)
+                if raw < CRF_MIN - CAL_MARGIN or raw > CRF_MAX + CAL_MARGIN:
+                    log(f"כיול: {k} דגימות מספיקות (החיזוי {raw:.0f} — מחוץ לטווח, נחסם)")
+                    break
             t = min(t, max(0.0, dur - win - 1))
             a, b = bisect.bisect_left(pts, t + base), bisect.bisect_left(pts, t + base + win)
             src_bytes += sum(sz for _, sz in packets[a:b])
@@ -136,8 +181,8 @@ def calibrate_crf(src: Path, ass: Path, info: dict, ratio: float, codec: str = "
                 enc[c] += outs[c].stat().st_size
     r1, r2 = (enc[c] / max(src_bytes, 1) for c in crfs)
     slope = (math.log(r2) - math.log(r1)) / (crfs[1] - crfs[0])
-    crf = (math.log(ratio) - math.log(r1)) / slope + crfs[0]
-    crf = int(min(60, max(18, math.ceil(crf - 0.15))))          # ceil = לא לעבור את היעד
+    crf = _crf_raw(enc, src_bytes, crfs, ratio)
+    crf = int(min(CRF_MAX, max(CRF_MIN, math.ceil(crf - 0.15))))          # ceil = לא לעבור את היעד
     pred = r1 * math.exp(slope * (crf - crfs[0]))
     log(f"כיול: CRF{crfs[0]}=×{r1:.2f} · CRF{crfs[1]}=×{r2:.2f} מהמקור → CRF {crf} (צפוי ×{pred:.2f}, יעד ×{ratio:.2f})")
     return crf, pred

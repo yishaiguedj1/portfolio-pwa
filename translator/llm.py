@@ -37,13 +37,16 @@ HAIKU_LONG = (0.50, 2.50, 0.05)      # Haiku 5.5 — בקשה מעל 100K טוק
 HAIKU_LONG_AT = 100_000
 
 # מצבי התרגום (MODES בטלפון ובשרתון): ספק + מודל + מאמץ. מצב חדש = שורה כאן.
+# 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס (effort עד max, ברירת המחדל שלו medium), Opus High/Max יצאו.
 MODES = {
-    'opus-medium': ('anthropic', 'claude-opus-5-5', 'medium'),
-    'opus-high': ('anthropic', 'claude-opus-5-5', 'high'),
-    'opus-max': ('anthropic', 'claude-opus-5-5', 'max'),
     'sonnet-medium': ('anthropic', 'claude-sonnet-5-5', 'medium'),
+    'haiku-medium': ('anthropic', 'claude-haiku-5-5', 'medium'),
+    'haiku-high': ('anthropic', 'claude-haiku-5-5', 'high'),
     'sonnet-high': ('anthropic', 'claude-sonnet-5-5', 'high'),
+    'opus-medium': ('anthropic', 'claude-opus-5-5', 'medium'),
 }
+DEFAULT_MODE = 'sonnet-medium'
+LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium'}   # = LEGACY_MODES בשרתון
 
 
 class LLMError(RuntimeError):
@@ -62,6 +65,7 @@ class Spec:
 
     @classmethod
     def of(cls, mode: str) -> 'Spec':
+        mode = LEGACY_MODES.get(mode, mode)
         if mode not in MODES:
             raise LLMError('mode_unknown', f'מצב תרגום לא מוכר: {mode}')
         p, m, e = MODES[mode]

@@ -20,32 +20,37 @@ const STUBS = { createNet: () => ({ api: async () => ({ ok: false }), driveApi: 
   probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}), progressModel: () => ({ stages: [], left: 0, pct: 0 }),
   createBackup: () => ({}), waitOAuthCode: () => {} };
 const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
-const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
+const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, migrateSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
 ok(S.LS_STUDIO === 'pwa_studio_v1', 'מפתח האחסון: pwa_studio_v1');
 const def = S.defaultSettings();
-ok(def.mode === 'opus-medium' && S.DEFAULT_MODE === 'opus-medium', 'ברירת המחדל: Opus 5.5 · Medium');
-ok(S.MODES.filter((m) => m.rec).length === 1 && S.MODES.find((m) => m.rec).id === 'opus-medium', 'בדיוק מצב אחד מסומן "מומלץ" — Opus Medium');
-ok(S.MODES.map((m) => m.id).sort().join() === 'opus-high,opus-max,opus-medium,sonnet-high,sonnet-medium', 'חמשת המצבים מהתוכנית');
+ok(def.mode === 'sonnet-medium' && S.DEFAULT_MODE === 'sonnet-medium', 'ברירת המחדל: Sonnet 5.5 · Medium (מ־10/10/2026)');
+ok(S.MODES.filter((m) => m.rec).length === 1 && S.MODES.find((m) => m.rec).id === 'sonnet-medium', 'בדיוק מצב אחד מסומן "מומלץ" — Sonnet Medium');
+ok(S.MODES.map((m) => m.id).sort().join() === 'haiku-high,haiku-medium,opus-medium,sonnet-high,sonnet-medium', 'חמשת המצבים (10/10/2026: Haiku במקום Opus High/Max)');
 ok(def.out.same === true && def.out.compact === false && def.out.mkv === false, 'ברירת המחדל לפלט: זהה למקור (+SRT תמיד)');
 ok(S.outList(def.out).join() === 'same,srt' && S.outList({ compact: true, mkv: true }).join() === 'compact,mkv,srt', 'SRT תמיד בסוף רשימת הפלטים');
 ok(def.to.join() === 'he' && def.style === 'bold' && def.conn === 'sub', 'ברירות מחדל: עברית, מודגש, המנוי שלי');
 const bad = S.normSettings({ mode: 'gpt', to: ['xx', 'en', 'en', 'he'], out: { same: 'yes', compact: true }, style: 'neon', conn: 'hack' });
-ok(bad.mode === 'opus-medium' && bad.to.join() === 'en,he' && bad.out.same === true && bad.out.compact === true && bad.style === 'bold' && bad.conn === 'sub',
+ok(bad.mode === 'sonnet-medium' && bad.to.join() === 'en,he' && bad.out.same === true && bad.out.compact === true && bad.style === 'bold' && bad.conn === 'sub',
   'נרמול הגדרות: ערכים לא מוכרים חוזרים לברירת המחדל, שפות בלי כפילויות');
+// 10/10/2026: Opus High/Max הוסרו → Opus Medium; ברירת המחדל הישנה (Opus Medium בלי mv) עוברת פעם אחת ל־Sonnet Medium
+ok(S.normSettings({ mode: 'opus-max' }).mode === 'opus-medium' && S.migrateSettings({ mode: 'opus-medium' }).mode === 'sonnet-medium'
+  && S.migrateSettings({ mode: 'opus-medium', mv: 2 }).mode === 'opus-medium' && S.migrateSettings({ mode: 'sonnet-high' }).mode === 'sonnet-high'
+  && S.migrateSettings({ mode: 'opus-high' }).mode === 'sonnet-medium' && S.migrateSettings(null).mv === 2 && S.modeById('opus-high').id === 'opus-medium',
+  'מצבים שהוסרו → Opus Medium; ברירת המחדל הישנה עוברת פעם אחת לחדשה, בחירה אחרת נשמרת');
 ok(S.normSettings({ to: [] }).to.join() === 'he', 'תמיד לפחות שפת יעד אחת');
 ok(S.normDraft({ id: '../x' }) === null && S.normDraft({ id: '<b>' }) === null && S.normDraft(null) === null, 'מזהה טיוטה לא תקין — נדחה');
 const d = S.normDraft({ id: 'dabc123', name: 'x'.repeat(500), size: '3447000000', from: 'zz', terms: 'y'.repeat(5000), mode: 'sonnet-high', created: 5 });
 ok(d && d.name.length === 200 && d.size === 3447000000 && d.from === 'auto' && d.terms.length === 1000 && d.mode === 'sonnet-high', 'נרמול טיוטה: אורכים מוגבלים, שפה לא מוכרת = זיהוי אוטומטי');
 const store = S.normStore({ drafts: [{ id: 'd1aaaa' }, { id: 'd1aaaa' }, { id: 'bad id' }, 7], settings: null });
-ok(store.drafts.length === 1 && store.settings.mode === 'opus-medium', 'נרמול אחסון: בלי כפילויות ובלי זבל');
+ok(store.drafts.length === 1 && store.settings.mode === 'sonnet-medium', 'נרמול אחסון: בלי כפילויות ובלי זבל');
 ok(S.normStore(null).drafts.length === 0 && S.normStore('x').drafts.length === 0, 'אחסון ריק/פגום — ריק');
-const nd = S.newDraft({ file: { name: 'a.mp4', size: 1024, type: 'video/mp4' }, from: 'en', to: ['he', 'ar'], mode: 'opus-max', out: { same: false, compact: true }, style: 'karaoke', terms: 'Ackman' }, 9, 'dnew01');
-ok(nd.name === 'a.mp4' && nd.size === 1024 && nd.to.join() === 'he,ar' && nd.mode === 'opus-max' && nd.out.compact && !nd.out.same && nd.style === 'karaoke' && nd.created === 9,
+const nd = S.newDraft({ file: { name: 'a.mp4', size: 1024, type: 'video/mp4' }, from: 'en', to: ['he', 'ar'], mode: 'haiku-high', out: { same: false, compact: true }, style: 'karaoke', terms: 'Ackman' }, 9, 'dnew01');
+ok(nd.name === 'a.mp4' && nd.size === 1024 && nd.to.join() === 'he,ar' && nd.mode === 'haiku-high' && nd.out.compact && !nd.out.same && nd.style === 'karaoke' && nd.created === 9,
   'טיוטה מהטופס — רק פרטי הקובץ והבחירות');
 ok(!('blob' in nd) && !('file' in nd) && Object.keys(nd).every((k) => typeof nd[k] !== 'object' || Array.isArray(nd[k]) || k === 'out'), 'הקובץ עצמו לא נשמר בטיוטה');
 ok(S.fmtSize(3447000000) === '3.2GB' && S.fmtSize(150 * 1048576) === '150MB' && S.fmtSize(2048) === '2KB' && S.fmtSize(12 * 1073741824) === '12GB', 'גדלים: GB/MB/KB');
 ok(S.fmtHM(105) === '1:45' && S.fmtHM(85) === '1:25' && S.fmtHM(160) === '2:40', 'זמן לשעת ראיון: שעות:דקות');
-ok(S.modeName(S.modeById('opus-medium')) === 'Opus 5.5 · Medium' && S.modeById('nope').id === 'opus-medium', 'שם מצב + נפילה לברירת המחדל');
+ok(S.modeName(S.modeById('opus-medium')) === 'Opus 5.5 · Medium' && S.modeName(S.modeById('haiku-high')) === 'Haiku 5.5 · High' && S.modeById('nope').id === 'sonnet-medium', 'שם מצב + נפילה לברירת המחדל');
 ok(S.langName('he', 'he') === 'עברית' && S.langName('en', 'en') === 'English', 'שמות שפות מ־Intl (בלי רשת)');
 ok(S.fileTitle('Ackman_TKP_interview.mp4') === 'Ackman TKP interview' && S.fileTitle('הרצאה.mkv') === 'הרצאה' && S.fileTitle('.mp4') === '.mp4' && S.fileExt('a.MkV') === 'MKV' && S.fileExt('noext') === '', 'שם תצוגה וסוג מהקובץ');
 ok(S.TARGET_LANGS.includes('he') && S.TARGET_LANGS.includes('en') && S.SOURCE_LANGS.includes('en'), 'רשימות השפות');

@@ -311,8 +311,10 @@ class Pipeline:
             if warm:
                 warm.set()
 
-    def translate(self, fix: bool = True):
-        """fix=False במסלול המקבילי: tr-check רץ רק אחרי שהיישור ו־retime קבעו את התקציבים הסופיים."""
+    def translate(self, fix: bool = True, quiet: bool = False):
+        """fix=False במסלול המקבילי: tr-check רץ רק אחרי שהיישור ו־retime קבעו את התקציבים הסופיים.
+        quiet=True (10/10/2026): במסלול המקבילי היישור מדווח על השלב — דיווחי "מתרגם" באותו זמן היו מקפיצים את
+        השלב הנוכחי בטלפון הלוך ושוב (al↔tl) ושוברים את הזמנים שנלמדים לכל שלב."""
         ctx, td = self.ctx, self.pd / 'tr'
         _, parts = parse_source((td / 'source.md').read_text(encoding='utf-8'))
         if not parts:
@@ -327,7 +329,8 @@ class Pipeline:
                 continue                                  # כבר תורגם (המשך אחרי הפסקה)
             pending.append(p)
         done_n = n - len(pending)
-        ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
+        if not quiet:
+            ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
         if pending:
             # החלק הראשון כותב את המטמון; ברגע שהשרת התחיל לענות לו — שאר החלקים במקביל, כולם קוראים
             # מהמטמון (קודם החלקים רצו בטור — אותו מחיר, הרבה יותר זמן קיר).
@@ -341,7 +344,8 @@ class Pipeline:
                     f.result()                            # שגיאה בחלק כלשהו עולה כאן
                     done_n += 1
                     self.save_usage()
-                    ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
+                    if not quiet:
+                        ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
         if fix:
             self.fix_round('fixes.txt', fixed, 'tl')
 
@@ -447,7 +451,7 @@ def run_auto(jobmod, args) -> int:
     """הכל, מקצה לקצה. נקרא מ־job.py auto (אחרי run)."""
     J = jobmod
     st = J.load_state()
-    mode = str((st.get('spec') or {}).get('mode') or 'opus-medium')
+    mode = str((st.get('spec') or {}).get('mode') or llm.DEFAULT_MODE)
     cap = st.get('cap')
     eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
     ns = SimpleNamespace(force=False)
@@ -476,6 +480,12 @@ def run_auto(jobmod, args) -> int:
             else:
                 print('· ההגהה, התדריך והמילון כבר בנקודת השמירה — לא משלמים עליהם שוב.')
         ctx = J.Ctx(J.load_state())
+        if after < 2 and ctx.st.get('src') == 'a' and hasattr(J, 'attach_video') and hasattr(J, 'align_prep'):
+            # 10/10/2026 (העבודה האמיתית הראשונה): הטלפון תמיד מעלה קודם את הקול, כך שהמסלול המקבילי לא רץ אף פעם.
+            # הסרטון כבר עלה בדרך כלל עוד לפני סוף התמלול — מצרפים אותו עכשיו (הורדה, ingest, היסט, shots),
+            # ואחרי זה החלוקה יציבה (גם תמלול מחדש קורה כאן, לפני התכנון) → התרגום רץ במקביל ליישור.
+            J.attach_video(ctx)
+            ctx = J.Ctx(J.load_state())
         pl = Pipeline(ctx, J, eng)
         parallel = after < 2 and ctx.st.get('src') != 'a' and hasattr(J, 'align_prep')
         if after < 2 and not parallel:
@@ -498,10 +508,11 @@ def run_auto(jobmod, args) -> int:
                         err.append(e)
                 th = threading.Thread(target=bg, daemon=True)
                 th.start()
-                pl.translate(fix=False)
+                pl.translate(fix=False, quiet=True)
                 th.join()
                 if err:
                     raise err[0]
+                ctx.report('tl', 0.6, 'התרגום מוכן — Claude מתקן לפי הבדיקה האוטומטית', force=True)
                 pl.fix_round('fixes.txt', pl.fixed_tl(), 'tl')
             else:
                 pl.translate()

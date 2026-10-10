@@ -1183,11 +1183,12 @@ function stubFetch(text, status = 200) {
     // Firestore מדומה: כמה אוספים, כתיבה חלקית (updateMask) ושאילתת runQuery לפי uid
     const db = new Map();   // 'col/id' → { fields }
     const calls = [];
-    let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0);
+    let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0), pushes = [];
     let driveQuota = { limit: '16106127360', usage: '1000' }, driveListFail = false;   // v378: המכסה ותקלה ברשימה
     const J = (o, st = 200, hd = {}) => ({ status: st, json: async () => o, headers: { get: (k) => hd[String(k).toLowerCase()] || null } });
     const fake = async (url, opt = {}) => {
       calls.push({ url, method: opt.method || 'GET', body: opt.body || '' });
+      if (url.startsWith('https://fcm.googleapis.com/fcm/send/')) { pushes.push({ url, headers: opt.headers, body: opt.body }); return J({}, url.includes('gone') ? 410 : 201); }   // שלב 4: שירות ה־push
       if (url.includes('oauth2.googleapis.com/token')) {
         const p = new URLSearchParams(opt.body || '');
         if (p.get('assertion')) return J({ access_token: 'SA', expires_in: 3600 });
@@ -1270,7 +1271,7 @@ function stubFetch(text, status = 200) {
     ok(S.normRoutine('  ' + RURL + ' ', 'Bearer ' + RKEY + '\n').trig === 'trig_01ABCDEFGHJKLMNOPQRSTUVW' && S.normRoutine('https://api.anthropic.com.evil.com/v1/claude_code/routines/trig_01ABCDEFGH/fire', RKEY).error === 'bad_url'
       && S.normRoutine(RURL.replace('https', 'http'), RKEY).error === 'bad_url' && S.normRoutine(RURL, 'sk-ant-api03-' + 'x'.repeat(40)).error === 'bad_key', 'סטודיו: כתובת ומפתח של Routine — רווחים ו־Bearer מתנקים, כתובת/מפתח מסוג אחר נדחים');
     const sp = S.normSpec({ name: 'Ackman\u0000 interview.mkv', size: 3.2 * 1024 ** 3, to: ['he', 'he', 'xx', 'en'], mode: 'nope', out: ['same', 'mkv', 'zip'], terms: 'Bill Ackman', from: 'en', dur: 4620.4 });
-    ok(sp && sp.name === 'Ackman interview.mkv' && sp.to.join() === 'he,en' && sp.mode === 'opus-medium' && sp.out.join() === 'same,mkv' && sp.dur === 4620 && !S.normSpec({ name: 'x', size: 0, to: ['he'] }) && !S.normSpec({ name: 'x', size: 5, to: ['xx'] }), 'סטודיו: פרטי עבודה — מנוקים ומוגבלים (שפות כפולות/לא מוכרות, מצב לא מוכר, גודל 0)');
+    ok(sp && sp.name === 'Ackman interview.mkv' && sp.to.join() === 'he,en' && sp.mode === 'sonnet-medium' && S.normSpec({ name: 'x', size: 5, to: ['he'], mode: 'opus-max' }).mode === 'opus-medium' && sp.out.join() === 'same,mkv' && sp.dur === 4620 && !S.normSpec({ name: 'x', size: 0, to: ['he'] }) && !S.normSpec({ name: 'x', size: 5, to: ['xx'] }), 'סטודיו: פרטי עבודה — מנוקים ומוגבלים (שפות כפולות/לא מוכרות, מצב לא מוכר, גודל 0)');
     let rep = S.applyReport({ prog: null }, { st: 'tr', p: 0.4, msg: 'כותבים\u0007 כל מילה', ex: 'דקה 3 מתוך 77' }, 1000);
     rep = S.applyReport({ prog: rep.prog }, { st: 'al', p: 7 }, 5000);
     ok(rep.prog.stg.tr.s === 1000 && rep.prog.stg.tr.e === 5000 && rep.prog.stg.al.s === 5000 && rep.prog.p === 1 && rep.prog.st === 'al' && !/\u0007/.test(rep.prog.msg || 'כותבים כל מילה'), 'סטודיו: דיווח — שלב חדש סוגר את הקודם עם זמן אמיתי, אחוז מוגבל ל־0–1, תווי בקרה מנוקים');
@@ -1618,7 +1619,7 @@ function stubFetch(text, status = 200) {
     await nmJob(12.83); await nmJob(7.7);                              // 10$ ו־6$ לשעה
     r = await run({ op: 'status', idToken: OWNER });
     const NM = r.payload.norm['opus-medium'];
-    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['opus-high'].d === true, 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
+    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['sonnet-high'].d === true && r.payload.norm['haiku-medium'].d === true && !r.payload.norm['opus-max'], 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
     const sdoc = db.get('studioStats/ownerUid0001');
     ok(sdoc && !/Ackman|aud1234567890|fold/.test(JSON.stringify(sdoc)), 'סטודיו: ההיסטוריה — רק מצב, אורך ועלות (בלי שמות קבצים)');
     const w4 = await nmJob(30);
@@ -1626,8 +1627,8 @@ function stubFetch(text, status = 200) {
     ok(S.normSample({ kind: 'tr', fires: 2, spec: SPEC }, [{ usd: 5 }], 1) === null && S.normSample({ kind: 'tr', fires: 1, spec: SPEC }, [{ usd: 5 }, { usd: null }], 1) === null
       && S.normSample({ kind: 'ping', fires: 1, spec: SPEC }, [{ usd: 5 }], 1) === null && S.normSample({ kind: 'tr', fires: 1, spec: Object.assign({}, SPEC, { dur: 0 }) }, [{ usd: 5 }], 1) === null,
     'סטודיו: לא לומדים מעבודה שהופעלה שוב (המשך), ממודל בלי מחירון, מבדיקת חיבור או בלי אורך');
-    let many = []; for (let i = 0; i < 50; i++) many = S.addSample(many, { m: 'opus-max', d: 600, u: 1 + i, at: i });
-    ok(many.length === 40 && many[0].u === 11 && S.learnedNorm([{ m: 'opus-max', d: 60, u: 1 }, { m: 'opus-max', d: 60, u: 1 }, { m: 'opus-max', d: 60, u: 1 }], 'opus-max').ph === 6,
+    let many = []; for (let i = 0; i < 50; i++) many = S.addSample(many, { m: 'haiku-high', d: 600, u: 1 + i, at: i });
+    ok(many.length === 40 && many[0].u === 11 && S.learnedNorm([{ m: 'haiku-high', d: 60, u: 1 }, { m: 'haiku-high', d: 60, u: 1 }, { m: 'haiku-high', d: 60, u: 1 }], 'haiku-high').ph === 6 && S.addSample([{ m: 'opus-max', d: 60, u: 1 }], null).length === 0,
       'סטודיו: עד 40 דגימות (האחרונות); סרטון קצר נמדד כ־10 דק׳');
     ok(S.normTower({ lv: 'ok', x: 1, b: 'u', nj: 3 }).nj === 3 && !('b' in S.normTower({ lv: 'ok', b: 'evil' })), 'סטודיו: מגדל הפיקוח מדווח אם "הרגיל" נלמד מהעבודות שלך');
 
@@ -1918,6 +1919,31 @@ function stubFetch(text, status = 200) {
       ok(va.bn.s === 'tl' && va.bn.sh > 0.9 && va.ab.rs === 1 && va.ab.qa === 1 && L7.valueView(vj, mon, 1000).hp === 10 && !L7.valueView([], mon, 0).bn,
         'סטודיו: ערך — צוואר הבקבוק, מסלולים חריגים, המחיר שלך');
       ok(!/name|Ackman/.test(JSON.stringify(va)), 'סטודיו: ערך — בלי שמות קבצים');
+      // 10/10/2026: צפי זמנים נלמד (studioeta.js) — a + b·דקות לכל שלב, ridge לעבר ה־prior, אי־ודאות מהעבר
+      {
+        const E = require('../lib/studioeta');
+        const p5 = E.etaPlan(E.etaModel([], 'a', 0), 'opus-medium', 300);
+        ok(p5.t > 600 && p5.t < 960 && p5.n === 0, 'סטודיו: צפי — prior של השרת: 5 דק׳ סרטון ≈ 13 דק׳ (המדידה הראשונה), לא "כ־7"');
+        const p30 = E.etaPlan(E.etaModel([], 'a', 0), 'opus-medium', 1800);
+        ok(p30.t / 30 < p5.t / 5, 'סטודיו: צפי — סרטון ארוך מהיר יותר לכל דקה (החלק הקבוע מתחלק)');
+        ok(E.etaPlan(null, 'opus-medium', 600).s.tl > E.etaPlan(null, 'haiku-medium', 600).s.tl && E.etaPlan(null, 'opus-max', 600).s.tl === E.etaPlan(null, 'opus-medium', 600).s.tl, 'סטודיו: צפי — מצב כבד יותר = תרגום ארוך יותר');
+        ok(E.etaTarget(p5) > p5.t && E.etaTarget(null) === 0, 'סטודיו: צפי — יעד הזמן = p90 + דקה, מעל ה־p50');
+        // עבודות "אמיתיות" עם a=100, b=10 לשלב התמלול — המודל מתקרב אליהן, ובלי לקפוץ מדגימה אחת
+        const mk = (d, at) => ({ e: 'a', m: 'opus-medium', d, at, s: { tr: 100 + 10 * d / 60, al: 200, tl: 30, rv: 40, bn: 100, sv: 10 } });
+        const one = E.etaModel([mk(600, 0)], 'a', 0).st.tr, many = E.etaModel([300, 600, 900, 1200, 1800, 2400, 600, 900, 300, 1200, 1500, 1800].map((d) => mk(d, 0)), 'a', 0);
+        ok(Math.abs(many.st.tr[0] - 100) < 25 && Math.abs(many.st.tr[1] - 10) < 3, 'סטודיו: צפי — 12 עבודות: המודל לומד את הקבוע והשיפוע');
+        ok(one[0] + one[1] * 10 > 205 && one[0] + one[1] * 10 < 275, 'סטודיו: צפי — עבודה אחת מזיזה את ה־prior רק חלקית (shrinkage): בין 280 ל־200');
+        ok(many.n === 12 && many.q[0] <= many.q[1] && many.q[1] <= many.q[2], 'סטודיו: צפי — מ־8 עבודות: קוונטילים מהעבר, בסדר עולה');
+        ok(E.etaModel([], 'a', 0).q[1] > 0.29 && E.etaModel([], 'a', 0).q[1] < 0.3, 'סטודיו: צפי — לפני 8 עבודות: σ=0.35 קבוע');
+        const job = { kind: 'tr', fires: 1, eng: 'api', spec: { dur: 300, mode: 'opus-medium' },
+          prog: { stg: { tr: { s: 1000, e: 171000 }, al: { s: 171000, e: 501000 }, tl: { s: 501000, e: 561000 }, rv: { s: 561000, e: 0 } } } };
+        const sm = E.etaSample(job, 5);
+        ok(sm && sm.e === 'a' && sm.s.tr === 170 && sm.s.al === 330 && sm.s.rv == null && sm.d === 300, 'סטודיו: צפי — דגימה מזמני השלבים (שלב פתוח לא נכנס)');
+        ok(!E.etaSample(Object.assign({}, job, { fires: 2 }), 5) && !E.etaSample(Object.assign({}, job, { kind: 'ping' }), 5), 'סטודיו: צפי — "המשך" / בדיקת חיבור לא מלמדים');
+        ok(!/name|Ackman/.test(JSON.stringify(E.addEtSample([], Object.assign({ name: 'Ackman' }, sm)))), 'סטודיו: צפי — בלי שמות קבצים');
+        ok(E.addEtSample(new Array(45).fill(sm), sm).length === E.ET_MAX, 'סטודיו: צפי — עד 40 דגימות');
+        ok(!E.normEp({ s: { tr: 1 } }) && E.normEp(p5).t === p5.t && !E.normEp({ s: Object.assign({}, p5.s, { bn: -5 }) }), 'סטודיו: צפי — ep בצורה קבועה בלבד');
+      }
       // מקצה לקצה: לקיחה קובעת יעדים, המתנה לסרטון עוצרת את השעון, הפרה ← התראה, ערך + מחיר
       rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
       const J7 = rr.payload.job.id;
@@ -1926,7 +1952,11 @@ function stubFetch(text, status = 200) {
       const K7 = keyOf(fires[fires.length - 1]);
       await wrk({ op: 'claim', job: J7, key: K7 });
       let j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
-      ok(j7.sla && j7.sla.t.tg === tg.t && j7.sla.u && j7.sla.u.tg > 0 && j7.sla.t.el === 0, 'סטודיו: הלקיחה קובעת את היעדים, והשעון מתחיל');
+      // 10/10/2026: יעד הזמן = p90 של התוכנית הנלמדת + דקה (studioeta.js), לא הטבלה הישנה
+      const E7 = require('../lib/studioeta');
+      const tgT = E7.etaTarget(E7.etaPlan(E7.etaModel([], SPEC.eng === 'api' ? 'a' : 'r', 0), SPEC.mode, SPEC.dur));
+      ok(j7.ep && j7.ep.t > 0 && Object.keys(j7.ep.s).length === 6, 'סטודיו: הלקיחה קובעת את תוכנית הזמנים (p50 לכל שלב)');
+      ok(j7.sla && j7.sla.t.tg === tgT && j7.sla.u && j7.sla.u.tg > 0 && j7.sla.t.el === 0, 'סטודיו: הלקיחה קובעת את היעדים, והשעון מתחיל');
       await wrk({ op: 'report', job: J7, key: K7, st: 'al', p: 0.1, wv: true });
       now += 600e3;
       j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
@@ -1938,7 +1968,7 @@ function stubFetch(text, status = 200) {
       now += 60e3;
       j7 = (await run({ op: 'job', idToken: OWNER, job: J7 })).payload.job;
       ok(!j7.sla.t.paused && j7.sla.t.el === 60 && j7.sla.t.pz === 600, 'סטודיו: הסרטון הגיע — השעון ממשיך, ההמתנה נרשמה');
-      now += (tg.t + 10) * 1000;
+      now += (tgT + 10) * 1000;
       rr = await run({ op: 'jobs', idToken: OWNER });
       const ops7 = (await run({ op: 'status', idToken: OWNER })).payload.ops;
       ok(rr.payload.jobs.find((x) => x.id === J7).sla.t.lv === 'over' && JSON.stringify(ops7).includes('sla_time'), 'סטודיו: הפרה של יעד הזמן — התראה');
@@ -1981,7 +2011,7 @@ function stubFetch(text, status = 200) {
       ok(P5.problemsView(fbv.map((e) => Object.assign({}, e, { at: 50, fix: '', px: e.fp === FPb ? 'x' : '' })), [], jobsX, now).list.map((x) => x.state).sort().join() === 'd,n', 'סטודיו: בעיה — חדשה / אובחנה (הצעה שמחכה)');
       const rbx = P5.runbooksView([{ fp: FPa, auto: 2, ua: now - 1000 }, { fp: FPb, auto: 5, ua: now - 40 * 864e5 }], jobsX, now);
       ok(JSON.stringify(rbx) === '[{"k":"net","r":"s","n":1},{"k":"known","r":"s","n":2},{"k":"cheap","r":"c","n":1}]', 'סטודיו: ספרי הפעלה — כמה פעמים החודש, ומה בטוח / באישור');
-      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium' && !S5.cheaperModes('sonnet-medium').length, 'סטודיו: מצבים זולים יותר — מהקרוב');
+      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,haiku-high,haiku-medium' && S5.cheaperModes('sonnet-medium').join() === 'haiku-high,haiku-medium' && !S5.cheaperModes('haiku-medium').length && S5.cheaperModes('opus-max').join() === S5.cheaperModes('opus-medium').join(), 'סטודיו: מצבים זולים יותר — מהקרוב');
       ok(S5.COST_STOP({ err: 'budget_stop' }) && S5.COST_STOP({ err: 'tower_stop', tw: { why: 'cost' } }) && !S5.COST_STOP({ err: 'tower_stop', tw: { why: 'loop' } }) && !S5.COST_STOP({ err: 'net' }),
         'סטודיו: "מצב זול יותר" רק אחרי עצירה על עלות');
       // מקצה לקצה: עצירה על עלות → המשך במצב זול יותר
@@ -1999,7 +2029,7 @@ function stubFetch(text, status = 200) {
       KC = keyOf(fires[fires.length - 1]);
       await wrk({ op: 'claim', job: JC, key: KC });
       await wrk({ op: 'report', job: JC, key: KC, fail: true, err: 'tower_stop', tower: { lv: 'red', why: 'cost', x: 4.2, usd: 9, exp: 2, fp: 'dddddddddd44' } });
-      rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'opus-max' });
+      rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'opus-medium' });
       ok(rr.statusCode === 409 && rr.payload.error === 'mode', 'סטודיו: "מצב זול יותר" — מצב יקר יותר נדחה');
       rr = await run({ op: 'resume', idToken: OWNER, job: JC, mode: 'sonnet-high' });
       ok(rr.payload.ok && rr.payload.job.spec.mode === 'sonnet-high' && rr.payload.job.spec.dm === SPEC.mode, 'סטודיו: המשך במצב זול יותר — המצב החדש נשמר, והישן נרשם');
@@ -2385,14 +2415,14 @@ function stubFetch(text, status = 200) {
 
     // v367: החוקים שלך, מתג החירום ושערי אישור
     now += 3600e3 + 1;                       // תקציב ההפעלות לשעה מתחיל מחדש
-    const SPECX = Object.assign({}, SPEC, { mode: 'opus-max' });
-    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false}' && S.normRules({ b: 12.3, mx: 'opus-high', ab: true }).b === 12.5
+    const SPECX = Object.assign({}, SPEC, { mode: 'opus-medium' });
+    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false}' && S.normRules({ b: 12.3, mx: 'sonnet-high', ab: true }).b === 12.5 && S.normRules({ mx: 'opus-high' }).mx === ''
       && S.normRules({ b: 1e9 }).b === S.RULE_BUDGET_MAX && S.normRules({ b: 0.5, mx: 'evil', ab: 'yes' }).b === 0 && S.normRules({ mx: 'evil', ab: 'yes' }).mx === '' && S.normRules({ ab: 'yes' }).ab === false,
     'סטודיו: חוקים — בלי חוקים כברירת מחדל; תקציב מעוגל לחצי דולר ועד 500; מצב/אישור לא תקינים — נזרקים');
-    ok(S.modeOver('opus-max', 'opus-high') && S.modeOver('opus-medium', 'sonnet-high') && !S.modeOver('sonnet-high', 'opus-medium') && !S.modeOver('opus-max', '') && !S.modeOver('opus-high', 'opus-high'),
+    ok(S.modeOver('opus-medium', 'sonnet-high') && S.modeOver('sonnet-medium', 'haiku-high') && !S.modeOver('haiku-high', 'sonnet-medium') && !S.modeOver('opus-medium', '') && !S.modeOver('sonnet-high', 'sonnet-high'),
       'סטודיו: חוקים — "מצב מקסימלי" לפי המחיר הצפוי לשעה (Sonnet < Opus Medium < High < Max)');
-    rr = await run({ op: 'rules', idToken: OWNER, rl: { b: 10, mx: 'opus-high', ab: true, evil: 1 } });
-    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"opus-high","ab":true,"jx":false}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
+    rr = await run({ op: 'rules', idToken: OWNER, rl: { b: 10, mx: 'sonnet-high', ab: true, evil: 1 } });
+    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
     rr = await run({ op: 'status', idToken: OWNER });
     ok(rr.payload.rl.b === 10 && rr.payload.halt === 0, 'סטודיו: חוקים — הטלפון רואה אותם (ומתג החירום כבוי)');
     // מצב מעל המקסימום — ההפעלה מחכה לאישור שלך (ov)
@@ -2401,13 +2431,13 @@ function stubFetch(text, status = 200) {
     await run({ op: 'file', idToken: OWNER, job: JR, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
     let nf = fires.length;
     rr = await run({ op: 'start', idToken: OWNER, job: JR });
-    ok(rr.statusCode === 409 && rr.payload.error === 'rule_mode' && rr.payload.mx === 'opus-high' && fires.length === nf && rr.payload.job.state === 'new',
+    ok(rr.statusCode === 409 && rr.payload.error === 'rule_mode' && rr.payload.mx === 'sonnet-high' && fires.length === nf && rr.payload.job.state === 'new',
       'סטודיו: חוקים — מצב מעל המקסימום: לא מפעילים, העבודה מחכה לאישור שלך');
     rr = await run({ op: 'start', idToken: OWNER, job: JR, ov: true });
     ok(rr.payload.ok && fires.length === nf + 1, 'סטודיו: חוקים — "להתחיל בכל זאת" (ov) מפעיל');
     let Kr = keyOf(fires[fires.length - 1]);
     rr = await wrk({ op: 'claim', job: JR, key: Kr });
-    ok(JSON.stringify(rr.payload.job.rl) === '{"b":10,"mx":"opus-high","ab":true,"jx":false}' && rr.payload.job.bx === 0 && rr.payload.job.u0 === 0,
+    ok(JSON.stringify(rr.payload.job.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false}' && rr.payload.job.bx === 0 && rr.payload.job.u0 === 0,
       'סטודיו: חוקים — העובד מקבל את התקציב והאישור לפני צריבה (ומה שכבר עלה: 0)');
     // שער תקציב — Claude הגיע ל־10$: העבודה מחכה לך; "להמשיך" מגדיל את התקציב
     rr = await wrk({ op: 'report', job: JR, key: Kr, gate: { k: 'b', usd: 10.27, cap: 10, q: '<b>evil</b>' } });
@@ -2463,7 +2493,7 @@ function stubFetch(text, status = 200) {
     nf = fires.length;
     rr = await run({ op: 'resume', idToken: OWNER, job: JR, ov: true });
     ok(rr.statusCode === 409 && rr.payload.error === 'halted' && fires.length === nf, 'סטודיו: מתג החירום — "המשך" מושהה');
-    rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+    rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPEC, { mode: 'sonnet-medium' }) });   // מתחת למקסימום שבחוקים (Sonnet High)
     const JH = rr.payload.job.id;
     await run({ op: 'file', idToken: OWNER, job: JH, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
     rr = await run({ op: 'start', idToken: OWNER, job: JH });
@@ -2567,6 +2597,11 @@ function stubFetch(text, status = 200) {
     const sdoc1 = db.get('studioServers/' + SID);
     ok(rr.payload.ok && rr.payload.job === null && +sdoc1.fields.seen.integerValue === now && !JSON.stringify(sdoc1).includes('evil') && JSON.parse(sdoc1.fields.hb.stringValue).disk === 41.3,
       'מצב API: שאילתה בלי עבודות — "אין"; הדופק נשמר (רק מספרים וגרסה)');
+    {
+      const S2 = require('../lib/studio');
+      const g = S2.normHb({ iso: 'g', iw: 'mem' }), r = S2.normHb({ iso: 'r', iw: 'mem' }), bad = S2.normHb({ iso: '<b>', iw: 'rm -rf' });
+      ok(g.iso === 'g' && g.iw === '' && r.iso === 'r' && r.iw === 'mem' && bad.iso === '' && bad.iw === '', 'ת2: בידוד הקופסה בדופק — קודים קבועים בלבד (gVisor / רגיל + סיבה)');
+    }
     const SPECA = Object.assign({}, SPEC, { eng: 'api', cap: 20 });
     rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
     const JA = rr.payload.job.id;
@@ -2647,6 +2682,71 @@ function stubFetch(text, status = 200) {
     ok(r.payload.ok && r.payload.token === 'DRIVE-AT' && r.payload.email === 'drive.owner@example.com', 'סטודיו: גישה זמנית ל־Drive לטלפון (העלאה)');
     r = await run({ op: 'drive', idToken: FRIEND });
     ok(!r.payload.ok && r.payload.error === 'not_connected', 'סטודיו: בלי Drive מחובר — שגיאה ברורה');
+
+    // שלב 4 (10/10/2026): התראות לטלפון — Web Push עצמאי (RFC 8291/8292), מפתח VAPID בכספת, רק סוג האירוע
+    {
+      const W = require('../lib/webpush');
+      const body = W.encrypt({ p: 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', a: 'BTBZMqHH6r4Tts7J_aSIgg' },
+        'When I grow up, I want to be a watermelon', { asPriv: 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw', salt: 'DGv6ra1nlYgDCS1FRnbzlw' });
+      ok(W.b64u(body) === 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN',
+        'push: ההצפנה זהה לוקטור הבדיקה של RFC 8291');
+      const ua = crypto.createECDH('prime256v1'); ua.generateKeys();
+      const auth = crypto.randomBytes(16);
+      const sub = (e) => ({ endpoint: e, keys: { p256dh: W.b64u(ua.getPublicKey()), auth: W.b64u(auth) } });
+      ok(!W.normSub(sub('https://evil.com/fcm/send/x')) && !W.normSub(sub('http://fcm.googleapis.com/fcm/send/x')) && !W.normSub(sub('https://fcm.googleapis.com:8443/x'))
+        && W.normSub(sub('https://fcm.googleapis.com/fcm/send/abc')) && W.normSub(sub('https://web.push.apple.com/x')), 'push: רק שירותי push מוכרים ב־https (בלי SSRF)');
+      // פענוח בצד "הטלפון" (RFC 8291 הפוך) — לוודא שמה שנשלח הוא רק סוג האירוע
+      const decrypt = (buf) => {
+        const salt = buf.subarray(0, 16), idlen = buf[20], asPub = buf.subarray(21, 21 + idlen), ct = buf.subarray(21 + idlen);
+        const ikm = crypto.hkdfSync('sha256', ua.computeSecret(asPub), auth, Buffer.concat([Buffer.from('WebPush: info\0'), ua.getPublicKey(), asPub]), 32);
+        const cek = crypto.hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
+        const nonce = crypto.hkdfSync('sha256', Buffer.from(ikm), salt, Buffer.from('Content-Encoding: nonce\0'), 12);
+        const d = crypto.createDecipheriv('aes-128-gcm', Buffer.from(cek), Buffer.from(nonce));
+        d.setAuthTag(ct.subarray(ct.length - 16));
+        const pt = Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()]);
+        return JSON.parse(pt.subarray(0, pt.length - 1).toString());
+      };
+      r = await run({ op: 'push', idToken: OWNER, act: 'key' });
+      const k1 = r.payload.key;
+      r = await run({ op: 'push', idToken: OWNER, act: 'key' });
+      const vd = db.get('studioVault/_vapid');
+      ok(k1 && k1.length === 87 && r.payload.key === k1 && vd && !vd.fields.d && vault.open(vd.fields.vk.stringValue, 'webpush|vapid').pub === k1, 'push: מפתח VAPID נוצר פעם אחת, הפרטי מוצפן בכספת');
+      r = await run({ op: 'push', idToken: OWNER, act: 'on', sub: sub('https://evil.com/x') });
+      ok(r.statusCode === 400, 'push: מנוי לשרת לא מוכר — נדחה');
+      await run({ op: 'push', idToken: OWNER, act: 'on', sub: sub('https://fcm.googleapis.com/fcm/send/dev1'), lang: 'en' });
+      r = await run({ op: 'push', idToken: OWNER, act: 'on', sub: sub('https://fcm.googleapis.com/fcm/send/gone2') });
+      ok(r.payload.n === 2, 'push: שני מכשירים');
+      pushes = [];
+      r = await run({ op: 'push', idToken: OWNER, act: 'test' });
+      const p0 = pushes[0];
+      ok(r.payload.sent === 1 && r.payload.n === 1 && pushes.length === 2 && p0.headers['Content-Encoding'] === 'aes128gcm' && /^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=/.test(p0.headers.Authorization) && p0.headers.TTL,
+        'push: התראת בדיקה — מוצפנת עם VAPID; מכשיר שהמנוי שלו בוטל (410) יוצא מהרשימה');
+      ok(decrypt(p0.body).t === 'Notifications work ✓', 'push: הטלפון מפענח — בשפה שבחר (אנגלית)');
+      r = await run({ op: 'status', idToken: OWNER });
+      ok(r.payload.wpN === 1, 'push: מספר המכשירים במצב הסטודיו');
+      // עבודה אמיתית: שאלה ← התראה, סיום ← התראה; בלי שם הקובץ
+      for (const j of (await run({ op: 'jobs', idToken: OWNER })).payload.jobs) if (j.state === 'new') await run({ op: 'remove', idToken: OWNER, job: j.id });
+      const c = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const jid = c.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: jid, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      now += 61 * 60e3;   // אחרי מגבלת ההפעלות לשעה של התרחישים הקודמים
+      const st0 = await run({ op: 'start', idToken: OWNER, job: jid, mo: true, ov: true });
+      const kk = keyOf(fires[fires.length - 1]);
+      const cl = await wrk({ op: 'claim', job: jid, key: kk });
+      ok(st0.payload.ok && cl.payload.ok, 'push: עבודת תרגום הופעלה ונלקחה (' + (st0.payload.error || '') + ')');
+      pushes = [];
+      await wrk({ op: 'report', job: jid, key: kk, st: 'tr', p: 0.5 });
+      ok(pushes.length === 0, 'push: דיווח התקדמות רגיל — בלי התראה');
+      await wrk({ op: 'report', job: jid, key: kk, ask: { id: 'q1', q: 'Ackman או אקמן?', o: ['אקמן', 'Ackman'], d: 0, w: 600 } });
+      const m1 = decrypt(pushes[0].body);
+      ok(pushes.length === 1 && m1.k === 'ask' && m1.j === jid && m1.u.endsWith('#studio=' + jid), 'push: שאלה מ־Claude → התראה עם קישור לעבודה');
+      await wrk({ op: 'report', job: jid, key: kk, done: true });
+      const m2 = decrypt(pushes[1].body), all = pushes.map((x) => JSON.stringify(decrypt(x.body))).join();
+      ok(m2.k === 'done' && !/Ackman|interview|mkv/i.test(all), 'push: סיום → "התרגום מוכן"; בלי שם הקובץ ובלי תוכן העבודה');
+      r = await run({ op: 'push', idToken: OWNER, act: 'off', e: 'https://fcm.googleapis.com/fcm/send/dev1' });
+      ok(r.payload.n === 0, 'push: ביטול במכשיר');
+      await run({ op: 'remove', idToken: OWNER, job: jid });
+    }
 
     // ניתוק
     r = await run({ op: 'disconnect', idToken: OWNER });

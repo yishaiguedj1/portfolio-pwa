@@ -686,7 +686,7 @@ class TestWorker(unittest.TestCase):
 
     def test_rules_saved(self):
         # v367: החוקים מהשרתון נשמרים בקובץ המצב (למגדל ול־finish); לא תקין — כאילו אין חוק
-        self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 12.5, 'ab': True, 'mx': 'opus-high'}, 2, 7.25
+        self.fake.rl, self.fake.bx, self.fake.u0 = {'b': 12.5, 'ab': True, 'mx': 'sonnet-high'}, 2, 7.25
         self.take()
         st = json.loads((self.tmp / 'state' / 'job.json').read_text())
         self.assertEqual((st['rl'], st['bx'], st['u0']), ({'b': 12.5, 'ab': True, 'jx': False}, 2, 7.25))
@@ -909,6 +909,12 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(J.quality(p, chk_ok=False)['s'], q['s'] - 20)
         self.assertNotIn('שלום', json.dumps(q, ensure_ascii=False))
         self.assertIsNone(J.quality(self.tmp / 'nope.srt'))
+        # 10/10/2026: כתובית אחת מ־71 מעל הקצב → לא "25/25 עם ✗" (העיגול הסתיר את הכשל)
+        big = self.tmp / 'q71.srt'
+        big.write_text(''.join('%d\n00:00:%02d,000 --> 00:00:%02d,900\nשורה %d\n\n' % (i + 1, i % 50, i % 50, i) for i in range(70))
+                       + '71\n00:01:00,000 --> 00:01:00,900\nזה משפט ארוך מאוד ומהיר מדי\n', encoding='utf-8')
+        cps = next(x for x in J.quality(big)['m'] if x['k'] == 'cps')
+        self.assertEqual((cps['b'], cps['g']), (1, cps['w'] - 1))
 
     def test_judge(self):
         """v375: שופט האיכות — מדגם בפיזור שווה מחבילת הביקורת (בלי = / ∅), וציון רק משורות בצורה הנכונה מהמדגם"""
@@ -930,6 +936,12 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(r['c'], {'mean': 10})
         self.assertEqual(r['s'], round((30 * 100 + 10 * 25) / 40))
         self.assertIsNone(J.judge_score('\n'.join(good[:5]), ids), 'פחות מ־10 תשובות — אין ציון')
+        # 10/10/2026: סטיות צורה של המודל (תבליט, נקודתיים, '/5', backticks, אותיות גדולות) — עדיין נקראות
+        loose = ['- #%d: 4/5 FLU' % i if n % 2 else '%d. 5 `ok`' % i for n, i in enumerate(sorted(ids))]
+        r2 = J.judge_score('\n'.join(loose), ids)
+        self.assertEqual(r2['n'], 40)
+        self.assertEqual(r2['c'], {'flu': 20})
+        self.assertIsNone(J.judge_score('\n'.join('#%d 5 okay' % i for i in ids), ids), 'קוד שלא בקטלוג — נזרק')
         self.assertEqual(J._sub_kind('שפוט לפי translator/JUDGE.md'), 'jg')
         self.assertEqual(J._sub_kind('תרגם לפי translator/TRANSLATE.md'), 'tl')
         self.assertIn('jg', J.prompt_versions())

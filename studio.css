@@ -74,6 +74,7 @@ button.st-row:not(:disabled):active { background: var(--st-fill); }
 .st-tile.t-teal { background: linear-gradient(135deg, #64D2FF, #0A84FF); }
 .st-tile.t-orange { background: linear-gradient(135deg, #FFD60A, #FF9F0A); }   /* v363: מגדל הפיקוח — חריג / עצר */
 .st-tile.t-red { background: linear-gradient(135deg, #FF5E57, #FF2D55); }
+a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }   /* 10/10/2026: שורת קישור (התוצרים) */
 .st-row.st-muted { color: var(--on-surface-var); cursor: default; }
 .st-row.st-rule { cursor: default; font-size: 15px; line-height: 1.45; min-height: 44px; }
 .st-row.st-fb { cursor: default; align-items: flex-start; }   /* v364: ספר התיקונים — התיקון בשורה השנייה, נשבר כרגיל */

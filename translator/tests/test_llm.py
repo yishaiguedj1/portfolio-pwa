@@ -116,11 +116,21 @@ class AnthropicTests(unittest.TestCase):
     def test_refusal_and_truncation_are_recorded_then_raise(self):
         for stop, code in (('refusal', 'model_refusal'), ('max_tokens', 'max_tokens')):
             c = FakeClient([fake_msg(stop=stop, i=10, o=500)])
-            e = llm.Engine(llm.Spec.of('opus-high'), client=c)
+            e = llm.Engine(llm.Spec.of('sonnet-high'), client=c)
             with self.assertRaises(llm.LLMError) as cm:
                 e.complete('tl', 'X', 'Y')
             self.assertEqual(cm.exception.code, code)
             self.assertEqual(e.ledger.list()[0]['o'], 500, 'הקריאה עלתה כסף — נרשמת לפני השגיאה')
+
+    def test_modes_haiku_and_removed(self):
+        # 10/10/2026: Haiku 5.5 (medium/high), Sonnet Medium = ברירת המחדל, Opus High/Max הוסרו → Opus Medium
+        self.assertEqual(sorted(llm.MODES), ['haiku-high', 'haiku-medium', 'opus-medium', 'sonnet-high', 'sonnet-medium'])
+        self.assertEqual(llm.DEFAULT_MODE, 'sonnet-medium')
+        self.assertEqual((llm.Spec.of('haiku-high').model, llm.Spec.of('haiku-high').effort), ('claude-haiku-5-5', 'high'))
+        for old in ('opus-high', 'opus-max'):
+            self.assertEqual((llm.Spec.of(old).model, llm.Spec.of(old).effort), ('claude-opus-5-5', 'medium'))
+        with self.assertRaises(llm.LLMError):
+            llm.Spec.of('gpt')
 
     def test_budget_cap(self):
         c = FakeClient([fake_msg(i=0, o=100000)] * 3)     # $2 לכל קריאה ב־Opus

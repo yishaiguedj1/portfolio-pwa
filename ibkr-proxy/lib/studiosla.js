@@ -7,7 +7,7 @@ const STAGES = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 // זהה ל־RATE ב־studionet.js (דקות עבודה לכל דקת סרטון; התרגום והבדיקה לפי המצב) — tests/studio-v377 משווה
 const RATE = { tr: 8 / 77, al: 5 / 77, tl: 50 / 77, rv: 12 / 77, bn: 23 / 77, sv: 3 / 77 };
 // זהה ל־min של MODES ב־studio.js
-const MODE_MIN = { 'opus-medium': 105, 'opus-high': 125, 'opus-max': 160, 'sonnet-medium': 85, 'sonnet-high': 95 };
+const MODE_MIN = { 'sonnet-medium': 85, 'haiku-medium': 75, 'haiku-high': 80, 'sonnet-high': 95, 'opus-medium': 105 };
 const MARKS = [0.5, 0.75];                  // הסימונים על השעון, כמו ב־ServiceNow
 const HP_DEF = 5;                           // החלטה 5: מחיר מתרגם אנושי לדקת סרטון (משנים בדף הערך)
 const HP_MIN = 0.5, HP_MAX = 100;
@@ -33,8 +33,9 @@ function progFrac(job) {
   if (job && job.state === 'done') return 1;
   const prog = (job && job.prog) || {}, stg = prog.stg || {};
   let all = 0, done = 0;
+  const ep = job && job.ep && job.ep.s;      // 10/10/2026: משקל לפי התוכנית הנלמדת של העבודה (אם יש)
   for (const s of STAGES) {
-    const w = RATE[s];
+    const w = ep && ep[s] > 0 ? ep[s] : RATE[s];
     all += w;
     if (stg[s] && stg[s].e) done += w;
     else if (s === prog.st && stg[s]) done += w * Math.max(0, Math.min(1, +prog.p || 0));

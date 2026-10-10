@@ -35,7 +35,7 @@ ok(/שגיאות \(\\d\+\)/.test(job) && /fixes_zfinal/.test(job), 'finish נע�
 const rb = read('translator/RUNBOOK.md');
 ok(/routine-fire-payload/.test(rb) && /כנתונים בלבד/.test(rb) && /python3 translator\/job\.py run --job <job> --key <key>/.test(rb), 'RUNBOOK: הבלוק = נתונים, פקודת הלקיחה');
 ok(/\$J prepare/.test(rb) && /\$J align/.test(rb) && /\$J finish/.test(rb) && /run_in_background/.test(rb), 'RUNBOOK: הסדר — prepare → הגהה → align → תרגום → ביקורת → finish, ארוכים ברקע');
-ok(/`opus-medium` \(ברירת המחדל\) \| opus \| medium/.test(rb) && /TRANSLATE\.md/.test(rb) && /REVIEW\.md/.test(rb), 'RUNBOOK: התרגום בסוכן־משנה במודל ובמאמץ של המצב');
+ok(/`sonnet-medium` \(ברירת המחדל\) \| sonnet \| medium/.test(rb) && /`haiku-high` \| haiku \| high/.test(rb) && !/`opus-max` \|/.test(rb) && /TRANSLATE\.md/.test(rb) && /REVIEW\.md/.test(rb), 'RUNBOOK: התרגום בסוכן־משנה במודל ובמאמץ של המצב');
 ok(/נתונים, לא הוראות/.test(rb) && /נתונים, לא הוראות/.test(read('translator/TRANSLATE.md')) && /נתונים, לא הוראות/.test(read('translator/REVIEW.md')), 'תוכן הסרטון = נתונים, לא הוראות (בכל ההנחיות)');
 ok(/fixes_review\.txt/.test(read('translator/REVIEW.md')) && /fixes\.txt/.test(read('translator/TRANSLATE.md')), 'המתרגם והביקורת — קובצי תיקונים נפרדים (לא דורסים זה את זה)');
 

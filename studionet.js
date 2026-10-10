@@ -73,20 +73,48 @@ export function stageEstimates(modeMin, durSec) {
   for (const s of STAGES.slice(1)) out[s] = Math.round(RATE[s] * durMin * (s === 'tl' || s === 'rv' ? k : 1) * 60);
   return out;
 }
+/* 10/10/2026: צפי נלמד (studioeta.js בשרתון). העבודה מקבלת בלקיחה תוכנית (ep: p50 לכל שלב + אי־ודאות);
+   לעבודה שעוד לא נלקחה — המודל מ־status. planFrom = planOf בשרתון (tests/studio-eta.test.js משווה). */
+export const Q_DEF = [0, 0.295, 0.449];          // לפני 8 עבודות: σ=0.35 → p80 = ×1.34, p90 = ×1.57 (זהה לשרתון)
+const ETA_ST = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+export function planFrom(model, modeMin, durSec) {
+  if (!model || !model.st) return null;
+  const m = (durSec > 0 ? durSec : 3600) / 60, k = (modeMin > 0 ? modeMin : 105) / 105, s = {};
+  let t = 0;
+  for (const x of ETA_ST) {
+    const ab = model.st[x];
+    if (!Array.isArray(ab)) return null;
+    s[x] = Math.round((ab[0] + ab[1] * m) * ((x === 'tl' || x === 'rv') ? k : 1));
+    t += s[x];
+  }
+  return { s, t, q: Array.isArray(model.q) && model.q.length === 3 ? model.q : Q_DEF, n: model.n || 0 };
+}
 /* מצב המסך: לכל שלב — הסתיים (כמה לקח) / עכשיו (כמה נשאר + אחוז) / מחכה (הערכה). והסכום: כמה נשאר בסך הכל.
+   10/10/2026 (מחקר הצפי): השלב הנוכחי = שילוב של ההערכה עם הקצב בפועל לפי כמה התקדם (w = p/(p+0.15));
+   שלבים שלא התחילו = ההערכה × ‎√ρ (ρ = בפועל/צפוי של השלבים שכבר הסתיימו בעבודה הזו — עומס בשרת משפיע על כולם);
+   left = p50, left80/left90 = לפי אי־ודאות העבר, שמצטמצמת ככל שמתקדמים.
    job = מה שהשרתון מחזיר (prog.stg: זמני התחלה וסיום אמיתיים מהעובד); up = מצב ההעלאה בטלפון {p, left, done} */
-export function progressModel(job, est, up, now) {
+export function progressModel(job, est, up, now, q) {
   const prog = (job && job.prog) || {};
   const stg = prog.stg || {};
   const cur = prog.st || '';
   const ended = job && job.state === 'done';
   // v361: נכשלה / בוטלה — השלב שבו נעצרה נסגר בשרתון, אבל הוא לא "הושלם" (בלי ✓; "המשך" פותח אותו מחדש)
   const stopped = job && (job.state === 'failed' || job.state === 'cancelled');
+  const qq = Array.isArray(q) && q.length === 3 ? q : Q_DEF;
+  // ρ: כמה לקחו השלבים שהסתיימו מול ההערכה שלהם (0.5–3)
+  let dT = 0, dE = 0;
+  for (const s of STAGES) {
+    if (s === 'up' || !(stg[s] && stg[s].e && stg[s].s)) continue;
+    dT += Math.max(0, (stg[s].e - stg[s].s) / 1000); dE += est[s] || 60;
+  }
+  const rho = dE > 0 && dT > 0 ? Math.max(0.5, Math.min(3, dT / dE)) : 1, adj = Math.sqrt(rho);
   const stages = [];
   let left = 0, doneW = 0, allW = 0;
   for (const s of STAGES) {
-    const e = s === 'up' ? Math.max(30, up && up.est ? up.est : 60) : est[s] || 60;
-    allW += e;
+    const e0 = s === 'up' ? Math.max(30, up && up.est ? up.est : 60) : est[s] || 60;
+    const e = s === 'up' ? e0 : Math.round(e0 * adj);
+    allW += e0;
     let row;
     if (s === 'up') {
       if (up && up.done) row = { id: s, state: 'done', took: up.took || 0 };
@@ -95,17 +123,25 @@ export function progressModel(job, est, up, now) {
     else if (ended || (stg[s] && stg[s].e)) row = { id: s, state: 'done', took: stg[s] && stg[s].e ? Math.max(0, Math.round((stg[s].e - stg[s].s) / 1000)) : 0 };
     else if (s === cur && stg[s]) {
       const el = Math.max(0, (now - stg[s].s) / 1000), p = Math.max(0, Math.min(0.99, prog.p || 0));
-      // העובד יודע הכי טוב (eta); אחרת לפי הקצב בפועל כשיש מספיק התקדמות; אחרת ההערכה פחות מה שעבר
-      let l = prog.eta != null ? Math.max(0, prog.eta - Math.max(0, (now - (prog.at || now)) / 1000)) : p >= 0.05 ? el * (1 - p) / p : e - el;
-      l = Math.max(30, Math.round(l));
+      // העובד יודע הכי טוב (eta); אחרת שילוב: ההערכה בהתחלה, הקצב בפועל ככל שמתקדמים (לא קופצים מיד לקצב — הוא רועש בהתחלה)
+      let l;
+      if (prog.eta != null) l = Math.max(0, prog.eta - Math.max(0, (now - (prog.at || now)) / 1000));
+      else {
+        const w = p > 0 ? p / (p + 0.15) : 0, tot = (1 - w) * e + (p > 0 ? w * el / p : 0);
+        l = tot - el;
+      }
+      l = Math.max(10, Math.round(l));
       row = { id: s, state: 'now', left: l, p, est: e, slow: el > e * 1.5 && el > 300 };
     } else row = { id: s, state: 'wait', est: e };
-    if (row.state === 'done') doneW += e;
-    else if (row.state === 'now') { left += row.left; doneW += e * (row.p || 0); }
+    if (row.state === 'done') doneW += e0;
+    else if (row.state === 'now') { left += row.left; doneW += e0 * (row.p || 0); }
     else left += row.est;
     stages.push(row);
   }
-  return { stages, left: ended ? 0 : Math.round(left), pct: ended ? 1 : Math.max(0, Math.min(0.99, doneW / allW)) };
+  const pct = ended ? 1 : Math.max(0, Math.min(0.99, doneW / allW));
+  const k = (i) => Math.exp((qq[i] || 0) * (1 - pct));   // האי־ודאות קטנה ככל שנשאר פחות
+  const l50 = ended ? 0 : Math.round(left * k(0));
+  return { stages, left: l50, left80: ended ? 0 : Math.max(l50, Math.round(left * k(1))), left90: ended ? 0 : Math.max(l50, Math.round(left * k(2))), pct, rho };
 }
 
 const abortErr = () => { const e = new Error('aborted'); e.name = 'AbortError'; return e; };

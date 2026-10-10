@@ -47,6 +47,7 @@
   - `tests/security-stage4.test.js`: הגנה מהטמעה באתר זר, ‏SSRF, ‏PKCE, אימות הווידג׳ט, ותיקון כל action ל־SHA.
   - `firestore-rules`: בדיקת הכללים מול האמולטור.
   - `translator/tests/test_infra.py`: הקשחת השרת, ובכלל זה **ffmpeg ≥ 8.1 בתמונת העובד** — libass ישן
+  - **gVisor (ת2, 10/10/2026)**: מפתח המאגר `infra/host/gvisor.key` (טביעה `6F1DF85E3A71C24918E727D56FC6D554E32BD943`). החלפת מפתח אצל gVisor = לעדכן את הקובץ, את `GVISOR_FPR` ב־`infra/build-cloud-init.py`, ולהריץ את המחולל. `test_infra.test_gvisor` שומר.
     פגיע ל־CVE-2026-61626/7 (כתיבה מחוץ לגבולות על קובץ ASS זדוני, בדיוק הווקטור של הצריבה).
     הגנה שנייה בקוד: `_ass_escape` ב־vt מסלק `{\` ולוכסנים מכל טקסט שמגיע מהמודל.
 - **CodeQL:** סריקת קוד בכל PR ופעם בשבוע.

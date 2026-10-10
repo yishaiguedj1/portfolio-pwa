@@ -1,0 +1,7 @@
+# הקשר הבנייה של חדר האפליקציה (BuildKit קורא את הקובץ הזה במקום ‎.dockerignore שבשורש): רק השרתון
+*
+!ibkr-proxy/api/
+!ibkr-proxy/lib/
+!ibkr-proxy/server.js
+!ibkr-proxy/vercel.json
+!ibkr-proxy/package.json

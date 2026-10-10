@@ -27,8 +27,10 @@ const O = require('../lib/studioops');
 const I = require('../lib/studioinc');
 const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
 const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ותחזית
+const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נלמד לכל שלב
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
+const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -117,10 +119,12 @@ async function raise(deps, uid, evs, j, now, once) {
     if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
   } catch (e) {}
 }
-async function closeJobOps(deps, uid, j, now) {
+async function closeJobOps(deps, uid, j, now, ok) {
   try {
     const d = await readDoc(deps, 'studioOps', uid);
-    const al = d && O.opsCloseJob(d.al, j, now);
+    let al = d && O.opsCloseJob(d.al, j, now);
+    // 10/10/2026: עבודה שהסתיימה בהצלחה = הרכיבים בשרשרת עובדים → התראות בריאות של עבודות אחרות נסגרות
+    if (d && ok) al = O.opsRecover(al || d.al, j, now) || al;
     if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
   } catch (e) {}
 }
@@ -151,10 +155,36 @@ const majorNow = async (deps, uid, job) => {
   } catch (e) { return null; }
 };
 const readStats = async (deps, uid) => { try { const d = await readDoc(deps, 'studioStats', uid); return d || {}; } catch (e) { return {}; } };
-const readNs = async (deps, uid) => { const d = await readStats(deps, uid); return Array.isArray(d.ns) ? d.ns : []; };
 const patchVault = (deps, uid, o) => patchDoc(deps, 'studioVault', uid, o);
 
 /* ---------- הפעלת ה־Routine ---------- */
+/* שלב 4 (10/10/2026): התראות לטלפון. מפתחות ה־VAPID נוצרים פעם אחת ונשמרים מוצפנים בכספת (studioVault/_vapid —
+   מזהה שלא יכול להיות uid). יצירה רק אם אין (currentDocument.exists=false): שתי בקשות במקביל — אחת נשמרת, השנייה קוראת */
+const VAPID_DOC = '_vapid', VAPID_AAD = 'webpush|vapid';
+async function vapidKeys(deps) {
+  const d = await readDoc(deps, 'studioVault', VAPID_DOC).catch(() => null);
+  if (d && d.vk) { const v = vault.open(d.vk, VAPID_AAD); if (v && v.pub && v.d) return v; }
+  const v = W.genVapid();
+  const r = await fsCall(deps, 'PATCH', '/studioVault/' + VAPID_DOC + '?updateMask.fieldPaths=vk&updateMask.fieldPaths=pub&currentDocument.exists=false',
+    { fields: S.toFields({ vk: vault.seal(v, VAPID_AAD), pub: v.pub }) });
+  if (r.status === 200) return v;
+  const d2 = await readDoc(deps, 'studioVault', VAPID_DOC);
+  const v2 = d2 && d2.vk ? vault.open(d2.vk, VAPID_AAD) : null;
+  if (!v2 || !v2.pub) throw new Error('vapid');
+  return v2;
+}
+/* התראה לכל המכשירים של המשתמש — רק סוג האירוע ומזהה העבודה. תקלה כאן לא מפילה שום דבר */
+async function notify(deps, uid, kind, jobId, now) {
+  try {
+    const st = await readStats(deps, uid);
+    const subs = W.normSubs(st.wp);
+    if (!subs.length) return 0;
+    const r = await W.sendAll(deps, await vapidKeys(deps), subs, kind, jobId, now);
+    if (r.subs.length !== subs.length) await patchDoc(deps, 'studioStats', uid, { wp: r.subs, updated: now }).catch(() => {});
+    return r.sent;
+  } catch (e) { return 0; }
+}
+
 async function fire(deps, v, uid, text) {
   const conn = vault.open(v && v.r, AAD(uid));
   if (!conn || !conn.u || !conn.k) return { ok: false, error: 'conn_missing' };
@@ -440,7 +470,17 @@ async function worker(req, res, body, deps) {
       const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
       // v377: יעדי השירות — נקבעים פעם אחת, בלקיחה הראשונה (ההערכה שראית בהתחלה + "הרגיל" שלך עכשיו). השעון מתחיל כאן
       if (!job.c0) patch.c0 = now;
-      if (job.kind === 'tr' && !job.tg) { const tg = L.targets(job.spec, nm ? nm.ph : S.NORM_DEF[job.spec && job.spec.mode], S.NORM_FIXED); if (tg) patch.tg = tg; }
+      // 10/10/2026: התוכנית (p50 לכל שלב + אי־ודאות) מהמודל הנלמד; יעד הזמן = p90 + דקה ("חרגה" רק כשבאמת חריג)
+      let ep = job.ep;
+      if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
+        ep = ETA.etaPlan(ETA.etaModel(stats.et, job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur);
+        patch.ep = ep;
+      }
+      if (job.kind === 'tr' && !job.tg) {
+        const tg = L.targets(job.spec, nm ? nm.ph : S.NORM_DEF[job.spec && job.spec.mode], S.NORM_FIXED);
+        if (tg && ep) tg.t = ETA.etaTarget(ep);
+        if (tg) patch.tg = tg;
+      }
       if (/^[0-9a-f]{12}$/.test(String(body.ev || ''))) patch.ev = body.ev;   // v371: גרסת הסביבה של העובד ("אחרי שינוי בסביבה")
       const pv = S.normPv(body.pv); if (pv) patch.pv = pv;   // v373: גרסת ההנחיות של כל סוכן (מלאי הסוכנים)
       await patchJob(deps, id, patch);
@@ -571,13 +611,26 @@ async function worker(req, res, body, deps) {
     }
     if (job.kind === 'tr') {
       // v365: אירועים מהעובד (vt, Drive, רשת) ומהמגדל → התראות; סוף העבודה סוגר את כולן
-      if (up.state === 'done') await closeJobOps(deps, job.uid, id, now);
+      if (up.state === 'done') await closeJobOps(deps, job.uid, id, now, true);
       else await raise(deps, job.uid, O.normEvents(body.ev).concat(up.tw ? O.towerEvents(up.tw) : [], up.qa && up.qa.g === 'b' ? [{ c: 'claude', k: 'budget' }] : []), id, now);
+    }
+    if (job.kind === 'tr') {
+      // שלב 4: התראה לטלפון — מוכן / נעצרה (לא כשממתינים להמשך אוטומטי) / שאלה / אישור
+      const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : '';
+      if (kind) await notify(deps, job.uid, kind, id, now);
     }
     if (job.kind === 'tr' && up.state === 'done') {
       // v363: עבודה שהסתיימה מלמדת את המגדל מה "רגיל" אצלך. תקלה כאן לא מפילה את סוף העבודה
       const smp = S.normSample(job, up.use || job.use, now);
-      if (smp) await patchDoc(deps, 'studioStats', job.uid, { ns: S.addSample(await readNs(deps, job.uid), smp), updated: now }).catch(() => {});
+      // 10/10/2026: וגם כמה לקח כל שלב — מזה נלמד הצפי (studioeta.js)
+      const es = ETA.etaSample(Object.assign({}, job, up), now);
+      if (smp || es) {
+        const st0 = await readStats(deps, job.uid);
+        const patchS = { updated: now };
+        if (smp) patchS.ns = S.addSample(Array.isArray(st0.ns) ? st0.ns : [], smp);
+        if (es) patchS.et = ETA.addEtSample(st0.et, es);
+        await patchDoc(deps, 'studioStats', job.uid, patchS).catch(() => {});
+      }
     }
     return res.status(200).json(Object.assign({ ok: true, stop: false, state: up.state || job.state }, gateId ? { gate: gateId } : {}, pirOk != null ? { pir: pirOk } : {}));
   } catch (err) {
@@ -668,8 +721,34 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
-        norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
-        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), now });   // v367: החוקים ומתג החירום
+        norm: S.normsView(st.ns), wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
+        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now), now });   // v367: החוקים ומתג החירום
+    }
+    if (op === 'push') {
+      // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
+      const act = String(body.act || '');
+      if (act === 'key') return res.status(200).json({ ok: true, key: (await vapidKeys(deps)).pub });
+      const st = await readStats(deps, uid);
+      if (act === 'on') {
+        const sub = W.normSub(Object.assign({}, body.sub, { l: body.lang }));
+        if (!sub) return res.status(400).json({ ok: false, error: 'bad_sub' });
+        const wp = W.addSub(st.wp, sub, now);
+        await patchDoc(deps, 'studioStats', uid, { wp, updated: now });
+        return res.status(200).json({ ok: true, n: wp.length });
+      }
+      if (act === 'off') {
+        const wp = W.dropSub(st.wp, body.e);
+        await patchDoc(deps, 'studioStats', uid, { wp, updated: now });
+        return res.status(200).json({ ok: true, n: wp.length });
+      }
+      if (act === 'test') {
+        if (limited('pt|' + uid, 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+        const subs = W.normSubs(st.wp);
+        const r = subs.length ? await W.sendAll(deps, await vapidKeys(deps), subs, 'test', '', now) : { subs, sent: 0 };
+        if (r.subs.length !== subs.length) await patchDoc(deps, 'studioStats', uid, { wp: r.subs, updated: now }).catch(() => {});
+        return res.status(200).json({ ok: true, sent: r.sent, n: r.subs.length });
+      }
+      return res.status(400).json({ ok: false, error: 'bad_act' });
     }
     if (op === 'rules') {
       // v367: החוקים שלך — נשמרים בחשבון; חלים על עבודות שמתחילות מעכשיו (והתקציב — גם על עבודה רצה, בבדיקה הבאה של המגדל אחרי "המשך")

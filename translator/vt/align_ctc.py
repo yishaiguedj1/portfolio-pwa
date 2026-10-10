@@ -81,6 +81,23 @@ class CtcAligner:
         t0 = time.time()
         self.torch = torch
         self.F = torchaudio.functional
+        # שלב 4.1: אותו מודל כגרף ONNX INT8 בתמונת העובד (translator/aligner_export.py) — ה־forced_align
+        # עצמו נשאר של torchaudio. תקלה בגרף = המודל של torch.
+        self.ort = None
+        from .align_onnx import onnx_dir, session, verify
+        d = onnx_dir()
+        if d is not None and (d / "ctc.onnx").is_file() and (d / "ctc-dict.json").is_file():
+            try:
+                verify(d)
+                self.ort = session(d / "ctc.onnx")
+                import json
+                self.dict = json.loads((d / "ctc-dict.json").read_text())
+                self.star = self.dict["*"]
+                log(f"מודל CTC ‏(MMS_FA · ONNX INT8) נטען ({time.time() - t0:.0f} שנ׳)")
+                return
+            except Exception as e:  # noqa: BLE001
+                self.ort = None
+                log(f"⚠ גרף ה־CTC לא נטען ({type(e).__name__}) — ממשיכים ב־torch")
         b = torchaudio.pipelines.MMS_FA
         try:
             self.model = b.get_model(with_star=True)
@@ -112,8 +129,11 @@ class CtcAligner:
         out: list[tuple[float, float] | None] = [None] * len(words)
         if len(toks) <= 2:
             return out
-        with torch.inference_mode():
-            em, _ = self.model(torch.from_numpy(audio.astype(np.float32)).unsqueeze(0))
+        if self.ort is not None:
+            em = torch.from_numpy(self.ort.run(None, {"x": audio.astype(np.float32)[None]})[0])
+        else:
+            with torch.inference_mode():
+                em, _ = self.model(torch.from_numpy(audio.astype(np.float32)).unsqueeze(0))
         if em.shape[1] < len(toks) * 2:
             return out
         ali, scores = self.F.forced_align(em, torch.tensor([toks], dtype=torch.int32), blank=0)

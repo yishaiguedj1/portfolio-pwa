@@ -30,9 +30,12 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const now = 1_000_000_000;
   let m = N.progressModel({ state: 'running', prog: { st: 'tl', p: 0.5, at: now, stg: { tr: { s: now - 900e3, e: now - 600e3 }, al: { s: now - 600e3, e: now - 300e3 }, tl: { s: now - 300e3, e: 0 } } } }, est, { done: true, took: 70 }, now);
   const byId = (id) => m.stages.find((s) => s.id === id);
-  ok(byId('up').state === 'done' && byId('up').took === 70 && byId('tr').state === 'done' && byId('tr').took === 300 && byId('tl').state === 'now' && Math.abs(byId('tl').left - 300) < 2 && byId('rv').state === 'wait',
-    'מסך ההתקדמות: שלב שהסתיים — כמה לקח באמת; שלב נוכחי — לפי הקצב בפועל (חצי ב־5 דק׳ → עוד 5 דק׳); שלב שמחכה — ההערכה');
-  ok(m.left === byId('tl').left + est.rv + est.bn + est.sv && m.pct > 0 && m.pct < 1, 'הזמן הכולל = מה שנשאר בשלב הנוכחי + ההערכות של השלבים שמחכים');
+  // 10/10/2026 (מחקר הצפי): השלב הנוכחי = שילוב — ההערכה (מותאמת ב־√ρ של השלבים שהסתיימו) והקצב בפועל, w = p/(p+0.15)
+  const rho = Math.max(0.5, Math.min(3, 600 / (est.tr + est.al))), eTl = Math.round(est.tl * Math.sqrt(rho)), w = 0.5 / 0.65;
+  const want = Math.round((1 - w) * eTl + w * 600 - 300);
+  ok(byId('up').state === 'done' && byId('up').took === 70 && byId('tr').state === 'done' && byId('tr').took === 300 && byId('tl').state === 'now' && Math.abs(byId('tl').left - want) < 2 && byId('rv').state === 'wait',
+    'מסך ההתקדמות: שלב שהסתיים — כמה לקח באמת; שלב נוכחי — שילוב ההערכה עם הקצב בפועל; שלב שמחכה — ההערכה');
+  ok(m.left === byId('tl').left + byId('rv').est + byId('bn').est + byId('sv').est && byId('rv').est === Math.round(est.rv * Math.sqrt(rho)) && m.pct > 0 && m.pct < 1, 'הזמן הכולל = מה שנשאר בשלב הנוכחי + ההערכות של השלבים שמחכים');
   m = N.progressModel({ state: 'running', prog: { st: 'tl', p: 0.01, eta: 1200, at: now - 60e3, stg: { tl: { s: now - 120e3, e: 0 } } } }, est, { done: true }, now);
   ok(m.stages.find((s) => s.id === 'tl').left === 1140, 'כשהעובד מדווח כמה נשאר (eta) — זה גובר, פחות מה שעבר מאז הדיווח');
   m = N.progressModel({ state: 'done', prog: {} }, est, { done: true }, now);
@@ -173,7 +176,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     up: { folder: 'F'.repeat(20), a: { done: true, id: 'A'.repeat(20), size: 7, uri: 'https://evil.example/upload' }, v: { uri: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=X', sent: 50 } },
     fp: { name: 'a.mkv', size: 100, lm: 9 }, srv: { state: 'running', sess: { url: 'javascript:alert(1)' }, prog: { st: 'tr' } } };
   const nj = S.normJob(J);
-  ok(nj && nj.spec.to.join() === 'he' && nj.spec.mode === 'opus-medium' && nj.spec.out.join() === 'same' && nj.up.a.uri === '' && /^https:\/\/www\.googleapis\.com\/upload/.test(nj.up.v.uri) && nj.srv.sess === null && nj.srv.state === 'running',
+  ok(nj && nj.spec.to.join() === 'he' && nj.spec.mode === 'sonnet-medium' && nj.spec.out.join() === 'same' && nj.up.a.uri === '' && /^https:\/\/www\.googleapis\.com\/upload/.test(nj.up.v.uri) && nj.srv.sess === null && nj.srv.state === 'running',
     'עבודה שמורה: כתובת העלאה רק של Drive, קישור לסשן רק של claude.ai, שפות ומצבים מוכרים בלבד');
   ok(S.normJob({ id: '../x' }) === null && S.normJob(null) === null, 'מזהה עבודה לא תקין — נדחה');
   const ns = S.normStore({ jobs: [J, J, { id: 'bad' }], conn: { hint: 'trig_…abcd', ok: 5, k: 'SECRET' }, drive: { connected: true, email: 'a@b.c' }, settings: { wifi: true } });

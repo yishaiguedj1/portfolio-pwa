@@ -8,22 +8,28 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, glClean, glUpsert, GL_MAX } from './studionet.js';
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
 
-/* מצבי התרגום — המספרים מהמבחן מול המתרגם האנושי של TED (נספח ה׳ בתוכנית). q = איכות, u = שימוש במנוי (מתוך 5),
-   min = הערכת זמן לשעת ראיון בדקות. Opus 5.5 · Medium = המומלץ וברירת המחדל */
+/* מצבי התרגום — המספרים מהמבחן מול המתרגם האנושי של TED (נספח ה׳ בתוכנית). q = איכות, u = שימוש במנוי (מתוך 5,
+   לפי הצפוי לשעה — NORM_DEF בשרתון), min = הערכת זמן לשעת ראיון בדקות.
+   10/10/2026 (בקשת המשתמש): Sonnet 5.5 · Medium = המומלץ וברירת המחדל; נוסף Haiku 5.5 (Medium/High — עוד לא נבדק במבחן,
+   לכן q = 1 עד שיימדד); Opus High/Max הוסרו — הגבוה ביותר: Opus Medium */
 export const MODES = [
-  { id: 'opus-medium', fam: 'opus', effort: 'Medium', q: 4, u: 3, min: 105, rec: true },
-  { id: 'opus-high', fam: 'opus', effort: 'High', q: 4, u: 4, min: 125 },
-  { id: 'opus-max', fam: 'opus', effort: 'Max', q: 5, u: 5, min: 160 },
-  { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 1, min: 85 },
-  { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 2, min: 95 },
+  { id: 'opus-medium', fam: 'opus', effort: 'Medium', q: 4, u: 5, min: 105 },
+  { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85, rec: true },
+  { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 4, min: 95 },
+  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 75 },
+  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 80 },
 ];
-export const DEFAULT_MODE = 'opus-medium';
+export const DEFAULT_MODE = 'sonnet-medium';
+// מצבים שהוסרו → המצב הקיים הקרוב (= LEGACY_MODES בשרתון ובעובד): עבודה / טיוטה / חוק ישנים ממשיכים לעבוד
+export const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
+export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : LEGACY_MODES[id] || DEFAULT_MODE);
+const REC_MODE = MODES.find((m) => m.rec);
 /* שפות: התמלול (Parakeet v2/v3, ivrit.ai, Omnilingual) מכסה גם שפות שלא ברשימה — זו רשימת הבחירה המהירה */
 export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
@@ -50,7 +56,7 @@ const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co', '*.pytorch
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
-  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10 };
+  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 2 };
 }
 function normOut(o) {
   const d = { same: true, compact: false, mkv: false };
@@ -64,7 +70,7 @@ function normTo(a) {
 export function normSettings(o) {
   const s = defaultSettings();
   if (!o || typeof o !== 'object') return s;
-  if (MODES.some((m) => m.id === o.mode)) s.mode = o.mode;
+  if (typeof o.mode === 'string' && o.mode) s.mode = modeNow(o.mode);
   s.to = normTo(o.to);
   s.out = normOut(o.out);
   if (STYLES.includes(o.style)) s.style = o.style;
@@ -85,7 +91,9 @@ export function normServers(list) {
   const n = (x) => (Number.isFinite(+x) ? +x : null);
   return list.slice(0, 10).filter((x) => x && /^[a-z0-9]{12}$/.test(String(x.id || ''))).map((x) => ({
     id: x.id, name: String(x.name || x.id).slice(0, 40), seen: Math.max(0, n(x.seen) || 0), online: x.online === true, paused: x.paused === true,
-    hb: x.hb && typeof x.hb === 'object' ? { v: /^[0-9a-f]{7,12}$|^dev$/.test(String(x.hb.v || '')) ? x.hb.v : '', disk: n(x.hb.disk), mem: n(x.hb.mem), free: n(x.hb.free) } : null,
+    hb: x.hb && typeof x.hb === 'object' ? { v: /^[0-9a-f]{7,12}$|^dev$/.test(String(x.hb.v || '')) ? x.hb.v : '', disk: n(x.hb.disk), mem: n(x.hb.mem), free: n(x.hb.free),
+      iso: x.hb.iso === 'g' || x.hb.iso === 'r' ? x.hb.iso : '', iw: ['mem', 'missing', 'selftest', 'manual'].includes(x.hb.iw) ? x.hb.iw : '',
+      al: x.hb.al === 'o' || x.hb.al === 't' ? x.hb.al : '' } : null,
     job: x.job && JOB_RE.test(String(x.job.id || '')) ? { id: x.job.id, name: String(x.job.name || '').slice(0, 200) } : null }));
 }
 /* מצב שרת במילה אחת: מושהה גובר; אחרת מחובר/לא */
@@ -112,7 +120,7 @@ export function normJob(j) {
   const spec = {
     name: String(sp.name || '').slice(0, 200), size: num(sp.size), type: String(sp.type || '').slice(0, 60), dur: num(sp.dur),
     from: sp.from === 'auto' || SOURCE_LANGS.includes(sp.from) ? sp.from : 'auto', to: normTo(sp.to),
-    mode: MODES.some((m) => m.id === sp.mode) ? sp.mode : DEFAULT_MODE,
+    mode: modeNow(sp.mode),
     out: Array.isArray(sp.out) ? sp.out.filter((k, i) => OUTS.includes(k) && sp.out.indexOf(k) === i) : ['same'],
     style: STYLES.includes(sp.style) ? sp.style : 'bold', terms: String(sp.terms || '').slice(0, TERMS_MAX),
   };
@@ -149,6 +157,7 @@ export function normJob(j) {
     jd: normJudge(s.jd),                      // v375: שופט האיכות
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
+    ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
   } : null;
   return { id: j.id, created: num(j.created), spec, up, fp, srv };
 }
@@ -203,7 +212,7 @@ export function normOps(o) {
       fl: a.fl === 1, r: num(a.r, 0, 1e4) || 0, nj: num(a.nj, 1, 100) || 1, ps: num(a.ps, 0, 1e9) || 0, m: num(a.m, 0, 1e15) || 0,   // v368: מהבהבת, עבודות שנפגעו, ציון עדיפות, מושתקת עד
       // v369: רשומת התראה — מספר (ALR…), אושרה, ציר פעילות, והתראות נוספות של אותו רכיב באותה עבודה
       no: Number.isInteger(a.no) && a.no > 0 && a.no < 1e7 ? a.no : 0, ak: num(a.ak, 0, 1e15) || 0,
-      h: (Array.isArray(a.h) ? a.h : []).filter((x) => Array.isArray(x) && typeof x[0] === 'number' && ['o', 'a', 'x', 'r', 'k'].includes(x[1])).slice(-10).map((x) => [x[0], x[1]]),
+      h: (Array.isArray(a.h) ? a.h : []).filter((x) => Array.isArray(x) && typeof x[0] === 'number' && ['o', 'a', 'x', 'r', 'k', 'v'].includes(x[1])).slice(-10).map((x) => [x[0], x[1]]),
       sub: (Array.isArray(a.sub) ? a.sub : []).filter((x) => x && /^[a-z_]{2,12}$/.test(String(x.k || '')) && Number.isInteger(x.s)).slice(0, 10)
         .map((x) => ({ no: Number.isInteger(x.no) ? x.no : 0, k: x.k, s: Math.min(4, Math.max(1, x.s)), n: num(x.n, 1, 1e6) || 1, l: num(x.l, 0, 1e15) || 0 })) }));
   // v368: סיכום 24 שעות והשתקות בתוקף
@@ -298,7 +307,7 @@ export function normRb(a) {
 }
 /* v376: ספר ההפעלה "מצב זול יותר" — רק אחרי עצירה על עלות (תקציב / המגדל על עלות), ורק למצבים שעולים פחות (כמו בשרתון) */
 export const costStop = (srv) => !!srv && (srv.err === 'budget_stop' || (srv.err === 'tower_stop' && !!srv.tw && (srv.tw.why === 'cost' || srv.tw.why === 'cap')));
-export const cheaperModes = (id) => { const i = MODE_ORDER.indexOf(id); return i > 0 ? MODE_ORDER.slice(0, i).reverse() : []; };
+export const cheaperModes = (id) => { const i = MODE_ORDER.indexOf(modeNow(id)); return i > 0 ? MODE_ORDER.slice(0, i).reverse() : []; };
 /* v377: יעדי שירות — השעון של יעד הזמן והתקציב (מהשרתון: lib/studiosla.js slaView). לא תקין — בלי כרטיס */
 const SLA_LV = ['ok', 'half', 'risk', 'over', 'met'];
 export function normSla(o) {
@@ -341,6 +350,29 @@ export function normScan(o) {
     ok: (Array.isArray(o.ok) ? o.ok : []).filter((k) => SC_CHECKS.includes(k)), f, fb: num(o.fb) };
 }
 const STAGE_IDS = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+/* 10/10/2026: צפי הזמנים — תוכנית לעבודה (ep) ומודל לכל מנוע (status.eta). אותה צורה כמו lib/studioeta.js */
+const ETA_KEYS = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+const qOk = (q) => Array.isArray(q) && q.length === 3 && q.every((v) => typeof v === 'number' && v >= -3 && v <= 3);
+export function normEp(o) {
+  if (!o || typeof o !== 'object' || !o.s || typeof o.s !== 'object') return null;
+  const s = {};
+  for (const k of ETA_KEYS) { const v = o.s[k]; if (typeof v !== 'number' || !(v >= 0 && v <= 86400)) return null; s[k] = v; }
+  return { s, q: qOk(o.q) ? o.q.slice() : Q_DEF.slice(), n: typeof o.n === 'number' && o.n >= 0 && o.n <= 1000 ? Math.round(o.n) : 0 };
+}
+export function normEta(o) {
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  for (const e of ['a', 'r']) {
+    const m = o[e];
+    if (!m || !m.st) continue;
+    const st = {};
+    let good = true;
+    for (const k of ETA_KEYS) { const ab = m.st[k]; if (!Array.isArray(ab) || ab.length !== 2 || !ab.every((v) => typeof v === 'number' && v >= 0 && v <= 1e5)) good = false; else st[k] = ab.slice(); }
+    if (good) out[e] = { st, q: qOk(m.q) ? m.q.slice() : Q_DEF.slice(), n: typeof m.n === 'number' && m.n >= 0 ? Math.round(m.n) : 0 };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /* v380: זיכרון המונחים — u = מונחים מהמילון שלך שימשו, s = מונחים חדשים מהעבודה [[אנגלית, עברית]]. אותה בדיקה כמו בשרתון;
    הטקסט נכתב בסשן שמעבד תוכן לא מהימן — מוצג רק כטקסט, ונכנס למילון רק בלחיצה שלך */
 export function normGl(o) {
@@ -493,7 +525,15 @@ export function normStore(o) {
     .filter((j) => j && !seenJ.has(j.id) && seenJ.add(j.id)).slice(0, 100);
   const c = src.conn && typeof src.conn === 'object' ? { hint: String(src.conn.hint || '').slice(0, 24), ok: num(src.conn.ok), since: num(src.conn.since) } : null;
   const d = src.drive && typeof src.drive === 'object' ? { connected: src.drive.connected === true, email: String(src.drive.email || '').slice(0, 120), configured: src.drive.configured !== false } : null;
-  return { settings: normSettings(src.settings), drafts, jobs, conn: c, drive: d };
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d };
+}
+/* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
+   לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת */
+export function migrateSettings(o) {
+  const s = normSettings(o);
+  if (o && typeof o === 'object' && o.mv !== 2 && (o.mode === 'opus-medium' || LEGACY_MODES[o.mode])) s.mode = DEFAULT_MODE;
+  s.mv = 2;
+  return s;
 }
 /* טיוטה מהטופס: רק פרטי הקובץ (שם, גודל, סוג) — הקובץ עצמו לא נשמר */
 export function newDraft(form, created, id) {
@@ -518,8 +558,9 @@ export function fmtHM(min) {
 }
 /* מה מקבלים בפועל: הבחירות + SRT תמיד */
 export function outList(out) { return OUTS.filter((k) => out && out[k]).concat('srt'); }
-export function modeById(id) { return MODES.find((m) => m.id === id) || MODES[0]; }
-export function modeName(m) { return (m.fam === 'opus' ? 'Opus 5.5' : 'Sonnet 5.5') + ' · ' + m.effort; }
+export function modeById(id) { const k = modeNow(id); return MODES.find((m) => m.id === k); }
+const FAM_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku' };
+export function modeName(m) { return FAM_NAME[m.fam] + ' 5.5 · ' + m.effort; }
 /* שם תצוגה לפרויקט מהקובץ: בלי סיומת, קווים תחתונים → רווחים ("Ackman_TKP_interview.mp4" → "Ackman TKP interview") */
 export function fileTitle(name) {
   const t = String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -553,27 +594,27 @@ export function jobPhase(rec, run) {
 function modeSub(id) {
   switch (id) {
     case 'opus-medium': return T('studioMsOpusMed');
-    case 'opus-high': return T('studioMsOpusHigh');
-    case 'opus-max': return T('studioMsOpusMax');
     case 'sonnet-high': return T('studioMsSonHigh');
+    case 'haiku-high': return T('studioMsHaiHigh');
+    case 'haiku-medium': return T('studioMsHaiMed');
     default: return T('studioMsSonMed');
   }
 }
 function effortSub(id) {
   switch (id) {
     case 'opus-medium': return T('studioEfOpusMed');
-    case 'opus-high': return T('studioEfOpusHigh');
-    case 'opus-max': return T('studioEfOpusMax');
     case 'sonnet-high': return T('studioEfSonHigh');
+    case 'haiku-high': return T('studioEfHaiHigh');
+    case 'haiku-medium': return T('studioEfHaiMed');
     default: return T('studioEfSonMed');
   }
 }
 function modeSum(id) {
   switch (id) {
     case 'opus-medium': return T('studioSumOpusMed');
-    case 'opus-high': return T('studioSumOpusHigh');
-    case 'opus-max': return T('studioSumOpusMax');
     case 'sonnet-high': return T('studioSumSonHigh');
+    case 'haiku-high': return T('studioSumHaiHigh');
+    case 'haiku-medium': return T('studioSumHaiMed');
     default: return T('studioSumSonMed');
   }
 }
@@ -594,7 +635,7 @@ function outSub(k) {
   }
 }
 const outShort = (k) => (k === 'srt' ? 'SRT' : k === 'same' ? T('studioOutSameShort') : outName(k));
-const modeShort = (m) => (m.fam === 'opus' ? 'Opus ' : 'Sonnet ') + m.effort;   // לשורות צרות ("Opus Medium")
+const modeShort = (m) => FAM_NAME[m.fam] + ' ' + m.effort;   // לשורות צרות ("Opus Medium")
 function styleName(k) {
   switch (k) {
     case 'classic': return T('studioStyleClassic');
@@ -781,6 +822,7 @@ async function refreshStatus(force) {
     ui.rl = normRules(j.rl);
     ui.halt = num(j.halt);
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
+    ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
@@ -1275,6 +1317,14 @@ function rowNav(o) {
   r.append(ico('chev', 'st-chev'));
   return r;
 }
+/* שורה שהיא קישור החוצה (Drive) — כמו rowNav, בלשונית חדשה */
+function rowExt(o) {
+  const a = h('a', 'st-row' + (o.tile ? ' st-ric' : '')); a.href = o.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  if (o.k) a.dataset.k = o.k;
+  if (o.tile) a.append(o.tile);
+  a.append(rowTxt(o.label, o.sub), ico('out', 'st-chev'));
+  return a;
+}
 /* שורה עם עיגול סימון (בחירה מרובה) */
 function rowCheck(o) {
   const r = o.locked ? h('div', 'st-row') : btn('st-row', null, o.onClick, o.k);
@@ -1368,7 +1418,7 @@ function copyBox(txt, label, k, prose) {
 function modePicker(cur, onPick) {
   const m = modeById(cur);
   const best = h('div', 'st-mode-best' + (m.rec ? '' : ' other'));
-  best.append(h('span', 'st-ribbon', m.rec ? T('studioRibbonRec') : T('studioRibbonSel', { name: modeShort(MODES[0]) })));
+  best.append(h('span', 'st-ribbon', m.rec ? T('studioRibbonRec') : T('studioRibbonSel', { name: modeShort(REC_MODE) })));
   const mh = h('div', 'st-mh');
   const mt = h('span', 'st-l'); mt.append(h('b', null, modeName(m)), h('small', null, modeSub(m.id)));
   mh.append(tile('spark', 'green'), mt);
@@ -1381,8 +1431,8 @@ function modePicker(cur, onPick) {
   const grp = (fam) => {
     const g = h('div', 'st-mode-grp');
     const gh = h('div', 'st-gh');
-    const title = fam === 'opus' ? T('studioGrpPerf') : T('studioGrpEco');
-    gh.append(h('b', null, title), h('small', null, fam === 'opus' ? T('studioGrpPerfS') : T('studioGrpEcoS')));
+    const title = fam === 'opus' ? T('studioGrpPerf') : fam === 'sonnet' ? T('studioGrpEco') : T('studioGrpLite');
+    gh.append(h('b', null, title), h('small', null, fam === 'opus' ? T('studioGrpPerfS') : fam === 'sonnet' ? T('studioGrpEcoS') : T('studioGrpLiteS')));
     const ef = h('div', 'st-effort'); ef.setAttribute('role', 'radiogroup'); ef.setAttribute('aria-label', title);
     for (const x of MODES.filter((y) => y.fam === fam)) {
       const b = btn(null, null, () => onPick(x.id), 'm:' + x.id);
@@ -1398,7 +1448,7 @@ function modePicker(cur, onPick) {
   sum.append(T('studioSumPre') + ' ', nb, ' — ' + modeSum(m.id));
   // v367: מעל המצב המקסימלי שבחוקים שלך — לפני שמתחילים נשאל אותך
   const over = modeOverMax(m.id, ui.rl.mx) ? banner('warn', T('studioRlOverForm', { m: modeShort(modeById(ui.rl.mx)) })) : null;
-  return [best, grp('opus'), grp('sonnet'), sum, over].filter(Boolean);
+  return [best, grp('opus'), grp('sonnet'), grp('haiku'), sum, over].filter(Boolean);
 }
 /* מה לקבל — שלוש אפשרויות + SRT קבוע. ההערכה לפי גודל הקובץ (כשיש) */
 function outRows(out, size, onToggle) {
@@ -1443,10 +1493,26 @@ function upState(rec, run) {      // ההעלאה בטלפון במונחים ש
   else if (run && run.phase === 'video' && up.noAudio) { p = run.p || 0; left = Math.max(0, rec.spec.size - (run.sent || 0)) / (rate || 1.5e6); }
   return { active, done: aDone, p, left: Math.round(left), took: up.took, est: Math.max(30, Math.round(audioBytes / 1.5e6) + 20) };
 }
+/* 10/10/2026: התוכנית של העבודה — מהשרתון (נקבעה בלקיחה), אחרת מהמודל הנלמד, אחרת הטבלה הישנה */
+function planFor(rec) {
+  if (rec.srv && rec.srv.ep) return rec.srv.ep;
+  const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
+  const md = ui.eta && ui.eta[eng];
+  return (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
+}
 function modelFor(rec) {
   const run = runs.get(rec.id);
-  const est = stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0);
-  return progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog }, est, upState(rec, run), Date.now());
+  const pl = planFor(rec);
+  const m = progressModel({ state: rec.srv ? rec.srv.state : 'new', prog: rec.srv && rec.srv.prog }, pl.s, upState(rec, run), Date.now(), pl.q);
+  m.n = pl.n || 0;
+  return m;
+}
+/* שעת הסיום שמוצגת (p80) — יציבה: יורדת מיד, עולה רק כשהפער גדול מדקה או מ־10% ממה שנשאר (מחקר הצפי, 10/10/2026) */
+const etaEnd = new Map();
+function shownEnd(id, leftSec) {
+  const now = Date.now(), raw = now + leftSec * 1000, prev = etaEnd.get(id);
+  if (!prev || raw < prev || raw - prev > Math.max(60e3, 0.1 * leftSec * 1000) || prev < now) { etaEnd.set(id, raw); return raw; }
+  return prev;
 }
 function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לשנייה · נשארו 8 דק׳"
   const sent = run && run.phase === 'video' ? run.sent || 0 : rec.up.v.sent || 0, size = rec.spec.size;
@@ -1481,14 +1547,18 @@ function heroState(rec, run, ph) {
   if (ph === 'failed' || ph === 'cancelled') return { pct: m.pct, big: ph === 'failed' ? T('studioBFailed') : T('studioBCancelled'), sub: '' };
   if (ph === 'stuck') return { pct: m.pct, big: T('studioStuckBig'), sub: '' };
   if (ph === 'ready') return { pct: 1, check: true, big: T('studioReadyBig'),
-    sub: rec.up.wait === 'worker_not_ready' ? T('studioWaitWorkerS') : rec.up.wait === 'conn_missing' ? T('studioNeedConnS') : T('studioTotalEst', { t: fmtLeft(m.left) }) };
+    sub: rec.up.wait === 'worker_not_ready' ? T('studioWaitWorkerS') : rec.up.wait === 'conn_missing' ? T('studioNeedConnS') : T('studioTotalEst', { t: fmtLeft(m.left80) }) };
   const u = uploadLeft(rec, run);
   // ההעלאה עצרה / מחכה — בלי "נשארו בערך": מה שנשאר תלוי בחזרה של הרשת או בבחירה מחדש
   if (ph === 'need' || ph === 'paused' || ph === 'error') return { pct: u.pct, big: T('studioUpStopBig'), sub: T('studioUpOf', { a: fmtSize(u.done), b: fmtSize(u.all) }) };
   if (ph === 'wait') return { pct: u.pct, big: T('studioUpWaitBig'), sub: T('studioUpOf', { a: fmtSize(u.done), b: fmtSize(u.all) }) };
   const parked = (!rec.srv || rec.srv.state === 'new') && !rec.up.started;
   if (parked) return { pct: u.pct, big: T('studioLeftBig', { t: fmtLeft(u.left) }), sub: T('studioUpLeftS') };
-  return { pct: m.pct, big: T('studioLeftBig', { t: fmtLeft(m.left) }), sub: T('studioReadyAt', { t: fmtClock(Date.now() + m.left * 1000) }) };
+  // p80 (שמרני — להקדים ולא לאחר); לפני 8 עבודות שהמודל למד מהן — טווח p50–p90, כי עוד אין מספיק נתונים לשעה אחת
+  const end = shownEnd(rec.id, m.left80), now = Date.now();
+  const sub = m.n >= 8 || m.left90 - m.left < 120 ? T('studioReadyAt', { t: fmtClock(end) })
+    : T('studioReadyRange', { a: fmtClock(now + m.left * 1000), b: fmtClock(now + m.left90 * 1000) });
+  return { pct: m.pct, big: T('studioLeftBig', { t: fmtLeft(Math.max(0, (end - now) / 1000)) }), sub };
 }
 /* מה קורה עכשיו — משפט אחד */
 function nowLine(rec, run, ph) {
@@ -1983,6 +2053,7 @@ function evName(e) {
     case 'a': return T('studioEvA');
     case 'x': return T('studioEvX');
     case 'r': return T('studioEvR');
+    case 'v': return T('studioEvV');
     default: return T('studioEvK');
   }
 }
@@ -2825,7 +2896,7 @@ function haltBanner() {
   return b;
 }
 /* v367: "החוקים שלך" — סיכום בשורה אחת */
-const MODE_ORDER = ['sonnet-medium', 'sonnet-high', 'opus-medium', 'opus-high', 'opus-max'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
+const MODE_ORDER = ['haiku-medium', 'haiku-high', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
 export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
 const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
 const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));
@@ -3224,7 +3295,15 @@ function pageJob(p) {
   });
   // "מוכן" שרק מחכה לעדכון הבא / לחיבור — הראש כבר אומר את זה; בלי כרטיס כפול
   const quiet = ph0 === 'ready' && ['', 'worker_not_ready', 'conn_missing'].includes(rec.up.wait);
-  if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
+  // 10/10/2026: עבודה שהסתיימה — התוצרים עצמם במקום כרטיס "התרגום מוכן!" שני (הראש כבר אומר את זה);
+  // עד עכשיו הקישורים היו רק בתוך "פרטים טכניים" המקופלים
+  const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []) : [];
+  if (outs.length) {
+    p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view',
+      tile: tile(o.k === 'srt' ? 'globe' : 'film', o.k === 'srt' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
+    rec.up.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + rec.up.folder, tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
+    btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
+  } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];
   if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
@@ -3318,12 +3397,14 @@ function pageJob(p) {
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
     rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,
+    kvRow(T('studioEtaK'), (() => { const n = planFor(rec).n || 0; return n ? T('studioEtaN', { n }) : T('studioEtaPrior'); })()),   // 10/10/2026: על מה הצפי מבוסס
     workerMsgRow(rec, ph0),
   ];
   const links = h('div', 'st-wacts');
-  for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
-  if (rec.up.folder) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
+  if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
+  if (rec.up.folder && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
   if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
+  if (ph0 === 'done' && rec.srv) links.append(btn('st-wbtn', T('studioBenchCopy'), () => copyText(JSON.stringify(benchData(rec)), T('studioBenchCopied')), 'bench-copy'));   // מאגר המדידות
   det.append(sum, list(...rows), links);
   p.append(h('div', 'st-gap sm'), det);
 
@@ -3431,6 +3512,15 @@ function pageSettings(p) {
   const drows = [drow];
   if (!dr || !dr.connected) { const b = btn('st-row st-act', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'drive-connect'); b.disabled = ui.driveBusy || blocked(); drows.push(b); }
   p.append(secT(T('studioSecDrive')), list(...drows), note(T('studioDriveNote')));
+  // שלב 4: התראות לטלפון — מתג אחד; בדיקה כשפועל
+  if (ui.push == null) refreshPush().then(() => { if (root && ui.view === 'settings') render('none'); });
+  const pst = ui.push || 'off';
+  const prow = rowSwitch({ label: T('studioPushT'), sub: ui.pushBusy ? T('studioPushBusy') : pst === 'on' ? T('studioPushOnS') : pst === 'denied' ? T('studioPushDenied') : pst === 'na' ? T('studioPushNa') : T('studioPushOffS'),
+    on: pst === 'on', onClick: () => (pst === 'on' ? pushOff() : pushOn()), k: 'push' });
+  if (pst === 'na' || pst === 'denied' || ui.pushBusy) prow.disabled = true;
+  const prows = [prow];
+  if (pst === 'on') prows.push(btn('st-row st-act', T('studioPushTest'), pushTest, 'push-test'));
+  p.append(secT(T('studioSecPush')), list(...prows));
   // העלאה
   p.append(secT(T('studioSecUpload')), list(
     rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' })));
@@ -3441,6 +3531,62 @@ function pageSettings(p) {
     rowNav({ label: T('studioTo'), value: langsSum(s.to), onClick: () => go('lang', 'def'), k: 'def:to' }),
     rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
     rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' })));
+}
+/* ---------------- שלב 4: התראות לטלפון (Web Push, 10/10/2026) ----------------
+   המפתח הציבורי מהשרתון; המנוי של הדפדפן נשלח אליו. ההתראות עצמן — רק סוג האירוע ומזהה העבודה (בלי שם קובץ).
+   requestPermission בתוך הנגיעה (פעולה ראשונה אחרי הלחיצה). ui.push: on / off / denied / na */
+const PUSH_OK = typeof window !== 'undefined' && typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+export function b64uBytes(s) {
+  const str = String(s || '');
+  const b = atob((str + '='.repeat((4 - str.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, (c) => c.charCodeAt(0));
+}
+async function pushSub() {
+  try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); } catch (e) { return null; }
+}
+async function refreshPush() {
+  if (!PUSH_OK) { ui.push = 'na'; return; }
+  const sub = await pushSub();
+  ui.push = Notification.permission === 'denied' ? 'denied' : sub && Notification.permission === 'granted' ? 'on' : 'off';
+}
+async function pushOn() {
+  if (ui.pushBusy || !PUSH_OK) return;
+  ui.pushBusy = true;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { ui.push = perm === 'denied' ? 'denied' : 'off'; return; }
+    render('none');
+    const k = await net.api('push', { act: 'key' });
+    if (!k.ok || !k.key) throw new Error(k.error || 'key');
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(k.key) });
+    const lang = String(document.documentElement.lang || 'he').startsWith('en') ? 'en' : 'he';
+    const j = await net.api('push', { act: 'on', sub: sub.toJSON(), lang });
+    if (!j.ok) throw new Error(j.error || 'on');
+    ui.push = 'on';
+    flashSafe(T('studioPushOnDone'));
+  } catch (e) {
+    flashSafe(T('studioPushErr'));
+  } finally {
+    ui.pushBusy = false;
+    if (root) render('none');
+  }
+}
+async function pushOff() {
+  if (ui.pushBusy) return;
+  ui.pushBusy = true;
+  try {
+    const sub = await pushSub();
+    if (sub) { await net.api('push', { act: 'off', e: sub.endpoint }); await sub.unsubscribe().catch(() => {}); }
+    ui.push = 'off';
+  } finally {
+    ui.pushBusy = false;
+    if (root) render('none');
+  }
+}
+async function pushTest() {
+  const j = await net.api('push', { act: 'test' });
+  flashSafe(j.ok && j.sent ? T('studioPushTestSent') : T('studioPushErr'));
 }
 /* ---------------- מסך השרת (מצב API של המערכת) ----------------
    השרת לא פתוח לאינטרנט — הוא שואל את השרתון כל 20 שנ׳ ומדווח דופק. כאן רואים אותו ומנהלים אותו (המנהל בלבד):
@@ -3491,6 +3637,62 @@ async function addServer() {
   else flashSafe(errText(j.error, j));
   render('none');
 }
+/* 10/10/2026 (מאגר המדידות, translator/bench.py): הנתונים המדויקים של עבודה שהסתיימה — להעתקה ולהדבקה לסשן הפיתוח.
+   מספרים, מודלים וזמנים בלבד: בלי שם הקובץ, בלי תוכן ובלי מזהים של Drive */
+/* שלב 4: קבלה לעבודה שהסתיימה — שורות טקסט לשיתוף/העתקה: מה תורגם, מתי, באיזה מצב, כמה זמן, כמה עלה ואיכות.
+   הכל מהרשומה שכבר בטלפון (אותם מספרים של כרטיס העלות ומדד האיכות) — בלי פנייה לרשת */
+export function receiptText(rec) {
+  const sv = rec && rec.srv;
+  if (!sv || sv.state !== 'done') return '';
+  const m = modeById(rec.spec.mode), cv = costView(sv.use, rec.spec.mode);
+  const tok = cv ? cv.rows.reduce((a, r) => a + r.tok, 0) : 0;
+  const wall = sv.ended && rec.created ? Math.max(0, (sv.ended - rec.created) / 1000) : 0;
+  const L = [T('studioRcptHead'), fileTitle(rec.spec.name) || T('studioUntitled'), ''];
+  const kv = (k, v) => { if (v) L.push(k + ': ' + v); };
+  kv(T('studioRcptDone'), sv.ended ? fmtDate(sv.ended) : '');
+  kv(T('studioDur'), rec.spec.dur ? fmtDur(rec.spec.dur) : '');
+  kv(T('studioSecMode'), modeShort(m));
+  kv(T('studioRcptWall'), wall ? fmtDur(wall) : '');
+  if (cv) kv(T('studioCostTotal'), fmtUsd(cv.total) + (cv.partial ? '+' : '') + ' · ' + T('studioCostTok', { n: tok.toLocaleString(uiLang()) }));
+  if (sv.q && sv.q.s != null) kv(T('studioQT'), sv.q.s + '/100');
+  if (sv.jd && sv.jd.s != null) kv(T('studioRcptJudge'), sv.jd.s + '/100');
+  kv(T('studioJobId'), rec.id);
+  return L.join('\n');
+}
+async function shareReceipt(rec) {
+  const txt = receiptText(rec);
+  if (!txt) return;
+  try { if (navigator.share) { await navigator.share({ title: T('studioRcpt'), text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  copyText(txt, T('studioRcptCopied'));
+}
+export function benchData(rec) {
+  const srv = rec.srv || {}, sp = rec.spec || {}, stg = (srv.prog && srv.prog.stg) || {};
+  const stages = {};
+  for (const k of ['tr', 'al', 'tl', 'rv', 'bn', 'sv']) { const x = stg[k]; if (x && x.s > 0 && x.e > x.s) stages[k] = Math.round((x.e - x.s) / 1000); }
+  const models = {}, usd = {}, tok = {}, tokd = {};
+  for (const r of srv.use || []) {
+    models[r.k] = r.m;
+    if (r.usd != null) usd[r.k] = Math.round(r.usd * 1e4) / 1e4;
+    tokd[r.k] = { i: r.i || 0, o: r.o || 0, cr: r.cr || 0, cw: (r.c5 || 0) + (r.c1 || 0), n: r.n || 0 };
+    tok[r.k] = tokd[r.k].i + tokd[r.k].o + tokd[r.k].cr + tokd[r.k].cw;
+  }
+  const first = Math.min(...Object.values(stg).map((x) => (x && x.s) || Infinity));
+  return { date: new Date(rec.created || Date.now()).toISOString().slice(0, 10), dur_s: sp.dur || 0, engine: srv.eng === 'api' ? 'api' : 'routine',
+    mode: sp.mode || '', models, usd, tok, tokd, stages_s: stages,
+    wall_s: Number.isFinite(first) && srv.ended > first ? Math.round((srv.ended - first) / 1000) : 0,
+    quality: srv.q ? srv.q.s : null, cues: srv.q ? srv.q.n : null, judge: srv.jd ? srv.jd.s : null, state: srv.state || '' };
+}
+/* ת2 (10/10/2026): בידוד קופסת העובד — gVisor, או רגיל עם הסיבה (snb_runtime במארח) */
+function isoTxt(hb) {
+  if (hb.iso === 'g') return T('studioIsoG');
+  switch (hb.iw) {
+    case 'mem': return T('studioIsoMem');
+    case 'missing': return T('studioIsoMissing');
+    case 'selftest': return T('studioIsoSelftest');
+    case 'manual': return T('studioIsoManual');
+    default: return T('studioIsoR');
+  }
+}
 function pageServer(p) {
   p.append(navBar({ back: T('studioTwT') }), large(T('studioSrvT')), h('p', 'st-lede', T('studioSrvLede')));
   const ab = accessBanner(); if (ab) p.append(ab);
@@ -3524,6 +3726,7 @@ function pageServer(p) {
     const sub = h('small', null, parts.join(' · '));
     if (sv.hb && sv.hb.v) sub.append(' · ', h('bdi', null, sv.hb.v.slice(0, 7)));
     l.append(b, sub);
+    if (sv.hb && sv.hb.iso && stt !== 'off') l.append(h('small', null, isoTxt(sv.hb) + (sv.hb.al === 'o' ? ' · ' + T('studioAlOnnx') : '')));   // ת2: בידוד הקופסה · שלב 4.1: היישור
     if (sv.job) { const js = h('small'); js.append(T('studioSrvJob') + ' '); js.append(h('bdi', null, sv.job.name ? fileTitle(sv.job.name) : T('studioSrvJobOther'))); l.append(js); }
     r.append(tile('cloud', stt === 'on' ? 'green' : stt === 'paused' ? 'orange' : 'red'), l);
     // שתי פעולות קטנות בתוך השורה (לא שורה לכל פעולה) — השהיה / המשך, והסרה עם אישור
@@ -3770,7 +3973,8 @@ function closeStudio(instant) {
 }
 export function openStudio(opt) {
   ensureCss();
-  if (root) return;
+  const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
+  if (root) { if (jobLink && jobRec(jobLink)) go('job', jobLink); return; }
   const restore = opt && opt.restore && opt.restore.studio ? opt.restore : null;   // רענון בזמן שהסטודיו היה פתוח
   store = load();
   root = h('div', 'st-root no-swipe');
@@ -3810,7 +4014,10 @@ export function openStudio(opt) {
   render('none');
   if (restore) curtainDown();
   try { root.focus({ preventScroll: true }); } catch (e) {}
-  refreshStatus(true); refreshJobs(true);
+  refreshStatus(true);
+  const jobs0 = refreshJobs(true);
+  // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
+  if (jobLink) { if (jobRec(jobLink)) go('job', jobLink); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) go('job', jobLink); }); }
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);

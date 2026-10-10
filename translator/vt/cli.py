@@ -189,7 +189,7 @@ def cmd_align(a):
     pr = Project(a.name)
     words = read_json(pr.p("en.words.json"))["words"]
     words, stats = align_words(words, str(pr.p("audio16k.wav")), device=a.device)
-    aligner = "Qwen3-ForcedAligner-0.6B"
+    aligner = "Qwen3-ForcedAligner-0.6B" + (" · ONNX INT8" if str(stats.get("engine", "")).startswith("onnx-int8") else "")
     log(f"יושרו {stats['aligned']} מילים · חשודות {stats['suspicious']} · משוערות {stats['kept_approx']} "
         f"· {stats['seconds']} שנ׳")
     if not a.no_ctc:

@@ -5,6 +5,7 @@
    הקובץ טהור (בלי רשת) — api/studio.js עושה את הקריאות, ו־tests/run.js בודק את שניהם. */
 const crypto = require('crypto');
 const SLA = require('./studiosla');   // v377: יעדי שירות
+const ETA = require('./studioeta');   // 10/10/2026: צפי זמנים נלמד
 
 const ROUTINE_URL_RE = /^https:\/\/api\.anthropic\.com\/v1\/claude_code\/routines\/(trig_[A-Za-z0-9]{8,64})\/fire$/;
 const ROUTINE_KEY_RE = /^sk-ant-oat01-[A-Za-z0-9_-]{20,400}$/;
@@ -24,7 +25,11 @@ const ACTIVE = ['new', 'queued', 'running'];
 const KINDS = ['ping', 'tr'];
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
 const WORKER_KINDS = ['ping', 'tr'];   // v358: העובד מתרגם (שלב 3)
-const MODES = ['opus-medium', 'opus-high', 'opus-max', 'sonnet-medium', 'sonnet-high'];
+// 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. הראשון = ברירת המחדל (Sonnet Medium — המומלץ).
+const MODES = ['sonnet-medium', 'haiku-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
+// מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
+const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
+const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || MODES[0]);
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv'];
@@ -81,7 +86,7 @@ function normSpec(s) {
     dur: Math.max(0, Math.min(24 * 3600, Math.round(Number(s.dur) || 0))),     // שניות (0 = לא ידוע)
     from: s.from === 'auto' || LANGS.includes(s.from) ? s.from : 'auto',
     to,
-    mode: MODES.includes(s.mode) ? s.mode : MODES[0],
+    mode: modeNow(s.mode),
     out: uniq(s.out, (k) => OUTS.includes(k)),                                  // SRT תמיד; ריק = SRT בלבד
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
@@ -190,7 +195,8 @@ function normTower(t) {
    **זהה ל־PER_HOUR + FIXED ב־translator/tower.py** — הבדיקה משווה). עבודה שהופעלה שוב (המשך אחרי עצירה/תקלה) לא נכנסת:
    הסשנים הנוספים מנפחים את העלות, ותקלה לא אמורה ללמד את המגדל ש"זה רגיל". */
 const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
-const NORM_DEF = { 'opus-medium': 6.0, 'opus-high': 8.5, 'opus-max': 13.0, 'sonnet-medium': 3.0, 'sonnet-high': 4.2 };
+// Haiku 5.5 (10/10/2026): הערכה — המחיר פי 20 זול מ־Sonnet, ובמצב Routine הסשן הראשי נשאר Sonnet; יוחלף במדידה מ־NORM_MIN עבודות
+const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-medium': 0.4, 'haiku-high': 0.6, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
 const NORM_FIXED = 1.5;
 function normSample(job, use, now) {
   const sp = job && job.spec;
@@ -286,7 +292,7 @@ const fbForWorker = (list) => fbList(list).filter((e) => e.fix).map((e) => ({ fp
 const fbView = (list) => fbNumber(fbList(list).map((e) => Object.assign({}, e))).sort((a, b) => (b.at || 0) - (a.at || 0))
   .map((e) => ({ no: e.no, fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', px: e.px || '', at: e.at || 0 }));
 /* v376: מצבים שעולים בהמשך תור (מצב זול יותר אחרי עצירה על עלות) — לפי הצפוי לשעה, מהקרוב ביותר */
-const cheaperModes = (mode) => MODES.filter((m) => NORM_DEF[m] < (NORM_DEF[mode] || 0)).sort((a, b) => NORM_DEF[b] - NORM_DEF[a]);
+const cheaperModes = (mode) => MODES.filter((m) => NORM_DEF[m] < (NORM_DEF[modeNow(mode)] || 0)).sort((a, b) => NORM_DEF[b] - NORM_DEF[a]);
 const COST_STOP = (job) => !!job && (job.err === 'budget_stop' || (job.err === 'tower_stop' && !!job.tw && (job.tw.why === 'cost' || job.tw.why === 'cap')));
 
 /* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
@@ -340,7 +346,7 @@ function normRules(r) {
     jx: o.jx === true,   // v375: שופט האיכות כבוי (ברירת המחדל — פועל, החלטה 4 בתוכנית)
   };
 }
-/* המצב יקר מהמקסימום? לפי הצפוי לשעת סרטון (NORM_DEF): Sonnet Medium < Sonnet High < Opus Medium < Opus High < Opus Max */
+/* המצב יקר מהמקסימום? לפי הצפוי לשעת סרטון (NORM_DEF): Haiku Medium < Haiku High < Sonnet Medium < Sonnet High < Opus Medium */
 const modeOver = (mode, mx) => !!mx && MODES.includes(mode) && MODES.includes(mx) && NORM_DEF[mode] > NORM_DEF[mx];
 /* כמה כבר עלו הסשנים הקודמים של העבודה (אחרי "המשך") — התקציב הוא לכל העבודה, לא לסשן */
 const usdOf = (use) => Math.round((Array.isArray(use) ? use : []).reduce((s, r) => s + (r && typeof r.usd === 'number' ? r.usd : 0), 0) * 100) / 100;
@@ -442,6 +448,7 @@ function publicJob(job, now) {
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(job.jd),                          // v375: שופט האיכות
+    ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     sla: SLA.slaView(job, now),                     // v377: יעד זמן ותקציב (השעון עוצר כשמחכים לך)
   };
@@ -600,7 +607,10 @@ function normHb(h) {
   const n = (x, lo, hi) => (Number.isFinite(+x) ? Math.max(lo, Math.min(hi, Math.round(+x * 10) / 10)) : null);
   return { v: /^[0-9a-f]{7,40}$|^dev$/.test(String(h.v || '')) ? String(h.v).slice(0, 12) : '',
     disk: n(h.disk, 0, 100), free: n(h.free, 0, 1e5), mem: n(h.mem, 0, 100), load: n(h.load, 0, 512), up: n(h.up, 0, 1e9),
-    busy: JOB_RE.test(String(h.busy || '')) ? h.busy : '' };
+    busy: JOB_RE.test(String(h.busy || '')) ? h.busy : '',
+    // ת2: בידוד הקופסה — g = gVisor, r = רגיל (runc) + הסיבה מקטלוג קבוע
+    iso: h.iso === 'g' || h.iso === 'r' ? h.iso : '', iw: h.iso === 'r' && ['mem', 'missing', 'selftest', 'manual'].includes(h.iw) ? h.iw : '',
+    al: h.al === 'o' || h.al === 't' ? h.al : '' };   // שלב 4.1: מנוע היישור (o = ONNX INT8)
 }
 function serverView(s, now) {
   if (!s || !SRV_ID_RE.test(String(s.id || ''))) return null;
@@ -620,7 +630,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'gl'];   // v380: זיכרון המונחים   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl'];   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -643,10 +653,12 @@ function fromFields(f) {
     else if ('booleanValue' in v) o[k] = !!v.booleanValue;
     else o[k] = null;
   }
+  if (o.spec && typeof o.spec === 'object' && LEGACY_MODES[o.spec.mode]) o.spec.mode = LEGACY_MODES[o.spec.mode];   // עבודה שנשמרה במצב שהוסר
   return o;
 }
 
 module.exports = {
+  MODES, LEGACY_MODES, modeNow,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,

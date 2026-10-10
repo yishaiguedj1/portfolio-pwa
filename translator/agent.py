@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import random
 import re
 import shutil
@@ -61,6 +62,14 @@ def token() -> str:
 def host_info(busy: str = '') -> dict:
     """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
     hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy}
+    # ת2: האם הקופסה רצה בליבה מדומה (gVisor מחזיר release שמסתיים ב־gvisor), ואם לא — למה (snb_runtime במארח)
+    hb['iso'] = 'g' if platform.release().endswith('gvisor') else 'r'
+    why = os.environ.get('SNB_ISO_WHY', '')
+    if hb['iso'] == 'r' and why in ('mem', 'missing', 'selftest', 'manual'):
+        hb['iw'] = why
+    # שלב 4.1: מנוע היישור — o = גרפי ONNX INT8 בתמונה (/opt/aligner), t = torch (בלי גרפים / SNB_ALIGN=torch)
+    al_dir = os.environ.get('SNB_ALIGN_ONNX') or '/opt/aligner'
+    hb['al'] = 't' if os.environ.get('SNB_ALIGN', '').lower() == 'torch' or not os.path.isfile(os.path.join(al_dir, 'manifest.json')) else 'o'
     try:
         du = shutil.disk_usage(str(J.VT_WORK if J.VT_WORK.exists() else '/'))
         hb['disk'] = round(100 * du.used / du.total, 1)

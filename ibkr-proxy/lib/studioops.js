@@ -25,8 +25,14 @@ const PENALTY = { 1: 40, 2: 20, 3: 8, 4: 2 };
 const FLAP_WIN = 60 * 60e3, FLAP_N = 2, DAY = 86400e3, MUTE_H = [1, 4, 24], MUTE_MAX = 20;
 const WEIGHT = { routine: 5, server: 5, drive: 4, claude: 3, phone: 2, vt: 1 };
 /* v369: רשומת התראה כמו ב־ServiceNow — מספר רץ (ALR…), ציר פעילות קצר ואישור ("אני על זה").
-   הציר: [זמן, קוד] — o נפתחה · a קרה שוב · x נסגרה · r נפתחה שוב · k אושרה; עד H_MAX אחרונים */
-const H_MAX = 10, H_CODES = ['o', 'a', 'x', 'r', 'k'];
+   הציר: [זמן, קוד] — o נפתחה · a קרה שוב · x נסגרה · r נפתחה שוב · k אושרה · v נסגרה כי הרכיב חזר לעבוד; עד H_MAX אחרונים */
+const H_MAX = 10, H_CODES = ['o', 'a', 'x', 'r', 'k', 'v'];
+/* 10/10/2026: התאוששות (ServiceNow: Alert auto-close on clear) — עבודה שהסתיימה מקצה לקצה מוכיחה שהרכיבים עובדים,
+   אז התראות "בריאות רכיב" פתוחות מעבודות אחרות נסגרות (העבודה הראשונה בשרת נכשלה ביישור — המפה נשארה אדומה
+   גם אחרי שהעבודה הבאה עברה באותו שלב). התראות שהן על העבודה עצמה (המגדל, תקציב, יעדים, הזרקה, בדיקה) — לא */
+const RECOVER = ['vt:setup', 'vt:ingest', 'vt:asr', 'vt:align', 'vt:render', 'vt:other',
+  'drive:up_retry', 'drive:dl_retry', 'drive:up_fail', 'drive:dl_fail', 'drive:auth',
+  'routine:fire', 'routine:unsure', 'routine:rate', 'routine:no_claim', 'claude:net', 'phone:upload', 'phone:stall'];
 const hist = (a, t, e) => { a.h = (Array.isArray(a.h) ? a.h : []).concat([[t, e]]).slice(-H_MAX); };
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 
@@ -77,6 +83,15 @@ function opsCloseJob(al, j, now) {
   const out = alList(al, now).map((a) => Object.assign({}, a));
   let changed = false;
   for (const a of out) if (a.j === j && !isClosed(a, now)) { a.x = now; hist(a, now, 'x'); changed = true; }
+  return changed ? out : null;
+}
+/* עבודה j הסתיימה בהצלחה — התראות בריאות רכיב פתוחות של עבודות אחרות נסגרות (קוד v בציר) */
+function opsRecover(al, j, now) {
+  const out = alList(al, now).map((a) => Object.assign({}, a));
+  let changed = false;
+  for (const a of out) {
+    if (a.j !== j && !isClosed(a, now) && RECOVER.includes(a.c + ':' + a.k)) { a.x = now; hist(a, now, 'v'); changed = true; }
+  }
   return changed ? out : null;
 }
 /* v369: "אשר" — מישהו (אתה) יודע על ההתראה. נשארת פתוחה ובציון, אבל יורדת מהבאנר בבית. לפי המספר */
@@ -179,4 +194,4 @@ function fireEvent(err) {
   return { c: 'routine', k: 'fire' };
 }
 
-module.exports = { COMPONENTS, KINDS, AL_MAX, KEEP, GLOBAL_TTL, FLAP_WIN, FLAP_N, DAY, MUTE_H, WEIGHT, H_MAX, normMutes, muteSet, priScore, opsAck, alertId, normEvents, opsApply, opsCloseJob, opsView, towerEvents, fireEvent, unionMs };
+module.exports = { COMPONENTS, KINDS, AL_MAX, KEEP, GLOBAL_TTL, FLAP_WIN, FLAP_N, DAY, MUTE_H, WEIGHT, H_MAX, normMutes, muteSet, priScore, opsAck, alertId, normEvents, opsApply, opsCloseJob, opsRecover, RECOVER, opsView, towerEvents, fireEvent, unionMs };
