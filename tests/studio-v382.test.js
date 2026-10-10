@@ -1,8 +1,8 @@
-// v381: סטודיו התרגום — הערה לעובד (בהשראת "corrective input" של ServiceNow): טקסט שלך מהטלפון לעבודת תרגום שרצה.
+// v382: סטודיו התרגום — הערה לעובד (בהשראת "corrective input" של ServiceNow): טקסט שלך מהטלפון לעבודת תרגום שרצה.
 // השרתון שומר אותה (nt) ומוסר בתשובה לדיווח הבא על נקודת שמירה → היסטוריה (nh, עם מתי נקראה). העובד מדפיס אותה ל־Claude
 // ומכניס לתדריך של המתרגם (tr/brief.md, סעיף שנבנה מחדש). עד 5 לעבודה; הערה שעוד לא נקראה מתחלפת.
-// הבדיקות המלאות: ibkr-proxy/tests/run.js (בלוק v381), translator/tests/test_worker.py (test_note).
-// הרצה: node tests/studio-v381.test.js
+// הבדיקות המלאות: ibkr-proxy/tests/run.js (בלוק v382), translator/tests/test_worker.py (test_note).
+// הרצה: node tests/studio-v382.test.js
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -58,6 +58,6 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 5. גרסה ---------- */
   const ver = (app.match(/APP_VERSION = '(v\d+)'/) || [])[1] || '';
-  ok(+ver.slice(1) >= 381 && swVersionOk(ver), 'APP_VERSION ≥ v381 ו־sw.js תואם (או גרסה אחת אחורה)');
+  ok(+ver.slice(1) >= 381 && swVersionOk(ver), 'APP_VERSION ≥ v382 ו־sw.js תואם (או גרסה אחת אחורה)');
   console.log('\n' + n + ' passed');
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -333,7 +333,7 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-ask-q { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
 .st-ask-o { display: grid; gap: 8px; }
 .st-ask-o .st-btn.wide { width: 100%; margin-inline: 0; }
-.st-ask-in { width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; font-family: inherit; line-height: 1.45; }   /* v381: טקסט חופשי — לא מונוספייס (כמו כתובות ומפתחות) */
+.st-ask-in { width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; font-family: inherit; line-height: 1.45; }   /* v382: טקסט חופשי — לא מונוספייס (כמו כתובות ומפתחות) */
 .st-ask-n { color: var(--on-surface-var); font-size: 13px; line-height: 1.4; }
 .st-ask.done { display: flex; align-items: center; gap: 8px; padding: 10px 14px; box-shadow: none; color: var(--on-surface-var); font-size: 14px; }
 .st-ask.done svg { width: 18px; height: 18px; flex: none; color: var(--primary); }
@@ -558,7 +558,7 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-glc { display: grid; gap: 6px; }
 .st-glh { font-size: 14px; font-weight: 700; margin-top: 2px; }
 .st-glc .st-row { padding-inline: 0; min-height: 52px; }
-/* v381: הערה ל־Claude — ההערות שנקראו, זו שמחכה, וכתיבה */
+/* v382: הערה ל־Claude — ההערות שנקראו, זו שמחכה, וכתיבה */
 .st-ntc { display: grid; gap: 10px; }
 .st-ntr { display: grid; gap: 2px; padding-inline-start: 10px; border-inline-start: 3px solid var(--primary); }
 .st-ntr.wait { border-inline-start-color: var(--on-surface-var); }

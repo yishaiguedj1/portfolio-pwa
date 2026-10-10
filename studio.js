@@ -156,7 +156,7 @@ export function normJob(j) {
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
-    nt: normNote(s.nt),                       // v381: הערה לעובד
+    nt: normNote(s.nt),                       // v382: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
     ep: normEp(s.ep),                         // 10/10/2026: צפי הזמנים של העבודה (מהשרתון, נקבע בלקיחה)
     gd: normGd(s.gd), gs: JOB_RE.test(String(s.gs || '')) ? s.gs : '', gq: normGq(s.gq),   // v387: סט הזהב
@@ -449,7 +449,7 @@ export function normGl(o) {
   }
   return u || s.length ? { u, s } : null;
 }
-/* v381: הערה לעובד — p = מחכה לנקודת השמירה הבאה, h = נקראו (d = מתי), n מתוך max לעבודה. הטקסט שלך — מוצג רק כטקסט */
+/* v382: הערה לעובד — p = מחכה לנקודת השמירה הבאה, h = נקראו (d = מתי), n מתוך max לעבודה. הטקסט שלך — מוצג רק כטקסט */
 const NOTE_LEN = 300;
 const noteText = (v) => { const s = String(v == null ? '' : v).replace(/[\x00-\x09\x0b-\x1f\x7f<>`]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim(); return s.length >= 2 ? s.slice(0, NOTE_LEN) : ''; };
 export function normNote(o) {
@@ -1938,7 +1938,7 @@ function pageProject(p) {
 
 /* שלב 3 סבב ד׳: "Claude שואל" — שאלה קצרה באמצע העבודה. תשובה מוכנה בנגיעה, או טקסט כשאין תשובות מוכנות.
    לא ענית עד הזמן שכתוב — העבודה ממשיכה עם ברירת המחדל (העובד מדווח, והכרטיס מתחלף לשורה אחת) */
-/* v381: הערה לעובד — שליחה מהטלפון; השרתון מוסר אותה בנקודת השמירה הבאה */
+/* v382: הערה לעובד — שליחה מהטלפון; השרתון מוסר אותה בנקודת השמירה הבאה */
 let noteBusy = false;
 async function sendNote(id, t) {
   if (noteBusy) return;
@@ -3813,7 +3813,7 @@ function pageJob(p) {
     stl.append(row);
   }
   p.append(secT(T('studioSecStages')), stl);
-  const nc = noteCard(rec);   // v381: הערה ל־Claude — נקראת בנקודת השמירה הבאה
+  const nc = noteCard(rec);   // v382: הערה ל־Claude — נקראת בנקודת השמירה הבאה
   if (nc) p.append(...nc);
   if (rec.srv && rec.srv.sla) p.append(...slaCard(rec.srv.sla));   // v377: יעד זמן ותקציב
   p.append(...anJobRows(rec));   // v385: השלבים שחרגו מהרגיל שלך
@@ -4307,7 +4307,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : ''); };   // v381: הערה שנקראה / ממתינה
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : ''); };   // v382: הערה שנקראה / ממתינה
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');

@@ -60,7 +60,7 @@ elif cmd == 'tr-prep':
     (w / 'tr' / 'source.md').write_text('# source')
     if not (w / 'tr' / 'glossary.tsv').exists():   # כמו vt: מהתבנית, רק אם אין
         (w / 'tr' / 'glossary.tsv').write_text('# מילון מונחים לראיון הזה\n')
-    if not (w / 'tr' / 'brief.md').exists():      # v381: התדריך (מהתבנית של vt)
+    if not (w / 'tr' / 'brief.md').exists():      # v382: התדריך (מהתבנית של vt)
         (w / 'tr' / 'brief.md').write_text('# תדריך\n')
 elif cmd == 'plan':                         # v380: הכתוביות (לזיכרון המונחים)
     (w / 'cues.en.json').write_text(json.dumps([{'id': 1, 'en': 'Our moat is wide, the CEO said.'},
@@ -100,7 +100,7 @@ class Fake:
         self.rl, self.bx, self.u0 = None, 0, 0                        # v367: החוקים, אישורים מעבר לתקציב, מה שכבר עלה
         self.pir = None                                               # v379: דוח אחרי תקלה שמחכה לסיכום
         self.gloss = None                                             # v380: קובץ המילון ב־Drive (bytes) — None = אין
-        self.notes, self.note_next = [], None                         # v381: הערות שנקראו (בלקיחה) והערה שתימסר בנקודת השמירה הבאה
+        self.notes, self.note_next = [], None                         # v382: הערות שנקראו (בלקיחה) והערה שתימסר בנקודת השמירה הבאה
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
 
@@ -172,7 +172,7 @@ class Fake:
                         fake.qa['a'] = {'i': 1, 't': 'stop', 'auto': True}
                     if body.get('pir'):
                         return self._send(200, {'ok': True, 'stop': False, 'pir': True})
-                    if body.get('ck') and fake.note_next:              # v381: הערה שלך — רק בנקודת שמירה, פעם אחת
+                    if body.get('ck') and fake.note_next:              # v382: הערה שלך — רק בנקודת שמירה, פעם אחת
                         n, fake.note_next = fake.note_next, None
                         return self._send(200, {'ok': True, 'stop': False, 'note': n})
                     return self._send(200, {'ok': True, 'stop': False})
@@ -674,7 +674,7 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(self.fake.reports[-1]['gl'], {'u': 0, 's': [['Buyback', 'רכישה עצמית'], ['Moat', 'חפיר כלכלי'], ['free cash flow', 'תזרים מזומנים חופשי']]})
 
     def test_note(self):
-        # v381: הערה לעובד — הערות שכבר נקראו מגיעות בלקיחה; הערה חדשה נמסרת בתשובה לנקודת שמירה: מודפסת ל־Claude,
+        # v382: הערה לעובד — הערות שכבר נקראו מגיעות בלקיחה; הערה חדשה נמסרת בתשובה לנקודת שמירה: מודפסת ל־Claude,
         # ונכנסת לתדריך (tr/brief.md) מתחת לשורת ההערות — בלי כפילות בהרצה חוזרת, ובלי תגיות/גרשיים הפוכים
         self.fake.notes = ['להשאיר את שם החברה באנגלית', '<b>x</b>', 7]
         self.assertEqual(self.take()[0], 0)

@@ -275,7 +275,7 @@ def run(args):
                     'bx': _int(job.get('bx')), 'u0': _usd(job.get('u0')),                 # v367: אישורים מעבר לתקציב, ומה שכבר עלה
                     'ls': ls,
                     'pir': pir_valid(got.get('pir')),                                    # v379: דוח אחרי תקלה שמחכה לסיכום
-                    'notes': notes_valid(job.get('notes')),                              # v381: הערות שלך שכבר נקראו (להמשך)
+                    'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
             try:
@@ -1264,7 +1264,7 @@ def align(args):
     vt(ctx, ['plan', ctx.name])
     vt(ctx, ['tr-prep', ctx.name])
     gl_merge(ctx)                                # v380: המונחים מהמילון שלך שמופיעים בסרטון
-    apply_notes(ctx)                             # v381: הערות שלך שכבר נקראו → לתדריך
+    apply_notes(ctx)                             # v382: הערות שלך שכבר נקראו → לתדריך
     save_ck(ctx, 'al')
     ctx.report('al', 1, 'הכתוביות מתוכננות — מתחילים לתרגם', force=True)
     print('✓ היישור והתכנון הסתיימו. לתרגום: ' + str(ctx.pdir / 'tr' / 'source.md'))
@@ -1282,7 +1282,7 @@ def align_prep(ctx):
     vt(ctx, ['plan', ctx.name])
     vt(ctx, ['tr-prep', ctx.name])
     gl_merge(ctx)                                # v380: המונחים מהמילון שלך שמופיעים בסרטון
-    apply_notes(ctx)                             # v381: הערות שלך שכבר נקראו → לתדריך
+    apply_notes(ctx)                             # v382: הערות שלך שכבר נקראו → לתדריך
     ctx.report('al', 0.05, 'הכתוביות תוכננו — היישור המדויק רץ במקביל לתרגום', force=True)
 
 
@@ -1802,7 +1802,7 @@ def drive_delete(ctx, fid):
         return False
 
 
-# ---------------------------------------------------------------- v381: הערה לעובד
+# ---------------------------------------------------------------- v382: הערה לעובד
 # טקסט שלך מהטלפון לעבודה שרצה. השרתון מוסר אותו בתשובה לנקודת השמירה הבאה; כאן הוא מודפס ל־Claude ונכנס לתדריך
 # של המתרגם (tr/brief.md, מתחת ל־NOTE_MARK — הסעיף נבנה מחדש בכל פעם, בלי כפילות). המשתמש = אמין; ניקוי — רק צורה.
 NOTE_MAX, NOTE_LEN = 5, 300
@@ -1855,7 +1855,7 @@ def save_ck(ctx, s, extra=None):
         fid = drive_upload(ctx, path, 'נקודת שמירה — ' + CK_LABEL[s] + '.tar.gz', s, 'application/gzip', prop='snbCk')
         r = ctx.report(ck={'s': s, 'id': fid, 'size': size}, force=True)
         if isinstance(r, dict) and r.get('note'):
-            note_receive(ctx, r['note'])         # v381: הערה שלך — נמסרת בנקודת השמירה
+            note_receive(ctx, r['note'])         # v382: הערה שלך — נמסרת בנקודת השמירה
         old = (ctx.st.get('ckids') or {}).get(s)
         if old and old != fid:
             drive_delete(ctx, old)
@@ -1917,7 +1917,7 @@ def restore(args):
         print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py prepare')
         return 0
     st_next, todo = CK_NEXT[used]
-    apply_notes(ctx)                             # v381: הערות שכבר נקראו בסשן הקודם → לתדריך המשוחזר
+    apply_notes(ctx)                             # v382: הערות שכבר נקראו בסשן הקודם → לתדריך המשוחזר
     ctx.refresh()
     files = ctx.st.get('files') or {}
     kind = 'a' if info.get('src') == 'a' and (files.get('a') or {}).get('id') else 'v'
