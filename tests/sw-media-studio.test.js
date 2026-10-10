@@ -68,6 +68,20 @@ const TOK = { t: 'TOKEN_abcdefghij', exp: Date.now() + 3600e3, size: 10e6, type:
   replies = [{ t: 'bad token with spaces', size: 5 }];
   r = await run(null, { id: 'xxxxxxxxxxxx' });
   ok(r.status === 403, 'אסימון בצורה לא תקינה — נדחה');
+  if (/function r2Url/.test(src)) {   // R2 (ת4): הדף נותן קישור חתום — ה־SW מבקש ממנו ישירות, בלי Authorization
+    const U = 'https://acct123.r2.cloudflarestorage.com/snb/R2_jx/v?X-Amz-Signature=abc';
+    replies = [{ u: U, exp: Date.now() + 600e3, size: 10e6, type: 'video/mp4' }];
+    r = await run('bytes=0-99', { id: 'R2_jAAAAAAAAAAAAAAAAAAAA_v1' });
+    const last = fetched[fetched.length - 1];
+    ok(r.status === 206 && last[0] === U && !last[1].headers.Authorization && last[1].headers.Range === 'bytes=0-99' && r.headers['Content-Range'] === 'bytes 0-99/10000000',
+      'R2: קישור חתום ישיר עם Range, בלי Authorization; Content-Range מהגודל');
+    replies = [{ u: 'https://evil.example/x', size: 10e6 }];
+    r = await run('bytes=0-99', { id: 'R2_jBBBBBBBBBBBBBBBBBBBB_v1' });
+    ok(r.status === 403, 'R2: רק מארחים של R2 (‎*.r2.cloudflarestorage.com) — אחר נדחה');
+    replies = [{ u: 'http://acct123.r2.cloudflarestorage.com/x', size: 10e6 }];
+    r = await run('bytes=0-99', { id: 'R2_jCCCCCCCCCCCCCCCCCCCC_v1' });
+    ok(r.status === 403, 'R2: רק https');
+  }
   let other;
   listeners.fetch({ request: { method: 'GET', url: 'https://evil.test/studio-media/' + ID, headers: { get: () => null } }, clientId: 'c1', respondWith: (x) => { other = x; } });
   ok(other === undefined, 'מקור אחר — לא עובר בפרוקסי');

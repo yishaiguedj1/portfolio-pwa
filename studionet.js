@@ -217,6 +217,16 @@ export async function extractAudio(file, o = {}) {
 /* ---------- v387: סט הזהב — השוואה דטרמיניסטית לתרגום אנושי (בלי AI, בלי טוקנים) ---------- */
 export const GOLD_REF_NAME = 'תרגום אנושי (ייחוס).srt', GOLD_REF_MAX = 2 * 1024 * 1024;
 const tc = (h, m, s, ms) => ((+h * 60 + +m) * 60 + +s) * 1000 + +ms;
+/* הסרת תגיות (<i>…</i>) בלי regex: כל מה שבין < ל־> יוצא, ושום < או > לא נשאר בטקסט */
+function stripTags(s) {
+  let out = '', inTag = false;
+  for (const ch of s) {
+    if (ch === '<') { inTag = true; continue; }
+    if (ch === '>') { inTag = false; continue; }
+    if (!inTag) out += ch;
+  }
+  return out;
+}
 /* SRT → [{a, b, t}] (מילישניות, טקסט בלי תגיות). שורה פגומה — מדלגים */
 export function parseSrt(text) {
   const out = [];
@@ -227,7 +237,7 @@ export function parseSrt(text) {
     if (i < 0) continue;
     const m = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/.exec(lines[i]);
     if (!m) continue;
-    const t = lines.slice(i + 1).join(' ').replace(/<[^>]*>/g, '').replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+    const t = stripTags(lines.slice(i + 1).join(' ')).replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
     const a = tc(m[1], m[2], m[3], m[4].padEnd(3, '0')), z = tc(m[5], m[6], m[7], m[8].padEnd(3, '0'));
     if (z > a && t) out.push({ a, b: z, t });
   }

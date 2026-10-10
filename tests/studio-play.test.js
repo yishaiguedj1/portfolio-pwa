@@ -66,7 +66,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sw = read('sw.js');
   if (/MEDIA_RE/.test(sw)) {
     ok(/const MEDIA_RE = \/\\\/studio-media\\\/\(\[A-Za-z0-9_-\]\{10,200\}\)\$\//.test(sw) && N.MEDIA_PATH === './studio-media/', 'sw.js: אותו נתיב כמו בדף');
-    ok(/mm = url\.origin === self\.location\.origin && MEDIA_RE\.exec/.test(sw) && /Range: 'bytes=' \+ r\[0\]/.test(sw) && /Authorization: 'Bearer '/.test(sw) && !/access_token/.test(sw), 'sw.js: רק מאותו מקור, Range מועבר, האסימון בכותרת ולא בכתובת');
+    ok(/mm = url\.origin === self\.location\.origin && MEDIA_RE\.exec/.test(sw) && /(Range: |const rg = )'bytes=' \+ r\[0\]/.test(sw) && /Authorization: 'Bearer '/.test(sw) && !/access_token/.test(sw), 'sw.js: רק מאותו מקור, Range מועבר, האסימון בכותרת ולא בכתובת');
     ok(/const STUDIO_SHELL = \[[^\]]*'\.\/studioplay\.js'/.test(sw), 'sw.js: studioplay.js בקבצי הסטודיו (אופליין)');
     ok(/status === 401 \|\| res\.status === 403\) && i === 0\) \{ mediaTok\.delete\(id\); continue; \}/.test(sw) && !/cache\.put\([^)]*studio-media/.test(sw), 'sw.js: אסימון שפג — פעם אחת חדש; בלי מטמון לסרטונים');
   }
