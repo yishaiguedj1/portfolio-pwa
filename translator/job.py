@@ -1345,7 +1345,7 @@ def quality(path, chk_ok=True):
     m = []
     for k, w in Q_METRICS:
         b = 0 if k == 'chk' and chk_ok else n if k == 'chk' else bad[k]
-        got = w if k == 'chk' and chk_ok else 0 if k == 'chk' else round(w * (n - b) / n)
+        got = w if k == 'chk' and chk_ok else 0 if k == 'chk' else (w if b == 0 else min(w - 1, round(w * (n - b) / n)))   # 10/10/2026: כתובית שנכשלה לא מעוגלת ל"מלא" (25/25 עם ✗)
         m.append({'k': k, 'w': w, 'g': got, 'b': b if k != 'chk' else (0 if chk_ok else 1)})
     sc = sum(x['g'] for x in m)
     return {'s': sc, 'n': n, 'm': m}

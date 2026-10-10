@@ -862,6 +862,12 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(J.quality(p, chk_ok=False)['s'], q['s'] - 20)
         self.assertNotIn('שלום', json.dumps(q, ensure_ascii=False))
         self.assertIsNone(J.quality(self.tmp / 'nope.srt'))
+        # 10/10/2026: כתובית אחת מ־71 מעל הקצב → לא "25/25 עם ✗" (העיגול הסתיר את הכשל)
+        big = self.tmp / 'q71.srt'
+        big.write_text(''.join('%d\n00:00:%02d,000 --> 00:00:%02d,900\nשורה %d\n\n' % (i + 1, i % 50, i % 50, i) for i in range(70))
+                       + '71\n00:01:00,000 --> 00:01:00,900\nזה משפט ארוך מאוד ומהיר מדי\n', encoding='utf-8')
+        cps = next(x for x in J.quality(big)['m'] if x['k'] == 'cps')
+        self.assertEqual((cps['b'], cps['g']), (1, cps['w'] - 1))
 
     def test_judge(self):
         """v375: שופט האיכות — מדגם בפיזור שווה מחבילת הביקורת (בלי = / ∅), וציון רק משורות בצורה הנכונה מהמדגם"""
