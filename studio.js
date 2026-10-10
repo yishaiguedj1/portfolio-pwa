@@ -32,6 +32,9 @@ export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : LEGACY_MOD
 const REC_MODE = MODES.find((m) => m.rec);
 /* שפות: התמלול (Parakeet v2/v3, ivrit.ai, Omnilingual) מכסה גם שפות שלא ברשימה — זו רשימת הבחירה המהירה */
 export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko'];
+/* הסקירה (10/10/2026): מה שהעובד יודע היום (= LANG_READY בשרתון). השאר מוצג "בקרוב" ולא נבחר — לא נכשלים אחרי ההעלאה */
+export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
+export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
@@ -210,7 +213,8 @@ export function normQa(q) {
 export const RULE_BUDGETS = [5, 10, 20, 40];
 export function normRules(r) {
   const o = r && typeof r === 'object' ? r : {};
-  const b = typeof o.b === 'number' && Number.isFinite(o.b) && o.b >= 1 && o.b <= 500 ? o.b : 0;
+  const n = typeof o.b === 'number' ? o.b : NaN;   // הסקירה: כמו בשרתון — עיגול לחצי דולר, עד 500 (מה שמוצג = מה שנשמר)
+  const b = Number.isFinite(n) && n >= 1 ? Math.min(500, Math.round(n * 2) / 2) : 0;
   return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true, jx: o.jx === true };   // v375: jx = שופט האיכות כבוי
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
@@ -364,7 +368,7 @@ export function normSlo(o) {
     list: (Array.isArray(o.list) ? o.list : []).filter((x) => x && JOB_RE.test(String(x.j || '')) && SLO_C.includes(x.c)).slice(0, 10).map((x) => ({ j: x.j, c: x.c, at: num(x.at) })) };
 }
 /* v385: ציון חריגה 0–10 (lib/studioanom.js anomView) — צורה קבועה */
-export const AN_KEYS = ['t:tr', 't:al', 't:tl', 't:rv', 't:bn', 't:sv', 'u:main', 'u:tl', 'u:rv'];
+export const AN_KEYS = ['t:tr', 't:al', 't:tl', 't:rv', 't:bn', 't:sv', 'u:main', 'u:tl', 'u:rv', 'u:jg'];
 const AN_C = ['vt', 'claude', 'drive'], AN_TR = ['u', 'd', 'f'];
 export function normAn(o) {
   if (!o || typeof o !== 'object') return null;
@@ -789,6 +793,7 @@ function errText(code, extra) {
     case 'budget': return T('studioErrBudget');
     case 'wait': return T('studioErrWait', { s: Math.max(1, (extra && extra.retry) || 60) });
     case 'worker_not_ready': return T('studioWaitWorker');
+    case 'lang_unsupported': return T('studioLangSoon');
     case 'bad_url': return T('studioErrBadUrl');
     case 'bad_key': return T('studioErrBadKey');
     case 'vault_not_configured': return T('studioErrVault');
@@ -803,7 +808,11 @@ function errText(code, extra) {
     case 'rule_mode': return T('studioErrRuleMode');
     case 'major': return T('studioErrMajor');   // v371
     case 'mode': return T('studioErrMode');   // v376
-    case 'budget_stop': return T('studioErrBudgetStop');
+    case 'budget_stop': case 'budget_cap': return T('studioErrBudgetStop');
+    case 'api_auth': case 'api_model': return T('studioErrApiKey');   // הסקירה: קודי מצב API
+    case 'api_network': case 'api_timeout': case 'api_rate': return T('studioErrApiNet');
+    case 'model_refusal': return T('studioErrRefusal');
+    case 'check_errors': return T('studioErrChecks');
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
 }
@@ -1435,11 +1444,13 @@ function rowExt(o) {
 }
 /* שורה עם עיגול סימון (בחירה מרובה) */
 function rowCheck(o) {
-  const r = o.locked ? h('div', 'st-row') : btn('st-row', null, o.onClick, o.k);
+  const r = o.locked ? h('div', 'st-row') : btn('st-row', null, o.disabled ? null : o.onClick, o.k);
+  if (o.disabled) { r.disabled = true; r.classList.add('off'); }
   const c = h('span', 'st-check' + (o.on ? ' on' : '') + (o.locked ? ' lock' : '')); c.append(ico('check'));
   if (!o.locked) { r.setAttribute('role', 'checkbox'); r.setAttribute('aria-checked', o.on ? 'true' : 'false'); }
   r.append(c, rowTxt(o.label, o.sub));
   if (o.value) r.append(h('span', 'st-v', o.value));
+  if (o.badge) r.append(h('span', 'st-badge gray', o.badge));
   return r;
 }
 /* שורה עם עיגול בחירה (אחת מכמה) */
@@ -1863,6 +1874,7 @@ function startFromForm() {
     else connectDrive();
     return;
   }
+  if (!langReady(f.from, f.to)) { flashSafe(errText('lang_unsupported')); return; }   // לפני ההעלאה, לא אחריה
   ui.starting = true; render('none');
   (async () => {
     const file = f.fileObj;
@@ -1899,9 +1911,15 @@ function pageLang(p) {
   const rows = [];
   if (!multi) {
     rows.push(rowRadio({ label: T('studioAuto'), on: target.from === 'auto', onClick: () => { target.from = 'auto'; back(); }, k: 'l:auto' }));
-    for (const c of SOURCE_LANGS) rows.push(rowRadio({ label: langName(c, ul), sub: sub(c), on: target.from === c, onClick: () => { target.from = c; back(); }, k: 'l:' + c }));
+    for (const c of SOURCE_LANGS) {
+      const off = !LANG_READY.from.includes(c);
+      rows.push(rowRadio({ label: langName(c, ul), sub: sub(c), on: target.from === c, disabled: off, badge: off ? T('studioSoon') : null, onClick: () => { target.from = c; back(); }, k: 'l:' + c }));
+    }
   } else {
-    for (const c of TARGET_LANGS) rows.push(rowCheck({ label: langName(c, ul), sub: sub(c), on: target.to.includes(c), onClick: () => toggleLang(target, c, def), k: 'l:' + c }));
+    for (const c of TARGET_LANGS) {
+      const off = !LANG_READY.to.includes(c) && !target.to.includes(c);   // שנבחרה פעם — אפשר רק להסיר
+      rows.push(rowCheck({ label: langName(c, ul), sub: sub(c), on: target.to.includes(c), disabled: off, badge: off ? T('studioSoon') : null, onClick: () => toggleLang(target, c, def), k: 'l:' + c }));
+    }
   }
   p.append(list(...rows));
   if (multi) p.append(note(T('studioToSub')));
@@ -2321,7 +2339,6 @@ function pageAlert(p) {
 }
 /* ---------------- v371: תקלות (מסך 2 בתוכנית — Incident + Probable Root Cause + Major Incident) ---------------- */
 const incNo = (no) => 'INC' + String(no || 0).padStart(7, '0');
-const majNo = (no) => 'MAJ' + String(no || 0).padStart(7, '0');
 /* כותרת קצרה לפי הקוד (errText הוא הוראה ארוכה — לא כותרת) */
 function incTitle(e) {
   switch (e) {
@@ -2331,7 +2348,9 @@ function incTitle(e) {
     case 'no_server': case 'job_timeout': case 'worker_unknown_kind': return T('studioIncServer');
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
-    case 'budget_stop': return T('studioIncBudget');
+    case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
+    case 'api_auth': case 'api_model': return T('studioIncApiKey');
+    case 'api_network': case 'api_timeout': case 'api_rate': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');
     case 'net': case 'drive': case 'drive_net': return T('studioIncNet');
     case 'upload_timeout': return T('studioIncUpload');
@@ -2832,6 +2851,7 @@ function anName(k) {
     case 't:sv': return T('studioAnSv');
     case 'u:tl': return T('studioAnUTl');
     case 'u:rv': return T('studioAnURv');
+    case 'u:jg': return T('studioAnUJg');
     default: return T('studioAnUMain');
   }
 }
@@ -3245,14 +3265,6 @@ const MODE_ORDER = ['haiku-medium', 'haiku-high', 'sonnet-medium', 'sonnet-high'
 export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
 const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
 const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));
-function rulesSum(rl) {
-  const parts = [];
-  if (rl.b) parts.push(T('studioRlSumB', { v: budgetTxt(rl.b) }));
-  if (rl.mx) parts.push(T('studioRlUpTo', { m: modeShort(modeById(rl.mx)) }));
-  if (rl.ab) parts.push(T('studioRlSumAb'));
-  if (rl.jx) parts.push(T('studioRlSumJx'));
-  return parts.length ? parts.join(' · ') : T('studioRlNone');
-}
 let rulesBusy = false;
 async function setRules(patch) {
   if (rulesBusy) return;

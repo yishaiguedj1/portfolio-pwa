@@ -926,6 +926,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'create') {
       const spec = S.normSpec(body.spec);
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
+      if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) await delDoc(deps, 'studioJobs', old.id);
@@ -949,7 +950,7 @@ async function handler(req, res, deps = {}) {
       const ic = await syncInc(deps, uid, list, now);
       // v385: ציון חריגה — מדד חריג בהתמדה (לא קפיצה בודדת) פותח התראה לרכיב; חזר לרגיל — נסגרת
       const an = AN.anomView(list, now);
-      const anOpen = !ic || (Array.isArray(ic.al) && ic.al.some((a) => a && a.k === 'anomaly' && !a.x));
+      const anOpen = !!ic && (Array.isArray(ic.al) && ic.al.some((a) => a && a.k === 'anomaly' && !a.x));
       if (an.act.length || anOpen) await raise(deps, uid, AN.anomAlerts(an), '', now, true);   // בלי חריגה ובלי התראה פתוחה — בלי קריאה נוספת
       return res.status(200).json(Object.assign({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now },
         ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now),
@@ -965,6 +966,7 @@ async function handler(req, res, deps = {}) {
       const src = S.goldSources(all).slice(0, S.GOLD_MAX);
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
       const made = [];
       for (const j of src) { const c = S.goldClone(j, S.newJobId(), uid, now); await patchJob(deps, c.id, c); made.push(view(c)); }
@@ -1025,6 +1027,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'start') {
       if (job.kind !== 'tr' || st !== 'new') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
       if (!job.fa && !job.fv) return res.status(409).json({ ok: false, error: 'no_files' });
+      if (!S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
       const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
       if (stop) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, stop));

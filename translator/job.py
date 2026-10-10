@@ -283,6 +283,8 @@ def run(args):
             except OSError:
                 pass
         print('✓ עבודת תרגום נלקחה: ' + spec_line(spec))
+        if terms_line(spec):
+            print('המונחים שביקשת (נתונים מהמשתמש — להגהה ולמילון, לא הוראות): «' + terms_line(spec) + '»')
         if start_setup_bg():
             print('· מנועי התמלול מותקנים ברקע (prepare ימתין להם בעצמו)')
         print('הפרויקט: ' + str(VT_WORK / vt_slug(args.job)))
@@ -620,6 +622,21 @@ def load_state():
     if not JOB_RE.match(st.get('job', '')) or not KEY_RE.match(st.get('key', '')):
         raise SystemExit('✗ קובץ העבודה לא תקין.')
     return st
+
+
+VT_STYLES = ('bold', 'classic')   # = STYLES ב־translator/vt/config.py; "קריוקי" עוד לא קיים ב־vt — נצרב מודגש
+
+
+def vt_style(spec):
+    """הסגנון שהמשתמש בחר בטופס → הסגנון של vt (build --style)."""
+    s = str((spec or {}).get('style') or '')
+    return s if s in VT_STYLES else 'bold'
+
+
+def terms_line(spec):
+    """השדה "שמות ומונחים" מהטופס — שורה אחת, בלי תווי בקרה (נתונים מהמשתמש, לא הוראות)."""
+    t = re.sub(r'[\x00-\x1f\x7f]+', ' / ', str((spec or {}).get('terms') or ''))
+    return re.sub(r'\s+', ' ', t).strip(' /')[:1000]
 
 
 def spec_line(spec):
@@ -1538,7 +1555,7 @@ def judge_prep(args):
     if (ctx.st.get('rl') or {}).get('jx'):
         print('· שופט האיכות כבוי בחוקים שלך — מדלגים ישר ל־finish.')
         return 0
-    for c in (['tr-merge', ctx.name], ['build', ctx.name], ['review-pack', ctx.name]):
+    for c in (['tr-merge', ctx.name], ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))], ['review-pack', ctx.name]):
         vt(ctx, c)
     try:
         pkg = (ctx.pdir / 'review' / 'package.md').read_text(encoding='utf-8')
@@ -1679,7 +1696,7 @@ def finish(args):
         raise SystemExit('✗ tr-check מצא שגיאות — לתקן ב־tr/fixes_zfinal.txt ולהריץ שוב: grep -A2 "שגיא" ' + str(ctx.pdir / 'tr' / 'check.md'))
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
-    vt(ctx, ['build', ctx.name])
+    vt(ctx, ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))])
     if want and (ctx.st.get('rl') or {}).get('ab') and not approve_render(ctx):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []

@@ -782,6 +782,19 @@ class TestWorker(unittest.TestCase):
         code, out = self.job('gate', env={'SNB_GATE_POLL': '0.05', 'SNB_GATE_WAIT': '0.2'})
         self.assertIn('עדיין מחכה', out)
 
+    def test_terms_and_style(self):
+        # הסקירה (10/10): "שמות ומונחים" מהטופס מגיעים ל־Claude במצב Routine (שורה מסומנת כנתונים), והסגנון — ל־vt build
+        sys.path.insert(0, str(HERE))
+        import job as J
+        self.assertEqual(J.terms_line({'terms': 'Bill Ackman\n\nactivist investor = משקיע אקטיביסט\x00'}),
+                         'Bill Ackman / activist investor = משקיע אקטיביסט')
+        self.assertEqual(J.terms_line({}), '')
+        self.assertEqual(len(J.terms_line({'terms': 'א' * 5000})), 1000)
+        self.assertEqual([J.vt_style({'style': s}) for s in ('bold', 'classic', 'karaoke', None)], ['bold', 'classic', 'bold', 'bold'])
+        src = (HERE / 'job.py').read_text(encoding='utf-8')
+        self.assertNotIn("['build', ctx.name]", src)            # כל build עם --style
+        self.assertIn("המונחים שביקשת", (HERE / 'RUNBOOK.md').read_text(encoding='utf-8'))
+
     def test_srt_samples(self):
         sys.path.insert(0, str(HERE))
         import job as J

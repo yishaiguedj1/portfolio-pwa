@@ -2143,8 +2143,9 @@ function stubFetch(text, status = 200) {
     {
       const L7 = require('../lib/studiosla');
       const tg = L7.targets({ mode: 'opus-medium', dur: 4620 }, 6, 1.5);
-      ok(tg.t === Object.values(L7.stageTargets('opus-medium', 4620)).reduce((a, x) => a + x, 0) && tg.u === 9.2 && L7.targets({ mode: 'opus-medium', dur: 0 }, 6, 1.5) === null,
-        'סטודיו: יעדים — הזמן מטבלת מסך ההתקדמות, התקציב לפי "הרגיל" (בלי אורך — בלי יעד)');
+      const EP7 = require('../lib/studioeta');
+      ok(tg.t === EP7.planOf(EP7.PRIOR.r, 'opus-medium', 4620).t && tg.u === 9.2 && L7.targets({ mode: 'opus-medium', dur: 0 }, 6, 1.5) === null,
+        'סטודיו: יעדים — הזמן מהצפי (studioeta, ה־prior כשאין ep; בלקיחה — p90 של העבודה), התקציב לפי "הרגיל" (בלי אורך — בלי יעד)');
       const base = { kind: 'tr', state: 'running', c0: 1000, tg: { t: 1000, u: 4 }, prog: { st: 'tl', p: 0.2, stg: { tr: { s: 1, e: 2 }, al: { s: 2, e: 3 }, tl: { s: 3, e: 0 } } } };
       ok(L7.slaView(Object.assign({}, base), 1000 + 300e3).t.lv === 'ok' && L7.slaView(Object.assign({}, base), 1000 + 600e3).t.lv === 'half', 'סטודיו: SLA — בזמן / עבר חצי');
       ok(L7.slaView(Object.assign({}, base), 1000 + 800e3).t.lv === 'risk' && L7.slaView(Object.assign({}, base, { prog: { st: 'bn', p: 0.9, stg: { tr: { s: 1, e: 2 }, al: { s: 1, e: 2 }, tl: { s: 1, e: 2 }, rv: { s: 1, e: 2 }, bn: { s: 1, e: 0 } } } }), 1000 + 800e3).t.lv === 'half',

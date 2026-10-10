@@ -16,7 +16,8 @@ const HI = 6, PERSIST = [2, 3], FREQ_N = 5, RECENT = 10;
 const METRICS = [
   { k: 't:tr', c: 'vt' }, { k: 't:al', c: 'vt' }, { k: 't:tl', c: 'claude' }, { k: 't:rv', c: 'claude' }   /* המצב כבר בצפי */,
   { k: 't:bn', c: 'vt' }, { k: 't:sv', c: 'drive' },
-  { k: 'u:main', c: 'claude', m: 1 }, { k: 'u:tl', c: 'claude', m: 1 }, { k: 'u:rv', c: 'claude', m: 1 },
+  // עלות: הבסיס לפי אותו מצב **ואותו מנוע** (e) — מעבר Routine ↔ השרת משנה את עלות מנהל העבודה בסדר גודל
+  { k: 'u:main', c: 'claude', m: 1, e: 1 }, { k: 'u:tl', c: 'claude', m: 1, e: 1 }, { k: 'u:rv', c: 'claude', m: 1, e: 1 }, { k: 'u:jg', c: 'claude', m: 1, e: 1 },
 ];
 const COMPS = ['vt', 'claude', 'drive'];
 
@@ -38,7 +39,7 @@ function metricVals(j) {
       const k = r.k === 'sub' ? 'main' : r.k;   // סוכן־משנה כללי = חלק מהעבודה הראשית
       by[k] = (by[k] || 0) + r.usd;
     }
-    for (const k of ['main', 'tl', 'rv']) if (by[k] > 0) out['u:' + k] = Math.round(by[k] / hr * 1000) / 1000;
+    for (const k of ['main', 'tl', 'rv', 'jg']) if (by[k] > 0) out['u:' + k] = Math.round(by[k] / hr * 1000) / 1000;
   }
   return out;
 }
@@ -66,14 +67,14 @@ function anomView(list, now) {
   const jobs = (Array.isArray(list) ? list : [])
     .filter((j) => j && j.kind === 'tr' && j.state === 'done' && doneAt(j) && now - doneAt(j) <= BASE_WIN)
     .sort((a, b) => doneAt(a) - doneAt(b));
-  const vals = jobs.map((j) => ({ j, v: metricVals(j), m: (j.spec && j.spec.mode) || '' }));
+  const vals = jobs.map((j) => ({ j, v: metricVals(j), m: (j.spec && j.spec.mode) || '', e: j.eng === 'api' ? 'a' : 'r' }));
   // הציון של כל עבודה — מול העבודות שלפניה בלבד (לא מול עצמה ולא מול העתיד)
   const scored = [];
   for (let i = 0; i < vals.length; i++) {
     const cur = vals[i], sc = {};
     for (const M of METRICS) {
       if (typeof cur.v[M.k] !== 'number') continue;
-      const prev = vals.slice(0, i).filter((x) => typeof x.v[M.k] === 'number' && (!M.m || x.m === cur.m)).slice(-BASE_MAX).map((x) => x.v[M.k]);
+      const prev = vals.slice(0, i).filter((x) => typeof x.v[M.k] === 'number' && (!M.m || x.m === cur.m) && (!M.e || x.e === cur.e)).slice(-BASE_MAX).map((x) => x.v[M.k]);
       const b = baseline(prev);
       const s = score(cur.v[M.k], b);
       if (s != null) sc[M.k] = { s, v: cur.v[M.k], med: Math.round(b.med * 1000) / 1000 };

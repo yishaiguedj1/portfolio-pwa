@@ -30,6 +30,10 @@ const MODES = ['sonnet-medium', 'haiku-medium', 'haiku-high', 'sonnet-high', 'op
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
 const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || MODES[0]);
+/* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
+   של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
+const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
+const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isArray(sp.to) && sp.to.length > 0 && sp.to.every((c) => LANG_READY.to.includes(c));
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv'];
@@ -47,10 +51,10 @@ const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח
 /* v368: המתנה לפני כישלון — תקלה חולפת (Drive / רשת) מקבלת חלון התאוששות, ואז "המשך" אוטומטי אחד מנקודת השמירה.
    רק אז "נכשלה" באמת. ההפעלה נספרת במכסה כמו כל הפעלה — לכן פעם אחת לעבודה (החלטה 1 בתוכנית) */
 const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
-const TRANSIENT_ERRS = ['net', 'drive', 'drive_net'];
+const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'api_network', 'api_timeout', 'api_rate'];   // הסקירה: גם רשת/קצב מול Anthropic במצב API
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
-const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind'];
+const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_model'];
 /* האם הכישלון חולף: קוד השגיאה שהעובד דיווח, או התראת Drive פתוחה של העבודה הזו ברגע הכישלון */
 function isTransient(err, openKinds) {
   const e = String(err || '');
@@ -321,7 +325,7 @@ const fbView = (list) => fbNumber(fbList(list).map((e) => Object.assign({}, e)))
   .map((e) => ({ no: e.no, fp: e.fp, why: e.why, st: e.st || '', n: e.n || 0, auto: e.auto || 0, fix: e.fix || '', px: e.px || '', at: e.at || 0 }));
 /* v376: מצבים שעולים בהמשך תור (מצב זול יותר אחרי עצירה על עלות) — לפי הצפוי לשעה, מהקרוב ביותר */
 const cheaperModes = (mode) => MODES.filter((m) => NORM_DEF[m] < (NORM_DEF[modeNow(mode)] || 0)).sort((a, b) => NORM_DEF[b] - NORM_DEF[a]);
-const COST_STOP = (job) => !!job && (job.err === 'budget_stop' || (job.err === 'tower_stop' && !!job.tw && (job.tw.why === 'cost' || job.tw.why === 'cap')));
+const COST_STOP = (job) => !!job && (job.err === 'budget_stop' || job.err === 'budget_cap' || (job.err === 'tower_stop' && !!job.tw && (job.tw.why === 'cost' || job.tw.why === 'cap')));
 
 /* v361: הטוקנים של כמה סשנים (הפעלה + המשכים) — סכום לפי סוג ומודל */
 function mergeUse(a, b) {
@@ -486,7 +490,8 @@ function publicJob(job, now) {
 /* v387: סט הזהב (Agentic evaluation · golden dataset) — עבודה שהסתיימה + תרגום אנושי לייחוס (קובץ SRT בתיקיית העבודה ב־Drive).
    gd = הייחוס {r מזהה הקובץ, n גודל, at}; gs = עבודה שהיא הרצה חוזרת של עבודת זהב (המקור); gq = הציון מול הייחוס {s chrF, tm כיסוי זמן, n כתוביות, at}.
    הציון מחושב בטלפון (studionet.goldCompare — דטרמיניסטי, בלי AI). הרצה חוזרת = עבודות חדשות עם אותו מקור — רק בלחיצה, אחרי אומדן ואישור */
-const GOLD_MAX = 10, GOLD_REF_MAX = 2 * 1024 * 1024;
+// הסקירה (10/10): עד MAX_ACTIVE (5) — כל הסט רץ ביחד, בלי לעקוף את מגבלת העבודות הפעילות (מבחן TED = 4 הרצאות)
+const GOLD_MAX = 5, GOLD_REF_MAX = 2 * 1024 * 1024;
 function normGd(o) {
   if (!o || typeof o !== 'object' || !FILE_ID_RE.test(String(o.r || ''))) return null;
   return { r: o.r, n: Number.isInteger(o.n) && o.n > 0 && o.n <= GOLD_REF_MAX ? o.n : 0, at: typeof o.at === 'number' ? o.at : 0 };
@@ -724,7 +729,7 @@ function fromFields(f) {
 }
 
 module.exports = {
-  MODES, LEGACY_MODES, modeNow,
+  MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
