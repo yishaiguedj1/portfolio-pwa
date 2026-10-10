@@ -568,7 +568,7 @@ async function worker(req, res, body, deps) {
     if (S.FINAL.includes(e.state)) return res.status(200).json({ ok: false, stop: true, state: e.state });
     const driveFor = async () => {
       const t = await gdrive.accessToken(deps, job.uid).catch(() => ({ ok: false, error: 'gd_failed' }));
-      if (job.kind === 'tr') await raise(deps, job.uid, [{ c: 'drive', k: 'auth', ok: !!t.ok }], id, now);   // v365
+      if (job.kind === 'tr' && (t.ok || !SR.isFolder(job.folder))) await raise(deps, job.uid, [{ c: 'drive', k: 'auth', ok: !!t.ok }], id, now);   // v365 · ת4: עבודה ב־R2 לא צריכה את Drive — בלי התראה
       return t.ok ? { token: t.token, exp: t.exp } : { error: t.error };
     };
     if (body.op === 'claim') {

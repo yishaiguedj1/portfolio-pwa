@@ -27,7 +27,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/op === 'rules'/.test(api) && /op === 'halt'/.test(api) && /kh: ''/.test(api) && /'halted'/.test(api), 'השרתון: חוקים, מתג החירום (מבטל את מפתחות העבודות), חסימת הפעלות');
   ok(/await ruleBlock\(deps, uid, job, body\)/.test(api) && /await ruleBlock\(deps, uid, job, auto \? \{ ov: true \} : body\)/.test(api) && /await doResume\(deps, uid, job, now, body, false\)/.test(api) && /body\.ov !== true/.test(api),
     'התחלה והמשך — מתג החירום ומצב מעל המקסימום (ov = "בכל זאת"; v368: ההמשך דרך doResume)');
-  ok(/WORKER_OPS = new Set\(\['claim', 'token', 'report', 'qa'\]\)/.test(api), 'העובד בודק תשובה לשער בלי לבקש Drive');
+  ok(/WORKER_OPS = new Set\(\['claim', 'token', 'report', 'qa'(, 'r2[a-z]+')*\]\)/.test(api), 'העובד בודק תשובה לשער בלי לבקש Drive (ת4: ופעולות הקבצים ב־R2)');
 
   /* ---------- 2. העובד והמגדל ---------- */
   const job = read('translator/job.py');
