@@ -1294,6 +1294,11 @@ function stubFetch(text, status = 200) {
     ok(!r.payload.ok && r.payload.error === 'not_connected' && !JSON.stringify(r.payload).includes('LIB-AT'), 'סטודיו: בלי חיבור משלו — אין גישה ל־Drive (גם לא של הספרייה)');
     r = await run({ op: 'gdConfig' });
     ok(r.payload.ok && r.payload.configured && r.payload.clientId === 'scid.apps.googleusercontent.com', 'סטודיו: gdConfig — המזהה של לקוח הסטודיו (ציבורי, בלי התחברות)');
+    ok(r.payload.picker === false, 'סטודיו: gdConfig — בלי STUDIO_PICKER_KEY: picker=false');
+    process.env.STUDIO_PICKER_KEY = 'TESTpickerKEYtestPICKERkey000'; process.env.STUDIO_PICKER_APP = '123456789012';   // המזהה המדומה בלי מספר פרויקט
+    r = await run({ op: 'gdConfig' });
+    ok(r.payload.picker === true && !JSON.stringify(r.payload).includes('TESTpicker'), 'סטודיו: gdConfig — המפתח נטען: picker=true, והמפתח עצמו לא בתשובה');
+    delete process.env.STUDIO_PICKER_KEY; delete process.env.STUDIO_PICKER_APP;
     r = await run({ op: 'gdConnect', idToken: OWNER, code: 'SCODE', redirect: 'https://evil.example/oauth.html' });
     ok(r.statusCode === 400 && r.payload.error === 'bad_params' && !db.has('studioDrive/ownerUid0001'), 'סטודיו: כתובת חזרה זרה — נדחית');
     const lib0 = JSON.stringify(db.get('driveVault/ownerUid0001'));
