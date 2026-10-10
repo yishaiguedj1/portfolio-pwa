@@ -3169,7 +3169,8 @@ function pageJob(p) {
   if (outs.length) {
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view',
       tile: tile(o.k === 'srt' ? 'globe' : 'film', o.k === 'srt' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
-    rec.up.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + rec.up.folder, tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null));
+    rec.up.folder ? rowExt({ href: 'https://drive.google.com/drive/folders/' + rec.up.folder, tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
+    btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];
@@ -3505,6 +3506,32 @@ async function addServer() {
 }
 /* 10/10/2026 (מאגר המדידות, translator/bench.py): הנתונים המדויקים של עבודה שהסתיימה — להעתקה ולהדבקה לסשן הפיתוח.
    מספרים, מודלים וזמנים בלבד: בלי שם הקובץ, בלי תוכן ובלי מזהים של Drive */
+/* שלב 4: קבלה לעבודה שהסתיימה — שורות טקסט לשיתוף/העתקה: מה תורגם, מתי, באיזה מצב, כמה זמן, כמה עלה ואיכות.
+   הכל מהרשומה שכבר בטלפון (אותם מספרים של כרטיס העלות ומדד האיכות) — בלי פנייה לרשת */
+export function receiptText(rec) {
+  const sv = rec && rec.srv;
+  if (!sv || sv.state !== 'done') return '';
+  const m = modeById(rec.spec.mode), cv = costView(sv.use, rec.spec.mode);
+  const tok = cv ? cv.rows.reduce((a, r) => a + r.tok, 0) : 0;
+  const wall = sv.ended && rec.created ? Math.max(0, (sv.ended - rec.created) / 1000) : 0;
+  const L = [T('studioRcptHead'), fileTitle(rec.spec.name) || T('studioUntitled'), ''];
+  const kv = (k, v) => { if (v) L.push(k + ': ' + v); };
+  kv(T('studioRcptDone'), sv.ended ? fmtDate(sv.ended) : '');
+  kv(T('studioDur'), rec.spec.dur ? fmtDur(rec.spec.dur) : '');
+  kv(T('studioSecMode'), modeShort(m));
+  kv(T('studioRcptWall'), wall ? fmtDur(wall) : '');
+  if (cv) kv(T('studioCostTotal'), fmtUsd(cv.total) + (cv.partial ? '+' : '') + ' · ' + T('studioCostTok', { n: tok.toLocaleString(uiLang()) }));
+  if (sv.q && sv.q.s != null) kv(T('studioQT'), sv.q.s + '/100');
+  if (sv.jd && sv.jd.s != null) kv(T('studioRcptJudge'), sv.jd.s + '/100');
+  kv(T('studioJobId'), rec.id);
+  return L.join('\n');
+}
+async function shareReceipt(rec) {
+  const txt = receiptText(rec);
+  if (!txt) return;
+  try { if (navigator.share) { await navigator.share({ title: T('studioRcpt'), text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  copyText(txt, T('studioRcptCopied'));
+}
 export function benchData(rec) {
   const srv = rec.srv || {}, sp = rec.spec || {}, stg = (srv.prog && srv.prog.stg) || {};
   const stages = {};
