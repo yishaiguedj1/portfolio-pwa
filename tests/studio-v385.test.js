@@ -25,7 +25,13 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 1. המדדים והציון ---------- */
   const v = AN.metricVals(mk(120));
-  ok(v['t:tr'] === 12 && v['t:tl'] === 30 && v['u:tl'] === 6 && v['u:main'] === 3, 'מדדים: שניות לדקת סרטון, דולר לשעת סרטון');
+  // זמן = יחס לצפי (studioeta): בלי ep — ה־prior של Routine ל־10 דק׳ (tr 90+6·10 = 150 שנ׳, tl 180+39·10 = 570)
+  ok(v['t:tr'] === 0.8 && v['t:tl'] === 0.526 && v['u:tl'] === 6 && v['u:main'] === 3, 'מדדים: זמן ביחס לצפי, דולר לשעת סרטון');
+  const ve = AN.metricVals(mk(120, { ep: { s: { tr: 60, al: 1, tl: 600, rv: 1, bn: 1, sv: 1 }, q: [0, 0.3, 0.45], n: 9 } }));
+  ok(ve['t:tr'] === 2 && ve['t:tl'] === 0.5, 'מדדים: יש צפי לעבודה (ep מהלקיחה) — היחס אליו (מודל זמנים אחד עם studioeta)');
+  // 2 דק׳ ב־100 שנ׳ מול 30 דק׳ ב־270 שנ׳: בשניות לדקה פי 5.6 "איטי יותר"; ביחס לצפי — אותו דבר
+  const vs = AN.metricVals(mk(100, { spec: { dur: 120, mode: 'opus-medium' } })), vl = AN.metricVals(mk(270, { spec: { dur: 1800, mode: 'opus-medium' } }));
+  ok(Math.abs(vs['t:tr'] - vl['t:tr']) < 0.05, 'מדדים: סרטון קצר לא "איטי" רק בגלל קבוע הטעינה');
   ok(Object.keys(AN.metricVals(mk(120, { state: 'failed' }))).length === 0 && Object.keys(AN.metricVals({ kind: 'ping', state: 'done' })).length === 0, 'רק עבודות תרגום שהסתיימו');
   ok(AN.METRICS.every((m) => /^[tu]:/.test(m.k)) && AN.METRICS.filter((m) => m.k[0] === 't').map((m) => m.k.slice(2)).join() === L.STAGES.join(), 'מדד זמן לכל שלב (אותם שלבים של יעדי השירות)');
   ok(AN.baseline([1, 2, 3, 4]) === null && AN.baseline([1, 2, 3, 4, 5]).med === 3, 'בסיס רק מ־5 עבודות');

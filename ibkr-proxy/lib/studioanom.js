@@ -1,17 +1,20 @@
 'use strict';
 /* v385: ציון חריגה 0–10 (ServiceNow: Metric Intelligence) — מגדל הפיקוח 2.0. טהור, בלי טוקנים ובלי קריאות.
-   לכל עבודה שהסתיימה: זמן לכל שלב (שניות לדקת סרטון) ועלות לכל סוכן (דולר לשעת סרטון). הבסיס = העבודות הקודמות שלך
+   לכל עבודה שהסתיימה: זמן לכל שלב **ביחס לצפי של העבודה** (studioeta — a + b·דקות; ‏ep שנקבע בלקיחה, ואם אין — ה־prior
+   של המנוע) ועלות לכל סוכן (דולר לשעת סרטון). כך מודל זמנים אחד: "שניות לדקה" הניח שהכל יחסי לאורך, וסרטון קצר
+   (קבוע טעינה גדול) נראה "איטי" בלי סיבה. הבסיס = העבודות הקודמות שלך
    (חציון + סטייה חציונית, MAD — עמיד לחריגים); הציון = כמה סטיות מעל הרגיל, 0–10. רק כלפי מעלה (איטי / יקר מהרגיל).
    קפיצה בודדת לא מתריעה: התראה רק כשמדד חריג (≥ HI) ב־2 מתוך 3 העבודות האחרונות (התמדה); התדירות = מתוך 5 האחרונות.
    נגזר מרשימת העבודות של op:'jobs' — בלי קריאה ובלי אחסון נוסף. */
 const L = require('./studiosla');
+const ETA = require('./studioeta');
 const DAY = 86400e3;
 const BASE_N = 5, BASE_MAX = 20, BASE_WIN = 90 * DAY;   // מינימום עבודות לבסיס; לכל היותר 20 אחרונות; 90 יום
 const REL_MIN = 0.15;                                   // סטייה מינימלית = 15% מהחציון (בלי זה עבודות זהות → כל שינוי "חריג")
 const HI = 6, PERSIST = [2, 3], FREQ_N = 5, RECENT = 10;
 // המדדים: t:<שלב> = זמן, u:<סוכן> = עלות. רכיב = מי אחראי (לפי מפת השירות); m = הבסיס לפי אותו מצב תרגום
 const METRICS = [
-  { k: 't:tr', c: 'vt' }, { k: 't:al', c: 'vt' }, { k: 't:tl', c: 'claude', m: 1 }, { k: 't:rv', c: 'claude', m: 1 },
+  { k: 't:tr', c: 'vt' }, { k: 't:al', c: 'vt' }, { k: 't:tl', c: 'claude' }, { k: 't:rv', c: 'claude' }   /* המצב כבר בצפי */,
   { k: 't:bn', c: 'vt' }, { k: 't:sv', c: 'drive' },
   { k: 'u:main', c: 'claude', m: 1 }, { k: 'u:tl', c: 'claude', m: 1 }, { k: 'u:rv', c: 'claude', m: 1 },
 ];
@@ -21,11 +24,12 @@ const COMPS = ['vt', 'claude', 'drive'];
 function metricVals(j) {
   const out = {};
   if (!j || j.kind !== 'tr' || j.state !== 'done' || !j.spec || !(j.spec.dur > 0)) return out;
-  const min = j.spec.dur / 60, hr = j.spec.dur / 3600;
+  const hr = j.spec.dur / 3600;
   const stg = (j.prog && j.prog.stg) || {};
+  const ep = ETA.normEp(j.ep), plan = ep ? ep.s : ETA.planOf(ETA.PRIOR[j.eng === 'api' ? 'a' : 'r'], j.spec.mode, j.spec.dur).s;
   for (const s of L.STAGES) {
     const g = stg[s];
-    if (g && g.s > 0 && g.e >= g.s) out['t:' + s] = Math.round((g.e - g.s) / 1000 / min * 10) / 10;
+    if (g && g.s > 0 && g.e >= g.s && plan[s] > 0) out['t:' + s] = Math.round((g.e - g.s) / 1000 / plan[s] * 1000) / 1000;   // 1 = בדיוק כצפוי
   }
   if (Array.isArray(j.use)) {
     const by = {};
