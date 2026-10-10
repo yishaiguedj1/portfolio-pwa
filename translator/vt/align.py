@@ -62,6 +62,20 @@ def plan_chunks(words: list[dict], max_s: float = MAX_CHUNK_S, audio_len: float 
 
 class Aligner:
     def __init__(self, device: str = "cpu"):
+        # שלב 4.1 (10/10/2026): גרפי ONNX INT8 מהמודל הרשמי, כשהם בתמונה (/opt/aligner) — חצי זיכרון ומהיר יותר
+        # (נמדד על 4 הרצאות TED, יומן העבודה). תקלה בטעינה = חוזרים ל־torch, לא נכשלים.
+        self.onnx = None
+        if device == "cpu":
+            from .align_onnx import OnnxAligner, onnx_dir
+            d = onnx_dir()
+            if d is not None:
+                try:
+                    self.onnx = OnnxAligner(d)
+                    self.engine = "onnx-" + str(self.onnx.man.get("quant", "?"))
+                    return
+                except Exception as e:  # noqa: BLE001 — כל תקלה בגרפים: המנוע הקודם
+                    log(f"⚠ גרפי ה־ONNX של היישור לא נטענו ({type(e).__name__}: {str(e)[:80]}) — ממשיכים ב־torch")
+        self.engine = "torch"
         import torch
         from qwen_asr import Qwen3ForcedAligner
         torch.set_num_threads(max(1, torch.get_num_threads()))
@@ -82,22 +96,25 @@ class Aligner:
         if not idx:
             return [None] * len(words)
         text = " ".join(toks[i] for i in idx)
-        res = self.model.align(audio=(audio.astype(np.float32), sr), text=text, language="English")[0]
-        items = list(res)
+        if self.onnx is not None:
+            items = self.onnx.align(audio, sr, text, "English")          # [(טקסט, התחלה, סוף)]
+        else:
+            res = self.model.align(audio=(audio.astype(np.float32), sr), text=text, language="English")[0]
+            items = [(it.text, it.start_time, it.end_time) for it in res]
         out: list[tuple[float, float] | None] = [None] * len(words)
         if len(items) == len(idx):
             for k, i in enumerate(idx):
-                out[i] = (items[k].start_time, items[k].end_time)
+                out[i] = (items[k][1], items[k][2])
         else:
             import difflib
             a = [toks[i].lower() for i in idx]
-            b = [it.text.lower() for it in items]
+            b = [it[0].lower() for it in items]
             sm = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
             for tag, i1, i2, j1, j2 in sm.get_opcodes():
                 if tag == "equal":
                     for k in range(i2 - i1):
                         it = items[j1 + k]
-                        out[idx[i1 + k]] = (it.start_time, it.end_time)
+                        out[idx[i1 + k]] = (it[1], it[2])
         return out
 
 
@@ -111,7 +128,7 @@ def align_words(words: list[dict], wav_path: str, device: str = "cpu",
     chunks = plan_chunks(words, audio_len=total)
     al = Aligner(device)
     t0 = time.time()
-    stats = {"chunks": len(chunks), "aligned": 0, "kept_approx": 0, "suspicious": 0}
+    stats = {"chunks": len(chunks), "aligned": 0, "kept_approx": 0, "suspicious": 0, "engine": al.engine}
     for ci, (i0, i1, cs, ce) in enumerate(chunks):
         seg = audio[int(cs * sr):int(ce * sr)]
         res = al.align_chunk(seg, sr, words[i0:i1])

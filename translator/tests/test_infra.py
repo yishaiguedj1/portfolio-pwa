@@ -166,7 +166,7 @@ class Pipeline(unittest.TestCase):
         self.assertIn('SNB_ISO_WHY=${SNB_ISO_WHY:-}', c)
         common = read('infra/host/snb-common.sh')
         self.assertLess(common.index('snb_compose() {'), common.index('\tsnb_runtime\n'), 'כל הפעלה בוחרת runtime')
-        for need in ('11500000', '/etc/snb/runtime', 'SNB_ISO_WHY=mem', 'SNB_ISO_WHY=missing', 'SNB_ISO_WHY=selftest', 'SNB_ISO_WHY=manual'):
+        for need in ('7000000', '/etc/snb/runtime', 'SNB_ISO_WHY=mem', 'SNB_ISO_WHY=missing', 'SNB_ISO_WHY=selftest', 'SNB_ISO_WHY=manual'):
             self.assertIn(need, common)
         u = read('infra/host/snb-update')
         self.assertLess(u.index('--runtime=runsc --network none'), u.index('snb_compose up -d'), 'בדיקה עצמית לפני ההפעלה')

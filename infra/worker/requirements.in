@@ -7,6 +7,8 @@ pillow
 requests
 fonttools
 onnx-asr[cpu,hub]
+# ייצוא גרפי היישור בבניית התמונה (translator/aligner_export.py, שלב 4.1)
+onnx
 torch==2.11.0+cpu
 torchaudio==2.11.0+cpu
 qwen-asr

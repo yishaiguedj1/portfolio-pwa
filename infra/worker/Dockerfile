@@ -44,7 +44,15 @@ RUN set -eu; lock=/tmp/requirements.lock; [ "$TARGETARCH" = arm64 ] && lock=/tmp
  && /opt/vt/bin/pip install --no-cache-dir -q --upgrade 'pip==25.*' \
  && /opt/vt/bin/pip install --no-cache-dir -q --require-hashes --only-binary=:all: --no-binary=sox \
         --extra-index-url https://download.pytorch.org/whl/cpu -r "$lock" \
- && /opt/vt/bin/python -c "import numpy, soundfile, onnx_asr, torch, torchaudio, qwen_asr, anthropic, PIL, fontTools; print('ok')"
+ && /opt/vt/bin/python -c "import numpy, soundfile, onnx, onnx_asr, torch, torchaudio, qwen_asr, anthropic, PIL, fontTools; print('ok')"
+
+# ---------------------------------------------------------------- גרפי היישור (ONNX INT8, שלב 4.1)
+# מהמודל הרשמי של Qwen בגרסה נעולה + sha256 של המשקולות (translator/aligner_export.py) — לא קבצים של צד שלישי.
+# בתמונה ולא בזמן ריצה: השרת לא מייצא (זה ~6GB זיכרון רגעי), והגרסה של הגרפים = הגרסה של התמונה.
+FROM deps AS aligner
+COPY translator/aligner_export.py /tmp/aligner_export.py
+RUN HF_HOME=/tmp/hf HF_HUB_DISABLE_TELEMETRY=1 /opt/vt/bin/python /tmp/aligner_export.py /opt/aligner \
+ && rm -rf /tmp/hf
 
 # ---------------------------------------------------------------- התמונה הסופית
 FROM ${PY_IMAGE}
@@ -64,9 +72,10 @@ RUN apt-get update -qq \
  && mkdir -p /work /cache /state && chown snb:snb /work /cache /state && chmod 700 /work /cache /state
 COPY --from=ffmpeg /opt/ffmpeg /opt/ffmpeg
 COPY --from=deps /opt/vt /opt/vt
+COPY --from=aligner /opt/aligner /opt/aligner
 COPY --chown=root:root translator /app/translator
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
- && find /app -type d -exec chmod 755 {} + && find /app -type f -exec chmod 644 {} +
+ && find /app /opt/aligner -type d -exec chmod 755 {} + && find /app /opt/aligner -type f -exec chmod 644 {} +
 
 ENV PATH=/opt/vt/bin:/opt/ffmpeg:/usr/local/bin:/usr/bin:/bin \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \

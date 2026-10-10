@@ -22,8 +22,8 @@ snb_limits() {
 }
 
 # ת2 (10/10/2026): gVisor (runsc) — ליבה מדומה סביב קופסת העובד, שמעבדת תוכן לא מהימן (תמלילים, סרטונים).
-# נמדד על 5 דק׳ TED: תמלול +6%, יישור +26–39%, זיכרון בשיא +0.45GB — לכן אוטומטית רק בשרת עם 12GB ומעלה
-# (בשרת של 8GB הגבול של הקונטיינר הוא 7GB והיישור מגיע ל־6.5GB). כפייה: /etc/snb/runtime = runsc / runc.
+# נמדד על 5 דק׳ TED: תמלול +6%, יישור +26–39%, זיכרון בשיא +0.45GB. מ־10/10/2026 (שלב 4.1, היישור ב־ONNX INT8)
+# שיא היישור תחת gVisor 4.2GB (היה 6.5GB) — לכן אוטומטית גם בשרת של 8GB (MemTotal ~7.6GB; הגבול של הקונטיינר ~6.6GB). כפייה: /etc/snb/runtime = runsc / runc.
 # נפילה ל־runc תמיד גלויה: SNB_ISO_WHY עובר לקונטיינר, והסוכן מדווח אותו למסך השרת באפליקציה.
 SNB_RT_OK=/var/lib/snb/runsc-ok
 snb_runtime() {
@@ -34,7 +34,7 @@ snb_runtime() {
 		SNB_ISO_WHY=manual
 	elif [ "$want" != runsc ]; then
 		kb=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
-		if [ "$kb" -ge 11500000 ]; then want=runsc; else want=runc; SNB_ISO_WHY=mem; fi
+		if [ "$kb" -ge 7000000 ]; then want=runsc; else want=runc; SNB_ISO_WHY=mem; fi
 	fi
 	if [ "$want" = runsc ] && ! { [ -x /usr/bin/runsc ] && docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q '"runsc"'; }; then
 		want=runc; SNB_ISO_WHY=missing
