@@ -28,6 +28,8 @@ const I = require('../lib/studioinc');
 const P = require('../lib/studioprob');   // v376: בעיות וספרי הפעלה
 const L = require('../lib/studiosla');   // v377: יעדי שירות, ערך ותחזית
 const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נלמד לכל שלב
+const SC = require('../lib/studioscan');
+const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -344,6 +346,74 @@ async function driveFileInFolder(deps, uid, folder, fid) {
   return { size: Number(meta.size) || 0 };
 }
 
+/* ---------- v378: בדיקת מוכנות ותחזוקה (lib/studioscan.js) ---------- */
+const DRIVE_Q = 'https://www.googleapis.com/drive/v3/';
+const FOLDER_MT = 'application/vnd.google-apps.folder';
+async function driveJson(deps, token, url, opt) {
+  const r = await (deps.fetch || fetch)(url, Object.assign({ headers: { Authorization: 'Bearer ' + token } }, opt || {}));
+  let j = null; try { j = await r.json(); } catch (e) {}
+  return { status: r.status, j };
+}
+/* רשימה מ־Drive (עד 5 עמודים). הלקוח של הסטודיו רואה רק מה שהאפליקציה יצרה */
+async function driveList(deps, token, q, fields) {
+  const out = [];
+  let pt = '';
+  for (let i = 0; i < 5; i++) {
+    const qs = new URLSearchParams({ q, fields: 'nextPageToken,files(' + fields + ')', pageSize: '200', spaces: 'drive' });
+    if (pt) qs.set('pageToken', pt);
+    const r = await driveJson(deps, token, DRIVE_Q + 'files?' + qs);
+    if (r.status !== 200 || !r.j) throw new Error('gd_http_' + r.status);
+    out.push(...(Array.isArray(r.j.files) ? r.j.files : []));
+    if (!r.j.nextPageToken) break;
+    pt = String(r.j.nextPageToken);
+  }
+  return out;
+}
+/* תיקיות העבודות: מתחת לתיקיית הסטודיו (snbStudio=1; גם אם נוצרה פעמיים), לכל אחת snbJob */
+async function studioFolders(deps, token) {
+  const roots = (await driveList(deps, token, "appProperties has { key='snbStudio' and value='1' } and trashed=false and mimeType='" + FOLDER_MT + "'", 'id'))
+    .filter((r) => S.FILE_ID_RE.test(String(r.id || ''))).slice(0, 5);
+  const out = [];
+  for (const r of roots) {
+    const kids = await driveList(deps, token, "'" + r.id + "' in parents and trashed=false and mimeType='" + FOLDER_MT + "'", 'id,appProperties,createdTime');
+    for (const k of kids) {
+      const job = String((k.appProperties && k.appProperties.snbJob) || '');
+      if (S.FILE_ID_RE.test(String(k.id || '')) && S.JOB_RE.test(job)) out.push({ id: k.id, job, t: Date.parse(k.createdTime || '') || 0 });
+    }
+  }
+  return out;
+}
+async function folderBytes(deps, token, id) {
+  const files = await driveList(deps, token, "'" + id + "' in parents and trashed=false", 'size');
+  return files.reduce((a, f) => a + (Number(f.size) || 0), 0);
+}
+/* לפח של Drive — אפשר לשחזר 30 יום. קובץ שכבר לא קיים = נוקה */
+async function driveTrash(deps, token, id) {
+  const r = await driveJson(deps, token, DRIVE_Q + 'files/' + id + '?fields=id', { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+  if (r.status !== 200 && r.status !== 404) throw new Error('gd_http_' + r.status);
+}
+/* מחיקת רשומת עבודה (כמו "מחיקה" בטלפון): הרשומה, ההתראות והתקלה שלה. הקבצים ב־Drive נשארים */
+async function removeJobRec(deps, uid, job, now) {
+  await delDoc(deps, 'studioJobs', job.id);
+  await closeJobOps(deps, uid, job.id, now);
+  try {   // v371 · v379: התקלה נסגרת, עם מה שעלה בטעות (לדוח)
+    const d = await readDoc(deps, 'studioOps', uid);
+    const inc = d && I.incCloseJob(d.inc, job.id, now, d.al, PIR.wastedUsd(job, S.effState(job, now).state));
+    if (inc) await patchDoc(deps, 'studioOps', uid, { inc, updated: now });
+  } catch (e) {}
+}
+/* מה אפשר לנקות עכשיו — תמיד סריקה טרייה (לא רשימה שמורה). תיקייה של עבודה שקיימת אצל משתמש אחר (אותו Drive בשני חשבונות) — לא נוגעים */
+async function cleanTargets(deps, uid, token, jobs, now) {
+  const folders = await studioFolders(deps, token);
+  const ids = jobs.map((j) => j.id);
+  const orphans = [];
+  for (const f of SC.orphanFolders(folders, ids).slice(0, SC.MAX_FOLDERS)) {
+    const other = await readJob(deps, f.job).catch(() => null);
+    if (!other) orphans.push(f);
+  }
+  return { orphans, dupes: SC.dupeFolders(folders, jobs).slice(0, SC.MAX_FOLDERS), ck: SC.doneCheckpoints(jobs), old: SC.oldJobs(jobs, now) };
+}
+
 /* ---------- העובד בענן ---------- */
 async function worker(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
@@ -386,7 +456,19 @@ async function worker(req, res, body, deps) {
       if (/^[0-9a-f]{12}$/.test(String(body.ev || ''))) patch.ev = body.ev;   // v371: גרסת הסביבה של העובד ("אחרי שינוי בסביבה")
       const pv = S.normPv(body.pv); if (pv) patch.pv = pv;   // v373: גרסת ההנחיות של כל סוכן (מלאי הסוכנים)
       await patchJob(deps, id, patch);
-      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl), drive: await driveFor(), now });
+      // v379: דוח אחרי תקלה — תקלת P1–P2 שנפתרה ועוד אין לה סיכום: הסשן הזה (Sonnet) כותב אותו מהעובדות. ספירת הבקשות — שלא לבקש לנצח
+      let pir = null;
+      if (job.kind === 'tr') {
+        try {
+          const od = await readDoc(deps, 'studioOps', job.uid);
+          const x = od && PIR.pirPending(od.inc, now);
+          if (x) {
+            pir = PIR.pirForWorker(x, od.al);
+            await patchDoc(deps, 'studioOps', job.uid, { inc: od.inc.map((y) => (y.no === x.no ? Object.assign({}, y, { pq: (y.pq || 0) + 1 }) : y)), updated: now });
+          }
+        } catch (e) { pir = null; }
+      }
+      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl), drive: await driveFor(), pir, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     if (body.op === 'qa') return res.status(200).json({ ok: true, qa: job.qa && job.qa.id ? { id: job.qa.id, g: job.qa.g || '', a: job.qa.a || null } : null, bx: job.bx || 0, now });
@@ -488,6 +570,16 @@ async function worker(req, res, body, deps) {
       else if (body.fixUsed != null) fb = S.fbUsed(stats.fb, String(body.fixUsed), now);
       if (fb) await patchDoc(deps, 'studioStats', job.uid, { fb, updated: now }).catch(() => {});
     }
+    // v379: סיכום לדוח אחרי תקלה — רק לתקלת P1–P2 של אותו משתמש שנפתרה ועוד אין לה סיכום; טקסט בלבד, מנוקה. תקלה כאן לא מפילה את הדיווח
+    let pirOk = null;
+    if (job.kind === 'tr' && body.pir && typeof body.pir === 'object') {
+      pirOk = false;
+      try {
+        const od = await readDoc(deps, 'studioOps', job.uid);
+        const inc = od && PIR.pirSave(od.inc, Number(body.pir.no), body.pir.t, String(body.pir.m || ''), job.id, now);
+        if (inc) { await patchDoc(deps, 'studioOps', job.uid, { inc, updated: now }); pirOk = true; }
+      } catch (e) {}
+    }
     if (job.kind === 'tr') {
       // v365: אירועים מהעובד (vt, Drive, רשת) ומהמגדל → התראות; סוף העבודה סוגר את כולן
       if (up.state === 'done') await closeJobOps(deps, job.uid, id, now, true);
@@ -506,7 +598,7 @@ async function worker(req, res, body, deps) {
         await patchDoc(deps, 'studioStats', job.uid, patchS).catch(() => {});
       }
     }
-    return res.status(200).json(Object.assign({ ok: true, stop: false, state: up.state || job.state }, gateId ? { gate: gateId } : {}));
+    return res.status(200).json(Object.assign({ ok: true, stop: false, state: up.state || job.state }, gateId ? { gate: gateId } : {}, pirOk != null ? { pir: pirOk } : {}));
   } catch (err) {
     return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
   }
@@ -545,7 +637,49 @@ async function handler(req, res, deps = {}) {
       admin: isAdmin(user), capDef: S.CAP_DEF, capMax: S.CAP_MAX };
   };
   const opsFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return O.opsView(d.al, now, d.mu); };
+  const scFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return SC.scanView(d.sc); };   // v378
   const incFor = async (u) => { const d = await readDoc(deps, 'studioOps', u).catch(() => null) || {}; return I.incView(d.inc, d.mi, d.al, now); };   // v371
+  // v378: בדיקת המוכנות — עובדות → ממצאים (studioscan.js). נשמרת ב־studioOps.sc; המזהים ב־Drive לא נשמרים ולא יוצאים לטלפון
+  const doScan = async () => {
+    const v = await readVault(deps, uid).catch(() => null);
+    const st = await readStats(deps, uid);
+    const srv = await servers().catch(() => []);
+    const jobs = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+    const f = {
+      claude: { conn: !!(v && v.r), ok: (v && v.ok) || 0, servers: srv.filter((x) => x.online && !x.paused).length },
+      fires: { n: S.recentFires(v && v.fh, now).length, max: S.FIRE_HOUR },
+      drive: { cfg: gdrive.configured(), conn: false, err: '', free: null },
+    };
+    // התקציב לעבודה מול עבודה רגילה של שעה במצב ברירת המחדל (או במקסימום שבחרת, אם הוא זול יותר)
+    const rl = S.normRules(st.rl);
+    if (rl.b > 0) {
+      const m = rl.mx && S.NORM_DEF[rl.mx] < S.NORM_DEF['opus-medium'] ? rl.mx : 'opus-medium';
+      f.budget = { b: rl.b, need: S.normsView(st.ns)[m].ph + S.NORM_FIXED };
+    } else f.budget = { b: 0, need: 0 };
+    const tmp = SC.doneCheckpoints(jobs);
+    f.clean = { ck: { n: tmp.length, b: tmp.reduce((a, x) => a + x.size, 0) }, old: { n: SC.oldJobs(jobs, now).length } };
+    if (f.drive.cfg) {
+      const t = await gdrive.accessToken(deps, uid);
+      if (!t.ok) f.drive.err = t.error;
+      else {
+        f.drive.conn = true;
+        try {
+          const q = await driveJson(deps, t.token, DRIVE_Q + 'about?fields=storageQuota');
+          const sq = q.status === 200 && q.j && q.j.storageQuota;
+          if (sq && Number(sq.limit) > 0) f.drive.free = Math.max(0, Number(sq.limit) - (Number(sq.usage) || 0));
+          const tg = await cleanTargets(deps, uid, t.token, jobs, now);
+          for (const k of ['orphans', 'dupes']) {
+            let b = 0;
+            for (const x of tg[k]) b += await folderBytes(deps, t.token, x.id);
+            f.clean[k] = { n: tg[k].length, b };
+          }
+        } catch (e) { f.drive.err = 'gd_http'; }
+      }
+    }
+    const sc = SC.scanFindings(f, now);
+    await patchDoc(deps, 'studioOps', uid, { sc, updated: now }).catch(() => {});
+    return SC.scanView(sc);
+  };
   try {
     if (op === 'status') {
       const v = await readVault(deps, uid);
@@ -554,7 +688,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns), fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
-        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), eta: ETA.etaView(st.et, now), now });   // v367: החוקים ומתג החירום
+        rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now), now });   // v367: החוקים ומתג החירום
     }
     if (op === 'rules') {
       // v367: החוקים שלך — נשמרים בחשבון; חלים על עבודות שמתחילות מעכשיו (והתקציב — גם על עבודה רצה, בבדיקה הבאה של המגדל אחרי "המשך")
@@ -631,6 +765,14 @@ async function handler(req, res, deps = {}) {
       await patchDoc(deps, 'studioOps', uid, { mu, updated: now });
       return res.status(200).json({ ok: true, ops: O.opsView(d.al, now, mu) });
     }
+    if (op === 'pirVote') {
+      // v379: "האם הסיכום עזר" — 👍 / 👎 (0 = ביטול)
+      const d = await readDoc(deps, 'studioOps', uid).catch(() => null) || {};
+      const inc = PIR.pirVote(d.inc, Number(body.no), Number(body.v));
+      if (!inc) return res.status(400).json({ ok: false, error: 'bad_vote' });
+      await patchDoc(deps, 'studioOps', uid, { inc, updated: now });
+      return res.status(200).json({ ok: true, inc: I.incView(inc, d.mi, d.al, now), now });
+    }
     if (op === 'ack') {
       // v369: "אשר" — ההתראה ידועה לך (נשארת פתוחה ובציון, יורדת מהבאנר בבית)
       const no = Number(body.no);
@@ -639,6 +781,32 @@ async function handler(req, res, deps = {}) {
       const al = O.opsAck(d.al, no, now);
       if (al) await patchDoc(deps, 'studioOps', uid, { al, updated: now });
       return res.status(200).json({ ok: true, ops: O.opsView(al || d.al, now, d.mu) });
+    }
+    if (op === 'scan') {
+      if (limited('sc|' + uid, 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+      return res.status(200).json({ ok: true, sc: await doScan(), now });
+    }
+    if (op === 'clean') {
+      // v378: "נקה" — תיקיות ונקודות שמירה עוברות לפח של Drive (30 יום לשחזור); רשומות ישנות נמחקות כמו "מחיקה" (הקבצים נשארים)
+      const k = String(body.k || '');
+      if (!SC.CLEAN_KINDS.includes(k)) return res.status(400).json({ ok: false, error: 'bad_kind' });
+      if (limited('sc|' + uid, 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+      const jobs = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
+      let n = 0;
+      if (k === 'old') {
+        for (const j of SC.oldJobs(jobs, now)) { await removeJobRec(deps, uid, j, now); n++; }
+      } else {
+        const t = await gdrive.accessToken(deps, uid);
+        if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
+        if (k === 'ck') {
+          const byJob = new Map();
+          for (const c of SC.doneCheckpoints(jobs)) { await driveTrash(deps, t.token, c.id); n++; byJob.set(c.job, true); }
+          for (const id of byJob.keys()) await patchJob(deps, id, { ck: [] });
+        } else {
+          for (const x of (await cleanTargets(deps, uid, t.token, jobs, now))[k]) { await driveTrash(deps, t.token, x.id); n++; }
+        }
+      }
+      return res.status(200).json({ ok: true, n, sc: await doScan(), now });
     }
     if (op === 'connect') {
       const c = S.normRoutine(body.url, body.key);
@@ -778,9 +946,7 @@ async function handler(req, res, deps = {}) {
     }
     if (op === 'remove') {
       if ((st === 'queued' || st === 'running') && !S.isStale(job, now)) return res.status(409).json({ ok: false, error: 'active' });   // נתקעה — אפשר למחוק
-      await delDoc(deps, 'studioJobs', job.id);
-      await closeJobOps(deps, uid, job.id, now);
-      try { const d = await readDoc(deps, 'studioOps', uid); const inc = d && I.incCloseJob(d.inc, job.id, now); if (inc) await patchDoc(deps, 'studioOps', uid, { inc, updated: now }); } catch (e) {}   // v371
+      await removeJobRec(deps, uid, job, now);
       return res.status(200).json({ ok: true });
     }
     return res.status(400).json({ ok: false, error: 'bad_op' });

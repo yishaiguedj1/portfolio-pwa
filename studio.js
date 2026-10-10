@@ -233,12 +233,24 @@ export function normInc(o) {
       .map((r) => ({ t: r.t, c: r.c, k: String(r.k || ''), p: num(r.p, 0, 100), n: num(r.n, 0, 100) })),
     tl: (Array.isArray(x.tl) ? x.tl : []).filter((e) => Array.isArray(e) && typeof e[0] === 'number' && INC_EV.includes(e[1]) && (e[1] !== 'a' && e[1] !== 'k' || kind(e[2], e[3]))).slice(-24)
       .map((e) => (e[1] === 'a' || e[1] === 'k' ? [e[0], e[1], e[2], e[3], Number.isInteger(e[4]) ? e[4] : 0] : [e[0], e[1]])),
+    pir: normPir(x.pir),   // v379: דוח אחרי תקלה
     sim: x.sim && Number.isInteger(x.sim.no) ? { no: x.sim.no, f: num(x.sim.f, 0, 1e15), by: x.sim.by === 'c' || x.sim.by === 'u' ? x.sim.by : '', min: num(x.sim.min, 1, 1e6) || 1 } : null,
     al: (Array.isArray(x.al) ? x.al : []).filter((a) => a && Number.isInteger(a.no) && kind(a.c, a.k) && Number.isInteger(a.s)).slice(-8).map((a) => ({ no: a.no, c: a.c, k: a.k, s: Math.min(4, Math.max(1, a.s)), x: a.x ? 1 : 0 })),
   }));
   const m = o.mi;
   const mi = m && Number.isInteger(m.no) && OPS_COMPONENTS.includes(m.c) && ERR_CODE.test(String(m.e || '')) ? { no: m.no, c: m.c, e: m.e, at: num(m.at, 0, 1e15), x: num(m.x, 0, 1e15), n: num(m.n, 0, 100) } : null;
   return { list, open: num(o.open, 0, 1e4), mi };
+}
+/* v379: דוח אחרי תקלה (lib/studiopir.js pirView) — מספרים, מזהה מודל, והסיכום (טקסט מ־Claude: רק מחרוזת, מוצג כטקסט בלבד) */
+const MODEL_ID_RE = /^claude-[a-z0-9-]{1,50}$/;
+export function normPir(o) {
+  if (!o || typeof o !== 'object') return null;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e9 ? v : 0);
+  const out = { tti: n(o.tti), ttr: n(o.ttr), usd: n(o.usd), ps: null, wait: o.wait === true };
+  const ps = o.ps;
+  if (ps && typeof ps === 'object' && typeof ps.t === 'string' && ps.t.trim().length >= 20)
+    out.ps = { t: ps.t.slice(0, 420), m: MODEL_ID_RE.test(String(ps.m || '')) ? ps.m : '', at: n(ps.at), v: ps.v === 1 || ps.v === -1 ? ps.v : 0 };
+  return out;
 }
 export const majorOn = (inc) => !!(inc && inc.mi && !inc.mi.x);
 /* v373: עקיבה (מהשרתון, בעבודה) ומלאי הסוכנים (op jobs) — רק מספרים, מזהי מודל וקודים */
@@ -315,6 +327,18 @@ export function normValue(o) {
   const a = o.ab || {};
   out.ab = { n: int(a.n), rs: int(a.rs), qa: int(a.qa) };
   return out;
+}
+/* v378: בדיקת המוכנות (lib/studioscan.js scanView) — צורה קבועה, בלי מזהים */
+const SC_KINDS = ['claude_missing', 'claude_untested', 'claude_stale', 'drive_cfg', 'drive_missing', 'drive_revoked', 'drive_err', 'quota_crit', 'quota_low', 'fires_high', 'budget_low', 'orphans', 'dupes', 'ck', 'old'];
+const SC_CHECKS = ['claude', 'drive', 'quota', 'fires', 'budget', 'orphans', 'dupes', 'ck', 'old'];
+const SC_CLEAN = ['orphans', 'dupes', 'ck', 'old'];
+export function normScan(o) {
+  if (!o || typeof o !== 'object' || !(typeof o.at === 'number' && o.at > 0)) return null;
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e15 ? v : 0);
+  const f = (Array.isArray(o.f) ? o.f : []).filter((x) => x && SC_KINDS.includes(x.k) && Number.isInteger(x.p) && x.p >= 1 && x.p <= 5).slice(0, 20)
+    .map((x) => ({ k: x.k, p: x.p, ch: SC_CHECKS.includes(x.ch) ? x.ch : '', n: num(x.n), b: num(x.b), d: num(x.d), m: num(x.m), u: num(x.u), need: num(x.need) }));
+  return { at: o.at, s: Math.max(0, Math.min(100, Math.round(num(o.s)))), n: Math.min(SC_CHECKS.length, Math.round(num(o.n))),
+    ok: (Array.isArray(o.ok) ? o.ok : []).filter((k) => SC_CHECKS.includes(k)), f, fb: num(o.fb) };
 }
 const STAGE_IDS = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 /* 10/10/2026: צפי הזמנים — תוכנית לעבודה (ep) ומודל לכל מנוע (status.eta). אותה צורה כמו lib/studioeta.js */
@@ -766,6 +790,7 @@ async function refreshStatus(force) {
     ui.halt = num(j.halt);
     ui.api = normApi(j.api) || ui.api;   // מצב API של המערכת: תקציב חודשי ושרתים
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
+    ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -1092,7 +1117,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2192,6 +2217,44 @@ function incSummary(x) {
   if (x.st === 'r') return T('studioIncSumR', { d: fmtShort(Math.max(60, (x.rt - x.f) / 1000)), by: incByName(x.by) || T('studioIncByU') });
   return T('studioIncSumX');
 }
+/* v379: דוח אחרי תקלה — כמו ה־Major Incident Workbench: זמן לזיהוי, זמן לתיקון, מה עלה בטעות, וסיכום AI אחד עם הסימן והאזהרה */
+let pirBusy = false;
+async function pirVote(no, v) {
+  if (pirBusy) return;
+  pirBusy = true; render('none');
+  try {
+    const j = await net.api('pirVote', { no, v });
+    if (j.ok) setInc(j.inc, j.now); else flashSafe(errText(j.error));
+  } finally { pirBusy = false; render('none'); }
+}
+function pirSection(x) {
+  const r = x.pir;
+  if (!r) return [];
+  const kpi = h('div', 'st-scores'); kpi.dataset.k = 'pir-kpi';
+  kpi.append(scoreTile(T('studioPirTti'), r.tti ? fmtShort(r.tti) : T('studioPirNow'), [], false, String),
+    scoreTile(T('studioPirFails'), String(x.n), [], false, String), scoreTile(T('studioPirUsd'), fmtUsd(r.usd), [], false, String));   // זמן התיקון — כבר בשורה שבראש הדף
+  const out = [secT(T('studioPirT')), kpi];
+  const card = h('div', 'st-twcard st-ai'); card.dataset.k = 'pir-sum';
+  if (r.ps) {
+    const hd = h('small', 'st-ai-h'); const mk = h('i', 'st-ai-m'); mk.append(ico('spark'));
+    hd.append(mk, h('span', null, T('studioPirBy', { m: r.ps.m ? modelLabel(r.ps.m) : 'Claude' })));
+    const t = h('p', null, r.ps.t); t.dir = 'auto';   // טקסט מ־Claude — רק טקסט
+    const ft = h('div', 'st-ai-f');
+    ft.append(h('small', null, T('studioPirCheck')));
+    const vb = h('span', 'st-ai-v');
+    for (const [v, lbl, k] of [[1, '👍', 'pir-up'], [-1, '👎', 'pir-down']]) {
+      const b = btn('st-ai-b' + (r.ps.v === v ? ' on' : ''), lbl, () => pirVote(x.no, r.ps.v === v ? 0 : v), k);
+      b.setAttribute('aria-pressed', r.ps.v === v ? 'true' : 'false');
+      b.setAttribute('aria-label', v === 1 ? T('studioPirUp') : T('studioPirDown'));
+      if (pirBusy || blocked()) b.disabled = true;
+      vb.append(b);
+    }
+    ft.append(vb);
+    card.append(hd, t, ft);
+  } else card.append(h('small', 'st-muted', r.wait ? T('studioPirWait') : T('studioPirNone')));
+  out.push(card);
+  return out;
+}
 function pageInc(p) {
   const no = Number(ui.param);
   const x = ui.inc ? ui.inc.list.find((y) => y.no === no) : null;
@@ -2225,6 +2288,7 @@ function pageInc(p) {
       kv(x.rt ? T('studioIncClosedAt') : T('studioIncFails'), x.rt ? h('bdi', null, fmtClock(x.rt)) : String(x.n)));
     const card = h('div', 'st-twcard'); card.append(g);
     p.append(card);
+    p.append(...pirSection(x));   // v379: דוח אחרי תקלה (P1–P2 שנפתרה)
     // שורש סביר — עד 3, עם פס לפי הסבירות
     if (x.rc.length) {
       const rc = h('div', 'st-twcard st-rc');
@@ -2530,6 +2594,145 @@ function pageValue(p) {
   p.append(secT(T('studioVaPriceT')), list(...opts.map((x) => rowRadio({ label: T('studioVaPerMin', { u: fmtUsdWhole(x) }), on: va.hp === x,
     onClick: () => setPrice(x), k: 'hp:' + x, disabled: blocked() || priceBusy }))), note(T('studioVaPriceNote')));
 }
+/* v378: בדיקת מוכנות ותחזוקה (Instance Scan + CMDB Health) — ממצאים עם עדיפות 1–5, פעולה אחת לכל ממצא, "נקה" לפח של Drive */
+const SC_P_CLS = ['', 'c', 'h', 'w', 'i', 'l'];
+const scColor = (s) => (s >= 90 ? 'green' : s >= 70 ? 'orange' : 'red');
+function scLabel(sc) { return !sc.f.length ? T('studioScAllOk') : sc.s >= 70 ? T('studioScMostly') : T('studioScNeeds'); }
+function scFindCount(n) { return n === 1 ? T('studioScFind1') : T('studioScFindN', { n }); }
+function scanSection() {
+  const sc = ui.sc;
+  const sub = !sc ? T('studioScNever') : (sc.f.length ? scFindCount(sc.f.length) : T('studioScAllOk')) + ' · ' + opsAgo(sc.at);
+  return [secT(T('studioScSec')), list(rowNav({ tile: tile('shield', sc ? scColor(sc.s) : 'blue'), label: T('studioScT'), sub, value: sc ? String(sc.s) : '', onClick: () => go('scan'), k: 'tower-scan' }))];
+}
+function scCat(ch) {
+  switch (ch) {
+    case 'claude': case 'budget': return T('studioScCatSetup');
+    case 'drive': return T('studioScCatSec');
+    case 'quota': case 'fires': return T('studioScCatEnv');
+    default: return T('studioScCatClean');
+  }
+}
+function scCheckName(k) {
+  switch (k) {
+    case 'claude': return T('studioScChClaude');
+    case 'drive': return T('studioScChDrive');
+    case 'quota': return T('studioScChQuota');
+    case 'fires': return T('studioScChFires');
+    case 'budget': return T('studioScChBudget');
+    case 'orphans': return T('studioScChOrphans');
+    case 'dupes': return T('studioScChDupes');
+    case 'ck': return T('studioScChCk');
+    default: return T('studioScChOld');
+  }
+}
+/* הכותרת והתיקון לכל ממצא — מחרוזות קבועות */
+function scText(x) {
+  const one = x.n === 1, sz = x.b ? ' · ' + fmtSize(x.b) : '';
+  switch (x.k) {
+    case 'claude_missing': return [T('studioScClaudeMissing'), T('studioScFixConnect')];
+    case 'claude_untested': return [T('studioScClaudeUntested'), T('studioScFixTest')];
+    case 'claude_stale': return [T('studioScClaudeStale', { d: x.d }), T('studioScFixTest')];
+    case 'drive_cfg': return [T('studioScDriveCfg'), T('studioScFixVercel')];
+    case 'drive_missing': return [T('studioScDriveMissing'), T('studioScFixDrive')];
+    case 'drive_revoked': return [T('studioScDriveRevoked'), T('studioScFixDrive')];
+    case 'drive_err': return [T('studioScDriveErr'), T('studioScFixRetry')];
+    case 'quota_crit': return [T('studioScQuotaCrit', { b: fmtSize(x.b) }), T('studioScFixQuota')];
+    case 'quota_low': return [T('studioScQuotaLow', { b: fmtSize(x.b) }), T('studioScFixQuota')];
+    case 'fires_high': return [T('studioScFires', { n: x.n, m: x.m }), T('studioScFixFires')];
+    case 'budget_low': return [T('studioScBudget', { u: fmtUsdWhole(x.u), need: fmtUsd(x.need) }), T('studioScFixBudget')];
+    case 'orphans': return [(one ? T('studioScOrph1') : T('studioScOrphN', { n: x.n })) + sz, T('studioScOrphS')];
+    case 'dupes': return [(one ? T('studioScDup1') : T('studioScDupN', { n: x.n })) + sz, T('studioScDupS')];
+    case 'ck': return [(one ? T('studioScCk1') : T('studioScCkN', { n: x.n })) + sz, T('studioScCkS')];
+    default: return [one ? T('studioScOld1') : T('studioScOldN', { n: x.n }), T('studioScOldS')];
+  }
+}
+function scCleanQ(x) {
+  switch (x.k) {
+    case 'orphans': return T('studioScQOrph', { n: x.n });
+    case 'dupes': return T('studioScQDup', { n: x.n });
+    case 'ck': return T('studioScQCk');
+    default: return T('studioScQOld', { n: x.n });
+  }
+}
+const SCAN_FRESH = 10 * 60e3;   // סריקה מלפני פחות מ־10 דקות — מציגים אותה
+let scanBusy = '';
+async function runScan() {
+  if (scanBusy) return;
+  scanBusy = 'scan'; render('none');
+  try {
+    const j = await net.api('scan');
+    if (j.ok) { ui.sc = normScan(j.sc) || ui.sc; save(); } else flashSafe(errText(j.error));
+  } finally { scanBusy = ''; render('none'); }
+}
+async function runClean(kinds) {
+  if (scanBusy) return;
+  scanBusy = kinds.length > 1 ? 'all' : kinds[0]; render('none');
+  let n = 0;
+  try {
+    for (const k of kinds) {
+      const j = await net.api('clean', { k });
+      if (!j.ok) { flashSafe(errText(j.error)); break; }
+      n += Number(j.n) || 0;
+      ui.sc = normScan(j.sc) || ui.sc;
+    }
+    if (n) { flashSafe(T('studioScCleaned')); jobsAt = 0; refreshJobs(true); }
+    save();
+  } finally { scanBusy = ''; render('none'); }
+}
+function askClean(x) {
+  const go2 = () => runClean([x.k]);
+  if (typeof askConfirm === 'function') askConfirm(scCleanQ(x), go2, { danger: true, ok: T('studioScClean') }); else go2();
+}
+function scFindRow(x) {
+  const [title, fix] = scText(x);
+  const nav = x.k.startsWith('claude_') ? () => go('connect') : x.k === 'drive_missing' || x.k === 'drive_revoked' ? () => go('settings') : x.k === 'budget_low' ? () => go('rules') : null;
+  const r = nav ? btn('st-fnd ' + SC_P_CLS[x.p], null, nav, 'sc:' + x.k) : h('div', 'st-fnd ' + SC_P_CLS[x.p]);
+  if (!nav) r.dataset.k = 'sc:' + x.k;
+  const l = h('span', 'st-l');
+  l.append(h('small', null, T('studioScFinding', { c: scCat(x.ch) })), h('b', null, title), h('small', null, fix));
+  r.append(h('i', 'st-fnd-p', String(x.p)), l);
+  if (nav) r.append(ico('chev', 'st-chev'));
+  else if (SC_CLEAN.includes(x.k)) {
+    const b = btn('st-mini danger', scanBusy === x.k ? T('studioScCleaning') : T('studioScClean'), () => askClean(x), 'scc:' + x.k);
+    if (scanBusy || blocked()) b.disabled = true;
+    r.append(b);
+  }
+  return r;
+}
+function pageScan(p) {
+  const sc = ui.sc;
+  p.append(navBar({ back: T('studioTwShort'), title: T('studioScT') }));
+  const ab = accessBanner(); if (ab) p.append(ab);
+  const hero = h('div', 'st-schero');
+  if (!sc) hero.append(h('b', 'st-schero-n', '—'), rowTxt(scanBusy ? T('studioScRunning') : T('studioScNever'), ''));
+  else {
+    const n = h('b', 'st-schero-n t-' + scColor(sc.s), String(sc.s));
+    hero.append(n, rowTxt(scLabel(sc), T('studioScMeta', { n: sc.n, t: opsAgo(sc.at) })));
+  }
+  p.append(hero);
+  if (sc && sc.f.length) p.append(list(...sc.f.map(scFindRow)));
+  if (sc && sc.ok.length) {
+    const r = btn('st-row', null, () => { ui.scOk = !ui.scOk; render('none'); }, 'sc-ok');
+    r.setAttribute('aria-expanded', ui.scOk ? 'true' : 'false');
+    r.append(rowTxt(T('studioScOkN', { n: sc.ok.length }), ''), ico('chev', 'st-chev' + (ui.scOk ? ' open' : '')));
+    const rows = [r];
+    if (ui.scOk) for (const k of sc.ok) { const o = h('div', 'st-row'); o.dataset.k = 'sco:' + k; const c = h('span', 'st-check on lock'); c.append(ico('check')); o.append(c, rowTxt(scCheckName(k), '')); rows.push(o); }
+    p.append(h('div', 'st-gap sm'), list(...rows));
+  }
+  const again = btn('st-btn tint wide', scanBusy === 'scan' ? T('studioScRunning') : T('studioScRun'), () => runScan(), 'sc-run');
+  if (scanBusy || blocked()) again.disabled = true;
+  p.append(h('div', 'st-gap'), again);
+  const cl = sc ? sc.f.filter((x) => SC_CLEAN.includes(x.k)) : [];
+  if (cl.length > 1) {
+    const all = btn('st-btn danger wide', scanBusy === 'all' ? T('studioScCleaning') : sc.fb ? T('studioScCleanAll', { b: fmtSize(sc.fb) }) : T('studioScCleanAllN'), () => {
+      const doIt = () => runClean(cl.map((x) => x.k));
+      if (typeof askConfirm === 'function') askConfirm(T('studioScQAll'), doIt, { danger: true, ok: T('studioScClean') }); else doIt();
+    }, 'sc-all');
+    if (scanBusy || blocked()) all.disabled = true;
+    p.append(h('div', 'st-gap sm'), all);
+  }
+  if (cl.length) p.append(note(T('studioScNote')));
+}
 /* דף בעיה: מה חוזר, כמה פגע וכמה עלה, העקיפה (או ההצעה שמחכה לך), והתקלות שנגרמו ממנה */
 function pageProb(p) {
   const no = Number(ui.param);
@@ -2591,6 +2794,7 @@ function pageTower(p) {
   }
   p.append(...agentsSection());   // v373: מלאי הסוכנים — 30 יום
   p.append(...valueSection());    // v377: ערך ועלות החודש
+  p.append(...scanSection());     // v378: בדיקת מוכנות ותחזוקה
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
     const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
@@ -3385,12 +3589,13 @@ function shapeKey() {
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb);
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc);
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
+  if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378
   if (ui.view === 'value') return 'value|' + ui.access + '|' + JSON.stringify(ui.va) + (priceBusy ? 1 : 0);   // v377
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
-  if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
+  if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm;
   if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
@@ -3423,6 +3628,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'inc') pageInc(p);
   else if (ui.view === 'agents') pageAgents(p);
   else if (ui.view === 'value') pageValue(p);   // v377
+  else if (ui.view === 'scan') pageScan(p);   // v378
   else if (ui.view === 'prob') pageProb(p);   // v376
   else if (ui.view === 'rules') pageRules(p);
   else if (ui.view === 'server') pageServer(p);
@@ -3454,6 +3660,7 @@ function onEnter() {
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'agents') refreshJobs(true);
   else if (ui.view === 'value') refreshJobs(true);   // v377
+  else if (ui.view === 'scan') { if (!ui.sc || Date.now() - ui.sc.at > SCAN_FRESH) runScan(); else refreshStatus(true); }   // v378: סריקה ישנה — סורקים שוב
   else if (ui.view === 'prob') { refreshStatus(true); refreshJobs(true); }   // v376
   else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }
   else if (ui.view === 'job') { pollNow(); const r = jobRec(ui.param); if (r && towerStopped(r)) refreshStatus(); }   // v364: תיקון מוכר בכרטיס העצירה

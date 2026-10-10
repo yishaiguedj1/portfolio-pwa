@@ -160,6 +160,86 @@ def env_version():
     return h.hexdigest()[:12]
 
 
+# ---------------------------------------------------------------- דוח אחרי תקלה (v379)
+# תקלת P1–P2 שנפתרה: השרתון שולח בלקיחה עובדות מובנות (קודים, זמנים, סכומים — בלי טקסט חופשי ובלי תוכן מהסרטון),
+# והסשן (Sonnet) כותב שלושה משפטים פעם אחת. הטקסט נשמר בשרתון ומוצג בטלפון כטקסט בלבד.
+PIR_COMP = {'phone': 'הטלפון', 'drive': 'Google Drive', 'server': 'השרתון', 'routine': 'ה־Routine', 'claude': 'Claude', 'vt': 'מנועי התרגום'}
+PIR_H = {'o': 'התקלה נפתחה', 'f': 'נכשלה שוב', 'w': 'המשתמש לחץ "המשך"', 'c': 'Claude המשיך לבד (ספר הפעלה)', 'r': 'נפתרה', 'x': 'נסגרה',
+         'm': 'חלק מתקלה רחבה', 'a': 'התראה', 'k': 'התראה נסגרה'}
+PIR_RC = {'known': 'תקלה מוכרת מספר התיקונים', 'wide': 'אותה תקלה בעבודות נוספות', 'up': 'רכיב מוקדם יותר בשרשרת נכשל',
+          'env': 'הסביבה השתנתה מאז העבודה האחרונה שהצליחה', 'same': 'התראה באותו רכיב', 'self': 'אין רמז אחר — הקוד עצמו'}
+CODE_RE = re.compile(r'^[a-z][a-z0-9_]{0,29}$')
+
+
+def pir_valid(p):
+    """העובדות מהשרתון — רק בצורה הקבועה; כל דבר אחר נזרק."""
+    if not isinstance(p, dict) or not isinstance(p.get('no'), int) or p.get('c') not in PIR_COMP or not CODE_RE.match(str(p.get('e') or '')) \
+            or p.get('s') not in (1, 2):
+        return None
+    num = lambda v: v if isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) < 1e9 else 0
+    tl = []
+    for e in p.get('tl') or []:
+        if isinstance(e, list) and len(e) >= 2 and isinstance(e[0], int) and e[1] in PIR_H:
+            tl.append([e[0], e[1]] + [x for x in e[2:4] if isinstance(x, str) and CODE_RE.match(x)])
+    rc = [{'t': r['t'], 'c': r.get('c') if r.get('c') in PIR_COMP else '', 'k': r.get('k') if CODE_RE.match(str(r.get('k') or '')) else '', 'p': num(r.get('p'))}
+          for r in (p.get('rc') or []) if isinstance(r, dict) and r.get('t') in PIR_RC][:3]
+    return {'no': p['no'], 'c': p['c'], 'e': p['e'], 's': p['s'], 'by': p.get('by') if p.get('by') in ('c', 'u') else '', 'n': int(num(p.get('n')) or 1),
+            'm': 1 if p.get('m') else 0, 'tti': num(p.get('tti')), 'ttr': num(p.get('ttr')), 'usd': num(p.get('usd')),
+            'st': 'x' if p.get('st') == 'x' else 'r', 'rc': rc, 'tl': tl[-16:]}
+
+
+def inc_no(no):
+    return 'INC' + str(no).zfill(7)
+
+
+def pir_hint(st):
+    p = st.get('pir')
+    if p:
+        print('📝 דוח אחרי תקלה מחכה (' + inc_no(p['no']) + ', P' + str(p['s']) + '). עכשיו, לפני הצעד הבא — כ־3 אלף טוקנים:')
+        print('  python3 translator/job.py pir        (העובדות)')
+        print('  python3 translator/job.py pir --text "<שלושה משפטים>"')
+
+
+def _main_model():
+    try:
+        rows = [r for r in (usage() or []) if r.get('k') == 'main' and r.get('m')]
+        return max(rows, key=lambda r: r.get('n') or 0)['m'] if rows else ''
+    except Exception:            # noqa: BLE001 — מידע משני
+        return ''
+
+
+def pir(args):
+    """v379: דוח אחרי תקלה — בלי --text מציג את העובדות; עם --text שולח את הסיכום (פעם אחת)."""
+    st = load_state()
+    p = st.get('pir')
+    if not p:
+        print('אין דוח תקלה לכתוב בעבודה הזו.')
+        return 0
+    if not args.text:
+        mins = lambda sec: str(max(0, round(sec / 60))) + ' דק׳'
+        print(inc_no(p['no']) + ' · P' + str(p['s']) + ' · ' + PIR_COMP[p['c']] + ' · קוד ' + p['e'] + (' · חלק מתקלה רחבה' if p['m'] else ''))
+        print('נכשלה ' + str(p['n']) + ' פעמים · ' + ('נפתרה' if p['st'] == 'r' else 'נסגרה בלי פתרון')
+              + (' · Claude המשיך לבד' if p['by'] == 'c' else ' · המשתמש המשיך' if p['by'] == 'u' else ''))
+        print('זמן לזיהוי: ' + mins(p['tti']) + ' · זמן לתיקון: ' + mins(p['ttr']) + ' · עלה בטעות: $' + format(p['usd'], '.2f'))
+        if p['rc']:
+            print('שורש סביר (חשבון בקוד): ' + ' · '.join(PIR_RC[r['t']] + (' (' + PIR_COMP.get(r['c'], '') + (' ' + r['k'] if r['k'] else '') + ')' if r['c'] else '') + ' ' + str(int(r['p'])) + '%' for r in p['rc']))
+        print('ציר הזמן (דקות מפתיחת התקלה):')
+        for e in p['tl']:
+            print('  ' + ('+' if e[0] >= 0 else '') + str(e[0]) + ' · ' + PIR_H[e[1]] + (' · ' + PIR_COMP.get(e[2], e[2]) + (':' + e[3] if len(e) > 3 else '') if len(e) > 2 else ''))
+        print('כתוב בעברית שלושה משפטים קצרים, בלי אשמה: מה קרה, מה הסיבה הסבירה, ומה החזיר לעבודה או מה כדאי לשנות. רק מהעובדות שלמעלה — בלי ניחושים, בלי קוד ובלי קישורים.')
+        print('  python3 translator/job.py pir --text "…"')
+        return 0
+    t = re.sub(r'\s+', ' ', re.sub(r'[\x00-\x1f\x7f]', ' ', args.text)).strip()
+    if len(t) < 20:
+        print('✗ קצר מדי — שלושה משפטים.')
+        return 1
+    got = Ctx(st).c.call('report', pir={'no': p['no'], 't': t[:420], 'm': _main_model()})
+    st.pop('pir', None)
+    save_state(st)
+    print('✓ הסיכום נשמר בדוח התקלה.' if got.get('pir') else '· הדוח כבר לא מחכה לסיכום — ממשיכים.')
+    return 0
+
+
 def run(args):
     c = Client(args.server, args.job, args.key)
     try:
@@ -192,6 +272,7 @@ def run(args):
                     'rl': rules_valid(job.get('rl')),                                     # v367: החוקים שלך (תקציב, אישור לפני צריבה)
                     'bx': _int(job.get('bx')), 'u0': _usd(job.get('u0')),                 # v367: אישורים מעבר לתקציב, ומה שכבר עלה
                     'ls': ls,
+                    'pir': pir_valid(got.get('pir')),                                    # v379: דוח אחרי תקלה שמחכה לסיכום
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
             try:
@@ -202,6 +283,7 @@ def run(args):
         if start_setup_bg():
             print('· מנועי התמלול מותקנים ברקע (prepare ימתין להם בעצמו)')
         print('הפרויקט: ' + str(VT_WORK / vt_slug(args.job)))
+        pir_hint(load_state())
         if ls:
             # v364: ההמשך הזה בא אחרי עצירה של מגדל הפיקוח — קודם מבינים למה, ורושמים תיקון לספר התיקונים
             known = next((e['fix'] for e in fb_valid(job.get('fb')) if e['fp'] == ls['fp']), '')
@@ -1708,6 +1790,8 @@ def main(argv=None):
     sub.add_parser('judge-prep', help='שופט האיכות: מדגם של 40 כתוביות לסוכן Haiku (אחרי הביקורת)')
     sub.add_parser('judge', help='שופט האיכות: קריאת התשובה (judge/verdict.txt) לציון')
     sub.add_parser('gate', help='מגדל הפיקוח עצר בתקציב — מחכים לתשובה שלך בטלפון')
+    pr = sub.add_parser('pir', help='דוח אחרי תקלה: העובדות, ואז --text עם שלושה משפטים (פעם אחת)')
+    pr.add_argument('--text', default='')
     x = sub.add_parser('fix', help='ספר התיקונים: מה עושים כשהתקלה שעצרה את העבודה חוזרת (משפט אחד)')
     x.add_argument('--text', required=True)
     sub.add_parser('auto', help='מצב API: כל העבודה מקצה לקצה — הכלים כאן, עבודת השפה בקריאות ישירות ל־Claude')
@@ -1716,7 +1800,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd != 'run':
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
-                'save': save, 'restore': restore, 'fix': fix, 'gate': gate_cmd, 'auto': auto,
+                'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto,
                 'judge-prep': judge_prep, 'judge': judge}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')

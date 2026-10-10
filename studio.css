@@ -521,3 +521,30 @@ html.studio-open .dlg-veil { z-index: 1003; }
 .st-slabar.g i { background: var(--primary); }
 .st-slabar em { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--st-card); }
 .st-slabar em.m50 { inset-inline-start: calc(50% - 1px); } .st-slabar em.m75 { inset-inline-start: calc(75% - 1px); }
+/* v378: בדיקת מוכנות — ציון גדול, ממצאים עם עדיפות 1–5 (פס ועיגול בצבע העדיפות) */
+.st-schero { margin: 4px 16px 12px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--st-card); display: flex; align-items: center; gap: 14px; }
+.st-schero-n { font-size: 40px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: center; }
+.st-schero-n.t-green { color: var(--primary); } .st-schero-n.t-orange { color: var(--sv-h); } .st-schero-n.t-red { color: var(--loss); }
+.st-schero .st-l { min-width: 0; }
+.st-fnd { box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 14px; text-align: start; position: relative; border-inline-start: 4px solid var(--k, transparent); }
+.st-fnd + .st-fnd::before { content: ""; position: absolute; top: 0; inset-inline-start: 14px; inset-inline-end: 0; border-top: 1px solid var(--separator); }
+button.st-fnd:active { background: var(--st-fill); }
+.st-fnd-p { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 13px; font-weight: 800; background: var(--k0); color: var(--k4); }
+.st-fnd .st-l { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.st-fnd .st-l > small:first-child { font-size: 12px; font-weight: 600; color: var(--on-surface-var); }
+.st-fnd .st-l > b { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.st-fnd .st-l > small:last-child { font-size: 12.5px; color: var(--on-surface-var); }
+.st-fnd .st-mini { flex: none; }
+.st-chev.open { transform: rotate(-90deg); } [dir="ltr"] .st-chev.open { transform: scaleX(-1) rotate(-90deg); }   /* פתוח = למטה */
+/* v379: דוח אחרי תקלה — סיכום AI עם הסימן הסגול, האזהרה והצבעה */
+.st-ai { display: grid; gap: 8px; }
+.st-ai-h { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--sv-m4); }
+.st-ai-m { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--sv-m0); color: var(--sv-m); font-style: normal; }
+.st-ai-m svg { width: 12px; height: 12px; }
+.st-ai > p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--on-surface); }
+.st-ai-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.st-ai-f > small { font-size: 12px; color: var(--on-surface-var); }
+.st-ai-v { display: flex; gap: 6px; flex: none; }
+.st-ai-b { width: 36px; height: 32px; border-radius: var(--pill); background: var(--st-fill); font-size: 16px; line-height: 1; }
+.st-ai-b.on { background: var(--sv-m0); box-shadow: 0 0 0 1.5px var(--sv-m) inset; }
+.st-ai-b:disabled { opacity: .5; }

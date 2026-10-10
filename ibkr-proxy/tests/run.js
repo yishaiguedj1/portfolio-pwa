@@ -1184,6 +1184,7 @@ function stubFetch(text, status = 200) {
     const db = new Map();   // 'col/id' → { fields }
     const calls = [];
     let fireMode = 'ok', fires = [], driveFiles = new Map(), now = Date.UTC(2026, 9, 7, 9, 0);
+    let driveQuota = { limit: '16106127360', usage: '1000' }, driveListFail = false;   // v378: המכסה ותקלה ברשימה
     const J = (o, st = 200, hd = {}) => ({ status: st, json: async () => o, headers: { get: (k) => hd[String(k).toLowerCase()] || null } });
     const fake = async (url, opt = {}) => {
       calls.push({ url, method: opt.method || 'GET', body: opt.body || '' });
@@ -1211,9 +1212,26 @@ function stubFetch(text, status = 200) {
         // כמו בפועל (07/10/2026): המזהה cse_… — בתיעוד session_…
         return J({ type: 'routine_fire', claude_code_session_id: 'cse_01TESTSESSION' + fires.length, claude_code_session_url: 'https://claude.ai/code/cse_01TESTSESSION' + fires.length });
       }
+      // v378: המכסה, רשימה (q פשוט: appProperties של תיקיית הסטודיו / 'X' in parents) והעברה לפח
+      if (url.startsWith('https://www.googleapis.com/drive/v3/about?')) {
+        if ((opt.headers || {}).Authorization !== 'Bearer DRIVE-AT') return J({}, 401);
+        return J({ storageQuota: driveQuota });
+      }
+      if (url.startsWith('https://www.googleapis.com/drive/v3/files?')) {
+        if ((opt.headers || {}).Authorization !== 'Bearer DRIVE-AT') return J({}, 401);
+        if (driveListFail) return J({}, 500);
+        const q = new URL(url).searchParams.get('q') || '';
+        const par = (q.match(/'([A-Za-z0-9_-]+)' in parents/) || [])[1];
+        const folderOnly = q.includes("mimeType='application/vnd.google-apps.folder'");
+        const files = [...driveFiles.entries()].map(([id, f]) => Object.assign({ id }, f)).filter((f) => !f.trashed
+          && (!folderOnly || f.mimeType === 'application/vnd.google-apps.folder')
+          && (par ? (f.parents || []).includes(par) : q.includes("key='snbStudio'") ? f.appProperties && f.appProperties.snbStudio === '1' : false));
+        return J({ files });
+      }
       const dm = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/([A-Za-z0-9_-]+)\?/);
       if (dm) {
         if ((opt.headers || {}).Authorization !== 'Bearer DRIVE-AT') return J({}, 401);
+        if (opt.method === 'PATCH') { const f = driveFiles.get(dm[1]); if (!f) return J({}, 404); f.trashed = JSON.parse(opt.body || '{}').trashed === true; return J({ id: dm[1] }); }
         const f = driveFiles.get(dm[1]);
         return f ? J(f) : J({}, 404);
       }
@@ -1707,6 +1725,162 @@ function stubFetch(text, status = 200) {
     fbx = S.fbFix([{ fp: FPY, why: 'calls', st: 'tl', n: 1, fix: 'ישן', px: 'ממתין' }], FPY, 'חדש לגמרי', 7, 'auto');
     ok(fbx[0].fix === 'חדש לגמרי' && !fbx[0].px, 'סטודיו: מסלול התיקונים — במסלול "עצמאי" התיקון נשמר מיד (והצעה ישנה נמחקת)');
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
+    studio._reset();
+
+    // v379: דוח אחרי תקלה — זמן לזיהוי ולתיקון ומה עלה בטעות (בפתרון, P1–P2), בקשת סיכום לסשן הבא, שמירה פעם אחת, 👍/👎
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const PIR = require('../lib/studiopir');
+      ok(PIR.wastedUsd({ use0: [{ usd: 1.5 }], use: [{ usd: 2 }] }, 'done') === 1.5 && PIR.wastedUsd({ use0: [{ usd: 1.5 }], use: [{ usd: 2 }] }, 'failed') === 3.5,
+        'סטודיו: דוח תקלה — מה עלה בטעות: הסשנים שנכשלו (ואם לא הסתיימה — גם האחרון)');
+      const x0 = { no: 4, j: 'jAAAAAAAAAAAAAAAAAAAA', s: 2, f: 10 * 60e3, st: 'r', rt: 40 * 60e3 };
+      ok(PIR.pirOnResolve(x0, { w: 0.4 }, [{ j: x0.j, f: 7 * 60e3 }, { j: 'jOther', f: 1 }]).tti === 180 && PIR.pirOnResolve(Object.assign({}, x0, { s: 3 }), { w: 1 }, []) === null,
+        'סטודיו: דוח תקלה — זמן לזיהוי מהאות הראשון של העבודה; רק P1–P2');
+      ok(PIR.normPirText('קצר') === '' && PIR.normPirText('<b>טקסט</b> עם קישור https://evil.example ו־`code` שאורכו מספיק').indexOf('evil') < 0 && PIR.normPirText('א'.repeat(900)).length === 420,
+        'סטודיו: דוח תקלה — הסיכום: טקסט בלבד, בלי קישורים וקוד, באורך מוגבל');
+      // מקצה לקצה: עבודה נכשלת (P2), ממשיכים, מסתיימת → הדוח; העבודה הבאה מקבלת בקשה לסיכום
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const J9 = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: J9, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: J9 });
+      let K9 = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: J9, key: K9 });
+      await wrk({ op: 'report', job: J9, key: K9, ev: [{ c: 'vt', k: 'asr' }] });
+      now += 120e3;
+      await wrk({ op: 'report', job: J9, key: K9, fail: true, err: 'worker_step', usage: [{ k: 'main', m: 'claude-sonnet-5-5', n: 9, i: 10, o: 1000, cr: 0, c5: 0, c1: 0, usd: 0.42 }] });
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      let x9 = rr.payload.inc.list.find((y) => y.j === J9);
+      ok(x9 && x9.s <= 2 && x9.st === 'o' && x9.pir === null, 'סטודיו: דוח תקלה — תקלה פתוחה: עוד אין דוח');
+      await run({ op: 'resume', idToken: OWNER, job: J9 });
+      K9 = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: J9, key: K9 });
+      ok(rr.payload.pir === null, 'סטודיו: דוח תקלה — לתקלה שעוד לא נפתרה לא מבקשים סיכום');
+      now += 34 * 60e3;
+      await wrk({ op: 'report', job: J9, key: K9, done: true });
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      x9 = rr.payload.inc.list.find((y) => y.j === J9);
+      ok(x9.st === 'r' && x9.pir && x9.pir.tti === 120 && x9.pir.ttr === 34 * 60 && x9.pir.usd === 0.42 && x9.pir.ps === null && x9.pir.wait === true,
+        'סטודיו: דוח תקלה — בפתרון: זמן לזיהוי, זמן לתיקון, עלה בטעות; הסיכום ייכתב בעבודה הבאה');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const J10 = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: J10, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: J10 });
+      const K10 = keyOf(fires[fires.length - 1]);
+      rr = await wrk({ op: 'claim', job: J10, key: K10 });
+      const pf = rr.payload.pir;
+      ok(pf && pf.no === x9.no && pf.tti === 120 && pf.usd === 0.42 && Array.isArray(pf.tl) && pf.tl.some((e) => e[1] === 'r') && !/aud1234|fold1234|Ackman|name/.test(JSON.stringify(pf)),
+        'סטודיו: דוח תקלה — הלקיחה הבאה מבקשת סיכום, עם עובדות בלבד (בלי קבצים ושמות)');
+      rr = await wrk({ op: 'report', job: J10, key: K10, pir: { no: x9.no, t: 'קצר', m: 'claude-sonnet-5-5' } });
+      ok(rr.payload.ok && rr.payload.pir === false, 'סטודיו: דוח תקלה — סיכום קצר מדי לא נשמר (והדיווח לא נופל)');
+      rr = await wrk({ op: 'report', job: J10, key: K10, pir: { no: x9.no, t: 'שלב היישור נכשל פעם אחת. ההמשך מנקודת השמירה עבר, והעבודה הסתיימה אחרי 34 דקות.', m: 'claude-sonnet-5-5' } });
+      ok(rr.payload.pir === true, 'סטודיו: דוח תקלה — הסיכום נשמר');
+      rr = await wrk({ op: 'report', job: J10, key: K10, pir: { no: x9.no, t: 'ניסיון שני לדרוס את הסיכום שכבר נשמר קודם.', m: 'claude-opus-5-5' } });
+      ok(rr.payload.pir === false, 'סטודיו: דוח תקלה — פעם אחת בלבד');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      x9 = rr.payload.inc.list.find((y) => y.j === J9);
+      ok(x9.pir.ps && x9.pir.ps.m === 'claude-sonnet-5-5' && /שלב היישור/.test(x9.pir.ps.t) && x9.pir.ps.v === 0, 'סטודיו: דוח תקלה — הסיכום והמודל שכתב אותו בטלפון');
+      ok((await run({ op: 'pirVote', idToken: OWNER, no: x9.no, v: 5 })).statusCode === 400, 'סטודיו: דוח תקלה — הצבעה לא תקינה = 400');
+      rr = await run({ op: 'pirVote', idToken: OWNER, no: x9.no, v: 1 });
+      ok(rr.payload.ok && rr.payload.inc.list.find((y) => y.no === x9.no).pir.ps.v === 1, 'סטודיו: דוח תקלה — 👍 נשמר');
+      // בקשה חוזרת — לכל היותר PIR_ASK פעמים לתקלה בלי סיכום
+      const od9 = db.get('studioOps/ownerUid0001');
+      const incs9 = S.fromFields(od9.fields).inc;
+      ok(incs9.find((y) => y.no === x9.no).pq === 1, 'סטודיו: דוח תקלה — מונה הבקשות');
+      await wrk({ op: 'report', job: J10, key: K10, done: true });
+      for (const id of [J9, J10]) await run({ op: 'remove', idToken: OWNER, job: id });
+      if (od9) { delete od9.fields.inc; delete od9.fields.mi; }
+    }
+    studio._reset();
+
+    // v378: בדיקת מוכנות ותחזוקה — ממצאים עם עדיפות, ציון, תיקיות יתומות/כפולות, נקודות שמירה ורשומות ישנות, "נקה" לפח
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const SC8 = require('../lib/studioscan');
+      const S8 = require('../lib/studio');
+      const jid = (t) => ('j' + t + 'x'.repeat(20)).slice(0, 21);
+      ok(S8.JOB_RE.test(jid('Orph')), 'סטודיו: מזהה עבודה לבדיקה תקין');
+      const fl = [{ id: 'f1aaaaaaaaaa', job: jid('A'), t: 2 }, { id: 'f2aaaaaaaaaa', job: jid('A'), t: 1 }, { id: 'f3aaaaaaaaaa', job: jid('B'), t: 1 }];
+      ok(SC8.orphanFolders(fl, [jid('A')]).map((x) => x.id).join() === 'f3aaaaaaaaaa', 'סטודיו: סריקה — תיקייה של עבודה שלא ברשימה = יתומה');
+      ok(SC8.dupeFolders(fl, [{ id: jid('A'), folder: 'f1aaaaaaaaaa' }]).map((x) => x.id).join() === 'f2aaaaaaaaaa'
+        && SC8.dupeFolders(fl, []).map((x) => x.id).join() === 'f1aaaaaaaaaa', 'סטודיו: סריקה — כפולות: נשארת זו של העבודה, ואם אין — הראשונה');
+      ok(SC8.doneCheckpoints([{ id: 'a', kind: 'tr', state: 'done', ck: [{ id: 'c1', size: 5 }] }, { id: 'b', kind: 'tr', state: 'failed', ck: [{ id: 'c2', size: 5 }] }]).length === 1,
+        'סטודיו: סריקה — נקודות שמירה רק של עבודות שהסתיימו (עבודה שנכשלה עוד יכולה להמשיך)');
+      ok(SC8.oldJobs([{ kind: 'tr', state: 'done', ended: 1 }, { kind: 'tr', state: 'running', updated: 1 }, { kind: 'tr', state: 'done', ended: 100 * 86400000 }], 100 * 86400000).length === 1,
+        'סטודיו: סריקה — רשומה ישנה = הסתיימה לפני יותר מ־90 יום');
+      const T0 = 200 * 86400000;
+      const good = { claude: { conn: true, ok: T0 - 1000, servers: 0 }, drive: { cfg: true, conn: true, err: '', free: 10 * SC8.GB }, fires: { n: 1, max: 20 }, budget: { b: 0, need: 0 },
+        clean: { orphans: { n: 0, b: 0 }, dupes: { n: 0, b: 0 }, ck: { n: 0, b: 0 }, old: { n: 0 } } };
+      let r8 = SC8.scanFindings(good, T0);
+      ok(r8.s === 100 && r8.n === 9 && r8.ok.length === 9 && !r8.f.length, 'סטודיו: סריקה — הכל תקין: 100, תשע בדיקות');
+      r8 = SC8.scanFindings(Object.assign({}, good, { claude: { conn: false, ok: 0, servers: 0 }, drive: { cfg: true, conn: true, err: '', free: 2 * SC8.GB }, budget: { b: 5, need: 7.5 },
+        clean: { orphans: { n: 2, b: 3000 }, dupes: { n: 0, b: 0 }, ck: { n: 1, b: 300 }, old: { n: 0 } } }), T0);
+      ok(r8.f.map((x) => x.k).join() === 'claude_missing,quota_low,budget_low,orphans,ck' && r8.s === 100 - 30 - 15 - 3 - 3 - 1 && r8.fb === 3300,
+        'סטודיו: סריקה — ממצאים לפי עדיפות, ציון עם קנס לכל עדיפות, כמה אפשר לנקות');
+      ok(SC8.scanFindings(Object.assign({}, good, { claude: { conn: false, ok: 0, servers: 1 } }), T0).s === 100, 'סטודיו: סריקה — בלי Routine אבל עם שרת פעיל — תקין');
+      ok(SC8.scanFindings(Object.assign({}, good, { claude: { conn: true, ok: T0 - 20 * 86400000, servers: 0 } }), T0).f[0].d === 20, 'סטודיו: סריקה — הבדיקה האחרונה שעברה ישנה');
+      ok(SC8.scanFindings(Object.assign({}, good, { drive: { cfg: true, conn: false, err: 'revoked' } }), T0).f.map((x) => x.k).join() === 'drive_revoked'
+        && SC8.scanFindings(Object.assign({}, good, { drive: { cfg: true, conn: false, err: 'gd_http_500' } }), T0).f[0].k === 'drive_err'
+        && SC8.scanFindings(Object.assign({}, good, { drive: { cfg: false } }), T0).f[0].k === 'drive_cfg', 'סטודיו: סריקה — Drive: בוטל / תקלה / לא מוגדר');
+      ok(SC8.scanFindings(Object.assign({}, good, { fires: { n: 16, max: 20 } }), T0).f[0].k === 'fires_high', 'סטודיו: סריקה — 80% ממכסת ההפעלות בשעה');
+      const sv8 = SC8.scanView({ at: 5, s: 140, n: 99, ok: ['claude', 'zzz'], f: [{ k: 'orphans', n: 2, b: 7, id: 'secretFolder123' }, { k: 'bogus', p: 1 }] });
+      ok(sv8.s === 100 && sv8.n === 9 && sv8.ok.join() === 'claude' && sv8.f.length === 1 && !JSON.stringify(sv8).includes('secretFolder') && sv8.pass === 70 && SC8.scanView(null) === null,
+        'סטודיו: סריקה — הצורה לטלפון קבועה, בלי מזהים');
+      // מקצה לקצה מול Drive מדומה
+      const FT = 'application/vnd.google-apps.folder';
+      driveFiles.set('rootStudio12345', { mimeType: FT, appProperties: { snbStudio: '1' }, parents: ['root'], trashed: false });
+      driveFiles.set('orphFold123456', { mimeType: FT, appProperties: { snbJob: jid('Orph') }, parents: ['rootStudio12345'], createdTime: '2026-09-01T00:00:00Z', trashed: false });
+      driveFiles.set('orphFile1234567', { size: '1000', parents: ['orphFold123456'], trashed: false });
+      driveFiles.set('orphFile2234567', { size: '2000', parents: ['orphFold123456'], trashed: false });
+      driveFiles.set('otherFold12345', { mimeType: FT, appProperties: { snbJob: jid('Other') }, parents: ['rootStudio12345'], trashed: false });
+      db.set('studioJobs/' + jid('Other'), { fields: S8.toFields({ uid: 'someoneElse0001', kind: 'tr', state: 'done', created: now }) });
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const J8 = rr.payload.job.id;
+      db.get('studioJobs/' + J8).fields.folder = { stringValue: 'fold8aaaaaaaaa' };
+      driveFiles.set('fold8aaaaaaaaa', { mimeType: FT, appProperties: { snbJob: J8 }, parents: ['rootStudio12345'], createdTime: '2026-10-02T00:00:00Z', trashed: false });
+      driveFiles.set('fold8bbbbbbbbb', { mimeType: FT, appProperties: { snbJob: J8 }, parents: ['rootStudio12345'], createdTime: '2026-10-01T00:00:00Z', trashed: false });
+      driveFiles.set('dupFile1234567', { size: '500', parents: ['fold8bbbbbbbbb'], trashed: false });
+      const JC = jid('Ckdone'), JO = jid('Olddone');
+      db.set('studioJobs/' + JC, { fields: S8.toFields({ uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 10 * 86400000, ended: now - 10 * 86400000, ck: [{ s: 'asr', id: 'ckFile12345678', size: 300 }] }) });
+      driveFiles.set('ckFile12345678', { size: '300', parents: ['x'], trashed: false });
+      db.set('studioJobs/' + JO, { fields: S8.toFields({ uid: 'ownerUid0001', kind: 'tr', state: 'cancelled', created: now - 120 * 86400000, ended: now - 100 * 86400000 }) });
+      rr = await run({ op: 'status', idToken: OWNER });
+      const sc0 = rr.payload.sc;
+      rr = await run({ op: 'scan', idToken: OWNER });
+      let sc = rr.payload.sc;
+      const fk = (x) => (x.f.find((y) => y.k === 'orphans') || {});
+      ok(rr.payload.ok && sc.n === 9 && fk(sc).n === 1 && fk(sc).b === 3000, 'סטודיו: סריקה — תיקייה יתומה אחת (של משתמש אחר — לא נחשבת), עם הגודל');
+      ok(sc.f.find((y) => y.k === 'dupes').b === 500 && sc.f.find((y) => y.k === 'ck').n === 1 && sc.f.find((y) => y.k === 'old').n === 1 && sc.fb === 3800,
+        'סטודיו: סריקה — כפולה, נקודת שמירה של עבודה שהסתיימה ורשומה ישנה');
+      ok(!/orphFold|ckFile|fold8|rootStudio/.test(JSON.stringify(rr.payload)), 'סטודיו: סריקה — מזהי Drive לא יוצאים לטלפון');
+      ok((sc0 === null || sc0 === undefined || sc0.at < now) && (await run({ op: 'status', idToken: OWNER })).payload.sc.at === now, 'סטודיו: הסריקה נשמרת ומוצגת ב־status');
+      driveQuota = { limit: '16106127360', usage: String(16106127360 - 500 * 1024 * 1024) };
+      ok((await run({ op: 'scan', idToken: OWNER })).payload.sc.f[0].k === 'quota_crit', 'סטודיו: סריקה — פחות מ־1GB פנוי ב־Drive = עדיפות 1');
+      driveQuota = { limit: '16106127360', usage: '1000' };
+      driveListFail = true;
+      sc = (await run({ op: 'scan', idToken: OWNER })).payload.sc;
+      ok(sc.f.some((y) => y.k === 'drive_err') && !sc.ok.includes('orphans') && !sc.f.some((y) => y.k === 'orphans'), 'סטודיו: סריקה — תקלה ב־Drive: ממצא, והבדיקות שתלויות בו לא רצו');
+      driveListFail = false;
+      studio._reset();
+      ok((await run({ op: 'clean', idToken: OWNER, k: 'everything' })).statusCode === 400, 'סטודיו: נקה — סוג לא מוכר = 400');
+      rr = await run({ op: 'clean', idToken: OWNER, k: 'orphans' });
+      ok(rr.payload.ok && rr.payload.n === 1 && driveFiles.get('orphFold123456').trashed === true && !driveFiles.get('otherFold12345').trashed && !rr.payload.sc.f.some((y) => y.k === 'orphans'),
+        'סטודיו: נקה — התיקייה היתומה לפח, של המשתמש האחר — לא');
+      rr = await run({ op: 'clean', idToken: OWNER, k: 'dupes' });
+      ok(rr.payload.n === 1 && driveFiles.get('fold8bbbbbbbbb').trashed === true && !driveFiles.get('fold8aaaaaaaaa').trashed, 'סטודיו: נקה — הכפולה לפח, של העבודה נשארת');
+      rr = await run({ op: 'clean', idToken: OWNER, k: 'ck' });
+      ok(rr.payload.n === 1 && driveFiles.get('ckFile12345678').trashed === true && S8.fromFields(db.get('studioJobs/' + JC).fields).ck.length === 0, 'סטודיו: נקה — נקודות השמירה לפח, והרשומה מתעדכנת');
+      studio._reset();
+      rr = await run({ op: 'clean', idToken: OWNER, k: 'old' });
+      ok(rr.payload.n === 1 && !db.has('studioJobs/' + JO) && db.has('studioJobs/' + JC) && rr.payload.sc.f.every((y) => !SC8.CLEAN_KINDS.includes(y.k)), 'סטודיו: נקה — רשומה ישנה נמחקת; אחרי הכל — אין מה לנקות');
+      // ניקוי
+      await run({ op: 'remove', idToken: OWNER, job: J8 });
+      await run({ op: 'remove', idToken: OWNER, job: JC });
+      db.delete('studioJobs/' + jid('Other'));
+      for (const k of ['rootStudio12345', 'orphFold123456', 'orphFile1234567', 'orphFile2234567', 'otherFold12345', 'fold8aaaaaaaaa', 'fold8bbbbbbbbb', 'dupFile1234567', 'ckFile12345678']) driveFiles.delete(k);
+      const od8 = db.get('studioOps/ownerUid0001'); if (od8) { delete od8.fields.inc; delete od8.fields.mi; }
+    }
     studio._reset();
 
     // v377: יעדי שירות (SLA), ערך ותחזית — יעד זמן ותקציב מהלקיחה, שעון שעוצר בהמתנה, הפרה = P3, ערך החודש ומחיר מתרגם
