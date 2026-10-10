@@ -324,6 +324,16 @@ export function normSla(o) {
   return out;
 }
 /* v377: ערך ועלות החודש, תחזית, צוואר בקבוק ומסלולים חריגים (lib/studiosla.js valueView) */
+/* v383: תקציב שגיאות (lib/studioslo.js sloView) — יעד 95% בלי התערבות, כמה נשאר, קצב שריפה ב־7 ימים, העבודות שאכלו ממנו */
+const SLO_ST = ['ok', 'warn', 'fast', 'out', 'few'], SLO_C = ['fail', 'stale', 'resume'];
+export function normSlo(o) {
+  if (!o || typeof o !== 'object' || !SLO_ST.includes(o.st)) return null;
+  const int = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
+  const n = int(o.n, 1e5), bad = Math.min(n, int(o.bad, 1e5));
+  return { t: int(o.t, 100) || 95, n, good: n - bad, bad, att: n ? Math.round((n - bad) / n * 1000) / 10 : null, left: int(o.left, 100),
+    burn: typeof o.burn === 'number' && o.burn >= 0 && o.burn < 1e3 ? o.burn : 0, n7: int(o.n7, 1e5), st: o.st, min: int(o.min, 100) || 5,
+    list: (Array.isArray(o.list) ? o.list : []).filter((x) => x && JOB_RE.test(String(x.j || '')) && SLO_C.includes(x.c)).slice(0, 10).map((x) => ({ j: x.j, c: x.c, at: num(x.at) })) };
+}
 export function normValue(o) {
   if (!o || typeof o !== 'object' || !/^\d{4}-\d{2}$/.test(String(o.m || ''))) return null;
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= -1e6 && v <= hi ? v : null);
@@ -850,6 +860,7 @@ async function refreshJobs(force) {
   ui.ag = normAgents(j.ag) || ui.ag;   // v373: מלאי הסוכנים
   ui.pb = normPb(j.pb) || ui.pb; ui.rb = normRb(j.rb) || ui.rb;   // v376: בעיות וספרי הפעלה
   ui.va = normValue(j.va) || ui.va;   // v377: ערך, עלות ותחזית
+  ui.slo = normSlo(j.slo) || ui.slo;   // v383: תקציב שגיאות
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
   for (const sj of j.jobs) {
@@ -1161,7 +1172,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if (v === 'lang' && p !== 'def') { v = 'new'; p = null; }
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' ? ['tower', null] : x === 'edit' ? ['project', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2634,6 +2645,46 @@ function slaCard(sla) {
   else if (t.pz >= 60) out.push(note(T('studioSlaPz', { t: fmtShort(t.pz) })));
   return out;
 }
+/* v383: תקציב שגיאות — שורה במגדל (כמה נשאר) → דף slo */
+const SLO_TILE = { ok: 'green', warn: 'orange', fast: 'orange', out: 'red', few: 'blue' };
+function sloSub(sl) { return sl.st === 'few' ? T('studioSloFew', { n: sl.n, m: sl.min }) : T('studioSloAtt', { a: fmtNum(sl.att), t: sl.t }); }
+function sloSection() {
+  const sl = ui.slo;
+  if (!sl || !sl.n) return [];
+  return [secT(T('studioSloSec')), list(rowNav({ tile: tile('shield', SLO_TILE[sl.st]), label: T('studioSloT'), sub: sloSub(sl),
+    value: sl.st === 'few' ? '' : sl.st === 'out' ? T('studioSloOut') : ltr(sl.left + '%'), onClick: () => go('slo'), k: 'tower-slo' }))];
+}
+function sloCause(c) {
+  switch (c) {
+    case 'fail': return T('studioSloCFail');
+    case 'stale': return T('studioSloCStale');
+    default: return T('studioSloCResume');
+  }
+}
+function pageSlo(p) {
+  const sl = ui.slo;
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioSloT')));
+  if (!sl || !sl.n) { p.append(h('div', 'st-empty st-empty-sm', T('studioSloNone'))); return; }
+  // אותו כרטיס ציון של בדיקת המוכנות: המספר (כמה נשאר) ומשפט אחד
+  const hero = h('div', 'st-schero');
+  const col = { ok: 'green', warn: 'orange', fast: 'orange', out: 'red', few: '' }[sl.st];
+  hero.append(h('b', 'st-schero-n' + (col ? ' t-' + col : ''), sl.st === 'few' ? '—' : ltr(sl.left + '%')),
+    rowTxt(sl.st === 'few' ? T('studioSloFewT') : sl.st === 'out' ? T('studioSloOutT') : sl.st === 'fast' ? T('studioSloFastT') : T('studioSloLeftT'), sloSub(sl)));
+  p.append(hero);
+  const rows = [kvRow(T('studioSloN'), String(sl.n)), kvRow(T('studioSloGood'), String(sl.good)), kvRow(T('studioSloBad'), String(sl.bad))];
+  if (sl.n7) rows.push(kvRow(T('studioSloBurn'), ltr('×' + fmtNum(sl.burn)), true));
+  p.append(secT(T('studioSloWin')), list(...rows));
+  if (sl.n7) p.append(note(sl.burn > 1 ? T('studioSloBurnHi') : T('studioSloBurnOk')));
+  if (sl.list.length) {
+    p.append(secT(T('studioSloUsed')), list(...sl.list.map((x) => {
+      const rec = jobRec(x.j);
+      const name = rec ? fileTitle(rec.spec.name) || T('studioUntitled') : T('studioSloGone');
+      return rec ? rowNav({ tile: tile('film', x.c === 'resume' ? 'orange' : 'red'), label: name, sub: sloCause(x.c) + ' · ' + opsAgo(x.at), onClick: () => go('job', x.j), k: 'slo-j:' + x.j })
+        : kvRow(name, sloCause(x.c));
+    })));
+  }
+  p.append(note(T('studioSloNote')));
+}
 function valueSection() {
   const va = ui.va;
   if (!va || (!va.n && !va.bn)) return [];
@@ -2683,7 +2734,8 @@ function pageValue(p) {
     bn.append(rowTxt(stageName(va.bn.s, ''), va.bn.x != null && va.bn.x >= 1.2 ? T('studioVaBn', { p: pct, x: fmtNum(va.bn.x) }) : T('studioVaBnOk', { p: pct })));
     p.append(secT(T('studioVaBnT')), list(bn));
   }
-  if (va.ab.n) p.append(secT(T('studioVaAbT')), list(kvRow(T('studioVaAbRs'), String(va.ab.rs)), kvRow(T('studioVaAbQa'), String(va.ab.qa))));
+  // v383: "עברו 'המשך'" עבר לתקציב השגיאות (שם רואים גם אילו עבודות ולמה) — כאן רק ההמתנה לתשובה שלך
+  if (va.ab.n) p.append(secT(T('studioVaAbT')), list(kvRow(T('studioVaAbQa'), String(va.ab.qa))));
   // המחיר שלך — לחישוב "חסכת" (החלטה 5: מתחילים מ־$5 לדקת סרטון); נקבע רק כאן
   const opts = PRICES.includes(va.hp) ? PRICES : PRICES.concat(va.hp).sort((a, b) => a - b);
   p.append(secT(T('studioVaPriceT')), list(...opts.map((x) => rowRadio({ label: T('studioVaPerMin', { u: fmtUsdWhole(x) }), on: va.hp === x,
@@ -2889,6 +2941,7 @@ function pageTower(p) {
   }
   p.append(...agentsSection());   // v373: מלאי הסוכנים — 30 יום
   p.append(...valueSection());    // v377: ערך ועלות החודש
+  p.append(...sloSection());      // v383: תקציב שגיאות
   p.append(...scanSection());     // v378: בדיקת מוכנות ותחזוקה
   const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
   const jobRow = (rec, sub, color, k) => {
@@ -3911,11 +3964,12 @@ function shapeKey() {
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc);
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo);   // v383
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
   if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378
   if (ui.view === 'value') return 'value|' + ui.access + '|' + JSON.stringify(ui.va) + (priceBusy ? 1 : 0);   // v377
+  if (ui.view === 'slo') return 'slo|' + ui.access + '|' + JSON.stringify(ui.slo) + store.jobs.length;   // v383
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
@@ -3951,6 +4005,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'inc') pageInc(p);
   else if (ui.view === 'agents') pageAgents(p);
   else if (ui.view === 'value') pageValue(p);   // v377
+  else if (ui.view === 'slo') pageSlo(p);   // v383
   else if (ui.view === 'scan') pageScan(p);   // v378
   else if (ui.view === 'prob') pageProb(p);   // v376
   else if (ui.view === 'rules') pageRules(p);
@@ -3984,7 +4039,7 @@ function onEnter() {
   else if (ui.view === 'gloss') { refreshStatus(true); glossLoad(true); }   // v380: המילון — תמיד הגרסה העדכנית מ־Drive
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'agents') refreshJobs(true);
-  else if (ui.view === 'value') refreshJobs(true);   // v377
+  else if (ui.view === 'value' || ui.view === 'slo') refreshJobs(true);   // v377 · v383
   else if (ui.view === 'scan') { if (!ui.sc || Date.now() - ui.sc.at > SCAN_FRESH) runScan(); else refreshStatus(true); }   // v378: סריקה ישנה — סורקים שוב
   else if (ui.view === 'prob') { refreshStatus(true); refreshJobs(true); }   // v376
   else if (ui.view === 'server') { refreshStatus(true); refreshServers(); }

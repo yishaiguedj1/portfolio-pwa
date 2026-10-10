@@ -1728,6 +1728,47 @@ function stubFetch(text, status = 200) {
     await run({ op: 'fixMode', idToken: OWNER, mode: 'suggest' });
     studio._reset();
 
+    // v383: תקציב שגיאות — יעד 95% בלי התערבות (30 יום), כמה נשאר, קצב שריפה (7 ימים), העבודות שאכלו ממנו
+    now += 3600e3 + 1;
+    studio._reset();
+    {
+      const SLO = require('../lib/studioslo');
+      const T0 = Date.UTC(2026, 9, 10);
+      let seq = 0;
+      const J = (o) => Object.assign({ id: 'jSLO' + String(++seq).padStart(17, '0'), kind: 'tr', fires: 1, ended: T0 - 86400e3, updated: T0 - 86400e3 }, o);
+      ok(SLO.classify(J({ state: 'done' }), T0).g === true && SLO.classify(J({ state: 'done', fires: 2, ar: 1 }), T0).g === true,
+        'סטודיו: תקציב שגיאות — הסתיימה, וגם אחרי המשך אוטומטי (תיקון עצמי) = טובה');
+      ok(SLO.classify(J({ state: 'done', fires: 2 }), T0).c === 'resume' && SLO.classify(J({ state: 'failed', err: 'worker_step' }), T0).c === 'fail'
+        && SLO.classify(J({ state: 'cancelled', err: 'tower_stop' }), T0).c === 'fail', 'סטודיו: תקציב שגיאות — "המשך" ידני / נכשלה (גם אם בוטלה אחרי הכישלון) = אוכלת מהתקציב');
+      ok(SLO.classify(J({ state: 'cancelled' }), T0) === null && SLO.classify(J({ state: 'failed', err: 'halted' }), T0) === null && SLO.classify(J({ state: 'running', claimed: T0 - 60e3, updated: T0 - 60e3 }), T0) === null
+        && SLO.classify(J({ kind: 'ping', state: 'done' }), T0) === null, 'סטודיו: תקציב שגיאות — ביטול שלך, מתג חירום, מה שרץ ובדיקת חיבור — לא נספרים');
+      ok(SLO.classify(J({ state: 'running', claimed: T0 - 5 * 3600e3, updated: T0 - 3 * 3600e3 }), T0).c === 'stale', 'סטודיו: תקציב שגיאות — נתקעה = אוכלת מהתקציב');
+      const goods = Array.from({ length: 38 }, () => J({ state: 'done' }));
+      let v = SLO.sloView(goods.concat([J({ state: 'failed', err: 'worker_step', ended: T0 - 20 * 86400e3, updated: T0 - 20 * 86400e3 })]), T0);
+      ok(v.n === 39 && v.bad === 1 && v.left === 49 && v.st === 'warn' && v.att === 97.4 && v.burn === 0, 'סטודיו: תקציב שגיאות — כשל אחד מ־39: נשאר 49%, בלי שריפה בשבוע האחרון');
+      v = SLO.sloView(goods.slice(0, 10).concat([J({ state: 'done', fires: 3 })]), T0);
+      ok(v.st === 'out' && v.left === 0 && v.burn > 1 && v.list[0].c === 'resume', 'סטודיו: תקציב שגיאות — 1 מ־11 = נגמר, קצב שריפה מעל ×1');
+      v = SLO.sloView(goods.slice(0, 3).concat([J({ state: 'done', ended: T0 - 40 * 86400e3, updated: T0 - 40 * 86400e3 })]), T0);
+      ok(v.n === 3 && v.st === 'few', 'סטודיו: תקציב שגיאות — מעט עבודות (פחות מ־5) = מוקדם למדוד; ישנה מ־30 יום לא נספרת');
+      ok(SLO.sloView(goods.concat(Array.from({ length: 15 }, () => J({ state: 'failed', err: 'x' }))), T0).list.length === SLO.BAD_MAX, 'סטודיו: תקציב שגיאות — עד 10 עבודות ברשימה');
+      // מקצה לקצה: הרשימה מחזירה את התקציב (בלי קריאה נוספת), ועבודה שהסתיימה נספרת
+      let rr0 = await run({ op: 'jobs', idToken: OWNER });
+      const g0 = rr0.payload.slo ? rr0.payload.slo.good : -1;
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JS = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JS, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JS });
+      const KS = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JS, key: KS });
+      await wrk({ op: 'report', job: JS, key: KS, done: true });
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok(rr.payload.slo && rr.payload.slo.t === 95 && rr.payload.slo.good === g0 + 1 && !JSON.stringify(rr.payload.slo).includes('Ackman'), 'סטודיו: תקציב שגיאות — בתשובת הרשימה, עבודה שהסתיימה נספרת, בלי שמות');
+      await run({ op: 'remove', idToken: OWNER, job: JS });
+      const odS = db.get('studioOps/ownerUid0001');
+      if (odS) { delete odS.fields.inc; delete odS.fields.mi; }
+    }
+    studio._reset();
+
     // v381: הערה לעובד — מהטלפון לעבודת תרגום שרצה, נמסרת בדיווח הבא על נקודת שמירה, עד NOTE_MAX, נקראה = היסטוריה
     now += 3600e3 + 1;
     studio._reset();

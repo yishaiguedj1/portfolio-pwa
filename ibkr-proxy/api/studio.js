@@ -31,6 +31,7 @@ const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נל
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
+const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -931,7 +932,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json(Object.assign({ ok: true, jobs: list.slice(0, S.MAX_STORED).map(view), kinds: S.WORKER_KINDS.slice(), now },
         ic ? { inc: I.incView(ic.inc, ic.mi, ic.al, now),
           pb: P.problemsView(S.fbView(ic.fb), ic.inc, list, now), rb: P.runbooksView(ic.fb, list, now) } : {},   // v376: בעיות וספרי הפעלה
-        { ag: A.agentsView(list, now), va: L.valueView(list, now, ic ? ic.hpc : 0) }));   // v377: ערך, עלות ותחזית   // v373: מלאי הסוכנים — מאותה רשימה
+        { ag: A.agentsView(list, now), va: L.valueView(list, now, ic ? ic.hpc : 0), slo: SLO.sloView(list, now) }));   // v383: תקציב שגיאות — מאותה רשימה   // v377: ערך, עלות ותחזית   // v373: מלאי הסוכנים — מאותה רשימה
     }
     let job = await mine(body.job);
     if (!job) return res.status(404).json({ ok: false, error: 'no_job' });
