@@ -184,7 +184,7 @@ function applyOps(cat0, ops, ctx) {
   cat.books = Object.assign(Object.create(null), cat.books);
   const now = posInt(ctx && ctx.now) || 1;
   const inv = Object.create(null), touched = new Set(), fields = new Set(), conflicts = [];
-  let miss = 0, all = false;
+  let miss = 0, all = false, meta = false;
   const rec = (id, k) => {
     const b = cat.books[id];
     if (!inv[id]) inv[id] = Object.create(null);
@@ -359,16 +359,24 @@ function applyOps(cat0, ops, ctx) {
         }
         return;
       }
+      case 'cfg': {   // ס׳2: מקור המדף (drive → r2 בסוף המעבר). שינוי בכל הספרייה — הקוראים מקבלים תמונה מלאה
+        if (!ctx.internal) throw opErr(i, 'internal');
+        const source = op.source === 'r2' ? 'r2' : 'drive';
+        if (((cat.cfg && cat.cfg.source) || 'drive') === source) return;
+        cat.cfg = Object.assign({}, cat.cfg || {}, { source });
+        meta = true; all = true; fields.add('cfg');
+        return;
+      }
       default: throw opErr(i, 'unknown');
     }
   });
-  return finish(cat, cat0, { inv, touched, fields, conflicts, miss, all, kind: ops.length === 1 ? ops[0].op : 'multi' }, ctx);
+  return finish(cat, cat0, { inv, touched, fields, conflicts, miss, all, meta, kind: ops.length === 1 ? ops[0].op : 'multi' }, ctx);
 }
 
 /* גרסה חדשה + רשומה ביומן (עם הערכים הקודמים לביטול, אם לא גדולים מדי) */
 function finish(cat, cat0, r, ctx) {
   const now = posInt(ctx && ctx.now) || 1;
-  if (!r.touched.size) return { cat: cat0, n: 0, ids: [], fields: [], conflicts: r.conflicts, miss: r.miss, kind: r.kind };
+  if (!r.touched.size && !r.meta) return { cat: cat0, n: 0, ids: [], fields: [], conflicts: r.conflicts, miss: r.miss, kind: r.kind };
   cat.v = (cat0.v || 0) + 1; cat.at = now;
   let inv = r.inv;
   try { if (JSON.stringify(inv).length > INV_MAX) inv = null; } catch (e) { inv = null; }
@@ -377,7 +385,7 @@ function finish(cat, cat0, r, ctx) {
     ids: ids.slice(0, IDS_MAX), all: r.all || ids.length > IDS_MAX ? 1 : 0, n: ids.length, f: [...r.fields].slice(0, 30), inv }]).slice(-HIST_MAX);
   const keepFrom = cat.hist.length - INV_KEEP;
   cat.hist.forEach((h, i) => { if (i < keepFrom) h.inv = null; });
-  return { cat, n: ids.length, ids, fields: [...r.fields], conflicts: r.conflicts, miss: r.miss, kind: r.kind };
+  return { cat, n: ids.length || (r.meta ? 1 : 0), ids, fields: [...r.fields], conflicts: r.conflicts, miss: r.miss, kind: r.kind };
 }
 
 /* ביטול גרסה v: מחזיר את הערכים הקודמים — רק בספרים שלא השתנו אחריה (השאר מדווחים כדולגו). גם הביטול הוא גרסה (אפשר לבטל אותו) */

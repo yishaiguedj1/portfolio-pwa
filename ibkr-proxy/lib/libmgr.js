@@ -5,6 +5,7 @@
    במופע נשמר עותק בזיכרון עד 10 שנ׳ (MEMO_MS), ואחר כך קריאה מותנית (ETag) — "אין שינוי" לא עולה קריאה מלאה.
    הקבצים עצמם לא עוברים כאן: הטלפון מוריד ומעלה ישירות מ־R2 בקישורים חתומים. */
 const zlib = require('zlib');
+const crypto = require('crypto');
 const R2 = require('./r2');
 const C = require('./libcat');
 
@@ -88,12 +89,190 @@ function adminView(cat) {
     hist: cat.hist.slice(-60).map((h) => ({ v: h.v, at: h.at, by: h.by, k: h.k, n: h.n, f: h.f, ids: h.ids.slice(0, 50), undo: !!h.inv })) };
 }
 
-const ADMIN_OPS = new Set(['adminCat', 'catApply', 'undo']);
+/* ---------------------------------------------------------------- ס׳2: מעבר מ־Drive + העלאות
+   המעבר שומר על המזהה המקומי של כל ספר (id-<dc:identifier>) ועל ה־md5 של Drive (= MD5 של התוכן, = ETag של R2),
+   ולכן אף קורא לא מוריד שוב. הטלפון של המנהל שולח לכל קובץ ב־Drive את הרשומה שלו (הפרטים שהוא רואה, כולל עריכות);
+   השרתון מאמת מול Drive, מזהה את הסוג לפי התוכן, ומעתיק את העותק שכבר ב־R2 (lib/<driveId>.<md5>.epub) למקומו החדש. */
+const MIG_MAX = 40;
+const UP_MAX = 40;
+const COVER_MAX = 400 * 1024;
+const BOOK_MAX = 100 * 1024 * 1024;
+const UP_TTL = 900;
+const LEGACY_RE = /^lib\/([A-Za-z0-9_-]{10,100})\.([a-f0-9]{32})\.epub$/;
+const legacyKey = (id, md5) => 'lib/' + id + '.' + md5 + '.epub';
+const extOf = (name) => { const m = /\.([a-z0-9]{2,5})$/i.exec(String(name || '')); return m ? m[1].toLowerCase() : ''; };
+/* הסוג הסופי: לפי התוכן, והסיומת רק מבחינה בין azw3 ל־mobi (אותה מעטפת) או מאשרת EPUB בלי mimetype ראשון */
+function fmtFor(ext, sn) {
+  if (sn === 'epub' || (sn === 'zip' && ext === 'epub')) return 'epub';
+  if (sn === 'mobi') return ['azw3', 'azw', 'kf8'].includes(ext) ? 'azw3' : 'mobi';
+  if (sn === 'fb2') return 'fb2';
+  return '';
+}
+const isJpeg = (b) => b && b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+const TYPES = { epub: 'application/epub+zip', azw3: 'application/vnd.amazon.ebook', mobi: 'application/x-mobipocket-ebook', fb2: 'application/x-fictionbook+xml' };
+/* רשומת ספר מהטלפון (ייבוא / מעבר): רק השדות, נעילה לשדות שנערכו ביד, ומקור לכל שדה */
+function bookFrom(src, extra) {
+  const b = src && typeof src === 'object' ? src : {};
+  const lock = (Array.isArray(b.lock) ? b.lock : []).filter((k) => C.FIELDS.includes(k));
+  const o = { id: b.id, st: b.st === 'pub' || b.st === 'hide' ? b.st : 'draft', lock, prov: {} };
+  for (const k of C.FIELDS) if (b[k] != null) { o[k] = b[k]; o.prov[k] = lock.includes(k) ? 'user' : (C.SOURCES.includes(b.src) ? b.src : 'file'); }
+  return Object.assign(o, extra || {});
+}
+
+async function migratePlan(deps, legacy) {
+  const c = r2c(), rd = rdeps(deps);
+  const lst = await legacy.list();
+  const mirror = new Set();
+  for (const o of await R2.list(c, rd, 'lib/', 5000)) { const m = LEGACY_RE.exec(o.key); if (m) mirror.add(o.key); }
+  const { cat } = await loadCat(deps, true);
+  const done = Object.create(null);
+  for (const id of Object.keys(cat.books)) { const b = cat.books[id]; if (b.legacy && !b.del) done[b.legacy.driveId] = id; }
+  return { v: cat.v, src: (cat.cfg && cat.cfg.source) || 'drive', from: lst.r2only ? 'r2' : 'drive',
+    items: lst.items.map((i) => ({ id: i.id, name: i.name, size: i.size, md5: i.md5, m: mirror.has(legacyKey(i.id, i.md5)) ? 1 : 0, c: done[i.id] || '' })) };
+}
+
+async function migrateCommit(deps, legacy, body, ctx, rid) {
+  const c = r2c(), rd = rdeps(deps);
+  const want = (Array.isArray(body.items) ? body.items : []).slice(0, MIG_MAX);
+  if (!want.length) { const e = new Error('bad_op'); e.why = 'items'; throw e; }
+  const lst = await legacy.list();
+  const byId = new Map(lst.items.map((i) => [i.id, i]));
+  const { cat } = await loadCat(deps, true);
+  const byLegacy = Object.create(null);
+  for (const id of Object.keys(cat.books)) { const b = cat.books[id]; if (b.legacy) byLegacy[b.legacy.driveId] = id; }
+  const out = { done: [], skip: [], dup: [], missing: [], bad: [] };
+  const adds = [];
+  for (const w of want) {
+    const d = String(w && w.d || ''), it = byId.get(d), bk = w && w.book;
+    if (!it || !C.MD5_RE.test(it.md5)) { out.missing.push(d.slice(0, 100)); continue; }
+    if (!bk || !C.idOk(bk.id)) { out.bad.push({ d, why: 'book' }); continue; }
+    if (byLegacy[d]) { out.skip.push(d); continue; }                                   // כבר עבר (המשך אחרי ניתוק)
+    if (cat.books[bk.id] || adds.some((a) => a.id === bk.id)) { out.dup.push({ d, id: bk.id }); continue; }   // אותו dc:identifier בשני קבצים
+    const lk = legacyKey(d, it.md5);
+    let head = await R2.getRange(c, rd, lk, 0, 65535).catch(() => null), full = null;
+    if (!head) { full = await legacy.download(it).catch(() => null); head = full && full.buf; }
+    if (!head) { out.missing.push(d); continue; }
+    const fmt = fmtFor(extOf(it.name), C.sniff(head));
+    if (!fmt) { out.bad.push({ d, why: 'type' }); continue; }
+    const f = { fmt, md5: it.md5, size: it.size || (full && full.buf.length) || 0, at: ctx.now };
+    const fk = C.KEYS.file(f);
+    if (!await R2.head(c, rd, fk).catch(() => null)) {
+      let etag = '';
+      if (full && full.buf) { await R2.putBuf(c, rd, fk, full.buf, TYPES[fmt]); etag = crypto.createHash('md5').update(full.buf).digest('hex'); }
+      else etag = String(await R2.copy(c, rd, lk, fk, TYPES[fmt]) || '').replace(/"/g, '');
+      if (etag && etag !== it.md5) { await R2.del(c, rd, fk).catch(() => {}); out.bad.push({ d, why: 'md5' }); continue; }
+    }
+    adds.push(bookFrom(Object.assign({}, bk, { st: bk.st === 'hide' ? 'hide' : 'pub' }), { files: [f], legacy: { driveId: d }, batch: 'migrate', added: ctx.now }));
+    out.done.push(d);
+  }
+  let v = cat.v;
+  if (adds.length) {
+    const r = await writeCat(deps, (cur) => {
+      const ops = adds.filter((a) => !cur.books[a.id]).map((book) => ({ op: 'add', book }));
+      return ops.length ? C.applyOps(cur, ops, Object.assign({}, ctx, { internal: true })) : { cat: cur, n: 0 };
+    }, { rid });
+    v = r.v;
+  }
+  return Object.assign({ v }, out);
+}
+
+/* העלאה (ייבוא ספרים / כריכות): קישור PUT חתום לקובץ זמני → upCommit בודק גודל ותוכן, מעתיק למקום הסופי לפי md5 ומוחק את הזמני.
+   המפתחות נבנים רק כאן; הטלפון לא בוחר שום מפתח */
+async function upPlan(deps, body) {
+  const c = r2c(), rd = rdeps(deps);
+  const want = (Array.isArray(body.items) ? body.items : []).slice(0, UP_MAX);
+  if (!want.length) { const e = new Error('bad_op'); e.why = 'items'; throw e; }
+  const items = [];
+  for (const w of want) {
+    const k = w && w.k === 'c' ? 'c' : 'b', size = Number(w && w.size) || 0;
+    if (size <= 0 || size > (k === 'c' ? COVER_MAX : BOOK_MAX)) { items.push({ err: 'size' }); continue; }
+    const u = crypto.randomBytes(16).toString('hex');
+    items.push({ u, url: await R2.presign(c, rd, { method: 'PUT', key: C.KEYS.tmp(u), expires: UP_TTL }) });
+  }
+  return { items, exp: nowOf(deps) + UP_TTL * 1000 };
+}
+
+async function upCommit(deps, body, ctx, rid) {
+  const c = r2c(), rd = rdeps(deps);
+  const want = (Array.isArray(body.items) ? body.items : []).slice(0, UP_MAX);
+  if (!want.length) { const e = new Error('bad_op'); e.why = 'items'; throw e; }
+  const { cat } = await loadCat(deps, true);
+  const byMd5 = Object.create(null);
+  for (const id of Object.keys(cat.books)) for (const f of cat.books[id].files || []) byMd5[f.md5] = id;
+  const out = { done: [], dup: [], bad: [] }, ops = [];
+  for (const w of want) {
+    const tk = C.KEYS.tmp(w && w.u);
+    if (!tk) { out.bad.push({ u: '', why: 'u' }); continue; }
+    const h = await R2.head(c, rd, tk).catch(() => null);
+    if (!h) { out.bad.push({ u: w.u, why: 'missing' }); continue; }
+    const md5 = String(h.etag || '').toLowerCase();
+    const drop = () => R2.del(c, rd, tk).catch(() => {});
+    const k = w.k === 'c' ? 'c' : 'b';
+    if (!C.MD5_RE.test(md5) || h.size <= 0 || h.size > (k === 'c' ? COVER_MAX : BOOK_MAX)) { await drop(); out.bad.push({ u: w.u, why: 'size' }); continue; }
+    const head = await R2.getRange(c, rd, tk, 0, 65535).catch(() => null);
+    if (k === 'c') {
+      const b = cat.books[w.id];
+      if (!b || b.del) { await drop(); out.bad.push({ u: w.u, why: 'book' }); continue; }
+      if (!isJpeg(head)) { await drop(); out.bad.push({ u: w.u, why: 'type' }); continue; }
+      const ck = C.KEYS.cover(md5);
+      if (!await R2.head(c, rd, ck).catch(() => null)) await R2.copy(c, rd, tk, ck, 'image/jpeg');
+      await drop();
+      ops.push({ op: 'cover', id: b.id, cover: { h: md5, r: w.r, bg: w.bg }, src: C.SOURCES.includes(w.src) ? w.src : 'user' });
+      out.done.push({ u: w.u, id: b.id });
+      continue;
+    }
+    const fmt = fmtFor(String(w.ext || '').toLowerCase(), C.sniff(head));
+    if (!fmt) { await drop(); out.bad.push({ u: w.u, why: 'type' }); continue; }
+    const f = { fmt, md5, size: h.size, at: ctx.now };
+    const target = w.id && cat.books[w.id] && !cat.books[w.id].del ? w.id : '';
+    if (!target && byMd5[md5]) { await drop(); out.dup.push({ u: w.u, id: byMd5[md5] }); continue; }   // אותו קובץ כבר בספרייה
+    if (!target && (!w.book || !C.idOk(w.book.id) || cat.books[w.book.id])) { await drop(); out.bad.push({ u: w.u, why: 'book' }); continue; }
+    const fk = C.KEYS.file(f);
+    if (!await R2.head(c, rd, fk).catch(() => null)) await R2.copy(c, rd, tk, fk, TYPES[fmt]);
+    await drop();
+    if (target) ops.push({ op: 'file', id: target, file: f });
+    else ops.push({ op: 'add', book: bookFrom(w.book, { files: [f], batch: /^[A-Za-z0-9_-]{4,40}$/.test(String(w.batch || '')) ? w.batch : undefined, added: ctx.now }) });
+    out.done.push({ u: w.u, id: target || w.book.id, fmt, md5 });
+  }
+  let v = cat.v;
+  if (ops.length) {
+    const r = await writeCat(deps, (cur) => {
+      const ok = ops.filter((o) => (o.op === 'add' ? !cur.books[o.book.id] : !!cur.books[o.id]));
+      return ok.length ? C.applyOps(cur, ok.slice(0, 50), Object.assign({}, ctx, { internal: true })) : { cat: cur, n: 0 };
+    }, { rid });
+    v = r.v;
+  }
+  return Object.assign({ v }, out);
+}
+
+/* תאימות לגרסאות ישנות של הטלפון (list/file/insight של v1) אחרי שהמקור הוא R2: הרשימה נבנית מהקטלוג.
+   מזהה ישן = ה־driveId (כך טלפון ישן לא רואה שינוי ולא מוריד שוב); ספר חדש = 'v2' + md5. null = המקור עדיין Drive */
+async function compat(deps) {
+  if (!r2c()) return null;
+  const { cat } = await loadCat(deps);
+  if (((cat.cfg && cat.cfg.source) || 'drive') !== 'r2') return null;
+  const items = [], byId = new Map();
+  for (const id of Object.keys(cat.books)) {
+    const b = cat.books[id];
+    if (!C.visible(b)) continue;
+    const f = b.files[0];
+    const cid = (b.legacy && b.legacy.driveId) || 'v2' + f.md5;
+    const name = String(b.title || 'book').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').slice(0, 120).trim() + '.' + f.fmt;
+    const it = { id: cid, name, size: f.size, md5: f.md5, modified: new Date(f.at || b.updated || 0).toISOString() };
+    items.push(it);
+    const rec = { item: it, book: b, key: C.KEYS.file(f) };
+    byId.set(cid, rec); byId.set(id, rec);
+  }
+  return { items, byId };
+}
+
+const ADMIN_OPS = new Set(['adminCat', 'catApply', 'undo', 'migratePlan', 'migrateCommit', 'migrateFinish', 'upPlan', 'upCommit']);
 const OPS = new Set(['cat', 'urls', ...ADMIN_OPS]);
+const BIG_OPS = new Set(['catApply', 'undo', 'migrateCommit', 'upCommit', 'upPlan']);
 const RID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 
 /* op מהטלפון (אחרי אימות + הרשאת קורא ב־api/library.js). admin = isAdmin(user) */
-async function handle(op, body, user, admin, res, deps = {}) {
+async function handle(op, body, user, admin, res, deps = {}, legacy = null) {
   if (!r2c()) return res.status(503).json({ ok: false, error: 'no_r2' });
   if (ADMIN_OPS.has(op) && !admin) return res.status(403).json({ ok: false, error: 'not_admin' });
   try {
@@ -128,9 +307,20 @@ async function handle(op, body, user, admin, res, deps = {}) {
       }
       return res.status(200).json({ ok: true, v: cat.v, urls, exp: nowOf(deps) + URL_TTL * 1000 });
     }
+    const rid = RID_RE.test(String(body.rid || '')) ? String(body.rid) : '';
+    const ctx = { now: nowOf(deps), by: user.email || '' };
+    if (op === 'migratePlan' || op === 'migrateCommit') {
+      if (!legacy) return res.status(503).json({ ok: false, error: 'no_drive' });
+      const out = op === 'migratePlan' ? await migratePlan(deps, legacy) : await migrateCommit(deps, legacy, body, ctx, rid);
+      return res.status(200).json(Object.assign({ ok: true }, out));
+    }
+    if (op === 'migrateFinish') {
+      const r = await writeCat(deps, (cat) => C.applyOps(cat, [{ op: 'cfg', source: body.back ? 'drive' : 'r2' }], Object.assign({}, ctx, { internal: true })), { rid });
+      return res.status(200).json({ ok: true, v: r.v, src: body.back ? 'drive' : 'r2' });
+    }
+    if (op === 'upPlan') return res.status(200).json(Object.assign({ ok: true }, await upPlan(deps, body)));
+    if (op === 'upCommit') return res.status(200).json(Object.assign({ ok: true }, await upCommit(deps, body, ctx, rid)));
     if (op === 'catApply' || op === 'undo') {
-      const rid = RID_RE.test(String(body.rid || '')) ? String(body.rid) : '';
-      const ctx = { now: nowOf(deps), by: user.email || '' };
       const r = await writeCat(deps, (cat) => (op === 'undo' ? C.undo(cat, body.v, ctx) : C.applyOps(cat, body.ops, ctx)), { rid });
       return res.status(200).json({ ok: true, v: r.v, n: r.n || 0, dup: !!r.dup, conflicts: r.conflicts || [], miss: r.miss || 0, skipped: r.skipped || [] });
     }
@@ -143,4 +333,4 @@ async function handle(op, body, user, admin, res, deps = {}) {
   }
 }
 
-module.exports = { OPS, ADMIN_OPS, handle, loadCat, writeCat, adminView, _reset: () => { memo = null; } };
+module.exports = { OPS, ADMIN_OPS, BIG_OPS, handle, compat, fmtFor, LEGACY_RE, loadCat, writeCat, adminView, _reset: () => { memo = null; } };

@@ -17,7 +17,7 @@ const aiStore = createAiStore();
 const gdrive = require('../lib/gdrive');
 const R2 = require('../lib/r2');
 const LM = require('../lib/libmgr');   // מנהל הספרייה (ס׳1): הקטלוג של המדף המשותף ב־R2
-const BIG_OPS = new Set(['catApply', 'undo']);   // עריכות של כמה ספרים — גוף עד 64KB (רק למנהל; השאר 4KB)
+const BIG_OPS = LM.BIG_OPS;   // עריכות/מעבר/העלאות של כמה ספרים — גוף עד 64KB (רק למנהל; השאר 4KB)
 const insightCache = new Map();   // id|md5 → ניתוח (חוסך קריאות ל־Gemini בין קוראים, כל עוד המופע חי)
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
@@ -159,7 +159,10 @@ async function handler(req, res, deps = {}) {
   if (body.op === 'me') return res.status(200).json({ ok: true, admin: isAdmin(user), cat: !!R2.config().ok });
   if (LM.OPS.has(String(body.op || ''))) {      // מנהל הספרייה: הקטלוג ב־R2 (לקוראים: cat/urls; למנהל: adminCat/catApply/undo)
     if (limited('cat|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
-    return LM.handle(String(body.op), body, user, isAdmin(user), res, deps);
+    let lastCat = null;   // ס׳2: המעבר קורא את הרשימה מ־Drive (או מהעותק ב־R2) ומוריד מ־Drive רק מה שעוד לא ב־R2
+    const legacy = { list: async () => { try { lastCat = await listAll(deps.fetch); } catch (e) { lastCat = await catalogFromR2(deps.fetch); if (!lastCat) throw e; } return lastCat; },
+      download: (it) => getBook(it, lastCat || { r2only: true }, deps) };
+    return LM.handle(String(body.op), body, user, isAdmin(user), res, deps, legacy);
   }
   if (['readers', 'addReader', 'removeReader', 'refresh'].includes(body.op)) {
     if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
@@ -183,13 +186,19 @@ async function handler(req, res, deps = {}) {
   if (limited(user.uid, 200)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   try {
     let cat;
-    try { cat = await listAll(deps.fetch); }
-    catch (e) { cat = await catalogFromR2(deps.fetch); if (!cat) throw e; }   // Drive נפל — הקטלוג האחרון מ־R2
+    const lc = await LM.compat(deps).catch(() => null);   // ס׳2: אחרי המעבר — הרשימה מהקטלוג, Drive לא נקרא בכלל
+    if (lc) cat = { items: lc.items, v2: lc.byId };
+    else {
+      try { cat = await listAll(deps.fetch); }
+      catch (e) { cat = await catalogFromR2(deps.fetch); if (!cat) throw e; }   // Drive נפל — הקטלוג האחרון מ־R2
+    }
     if (body.op === 'list') return res.status(200).json(Object.assign({ ok: true, items: cat.items }, cat.r2only ? { from: 'r2' } : {}));
     if (body.op === 'file' || body.op === 'insight') {
-      const id = String(body.id || '');
-      const item = cat.items.find((f) => f.id === id);
-      if (!ID_RE.test(id) || !item) return res.status(404).json({ ok: false, error: 'not_found' });
+      let id = String(body.id || '');
+      const v2 = cat.v2 && cat.v2.get(id);                 // מזהה ישן (driveId) או מזהה הקטלוג
+      if (v2) id = v2.item.id;
+      const item = v2 ? v2.item : cat.items.find((f) => f.id === id);
+      if ((!v2 && !ID_RE.test(id)) || !item) return res.status(404).json({ ok: false, error: 'not_found' });
       const ckey = id + '|' + item.md5;
       if (body.op === 'insight' && insightCache.has(ckey)) return res.status(200).json({ ok: true, insight: insightCache.get(ckey), md5: item.md5 });
       const store = deps.aiStore || aiStore;
@@ -198,11 +207,12 @@ async function handler(req, res, deps = {}) {
         if (sh) { insightCache.set(ckey, sh); return res.status(200).json({ ok: true, insight: sh, md5: item.md5, cached: true }); }
       }
       // R2: מכתב שכבר נשמר שם — קישור חתום, בלי להוריד אותו לכאן בכלל (טלפון חדש שולח via:'r2')
-      const c = r2c(), key = c && libKey(id, item.md5);
+      const c = r2c(), key = c && (v2 ? v2.key : libKey(id, item.md5));
       if (body.op === 'file' && body.via === 'r2' && key && await R2.head(c, { fetch: deps.fetch }, key).catch(() => null)) {
         return res.status(200).json({ ok: true, url: await R2.presign(c, { fetch: deps.fetch }, { method: 'GET', key, expires: 600 }), md5: item.md5 });
       }
-      const got = await getBook(item, cat, deps);
+      const got = v2 ? await R2.getBuf(c, { fetch: deps.fetch }, v2.key, MAX_FILE_R2).then((b) => (b ? { buf: b, name: item.name, key: v2.key } : null)).catch(() => null)
+        : await getBook(item, cat, deps);
       if (!got) return res.status(404).json({ ok: false, error: 'not_found' });
       const buf = got.buf, meta = { name: got.name };
       if (body.op === 'file' && body.via === 'r2' && got.key) {
