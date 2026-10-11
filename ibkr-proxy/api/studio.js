@@ -625,7 +625,12 @@ async function worker(req, res, body, deps) {
           }
         } catch (e) { pir = null; }
       }
-      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl), drive: await driveFor(), pir, now });
+      // 11/10: מילון המונחים מ־R2 (כשקיים שם) — בתוך תשובת הלקיחה, גם ל־Routine (שהסביבה שלו לא מגיעה ל־R2). תקלה = בלי (Drive כמו קודם)
+      let gl = null;
+      if (job.kind === 'tr' && R2.config().ok) {
+        try { const t = await R2.getText(R2.config(), r2deps(deps), S.glKey(job.uid), 256 * 1024); if (t != null) gl = S.glParse(t); } catch (e) { gl = null; }
+      }
+      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl), drive: await driveFor(), pir, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     if (body.op.startsWith('r2')) {   // ת4: הקבצים של העבודה ב־R2 (קלט, תוצרים, נקודות שמירה)
@@ -883,7 +888,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -933,6 +938,15 @@ async function handler(req, res, deps = {}) {
       // v368: גם ההמשך האוטומטי שמחכה (אחרי תקלה חולפת) לא יקרה
       for (const j of (await listJobs(deps, uid)).filter((x) => x.rw && !act.some((y) => y.id === x.id))) await patchJob(deps, j.id, { rw: 0, updated: now });
       return res.status(200).json({ ok: true, halt: now, n: act.length });
+    }
+    if (op === 'glossUrl') {
+      // 11/10/2026: מילון המונחים ב־R2 — קישורים חתומים לקריאה ולכתיבה של הקובץ של המשתמש בלבד (gl/<uid>.tsv), לחמש דקות.
+      // הקובץ עובר ישירות בין הטלפון ל־R2 (הגוף לשרתון מוגבל ל־4KB). בלי R2 — r2:false והטלפון נשאר ב־Drive
+      const c = R2.config(), key = S.glKey(uid);
+      if (!c.ok || !key) return res.status(200).json({ ok: true, r2: false });
+      const rd = r2deps(deps);
+      return res.status(200).json({ ok: true, r2: true, get: await R2.presign(c, rd, { method: 'GET', key, expires: 300 }),
+        put: await R2.presign(c, rd, { method: 'PUT', key, expires: 300 }) });
     }
     if (op === 'price') {
       // v377: מחיר מתרגם אנושי לדקת סרטון (ל"חסכת"). 0 / ריק = ברירת המחדל ($5)

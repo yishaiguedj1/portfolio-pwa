@@ -139,6 +139,22 @@ async function del(c, deps, key) {
   if (r.status !== 204 && r.status !== 200 && r.status !== 404) await fail(r, 'delete');
   return true;
 }
+/* קובץ טקסט קטן שהשרתון עצמו קורא/כותב (מילון המונחים, גיבויים): null = לא קיים; גדול מ־max = שגיאה */
+async function getText(c, deps, key, max = 1024 * 1024) {
+  if (!okKey(key)) throw new Error('bad_key');
+  const r = await raw(c, deps, { method: 'GET', key });
+  if (r.status === 404) return null;
+  if (r.status !== 200) await fail(r, 'get');
+  const t = await r.text();
+  if (Buffer.byteLength(t) > max) throw new Error('r2_too_large');
+  return t;
+}
+async function putText(c, deps, key, text, type = 'text/plain; charset=utf-8') {
+  if (!okKey(key)) throw new Error('bad_key');
+  const r = await raw(c, deps, { method: 'PUT', key, body: String(text), headers: { 'content-type': type } });
+  if (r.status !== 200) await fail(r, 'put');
+  return true;
+}
 /* כל המפתחות בתחילית (לניקוי עבודה / סריקה) */
 async function list(c, deps, prefix, max = 5000) {
   if (!okKey(prefix.replace(/\/$/, ''))) throw new Error('bad_key');
@@ -240,5 +256,5 @@ async function health(c, deps, origin) {
   }
 }
 
-module.exports = { sign, config, okKey, locate, presign, head, del, list, mpCreate, mpList, mpPartUrl, mpComplete, mpAbort,
+module.exports = { sign, config, okKey, locate, presign, head, del, list, getText, putText, mpCreate, mpList, mpPartUrl, mpComplete, mpAbort,
   partSize, partsOf, partsCheck, health, PART_MIN, MIB, _reset: () => _where.clear() };

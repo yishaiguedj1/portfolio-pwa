@@ -1025,6 +1025,7 @@ async function refreshStatus(force) {
     ui.eta = normEta(j.eta) || ui.eta;   // 10/10/2026: מודל הצפי (לעבודות שעוד לא נלקחו)
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
     ui.picker = normPicker(j.pk);       // בחירה מ־Drive (Google Picker) — רק כשהוגדר מפתח בשרתון
+    ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -3775,7 +3776,7 @@ function glRow(r) {
 function pageGloss(p) {
   p.append(navBar({ back: T('studioRlT'), title: T('studioGlT') }));
   const ab = accessBanner(); if (ab) p.append(ab);
-  if (!store.drive || !store.drive.connected) { p.append(h('div', 'st-empty st-empty-sm', T('studioGlNoDrive'))); return; }
+  if (!ui.r2 && (!store.drive || !store.drive.connected)) { p.append(h('div', 'st-empty st-empty-sm', T('studioGlNoDrive'))); return; }
   if (gl.st === 'err') {
     p.append(h('div', 'st-empty st-empty-sm', T('studioGlErr')), btn('st-btn tint wide', T('studioGlRetry'), () => glossLoad(true), 'gl-retry'));
     return;
@@ -3811,7 +3812,7 @@ function pageGloss(p) {
 }
 /* דף העבודה: כמה מונחים מהמילון שימשו, ומונחים חדשים שנקבעו בעבודה — כל אחד ב־+ או "להוסיף הכל" */
 function glossJobCard(g) {
-  if (gl.st === '' && store.drive && store.drive.connected && g.s.length) setTimeout(() => glossLoad(), 0);
+  if (gl.st === '' && (ui.r2 || store.drive && store.drive.connected) && g.s.length) setTimeout(() => glossLoad(), 0);
   const fresh = gl.st === 'ok' ? g.s.filter((x) => !glHas(x[0])) : g.s;
   if (!g.u && !fresh.length) return [];
   const card = h('div', 'st-twcard st-glc');

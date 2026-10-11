@@ -172,5 +172,26 @@ const { fakeR2, ENV } = require('./_r2fake');
   await api('remove', { job: 'jCLONECLONECLONECLONE' });
   ok(!R.objs.has(SR.keyOf('ownerUid0001', f2.id)), 'האחרונה שמשתמשת בתיקייה נמחקה — הקבצים נמחקים');
 
+  /* ---------- 7. מילון המונחים ב־R2 (11/10) ---------- */
+  let gu = await api('glossUrl', {});
+  ok(gu.ok && gu.r2 && /\/gl\/ownerUid0001\.tsv\?/.test(gu.get) && /X-Amz-Expires=300/.test(gu.put), 'מילון: קישורים חתומים לקובץ של המשתמש בלבד (gl/<uid>.tsv), לחמש דקות');
+  ok((await R.fetch(gu.get)).status === 404, 'מילון: עוד אין קובץ — 404 (הטלפון ינסה את Drive ויעביר)');
+  const tsv = S.glFormat([['Moat', 'חפיר', ''], ['Berkshire', 'ברקשייר', 'שם']]);
+  ok((await R.fetch(gu.put, { method: 'PUT', body: tsv })).status === 200, 'מילון: הטלפון כותב ישירות ל־R2');
+  ok(S.glParse(await (await R.fetch(gu.get)).text()).length === 2, 'מילון: וקורא בחזרה');
+  const go = await other('glossUrl', {});
+  ok(go.ok && /\/gl\/otherUid0002\.tsv\?/.test(go.get) && (await R.fetch(go.get)).status === 404, 'מילון: משתמש אחר — הקובץ שלו, לא של בעלים אחר');
+  // העובד מקבל את המילון בתוך תשובת הלקיחה (גם Routine — בלי גישה ל־R2)
+  j = await api('create', { spec: Object.assign({}, spec, { eng: undefined }) });
+  const J3 = j.job.id, K3 = crypto.randomBytes(32).toString('base64url');
+  Object.assign(db.get('studioJobs/' + J3).fields, { kh: { stringValue: crypto.createHash('sha256').update(K3).digest('hex') }, kx: { integerValue: String(R.now + 3600e3) }, state: { stringValue: 'queued' }, fired: { integerValue: String(R.now) } });
+  const cl = (await call({ op: 'claim', job: J3, key: K3 }, true)).j;
+  ok(cl.ok && Array.isArray(cl.job.gl) && cl.job.gl.length === 2 && cl.job.gl[1][0] === 'Berkshire', 'מילון: העובד (גם Routine) מקבל אותו בלקיחה');
+  for (const k of Object.keys(ENV)) delete process.env[k];
+  gu = await api('glossUrl', {});
+  const cl2 = (await call({ op: 'claim', job: J3, key: K3 }, true)).j;
+  Object.assign(process.env, ENV); R2._reset();
+  ok(gu.ok && gu.r2 === false && cl2.ok && cl2.job.gl === null, 'מילון: בלי R2 בשרתון — r2:false והעובד קורא מ־Drive כמו קודם');
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

@@ -506,8 +506,26 @@ export function createNet(env) {
     return '';
   }
 
-  /* v380: המילון ב־Drive — {id, rows}. אין קובץ = רשימה ריקה (נוצר בשמירה הראשונה, בתיקיית הסטודיו) */
+  /* 11/10/2026: המילון ב־R2 כשהשרתון מוגדר (id = 'r2'): קישורים חתומים לחמש דקות, הקובץ עובר ישירות.
+     עוד אין שם קובץ → מהמילון הישן ב־Drive (אם יש) ומעבירים אותו פעם אחת ל־R2; Drive לא מחובר — מתחילים ריק.
+     שרתון בלי R2 (או גרסה ישנה) → Drive בדיוק כמו קודם */
   async function glossLoad() {
+    const u = await api('glossUrl');
+    if (!(u && u.ok && u.r2 && u.get && u.put)) return glossLoadDrive();
+    const r = await E.fetch(u.get, { cache: 'no-store' });
+    if (r.status === 200) return { id: 'r2', rows: glParse(await r.text()) };
+    if (r.status !== 404) throw Object.assign(new Error('r2_' + r.status), { code: 'r2' });
+    let rows = [];
+    try { rows = (await glossLoadDrive()).rows; } catch (e) { rows = []; }
+    if (rows.length) await glossPutR2(rows, u.put);
+    return { id: 'r2', rows, moved: rows.length };
+  }
+  async function glossPutR2(rows, url) {
+    const r = await E.fetch(url, { method: 'PUT', body: glFormat(rows), headers: { 'Content-Type': 'text/tab-separated-values; charset=UTF-8' } });
+    if (!r.ok) throw Object.assign(new Error('r2_' + r.status), { code: 'r2' });
+  }
+  /* v380: המילון ב־Drive — {id, rows}. אין קובץ = רשימה ריקה (נוצר בשמירה הראשונה, בתיקיית הסטודיו) */
+  async function glossLoadDrive() {
     const qs = "appProperties has { key='snbGloss' and value='1' } and trashed=false";
     const j = await dreq('GET', API + '?q=' + q(qs) + '&fields=files(id,size)&pageSize=3&spaces=drive');
     const f = j && j.files && j.files[0];
@@ -517,6 +535,12 @@ export function createNet(env) {
     return { id: f.id, rows: glParse(await r.text()) };
   }
   async function glossSave(id, rows) {
+    if (id === 'r2') {
+      const u = await api('glossUrl');
+      if (!(u && u.ok && u.r2 && u.put)) throw Object.assign(new Error(u && u.error || 'r2'), { code: u && u.error || 'r2' });
+      await glossPutR2(rows, u.put);
+      return 'r2';
+    }
     const body = glFormat(rows);
     if (id) {
       const r = await E.fetch(UP + '/' + id + '?uploadType=media&fields=id', { method: 'PATCH', body,

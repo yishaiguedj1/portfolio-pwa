@@ -739,6 +739,26 @@ function normGl(o) {
   }
   return u || s.length ? { u, s } : null;
 }
+/* 11/10/2026: המילון עצמו ב־R2 (כשמוגדר) — gl/<uid>.tsv, מחוץ ל־st/ (שם — רק קבצי עבודות; הסריקה לא רואה בו "יתום").
+   glParse/glFormat — אותו קוד של הטלפון (studionet.js) ושל gl_parse בעובד; tests/studio-gloss-r2 משווה */
+const GL_MAX = 400;
+const GL_HEAD = '# מילון המונחים של סטודיו התרגום — אנגלית<TAB>עברית (חלופות מופרדות ב־/)<TAB>הערה. כל עבודה מקבלת רק את המונחים שמופיעים בסרטון.\n';
+const glKey = (uid) => (/^[A-Za-z0-9]{6,128}$/.test(String(uid || '')) ? 'gl/' + uid + '.tsv' : '');
+function glParse(text) {
+  const rows = [], seen = new Set();
+  for (const line of String(text || '').split(/\r?\n/)) {
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const c = line.split('\t');
+    if (c.length < 2) continue;
+    const en = glClean(c[0], 60), he = glClean(c[1], 80), n = c.length > 2 ? glClean(c[2], 100) : '';
+    if (!en || !he || seen.has(en.toLowerCase())) continue;
+    seen.add(en.toLowerCase());
+    rows.push([en, he, n]);
+    if (rows.length >= GL_MAX) break;
+  }
+  return rows;
+}
+const glFormat = (rows) => GL_HEAD + rows.map((r) => r[0] + '\t' + r[1] + (r[2] ? '\t' + r[2] : '')).join('\n') + (rows.length ? '\n' : '');
 /* v382: הערה לעובד (Pause + corrective input) — טקסט שלך מהטלפון לעבודה שרצה. נמסרת לעובד בתשובה לדיווח הבא על
    נקודת שמירה (nt → nh עם d = מתי נקראה). עד NOTE_MAX לעבודה, NOTE_LEN תווים; בלי תווי בקרה, תגיות וגרשיים הפוכים */
 const NOTE_MAX = 5, NOTE_LEN = 300;
@@ -759,8 +779,9 @@ function normPv(p) {
   return Object.keys(out).length ? out : null;
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job, nm, fb, fm, rl) {
-  return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+function workerJob(job, nm, fb, fm, rl, gl) {
+  return { nm: nm || null,
+    gl: Array.isArray(gl) ? gl : null,   // 11/10: המילון מ־R2 (null = אין שם — העובד קורא מ־Drive כמו קודם)   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
     rl: normRules(rl),       // v367: החוקים שלך — תקציב ואישור לפני צריבה
     bx: job.bx || 0,         // v367: כמה פעמים אישרת להמשיך מעבר לתקציב (התקציב גדל בכל פעם)
     u0: usdOf(job.use0),     // v367: מה שהסשנים הקודמים כבר עלו
@@ -887,7 +908,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { JSON_FIELDS,
+module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS,
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
