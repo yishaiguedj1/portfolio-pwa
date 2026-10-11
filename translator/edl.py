@@ -2,6 +2,9 @@
 
 **אותה לוגיקה בדיוק כמו studioedl.js בטלפון ו־normEdl בשרתון** (tests/studio-edl.test.js משווה):
   { "k": [[a, b], …] — הקטעים שנשארים בזמן המקור (ריק = הכל), "ar": "src" | "9:16" | "1:1" | "4:5", "x": 0–1 }
+סבב 3 (עורך הווידאו ב׳) — שדות רשות, רק כשהם לא ברירת המחדל: y (מיקום אנכי), z (זום 1–3), sp (מהירות), rt (סיבוב),
+fh / fv (היפוך), vo (עוצמה %), mu (השתקה), fi / fo (הדרגה, שניות), ln (השוואת עוצמה ל־‎−14 LUFS).
+לפני התרגום רק k / ar / x (pre).
 כאן גם הפקודה של ffmpeg: חיתוך (trim/atrim + concat) ויחס תמונה (crop), בקידוד ביניים איכותי — הצריבה אחר כך מקודדת שוב.
 העריכה מגיעה מהטלפון (דרך השרתון) — מספרים בלבד; שום שדה לא נכנס לפקודה כטקסט.
 """
@@ -15,6 +18,14 @@ SEG_MAX = 60
 JOIN_GAP = 0.05
 ARS = ('src', '9:16', '1:1', '4:5')
 MAX_T = 24 * 3600
+SPEEDS = (0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4)
+ROTS = (0, 90, 180, 270)
+Z_MAX = 3
+VOL_MAX = 200
+FADE_MAX = 10
+LUFS = -14
+EXTRA_POS = ('y', 'z')
+EXTRA_REST = ('sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln')
 
 
 def _num(v):
@@ -49,14 +60,71 @@ def norm_edl(e, dur=0):
         else:
             k.append(list(s))
     ar = e.get('ar') if e.get('ar') in ARS else 'src'
-    xv = _num(e.get('x'))
+    zv = _num(e.get('z'))
+    z = min(Z_MAX, math.floor(zv * 20 + 0.5) / 20) if zv > 1 else 1
+    crop = ar != 'src' or z > 1
+    xv, yv = _num(e.get('x')), _num(e.get('y'))
     x = math.floor(xv * 100 + 0.5) / 100 if 0 <= xv <= 1 else 0.5
+    y = math.floor(yv * 100 + 0.5) / 100 if 0 <= yv <= 1 else 0.5
+    ex = {}
+    if crop and y != 0.5:
+        ex['y'] = y
+    if z > 1:
+        ex['z'] = z
+    sp, rt = _num(e.get('sp')), _num(e.get('rt'))
+    if sp in SPEEDS and sp != 1:
+        ex['sp'] = e['sp']
+    if rt in ROTS and rt != 0:
+        ex['rt'] = e['rt']
+    if e.get('fh') is True:
+        ex['fh'] = True
+    if e.get('fv') is True:
+        ex['fv'] = True
+    mu = e.get('mu') is True
+    vo = _num(e.get('vo'))
+    if not mu and 0 <= vo <= VOL_MAX and math.floor(vo + 0.5) != 100:
+        ex['vo'] = int(math.floor(vo + 0.5))
+    if mu:
+        ex['mu'] = True
+    for f in ('fi', 'fo'):
+        fv = _num(e.get(f))
+        if not mu and fv > 0:
+            r = min(FADE_MAX, math.floor(fv * 2 + 0.5) / 2)
+            if r:
+                ex[f] = int(r) if r == int(r) else r
+    if not mu and e.get('ln') is True:
+        ex['ln'] = True
     whole = not k or (len(k) == 1 and k[0][0] <= JOIN_GAP and d > 0 and k[0][1] >= d - JOIN_GAP)
-    if whole and ar == 'src':
+    if whole and ar == 'src' and not ex:
         return None
     if len(k) > SEG_MAX:
         return None
-    return {'k': [] if whole else k, 'ar': ar, 'x': 0.5 if ar == 'src' else x}
+    return dict({'k': [] if whole else k, 'ar': ar, 'x': x if crop else 0.5}, **ex)
+
+
+def pre(e):
+    """לפני התרגום: רק החיתוך ויחס התמונה (מהירות, סיבוב ושמע — רק בהפקה מחדש)."""
+    if not e:
+        return None
+    if not e['k'] and e['ar'] == 'src':
+        return None
+    return {'k': [list(p) for p in e['k']], 'ar': e['ar'], 'x': 0.5 if e['ar'] == 'src' else e['x']}
+
+
+def out_dur(e, dur):
+    """האורך של התוצאה — אחרי החיתוך ואחרי המהירות."""
+    return r3(edl_dur(e, dur) / ((e or {}).get('sp') or 1))
+
+
+def rot_dims(W, H, rt):
+    return (H, W) if rt in (90, 270) else (W, H)
+
+
+def speed_cues(cues, sp):
+    """הכתוביות במהירות אחרת: הזמנים מתחלקים במהירות."""
+    if not sp or sp == 1:
+        return cues
+    return [dict(c, start=r3(c['start'] / sp), end=r3(c['end'] / sp)) for c in cues]
 
 
 def edl_dur(e, dur):
@@ -97,11 +165,14 @@ def map_cues(e, cues, min_dur=0.2):
 
 
 def compose_edl(e0, e1):
-    """e0 על המקור (לפני התרגום), e1 על התוצאה שלה (אחרי) → עריכה אחת על המקור."""
+    """e0 על המקור (לפני התרגום), e1 על התוצאה שלה (אחרי) → עריכה אחת על המקור.
+    המיקום והזום — מהעריכה שקבעה את החיתוך; מהירות, סיבוב ושמע — מהאחרונה."""
+    def copy(e):
+        return dict(e, k=[list(p) for p in e['k']])
     if not e0:
-        return {'k': [list(p) for p in e1['k']], 'ar': e1['ar'], 'x': e1['x']} if e1 else None
+        return copy(e1) if e1 else None
     if not e1:
-        return {'k': [list(p) for p in e0['k']], 'ar': e0['ar'], 'x': e0['x']}
+        return copy(e0)
     if not e1['k']:
         k = [list(p) for p in e0['k']]
     elif not e0['k']:
@@ -117,38 +188,133 @@ def compose_edl(e0, e1):
                     k.append([r3(a0 + s - off), r3(a0 + z - off)])
                 off += ln
     ar = e1['ar'] if e1['ar'] != 'src' else e0['ar']
-    return {'k': k, 'ar': ar, 'x': e1['x'] if e1['ar'] != 'src' else e0['x']}
+    base = {'k': k, 'ar': ar, 'x': e1['x'] if e1['ar'] != 'src' else e0['x']}
+    crop1 = e1['ar'] != 'src' or e1.get('z', 1) > 1
+    src = e1 if crop1 else e0
+    if crop1:
+        base['x'] = e1['x']
+    for f in EXTRA_POS:
+        if f in src:
+            base[f] = src[f]
+    for f in EXTRA_REST:
+        if f in e1:
+            base[f] = e1[f]
+    return base
 
 
-def crop_box(W, H, ar, x):
-    if ar == 'src' or not (W > 0 and H > 0):
+def crop_box(W, H, ar, x, y=0.5, z=1):
+    """W×H — אחרי הסיבוב. יחס יעד, מיקום x/y, זום z."""
+    zz = z if z and z > 1 else 1
+    if (ar == 'src' and zz == 1) or not (W > 0 and H > 0):
         return None
-    rw, rh = (int(v) for v in ar.split(':'))
-    r = rw / rh
 
     def even(v):
         return max(2, int(v // 2) * 2)
-    if W / H > r:
-        w = even(H * r)
-        return {'w': w, 'h': even(H), 'x': even((W - w) * x), 'y': 0}
-    h = even(W / r)
-    return {'w': even(W), 'h': h, 'x': 0, 'y': even((H - h) / 2)}
+
+    def pos(free, f):
+        return int(math.floor(free * f / 2) * 2) if free >= 2 else 0
+    bw, bh = W, H
+    if ar != 'src':
+        rw, rh = (int(v) for v in ar.split(':'))
+        r = rw / rh
+        if W / H > r:
+            bw = H * r
+        else:
+            bh = W / r
+    w, h = even(bw / zz), even(bh / zz)
+    return {'w': w, 'h': h, 'x': pos(W - w, 0.5 if x is None else x), 'y': pos(H - h, 0.5 if y is None else y)}
 
 
 # ---------------------------------------------------------------- ffmpeg
 def probe(path, env=None):
-    p = subprocess.run(['ffprobe', '-v', 'error', '-print_format', 'json', '-show_streams', str(path)],
+    p = subprocess.run(['ffprobe', '-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', str(path)],
                        capture_output=True, text=True, check=True, env=env)
-    st = json.loads(p.stdout).get('streams') or []
+    j = json.loads(p.stdout)
+    st = j.get('streams') or []
     v = next((s for s in st if s.get('codec_type') == 'video' and not (s.get('disposition') or {}).get('attached_pic')), None)
     a = next((s for s in st if s.get('codec_type') == 'audio'), None)
-    return {'w': int(v.get('width') or 0) if v else 0, 'h': int(v.get('height') or 0) if v else 0, 'v': bool(v), 'a': bool(a)}
+    w, h = (int(v.get('width') or 0), int(v.get('height') or 0)) if v else (0, 0)
+    # סרטון מהטלפון עם סימון סיבוב: ffmpeg מסובב בפענוח — המידות שהמסנן רואה הפוכות
+    rot = 0
+    for sd in (v or {}).get('side_data_list') or []:
+        if isinstance(sd, dict) and 'rotation' in sd:
+            rot = int(_num(sd['rotation'])) if _num(sd['rotation']) == _num(sd['rotation']) else 0
+    if not rot:
+        try:
+            rot = int(((v or {}).get('tags') or {}).get('rotate') or 0)
+        except ValueError:
+            rot = 0
+    if abs(rot) % 180 == 90:
+        w, h = h, w
+    d = _num(_flt((j.get('format') or {}).get('duration')))
+    return {'w': w, 'h': h, 'v': bool(v), 'a': bool(a), 'dur': d if d > 0 else 0.0}
+
+
+def _flt(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return math.nan
+
+
+def atempo(sp):
+    """atempo מקבל 0.5–2 בכל גרסה — מהירות מחוץ לטווח = שרשרת."""
+    f = []
+    while sp < 0.5:
+        f.append(0.5)
+        sp /= 0.5
+    while sp > 2:
+        f.append(2)
+        sp /= 2
+    if abs(sp - 1) > 1e-9:
+        f.append(sp)
+    return ['atempo=%.4f' % x for x in f]
+
+
+def video_filters(e, W, H):
+    """מהירות → סיבוב → היפוך → חיתוך → זום (חזרה לגודל בלי זום). W×H = המידות לפני הסיבוב."""
+    f = []
+    sp = e.get('sp') or 1
+    if sp != 1:
+        f.append('setpts=%.6f*PTS' % (1 / sp))
+    rt = e.get('rt') or 0
+    if rt in (90, 270):
+        f.append('transpose=%d' % (1 if rt == 90 else 2))
+    hf, vf = bool(e.get('fh')) != (rt == 180), bool(e.get('fv')) != (rt == 180)
+    if hf:
+        f.append('hflip')
+    if vf:
+        f.append('vflip')
+    RW, RH = rot_dims(W, H, rt)
+    cb = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), e.get('z', 1))
+    if cb:
+        f.append('crop=%d:%d:%d:%d' % (cb['w'], cb['h'], cb['x'], cb['y']))
+        if (e.get('z') or 1) > 1:
+            full = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), 1) or {'w': RW - RW % 2, 'h': RH - RH % 2}
+            f.append('scale=%d:%d:flags=lanczos' % (full['w'], full['h']))
+    return f
+
+
+def audio_filters(e, total):
+    """מהירות → השוואת עוצמה → עוצמה → הדרגה. total = אורך התוצאה (להדרגה בסוף)."""
+    f = atempo(e.get('sp') or 1)
+    if e.get('ln'):
+        f += ['loudnorm=I=%d:TP=-1.5:LRA=11' % LUFS, 'aresample=48000']
+    vo = e.get('vo')
+    if vo is not None and vo != 100:
+        f.append('volume=%.2f' % (vo / 100))
+    fi, fo = e.get('fi') or 0, e.get('fo') or 0
+    if fi:
+        f.append('afade=t=in:st=0:d=%.2f' % fi)
+    if fo and total > fo:
+        f.append('afade=t=out:st=%.3f:d=%.2f' % (total - fo, fo))
+    return f
 
 
 def ffmpeg_args(src, out, e, info, audio_only=False):
-    """הפקודה (רשימה, בלי shell): קטעים → concat, ואז crop. רק מספרים מהעריכה נכנסים למסנן."""
+    """הפקודה (רשימה, בלי shell): קטעים → concat, ואז מהירות / סיבוב / חיתוך / שמע. רק מספרים מהעריכה נכנסים למסנן."""
     segs = e['k'] or None
-    has_v, has_a = info.get('v') and not audio_only, info.get('a')
+    has_v, has_a = info.get('v') and not audio_only, info.get('a') and not e.get('mu')
     parts, vl, al = [], [], []
     for i, (a, b) in enumerate(segs or [[None, None]]):
         rng = ('=start=%.3f:end=%.3f' % (a, b)) if segs else ''
@@ -165,16 +331,20 @@ def ffmpeg_args(src, out, e, info, audio_only=False):
         parts.append(''.join(vl) + 'concat=n=%d:v=1:a=0[vc]' % n)
     elif has_a:
         parts.append(''.join(al) + 'concat=n=%d:v=0:a=1[ac]' % n)
-    vout = '[vc]'
-    cb = crop_box(info.get('w') or 0, info.get('h') or 0, e['ar'], e['x']) if has_v else None
-    if cb:
-        parts.append('[vc]crop=%d:%d:%d:%d,setsar=1[vo]' % (cb['w'], cb['h'], cb['x'], cb['y']))
+    vout, aout = '[vc]', '[ac]'
+    vf = video_filters(e, info.get('w') or 0, info.get('h') or 0) if has_v else []
+    if vf:
+        parts.append('[vc]' + ','.join(vf + ['setsar=1']) + '[vo]')
         vout = '[vo]'
+    af = audio_filters(e, out_dur(e, info.get('dur') or 0)) if has_a else []
+    if af:
+        parts.append('[ac]' + ','.join(af) + '[ao]')
+        aout = '[ao]'
     cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-filter_complex', ';'.join(parts)]
     if has_v:
         cmd += ['-map', vout, '-c:v', 'libx264', '-crf', '16', '-preset', 'veryfast', '-pix_fmt', 'yuv420p']
     if has_a:
-        cmd += ['-map', '[ac]', '-c:a', 'aac', '-b:a', '192k']
+        cmd += ['-map', aout, '-c:a', 'aac', '-b:a', '192k']
     return cmd + ['-movflags', '+faststart', str(out)]
 
 

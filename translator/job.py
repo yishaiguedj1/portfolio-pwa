@@ -1157,7 +1157,7 @@ def edl_src(ctx, src, kind):
     """מ4: חיתוך לפני התרגום — הקטעים שנבחרו בטלפון (spec.edl), מיד אחרי ההורדה. הקול והסרטון נחתכים באותה עריכה
     (sync.py מוצא היסט ~0), וכל השאר — תמלול, תרגום, צריבה — רואה רק את מה שנשאר. בלי עריכה — המקור כמו שהוא."""
     import edl as E
-    e = E.norm_edl((ctx.st.get('spec') or {}).get('edl'))
+    e = E.pre(E.norm_edl((ctx.st.get('spec') or {}).get('edl')))   # לפני התרגום — רק חיתוך ויחס (בלי מהירות/שמע)
     if not e:
         return src
     out = src.with_name(src.stem + '.cut' + ('.m4a' if kind == 'a' else '.mp4'))
