@@ -41,6 +41,20 @@ class Stop(Exception):
     """השרתון אמר לעצור (העבודה בוטלה / הסתיימה / המפתח לא תקף)."""
 
 
+class StepError(SystemExit):
+    """11/10/2026: כשל בשלב של הכלים עם קוד משלו (במקום worker_step הכללי) — כך השרתון יודע אם הכשל חולף
+    (store_net: רשת / ניתוק — "המשך" אוטומטי עוזר) או קבוע (store_fail: האחסון דחה — אותו ניסיון ייכשל שוב)."""
+
+    def __init__(self, msg, err='worker_step'):
+        super().__init__(msg)
+        self.err = err
+
+
+def store_err(code):
+    """קוד שגיאה של האחסון (R2 / Drive) → store_net (חולף) או store_fail (קבוע)"""
+    return 'store_net' if str(code).endswith('_net') or code in ('r2_gone', 'net') else 'store_fail'
+
+
 HERE = Path(__file__).resolve().parent
 STATE = Path(os.environ.get('SNB_STATE', str(Path.home() / '.snb-studio'))) / 'job.json'
 VT_PY = os.environ.get('VT_PY', str(Path.home() / '.vt-venv' / 'bin' / 'python'))
@@ -833,7 +847,7 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
                 raise SystemExit('✗ הרשת של הסביבה חוסמת את Drive — להוסיף www.googleapis.com ל־Allowed domains.')
             if e.code not in (401, 429) and e.code < 500:
                 ctx.event('drive', 'dl_fail')
-                raise SystemExit('✗ ההורדה מ־Drive נכשלה (' + str(e.code) + ').')
+                raise StepError('✗ ההורדה מ־Drive נכשלה (' + str(e.code) + ').', 'store_fail')
         except (urllib.error.URLError, TimeoutError, OSError):
             pass
         tries += 1
@@ -841,7 +855,7 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
             ctx.event('drive', 'dl_retry')
         if tries > 8:
             ctx.event('drive', 'dl_fail')
-            raise SystemExit('✗ ההורדה מ־Drive נקטעה שוב ושוב.')
+            raise StepError('✗ ההורדה מ־Drive נקטעה שוב ושוב.', 'store_net')
         time.sleep(min(30, 2 ** tries))
 
 
@@ -868,7 +882,7 @@ def fetch_input(ctx, fid, dest, size, on_progress=None):
             return store.download(call, fid, dest, on_progress)
         except store.StoreError as e:
             ctx.event('drive', 'dl_fail')
-            raise SystemExit('✗ ההורדה מהאחסון נכשלה (' + e.code + ').')
+            raise StepError('✗ ההורדה מהאחסון נכשלה (' + e.code + ').', store_err(e.code))
     return drive_download(ctx, fid, dest, size, on_progress)
 
 
@@ -881,8 +895,25 @@ def put_output(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', rep
             return store.upload(call, path, mime, name=name, replace=replace if is_r2_id(replace) else '', on_progress=on_progress)
         except store.StoreError as e:
             ctx.event('drive', 'up_fail')
-            raise SystemExit('✗ ההעלאה לאחסון נכשלה (' + e.code + ').')
+            raise StepError('✗ ההעלאה לאחסון נכשלה (' + e.code + ').', store_err(e.code))
     return drive_upload(ctx, path, name, kind, mime, on_progress, prop, replace)
+
+
+# 11/10/2026: התוצרים כבר נצרבו (דקות של עבודה) — כשל בהעלאה לא מוותר מיד: עוד ניסיונות על אותם קבצים, אחרת
+# "המשך" היה צורב הכל מחדש (השרת מוחק את הקבצים בסוף כל הפעלה). רק כשל קבוע (store_fail) מסתיים מיד.
+PUT_RETRY_WAIT = tuple(float(x) for x in os.environ.get('SNB_PUT_RETRY', '30,90').split(',') if x.strip())
+
+
+def put_output_retry(ctx, path, name, kind, mime, on_progress=None):
+    for i in range(len(PUT_RETRY_WAIT) + 1):
+        try:
+            return put_output(ctx, path, name, kind, mime, on_progress)
+        except StepError as e:
+            if e.err != 'store_net' or i >= len(PUT_RETRY_WAIT):
+                raise
+            print('· ההעלאה של ' + path.name + ' נכשלה (' + str(e).strip()[:80] + ') — מנסים שוב בעוד %d שנ׳' % PUT_RETRY_WAIT[i])
+            ctx.report('sv', None, 'האחסון לא ענה — מנסים שוב', force=True)
+            time.sleep(PUT_RETRY_WAIT[i])
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -910,7 +941,7 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', r
                                                      'X-Upload-Content-Length': str(size)})
     loc = next((v for k, v in hd.items() if k.lower() == 'location'), '')
     if st != 200 or not loc:
-        raise SystemExit('✗ פתיחת העלאה ל־Drive נכשלה (' + str(st) + ').')
+        raise StepError('✗ פתיחת העלאה ל־Drive נכשלה (' + str(st) + ').', 'store_net' if st in (0, 429) or st >= 500 else 'store_fail')
     sent, tries, retried = 0, 0, False
     with open(path, 'rb') as f:
         while True:
@@ -937,7 +968,7 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', r
                     continue
                 if e.code not in (429,) and e.code < 500:
                     ctx.event('drive', 'up_fail')
-                    raise SystemExit('✗ ההעלאה ל־Drive נכשלה (' + str(e.code) + ').')
+                    raise StepError('✗ ההעלאה ל־Drive נכשלה (' + str(e.code) + ').', 'store_fail')
             except (urllib.error.URLError, TimeoutError, OSError):
                 pass
             tries += 1
@@ -946,7 +977,7 @@ def drive_upload(ctx, path, name, kind, mime, on_progress=None, prop='snbOut', r
                 ctx.event('drive', 'up_retry')
             if tries > 8:
                 ctx.event('drive', 'up_fail')
-                raise SystemExit('✗ ההעלאה ל־Drive נקטעה שוב ושוב.')
+                raise StepError('✗ ההעלאה ל־Drive נקטעה שוב ושוב.', 'store_net')
             time.sleep(min(30, 2 ** tries))
             # אחרי תקלה — שואלים את Drive כמה הגיע
             q = urllib.request.Request(loc, data=b'', method='PUT', headers={'Content-Range': 'bytes */%d' % size, 'User-Agent': UA})
@@ -1237,14 +1268,14 @@ def prepare(args):
     a = files.get('a') if (files.get('a') or {}).get('id') else None
     if a:
         src = in_path(ctx, a, 'a')
-        ctx.report('tr', 0, 'מוריד את הקול מ־Drive', force=True)
-        fetch_input(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול מ־Drive'))
+        ctx.report('tr', 0, 'מוריד את הקול', force=True)
+        fetch_input(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול'))
         src = edl_src(ctx, src, 'a')
     else:
         v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
         src = in_path(ctx, v, 'v')
-        ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
-        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
+        ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
+        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
         ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
         src = edl_src(ctx, src, 'v')
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
@@ -1297,8 +1328,8 @@ def attach_video(ctx):
     והזזת זמני המילים — כך שהיישור, הכתוביות והצריבה על ציר הזמן של הסרטון. היסט לא ודאי → תמלול מחדש מהסרטון."""
     v = wait_video(ctx, 'al', 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, v, 'v')
-    ctx.report('al', 0, 'מוריד את הסרטון מ־Drive', force=True)
-    fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון מ־Drive'))
+    ctx.report('al', 0, 'מוריד את הסרטון', force=True)
+    fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון'))
     ladder_start(ctx, src)                       # איכויות הצפייה — ברקע, במקביל ליישור ולתרגום
     src = edl_src(ctx, src, 'v')
     pd = ctx.pdir
@@ -1958,7 +1989,7 @@ def auto(args):
         if msg in ('', '0', '1', '2'):
             raise
         try:
-            Ctx(load_state()).report(fail=True, err='worker_step', msg=msg[:200], force=True, usage=usage_safe(), trace=trace_safe())
+            Ctx(load_state()).report(fail=True, err=getattr(e, 'err', 'worker_step'), msg=msg[:200], force=True, usage=usage_safe(), trace=trace_safe())
         except (Stop, SystemExit, Exception):     # noqa: BLE001
             pass
         print(msg)
@@ -2149,7 +2180,7 @@ def render(args):
         eds += ['--ov', json.dumps({k: v for k, v in ov.items() if k != 'lg'}, ensure_ascii=False, separators=(',', ':'))]
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
                                 '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
-    ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
+    ctx.report('sv', 0, 'שומרים', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120] + (' — קטע לבדיקה' if spec.get('prv') == 1 else '')   # סבב 10
     out = []
     picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES
@@ -2354,7 +2385,7 @@ def finish(args):
         if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
             flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
-    ctx.report('sv', 0, 'שומרים את התוצרים ב־Drive', force=True)
+    ctx.report('sv', 0, 'שומרים את התוצרים', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     out, total = [], 0
     files = []
@@ -2371,7 +2402,7 @@ def finish(args):
     done = 0
     for k, p, name, mime in files:
         base = done
-        fid = put_output(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
+        fid = put_output_retry(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
     meta_safe(ctx)
@@ -2382,8 +2413,10 @@ def finish(args):
         try:
             fid = put_output(ctx, p, title + suffix, k, mime)
             out.append({'id': fid, 'name': title + suffix, 'size': p.stat().st_size, 'k': k})
-        except Exception as e:   # noqa: BLE001 — קובץ עזר; התוצרים העיקריים כבר עלו
-            print('· ' + p.name + ' לא עלה (' + type(e).__name__ + ') — ממשיכים בלעדיו')
+        except Stop:
+            raise
+        except (SystemExit, Exception) as e:   # noqa: BLE001 — קובץ עזר; התוצרים העיקריים כבר עלו. גם כשל אחסון (SystemExit) לא מפיל
+            print('· ' + p.name + ' לא עלה (' + (str(e).strip()[:80] if isinstance(e, SystemExit) else type(e).__name__) + ') — ממשיכים בלעדיו')
     try:
         q = quality(ctx.pdir / 'out' / 'he.srt', chk_ok=not args.force)   # v374: מדד האיכות (בלי טוקנים)
     except Exception:            # noqa: BLE001 — מידע משני; לא מפיל את סוף העבודה
@@ -2611,7 +2644,7 @@ def restore(args):
     kind = 'a' if info.get('src') == 'a' and (files.get('a') or {}).get('id') else 'v'
     f = files['a'] if kind == 'a' else wait_video(ctx, st_next, 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, f, kind)
-    ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + ' מ־Drive', force=True)
+    ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + '', force=True)
     fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
     if kind == 'v':
         ladder_start(ctx, src)

@@ -5,9 +5,10 @@ const R2 = require(path.join(__dirname, '..', 'ibkr-proxy/lib/r2.js'));
 
 /* ---------- R2 מדומה: תת־קבוצה של S3 + אימות חתימות ---------- */
 const ACC = 'a'.repeat(32), BUCKET = 'snb-studio';
+const COMPRESSIBLE = /^(text\/|application\/(json|javascript|xml|x-subrip)|image\/svg)/i;
 const ENV = { R2_ACCOUNT_ID: ACC, R2_ACCESS_KEY_ID: 'AKTEST', R2_SECRET_ACCESS_KEY: 'sekret/xyz', R2_BUCKET: BUCKET };
 function fakeR2(o = {}) {
-  const S = { objs: new Map(), meta: new Map(), lastPut: new Map(), rate429: !!o.rate429, ups: new Map(), now: Date.UTC(2026, 9, 10, 12), calls: [], fail: o.fail || (() => 0), seq: 0, cors: o.cors !== false };
+  const S = { objs: new Map(), meta: new Map(), lastPut: new Map(), rate429: !!o.rate429, ups: new Map(), now: Date.UTC(2026, 9, 10, 12), calls: [], fail: o.fail || (() => 0), seq: 0, cors: o.cors !== false, squeeze: o.squeeze === undefined ? true : o.squeeze };
   const host = ACC + (o.eu === false ? '' : '.eu') + '.r2.cloudflarestorage.com';
   const resp = (status, body, hd) => new Response(status === 204 || body == null ? null : body, { status, headers: hd || {} });
   const xmlErr = (status, code) => resp(status, '<Error><Code>' + code + '</Code></Error>');
@@ -52,7 +53,7 @@ function fakeR2(o = {}) {
       const ks = [...S.objs.keys()].filter((k) => k.startsWith(pre)).sort();
       return resp(200, '<ListBucketResult>' + ks.map((k) => '<Contents><Key>' + k + '</Key><Size>' + S.objs.get(k).length + '</Size><LastModified>2026-10-10T00:00:00.000Z</LastModified></Contents>').join('') + '<IsTruncated>false</IsTruncated></ListBucketResult>');
     }
-    if (method === 'POST' && q.has('uploads')) { const id = 'up' + (++S.seq); S.ups.set(id, { key, parts: new Map() }); return resp(200, '<InitiateMultipartUploadResult><UploadId>' + id + '</UploadId></InitiateMultipartUploadResult>'); }
+    if (method === 'POST' && q.has('uploads')) { const id = 'up' + (++S.seq); S.ups.set(id, { key, parts: new Map(), type: String(Object.entries(init.headers || {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] || '') }); return resp(200, '<InitiateMultipartUploadResult><UploadId>' + id + '</UploadId></InitiateMultipartUploadResult>'); }
     if (q.has('uploadId')) {
       const up = S.ups.get(q.get('uploadId'));
       if (!up || up.key !== key) return xmlErr(404, 'NoSuchUpload');
@@ -64,7 +65,7 @@ function fakeR2(o = {}) {
         const sizes = want.map(([pn]) => (up.parts.get(pn) || Buffer.alloc(0)).length);
         if (sizes.slice(0, -1).some((s) => s !== sizes[0])) return xmlErr(400, 'InvalidPart');      // R2: אותו גודל לכל החלקים
         for (const [pn, et] of want) { const b = up.parts.get(pn); if (!b || '"' + crypto.createHash('md5').update(b).digest('hex') + '"' !== et) return xmlErr(400, 'InvalidPart'); }
-        S.objs.set(key, Buffer.concat(want.map(([pn]) => up.parts.get(pn)))); S.ups.delete(q.get('uploadId'));
+        S.objs.set(key, Buffer.concat(want.map(([pn]) => up.parts.get(pn)))); S.meta.set(key, { type: up.type, am: {} }); S.ups.delete(q.get('uploadId'));
         return resp(200, '<CompleteMultipartUploadResult><Key>' + key + '</Key></CompleteMultipartUploadResult>');
       }
     }
@@ -91,7 +92,12 @@ function fakeR2(o = {}) {
       if (hdl['x-amz-copy-source']) return resp(200, '<CopyObjectResult><ETag>&quot;' + md5(b) + '&quot;</ETag></CopyObjectResult>');
       return resp(200, '', { etag: '"' + md5(b) + '"' });
     }
-    if (method === 'HEAD') { const b = S.objs.get(key); return b ? resp(200, null, Object.assign({ 'content-length': String(b.length), etag: '"' + md5(b) + '"' }, metaHd(key))) : resp(404); }
+    if (method === 'HEAD') {
+      const b = S.objs.get(key); if (!b) return resp(404);
+      // כמו R2 האמיתי (11/10/2026, r2_size): סוג "דחיס" (JSON / טקסט) ובקשה שמקבלת gzip — Cloudflare מוחק את Content-Length
+      const squeeze = S.squeeze && COMPRESSIBLE.test(metaOf(key).type || '') && (S.squeeze === 'always' || !/^identity$/i.test(String(hdl['accept-encoding'] || '')));
+      return resp(200, null, Object.assign(squeeze ? { 'content-encoding': 'gzip' } : { 'content-length': String(b.length) }, { etag: '"' + md5(b) + '"' }, metaHd(key)));
+    }
     if (method === 'DELETE') { S.objs.delete(key); S.meta.delete(key); return resp(204); }
     if (method === 'GET') {
       const b = S.objs.get(key); if (!b) return xmlErr(404, 'NoSuchKey');

@@ -256,6 +256,88 @@ class TestJobRouting(unittest.TestCase):
         self.assertIn('r2_off', str(e.exception))
         self.assertEqual(ctx.events[-1], ('drive', 'dl_fail'))
 
+    def test_store_codes(self):
+        """11/10/2026 (r2_size בעבודה אמיתית): כשל אחסון מדווח בקוד משלו — store_net חולף, store_fail קבוע"""
+        J = self.job
+        self.assertEqual(J.store_err('r2_up_net'), 'store_net')
+        self.assertEqual(J.store_err('r2_dl_net'), 'store_net')
+        self.assertEqual(J.store_err('r2_gone'), 'store_net')
+        for c in ('r2_size', 'r2_up_400', 'too_big', 'bad_id', 'r2_off'):
+            self.assertEqual(J.store_err(c), 'store_fail', c)
+        ctx = self.Ctx('R2_j' + 'A' * 20, self.r)
+        ctx.c.raw = lambda op, **kw: {'ok': False, 'error': 'r2_size'}
+        p = self.d / 'cues.json'
+        p.write_bytes(b'{}')
+        with self.assertRaises(J.StepError) as e:
+            J.put_output(ctx, p, 'cues.json', 'cues', 'application/json')
+        self.assertEqual(e.exception.err, 'store_fail')
+        self.assertIn('r2_size', str(e.exception))
+        self.assertIsInstance(e.exception, SystemExit, 'עדיין SystemExit — מי שתופס SystemExit (נקודות שמירה, איכויות) לא משתנה')
+
+    def test_auto_reports_step_code(self):
+        """auto(): כשל אחסון מדווח בקוד שלו (store_fail / store_net) והסיבה — לא worker_step"""
+        J = self.job
+        import pipeline
+        got = []
+
+        class FakeCtx:
+            def __init__(s, st):
+                pass
+
+            def report(s, **k):
+                got.append(k)
+        old = (J.Ctx, J.load_state, pipeline.run_auto, J.usage_safe, J.trace_safe)
+        try:
+            J.Ctx, J.load_state = FakeCtx, (lambda: {})
+            J.usage_safe = J.trace_safe = lambda: None
+
+            def boom(*a, **k):
+                raise J.StepError('✗ ההעלאה לאחסון נכשלה (r2_size).', 'store_fail')
+            pipeline.run_auto = boom
+            self.assertEqual(J.auto(None), 1)
+            self.assertEqual(got[-1]['err'], 'store_fail')
+            self.assertIn('r2_size', got[-1]['msg'])
+
+            def boom2(*a, **k):
+                raise SystemExit('✗ השרתון לא עונה (x)')
+            pipeline.run_auto = boom2
+            self.assertEqual(J.auto(None), 1)
+            self.assertEqual(got[-1]['err'], 'worker_step', 'כשל כללי — כמו קודם')
+        finally:
+            J.Ctx, J.load_state, pipeline.run_auto, J.usage_safe, J.trace_safe = old
+
+    def test_put_output_retry(self):
+        """התוצרים כבר נצרבו: ניתוק (store_net) — עוד ניסיון על אותו קובץ; דחייה (store_fail) — מיד"""
+        J = self.job
+        old_put, old_wait = J.put_output, J.PUT_RETRY_WAIT
+        reports = []
+        ctx = self.Ctx('R2_j' + 'A' * 20, self.r)
+        ctx.report = lambda *a, **k: reports.append(a)
+        p = self.d / 'out.mp4'
+        p.write_bytes(b'x')
+        try:
+            J.PUT_RETRY_WAIT = (0, 0)
+            seq = [J.StepError('net', 'store_net'), J.StepError('net', 'store_net'), 'IDOK']
+
+            def put(*a, **k):
+                x = seq.pop(0)
+                if isinstance(x, BaseException):
+                    raise x
+                return x
+            J.put_output = put
+            self.assertEqual(J.put_output_retry(ctx, p, 'out.mp4', 'same', 'video/mp4'), 'IDOK')
+            self.assertEqual(len(reports), 2, 'שורת מצב בטלפון בכל ניסיון חוזר')
+            seq[:] = [J.StepError('net', 'store_net')] * 3
+            with self.assertRaises(J.StepError):
+                J.put_output_retry(ctx, p, 'out.mp4', 'same', 'video/mp4')
+            self.assertEqual(seq, [], 'שלושה ניסיונות ואז מוותרים')
+            seq[:] = [J.StepError('bad', 'store_fail'), 'NEVER']
+            with self.assertRaises(J.StepError):
+                J.put_output_retry(ctx, p, 'out.mp4', 'same', 'video/mp4')
+            self.assertEqual(seq, ['NEVER'], 'כשל קבוע — בלי ניסיון נוסף')
+        finally:
+            J.put_output, J.PUT_RETRY_WAIT = old_put, old_wait
+
 
 if __name__ == '__main__':
     unittest.main()

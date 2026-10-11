@@ -108,6 +108,7 @@ class Fake:
         self.kind, self.spec, self.video_after = 'tr', {'name': 'Interview_2026.mp4', 'size': len(VIDEO), 'to': ['he'], 'from': 'auto',
                                                          'mode': 'opus-medium', 'out': ['compact'], 'dur': 4620}, 0
         self.claims, self.cut_once, self.upload_drop, self.audio = 0, True, True, True
+        self.up_reject = set()
         self.qa, self.answer, self.answer_after, self.ask_polls, self.ask_limit = None, None, 1, 0, False
         self.ck, self.corrupt, self.deleted = [], set(), []          # v361: נקודות שמירה (מה שהשרתון מחזיר בלקיחה)
         self.stop_all = False                                         # v362: העבודה בוטלה — כל קריאה מקבלת "עצור"
@@ -143,6 +144,8 @@ class Fake:
                     if self.headers.get('Authorization') != 'Bearer ' + TOKEN:
                         return self._send(401)
                     meta = json.loads(data)
+                    if ((meta.get('appProperties') or {}).get('snbOut') or '') in fake.up_reject:   # 11/10: האחסון דוחה קובץ (כמו r2_size)
+                        return self._send(400)
                     uid = 'up%04d' % len(fake.uploads)
                     fake.uploads[uid] = {'meta': meta, 'data': b'', 'size': int(self.headers.get('X-Upload-Content-Length'))}
                     return self._send(200, {}, {'Location': 'http://127.0.0.1:%d/session/%s' % (fake.port, uid)})
@@ -1331,6 +1334,35 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(len(tl), 1, 'מאוחדים לפי סוג ומודל')
         self.assertEqual(tl[0]['n'], 14)
         self.assertEqual(tl[0]['op'], 7 * 120000)
+
+    def test_finish_aux_reject_not_fatal(self):
+        """11/10/2026 (עבודה אמיתית: r2_size על קובץ עזר, ו־SystemExit לא נתפס) — קובץ עזר שנדחה לא מפיל את סוף העבודה"""
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        W = self.tmp / 'work' / SLUG
+        (W / 'out').mkdir(parents=True, exist_ok=True)
+        (W / 'out' / 'cues.final.json').write_text('{"cues": []}')
+        self.fake.up_reject = {'cues'}
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertIn('cues.final.json לא עלה', out)
+        done = self.fake.reports[-1]
+        self.assertTrue(done.get('done'))
+        self.assertNotIn('cues', [o['k'] for o in done['out']])
+
+    def test_finish_main_reject_reports_code(self):
+        """תוצר עיקרי שנדחה — כשל עם הסיבה, בלי ניסיונות חוזרים מיותרים (הקוד store_fail — test_store)"""
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.fake.up_reject = {'srt'}
+        n0 = len(self.fake.uploads)
+        code, out = self.job('finish', env={'SNB_PUT_RETRY': '0,0'})
+        self.assertNotEqual(code, 0, out)
+        self.assertIn('העלאה ל־Drive נכשלה (400)', out)
+        self.assertNotIn('מנסים שוב', out, 'דחייה (4xx) — בלי ניסיון נוסף')
+        self.assertFalse(any(r.get('done') for r in self.fake.reports))
 
     def test_finish_and_fail_send_usage(self):
         self.logs()

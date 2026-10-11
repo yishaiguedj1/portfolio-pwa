@@ -940,6 +940,8 @@ function errText(code, extra) {
     case 'model_refusal': return T('studioErrRefusal');
     case 'check_errors': return T('studioErrChecks');
     case 'max_tokens': return T('studioErrMaxTok');   // 11/10/2026
+    case 'store_net': return T('studioErrStoreNet');   // 11/10/2026: האחסון (R2 / Drive) — ניתוק / חסימה
+    case 'store_fail': return T('studioErrStoreFail');
     case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
@@ -1703,7 +1705,15 @@ function workerMsg(rec, ph) {
   const m = rec && rec.srv && rec.srv.prog && rec.srv.prog.msg;
   return (ph === 'failed' || ph === 'stuck' || ph === 'cancelled') && typeof m === 'string' && m.trim() ? m.trim().slice(0, 240) : '';
 }
+/* 11/10/2026: כשל כללי של שלב בכלים (worker_step / store_*) — הכרטיס מציג את מה שהעובד כתב ("ההעלאה לאחסון נכשלה (r2_size)")
+   ולא "משהו השתבש (worker_step)"; אז השורה בפרטים הטכניים מיותרת (בלי כפילות) */
+const MSG_CODES = ['worker_step', 'worker', 'store_fail', 'store_net'];
+function cardMsg(rec, ph) {
+  const m = workerMsg(rec, ph);
+  return m && MSG_CODES.includes(rec.srv && rec.srv.err) ? m.replace(/^[\s\u2717\u00b7]+/, '') : '';
+}
 function workerMsgRow(rec, ph) {
+  if (cardMsg(rec, ph)) return null;
   const m = workerMsg(rec, ph);
   if (!m) return null;
   const v = h('span'); v.dir = 'auto'; v.textContent = m;
@@ -1920,7 +1930,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'queued') return rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
-  if (ph === 'failed') return recovering(rec) ? T('studioRecLine') : errText(rec.srv && rec.srv.err);
+  if (ph === 'failed') return recovering(rec) ? T('studioRecLine') : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
   if (ph === 'stuck') return T('studioNowStuck');
   return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
 }
@@ -2147,7 +2157,9 @@ function startFromForm() {
   const f = form;
   if (!f || !(f.fileObj || f.drive) || ui.starting) return;
   if (ui.access === 'signin' || ui.access === 'denied') { flashSafe(ui.access === 'signin' ? T('studioErrSignin') : T('studioErrDenied')); return; }
-  if (!store.drive || !store.drive.connected) {
+  // 11/10/2026: במצב השרת עם R2 הקבצים לא עוברים דרך Drive — חיבור Drive נדרש רק למקור מ־Drive / Routine
+  const needDrive = !((apiMode() || cpMode()) && ui.r2 && !f.drive);
+  if (needDrive && (!store.drive || !store.drive.connected)) {
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
     else connectDrive();
     return;
@@ -2533,7 +2545,7 @@ function towerStopCard(rec) {
 function opsComp(c) {
   switch (c) {
     case 'phone': return T('studioCmpPhone');
-    case 'drive': return 'Drive';
+    case 'drive': return T('studioCmpStore');   // 11/10/2026: R2 או Drive — "אחסון"
     case 'server': return T('studioCmpServer');
     case 'routine': return 'Routine';
     case 'claude': return 'Claude';
@@ -2823,7 +2835,8 @@ function incTitle(e) {
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioIncApiKey');
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');
-    case 'net': case 'drive': case 'drive_net': return T('studioIncNet');
+    case 'net': case 'drive': case 'drive_net': case 'store_net': return T('studioIncNet');
+    case 'store_fail': return T('studioErrStoreFail');   // 11/10/2026
     case 'upload_timeout': return T('studioIncUpload');
     case 'lang_unsupported': return T('studioIncLang');
     case 'max_tokens': return T('studioIncMaxTok');
@@ -5028,7 +5041,7 @@ function pageJob(p) {
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
     canPick() && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? rowNav({ tile: tile('cloud', 'green'), label: dxBusy === rec.id ? T('studioDxBusy') : T('studioDxT'),
       sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
-    jobFolder(rec) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
+    jobFolder(rec) && !isR2Folder(jobFolder(rec)) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
     const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
     if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
@@ -5138,7 +5151,7 @@ function pageJob(p) {
   ];
   const links = h('div', 'st-wacts');
   if (!outs.length) for (const o of (rec.srv && rec.srv.out) || []) links.append(extLink('st-wbtn', 'https://drive.google.com/file/d/' + o.id + '/view', outShort(o.k) + (o.size ? ' · ' + fmtSize(o.size) : ''), 'out', 'out:' + o.k));
-  if (rec.up.folder && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
+  if (rec.up.folder && !isR2Folder(rec.up.folder) && !outs.length) links.append(extLink('st-wbtn', 'https://drive.google.com/drive/folders/' + rec.up.folder, T('studioOpenDrive'), 'out', 'drive-folder'));
   if (rec.srv && rec.srv.sess) links.append(extLink('st-wbtn', rec.srv.sess.url, T('studioOpenSess'), 'out', 'session'));
   if (ph0 === 'done' && rec.srv) links.append(btn('st-wbtn', T('studioBenchCopy'), () => copyText(JSON.stringify(benchData(rec)), T('studioBenchCopied')), 'bench-copy'));   // מאגר המדידות
   det.append(sum, list(...rows), links);
@@ -5162,7 +5175,7 @@ function pageJob(p) {
         save(); repaint();
       }
     };
-    if (typeof askConfirm === 'function') askConfirm(removing ? T('studioJobDelQ') : T('studioJobCancelQ'), doIt, { danger: true, ok: removing ? T('studioDeleteOk') : T('studioJobCancelOk') });
+    if (typeof askConfirm === 'function') askConfirm(removing ? (isR2Folder(jobFolder(rec)) ? T('studioJobDelQR2') : T('studioJobDelQ')) : T('studioJobCancelQ'), doIt, { danger: true, ok: removing ? T('studioDeleteOk') : T('studioJobCancelOk') });
     else doIt();
   }, 'job-del');
   p.append(h('div', 'st-gap'), del);
