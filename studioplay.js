@@ -216,6 +216,23 @@ function ib(cls, k, label, fn) {
   return b;
 }
 
+/* סבב 5: עיצוב הכתוביות (מעל הסגנון שנבחר — מודגש / קלאסי). **זהה ל־normSty בשרתון ול־norm_sty ב־rerender.py**.
+   k = גודל באחוזים (70–150, צעד 10), c = צבע (w לבן, y צהוב, c תכלת), bx = רקע כהה מאחורי הטקסט, y = הרמה מהתחתית (0–40% מהגובה).
+   רק מה ששונה מברירת המחדל נשמר; הכל ברירת מחדל — null */
+export const STY_COLORS = { w: '#FFFFFF', y: '#FFE14D', c: '#7FE7FF' };
+export const STY_K = [70, 150], STY_Y = 40;
+export function normSty(o) {
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  const k = Math.round(Number(o.k) / 10) * 10;
+  if (Number.isFinite(k) && k >= STY_K[0] && k <= STY_K[1] && k !== 100) out.k = k;
+  if (typeof o.c === 'string' && o.c in STY_COLORS && o.c !== 'w') out.c = o.c;
+  if (o.bx === true || o.bx === 1) out.bx = 1;
+  const y = Math.round(Number(o.y));
+  if (Number.isFinite(y) && y > 0 && y <= STY_Y) out.y = y;
+  return Object.keys(out).length ? out : null;
+}
+
 /* opts: { src, fallback, cues, issues, chapters, T, burned } — fallback = כתובת לסרטון הצרוב אם המקור לא מתנגן (אז בלי כתוביות מעליו).
    מחזיר { el, video, seek, play, pause, setCues, setChapters, destroy }. el יציב — studio.js משאיר אותו בין ציורים (וידאו שמוצא מהמסמך נעצר) */
 export function createPlayer(opts) {
@@ -417,7 +434,7 @@ export function createPlayer(opts) {
     const c = cues[i];
     const lines = cc === 'en' ? (c.en ? [c.en] : []) : c.lines;
     sub.dir = cc === 'en' ? 'ltr' : 'rtl';
-    for (const x of lines) { const d = el('div', null, x); sub.append(d); }
+    for (const x of lines) { const d = el('div'); d.append(el('span', null, x)); sub.append(d); }   // span — הרקע של "עם רקע" לפי אורך השורה
   }
   function paintBar() {
     const d = v.duration || 0, t = v.currentTime || 0, f = d > 0 ? Math.min(1, t / d) : 0;
@@ -521,6 +538,14 @@ export function createPlayer(opts) {
     play() { const p = v.play(); if (p && p.catch) p.catch(() => {}); },
     pause() { v.pause(); },
     setCues(c, iss) { cues = c || []; issues = iss || issuesList(cues); shown = -2; paintSub(); paintHeat(); },
+    /* סבב 5: תצוגה של העיצוב (גודל, צבע, רקע, גובה) — כמו שהצריבה תצא, בקירוב */
+    setStyle(o) {
+      const st = normSty(o) || {};
+      wrap.style.setProperty('--sub-k', String((st.k || 100) / 100));
+      wrap.style.setProperty('--sub-c', STY_COLORS[st.c || 'w']);
+      wrap.style.setProperty('--sub-lift', (st.y || 0) + '%');
+      wrap.classList.toggle('boxed', !!st.bx);
+    },
     setChapters(c) { chs = normChapters(c); chNow = -2; paintChap(); paintMarks(); if (!menu.hidden && menu.dataset.p === 'c') openMenu('c'); },
     chapters: () => chs.slice(),   // QA ובדיקות
     quality: () => ({ mode, pq, levels: levels.map(qLabel), now: qNow() }),   // QA ובדיקות

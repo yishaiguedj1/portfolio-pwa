@@ -12,7 +12,7 @@ import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, pla
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
-import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters } from './studioplay.js';
+import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, termIssues, flagIndex } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
@@ -93,6 +93,7 @@ export function normSettings(o) {
   if (CAPS.includes(o.cap)) s.cap = o.cap;
   s.pq = normPq(o.pq);
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
+  const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
   return s;
 }
 /* מצב "API של המערכת" מהשרתון (status): התקציב החודשי, כמה שרתים מחוברים, והאם אתה המנהל */
@@ -1394,7 +1395,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1404,6 +1405,7 @@ function leaving() {              // יציאה מדף: המפתח שהודבק 
   if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
+  if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty / ההגדרות)
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
@@ -4239,6 +4241,7 @@ function pageSubs(p) {
     }
   }
   if (aiPreset && aiPreset.id === rec.id) queueMicrotask(() => { if (ui.view === 'subs' && aiPreset) go('ai', rec.id); });   // סבב 2
+  if (seOnly === rec.id && se.ed) { seOnly = ''; se.ed.showOnly(true); }   // סבב 4: העורך כבר טעון — רק "לבדיקה"
   const top = h('div', 'st-se-top');
   if (se.ctl) top.append(se.ctl.el); else top.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
   p.append(top, se.ed.el);
@@ -4370,7 +4373,7 @@ async function rrStart(rec) {
   if (!out.length) { flashSafe(T('studioRrPick')); return; }
   rrBusy = true; repaint();
   try {
-    const j = await net.api('rerender', { job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl: rrEdl.get(rec.id) || null });
+    const j = await net.api('rerender', { job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl: rrEdl.get(rec.id) || null, sty: rrSty() });
     if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
     const x = normJob({ id: j.job.id, srv: j.job });
     if (x) rrJobs.set(rec.id, x);
@@ -4380,6 +4383,67 @@ async function rrStart(rec) {
   } catch (e) {
     flashSafe(errText((e && e.code) || 'net'));
   } finally { rrBusy = false; repaint(); schedulePoll(); }
+}
+/* ---------- סבב 5: עיצוב הכתוביות (גודל, צבע, רקע, גובה) — תצוגה חיה על הסרטון, ואותה הגדרה בצריבה ---------- */
+const rrSty = () => normSty(rrOpt.sty !== undefined ? rrOpt.sty : store.settings.sty);
+function stySum(st) {
+  if (!st) return T('studioStyDef');
+  const parts = [];
+  if (st.k) parts.push('\u2066' + st.k + '%\u2069');
+  if (st.c) parts.push(styColName(st.c));
+  if (st.bx) parts.push(T('studioStyBox'));
+  if (st.y) parts.push(T('studioStyLifted'));
+  return parts.join(' · ');
+}
+function styColName(c) { return c === 'y' ? T('studioStyYellow') : c === 'c' ? T('studioStyCyan') : T('studioStyWhite'); }
+let sy = null;   // { key, ctl, cues } — הנגן של דף העיצוב (נשאר בין ציורים)
+function syStop() { if (sy && sy.ctl) sy.ctl.destroy(); sy = null; }
+function syPeek(me) {   // עוצרים על כתובית של שתי שורות (או הארוכה) — רואים את העיצוב בלי לנגן
+  const cs = me.cues || [];
+  if (!cs.length || !me.ctl) return;
+  const c = cs.find((x) => x.lines.length >= 2) || cs.reduce((a, b) => (b.lines.join('').length > a.lines.join('').length ? b : a), cs[0]);
+  const go = () => { try { me.ctl.pause(); me.ctl.seek((c.s + c.e) / 2); } catch (e) {} };
+  if (me.ctl.video.readyState >= 1) go(); else me.ctl.video.addEventListener('loadedmetadata', go, { once: true });
+}
+function stySet(patch) {
+  const next = normSty(Object.assign({}, rrSty() || {}, patch));
+  rrOpt.sty = next;
+  store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ההגדרה האחרונה = ברירת המחדל להפקה הבאה
+  if (sy && sy.ctl) sy.ctl.setStyle(next);
+  render('none');
+}
+function pageSty(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  p.append(navBar({ back: T('studioRrTitle'), title: T('studioStyT') }));
+  if (!sy || sy.key !== rec.id) {
+    syStop();
+    sy = { key: rec.id, ctl: null, cues: se && se.id === rec.id && se.ed ? se.ed.cues() : null };
+    const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
+    if (src) sy.ctl = createPlayer({ src, cues: sy.cues || [], T, pq: store.settings.pq });
+    const me = sy, co = outOf(rec, 'cues');
+    if (!me.cues && co) net.driveJson(co.id).then((j) => { if (sy === me) { me.cues = normCues(j); if (me.ctl) { me.ctl.setCues(me.cues); syPeek(me); } } }, () => {});
+    else syPeek(me);
+  }
+  const st = rrSty() || {};
+  if (sy.ctl) { sy.ctl.setStyle(st); const top = h('div', 'st-se-top'); top.append(sy.ctl.el); p.append(top); }
+  else p.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
+  const chipRow = (items) => { const r = h('div', 'st-chips st-sty-row'); r.append(...items); return r; };
+  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
+  const k = st.k || 100, sizes = [80, 90, 100, 120, 140].concat(st.k && ![80, 90, 100, 120, 140].includes(st.k) ? [st.k] : []).sort((a, b) => a - b);   // שורה אחת (מינימליזם)
+  p.append(secT(T('studioStySize')), chipRow(sizes.map((x) => chip('\u2066' + x + '%\u2069', x === k, () => stySet({ k: x }), 'sty-k:' + x))));
+  p.append(secT(T('studioStyColor')), chipRow(Object.keys(STY_COLORS).map((c) => {
+    const b = chip('', (st.c || 'w') === c, () => stySet({ c }), 'sty-c:' + c);
+    const dot = h('span', 'st-sty-dot'); dot.style.background = STY_COLORS[c];
+    b.append(dot, document.createTextNode(styColName(c)));
+    return b;
+  })));
+  p.append(list(rowSwitch({ label: T('studioStyBox'), sub: T('studioStyBoxS'), on: !!st.bx, onClick: () => stySet({ bx: !st.bx }), k: 'sty-bx' })));
+  const ys = [0, 10, 20, 30, STY_Y];
+  p.append(secT(T('studioStyHeight')), chipRow(ys.map((y) => chip(y ? '\u2066+' + y + '%\u2069' : T('studioStyBottom'), (st.y || 0) === y, () => stySet({ y }), 'sty-y:' + y))));
+  if (rrSty()) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; delete store.settings.sty; save(); if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
+  p.append(note(T('studioStyNote')));
 }
 function pageRr(p) {
   const rec = jobRec(ui.param);
@@ -4402,7 +4466,8 @@ function pageRr(p) {
   p.append(secT(T('studioRrOuts')), list(...RR_OUTS.map((k) => rowCheck({ label: outName(k), sub: k === 'small' ? T('studioRrSmallSub') : outSub(k), on: !!rrOpt.out[k],
     onClick: () => { rrOpt.out[k] = !rrOpt.out[k]; repaint(); }, k: 'rr-o:' + k }))));
   const cur = rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold');
-  p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k }))));
+  p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k })),
+    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty()), onClick: () => go('sty', rec.id), k: 'rr-sty' })));   // סבב 5
   if (dirty) p.append(note(T('studioRrDirty')));
   p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
   p.append(note(T('studioRrNote')));
@@ -5322,6 +5387,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'subs') pageSubs(p);   // מ2: עורך הכתוביות
   else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
   else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
+  else if (ui.view === 'sty') pageSty(p);            // סבב 5: עיצוב הכתוביות
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
   else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך

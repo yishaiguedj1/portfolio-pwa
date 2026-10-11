@@ -2087,6 +2087,8 @@ def render(args):
         e = E.norm_edl(spec.get(k))
         if e:
             eds += ['--' + k, json.dumps(e, separators=(',', ':'))]
+    if isinstance(spec.get('sty'), dict):        # סבב 5: עיצוב הכתוביות (rerender.py מנרמל שוב — מספרים וקודים בלבד)
+        eds += ['--sty', json.dumps(spec['sty'], separators=(',', ':'))]
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
                                 '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
     ctx.report('sv', 0, 'שומרים ב־Drive', force=True)

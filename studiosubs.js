@@ -518,6 +518,8 @@ export function createSubsEditor(opts) {
       if (playing && sel < 0 && n) scrollTo(k);
     },
     select(k) { choose(k); },
+    /* סבב 4: "רק בעיות" מבחוץ (ההצעה "לבדיקה שלך" כשהעורך כבר טעון) */
+    showOnly(on) { if (only === !!on) return; only = !!on; sel = -1; paintBar(); paintList(); },
     selected: () => sel,
     /* מ7: שינויים מגיליון ה־AI — צעד ביטול אחד */
     applyCues(next) { return apply(next, null); },

@@ -622,6 +622,19 @@ function cuesSwap(job, c, s, now) {
   const vh = (Array.isArray(job.vh) ? job.vh : []).concat(old.c ? [old] : []).slice(-VH_MAX);
   return { fo, vh, ev: (job.ev || 0) + 1 };
 }
+/* סבב 5: עיצוב הכתוביות בהפקה מחדש — **זהה ל־normSty בטלפון (studioplay.js) ול־norm_sty ב־rerender.py** */
+const STY_COLORS = ['w', 'y', 'c'];
+function normSty(o) {
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  const k = Math.round(Number(o.k) / 10) * 10;
+  if (Number.isFinite(k) && k >= 70 && k <= 150 && k !== 100) out.k = k;
+  if (typeof o.c === 'string' && STY_COLORS.includes(o.c) && o.c !== 'w') out.c = o.c;
+  if (o.bx === true || o.bx === 1) out.bx = 1;
+  const y = Math.round(Number(o.y));
+  if (Number.isFinite(y) && y > 0 && y <= 40) out.y = y;
+  return Object.keys(out).length ? out : null;
+}
 function rrSpec(parent, body) {
   const out = uniq(Array.isArray(body && body.out) ? body.out : [], (k) => RR_OUTS.includes(k));
   const sp = parent.spec || {};
@@ -629,6 +642,7 @@ function rrSpec(parent, body) {
     out: out.length ? out : ['compact'], style: STYLES.includes(body && body.style) ? body.style : STYLES.includes(sp.style) ? sp.style : STYLES[0], terms: '',
     ...(edlPre(normEdl(sp.edl)) ? { edl0: edlPre(normEdl(sp.edl)) } : {}),                     // מ5: החיתוך שלפני התרגום (המקור → הכתוביות)
     ...(normEdl(body && body.edl, sp.dur) ? { edl: normEdl(body.edl, sp.dur) } : {}),   // מ5: חיתוך אחרי התרגום (על ציר הזמן של הכתוביות)
+    ...(normSty(body && body.sty) ? { sty: normSty(body.sty) } : {}),                  // סבב 5: עיצוב הכתוביות
     ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) };   // באותו מנוע כמו המקור; במצב השרת — בלי טוקנים, התקרה המינימלית
 }
 function rrJob(parent, body, id, uid, now) {
@@ -918,7 +932,7 @@ module.exports = { JSON_FIELDS,
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normGl, glClean, normNoteText, noteView, NOTE_MAX,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,

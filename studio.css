@@ -589,7 +589,7 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-page.st-dark { color-scheme: dark; --bg: #000; --surface: #1C1C1E; --st-card: #1C1C1E; --on-surface: #F5F5F7; --on-surface-var: #98989D;
   --card-border: rgba(255, 255, 255, .12); --search-fill: rgba(118, 118, 128, .24); --st-ter: #636366; color: #F5F5F7; }
 .st-pl { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; user-select: none; -webkit-user-select: none;
-  touch-action: manipulation; container-type: inline-size; }
+  touch-action: manipulation; container-type: inline-size; --sub-k: 1; --sub-c: #fff; --sub-lift: 0%; }   /* סבב 5: עיצוב הכתוביות (setStyle) */
 .st-pl-v { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .st-pl-sub { position: absolute; inset-inline: 4%; bottom: 8%; text-align: center; color: #fff; pointer-events: none; z-index: 2;
   font-family: "Arimo", "Noto Sans Hebrew", Arial, sans-serif; font-weight: 700; font-size: clamp(13px, 4.2cqw, 26px); line-height: 1.24;
@@ -597,8 +597,15 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-pl:fullscreen .st-pl-sub { font-size: clamp(18px, 3.4cqw, 44px); }
 .st-pl-ui { position: absolute; inset: 0; z-index: 3; background: rgba(0, 0, 0, .38); transition: opacity .2s ease; }
 .st-pl.hide .st-pl-ui { opacity: 0; pointer-events: none; }
-.st-pl:not(.hide) .st-pl-sub { bottom: 24%; }
-.st-pl.hide .st-pl-sub { bottom: 6%; }
+.st-pl:not(.hide) .st-pl-sub { bottom: calc(24% + var(--sub-lift, 0%)); }
+.st-pl.hide .st-pl-sub { bottom: calc(6% + var(--sub-lift, 0%)); }
+/* סבב 5: עיצוב הכתוביות — גודל, צבע, רקע (תצוגה מקדימה של הצריבה) */
+.st-pl-sub { color: var(--sub-c, #fff); }
+.st-pl-sub > div { font-size: calc(1em * var(--sub-k, 1)); }
+.st-pl.boxed .st-pl-sub { text-shadow: none; }
+.st-sty-row { padding-top: 4px; }
+.st-sty-dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.st-pl.boxed .st-pl-sub span { background: rgba(0, 0, 0, .62); padding: 0 .3em; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .st-pl-sub { transition: bottom .2s ease; }
 .st-pl-top { position: absolute; top: 6px; inset-inline-end: 6px; display: flex; gap: 2px; align-items: center; }
 .st-pl-mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 42px; pointer-events: none; }
