@@ -131,7 +131,49 @@ async function head(c, deps, key) {
   const r = await raw(c, deps, { method: 'HEAD', key });
   if (r.status === 404) return null;
   if (r.status !== 200) await fail(r, 'head');
-  return { size: Number(r.headers.get('content-length') || 0), etag: String(r.headers.get('etag') || '').replace(/"/g, ''), type: String(r.headers.get('content-type') || '').slice(0, 80) };
+  return { size: Number(r.headers.get('content-length') || 0), etag: String(r.headers.get('etag') || '').replace(/"/g, ''), type: String(r.headers.get('content-type') || '').slice(0, 80),
+    v: String(r.headers.get('x-amz-meta-v') || '').slice(0, 20) };
+}
+/* מנהל הספרייה (ס׳1): כתיבה מותנית — ifMatch = ה־ETag שקראנו (אף אחד לא כתב בינתיים), ifNoneMatch '*' = רק אם לא קיים.
+   לא זורק על 412 (מישהו הקדים) / 429 (כתיבה אחת בשנייה לאותו מפתח) — הקורא מחליט אם לנסות שוב. meta = x-amz-meta-* */
+async function putCond(c, deps, key, body, o = {}) {
+  if (!okKey(key)) throw new Error('bad_key');
+  const headers = { 'content-type': o.type || 'application/octet-stream' };
+  if (o.ifMatch) headers['if-match'] = '"' + String(o.ifMatch).replace(/"/g, '') + '"';
+  if (o.ifNoneMatch) headers['if-none-match'] = o.ifNoneMatch;
+  for (const k of Object.keys(o.meta || {})) if (/^[a-z0-9-]{1,20}$/.test(k)) headers['x-amz-meta-' + k] = String(o.meta[k]).replace(/[^\x20-\x7e]/g, '').slice(0, 200);
+  const r = await raw(c, deps, { method: 'PUT', key, body, headers });
+  if (r.status === 412 || r.status === 429) return { status: r.status };
+  if (r.status !== 200) await fail(r, 'put');
+  return { status: 200, etag: String(r.headers.get('etag') || '').replace(/"/g, '') };
+}
+/* קריאה מותנית: etag שכבר יש לנו → 304 בלי גוף. מחזיר { status: 200|304|404, buf, etag, v } */
+async function getCond(c, deps, key, max = 8 * 1024 * 1024, etag = '') {
+  if (!okKey(key)) throw new Error('bad_key');
+  const r = await raw(c, deps, { method: 'GET', key, headers: etag ? { 'if-none-match': '"' + String(etag).replace(/"/g, '') + '"' } : {} });
+  if (r.status === 304) return { status: 304, etag };
+  if (r.status === 404) return { status: 404 };
+  if (r.status !== 200) await fail(r, 'get');
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length > max) throw new Error('r2_too_large');
+  return { status: 200, buf, etag: String(r.headers.get('etag') || '').replace(/"/g, ''), v: String(r.headers.get('x-amz-meta-v') || '').slice(0, 20) };
+}
+/* טווח בתים (זיהוי סוג הקובץ לפי 64KB ראשונים) */
+async function getRange(c, deps, key, start, end) {
+  if (!okKey(key)) throw new Error('bad_key');
+  const r = await raw(c, deps, { method: 'GET', key, headers: { range: 'bytes=' + Math.max(0, start | 0) + '-' + Math.max(0, end | 0) } });
+  if (r.status === 404) return null;
+  if (r.status !== 206 && r.status !== 200) await fail(r, 'range');
+  return Buffer.from(await r.arrayBuffer());
+}
+/* העתקה בתוך הדלי (CopyObject) — מהקובץ הזמני לנתיב הקבוע, עם סוג תוכן חדש. מחזיר את ה־ETag */
+async function copy(c, deps, src, dst, type) {
+  if (!okKey(src) || !okKey(dst)) throw new Error('bad_key');
+  const r = await raw(c, deps, { method: 'PUT', key: dst, headers: { 'x-amz-copy-source': '/' + c.bucket + '/' + enc(src, true),
+    'x-amz-metadata-directive': 'REPLACE', 'content-type': type || 'application/octet-stream' } });
+  if (r.status !== 200) await fail(r, 'copy');
+  const x = await r.text().catch(() => '');
+  return unx(tag(x, 'ETag')).replace(/"/g, '');
 }
 async function del(c, deps, key) {
   if (!okKey(key)) throw new Error('bad_key');
@@ -261,5 +303,5 @@ async function health(c, deps, origin) {
   }
 }
 
-module.exports = { sign, config, okKey, locate, presign, head, del, list, getText, putText, getBuf, putBuf, mpCreate, mpList, mpPartUrl, mpComplete, mpAbort,
+module.exports = { sign, config, okKey, locate, presign, head, putCond, getCond, getRange, copy, del, list, getText, putText, getBuf, putBuf, mpCreate, mpList, mpPartUrl, mpComplete, mpAbort,
   partSize, partsOf, partsCheck, health, PART_MIN, MIB, _reset: () => _where.clear() };

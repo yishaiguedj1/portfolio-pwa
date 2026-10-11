@@ -7,7 +7,7 @@ const R2 = require(path.join(__dirname, '..', 'ibkr-proxy/lib/r2.js'));
 const ACC = 'a'.repeat(32), BUCKET = 'snb-studio';
 const ENV = { R2_ACCOUNT_ID: ACC, R2_ACCESS_KEY_ID: 'AKTEST', R2_SECRET_ACCESS_KEY: 'sekret/xyz', R2_BUCKET: BUCKET };
 function fakeR2(o = {}) {
-  const S = { objs: new Map(), ups: new Map(), now: Date.UTC(2026, 9, 10, 12), calls: [], fail: o.fail || (() => 0), seq: 0, cors: o.cors !== false };
+  const S = { objs: new Map(), meta: new Map(), lastPut: new Map(), rate429: !!o.rate429, ups: new Map(), now: Date.UTC(2026, 9, 10, 12), calls: [], fail: o.fail || (() => 0), seq: 0, cors: o.cors !== false };
   const host = ACC + (o.eu === false ? '' : '.eu') + '.r2.cloudflarestorage.com';
   const resp = (status, body, hd) => new Response(status === 204 || body == null ? null : body, { status, headers: hd || {} });
   const xmlErr = (status, code) => resp(status, '<Error><Code>' + code + '</Code></Error>');
@@ -68,10 +68,38 @@ function fakeR2(o = {}) {
         return resp(200, '<CompleteMultipartUploadResult><Key>' + key + '</Key></CompleteMultipartUploadResult>');
       }
     }
-    if (method === 'PUT') { S.objs.set(key, Buffer.from(await new Response(init.body).arrayBuffer())); return resp(200, ''); }
-    if (method === 'HEAD') { const b = S.objs.get(key); return b ? resp(200, null, { 'content-length': String(b.length), etag: '"x"' }) : resp(404); }
-    if (method === 'DELETE') { S.objs.delete(key); return resp(204); }
-    if (method === 'GET') { const b = S.objs.get(key); if (!b) return xmlErr(404, 'NoSuchKey'); const r = /bytes=(\d+)-/.exec((init.headers || {}).Range || ''); return resp(r ? 206 : 200, r ? b.subarray(+r[1]) : b); }
+    const hdl = {}; for (const [k, v] of Object.entries(init.headers || {})) hdl[k.toLowerCase()] = v;
+    const md5 = (b) => crypto.createHash('md5').update(b).digest('hex');
+    const metaOf = (k) => S.meta.get(k) || {};
+    const metaHd = (k) => { const m = metaOf(k), o = {}; if (m.type) o['content-type'] = m.type; for (const x of Object.keys(m.am || {})) o['x-amz-meta-' + x] = m.am[x]; return o; };
+    if (method === 'PUT') {
+      const cur = S.objs.get(key);
+      // מנהל הספרייה (ס׳1): כתיבה מותנית כמו ב־R2 — If-Match / If-None-Match:* → 412; כתיבה שנייה באותה שנייה למפתח → 429 (כשמופעל)
+      if (hdl['if-match'] && (!cur || '"' + md5(cur) + '"' !== hdl['if-match'])) return xmlErr(412, 'PreconditionFailed');
+      if (hdl['if-none-match'] === '*' && cur) return xmlErr(412, 'PreconditionFailed');
+      if (S.rate429 && S.lastPut.get(key) === S.now) return xmlErr(429, 'TooManyRequests');
+      S.lastPut.set(key, S.now);
+      let b;
+      if (hdl['x-amz-copy-source']) {
+        const src = decodeURIComponent(String(hdl['x-amz-copy-source'])).replace(/^\/[^/]+\//, '');
+        if (!S.objs.has(src)) return xmlErr(404, 'NoSuchKey');
+        b = Buffer.from(S.objs.get(src));
+      } else b = Buffer.from(await new Response(init.body).arrayBuffer());
+      S.objs.set(key, b);
+      const am = {}; for (const k of Object.keys(hdl)) if (k.startsWith('x-amz-meta-')) am[k.slice(11)] = hdl[k];
+      S.meta.set(key, { type: hdl['content-type'] || '', am });
+      if (hdl['x-amz-copy-source']) return resp(200, '<CopyObjectResult><ETag>&quot;' + md5(b) + '&quot;</ETag></CopyObjectResult>');
+      return resp(200, '', { etag: '"' + md5(b) + '"' });
+    }
+    if (method === 'HEAD') { const b = S.objs.get(key); return b ? resp(200, null, Object.assign({ 'content-length': String(b.length), etag: '"' + md5(b) + '"' }, metaHd(key))) : resp(404); }
+    if (method === 'DELETE') { S.objs.delete(key); S.meta.delete(key); return resp(204); }
+    if (method === 'GET') {
+      const b = S.objs.get(key); if (!b) return xmlErr(404, 'NoSuchKey');
+      if (hdl['if-none-match'] && hdl['if-none-match'] === '"' + md5(b) + '"') return resp(304);
+      const r = /bytes=(\d+)-(\d*)/.exec(hdl.range || '');
+      const hd = Object.assign({ etag: '"' + md5(b) + '"' }, metaHd(key));
+      return resp(r ? 206 : 200, r ? b.subarray(+r[1], r[2] ? +r[2] + 1 : undefined) : b, hd);
+    }
     return xmlErr(400, 'Unsupported');
   };
   S.deps = { fetch: S.fetch, now: () => S.now };

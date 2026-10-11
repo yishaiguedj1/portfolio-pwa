@@ -83,7 +83,7 @@ function safeEqual(a, b) {
   return d === 0;
 }
 /* מחזיר true אם הבקשה טופלה (נחסמה או preflight) — ה־endpoint צריך לעצור. */
-function guard(req, res) {
+function guard(req, res, max = 4096) {   // max: מנהל הספרייה (ס׳1) — עריכות של כמה ספרים עד 64KB, רק לפעולות המנהל
   const h = req.headers || {};
   const origin = h.origin || h.Origin || '';
   cors(res, origin);
@@ -100,7 +100,7 @@ function guard(req, res) {
   }
   let len = 0;
   try { len = typeof req.body === 'string' ? req.body.length : JSON.stringify(req.body || {}).length; } catch (e) { len = 1e9; }
-  if (len > 4096) { res.status(413).json({ ok: false, error: 'too_large' }); return true; }
+  if (len > Math.min(65536, Math.max(4096, max | 0))) { res.status(413).json({ ok: false, error: 'too_large' }); return true; }
   return false;
 }
 /* פורמט קלט: token ספרות בלבד עד 64, queryId עד 12 ספרות, קוד דוח עד 32 אותיות/ספרות */

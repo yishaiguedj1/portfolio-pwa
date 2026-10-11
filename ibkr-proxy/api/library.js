@@ -16,6 +16,8 @@ const { createAiStore } = require('../lib/aicache');
 const aiStore = createAiStore();
 const gdrive = require('../lib/gdrive');
 const R2 = require('../lib/r2');
+const LM = require('../lib/libmgr');   // מנהל הספרייה (ס׳1): הקטלוג של המדף המשותף ב־R2
+const BIG_OPS = new Set(['catApply', 'undo']);   // עריכות של כמה ספרים — גוף עד 64KB (רק למנהל; השאר 4KB)
 const insightCache = new Map();   // id|md5 → ניתוח (חוסך קריאות ל־Gemini בין קוראים, כל עוד המופע חי)
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
@@ -114,7 +116,8 @@ async function getBook(item, cat, deps) {
 }
 
 async function handler(req, res, deps = {}) {
-  if (guard(req, res)) return;
+  const op0 = req.body && typeof req.body === 'object' ? String(req.body.op || '') : '';
+  if (guard(req, res, BIG_OPS.has(op0) ? 65536 : 4096)) return;
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   body = body || {};
@@ -126,7 +129,7 @@ async function handler(req, res, deps = {}) {
     if (limited('gd|' + gu.uid, 60)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     return gdrive.handle(body, gu, res, deps);
   }
-  if (!serviceAccount() || !process.env.LIBRARY_FOLDER_ID) {
+  if (!serviceAccount() || (!process.env.LIBRARY_FOLDER_ID && !LM.OPS.has(String(body.op || '')) && body.op !== 'me')) {   // הקטלוג ב־R2 לא צריך את תיקיית Drive
     // אבחון בלי לחשוף ערכים: איזה משתנה חסר / לא נקרא
     const raw = String(process.env.GDRIVE_SA_KEY || '').trim();
     return res.status(503).json({ ok: false, error: 'not_configured', diag: {
@@ -153,7 +156,11 @@ async function handler(req, res, deps = {}) {
   }
   if (!allowed) return res.status(403).json({ ok: false, error: 'not_allowed', email: user.email });
   /* שלב 6: ניהול קוראים — רק למנהל (LIBRARY_ADMINS, או המייל הראשון ב־LIBRARY_READERS) */
-  if (body.op === 'me') return res.status(200).json({ ok: true, admin: isAdmin(user) });
+  if (body.op === 'me') return res.status(200).json({ ok: true, admin: isAdmin(user), cat: !!R2.config().ok });
+  if (LM.OPS.has(String(body.op || ''))) {      // מנהל הספרייה: הקטלוג ב־R2 (לקוראים: cat/urls; למנהל: adminCat/catApply/undo)
+    if (limited('cat|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    return LM.handle(String(body.op), body, user, isAdmin(user), res, deps);
+  }
   if (['readers', 'addReader', 'removeReader', 'refresh'].includes(body.op)) {
     if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
     const R = deps.readers || readers;
@@ -230,4 +237,4 @@ async function handler(req, res, deps = {}) {
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._folderId = folderId;
-module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; catSaved = ''; hits.clear(); insightCache.clear(); readers._reset(); };
+module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; catSaved = ''; hits.clear(); insightCache.clear(); readers._reset(); LM._reset(); };
