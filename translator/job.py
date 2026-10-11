@@ -1671,6 +1671,7 @@ def quality(path, chk_ok=True):
 # v375: שופט האיכות (Haiku) — מדגם של JG_N כתוביות מחבילת הביקורת; לכל אחת ציון 1–5 וקוד קבוע. רק מספרים וקודים חוזרים לשרתון
 JG_N = 40
 JG_CODES = ('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term')
+JG_F_MAX = 40   # **זהה ל־JG_F_MAX בשרתון ובטלפון** — כמה מספרי כתוביות מסומנות נשלחים
 _JG_LINE = re.compile(r'^#(\d{1,6})\s+([1-5])\s+([a-z]{2,4})\s*$')
 # 10/10/2026: בעבודה האמיתית הראשונה השופט רץ (7K טוקנים) אבל לא הוצג ציון — כנראה סטייה קטנה מהצורה.
 # סובלני: תבליט / backticks / ':' / '|' / '/5' / אותיות גדולות. רק המספר, הציון והקוד מהקטלוג נלקחים — שום טקסט אחר.
@@ -1713,7 +1714,9 @@ def judge_score(text, ids):
         if code != 'ok':
             c[code] = c.get(code, 0) + 1
     s = round(sum((sc - 1) * 25 for sc, _ in got.values()) / len(got))
-    return {'s': s, 'n': len(got), 'c': c}
+    # סבב 2: מספרי הכתוביות שסומנו (מזהי vt — כמו cues.final.json) — לבדיקת משמעות בטלפון רק עליהן
+    f = sorted(i for i, (_, code) in got.items() if code != 'ok')[:JG_F_MAX]
+    return {'s': s, 'n': len(got), 'c': c, 'f': f}
 
 
 @guarded

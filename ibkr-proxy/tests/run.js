@@ -2453,6 +2453,13 @@ function stubFetch(text, status = 200) {
         && S4.normJudge(Object.assign({}, jd, { c: { evil: 1 } })) === null && S4.normJudge(Object.assign({}, jd, { c: { mean: 39 } })) === null
         && S4.normJudge(Object.assign({}, jd, { t: 400 })) === null && S4.normJudge('x') === null,
       'סטודיו: שופט האיכות — ציון / מספרים / קוד לא מוכר / יותר בעיות מכתוביות — נזרק');
+      // סבב 2: מספרי הכתוביות שסומנו — ממוינים, בלי כפולים, לא יותר מהבעיות שנספרו
+      ok(JSON.stringify(S4.normJudge(Object.assign({}, jd, { f: [3, 17, 40] })).f) === '[3,17,40]' && !('f' in S4.normJudge(Object.assign({}, jd, { f: [] }))),
+        'סטודיו: שופט — מספרי הכתוביות שסומנו נשמרים (ריק — בלי שדה)');
+      ok(S4.normJudge(Object.assign({}, jd, { f: [5, 3] })) === null && S4.normJudge(Object.assign({}, jd, { f: [3, 3] })) === null
+        && S4.normJudge(Object.assign({}, jd, { f: [1, 2, 3, 4, 5, 6] })) === null && S4.normJudge(Object.assign({}, jd, { f: ['1'] })) === null
+        && S4.normJudge(Object.assign({}, jd, { f: 'x' })) === null,
+      'סטודיו: שופט — מספרים לא ממוינים / כפולים / יותר מהבעיות / לא מספר — נזרק');
       ok(S4.normRules({ jx: true }).jx === true && S4.normRules({ jx: 'yes' }).jx === false && S4.normPv({ jg: 'abcdef12' }).jg === 'abcdef12',
         'סטודיו: חוק "בלי שופט" וגרסת ההנחיות של השופט');
       rr = await run({ op: 'rules', idToken: OWNER, rl: { jx: true } });
