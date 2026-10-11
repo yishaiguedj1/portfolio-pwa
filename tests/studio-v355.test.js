@@ -171,7 +171,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const st = read('studio.js');
   const ED = await import(path.join(root, 'studioedl.js'));   // מ4: normJob שומר את החיתוך — הפונקציה האמיתית
   const STUBS = { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: N.stageEstimates, progressModel: N.progressModel, createBackup: () => ({}), waitOAuthCode: () => {},
-    normEdl: ED.normEdl, edlDur: ED.edlDur, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null };
+    normEdl: ED.normEdl, edlDur: ED.edlDur, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [] };
   const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
   const S = new Function('t', '__stubs', body + '\nreturn { normJob, normStore, sameFile, jobPhase, normSettings };')(undefined, STUBS);
   const J = { id: 'jAAAAAAAAAAAAAAAAAAAA', created: 5, spec: { name: 'a.mkv', size: 100, to: ['he', 'zz'], mode: 'x', out: ['same', 'evil'] },
@@ -201,6 +201,10 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   else ok(true, 'sw.js עוד בגרסה הקודמת (שלב התוכן בפרוטוקול הדו־שלבי)');
   const imports = [...st.matchAll(/^import .* from '\.\/([\w.-]+)';$/gm)].map((x) => x[1]);
   ok(imports.sort().join() === 'libbackup.js,studioai.js,studioedl.js,studionet.js,studioplay.js,studiostore.js,studiosubs.js', 'studio.js מייבא רק את studionet.js, libbackup.js, studiostore.js (ת4: מזהים של R2) ומודולי העורכים (מ1 הנגן · מ2 הכתוביות · מ4 הווידאו · מ7 גיליון ה־AI)');
+  // v387: כל מודול שהסטודיו מייבא — בקבצי הסטודיו של sw.js (studiostore.js חסר שם עד v386 → הסטודיו לא נפתח אופליין)
+  const shell = (sw.match(/const STUDIO_SHELL = \[([^\]]*)\]/) || [])[1] || '';
+  if (swVer >= 387) ok(imports.every((m) => shell.includes("'./" + m + "'")), 'sw.js: כל מה ש־studio.js מייבא נמצא ב־STUDIO_SHELL');
+  else ok(true, 'sw.js עוד בגרסה הקודמת (שלב התוכן בפרוטוקול הדו־שלבי)');
   const csp = (html.match(/Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
   ok(/connect-src[^;]*https:\/\/\*\.googleapis\.com/.test(csp) && /connect-src[^;]*https:\/\/\*\.vercel\.app/.test(csp) && /worker-src 'self'/.test(csp), 'CSP: ההעלאה ל־Drive והשרתון מותרים; Worker רק מאותו מקור');
   const net0 = read('studionet.js');

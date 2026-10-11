@@ -12,10 +12,10 @@ import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, pla
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
-import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq } from './studioplay.js';
+import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
-import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges } from './studioai.js';
+import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -185,7 +185,8 @@ export function normJob(j) {
     folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
     hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
   } : null;
-  return { id: j.id, created: num(j.created), spec, up, fp, srv };
+  const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
+  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}) };
 }
 /* v387: סט הזהב — אותה בדיקה כמו בשרתון (lib/studio.js normGd / normGq) */
 const FID_GD = /^[A-Za-z0-9_-]{10,100}$/;
@@ -1445,6 +1446,8 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   coin: '<circle cx="12" cy="12" r="8.6"/><path d="M14.6 9.2c-.5-.9-1.5-1.4-2.6-1.4-1.6 0-2.7.8-2.7 2s1.1 1.7 2.7 2 2.9.8 2.9 2.1-1.2 2.1-2.9 2.1c-1.2 0-2.3-.6-2.8-1.6M12 6v1.8M12 16.2V18"/>',
   power: '<path d="M17.7 7a8 8 0 1 1-11.4 0"/><path d="M12 3.5v8"/>',
   sliders: '<path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2.5 14h5M9.5 8h5M16.5 16h5"/>',  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',   // v377: ערך ועלות
+  share: '<path d="M12 15V3.5M7.5 8l4.5-4.5L16.5 8"/><path d="M8 11H6.5A1.5 1.5 0 0 0 5 12.5v6A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-6a1.5 1.5 0 0 0-1.5-1.5H16"/>',
+  down: '<path d="M12 4v11.5M7.5 11l4.5 4.5 4.5-4.5M5 20h14"/>',   // סבב 1: שיתוף / הורדה של התוצרים
   edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>', redo: '<path d="M20 8H9a5 5 0 0 0 0 10h3M16 4l4 4-4 4"/>',   // מ2: עריכת כתוביות, הפקה מחדש
 };
 function ico(k, cls) {
@@ -1510,6 +1513,36 @@ function rowExt(o) {
   if (o.tile) a.append(o.tile);
   a.append(rowTxt(o.label, o.sub), ico('out', 'st-chev'));
   return a;
+}
+/* סבב 1: שורת תוצר — נגיעה פותחת ב־Drive; הכפתור בצד: כתוביות — שיתוף כקובץ (WhatsApp, "שמירה בקבצים"…) או הורדה,
+   סרטון — הורדה מ־Drive (קובץ של כמה GB לא נטען לזיכרון של הדף) */
+const isTextOut = (k) => k === 'srt' || k === 'en';
+function rowOut(rec, o) {
+  const r = h('div', 'st-row st-ric st-outr');
+  const a = h('a', 'st-outa'); a.href = 'https://drive.google.com/file/d/' + o.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dataset.k = 'out:' + o.k;
+  a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), o.size ? fmtSize(o.size) : ''));
+  const b = btn('st-outb', null, () => shareOut(rec, o), 'out-sh:' + o.k);
+  b.setAttribute('aria-label', (isTextOut(o.k) ? T('studioOutShare') : T('studioOutDown')) + ' · ' + outShort(o.k));
+  b.append(ico(isTextOut(o.k) ? 'share' : 'down'));
+  r.append(a, b);
+  return r;
+}
+export function outFileName(rec, k) {   // "שם הסרטון.he.srt" — בלי תווים שמערכות קבצים לא מקבלות
+  const base = String(fileTitle(rec && rec.spec && rec.spec.name) || 'video').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'video';
+  const to = (rec && rec.spec && Array.isArray(rec.spec.to) && rec.spec.to[0]) || 'he';
+  return base + '.' + (k === 'en' ? 'en' : to) + '.srt';
+}
+async function shareOut(rec, o) {
+  if (!isTextOut(o.k)) { window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
+  let txt;
+  try { txt = await net.driveText(o.id); } catch (e) { flashSafe(T('studioOutErr')); return; }
+  const name = outFileName(rec, o.k), f = new File([txt], name, { type: 'text/plain' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }   // אחרת (בלי שיתוף / פג אישור הנגיעה) — הורדה
+  const u = URL.createObjectURL(f), x = document.createElement('a');
+  x.href = u; x.download = name; document.body.append(x); x.click(); x.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 5000);
 }
 /* שורה עם עיגול סימון (בחירה מרובה) */
 function rowCheck(o) {
@@ -1987,6 +2020,7 @@ function startFromForm() {
 export function normPicker(o) {
   return o && /^[A-Za-z0-9_-]{20,80}$/.test(String(o.key || '')) && /^\d{6,20}$/.test(String(o.app || '')) ? { key: o.key, app: o.app } : null;
 }
+const PICK_VIDEO_TYPES = 'video/mp4,video/quicktime,video/x-matroska,video/webm,video/x-msvideo,video/3gpp,video/mp2t,video/x-m4v,video/mpeg';   // לשונית התיקיות: רק סרטונים (ותיקיות)
 let pickerLoad = null, pickerNow = null;
 function loadPicker() {
   if (window.google && window.google.picker) return Promise.resolve();
@@ -2008,11 +2042,18 @@ async function drivePick(kind) {
   const [tok] = await Promise.all([net.driveToken(), loadPicker()]);
   const G = window.google.picker;
   return new Promise((res) => {
-    const view = kind === 'folder'
-      ? new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder')
-      : new G.DocsView(G.ViewId.DOCS_VIDEOS).setIncludeFolders(true);
+    /* רשימה (לא רשת): שם, תאריך, גודל — בלי ריבועי תמונה ממוזערת שבורים. לשונית לכל דרך חיפוש; label רק כשהגרסה תומכת */
+    const L = (v, label) => { v.setMode(G.DocsViewMode.LIST); if (typeof v.setLabel === 'function') v.setLabel(label); return v; };
+    const views = kind === 'folder'
+      ? [L(new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder').setParent('root'), T('studioPkMine')),
+        L(new G.DocsView(G.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder').setStarred(true), T('studioPkStar'))]
+      : [L(new G.DocsView(G.ViewId.DOCS_VIDEOS).setIncludeFolders(false), T('studioPkVideos')),   // כל הסרטונים — מהחדש לישן
+        L(new G.DocsView(G.ViewId.DOCS).setMimeTypes(PICK_VIDEO_TYPES).setIncludeFolders(true).setParent('root'), T('studioPkMine')),   // מעבר בין תיקיות כמו ב־Drive
+        L(new G.DocsView(G.ViewId.DOCS_VIDEOS).setStarred(true), T('studioPkStar'))];
     const done = (x) => { if (pickerNow && pickerNow.res === res) pickerNow = null; res(x); };
-    const pk = new G.PickerBuilder().setOAuthToken(tok).setDeveloperKey(cfg.key).setAppId(cfg.app).addView(view)
+    const pb = new G.PickerBuilder().setOAuthToken(tok).setDeveloperKey(cfg.key).setAppId(cfg.app);
+    for (const v of views) pb.addView(v);
+    const pk = pb
       .setLocale(uiLang() === 'he' ? 'iw' : 'en').setTitle(kind === 'folder' ? T('studioDxPickT') : T('studioFromDrive'))
       .setCallback((d) => {
         const a = d && d[G.Response.ACTION];
@@ -3906,7 +3947,7 @@ async function playLoad(rec) {
     const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
-    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, T,
+    me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
       ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave });   // איכויות כמו ב־YouTube
     me.st = 'ok';
   } catch (e) {
@@ -4355,6 +4396,11 @@ function pageIdeas(p) {
       if (rs.length) p.append(secT(T('studioIdHlT')), list(...rs.map((r, i) => rowNav({ tile: tile('film', 'blue'), label: r.title || fmtT(r.a), sub: '\u2066' + fmtT(r.a) + '–' + fmtT(r.b) + '\u2069 · ' + T('studioIdHlGo'),   // טווח מבודד — לא מתהפך ב־RTL
         onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5 }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));
     }
+    if (idea.k === 'chap') {   // פרקים → לנגן: פס עם מפרידים, שם הפרק בשורת הזמן ורשימה בגלגל השיניים
+      const chs = normChapters(parseChapters(idea.text));
+      if (chs.length) p.append(list(rowNav({ tile: tile('film', 'green'), label: rec.chap ? T('studioIdChapRep') : T('studioIdChapAdd'), sub: T('studioIdChapN', { n: chs.length }),
+        onClick: () => { rec.chap = chs; save(); if (pl && pl.id === rec.id && pl.ctl) pl.ctl.setChapters(chs); if (canPlay(rec)) go('play', rec.id); else { flashSafe(T('studioIdChapOk')); render('none'); } }, k: 'id-chap' })));
+    }
     const box = h('div', 'st-idea'); box.dir = 'auto'; box.textContent = idea.text || T('studioAiNone');
     if (!shown) p.append(box);   // שורטס — הקטעים כבר ברשימה; הטקסט עדיין להעתקה
     p.append(h('div', 'st-gap sm'), btn('st-btn wide', T('studioIdCopy'), () => copyText(idea.text), 'id-copy'),
@@ -4362,6 +4408,8 @@ function pageIdeas(p) {
     return;
   }
   p.append(secT(T('studioAiWhat')), list(...TEXT_KINDS.map((k) => rowRadio({ label: ideaKindName(k), on: idea.k === k, onClick: () => { idea.k = k; idea.mode = ''; render('none'); }, k: 'id-k:' + k }))));
+  if (rec.chap && idea.k === 'chap') p.append(list(rowNav({ tile: tile('film', 'orange'), label: T('studioIdChapIn', { n: rec.chap.length }), sub: T('studioIdChapDel'),
+    onClick: () => { const del = () => { delete rec.chap; save(); if (pl && pl.id === rec.id && pl.ctl) pl.ctl.setChapters([]); render('none'); }; if (typeof askConfirm === 'function') askConfirm(T('studioIdChapDelQ'), del, { danger: true, ok: T('studioIdChapDel') }); else del(); }, k: 'id-chapdel' })));
   if (idea.k === 'ask') {
     const ta = h('textarea', 'st-ta'); ta.rows = 2; ta.maxLength = 300; ta.value = idea.n; ta.dir = 'auto'; ta.dataset.k = 'id-n';
     ta.placeholder = T('studioIdAskPh'); ta.setAttribute('aria-label', T('studioIdAsk'));
@@ -4458,8 +4506,7 @@ function pageJob(p) {
   const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)) : [];   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
   if (outs.length) {
     if (canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן
-    p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view',
-      tile: tile(o.k === 'srt' || o.k === 'en' ? 'globe' : 'film', o.k === 'srt' || o.k === 'en' ? 'blue' : 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'out:' + o.k })),
+    p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o)),
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
@@ -4821,7 +4868,15 @@ async function addServer() {
    מספרים, מודלים וזמנים בלבד: בלי שם הקובץ, בלי תוכן ובלי מזהים של Drive */
 /* שלב 4: קבלה לעבודה שהסתיימה — שורות טקסט לשיתוף/העתקה: מה תורגם, מתי, באיזה מצב, כמה זמן, כמה עלה ואיכות.
    הכל מהרשומה שכבר בטלפון (אותם מספרים של כרטיס העלות ומדד האיכות) — בלי פנייה לרשת */
-export function receiptText(rec) {
+/* סבב 1: אחוז מהתקציב החודשי של השרת (מצב API) — העבודה מתוך התקרה החודשית. במנוי (Routine) Anthropic לא חושפת את מצב המכסה —
+   לא ממציאים מספר. טהור */
+export function quotaPct(rec, api) {
+  const sv = rec && rec.srv, cv = sv ? costView(sv.use, rec.spec.mode) : null;
+  if (!sv || sv.eng !== 'api' || !cv || !(cv.total > 0) || !api || !(api.cap > 0)) return null;
+  const pct = cv.total / api.cap * 100;
+  return { pct: pct < 1 ? Math.round(pct * 10) / 10 : Math.round(pct), cap: api.cap };
+}
+export function receiptText(rec, api) {
   const sv = rec && rec.srv;
   if (!sv || sv.state !== 'done') return '';
   const m = modeById(rec.spec.mode), cv = costView(sv.use, rec.spec.mode);
@@ -4834,13 +4889,15 @@ export function receiptText(rec) {
   kv(T('studioSecMode'), modeShort(m));
   kv(T('studioRcptWall'), wall ? fmtDur(wall) : '');
   if (cv) kv(T('studioCostTotal'), fmtUsd(cv.total) + (cv.partial ? '+' : '') + ' · ' + T('studioCostTok', { n: tok.toLocaleString(uiLang()) }));
+  const qp = quotaPct(rec, api);
+  if (qp) kv(T('studioRcptQuota'), T('studioRcptQuotaV', { p: qp.pct, cap: fmtUsdWhole(qp.cap) }));
   if (sv.q && sv.q.s != null) kv(T('studioQT'), sv.q.s + '/100');
   if (sv.jd && sv.jd.s != null) kv(T('studioRcptJudge'), sv.jd.s + '/100');
   kv(T('studioJobId'), rec.id);
   return L.join('\n');
 }
 async function shareReceipt(rec) {
-  const txt = receiptText(rec);
+  const txt = receiptText(rec, ui.api);
   if (!txt) return;
   try { if (navigator.share) { await navigator.share({ title: T('studioRcpt'), text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   copyText(txt, T('studioRcptCopied'));

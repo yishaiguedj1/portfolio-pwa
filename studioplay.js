@@ -172,6 +172,25 @@ export function masterPlaylist(levels) {
   return L.join('\n') + '\n';
 }
 
+/* פרקים (מ"רעיונות" / מהעורך): [{t, title}] — ממוינים, בלי זמן כפול, בתוך אורך הסרטון, עד 30; טקסט נקי בלבד */
+export const CHAP_MAX = 30;
+export function normChapters(a, dur) {
+  const out = [], d = Number(dur) > 0 ? Number(dur) : Infinity;
+  for (const x of Array.isArray(a) ? a : []) {
+    if (!x || typeof x !== 'object') continue;
+    const t = Math.round(Number(x.t) * 10) / 10, title = String(x.title == null ? '' : x.title).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+    if (!(t >= 0) || t >= d || !title || out.some((y) => Math.abs(y.t - t) < 1)) continue;
+    out.push({ t, title });
+  }
+  return out.sort((x, y) => x.t - y.t).slice(0, CHAP_MAX);
+}
+/* הפרק שבו t נמצא (‎-1 = לפני הפרק הראשון) */
+export function chapterAt(chs, t) {
+  let i = -1;
+  for (let k = 0; k < chs.length; k++) { if (chs[k].t <= t + 0.05) i = k; else break; }
+  return i;
+}
+
 /* ---------------- הנגן (DOM) ---------------- */
 const SVG = 'http://www.w3.org/2000/svg';
 const PATHS = {
@@ -183,6 +202,7 @@ const PATHS = {
   tune: 'M3 17v2h6v-2zm0-12v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2z',
   speed: 'M20.4 8.6 19 10a8 8 0 0 1-.9 8H5.9A8 8 0 0 1 16.1 6l1.4-1.4A10 10 0 0 0 4.2 19l.3.5h15l.3-.5a10 10 0 0 0 .6-10.4zM10.6 15.4a2 2 0 0 0 2.8 0l5.7-8.5-8.5 5.7a2 2 0 0 0 0 2.8z',
   check: 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z', chev: 'M10 6 8.6 7.4 13.2 12l-4.6 4.6L10 18l6-6z', prev: 'M14 6l1.4 1.4L10.8 12l4.6 4.6L14 18l-6-6z',
+  chap: 'M3 13h2v-2H3zm0 4h2v-2H3zm0-8h2V7H3zm4 4h14v-2H7zm0 4h14v-2H7zM7 7v2h14V7z',
 };
 function icon(k) {
   const s = document.createElementNS(SVG, 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
@@ -196,11 +216,11 @@ function ib(cls, k, label, fn) {
   return b;
 }
 
-/* opts: { src, fallback, cues, issues, T, burned } — fallback = כתובת לסרטון הצרוב אם המקור לא מתנגן (אז בלי כתוביות מעליו).
-   מחזיר { el, video, seek, play, pause, setCues, destroy }. el יציב — studio.js משאיר אותו בין ציורים (וידאו שמוצא מהמסמך נעצר) */
+/* opts: { src, fallback, cues, issues, chapters, T, burned } — fallback = כתובת לסרטון הצרוב אם המקור לא מתנגן (אז בלי כתוביות מעליו).
+   מחזיר { el, video, seek, play, pause, setCues, setChapters, destroy }. el יציב — studio.js משאיר אותו בין ציורים (וידאו שמוצא מהמסמך נעצר) */
 export function createPlayer(opts) {
   const T = opts.T || ((k) => k);
-  let cues = opts.cues || [], issues = opts.issues || [];
+  let cues = opts.cues || [], issues = opts.issues || [], chs = normChapters(opts.chapters), chNow = -2;
   let cc = opts.burned ? 'off' : 'he', hideT = 0, lastTap = 0, tapT = 0, dragging = false, destroyed = false;
   const wrap = el('div', 'st-pl'); wrap.dir = 'ltr';
   const v = el('video', 'st-pl-v'); v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
@@ -223,10 +243,14 @@ export function createPlayer(opts) {
   const fwdB = ib('sm', 'fwd', T('studioPlFwd'), () => jump(10));
   mid.append(backB, playB, fwdB);
   const time = el('div', 'st-pl-time'), cur = el('span'), tot = el('span');
-  time.append(cur, tot);
+  // הפרק הנוכחי באמצע שורת הזמן (כמו ב־YouTube) — נגיעה = רשימת הפרקים
+  const chapB = el('button', 'st-pl-chb'); chapB.type = 'button'; chapB.hidden = true;
+  const chapL = el('span', 'st-pl-chl'); chapL.dir = 'auto'; chapB.append(chapL, icon('chev'));
+  chapB.addEventListener('click', (e) => { e.stopPropagation(); openMenu('c'); });
+  time.append(cur, chapB, tot);
   const bar = el('div', 'st-pl-bar'), track = el('div', 'st-pl-track'), buf = el('i', 'buf'), played = el('i', 'pl'), knob = el('span', 'st-pl-knob');
-  const heat = el('div', 'st-pl-heat');
-  track.append(buf, played); bar.append(heat, track, knob);
+  const heat = el('div', 'st-pl-heat'), marks = el('div', 'st-pl-chs');
+  track.append(buf, played); bar.append(heat, track, marks, knob);
   bar.setAttribute('role', 'slider'); bar.setAttribute('aria-label', T('studioPlSeek')); bar.tabIndex = 0;
   bot.append(time, bar);
   ui.append(top, mid, bot);
@@ -328,6 +352,7 @@ export function createPlayer(opts) {
     const b = el('button', 'st-pl-mr' + (opt && opt.on ? ' on' : '')); b.type = 'button';
     if (k) b.append(icon(k)); else { const c = el('span', 'st-pl-mc'); if (opt && opt.on) c.append(icon('check')); b.append(c); }
     const t = el('span', 'st-pl-ml', label);
+    if (opt && opt.tm) { t.dir = 'auto'; b.append(el('span', 'st-pl-mt', opt.tm)); }
     if (opt && opt.hd) t.append(el('sup', 'st-pl-mhd', 'HD'));
     b.append(t);
     if (val != null) { b.append(el('span', 'st-pl-mv', val)); b.append(icon('chev')); }
@@ -342,8 +367,9 @@ export function createPlayer(opts) {
     if (!page) {
       if (mode === 'hls' && levels.length > 1) box.append(mRow('tune', T('studioPlQuality'), qNow(), () => openMenu('q')));
       box.append(mRow('speed', T('studioPlSpeed'), speedName(v.playbackRate), () => openMenu('s')));
+      if (chs.length) box.append(mRow('chap', T('studioPlChaps'), String(chs.length), () => openMenu('c')));
     } else {
-      box.append(mRow('prev', page === 'q' ? T('studioPlQuality') : T('studioPlSpeed'), null, () => openMenu('')));
+      box.append(mRow('prev', page === 'q' ? T('studioPlQuality') : page === 'c' ? T('studioPlChaps') : T('studioPlSpeed'), null, () => openMenu('')));
       box.lastChild.classList.add('st-pl-mhead');
       if (page === 'q') {
         const order = levels.map((l, i) => i).sort((a, b) => qShort(levels[b]) - qShort(levels[a]) || (levels[b].bitrate || 0) - (levels[a].bitrate || 0));
@@ -354,6 +380,9 @@ export function createPlayer(opts) {
           box.append(mRow('', i === top ? T('studioPlSrcQ', { q: qLabel(l) }) : qLabel(l), null,
             () => { setPq(i === top ? 'src' : qShort(l)); closeMenu(); }, { on: sel, hd: qHd(l) }));
         }
+      } else if (page === 'c') {
+        const ci = chapterAt(chs, v.currentTime || 0);
+        chs.forEach((c, i) => box.append(mRow('', c.title, null, () => { seekTo(c.t); closeMenu(); }, { on: i === ci, tm: fmtT(c.t) })));
       } else {
         for (const r of [0.5, 0.75, 1, 1.25, 1.5, 2]) {
           box.append(mRow('', speedName(r), null, () => { v.playbackRate = r; closeMenu(); }, { on: v.playbackRate === r }));
@@ -407,6 +436,21 @@ export function createPlayer(opts) {
     const bins = heatBins(issues, d, 60);
     bins.forEach((h, i) => { if (h > 0) { const s = el('i'); s.style.left = (i / 60 * 100) + '%'; s.style.height = Math.max(20, h * 100) + '%'; heat.append(s); } });
   }
+  function paintChap() {
+    const i = chs.length ? chapterAt(chs, v.currentTime || 0) : -1;
+    if (i === chNow) return;
+    chNow = i;
+    chapB.hidden = i < 0;
+    chapL.textContent = i >= 0 ? chs[i].title : '';
+    chapB.setAttribute('aria-label', i >= 0 ? T('studioPlChapNow', { t: chs[i].title }) : '');
+  }
+  function paintMarks() {   // מפרידים על הפס בתחילת כל פרק (חוץ מהראשון)
+    marks.replaceChildren();
+    const d = v.duration || 0;
+    if (!(d > 0) || !Number.isFinite(d)) return;   // סרטון בלי אורך ידוע (עדיין) — בלי מפרידים; durationchange יצייר
+    for (const c of chs) if (c.t > 0.5 && c.t < d - 0.5) { const m = el('i'); m.style.left = (c.t / d * 100) + '%'; marks.append(m); }
+  }
+  function seekTo(t) { v.currentTime = Math.max(0, t || 0); paintBar(); paintSub(); paintChap(); poke(); }
   function paintPlay() {
     playB.replaceChildren(icon(v.paused ? 'play' : 'pause'));
     playB.setAttribute('aria-label', v.paused ? T('studioPlPlay') : T('studioPlPause'));
@@ -448,9 +492,10 @@ export function createPlayer(opts) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); jump(e.key === 'ArrowRight' ? 5 : -5); }
     else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); }
   });
-  v.addEventListener('timeupdate', () => { paintBar(); paintSub(); if (opts.onTime) opts.onTime(v.currentTime); });
+  v.addEventListener('timeupdate', () => { paintBar(); paintSub(); paintChap(); if (opts.onTime) opts.onTime(v.currentTime); });
   v.addEventListener('progress', paintBar);
-  v.addEventListener('loadedmetadata', () => { paintBar(); paintHeat(); });
+  v.addEventListener('loadedmetadata', () => { paintBar(); paintHeat(); paintMarks(); });
+  v.addEventListener('durationchange', () => { paintHeat(); paintMarks(); });
   v.addEventListener('play', () => { paintPlay(); poke(); });
   v.addEventListener('pause', () => { paintPlay(); poke(); });
   v.addEventListener('error', () => {
@@ -465,17 +510,19 @@ export function createPlayer(opts) {
     if (opts.onError) opts.onError();
   });
   // רצועת הזמנים של הכתוביות — גם כשהווידאו עומד (seek ידני)
-  v.addEventListener('seeked', () => { paintBar(); paintSub(); });
+  v.addEventListener('seeked', () => { paintBar(); paintSub(); paintChap(); });
 
-  paintCc(); paintPlay(); paintBar();
+  paintCc(); paintPlay(); paintBar(); paintChap();
   if (opts.burned) ccB.disabled = true;
   if (ladder && !opts.burned) startHls(); else v.src = opts.src || opts.fallback || '';
   return {
     el: wrap, video: v,
-    seek(t) { v.currentTime = Math.max(0, t || 0); paintBar(); paintSub(); poke(); },
+    seek: seekTo,
     play() { const p = v.play(); if (p && p.catch) p.catch(() => {}); },
     pause() { v.pause(); },
     setCues(c, iss) { cues = c || []; issues = iss || issuesList(cues); shown = -2; paintSub(); paintHeat(); },
+    setChapters(c) { chs = normChapters(c); chNow = -2; paintChap(); paintMarks(); if (!menu.hidden && menu.dataset.p === 'c') openMenu('c'); },
+    chapters: () => chs.slice(),   // QA ובדיקות
     quality: () => ({ mode, pq, levels: levels.map(qLabel), now: qNow() }),   // QA ובדיקות
     destroy() {
       if (destroyed) return; destroyed = true; clearTimeout(hideT); clearTimeout(tapT);

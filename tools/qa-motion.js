@@ -824,7 +824,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     let nUp = 0;
     const SJ = (r, o) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
     await page.route(/\/studio-media\//, (r) => { const m = /bytes=(\d+)-(\d*)/.exec(r.request().headers().range || ''); const a = m ? +m[1] : 0, z = m && m[2] ? +m[2] : VID.length - 1; r.fulfill({ status: m ? 206 : 200, headers: { 'content-type': 'video/webm', 'accept-ranges': 'bytes', 'content-range': 'bytes ' + a + '-' + z + '/' + VID.length, 'content-length': String(z - a + 1) }, body: VID.subarray(a, z + 1) }); });
-    await page.route(/^https:\/\/www\.googleapis\.com\/(upload\/)?drive\//, (r) => { const u = r.request().url(); if (u.includes('cue1234567890?alt=media')) return SJ(r, CUES); if (u.includes('uploadType=multipart')) return SJ(r, { id: 'up' + (++nUp) + 'abcdefghijk' }); return r.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '{}' }); });
+    await page.route(/^https:\/\/www\.googleapis\.com\/(upload\/)?drive\//, (r) => { const u = r.request().url(); if (u.includes('cue1234567890?alt=media')) return SJ(r, CUES); if (u.includes('srt1234567890?alt=media')) return r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'text/plain' }, body: '1\n00:00:01,000 --> 00:00:02,000\nשלום\n' }); if (u.includes('uploadType=multipart')) return SJ(r, { id: 'up' + (++nUp) + 'abcdefghijk' }); return r.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '{}' }); });
     await page.route(/\/api\/studio/, (r) => { const b = JSON.parse(r.request().postData() || '{}');
       if (b.op === 'status') return SJ(r, { ok: true, conn: { hint: 'trig_…ABCD', since: now, ok: now }, drive: { configured: true, connected: true, email: 'a@b.c' }, kinds: ['ping', 'tr', 'rr', 'ai'], fb: [], fm: 'suggest', rl: { b: 0, mx: '', ab: false }, halt: 0, now });
       if (b.op === 'jobs') return SJ(r, { ok: true, jobs: [job], kinds: ['ping', 'tr', 'rr', 'ai'], now });
@@ -856,7 +856,16 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
     await step('studio: חזור ← העבודה', esc, { settle: 1300, expect: '[data-k="ideas"]' });
     await step('studio: רעיונות', () => page.click('[data-k="ideas"]'), { pre: '[data-k="ideas"]', settle: 1200, expect: '[data-k="id-k:chap"]' });
+    // סבב 1: פרקים מהתשובה → לנגן (מפרידים בפס, שם הפרק בשורת הזמן, רשימה)
+    await step('studio: פרקים מהתשובה', async () => { await page.click('[data-k="id-copyreq"]'); await sleep(500);
+      await page.evaluate(() => { const ta = document.querySelector('[data-k="id-ans"]'); ta.value = '0:00 פתיחה\n0:10 הרעיון המרכזי\n0:20 סיכום'; ta.dispatchEvent(new Event('input', { bubbles: true })); });
+      await page.click('[data-k="id-check"]'); }, { pre: '[data-k="id-copyreq"]', settle: 900, expect: '[data-k="id-chap"]' });
+    await step('studio: פרקים → לנגן', () => page.click('[data-k="id-chap"]'), { pre: '[data-k="id-chap"]', settle: 1600, expect: '.st-pl-chb:not([hidden])' });
+    await step('studio: רשימת הפרקים', () => page.evaluate(() => document.querySelector('.st-pl-chb').click()), { settle: 600, expect: '.st-pl-menu:not([hidden]) .st-pl-mt' });
+    await step('studio: פרק — קפיצה', () => page.evaluate(() => document.querySelectorAll('.st-pl-menu .st-pl-mr')[2].click()), { settle: 700, expect: '.st-pl-menu[hidden]' });
+    await step('studio: חזור ← רעיונות', esc, { settle: 1300, expect: '[data-k="id-chapdel"], [data-k="id-chap"]' });
     await step('studio: חזור ← העבודה (2)', esc, { settle: 1300, expect: '[data-k="ideas"]' });
+    await step('studio: שיתוף כתוביות', () => page.click('[data-k="out-sh:srt"]'), { pre: '[data-k="out-sh:srt"]', settle: 900, expect: '[data-k="ideas"]' });
     await step('studio: צפייה (נגן)', () => page.click('[data-k="play"]'), { pre: '[data-k="play"]', settle: 1500, expect: '.st-pl video' });
     // הגדרות הנגן (כמו ב־YouTube): הגלגל → גיליון; "חזור" סוגר רק את הגיליון ונשארים בנגן
     await step('studio: הגדרות הנגן', () => page.evaluate(() => document.querySelector('.st-pl-b.gear').click()), { settle: 600, expect: '.st-pl-menu:not([hidden]) .st-pl-mr' });
