@@ -75,6 +75,14 @@ button.st-row:not(:disabled):active { background: var(--st-fill); }
 .st-tile.t-orange { background: linear-gradient(135deg, #FFD60A, #FF9F0A); }   /* v363: מגדל הפיקוח — חריג / עצר */
 .st-tile.t-red { background: linear-gradient(135deg, #FF5E57, #FF2D55); }
 a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }   /* 10/10/2026: שורת קישור (התוצרים) */
+/* סבב 1: שורת תוצר — הקישור לכל הרוחב, כפתור שיתוף / הורדה בצד */
+.st-row.st-outr { padding-block: 0; padding-inline-end: 4px; gap: 0; }
+.st-outa { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding-block: 10px; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.st-outa:active { opacity: .6; }
+.st-outb { flex: none; width: 46px; height: 46px; display: grid; place-items: center; border: 0; background: transparent; color: var(--primary); border-radius: 50%; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; }
+.st-outb:active { background: var(--st-fill); }
+.st-outb svg { width: 22px; height: 22px; }
 .st-row.st-muted { color: var(--on-surface-var); cursor: default; }
 .st-row.st-rule { cursor: default; font-size: 15px; line-height: 1.45; min-height: 44px; }
 .st-row.st-fb { cursor: default; align-items: flex-start; }   /* v364: ספר התיקונים — התיקון בשורה השנייה, נשבר כרגיל */
@@ -609,6 +617,15 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-pl-knob { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px rgba(48, 209, 88, .3); pointer-events: none; }
 .st-pl-heat { position: absolute; inset-inline: 0; bottom: 13px; height: 14px; pointer-events: none; }
 .st-pl-heat i { position: absolute; bottom: 0; width: calc(100% / 60); background: rgba(255, 159, 10, .75); border-radius: 2px 2px 0 0; }
+/* פרקים: רווח קטן בפס בתחילת כל פרק + שם הפרק הנוכחי בשורת הזמן (כמו ב־YouTube) */
+.st-pl-chs { position: absolute; inset-inline: 0; top: 50%; height: 5px; margin-top: -2.5px; pointer-events: none; }
+.st-pl-chs i { position: absolute; top: 0; bottom: 0; width: 3px; margin-inline-start: -1.5px; background: rgba(0, 0, 0, .85); }
+.st-pl-chb { all: unset; flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 2px; padding: 0 8px; cursor: pointer;
+  color: #fff; font-weight: 600; -webkit-tap-highlight-color: transparent; }
+.st-pl-chb[hidden] { display: none; }
+.st-pl-chl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.st-pl-chb svg { width: 14px; height: 14px; flex: none; fill: currentColor; opacity: .8; }
+.st-pl-mt { flex: none; min-width: 42px; color: #0A84FF; font-weight: 700; font-size: 13.5px; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
 .st-pl-rip { position: absolute; top: 0; bottom: 0; width: 38%; z-index: 4; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 14px;
   background: rgba(255, 255, 255, .14); opacity: 0; pointer-events: none; transition: opacity .35s; }
 .st-pl-rip.l { inset-inline-start: 0; border-radius: 0 50% 50% 0; } .st-pl-rip.r { inset-inline-end: 0; border-radius: 50% 0 0 50%; }
