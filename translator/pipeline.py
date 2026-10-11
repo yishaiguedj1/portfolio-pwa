@@ -34,6 +34,7 @@ GUIDE = HERE / 'guides' / 'style-guide-he.md'
 DEFAULT_CAP_USD = float(os.environ.get('SNB_JOB_CAP_USD', '10'))     # תקרת עבודה אם השרתון לא שלח אחרת
 MAX_QUESTIONS = 2
 FIX_ROUNDS = 2
+FIX_ROUNDS_MAX = 5     # 11/10/2026: סבבים נוספים רק כל עוד מספר השגיאות יורד
 # חלקי התרגום רצים במקביל אחרי שהקריאה הראשונה התחילה לענות (= הבלוק הקבוע כבר במטמון וכולם קוראים ממנו).
 TL_PARALLEL = max(1, int(os.environ.get('SNB_TL_PAR', '4')))
 # 11/10/2026 (תקלת max_tokens בעבודה אמיתית): תשובה של שורה לכל כתובית שנקטעה — שומרים מה שהגיע ומבקשים רק את החסר.
@@ -369,7 +370,9 @@ class Pipeline:
         warm מסומן ברגע שהשרת התחיל לענות (= הבלוק הקבוע במטמון) — ובכל מקרה בסוף, שכשל לא יתקע את השאר."""
         try:
             ids = set(p['ids'])
-            got: dict[str, str] = {}
+            out = self.pd / 'tr' / p['file']
+            # "המשך": חלק שנכתב חלקית — ממשיכים ממה שכבר תורגם (לא מאפס)
+            got: dict[str, str] = answer_lines(out.read_text(encoding='utf-8'), ids) if out.exists() else {}
             stalled, cut = 0, False
             for attempt in range(TL_ATTEMPTS):
                 want = ids - set(got)
@@ -379,7 +382,7 @@ class Pipeline:
                 # (בלי השורה האחרונה, שאולי נחתכה) ומבקשים רק את החסר. ככה גם חלק ארוך מאוד נגמר.
                 ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got and not attempt else
                        'חסרו בתשובה הכתוביות האלה מאותו חלק — רק הן: ' + ' '.join('#' + k for k in sorted(want, key=int)))
-                res = self.eng.complete('tl', fixed, ask, max_tokens=64000, partial_ok=True,
+                res = self.eng.complete('tl', fixed, ask, max_tokens=llm.MAX_OUT, partial_ok=True,   # התקרה חינם — רק מה שנוצר
                                         on_first_token=(warm.set if warm and not attempt else None))
                 cut = getattr(res, 'stop', None) == 'max_tokens'
                 new = answer_lines(kept_text(res), want)
@@ -389,7 +392,9 @@ class Pipeline:
                     break                                   # בלי התקדמות / המודל מדלג — מה שחסר מגיע לבדיקה ולתיקון
             if cut and not got:
                 raise llm.LLMError('max_tokens', f'חלק {p["k"]} נקטע שוב ושוב בלי אף כתובית')
-            (self.pd / 'tr' / p['file']).write_text(fmt_lines(got) + '\n', encoding='utf-8')
+            tmp = out.with_name(out.name + '.part')
+            tmp.write_text(fmt_lines(got) + '\n', encoding='utf-8')
+            tmp.replace(out)                                 # אטומי: נקודת שמירה באמצע לא תארוז חצי קובץ
         finally:
             if warm:
                 warm.set()
@@ -473,7 +478,9 @@ class Pipeline:
         """tr-check → רק הכתוביות שנפסלו חוזרות למודל (עם הנוסח הנוכחי והבעיה) → קובץ התיקונים. מחזיר כמה שגיאות נשארו.
         fixed = מחרוזת, או (Haiku מעל הסף) פונקציה מ־tl_fixer שמחלקת את הכתוביות לפי חלון המקור שלהן."""
         hard, soft, n_err = self.check()
-        for r in range(rounds):
+        r, best = 0, n_err
+        while r < rounds:
+            r += 1
             todo = dict(hard)
             for kk, v in soft.items():
                 if len(todo) >= 60:
@@ -499,6 +506,9 @@ class Pipeline:
             hard, soft, n_err = self.check()
             if not hard:
                 break
+            if r == rounds and n_err < best and rounds < FIX_ROUNDS_MAX:
+                rounds += 1                  # 11/10/2026: עוד יש התקדמות — עוד סבב (עד FIX_ROUNDS_MAX), לפני check_errors
+            best = min(best, n_err)
         return n_err
 
     # -------------------------------------------------------------- 5.5 שופט האיכות (v375, החלטה 4 — Haiku)
@@ -703,10 +713,19 @@ def run_auto(jobmod, args) -> int:
                 th.join()
                 if err:
                     raise err[0]
+                J.save_ck(ctx, 'al')        # 11/10/2026: עם כל החלקים — כשל בתיקונים/בביקורת לא מתרגם שוב
                 ctx.report('tl', 0.6, 'התרגום מוכן — Claude מתקן לפי הבדיקה האוטומטית', force=True)
                 pl.fix_round('fixes.txt', pl.fixed_tl(), 'tl')
             else:
-                pl.translate()
+                try:
+                    pl.translate()
+                except llm.LLMError:
+                    # 11/10/2026: המסלול הטורי (גם "המשך" מנקודת היישור) — שומרים את החלקים שכבר תורגמו לפני הכשל
+                    try:
+                        J.save_ck(ctx, 'al')
+                    except Exception:          # noqa: BLE001
+                        pass
+                    raise
             J.save_ck(ctx, 'tl')             # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
         if after < 4:
             fixed, left = pl.review()

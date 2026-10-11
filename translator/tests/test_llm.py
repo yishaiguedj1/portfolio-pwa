@@ -18,6 +18,9 @@ def fake_msg(text='שלום', stop='end_turn', i=100, o=50, cr=0, c5=0, c1=0, mi
               id=mid, diagnostics=diag)
 
 
+llm.MID_RETRY_WAIT = (0, 0)      # בבדיקות — בלי השהיות בין ניסיונות חוזרים
+
+
 class FakeClient:
     """מחקה client.messages.stream(**kw) של ספריית anthropic — רושם את הבקשות ומחזיר תשובות לפי התור."""
 
@@ -134,6 +137,27 @@ class AnthropicTests(unittest.TestCase):
         self.assertEqual(e.ledger.list()[0]['n'], 2, 'גם הניסיון שנקטע נרשם בעלות')
         self.assertLessEqual(llm.MAX_OUT, 128000, 'מתחת לתקרת הפלט של כל המודלים (128K)')
 
+    def test_mid_stream_overload_retries(self):
+        # 11/10/2026 (ביקורת העמידות): עומס/ניתוק באמצע הזרם — ה־SDK לא מנסה שוב, ועבודה של שעה נכשלה בקריאה אחת
+        class OverloadedError(Exception):
+            status_code = 529
+        old = llm.MID_RETRY_WAIT
+        llm.MID_RETRY_WAIT = (0, 0)
+        try:
+            c = FakeClient([OverloadedError('overloaded'), fake_msg('הצליח')])
+            r = llm.Engine(llm.Spec.of('haiku-high'), client=c).complete('tl', 'X', 'Y')
+            self.assertEqual((r.text, len(c.calls)), ('הצליח', 2))
+            c = FakeClient([OverloadedError('x')] * 3)
+            with self.assertRaises(llm.LLMError) as cm:
+                llm.Engine(llm.Spec.of('haiku-high'), client=c).complete('tl', 'X', 'Y')
+            self.assertEqual((cm.exception.code, len(c.calls)), ('api_overloaded', 3), 'שני ניסיונות נוספים, ואז קוד חולף')
+            c = FakeClient([ValueError('bad')])
+            with self.assertRaises(llm.LLMError) as cm:
+                llm.Engine(llm.Spec.of('haiku-high'), client=c).complete('tl', 'X', 'Y')
+            self.assertEqual((cm.exception.code, len(c.calls)), ('api_error', 1), 'שגיאה לא חולפת — בלי ניסיון חוזר')
+        finally:
+            llm.MID_RETRY_WAIT = old
+
     def test_partial_ok_returns_truncated_without_retry(self):
         c = FakeClient([fake_msg('#1 א\n#2 ב\n#3 חצי', stop='max_tokens')])
         e = llm.Engine(llm.Spec.of('haiku-high'), client=c)
@@ -222,7 +246,7 @@ class AnthropicTests(unittest.TestCase):
     def test_sdk_errors_mapped_to_short_codes(self):
         class RateLimitError(Exception):
             pass
-        c = FakeClient([RateLimitError('429 secret-ish details')])
+        c = FakeClient([RateLimitError('429 secret-ish details')] * 3)   # חולף — שני ניסיונות נוספים, ואז הקוד
         e = llm.Engine(llm.Spec.of('opus-medium'), client=c)
         with self.assertRaises(llm.LLMError) as cm:
             e.complete('tl', 'X', 'Y')

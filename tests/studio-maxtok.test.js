@@ -26,6 +26,14 @@ const bad2 = Object.assign({}, bad, { id: 'jaaaaaaaaaaaaaaaaaaaaaaaa3', err: 'wo
 const x2 = I.incSync([], [ok1, bad2], [], [], T0 + 1000).find((y) => y.j === bad2.id);
 ok(x2.rc[0].t === 'env' && x2.ev === 1, 'קוד כללי — השינוי בסביבה נשאר השורש והתגית מוצגת');
 
+/* "המשך" אוטומטי רק לכשל חולף — גם כשנשארה התראת Drive ישנה פתוחה (ביקורת העמידות) */
+const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
+ok(!S.isTransient('max_tokens', ['drive:dl_fail']), 'max_tokens + התראת Drive ישנה — לא חולף (בלי "המשך" אוטומטי שמשלם שוב)');
+ok(!S.isTransient('check_errors', ['drive:up_retry']) && !S.isTransient('no_api_key', []), 'כשל דטרמיניסטי / מפתח חסר — לא חולף');
+ok(S.isTransient('api_overloaded', []) && S.isTransient('net', []), 'עומס באמצע הזרם / רשת — חולף');
+ok(S.isTransient('worker', ['drive:dl_fail']), 'קוד כללי עם התראת Drive — עדיין חולף (כמו קודם)');
+ok(I.ERR_INFO.api_overloaded && I.ERR_INFO.no_api_key[1] === 1, 'הקודים החדשים מוכרים (מפתח חסר = P1)');
+
 /* הטלפון */
 const st = fs.readFileSync(path.join(root, 'studio.js'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');

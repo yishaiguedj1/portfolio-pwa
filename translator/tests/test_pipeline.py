@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import llm  # noqa: E402
 import pipeline as P  # noqa: E402
 
+llm.MID_RETRY_WAIT = (0, 0)
+
 SOURCE = """# המקור לתרגום — כל הראיון
 
 שורה: `#מספר ≤תקציב טקסט`.
@@ -228,6 +230,20 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(he['2'], 'תודה שהזמנתם אותי.', 'הכתובית שנחתכה לא נשמרה חצויה')
         self.assertEqual(he['1'], 'שלום וברוכים הבאים.')
         self.assertTrue(all(c['max_tokens'] >= 64000 for c in self.client.calls), 'תקרה של 64K לחלק (הייתה 32K)')
+
+    def test_partial_part_file_resumes(self):
+        # "המשך" אחרי חלק שנכתב חלקית — ממשיכים ממה שכבר תורגם, לא מאפס (ובלי לשלם עליו שוב)
+        (self.pd / 'tr' / 'batch_001.he.txt').write_text('#1 שלום\n', encoding='utf-8')
+        asks = []
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            asks.append(p)
+            return msg('#2 תודה' if '#2' in p else '#3 נטפליקס')
+        P.Pipeline(self.ctx, self.J, self.engine(h)).translate(fix=False)
+        self.assertTrue(any('חסרו' in a and '#2' in a and '#1' not in a for a in asks), 'רק הכתובית החסרה')
+        self.assertEqual(P.answer_lines((self.pd / 'tr' / 'batch_001.he.txt').read_text(encoding='utf-8'), {'1', '2'}), {'1': 'שלום', '2': 'תודה'})
+        self.assertFalse(list((self.pd / 'tr').glob('*.part')), 'הכתיבה האטומית לא משאירה קבצים זמניים')
 
     def test_truncated_part_with_nothing_raises(self):
         def h(kw):
