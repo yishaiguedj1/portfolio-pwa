@@ -270,6 +270,17 @@ export function addRange(segs, a, b) {
   for (const s of all) { const l = out[out.length - 1]; if (l && s[0] <= l[1] + JOIN_GAP) l[1] = Math.max(l[1], s[1]); else out.push(s.slice()); }
   return out;
 }
+/* סבב 10: צריבה לבדיקה — אותה עריכה ועיצוב, רק PV_LEN שניות מ־t (בתוך מה שנשאר; אין שם כלום — מתחילת מה שנשאר).
+   בלי תמונה ממוזערת. null = כל הסרטון (קצר מ־PV_LEN) */
+export const PV_LEN = 20;
+export function previewEdl(e, dur, t) {
+  const segs = segsOf(e, dur);
+  const k = intersectSegs(segs, [[Math.max(0, num(t)), Math.max(0, num(t)) + PV_LEN]]) || intersectSegs(segs, [[segs[0][0], segs[0][0] + PV_LEN]]);
+  if (!k) return null;
+  const x = Object.assign({}, e || { ar: 'src', x: 0.5 }, { k });
+  delete x.th;
+  return normEdl(x, dur);
+}
 /* הקטעים חוזרים לעריכה (אחרי חיתוך קטע = מחיקה, קטעים צמודים נשארים נפרדים בעורך אבל מתאחדים ב־normEdl) */
 export const toEdl = (segs, ar, x, dur) => normEdl({ k: segs, ar, x }, dur);
 /* מה החיתוך במלבן (WxH — אחרי הסיבוב, יחס יעד, מיקום x/y, זום z) — אותו חישוב כמו ב־edl.py (crop של ffmpeg) */

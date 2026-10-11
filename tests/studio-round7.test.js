@@ -97,7 +97,7 @@ print(json.dumps(E.probe(os.path.join(d, "o.mp4"))))`);
   /* ---------- 5. הטלפון ---------- */
   ok(ED.cssFilter({ br: 10, ct: -10, sa: 20, fx: 'bw' }) === 'brightness(1.1) contrast(0.9) saturate(1.2) grayscale(1)' && ED.cssFilter(null) === '', 'cssFilter: תצוגה מקדימה של הצבע');
   const sj = read('studio.js');
-  ok(/ov: rrOv\(rec\.id\) \}\);/.test(sj) && /else if \(ui\.view === 'ov'\) pageOv\(p\);/.test(sj) && /x === 'ov' \? \['rr', y\]/.test(sj), 'הפקה מחדש: "כותרת ולוגו" → הדף; נשלח עם ההפקה');
+  ok(/ov: rrOv\(rec\.id\) \}/.test(sj) && /else if \(ui\.view === 'ov'\) pageOv\(p\);/.test(sj) && /x === 'ov' \? \['rr', y\]/.test(sj), 'הפקה מחדש: "כותרת ולוגו" → הדף; נשלח עם ההפקה');
   ok(/d\.length <= OV_LG_MAX && normOv\(\{ lg: d \}\)/.test(sj) && /store\.settings\.lg = \{ d, p:/.test(sj), 'הלוגו מוקטן בטלפון עד שנכנס, ונשמר בהגדרות (המותג שלך)');
   ok(/ovT\.set\(rec\.id, Object\.assign\(\{\}, ovT\.get\(rec\.id\) \|\| \{\}, patch\)\)/.test(sj), 'הכותרת מתעדכנת מהמצב העדכני (באג שנמצא ב־QA: בחירת משך מחקה את הטקסט)');
   const es = read('studioedl.js');

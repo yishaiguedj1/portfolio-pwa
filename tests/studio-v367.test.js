@@ -14,7 +14,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 1. השרתון — טהור ---------- */
   const S = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
   const O = require(path.join(root, 'ibkr-proxy/lib/studioops.js'));
-  ok(JSON.stringify(S.normRules()) === '{"b":0,"mx":"","ab":false,"jx":false}', 'בלי חוקים כברירת מחדל');
+  ok(JSON.stringify(S.normRules()) === '{"b":0,"mx":"","ab":false,"jx":false,"am":false}', 'בלי חוקים כברירת מחדל');
   const order = Object.keys(S.NORM_DEF).sort((a, b) => S.NORM_DEF[a] - S.NORM_DEF[b]);
   ok(order.join() === 'haiku-high,sonnet-medium,sonnet-high,opus-medium', '"מצב מקסימלי" — לפי הצפוי לשעה (NORM_DEF)');
   const g = S.normGate({ k: 'b', usd: 10.271, cap: 10 }, 'g000000000001');
@@ -39,7 +39,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. הטלפון ---------- */
   const st = await import(path.join(root, 'studio.js'));
-  ok(JSON.stringify(st.normRules({ b: 12.5, mx: 'sonnet-high', ab: true, x: 1 })) === '{"b":12.5,"mx":"sonnet-high","ab":true,"jx":false}' && st.normRules({ b: 900, mx: 'evil' }).b === 500 && st.normRules({ b: 7.3 }).b === 7.5 && st.normRules({ b: 0.5 }).b === 0
+  ok(JSON.stringify(st.normRules({ b: 12.5, mx: 'sonnet-high', ab: true, x: 1 })) === '{"b":12.5,"mx":"sonnet-high","ab":true,"jx":false,"am":false}' && st.normRules({ b: 900, mx: 'evil' }).b === 500 && st.normRules({ b: 7.3 }).b === 7.5 && st.normRules({ b: 0.5 }).b === 0
     && [900, 7.3, 0.5, 12.5].every((b) => st.normRules({ b }).b === S.normRules({ b }).b), 'normRules בטלפון — כמו בשרתון (עיגול לחצי דולר, עד 500)');
   ok(order.slice(0, -1).every((id, i) => st.modeOverMax(order[i + 1], id) && !st.modeOverMax(id, order[i + 1])) && !st.modeOverMax('opus-max', ''), 'modeOverMax — אותו סדר כמו בשרתון');
   const q = st.normQa({ id: 'g000000000001', g: 'b', q: '<b>evil</b>', o: ['go', 'stop'], d: 1, w: 1800, n: { usd: 10.27, cap: 10 } });

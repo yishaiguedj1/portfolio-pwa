@@ -240,6 +240,8 @@ a.st-row { color: inherit; text-decoration: none; -webkit-tap-highlight-color: t
   background: var(--primary); color: var(--on-primary); font-size: 17px; font-weight: 700; }
 .st-btn.wide { width: calc(100% - 32px); margin-inline: 16px; }
 .st-btn.tint { background: var(--primary-container); color: var(--on-primary-container); }
+.st-btn.wide + .st-btn.wide { margin-top: 10px; }   /* סבב 10: הפקה מלאה + צריבה לבדיקה */
+a.st-btn { text-decoration: none; }   /* סבב 10: "פתיחת Claude" בכרטיס העתק־הדבק */
 .st-btn.danger { background: transparent; color: var(--loss); box-shadow: 0 0 0 1.5px var(--loss) inset; }   /* הרסני משני = מתאר אדום */
 .st-btn:disabled { background: var(--st-fill); color: var(--st-ter); box-shadow: none; }
 .st-btn:not(:disabled):active { transform: scale(.98); }

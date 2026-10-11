@@ -372,6 +372,21 @@ class Pipeline:
             if warm:
                 warm.set()
 
+    def _tl_manual(self, pending: list[dict], fixed: str, rounds: int = 3):
+        """סבב 10, העתק־הדבק: במקום בקשה לכל חלק (הדבקה לכל חלק) — בקשה אחת לכל החלקים, ואחריה רק הכתוביות שחסרו."""
+        want = {i for p in pending for i in p['ids']}
+        got: dict[str, str] = {}
+        for r in range(rounds):
+            miss = want - set(got)
+            if not miss:
+                break
+            ask = ('תרגם את כל החלקים בבת אחת: ' + ', '.join(p['file'] for p in pending) + ' — שורה לכל כתובית.' if not r else
+                   'חסרו בתשובה הכתוביות האלה — רק הן: ' + ' '.join('#' + k for k in sorted(miss, key=int)))
+            res = self.eng.complete('tl', fixed, ask, max_tokens=64000)
+            got.update(answer_lines(res.text, miss))
+        for p in pending:
+            (self.pd / 'tr' / p['file']).write_text(fmt_lines({k: v for k, v in got.items() if k in set(p['ids'])}) + '\n', encoding='utf-8')
+
     def translate(self, fix: bool = True, quiet: bool = False):
         """fix=False במסלול המקבילי: tr-check רץ רק אחרי שהיישור ו־retime קבעו את התקציבים הסופיים.
         quiet=True (10/10/2026): במסלול המקבילי היישור מדווח על השלב — דיווחי "מתרגם" באותו זמן היו מקפיצים את
@@ -393,7 +408,9 @@ class Pipeline:
         done_n = n - len(pending)
         if not quiet:
             ctx.report('tl', 0.0, 'Claude מתרגם', force=True)
-        if pending:
+        if pending and getattr(self.eng, 'manual', False):
+            self._tl_manual(pending, fx)               # סבב 10: העתק־הדבק — כל החלקים בבקשה אחת (ומה שחסר — בעוד אחת)
+        elif pending:
             # החלק הראשון כותב את המטמון; ברגע שהשרת התחיל לענות לו — שאר החלקים במקביל, כולם קוראים
             # מהמטמון (קודם החלקים רצו בטור — אותו מחיר, הרבה יותר זמן קיר).
             warm = threading.Event()
@@ -462,6 +479,9 @@ class Pipeline:
     def judge(self):
         """השופט במצב API: judge_prep (job.py) בונה מדגם מחבילת ביקורת טרייה, Haiku נותן ציון בלבד,
         job.py judge מפענח. כבוי בחוקים (rl.jx) / מעט כתוביות — judge_prep מדלג. כשל שופט לא מפיל עבודה."""
+        if getattr(self.eng, 'manual', False):
+            print('· העתק־הדבק: בלי שופט איכות (הוא רץ ב־API).')
+            return
         try:
             if self.J.judge_prep(SimpleNamespace()) != 0:
                 return
@@ -573,7 +593,11 @@ def run_auto(jobmod, args) -> int:
     st = J.load_state()
     mode = str((st.get('spec') or {}).get('mode') or llm.DEFAULT_MODE)
     cap = st.get('cap')
-    eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
+    if (st.get('spec') or {}).get('cp') == 1 and hasattr(J, 'cp_round'):
+        # סבב 10: העתק־הדבק — כל בקשה ל־Claude עוברת דרך הטלפון (Claude של המשתמש בצ'אט); התמלול, היישור והצריבה — כאן
+        eng = llm.ManualEngine(lambda k, text: J.cp_round(J.Ctx(J.load_state()), k, text))
+    else:
+        eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
     ns = SimpleNamespace(force=False)
     try:
         # המשך: השרת כבה/התעדכן באמצע עבודה, או שהמשתמש לחץ "המשך" — משחזרים מנקודת השמירה האחרונה

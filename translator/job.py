@@ -1523,6 +1523,40 @@ def ask_user(ctx, q, opts, default=0, wait=480):
     return fallback
 
 
+# ---------------------------------------------------------------- סבב 10: העתק־הדבק לעבודה מלאה
+CP_ROLES = ('main', 'tl', 'rv', 'jg')             # = CP_ROLES בשרתון
+CP_WAIT = 6 * 3600                                # כמה מחכים להדבקה (המשתמש לא תמיד ליד הטלפון)
+
+
+def cp_round(ctx, k, text):
+    """בקשה אחת ל־Claude של המשתמש: הקובץ עולה לתיקיית העבודה, הטלפון מציג "העתקת הבקשה" ושדה להדבקה,
+    ומחכים לתשובה (op qa — קריאה בלבד, בלי כתיבה לכל בדיקה). המספר רץ מהשרתון — עקבי גם אחרי "המשך"."""
+    import llm
+    n = int(((ctx.c.call('qa') or {}).get('cp') or {}).get('n') or 0) + 1
+    d = ctx.pdir / 'cp'
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / ('request_%03d.txt' % n)
+    p.write_text(text, encoding='utf-8')
+    fid = put_output(ctx, p, 'בקשה %d ל־Claude.txt' % n, 'cpq', 'text/plain')
+    ctx.report(cpq={'n': n, 'r': k if k in CP_ROLES else 'main', 'id': fid}, force=True)
+    print('בקשה %d נשלחה לטלפון — מחכים שתדביקו את התשובה של Claude (עד %d שעות).' % (n, CP_WAIT // 3600), flush=True)
+    poll = float(os.environ.get('SNB_CP_POLL', '10'))
+    end = time.time() + CP_WAIT * float(os.environ.get('SNB_ASK_WAIT_SCALE', '1'))
+    while time.time() < end:
+        time.sleep(poll)
+        cp = (ctx.c.call('qa') or {}).get('cp') or {}
+        if cp.get('n') == n and FILE_ID_RE.match(str(cp.get('a') or '')):
+            a = d / ('answer_%03d.txt' % n)
+            if a.exists():
+                a.unlink()
+            fetch_input(ctx, cp['a'], a, int(cp.get('as') or 0))
+            print('✓ התשובה לבקשה %d התקבלה.' % n, flush=True)
+            return a.read_text(encoding='utf-8', errors='replace')
+        if cp.get('n') and cp.get('n') != n:
+            break                                   # בקשה אחרת החליפה אותה — לא אמור לקרות
+    raise llm.LLMError('cp_timeout', 'לא הודבקה תשובה בזמן')
+
+
 @guarded
 def ask(args):
     """שלב 3 סבב ד׳: שאלה קצרה למשתמש באמצע העבודה. השורה האחרונה בפלט היא מה שהסשן ממשיך איתו:
@@ -2105,7 +2139,7 @@ def render(args):
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
                                 '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
     ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
-    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
+    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120] + (' — קטע לבדיקה' if spec.get('prv') == 1 else '')   # סבב 10
     out = []
     picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES
               if k in want or (k == 'thumb' and (od / fn.format(n=ctx.name)).exists())]   # סבב 7: התמונה — כשנוצרה

@@ -1966,6 +1966,21 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.ok && !db.get('studioJobs/' + R1.id), 'סטודיו: הפקה מחדש — רק ההפקה האחרונה נשמרת');
       ok(JSON.stringify(rr.payload.job.spec.edl) === '{"k":[[0,20],[30,90]],"ar":"9:16","x":0.4}', 'סטודיו: הפקה מחדש — החיתוך אחרי התרגום נשמר מנורמל (מ5)');
       const R3 = rr.payload.job.id;
+      // סבב 10: צריבה לבדיקה (קטע קצר) — נשמרת לצד ההפקה המלאה; הבדיקה הבאה מחליפה רק את הקודמת
+      const patchJobRaw = async (id, patch) => { const raw = db.get('studioJobs/' + id); db.set('studioJobs/' + id, Object.assign({}, raw, { fields: SR.toFields(Object.assign(SR.fromFields(raw.fields), patch)) })); };
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, prv: true, out: ['compact'], edl: { k: [[10, 30]] } });
+      ok(rr.statusCode === 409 && rr.payload.error === 'rr_busy', 'סבב 10: בדיקה — לא בזמן שהפקה אחרת עוד לא נגמרה');
+      await patchJobRaw(R3, { state: 'done' });
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, prv: true, out: ['compact'], edl: { k: [[10, 30]] } });
+      const PV1 = rr.payload.job.id;
+      ok(rr.payload.ok && rr.payload.job.spec.prv === 1 && !!db.get('studioJobs/' + R3), 'סבב 10: בדיקה — spec.prv, וההפקה המלאה נשארת');
+      await patchJobRaw(PV1, { state: 'done' });
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, prv: true, out: ['compact'], edl: { k: [[40, 60]] } });
+      ok(rr.payload.ok && !db.get('studioJobs/' + PV1) && !!db.get('studioJobs/' + R3), 'סבב 10: בדיקה חדשה מחליפה רק את הבדיקה הקודמת');
+      await patchJobRaw(rr.payload.job.id, { state: 'done' });
+      rr = await run({ op: 'rerender', idToken: OWNER, job: JP, prv: 'yes', out: ['compact'] });
+      ok(rr.payload.ok && !rr.payload.job.spec.prv && !db.get('studioJobs/' + R3), 'סבב 10: בלי prv (או לא true) — הפקה מלאה, שמחליפה את המלאה הקודמת');
+      await patchJobRaw(rr.payload.job.id, { state: 'done' });
       // מ7: גיליון ה־AI בהפעלה אחת — הבקשה בתיקיית העבודה, עבודת ai "חדשה", start, העובד מקבל את הבקשה, התשובה = aiout
       driveFiles.set('aiq1234567890', { id: 'aiq1234567890', name: 'Talk (AI).request.json', size: '900', parents: ['fold1234567890'], trashed: false });
       rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'outc1234567890x' });
@@ -2464,6 +2479,8 @@ function stubFetch(text, status = 200) {
         'סטודיו: חוק "בלי שופט" וגרסת ההנחיות של השופט');
       rr = await run({ op: 'rules', idToken: OWNER, rl: { jx: true } });
       ok(rr.payload.rl.jx === true, 'סטודיו: כיבוי השופט נשמר בחוקים');
+      rr = await run({ op: 'rules', idToken: OWNER, rl: { am: true } });
+      ok(rr.payload.rl.am === true && S4.normRules({ am: 1 }).am === false, 'סבב 10: "בדיקת משמעות אוטומטית" נשמרת בחוקים (רק true)');
       await run({ op: 'rules', idToken: OWNER, rl: {} });
       rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
       const JJ = rr.payload.job.id;
@@ -2873,13 +2890,13 @@ function stubFetch(text, status = 200) {
     // v367: החוקים שלך, מתג החירום ושערי אישור
     now += 3600e3 + 1;                       // תקציב ההפעלות לשעה מתחיל מחדש
     const SPECX = Object.assign({}, SPEC, { mode: 'opus-medium' });
-    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false}' && S.normRules({ b: 12.3, mx: 'sonnet-high', ab: true }).b === 12.5 && S.normRules({ mx: 'opus-high' }).mx === 'opus-medium' && S.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high'
+    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false,"am":false}' && S.normRules({ b: 12.3, mx: 'sonnet-high', ab: true }).b === 12.5 && S.normRules({ mx: 'opus-high' }).mx === 'opus-medium' && S.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high'
       && S.normRules({ b: 1e9 }).b === S.RULE_BUDGET_MAX && S.normRules({ b: 0.5, mx: 'evil', ab: 'yes' }).b === 0 && S.normRules({ mx: 'evil', ab: 'yes' }).mx === '' && S.normRules({ ab: 'yes' }).ab === false,
     'סטודיו: חוקים — בלי חוקים כברירת מחדל; תקציב מעוגל לחצי דולר ועד 500; מצב שהוסר → הקרוב (11/10); מצב/אישור לא תקינים — נזרקים');
     ok(S.modeOver('opus-medium', 'sonnet-high') && S.modeOver('sonnet-medium', 'haiku-high') && !S.modeOver('haiku-high', 'sonnet-medium') && !S.modeOver('opus-medium', '') && !S.modeOver('sonnet-high', 'sonnet-high'),
       'סטודיו: חוקים — "מצב מקסימלי" לפי המחיר הצפוי לשעה (Sonnet < Opus Medium < High < Max)');
     rr = await run({ op: 'rules', idToken: OWNER, rl: { b: 10, mx: 'sonnet-high', ab: true, evil: 1 } });
-    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
+    ok(rr.payload.ok && JSON.stringify(rr.payload.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false,"am":false}', 'סטודיו: חוקים — נשמרים בחשבון (רק השדות המוכרים)');
     rr = await run({ op: 'status', idToken: OWNER });
     ok(rr.payload.rl.b === 10 && rr.payload.halt === 0, 'סטודיו: חוקים — הטלפון רואה אותם (ומתג החירום כבוי)');
     // מצב מעל המקסימום — ההפעלה מחכה לאישור שלך (ov)
@@ -2894,7 +2911,7 @@ function stubFetch(text, status = 200) {
     ok(rr.payload.ok && fires.length === nf + 1, 'סטודיו: חוקים — "להתחיל בכל זאת" (ov) מפעיל');
     let Kr = keyOf(fires[fires.length - 1]);
     rr = await wrk({ op: 'claim', job: JR, key: Kr });
-    ok(JSON.stringify(rr.payload.job.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false}' && rr.payload.job.bx === 0 && rr.payload.job.u0 === 0,
+    ok(JSON.stringify(rr.payload.job.rl) === '{"b":10,"mx":"sonnet-high","ab":true,"jx":false,"am":false}' && rr.payload.job.bx === 0 && rr.payload.job.u0 === 0,
       'סטודיו: חוקים — העובד מקבל את התקציב והאישור לפני צריבה (ומה שכבר עלה: 0)');
     // שער תקציב — Claude הגיע ל־10$: העבודה מחכה לך; "להמשיך" מגדיל את התקציב
     rr = await wrk({ op: 'report', job: JR, key: Kr, gate: { k: 'b', usd: 10.27, cap: 10, q: '<b>evil</b>' } });
@@ -3108,6 +3125,57 @@ function stubFetch(text, status = 200) {
       'מצב API: התקציב החודשי = העלות שדווחה, בלי לספור פעמיים (דיווח מצטבר)');
     rr = await run({ op: 'status', idToken: FRIEND });
     ok(rr.payload.api.month === 0 && rr.payload.api.admin === false && !('servers' in rr.payload) || rr.payload.api.admin === false, 'מצב API: כל משתמש — תקציב משלו; לא מנהל');
+    {
+      // סבב 10: העתק־הדבק לעבודה מלאה — השרת שלנו מתמלל וצורב, Claude של המשתמש (בצ'אט) עונה דרך הטלפון
+      const SC = require('../lib/studio');
+      ok(JSON.stringify(SC.normCpq({ n: 2, r: 'tl', id: 'cpq11234567890' })) === '{"n":2,"r":"tl","id":"cpq11234567890"}'
+        && SC.normCpq({ n: 0, r: 'tl', id: 'cpq11234567890' }) === null && SC.normCpq({ n: 1.5, r: 'tl', id: 'cpq11234567890' }) === null
+        && SC.normCpq({ n: 1, r: 'x', id: 'cpq11234567890' }) === null && SC.normCpq({ n: 1, r: 'tl', id: '../x' }) === null, 'סבב 10: normCpq — מספר שלם, תפקיד מוכר, מזהה קובץ');
+      ok(SC.jobCap({ cp: 1, cap: 5 }, 999, 12) === SC.CAP_MIN_JOB || SC.jobCap({ cp: 1, cap: 5 }, 999, 12) > 0, 'סבב 10: העתק־הדבק לא תלוי בתקציב החודשי (בלי טוקנים מהמפתח שלנו)');
+      rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPEC, { eng: 'api', cap: 5, cp: 1 }) });
+      const JC = rr.payload.job.id;
+      ok(rr.payload.job.spec.cp === 1 && rr.payload.job.spec.eng === 'api', 'סבב 10: עבודת העתק־הדבק = מצב השרת עם cp');
+      ok((await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPEC, { cp: 1 }) })).payload.job.spec.cp === undefined, 'סבב 10: cp רק עם השרת של המערכת');
+      await run({ op: 'file', idToken: OWNER, job: JC, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JC });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KC = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JC, 'סבב 10: השרת לוקח את עבודת העתק־הדבק');
+      await wrk({ op: 'claim', job: JC, key: KC });
+      driveFiles.set('cpq11234567890', { id: 'cpq11234567890', name: 'בקשה 1 ל־Claude.txt', size: '5000', parents: ['fold1234567890'], trashed: false });
+      driveFiles.set('cpbig234567890', { id: 'cpbig234567890', name: 'x.txt', size: String(3 * 1024 * 1024), parents: ['fold1234567890'], trashed: false });
+      rr = await wrk({ op: 'report', job: JC, key: KC, cpq: { n: 1, r: 'main', id: 'elsewhere12345' } });
+      ok(rr.statusCode === 400, 'סבב 10: בקשה שלא בתיקיית העבודה — נדחית');
+      rr = await wrk({ op: 'report', job: JC, key: KC, cpq: { n: 1, r: 'main', id: 'cpbig234567890' } });
+      ok(rr.statusCode === 400, 'סבב 10: בקשה גדולה מ־2MB — נדחית');
+      rr = await wrk({ op: 'report', job: JC, key: KC, cpq: { n: 1, r: 'main', id: 'cpq11234567890' } });
+      ok(rr.payload.ok, 'סבב 10: בקשה 1 נרשמה');
+      rr = await wrk({ op: 'report', job: JC, key: KC, cpq: { n: 1, r: 'tl', id: 'cpq11234567890' } });
+      ok(rr.statusCode === 409 && rr.payload.error === 'cp_seq', 'סבב 10: המספר רק עולה');
+      rr = await run({ op: 'job', idToken: OWNER, job: JC });
+      ok(JSON.stringify(rr.payload.job.cp) === JSON.stringify({ n: 1, r: 'main', f: 'cpq11234567890', at: now, a: false }), 'סבב 10: הטלפון רואה את הבקשה (בלי טקסט — רק מזהה הקובץ)');
+      rr = await wrk({ op: 'qa', job: JC, key: KC });
+      ok(rr.payload.cp && rr.payload.cp.n === 1 && rr.payload.cp.a === '', 'סבב 10: העובד בודק ב־qa (קריאה בלבד) — עוד אין תשובה');
+      driveFiles.set('cpa11234567890', { id: 'cpa11234567890', name: 'תשובה 1.txt', size: '3000', parents: ['fold1234567890'], trashed: false });
+      rr = await run({ op: 'cpAnswer', idToken: OWNER, job: JC, n: 1, f: 'elsewhere12345' });
+      ok(rr.statusCode === 400, 'סבב 10: תשובה שלא בתיקייה — נדחית');
+      rr = await run({ op: 'cpAnswer', idToken: OWNER, job: JC, n: 2, f: 'cpa11234567890' });
+      ok(rr.statusCode === 409 && rr.payload.error === 'cp_seq', 'סבב 10: תשובה לבקשה אחרת — נדחית');
+      rr = await run({ op: 'cpAnswer', idToken: FRIEND, job: JC, n: 1, f: 'cpa11234567890' });
+      ok(!rr.payload.ok, 'סבב 10: רק הבעלים עונה');
+      rr = await run({ op: 'cpAnswer', idToken: OWNER, job: JC, n: 1, f: 'cpa11234567890' });
+      ok(rr.payload.ok && rr.payload.job.cp.a === true, 'סבב 10: התשובה נשמרה');
+      rr = await run({ op: 'cpAnswer', idToken: OWNER, job: JC, n: 1, f: 'cpa11234567890' });
+      ok(rr.statusCode === 409, 'סבב 10: פעם אחת');
+      rr = await wrk({ op: 'qa', job: JC, key: KC });
+      ok(rr.payload.cp.a === 'cpa11234567890' && rr.payload.cp.as === 3000, 'סבב 10: העובד מקבל את מזהה התשובה ואת הגודל');
+      rr = await wrk({ op: 'claim', job: JC, key: KC });
+      ok(rr.payload.job.cp && rr.payload.job.cp.n === 1, 'סבב 10: גם ב־claim (המשך בסשן חדש)');
+      await wrk({ op: 'report', job: JC, key: KC, done: true });
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.api.month === 7.25, 'סבב 10: העתק־הדבק לא מוסיף לתקציב החודשי');
+      await run({ op: 'remove', idToken: OWNER, job: JC });
+    }
     rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
     const JB = rr.payload.job.id;
     await run({ op: 'file', idToken: OWNER, job: JB, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });

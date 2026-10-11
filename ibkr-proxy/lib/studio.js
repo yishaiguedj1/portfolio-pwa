@@ -160,7 +160,7 @@ function normSpec(s) {
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
-  s.eng === 'api' ? { eng: 'api', cap: normCap(s.cap) } : {});   // מצב API של המערכת — עם תקרת עבודה ($)
+  s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : {}) : {});   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
 function normFile(f) {
@@ -475,6 +475,7 @@ function normRules(r) {
     mx: MODES.includes(o.mx) ? o.mx : LEGACY_MODES[o.mx] || '',   // 11/10: מקסימום במצב שהוסר → הקרוב (לא "בלי הגבלה")
     ab: o.ab === true,
     jx: o.jx === true,   // v375: שופט האיכות כבוי (ברירת המחדל — פועל, החלטה 4 בתוכנית)
+    am: o.am === true,   // סבב 10: בדיקת משמעות אוטומטית לכתוביות שהשופט סימן (בטלפון, עם אומדן ואישור)
   };
 }
 /* המצב יקר מהמקסימום? לפי הצפוי לשעת סרטון (NORM_DEF): Haiku Medium < Haiku High < Sonnet Medium < Sonnet High < Opus Medium */
@@ -584,6 +585,7 @@ function publicJob(job, now) {
     prog: job.prog || null, ed: job.ed || '',
     use: Array.isArray(job.use) ? job.use : Array.isArray(job.use0) ? job.use0 : null,   // v359: טוקנים ועלות (v361: כולל סשנים קודמים)
     qa: job.qa && job.qa.id ? job.qa : null,        // שאלה מ־Claude (והתשובה, אם כבר ענית)
+    cp: cpView(job.cp),                             // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
     ck: lastCk(job.ck) ? { s: lastCk(job.ck).s, at: lastCk(job.ck).at || 0 } : null,   // v361: נקודת השמירה האחרונה
     stale: isStale(job, now),                       // v361: "רצה" בלי דיווח שעתיים — אפשר להמשיך
     fires: job.fires || 0,
@@ -678,6 +680,7 @@ function rrSpec(parent, body) {
     ...(normEdl(body && body.edl, sp.dur) ? { edl: normEdl(body.edl, sp.dur) } : {}),   // מ5: חיתוך אחרי התרגום (על ציר הזמן של הכתוביות)
     ...(normSty(body && body.sty) ? { sty: normSty(body.sty) } : {}),                  // סבב 5: עיצוב הכתוביות
     ...(normOv(body && body.ov) ? { ov: normOv(body.ov) } : {}),                       // סבב 7: כותרת ולוגו
+    ...(body && body.prv === true ? { prv: 1 } : {}),                                  // סבב 10: צריבה לבדיקה (קטע קצר) — נשמרת לצד ההפקה המלאה
     ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) };   // באותו מנוע כמו המקור; במצב השרת — בלי טוקנים, התקרה המינימלית
 }
 function rrJob(parent, body, id, uid, now) {
@@ -835,6 +838,18 @@ function normPv(p) {
   return Object.keys(out).length ? out : null;
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
+/* סבב 10: העתק־הדבק לעבודה מלאה — כל בקשה ל־Claude = קובץ בתיקיית העבודה (העובד מעלה), התשובה = קובץ שהטלפון מעלה.
+   job.cp = { n (מספר רץ), r (תפקיד), f (הבקשה), fs, at, a (התשובה), as, ad }. רק מספרים ומזהי קבצים — בלי טקסט ברשומה */
+const CP_ROLES = ['main', 'tl', 'rv', 'jg'];
+const CP_N_MAX = 200, CP_FILE_MAX = 2 * 1024 * 1024;
+function normCpq(x) {
+  if (!x || typeof x !== 'object') return null;
+  const n = Number(x.n);
+  if (!Number.isInteger(n) || n < 1 || n > CP_N_MAX || !CP_ROLES.includes(x.r) || !FILE_ID_RE.test(String(x.id || ''))) return null;
+  return { n, r: x.r, id: x.id };
+}
+const cpView = (cp) => (cp && cp.n ? { n: cp.n, r: cp.r, f: cp.f, at: cp.at || 0, a: !!cp.a } : null);
+const cpWorker = (cp) => (cp && cp.n ? { n: cp.n, a: cp.a || '', as: cp.as || 0 } : null);
 function workerJob(job, nm, fb, fm, rl) {
   return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
     rl: normRules(rl),       // v367: החוקים שלך — תקציב ואישור לפני צריבה
@@ -848,7 +863,8 @@ function workerJob(job, nm, fb, fm, rl) {
     qa: job.qa && job.qa.id ? { id: job.qa.id, q: job.qa.q, a: job.qa.a || null, g: job.qa.g || '' } : null,   // v361: גם השאלה — להמשך בסשן חדש
     ck: Array.isArray(job.ck) ? job.ck.map((c) => ({ s: c.s, id: c.id, size: c.size })) : [],   // v361: להמשך (מהאחרונה)
     sh: job.sh && job.sh.n > 0 ? { n: job.sh.n, old: job.sh.old || null } : null,   // v384: מצב צל — המגדל אוכף את הספים הישנים
-    notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX) };   // v382: ההערות שכבר נקראו — להמשך בסשן חדש
+    notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX),
+    cp: cpWorker(job.cp) };   // סבב 10: העתק־הדבק   // v382: ההערות שכבר נקראו — להמשך בסשן חדש
 }
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
 function applyReport(job, r, now) {
@@ -930,13 +946,14 @@ const addMonth = (mu, usd, now) => ({ m: monthKey(now), usd: Math.round((monthUs
 // usdOf — מוגדר למעלה (v367), מעוגל לסנטים
 /* תקרת העבודה בפועל: מה שהמשתמש בחר, אבל לא יותר ממה שנשאר החודש. פחות מדולר — לא מתחילים */
 function jobCap(spec, used, month) {
+  if (spec && spec.cp === 1) return CAP_MIN_JOB;   // סבב 10: העתק־הדבק — בלי טוקנים מהמפתח שלנו (התקציב החודשי לא נוגע)
   const left = Math.max(0, month - used);
   const cap = Math.min(normCap(spec && spec.cap), left);
   return cap >= CAP_MIN_JOB ? Math.round(cap * 100) / 100 : 0;
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'rvf', 'fil'];   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'rvf', 'fil', 'cp'];   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -963,7 +980,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { JSON_FIELDS,
+module.exports = { JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,

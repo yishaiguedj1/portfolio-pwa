@@ -308,3 +308,33 @@ def _diag_reason(diag) -> str | None:
         return None
     t = cm.get('type') if isinstance(cm, dict) else getattr(cm, 'type', None)
     return str(t) if t else None
+
+
+class ManualEngine:
+    """סבב 10: העתק־הדבק לעבודה מלאה — Claude של המשתמש (בצ'אט, במנוי שלו) במקום ה־API, בלי עלות למערכת.
+    אותו ממשק כמו Engine: כל קריאה = בקשה אחת שהטלפון מציג להעתקה, והתשובה שהמשתמש מדביק חוזרת כטקסט.
+    ask(k, text) → טקסט התשובה (job.cp_round). בטור בלבד (קריאה אחת בכל רגע) — אין מטמון ואין תקרה."""
+    manual = True
+    FOOT = ('\n\n---\nענה רק בפורמט שמתואר למעלה — בלי הקדמה ובלי סיכום. '
+            'אם התשובה ארוכה, כתוב את כולה עד הסוף (אפשר בכמה הודעות רצופות; מדביקים את כולן יחד).')
+
+    def __init__(self, ask, model: str = 'claude-chat'):
+        self.spec = Spec('manual', model, None)
+        self.cap = None
+        self.ledger = Ledger()
+        self._client = None
+        self._ask = ask
+        self._lock = threading.Lock()
+
+    def fits_card(self, fixed: str, prompt: str, extra: str = '') -> bool:
+        return True
+
+    def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
+                 system_extra: str = '', on_first_token=None) -> Result:
+        if on_first_token:
+            on_first_token()
+        with self._lock:
+            text = self._ask(k, '\n\n'.join(x.strip() for x in (system_fixed, system_extra, prompt) if x and x.strip()) + self.FOOT)
+        if not text or not str(text).strip():
+            raise LLMError('cp_empty', 'התשובה שהודבקה ריקה')
+        return Result(str(text), {}, 0.0, 'end_turn')
