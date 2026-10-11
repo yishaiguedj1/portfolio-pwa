@@ -25,7 +25,8 @@ const ERR_INFO = {
   // מצב API (llm.py / pipeline.py): מפתח שנדחה / מודל שלא קיים = שום עבודת API לא תעבוד עד שמתקנים → P1
   api_auth: ['claude', 1], api_model: ['claude', 1], api_rate: ['claude', 3], api_network: ['claude', 3], api_timeout: ['claude', 3],
   api_bad_request: ['claude', 2], api_error: ['claude', 2], budget_cap: ['claude', 3], model_refusal: ['claude', 3], check_errors: ['claude', 3],
-  cp_timeout: ['claude', 4], cp_empty: ['claude', 4],   // סבב 10: העתק־הדבק — לא הודבקה תשובה (בחירה של המשתמש, לא תקלה)
+  cp_timeout: ['claude', 4], cp_empty: ['claude', 4],
+  max_tokens: ['claude', 2],   // 11/10/2026: התשובה של Claude נקטעה בתקרת האורך (גם אחרי ניסיון בתקרת המודל)   // סבב 10: העתק־הדבק — לא הודבקה תשובה (בחירה של המשתמש, לא תקלה)
 };
 const errInfo = (e) => ERR_INFO[e] || (/^routine_/.test(e) ? ['routine', 2] : ['claude', 2]);
 /* רכיבים שכשל בהם פוגע בכל עבודה (תקלה רחבה גם בהתראה אחת שפוגעת בשתי עבודות, עוד לפני שיש "נכשלה") */
@@ -52,7 +53,12 @@ function jobFacts(job, eff, stale) {
    up     — רכיב מוקדם יותר בשרשרת נכשל באותה עבודה                 55 + חומרה + מופעים
    env    — הסביבה של העובד השתנתה מאז העבודה האחרונה שהצליחה       50
    same   — התראה באותו רכיב באותה עבודה (הסימפטום הישיר)          35 + חומרה + מופעים
-   self   — אין שום רמז אחר: הקוד עצמו                              25 */
+   code   — קוד השגיאה מסביר את עצמו (CODE_SELF)                     65
+   self   — אין שום רמז אחר: הקוד עצמו                              25
+   11/10/2026: בתקלת max_tokens השורש היה "אחרי שינוי בסביבה · 100%" — נכון טכנית (הייתה פריסה), אבל מטעה:
+   כשקוד השגיאה עצמו אומר מה קרה, הוא קודם לשינוי סביבה. */
+const CODE_SELF = ['max_tokens', 'model_refusal', 'check_errors', 'api_bad_request', 'budget_cap', 'budget_stop', 'tower_stop',
+  'api_auth', 'api_model', 'month_cap', 'lang_unsupported', 'upload_timeout', 'worker_oom'];
 function rootCauses(inc, f, al, others, prevEv, fb) {
   const out = [];
   if (f.fp && Array.isArray(fb) && fb.some((x) => x && x.fp === f.fp && x.fix)) out.push({ t: 'known', c: inc.c, k: f.fp, w: 75 });
@@ -68,6 +74,7 @@ function rootCauses(inc, f, al, others, prevEv, fb) {
     if (!up && a.c !== inc.c) continue;   // רכיב מאוחר יותר — תוצאה, לא סיבה
     out.push({ t: up ? 'up' : 'same', c: a.c, k: a.k, w: (up ? 55 : 35) + (5 - (a.s || 4)) * 4 + Math.min(num(a.n), 5) });
   }
+  if (CODE_SELF.includes(inc.e)) out.push({ t: 'code', c: inc.c, k: inc.e, w: 65 });
   if (f.ev && prevEv && f.ev !== prevEv) out.push({ t: 'env', c: 'vt', k: '', w: 50 });
   if (!out.length) out.push({ t: 'self', c: inc.c, k: inc.e, w: 25 });
   out.sort((a, b) => b.w - a.w);
@@ -123,7 +130,7 @@ function incSync(inc, jobs, al, fb, now) {
     const others = out.filter((y) => y.j !== x.j && y.c === x.c && y.e === x.e && Math.abs(y.f - x.f) < DAY);
     const rc = rootCauses(x, f, al, others, prevEvOf(f), fb);
     if (JSON.stringify(rc) !== JSON.stringify(x.rc || [])) { x.rc = rc; changed = true; }
-    const ev = rc.some((r) => r.t === 'env') ? 1 : 0;
+    const ev = rc[0] && rc[0].t === 'env' ? 1 : 0;   // 11/10/2026: התגית רק כשהשינוי בסביבה הוא השורש הראשון
     if (ev !== (x.ev || 0)) { x.ev = ev; changed = true; }
   }
   return changed ? out.sort((a, b) => a.no - b.no).slice(-INC_MAX) : null;

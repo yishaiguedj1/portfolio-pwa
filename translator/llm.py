@@ -64,6 +64,13 @@ REFUSAL_REFRAME = ('הקשר: זו עבודת תרגום כתוביות של ס�
                    'בנאמנות, כולל ציטוטים ונושאים קשים, בלי להוסיף ובלי להשמיט. אין כאן בקשה לבצע דבר מעבר לתרגום.')
 
 
+# 11/10/2026 (תקלה בעבודה אמיתית — Haiku · High, הרצאה של ~30 דק׳): max_tokens כולל גם את החשיבה. במאמץ גבוה
+# החשיבה לבדה יכולה לאכול חלק גדול מהתקרה, וחלק תרגום אחד נקטע ב־32K → כל העבודה נכשלה (max_tokens), ובכל "המשך"
+# שוב. התקרה עצמה לא עולה כסף (משלמים רק על מה שנוצר), ולכן: קריאה שנקטעה מנסה פעם אחת עם תקרת המודל (128K לכל
+# המודלים שלנו — models.md); וקריאות שהפלט שלהן "שורה לכל כתובית" מקבלות את החלק שהגיע (partial_ok) ומבקשות רק את מה שחסר.
+MAX_OUT = 120_000
+
+
 def judge_spec(model: str = '') -> 'Spec':
     """מודל השופט — תמיד Haiku 5.5 · High, בלי קשר למתרגם (11/10/2026)."""
     return Spec(*JUDGE)
@@ -139,6 +146,10 @@ class Result:
                                 # (במודלים של 5.5 טקסט החשיבה מושמט כברירת מחדל — ספירת תווים בלבד הייתה תמיד 0)
     diag: object = None         # response.diagnostics (cache diagnostics, GA) — None = אין סטייה או אין מידע
 
+    @property
+    def truncated(self) -> bool:
+        return self.stop == 'max_tokens'
+
 
 class Engine:
     """מנוע אחד לכל עבודה. ledger צובר את העלות; cap_usd = תקרת העבודה (נבדקת לפני כל קריאה)."""
@@ -158,8 +169,10 @@ class Engine:
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
-                 system_extra: str = '', on_first_token=None) -> Result:
-        """system_fixed = הבלוק הקבוע (מדריך, תדריך, מילון, המקור) — נכנס למטמון ומשותף לכל הקריאות של העבודה.
+                 system_extra: str = '', on_first_token=None, partial_ok: bool = False) -> Result:
+        """partial_ok = תשובה שנקטעה (max_tokens) חוזרת כמו שהיא (res.truncated) — לפלט של שורה לכל כתובית, שבו
+        המתקשר שומר את מה שהגיע ומבקש רק את החסר. בלי partial_ok — ניסיון אחד עם MAX_OUT, ורק אז כשל גלוי.
+        system_fixed = הבלוק הקבוע (מדריך, תדריך, מילון, המקור) — נכנס למטמון ומשותף לכל הקריאות של העבודה.
         system_extra = הוראה קצרה שמשתנה (אחרי נקודת המטמון). prompt = הבקשה עצמה.
         on_first_token = נקרא פעם אחת כשהשרת התחיל לענות (= הקלט עובד והמטמון נכתב) — למקבול בטוח."""
         with self._lock:
@@ -172,12 +185,12 @@ class Engine:
                 raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
             self._inflight += 1
         try:
-            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token)
+            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok)
         finally:
             with self._lock:
                 self._inflight -= 1
 
-    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token) -> 'Result':
+    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok=False) -> 'Result':
         if self.spec.provider != 'anthropic':
             raise LLMError('provider_unknown', self.spec.provider)
         res = self._anthropic(system_fixed, system_extra, prompt, max_tokens, on_first_token)
@@ -204,8 +217,14 @@ class Engine:
             print(f'⚠ המטמון לא נקרא (שלב {k}, קריאה {n_fixed} עם אותו בלוק קבוע): {why}')
         if res.stop == 'refusal':
             raise LLMError('model_refusal', 'המודל סירב לבקשה (בלי מעבר למודל אחר — מודל אחד לכל עבודה)')
-        if res.stop == 'max_tokens':
-            raise LLMError('max_tokens', 'התשובה נקטעה — מחלקים לחלקים קטנים יותר')
+        if res.stop == 'max_tokens' and not partial_ok and max_tokens < MAX_OUT:
+            print(f'· התשובה נקטעה בתקרה של {max_tokens} טוקנים (שלב {k}) — ניסיון אחד עם תקרת המודל')
+            res = self._anthropic(system_fixed, system_extra, prompt, MAX_OUT, None)
+            with self._lock:
+                self.ledger.add(k, self.spec.model, res.usage, res.usd)
+                self.think[k] = self.think.get(k, 0) + res.think_chars
+        if res.stop == 'max_tokens' and not partial_ok:
+            raise LLMError('max_tokens', 'התשובה נקטעה גם בתקרת המודל')
         return res
 
     # ------------------------------------------------------------------ כרטיס המחיר (Haiku 5.5)
@@ -330,7 +349,7 @@ class ManualEngine:
         return True
 
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
-                 system_extra: str = '', on_first_token=None) -> Result:
+                 system_extra: str = '', on_first_token=None, partial_ok: bool = False) -> Result:
         if on_first_token:
             on_first_token()
         with self._lock:

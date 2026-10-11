@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -202,6 +203,63 @@ class FlowTests(unittest.TestCase):
         rows = {r['k']: r for r in pl.eng.ledger.list()}
         self.assertEqual((rows['tl']['n'], rows['tl']['m']), (4, 'claude-opus-5-5'))
 
+    def test_truncated_part_keeps_lines_and_asks_only_missing(self):
+        # 11/10/2026 (Haiku · High): חשיבה + תרגום עברו את התקרה — התשובה נקטעה באמצע כתובית.
+        # קודם: כל העבודה נכשלה (max_tokens). עכשיו: מה שהגיע נשמר (בלי השורה החתוכה) ורק החסר נשלח שוב.
+        asks = []
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            asks.append(p)
+            if 'חלק 1/2' in p:
+                m = msg('#1 שלום וברוכים הבאים.\n#2 תודה שהז')
+                m.stop_reason = 'max_tokens'
+                return m
+            if 'חסרו בתשובה' in p:
+                self.assertIn('#2', p)
+                self.assertNotIn('#1', p, 'מה שכבר הגיע לא מבוקש שוב')
+                return msg('#2 תודה שהזמנתם אותי.')
+            if 'חלק 2/2' in p:
+                return msg('#3 נדבר על נטפליקס.')
+            raise AssertionError(p[:80])
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-high'))
+        pl.translate(fix=False)
+        he = pl.current()
+        self.assertEqual(he['2'], 'תודה שהזמנתם אותי.', 'הכתובית שנחתכה לא נשמרה חצויה')
+        self.assertEqual(he['1'], 'שלום וברוכים הבאים.')
+        self.assertTrue(all(c['max_tokens'] >= 64000 for c in self.client.calls), 'תקרה של 64K לחלק (הייתה 32K)')
+
+    def test_truncated_part_with_nothing_raises(self):
+        def h(kw):
+            m = msg('#1 שלום וברוכים הבא')
+            m.stop_reason = 'max_tokens'
+            return m
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-high'))
+        with self.assertRaises(llm.LLMError) as cm:
+            pl.translate(fix=False)
+        self.assertEqual(cm.exception.code, 'max_tokens')
+
+    def test_fix_round_in_batches(self):
+        (self.pd / 'tr' / 'batch_001.he.txt').write_text('#1 ארוך ארוך\n#2 ארוך גם\n', encoding='utf-8')
+        (self.pd / 'tr' / 'batch_002.he.txt').write_text('#3 ארוך מאוד\n', encoding='utf-8')
+        sizes = []
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            ids = re.findall(r'^#(\d+) \[', p, re.M)
+            sizes.append(len(ids))
+            return msg('\n'.join(f'#{i} מתוקן' for i in ids))
+        old = P.FIX_BATCH
+        P.FIX_BATCH = 2
+        try:
+            pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-high'))
+            left = pl.fix_round('fixes.txt', 'X', 'tl')
+        finally:
+            P.FIX_BATCH = old
+        self.assertEqual(sizes, [2, 1], 'שלוש כתוביות לתיקון במנות של 2')
+        self.assertEqual(left, 0)
+        self.assertTrue(all(c['max_tokens'] == 32000 for c in self.client.calls))
+
     def test_review_and_single_model(self):
         (self.pd / 'tr' / 'batch_001.he.txt').write_text('#1 שלום\n#2 תודה\n', encoding='utf-8')
         (self.pd / 'tr' / 'batch_002.he.txt').write_text('#3 נטפליקס\n', encoding='utf-8')
@@ -383,7 +441,7 @@ class JobHooks(unittest.TestCase):
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
 
-    def flow(self, ck, resumed, proofed=False, src=None, attach=False):
+    def flow(self, ck, resumed, proofed=False, src=None, attach=False, tl_fail=False, rc_want=0):
         log = []
         state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
         if src:
@@ -419,7 +477,9 @@ class RunAutoResume(unittest.TestCase):
                     state['src'] = 'v'
 
             def align_run(self, ctx):
+                time.sleep(0.05 if tl_fail else 0)       # היישור ארוך מהתרגום שנכשל — חייבים לחכות לו
                 log.append('align_run')
+                log.append('ck:al')
 
             def save_ck(self, ctx, s, extra=None):
                 log.append('ck:' + s + ('+pr' if (extra or {}).get('pr') else ''))
@@ -429,7 +489,7 @@ class RunAutoResume(unittest.TestCase):
                 return 0
 
             def Ctx(self, st):
-                return NS(st=st, report=lambda *a, **k: None)
+                return NS(st=st, report=lambda *a, **k: log.append('fail') if k.get('fail') else None)
 
         class Pl:
             def __init__(self, ctx, j, eng):
@@ -441,6 +501,8 @@ class RunAutoResume(unittest.TestCase):
 
             def translate(self, fix=True, quiet=False):
                 log.append('translate')
+                if tl_fail:
+                    raise P.llm.LLMError('max_tokens', 'נקטעה')
 
             def fixed_tl(self):
                 return ''
@@ -465,12 +527,12 @@ class RunAutoResume(unittest.TestCase):
             rc = P.run_auto(J(), NS())
         finally:
             P.Pipeline, P.llm.Engine = old
-        self.assertEqual(rc, 0)
+        self.assertEqual(rc, rc_want)
         return log
 
     def check_parallel(self, log, expect_without_align_run, before='ck:tl'):
         """align_run רץ בתהליכון רקע — הסדר מול translate לא דטרמיניסטי; בודקים מיקום יחסי בלבד."""
-        rest = [x for x in log if x != 'align_run']
+        rest = [x for x in log if x not in ('align_run', 'ck:al')]
         self.assertEqual(rest, expect_without_align_run)
         self.assertEqual(log.count('align_run'), 1)
         self.assertGreater(log.index('align_run'), log.index('align_prep'), 'היישור מתחיל אחרי התכנון')
@@ -485,11 +547,21 @@ class RunAutoResume(unittest.TestCase):
         self.check_parallel(self.flow(ck, 'asr'),
                             ['restore', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
         self.assertEqual(self.flow(ck, 'al'), ['restore', 'translate', 'ck:tl', 'review', 'judge', 'finish'])
+
         self.assertEqual(self.flow(ck, 'tl'), ['restore', 'review', 'judge', 'finish'], 'אחרי התרגום — לא מתרגמים שוב')
         self.assertEqual(self.flow(ck, 'rv'), ['restore', 'finish'])
         self.check_parallel(self.flow(ck, None),
                             ['restore', 'prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'],
                             )
+
+    def test_translate_failure_waits_for_align_checkpoint(self):
+        # 11/10/2026 (תקלה בעבודה אמיתית): התרגום נכשל באמצע (max_tokens) בזמן שהיישור רץ ברקע — העבודה נכשלה מיד,
+        # בלי נקודת השמירה של היישור. כל "המשך" חזר לנקודת התמלול ("כותבים כל מילה") ויישר ותרגם מחדש — בתשלום.
+        # עכשיו: מחכים שהיישור יישמר (עם החלקים שכבר תורגמו), ורק אז הכשל.
+        log = self.flow([], None, tl_fail=True, rc_want=1)
+        self.assertIn('ck:al', log, 'נקודת השמירה של היישור נשמרת גם כשהתרגום נכשל')
+        self.assertLess(log.index('ck:al'), log.index('fail'), 'הכשל מדווח רק אחרי שהיישור נשמר')
+        self.assertNotIn('ck:tl', log)
 
     def test_resume_after_paid_proofread(self):
         # 09/10/2026: העבודה הראשונה בשרת נכשלה ביישור אחרי ההגהה — "המשך" לא משלם על ההגהה שוב
