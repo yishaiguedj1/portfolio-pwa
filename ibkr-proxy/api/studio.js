@@ -553,14 +553,38 @@ async function removeJobRec(deps, uid, job, now) {
 }
 /* מה אפשר לנקות עכשיו — תמיד סריקה טרייה (לא רשימה שמורה). תיקייה של עבודה שקיימת אצל משתמש אחר (אותו Drive בשני חשבונות) — לא נוגעים */
 async function cleanTargets(deps, uid, token, jobs, now) {
-  const folders = await studioFolders(deps, token);
-  const ids = jobs.map((j) => j.id);
   const orphans = [];
-  for (const f of SC.orphanFolders(folders, ids).slice(0, SC.MAX_FOLDERS)) {
-    const other = await readJob(deps, f.job).catch(() => null);
-    if (!other) orphans.push(f);
+  let dupes = [];
+  if (token) {   // ת4: בלי Drive — רק R2
+    const folders = await studioFolders(deps, token);
+    const ids = jobs.map((j) => j.id);
+    for (const f of SC.orphanFolders(folders, ids).slice(0, SC.MAX_FOLDERS)) {
+      const other = await readJob(deps, f.job).catch(() => null);
+      if (!other) orphans.push(f);
+    }
+    dupes = SC.dupeFolders(folders, jobs).slice(0, SC.MAX_FOLDERS);
   }
-  return { orphans, dupes: SC.dupeFolders(folders, jobs).slice(0, SC.MAX_FOLDERS), ck: SC.doneCheckpoints(jobs), old: SC.oldJobs(jobs, now) };
+  return { orphans: orphans.concat(await r2OrphanTargets(deps, uid, jobs, now)), dupes, ck: SC.doneCheckpoints(jobs), old: SC.oldJobs(jobs, now) };
+}
+/* ת4: תיקיות ב־R2 שהעבודה שלהן נמחקה (מחיקה שנכשלה באמצע, או עבודה שנמחקה לפני ש־R2 נמחק). רק בתחילית של המשתמש —
+   המילון (gl/) וספריית המכתבים (lib/) לא בתוכה. עבודה שעוד קיימת (גם אם לא ברשימה) — לא נוגעים */
+async function r2OrphanTargets(deps, uid, jobs, now) {
+  if (!R2.config().ok) return [];
+  const items = await R2.list(R2.config(), r2deps(deps), 'st/' + uid + '/', 20000);
+  const out = [];
+  for (const x of SC.r2Orphans(SC.r2Folders(items, uid), jobs, now).slice(0, SC.MAX_FOLDERS)) {
+    const other = await readJob(deps, x.job).catch(() => null);
+    if (!other) out.push({ r2: x.f, job: x.job, b: x.b });
+  }
+  return out;
+}
+/* ניקוי תיקייה יתומה: ב־R2 נמחקת (אין פח), ב־Drive — לפח */
+async function trashTarget(deps, uid, token, x) {
+  if (x.r2) {
+    const recs = await query(deps, 'studioUp', { f: x.r2 }, 500).catch(() => []);
+    await SR.purgeFolder(R2.config(), r2deps(deps), { uid, folder: x.r2, recs });
+    for (const r of recs) await delDoc(deps, 'studioUp', r.id).catch(() => null);
+  } else await driveTrash(deps, token, x.id);
 }
 
 /* ---------- העובד בענן ---------- */
@@ -869,11 +893,17 @@ async function handler(req, res, deps = {}) {
           const tg = await cleanTargets(deps, uid, t.token, jobs, now);
           for (const k of ['orphans', 'dupes']) {
             let b = 0;
-            for (const x of tg[k]) b += await folderBytes(deps, t.token, x.id);
+            for (const x of tg[k]) b += x.r2 ? x.b : await folderBytes(deps, t.token, x.id);
             f.clean[k] = { n: tg[k].length, b };
           }
         } catch (e) { f.drive.err = 'gd_http'; }
       }
+    }
+    if (!f.clean.orphans && R2.config().ok) {   // ת4: Drive לא מחובר — התיקיות ב־R2 עדיין נבדקות
+      try {
+        const r2o = await r2OrphanTargets(deps, uid, jobs, now);
+        f.clean.orphans = { n: r2o.length, b: r2o.reduce((a, x) => a + x.b, 0) };
+      } catch (e) {}
     }
     const sc = SC.scanFindings(f, now);
     await patchDoc(deps, 'studioOps', uid, { sc, updated: now }).catch(() => {});
@@ -1036,7 +1066,7 @@ async function handler(req, res, deps = {}) {
         for (const j of SC.oldJobs(jobs, now)) { await removeJobRec(deps, uid, j, now); n++; }
       } else {
         const t = await gdrive.accessToken(deps, uid);
-        if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
+        if (!t.ok && !(k === 'orphans' && R2.config().ok)) return res.status(200).json({ ok: false, error: t.error });   // ת4: יתומות ב־R2 — בלי Drive
         if (k === 'ck') {
           const byJob = new Map();
           for (const c of SC.doneCheckpoints(jobs)) {
@@ -1046,7 +1076,7 @@ async function handler(req, res, deps = {}) {
           }
           for (const id of byJob.keys()) await patchJob(deps, id, { ck: [] });
         } else {
-          for (const x of (await cleanTargets(deps, uid, t.token, jobs, now))[k]) { await driveTrash(deps, t.token, x.id); n++; }
+          for (const x of (await cleanTargets(deps, uid, t.ok ? t.token : '', jobs, now))[k]) { await trashTarget(deps, uid, t.token, x); n++; }
         }
       }
       return res.status(200).json({ ok: true, n, sc: await doScan(), now });

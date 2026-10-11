@@ -193,5 +193,30 @@ const { fakeR2, ENV } = require('./_r2fake');
   Object.assign(process.env, ENV); R2._reset();
   ok(gu.ok && gu.r2 === false && cl2.ok && cl2.job.gl === null, 'מילון: בלי R2 בשרתון — r2:false והעובד קורא מ־Drive כמו קודם');
 
+  /* ---------- 8. תיקיות יתומות ב־R2 — סריקה וניקוי (11/10) ---------- */
+  studio._reset();
+  j = await api('create', { spec });
+  const LIVE = S.fromFields(db.get('studioJobs/' + j.job.id).fields).folder, ORPH = 'R2_jORPHANorphanORPHAN12', KEPT = 'R2_jKEPTkeptKEPTkeptKEPT', OTHERF = 'R2_jOTHERotherOTHERother';
+  ok(SR.isFolder(LIVE) && SR.isFolder(ORPH) && SR.isFolder(KEPT) && SR.isFolder(OTHERF), 'יתומות: מזהים תקינים');
+  R.objs.set('st/ownerUid0001/' + LIVE + '_aaaaaaaaaaaa', Buffer.alloc(10));
+  R.objs.set('st/ownerUid0001/' + ORPH + '_bbbbbbbbbbbb', Buffer.alloc(300));
+  R.objs.set('st/ownerUid0001/' + ORPH + '_cccccccccccc', Buffer.alloc(200));
+  R.objs.set('st/ownerUid0001/' + KEPT + '_dddddddddddd', Buffer.alloc(50));
+  R.objs.set('st/otherUid0002/' + OTHERF + '_eeeeeeeeeeee', Buffer.alloc(70));
+  R.objs.set('st/ownerUid0001/notafolder', Buffer.alloc(5));
+  // עבודה שעוד קיימת (אצל אחר / מחוץ לרשימה) — לא נוגעים בתיקייה שלה
+  db.set('studioJobs/' + KEPT.slice(3), { fields: { uid: { stringValue: 'someoneElse01' }, kind: { stringValue: 'tr' } }, ut: 'tk' });
+  const sc8 = await api('scan', {});
+  const fo = sc8.ok && sc8.sc.f.find((x) => x.k === 'orphans');
+  ok(fo && fo.n === 1 && fo.b === 500, 'יתומות: הסריקה מוצאת תיקייה אחת ב־R2 (500 בתים) — בלי Drive מחובר');
+  const cr = await api('clean', { k: 'orphans' });
+  ok(cr.ok && cr.n === 1, 'יתומות: "נקה" מוחק תיקייה אחת');
+  ok(![...R.objs.keys()].some((k) => k.includes(ORPH)), 'יתומות: כל הקבצים של התיקייה נמחקו');
+  ok(R.objs.has('st/ownerUid0001/' + LIVE + '_aaaaaaaaaaaa'), 'יתומות: תיקייה של עבודה קיימת — נשארת');
+  ok(R.objs.has('st/ownerUid0001/' + KEPT + '_dddddddddddd'), 'יתומות: עבודה שקיימת מחוץ לרשימה — נשארת');
+  ok(R.objs.has('st/otherUid0002/' + OTHERF + '_eeeeeeeeeeee'), 'יתומות: קבצים של משתמש אחר — לא נוגעים');
+  ok(R.objs.has('gl/ownerUid0001.tsv') && R.objs.has('st/ownerUid0001/notafolder'), 'יתומות: המילון ומפתחות בצורה אחרת — לא נוגעים');
+  ok(!(cr.sc.f || []).some((x) => x.k === 'orphans'), 'יתומות: אחרי הניקוי — בלי ממצא');
+
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });
