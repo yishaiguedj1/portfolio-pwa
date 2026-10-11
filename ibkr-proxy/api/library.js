@@ -158,7 +158,7 @@ async function handler(req, res, deps = {}) {
   /* שלב 6: ניהול קוראים — רק למנהל (LIBRARY_ADMINS, או המייל הראשון ב־LIBRARY_READERS) */
   if (body.op === 'me') return res.status(200).json({ ok: true, admin: isAdmin(user), cat: !!R2.config().ok });
   if (LM.OPS.has(String(body.op || ''))) {      // מנהל הספרייה: הקטלוג ב־R2 (לקוראים: cat/urls; למנהל: adminCat/catApply/undo)
-    if (limited('cat|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    if (limited('cat|' + user.uid, isAdmin(user) ? 600 : 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });   // מסכי הניהול שואלים הרבה (כריכות, הוספה בתור)
     let lastCat = null;   // ס׳2: המעבר קורא את הרשימה מ־Drive (או מהעותק ב־R2) ומוריד מ־Drive רק מה שעוד לא ב־R2
     const legacy = { list: async () => { try { lastCat = await listAll(deps.fetch); } catch (e) { lastCat = await catalogFromR2(deps.fetch); if (!lastCat) throw e; } return lastCat; },
       download: (it) => getBook(it, lastCat || { r2only: true }, deps) };

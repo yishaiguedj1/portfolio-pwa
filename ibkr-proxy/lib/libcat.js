@@ -370,7 +370,7 @@ function applyOps(cat0, ops, ctx) {
       default: throw opErr(i, 'unknown');
     }
   });
-  return finish(cat, cat0, { inv, touched, fields, conflicts, miss, all, meta, kind: ops.length === 1 ? ops[0].op : 'multi' }, ctx);
+  return finish(cat, cat0, { inv, touched, fields, conflicts, miss, all, meta, kind: ops.every((o) => o && o.op === ops[0].op) ? ops[0].op : 'multi' }, ctx);
 }
 
 /* גרסה חדשה + רשומה ביומן (עם הערכים הקודמים לביטול, אם לא גדולים מדי) */

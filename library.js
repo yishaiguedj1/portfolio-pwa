@@ -871,6 +871,7 @@ async function renderHomeNow() {
   if (ui.view && ui.view.thinkers) return renderThinkers();
   if (ui.view && ui.view.thinker) return renderThinker(ui.view.thinker);
   if (ui.view && ui.view.glossary) return renderGlossary();
+  if (ui.view && ui.view.mgr) return renderMgr(ui.view);
   if (ui.view && ui.view.admin) return renderAdmin();
   if (ui.view && ui.view.edit) return renderEdit(ui.view.edit);
   if (ui.view && ui.view.backup) return renderBackup();
@@ -1016,7 +1017,7 @@ async function renderHomeNow() {
   }
   if (ui.admin && !mine) {               // שלב 6: ניהול — רק למנהל
     const adm = h('button', 'lib-admin-link', T('admTitle')); adm.type = 'button';
-    adm.addEventListener('click', () => goView({ admin: 1 }));
+    adm.addEventListener('click', () => goView({ mgr: 'home' }));   // ס׳4: מנהל הספרייה (הקוראים — מתוך התפריט שם)
     home.append(adm);
   }
   sortRow.after(h('p', 'lib-near', T('libNear')));
@@ -1975,6 +1976,21 @@ function renderGlossary() {
   draw();
 }
 
+/* ס׳4–ס׳5: מנהל הספרייה (libadmin.js) — נטען רק כשהמנהל פותח "ניהול"; כל מה שהוא צריך מהספרייה מוזרק */
+let ADM = null;
+async function renderMgr(v) {
+  if (!ADM) {
+    const m = await import('./libadmin.js');
+    ADM = m.createAdmin({
+      h, T, ICON, ui, root: () => root, goView, renderHome, flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      askConfirm: (msg, fn, o) => { if (typeof askConfirm === 'function') askConfirm(msg, fn, o); else fn(); },
+      sheet, closeSheetThen, ring, cover, wireHold, makeBook, coverThumb, coverFromBlob, langText, bookExtras, fileDefaults, fileId,
+      allBooksRaw, syncDrive, api: adminApi,
+    });
+  }
+  if (!root || !ui.view || ui.view.mgr !== v.mgr) return;
+  return ADM.render(v);
+}
 async function adminApi(op, extra) {
   const tk = await idToken(); if (!tk) throw new Error('signin');
   const j = await libApi(Object.assign({ op, idToken: tk }, extra || {})).then((r) => r.json()).catch(() => ({ ok: false, error: 'net' }));
@@ -4162,4 +4178,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES, adm: () => (ADM ? ADM._state() : null) };
