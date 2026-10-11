@@ -1683,7 +1683,7 @@ function stubFetch(text, status = 200) {
       && S.normSample({ kind: 'ping', fires: 1, spec: SPEC }, [{ usd: 5 }], 1) === null && S.normSample({ kind: 'tr', fires: 1, spec: Object.assign({}, SPEC, { dur: 0 }) }, [{ usd: 5 }], 1) === null,
     'סטודיו: לא לומדים מעבודה שהופעלה שוב (המשך), ממודל בלי מחירון, מבדיקת חיבור או בלי אורך');
     let many = []; for (let i = 0; i < 50; i++) many = S.addSample(many, { m: 'haiku-high', d: 600, u: 1 + i, at: i });
-    ok(many.length === 40 && many[0].u === 11 && S.learnedNorm([{ m: 'haiku-high', d: 60, u: 1 }, { m: 'haiku-high', d: 60, u: 1 }, { m: 'haiku-high', d: 60, u: 1 }], 'haiku-high').ph === 6 && S.addSample([{ m: 'opus-max', d: 60, u: 1 }], null).length === 0,
+    ok(many.length === 40 && many[0].u === 11 && S.learnedNorm([{ m: 'haiku-high', d: 60, u: 1, e: 'r' }, { m: 'haiku-high', d: 60, u: 1, e: 'r' }, { m: 'haiku-high', d: 60, u: 1, e: 'r' }], 'haiku-high').ph === 6 && S.addSample([{ m: 'opus-max', d: 60, u: 1 }], null).length === 0,
       'סטודיו: עד 40 דגימות (האחרונות); סרטון קצר נמדד כ־10 דק׳');
     ok(S.normTower({ lv: 'ok', x: 1, b: 'u', nj: 3 }).nj === 3 && !('b' in S.normTower({ lv: 'ok', b: 'evil' })), 'סטודיו: מגדל הפיקוח מדווח אם "הרגיל" נלמד מהעבודות שלך');
 
@@ -1815,7 +1815,7 @@ function stubFetch(text, status = 200) {
       const sd = db.get('studioStats/ownerUid0001');
       const st0 = S.fromFields(sd.fields);
       let ns = Array.isArray(st0.ns) ? st0.ns : [];
-      for (let i = 0; i < 3; i++) ns = S.addSample(ns, { m: 'sonnet-high', d: 3600, u: 4 + i, at: now - i });
+      for (let i = 0; i < 3; i++) ns = S.addSample(ns, { m: 'sonnet-high', d: 3600, u: 4 + i, at: now - i, e: 'r' });
       sd.fields.ns = { stringValue: JSON.stringify(ns) };
       const B = await mk();
       ok(B.c.sh && B.c.sh.n === 3 && B.c.sh.old === null && B.c.nm && B.c.nm.ph === 5, 'סטודיו: מצב צל — "הרגיל" נלמד: העבודה מקבלת צל (האכיפה במדידות שלנו)');
@@ -2050,10 +2050,12 @@ function stubFetch(text, status = 200) {
       const goods = Array.from({ length: 38 }, () => J({ state: 'done' }));
       let v = SLO.sloView(goods.concat([J({ state: 'failed', err: 'worker_step', ended: T0 - 20 * 86400e3, updated: T0 - 20 * 86400e3 })]), T0);
       ok(v.n === 39 && v.bad === 1 && v.left === 49 && v.st === 'warn' && v.att === 97.4 && v.burn === 0, 'סטודיו: תקציב שגיאות — כשל אחד מ־39: נשאר 49%, בלי שריפה בשבוע האחרון');
-      v = SLO.sloView(goods.slice(0, 10).concat([J({ state: 'done', fires: 3 })]), T0);
-      ok(v.st === 'out' && v.left === 0 && v.burn > 1 && v.list[0].c === 'resume', 'סטודיו: תקציב שגיאות — 1 מ־11 = נגמר, קצב שריפה מעל ×1');
+      v = SLO.sloView(goods.slice(0, 20).concat([J({ state: 'done', fires: 3 }), J({ state: 'done', fires: 2 })]), T0);
+      ok(v.st === 'out' && v.left === 0 && v.burn > 1 && v.list[0].c === 'resume', 'סטודיו: תקציב שגיאות — 2 מ־22 = נגמר, קצב שריפה מעל ×1');
+      v = SLO.sloView(goods.slice(0, 5).concat([J({ state: 'done', fires: 3 }), J({ state: 'done', fires: 2 })]), T0);
+      ok(v.st === 'few' && v.good === 5 && v.n === 7, 'סטודיו: תקציב שגיאות — 7 עבודות עם 2 כישלונות = עוד מוקדם (מ־20), לא "נגמר" (11/10)');
       v = SLO.sloView(goods.slice(0, 3).concat([J({ state: 'done', ended: T0 - 40 * 86400e3, updated: T0 - 40 * 86400e3 })]), T0);
-      ok(v.n === 3 && v.st === 'few', 'סטודיו: תקציב שגיאות — מעט עבודות (פחות מ־5) = מוקדם למדוד; ישנה מ־30 יום לא נספרת');
+      ok(v.n === 3 && v.st === 'few', 'סטודיו: תקציב שגיאות — מעט עבודות (פחות מ־20) = מוקדם למדוד; ישנה מ־30 יום לא נספרת');
       ok(SLO.sloView(goods.concat(Array.from({ length: 15 }, () => J({ state: 'failed', err: 'x' }))), T0).list.length === SLO.BAD_MAX, 'סטודיו: תקציב שגיאות — עד 10 עבודות ברשימה');
       // מקצה לקצה: הרשימה מחזירה את התקציב (בלי קריאה נוספת), ועבודה שהסתיימה נספרת
       let rr0 = await run({ op: 'jobs', idToken: OWNER });

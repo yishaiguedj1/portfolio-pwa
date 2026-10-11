@@ -575,9 +575,9 @@ async function worker(req, res, body, deps) {
       const patch = { updated: now };
       if (job.state === 'queued') { patch.state = 'running'; patch.claimed = now; patch.warn = ''; job.state = 'running'; }
       const stats = job.kind === 'tr' ? await readStats(deps, job.uid) : {};
-      const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode) : null;
+      const nm = job.kind === 'tr' && job.spec ? S.learnedNorm(stats.ns, job.spec.mode, job.eng) : null;   // 11/10: לפי המנוע
       // v384: מצב צל — בלקיחה הראשונה בלבד (בהמשך — אותו מצב צל של העבודה). תקלה כאן לא מפילה את הלקיחה
-      if (job.kind === 'tr' && job.spec && !job.c0) {
+      if (job.kind === 'tr' && job.spec && !job.c0 && job.eng !== 'api') {   // 11/10: מצב הצל = ספי המגדל, שרץ רק ב־Routine
         const m = job.spec.mode, th = Object.assign({}, stats.thr || {});
         const step = S.thStep(th[m], nm);
         th[m] = step.next;
@@ -593,7 +593,7 @@ async function worker(req, res, body, deps) {
         patch.ep = ep;
       }
       if (job.kind === 'tr' && !job.tg) {
-        const tg = L.targets(job.spec, nm ? nm.ph : S.NORM_DEF[job.spec && job.spec.mode], S.NORM_FIXED);
+        const tg = L.targets(job.spec, nm ? nm.ph : S.normDef(job.spec && job.spec.mode, job.eng), S.normFixed(job.eng));
         if (tg && ep) tg.t = ETA.etaTarget(ep);
         if (tg) patch.tg = tg;
       }
@@ -834,7 +834,7 @@ async function handler(req, res, deps = {}) {
     const rl = S.normRules(st.rl);
     if (rl.b > 0) {
       const m = rl.mx && S.NORM_DEF[rl.mx] < S.NORM_DEF['opus-medium'] ? rl.mx : 'opus-medium';
-      f.budget = { b: rl.b, need: S.normsView(st.ns)[m].ph + S.NORM_FIXED };
+      f.budget = { b: rl.b, need: S.normsView(st.ns, 'r')[m].ph + S.NORM_FIXED };   // התקציב לעבודה = חוק של ה־Routine (בשרת — התקרה החודשית)
     } else f.budget = { b: 0, need: 0 };
     const tmp = SC.doneCheckpoints(jobs);
     f.clean = { ck: { n: tmp.length, b: tmp.reduce((a, x) => a + x.size, 0) }, old: { n: SC.oldJobs(jobs, now).length } };
@@ -867,7 +867,7 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);   // v363: "הרגיל" לכל מצב · v364: ספר התיקונים — למסך "מגדל הפיקוח"
       return res.status(200).json({ ok: true, conn: v && v.r ? { hint: v.hint || '', since: v.since || 0, ok: v.ok || 0 } : null,
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
-        norm: S.normsView(st.ns), sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
+        norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
         pk: S.pickerCfg(process.env, gdrive.cfg().id), now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
