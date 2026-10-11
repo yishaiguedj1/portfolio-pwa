@@ -1719,6 +1719,84 @@ def judge_score(text, ids):
     return {'s': s, 'n': len(got), 'c': c, 'f': f}
 
 
+# סבב 4: סימונים מהביקורת — כתוביות שהבודק לא יכול להכריע בלי לראות / לשמוע (g מגדר, s מי מדבר, t מונח בשתי דרכים).
+# שורה "!#מספר קוד" (בתשובה של הביקורת או ב־review/flags.txt). רק מספרים וקודים חוזרים לשרתון — **RVF_MAX/RVF_CODES זהים בשרתון ובטלפון**
+RVF_CODES = ('g', 's', 't')
+RVF_MAX = 40
+_RVF_LINE = re.compile(r'^[\s>*`\-•]*!\s*#?\s*(\d{1,6})\s*[:.|)\-–]*\s*`?([gst])`?\b', re.I)
+
+
+def review_flags(text, ids=None):
+    """[[מספר, קוד], …] ממוין, בלי כפולים, עד RVF_MAX. ids = המספרים שקיימים (None = כל מספר)."""
+    got = set()
+    for ln in str(text or '').replace('\r', '').split('\n'):
+        m = _RVF_LINE.match(ln.strip())
+        if not m:
+            continue
+        i, k = int(m.group(1)), m.group(2).lower()
+        if i >= 1 and k in RVF_CODES and (ids is None or i in ids):
+            got.add((i, k))
+    return [[i, k] for i, k in sorted(got)][:RVF_MAX]
+
+
+def cue_ids(pdir):
+    """מזהי הכתוביות של העבודה (cues.final.json / he.json) — כדי שסימון לא יפנה לכתובית שלא קיימת"""
+    for name in ('out/cues.final.json', 'cues.en.json'):
+        try:
+            d = json.loads((pdir / name).read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        arr = d if isinstance(d, list) else (d.get('cues') if isinstance(d, dict) else None) or []
+        ids = {c.get('id') for c in arr if isinstance(c, dict) and isinstance(c.get('id'), int)}
+        if ids:
+            return ids
+    return None
+
+
+def review_flags_file(pdir):
+    try:
+        txt = (pdir / 'review' / 'flags.txt').read_text(encoding='utf-8')
+    except OSError:
+        return []
+    return review_flags(txt, cue_ids(pdir))
+
+
+# סבב 4: מילות מילוי (um/uh…) מהתמלול — טווחים לחיתוך בהפקה מחדש (בלי טוקנים). Parakeet משאיר אותן בתמלול;
+# ההגהה מוחקת אותן מהטקסט, לכן הן נקראות מ־asr/*.json (ציר הזמן של הסרטון — אחרי shift_words). **FIL_MAX זהה בשרתון**
+FILLERS = frozenset(('um', 'umm', 'uh', 'uhh', 'uhm', 'er', 'erm', 'ah', 'eh', 'hmm', 'hm', 'mm', 'mhm', 'mmm'))
+FIL_MAX = 300
+FIL_MIN, FIL_LEN = 0.15, 2.0   # קצר מזה — לא שווה חיתוך; ארוך מזה — כנראה לא מילת מילוי (או זמן שגוי)
+FIL_PAD = 0.04                 # קצת לפני ואחרי — אבל לא לתוך המילה השכנה
+
+
+def fillers(pdir):
+    """[[התחלה, סוף], …] בשניות (2 ספרות), ממוין ובלי חפיפות"""
+    srcs = sorted(p for p in (pdir / 'asr').glob('*.json') if not p.name.startswith('diff_')) if (pdir / 'asr').is_dir() else []
+    for p in srcs:
+        try:
+            ws = [w for w in (json.loads(p.read_text(encoding='utf-8')).get('words') or []) if isinstance(w, dict)]
+        except (OSError, ValueError, AttributeError):
+            continue
+        out = []
+        for i, w in enumerate(ws):
+            t = re.sub(r'[^a-z]', '', str(w.get('w') or w.get('word') or '').lower())
+            s, e = w.get('s'), w.get('e')
+            if t not in FILLERS or not isinstance(s, (int, float)):
+                continue
+            nx = ws[i + 1].get('s') if i + 1 < len(ws) else None
+            if not isinstance(e, (int, float)) or e <= s:
+                e = min(nx, s + 0.6) if isinstance(nx, (int, float)) else s + 0.4
+            pe = ws[i - 1].get('e') if i else None
+            a = max(s - FIL_PAD, pe if isinstance(pe, (int, float)) else 0.0, 0.0)
+            b = min(e + FIL_PAD, nx) if isinstance(nx, (int, float)) else e + FIL_PAD
+            if FIL_MIN <= b - a <= FIL_LEN and (not out or a >= out[-1][1]):
+                out.append([round(a, 2), round(b, 2)])
+            if len(out) >= FIL_MAX:
+                break
+        return out
+    return []
+
+
 @guarded
 def judge_prep(args):
     ctx = Ctx(load_state())
@@ -2234,9 +2312,14 @@ def finish(args):
         gl = gl_suggest(ctx)                     # v380: מונחים חדשים מהעבודה — הצעה למילון שלך
     except Exception:            # noqa: BLE001 — מידע משני
         gl = None
+    try:
+        rvf, fil = review_flags_file(ctx.pdir), fillers(ctx.pdir)   # סבב 4: סימונים מהביקורת ומילות מילוי — מידע משני
+    except Exception:            # noqa: BLE001
+        rvf, fil = [], []
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q,
-               judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'])      # v375: שופט האיכות (Haiku) — אם רץ
+               judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
+               rvf=rvf or None, fil=fil or None)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 

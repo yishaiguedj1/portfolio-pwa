@@ -247,7 +247,9 @@ RV_TASK = """אתה עורך כתוביות בכיר שבודק תרגום מא�
 רק בעיות אמיתיות: משמעות שגויה או חסרה, עברית לא טבעית, מונח לא עקבי, מספר/שם שגוי, שבירת שורה פוגעת,
 ומגדר לא עקבי — פנייה ונטיות של כל דובר ונמען לפי טבלת הדוברים בתדריך, לאורך כל הראיון.
 לא טעם אישי ולא ניסוח מחדש של מה שתקין.
-התשובה: שורה לכל כתובית שמתקנים, `#מספר טקסט מתוקן` (דורס את התרגום), ולא שום דבר אחר. אין מה לתקן — תשובה ריקה."""
+התשובה: שורה לכל כתובית שמתקנים, `#מספר טקסט מתוקן` (דורס את התרגום), ולא שום דבר אחר. אין מה לתקן — תשובה ריקה.
+כתובית שאי אפשר להכריע בה בלי לראות או לשמוע את הסרטון — שורה נוספת `!#מספר קוד` (עד 40): g = מגדר הדובר או הנמען לא ידוע,
+s = לא ברור מי מדבר, t = מונח שתורגם בשתי דרכים ולא ברור איזו נכונה. לא לסמן מה שתיקנת."""
 
 
 def guide_text() -> str:
@@ -510,12 +512,19 @@ class Pipeline:
             slices = split_package(pkg, n)
         if n > 1:
             print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים — כל בקשה מתחת לסף 100K הטוקנים')
-        got = {}
+        got, flags = {}, []
         for sl in slices:
             res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=32000)
             self.save_usage()
-            got.update(answer_lines(res.text, set(re.findall(r'#(\d+)', sl))))
+            ids = set(re.findall(r'#(\d+)', sl))
+            got.update(answer_lines(res.text, ids))
+            rf = getattr(self.J, 'review_flags', None)          # סבב 4: "!#מספר קוד" — לבדיקה שלך בעורך
+            if rf:
+                flags += [f for f in rf(res.text, {int(x) for x in ids}) if str(f[0]) not in got]
         (self.pd / 'tr' / 'fixes_review.txt').write_text(fmt_lines(got) + '\n' if got else '', encoding='utf-8')
+        if flags:
+            (self.pd / 'review').mkdir(exist_ok=True)
+            (self.pd / 'review' / 'flags.txt').write_text(''.join('!#%d %s\n' % (i, k) for i, k in flags[:40]), encoding='utf-8')
         ctx.report('rv', 0.7, f'הביקורת תיקנה {len(got)} כתוביות', force=True)
         # בדיקה אחרונה: מה שהביקורת שברה מתוקן ב־fixes_zfinal.txt (נקרא אחרון ודורס)
         left = self.fix_round('fixes_zfinal.txt', self.tl_fixer(), 'rv')

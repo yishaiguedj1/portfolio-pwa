@@ -2484,6 +2484,41 @@ function stubFetch(text, status = 200) {
     now += 3600e3 + 1;
     studio._reset();
 
+    // סבב 4: סימונים מהביקורת (מגדר / דובר / מונח) ומילות מילוי מהתמלול
+    now += 3600e3 + 1;
+    {
+      const S5 = require('../lib/studio');
+      ok(JSON.stringify(S5.normRvf([[3, 'g'], [3, 's'], [17, 't']])) === '[[3,"g"],[3,"s"],[17,"t"]]', 'סטודיו: סימונים מהביקורת — כמו שהם');
+      ok(S5.normRvf([[3, 's'], [3, 'g']]) === null && S5.normRvf([[3, 'g'], [3, 'g']]) === null && S5.normRvf([[0, 'g']]) === null
+        && S5.normRvf([[2, 'x']]) === null && S5.normRvf([['2', 'g']]) === null && S5.normRvf(Array.from({ length: 41 }, (_, i) => [i + 1, 'g'])) === null
+        && S5.normRvf([]) === null && S5.normRvf('x') === null, 'סטודיו: סימונים — לא ממוין / כפול / קוד לא מוכר / יותר מ־40 — נזרק');
+      ok(JSON.stringify(S5.normFil([[1.234, 1.6], [2, 2.5]])) === '[[1.23,1.6],[2,2.5]]', 'סטודיו: מילות מילוי — מעוגל ל־2 ספרות');
+      ok(S5.normFil([[1, 1.1]]) === null && S5.normFil([[1, 4]]) === null && S5.normFil([[2, 2.5], [1, 1.5]]) === null && S5.normFil([[1, 1.5], [1.4, 2]]) === null
+        && S5.normFil([['1', 2]]) === null && S5.normFil(Array.from({ length: 301 }, (_, i) => [i, i + 0.5])) === null, 'סטודיו: מילות מילוי — קצר / ארוך / חופף / לא ממוין / יותר מ־300 — נזרק');
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JR = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JR, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JR });
+      const KR = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JR, key: KR });
+      await wrk({ op: 'report', job: JR, key: KR, done: true, rvf: [[4, 'g'], [9, 't']], fil: [[3.1, 3.5], [10, 10.4]] });
+      rr = await run({ op: 'job', idToken: OWNER, job: JR });
+      ok(JSON.stringify(rr.payload.job.rvf) === '[[4,"g"],[9,"t"]]' && JSON.stringify(rr.payload.job.fil) === '[[3.1,3.5],[10,10.4]]', 'סטודיו: הסימונים ומילות המילוי מגיעים לטלפון');
+      await run({ op: 'remove', idToken: OWNER, job: JR });
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JR2 = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JR2, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JR2 });
+      const KR2 = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JR2, key: KR2 });
+      await wrk({ op: 'report', job: JR2, key: KR2, done: true, rvf: [[4, 'evil']], fil: 'x' });
+      rr = await run({ op: 'job', idToken: OWNER, job: JR2 });
+      ok(rr.payload.job.state === 'done' && rr.payload.job.rvf === null && rr.payload.job.fil === null, 'סטודיו: סימונים לא תקינים — נזרקים בשקט, העבודה מסתיימת');
+      await run({ op: 'remove', idToken: OWNER, job: JR2 });
+    }
+    now += 3600e3 + 1;
+    studio._reset();
+
     // v374: מדד האיכות של הכתוביות ושומר ההזרקות
     now += 3600e3 + 1;
     {

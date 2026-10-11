@@ -148,19 +148,28 @@ def map_time(e, t):
 
 
 def map_cues(e, cues, min_dur=0.2):
-    """כתוביות {start, end, …} (הפורמט של cues.final.json) → אחרי החיתוך; נחתכה באמצע — החלק הארוך."""
+    """כתוביות {start, end, …} (הפורמט של cues.final.json) → אחרי החיתוך: נחתכה כולה — יוצאת; נחתך ממנה רוב הזמן — החלק הארוך;
+    נחתך ממנה מעט (סבב 4: מילת מילוי / שקט קצר באמצע) — מהחלק הראשון עד האחרון, ברצף. **זהה ל־mapCues בטלפון**"""
     if not e or not e['k']:
         return [dict(c) for c in cues]
     out = []
     for c in cues:
-        best, off = None, 0.0
+        best = first = last = None
+        kept, off = 0.0, 0.0
         for a, b in e['k']:
             s, z = max(c['start'], a), min(c['end'], b)
-            if z - s > ((best[1] - best[0]) if best else 0):
-                best = (r3(off + s - a), r3(off + z - a))
+            if z > s:
+                p = (r3(off + s - a), r3(off + z - a))
+                if first is None:
+                    first = p
+                last = p
+                kept += z - s
+                if best is None or z - s > best[1] - best[0]:
+                    best = p
             off += b - a
-        if best and best[1] - best[0] >= min_dur:
-            out.append(dict(c, start=best[0], end=best[1]))
+        span = (first[0], last[1]) if first is not None and first is not last and kept >= (c['end'] - c['start']) * 0.5 else best
+        if span and span[1] - span[0] >= min_dur:
+            out.append(dict(c, start=span[0], end=span[1]))
     return out
 
 
@@ -322,7 +331,9 @@ def ffmpeg_args(src, out, e, info, audio_only=False):
             parts.append('[0:v]trim%s,setpts=PTS-STARTPTS[v%d]' % (rng, i))
             vl.append('[v%d]' % i)
         if has_a:
-            parts.append('[0:a]atrim%s,asetpts=PTS-STARTPTS[a%d]' % (rng, i))
+            # סבב 4: כמה קטעים — הדרגה של 10ms בכל תפר (בלי "קליק" כשחותכים מילת מילוי באמצע משפט)
+            fx = (',afade=t=in:d=0.01,afade=t=out:st=%.3f:d=0.01' % max(0.0, b - a - 0.01)) if segs and len(segs) > 1 else ''
+            parts.append('[0:a]atrim%s,asetpts=PTS-STARTPTS%s[a%d]' % (rng, fx, i))
             al.append('[a%d]' % i)
     n = len(segs or [0])
     if has_v and has_a:

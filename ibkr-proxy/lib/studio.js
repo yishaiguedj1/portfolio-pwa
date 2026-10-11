@@ -580,6 +580,7 @@ function publicJob(job, now) {
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(job.jd),                          // v375: שופט האיכות
+    rvf: normRvf(job.rvf), fil: normFil(job.fil),   // סבב 4: סימונים מהביקורת, מילות מילוי
     ep: ETA.normEp(job.ep),                         // 10/10/2026: צפי הזמנים של העבודה (נקבע בלקיחה)
     gl: normGl(job.gl),                             // v380: מונחים מהמילון שלך שימשו + מונחים חדשים להצעה
     nt: noteView(job),                              // v382: הערה לעובד — מחכה לנקודת השמירה הבאה / נקראה
@@ -698,6 +699,34 @@ function normInj(o) {
 /* v375: שופט האיכות (Haiku, על מדגם): s = 0–100, n כתוביות שנשפטו מתוך t במדגם, a בעבודה, c = כמה מכל סוג בעיה (קודים קבועים) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 const JG_F_MAX = 40;   // **זהה ל־JG_F_MAX בעובד (job.py) ובטלפון**
+/* סבב 4: סימונים מהביקורת — [[מספר כתובית, קוד]] (g מגדר, s מי מדבר, t מונח). **RVF_MAX/RVF_CODES זהים בעובד ובטלפון**.
+   רק מספרים וקודים מהקטלוג, ממוינים ובלי כפולים — לא תקין נזרק כולו */
+const RVF_CODES = ['g', 's', 't'];
+const RVF_MAX = 40;
+function normRvf(o) {
+  if (!Array.isArray(o) || !o.length || o.length > RVF_MAX) return null;
+  const out = [];
+  for (const x of o) {
+    if (!Array.isArray(x) || x.length !== 2 || !Number.isInteger(x[0]) || x[0] < 1 || x[0] > 1e6 || !RVF_CODES.includes(x[1])) return null;
+    const l = out[out.length - 1];
+    if (l && (x[0] < l[0] || (x[0] === l[0] && RVF_CODES.indexOf(x[1]) <= RVF_CODES.indexOf(l[1])))) return null;
+    out.push([x[0], x[1]]);
+  }
+  return out;
+}
+/* סבב 4: מילות מילוי מהתמלול — [[התחלה, סוף]] בשניות, ממוין ובלי חפיפות, כל אחת 0.15–2 שנ׳. **FIL_MAX זהה בעובד** */
+const FIL_MAX = 300;
+function normFil(o) {
+  if (!Array.isArray(o) || !o.length || o.length > FIL_MAX) return null;
+  const out = [];
+  for (const x of o) {
+    if (!Array.isArray(x) || x.length !== 2 || typeof x[0] !== 'number' || typeof x[1] !== 'number') return null;
+    const a = Math.round(x[0] * 100) / 100, b = Math.round(x[1] * 100) / 100;
+    if (!(a >= 0) || !(b - a >= 0.149) || b - a > 2.001 || a > 86400 || (out.length && a < out[out.length - 1][1])) return null;
+    out.push([a, b]);
+  }
+  return out;
+}
 function normJudge(o) {
   if (!o || typeof o !== 'object') return null;
   const int = (v, lo, hi) => (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi ? v : null);
@@ -858,7 +887,7 @@ function jobCap(spec, used, month) {
 }
 
 /* ---------- Firestore (REST) ---------- */
-const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl'];   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
+const JSON_FIELDS = ['spec', 'fa', 'fv', 'fo', 'sess', 'prog', 'fh', 'use', 'qa', 'ck', 'use0', 'tw', 'ns', 'fb', 'ls', 'al', 'hb', 'rl', 'mu', 'fr', 'inc', 'mi', 'tr', 'pv', 'q', 'ij', 'jd', 'tg', 'sc', 'et', 'ep', 'wp', 'gl', 'nt', 'nh', 'thr', 'sh', 'rh', 'gd', 'gq', 'fc', 'vh', 'fq', 'hl', 'rvf', 'fil'];   // סבב 4: סימונים מהביקורת, מילות מילוי   // איכויות הצפייה   // v387: סט הזהב   // v384: מצב צל וזיהוי "המשך" חוזר   // v382: הערה לעובד   // v380: זיכרון המונחים   // שלב 4: מנויי התראות (Web Push)   // 10/10/2026: צפי הזמנים (דגימות + התוכנית של העבודה)   // v378: בדיקת המוכנות   // v377: יעדי השירות   // v375: שופט האיכות   // v374: מדד האיכות ושומר ההזרקות   // v373: עקיבה וגרסאות ההנחיות   // v371: תקלות ותקלה רחבה
 function toFields(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) {
@@ -889,7 +918,7 @@ module.exports = { JSON_FIELDS,
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normGl, glClean, normNoteText, noteView, NOTE_MAX,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,

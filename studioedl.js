@@ -97,20 +97,45 @@ export function unmapTime(e, t) {
   }
   return e.k.length ? e.k[e.k.length - 1][1] : t;
 }
-/* כתוביות ({s, e, …} בשניות) → אחרי החיתוך: כתובית שנחתכה באמצע — החלק הארוך שנשאר; שנחתכה כולה — יוצאת */
+/* כתוביות ({s, e, …} בשניות) → אחרי החיתוך: כתובית שנחתכה כולה — יוצאת; נחתך ממנה רוב הזמן — החלק הארוך שנשאר;
+   נחתך ממנה מעט (סבב 4: מילת מילוי / שקט קצר באמצע) — מהחלק הראשון עד האחרון, ברצף. **זהה ל־map_cues בעובד** */
 export function mapCues(e, cues, minDur = 0.2) {
   if (!e || !e.k.length) return cues.slice();
   const out = [];
   for (const c of cues) {
-    let best = null, off = 0;
+    let best = null, first = null, last = null, kept = 0, off = 0;
     for (const [a, b] of e.k) {
       const s = Math.max(c.s, a), z = Math.min(c.e, b);
-      if (z - s > (best ? best[1] - best[0] : 0)) best = [r3(off + s - a), r3(off + z - a)];
+      if (z > s) {
+        const p = [r3(off + s - a), r3(off + z - a)];
+        if (!first) first = p;
+        last = p; kept += z - s;
+        if (!best || z - s > best[1] - best[0]) best = p;
+      }
       off += b - a;
     }
-    if (best && best[1] - best[0] >= minDur) out.push(Object.assign({}, c, { s: best[0], e: best[1] }));
+    const span = first && first !== last && kept >= (c.e - c.s) * 0.5 ? [first[0], last[1]] : best;
+    if (span && span[1] - span[0] >= minDur) out.push(Object.assign({}, c, { s: span[0], e: span[1] }));
   }
   return out;
+}
+/* סבב 4: מילות מילוי (טווחים מהתמלול) → חיתוך בתוך מה שכבר נבחר. מילה שהחיתוך שלה היה משאיר קטע קצר מ־SEG_MIN
+   (= מוחק דיבור) — מדלגים עליה; עד SEG_MAX קטעים. מחזיר { segs, n, t } או null */
+export function cutFillers(segs, ranges, dur) {
+  const d = num(dur);
+  let cur = segs && segs.length ? segs.map((p) => p.slice()) : d > 0 ? [[0, r3(d)]] : null;
+  if (!cur) return null;
+  let n = 0, t = 0;
+  for (const [a, b] of (ranges || []).slice().sort((x, y) => (y[1] - y[0]) - (x[1] - x[0]))) {   // הארוכות קודם
+    if (cur.length >= SEG_MAX) break;
+    const i = segAt(cur, (a + b) / 2);
+    if (i < 0) continue;
+    const [x, y] = cur[i];
+    if (a - x < SEG_MIN || y - b < SEG_MIN) continue;
+    cur.splice(i, 1, [x, r3(a)], [r3(b), y]);
+    n++; t += b - a;
+  }
+  return n ? { segs: cur, n, t: Math.round(t * 10) / 10 } : null;
 }
 /* שתי עריכות ברצף: e0 על המקור (לפני התרגום), e1 על התוצאה שלה (אחרי) → עריכה אחת על המקור */
 export function composeEdl(e0, e1) {

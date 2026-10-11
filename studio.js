@@ -13,8 +13,8 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
-import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, termIssues, flagIndex } from './studiosubs.js';
+import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
@@ -176,6 +176,7 @@ export function normJob(j) {
     tr: normTrace(s.tr),   // v373: עקיבה
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
+    rvf: normRvf(s.rvf), fil: normFil(s.fil), // סבב 4: סימונים מהביקורת, מילות מילוי
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
     nt: normNote(s.nt),                       // v382: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
@@ -246,9 +247,36 @@ export function sourceAdvice(m, ctx) {
   return out.sort((x, y) => ADV_ORDER[x.sev] - ADV_ORDER[y.sev]);
 }
 /* הצעות אחרי שהעבודה הסתיימה — מהשופט וממידות הסרטון (בעיות קצב/אורך — כבר בעורך, עם הצעות תיקון משלהן). "בדיקת משמעות" = תרגום חוזר רק של מה שהשופט סימן */
+/* סבב 4: סימונים מהביקורת ומילות מילוי — אותה בדיקה כמו בשרתון (normRvf / normFil); לא תקין — null */
+export const RVF_CODES = ['g', 's', 't'];
+export const RVF_MAX = 40;   // **זהה בעובד ובשרתון**
+export function normRvf(o) {
+  if (!Array.isArray(o) || !o.length || o.length > RVF_MAX) return null;
+  const out = [];
+  for (const x of o) {
+    if (!Array.isArray(x) || x.length !== 2 || !Number.isInteger(x[0]) || x[0] < 1 || x[0] > 1e6 || !RVF_CODES.includes(x[1])) return null;
+    const l = out[out.length - 1];
+    if (l && (x[0] < l[0] || (x[0] === l[0] && RVF_CODES.indexOf(x[1]) <= RVF_CODES.indexOf(l[1])))) return null;
+    out.push([x[0], x[1]]);
+  }
+  return out;
+}
+export const FIL_MAX = 300;  // **זהה בעובד ובשרתון**
+export function normFil(o) {
+  if (!Array.isArray(o) || !o.length || o.length > FIL_MAX) return null;
+  const out = [];
+  for (const x of o) {
+    if (!Array.isArray(x) || x.length !== 2 || typeof x[0] !== 'number' || typeof x[1] !== 'number') return null;
+    const a = Math.round(x[0] * 100) / 100, b = Math.round(x[1] * 100) / 100;
+    if (!(a >= 0) || !(b - a >= 0.149) || b - a > 2.001 || a > 86400 || (out.length && a < out[out.length - 1][1])) return null;
+    out.push([a, b]);
+  }
+  return out;
+}
 export function afterAdvice(rec, o) {
   const out = [], sv = rec && rec.srv, x = o || {};
   if (!sv || sv.state !== 'done' || sv.kind === 'rr') return out;
+  if (sv.rvf && sv.rvf.length) out.push({ k: 'rvf', act: 'subs', n: new Set(sv.rvf.map((f) => f[0])).size });   // סבב 4: לבדיקה שלך
   if (sv.jd && sv.jd.f && sv.jd.f.length) out.push({ k: 'jd', act: 'ai', n: sv.jd.f.length });
   if (rec.vm && rec.vm.h > rec.vm.w && !x.rrDone) out.push({ k: 'vert', act: 'rr' });
   return out;
@@ -4072,8 +4100,22 @@ async function playLoad(rec) {
   }
   plPaint();
 }
+function rvfSub(rvf) {
+  const ks = new Set((rvf || []).map((f) => f[1]));
+  return ['g', 's', 't'].filter((k) => ks.has(k)).map((k) => issueName('rv' + k)).join(' · ');
+}
+let seOnly = '';   // סבב 4: העורך נפתח על "רק לבדיקה" (מההצעה בדף העבודה)
+/* סבב 4: סימונים לעורך — מהביקורת (rvf) ומונח שתורגם בשתי דרכים (מילון המונחים + המונחים של העבודה, בלי AI) */
+function seFlags(rec, cues) {
+  const terms = (gl.st === 'ok' ? gl.rows : []).map((r) => [r[0], r[1]]).concat(rec.srv.gl ? rec.srv.gl.s : []);
+  return flagIndex(cues, (rec.srv.rvf || []).map(([i, k]) => [i, 'rv' + k]).concat(termIssues(cues, terms).map(([i]) => [i, 'term'])));
+}
 function issueName(k) {
   switch (k) {
+    case 'rvg': return T('studioIsRvg');      // סבב 4: לבדיקה — מהביקורת ומבדיקת המונחים
+    case 'rvs': return T('studioIsRvs');
+    case 'rvt': return T('studioIsRvt');
+    case 'term': return T('studioIsTerm');
     case 'cps': return T('studioIsCps');
     case 'len': return T('studioIsLen');
     case 'lines': return T('studioIsLines');
@@ -4124,8 +4166,11 @@ async function seLoad(rec) {
   try {
     const cues = normCues(await net.driveJson(outOf(rec, 'cues').id));
     if (se !== me) return;
+    // סבב 4: מילון המונחים (לבדיקת מונח שתורגם בשתי דרכים) — לא מחכים לו יותר מ־2.5 שנ׳
+    if (gl.st === '' && store.drive && store.drive.connected) { await Promise.race([glossLoad(), new Promise((r) => setTimeout(r, 2500))]); if (se !== me) return; }
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
-    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id),
+    const only = seOnly === rec.id; seOnly = '';
+    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only,
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
@@ -4284,8 +4329,16 @@ function pageCut(p, before) {
   }
   if (!ce.cues.length || rec.spec.edl) return;   // נחתך כבר לפני התרגום — ציר הזמן של הנגן הוא הצרוב (פשוט: בלי כלי התמליל)
   const cs = ce.cues, dur = rec.spec.dur || 0;
+  const fil = rec.srv.fil;   // סבב 4: מילות מילוי מהתמלול (um/uh) — חיתוך בתוך מה שכבר נבחר
   p.append(secT(T('studioEdByText')), list(rowNav({ tile: tile('spark', 'green'), label: T('studioEdSilence'), sub: T('studioEdSilenceS'),
-    onClick: () => ce.ed.set(intersectSegs(silenceSegs(cs, ce.ctl.video.duration || dur), ce.ed.segs()), T('studioEdSilenceNo')), k: 'ed-silence' })));   // בתוך מה שכבר נבחר
+    onClick: () => ce.ed.set(intersectSegs(silenceSegs(cs, ce.ctl.video.duration || dur), ce.ed.segs()), T('studioEdSilenceNo')), k: 'ed-silence' }),   // בתוך מה שכבר נבחר
+    fil ? rowNav({ tile: tile('spark', 'teal'), label: T('studioEdFil'), sub: T('studioEdFilS', { n: fil.length }),
+      onClick: () => {
+        const r = cutFillers(ce.ed.segs(), fil, ce.ctl.video.duration || dur);
+        if (!r) { flashSafe(T('studioEdFilNo')); return; }
+        ce.ed.set(r.segs, T('studioEdFilNo'));
+        flashSafe(T('studioEdFilDone', { n: r.n, t: r.t }));
+      }, k: 'ed-fil' }) : null));
   const det = h('details', 'st-details');
   det.append(h('summary', null, T('studioEdPick', { n: cs.length })));
   const box = h('div', 'st-list st-ed-cues');
@@ -4650,6 +4703,7 @@ function pageJob(p) {
     const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
     if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
       ? { tile: tile('spark', 'teal'), label: T('studioAdvJd', { n: a.n }), sub: T('studioAdvJdS'), onClick: () => { aiPreset = { id: rec.id, ids: rec.srv.jd.f }; go('subs', rec.id); }, k: 'adv-jd' }
+      : a.k === 'rvf' ? { tile: tile('edit', 'orange'), label: T('studioAdvRvf', { n: a.n }), sub: rvfSub(rec.srv.rvf), onClick: () => { seOnly = rec.id; go('subs', rec.id); }, k: 'adv-rvf' }   // סבב 4
       : { tile: tile('film', 'blue'), label: T('studioAdvVert'), sub: T('studioAdvVertS'), onClick: () => go('rr', rec.id), k: 'adv-vert' }))));   // סבב 2: הצעות אחרי
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה

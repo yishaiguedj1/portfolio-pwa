@@ -209,6 +209,46 @@ export function suggestions(cues, dismissed, max = SUG_MAX) {
 }
 
 /* ---------- ביטול וחזרה: מצבים שלמים (המערכים לא משתנים — זול). עריכת טקסט רצופה באותה כתובית = צעד אחד ---------- */
+/* סבב 4: מונח שתורגם בשתי דרכים (בלי AI) — terms = [[אנגלית, עברית עם חלופות ב־/], …] (מילון המונחים + המונחים של העבודה).
+   כתובית שבאנגלית יש את המונח ובעברית אין אף חלופה שלו → [מזהה הכתובית, המונח]. השוואה בלי ניקוד ובלי האות האחרונה
+   של מילה ארוכה (הטיות), כך שתחיליות (ו/ה/ב/ל…) וסופיות רגילות לא נספרות כ"שונה". טהור */
+export const TERM_MAX = 200;
+const heFold = (s) => clean(s).replace(/[\u0591-\u05C7]/g, '').replace(/[\u05BE\-־"'׳״]/g, ' ').replace(/[ךםןףץ]/g, (x) => 'כמנפצ'['ךםןףץ'.indexOf(x)]).replace(/\s+/g, ' ').trim();
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function termIssues(cues, terms) {
+  const tt = [];
+  for (const t of (Array.isArray(terms) ? terms : []).slice(0, TERM_MAX)) {
+    if (!Array.isArray(t)) continue;
+    const en = clean(t[0]).trim(), alts = String(t[1] || '').split('/').map((x) => heFold(x.replace(/\(.*?\)/g, ''))).filter((x) => x.length >= 2);
+    if (en.length < 2 || !alts.length || !/[a-z]/i.test(en)) continue;
+    const re = new RegExp('(^|[^a-z0-9])' + reEsc(en.toLowerCase()) + '(e?s)?(?=$|[^a-z0-9])');
+    // כל חלופה = המילים שלה (כל מילה בלי האות האחרונה כשהיא ארוכה) — "הבינה המלאכותית" מתאימה ל"בינה מלאכותית"
+    tt.push({ en, re, alts: alts.map((a) => a.split(' ').filter((w) => w.length >= 2).map((w) => (w.length >= 4 ? w.slice(0, -1) : w))).filter((ws) => ws.length) });
+  }
+  const out = [];
+  if (!tt.length) return out;
+  for (const c of cues || []) {
+    const en = String(c.en || '').toLowerCase();
+    if (!en) continue;
+    const he = heFold(c.lines.join(' '));
+    for (const t of tt) if (t.re.test(en) && !t.alts.some((ws) => ws.every((w) => he.includes(w)))) { out.push([c.i, t.en]); break; }
+  }
+  return out;
+}
+/* סימונים לבדיקה (מהביקורת / מהבדיקה של המונחים) לפי מזהה הכתובית — נעלמים כשהטקסט של הכתובית נערך */
+export function flagIndex(cues, list) {
+  const m = new Map();
+  for (const [i, k] of Array.isArray(list) ? list : []) {
+    if (!Number.isInteger(i) || typeof k !== 'string') continue;
+    const c = (cues || []).find((x) => x.i === i);
+    if (!c) continue;
+    const r = m.get(i) || { t: textOf(c), k: [] };
+    if (!r.k.includes(k)) r.k.push(k);
+    m.set(i, r);
+  }
+  return m;
+}
+
 export function createHistory(initial) {
   let past = [], future = [], cur = initial, tag = '', at = 0, ver = 0;
   return {
@@ -254,11 +294,13 @@ function b(cls, label, fn, k, iconK) {
    מחזיר { el, cues(), ver(), time(t), setSaved(ver), destroy }. כתובית אחת פתוחה לעריכה בכל רגע (תיבת טקסט אחת — קל גם ל־1,500 כתוביות) */
 export function createSubsEditor(opts) {
   const issMemo = new WeakMap();                       // מ9: הבדיקות לכל אובייקט כתובית — פעם אחת (בכל הקשה סופרים את כולן)
-  const issOf = (c) => { let v = issMemo.get(c); if (!v) { v = cueIssues(c); issMemo.set(c, v); } return v; };
+  const flags = opts.flags instanceof Map ? opts.flags : new Map();   // סבב 4: מזהה → { t: הטקסט המקורי, k: [סוגים] }
+  const flagsOf = (c) => { const f = flags.get(c.i); return f && f.t === textOf(c) ? f.k : []; };
+  const issOf = (c) => { let v = issMemo.get(c); if (!v) { v = cueIssues(c).concat(flagsOf(c)); issMemo.set(c, v); } return v; };
   const T = opts.T || ((k) => k);
   const iname = opts.issueName || ((k) => k);
   const hist = createHistory((opts.cues || []).map((c) => Object.assign({}, c)));
-  let sel = -1, only = false, act = -1, q = '', rep = '', searchOn = false, shiftOn = false;
+  let sel = -1, only = !!opts.only, act = -1, q = '', rep = '', searchOn = false, shiftOn = false;
   const wrap = el('div', 'st-se');
   const bar = el('div', 'st-se-bar');
   const undoB = b('ic', T('studioSeUndo'), () => { if (hist.undo()) { sel = Math.min(sel, hist.cur.length - 1); changed(true); } }, 'se-undo', 'undo');
