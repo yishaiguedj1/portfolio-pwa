@@ -24,8 +24,9 @@ Z_MAX = 3
 VOL_MAX = 200
 FADE_MAX = 10
 LUFS = -14
-EXTRA_POS = ('y', 'z')
-EXTRA_REST = ('sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln')
+EXTRA_POS = ('y', 'af', 'z')
+EXTRA_REST = ('sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th')
+FXS = ('bw', 'warm', 'cool', 'vint')   # סבב 7: מסננים
 
 
 def _num(v):
@@ -37,6 +38,10 @@ def _num(v):
 def r3(x):
     """כמו Math.round(x * 1000) / 1000 ב־JS (חצי — כלפי מעלה, לא עיגול בנקאי)."""
     return math.floor(x * 1000 + 0.5) / 1000
+
+
+def _int_if(v):
+    return int(v) if v == int(v) else v
 
 
 def norm_edl(e, dur=0):
@@ -69,6 +74,8 @@ def norm_edl(e, dur=0):
     ex = {}
     if crop and y != 0.5:
         ex['y'] = y
+    if crop and e.get('af') is True:          # סבב 9: מסגור אוטומטי לדובר (frame.py)
+        ex['af'] = True
     if z > 1:
         ex['z'] = z
     sp, rt = _num(e.get('sp')), _num(e.get('rt'))
@@ -94,6 +101,27 @@ def norm_edl(e, dur=0):
                 ex[f] = int(r) if r == int(r) else r
     if not mu and e.get('ln') is True:
         ex['ln'] = True
+    # סבב 7 (עורך הווידאו ג׳): ניקוי רעש · בהירות / ניגודיות / רוויה · מסנן · טשטוש אזור · מעברים · תמונה ממוזערת
+    if not mu and e.get('dn') in (1, 2) and e.get('dn') is not True:
+        ex['dn'] = int(e['dn'])
+    for f, lo, hi, st in (('br', -30, 30, 5), ('ct', -30, 30, 5), ('sa', -100, 100, 10)):
+        v = _num(e.get(f))
+        if lo <= v <= hi:
+            r = int(math.floor(v / st + 0.5)) * st
+            if r != 0:
+                ex[f] = r
+    if e.get('fx') in FXS:
+        ex['fx'] = e['fx']
+    bl = e.get('bl')
+    if isinstance(bl, list) and len(bl) == 4:
+        bx, by, bw, bh = (_int_if(math.floor(_num(v) * 100 + 0.5) / 100) if _num(v) == _num(v) else math.nan for v in bl)
+        if bx >= 0 and by >= 0 and bw >= 0.05 and bh >= 0.05 and bx + bw <= 1.0001 and by + bh <= 1.0001:
+            ex['bl'] = [bx, by, bw, bh]
+    if e.get('tr') is True:
+        ex['tr'] = True
+    th = _num(e.get('th'))
+    if 0 <= th <= MAX_T:
+        ex['th'] = _int_if(math.floor(th * 10 + 0.5) / 10)
     whole = not k or (len(k) == 1 and k[0][0] <= JOIN_GAP and d > 0 and k[0][1] >= d - JOIN_GAP)
     if whole and ar == 'src' and not ex:
         return None
@@ -148,19 +176,28 @@ def map_time(e, t):
 
 
 def map_cues(e, cues, min_dur=0.2):
-    """כתוביות {start, end, …} (הפורמט של cues.final.json) → אחרי החיתוך; נחתכה באמצע — החלק הארוך."""
+    """כתוביות {start, end, …} (הפורמט של cues.final.json) → אחרי החיתוך: נחתכה כולה — יוצאת; נחתך ממנה רוב הזמן — החלק הארוך;
+    נחתך ממנה מעט (סבב 4: מילת מילוי / שקט קצר באמצע) — מהחלק הראשון עד האחרון, ברצף. **זהה ל־mapCues בטלפון**"""
     if not e or not e['k']:
         return [dict(c) for c in cues]
     out = []
     for c in cues:
-        best, off = None, 0.0
+        best = first = last = None
+        kept, off = 0.0, 0.0
         for a, b in e['k']:
             s, z = max(c['start'], a), min(c['end'], b)
-            if z - s > ((best[1] - best[0]) if best else 0):
-                best = (r3(off + s - a), r3(off + z - a))
+            if z > s:
+                p = (r3(off + s - a), r3(off + z - a))
+                if first is None:
+                    first = p
+                last = p
+                kept += z - s
+                if best is None or z - s > best[1] - best[0]:
+                    best = p
             off += b - a
-        if best and best[1] - best[0] >= min_dur:
-            out.append(dict(c, start=best[0], end=best[1]))
+        span = (first[0], last[1]) if first is not None and first is not last and kept >= (c['end'] - c['start']) * 0.5 else best
+        if span and span[1] - span[0] >= min_dur:
+            out.append(dict(c, start=span[0], end=span[1]))
     return out
 
 
@@ -271,8 +308,9 @@ def atempo(sp):
     return ['atempo=%.4f' % x for x in f]
 
 
-def video_filters(e, W, H):
-    """מהירות → סיבוב → היפוך → חיתוך → זום (חזרה לגודל בלי זום). W×H = המידות לפני הסיבוב."""
+def video_filters(e, W, H, xt=None):
+    """מהירות → סיבוב → היפוך → חיתוך → זום (חזרה לגודל בלי זום). W×H = המידות לפני הסיבוב.
+    xt = (free, x0, kf) מ־frame.track — מסגור אוטומטי: x של החיתוך משתנה לפי הזמן (ביטוי של מספרים בלבד)"""
     f = []
     sp = e.get('sp') or 1
     if sp != 1:
@@ -287,17 +325,42 @@ def video_filters(e, W, H):
         f.append('vflip')
     RW, RH = rot_dims(W, H, rt)
     cb = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), e.get('z', 1))
-    if cb:
+    if cb and xt and int(xt[0]) == RW - cb['w']:
+        import frame as F
+        f.append("crop=%d:%d:x='%s':y=%d" % (cb['w'], cb['h'], F.x_expr(xt[0], xt[1], xt[2]), cb['y']))
+    elif cb:
         f.append('crop=%d:%d:%d:%d' % (cb['w'], cb['h'], cb['x'], cb['y']))
         if (e.get('z') or 1) > 1:
             full = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), 1) or {'w': RW - RW % 2, 'h': RH - RH % 2}
             f.append('scale=%d:%d:flags=lanczos' % (full['w'], full['h']))
+    # סבב 7: צבע — בהירות / ניגודיות / רוויה, ומסנן (רק מספרים וקודים מהקטלוג)
+    br, ct, sa = e.get('br') or 0, e.get('ct') or 0, e.get('sa') or 0
+    if br or ct or sa:
+        f.append('eq=brightness=%.2f:contrast=%.2f:saturation=%.2f' % (br / 100, 1 + ct / 100, 1 + sa / 100))
+    if e.get('fx') in FX_FILTERS:
+        f.append(FX_FILTERS[e['fx']])
     return f
+
+
+FX_FILTERS = {'bw': 'hue=s=0', 'warm': 'colorbalance=rs=.08:gs=.02:bs=-.08', 'cool': 'colorbalance=rs=-.06:bs=.08', 'vint': 'curves=preset=vintage'}
+DN_FILTERS = {1: 'afftdn=nr=12:nf=-40', 2: 'afftdn=nr=24:nf=-35,highpass=f=80'}   # סבב 7: ניקוי רעש — קל / חזק
+TR_DUR = 0.25            # סבב 7: מעבר (האפלה) בכל תפר — בלי לשנות את האורך (הכתוביות לא זזות)
+LOGO_POS = ('tl', 'tr', 'bl', 'br')
+
+
+def final_dims(e, W, H):
+    """המידות של התמונה אחרי סיבוב / חיתוך / זום — לטשטוש אזור וללוגו"""
+    RW, RH = rot_dims(W, H, e.get('rt') or 0)
+    if (e.get('z') or 1) > 1:
+        full = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), 1)
+        return (full['w'], full['h']) if full else (RW - RW % 2, RH - RH % 2)
+    cb = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), 1)
+    return (cb['w'], cb['h']) if cb else (RW, RH)
 
 
 def audio_filters(e, total):
     """מהירות → השוואת עוצמה → עוצמה → הדרגה. total = אורך התוצאה (להדרגה בסוף)."""
-    f = atempo(e.get('sp') or 1)
+    f = ([DN_FILTERS[e['dn']]] if e.get('dn') in DN_FILTERS else []) + atempo(e.get('sp') or 1)   # סבב 7: ניקוי רעש לפני הכל
     if e.get('ln'):
         f += ['loudnorm=I=%d:TP=-1.5:LRA=11' % LUFS, 'aresample=48000']
     vo = e.get('vo')
@@ -311,18 +374,24 @@ def audio_filters(e, total):
     return f
 
 
-def ffmpeg_args(src, out, e, info, audio_only=False):
-    """הפקודה (רשימה, בלי shell): קטעים → concat, ואז מהירות / סיבוב / חיתוך / שמע. רק מספרים מהעריכה נכנסים למסנן."""
+def ffmpeg_args(src, out, e, info, audio_only=False, ov=None, logo=None, xt=None):
+    """הפקודה (רשימה, בלי shell): קטעים → concat, ואז מהירות / סיבוב / חיתוך / צבע / טשטוש / לוגו / שמע.
+    רק מספרים וקודים מהעריכה נכנסים למסנן; הלוגו = קובץ (קלט שני), המיקום והגודל מ־ov (מנורמל)."""
     segs = e['k'] or None
     has_v, has_a = info.get('v') and not audio_only, info.get('a') and not e.get('mu')
+    tr = bool(e.get('tr')) and segs and len(segs) > 1          # סבב 7: מעבר בכל תפר
     parts, vl, al = [], [], []
     for i, (a, b) in enumerate(segs or [[None, None]]):
         rng = ('=start=%.3f:end=%.3f' % (a, b)) if segs else ''
         if has_v:
-            parts.append('[0:v]trim%s,setpts=PTS-STARTPTS[v%d]' % (rng, i))
+            vx = (',fade=t=in:st=0:d=%.2f,fade=t=out:st=%.3f:d=%.2f' % (TR_DUR, max(0.0, b - a - TR_DUR), TR_DUR)) if tr else ''
+            parts.append('[0:v]trim%s,setpts=PTS-STARTPTS%s[v%d]' % (rng, vx, i))
             vl.append('[v%d]' % i)
         if has_a:
-            parts.append('[0:a]atrim%s,asetpts=PTS-STARTPTS[a%d]' % (rng, i))
+            # סבב 4: כמה קטעים — הדרגה של 10ms בכל תפר (בלי "קליק" כשחותכים מילת מילוי באמצע משפט); סבב 7: עם מעבר — הדרגה של המעבר
+            d = TR_DUR if tr else 0.01
+            fx = (',afade=t=in:d=%.2f,afade=t=out:st=%.3f:d=%.2f' % (d, max(0.0, b - a - d), d)) if segs and len(segs) > 1 else ''
+            parts.append('[0:a]atrim%s,asetpts=PTS-STARTPTS%s[a%d]' % (rng, fx, i))
             al.append('[a%d]' % i)
     n = len(segs or [0])
     if has_v and has_a:
@@ -332,15 +401,34 @@ def ffmpeg_args(src, out, e, info, audio_only=False):
     elif has_a:
         parts.append(''.join(al) + 'concat=n=%d:v=0:a=1[ac]' % n)
     vout, aout = '[vc]', '[ac]'
-    vf = video_filters(e, info.get('w') or 0, info.get('h') or 0) if has_v else []
+    vf = video_filters(e, info.get('w') or 0, info.get('h') or 0, xt) if has_v else []
     if vf:
         parts.append('[vc]' + ','.join(vf + ['setsar=1']) + '[vo]')
         vout = '[vo]'
+    if has_v and (e.get('bl') or logo):
+        FW, FH = final_dims(e, info.get('w') or 0, info.get('h') or 0)
+        bl = e.get('bl')
+        if bl and FW > 0 and FH > 0:            # סבב 7: טשטוש אזור (מלבן בשברים מהתמונה הסופית)
+            ev = lambda v: max(2, int(v // 2) * 2)
+            bw, bh = ev(bl[2] * FW), ev(bl[3] * FH)
+            bx, by = min(int(bl[0] * FW) // 2 * 2, FW - bw), min(int(bl[1] * FH) // 2 * 2, FH - bh)
+            parts.append('%ssplit=2[bla][blb];[blb]crop=%d:%d:%d:%d,gblur=sigma=%d[blc];[bla][blc]overlay=%d:%d[vbl]'
+                         % (vout, bw, bh, max(0, bx), max(0, by), max(8, min(bw, bh) // 8), max(0, bx), max(0, by)))
+            vout = '[vbl]'
+        if logo and FW > 0:                      # סבב 7: לוגו בפינה (קלט שני)
+            o = ov or {}
+            lw = max(16, int(FW * (o.get('ls') or 14) / 100) // 2 * 2)
+            m = int(FW * 0.03)
+            lp = o.get('lp') if o.get('lp') in LOGO_POS else 'tr'
+            xy = {'tl': (str(m), str(m)), 'tr': ('main_w-overlay_w-%d' % m, str(m)),
+                  'bl': (str(m), 'main_h-overlay_h-%d' % m), 'br': ('main_w-overlay_w-%d' % m, 'main_h-overlay_h-%d' % m)}[lp]
+            parts.append('[1:v]scale=%d:-2,format=rgba[lgo];%s[lgo]overlay=%s:%s[vlg]' % (lw, vout, xy[0], xy[1]))
+            vout = '[vlg]'
     af = audio_filters(e, out_dur(e, info.get('dur') or 0)) if has_a else []
     if af:
         parts.append('[ac]' + ','.join(af) + '[ao]')
         aout = '[ao]'
-    cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-filter_complex', ';'.join(parts)]
+    cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src)] + (['-i', str(logo)] if logo and has_v else []) + ['-filter_complex', ';'.join(parts)]
     if has_v:
         cmd += ['-map', vout, '-c:v', 'libx264', '-crf', '16', '-preset', 'veryfast', '-pix_fmt', 'yuv420p']
     if has_a:
@@ -348,8 +436,16 @@ def ffmpeg_args(src, out, e, info, audio_only=False):
     return cmd + ['-movflags', '+faststart', str(out)]
 
 
-def apply(src, out, e, audio_only=False, env=None):
-    """מריץ את החיתוך. מחזיר את הנתיב (out)."""
+def apply(src, out, e, audio_only=False, env=None, ov=None, logo=None, auto_frame=False):
+    """מריץ את החיתוך. מחזיר את הנתיב (out). auto_frame — סבב 9: מסגור לפי הדובר (frame.track; תקלה = המיקום הקבוע)"""
     info = probe(src, env)
-    subprocess.run(ffmpeg_args(src, out, e, info, audio_only), check=True, env=env)
+    xt = None
+    if auto_frame and e.get('af') and not audio_only:
+        try:
+            import frame as F
+            xt = F.track(src, e, info, env)
+            print('· מסגור לפי הדובר: ' + ('%d מעברים' % len(xt[2]) if xt else 'לא נמצאו פנים — המיקום הקבוע'), flush=True)
+        except Exception as ex:             # noqa: BLE001 — המסגור לא מפיל הפקה
+            print('· מסגור לפי הדובר נכשל (%s) — המיקום הקבוע' % type(ex).__name__, flush=True)
+    subprocess.run(ffmpeg_args(src, out, e, info, audio_only, ov, logo, xt), check=True, env=env)
     return Path(out)

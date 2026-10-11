@@ -17,6 +17,7 @@ const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[
 const OUT = path.resolve(String(arg('out', 'qa-motion-out')));
 const MONKEY = +arg('monkey', 0), SEED = +arg('seed', 7);
 const SESSION = String(arg('session', 'CLOSED')).toUpperCase(), SNAP = arg('snap', ''), COMPARE = arg('compare', '');
+const SHOTS = arg('shots', ''); if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 const LIVE = { tick: 0, fail: false, slowHist: false };   // v325: המחירים זזים בכל בקשה (ספרות מתגלגלות), כשל מוזרק, היסטוריה איטית
 const THEME = arg('theme', 'light'), WIDTH = +arg('width', 390), RM = !!arg('rm', false), LANG = arg('lang', 'he');
 const CPU = +arg('cpu', 1), NET = arg('net', ''), ONLY = arg('only', ''), FRAMES = !!arg('frames', false), DBG = !!arg('debug-scroll', false), MAXSTEPS = +arg('steps', 0);
@@ -296,6 +297,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     const row = { name, ms: Date.now() - t0 - settle, cls: +(m ? m.cls : 0).toFixed(4), clsMax: +(m ? m.clsMax : 0).toFixed(4), shifts: m ? m.shifts.slice(0, 6) : [], longTasks: m ? m.longTasks : [], frameGaps: m ? m.frameGaps : [], scrollJumps: m ? m.scrollJumps : [], heightChanges: m ? m.heightChanges : 0, flash: fr.flash, maxDiff: fr.maxDiff, frames: fr.frames, flicker: fr.flicker || 0, exited, err, scrollLog: m && m.scrollLog ? m.scrollLog.slice(0, 40) : undefined };
     row.bad = row.cls > (opt.cls == null ? 0.02 : opt.cls) || row.scrollJumps.length > 0 || row.flash > 0 || (row.flicker > 0 && !opt.flickerOk) || row.frameGaps.some((g) => g > (opt.gap || 250)) || !!row.err || (exited && !opt.exitOk);
     results.push(row);
+    if (SHOTS) { try { await page.screenshot({ path: path.join(SHOTS, String(results.length).padStart(3, '0') + '.png') }); } catch (e) {} }   // --shots <תיקייה>: צילום אחרי כל צעד (לבדיקה בעין)
     if (DBG && row.scrollJumps.length && row.scrollLog) row.scrollLog.forEach((l) => process.stdout.write('    ' + l.join('  ') + '\n'));
     process.stdout.write((row.bad ? '✗ ' : '✓ ') + name + '  cls=' + row.cls + ' gaps=' + row.frameGaps.join('/') + ' jumps=' + row.scrollJumps.length + ' flash=' + row.flash + ' flicker=' + row.flicker + (row.exited ? ' [יצא מהאפליקציה]' : '') + (row.err ? '  ERR ' + row.err : '') + '\n');
   }
@@ -819,12 +821,14 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     const CUES = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, start: i * 2.5, end: i * 2.5 + (i % 5 === 1 ? 0.4 : 1.6), lines: i % 4 === 3 ? ['זו כתובית ארוכה מאוד שנאמרת מהר מדי לקריאה ' + i] : ['כתובית ' + i], en: 'Subtitle ' + i }));
     const esc = () => page.keyboard.press('Escape');   // בסטודיו "חזור" = בקשת סגירה (CloseWatcher); בדסקטופ — Escape
     const spec = { name: 'QA_Interview.mp4', size: 100, dur: 30, to: ['he'], from: 'auto', mode: 'sonnet-medium', out: ['compact'], style: 'bold' };
-    const job = { jd: { s: 64, n: 12, t: 12, a: 12, c: { mean: 2, omit: 1 }, f: [2, 5, 8] }, id: JD, kind: 'tr', state: 'done', created: now - 9e6, updated: now - 8e6, ended: now - 8e6, fires: 1, spec, folder: 'fold1234567890', ev: 0, vh: [],
-      files: { a: { id: 'aud1234567890', size: 5 }, v: { id: 'vid1234567890', size: VID.length }, o: [{ id: 'cmp1234567890', k: 'compact', size: 900 }, { id: 'srt1234567890', k: 'srt', size: 200 }, { id: 'cue1234567890', k: 'cues', size: 300 }] } };
+    const job = { jd: { s: 64, n: 12, t: 12, a: 12, c: { mean: 2, omit: 1 }, f: [2, 5, 8] }, rvf: [[4, 'g'], [7, 's']], fil: [[5.9, 6.2], [12, 12.35]], id: JD, kind: 'tr', state: 'done', created: now - 9e6, updated: now - 8e6, ended: now - 8e6, fires: 1, spec, folder: 'fold1234567890', ev: 0, vh: [],
+      files: { a: { id: 'aud1234567890', size: 5 }, v: { id: 'vid1234567890', size: VID.length }, o: [{ id: 'cmp1234567890', k: 'compact', size: 900 }, { id: 'srt1234567890', k: 'srt', size: 200 }, { id: 'cue1234567890', k: 'cues', size: 300 }, { id: 'met1234567890', k: 'meta', size: 900 }] } };
+    // סבב 6: גל קול (סינוס עם הפסקות) וחילופי שוטים ליד קצוות הכתוביות
+    const META = { v: 1, r: 20, pk: Buffer.from(Array.from({ length: 600 }, (_, i) => (i % 50 < 32 ? 120 + Math.round(100 * Math.abs(Math.sin(i / 3))) : 8))).toString('base64'), sh: [2.4, 7.6, 12.45, 20.1] };
     let nUp = 0;
     const SJ = (r, o) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
     await page.route(/\/studio-media\//, (r) => { const m = /bytes=(\d+)-(\d*)/.exec(r.request().headers().range || ''); const a = m ? +m[1] : 0, z = m && m[2] ? +m[2] : VID.length - 1; r.fulfill({ status: m ? 206 : 200, headers: { 'content-type': 'video/webm', 'accept-ranges': 'bytes', 'content-range': 'bytes ' + a + '-' + z + '/' + VID.length, 'content-length': String(z - a + 1) }, body: VID.subarray(a, z + 1) }); });
-    await page.route(/^https:\/\/www\.googleapis\.com\/(upload\/)?drive\//, (r) => { const u = r.request().url(); if (u.includes('cue1234567890?alt=media')) return SJ(r, CUES); if (u.includes('srt1234567890?alt=media')) return r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'text/plain' }, body: '1\n00:00:01,000 --> 00:00:02,000\nשלום\n' }); if (u.includes('uploadType=multipart')) return SJ(r, { id: 'up' + (++nUp) + 'abcdefghijk' }); return r.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '{}' }); });
+    await page.route(/^https:\/\/www\.googleapis\.com\/(upload\/)?drive\//, (r) => { const u = r.request().url(); if (u.includes('cue1234567890?alt=media')) return SJ(r, CUES); if (u.includes('met1234567890?alt=media')) return SJ(r, META); if (u.includes('srt1234567890?alt=media')) return r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'text/plain' }, body: '1\n00:00:01,000 --> 00:00:02,000\nשלום\n' }); if (u.includes('uploadType=multipart')) return SJ(r, { id: 'up' + (++nUp) + 'abcdefghijk' }); return r.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '{}' }); });
     await page.route(/\/api\/studio/, (r) => { const b = JSON.parse(r.request().postData() || '{}');
       if (b.op === 'status') return SJ(r, { ok: true, conn: { hint: 'trig_…ABCD', since: now, ok: now }, drive: { configured: true, connected: true, email: 'a@b.c' }, kinds: ['ping', 'tr', 'rr', 'ai'], fb: [], fm: 'suggest', rl: { b: 0, mx: '', ab: false }, halt: 0, now });
       if (b.op === 'jobs') return SJ(r, { ok: true, jobs: [job], kinds: ['ping', 'tr', 'rr', 'ai'], now });
@@ -841,17 +845,27 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     if (!page.url().startsWith(BASE)) { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
     await step('studio: דף העבודה (תוצרים, עריכה, רעיונות)', openStudioJob, { settle: 1800, cls: 1, expect: '.st-root [data-k="subs"]' });
     await step('studio: עורך הכתוביות (נגן + רשימה + הצעות)', () => page.click('[data-k="subs"]'), { settle: 2200, cls: 0.05, expect: '.st-se-row' });
+    // סבב 6: הציר (גל קול, כתוביות, חילופי שוטים) והצמדה לחיתוכים
+    await step('studio: ציר — נגיעה קופצת', () => page.locator('[data-k="se-tl"]').click({ position: { x: 200, y: 40 } }), { pre: '[data-k="se-tl"]', settle: 700, expect: '.st-tl' });
+    await step('studio: הצמדה לחיתוכים (כל הכתוביות)', () => page.click('[data-k="sg-snap"]'), { pre: '[data-k="sg-snap"]', settle: 800, cls: 0.05, expect: '.st-se-row' });
     await step('studio: פתיחת כתובית', () => page.click('[data-k="cue:3"]'), { pre: '[data-k="cue:3"]', settle: 900, expect: '[data-k="cue-ta:3"]' });
     await step('studio: הקלדה — הבדיקות מתעדכנות', () => page.fill('[data-k="cue-ta:3"]', 'כתובית קצרה'), { settle: 700, expect: '.st-se-row.open:not(.bad)' });
     await step('studio: פיצול וביטול', async () => { await page.click('[data-k="cue-split:3"]'); await sleep(300); await page.click('[data-k="se-undo"]'); }, { pre: '[data-k="cue-split:3"]', settle: 800, expect: '.st-se-row' });
     await step('studio: "רק בעיות" וחזרה', async () => { await page.click('[data-k="se-only"]'); await sleep(400); await page.click('[data-k="se-only"]'); }, { pre: '[data-k="se-only"]', settle: 800, expect: '.st-se-row' });
     await step('studio: הצעה — תיקון', () => page.click('[data-k^="sg-fix:"]'), { pre: '[data-k^="sg-fix:"]', settle: 800, cls: 0.05, expect: '.st-se' });
+    // סבב 8: טיוטה — שינוי שלא נשמר שורד רענון (IndexedDB), וחוזר כצעד ביטול אחד. בלי שחזור הסטודיו מהרשומה:
+    // ה־Firebase המדומה של הכלי נעלם ברענון — העבודה נפתחת מחדש כמו בהתחלה (הטיוטה ב־IndexedDB נשארת)
+    await step('studio: רענון באמצע עריכה — הטיוטה חוזרת', async () => { await sleep(1900); await page.evaluate(() => history.replaceState(null, '')); await reload(2500); await openStudioJob(); await sleep(1500); await page.click('[data-k="subs"]'); },
+      { settle: 1500, expect: '[data-k="se-save"]:not(:disabled)' });
     await step('studio: שמירה ל־Drive', () => page.click('[data-k="se-save"]'), { settle: 1200, expect: '[data-k="se-save"]:disabled' });
     await step('studio: גיליון AI', () => page.click('[data-k="se-ai"]'), { pre: '[data-k="se-ai"]', settle: 900, expect: '[data-k="ai-add"]' });
     await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
     await step('studio: הפקה מחדש', () => page.click('[data-k="se-rr"]'), { pre: '[data-k="se-rr"]', settle: 1000, expect: '[data-k="rr-go"]' });
+    await step('studio: הפקה מחדש — "קודם 20 שניות לבדיקה"', () => page.evaluate(() => 0), { pre: '[data-k="rr-pv"]', settle: 300, expect: '[data-k="rr-pv"]' });   // סבב 10
     await step('studio: חיתוך (ציר + 9:16)', async () => { await page.click('[data-k="rr-cut"]'); await sleep(1500); await page.click('[data-k="ed-ar:9:16"]'); }, { pre: '[data-k="rr-cut"]', settle: 1200, cls: 0.05, expect: '.st-ed-tl' });
+    await step('studio: מסגור לפי הדובר', () => page.click('[data-k="ed-af"]'), { pre: '[data-k="ed-af"]', settle: 700, expect: '[data-k="ed-af"].on' });   // סבב 9
     await step('studio: הסרת שקטים', () => page.click('[data-k="ed-silence"]'), { pre: '[data-k="ed-silence"]', settle: 800, expect: '.st-ed-tl' });
+    await step('studio: הסרת מילות מילוי', () => page.click('[data-k="ed-fil"]'), { pre: '[data-k="ed-fil"]', settle: 800, expect: '.st-ed-tl' });   // סבב 4
     // סבב 3: מהירות וסיבוב · מסגור · שמע — מקטעים מקופלים, תצוגה מקדימה בנגן
     await step('studio: מהירות וסיבוב', async () => { await page.click('[data-k="ed-g-sp"] > summary'); await sleep(300); await page.click('[data-k="ed-sp:2"]'); await page.click('[data-k="ed-rt"]'); },
       { pre: '[data-k="ed-g-sp"]', settle: 900, cls: 0.05, expect: '[data-k="ed-rt"].on' });
@@ -859,7 +873,22 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
       { pre: '[data-k="ed-g-fr"]', settle: 900, cls: 0.05, expect: '.st-ed-win' });
     await step('studio: שמע — השתקה והדרגה', async () => { await page.click('[data-k="ed-g-au"] > summary'); await sleep(300); await page.click('[data-k="ed-fi:2"]'); await page.click('[data-k="ed-mu"]'); },
       { pre: '[data-k="ed-g-au"]', settle: 900, cls: 0.05, expect: '[data-k="ed-mu"].on' });
+    // סבב 7: צבע, טשטוש אזור, מעברים, תמונה ממוזערת
+    await step('studio: צבע — מסנן ובהירות', async () => { await page.click('[data-k="ed-g-co"] > summary'); await sleep(300); await page.click('[data-k="ed-fx:bw"]');
+      await page.$eval('[data-k="ed-br"]', (r) => { r.value = '10'; r.dispatchEvent(new Event('input', { bubbles: true })); }); }, { pre: '[data-k="ed-g-co"]', settle: 900, cls: 0.05, expect: '[data-k="ed-fx:bw"].on' });
+    await step('studio: טשטוש אזור, מעברים, תמונה', async () => { await page.click('[data-k="ed-g-mo"] > summary'); await sleep(300); await page.click('[data-k="ed-bl"]'); await page.click('[data-k="ed-tr"]'); await page.click('[data-k="ed-th"]'); },
+      { pre: '[data-k="ed-g-mo"]', settle: 900, cls: 0.05, expect: '.st-ed-blr:not([hidden])' });
     await step('studio: חזור ← הפקה מחדש', esc, { settle: 1300, expect: '[data-k="rr-cut"]' });
+    await step('studio: כותרת ולוגו', () => page.click('[data-k="rr-ov"]'), { pre: '[data-k="rr-ov"]', settle: 1400, cls: 0.05, expect: '[data-k="ov-t"]' });
+    await step('studio: כותרת + לוגו מהטלפון', async () => { await page.fill('[data-k="ov-t"]', 'כותרת לבדיקה'); await page.click('[data-k="ov-ta:5"]');
+      await page.setInputFiles('input[type=file][accept^="image/png"]', { name: 'logo.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAADwAAAAeCAIAAAD/+uoYAAAACXBIWXMAAAABAAAAAQBPJcTWAAAAOklEQVR4nO3OUQkAIBBAMT/tn808YgzfwWABtu7Z46zvA+kwaWnpAGlp6QBpaekAaWnpAGlp6YCR6Qf4tgWU+AqfggAAAABJRU5ErkJggg==', 'base64') }); },
+      { pre: '[data-k="ov-t"]', settle: 1400, expect: '.st-ov-t:not([hidden]) ~ .st-ov-l:not([hidden])' });
+    await step('studio: חזור ← הפקה מחדש (כותרת)', esc, { settle: 1300, expect: '[data-k="rr-ov"]' });
+    // סבב 5: עיצוב הכתוביות — תצוגה חיה על הנגן
+    await step('studio: עיצוב הכתוביות', () => page.click('[data-k="rr-sty"]'), { pre: '[data-k="rr-sty"]', settle: 1500, cls: 0.05, expect: '[data-k="sty-bx"]' });
+    await step('studio: עיצוב — גודל, צבע, רקע, גובה', async () => { await page.click('[data-k="sty-k:120"]'); await sleep(200); await page.click('[data-k="sty-c:y"]'); await sleep(200); await page.click('[data-k="sty-bx"]'); await sleep(200); await page.click('[data-k="sty-y:20"]'); },
+      { pre: '[data-k="sty-k:120"]', settle: 900, expect: '.st-pl.boxed' });
+    await step('studio: חזור ← הפקה מחדש (עיצוב)', esc, { settle: 1300, expect: '[data-k="rr-sty"]' });
     await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
     await step('studio: חזור ← העבודה', esc, { settle: 1300, expect: '[data-k="ideas"]' });
     await step('studio: רעיונות', () => page.click('[data-k="ideas"]'), { pre: '[data-k="ideas"]', settle: 1200, expect: '[data-k="id-k:chap"]' });
@@ -877,6 +906,9 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: הצעה — בדיקת משמעות', () => page.click('[data-k="adv-jd"]'), { pre: '[data-k="adv-jd"]', settle: 2600, expect: '[data-k="ai-rm:0"]' });
     await step('studio: חזור ← העורך (2)', esc, { settle: 1500, expect: '.st-se-row' });
     await step('studio: חזור ← העבודה (4)', esc, { settle: 1300, expect: '[data-k="adv-vert"]' });
+    // סבב 4: לבדיקה שלך — העורך נפתח על "רק בעיות" עם הסימונים מהביקורת
+    await step('studio: הצעה — לבדיקה שלך', () => page.click('[data-k="adv-rvf"]'), { pre: '[data-k="adv-rvf"]', settle: 2200, expect: '[data-k="se-only"].on' });
+    await step('studio: חזור ← העבודה (5)', esc, { settle: 1300, expect: '[data-k="adv-rvf"]' });
     await step('studio: צפייה (נגן)', () => page.click('[data-k="play"]'), { pre: '[data-k="play"]', settle: 1500, expect: '.st-pl video' });
     // הגדרות הנגן (כמו ב־YouTube): הגלגל → גיליון; "חזור" סוגר רק את הגיליון ונשארים בנגן
     await step('studio: הגדרות הנגן', () => page.evaluate(() => document.querySelector('.st-pl-b.gear').click()), { settle: 600, expect: '.st-pl-menu:not([hidden]) .st-pl-mr' });

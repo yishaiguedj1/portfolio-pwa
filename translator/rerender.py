@@ -6,6 +6,7 @@
 """
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -80,6 +81,98 @@ def rewrap(lines, mx=PORTRAIT_LINE, most=3):
         mx += 4
 
 
+# סבב 5: עיצוב הכתוביות — **זהה ל־normSty בטלפון (studioplay.js) ובשרתון (lib/studio.js)**.
+# k גודל (70–150%), c צבע (w/y/c), bx רקע כהה מאחורי הטקסט, y הרמה מהתחתית (0–40% מהגובה). רק מספרים וקודים — שום טקסט
+STY_ASS = {'w': '&H00FFFFFF', 'y': '&H004DE1FF', 'c': '&H00FFE77F'}   # ASS = &HAABBGGRR
+
+
+def norm_sty(o):
+    if not isinstance(o, dict):
+        return None
+    out = {}
+    try:
+        k = int(math.floor(float(o.get('k')) / 10 + 0.5)) * 10   # כמו Math.round ב־JS (לא עיגול בנקאי)
+    except (TypeError, ValueError, OverflowError):
+        k = 100
+    if 70 <= k <= 150 and k != 100:
+        out['k'] = k
+    if o.get('c') in STY_ASS and o.get('c') != 'w':
+        out['c'] = o['c']
+    if o.get('bx') is True or o.get('bx') == 1:
+        out['bx'] = 1
+    try:
+        y = int(math.floor(float(o.get('y')) + 0.5))
+    except (TypeError, ValueError, OverflowError):
+        y = 0
+    if 0 < y <= 40:
+        out['y'] = y
+    return out or None
+
+
+def apply_sty(style, sty):
+    """הסגנון של vt + העיצוב → סגנון חדש (dataclass)."""
+    import dataclasses
+    if not sty:
+        return style
+    f = (sty.get('k') or 100) / 100
+    ch = dict(size=style.size * f, spacing=style.spacing * f, outline=style.outline * f, faux_bold=style.faux_bold * f,
+              line_pitch=style.line_pitch * f, primary=STY_ASS[sty.get('c') or 'w'])
+    if sty.get('y'):
+        ch['bottom_y'] = style.bottom_y - 1080 * sty['y'] / 100
+    if sty.get('bx'):
+        # רקע: BorderStyle 3 — המסגרת הופכת לקופסה בצבע OutlineColour (שחור שקוף למחצה), והעובי = הריפוד סביב הטקסט
+        ch.update(outline=style.size * f * 0.07, outline_colour='&H60000000', faux_bold=0.0, shadow=0.0, blur=0.0,
+                  line_pitch=max(style.line_pitch, style.size * 1.22) * f)   # שורות בלי חפיפה של הקופסאות
+    return dataclasses.replace(style, **ch)
+
+
+# סבב 7: כותרת ולוגו — **זהה ל־normOv בטלפון (studioedl.js) ובשרתון**. הכותרת נכנסת רק ל־ASS (libass — עברית נכונה),
+# אף פעם לא לפקודה; הלוגו = קובץ שה־job.py כתב (קלט שני של ffmpeg)
+OV_T_MAX, OV_LG_MAX, OV_POS = 60, 65536, ('tl', 'tr', 'bl', 'br')
+OV_BAD = re.compile('[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069{}\\\\]')
+OV_LG_RE = re.compile(r'^data:image/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}\Z')   # \Z — לא $ (שמקבל ירידת שורה בסוף)
+
+
+def norm_ov(o):
+    if not isinstance(o, dict):
+        return None
+    out = {}
+    t = o.get('t')
+    t = re.sub(r'\s+', ' ', OV_BAD.sub('', t)).strip()[:OV_T_MAX].strip() if isinstance(t, str) else ''
+    if t:
+        out['t'] = t
+        if o.get('ta') == 5 and o.get('ta') is not True:
+            out['ta'] = 5
+    lg = o.get('lg')
+    if isinstance(lg, str) and len(lg) <= OV_LG_MAX and OV_LG_RE.match(lg):
+        out['lg'] = lg
+        out['lp'] = o.get('lp') if o.get('lp') in OV_POS else 'tr'
+        try:
+            ls = int(math.floor(float(o.get('ls')) / 2 + 0.5)) * 2
+        except (TypeError, ValueError, OverflowError):
+            ls = 0
+        out['ls'] = ls if 8 <= ls <= 30 else 14
+    return out or None
+
+
+def title_event(ov, style, W, H, dur):
+    """שורת ASS לכותרת בראש התמונה — כל הסרטון או 5 השניות הראשונות"""
+    from vt.subs import _ass_escape, _ass_time
+    from vt.hebrew import rtl
+    st = style.scaled(W, H)
+    end = min(dur, 5.0) if ov.get('ta') == 5 else dur
+    return 'Dialogue: 2,%s,%s,Main,title,0,0,0,,{\\an8\\pos(%.1f,%.1f)\\fs%.1f}%s' % (
+        _ass_time(0), _ass_time(max(0.5, end)), W / 2.0, H * 0.05, st.size * 1.1, _ass_escape(rtl(ov['t'])))
+
+
+_BOX_RE = re.compile(r'^(Style: (?:Main|Default),.*?,[-\d.]+,0,)1(,[\d.]+,[\d.]+,\d,)', re.M)
+
+
+def box_ass(text):
+    """ASS עם רקע: BorderStyle=1 → 3 בסגנון הראשי (Main / Default)."""
+    return _BOX_RE.sub(lambda m: m.group(1) + '3' + m.group(2), text)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='הפקה מחדש מכתוביות ערוכות (בלי טוקנים)')
     p.add_argument('--src', required=True)
@@ -91,6 +184,9 @@ def main(argv=None):
     p.add_argument('--work', default='')
     p.add_argument('--edl0', default='')         # מ5: החיתוך שלפני התרגום (המקור → ציר הזמן של הכתוביות)
     p.add_argument('--edl', default='')          # מ5: חיתוך חדש על ציר הזמן של הכתוביות
+    p.add_argument('--sty', default='')          # סבב 5: עיצוב הכתוביות (JSON — מספרים וקודים בלבד)
+    p.add_argument('--ov', default='')           # סבב 7: כותרת (בלי הלוגו עצמו) — JSON
+    p.add_argument('--logo', default='')         # סבב 7: קובץ הלוגו (job.py כתב אותו)
     a = p.parse_args(argv)
     import edl as E
     def _e(s):
@@ -109,16 +205,30 @@ def main(argv=None):
     od.mkdir(parents=True, exist_ok=True)
     want = [k for k in a.want.split(',') if k in OUTS]
     ec = E.compose_edl(e0, e1)
+    logo = Path(a.logo) if a.logo and Path(a.logo).is_file() else None
+    try:
+        raw = json.loads(a.ov) if a.ov else None
+    except ValueError:
+        raw = None
+    # הלוגו עצמו כבר קובץ — כאן רק הפינה והגודל (norm_ov נותן אותם רק כשיש לוגו: ממלאים מקום)
+    ov = norm_ov(dict(raw, lg='data:image/png;base64,AA==') if logo and isinstance(raw, dict) else raw)
+    if logo and not ec:                          # לוגו בלי עריכה אחרת — אותו מעבר (קידוד ביניים) כמו עריכה
+        ec = {'k': [], 'ar': 'src', 'x': 0.5}
     if ec:
         cut = od / '_cut.mp4'
         print('עריכה: %d קטעים%s%s' % (len(ec['k']) or 1, '' if ec['ar'] == 'src' else ' · ' + ec['ar'],
                                         ''.join(' · ' + f for f in E.EXTRA_REST + E.EXTRA_POS if f in ec)), flush=True)
-        E.apply(src, cut, ec)
+        E.apply(src, cut, ec, ov=ov, logo=logo, auto_frame=True)
         src = cut
     info = probe(src)
     v = info.get('video') or {'width': 1920, 'height': 1080}
     W, H = int(v.get('width') or 1920), int(v.get('height') or 1080)
     style = C.STYLES.get(a.style) or C.STYLES[C.DEFAULT_STYLE]
+    try:
+        sty = norm_sty(json.loads(a.sty)) if a.sty else None
+    except ValueError:
+        sty = None
+    style = apply_sty(style, sty)
     portrait = W < H
     try:
         raw = json.loads(Path(a.cues).read_text(encoding='utf-8-sig'))
@@ -143,8 +253,19 @@ def main(argv=None):
         for c in cues:
             c['lines'] = rewrap(c['lines'])
     print('כתוביות: %d' % len(cues), flush=True)
-    write_text(od / 'he.ass', write_ass(cues, style, W, H, a.name))
-    write_text(od / 'he.player.ass', write_ass_compat(cues, style, W, H, a.name))
+    fix = box_ass if sty and sty.get('bx') else (lambda t: t)
+    if ov and ov.get('t'):                       # סבב 7: הכותרת — שורת ASS נוספת (נצרבת עם הכתוביות)
+        tl = title_event(ov, style, W, H, float(info.get('duration') or 0) or 3600.0)
+        fix0 = fix
+        fix = lambda t: fix0(t).rstrip('\n') + '\n' + tl + '\n'
+    write_text(od / 'he.ass', fix(write_ass(cues, style, W, H, a.name)))
+    write_text(od / 'he.player.ass', fix(write_ass_compat(cues, style, W, H, a.name)))
+    th = ec.get('th') if ec else None
+    if th is not None:                           # סבב 7: תמונה ממוזערת — פריים מהתוצאה (לפני הכתוביות)
+        import subprocess
+        t = min(float(th), max(0.0, float(info.get('duration') or 0) - 0.1)) if info.get('duration') else float(th)
+        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '%.2f' % t, '-i', str(src), '-frames:v', '1', '-q:v', '3',
+                        str(od / (a.name + '.thumb.jpg'))], check=False)
     write_text(od / 'he.srt', write_srt(cues), bom=True)
     write_text(od / 'he.vtt', write_vtt(cues))
     work = Path(a.work) if a.work else od / '_overlay'

@@ -25,6 +25,7 @@ const ERR_INFO = {
   // מצב API (llm.py / pipeline.py): מפתח שנדחה / מודל שלא קיים = שום עבודת API לא תעבוד עד שמתקנים → P1
   api_auth: ['claude', 1], api_model: ['claude', 1], api_rate: ['claude', 3], api_network: ['claude', 3], api_timeout: ['claude', 3],
   api_bad_request: ['claude', 2], api_error: ['claude', 2], budget_cap: ['claude', 3], model_refusal: ['claude', 3], check_errors: ['claude', 3],
+  cp_timeout: ['claude', 4], cp_empty: ['claude', 4],   // סבב 10: העתק־הדבק — לא הודבקה תשובה (בחירה של המשתמש, לא תקלה)
 };
 const errInfo = (e) => ERR_INFO[e] || (/^routine_/.test(e) ? ['routine', 2] : ['claude', 2]);
 /* רכיבים שכשל בהם פוגע בכל עבודה (תקלה רחבה גם בהתראה אחת שפוגעת בשתי עבודות, עוד לפני שיש "נכשלה") */

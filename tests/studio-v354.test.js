@@ -18,7 +18,7 @@ const styles = read('styles.css');
 // v355: studio.js מייבא את studionet.js ו־libbackup.js — כאן במקומם תחליפים (הבדיקות של המודולים האלה ב־studio-v355)
 const STUBS = { createNet: () => ({ api: async () => ({ ok: false }), driveApi: async () => null, jobFolder: async () => '', upload: async () => ({}) }),
   probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}), progressModel: () => ({ stages: [], left: 0, pct: 0 }),
-  createBackup: () => ({}), waitOAuthCode: () => {}, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [] };   // איכויות הצפייה (studioplay.js)
+  createBackup: () => ({}), waitOAuthCode: () => {}, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [], normSty: () => null, STY_COLORS: {}, STY_Y: 40 };   // איכויות הצפייה (studioplay.js)
 const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
 const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, migrateSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
 ok(S.LS_STUDIO === 'pwa_studio_v1', 'מפתח האחסון: pwa_studio_v1');
@@ -54,7 +54,7 @@ ok(S.modeName(S.modeById('opus-medium')) === 'Opus 5.5 · Medium' && S.modeName(
 ok(S.langName('he', 'he') === 'עברית' && S.langName('en', 'en') === 'English', 'שמות שפות מ־Intl (בלי רשת)');
 ok(S.fileTitle('Ackman_TKP_interview.mp4') === 'Ackman TKP interview' && S.fileTitle('הרצאה.mkv') === 'הרצאה' && S.fileTitle('.mp4') === '.mp4' && S.fileExt('a.MkV') === 'MKV' && S.fileExt('noext') === '', 'שם תצוגה וסוג מהקובץ');
 ok(S.TARGET_LANGS.includes('he') && S.TARGET_LANGS.includes('en') && S.SOURCE_LANGS.includes('en'), 'רשימות השפות');
-ok(S.STYLES.join() === 'bold,classic,karaoke' && S.OUTS.join() === 'same,compact,mkv', 'סגנונות ופלטים כמו בתצוגה המקדימה');
+ok(S.STYLES.join() === 'bold,classic,karaoke' && S.OUTS.join() === 'same,compact,mkv,small', 'סגנונות ופלטים כמו בתצוגה המקדימה');
 
 /* ---------- 2. מחרוזות: כל מפתח בסטודיו קיים בעברית ובאנגלית ---------- */
 const store2 = {};

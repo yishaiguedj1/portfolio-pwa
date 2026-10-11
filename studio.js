@@ -12,9 +12,9 @@ import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, pla
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
-import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
-import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
+import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline } from './studiosubs.js';
+import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
@@ -43,15 +43,16 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout'];
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
 export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
-export const OUTS = ['same', 'compact', 'mkv'];
+export const OUTS = ['same', 'compact', 'mkv', 'small'];   // סבב 8: small = עותק קטן לוואטסאפ (עד 28MB) גם בעבודה עצמה
 export const CONNS = ['sub', 'copy', 'api'];
 export const CAPS = [5, 10, 20, 50];   // מצב API: תקרה לעבודה אחת ($) — השרתון מגביל גם לפי מה שנשאר החודש
 const TERMS_MAX = 1000;
+const SMALL_MB = 28;          // סבב 8: יעד העותק לוואטסאפ — small_copy ב־vt/render.py
 const COMPACT_RATIO = 0.53;   // "דחוס" ≈ חצי מהמקור (נמדד על הראיון של אקמן)
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 const FID_RE = /^[A-Za-z0-9_-]{10,100}$/;
@@ -93,6 +94,8 @@ export function normSettings(o) {
   if (CAPS.includes(o.cap)) s.cap = o.cap;
   s.pq = normPq(o.pq);
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
+  const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
+  if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
 }
 /* מצב "API של המערכת" מהשרתון (status): התקציב החודשי, כמה שרתים מחוברים, והאם אתה המנהל */
@@ -131,6 +134,12 @@ export function normDraft(d) {
   };
 }
 const num = (x) => Math.max(0, Math.floor(Number(x) || 0));
+/* סבב 10: העתק־הדבק — הבקשה הנוכחית (מספר, תפקיד, קובץ הבקשה) והאם כבר הודבקה תשובה. = cpView בשרתון */
+export const CP_ROLES = ['main', 'tl', 'rv', 'jg'], CP_TEXT_MAX = 2 * 1024 * 1024;
+export function normCp(x) {
+  if (!x || typeof x !== 'object' || !Number.isInteger(x.n) || x.n < 1 || x.n > 200 || !CP_ROLES.includes(x.r) || !FID_RE.test(String(x.f || ''))) return null;
+  return { n: x.n, r: x.r, f: x.f, at: num(x.at), a: x.a === true };
+}
 /* עבודה (שלב 2): הפרטים ששלחנו לשרתון, מצב ההעלאה בטלפון (כתובות ההעלאה של Drive, כמה עלה) והמצב האחרון מהשרתון */
 export function normJob(j) {
   if (!j || typeof j !== 'object' || !JOB_RE.test(String(j.id || ''))) return null;
@@ -177,6 +186,7 @@ export function normJob(j) {
     tr: normTrace(s.tr),   // v373: עקיבה
     q: normQuality(s.q), ij: normInj(s.ij),   // v374: מדד האיכות ושומר ההזרקות
     jd: normJudge(s.jd),                      // v375: שופט האיכות
+    rvf: normRvf(s.rvf), fil: normFil(s.fil), // סבב 4: סימונים מהביקורת, מילות מילוי
     gl: normGl(s.gl),                         // v380: זיכרון המונחים
     nt: normNote(s.nt),                       // v382: הערה לעובד
     sla: normSla(s.sla),                      // v377: יעדי זמן ותקציב
@@ -186,6 +196,7 @@ export function normJob(j) {
     ev: num(s.ev), vh: (Array.isArray(s.vh) ? s.vh : []).slice(0, 20).map(num),   // מ2: גרסת הכתוביות, ומתי נשמרה כל גרסה קודמת
     folder: FID_RE.test(String(s.folder || '')) ? s.folder : '',
     hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
+    cp: normCp(s.cp),                         // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה שלך
   } : null;
   const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
   const vm = j.vm && num(j.vm.w) > 0 && num(j.vm.h) > 0 ? { w: Math.min(num(j.vm.w), 16384), h: Math.min(num(j.vm.h), 16384) } : null;   // סבב 2: מידות הסרטון (מהבדיקה בטלפון)
@@ -247,9 +258,36 @@ export function sourceAdvice(m, ctx) {
   return out.sort((x, y) => ADV_ORDER[x.sev] - ADV_ORDER[y.sev]);
 }
 /* הצעות אחרי שהעבודה הסתיימה — מהשופט וממידות הסרטון (בעיות קצב/אורך — כבר בעורך, עם הצעות תיקון משלהן). "בדיקת משמעות" = תרגום חוזר רק של מה שהשופט סימן */
+/* סבב 4: סימונים מהביקורת ומילות מילוי — אותה בדיקה כמו בשרתון (normRvf / normFil); לא תקין — null */
+export const RVF_CODES = ['g', 's', 't'];
+export const RVF_MAX = 40;   // **זהה בעובד ובשרתון**
+export function normRvf(o) {
+  if (!Array.isArray(o) || !o.length || o.length > RVF_MAX) return null;
+  const out = [];
+  for (const x of o) {
+    if (!Array.isArray(x) || x.length !== 2 || !Number.isInteger(x[0]) || x[0] < 1 || x[0] > 1e6 || !RVF_CODES.includes(x[1])) return null;
+    const l = out[out.length - 1];
+    if (l && (x[0] < l[0] || (x[0] === l[0] && RVF_CODES.indexOf(x[1]) <= RVF_CODES.indexOf(l[1])))) return null;
+    out.push([x[0], x[1]]);
+  }
+  return out;
+}
+export const FIL_MAX = 300;  // **זהה בעובד ובשרתון**
+export function normFil(o) {
+  if (!Array.isArray(o) || !o.length || o.length > FIL_MAX) return null;
+  const out = [];
+  for (const x of o) {
+    if (!Array.isArray(x) || x.length !== 2 || typeof x[0] !== 'number' || typeof x[1] !== 'number') return null;
+    const a = Math.round(x[0] * 100) / 100, b = Math.round(x[1] * 100) / 100;
+    if (!(a >= 0) || !(b - a >= 0.149) || b - a > 2.001 || a > 86400 || (out.length && a < out[out.length - 1][1])) return null;
+    out.push([a, b]);
+  }
+  return out;
+}
 export function afterAdvice(rec, o) {
   const out = [], sv = rec && rec.srv, x = o || {};
   if (!sv || sv.state !== 'done' || sv.kind === 'rr') return out;
+  if (sv.rvf && sv.rvf.length) out.push({ k: 'rvf', act: 'subs', n: new Set(sv.rvf.map((f) => f[0])).size });   // סבב 4: לבדיקה שלך
   if (sv.jd && sv.jd.f && sv.jd.f.length) out.push({ k: 'jd', act: 'ai', n: sv.jd.f.length });
   if (rec.vm && rec.vm.h > rec.vm.w && !x.rrDone) out.push({ k: 'vert', act: 'rr' });
   return out;
@@ -292,7 +330,7 @@ export function normRules(r) {
   const n = typeof o.b === 'number' ? o.b : NaN;   // הסקירה: כמו בשרתון — עיגול לחצי דולר, עד 500 (מה שמוצג = מה שנשמר)
   const b = Number.isFinite(n) && n >= 1 ? Math.min(500, Math.round(n * 2) / 2) : 0;
   // v375: jx = שופט האיכות כבוי · 11/10: מקסימום במצב שהוסר → הקרוב (לא "בלי הגבלה")
-  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : LEGACY_MODES[o.mx] || '', ab: o.ab === true, jx: o.jx === true };
+  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : LEGACY_MODES[o.mx] || '', ab: o.ab === true, jx: o.jx === true, am: o.am === true };   // סבב 10: am = בדיקת משמעות אוטומטית (עם אומדן ואישור)
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
 const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
@@ -708,7 +746,8 @@ export function normStore(o) {
   const c = src.conn && typeof src.conn === 'object' ? { hint: String(src.conn.hint || '').slice(0, 24), ok: num(src.conn.ok), since: num(src.conn.since) } : null;
   const d = src.drive && typeof src.drive === 'object' ? { connected: src.drive.connected === true, email: String(src.drive.email || '').slice(0, 120), configured: src.drive.configured !== false } : null;
   const sugx = (Array.isArray(src.sugx) ? src.sugx : []).filter((x) => typeof x === 'string' && /^[a-z]{2,8}[0-9a-z]{1,8}$/.test(x)).slice(-500);   // מ6: "לא להציע שוב" (טביעות, בלי טקסט)
-  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx };
+  const amd = (Array.isArray(src.amd) ? src.amd : []).filter((x) => typeof x === 'string' && JOB_RE.test(x)).slice(-200);   // סבב 10: עבודות שכבר הוצעה להן בדיקת משמעות אוטומטית
+  return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd };
 }
 /* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
    לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת */
@@ -805,6 +844,7 @@ function outName(k) {
     case 'compact': return T('studioOutCompact');
     case 'mkv': return T('studioOutMkv');
     case 'small': return T('studioOutSmall');   // מ1
+    case 'thumb': return T('studioOutThumb');   // סבב 7
     case 'en': return T('studioOutEn');
     default: return T('studioOutSrt');
   }
@@ -814,6 +854,7 @@ function outSub(k) {
     case 'same': return T('studioOutSameS');
     case 'compact': return T('studioOutCompactS');
     case 'mkv': return T('studioOutMkvS');
+    case 'small': return T('studioRrSmallSub');   // סבב 8
     default: return T('studioOutSrtS');
   }
 }
@@ -898,6 +939,7 @@ function errText(code, extra) {
     case 'api_network': case 'api_timeout': case 'api_rate': return T('studioErrApiNet');
     case 'model_refusal': return T('studioErrRefusal');
     case 'check_errors': return T('studioErrChecks');
+    case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
 }
@@ -1046,10 +1088,10 @@ async function refreshJobs(force) {
   ui.an = normAn(j.an) || ui.an;   // v385: ציון חריגה
   const have = new Map(store.jobs.map((x) => [x.id, x]));
   const ids = new Set();
-  const rr = new Map();
+  const rr = new Map(), pv = new Map();
   for (const sj of j.jobs) {
     if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
-    if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) rr.set(x.srv.rp, x); continue; }   // מ2
+    if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) (sj.spec && sj.spec.prv === 1 ? pv : rr).set(x.srv.rp, x); continue; }   // מ2; סבב 10: צריבה לבדיקה — בנפרד
     ids.add(sj.id);
     const loc = have.get(sj.id);
     if (loc) loc.srv = normJob({ id: sj.id, srv: sj }).srv;
@@ -1061,7 +1103,7 @@ async function refreshJobs(force) {
     }
   }
   store.jobs = store.jobs.filter((x) => ids.has(x.id) || (runs.get(x.id) && runs.get(x.id).active)).sort((a, b) => b.created - a.created);
-  rrJobs = rr;
+  rrJobs = rr; rrPv = pv;
   save();
   // v371: התקלה הרחבה עברה — עבודות שחיכו לה מתחילות לבד
   if (ui.inc && !majorOn(ui.inc)) for (const r of store.jobs.filter((x) => x.up.wait === 'major' && !x.up.started)) { r.up.wait = ''; tryStart(r.id); }
@@ -1076,24 +1118,42 @@ function setInc(raw, at) {
 const jobRec = (id) => store.jobs.find((x) => x.id === id) || null;
 
 /* ---------------- ידיות לקבצים (File System Access) — המשך אחרי רענון בלי לבחור שוב ---------------- */
+// סבב 8: גרסה 2 — גם 'drafts' (טיוטות העורך). שדרוג לא מוחק: רק מה שחסר נוצר
+const IDB_STORES = ['handles', 'drafts'];
 function hdb() {
   return new Promise((ok, no) => {
-    const r = indexedDB.open('snb-studio', 1);
-    r.onupgradeneeded = () => { try { r.result.createObjectStore('handles'); } catch (e) {} };
+    const r = indexedDB.open('snb-studio', 2);
+    r.onupgradeneeded = () => { for (const n of IDB_STORES) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
     r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
   });
 }
-async function handleOp(mode, id, val) {
+async function idbOp(store, mode, id, val) {
   if (typeof indexedDB === 'undefined') return null;
   try {
     const db = await hdb();
     return await new Promise((ok) => {
-      const tx = db.transaction('handles', mode === 'get' ? 'readonly' : 'readwrite'), os = tx.objectStore('handles');
+      const tx = db.transaction(store, mode === 'get' ? 'readonly' : 'readwrite'), os = tx.objectStore(store);
       const rq = mode === 'get' ? os.get(id) : mode === 'put' ? os.put(val, id) : os.delete(id);
       rq.onsuccess = () => ok(mode === 'get' ? rq.result || null : null); rq.onerror = () => ok(null);
     });
   } catch (e) { return null; }
 }
+const handleOp = (mode, id, val) => idbOp('handles', mode, id, val);
+/* סבב 8: טיוטת עורך הכתוביות — שינויים שלא נשמרו שורדים רענון וסגירה (בטלפון בלבד, לפי מזהה העבודה).
+   ev = הגרסה בשרתון שעליה נערך; טיוטה על גרסה ישנה יותר — רק באישור (אחרת הייתה דורסת שמירה מאוחרת) */
+export const DRAFT_MAX = 4 * 1048576;
+export function draftRec(cues, ev, now) {
+  const c = toCuesJson(cues);
+  return c.length > DRAFT_MAX ? null : { v: 1, ev: Math.max(0, Math.floor(Number(ev) || 0)), at: Math.floor(Number(now) || 0), c };
+}
+export function draftUse(d, ev) {   // 'same' | 'old' | '' — מה לעשות בטיוטה שנמצאה
+  if (!d || d.v !== 1 || typeof d.c !== 'string' || d.c.length > DRAFT_MAX) return '';
+  let cues;
+  try { cues = normCues(JSON.parse(d.c)); } catch (e) { return ''; }
+  if (!cues.length) return '';
+  return d.ev === Math.max(0, Math.floor(Number(ev) || 0)) ? 'same' : d.ev < (Number(ev) || 0) ? 'old' : '';
+}
+const draftDel = (id) => idbOp('drafts', 'del', id);
 const canPickHandle = () => typeof window !== 'undefined' && typeof window.showOpenFilePicker === 'function';
 async function pickWithHandle() {
   try {
@@ -1368,7 +1428,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1378,6 +1438,8 @@ function leaving() {              // יציאה מדף: המפתח שהודבק 
   if (ui.view === 'play') playClose();   // מ1: הנגן נעצר ומשחרר את הסרטון
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
+  if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty / ההגדרות)
+  if (ui.view === 'ov') ovpStop();   // סבב 7: הכותרת והלוגו נשמרים (ovT / ההגדרות)
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
@@ -1562,8 +1624,9 @@ function rowOut(rec, o) {
   const a = h('a', 'st-outa'); a.href = 'https://drive.google.com/file/d/' + o.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dataset.k = 'out:' + o.k;
   a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), o.size ? fmtSize(o.size) : ''));
   const b = btn('st-outb', null, () => shareOut(rec, o), 'out-sh:' + o.k);
-  b.setAttribute('aria-label', (isTextOut(o.k) ? T('studioOutShare') : T('studioOutDown')) + ' · ' + outShort(o.k));
-  b.append(ico(isTextOut(o.k) ? 'share' : 'down'));
+  const sh = isTextOut(o.k) || o.k === 'small';   // סבב 8: העותק לוואטסאפ — שיתוף, לא הורדה
+  b.setAttribute('aria-label', (sh ? T('studioOutShare') : T('studioOutDown')) + ' · ' + outShort(o.k));
+  b.append(ico(sh ? 'share' : 'down'));
   r.append(a, b);
   return r;
 }
@@ -1572,7 +1635,29 @@ export function outFileName(rec, k) {   // "שם הסרטון.he.srt" — בלי
   const to = (rec && rec.spec && Array.isArray(rec.spec.to) && rec.spec.to[0]) || 'he';
   return base + '.' + (k === 'en' ? 'en' : to) + '.srt';
 }
+/* סבב 8: העותק לוואטסאפ — שיתוף הקובץ עצמו (שליחה בצ'אט בלי הורדה ידנית). נגיעה ראשונה מורידה (עד ~28MB); אם אישור
+   הנגיעה פג בזמן ההורדה — הקובץ שמור, והנגיעה הבאה משתפת מיד */
+const shareReady = new Map();
+export const shareVideoName = (rec) => outFileName(rec, 'srt').replace(/\.[a-z]{2}\.srt$/, '') + '.mp4';
+async function shareSmall(rec, o) {
+  let f = shareReady.get(o.id);
+  if (!f) {
+    flashSafe(T('studioShPrep'));
+    try { f = new File([await net.driveBlob(o.id, 64 * 1048576)], shareVideoName(rec), { type: 'video/mp4' }); } catch (e) { flashSafe(T('studioOutErr')); return; }
+    shareReady.clear(); shareReady.set(o.id, f);
+  }
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: f.name }); return; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    if (e && e.name === 'NotAllowedError') { flashSafe(T('studioShAgain')); return; }   // ההורדה לקחה יותר מדי — הנגיעה הבאה
+  }
+  const u = URL.createObjectURL(f), x = document.createElement('a');
+  x.href = u; x.download = f.name; document.body.append(x); x.click(); x.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 5000);
+}
 async function shareOut(rec, o) {
+  if (o.k === 'small') return shareSmall(rec, o);
   if (!isTextOut(o.k)) { window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
   let txt;
   try { txt = await net.driveText(o.id); } catch (e) { flashSafe(T('studioOutErr')); return; }
@@ -1713,7 +1798,7 @@ function modePicker(cur, onPick) {
 }
 /* מה לקבל — שלוש אפשרויות + SRT קבוע. ההערכה לפי גודל הקובץ (כשיש) */
 function outRows(out, size, onToggle) {
-  const est = size ? { same: approx(fmtSize(size)), compact: approx(fmtSize(size * COMPACT_RATIO)), mkv: approx(fmtSize(size)) } : {};
+  const est = size ? { same: approx(fmtSize(size)), compact: approx(fmtSize(size * COMPACT_RATIO)), mkv: approx(fmtSize(size)), small: approx(fmtSize(SMALL_MB * 1048576)) } : {};
   const rows = OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), value: est[k], on: !!out[k], onClick: () => onToggle(k), k: 'o:' + k }));
   rows.push(rowCheck({ label: outName('srt'), sub: outSub('srt'), on: true, locked: true }));
   return list(...rows);
@@ -2077,10 +2162,11 @@ function startFromForm() {
       mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
     if (ed) spec.edl = ed;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
+    else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
     const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
-      const yes = await new Promise((ok) => askConfirm(estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
+      const yes = await new Promise((ok) => askConfirm(cpMode() ? T('studioEstCp') : estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
     }
     const j = await net.api('create', { spec });
@@ -2337,6 +2423,58 @@ function noteCard(rec) {
     }
   }
   return [secT(T('studioNtSec')), card];
+}
+/* סבב 10: העתק־הדבק — "העתקת הבקשה" → מדביקים בשיחה עם Claude → מדביקים כאן את התשובה → העבודה ממשיכה.
+   הבקשה והתשובה = קבצים בתיקיית העבודה; כאן רק הטקסט שהדבקת עד השליחה (לא נשמר) */
+let cpBusy = false;
+async function cpCopy(rec) {
+  const cp = rec.srv.cp;
+  try {
+    const t = await net.driveText(cp.f);
+    await navigator.clipboard.writeText(t);
+    flashSafe(T('studioCpCopied'));
+  } catch (e) { flashSafe(T('studioCpCopyErr')); }
+}
+async function cpSend(rec) {
+  const cp = rec.srv.cp, txt = String(ui.cpDraft || '').trim();
+  if (!txt) { flashSafe(T('studioCpEmpty')); return; }
+  if (txt.length > CP_TEXT_MAX) { flashSafe(T('studioCpBig')); return; }
+  cpBusy = true; repaint();
+  try {
+    const fid = await net.textUpload(jobFolder(rec), T('studioCpAnsName', { n: cp.n }) + '.txt', 'text/plain', txt, { snbCp: 'a' });
+    const j = await net.api('cpAnswer', { job: rec.id, n: cp.n, f: fid });
+    if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
+    if (!j.ok) flashSafe(j.error === 'cp_seq' ? T('studioCpSeq') : errText(j.error));
+    else { ui.cpDraft = ''; save(); flashSafe(T('studioCpSent')); }
+  } catch (e) { flashSafe(errText((e && e.code) || 'drive')); }
+  finally { cpBusy = false; repaint(); }
+}
+function cpCard(rec) {
+  const cp = rec.srv && rec.srv.cp;
+  if (!cp || FINAL.includes(rec.srv.state)) return null;
+  const c = h('div', 'st-ask' + (cp.a ? ' done' : ''));
+  c.dataset.k = 'cp';
+  c.append(h('b', null, cp.a ? T('studioCpDone', { n: cp.n }) : T('studioCpT', { n: cp.n })));
+  if (cp.a) return c;   // נשלחה — שורה אחת; הבקשה הבאה (אם תהיה) תחליף אותה
+  c.append(h('p', null, cpStep(cp.r)));
+  const row = h('div', 'st-ntb');
+  const cb = btn('st-btn tint', T('studioCpCopy'), () => cpCopy(rec), 'cp-copy');
+  const ob = h('a', 'st-btn ghost'); ob.href = 'https://claude.ai/new'; ob.target = '_blank'; ob.rel = 'noopener noreferrer'; ob.textContent = T('studioCpOpen'); ob.dataset.k = 'cp-open';
+  row.append(cb, ob);
+  const ta = h('textarea', 'st-in st-ask-in'); ta.rows = 4; ta.dir = 'auto'; ta.dataset.k = 'cp-t';
+  ta.placeholder = T('studioCpPh'); ta.setAttribute('aria-label', T('studioCpPh')); ta.value = ui.cpDraft || '';
+  ta.addEventListener('input', () => { ui.cpDraft = ta.value; });
+  const send = btn('st-btn wide in-card', cpBusy ? T('studioNtSending') : T('studioCpSend'), () => cpSend(rec), 'cp-send');
+  if (cpBusy || blocked()) send.disabled = true;
+  c.append(row, ta, send);
+  return c;
+}
+function cpStep(r) {   // מה הבקשה הזו — בשפה פשוטה
+  switch (r) {
+    case 'tl': return T('studioCpTl');
+    case 'rv': return T('studioCpRv');
+    default: return T('studioCpMain');
+  }
 }
 let askBusy = false;
 async function sendAnswer(id, qid, ans) {
@@ -3626,7 +3764,9 @@ function pageRules(p) {
   // אישור לפני צריבה — 5 כתוביות לדוגמה בטלפון
   p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
   // v375: שופט האיכות (Haiku, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
-  p.append(secT(T('studioRlJgT')), list(rowSwitch({ label: T('studioRlJg'), sub: T('studioRlJgS'), on: !rl.jx, onClick: () => { if (!off) setRules({ jx: !rl.jx }); }, k: 'rj' })));
+  p.append(secT(T('studioRlJgT')), list(rowSwitch({ label: T('studioRlJg'), sub: T('studioRlJgS'), on: !rl.jx, onClick: () => { if (!off) setRules({ jx: !rl.jx }); }, k: 'rj' }),
+    // סבב 10: אחרי השופט — בדיקת משמעות לכתוביות שסימן, אוטומטית כשנכנסים לעבודה (תמיד עם אומדן ואישור לפני שמתחילים)
+    rowSwitch({ label: T('studioRlAm'), sub: T('studioRlAmS'), on: rl.am, onClick: () => { if (!off) setRules({ am: !rl.am }); }, k: 'ram' })));
   // v380: זיכרון המונחים — מילון אחד לכל העבודות (ב־Drive שלך); כל עבודה מקבלת רק את המונחים שמופיעים בסרטון
   p.append(secT(T('studioGlSec')), list(rowNav({ tile: tile('globe', 'blue'), label: T('studioGlT'), sub: gl.st === 'ok' ? T('studioGlN', { n: gl.rows.length }) : T('studioGlSub'), onClick: () => go('gloss'), k: 'rules-gloss' })));
   // v366: מסלול התיקונים — "הצעות לאישור" (ברירת המחדל) או "Claude מחליט לבד".
@@ -4074,8 +4214,22 @@ async function playLoad(rec) {
   }
   plPaint();
 }
+function rvfSub(rvf) {
+  const ks = new Set((rvf || []).map((f) => f[1]));
+  return ['g', 's', 't'].filter((k) => ks.has(k)).map((k) => issueName('rv' + k)).join(' · ');
+}
+let seOnly = '';   // סבב 4: העורך נפתח על "רק לבדיקה" (מההצעה בדף העבודה)
+/* סבב 4: סימונים לעורך — מהביקורת (rvf) ומונח שתורגם בשתי דרכים (מילון המונחים + המונחים של העבודה, בלי AI) */
+function seFlags(rec, cues) {
+  const terms = (gl.st === 'ok' ? gl.rows : []).map((r) => [r[0], r[1]]).concat(rec.srv.gl ? rec.srv.gl.s : []);
+  return flagIndex(cues, (rec.srv.rvf || []).map(([i, k]) => [i, 'rv' + k]).concat(termIssues(cues, terms).map(([i]) => [i, 'term'])));
+}
 function issueName(k) {
   switch (k) {
+    case 'rvg': return T('studioIsRvg');      // סבב 4: לבדיקה — מהביקורת ומבדיקת המונחים
+    case 'rvs': return T('studioIsRvs');
+    case 'rvt': return T('studioIsRvt');
+    case 'term': return T('studioIsTerm');
     case 'cps': return T('studioIsCps');
     case 'len': return T('studioIsLen');
     case 'lines': return T('studioIsLines');
@@ -4118,21 +4272,44 @@ const canEdit = (rec) => !!(rec && rec.srv && rec.srv.state === 'done' && rec.sr
 const RR_OUTS = ['compact', 'same', 'mkv', 'small'];
 const RR_STYLES = ['bold', 'classic'];     // מה שהצריבה של vt יודעת (קריוקי — רק בתרגום מלא, בעתיד)
 let rrJobs = new Map();                    // העבודה המקורית → ההפקה מחדש האחרונה (מ־op:'jobs'; לא ברשימה הראשית)
+let rrPv = new Map();                      // סבב 10: העבודה המקורית → הצריבה לבדיקה האחרונה (קטע קצר)
+const rrRunning = (x) => !!(x && ['new', 'queued', 'running'].includes(x.srv.state));
 let se = null;                             // { id, st, ed, ctl, saved, saving, err, upT, saveB }
 const seDirty = () => !!(se && se.ed && se.ed.ver() !== se.saved);
-function seStop() { if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
+function seDraftSoon(me, rec) {   // סבב 8: שנייה וחצי אחרי העריכה האחרונה — לא בכל הקשה
+  clearTimeout(me.drT);
+  me.drT = setTimeout(() => {
+    if (se !== me || !me.ed) return;
+    const r = me.ed.ver() !== me.saved ? draftRec(me.ed.cues(), rec.srv.ev, Date.now()) : null;
+    if (r) idbOp('drafts', 'put', rec.id, r); else draftDel(rec.id);
+  }, 1500);
+}
+function seStop() { if (se && se.tl) { se.tl.destroy(); se.tl = null; } if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
 async function seLoad(rec) {
   const me = se;
   try {
-    const cues = normCues(await net.driveJson(outOf(rec, 'cues').id));
+    const mo = outOf(rec, 'meta');   // סבב 6: גל הקול וחילופי השוטים (במקביל לכתוביות; בלעדיו — העורך כמו קודם)
+    const [cj, mj] = await Promise.all([net.driveJson(outOf(rec, 'cues').id), mo ? net.driveJson(mo.id).catch(() => null) : null]);
+    const cues = normCues(cj);
     if (se !== me) return;
+    me.meta = normMeta(mj);
+    // סבב 4: מילון המונחים (לבדיקת מונח שתורגם בשתי דרכים) — לא מחכים לו יותר מ־2.5 שנ׳
+    if (gl.st === '' && store.drive && store.drive.connected) { await Promise.race([glossLoad(), new Promise((r) => setTimeout(r, 2500))]); if (se !== me) return; }
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
-    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id),
+    const only = seOnly === rec.id; seOnly = '';
+    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, shots: me.meta ? me.meta.sh : [],
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
-      onChange: () => { seSavePaint(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); } });
+      onChange: () => { seSavePaint(); if (me.tl) me.tl.draw(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); seDraftSoon(me, rec); } });
     me.saved = me.ed.ver(); me.st = 'ok';
+    // סבב 8: טיוטה שנשארה מהפעם הקודמת (רענון / האפליקציה נסגרה) — חוזרת כצעד ביטול אחד ("ביטול" = הגרסה השמורה)
+    const d = await idbOp('drafts', 'get', rec.id), use = draftUse(d, rec.srv.ev);
+    if (se === me && use) {
+      const back = () => { me.ed.applyCues(normCues(JSON.parse(d.c))); flashSafe(T('studioSeDraftBack')); };
+      if (use === 'same') back();
+      else if (typeof askConfirm === 'function') askConfirm(T('studioSeDraftOld', { t: fmtClock(d.at) }), back, { ok: T('studioSeDraftUse'), danger: true, onNo: () => draftDel(rec.id) });
+    } else if (d && !use) draftDel(rec.id);
   } catch (e) {
     if (se !== me) return;
     me.st = 'err'; me.err = (e && e.code) || 'drive';
@@ -4159,7 +4336,7 @@ async function seSave(then) {
     const j = await net.api('cuesSave', { job: rec.id, c, s: s2, ev: rec.srv.ev || 0 });
     if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
     if (!j.ok) flashSafe(j.error === 'stale' ? T('studioSeStale') : errText(j.error));
-    else { me.saved = ver; save(); flashSafe(T('studioSeSaved')); if (then) then(); }
+    else { me.saved = ver; clearTimeout(me.drT); draftDel(rec.id); save(); flashSafe(T('studioSeSaved')); if (then) then(); }
   } catch (e) {
     flashSafe(errText((e && e.code) || 'drive'));
   } finally {
@@ -4171,7 +4348,7 @@ function seRestore(rec, i) {
     const j = await net.api('cuesRestore', { job: rec.id, i, ev: rec.srv.ev || 0 });
     if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
     if (!j.ok) { flashSafe(j.error === 'stale' ? T('studioSeStale') : j.error === 'file_missing' ? T('studioSeVerGone') : errText(j.error)); repaint(); return; }
-    save(); seStop(); se = null; flashSafe(T('studioSeRestored')); render('none');   // העורך נטען מחדש מהגרסה ששוחזרה
+    draftDel(rec.id); save(); seStop(); se = null; flashSafe(T('studioSeRestored')); render('none');   // העורך נטען מחדש מהגרסה ששוחזרה
   };
   if (typeof askConfirm === 'function') askConfirm(seDirty() ? T('studioSeRestoreQDirty') : T('studioSeRestoreQ'), doIt, { ok: T('studioSeRestore'), danger: seDirty() }); else doIt();
 }
@@ -4196,8 +4373,16 @@ function pageSubs(p) {
     }
   }
   if (aiPreset && aiPreset.id === rec.id) queueMicrotask(() => { if (ui.view === 'subs' && aiPreset) go('ai', rec.id); });   // סבב 2
+  if (seOnly === rec.id && se.ed) { seOnly = ''; se.ed.showOnly(true); }   // סבב 4: העורך כבר טעון — רק "לבדיקה"
   const top = h('div', 'st-se-top');
   if (se.ctl) top.append(se.ctl.el); else top.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
+  if (se.ctl && se.meta && !se.tl) {   // סבב 6: הציר — גל הקול, הכתוביות לפי דובר, חילופי השוטים
+    const me = se;
+    se.tl = createTimeline({ meta: se.meta, cues: () => me.ed.cues(), sel: () => me.ed.selected(), video: se.ctl.video, colors: () => me.ed.colors(),
+      seek: (t) => { if (me.ctl) me.ctl.seek(t); }, pick: (k) => me.ed.select(k) });
+    se.tl.el.setAttribute('aria-label', T('studioTlL'));
+  }
+  if (se.tl) { top.append(se.tl.el); requestAnimationFrame(() => se && se.tl && se.tl.draw()); }
   p.append(top, se.ed.el);
   // הפקה מחדש וגרסאות — מתחת לרשימה (פעולות של כל הקובץ)
   p.append(list(rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', rec.id), k: 'se-rr' })));
@@ -4205,7 +4390,7 @@ function pageSubs(p) {
   const ex = h('details', 'st-details');
   const dl = (ext, mime, txt) => {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([txt], { type: mime + ';charset=utf-8' }));
+    a.href = URL.createObjectURL(new Blob([txt], { type: typeof txt === 'string' ? mime + ';charset=utf-8' : mime }));
     a.download = (fileTitle(rec.spec.name) || 'subs').slice(0, 80) + '.he.' + ext;
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -4214,7 +4399,8 @@ function pageSubs(p) {
   ex.append(h('summary', null, T('studioExT')), list(
     rowNav({ label: 'SRT', sub: T('studioExSrt'), onClick: () => dl('srt', 'application/x-subrip', toSrt(se.ed.cues())), k: 'ex-srt' }),
     rowNav({ label: 'WebVTT', sub: T('studioExVtt'), onClick: () => dl('vtt', 'text/vtt', toVtt(se.ed.cues())), k: 'ex-vtt' }),
-    rowNav({ label: 'TTML', sub: T('studioExTtml'), onClick: () => dl('ttml', 'application/ttml+xml', toTtml(se.ed.cues(), ttl)), k: 'ex-ttml' })));
+    rowNav({ label: 'TTML', sub: T('studioExTtml'), onClick: () => dl('ttml', 'application/ttml+xml', toTtml(se.ed.cues(), ttl)), k: 'ex-ttml' }),
+    rowNav({ label: 'EBU STL', sub: T('studioExStl'), onClick: () => dl('stl', 'application/octet-stream', toStl(se.ed.cues(), ttl, Date.now())), k: 'ex-stl' })));   // סבב 8: לשידור
   p.append(ex);
   const vh = rec.srv.vh || [];
   if (vh.length) {
@@ -4244,11 +4430,16 @@ function edlSum(e, dur) {
   const parts = [];
   if (e.k.length) parts.push(e.k.length === 1 ? T('studioEdSumShort1', { t: fmtMin(edlDur(e, dur)) }) : T('studioEdSumShort', { n: e.k.length, t: fmtMin(edlDur(e, dur)) }));
   if (e.ar !== 'src') parts.push(e.ar);
+  if (e.af) parts.push(T('studioEdAfShort'));   // סבב 9
   if (e.sp) parts.push('\u2066' + e.sp + '×\u2069');
   if (e.rt) parts.push(e.rt + '°');
   if (e.z) parts.push(T('studioEdZoom') + ' \u2066' + e.z + '×\u2069');
   if (e.mu) parts.push(T('studioEdMuted'));
-  else if (e.vo != null || e.ln || e.fi || e.fo) parts.push(T('studioEdGrpAudio'));
+  else if (e.vo != null || e.ln || e.fi || e.fo || e.dn) parts.push(T('studioEdGrpAudio'));
+  if (e.br || e.ct || e.sa || e.fx) parts.push(T('studioEdGrpColor'));   // סבב 7
+  if (e.bl) parts.push(T('studioEdBlur'));
+  if (e.tr) parts.push(T('studioEdTr'));
+  if (e.th != null) parts.push(T('studioEdThumb'));
   return parts.join(' · ');
 }
 /* עמוד החיתוך — אחרי התרגום (p = מזהה העבודה): הנגן על המקור עם הכתוביות; עבודה שנחתכה כבר לפני התרגום — על הסרטון הצרוב
@@ -4286,8 +4477,16 @@ function pageCut(p, before) {
   }
   if (!ce.cues.length || rec.spec.edl) return;   // נחתך כבר לפני התרגום — ציר הזמן של הנגן הוא הצרוב (פשוט: בלי כלי התמליל)
   const cs = ce.cues, dur = rec.spec.dur || 0;
+  const fil = rec.srv.fil;   // סבב 4: מילות מילוי מהתמלול (um/uh) — חיתוך בתוך מה שכבר נבחר
   p.append(secT(T('studioEdByText')), list(rowNav({ tile: tile('spark', 'green'), label: T('studioEdSilence'), sub: T('studioEdSilenceS'),
-    onClick: () => ce.ed.set(intersectSegs(silenceSegs(cs, ce.ctl.video.duration || dur), ce.ed.segs()), T('studioEdSilenceNo')), k: 'ed-silence' })));   // בתוך מה שכבר נבחר
+    onClick: () => ce.ed.set(intersectSegs(silenceSegs(cs, ce.ctl.video.duration || dur), ce.ed.segs()), T('studioEdSilenceNo')), k: 'ed-silence' }),   // בתוך מה שכבר נבחר
+    fil ? rowNav({ tile: tile('spark', 'teal'), label: T('studioEdFil'), sub: T('studioEdFilS', { n: fil.length }),
+      onClick: () => {
+        const r = cutFillers(ce.ed.segs(), fil, ce.ctl.video.duration || dur);
+        if (!r) { flashSafe(T('studioEdFilNo')); return; }
+        ce.ed.set(r.segs, T('studioEdFilNo'));
+        flashSafe(T('studioEdFilDone', { n: r.n, t: r.t }));
+      }, k: 'ed-fil' }) : null));
   const det = h('details', 'st-details');
   det.append(h('summary', null, T('studioEdPick', { n: cs.length })));
   const box = h('div', 'st-list st-ed-cues');
@@ -4313,22 +4512,176 @@ function pageCut(p, before) {
 }
 
 let rrBusy = false;
-async function rrStart(rec) {
+async function rrStart(rec, prv) {
   if (rrBusy) return;
-  const out = RR_OUTS.filter((k) => rrOpt.out[k]);
+  const all = RR_OUTS.filter((k) => rrOpt.out[k]);
+  // סבב 10: הבדיקה — צרוב אחד (איכות מקור אם נבחרה, אחרת דחוס), PV_LEN שניות מהמקום בעורך; העריכה השמורה לא נמחקת
+  const out = prv ? [all.includes('same') ? 'same' : 'compact'] : all;
   if (!out.length) { flashSafe(T('studioRrPick')); return; }
+  const t0 = se && se.id === rec.id && se.ctl && se.ctl.video ? se.ctl.video.currentTime || 0 : 0;
+  const edl = prv ? previewEdl(rrEdl.get(rec.id) || null, rec.spec.dur || 0, t0) : rrEdl.get(rec.id) || null;
   rrBusy = true; repaint();
   try {
-    const j = await net.api('rerender', { job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl: rrEdl.get(rec.id) || null });
+    const j = await net.api('rerender', Object.assign({ job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl, sty: rrSty(), ov: rrOv(rec.id) }, prv ? { prv: true } : {}));
     if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
     const x = normJob({ id: j.job.id, srv: j.job });
-    if (x) rrJobs.set(rec.id, x);
+    if (x) (prv ? rrPv : rrJobs).set(rec.id, x);
     const k = await net.api('start', { job: j.job.id });
     if (k.job && x) x.srv = normJob({ id: x.id, srv: k.job }).srv;
-    if (!k.ok) flashSafe(errText(k.error)); else rrEdl.delete(rec.id);
+    if (!k.ok) flashSafe(errText(k.error)); else if (!prv) rrEdl.delete(rec.id);
   } catch (e) {
     flashSafe(errText((e && e.code) || 'net'));
   } finally { rrBusy = false; repaint(); schedulePoll(); }
+}
+/* ---------- סבב 5: עיצוב הכתוביות (גודל, צבע, רקע, גובה) — תצוגה חיה על הסרטון, ואותה הגדרה בצריבה ---------- */
+const rrSty = () => normSty(rrOpt.sty !== undefined ? rrOpt.sty : store.settings.sty);
+function stySum(st) {
+  if (!st) return T('studioStyDef');
+  const parts = [];
+  if (st.k) parts.push('\u2066' + st.k + '%\u2069');
+  if (st.c) parts.push(styColName(st.c));
+  if (st.bx) parts.push(T('studioStyBox'));
+  if (st.y) parts.push(T('studioStyLifted'));
+  return parts.join(' · ');
+}
+function styColName(c) { return c === 'y' ? T('studioStyYellow') : c === 'c' ? T('studioStyCyan') : T('studioStyWhite'); }
+let sy = null;   // { key, ctl, cues } — הנגן של דף העיצוב (נשאר בין ציורים)
+function syStop() { if (sy && sy.ctl) sy.ctl.destroy(); sy = null; }
+function syPeek(me) {   // עוצרים על כתובית של שתי שורות (או הארוכה) — רואים את העיצוב בלי לנגן
+  const cs = me.cues || [];
+  if (!cs.length || !me.ctl) return;
+  const c = cs.find((x) => x.lines.length >= 2) || cs.reduce((a, b) => (b.lines.join('').length > a.lines.join('').length ? b : a), cs[0]);
+  const go = () => { try { me.ctl.pause(); me.ctl.seek((c.s + c.e) / 2); } catch (e) {} };
+  if (me.ctl.video.readyState >= 1) go(); else me.ctl.video.addEventListener('loadedmetadata', go, { once: true });
+}
+function stySet(patch) {
+  const next = normSty(Object.assign({}, rrSty() || {}, patch));
+  rrOpt.sty = next;
+  store.settings.sty = next || undefined; if (!next) delete store.settings.sty; save();   // ההגדרה האחרונה = ברירת המחדל להפקה הבאה
+  if (sy && sy.ctl) sy.ctl.setStyle(next);
+  render('none');
+}
+function pageSty(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  p.append(navBar({ back: T('studioRrTitle'), title: T('studioStyT') }));
+  if (!sy || sy.key !== rec.id) {
+    syStop();
+    sy = { key: rec.id, ctl: null, cues: se && se.id === rec.id && se.ed ? se.ed.cues() : null };
+    const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
+    if (src) sy.ctl = createPlayer({ src, cues: sy.cues || [], T, pq: store.settings.pq });
+    const me = sy, co = outOf(rec, 'cues');
+    if (!me.cues && co) net.driveJson(co.id).then((j) => { if (sy === me) { me.cues = normCues(j); if (me.ctl) { me.ctl.setCues(me.cues); syPeek(me); } } }, () => {});
+    else syPeek(me);
+  }
+  const st = rrSty() || {};
+  if (sy.ctl) { sy.ctl.setStyle(st); const top = h('div', 'st-se-top'); top.append(sy.ctl.el); p.append(top); }
+  else p.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
+  const chipRow = (items) => { const r = h('div', 'st-chips st-sty-row'); r.append(...items); return r; };
+  const chip = (lbl, on, fn, k) => { const b = btn('st-chip' + (on ? ' on' : ''), lbl, fn, k); b.setAttribute('aria-pressed', on ? 'true' : 'false'); return b; };
+  const k = st.k || 100, sizes = [80, 90, 100, 120, 140].concat(st.k && ![80, 90, 100, 120, 140].includes(st.k) ? [st.k] : []).sort((a, b) => a - b);   // שורה אחת (מינימליזם)
+  p.append(secT(T('studioStySize')), chipRow(sizes.map((x) => chip('\u2066' + x + '%\u2069', x === k, () => stySet({ k: x }), 'sty-k:' + x))));
+  p.append(secT(T('studioStyColor')), chipRow(Object.keys(STY_COLORS).map((c) => {
+    const b = chip('', (st.c || 'w') === c, () => stySet({ c }), 'sty-c:' + c);
+    const dot = h('span', 'st-sty-dot'); dot.style.background = STY_COLORS[c];
+    b.append(dot, document.createTextNode(styColName(c)));
+    return b;
+  })));
+  p.append(list(rowSwitch({ label: T('studioStyBox'), sub: T('studioStyBoxS'), on: !!st.bx, onClick: () => stySet({ bx: !st.bx }), k: 'sty-bx' })));
+  const ys = [0, 10, 20, 30, STY_Y];
+  p.append(secT(T('studioStyHeight')), chipRow(ys.map((y) => chip(y ? '\u2066+' + y + '%\u2069' : T('studioStyBottom'), (st.y || 0) === y, () => stySet({ y }), 'sty-y:' + y))));
+  if (rrSty()) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; delete store.settings.sty; save(); if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
+  p.append(note(T('studioStyNote')));
+}
+/* ---------- סבב 7: כותרת ולוגו (בהפקה מחדש) — הכותרת לכל עבודה, הלוגו נשמר בהגדרות (המותג שלך) ---------- */
+const ovT = new Map();   // העבודה → { t, ta }
+function rrOv(id) {
+  const t = ovT.get(id) || {}, lg = store.settings.lg || {};
+  return normOv({ t: t.t, ta: t.ta, lg: lg.d, lp: lg.p, ls: lg.s });
+}
+function ovPosName(k) { return k === 'tl' ? T('studioOvPos_tl') : k === 'bl' ? T('studioOvPos_bl') : k === 'br' ? T('studioOvPos_br') : T('studioOvPos_tr'); }
+function ovSum(o) {
+  if (!o) return T('studioOvNone');
+  return [o.t ? T('studioOvTitle') : '', o.lg ? T('studioOvLogo') : ''].filter(Boolean).join(' · ');
+}
+/* הלוגו מהטלפון → PNG / WebP קטן (עד OV_LG_MAX כ־data URL): הצד הארוך עד 320, ואז מקטינים עד שנכנס */
+async function logoFromFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('img')); i.src = url; });
+    for (let side = 320; side >= 64; side = Math.round(side * 0.75)) {
+      const k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight)), w = Math.max(1, Math.round(img.naturalWidth * k)), hh = Math.max(1, Math.round(img.naturalHeight * k));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+      cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+      for (const [type, q] of [['image/png'], ['image/webp', 0.9], ['image/webp', 0.75]]) {
+        const d = cv.toDataURL(type, q);
+        if (d.startsWith('data:' + type) && d.length <= OV_LG_MAX && normOv({ lg: d })) return d;
+      }
+    }
+    return null;
+  } finally { URL.revokeObjectURL(url); }
+}
+let ovp = null;   // { key, ctl, tEl, lEl }
+function ovpStop() { if (ovp && ovp.ctl) ovp.ctl.destroy(); ovp = null; }
+function ovPaint(o) {
+  if (!ovp || !ovp.ctl) return;
+  ovp.tEl.textContent = (o && o.t) || ''; ovp.tEl.hidden = !(o && o.t);
+  ovp.lEl.hidden = !(o && o.lg);
+  if (o && o.lg) { ovp.lEl.src = o.lg; ovp.lEl.className = 'st-ov-l ' + o.lp; ovp.lEl.style.width = o.ls + '%'; }
+}
+function pageOv(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  p.append(navBar({ back: T('studioRrTitle'), title: T('studioOvT') }));
+  if (!ovp || ovp.key !== rec.id) {
+    ovpStop();
+    ovp = { key: rec.id, ctl: null, tEl: h('div', 'st-ov-t'), lEl: document.createElement('img') };
+    ovp.lEl.alt = ''; ovp.lEl.className = 'st-ov-l';
+    const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
+    if (src) { ovp.ctl = createPlayer({ src, cues: [], T, burned: true, pq: store.settings.pq }); ovp.ctl.el.append(ovp.tEl, ovp.lEl); }
+  }
+  const o = rrOv(rec.id) || {}, cur = ovT.get(rec.id) || {}, lg = store.settings.lg || null;
+  if (ovp.ctl) { const top = h('div', 'st-se-top'); top.append(ovp.ctl.el); p.append(top); ovPaint(o); }
+  const setT = (patch) => { ovT.set(rec.id, Object.assign({}, ovT.get(rec.id) || {}, patch)); ovPaint(rrOv(rec.id)); };   // תמיד מהעדכני (לא מהציור)
+  // הכותרת: טקסט (לא נשמר בטלפון אחרי היציאה מהאפליקציה) + כמה זמן
+  const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'st-ask-in'; inp.dir = 'auto'; inp.maxLength = OV_T_MAX;
+  inp.placeholder = T('studioOvTitlePh'); inp.value = cur.t || ''; inp.dataset.k = 'ov-t';
+  inp.addEventListener('input', () => setT({ t: inp.value }));
+  const taRow = h('div', 'st-chips st-sty-row');
+  for (const [ta, lbl] of [[0, T('studioOvAll')], [5, T('studioOvFirst5')]]) {
+    const on = (cur.ta === 5 ? 5 : 0) === ta;
+    const b = btn('st-chip' + (on ? ' on' : ''), lbl, () => { setT({ ta }); render('none'); }, 'ov-ta:' + ta); b.setAttribute('aria-pressed', on ? 'true' : 'false'); taRow.append(b);
+  }
+  const box = h('div', 'st-ov-in'); box.append(inp);
+  p.append(secT(T('studioOvTitle')), box, taRow);
+  // הלוגו: מהטלפון, פינה, גודל — נשמר בהגדרות לכל ההפקות
+  const fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = 'image/png,image/jpeg,image/webp'; fileIn.hidden = true;
+  fileIn.addEventListener('change', async () => {
+    const f = fileIn.files && fileIn.files[0]; fileIn.value = '';
+    if (!f) return;
+    const d = await logoFromFile(f).catch(() => null);
+    if (!d) { flashSafe(T('studioOvLogoBad')); return; }
+    store.settings.lg = { d, p: (lg && lg.p) || 'tr', s: (lg && lg.s) || 14 }; save(); render('none');
+  });
+  p.append(secT(T('studioOvLogo')), fileIn, list(rowNav({ tile: tile('film', 'orange'), label: lg ? T('studioOvLogoChange') : T('studioOvLogoPick'), onClick: () => fileIn.click(), k: 'ov-lg' })));
+  if (lg) {
+    const pos = h('div', 'st-chips st-sty-row');
+    for (const k of OV_POS) {
+      const on = (o.lp || 'tr') === k;
+      const b = btn('st-chip' + (on ? ' on' : ''), ovPosName(k), () => { store.settings.lg = Object.assign({}, lg, { p: k }); save(); render('none'); }, 'ov-lp:' + k);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false'); pos.append(b);
+    }
+    const sz = h('div', 'st-chips st-sty-row');
+    for (const k of [10, 14, 18, 24]) {
+      const on = (o.ls || 14) === k;
+      const b = btn('st-chip' + (on ? ' on' : ''), '\u2066' + k + '%\u2069', () => { store.settings.lg = Object.assign({}, lg, { s: k }); save(); render('none'); }, 'ov-ls:' + k);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false'); sz.append(b);
+    }
+    p.append(pos, sz, btn('st-btn ghost wide', T('studioOvLogoX'), () => { delete store.settings.lg; save(); render('none'); }, 'ov-lg-x'));
+  }
+  p.append(note(T('studioOvNote')));
 }
 function pageRr(p) {
   const rec = jobRec(ui.param);
@@ -4346,14 +4699,23 @@ function pageRr(p) {
   } else if (r && (st === 'failed' || st === 'cancelled')) p.append(banner('warn', T('studioRrFailedL', { e: errText(r.srv.err) })));
   const active = r && ['new', 'queued', 'running'].includes(st);
   if (active) return;
+  // סבב 10: הצריבה לבדיקה — מצב / התוצאה (קטע קצר), לצד ההפקה המלאה
+  const pv = rrPv.get(rec.id), pst = pv ? pv.srv.state : '';
+  if (rrRunning(pv)) p.append(list(rowNav({ tile: tile('redo', 'blue'), label: T('studioRrPvRun'), value: pst === 'running' ? Math.round(100 * ((pv.srv.prog && pv.srv.prog.p) || 0)) + '%' : '', k: 'rr-pv-run' })));
+  else if (pv && pst === 'done' && pv.srv.out.length) p.append(list(...pv.srv.out.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view', tile: tile('film', 'blue'), label: T('studioRrPvReady'), sub: o.size ? fmtSize(o.size) : '', k: 'rr-pv-out' }))));
+  else if (pv && (pst === 'failed' || pst === 'cancelled')) p.append(banner('warn', T('studioRrFailedL', { e: errText(pv.srv.err) })));
   const dirty = seDirty() && se.id === rec.id;
   p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdTitle'), value: edlSum(rrEdl.get(rec.id), rec.spec.dur), onClick: () => go('cut', rec.id), k: 'rr-cut' })));
   p.append(secT(T('studioRrOuts')), list(...RR_OUTS.map((k) => rowCheck({ label: outName(k), sub: k === 'small' ? T('studioRrSmallSub') : outSub(k), on: !!rrOpt.out[k],
     onClick: () => { rrOpt.out[k] = !rrOpt.out[k]; repaint(); }, k: 'rr-o:' + k }))));
   const cur = rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold');
-  p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k }))));
+  p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k })),
+    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty()), onClick: () => go('sty', rec.id), k: 'rr-sty' }),   // סבב 5
+    rowNav({ tile: tile('film', 'orange'), label: T('studioOvT'), value: ovSum(rrOv(rec.id)), onClick: () => go('ov', rec.id), k: 'rr-ov' })));   // סבב 7
   if (dirty) p.append(note(T('studioRrDirty')));
   p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
+  // סבב 10: קודם קטע קצר — לראות את העיצוב והחיתוך בתוך דקה, לפני צריבה של כל הסרטון
+  if (!rrRunning(rrPv.get(rec.id))) p.append(btn('st-btn wide tint', T('studioRrPvGo', { n: PV_LEN }), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec, true)) : rrStart(rec, true)), 'rr-pv'));
   p.append(note(T('studioRrNote')));
 }
 /* ---------------- מ7: גיליון ה־AI ----------------
@@ -4427,9 +4789,10 @@ function pageAi(p) {
   const cues = se.ed.cues();
   if (!ai || ai.id !== rec.id) ai = { id: rec.id, base: cues, ver: se.ed.ver(), queue: [], k: 'meaning', n: '', scope: se.ed.selected() >= 0 ? 'sel' : 'iss', mode: '', answer: '', items: null, acc: new Set(), busy: false, model: '', err: '' };
   if (aiPreset && aiPreset.id === rec.id) {   // סבב 2: בדיקת משמעות לכתוביות שהשופט סימן — הבקשה כבר בתור, נשאר אומדן ואישור
-    const rows = jdRows(cues, aiPreset.ids);
+    const rows = jdRows(cues, aiPreset.ids), run = aiPreset.run;
     aiPreset = null;
     if (rows.length && !ai.items) { ai.k = 'meaning'; ai.queue = normQueue(ai.queue.concat([{ k: 'meaning', rows, n: '' }])); ai.base = cues; ai.ver = se.ed.ver(); }
+    if (run && rows.length && !ai.items && !ai.busy) queueMicrotask(() => { if (ui.view === 'ai' && ai && ai.id === rec.id && !ai.busy) aiRunJob(rec); });   // סבב 10: הכלל — האומדן והאישור מיד
   }
   p.append(navBar({ back: T('studioSeTitle'), title: T('studioAiTitle') }));
   // תוצאות — השוואה ואישור
@@ -4529,7 +4892,7 @@ function pageIdeas(p) {
       const rs = parseRanges(idea.text);
       shown = rs.length > 0;
       if (rs.length) p.append(secT(T('studioIdHlT')), list(...rs.map((r, i) => rowNav({ tile: tile('film', 'blue'), label: r.title || fmtT(r.a), sub: '\u2066' + fmtT(r.a) + '–' + fmtT(r.b) + '\u2069 · ' + T('studioIdHlGo'),   // טווח מבודד — לא מתהפך ב־RTL
-        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5 }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));
+        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5, af: true }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));   // סבב 9: שורטס — המסגרת עוקבת אחרי הדובר (af)
     }
     if (idea.k === 'chap') {   // פרקים → לנגן: פס עם מפרידים, שם הפרק בשורת הזמן ורשימה בגלגל השיניים
       const chs = normChapters(parseChapters(idea.text));
@@ -4571,10 +4934,23 @@ function pageIdeas(p) {
     p.append(secT(T('studioAiPaste')), ta, h('div', 'st-gap sm'), btn('st-btn wide', T('studioAiCheck'), () => { idea.text = parseText(idea.answer); idea.model = ''; render('none'); }, 'id-check'));
   }
 }
+/* סבב 10: הכלל "בדיקת משמעות אוטומטית" — פעם אחת לעבודה: העורך נטען, גיליון ה־AI עם הכתוביות שהשופט סימן, ואומדן לאישור */
+export function amDue(rec, rl, done) {
+  return !!(rl && rl.am && rec && rec.srv && rec.srv.state === 'done' && rec.srv.kind === 'tr' && rec.srv.jd && Array.isArray(rec.srv.jd.f) && rec.srv.jd.f.length
+    && !(done || []).includes(rec.id));
+}
+function amMaybe(rec) {
+  if (!amDue(rec, ui.rl, store.amd) || !canEdit(rec)) return;
+  store.amd = (store.amd || []).concat(rec.id).slice(-200); save();   // גם אם לא יאושר — לא שוב
+  aiPreset = { id: rec.id, ids: rec.srv.jd.f, run: true };
+  flashSafe(T('studioAmGo'));
+  queueMicrotask(() => { if (ui.view === 'job' && ui.param === rec.id) go('subs', rec.id); });
+}
 function pageJob(p) {
   const rec = jobRec(ui.param);
   if (!rec) { back(); return; }
   const id = rec.id;
+  amMaybe(rec);
   p.append(navBar({ back: T('studioShort') }));
   const t1 = h('h1', 'st-large clamp'); t1.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
   p.append(t1);
@@ -4606,6 +4982,8 @@ function pageJob(p) {
   p.append(hero);
   const ask = askCard(rec);   // שאלה מ־Claude — מעל הכל, כי היא מחכה לך
   if (ask) p.append(ask);
+  const cpc = cpCard(rec);   // סבב 10: העתק־הדבק — בקשה שמחכה לתשובה מ־Claude שלך
+  if (cpc) p.append(cpc);
   const tstop = towerStopCard(rec);   // v362: מגדל הפיקוח עצר — מה קרה, מה זה אומר, המספרים
   if (tstop) p.append(tstop);
   const tline = towerLine(rec);
@@ -4652,6 +5030,7 @@ function pageJob(p) {
     const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
     if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
       ? { tile: tile('spark', 'teal'), label: T('studioAdvJd', { n: a.n }), sub: T('studioAdvJdS'), onClick: () => { aiPreset = { id: rec.id, ids: rec.srv.jd.f }; go('subs', rec.id); }, k: 'adv-jd' }
+      : a.k === 'rvf' ? { tile: tile('edit', 'orange'), label: T('studioAdvRvf', { n: a.n }), sub: rvfSub(rec.srv.rvf), onClick: () => { seOnly = rec.id; go('subs', rec.id); }, k: 'adv-rvf' }   // סבב 4
       : { tile: tile('film', 'blue'), label: T('studioAdvVert'), sub: T('studioAdvVertS'), onClick: () => go('rr', rec.id), k: 'adv-vert' }))));   // סבב 2: הצעות אחרי
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
@@ -4772,7 +5151,7 @@ function pageJob(p) {
         if (!fin) await net.api('cancel', { job: id });
         const j = await net.api('remove', { job: id });
         if (!j.ok && j.error !== 'no_job') { flashSafe(errText(j.error)); return; }
-        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); save();
+        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); save();
         flashSafe(T('studioJobDeleted')); back();
       } else {
         const j = await net.api('cancel', { job: id });
@@ -4839,8 +5218,8 @@ function pageSettings(p) {
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };
   p.append(secT(T('studioSecClaude')), list(
-    rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: !isApi, onClick: pick('sub'), k: 'cn:sub' }),
-    rowRadio({ label: T('studioConnCopy'), sub: T('studioConnCopyS'), on: false, disabled: true, badge: T('studioSoon') }),
+    rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: !isApi && !cpMode(), onClick: pick('sub'), k: 'cn:sub' }),
+    rowRadio({ label: T('studioConnCopy'), sub: T('studioConnCopyS'), on: cpMode(), onClick: pick('copy'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:copy' }),   // סבב 10
     rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: isApi, onClick: pick('api'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:api' })));
   const c = store.conn;
   if (isApi) {
@@ -4957,6 +5336,7 @@ async function pushTest() {
    השרת לא פתוח לאינטרנט — הוא שואל את השרתון כל 20 שנ׳ ומדווח דופק. כאן רואים אותו ומנהלים אותו (המנהל בלבד):
    מחובר / לא, גרסה, דיסק, זיכרון, מה הוא מתרגם, השהיה, הסרה (הטוקן מת מיד), והוספה (הטוקן מוצג פעם אחת) */
 const apiMode = () => store.settings.conn === 'api' && !!ui.api;
+const cpMode = () => store.settings.conn === 'copy' && !!ui.api;   // סבב 10: העתק־הדבק — דרך השרת של המערכת (בלי עלות API)
 const curNorm = () => (apiMode() ? ui.normA || ui.normR : ui.normR);   // "הרגיל" של המנוע שבשימוש
 async function refreshServers() {
   if (!ui.api || !ui.api.admin) return;
@@ -5249,7 +5629,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : ''); };   // v382: הערה שנקראה / ממתינה
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : ''); };   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
@@ -5265,7 +5645,7 @@ function shapeKey() {
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
   if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
   if (ui.view === 'subs') { const r = jobRec(ui.param); return 'subs|' + ui.param + '|' + (se ? se.st : '') + '|' + ui.access + '|' + (r && r.srv ? r.srv.ev + ':' + r.srv.vh.length : '') + (r && rrJobs.get(r.id) ? rrJobs.get(r.id).srv.state : ''); }   // מ2: לא נבנה מחדש בזמן הקלדה
-  if (ui.view === 'rr') { const x = rrJobs.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
+  if (ui.view === 'rr') { const x = rrJobs.get(ui.param), v = rrPv.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + '|' + (v ? v.srv.state + JSON.stringify(v.srv.prog) + v.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
   if (ui.view === 'ideas') return 'ideas|' + ui.param + '|' + ui.access + '|' + (idea ? idea.k + idea.mode + (idea.busy ? 'b' : '') + (idea.cues ? idea.cues.length : 'l') + (idea.text != null ? 't' + idea.text.length : '') : '');   // מ8
   if (ui.view === 'ai') return 'ai|' + ui.param + '|' + ui.access + '|' + (ai ? ai.k + ai.scope + ai.mode + ai.queue.length + (ai.busy ? 'b' : '') + (ai.items ? 'i' + ai.items.length + ':' + [...ai.acc].join('.') : '') : '');   // מ7
   if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key + (ce.cues ? ce.cues.length : '') : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
@@ -5299,6 +5679,8 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'subs') pageSubs(p);   // מ2: עורך הכתוביות
   else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
   else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
+  else if (ui.view === 'sty') pageSty(p);            // סבב 5: עיצוב הכתוביות
+  else if (ui.view === 'ov') pageOv(p);              // סבב 7: כותרת ולוגו
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
   else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך
@@ -5361,7 +5743,7 @@ function schedulePoll() {
   const recMs = (list) => { const t = Math.min(...list.filter(recovering).map((r) => r.srv.rw)); return Number.isFinite(t) ? Math.max(2000, Math.min(60000, t - Date.now() + 1500)) : 0; };
   if (ui.view === 'job') { const r = jobRec(ui.param), st = r && r.srv ? r.srv.state : 'new'; ms = st === 'queued' || st === 'running' ? 4000 : st === 'new' && r && r.up.started ? 15000 : r ? recMs([r]) : 0; }
   else if (ui.view === 'home') ms = store.jobs.some((r) => r.srv && (r.srv.state === 'queued' || r.srv.state === 'running')) ? 15000 : recMs(store.jobs);
-  else if (ui.view === 'rr') { const x = rrJobs.get(ui.param); ms = x && ['new', 'queued', 'running'].includes(x.srv.state) ? 4000 : 0; }   // מ2
+  else if (ui.view === 'rr') { ms = rrRunning(rrJobs.get(ui.param)) || rrRunning(rrPv.get(ui.param)) ? 4000 : 0; }   // מ2; סבב 10: גם הבדיקה
   else if (ui.view === 'server' && ui.api && ui.api.admin) ms = 15000;   // מסך השרת: הדופק מתעדכן כל 15 שנ׳
   if (ms) pollT = setTimeout(pollNow, ms);
 }
@@ -5374,9 +5756,11 @@ async function pollNow() {
       const id = ui.param, j = await net.api('job', { job: id });
       const r = jobRec(id);
       if (j.ok && j.job && r) { r.srv = normJob({ id, srv: j.job }).srv; save(); }
-    } else if (ui.view === 'rr' && rrJobs.get(ui.param)) {
-      const x = rrJobs.get(ui.param), j = await net.api('job', { job: x.id });
-      if (j.ok && j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
+    } else if (ui.view === 'rr' && (rrJobs.get(ui.param) || rrPv.get(ui.param))) {
+      for (const x of [rrJobs.get(ui.param), rrPv.get(ui.param)].filter(rrRunning)) {
+        const j = await net.api('job', { job: x.id });
+        if (j.ok && j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
+      }
     } else if (ui.view === 'home') await refreshJobs(true);
     else if (ui.view === 'server') await refreshServers();
   } finally { polling = false; repaint(); schedulePoll(); }

@@ -1534,6 +1534,40 @@ def ask_user(ctx, q, opts, default=0, wait=480):
     return fallback
 
 
+# ---------------------------------------------------------------- סבב 10: העתק־הדבק לעבודה מלאה
+CP_ROLES = ('main', 'tl', 'rv', 'jg')             # = CP_ROLES בשרתון
+CP_WAIT = 6 * 3600                                # כמה מחכים להדבקה (המשתמש לא תמיד ליד הטלפון)
+
+
+def cp_round(ctx, k, text):
+    """בקשה אחת ל־Claude של המשתמש: הקובץ עולה לתיקיית העבודה, הטלפון מציג "העתקת הבקשה" ושדה להדבקה,
+    ומחכים לתשובה (op qa — קריאה בלבד, בלי כתיבה לכל בדיקה). המספר רץ מהשרתון — עקבי גם אחרי "המשך"."""
+    import llm
+    n = int(((ctx.c.call('qa') or {}).get('cp') or {}).get('n') or 0) + 1
+    d = ctx.pdir / 'cp'
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / ('request_%03d.txt' % n)
+    p.write_text(text, encoding='utf-8')
+    fid = put_output(ctx, p, 'בקשה %d ל־Claude.txt' % n, 'cpq', 'text/plain')
+    ctx.report(cpq={'n': n, 'r': k if k in CP_ROLES else 'main', 'id': fid}, force=True)
+    print('בקשה %d נשלחה לטלפון — מחכים שתדביקו את התשובה של Claude (עד %d שעות).' % (n, CP_WAIT // 3600), flush=True)
+    poll = float(os.environ.get('SNB_CP_POLL', '10'))
+    end = time.time() + CP_WAIT * float(os.environ.get('SNB_ASK_WAIT_SCALE', '1'))
+    while time.time() < end:
+        time.sleep(poll)
+        cp = (ctx.c.call('qa') or {}).get('cp') or {}
+        if cp.get('n') == n and FILE_ID_RE.match(str(cp.get('a') or '')):
+            a = d / ('answer_%03d.txt' % n)
+            if a.exists():
+                a.unlink()
+            fetch_input(ctx, cp['a'], a, int(cp.get('as') or 0))
+            print('✓ התשובה לבקשה %d התקבלה.' % n, flush=True)
+            return a.read_text(encoding='utf-8', errors='replace')
+        if cp.get('n') and cp.get('n') != n:
+            break                                   # בקשה אחרת החליפה אותה — לא אמור לקרות
+    raise llm.LLMError('cp_timeout', 'לא הודבקה תשובה בזמן')
+
+
 @guarded
 def ask(args):
     """שלב 3 סבב ד׳: שאלה קצרה למשתמש באמצע העבודה. השורה האחרונה בפלט היא מה שהסשן ממשיך איתו:
@@ -1728,6 +1762,84 @@ def judge_score(text, ids):
     # סבב 2: מספרי הכתוביות שסומנו (מזהי vt — כמו cues.final.json) — לבדיקת משמעות בטלפון רק עליהן
     f = sorted(i for i, (_, code) in got.items() if code != 'ok')[:JG_F_MAX]
     return {'s': s, 'n': len(got), 'c': c, 'f': f}
+
+
+# סבב 4: סימונים מהביקורת — כתוביות שהבודק לא יכול להכריע בלי לראות / לשמוע (g מגדר, s מי מדבר, t מונח בשתי דרכים).
+# שורה "!#מספר קוד" (בתשובה של הביקורת או ב־review/flags.txt). רק מספרים וקודים חוזרים לשרתון — **RVF_MAX/RVF_CODES זהים בשרתון ובטלפון**
+RVF_CODES = ('g', 's', 't')
+RVF_MAX = 40
+_RVF_LINE = re.compile(r'^[\s>*`\-•]*!\s*#?\s*(\d{1,6})\s*[:.|)\-–]*\s*`?([gst])`?\b', re.I)
+
+
+def review_flags(text, ids=None):
+    """[[מספר, קוד], …] ממוין, בלי כפולים, עד RVF_MAX. ids = המספרים שקיימים (None = כל מספר)."""
+    got = set()
+    for ln in str(text or '').replace('\r', '').split('\n'):
+        m = _RVF_LINE.match(ln.strip())
+        if not m:
+            continue
+        i, k = int(m.group(1)), m.group(2).lower()
+        if i >= 1 and k in RVF_CODES and (ids is None or i in ids):
+            got.add((i, k))
+    return [[i, k] for i, k in sorted(got)][:RVF_MAX]
+
+
+def cue_ids(pdir):
+    """מזהי הכתוביות של העבודה (cues.final.json / he.json) — כדי שסימון לא יפנה לכתובית שלא קיימת"""
+    for name in ('out/cues.final.json', 'cues.en.json'):
+        try:
+            d = json.loads((pdir / name).read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        arr = d if isinstance(d, list) else (d.get('cues') if isinstance(d, dict) else None) or []
+        ids = {c.get('id') for c in arr if isinstance(c, dict) and isinstance(c.get('id'), int)}
+        if ids:
+            return ids
+    return None
+
+
+def review_flags_file(pdir):
+    try:
+        txt = (pdir / 'review' / 'flags.txt').read_text(encoding='utf-8')
+    except OSError:
+        return []
+    return review_flags(txt, cue_ids(pdir))
+
+
+# סבב 4: מילות מילוי (um/uh…) מהתמלול — טווחים לחיתוך בהפקה מחדש (בלי טוקנים). Parakeet משאיר אותן בתמלול;
+# ההגהה מוחקת אותן מהטקסט, לכן הן נקראות מ־asr/*.json (ציר הזמן של הסרטון — אחרי shift_words). **FIL_MAX זהה בשרתון**
+FILLERS = frozenset(('um', 'umm', 'uh', 'uhh', 'uhm', 'er', 'erm', 'ah', 'eh', 'hmm', 'hm', 'mm', 'mhm', 'mmm'))
+FIL_MAX = 300
+FIL_MIN, FIL_LEN = 0.15, 2.0   # קצר מזה — לא שווה חיתוך; ארוך מזה — כנראה לא מילת מילוי (או זמן שגוי)
+FIL_PAD = 0.04                 # קצת לפני ואחרי — אבל לא לתוך המילה השכנה
+
+
+def fillers(pdir):
+    """[[התחלה, סוף], …] בשניות (2 ספרות), ממוין ובלי חפיפות"""
+    srcs = sorted(p for p in (pdir / 'asr').glob('*.json') if not p.name.startswith('diff_')) if (pdir / 'asr').is_dir() else []
+    for p in srcs:
+        try:
+            ws = [w for w in (json.loads(p.read_text(encoding='utf-8')).get('words') or []) if isinstance(w, dict)]
+        except (OSError, ValueError, AttributeError):
+            continue
+        out = []
+        for i, w in enumerate(ws):
+            t = re.sub(r'[^a-z]', '', str(w.get('w') or w.get('word') or '').lower())
+            s, e = w.get('s'), w.get('e')
+            if t not in FILLERS or not isinstance(s, (int, float)):
+                continue
+            nx = ws[i + 1].get('s') if i + 1 < len(ws) else None
+            if not isinstance(e, (int, float)) or e <= s:
+                e = min(nx, s + 0.6) if isinstance(nx, (int, float)) else s + 0.4
+            pe = ws[i - 1].get('e') if i else None
+            a = max(s - FIL_PAD, pe if isinstance(pe, (int, float)) else 0.0, 0.0)
+            b = min(e + FIL_PAD, nx) if isinstance(nx, (int, float)) else e + FIL_PAD
+            if FIL_MIN <= b - a <= FIL_LEN and (not out or a >= out[-1][1]):
+                out.append([round(a, 2), round(b, 2)])
+            if len(out) >= FIL_MAX:
+                break
+        return out
+    return []
 
 
 @guarded
@@ -1963,8 +2075,10 @@ RR_FILES = (                                      # מ2: מה שההפקה מח�
     ('same', '{n}.he.mp4', ' (עברית, איכות מקור).mp4', 'video/mp4'),
     ('mkv', '{n}.he.mkv', ' (עברית).mkv', 'video/x-matroska'),
     ('small', '{n}.he.small.mp4', ' (עברית, קטן).mp4', 'video/mp4'),
+    ('thumb', '{n}.thumb.jpg', ' (תמונה).jpg', 'image/jpeg'),         # סבב 7: תמונה ממוזערת (כשביקשו — th בעריכה)
 )
 RR_STYLES = ('bold', 'classic')
+OV_LG_RE = re.compile(r'^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})\Z')   # סבב 7: הלוגו — כמו normOv (\Z, לא $)
 
 
 def script(ctx, path, args, stage, lo=0.0, hi=1.0):
@@ -2020,12 +2134,26 @@ def render(args):
         e = E.norm_edl(spec.get(k))
         if e:
             eds += ['--' + k, json.dumps(e, separators=(',', ':'))]
+    if isinstance(spec.get('sty'), dict):        # סבב 5: עיצוב הכתוביות (rerender.py מנרמל שוב — מספרים וקודים בלבד)
+        eds += ['--sty', json.dumps(spec['sty'], separators=(',', ':'))]
+    ov = spec.get('ov') if isinstance(spec.get('ov'), dict) else None
+    if ov:                                       # סבב 7: כותרת ולוגו — הלוגו לקובץ, השאר (בלי התמונה) ל־rerender.py
+        lg = ov.get('lg')
+        m = OV_LG_RE.match(lg) if isinstance(lg, str) and len(lg) <= 65536 else None
+        if m:
+            import base64
+            work.mkdir(parents=True, exist_ok=True)
+            logo = work / ('logo.' + ('jpg' if m.group(1) == 'jpeg' else m.group(1)))
+            logo.write_bytes(base64.b64decode(m.group(2)))
+            eds += ['--logo', str(logo)]
+        eds += ['--ov', json.dumps({k: v for k, v in ov.items() if k != 'lg'}, ensure_ascii=False, separators=(',', ':'))]
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
                                 '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
     ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
-    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
+    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120] + (' — קטע לבדיקה' if spec.get('prv') == 1 else '')   # סבב 10
     out = []
-    picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES if k in want]
+    picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES
+              if k in want or (k == 'thumb' and (od / fn.format(n=ctx.name)).exists())]   # סבב 7: התמונה — כשנוצרה
     total = sum(p.stat().st_size for _, p, _, _ in picked if p.exists()) or 1
     done = 0
     for k, p, name, mime in picked:
@@ -2049,8 +2177,11 @@ OUT_FILES = (                                     # (סוג, קובץ של vt, �
     ('compact', '{n}.he.compact.mp4', ' (עברית).mp4', 'video/mp4'),
     ('same', '{n}.he.mp4', ' (עברית, איכות מקור).mp4', 'video/mp4'),
     ('mkv', '{n}.he.mkv', ' (עברית).mkv', 'video/x-matroska'),
+    ('small', '{n}.he.small.mp4', ' (עברית, קטן).mp4', 'video/mp4'),     # סבב 8: עותק לוואטסאפ (עד SMALL_MB)
     ('srt', 'he.srt', '.he.srt', 'application/x-subrip'),
 )
+SMALL_ALT = '{n}.he.compact.small.mp4'            # כשהעותק נבנה מהדחוס
+SMALL_MB = 28                                     # = SMALL_MB בטלפון (studio.js) ו־small_copy ב־vt
 # מ1 (10/10/2026): קבצי עזר שתמיד עולים (אם vt יצר אותם) — הנגן, עורך הכתוביות ומסך ההצעות קוראים מ־cues;
 # VTT/ASS לנגנים אחרים; en = כתוביות בשפת המקור. תקלה בהעלאה של אחד מהם לא מפילה את העבודה
 AUX_FILES = (
@@ -2058,7 +2189,18 @@ AUX_FILES = (
     ('vtt', 'he.vtt', '.he.vtt', 'text/vtt'),
     ('ass', 'he.ass', '.he.ass', 'text/x-ssa'),
     ('en', 'en.reference.srt', '.en.srt', 'application/x-subrip'),
+    ('meta', 'timeline.json', '.timeline.json', 'application/json'),   # סבב 6: גל הקול וחילופי השוטים — לציר בעורך הכתוביות
 )
+
+
+def meta_safe(ctx):
+    """סבב 6: out/timeline.json (peaks.py בסביבת vt) — מידע משני; תקלה לא מפילה את סוף העבודה"""
+    try:
+        script(ctx, 'peaks.py', ['--project', str(ctx.pdir), '--out', str(ctx.pdir / 'out' / 'timeline.json')], 'sv')
+    except Stop:
+        raise
+    except BaseException as e:   # noqa: BLE001 — כולל SystemExit של script()
+        print('· גל הקול לא נוצר (' + type(e).__name__ + ') — ממשיכים בלעדיו')
 
 
 # ---------------------------------------------------------------- איכויות צפייה (כמו ב־YouTube)
@@ -2196,7 +2338,7 @@ def ladder_finish(ctx):
 def finish(args):
     ctx = Ctx(load_state())
     spec = ctx.st.get('spec') or {}
-    want = [k for k in (spec.get('out') or []) if k in ('compact', 'same', 'mkv')]
+    want = [k for k in (spec.get('out') or []) if k in ('compact', 'same', 'mkv', 'small')]
     errs = re.findall(r'שגיאות (\d+)', '\n'.join(vt(ctx, ['tr-check', ctx.name])))
     if (not errs or int(errs[-1]) > 0) and not args.force:
         raise SystemExit('✗ tr-check מצא שגיאות — לתקן ב־tr/fixes_zfinal.txt ולהריץ שוב: grep -A2 "שגיא" ' + str(ctx.pdir / 'tr' / 'check.md'))
@@ -2209,6 +2351,8 @@ def finish(args):
     if want:
         ctx.report('bn', 0, 'מוסיפים את הכתוביות לסרטון', force=True)
         flags = (['--compact'] if 'compact' in want else []) + (['--burn'] if 'same' in want else []) + (['--mkv'] if 'mkv' in want else [])
+        if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
+            flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
     ctx.report('sv', 0, 'שומרים את התוצרים ב־Drive', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
@@ -2218,6 +2362,8 @@ def finish(args):
         if k != 'srt' and k not in want:
             continue
         p = ctx.pdir / 'out' / fname.format(n=ctx.name)
+        if k == 'small' and not p.exists():      # vt: <צרוב>.small.mp4 — מהאיכות המקורית אם נצרבה, אחרת מהדחוס
+            p = ctx.pdir / 'out' / SMALL_ALT.format(n=ctx.name)
         if not p.exists():
             raise SystemExit('✗ התוצר ' + p.name + ' לא נוצר.')
         files.append((k, p, title + suffix, mime))
@@ -2228,6 +2374,7 @@ def finish(args):
         fid = put_output(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
+    meta_safe(ctx)
     for k, fname, suffix, mime in AUX_FILES:
         p = ctx.pdir / 'out' / fname
         if not p.exists():
@@ -2245,9 +2392,14 @@ def finish(args):
         gl = gl_suggest(ctx)                     # v380: מונחים חדשים מהעבודה — הצעה למילון שלך
     except Exception:            # noqa: BLE001 — מידע משני
         gl = None
+    try:
+        rvf, fil = review_flags_file(ctx.pdir), fillers(ctx.pdir)   # סבב 4: סימונים מהביקורת ומילות מילוי — מידע משני
+    except Exception:            # noqa: BLE001
+        rvf, fil = [], []
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q,
-               judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'])      # v375: שופט האיכות (Haiku) — אם רץ
+               judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
+               rvf=rvf or None, fil=fil or None)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 

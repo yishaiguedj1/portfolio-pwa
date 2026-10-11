@@ -694,7 +694,7 @@ async function worker(req, res, body, deps) {
       const [code, out] = await r2Files(deps, op, body, job.uid, job.folder, 'worker');
       return res.status(code).json(Object.assign({ now }, out));
     }
-    if (body.op === 'qa') return res.status(200).json({ ok: true, qa: job.qa && job.qa.id ? { id: job.qa.id, g: job.qa.g || '', a: job.qa.a || null } : null, bx: job.bx || 0, now });
+    if (body.op === 'qa') return res.status(200).json({ ok: true, qa: job.qa && job.qa.id ? { id: job.qa.id, g: job.qa.g || '', a: job.qa.a || null } : null, bx: job.bx || 0, cp: S.cpWorker(job.cp), now });   // סבב 10: גם העתק־הדבק (קריאה בלבד)
     // report
     const up = S.applyReport(job, body, now);
     if (body.out != null) {
@@ -729,6 +729,16 @@ async function worker(req, res, body, deps) {
       up.qa = Object.assign(qa, { at: now, a: null });
       up.qn = (job.qn || 0) + 1;
     }
+    if (body.cpq != null) {
+      // סבב 10: העתק־הדבק — בקשה חדשה ל־Claude של המשתמש. הקובץ בתיקיית העבודה; המספר עולה (לא מחליפים בקשה בלי תשובה בשקט)
+      const q = S.normCpq(body.cpq);
+      if (!q || !job.folder || !(job.spec && job.spec.cp === 1)) return res.status(400).json({ ok: false, error: 'cp_bad' });
+      if (job.cp && job.cp.n >= q.n) return res.status(409).json({ ok: false, error: 'cp_seq' });
+      const m = await driveFileInFolder(deps, job.uid, job.folder, q.id);
+      if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
+      if (!m || !(m.size > 0 && m.size <= S.CP_FILE_MAX)) return res.status(400).json({ ok: false, error: 'cp_bad' });
+      up.cp = { n: q.n, r: q.r, f: q.id, fs: Math.floor(m.size), at: now, a: '', as: 0 };
+    }
     let gateId = '', note = '';   // v382: הערה שנמסרת בנקודת השמירה
     if (body.gate != null) {
       // v367: שער — הפרה של חוק (תקציב) או אישור לפני צריבה. השרתון בונה את השאלה (בלי טקסט מ־Claude); העבודה מחכה לך
@@ -755,6 +765,8 @@ async function worker(req, res, body, deps) {
     if (body.inj != null) { const ij = S.normInj(body.inj); if (ij) up.ij = ij; }          // v374: שומר ההזרקות
     if (body.judge != null) { const jd = S.normJudge(body.judge); if (jd) up.jd = jd; }    // v375: שופט האיכות
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
+    if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
+    if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
     if (body.trace != null) {
       // v373: עקיבה (מהיומנים, בסוף העבודה) — לא תקין נזרק בשקט
       const tr = S.normTrace(body.trace);
@@ -835,7 +847,7 @@ async function worker(req, res, body, deps) {
     }
     if (job.kind === 'tr') {
       // שלב 4: התראה לטלפון — מוכן / נעצרה (לא כשממתינים להמשך אוטומטי) / שאלה / אישור
-      const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : '';
+      const kind = up.state === 'done' ? 'done' : up.state === 'failed' && !up.rw ? 'fail' : gateId ? 'gate' : body.ask != null && up.qa ? 'ask' : up.cp ? 'cp' : '';
       if (kind) await notify(deps, job.uid, kind, id, now);
     }
     if (job.kind === 'tr' && up.state === 'done') {
@@ -1323,7 +1335,8 @@ async function handler(req, res, deps = {}) {
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.some((j) => j.kind === 'rr' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'rr_busy' });
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
-      for (const old of all.filter((j) => j.kind === 'rr' && j.rp === job.id && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק ההפקה האחרונה נשמרת
+      const prv = body.prv === true;                 // סבב 10: צריבה לבדיקה מחליפה רק בדיקה קודמת (לא את ההפקה המלאה), ולהפך
+      for (const old of all.filter((j) => j.kind === 'rr' && j.rp === job.id && !!(j.spec && j.spec.prv) === prv && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק ההפקה האחרונה נשמרת
       const r = S.rrJob(job, body, S.newJobId(), uid, now);
       await patchJob(deps, r.id, r);
       return res.status(200).json({ ok: true, job: view(r) });
@@ -1344,6 +1357,19 @@ async function handler(req, res, deps = {}) {
       const a = S.aiJob(job, fq, body.mode, S.newJobId(), uid, now);
       await patchJob(deps, a.id, a);
       return res.status(200).json({ ok: true, job: view(a) });
+    }
+    if (op === 'cpAnswer') {
+      // סבב 10: העתק־הדבק — התשובה שהדבקת (קובץ שהטלפון העלה לתיקיית העבודה) לבקשה הנוכחית, פעם אחת
+      if (st !== 'queued' && st !== 'running') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
+      const n = Number(body.n), f = String(body.f || '');
+      if (!job.cp || job.cp.n !== n || job.cp.a) return res.status(409).json({ ok: false, error: 'cp_seq', job: view(job) });
+      if (!S.FILE_ID_RE.test(f) || !job.folder) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const m = await driveFileInFolder(deps, uid, job.folder, f);
+      if (m && m.error) return res.status(200).json({ ok: false, error: m.error });
+      if (!m || !(m.size > 0 && m.size <= S.CP_FILE_MAX)) return res.status(400).json({ ok: false, error: 'file_bad' });
+      const patch = { cp: Object.assign({}, job.cp, { a: f, as: Math.floor(m.size), ad: now }), updated: now };
+      await patchJob(deps, job.id, patch);
+      return res.status(200).json({ ok: true, job: view(Object.assign({}, job, patch)) });
     }
     if (op === 'answer') {
       // תשובה לשאלה של Claude — פעם אחת, לשאלה הנוכחית בלבד, כל עוד העבודה רצה
