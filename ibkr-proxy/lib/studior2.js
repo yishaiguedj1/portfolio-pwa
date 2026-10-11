@@ -26,7 +26,7 @@ const inFolder = (id, folder) => isId(id) && isFolder(folder) && String(id).star
 function newId(folder) {
   const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let s = '';
-  for (const b of crypto.randomBytes(12)) s += a[b % a.length];
+  for (let i = 0; i < 12; i++) s += a[crypto.randomInt(a.length)];   // בלי הטיה של מודולו (CodeQL)
   return folder + '_' + s;
 }
 const keyOf = (uid, id) => (UID_RE.test(String(uid || '')) && isId(id) ? 'st/' + uid + '/' + id : '');
