@@ -664,6 +664,7 @@ function normInj(o) {
 }
 /* v375: שופט האיכות (Haiku, על מדגם): s = 0–100, n כתוביות שנשפטו מתוך t במדגם, a בעבודה, c = כמה מכל סוג בעיה (קודים קבועים) */
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
+const JG_F_MAX = 40;   // **זהה ל־JG_F_MAX בעובד (job.py) ובטלפון**
 function normJudge(o) {
   if (!o || typeof o !== 'object') return null;
   const int = (v, lo, hi) => (typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi ? v : null);
@@ -675,8 +676,16 @@ function normJudge(o) {
     if (!JG_CODES.includes(k) || x == null) return null;
     c[k] = x;
   }
-  if (Object.values(c).reduce((x, y) => x + y, 0) > n) return null;
-  return { s, n, t, a, c };
+  const bad = Object.values(c).reduce((x, y) => x + y, 0);
+  if (bad > n) return null;
+  // סבב 2: מספרי הכתוביות שהשופט סימן (מזהי vt) — רק מספרים, ממוינים, בלי כפולים, לכל היותר כמו הבעיות שנספרו
+  let f;
+  if (o.f != null) {
+    if (!Array.isArray(o.f) || o.f.length > Math.min(JG_F_MAX, bad)) return null;
+    f = [];
+    for (const x of o.f) { if (int(x, 1, 1e6) == null || (f.length && x <= f[f.length - 1])) return null; f.push(x); }
+  }
+  return f && f.length ? { s, n, t, a, c, f } : { s, n, t, a, c };
 }
 /* v380: זיכרון המונחים — u = כמה מונחים מהמילון שלך שימשו, s = עד 30 מונחים חדשים מהעבודה [[אנגלית, עברית]].
    הטקסט נכתב בסשן שמעבד תוכן לא מהימן — רק אחרי ניקוי (glClean, זהה לעובד ולטלפון), ובטלפון רק כטקסט ורק באישורך */

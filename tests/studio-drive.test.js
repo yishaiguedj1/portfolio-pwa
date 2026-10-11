@@ -54,7 +54,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- החיבור ---------- */
   ok(/register\(id, 'v', up\.v\.id, up\.folder, true\)/.test(st) && /ext \? \{ ext: true \} : \{\}/.test(st), 'מקור מ־Drive — רישום בשרתון עם ext (מאומת שם: קיים, סרטון, בגודל)');
-  ok(/const pr = f\.fileObj \? await probeVideo\(file\) : \{ dur: f\.drive\.dur \|\| 0 \}/.test(st), 'בלי לקרוא את הקובץ בטלפון — האורך מ־Drive');
+  ok(/const pr = f\.fileObj \? \(sm && sm\.dur \? \{ dur: sm\.dur \} : await probeVideo\(file\)\) : \{ dur: f\.drive\.dur \|\| 0 \}/.test(st), 'בלי לקרוא את הקובץ בטלפון — האורך מ־Drive');
   ok(/DocsView\(G\.ViewId\.DOCS_VIDEOS\)/.test(st) && /setSelectFolderEnabled\(true\)/.test(st) && /setAppId\(cfg\.app\)/.test(st), 'Google Picker: סרטונים / תיקייה, עם מספר הפרויקט (הרשאה לקובץ שנבחר)');
   ok(/v\.setMode\(G\.DocsViewMode\.LIST\)/.test(st) && /for \(const v of views\) pb\.addView\(v\)/.test(st), 'ה־Picker: רשימה (שם, תאריך, גודל) — בלי ריבועי תמונה ממוזערת');
   ok(/setParent\('root'\), T\('studioPkMine'\)\)/.test(st) && /setStarred\(true\), T\('studioPkStar'\)\)/.test(st) && /T\('studioPkVideos'\)/.test(st), 'ה־Picker: לשוניות — סרטונים · התיקיות שלי · מסומנים בכוכב');

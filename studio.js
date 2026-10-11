@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
@@ -182,7 +182,8 @@ export function normJob(j) {
     hl: normLadder(s.hl),                     // איכויות הצפייה (הראשונה = המקור עצמו)
   } : null;
   const chap = normChapters(j.chap);   // פרקים בנגן (מ"רעיונות"); נשמרים בטלפון עם העבודה
-  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}) };
+  const vm = j.vm && num(j.vm.w) > 0 && num(j.vm.h) > 0 ? { w: Math.min(num(j.vm.w), 16384), h: Math.min(num(j.vm.h), 16384) } : null;   // סבב 2: מידות הסרטון (מהבדיקה בטלפון)
+  return { id: j.id, created: num(j.created), spec, up, fp, srv, ...(chap.length ? { chap } : {}), ...(vm ? { vm } : {}) };
 }
 /* v387: סט הזהב — אותה בדיקה כמו בשרתון (lib/studio.js normGd / normGq) */
 const FID_GD = /^[A-Za-z0-9_-]{10,100}$/;
@@ -210,6 +211,39 @@ function estText(e, apiOn) {
   const t = e.min < 60 ? T('studioMinShort', { m: e.min }) : T('studioHMShort', { t: fmtHM(e.min) });
   if (!apiOn) return T('studioEstSub', { t, usd: fmtUsd(e.usd) });
   return T('studioEstApi', { t, usd: fmtUsd(e.usd), left: fmtUsd(e.left || 0) }) + (e.over ? ' ' + T('studioEstOver') : '');
+}
+/* ---------- סבב 2: הצעות לפני ההתחלה — מהבדיקה של הסרטון בטלפון (חינם). לכל הצעה פעולה אחת ----------
+   bad = כנראה אין מה לתרגם (אין קול / שקט), warn = כדאי לבדוק (שפה, כבר תורגם), tip = חוסך זמן וכסף (שקט בקצוות) */
+export const EDGE_MIN = 10;      // שניות של שקט בהתחלה / בסוף שמצדיקות הצעה לחתוך
+const ADV_ORDER = { bad: 0, warn: 1, tip: 2 };
+export function sourceAdvice(m, ctx) {
+  const out = [], c = ctx || {};
+  const prev = (c.jobs || []).find((r) => r && r.srv && r.srv.state === 'done' && r.srv.kind !== 'rr' && r.spec && r.spec.name === c.name && r.spec.size === c.size && c.name);
+  if (prev) out.push({ k: 'dup', sev: 'warn', act: 'open', id: prev.id });
+  if (m && m.dur > 0) {
+    const silent = m.db != null && m.db < QUIET_DB;
+    if (!m.audio) out.push({ k: 'noaudio', sev: 'bad', act: 'repick' });
+    else if (silent) out.push({ k: 'silent', sev: 'bad', act: 'repick' });
+    const to = (c.to && c.to[0]) || 'he';
+    if (m.lang && m.audio && (c.from === 'auto' || c.from === 'en')) {
+      if (m.lang === to) out.push({ k: 'same', sev: 'warn', act: 'repick', lang: m.lang });
+      else if (m.lang !== 'en') out.push({ k: 'lang', sev: 'warn', act: 'repick', lang: m.lang });
+    }
+    const lead = m.lead || 0, trail = m.trail || 0;
+    if (m.audio && !silent && !c.edl && (lead >= EDGE_MIN || trail >= EDGE_MIN) && m.dur - lead - trail >= 20) {
+      const a = lead >= EDGE_MIN ? Math.max(0, lead - 1) : 0, b = trail >= EDGE_MIN ? Math.min(m.dur, m.dur - trail + 1) : m.dur;
+      out.push({ k: 'edges', sev: 'tip', act: 'cut', a: Math.round(a * 10) / 10, b: Math.round(b * 10) / 10, save: Math.round(a + (m.dur - b)) });
+    }
+  }
+  return out.sort((x, y) => ADV_ORDER[x.sev] - ADV_ORDER[y.sev]);
+}
+/* הצעות אחרי שהעבודה הסתיימה — מהשופט וממידות הסרטון (בעיות קצב/אורך — כבר בעורך, עם הצעות תיקון משלהן). "בדיקת משמעות" = תרגום חוזר רק של מה שהשופט סימן */
+export function afterAdvice(rec, o) {
+  const out = [], sv = rec && rec.srv, x = o || {};
+  if (!sv || sv.state !== 'done' || sv.kind === 'rr') return out;
+  if (sv.jd && sv.jd.f && sv.jd.f.length) out.push({ k: 'jd', act: 'ai', n: sv.jd.f.length });
+  if (rec.vm && rec.vm.h > rec.vm.w && !x.rrDone) out.push({ k: 'vert', act: 'rr' });
+  return out;
 }
 /* v387: אומדן להרצת סט הזהב — "הרגיל" לשעה של כל מצב (נלמד או ברירת המחדל) × אורך הסרטון. טהור */
 export function goldEstimate(gold, norm) {
@@ -505,8 +539,12 @@ export function normJudge(o) {
   if (s == null || n == null || t == null || a == null || n > t || t > a) return null;
   const c = {};
   for (const k of JG_CODES) { const x = o.c && int(o.c[k], 1, 200); if (x) c[k] = x; }
-  return { s, n, t, a, c };
+  // סבב 2: מספרי הכתוביות שהשופט סימן (מזהי vt) — אותה בדיקה כמו בשרתון
+  const f = [];
+  for (const x of Array.isArray(o.f) ? o.f.slice(0, JG_F_MAX) : []) if (int(x, 1, 1e6) != null && (!f.length || x > f[f.length - 1])) f.push(x);
+  return f.length ? { s, n, t, a, c, f } : { s, n, t, a, c };
 }
+export const JG_F_MAX = 40;   // **זהה ל־JG_F_MAX בעובד ובשרתון**
 export function normAgents(o) {
   if (!o || typeof o !== 'object' || !Array.isArray(o.agents)) return null;
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(hi, v)) : 0);
@@ -1865,6 +1903,47 @@ function pageHome(p) {
   p.append(secT(T('studioSecDrafts')), list(...rows));
 }
 
+/* סבב 2: בדיקת הסרטון ברקע מרגע הבחירה (Mediabunny, חלונות קצרים) — לא חוסמת שום דבר; תקלה = בלי הצעות */
+function inspectFor(f, file) {
+  f.sa = { st: 'run' };
+  inspectSource(file).then((m) => {
+    if (form !== f || f.fileObj !== file) return;
+    f.sa = { st: 'ok', m };
+    if (m.dur) f.dur = m.dur;
+    render('none');
+  }, () => { if (form === f && f.fileObj === file) { f.sa = { st: 'err' }; render('none'); } });
+}
+function advText(a) {
+  switch (a.k) {
+    case 'dup': return [T('studioAdvDup'), T('studioAdvDupS')];
+    case 'noaudio': return [T('studioAdvNoAudio'), T('studioAdvRepickS')];
+    case 'silent': return [T('studioAdvSilent'), T('studioAdvRepickS')];
+    case 'same': return [T('studioAdvSame', { l: langName(a.lang, uiLang()) }), T('studioAdvSameS')];
+    case 'lang': return [T('studioAdvLang', { l: langName(a.lang, uiLang()) }), T('studioAdvLangS')];
+    default: return [T('studioAdvEdges', { t: fmtDur(a.save) }), T('studioAdvEdgesS')];
+  }
+}
+function advRows(f, pick) {
+  const sa = f.sa && f.sa.st === 'ok' ? f.sa.m : null;
+  const list0 = sourceAdvice(sa, { name: f.file && f.file.name, size: f.file && f.file.size, from: f.from, to: f.to, edl: f.edl, jobs: store.jobs })
+    .filter((a) => !(f.saX && f.saX.includes(a.k)));
+  if (!list0.length) return null;
+  return list(...list0.map((a) => {
+    const [t1, t2] = advText(a);
+    const r = h('div', 'st-row st-ric st-adv ' + a.sev);
+    r.dataset.k = 'adv:' + a.k;
+    r.append(tile(a.sev === 'tip' ? 'spark' : 'alert', a.sev === 'bad' ? 'red' : a.sev === 'warn' ? 'orange' : 'green'), rowTxt(t1, t2));
+    const go2 = a.act === 'open' ? () => go('job', a.id)
+      : a.act === 'cut' ? () => { f.edl = normEdl({ k: [[a.a, a.b]], ar: 'src', x: 0.5 }, sa.dur); flashSafe(T('studioAdvCutOk')); render('none'); }
+      : pick;
+    const lbl = a.act === 'open' ? T('studioAdvOpen') : a.act === 'cut' ? T('studioAdvCut') : T('studioReplace');
+    const b = btn('st-mini tint', lbl, go2, 'adv-go:' + a.k);
+    const x = btn('st-advx', null, () => { f.saX = (f.saX || []).concat(a.k); render('none'); }, 'adv-x:' + a.k);
+    x.setAttribute('aria-label', T('studioAdvHide')); x.append(ico('x'));
+    r.append(b, x);
+    return r;
+  }));
+}
 function pageForm(p, editing) {
   if (!form) {
     const d = editing ? store.drafts.find((x) => x.id === ui.param) : null;
@@ -1879,7 +1958,11 @@ function pageForm(p, editing) {
   // הסרטון — מהטלפון. הקובץ נשאר בזיכרון רק עד ההתחלה; בטיוטה נשמרים רק השם, הגודל והסוג
   const inp = h('input', 'st-file'); inp.type = 'file'; inp.hidden = true;
   inp.accept = 'video/*,.mkv,.mov,.mp4,.m4v,.webm,.avi';
-  const took = (file, handle) => { f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' }; render('none'); };
+  const took = (file, handle) => {
+    f.fileObj = file; f.handle = handle || null; f.drive = null; f.file = { name: file.name, size: file.size, type: file.type || '' };
+    f.edl = null; f.dur = 0; inspectFor(f, file);   // סבב 2: קובץ חדש — חיתוך ישן לא שייך לו; בדיקה ברקע (חינם)
+    render('none');
+  };
   inp.addEventListener('change', () => { const file = inp.files && inp.files[0]; if (file) took(file, null); });
   const pick = () => {
     if (canPickHandle()) { pickWithHandle().then((r) => { if (r && r.file) took(r.file, r.handle); else if (!r) inp.click(); }); return; }
@@ -1903,6 +1986,8 @@ function pageForm(p, editing) {
   p.append(inp, secT(T('studioSecVideo')), card);
   if (ui.picker) p.append(list(rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
     onClick: () => pickSourceFromDrive(f), k: 'from-drive' })));   // סרטון שכבר ב־Drive — בלי העלאה
+  const adv = advRows(f, pick);
+  if (adv) p.append(h('div', 'st-gap sm'), adv);
   if (f.fileObj || f.drive) p.append(list(rowNav({ tile: tile('film', 'blue'), label: T('studioEdBefore'), value: f.edl ? edlSum(f.edl, f.dur || 0) : T('studioEdOptional'), onClick: () => go('cutsrc'), k: 'cutsrc' })));   // מ4
   if (isIOS()) p.append(note(T('studioIosTip')));
 
@@ -1970,7 +2055,8 @@ function startFromForm() {
   ui.starting = true; render('none');
   (async () => {
     const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
-    const pr = f.fileObj ? await probeVideo(file) : { dur: f.drive.dur || 0 };
+    const sm = f.sa && f.sa.st === 'ok' ? f.sa.m : null;   // סבב 2: הבדיקה מהבחירה — בלי לקרוא את הקובץ שוב
+    const pr = f.fileObj ? (sm && sm.dur ? { dur: sm.dur } : await probeVideo(file)) : { dur: f.drive.dur || 0 };
     const ed = normEdl(f.edl, pr.dur || 0);   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
       mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
@@ -1987,7 +2073,7 @@ function startFromForm() {
     if (!j.ok || !j.job) { flashSafe(errText(j.error)); render('none'); return; }
     const ext = !f.fileObj;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
-      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 },
+      fp: { name: file.name, size: file.size, lm: file.lastModified || 0 }, vm: sm && sm.w && sm.h ? { w: sm.w, h: sm.h } : null,
       up: ext ? { ext: true, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {} });
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
@@ -2065,7 +2151,7 @@ async function pickSourceFromDrive(f) {
     if (!m || m.trashed || !(Number(m.size) > 0)) { flashSafe(T('studioFromDriveBad')); return; }
     const dur = Math.round(Number(m.videoMediaMetadata && m.videoMediaMetadata.durationMillis) / 1000) || 0;
     f.drive = { id: x.id, name: String(m.name || x.name).slice(0, 200), size: Number(m.size), type: String(m.mimeType || '').slice(0, 60), dur };
-    f.fileObj = null; f.handle = null; f.edl = null;
+    f.fileObj = null; f.handle = null; f.edl = null; f.sa = null;
     f.file = { name: f.drive.name, size: f.drive.size, type: f.drive.type };
     render('none');
   } catch (e) { flashSafe(errText(e && e.code || 'drive')); }
@@ -4059,6 +4145,7 @@ function pageSubs(p) {
         onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
     }
   }
+  if (aiPreset && aiPreset.id === rec.id) queueMicrotask(() => { if (ui.view === 'subs' && aiPreset) go('ai', rec.id); });   // סבב 2
   const top = h('div', 'st-se-top');
   if (se.ctl) top.append(se.ctl.el); else top.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
   p.append(top, se.ed.el);
@@ -4227,6 +4314,12 @@ function aiKindName(k) {
     default: return T('studioAiFree');
   }
 }
+/* סבב 2: הכתוביות שהשופט סימן (מזהי vt) → שורות לגיליון ה־AI. טהור */
+export function jdRows(cues, ids) {
+  const want = new Set(ids || []);
+  return cues.map((c, i) => (want.has(c.i) ? aiRow(c, i + 1) : null)).filter(Boolean).slice(0, AI_MAX_ROWS);
+}
+let aiPreset = null;   // { id, ids } — "בדיקת משמעות" מהצעות העבודה: העורך נטען ואז גיליון ה־AI עם הבקשה מוכנה
 function aiScopeRows(cues, scope, sel) {
   const idx = scope === 'sel' ? (sel >= 0 ? [sel] : []) : scope === 'iss' ? cues.map((c, i) => (issuesList([c]).length ? i : -1)).filter((i) => i >= 0) : cues.map((c, i) => i);
   return idx.slice(0, AI_MAX_ROWS).map((i) => aiRow(cues[i], i + 1));
@@ -4278,6 +4371,11 @@ function pageAi(p) {
   if (!rec || !canEdit(rec) || !se || se.id !== rec.id || !se.ed) { back(); return; }
   const cues = se.ed.cues();
   if (!ai || ai.id !== rec.id) ai = { id: rec.id, base: cues, ver: se.ed.ver(), queue: [], k: 'meaning', n: '', scope: se.ed.selected() >= 0 ? 'sel' : 'iss', mode: '', answer: '', items: null, acc: new Set(), busy: false, model: '', err: '' };
+  if (aiPreset && aiPreset.id === rec.id) {   // סבב 2: בדיקת משמעות לכתוביות שהשופט סימן — הבקשה כבר בתור, נשאר אומדן ואישור
+    const rows = jdRows(cues, aiPreset.ids);
+    aiPreset = null;
+    if (rows.length && !ai.items) { ai.k = 'meaning'; ai.queue = normQueue(ai.queue.concat([{ k: 'meaning', rows, n: '' }])); ai.base = cues; ai.ver = se.ed.ver(); }
+  }
   p.append(navBar({ back: T('studioSeTitle'), title: T('studioAiTitle') }));
   // תוצאות — השוואה ואישור
   if (ai.items) {
@@ -4496,6 +4594,10 @@ function pageJob(p) {
       sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה
+    const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
+    if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
+      ? { tile: tile('spark', 'teal'), label: T('studioAdvJd', { n: a.n }), sub: T('studioAdvJdS'), onClick: () => { aiPreset = { id: rec.id, ids: rec.srv.jd.f }; go('subs', rec.id); }, k: 'adv-jd' }
+      : { tile: tile('film', 'blue'), label: T('studioAdvVert'), sub: T('studioAdvVertS'), onClick: () => go('rr', rec.id), k: 'adv-vert' }))));   // סבב 2: הצעות אחרי
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"
   // פעולה לפי המצב: בחירה חוזרת / המשך / נסיון חוזר / התחלה
   const acts = [];

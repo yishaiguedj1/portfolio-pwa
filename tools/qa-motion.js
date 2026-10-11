@@ -819,7 +819,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     const CUES = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, start: i * 2.5, end: i * 2.5 + (i % 5 === 1 ? 0.4 : 1.6), lines: i % 4 === 3 ? ['זו כתובית ארוכה מאוד שנאמרת מהר מדי לקריאה ' + i] : ['כתובית ' + i], en: 'Subtitle ' + i }));
     const esc = () => page.keyboard.press('Escape');   // בסטודיו "חזור" = בקשת סגירה (CloseWatcher); בדסקטופ — Escape
     const spec = { name: 'QA_Interview.mp4', size: 100, dur: 30, to: ['he'], from: 'auto', mode: 'sonnet-medium', out: ['compact'], style: 'bold' };
-    const job = { id: JD, kind: 'tr', state: 'done', created: now - 9e6, updated: now - 8e6, ended: now - 8e6, fires: 1, spec, folder: 'fold1234567890', ev: 0, vh: [],
+    const job = { jd: { s: 64, n: 12, t: 12, a: 12, c: { mean: 2, omit: 1 }, f: [2, 5, 8] }, id: JD, kind: 'tr', state: 'done', created: now - 9e6, updated: now - 8e6, ended: now - 8e6, fires: 1, spec, folder: 'fold1234567890', ev: 0, vh: [],
       files: { a: { id: 'aud1234567890', size: 5 }, v: { id: 'vid1234567890', size: VID.length }, o: [{ id: 'cmp1234567890', k: 'compact', size: 900 }, { id: 'srt1234567890', k: 'srt', size: 200 }, { id: 'cue1234567890', k: 'cues', size: 300 }] } };
     let nUp = 0;
     const SJ = (r, o) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
@@ -833,7 +833,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
       if (b.op === 'cuesSave') { job.ev++; job.vh = job.vh.concat([Date.now()]); return SJ(r, { ok: true, job }); }
       return SJ(r, { ok: false, error: 'x' }); });
     const openStudioJob = () => page.evaluate(async ([id, j]) => {
-      localStorage.setItem('pwa_studio_v1', JSON.stringify({ settings: {}, drafts: [], jobs: [{ id, spec: j.spec, up: { folder: 'fold1234567890', started: j.created, a: { done: true, id: 'aud1234567890' }, v: { done: true, id: 'vid1234567890', size: 10 } }, srv: j }] }));
+      localStorage.setItem('pwa_studio_v1', JSON.stringify({ settings: {}, drafts: [], jobs: [{ id, vm: { w: 1080, h: 1920 }, spec: j.spec, up: { folder: 'fold1234567890', started: j.created, a: { done: true, id: 'aud1234567890' }, v: { done: true, id: 'vid1234567890', size: 10 } }, srv: j }] }));
       try { Object.defineProperty(navigator.serviceWorker, 'controller', { configurable: true, get: () => ({ postMessage() {} }) }); } catch (e) {}
       window.firebase = { apps: [1], auth: () => ({ currentUser: { getIdToken: async () => 'tok' } }) };
       const m = await import('./studio.js'); m.openStudio({ job: id });
@@ -866,6 +866,10 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: חזור ← רעיונות', esc, { settle: 1300, expect: '[data-k="id-chapdel"], [data-k="id-chap"]' });
     await step('studio: חזור ← העבודה (2)', esc, { settle: 1300, expect: '[data-k="ideas"]' });
     await step('studio: שיתוף כתוביות', () => page.click('[data-k="out-sh:srt"]'), { pre: '[data-k="out-sh:srt"]', settle: 900, expect: '[data-k="ideas"]' });
+    // סבב 2: הצעה אחרי — בדיקת משמעות לכתוביות שהשופט סימן: העורך נטען וגיליון ה־AI נפתח עם הבקשה בתור
+    await step('studio: הצעה — בדיקת משמעות', () => page.click('[data-k="adv-jd"]'), { pre: '[data-k="adv-jd"]', settle: 2600, expect: '[data-k="ai-rm:0"]' });
+    await step('studio: חזור ← העורך (2)', esc, { settle: 1500, expect: '.st-se-row' });
+    await step('studio: חזור ← העבודה (4)', esc, { settle: 1300, expect: '[data-k="adv-vert"]' });
     await step('studio: צפייה (נגן)', () => page.click('[data-k="play"]'), { pre: '[data-k="play"]', settle: 1500, expect: '.st-pl video' });
     // הגדרות הנגן (כמו ב־YouTube): הגלגל → גיליון; "חזור" סוגר רק את הגיליון ונשארים בנגן
     await step('studio: הגדרות הנגן', () => page.evaluate(() => document.querySelector('.st-pl-b.gear').click()), { settle: 600, expect: '.st-pl-menu:not([hidden]) .st-pl-mr' });
