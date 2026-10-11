@@ -139,22 +139,27 @@ async function del(c, deps, key) {
   if (r.status !== 204 && r.status !== 200 && r.status !== 404) await fail(r, 'delete');
   return true;
 }
-/* קובץ טקסט קטן שהשרתון עצמו קורא/כותב (מילון המונחים, גיבויים): null = לא קיים; גדול מ־max = שגיאה */
-async function getText(c, deps, key, max = 1024 * 1024) {
+/* קובץ קטן שהשרתון עצמו קורא/כותב (מילון המונחים, ספריית המכתבים, גיבויים): null = לא קיים; גדול מ־max = שגיאה */
+async function getBuf(c, deps, key, max = 1024 * 1024) {
   if (!okKey(key)) throw new Error('bad_key');
   const r = await raw(c, deps, { method: 'GET', key });
   if (r.status === 404) return null;
   if (r.status !== 200) await fail(r, 'get');
-  const t = await r.text();
-  if (Buffer.byteLength(t) > max) throw new Error('r2_too_large');
-  return t;
+  const b = Buffer.from(await r.arrayBuffer());
+  if (b.length > max) throw new Error('r2_too_large');
+  return b;
 }
-async function putText(c, deps, key, text, type = 'text/plain; charset=utf-8') {
+async function getText(c, deps, key, max = 1024 * 1024) {
+  const b = await getBuf(c, deps, key, max);
+  return b == null ? null : b.toString('utf8');
+}
+async function putBuf(c, deps, key, body, type = 'application/octet-stream') {
   if (!okKey(key)) throw new Error('bad_key');
-  const r = await raw(c, deps, { method: 'PUT', key, body: String(text), headers: { 'content-type': type } });
+  const r = await raw(c, deps, { method: 'PUT', key, body, headers: { 'content-type': type } });
   if (r.status !== 200) await fail(r, 'put');
   return true;
 }
+const putText = (c, deps, key, text, type = 'text/plain; charset=utf-8') => putBuf(c, deps, key, Buffer.from(String(text), 'utf8'), type);
 /* כל המפתחות בתחילית (לניקוי עבודה / סריקה) */
 async function list(c, deps, prefix, max = 5000) {
   if (!okKey(prefix.replace(/\/$/, ''))) throw new Error('bad_key');
@@ -256,5 +261,5 @@ async function health(c, deps, origin) {
   }
 }
 
-module.exports = { sign, config, okKey, locate, presign, head, del, list, getText, putText, mpCreate, mpList, mpPartUrl, mpComplete, mpAbort,
+module.exports = { sign, config, okKey, locate, presign, head, del, list, getText, putText, getBuf, putBuf, mpCreate, mpList, mpPartUrl, mpComplete, mpAbort,
   partSize, partsOf, partsCheck, health, PART_MIN, MIB, _reset: () => _where.clear() };

@@ -29,7 +29,7 @@ function fakeR2(o = {}) {
     const t = hd['x-amz-date'];
     const now = Date.UTC(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8), +t.slice(9, 11), +t.slice(11, 13), +t.slice(13, 15));
     const extra = {}; for (const k of m[1].split(';')) if (!['host', 'x-amz-date', 'x-amz-content-sha256'].includes(k)) extra[k] = hd[k];
-    const body = typeof init.body === 'string' ? init.body : '';
+    const body = typeof init.body === 'string' || Buffer.isBuffer(init.body) ? init.body : '';
     const s = R2.sign({ method: init.method, host: u.host, path, query: Object.fromEntries(u.searchParams.entries()), headers: extra,
       payload: crypto.createHash('sha256').update(body).digest('hex'), accessKey: 'AKTEST', secret: 'sekret/xyz', now });
     return s.sig === m[2] ? '' : 'badsig';

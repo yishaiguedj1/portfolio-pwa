@@ -458,7 +458,12 @@ function syncDrive() {
     const worker = async () => {
       for (let it; (it = queue.shift());) {
         try {
-          const r = await libApi({ op: 'file', idToken: tk, id: it.id });
+          // 11/10/2026: השרתון עם R2 מחזיר קישור חתום (JSON) — מורידים ישירות מ־R2; בלי R2 — הקובץ עצמו, כמו קודם
+          let r = await libApi({ op: 'file', idToken: tk, id: it.id, via: 'r2' });
+          if (r.ok && /json/.test(r.headers.get('content-type') || '')) {
+            const j = await r.json();
+            r = j && j.ok && /^https:\/\/[a-z0-9.-]+\.r2\.cloudflarestorage\.com\//.test(String(j.url || '')) ? await fetch(j.url) : { ok: false };
+          }
           if (r.ok) {
             const file = new File([await r.blob()], it.name, { type: 'application/epub+zip' });
             changed += await importFiles([file], { driveId: it.id, md5: it.md5 || '', src: 'drive' });

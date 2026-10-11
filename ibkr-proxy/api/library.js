@@ -3,7 +3,10 @@
      { op:'file', idToken, id }        -> הקובץ עצמו (application/epub+zip)
    המכתבים יושבים בתיקייה ב־Drive של המשתמש (LIBRARY_FOLDER_ID), משותפת לחשבון שירות (GDRIVE_SA_KEY) לקריאה בלבד.
    כל בקשה: התחברות Firebase מאומתת + הקורא ברשימת ההרשאות (LIBRARY_READERS). קובץ נשלח רק אם הוא בתיקייה
-   (או בתת־תיקייה אחת מתחתיה — למשל תיקייה לכל מנכ"ל), כך שאי אפשר לבקש דרך השרתון קובץ אחר שמשותף לחשבון. */
+   (או בתת־תיקייה אחת מתחתיה — למשל תיקייה לכל מנכ"ל), כך שאי אפשר לבקש דרך השרתון קובץ אחר שמשותף לחשבון.
+   11/10/2026 — R2 (כשמוגדר): התיקייה ב־Drive נשארת המקום שבו מוסיפים מכתבים, והקוראים מקבלים אותם מ־R2:
+   כל מכתב נשמר שם פעם אחת לכל גרסה (lib/<id>.<md5>.epub), והטלפון מקבל קישור חתום ומוריד ישירות (via:'r2').
+   הקטלוג נשמר גם ב־R2 (lib/catalog.json) — אם הגישה ל־Drive נופלת, הספרייה ממשיכה מ־R2. */
 const { guard } = require('../lib/ibkr');
 const { verifyIdToken, readerAllowed, driveToken, serviceAccount, isAdmin, emails } = require('../lib/gauth');
 const readers = require('../lib/readers');
@@ -12,6 +15,7 @@ const { insight } = require('../lib/insight');
 const { createAiStore } = require('../lib/aicache');
 const aiStore = createAiStore();
 const gdrive = require('../lib/gdrive');
+const R2 = require('../lib/r2');
 const insightCache = new Map();   // id|md5 → ניתוח (חוסך קריאות ל־Gemini בין קוראים, כל עוד המופע חי)
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
@@ -19,6 +23,13 @@ const BOOK_RE = /\.(epub|azw3|azw|mobi|kf8|fb2)$/i;
 const ID_RE = /^[A-Za-z0-9_-]{10,100}$/;
 const LIST_TTL = 60 * 1000;
 const MAX_FILE = 4 * 1024 * 1024; // מגבלת התשובה של Vercel ~4.5MB; מכתב טיפוסי ~60KB
+const MAX_FILE_R2 = 40 * 1024 * 1024;   // דרך R2 התשובה היא קישור — הגבול הוא הזיכרון של הפונקציה
+const MD5_RE = /^[a-f0-9]{32}$/;
+const CAT_KEY = 'lib/catalog.json';
+const r2c = () => { const c = R2.config(); return c.ok ? c : null; };
+const libKey = (id, md5) => (ID_RE.test(id) && MD5_RE.test(md5) ? 'lib/' + id + '.' + md5 + '.epub' : '');
+const maxFile = () => (r2c() ? MAX_FILE_R2 : MAX_FILE);
+let catSaved = '';   // הקטלוג האחרון שנשמר ב־R2 מהמופע הזה (לא כותבים שוב אם לא השתנה)
 
 let listCache = { at: 0, items: null, folders: null };
 /* LIBRARY_FOLDER_ID: מזהה התיקייה — או הקישור המלא אליה (drive.google.com/drive/folders/<ID>?usp=sharing) */
@@ -53,10 +64,53 @@ async function listAll(fetchImpl) {
   const top = await inFolder(root);
   const subs = top.filter((f) => f.mimeType === 'application/vnd.google-apps.folder').slice(0, 30);
   const nested = (await Promise.all(subs.map((s) => inFolder(s.id)))).flat();
-  const items = top.concat(nested).filter((f) => BOOK_RE.test(f.name || '') && +f.size <= MAX_FILE)
+  const items = top.concat(nested).filter((f) => BOOK_RE.test(f.name || '') && +f.size <= maxFile())
     .map((f) => ({ id: f.id, name: f.name, size: +f.size || 0, md5: f.md5Checksum || '', modified: f.modifiedTime || '' }));
   listCache = { at: Date.now(), items, folders: new Set([root].concat(subs.map((s) => s.id))) };
+  await saveCatalog(items, fetchImpl).catch(() => {});
   return listCache;
+}
+/* הקטלוג ב־R2 — רק כשהשתנה. בהזדמנות: גרסאות קודמות של מכתב שהוחלף (אותו מזהה, md5 אחר) נמחקות */
+async function saveCatalog(items, fetchImpl) {
+  const c = r2c();
+  if (!c || !items.length) return;
+  const txt = JSON.stringify({ v: 1, items });
+  if (txt === catSaved) return;
+  const deps = { fetch: fetchImpl };
+  await R2.putText(c, deps, CAT_KEY, txt, 'application/json');
+  catSaved = txt;
+  const cur = new Map(items.map((i) => [i.id, i.md5]));
+  for (const o of await R2.list(c, deps, 'lib/', 2000)) {
+    const m = /^lib\/([A-Za-z0-9_-]{10,100})\.([a-f0-9]{32})\.epub$/.exec(o.key);
+    if (m && cur.has(m[1]) && cur.get(m[1]) !== m[2]) await R2.del(c, deps, o.key).catch(() => {});
+  }
+}
+/* Drive לא זמין → הקטלוג האחרון מ־R2 (רק מכתבים שכבר נשמרו שם יוגשו) */
+async function catalogFromR2(fetchImpl) {
+  const c = r2c();
+  if (!c) return null;
+  const t = await R2.getText(c, { fetch: fetchImpl }, CAT_KEY, 4 * 1024 * 1024).catch(() => null);
+  let j = null; try { j = t && JSON.parse(t); } catch (e) { j = null; }
+  if (!j || !Array.isArray(j.items)) return null;
+  const items = j.items.filter((i) => i && ID_RE.test(String(i.id || '')) && BOOK_RE.test(String(i.name || '')))
+    .map((i) => ({ id: i.id, name: String(i.name), size: +i.size || 0, md5: MD5_RE.test(String(i.md5 || '')) ? i.md5 : '', modified: String(i.modified || '') }));
+  return { at: Date.now(), items, folders: null, r2only: true };
+}
+/* המכתב עצמו: R2 קודם (אם נשמר), אחרת Drive — ושומרים ב־R2 לפעם הבאה. מחזיר { buf, name } או null (לא נמצא) */
+async function getBook(item, cat, deps) {
+  const c = r2c(), key = c && libKey(item.id, item.md5);
+  if (key) {
+    const b = await R2.getBuf(c, { fetch: deps.fetch }, key, MAX_FILE_R2).catch(() => null);
+    if (b) return { buf: b, name: item.name, key };
+  }
+  if (cat.r2only) return null;
+  const token = await driveToken(deps.fetch);
+  const meta = await (await driveGet('/' + item.id + '?fields=' + q('parents,size,name') + '&supportsAllDrives=true', token, deps.fetch)).json();
+  if (!(meta.parents || []).some((p) => cat.folders.has(p))) return null;
+  const r = await driveGet('/' + item.id + '?alt=media&supportsAllDrives=true', token, deps.fetch);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (key && buf.length <= MAX_FILE_R2) await R2.putBuf(c, { fetch: deps.fetch }, key, buf, 'application/epub+zip').catch(() => {});
+  return { buf, name: meta.name || item.name, key: key || '' };
 }
 
 async function handler(req, res, deps = {}) {
@@ -121,8 +175,10 @@ async function handler(req, res, deps = {}) {
   }
   if (limited(user.uid, 200)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   try {
-    const cat = await listAll(deps.fetch);
-    if (body.op === 'list') return res.status(200).json({ ok: true, items: cat.items });
+    let cat;
+    try { cat = await listAll(deps.fetch); }
+    catch (e) { cat = await catalogFromR2(deps.fetch); if (!cat) throw e; }   // Drive נפל — הקטלוג האחרון מ־R2
+    if (body.op === 'list') return res.status(200).json(Object.assign({ ok: true, items: cat.items }, cat.r2only ? { from: 'r2' } : {}));
     if (body.op === 'file' || body.op === 'insight') {
       const id = String(body.id || '');
       const item = cat.items.find((f) => f.id === id);
@@ -134,11 +190,17 @@ async function handler(req, res, deps = {}) {
         const sh = await store.get('ins', [id, item.md5]);
         if (sh) { insightCache.set(ckey, sh); return res.status(200).json({ ok: true, insight: sh, md5: item.md5, cached: true }); }
       }
-      const token = await driveToken(deps.fetch);
-      const meta = await (await driveGet('/' + id + '?fields=' + q('parents,size,name') + '&supportsAllDrives=true', token, deps.fetch)).json();
-      if (!(meta.parents || []).some((p) => cat.folders.has(p))) return res.status(404).json({ ok: false, error: 'not_found' });
-      const r = await driveGet('/' + id + '?alt=media&supportsAllDrives=true', token, deps.fetch);
-      const buf = Buffer.from(await r.arrayBuffer());
+      // R2: מכתב שכבר נשמר שם — קישור חתום, בלי להוריד אותו לכאן בכלל (טלפון חדש שולח via:'r2')
+      const c = r2c(), key = c && libKey(id, item.md5);
+      if (body.op === 'file' && body.via === 'r2' && key && await R2.head(c, { fetch: deps.fetch }, key).catch(() => null)) {
+        return res.status(200).json({ ok: true, url: await R2.presign(c, { fetch: deps.fetch }, { method: 'GET', key, expires: 600 }), md5: item.md5 });
+      }
+      const got = await getBook(item, cat, deps);
+      if (!got) return res.status(404).json({ ok: false, error: 'not_found' });
+      const buf = got.buf, meta = { name: got.name };
+      if (body.op === 'file' && body.via === 'r2' && got.key) {
+        return res.status(200).json({ ok: true, url: await R2.presign(c, { fetch: deps.fetch }, { method: 'GET', key: got.key, expires: 600 }), md5: item.md5 });
+      }
       if (buf.length > MAX_FILE) return res.status(413).json({ ok: false, error: 'too_large' });
       if (body.op === 'insight') {
         if (limited('ins|' + user.uid, 12)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -168,4 +230,4 @@ async function handler(req, res, deps = {}) {
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
 module.exports._folderId = folderId;
-module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; hits.clear(); insightCache.clear(); readers._reset(); };
+module.exports._reset = () => { listCache = { at: 0, items: null, folders: null }; catSaved = ''; hits.clear(); insightCache.clear(); readers._reset(); };
