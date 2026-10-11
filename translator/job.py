@@ -2030,8 +2030,10 @@ RR_FILES = (                                      # מ2: מה שההפקה מח�
     ('same', '{n}.he.mp4', ' (עברית, איכות מקור).mp4', 'video/mp4'),
     ('mkv', '{n}.he.mkv', ' (עברית).mkv', 'video/x-matroska'),
     ('small', '{n}.he.small.mp4', ' (עברית, קטן).mp4', 'video/mp4'),
+    ('thumb', '{n}.thumb.jpg', ' (תמונה).jpg', 'image/jpeg'),         # סבב 7: תמונה ממוזערת (כשביקשו — th בעריכה)
 )
 RR_STYLES = ('bold', 'classic')
+OV_LG_RE = re.compile(r'^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})\Z')   # סבב 7: הלוגו — כמו normOv (\Z, לא $)
 
 
 def script(ctx, path, args, stage, lo=0.0, hi=1.0):
@@ -2089,12 +2091,24 @@ def render(args):
             eds += ['--' + k, json.dumps(e, separators=(',', ':'))]
     if isinstance(spec.get('sty'), dict):        # סבב 5: עיצוב הכתוביות (rerender.py מנרמל שוב — מספרים וקודים בלבד)
         eds += ['--sty', json.dumps(spec['sty'], separators=(',', ':'))]
+    ov = spec.get('ov') if isinstance(spec.get('ov'), dict) else None
+    if ov:                                       # סבב 7: כותרת ולוגו — הלוגו לקובץ, השאר (בלי התמונה) ל־rerender.py
+        lg = ov.get('lg')
+        m = OV_LG_RE.match(lg) if isinstance(lg, str) and len(lg) <= 65536 else None
+        if m:
+            import base64
+            work.mkdir(parents=True, exist_ok=True)
+            logo = work / ('logo.' + ('jpg' if m.group(1) == 'jpeg' else m.group(1)))
+            logo.write_bytes(base64.b64decode(m.group(2)))
+            eds += ['--logo', str(logo)]
+        eds += ['--ov', json.dumps({k: v for k, v in ov.items() if k != 'lg'}, ensure_ascii=False, separators=(',', ':'))]
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
                                 '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
     ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     out = []
-    picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES if k in want]
+    picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES
+              if k in want or (k == 'thumb' and (od / fn.format(n=ctx.name)).exists())]   # סבב 7: התמונה — כשנוצרה
     total = sum(p.stat().st_size for _, p, _, _ in picked if p.exists()) or 1
     done = 0
     for k, p, name, mime in picked:

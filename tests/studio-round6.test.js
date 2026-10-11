@@ -63,7 +63,7 @@ json.dump({'shots': [{'t': 2.5, 'score': 30}, {'t': 1.25}, {'t': 1.25}, {'t': 'x
   ok(SB.spkColors([{ spk: 'S1' }, { spk: 'S1' }]).size === 0, 'דובר אחד — בלי צבעים (אין מה להבדיל)');
 
   /* ---------- 5. החיבורים ---------- */
-  ok(S.OUT_KINDS.includes('meta') && /'aiout', 'meta'\]/.test(read('studio.js')), 'meta = סוג תוצר מוכר בשרתון ובטלפון (קובץ עזר — לא ברשימת התוצרים)');
+  ok(S.OUT_KINDS.includes('meta') && /'aiout', 'meta'[,\]]/.test(read('studio.js')), 'meta = סוג תוצר מוכר בשרתון ובטלפון (קובץ עזר — לא ברשימת התוצרים)');
   const jp = read('translator/job.py');
   ok(/\('meta', 'timeline\.json', '\.timeline\.json', 'application\/json'\)/.test(jp) && /    meta_safe\(ctx\)\n    for k, fname, suffix, mime in AUX_FILES:/.test(jp) && /except Stop:\n        raise\n    except BaseException/.test(jp),
     'finish יוצר את timeline.json לפני קבצי העזר; תקלה בו לא מפילה את העבודה ("עצור" — כן)');

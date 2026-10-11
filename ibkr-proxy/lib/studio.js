@@ -37,7 +37,7 @@ const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isA
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv'];
-const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta'];   // סבב 6: meta = גל הקול וחילופי השוטים   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb'];   // סבב 6: meta = גל הקול וחילופי השוטים; סבב 7: thumb = תמונה ממוזערת   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
 const OUT_MAX = 10;
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
 const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש
@@ -83,6 +83,7 @@ const uniq = (a, ok) => (Array.isArray(a) ? a : []).filter((x, i, arr) => ok(x) 
 const EDL_SEG_MIN = 0.5, EDL_SEG_MAX = 60, EDL_JOIN = 0.05, EDL_ARS = ['src', '9:16', '1:1', '4:5'], EDL_MAX_T = 24 * 3600;
 // סבב 3 (עורך הווידאו ב׳): מהירות, סיבוב, היפוך, זום ומיקום, שמע — זהה ל־studioedl.js ול־translator/edl.py
 const EDL_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4], EDL_ROTS = [0, 90, 180, 270], EDL_Z_MAX = 3, EDL_VOL_MAX = 200, EDL_FADE_MAX = 10;
+const EDL_FXS = ['bw', 'warm', 'cool', 'vint'];   // סבב 7
 function normEdl(e, dur) {
   if (!e || typeof e !== 'object') return null;
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN), r3 = (x) => Math.round(x * 1000) / 1000;
@@ -118,6 +119,19 @@ function normEdl(e, dur) {
   if (mu) ex.mu = true;
   for (const f of ['fi', 'fo']) if (!mu && n(e[f]) > 0) { const r = Math.min(EDL_FADE_MAX, Math.round(e[f] * 2) / 2); if (r) ex[f] = r; }
   if (!mu && e.ln === true) ex.ln = true;
+  // סבב 7 (עורך הווידאו ג׳): ניקוי רעש · בהירות / ניגודיות / רוויה · מסנן · טשטוש אזור · מעברים · תמונה ממוזערת
+  if (!mu && (e.dn === 1 || e.dn === 2)) ex.dn = e.dn;
+  for (const [f, lo, hi, st] of [['br', -30, 30, 5], ['ct', -30, 30, 5], ['sa', -100, 100, 10]]) {
+    const v = n(e[f]);
+    if (v >= lo && v <= hi) { const r = Math.round(v / st) * st; if (r !== 0) ex[f] = r; }
+  }
+  if (EDL_FXS.includes(e.fx)) ex.fx = e.fx;
+  if (Array.isArray(e.bl) && e.bl.length === 4) {
+    const [bx, by, bw, bh] = e.bl.map((v) => Math.round(n(v) * 100) / 100);
+    if (bx >= 0 && by >= 0 && bw >= 0.05 && bh >= 0.05 && bx + bw <= 1.0001 && by + bh <= 1.0001) ex.bl = [bx, by, bw, bh];
+  }
+  if (e.tr === true) ex.tr = true;
+  if (n(e.th) >= 0 && n(e.th) <= EDL_MAX_T) ex.th = Math.round(e.th * 10) / 10;
   const whole = !k.length || (k.length === 1 && k[0][0] <= EDL_JOIN && n(dur) > 0 && k[0][1] >= n(dur) - EDL_JOIN);
   if (whole && ar === 'src' && !Object.keys(ex).length) return null;
   if (k.length > EDL_SEG_MAX) return null;
@@ -622,6 +636,25 @@ function cuesSwap(job, c, s, now) {
   const vh = (Array.isArray(job.vh) ? job.vh : []).concat(old.c ? [old] : []).slice(-VH_MAX);
   return { fo, vh, ev: (job.ev || 0) + 1 };
 }
+/* סבב 7: כותרת ולוגו בהפקה מחדש — **זהה ל־normOv בטלפון (studioedl.js) ול־norm_ov ב־rerender.py**.
+   t = כותרת (עד OV_T_MAX תווים, בלי תווי בקרה / כיווניות / { } \ — נכנסת ל־ASS בלבד), ta = 0 כל הסרטון / 5 רק בהתחלה,
+   lg = לוגו (data:image/png|jpeg|webp;base64, עד OV_LG_MAX — מוקטן בטלפון), lp = פינה (tl/tr/bl/br), ls = רוחב באחוזים (8–30, זוגי) */
+const OV_T_MAX = 60, OV_LG_MAX = 65536, OV_POS = ['tl', 'tr', 'bl', 'br'];
+const OV_BAD = /[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069{}\\]/g;
+const OV_LG_RE = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+function normOv(o) {
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  const t = typeof o.t === 'string' ? o.t.replace(OV_BAD, '').replace(/\s+/g, ' ').trim().slice(0, OV_T_MAX).trim() : '';
+  if (t) { out.t = t; if (o.ta === 5) out.ta = 5; }
+  if (typeof o.lg === 'string' && o.lg.length <= OV_LG_MAX && OV_LG_RE.test(o.lg)) {
+    out.lg = o.lg;
+    out.lp = OV_POS.includes(o.lp) ? o.lp : 'tr';
+    const ls = Math.round(Number(o.ls) / 2) * 2;
+    out.ls = Number.isFinite(ls) && ls >= 8 && ls <= 30 ? ls : 14;
+  }
+  return Object.keys(out).length ? out : null;
+}
 /* סבב 5: עיצוב הכתוביות בהפקה מחדש — **זהה ל־normSty בטלפון (studioplay.js) ול־norm_sty ב־rerender.py** */
 const STY_COLORS = ['w', 'y', 'c'];
 function normSty(o) {
@@ -643,6 +676,7 @@ function rrSpec(parent, body) {
     ...(edlPre(normEdl(sp.edl)) ? { edl0: edlPre(normEdl(sp.edl)) } : {}),                     // מ5: החיתוך שלפני התרגום (המקור → הכתוביות)
     ...(normEdl(body && body.edl, sp.dur) ? { edl: normEdl(body.edl, sp.dur) } : {}),   // מ5: חיתוך אחרי התרגום (על ציר הזמן של הכתוביות)
     ...(normSty(body && body.sty) ? { sty: normSty(body.sty) } : {}),                  // סבב 5: עיצוב הכתוביות
+    ...(normOv(body && body.ov) ? { ov: normOv(body.ov) } : {}),                       // סבב 7: כותרת ולוגו
     ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) };   // באותו מנוע כמו המקור; במצב השרת — בלי טוקנים, התקרה המינימלית
 }
 function rrJob(parent, body, id, uid, now) {
@@ -932,7 +966,7 @@ module.exports = { JSON_FIELDS,
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
-  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normGl, glClean, normNoteText, noteView, NOTE_MAX,
+  normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,
   ROUTINE_URL_RE, ROUTINE_KEY_RE, JOB_RE, KEY_RE, FILE_ID_RE, KEY_TTL, STAGES, FINAL, ACTIVE, KINDS, WORKER_KINDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,

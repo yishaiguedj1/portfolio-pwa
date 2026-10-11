@@ -135,7 +135,7 @@ print(json.dumps({
   ok(/v\.playbackRate = ex\.sp \|\| 1/.test(src) && /v\.style\.transform = videoTransform\(\)/.test(src) && /v\.muted = !!ex\.mu/.test(src) && /if \(key === pvKey\) return;/.test(src),
     'תצוגה מקדימה בנגן: מהירות, סיבוב והיפוך, עוצמה — רק כשמשהו השתנה');
   ok(/'scale\(' \+ sx \+ ', ' \+ sy \+ '\) rotate\(' \+ rt \+ 'deg\)'/.test(src), 'סדר ה־CSS = סדר ffmpeg (סיבוב ואז היפוך)');
-  ok(/v\.style\.transform = ''; try \{ v\.playbackRate = 1; v\.volume = 1; v\.muted = false; \}/.test(src), 'יציאה מהעורך — הנגן חוזר לרגיל');
+  ok(/v\.style\.transform = '';( v\.style\.filter = '';)? try \{ v\.playbackRate = 1; v\.volume = 1; v\.muted = false; \}/.test(src), 'יציאה מהעורך — הנגן חוזר לרגיל');
   ok(/cropBox\(vw, vh, ar, x, ex\.y, ex\.z \|\| 1\)/.test(src) && /rotDims\(v \? v\.videoWidth : 0, v \? v\.videoHeight : 0, rt\)/.test(src), 'מסגרת החיתוך בנגן — אחרי סיבוב וזום');
   ok(/\.st-ed-grp > summary/.test(css) && /prefers-reduced-motion: reduce\) \{ \.st-pl video \{ transition: none; \}/.test(css), 'עיצוב המקטעים; בלי אנימציה למי שביקש');
   const vm = require('vm');

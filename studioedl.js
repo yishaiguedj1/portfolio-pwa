@@ -4,6 +4,8 @@
    סבב 3 (עורך הווידאו ב׳) — שדות רשות, רק כשהם לא ברירת המחדל, בסדר הזה:
      y: 0–1 מיקום אנכי · z: זום 1–3 · sp: מהירות (SPEEDS) · rt: סיבוב 90/180/270 · fh / fv: היפוך אופקי / אנכי ·
      vo: עוצמה 0–200% · mu: השתקה · fi / fo: הדרגה בהתחלה / בסוף (שניות) · ln: השוואת עוצמה ל־‎−14 LUFS
+   סבב 7: dn ניקוי רעש 1/2 · br / ct בהירות / ניגודיות ‎−30…30 (צעד 5) · sa רוויה ‎−100…100 (צעד 10) · fx מסנן (FXS) ·
+     bl טשטוש אזור [x, y, w, h] בשברים מהתמונה הסופית · tr מעבר (האפלה) בין קטעים · th זמן התמונה הממוזערת (בתוצאה)
    לפני התרגום רק k / ar / x (edlPre) — מהירות ושמע משנים את מה שהתמלול שומע.
    **אותה לוגיקה בדיוק ב־translator/edl.py ובשרתון (ibkr-proxy/lib/studio.js normEdl)** — tests/studio-edl משווה.
    הלוגיקה טהורה (נבדקת ב־node); ה־DOM רק ב־createEdlEditor. */
@@ -19,6 +21,7 @@ export const Z_MAX = 3;
 export const VOL_MAX = 200;
 export const FADE_MAX = 10;
 export const LUFS = -14;
+export const FXS = ['bw', 'warm', 'cool', 'vint'];   // סבב 7: מסננים (שחור־לבן, חם, קר, וינטג׳)
 const r3 = (x) => Math.round(x * 1000) / 1000;
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
 
@@ -57,10 +60,42 @@ export function normEdl(e, dur) {
   if (mu) ex.mu = true;
   for (const f of ['fi', 'fo']) if (!mu && num(e[f]) > 0) { const r = Math.min(FADE_MAX, Math.round(e[f] * 2) / 2); if (r) ex[f] = r; }
   if (!mu && e.ln === true) ex.ln = true;
+  // סבב 7 (עורך הווידאו ג׳): ניקוי רעש · בהירות / ניגודיות / רוויה · מסנן · טשטוש אזור · מעברים · תמונה ממוזערת
+  if (!mu && (e.dn === 1 || e.dn === 2)) ex.dn = e.dn;
+  for (const [f, lo, hi, st] of [['br', -30, 30, 5], ['ct', -30, 30, 5], ['sa', -100, 100, 10]]) {
+    const v = num(e[f]);
+    if (v >= lo && v <= hi) { const r = Math.round(v / st) * st; if (r !== 0) ex[f] = r; }
+  }
+  if (FXS.includes(e.fx)) ex.fx = e.fx;
+  if (Array.isArray(e.bl) && e.bl.length === 4) {
+    const [bx, by, bw, bh] = e.bl.map((v) => Math.round(num(v) * 100) / 100);
+    if (bx >= 0 && by >= 0 && bw >= 0.05 && bh >= 0.05 && bx + bw <= 1.0001 && by + bh <= 1.0001) ex.bl = [bx, by, bw, bh];
+  }
+  if (e.tr === true) ex.tr = true;
+  if (num(e.th) >= 0 && num(e.th) <= MAX_T) ex.th = Math.round(e.th * 10) / 10;
   const whole = !k.length || (k.length === 1 && k[0][0] <= JOIN_GAP && num(dur) > 0 && k[0][1] >= num(dur) - JOIN_GAP);
   if (whole && ar === 'src' && !Object.keys(ex).length) return null;
   if (k.length > SEG_MAX) return null;                     // יותר מדי — לא מנחשים מה לשמור
   return Object.assign({ k: whole ? [] : k, ar, x: crop ? x : 0.5 }, ex);
+}
+/* סבב 7: כותרת ולוגו בהפקה מחדש — **זהה ל־normOv בשרתון ול־norm_ov ב־rerender.py**.
+   t = כותרת (עד OV_T_MAX תווים, בלי תווי בקרה / כיווניות / { } \ — נכנסת ל־ASS בלבד), ta = 0 כל הסרטון / 5 רק בהתחלה,
+   lg = לוגו (data:image/png|jpeg|webp;base64, עד OV_LG_MAX — מוקטן בטלפון), lp = פינה (tl/tr/bl/br), ls = רוחב באחוזים (8–30, זוגי) */
+export const OV_T_MAX = 60, OV_LG_MAX = 65536, OV_POS = ['tl', 'tr', 'bl', 'br'];
+const OV_BAD = /[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069{}\\]/g;
+const OV_LG_RE = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+export function normOv(o) {
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  const t = typeof o.t === 'string' ? o.t.replace(OV_BAD, '').replace(/\s+/g, ' ').trim().slice(0, OV_T_MAX).trim() : '';
+  if (t) { out.t = t; if (o.ta === 5) out.ta = 5; }
+  if (typeof o.lg === 'string' && o.lg.length <= OV_LG_MAX && OV_LG_RE.test(o.lg)) {
+    out.lg = o.lg;
+    out.lp = OV_POS.includes(o.lp) ? o.lp : 'tr';
+    const ls = Math.round(Number(o.ls) / 2) * 2;
+    out.ls = Number.isFinite(ls) && ls >= 8 && ls <= 30 ? ls : 14;
+  }
+  return Object.keys(out).length ? out : null;
 }
 /* לפני התרגום: רק החיתוך ויחס התמונה (מהירות, סיבוב ושמע — רק בהפקה מחדש) */
 export function edlPre(e) {
@@ -160,7 +195,7 @@ export function composeEdl(e0, e1) {
   return withExtras({ k, ar, x: e1.ar !== 'src' ? e1.x : e0.x }, e0, e1);
 }
 /* הרכבה: המיקום והזום מהעריכה שקבעה את החיתוך; כל השאר (מהירות, סיבוב, שמע) — מהאחרונה */
-const EXTRA_POS = ['y', 'z'], EXTRA_REST = ['sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln'];
+const EXTRA_POS = ['y', 'z'], EXTRA_REST = ['sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th'];
 function withExtras(base, e0, e1) {
   const crop1 = e1.ar !== 'src' || e1.z > 1, from = crop1 ? e1 : e0;
   if (crop1) base.x = e1.x;
@@ -246,6 +281,19 @@ export function cropBox(W, H, ar, x, y, z) {
   const w = even(bw / zz), h = even(bh / zz);
   return { w, h, x: pos(W - w, x == null ? 0.5 : x), y: pos(H - h, y == null ? 0.5 : y) };
 }
+/* סבב 7: התצוגה המקדימה של הצבע והמסנן (CSS filter) — בקירוב לתוצאה של ffmpeg */
+export function cssFilter(e) {
+  if (!e) return '';
+  const f = [];
+  if (e.br) f.push('brightness(' + (1 + e.br / 100) + ')');
+  if (e.ct) f.push('contrast(' + (1 + e.ct / 100) + ')');
+  if (e.sa) f.push('saturate(' + (1 + e.sa / 100) + ')');
+  if (e.fx === 'bw') f.push('grayscale(1)');
+  else if (e.fx === 'warm') f.push('sepia(.18)', 'saturate(1.08)');
+  else if (e.fx === 'cool') f.push('hue-rotate(8deg)', 'saturate(.95)');
+  else if (e.fx === 'vint') f.push('sepia(.4)', 'contrast(.92)');
+  return f.join(' ');
+}
 /* ---------------- הרכיב (DOM) ---------------- */
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function b(cls, label, fn, k) {
@@ -255,7 +303,7 @@ function b(cls, label, fn, k) {
   return x;
 }
 const fmtX = (n) => '\u2066' + n + '×\u2069';   // בידוד LTR — בעברית "×1.6" מתהפך
-const EXTRAS = ['y', 'z', 'sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln'], FADES = [0, 1, 2, 3];
+const EXTRAS = ['y', 'z', 'sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th'], FADES = [0, 1, 2, 3];
 const fmtM = (sec) => { const t = Math.max(0, Math.round(sec)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
 
 /* opts: { video (HTMLVideoElement של הנגן), frame (המסגרת של הנגן — למסגרת החיתוך), dur, edl, T, onChange(edl), flash, full } → { el, edl(), destroy }.
@@ -299,6 +347,7 @@ export function createEdlEditor(opts) {
   const group = (title, k) => { const d = el('details', 'st-ed-grp'); const sm = el('summary'); const t = el('span', null, title), v = el('small'); sm.append(t, v); d.append(sm); d.dataset.k = k; return { d, v }; };
   let spBtns = [], rtB = null, fhB = null, fvB = null, zr = null, yr = null, yRow = null, vr = null, vv = null, muB = null, lnB = null, fiBtns = [], foBtns = [];
   let gSp = null, gFr = null, gAu = null;
+  let dnBtns = [], gCo = null, brR = null, ctR = null, saR = null, coV = null, fxBtns = [], gMo = null, blB = null, trB = null, thB = null, thX = null;   // סבב 7
   if (opts.full) {
     gSp = group(T('studioEdGrpSpeed'), 'ed-g-sp');
     const sr = el('div', 'st-se-arow');
@@ -331,9 +380,35 @@ export function createEdlEditor(opts) {
     };
     const [fiR, fiB] = fadeRow('fi', T('studioEdFadeIn')), [foR, foB] = fadeRow('fo', T('studioEdFadeOut'));
     fiBtns = fiB; foBtns = foB;
-    gAu.d.append(vRow, tg, fiR, foR);
-    wrap.append(gSp.d, gFr.d, gAu.d);
+    // סבב 7: ניקוי רעש (afftdn — קל / חזק)
+    const dnR = el('div', 'st-se-arow'); dnR.append(el('span', 'st-se-el', T('studioEdDn')));
+    dnBtns = [0, 1, 2].map((d) => b('sm', d === 0 ? T('studioEdOff') : d === 1 ? T('studioEdDnLight') : T('studioEdDnStrong'), () => set('dn', d, 0), 'ed-dn:' + d));
+    dnR.append(...dnBtns);
+    gAu.d.append(vRow, tg, fiR, foR, dnR);
+    // סבב 7: צבע — בהירות / ניגודיות / רוויה ומסנן
+    gCo = group(T('studioEdGrpColor'), 'ed-g-co');
+    const cRow = (k, lo, hi, st, label) => { const r = range('ed-' + k, lo, hi, st, ex[k] || 0, label, (v2) => { if (v2) ex[k] = v2; else delete ex[k]; paintExtras(); preview(); emit(); }); const w2 = el('div', 'st-ed-xrow'); w2.append(el('span', 'st-se-el', label), r); return [w2, r]; };
+    const [brRow, br1] = cRow('br', -30, 30, 5, T('studioEdBr')), [ctRow, ct1] = cRow('ct', -30, 30, 5, T('studioEdCt')), [saRow, sa1] = cRow('sa', -100, 100, 10, T('studioEdSa'));
+    brR = br1; ctR = ct1; saR = sa1;
+    const fxR = el('div', 'st-se-arow');
+    fxBtns = [''].concat(FXS).map((f) => b('sm', fxName(f), () => set('fx', f || undefined, undefined), 'ed-fx:' + (f || 'none')));
+    fxR.append(...fxBtns);
+    gCo.d.append(brRow, ctRow, saRow, fxR);
+    coV = gCo.v;
+    // סבב 7: עוד — טשטוש אזור, מעברים, תמונה ממוזערת
+    gMo = group(T('studioEdGrpMore'), 'ed-g-mo');
+    const mr = el('div', 'st-se-arow');
+    blB = b('sm', T('studioEdBlur'), () => set('bl', ex.bl ? undefined : [0.35, 0.35, 0.3, 0.2], undefined), 'ed-bl');
+    trB = b('sm', T('studioEdTr'), () => set('tr', !ex.tr || undefined, undefined), 'ed-tr');
+    mr.append(blB, trB);
+    const tr2 = el('div', 'st-se-arow'); tr2.append(el('span', 'st-se-el', T('studioEdThumb')));
+    thB = b('sm', T('studioEdThumbHere'), () => { const e0 = cur(), t = mapTime(e0, now()); if (t == null) { if (opts.flash) opts.flash(T('studioEdThumbNo')); return; } set('th', Math.round(t / (ex.sp || 1) * 10) / 10, undefined); }, 'ed-th');
+    thX = b('sm', T('studioEdThumbX'), () => set('th', undefined, undefined), 'ed-th-x');
+    tr2.append(thB, thX);
+    gMo.d.append(mr, tr2, el('div', 'st-se-el st-ed-hint', T('studioEdBlurHint')));
+    wrap.append(gSp.d, gFr.d, gAu.d, gCo.d, gMo.d);
   }
+  function fxName(f) { return f === 'bw' ? T('studioEdFxBw') : f === 'warm' ? T('studioEdFxWarm') : f === 'cool' ? T('studioEdFxCool') : f === 'vint' ? T('studioEdFxVint') : T('studioEdOff'); }
   function paintExtras() {
     if (!opts.full) return;
     const on = (bt, v2) => { bt.classList.toggle('on', !!v2); bt.setAttribute('aria-pressed', v2 ? 'true' : 'false'); };
@@ -348,7 +423,15 @@ export function createEdlEditor(opts) {
     on(muB, mu); on(lnB, ex.ln); lnB.disabled = mu;
     fiBtns.forEach((bt, i) => { on(bt, (ex.fi || 0) === FADES[i]); bt.disabled = mu; });
     foBtns.forEach((bt, i) => { on(bt, (ex.fo || 0) === FADES[i]); bt.disabled = mu; });
-    gAu.v.textContent = mu ? T('studioEdMuted') : [ex.vo != null ? ex.vo + '%' : '', ex.ln ? 'LUFS' : '', ex.fi || ex.fo ? T('studioEdFades') : ''].filter(Boolean).join(' · ');
+    gAu.v.textContent = mu ? T('studioEdMuted') : [ex.vo != null ? ex.vo + '%' : '', ex.ln ? 'LUFS' : '', ex.fi || ex.fo ? T('studioEdFades') : '', ex.dn ? T('studioEdDn') : ''].filter(Boolean).join(' · ');
+    // סבב 7
+    dnBtns.forEach((bt, i) => { on(bt, (ex.dn || 0) === i); bt.disabled = mu; });
+    brR.value = String(ex.br || 0); ctR.value = String(ex.ct || 0); saR.value = String(ex.sa || 0);
+    fxBtns.forEach((bt, i) => on(bt, (ex.fx || '') === ([''].concat(FXS))[i]));
+    coV.textContent = [ex.br || ex.ct || ex.sa ? T('studioEdAdj') : '', ex.fx ? fxName(ex.fx) : ''].filter(Boolean).join(' · ');
+    on(blB, ex.bl); on(trB, ex.tr);
+    thX.hidden = ex.th == null; thB.textContent = ex.th == null ? T('studioEdThumbHere') : T('studioEdThumbAt', { t: fmtM(ex.th) });
+    gMo.v.textContent = [ex.bl ? T('studioEdBlur') : '', ex.tr ? T('studioEdTr') : '', ex.th != null ? T('studioEdThumb') : ''].filter(Boolean).join(' · ');
   }
   /* יש מקום לזוז אנכית? (החיתוך צר מהתמונה בגובה) */
   function hasYRoom() {
@@ -359,11 +442,12 @@ export function createEdlEditor(opts) {
   let pvKey = '';
   function preview() {
     if (!opts.full || !v) return;
-    const key = [ex.sp, ex.rt, ex.fh, ex.fv, ex.vo, ex.mu, v.videoWidth].join();
+    const key = [ex.sp, ex.rt, ex.fh, ex.fv, ex.vo, ex.mu, v.videoWidth, ex.br, ex.ct, ex.sa, ex.fx].join();
     if (key === pvKey) return;                 // רק כשמשהו השתנה — לא דורסים את הבקרות של הנגן בכל ציור
     pvKey = key;
     try { v.playbackRate = ex.sp || 1; } catch (e) {}
     v.style.transform = videoTransform();
+    v.style.filter = cssFilter(ex);            // סבב 7: צבע ומסנן — בקירוב (בתוצאה — eq / colorbalance / curves של ffmpeg)
     try { v.volume = Math.min(1, (ex.vo == null ? 100 : ex.vo) / 100); v.muted = !!ex.mu; } catch (e) {}
   }
   function videoTransform() {
@@ -381,14 +465,35 @@ export function createEdlEditor(opts) {
   const crop = el('div', 'st-ed-crop'), win = el('div', 'st-ed-win');
   crop.append(win);
   if (opts.frame) opts.frame.append(crop);
+  // סבב 7: טשטוש אזור — מלבן על התמונה הסופית (גרירה = הזזה, הפינה = גודל); השברים — מהתמונה אחרי החיתוך
+  const blr = el('div', 'st-ed-blr'), blH = el('span', 'st-ed-blh');
+  blr.append(blH); blr.hidden = true; blr.dataset.k = 'ed-blr';
+  if (opts.frame && opts.full) opts.frame.append(blr);
+  let fr = null;                               // { x, y, w, h } — מלבן התמונה הסופית על המסך (px)
   function paintCrop() {
     const rt = ex.rt || 0, [vw, vh] = rotDims(v ? v.videoWidth : 0, v ? v.videoHeight : 0, rt), cb = cropBox(vw, vh, ar, x, ex.y, ex.z || 1);
     crop.hidden = !cb || !opts.frame;
-    if (crop.hidden) return;
-    const fw = opts.frame.clientWidth, fh = opts.frame.clientHeight, k = Math.min(fw / vw, fh / vh);
-    const ox = (fw - vw * k) / 2, oy = (fh - vh * k) / 2;
-    Object.assign(win.style, { left: (ox + cb.x * k) + 'px', top: (oy + cb.y * k) + 'px', width: (cb.w * k) + 'px', height: (cb.h * k) + 'px' });
+    fr = null;
+    if (opts.frame && vw > 0) {
+      const fw = opts.frame.clientWidth, fh = opts.frame.clientHeight, k = Math.min(fw / vw, fh / vh);
+      const ox = (fw - vw * k) / 2, oy = (fh - vh * k) / 2;
+      fr = cb ? { x: ox + cb.x * k, y: oy + cb.y * k, w: cb.w * k, h: cb.h * k } : { x: ox, y: oy, w: vw * k, h: vh * k };
+      if (cb) Object.assign(win.style, { left: fr.x + 'px', top: fr.y + 'px', width: fr.w + 'px', height: fr.h + 'px' });
+    }
+    blr.hidden = !(ex.bl && fr && opts.full);
+    if (!blr.hidden) Object.assign(blr.style, { left: (fr.x + ex.bl[0] * fr.w) + 'px', top: (fr.y + ex.bl[1] * fr.h) + 'px', width: (ex.bl[2] * fr.w) + 'px', height: (ex.bl[3] * fr.h) + 'px' });
   }
+  let bd = null;
+  blr.addEventListener('pointerdown', (e) => { if (!ex.bl || !fr) return; e.stopPropagation(); bd = { x: e.clientX, y: e.clientY, bl: ex.bl.slice(), rs: e.target === blH }; try { blr.setPointerCapture(e.pointerId); } catch (z) {} });
+  blr.addEventListener('pointermove', (e) => {
+    if (!bd || !fr) return;
+    const dx = (e.clientX - bd.x) / fr.w, dy = (e.clientY - bd.y) / fr.h, c = (v2, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v2 * 100) / 100));
+    const [bx, by, bw, bh] = bd.bl;
+    ex.bl = bd.rs ? [bx, by, c(bw + dx, 0.05, 1 - bx), c(bh + dy, 0.05, 1 - by)] : [c(bx + dx, 0, 1 - bw), c(by + dy, 0, 1 - bh), bw, bh];
+    paintCrop();
+  });
+  const blEnd = () => { if (bd) { bd = null; emit(); } };
+  blr.addEventListener('pointerup', blEnd); blr.addEventListener('pointercancel', blEnd);
   const ro = typeof ResizeObserver === 'function' && opts.frame ? new ResizeObserver(paintCrop) : null;
   if (ro) ro.observe(opts.frame);
   const now = () => (v ? v.currentTime || 0 : 0);
@@ -436,6 +541,6 @@ export function createEdlEditor(opts) {
     segs: () => segs,
     /* מ8: שינוי מבחוץ (הסרת שקטים, חיתוך לפי התמליל) — צעד ביטול רגיל */
     set(next, failMsg) { act(next, failMsg || ''); },
-    destroy() { if (ro) ro.disconnect(); crop.remove(); if (v && opts.full) { v.style.transform = ''; try { v.playbackRate = 1; v.volume = 1; v.muted = false; } catch (e) {} } if (v) { v.removeEventListener('timeupdate', onTime); v.removeEventListener('seeked', paintHead); v.removeEventListener('loadedmetadata', onMeta); } },
+    destroy() { if (ro) ro.disconnect(); crop.remove(); blr.remove(); if (v && opts.full) { v.style.transform = ''; v.style.filter = ''; try { v.playbackRate = 1; v.volume = 1; v.muted = false; } catch (e) {} } if (v) { v.removeEventListener('timeupdate', onTime); v.removeEventListener('seeked', paintHead); v.removeEventListener('loadedmetadata', onMeta); } },
   };
 }

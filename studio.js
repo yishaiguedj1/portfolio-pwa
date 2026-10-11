@@ -14,7 +14,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, termIssues, flagIndex, normMeta, createTimeline } from './studiosubs.js';
-import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers } from './studioedl.js';
+import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
@@ -43,7 +43,7 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta'];   // סבב 6: meta — לציר בעורך
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta', 'thumb'];   // סבב 6: meta — לציר בעורך; סבב 7: thumb — תמונה ממוזערת
 export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
@@ -94,6 +94,7 @@ export function normSettings(o) {
   s.pq = normPq(o.pq);
   if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   const sty = normSty(o.sty); if (sty) s.sty = sty;   // סבב 5: עיצוב הכתוביות האחרון (ברירת המחדל להפקה הבאה)
+  if (o.lg && typeof o.lg === 'object') { const ov = normOv({ lg: o.lg.d, lp: o.lg.p, ls: o.lg.s }); if (ov) s.lg = { d: ov.lg, p: ov.lp, s: ov.ls }; }   // סבב 7: הלוגו שלך
   return s;
 }
 /* מצב "API של המערכת" מהשרתון (status): התקציב החודשי, כמה שרתים מחוברים, והאם אתה המנהל */
@@ -833,6 +834,7 @@ function outName(k) {
     case 'compact': return T('studioOutCompact');
     case 'mkv': return T('studioOutMkv');
     case 'small': return T('studioOutSmall');   // מ1
+    case 'thumb': return T('studioOutThumb');   // סבב 7
     case 'en': return T('studioOutEn');
     default: return T('studioOutSrt');
   }
@@ -1395,7 +1397,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1406,6 +1408,7 @@ function leaving() {              // יציאה מדף: המפתח שהודבק 
   if (ui.view === 'subs') seStop();      // מ2: הנגן של העורך נעצר; העריכה נשארת בזיכרון
   if (ui.view === 'cut' || ui.view === 'cutsrc') ceStop();   // מ4–מ5: החיתוך עצמו נשמר (rrEdl / form.edl)
   if (ui.view === 'sty') syStop();   // סבב 5: העיצוב עצמו נשמר (rrOpt.sty / ההגדרות)
+  if (ui.view === 'ov') ovpStop();   // סבב 7: הכותרת והלוגו נשמרים (ovT / ההגדרות)
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
@@ -4304,7 +4307,11 @@ function edlSum(e, dur) {
   if (e.rt) parts.push(e.rt + '°');
   if (e.z) parts.push(T('studioEdZoom') + ' \u2066' + e.z + '×\u2069');
   if (e.mu) parts.push(T('studioEdMuted'));
-  else if (e.vo != null || e.ln || e.fi || e.fo) parts.push(T('studioEdGrpAudio'));
+  else if (e.vo != null || e.ln || e.fi || e.fo || e.dn) parts.push(T('studioEdGrpAudio'));
+  if (e.br || e.ct || e.sa || e.fx) parts.push(T('studioEdGrpColor'));   // סבב 7
+  if (e.bl) parts.push(T('studioEdBlur'));
+  if (e.tr) parts.push(T('studioEdTr'));
+  if (e.th != null) parts.push(T('studioEdThumb'));
   return parts.join(' · ');
 }
 /* עמוד החיתוך — אחרי התרגום (p = מזהה העבודה): הנגן על המקור עם הכתוביות; עבודה שנחתכה כבר לפני התרגום — על הסרטון הצרוב
@@ -4383,7 +4390,7 @@ async function rrStart(rec) {
   if (!out.length) { flashSafe(T('studioRrPick')); return; }
   rrBusy = true; repaint();
   try {
-    const j = await net.api('rerender', { job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl: rrEdl.get(rec.id) || null, sty: rrSty() });
+    const j = await net.api('rerender', { job: rec.id, out, style: rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold'), edl: rrEdl.get(rec.id) || null, sty: rrSty(), ov: rrOv(rec.id) });
     if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
     const x = normJob({ id: j.job.id, srv: j.job });
     if (x) rrJobs.set(rec.id, x);
@@ -4455,6 +4462,95 @@ function pageSty(p) {
   if (rrSty()) p.append(btn('st-btn ghost wide', T('studioStyReset'), () => { rrOpt.sty = null; delete store.settings.sty; save(); if (sy && sy.ctl) sy.ctl.setStyle(null); render('none'); }, 'sty-reset'));
   p.append(note(T('studioStyNote')));
 }
+/* ---------- סבב 7: כותרת ולוגו (בהפקה מחדש) — הכותרת לכל עבודה, הלוגו נשמר בהגדרות (המותג שלך) ---------- */
+const ovT = new Map();   // העבודה → { t, ta }
+function rrOv(id) {
+  const t = ovT.get(id) || {}, lg = store.settings.lg || {};
+  return normOv({ t: t.t, ta: t.ta, lg: lg.d, lp: lg.p, ls: lg.s });
+}
+function ovPosName(k) { return k === 'tl' ? T('studioOvPos_tl') : k === 'bl' ? T('studioOvPos_bl') : k === 'br' ? T('studioOvPos_br') : T('studioOvPos_tr'); }
+function ovSum(o) {
+  if (!o) return T('studioOvNone');
+  return [o.t ? T('studioOvTitle') : '', o.lg ? T('studioOvLogo') : ''].filter(Boolean).join(' · ');
+}
+/* הלוגו מהטלפון → PNG / WebP קטן (עד OV_LG_MAX כ־data URL): הצד הארוך עד 320, ואז מקטינים עד שנכנס */
+async function logoFromFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('img')); i.src = url; });
+    for (let side = 320; side >= 64; side = Math.round(side * 0.75)) {
+      const k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight)), w = Math.max(1, Math.round(img.naturalWidth * k)), hh = Math.max(1, Math.round(img.naturalHeight * k));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+      cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+      for (const [type, q] of [['image/png'], ['image/webp', 0.9], ['image/webp', 0.75]]) {
+        const d = cv.toDataURL(type, q);
+        if (d.startsWith('data:' + type) && d.length <= OV_LG_MAX && normOv({ lg: d })) return d;
+      }
+    }
+    return null;
+  } finally { URL.revokeObjectURL(url); }
+}
+let ovp = null;   // { key, ctl, tEl, lEl }
+function ovpStop() { if (ovp && ovp.ctl) ovp.ctl.destroy(); ovp = null; }
+function ovPaint(o) {
+  if (!ovp || !ovp.ctl) return;
+  ovp.tEl.textContent = (o && o.t) || ''; ovp.tEl.hidden = !(o && o.t);
+  ovp.lEl.hidden = !(o && o.lg);
+  if (o && o.lg) { ovp.lEl.src = o.lg; ovp.lEl.className = 'st-ov-l ' + o.lp; ovp.lEl.style.width = o.ls + '%'; }
+}
+function pageOv(p) {
+  const rec = jobRec(ui.param);
+  if (!rec || !canEdit(rec)) { back(); return; }
+  p.classList.add('st-dark');
+  p.append(navBar({ back: T('studioRrTitle'), title: T('studioOvT') }));
+  if (!ovp || ovp.key !== rec.id) {
+    ovpStop();
+    ovp = { key: rec.id, ctl: null, tEl: h('div', 'st-ov-t'), lEl: document.createElement('img') };
+    ovp.lEl.alt = ''; ovp.lEl.className = 'st-ov-l';
+    const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
+    if (src) { ovp.ctl = createPlayer({ src, cues: [], T, burned: true, pq: store.settings.pq }); ovp.ctl.el.append(ovp.tEl, ovp.lEl); }
+  }
+  const o = rrOv(rec.id) || {}, cur = ovT.get(rec.id) || {}, lg = store.settings.lg || null;
+  if (ovp.ctl) { const top = h('div', 'st-se-top'); top.append(ovp.ctl.el); p.append(top); ovPaint(o); }
+  const setT = (patch) => { ovT.set(rec.id, Object.assign({}, ovT.get(rec.id) || {}, patch)); ovPaint(rrOv(rec.id)); };   // תמיד מהעדכני (לא מהציור)
+  // הכותרת: טקסט (לא נשמר בטלפון אחרי היציאה מהאפליקציה) + כמה זמן
+  const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'st-ask-in'; inp.dir = 'auto'; inp.maxLength = OV_T_MAX;
+  inp.placeholder = T('studioOvTitlePh'); inp.value = cur.t || ''; inp.dataset.k = 'ov-t';
+  inp.addEventListener('input', () => setT({ t: inp.value }));
+  const taRow = h('div', 'st-chips st-sty-row');
+  for (const [ta, lbl] of [[0, T('studioOvAll')], [5, T('studioOvFirst5')]]) {
+    const on = (cur.ta === 5 ? 5 : 0) === ta;
+    const b = btn('st-chip' + (on ? ' on' : ''), lbl, () => { setT({ ta }); render('none'); }, 'ov-ta:' + ta); b.setAttribute('aria-pressed', on ? 'true' : 'false'); taRow.append(b);
+  }
+  const box = h('div', 'st-ov-in'); box.append(inp);
+  p.append(secT(T('studioOvTitle')), box, taRow);
+  // הלוגו: מהטלפון, פינה, גודל — נשמר בהגדרות לכל ההפקות
+  const fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = 'image/png,image/jpeg,image/webp'; fileIn.hidden = true;
+  fileIn.addEventListener('change', async () => {
+    const f = fileIn.files && fileIn.files[0]; fileIn.value = '';
+    if (!f) return;
+    const d = await logoFromFile(f).catch(() => null);
+    if (!d) { flashSafe(T('studioOvLogoBad')); return; }
+    store.settings.lg = { d, p: (lg && lg.p) || 'tr', s: (lg && lg.s) || 14 }; save(); render('none');
+  });
+  p.append(secT(T('studioOvLogo')), fileIn, list(rowNav({ tile: tile('film', 'orange'), label: lg ? T('studioOvLogoChange') : T('studioOvLogoPick'), onClick: () => fileIn.click(), k: 'ov-lg' })));
+  if (lg) {
+    const pos = h('div', 'st-chips st-sty-row');
+    for (const k of OV_POS) {
+      const on = (o.lp || 'tr') === k;
+      const b = btn('st-chip' + (on ? ' on' : ''), ovPosName(k), () => { store.settings.lg = Object.assign({}, lg, { p: k }); save(); render('none'); }, 'ov-lp:' + k);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false'); pos.append(b);
+    }
+    const sz = h('div', 'st-chips st-sty-row');
+    for (const k of [10, 14, 18, 24]) {
+      const on = (o.ls || 14) === k;
+      const b = btn('st-chip' + (on ? ' on' : ''), '\u2066' + k + '%\u2069', () => { store.settings.lg = Object.assign({}, lg, { s: k }); save(); render('none'); }, 'ov-ls:' + k);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false'); sz.append(b);
+    }
+    p.append(pos, sz, btn('st-btn ghost wide', T('studioOvLogoX'), () => { delete store.settings.lg; save(); render('none'); }, 'ov-lg-x'));
+  }
+  p.append(note(T('studioOvNote')));
+}
 function pageRr(p) {
   const rec = jobRec(ui.param);
   if (!rec || !canEdit(rec)) { back(); return; }
@@ -4477,7 +4573,8 @@ function pageRr(p) {
     onClick: () => { rrOpt.out[k] = !rrOpt.out[k]; repaint(); }, k: 'rr-o:' + k }))));
   const cur = rrOpt.style || (RR_STYLES.includes(rec.spec.style) ? rec.spec.style : 'bold');
   p.append(secT(T('studioSecStyle')), list(...RR_STYLES.map((k) => rowRadio({ label: styleName(k), on: k === cur, onClick: () => { rrOpt.style = k; repaint(); }, k: 'rr-s:' + k })),
-    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty()), onClick: () => go('sty', rec.id), k: 'rr-sty' })));   // סבב 5
+    rowNav({ tile: tile('edit', 'purple'), label: T('studioStyT'), value: stySum(rrSty()), onClick: () => go('sty', rec.id), k: 'rr-sty' }),   // סבב 5
+    rowNav({ tile: tile('film', 'orange'), label: T('studioOvT'), value: ovSum(rrOv(rec.id)), onClick: () => go('ov', rec.id), k: 'rr-ov' })));   // סבב 7
   if (dirty) p.append(note(T('studioRrDirty')));
   p.append(btn('st-btn wide', rrBusy ? T('studioStarting') : dirty ? T('studioRrSaveGo') : T('studioRrGo'), rrBusy ? null : () => (dirty ? seSave(() => rrStart(rec)) : rrStart(rec)), 'rr-go'));
   p.append(note(T('studioRrNote')));
@@ -5398,6 +5495,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'rr') pageRr(p);       // מ2: הפקה מחדש
   else if (ui.view === 'cut') pageCut(p, false);      // מ5: חיתוך אחרי התרגום
   else if (ui.view === 'sty') pageSty(p);            // סבב 5: עיצוב הכתוביות
+  else if (ui.view === 'ov') pageOv(p);              // סבב 7: כותרת ולוגו
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
   else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך

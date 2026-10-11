@@ -867,7 +867,17 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
       { pre: '[data-k="ed-g-fr"]', settle: 900, cls: 0.05, expect: '.st-ed-win' });
     await step('studio: שמע — השתקה והדרגה', async () => { await page.click('[data-k="ed-g-au"] > summary'); await sleep(300); await page.click('[data-k="ed-fi:2"]'); await page.click('[data-k="ed-mu"]'); },
       { pre: '[data-k="ed-g-au"]', settle: 900, cls: 0.05, expect: '[data-k="ed-mu"].on' });
+    // סבב 7: צבע, טשטוש אזור, מעברים, תמונה ממוזערת
+    await step('studio: צבע — מסנן ובהירות', async () => { await page.click('[data-k="ed-g-co"] > summary'); await sleep(300); await page.click('[data-k="ed-fx:bw"]');
+      await page.$eval('[data-k="ed-br"]', (r) => { r.value = '10'; r.dispatchEvent(new Event('input', { bubbles: true })); }); }, { pre: '[data-k="ed-g-co"]', settle: 900, cls: 0.05, expect: '[data-k="ed-fx:bw"].on' });
+    await step('studio: טשטוש אזור, מעברים, תמונה', async () => { await page.click('[data-k="ed-g-mo"] > summary'); await sleep(300); await page.click('[data-k="ed-bl"]'); await page.click('[data-k="ed-tr"]'); await page.click('[data-k="ed-th"]'); },
+      { pre: '[data-k="ed-g-mo"]', settle: 900, cls: 0.05, expect: '.st-ed-blr:not([hidden])' });
     await step('studio: חזור ← הפקה מחדש', esc, { settle: 1300, expect: '[data-k="rr-cut"]' });
+    await step('studio: כותרת ולוגו', () => page.click('[data-k="rr-ov"]'), { pre: '[data-k="rr-ov"]', settle: 1400, cls: 0.05, expect: '[data-k="ov-t"]' });
+    await step('studio: כותרת + לוגו מהטלפון', async () => { await page.fill('[data-k="ov-t"]', 'כותרת לבדיקה'); await page.click('[data-k="ov-ta:5"]');
+      await page.setInputFiles('input[type=file][accept^="image/png"]', { name: 'logo.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAADwAAAAeCAIAAAD/+uoYAAAACXBIWXMAAAABAAAAAQBPJcTWAAAAOklEQVR4nO3OUQkAIBBAMT/tn808YgzfwWABtu7Z46zvA+kwaWnpAGlp6QBpaekAaWnpAGlp6YCR6Qf4tgWU+AqfggAAAABJRU5ErkJggg==', 'base64') }); },
+      { pre: '[data-k="ov-t"]', settle: 1400, expect: '.st-ov-t:not([hidden]) ~ .st-ov-l:not([hidden])' });
+    await step('studio: חזור ← הפקה מחדש (כותרת)', esc, { settle: 1300, expect: '[data-k="rr-ov"]' });
     // סבב 5: עיצוב הכתוביות — תצוגה חיה על הנגן
     await step('studio: עיצוב הכתוביות', () => page.click('[data-k="rr-sty"]'), { pre: '[data-k="rr-sty"]', settle: 1500, cls: 0.05, expect: '[data-k="sty-bx"]' });
     await step('studio: עיצוב — גודל, צבע, רקע, גובה', async () => { await page.click('[data-k="sty-k:120"]'); await sleep(200); await page.click('[data-k="sty-c:y"]'); await sleep(200); await page.click('[data-k="sty-bx"]'); await sleep(200); await page.click('[data-k="sty-y:20"]'); },
