@@ -89,6 +89,7 @@ export function normSettings(o) {
   s.wifi = o.wifi === true;
   if (CAPS.includes(o.cap)) s.cap = o.cap;
   s.pq = normPq(o.pq);
+  if (Number.isFinite(+o.op1) && +o.op1 > 0) s.op1 = Math.floor(+o.op1);   // מתי Google סירב לבורר במסך מלא (ננסה שוב אחרי חודש)
   return s;
 }
 /* מצב "API של המערכת" מהשרתון (status): התקציב החודשי, כמה שרתים מחוברים, והאם אתה המנהל */
@@ -856,6 +857,7 @@ function errText(code, extra) {
     case 'not_connected': case 'revoked': case 'drive_auth': return T('studioErrDrive');
     case 'conn_missing': return T('studioErrConn');
     case 'gd_not_configured': return T('studioDriveNoCfg');
+    case 'gd_popup': return T('studioDrivePopup');
     case 'too_many': return T('studioErrTooMany');
     case 'file_size': case 'file_bad': case 'file_missing': return T('studioErrFile');
     case 'routine_auth': return T('studioErrRAuth');
@@ -1984,7 +1986,7 @@ function pageForm(p, editing) {
     card.append(plus, rowTxt(T('studioPick'), T('studioNewSub')));
   }
   p.append(inp, secT(T('studioSecVideo')), card);
-  if (ui.picker) p.append(list(rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
+  if (canPick()) p.append(list(rowNav({ tile: tile('cloud', 'teal'), label: T('studioFromDrive'), value: f.drive ? T('studioInDrive') : '', sub: f.drive ? null : T('studioFromDriveSub'),
     onClick: () => pickSourceFromDrive(f), k: 'from-drive' })));   // סרטון שכבר ב־Drive — בלי העלאה
   const adv = advRows(f, pick);
   if (adv) p.append(h('div', 'st-gap sm'), adv);
@@ -2107,8 +2109,38 @@ function loadPicker() {
   }
   return pickerLoad;
 }
-/* kind: 'video' (סרטון מקור) / 'folder' (לאן לשמור). מחזיר { id, name } או null (ביטול) */
+/* בורר הקבצים של Google במסך מלא (trigger_onepick): אותו מראה כמו בחירת קובץ באנדרואיד, והבחירה = הגישה (drive.file).
+   Google מתעד אותו ללקוחות מחשב/טלפון; אם הוא לא מציג בורר ללקוח האתר שלנו (חוזר בלי מזהים / שגיאה) —
+   זוכרים (store.settings.op1) ועוברים לבורר הנוכחי, בלי לחיצה נוספת. אחרי חודש מנסים שוב. */
+const OP1_RETRY = 30 * 864e5;
+export function onepickOk(s, now) { return !(s && s.op1 > 0 && now - s.op1 < OP1_RETRY); }
+export function canPickDrive(picker, s, drive, now) { return !!picker || (onepickOk(s, now) && !!(drive && drive.configured)); }
+const canPick = () => canPickDrive(ui.picker, store.settings, store.drive, Date.now());
+/* חייב להיקרא בתוך הלחיצה, בלי await לפני — החלון נפתח מיד */
 async function drivePick(kind) {
+  if (onepickOk(store.settings, Date.now())) {
+    let ids, why = 'picker';
+    try { ids = await gd().pick(kind === 'folder' ? { folder: true } : { types: PICK_VIDEO_TYPES.split(',') }, store.drive && store.drive.email || ''); }
+    catch (e) {
+      const c = e && e.code;
+      if (c === 'gd_denied' || c === 'gd_cancel') return null;
+      if (c !== 'gd_pick_bad' && c !== 'gd_popup') throw e;
+      ids = c === 'gd_popup' ? null : [];         // חלון חסום — לא אשמת Google, לא זוכרים
+      if (c === 'gd_popup') why = c;
+    }
+    statusAt = 0;                                 // החלון גם מחבר את Drive — המצב מהשרתון מתעדכן
+    net._forget();                                // גישה חדשה (הבחירה נרשמה ללקוח)
+    if (ids && ids.length) {
+      const m = await net.driveMeta(ids[0]);
+      return m && !m.trashed ? { id: ids[0], name: String(m.name || ''), meta: m } : null;
+    }
+    if (ids) { store.settings.op1 = Date.now(); save(); }
+    if (!ui.picker) { await refreshStatus(true); if (!ui.picker) throw Object.assign(new Error(why), { code: why }); }
+  }
+  return legacyPick(kind);
+}
+/* הבורר הנוכחי (Google Picker בתוך הדף). kind: 'video' (סרטון מקור) / 'folder' (לאן לשמור). מחזיר { id, name } או null (ביטול) */
+async function legacyPick(kind) {
   const cfg = ui.picker;
   if (!cfg) throw Object.assign(new Error('picker'), { code: 'picker' });
   const [tok] = await Promise.all([net.driveToken(), loadPicker()]);
@@ -2140,14 +2172,14 @@ async function drivePick(kind) {
 function pickerClose() { if (!pickerNow) return false; const x = pickerNow; pickerNow = null; try { x.pk.setVisible(false); } catch (e) {} x.res(null); return true; }
 /* מהטופס: בוחרים סרטון ב־Drive → הפרטים מ־Drive (שם, גודל, אורך) — בלי להוריד ובלי להעלות */
 async function pickSourceFromDrive(f) {
-  if (!store.drive || !store.drive.connected) {
+  if (!onepickOk(store.settings, Date.now()) && (!store.drive || !store.drive.connected)) {   // הבורר במסך מלא גם מחבר; הנוכחי צריך חיבור קודם
     if (typeof askConfirm === 'function') askConfirm(T('studioNeedDrive'), connectDrive, { ok: T('studioDriveConnect') });
     return;
   }
   try {
     const x = await drivePick('video');
     if (!x || form !== f) return;
-    const m = await net.driveMeta(x.id);
+    const m = x.meta || await net.driveMeta(x.id);
     if (!m || m.trashed || !(Number(m.size) > 0)) { flashSafe(T('studioFromDriveBad')); return; }
     const dur = Math.round(Number(m.videoMediaMetadata && m.videoMediaMetadata.durationMillis) / 1000) || 0;
     f.drive = { id: x.id, name: String(m.name || x.name).slice(0, 200), size: Number(m.size), type: String(m.mimeType || '').slice(0, 60), dur };
@@ -4590,7 +4622,7 @@ function pageJob(p) {
     canEdit(rec) ? rowNav({ tile: tile('edit', 'blue'), label: T('studioSeTitle'), sub: rec.srv.ev ? T('studioSeEdited', { n: rec.srv.ev }) : '', onClick: () => go('subs', id), k: 'subs' }) : null,   // מ2
     canEdit(rec) ? rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', id), k: 'rr' }) : null,
     canEdit(rec) ? rowNav({ tile: tile('spark', 'teal'), label: T('studioIdTitle'), sub: T('studioIdSub'), onClick: () => go('ideas', id), k: 'ideas' }) : null,   // מ8
-    ui.picker && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? rowNav({ tile: tile('cloud', 'green'), label: dxBusy === rec.id ? T('studioDxBusy') : T('studioDxT'),
+    canPick() && outs.some((o) => DX_MOVE.includes(o.k) || o.k === 'srt') ? rowNav({ tile: tile('cloud', 'green'), label: dxBusy === rec.id ? T('studioDxBusy') : T('studioDxT'),
       sub: rec.up.dx ? T('studioDxDone', { n: rec.up.dx.n }) : T('studioDxSub'), onClick: () => exportToDrive(rec), k: 'dx' }) : null,   // התוצר לתיקייה שבחרת ב־Drive
     jobFolder(rec) ? rowExt({ href: 'https://drive.google.com/drive/folders/' + jobFolder(rec), tile: tile('cloud', 'teal'), label: T('studioOpenDrive'), k: 'drive-folder' }) : null,
     btn('st-row st-act', T('studioRcpt'), () => shareReceipt(rec), 'receipt')));   // שלב 4: קבלה

@@ -10,7 +10,13 @@ const FOLDER = 'application/vnd.google-apps.folder';
 export const ROOT_NAME = 'THE SNOWBALL — הספרייה שלי';
 export const DATA_NAME = 'נתוני הספרייה';
 export const MANIFEST = 'library.json';
-export const SCOPES = 'openid email https://www.googleapis.com/auth/drive.file';
+export const SCOPE_FILE = 'https://www.googleapis.com/auth/drive.file';
+export const SCOPES = 'openid email ' + SCOPE_FILE;
+export const FOLDER_MIME = 'application/vnd.google-apps.folder';
+/* מזהי הקבצים שחזרו מבורר הקבצים של Google — רק מזהה Drive תקין, בלי כפולים, עד 20 */
+export function pickedIds(s) {
+  return [...new Set(String(s || '').split(',').filter((x) => /^[A-Za-z0-9_-]{10,100}$/.test(x)))].slice(0, 20);
+}
 const LS_KEY = 'pwa_libbk_v1';
 const DAY = 864e5;
 
@@ -64,7 +70,7 @@ export function waitOAuthCode(w, url, state) {
       try { localStorage.removeItem('pwa_oauth_v1'); } catch (e) {}
       resolve(v);
     };
-    const take = (m) => { if (m && m.state === state) done({ code: m.code, error: m.error }); };
+    const take = (m) => { if (m && m.state === state) done({ code: m.code, error: m.error, picked: typeof m.picked === 'string' ? m.picked : '' }); };
     const fromLs = () => { try { const m = JSON.parse(localStorage.getItem('pwa_oauth_v1') || 'null'); if (m) take(m); } catch (e) {} };
     const onStore = (e) => { if (e.key === 'pwa_oauth_v1') fromLs(); };
     try { bc = new BroadcastChannel('snb-oauth'); bc.onmessage = (e) => take(e.data); } catch (e) {}
@@ -133,7 +139,9 @@ export function createBackup(env) {
     return { verifier, challenge: b64u(dig) };
   }
   /* חלון ההסכמה של Google — נפתח בתוך הלחיצה (לפני כל await, אחרת הדפדפן חוסם), והקוד חוזר מ־oauth.html */
-  function connect(hint) {
+  /* חלון ההסכמה של Google. extra = פרמטרים נוספים (בורר הקבצים — pick). מחזיר { email, picked } */
+  function authorize(hint, extra) {
+    // החלון נפתח בתוך הלחיצה — לפני כל await (אחרת הדפדפן חוסם)
     const w = E.openWindow ? E.openWindow() : null;
     return (async () => {
       const cf = await config();
@@ -142,19 +150,36 @@ export function createBackup(env) {
       const { verifier, challenge } = await pkce();
       const state = rand(18);
       const redirect = E.redirectUri();
-      const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + [['client_id', cf.clientId], ['redirect_uri', redirect], ['response_type', 'code'], ['scope', SCOPES],
-        ['access_type', 'offline'], ['prompt', 'consent'], ['include_granted_scopes', 'true'], ['state', state],
-        ['code_challenge', challenge], ['code_challenge_method', 'S256']].concat(hint ? [['login_hint', hint]] : [])
+      const base = extra
+        ? [['scope', SCOPE_FILE]]          // בורר הקבצים: רק drive.file, בלי הרשאות קודמות (כך ב־Google)
+        : [['scope', SCOPES], ['include_granted_scopes', 'true']];
+      const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + [['client_id', cf.clientId], ['redirect_uri', redirect], ['response_type', 'code']].concat(base,
+        [['access_type', 'offline'], ['prompt', 'consent'], ['state', state], ['code_challenge', challenge], ['code_challenge_method', 'S256']],
+        hint ? [['login_hint', hint]] : [], extra || [])
         .map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
-      const got = await E.waitCode(w, url, state);       // { code } | { error }
-      if (!got || !got.code) { const e = new Error(got && got.error === 'access_denied' ? 'gd_denied' : got && got.error === 'popup_blocked' ? 'gd_popup' : 'gd_cancel'); e.code = e.message; throw e; }
+      const got = await E.waitCode(w, url, state);       // { code, picked } | { error }
+      if (!got || !got.code) {
+        const er = got && got.error;
+        const e = new Error(er === 'access_denied' ? 'gd_denied' : er === 'popup_blocked' ? 'gd_popup' : extra && er ? 'gd_pick_bad' : 'gd_cancel'); e.code = e.message; throw e;
+      }
       const j = await api({ op: 'gdConnect', code: got.code, redirect, verifier });
       if (!j.ok) { const e = new Error(j.error || 'gd_connect'); e.code = j.error; throw e; }
       tok = { at: j.access_token, exp: E.now() + (j.expires_in || 3600) * 1000, email: j.email };
       saveSettings({ email: j.email || '?' });
-      return j.email;
+      return { email: j.email, picked: pickedIds(got.picked) };
     })();
   }
+  function connect(hint) { return authorize(hint).then((x) => x.email); }
+  /* בורר הקבצים של Google במסך מלא (trigger_onepick) — כמו בחירת קובץ באנדרואיד. מה שבחרת = הגישה (drive.file).
+     o: { types: [mime…], folder: true }. מחזיר מזהים; [] = Google לא הציג בורר (הלקוח לא נתמך) */
+  function pick(o, hint) {
+    o = o || {};
+    const extra = [['trigger_onepick', 'true']];
+    if (o.folder) extra.push(['allow_folder_selection', 'true'], ['mimetypes', FOLDER_MIME]);
+    else if (o.types && o.types.length) extra.push(['mimetypes', o.types.join(',')]);
+    return authorize(hint, extra).then((x) => x.picked);
+  }
+
   async function disconnect() {
     await api({ op: 'gdDisconnect' });
     const keep = settings();
@@ -403,6 +428,6 @@ export function createBackup(env) {
       try { await backupNow(); if (E.onAuto) E.onAuto(); } catch (e) { saveSettings({ err: String(e.code || e.message || 'failed').slice(0, 40), errAt: E.now() }); if (E.onAuto) E.onAuto(); }
     }, delay == null ? 15000 : delay);
   }
-  return { settings, saveSettings, config, status, token, connect, disconnect, backupNow, overview, restore, removeFromBackup, deleteAll, quota, schedule, coverBlob,
+  return { settings, saveSettings, config, status, token, connect, pick, disconnect, backupNow, overview, restore, removeFromBackup, deleteAll, quota, schedule, coverBlob,
     busy: () => !!busy, _folders: folders, _listing: listing };
 }
