@@ -20,7 +20,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/lv, why, info = shadow_assess\(/.test(tower) && /return 'warn', why, dict\(info, sh=1\)/.test(tower), 'המגדל: בצל — אוכף את הישנים, החדשים רק מזהירים');
   ok(/'sh': job\.get\('sh'\) if isinstance\(job\.get\('sh'\), dict\) else None/.test(read('translator/job.py')), 'העובד שומר את מצב הצל מהלקיחה');
   const api = read('ibkr-proxy/api/studio.js');
-  ok(/const step = S\.thStep\(th\[m\], nm\);/.test(api) && /if \(job\.kind === 'tr' && job\.spec && !job\.c0\)/.test(api), 'השרתון: צעד הספים רק בלקיחה הראשונה (בהמשך — אותו צל)');
+  ok(/const step = S\.thStep\(th\[m\], nm\);/.test(api) && /if \(job\.kind === 'tr' && job\.spec && !job\.c0 && job\.eng !== 'api'\)/.test(api), 'השרתון: צעד הספים רק בלקיחה הראשונה (בהמשך — אותו צל), ורק ב־Routine (המגדל לא רץ בשרת)');
   ok(/rh\.length >= S\.LOOP_N - 1 && \(auto \|\| body\.lo !== true\)/.test(api) && /if \(f\.ok\) await patchJob\(deps, job\.id, \{ rh: rhNext \}\)/.test(api), 'השרתון: לולאה = השלישי ב־24 שעות; נספר רק "המשך" שהפעיל סשן');
   ok(/'claude:loop': 2/.test(read('ibkr-proxy/lib/studioops.js')), 'התראה claude:loop בקטלוג (P2)');
   ok(S.loopRecent({ rh: [1, 5, 'x', 9e15] }, 10).length === 2, 'loopRecent: רק זמנים תקינים מהעבר');

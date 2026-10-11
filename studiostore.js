@@ -25,11 +25,18 @@ export function doneBytes(size, ps, done) {
   return b;
 }
 
+/* מזהים של R2 (כמו של Drive, כדי שהקוד שמעל לא ישתנה): תיקייה R2_<עבודה>, קובץ <תיקייה>_<12 אקראיים> */
+export const R2_FOLDER_RE = /^R2_j[A-Za-z0-9_-]{20}$/;
+export const R2_ID_RE = /^R2_j[A-Za-z0-9_-]{20}_[A-Za-z0-9]{12}$/;
+export const isR2Folder = (f) => R2_FOLDER_RE.test(String(f || ''));
+export const isR2Id = (id) => R2_ID_RE.test(String(id || ''));
+export const r2JobOf = (x) => (isR2Folder(x) || isR2Id(x) ? String(x).slice(3, 24) : '');   // העבודה שהתיקייה שלה
+
 /* העלאה של קובץ אחד. o:
-     api(op, body) → JSON מהשרתון; slot — מה מעלים (למשל 'v' / 'a'); job
+     api(op, body) → JSON מהשרתון; job (העבודה שהתיקייה שלה); name
      blob, size, mime, signal, gate(), onProgress(bytes), onWait(err), onState(st)
-     st — מצב שמור מהפעם הקודמת ({ up, ps }) כדי להמשיך את אותה העלאה
-   מחזיר את תשובת הסיום של השרתון ({ ok, file }) */
+     st — מצב שמור מהפעם הקודמת ({ id, up, ps }) כדי להמשיך את אותה העלאה
+   מחזיר { id, size, name, mimeType } — כמו קובץ של Drive */
 export async function r2Upload(o, env = {}) {
   const E = Object.assign({ sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now(), online: () => true, conc: 2 }, env);
   const size = o.size;
@@ -39,17 +46,20 @@ export async function r2Upload(o, env = {}) {
   const stopped = () => o.signal && o.signal.aborted;
   const report = () => { if (!o.onProgress) return; let b = doneBytes(size, st.ps, done); for (const v of live.values()) b += v; o.onProgress(Math.min(size, b)); };
   const take = (j) => {
-    if (j.up && j.ps) { if (j.up !== st.up || j.ps !== st.ps) { st = { up: j.up, ps: j.ps }; if (o.onState) o.onState(st); } }
+    if (j.id && j.up && j.ps) { if (j.id !== st.id || j.up !== st.up || j.ps !== st.ps) { st = { id: j.id, up: j.up, ps: j.ps }; if (o.onState) o.onState(st); } }
+    else if (j.id && j.id !== st.id) { st = Object.assign({}, st, { id: j.id }); if (o.onState) o.onState(st); }
     if (Array.isArray(j.done)) done = new Set(j.done.map(Number));
     if (j.urls && typeof j.urls === 'object') { urls = new Map(Object.entries(j.urls).map(([k, v]) => [Number(k), v])); urlAt = E.now(); }
   };
+  const done1 = (j) => ({ id: j.id || st.id, size, name: (j.file && j.file.name) || o.name || '', mimeType: (j.file && j.file.mimeType) || o.mime || '' });
   const missing = () => { const out = []; for (let n = 1; n <= partCount(size, st.ps); n++) if (!done.has(n)) out.push(n); return out; };
   /* פותח / ממשיך: השרתון בודק ב־R2 מה הגיע ומחזיר קישורים לחלקים החסרים (עד כמה עשרות בכל פעם) */
   async function sync() {
-    const j = await o.api(st.up ? 'r2parts' : 'r2up', { job: o.job, slot: o.slot, size, type: o.mime || 'application/octet-stream', up: st.up || '' });
+    const j = await o.api(st.up ? 'r2parts' : 'r2up', st.up ? { job: o.job, id: st.id, up: st.up }
+      : { job: o.job, id: st.id || '', size, type: o.mime || 'application/octet-stream', name: o.name || '' });
     if (j && j.ok) { take(j); return j; }
     const err = (j && j.error) || 'net';
-    if (err === 'r2_gone' && st.up) { st = {}; if (o.onState) o.onState(st); return sync(); }     // ההעלאה פגה / בוטלה — מתחילים חדשה
+    if (err === 'r2_gone' && st.up) { st = { id: st.id }; if (o.onState) o.onState(st); return sync(); }   // ההעלאה פגה / בוטלה — מחדש, אותו קובץ
     if (/^(signin|forbidden|bad_|r2_off|not_found|too_big|r2_full)/.test(err)) throw fatal(err);
     throw Object.assign(new Error(err), { code: 'net' });
   }
@@ -71,15 +81,15 @@ export async function r2Upload(o, env = {}) {
     try {
       if (!st.up || !urls.size || E.now() - urlAt > URL_TTL_MS) {
         const j = await sync();
-        if (j.file) { if (o.onProgress) o.onProgress(size); return j; }     // כבר הושלם (רענון אחרי הסיום)
+        if (j.file) { if (o.onProgress) o.onProgress(size); return done1(j); }     // כבר הושלם (רענון אחרי הסיום)
       }
       report();
       const todo = missing();
       if (!todo.length) {
-        const j = await o.api('r2done', { job: o.job, slot: o.slot, up: st.up });
-        if (j && j.ok) { if (o.onProgress) o.onProgress(size); return j; }
+        const j = await o.api('r2done', { job: o.job, id: st.id, up: st.up });
+        if (j && j.ok) { if (o.onProgress) o.onProgress(size); return done1(j); }
         if (j && Array.isArray(j.missing) && j.missing.length) { done = new Set([...done].filter((n) => !j.missing.includes(n))); urls.clear(); continue; }
-        if (j && j.error === 'r2_gone') { st = {}; if (o.onState) o.onState(st); urls.clear(); continue; }
+        if (j && j.error === 'r2_gone') { st = { id: st.id }; if (o.onState) o.onState(st); urls.clear(); continue; }
         throw Object.assign(new Error((j && j.error) || 'net'), { code: 'net' });
       }
       const ready = todo.filter((n) => urls.has(n));

@@ -124,7 +124,9 @@ class AnthropicTests(unittest.TestCase):
 
     def test_modes_haiku_and_removed(self):
         # 10/10/2026: Haiku 5.5 (medium/high), Sonnet Medium = ברירת המחדל, Opus High/Max הוסרו → Opus Medium
-        self.assertEqual(sorted(llm.MODES), ['haiku-high', 'haiku-medium', 'opus-medium', 'sonnet-high', 'sonnet-medium'])
+        # 11/10/2026: Haiku Medium יצא (המחיר כמו High) — עבודה ישנה ממשיכה ב־High
+        self.assertEqual(sorted(llm.MODES), ['haiku-high', 'opus-medium', 'sonnet-high', 'sonnet-medium'])
+        self.assertEqual((llm.Spec.of('haiku-medium').model, llm.Spec.of('haiku-medium').effort), ('claude-haiku-5-5', 'high'))
         self.assertEqual(llm.DEFAULT_MODE, 'sonnet-medium')
         self.assertEqual((llm.Spec.of('haiku-high').model, llm.Spec.of('haiku-high').effort), ('claude-haiku-5-5', 'high'))
         for old in ('opus-high', 'opus-max'):
@@ -138,7 +140,7 @@ class AnthropicTests(unittest.TestCase):
         for m in ('claude-sonnet-5-5', 'claude-opus-5-5'):
             self.assertEqual(llm.judge_spec(m).model, 'claude-haiku-5-5')
         self.assertGreater(llm.est_tokens('שלום עולם ' * 50), llm.est_tokens('hello world ' * 50), 'עברית יקרה יותר בטוקנים')
-        h, s = llm.Engine(llm.Spec.of('haiku-medium'), client=FakeClient([])), llm.Engine(llm.Spec.of('sonnet-medium'), client=FakeClient([]))
+        h, s = llm.Engine(llm.Spec.of('haiku-high'), client=FakeClient([])), llm.Engine(llm.Spec.of('sonnet-medium'), client=FakeClient([]))
         big = 'word ' * 120000                                            # ‎~200K טוקנים לפי האומדן
         self.assertEqual((h.card_limit, s.card_limit), (100000, None))
         self.assertFalse(h.fits_card(big, 'x'), 'Haiku: מעל הסף — לא נשאר בכרטיס הזול')
@@ -156,7 +158,7 @@ class AnthropicTests(unittest.TestCase):
 
     def test_refusal_retry_reframed_once(self):
         c = FakeClient([fake_msg('', stop='refusal', o=5), fake_msg('#1 תרגום')])
-        e = llm.Engine(llm.Spec.of('haiku-medium'), client=c)
+        e = llm.Engine(llm.Spec.of('haiku-high'), client=c)
         r = e.complete('tl', 'קבוע', 'חלק 1')
         self.assertEqual((r.text, e.refusal_retries, e.ledger.list()[0]['n']), ('#1 תרגום', 1, 2), 'הסירוב עלה כסף — נרשם')
         self.assertEqual(c.calls[1]['model'], 'claude-haiku-5-5', 'אותו מודל — בלי מעבר למודל אחר')
@@ -164,7 +166,7 @@ class AnthropicTests(unittest.TestCase):
         self.assertIn('תרגום כתוביות', c.calls[1]['system'][1]['text'], 'המסגור אחרי נקודת המטמון')
         c2 = FakeClient([fake_msg('', stop='refusal'), fake_msg('', stop='refusal')])
         with self.assertRaises(llm.LLMError) as cm:
-            llm.Engine(llm.Spec.of('haiku-medium'), client=c2).complete('tl', 'X', 'Y')
+            llm.Engine(llm.Spec.of('haiku-high'), client=c2).complete('tl', 'X', 'Y')
         self.assertEqual(cm.exception.code, 'model_refusal', 'סירוב שני = כשל גלוי')
 
     def test_thinking_tokens_from_usage(self):

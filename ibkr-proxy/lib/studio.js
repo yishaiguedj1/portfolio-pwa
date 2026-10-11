@@ -26,9 +26,9 @@ const KINDS = ['ping', 'tr', 'rr', 'ai'];   // מ2: rr = הפקה מחדש (כת
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
 const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. הראשון = ברירת המחדל (Sonnet Medium — המומלץ).
-const MODES = ['sonnet-medium', 'haiku-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
+const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
-const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
+const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high' };   // 11/10: Haiku Medium יצא (= המחיר של High)
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || MODES[0]);
 /* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
    של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
@@ -252,23 +252,34 @@ const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
 // Haiku 5.5 (10/10/2026): מחושב ממאגר המדידות — הטוקנים של Sonnet Medium (5 דק׳ TED) במחיר של Haiku (פי 20 זול) ×1.3
 // (הטוקנייזר שלו סופר יותר) = ‎~0.2$ לשעה במצב API; ב־Routine הסשן המתזמר נשאר Sonnet (‎~1.1$). 0.6/0.8 = בין השניים,
 // כך שאף מנוע לא מגיע ל"חריג" (פי 2) בלי סיבה. יוחלף ב"רגיל" הנלמד מ־NORM_MIN עבודות.
-const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-medium': 0.6, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
+const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
 const NORM_FIXED = 1.5;
+/* 11/10/2026: מצב השרת (API) — בלי סשן Claude מתזמר: אין "עלות פתיחה" של ~127K טוקנים, ומנהל העבודה רץ במודל של המצב.
+   מהמדידות (5 דק׳ TED, translator/bench: ‎$0.565 / 0.345 / 0.215 / 0.045 / 0.04 לעבודה) × 12, מעוגל מעלה; הקבוע = השופט
+   ושאר מה שלא תלוי באורך. עד 11/10 השרת השתמש בערכי ה־Routine — "הרגיל" ל־Haiku High היה $0.80 ($0.54 בפועל), והתקציב
+   לעבודה של 5 דק׳ ‎~$1.55 (בפועל $0.04). **זהה ל־NORM_DEF_API / NORM_FIXED_API בטלפון** (studio.js). */
+const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
+const NORM_FIXED_API = 0.05;
+const engKey = (e) => (e === 'api' || e === 'a' ? 'a' : 'r');
+const normDef = (mode, eng) => (engKey(eng) === 'a' ? NORM_DEF_API : NORM_DEF)[mode];
+const normFixed = (eng) => (engKey(eng) === 'a' ? NORM_FIXED_API : NORM_FIXED);
 function normSample(job, use, now) {
   const sp = job && job.spec;
   if (!job || job.kind !== 'tr' || (job.fires || 0) > 1 || !sp || !MODES.includes(sp.mode) || !(sp.dur > 0)) return null;
   if (!Array.isArray(use) || !use.length || use.some((r) => r.usd == null)) return null;   // מודל בלי מחירון — לא יודעים כמה עלה
   const u = use.reduce((s, r) => s + (r.usd || 0), 0);
   if (!(u > 0) || u > 1e4) return null;
-  return { m: sp.mode, d: Math.round(sp.dur), u: Math.round(u * 100) / 100, at: now };
+  return { m: sp.mode, d: Math.round(sp.dur), u: Math.round(u * 100) / 100, at: now, e: engKey(job.eng) };   // e: המנוע — העלות שונה בסדר גודל
 }
 function addSample(list, s) {
   return (Array.isArray(list) ? list : []).filter((x) => x && MODES.includes(x.m) && x.d > 0 && x.u > 0).concat(s ? [s] : []).slice(-NORM_KEEP);
 }
 const median = (a) => { const s = a.slice().sort((x, y) => x - y), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
 /* לשעת סרטון (אורך מינימלי 10 דק׳ — בסרטון קצר עלות הפתיחה שולטת). ph = החציון, mx = הכבדה ביותר, n = כמה עבודות */
-function learnedNorm(list, mode) {
-  const rates = addSample(list, null).filter((x) => x.m === mode).map((x) => x.u / (Math.max(x.d, NORM_DUR_MIN) / 3600));
+/* eng: 'r' (Routine) / 'a' (השרת). דגימה בלי מנוע (לפני 11/10) לא נלמדת — אי אפשר לדעת מאיזה מנוע היא */
+function learnedNorm(list, mode, eng) {
+  const e = engKey(eng);
+  const rates = addSample(list, null).filter((x) => x.m === mode && x.e === e).map((x) => x.u / (Math.max(x.d, NORM_DUR_MIN) / 3600));
   if (rates.length < NORM_MIN) return null;
   const r2 = (v) => Math.round(v * 100) / 100;
   return { ph: r2(median(rates)), mx: r2(Math.max(...rates)), n: rates.length };
@@ -301,11 +312,11 @@ function thView(th) {
 const LOOP_N = 3, LOOP_WIN = 24 * 3600e3;
 const loopRecent = (job, now) => (Array.isArray(job.rh) ? job.rh : []).filter((t) => typeof t === 'number' && now - t < LOOP_WIN && t <= now);
 /* לטלפון (מסך "מגדל הפיקוח"): לכל מצב — הנלמד, או ברירת המחדל (d: true) */
-function normsView(list) {
-  const out = {};
+function normsView(list, eng) {
+  const out = {}, e = engKey(eng);
   for (const m of MODES) {
-    const l = learnedNorm(list, m);
-    out[m] = l || { ph: NORM_DEF[m], n: addSample(list, null).filter((x) => x.m === m).length, d: true };
+    const l = learnedNorm(list, m, e);
+    out[m] = l || { ph: normDef(m, e), n: addSample(list, null).filter((x) => x.m === m && x.e === e).length, d: true };
   }
   return out;
 }
@@ -424,7 +435,7 @@ function normRules(r) {
   const b = Number(o.b);
   return {
     b: Number.isFinite(b) && b >= 1 ? Math.min(RULE_BUDGET_MAX, Math.round(b * 2) / 2) : 0,
-    mx: MODES.includes(o.mx) ? o.mx : '',
+    mx: MODES.includes(o.mx) ? o.mx : LEGACY_MODES[o.mx] || '',   // 11/10: מקסימום במצב שהוסר → הקרוב (לא "בלי הגבלה")
     ab: o.ab === true,
     jx: o.jx === true,   // v375: שופט האיכות כבוי (ברירת המחדל — פועל, החלטה 4 בתוכנית)
   };
@@ -852,7 +863,7 @@ module.exports = { JSON_FIELDS,
   MAX_ACTIVE, MAX_STORED, FIRE_HOUR, TEST_GAP,
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
-  NORM_MIN, NORM_DEF, NORM_FIXED, normSample, addSample, learnedNorm, normsView,
+  NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,

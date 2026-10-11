@@ -16,7 +16,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const O = require(path.join(root, 'ibkr-proxy/lib/studioops.js'));
   ok(JSON.stringify(S.normRules()) === '{"b":0,"mx":"","ab":false,"jx":false}', 'בלי חוקים כברירת מחדל');
   const order = Object.keys(S.NORM_DEF).sort((a, b) => S.NORM_DEF[a] - S.NORM_DEF[b]);
-  ok(order.join() === 'haiku-medium,haiku-high,sonnet-medium,sonnet-high,opus-medium', '"מצב מקסימלי" — לפי הצפוי לשעה (NORM_DEF)');
+  ok(order.join() === 'haiku-high,sonnet-medium,sonnet-high,opus-medium', '"מצב מקסימלי" — לפי הצפוי לשעה (NORM_DEF)');
   const g = S.normGate({ k: 'b', usd: 10.271, cap: 10 }, 'g000000000001');
   ok(g.g === 'b' && g.q === '' && g.o.join() === 'go,stop' && g.d === 1 && g.n.usd === 10.27, 'שער תקציב — בלי טקסט מ־Claude, ברירת המחדל "לעצור"');
   ok(S.normGate({ k: 'r', cues: [{ t: '1:00', x: 'א' }], cnt: 3 }, 'g1').d === 1 && S.normGate({ k: 'q' }, 'g1') === null, 'שער צריבה — ברירת המחדל "רק כתוביות"; סוג לא מוכר נזרק');
@@ -27,7 +27,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/op === 'rules'/.test(api) && /op === 'halt'/.test(api) && /kh: ''/.test(api) && /'halted'/.test(api), 'השרתון: חוקים, מתג החירום (מבטל את מפתחות העבודות), חסימת הפעלות');
   ok(/await ruleBlock\(deps, uid, job, body\)/.test(api) && /await ruleBlock\(deps, uid, job, auto \? \{ ov: true \} : body\)/.test(api) && /await doResume\(deps, uid, job, now, body, false\)/.test(api) && /body\.ov !== true/.test(api),
     'התחלה והמשך — מתג החירום ומצב מעל המקסימום (ov = "בכל זאת"; v368: ההמשך דרך doResume)');
-  ok(/WORKER_OPS = new Set\(\['claim', 'token', 'report', 'qa'\]\)/.test(api), 'העובד בודק תשובה לשער בלי לבקש Drive');
+  ok(/WORKER_OPS = new Set\(\['claim', 'token', 'report', 'qa'(, 'r2[a-z]+')*\]\)/.test(api), 'העובד בודק תשובה לשער בלי לבקש Drive (ת4: ופעולות הקבצים ב־R2)');
 
   /* ---------- 2. העובד והמגדל ---------- */
   const job = read('translator/job.py');

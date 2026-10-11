@@ -11,6 +11,9 @@ const ETA = require('./studioeta');
 const DAY = 86400e3;
 const BASE_N = 5, BASE_MAX = 20, BASE_WIN = 90 * DAY;   // מינימום עבודות לבסיס; לכל היותר 20 אחרונות; 90 יום
 const REL_MIN = 0.15;                                   // סטייה מינימלית = 15% מהחציון (בלי זה עבודות זהות → כל שינוי "חריג")
+// 11/10/2026: סטייה זעירה בערכים אמיתיים לא חריגה, גם כשהיא גדולה ביחס (שמירה ב־Drive: 40 שנ׳ במקום 15 = "10").
+// זמן: לפחות דקה מעל הרגיל (בשניות של העבודה עצמה); עלות: לפחות 25 סנט לשעת סרטון
+const ABS_T = 60, ABS_U = 0.25;
 const HI = 6, PERSIST = [2, 3], FREQ_N = 5, RECENT = 10;
 // המדדים: t:<שלב> = זמן, u:<סוכן> = עלות. רכיב = מי אחראי (לפי מפת השירות); m = הבסיס לפי אותו מצב תרגום
 const METRICS = [
@@ -22,12 +25,20 @@ const METRICS = [
 const COMPS = ['vt', 'claude', 'drive'];
 
 /* הערכים של עבודה שהסתיימה (מה שאין — חסר) */
+/* התוכנית של העבודה (שניות לכל שלב) — מה שנקבע בלקיחה, ואם אין — ה־prior של המנוע */
+function planOf(j) {
+  const ep = ETA.normEp(j.ep);
+  return ep ? ep.s : ETA.planOf(ETA.PRIOR[j.eng === 'api' ? 'a' : 'r'], j.spec.mode, j.spec.dur).s;
+}
+/* 11/10/2026: עבודה שהופעלה יותר מפעם אחת ("המשך" אחרי תקלה, ידני או אוטומטי) לא נמדדת ולא נכנסת לבסיס — זמני השלבים
+   כוללים את ההשבתה והעלות את הסשן שנקטע (כמו ב"רגיל" הנלמד וב־studioeta). התקלה עצמה כבר במקום אחר: תקלות, תקציב השגיאות */
+const singleRun = (j) => (j.fires || 1) <= 1;
 function metricVals(j) {
   const out = {};
-  if (!j || j.kind !== 'tr' || j.state !== 'done' || !j.spec || !(j.spec.dur > 0)) return out;
+  if (!j || j.kind !== 'tr' || j.state !== 'done' || !j.spec || !(j.spec.dur > 0) || !singleRun(j)) return out;
   const hr = j.spec.dur / 3600;
   const stg = (j.prog && j.prog.stg) || {};
-  const ep = ETA.normEp(j.ep), plan = ep ? ep.s : ETA.planOf(ETA.PRIOR[j.eng === 'api' ? 'a' : 'r'], j.spec.mode, j.spec.dur).s;
+  const plan = planOf(j);
   for (const s of L.STAGES) {
     const g = stg[s];
     if (g && g.s > 0 && g.e >= g.s && plan[s] > 0) out['t:' + s] = Math.round((g.e - g.s) / 1000 / plan[s] * 1000) / 1000;   // 1 = בדיוק כצפוי
@@ -67,7 +78,7 @@ function anomView(list, now) {
   const jobs = (Array.isArray(list) ? list : [])
     .filter((j) => j && j.kind === 'tr' && j.state === 'done' && doneAt(j) && now - doneAt(j) <= BASE_WIN)
     .sort((a, b) => doneAt(a) - doneAt(b));
-  const vals = jobs.map((j) => ({ j, v: metricVals(j), m: (j.spec && j.spec.mode) || '', e: j.eng === 'api' ? 'a' : 'r' }));
+  const vals = jobs.filter(singleRun).map((j) => ({ j, v: metricVals(j), p: planOf(j), m: (j.spec && j.spec.mode) || '', e: j.eng === 'api' ? 'a' : 'r' }));
   // הציון של כל עבודה — מול העבודות שלפניה בלבד (לא מול עצמה ולא מול העתיד)
   const scored = [];
   for (let i = 0; i < vals.length; i++) {
@@ -76,15 +87,20 @@ function anomView(list, now) {
       if (typeof cur.v[M.k] !== 'number') continue;
       const prev = vals.slice(0, i).filter((x) => typeof x.v[M.k] === 'number' && (!M.m || x.m === cur.m) && (!M.e || x.e === cur.e)).slice(-BASE_MAX).map((x) => x.v[M.k]);
       const b = baseline(prev);
-      const s = score(cur.v[M.k], b);
-      if (s != null) sc[M.k] = { s, v: cur.v[M.k], med: Math.round(b.med * 1000) / 1000 };
+      let s = score(cur.v[M.k], b);
+      if (s > 0) {   // מעל הרגיל ביחס — אבל בערכים אמיתיים? (שניות של העבודה / דולר לשעה)
+        const st = M.k.slice(2), diff = cur.v[M.k] - b.med;
+        if (M.k[0] === 't' ? diff * (cur.p[st] || 0) < ABS_T : diff < ABS_U) s = 0;
+      }
+      if (s != null) sc[M.k] = { s, v: cur.v[M.k], med: Math.round(b.med * 1000) / 1000, ps: M.k[0] === 't' ? Math.round(cur.p[M.k.slice(2)] || 0) : undefined };
     }
     scored.push({ j: cur.j, at: doneAt(cur.j), m: cur.m, sc });
   }
   const recent = scored.slice(-RECENT);
   const out = { n: jobs.length, min: BASE_N, hi: HI, j: {}, m: [], act: [] };
   for (const r of recent) {
-    const rows = Object.keys(r.sc).filter((k) => r.sc[k].s > 0).map((k) => [k, r.sc[k].s, r.sc[k].v, r.sc[k].med]).sort((a, b) => b[1] - a[1]);   // רק מה שמעל הרגיל
+    // רק מה שמעל הרגיל. [מדד, ציון, ערך, רגיל, שניות בתוכנית] — v/med בזמן = יחס לצפי (1 = כצפוי); בטלפון × השניות = זמן אמיתי
+    const rows = Object.keys(r.sc).filter((k) => r.sc[k].s > 0).map((k) => [k, r.sc[k].s, r.sc[k].v, r.sc[k].med].concat(r.sc[k].ps != null ? [r.sc[k].ps] : [])).sort((a, b) => b[1] - a[1]);
     if (rows.length) out.j[r.j.id] = rows;
   }
   // לכל מדד: הציון האחרון, המגמה, התדירות (מתוך 5) וההתמדה (2 מתוך 3)
@@ -108,4 +124,4 @@ function anomAlerts(view) {
   return COMPS.map((c) => (on.has(c) ? { c, k: 'anomaly' } : { c, k: 'anomaly', ok: true }));
 }
 
-module.exports = { BASE_N, BASE_MAX, BASE_WIN, REL_MIN, HI, PERSIST, FREQ_N, RECENT, METRICS, COMPS, metricVals, baseline, score, anomView, anomAlerts };
+module.exports = { BASE_N, BASE_MAX, BASE_WIN, REL_MIN, ABS_T, ABS_U, HI, PERSIST, FREQ_N, RECENT, METRICS, COMPS, metricVals, baseline, score, anomView, anomAlerts };

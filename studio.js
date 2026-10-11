@@ -10,6 +10,8 @@
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
 import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
+// ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
+import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
@@ -27,12 +29,12 @@ export const MODES = [
   { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85, rec: true },
   { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 4, min: 95 },
   // Haiku: min מהמדידות — זמן קבוע (תמלול, יישור, צריבה ‎~52 דק׳ לשעה) + חלק ה־LLM (Opus ‎~53) × המהירות היחסית
-  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 70 },
   { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76 },
 ];
 export const DEFAULT_MODE = 'sonnet-medium';
 // מצבים שהוסרו → המצב הקיים הקרוב (= LEGACY_MODES בשרתון ובעובד): עבודה / טיוטה / חוק ישנים ממשיכים לעבוד
-export const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
+// 11/10/2026 (בקשת המשתמש): Haiku Medium יצא — המחיר כמו High (‎$0.04 מול $0.045 לעבודה של 5 דק׳), אז נשאר רק High
+export const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high' };
 export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : LEGACY_MODES[id] || DEFAULT_MODE);
 const REC_MODE = MODES.find((m) => m.rec);
 /* שפות: התמלול (Parakeet v2/v3, ivrit.ai, Omnilingual) מכסה גם שפות שלא ברשימה — זו רשימת הבחירה המהירה */
@@ -54,6 +56,7 @@ const COMPACT_RATIO = 0.53;   // "דחוס" ≈ חצי מהמקור (נמדד ע
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 const FID_RE = /^[A-Za-z0-9_-]{10,100}$/;
 const UPURI_RE = /^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files\?/;   // כתובת העלאה של Drive — לא שום כתובת אחרת
+const R2_UPID_RE = /^[A-Za-z0-9+/=._~-]{8,600}$/;   // ת4: מזהה של העלאה בחלקים ב־R2 (לא כתובת — הקישורים מגיעים מהשרתון)
 const STATES = ['new', 'queued', 'running', 'done', 'failed', 'cancelled'];
 const FINAL = ['done', 'failed', 'cancelled'];
 /* החיבור ל־Claude: אותה בדיקת צורה כמו בשרתון (lib/studio.js) — כדי לענות מיד על הדבקה שגויה */
@@ -141,8 +144,9 @@ export function normJob(j) {
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
-    return { done: x.done === true, id: FID_RE.test(String(x.id || '')) ? x.id : '', size: num(x.size),
-      uri: UPURI_RE.test(String(x.uri || '')) ? String(x.uri).slice(0, 2000) : '', sent: num(x.sent) };
+    const r2 = x.r2 && typeof x.r2 === 'object' && R2_UPID_RE.test(String(x.r2.up || '')) && FID_RE.test(String(x.r2.id || '')) ? { id: x.r2.id, up: x.r2.up, ps: num(x.r2.ps) } : null;
+    return Object.assign({ done: x.done === true, id: FID_RE.test(String(x.id || '')) ? x.id : '', size: num(x.size),
+      uri: UPURI_RE.test(String(x.uri || '')) ? String(x.uri).slice(0, 2000) : '', sent: num(x.sent) }, r2 ? { r2 } : {});   // ת4: העלאה ל־R2 שבדרך
   };
   const up = { folder: FID_RE.test(String(u.folder || '')) ? u.folder : '', a: part(u.a), v: part(u.v),
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
@@ -197,12 +201,15 @@ export function normGq(o) {
   return sc == null || tm == null || n == null ? null : { s: sc, tm, n, at: num(o.at) };
 }
 export const NORM_FIXED = 1.5;   // **זהה ל־NORM_FIXED בשרתון** (lib/studio.js) — העלות הקבועה של עבודה (פתיחה, מדריכים)
+// 11/10/2026: מצב השרת — בלי סשן מתזמר (**זהה ל־NORM_DEF_API / NORM_FIXED_API בשרתון**; tests/studio-v363 משווה)
+export const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
+export const NORM_FIXED_API = 0.05;
 /* מ6 (כלל 2): אומדן לפני כל התחלה — זמן (דקות לשעת וידאו של המצב × האורך) ועלות ("הרגיל" שלך, אחרת ברירת המחדל).
    במצב השרת — גם כמה נשאר מהתקציב החודשי. טהור */
 export function startEstimate(mode, dur, norm, api, apiOn) {
   const d = dur > 0 ? dur : 0, m = modeById(mode);
   if (!d) return { min: 0, usd: 0, left: null, over: false };
-  const usd = Math.round((goldEstimate([{ spec: { mode: m.id, dur: d } }], norm) + NORM_FIXED) * 100) / 100;   // + פתיחת הסשן (קבוע לכל עבודה)
+  const usd = Math.round((goldEstimate([{ spec: { mode: m.id, dur: d } }], norm) + (apiOn ? NORM_FIXED_API : NORM_FIXED)) * 100) / 100;   // + הקבוע לעבודה (ב־Routine — פתיחת הסשן)
   const left = apiOn && api ? Math.max(0, Math.round((api.cap - api.month) * 100) / 100) : null;
   return { min: Math.max(1, Math.round(m.min * d / 3600)), usd, left, over: left != null && usd > left };
 }
@@ -248,7 +255,8 @@ export function normRules(r) {
   const o = r && typeof r === 'object' ? r : {};
   const n = typeof o.b === 'number' ? o.b : NaN;   // הסקירה: כמו בשרתון — עיגול לחצי דולר, עד 500 (מה שמוצג = מה שנשמר)
   const b = Number.isFinite(n) && n >= 1 ? Math.min(500, Math.round(n * 2) / 2) : 0;
-  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true, jx: o.jx === true };   // v375: jx = שופט האיכות כבוי
+  // v375: jx = שופט האיכות כבוי · 11/10: מקסימום במצב שהוסר → הקרוב (לא "בלי הגבלה")
+  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : LEGACY_MODES[o.mx] || '', ab: o.ab === true, jx: o.jx === true };
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
 const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
@@ -397,7 +405,7 @@ export function normSlo(o) {
   const int = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
   const n = int(o.n, 1e5), bad = Math.min(n, int(o.bad, 1e5));
   return { t: int(o.t, 100) || 95, n, good: n - bad, bad, att: n ? Math.round((n - bad) / n * 1000) / 10 : null, left: int(o.left, 100),
-    burn: typeof o.burn === 'number' && o.burn >= 0 && o.burn < 1e3 ? o.burn : 0, n7: int(o.n7, 1e5), st: o.st, min: int(o.min, 100) || 5,
+    burn: typeof o.burn === 'number' && o.burn >= 0 && o.burn < 1e3 ? o.burn : 0, n7: int(o.n7, 1e5), st: o.st, min: int(o.min, 100) || 20,
     list: (Array.isArray(o.list) ? o.list : []).filter((x) => x && JOB_RE.test(String(x.j || '')) && SLO_C.includes(x.c)).slice(0, 10).map((x) => ({ j: x.j, c: x.c, at: num(x.at) })) };
 }
 /* v385: ציון חריגה 0–10 (lib/studioanom.js anomView) — צורה קבועה */
@@ -412,7 +420,7 @@ export function normAn(o) {
   if (o.j && typeof o.j === 'object') for (const id of Object.keys(o.j).slice(0, 20)) {
     if (!JOB_RE.test(id) || !Array.isArray(o.j[id])) continue;
     const rows = o.j[id].filter((r) => Array.isArray(r) && AN_KEYS.includes(r[0]) && sc(r[1]) != null && pos(r[2]) != null && pos(r[3]) != null)
-      .slice(0, AN_KEYS.length).map((r) => [r[0], sc(r[1]), r[2], r[3]]);
+      .slice(0, AN_KEYS.length).map((r) => (pos(r[4]) != null ? [r[0], sc(r[1]), r[2], r[3], r[4]] : [r[0], sc(r[1]), r[2], r[3]]));   // r[4] = שניות בתוכנית (זמן)
     if (rows.length) out.j[id] = rows;
   }
   for (const r of Array.isArray(o.m) ? o.m.slice(0, AN_KEYS.length) : []) {
@@ -666,7 +674,7 @@ export function normStore(o) {
    לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת */
 export function migrateSettings(o) {
   const s = normSettings(o);
-  if (o && typeof o === 'object' && o.mv !== 2 && (o.mode === 'opus-medium' || LEGACY_MODES[o.mode])) s.mode = DEFAULT_MODE;
+  if (o && typeof o === 'object' && o.mv !== 2 && /^opus-(medium|high|max)$/.test(o.mode)) s.mode = DEFAULT_MODE;   // רק Opus (Haiku Medium → High דרך modeNow)
   s.mv = 2;
   return s;
 }
@@ -732,7 +740,6 @@ function modeSub(id) {
     case 'opus-medium': return T('studioMsOpusMed');
     case 'sonnet-high': return T('studioMsSonHigh');
     case 'haiku-high': return T('studioMsHaiHigh');
-    case 'haiku-medium': return T('studioMsHaiMed');
     default: return T('studioMsSonMed');
   }
 }
@@ -741,7 +748,6 @@ function effortSub(id) {
     case 'opus-medium': return T('studioEfOpusMed');
     case 'sonnet-high': return T('studioEfSonHigh');
     case 'haiku-high': return T('studioEfHaiHigh');
-    case 'haiku-medium': return T('studioEfHaiMed');
     default: return T('studioEfSonMed');
   }
 }
@@ -750,7 +756,6 @@ function modeSum(id) {
     case 'opus-medium': return T('studioSumOpusMed');
     case 'sonnet-high': return T('studioSumSonHigh');
     case 'haiku-high': return T('studioSumHaiHigh');
-    case 'haiku-medium': return T('studioSumHaiMed');
     default: return T('studioSumSonMed');
   }
 }
@@ -811,7 +816,8 @@ function errText(code, extra) {
     case 'not_allowed': return T('studioErrDenied');
     case 'month_cap': return T('studioErrMonthCap');
     case 'no_server': return T('studioErrNoServer');
-    case 'worker_oom': case 'worker_crash': return T('studioErrOom');
+    case 'worker_oom': return T('studioErrOom');
+    case 'worker_crash': return T('studioErrCrash');   // 11/10/2026: קריסה ≠ זיכרון (ההודעה המשותפת הטעתה — PR #66)
     case 'not_admin': return T('studioErrNotAdmin');
     case 'net': case 'http_0': return T('studioErrNet');
     case 'drive_full': return T('studioErrDriveFull');
@@ -906,6 +912,9 @@ function fmtLeft(sec) {             // "55 דקות" / "שעה ו־40 דק׳" �
   if (m < 60) return T('studioMinLong', { m });
   return T('studioHM', { h: Math.floor(m / 60), m: m % 60 });
 }
+function fmtSecShort(sec) {         // מתחת לדקה וחצי — בשניות ("40 שנ׳"), אחרת כמו fmtShort
+  return sec < 90 ? T('studioSecs', { n: Math.max(1, Math.round(sec)) }) : fmtShort(sec);
+}
 function fmtShort(sec) {            // "8 דק׳" / "1:05 ש׳" — בשורות השלבים
   const m = Math.max(1, Math.round(Math.max(0, sec) / 60));
   return m < 60 ? T('studioMinShort', { m }) : T('studioHMShort', { t: fmtHM(m) });
@@ -963,7 +972,8 @@ async function refreshStatus(force) {
     ui.access = 'ok'; ui.kinds = Array.isArray(j.kinds) ? j.kinds : [];
     store.conn = j.conn ? { hint: String(j.conn.hint || ''), ok: num(j.conn.ok), since: num(j.conn.since) } : null;
     store.drive = j.drive ? { connected: !!j.drive.connected, email: String(j.drive.email || ''), configured: j.drive.configured !== false } : null;
-    ui.norm = normNorms(j.norm) || ui.norm;
+    ui.normR = normNorms(j.norm) || ui.normR;
+    ui.normA = normNorms(j.normA) || ui.normA;   // 11/10: הרגיל לפי המנוע — curNorm() בוחר
     ui.sh = normSh(j.sh);   // v384: מצב צל לכל מצב (כמה עבודות עד אכיפה)
     ui.fb = normFb(j.fb) || ui.fb;
     ui.fm = j.fm === 'auto' ? 'auto' : 'suggest';   // v366: מסלול התיקונים (ברירת מחדל — הצעות לאישור)
@@ -1181,6 +1191,7 @@ async function runJob(id, run) {
         const size = ex.blob.size;
         run.phase = 'audio'; run.p = 0; run.sent = 0; run.total = size; run.rs = null; paintSoon();
         const f = await net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
+          r2: up.a.r2, onR2: (x) => { up.a.r2 = x; save(); },
           meta: { name: fileTitle(rec.spec.name) + ' — ' + T('studioAudioFile') + '.' + ex.ext, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'a' } },
           onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); },
           onWait: () => paintSoon() });
@@ -1195,7 +1206,7 @@ async function runJob(id, run) {
     if (!up.v.done) {
       run.phase = 'video'; run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; run.rs = null; paintSoon();
       const f = await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: () => gate(run),
-        uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); },
+        uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
         meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
         onProgress: (b) => { up.v.sent = b; run.sent = b; run.p = b / file.size; tickRate(run, b); paintSoon(); saveSoon(); },
         onWait: () => paintSoon() });
@@ -1977,7 +1988,7 @@ function startFromForm() {
     if (ed) spec.edl = ed;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
-    const est = startEstimate(spec.mode, spec.dur, ui.norm, ui.api, apiMode());
+    const est = startEstimate(spec.mode, spec.dur, curNorm(), ui.api, apiMode());
     if (est.min && typeof askConfirm === 'function') {
       const yes = await new Promise((ok) => askConfirm(estText(est, apiMode()), () => ok(true), { ok: T('studioEstGo'), onNo: () => ok(false) }));
       if (!yes || form !== f) { ui.starting = false; render('none'); return; }
@@ -1988,7 +1999,8 @@ function startFromForm() {
     const ext = !f.fileObj;
     const rec = normJob({ id: j.job.id, created: j.job.created || Date.now(), spec: j.job.spec || spec, srv: j.job,
       fp: { name: file.name, size: file.size, lm: file.lastModified || 0 },
-      up: ext ? { ext: true, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {} });
+      up: Object.assign(ext ? { ext: true, noAudio: 'drive', a: {}, v: { done: true, id: f.drive.id, size: f.drive.size } } : {},
+        isR2Folder(j.job.folder) ? { folder: j.job.folder } : {}) });   // ת4: עבודה במצב שרת — התיקייה ב־R2 (בלי תיקייה ב־Drive)
     store.jobs.unshift(rec);
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
     save();
@@ -2085,8 +2097,11 @@ async function exportToDrive(rec) {
   if (rec.up.dx && rec.up.dx.f === dest.id) { flashSafe(T('studioDxDone', { n: dest.name || rec.up.dx.n })); return; }   // כבר שם
   dxBusy = rec.id; render('none');
   try {
-    for (const o of vids) await net.driveMove(o.id, rec.up.dx ? rec.up.dx.f : folder, dest.id);
-    if (srt) await net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt');
+    for (const o of vids) {
+      if (isR2Id(o.id)) await net.r2ToDrive(o.id, dest.id, fileTitle(rec.spec.name) + ' — ' + o.k + (o.k === 'mkv' ? '.mkv' : '.mp4'));   // ת4: מ־R2 — עותק לתיקייה שבחרת
+      else await net.driveMove(o.id, rec.up.dx ? rec.up.dx.f : folder, dest.id);
+    }
+    if (srt) await (isR2Id(srt.id) ? net.r2ToDrive(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt') : net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt'));
     rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: Date.now() };
     save();
     flashSafe(T('studioDxDone', { n: dest.name }));
@@ -3017,7 +3032,7 @@ function slaCard(sla) {
 }
 /* v383: תקציב שגיאות — שורה במגדל (כמה נשאר) → דף slo */
 const SLO_TILE = { ok: 'green', warn: 'orange', fast: 'orange', out: 'red', few: 'blue' };
-function sloSub(sl) { return sl.st === 'few' ? T('studioSloFew', { n: sl.n, m: sl.min }) : T('studioSloAtt', { a: fmtNum(sl.att), t: sl.t }); }
+function sloSub(sl) { return sl.st === 'few' ? T('studioSloFew', { g: sl.good, n: sl.n, m: sl.min }) : T('studioSloAtt', { a: fmtNum(sl.att), t: sl.t }); }
 function sloSection() {
   const sl = ui.slo, an = ui.an;
   const rows = [];
@@ -3066,11 +3081,12 @@ function anJobRows(rec) {
   if (!rows || !dur) return [];
   const show = rows.filter((r) => r[1] >= 3);
   if (!show.length) return [];
-  return [secT(T('studioAnJobT')), list(...show.map(([k, sc, v, med]) => {
+  return [secT(T('studioAnJobT')), list(...show.map(([k, sc, v, med, ps0]) => {
     const r = h('div', 'st-row');
     r.dataset.k = 'an:' + k;
     const sub = h('span');
-    if (k[0] === 't') sub.append(T('studioAnVsT', { a: fmtShort(v * dur / 60), b: fmtShort(med * dur / 60) }));
+    // 11/10/2026: בזמן — v ו־med הם יחס לצפי (1 = כצפוי), לא שניות לדקה: × שניות השלב בתוכנית של העבודה = זמן אמיתי
+    if (k[0] === 't') { const ps = ps0 || planFor(rec).s[k.slice(2)] || 0; sub.append(T('studioAnVsT', { a: fmtSecShort(v * ps), b: fmtSecShort(med * ps) })); }
     else { sub.append(usdEl(v * dur / 3600), ' · ' + T('studioAnVsU') + ' '); sub.append(usdEl(med * dur / 3600)); }
     const l = h('span', 'st-l'), sm = h('small'); sm.append(sub); l.append(h('b', null, anName(k)), sm);
     r.append(l, anChip(sc, an.hi));
@@ -3405,10 +3421,10 @@ function pageTower(p) {
   // v376: ספר התיקונים הפך לניהול בעיות (Problem · KEDB) — כל תקלה שחוזרת, מה העקיפה, ומה שווה לתקן בקוד; ואחריו ספרי ההפעלה
   p.append(...pbSection(), ...rbSection());
   // הרגיל — המצב שבשימוש בברירת המחדל, וכל מצב שכבר נלמד מהעבודות שלך
-  const nm = ui.norm;
+  const nm = curNorm();
   let learned = false;
   if (nm) {
-    const ids = MODES.map((m) => m.id).filter((id) => nm[id] && (id === store.settings.mode || !nm[id].d || nm[id].n));
+    const ids = MODE_ORDER.slice().reverse().filter((id) => nm[id]);   // 11/10: כל המצבים (מהיקר לזול) — טבלת מחירים אחת, גם למצב שעוד לא נלמד
     const rows = ids.map((id) => {
       const v = nm[id];
       if (!v.d) learned = true;
@@ -3458,7 +3474,7 @@ function haltBanner() {
   return b;
 }
 /* v367: "החוקים שלך" — סיכום בשורה אחת */
-const MODE_ORDER = ['haiku-medium', 'haiku-high', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
+const MODE_ORDER = ['haiku-high', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
 export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
 const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
 const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));
@@ -3834,7 +3850,7 @@ function goldSection() {
   return [secT(T('studioGoldT')), list(...rows), run, note(T('studioGoldRunNote'))];
 }
 function goldRunAsk(gold) {
-  const usd = goldEstimate(gold, ui.norm);
+  const usd = goldEstimate(gold, curNorm());
   const go2 = () => goldRun();
   if (typeof askConfirm === 'function') askConfirm(gold.length === 1 ? T('studioGoldRunQ1', { usd: fmtUsd(usd) }) : T('studioGoldRunQ', { n: gold.length, usd: fmtUsd(usd) }), go2, { ok: T('studioGoldRunOk') });
 }
@@ -4800,6 +4816,7 @@ async function pushTest() {
    השרת לא פתוח לאינטרנט — הוא שואל את השרתון כל 20 שנ׳ ומדווח דופק. כאן רואים אותו ומנהלים אותו (המנהל בלבד):
    מחובר / לא, גרסה, דיסק, זיכרון, מה הוא מתרגם, השהיה, הסרה (הטוקן מת מיד), והוספה (הטוקן מוצג פעם אחת) */
 const apiMode = () => store.settings.conn === 'api' && !!ui.api;
+const curNorm = () => (apiMode() ? ui.normA || ui.normR : ui.normR);   // "הרגיל" של המנוע שבשימוש
 async function refreshServers() {
   if (!ui.api || !ui.api.admin) return;
   const j = await net.api('srvList');
@@ -5066,7 +5083,7 @@ function shapeKey() {
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(ui.norm) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
+  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(curNorm()) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
   if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378

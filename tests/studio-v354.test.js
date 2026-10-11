@@ -25,7 +25,7 @@ ok(S.LS_STUDIO === 'pwa_studio_v1', 'מפתח האחסון: pwa_studio_v1');
 const def = S.defaultSettings();
 ok(def.mode === 'sonnet-medium' && S.DEFAULT_MODE === 'sonnet-medium', 'ברירת המחדל: Sonnet 5.5 · Medium (מ־10/10/2026)');
 ok(S.MODES.filter((m) => m.rec).length === 1 && S.MODES.find((m) => m.rec).id === 'sonnet-medium', 'בדיוק מצב אחד מסומן "מומלץ" — Sonnet Medium');
-ok(S.MODES.map((m) => m.id).sort().join() === 'haiku-high,haiku-medium,opus-medium,sonnet-high,sonnet-medium', 'חמשת המצבים (10/10/2026: Haiku במקום Opus High/Max)');
+ok(S.MODES.map((m) => m.id).sort().join() === 'haiku-high,opus-medium,sonnet-high,sonnet-medium', 'ארבעת המצבים (10/10/2026: Haiku במקום Opus High/Max; 11/10: Haiku Medium יצא)');
 ok(def.out.same === true && def.out.compact === false && def.out.mkv === false, 'ברירת המחדל לפלט: זהה למקור (+SRT תמיד)');
 ok(S.outList(def.out).join() === 'same,srt' && S.outList({ compact: true, mkv: true }).join() === 'compact,mkv,srt', 'SRT תמיד בסוף רשימת הפלטים');
 ok(def.to.join() === 'he' && def.style === 'bold' && def.conn === 'sub', 'ברירות מחדל: עברית, מודגש, המנוי שלי');
