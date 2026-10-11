@@ -519,8 +519,8 @@ export function normValue(o) {
   return out;
 }
 /* v378: בדיקת המוכנות (lib/studioscan.js scanView) — צורה קבועה, בלי מזהים */
-const SC_KINDS = ['claude_missing', 'claude_untested', 'claude_stale', 'drive_cfg', 'drive_missing', 'drive_revoked', 'drive_err', 'quota_crit', 'quota_low', 'fires_high', 'budget_low', 'orphans', 'dupes', 'ck', 'old'];
-const SC_CHECKS = ['claude', 'drive', 'quota', 'fires', 'budget', 'orphans', 'dupes', 'ck', 'old'];
+const SC_KINDS = ['claude_missing', 'claude_untested', 'claude_stale', 'drive_cfg', 'drive_missing', 'drive_revoked', 'drive_err', 'quota_crit', 'quota_low', 'fires_high', 'budget_low', 'offsite_none', 'offsite_stale', 'orphans', 'dupes', 'ck', 'old'];
+const SC_CHECKS = ['claude', 'drive', 'quota', 'fires', 'budget', 'offsite', 'orphans', 'dupes', 'ck', 'old'];   // 11/10/2026: offsite = הגיבוי ל־Drive
 const SC_CLEAN = ['orphans', 'dupes', 'ck', 'old'];
 export function normScan(o) {
   if (!o || typeof o !== 'object' || !(typeof o.at === 'number' && o.at > 0)) return null;
@@ -3489,7 +3489,7 @@ function scanSection() {
 function scCat(ch) {
   switch (ch) {
     case 'claude': case 'budget': return T('studioScCatSetup');
-    case 'drive': return T('studioScCatSec');
+    case 'drive': case 'offsite': return T('studioScCatSec');
     case 'quota': case 'fires': return T('studioScCatEnv');
     default: return T('studioScCatClean');
   }
@@ -3501,6 +3501,7 @@ function scCheckName(k) {
     case 'quota': return T('studioScChQuota');
     case 'fires': return T('studioScChFires');
     case 'budget': return T('studioScChBudget');
+    case 'offsite': return T('studioScChOffsite');
     case 'orphans': return T('studioScChOrphans');
     case 'dupes': return T('studioScChDupes');
     case 'ck': return T('studioScChCk');
@@ -3522,6 +3523,8 @@ function scText(x) {
     case 'quota_low': return [T('studioScQuotaLow', { b: fmtSize(x.b) }), T('studioScFixQuota')];
     case 'fires_high': return [T('studioScFires', { n: x.n, m: x.m }), T('studioScFixFires')];
     case 'budget_low': return [T('studioScBudget', { u: fmtUsdWhole(x.u), need: fmtUsd(x.need) }), T('studioScFixBudget')];
+    case 'offsite_none': return [T('studioScOffNone'), T('studioScFixOff')];   // 11/10/2026
+    case 'offsite_stale': return [T('studioScOffStale', { d: x.d }), T('studioScFixOff')];
     case 'orphans': return [(one ? T('studioScOrph1') : T('studioScOrphN', { n: x.n })) + sz, T('studioScOrphS')];
     case 'dupes': return [(one ? T('studioScDup1') : T('studioScDupN', { n: x.n })) + sz, T('studioScDupS')];
     case 'ck': return [(one ? T('studioScCk1') : T('studioScCkN', { n: x.n })) + sz, T('studioScCkS')];

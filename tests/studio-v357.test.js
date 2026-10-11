@@ -18,6 +18,9 @@ ok(/makeDrive\(\{ idEnv: 'GDRIVE_CLIENT_ID', secretEnv: 'GDRIVE_CLIENT_SECRET', 
 ok(/makeDrive\(\{ idEnv: 'STUDIO_GDRIVE_CLIENT_ID', secretEnv: 'STUDIO_GDRIVE_CLIENT_SECRET', col: 'studioDrive', aad: 'sdrive' \}\)/.test(gd), 'הסטודיו — לקוח משלו (STUDIO_GDRIVE_*), כספת משלו (studioDrive) ו־AAD משלו');
 const api = read('ibkr-proxy/api/studio.js');
 ok(/require\('\.\.\/lib\/gdrive'\)\.studio;/.test(api) && !/require\('\.\.\/lib\/gdrive'\);/.test(api), 'api/studio.js משתמש רק בלקוח של הסטודיו (גם בגישה שהעובד מקבל)');
+// 11/10/2026: הגיבוי אצל ספק שני — הלקוח של הספרייה רק בתוך lib/offsite.js (לשרתון בלבד), אף פעם לא לעובד
+const off = read('ibkr-proxy/lib/offsite.js');
+ok(/require\('\.\/gdrive'\)\.accessToken/.test(off) && !/\.studio/.test(off.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), 'הגיבוי ל־Drive — רק הלקוח של הספרייה (העובד לא רואה אותו)');
 ok(/op === 'gdConnect' \|\| op === 'gdStatus' \|\| op === 'gdToken' \|\| op === 'gdDisconnect'/.test(api) && /body\.op === 'gdConfig'/.test(api), 'חיבור ה־Drive של הסטודיו — דרך /api/studio');
 ok(api.indexOf("body.op === 'gdConfig'") > api.indexOf('if (guard(req, res)) return;'), 'gdConfig רק אחרי בדיקת ה־Origin');
 

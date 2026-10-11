@@ -2236,7 +2236,7 @@ function stubFetch(text, status = 200) {
         && SC8.scanFindings(Object.assign({}, good, { drive: { cfg: false } }), T0).f[0].k === 'drive_cfg', 'סטודיו: סריקה — Drive: בוטל / תקלה / לא מוגדר');
       ok(SC8.scanFindings(Object.assign({}, good, { fires: { n: 16, max: 20 } }), T0).f[0].k === 'fires_high', 'סטודיו: סריקה — 80% ממכסת ההפעלות בשעה');
       const sv8 = SC8.scanView({ at: 5, s: 140, n: 99, ok: ['claude', 'zzz'], f: [{ k: 'orphans', n: 2, b: 7, id: 'secretFolder123' }, { k: 'bogus', p: 1 }] });
-      ok(sv8.s === 100 && sv8.n === 9 && sv8.ok.join() === 'claude' && sv8.f.length === 1 && !JSON.stringify(sv8).includes('secretFolder') && sv8.pass === 70 && SC8.scanView(null) === null,
+      ok(sv8.s === 100 && sv8.n === SC8.CHECKS.length && sv8.ok.join() === 'claude' && sv8.f.length === 1 && !JSON.stringify(sv8).includes('secretFolder') && sv8.pass === 70 && SC8.scanView(null) === null,
         'סטודיו: סריקה — הצורה לטלפון קבועה, בלי מזהים');
       // מקצה לקצה מול Drive מדומה
       const FT = 'application/vnd.google-apps.folder';
@@ -2261,7 +2261,7 @@ function stubFetch(text, status = 200) {
       rr = await run({ op: 'scan', idToken: OWNER });
       let sc = rr.payload.sc;
       const fk = (x) => (x.f.find((y) => y.k === 'orphans') || {});
-      ok(rr.payload.ok && sc.n === 9 && fk(sc).n === 1 && fk(sc).b === 3000, 'סטודיו: סריקה — תיקייה יתומה אחת (של משתמש אחר — לא נחשבת), עם הגודל');
+      ok(rr.payload.ok && sc.n === SC8.CHECKS.length && fk(sc).n === 1 && fk(sc).b === 3000, 'סטודיו: סריקה — תיקייה יתומה אחת (של משתמש אחר — לא נחשבת), עם הגודל');
       ok(sc.f.find((y) => y.k === 'dupes').b === 500 && sc.f.find((y) => y.k === 'ck').n === 1 && sc.f.find((y) => y.k === 'old').n === 1 && sc.fb === 3800,
         'סטודיו: סריקה — כפולה, נקודת שמירה של עבודה שהסתיימה ורשומה ישנה');
       ok(!/orphFold|ckFile|fold8|rootStudio/.test(JSON.stringify(rr.payload)), 'סטודיו: סריקה — מזהי Drive לא יוצאים לטלפון');
@@ -3299,7 +3299,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,bk' && g.payload.bk === -1,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,bk,ob' && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;
