@@ -322,7 +322,7 @@ class FlowTests(unittest.TestCase):
             llm.CARD_LIMIT.clear()
             llm.CARD_LIMIT.update(old)
 
-    def test_judge_other_family_for_haiku(self):
+    def test_judge_always_haiku_high(self):
         J = self.J
 
         def judge_prep(a):
@@ -333,10 +333,10 @@ class FlowTests(unittest.TestCase):
             return 0
         J.judge_prep, J.judge, J.load_state = judge_prep, (lambda a: 0), lambda: getattr(J, 'st', {})
         seen = []
-        pl = P.Pipeline(self.ctx, J, self.engine(lambda kw: seen.append(kw['model']) or msg('#1 5 ok'), 'haiku-high'))
+        pl = P.Pipeline(self.ctx, J, self.engine(lambda kw: seen.append((kw['model'], (kw.get('output_config') or {}).get('effort'))) or msg('#1 5 ok'), 'haiku-high'))
         pl.judge()
-        self.assertEqual(seen, ['claude-sonnet-5-5'], 'מתרגם Haiku → שופט Sonnet (לא אותה משפחה)')
-        self.assertEqual({r['k']: r['m'] for r in pl.eng.ledger.list()}['jg'], 'claude-sonnet-5-5')
+        self.assertEqual(seen, [('claude-haiku-5-5', 'high')], 'השופט תמיד Haiku 5.5 · High — גם כשהמתרגם Haiku (11/10)')
+        self.assertEqual({r['k']: r['m'] for r in pl.eng.ledger.list()}['jg'], 'claude-haiku-5-5')
 
     def test_judge_skipped_when_prep_declines(self):
         J = self.J

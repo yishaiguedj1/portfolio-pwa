@@ -136,7 +136,8 @@ class AnthropicTests(unittest.TestCase):
 
     def test_haiku_card_judge_tokens(self):
         # 10/10/2026: ההתאמות ל־Haiku 5.5 — כרטיס המחיר מעל 100K, שופט ממשפחה אחרת, אומדן שמרני
-        self.assertEqual(llm.judge_spec('claude-haiku-5-5').model, 'claude-sonnet-5-5', 'מתרגם Haiku → שופט Sonnet')
+        # 11/10/2026: השופט תמיד Haiku 5.5 · High — גם כשהמתרגם Haiku
+        self.assertEqual((llm.judge_spec('claude-haiku-5-5').model, llm.judge_spec('claude-haiku-5-5').effort), ('claude-haiku-5-5', 'high'))
         for m in ('claude-sonnet-5-5', 'claude-opus-5-5'):
             self.assertEqual(llm.judge_spec(m).model, 'claude-haiku-5-5')
         self.assertGreater(llm.est_tokens('שלום עולם ' * 50), llm.est_tokens('hello world ' * 50), 'עברית יקרה יותר בטוקנים')
