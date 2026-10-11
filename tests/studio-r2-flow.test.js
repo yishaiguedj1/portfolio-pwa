@@ -48,6 +48,10 @@ const { fakeR2, ENV } = require('./_r2fake');
       return J([...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue))
         .map(([k, v]) => ({ document: { name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields, updateTime: v.ut } })).concat([{ readTime: 'x' }]));
     }
+    const lm = url.match(/\/documents\/([A-Za-z]+)\?(.*)$/);   // רשימת אוסף (הגיבוי היומי)
+    if (lm && (opt.method || 'GET') === 'GET') {
+      return J({ documents: [...db.entries()].filter(([k]) => k.startsWith(lm[1] + '/')).map(([k, v]) => ({ name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields, updateTime: v.ut })) });
+    }
     const m = url.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)(?:\?(.*))?$/);
     if (!m) return J({}, 404);
     const k = m[1] + '/' + m[2], cur = db.get(k);
@@ -171,6 +175,73 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(R.objs.has(SR.keyOf('ownerUid0001', f2.id)), 'עבודה אחרת עדיין משתמשת בתיקייה — הקבצים נשארים');
   await api('remove', { job: 'jCLONECLONECLONECLONE' });
   ok(!R.objs.has(SR.keyOf('ownerUid0001', f2.id)), 'האחרונה שמשתמשת בתיקייה נמחקה — הקבצים נמחקים');
+
+  /* ---------- 7. מילון המונחים ב־R2 (11/10) ---------- */
+  let gu = await api('glossUrl', {});
+  ok(gu.ok && gu.r2 && /\/gl\/ownerUid0001\.tsv\?/.test(gu.get) && /X-Amz-Expires=300/.test(gu.put), 'מילון: קישורים חתומים לקובץ של המשתמש בלבד (gl/<uid>.tsv), לחמש דקות');
+  ok((await R.fetch(gu.get)).status === 404, 'מילון: עוד אין קובץ — 404 (הטלפון ינסה את Drive ויעביר)');
+  const tsv = S.glFormat([['Moat', 'חפיר', ''], ['Berkshire', 'ברקשייר', 'שם']]);
+  ok((await R.fetch(gu.put, { method: 'PUT', body: tsv })).status === 200, 'מילון: הטלפון כותב ישירות ל־R2');
+  ok(S.glParse(await (await R.fetch(gu.get)).text()).length === 2, 'מילון: וקורא בחזרה');
+  const go = await other('glossUrl', {});
+  ok(go.ok && /\/gl\/otherUid0002\.tsv\?/.test(go.get) && (await R.fetch(go.get)).status === 404, 'מילון: משתמש אחר — הקובץ שלו, לא של בעלים אחר');
+  // העובד מקבל את המילון בתוך תשובת הלקיחה (גם Routine — בלי גישה ל־R2)
+  j = await api('create', { spec: Object.assign({}, spec, { eng: undefined }) });
+  const J3 = j.job.id, K3 = crypto.randomBytes(32).toString('base64url');
+  Object.assign(db.get('studioJobs/' + J3).fields, { kh: { stringValue: crypto.createHash('sha256').update(K3).digest('hex') }, kx: { integerValue: String(R.now + 3600e3) }, state: { stringValue: 'queued' }, fired: { integerValue: String(R.now) } });
+  const cl = (await call({ op: 'claim', job: J3, key: K3 }, true)).j;
+  ok(cl.ok && Array.isArray(cl.job.gl) && cl.job.gl.length === 2 && cl.job.gl[1][0] === 'Berkshire', 'מילון: העובד (גם Routine) מקבל אותו בלקיחה');
+  for (const k of Object.keys(ENV)) delete process.env[k];
+  gu = await api('glossUrl', {});
+  const cl2 = (await call({ op: 'claim', job: J3, key: K3 }, true)).j;
+  Object.assign(process.env, ENV); R2._reset();
+  ok(gu.ok && gu.r2 === false && cl2.ok && cl2.job.gl === null, 'מילון: בלי R2 בשרתון — r2:false והעובד קורא מ־Drive כמו קודם');
+
+  /* ---------- 8. תיקיות יתומות ב־R2 — סריקה וניקוי (11/10) ---------- */
+  studio._reset();
+  j = await api('create', { spec });
+  const LIVE = S.fromFields(db.get('studioJobs/' + j.job.id).fields).folder, ORPH = 'R2_jORPHANorphanORPHAN12', KEPT = 'R2_jKEPTkeptKEPTkeptKEPT', OTHERF = 'R2_jOTHERotherOTHERother';
+  ok(SR.isFolder(LIVE) && SR.isFolder(ORPH) && SR.isFolder(KEPT) && SR.isFolder(OTHERF), 'יתומות: מזהים תקינים');
+  R.objs.set('st/ownerUid0001/' + LIVE + '_aaaaaaaaaaaa', Buffer.alloc(10));
+  R.objs.set('st/ownerUid0001/' + ORPH + '_bbbbbbbbbbbb', Buffer.alloc(300));
+  R.objs.set('st/ownerUid0001/' + ORPH + '_cccccccccccc', Buffer.alloc(200));
+  R.objs.set('st/ownerUid0001/' + KEPT + '_dddddddddddd', Buffer.alloc(50));
+  R.objs.set('st/otherUid0002/' + OTHERF + '_eeeeeeeeeeee', Buffer.alloc(70));
+  R.objs.set('st/ownerUid0001/notafolder', Buffer.alloc(5));
+  // עבודה שעוד קיימת (אצל אחר / מחוץ לרשימה) — לא נוגעים בתיקייה שלה
+  db.set('studioJobs/' + KEPT.slice(3), { fields: { uid: { stringValue: 'someoneElse01' }, kind: { stringValue: 'tr' } }, ut: 'tk' });
+  const sc8 = await api('scan', {});
+  const fo = sc8.ok && sc8.sc.f.find((x) => x.k === 'orphans');
+  ok(fo && fo.n === 1 && fo.b === 500, 'יתומות: הסריקה מוצאת תיקייה אחת ב־R2 (500 בתים) — בלי Drive מחובר');
+  const cr = await api('clean', { k: 'orphans' });
+  ok(cr.ok && cr.n === 1, 'יתומות: "נקה" מוחק תיקייה אחת');
+  ok(![...R.objs.keys()].some((k) => k.includes(ORPH)), 'יתומות: כל הקבצים של התיקייה נמחקו');
+  ok(R.objs.has('st/ownerUid0001/' + LIVE + '_aaaaaaaaaaaa'), 'יתומות: תיקייה של עבודה קיימת — נשארת');
+  ok(R.objs.has('st/ownerUid0001/' + KEPT + '_dddddddddddd'), 'יתומות: עבודה שקיימת מחוץ לרשימה — נשארת');
+  ok(R.objs.has('st/otherUid0002/' + OTHERF + '_eeeeeeeeeeee'), 'יתומות: קבצים של משתמש אחר — לא נוגעים');
+  ok(R.objs.has('gl/ownerUid0001.tsv') && R.objs.has('st/ownerUid0001/notafolder'), 'יתומות: המילון ומפתחות בצורה אחרת — לא נוגעים');
+  ok(!(cr.sc.f || []).some((x) => x.k === 'orphans'), 'יתומות: אחרי הניקוי — בלי ממצא');
+
+  /* ---------- 9. הגיבוי היומי (ת7, 11/10) ---------- */
+  const BK = require(path.join(root, 'ibkr-proxy/lib/backup.js'));
+  R.objs.set('bk/2026-09-01/fs.json.gz', Buffer.alloc(3));   // גיבוי ישן מתקופת השמירה
+  R.objs.set('lib/catalog.json', Buffer.from('{"v":1,"items":[]}'));
+  const wcall = async () => {
+    const res = { code: 0, j: null, setHeader() {}, status(c) { res.code = c; return res; }, json(o) { res.j = o; return res; }, end() { return res; } };
+    await studio._handler({ method: 'GET', query: {}, body: null, headers: {}, socket: { remoteAddress: '9.9.9.9' } }, res, deps());
+    return res;
+  };
+  let w = await wcall();
+  const today = BK.bkDate(R.now);
+  ok(w.code === 200 && w.j.bk === 1 && R.objs.has(BK.bkKey(today)) && R.objs.has(BK.bkCatKey(today)), 'גיבוי: הקרון היומי יוצר גיבוי של היום (Firestore + קטלוג הספרייה)');
+  const bj = BK.readBackup(R.objs.get(BK.bkKey(today)));
+  const nJobs = [...db.keys()].filter((k) => k.startsWith('studioJobs/')).length;
+  ok(bj.cols.studioJobs.length === nJobs && nJobs > 0 && Array.isArray(bj.cols.studioStats), 'גיבוי: כל המסמכים של האוספים, בפורמט של Firestore');
+  ok(!bj.cols.studioVault && !bj.cols.users, 'גיבוי: בלי הכספות ובלי התיק');
+  ok(!R.objs.has('bk/2026-09-01/fs.json.gz'), 'גיבוי: מה שעבר 14 יום נמחק');
+  w = await wcall();
+  ok(w.j.bk === 0, 'גיבוי: קריאה חוזרת באותו יום — בלי גיבוי נוסף');
+  ok(BK.bkExpired(['bk/2026-09-25/fs.json.gz', 'bk/2026-09-26/fs.json.gz', 'bk/x/y', 'lib/a.epub'], R.now).join() === 'bk/2026-09-25/fs.json.gz', 'גיבוי: תקופת השמירה לפי התאריך בנתיב בלבד');
 
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });

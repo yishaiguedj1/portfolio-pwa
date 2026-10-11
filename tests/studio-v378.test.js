@@ -44,6 +44,22 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   for (const k of keys) ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת ' + k + ' בעברית ובאנגלית');
 
   /* ---------- 3. גרסה ---------- */
+  // ת4 (11/10): תיקיות ב־R2 — קיבוץ לפי תיקייה, יתומה רק כשאף עבודה לא משתמשת בה ואחרי שעה בלי שינוי
+  {
+    const items = [
+      { key: 'st/u1/R2_jAAAAAAAAAAAAAAAAAAAA_abcdefabcdef', size: 10, at: 1000 },
+      { key: 'st/u1/R2_jAAAAAAAAAAAAAAAAAAAA_abcdefabcdeg', size: 5, at: 2000 },
+      { key: 'st/u1/R2_jBBBBBBBBBBBBBBBBBBBB_abcdefabcdef', size: 7, at: 1000 },
+      { key: 'st/u1/R2_jCCCCCCCCCCCCCCCCCCCC_abcdefabcdef', size: 1, at: 3600000 + 9000 },
+      { key: 'st/u2/R2_jDDDDDDDDDDDDDDDDDDDD_abcdefabcdef', size: 3, at: 1 },
+      { key: 'st/u1/R2_jAAAA_short', size: 1, at: 1 },
+      { key: 'gl/u1.tsv', size: 1, at: 1 },
+    ];
+    const fs = SC.r2Folders(items, 'u1');
+    ok(fs.length === 3 && fs.find((x) => x.f === 'R2_jAAAAAAAAAAAAAAAAAAAA').b === 15 && fs.find((x) => x.f === 'R2_jAAAAAAAAAAAAAAAAAAAA').at === 2000, 'R2: קיבוץ לפי תיקייה, רק של המשתמש ורק בצורה תקינה');
+    const or = SC.r2Orphans(fs, [{ folder: 'R2_jBBBBBBBBBBBBBBBBBBBB' }], 3600000 + 10000);
+    ok(or.length === 1 && or[0].f === 'R2_jAAAAAAAAAAAAAAAAAAAA' && or[0].job === 'jAAAAAAAAAAAAAAAAAAAA', 'R2: יתומה = אף עבודה לא משתמשת בה, ולא נגעו בה בשעה האחרונה');
+  }
   const ver = (app.match(/const APP_VERSION = '(v\d+)'/) || [])[1];
   const sw = (read('sw.js').match(/CACHE_NAME = '[^']*-(v\d+)'/) || [])[1];
   ok(+ver.slice(1) >= 378 && swVersionOk(ver, sw), 'APP_VERSION ≥ v378 ו־sw.js תואם או גרסה אחת אחורה');

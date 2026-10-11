@@ -328,6 +328,10 @@ a.st-wbtn:active { opacity: .7; }
 .st-details > summary::-webkit-details-marker { display: none; }
 .st-details > .st-list { margin-inline: 0; }
 .st-details > .st-wacts { margin-top: 10px; }
+/* ת7: יומן השרת בתוך שורת השרת — מקופל, שורה לכל אירוע */
+.st-l .st-srvev { margin: 2px 0 0; }
+.st-l .st-srvev > summary { padding: 4px 0; font-size: 13px; }
+.st-l .st-srvev > small { display: block; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .st-spin { animation-duration: 4s; } .st-ring .arc, .st-pbar i, .st-tprog i { transition: none; } }
 
 /* חלונות והודעות של האפליקציה שהסטודיו פותח — מעל השכבה (900), כמו בספרייה (לקח v317) */

@@ -2495,7 +2495,7 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.job.jd && rr.payload.job.jd.s === 88 && rr.payload.job.use.some((r) => r.k === 'jg'), 'סטודיו: הציון והעלות של השופט מגיעים לטלפון');
       rr = await run({ op: 'jobs', idToken: OWNER });
       const ajg = rr.payload.ag.agents.find((x) => x.k === 'jg');
-      ok(ajg && ajg.m === 'claude-haiku-5-5' && ajg.q === 88 && ajg.ef === '' && ajg.pv === '22222222', 'סטודיו: מלאי — השופט עם המודל, הציון וגרסת ההנחיות שלו');
+      ok(ajg && ajg.m === 'claude-haiku-5-5' && ajg.q === 88 && ajg.ef === 'high' && ajg.pv === '22222222', 'סטודיו: מלאי — השופט עם המודל, הציון וגרסת ההנחיות שלו');
       await run({ op: 'remove', idToken: OWNER, job: JJ });
     }
     now += 3600e3 + 1;
@@ -3299,8 +3299,8 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down',
-          'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספר');
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,bk' && g.payload.bk === -1,
+          'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;
         g = await get();
@@ -3319,6 +3319,22 @@ function stubFetch(text, status = 200) {
         ok(await srvOpen(), 'ת7: נפל שוב');
         await run({ op: 'srvRemove', idToken: OWNER, sid: S7 });
         ok(!(await srvOpen()), 'ת7: שרת שנפל והוסר (נמחק ב־Hetzner) — ההתראה נסגרת');
+        studio._reset(); process.env.STUDIO_WATCH_SECRET = 'w-secret-1'; process.env.CRON_SECRET = 'c-secret-2';
+        const g3 = await get({ authorization: 'Bearer c-secret-2' });
+        delete process.env.STUDIO_WATCH_SECRET; delete process.env.CRON_SECRET;
+        ok(g3.statusCode === 200, 'ת7: הקרון היומי של Vercel (CRON_SECRET) מתקבל גם כשיש STUDIO_WATCH_SECRET');
+        // 11/10: GitHub מדלג על ריצות מתוזמנות — גם הטלפון בודק (פעם ב־5 דק׳, רק את השרתים שלו)
+        const cr2 = await run({ op: 'srvCreate', idToken: OWNER, name: 'mon2' });
+        await srvRun({ op: 'poll', hb: {} }, cr2.payload.token);
+        now += 20 * 60e3; pushes = [];
+        await run({ op: 'jobs', idToken: OWNER });
+        ok(pushes.length === 1 && decrypt(pushes[0].body).k === 'srv_down' && +db.get('studioServers/' + cr2.payload.server.id).fields.dn.integerValue === now,
+          'ת7: בלי קרון — פתיחת האפליקציה מגלה שרת ששותק ומתריעה');
+        pushes = [];
+        now += 6 * 60e3;
+        await run({ op: 'jobs', idToken: OWNER });
+        ok(pushes.length === 0, 'ת7: בדיקה מהטלפון — בלי התראה כפולה');
+        await run({ op: 'srvRemove', idToken: OWNER, sid: cr2.payload.server.id });
       }
       r = await run({ op: 'push', idToken: OWNER, act: 'off', e: 'https://fcm.googleapis.com/fcm/send/dev1' });
       ok(r.payload.n === 0, 'push: ביטול במכשיר');

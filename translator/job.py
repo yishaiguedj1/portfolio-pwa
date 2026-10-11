@@ -310,6 +310,7 @@ def run(args):
                     'ls': ls,
                     'pir': pir_valid(got.get('pir')),                                    # v379: דוח אחרי תקלה שמחכה לסיכום
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
+                    'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
         for old in ('prog.json', 'tower.json'):        # v362: מגדל הפיקוח מתחיל נקי לכל הפעלה
             try:
@@ -1368,8 +1369,18 @@ def gl_line(r):
     return r[0] + '\t' + r[1] + ('\t' + r[2] if len(r) > 2 and r[2] else '')
 
 
+def gl_rows(v):
+    """המילון שהגיע בלקיחה (11/10: מ־R2, דרך השרתון) — אותו ניקוי של gl_parse. None = לא הגיע (קוראים מ־Drive)."""
+    if not isinstance(v, list):
+        return None
+    return gl_parse('\n'.join('\t'.join(str(x) for x in r[:3]) for r in v[:GL_MAX] if isinstance(r, (list, tuple))))
+
+
 def gl_load(ctx):
-    """המילון של המשתמש מ־Drive. None = לא הצלחנו לקרוא (לא עוצרים בגלל זה עבודה); [] = אין מילון."""
+    """המילון של המשתמש: מ־R2 (הגיע בלקיחה), אחרת מ־Drive. None = לא הצלחנו לקרוא (לא עוצרים בגלל זה עבודה); [] = אין מילון."""
+    got = gl_rows(ctx.st.get('gl'))
+    if got is not None:
+        return got
     try:
         q = "appProperties has { key='snbGloss' and value='1' } and trashed=false"
         auth = {'Authorization': 'Bearer ' + ctx.token()}

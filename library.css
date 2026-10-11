@@ -840,3 +840,202 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .pc-extra { position: absolute; inset: 0; }
 .pc-sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; }
 .pc-tint { position: absolute; inset: 0; }
+
+/* ---------------- מנהל הספרייה (ס׳4–ס׳5, libadmin.js) — אותם טוקנים ורכיבים של הספרייה; Liquid Glass רק בסרגל הפעולות הצף */
+.lib-root .mg { padding: 0 16px 120px; display: flex; flex-direction: column; gap: 12px; }
+.lib-root .mg-top { gap: 6px; }
+.lib-root .mg-ts, .lib-root .mg-te { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.lib-root .mg-te { justify-content: flex-end; }
+.lib-root .mg-tt { flex: 2; min-width: 0; text-align: center; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.lib-root .mg-tb { color: var(--primary) !important; font-size: 17px; min-height: 44px; padding: 0 4px; white-space: nowrap; }
+.lib-root .mg-tb.mini { min-height: 32px; font-size: 15px; font-weight: 600; }
+.lib-root .mg-tb.o, .lib-root .mg-tb.p { flex: 1; min-height: 52px; border-radius: var(--pill); font-weight: 700; }
+.lib-root .mg-tb.o { box-shadow: inset 0 0 0 1.5px var(--primary); }
+.lib-root .mg-tb.p { background: var(--primary) !important; color: var(--on-primary) !important; }
+.lib-root .mg-tb.danger { color: var(--loss, #FF453A) !important; box-shadow: inset 0 0 0 1.5px var(--loss, #FF453A); }
+.lib-root .mg-tb:disabled { opacity: .38; }
+.lib-root .mg-ib { width: 36px; height: 36px; border-radius: 50%; background: var(--search-fill) !important; display: inline-grid; place-items: center; flex: none; font-size: 17px; }
+.lib-root .mg-ib svg { width: 22px; height: 22px; }
+.lib-root .mg-ib.sm { width: 30px; height: 30px; font-size: 14px; }
+.lib-root .mg-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: var(--pill); background: var(--primary-container) !important; color: var(--on-primary-container) !important; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.lib-root .mg-pill .ac-ring { width: 18px; height: 18px; }
+.lib-root .mg-pill.w { background: var(--warn-bg) !important; color: var(--warn-fg) !important; }
+.lib-root .mg-card { display: flex; flex-direction: column; gap: 4px; margin: 0; text-align: start; width: 100%; }
+.lib-root .mg-card b { font-size: 16px; }
+.lib-root .mg-card span { font-size: 14px; color: var(--on-surface-var); line-height: 1.45; }
+.lib-root .mg-mig { border: 1.5px solid color-mix(in srgb, var(--primary) 45%, transparent); }
+.lib-root .mg-resume { flex-direction: row; align-items: center; gap: 10px; }
+.lib-root .mg-rc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lib-root .mg-rc-a { display: flex; gap: 12px; flex-wrap: wrap; }
+.lib-root .mg-rc-a .mg-tb { min-height: 32px; font-size: 15px; font-weight: 600; padding: 0; }
+.lib-root .mg-search { margin: 0; }
+.lib-root .mg-chips { padding: 0; margin: 0 -16px; padding-inline: 16px; }
+.lib-root .mg-chips.c { justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; }
+.lib-root .mg-n { color: inherit; opacity: .7; font-variant-numeric: tabular-nums; }
+.lib-root .mg-list { background: var(--surface); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+.lib-root .mg-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 10px 14px; text-align: start; position: relative; }
+.lib-root .mg-row + .mg-row::before { content: ""; position: absolute; top: 0; inset-inline: 74px 0; border-top: 1px solid var(--card-border); }
+.lib-root .mg-row.sel { background: color-mix(in srgb, var(--primary) 9%, transparent); }
+.lib-root .mg-row.dis { opacity: .5; }
+.lib-root .mg-rt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lib-root .mg-t1 { font-size: 16px; font-weight: 600; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.lib-root .mg-t1.one { -webkit-line-clamp: 1; }
+.lib-root .mg-t2 { font-size: 14px; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-root .mg-t2.wrap { white-space: normal; line-height: 1.5; }
+.lib-root .mg-sub.w, .lib-root .mg-t2.w { color: var(--warn-fg); }
+.lib-root .mg-chev { color: var(--on-surface-var); font-size: 20px; flex: none; }
+.lib-root .mg-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.lib-root .mg-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--pill); font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--on-surface-var); white-space: nowrap; }
+.lib-root .mg-tag.w { background: var(--warn-bg); color: var(--warn-fg); box-shadow: inset 0 0 0 1px var(--warn-border); }
+.lib-root .mg-tag.g { background: var(--primary-container); color: var(--on-primary-container); }
+.lib-root .mg-ck { flex: none; width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--on-surface-var); display: grid; place-items: center; font-size: 14px; font-weight: 800; color: transparent; }
+.lib-root .mg-ck.on { background: var(--primary); box-shadow: none; color: var(--on-primary); }
+.lib-root .mg-cv { flex: none; width: 48px; height: 72px; border-radius: 4px 7px 7px 4px; overflow: hidden; position: relative; background: var(--surface-2); }
+.lib-root .mg-cv .lib-cover { width: 100%; height: 100%; aspect-ratio: auto; border-radius: inherit; padding: 5px 4px; font-size: 7px; }
+.lib-root .mg-cv img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.lib-root .mg-cv.sm { width: 40px; height: 60px; }
+.lib-root .mg-cv.xs { width: 36px; height: 54px; }
+.lib-root .mg-cv.lg { width: 120px; height: 180px; border-radius: 6px 10px 10px 6px; }
+.lib-root .mg-cv.lg .lib-cover { font-size: 11px; padding: 10px 8px; }
+.lib-root .mg-fmt { flex: none; font-size: 12.5px; color: var(--on-surface-var); white-space: nowrap; }
+.lib-root .mg-more { align-self: center; margin: 10px; }
+.lib-root .mg-fab { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); inset-inline-start: 50%; transform: translateX(50%); width: auto; padding: 0 22px; height: 52px; display: inline-flex !important; align-items: center; gap: 6px; z-index: 5; box-shadow: var(--shadow); white-space: nowrap; }
+[dir="ltr"] .lib-root .mg-fab { transform: translateX(-50%); }
+.lib-root .mg-fab input, .lib-row input[type=file], .mini-btn input[type=file] { display: none; }
+.lib-root .mg-abar { position: fixed; z-index: 5; bottom: calc(12px + env(safe-area-inset-bottom)); inset-inline: max(12px, calc(50% - 368px)); height: 64px; border-radius: 32px; padding: 8px; display: flex; justify-content: space-between;
+  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--shadow); -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6); }
+[data-theme="dark"] .lib-root .mg-abar { background: rgba(28, 28, 30, .94); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.lib-root .mg-ab { width: 56px; height: 48px; border-radius: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 12px; font-weight: 600; }
+.lib-root .mg-ab b { font-size: 19px; line-height: 1; font-weight: 600; }
+.lib-root .mg-ab.p { background: var(--primary) !important; color: var(--on-primary) !important; }
+.lib-root .mg-ab:disabled { opacity: .38; }
+.lib-root .mg-danger { color: var(--loss, #FF453A) !important; }
+.lib-root .mg-skel { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+.lib-root .mg-skel-r { height: 72px; border-radius: var(--radius-sm); background: var(--surface); opacity: .7; }
+.lib-root .mg-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 28px 16px; }
+.lib-root .mg-empty-ic { font-size: 44px; }
+.lib-root .mg-empty b { font-size: 20px; }
+.lib-root .mg-empty p { margin: 0 0 8px; color: var(--on-surface-var); }
+.lib-root .mg-empty .bk-cta input { display: none; }
+.lib-root .mg-pad { padding: 14px 16px; margin: 0; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.lib-root .mg-pad p { margin: 0; }
+.lib-root .mg-sum { font-size: 15px; color: var(--on-surface-var); margin: 0; }
+.lib-root .mg-lbl { font-size: 13px; color: var(--on-surface-var); font-weight: 600; padding: 0 4px; margin-bottom: -6px; }
+.lib-root .mg-fold summary { cursor: pointer; color: var(--on-surface-var); font-size: 14px; padding: 6px 4px; }
+.lib-root .mg-fold .mg-list { margin-top: 8px; }
+.lib-root .mg-opts { background: var(--surface); }
+.lib-root .mg-switch { appearance: none; -webkit-appearance: none; width: 51px; height: 31px; border-radius: 16px; background: var(--search-fill-solid); position: relative; flex: none; transition: background .2s; cursor: pointer; }
+.lib-root .mg-switch::after { content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.2); transition: inset-inline-start .2s; }
+.lib-root .mg-switch:checked { background: var(--primary); }
+.lib-root .mg-switch:checked::after { inset-inline-start: 22px; }
+.lib-root .mg-cta { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 32px); margin: 8px 16px 16px; z-index: 4; }
+.lib-root .mg-cta:disabled { opacity: .45; }
+.lib-root .mg-qhead { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.lib-root .mg-ringw { display: flex; align-items: center; gap: 14px; }
+.lib-root .mg-ringw .ac-ring { width: 56px; height: 56px; flex: none; }
+.lib-root .mg-big { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lib-root .mg-eta { font-size: 15px; color: var(--on-surface-var); }
+.lib-root .mg-btns { display: flex; gap: 10px; }
+.lib-root .mg-failbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--radius-sm); background: var(--warn-bg); color: var(--warn-fg); box-shadow: inset 0 0 0 1px var(--warn-border); font-weight: 600; font-size: 14px; }
+.lib-root .mg-failbar .mg-tb { color: var(--warn-fg) !important; font-size: 15px; }
+.lib-root .mg-st { font-size: 13px; color: var(--on-surface-var); }
+.lib-root .mg-st.ok { color: var(--on-primary-container); } .mg-st.bad { color: var(--warn-fg); }
+.lib-root .mg-done { align-items: center; text-align: center; padding-top: 12px; }
+.lib-root .mg-done h2 { margin: 0; font-size: 24px; font-weight: 800; }
+.lib-root .mg-done .mg-sub { margin: 0; color: var(--on-surface-var); font-size: 15px; }
+.lib-root .mg-ok56 { width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; font-size: 28px; font-weight: 800; }
+.lib-root .mg-choice { width: 100%; background: var(--surface); text-align: start; }
+.lib-root .mg-choice .lib-row { gap: 12px; min-height: 68px; }
+.lib-root .mg-ico { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; flex: none; }
+.lib-root .mg-ico.g { background: var(--primary-container); color: var(--on-primary-container); }
+.lib-root .mg-ico.b { background: color-mix(in srgb, var(--link) 16%, transparent); color: var(--link); }
+.lib-root .mg-ico.p { background: color-mix(in srgb, var(--sys-purple) 16%, transparent); color: var(--sys-purple); }
+.lib-root .mg-stack { display: flex; justify-content: center; align-items: center; padding: 6px 0; }
+.lib-root .mg-stack .mg-cv { margin-inline-start: -16px; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+.lib-root .mg-stack .mg-cv:first-child { margin-inline-start: 0; }
+.lib-root .mg-stack-more { margin-inline-start: 10px; font-weight: 700; color: var(--on-surface-var); unicode-bidi: isolate; }
+.lib-root .mg-note { display: block; font-size: 12.5px; color: var(--on-primary-container); margin-top: 4px; min-height: 0; }
+.lib-root .mg-note:empty { display: none; }
+.lib-root .mg-clear { font-size: 13px; color: var(--on-surface-var) !important; margin-top: 6px; padding: 2px 0; }
+.lib-root .ed-row.mg-cleared .ed-in { text-decoration: line-through; opacity: .5; }
+.lib-root .mg-seg { display: flex; background: var(--search-fill); border-radius: 9px; padding: 2px; }
+.lib-root .mg-seg-b { flex: 1; text-align: center; font-size: 14px; font-weight: 600; padding: 7px 4px; border-radius: 7px; }
+.lib-root .mg-seg-b.on { background: var(--seg-active) !important; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.lib-root .mg-startrow { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 15px; }
+.lib-root .mg-start { width: 90px; }
+.lib-root .mg-prev { font-size: 13px; color: var(--on-surface-var); margin-top: 8px; line-height: 1.5; }
+.lib-root .mg-prev:empty { display: none; }
+.lib-root .mg-tokens { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.lib-root .mg-tok { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--pill); font-size: 14px; font-weight: 600; background: var(--surface-2) !important; }
+.lib-root .mg-tok.part { background: transparent !important; outline: 1.5px dashed var(--on-surface-var); outline-offset: -1.5px; }
+.lib-root .mg-tok.add { background: var(--primary-container) !important; color: var(--on-primary-container) !important; }
+.lib-root .mg-tok.rm { text-decoration: line-through; opacity: .5; }
+.lib-root .mg-tok-in { height: 32px; min-width: 110px; flex: 1; border: 0; border-radius: var(--pill); padding: 0 12px; background: transparent; outline: 1.5px solid color-mix(in srgb, var(--primary) 60%, transparent); outline-offset: -1.5px; color: var(--on-surface); font: inherit; font-size: 14px; }
+.lib-root .mg-onelink { gap: 8px; }
+.lib-root .mg-onelink .mg-chev { font-size: 15px; color: var(--primary); }
+.lib-root .mg-foot { position: sticky; bottom: 0; z-index: 4; display: flex; flex-direction: column; gap: 6px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); }
+.lib-root .mg-foot .mg-cta { position: static; width: 100%; margin: 0; }
+.lib-root .mg-sumline { font-size: 13px; color: var(--on-surface-var); text-align: center; min-height: 1em; }
+.lib-root .mg-nav { flex-direction: row; }
+.lib-root .mg-strip { display: flex; gap: 8px; overflow-x: auto; padding: 6px 2px 4px; scrollbar-width: none; }
+.lib-root .mg-strip::-webkit-scrollbar { display: none; }
+.lib-root .mg-sc { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; padding: 4px; }
+.lib-root .mg-sc.cur .mg-cv { outline: 2px solid var(--primary); outline-offset: 2px; }
+.lib-root .mg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.lib-root .mg-dot.w { background: var(--warn-fg); }
+.lib-root .mg-saved { font-size: 12.5px; font-weight: 600; color: var(--on-primary-container); }
+.lib-root .mg-stseg { margin-top: 2px; }
+.lib-root .mg-cvbox { display: flex; align-items: center; gap: 16px; }
+.lib-root .mg-cvact { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.lib-root .mg-cvact .busy { opacity: .5; pointer-events: none; }
+.lib-root .mg-miss { display: inline-flex; align-items: center; gap: 4px; color: var(--warn-fg); font-size: 12.5px; font-weight: 600; margin-inline-start: 6px; }
+.lib-root .mg-miss::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.lib-root .mg-lock { font-weight: 500; color: var(--on-surface-var); }
+.lib-root .mg-fileinfo { font-size: 13px; color: var(--on-surface-var); margin: 0 4px; text-align: end; }
+.lib-root .mg-mig-n { font-size: 17px; font-weight: 700; }
+.lib-root .mg-mig-out { display: contents; }
+.lib-root .mg-ul { margin: 6px 0 0; padding-inline-start: 18px; font-size: 13px; color: var(--on-surface-var); line-height: 1.6; word-break: break-all; }
+.lib-root .mg-snack { position: fixed; z-index: 1004; bottom: calc(88px + env(safe-area-inset-bottom)); inset-inline: 16px; max-width: 520px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; border-radius: var(--radius-sm); background: #2C2C2E; color: #fff; box-shadow: var(--shadow); font-size: 15px; animation: libFade .18s ease; }
+.lib-root .mg-snack-b { color: var(--primary) !important; font-weight: 700; font-size: 15px; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .lib-root .mg-snack { animation: none; } .lib-root .mg-switch, .lib-root .mg-switch::after { transition: none; } }
+
+.lib-root .mg [hidden], .lib-root .mg-foot [hidden] { display: none !important; }
+.lib-root .mg-ab svg { width: 22px; height: 22px; }
+.lib-root .mg-ico svg { width: 22px; height: 22px; }
+.lib-root .mg-act { align-self: flex-start; margin-top: 6px; height: 28px; font-size: 13px; }
+.lib-root .mg-pad0 { padding: 0; }
+.lib-root .mg-sugrow { gap: 12px; min-height: 56px; }
+.lib-root .mg-sugsum { font-size: 16px; font-weight: 700; }
+.lib-root .mg-cta-in { width: 100%; margin-top: 4px; }
+.lib-root .mg-sugcard { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.lib-root .mg-pair { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.lib-root .mg-pc { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--on-surface-var); padding: 4px; border-radius: var(--radius-xs); }
+.lib-root .mg-pc .mg-cv.lg { width: 96px; height: 144px; }
+.lib-root .mg-pc.pick .mg-cv { outline: 2px solid var(--primary); outline-offset: 3px; }
+.lib-root .mg-pc.pick { color: var(--on-primary-container); }
+.lib-root .mg-sughead { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--on-surface-var); }
+.lib-root .mg-conf { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: var(--pill); font-size: 12px; font-weight: 700; }
+.lib-root .mg-conf.g { background: var(--primary-container); color: var(--on-primary-container); }
+.lib-root .mg-conf.w { background: var(--warn-bg); color: var(--warn-fg); }
+.lib-root .mg-sugfields { display: flex; flex-direction: column; gap: 12px; }
+.lib-root .mg-fg { display: flex; flex-direction: column; gap: 4px; }
+.lib-root .mg-opt { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border-radius: var(--radius-xs); background: var(--surface-2) !important; text-align: start; width: 100%; }
+.lib-root .mg-opt.on { background: var(--primary-container) !important; }
+.lib-root .mg-rad { width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--on-surface-var); flex: none; }
+.lib-root .mg-opt.on .mg-rad { box-shadow: inset 0 0 0 6px var(--primary); }
+.lib-root .mg-ov { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.lib-root .mg-ov.dim { color: var(--on-surface-var); }
+.lib-root .mg-ob { flex: none; font-size: 12px; font-weight: 600; color: var(--on-surface-var); }
+.lib-root .mg-dup { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.lib-root .mg-dupcol { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-size: 13px; color: var(--on-surface-var); min-width: 0; }
+.lib-root .mg-dupcol b { color: var(--on-surface); font-size: 14px; overflow-wrap: anywhere; }
+.lib-root .mg-cv.md { width: 84px; height: 126px; }
+.lib-root .mg-dupcard .mg-btns { width: 100%; }
+.lib-root .mg-dupcard .mg-tb.o, .lib-root .mg-dupcard .mg-tb.p { min-height: 44px; font-size: 15px; }
+.lib-root .mg-renamebox { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 8px; }
+.lib-root .mg-valsame { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 0; border-top: 1px solid var(--card-border); font-size: 14px; }
+.lib-root .ltr { direction: ltr; unicode-bidi: isolate; }
+.lib-root .mg-addrow { gap: 12px; min-height: 64px; }
+.lib-root .mg-addrow .mg-t2 { white-space: normal; }
+.lib-root .mg-selall { min-height: 28px; font-size: 14px; display: inline; }

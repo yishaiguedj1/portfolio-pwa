@@ -96,7 +96,9 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual([k for _, k in hb['ev']], ['up'], 'ת7: יומן השרת — "הסוכן עלה" נשלח כבר בפנייה הראשונה')
+        self.assertTrue(all(isinstance(t, int) and t > 1.6e9 for t, _ in hb['ev']))
         self.assertIn(hb['al'], ('o', 't'), 'שלב 4.1: מנוע היישור — קוד קבוע (בלי גרפים בבדיקה = torch)')
         self.assertIn(hb['iso'], ('g', 'r'), 'ת2: בידוד הקופסה — קוד קבוע')
         self.assertTrue(hb.get('iw', 'mem') in ('mem', 'missing', 'selftest', 'manual'))
@@ -132,6 +134,30 @@ class AgentTests(unittest.TestCase):
         r = self.agent(env=dict(self.env, SNB_WORKER_TOKEN='short'))
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual(self.fake.polls, 0)
+
+
+class EventLogUnit(unittest.TestCase):
+    """ת7: יומן השרת — קודים קבועים, רצף של אותה תקלה לא ממלא את היומן, עד 12 אירועים."""
+
+    def setUp(self):
+        sys.path.insert(0, str(HERE))
+        import agent
+        self.A = agent
+        agent._events.clear()
+
+    def test_end_codes(self):
+        e = self.A.end_code
+        self.assertEqual([e(0), e(1), e(2), e(124), e(137), e(-9), e(3)], ['done', 'fail', 'stop', 'timeout', 'oom', 'oom', 'crash'])
+
+    def test_repeated_net_collapses(self):
+        for _ in range(5):
+            self.A.ev('net')
+        self.A.ev('up')
+        self.A.ev('net')
+        self.assertEqual([k for _, k in self.A.ev_list()], ['net', 'up', 'net'])
+        for _ in range(20):
+            self.A.ev('job')
+        self.assertEqual(len(self.A.ev_list()), 12)
 
 
 class HandleUnit(unittest.TestCase):

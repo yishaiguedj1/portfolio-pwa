@@ -3,7 +3,9 @@
      { op:'cover', url }                            -> התמונה עצמה (רק ממארחי המקורות, עד 3MB)
    מידע ציבורי בלבד; Origin מאושר + הגבלת קצב לכל IP. GOOGLE_BOOKS_KEY (אופציונלי) ב־Vercel בלבד. */
 const { guard } = require('../lib/ibkr');
-const { searchAll, normQuery, coverAllowed } = require('../lib/bookmeta');
+const { searchAll, normQuery, coverAllowed, isPlaceholder } = require('../lib/bookmeta');
+const BM = require('../lib/bookmatch');
+const { verifyIdToken, isAdmin } = require('../lib/gauth');
 
 const MAX_COVER = 3 * 1024 * 1024;
 const hits = new Map();
@@ -46,6 +48,7 @@ async function handler(req, res, deps = {}) {
       if (+(r.headers.get('content-length') || 0) > MAX_COVER) return res.status(502).json({ ok: false, error: 'cover_size' });   // לפני הקריאה
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > MAX_COVER || buf.length < 200) return res.status(502).json({ ok: false, error: 'cover_size' });
+      if (isPlaceholder(buf, type)) return res.status(404).json({ ok: false, error: 'no_cover' });   // ס׳6: "image not available" של Google
       res.setHeader('Content-Type', type.split(';')[0]);
       res.setHeader('Cache-Control', 'public, max-age=86400');
       return res.status(200).send(buf);
@@ -62,6 +65,30 @@ async function handler(req, res, deps = {}) {
     if (cache.size > 300) cache.clear();
     if (v.results.length) cache.set(ck, { at: Date.now(), v });
     return res.status(200).json(Object.assign({ ok: true, diag: { googleKey: !!process.env.GOOGLE_BOOKS_KEY } }, v));   // אבחון: רק אם יש מפתח, לא הערך
+  }
+  /* ס׳6: התאמה בכמות למנהל הספרייה — עד 5 ספרים בבקשה; לכל ספר: מועמדים מכל המאגרים → ציון ביטחון + שדות + כריכות.
+     רק למנהל (מאומת ב־Firebase); בלי שמות קבצים, רק מה שמחפשים */
+  if (body.op === 'match') {
+    let user;
+    try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+    if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+    const books = (Array.isArray(body.books) ? body.books : []).slice(0, 5).filter((b) => b && typeof b === 'object');
+    if (!books.length) return res.status(400).json({ ok: false, error: 'bad_query' });
+    const gk = process.env.GOOGLE_BOOKS_KEY || '';
+    const out = await Promise.all(books.map(async (b) => {
+      const q = BM.queryOf(b);
+      const nq = normQuery({ isbn: q.isbns[0] || '', title: q.title, author: q.authors[0] || '', lang: q.lang });
+      if (!nq) return { key: String(b.key || ''), conf: 0, bucket: 'none', why: ['no_query'], f: {}, prov: {}, covers: [], alts: [] };
+      const ck = JSON.stringify(nq);
+      let v = cache.get(ck);
+      if (!v || Date.now() - v.at > 6 * 3600 * 1000) {
+        const r = await searchAll(nq, { fetch: f, googleKey: gk, timeout: deps.timeout || 7000 });
+        v = { at: Date.now(), v: r };
+        if (r.results.length) { if (cache.size > 300) cache.clear(); cache.set(ck, v); }
+      }
+      return Object.assign({ key: String(b.key || '').slice(0, 300) }, BM.matchBook(q, v.v.results));
+    }));
+    return res.status(200).json({ ok: true, results: out });
   }
   res.status(400).json({ ok: false, error: 'bad_op' });
 }

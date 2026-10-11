@@ -119,6 +119,7 @@ class Fake:
         self.v_ext = False                                            # מקור מ־Drive (Picker) — לא בתיקיית העבודה
         self.gloss = None                                             # v380: קובץ המילון ב־Drive (bytes) — None = אין
         self.notes, self.note_next = [], None                         # v382: הערות שנקראו (בלקיחה) והערה שתימסר בנקודת השמירה הבאה
+        self.gl = None                                                # 11/10: המילון מ־R2 בתשובת הלקיחה (None = לא נשלח)
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
 
@@ -167,7 +168,7 @@ class Fake:
                     return self._send(200, {'ok': True, 'job': {'id': JOB, 'kind': fake.kind, 'state': 'running', 'spec': fake.spec,
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
                                                                   'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm,
-                                                                  'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0, 'notes': fake.notes},
+                                                                  'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0, 'notes': fake.notes, 'gl': fake.gl},
                                             'drive': {'token': TOKEN}, 'pir': fake.pir})
                 if op == 'token':
                     return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
@@ -801,6 +802,20 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(self.job('align', env={'SNB_POLL': '0.2'})[0], 0)
         self.assertEqual(self.job('finish')[0], 0)
         self.assertEqual(self.fake.reports[-1]['gl'], {'u': 0, 's': [['Buyback', 'רכישה עצמית'], ['Moat', 'חפיר כלכלי'], ['free cash flow', 'תזרים מזומנים חופשי']]})
+
+    def test_glossary_from_r2(self):
+        # 11/10: המילון מ־R2 מגיע בתשובת הלקיחה (גם ל־Routine) — הוא גובר על Drive, ועובר את אותו ניקוי
+        self.fake.gloss = 'Moat\tמה שב־Drive\n'.encode()
+        self.fake.gl = [['Moat', 'חפיר מ־R2', ''], ['free cash flow', '<i>תזרים</i>', ''], ['bad'], 'x']
+        self.assertEqual(self.take()[0], 0)
+        st = json.loads((self.tmp / 'state' / 'job.json').read_text())
+        self.assertEqual(st['gl'], [['Moat', 'חפיר מ־R2', ''], ['free cash flow', 'i תזרים /i', '']])
+        self.assertEqual(self.job('prepare', env={'SNB_POLL': '0.2'})[0], 0)
+        code, out = self.job('align', env={'SNB_POLL': '0.2'})
+        self.assertEqual(code, 0, out)
+        txt = (self.tmp / 'work' / SLUG / 'tr' / 'glossary.tsv').read_text()
+        self.assertIn('Moat\tחפיר מ־R2', txt)
+        self.assertNotIn('מה שב־Drive', txt, 'R2 גובר — Drive לא נקרא')
 
     def test_note(self):
         # v382: הערה לעובד — הערות שכבר נקראו מגיעות בלקיחה; הערה חדשה נמסרת בתשובה לנקודת שמירה: מודפסת ל־Claude,
