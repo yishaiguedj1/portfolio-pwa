@@ -133,7 +133,7 @@ function normCatalog(c) {
   const rids = {};
   for (const k of Object.keys(c.rids && typeof c.rids === 'object' ? c.rids : {}).slice(-RIDS_MAX)) if (/^[A-Za-z0-9_-]{6,64}$/.test(k)) rids[k] = posInt(c.rids[k]);
   out.rids = rids;
-  if (c.cfg && typeof c.cfg === 'object') out.cfg = { source: c.cfg.source === 'r2' ? 'r2' : 'drive' };
+  if (c.cfg && typeof c.cfg === 'object') { out.cfg = { source: c.cfg.source === 'r2' ? 'r2' : 'drive' }; if (posInt(c.cfg.at)) out.cfg.at = posInt(c.cfg.at); }   // at = מתי המקור הוחלף (ס׳9: ניקוי המראה הישנה אחרי 30 יום)
   return out;
 }
 
@@ -363,7 +363,7 @@ function applyOps(cat0, ops, ctx) {
         if (!ctx.internal) throw opErr(i, 'internal');
         const source = op.source === 'r2' ? 'r2' : 'drive';
         if (((cat.cfg && cat.cfg.source) || 'drive') === source) return;
-        cat.cfg = Object.assign({}, cat.cfg || {}, { source });
+        cat.cfg = Object.assign({}, cat.cfg || {}, { source, at: now });
         meta = true; all = true; fields.add('cfg');
         return;
       }

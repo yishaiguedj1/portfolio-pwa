@@ -8,6 +8,8 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 const R2 = require('./r2');
 const C = require('./libcat');
+const BY = require('./benyehuda');
+const GC = require('./libgc');
 
 const MEMO_MS = 10000;
 const CAT_MAX = 16 * 1024 * 1024;        // הקטלוג הדחוס (2,000 ספרים ≈ 0.5–1.3MB)
@@ -266,7 +268,42 @@ async function compat(deps) {
   return { items, byId };
 }
 
-const ADMIN_OPS = new Set(['adminCat', 'catApply', 'undo', 'migratePlan', 'migrateCommit', 'migrateFinish', 'upPlan', 'upCommit']);
+/* ס׳8 — פרויקט בן־יהודה: חיפוש בקטלוג (בזיכרון של המופע, יום) והורדה ישר לקובץ זמני ב־R2 — הטלפון קורא אותו, בודק ומאשר
+   בדיוק כמו העלאה שלו (upCommit), בלי להוריד ולהעלות שוב */
+const BY_MAX = 40 * 1024 * 1024;
+let byCat = null;   // { at, list }
+async function byLoad(deps) {
+  if (byCat && nowOf(deps) - byCat.at < 86400000) return byCat.list;
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
+  try {
+    const r = await (deps.fetch || fetch)(BY.CAT_URL, { signal: ac.signal, headers: { 'User-Agent': 'TheSnowball-Library/1.0' } });
+    if (r.status !== 200) throw new Error('by_http_' + r.status);
+    const list = BY.parseCatalog(await r.text());
+    if (!list.length) throw new Error('by_empty');
+    byCat = { at: nowOf(deps), list };
+    return list;
+  } finally { clearTimeout(t); }
+}
+async function byDownload(deps, id) {
+  const f = deps.fetch || fetch;
+  let cur = BY.dlUrl(id), r = null;
+  for (let hop = 0; ; hop++) {
+    if (!BY.dlAllowed(cur)) throw new Error('by_redirect');
+    r = await f(cur, { redirect: 'manual', headers: { 'User-Agent': 'TheSnowball-Library/1.0' } });
+    if (r.status < 300 || r.status >= 400) break;
+    const loc = r.headers.get('location');
+    if (!loc || hop >= 4) throw new Error('by_redirects');
+    cur = new URL(loc, cur).href;
+  }
+  if (r.status === 404) return null;
+  if (r.status !== 200) throw new Error('by_http_' + r.status);
+  if (+(r.headers.get('content-length') || 0) > BY_MAX) throw new Error('by_size');
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!buf.length || buf.length > BY_MAX) throw new Error('by_size');
+  return buf;
+}
+
+const ADMIN_OPS = new Set(['adminCat', 'catApply', 'undo', 'migratePlan', 'migrateCommit', 'migrateFinish', 'upPlan', 'upCommit', 'byFind', 'byAdd']);
 const OPS = new Set(['cat', 'urls', ...ADMIN_OPS]);
 const BIG_OPS = new Set(['catApply', 'undo', 'migrateCommit', 'upCommit', 'upPlan']);
 const RID_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -318,6 +355,26 @@ async function handle(op, body, user, admin, res, deps = {}, legacy = null) {
       const r = await writeCat(deps, (cat) => C.applyOps(cat, [{ op: 'cfg', source: body.back ? 'drive' : 'r2' }], Object.assign({}, ctx, { internal: true })), { rid });
       return res.status(200).json({ ok: true, v: r.v, src: body.back ? 'drive' : 'r2' });
     }
+    if (op === 'byFind') {
+      const list = await byLoad(deps);
+      const g = Object.values(BY.GENRE).includes(body.g) ? body.g : '';
+      return res.status(200).json(Object.assign({ ok: true }, BY.search(list, String(body.q || '').slice(0, 80), 200, g)));
+    }
+    if (op === 'byAdd') {
+      const ids = (Array.isArray(body.ids) ? body.ids : []).map(Number).filter((x) => Number.isInteger(x) && x > 0).slice(0, 5);
+      if (!ids.length) return res.status(400).json({ ok: false, error: 'bad_ids' });
+      const c = r2c(), rd = rdeps(deps);
+      const items = await Promise.all(ids.map(async (id) => {
+        try {
+          const buf = await byDownload(deps, id);
+          if (!buf) return { id, err: 'not_found' };
+          const u = crypto.randomBytes(16).toString('hex');
+          await R2.putBuf(c, rd, C.KEYS.tmp(u), buf, 'application/epub+zip');
+          return { id, u, size: buf.length, url: await R2.presign(c, rd, { method: 'GET', key: C.KEYS.tmp(u), expires: UP_TTL }) };
+        } catch (e) { return { id, err: String(e.message || e).slice(0, 30) }; }
+      }));
+      return res.status(200).json({ ok: true, items });
+    }
     if (op === 'upPlan') return res.status(200).json(Object.assign({ ok: true }, await upPlan(deps, body)));
     if (op === 'upCommit') return res.status(200).json(Object.assign({ ok: true }, await upCommit(deps, body, ctx, rid)));
     if (op === 'catApply' || op === 'undo') {
@@ -333,4 +390,14 @@ async function handle(op, body, user, admin, res, deps = {}, legacy = null) {
   }
 }
 
-module.exports = { OPS, ADMIN_OPS, BIG_OPS, handle, compat, fmtFor, LEGACY_RE, loadCat, writeCat, adminView, _reset: () => { memo = null; } };
+/* ס׳9: הניקוי היומי (lib/libgc.js) — מהקרון, אחרי הגיבוי. בלי קטלוג ב־R2 (עוד לא עברו) — לא נוגעים בכלום */
+async function dailyGc(deps, now) {
+  const c = r2c();
+  if (!c) return { ok: false, stop: 'no_r2' };
+  const rd = rdeps(deps);
+  return GC.runGc({
+    cat: async () => { const r = await R2.getCond(c, rd, C.KEYS.cat, CAT_MAX); return r.status === 200 ? C.normCatalog(JSON.parse(zlib.gunzipSync(r.buf).toString('utf8'))) : null; },
+    list: (p) => R2.list(c, rd, p, 20000), del: (k) => R2.del(c, rd, k),
+  }, now);
+}
+module.exports = { dailyGc, OPS, ADMIN_OPS, BIG_OPS, handle, _byReset: () => { byCat = null; }, compat, fmtFor, LEGACY_RE, loadCat, writeCat, adminView, _reset: () => { memo = null; byCat = null; } };

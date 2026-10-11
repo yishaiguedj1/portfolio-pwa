@@ -1036,3 +1036,6 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-root .mg-renamebox { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 8px; }
 .lib-root .mg-valsame { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 0; border-top: 1px solid var(--card-border); font-size: 14px; }
 .lib-root .ltr { direction: ltr; unicode-bidi: isolate; }
+.lib-root .mg-addrow { gap: 12px; min-height: 64px; }
+.lib-root .mg-addrow .mg-t2 { white-space: normal; }
+.lib-root .mg-selall { min-height: 28px; font-size: 14px; display: inline; }

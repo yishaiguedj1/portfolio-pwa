@@ -472,9 +472,54 @@ export function createAdmin(env) {
     paintList();
     if (selecting) home.append(actionBar());
     else {
-      const fab = h('label', 'bk-cta mg-fab'); fab.append(h('span', null, '＋ ' + T('mgAdd')), pickInput(startImport));
+      const fab = h('button', 'bk-cta mg-fab'); fab.type = 'button'; fab.append(h('span', null, '＋ ' + T('mgAdd')));
+      fab.addEventListener('click', addSheet);
       home.append(fab);
     }
+  }
+  /* ס׳8: מאיפה להוסיף — קבצים, תיקייה שלמה, ZIP (גם ייצוא של Calibre), או פרויקט בן־יהודה */
+  function addSheet() {
+    env.sheet(T('mgAddFrom'), (sh) => {
+      const list = h('div', 'lib-ios');
+      const done = (files) => env.closeSheetThen(sh.parentNode, () => startImport(files));
+      const fileRow = (label, sub, mk) => {
+        const r = h('label', 'lib-row mg-addrow'); const t = h('span', 'mg-rt'); t.append(h('span', 'mg-t1', label), h('span', 'mg-t2', sub));
+        r.append(t, mk()); list.append(r);
+      };
+      fileRow(T('mgAddFiles'), T('mgAddFilesS'), () => pickInput(done));
+      if ('webkitdirectory' in document.createElement('input')) fileRow(T('mgAddFolder'), T('mgAddFolderS'), () => {
+        const inp = h('input'); inp.type = 'file'; inp.webkitdirectory = true; inp.multiple = true;
+        inp.addEventListener('change', () => { const f = Array.from(inp.files || []).filter((x) => BOOK_EXT.includes(extOf(x.name))); inp.value = ''; if (f.length) done(f); else flash(T('mgNoBooksIn')); });
+        return inp;
+      });
+      fileRow(T('mgAddZip'), T('mgAddZipS'), () => {
+        const inp = h('input'); inp.type = 'file'; inp.accept = '.zip,application/zip';
+        inp.addEventListener('change', async () => {
+          const z = inp.files && inp.files[0]; inp.value = ''; if (!z) return;
+          try { const f = await unzipBooks(z); if (f.length) done(f); else flash(T('mgNoBooksIn')); } catch (e) { flash(T('mgBadZip')); }
+        });
+        return inp;
+      });
+      const by = h('button', 'lib-row mg-addrow'); by.type = 'button';
+      const bt = h('span', 'mg-rt'); bt.append(h('span', 'mg-t1', T('mgAddBy')), h('span', 'mg-t2', T('mgAddByS')));
+      by.append(bt, h('span', 'mg-chev', '‹'));
+      by.addEventListener('click', () => env.closeSheetThen(sh.parentNode, () => env.goView({ mgr: 'by' })));
+      list.append(by);
+      sh.append(list);
+    });
+  }
+  /* ZIP (למשל "שמירה לדיסק" של Calibre): כל קובץ ספר שבו, בלי לפרוס את השאר */
+  async function unzipBooks(zipFile) {
+    const EK = await kit();
+    const z = await EK.readZip(zipFile);
+    const out = [];
+    for (const e of z.entries) {
+      const name = e.name.split('/').pop();
+      if (e.name.endsWith('/') || !BOOK_EXT.includes(extOf(name)) || e.usize > 100 * 1024 * 1024) continue;
+      out.push(new File([await EK.readEntry(zipFile, e, { max: 100 * 1024 * 1024 })], name));
+      if (out.length >= 500) break;
+    }
+    return out;
   }
   function visibleBooks() {
     let list = A.chip === 'sel' && A.sel ? CAT.books.filter((b) => A.sel.has(b.id)) : mgFilter(CAT.books, A.chip, A.q, nowMs());
@@ -483,7 +528,8 @@ export function createAdmin(env) {
   function emptyState() {
     const box = h('div', 'mg-empty');
     box.append(h('div', 'mg-empty-ic', '📚'), h('b', null, T('mgEmptyT')), h('p', null, T('mgEmptyS')));
-    const add = h('label', 'bk-cta'); add.append(h('span', null, T('mgAdd')), pickInput(startImport));
+    const add = h('button', 'bk-cta'); add.type = 'button'; add.append(h('span', null, T('mgAdd')));
+    add.addEventListener('click', addSheet);
     box.append(add);
     return box;
   }
@@ -575,10 +621,10 @@ export function createAdmin(env) {
   /* ================================================================ C/D/E — הוספה */
   async function startImport(files) {
     if (IMP && IMP.stage === 'queue') { flash(T('mgBusy')); return; }
-    IMP = { stage: 'read', items: files.slice(0, 500).map((f, i) => ({ k: i, file: f, name: f.name, size: f.size, ext: extOf(f.name) })), pub: false, added: [], read: 0 };
+    IMP = { stage: 'read', items: files.slice(0, 500).map((f, i) => (f instanceof Blob ? { k: i, file: f, name: f.name, size: f.size, ext: extOf(f.name) } : Object.assign({ k: i }, f))), pub: false, added: [], read: 0 };
     env.goView({ mgr: 'imp' });
     try { await loadCat(); } catch (e) { /* בלי הקטלוג — בלי זיהוי כפילויות; השרתון עוד יזהה זהים */ }
-    for (const it of IMP.items) { if (!IMP) return; await readOne(it); IMP.read++; paintImp(); }
+    for (const it of IMP.items) { if (!IMP) return; if (it.file) await readOne(it); else it.err = it.err || 'open'; IMP.read++; paintImp(); }
     if (!IMP) return;
     IMP.items = classify(IMP.items, (CAT && CAT.books) || []);
     IMP.stage = 'check';
@@ -651,6 +697,7 @@ export function createAdmin(env) {
     const cancel = textBtn(T('mgCancel'), () => { IMP = null; history.back(); });
     home.append(topBar(cancel, [], T('mgNFiles', { n: IMP.items.length })));
     const box = h('div', 'mg'); home.append(box);
+    if (IMP.stage === 'read' && IMP.fetching) { box.append(h('p', 'ac-sub mg-sum', T('mgByFetching', { n: IMP.fetched || 0, t: IMP.fetching }))); return; }
     if (IMP.stage === 'read') {
       box.append(h('p', 'ac-sub mg-sum', T('mgReading', { n: IMP.read, t: IMP.items.length })));
       const l = h('div', 'mg-list');
@@ -683,7 +730,7 @@ export function createAdmin(env) {
     sw.addEventListener('change', () => { IMP.pub = sw.checked; });
     pr.append(sw); opts.append(pr); box.append(opts);
     const n = IMP.items.filter((it) => it.on && (it.g === 'new' || it.g === 'maybe')).length;
-    const cta = h('button', 'bk-cta mg-cta', n ? T('mgAddN', { n }) : T('mgNoneSel')); cta.type = 'button'; cta.disabled = !n;
+    const cta = h('button', 'bk-cta mg-cta', n === 1 ? T('mgAddOneBook') : n ? T('mgAddN', { n }) : T('mgNoneSel')); cta.type = 'button'; cta.disabled = !n;
     cta.addEventListener('click', runQueue);
     if (!nw.length && !mb.length && sm.length) box.append(h('p', 'lib-empty', T('mgAllSame', { n: sm.length })));
     home.append(cta);
@@ -763,12 +810,14 @@ export function createAdmin(env) {
   async function upOne(it) {
     it.st = 'up'; it.p = 0; paintRow(it);
     try {
-      const want = [{ k: 'b', size: it.size }];
+      const pre = it.pre && !it.fixed ? it.pre : null;      // בן־יהודה: הקובץ כבר בקובץ זמני ב־R2 (אם לא תוקן בטלפון)
+      const want = pre ? [] : [{ k: 'b', size: it.size }];
       if (it.cover) want.push({ k: 'c', size: it.cover.blob.size });
-      const pl = await api('upPlan', { items: want });
-      const ub = pl.items[0];
+      const pl = want.length ? await api('upPlan', { items: want }) : { items: [] };
+      const ub = pre ? { u: pre.u } : pl.items[0];
       if (!ub || !ub.u) throw new Error((ub && ub.err) || 'plan');
-      await putFile(ub.url, it.file, (p) => { it.p = p; paintRow(it); });
+      if (!pre) await putFile(ub.url, it.file, (p) => { it.p = p; paintRow(it); });
+      if (pre) pl.items.unshift(null);
       it.st = 'proc'; paintRow(it);
       const book = Object.assign({ id: it.id, st: IMP.pub ? 'pub' : 'draft' }, it.fields);
       const one = it.act === 'replace' ? { u: ub.u, k: 'b', ext: it.ext, id: it.like } : { u: ub.u, k: 'b', ext: it.ext, book, batch: IMP.batch };
@@ -1486,6 +1535,87 @@ export function createAdmin(env) {
     box.append(ul);
   }
 
+  /* ================================================================ פרויקט בן־יהודה (ס׳8): רשות הרבים בעברית */
+  const BYS = { q: '', g: '', res: null, sel: new Set(), seq: 0 };
+  const BY_G = ['מכתבים', 'מאמרים', 'פרוזה', 'שירה', 'זכרונות', 'מחזות', 'עיון', 'משלים'];
+  function renderBy() {
+    const home = page();
+    home.append(topBar(backBtn(T('mgTitle'))), h('h1', 'lib-large', T('mgAddBy')));
+    const box = h('div', 'mg'); home.append(box);
+    box.append(h('p', 'mg-t2 wrap', T('mgByWhy')));
+    const sw = h('div', 'lib-search mg-search'); sw.innerHTML = ICON.search || '';
+    const inp = h('input'); inp.type = 'search'; inp.placeholder = T('mgByPh'); inp.value = BYS.q; inp.id = 'mgByQ';
+    sw.append(inp); box.append(sw);
+    const chips = h('div', 'lib-chips no-swipe mg-chips');
+    [''].concat(BY_G).forEach((g) => {
+      const c = h('button', 'lib-chip' + (BYS.g === g ? ' on' : ''), g || T('learnAll')); c.type = 'button';
+      c.addEventListener('click', () => { BYS.g = g; chips.querySelectorAll('.lib-chip').forEach((x) => x.classList.toggle('on', x === c)); run(); });
+      chips.append(c);
+    });
+    box.append(chips);
+    const info = h('p', 'mg-sum', ''); box.append(info);
+    const list = h('div', 'mg-list'); box.append(list);
+    const cta = h('button', 'bk-cta mg-cta'); cta.type = 'button';
+    const paintCta = () => { cta.textContent = BYS.sel.size === 1 ? T('mgByAddOne') : BYS.sel.size ? T('mgByAdd', { n: BYS.sel.size }) : T('mgNoneSel'); cta.disabled = !BYS.sel.size; };
+    cta.addEventListener('click', () => byImport(Array.from(BYS.sel)));
+    home.append(cta);
+    const paint = () => {
+      list.textContent = '';
+      const r = BYS.res;
+      if (!r) { info.textContent = ''; paintCta(); return; }
+      info.textContent = r.total > r.items.length ? T('mgByMany', { n: r.items.length, t: r.total }) : T('mgByN', { n: r.total });
+      if (r.items.length) {
+        const all = r.items.every((x) => BYS.sel.has(x.id));
+        const sa = h('button', 'mg-tb mini mg-selall', T(all ? 'mgSelNone' : 'mgSelAll')); sa.type = 'button';
+        sa.addEventListener('click', () => { r.items.forEach((x) => (all ? BYS.sel.delete(x.id) : BYS.sel.add(x.id))); paint(); });
+        info.append(' · ', sa);
+      }
+      r.items.forEach((x) => {
+        const on = BYS.sel.has(x.id);
+        const row = h('button', 'mg-row' + (on ? ' sel' : '')); row.type = 'button'; row.setAttribute('aria-pressed', on ? 'true' : 'false');
+        row.append(h('span', 'mg-ck' + (on ? ' on' : ''), on ? '✓' : ''));
+        const t = h('div', 'mg-rt'); const t1 = h('div', 'mg-t1', x.t); t1.dir = 'auto';
+        const t2 = h('div', 'mg-t2', [x.a, x.tr ? T('mgByTr', { t: x.tr }) : '', x.g].filter(Boolean).join(' · ')); t2.dir = 'auto';
+        t.append(t1, t2); row.append(t);
+        row.addEventListener('click', () => { if (BYS.sel.has(x.id)) BYS.sel.delete(x.id); else if (BYS.sel.size < 200) BYS.sel.add(x.id); paint(); });
+        list.append(row);
+      });
+      paintCta();
+    };
+    let tm = 0;
+    const run = async () => {
+      const q = inp.value.trim(); BYS.q = q;
+      if (q.length < 2) { BYS.res = null; paint(); return; }
+      const seq = ++BYS.seq;
+      info.textContent = T('mgBySearching');
+      try { const j = await api('byFind', { q, g: BYS.g }); if (seq === BYS.seq) { BYS.res = j; paint(); } }
+      catch (e) { if (seq === BYS.seq) info.textContent = T('mgSugErr'); }
+    };
+    inp.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(run, 350); });
+    if (BYS.q && !BYS.res) run(); else paint();
+  }
+  async function byImport(ids) {
+    if (IMP && IMP.stage === 'queue') { flash(T('mgBusy')); return; }
+    IMP = { stage: 'read', items: [], pub: false, added: [], read: 0, fetching: ids.length };
+    env.goView({ mgr: 'imp' });
+    const titles = new Map(((BYS.res && BYS.res.items) || []).map((x) => [x.id, x.t]));
+    const got = [];
+    for (const part of chunk(ids, 5)) {
+      let j = null;
+      try { j = await api('byAdd', { ids: part }); } catch (e) { j = { items: part.map((id) => ({ id, err: 'net' })) }; }
+      for (const x of j.items) {
+        const name = (titles.get(x.id) || String(x.id)).replace(/[\\/:*?"<>|]/g, ' ').slice(0, 80) + '.epub';
+        if (x.err || !/^https:\/\/[a-z0-9.-]+\.r2\.cloudflarestorage\.com\//.test(String(x.url))) { got.push({ name, size: 0, ext: 'epub', err: 'open' }); continue; }
+        try { const r = await fetch(x.url); if (!r.ok) throw new Error('dl'); const bl = await r.blob(); got.push({ file: new File([bl], name, { type: 'application/epub+zip' }), name, size: bl.size, ext: 'epub', pre: { u: x.u } }); }
+        catch (e) { got.push({ name, size: 0, ext: 'epub', err: 'open' }); }
+      }
+      if (IMP) { IMP.fetched = got.length; paintImp(); }
+    }
+    BYS.sel.clear();
+    IMP = null;
+    return startImport(got);
+  }
+
   /* ================================================================ ניתוב */
   function render(v) {
     if (v.mgr === 'imp') return renderImp();
@@ -1496,6 +1626,7 @@ export function createAdmin(env) {
     if (v.mgr === 'sug') return renderSug(v);
     if (v.mgr === 'dup') return renderDup();
     if (v.mgr === 'vals') return renderVals(v);
+    if (v.mgr === 'by') return renderBy();
     return renderHomeMgr();
   }
   return { render, busy: () => !!(IMP && IMP.stage === 'queue'), _state: () => ({ A, IMP, CAT, ONE }) };

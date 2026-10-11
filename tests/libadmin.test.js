@@ -85,7 +85,7 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   ok(/x\.send\(blob\.slice\(0, blob\.size\)\)/.test(src) && /r2\\\.cloudflarestorage\\\.com/.test(src), 'העלאה ישירה ל־R2 בלי כותרת Content-Type; הורדות רק מכתובת של R2');
   const inner = [...src.matchAll(/\.innerHTML = ([^;]+);/g)].map((x) => x[1].trim());
   ok(inner.length >= 4 && inner.every((x) => /^(ic|IC\.[a-z]+|ICON\.[a-z]+( \|\| '')?)$/.test(x)), 'innerHTML רק לסמלים קבועים — טקסט מבחוץ תמיד textContent');
-  const keys = new Set([...src.matchAll(/'(mg[A-Z][A-Za-z0-9]*)'/g)].map((x) => x[1]).filter((k) => !/^mg(B|F|Q|NumStart|TagIn|Rename)$/.test(k)));
+  const keys = new Set([...src.matchAll(/'(mg[A-Z][A-Za-z0-9]*)'/g)].map((x) => x[1]).filter((k) => !/^mg(B|F|Q|NumStart|TagIn|Rename|ByQ)$/.test(k)));
   const heBlock = app.slice(app.indexOf("mgTitle: 'ניהול'"), app.indexOf("mgTitle: 'Manage'"));
   const enBlock = app.slice(app.indexOf("mgTitle: 'Manage'"));
   const miss = [...keys].filter((k) => !new RegExp('\\b' + k + ':').test(heBlock) || !new RegExp('\\b' + k + ':').test(enBlock));

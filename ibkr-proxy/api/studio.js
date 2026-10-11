@@ -31,7 +31,8 @@ const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נל
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const R2 = require('../lib/r2');   // ת4: האחסון ב־Cloudflare R2
-const BK = require('../lib/backup');   // ת7: גיבוי יומי ל־R2
+const BK = require('../lib/backup');
+const LM = require('../lib/libmgr');   // ס׳9: הניקוי היומי של הספרייה   // ת7: גיבוי יומי ל־R2
 const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודיו ב־R2 (תיקייה R2_<עבודה>, מזהה <תיקייה>_<אקראי>)
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
@@ -297,6 +298,7 @@ async function dailyBackup(deps, now) {
       head: (k) => R2.head(c, rd, k), get: (k, max) => R2.getBuf(c, rd, k, max), put: (k, b, t) => R2.putBuf(c, rd, k, b, t),
       list: (p) => R2.list(c, rd, p, 2000), del: (k) => R2.del(c, rd, k),
     }, now);
+    if (r.done) await LM.dailyGc(deps, now).catch(() => null);   // ס׳9: ניקוי הספרייה — פעם ביום, אחרי שהקטלוג גובה
     return r.done ? 1 : 0;
   } catch (e) { return -1; }
 }
