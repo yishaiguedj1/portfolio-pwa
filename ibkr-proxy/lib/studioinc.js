@@ -40,7 +40,7 @@ function incList(inc, now) {
 /* עבודות מהשרתון → הצורה שהקובץ הזה צריך (בלי המפתח, בלי שמות): המצב האפקטיבי, הקוד, כמה הפעלות, כמה "המשך" אוטומטי */
 function jobFacts(job, eff, stale) {
   return { id: job.id, st: eff.state, err: stale ? 'stale' : eff.err || (eff.state === 'failed' ? 'worker' : ''), bad: eff.state === 'failed' || !!stale,
-    fires: num(job.fires), ar: num(job.ar), rw: num(job.rw), at: num(job.ended) || num(job.updated), fired: num(job.fired),
+    fires: num(job.fires), ar: num(job.ar), rw: num(job.rw), at: num(job.ended) || num(eff.at) || num(job.updated), fired: num(job.fired),
     w: PIR.wastedUsd(job, eff.state),   // v379: מה עלה בטעות (לדוח אחרי תקלה)
     ev: /^[0-9a-f]{8,40}$/.test(String(job.ev || '')) ? job.ev : '', fp: [job.tw, job.ls].map((t) => (t && /^[0-9a-f]{12}$/.test(String(t.fp || '')) ? t.fp : '')).find(Boolean) || '' };   // v376: גם העצירה שלפני ה"המשך" (ls)
 }

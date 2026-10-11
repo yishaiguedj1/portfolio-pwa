@@ -256,8 +256,9 @@ async function fireJob(deps, uid, v, job, now, resume) {
    התשובה — רק מספר */
 async function watch(req, res, deps) {
   res.setHeader('Cache-Control', 'no-store');
-  const secret = process.env.STUDIO_WATCH_SECRET;
-  if (secret && String((req.headers || {}).authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
+  // הסוד (אופציונלי) — של GitHub או של הקרון היומי של Vercel (CRON_SECRET, שולח אותו ככותרת Authorization)
+  const secret = process.env.STUDIO_WATCH_SECRET, auth = String((req.headers || {}).authorization || '');
+  if (secret && auth !== 'Bearer ' + secret && !(process.env.CRON_SECRET && auth === 'Bearer ' + process.env.CRON_SECRET)) return res.status(401).json({ ok: false });
   /* ת4: בדיקת החיבור ל־R2 (?r2=1) — כותבת קובץ זעיר, קוראת ומוחקת, ובודקת CORS לאתר. בתשובה רק כן/לא וקוד שגיאה */
   if (String((req.query || {}).r2 || '') === '1') {
     if (limited('r2h', 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -266,17 +267,29 @@ async function watch(req, res, deps) {
   }
   if (limited('watch', 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   const now = deps.now || Date.now();
-  try {
-    let n = 0;
-    for (const s of S.serversDown(await query(deps, 'studioServers', null, S.SRV_MAX + 5), now)) {
-      const got = await patchIf(deps, 'studioServers', s.id, { dn: now, updated: now }, s._ut).catch(() => false);
-      if (!got || !UID_RE.test(String(s.by || ''))) continue;
-      n++;
-      await raise(deps, s.by, [{ c: 'server', k: 'down' }], '', now);
-      await notify(deps, s.by, 'srv_down', '', now);
-    }
-    return res.status(200).json({ ok: true, down: n });
-  } catch (e) { return res.status(502).json({ ok: false }); }
+  try { return res.status(200).json({ ok: true, down: await checkServers(deps, now) }); }
+  catch (e) { return res.status(502).json({ ok: false }); }
+}
+/* הבדיקה עצמה — גם מהקרון וגם מהטלפון (11/10/2026): GitHub מדלג על ריצות מתוזמנות (בפועל פעם בכמה שעות),
+   ולכן גם status/jobs מהטלפון בודקים — לכל היותר פעם ב־WATCH_EVERY לכל מופע, ורק את השרתים של מי ששואל */
+const WATCH_EVERY = 5 * 60e3;
+let lastWatch = 0;
+function watchDue(now) {
+  if (Math.abs(now - lastWatch) < WATCH_EVERY) return false;
+  lastWatch = now;
+  return true;
+}
+async function checkServers(deps, now, onlyUid) {
+  let n = 0;
+  for (const s of S.serversDown(await query(deps, 'studioServers', null, S.SRV_MAX + 5), now)) {
+    if (onlyUid && s.by !== onlyUid) continue;
+    const got = await patchIf(deps, 'studioServers', s.id, { dn: now, updated: now }, s._ut).catch(() => false);
+    if (!got || !UID_RE.test(String(s.by || ''))) continue;
+    n++;
+    await raise(deps, s.by, [{ c: 'server', k: 'down' }], '', now);
+    await notify(deps, s.by, 'srv_down', '', now);
+  }
+  return n;
 }
 /* ההתראה במגדל אחת לכל המשתמש — נסגרת רק כשאף שרת אחר שלו לא מסומן */
 async function downClear(deps, uid, sid, now) {
@@ -800,6 +813,7 @@ async function handler(req, res, deps = {}) {
   if (limited('p|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
   const uid = user.uid, op = String(body.op || ''), now = deps.now || Date.now();
+  if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
   if (op === 'gdConnect' || op === 'gdStatus' || op === 'gdToken' || op === 'gdDisconnect') return gdrive.handle(body, user, res, deps);
   const mine = async (id) => {

@@ -10,6 +10,13 @@ const EFFORTS = ['low', 'medium', 'high', 'max'];
 /* המאמץ של המתרגם והמבקר — מהמצב שנבחר (opus-medium → medium); מנהל העבודה — לפי ה־Routine (לא ידוע כאן) */
 const effortOf = (mode) => { const e = String(mode || '').split('-').pop(); return EFFORTS.includes(e) ? e : ''; };
 const r4 = (v) => Math.round(v * 1e4) / 1e4;
+/* 11/10: המאמץ לכל סוכן — השופט תמיד High (החלטת המשתמש 11/10); מנהל העבודה במצב השרת = ההגהה בקריאה ישירה במצב של העבודה,
+   וב־Routine — הסשן שהמשתמש הגדיר (לא ידוע כאן) */
+const agentEffort = (k, job) => {
+  if (k === 'jg') return 'high';
+  const api = job && (job.eng === 'api' || (job.spec && job.spec.eng === 'api'));
+  return k === 'main' && !api ? '' : effortOf(job && job.spec && job.spec.mode);
+};
 
 function agentsView(jobs, now) {
   const list = (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && (j.created || 0) >= now - KEEP)
@@ -45,7 +52,7 @@ function agentsView(jobs, now) {
     }
     const vs = Array.from(byV.entries()).map(([p, js]) => Object.assign({ p, jobs: js.length, at: js[0].created || 0 }, evalOf(k, js)))
       .sort((a, b) => b.at - a.at).slice(0, VS_MAX);
-    out.push(Object.assign({ k, m: model, ef: k === 'main' || k === 'jg' ? '' : effortOf(last.spec && last.spec.mode), jobs: ran.length, usd: r4(usd), partial,
+    out.push(Object.assign({ k, m: model, ef: agentEffort(k, last), jobs: ran.length, usd: r4(usd), partial,
       ok: ended.length ? Math.round(100 * ok / ended.length) : null, n, e, s: sec,
       pv, pvs: pvs.size, pvNew: !!(pv && pvs.size > 1 && now - pvAt < NEW_MS), q: qn ? Math.round(qs / qn) : null, vs }, evalOf(k, ran)));
   }

@@ -534,11 +534,13 @@ function effState(job, now) {
   // v356: הפעלה "לא ודאית" (5xx/רשת — warn) שלא נלקחה: השגיאה של Anthropic, לא "לא התחיל" (שמפנה לרשת של הסביבה)
   if (job && job.state === 'queued' && job.eng === 'api') {
     // מצב API: העבודה בתור עד ששרת פנוי לוקח אותה. שרת לקח ולא התחיל בזמן / אף שרת לא לקח — נכשלה
-    if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim' };
-    if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server' };
+    if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim', at: job.pk + CLAIM_WAIT.tr };
+    if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server', at: job.fired + API_QUEUE_WAIT };
     return { state: 'queued', err: '' };
   }
-  if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim' };
+  // at = הרגע שבו העבודה נחשבה "נכשלה" (בלי ended במסמך — הכישלון נגזר מהזמן). 11/10: בלעדיו התקלה קיבלה את updated,
+  // שזז בכל צפייה (למשל רישום הסשן) — ובמגדל הופיעה שעת הסנכרון במקום שעת התקלה
+  if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim', at: job.fired + (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr) };
   return { state: job ? job.state : 'failed', err: job ? job.err || '' : '' };
 }
 const fileView = (f) => (f && f.id ? Object.assign({ id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 }, f.ext ? { ext: true } : {}) : null);   // ext = מקור מ־Drive של המשתמש (נבחר ב־Picker) — לא בתיקיית העבודה, ולא נוגעים בו
@@ -561,7 +563,7 @@ function publicJob(job, now) {
   const e = effState(job, now);
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
-    fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || 0,
+    fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
