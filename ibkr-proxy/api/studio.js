@@ -32,6 +32,7 @@ const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const R2 = require('../lib/r2');   // ת4: האחסון ב־Cloudflare R2
 const BK = require('../lib/backup');
+const OFF = require('../lib/offsite');   // 11/10/2026: גיבוי אצל ספק שני — ל־Google Drive של המנהל (הגישה דרך הלקוח של הספרייה, בתוך offsite.js)
 const LM = require('../lib/libmgr');   // ס׳9: הניקוי היומי של הספרייה   // ת7: גיבוי יומי ל־R2
 const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודיו ב־R2 (תיקייה R2_<עבודה>, מזהה <תיקייה>_<אקראי>)
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
@@ -273,7 +274,44 @@ async function watch(req, res, deps) {
   try { down = await checkServers(deps, now); }
   catch (e) { return res.status(502).json({ ok: false }); }
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
-  return res.status(200).json({ ok: true, down, bk });
+  const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
+  return res.status(200).json({ ok: true, down, bk, ob });
+}
+/* 11/10/2026 — הגיבוי אצל ספק שני (lib/offsite.js): ל־Drive של המנהל שרשום ב־sysBackup/cfg (נרשם כשהמנהל פותח את הסטודיו).
+   הגישה: רק הלקוח של הספרייה (OFF.ownerToken) — **לא של הסטודיו**: העובד מקבל גישה של הלקוח של הסטודיו, ועובד שנפרץ היה
+   רואה (ויכול למחוק) את הגיבוי. המצב במסמך: day (היום האחרון שגובה), okAt, up (קבצים שעלו
+   בסה"כ), err (קוד בלבד). פעם ב־OFF_EVERY למופע; תקציב זמן — הפונקציה מוגבלת ל־30 שנ׳. 1 = רץ, 0 = לא היה מה / לא הגיע הזמן, -1 = תקלה */
+const OFF_EVERY = 8 * 60e3;
+let lastOff = 0;
+async function offsiteBackup(deps, now) {
+  if (!R2.config().ok || Math.abs(now - lastOff) < OFF_EVERY) return 0;
+  lastOff = now;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !UID_RE.test(String(cfg.uid || ''))) return 0;
+  const t = await OFF.ownerToken(deps, cfg.uid).catch(() => ({ ok: false, error: 'gd_failed' }));
+  if (!t.ok) { await patchDoc(deps, 'sysBackup', 'cfg', { err: String(t.error || 'gd').slice(0, 30), at: now }).catch(() => {}); return -1; }
+  const c = R2.config(), rd = r2deps(deps), f = deps.fetch || fetch;
+  const io = {
+    r2: { list: (p) => R2.list(c, rd, p, 5000), get: (k, max) => R2.getBuf(c, rd, k, max) },
+    drive: OFF.driveIo(f, t.token),
+    clock: () => Date.now(),
+  };
+  try {
+    const r = await OFF.runOffsite(io, now, { day: cfg.day || '' }, Date.now() + 15000);
+    await patchDoc(deps, 'sysBackup', 'cfg', { day: r.day, okAt: now, up: (Number(cfg.up) || 0) + r.up, left: r.left, err: '', at: now });
+    return 1;
+  } catch (e) {
+    await patchDoc(deps, 'sysBackup', 'cfg', { err: /^(gd_http_\d+|r2_[a-z_]+|fs_http_\d+)$/.test(String(e.message)) ? String(e.message) : 'failed', at: now }).catch(() => {});
+    return -1;
+  }
+}
+/* המנהל פותח את הסטודיו → הוא בעל הגיבוי (פעם אחת; מנהל אחר לא דורס) */
+let offOwnerSeen = '';
+async function offsiteOwner(deps, uid) {
+  if (offOwnerSeen === uid) return;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !cfg.uid) await patchDoc(deps, 'sysBackup', 'cfg', { uid, at: Date.now() });
+  offOwnerSeen = uid;
 }
 /* ת7: הגיבוי היומי (lib/backup.js) — פעם ביום, ל־R2. בתשובה רק מצב (בלי תוכן): 1 = נוצר עכשיו, 0 = כבר היה, -1 = תקלה / בלי R2 */
 async function fsListCol(deps, col, max) {
@@ -887,6 +925,7 @@ async function handler(req, res, deps = {}) {
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
   const uid = user.uid, op = String(body.op || ''), now = deps.now || Date.now();
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
+  if (op === 'status' && isAdmin(user)) await offsiteOwner(deps, uid).catch(() => {});   // 11/10/2026: בעל הגיבוי ב־Drive
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
   if (op === 'gdConnect' || op === 'gdStatus' || op === 'gdToken' || op === 'gdDisconnect') return gdrive.handle(body, user, res, deps);
   const mine = async (id) => {
@@ -917,6 +956,10 @@ async function handler(req, res, deps = {}) {
       fires: { n: S.recentFires(v && v.fh, now).length, max: S.FIRE_HOUR },
       drive: { cfg: gdrive.configured(), conn: false, err: '', free: null },
     };
+    if (isAdmin(user)) {   // 11/10/2026: הגיבוי אצל ספק שני — רק למנהל (בעל הגיבוי)
+      const ob = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+      f.offsite = ob && ob.uid === uid ? { day: String(ob.day || ''), err: String(ob.err || '') } : { day: '', err: 'owner' };
+    }
     // התקציב לעבודה מול עבודה רגילה של שעה במצב ברירת המחדל (או במקסימום שבחרת, אם הוא זול יותר)
     const rl = S.normRules(st.rl);
     if (rl.b > 0) {

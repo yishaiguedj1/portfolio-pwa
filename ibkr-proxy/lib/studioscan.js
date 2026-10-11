@@ -23,6 +23,7 @@ const CHECKS = [
   { k: 'quota', c: 'env' },
   { k: 'fires', c: 'env' },
   { k: 'budget', c: 'setup' },
+  { k: 'offsite', c: 'sec' },   // 11/10/2026: הגיבוי אצל ספק שני (Drive של המנהל) — רק למנהל
   { k: 'orphans', c: 'clean' },
   { k: 'dupes', c: 'clean' },
   { k: 'ck', c: 'clean' },
@@ -42,6 +43,8 @@ const KINDS = {
   quota_low: { ch: 'quota', p: 2 },
   fires_high: { ch: 'fires', p: 3 },
   budget_low: { ch: 'budget', p: 4 },         // התקציב לעבודה קטן מעבודה רגילה של שעה — כל עבודה ארוכה תיעצר לאישור
+  offsite_none: { ch: 'offsite', p: 2 },      // הגיבוי ל־Drive עוד לא רץ / אין חיבור ל־Drive
+  offsite_stale: { ch: 'offsite', p: 2 },     // הגיבוי האחרון ל־Drive — לפני יותר מיומיים
   orphans: { ch: 'orphans', p: 4 },           // תיקיות של עבודות שמחקת (הקבצים נשארו ב־Drive בכוונה — רק מציעים)
   dupes: { ch: 'dupes', p: 4 },               // כמה תיקיות לאותה עבודה
   ck: { ch: 'ck', p: 5 },                     // נקודות שמירה של עבודות שהסתיימו — כבר לא נחוצות
@@ -137,6 +140,12 @@ function scanFindings(f, now) {
   if (f.budget) {
     ran.add('budget');
     if (f.budget.b > 0 && f.budget.need > 0 && f.budget.b < f.budget.need) add('budget_low', { u: f.budget.b, need: Math.round(f.budget.need * 100) / 100 });
+  }
+  const o = f.offsite;   // { day: 'YYYY-MM-DD' של הגיבוי האחרון, err: קוד } — רק למנהל
+  if (o) {
+    ran.add('offsite');
+    if (!o.day) add('offsite_none');
+    else if (now - Date.parse(o.day + 'T00:00:00Z') > 2 * DAY + DAY) add('offsite_stale', { d: Math.floor((now - Date.parse(o.day + 'T00:00:00Z')) / DAY) });
   }
   const cl = f.clean;
   if (cl) {
