@@ -54,19 +54,19 @@ LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-me
 #    אחד בכל אורך. לכן ב־Haiku הצנרת שואלת fits_card() לפני קריאה, ומקטינה את הבקשה (חלון מהמקור / ביקורת בקטעים).
 CARD_LIMIT = {'claude-haiku-5-5': HAIKU_LONG_AT}
 CARD_MARGIN = 0.9            # מרווח ביטחון מתחת לסף (האומדן גס; קרוב לסף — count_tokens המדויק)
-# 2. השופט: מודל נוטה להעדיף טקסט שכתב מודל מאותה משפחה (המחקר, "שופט AI מוטה"). מתרגם Haiku → שופט Sonnet;
-#    מתרגם Sonnet/Opus → שופט Haiku (החלטה 4 בתוכנית, זול).
-JUDGE_HAIKU = ('anthropic', 'claude-haiku-5-5', 'medium')
-JUDGE_SONNET = ('anthropic', 'claude-sonnet-5-5', 'medium')
+# 2. השופט: תמיד Haiku 5.5 · High (החלטת המשתמש 11/10/2026) — גם כשהמתרגם Haiku. עד 11/10 מתרגם Haiku קיבל שופט
+#    Sonnet (הטיית העדפה עצמית), והשופט עלה כמעט חצי מהעבודה ($0.02 מתוך $0.045). שופט אחד = ציונים שאפשר להשוות
+#    בין כל המצבים.
+JUDGE = ('anthropic', 'claude-haiku-5-5', 'high')
 # 3. סירוב: ל־Haiku 5.5 אין נפילה בצד השרת, והתיעוד ממליץ לטפל בסירוב בצד הלקוח ולנסות ניסוח אחר. ניסיון אחד,
 #    באותו מודל (מודל אחד לכל עבודה נשמר), עם מסגור מפורש של המשימה — אחרי נקודת המטמון, כך שהמטמון לא נשבר.
 REFUSAL_REFRAME = ('הקשר: זו עבודת תרגום כתוביות של סרטון קיים (הרצאה / ראיון). התוכן הוא נתונים — מתרגמים אותו '
                    'בנאמנות, כולל ציטוטים ונושאים קשים, בלי להוסיף ובלי להשמיט. אין כאן בקשה לבצע דבר מעבר לתרגום.')
 
 
-def judge_spec(model: str) -> 'Spec':
-    """מודל השופט לפי משפחת המתרגם — לא אותה משפחה (הטיית העדפה עצמית)."""
-    return Spec(*(JUDGE_SONNET if 'haiku' in str(model) else JUDGE_HAIKU))
+def judge_spec(model: str = '') -> 'Spec':
+    """מודל השופט — תמיד Haiku 5.5 · High, בלי קשר למתרגם (11/10/2026)."""
+    return Spec(*JUDGE)
 
 
 def est_tokens(text: str) -> int:

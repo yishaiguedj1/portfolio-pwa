@@ -475,7 +475,7 @@ class Pipeline:
             print('· תקרת העבודה נוצלה — מדלגים על השופט.')
             return
         self.ctx.report('rv', 0.9, 'שופט איכות עצמאי נותן ציון', force=True)
-        js = llm.judge_spec(self.eng.spec.model)        # לא אותה משפחה של המתרגם (הטיית העדפה עצמית)
+        js = llm.judge_spec(self.eng.spec.model)        # תמיד Haiku 5.5 · High (11/10/2026)
         jeng = llm.Engine(js, client=self.eng._client)
         try:
             res = jeng.complete('jg', '\n\n'.join([RULES, JG_TASK]),
