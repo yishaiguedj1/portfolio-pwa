@@ -13,6 +13,8 @@ const OLD_JOB = 90 * DAY;                                // עבודה שהסת�
 const QUOTA_LOW = 5 * GB, QUOTA_CRIT = 1 * GB;           // מקום פנוי ב־Drive (סרטון של שעה ≈ 1–3GB)
 const FIRES_WARN = 0.8;                                  // 80% ממכסת ההפעלות בשעה
 const MAX_FOLDERS = 30;                                  // ניקוי — עד 30 תיקיות בכל פעם (זמן הפונקציה ב־Vercel)
+const R2_GRACE = 3600000;                                // ת4: תיקייה ב־R2 שנגעו בה בשעה האחרונה — לא יתומה (מחיקה שעוד רצה)
+const R2_FOLDER_RE = /^R2_j[A-Za-z0-9_-]{20}$/;          // = FOLDER_RE ב־lib/studior2.js
 
 /* הבדיקות, לפי הסדר במסך. c = קטגוריה: setup (הגדרה), sec (גישה), env (סביבה), clean (ניקיון) */
 const CHECKS = [
@@ -64,6 +66,27 @@ function dupeFolders(folders, jobs) {
     out.push(...list.filter((f) => f.id !== k));
   }
   return out;
+}
+/* ת4: התיקיות ב־R2 מרשימת המפתחות (st/<uid>/<תיקייה>_<12>) → [{f, job, b, at}]. מפתח בצורה אחרת — לא נספר */
+function r2Folders(items, uid) {
+  const pre = 'st/' + uid + '/', by = new Map();
+  for (const it of Array.isArray(items) ? items : []) {
+    const k = String((it && it.key) || '');
+    if (!k.startsWith(pre)) continue;
+    const id = k.slice(pre.length), cut = id.lastIndexOf('_');
+    if (cut < 0 || !/^[A-Za-z0-9]{12}$/.test(id.slice(cut + 1))) continue;
+    const f = id.slice(0, cut);
+    if (!R2_FOLDER_RE.test(f)) continue;
+    const x = by.get(f) || { f, job: f.slice(3), b: 0, at: 0 };
+    x.b += Number(it.size) || 0; x.at = Math.max(x.at, Number(it.at) || 0);
+    by.set(f, x);
+  }
+  return [...by.values()];
+}
+/* יתומה ב־R2 = אף עבודה ברשימה לא משתמשת בתיקייה (עבודות משנה וסט הזהב יורשים אותה), ולא נגעו בה בשעה האחרונה */
+function r2Orphans(folders, jobs, now) {
+  const used = new Set((Array.isArray(jobs) ? jobs : []).filter((j) => j && j.folder).map((j) => j.folder));
+  return (Array.isArray(folders) ? folders : []).filter((x) => x && !used.has(x.f) && now - (x.at || 0) > R2_GRACE);
 }
 /* נקודות שמירה של עבודות שהסתיימו בהצלחה (אי אפשר להמשיך עבודה שהסתיימה — הן רק תופסות מקום) */
 function doneCheckpoints(jobs) {
@@ -142,6 +165,6 @@ function scanView(sc) {
 }
 
 module.exports = {
-  DAY, GB, PEN, PASS, STALE_OK, OLD_JOB, QUOTA_LOW, QUOTA_CRIT, FIRES_WARN, MAX_FOLDERS, CHECKS, CHECK_KEYS, KINDS, CLEAN_KINDS,
-  orphanFolders, dupeFolders, doneCheckpoints, oldJobs, scanFindings, scanView,
+  DAY, GB, PEN, PASS, STALE_OK, OLD_JOB, QUOTA_LOW, QUOTA_CRIT, FIRES_WARN, MAX_FOLDERS, R2_GRACE, CHECKS, CHECK_KEYS, KINDS, CLEAN_KINDS,
+  orphanFolders, dupeFolders, r2Folders, r2Orphans, doneCheckpoints, oldJobs, scanFindings, scanView,
 };

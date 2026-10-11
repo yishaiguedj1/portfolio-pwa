@@ -8,6 +8,7 @@
    הפענוח טהור (נבדק בלי רשת). מידע ציבורי בלבד — לא נשלח שום נתון של המשתמש מלבד מה שחיפש. */
 
 const UA = 'TheSnowball-Library/1.0 (personal reading app)';
+const BM = require('./bookmatch');
 const LANG3 = { heb: 'he', eng: 'en', ara: 'ar', rus: 'ru', fre: 'fr', fra: 'fr', ger: 'de', deu: 'de', spa: 'es', yid: 'yi' };
 
 const decodeXml = (s) => String(s || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
@@ -42,7 +43,7 @@ function parseGoogle(j) {
     let cover = (v.imageLinks && (v.imageLinks.extraLarge || v.imageLinks.large || v.imageLinks.medium || v.imageLinks.thumbnail || v.imageLinks.smallThumbnail)) || '';
     if (cover) cover = cover.replace(/^http:/, 'https:').replace(/&edge=curl/, '') + (/[?&]fife=/.test(cover) ? '' : '&fife=w800-h1200');
     return rec({ src: 'google', id: it.id || '', title: clean(v.title), subtitle: clean(v.subtitle), authors: (v.authors || []).map(clean),
-      publisher: clean(v.publisher), date: v.publishedDate || '', year: yearOf(v.publishedDate), lang: (v.language || '').slice(0, 2),
+      publisher: clean(v.publisher), date: v.publishedDate || '', year: yearOf(v.publishedDate), lang: ((v.language || '').slice(0, 2) === 'iw' ? 'he' : (v.language || '').slice(0, 2)),   // ס׳6: Google — "iw" הוא הקוד הישן של עברית
       isbn: isbnOf(ids), desc: stripHtml(v.description), tags: (v.categories || []).map(clean), pages: +v.pageCount || 0, cover });
   });
 }
@@ -60,14 +61,16 @@ function googleUrl(q, key) {
 
 /* ---------- Open Library ---------- */
 function parseOpenLibrary(j) {
-  return ((j && j.docs) || []).map((d) => rec({ src: 'openlibrary', id: d.key || '', title: clean(d.title), subtitle: clean(d.subtitle),
-    authors: (d.author_name || []).map(clean), publisher: clean((d.publisher || [])[0]), year: +d.first_publish_year || 0,
-    date: d.first_publish_year ? String(d.first_publish_year) : '', lang: LANG3[(d.language || [])[0]] || '', isbn: isbnOf(d.isbn),
+  // ס׳6 (מחקר 05): ברמת היצירה language/isbn/publisher מצטברים מכל המהדורות (The Intelligent Investor → "heb" ראשון) —
+  // לוקחים מהמהדורה המתאימה (editions), ובלעדיה שפה רק כשיש אחת בלבד
+  return ((j && j.docs) || []).map((d) => { const ed = (d.editions && d.editions.docs && d.editions.docs[0]) || null; return rec({ src: 'openlibrary', id: d.key || '', title: clean(d.title), subtitle: clean(d.subtitle),
+    authors: (d.author_name || []).map(clean), publisher: clean(((ed && ed.publisher) || d.publisher || [])[0]), year: +d.first_publish_year || 0,
+    date: d.first_publish_year ? String(d.first_publish_year) : '', lang: ed && ed.language ? LANG3[ed.language[0]] || '' : ((d.language || []).length === 1 ? LANG3[d.language[0]] || '' : ''), isbn: isbnOf(ed && ed.isbn ? ed.isbn : d.isbn),
     tags: (d.subject || []).slice(0, 8).map(clean), series: clean((d.series || [])[0]), pages: +d.number_of_pages_median || 0,
-    cover: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-L.jpg' : '' }));
+    cover: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-L.jpg' : '' }); });
 }
 function openLibraryUrl(q) {
-  const f = '&fields=key,title,subtitle,author_name,publisher,first_publish_year,isbn,language,subject,cover_i,number_of_pages_median,series&limit=6';
+  const f = '&fields=key,title,subtitle,author_name,publisher,first_publish_year,isbn,language,subject,cover_i,number_of_pages_median,series,editions,editions.language,editions.isbn,editions.publisher&limit=6';
   if (q.isbn) return 'https://openlibrary.org/search.json?isbn=' + encodeURIComponent(q.isbn) + f;
   return 'https://openlibrary.org/search.json?' + (q.title ? 'title=' + encodeURIComponent(q.title) : '') + (q.author ? '&author=' + encodeURIComponent(q.author) : '') + f;
 }
@@ -87,6 +90,14 @@ function marcFields(recXml) {
   }
   return out;
 }
+/* ס׳6: "7 עמודים לא ממוספרים, 400 עמודים" → 400 (עד היום 7). הגדול מבין המספרים שלפני עמודים/עמ'/p./pages, בלי "לא ממוספרים" */
+function nliPages(s) {
+  let best = 0;
+  const re = /(\d+)\s*(עמודים|עמ'|עמ׳|p\.|pages)(\s*לא\s*ממוספרים)?/g;
+  for (let m; (m = re.exec(String(s || '')));) if (!m[3]) best = Math.max(best, +m[1]);
+  if (!best) { const m = String(s || '').match(/\d+/); best = m ? +m[0] : 0; }
+  return best;
+}
 function parseNli(xml) {
   const recs = String(xml || '').match(/<record xmlns="http:\/\/www\.loc\.gov\/MARC21\/slim">[\s\S]*?<\/record>/g) || [];
   return recs.map((r) => {
@@ -104,7 +115,7 @@ function parseNli(xml) {
       authors: names.map(displayName), authorSort: clean(main), publisher: clean(pub), year: yearOf(yr) || yearOf(f008.slice(7, 11)),
       date: String(yearOf(yr) || ''), lang: LANG3[lang3] || '', isbn: isbnOf(all('020', 'a')), desc: clean(sub('520', 'a')),
       tags: all('650', 'a').map(clean).slice(0, 8), series: clean(sub('490', 'a')), seriesIndex: clean(sub('490', 'v')),
-      pages: +(String(sub('300', 'a')).match(/\d+/) || [0])[0] || 0 });
+      pages: nliPages(sub('300', 'a')) });
   }).filter((x) => x.title);
 }
 function nliUrl(q) {
@@ -127,7 +138,7 @@ function parseApple(j) {
 }
 function appleUrl(q) {
   const term = q.isbn ? q.isbn : [q.title, q.author].filter(Boolean).join(' ');
-  return 'https://itunes.apple.com/search?media=ebook&entity=ebook&limit=6&country=' + (q.lang === 'he' ? 'il' : 'us') + '&term=' + encodeURIComponent(term);
+  return 'https://itunes.apple.com/search?media=ebook&entity=ebook&limit=6&country=us&term=' + encodeURIComponent(term);
 }
 
 /* ---------- קלט ---------- */
@@ -167,7 +178,7 @@ async function searchAll(q, deps = {}) {
     nli: () => getText(f, nliUrl(q), ms).then(parseNli),
     google: () => getJson(f, googleUrl(q, key), ms).catch((e) => (/http_5\d\d/.test(e.message) ? getJson(f, googleUrl(q, key), ms) : Promise.reject(e))).then(parseGoogle),   // 503 רגעי — ניסיון אחד נוסף
     openlibrary: () => getJson(f, openLibraryUrl(q), ms).then(parseOpenLibrary),
-    apple: () => getJson(f, appleUrl(q), ms).then(parseApple),
+    apple: () => (q.lang === 'he' ? Promise.resolve([]) : getJson(f, appleUrl(q), ms).then(parseApple)),   // ס׳6: Apple Books לא פועל בישראל — 0 תוצאות לעברית (נמדד)
   };
   const names = Object.keys(jobs);
   const settled = await Promise.allSettled(names.map((n) => jobs[n]()));
@@ -196,7 +207,8 @@ async function searchAll(q, deps = {}) {
 /* כמו Calibre: אותו ספר (אותו ISBN) מכמה מקורות — כל רשומה מקבלת מהאחרות את מה שחסר לה (כריכה, תקציר, עמודים, הוצאה) */
 function mergeByIsbn(list) {
   const by = {};
-  list.forEach((r) => { if (r.isbn) (by[r.isbn] = by[r.isbn] || []).push(r); });
+  const key = (x) => BM.isbn13(x) || x;                  // ס׳6: NLI שומר ISBN‑10 בספרים ישנים, Google מחזיר 13 — אותו ספר
+  list.forEach((r) => { if (r.isbn) (by[key(r.isbn)] = by[key(r.isbn)] || []).push(r); });
   Object.values(by).forEach((grp) => {
     if (grp.length < 2) return;
     grp.forEach((r) => grp.forEach((o) => {
@@ -227,8 +239,13 @@ function rank(list, q) {
 
 /* כריכות — רק ממארחי המקורות (השרתון לא משמש פרוקסי כללי) */
 const COVER_HOSTS = [/^books\.google\.com$/, /^books\.googleusercontent\.com$/, /^covers\.openlibrary\.org$/, /^(ia|archive)[a-z0-9.-]*\.archive\.org$/, /^archive\.org$/, /^is\d+-ssl\.mzstatic\.com$/];
+function isPlaceholder(buf, type) {
+  if (!/png/.test(type || '') || !buf || buf.length < 24 || buf.length > 4000) return false;
+  const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+  return w === 128 && h === 170;
+}
 function coverAllowed(u) {
   try { const x = new URL(u); return x.protocol === 'https:' && COVER_HOSTS.some((re) => re.test(x.hostname)); } catch (e) { return false; }
 }
 
-module.exports = { mergeByIsbn, searchAll, normQuery, parseGoogle, parseOpenLibrary, parseNli, parseApple, googleUrl, openLibraryUrl, nliUrl, appleUrl, rank, coverAllowed, displayName, clean, stripHtml };
+module.exports = { nliPages, isPlaceholder, mergeByIsbn, searchAll, normQuery, parseGoogle, parseOpenLibrary, parseNli, parseApple, googleUrl, openLibraryUrl, nliUrl, appleUrl, rank, coverAllowed, displayName, clean, stripHtml };

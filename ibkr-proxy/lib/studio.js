@@ -534,11 +534,13 @@ function effState(job, now) {
   // v356: הפעלה "לא ודאית" (5xx/רשת — warn) שלא נלקחה: השגיאה של Anthropic, לא "לא התחיל" (שמפנה לרשת של הסביבה)
   if (job && job.state === 'queued' && job.eng === 'api') {
     // מצב API: העבודה בתור עד ששרת פנוי לוקח אותה. שרת לקח ולא התחיל בזמן / אף שרת לא לקח — נכשלה
-    if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim' };
-    if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server' };
+    if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim', at: job.pk + CLAIM_WAIT.tr };
+    if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server', at: job.fired + API_QUEUE_WAIT };
     return { state: 'queued', err: '' };
   }
-  if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim' };
+  // at = הרגע שבו העבודה נחשבה "נכשלה" (בלי ended במסמך — הכישלון נגזר מהזמן). 11/10: בלעדיו התקלה קיבלה את updated,
+  // שזז בכל צפייה (למשל רישום הסשן) — ובמגדל הופיעה שעת הסנכרון במקום שעת התקלה
+  if (job && job.state === 'queued' && job.fired && now - job.fired > (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr)) return { state: 'failed', err: job.warn || 'no_claim', at: job.fired + (CLAIM_WAIT[job.kind] || CLAIM_WAIT.tr) };
   return { state: job ? job.state : 'failed', err: job ? job.err || '' : '' };
 }
 const fileView = (f) => (f && f.id ? Object.assign({ id: f.id, name: f.name || '', size: f.size || 0, at: f.at || 0 }, f.ext ? { ext: true } : {}) : null);   // ext = מקור מ־Drive של המשתמש (נבחר ב־Picker) — לא בתיקיית העבודה, ולא נוגעים בו
@@ -561,7 +563,7 @@ function publicJob(job, now) {
   const e = effState(job, now);
   return {
     id: job.id, kind: job.kind, state: e.state, err: e.err, created: job.created || 0, updated: job.updated || 0,
-    fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || 0,
+    fired: job.fired || 0, claimed: job.claimed || 0, ended: job.ended || e.at || 0,
     spec: job.spec || null, files: { a: fileView(job.fa), v: fileView(job.fv), o: Array.isArray(job.fo) ? job.fo : [], c: fileView(job.fc), q: fileView(job.fq) },
     folder: FILE_ID_RE.test(String(job.folder || '')) ? job.folder : '',
     rp: job.rp || '', ev: job.ev || 0, vh: Array.isArray(job.vh) ? job.vh.map((x) => (x && x.at) || 0) : [],   // מ2: הפקה מחדש (העבודה המקורית), גרסת הכתוביות, מתי נשמרה כל גרסה קודמת
@@ -737,6 +739,26 @@ function normGl(o) {
   }
   return u || s.length ? { u, s } : null;
 }
+/* 11/10/2026: המילון עצמו ב־R2 (כשמוגדר) — gl/<uid>.tsv, מחוץ ל־st/ (שם — רק קבצי עבודות; הסריקה לא רואה בו "יתום").
+   glParse/glFormat — אותו קוד של הטלפון (studionet.js) ושל gl_parse בעובד; tests/studio-gloss-r2 משווה */
+const GL_MAX = 400;
+const GL_HEAD = '# מילון המונחים של סטודיו התרגום — אנגלית<TAB>עברית (חלופות מופרדות ב־/)<TAB>הערה. כל עבודה מקבלת רק את המונחים שמופיעים בסרטון.\n';
+const glKey = (uid) => (/^[A-Za-z0-9]{6,128}$/.test(String(uid || '')) ? 'gl/' + uid + '.tsv' : '');
+function glParse(text) {
+  const rows = [], seen = new Set();
+  for (const line of String(text || '').split(/\r?\n/)) {
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const c = line.split('\t');
+    if (c.length < 2) continue;
+    const en = glClean(c[0], 60), he = glClean(c[1], 80), n = c.length > 2 ? glClean(c[2], 100) : '';
+    if (!en || !he || seen.has(en.toLowerCase())) continue;
+    seen.add(en.toLowerCase());
+    rows.push([en, he, n]);
+    if (rows.length >= GL_MAX) break;
+  }
+  return rows;
+}
+const glFormat = (rows) => GL_HEAD + rows.map((r) => r[0] + '\t' + r[1] + (r[2] ? '\t' + r[2] : '')).join('\n') + (rows.length ? '\n' : '');
 /* v382: הערה לעובד (Pause + corrective input) — טקסט שלך מהטלפון לעבודה שרצה. נמסרת לעובד בתשובה לדיווח הבא על
    נקודת שמירה (nt → nh עם d = מתי נקראה). עד NOTE_MAX לעבודה, NOTE_LEN תווים; בלי תווי בקרה, תגיות וגרשיים הפוכים */
 const NOTE_MAX = 5, NOTE_LEN = 300;
@@ -757,8 +779,9 @@ function normPv(p) {
   return Object.keys(out).length ? out : null;
 }
 /* מה העובד מקבל: מה להוריד ולאן להעלות — שום דבר מעבר לעבודה הזו */
-function workerJob(job, nm, fb, fm, rl) {
-  return { nm: nm || null,   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
+function workerJob(job, nm, fb, fm, rl, gl) {
+  return { nm: nm || null,
+    gl: Array.isArray(gl) ? gl : null,   // 11/10: המילון מ־R2 (null = אין שם — העובד קורא מ־Drive כמו קודם)   // v363: "הרגיל" של המשתמש למצב הזה (או null — המגדל משתמש במדידות שלנו)
     rl: normRules(rl),       // v367: החוקים שלך — תקציב ואישור לפני צריבה
     bx: job.bx || 0,         // v367: כמה פעמים אישרת להמשיך מעבר לתקציב (התקציב גדל בכל פעם)
     u0: usdOf(job.use0),     // v367: מה שהסשנים הקודמים כבר עלו
@@ -831,7 +854,21 @@ function normHb(h) {
     busy: JOB_RE.test(String(h.busy || '')) ? h.busy : '',
     // ת2: בידוד הקופסה — g = gVisor, r = רגיל (runc) + הסיבה מקטלוג קבוע
     iso: h.iso === 'g' || h.iso === 'r' ? h.iso : '', iw: h.iso === 'r' && ['mem', 'missing', 'selftest', 'manual'].includes(h.iw) ? h.iw : '',
-    al: h.al === 'o' || h.al === 't' ? h.al : '' };   // שלב 4.1: מנוע היישור (o = ONNX INT8)
+    al: h.al === 'o' || h.al === 't' ? h.al : '',   // שלב 4.1: מנוע היישור (o = ONNX INT8)
+    ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
+}
+/* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
+   מציג אותם. רק קודים מהקטלוג (בלי טקסט חופשי, בלי מזהי עבודות) — מה שלא מתאים נזרק */
+const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm'];
+function normEv(a) {
+  const out = [];
+  for (const x of Array.isArray(a) ? a.slice(-12) : []) {
+    if (!Array.isArray(x) || x.length !== 2) continue;
+    const t = Math.round(Number(x[0])), k = String(x[1] || '');
+    if (!(t > 1.6e9 && t < 4e9) || !SRV_EV.includes(k)) continue;
+    out.push([t, k]);
+  }
+  return out;
 }
 /* ת7 — ניטור: שרת שכבר דיווח ושותק מעל SRV_DOWN_MS "נפל". שרת שעוד לא התחבר (seen 0 — למשל קוד הקמה שמחכה למלאי)
    לא נחשב; ומי שכבר סומן (dn) לא מתריע שוב עד שיחזור. העובד שואל כל 20 שנ׳, באמצע עבודה דופק כל 5 דק׳,
@@ -885,7 +922,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { JSON_FIELDS,
+module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS,
   MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
@@ -899,5 +936,5 @@ module.exports = { JSON_FIELDS,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

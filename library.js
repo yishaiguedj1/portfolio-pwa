@@ -326,14 +326,34 @@ function backfillCovers() {
   return backfilling;
 }
 
+/* מחקר 06: MOBI/AZW3 — המזהה של foliate (mobi.uid) אקראי בכל המרה; מזהה יציב מ־EXTH (calibre:<uuid> / ASIN). ריק = אין */
+export function mobiStableId(book) {
+  const hd = book && book.mobi && book.mobi.headers;
+  if (!hd) return '';
+  const ex = hd.exth || {};
+  const src = [].concat(ex.source || []).find((x) => /^calibre:/i.test(String(x)));
+  return src ? 'urn:uuid:' + String(src).slice(8) : ex.asin ? 'asin:' + ex.asin : '';
+}
+/* מחקר 06: EPUB עם שמות קבצים בעברית בלי דגל UTF‑8 לא נפתח בכלל ב־foliate — תיקון מיכל (בלי לגעת בתוכן); DRM — לא מייבאים */
+async function fixEpub(file) {
+  if (!/\.epub$/i.test(file.name || '') && file.type !== 'application/epub+zip') return file;
+  try {
+    const EK = await import('./epubkit.js');
+    const rep = await EK.inspectEpub(file);
+    if (rep.drm) { const e = new Error('drm'); e.drm = true; throw e; }
+    if (rep.ok && rep.repair.includes('utf8_flag')) return new File([(await EK.repairEpub(file, rep)).blob], file.name, { type: 'application/epub+zip' });
+  } catch (e) { if (e && e.drm) throw e; }
+  return file;
+}
 async function importFiles(files, extra, outIds) {
   let added = 0;
-  for (const file of files) {
+  for (let file of files) {
     try {
+      file = await fixEpub(file);
       const book = await makeBook(file);
       const md = book.metadata || {};
-      const ident = langText(md.identifier);
-      const id = ident ? 'id-' + ident : await fileId(file);
+      const ident = mobiStableId(book) || (book.mobi ? '' : langText(md.identifier));
+      const id = (extra && extra.id) || (ident ? 'id-' + ident : await fileId(file));   // ס׳3: ספר מהקטלוג — המזהה של הקטלוג
       const title = langText(md.title) || file.name.replace(/\.[^.]+$/, '');
       const rec = {
         id, title, author: langText(md.author) || langText(md.publisher) || '', year: bookYear(title, md.published),
@@ -351,16 +371,19 @@ async function importFiles(files, extra, outIds) {
         Object.assign(rec, { added: old.added, lastRead: old.lastRead, fraction: old.fraction, cfi: old.cfi, done: old.done, ann: old.ann, byOwner: old.byOwner });
         if (old.edit) { rec.edit = old.edit; applyEdit(rec, old.edit); }   // v316: הפרטים שהמשתמש ערך גוברים על הקובץ
         if (old.coverCustom) Object.assign(rec, { cover: old.cover, coverRatio: old.coverRatio, coverCustom: 1, coverV: 1 });
+        else if (old.coverH && old.cover) Object.assign(rec, { cover: old.cover, coverRatio: old.coverRatio, coverH: old.coverH, coverV: 1 });   // ס׳3: כריכה מהקטלוג
+        if (old.cat) Object.assign(rec, { cat: old.cat, catSig: old.catSig });
         if (old.hidden) rec.hidden = 1;
       }
       if (extra) Object.assign(rec, extra);
+      if (rec.cat) { applyEdit(rec, rec.cat); if (rec.edit) applyEdit(rec, rec.edit); }   // ס׳3: פרטי הקטלוג גוברים על הקובץ, ועריכה אישית — על שניהם
       if (rec.src !== 'drive') rec.bkD = Date.now();   // v318: ספר פרטי חדש/שהשתנה — לגיבוי הבא
       await tx('files', 'readwrite', (st) => st.put(file, id));
       await putBook(rec);
       if (outIds) outIds.push(id);
       added++;
     } catch (e) {
-      if (typeof flash === 'function') flash(T('libOpenErr') + ': ' + file.name);
+      if (typeof flash === 'function') flash(e && e.drm ? T('libDrm', { t: file.name }) : T('libOpenErr') + ': ' + file.name);
     }
   }
   return added;
@@ -442,11 +465,126 @@ export function driveSyncPlan(local, items) {      // טהורה (נבדקת): �
     remove: local.filter((b) => b.driveId && !ids.has(b.driveId)),
   };
 }
+/* ---------------- ס׳3 (מנהל הספרייה): המדף המשותף מהקטלוג ב־R2 ----------------
+   כשהמקור בשרתון הוא R2 — במקום רשימת Drive: גרסת הקטלוג. "אין שינוי" = בקשה אחת קטנה; אחרת רק ההפרש.
+   הפרטים (12 השדות) והכריכה מהקטלוג גוברים על מה שבקובץ; עריכה אישית (rec.edit) וכריכה אישית גוברות על הקטלוג.
+   הגרסה נשמרת רק כשהכל ירד — הורדה שנכשלה חוזרת בפעם הבאה. */
+const LS_CATV = 'pwa_libcatv_v1';
+export function catFields(b) { const o = {}; EDIT_FIELDS.forEach((k) => { o[k] = typeof b[k] === 'string' ? b[k] : ''; }); return o; }
+export const catSigOf = (b) => JSON.stringify([catFields(b), b.cover ? b.cover.h : '']);
+export function shelfSyncPlan(local, res) {      // טהורה (נבדקת): res = תשובת op:'cat' ({full} או {up, rm})
+  const mine = local.filter((b) => b.src === 'drive');
+  const byId = new Map(mine.map((b) => [b.id, b]));
+  const books = res.full ? Object.values(res.full.books || {}) : (res.up || []);
+  const fetch = [], meta = [];
+  for (const b of books) {
+    const f = b && b.files && b.files[0];
+    if (!f) continue;
+    const o = byId.get(b.id);
+    if (o && o.hidden) continue;                                     // הוסתר אצלי — לא יורד שוב
+    if (!o || o.md5 !== f.md5) fetch.push(b);
+    else if (catSigOf(b) !== o.catSig) meta.push(b);
+  }
+  const keep = res.full ? new Set(books.map((b) => b.id)) : null;
+  const rm = new Set(res.full ? [] : (res.rm || []).map((x) => x && x.id));
+  return { fetch, meta, remove: mine.filter((b) => (keep ? !keep.has(b.id) : rm.has(b.id))) };
+}
+const catState = () => { try { const o = JSON.parse(localStorage.getItem(LS_CATV) || 'null'); return o && Number.isInteger(o.v) ? o : null; } catch (e) { return null; } };
+const R2_URL = /^https:\/\/[a-z0-9.-]+\.r2\.cloudflarestorage\.com\//;
+const BOOK_TYPES = { epub: 'application/epub+zip', azw3: 'application/vnd.amazon.ebook', mobi: 'application/x-mobipocket-ebook', fb2: 'application/x-fictionbook+xml' };
+async function catUrls(tk, ids, kind) {
+  const out = {};
+  for (let i = 0; i < ids.length; i += 200) {
+    const j = await libApi({ op: 'urls', idToken: tk, ids: ids.slice(i, i + 200), kind }).then((r) => r.json()).catch(() => null);
+    if (j && j.ok) Object.assign(out, j.urls || {});
+  }
+  return out;
+}
+async function catFetchView(j) {                  // קטלוג גדול — קישור חתום לקובץ דחוס
+  if (j.full) return j;
+  if (!R2_URL.test(String(j.url || '')) || typeof DecompressionStream === 'undefined') return null;
+  const r = await fetch(j.url);
+  if (!r.ok) return null;
+  const full = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();
+  return Object.assign({}, j, { full });
+}
+async function syncShelf(tk, j) {
+  const res = await catFetchView(j);
+  if (!res) return 0;
+  const plan = shelfSyncPlan(await allBooksRaw(), res);
+  let changed = 0, failed = 0, done = 0;
+  const fu = await catUrls(tk, plan.fetch.map((b) => b.id), 'f');
+  const total = plan.fetch.length;
+  const queue = plan.fetch.slice();
+  const worker = async () => {
+    for (let b; (b = queue.shift());) {
+      try {
+        const f = b.files[0], url = fu[b.id];
+        const r = R2_URL.test(String(url || '')) ? await fetch(url) : { ok: false };
+        if (!r.ok) throw new Error('dl');
+        const name = String(b.title || 'book').replace(/[\\/:*?"<>|]/g, ' ').slice(0, 100) + '.' + f.fmt;
+        const file = new File([await r.blob()], name, { type: BOOK_TYPES[f.fmt] || 'application/octet-stream' });
+        const n = await importFiles([file], { id: b.id, md5: f.md5, src: 'drive', cat: catFields(b), catSig: b.cover ? '' : catSigOf(b) });
+        if (!n) throw new Error('import');
+        changed += n;
+        if (b.cover) plan.meta.push(b);                                  // הכריכה — בשלב הבא
+      } catch (e) { failed++; }
+      done++;
+      syncProgress = { done, total };
+      if (done % 8 === 0 && root && !rd) renderHome();
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  syncProgress = null;
+  const wantCover = plan.meta.filter((b) => b.cover);
+  const cu = wantCover.length ? await catUrls(tk, wantCover.map((b) => b.id), 'c') : {};
+  for (const b of plan.meta) {
+    try {
+      const cur = (await allBooksRaw()).find((x) => x.id === b.id);
+      if (!cur) continue;
+      cur.cat = catFields(b);
+      applyEdit(cur, cur.cat); if (cur.edit) applyEdit(cur, cur.edit);
+      if (b.cover && !cur.coverCustom && cur.coverH !== b.cover.h) {
+        const r = R2_URL.test(String(cu[b.id] || '')) ? await fetch(cu[b.id]) : { ok: false };
+        if (r.ok) Object.assign(cur, { cover: await r.blob(), coverRatio: b.cover.r || cur.coverRatio, coverH: b.cover.h, coverV: 1 });
+        else failed++;
+      }
+      if (!b.cover || cur.coverCustom || cur.coverH === b.cover.h) cur.catSig = catSigOf(b);
+      await putBook(cur);
+      changed++;
+    } catch (e) { failed++; }
+  }
+  const moves = new Map((res.rm || []).filter((x) => x && x.to).map((x) => [x.id, x.to]));   // ס׳7: ספר שמוזג לאחר
+  for (const b of plan.remove) {
+    if (rd && rd.rec && rd.rec.id === b.id) { failed++; continue; }   // לא מוחקים ספר פתוח — בפעם הבאה
+    const to = moves.get(b.id);
+    if (to && (b.lastRead || b.done)) {       // ההתקדמות עוברת לספר שנשאר (אחוז ו"נקרא"; מיקום מדויק — לא, זה קובץ אחר)
+      const keep = (await allBooksRaw()).find((x) => x.id === to);
+      if (keep && (b.lastRead || 0) > (keep.lastRead || 0)) { Object.assign(keep, { lastRead: b.lastRead, fraction: Math.max(keep.fraction || 0, b.fraction || 0), done: !!(keep.done || b.done) }); await putBook(keep); }
+    }
+    await tx('books', 'readwrite', (st) => st.delete(b.id));
+    await tx('files', 'readwrite', (st) => st.delete(b.id));
+    changed++;
+  }
+  if (!failed) {
+    const n = (await allBooksRaw()).filter((b) => b.src === 'drive').length;
+    try { localStorage.setItem(LS_CATV, JSON.stringify({ v: res.v, n })); } catch (e) {}
+  }
+  return changed;
+}
+
 function syncDrive() {
   if (syncing) return syncing;
   syncing = (async () => {
     const tk = await idToken();
     if (!tk) { syncNote = 'signin'; return 0; }
+    /* ס׳3: קודם הקטלוג — אם המקור R2, ממנו (Drive לא נקרא). אחרת (או שרתון ישן) — כמו קודם */
+    const drv = (await allBooksRaw()).filter((b) => b.src === 'drive');
+    const st = catState();
+    const fresh = !st || st.n !== drv.length || drv.some((b) => !b.md5 && !b.hidden);   // ניקוי/החזרת מוסתר — תמונה מלאה
+    const cj = await libApi({ op: 'cat', idToken: tk, have: fresh ? -1 : st.v }).then((r) => r.json()).catch(() => null);
+    if (cj && cj.ok && cj.src === 'r2') { syncNote = ''; return cj.same ? 0 : syncShelf(tk, cj); }
+    if (cj && !cj.ok && cj.error === 'not_allowed') { syncNote = 'denied'; return 0; }
     const j = await libApi({ op: 'list', idToken: tk }).then((r) => r.json()).catch(() => null);
     if (!j || !j.ok) { syncNote = j && j.error === 'not_allowed' ? 'denied' : ''; return 0; }
     syncNote = '';
@@ -458,7 +596,12 @@ function syncDrive() {
     const worker = async () => {
       for (let it; (it = queue.shift());) {
         try {
-          const r = await libApi({ op: 'file', idToken: tk, id: it.id });
+          // 11/10/2026: השרתון עם R2 מחזיר קישור חתום (JSON) — מורידים ישירות מ־R2; בלי R2 — הקובץ עצמו, כמו קודם
+          let r = await libApi({ op: 'file', idToken: tk, id: it.id, via: 'r2' });
+          if (r.ok && /json/.test(r.headers.get('content-type') || '')) {
+            const j = await r.json();
+            r = j && j.ok && /^https:\/\/[a-z0-9.-]+\.r2\.cloudflarestorage\.com\//.test(String(j.url || '')) ? await fetch(j.url) : { ok: false };
+          }
           if (r.ok) {
             const file = new File([await r.blob()], it.name, { type: 'application/epub+zip' });
             changed += await importFiles([file], { driveId: it.id, md5: it.md5 || '', src: 'drive' });
@@ -754,6 +897,7 @@ async function renderHomeNow() {
   if (ui.view && ui.view.thinkers) return renderThinkers();
   if (ui.view && ui.view.thinker) return renderThinker(ui.view.thinker);
   if (ui.view && ui.view.glossary) return renderGlossary();
+  if (ui.view && ui.view.mgr) return renderMgr(ui.view);
   if (ui.view && ui.view.admin) return renderAdmin();
   if (ui.view && ui.view.edit) return renderEdit(ui.view.edit);
   if (ui.view && ui.view.backup) return renderBackup();
@@ -899,7 +1043,7 @@ async function renderHomeNow() {
   }
   if (ui.admin && !mine) {               // שלב 6: ניהול — רק למנהל
     const adm = h('button', 'lib-admin-link', T('admTitle')); adm.type = 'button';
-    adm.addEventListener('click', () => goView({ admin: 1 }));
+    adm.addEventListener('click', () => goView({ mgr: 'home' }));   // ס׳4: מנהל הספרייה (הקוראים — מתוך התפריט שם)
     home.append(adm);
   }
   sortRow.after(h('p', 'lib-near', T('libNear')));
@@ -1566,7 +1710,7 @@ async function renderBook(id) {
   d.append(cta);
   const acBox = h('div', 'ac-ins');
   d.append(acBox);
-  if (b.src === 'drive' && b.driveId) fillInsight(b, acBox);
+  if (b.src === 'drive') fillInsight(b, acBox);   // ס׳3: גם ספר מהקטלוג (בלי driveId) — השרתון מזהה לפי מזהה הקטלוג
   if (b.desc && !b.ins) {
     const c = h('div', 'bk-card'); c.append(h('h4', null, T('bkAbout')));
     const pp = h('p', 'bk-desc', b.desc); pp.dir = 'auto';
@@ -1612,11 +1756,12 @@ async function remoteCover(url) {   // כריכה מהרשת — דרך השרת
 }
 /* ממלאים שדות שחסרים ברשומה מתוך הקובץ עצמו (כותר משנה, סדרה, ISBN, נושאים, שפה, שם למיון) */
 function fileDefaults(md) {
-  const ids = [].concat(md.identifier || []).map(langText).join(' ');
+  // מחקר 06: ה־ISBN אצל foliate ב־altIdentifier (לא ב־identifier — שם ה־uuid); position של סדרה יכול להיות NaN (באג ב־foliate)
+  const ids = [].concat(md.identifier || [], md.altIdentifier || []).map(langText).join(' ');
   const isbn = (ids.match(/97[89][0-9-]{10,14}|\b\d{9}[\dX]\b/) || [''])[0].replace(/-/g, '');
   const ser = md.belongsTo && md.belongsTo.series ? [].concat(md.belongsTo.series)[0] : null;
   const au = [].concat(md.author || [])[0];
-  return { subtitle: langText(md.subtitle), series: ser ? langText(ser.name) : '', seriesIdx: ser && ser.position != null ? String(ser.position) : '',
+  return { subtitle: langText(md.subtitle), series: ser ? langText(ser.name) : '', seriesIdx: ser && Number.isFinite(ser.position) ? String(ser.position) : '',
     isbn, tags: [].concat(md.subject || []).map(langText).filter(Boolean).join(', '), lang: [].concat(md.language || [])[0] || '',
     authorSort: au && typeof au === 'object' && au.sortAs ? langText(au.sortAs) : '' };
 }
@@ -1858,6 +2003,21 @@ function renderGlossary() {
   draw();
 }
 
+/* ס׳4–ס׳5: מנהל הספרייה (libadmin.js) — נטען רק כשהמנהל פותח "ניהול"; כל מה שהוא צריך מהספרייה מוזרק */
+let ADM = null;
+async function renderMgr(v) {
+  if (!ADM) {
+    const m = await import('./libadmin.js');
+    ADM = m.createAdmin({
+      h, T, ICON, ui, root: () => root, goView, renderHome, flash: (m2) => { if (typeof flash === 'function') flash(m2); },
+      askConfirm: (msg, fn, o) => { if (typeof askConfirm === 'function') askConfirm(msg, fn, o); else fn(); },
+      sheet, closeSheetThen, ring, cover, wireHold, makeBook, coverThumb, coverFromBlob, langText, bookExtras, fileDefaults, fileId,
+      allBooksRaw, syncDrive, api: adminApi, idToken, meta: metaApi,
+    });
+  }
+  if (!root || !ui.view || ui.view.mgr !== v.mgr) return;
+  return ADM.render(v);
+}
 async function adminApi(op, extra) {
   const tk = await idToken(); if (!tk) throw new Error('signin');
   const j = await libApi(Object.assign({ op, idToken: tk }, extra || {})).then((r) => r.json()).catch(() => ({ ok: false, error: 'net' }));
@@ -1996,7 +2156,7 @@ function fetchInsight(b) {
   if (insFlight.has(b.id)) return insFlight.get(b.id);
   const pr = (async () => {
     const tk = await idToken(); if (!tk) throw new Error('signin');
-    const r = await libApi({ op: 'insight', idToken: tk, id: b.driveId });
+    const r = await libApi({ op: 'insight', idToken: tk, id: b.driveId || b.id });
     const j = await r.json().catch(() => ({}));
     if (!j.ok) throw new Error(j.error || 'failed');
     b.ins = Object.assign({}, j.insight, { md5: j.md5 || b.md5, at: Date.now() });
@@ -4045,4 +4205,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES };
+export const _test = { closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES, adm: () => (ADM ? ADM._state() : null) };

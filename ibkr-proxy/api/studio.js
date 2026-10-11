@@ -31,6 +31,8 @@ const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נל
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const R2 = require('../lib/r2');   // ת4: האחסון ב־Cloudflare R2
+const BK = require('../lib/backup');
+const LM = require('../lib/libmgr');   // ס׳9: הניקוי היומי של הספרייה   // ת7: גיבוי יומי ל־R2
 const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודיו ב־R2 (תיקייה R2_<עבודה>, מזהה <תיקייה>_<אקראי>)
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
@@ -256,8 +258,9 @@ async function fireJob(deps, uid, v, job, now, resume) {
    התשובה — רק מספר */
 async function watch(req, res, deps) {
   res.setHeader('Cache-Control', 'no-store');
-  const secret = process.env.STUDIO_WATCH_SECRET;
-  if (secret && String((req.headers || {}).authorization || '') !== 'Bearer ' + secret) return res.status(401).json({ ok: false });
+  // הסוד (אופציונלי) — של GitHub או של הקרון היומי של Vercel (CRON_SECRET, שולח אותו ככותרת Authorization)
+  const secret = process.env.STUDIO_WATCH_SECRET, auth = String((req.headers || {}).authorization || '');
+  if (secret && auth !== 'Bearer ' + secret && !(process.env.CRON_SECRET && auth === 'Bearer ' + process.env.CRON_SECRET)) return res.status(401).json({ ok: false });
   /* ת4: בדיקת החיבור ל־R2 (?r2=1) — כותבת קובץ זעיר, קוראת ומוחקת, ובודקת CORS לאתר. בתשובה רק כן/לא וקוד שגיאה */
   if (String((req.query || {}).r2 || '') === '1') {
     if (limited('r2h', 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -266,17 +269,59 @@ async function watch(req, res, deps) {
   }
   if (limited('watch', 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   const now = deps.now || Date.now();
+  let down;
+  try { down = await checkServers(deps, now); }
+  catch (e) { return res.status(502).json({ ok: false }); }
+  const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
+  return res.status(200).json({ ok: true, down, bk });
+}
+/* ת7: הגיבוי היומי (lib/backup.js) — פעם ביום, ל־R2. בתשובה רק מצב (בלי תוכן): 1 = נוצר עכשיו, 0 = כבר היה, -1 = תקלה / בלי R2 */
+async function fsListCol(deps, col, max) {
+  const out = [];
+  let pt = '';
+  for (let i = 0; i < Math.ceil(max / 300); i++) {
+    const r = await fsCall(deps, 'GET', '/' + col + '?pageSize=300' + (pt ? '&pageToken=' + encodeURIComponent(pt) : ''));
+    if (r.status !== 200) throw new Error('fs_http_' + r.status);
+    for (const d of (r.j && Array.isArray(r.j.documents) ? r.j.documents : [])) out.push({ name: String(d.name || '').split('/').pop(), fields: d.fields || {}, ut: d.updateTime || '' });
+    pt = r.j && r.j.nextPageToken ? String(r.j.nextPageToken) : '';
+    if (!pt) break;
+  }
+  return out;
+}
+async function dailyBackup(deps, now) {
+  const c = R2.config();
+  if (!c.ok) return -1;
+  const rd = r2deps(deps);
   try {
-    let n = 0;
-    for (const s of S.serversDown(await query(deps, 'studioServers', null, S.SRV_MAX + 5), now)) {
-      const got = await patchIf(deps, 'studioServers', s.id, { dn: now, updated: now }, s._ut).catch(() => false);
-      if (!got || !UID_RE.test(String(s.by || ''))) continue;
-      n++;
-      await raise(deps, s.by, [{ c: 'server', k: 'down' }], '', now);
-      await notify(deps, s.by, 'srv_down', '', now);
-    }
-    return res.status(200).json({ ok: true, down: n });
-  } catch (e) { return res.status(502).json({ ok: false }); }
+    const r = await BK.runBackup({
+      listCol: (col, max) => fsListCol(deps, col, max),
+      head: (k) => R2.head(c, rd, k), get: (k, max) => R2.getBuf(c, rd, k, max), put: (k, b, t) => R2.putBuf(c, rd, k, b, t),
+      list: (p) => R2.list(c, rd, p, 2000), del: (k) => R2.del(c, rd, k),
+    }, now);
+    if (r.done) await LM.dailyGc(deps, now).catch(() => null);   // ס׳9: ניקוי הספרייה — פעם ביום, אחרי שהקטלוג גובה
+    return r.done ? 1 : 0;
+  } catch (e) { return -1; }
+}
+/* הבדיקה עצמה — גם מהקרון וגם מהטלפון (11/10/2026): GitHub מדלג על ריצות מתוזמנות (בפועל פעם בכמה שעות),
+   ולכן גם status/jobs מהטלפון בודקים — לכל היותר פעם ב־WATCH_EVERY לכל מופע, ורק את השרתים של מי ששואל */
+const WATCH_EVERY = 5 * 60e3;
+let lastWatch = 0;
+function watchDue(now) {
+  if (Math.abs(now - lastWatch) < WATCH_EVERY) return false;
+  lastWatch = now;
+  return true;
+}
+async function checkServers(deps, now, onlyUid) {
+  let n = 0;
+  for (const s of S.serversDown(await query(deps, 'studioServers', null, S.SRV_MAX + 5), now)) {
+    if (onlyUid && s.by !== onlyUid) continue;
+    const got = await patchIf(deps, 'studioServers', s.id, { dn: now, updated: now }, s._ut).catch(() => false);
+    if (!got || !UID_RE.test(String(s.by || ''))) continue;
+    n++;
+    await raise(deps, s.by, [{ c: 'server', k: 'down' }], '', now);
+    await notify(deps, s.by, 'srv_down', '', now);
+  }
+  return n;
 }
 /* ההתראה במגדל אחת לכל המשתמש — נסגרת רק כשאף שרת אחר שלו לא מסומן */
 async function downClear(deps, uid, sid, now) {
@@ -540,14 +585,38 @@ async function removeJobRec(deps, uid, job, now) {
 }
 /* מה אפשר לנקות עכשיו — תמיד סריקה טרייה (לא רשימה שמורה). תיקייה של עבודה שקיימת אצל משתמש אחר (אותו Drive בשני חשבונות) — לא נוגעים */
 async function cleanTargets(deps, uid, token, jobs, now) {
-  const folders = await studioFolders(deps, token);
-  const ids = jobs.map((j) => j.id);
   const orphans = [];
-  for (const f of SC.orphanFolders(folders, ids).slice(0, SC.MAX_FOLDERS)) {
-    const other = await readJob(deps, f.job).catch(() => null);
-    if (!other) orphans.push(f);
+  let dupes = [];
+  if (token) {   // ת4: בלי Drive — רק R2
+    const folders = await studioFolders(deps, token);
+    const ids = jobs.map((j) => j.id);
+    for (const f of SC.orphanFolders(folders, ids).slice(0, SC.MAX_FOLDERS)) {
+      const other = await readJob(deps, f.job).catch(() => null);
+      if (!other) orphans.push(f);
+    }
+    dupes = SC.dupeFolders(folders, jobs).slice(0, SC.MAX_FOLDERS);
   }
-  return { orphans, dupes: SC.dupeFolders(folders, jobs).slice(0, SC.MAX_FOLDERS), ck: SC.doneCheckpoints(jobs), old: SC.oldJobs(jobs, now) };
+  return { orphans: orphans.concat(await r2OrphanTargets(deps, uid, jobs, now)), dupes, ck: SC.doneCheckpoints(jobs), old: SC.oldJobs(jobs, now) };
+}
+/* ת4: תיקיות ב־R2 שהעבודה שלהן נמחקה (מחיקה שנכשלה באמצע, או עבודה שנמחקה לפני ש־R2 נמחק). רק בתחילית של המשתמש —
+   המילון (gl/) וספריית המכתבים (lib/) לא בתוכה. עבודה שעוד קיימת (גם אם לא ברשימה) — לא נוגעים */
+async function r2OrphanTargets(deps, uid, jobs, now) {
+  if (!R2.config().ok) return [];
+  const items = await R2.list(R2.config(), r2deps(deps), 'st/' + uid + '/', 20000);
+  const out = [];
+  for (const x of SC.r2Orphans(SC.r2Folders(items, uid), jobs, now).slice(0, SC.MAX_FOLDERS)) {
+    const other = await readJob(deps, x.job).catch(() => null);
+    if (!other) out.push({ r2: x.f, job: x.job, b: x.b });
+  }
+  return out;
+}
+/* ניקוי תיקייה יתומה: ב־R2 נמחקת (אין פח), ב־Drive — לפח */
+async function trashTarget(deps, uid, token, x) {
+  if (x.r2) {
+    const recs = await query(deps, 'studioUp', { f: x.r2 }, 500).catch(() => []);
+    await SR.purgeFolder(R2.config(), r2deps(deps), { uid, folder: x.r2, recs });
+    for (const r of recs) await delDoc(deps, 'studioUp', r.id).catch(() => null);
+  } else await driveTrash(deps, token, x.id);
 }
 
 /* ---------- העובד בענן ---------- */
@@ -612,7 +681,12 @@ async function worker(req, res, body, deps) {
           }
         } catch (e) { pir = null; }
       }
-      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl), drive: await driveFor(), pir, now });
+      // 11/10: מילון המונחים מ־R2 (כשקיים שם) — בתוך תשובת הלקיחה, גם ל־Routine (שהסביבה שלו לא מגיעה ל־R2). תקלה = בלי (Drive כמו קודם)
+      let gl = null;
+      if (job.kind === 'tr' && R2.config().ok) {
+        try { const t = await R2.getText(R2.config(), r2deps(deps), S.glKey(job.uid), 256 * 1024); if (t != null) gl = S.glParse(t); } catch (e) { gl = null; }
+      }
+      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl), drive: await driveFor(), pir, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     if (body.op.startsWith('r2')) {   // ת4: הקבצים של העבודה ב־R2 (קלט, תוצרים, נקודות שמירה)
@@ -800,6 +874,7 @@ async function handler(req, res, deps = {}) {
   if (limited('p|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
   const uid = user.uid, op = String(body.op || ''), now = deps.now || Date.now();
+  if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
   // v357: חיבור Drive של הסטודיו (חלון ההסכמה של Google — אותו מנגנון של גיבוי הספרייה, לקוח אחר)
   if (op === 'gdConnect' || op === 'gdStatus' || op === 'gdToken' || op === 'gdDisconnect') return gdrive.handle(body, user, res, deps);
   const mine = async (id) => {
@@ -850,11 +925,17 @@ async function handler(req, res, deps = {}) {
           const tg = await cleanTargets(deps, uid, t.token, jobs, now);
           for (const k of ['orphans', 'dupes']) {
             let b = 0;
-            for (const x of tg[k]) b += await folderBytes(deps, t.token, x.id);
+            for (const x of tg[k]) b += x.r2 ? x.b : await folderBytes(deps, t.token, x.id);
             f.clean[k] = { n: tg[k].length, b };
           }
         } catch (e) { f.drive.err = 'gd_http'; }
       }
+    }
+    if (!f.clean.orphans && R2.config().ok) {   // ת4: Drive לא מחובר — התיקיות ב־R2 עדיין נבדקות
+      try {
+        const r2o = await r2OrphanTargets(deps, uid, jobs, now);
+        f.clean.orphans = { n: r2o.length, b: r2o.reduce((a, x) => a + x.b, 0) };
+      } catch (e) {}
     }
     const sc = SC.scanFindings(f, now);
     await patchDoc(deps, 'studioOps', uid, { sc, updated: now }).catch(() => {});
@@ -869,7 +950,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -919,6 +1000,15 @@ async function handler(req, res, deps = {}) {
       // v368: גם ההמשך האוטומטי שמחכה (אחרי תקלה חולפת) לא יקרה
       for (const j of (await listJobs(deps, uid)).filter((x) => x.rw && !act.some((y) => y.id === x.id))) await patchJob(deps, j.id, { rw: 0, updated: now });
       return res.status(200).json({ ok: true, halt: now, n: act.length });
+    }
+    if (op === 'glossUrl') {
+      // 11/10/2026: מילון המונחים ב־R2 — קישורים חתומים לקריאה ולכתיבה של הקובץ של המשתמש בלבד (gl/<uid>.tsv), לחמש דקות.
+      // הקובץ עובר ישירות בין הטלפון ל־R2 (הגוף לשרתון מוגבל ל־4KB). בלי R2 — r2:false והטלפון נשאר ב־Drive
+      const c = R2.config(), key = S.glKey(uid);
+      if (!c.ok || !key) return res.status(200).json({ ok: true, r2: false });
+      const rd = r2deps(deps);
+      return res.status(200).json({ ok: true, r2: true, get: await R2.presign(c, rd, { method: 'GET', key, expires: 300 }),
+        put: await R2.presign(c, rd, { method: 'PUT', key, expires: 300 }) });
     }
     if (op === 'price') {
       // v377: מחיר מתרגם אנושי לדקת סרטון (ל"חסכת"). 0 / ריק = ברירת המחדל ($5)
@@ -1008,7 +1098,7 @@ async function handler(req, res, deps = {}) {
         for (const j of SC.oldJobs(jobs, now)) { await removeJobRec(deps, uid, j, now); n++; }
       } else {
         const t = await gdrive.accessToken(deps, uid);
-        if (!t.ok) return res.status(200).json({ ok: false, error: t.error });
+        if (!t.ok && !(k === 'orphans' && R2.config().ok)) return res.status(200).json({ ok: false, error: t.error });   // ת4: יתומות ב־R2 — בלי Drive
         if (k === 'ck') {
           const byJob = new Map();
           for (const c of SC.doneCheckpoints(jobs)) {
@@ -1018,7 +1108,7 @@ async function handler(req, res, deps = {}) {
           }
           for (const id of byJob.keys()) await patchJob(deps, id, { ck: [] });
         } else {
-          for (const x of (await cleanTargets(deps, uid, t.token, jobs, now))[k]) { await driveTrash(deps, t.token, x.id); n++; }
+          for (const x of (await cleanTargets(deps, uid, t.ok ? t.token : '', jobs, now))[k]) { await trashTarget(deps, uid, t.token, x); n++; }
         }
       }
       return res.status(200).json({ ok: true, n, sc: await doScan(), now });
