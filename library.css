@@ -1027,3 +1027,12 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-root .mg-ov { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .lib-root .mg-ov.dim { color: var(--on-surface-var); }
 .lib-root .mg-ob { flex: none; font-size: 12px; font-weight: 600; color: var(--on-surface-var); }
+.lib-root .mg-dup { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.lib-root .mg-dupcol { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-size: 13px; color: var(--on-surface-var); min-width: 0; }
+.lib-root .mg-dupcol b { color: var(--on-surface); font-size: 14px; overflow-wrap: anywhere; }
+.lib-root .mg-cv.md { width: 84px; height: 126px; }
+.lib-root .mg-dupcard .mg-btns { width: 100%; }
+.lib-root .mg-dupcard .mg-tb.o, .lib-root .mg-dupcard .mg-tb.p { min-height: 44px; font-size: 15px; }
+.lib-root .mg-renamebox { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 8px; }
+.lib-root .mg-valsame { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 0; border-top: 1px solid var(--card-border); font-size: 14px; }
+.lib-root .ltr { direction: ltr; unicode-bidi: isolate; }

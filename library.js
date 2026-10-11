@@ -554,8 +554,14 @@ async function syncShelf(tk, j) {
       changed++;
     } catch (e) { failed++; }
   }
+  const moves = new Map((res.rm || []).filter((x) => x && x.to).map((x) => [x.id, x.to]));   // ס׳7: ספר שמוזג לאחר
   for (const b of plan.remove) {
     if (rd && rd.rec && rd.rec.id === b.id) { failed++; continue; }   // לא מוחקים ספר פתוח — בפעם הבאה
+    const to = moves.get(b.id);
+    if (to && (b.lastRead || b.done)) {       // ההתקדמות עוברת לספר שנשאר (אחוז ו"נקרא"; מיקום מדויק — לא, זה קובץ אחר)
+      const keep = (await allBooksRaw()).find((x) => x.id === to);
+      if (keep && (b.lastRead || 0) > (keep.lastRead || 0)) { Object.assign(keep, { lastRead: b.lastRead, fraction: Math.max(keep.fraction || 0, b.fraction || 0), done: !!(keep.done || b.done) }); await putBook(keep); }
+    }
     await tx('books', 'readwrite', (st) => st.delete(b.id));
     await tx('files', 'readwrite', (st) => st.delete(b.id));
     changed++;

@@ -192,6 +192,44 @@ export function migrateItems(local, plan, hideAll) {
   }
   return { items, nolocal };
 }
+/* כפילויות (ס׳7): אותו ISBN, או אותו כותר ומחבר אחרי נרמול (כתיב חסר/מלא, ניקוד). זוג ש"אלה ספרים שונים" — לא מוצג שוב.
+   בכל קבוצה: הספר שנשאר = הוותיק (המזהה שלו = ההתקדמות של הקוראים) */
+const dupSkel = (s) => normQ(s).split(' ').map((t) => (/[\u05d0-\u05ea]/.test(t) ? t[0] + t.slice(1).replace(/[אויה]/g, '') : t)).join(' ');
+export function dupGroups(books, dismissed) {
+  const live = books.filter((b) => !b.del);
+  const no = new Set(dismissed || []);
+  const parent = new Map(live.map((b) => [b.id, b.id]));
+  const find = (x) => { while (parent.get(x) !== x) x = parent.get(x); return x; };
+  const join = (a, b) => { if (no.has([a, b].sort().join('|'))) return; const ra = find(a), rb = find(b); if (ra !== rb) parent.set(rb, ra); };
+  const by = new Map();
+  for (const b of live) {
+    const keys = [];
+    const isbn = String(b.isbn || '').replace(/[^0-9X]/gi, '');
+    if (isbn.length >= 10) keys.push('i:' + isbn);
+    const t = dupSkel(b.title), a = dupSkel(String(b.author || '').split(',')[0]);
+    if (t && a) keys.push('t:' + t + '|' + a);
+    for (const k of keys) { if (by.has(k)) join(by.get(k), b.id); else by.set(k, b.id); }
+  }
+  const groups = new Map();
+  for (const b of live) { const r = find(b.id); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(b); }
+  return [...groups.values()].filter((g) => g.length > 1).map((g) => g.sort((x, y) => (x.added || 0) - (y.added || 0) || String(x.id).localeCompare(String(y.id))));
+}
+/* מנהל הערכים: כל ערך של מחבר / סדרה / הוצאה / תגית וכמה ספרים */
+export function valueList(books, k) {
+  const m = new Map();
+  for (const b of books) {
+    if (b.del) continue;
+    const vals = k === 'tag' ? tagsOf(b) : [String(b[k] || '').trim()].filter(Boolean);
+    for (const v of vals) m.set(v, (m.get(v) || 0) + 1);
+  }
+  return [...m.entries()].map(([v, n]) => ({ v, n })).sort((a, b) => a.v.localeCompare(b.v, 'he'));
+}
+/* ערכים שכנראה אותו דבר (כתיב שונה) — הצעה למיזוג */
+export function valueClusters(list) {
+  const by = new Map();
+  for (const x of list) { const k = dupSkel(x.v); if (!k) continue; if (!by.has(k)) by.set(k, []); by.get(k).push(x); }
+  return [...by.values()].filter((g) => g.length > 1);
+}
 export const chunk = (a, n) => { const out = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
 export const rid = () => Array.from({ length: 16 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('');
 /* כמה נשאר בתור (הערכה לפי הקצב בפועל) */
@@ -412,6 +450,8 @@ export function createAdmin(env) {
     if (cnt.draft) chip('draft', T('mgChipDraft'), cnt.draft);
     if (cnt.hide) chip('hide', T('mgChipHide'), cnt.hide);
     if (cnt.trash) chip('trash', T('mgChipTrash'), cnt.trash);
+    const nDup = dupGroups(CAT.books, dupDismissed()).length;
+    if (nDup && !selecting) { const c = h('button', 'lib-chip', T('mgChipDup')); c.type = 'button'; c.append(h('span', 'mg-n', ' ' + nDup)); c.addEventListener('click', () => env.goView({ mgr: 'dup' })); chips.append(c); }
     box.append(chips);
     const list = h('div', 'mg-list'); box.append(list);
     home.append(box);
@@ -510,6 +550,12 @@ export function createAdmin(env) {
       const list = h('div', 'lib-ios');
       const row = (label, fn) => { const r = h('button', 'lib-row', label); r.type = 'button'; r.addEventListener('click', () => env.closeSheetThen(sh.parentNode, fn)); list.append(r); };
       row(T(CAT && CAT.src === 'r2' ? 'mgMigDoneRow' : 'mgMigRow'), () => env.goView({ mgr: 'mig' }));
+      const nd = CAT ? dupGroups(CAT.books, dupDismissed()).length : 0;
+      if (nd) row(T('mgDupRow', { n: nd }), () => env.goView({ mgr: 'dup' }));
+      row(T('mgValsAuthor'), () => env.goView({ mgr: 'vals', k: 'author' }));
+      row(T('mgValsSeries'), () => env.goView({ mgr: 'vals', k: 'series' }));
+      row(T('mgValsPub'), () => env.goView({ mgr: 'vals', k: 'pub' }));
+      row(T('mgValsTag'), () => env.goView({ mgr: 'vals', k: 'tag' }));
       row(T('mgHist'), () => env.goView({ mgr: 'hist' }));
       row(T('mgReaders'), () => env.goView({ admin: 1 }));
       row(T('mgReload'), async () => { CAT = null; rerender(); });
@@ -1346,6 +1392,100 @@ export function createAdmin(env) {
     }
   }
 
+  /* ================================================================ I — כפילויות (ס׳7) */
+  const LS_DUPX = 'pwa_libdupx_v1';
+  const dupDismissed = () => { try { return JSON.parse(localStorage.getItem(LS_DUPX) || '[]') || []; } catch (e) { return []; } };
+  const dupDismiss = (a, b) => { try { const x = dupDismissed(); x.push([a, b].sort().join('|')); localStorage.setItem(LS_DUPX, JSON.stringify(x.slice(-500))); } catch (e) {} };
+  async function renderDup() {
+    const home = page();
+    home.append(topBar(backBtn(T('mgTitle'))), h('h1', 'lib-large', T('mgChipDup')));
+    try { await loadCat(); } catch (e) { errBox(home, e); return; }
+    const box = h('div', 'mg'); home.append(box);
+    box.append(h('p', 'mg-t2 wrap', T('mgDupWhy')));
+    const groups = dupGroups(CAT.books, dupDismissed());
+    if (!groups.length) { const d = h('div', 'mg-empty'); d.append(h('div', 'mg-ok56', '✓'), h('b', null, T('mgDupNone'))); box.append(d); return; }
+    const loc = document.documentElement.lang === 'en' ? 'en-GB' : 'he-IL';
+    for (const g of groups) {
+      const keep = g[0];
+      for (const other of g.slice(1)) {
+        const card = h('div', 'bk-card mg-pad mg-dupcard');
+        const cols = h('div', 'mg-dup');
+        for (const [b, isKeep] of [[keep, true], [other, false]]) {
+          const c = h('div', 'mg-dupcol');
+          c.append(cvEl(b, 'md'));
+          const t1 = h('b', null, b.title || '—'); t1.dir = 'auto';
+          const f = b.files && b.files[0];
+          c.append(t1, h('span', null, b.author || ''), h('span', 'ltr', f ? f.fmt.toUpperCase() + ' · ' + mb(f.size) : ''),
+            h('span', null, isKeep ? T('mgDupSince', { d: new Date(b.added || 0).toLocaleDateString(loc) }) : T('mgDupLater', { d: new Date(b.added || 0).toLocaleDateString(loc) })));
+          if (isKeep) c.append(h('span', 'mg-tag g', T('mgDupKeep')));
+          cols.append(c);
+        }
+        card.append(cols);
+        const btns = h('div', 'mg-btns');
+        btns.append(textBtn(T('mgMerge'), async () => {
+          const r = await safe(() => apply([{ op: 'merge', keep: keep.id, drop: other.id }], T('mgMerged')));
+          if (r) renderDup();
+        }, 'p'));
+        btns.append(textBtn(T('mgNotDup'), () => { dupDismiss(keep.id, other.id); renderDup(); }, 'o'));
+        card.append(btns);
+        box.append(card);
+      }
+    }
+    ensureCovers(groups.flat());
+  }
+
+  /* ================================================================ מנהל הערכים (ס׳7): שינוי שם בכל הספרייה, מיזוג כתיב */
+  async function renderVals(v) {
+    const k = ['author', 'series', 'pub', 'tag'].includes(v.k) ? v.k : 'author';
+    const TITLE = { author: T('mgValsAuthor'), series: T('mgValsSeries'), pub: T('mgValsPub'), tag: T('mgValsTag') }[k];
+    const home = page();
+    home.append(topBar(backBtn(T('mgTitle'))), h('h1', 'lib-large', TITLE));
+    try { await loadCat(); } catch (e) { errBox(home, e); return; }
+    const box = h('div', 'mg'); home.append(box);
+    const list = valueList(CAT.books, k);
+    const rename = (from) => env.sheet(from, (sh) => {
+      const wrap = h('div', 'mg-renamebox');
+      const inp = h('input', 'ed-in'); inp.type = 'text'; inp.value = from; inp.dir = 'auto'; inp.id = 'mgRename';
+      const cnt = (list.find((x) => x.v === from) || {}).n || 0;
+      const go = h('button', 'bk-cta', cnt === 1 ? T('mgRenameOne') : T('mgRenameAll', { n: cnt })); go.type = 'button';
+      go.addEventListener('click', () => {
+        const to = inp.value.trim();
+        if (!to || to === from) return;
+        env.closeSheetThen(sh.parentNode, async () => { const r = await safe(() => apply([{ op: 'rename', k, from, to }], T('mgRenamed'))); if (r) renderVals(v); });
+      });
+      const merge = list.some((x) => x.v !== from) ? h('p', 'mg-t2 wrap', T('mgRenameHint')) : null;
+      wrap.append(inp, go); if (merge) wrap.append(merge);
+      sh.append(wrap);
+      setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 50);
+    });
+    const cl = valueClusters(list);
+    if (cl.length) {
+      const c = h('div', 'bk-card mg-pad');
+      c.append(h('b', null, T('mgValsSame', { n: cl.length })));
+      for (const g of cl.slice(0, 20)) {
+        const r = h('div', 'mg-valsame');
+        const most = g.slice().sort((a, b) => b.n - a.n)[0];
+        const t = h('span', 'mg-rt', g.map((x) => x.v + ' (' + x.n + ')').join(' · ')); t.dir = 'auto';
+        r.append(t, textBtn(T('mgValsJoin', { v: most.v }), async () => {
+          const ops = g.filter((x) => x !== most).map((x) => ({ op: 'rename', k, from: x.v, to: most.v }));
+          const res = await safe(() => apply(ops, T('mgRenamed'))); if (res) renderVals(v);
+        }, 'mini'));
+        c.append(r);
+      }
+      box.append(c);
+    }
+    const ul = h('div', 'mg-list');
+    if (!list.length) ul.append(h('p', 'lib-empty', T('admNone')));
+    list.forEach((x) => {
+      const r = h('button', 'mg-row'); r.type = 'button';
+      const t = h('div', 'mg-rt'); const t1 = h('div', 'mg-t1 one', x.v); t1.dir = 'auto'; t.append(t1);
+      r.append(t, h('span', 'mg-fmt', String(x.n)), h('span', 'mg-chev', '‹'));
+      r.addEventListener('click', () => rename(x.v));
+      ul.append(r);
+    });
+    box.append(ul);
+  }
+
   /* ================================================================ ניתוב */
   function render(v) {
     if (v.mgr === 'imp') return renderImp();
@@ -1354,6 +1494,8 @@ export function createAdmin(env) {
     if (v.mgr === 'hist') return renderHist();
     if (v.mgr === 'mig') return renderMig();
     if (v.mgr === 'sug') return renderSug(v);
+    if (v.mgr === 'dup') return renderDup();
+    if (v.mgr === 'vals') return renderVals(v);
     return renderHomeMgr();
   }
   return { render, busy: () => !!(IMP && IMP.stage === 'queue'), _state: () => ({ A, IMP, CAT, ONE }) };

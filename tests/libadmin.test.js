@@ -69,13 +69,23 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   ok(mi.nolocal.join() === 'D3,D4', 'ספר פרטי עם אותו driveId לא נחשב; מה שלא בטלפון — מדווח; מה שכבר עבר — מדולג');
   ok(M.chunk([1, 2, 3, 4, 5], 2).length === 3 && /^[a-z0-9]{16}$/.test(M.rid()) && M.etaText(50, 100, 60000) === 1, 'עזרים');
 
+  /* 5ב. כפילויות ומנהל הערכים (ס׳7) */
+  const D = (id, o) => Object.assign({ id, title: 'x', author: 'a', added: 1 }, o);
+  const dg = M.dupGroups([D('a', { title: 'המשקיע הנבון', author: 'בנג׳מין גרהם', added: 5 }), D('b', { title: 'הַמַּשְׁקִיעַ הנבון', author: 'בנג׳מין גרהם', added: 2 }),
+    D('c', { title: 'אחר', isbn: '9780306406157' }), D('d', { title: 'שונה', isbn: '978-0-306-40615-7' }), D('e', { title: 'בודד' }), D('f', { title: 'המשקיע הנבון', author: 'בנג׳מין גרהם', del: 5 })]);
+  ok(dg.length === 2 && dg[0].map((b) => b.id).join() === 'b,a' && dg[1].map((b) => b.id).join() === 'c,d', 'כפילויות: אותו כותר+מחבר (גם עם ניקוד) / אותו ISBN; הוותיק ראשון (נשאר); בלי הסל');
+  ok(M.dupGroups([D('a', { title: 'ספר', author: 'מ' }), D('b', { title: 'ספר', author: 'מ' })], ['a|b']).length === 0, '"אלה ספרים שונים" — לא מוצג שוב');
+  const vl = M.valueList([D('1', { author: 'וורן באפט', tags: 'מכתבים, השקעות' }), D('2', { author: 'וורן בפט', tags: 'מכתבים' }), D('3', { author: 'אחר', del: 1 })], 'author');
+  ok(vl.length === 2 && M.valueList([D('1', { tags: 'מכתבים, השקעות' }), D('2', { tags: 'מכתבים' })], 'tag').find((x) => x.v === 'מכתבים').n === 2, 'מנהל הערכים: כל ערך וכמה ספרים (בלי הסל)');
+  ok(M.valueClusters(vl).length === 1, 'כתיב שונה של אותו שם ("באפט" / "בפט") — הצעה לאיחוד');
+
   /* 6. החיבור והכללים */
   ok(!/^import /m.test(src) && !/^\s*(document|window)\./m.test(src.split('export function createAdmin')[0]), 'בלי ייבואים ובלי DOM בטעינה (נבדק ב־node)');
   ok(/import\('\.\/libadmin\.js'\)/.test(lib) && /ui\.view\.mgr\) return renderMgr/.test(lib) && /goView\(\{ mgr: 'home' \}\)/.test(lib), 'library.js: נטען רק כשהמנהל פותח "ניהול"');
   ok(/x\.send\(blob\.slice\(0, blob\.size\)\)/.test(src) && /r2\\\.cloudflarestorage\\\.com/.test(src), 'העלאה ישירה ל־R2 בלי כותרת Content-Type; הורדות רק מכתובת של R2');
   const inner = [...src.matchAll(/\.innerHTML = ([^;]+);/g)].map((x) => x[1].trim());
   ok(inner.length >= 4 && inner.every((x) => /^(ic|IC\.[a-z]+|ICON\.[a-z]+( \|\| '')?)$/.test(x)), 'innerHTML רק לסמלים קבועים — טקסט מבחוץ תמיד textContent');
-  const keys = new Set([...src.matchAll(/'(mg[A-Z][A-Za-z0-9]*)'/g)].map((x) => x[1]).filter((k) => !/^mg(B|F|Q|NumStart|TagIn)$/.test(k)));
+  const keys = new Set([...src.matchAll(/'(mg[A-Z][A-Za-z0-9]*)'/g)].map((x) => x[1]).filter((k) => !/^mg(B|F|Q|NumStart|TagIn|Rename)$/.test(k)));
   const heBlock = app.slice(app.indexOf("mgTitle: 'ניהול'"), app.indexOf("mgTitle: 'Manage'"));
   const enBlock = app.slice(app.indexOf("mgTitle: 'Manage'"));
   const miss = [...keys].filter((k) => !new RegExp('\\b' + k + ':').test(heBlock) || !new RegExp('\\b' + k + ':').test(enBlock));
