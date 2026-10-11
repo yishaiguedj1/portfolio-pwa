@@ -31,6 +31,7 @@ const ETA = require('../lib/studioeta');   // 10/10/2026: צפי זמנים נל
 const SC = require('../lib/studioscan');
 const PIR = require('../lib/studiopir');   // v379: דוח אחרי תקלה   // v378: בדיקת מוכנות ותחזוקה
 const R2 = require('../lib/r2');   // ת4: האחסון ב־Cloudflare R2
+const BK = require('../lib/backup');   // ת7: גיבוי יומי ל־R2
 const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודיו ב־R2 (תיקייה R2_<עבודה>, מזהה <תיקייה>_<אקראי>)
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
@@ -267,8 +268,37 @@ async function watch(req, res, deps) {
   }
   if (limited('watch', 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   const now = deps.now || Date.now();
-  try { return res.status(200).json({ ok: true, down: await checkServers(deps, now) }); }
+  let down;
+  try { down = await checkServers(deps, now); }
   catch (e) { return res.status(502).json({ ok: false }); }
+  const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
+  return res.status(200).json({ ok: true, down, bk });
+}
+/* ת7: הגיבוי היומי (lib/backup.js) — פעם ביום, ל־R2. בתשובה רק מצב (בלי תוכן): 1 = נוצר עכשיו, 0 = כבר היה, -1 = תקלה / בלי R2 */
+async function fsListCol(deps, col, max) {
+  const out = [];
+  let pt = '';
+  for (let i = 0; i < Math.ceil(max / 300); i++) {
+    const r = await fsCall(deps, 'GET', '/' + col + '?pageSize=300' + (pt ? '&pageToken=' + encodeURIComponent(pt) : ''));
+    if (r.status !== 200) throw new Error('fs_http_' + r.status);
+    for (const d of (r.j && Array.isArray(r.j.documents) ? r.j.documents : [])) out.push({ name: String(d.name || '').split('/').pop(), fields: d.fields || {}, ut: d.updateTime || '' });
+    pt = r.j && r.j.nextPageToken ? String(r.j.nextPageToken) : '';
+    if (!pt) break;
+  }
+  return out;
+}
+async function dailyBackup(deps, now) {
+  const c = R2.config();
+  if (!c.ok) return -1;
+  const rd = r2deps(deps);
+  try {
+    const r = await BK.runBackup({
+      listCol: (col, max) => fsListCol(deps, col, max),
+      head: (k) => R2.head(c, rd, k), get: (k, max) => R2.getBuf(c, rd, k, max), put: (k, b, t) => R2.putBuf(c, rd, k, b, t),
+      list: (p) => R2.list(c, rd, p, 2000), del: (k) => R2.del(c, rd, k),
+    }, now);
+    return r.done ? 1 : 0;
+  } catch (e) { return -1; }
 }
 /* הבדיקה עצמה — גם מהקרון וגם מהטלפון (11/10/2026): GitHub מדלג על ריצות מתוזמנות (בפועל פעם בכמה שעות),
    ולכן גם status/jobs מהטלפון בודקים — לכל היותר פעם ב־WATCH_EVERY לכל מופע, ורק את השרתים של מי ששואל */

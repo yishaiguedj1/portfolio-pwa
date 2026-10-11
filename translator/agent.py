@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import collections
 import os
 import platform
 import random
@@ -90,11 +91,33 @@ def host_info(busy: str = '') -> dict:
     return hb
 
 
+_events: collections.deque = collections.deque(maxlen=12)
+_ev_lock = threading.Lock()          # הדופק רץ בחוט נפרד — קריאה באמצע הוספה הייתה זורקת RuntimeError
+
+
+def ev(code: str):
+    """ת7: יומן השרת — אירוע (קוד מהקטלוג SRV_EV בשרתון) נשלח בכל פנייה ומוצג במסך השרת באפליקציה.
+    אותו קוד ברצף (למשל השרתון לא זמין שוב ושוב) — רק מעדכן את הזמן, לא ממלא את היומן."""
+    t = int(time.time())
+    with _ev_lock:
+        if _events and _events[-1][1] == code and code in ('net', 'auth'):
+            _events[-1] = [t, code]
+        else:
+            _events.append([t, code])
+
+
+def ev_list() -> list:
+    with _ev_lock:
+        return [list(x) for x in _events]
+
+
 def poll(server: str, tok: str, op: str = 'poll', busy: str = '') -> dict:
     """{'job': {'id', 'key', 'kind'}} או {'job': None}. שגיאה → {'error': ...} (הלולאה מחכה ומנסה שוב).
     op='beat' — רק דופק (באמצע עבודה), בלי לבקש עבודה."""
     try:
-        st, j, hd = J.http('POST', server + '/api/studio', {'op': op, 'v': 1, 'hb': host_info(busy)},
+        hb = host_info(busy)
+        hb['ev'] = ev_list()
+        st, j, hd = J.http('POST', server + '/api/studio', {'op': op, 'v': 1, 'hb': hb},
                            headers={'Authorization': 'Bearer ' + tok}, timeout=30)
     except (OSError, ValueError) as e:
         return {'error': 'network', 'detail': type(e).__name__}
@@ -188,6 +211,17 @@ def crash_code(rc: int) -> str:
     return 'worker_crash'
 
 
+def end_code(rc: int) -> str:
+    """קוד היציאה של עבודה → אירוע ביומן השרת (0 הצליחה, 1 נכשלה ודיווחה, 2 נעצרה מהאפליקציה, אחר — לפי crash_code)"""
+    if rc == 0:
+        return 'done'
+    if rc == 1:
+        return 'fail'
+    if rc == 2:
+        return 'stop'
+    return {'job_timeout': 'timeout', 'worker_oom': 'oom'}.get(crash_code(rc), 'crash')
+
+
 def handle(jb: dict, server: str) -> int:
     global _busy
     J.VT_WORK.mkdir(parents=True, exist_ok=True)
@@ -232,6 +266,7 @@ def start_warm():
             subprocess.run([sys.executable, str(Path(__file__).with_name('warm.py'))], timeout=WARM_WAIT_S)
         except (OSError, subprocess.SubprocessError) as e:
             print('· הכנת המודלים מראש נכשלה (' + type(e).__name__ + ') — העבודה תוריד אותם בעצמה', flush=True)
+            ev('warm')
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return t
@@ -244,6 +279,7 @@ def main(once: bool = False) -> int:
     cleanup()                                  # שאריות מהפעלה קודמת שנקטעה (כיבוי, עדכון)
     warm = None if once else start_warm()
     print('✓ הסוכן פעיל — שואל את השרתון אם יש עבודה', flush=True)
+    ev('up')
     if not once:
         threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
     backoff = POLL_S
@@ -253,16 +289,20 @@ def main(once: bool = False) -> int:
             print('→ עבודה ' + r['job']['id'][:6] + '…', flush=True)
             if warm is not None and warm.is_alive():
                 warm.join(WARM_WAIT_S)           # ההורדה מראש עוד רצה — העבודה הייתה מורידה את אותם קבצים בעצמה
+            ev('job')
             rc = handle(r['job'], server)
             print('← סיום (' + str(rc) + ')', flush=True)
+            ev(end_code(rc))
             backoff = POLL_S
             if once:
                 return rc
             continue
         if r.get('error') == 'auth':
+            ev('auth')
             backoff = MAX_BACKOFF_S
             print('✗ השרתון לא מכיר את טוקן השרת (בוטל באפליקציה?) — snb-setup עם טוקן חדש', flush=True)
         elif r.get('error'):
+            ev('net')
             backoff = min(MAX_BACKOFF_S, backoff * 2)
             print('· השרתון לא זמין (' + r['error'] + ') — עוד ' + str(int(backoff)) + ' שנ׳', flush=True)
         else:

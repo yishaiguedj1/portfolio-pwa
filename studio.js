@@ -109,7 +109,8 @@ export function normServers(list) {
     id: x.id, name: String(x.name || x.id).slice(0, 40), seen: Math.max(0, n(x.seen) || 0), online: x.online === true, paused: x.paused === true,
     hb: x.hb && typeof x.hb === 'object' ? { v: /^[0-9a-f]{7,12}$|^dev$/.test(String(x.hb.v || '')) ? x.hb.v : '', disk: n(x.hb.disk), mem: n(x.hb.mem), free: n(x.hb.free),
       iso: x.hb.iso === 'g' || x.hb.iso === 'r' ? x.hb.iso : '', iw: ['mem', 'missing', 'selftest', 'manual'].includes(x.hb.iw) ? x.hb.iw : '',
-      al: x.hb.al === 'o' || x.hb.al === 't' ? x.hb.al : '' } : null,
+      al: x.hb.al === 'o' || x.hb.al === 't' ? x.hb.al : '',
+      ev: Array.isArray(x.hb.ev) ? x.hb.ev.slice(-12).filter((e) => Array.isArray(e) && e.length === 2 && Number.isFinite(+e[0]) && /^[a-z]{2,8}$/.test(String(e[1]))).map((e) => [+e[0], String(e[1])]) : [] } : null,   // ת7: יומן השרת
     job: x.job && JOB_RE.test(String(x.job.id || '')) ? { id: x.job.id, name: String(x.job.name || '').slice(0, 200) } : null }));
 }
 /* מצב שרת במילה אחת: מושהה גובר; אחרת מחובר/לא */
@@ -5069,6 +5070,28 @@ function isoTxt(hb) {
     default: return T('studioIsoR');
   }
 }
+/* ת7 (11/10/2026): יומן השרת — קודים קבועים מהעובד (normEv בשרתון) */
+function srvEvText(k) {
+  switch (k) {
+    case 'up': return T('studioSrvEvUp');
+    case 'job': return T('studioSrvEvJob');
+    case 'done': return T('studioSrvEvDone');
+    case 'fail': return T('studioSrvEvFail');
+    case 'stop': return T('studioSrvEvStop');
+    case 'oom': return T('studioSrvEvOom');
+    case 'timeout': return T('studioSrvEvTimeout');
+    case 'crash': return T('studioSrvEvCrash');
+    case 'auth': return T('studioSrvEvAuth');
+    case 'net': return T('studioSrvEvNet');
+    case 'warm': return T('studioSrvEvWarm');
+    default: return '';
+  }
+}
+export function srvEvents(hb) {   // טהורה: מהחדש לישן, רק קודים מוכרים, עד 8
+  const a = hb && Array.isArray(hb.ev) ? hb.ev : [];
+  return a.filter((x) => Array.isArray(x) && x.length === 2 && Number(x[0]) > 0 && srvEvText(String(x[1])))
+    .map((x) => ({ t: Number(x[0]) * 1000, k: String(x[1]) })).reverse().slice(0, 8);
+}
 function pageServer(p) {
   p.append(navBar({ back: T('studioTwT') }), large(T('studioSrvT')), h('p', 'st-lede', T('studioSrvLede')));
   const ab = accessBanner(); if (ab) p.append(ab);
@@ -5104,6 +5127,13 @@ function pageServer(p) {
     l.append(b, sub);
     if (sv.hb && sv.hb.iso && stt !== 'off') l.append(h('small', null, isoTxt(sv.hb) + (sv.hb.al === 'o' ? ' · ' + T('studioAlOnnx') : '')));   // ת2: בידוד הקופסה · שלב 4.1: היישור
     if (sv.job) { const js = h('small'); js.append(T('studioSrvJob') + ' '); js.append(h('bdi', null, sv.job.name ? fileTitle(sv.job.name) : T('studioSrvJobOther'))); l.append(js); }
+    const evs = srvEvents(sv.hb);
+    if (evs.length) {   // ת7: יומן השרת — מקופל; בלי להיכנס לקונסולה של Hetzner
+      const det = h('details', 'st-details st-srvev'); det.dataset.k = 'srv-ev:' + sv.id;
+      det.append(h('summary', null, T('studioSrvEvT')));
+      for (const e of evs) det.append(h('small', null, fmtDate(e.t) + ' · ' + srvEvText(e.k)));
+      l.append(det);
+    }
     r.append(tile('cloud', stt === 'on' ? 'green' : stt === 'paused' ? 'orange' : 'red'), l);
     // שתי פעולות קטנות בתוך השורה (לא שורה לכל פעולה) — השהיה / המשך, והסרה עם אישור
     const pb = btn('st-mini fill', sv.paused ? T('studioSrvResume') : T('studioSrvPause'), () => srvAct('srvPause', sv, { paused: !sv.paused }), 'srv-pause:' + sv.id);

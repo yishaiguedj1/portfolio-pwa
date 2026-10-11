@@ -68,7 +68,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. העובד והשרת ---------- */
   const ag = read('translator/agent.py');
-  ok(/def host_info\(/.test(ag) && /'op': op, 'v': 1, 'hb': host_info\(busy\)/.test(ag) && /poll\(server, tok, 'beat', _busy\)/.test(ag), 'הסוכן: דופק עם מצב השרת, וגם באמצע עבודה');
+  ok(/def host_info\(/.test(ag) && /hb = host_info\(busy\)[\s\S]{0,200}'op': op, 'v': 1, 'hb': hb\}/.test(ag) && /poll\(server, tok, 'beat', _busy\)/.test(ag), 'הסוכן: דופק עם מצב השרת, וגם באמצע עבודה');
   ok(/rc = run_child\(\['auto'\], AUTO_TIMEOUT_S\)/.test(ag) && /finally:\s*\n\s*_busy = ''\s*\n\s*cleanup\(\)/.test(ag), 'הסוכן: run ואז auto, וניקוי תמיד בסוף');
 
   /* ---------- 4. מחרוזות ---------- */

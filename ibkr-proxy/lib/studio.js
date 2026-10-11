@@ -854,7 +854,21 @@ function normHb(h) {
     busy: JOB_RE.test(String(h.busy || '')) ? h.busy : '',
     // ת2: בידוד הקופסה — g = gVisor, r = רגיל (runc) + הסיבה מקטלוג קבוע
     iso: h.iso === 'g' || h.iso === 'r' ? h.iso : '', iw: h.iso === 'r' && ['mem', 'missing', 'selftest', 'manual'].includes(h.iw) ? h.iw : '',
-    al: h.al === 'o' || h.al === 't' ? h.al : '' };   // שלב 4.1: מנוע היישור (o = ONNX INT8)
+    al: h.al === 'o' || h.al === 't' ? h.al : '',   // שלב 4.1: מנוע היישור (o = ONNX INT8)
+    ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
+}
+/* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
+   מציג אותם. רק קודים מהקטלוג (בלי טקסט חופשי, בלי מזהי עבודות) — מה שלא מתאים נזרק */
+const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm'];
+function normEv(a) {
+  const out = [];
+  for (const x of Array.isArray(a) ? a.slice(-12) : []) {
+    if (!Array.isArray(x) || x.length !== 2) continue;
+    const t = Math.round(Number(x[0])), k = String(x[1] || '');
+    if (!(t > 1.6e9 && t < 4e9) || !SRV_EV.includes(k)) continue;
+    out.push([t, k]);
+  }
+  return out;
 }
 /* ת7 — ניטור: שרת שכבר דיווח ושותק מעל SRV_DOWN_MS "נפל". שרת שעוד לא התחבר (seen 0 — למשל קוד הקמה שמחכה למלאי)
    לא נחשב; ומי שכבר סומן (dn) לא מתריע שוב עד שיחזור. העובד שואל כל 20 שנ׳, באמצע עבודה דופק כל 5 דק׳,
@@ -922,5 +936,5 @@ module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

@@ -48,6 +48,10 @@ const { fakeR2, ENV } = require('./_r2fake');
       return J([...db.entries()].filter(([k, v]) => k.startsWith(col + '/') && fl.every((f) => v.fields[f.field.fieldPath] && v.fields[f.field.fieldPath].stringValue === f.value.stringValue))
         .map(([k, v]) => ({ document: { name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields, updateTime: v.ut } })).concat([{ readTime: 'x' }]));
     }
+    const lm = url.match(/\/documents\/([A-Za-z]+)\?(.*)$/);   // רשימת אוסף (הגיבוי היומי)
+    if (lm && (opt.method || 'GET') === 'GET') {
+      return J({ documents: [...db.entries()].filter(([k]) => k.startsWith(lm[1] + '/')).map(([k, v]) => ({ name: 'projects/p/databases/(default)/documents/' + k, fields: v.fields, updateTime: v.ut })) });
+    }
     const m = url.match(/\/documents\/([A-Za-z]+)\/([A-Za-z0-9_-]+)(?:\?(.*))?$/);
     if (!m) return J({}, 404);
     const k = m[1] + '/' + m[2], cur = db.get(k);
@@ -217,6 +221,27 @@ const { fakeR2, ENV } = require('./_r2fake');
   ok(R.objs.has('st/otherUid0002/' + OTHERF + '_eeeeeeeeeeee'), 'יתומות: קבצים של משתמש אחר — לא נוגעים');
   ok(R.objs.has('gl/ownerUid0001.tsv') && R.objs.has('st/ownerUid0001/notafolder'), 'יתומות: המילון ומפתחות בצורה אחרת — לא נוגעים');
   ok(!(cr.sc.f || []).some((x) => x.k === 'orphans'), 'יתומות: אחרי הניקוי — בלי ממצא');
+
+  /* ---------- 9. הגיבוי היומי (ת7, 11/10) ---------- */
+  const BK = require(path.join(root, 'ibkr-proxy/lib/backup.js'));
+  R.objs.set('bk/2026-09-01/fs.json.gz', Buffer.alloc(3));   // גיבוי ישן מתקופת השמירה
+  R.objs.set('lib/catalog.json', Buffer.from('{"v":1,"items":[]}'));
+  const wcall = async () => {
+    const res = { code: 0, j: null, setHeader() {}, status(c) { res.code = c; return res; }, json(o) { res.j = o; return res; }, end() { return res; } };
+    await studio._handler({ method: 'GET', query: {}, body: null, headers: {}, socket: { remoteAddress: '9.9.9.9' } }, res, deps());
+    return res;
+  };
+  let w = await wcall();
+  const today = BK.bkDate(R.now);
+  ok(w.code === 200 && w.j.bk === 1 && R.objs.has(BK.bkKey(today)) && R.objs.has(BK.bkCatKey(today)), 'גיבוי: הקרון היומי יוצר גיבוי של היום (Firestore + קטלוג הספרייה)');
+  const bj = BK.readBackup(R.objs.get(BK.bkKey(today)));
+  const nJobs = [...db.keys()].filter((k) => k.startsWith('studioJobs/')).length;
+  ok(bj.cols.studioJobs.length === nJobs && nJobs > 0 && Array.isArray(bj.cols.studioStats), 'גיבוי: כל המסמכים של האוספים, בפורמט של Firestore');
+  ok(!bj.cols.studioVault && !bj.cols.users, 'גיבוי: בלי הכספות ובלי התיק');
+  ok(!R.objs.has('bk/2026-09-01/fs.json.gz'), 'גיבוי: מה שעבר 14 יום נמחק');
+  w = await wcall();
+  ok(w.j.bk === 0, 'גיבוי: קריאה חוזרת באותו יום — בלי גיבוי נוסף');
+  ok(BK.bkExpired(['bk/2026-09-25/fs.json.gz', 'bk/2026-09-26/fs.json.gz', 'bk/x/y', 'lib/a.epub'], R.now).join() === 'bk/2026-09-25/fs.json.gz', 'גיבוי: תקופת השמירה לפי התאריך בנתיב בלבד');
 
   console.log('\n' + n + ' בדיקות עברו');
 })().catch((e) => { console.error('FAIL -', e); process.exit(1); });
