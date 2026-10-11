@@ -1268,14 +1268,14 @@ def prepare(args):
     a = files.get('a') if (files.get('a') or {}).get('id') else None
     if a:
         src = in_path(ctx, a, 'a')
-        ctx.report('tr', 0, 'מוריד את הקול מ־Drive', force=True)
-        fetch_input(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול מ־Drive'))
+        ctx.report('tr', 0, 'מוריד את הקול', force=True)
+        fetch_input(ctx, a['id'], src, int(a.get('size') or 0), lambda f: ctx.report('tr', 0.05 * f, 'מוריד את הקול'))
         src = edl_src(ctx, src, 'a')
     else:
         v = wait_video(ctx, 'up', 'מחכה שהסרטון יסיים לעלות')
         src = in_path(ctx, v, 'v')
-        ctx.report('tr', 0, 'מוריד את הסרטון מ־Drive', force=True)
-        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון מ־Drive'))
+        ctx.report('tr', 0, 'מוריד את הסרטון', force=True)
+        fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('tr', 0.1 * f, 'מוריד את הסרטון'))
         ladder_start(ctx, src)                   # איכויות הצפייה — ברקע, במקביל לכל השאר
         src = edl_src(ctx, src, 'v')
     ensure_env(ctx)                              # ההורדה רצה בינתיים; ההתקנה (אם חסרה) כבר רצה ברקע מאז run
@@ -1328,8 +1328,8 @@ def attach_video(ctx):
     והזזת זמני המילים — כך שהיישור, הכתוביות והצריבה על ציר הזמן של הסרטון. היסט לא ודאי → תמלול מחדש מהסרטון."""
     v = wait_video(ctx, 'al', 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, v, 'v')
-    ctx.report('al', 0, 'מוריד את הסרטון מ־Drive', force=True)
-    fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון מ־Drive'))
+    ctx.report('al', 0, 'מוריד את הסרטון', force=True)
+    fetch_input(ctx, v['id'], src, int(v.get('size') or 0), lambda f: ctx.report('al', 0.05 * f, 'מוריד את הסרטון'))
     ladder_start(ctx, src)                       # איכויות הצפייה — ברקע, במקביל ליישור ולתרגום
     src = edl_src(ctx, src, 'v')
     pd = ctx.pdir
@@ -2180,7 +2180,7 @@ def render(args):
         eds += ['--ov', json.dumps({k: v for k, v in ov.items() if k != 'lg'}, ensure_ascii=False, separators=(',', ':'))]
     script(ctx, 'rerender.py', ['--src', str(src), '--cues', str(cues), '--out', str(od), '--name', ctx.name,
                                 '--style', style, '--want', ','.join(want), '--work', str(work / 'overlay')] + eds, 'bn')
-    ctx.report('sv', 0, 'שומרים ב־Drive', force=True)
+    ctx.report('sv', 0, 'שומרים', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120] + (' — קטע לבדיקה' if spec.get('prv') == 1 else '')   # סבב 10
     out = []
     picked = [(k, od / fn.format(n=ctx.name), title + sfx, mime) for k, fn, sfx, mime in RR_FILES
@@ -2385,7 +2385,7 @@ def finish(args):
         if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
             flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
-    ctx.report('sv', 0, 'שומרים את התוצרים ב־Drive', force=True)
+    ctx.report('sv', 0, 'שומרים את התוצרים', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     out, total = [], 0
     files = []
@@ -2644,7 +2644,7 @@ def restore(args):
     kind = 'a' if info.get('src') == 'a' and (files.get('a') or {}).get('id') else 'v'
     f = files['a'] if kind == 'a' else wait_video(ctx, st_next, 'מחכה שהסרטון יסיים לעלות')
     src = in_path(ctx, f, kind)
-    ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + ' מ־Drive', force=True)
+    ctx.report(st_next, None, 'מוריד את ' + ('הקול' if kind == 'a' else 'הסרטון') + '', force=True)
     fetch_input(ctx, f['id'], src, int(f.get('size') or 0))
     if kind == 'v':
         ladder_start(ctx, src)
