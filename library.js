@@ -326,14 +326,34 @@ function backfillCovers() {
   return backfilling;
 }
 
+/* מחקר 06: MOBI/AZW3 — המזהה של foliate (mobi.uid) אקראי בכל המרה; מזהה יציב מ־EXTH (calibre:<uuid> / ASIN). ריק = אין */
+export function mobiStableId(book) {
+  const hd = book && book.mobi && book.mobi.headers;
+  if (!hd) return '';
+  const ex = hd.exth || {};
+  const src = [].concat(ex.source || []).find((x) => /^calibre:/i.test(String(x)));
+  return src ? 'urn:uuid:' + String(src).slice(8) : ex.asin ? 'asin:' + ex.asin : '';
+}
+/* מחקר 06: EPUB עם שמות קבצים בעברית בלי דגל UTF‑8 לא נפתח בכלל ב־foliate — תיקון מיכל (בלי לגעת בתוכן); DRM — לא מייבאים */
+async function fixEpub(file) {
+  if (!/\.epub$/i.test(file.name || '') && file.type !== 'application/epub+zip') return file;
+  try {
+    const EK = await import('./epubkit.js');
+    const rep = await EK.inspectEpub(file);
+    if (rep.drm) { const e = new Error('drm'); e.drm = true; throw e; }
+    if (rep.ok && rep.repair.includes('utf8_flag')) return new File([(await EK.repairEpub(file, rep)).blob], file.name, { type: 'application/epub+zip' });
+  } catch (e) { if (e && e.drm) throw e; }
+  return file;
+}
 async function importFiles(files, extra, outIds) {
   let added = 0;
-  for (const file of files) {
+  for (let file of files) {
     try {
+      file = await fixEpub(file);
       const book = await makeBook(file);
       const md = book.metadata || {};
-      const ident = langText(md.identifier);
-      const id = ident ? 'id-' + ident : await fileId(file);
+      const ident = mobiStableId(book) || (book.mobi ? '' : langText(md.identifier));
+      const id = (extra && extra.id) || (ident ? 'id-' + ident : await fileId(file));   // ס׳3: ספר מהקטלוג — המזהה של הקטלוג
       const title = langText(md.title) || file.name.replace(/\.[^.]+$/, '');
       const rec = {
         id, title, author: langText(md.author) || langText(md.publisher) || '', year: bookYear(title, md.published),
@@ -363,7 +383,7 @@ async function importFiles(files, extra, outIds) {
       if (outIds) outIds.push(id);
       added++;
     } catch (e) {
-      if (typeof flash === 'function') flash(T('libOpenErr') + ': ' + file.name);
+      if (typeof flash === 'function') flash(e && e.drm ? T('libDrm', { t: file.name }) : T('libOpenErr') + ': ' + file.name);
     }
   }
   return added;
@@ -504,7 +524,7 @@ async function syncShelf(tk, j) {
         if (!r.ok) throw new Error('dl');
         const name = String(b.title || 'book').replace(/[\\/:*?"<>|]/g, ' ').slice(0, 100) + '.' + f.fmt;
         const file = new File([await r.blob()], name, { type: BOOK_TYPES[f.fmt] || 'application/octet-stream' });
-        const n = await importFiles([file], { md5: f.md5, src: 'drive', cat: catFields(b), catSig: b.cover ? '' : catSigOf(b) });
+        const n = await importFiles([file], { id: b.id, md5: f.md5, src: 'drive', cat: catFields(b), catSig: b.cover ? '' : catSigOf(b) });
         if (!n) throw new Error('import');
         changed += n;
         if (b.cover) plan.meta.push(b);                                  // הכריכה — בשלב הבא
@@ -1730,11 +1750,12 @@ async function remoteCover(url) {   // כריכה מהרשת — דרך השרת
 }
 /* ממלאים שדות שחסרים ברשומה מתוך הקובץ עצמו (כותר משנה, סדרה, ISBN, נושאים, שפה, שם למיון) */
 function fileDefaults(md) {
-  const ids = [].concat(md.identifier || []).map(langText).join(' ');
+  // מחקר 06: ה־ISBN אצל foliate ב־altIdentifier (לא ב־identifier — שם ה־uuid); position של סדרה יכול להיות NaN (באג ב־foliate)
+  const ids = [].concat(md.identifier || [], md.altIdentifier || []).map(langText).join(' ');
   const isbn = (ids.match(/97[89][0-9-]{10,14}|\b\d{9}[\dX]\b/) || [''])[0].replace(/-/g, '');
   const ser = md.belongsTo && md.belongsTo.series ? [].concat(md.belongsTo.series)[0] : null;
   const au = [].concat(md.author || [])[0];
-  return { subtitle: langText(md.subtitle), series: ser ? langText(ser.name) : '', seriesIdx: ser && ser.position != null ? String(ser.position) : '',
+  return { subtitle: langText(md.subtitle), series: ser ? langText(ser.name) : '', seriesIdx: ser && Number.isFinite(ser.position) ? String(ser.position) : '',
     isbn, tags: [].concat(md.subject || []).map(langText).filter(Boolean).join(', '), lang: [].concat(md.language || [])[0] || '',
     authorSort: au && typeof au === 'object' && au.sortAs ? langText(au.sortAs) : '' };
 }

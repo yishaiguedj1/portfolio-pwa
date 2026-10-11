@@ -162,7 +162,7 @@ export function classify(items, books) {
     if (it.err || !BOOK_EXT.includes(it.ext)) return Object.assign({}, it, { g: 'bad', why: it.err || 'type' });
     if (it.md5 && (md5s.has(it.md5) || seen.has(it.md5))) return Object.assign({}, it, { g: 'same', like: md5s.get(it.md5) || '' });
     if (it.md5) seen.add(it.md5);
-    if (ids.has(it.id)) return Object.assign({}, it, { g: 'maybe', like: it.id, on: true });
+    if (ids.has(it.id)) return Object.assign({}, it, { g: 'maybe', like: it.id, on: true, act: 'replace' });   // אותו מזהה = כנראה גרסה חדשה — מחליפים קובץ (ההתקדמות נשמרת)
     const k = normQ(it.title) + '|' + normQ(it.author);
     if (normQ(it.title) && names.has(k)) return Object.assign({}, it, { g: 'maybe', like: names.get(k), on: true });
     return Object.assign({}, it, { g: 'new', on: true });
@@ -536,21 +536,59 @@ export function createAdmin(env) {
     IMP.stage = 'check';
     paintImp();
   }
+  let EKP = null;
+  const kit = () => (EKP || (EKP = import('./epubkit.js')));   // epubkit — רק כשמוסיפים ספרים
+  /* קריאה בטלפון, לפני העלאה (מחקר 06): הסוג לפי התוכן; EPUB — בדיקת תקינות ו־DRM, תיקון מיכל (דגל UTF‑8 לשמות בעברית —
+     בלעדיו הספר לא נפתח בכלל) ופרטים מה־OPF (foliate מאבד סדרה של EPUB 3 ולא רואה ISBN); MOBI — מזהה יציב מ־EXTH ובדיקת DRM;
+     FB2 — סדרה, ISBN וכריכה. הקובץ שמגבבים ומעלים = הקובץ המתוקן. */
   async function readOne(it) {
-    if (!BOOK_EXT.includes(it.ext)) { it.err = 'type'; return; }
     if (it.size > 100 * 1024 * 1024) { it.err = 'size'; return; }
     try {
-      const book = await env.makeBook(it.file);
+      const EK = await kit();
+      const kind = await EK.classify(it.file).catch(() => 'unknown');
+      it.kind = kind;
+      if (!['epub', 'mobi', 'fb2'].includes(kind)) { it.err = kind === 'kfx-drm' ? 'drm' : 'type'; return; }
+      let file = it.file, opf = null, stable = '', isbn = '', fb = null;
+      if (kind === 'epub') {
+        const rep = await EK.inspectEpub(file);
+        if (!rep.ok) { it.err = rep.drm ? 'drm' : 'broken'; it.code = (rep.errors[0] && rep.errors[0].code) || ''; return; }
+        const fx = await EK.repairEpub(file, rep);
+        if (fx.fixed.length) { file = new File([fx.blob], it.name, { type: 'application/epub+zip' }); it.fixed = fx.fixed; }
+        opf = EK.readOpfMeta(rep.opf);
+        stable = opf.uid || ''; isbn = opf.isbn || '';
+      }
+      if (kind === 'fb2') {
+        fb = EK.fb2Meta(new DOMParser().parseFromString(await file.text(), 'application/xml'));
+        stable = fb.id || ''; isbn = fb.isbn || '';
+      }
+      const book = await env.makeBook(file);
       const md = book.metadata || {};
-      const ident = env.langText(md.identifier);
-      it.id = ident ? 'id-' + ident : await env.fileId(it.file);
-      const title = env.langText(md.title) || it.name.replace(/\.[^.]+$/, '');
+      if (kind === 'mobi') {
+        const mi = EK.mobiInfo(book);
+        if (mi && mi.drm) { it.err = 'drm'; return; }
+        stable = (mi && mi.stableId) || ''; isbn = (mi && mi.isbn) || '';
+      }
+      const ident = stable || (kind === 'mobi' ? '' : env.langText(md.identifier));
+      it.id = ident ? 'id-' + ident : await env.fileId(file);
       const ex = env.bookExtras(book), df = env.fileDefaults(md);
-      it.title = title; it.author = env.langText(md.author) || '';
-      it.fields = { title, author: it.author, lang: Array.isArray(md.language) ? md.language[0] || '' : (md.language || ''), pub: ex.pub || '', date: ex.date || '',
-        desc: ex.desc || '', subtitle: df.subtitle || '', series: df.series || '', seriesIdx: df.seriesIdx || '', isbn: df.isbn || '', tags: df.tags || '', authorSort: df.authorSort || '' };
-      it.cover = await env.coverThumb(book).catch(() => null);
-      it.md5 = await md5File(it.file);
+      const lang0 = Array.isArray(md.language) ? md.language[0] || '' : (md.language || '');
+      const title = (opf && opf.title) || env.langText(md.title) || it.name.replace(/\.[^.]+$/, '');
+      const authors = opf && opf.authors.length ? opf.authors.map((a) => a.name).filter(Boolean).join(', ') : (env.langText(md.author) || '');
+      it.title = title; it.author = authors;
+      it.fields = {
+        title, author: authors, subtitle: (opf && opf.subtitle) || df.subtitle || '',
+        authorSort: (opf && opf.authors[0] && opf.authors[0].sort) || df.authorSort || '',
+        pub: (opf && opf.publisher) || ex.pub || '', date: String((opf && opf.date) || ex.date || '').slice(0, 10),
+        lang: (opf && opf.lang) || lang0, desc: ex.desc || '',
+        series: (opf && opf.series) || (fb && fb.series) || df.series || '',
+        seriesIdx: String((opf && opf.seriesIndex) || (fb && fb.seriesIndex) || (/^\d+(\.\d+)?$/.test(df.seriesIdx || '') ? df.seriesIdx : '')),
+        isbn: isbn || df.isbn || '', tags: (opf && opf.tags.length ? opf.tags.join(', ') : df.tags) || '',
+      };
+      if (fb && fb.cover && fb.cover.b64) it.cover = await env.coverFromBlob(new Blob([EK.b64ToBytes(fb.cover.b64)], { type: fb.cover.type }), 480).catch(() => null);
+      else it.cover = await env.coverThumb(book).catch(() => null);
+      it.file = file; it.size = file.size;
+      it.ext = kind === 'mobi' ? (['azw3', 'azw', 'kf8'].includes(it.ext) ? 'azw3' : 'mobi') : kind;   // הסוג האמיתי — השרתון מוודא שוב
+      it.md5 = await EK.md5Blob(file);
     } catch (e) { it.err = 'open'; }
   }
   function paintImp() { const v = env.ui.view; if (v && v.mgr === 'imp') renderImp(); }
@@ -617,12 +655,17 @@ export function createAdmin(env) {
     const t = h('div', 'mg-rt');
     const t1 = h('div', 'mg-t1', it.title || it.name); t1.dir = 'auto';
     let sub = it.author || '';
-    if (it.g === 'maybe') { const o = byId(it.like); sub = T('mgLike', { t: o ? o.title : '' }); }
+    if (it.g === 'maybe') { const o = byId(it.like); sub = T(it.act === 'replace' ? 'mgReplaceOf' : 'mgLike', { t: o ? o.title : '' }); }
     if (it.g === 'same') { const o = byId(it.like); sub = o ? T('mgSameAs', { t: o.title }) : T('mgSameBatch'); }
-    if (it.g === 'bad') sub = T(it.why === 'size' ? 'mgBadSize' : it.why === 'open' ? 'mgBadOpen' : /^acsm$/.test(it.ext) ? 'mgBadAcsm' : 'mgBadType');
+    if (it.g === 'bad') sub = T(it.why === 'size' ? 'mgBadSize' : it.why === 'open' || it.why === 'broken' ? 'mgBadOpen' : it.why === 'drm' ? 'mgBadDrm' : /^acsm$/.test(it.ext) ? 'mgBadAcsm' : 'mgBadType');
     const t2 = h('div', 'mg-t2', sub); t2.dir = 'auto';
     t.append(t1, t2); r.append(t);
     const fm = h('span', 'mg-fmt', (it.ext || '?').toUpperCase() + ' · ' + mb(it.size)); fm.dir = 'ltr'; r.append(fm);
+    if (it.g === 'maybe' && it.like === it.id && selectable) {   // גרסה חדשה או ספר נפרד — בחירה בשורה עצמה
+      const sw = h('span', 'mini-btn mg-act', T(it.act === 'replace' ? 'mgActAdd' : 'mgActReplace')); sw.setAttribute('role', 'button'); sw.tabIndex = 0;
+      sw.addEventListener('click', (e) => { e.stopPropagation(); it.act = it.act === 'replace' ? 'add' : 'replace'; renderCheck(); });
+      t.append(sw);
+    }
     return r;
   }
   const mb = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1e3)) + 'KB');
@@ -640,7 +683,7 @@ export function createAdmin(env) {
   async function runQueue() {
     const todo = IMP.items.filter((it) => it.on && (it.g === 'new' || it.g === 'maybe'));
     const taken = new Set(((CAT && CAT.books) || []).map((b) => b.id));
-    for (const it of todo) { if (taken.has(it.id)) it.id = freshId(it.id, taken); taken.add(it.id); it.st = 'wait'; }
+    for (const it of todo) { if (it.act !== 'replace' && taken.has(it.id)) it.id = freshId(it.id, taken); taken.add(it.id); it.st = 'wait'; }
     IMP.stage = 'queue'; IMP.batch = 'imp-' + rid().slice(0, 10); IMP.t0 = nowMs(); IMP.paused = false;
     paintImp();
     await pump();
@@ -680,10 +723,11 @@ export function createAdmin(env) {
       await putFile(ub.url, it.file, (p) => { it.p = p; paintRow(it); });
       it.st = 'proc'; paintRow(it);
       const book = Object.assign({ id: it.id, st: IMP.pub ? 'pub' : 'draft' }, it.fields);
-      const cm = await api('upCommit', { rid: rid(), items: [{ u: ub.u, k: 'b', ext: it.ext, book, batch: IMP.batch }] });
+      const one = it.act === 'replace' ? { u: ub.u, k: 'b', ext: it.ext, id: it.like } : { u: ub.u, k: 'b', ext: it.ext, book, batch: IMP.batch };
+      const cm = await api('upCommit', { rid: rid(), items: [one] });
       if (cm.dup && cm.dup.length) { it.st = 'dup'; paintRow(it); return; }
       if (!cm.done || !cm.done.length) throw new Error((cm.bad && cm.bad[0] && cm.bad[0].why) || 'commit');
-      const uc = pl.items[1];
+      const uc = it.act === 'replace' ? null : pl.items[1];
       if (uc && uc.u) {
         try { await putFile(uc.url, it.cover.blob); await api('upCommit', { rid: rid(), items: [{ u: uc.u, k: 'c', id: it.id, r: it.cover.w / it.cover.h, src: 'file' }] }); it.cv = 1; }
         catch (e) { /* הספר נוסף; הכריכה — אפשר להחליף מהעורך */ }

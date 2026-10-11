@@ -1003,3 +1003,4 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-root .mg [hidden], .lib-root .mg-foot [hidden] { display: none !important; }
 .lib-root .mg-ab svg { width: 22px; height: 22px; }
 .lib-root .mg-ico svg { width: 22px; height: 22px; }
+.lib-root .mg-act { align-self: flex-start; margin-top: 6px; height: 28px; font-size: 13px; }
