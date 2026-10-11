@@ -194,6 +194,76 @@ export async function probeVideo(file, load) {
     return { dur: Number.isFinite(dur) ? Math.round(dur) : 0, audio: at ? String(at.codec || '') : '' };
   } catch (e) { return { dur: 0, audio: '', err: 'probe' }; }
 }
+/* ---------- סבב 2: בדיקת הסרטון לפני ההעלאה (בטלפון, בלי רשת ובלי טוקנים) ----------
+   אורך, מידות, שפת הקול (כפי שמסומנת בקובץ), ושקט בהתחלה / בסוף + עוצמת הדיבור — מפענוח של חלונות קצרים בלבד
+   (דקה בהתחלה, דקה בסוף ו־3 דגימות של 15 שנ׳ באמצע), כך שגם קובץ של כמה GB נבדק בשניות ובלי לטעון אותו לזיכרון */
+export const INSPECT_WIN = 60, LEVEL_BIN = 0.5, SILENCE_DB = -45, QUIET_DB = -50;
+const ISO3 = { eng: 'en', heb: 'he', ara: 'ar', rus: 'ru', fre: 'fr', fra: 'fr', spa: 'es', ger: 'de', deu: 'de', ita: 'it', por: 'pt', jpn: 'ja',
+  chi: 'zh', zho: 'zh', kor: 'ko', tur: 'tr', pol: 'pl', dut: 'nl', nld: 'nl', hin: 'hi', yid: 'yi', per: 'fa', fas: 'fa', ukr: 'uk', gre: 'el', ell: 'el' };
+export function langOf(code) {   // קוד השפה של רצועת הקול → קוד דו־אותי ('' = לא מסומן)
+  const c = String(code || '').toLowerCase().split(/[-_]/)[0];
+  if (!/^[a-z]{2,3}$/.test(c) || c === 'und' || c === 'mul' || c === 'zxx') return '';
+  return c.length === 2 ? c : ISO3[c] || '';
+}
+/* צובר עוצמה לפי חלונות של LEVEL_BIN: מוסיפים חתיכות קול (מונו = ממוצע הערוצים) בלי לשמור אותן */
+export function levelAcc(bin = LEVEL_BIN) {
+  const m = new Map();
+  return {
+    add(t, sr, chans) {
+      if (!chans.length || !(sr > 0)) return;
+      const n = chans[0].length, k = chans.length;
+      let b = Math.floor(t / bin), end = (b + 1) * bin, s = 0, c = 0;
+      for (let j = 0; j < n; j++) {
+        const tt = t + j / sr;
+        if (tt >= end) { if (c) { const x = m.get(b) || [0, 0]; x[0] += s; x[1] += c; m.set(b, x); } b = Math.floor(tt / bin); end = (b + 1) * bin; s = 0; c = 0; }
+        let v = 0;
+        for (let q = 0; q < k; q++) v += chans[q][j];
+        v /= k; s += v * v; c++;
+      }
+      if (c) { const x = m.get(b) || [0, 0]; x[0] += s; x[1] += c; m.set(b, x); }
+    },
+    bins() {
+      return [...m.entries()].sort((a, b2) => a[0] - b2[0]).map(([b, [s, c]]) => ({ t: b * bin, db: s > 0 ? 10 * Math.log10(s / c) : -120 }));
+    },
+  };
+}
+/* כמה שניות של שקט בהתחלה ובסוף (רק מתוך החלונות שנבדקו), ועוצמת הדיבור = האחוזון ה־90 של החלונות */
+export function edgeSilence(bins, dur, win = INSPECT_WIN, thr = SILENCE_DB, bin = LEVEL_BIN) {
+  const loud = bins.filter((x) => x.db > thr);
+  const head = loud.filter((x) => x.t < win), tail = loud.filter((x) => x.t + bin > dur - win);
+  const lead = head.length ? head[0].t : Math.min(win, dur);
+  const trail = tail.length ? Math.max(0, dur - (tail[tail.length - 1].t + bin)) : Math.min(win, dur);
+  const dbs = bins.map((x) => x.db).sort((a, b) => a - b);
+  const db = dbs.length ? Math.round(dbs[Math.min(dbs.length - 1, Math.floor(dbs.length * 0.9))]) : null;
+  return { lead: Math.round(lead * 10) / 10, trail: Math.round(trail * 10) / 10, db };
+}
+export async function inspectSource(file, o = {}) {
+  const MB = await (o.load || loadMediabunny)();
+  const input = new MB.Input({ formats: MB.ALL_FORMATS, source: new MB.BlobSource(file) });
+  const d = await input.computeDuration();
+  const dur = Number.isFinite(d) && d > 0 ? d : 0;
+  let vt = null;
+  try { vt = await input.getPrimaryVideoTrack(); } catch (e) {}
+  const at = await input.getPrimaryAudioTrack();
+  const m = { dur: Math.round(dur), w: vt ? vt.displayWidth | 0 : 0, h: vt ? vt.displayHeight | 0 : 0, audio: at ? String(at.codec || '') : '', lang: at ? langOf(at.languageCode) : '',
+    lead: null, trail: null, db: null };
+  if (!at || !dur) return m;
+  let ok = false;
+  try { ok = await at.canDecode(); } catch (e) {}
+  if (!ok) return m;   // קודק שהדפדפן לא מפענח — בלי בדיקת קול (לא "שקט")
+  const win = Math.min(INSPECT_WIN, dur / 2), spans = [[0, win], [dur - win, dur]];
+  if (dur > 4 * INSPECT_WIN) for (const f of [0.3, 0.5, 0.7]) spans.push([dur * f, dur * f + 15]);
+  const sink = new MB.AudioBufferSink(at), acc = levelAcc();
+  for (const [a, b] of spans) {
+    for await (const x of sink.buffers(a, b)) {
+      if (o.signal && o.signal.aborted) throw abortErr();
+      const buf = x.buffer, k = Math.min(2, buf.numberOfChannels), ch = [];
+      for (let q = 0; q < k; q++) ch.push(buf.getChannelData(q));
+      acc.add(x.timestamp, buf.sampleRate, ch);
+    }
+  }
+  return Object.assign(m, edgeSilence(acc.bins(), dur, win));
+}
 /* רצועת הקול בלי קידוד מחדש (העתקה) — Opus/Vorbis ל־WebM, כל השאר ל־M4A (המיכל שהספייק בדק על הראיון של אקמן).
    כשההעתקה בלתי אפשרית (קודק שהמיכל לא מקבל, ואין מקודד בדפדפן) — בלי קול, והעבודה מתחילה מהסרטון המלא */
 export async function extractAudio(file, o = {}) {
