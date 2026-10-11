@@ -210,6 +210,7 @@ const IC = {   // קבועים (לא מתוכן חיצוני) — מוכנסים
   more: SV('<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>'),
   restore: SV('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
   trash: SV('<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  spark: SV('<path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/>'),
 };
 export function createAdmin(env) {
   const { h, T, ICON } = env;
@@ -498,6 +499,7 @@ export function createAdmin(env) {
       row(T('mgDelete'), () => env.askConfirm(T('mgDeleteQ', { n }), async () => { await safe(() => apply([{ op: 'del', ids: ids() }], T('mgDeleted', { n }))); A.sel = null; rerender(); }, { danger: true, ok: T('mgDeleteOk', { n }) }), true);
       row(T('mgToDraft'), async () => { await safe(() => apply([{ op: 'state', ids: ids(), st: 'draft' }], T('mgDrafted', { n }))); rerender(); });
       row(T('mgTags'), () => env.goView({ mgr: 'bulk', ids: ids() }));
+      row(T('mgSugRow'), () => env.goView({ mgr: 'sug', ids: ids() }));
       sh.append(list);
     }));
     return bar;
@@ -823,7 +825,8 @@ export function createAdmin(env) {
       const choice = (ic, cls, title, sub, fn) => { const r = h('button', 'lib-row'); r.type = 'button'; const i = h('span', 'mg-ico ' + cls); i.innerHTML = ic; const t = h('div', 'mg-rt'); t.append(h('div', 'mg-t1', title), h('div', 'mg-t2', sub)); r.append(i, t, h('span', 'mg-chev', '‹')); r.addEventListener('click', fn); list.append(r); };
       if (n > 1) choice(IC.edit, 'g', T('mgEditTogether'), T('mgEditTogetherS', { n }), () => env.goView({ mgr: 'bulk', ids: IMP.added.slice() }));
       choice(IC.one, 'b', T('mgEditOne'), T('mgEditOneS'), () => env.goView({ mgr: 'one', ids: IMP.added.slice() }));
-      if (!IMP.pub) choice(IC.show, 'p', T('mgPubAll', { n }), T('mgPubAllS'), async () => { await safe(() => apply([{ op: 'state', ids: IMP.added.slice(), st: 'pub' }], T('mgPublished', { n }))); IMP.pub = true; renderDone(); });
+      choice(IC.spark, 'p', T('mgSugT'), T('mgSugS'), () => env.goView({ mgr: 'sug', ids: IMP.added.slice() }));
+      if (!IMP.pub) choice(IC.show, 'g', T('mgPubAll', { n }), T('mgPubAllS'), async () => { await safe(() => apply([{ op: 'state', ids: IMP.added.slice(), st: 'pub' }], T('mgPublished', { n }))); IMP.pub = true; renderDone(); });
       box.append(list);
     }
   }
@@ -1001,6 +1004,11 @@ export function createAdmin(env) {
       ensureCovers(ids.map(byId));
       setTimeout(() => { const cur = strip.querySelector('.cur'); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' }); }, 0);
     }
+    const sg = h('button', 'lib-row mg-sugrow'); sg.type = 'button';
+    const sgi = h('span', 'mg-ico p'); sgi.innerHTML = IC.spark;
+    sg.append(sgi, h('span', 'mg-rt', T('mgSugOne')), h('span', 'mg-chev', '‹'));
+    sg.addEventListener('click', async () => { if (await save()) env.goView({ mgr: 'sug', ids: [b.id] }); });
+    const sgl = h('div', 'lib-ios mg-pad0'); sgl.append(sg); box.append(sgl);
     // מצב: פורסם / טיוטה / מוסתר
     const seg = h('div', 'mg-seg mg-stseg');
     [['pub', T('mgStPub')], ['draft', T('mgStDraft')], ['hide', T('mgStHide')]].forEach(([s, label]) => {
@@ -1182,6 +1190,162 @@ export function createAdmin(env) {
     return c;
   }
 
+  /* ================================================================ H — הצעות מהמאגרים (ס׳6)
+     השרתון מחפש בספרייה הלאומית, Google Books ו־Open Library (Apple — רק באנגלית), ומחזיר לכל ספר ציון ביטחון ושדות.
+     ודאי (≥0.9) — אפשר להשלים בבת אחת, **רק שדות ריקים**; כל השאר — השוואה שדה־שדה. שום ערך קיים לא נדרס בלי אישור. */
+  const SUG = { key: '', res: new Map(), i: 0, busy: false, done: { ok: 0, no: 0 } };
+  const SUG_FIELDS = ['title', 'subtitle', 'author', 'pub', 'date', 'lang', 'isbn', 'series', 'seriesIdx', 'tags', 'desc'];
+  const SRCL = (x) => ({ nli: T('srcNli'), google: T('srcGoogle'), ol: T('srcOpenlibrary'), apple: T('srcApple') })[x] || x;
+  async function sugFetch(books, onProg) {
+    const tk = await env.idToken();
+    for (let i = 0; i < books.length; i += 5) {
+      const part = books.slice(i, i + 5);
+      let j = null;
+      try {
+        const r = await env.meta({ op: 'match', idToken: tk, books: part.map((b) => ({ key: b.id, title: b.title, author: b.author, isbn: b.isbn, lang: b.lang, date: b.date, pub: b.pub })) });
+        j = await r.json();
+      } catch (e) { j = null; }
+      if (!j || !j.ok) throw new Error((j && j.error) || 'net');
+      for (const x of j.results) SUG.res.set(x.key, x);
+      if (onProg) onProg(Math.min(books.length, i + 5), books.length);
+    }
+  }
+  const emptyFill = (b, x) => {                 // רק שדות ריקים בספר, לפי המקור של כל שדה
+    const by = {};
+    for (const k of SUG_FIELDS) if (!String(b[k] || '').trim() && x.f[k] && !(b.lock || []).includes(k)) (by[x.prov[k] || x.src] = by[x.prov[k] || x.src] || {})[k] = x.f[k];
+    return Object.entries(by).map(([src, f]) => ({ op: 'set', id: b.id, f, src }));
+  };
+  async function sugCover(b, url, src) {
+    const r = await env.meta({ op: 'cover', url });
+    if (!r.ok || !/^image\//.test(r.headers.get('content-type') || '')) throw new Error('cover');
+    const c = await env.coverFromBlob(await r.blob(), 600);
+    if (!c) throw new Error('img');
+    const pl = await api('upPlan', { items: [{ k: 'c', size: c.blob.size }] });
+    await putFile(pl.items[0].url, c.blob);
+    await api('upCommit', { rid: rid(), items: [{ u: pl.items[0].u, k: 'c', id: b.id, r: c.w / c.h, src }] });
+  }
+  async function renderSug(v) {
+    const home = page();
+    home.append(topBar(textBtn(T('mgClose'), () => history.back()), [], T('mgSugT')));
+    const box = h('div', 'mg'); home.append(box);
+    try { await loadCat(); } catch (e) { errBox(home, e); return; }
+    const books = (v.ids || []).map(byId).filter((b) => b && !b.del);
+    if (!books.length) { history.back(); return; }
+    const key = books.map((b) => b.id).join('|');
+    if (SUG.key !== key) { SUG.key = key; SUG.res = new Map(); SUG.i = 0; SUG.done = { ok: 0, no: 0 }; }
+    const missing = books.filter((b) => !SUG.res.has(b.id));
+    if (missing.length) {
+      if (SUG.busy) return;
+      const card = h('div', 'bk-card mg-qhead');
+      const rw = h('div', 'mg-ringw'); const tx = h('div', 'mg-big', T('mgSugSearching', { i: 0, n: missing.length }));
+      rw.append(env.ring(0), tx); card.append(rw); box.append(card);
+      SUG.busy = true;
+      try {
+        await sugFetch(missing, (i, n) => { tx.textContent = T('mgSugSearching', { i, n }); const rg = card.querySelector('.ac-ring'); if (rg) rg.replaceWith(env.ring(i / n)); });
+      } catch (e) {
+        SUG.busy = false; box.textContent = '';
+        const c = h('div', 'bk-card mg-pad'); c.append(h('p', null, T(String(e.message) === 'not_admin' ? 'mgErr' : 'mgSugErr')), textBtn(T('mgRetry'), () => renderSug(v), 'mini')); box.append(c);
+        return;
+      }
+      SUG.busy = false;
+      if (env.ui.view && env.ui.view.mgr === 'sug') renderSug(v);
+      return;
+    }
+    const R = books.map((b) => ({ b, x: SUG.res.get(b.id) }));
+    const auto = R.filter((r) => r.x.bucket === 'auto'), rev = R.filter((r) => r.x.bucket === 'review'), none = R.filter((r) => r.x.bucket === 'none');
+    const fillable = auto.map((r) => emptyFill(r.b, r.x)).filter((o) => o.length);
+    const sum = h('div', 'bk-card mg-pad');
+    sum.append(h('p', 'mg-sugsum', T('mgSugSum', { a: auto.length, r: rev.length, n: none.length })));
+    if (fillable.length) {
+      const nF = fillable.reduce((t, o) => t + o.reduce((u, op) => u + Object.keys(op.f).length, 0), 0);
+      const fb = h('button', 'bk-cta mg-cta-in', T('mgSugFill', { n: fillable.length })); fb.type = 'button';
+      fb.addEventListener('click', async () => {
+        fb.disabled = true;
+        const ops = fillable.flat();
+        let k = 0;
+        for (const part of chunk(ops, 50)) { const r = await safe(() => apply(part, null)); if (r) k += r.n || 0; }
+        snack(T('mgSugFilled', { n: fillable.length, f: nF }));
+        renderSug(v);
+      });
+      sum.append(h('p', 'mg-t2 wrap', T('mgSugFillS', { f: nF })), fb);
+    }
+    box.append(sum);
+    // הסקירה: ספר אחרי ספר (קודם "לבדיקה", אחר כך ודאיים עם הבדלים)
+    const queue = rev.concat(auto).filter((r) => SUG_FIELDS.some((k) => r.x.f[k] && String(r.x.f[k]) !== String(r.b[k] || '')) || (r.x.covers.length && !r.b.cover));
+    if (!queue.length) {
+      box.append(h('p', 'lib-empty', none.length === books.length ? T('mgSugNone') : T('mgSugAllDone')));
+      return;
+    }
+    SUG.i = Math.min(SUG.i, queue.length - 1);
+    const { b, x } = queue[SUG.i];
+    const card = h('div', 'bk-card mg-sugcard');
+    card.append(h('div', 'mg-lbl', T('mgIofN', { i: SUG.i + 1, n: queue.length })));
+    // כריכות: עכשיו / מוצע
+    let coverPick = !b.cover && x.covers.length ? 0 : -1;
+    const pair = h('div', 'mg-pair');
+    const cur = h('button', 'mg-pc'); cur.type = 'button'; cur.append(cvEl(b, 'lg'), h('span', null, T('mgCur')));
+    pair.append(cur);
+    const sugEls = [];
+    x.covers.slice(0, 2).forEach((c, i) => {
+      const el = h('button', 'mg-pc'); el.type = 'button';
+      const cv = h('div', 'mg-cv lg mg-img'); const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy';
+      env.meta({ op: 'cover', url: c.url }).then((r) => (r.ok ? r.blob() : null)).then((bl) => { if (bl) im.src = URL.createObjectURL(bl); else el.remove(); }).catch(() => el.remove());
+      cv.append(im); el.append(cv, h('span', null, SRCL(c.src)));
+      el.addEventListener('click', () => { coverPick = coverPick === i ? -1 : i; paintPick(); });
+      sugEls.push(el); pair.append(el);
+    });
+    const paintPick = () => { cur.classList.toggle('pick', coverPick < 0); sugEls.forEach((el, i) => el.classList.toggle('pick', coverPick === i)); };
+    cur.addEventListener('click', () => { coverPick = -1; paintPick(); });
+    paintPick(); card.append(pair); ensureCovers([b]);
+    const head = h('div', 'mg-sughead');
+    const conf = h('span', 'mg-conf ' + (x.bucket === 'auto' ? 'g' : 'w'), (x.bucket === 'auto' ? '✓ ' + T('mgConfSure') : '◐ ' + T('mgConfLikely')));
+    conf.title = x.why.join(' · ');
+    conf.setAttribute('aria-label', conf.textContent + ' — ' + x.why.join(', '));
+    head.append(h('span', null, SRCL(x.src) + (x.f.date ? ' · ' + String(x.f.date).slice(0, 4) : '')), conf);
+    card.append(head);
+    // שדה־שדה: רק מה ששונה
+    const L = LABELS(), pick = {};
+    const list = h('div', 'mg-sugfields');
+    for (const k of SUG_FIELDS) {
+      const now = String(b[k] || ''), sv = String(x.f[k] || '');
+      if (!sv || sv === now) continue;
+      pick[k] = now ? 'cur' : 'sug';                  // ריק — המוצע; קיים — נשאר, אלא אם בוחרים
+      const g = h('div', 'mg-fg'); g.append(h('div', 'mg-lbl', L[k]));
+      const opt = (val, which, label) => {
+        const o = h('button', 'mg-opt'); o.type = 'button';
+        const t = h('span', 'mg-ov', val || T('mgEmpty')); t.dir = 'auto'; if (!val) t.classList.add('dim');
+        o.append(h('span', 'mg-rad'), t, h('span', 'mg-ob', label));
+        o.addEventListener('click', () => { pick[k] = which; g.querySelectorAll('.mg-opt').forEach((z) => z.classList.toggle('on', z === o)); });
+        if (pick[k] === which) o.classList.add('on');
+        return o;
+      };
+      g.append(opt(sv, 'sug', T('mgSuggested')), opt(now, 'cur', T('mgCur')));
+      list.append(g);
+    }
+    card.append(list);
+    box.append(card);
+    const next = () => { SUG.i++; renderSug(v); root().scrollTop = 0; };
+    const nav = h('div', 'mg-foot mg-nav');
+    nav.append(textBtn(T('mgReject'), () => { SUG.done.no++; SUG.res.set(b.id, Object.assign({}, x, { f: {}, covers: [] })); renderSug(v); }, 'o'));
+    nav.append(textBtn(T('mgAccept'), async () => {
+      const by = {};
+      for (const k of Object.keys(pick)) if (pick[k] === 'sug') (by[x.prov[k] || x.src] = by[x.prov[k] || x.src] || {})[k] = x.f[k];
+      const ops = Object.entries(by).map(([src, f]) => ({ op: 'set', id: b.id, f, src }));
+      if (ops.length) await safe(() => apply(ops, T('mgUpdatedN', { n: 1 })));
+      if (coverPick >= 0) { try { await sugCover(b, x.covers[coverPick].url, x.covers[coverPick].src); await loadCat(true); } catch (e) { flash(T('edCoverErr')); } }
+      SUG.done.ok++;
+      SUG.res.set(b.id, Object.assign({}, x, { f: {}, covers: [] }));
+      renderSug(v);
+    }, 'p'));
+    home.append(nav);
+    if (x.alts && x.alts.length) {
+      const d = h('details', 'mg-fold'); d.append(h('summary', null, T('mgAlts', { n: x.alts.length })));
+      const ul = h('div', 'mg-list');
+      x.alts.forEach((a) => { const r = h('div', 'mg-row'); const t = h('div', 'mg-rt'); const t1 = h('div', 'mg-t1 one', a.title); t1.dir = 'auto'; const t2 = h('div', 'mg-t2', [a.authors.join(', '), a.year || '', SRCL(a.src)].filter(Boolean).join(' · ')); t2.dir = 'auto'; t.append(t1, t2); r.append(t); ul.append(r); });
+      d.append(ul); box.append(d);
+    }
+  }
+
   /* ================================================================ ניתוב */
   function render(v) {
     if (v.mgr === 'imp') return renderImp();
@@ -1189,6 +1353,7 @@ export function createAdmin(env) {
     if (v.mgr === 'one') return renderOne(v);
     if (v.mgr === 'hist') return renderHist();
     if (v.mgr === 'mig') return renderMig();
+    if (v.mgr === 'sug') return renderSug(v);
     return renderHomeMgr();
   }
   return { render, busy: () => !!(IMP && IMP.stage === 'queue'), _state: () => ({ A, IMP, CAT, ONE }) };

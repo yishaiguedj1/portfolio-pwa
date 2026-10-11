@@ -2006,7 +2006,7 @@ async function renderMgr(v) {
       h, T, ICON, ui, root: () => root, goView, renderHome, flash: (m2) => { if (typeof flash === 'function') flash(m2); },
       askConfirm: (msg, fn, o) => { if (typeof askConfirm === 'function') askConfirm(msg, fn, o); else fn(); },
       sheet, closeSheetThen, ring, cover, wireHold, makeBook, coverThumb, coverFromBlob, langText, bookExtras, fileDefaults, fileId,
-      allBooksRaw, syncDrive, api: adminApi,
+      allBooksRaw, syncDrive, api: adminApi, idToken, meta: metaApi,
     });
   }
   if (!root || !ui.view || ui.view.mgr !== v.mgr) return;

@@ -74,7 +74,7 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   ok(/import\('\.\/libadmin\.js'\)/.test(lib) && /ui\.view\.mgr\) return renderMgr/.test(lib) && /goView\(\{ mgr: 'home' \}\)/.test(lib), 'library.js: נטען רק כשהמנהל פותח "ניהול"');
   ok(/x\.send\(blob\.slice\(0, blob\.size\)\)/.test(src) && /r2\\\.cloudflarestorage\\\.com/.test(src), 'העלאה ישירה ל־R2 בלי כותרת Content-Type; הורדות רק מכתובת של R2');
   const inner = [...src.matchAll(/\.innerHTML = ([^;]+);/g)].map((x) => x[1].trim());
-  ok(inner.length >= 4 && inner.every((x) => /^(ic|ICON\.[a-z]+( \|\| '')?)$/.test(x)), 'innerHTML רק לסמלים קבועים — טקסט מבחוץ תמיד textContent');
+  ok(inner.length >= 4 && inner.every((x) => /^(ic|IC\.[a-z]+|ICON\.[a-z]+( \|\| '')?)$/.test(x)), 'innerHTML רק לסמלים קבועים — טקסט מבחוץ תמיד textContent');
   const keys = new Set([...src.matchAll(/'(mg[A-Z][A-Za-z0-9]*)'/g)].map((x) => x[1]).filter((k) => !/^mg(B|F|Q|NumStart|TagIn)$/.test(k)));
   const heBlock = app.slice(app.indexOf("mgTitle: 'ניהול'"), app.indexOf("mgTitle: 'Manage'"));
   const enBlock = app.slice(app.indexOf("mgTitle: 'Manage'"));
