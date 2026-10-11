@@ -109,9 +109,10 @@ def main(argv=None):
     od.mkdir(parents=True, exist_ok=True)
     want = [k for k in a.want.split(',') if k in OUTS]
     ec = E.compose_edl(e0, e1)
-    if ec and (ec['k'] or ec['ar'] != 'src'):
+    if ec:
         cut = od / '_cut.mp4'
-        print('חיתוך: %d קטעים%s' % (len(ec['k']) or 1, '' if ec['ar'] == 'src' else ' · ' + ec['ar']), flush=True)
+        print('עריכה: %d קטעים%s%s' % (len(ec['k']) or 1, '' if ec['ar'] == 'src' else ' · ' + ec['ar'],
+                                        ''.join(' · ' + f for f in E.EXTRA_REST + E.EXTRA_POS if f in ec)), flush=True)
         E.apply(src, cut, ec)
         src = cut
     info = probe(src)
@@ -128,6 +129,9 @@ def main(argv=None):
     if e1 and isinstance(raw, list):           # הכתוביות זזות עם החיתוך שאחרי התרגום
         raw = E.map_cues(e1, [dict(c, start=_num(c.get('start', c.get('s'))), end=_num(c.get('end', c.get('e')))) for c in raw
                               if isinstance(c, dict) and _num(c.get('start', c.get('s'))) is not None and _num(c.get('end', c.get('e'))) is not None])
+    if ec and ec.get('sp') and isinstance(raw, list):   # סבב 3: מהירות — הזמנים מתחלקים בה
+        raw = E.speed_cues([dict(c, start=_num(c.get('start', c.get('s'))), end=_num(c.get('end', c.get('e')))) for c in raw
+                            if isinstance(c, dict) and _num(c.get('start', c.get('s'))) is not None and _num(c.get('end', c.get('e'))) is not None], ec['sp'])
     cues = norm_cues(raw, float(info.get('duration') or 0))
     if not cues:
         raise SystemExit('✗ אין כתוביות תקינות בקובץ.')

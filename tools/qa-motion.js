@@ -852,6 +852,13 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: הפקה מחדש', () => page.click('[data-k="se-rr"]'), { pre: '[data-k="se-rr"]', settle: 1000, expect: '[data-k="rr-go"]' });
     await step('studio: חיתוך (ציר + 9:16)', async () => { await page.click('[data-k="rr-cut"]'); await sleep(1500); await page.click('[data-k="ed-ar:9:16"]'); }, { pre: '[data-k="rr-cut"]', settle: 1200, cls: 0.05, expect: '.st-ed-tl' });
     await step('studio: הסרת שקטים', () => page.click('[data-k="ed-silence"]'), { pre: '[data-k="ed-silence"]', settle: 800, expect: '.st-ed-tl' });
+    // סבב 3: מהירות וסיבוב · מסגור · שמע — מקטעים מקופלים, תצוגה מקדימה בנגן
+    await step('studio: מהירות וסיבוב', async () => { await page.click('[data-k="ed-g-sp"] > summary'); await sleep(300); await page.click('[data-k="ed-sp:2"]'); await page.click('[data-k="ed-rt"]'); },
+      { pre: '[data-k="ed-g-sp"]', settle: 900, cls: 0.05, expect: '[data-k="ed-rt"].on' });
+    await step('studio: מסגור — זום', async () => { await page.click('[data-k="ed-g-fr"] > summary'); await sleep(300); await page.$eval('[data-k="ed-z"]', (r) => { r.value = '1.5'; r.dispatchEvent(new Event('input', { bubbles: true })); }); },
+      { pre: '[data-k="ed-g-fr"]', settle: 900, cls: 0.05, expect: '.st-ed-win' });
+    await step('studio: שמע — השתקה והדרגה', async () => { await page.click('[data-k="ed-g-au"] > summary'); await sleep(300); await page.click('[data-k="ed-fi:2"]'); await page.click('[data-k="ed-mu"]'); },
+      { pre: '[data-k="ed-g-au"]', settle: 900, cls: 0.05, expect: '[data-k="ed-mu"].on' });
     await step('studio: חזור ← הפקה מחדש', esc, { settle: 1300, expect: '[data-k="rr-cut"]' });
     await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
     await step('studio: חזור ← העבודה', esc, { settle: 1300, expect: '[data-k="ideas"]' });

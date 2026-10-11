@@ -733,6 +733,15 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ed-crop { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .st-ed-crop[hidden] { display: none; }
 .st-ed-win { position: absolute; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .58); outline: 1.5px solid rgba(255, 255, 255, .85); }
+.st-ed-grp { border-top: 1px solid rgba(255, 255, 255, .08); padding-top: 4px; }
+.st-ed-grp > summary { display: flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 600; }
+.st-ed-grp > summary::-webkit-details-marker { display: none; }
+.st-ed-grp > summary small { margin-inline-start: auto; font-size: 13px; font-weight: 400; color: var(--primary); font-variant-numeric: tabular-nums; }
+.st-ed-grp > summary::after { content: ''; width: 7px; height: 7px; border-inline-end: 2px solid var(--on-surface-var); border-bottom: 2px solid var(--on-surface-var); transform: rotate(45deg); margin-inline-start: 4px; }
+.st-ed-grp[open] > summary::after { transform: rotate(-135deg); }
+.st-ed-grp[open] { display: grid; gap: 10px; padding-bottom: 8px; }
+.st-pl video { transition: transform .2s ease; }
+@media (prefers-reduced-motion: reduce) { .st-pl video { transition: none; } }
 
 /* ---------- מ6: הצעות לתיקון (בעורך הכתוביות) ---------- */
 .st-sg { display: grid; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--card-border); }

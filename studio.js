@@ -14,7 +14,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml } from './studiosubs.js';
-import { createEdlEditor, normEdl, edlDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
+import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
@@ -141,7 +141,7 @@ export function normJob(j) {
     out: Array.isArray(sp.out) ? sp.out.filter((k, i) => OUTS.includes(k) && sp.out.indexOf(k) === i) : ['same'],
     style: STYLES.includes(sp.style) ? sp.style : 'bold', terms: String(sp.terms || '').slice(0, TERMS_MAX),
   };
-  if (normEdl(sp.edl)) spec.edl = normEdl(sp.edl);   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
+  if (edlPre(normEdl(sp.edl))) spec.edl = edlPre(normEdl(sp.edl));   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
@@ -2070,7 +2070,7 @@ function startFromForm() {
     const file = f.fileObj || f.drive;   // מ־Drive: הפרטים מ־Drive (בלי לקרוא את הקובץ בטלפון)
     const sm = f.sa && f.sa.st === 'ok' ? f.sa.m : null;   // סבב 2: הבדיקה מהבחירה — בלי לקרוא את הקובץ שוב
     const pr = f.fileObj ? (sm && sm.dur ? { dur: sm.dur } : await probeVideo(file)) : { dur: f.drive.dur || 0 };
-    const ed = normEdl(f.edl, pr.dur || 0);   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
+    const ed = edlPre(normEdl(f.edl, pr.dur || 0));   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
       mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
     if (ed) spec.edl = ed;
@@ -4242,6 +4242,11 @@ function edlSum(e, dur) {
   const parts = [];
   if (e.k.length) parts.push(e.k.length === 1 ? T('studioEdSumShort1', { t: fmtMin(edlDur(e, dur)) }) : T('studioEdSumShort', { n: e.k.length, t: fmtMin(edlDur(e, dur)) }));
   if (e.ar !== 'src') parts.push(e.ar);
+  if (e.sp) parts.push('\u2066' + e.sp + '×\u2069');
+  if (e.rt) parts.push(e.rt + '°');
+  if (e.z) parts.push(T('studioEdZoom') + ' \u2066' + e.z + '×\u2069');
+  if (e.mu) parts.push(T('studioEdMuted'));
+  else if (e.vo != null || e.ln || e.fi || e.fo) parts.push(T('studioEdGrpAudio'));
   return parts.join(' · ');
 }
 /* עמוד החיתוך — אחרי התרגום (p = מזהה העבודה): הנגן על המקור עם הכתוביות; עבודה שנחתכה כבר לפני התרגום — על הסרטון הצרוב
@@ -4265,7 +4270,7 @@ function pageCut(p, before) {
     }
     if (!src) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlNoSw'))); ce = null; return; }
     ce.ctl = createPlayer({ src, fallback: fb, burned, cues, T });
-    ce.ed = createEdlEditor({ video: ce.ctl.video, frame: ce.ctl.el, dur, edl, T, flash: flashSafe,
+    ce.ed = createEdlEditor({ video: ce.ctl.video, frame: ce.ctl.el, dur, edl, T, flash: flashSafe, full: !before,   // סבב 3: מהירות, סיבוב, מסגור ושמע — רק בהפקה מחדש
       onChange: (e) => { if (before) { if (form) form.edl = e; } else if (e) rrEdl.set(key, e); else rrEdl.delete(key); } });
   }
   const top = h('div', 'st-se-top'); top.append(ce.ctl.el);
