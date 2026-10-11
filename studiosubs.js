@@ -249,6 +249,130 @@ export function flagIndex(cues, list) {
   return m;
 }
 
+/* ---------- סבב 6: הציר — גל הקול, חילופי השוטים, דוברים ----------
+   meta.json מהעובד (peaks.py): { v, r, pk: base64 — בית לכל 1/r שנ׳, sh: [שניות] }. **R/PK_MAX/SH_MAX זהים ל־peaks.py** */
+export const META_R = 20, PK_MAX = 4 * 3600 * 20, SH_MAX = 5000;
+export function normMeta(j) {
+  if (!j || typeof j !== 'object' || j.v !== 1 || j.r !== META_R || typeof j.pk !== 'string' || j.pk.length > Math.ceil(PK_MAX / 3) * 4 + 4) return null;
+  let pk;
+  try {
+    const bin = typeof atob === 'function' ? atob(j.pk) : Buffer.from(j.pk, 'base64').toString('binary');
+    pk = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) pk[i] = bin.charCodeAt(i);
+  } catch (e) { return null; }
+  const sh = [];
+  for (const t of Array.isArray(j.sh) ? j.sh.slice(0, SH_MAX) : []) if (typeof t === 'number' && t > 0 && t < 86400 && (!sh.length || t > sh[sh.length - 1])) sh.push(t);
+  return { r: META_R, pk, sh };
+}
+/* הצמדה לחיתוך (כלל Netflix): התחלה עד SNAP_WIN מחילוף שוט — בדיוק עליו; סוף עד SNAP_WIN מחילוף — שני פריימים לפניו.
+   לא חוצים כתובית שכנה ולא מקצרים מתחת ל־MIN_DUR (setEdge). מחזיר כתוביות חדשות או null (אין מה להצמיד) */
+export const SNAP_WIN = 0.5;
+function nearShot(sh, t) {
+  let lo = 0, hi = sh.length - 1, best = null;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (sh[m] < t) lo = m + 1; else hi = m - 1; }
+  for (const k of [lo - 1, lo]) if (k >= 0 && k < sh.length && Math.abs(sh[k] - t) <= SNAP_WIN && (best == null || Math.abs(sh[k] - t) < Math.abs(best - t))) best = sh[k];
+  return best;
+}
+export function snapEdge(cues, i, edge, sh) {
+  const c = cues[i];
+  if (!c || !sh || !sh.length) return null;
+  const x = nearShot(sh, c[edge]);
+  if (x == null) return null;
+  const t = edge === 's' ? x : r3(x - GAP_MIN);
+  if (Math.abs(t - c[edge]) < 0.02) return null;
+  const prev = cues[i - 1], next = cues[i + 1];   // שני פריימים לפחות בין כתוביות (כמו vt) — לא מצמידים לתוך הרווח הזה
+  if (edge === 's' && prev && t - prev.e < GAP_MIN - 1e-6) return null;
+  if (edge === 'e' && next && next.s - t < GAP_MIN - 1e-6) return null;
+  const out = setEdge(cues, i, edge, t);
+  return out && out !== cues && Math.abs(out[i][edge] - t) < 0.005 ? out : null;   // setEdge חסם (שכנה / אורך מינימלי) — לא חצי הצמדה
+}
+export function snapAll(cues, sh) {
+  let cur = cues, n = 0;
+  for (let i = 0; i < cues.length; i++) for (const e of ['s', 'e']) { const nx = snapEdge(cur, i, e, sh); if (nx) { cur = nx; n++; } }
+  return { cues: cur, n };
+}
+/* צבע לכל דובר (לפי סדר ההופעה) — רק כשיש לפחות שניים */
+export const SPK_COLORS = ['#64D2FF', '#FFD60A', '#FF9F0A', '#BF5AF2', '#30D158', '#FF6482'];
+export function spkColors(cues) {
+  const m = new Map();
+  for (const c of cues || []) if (c.spk && !m.has(c.spk)) m.set(c.spk, SPK_COLORS[m.size % SPK_COLORS.length]);
+  return m.size >= 2 ? m : new Map();
+}
+/* הציר מתחת לנגן: חלון של TL_SPAN שנ׳ סביב הזמן; גל הקול, הכתוביות (צבע הדובר), חילופי השוטים, סמן הניגון.
+   נגיעה = קפיצה (על כתובית — בחירה שלה); גרירה = גלילה בזמן. opts: { meta, cues(), sel(), video, seek(t), pick(k), colors() } */
+export const TL_SPAN = 16, TL_BEFORE = 5;
+export function createTimeline(opts) {
+  const cv = el('canvas', 'st-tl');
+  cv.setAttribute('role', 'img'); cv.dataset.k = 'se-tl';
+  const ctx = cv.getContext && cv.getContext('2d');
+  let raf = 0, drag = null, alive = true;
+  const v = opts.video;
+  const now = () => (v ? v.currentTime || 0 : 0);
+  const geo = () => { const w = cv.clientWidth || 320, h = cv.clientHeight || 56; return { w, h, t0: now() - TL_BEFORE, k: w / TL_SPAN }; };
+  function draw() {
+    if (!ctx || !alive) return;
+    const dpr = (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1, g = geo();
+    if (cv.width !== Math.round(g.w * dpr) || cv.height !== Math.round(g.h * dpr)) { cv.width = Math.round(g.w * dpr); cv.height = Math.round(g.h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, g.w, g.h);
+    const xOf = (t) => (t - g.t0) * g.k, band = 16, mid = band + (g.h - band) / 2, amp = (g.h - band) / 2 - 2;
+    // גל הקול: עמודה לכל 2px — השיא בתחום
+    const pk = opts.meta && opts.meta.pk, r = META_R;
+    if (pk) {
+      ctx.fillStyle = 'rgba(235,235,245,.38)';
+      for (let x = 0; x < g.w; x += 2) {
+        const a = Math.floor((g.t0 + x / g.k) * r), b = Math.max(a + 1, Math.floor((g.t0 + (x + 2) / g.k) * r));
+        let m = 0;
+        for (let i = Math.max(0, a); i < Math.min(pk.length, b); i++) if (pk[i] > m) m = pk[i];
+        if (!m) continue;
+        const hh = Math.max(1, (m / 255) ** 1.6 * amp);
+        ctx.fillRect(x, mid - hh, 1.5, hh * 2);
+      }
+    }
+    // חילופי השוטים
+    const sh = (opts.meta && opts.meta.sh) || [];
+    ctx.fillStyle = 'rgba(255,214,10,.85)';
+    for (const t of sh) { if (t < g.t0) continue; if (t > g.t0 + TL_SPAN) break; ctx.fillRect(Math.round(xOf(t)), 0, 1, g.h); }
+    // הכתוביות בפס העליון
+    const cs = opts.cues(), sel = opts.sel(), col = opts.colors ? opts.colors() : null;
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i];
+      if (c.e < g.t0) continue;
+      if (c.s > g.t0 + TL_SPAN) break;
+      const x0 = xOf(c.s), x1 = xOf(c.e);
+      ctx.fillStyle = (col && col.get(c.spk)) || '#30D158';
+      ctx.globalAlpha = i === sel ? 1 : 0.55;
+      ctx.fillRect(x0 + 0.5, 3, Math.max(2, x1 - x0 - 1), band - 6);
+      ctx.globalAlpha = 1;
+      if (i === sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + 0.5, 2.5, Math.max(2, x1 - x0 - 1), band - 5); }
+    }
+    // סמן הניגון
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(Math.round(xOf(now())) - 1, 0, 2, g.h);
+  }
+  function loop() { draw(); if (alive && v && !v.paused) raf = requestAnimationFrame(loop); else raf = 0; }
+  const kick = () => { if (!raf && typeof requestAnimationFrame === 'function') raf = requestAnimationFrame(loop); };
+  if (v) for (const ev of ['play', 'seeked', 'timeupdate', 'loadedmetadata']) v.addEventListener(ev, kick);
+  cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, t: now(), moved: false }; try { cv.setPointerCapture(e.pointerId); } catch (x) {} });
+  cv.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    if (Math.abs(dx) > 4) drag.moved = true;
+    if (drag.moved) { opts.seek(Math.max(0, drag.t - dx / geo().k)); kick(); }
+  });
+  cv.addEventListener('pointerup', (e) => {
+    const d = drag; drag = null;
+    if (!d || d.moved) return;
+    const rc = cv.getBoundingClientRect(), g = geo(), t = g.t0 + (e.clientX - rc.left) / g.k;
+    const k = cueAt(opts.cues(), t);
+    if (e.clientY - rc.top < 18 && k >= 0 && opts.pick) opts.pick(k);
+    opts.seek(Math.max(0, t)); kick();
+  });
+  cv.addEventListener('pointercancel', () => { drag = null; });
+  if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(() => draw()); ro.observe(cv); }
+  return { el: cv, draw, destroy() { alive = false; if (raf) cancelAnimationFrame(raf); } };
+}
+
 export function createHistory(initial) {
   let past = [], future = [], cur = initial, tag = '', at = 0, ver = 0;
   return {
@@ -295,6 +419,8 @@ function b(cls, label, fn, k, iconK) {
 export function createSubsEditor(opts) {
   const issMemo = new WeakMap();                       // מ9: הבדיקות לכל אובייקט כתובית — פעם אחת (בכל הקשה סופרים את כולן)
   const flags = opts.flags instanceof Map ? opts.flags : new Map();   // סבב 4: מזהה → { t: הטקסט המקורי, k: [סוגים] }
+  const shots = Array.isArray(opts.shots) ? opts.shots : [];          // סבב 6: חילופי השוטים (הצמדה)
+  const colors = spkColors(opts.cues);                                 // סבב 6: צבע לכל דובר
   const flagsOf = (c) => { const f = flags.get(c.i); return f && f.t === textOf(c) ? f.k : []; };
   const issOf = (c) => { let v = issMemo.get(c); if (!v) { v = cueIssues(c).concat(flagsOf(c)); issMemo.set(c, v); } return v; };
   const T = opts.T || ((k) => k);
@@ -330,7 +456,19 @@ export function createSubsEditor(opts) {
   function paintSug() {
     const ss = suggestions(hist.cur, dismissed);
     sugEl.replaceChildren();
-    sugEl.hidden = !ss.length;
+    // סבב 6: הצמדה לחילופי השוטים — כרטיס אחד לכל הכתוביות (כלל Netflix), לפני ההצעות הרגילות
+    const sn = shots.length ? snapAll(hist.cur, shots) : { n: 0 }, snKey = 'snap:' + shots.length + ':' + sn.n;
+    if (sn.n && !dismissed.has(snKey)) {
+      const card = el('div', 'st-sg-c');
+      const t = el('div', 'st-sg-t'); t.append(el('b', null, T('studioSgSnap', { n: sn.n })));
+      const pv = el('div', 'st-sg-p', T('studioSgSnapS'));
+      const acts = el('div', 'st-sg-a');
+      acts.append(b('done', T('studioSgFix'), () => { if (apply(snapAll(hist.cur, shots).cues, null) && opts.flash) opts.flash(T('studioSgFixed')); }, 'sg-snap'),
+        b('', T('studioSgNo'), () => { dismissed.add(snKey); if (opts.onDismiss) opts.onDismiss(snKey); paintSug(); }, 'sg-snap-no'));
+      card.append(t, pv, acts);
+      sugEl.append(card);
+    }
+    sugEl.hidden = !ss.length && !sugEl.childNodes.length;
     for (const g of ss) {
       const c = hist.cur[g.i], nc = g.cues[g.i];
       const card = el('div', 'st-sg-c');
@@ -428,7 +566,8 @@ export function createSubsEditor(opts) {
   }
   function mkRow(k) {
     const c = hist.cur[k], open = k === sel;
-    const r = el('div', 'st-se-row' + (open ? ' open' : '') + (k === act ? ' act' : '') + (issOf(c).length ? ' bad' : ''));
+    const r = el('div', 'st-se-row' + (open ? ' open' : '') + (k === act ? ' act' : '') + (issOf(c).length ? ' bad' : '') + (colors.has(c.spk) ? ' spk' : ''));
+    if (colors.has(c.spk)) r.style.setProperty('--spk', colors.get(c.spk));   // סבב 6: צבע הדובר
     r.setAttribute('role', 'listitem'); r.dataset.k = 'cue:' + k;
     const tm = b('st-se-tm', '', () => { opts.seek(c.s); opts.play(); }, 'cue-t:' + k);   // c — האובייקט, לא האינדקס (שורה שמורה זזה)
     tm.append(el('bdi', null, fmtTc(c.s)));
@@ -487,6 +626,10 @@ export function createSubsEditor(opts) {
     const ar = el('div', 'st-se-arow');
     ar.append(b('', T('studioSeSplit'), () => { if (!apply(splitCue(hist.cur, k, ta.selectionStart || 0), k)) opts.flash && opts.flash(T('studioSeSplitNo')); }, 'cue-split:' + k));
     if (k < hist.cur.length - 1) ar.append(b('', T('studioSeMerge'), () => apply(mergeCues(hist.cur, k), k), 'cue-merge:' + k));
+    if (shots.length) {   // סבב 6: הצמדה לחיתוך הקרוב (התחלה ו/או סוף)
+      const snapped = () => { let cur = hist.cur, any = false; for (const e of ['s', 'e']) { const nx = snapEdge(cur, k, e, shots); if (nx) { cur = nx; any = true; } } return any ? cur : null; };
+      if (snapped()) ar.append(b('', T('studioSeSnap'), () => apply(snapped(), k), 'cue-snap:' + k));
+    }
     ar.append(b(shiftOn ? 'on' : '', T('studioSeShift'), () => { shiftOn = !shiftOn; paintRow(k); }, 'cue-shift:' + k));
     ar.append(b('danger', T('studioSeDel'), () => apply(deleteCue(hist.cur, k), Math.min(k, hist.cur.length - 2)), 'cue-del:' + k));
     ar.append(b('done', T('studioSeDone'), () => { choose(-1); paintSug(); }, 'cue-done:' + k));
@@ -518,6 +661,7 @@ export function createSubsEditor(opts) {
       if (playing && sel < 0 && n) scrollTo(k);
     },
     select(k) { choose(k); },
+    colors: () => colors,   // סבב 6: לציר
     /* סבב 4: "רק בעיות" מבחוץ (ההצעה "לבדיקה שלך" כשהעורך כבר טעון) */
     showOnly(on) { if (only === !!on) return; only = !!on; sel = -1; paintBar(); paintList(); },
     selected: () => sel,

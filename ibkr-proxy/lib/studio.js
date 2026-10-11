@@ -37,7 +37,7 @@ const langReady = (sp) => !!sp && LANG_READY.from.includes(sp.from) && Array.isA
 const LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const STYLES = ['bold', 'classic', 'karaoke'];
 const OUTS = ['same', 'compact', 'mkv'];
-const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout'];   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
+const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta'];   // סבב 6: meta = גל הקול וחילופי השוטים   // מ7: aiout = תשובת גיליון ה־AI   // v358: תוצרים שהעובד מעלה; מ1: קבצי עזר (הנגן והעורך), small = עותק לוואטסאפ
 const OUT_MAX = 10;
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
 const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש

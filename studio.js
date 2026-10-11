@@ -13,7 +13,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, termIssues, flagIndex } from './studiosubs.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, termIssues, flagIndex, normMeta, createTimeline } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -43,7 +43,7 @@ export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt
 export const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
 export const langReady = (from, to) => LANG_READY.from.includes(from) && Array.isArray(to) && to.length > 0 && to.every((c) => LANG_READY.to.includes(c));
 /* מ1: כל סוגי התוצרים (= OUT_KINDS בשרתון). MAIN — שורות ב"התוצרים"; השאר קבצי עזר (הנגן, העורך) */
-export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout'];
+export const OUT_ALL = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 'small', 'aiout', 'meta'];   // סבב 6: meta — לציר בעורך
 export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
@@ -4162,21 +4162,24 @@ const RR_STYLES = ['bold', 'classic'];     // מה שהצריבה של vt יוד
 let rrJobs = new Map();                    // העבודה המקורית → ההפקה מחדש האחרונה (מ־op:'jobs'; לא ברשימה הראשית)
 let se = null;                             // { id, st, ed, ctl, saved, saving, err, upT, saveB }
 const seDirty = () => !!(se && se.ed && se.ed.ver() !== se.saved);
-function seStop() { if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
+function seStop() { if (se && se.tl) { se.tl.destroy(); se.tl = null; } if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
 async function seLoad(rec) {
   const me = se;
   try {
-    const cues = normCues(await net.driveJson(outOf(rec, 'cues').id));
+    const mo = outOf(rec, 'meta');   // סבב 6: גל הקול וחילופי השוטים (במקביל לכתוביות; בלעדיו — העורך כמו קודם)
+    const [cj, mj] = await Promise.all([net.driveJson(outOf(rec, 'cues').id), mo ? net.driveJson(mo.id).catch(() => null) : null]);
+    const cues = normCues(cj);
     if (se !== me) return;
+    me.meta = normMeta(mj);
     // סבב 4: מילון המונחים (לבדיקת מונח שתורגם בשתי דרכים) — לא מחכים לו יותר מ־2.5 שנ׳
     if (gl.st === '' && store.drive && store.drive.connected) { await Promise.race([glossLoad(), new Promise((r) => setTimeout(r, 2500))]); if (se !== me) return; }
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
     const only = seOnly === rec.id; seOnly = '';
-    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only,
+    me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, shots: me.meta ? me.meta.sh : [],
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
-      onChange: () => { seSavePaint(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); } });
+      onChange: () => { seSavePaint(); if (me.tl) me.tl.draw(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); } });
     me.saved = me.ed.ver(); me.st = 'ok';
   } catch (e) {
     if (se !== me) return;
@@ -4244,6 +4247,13 @@ function pageSubs(p) {
   if (seOnly === rec.id && se.ed) { seOnly = ''; se.ed.showOnly(true); }   // סבב 4: העורך כבר טעון — רק "לבדיקה"
   const top = h('div', 'st-se-top');
   if (se.ctl) top.append(se.ctl.el); else top.append(h('div', 'st-pl-ph', T('studioPlNoSw')));
+  if (se.ctl && se.meta && !se.tl) {   // סבב 6: הציר — גל הקול, הכתוביות לפי דובר, חילופי השוטים
+    const me = se;
+    se.tl = createTimeline({ meta: se.meta, cues: () => me.ed.cues(), sel: () => me.ed.selected(), video: se.ctl.video, colors: () => me.ed.colors(),
+      seek: (t) => { if (me.ctl) me.ctl.seek(t); }, pick: (k) => me.ed.select(k) });
+    se.tl.el.setAttribute('aria-label', T('studioTlL'));
+  }
+  if (se.tl) { top.append(se.tl.el); requestAnimationFrame(() => se && se.tl && se.tl.draw()); }
   p.append(top, se.ed.el);
   // הפקה מחדש וגרסאות — מתחת לרשימה (פעולות של כל הקובץ)
   p.append(list(rowNav({ tile: tile('redo', 'green'), label: T('studioRrTitle'), sub: rrSub(rec), onClick: () => go('rr', rec.id), k: 'se-rr' })));

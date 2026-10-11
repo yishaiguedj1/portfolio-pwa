@@ -2127,7 +2127,18 @@ AUX_FILES = (
     ('vtt', 'he.vtt', '.he.vtt', 'text/vtt'),
     ('ass', 'he.ass', '.he.ass', 'text/x-ssa'),
     ('en', 'en.reference.srt', '.en.srt', 'application/x-subrip'),
+    ('meta', 'timeline.json', '.timeline.json', 'application/json'),   # סבב 6: גל הקול וחילופי השוטים — לציר בעורך הכתוביות
 )
+
+
+def meta_safe(ctx):
+    """סבב 6: out/timeline.json (peaks.py בסביבת vt) — מידע משני; תקלה לא מפילה את סוף העבודה"""
+    try:
+        script(ctx, 'peaks.py', ['--project', str(ctx.pdir), '--out', str(ctx.pdir / 'out' / 'timeline.json')], 'sv')
+    except Stop:
+        raise
+    except BaseException as e:   # noqa: BLE001 — כולל SystemExit של script()
+        print('· גל הקול לא נוצר (' + type(e).__name__ + ') — ממשיכים בלעדיו')
 
 
 # ---------------------------------------------------------------- איכויות צפייה (כמו ב־YouTube)
@@ -2297,6 +2308,7 @@ def finish(args):
         fid = put_output(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
+    meta_safe(ctx)
     for k, fname, suffix, mime in AUX_FILES:
         p = ctx.pdir / 'out' / fname
         if not p.exists():
