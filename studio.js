@@ -29,12 +29,12 @@ export const MODES = [
   { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85, rec: true },
   { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 4, min: 95 },
   // Haiku: min מהמדידות — זמן קבוע (תמלול, יישור, צריבה ‎~52 דק׳ לשעה) + חלק ה־LLM (Opus ‎~53) × המהירות היחסית
-  { id: 'haiku-medium', fam: 'haiku', effort: 'Medium', q: 1, u: 1, min: 70 },
   { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76 },
 ];
 export const DEFAULT_MODE = 'sonnet-medium';
 // מצבים שהוסרו → המצב הקיים הקרוב (= LEGACY_MODES בשרתון ובעובד): עבודה / טיוטה / חוק ישנים ממשיכים לעבוד
-export const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
+// 11/10/2026 (בקשת המשתמש): Haiku Medium יצא — המחיר כמו High (‎$0.04 מול $0.045 לעבודה של 5 דק׳), אז נשאר רק High
+export const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high' };
 export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : LEGACY_MODES[id] || DEFAULT_MODE);
 const REC_MODE = MODES.find((m) => m.rec);
 /* שפות: התמלול (Parakeet v2/v3, ivrit.ai, Omnilingual) מכסה גם שפות שלא ברשימה — זו רשימת הבחירה המהירה */
@@ -202,7 +202,7 @@ export function normGq(o) {
 }
 export const NORM_FIXED = 1.5;   // **זהה ל־NORM_FIXED בשרתון** (lib/studio.js) — העלות הקבועה של עבודה (פתיחה, מדריכים)
 // 11/10/2026: מצב השרת — בלי סשן מתזמר (**זהה ל־NORM_DEF_API / NORM_FIXED_API בשרתון**; tests/studio-v363 משווה)
-export const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-medium': 0.5, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
+export const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
 export const NORM_FIXED_API = 0.05;
 /* מ6 (כלל 2): אומדן לפני כל התחלה — זמן (דקות לשעת וידאו של המצב × האורך) ועלות ("הרגיל" שלך, אחרת ברירת המחדל).
    במצב השרת — גם כמה נשאר מהתקציב החודשי. טהור */
@@ -255,7 +255,8 @@ export function normRules(r) {
   const o = r && typeof r === 'object' ? r : {};
   const n = typeof o.b === 'number' ? o.b : NaN;   // הסקירה: כמו בשרתון — עיגול לחצי דולר, עד 500 (מה שמוצג = מה שנשמר)
   const b = Number.isFinite(n) && n >= 1 ? Math.min(500, Math.round(n * 2) / 2) : 0;
-  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : '', ab: o.ab === true, jx: o.jx === true };   // v375: jx = שופט האיכות כבוי
+  // v375: jx = שופט האיכות כבוי · 11/10: מקסימום במצב שהוסר → הקרוב (לא "בלי הגבלה")
+  return { b, mx: MODES.some((m) => m.id === o.mx) ? o.mx : LEGACY_MODES[o.mx] || '', ab: o.ab === true, jx: o.jx === true };
 }
 /* v362: מגדל הפיקוח — אותה בדיקה כמו בשרתון (lib/studio.js normTower) */
 const TW_WHY = ['cost', 'cap', 'loop', 'calls', 'idle'];
@@ -673,7 +674,7 @@ export function normStore(o) {
    לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת */
 export function migrateSettings(o) {
   const s = normSettings(o);
-  if (o && typeof o === 'object' && o.mv !== 2 && (o.mode === 'opus-medium' || LEGACY_MODES[o.mode])) s.mode = DEFAULT_MODE;
+  if (o && typeof o === 'object' && o.mv !== 2 && /^opus-(medium|high|max)$/.test(o.mode)) s.mode = DEFAULT_MODE;   // רק Opus (Haiku Medium → High דרך modeNow)
   s.mv = 2;
   return s;
 }
@@ -739,7 +740,6 @@ function modeSub(id) {
     case 'opus-medium': return T('studioMsOpusMed');
     case 'sonnet-high': return T('studioMsSonHigh');
     case 'haiku-high': return T('studioMsHaiHigh');
-    case 'haiku-medium': return T('studioMsHaiMed');
     default: return T('studioMsSonMed');
   }
 }
@@ -748,7 +748,6 @@ function effortSub(id) {
     case 'opus-medium': return T('studioEfOpusMed');
     case 'sonnet-high': return T('studioEfSonHigh');
     case 'haiku-high': return T('studioEfHaiHigh');
-    case 'haiku-medium': return T('studioEfHaiMed');
     default: return T('studioEfSonMed');
   }
 }
@@ -757,7 +756,6 @@ function modeSum(id) {
     case 'opus-medium': return T('studioSumOpusMed');
     case 'sonnet-high': return T('studioSumSonHigh');
     case 'haiku-high': return T('studioSumHaiHigh');
-    case 'haiku-medium': return T('studioSumHaiMed');
     default: return T('studioSumSonMed');
   }
 }
@@ -3476,7 +3474,7 @@ function haltBanner() {
   return b;
 }
 /* v367: "החוקים שלך" — סיכום בשורה אחת */
-const MODE_ORDER = ['haiku-medium', 'haiku-high', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
+const MODE_ORDER = ['haiku-high', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
 export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
 const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
 const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));

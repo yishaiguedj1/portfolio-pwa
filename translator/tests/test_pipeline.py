@@ -305,7 +305,7 @@ class FlowTests(unittest.TestCase):
                 if '<review_package>' in p:
                     return msg('')
                 raise AssertionError(p[:80])
-            pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-medium'))
+            pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-high'))
             pl.translate()
             src = [c['system'][0]['text'] for c in self.client.calls]
             self.assertTrue(all('קטע מהמקור' in t for t in src), 'כל חלק עם חלון מהמקור')

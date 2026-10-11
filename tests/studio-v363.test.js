@@ -26,10 +26,10 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const nm = S.learnedNorm(L, 'opus-medium');
   ok(nm.ph === 6 && nm.mx === 9 && nm.n === 3 && S.learnedNorm(L.slice(0, 2), 'opus-medium') === null && S.learnedNorm(L, 'opus-high') === null, 'החציון והכבדה ביותר — מ־3 עבודות, לכל מצב בנפרד');
   const V = S.normsView(L);
-  ok(V['opus-medium'].ph === 6 && !V['opus-medium'].d && V['sonnet-medium'].d === true && V['sonnet-medium'].ph === 3 && Object.keys(V).length === 5, 'לטלפון: לכל מצב — הנלמד או ברירת המחדל');
+  ok(V['opus-medium'].ph === 6 && !V['opus-medium'].d && V['sonnet-medium'].d === true && V['sonnet-medium'].ph === 3 && Object.keys(V).length === 4, 'לטלפון: לכל מצב — הנלמד או ברירת המחדל');
   // 11/10/2026: "הרגיל" לפי המנוע — דגימה של השרת לא מלמדת את ה־Routine (ולהפך), ודגימה ישנה בלי מנוע לא נלמדת
-  const LA = [0.04, 0.05, 0.06].map((u) => ({ m: 'haiku-medium', d: 600, u, e: 'a' }));
-  ok(S.learnedNorm(LA, 'haiku-medium', 'api').ph === 0.3 && S.learnedNorm(LA, 'haiku-medium', 'r') === null && S.learnedNorm(L.map((x) => ({ m: x.m, d: x.d, u: x.u })), 'opus-medium') === null,
+  const LA = [0.04, 0.05, 0.06].map((u) => ({ m: 'haiku-high', d: 600, u, e: 'a' }));
+  ok(S.learnedNorm(LA, 'haiku-high', 'api').ph === 0.3 && S.learnedNorm(LA, 'haiku-high', 'r') === null && S.learnedNorm(L.map((x) => ({ m: x.m, d: x.d, u: x.u })), 'opus-medium') === null,
     'הרגיל נלמד לכל מנוע בנפרד; דגימה בלי מנוע — לא');
   const VA = S.normsView([], 'a'), VR = S.normsView([], 'r');
   ok(VA['haiku-high'].ph === 0.55 && VR['haiku-high'].ph === 0.8 && S.normFixed('api') === 0.05 && S.normFixed('r') === 1.5 && S.normDef('sonnet-medium', 'a') === 2.6,

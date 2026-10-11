@@ -1674,7 +1674,7 @@ function stubFetch(text, status = 200) {
     await nmJob(12.83); await nmJob(7.7);                              // 10$ ו־6$ לשעה
     r = await run({ op: 'status', idToken: OWNER });
     const NM = r.payload.norm['opus-medium'];
-    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['sonnet-high'].d === true && r.payload.norm['haiku-medium'].d === true && !r.payload.norm['opus-max'], 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
+    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['sonnet-high'].d === true && r.payload.norm['haiku-high'].d === true && !r.payload.norm['opus-max'] && !r.payload.norm['haiku-medium'], 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
     const sdoc = db.get('studioStats/ownerUid0001');
     ok(sdoc && !/Ackman|aud1234567890|fold/.test(JSON.stringify(sdoc)), 'סטודיו: ההיסטוריה — רק מצב, אורך ועלות (בלי שמות קבצים)');
     const w4 = await nmJob(30);
@@ -2322,7 +2322,7 @@ function stubFetch(text, status = 200) {
         ok(p5.t > 600 && p5.t < 960 && p5.n === 0, 'סטודיו: צפי — prior של השרת: 5 דק׳ סרטון ≈ 13 דק׳ (המדידה הראשונה), לא "כ־7"');
         const p30 = E.etaPlan(E.etaModel([], 'a', 0), 'opus-medium', 1800);
         ok(p30.t / 30 < p5.t / 5, 'סטודיו: צפי — סרטון ארוך מהיר יותר לכל דקה (החלק הקבוע מתחלק)');
-        ok(E.etaPlan(null, 'opus-medium', 600).s.tl > E.etaPlan(null, 'haiku-medium', 600).s.tl && E.etaPlan(null, 'opus-max', 600).s.tl === E.etaPlan(null, 'opus-medium', 600).s.tl, 'סטודיו: צפי — מצב כבד יותר = תרגום ארוך יותר');
+        ok(E.etaPlan(null, 'opus-medium', 600).s.tl > E.etaPlan(null, 'haiku-high', 600).s.tl && E.etaPlan(null, 'opus-max', 600).s.tl === E.etaPlan(null, 'opus-medium', 600).s.tl, 'סטודיו: צפי — מצב כבד יותר = תרגום ארוך יותר');
         ok(E.etaTarget(p5) > p5.t && E.etaTarget(null) === 0, 'סטודיו: צפי — יעד הזמן = p90 + דקה, מעל ה־p50');
         // עבודות "אמיתיות" עם a=100, b=10 לשלב התמלול — המודל מתקרב אליהן, ובלי לקפוץ מדגימה אחת
         const mk = (d, at) => ({ e: 'a', m: 'opus-medium', d, at, s: { tr: 100 + 10 * d / 60, al: 200, tl: 30, rv: 40, bn: 100, sv: 10 } });
@@ -2408,7 +2408,7 @@ function stubFetch(text, status = 200) {
       ok(P5.problemsView(fbv.map((e) => Object.assign({}, e, { at: 50, fix: '', px: e.fp === FPb ? 'x' : '' })), [], jobsX, now).list.map((x) => x.state).sort().join() === 'd,n', 'סטודיו: בעיה — חדשה / אובחנה (הצעה שמחכה)');
       const rbx = P5.runbooksView([{ fp: FPa, auto: 2, ua: now - 1000 }, { fp: FPb, auto: 5, ua: now - 40 * 864e5 }], jobsX, now);
       ok(JSON.stringify(rbx) === '[{"k":"net","r":"s","n":1},{"k":"known","r":"s","n":2},{"k":"cheap","r":"c","n":1}]', 'סטודיו: ספרי הפעלה — כמה פעמים החודש, ומה בטוח / באישור');
-      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,haiku-high,haiku-medium' && S5.cheaperModes('sonnet-medium').join() === 'haiku-high,haiku-medium' && !S5.cheaperModes('haiku-medium').length && S5.cheaperModes('opus-max').join() === S5.cheaperModes('opus-medium').join(), 'סטודיו: מצבים זולים יותר — מהקרוב');
+      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,haiku-high' && S5.cheaperModes('sonnet-medium').join() === 'haiku-high' && !S5.cheaperModes('haiku-high').length && !S5.cheaperModes('haiku-medium').length && S5.cheaperModes('opus-max').join() === S5.cheaperModes('opus-medium').join(), 'סטודיו: מצבים זולים יותר — מהקרוב');
       ok(S5.COST_STOP({ err: 'budget_stop' }) && S5.COST_STOP({ err: 'tower_stop', tw: { why: 'cost' } }) && !S5.COST_STOP({ err: 'tower_stop', tw: { why: 'loop' } }) && !S5.COST_STOP({ err: 'net' }),
         'סטודיו: "מצב זול יותר" רק אחרי עצירה על עלות');
       // מקצה לקצה: עצירה על עלות → המשך במצב זול יותר
@@ -2831,9 +2831,9 @@ function stubFetch(text, status = 200) {
     // v367: החוקים שלך, מתג החירום ושערי אישור
     now += 3600e3 + 1;                       // תקציב ההפעלות לשעה מתחיל מחדש
     const SPECX = Object.assign({}, SPEC, { mode: 'opus-medium' });
-    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false}' && S.normRules({ b: 12.3, mx: 'sonnet-high', ab: true }).b === 12.5 && S.normRules({ mx: 'opus-high' }).mx === ''
+    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false}' && S.normRules({ b: 12.3, mx: 'sonnet-high', ab: true }).b === 12.5 && S.normRules({ mx: 'opus-high' }).mx === 'opus-medium' && S.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high'
       && S.normRules({ b: 1e9 }).b === S.RULE_BUDGET_MAX && S.normRules({ b: 0.5, mx: 'evil', ab: 'yes' }).b === 0 && S.normRules({ mx: 'evil', ab: 'yes' }).mx === '' && S.normRules({ ab: 'yes' }).ab === false,
-    'סטודיו: חוקים — בלי חוקים כברירת מחדל; תקציב מעוגל לחצי דולר ועד 500; מצב/אישור לא תקינים — נזרקים');
+    'סטודיו: חוקים — בלי חוקים כברירת מחדל; תקציב מעוגל לחצי דולר ועד 500; מצב שהוסר → הקרוב (11/10); מצב/אישור לא תקינים — נזרקים');
     ok(S.modeOver('opus-medium', 'sonnet-high') && S.modeOver('sonnet-medium', 'haiku-high') && !S.modeOver('haiku-high', 'sonnet-medium') && !S.modeOver('opus-medium', '') && !S.modeOver('sonnet-high', 'sonnet-high'),
       'סטודיו: חוקים — "מצב מקסימלי" לפי המחיר הצפוי לשעה (Sonnet < Opus Medium < High < Max)');
     rr = await run({ op: 'rules', idToken: OWNER, rl: { b: 10, mx: 'sonnet-high', ab: true, evil: 1 } });

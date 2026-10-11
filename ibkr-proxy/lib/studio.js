@@ -26,9 +26,9 @@ const KINDS = ['ping', 'tr', 'rr', 'ai'];   // מ2: rr = הפקה מחדש (כת
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
 const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. הראשון = ברירת המחדל (Sonnet Medium — המומלץ).
-const MODES = ['sonnet-medium', 'haiku-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
+const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
-const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };
+const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high' };   // 11/10: Haiku Medium יצא (= המחיר של High)
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || MODES[0]);
 /* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
    של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
@@ -252,13 +252,13 @@ const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
 // Haiku 5.5 (10/10/2026): מחושב ממאגר המדידות — הטוקנים של Sonnet Medium (5 דק׳ TED) במחיר של Haiku (פי 20 זול) ×1.3
 // (הטוקנייזר שלו סופר יותר) = ‎~0.2$ לשעה במצב API; ב־Routine הסשן המתזמר נשאר Sonnet (‎~1.1$). 0.6/0.8 = בין השניים,
 // כך שאף מנוע לא מגיע ל"חריג" (פי 2) בלי סיבה. יוחלף ב"רגיל" הנלמד מ־NORM_MIN עבודות.
-const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-medium': 0.6, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
+const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
 const NORM_FIXED = 1.5;
 /* 11/10/2026: מצב השרת (API) — בלי סשן Claude מתזמר: אין "עלות פתיחה" של ~127K טוקנים, ומנהל העבודה רץ במודל של המצב.
    מהמדידות (5 דק׳ TED, translator/bench: ‎$0.565 / 0.345 / 0.215 / 0.045 / 0.04 לעבודה) × 12, מעוגל מעלה; הקבוע = השופט
    ושאר מה שלא תלוי באורך. עד 11/10 השרת השתמש בערכי ה־Routine — "הרגיל" ל־Haiku High היה $0.80 ($0.54 בפועל), והתקציב
    לעבודה של 5 דק׳ ‎~$1.55 (בפועל $0.04). **זהה ל־NORM_DEF_API / NORM_FIXED_API בטלפון** (studio.js). */
-const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-medium': 0.5, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
+const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
 const NORM_FIXED_API = 0.05;
 const engKey = (e) => (e === 'api' || e === 'a' ? 'a' : 'r');
 const normDef = (mode, eng) => (engKey(eng) === 'a' ? NORM_DEF_API : NORM_DEF)[mode];
@@ -435,7 +435,7 @@ function normRules(r) {
   const b = Number(o.b);
   return {
     b: Number.isFinite(b) && b >= 1 ? Math.min(RULE_BUDGET_MAX, Math.round(b * 2) / 2) : 0,
-    mx: MODES.includes(o.mx) ? o.mx : '',
+    mx: MODES.includes(o.mx) ? o.mx : LEGACY_MODES[o.mx] || '',   // 11/10: מקסימום במצב שהוסר → הקרוב (לא "בלי הגבלה")
     ab: o.ab === true,
     jx: o.jx === true,   // v375: שופט האיכות כבוי (ברירת המחדל — פועל, החלטה 4 בתוכנית)
   };
