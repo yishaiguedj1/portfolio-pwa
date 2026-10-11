@@ -4362,6 +4362,7 @@ function edlSum(e, dur) {
   const parts = [];
   if (e.k.length) parts.push(e.k.length === 1 ? T('studioEdSumShort1', { t: fmtMin(edlDur(e, dur)) }) : T('studioEdSumShort', { n: e.k.length, t: fmtMin(edlDur(e, dur)) }));
   if (e.ar !== 'src') parts.push(e.ar);
+  if (e.af) parts.push(T('studioEdAfShort'));   // סבב 9
   if (e.sp) parts.push('\u2066' + e.sp + '×\u2069');
   if (e.rt) parts.push(e.rt + '°');
   if (e.z) parts.push(T('studioEdZoom') + ' \u2066' + e.z + '×\u2069');
@@ -4811,7 +4812,7 @@ function pageIdeas(p) {
       const rs = parseRanges(idea.text);
       shown = rs.length > 0;
       if (rs.length) p.append(secT(T('studioIdHlT')), list(...rs.map((r, i) => rowNav({ tile: tile('film', 'blue'), label: r.title || fmtT(r.a), sub: '\u2066' + fmtT(r.a) + '–' + fmtT(r.b) + '\u2069 · ' + T('studioIdHlGo'),   // טווח מבודד — לא מתהפך ב־RTL
-        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5 }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));
+        onClick: () => { rrEdl.set(rec.id, normEdl({ k: [[r.a, r.b]], ar: '9:16', x: 0.5, af: true }, rec.spec.dur || 0)); rrOpt.out = { compact: true }; go('rr', rec.id); }, k: 'id-hl:' + i }))));   // סבב 9: שורטס — המסגרת עוקבת אחרי הדובר (af)
     }
     if (idea.k === 'chap') {   // פרקים → לנגן: פס עם מפרידים, שם הפרק בשורת הזמן ורשימה בגלגל השיניים
       const chs = normChapters(parseChapters(idea.text));

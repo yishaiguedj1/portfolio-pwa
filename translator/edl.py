@@ -24,7 +24,7 @@ Z_MAX = 3
 VOL_MAX = 200
 FADE_MAX = 10
 LUFS = -14
-EXTRA_POS = ('y', 'z')
+EXTRA_POS = ('y', 'af', 'z')
 EXTRA_REST = ('sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th')
 FXS = ('bw', 'warm', 'cool', 'vint')   # סבב 7: מסננים
 
@@ -74,6 +74,8 @@ def norm_edl(e, dur=0):
     ex = {}
     if crop and y != 0.5:
         ex['y'] = y
+    if crop and e.get('af') is True:          # סבב 9: מסגור אוטומטי לדובר (frame.py)
+        ex['af'] = True
     if z > 1:
         ex['z'] = z
     sp, rt = _num(e.get('sp')), _num(e.get('rt'))
@@ -306,8 +308,9 @@ def atempo(sp):
     return ['atempo=%.4f' % x for x in f]
 
 
-def video_filters(e, W, H):
-    """מהירות → סיבוב → היפוך → חיתוך → זום (חזרה לגודל בלי זום). W×H = המידות לפני הסיבוב."""
+def video_filters(e, W, H, xt=None):
+    """מהירות → סיבוב → היפוך → חיתוך → זום (חזרה לגודל בלי זום). W×H = המידות לפני הסיבוב.
+    xt = (free, x0, kf) מ־frame.track — מסגור אוטומטי: x של החיתוך משתנה לפי הזמן (ביטוי של מספרים בלבד)"""
     f = []
     sp = e.get('sp') or 1
     if sp != 1:
@@ -322,7 +325,10 @@ def video_filters(e, W, H):
         f.append('vflip')
     RW, RH = rot_dims(W, H, rt)
     cb = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), e.get('z', 1))
-    if cb:
+    if cb and xt and int(xt[0]) == RW - cb['w']:
+        import frame as F
+        f.append("crop=%d:%d:x='%s':y=%d" % (cb['w'], cb['h'], F.x_expr(xt[0], xt[1], xt[2]), cb['y']))
+    elif cb:
         f.append('crop=%d:%d:%d:%d' % (cb['w'], cb['h'], cb['x'], cb['y']))
         if (e.get('z') or 1) > 1:
             full = crop_box(RW, RH, e['ar'], e['x'], e.get('y', 0.5), 1) or {'w': RW - RW % 2, 'h': RH - RH % 2}
@@ -368,7 +374,7 @@ def audio_filters(e, total):
     return f
 
 
-def ffmpeg_args(src, out, e, info, audio_only=False, ov=None, logo=None):
+def ffmpeg_args(src, out, e, info, audio_only=False, ov=None, logo=None, xt=None):
     """הפקודה (רשימה, בלי shell): קטעים → concat, ואז מהירות / סיבוב / חיתוך / צבע / טשטוש / לוגו / שמע.
     רק מספרים וקודים מהעריכה נכנסים למסנן; הלוגו = קובץ (קלט שני), המיקום והגודל מ־ov (מנורמל)."""
     segs = e['k'] or None
@@ -395,7 +401,7 @@ def ffmpeg_args(src, out, e, info, audio_only=False, ov=None, logo=None):
     elif has_a:
         parts.append(''.join(al) + 'concat=n=%d:v=0:a=1[ac]' % n)
     vout, aout = '[vc]', '[ac]'
-    vf = video_filters(e, info.get('w') or 0, info.get('h') or 0) if has_v else []
+    vf = video_filters(e, info.get('w') or 0, info.get('h') or 0, xt) if has_v else []
     if vf:
         parts.append('[vc]' + ','.join(vf + ['setsar=1']) + '[vo]')
         vout = '[vo]'
@@ -430,8 +436,16 @@ def ffmpeg_args(src, out, e, info, audio_only=False, ov=None, logo=None):
     return cmd + ['-movflags', '+faststart', str(out)]
 
 
-def apply(src, out, e, audio_only=False, env=None, ov=None, logo=None):
-    """מריץ את החיתוך. מחזיר את הנתיב (out)."""
+def apply(src, out, e, audio_only=False, env=None, ov=None, logo=None, auto_frame=False):
+    """מריץ את החיתוך. מחזיר את הנתיב (out). auto_frame — סבב 9: מסגור לפי הדובר (frame.track; תקלה = המיקום הקבוע)"""
     info = probe(src, env)
-    subprocess.run(ffmpeg_args(src, out, e, info, audio_only, ov, logo), check=True, env=env)
+    xt = None
+    if auto_frame and e.get('af') and not audio_only:
+        try:
+            import frame as F
+            xt = F.track(src, e, info, env)
+            print('· מסגור לפי הדובר: ' + ('%d מעברים' % len(xt[2]) if xt else 'לא נמצאו פנים — המיקום הקבוע'), flush=True)
+        except Exception as ex:             # noqa: BLE001 — המסגור לא מפיל הפקה
+            print('· מסגור לפי הדובר נכשל (%s) — המיקום הקבוע' % type(ex).__name__, flush=True)
+    subprocess.run(ffmpeg_args(src, out, e, info, audio_only, ov, logo, xt), check=True, env=env)
     return Path(out)

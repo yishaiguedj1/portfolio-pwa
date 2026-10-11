@@ -109,6 +109,7 @@ function normEdl(e, dur) {
   const y = n(e.y) >= 0 && n(e.y) <= 1 ? Math.round(e.y * 100) / 100 : 0.5;
   const ex = {};
   if (crop && y !== 0.5) ex.y = y;
+  if (crop && e.af === true) ex.af = true;   // סבב 9: מסגור אוטומטי לדובר
   if (z > 1) ex.z = z;
   if (EDL_SPEEDS.includes(n(e.sp)) && e.sp !== 1) ex.sp = e.sp;
   if (EDL_ROTS.includes(n(e.rt)) && e.rt !== 0) ex.rt = e.rt;

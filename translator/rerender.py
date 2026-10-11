@@ -218,7 +218,7 @@ def main(argv=None):
         cut = od / '_cut.mp4'
         print('עריכה: %d קטעים%s%s' % (len(ec['k']) or 1, '' if ec['ar'] == 'src' else ' · ' + ec['ar'],
                                         ''.join(' · ' + f for f in E.EXTRA_REST + E.EXTRA_POS if f in ec)), flush=True)
-        E.apply(src, cut, ec, ov=ov, logo=logo)
+        E.apply(src, cut, ec, ov=ov, logo=logo, auto_frame=True)
         src = cut
     info = probe(src)
     v = info.get('video') or {'width': 1920, 'height': 1080}

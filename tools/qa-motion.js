@@ -862,6 +862,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
     await step('studio: הפקה מחדש', () => page.click('[data-k="se-rr"]'), { pre: '[data-k="se-rr"]', settle: 1000, expect: '[data-k="rr-go"]' });
     await step('studio: חיתוך (ציר + 9:16)', async () => { await page.click('[data-k="rr-cut"]'); await sleep(1500); await page.click('[data-k="ed-ar:9:16"]'); }, { pre: '[data-k="rr-cut"]', settle: 1200, cls: 0.05, expect: '.st-ed-tl' });
+    await step('studio: מסגור לפי הדובר', () => page.click('[data-k="ed-af"]'), { pre: '[data-k="ed-af"]', settle: 700, expect: '[data-k="ed-af"].on' });   // סבב 9
     await step('studio: הסרת שקטים', () => page.click('[data-k="ed-silence"]'), { pre: '[data-k="ed-silence"]', settle: 800, expect: '.st-ed-tl' });
     await step('studio: הסרת מילות מילוי', () => page.click('[data-k="ed-fil"]'), { pre: '[data-k="ed-fil"]', settle: 800, expect: '.st-ed-tl' });   // סבב 4
     // סבב 3: מהירות וסיבוב · מסגור · שמע — מקטעים מקופלים, תצוגה מקדימה בנגן

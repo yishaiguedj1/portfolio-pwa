@@ -50,6 +50,7 @@ export function normEdl(e, dur) {
   const y = num(e.y) >= 0 && num(e.y) <= 1 ? Math.round(e.y * 100) / 100 : 0.5;
   const ex = {};
   if (crop && y !== 0.5) ex.y = y;
+  if (crop && e.af === true) ex.af = true;   // סבב 9: מסגור אוטומטי לדובר (העובד עוקב אחרי הפנים; רק כשיש חיתוך)
   if (z > 1) ex.z = z;
   if (SPEEDS.includes(num(e.sp)) && e.sp !== 1) ex.sp = e.sp;
   if (ROTS.includes(num(e.rt)) && e.rt !== 0) ex.rt = e.rt;
@@ -195,7 +196,7 @@ export function composeEdl(e0, e1) {
   return withExtras({ k, ar, x: e1.ar !== 'src' ? e1.x : e0.x }, e0, e1);
 }
 /* הרכבה: המיקום והזום מהעריכה שקבעה את החיתוך; כל השאר (מהירות, סיבוב, שמע) — מהאחרונה */
-const EXTRA_POS = ['y', 'z'], EXTRA_REST = ['sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th'];
+const EXTRA_POS = ['y', 'af', 'z'], EXTRA_REST = ['sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th'];
 function withExtras(base, e0, e1) {
   const crop1 = e1.ar !== 'src' || e1.z > 1, from = crop1 ? e1 : e0;
   if (crop1) base.x = e1.x;
@@ -303,7 +304,7 @@ function b(cls, label, fn, k) {
   return x;
 }
 const fmtX = (n) => '\u2066' + n + '×\u2069';   // בידוד LTR — בעברית "×1.6" מתהפך
-const EXTRAS = ['y', 'z', 'sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th'], FADES = [0, 1, 2, 3];
+const EXTRAS = ['y', 'af', 'z', 'sp', 'rt', 'fh', 'fv', 'vo', 'mu', 'fi', 'fo', 'ln', 'dn', 'br', 'ct', 'sa', 'fx', 'bl', 'tr', 'th'], FADES = [0, 1, 2, 3];
 const fmtM = (sec) => { const t = Math.max(0, Math.round(sec)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
 
 /* opts: { video (HTMLVideoElement של הנגן), frame (המסגרת של הנגן — למסגרת החיתוך), dur, edl, T, onChange(edl), flash, full } → { el, edl(), destroy }.
@@ -335,7 +336,12 @@ export function createEdlEditor(opts) {
   xr.setAttribute('aria-label', T('studioEdPos'));
   xr.addEventListener('input', () => { x = Number(xr.value); paintCrop(); emit(); });
   const xRow = el('div', 'st-ed-xrow'); xRow.append(el('span', 'st-se-el', T('studioEdPos')), xr);
-  wrap.append(tl, sum, ops, arRow, xRow);
+  // סבב 9: מסגור אוטומטי לדובר — רק בהפקה מחדש (לפני התרגום — רק חיתוך ויחס); המיקום מהסליידר = נקודת ההתחלה כשאין פנים
+  const afRow = el('div', 'st-se-arow');
+  const afB = opts.full ? b('sm', T('studioEdAf'), () => { if (ex.af) delete ex.af; else ex.af = true; changed(); }, 'ed-af') : null;
+  const afHint = el('div', 'st-se-el st-ed-hint', T('studioEdAfHint'));
+  if (afB) afRow.append(afB);
+  wrap.append(tl, sum, ops, arRow, xRow, afRow, afHint);
 
   /* ---------- סבב 3: מהירות וסיבוב · מסגור · שמע — מקטעים מקופלים, רק בהפקה מחדש ---------- */
   const set = (f, val, def) => { if (val === def || val == null) delete ex[f]; else ex[f] = val; changed(); };
@@ -513,6 +519,8 @@ export function createEdlEditor(opts) {
     undoB.disabled = !past.length;
     arBtns.forEach((bt, i) => { const on = ARS[i] === ar; bt.classList.toggle('on', on); bt.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     xRow.hidden = ar === 'src' && !(ex.z > 1); xr.value = String(x);
+    afRow.hidden = !afB || xRow.hidden; afHint.hidden = afRow.hidden || !ex.af;
+    if (afB) { afB.classList.toggle('on', !!ex.af); afB.setAttribute('aria-pressed', ex.af ? 'true' : 'false'); }
     paintExtras(); preview();
     paintHead(); paintCrop();
   }
