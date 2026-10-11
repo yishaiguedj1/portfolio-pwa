@@ -21,15 +21,28 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 2. השרתון — טהור ---------- */
   const SPEC = { mode: 'opus-medium', dur: 3600 };
   const smp = S.normSample({ kind: 'tr', fires: 1, spec: SPEC }, [{ usd: 4.004 }, { usd: 1 }], 7);
-  ok(smp && smp.m === 'opus-medium' && smp.d === 3600 && smp.u === 5 && smp.at === 7 && Object.keys(smp).length === 4, 'דגימה = מצב, אורך, עלות וזמן — בלי שום דבר אחר');
-  const L = [5, 9, 6].map((u) => ({ m: 'opus-medium', d: 3600, u }));
+  ok(smp && smp.m === 'opus-medium' && smp.d === 3600 && smp.u === 5 && smp.at === 7 && smp.e === 'r' && Object.keys(smp).length === 5, 'דגימה = מצב, אורך, עלות, זמן ומנוע — בלי שום דבר אחר');
+  const L = [5, 9, 6].map((u) => ({ m: 'opus-medium', d: 3600, u, e: 'r' }));
   const nm = S.learnedNorm(L, 'opus-medium');
   ok(nm.ph === 6 && nm.mx === 9 && nm.n === 3 && S.learnedNorm(L.slice(0, 2), 'opus-medium') === null && S.learnedNorm(L, 'opus-high') === null, 'החציון והכבדה ביותר — מ־3 עבודות, לכל מצב בנפרד');
   const V = S.normsView(L);
-  ok(V['opus-medium'].ph === 6 && !V['opus-medium'].d && V['sonnet-medium'].d === true && V['sonnet-medium'].ph === 3 && Object.keys(V).length === 5, 'לטלפון: לכל מצב — הנלמד או ברירת המחדל');
+  ok(V['opus-medium'].ph === 6 && !V['opus-medium'].d && V['sonnet-medium'].d === true && V['sonnet-medium'].ph === 3 && Object.keys(V).length === 4, 'לטלפון: לכל מצב — הנלמד או ברירת המחדל');
+  // 11/10/2026: "הרגיל" לפי המנוע — דגימה של השרת לא מלמדת את ה־Routine (ולהפך), ודגימה ישנה בלי מנוע לא נלמדת
+  const LA = [0.04, 0.05, 0.06].map((u) => ({ m: 'haiku-high', d: 600, u, e: 'a' }));
+  ok(S.learnedNorm(LA, 'haiku-high', 'api').ph === 0.3 && S.learnedNorm(LA, 'haiku-high', 'r') === null && S.learnedNorm(L.map((x) => ({ m: x.m, d: x.d, u: x.u })), 'opus-medium') === null,
+    'הרגיל נלמד לכל מנוע בנפרד; דגימה בלי מנוע — לא');
+  const VA = S.normsView([], 'a'), VR = S.normsView([], 'r');
+  ok(VA['haiku-high'].ph === 0.55 && VR['haiku-high'].ph === 0.8 && S.normFixed('api') === 0.05 && S.normFixed('r') === 1.5 && S.normDef('sonnet-medium', 'a') === 2.6,
+    'ברירת המחדל לפי המנוע: השרת (מהמדידות) מול Routine (עם הסשן המתזמר)');
+  const order = (o) => Object.keys(o).sort((a, b) => o[a] - o[b]).join();
+  ok(order(S.NORM_DEF_API) === order(S.NORM_DEF), 'הסדר בין המצבים זהה בשני המנועים (MODE_ORDER בטלפון, cheaperModes, "מצב מקסימלי")');
+  const ST = read('studio.js');
+  const pick = (re) => { const m = ST.match(re); return m && JSON.parse(m[1].replace(/'/g, '"')); };
+  ok(JSON.stringify(pick(/export const NORM_DEF_API = (\{[^}]+\})/)) === JSON.stringify(S.NORM_DEF_API) && new RegExp('export const NORM_FIXED_API = ' + S.NORM_FIXED_API + ';').test(ST),
+    'הטלפון: ערכי השרת זהים לשרתון');
   ok(S.workerJob({ id: 'j', kind: 'tr' }, nm).nm === nm && S.workerJob({ id: 'j', kind: 'tr' }).nm === null, 'העובד מקבל את "הרגיל" בלקיחה');
   const api = read('ibkr-proxy/api/studio.js');
-  ok(/'studioStats'/.test(api) && /S\.normSample\(job, up\.use \|\| job\.use, now\)/.test(api) && /norm: S\.normsView/.test(api), 'השרתון: דגימה בסוף עבודה, "רגיל" בלקיחה וב־status');
+  ok(/'studioStats'/.test(api) && /S\.normSample\(job, up\.use \|\| job\.use, now\)/.test(api) && /norm: S\.normsView\(st\.ns, 'r'\), normA: S\.normsView\(st\.ns, 'a'\)/.test(api), 'השרתון: דגימה בסוף עבודה, "רגיל" בלקיחה וב־status');
   ok(/\.catch\(\(\) => \{\}\)/.test(api.slice(api.indexOf("'studioStats', job.uid", api.indexOf('S.normSample(job')), api.indexOf("'studioStats', job.uid", api.indexOf('S.normSample(job')) + 400)), 'השרתון: תקלה בשמירת הדגימה לא מפילה את סוף העבודה');
 
   /* ---------- 3. העובד והמגדל ---------- */

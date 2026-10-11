@@ -108,9 +108,21 @@ def cmd_ingest(a):
     if v and v.get("vfr"):
         log("אזהרה: קצב פריימים משתנה (VFR) — התזמון יחושב לפי הקצב הממוצע")
     media.extract_audio(dest, pr.p("audio16k.wav"))
-    media.extract_api_audio(dest, pr.p("audio_api.ogg"))
-    log(f"אודיו לתמלול: {human_size(pr.p('audio_api.ogg').stat().st_size)}")
+    # 10/10/2026: audio_api.ogg (Opus) רק למנועי התמלול בענן — נוצר ב־asr כשבאמת צריך אותו. Parakeet (המקומי)
+    # קורא את audio16k.wav, והקידוד היה ~7 שנ׳ לכל 5 דק׳ (פעמיים בעבודה: בקליטה ובצירוף הסרטון). מקור חדש — ישן נמחק.
+    stale = pr.p("audio_api.ogg")
+    if stale.exists():
+        stale.unlink()
     pr.mark("ingest", duration=info["duration"])
+
+
+def _api_audio(pr):
+    from . import media
+    out = pr.p("audio_api.ogg")
+    if not out.exists():
+        media.extract_api_audio(pr.source_path(), out)
+        log(f"אודיו לתמלול: {human_size(out.stat().st_size)}")
+    return out
 
 
 def cmd_asr(a):
@@ -123,11 +135,11 @@ def cmd_asr(a):
         res = asr_parakeet.transcribe(str(pr.p("audio16k.wav")), quantization=None if a.fp32 else "int8")
     elif a.engine == "elevenlabs":
         from . import asr_api
-        res = asr_api.elevenlabs(pr.p("audio_api.ogg"), terms, n_spk)
+        res = asr_api.elevenlabs(_api_audio(pr), terms, n_spk)
     elif a.engine == "assemblyai":
         from . import asr_api
         ctx = meta.get("asr_context") or meta.get("title")
-        res = asr_api.assemblyai(pr.p("audio_api.ogg"), terms, n_spk, ctx)
+        res = asr_api.assemblyai(_api_audio(pr), terms, n_spk, ctx)
     else:
         die("מנוע לא מוכר")
     write_json(pr.p("asr", f"{a.engine}.json"), res)

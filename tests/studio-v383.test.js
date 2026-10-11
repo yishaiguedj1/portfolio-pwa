@@ -15,7 +15,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const api = read('ibkr-proxy/api/studio.js');
   ok(/slo: SLO\.sloView\(list, now\)/.test(api), 'השרתון: התקציב מחושב מאותה רשימה של op:jobs (בלי קריאה נוספת)');
   const SLO = require(path.join(root, 'ibkr-proxy/lib/studioslo.js'));
-  ok(SLO.SLO_T === 0.95 && SLO.MIN_N === 5, 'יעד 95%, מ־5 עבודות');
+  ok(SLO.SLO_T === 0.95 && SLO.MIN_N === 20, 'יעד 95%, מ־20 עבודות (כישלון אחד = 5% — פחות מזה התקציב לא מכסה אפילו כישלון)');
 
   /* ---------- 2. הטלפון ---------- */
   const st = await import(path.join(root, 'studio.js'));

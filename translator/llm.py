@@ -41,13 +41,13 @@ HAIKU_LONG_AT = 100_000
 # 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס (effort עד max, ברירת המחדל שלו medium), Opus High/Max יצאו.
 MODES = {
     'sonnet-medium': ('anthropic', 'claude-sonnet-5-5', 'medium'),
-    'haiku-medium': ('anthropic', 'claude-haiku-5-5', 'medium'),
     'haiku-high': ('anthropic', 'claude-haiku-5-5', 'high'),
     'sonnet-high': ('anthropic', 'claude-sonnet-5-5', 'high'),
     'opus-medium': ('anthropic', 'claude-opus-5-5', 'medium'),
 }
 DEFAULT_MODE = 'sonnet-medium'
-LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium'}   # = LEGACY_MODES בשרתון
+# 11/10/2026: Haiku Medium יצא (המחיר כמו High) — עבודה ישנה ממשיכה ב־High
+LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high'}   # = LEGACY_MODES בשרתון
 
 # ההתאמות ל־Haiku 5.5 (10/10/2026, מהמחקר ומתיעוד המודל):
 # 1. כרטיס המחיר: בקשה שהקלט שלה (כולל המטמון) מעל 100K טוקנים מתומחרת כולה בכרטיס היקר — פי 5. Opus/Sonnet — מחיר

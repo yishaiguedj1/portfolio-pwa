@@ -7,7 +7,9 @@
    נגזר מרשימת העבודות של op:'jobs' — בלי קריאה ובלי אחסון נוסף. */
 const S = require('./studio');
 const DAY = 86400e3;
-const SLO_T = 0.95, WIN = 30 * DAY, FAST = 7 * DAY, MIN_N = 5, BAD_MAX = 10;
+// 11/10/2026: MIN_N = 1 / (1 − SLO_T) = 20 — תקציב של 5% מכסה כישלון אחד רק מ־20 עבודות. עם פחות (היה 5), כישלון יחיד
+// "גמר את התקציב" (7 עבודות, 2 תקלות תשתית → "נגמר" באדום, בלי שום פעולה לעשות). עד 20 — רק כמה הסתיימו בלי התערבות
+const SLO_T = 0.95, WIN = 30 * DAY, FAST = 7 * DAY, MIN_N = Math.round(1 / (1 - SLO_T)), BAD_MAX = 10;
 
 /* null = לא נספרת; אחרת { g: true } או { g: false, c: 'fail'|'stale'|'resume' } */
 function classify(j, now) {

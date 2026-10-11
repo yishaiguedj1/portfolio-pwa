@@ -69,6 +69,19 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const mv = AN.anomView(mix, now);
   ok(!mv.m.some((r) => r.k === 'u:tl') && mv.m.some((r) => r.k === 't:tr'), 'עלות התרגום — מול אותו מצב בלבד; תמלול — מול כולם');
 
+  // 11/10/2026: עבודה שהומשכה (fires > 1) — לא נמדדת ולא בבסיס (הזמן כולל את ההשבתה); סטייה זעירה בשניות — לא חריגה
+  seq = 0;
+  const b3 = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => mk(60 + i));
+  ok(Object.keys(AN.metricVals(mk(9000, { fires: 2 }))).length === 0, 'עבודה שהומשכה — בלי מדדים');
+  const rs = AN.anomView(b3.concat([mk(9000, { fires: 2, ar: 1 })]), now);
+  ok(!Object.keys(rs.j).some((id) => rs.j[id].some((r) => r[0] === 't:tr' && r[1] > 0)) && rs.n === 9, 'גם המשך אוטומטי — בלי ציון (ונספרת בעבודות)');
+  seq = 0;
+  const b4 = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => mk(60 + i));
+  const small = AN.anomView(b4.concat([mk(100)]), now);   // 100 שנ׳ מול ~64: פי 1.6 — אבל רק ~36 שנ׳ מעל, פחות מ־ABS_T
+  const lastS = small.j['j' + String(b4.length).padStart(20, '0')];
+  ok(AN.ABS_T === 60 && !(lastS || []).some((r) => r[0] === 't:tr'), 'פחות מדקה מעל הרגיל — לא חריג גם כשהיחס גדול');
+  ok(rows[0].length === 5 && rows[0][4] === 150, 'בזמן — גם השניות בתוכנית (הטלפון מציג זמן אמיתי, לא יחס × אורך)');
+
   /* ---------- 3. השרתון ---------- */
   const api = read('ibkr-proxy/api/studio.js');
   ok(/const an = AN\.anomView\(list, now\);/.test(api) && /slo: SLO\.sloView\(list, now\), an \}/.test(api), 'op:jobs מחזיר an — מאותה רשימה, בלי קריאה נוספת');
