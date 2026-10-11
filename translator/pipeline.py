@@ -34,8 +34,12 @@ GUIDE = HERE / 'guides' / 'style-guide-he.md'
 DEFAULT_CAP_USD = float(os.environ.get('SNB_JOB_CAP_USD', '10'))     # תקרת עבודה אם השרתון לא שלח אחרת
 MAX_QUESTIONS = 2
 FIX_ROUNDS = 2
+FIX_ROUNDS_MAX = 5     # 11/10/2026: סבבים נוספים רק כל עוד מספר השגיאות יורד
 # חלקי התרגום רצים במקביל אחרי שהקריאה הראשונה התחילה לענות (= הבלוק הקבוע כבר במטמון וכולם קוראים ממנו).
 TL_PARALLEL = max(1, int(os.environ.get('SNB_TL_PAR', '4')))
+# 11/10/2026 (תקלת max_tokens בעבודה אמיתית): תשובה של שורה לכל כתובית שנקטעה — שומרים מה שהגיע ומבקשים רק את החסר.
+TL_ATTEMPTS = 6        # ניסיונות לחלק אחד (כל עוד יש התקדמות)
+FIX_BATCH = 40         # כתוביות לבקשת תיקון אחת (קודם — הכל בבקשה אחת של 16K)
 
 LINE_RE = re.compile(r'^#(\d+)\s?(.*)$')
 PART_RE = re.compile(r'^## חלק (\d+)/(\d+) → (batch_\d{3}\.he\.txt)\s*$')
@@ -130,6 +134,15 @@ def parse_source(src: str) -> tuple[str, list[dict]]:
     for p in parts:
         p['text'] = '\n'.join(p.pop('lines')).strip()
     return '\n'.join(head).strip(), parts
+
+
+def kept_text(res) -> str:
+    """הטקסט של תשובה — ובתשובה שנקטעה (max_tokens) בלי השורה האחרונה, שעלולה להיות חצי כתובית."""
+    text = getattr(res, 'text', '') or ''
+    if getattr(res, 'stop', None) != 'max_tokens':
+        return text
+    lines = text.rstrip('\n').split('\n')
+    return '\n'.join(lines[:-1])
 
 
 def answer_lines(text: str, allowed: set[str]) -> dict[str, str]:
@@ -296,7 +309,7 @@ class Pipeline:
         if not self.eng.fits_card(fixed, prompt):
             # תמליל של שעות רבות: ההגהה צריכה את כל התמליל בבת אחת — נשארת בקריאה אחת, במחיר המלא (רשום ב־ledger)
             print(f'· {self.eng.spec.model}: התמליל מעל סף 100K הטוקנים — ההגהה תתומחר בכרטיס היקר')
-        res = self.eng.complete('main', fixed, prompt, max_tokens=48000)
+        res = self.eng.complete('main', fixed, prompt, max_tokens=64000)   # נקטעה — complete מנסה פעם אחת בתקרת המודל
         self.save_usage()
         sec = split_sections(res.text)
         ok, dropped = valid_patch(edit, sec.get('PATCH', ''))
@@ -357,17 +370,31 @@ class Pipeline:
         warm מסומן ברגע שהשרת התחיל לענות (= הבלוק הקבוע במטמון) — ובכל מקרה בסוף, שכשל לא יתקע את השאר."""
         try:
             ids = set(p['ids'])
-            got: dict[str, str] = {}
-            for attempt in range(2):                      # חלק שהמודל דילג בו על כתוביות — עוד ניסיון אחד לחסרות
+            out = self.pd / 'tr' / p['file']
+            # "המשך": חלק שנכתב חלקית — ממשיכים ממה שכבר תורגם (לא מאפס)
+            got: dict[str, str] = answer_lines(out.read_text(encoding='utf-8'), ids) if out.exists() else {}
+            stalled, cut = 0, False
+            for attempt in range(TL_ATTEMPTS):
                 want = ids - set(got)
-                ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got else
-                       'חסרו בתשובה הכתוביות האלה מאותו חלק — רק הן: ' + ' '.join('#' + k for k in sorted(want, key=int)))
-                res = self.eng.complete('tl', fixed, ask, max_tokens=32000,
-                                        on_first_token=(warm.set if warm and not attempt else None))
-                got.update(answer_lines(res.text, want))
-                if set(got) >= ids:
+                if not want:
                     break
-            (self.pd / 'tr' / p['file']).write_text(fmt_lines(got) + '\n', encoding='utf-8')
+                # 11/10/2026: תשובה שנקטעה (חשיבה + תרגום מעל התקרה) — לא מכשילים את העבודה: שומרים את מה שהגיע
+                # (בלי השורה האחרונה, שאולי נחתכה) ומבקשים רק את החסר. ככה גם חלק ארוך מאוד נגמר.
+                ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got and not attempt else
+                       'חסרו בתשובה הכתוביות האלה מאותו חלק — רק הן: ' + ' '.join('#' + k for k in sorted(want, key=int)))
+                res = self.eng.complete('tl', fixed, ask, max_tokens=llm.MAX_OUT, partial_ok=True,   # התקרה חינם — רק מה שנוצר
+                                        on_first_token=(warm.set if warm and not attempt else None))
+                cut = getattr(res, 'stop', None) == 'max_tokens'
+                new = answer_lines(kept_text(res), want)
+                got.update(new)
+                stalled = 0 if new else stalled + 1
+                if stalled >= 2 or (not cut and attempt >= 1):
+                    break                                   # בלי התקדמות / המודל מדלג — מה שחסר מגיע לבדיקה ולתיקון
+            if cut and not got:
+                raise llm.LLMError('max_tokens', f'חלק {p["k"]} נקטע שוב ושוב בלי אף כתובית')
+            tmp = out.with_name(out.name + '.part')
+            tmp.write_text(fmt_lines(got) + '\n', encoding='utf-8')
+            tmp.replace(out)                                 # אטומי: נקודת שמירה באמצע לא תארוז חצי קובץ
         finally:
             if warm:
                 warm.set()
@@ -451,7 +478,9 @@ class Pipeline:
         """tr-check → רק הכתוביות שנפסלו חוזרות למודל (עם הנוסח הנוכחי והבעיה) → קובץ התיקונים. מחזיר כמה שגיאות נשארו.
         fixed = מחרוזת, או (Haiku מעל הסף) פונקציה מ־tl_fixer שמחלקת את הכתוביות לפי חלון המקור שלהן."""
         hard, soft, n_err = self.check()
-        for r in range(rounds):
+        r, best = 0, n_err
+        while r < rounds:
+            r += 1
             todo = dict(hard)
             for kk, v in soft.items():
                 if len(todo) >= 60:
@@ -461,18 +490,25 @@ class Pipeline:
                 return 0
             cur = self.current()
             got = {}
-            for fixed_g, ids_g in (fixed(set(todo)) if callable(fixed) else [(fixed, set(todo))]):
-                req = '\n'.join(f'#{kk} [{"חייב" if kk in hard else "לשקול"}: {"; ".join(todo[kk])}] נוכחי: {cur.get(kk, "(חסר)")}'
-                                for kk in sorted(ids_g, key=int))
-                res = self.eng.complete(k, fixed_g, FIX_TASK + '\n\n' + block('to_fix', req), max_tokens=16000)
-                self.save_usage()
-                got.update(answer_lines(res.text, ids_g))
+            for fixed_g, ids_all in (fixed(set(todo)) if callable(fixed) else [(fixed, set(todo))]):
+                srt = sorted(ids_all, key=int)
+                # 11/10/2026: במנות — עשרות כתוביות + חשיבה במאמץ גבוה עברו את תקרת ה־16K בבקשה אחת
+                for b in range(0, len(srt), FIX_BATCH):
+                    ids_g = set(srt[b:b + FIX_BATCH])
+                    req = '\n'.join(f'#{kk} [{"חייב" if kk in hard else "לשקול"}: {"; ".join(todo[kk])}] נוכחי: {cur.get(kk, "(חסר)")}'
+                                    for kk in sorted(ids_g, key=int))
+                    res = self.eng.complete(k, fixed_g, FIX_TASK + '\n\n' + block('to_fix', req), max_tokens=32000, partial_ok=True)
+                    self.save_usage()
+                    got.update(answer_lines(kept_text(res), ids_g))   # נקטעה — מה שלא הגיע נשאר לסבב הבא
             fp = self.pd / 'tr' / fname
             old = fp.read_text(encoding='utf-8') if fp.exists() else ''
             fp.write_text(old + fmt_lines(got) + '\n', encoding='utf-8')
             hard, soft, n_err = self.check()
             if not hard:
                 break
+            if r == rounds and n_err < best and rounds < FIX_ROUNDS_MAX:
+                rounds += 1                  # 11/10/2026: עוד יש התקדמות — עוד סבב (עד FIX_ROUNDS_MAX), לפני check_errors
+            best = min(best, n_err)
         return n_err
 
     # -------------------------------------------------------------- 5.5 שופט האיכות (v375, החלטה 4 — Haiku)
@@ -501,7 +537,7 @@ class Pipeline:
         jeng = llm.Engine(js, client=self.eng._client)
         try:
             res = jeng.complete('jg', '\n\n'.join([RULES, JG_TASK]),
-                                block('judge_sample', sample.read_text(encoding='utf-8')), max_tokens=4000)
+                                block('judge_sample', sample.read_text(encoding='utf-8')), max_tokens=16000)
         except llm.LLMError as e:
             print('· השופט נכשל (' + e.code + ') — ממשיכים בלעדיו.')
             for r in jeng.ledger.list():                      # גם כשל עלה כסף — נרשם בספר הראשי
@@ -534,10 +570,12 @@ class Pipeline:
             print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים — כל בקשה מתחת לסף 100K הטוקנים')
         got, flags = {}, []
         for sl in slices:
-            res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=32000)
+            res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=64000, partial_ok=True)
             self.save_usage()
             ids = set(re.findall(r'#(\d+)', sl))
-            got.update(answer_lines(res.text, ids))
+            if getattr(res, 'stop', None) == 'max_tokens':
+                print('· הביקורת של קטע נקטעה — התיקונים שהגיעו נשמרים, השאר עוברים בבדיקה האוטומטית')
+            got.update(answer_lines(kept_text(res), ids))
             rf = getattr(self.J, 'review_flags', None)          # סבב 4: "!#מספר קוד" — לבדיקה שלך בעורך
             if rf:
                 flags += [f for f in rf(res.text, {int(x) for x in ids}) if str(f[0]) not in got]
@@ -659,14 +697,35 @@ def run_auto(jobmod, args) -> int:
                         err.append(e)
                 th = threading.Thread(target=bg, daemon=True)
                 th.start()
-                pl.translate(fix=False, quiet=True)
+                try:
+                    pl.translate(fix=False, quiet=True)
+                except BaseException:
+                    # 11/10/2026: התרגום נכשל באמצע — מחכים שהיישור יסתיים ויישמר (נקודה 'al'), ושומרים אותה שוב עם
+                    # כל החלקים שתורגמו עד עכשיו (היישור שמר אותה כשחלק מהם עוד רצו). בלי זה כל "המשך" חזר לנקודת
+                    # התמלול ("כותבים כל מילה"): יישור מחדש ותרגום מחדש — בתשלום — בכל ניסיון.
+                    th.join()
+                    if not err:
+                        try:
+                            J.save_ck(ctx, 'al')
+                        except Exception:          # noqa: BLE001 — שמירה שנכשלה לא מסתירה את הכשל המקורי
+                            pass
+                    raise
                 th.join()
                 if err:
                     raise err[0]
+                J.save_ck(ctx, 'al')        # 11/10/2026: עם כל החלקים — כשל בתיקונים/בביקורת לא מתרגם שוב
                 ctx.report('tl', 0.6, 'התרגום מוכן — Claude מתקן לפי הבדיקה האוטומטית', force=True)
                 pl.fix_round('fixes.txt', pl.fixed_tl(), 'tl')
             else:
-                pl.translate()
+                try:
+                    pl.translate()
+                except llm.LLMError:
+                    # 11/10/2026: המסלול הטורי (גם "המשך" מנקודת היישור) — שומרים את החלקים שכבר תורגמו לפני הכשל
+                    try:
+                        J.save_ck(ctx, 'al')
+                    except Exception:          # noqa: BLE001
+                        pass
+                    raise
             J.save_ck(ctx, 'tl')             # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
         if after < 4:
             fixed, left = pl.review()

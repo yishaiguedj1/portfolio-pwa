@@ -18,6 +18,9 @@ def fake_msg(text='שלום', stop='end_turn', i=100, o=50, cr=0, c5=0, c1=0, mi
               id=mid, diagnostics=diag)
 
 
+llm.MID_RETRY_WAIT = (0, 0)      # בבדיקות — בלי השהיות בין ניסיונות חוזרים
+
+
 class FakeClient:
     """מחקה client.messages.stream(**kw) של ספריית anthropic — רושם את הבקשות ומחזיר תשובות לפי התור."""
 
@@ -115,12 +118,52 @@ class AnthropicTests(unittest.TestCase):
 
     def test_refusal_and_truncation_are_recorded_then_raise(self):
         for stop, code in (('refusal', 'model_refusal'), ('max_tokens', 'max_tokens')):
-            c = FakeClient([fake_msg(stop=stop, i=10, o=500)] * (2 if stop == 'refusal' else 1))   # סירוב — ניסיון אחד נוסף
+            # סירוב — ניסיון אחד נוסף בניסוח אחר; נקטעה — ניסיון אחד נוסף בתקרת המודל (11/10/2026)
+            c = FakeClient([fake_msg(stop=stop, i=10, o=500)] * 2)
             e = llm.Engine(llm.Spec.of('sonnet-high'), client=c)
             with self.assertRaises(llm.LLMError) as cm:
                 e.complete('tl', 'X', 'Y')
             self.assertEqual(cm.exception.code, code)
-            self.assertEqual(e.ledger.list()[0]['o'], 500 * (2 if stop == 'refusal' else 1), 'כל קריאה עלתה כסף — נרשמת לפני השגיאה')
+            self.assertEqual(e.ledger.list()[0]['o'], 1000, 'כל קריאה עלתה כסף — נרשמת לפני השגיאה')
+            if stop == 'max_tokens':
+                self.assertEqual([k['max_tokens'] for k in c.calls], [32000, llm.MAX_OUT], 'הניסיון השני בתקרת המודל')
+
+    def test_max_tokens_escalates_then_succeeds(self):
+        # 11/10/2026 (Haiku · High, הרצאה של חצי שעה): חלק אחד נקטע ב־32K — כל העבודה נכשלה. עכשיו: ניסיון אחד בתקרת המודל
+        c = FakeClient([fake_msg('חצי', stop='max_tokens', o=32000), fake_msg('הכל')])
+        e = llm.Engine(llm.Spec.of('haiku-high'), client=c)
+        r = e.complete('main', 'X', 'Y', max_tokens=32000)
+        self.assertEqual((r.text, r.truncated), ('הכל', False))
+        self.assertEqual(e.ledger.list()[0]['n'], 2, 'גם הניסיון שנקטע נרשם בעלות')
+        self.assertLessEqual(llm.MAX_OUT, 128000, 'מתחת לתקרת הפלט של כל המודלים (128K)')
+
+    def test_mid_stream_overload_retries(self):
+        # 11/10/2026 (ביקורת העמידות): עומס/ניתוק באמצע הזרם — ה־SDK לא מנסה שוב, ועבודה של שעה נכשלה בקריאה אחת
+        class OverloadedError(Exception):
+            status_code = 529
+        old = llm.MID_RETRY_WAIT
+        llm.MID_RETRY_WAIT = (0, 0)
+        try:
+            c = FakeClient([OverloadedError('overloaded'), fake_msg('הצליח')])
+            r = llm.Engine(llm.Spec.of('haiku-high'), client=c).complete('tl', 'X', 'Y')
+            self.assertEqual((r.text, len(c.calls)), ('הצליח', 2))
+            c = FakeClient([OverloadedError('x')] * 3)
+            with self.assertRaises(llm.LLMError) as cm:
+                llm.Engine(llm.Spec.of('haiku-high'), client=c).complete('tl', 'X', 'Y')
+            self.assertEqual((cm.exception.code, len(c.calls)), ('api_overloaded', 3), 'שני ניסיונות נוספים, ואז קוד חולף')
+            c = FakeClient([ValueError('bad')])
+            with self.assertRaises(llm.LLMError) as cm:
+                llm.Engine(llm.Spec.of('haiku-high'), client=c).complete('tl', 'X', 'Y')
+            self.assertEqual((cm.exception.code, len(c.calls)), ('api_error', 1), 'שגיאה לא חולפת — בלי ניסיון חוזר')
+        finally:
+            llm.MID_RETRY_WAIT = old
+
+    def test_partial_ok_returns_truncated_without_retry(self):
+        c = FakeClient([fake_msg('#1 א\n#2 ב\n#3 חצי', stop='max_tokens')])
+        e = llm.Engine(llm.Spec.of('haiku-high'), client=c)
+        r = e.complete('tl', 'X', 'Y', partial_ok=True)
+        self.assertTrue(r.truncated)
+        self.assertEqual(len(c.calls), 1, 'partial_ok — בלי ניסיון חוזר: המתקשר מבקש רק את מה שחסר')
 
     def test_modes_haiku_and_removed(self):
         # 10/10/2026: Haiku 5.5 (medium/high), Sonnet Medium = ברירת המחדל, Opus High/Max הוסרו → Opus Medium
@@ -203,7 +246,7 @@ class AnthropicTests(unittest.TestCase):
     def test_sdk_errors_mapped_to_short_codes(self):
         class RateLimitError(Exception):
             pass
-        c = FakeClient([RateLimitError('429 secret-ish details')])
+        c = FakeClient([RateLimitError('429 secret-ish details')] * 3)   # חולף — שני ניסיונות נוספים, ואז הקוד
         e = llm.Engine(llm.Spec.of('opus-medium'), client=c)
         with self.assertRaises(llm.LLMError) as cm:
             e.complete('tl', 'X', 'Y')

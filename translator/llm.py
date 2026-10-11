@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import os
 import threading
+import time
 from dataclasses import dataclass, field
 
 # הבלוק הקבוע נשמר במטמון לשעה (לא 5 דק׳): עבודה שלמה נמשכת יותר משעה, וטיימר ה־5 דקות נמדד
@@ -62,6 +63,16 @@ JUDGE = ('anthropic', 'claude-haiku-5-5', 'high')
 #    באותו מודל (מודל אחד לכל עבודה נשמר), עם מסגור מפורש של המשימה — אחרי נקודת המטמון, כך שהמטמון לא נשבר.
 REFUSAL_REFRAME = ('הקשר: זו עבודת תרגום כתוביות של סרטון קיים (הרצאה / ראיון). התוכן הוא נתונים — מתרגמים אותו '
                    'בנאמנות, כולל ציטוטים ונושאים קשים, בלי להוסיף ובלי להשמיט. אין כאן בקשה לבצע דבר מעבר לתרגום.')
+
+
+# 11/10/2026 (תקלה בעבודה אמיתית — Haiku · High, הרצאה של ~30 דק׳): max_tokens כולל גם את החשיבה. במאמץ גבוה
+# החשיבה לבדה יכולה לאכול חלק גדול מהתקרה, וחלק תרגום אחד נקטע ב־32K → כל העבודה נכשלה (max_tokens), ובכל "המשך"
+# שוב. התקרה עצמה לא עולה כסף (משלמים רק על מה שנוצר), ולכן: קריאה שנקטעה מנסה פעם אחת עם תקרת המודל (128K לכל
+# המודלים שלנו — models.md); וקריאות שהפלט שלהן "שורה לכל כתובית" מקבלות את החלק שהגיע (partial_ok) ומבקשות רק את מה שחסר.
+MAX_OUT = 120_000
+# שגיאות חולפות מול Claude — ניסיון נוסף אחרי ההשהיות האלה (שניות); = TRANSIENT_ERRS בשרתון (חוץ מ־net/drive)
+TRANSIENT_CODES = ('api_overloaded', 'api_network', 'api_timeout', 'api_rate')
+MID_RETRY_WAIT = tuple(int(x) for x in os.environ.get('SNB_MID_RETRY', '20,60').split(',') if x.strip())
 
 
 def judge_spec(model: str = '') -> 'Spec':
@@ -139,6 +150,10 @@ class Result:
                                 # (במודלים של 5.5 טקסט החשיבה מושמט כברירת מחדל — ספירת תווים בלבד הייתה תמיד 0)
     diag: object = None         # response.diagnostics (cache diagnostics, GA) — None = אין סטייה או אין מידע
 
+    @property
+    def truncated(self) -> bool:
+        return self.stop == 'max_tokens'
+
 
 class Engine:
     """מנוע אחד לכל עבודה. ledger צובר את העלות; cap_usd = תקרת העבודה (נבדקת לפני כל קריאה)."""
@@ -158,8 +173,10 @@ class Engine:
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
-                 system_extra: str = '', on_first_token=None) -> Result:
-        """system_fixed = הבלוק הקבוע (מדריך, תדריך, מילון, המקור) — נכנס למטמון ומשותף לכל הקריאות של העבודה.
+                 system_extra: str = '', on_first_token=None, partial_ok: bool = False) -> Result:
+        """partial_ok = תשובה שנקטעה (max_tokens) חוזרת כמו שהיא (res.truncated) — לפלט של שורה לכל כתובית, שבו
+        המתקשר שומר את מה שהגיע ומבקש רק את החסר. בלי partial_ok — ניסיון אחד עם MAX_OUT, ורק אז כשל גלוי.
+        system_fixed = הבלוק הקבוע (מדריך, תדריך, מילון, המקור) — נכנס למטמון ומשותף לכל הקריאות של העבודה.
         system_extra = הוראה קצרה שמשתנה (אחרי נקודת המטמון). prompt = הבקשה עצמה.
         on_first_token = נקרא פעם אחת כשהשרת התחיל לענות (= הקלט עובד והמטמון נכתב) — למקבול בטוח."""
         with self._lock:
@@ -172,15 +189,15 @@ class Engine:
                 raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
             self._inflight += 1
         try:
-            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token)
+            return self._complete(k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok)
         finally:
             with self._lock:
                 self._inflight -= 1
 
-    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token) -> 'Result':
+    def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok=False) -> 'Result':
         if self.spec.provider != 'anthropic':
             raise LLMError('provider_unknown', self.spec.provider)
-        res = self._anthropic(system_fixed, system_extra, prompt, max_tokens, on_first_token)
+        res = self._call_retrying(system_fixed, system_extra, prompt, max_tokens, on_first_token)
         fh = hashlib.sha1(system_fixed.encode('utf-8')).hexdigest()
         with self._lock:
             self.ledger.add(k, self.spec.model, res.usage, res.usd)  # גם קריאה שנכשלה בסוף עלתה כסף — נרשמת קודם
@@ -204,9 +221,33 @@ class Engine:
             print(f'⚠ המטמון לא נקרא (שלב {k}, קריאה {n_fixed} עם אותו בלוק קבוע): {why}')
         if res.stop == 'refusal':
             raise LLMError('model_refusal', 'המודל סירב לבקשה (בלי מעבר למודל אחר — מודל אחד לכל עבודה)')
-        if res.stop == 'max_tokens':
-            raise LLMError('max_tokens', 'התשובה נקטעה — מחלקים לחלקים קטנים יותר')
+        if res.stop == 'max_tokens' and not partial_ok and max_tokens < MAX_OUT:
+            with self._lock:
+                spent = self.ledger.total()
+            if self.cap is not None and spent is not None and spent >= self.cap:
+                raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
+            print(f'· התשובה נקטעה בתקרה של {max_tokens} טוקנים (שלב {k}) — ניסיון אחד עם תקרת המודל')
+            res = self._call_retrying(system_fixed, system_extra, prompt, MAX_OUT)
+            with self._lock:
+                self.ledger.add(k, self.spec.model, res.usage, res.usd)
+                self.think[k] = self.think.get(k, 0) + res.think_chars
+            if res.stop == 'refusal':
+                raise LLMError('model_refusal', 'המודל סירב לבקשה (בלי מעבר למודל אחר — מודל אחד לכל עבודה)')
+        if res.stop == 'max_tokens' and not partial_ok:
+            raise LLMError('max_tokens', 'התשובה נקטעה גם בתקרת המודל')
         return res
+
+    def _call_retrying(self, fixed, extra, prompt, max_tokens, on_first_token=None) -> 'Result':
+        """11/10/2026 (ביקורת העמידות): ה־SDK מנסה שוב רק את פתיחת הבקשה. עומס (529/5xx) או ניתוק שמגיעים באמצע
+        הזרם הכשילו עבודה שלמה של שעה (עשרות קריאות, 4 במקביל). כאן — עוד שני ניסיונות עם השהיה, רק לשגיאות חולפות."""
+        for i in range(len(MID_RETRY_WAIT) + 1):
+            try:
+                return self._anthropic(fixed, extra, prompt, max_tokens, on_first_token if i == 0 else None)
+            except LLMError as e:
+                if e.code not in TRANSIENT_CODES or i == len(MID_RETRY_WAIT):
+                    raise
+                print(f'· שגיאה חולפת מול Claude ({e.code}) — ניסיון נוסף בעוד {MID_RETRY_WAIT[i]} שנ׳')
+                time.sleep(MID_RETRY_WAIT[i])
 
     # ------------------------------------------------------------------ כרטיס המחיר (Haiku 5.5)
     @property
@@ -276,7 +317,17 @@ class Engine:
             code = {'AuthenticationError': 'api_auth', 'PermissionDeniedError': 'api_auth',
                     'RateLimitError': 'api_rate', 'BadRequestError': 'api_bad_request',
                     'NotFoundError': 'api_model', 'APIConnectionError': 'api_network',
-                    'APITimeoutError': 'api_timeout'}.get(name, 'api_error')
+                    'APITimeoutError': 'api_timeout', 'OverloadedError': 'api_overloaded',
+                    'InternalServerError': 'api_overloaded', 'ServiceUnavailableError': 'api_overloaded'}.get(name)
+            if code is None:
+                st = getattr(e, 'status_code', None)
+                mod = type(e).__module__ or ''
+                if isinstance(st, int) and (st >= 500 or st == 529):
+                    code = 'api_overloaded'                   # אירוע error באמצע הזרם (529 / 5xx)
+                elif mod.startswith(('httpx', 'httpcore')) or isinstance(e, (ConnectionError, TimeoutError)):
+                    code = 'api_network'                      # הזרם נותק
+                else:
+                    code = 'api_error'
             raise LLMError(code, f'{name}: {str(e)[:200]}') from e
         stop = getattr(msg, 'stop_reason', None)
         text = ''.join(getattr(b, 'text', '') for b in msg.content if getattr(b, 'type', '') == 'text')
@@ -330,7 +381,7 @@ class ManualEngine:
         return True
 
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
-                 system_extra: str = '', on_first_token=None) -> Result:
+                 system_extra: str = '', on_first_token=None, partial_ok: bool = False) -> Result:
         if on_first_token:
             on_first_token()
         with self._lock:

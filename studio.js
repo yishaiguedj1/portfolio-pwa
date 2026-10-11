@@ -371,7 +371,7 @@ export function normOps(o) {
 }
 /* v371: תקלות (מהשרתון — op jobs / status): לכל עבודה שנכשלה או נתקעה רשומה עם חומרה, מצב, מי טיפל, ציר, שורש סביר
    ו"קרה כבר"; ותקלה רחבה (mi). רק מספרים וקודים מהקטלוג — בלי טקסט חופשי */
-const INC_ST = ['o', 'w', 'r', 'x'], INC_EV = ['o', 'f', 'w', 'c', 'r', 'x', 'm', 'a', 'k'], RC_T = ['known', 'wide', 'up', 'env', 'same', 'self'];
+const INC_ST = ['o', 'w', 'r', 'x'], INC_EV = ['o', 'f', 'w', 'c', 'r', 'x', 'm', 'a', 'k'], RC_T = ['known', 'wide', 'up', 'code', 'env', 'same', 'self'];
 const ERR_CODE = /^[a-z][a-z0-9_]{1,29}$/;
 export function normInc(o) {
   if (!o || typeof o !== 'object') return null;
@@ -935,10 +935,11 @@ function errText(code, extra) {
     case 'major': return T('studioErrMajor');   // v371
     case 'mode': return T('studioErrMode');   // v376
     case 'budget_stop': case 'budget_cap': return T('studioErrBudgetStop');
-    case 'api_auth': case 'api_model': return T('studioErrApiKey');   // הסקירה: קודי מצב API
-    case 'api_network': case 'api_timeout': case 'api_rate': return T('studioErrApiNet');
+    case 'api_auth': case 'api_model': case 'no_api_key': return T('studioErrApiKey');   // הסקירה: קודי מצב API
+    case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioErrApiNet');
     case 'model_refusal': return T('studioErrRefusal');
     case 'check_errors': return T('studioErrChecks');
+    case 'max_tokens': return T('studioErrMaxTok');   // 11/10/2026
     case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
@@ -2819,12 +2820,13 @@ function incTitle(e) {
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
     case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
-    case 'api_auth': case 'api_model': return T('studioIncApiKey');
-    case 'api_network': case 'api_timeout': case 'api_rate': return T('studioIncApiNet');
+    case 'api_auth': case 'api_model': case 'no_api_key': return T('studioIncApiKey');
+    case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');
     case 'net': case 'drive': case 'drive_net': return T('studioIncNet');
     case 'upload_timeout': return T('studioIncUpload');
     case 'lang_unsupported': return T('studioIncLang');
+    case 'max_tokens': return T('studioIncMaxTok');
     default: return /^routine_/.test(e) ? T('studioIncRDown') : T('studioIncWorker');
   }
 }
@@ -2858,6 +2860,7 @@ function rcText(r, x) {
     case 'up': return T('studioRcUp', { a: opsAlert(r.c, r.k) });
     case 'same': return T('studioRcSame', { a: opsAlert(r.c, r.k) });
     case 'env': return T('studioRcEnv');
+    case 'code': return T('studioRcCode', { t: incTitle(x.e) });   // 11/10/2026: קוד שמסביר את עצמו (למשל max_tokens)
     default: return T('studioRcSelf', { t: incTitle(x.e) });
   }
 }

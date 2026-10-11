@@ -2062,7 +2062,7 @@ def ai_auto(args):
     eng = llm.Engine(llm.Spec.of(str((st.get('spec') or {}).get('mode') or llm.DEFAULT_MODE)), cap_usd=float(st.get('cap') or 1))
     try:
         res = eng.complete('main', A.HEAD_T if A.is_text_q(json.loads((d / 'request.json').read_text(encoding='utf-8'))) else A.HEAD,
-                           (d / 'prompt.md').read_text(encoding='utf-8'), max_tokens=16000)
+                           (d / 'prompt.md').read_text(encoding='utf-8'), max_tokens=64000)   # 11/10/2026: עד 400 כתוביות + חשיבה
     except llm.LLMError as e:
         ctx.report(fail=True, err=e.code if re.match(r'^[a-z0-9_]{1,40}$', e.code) else 'api_error', force=True, usage=eng.ledger.list() or None)
         raise SystemExit('✗ ' + e.code)
@@ -2625,7 +2625,8 @@ def restore(args):
     ctx.st['resumed'] = used
     ctx.st['proofed'] = bool(info.get('pr'))       # מצב API: ההגהה, התדריך והמילון כבר בפרויקט ששוחזר
     save_state(ctx.st)
-    ctx.report(st_next, 1 if used == 'asr' else 0, 'התמליל מוכן — Claude מגיה אותו' if used == 'asr' else 'ממשיכים מאותה נקודה', force=True)
+    fresh = used == 'asr' and not ctx.st['proofed']
+    ctx.report(st_next, 1 if used == 'asr' else 0, 'התמליל מוכן — Claude מגיה אותו' if fresh else 'ממשיכים מאותה נקודה', force=True)
     print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')
     qa = ctx.st.get('qa') or {}
     if qa.get('a') and qa.get('q'):
