@@ -351,9 +351,12 @@ async function importFiles(files, extra, outIds) {
         Object.assign(rec, { added: old.added, lastRead: old.lastRead, fraction: old.fraction, cfi: old.cfi, done: old.done, ann: old.ann, byOwner: old.byOwner });
         if (old.edit) { rec.edit = old.edit; applyEdit(rec, old.edit); }   // v316: הפרטים שהמשתמש ערך גוברים על הקובץ
         if (old.coverCustom) Object.assign(rec, { cover: old.cover, coverRatio: old.coverRatio, coverCustom: 1, coverV: 1 });
+        else if (old.coverH && old.cover) Object.assign(rec, { cover: old.cover, coverRatio: old.coverRatio, coverH: old.coverH, coverV: 1 });   // ס׳3: כריכה מהקטלוג
+        if (old.cat) Object.assign(rec, { cat: old.cat, catSig: old.catSig });
         if (old.hidden) rec.hidden = 1;
       }
       if (extra) Object.assign(rec, extra);
+      if (rec.cat) { applyEdit(rec, rec.cat); if (rec.edit) applyEdit(rec, rec.edit); }   // ס׳3: פרטי הקטלוג גוברים על הקובץ, ועריכה אישית — על שניהם
       if (rec.src !== 'drive') rec.bkD = Date.now();   // v318: ספר פרטי חדש/שהשתנה — לגיבוי הבא
       await tx('files', 'readwrite', (st) => st.put(file, id));
       await putBook(rec);
@@ -442,11 +445,120 @@ export function driveSyncPlan(local, items) {      // טהורה (נבדקת): �
     remove: local.filter((b) => b.driveId && !ids.has(b.driveId)),
   };
 }
+/* ---------------- ס׳3 (מנהל הספרייה): המדף המשותף מהקטלוג ב־R2 ----------------
+   כשהמקור בשרתון הוא R2 — במקום רשימת Drive: גרסת הקטלוג. "אין שינוי" = בקשה אחת קטנה; אחרת רק ההפרש.
+   הפרטים (12 השדות) והכריכה מהקטלוג גוברים על מה שבקובץ; עריכה אישית (rec.edit) וכריכה אישית גוברות על הקטלוג.
+   הגרסה נשמרת רק כשהכל ירד — הורדה שנכשלה חוזרת בפעם הבאה. */
+const LS_CATV = 'pwa_libcatv_v1';
+export function catFields(b) { const o = {}; EDIT_FIELDS.forEach((k) => { o[k] = typeof b[k] === 'string' ? b[k] : ''; }); return o; }
+export const catSigOf = (b) => JSON.stringify([catFields(b), b.cover ? b.cover.h : '']);
+export function shelfSyncPlan(local, res) {      // טהורה (נבדקת): res = תשובת op:'cat' ({full} או {up, rm})
+  const mine = local.filter((b) => b.src === 'drive');
+  const byId = new Map(mine.map((b) => [b.id, b]));
+  const books = res.full ? Object.values(res.full.books || {}) : (res.up || []);
+  const fetch = [], meta = [];
+  for (const b of books) {
+    const f = b && b.files && b.files[0];
+    if (!f) continue;
+    const o = byId.get(b.id);
+    if (o && o.hidden) continue;                                     // הוסתר אצלי — לא יורד שוב
+    if (!o || o.md5 !== f.md5) fetch.push(b);
+    else if (catSigOf(b) !== o.catSig) meta.push(b);
+  }
+  const keep = res.full ? new Set(books.map((b) => b.id)) : null;
+  const rm = new Set(res.full ? [] : (res.rm || []).map((x) => x && x.id));
+  return { fetch, meta, remove: mine.filter((b) => (keep ? !keep.has(b.id) : rm.has(b.id))) };
+}
+const catState = () => { try { const o = JSON.parse(localStorage.getItem(LS_CATV) || 'null'); return o && Number.isInteger(o.v) ? o : null; } catch (e) { return null; } };
+const R2_URL = /^https:\/\/[a-z0-9.-]+\.r2\.cloudflarestorage\.com\//;
+const BOOK_TYPES = { epub: 'application/epub+zip', azw3: 'application/vnd.amazon.ebook', mobi: 'application/x-mobipocket-ebook', fb2: 'application/x-fictionbook+xml' };
+async function catUrls(tk, ids, kind) {
+  const out = {};
+  for (let i = 0; i < ids.length; i += 200) {
+    const j = await libApi({ op: 'urls', idToken: tk, ids: ids.slice(i, i + 200), kind }).then((r) => r.json()).catch(() => null);
+    if (j && j.ok) Object.assign(out, j.urls || {});
+  }
+  return out;
+}
+async function catFetchView(j) {                  // קטלוג גדול — קישור חתום לקובץ דחוס
+  if (j.full) return j;
+  if (!R2_URL.test(String(j.url || '')) || typeof DecompressionStream === 'undefined') return null;
+  const r = await fetch(j.url);
+  if (!r.ok) return null;
+  const full = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();
+  return Object.assign({}, j, { full });
+}
+async function syncShelf(tk, j) {
+  const res = await catFetchView(j);
+  if (!res) return 0;
+  const plan = shelfSyncPlan(await allBooksRaw(), res);
+  let changed = 0, failed = 0, done = 0;
+  const fu = await catUrls(tk, plan.fetch.map((b) => b.id), 'f');
+  const total = plan.fetch.length;
+  const queue = plan.fetch.slice();
+  const worker = async () => {
+    for (let b; (b = queue.shift());) {
+      try {
+        const f = b.files[0], url = fu[b.id];
+        const r = R2_URL.test(String(url || '')) ? await fetch(url) : { ok: false };
+        if (!r.ok) throw new Error('dl');
+        const name = String(b.title || 'book').replace(/[\\/:*?"<>|]/g, ' ').slice(0, 100) + '.' + f.fmt;
+        const file = new File([await r.blob()], name, { type: BOOK_TYPES[f.fmt] || 'application/octet-stream' });
+        const n = await importFiles([file], { md5: f.md5, src: 'drive', cat: catFields(b), catSig: b.cover ? '' : catSigOf(b) });
+        if (!n) throw new Error('import');
+        changed += n;
+        if (b.cover) plan.meta.push(b);                                  // הכריכה — בשלב הבא
+      } catch (e) { failed++; }
+      done++;
+      syncProgress = { done, total };
+      if (done % 8 === 0 && root && !rd) renderHome();
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  syncProgress = null;
+  const wantCover = plan.meta.filter((b) => b.cover);
+  const cu = wantCover.length ? await catUrls(tk, wantCover.map((b) => b.id), 'c') : {};
+  for (const b of plan.meta) {
+    try {
+      const cur = (await allBooksRaw()).find((x) => x.id === b.id);
+      if (!cur) continue;
+      cur.cat = catFields(b);
+      applyEdit(cur, cur.cat); if (cur.edit) applyEdit(cur, cur.edit);
+      if (b.cover && !cur.coverCustom && cur.coverH !== b.cover.h) {
+        const r = R2_URL.test(String(cu[b.id] || '')) ? await fetch(cu[b.id]) : { ok: false };
+        if (r.ok) Object.assign(cur, { cover: await r.blob(), coverRatio: b.cover.r || cur.coverRatio, coverH: b.cover.h, coverV: 1 });
+        else failed++;
+      }
+      if (!b.cover || cur.coverCustom || cur.coverH === b.cover.h) cur.catSig = catSigOf(b);
+      await putBook(cur);
+      changed++;
+    } catch (e) { failed++; }
+  }
+  for (const b of plan.remove) {
+    if (rd && rd.rec && rd.rec.id === b.id) { failed++; continue; }   // לא מוחקים ספר פתוח — בפעם הבאה
+    await tx('books', 'readwrite', (st) => st.delete(b.id));
+    await tx('files', 'readwrite', (st) => st.delete(b.id));
+    changed++;
+  }
+  if (!failed) {
+    const n = (await allBooksRaw()).filter((b) => b.src === 'drive').length;
+    try { localStorage.setItem(LS_CATV, JSON.stringify({ v: res.v, n })); } catch (e) {}
+  }
+  return changed;
+}
+
 function syncDrive() {
   if (syncing) return syncing;
   syncing = (async () => {
     const tk = await idToken();
     if (!tk) { syncNote = 'signin'; return 0; }
+    /* ס׳3: קודם הקטלוג — אם המקור R2, ממנו (Drive לא נקרא). אחרת (או שרתון ישן) — כמו קודם */
+    const drv = (await allBooksRaw()).filter((b) => b.src === 'drive');
+    const st = catState();
+    const fresh = !st || st.n !== drv.length || drv.some((b) => !b.md5 && !b.hidden);   // ניקוי/החזרת מוסתר — תמונה מלאה
+    const cj = await libApi({ op: 'cat', idToken: tk, have: fresh ? -1 : st.v }).then((r) => r.json()).catch(() => null);
+    if (cj && cj.ok && cj.src === 'r2') { syncNote = ''; return cj.same ? 0 : syncShelf(tk, cj); }
+    if (cj && !cj.ok && cj.error === 'not_allowed') { syncNote = 'denied'; return 0; }
     const j = await libApi({ op: 'list', idToken: tk }).then((r) => r.json()).catch(() => null);
     if (!j || !j.ok) { syncNote = j && j.error === 'not_allowed' ? 'denied' : ''; return 0; }
     syncNote = '';
@@ -1571,7 +1683,7 @@ async function renderBook(id) {
   d.append(cta);
   const acBox = h('div', 'ac-ins');
   d.append(acBox);
-  if (b.src === 'drive' && b.driveId) fillInsight(b, acBox);
+  if (b.src === 'drive') fillInsight(b, acBox);   // ס׳3: גם ספר מהקטלוג (בלי driveId) — השרתון מזהה לפי מזהה הקטלוג
   if (b.desc && !b.ins) {
     const c = h('div', 'bk-card'); c.append(h('h4', null, T('bkAbout')));
     const pp = h('p', 'bk-desc', b.desc); pp.dir = 'auto';
@@ -2001,7 +2113,7 @@ function fetchInsight(b) {
   if (insFlight.has(b.id)) return insFlight.get(b.id);
   const pr = (async () => {
     const tk = await idToken(); if (!tk) throw new Error('signin');
-    const r = await libApi({ op: 'insight', idToken: tk, id: b.driveId });
+    const r = await libApi({ op: 'insight', idToken: tk, id: b.driveId || b.id });
     const j = await r.json().catch(() => ({}));
     if (!j.ok) throw new Error(j.error || 'failed');
     b.ins = Object.assign({}, j.insight, { md5: j.md5 || b.md5, at: Date.now() });
