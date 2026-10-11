@@ -853,6 +853,10 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: פיצול וביטול', async () => { await page.click('[data-k="cue-split:3"]'); await sleep(300); await page.click('[data-k="se-undo"]'); }, { pre: '[data-k="cue-split:3"]', settle: 800, expect: '.st-se-row' });
     await step('studio: "רק בעיות" וחזרה', async () => { await page.click('[data-k="se-only"]'); await sleep(400); await page.click('[data-k="se-only"]'); }, { pre: '[data-k="se-only"]', settle: 800, expect: '.st-se-row' });
     await step('studio: הצעה — תיקון', () => page.click('[data-k^="sg-fix:"]'), { pre: '[data-k^="sg-fix:"]', settle: 800, cls: 0.05, expect: '.st-se' });
+    // סבב 8: טיוטה — שינוי שלא נשמר שורד רענון (IndexedDB), וחוזר כצעד ביטול אחד. בלי שחזור הסטודיו מהרשומה:
+    // ה־Firebase המדומה של הכלי נעלם ברענון — העבודה נפתחת מחדש כמו בהתחלה (הטיוטה ב־IndexedDB נשארת)
+    await step('studio: רענון באמצע עריכה — הטיוטה חוזרת', async () => { await sleep(1900); await page.evaluate(() => history.replaceState(null, '')); await reload(2500); await openStudioJob(); await sleep(1500); await page.click('[data-k="subs"]'); },
+      { settle: 1500, expect: '[data-k="se-save"]:not(:disabled)' });
     await step('studio: שמירה ל־Drive', () => page.click('[data-k="se-save"]'), { settle: 1200, expect: '[data-k="se-save"]:disabled' });
     await step('studio: גיליון AI', () => page.click('[data-k="se-ai"]'), { pre: '[data-k="se-ai"]', settle: 900, expect: '[data-k="ai-add"]' });
     await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });

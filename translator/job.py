@@ -2132,8 +2132,11 @@ OUT_FILES = (                                     # (סוג, קובץ של vt, �
     ('compact', '{n}.he.compact.mp4', ' (עברית).mp4', 'video/mp4'),
     ('same', '{n}.he.mp4', ' (עברית, איכות מקור).mp4', 'video/mp4'),
     ('mkv', '{n}.he.mkv', ' (עברית).mkv', 'video/x-matroska'),
+    ('small', '{n}.he.small.mp4', ' (עברית, קטן).mp4', 'video/mp4'),     # סבב 8: עותק לוואטסאפ (עד SMALL_MB)
     ('srt', 'he.srt', '.he.srt', 'application/x-subrip'),
 )
+SMALL_ALT = '{n}.he.compact.small.mp4'            # כשהעותק נבנה מהדחוס
+SMALL_MB = 28                                     # = SMALL_MB בטלפון (studio.js) ו־small_copy ב־vt
 # מ1 (10/10/2026): קבצי עזר שתמיד עולים (אם vt יצר אותם) — הנגן, עורך הכתוביות ומסך ההצעות קוראים מ־cues;
 # VTT/ASS לנגנים אחרים; en = כתוביות בשפת המקור. תקלה בהעלאה של אחד מהם לא מפילה את העבודה
 AUX_FILES = (
@@ -2290,7 +2293,7 @@ def ladder_finish(ctx):
 def finish(args):
     ctx = Ctx(load_state())
     spec = ctx.st.get('spec') or {}
-    want = [k for k in (spec.get('out') or []) if k in ('compact', 'same', 'mkv')]
+    want = [k for k in (spec.get('out') or []) if k in ('compact', 'same', 'mkv', 'small')]
     errs = re.findall(r'שגיאות (\d+)', '\n'.join(vt(ctx, ['tr-check', ctx.name])))
     if (not errs or int(errs[-1]) > 0) and not args.force:
         raise SystemExit('✗ tr-check מצא שגיאות — לתקן ב־tr/fixes_zfinal.txt ולהריץ שוב: grep -A2 "שגיא" ' + str(ctx.pdir / 'tr' / 'check.md'))
@@ -2303,6 +2306,8 @@ def finish(args):
     if want:
         ctx.report('bn', 0, 'מוסיפים את הכתוביות לסרטון', force=True)
         flags = (['--compact'] if 'compact' in want else []) + (['--burn'] if 'same' in want else []) + (['--mkv'] if 'mkv' in want else [])
+        if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
+            flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
     ctx.report('sv', 0, 'שומרים את התוצרים ב־Drive', force=True)
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
@@ -2312,6 +2317,8 @@ def finish(args):
         if k != 'srt' and k not in want:
             continue
         p = ctx.pdir / 'out' / fname.format(n=ctx.name)
+        if k == 'small' and not p.exists():      # vt: <צרוב>.small.mp4 — מהאיכות המקורית אם נצרבה, אחרת מהדחוס
+            p = ctx.pdir / 'out' / SMALL_ALT.format(n=ctx.name)
         if not p.exists():
             raise SystemExit('✗ התוצר ' + p.name + ' לא נוצר.')
         files.append((k, p, title + suffix, mime))

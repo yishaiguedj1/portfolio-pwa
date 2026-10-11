@@ -89,6 +89,10 @@ elif cmd == 'render':
     (w / 'out').mkdir(parents=True, exist_ok=True)
     if '--compact' in a: (w / 'out' / (name + '.he.compact.mp4')).write_bytes(b'v' * 700000)
     if '--mkv' in a: (w / 'out' / (name + '.he.mkv')).write_bytes(b'm' * 1000)
+    if '--burn' in a: (w / 'out' / (name + '.he.mp4')).write_bytes(b'b' * 900)
+    if '--small' in a:   # כמו vt: <צרוב>.small.mp4 — מהאיכות המקורית אם נצרבה, אחרת מהדחוס
+        base = w / 'out' / (name + ('.he.mp4' if '--burn' in a else '.he.compact.mp4'))
+        base.with_suffix('.small.mp4').write_bytes(b's' * 300)
 elif cmd == 'build':
     (w / 'out').mkdir(parents=True, exist_ok=True)
     (w / 'out' / 'he.srt').write_text('1\n00:00:00,000 --> 00:00:01,000\nשלום\n')
@@ -869,6 +873,33 @@ class TestWorker(unittest.TestCase):
         cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()]
         kinds = [o['k'] for o in self.fake.reports[-1]['out']]
         return out, cmds, kinds
+
+    def test_small_only(self):
+        # סבב 8: רק "עותק לוואטסאפ" — נבנה מהדחוס (שלא עולה), ועולה רק הוא + SRT
+        self.fake.spec = dict(self.fake.spec, out=['small'])
+        self.take()
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        r = [l for l in (self.tmp / 'vt.log').read_text().splitlines() if l.startswith('render')][0].split()
+        self.assertIn('--compact', r)
+        self.assertEqual(r[r.index('--small') + 1], '28')
+        outs = {o['k']: o for o in self.fake.reports[-1]['out']}
+        self.assertEqual(sorted(outs), ['small', 'srt'])
+        self.assertEqual(outs['small']['size'], 300)
+        self.assertTrue(outs['small']['name'].endswith(' (עברית, קטן).mp4'))
+
+    def test_small_from_burn(self):
+        # עם "איכות מקור" — העותק נבנה ממנה (בלי דחוס מיותר)
+        self.fake.spec = dict(self.fake.spec, out=['same', 'small'])
+        self.take()
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        self.assertEqual(self.job('finish')[0], 0)
+        r = [l for l in (self.tmp / 'vt.log').read_text().splitlines() if l.startswith('render')][0].split()
+        self.assertNotIn('--compact', r)
+        self.assertEqual(sorted(o['k'] for o in self.fake.reports[-1]['out']), ['same', 'small', 'srt'])
 
     def test_render_gate_go(self):
         # v367: אישור לפני צריבה — "לצרוב": צורבים כרגיל

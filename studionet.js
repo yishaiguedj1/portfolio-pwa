@@ -608,6 +608,17 @@ export function createNet(env) {
     if (!r.ok) throw await driveErr(r);
     return r.text();
   }
+  /* סבב 8: קובץ קטן כ־Blob (העותק לוואטסאפ — לשיתוף מהטלפון). לא דרך ה־SW (טווח פתוח שם מוגבל ל־4MB); גדול מ־max — שגיאה */
+  async function driveBlob(id, max) {
+    const lim = max || 64 * 1048576;
+    const r = isR2Id(id) ? await E.fetch((await r2Get(id)).url)
+      : await E.fetch(API + '/' + encodeURIComponent(id) + '?alt=media', { headers: { Authorization: 'Bearer ' + await driveToken() } });
+    if (!r.ok) throw isR2Id(id) ? Object.assign(new Error('r2_http_' + r.status), { code: 'r2_http_' + r.status }) : await driveErr(r);
+    if (Number(r.headers && r.headers.get && r.headers.get('content-length')) > lim) throw Object.assign(new Error('too_big'), { code: 'too_big' });
+    const b = await r.blob();
+    if (b.size > lim) throw Object.assign(new Error('too_big'), { code: 'too_big' });
+    return b;
+  }
   /* מ1: הנגן — הסרטון מ־Drive דרך ה־Service Worker (./studio-media/<id>): ה־SW מבקש כאן אסימון (MessageChannel) ומעביר
      Range ל־Drive עם Authorization — הטוקן לא בכתובת. רק קבצים שהדף אישר (mediaAllow) — לא כל קובץ שמישהו מבקש */
   const mediaAllow = new Set();
@@ -664,5 +675,5 @@ export function createNet(env) {
   const goldUpload = (folderId, text) => textUpload(folderId, GOLD_REF_NAME, 'application/x-subrip', text, { snbRef: '1' });
 
 
-  return { api, driveApi, driveToken, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
+  return { api, driveApi, driveToken, jobFolder, upload, r2ToDrive, r2Get, cloudInitTemplate, glossLoad, glossSave, driveText, driveBlob, driveJson, goldUpload, textUpload, mediaUrl, driveMeta, driveMove, driveCopy, _forget: () => { dtok = null; } };
 }

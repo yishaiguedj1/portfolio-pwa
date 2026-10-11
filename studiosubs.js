@@ -43,6 +43,53 @@ export function toTtml(cues, title) {
     '<head><metadata><ttm:title xmlns:ttm="http://www.w3.org/ns/ttml#metadata">' + xml(title || '') + '</ttm:title></metadata></head>\n<body><div tts:direction="rtl">\n' +
     cues.map((c) => '<p begin="' + t(c.s) + '" end="' + t(c.e) + '">' + c.lines.map(xml).join('<br/>') + '</p>').join('\n') + '\n</div></body>\n</tt>\n';
 }
+/* סבב 8: EBU STL (Tech 3264) — הפורמט של שידורי הטלוויזיה. בלוק GSI של 1024 בתים + בלוק TTI של 128 לכל כתובית.
+   CCT ‏04 = ISO 8859-8 (לטינית/עברית), 25 פריימים לשנייה, סדר לוגי (כמו בקובץ ה־SRT). תו שאין לו מקום בטבלה — '?' */
+export const STL_FPS = 25;
+export const STL_TF = 112;                       // שדה הטקסט בכל TTI
+const HEB = { '־': '-', '׳': "'", '״': '"', '–': '-', '—': '-', '‘': "'", '’': "'", '“': '"', '”': '"', '…': '...', ' ': ' ' };
+export function stlBytes(text) {                 // שורה אחת → בתים ב־ISO 8859-8 (בלי ניקוד וטעמים)
+  const out = [];
+  for (const ch of clean(text).normalize('NFC').replace(/[֑-ׇ]/g, (c) => (c === '־' ? c : ''))) {
+    const c = ch.codePointAt(0), m = HEB[ch];
+    if (m) for (const x of m) out.push(x.charCodeAt(0));
+    else if (c >= 0x20 && c < 0x7f) out.push(c);
+    else if (c >= 0x5d0 && c <= 0x5ea) out.push(c - 0x5d0 + 0xe0);
+    else if (c === 0xd7) out.push(0xaa); else if (c === 0xf7) out.push(0xba);
+    else if (c >= 0xa0 && c <= 0xbe && c !== 0xa1 && c !== 0xaa && c !== 0xba) out.push(c);   // הטבלה של 8859-8 זהה ל־Latin-1 כאן
+    else out.push(0x3f);
+  }
+  return out;
+}
+function stlTc(sec) {
+  const f = Math.max(0, Math.round((Number(sec) || 0) * STL_FPS));
+  return [Math.floor(f / (STL_FPS * 3600)) % 24, Math.floor(f / (STL_FPS * 60)) % 60, Math.floor(f / STL_FPS) % 60, f % STL_FPS];
+}
+const stlYmd = (d) => String(d.getUTCFullYear() % 100).padStart(2, '0') + String(d.getUTCMonth() + 1).padStart(2, '0') + String(d.getUTCDate()).padStart(2, '0');
+export function toStl(cues, title, now) {
+  const n = cues.length, d = new Date(Number(now) || Date.now());
+  const t32 = String.fromCharCode(...stlBytes(title || '').slice(0, 32));
+  const tc = (sec) => stlTc(sec).map((x) => String(x).padStart(2, '0')).join('');
+  const f = (v, len) => String(v).slice(0, len).padEnd(len, ' ');
+  const gsi = f('850', 3) + f('STL25.01', 8) + f('0', 1) + f('04', 2) + f('00', 2) + f(t32, 32) + f('', 32) + f(t32, 32) + f('', 32) + f('', 32) + f('', 32) +
+    f('', 16) + f(stlYmd(d), 6) + f(stlYmd(d), 6) + f('00', 2) + f(String(n).padStart(5, '0'), 5) + f(String(n).padStart(5, '0'), 5) + f('001', 3) +
+    f('40', 2) + f('23', 2) + f('1', 1) + f('00000000', 8) + f(n ? tc(cues[0].s) : '00000000', 8) + f('1', 1) + f('1', 1) + f('ISR', 3) +
+    f('', 32) + f('', 32) + f('', 32) + f('', 75) + f('', 576);
+  const buf = new Uint8Array(1024 + 128 * n);
+  for (let i = 0; i < 1024; i++) buf[i] = gsi.charCodeAt(i) & 0xff;
+  cues.forEach((c, i) => {
+    const o = 1024 + 128 * i, sn = i + 1;
+    buf.set([0, sn & 0xff, (sn >> 8) & 0xff, 0xff, 0], o);                 // SGN, SN (LE), EBN = אחרון, CS
+    buf.set(stlTc(c.s), o + 5); buf.set(stlTc(c.e), o + 9);
+    const lines = (c.lines || []).filter((x) => clean(x).trim()).slice(0, 2);
+    buf.set([lines.length > 1 ? 20 : 22, 2, 0], o + 13);                   // VP (שורה), JC = ממורכז, CF
+    let tf = [];
+    lines.forEach((x, k) => { if (k) tf.push(0x8a); tf = tf.concat(stlBytes(x)); });
+    tf = tf.slice(0, STL_TF);
+    buf.fill(0x8f, o + 16, o + 128); buf.set(tf, o + 16);
+  });
+  return buf;
+}
 export function toCuesJson(cues) {
   return JSON.stringify(cues.map((c, n) => ({ id: n + 1, start: r3(c.s), end: r3(c.e), lines: c.lines.map(clean), en: c.en || '', spk: c.spk || '' })));
 }

@@ -54,7 +54,7 @@ ok(S.modeName(S.modeById('opus-medium')) === 'Opus 5.5 · Medium' && S.modeName(
 ok(S.langName('he', 'he') === 'עברית' && S.langName('en', 'en') === 'English', 'שמות שפות מ־Intl (בלי רשת)');
 ok(S.fileTitle('Ackman_TKP_interview.mp4') === 'Ackman TKP interview' && S.fileTitle('הרצאה.mkv') === 'הרצאה' && S.fileTitle('.mp4') === '.mp4' && S.fileExt('a.MkV') === 'MKV' && S.fileExt('noext') === '', 'שם תצוגה וסוג מהקובץ');
 ok(S.TARGET_LANGS.includes('he') && S.TARGET_LANGS.includes('en') && S.SOURCE_LANGS.includes('en'), 'רשימות השפות');
-ok(S.STYLES.join() === 'bold,classic,karaoke' && S.OUTS.join() === 'same,compact,mkv', 'סגנונות ופלטים כמו בתצוגה המקדימה');
+ok(S.STYLES.join() === 'bold,classic,karaoke' && S.OUTS.join() === 'same,compact,mkv,small', 'סגנונות ופלטים כמו בתצוגה המקדימה');
 
 /* ---------- 2. מחרוזות: כל מפתח בסטודיו קיים בעברית ובאנגלית ---------- */
 const store2 = {};

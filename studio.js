@@ -13,7 +13,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, termIssues, flagIndex, normMeta, createTimeline } from './studiosubs.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -48,10 +48,11 @@ export const OUT_MAIN = ['compact', 'same', 'mkv', 'small', 'srt', 'en'];
 export const TARGET_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko', 'am'];
 const QUICK_LANGS = ['he', 'en', 'ar', 'ru', 'es', 'fr'];
 export const STYLES = ['bold', 'classic', 'karaoke'];
-export const OUTS = ['same', 'compact', 'mkv'];
+export const OUTS = ['same', 'compact', 'mkv', 'small'];   // סבב 8: small = עותק קטן לוואטסאפ (עד 28MB) גם בעבודה עצמה
 export const CONNS = ['sub', 'copy', 'api'];
 export const CAPS = [5, 10, 20, 50];   // מצב API: תקרה לעבודה אחת ($) — השרתון מגביל גם לפי מה שנשאר החודש
 const TERMS_MAX = 1000;
+const SMALL_MB = 28;          // סבב 8: יעד העותק לוואטסאפ — small_copy ב־vt/render.py
 const COMPACT_RATIO = 0.53;   // "דחוס" ≈ חצי מהמקור (נמדד על הראיון של אקמן)
 const JOB_RE = /^j[A-Za-z0-9_-]{20}$/;
 const FID_RE = /^[A-Za-z0-9_-]{10,100}$/;
@@ -844,6 +845,7 @@ function outSub(k) {
     case 'same': return T('studioOutSameS');
     case 'compact': return T('studioOutCompactS');
     case 'mkv': return T('studioOutMkvS');
+    case 'small': return T('studioRrSmallSub');   // סבב 8
     default: return T('studioOutSrtS');
   }
 }
@@ -1105,24 +1107,42 @@ function setInc(raw, at) {
 const jobRec = (id) => store.jobs.find((x) => x.id === id) || null;
 
 /* ---------------- ידיות לקבצים (File System Access) — המשך אחרי רענון בלי לבחור שוב ---------------- */
+// סבב 8: גרסה 2 — גם 'drafts' (טיוטות העורך). שדרוג לא מוחק: רק מה שחסר נוצר
+const IDB_STORES = ['handles', 'drafts'];
 function hdb() {
   return new Promise((ok, no) => {
-    const r = indexedDB.open('snb-studio', 1);
-    r.onupgradeneeded = () => { try { r.result.createObjectStore('handles'); } catch (e) {} };
+    const r = indexedDB.open('snb-studio', 2);
+    r.onupgradeneeded = () => { for (const n of IDB_STORES) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
     r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
   });
 }
-async function handleOp(mode, id, val) {
+async function idbOp(store, mode, id, val) {
   if (typeof indexedDB === 'undefined') return null;
   try {
     const db = await hdb();
     return await new Promise((ok) => {
-      const tx = db.transaction('handles', mode === 'get' ? 'readonly' : 'readwrite'), os = tx.objectStore('handles');
+      const tx = db.transaction(store, mode === 'get' ? 'readonly' : 'readwrite'), os = tx.objectStore(store);
       const rq = mode === 'get' ? os.get(id) : mode === 'put' ? os.put(val, id) : os.delete(id);
       rq.onsuccess = () => ok(mode === 'get' ? rq.result || null : null); rq.onerror = () => ok(null);
     });
   } catch (e) { return null; }
 }
+const handleOp = (mode, id, val) => idbOp('handles', mode, id, val);
+/* סבב 8: טיוטת עורך הכתוביות — שינויים שלא נשמרו שורדים רענון וסגירה (בטלפון בלבד, לפי מזהה העבודה).
+   ev = הגרסה בשרתון שעליה נערך; טיוטה על גרסה ישנה יותר — רק באישור (אחרת הייתה דורסת שמירה מאוחרת) */
+export const DRAFT_MAX = 4 * 1048576;
+export function draftRec(cues, ev, now) {
+  const c = toCuesJson(cues);
+  return c.length > DRAFT_MAX ? null : { v: 1, ev: Math.max(0, Math.floor(Number(ev) || 0)), at: Math.floor(Number(now) || 0), c };
+}
+export function draftUse(d, ev) {   // 'same' | 'old' | '' — מה לעשות בטיוטה שנמצאה
+  if (!d || d.v !== 1 || typeof d.c !== 'string' || d.c.length > DRAFT_MAX) return '';
+  let cues;
+  try { cues = normCues(JSON.parse(d.c)); } catch (e) { return ''; }
+  if (!cues.length) return '';
+  return d.ev === Math.max(0, Math.floor(Number(ev) || 0)) ? 'same' : d.ev < (Number(ev) || 0) ? 'old' : '';
+}
+const draftDel = (id) => idbOp('drafts', 'del', id);
 const canPickHandle = () => typeof window !== 'undefined' && typeof window.showOpenFilePicker === 'function';
 async function pickWithHandle() {
   try {
@@ -1593,8 +1613,9 @@ function rowOut(rec, o) {
   const a = h('a', 'st-outa'); a.href = 'https://drive.google.com/file/d/' + o.id + '/view'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dataset.k = 'out:' + o.k;
   a.append(tile(isTextOut(o.k) ? 'globe' : 'film', isTextOut(o.k) ? 'blue' : 'green'), rowTxt(outShort(o.k), o.size ? fmtSize(o.size) : ''));
   const b = btn('st-outb', null, () => shareOut(rec, o), 'out-sh:' + o.k);
-  b.setAttribute('aria-label', (isTextOut(o.k) ? T('studioOutShare') : T('studioOutDown')) + ' · ' + outShort(o.k));
-  b.append(ico(isTextOut(o.k) ? 'share' : 'down'));
+  const sh = isTextOut(o.k) || o.k === 'small';   // סבב 8: העותק לוואטסאפ — שיתוף, לא הורדה
+  b.setAttribute('aria-label', (sh ? T('studioOutShare') : T('studioOutDown')) + ' · ' + outShort(o.k));
+  b.append(ico(sh ? 'share' : 'down'));
   r.append(a, b);
   return r;
 }
@@ -1603,7 +1624,29 @@ export function outFileName(rec, k) {   // "שם הסרטון.he.srt" — בלי
   const to = (rec && rec.spec && Array.isArray(rec.spec.to) && rec.spec.to[0]) || 'he';
   return base + '.' + (k === 'en' ? 'en' : to) + '.srt';
 }
+/* סבב 8: העותק לוואטסאפ — שיתוף הקובץ עצמו (שליחה בצ'אט בלי הורדה ידנית). נגיעה ראשונה מורידה (עד ~28MB); אם אישור
+   הנגיעה פג בזמן ההורדה — הקובץ שמור, והנגיעה הבאה משתפת מיד */
+const shareReady = new Map();
+export const shareVideoName = (rec) => outFileName(rec, 'srt').replace(/\.[a-z]{2}\.srt$/, '') + '.mp4';
+async function shareSmall(rec, o) {
+  let f = shareReady.get(o.id);
+  if (!f) {
+    flashSafe(T('studioShPrep'));
+    try { f = new File([await net.driveBlob(o.id, 64 * 1048576)], shareVideoName(rec), { type: 'video/mp4' }); } catch (e) { flashSafe(T('studioOutErr')); return; }
+    shareReady.clear(); shareReady.set(o.id, f);
+  }
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: f.name }); return; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    if (e && e.name === 'NotAllowedError') { flashSafe(T('studioShAgain')); return; }   // ההורדה לקחה יותר מדי — הנגיעה הבאה
+  }
+  const u = URL.createObjectURL(f), x = document.createElement('a');
+  x.href = u; x.download = f.name; document.body.append(x); x.click(); x.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 5000);
+}
 async function shareOut(rec, o) {
+  if (o.k === 'small') return shareSmall(rec, o);
   if (!isTextOut(o.k)) { window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
   let txt;
   try { txt = await net.driveText(o.id); } catch (e) { flashSafe(T('studioOutErr')); return; }
@@ -1744,7 +1787,7 @@ function modePicker(cur, onPick) {
 }
 /* מה לקבל — שלוש אפשרויות + SRT קבוע. ההערכה לפי גודל הקובץ (כשיש) */
 function outRows(out, size, onToggle) {
-  const est = size ? { same: approx(fmtSize(size)), compact: approx(fmtSize(size * COMPACT_RATIO)), mkv: approx(fmtSize(size)) } : {};
+  const est = size ? { same: approx(fmtSize(size)), compact: approx(fmtSize(size * COMPACT_RATIO)), mkv: approx(fmtSize(size)), small: approx(fmtSize(SMALL_MB * 1048576)) } : {};
   const rows = OUTS.map((k) => rowCheck({ label: outName(k), sub: outSub(k), value: est[k], on: !!out[k], onClick: () => onToggle(k), k: 'o:' + k }));
   rows.push(rowCheck({ label: outName('srt'), sub: outSub('srt'), on: true, locked: true }));
   return list(...rows);
@@ -4165,6 +4208,14 @@ const RR_STYLES = ['bold', 'classic'];     // מה שהצריבה של vt יוד
 let rrJobs = new Map();                    // העבודה המקורית → ההפקה מחדש האחרונה (מ־op:'jobs'; לא ברשימה הראשית)
 let se = null;                             // { id, st, ed, ctl, saved, saving, err, upT, saveB }
 const seDirty = () => !!(se && se.ed && se.ed.ver() !== se.saved);
+function seDraftSoon(me, rec) {   // סבב 8: שנייה וחצי אחרי העריכה האחרונה — לא בכל הקשה
+  clearTimeout(me.drT);
+  me.drT = setTimeout(() => {
+    if (se !== me || !me.ed) return;
+    const r = me.ed.ver() !== me.saved ? draftRec(me.ed.cues(), rec.srv.ev, Date.now()) : null;
+    if (r) idbOp('drafts', 'put', rec.id, r); else draftDel(rec.id);
+  }, 1500);
+}
 function seStop() { if (se && se.tl) { se.tl.destroy(); se.tl = null; } if (se && se.ctl) { se.ctl.destroy(); se.ctl = null; } }   // יציאה מהדף: הנגן נעצר, העריכה נשמרת בזיכרון
 async function seLoad(rec) {
   const me = se;
@@ -4182,8 +4233,15 @@ async function seLoad(rec) {
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
-      onChange: () => { seSavePaint(); if (me.tl) me.tl.draw(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); } });
+      onChange: () => { seSavePaint(); if (me.tl) me.tl.draw(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); seDraftSoon(me, rec); } });
     me.saved = me.ed.ver(); me.st = 'ok';
+    // סבב 8: טיוטה שנשארה מהפעם הקודמת (רענון / האפליקציה נסגרה) — חוזרת כצעד ביטול אחד ("ביטול" = הגרסה השמורה)
+    const d = await idbOp('drafts', 'get', rec.id), use = draftUse(d, rec.srv.ev);
+    if (se === me && use) {
+      const back = () => { me.ed.applyCues(normCues(JSON.parse(d.c))); flashSafe(T('studioSeDraftBack')); };
+      if (use === 'same') back();
+      else if (typeof askConfirm === 'function') askConfirm(T('studioSeDraftOld', { t: fmtClock(d.at) }), back, { ok: T('studioSeDraftUse'), danger: true, onNo: () => draftDel(rec.id) });
+    } else if (d && !use) draftDel(rec.id);
   } catch (e) {
     if (se !== me) return;
     me.st = 'err'; me.err = (e && e.code) || 'drive';
@@ -4210,7 +4268,7 @@ async function seSave(then) {
     const j = await net.api('cuesSave', { job: rec.id, c, s: s2, ev: rec.srv.ev || 0 });
     if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
     if (!j.ok) flashSafe(j.error === 'stale' ? T('studioSeStale') : errText(j.error));
-    else { me.saved = ver; save(); flashSafe(T('studioSeSaved')); if (then) then(); }
+    else { me.saved = ver; clearTimeout(me.drT); draftDel(rec.id); save(); flashSafe(T('studioSeSaved')); if (then) then(); }
   } catch (e) {
     flashSafe(errText((e && e.code) || 'drive'));
   } finally {
@@ -4222,7 +4280,7 @@ function seRestore(rec, i) {
     const j = await net.api('cuesRestore', { job: rec.id, i, ev: rec.srv.ev || 0 });
     if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
     if (!j.ok) { flashSafe(j.error === 'stale' ? T('studioSeStale') : j.error === 'file_missing' ? T('studioSeVerGone') : errText(j.error)); repaint(); return; }
-    save(); seStop(); se = null; flashSafe(T('studioSeRestored')); render('none');   // העורך נטען מחדש מהגרסה ששוחזרה
+    draftDel(rec.id); save(); seStop(); se = null; flashSafe(T('studioSeRestored')); render('none');   // העורך נטען מחדש מהגרסה ששוחזרה
   };
   if (typeof askConfirm === 'function') askConfirm(seDirty() ? T('studioSeRestoreQDirty') : T('studioSeRestoreQ'), doIt, { ok: T('studioSeRestore'), danger: seDirty() }); else doIt();
 }
@@ -4264,7 +4322,7 @@ function pageSubs(p) {
   const ex = h('details', 'st-details');
   const dl = (ext, mime, txt) => {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([txt], { type: mime + ';charset=utf-8' }));
+    a.href = URL.createObjectURL(new Blob([txt], { type: typeof txt === 'string' ? mime + ';charset=utf-8' : mime }));
     a.download = (fileTitle(rec.spec.name) || 'subs').slice(0, 80) + '.he.' + ext;
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -4273,7 +4331,8 @@ function pageSubs(p) {
   ex.append(h('summary', null, T('studioExT')), list(
     rowNav({ label: 'SRT', sub: T('studioExSrt'), onClick: () => dl('srt', 'application/x-subrip', toSrt(se.ed.cues())), k: 'ex-srt' }),
     rowNav({ label: 'WebVTT', sub: T('studioExVtt'), onClick: () => dl('vtt', 'text/vtt', toVtt(se.ed.cues())), k: 'ex-vtt' }),
-    rowNav({ label: 'TTML', sub: T('studioExTtml'), onClick: () => dl('ttml', 'application/ttml+xml', toTtml(se.ed.cues(), ttl)), k: 'ex-ttml' })));
+    rowNav({ label: 'TTML', sub: T('studioExTtml'), onClick: () => dl('ttml', 'application/ttml+xml', toTtml(se.ed.cues(), ttl)), k: 'ex-ttml' }),
+    rowNav({ label: 'EBU STL', sub: T('studioExStl'), onClick: () => dl('stl', 'application/octet-stream', toStl(se.ed.cues(), ttl, Date.now())), k: 'ex-stl' })));   // סבב 8: לשידור
   p.append(ex);
   const vh = rec.srv.vh || [];
   if (vh.length) {
@@ -4996,7 +5055,7 @@ function pageJob(p) {
         if (!fin) await net.api('cancel', { job: id });
         const j = await net.api('remove', { job: id });
         if (!j.ok && j.error !== 'no_job') { flashSafe(errText(j.error)); return; }
-        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); save();
+        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); save();
         flashSafe(T('studioJobDeleted')); back();
       } else {
         const j = await net.api('cancel', { job: id });
