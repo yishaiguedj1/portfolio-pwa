@@ -20,7 +20,7 @@ const ERR_INFO = {
   routine_paused: ['routine', 1], routine_rate: ['routine', 3], routine_down: ['routine', 2], routine_net: ['routine', 2], routine_bad: ['routine', 2],
   no_server: ['server', 2], job_timeout: ['server', 2], month_cap: ['server', 3], worker_unknown_kind: ['server', 3],
   worker_oom: ['server', 2], worker_crash: ['server', 2],
-  tower_stop: ['claude', 2], budget_stop: ['claude', 3], worker_step: ['claude', 2], stale: ['claude', 2], worker: ['claude', 2],
+  tower_stop: ['claude', 2], budget_stop: ['claude', 3], worker_step: ['claude', 2], store_fail: ['drive', 2], store_net: ['drive', 3], stale: ['claude', 2], worker: ['claude', 2],
   lang_unsupported: ['claude', 4], upload_timeout: ['phone', 3], net: ['drive', 3], drive: ['drive', 3], drive_net: ['drive', 3],
   // מצב API (llm.py / pipeline.py): מפתח שנדחה / מודל שלא קיים = שום עבודת API לא תעבוד עד שמתקנים → P1
   api_auth: ['claude', 1], api_model: ['claude', 1], api_rate: ['claude', 3], api_network: ['claude', 3], api_timeout: ['claude', 3],
@@ -58,7 +58,7 @@ function jobFacts(job, eff, stale) {
    self   — אין שום רמז אחר: הקוד עצמו                              25
    11/10/2026: בתקלת max_tokens השורש היה "אחרי שינוי בסביבה · 100%" — נכון טכנית (הייתה פריסה), אבל מטעה:
    כשקוד השגיאה עצמו אומר מה קרה, הוא קודם לשינוי סביבה. */
-const CODE_SELF = ['max_tokens', 'model_refusal', 'check_errors', 'api_bad_request', 'budget_cap', 'budget_stop', 'tower_stop',
+const CODE_SELF = ['store_fail', 'max_tokens', 'model_refusal', 'check_errors', 'api_bad_request', 'budget_cap', 'budget_stop', 'tower_stop',
   'api_auth', 'api_model', 'month_cap', 'lang_unsupported', 'upload_timeout', 'worker_oom'];
 function rootCauses(inc, f, al, others, prevEv, fb) {
   const out = [];

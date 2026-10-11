@@ -940,6 +940,8 @@ function errText(code, extra) {
     case 'model_refusal': return T('studioErrRefusal');
     case 'check_errors': return T('studioErrChecks');
     case 'max_tokens': return T('studioErrMaxTok');   // 11/10/2026
+    case 'store_net': return T('studioErrStoreNet');   // 11/10/2026: האחסון (R2 / Drive) — ניתוק / חסימה
+    case 'store_fail': return T('studioErrStoreFail');
     case 'cp_timeout': case 'cp_empty': return T('studioErrCp');   // סבב 10: העתק־הדבק — לא הודבקה תשובה
     default: return T('studioErrGeneric', { c: String(code || '?').slice(0, 30) });
   }
@@ -1703,7 +1705,15 @@ function workerMsg(rec, ph) {
   const m = rec && rec.srv && rec.srv.prog && rec.srv.prog.msg;
   return (ph === 'failed' || ph === 'stuck' || ph === 'cancelled') && typeof m === 'string' && m.trim() ? m.trim().slice(0, 240) : '';
 }
+/* 11/10/2026: כשל כללי של שלב בכלים (worker_step / store_*) — הכרטיס מציג את מה שהעובד כתב ("ההעלאה לאחסון נכשלה (r2_size)")
+   ולא "משהו השתבש (worker_step)"; אז השורה בפרטים הטכניים מיותרת (בלי כפילות) */
+const MSG_CODES = ['worker_step', 'worker', 'store_fail', 'store_net'];
+function cardMsg(rec, ph) {
+  const m = workerMsg(rec, ph);
+  return m && MSG_CODES.includes(rec.srv && rec.srv.err) ? m.replace(/^[\s\u2717\u00b7]+/, '') : '';
+}
 function workerMsgRow(rec, ph) {
+  if (cardMsg(rec, ph)) return null;
   const m = workerMsg(rec, ph);
   if (!m) return null;
   const v = h('span'); v.dir = 'auto'; v.textContent = m;
@@ -1920,7 +1930,7 @@ function nowLine(rec, run, ph) {
   if (ph === 'queued') return rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
-  if (ph === 'failed') return recovering(rec) ? T('studioRecLine') : errText(rec.srv && rec.srv.err);
+  if (ph === 'failed') return recovering(rec) ? T('studioRecLine') : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
   if (ph === 'stuck') return T('studioNowStuck');
   return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
 }
@@ -2823,7 +2833,8 @@ function incTitle(e) {
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioIncApiKey');
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');
-    case 'net': case 'drive': case 'drive_net': return T('studioIncNet');
+    case 'net': case 'drive': case 'drive_net': case 'store_net': return T('studioIncNet');
+    case 'store_fail': return T('studioErrStoreFail');   // 11/10/2026
     case 'upload_timeout': return T('studioIncUpload');
     case 'lang_unsupported': return T('studioIncLang');
     case 'max_tokens': return T('studioIncMaxTok');

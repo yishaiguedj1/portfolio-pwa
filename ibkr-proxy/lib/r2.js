@@ -82,13 +82,14 @@ async function locate(c, deps = {}) {
 }
 
 /* בקשה חתומה מהשרתון ל־R2 (גוף קטן בלבד — XML של הפעולות) */
-async function raw(c, deps, { method, key, query = {}, body = '', headers = {}, j }) {
+async function raw(c, deps, { method, key, query = {}, body = '', headers = {}, unsigned = {}, j }) {
   const host = hostOf(c, j === undefined ? await locate(c, deps) : j);
   const path = '/' + c.bucket + (key ? '/' + key : '');
   const s = sign({ method, host, path, query, headers, payload: sha256(body), accessKey: c.key, secret: c.secret,
     now: (deps.now || Date.now)() });
   const qs = canonQuery(query);
-  const hd = Object.assign({}, headers, { 'x-amz-date': s.t, 'x-amz-content-sha256': sha256(body), Authorization: s.auth });
+  // unsigned — כותרת שלא נכנסת לחתימה (Cloudflare רשאי לנרמל אותה בדרך; חתימה עליה הייתה נשברת)
+  const hd = Object.assign({}, unsigned, headers, { 'x-amz-date': s.t, 'x-amz-content-sha256': sha256(body), Authorization: s.auth });
   return (deps.fetch || fetch)('https://' + host + enc(path, true) + (qs ? '?' + qs : ''),
     { method, headers: hd, body: body || undefined, redirect: 'manual' });
 }
@@ -126,12 +127,21 @@ function partSize(size, want = PART_MIN) {
 }
 const partsOf = (size, ps) => Math.max(1, Math.ceil(size / ps));
 
+/* 11/10/2026 (r2_size — העבודה נכשלה בשמירת קבצי הטקסט): fetch של Node מבקש gzip, ובסוג "דחיס" (JSON, טקסט) Cloudflare
+   מחזיר Content-Encoding בלי Content-Length — הגודל נקרא 0 וכל העלאה של קובץ טקסט "לא שלמה". מבקשים identity (לא חתום),
+   ואם בכל זאת אין אורך — הגודל מרשימת הדלי (Size שם הוא הגודל השמור, בלי קשר לדחיסה) */
 async function head(c, deps, key) {
   if (!okKey(key)) throw new Error('bad_key');
-  const r = await raw(c, deps, { method: 'HEAD', key });
+  const r = await raw(c, deps, { method: 'HEAD', key, unsigned: { 'accept-encoding': 'identity' } });
   if (r.status === 404) return null;
   if (r.status !== 200) await fail(r, 'head');
-  return { size: Number(r.headers.get('content-length') || 0), etag: String(r.headers.get('etag') || '').replace(/"/g, ''), type: String(r.headers.get('content-type') || '').slice(0, 80),
+  const cl = r.headers.get('content-length');
+  let size = Number(cl);
+  if (cl == null || !(size >= 0) || r.headers.get('content-encoding')) {
+    const it = (await list(c, deps, key, 1000)).find((x) => x.key === key);
+    size = it ? it.size : 0;
+  }
+  return { size, etag: String(r.headers.get('etag') || '').replace(/"/g, ''), type: String(r.headers.get('content-type') || '').slice(0, 80),
     v: String(r.headers.get('x-amz-meta-v') || '').slice(0, 20) };
 }
 /* מנהל הספרייה (ס׳1): כתיבה מותנית — ifMatch = ה־ETag שקראנו (אף אחד לא כתב בינתיים), ifNoneMatch '*' = רק אם לא קיים.
