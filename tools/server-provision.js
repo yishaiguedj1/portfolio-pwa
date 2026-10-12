@@ -156,13 +156,25 @@ function failErrs(errs) {
    או להחלפת ערך. גובר על Vercel. */
 function parseExtra(raw) {
   const out = {};
-  for (const ln of String(raw || '').split(/\r?\n/)) {
-    const s = ln.trim();
+  const lines = String(raw || '').split(/\r?\n/);
+  for (let n = 0; n < lines.length; n++) {
+    const s = lines[n].trim();
     if (!s || s.startsWith('#')) continue;
     const i = s.indexOf('=');
     const k = i > 0 ? s.slice(0, i).trim() : '';
     if (!ENV_KEY_RE.test(k)) fail('extra_bad', 'שורה ב־PROD_APP_EXTRA בלי שם תקין (צפוי: שם=ערך, שם באותיות גדולות)');
-    out[k] = s.slice(i + 1);
+    let v = s.slice(i + 1).trim();
+    /* JSON שהודבק כמו שהוא (קובץ חשבון שירות — כמה שורות): מצרפים שורות עד שהוא נסגר, ושומרים בשורה אחת */
+    if (v.startsWith('{')) {
+      let m = n, j = null;
+      for (;;) {
+        try { j = JSON.parse(v); break; } catch (x) { /* עוד לא נסגר */ }
+        if (++m >= lines.length) break;
+        v += '\n' + lines[m];
+      }
+      if (j) { v = JSON.stringify(j); n = m; } else v = s.slice(i + 1).trim();
+    }
+    out[k] = v;
   }
   return out;
 }
@@ -238,9 +250,15 @@ const VAULT_PROBES = [
   { col: 'studioDrive', field: 'r', aad: (u) => 'sdrive|' + u + '|r' },
   { col: 'ibkrVault', field: 'c', aad: (u) => u + '|c' },
 ];
-async function saVerified(e, vars, deps) {
+async function saVerified(e, vars, deps, cand) {
   const env = ENVS.prod;
-  const raw = Buffer.from(JSON.stringify(saOf(e[env.saVar], env.project))).toString('base64');
+  /* cand = GDRIVE_SA_KEY מ־PROD_APP_EXTRA: נבדק באותה דרך — קובץ לא נכון לא עובר בשקט. בלי cand — PROD_FIREBASE_SA */
+  let csa = null;
+  if (cand != null) {
+    try { const t = String(cand).trim(); csa = JSON.parse(t.startsWith('{') ? t : Buffer.from(t, 'base64').toString('utf8')); } catch (x) { /* למטה */ }
+    if (!csa || csa.type !== 'service_account' || !csa.client_email || !csa.private_key) fail('extra_sa_bad', 'GDRIVE_SA_KEY ב־PROD_APP_EXTRA הוא לא מפתח של חשבון שירות (צפוי JSON עם "type": "service_account")');
+  }
+  const raw = Buffer.from(JSON.stringify(csa || saOf(e[env.saVar], env.project))).toString('base64');
   const tok = await fsToken(e, env, deps);
   const sealed = [];
   for (const col of [...new Set(VAULT_PROBES.map((p) => p.col))]) {
@@ -257,28 +275,39 @@ async function saVerified(e, vars, deps) {
       }
     }
   }
+  if (!sealed.length && csa) return raw;   // אין מה לפתוח — אין מה לשבור
   if (!sealed.length) fail('sa_unverified', 'GDRIVE_SA_KEY מסומן Sensitive ב־Vercel, ואין בכספת של הייצור רשומה לבדוק מולה את PROD_FIREBASE_SA — להוסיף את GDRIVE_SA_KEY ל־PROD_APP_EXTRA');
   const extra = parseExtra(e.PROD_APP_EXTRA);
   const ev = vars.find((x) => x.key === 'IBKR_VAULT_KEY');
   const evk = 'IBKR_VAULT_KEY' in extra ? extra.IBKR_VAULT_KEY : (ev && ev.value) || '';
   if (!evk && sealed.every((x) => x.v.split('.')[1] === 'e')) fail('vault_key_missing', 'הכספת מוצפנת ב־IBKR_VAULT_KEY, והוא מסומן Sensitive ב־Vercel — להוסיף אותו ל־PROD_APP_EXTRA');
-  const prev = process.env.IBKR_VAULT_KEY;
+  const prev = process.env.IBKR_VAULT_KEY, prevSa = process.env.GDRIVE_SA_KEY;
   process.env.IBKR_VAULT_KEY = evk;
+  process.env.GDRIVE_SA_KEY = raw;
   let opened = false;
   try {
     const V = require(path.join(ROOT, 'ibkr-proxy/lib/vault.js'));
     opened = sealed.some((x) => V.open(x.v, x.aad) != null);
-  } finally { if (prev === undefined) delete process.env.IBKR_VAULT_KEY; else process.env.IBKR_VAULT_KEY = prev; }
+  } finally {
+    if (prev === undefined) delete process.env.IBKR_VAULT_KEY; else process.env.IBKR_VAULT_KEY = prev;
+    if (prevSa === undefined) delete process.env.GDRIVE_SA_KEY; else process.env.GDRIVE_SA_KEY = prevSa;
+  }
+  if (!opened && csa) fail('extra_sa_mismatch', 'GDRIVE_SA_KEY ב־PROD_APP_EXTRA לא פותח את הכספת — זה לא המפתח שב־Vercel');
   if (!opened) fail('sa_mismatch', 'PROD_FIREBASE_SA הוא לא אותו מפתח שב־Vercel (הכספת לא נפתחת בו) — להוסיף ל־PROD_APP_EXTRA את GDRIVE_SA_KEY המקורי, JSON בשורה אחת או base64');
   return raw;
 }
 
-/* המשתנים של השרתון — Vercel, עם חשבון השירות מ־GitHub כשהוא Sensitive ואומת (saVerified). sa = 'g' כשבא מ־GitHub */
+/* המשתנים של השרתון — Vercel, עם חשבון השירות מ־GitHub כשהוא Sensitive ואומת (saVerified).
+   sa = 'g' מ־PROD_FIREBASE_SA, ‏'x' מ־PROD_APP_EXTRA (גם הוא אומת מול הכספת), 'v' מ־Vercel */
 async function appEnv(e, deps) {
   const vars = await vercelEnv(e, deps);
   const x = vars.find((v) => v.key === 'GDRIVE_SA_KEY');
+  const extra = parseExtra(e.PROD_APP_EXTRA);
   let sa = 'v';
-  if (x && x.value == null && !('GDRIVE_SA_KEY' in parseExtra(e.PROD_APP_EXTRA))) { x.value = await saVerified(e, vars, deps); sa = 'g'; }
+  if (x && x.value == null) {
+    if ('GDRIVE_SA_KEY' in extra) { await saVerified(e, vars, deps, extra.GDRIVE_SA_KEY); sa = 'x'; }
+    else { x.value = await saVerified(e, vars, deps); sa = 'g'; }
+  }
   return Object.assign(appEnvLine(vars, e.PROD_APP_EXTRA, ENVS.prod.project), { sa });
 }
 
