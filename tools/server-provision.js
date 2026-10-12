@@ -227,6 +227,41 @@ function appEnvLine(vars, extraRaw, project) {
   return { line: 'SNB_ENV_GZ=' + b64, keys: Object.keys(obj).sort(), vault: obj.IBKR_VAULT_KEY ? 'e' : 's' };
 }
 
+/* GDRIVE_SA_KEY מסומן Sensitive ב־Vercel (אי אפשר לקרוא אותו) — במקומו PROD_FIREBASE_SA, אבל רק אחרי הוכחה שזה
+   אותו מפתח בדיוק: רשומת ה־VAPID של הייצור (studioVault/_vapid, AAD webpush|vapid — api/studio.js) נפתחת במפתח
+   הכספת שנגזר ממנו. מפתח אחר של אותו חשבון שירות היה עובר מול Firestore, אבל כל מה שכבר מוצפן (IBKR, ה־Routine,
+   Drive) לא היה נפתח בשרת. רק תשובה ודאית — בלי רשומה / בלי מפתח = עצירה עם הסבר. */
+const VAPID_DOC = 'studioVault/_vapid', VAPID_AAD = 'webpush|vapid';
+async function saVerified(e, vars, deps) {
+  const env = ENVS.prod;
+  const raw = Buffer.from(JSON.stringify(saOf(e[env.saVar], env.project))).toString('base64');
+  const tok = await fsToken(e, env, deps);
+  const r = await deps.fetch(fsBase(env.project) + '/' + VAPID_DOC, { headers: { Authorization: 'Bearer ' + tok } });
+  let vk = '';
+  if (r.status === 200) { try { vk = String((((await r.json()).fields || {}).vk || {}).stringValue || ''); } catch (x) { /* ריק */ } }
+  if (!vk) fail('sa_unverified', 'GDRIVE_SA_KEY מסומן Sensitive ב־Vercel, ואין רשומת כספת לבדוק מולה את PROD_FIREBASE_SA (' + r.status + ') — להוסיף את GDRIVE_SA_KEY ל־PROD_APP_EXTRA');
+  const extra = parseExtra(e.PROD_APP_EXTRA);
+  const ev = vars.find((x) => x.key === 'IBKR_VAULT_KEY');
+  const evk = 'IBKR_VAULT_KEY' in extra ? extra.IBKR_VAULT_KEY : (ev && ev.value) || '';
+  if (vk.split('.')[1] === 'e' && !evk) fail('vault_key_missing', 'הכספת מוצפנת ב־IBKR_VAULT_KEY, והוא מסומן Sensitive ב־Vercel — להוסיף אותו ל־PROD_APP_EXTRA');
+  const prev = process.env.IBKR_VAULT_KEY;
+  process.env.IBKR_VAULT_KEY = evk;
+  let opened;
+  try { opened = require(path.join(ROOT, 'ibkr-proxy/lib/vault.js')).open(vk, VAPID_AAD); }
+  finally { if (prev === undefined) delete process.env.IBKR_VAULT_KEY; else process.env.IBKR_VAULT_KEY = prev; }
+  if (!opened) fail('sa_mismatch', 'PROD_FIREBASE_SA הוא לא אותו מפתח שב־Vercel (הכספת לא נפתחת בו) — להוסיף ל־PROD_APP_EXTRA את GDRIVE_SA_KEY המקורי, JSON בשורה אחת או base64');
+  return raw;
+}
+
+/* המשתנים של השרתון — Vercel, עם חשבון השירות מ־GitHub כשהוא Sensitive ואומת (saVerified). sa = 'g' כשבא מ־GitHub */
+async function appEnv(e, deps) {
+  const vars = await vercelEnv(e, deps);
+  const x = vars.find((v) => v.key === 'GDRIVE_SA_KEY');
+  let sa = 'v';
+  if (x && x.value == null && !('GDRIVE_SA_KEY' in parseExtra(e.PROD_APP_EXTRA))) { x.value = await saVerified(e, vars, deps); sa = 'g'; }
+  return Object.assign(appEnvLine(vars, e.PROD_APP_EXTRA, ENVS.prod.project), { sa });
+}
+
 /* החדרים של הייצור: העובד (worker.env) — אותו מבנה שהאפליקציה כותבת ב"הוספת שרת" (cloudInitWithSecrets);
    ומ־ת3, כשיש appLine: השרתון (app.env) וה־Tunnel שלו (tunnel-prod.env) */
 function prodFiles(e, token, errs, appLine) {
@@ -396,12 +431,12 @@ async function main(argv, e, deps) {
     const rd = (f) => (f && fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim() : '');
     /* ת3: בתוכנית עם הייצור — גם השרתון של הייצור, מהמשתנים של Vercel */
     let app = null;
-    if (PLANS[plan].envs.includes('prod')) app = appEnvLine(await vercelEnv(e, deps), e.PROD_APP_EXTRA, ENVS.prod.project);
+    if (PLANS[plan].envs.includes('prod')) app = await appEnv(e, deps);
     const out = cloudInit(fs.readFileSync(path.join(ROOT, 'infra/cloud-init.yaml'), 'utf8'),
       planFiles(plan, e, { stg: rd(a.token), prod: rd(a['token-prod']) }, app && app.line));
     fs.writeFileSync(a.out, out, { mode: 0o600 });
     /* רק שמות — בלי ערכים. vault: e = IBKR_VAULT_KEY, s = נגזר מחשבון השירות */
-    return 'bytes=' + Buffer.byteLength(out) + (app ? '\nvercel=' + app.keys.length + ' משתנים (' + app.keys.join(' ') + ') · vault=' + app.vault : '');
+    return 'bytes=' + Buffer.byteLength(out) + (app ? '\nvercel=' + app.keys.length + ' משתנים (' + app.keys.join(' ') + ') · vault=' + app.vault + ' · sa=' + app.sa : '');
   }
   if (cmd === 'create') {
     const r = await create(e, { name, type: String(a.type || '') || PLANS[plan].type, location: String(a.location || ''), plan },
@@ -426,4 +461,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, parseExtra, hc, NAME_RE, TYPE_RE, LOC_RE, register, unregister, create, waitUp, main, MARK };
+module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, appEnv, saVerified, parseExtra, hc, NAME_RE, TYPE_RE, LOC_RE, register, unregister, create, waitUp, main, MARK };

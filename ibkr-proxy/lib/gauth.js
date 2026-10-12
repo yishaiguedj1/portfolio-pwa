@@ -61,12 +61,14 @@ function serviceAccount() {
   } catch (e) { return null; }
 }
 
-const toks = {};   // scope → { v, exp }
+const toks = {};   // scope|חשבון השירות → { v, exp }. גם לפי החשבון: תהליך אחד שעובר בין חשבונות (הקמת שרת — ניסוי ואז ייצור)
+                   // קיבל לפני כן את הטוקן של החשבון הקודם
 async function saToken(scope, fetchImpl) {
   const now = Math.floor(Date.now() / 1000);
-  const t = toks[scope];
-  if (t && t.v && t.exp - 60 > now) return t.v;
   const sa = serviceAccount();
+  const key = scope + '|' + (sa ? sa.client_email : '');
+  const t = toks[key];
+  if (t && t.v && t.exp - 60 > now) return t.v;
   if (!sa) throw new Error('not_configured');
   const aud = sa.token_uri || 'https://oauth2.googleapis.com/token';
   const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
@@ -78,7 +80,7 @@ async function saToken(scope, fetchImpl) {
   });
   if (r.status !== 200) throw new Error('sa_http_' + r.status);
   const j = await r.json();
-  toks[scope] = { v: j.access_token, exp: now + (j.expires_in || 3600) };
+  toks[key] = { v: j.access_token, exp: now + (j.expires_in || 3600) };
   return j.access_token;
 }
 const driveToken = (f) => saToken('https://www.googleapis.com/auth/drive.readonly', f);

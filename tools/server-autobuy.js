@@ -65,11 +65,11 @@ const total = (p, l) => (p.loc[l] ? Math.round((p.loc[l].server + p.loc[l].ipv4)
 
 /* כל הסודות קיימים ותקינים — אותה בדיקה של ההקמה, עם טוקנים מדומים. שמות בלבד, בלי ערכים */
 async function checkSecrets(e, deps) {
-  const app = P.appEnvLine(await P.vercelEnv(e, deps), e.PROD_APP_EXTRA, P.ENVS.prod.project);
+  const app = await P.appEnv(e, deps);
   const fake = 'aaaaaaaaaaaa-' + 'A'.repeat(43);
   P.planFiles(AUTOBUY.plan, e, { stg: fake, prod: fake }, app.line);
   if (!/^[A-Za-z0-9]{20,100}$/.test(String(e.HCLOUD_TOKEN || ''))) fail('hcloud_token', 'חסר HCLOUD_TOKEN');
-  return app.keys.length;
+  return app.keys.length + (app.sa === 'g' ? ' · חשבון השירות מ־PROD_FIREBASE_SA, אומת מול הכספת' : '');
 }
 
 async function exists(e, deps, name) {
@@ -90,7 +90,7 @@ async function buyAt(e, deps, loc) {
   let prod = null;
   try {
     prod = await P.register(e, P.ENVS.prod, AUTOBUY.name, deps);
-    const app = P.appEnvLine(await P.vercelEnv(e, deps), e.PROD_APP_EXTRA, P.ENVS.prod.project);
+    const app = await P.appEnv(e, deps);
     const ud = P.cloudInit(tpl, P.planFiles(AUTOBUY.plan, e, { stg: stg.token, prod: prod.token }, app.line));
     const r = await P.create(e, { name: AUTOBUY.name, type: AUTOBUY.type, location: loc, plan: AUTOBUY.plan }, ud, deps);
     return { server: r.id, location: loc, sid: stg.sid, sidp: prod.sid };

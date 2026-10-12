@@ -276,6 +276,63 @@ function mock(opts = {}) {
     ok(await throwsCode(() => P.vercelEnv(Object.assign({}, E, { VERCEL_TOKEN: 'v'.repeat(24) }), mock({ vercel: { envs, hidden: 2 } }).deps), 'vercel_hidden'),
       'Vercel: משתני ייצור מוסתרים מהטוקן — עצירה (לא שרתון חסר)');
 
+    // GDRIVE_SA_KEY מסומן Sensitive — PROD_FIREBASE_SA נכנס במקומו רק אם הכספת של הייצור נפתחת בו
+    {
+      const VT = require('../ibkr-proxy/lib/vault.js');
+      const sealWith = (saJson, ek) => {
+        const p0 = process.env.GDRIVE_SA_KEY, p1 = process.env.IBKR_VAULT_KEY;
+        process.env.GDRIVE_SA_KEY = saJson; if (ek) process.env.IBKR_VAULT_KEY = ek; else delete process.env.IBKR_VAULT_KEY;
+        const s = VT.seal({ pub: 'P', d: 'D' }, 'webpush|vapid');
+        if (p0 === undefined) delete process.env.GDRIVE_SA_KEY; else process.env.GDRIVE_SA_KEY = p0;
+        if (p1 === undefined) delete process.env.IBKR_VAULT_KEY; else process.env.IBKR_VAULT_KEY = p1;
+        return s;
+      };
+      const sensEnvs = [
+        { id: 'env_1', key: 'GDRIVE_SA_KEY', value: '', type: 'sensitive', target: ['production'] },
+        { id: 'env_2', key: 'LIBRARY_READERS', value: 'a@x.com', type: 'encrypted', target: ['production'], decrypted: true },
+      ];
+      const EV = Object.assign({}, E, { VERCEL_TOKEN: 'v'.repeat(24) });
+      const Mv = mock({ vercel: { envs: sensEnvs } });
+      Mv.docs['studioVault/_vapid'] = { vk: { stringValue: sealWith(E.PROD_FIREBASE_SA) } };
+      const av = await P.appEnv(EV, Mv.deps);
+      const bv = JSON.parse(zlib.gunzipSync(Buffer.from(av.line.slice('SNB_ENV_GZ='.length), 'base64')).toString());
+      const saBack = JSON.parse(Buffer.from(bv.GDRIVE_SA_KEY, 'base64').toString());
+      ok(av.sa === 'g' && saBack.private_key === pem && saBack.project_id === 'yishaiguedj1-c786e' && bv.LIBRARY_READERS === 'a@x.com',
+        'חשבון השירות Sensitive: PROD_FIREBASE_SA נכנס אחרי שהכספת נפתחה בו');
+      const { privateKey: other } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+      const otherSa = JSON.stringify(Object.assign(JSON.parse(E.PROD_FIREBASE_SA), { private_key: other.export({ type: 'pkcs8', format: 'pem' }) }));
+      const Mm = mock({ vercel: { envs: sensEnvs } });
+      Mm.docs['studioVault/_vapid'] = { vk: { stringValue: sealWith(otherSa) } };
+      let mm = '';
+      try { await P.appEnv(EV, Mm.deps); } catch (x) { mm = x.code + ' ' + x.message; }
+      ok(mm.startsWith('sa_mismatch') && !mm.includes('BEGIN'), 'מפתח אחר של אותו חשבון (הכספת לא נפתחת) — עצירה, בלי ערכים בהודעה');
+      ok(await throwsCode(() => P.appEnv(EV, mock({ vercel: { envs: sensEnvs } }).deps), 'sa_unverified'), 'בלי רשומת כספת לבדיקה — עצירה (לא מנחשים)');
+      const ek = crypto.randomBytes(32).toString('base64');
+      const Me = mock({ vercel: { envs: sensEnvs } });
+      Me.docs['studioVault/_vapid'] = { vk: { stringValue: sealWith(E.PROD_FIREBASE_SA, ek) } };
+      ok(await throwsCode(() => P.appEnv(EV, Me.deps), 'vault_key_missing'), 'כספת ב־IBKR_VAULT_KEY שמסומן Sensitive — עצירה עם השם');
+      const ae = await P.appEnv(Object.assign({}, EV, { PROD_APP_EXTRA: 'IBKR_VAULT_KEY=' + ek }), Me.deps);
+      ok(ae.sa === 'g' && ae.vault === 'e', 'כספת ב־IBKR_VAULT_KEY מ־PROD_APP_EXTRA — נפתחת, וחשבון השירות מ־GitHub');
+      ok(process.env.IBKR_VAULT_KEY === undefined, 'הבדיקה לא משאירה את מפתח הכספת בסביבה');
+      const Mx = mock({ vercel: { envs: sensEnvs } });
+      const ax = await P.appEnv(Object.assign({}, EV, { PROD_APP_EXTRA: 'GDRIVE_SA_KEY=' + Buffer.from(E.PROD_FIREBASE_SA).toString('base64') }), Mx.deps);
+      ok(ax.sa === 'v' && !Mx.calls.some((x) => x.url.includes('_vapid')), 'GDRIVE_SA_KEY ב־PROD_APP_EXTRA — בלי בדיקת כספת');
+    }
+
+    // טוקני Google במטמון לפי חשבון השירות — תהליך אחד שרושם בניסוי ואז בייצור (ההזמנה האוטומטית)
+    {
+      const G = require('../ibkr-proxy/lib/gauth.js');
+      G._reset();
+      let k = 0;
+      const f = async () => ({ status: 200, json: async () => ({ access_token: 'ya29.t' + (++k), expires_in: 3600 }) });
+      const p0 = process.env.GDRIVE_SA_KEY;
+      process.env.GDRIVE_SA_KEY = E.STG_FIREBASE_SA; const t1 = await G.datastoreToken(f); const t1b = await G.datastoreToken(f);
+      process.env.GDRIVE_SA_KEY = E.PROD_FIREBASE_SA; const t2 = await G.datastoreToken(f);
+      if (p0 === undefined) delete process.env.GDRIVE_SA_KEY; else process.env.GDRIVE_SA_KEY = p0;
+      G._reset();
+      ok(t1 === t1b && t2 !== t1, 'מטמון הטוקנים לפי חשבון השירות — הייצור לא מקבל את הטוקן של הניסוי');
+    }
+
     // קובצי הסודות: Tunnel נפרד לייצור, השורה של השרתון, ו־32KB עם ערכים בגודל אמיתי
     const big = [{ key: 'GDRIVE_SA_KEY', value: JSON.stringify(SAP) }];
     for (let i = 0; i < 40; i++) big.push({ key: 'K' + i + '_SECRET', value: crypto.randomBytes(30).toString('base64') });
