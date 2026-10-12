@@ -1722,7 +1722,7 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 
 /* שלב 2 בסביבות: תווית קבועה בסביבת הניסוי — לא תופסת מקום בפריסה ולא חוסמת נגיעות */
 .env-strip {
-  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 4px); inset-inline-start: 50%;
+  position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); inset-inline-start: 50%;
   transform: translateX(50%); z-index: 2000; pointer-events: none;
   padding: 2px 12px; border-radius: var(--pill);
   background: #F5A524; color: #1A1200; font-size: 12px; font-weight: 700; line-height: 18px;
