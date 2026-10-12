@@ -70,6 +70,11 @@ t('פס הפריסה: בדיקות → ניסוי → אישור → Pages → �
   assert.strictEqual((w.match(/merge-base --is-ancestor "\$SHA" HEAD \|\|[^\n]*\n\s*git checkout -q --detach "\$SHA"/g) || []).length, 3, 'ובודק שהקומיט ב־main לפני שעובר אליו');
   assert.ok(/^permissions:\s*\n\s*contents: read/m.test(w), 'הרשאות מינימליות כברירת מחדל');
   for (const u of w.match(/uses: \S+/g)) assert.ok(/@[0-9a-f]{40}$/.test(u), 'מקובע ל־SHA: ' + u);
+  // הניסוי: העלאה ישירה מ־Actions (לא החיבור ל־Git של Cloudflare) — רק קומיט שהבדיקות שלו ירוקות, רק הקבצים שב־git
+  assert.ok(/staging:[\s\S]*?npx --yes wrangler@\d+\.\d+\.\d+"[\s\S]*?git archive "\$SHA"[\s\S]*?pages deploy "\$site" --project-name thesnowball[\s\S]*?approve:/.test(w), 'העלאה לניסוי בתוך שלב staging, גרסת wrangler מקובעת');
+  assert.ok(/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/.test(w) && !/run:[^\n]*\$\{\{ secrets\./.test(w), 'הסוד רק דרך env');
+  assert.ok(/if: steps\.cf\.outputs\.up == 'yes'[\s\S]*?swgen\.js --live "\$URL"/.test(w), 'אחרי ההעלאה — כל קובץ בניסוי מול הטביעה');
+  assert.ok(!/--commit-message "\$\{\{/.test(w), 'בלי ביטוי בתוך פקודה');
   const test = read('.github/workflows/test.yml');
   assert.ok(/^name: tests$/m.test(test), 'שם ה־workflow שהפריסה מחכה לו');
 });
