@@ -86,17 +86,21 @@ function need(re, v, code, label, opts = {}) {
 }
 
 /* קובצי הסודות של חדרי הניסוי — מחזיר [{path, lines}] */
+/* כל הסודות נבדקים, וכל מה שלא תקין מדווח יחד (12/10/2026: עצירה בבעיה הראשונה = ריצה לכל סוד שגוי) */
 function stagingFiles(env, e, token) {
-  const sa = saOf(e.STG_FIREBASE_SA, env.project);
-  const admins = emailsOf(e.STG_ADMIN_EMAIL);
-  return [
-    { path: '/etc/snb/tunnel.env', lines: ['TUNNEL_TOKEN=' + need(RE.tunnel, e.STG_TUNNEL_TOKEN, 'tunnel_bad', 'STG_TUNNEL_TOKEN', { expect: 'מחרוזת ארוכה שמתחילה ב־eyJ, בלי --token' })] },
+  const errs = [];
+  const chk = (fn) => { try { return fn(); } catch (x) { errs.push(x.message); return ''; } };
+  const sa = chk(() => saOf(e.STG_FIREBASE_SA, env.project));
+  const admins = chk(() => emailsOf(e.STG_ADMIN_EMAIL));
+  const v = (...a) => chk(() => need(...a));
+  const files = [
+    { path: '/etc/snb/tunnel.env', lines: ['TUNNEL_TOKEN=' + v(RE.tunnel, e.STG_TUNNEL_TOKEN, 'tunnel_bad', 'STG_TUNNEL_TOKEN', { expect: 'מחרוזת ארוכה שמתחילה ב־eyJ, בלי --token' })] },
     { path: '/etc/snb/app-stg.env', lines: [
       'FIREBASE_PROJECT_ID=' + env.project,
-      'GDRIVE_SA_KEY=' + Buffer.from(JSON.stringify(sa)).toString('base64'),
-      'R2_ACCOUNT_ID=' + need(RE.account, e.CLOUDFLARE_ACCOUNT_ID, 'account_bad', 'CLOUDFLARE_ACCOUNT_ID', { hex: 1, expect: '32 תווים, ספרות ו־a–f' }),
-      'R2_ACCESS_KEY_ID=' + need(RE.r2id, e.STG_R2_ACCESS_KEY_ID, 'r2_bad', 'STG_R2_ACCESS_KEY_ID', { hex: 1, expect: '32 תווים, ספרות ו־a–f (Access Key ID)' }),
-      'R2_SECRET_ACCESS_KEY=' + need(RE.r2secret, e.STG_R2_SECRET_ACCESS_KEY, 'r2_bad', 'STG_R2_SECRET_ACCESS_KEY', { hex: 1, expect: '64 תווים, ספרות ו־a–f (Secret Access Key)' }),
+      'GDRIVE_SA_KEY=' + (sa ? Buffer.from(JSON.stringify(sa)).toString('base64') : ''),
+      'R2_ACCOUNT_ID=' + v(RE.account, e.CLOUDFLARE_ACCOUNT_ID, 'account_bad', 'CLOUDFLARE_ACCOUNT_ID', { hex: 1, expect: '32 תווים, ספרות ו־a–f' }),
+      'R2_ACCESS_KEY_ID=' + v(RE.r2id, e.STG_R2_ACCESS_KEY_ID, 'r2_bad', 'STG_R2_ACCESS_KEY_ID', { hex: 1, expect: '32 תווים, ספרות ו־a–f (Access Key ID)' }),
+      'R2_SECRET_ACCESS_KEY=' + v(RE.r2secret, e.STG_R2_SECRET_ACCESS_KEY, 'r2_bad', 'STG_R2_SECRET_ACCESS_KEY', { hex: 1, expect: '64 תווים, ספרות ו־a–f (Secret Access Key)' }),
       'R2_BUCKET=' + env.bucket,
       'R2_JURISDICTION=eu',
       'LIBRARY_ADMINS=' + admins,
@@ -107,10 +111,12 @@ function stagingFiles(env, e, token) {
       'CRON_SECRET=' + crypto.randomBytes(24).toString('hex'),
     ] },
     { path: '/etc/snb/worker-stg.env', lines: [
-      'ANTHROPIC_API_KEY=' + need(RE.anthropic, e.STG_ANTHROPIC_KEY, 'anthropic_bad', 'STG_ANTHROPIC_KEY', { expect: 'מתחיל ב־sk-ant-' }),
-      'SNB_WORKER_TOKEN=' + need(RE.token, token, 'token_bad', 'טוקן השרת'),
+      'ANTHROPIC_API_KEY=' + v(RE.anthropic, e.STG_ANTHROPIC_KEY, 'anthropic_bad', 'STG_ANTHROPIC_KEY', { expect: 'מתחיל ב־sk-ant-' }),
+      'SNB_WORKER_TOKEN=' + v(RE.token, token, 'token_bad', 'טוקן השרת'),
     ] },
   ];
+  if (errs.length) fail(errs.length > 1 ? 'secrets_bad' : 'secret_bad', (errs.length > 1 ? errs.length + ' סודות לא תקינים' : 'סוד אחד לא תקין') + ':\n  • ' + errs.join('\n  • '));
+  return files;
 }
 
 function cloudInit(tpl, files) {

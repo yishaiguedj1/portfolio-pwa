@@ -114,6 +114,10 @@ function mock(opts = {}) {
       'ערך שגוי — ההודעה: שם הסוד, האורך שהתקבל, סוגי התווים, ומה מצופה');
     ok(!msg.includes(tokenValue.slice(0, 8)) && !msg.includes('xY9_'), 'ההודעה בלי הערך עצמו');
     ok(P.shape('') === '0 תווים', 'סוד ריק — "0 תווים"');
+    let all = '';
+    try { P.stagingFiles(env, Object.assign({}, E, { STG_R2_SECRET_ACCESS_KEY: 'x', STG_ANTHROPIC_KEY: 'nope', STG_ADMIN_EMAIL: '' }), token); } catch (e) { all = e.message; }
+    ok(all.startsWith('3 סודות לא תקינים') && all.includes('STG_R2_SECRET_ACCESS_KEY') && all.includes('STG_ANTHROPIC_KEY') && all.includes('מייל המנהל'),
+      'כמה סודות שגויים — כולם בהודעה אחת (לא ריצה לכל אחד)');
   }
 
   /* ---------- Hetzner ---------- */
