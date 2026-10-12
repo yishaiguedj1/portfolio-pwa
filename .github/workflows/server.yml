@@ -4,12 +4,15 @@
 #   1. טוקן שרת חדש לכל סביבה נרשם ב־Firestore שלה (חשבון השירות) — בלי השרתון, שעוד לא קיים.
 #   2. קוד ההקמה מהריפו + קובצי הסודות של החדרים, מ־GitHub Secrets (לא מודפסים, לא נשמרים).
 #   3. השרת נוצר ב־Hetzner עם חומת האש snb-closed (בלי אף כלל נכנס). שם קיים = עוצרים, לא דורסים.
-#   4. מחכים שהשרתון של הניסוי יענה דרך ה־Tunnel ושהעובדים יתחברו.
+#   4. מחכים שהשרתונים יענו דרך ה־Tunnel ושהעובדים יתחברו.
 # מה מקימים:
-#   stg — הניסוי בלבד: ה־Tunnel, השרתון והעובד של הניסוי (ברירת מחדל: snb-stg-1, ‏cax21 — €10.99 לחודש).
-#   all — שרת אחד לכל המערכת: גם העובד של הייצור (ברירת מחדל: snb-1, ‏cax31 — 16GB, €21.49 לחודש; אושר 12/10/2026).
-# המחירים לפי Hetzner מיוני 2026, כולל IPv4, בחיוב לפי שעה. סוג אחר = מחיר אחר — לבדוק לפני (CLAUDE.md, סעיף 10).
+#   stg — הניסוי בלבד: ה־Tunnel, השרתון והעובד של הניסוי (ברירת מחדל: snb-stg-1, ‏cax21).
+#   all — שרת אחד לכל המערכת: גם העובד של הייצור (ברירת מחדל: snb-1, ‏cax31 — 16GB, $24.99 לחודש לפי המסוף; אושר 12/10/2026).
+# החשבון מחויב בדולרים — המחיר הקובע הוא זה שבמסוף של Hetzner (לא טבלת היורו באתר). סוג אחר = מחיר אחר — לבדוק לפני (CLAUDE.md, סעיף 10).
 #         דורש גם PROD_FIREBASE_SA ו־PROD_ANTHROPIC_KEY.
+#         ת3: גם השרתון של הייצור (api.thesnowball.app, Tunnel משלו — PROD_TUNNEL_TOKEN). הסודות שלו נקראים מ־Vercel
+#         (VERCEL_TOKEN; שם הפרויקט במשתנה VERCEL_PROJECT, ברירת מחדל ibkr-proxy). משתנה Sensitive — ב־PROD_APP_EXTRA.
+#         שרת קיים לא מקבל חדרים חדשים: מקימים שרת בשם חדש (למשל snb-2), בודקים, ומוחקים את הישן.
 # הסודות — infra/README.md, "שרת הניסוי" ו"שרת אחד לכל המערכת".
 name: server
 
@@ -22,10 +25,10 @@ on:
         options: [stg, all]
         default: stg
       name:
-        description: 'שם השרת ב־Hetzner (ריק = snb-stg-1 / snb-1)'
+        description: 'שם השרת ב־Hetzner (ריק = snb-stg-1 / snb-1; שם קיים = עצירה — לשרת חדש שם חדש, למשל snb-2)'
         default: ''
       type:
-        description: 'סוג (ריק = cax21 לניסוי, €10.99 לחודש / cax31 לשרת המאוחד, €21.49 לחודש)'
+        description: 'סוג (ריק = cax21 לניסוי / cax31 לשרת המאוחד, $24.99 לחודש). סוג אחר — לבדוק את המחיר במסוף לפני'
         default: ''
       location:
         description: 'מיקום (nbg1 / fsn1 / hel1)'
@@ -88,6 +91,11 @@ jobs:
           STG_ANTHROPIC_KEY: ${{ secrets.STG_ANTHROPIC_KEY }}
           STG_ADMIN_EMAIL: ${{ secrets.STG_ADMIN_EMAIL }}
           PROD_ANTHROPIC_KEY: ${{ secrets.PROD_ANTHROPIC_KEY }}
+          PROD_TUNNEL_TOKEN: ${{ secrets.PROD_TUNNEL_TOKEN }}
+          PROD_APP_EXTRA: ${{ secrets.PROD_APP_EXTRA }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: node tools/server-provision.js cloud-init --plan "$PLAN" --token "$RUNNER_TEMP/tok" --token-prod "$RUNNER_TEMP/tokp" --out "$RUNNER_TEMP/ud"
       - name: יצירת השרת ב־Hetzner
@@ -108,14 +116,14 @@ jobs:
         run: |
           node tools/server-provision.js wait --env stg --sid "$SID"
           echo "✓ הניסוי: השרת $SID מחובר" >> "$GITHUB_STEP_SUMMARY"
-      - name: מחכים — העובד של הייצור
+      - name: מחכים — השרתון של הייצור (api.thesnowball.app), ואז העובד שלו
         if: inputs.env == 'all'
         env:
           PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
           SID: ${{ steps.regp.outputs.sid }}
         run: |
           node tools/server-provision.js wait --env prod --sid "$SID"
-          echo "✓ הייצור: השרת $SID מחובר — אפשר להסיר את השרת הישן במסך השרת באפליקציה" >> "$GITHUB_STEP_SUMMARY"
+          echo "✓ הייצור: השרתון עונה ב־api.thesnowball.app והשרת $SID מחובר — אפשר להסיר את השרת הישן במסך השרת באפליקציה" >> "$GITHUB_STEP_SUMMARY"
       - name: ניקוי — השרת לא נוצר, הרישום של הניסוי נמחק
         if: failure() && steps.reg.outputs.sid != '' && steps.create.outcome != 'success'
         env:

@@ -4,6 +4,7 @@
 #        prod       → snb-worker:prod (אחרי אישור שלך ב־GitHub)
 #        stg-worker → snb-worker:dev  (כל מיזוג — סביבת הניסוי)
 #        stg        → snb-app:dev     (השרתון של הניסוי)
+#        app        → snb-app:prod    (השרתון של הייצור — אחרי אישור שלך, ת3)
 #   2. לא מחליפים עובד באמצע עבודה (/work/.busy של אותו עובד). השרתון מוחלף מיד.
 #   3. מושכים את התג ולוקחים את ה־digest — מאז רק לפי digest (תג יכול לזוז, digest לא).
 #   4. מאמתים חתימה: נבנה ונחתם ב־workflow של אותה תמונה מהענף הראשי של הריפו. אחרת — נשארים בגרסה הקודמת.
@@ -47,6 +48,7 @@ umask 022
 	if snb_room_on prod; then resolve "$SNB_IMG" prod "$SNB_SIGNER" SNB_IMAGE prod; fi
 	if snb_room_on stg-worker; then resolve "$SNB_IMG" dev "$SNB_SIGNER" SNB_IMAGE_STG stg; fi
 	if snb_room_on stg; then resolve "$SNB_APP_IMG" dev "$SNB_APP_SIGNER" SNB_APP_STG none; fi
+	if snb_room_on app; then resolve "$SNB_APP_IMG" prod "$SNB_APP_SIGNER" SNB_APP none; fi
 } >"$SNB_DIR/.env.tmp"
 mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
 

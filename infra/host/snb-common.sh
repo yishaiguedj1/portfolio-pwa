@@ -15,6 +15,7 @@ snb_log() { logger -t snb "$*" 2>/dev/null || true; echo "$*"; }
 # גבולות הקונטיינר לפי השרת בפועל (CX43/CAX31 = 8 ליבות ו־16GB, CAX21 = 4 ו־8GB): חצי ליבה וג׳יגה אחד נשארים למערכת.
 # compose.yaml קורא אותם (SNB_CPUS / SNB_MEM) — מספר קבוע גדול ממה שיש בשרת = הקונטיינר לא עולה בכלל.
 # שלב 2ב: כשיש גם חדרי ניסוי — השרתון וה־Tunnel לוקחים כ־0.8GB, ועובד הניסוי 3GB וליבה וחצי (סרטונים קצרים).
+# ת3: השרתון של הייצור וה־Tunnel שלו — עוד כ־1.1GB.
 # עובד ניסוי לבד בשרת — מקבל את כל מה שהעובד של הייצור היה מקבל.
 snb_limits() {
 	snb_rooms
@@ -23,6 +24,8 @@ snb_limits() {
 	c=$(awk -v n="$n" 'BEGIN{printf "%.1f", (n > 1 ? n - 0.5 : n)}')
 	m=$((kb / 1024 - 1024))
 	case ",$COMPOSE_PROFILES," in *,stg,*|*,tunnel,*) m=$((m - 800)) ;; esac
+	# ת3: השרתון של הייצור (768MB) וה־Tunnel שלו (256MB)
+	case ",$COMPOSE_PROFILES," in *,app,*|*,tunnel-prod,*) m=$((m - 1100)) ;; esac
 	[ "$m" -ge 1024 ] || m=1024
 	SNB_CPUS=$c SNB_MEM=${m}m SNB_CPUS_STG=$c SNB_MEM_STG=${m}m
 	case ",$COMPOSE_PROFILES," in *,prod,*,stg-worker,*|*,prod,stg-worker,*)
@@ -42,13 +45,15 @@ snb_rooms_wanted() {
 	[ -s /etc/snb/tunnel.env ] && r="$r,tunnel"
 	[ -s /etc/snb/app-stg.env ] && r="$r,stg"
 	[ -s /etc/snb/worker-stg.env ] && r="$r,stg-worker"
+	[ -s /etc/snb/app.env ] && r="$r,app"
+	[ -s /etc/snb/tunnel-prod.env ] && r="$r,tunnel-prod"
 	SNB_WANTED=${r#,}
 }
 snb_rooms() {
 	snb_rooms_wanted
 	r=''
 	for x in $(echo "$SNB_WANTED" | tr ',' ' '); do
-		case $x in prod) v=SNB_IMAGE ;; stg) v=SNB_APP_STG ;; stg-worker) v=SNB_IMAGE_STG ;; *) v='' ;; esac
+		case $x in prod) v=SNB_IMAGE ;; stg) v=SNB_APP_STG ;; stg-worker) v=SNB_IMAGE_STG ;; app) v=SNB_APP ;; *) v='' ;; esac
 		if [ -z "$v" ] || grep -q "^$v=" "$SNB_DIR/.env" 2>/dev/null; then r="$r,$x"; fi
 	done
 	COMPOSE_PROFILES=${r#,}

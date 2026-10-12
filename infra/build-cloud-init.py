@@ -98,10 +98,25 @@ def packed(data: bytes) -> str:
     return base64.b64encode(gzip.compress(data, compresslevel=9, mtime=0)).decode()
 
 
+def slim(src: str, data: bytes) -> bytes:
+    """בלי שורות הערה (12/10/2026, ת3): ההערות בעברית תפסו כ־6KB מתוך 32KB של user-data, והמקום נחוץ לסודות של
+    השרתון של הייצור. המקור הקריא — בקבצים ב־infra/. נשארים: השורה הראשונה (#!) והנחיות shellcheck.
+    רק בשורה שכולה הערה — הערה בסוף שורה עם קוד נשארת (בטוח: אין heredoc בקבצים, test_infra בודק)."""
+    if src.endswith(('.json', 'motd')):
+        return data
+    out = []
+    for i, ln in enumerate(data.decode('utf-8').split('\n')):
+        s = ln.strip()
+        if s.startswith('#') and not (i == 0 and s.startswith('#!')) and not s.startswith('# shellcheck'):
+            continue
+        out.append(ln)
+    return '\n'.join(out).encode('utf-8')
+
+
 def render() -> str:
     out = [HEAD.replace('{APT}', apt_block())]
     for src, dst, mode in FILES:
-        data = (HERE / src).read_bytes()
+        data = slim(src, (HERE / src).read_bytes())
         out.append(f'  # infra/{src}\n  - path: {dst}\n    permissions: "{mode}"\n    owner: root:root\n'
                    f'    encoding: gz+b64\n    content: {packed(data)}\n')
     out.append(MARK + '\n')

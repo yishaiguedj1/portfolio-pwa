@@ -13,7 +13,10 @@
  * הסודות מגיעים ממשתני הסביבה של ה־job (GitHub Secrets), לא מודפסים, ולא נכתבים לקבצים בריפו.
  * מה מקימים (--plan): stg = חדרי הניסוי בלבד (Tunnel, השרתון והעובד של הניסוי);
  *                     all = שרת אחד לכל המערכת — גם העובד של הייצור (12/10/2026, האיחוד בתוכנית).
- * העובד של הייצור מדבר עם השרתון של הייצור (Vercel, job.SERVER) — אין לו healthz משלו לחכות לו. */
+ * ת3 (12/10/2026): all מקים גם את השרתון של הייצור (חדר app + Tunnel משלו, api.thesnowball.app). הסודות שלו —
+ * המשתנים של Vercel כמו שהם (vercelEnv, טוקן Vercel), כי חלקם חייבים להיות זהים בדיוק: מפתח הכספת נגזר מחשבון
+ * השירות (lib/vault.js), ומפתח אחר = החיבורים השמורים (IBKR ברקע, Drive, ה־Routine, ההתראות) לא נפתחים.
+ * העובד של הייצור ממשיך לדבר עם השרתון ב־Vercel (job.SERVER) עד שהמעבר יוכח. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -33,7 +36,7 @@ const ENVS = {
   prod: {
     project: 'yishaiguedj1-c786e',
     saVar: 'PROD_FIREBASE_SA',
-    api: '',                                  // השרתון של הייצור ב־Vercel — לא בשרת, אין healthz לחכות לו
+    api: 'https://api.thesnowball.app',       // ת3: השרתון של הייצור בשרת (Tunnel משלו). Vercel נשאר גיבוי
   },
 };
 /* מה כל תוכנית מקימה, ומה ברירת המחדל לשם ולגודל. ייצור + ניסוי באותו שרת = לפחות 16GB:
@@ -42,6 +45,11 @@ const PLANS = {
   stg: { envs: ['stg'], name: 'snb-stg-1', type: 'cax21', minGb: 4 },
   all: { envs: ['prod', 'stg'], name: 'snb-1', type: 'cax31', minGb: 15 },
 };
+/* ת3: משתני Vercel שלא עוברים לשרת — של Vercel עצמו, ומה שהשרת קובע בעצמו (compose) */
+const VERCEL_API = 'https://api.vercel.com';
+const ENV_SKIP = new Set(['SNB_CRON', 'SNB_CLIENT_IP_HEADER', 'SNB_ENV_GZ', 'PORT', 'NODE_ENV', 'TZ']);
+const ENV_SKIP_RE = /^(VERCEL|NOW|TURBO|NX)_/;
+const ENV_KEY_RE = /^[A-Z][A-Z0-9_]{1,60}$/;
 const HCLOUD = 'https://api.hetzner.cloud/v1';
 const UD_MAX = 32 * 1024;                     // Hetzner: user-data עד 32KB
 const MARK = '  # SNB_SECRETS';
@@ -57,6 +65,9 @@ const RE = {
   anthropic: /^sk-ant-[A-Za-z0-9_-]{20,300}$/,
   email: /^[^\s@,;"'<>]+@[^\s@,;"'<>]+\.[a-z]{2,}$/i,
   token: /^[a-z0-9]{12}-[A-Za-z0-9_-]{43}$/,
+  vercel: /^[A-Za-z0-9_-]{20,100}$/,
+  vproject: /^[a-z0-9._-]{1,100}$/,
+  vteam: /^team_[A-Za-z0-9]{10,40}$/,
   uid: /^[A-Za-z0-9]{10,128}$/,
 };
 
@@ -140,8 +151,85 @@ function failErrs(errs) {
   if (errs.length) fail(errs.length > 1 ? 'secrets_bad' : 'secret_bad', (errs.length > 1 ? errs.length + ' סודות לא תקינים' : 'סוד אחד לא תקין') + ':\n  • ' + errs.join('\n  • '));
 }
 
-/* החדר של הייצור: רק העובד (worker.env). אותו מבנה שהאפליקציה כותבת ב"הוספת שרת" (cloudInitWithSecrets) */
-function prodFiles(e, token, errs) {
+/* ---------------------------------------------------------------- ת3: הסודות של השרתון מ־Vercel */
+/* PROD_APP_EXTRA (רשות): שורות שם=ערך — למשתנה שמסומן Sensitive ב־Vercel (אי אפשר לקרוא אותו בחזרה),
+   או להחלפת ערך. גובר על Vercel. */
+function parseExtra(raw) {
+  const out = {};
+  for (const ln of String(raw || '').split(/\r?\n/)) {
+    const s = ln.trim();
+    if (!s || s.startsWith('#')) continue;
+    const i = s.indexOf('=');
+    const k = i > 0 ? s.slice(0, i).trim() : '';
+    if (!ENV_KEY_RE.test(k)) fail('extra_bad', 'שורה ב־PROD_APP_EXTRA בלי שם תקין (צפוי: שם=ערך, שם באותיות גדולות)');
+    out[k] = s.slice(i + 1);
+  }
+  return out;
+}
+
+const inProd = (t) => (Array.isArray(t) ? t.includes('production') : t === 'production');
+
+/* המשתנים של סביבת production בפרויקט ב־Vercel, עם הערכים — [{key, value|null, type}].
+   ערך שלא חזר (Sensitive) = null. שום ערך לא מודפס. */
+async function vercelEnv(e, deps) {
+  const tok = String(e.VERCEL_TOKEN || '').trim();
+  if (!RE.vercel.test(tok)) fail('vercel_token', 'חסר VERCEL_TOKEN (או לא בצורה הנכונה) — Vercel ← Account Settings ← Tokens');
+  const proj = String(e.VERCEL_PROJECT || 'ibkr-proxy').trim();
+  if (!RE.vproject.test(proj)) fail('vercel_project', 'שם הפרויקט ב־Vercel לא תקין (VERCEL_PROJECT)');
+  const team = String(e.VERCEL_TEAM_ID || '').trim();
+  if (team && !RE.vteam.test(team)) fail('vercel_team', 'VERCEL_TEAM_ID לא בצורה team_…');
+  const q = team ? '&teamId=' + team : '';
+  const get = async (p) => {
+    const r = await deps.fetch(VERCEL_API + p, { headers: { Authorization: 'Bearer ' + tok } });
+    let j = null;
+    try { j = await r.json(); } catch (x) { /* ריק */ }
+    if (r.status === 404) fail('vercel_project', 'אין ב־Vercel פרויקט בשם ' + proj + ' — להגדיר את שמו במשתנה VERCEL_PROJECT (Settings ← Variables)');
+    if (r.status === 401 || r.status === 403) fail('vercel_auth', 'Vercel דחה את הטוקן (' + r.status + ') — טוקן שפג או בלי גישה לפרויקט');
+    if (r.status !== 200 || !j) fail('vercel_http_' + r.status, 'Vercel החזיר ' + r.status);
+    return j;
+  };
+  const j = await get('/v10/projects/' + encodeURIComponent(proj) + '/env?decrypt=true' + q);
+  if (j.pagination && j.pagination.next) fail('vercel_page', 'יותר משתנים ממה שחוזר בעמוד אחד — לא נתמך');
+  if (Number(j.hiddenProductionEnvCount) > 0) fail('vercel_hidden', j.hiddenProductionEnvCount + ' משתני ייצור מוסתרים מהטוקן — טוקן עם גישה מלאה לפרויקט');
+  const out = [];
+  for (const x of j.envs || []) {
+    if (!x || !inProd(x.target) || x.gitBranch) continue;
+    let value = typeof x.value === 'string' && x.decrypted !== false && x.type !== 'sensitive' ? x.value : null;
+    if (value == null && x.type !== 'sensitive' && x.id && /^[A-Za-z0-9_-]{4,80}$/.test(x.id)) {
+      const one = await get('/v1/projects/' + encodeURIComponent(proj) + '/env/' + x.id + '?' + q.slice(1));
+      if (typeof one.value === 'string' && one.decrypted !== false) value = one.value;
+    }
+    out.push({ key: String(x.key || ''), value, type: String(x.type || '') });
+  }
+  return out;
+}
+
+/* מהרשימה של Vercel לשורה אחת: SNB_ENV_GZ = gzip+base64 של {שם: ערך} (server.js — unpackEnv פותח). כל ערך עובר
+   כמו שהוא, גם עם רווחים, # או מירכאות. חסר ערך (Sensitive) ואין ב־PROD_APP_EXTRA — שגיאה עם השמות בלבד. */
+function appEnvLine(vars, extraRaw, project) {
+  const zlib = require('zlib');
+  const extra = parseExtra(extraRaw);
+  const obj = {}, missing = [];
+  for (const x of vars) {
+    if (!ENV_KEY_RE.test(x.key) || ENV_SKIP.has(x.key) || ENV_SKIP_RE.test(x.key)) continue;
+    if (x.value == null) { if (!(x.key in extra)) missing.push(x.key); continue; }
+    obj[x.key] = x.value;
+  }
+  for (const [k, v] of Object.entries(extra)) if (!ENV_SKIP.has(k)) obj[k] = v;
+  if (missing.length) fail('vercel_sensitive', missing.length + ' משתנים מסומנים Sensitive ב־Vercel ואי אפשר לקרוא אותם: '
+    + missing.sort().join(', ') + ' — להוסיף אותם לסוד PROD_APP_EXTRA (שורה לכל אחד: שם=ערך)');
+  /* חשבון השירות — חובה וזהה ל־Vercel: ממנו Firestore, ומפתח הכספת כשאין IBKR_VAULT_KEY */
+  let sa = null;
+  try { const raw = String(obj.GDRIVE_SA_KEY || '').trim(); sa = JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')); } catch (x) { /* למטה */ }
+  if (!sa || sa.type !== 'service_account' || !sa.private_key) fail('vercel_sa', 'ב־Vercel אין GDRIVE_SA_KEY תקין — השרתון לא יגיע ל־Firestore');
+  if (obj.FIREBASE_PROJECT_ID && obj.FIREBASE_PROJECT_ID !== project) fail('vercel_project_id', 'FIREBASE_PROJECT_ID ב־Vercel שונה מ־' + project);
+  const b64 = zlib.gzipSync(Buffer.from(JSON.stringify(obj)), { level: 9 }).toString('base64');
+  return { line: 'SNB_ENV_GZ=' + b64, keys: Object.keys(obj).sort(), vault: obj.IBKR_VAULT_KEY ? 'e' : 's' };
+}
+
+/* החדרים של הייצור: העובד (worker.env) — אותו מבנה שהאפליקציה כותבת ב"הוספת שרת" (cloudInitWithSecrets);
+   ומ־ת3, כשיש appLine: השרתון (app.env) וה־Tunnel שלו (tunnel-prod.env) */
+function prodFiles(e, token, errs, appLine) {
   const own = !errs;
   errs = errs || [];
   const v = (...a) => { try { return need(...a); } catch (x) { errs.push(x.message); return ''; } };
@@ -149,16 +237,21 @@ function prodFiles(e, token, errs) {
     'ANTHROPIC_API_KEY=' + v(RE.anthropic, e.PROD_ANTHROPIC_KEY, 'anthropic_bad', 'PROD_ANTHROPIC_KEY', { expect: 'מתחיל ב־sk-ant-' }),
     'SNB_WORKER_TOKEN=' + v(RE.token, token, 'token_bad', 'טוקן השרת של הייצור'),
   ] }];
+  if (appLine) {
+    files.push({ path: '/etc/snb/tunnel-prod.env', lines: ['TUNNEL_TOKEN=' + v(RE.tunnel, e.PROD_TUNNEL_TOKEN, 'tunnel_bad', 'PROD_TUNNEL_TOKEN', { expect: 'מחרוזת ארוכה שמתחילה ב־eyJ, בלי --token' })] });
+    files.push({ path: '/etc/snb/app.env', lines: [appLine] });
+    if (e.PROD_TUNNEL_TOKEN && e.PROD_TUNNEL_TOKEN === e.STG_TUNNEL_TOKEN) errs.push('PROD_TUNNEL_TOKEN זהה ל־STG_TUNNEL_TOKEN — לייצור Tunnel נפרד (snb-prod)');
+  }
   if (own) failErrs(errs);
   return files;
 }
 
-/* כל קובצי הסודות של התוכנית — tokens = {prod, stg} */
-function planFiles(plan, e, tokens) {
+/* כל קובצי הסודות של התוכנית — tokens = {prod, stg}; appLine = השורה של השרתון של הייצור (appEnvLine) */
+function planFiles(plan, e, tokens, appLine) {
   const P = PLANS[plan];
   if (!P) fail('plan', 'תוכנית לא מוכרת');
   const errs = [], files = [];
-  if (P.envs.includes('prod')) files.push(...prodFiles(e, tokens.prod, errs));
+  if (P.envs.includes('prod')) files.push(...prodFiles(e, tokens.prod, errs, appLine));
   if (P.envs.includes('stg')) files.push(...stagingFiles(ENVS.stg, e, tokens.stg, errs));
   failErrs(errs);
   return files;
@@ -247,7 +340,7 @@ async function create(e, opts, userData, deps) {
 async function waitUp(e, env, sid, deps, limits = {}) {
   const t0 = deps.now(), every = limits.every || 20e3;
   const healthBy = t0 + (limits.health || 20 * 60e3), seenBy = t0 + (limits.seen || 45 * 60e3);
-  let health = !env.api, seen = 0;           // ייצור: השרתון ב־Vercel — מחכים רק לעובד
+  let health = !env.api, seen = 0;
   while (!health && deps.now() < healthBy) {
     try {
       const r = await deps.fetch(env.api + '/healthz', { cache: 'no-store' });
@@ -298,10 +391,14 @@ async function main(argv, e, deps) {
   }
   if (cmd === 'cloud-init') {
     const rd = (f) => (f && fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim() : '');
+    /* ת3: בתוכנית עם הייצור — גם השרתון של הייצור, מהמשתנים של Vercel */
+    let app = null;
+    if (PLANS[plan].envs.includes('prod')) app = appEnvLine(await vercelEnv(e, deps), e.PROD_APP_EXTRA, ENVS.prod.project);
     const out = cloudInit(fs.readFileSync(path.join(ROOT, 'infra/cloud-init.yaml'), 'utf8'),
-      planFiles(plan, e, { stg: rd(a.token), prod: rd(a['token-prod']) }));
+      planFiles(plan, e, { stg: rd(a.token), prod: rd(a['token-prod']) }, app && app.line));
     fs.writeFileSync(a.out, out, { mode: 0o600 });
-    return 'bytes=' + Buffer.byteLength(out);
+    /* רק שמות — בלי ערכים. vault: e = IBKR_VAULT_KEY, s = נגזר מחשבון השירות */
+    return 'bytes=' + Buffer.byteLength(out) + (app ? '\nvercel=' + app.keys.length + ' משתנים (' + app.keys.join(' ') + ') · vault=' + app.vault : '');
   }
   if (cmd === 'create') {
     const r = await create(e, { name, type: String(a.type || '') || PLANS[plan].type, location: String(a.location || ''), plan },
@@ -311,7 +408,7 @@ async function main(argv, e, deps) {
   if (cmd === 'wait') {
     const r = await waitUp(e, env, String(a.sid || ''), deps);
     if (!r.health) fail('no_health', 'השרתון לא ענה דרך ה־Tunnel תוך 20 דקות (' + env.api + '/healthz)');
-    if (!r.seen) fail('no_worker', (env.api ? 'השרתון עונה, אבל ' : '') + 'העובד' + (env.api ? '' : ' של הייצור') + ' לא התחבר תוך 45 דקות');
+    if (!r.seen) fail('no_worker', 'השרתון עונה, אבל העובד לא התחבר תוך 45 דקות');
     return 'ok';
   }
   if (cmd === 'unregister') return 'removed=' + (await unregister(e, env, a.sid, deps));
@@ -326,4 +423,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, register, unregister, create, waitUp, main, MARK };
+module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, parseExtra, register, unregister, create, waitUp, main, MARK };

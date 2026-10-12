@@ -14,6 +14,8 @@
 #   tunnel     — Cloudflare Tunnel (tunnel.env): החיבור היחיד מבחוץ, והוא יוצא מהשרת — אין פורט פתוח.
 #   stg        — השרתון של סביבת הניסוי (app-stg.env). תמונה: snb-app:dev — כל מיזוג, בלי אישור.
 #   stg-worker — העובד של הניסוי (worker-stg.env). תמונה: snb-worker:dev, תקרות קטנות.
+#   app        — השרתון של הייצור (app.env, ת3 12/10/2026). תמונה: snb-app:prod (אחרי אישור).
+#   tunnel-prod — Tunnel נפרד לייצור (tunnel-prod.env): api.thesnowball.app → app:3000. לא חולק רשת או טוקן עם הניסוי.
 # חדר כבוי לא צריך תמונה (snb-none = מקום ריק; snb-update כותב את ה־digest לכל חדר דולק).
 # כל חדר ברשת משלו: העובדים ב־bridge של Docker (icc כבוי) — לא מגיעים לשרתון ברשת הפנימית (רק דרך הכתובת הציבורית),
 # והשרתון רק מול ה־Tunnel ברשת edge.
@@ -61,6 +63,61 @@ services:
       interval: 5m
       timeout: 10s
       start_period: 2m
+
+  # ---------------------------------------------------------------- השרתון של הייצור (ת3)
+  tunnel-prod:
+    profiles: [tunnel-prod]
+    # אותה תמונה כמו ה־Tunnel של הניסוי, טוקן ו־Tunnel משלו (snb-prod בלוח של Cloudflare). שני שרתים עם אותו טוקן =
+    # הבקשות מתחלקות ביניהם — ולכן בזמן מעבר בין שרתים, רק לשרת שיש בו את החדר app יש את הטוקן הזה.
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
+    command: ["tunnel", "--no-autoupdate", "run"]
+    restart: unless-stopped
+    env_file:
+      - /etc/snb/tunnel-prod.env
+    read_only: true
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    networks: [edge-prod]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  app:
+    profiles: [app]
+    image: ${SNB_APP:-snb-none}
+    restart: unless-stopped
+    environment:
+      - SNB_CLIENT_IP_HEADER=cf-connecting-ip
+      # הקרון (הסנכרון של IBKR, הגיבוי, הניקוי) נשאר ב־Vercel עד שהמעבר יוכח — כך הוא לא רץ פעמיים
+      - SNB_CRON=off
+    env_file:
+      - /etc/snb/app.env
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 1.5
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    networks: [edge-prod]
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
 
   # ---------------------------------------------------------------- סביבת הניסוי (שלב 2ב)
   tunnel:
@@ -155,7 +212,8 @@ services:
       start_period: 2m
 
 networks:
-  edge: {}     # ה־Tunnel והשרתון של הניסוי בלבד (העובדים — ב־bridge של Docker, לבד)
+  edge: {}       # ה־Tunnel והשרתון של הניסוי בלבד (העובדים — ב־bridge של Docker, לבד)
+  edge-prod: {}  # ה־Tunnel והשרתון של הייצור בלבד — הניסוי לא מגיע אליו
 
 volumes:
   work: {}     # הסרטון והפרויקט של העבודה הנוכחית בלבד — מתרוקן בסוף כל עבודה (agent.cleanup)
