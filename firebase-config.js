@@ -19,9 +19,14 @@
     projectId: "yishaiguedj1-c786e",
     appId: "1:286578855160:web:c2f7a7e5e6a68685b9b3f0d"
   };
-  // פרויקט ה־Firebase של סביבת הניסוי. עד שהוא מוגדר — הניסוי עובד בלי ענן (נתונים מקומיים בלבד).
-  // פרויקט חדש = גם authDomain שלו ב־CSP של index.html (connect-src + frame-src).
-  var STAGING_FIREBASE = null;
+  // פרויקט ה־Firebase של סביבת הניסוי (12/10/2026) — נתונים נפרדים לגמרי מהייצור, אותם כללי Firestore.
+  // פרויקט חדש = גם authDomain שלו ב־CSP של index.html (connect-src + frame-src) ובדומיינים המאושרים שם.
+  var STAGING_FIREBASE = {
+    apiKey: "AIzaSyDHfps7L0JFwL6eVvp9UbUphiirkw6GxhU",
+    authDomain: "snowball-staging-758f6.firebaseapp.com",
+    projectId: "snowball-staging-758f6",
+    appId: "1:111890286593:web:2277c560813ec02fd99800"
+  };
   var PROXY = 'https://ibkr-proxy-wine.vercel.app';
 
   function envFor(host) {

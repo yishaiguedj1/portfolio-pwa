@@ -34,6 +34,12 @@ t('הניסוי אף פעם לא מתחבר לפרויקט ה־Firebase של ה�
   assert.notStrictEqual(st.fb.apiKey, prod.fb.apiKey);
   assert.ok(st.cls.has('env-staging') && !prod.cls.has('env-staging'));
   assert.strictEqual(envAt('localhost').fb.projectId, 'yishaiguedj1-c786e', 'בדיקות מקומיות — כמו קודם');
+  assert.strictEqual(st.fb.projectId, 'snowball-staging-758f6');
+  const csp = read('index.html').match(/Content-Security-Policy" content="([^"]+)"/)[1];
+  for (const d of ['connect-src', 'frame-src']) {
+    const dir = csp.split(';').find((x) => x.trim().startsWith(d + ' '));
+    assert.ok(dir.includes('https://' + st.fb.authDomain), 'authDomain של הניסוי ב־' + d);
+  }
 });
 
 t('כתובת השרתון באפליקציה מגיעה מהסביבה', () => {
