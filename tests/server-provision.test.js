@@ -39,6 +39,8 @@ function mock(opts = {}) {
     if (url === 'https://oauth2.googleapis.com/token') return res(200, { access_token: 'ya29.test', expires_in: 3600 });
     if (url.startsWith('https://firestore.googleapis.com/v1/projects/')) {
       const id = url.split('/documents/')[1].split('?')[0];
+      if (m === 'GET' && !id.includes('/')) return res(200, { documents: Object.keys(docs).filter((k) => k.startsWith(id + '/'))
+        .map((k) => ({ name: 'projects/p/databases/(default)/documents/' + k, fields: docs[k] })) });
       if (m === 'PATCH') { if (docs[id] && url.includes('exists=false')) return res(409, {}); docs[id] = JSON.parse(init.body).fields; return res(200, {}); }
       if (m === 'DELETE') { delete docs[id]; return res(200, {}); }
       if (!docs[id]) return res(404, {});
@@ -307,6 +309,22 @@ function mock(opts = {}) {
       try { await P.appEnv(EV, Mm.deps); } catch (x) { mm = x.code + ' ' + x.message; }
       ok(mm.startsWith('sa_mismatch') && !mm.includes('BEGIN'), 'מפתח אחר של אותו חשבון (הכספת לא נפתחת) — עצירה, בלי ערכים בהודעה');
       ok(await throwsCode(() => P.appEnv(EV, mock({ vercel: { envs: sensEnvs } }).deps), 'sa_unverified'), 'בלי רשומת כספת לבדיקה — עצירה (לא מנחשים)');
+      // בלי רשומת VAPID (התראות לא הופעלו) — רשומת IBKR / Drive של משתמש מספיקה
+      const sealAad = (saJson, aad) => {
+        const p0 = process.env.GDRIVE_SA_KEY; process.env.GDRIVE_SA_KEY = saJson; delete process.env.IBKR_VAULT_KEY;
+        const s = VT.seal({ t: 'x' }, aad);
+        if (p0 === undefined) delete process.env.GDRIVE_SA_KEY; else process.env.GDRIVE_SA_KEY = p0;
+        return s;
+      };
+      const Mi = mock({ vercel: { envs: sensEnvs } });
+      Mi.docs['ibkrVault/U1abc'] = { c: { stringValue: sealAad(E.PROD_FIREBASE_SA, 'U1abc|c') } };
+      ok((await P.appEnv(EV, Mi.deps)).sa === 'g', 'בלי רשומת VAPID — רשומת IBKR של משתמש מאמתת את המפתח');
+      const Md = mock({ vercel: { envs: sensEnvs } });
+      Md.docs['driveVault/U2xyz'] = { r: { stringValue: sealAad(E.PROD_FIREBASE_SA, 'gdrive|U2xyz|r') } };
+      ok((await P.appEnv(EV, Md.deps)).sa === 'g', 'רשומת Drive של הספרייה — מאמתת את המפתח');
+      const Mw = mock({ vercel: { envs: sensEnvs } });
+      Mw.docs['driveVault/U2xyz'] = { r: { stringValue: sealAad(E.PROD_FIREBASE_SA, 'gdrive|OTHER|r') } };
+      ok(await throwsCode(() => P.appEnv(EV, Mw.deps), 'sa_mismatch'), 'רשומה שלא נפתחת (AAD אחר) — לא נחשבת אימות');
       const ek = crypto.randomBytes(32).toString('base64');
       const Me = mock({ vercel: { envs: sensEnvs } });
       Me.docs['studioVault/_vapid'] = { vk: { stringValue: sealWith(E.PROD_FIREBASE_SA, ek) } };
