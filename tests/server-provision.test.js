@@ -103,6 +103,18 @@ function mock(opts = {}) {
     ok(threw, 'קוד ההקמה: ' + k + ' לא תקין — נדחה (בלי הזרקת YAML), וההודעה בלי הערך');
   }
   ok((() => { try { P.cloudInit(tpl.replace(P.MARK, ''), []); return false; } catch (e) { return e.code === 'tpl'; } })(), 'תבנית בלי שורת סימון — נדחית');
+  /* 12/10/2026 — הסוד של R2 נפסל פעמיים בלי לדעת למה: ההודעה אומרת עכשיו את הצורה (אורך + סוגי תווים), לא את הערך */
+  {
+    const up = P.cloudInit(tpl, P.stagingFiles(env, Object.assign({}, E, { STG_R2_SECRET_ACCESS_KEY: ' ' + 'B'.repeat(32) + '\n' + 'b'.repeat(32) + ' ' }), token));
+    ok(up.includes('      R2_SECRET_ACCESS_KEY=' + 'b'.repeat(64) + '\n'), 'hex באותיות גדולות / עם רווח או שורה מההדבקה — מנורמל ומתקבל');
+    const tokenValue = 'Ab3' + 'xY9_'.repeat(9) + 'Q';   // כמו Token value של Cloudflare — לא הסוד
+    let msg = '';
+    try { P.stagingFiles(env, Object.assign({}, E, { STG_R2_SECRET_ACCESS_KEY: tokenValue }), token); } catch (e) { msg = e.message; }
+    ok(msg.includes('STG_R2_SECRET_ACCESS_KEY') && msg.includes(tokenValue.length + ' תווים') && msg.includes('אותיות גדולות') && msg.includes('64 תווים'),
+      'ערך שגוי — ההודעה: שם הסוד, האורך שהתקבל, סוגי התווים, ומה מצופה');
+    ok(!msg.includes(tokenValue.slice(0, 8)) && !msg.includes('xY9_'), 'ההודעה בלי הערך עצמו');
+    ok(P.shape('') === '0 תווים', 'סוד ריק — "0 תווים"');
+  }
 
   /* ---------- Hetzner ---------- */
   {
