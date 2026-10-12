@@ -30,6 +30,9 @@ import urllib.error
 import urllib.request
 
 SERVER = 'https://ibkr-proxy-wine.vercel.app'
+# שלב 2ב (12/10/2026): השרתונים המוכרים — הייצור, וזה של סביבת הניסוי (חדר על השרת, דרך Cloudflare Tunnel).
+# רשימה סגורה: כתובת אחרת = העובד מסרב (מפתח העבודה וקבצי המשתמש לא נשלחים לכתובת שלא אנחנו).
+SERVERS = (SERVER, 'https://api-staging.thesnowball.app', 'https://api.thesnowball.app')
 DRIVE_API = 'https://www.googleapis.com/drive/v3'
 JOB_RE = re.compile(r'^j[A-Za-z0-9_-]{20}$')
 KEY_RE = re.compile(r'^[A-Za-z0-9_-]{43}$')
@@ -2720,7 +2723,7 @@ def main(argv=None):
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1
-    if a.server != SERVER and not LOCAL_RE.match(a.server):
+    if a.server not in SERVERS and not LOCAL_RE.match(a.server):
         print('✗ שרת לא מוכר.')
         return 1
     if a.drive_api != DRIVE_API and not LOCAL_RE.match(re.sub(r'/drive/v3$', '', a.drive_api)):

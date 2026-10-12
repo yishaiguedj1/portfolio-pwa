@@ -81,8 +81,31 @@
   `grep -E '^[a-z]' requirements.lock | sed 's/ \\$//; s/\[[^]]*\]//' > pins.txt && uv pip compile --generate-hashes --python-version 3.12 --python-platform aarch64-manylinux_2_28 --index-strategy unsafe-best-match --no-emit-index-url --no-strip-extras -c pins.txt -o requirements-arm64.lock requirements.in; rm pins.txt`
   (הבדיקות נכשלות אם הגרסאות בשני הקבצים שונות.)
 - **תמונת הבסיס:** מחליפים את ה־digest ב־`worker/Dockerfile` (גרסת Python זהה).
-- **הגדרת השרת (`host/`, `compose.yaml`):** אחרי כל שינוי: `python3 infra/build-cloud-init.py`. הבדיקות נכשלות אם שוכחים. שרת קיים לא קורא את ההגדרה הראשונית שוב — שינוי כזה = שרת חדש מאותה הגדרה, ומחיקת הישן.
+- **הגדרת השרת (`host/`, `compose.yaml`):** אחרי כל שינוי: `python3 infra/build-cloud-init.py`. הבדיקות נכשלות אם שוכחים. הקבצים בקוד ההקמה דחוסים (gzip, ‏`encoding: gz+b64`) — עם חדרי הניסוי הם עברו את 32KB של Hetzner. המקור הקריא נשאר כאן. שרת קיים לא קורא את ההגדרה הראשונית שוב — שינוי כזה = שרת חדש מאותה הגדרה, ומחיקת הישן.
 - **ffmpeg:** ה־workflow לוקח את ה־sha256 של הבנייה הנוכחית של ענף 8.1, לכל ארכיטקטורה, ורושם אותם בתוויות התמונה (`snb.ffmpeg.sha256.amd64`/`.arm64`). כל ארכיטקטורה נבנית על מכונה מהסוג שלה (`ubuntu-24.04-arm` — בלי אמולציה), וה־job ‏`merge` מאחד וחותם על ה־index.
+
+## שרת הניסוי (שלב 2ב, 12/10/2026)
+
+שרת שמריץ את סביבת הניסוי (`staging.thesnowball.app`) בשלושה חדרים נעולים, כל אחד ברשת משלו:
+- **ה־Tunnel** (Cloudflare): החיבור היחיד מבחוץ, והוא **יוצא** מהשרת. גם כאן אין אף פורט פתוח.
+- **השרתון של הניסוי**: אותו קוד כמו ב־Vercel (`ibkr-proxy/server.js`), עם Firebase, דלי R2 וסודות של הניסוי.
+- **העובד של הניסוי**: אותה קופסה כמו בייצור, עם תקרות קטנות ומפתח Anthropic עם תקרה נמוכה.
+
+**ניסוי = כל מיזוג.** השרת מושך את התג `dev` (גם של `snb-worker` וגם של `snb-app`) בלי אישור. הייצור ממשיך למשוך רק את `prod`.
+**החדרים לפי קובצי הסודות** (`/etc/snb/*.env`): `worker.env` = עובד הייצור, `tunnel.env`, ‏`app-stg.env`, ‏`worker-stg.env` = הניסוי. שרת אחד יכול להריץ את כולם. אז עובד הניסוי מקבל 3GB וליבה וחצי, והשאר לייצור (`snb_limits`).
+**ההקמה מ־GitHub ולא מהשרת:** Actions ← `server` ← Run workflow ← אישור. ה־workflow רושם טוקן שרת ב־Firestore של הניסוי, בונה את קוד ההקמה עם הסודות, יוצר את השרת ב־Hetzner ומחכה שהשרתון יענה ושהעובד יתחבר.
+
+**פעם אחת — מה צריך (בטלפון):**
+1. **Hetzner:** Security ← API tokens ← Generate (Read & Write) → הסוד `HCLOUD_TOKEN`.
+2. **Cloudflare Tunnel:** Zero Trust ← Networks ← Tunnels ← Create ← Cloudflared, בשם `snb-stg`. מעתיקים את הטוקן (המחרוזת הארוכה אחרי `--token`) → הסוד `STG_TUNNEL_TOKEN`. ב־Public Hostname: ‏`api-staging` · ‏`thesnowball.app` · ‏HTTP · ‏`app-stg:3000`.
+3. **R2:** דלי `snb-staging` ב־EU, עם CORS ל־`https://staging.thesnowball.app` ול־`https://thesnowball.pages.dev` (GET/PUT/HEAD, כותרות `*`, חשיפת `ETag`). מפתח Object Read & Write לדלי הזה בלבד → `STG_R2_ACCESS_KEY_ID`, ‏`STG_R2_SECRET_ACCESS_KEY`.
+4. **Firebase (הניסוי):** Project settings ← Service accounts ← Generate new private key → כל תוכן הקובץ בסוד `STG_FIREBASE_SA`. הכלי מסרב לחשבון של פרויקט אחר.
+5. **Anthropic:** מפתח נפרד עם תקרה נמוכה → `STG_ANTHROPIC_KEY`.
+6. **המייל שלך** (מנהל בניסוי) → `STG_ADMIN_EMAIL`.
+7. **GHCR:** אחרי הריצה הראשונה של `app-image` — Packages ← `snb-app` ← Change visibility ← Public (כמו `snb-worker`).
+
+כל הסודות: Settings ← Secrets and variables ← Actions ← New repository secret. `CLOUDFLARE_ACCOUNT_ID` כבר קיים.
+**בדיקה:** `https://api-staging.thesnowball.app/healthz` מחזיר `ok`, והשרת מופיע "מחובר" במסך השרת בסטודיו של הניסוי.
 
 ## החיבור לאפליקציה
 

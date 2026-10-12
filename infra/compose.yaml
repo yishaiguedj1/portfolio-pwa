@@ -8,11 +8,20 @@
 #   • הגישה לשירות המטא־דאטה של Hetzner (169.254.169.254) חסומה בחומת האש של המארח (cloud-init, DOCKER-USER).
 #   • gVisor (runsc) בשרת של 8GB ומעלה: גם פרצה בליבה לא יוצאת מהקופסה (ת2, 10/10/2026).
 #   • הסודות מקובץ env בהרשאות 600 של root — לא בתמונה, לא בריפו.
+#
+# חדרים (שלב 2ב, 12/10/2026) — כל חדר דולק רק כשיש לו קובץ סודות (snb_rooms ב־snb-common.sh → COMPOSE_PROFILES):
+#   prod       — העובד של הייצור (worker.env). תמונה: snb-worker:prod (אחרי אישור).
+#   tunnel     — Cloudflare Tunnel (tunnel.env): החיבור היחיד מבחוץ, והוא יוצא מהשרת — אין פורט פתוח.
+#   stg        — השרתון של סביבת הניסוי (app-stg.env). תמונה: snb-app:dev — כל מיזוג, בלי אישור.
+#   stg-worker — העובד של הניסוי (worker-stg.env). תמונה: snb-worker:dev, תקרות קטנות.
+# חדר כבוי לא צריך תמונה (snb-none = מקום ריק; snb-update כותב את ה־digest לכל חדר דולק).
+# כל חדר ברשת משלו: העובדים לא מגיעים לשרתון ברשת הפנימית (רק דרך הכתובת הציבורית), והשרתון רק מול ה־Tunnel.
 name: snb
 
 services:
   worker:
-    image: ${SNB_IMAGE:?SNB_IMAGE חסר — מריצים דרך snb-update}
+    profiles: [prod]
+    image: ${SNB_IMAGE:-snb-none}
     restart: unless-stopped
     # ת2: gVisor כשהשרת מתאים (snb_runtime ב־snb-common.sh); הסיבה לנפילה ל־runc נכנסת לקונטיינר ומוצגת באפליקציה
     runtime: ${SNB_RUNTIME:-runc}
@@ -48,6 +57,104 @@ services:
       timeout: 10s
       start_period: 2m
 
+  # ---------------------------------------------------------------- סביבת הניסוי (שלב 2ב)
+  tunnel:
+    profiles: [tunnel]
+    # Cloudflare Tunnel — נעול ב־digest (2026.9.3, שתי הארכיטקטורות). הניתוב (api-staging.thesnowball.app → app-stg:3000,
+    # וכל השאר 404) מוגדר בלוח של Cloudflare; כאן רק הטוקן. עדכון = שינוי מכוון של ה־digest (Dependabot יציע).
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
+    command: ["tunnel", "--no-autoupdate", "run"]
+    restart: unless-stopped
+    env_file:
+      - /etc/snb/tunnel.env
+    read_only: true
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    networks: [edge]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  app-stg:
+    profiles: [stg]
+    image: ${SNB_APP_STG:-snb-none}
+    restart: unless-stopped
+    environment:
+      - SNB_CLIENT_IP_HEADER=cf-connecting-ip   # כל בקשה מגיעה דרך ה־Tunnel — זו הכתובת האמיתית של הלקוח
+      - SNB_CRON=on
+    env_file:
+      - /etc/snb/app-stg.env
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 1.0
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    networks: [edge]
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  worker-stg:
+    profiles: [stg-worker]
+    image: ${SNB_IMAGE_STG:-snb-none}
+    restart: unless-stopped
+    runtime: ${SNB_RUNTIME:-runc}
+    environment:
+      - SNB_ISO_WHY=${SNB_ISO_WHY:-}
+      - SNB_SERVER=https://api-staging.thesnowball.app
+    env_file:
+      - /etc/snb/worker-stg.env
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: ${SNB_MEM_STG:-3g}
+    memswap_limit: ${SNB_MEM_STG:-3g}
+    cpus: ${SNB_CPUS_STG:-1.5}
+    tmpfs:
+      - /tmp:size=1g,mode=1777,noexec,nosuid,nodev
+      - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev
+    volumes:
+      - work-stg:/work
+      - cache-stg:/cache
+    networks: [wk-stg]
+    stop_grace_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "/opt/vt/bin/python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/state/alive')<900 else 1)"]
+      interval: 5m
+      timeout: 10s
+      start_period: 2m
+
+networks:
+  edge: {}     # ה־Tunnel והשרתון של הניסוי בלבד
+  wk-stg: {}   # העובד של הניסוי — לבד
+
 volumes:
   work: {}     # הסרטון והפרויקט של העבודה הנוכחית בלבד — מתרוקן בסוף כל עבודה (agent.cleanup)
   cache: {}    # מודלי התמלול (Hugging Face / torch) — נשמרים בין עבודות ועדכונים, בלי מידע של משתמשים
+  work-stg: {}
+  cache-stg: {}

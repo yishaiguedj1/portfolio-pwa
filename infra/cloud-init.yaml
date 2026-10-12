@@ -51,405 +51,102 @@ apt:
         =5/8T
         -----END PGP PUBLIC KEY BLOCK-----
 write_files:
+  # infra/host/nftables.conf
   - path: /etc/nftables.conf
     permissions: "0644"
     owner: root:root
-    content: |
-      #!/usr/sbin/nft -f
-      # חומת האש של השרת (THE SNOWBALL). נטענת באתחול (nftables.service), לפני Docker.
-      # בלי "flush ruleset" — כך טעינה מחדש לא מוחקת את הכללים ש־Docker מוסיף לעצמו; רק הטבלה שלנו מוחלפת.
-      #   • נכנס: הכל חסום — אין לשרת אף שירות פתוח (גם לא SSH). חוץ מתשובות לחיבורים שהשרת עצמו פתח.
-      #   • מהקונטיינרים: אסור לגשת לשירות המטא־דאטה של Hetzner (169.254.169.254) ולרשתות פנימיות —
-      #     גם אם קוד זדוני ירוץ בתוך העבודה, הוא לא יגיע לנתוני השרת או לרשת הפרטית.
-      table inet snb
-      delete table inet snb
-      table inet snb {
-      	chain input {
-      		type filter hook input priority 0; policy drop;
-      		iif "lo" accept
-      		ct state established,related accept
-      		ct state invalid drop
-      		meta l4proto ipv6-icmp icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
-      		meta l4proto icmp icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
-      		icmp type echo-request limit rate 5/second accept
-      		udp sport 67 udp dport 68 accept
-      		# אופציונלי: SSH רק דרך Tailscale (רשת פרטית) — infra/README.md, "גישת ניהול"
-      		iifname "tailscale0" tcp dport 22 accept
-      	}
-      	chain forward {
-      		type filter hook forward priority -10; policy accept;
-      		ip daddr 169.254.0.0/16 drop
-      		ip daddr { 10.0.0.0/8, 100.64.0.0/10 } drop
-      	}
-      }
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/4VU227TQBB9Jl8xpC+pFDtpBQHaJxCV+sBFokg8O/aGrHC8Zr0JlKoSn5DSBOo2FBoubfMRfAb7zpdwZh0nBSGhKPbO7MyZM7NnvXK90c90I2vLpJF0DHmdygrZD3ZsT+2M7MgO7SXZSzvh9aW9gLP2dHuLdh49fnbv7oMHqz7Zz/bITvFE/AHiZy59QjXgBe1YZH4m9ECGYrVOdmK/IjKn+yp8IbTPxQ7gzKnaiftZl3QfCcJU6dfbEdkTe0wOPEcS7FNAHzKhiR2yNYZ9znWHBdkTbADMfgTlnz+KGkXcGbxfOG9qv7Njk9DLOeccOQIj1ySqjEtcZjpjggQuU+7yBP+zjXkdHtIZAj8WTIfA/8T4xYxgf2HEHNaYbWAxKtXsO2bH/Hd2tnl6PKxvXHSG+DHIuPgJ/LkzLub9LOZftlCAfrhC8RQx50jhA8ndzFzyBtNhrheM+w4ws4Lpgt0IqUd2+PMHpjvEqpgGbQvzJsEEa2utO/76zRv+/L1KfMBIvnRdufZwqADJnYmJOFJERbdDfjCxQ7LvUWLsJDAv/40VwDDHzGPqej60ozpbYz5md9Y5kHI7JXdGsxJhtBz3mEpG7P6KJc8AB+g0SDIRhrKkXYlELIygv7x/mrRXuRZ2A5nAk/YNm9fMbiqoI2ODeXSVejHfSrVUWppdam5SqmIZ7lKkVbqJDCk7VI1VlYIwFKmBJwS6CVBdZFxQZl0R1bWI4Yr+ESWTQRDLyAHC3xMmoPhGqpVRJNNBy5NhLyV+DFrk+O1RBGiZBEaqxOsnWgToA63VKQ1wGYxnlPLa8nmdjOwJT7wOhYhAAts6QAGhPeAjoVenJPK06rMriAZCG+dJhHzebSvtZdys/MtZBNL+spk/SZd8/8v2f+yullgCirCrPC1e9gFLsexJQ5oHebORiVAlV2bcj1LKUgWurVvERlQYt5chK05VUNJ3p+rP/GHZ4Es7/3Ic4nVMTwMZZ2EA8dRK9S20t+o+DTLp6KDxZOvu/Ydbfg/NVJ2UXShfGlb5pFroJUGXVDUlZrNKJiy5ra8vuO2X8uwo/SrQ0b8FWm4uJOqtLUVaQDmZokAQRZrKS970m421Vqm6xfYerTV992vcrmPd9Fvz2CZOo4jer+xXfgMHoFKiUgYAAA==
+  # infra/host/daemon.json
   - path: /etc/docker/daemon.json
     permissions: "0644"
     owner: root:root
-    content: |
-      {
-        "icc": false,
-        "no-new-privileges": true,
-        "live-restore": true,
-        "runtimes": { "runsc": { "path": "/usr/bin/runsc", "runtimeArgs": ["--platform=systrap"] } },
-        "userland-proxy": false,
-        "log-driver": "json-file",
-        "log-opts": { "max-size": "10m", "max-file": "3" }
-      }
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/1WOwQ7CIBBE7/0KwrmkGm8mHvwO4wHbbcVQILtQWxv+XaDG6G12Zmf3rRVjXLUtP7JeaoI6z8YKA0/hUE1KwwCUUo9hC7WaQCCQtwi/Pgbj1Vh21zJRu0kn/T0p3gTC5qZMs2X1t3LGIbcuXAinpe8tjidayKN0/Moii+V+IEAtTZew7Lz88Wo7iC7BAuY/D7JG9Amcf0Pr/IdrlLMg9crkfL8bM0W2ynqyDpzFKlZv12yDfRYBAAA=
+  # infra/host/sysctl.conf
   - path: /etc/sysctl.d/90-snb.conf
     permissions: "0644"
     owner: root:root
-    content: |
-      # הקשחת ליבה (THE SNOWBALL)
-      kernel.kptr_restrict = 2
-      kernel.dmesg_restrict = 1
-      kernel.unprivileged_bpf_disabled = 1
-      net.core.bpf_jit_harden = 2
-      kernel.sysrq = 0
-      net.ipv4.conf.all.accept_redirects = 0
-      net.ipv4.conf.default.accept_redirects = 0
-      net.ipv4.conf.all.send_redirects = 0
-      net.ipv6.conf.all.accept_redirects = 0
-      net.ipv6.conf.default.accept_redirects = 0
-      net.ipv4.conf.all.rp_filter = 1
-      net.ipv4.conf.all.log_martians = 1
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/52QsWpCQRBFe79iwcY0i5Fgl0JBSCFJkUDKZd2d9xxd183sKOQzAkIIpBf9ofkdnw8UBYuH7Zxz74VpK9nIVnbyK3sl//InP7JRnY+XkXp/ffscDsbjh9YcKELQ88RkCDITOlbPqncCfgG5vCSPJ7KKiXCNAUrwZpIK4zHbSQBfSxFYuyWBPpIZspla8hAvq/N3pq/q0K1lTOunKhELbUPQ1jlIXO16JHCcb2geCrsK3EQ9NmaI/rbUbzbbv2uWkikwMND5K9c8LEuzsMRoY66VA94Suka2AQAA
+  # infra/host/20auto-upgrades
   - path: /etc/apt/apt.conf.d/20auto-upgrades
     permissions: "0644"
     owner: root:root
-    content: |
-      // עדכוני אבטחה אוטומטיים כל יום (unattended-upgrades, מקורות האבטחה של Debian).
-      // אתחול אחרי עדכון ליבה — לא כאן (היה קוטע תרגום באמצע), אלא ב־snb-maint, רק כשאין עבודה.
-      APT::Periodic::Update-Package-Lists "1";
-      APT::Periodic::Unattended-Upgrade "1";
-      APT::Periodic::AutocleanInterval "7";
-      Unattended-Upgrade::Automatic-Reboot "false";
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/21Qz0rDMBy+7ylCTxusK56Eehp4ETwUcQ+QtnEEu3S0qWcfodUGLc4/9GC7PYSP4e/uk/ilQxQmIeFLft8/4nmMWrqnJzL0Rg2jkip6pAeqLTSAhl5wNljPDLQNAzLA40JxrYWKRewW62XGY5FPGcgdxj32jlH9124L7akIJVeT2cjzrP8OE2MtS4Dexv90eWW0QVAF4ddtbS+lTS8xGMO2sYbd0K9lsOnpbigFQYkK79ROptZ1kFWfH7kK3RWXSuO1p85abTFubE4LkUFsPRvNg0vfD0Qm01hGvr9Yx1wLN+DRNV8K91zmOmfOkXNyQPz9isX+K/6lzQudRong6kxpkd3whDnHYB2q99QV1zJyL0SYppo5VzzJBdjfYR/K9rIBAAA=
+  # infra/host/journald.conf
   - path: /etc/systemd/journald.conf.d/90-snb.conf
     permissions: "0644"
     owner: root:root
-    content: |
-      [Journal]
-      SystemMaxUse=500M
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/4v2yi8tykvMieUKriwuSc31TawILU61NTUw8OUCAEqsBv0cAAAA
+  # infra/host/motd
   - path: /etc/motd
     permissions: "0644"
     owner: root:root
-    content: |
-
-        THE SNOWBALL — שרת התרגום
-        ─────────────────────────
-        הפעלה ראשונה:  snb-setup      (מפתחות — פעם אחת)
-        מצב:           snb-status
-        עדכון עכשיו:   snb-update     (רק גרסה שאושרה ונחתמה)
-
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/62QMQ6CQBBFe04xpRRegE4TEwuihSbWGGkNCdBzBNQlxCCoxOi6F/o9J/EvkngBJ1vMZv//b3YckfV8JqvFcjOd+L50mRK8oWEECobNEQVqR6RT2b8O0xj+QIsLiNPIiSxwg/JE4v12HIdJGklfIzRUGpQUmO941lgLTSWMa7MaPHHw5Fd9RhIkaWyfW5xQ0X61bUXUGYU3qNJoFyThQNJ4Cf+rcUe/hZwmuwte7HTEEaVcx/kAAp9YazYBAAA=
+  # infra/host/snb-common.sh
   - path: /usr/local/lib/snb/common.sh
     permissions: "0644"
     owner: root:root
-    content: |
-      # פונקציות משותפות לכלי השרת (snb-update / snb-maint / snb-status / snb-setup). נטען עם ". /usr/local/lib/snb/common.sh".
-      # shellcheck disable=SC2034  # המשתנים בשימוש בכלים שטוענים את הקובץ
-      SNB_DIR=/opt/snb
-      SNB_ENV=/etc/snb/worker.env
-      SNB_IMG=ghcr.io/yishaiguedj1/snb-worker
-      # הזהות היחידה שמותר לה לחתום על התמונה: ה־workflow שבונה אותה, מהענף הראשי של הריפו (חתימה בלי מפתח — Sigstore)
-      SNB_SIGNER='^https://github\.com/yishaiguedj1/portfolio-pwa/\.github/workflows/worker-image\.yml@refs/heads/main$'
-      SNB_ISSUER=https://token.actions.githubusercontent.com
-
-      snb_log() { logger -t snb "$*" 2>/dev/null || true; echo "$*"; }
-
-      # גבולות הקונטיינר לפי השרת בפועל (CX43/CAX31 = 8 ליבות ו־16GB, CAX21 = 4 ו־8GB): חצי ליבה וג׳יגה אחד נשארים למערכת.
-      # compose.yaml קורא אותם (SNB_CPUS / SNB_MEM) — מספר קבוע גדול ממה שיש בשרת = הקונטיינר לא עולה בכלל.
-      snb_limits() {
-      	n=$(nproc 2>/dev/null || echo 2)
-      	kb=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
-      	SNB_CPUS=$(awk -v n="$n" 'BEGIN{printf "%.1f", (n > 1 ? n - 0.5 : n)}')
-      	m=$((kb / 1024 - 1024))
-      	[ "$m" -ge 1024 ] || m=1024
-      	SNB_MEM=${m}m
-      	export SNB_CPUS SNB_MEM
-      }
-
-      # ת2 (10/10/2026): gVisor (runsc) — ליבה מדומה סביב קופסת העובד, שמעבדת תוכן לא מהימן (תמלילים, סרטונים).
-      # נמדד על 5 דק׳ TED: תמלול +6%, יישור +26–39%, זיכרון בשיא +0.45GB. מ־10/10/2026 (שלב 4.1, היישור ב־ONNX INT8)
-      # שיא היישור תחת gVisor 4.2GB (היה 6.5GB) — לכן אוטומטית גם בשרת של 8GB (MemTotal ~7.6GB; הגבול של הקונטיינר ~6.6GB). כפייה: /etc/snb/runtime = runsc / runc.
-      # נפילה ל־runc תמיד גלויה: SNB_ISO_WHY עובר לקונטיינר, והסוכן מדווח אותו למסך השרת באפליקציה.
-      SNB_RT_OK=/var/lib/snb/runsc-ok
-      snb_runtime() {
-      	want=''
-      	[ -r /etc/snb/runtime ] && want=$(tr -cd 'a-z' </etc/snb/runtime)
-      	SNB_ISO_WHY=''
-      	if [ "$want" = runc ]; then
-      		SNB_ISO_WHY=manual
-      	elif [ "$want" != runsc ]; then
-      		kb=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
-      		if [ "$kb" -ge 7000000 ]; then want=runsc; else want=runc; SNB_ISO_WHY=mem; fi
-      	fi
-      	if [ "$want" = runsc ] && ! { [ -x /usr/bin/runsc ] && docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q '"runsc"'; }; then
-      		want=runc; SNB_ISO_WHY=missing
-      	fi
-      	if [ "$want" = runsc ] && [ -e "$SNB_RT_OK.bad" ]; then want=runc; SNB_ISO_WHY=selftest; fi
-      	SNB_RUNTIME=$want
-      	export SNB_RUNTIME SNB_ISO_WHY
-      }
-
-      snb_compose() {
-      	snb_limits
-      	snb_runtime
-      	if docker compose version >/dev/null 2>&1; then
-      		docker compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" "$@"
-      	else
-      		docker-compose --project-directory "$SNB_DIR" -f "$SNB_DIR/compose.yaml" "$@"
-      	fi
-      }
-
-      # עבודה רצה עכשיו? (הסוכן כותב /work/.busy בזמן עבודה)
-      snb_busy() {
-      	w=$(docker volume inspect -f '{{.Mountpoint}}' snb_work 2>/dev/null) || return 1
-      	[ -n "$w" ] && [ -e "$w/.busy" ]
-      }
+    encoding: gz+b64
+    content: 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
+  # infra/host/snb-update
   - path: /usr/local/sbin/snb-update
     permissions: "0755"
     owner: root:root
-    content: |
-      #!/bin/sh
-      # עדכון העובד לגרסה שאושרה (תג prod ב־GHCR). רץ כל רבע שעה (snb-update.timer) וידנית.
-      #   1. לא באמצע עבודה (/work/.busy).
-      #   2. מושכים את prod ולוקחים את ה־digest — מאז רק לפי digest (תג יכול לזוז, digest לא).
-      #   3. מאמתים חתימה: נבנה ונחתם ב־worker-image.yml מהענף הראשי של הריפו. אחרת — לא מעדכנים.
-      #   4. כותבים את ה־digest ל־/opt/snb/.env ומפעילים מחדש. התמונות הישנות נמחקות אחרי שבוע (לחזרה אחורה).
-      set -eu
-      # shellcheck source=snb-common.sh
-      . /usr/local/lib/snb/common.sh
-      [ -s "$SNB_ENV" ] || { snb_log "אין עדיין מפתחות — להריץ snb-setup"; exit 0; }
-      # כלי חסר = הודעה ביומן (journalctl -t snb), לא כישלון שקט באמצע set -e
-      for c in docker cosign; do
-      	command -v "$c" >/dev/null 2>&1 || { snb_log "✗ חסר הכלי $c — apt-get install -y docker-cli cosign"; exit 1; }
-      done
-      if snb_busy && [ "${1:-}" != "--now" ]; then snb_log "עבודה רצה — העדכון יחכה לסיומה"; exit 0; fi
-      docker pull -q "$SNB_IMG:prod" >/dev/null
-      REF=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$SNB_IMG:prod" | grep "^$SNB_IMG@sha256:" | head -n1)
-      case "$REF" in "$SNB_IMG@sha256:"*) ;; *) snb_log "✗ לא נמצא digest לתמונה"; exit 1 ;; esac
-      CUR=$(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null || true)
-      if [ "$REF" != "$CUR" ]; then
-      	if ! cosign verify --certificate-identity-regexp "$SNB_SIGNER" --certificate-oidc-issuer "$SNB_ISSUER" "$REF" >/dev/null 2>&1; then
-      		snb_log "✗ החתימה של $REF לא אומתה — נשארים בגרסה הנוכחית"
-      		exit 1
-      	fi
-      	umask 022
-      	printf 'SNB_IMAGE=%s\n' "$REF" >"$SNB_DIR/.env.tmp"
-      	mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
-      	snb_log "✓ גרסה חדשה מאומתת: $REF"
-      fi
-      # gVisor: בדיקה עצמית לכל גרסה חדשה של התמונה — הקונטיינר באמת עולה תחת runsc ורואה ליבה מדומה.
-      # נכשל → העובד רץ ב־runc (לא נעצר), והסיבה מגיעה למסך השרת (selftest). מצליח בגרסה הבאה → חוזרים ל־gVisor.
-      snb_runtime
-      if [ "$SNB_RUNTIME" = runsc ] || [ -e "$SNB_RT_OK.bad" ]; then
-      	mkdir -p /var/lib/snb
-      	if [ "$(cat "$SNB_RT_OK" 2>/dev/null || true)" != "$REF" ] && [ -x /usr/bin/runsc ]; then
-      		if docker run --rm --runtime=runsc --network none --read-only --cap-drop ALL --entrypoint /opt/vt/bin/python "$REF" \
-      			-c "import platform,sys; sys.exit(0 if platform.release().endswith('gvisor') else 1)" >/dev/null 2>&1; then
-      			printf '%s\n' "$REF" >"$SNB_RT_OK"; rm -f "$SNB_RT_OK.bad"
-      			snb_log "✓ gVisor: העובד רץ בליבה מדומה"
-      		else
-      			printf '%s\n' "$REF" >"$SNB_RT_OK.bad"; rm -f "$SNB_RT_OK"
-      			snb_log "✗ gVisor: הבדיקה העצמית נכשלה — העובד רץ בלי בידוד ליבה (runc) עד הגרסה הבאה"
-      		fi
-      	fi
-      fi
-      snb_compose up -d --remove-orphans --quiet-pull >/dev/null 2>&1 || snb_compose up -d --remove-orphans
-      docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
+    encoding: gz+b64
+    content: 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
+  # infra/host/snb-maint
   - path: /usr/local/sbin/snb-maint
     permissions: "0755"
     owner: root:root
-    content: |
-      #!/bin/sh
-      # תחזוקה לילית: אם הותקנה ליבה חדשה (unattended-upgrades) — אתחול, אבל רק כשאין עבודה.
-      # עבודה רצה → מחכים ללילה הבא. אחרי האתחול Docker מעלה את העובד מעצמו (restart: unless-stopped).
-      set -eu
-      # shellcheck source=snb-common.sh
-      . /usr/local/lib/snb/common.sh
-      running=$(uname -r)
-      newest=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sed 's|^/boot/vmlinuz-||' | sort -V | tail -n1)
-      need=0
-      [ -n "$newest" ] && [ "$newest" != "$running" ] && need=1
-      [ -e /run/reboot-required ] && need=1
-      [ "$need" = 1 ] || exit 0
-      if snb_busy; then snb_log "נדרש אתחול לעדכון אבטחה — עבודה רצה, נדחה ללילה הבא"; exit 0; fi
-      snb_log "אתחול לעדכון אבטחה ($running → ${newest:-?})"
-      systemctl reboot
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/4VSy27aUBDd+ysmDkqgqrkhSxDtpt/QTdRWYE/AyuWa3kfatK7UVddQTGgEaSIWScMPzT5f0rmYPOimC9szc2bOHI3P7o7opkqYfrALtKIZndOUbqkAWtDF+lk1gUZ0CVQwsmLs+gEd+2BGE7rjoOpUx1pUCSaRG/Z0J0FTg/vvhZ/2xFNavPTxmBZAf+gWaM6DI+a5AlpyecpMRd3reMx84w1/7n/8BPrNJHNuv/TbS3WFVzWmUd0Tz7j5whce98GbLD5B7UeXZTdDvmPJ6JgmJXDD7ylUNRrb0bYJTkk0JjI2Gw4xqdUDgxYidKzM9FHKuI/xCZjM6RjbRnWjOBsMMlXnG9ZBOKOFzOKOFDLtCobFE6ydUqnqtSv+WAOESNcChZ94MZekgagBoptlVpwOZKrcl+gFHL4SCZ4K5aSEHAwmsG/y99tdeb7vsUyzzLcc2U4qIVINT45J+yA44gzCSrkqhHewtwdHzwo7bU424jbwerLhJxEEQ0Kj3xlp/OhSzTK2uzwXJiG0ocFIngN+Ti0cBOkx8Ak+dJ05a4Hto1qnMutByD6a8B+7e+YP/2OXXJ1zclV65RcjRWmjf13BbvIUs9KO24YIWxsFLThOg6ed/19VfTjE2nSVr+WNmtHrb7UwMGfG4iC2EspzBH8BmNMj7z8DAAA=
+  # infra/host/snb-status
   - path: /usr/local/sbin/snb-status
     permissions: "0755"
     owner: root:root
-    content: |
-      #!/bin/sh
-      # מצב השרת במבט אחד (לקונסולה של Hetzner).
-      # shellcheck source=snb-common.sh
-      . /usr/local/lib/snb/common.sh
-      echo "גרסה:   $(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null | sed 's/.*@sha256:\(............\).*/sha256:\1…/')"
-      echo "מפתחות: $([ -s "$SNB_ENV" ] && echo 'מוגדרים' || echo 'חסרים — snb-setup')"
-      echo "עבודה:  $(snb_busy && echo 'רצה עכשיו' || echo 'אין')"
-      snb_runtime; echo "בידוד:  $SNB_RUNTIME${SNB_ISO_WHY:+ ($SNB_ISO_WHY)}"
-      snb_compose ps --format '{{.Name}}  {{.Status}}' 2>/dev/null || true
-      echo "דיסק:   $(df -h / | awk 'NR==2{print $3" מתוך "$2}')"
-      echo "--- שורות אחרונות מהעובד ---"
-      snb_compose logs --tail 15 worker 2>/dev/null || true
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/31S227TQBB9z1cMrlXbQfaqQeUhKIhbUSO1SZWAEBCIHGdbR/VNXrsIEkv9BEISQSCUNg9p6Q/wzk/Me7+E2aRRg4Twg7WzM3PmzNmzdou1OgETbm4N8ARn2Acc4k+8wEvAPt308QvgR/yMA9Bxguc4wlM8o/8Eh0CFE9jmyYeAx4ZFEMLlnue43DkEEaaxw0siaJlO6PthYNEQC1gqYuaFju0xr9NilGY3aYqacRj6IscdNwRFjiUqY/xeBFC7j6u7e9X6VnOvVn1a3tmqF01iNsYfcHU8BDlI8CSNMiUneBvMADTB3jb0euVR8/VD81XzTb5hlKz8A+Hahc27xYZurXwNw8oz/ETTznBI06CxAcvCwtXxjEUaKKrEelKuMYsHRwoU7rM2P2JB6nnQ60ESp3xJfErCjYi8hFJ1uVcrFe8hisM2rK/DvEqjYTOp4hS/kZJjHGkS5jo330wzVppFcnDTC79/yQc6pSr5GuMiLNC0JRNDWciZBknH5/fgmlifGgaSmiQm16k9rzwr726pXRmU69Xmi+2XxdugqyuxkS3A6KWiUHCIBJjmfhj7dgJat2tVbJ9nGQAd64mdpCLLtP+pM5izPpcyq3p7H0wXGPTAfncIWqVWKhW6UdwJElDvKNKVl8T3K6lfyDTaaoFhmqa034i2HkmvSotezM05D0/IxVM69sm3VPo3fS88kAskdseDjc1/Ev0DMHuJ9BgDAAA=
+  # infra/host/snb-setup
   - path: /usr/local/sbin/snb-setup
     permissions: "0755"
     owner: root:root
-    content: |
-      #!/bin/sh
-      # החלפת המפתחות בשרת (מהקונסולה של Hetzner). ההקמה עצמה — "קוד ההקמה" מהאפליקציה, בלי הסקריפט הזה.
-      # ההודעות באנגלית: הקונסולה של לינוקס לא מציגה עברית. המפתחות לא מוצגים על המסך ולא נשמרים בשום מקום אחר:
-      #   /etc/snb/worker.env — בעלות root, הרשאות 600. Docker מעביר אותם לקונטיינר בלבד.
-      set -eu
-      [ "$(id -u)" = 0 ] || { echo "Run as root"; exit 1; }
-      umask 077
-      mkdir -p /etc/snb
-      # השאלה והמעבר לשורה — ל־stderr (המסך): הפונקציה רצה בתוך $(...), ו־stdout שלה הוא הערך בלבד.
-      # לקח 09/10/2026: השאלה נבלעה במשתנה — המסך נשאר ריק, והמפתח נפסל כי התחיל בטקסט השאלה.
-      ask_secret() {
-      	printf '%s\n> ' "$1" >&2
-      	stty -echo 2>/dev/null || true
-      	IFS= read -r v
-      	stty echo 2>/dev/null || true
-      	echo >&2
-      	printf '%s' "$v"
-      }
-      # מה שכבר בשרת — כדי שאפשר יהיה להחליף רק את מפתח Anthropic (למשל כשהוא פג), בלי טוקן שרת חדש.
-      # לקח 10/10/2026: הטוקן מוצג באפליקציה פעם אחת בלבד — בלי "Enter = להשאיר", החלפת מפתח דרשה רשומת שרת חדשה.
-      OLD_WT=$(sed -n 's/^SNB_WORKER_TOKEN=//p' /etc/snb/worker.env 2>/dev/null || true)
-      OLD_HB=$(sed -n 's/^SNB_HEARTBEAT_URL=//p' /etc/snb/worker.env 2>/dev/null || true)
-      AK=$(ask_secret "Anthropic API key (starts with sk-ant-; hidden):")
-      case "$AK" in sk-ant-*) ;; *) echo "x Not an Anthropic key"; exit 1 ;; esac
-      if [ -n "$OLD_WT" ]; then
-      	WT=$(ask_secret "Server token - Enter to keep the current one (or a new one from the app; hidden):")
-      	[ -n "$WT" ] || WT=$OLD_WT
-      else
-      	WT=$(ask_secret "Server token (app: Studio > Settings > Server > Add server; hidden):")
-      fi
-      printf '%s' "$WT" | grep -Eq '^[A-Za-z0-9_-]{32,128}$' || { echo "x Bad server token"; exit 1; }
-      if [ -n "$OLD_HB" ]; then
-      	printf '%s\n> ' "Heartbeat URL - Enter to keep the current one, or type: none"
-      else
-      	printf '%s\n> ' "Heartbeat URL (e.g. healthchecks.io), optional - Enter to skip:"
-      fi
-      IFS= read -r HB
-      if [ -z "$HB" ]; then HB=$OLD_HB; elif [ "$HB" = none ]; then HB=; fi
-      case "$HB" in ""|https://*) ;; *) echo "x The URL must start with https://"; exit 1 ;; esac
-      {
-      	printf 'ANTHROPIC_API_KEY=%s\n' "$AK"
-      	printf 'SNB_WORKER_TOKEN=%s\n' "$WT"
-      	if [ -n "$HB" ]; then printf 'SNB_HEARTBEAT_URL=%s\n' "$HB"; fi
-      } >/etc/snb/worker.env.tmp
-      chmod 600 /etc/snb/worker.env.tmp
-      mv /etc/snb/worker.env.tmp /etc/snb/worker.env
-      echo "Saved. Starting the worker... (if a job is running, the new key applies when it ends)"
-      systemctl start snb-update.service && /usr/local/sbin/snb-status
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/5VW624aRxT+7X2K040boIJd7EpJA8ISbqiIHNmR7Spq0wStl3HYArPbnVkSJ7bUR/AFN3FCqO1aMeEh+hjd/32SnjOz4EV2FPUPzOWbc/m+c4721lf2lsdt0TJuQdyP38SD+CIe03JICzw4pu1B/Cke4SKLx/34Eg9P4zP8HcR9wKsB1Jl8xVmYs+gpIYZ0cx5/VIt/f++DqZ4dpe5NUNb20dEgPsGzj/jbz5M33BPwDA9HeHgRv6XtH3Hf0nH2yRSaT4Lbx3AOlZFxCW4OUN2e4sllfEabfXJODg91oAfK0di6lnoCPUbwISI+EHigUWfxO1A+EHGKXobKxgdN1zEthioUXOyjuVEJgwewmXRtwbfsF37YZqHFeE8RhK/QsnIa+r7Mk48RGtpXR3eKRQvu+y6+ILMU8Ek8An1LHgZJ1m/xnDIdaR4P4iPLEExCgUXGEzDns14TClHOhAoU4Sns7sJrYG7LB3M94uAI5dwsA3vpSVgow54RdR3RhuLdu0a33fRCKATTHLQaFKMi+ljRosikgIiEUSJ/PPjnbyGbLAyxiBLyckqsCxV2oj7gg4+xImOM5+9gPmtZVg7JOFbv/UgqPQlCRbBPf+f46F0q3VuajTdQvGcvFO3F4uKd0kycpwp7rv0M8XyMR0mcU2FPFX4EStTL/CQ7VRp0e4EwLIT3ulSpXk5of4AKYI3pik08WgYy2BDMDZnM5uC1MReEHpfbkPla/MKXIIO6LJiwdHvRmBNS7qBYpMjikt1kPZtHnQ7pJMOIGXMPftioQMgcVDGEXoL/PFzdKMNXLsldzzT2iKihbpD3WrNJnysm3mOLnYDK4YLOgQTSIg2SWXES/0X8XFIdjmHKTpXLVugHnotaDxTBiqhPE8ku4sPcVZ+/VV35JyS+0fBR/CmlIkqYVnEKT5pSD4CZGUIezidtN55WxqTNyKtZ4xJbqaJzoRyxncz8zBCcin2kGlEVJ9X0kC7TwZLCaw/vNx5vVuazgqE0HDLCfraxutx4vLa+UltvbK6t1FYrth1kbhwAN2iXUybry9dN1mvV9c3lWnWz8eP6w/9ps7qC9q6qEcwrraqPHkCb7UBWSCeUAl54sgWiXXC4LJSh5TWbjOdKZs5wHcGwhKorJnh8gvgmB+Uy4K8eJi9h1Zfg8FQtoO3pXCEsE45reNvwhHIz5zWBJjwtg2wxbswpNtOhbrCwh5pJv804FEArKH00zAJ6A24UhoxL8DmDrB+CA5y9ULvt0O8qiBMEM7nMJd6VZ6KJvOpQDNYR7EthZNFgCTZk1PSwz2CDSenx50ItFWwJqs0mCLWZ8bztGbMtSSHswvMQkynUfoPMsyfVws9O4VWxcK9RePr628X8wuJ3e/OZ9Mx+CcvOxLqOaGZ0z7JbX06xe20C1RmqvsUcCVhVX6I3D0iv3AlYCThuzYSrLxjNMuu5BS3mdGTLbTG3LSzPx0ngB9LzudNJexVtLyiZxNLMxKsvJ0m9wqRSCQE1ik4SCegojAZUVIRpXBnQalLEhMAiNs3dlpSBKNn2tULexNQp+m4kJKje0K0xeXC9qFMDvrq6WV9fe/Tg+wa2V2Ol9lOFuMno9rmCXZsUExQWhTF3JWM64/Tb2ZEweYxoleseLN0wICzZDQy31fWb9HUBn0N0e5+7uunc0KxtOD3WtLAvkC3sB1U+CciyIIsJOfCrvwUefm9EnCMkrzDUrzSDsKs6HsMZRIkit4w3Rc40xI6QrOvKTqID+i5EQdORzKIe8FwGt2+DHYnQ7viu07GF+rpFFOJlJIz/ADuTYJ7wCgAA
+  # infra/host/snb-update.service
   - path: /etc/systemd/system/snb-update.service
     permissions: "0644"
     owner: root:root
-    content: |
-      [Unit]
-      Description=THE SNOWBALL — עדכון העובד לגרסה המאושרת (תג prod, חתימה מאומתת)
-      Wants=network-online.target
-      After=network-online.target docker.service
-      Requires=docker.service
-
-      [Service]
-      Type=oneshot
-      ExecStart=/usr/local/sbin/snb-update
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/23Mv0oDQRAG8H6fYkoFk3uCLSIGLIKCF0kRUlz2RrPkmD1n5/zT+QiaXBBRIlrpvdD0Pokr6cRuvt/3MdNz8jIzRxgd+1p8IDs+HkJ+cjo5HIxG8H3fgn7oWl90o2+gbQobfdQ16Kuu9FPftf3VrT4k/0rQwZ52uoKaQ3kA+pTCc6rTarfZJuj2zaQgiZZQbgIve4EqT9iXgi9RzOBCkP/voAxuidyPyNfeoTnDq8YzRvvHzTTfXTMzvqvRBsK4CGKGt+jy9Eps1kTOquCKKotzT1mkea+py0LQ/ACh7efZFQEAAA==
+  # infra/host/snb-update.timer
   - path: /etc/systemd/system/snb-update.timer
     permissions: "0644"
     owner: root:root
-    content: |
-      [Unit]
-      Description=THE SNOWBALL — בדיקת עדכון כל רבע שעה
-
-      [Timer]
-      OnBootSec=2min
-      OnUnitActiveSec=15min
-      RandomizedDelaySec=60
-
-      [Install]
-      WantedBy=timers.target
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/4sOzcssieVySS1OLsosKMnMz7MN8XBVCPbzD3dy9PFReNQwReH6xOuTr8+8vvz6KoXri4DM2denXp+vAKTmKFxfAZRcpHB9JVBiChdXdEhmbmpRLJd/nlN+fklwarKtUW5mHpALssUxuSSzLBUkaGgKEg1KzEvJz82sSk1xSc1JrARJmBkAzfDMKy5JzMmJ5QpPzCtJTXGqtC0BmVqsV5JYlJ5awgUAJhN/p7MAAAA=
+  # infra/host/snb-maint.service
   - path: /etc/systemd/system/snb-maint.service
     permissions: "0644"
     owner: root:root
-    content: |
-      [Unit]
-      Description=THE SNOWBALL — אתחול אחרי עדכון ליבה, רק כשאין עבודה
-
-      [Service]
-      Type=oneshot
-      ExecStart=/usr/local/sbin/snb-maint
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/xWKPQrCMABG95wiB1Bygg6KBYeiQysOpUMbAgZqUpIounkExZZSLAhd/LnQt3sS0+3x3ks3SrqMLITlRlZOahUky5DGq/V2Posi+rvUFFd80aJBP2KLNzqKAXc8vHtS9OhwQz2hvryotx+/dWMZvG/8WBOSxsIcJRcZSc6VCLQSdqcdCU+Cxy43LmAHa1ipeV4yW0jFrCqm+1wqR/7XrweTpAAAAA==
+  # infra/host/snb-maint.timer
   - path: /etc/systemd/system/snb-maint.timer
     permissions: "0644"
     owner: root:root
-    content: |
-      [Unit]
-      Description=THE SNOWBALL — תחזוקה לילית
-
-      [Timer]
-      OnCalendar=*-*-* 03:30:00
-      RandomizedDelaySec=30min
-      Persistent=true
-
-      [Install]
-      WantedBy=timers.target
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/x2MuwrCMBRA93xFZkEJdCtksFZQKFZspUPpENqLBNJbSa5DnfwIHwjuQn8ou19ilcMZznLKPWqqWAyutvpIukOZr5Y826RFNE8S/rlcuR/8w9/9zb/9GC///DswVua6BVuxFBfKADbKysl0hIsgDEQoBNspbLpWn6GJwag+g1oGotXItmCddgRIkuwJxtcaHSljKlYoJGiiXtLv7mak7AGIfQHRqCsHqgAAAA==
+  # infra/compose.yaml
   - path: /opt/snb/compose.yaml
     permissions: "0644"
     owner: root:root
-    content: |
-      # העובד בשרת — Docker Compose. מותקן ב־/opt/snb/compose.yaml (cloud-init), ומופעל מחדש רק דרך snb-update.
-      # SNB_IMAGE = התמונה לפי digest (ghcr.io/…@sha256:…) — snb-update כותב אותו ל־/opt/snb/.env אחרי שאימת את החתימה.
-      #
-      # אבטחה:
-      #   • בלי ports — אף אחד לא יכול להתחבר לקונטיינר מבחוץ. הוא רק פונה החוצה (השרתון, Drive, Anthropic, Hugging Face).
-      #   • read_only + tmpfs: הקוד והספריות לא ניתנים לשינוי מבפנים; כתיבה רק לתיקיות העבודה/המטמון/מצב העבודה.
-      #   • cap_drop ALL + no-new-privileges + משתמש 10001: גם קוד זדוני בתוך סרטון/תמליל לא מקבל הרשאות.
-      #   • הגישה לשירות המטא־דאטה של Hetzner (169.254.169.254) חסומה בחומת האש של המארח (cloud-init, DOCKER-USER).
-      #   • gVisor (runsc) בשרת של 8GB ומעלה: גם פרצה בליבה לא יוצאת מהקופסה (ת2, 10/10/2026).
-      #   • הסודות מקובץ env בהרשאות 600 של root — לא בתמונה, לא בריפו.
-      name: snb
-
-      services:
-        worker:
-          image: ${SNB_IMAGE:?SNB_IMAGE חסר — מריצים דרך snb-update}
-          restart: unless-stopped
-          # ת2: gVisor כשהשרת מתאים (snb_runtime ב־snb-common.sh); הסיבה לנפילה ל־runc נכנסת לקונטיינר ומוצגת באפליקציה
-          runtime: ${SNB_RUNTIME:-runc}
-          environment:
-            - SNB_ISO_WHY=${SNB_ISO_WHY:-}
-          env_file:
-            - /etc/snb/worker.env
-          read_only: true
-          user: "10001:10001"
-          cap_drop: [ALL]
-          security_opt:
-            - no-new-privileges:true
-          pids_limit: 512
-          # לפי גודל השרת — snb_limits ב־snb-common.sh (כל ההפעלות עוברות דרך snb_compose)
-          mem_limit: ${SNB_MEM:-6g}
-          memswap_limit: ${SNB_MEM:-6g}
-          cpus: ${SNB_CPUS:-3.5}
-          tmpfs:
-            - /tmp:size=2g,mode=1777,noexec,nosuid,nodev
-            - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev
-          volumes:
-            - work:/work
-            - cache:/cache
-          stop_grace_period: 90s
-          logging:
-            driver: json-file
-            options:
-              max-size: 10m
-              max-file: "5"
-          healthcheck:       # הסוכן כותב /state/alive כל 5 דק׳ (חוט נפרד, גם באמצע עבודה) — ישן מ־15 דק׳ = תקוע
-            test: ["CMD", "/opt/vt/bin/python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/state/alive')<900 else 1)"]
-            interval: 5m
-            timeout: 10s
-            start_period: 2m
-
-      volumes:
-        work: {}     # הסרטון והפרויקט של העבודה הנוכחית בלבד — מתרוקן בסוף כל עבודה (agent.cleanup)
-        cache: {}    # מודלי התמלול (Hugging Face / torch) — נשמרים בין עבודות ועדכונים, בלי מידע של משתמשים
+    encoding: gz+b64
+    content: H4sIAAAAAAAC/91ZW08bWRJ+51ccwUhja+32LTahs0jLECaJNgQEyaxWK2Q17YPdO+6L3G0SZhRpnubZBjuE4EBgMmB43ff8jPR7fsnW5fSFa2a0ima0KLH73OrUqfqq6jvtKREOwuNwGPbDHQEfZ+E4PBeffhqI+675veyIedf2XF9qIjyAWefhaXgI8z5+KLheUPCd9YKpJmwZdltkzLbbbeQtxwqyOQELcNF72GCE63fDnfBMwA6nAp7G4RsBAvJdr2EEUpuYEqtPvqk/Wpx7sCBmUa1zWv0uHIhwBEL2RMNqSj8QmWbL7GiWW/j008nf/JZRrtZ0eMyS2olEEe6Txn0R9uhhCHJSimvS2cShXdBkT8DJe+Ee7HiOfee4/y6swZ4B6AbaQXc/fA29Ax1aAnY7RouNYLHndgKftodJv7DQHdS6J0ACqjHCFh5pF5aMsXFKZ3sN43vwPUb79GF0GP6q4eZDXEuWeh8ZYUDDJ/CYgWfyFLQPc+J+x9qUOTHnBK2O61lmTjzsNpuW0xTfGqbMarG6HWk06q7T3hJ/EYHtbfg6SkVNdtBZg/AIdgNroLmU+u+gdU6fb7HnjLQdosFQ3/c8cg9tjcbqo56k9Yjap5EsBFkf9wkHBWgcwMHRuYcF+DpBF6UmJPqahldvwJHE3OPHoLLj5h35PO/Bca22BCxAH6w/I6SciVKxWCzBibZRVXWoVyAQzbeHrkJzvRFwyDFsT5vjQnAgu6eHwk7RpajOmBAByifqQO82TD5jRKIpxtHp8EC9jx9gtx48DRBOI/FQBj84EEOZUm1GK1fvaOo7K8CTRxQdA6G8fsByehggZ6zBAbTG4W46qMDXS/N/X1jJP1tdWEk5tvmd5buwUafr+GY2CWQSdffBNxyKx4jByEDo6BPefxR5TgEWQUYxcKDQ8R60RdSdl3Ng5QL8KxfLtewFyxyR84a87JQyyq+CQqyftqaoFYusVsd1A44Z2rafxHsu7kIsAv5VAO5S1kAkZlACwKYc9kGjcqwRy9tH+9FkQSqNEJCEyn3y2hnKH4pYy5TuGcgMddDM9inLYTaBBGe7jua3xKeft8X80uLy0upCfXll6dtHjxdWs5wMvI7bEPxHKqSSqvImxvkJ9I1F5rnbgdSK+ScLsR4fW6fkxYM6Ccwk6alHwIPlyupB13FkO95wHiGy0TY6UjzlkQzPoF10Th57FGFj1gabO6msk+MMMExBgAGQlARS4pAzEoQQPmBI7bJGftAUF00QpyhlhCPYC3UgpGPiOKJMkjE8Lw+rbzAIjOoNuZly7QEsfQVTtnNRAk7ME+uiDHmTO1Lb88RbNFAuASVygkqgCvtTCPV3UYqIALdPRt5TED4hwL5JiSSI5R3XkVjlOFTeCpp2eu+m8oUW+/hB1T+QfA3CCRcXBvoUdeecIgHwesoOUT4nH2NSO04yfOy0WMBAJXo0PMRIuoLD2D7NV249iVCGU7MKVCmZtPSAKyIcicGqTTiGLcnYExO+7GxapvT1CSGU5ScEh9gGpH2oWf/C4FijTss2mrDwqx9j7qDnI/u+pBkdMJnRCXTRdWCxD252PU82aAwMdl7Wo+xJ2SHCOyZkQtVblRO6TmDZ8mpWyN7j7Ben0HfIVTDTEt2AdSZW0X34f8RV9UrlZ5p0An44R6P3QMCIiicac8Cn4O2jk648e/L00SKcFcXzOQG6Vsd1bOkEbC8h8syoVpfq/3j4z1llI27p+XhVHa2aLCnIwCR+lGQpZUfFHXQRdLqS+rrgK11McuGlz0nqj+o2uAoqN3vKl2a3YwVbdeBfyW5XSroeC/eshl9vW7YFvquWypHDmAqCrTBlj8SFBIWOohXXZe8MB8eA0IylkGKY40EFdExK64rVZmlXW9qRImzExYVFPV9rvoxG/edw4JtnmF7Xjwbml5+t6vmKVuUhZmGJ8aGt+9YPcrbczNluQ86Wpqenc44rX0gTvvyu1YAvyETJEoB3IHlRqWbnYMYsuSLXjJ9IUnG6WLxR0qbb7toypQl6XycMxF2mYbakXqAvdimEUr3ZAY5Z92THchu6mCn6NNR2iYBG8hrIUAEq//ZdJ494U/2ABct14m3BmMaLPB5FB55hX+gllIrJKiOsJY120AJFzO91NWkqYiH7mGei5MnmKRhtUIDTYxX9fBr+BwCBhe+1oIgdhzs5xYwwApGVHouEkypmgUUGhB98/FCKxcxyTRiGx0rfADIOIH9yfvH+ZE5M0oVjMyisW07B2wparoO9eRM/LRuvDsL1c/6Wn8MIhxKw5WvyhRVkisLaENin4Ucmm3d9zTOCltaUgU1dX6dP93X2rzPArWTbl6KUnVxT2lhOAAnVaEMQRQbFtW43QBv7qotyZOzFsj0xgQbN/49/N5f8hL9hiDFVuZLmuXtNRf5VikMueUchPKKAjy6IyAW1Ga2SE3Q52GNmPQb370HePSX2TyGf1SK9qIQhFbGgQhiIXS1oSd9xn68b7bYGJITon6IqegXiKhelpGGUWZDjjsWdIjJ8TOnbUSHGZLPL3CM5Bt2aenFRHJBacL/WEHc7hOBDRNeFOxf2JowqIQWZ+9KTTsNYB1JNTBNKOlCCVI00440LyWNDj2wV3aSL02WzWJtulKumuS5rpcadmizd3Sg2YKBSrlY3yuvr1UrxzsZ0pTRtGsZMdb08XayUquXixsZM2eSMB1nXcBoYBexEgjxU5bzRDVwmONgF5UsB9bYyfUuRSkju54pUrVqtlHX6/EJFqlS+e7lcgEHt64pE3M+loahVqeXIADMuYl82mnLty6bSyiRGeYToy8EHfddQrLnl5frq0we/h2TdSEzmHz9aePK0/mi5/nBh7v7Cyqy5AeUa/GkGcN685XF0UWz1ITDo3h2x1UFCQCMWyfngFd7sLpHSHjNXYq/RBYB52O5FjVaWnsy6zudAl7qv/PHUCKB0GXXAlq5FXdzPqCtpxds5SO2O/RtIyLWgvYYaVL40NWA8J7e56yCt7nI3XR5+L7a/FC2PJq0urHwHgdEKAs/XC4VbqtNvY/N/HthGjP46bs1eqHyGX1+cdZlj82jpszy79Cfg2QTWa7g29yd8OxVpz2nR2h9GwytXafj/FfuNTQ0zMKvp4seX8S0jLjiXX25cebdE1K8f7mBeYjeznKnbX0mpt6K4cCKFGLqTpRVJXmWzKu+J1eKbg9ex1PgKw1sgV93lQqh0493wdceY+SeOoB6/qNqbSMhAvnQCzWxLw+l6yNz5Tqh0mmLWu8Ov5Abq7TqS80z6BwlREIHbMVvZiMCfwTx+r0u3hcNkS7qVD2M6TD82JC/9sKjv4DXtjN8Kqh8CcJKyVmTySNO4/V+ugFf4+BoAAA==
   # SNB_SECRETS
 runcmd:
   # חומת האש קודם — לפני ש־Docker עולה עם הכללים שלו
@@ -463,5 +160,5 @@ runcmd:
   - mkdir -p /etc/snb && chmod 700 /etc/snb
   - systemctl daemon-reload
   - systemctl enable --now snb-update.timer snb-maint.timer unattended-upgrades
-  # יש מפתחות (קוד ההקמה מהאפליקציה) — מתחילים מיד, בלי לחכות רבע שעה לטיימר
-  - if [ -s /etc/snb/worker.env ]; then chmod 600 /etc/snb/worker.env; systemctl start --no-block snb-update.service; fi
+  # יש מפתחות (קוד ההקמה מהאפליקציה, או "הקמת שרת" מ־GitHub עם חדרי הניסוי) — מתחילים מיד, בלי לחכות רבע שעה לטיימר
+  - if ls /etc/snb/*.env >/dev/null 2>&1; then chmod 600 /etc/snb/*.env; systemctl start --no-block snb-update.service; fi

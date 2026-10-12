@@ -9,6 +9,8 @@
 הרצה:  python3 infra/build-cloud-init.py            (כותב את הקובץ)
        python3 infra/build-cloud-init.py --check    (הבדיקות: נכשל אם הקובץ לא מעודכן)
 """
+import base64
+import gzip
 import sys
 from pathlib import Path
 
@@ -71,8 +73,8 @@ TAIL = """runcmd:
   - mkdir -p /etc/snb && chmod 700 /etc/snb
   - systemctl daemon-reload
   - systemctl enable --now snb-update.timer snb-maint.timer unattended-upgrades
-  # יש מפתחות (קוד ההקמה מהאפליקציה) — מתחילים מיד, בלי לחכות רבע שעה לטיימר
-  - if [ -s /etc/snb/worker.env ]; then chmod 600 /etc/snb/worker.env; systemctl start --no-block snb-update.service; fi
+  # יש מפתחות (קוד ההקמה מהאפליקציה, או "הקמת שרת" מ־GitHub עם חדרי הניסוי) — מתחילים מיד, בלי לחכות רבע שעה לטיימר
+  - if ls /etc/snb/*.env >/dev/null 2>&1; then chmod 600 /etc/snb/*.env; systemctl start --no-block snb-update.service; fi
 """
 
 
@@ -89,14 +91,18 @@ def apt_block() -> str:
             '      key: |\n' + ''.join('        ' + ln + '\n' if ln else '\n' for ln in key))
 
 
+def packed(data: bytes) -> str:
+    """gzip (mtime=0 — אותו פלט בכל הרצה) + base64. שלב 2ב: עם חדרי הניסוי הקבצים עברו את 32KB של Hetzner
+    ל־user-data; cloud-init פותח לבד (encoding: gz+b64). המקור הקריא — בקבצים ב־infra/."""
+    return base64.b64encode(gzip.compress(data, compresslevel=9, mtime=0)).decode()
+
+
 def render() -> str:
     out = [HEAD.replace('{APT}', apt_block())]
     for src, dst, mode in FILES:
-        text = (HERE / src).read_text(encoding='utf-8')
-        out.append(f'  - path: {dst}\n    permissions: "{mode}"\n    owner: root:root\n    content: |\n')
-        out.append(''.join(('      ' + ln) if ln.strip() else '\n' for ln in text.splitlines(keepends=True)))
-        if not text.endswith('\n'):
-            out.append('\n')
+        data = (HERE / src).read_bytes()
+        out.append(f'  # infra/{src}\n  - path: {dst}\n    permissions: "{mode}"\n    owner: root:root\n'
+                   f'    encoding: gz+b64\n    content: {packed(data)}\n')
     out.append(MARK + '\n')
     out.append(TAIL)
     return ''.join(out)

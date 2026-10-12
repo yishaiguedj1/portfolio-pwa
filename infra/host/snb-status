@@ -2,11 +2,12 @@
 # מצב השרת במבט אחד (לקונסולה של Hetzner).
 # shellcheck source=snb-common.sh
 . /usr/local/lib/snb/common.sh
-echo "גרסה:   $(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null | sed 's/.*@sha256:\(............\).*/sha256:\1…/')"
-echo "מפתחות: $([ -s "$SNB_ENV" ] && echo 'מוגדרים' || echo 'חסרים — snb-setup')"
-echo "עבודה:  $(snb_busy && echo 'רצה עכשיו' || echo 'אין')"
+snb_rooms
+echo "חדרים:  ${COMPOSE_PROFILES:-אין — snb-setup}"
+sed -n 's/^\(SNB_[A-Z_]*\)=.*@sha256:\(............\).*/גרסה:   \1 sha256:\2…/p' "$SNB_DIR/.env" 2>/dev/null || true
+echo "עבודה:  $(snb_busy prod && echo 'רצה עכשיו' || echo 'אין')$(snb_busy stg && echo ' · בניסוי: רצה' || true)"
 snb_runtime; echo "בידוד:  $SNB_RUNTIME${SNB_ISO_WHY:+ ($SNB_ISO_WHY)}"
 snb_compose ps --format '{{.Name}}  {{.Status}}' 2>/dev/null || true
 echo "דיסק:   $(df -h / | awk 'NR==2{print $3" מתוך "$2}')"
 echo "--- שורות אחרונות מהעובד ---"
-snb_compose logs --tail 15 worker 2>/dev/null || true
+snb_compose logs --tail 15 2>/dev/null || true
