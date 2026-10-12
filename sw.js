@@ -4,15 +4,15 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v396';
+const CACHE_NAME = 'portfolio-pwa-v397';
 const HASHES = {
-  "./": "db52e4db8acca28eaf61d2aa06b69080",
-  "./index.html": "db52e4db8acca28eaf61d2aa06b69080",
+  "./": "affb322fcd7e65067aa2f64e3dcfea7a",
+  "./index.html": "affb322fcd7e65067aa2f64e3dcfea7a",
   "./styles.css": "970e04bc9ef293a8116304f6b7ca8fdd",
-  "./app.js": "10e5e75c1d80a568101b8552eb813cc5",
+  "./app.js": "cf65dbbd8ead156d34ac622e5567cc75",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "8ac40b136ef52417e3e6ac7125f29117",
-  "./firebase-config.js": "2282837313292e34aae7f98c6e3718d9",
+  "./firebase-config.js": "42f8ddbbdacee303f37d1f8cb56ef3be",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
   "./icon-192.png": "511b5aee2e7341ac65fec0d29b91533f",
   "./icon-512.png": "b0a62fb8da14775653dadc9ddff1c09c",
