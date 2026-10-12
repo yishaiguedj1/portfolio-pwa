@@ -6,9 +6,10 @@ const { checkPr, shellFiles } = require('../tools/deploy-guard.js');
 let n = 0;
 function t(name, fn) { fn(); n++; console.log('✓ ' + name); }
 
-const app = (v) => `x\nconst APP_VERSION = 'v${v}';\n`;
+const app = (v, r = '1.0.0') => `x\nconst APP_RELEASE = '${r}';\nconst APP_VERSION = 'v${v}';\n`;
 const sw = (v, extra = '') => `const CACHE_NAME = 'portfolio-pwa-v${v}';\nconst APP_SHELL = ['./', './index.html', './app.js', './styles.css'];\nconst STUDIO_SHELL = ['./studio.js'${extra}];\n`;
 const pr = (b, h, changed, sync = true) => checkPr({ base: { app: app(b[0]), sw: sw(b[1]) }, head: { app: app(h[0]), sw: sw(h[1], h[2] || '') }, changed, sync });
+const prRel = (bRel, hRel, changelog, bApp) => checkPr({ base: { app: bApp !== undefined ? bApp : app(400, bRel), sw: sw(400) }, head: { app: app(401, hRel), sw: sw(401), changelog }, changed: ['app.js', 'sw.js'], sync: true });
 
 t('קבצי המעטפת נקראים מ־sw.js (בלי sw.js עצמו, עם index.html)', () => {
   const s = shellFiles(sw(1));
@@ -54,6 +55,31 @@ t('PR בלי תוכן (שרתון, עובד, מסמכים, בדיקות) — ב�
 t('קובץ תוכן שנמצא רק במעטפת נחשב תוכן', () => {
   const r = checkPr({ base: { app: app(388), sw: sw(388, ", './studioedl.js'") }, head: { app: app(388), sw: sw(388, ", './studioedl.js'") }, changed: ['studioedl.js'], sync: true });
   assert.ok(!r.ok);
+});
+
+t('גרסת המערכת: אותה גרסה = נשאר בניסוי, בלי דרישת CHANGELOG', () => {
+  const r = prRel('1.2.0', '1.2.0', '');
+  assert.ok(r.ok && !r.released, r.errs.join(' | '));
+});
+
+t('גרסת המערכת עלתה — חייבת כותרת ב־CHANGELOG.md', () => {
+  const bad = prRel('1.2.0', '1.3.0', '## 1.2.0 — ישנה\n');
+  assert.ok(!bad.ok && bad.errs.some((e) => /CHANGELOG/.test(e)));
+  const good = prRel('1.2.0', '1.3.0', '## לא פורסם\n\n## 1.3.0 — 12/10/2026\n- חדש\n');
+  assert.ok(good.ok && good.released, good.errs.join(' | '));
+  assert.ok(!prRel('1.2.0', '1.3.0', '## 1.3.01\n').ok, 'כותרת דומה לא נחשבת');
+});
+
+t('גרסת המערכת: לא יורדת, ותקינה (X.Y.Z)', () => {
+  assert.ok(!prRel('1.10.0', '1.9.9', '## 1.9.9\n').ok, 'השוואה מספרית, לא לפי אותיות');
+  assert.ok(prRel('1.9.9', '1.10.0', '## 1.10.0\n').ok);
+  for (const v of ['1.0', '01.0.0', '1.0.0-beta', 'v1.0.0']) assert.ok(!prRel('1.0.0', v, '## ' + v + '\n').ok, v);
+  assert.ok(!checkPr({ base: { app: app(400), sw: sw(400) }, head: { app: `const APP_VERSION = 'v401';`, sw: sw(401) }, changed: ['app.js'], sync: true }).ok, 'חסר');
+});
+
+t('המעבר (v395): main בלי APP_RELEASE — הגרסה הראשונה היא שחרור', () => {
+  const r = prRel(null, '1.0.0', '## 1.0.0 — 12/10/2026\n', `const APP_VERSION = 'v400';`);
+  assert.ok(r.ok && r.released, r.errs.join(' | '));
 });
 
 console.log(`\n${n} בדיקות עברו`);
