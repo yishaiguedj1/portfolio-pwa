@@ -61,6 +61,8 @@ t('פס הפריסה: בדיקות → ניסוי → אישור → Pages → �
   const w = read('.github/workflows/deploy.yml');
   assert.ok(/workflow_run:\s*\n\s*workflows: \[tests\][\s\S]*branches: \[main\]/.test(w), 'רץ רק אחרי הבדיקות על main');
   assert.ok(/conclusion == 'success'/.test(w), 'רק כשהבדיקות ירוקות');
+  assert.ok(/workflow_run\.event == 'push' && github\.event\.workflow_run\.head_branch == 'main' && github\.event\.workflow_run\.head_repository\.full_name == github\.repository/.test(w), 'רק push ל־main בריפו הזה — לא PR ולא fork');
+  assert.ok(/merge-base --is-ancestor "\$SHA" origin\/main/.test(w), 'הקומיט חייב להיות בהיסטוריה של main');
   assert.ok(/approve:[\s\S]*?needs: staging[\s\S]*?environment: production/.test(w), 'אישור בסביבה production');
   assert.ok(/deploy:[\s\S]*?needs: \[staging, approve\][\s\S]*?name: github-pages/.test(w), 'Pages רק אחרי האישור');
   assert.ok(/verify-and-tag:[\s\S]*?needs: \[staging, deploy\][\s\S]*?swgen\.js --live[\s\S]*?tag -a/.test(w));
