@@ -319,10 +319,42 @@ class Rooms(unittest.TestCase):
         m = re.search(r'mem_stg=(\d+)m', r['compose'])
         self.assertEqual(int(m.group(1)), 8 * 1024 - 1024 - 800, 'עובד ניסוי לבד מקבל את כל השרת')
 
+    def test_prod_app_room(self):
+        # ת3: השרתון של הייצור — snb-app:prod (אחרי אישור), ו־Tunnel נפרד
+        r = self.run_update(['worker.env', 'app.env', 'tunnel-prod.env'])
+        self.assertEqual(sorted(r['pulled'].split()), ['ghcr.io/yishaiguedj1/snb-app:prod', 'ghcr.io/yishaiguedj1/snb-worker:prod'])
+        self.assertIn('SNB_APP=ghcr.io/yishaiguedj1/snb-app@sha256:', r['env'])
+        self.assertNotIn('SNB_APP_STG=', r['env'])
+        self.assertIn('UP profiles=prod,app,tunnel-prod ', r['compose'])
+        r = self.run_update(['app.env', 'tunnel-prod.env'], bad_app='1')
+        self.assertNotIn('SNB_APP=', r['env'], 'שרתון לא חתום לא עולה')
+        self.assertIn('UP profiles=tunnel-prod ', r['compose'])
+
+    def test_limits_all_rooms(self):
+        r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env', 'app.env', 'tunnel-prod.env'],
+                            mem_kb=16 * 1024 * 1024)
+        m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
+        self.assertEqual(int(m.group(1)), 16 * 1024 - 1024 - 800 - 1100 - 3072, 'השרתון של הייצור וה־Tunnel שלו יורדים מהעובד')
+
+    def test_cloud_init_slim_keeps_code(self):
+        # ההערות יורדות מקוד ההקמה (מקום לסודות), הקוד נשאר — ובקבצים אין heredoc שבו שורה עם # היא תוכן
+        import base64, gzip
+        ci = read('infra/cloud-init.yaml')
+        files = dict(re.findall(r'(?m)^  - path: (\S+)\n(?:    .*\n)*?    content: (\S+)$', ci))
+        upd = gzip.decompress(base64.b64decode(files['/usr/local/sbin/snb-update'])).decode()
+        self.assertTrue(upd.startswith('#!/bin/sh\n'))
+        self.assertIn('# shellcheck source=snb-common.sh', upd)
+        self.assertNotRegex(upd, r'(?m)^\s*#(?! shellcheck)(?!!)')
+        self.assertIn('resolve "$SNB_APP_IMG" prod', upd)
+        for f in ('snb-common.sh', 'snb-update', 'snb-maint', 'snb-status', 'snb-setup'):
+            self.assertNotIn('<<', read('infra/host/' + f), f + ': heredoc — הסרת ההערות לא בטוחה')
+        self.assertLess(len(ci.encode()), 20 * 1024, 'נשאר מקום לסודות (32KB של Hetzner)')
+
     def test_compose_rooms(self):
         c = read('infra/compose.yaml')
         for svc, prof, envf in (('worker', 'prod', 'worker.env'), ('tunnel', 'tunnel', 'tunnel.env'),
-                                ('app-stg', 'stg', 'app-stg.env'), ('worker-stg', 'stg-worker', 'worker-stg.env')):
+                                ('app-stg', 'stg', 'app-stg.env'), ('worker-stg', 'stg-worker', 'worker-stg.env'),
+                                ('app', 'app', 'app.env'), ('tunnel-prod', 'tunnel-prod', 'tunnel-prod.env')):
             block = re.search(r'(?ms)^  ' + re.escape(svc) + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
             self.assertIn('profiles: [' + prof + ']', block)
             self.assertIn('/etc/snb/' + envf, block)
@@ -334,6 +366,13 @@ class Rooms(unittest.TestCase):
         for f in ('tunnel', 'app-stg'):
             block = re.search(r'(?ms)^  ' + f + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
             self.assertIn('networks: [edge]', block)
+        # הייצור ברשת משלו — הניסוי לא מגיע לשרתון של הייצור
+        for f in ('tunnel-prod', 'app'):
+            block = re.search(r'(?ms)^  ' + f + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
+            self.assertIn('networks: [edge-prod]', block)
+        app = re.search(r'(?ms)^  app:\n(.*?)(?=^  \S|^\S)', c).group(1)
+        self.assertIn('SNB_CRON=off', app, 'הקרון נשאר ב־Vercel עד שהמעבר יוכח')
+        self.assertIn('${SNB_APP:-snb-none}', app)
         # העובדים ב־bridge של Docker: ב־gVisor אין DNS ברשת של compose (שרת הניסוי, 12/10/2026)
         for w in ('worker', 'worker-stg'):
             block = re.search(r'(?ms)^  ' + re.escape(w) + r':\n(.*?)(?=^  \S|^\S)', c).group(1)

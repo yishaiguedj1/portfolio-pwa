@@ -13,6 +13,24 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+/* הסודות של השרתון בייצור (ת3, 12/10/2026): הקמת השרת מעתיקה את משתני Vercel לשורה אחת ב־/etc/snb/app.env —
+   SNB_ENV_GZ = gzip+base64 של {שם: ערך}. כך ערך עם רווח, #, $ או מירכאות עובר כמו שהוא (קובץ env של compose
+   מפרש תווים כאלה), וכל הסודות נכנסים ב־32KB של Hetzner. מה שכבר מוגדר בסביבה (compose) גובר. */
+const ENV_KEY_RE = /^[A-Z][A-Z0-9_]{1,60}$/;
+function unpackEnv(env) {
+  const raw = env.SNB_ENV_GZ;
+  if (!raw) return 0;
+  delete env.SNB_ENV_GZ;
+  let obj;
+  try { obj = JSON.parse(require('zlib').gunzipSync(Buffer.from(raw, 'base64')).toString('utf8')); } catch (e) { return -1; }
+  let n = 0;
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (!ENV_KEY_RE.test(k) || typeof v !== 'string' || env[k] != null) continue;
+    env[k] = v; n++;
+  }
+  return n;
+}
+
 const MAX_BODY = 4.5 * 1024 * 1024;           // כמו Vercel (4.5MB); כל פונקציה בודקת מגבלה משלה
 const DEF_DURATION = 10;                       // כמו Vercel Hobby כשלא הוגדר
 
@@ -181,9 +199,11 @@ function startCron(server, cfg, opts = {}) {
   return { jobs, tick, stop: () => clearInterval(iv) };
 }
 
-module.exports = { createServer, startCron, parseBody, parseCron, cronDue, maxDuration, decorate };
+module.exports = { createServer, startCron, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
 
 if (require.main === module) {
+  const unpacked = unpackEnv(process.env);
+  if (unpacked < 0) console.error('[snb-app] ✗ SNB_ENV_GZ לא נפתח — השרתון עולה בלי הסודות שבו');
   const server = createServer();
   const port = +process.env.PORT || 3000;
   server.listen(port, '0.0.0.0', () => console.log('[snb-app] מאזין על', port, '·', server.names.size, 'פונקציות'));

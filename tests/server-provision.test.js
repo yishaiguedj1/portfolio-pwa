@@ -52,6 +52,19 @@ function mock(opts = {}) {
       if (p === '/firewalls' && m === 'POST') return res(201, { firewall: { id: 77, rules: [] } });
       if (p === '/servers' && m === 'POST') return res(opts.createStatus || 201, { server: { id: 123 } });
     }
+    if (url.startsWith('https://api.vercel.com/')) {
+      calls[calls.length - 1].vauth = (init.headers || {}).Authorization;
+      const V = opts.vercel || {};
+      if (V.status) return res(V.status, {});
+      if (url.includes('/v10/projects/ibkr-proxy/env?decrypt=true')) return res(200, { envs: V.envs || [], hiddenProductionEnvCount: V.hidden || 0 });
+      const one = url.match(/\/v1\/projects\/ibkr-proxy\/env\/([A-Za-z0-9_-]+)/);
+      if (one && V.one && V.one[one[1]] != null) return res(200, { value: V.one[one[1]], decrypted: true });
+      return res(404, {});
+    }
+    if (url === 'https://api.thesnowball.app/healthz') {
+      if (t < (opts.prodHealthAfter || 0)) throw new Error('down');
+      return res(200, null, 'ok');
+    }
     if (url === 'https://api-staging.thesnowball.app/healthz') {
       if (t < healthAfter) throw new Error('down');
       return res(200, null, 'ok');
@@ -195,11 +208,12 @@ function mock(opts = {}) {
     await P.register(E, P.ENVS.stg, 'snb-1', M3.deps);
     ok(Object.entries(M3.docs).find(([k]) => k.startsWith('studioServers/'))[1].by.stringValue === '', 'רישום: מזהה מנהל לא תקין — ריק');
 
-    // ייצור: מחכים רק לעובד (השרתון ב־Vercel)
-    const M4 = mock({ healthAfter: Infinity, seenAfter: 1_000_000 + 3 * 60e3 });
+    // ייצור (ת3): קודם השרתון שלו עונה ב־api.thesnowball.app, ואז העובד
+    const M4 = mock({ healthAfter: Infinity, prodHealthAfter: 1_000_000 + 2 * 60e3, seenAfter: 1_000_000 + 3 * 60e3 });
     const rp = await P.register(E, P.ENVS.prod, 'snb-1', M4.deps);
     const w4 = await P.waitUp(E, P.ENVS.prod, rp.sid, M4.deps);
-    ok(w4.health && w4.seen > 0 && !M4.calls.some((c) => c.url.endsWith('/healthz')), 'all: ייצור — בלי healthz, רק העובד');
+    ok(w4.health && w4.seen > 0 && M4.calls.some((c) => c.url === 'https://api.thesnowball.app/healthz')
+      && !M4.calls.some((c) => c.url.includes('api-staging')), 'all: ייצור — מחכים לשרתון של הייצור ואז לעובד');
 
     // גודל השרת
     const ciAll = all;
@@ -220,6 +234,63 @@ function mock(opts = {}) {
       'ברירות מחדל: שם עם שורה חדשה — נדחה (לא נכנס ל־GITHUB_OUTPUT)');
   }
 
+  /* ---------- ת3: השרתון של הייצור — הסודות מ־Vercel ---------- */
+  {
+    const zlib = require('zlib');
+    const tokP = 'pppppppppppp-' + 'P'.repeat(43);
+    const SAP = Object.assign({}, SA, { project_id: 'yishaiguedj1-c786e' });
+    const envs = [
+      { id: 'env_1', key: 'GDRIVE_SA_KEY', value: JSON.stringify(SAP), type: 'encrypted', target: ['production', 'preview'], decrypted: true },
+      { id: 'env_2', key: 'LIBRARY_READERS', value: 'a@x.com, b@y.com # c', type: 'encrypted', target: ['production'], decrypted: true },
+      { id: 'env_3', key: 'GEMINI_API_KEY', value: '', type: 'encrypted', target: ['production'], decrypted: false },
+      { id: 'env_4', key: 'R2_SECRET_ACCESS_KEY', value: '', type: 'sensitive', target: ['production'] },
+      { id: 'env_5', key: 'VERCEL_URL', value: 'x', type: 'system', target: ['production'], decrypted: true },
+      { id: 'env_6', key: 'SNB_CRON', value: 'on', type: 'plain', target: ['production'], decrypted: true },
+      { id: 'env_7', key: 'PREVIEW_ONLY', value: 'p', type: 'plain', target: ['preview'], decrypted: true },
+      { id: 'env_8', key: 'APP_KEY', value: "q'$HOME\"", type: 'plain', target: 'production', decrypted: true },
+    ];
+    const M = mock({ vercel: { envs, one: { env_3: 'AIza-gem' } } });
+    const vars = await P.vercelEnv(Object.assign({}, E, { VERCEL_TOKEN: 'v'.repeat(24) }), M.deps);
+    ok(M.calls.every((c) => !c.url.startsWith('https://api.vercel.com/') || c.vauth === 'Bearer ' + 'v'.repeat(24)), 'Vercel: הטוקן בכותרת בלבד');
+    ok(vars.find((x) => x.key === 'GEMINI_API_KEY').value === 'AIza-gem', 'Vercel: ערך שלא פוענח ברשימה — נקרא לבד');
+    ok(vars.find((x) => x.key === 'R2_SECRET_ACCESS_KEY').value === null && !vars.some((x) => x.key === 'PREVIEW_ONLY'), 'Vercel: Sensitive = בלי ערך; רק production');
+    let msg = '';
+    try { P.appEnvLine(vars, '', 'yishaiguedj1-c786e'); } catch (e) { msg = e.message; }
+    ok(msg.includes('R2_SECRET_ACCESS_KEY') && msg.includes('PROD_APP_EXTRA') && !msg.includes('AIza') && !msg.includes('BEGIN'),
+      'Vercel: משתנה Sensitive בלי חלופה — עצירה עם השם בלבד, בלי ערכים');
+    const a = P.appEnvLine(vars, 'R2_SECRET_ACCESS_KEY=' + 'f'.repeat(64) + '\nAPP_KEY=over ride', 'yishaiguedj1-c786e');
+    const back = JSON.parse(zlib.gunzipSync(Buffer.from(a.line.slice('SNB_ENV_GZ='.length), 'base64')).toString());
+    ok(back.LIBRARY_READERS === 'a@x.com, b@y.com # c' && back.GEMINI_API_KEY === 'AIza-gem' && back.R2_SECRET_ACCESS_KEY === 'f'.repeat(64)
+      && back.APP_KEY === 'over ride' && JSON.parse(back.GDRIVE_SA_KEY).private_key === pem,
+      'SNB_ENV_GZ: ערכים כמו שהם (רווח, #), PROD_APP_EXTRA ממלא וגובר, חשבון השירות זהה בדיוק');
+    ok(!('VERCEL_URL' in back) && !('SNB_CRON' in back) && a.vault === 's', 'SNB_ENV_GZ: בלי משתני Vercel ובלי SNB_CRON (השרת קובע); הכספת נגזרת מחשבון השירות');
+    const AS = require('../ibkr-proxy/server.js');
+    const env2 = { SNB_ENV_GZ: a.line.split('=').slice(1).join('=') };
+    ok(AS.unpackEnv(env2) === Object.keys(back).length && env2.GDRIVE_SA_KEY === back.GDRIVE_SA_KEY, 'השרתון פותח את השורה שהכלי בנה');
+    ok(await throwsCode(async () => P.appEnvLine([{ key: 'X', value: '1' }], '', 'yishaiguedj1-c786e'), 'vercel_sa'), 'Vercel: בלי חשבון שירות — עצירה');
+    ok(await throwsCode(async () => P.appEnvLine([{ key: 'GDRIVE_SA_KEY', value: JSON.stringify(SAP) }, { key: 'FIREBASE_PROJECT_ID', value: 'other' }], '', 'yishaiguedj1-c786e'), 'vercel_project_id'),
+      'Vercel: פרויקט Firebase אחר — עצירה');
+    ok(await throwsCode(async () => P.parseExtra('lower=1'), 'extra_bad'), 'PROD_APP_EXTRA: שם לא תקין — עצירה');
+    ok(await throwsCode(() => P.vercelEnv(Object.assign({}, E, { VERCEL_TOKEN: '' }), mock().deps), 'vercel_token'), 'Vercel: בלי טוקן — עצירה');
+    ok(await throwsCode(() => P.vercelEnv(Object.assign({}, E, { VERCEL_TOKEN: 'v'.repeat(24) }), mock({ vercel: { status: 403 } }).deps), 'vercel_auth'), 'Vercel: טוקן נדחה — עצירה');
+    ok(await throwsCode(() => P.vercelEnv(Object.assign({}, E, { VERCEL_TOKEN: 'v'.repeat(24) }), mock({ vercel: { envs, hidden: 2 } }).deps), 'vercel_hidden'),
+      'Vercel: משתני ייצור מוסתרים מהטוקן — עצירה (לא שרתון חסר)');
+
+    // קובצי הסודות: Tunnel נפרד לייצור, השורה של השרתון, ו־32KB עם ערכים בגודל אמיתי
+    const big = [{ key: 'GDRIVE_SA_KEY', value: JSON.stringify(SAP) }];
+    for (let i = 0; i < 40; i++) big.push({ key: 'K' + i + '_SECRET', value: crypto.randomBytes(30).toString('base64') });
+    const line = P.appEnvLine(big, '', 'yishaiguedj1-c786e').line;
+    const E3 = Object.assign({}, E, { PROD_TUNNEL_TOKEN: 'eyJ' + 'B'.repeat(180) });
+    const full = P.cloudInit(tpl, P.planFiles('all', E3, { stg: token, prod: tokP }, line));
+    ok(full.includes('path: /etc/snb/tunnel-prod.env') && full.includes('TUNNEL_TOKEN=' + E3.PROD_TUNNEL_TOKEN + '\n') && full.includes(line + '\n'),
+      'ת3: קובץ ה־Tunnel של הייצור והשורה של השרתון');
+    ok(Buffer.byteLength(full) < 32 * 1024, 'ת3: כל ששת החדרים עם 40 משתנים ושני חשבונות שירות — מתחת ל־32KB (' + Buffer.byteLength(full) + ')');
+    msg = '';
+    try { P.planFiles('all', Object.assign({}, E3, { PROD_TUNNEL_TOKEN: E3.STG_TUNNEL_TOKEN }), { stg: token, prod: tokP }, line); } catch (e) { msg = e.message; }
+    ok(msg.includes('PROD_TUNNEL_TOKEN זהה'), 'ת3: אותו Tunnel לייצור ולניסוי — עצירה (הבקשות היו מתחלקות בין שרתים)');
+    ok(await throwsCode(async () => P.planFiles('all', E, { stg: token, prod: tokP }, line), 'secret_bad'), 'ת3: בלי PROD_TUNNEL_TOKEN — עצירה');
+  }
+
   /* ---------- ה־workflow ---------- */
   {
     const w = read('.github/workflows/server.yml');
@@ -237,6 +308,9 @@ function mock(opts = {}) {
       'workflow: stg / all — הרישום וההמתנה של הייצור רק בשרת המאוחד');
     ok(/PROD_FIREBASE_SA: \$\{\{ secrets\.PROD_FIREBASE_SA \}\}/.test(w) && !/STG_FIREBASE_SA[^\n]*\n[^\n]*--env prod/.test(w),
       'workflow: לייצור — רק חשבון השירות של הייצור');
+    const ci = w.split('name: קוד ההקמה עם הסודות')[1].split('- name:')[0];
+    ok(['VERCEL_TOKEN', 'PROD_TUNNEL_TOKEN', 'PROD_APP_EXTRA'].every((k) => ci.includes(k + ': ${{ secrets.' + k + ' }}'))
+      && /VERCEL_PROJECT: \$\{\{ vars\.VERCEL_PROJECT \}\}/.test(ci), 'workflow ת3: הסודות של השרתון מגיעים רק לצעד של קוד ההקמה');
     const src = read('tools/server-provision.js');
     ok(!/console\.(log|error)\([^)]*(token|E\.|e\.STG|HCLOUD)/.test(src), 'הכלי לא מדפיס סודות');
   }

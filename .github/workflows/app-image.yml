@@ -4,7 +4,8 @@
 #   • בונים פעם אחת לשתי הארכיטקטורות, ונוחתים על התג dev — סביבת הניסוי בשרת מושכת אותו בכל מיזוג.
 #   • כל תמונה נחתמת בלי מפתח (Sigstore, זהות ה־workflow הזה מהענף הראשי). השרת מסרב לתמונה בלי החתימה הזו
 #     (SNB_APP_SIGNER ב־infra/host/snb-common.sh).
-#   • אין עדיין prod: השרתון של הייצור ב־Vercel. הקידום יתווסף כשחדר האפליקציה של הייצור יעבור לשרת.
+#   • prod (ת3, 12/10/2026): השרתון של הייצור בשרת מושך את prod — אותה תמונה בדיוק, רק אחרי אישור שלך
+#     (Environment "production", כמו העובד). עד האישור הייצור נשאר בגרסה הקודמת; Vercel ממשיך להתפרס כמו תמיד.
 #   • כל ה־actions נעולים ל־SHA; ההרשאות מינימליות ולכל job בנפרד.
 name: app-image
 
@@ -63,6 +64,8 @@ jobs:
       cancel-in-progress: false
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     permissions:
       packages: write     # דחיפה ל־GHCR
       id-token: write     # חתימה בלי מפתח (Sigstore)
@@ -98,3 +101,33 @@ jobs:
           docker buildx imagetools create -t "$IMAGE:dev" "$IMAGE@$DIGEST"
           docker logout ghcr.io
           echo "✓ dev = $IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    # הייצור = רק באישור שלך (Environment "production"). השרת מושך את prod בתוך רבע שעה.
+    needs: merge
+    if: vars.SNB_PROMOTE == 'on'
+    runs-on: ubuntu-latest
+    # ריצה חדשה מחליפה קידום שעוד מחכה לאישור — מאשרים תמיד את התמונה האחרונה
+    concurrency:
+      group: app-image-promote
+      cancel-in-progress: true
+    environment: production
+    permissions:
+      packages: write
+    steps:
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: אימות החתימה וקידום ל־prod (אותו digest, בלי בנייה מחדש)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ needs.merge.outputs.digest }}
+        run: |
+          set -eu
+          echo "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          ref="$IMAGE@$DIGEST"
+          cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/yishaiguedj1/portfolio-pwa/\.github/workflows/app-image\.yml@refs/heads/main$' \
+            "$ref" >/dev/null
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create -t "$IMAGE:prod" "$ref"
+          docker logout ghcr.io
+          echo "✓ prod = $ref" >> "$GITHUB_STEP_SUMMARY"

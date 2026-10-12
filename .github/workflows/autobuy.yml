@@ -1,0 +1,113 @@
+# הזמנה אוטומטית של CX43 כשהוא חוזר למלאי (12/10/2026, באישור מפורש של המשתמש) — tools/server-autobuy.js.
+#
+# כבוי עד שהמשתמש מדליק — שני משתנים (Settings ← Secrets and variables ← Actions ← Variables):
+#   SNB_AUTOBUY     = on        → ההדלקה עצמה (= האישור לעלות)
+#   SNB_AUTOBUY_MAX = 19.99     → תקרת המחיר לחודש במטבע של החשבון, כולל IPv4. מחיר גבוה יותר = לא מזמינים.
+# קודם מריצים ידנית mode=check: המחיר המדויק מה־API של החשבון, המלאי עכשיו, ושהסודות תקינים — בלי הזמנה.
+#
+# איך: ריצה אחת מחזיקה כמעט 6 שעות ובודקת כל דקה (Actions לא מתזמן מתחת ל־5 דקות), והריצה המתוזמנת הבאה ממשיכה.
+# ברגע שיש מלאי: אותה הקמה של server.yml (all — ייצור + ניסוי, כולל השרתון של הייצור), בלי לחיצת אישור.
+# אחרי הזמנה: ה־workflow מכבה את עצמו, פותח Issue (התראה לטלפון באפליקציה של GitHub) ומחכה שהשרת יתחבר.
+# כל עצירה סופית אחרת (תקרה, שם קיים, הרשאה, מגבלת חשבון, שגיאה) — גם מכבה ופותח Issue. רק "אין מלאי" ממשיך.
+# גבולות: CX43 בלבד, fsn1 ואז nbg1, שם קבוע snb-cx43 (שרת אחד לכל היותר), בלי שום פעולה על שרת אחר.
+# השרת הקודם — המשתמש מסיר ומוחק בעצמו אחרי הבדיקה.
+name: autobuy
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'check = מחיר, מלאי וסודות בלי הזמנה · watch = לחכות ולהזמין (רק כש־SNB_AUTOBUY=on)'
+        type: choice
+        options: [check, watch]
+        default: check
+
+permissions: {}
+
+concurrency:
+  group: autobuy
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.SNB_AUTOBUY == 'on')
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    permissions:
+      contents: read
+      actions: write      # לכבות את ה־workflow אחרי הזמנה
+      issues: write       # התראה: Issue עם פרטי ההזמנה (בלי סודות)
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+      STG_TUNNEL_TOKEN: ${{ secrets.STG_TUNNEL_TOKEN }}
+      STG_R2_ACCESS_KEY_ID: ${{ secrets.STG_R2_ACCESS_KEY_ID }}
+      STG_R2_SECRET_ACCESS_KEY: ${{ secrets.STG_R2_SECRET_ACCESS_KEY }}
+      STG_ANTHROPIC_KEY: ${{ secrets.STG_ANTHROPIC_KEY }}
+      STG_ADMIN_EMAIL: ${{ secrets.STG_ADMIN_EMAIL }}
+      PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
+      PROD_ANTHROPIC_KEY: ${{ secrets.PROD_ANTHROPIC_KEY }}
+      PROD_TUNNEL_TOKEN: ${{ secrets.PROD_TUNNEL_TOKEN }}
+      PROD_APP_EXTRA: ${{ secrets.PROD_APP_EXTRA }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT }}
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      SNB_AUTOBUY_MAX: ${{ vars.SNB_AUTOBUY_MAX }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: בדיקה — מחיר, מלאי וסודות (בלי הזמנה)
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'check'
+        run: node tools/server-autobuy.js check | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: מחכים למלאי ומזמינים
+        id: buy
+        if: vars.SNB_AUTOBUY == 'on' && (github.event_name == 'schedule' || inputs.mode == 'watch')
+        run: node tools/server-autobuy.js watch 345 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: הוזמן — מכבים את האוטומציה (שרת אחד בלבד)
+        if: steps.buy.outputs.server != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow disable autobuy.yml --repo "$GITHUB_REPOSITORY"
+      - name: התראה — Issue עם פרטי ההזמנה
+        if: steps.buy.outputs.server != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOC: ${{ steps.buy.outputs.location }}
+          PRICE: ${{ steps.buy.outputs.price }}
+          CUR: ${{ steps.buy.outputs.currency }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "הוזמן שרת: snb-cx43 · CX43 · $LOC" --body "הוזמן אוטומטית: snb-cx43 · CX43 · $LOC · $PRICE $CUR לחודש.
+
+          האוטומציה כובתה. בעוד 5–10 דקות השרת יתחבר — הריצה ממשיכה לבדוק ומסכמת למטה.
+          אחרי שהכל ירוק: במסך השרת באפליקציה (ייצור וניסוי) מסירים את השרת הקודם, ומוחקים אותו ב־Hetzner.
+
+          ריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: נעצר (תקרה, שם קיים, הרשאה, מגבלה או שגיאה) — מכבים ומודיעים
+        if: always() && steps.buy.outputs.stopped != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHY: ${{ steps.buy.outputs.stopped }}
+        run: |
+          gh workflow disable autobuy.yml --repo "$GITHUB_REPOSITORY"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "ההזמנה האוטומטית נעצרה: $WHY" --body "ההזמנה האוטומטית של CX43 נעצרה ולא הזמינה כלום (קוד: $WHY). האוטומציה כובתה.
+
+          הפרטים בריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          אחרי הטיפול — להדליק שוב: Actions ← autobuy ← Enable workflow."
+      - name: מחכים — השרתון של הניסוי והעובד שלו
+        if: steps.buy.outputs.server != ''
+        env:
+          SID: ${{ steps.buy.outputs.sid }}
+        run: |
+          node tools/server-provision.js wait --env stg --sid "$SID"
+          echo "✓ הניסוי: השרת מחובר" >> "$GITHUB_STEP_SUMMARY"
+      - name: מחכים — השרתון של הייצור והעובד שלו
+        if: steps.buy.outputs.server != ''
+        env:
+          SID: ${{ steps.buy.outputs.sidp }}
+        run: |
+          node tools/server-provision.js wait --env prod --sid "$SID"
+          echo "✓ הייצור: השרתון עונה והשרת מחובר — אפשר להסיר את השרת הקודם" >> "$GITHUB_STEP_SUMMARY"

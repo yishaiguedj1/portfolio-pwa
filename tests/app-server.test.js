@@ -103,7 +103,17 @@ function listen(server) {
   ok(r.status === 405, 'flex-request ב־GET → 405 (הפונקציה עצמה)');
   real.close();
 
-  // 4. הקונטיינר
+  // 4. הסודות מ־Vercel בשורה אחת (ת3, 12/10/2026)
+  const zlib = require('zlib');
+  const pack = (o) => zlib.gzipSync(Buffer.from(JSON.stringify(o))).toString('base64');
+  const env = { SNB_ENV_GZ: pack({ A_KEY: 'x y #z $HOME \'q\'', SNB_CLIENT_IP_HEADER: 'evil', bad_key: '1', NUM: 5, GDRIVE_SA_KEY: '{"a":1}' }), SNB_CLIENT_IP_HEADER: 'cf-connecting-ip' };
+  ok(S.unpackEnv(env) === 2 && env.A_KEY === 'x y #z $HOME \'q\'' && env.GDRIVE_SA_KEY === '{"a":1}',
+    'SNB_ENV_GZ: ערכים עם רווח, #, $ ומירכאות עוברים כמו שהם');
+  ok(env.SNB_CLIENT_IP_HEADER === 'cf-connecting-ip' && !('bad_key' in env) && !('NUM' in env) && !('SNB_ENV_GZ' in env),
+    'SNB_ENV_GZ: מה שבסביבה גובר, שם/ערך לא תקין לא נכנס, והשורה עצמה נמחקת');
+  ok(S.unpackEnv({ SNB_ENV_GZ: 'zzz' }) === -1 && S.unpackEnv({}) === 0, 'SNB_ENV_GZ פגום — לא זורק');
+
+  // 5. הקונטיינר
   const df = fs.readFileSync(path.join(__dirname, '..', 'infra', 'app', 'Dockerfile'), 'utf8');
   ok(/ARG NODE_IMAGE=node:[\w.-]+@sha256:[0-9a-f]{64}/.test(df) && /FROM \$\{NODE_IMAGE\}/.test(df), 'בסיס נעול ב־digest');
   const code = df.replace(/^#.*$/mg, '');
