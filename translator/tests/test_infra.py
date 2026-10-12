@@ -47,7 +47,9 @@ class Compose(unittest.TestCase):
     def test_worker_hardening(self):
         c = read('infra/compose.yaml')
         self.assertNotRegex(c, r'(?m)^\s*ports\s*:', 'בלי פורטים')
-        self.assertNotRegex(c, r'(?m)^\s*(privileged|network_mode|cap_add|pid|ipc)\s*:', 'בלי הרשאות מיוחדות')
+        self.assertNotRegex(c, r'(?m)^\s*(privileged|cap_add|pid|ipc)\s*:', 'בלי הרשאות מיוחדות')
+        modes = re.findall(r'(?m)^\s*network_mode:\s*(\S+)', c)
+        self.assertEqual(modes, ['bridge', 'bridge'], 'רק העובדים, ורק ב־bridge של Docker (לא host)')
         for need in ('read_only: true', 'cap_drop: [ALL]', 'no-new-privileges:true', 'user: "10001:10001"',
                      '/etc/snb/worker.env', 'healthcheck:', 'mem_limit:', 'pids_limit:'):
             self.assertIn(need, c)
@@ -170,7 +172,8 @@ class Pipeline(unittest.TestCase):
         for need in ('7000000', '/etc/snb/runtime', 'SNB_ISO_WHY=mem', 'SNB_ISO_WHY=missing', 'SNB_ISO_WHY=selftest', 'SNB_ISO_WHY=manual'):
             self.assertIn(need, common)
         u = read('infra/host/snb-update')
-        self.assertLess(u.index('--runtime=runsc --network none'), u.index('snb_compose up -d'), 'בדיקה עצמית לפני ההפעלה')
+        self.assertLess(u.index('--runtime=runsc --network bridge'), u.index('snb_compose up -d'), 'בדיקה עצמית לפני ההפעלה')
+        self.assertIn("socket.getaddrinfo('ghcr.io', 443)", u, 'הבדיקה העצמית בודקת גם DNS מתוך gVisor')
         self.assertIn("endswith('gvisor')", u)
         self.assertLess(u.index('cosign verify'), u.index('--runtime=runsc'), 'רק תמונה מאומתת רצה בבדיקה')
 
@@ -331,7 +334,12 @@ class Rooms(unittest.TestCase):
         for f in ('tunnel', 'app-stg'):
             block = re.search(r'(?ms)^  ' + f + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
             self.assertIn('networks: [edge]', block)
-        self.assertIn('networks: [wk-stg]', c, 'עובד הניסוי לא ברשת של השרתון')
+        # העובדים ב־bridge של Docker: ב־gVisor אין DNS ברשת של compose (שרת הניסוי, 12/10/2026)
+        for w in ('worker', 'worker-stg'):
+            block = re.search(r'(?ms)^  ' + re.escape(w) + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
+            self.assertRegex(block, r'(?m)^    network_mode: bridge\b', w + ': רשת ה־bridge')
+            self.assertNotIn('networks:', block, w + ': לא ברשת של השרתון')
+        self.assertIn('"icc": false', read('infra/host/daemon.json'), 'שני העובדים ב־bridge לא מדברים זה עם זה')
 
     def test_worker_servers_closed_list(self):
         import os

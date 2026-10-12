@@ -15,7 +15,8 @@
 #   stg        — השרתון של סביבת הניסוי (app-stg.env). תמונה: snb-app:dev — כל מיזוג, בלי אישור.
 #   stg-worker — העובד של הניסוי (worker-stg.env). תמונה: snb-worker:dev, תקרות קטנות.
 # חדר כבוי לא צריך תמונה (snb-none = מקום ריק; snb-update כותב את ה־digest לכל חדר דולק).
-# כל חדר ברשת משלו: העובדים לא מגיעים לשרתון ברשת הפנימית (רק דרך הכתובת הציבורית), והשרתון רק מול ה־Tunnel.
+# כל חדר ברשת משלו: העובדים ב־bridge של Docker (icc כבוי) — לא מגיעים לשרתון ברשת הפנימית (רק דרך הכתובת הציבורית),
+# והשרתון רק מול ה־Tunnel ברשת edge.
 name: snb
 
 services:
@@ -29,6 +30,10 @@ services:
       - SNB_ISO_WHY=${SNB_ISO_WHY:-}
     env_file:
       - /etc/snb/worker.env
+    # רשת ה־bridge הרגילה של Docker, לא רשת של compose: ב־gVisor אין גישה ל־DNS הפנימי של Docker (127.0.0.11)
+    # ברשת שהוגדרה ב־compose — העובד לא מוצא אף כתובת (נמצא בשרת הניסוי, 12/10/2026; gvisor.dev/docs/user_guide/faq).
+    # ב־bridge הקונטיינר מקבל את שרתי ה־DNS של השרת, ו־icc:false (daemon.json) מונע שני עובדים לדבר זה עם זה.
+    network_mode: bridge
     read_only: true
     user: "10001:10001"
     cap_drop: [ALL]
@@ -136,7 +141,7 @@ services:
     volumes:
       - work-stg:/work
       - cache-stg:/cache
-    networks: [wk-stg]
+    network_mode: bridge     # כמו העובד של הייצור (DNS ב־gVisor); לא ברשת של השרתון
     stop_grace_period: 90s
     logging:
       driver: json-file
@@ -150,8 +155,7 @@ services:
       start_period: 2m
 
 networks:
-  edge: {}     # ה־Tunnel והשרתון של הניסוי בלבד
-  wk-stg: {}   # העובד של הניסוי — לבד
+  edge: {}     # ה־Tunnel והשרתון של הניסוי בלבד (העובדים — ב־bridge של Docker, לבד)
 
 volumes:
   work: {}     # הסרטון והפרויקט של העבודה הנוכחית בלבד — מתרוקן בסוף כל עבודה (agent.cleanup)

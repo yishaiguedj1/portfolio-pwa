@@ -65,24 +65,42 @@ function emailsOf(raw) {
   return list.map((e) => e.toLowerCase()).join(',');
 }
 
-function need(re, v, code, label) {
-  v = String(v || '').trim();
-  if (!re.test(v)) fail(code, label + ' חסר או לא בצורה הנכונה');
+/* צורת הערך בלי הערך עצמו — כמה תווים ומאילו סוגים. כך אפשר לדעת מה הודבק בטעות (ערך אחר מהמסך,
+   מירכאות, רווח) בלי שהסוד יופיע ביומן של GitHub. */
+function shape(v) {
+  const kinds = [];
+  if (/[0-9]/.test(v)) kinds.push('ספרות');
+  if (/[a-f]/.test(v)) kinds.push('a–f');
+  if (/[g-z]/.test(v)) kinds.push('אותיות קטנות מעבר ל־f');
+  if (/[A-Z]/.test(v)) kinds.push('אותיות גדולות');
+  if (/\s/.test(v)) kinds.push('רווחים או שורות');
+  if (/[^0-9A-Za-z\s]/.test(v)) kinds.push('סימנים');
+  return v.length + ' תווים' + (kinds.length ? ' (' + kinds.join(', ') + ')' : '');
+}
+/* hex: מפתחות R2 ומזהה החשבון — אותיות גדולות ורווחים שנכנסו בהדבקה לא מפילים. expect = מה מצופה, להודעה */
+function need(re, v, code, label, opts = {}) {
+  const raw = String(v || '');
+  v = opts.hex ? raw.replace(/\s+/g, '').toLowerCase() : raw.trim();
+  if (!re.test(v)) fail(code, label + ' חסר או לא בצורה הנכונה — התקבלו ' + shape(raw.trim()) + (opts.expect ? '; צפוי: ' + opts.expect : ''));
   return v;
 }
 
 /* קובצי הסודות של חדרי הניסוי — מחזיר [{path, lines}] */
+/* כל הסודות נבדקים, וכל מה שלא תקין מדווח יחד (12/10/2026: עצירה בבעיה הראשונה = ריצה לכל סוד שגוי) */
 function stagingFiles(env, e, token) {
-  const sa = saOf(e.STG_FIREBASE_SA, env.project);
-  const admins = emailsOf(e.STG_ADMIN_EMAIL);
-  return [
-    { path: '/etc/snb/tunnel.env', lines: ['TUNNEL_TOKEN=' + need(RE.tunnel, e.STG_TUNNEL_TOKEN, 'tunnel_bad', 'הטוקן של ה־Tunnel')] },
+  const errs = [];
+  const chk = (fn) => { try { return fn(); } catch (x) { errs.push(x.message); return ''; } };
+  const sa = chk(() => saOf(e.STG_FIREBASE_SA, env.project));
+  const admins = chk(() => emailsOf(e.STG_ADMIN_EMAIL));
+  const v = (...a) => chk(() => need(...a));
+  const files = [
+    { path: '/etc/snb/tunnel.env', lines: ['TUNNEL_TOKEN=' + v(RE.tunnel, e.STG_TUNNEL_TOKEN, 'tunnel_bad', 'STG_TUNNEL_TOKEN', { expect: 'מחרוזת ארוכה שמתחילה ב־eyJ, בלי --token' })] },
     { path: '/etc/snb/app-stg.env', lines: [
       'FIREBASE_PROJECT_ID=' + env.project,
-      'GDRIVE_SA_KEY=' + Buffer.from(JSON.stringify(sa)).toString('base64'),
-      'R2_ACCOUNT_ID=' + need(RE.account, e.CLOUDFLARE_ACCOUNT_ID, 'account_bad', 'CLOUDFLARE_ACCOUNT_ID'),
-      'R2_ACCESS_KEY_ID=' + need(RE.r2id, e.STG_R2_ACCESS_KEY_ID, 'r2_bad', 'מזהה המפתח של R2'),
-      'R2_SECRET_ACCESS_KEY=' + need(RE.r2secret, e.STG_R2_SECRET_ACCESS_KEY, 'r2_bad', 'הסוד של R2'),
+      'GDRIVE_SA_KEY=' + (sa ? Buffer.from(JSON.stringify(sa)).toString('base64') : ''),
+      'R2_ACCOUNT_ID=' + v(RE.account, e.CLOUDFLARE_ACCOUNT_ID, 'account_bad', 'CLOUDFLARE_ACCOUNT_ID', { hex: 1, expect: '32 תווים, ספרות ו־a–f' }),
+      'R2_ACCESS_KEY_ID=' + v(RE.r2id, e.STG_R2_ACCESS_KEY_ID, 'r2_bad', 'STG_R2_ACCESS_KEY_ID', { hex: 1, expect: '32 תווים, ספרות ו־a–f (Access Key ID)' }),
+      'R2_SECRET_ACCESS_KEY=' + v(RE.r2secret, e.STG_R2_SECRET_ACCESS_KEY, 'r2_bad', 'STG_R2_SECRET_ACCESS_KEY', { hex: 1, expect: '64 תווים, ספרות ו־a–f (Secret Access Key)' }),
       'R2_BUCKET=' + env.bucket,
       'R2_JURISDICTION=eu',
       'LIBRARY_ADMINS=' + admins,
@@ -93,10 +111,12 @@ function stagingFiles(env, e, token) {
       'CRON_SECRET=' + crypto.randomBytes(24).toString('hex'),
     ] },
     { path: '/etc/snb/worker-stg.env', lines: [
-      'ANTHROPIC_API_KEY=' + need(RE.anthropic, e.STG_ANTHROPIC_KEY, 'anthropic_bad', 'מפתח Anthropic'),
-      'SNB_WORKER_TOKEN=' + need(RE.token, token, 'token_bad', 'טוקן השרת'),
+      'ANTHROPIC_API_KEY=' + v(RE.anthropic, e.STG_ANTHROPIC_KEY, 'anthropic_bad', 'STG_ANTHROPIC_KEY', { expect: 'מתחיל ב־sk-ant-' }),
+      'SNB_WORKER_TOKEN=' + v(RE.token, token, 'token_bad', 'טוקן השרת'),
     ] },
   ];
+  if (errs.length) fail(errs.length > 1 ? 'secrets_bad' : 'secret_bad', (errs.length > 1 ? errs.length + ' סודות לא תקינים' : 'סוד אחד לא תקין') + ':\n  • ' + errs.join('\n  • '));
+  return files;
 }
 
 function cloudInit(tpl, files) {
@@ -241,4 +261,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { ENVS, RE, saOf, emailsOf, stagingFiles, cloudInit, register, unregister, create, waitUp, main, MARK };
+module.exports = { ENVS, RE, shape, need, saOf, emailsOf, stagingFiles, cloudInit, register, unregister, create, waitUp, main, MARK };
