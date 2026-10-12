@@ -32,13 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.SHA }}
+          ref: main
           fetch-depth: 0
           persist-credentials: false
-      - name: הקומיט נמצא ב־main
+      - name: הקומיט נמצא ב־main — ורק אז עוברים אליו
         run: |
-          git fetch -q origin main
-          git merge-base --is-ancestor "$SHA" origin/main || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
+          git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
+          git checkout -q --detach "$SHA"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -92,8 +92,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.SHA }}
+          ref: main
+          fetch-depth: 0
           persist-credentials: false
+      - name: הקומיט נמצא ב־main — ורק אז עוברים אליו
+        run: |
+          git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
+          git checkout -q --detach "$SHA"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: .
@@ -109,8 +114,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.SHA }}
+          ref: main
           fetch-depth: 0
+          persist-credentials: true
+      - name: הקומיט נמצא ב־main — ורק אז עוברים אליו
+        run: |
+          git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
+          git checkout -q --detach "$SHA"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
