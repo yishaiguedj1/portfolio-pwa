@@ -51,6 +51,18 @@ t('כתובת השרתון באפליקציה מגיעה מהסביבה', () => 
   assert.ok(html.indexOf('firebase-config.js') < html.indexOf('src="app.js"'), 'ההגדרות נטענות לפני האפליקציה');
 });
 
+t('הניסוי מדבר עם השרתון שלו, הייצור עם שלו', () => {
+  assert.strictEqual(envAt('staging.thesnowball.app').env.proxy, 'https://api-staging.thesnowball.app');
+  assert.strictEqual(envAt('thesnowball.pages.dev').env.proxy, 'https://api-staging.thesnowball.app');
+  assert.strictEqual(envAt('yishaiguedj1.github.io').env.proxy, 'https://ibkr-proxy-wine.vercel.app');
+  assert.strictEqual(envAt('localhost').env.proxy, 'https://ibkr-proxy-wine.vercel.app');
+  const csp = read('index.html').match(/Content-Security-Policy" content="([^"]+)"/)[1];
+  const cs = csp.split(';').find((x) => x.trim().startsWith('connect-src '));
+  assert.ok(cs.split(/\s+/).includes('https://api-staging.thesnowball.app'), 'השרתון של הניסוי ב־connect-src');
+  const job = read('translator/job.py');
+  assert.ok(job.includes("'https://api-staging.thesnowball.app'"), 'אותה כתובת ברשימה הסגורה של העובד');
+});
+
 t('השרתון: כתובות הניסוי מותרות, אתרים זרים לא', () => {
   const { originAllowed } = require('../ibkr-proxy/lib/ibkr.js');
   for (const o of ['https://yishaiguedj1.github.io', 'https://staging.thesnowball.app', 'https://thesnowball.pages.dev', 'https://main.thesnowball.pages.dev', 'http://localhost:8080']) assert.ok(originAllowed(o), o);

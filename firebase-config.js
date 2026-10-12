@@ -28,6 +28,9 @@
     appId: "1:111890286593:web:2277c560813ec02fd99800"
   };
   var PROXY = 'https://ibkr-proxy-wine.vercel.app';
+  // השרתון של הניסוי — חדר על שרת Hetzner מאחורי Cloudflare Tunnel (2ב, 12/10/2026): Firebase ודלי R2 של הניסוי.
+  // כתובת חדשה = גם ב־connect-src של index.html.
+  var STAGING_PROXY = 'https://api-staging.thesnowball.app';
 
   function envFor(host) {
     host = String(host || '').toLowerCase();
@@ -39,9 +42,8 @@
   var name = envFor(typeof location !== 'undefined' ? location.hostname : '');
   var env = {
     name: name,
-    // השרתון של הניסוי (חדר נפרד על השרת) עוד לא קיים — בינתיים אותו שרתון. בקשות מהניסוי
-    // מקבלות שם רק מידע ציבורי (מחירים, היסטוריה, חיפוש): Firebase של הניסוי לא מאומת מול פרויקט הייצור.
-    proxy: PROXY,
+    // הניסוי מדבר רק עם השרתון שלו — ההתחברות של הניסוי מאומתת שם מול פרויקט ה־Firebase של הניסוי
+    proxy: name === 'staging' ? STAGING_PROXY : PROXY,
     firebase: name === 'staging' ? STAGING_FIREBASE : PROD_FIREBASE
   };
   if (typeof window !== 'undefined') {
