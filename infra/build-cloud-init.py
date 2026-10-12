@@ -11,6 +11,7 @@
 """
 import base64
 import gzip
+import re
 import sys
 from pathlib import Path
 
@@ -108,10 +109,16 @@ def render() -> str:
     return ''.join(out)
 
 
+def unpacked(text: str) -> str:
+    """להשוואה: כל תוכן דחוס נפתח. הבתים של gzip תלויים בגרסת zlib (ב־CI יצא שונה מאותו מקור) — התוכן לא."""
+    return re.sub(r'(?m)^(    content: )([A-Za-z0-9+/=]{20,})$',
+                  lambda m: m.group(1) + repr(gzip.decompress(base64.b64decode(m.group(2)))), text)
+
+
 def main() -> int:
     text = render()
     if '--check' in sys.argv:
-        if not OUT.exists() or OUT.read_text(encoding='utf-8') != text:
+        if not OUT.exists() or unpacked(OUT.read_text(encoding='utf-8')) != unpacked(text):
             print('✗ infra/cloud-init.yaml לא מעודכן — להריץ: python3 infra/build-cloud-init.py')
             return 1
         print('✓ cloud-init.yaml מעודכן')
