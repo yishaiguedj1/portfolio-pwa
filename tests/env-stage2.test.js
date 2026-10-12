@@ -1,0 +1,74 @@
+// שלב 2 בסביבות (12/10/2026): אותם קבצים בכל הסביבות, הסביבה לפי הכתובת; פריסה לאתר החי רק אחרי בדיקות + אישור.
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const root = path.join(__dirname, '..');
+const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+let n = 0;
+const t = (name, fn) => { fn(); n++; console.log('✓ ' + name); };
+
+function envAt(hostname) {
+  const cls = new Set();
+  const win = {};
+  const ctx = vm.createContext({ window: win, location: { hostname }, document: { documentElement: { classList: { add: (c) => cls.add(c) } } } });
+  vm.runInContext(read('firebase-config.js'), ctx);
+  return { env: win.SNB_ENV, fb: win.FIREBASE_CONFIG, cls, envFor: win.snbEnvFor };
+}
+
+t('הסביבה לפי הכתובת', () => {
+  assert.strictEqual(envAt('yishaiguedj1.github.io').env.name, 'prod');
+  assert.strictEqual(envAt('thesnowball.app').env.name, 'prod');
+  assert.strictEqual(envAt('staging.thesnowball.app').env.name, 'staging');
+  assert.strictEqual(envAt('thesnowball.pages.dev').env.name, 'staging');
+  assert.strictEqual(envAt('claude-x.thesnowball.pages.dev').env.name, 'staging');
+  assert.strictEqual(envAt('localhost').env.name, 'local');
+});
+
+t('הניסוי אף פעם לא מתחבר לפרויקט ה־Firebase של הייצור', () => {
+  const prod = envAt('yishaiguedj1.github.io');
+  const st = envAt('staging.thesnowball.app');
+  assert.strictEqual(prod.fb.projectId, 'yishaiguedj1-c786e');
+  assert.notStrictEqual(st.fb.projectId, 'yishaiguedj1-c786e');
+  assert.notStrictEqual(st.fb.apiKey, prod.fb.apiKey);
+  assert.ok(st.cls.has('env-staging') && !prod.cls.has('env-staging'));
+  assert.strictEqual(envAt('localhost').fb.projectId, 'yishaiguedj1-c786e', 'בדיקות מקומיות — כמו קודם');
+});
+
+t('כתובת השרתון באפליקציה מגיעה מהסביבה', () => {
+  const app = read('app.js');
+  assert.ok(/const IBKR_PROXY_DEFAULT = \(typeof window !== 'undefined' && window\.SNB_ENV && window\.SNB_ENV\.proxy\) \|\| 'https:\/\/ibkr-proxy-wine\.vercel\.app';/.test(app));
+  assert.ok(/window\.SNB_ENV\.name === 'staging'[\s\S]{0,200}env-strip/.test(app), 'פס "סביבת ניסוי"');
+  assert.ok(/\.env-strip \{[^}]*pointer-events: none/.test(read('styles.css')), 'הפס לא חוסם נגיעות');
+  const html = read('index.html');
+  assert.ok(html.indexOf('firebase-config.js') < html.indexOf('src="app.js"'), 'ההגדרות נטענות לפני האפליקציה');
+});
+
+t('השרתון: כתובות הניסוי מותרות, אתרים זרים לא', () => {
+  const { originAllowed } = require('../ibkr-proxy/lib/ibkr.js');
+  for (const o of ['https://yishaiguedj1.github.io', 'https://staging.thesnowball.app', 'https://thesnowball.pages.dev', 'https://main.thesnowball.pages.dev', 'http://localhost:8080']) assert.ok(originAllowed(o), o);
+  for (const o of ['https://evil.pages.dev', 'https://thesnowball.pages.dev.evil.com', 'http://staging.thesnowball.app', 'https://x.staging.thesnowball.app', 'https://thesnowball.app.evil.com', '']) assert.ok(!originAllowed(o), o);
+  process.env.SNB_EXTRA_ORIGINS = 'https://thesnowball.app, javascript:alert(1)';
+  try {
+    assert.ok(originAllowed('https://thesnowball.app'));
+    assert.ok(!originAllowed('javascript:alert(1)'));
+  } finally { delete process.env.SNB_EXTRA_ORIGINS; }
+});
+
+t('פס הפריסה: בדיקות → ניסוי → אישור → Pages → אימות ותגית', () => {
+  assert.ok(!fs.existsSync(path.join(root, '.github/workflows/release.yml')), 'release.yml הוחלף ב־deploy.yml');
+  const w = read('.github/workflows/deploy.yml');
+  assert.ok(/workflow_run:\s*\n\s*workflows: \[tests\][\s\S]*branches: \[main\]/.test(w), 'רץ רק אחרי הבדיקות על main');
+  assert.ok(/conclusion == 'success'/.test(w), 'רק כשהבדיקות ירוקות');
+  assert.ok(/approve:[\s\S]*?needs: staging[\s\S]*?environment: production/.test(w), 'אישור בסביבה production');
+  assert.ok(/deploy:[\s\S]*?needs: \[staging, approve\][\s\S]*?name: github-pages/.test(w), 'Pages רק אחרי האישור');
+  assert.ok(/verify-and-tag:[\s\S]*?needs: \[staging, deploy\][\s\S]*?swgen\.js --live[\s\S]*?git tag/.test(w));
+  assert.ok(/ref: \$\{\{ env\.SHA \}\}/.test(w) && /head_sha/.test(w), 'פורסים בדיוק את הקומיט שנבדק');
+  assert.ok(/^permissions:\s*\n\s*contents: read/m.test(w), 'הרשאות מינימליות כברירת מחדל');
+  for (const u of w.match(/uses: \S+/g)) assert.ok(/@[0-9a-f]{40}$/.test(u), 'מקובע ל־SHA: ' + u);
+  const test = read('.github/workflows/test.yml');
+  assert.ok(/^name: tests$/m.test(test), 'שם ה־workflow שהפריסה מחכה לו');
+});
+
+console.log(`\n${n} בדיקות עברו`);

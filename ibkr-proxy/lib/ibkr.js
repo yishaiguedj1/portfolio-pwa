@@ -61,9 +61,18 @@ function statementEndpointFrom(url) {
       (Origin ניתן לזיוף מחוץ לדפדפן; המפתח לא). בלי APP_KEY — לא נבדק,
       כדי שהשרתון לא יישבר לפני שהמשתמש הגדיר אותו. */
 const ALLOWED_ORIGINS = new Set(['https://yishaiguedj1.github.io']);
+/* שלב 2 בסביבות (12/10/2026): סביבת הניסוי — staging.thesnowball.app ותצוגות מקדימות של Cloudflare Pages
+   (thesnowball.pages.dev וכל <ענף>.thesnowball.pages.dev). עד שיש לה שרתון משלה היא פונה לזה: מקבלת מידע ציבורי
+   (מחירים, היסטוריה, חיפוש) — ההתחברות שלה (פרויקט Firebase אחר) לא מאומתת כאן, ולכן שום נתון אישי לא נחשף לה.
+   כתובות נוספות: SNB_EXTRA_ORIGINS (רשימה מופרדת בפסיקים, https בלבד). */
+const STAGING_ORIGIN_RE = /^https:\/\/(staging\.thesnowball\.app|([a-z0-9-]{1,63}\.)?thesnowball\.pages\.dev)$/;
+function extraOrigins() {
+  return String(process.env.SNB_EXTRA_ORIGINS || '').split(',').map((x) => x.trim()).filter((x) => /^https:\/\/[a-z0-9.-]+$/.test(x));
+}
 function originAllowed(origin) {
   const o = String(origin || '');
   if (ALLOWED_ORIGINS.has(o)) return true;
+  if (STAGING_ORIGIN_RE.test(o) || (o && extraOrigins().includes(o))) return true;
   return /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(o);
 }
 function cors(res, origin) {

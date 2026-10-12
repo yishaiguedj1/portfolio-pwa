@@ -1,0 +1,116 @@
+# פס הפריסה (שלב 2 בסביבות, 12/10/2026): מיזוג ל־main → סביבת הניסוי → האתר החי, רק באישור שלך.
+#  1. הבדיקות (tests) עוברות על main. בלי בדיקות ירוקות — שום דבר לא עולה (עד היום Pages עלה גם כשהבדיקות נכשלו).
+#  2. staging: Cloudflare Pages בונה את main לבד (staging.thesnowball.app). כאן רק מחכים שהגרסה תעלה שם ובודקים
+#     כל קובץ מול הטביעות שב־sw.js (tools/swgen.js --live). כשהמשתנה STAGING_URL לא מוגדר — מדלגים.
+#  3. approve: הסביבה production ב־GitHub — מחכה לאישור שלך ("Review deployments" בטלפון). מיזוג חדש לפני האישור
+#     מבטל את ההמתנה הקודמת — תמיד מאשרים את האחרון, שכולל את כל מה שלפניו.
+#  4. deploy: אותם קבצים בדיוק (אותו קומיט) ל־GitHub Pages. דורש בהגדרות: Pages → Source = GitHub Actions.
+#  5. verify-and-tag: האתר החי מגיש את הגרסה, כל קובץ זהה לטביעה, ותגית git ‏vNNN = נקודת חזרה.
+# חזרה לגרסה קודמת = התוכן של התגית הקודמת כגרסה חדשה (CLAUDE.md סעיף 8). Run workflow ידני = פריסה חוזרת של הראשי.
+name: deploy
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+jobs:
+  staging:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      ver: ${{ steps.ver.outputs.ver }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: הגרסה
+        id: ver
+        run: echo "ver=$(grep -oP "const APP_VERSION = '\Kv\d+" app.js)" >> "$GITHUB_OUTPUT"
+      - name: סביבת הניסוי מגישה את הגרסה, וכל קובץ זהה לטביעה
+        env:
+          URL: ${{ vars.STAGING_URL }}
+          VER: ${{ steps.ver.outputs.ver }}
+        run: |
+          if [ -z "$URL" ]; then echo "STAGING_URL לא מוגדר — מדלגים על בדיקת הניסוי"; exit 0; fi
+          for i in $(seq 1 30); do
+            live=$(curl -sS --max-time 20 "${URL%/}/sw.js?n=$RANDOM$i" | grep -oP "portfolio-pwa-\Kv\d+" | head -1 || true)
+            if [ "$live" = "$VER" ] && node tools/swgen.js --live "$URL"; then echo "הניסוי על $VER"; exit 0; fi
+            echo "עדיין $live — מחכים ($i)"; sleep 30
+          done
+          echo "::error::סביבת הניסוי לא הגיעה ל־$VER תוך 15 דקות"; exit 1
+
+  approve:
+    needs: staging
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-approve
+      cancel-in-progress: true
+    steps:
+      - run: echo "אושר לפרודקשן — ${{ needs.staging.outputs.ver }} ($SHA)"
+
+  deploy:
+    needs: [staging, approve]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+          persist-credentials: false
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: .
+      - id: pages
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  verify-and-tag:
+    needs: [staging, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write   # רק בשביל התגית
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: האתר החי מגיש את הגרסה, וכל קובץ זהה לטביעה
+        env:
+          VER: ${{ needs.staging.outputs.ver }}
+        run: |
+          for i in $(seq 1 30); do
+            live=$(curl -sS --max-time 20 "https://yishaiguedj1.github.io/portfolio-pwa/sw.js?n=$RANDOM$i" | grep -oP "portfolio-pwa-\Kv\d+" | head -1 || true)
+            if [ "$live" = "$VER" ] && node tools/swgen.js --live https://yishaiguedj1.github.io/portfolio-pwa/; then echo "האתר החי על $VER"; exit 0; fi
+            echo "עדיין $live — מחכים ($i)"; sleep 30
+          done
+          echo "::error::האתר החי לא הגיע ל־$VER תוך 15 דקות"; exit 1
+      - name: תגית לגרסה
+        env:
+          VER: ${{ needs.staging.outputs.ver }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/$VER" >/dev/null; then echo "התגית $VER כבר קיימת"; exit 0; fi
+          git tag "$VER" "$SHA"
+          git push origin "refs/tags/$VER"
+          echo "נוספה תגית $VER"
