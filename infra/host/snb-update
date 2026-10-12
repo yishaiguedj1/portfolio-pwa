@@ -1,36 +1,61 @@
 #!/bin/sh
-# עדכון העובד לגרסה שאושרה (תג prod ב־GHCR). רץ כל רבע שעה (snb-update.timer) וידנית.
-#   1. לא באמצע עבודה (/work/.busy).
-#   2. מושכים את prod ולוקחים את ה־digest — מאז רק לפי digest (תג יכול לזוז, digest לא).
-#   3. מאמתים חתימה: נבנה ונחתם ב־worker-image.yml מהענף הראשי של הריפו. אחרת — לא מעדכנים.
-#   4. כותבים את ה־digest ל־/opt/snb/.env ומפעילים מחדש. התמונות הישנות נמחקות אחרי שבוע (לחזרה אחורה).
+# עדכון החדרים בשרת לגרסאות המאושרות. רץ כל רבע שעה (snb-update.timer) וידנית.
+#   1. לכל חדר דולק (snb_rooms_wanted — לפי קובצי הסודות) — התמונה שלו:
+#        prod       → snb-worker:prod (אחרי אישור שלך ב־GitHub)
+#        stg-worker → snb-worker:dev  (כל מיזוג — סביבת הניסוי)
+#        stg        → snb-app:dev     (השרתון של הניסוי)
+#   2. לא מחליפים עובד באמצע עבודה (/work/.busy של אותו עובד). השרתון מוחלף מיד.
+#   3. מושכים את התג ולוקחים את ה־digest — מאז רק לפי digest (תג יכול לזוז, digest לא).
+#   4. מאמתים חתימה: נבנה ונחתם ב־workflow של אותה תמונה מהענף הראשי של הריפו. אחרת — נשארים בגרסה הקודמת.
+#   5. כותבים את ה־digest ל־/opt/snb/.env ומפעילים מחדש (רק מה שהשתנה). התמונות הישנות נמחקות אחרי שבוע.
 set -eu
 # shellcheck source=snb-common.sh
 . /usr/local/lib/snb/common.sh
-[ -s "$SNB_ENV" ] || { snb_log "אין עדיין מפתחות — להריץ snb-setup"; exit 0; }
+snb_rooms_wanted
+[ -n "$SNB_WANTED" ] || { snb_log "אין עדיין מפתחות — להריץ snb-setup"; exit 0; }
 # כלי חסר = הודעה ביומן (journalctl -t snb), לא כישלון שקט באמצע set -e
 for c in docker cosign; do
 	command -v "$c" >/dev/null 2>&1 || { snb_log "✗ חסר הכלי $c — apt-get install -y docker-cli cosign"; exit 1; }
 done
-if snb_busy && [ "${1:-}" != "--now" ]; then snb_log "עבודה רצה — העדכון יחכה לסיומה"; exit 0; fi
-docker pull -q "$SNB_IMG:prod" >/dev/null
-REF=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$SNB_IMG:prod" | grep "^$SNB_IMG@sha256:" | head -n1)
-case "$REF" in "$SNB_IMG@sha256:"*) ;; *) snb_log "✗ לא נמצא digest לתמונה"; exit 1 ;; esac
-CUR=$(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env" 2>/dev/null || true)
-if [ "$REF" != "$CUR" ]; then
-	if ! cosign verify --certificate-identity-regexp "$SNB_SIGNER" --certificate-oidc-issuer "$SNB_ISSUER" "$REF" >/dev/null 2>&1; then
-		snb_log "✗ החתימה של $REF לא אומתה — נשארים בגרסה הנוכחית"
-		exit 1
+NOW=${1:-}
+
+# resolve <תמונה> <תג> <חותם> <משתנה> <עובד לבדיקת עבודה: prod|stg|none> — מדפיס "משתנה=digest" (או את הקיים)
+resolve() {
+	say() { snb_log "$*" >&2; }   # ההודעות ל־stderr: stdout של הפונקציה = השורה לקובץ .env בלבד
+	img=$1 tag=$2 signer=$3 var=$4 busy=$5
+	cur=$(sed -n "s/^$var=//p" "$SNB_DIR/.env" 2>/dev/null || true)
+	keep() { [ -z "$cur" ] || printf '%s=%s\n' "$var" "$cur"; }
+	if [ "$busy" != none ] && [ "$NOW" != "--now" ] && snb_busy "$busy"; then
+		say "עבודה רצה ($busy) — העדכון של $var יחכה לסיומה"; keep; return 0
 	fi
-	umask 022
-	printf 'SNB_IMAGE=%s\n' "$REF" >"$SNB_DIR/.env.tmp"
-	mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
-	snb_log "✓ גרסה חדשה מאומתת: $REF"
-fi
-# gVisor: בדיקה עצמית לכל גרסה חדשה של התמונה — הקונטיינר באמת עולה תחת runsc ורואה ליבה מדומה.
+	if ! docker pull -q "$img:$tag" >/dev/null 2>&1; then
+		say "✗ לא הצלחתי למשוך $img:$tag (החבילה פרטית ב־GHCR? רשת?) — נשארים במה שיש"; keep; return 0
+	fi
+	ref=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$img:$tag" | grep "^$img@sha256:" | head -n1)
+	case "$ref" in "$img@sha256:"*) ;; *) say "✗ לא נמצא digest ל־$img:$tag"; keep; return 0 ;; esac
+	if [ "$ref" != "$cur" ]; then
+		if ! cosign verify --certificate-identity-regexp "$signer" --certificate-oidc-issuer "$SNB_ISSUER" "$ref" >/dev/null 2>&1; then
+			say "✗ החתימה של $ref לא אומתה — נשארים בגרסה הנוכחית"; keep; return 0
+		fi
+		say "✓ גרסה חדשה מאומתת ($var): $ref"
+	fi
+	printf '%s=%s\n' "$var" "$ref"
+}
+
+umask 022
+{
+	if snb_room_on prod; then resolve "$SNB_IMG" prod "$SNB_SIGNER" SNB_IMAGE prod; fi
+	if snb_room_on stg-worker; then resolve "$SNB_IMG" dev "$SNB_SIGNER" SNB_IMAGE_STG stg; fi
+	if snb_room_on stg; then resolve "$SNB_APP_IMG" dev "$SNB_APP_SIGNER" SNB_APP_STG none; fi
+} >"$SNB_DIR/.env.tmp"
+mv "$SNB_DIR/.env.tmp" "$SNB_DIR/.env"
+
+# gVisor: בדיקה עצמית לכל גרסה חדשה של תמונת העובד — הקונטיינר באמת עולה תחת runsc ורואה ליבה מדומה.
 # נכשל → העובד רץ ב־runc (לא נעצר), והסיבה מגיעה למסך השרת (selftest). מצליח בגרסה הבאה → חוזרים ל־gVisor.
+REF=$(sed -n 's/^SNB_IMAGE=//p' "$SNB_DIR/.env")
+[ -n "$REF" ] || REF=$(sed -n 's/^SNB_IMAGE_STG=//p' "$SNB_DIR/.env")
 snb_runtime
-if [ "$SNB_RUNTIME" = runsc ] || [ -e "$SNB_RT_OK.bad" ]; then
+if [ -n "$REF" ] && { [ "$SNB_RUNTIME" = runsc ] || [ -e "$SNB_RT_OK.bad" ]; }; then
 	mkdir -p /var/lib/snb
 	if [ "$(cat "$SNB_RT_OK" 2>/dev/null || true)" != "$REF" ] && [ -x /usr/bin/runsc ]; then
 		if docker run --rm --runtime=runsc --network none --read-only --cap-drop ALL --entrypoint /opt/vt/bin/python "$REF" \

@@ -3,7 +3,7 @@
 אבטחה — למה כך:
   • השרת לא פותח אף פורט. הוא זה שפונה החוצה (poll), ולכן אין לאן להתחבר אליו מבחוץ.
   • הזדהות מול השרתון: טוקן שרת (SNB_WORKER_TOKEN) בכותרת Authorization — השרתון שומר רק את ה־hash שלו.
-  • כתובת השרתון קבועה בקוד (job.SERVER); רק localhost מותר לעקוף, ורק לבדיקות.
+  • כתובת השרתון מרשימה סגורה בקוד (job.SERVERS — הייצור וסביבת הניסוי); חוץ ממנה רק localhost, לבדיקות.
   • עבודה אחת בכל רגע. בסוף כל עבודה — מחיקה של כל קובצי העבודה (סרטונים, תמלילים, תרגומים): הם חיים
     ב־Drive של המשתמש, לא על השרת.
   • המפתחות (ANTHROPIC_API_KEY, SNB_WORKER_TOKEN) מגיעים ממשתני הסביבה של הקונטיינר ולא מודפסים לעולם.
@@ -48,8 +48,8 @@ def _on_term(signum, frame):        # noqa: ARG001
 
 def server_url() -> str:
     s = os.environ.get('SNB_SERVER', J.SERVER)
-    if s != J.SERVER and not J.LOCAL_RE.match(s):
-        raise SystemExit('✗ שרת לא מוכר (מותר רק השרתון הקבוע או localhost לבדיקות).')
+    if s not in J.SERVERS and not J.LOCAL_RE.match(s):
+        raise SystemExit('✗ שרת לא מוכר (מותרים רק השרתונים שבקוד — job.SERVERS — או localhost לבדיקות).')
     return s.rstrip('/')
 
 
@@ -229,9 +229,9 @@ def handle(jb: dict, server: str) -> int:
     _busy = jb['id']
     try:
         base = ['run', '--job', jb['id'], '--key', jb['key']]
-        if server != J.SERVER:                 # בדיקות בלבד (localhost) — job.py בודק שוב בעצמו
+        if server != J.SERVER:                 # שרתון הניסוי או localhost בבדיקות — job.py בודק שוב בעצמו
             base += ['--server', server]
-            if os.environ.get('SNB_DRIVE_API'):
+            if os.environ.get('SNB_DRIVE_API') and J.LOCAL_RE.match(server):
                 base += ['--drive-api', os.environ['SNB_DRIVE_API']]
         rc = run_child(base, RUN_TIMEOUT_S)
         if rc == 0 and jb.get('kind') == 'tr':

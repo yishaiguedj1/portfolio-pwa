@@ -138,7 +138,8 @@ class Pipeline(unittest.TestCase):
         u = read('infra/host/snb-update')
         self.assertLess(u.index('cosign verify'), u.index('.env.tmp'), 'קודם חתימה, אחר כך החלפת גרסה')
         self.assertIn('snb_busy', u, 'לא מעדכנים באמצע עבודה')
-        self.assertIn(':prod', u)
+        self.assertIn('resolve "$SNB_IMG" prod "$SNB_SIGNER" SNB_IMAGE prod', u, 'הייצור רק מ־prod (אחרי אישור)')
+        self.assertNotRegex(u, r'SNB_IMG"? dev [^\n]* SNB_IMAGE prod', 'dev אף פעם לא לעובד של הייצור')
 
     def test_packages_explicit(self):
         # Debian 13: הפקודה docker בחבילה נפרדת, ו־Hetzner לא מתקינה "מומלצות" — חייבת להופיע במפורש
@@ -200,6 +201,157 @@ class Pipeline(unittest.TestCase):
         self.assertIn('umask 077', s)
         self.assertIn('chmod 600', s)
         self.assertIn('stty -echo', s, 'המפתח לא מוצג על המסך')
+
+
+FAKE_DOCKER = r"""#!/bin/sh
+echo "$*" >> "$LOG"
+case "$1" in
+  pull) img=${3%%:*}; tag=${3##*:}; case " $FAIL_PULL " in *" $3 "*) exit 1 ;; esac; echo "$3" >> "$T/pulled"; exit 0 ;;
+  image) [ "$2" = inspect ] && { ref=$(echo "$@" | awk '{print $NF}'); img=${ref%%:*}; tag=${ref##*:}
+           h=$(printf '%s' "$tag$(cat "$T/rev-$tag" 2>/dev/null)" | sha256sum | cut -c1-64); echo "$img@sha256:$h"; exit 0; }; exit 0 ;;
+  volume) v=$(echo "$@" | awk '{print $NF}'); [ -d "$T/vol/$v" ] && { echo "$T/vol/$v"; exit 0; }; exit 1 ;;
+  compose) [ "$2" = version ] && exit 0
+           echo "UP profiles=$COMPOSE_PROFILES cpus=$SNB_CPUS mem=$SNB_MEM cpus_stg=$SNB_CPUS_STG mem_stg=$SNB_MEM_STG" >> "$T/compose"; exit 0 ;;
+  info) echo '{"runsc":{}}'; exit 0 ;;
+  run) exit 0 ;;
+esac
+exit 0
+"""
+FAKE_COSIGN = r"""#!/bin/sh
+echo "cosign $*" >> "$LOG"
+for a in "$@"; do case "$a" in *app-image*) [ -n "$BAD_APP_SIG" ] && exit 1 ;; esac; done
+exit 0
+"""
+
+
+class Rooms(unittest.TestCase):
+    """שלב 2ב: חדרים לפי קובצי הסודות — snb-update מריץ באמת, עם docker/cosign מדומים."""
+
+    def run_update(self, files, busy=(), fail_pull='', bad_app='', rev=None, now=False, mem_kb=None):
+        import os, tempfile, stat
+        d = tempfile.mkdtemp()
+        etc, opt, lib, binp = (os.path.join(d, x) for x in ('etc', 'opt', 'lib', 'bin'))
+        for x in (etc, opt, lib, binp, os.path.join(d, 'var')):
+            os.makedirs(x)
+        for f in files:
+            open(os.path.join(etc, f), 'w').write('X=1\n')
+        for v in busy:
+            os.makedirs(os.path.join(d, 'vol', v)); open(os.path.join(d, 'vol', v, '.busy'), 'w').write('j')
+        for tag, r in (rev or {}).items():
+            open(os.path.join(d, 'rev-' + tag), 'w').write(r)
+        def sub(t):
+            t = t.replace('/etc/snb', etc).replace('/opt/snb', opt).replace('/var/lib/snb', d + '/var')
+            t = t.replace('. /usr/local/lib/snb/common.sh', '. ' + lib + '/common.sh')
+            if mem_kb:
+                t = t.replace("/proc/meminfo", d + '/meminfo')
+            return t
+        open(lib + '/common.sh', 'w').write(sub(read('infra/host/snb-common.sh')))
+        open(d + '/upd', 'w').write(sub(read('infra/host/snb-update')))
+        if mem_kb:
+            open(d + '/meminfo', 'w').write('MemTotal: %d kB\n' % mem_kb)
+        for name, body in (('docker', FAKE_DOCKER), ('cosign', FAKE_COSIGN), ('logger', '#!/bin/sh\nexit 0\n'), ('runsc', '#!/bin/sh\n')):
+            p = os.path.join(binp, name); open(p, 'w').write(body); os.chmod(p, 0o755)
+        env = dict(os.environ, PATH=binp + ':' + os.environ['PATH'], LOG=d + '/log', T=d, FAIL_PULL=fail_pull, BAD_APP_SIG=bad_app)
+        r = subprocess.run(['sh', d + '/upd'] + (['--now'] if now else []), capture_output=True, text=True, env=env, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        rd = lambda f: open(os.path.join(d, f)).read() if os.path.exists(os.path.join(d, f)) else ''
+        return {'env': rd('opt/.env'), 'compose': rd('compose'), 'pulled': rd('pulled'), 'out': r.stdout, 'dir': d}
+
+    def test_prod_only_unchanged(self):
+        r = self.run_update(['worker.env'])
+        self.assertEqual(r['pulled'].split(), ['ghcr.io/yishaiguedj1/snb-worker:prod'])
+        self.assertRegex(r['env'], r'^SNB_IMAGE=ghcr.io/yishaiguedj1/snb-worker@sha256:[0-9a-f]{64}\n$')
+        self.assertIn('UP profiles=prod ', r['compose'])
+
+    def test_staging_rooms_use_dev(self):
+        r = self.run_update(['tunnel.env', 'app-stg.env', 'worker-stg.env'])
+        self.assertEqual(sorted(r['pulled'].split()), ['ghcr.io/yishaiguedj1/snb-app:dev', 'ghcr.io/yishaiguedj1/snb-worker:dev'])
+        self.assertIn('SNB_APP_STG=ghcr.io/yishaiguedj1/snb-app@sha256:', r['env'])
+        self.assertIn('SNB_IMAGE_STG=ghcr.io/yishaiguedj1/snb-worker@sha256:', r['env'])
+        self.assertNotIn('SNB_IMAGE=', r['env'])
+        self.assertIn('UP profiles=tunnel,stg,stg-worker ', r['compose'])
+
+    def test_app_signer_is_app_workflow(self):
+        r = self.run_update(['app-stg.env'])
+        log = open(r['dir'] + '/log').read()
+        self.assertIn('workflows/app-image\\.yml@refs/heads/main$', log)
+        w = read('.github/workflows/app-image.yml')
+        ident = re.search(r"SNB_APP_SIGNER='([^']+)'", read('infra/host/snb-common.sh')).group(1)
+        self.assertIn('app-image\\.yml', ident)
+        self.assertRegex(w, r'(?m)^name: app-image$')
+        self.assertLess(w.index('cosign sign --yes'), w.index('-t "$IMAGE:dev"'), 'dev רק אחרי חתימה')
+
+    def test_bad_signature_keeps_room_off_others_up(self):
+        r = self.run_update(['tunnel.env', 'app-stg.env', 'worker.env'], bad_app='1')
+        self.assertNotIn('SNB_APP_STG=', r['env'], 'תמונה לא חתומה לא נכנסת')
+        self.assertIn('SNB_IMAGE=', r['env'])
+        self.assertIn('UP profiles=prod,tunnel ', r['compose'], 'חדר בלי תמונה מאומתת כבוי — השאר עולים')
+
+    def test_pull_failure_not_fatal(self):
+        r = self.run_update(['worker.env', 'app-stg.env'], fail_pull='ghcr.io/yishaiguedj1/snb-app:dev')
+        self.assertIn('SNB_IMAGE=', r['env'])
+        self.assertIn('UP profiles=prod ', r['compose'])
+
+    def test_busy_worker_keeps_version_per_room(self):
+        import os
+        r1 = self.run_update(['worker.env', 'worker-stg.env'])
+        d = r1['dir']
+        # גרסה חדשה לשני התגים; עובד הניסוי באמצע עבודה — רק הוא נשאר בישנה
+        old_stg = re.search(r'SNB_IMAGE_STG=(\S+)', r1['env']).group(1)
+        os.makedirs(d + '/vol/snb_work-stg'); open(d + '/vol/snb_work-stg/.busy', 'w').write('j')
+        open(d + '/rev-dev', 'w').write('2'); open(d + '/rev-prod', 'w').write('2')
+        upd = open(d + '/upd').read()
+        env = dict(os.environ, PATH=d + '/bin:' + os.environ['PATH'], LOG=d + '/log', T=d, FAIL_PULL='', BAD_APP_SIG='')
+        subprocess.run(['sh', d + '/upd'], check=True, capture_output=True, env=env, timeout=30)
+        e2 = open(d + '/opt/.env').read()
+        self.assertIn('SNB_IMAGE_STG=' + old_stg + '\n', e2)
+        self.assertNotIn(re.search(r'SNB_IMAGE=(\S+)', r1['env']).group(1), e2, 'הייצור לא תלוי בעבודה של הניסוי')
+
+    def test_limits_split_when_both_workers(self):
+        r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=16 * 1024 * 1024)
+        m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
+        self.assertEqual(m.group(3), '3072')
+        self.assertEqual(int(m.group(1)) + 3072 + 800 + 1024, 16 * 1024, 'סך הכל = כל הזיכרון של השרת')
+        r = self.run_update(['tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=8 * 1024 * 1024)
+        m = re.search(r'mem_stg=(\d+)m', r['compose'])
+        self.assertEqual(int(m.group(1)), 8 * 1024 - 1024 - 800, 'עובד ניסוי לבד מקבל את כל השרת')
+
+    def test_compose_rooms(self):
+        c = read('infra/compose.yaml')
+        for svc, prof, envf in (('worker', 'prod', 'worker.env'), ('tunnel', 'tunnel', 'tunnel.env'),
+                                ('app-stg', 'stg', 'app-stg.env'), ('worker-stg', 'stg-worker', 'worker-stg.env')):
+            block = re.search(r'(?ms)^  ' + re.escape(svc) + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
+            self.assertIn('profiles: [' + prof + ']', block)
+            self.assertIn('/etc/snb/' + envf, block)
+            for need in ('read_only: true', 'cap_drop: [ALL]', 'no-new-privileges:true', 'mem_limit:', 'pids_limit:'):
+                self.assertIn(need, block, svc + ': ' + need)
+        self.assertRegex(c, r'cloudflare/cloudflared:[\d.]+@sha256:[0-9a-f]{64}', 'ה־Tunnel נעול ב־digest')
+        self.assertIn('SNB_SERVER=https://api-staging.thesnowball.app', c)
+        self.assertNotRegex(c, r'\$\{SNB_[A-Z_]+:\?', 'חדר כבוי לא דורש תמונה')
+        for f in ('tunnel', 'app-stg'):
+            block = re.search(r'(?ms)^  ' + f + r':\n(.*?)(?=^  \S|^\S)', c).group(1)
+            self.assertIn('networks: [edge]', block)
+        self.assertIn('networks: [wk-stg]', c, 'עובד הניסוי לא ברשת של השרתון')
+
+    def test_worker_servers_closed_list(self):
+        import os
+        sys.path.insert(0, str(ROOT / 'translator'))
+        import agent, job
+        self.assertIn('https://api-staging.thesnowball.app', job.SERVERS)
+        old = os.environ.get('SNB_SERVER')
+        try:
+            for ok in job.SERVERS + ('http://127.0.0.1:8792',):
+                os.environ['SNB_SERVER'] = ok
+                self.assertEqual(agent.server_url(), ok.rstrip('/'))
+            for bad in ('https://api-staging.thesnowball.app.evil.com', 'http://api-staging.thesnowball.app', 'https://evil.com'):
+                os.environ['SNB_SERVER'] = bad
+                with self.assertRaises(SystemExit):
+                    agent.server_url()
+        finally:
+            if old is None:
+                os.environ.pop('SNB_SERVER', None)
+            else:
+                os.environ['SNB_SERVER'] = old
 
 
 if __name__ == '__main__':

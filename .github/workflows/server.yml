@@ -1,0 +1,97 @@
+# "הקמת שרת" — מחוץ לשרת (שלב 2ב, 12/10/2026; תוכנית העמידות: מה שמקים את השרת לא חי עליו).
+#
+# Actions ← server ← Run workflow. רץ רק אחרי אישור שלך (Environment "production" — אותו אישור של הפריסה).
+#   1. טוקן שרת חדש נרשם ב־Firestore של הסביבה (חשבון השירות) — בלי השרתון, שעוד לא קיים.
+#   2. קוד ההקמה מהריפו + קובצי הסודות של החדרים, מ־GitHub Secrets (לא מודפסים, לא נשמרים).
+#   3. השרת נוצר ב־Hetzner עם חומת האש snb-closed (בלי אף כלל נכנס). שם קיים = עוצרים, לא דורסים.
+#   4. מחכים שהשרתון יענה דרך ה־Tunnel ושהעובד יתחבר.
+# כרגע רק סביבת הניסוי (stg): ה־Tunnel, השרתון והעובד של הניסוי. הסודות — infra/README.md, "שרת הניסוי".
+name: server
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'סביבה'
+        type: choice
+        options: [stg]
+        default: stg
+      name:
+        description: 'שם השרת ב־Hetzner'
+        default: snb-stg-1
+      type:
+        description: 'סוג (cax21 = Arm, 4 ליבות, 8GB)'
+        default: cax21
+      location:
+        description: 'מיקום (nbg1 / fsn1 / hel1)'
+        default: nbg1
+
+permissions: {}
+
+concurrency:
+  group: server
+  cancel-in-progress: false
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 80
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: טוקן שרת חדש — נרשם ב־Firestore של הסביבה
+        id: reg
+        env:
+          STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+          ENV_NAME: ${{ inputs.env }}
+          NAME: ${{ inputs.name }}
+        run: |
+          set -eu
+          out=$(node tools/server-provision.js register --env "$ENV_NAME" --name "$NAME" --out "$RUNNER_TEMP/tok")
+          echo "$out"
+          echo "sid=${out#*sid=}" >> "$GITHUB_OUTPUT"
+      - name: קוד ההקמה עם הסודות
+        env:
+          ENV_NAME: ${{ inputs.env }}
+          STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+          STG_TUNNEL_TOKEN: ${{ secrets.STG_TUNNEL_TOKEN }}
+          STG_R2_ACCESS_KEY_ID: ${{ secrets.STG_R2_ACCESS_KEY_ID }}
+          STG_R2_SECRET_ACCESS_KEY: ${{ secrets.STG_R2_SECRET_ACCESS_KEY }}
+          STG_ANTHROPIC_KEY: ${{ secrets.STG_ANTHROPIC_KEY }}
+          STG_ADMIN_EMAIL: ${{ secrets.STG_ADMIN_EMAIL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node tools/server-provision.js cloud-init --env "$ENV_NAME" --token "$RUNNER_TEMP/tok" --out "$RUNNER_TEMP/ud"
+      - name: יצירת השרת ב־Hetzner
+        id: create
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          ENV_NAME: ${{ inputs.env }}
+          NAME: ${{ inputs.name }}
+          TYPE: ${{ inputs.type }}
+          LOC: ${{ inputs.location }}
+        run: |
+          set -eu
+          node tools/server-provision.js create --env "$ENV_NAME" --name "$NAME" --type "$TYPE" --location "$LOC" --user-data "$RUNNER_TEMP/ud"
+          rm -f "$RUNNER_TEMP/ud" "$RUNNER_TEMP/tok"
+      - name: מחכים — השרתון דרך ה־Tunnel, ואז העובד
+        env:
+          STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+          ENV_NAME: ${{ inputs.env }}
+          SID: ${{ steps.reg.outputs.sid }}
+        run: |
+          node tools/server-provision.js wait --env "$ENV_NAME" --sid "$SID"
+          echo "✓ השרת $SID מחובר" >> "$GITHUB_STEP_SUMMARY"
+      - name: ניקוי — השרת לא נוצר, הרישום נמחק
+        if: failure() && steps.reg.outputs.sid != '' && steps.create.outcome != 'success'
+        env:
+          STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
+          ENV_NAME: ${{ inputs.env }}
+          SID: ${{ steps.reg.outputs.sid }}
+        run: node tools/server-provision.js unregister --env "$ENV_NAME" --sid "$SID"
+      - name: מחיקת הקבצים הזמניים
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ud" "$RUNNER_TEMP/tok"

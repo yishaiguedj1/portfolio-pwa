@@ -17,6 +17,20 @@ updates:
       - dependency-name: python
         update-types: ["version-update:semver-major", "version-update:semver-minor"]   # רק תיקונים בתוך 3.12 — מעבר גרסה = החלטה
     commit-message: { prefix: "עדכון בסיס העובד" }
+  # תמונת הבסיס של השרתון כקונטיינר (node:22-trixie-slim@sha256) — חדר האפליקציה (שלב 2ב)
+  - package-ecosystem: docker
+    directory: /infra/app
+    schedule: { interval: weekly, day: sunday, time: "06:00", timezone: Asia/Jerusalem }
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]   # רק בתוך Node 22 LTS — מעבר גרסה = החלטה
+    commit-message: { prefix: "עדכון בסיס השרתון" }
+  # Cloudflare Tunnel בשרת (cloudflare/cloudflared@sha256 ב־infra/compose.yaml). ה־PR יהיה אדום עד
+  # python3 infra/build-cloud-init.py (קוד ההקמה כולל את compose.yaml) — מריצים ודוחפים לאותו ענף.
+  - package-ecosystem: docker-compose
+    directory: /infra
+    schedule: { interval: weekly, day: sunday, time: "06:00", timezone: Asia/Jerusalem }
+    commit-message: { prefix: "עדכון Tunnel" }
   # אפליקציית האנדרואיד (Gradle) — רק עדכוני אבטחה ותיקונים, לא גרסאות ראשיות
   - package-ecosystem: gradle
     directory: /android

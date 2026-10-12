@@ -1,0 +1,100 @@
+# קופסת השרתון (חדר האפליקציה — infra/app/Dockerfile): בנייה וחתימה. שלב 2ב (12/10/2026).
+#
+# כמו worker-image.yml:
+#   • בונים פעם אחת לשתי הארכיטקטורות, ונוחתים על התג dev — סביבת הניסוי בשרת מושכת אותו בכל מיזוג.
+#   • כל תמונה נחתמת בלי מפתח (Sigstore, זהות ה־workflow הזה מהענף הראשי). השרת מסרב לתמונה בלי החתימה הזו
+#     (SNB_APP_SIGNER ב־infra/host/snb-common.sh).
+#   • אין עדיין prod: השרתון של הייצור ב־Vercel. הקידום יתווסף כשחדר האפליקציה של הייצור יעבור לשרת.
+#   • כל ה־actions נעולים ל־SHA; ההרשאות מינימליות ולכל job בנפרד.
+name: app-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ibkr-proxy/**'
+      - 'infra/app/**'
+      - '.github/workflows/app-image.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/yishaiguedj1/snb-app
+
+jobs:
+  build:
+    concurrency:
+      group: app-image-build-${{ matrix.arch }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write     # דחיפה ל־GHCR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: בדיקות השרתון (שער — בלי ירוק אין תמונה)
+        run: |
+          node ibkr-proxy/tests/run.js > /tmp/proxy.log 2>&1 || { tail -40 /tmp/proxy.log; exit 1; }
+          node tests/app-server.test.js
+      - name: בנייה ודחיפה
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx create --use --name snb >/dev/null
+          docker buildx build --provenance=mode=max --sbom=true --push --platform "linux/$ARCH" \
+            -f infra/app/Dockerfile -t "$IMAGE:sha-${GITHUB_SHA}-$ARCH" .
+          docker logout ghcr.io
+
+  merge:
+    concurrency:
+      group: app-image-merge
+      cancel-in-progress: false
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write     # דחיפה ל־GHCR
+      id-token: write     # חתימה בלי מפתח (Sigstore)
+    steps:
+      - name: איחוד
+        id: push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          tag="$IMAGE:sha-${GITHUB_SHA}"
+          docker buildx imagetools create -t "$tag" "$tag-amd64" "$tag-arm64"
+          digest=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' | python3 -c "import json,sys;print(json.load(sys.stdin)['digest'])")
+          echo "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          archs=$(docker buildx imagetools inspect "$IMAGE@$digest" --raw | python3 -c "import json,sys;print(' '.join(sorted({m['platform']['architecture'] for m in json.load(sys.stdin)['manifests'] if m['platform']['os']=='linux'})))")
+          [ "$archs" = "amd64 arm64" ] || { echo "חסרה ארכיטקטורה: $archs"; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          docker logout ghcr.io
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: חתימה (בלי מפתח — זהות ה־workflow) ואז התג dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -eu
+          echo "$GH_TOKEN" | cosign login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          cosign sign --yes "$IMAGE@$DIGEST"
+          # גם בפורמט הישן — ה־cosign 2.5 של Debian 13 בשרת לא מוצא את הפורמט החדש (כמו worker-image.yml)
+          cosign sign --yes --new-bundle-format=false --use-signing-config=false "$IMAGE@$DIGEST"
+          # dev רק אחרי שהחתימה קיימת — השרת לא רואה אף פעם תג שמצביע על תמונה לא חתומה
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create -t "$IMAGE:dev" "$IMAGE@$DIGEST"
+          docker logout ghcr.io
+          echo "✓ dev = $IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
