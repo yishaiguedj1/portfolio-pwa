@@ -167,7 +167,7 @@ const missShell = needed.concat(Array.from(deps)).filter((f) => !libShell.includ
 const contentPhase = swV === appV - 1;
 if (contentPhase && missShell.length) console.log('# שלב התוכן — ' + missShell + ' ייכנס ל־LIB_SHELL עם sw.js');
 ok((!missShell.length || contentPhase) && libShell.every((f) => fs.existsSync(path.join(root, f))), 'SW: כל ' + libShell.length + ' קבצי הספרייה נטענים מראש וקיימים' + (missShell.length && !contentPhase ? ' (חסר: ' + missShell + ')' : ''));
-ok(/caches\.match\('\.\/library\.js'\)/.test(swSrc) && /cache\.addAll\(LIB_SHELL\)\.catch/.test(swSrc), 'SW: רק למי שכבר השתמש בספרייה, וכשל לא מפיל את ההתקנה');
+ok(/\[LIB_SHELL, '\.\/library\.js'\]/.test(swSrc) && /caches\.match\(mark\)/.test(swSrc) && /fetchVerified\(p\)\.then\(\(r\) => cache\.put\(p, r\), \(\) => \{\}\)/.test(swSrc), 'SW: רק למי שכבר השתמש בספרייה, וכשל לא מפיל את ההתקנה (v394: קובץ מאומת מול הטביעה)');
 }
 
 // שלב 8: נגישות

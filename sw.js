@@ -1,7 +1,60 @@
 /* Service Worker — תיק ההשקעות PWA
- * גרסה: bump את CACHE_NAME בכל שינוי בקבצי האפליקציה כדי שהתקנות קיימות יתעדכנו.
+ * הגרסה והטביעות נכתבים ב־node tools/swgen.js (מ־APP_VERSION שב־app.js ומהקבצים עצמם) — לא לערוך ביד.
+ * התקנה = כל קובץ במעטפת יורד עם ‎?v=<טביעה> ונבדק מול הטביעה; קובץ ישן (CDN באמצע פריסה) = ההתקנה נכשלת,
+ * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
-const CACHE_NAME = 'portfolio-pwa-v393';
+/* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
+const CACHE_NAME = 'portfolio-pwa-v394';
+const HASHES = {
+  "./": "bae3ed45facfc8f1c247812ed1b28746",
+  "./index.html": "bae3ed45facfc8f1c247812ed1b28746",
+  "./styles.css": "c28ea818f3738acb535f4d5fb18983e8",
+  "./app.js": "114792a8765676caaae0f2708e916281",
+  "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
+  "./cloud.js": "8ac40b136ef52417e3e6ac7125f29117",
+  "./firebase-config.js": "e7ebb885f9091456015fe82061295059",
+  "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
+  "./icon-192.png": "511b5aee2e7341ac65fec0d29b91533f",
+  "./icon-512.png": "b0a62fb8da14775653dadc9ddff1c09c",
+  "./logo-header.png": "92bee9001ec48674ae25703c9b6733bb",
+  "./apple-touch-icon.png": "a0bd976c2c911b8dcc446fdbafabd50e",
+  "./favicon-48.png": "54adadfbb7cfdbddb0102995a66a5145",
+  "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
+  "./library.js": "60186e0a1ed0d40ad0baaa68d14e8ebd",
+  "./library.css": "ef3ea33b662dce192b0f87a149a61139",
+  "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
+  "./libbackup.js": "17be92ab73db3643d73ae4c0e59ab347",
+  "./ribbon3d.js": "aea160c033eebec3c86b79480c9c10c0",
+  "./pagecurl.js": "223e78015f232482221512af5d67e2a7",
+  "./pagetex.js": "8d4c24fd38625957c16882d7e778148b",
+  "./libadmin.js": "37ae2eb318b4fd187205d2327c57350f",
+  "./epubkit.js": "6221dcdea67d6ae4b617bab6cd1bb79b",
+  "./fonts/NotoSansHebrew-VF.woff2": "cc3f6ef471cb7aff587f63873a650e32",
+  "./vendor/foliate-js/view.js": "e0093af921feb03bb58fb51aeedc321f",
+  "./vendor/foliate-js/epub.js": "dfe347495039e9b5991478986ec6b771",
+  "./vendor/foliate-js/epubcfi.js": "e1a688ad5c84bf31f33cef467f92c7a6",
+  "./vendor/foliate-js/paginator.js": "51cec81572d5d182e231fe68ce9c3b54",
+  "./vendor/foliate-js/overlayer.js": "d3d3396e3083277ccbd4f17c40762115",
+  "./vendor/foliate-js/progress.js": "544f5e90babc0cb31c5caf971a5f06dd",
+  "./vendor/foliate-js/search.js": "31e846bdc095a645de0e94f7baa2c9e1",
+  "./vendor/foliate-js/text-walker.js": "4ad740ab6142b5be428700ef4d270253",
+  "./vendor/foliate-js/footnotes.js": "d377b45d2ac05290c42873612ec0a92e",
+  "./vendor/foliate-js/mobi.js": "016526df13a9f11ee6671a8c74346e1c",
+  "./vendor/foliate-js/fb2.js": "09a7890bf191f1b6c6dd435fae2868b8",
+  "./vendor/foliate-js/comic-book.js": "7f3bf77561ca77300d5244015fcb1f73",
+  "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
+  "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
+  "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
+  "./studio.js": "da4e2d7e94a2936c87b65a8e7314f11c",
+  "./studio.css": "40692580ed4204e545f639f2192ca3a8",
+  "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
+  "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
+  "./studiosubs.js": "0c273369bbbd09869894f503c6e3fd79",
+  "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
+  "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
+  "./studiostore.js": "633c4083aebf82cdc389813e65ecee16"
+};
+/* </swgen> */
 
 const APP_SHELL = [
   './',
@@ -36,17 +89,32 @@ const LIB_SHELL = [
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
 const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js', './studiostore.js'];   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
+/* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
+   ‎?v=<טביעה> = כתובת חדשה ל־CDN (לא עותק ישן מהמטמון שלו), cache:'reload' = לא מהמטמון של הדפדפן.
+   עד היום ההתקנה לקחה מה שהגיע (addAll) והמשיכה גם בכישלון — קובץ ישן נכנס למטמון החדש לתמיד ("הרעלה"). */
+const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+async function fetchVerified(p) {
+  const want = HASHES[p];
+  const res = await fetch(new Request(want ? p + '?v=' + want.slice(0, 12) : p, { cache: 'reload' }));
+  if (!res.ok) throw new Error('http ' + res.status + ' ' + p);
+  const buf = await res.arrayBuffer();
+  if (want && hex(await crypto.subtle.digest('SHA-256', buf)).slice(0, want.length) !== want) throw new Error('stale ' + p);
+  return new Response(buf, { headers: { 'Content-Type': res.headers.get('Content-Type') || 'application/octet-stream' } });
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL)
-        .then(() => caches.match('./library.js'))
-        .then((used) => used && cache.addAll(LIB_SHELL).catch(() => {}))
-        .then(() => caches.match('./studio.js'))
-        .then((used) => used && cache.addAll(STUDIO_SHELL).catch(() => {})))
-      .then(() => self.skipWaiting())
-      .catch(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    // המעטפת — הכל או כלום: קובץ אחד ישן/חסר = ההתקנה נכשלת והגרסה הקודמת ממשיכה לעבוד
+    const got = await Promise.all(APP_SHELL.map(async (p) => [p, await fetchVerified(p)]));
+    const cache = await caches.open(CACHE_NAME);
+    for (const [p, r] of got) await cache.put(p, r);
+    // הספרייה והסטודיו — רק אצל מי שכבר נכנס אליהם; קובץ שלא אומת לא נשמר (יורד מהרשת בשימוש)
+    for (const [set, mark] of [[LIB_SHELL, './library.js'], [STUDIO_SHELL, './studio.js']]) {
+      if (!(await caches.match(mark))) continue;
+      await Promise.all(set.map((p) => fetchVerified(p).then((r) => cache.put(p, r), () => {})));
+    }
+    await self.skipWaiting();
+  })());
 });
 
 /* v193: מטמון ריצה למשאבים חיצוניים שכמעט לא משתנים — לוגואים (FMP / TradingView) וקבצי ה־SDK של Firebase

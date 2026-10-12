@@ -93,7 +93,7 @@ ok(/if\(h&&\(h\.lib\|\|h\.studio\)\)/.test(html) && /h\.lib\?'lib-open':'studio-
 ok(/'pwa_studio_v1'/.test(app.match(/const ACCOUNT_KEYS = \[[^\]]*\]/)[0]), 'מפתח הסטודיו ב־ACCOUNT_KEYS (הפרדת חשבונות)');
 ok(/classList\.contains\('studio-open'\)\) return false/.test(app.match(/function liveCanTick\(\) \{[\s\S]*?\n\}/)[0]), 'לולאת המחירים מושהית כשהסטודיו פתוח');
 const swVer = +((sw.match(/const CACHE_NAME = 'portfolio-pwa-v(\d+)'/) || [])[1] || 0);
-if (swVer >= 354) ok(/const STUDIO_SHELL = \[[^\]]*'\.\/studio\.js'[^\]]*'\.\/studio\.css'/.test(sw) && /caches\.match\('\.\/studio\.js'\)/.test(sw), 'sw.js: קבצי הסטודיו נטענים מראש בעדכון אצל מי שנכנס אליו (אופליין)');
+if (swVer >= 354) ok(/const STUDIO_SHELL = \[[^\]]*'\.\/studio\.js'[^\]]*'\.\/studio\.css'/.test(sw) && (/caches\.match\('\.\/studio\.js'\)/.test(sw) || /\[STUDIO_SHELL, '\.\/studio\.js'\]/.test(sw)), 'sw.js: קבצי הסטודיו נטענים מראש בעדכון אצל מי שנכנס אליו (אופליין)');
 else ok(true, 'sw.js עוד בגרסה הקודמת (שלב התוכן בפרוטוקול הדו־שלבי)');
 
 /* ---------- 4. "חזור" והיסטוריה ---------- */
