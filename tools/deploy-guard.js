@@ -60,8 +60,9 @@ function checkPr({ base, head, changed, sync }) {
     released = c > 0;
   } else released = true;   // main בלי APP_RELEASE (המעבר, v395)
   if (released && Array.isArray(hR)) {
-    const esc = relStr(hR).replace(/\./g, '\\.');
-    if (!new RegExp('^## ' + esc + '(\\s|$)', 'm').test(String(head.changelog || ''))) errs.push(`APP_RELEASE עלה ל־${relStr(hR)} אבל ב־CHANGELOG.md אין כותרת "## ${relStr(hR)}" — לכתוב מה חדש בגרסה`);
+    const head2 = '## ' + relStr(hR);   // השוואת שורות — בלי לבנות ביטוי רגולרי מהמספר
+    const has = String(head.changelog || '').split(/\r?\n/).some((l) => l === head2 || l.startsWith(head2 + ' '));
+    if (!has) errs.push(`APP_RELEASE עלה ל־${relStr(hR)} אבל ב־CHANGELOG.md אין כותרת "## ${relStr(hR)}" — לכתוב מה חדש בגרסה`);
   }
   return { ok: errs.length === 0, errs, content, swChanged, released, versions: { bA, hA, bC, hC, bR: relStr(bR), hR: relStr(hR) } };
 }

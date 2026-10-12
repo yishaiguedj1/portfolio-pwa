@@ -81,7 +81,7 @@ t('פרודקשן רק כשגרסת המערכת עלתה; התגית = vX.Y.Z',
   const app = read('app.js');
   const rel = app.match(/const APP_RELEASE = '(\d+\.\d+\.\d+)'/);
   assert.ok(rel, 'APP_RELEASE ב־app.js');
-  assert.ok(new RegExp('^## ' + rel[1].replace(/\./g, '\\.') + ' ', 'm').test(read('CHANGELOG.md')), 'הגרסה הנוכחית מתועדת ב־CHANGELOG.md');
+  assert.ok(read('CHANGELOG.md').split('\n').some((l) => l.startsWith('## ' + rel[1] + ' ')), 'הגרסה הנוכחית מתועדת ב־CHANGELOG.md');
   assert.ok(/^## לא פורסם$/m.test(read('CHANGELOG.md')), 'מקטע "לא פורסם" לשינויים שבניסוי');
 });
 
