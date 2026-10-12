@@ -50,6 +50,11 @@ function mock(o = {}) {
     }
     if (url.startsWith('https://api.hetzner.cloud/v1')) {
       const p = url.slice('https://api.hetzner.cloud/v1'.length);
+      if (p.startsWith('/server_types?name=') && o.typeFail && o.typeFail.length) {
+        const s = o.typeFail.shift();
+        if (s) return res(s, { error: { code: s === 401 ? 'unauthorized' : 'unavailable' } });
+      }
+      if (p.startsWith('/servers?name=') && o.listFail) return res(o.listFail, { error: { code: 'unavailable' } });
       if (p.startsWith('/server_types?name=')) {
         const name = decodeURIComponent(p.split('=')[1]);
         let av = {};
@@ -141,6 +146,22 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
     const M5 = mock({ avail: [{}] });
     const r5 = await A.watch(E, M5.deps, { minutes: 30 });
     ok(r5.timeout && r5.checks === 30, 'בדיקה כל דקה עד הדדליין');
+    const hz = (s) => M5.calls.filter((c) => c.url.includes('api.hetzner.cloud/v1' + s)).length;
+    ok(hz('/server_types?name=cx43') === 30 && hz('/pricing') === 1 && hz('/servers?name=') === 1,
+      'קריאה אחת ל־Hetzner בדקה: המחירון פעם אחת לריצה, "השרת קיים" רק בהתחלה וכשיש מלאי');
+
+    /* תקלה רגעית — ממשיכים; תקלה קבועה — עוצרים (ה־workflow מכבה ומודיע) */
+    const M6 = mock({ typeFail: [503, 429, 0], avail: [{}, {}, { fsn1: true }] });
+    const r6 = await A.watch(E, M6.deps, { minutes: 10 });
+    ok(r6.bought && r6.bought.location === 'fsn1', '503 ו־429 של Hetzner — ממשיכים לחכות, לא נעצרים');
+    let c7 = '';
+    try { await A.watch(E, mock({ typeFail: [401] }).deps, { minutes: 5 }); } catch (x) { c7 = x.code; }
+    ok(c7 === 'hcloud_401', '401 (טוקן לא תקין) — עצירה סופית');
+    const M8 = mock({ listFail: 503, avail: [{ fsn1: true }] });
+    const r8 = await A.watch(E, M8.deps, { minutes: 3 });
+    ok(r8.timeout && !posts(M8).length, '"השרת קיים" לא ידוע (503) — לא מזמינים בעיוורון, מנסים בדקה הבאה');
+    ok(A.transient({ code: 'hcloud_502' }) && A.transient(new TypeError('fetch failed')) && !A.transient({ code: 'hcloud_403' }) && !A.transient({ code: 'vercel_token' }),
+      'מה נחשב תקלה רגעית');
   }
 
   /* ---------- הקבועים ---------- */
@@ -157,6 +178,9 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
     for (const u of w.match(/uses:\s*\S+/g) || []) ok(/@[0-9a-f]{40}$/.test(u), 'workflow: action נעול ל־SHA: ' + u);
     const runs = w.split('\n').filter((l) => /^\s+run:|^\s{10}\S/.test(l)).join('\n');
     ok(!/\$\{\{/.test(runs.replace(/^\s+[A-Z0-9_]+: \$\{\{[^}]+\}\}$/gm, '')), 'workflow: בלי ביטויים בתוך פקודות');
+    ok(/if: always\(\) && steps\.buy\.outputs\.stopped != ''[\s\S]{0,200}gh workflow disable autobuy\.yml[\s\S]{0,60}gh issue create/.test(w),
+      'workflow: עצירה סופית (תקרה, שם קיים, הרשאה, שגיאה) — מכבה ופותח Issue');
+    ok(/catch\(\(err\) => \{\s*\/\/[^\n]*\n\s*out\('stopped'/.test(read('tools/server-autobuy.js')), 'הכלי: שגיאה = stopped ל־GITHUB_OUTPUT');
     ok(!/environment: production/.test(w), 'workflow: בלי שלב אישור (החלטת המשתמש — אוטומטי לגמרי, עם תקרה)');
     const src = read('tools/server-autobuy.js');
     ok(!/console\.(log|error)\([^)]*(token|user_data|ud\b|E\.|HCLOUD)/.test(src) && !/writeFileSync\([^)]*ud/.test(src), 'הכלי לא מדפיס ולא כותב לדיסק את קוד ההקמה או סודות');

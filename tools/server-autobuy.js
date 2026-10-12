@@ -12,7 +12,9 @@
  *   check — בלי הזמנה: המחיר לחודש במטבע של החשבון (‏/v1/pricing), המלאי עכשיו בכל מיקום, ובדיקה שכל הסודות
  *           קיימים ותקינים (שמות בלבד). זה מה שהמשתמש רואה לפני שהוא מדליק.
  *   watch — לולאה: כל דקה, עד הדדליין. נעצרת אם השרת כבר קיים (שם קבוע), אם המחיר עלה מעל התקרה שהמשתמש אישר
- *           (SNB_AUTOBUY_MAX), או אחרי הזמנה אחת. מדפיסה ל־GITHUB_OUTPUT רק: server, location, sid, sidp.
+ *           (SNB_AUTOBUY_MAX), או אחרי הזמנה אחת. מדפיסה ל־GITHUB_OUTPUT רק: server, location, sid, sidp —
+ *           או stopped=<קוד> בכל עצירה סופית (גם שגיאה). רק "עוד אין מלאי" משאיר את האוטומציה דולקת.
+ *           קריאה אחת ל־Hetzner בדקה (המחירון — פעם אחת לריצה; "השרת קיים" — בהתחלה וכשיש מלאי).
  *
  * גבולות קשיחים: סוג אחד (AUTOBUY.type), מיקומים לפי הסדר (fsn1 ואז nbg1), שם אחד, לפחות 16GB, בלי שום
  * פעולה על שרת אחר. כל ערך סודי — רק בזיכרון (קוד ההקמה לא נכתב לדיסק). */
@@ -32,25 +34,32 @@ const AUTOBUY = {
 const MONEY_RE = /^\d{1,4}(\.\d{1,2})?$/;
 function fail(code, msg) { const e = new Error(msg || code); e.code = code; throw e; }
 
-/* המחיר לחודש של סוג, לכל מיקום (כולל מע"מ אם יש) + IPv4, במטבע של החשבון */
-async function priceOf(e, deps, type) {
-  const st = ((await P.hc(deps, e, 'GET', '/server_types?name=' + encodeURIComponent(type))).server_types || [])[0];
-  if (!st) fail('type', 'אין ב־Hetzner סוג שרת בשם ' + type);
-  let currency = '', ipv4 = {};
+/* המחירון של החשבון: המטבע ו־IPv4 לכל מיקום. נקרא פעם אחת לריצה (לא בכל דקה) */
+async function pricing(e, deps) {
+  const out = { currency: '', ipv4: {} };
   try {
     const pr = (await P.hc(deps, e, 'GET', '/pricing')).pricing || {};
-    currency = String(pr.currency || '').slice(0, 3);
+    out.currency = String(pr.currency || '').slice(0, 3);
     for (const ip of pr.primary_ips || []) {
       if (ip.type !== 'ipv4') continue;
-      for (const x of ip.prices || []) ipv4[x.location] = Number(((x.price_monthly || {}).gross) || 0);
+      for (const x of ip.prices || []) out.ipv4[x.location] = Number(((x.price_monthly || {}).gross) || 0);
     }
   } catch (x) { /* בלי מחירון — המחיר של השרת עדיין נכון */ }
+  return out;
+}
+
+/* קריאה אחת ל־Hetzner: הסוג, המחיר לחודש לכל מיקום והמלאי עכשיו (locations[].available) */
+async function typeInfo(e, deps, type, pr) {
+  const st = ((await P.hc(deps, e, 'GET', '/server_types?name=' + encodeURIComponent(type))).server_types || [])[0];
+  if (!st) fail('type', 'אין ב־Hetzner סוג שרת בשם ' + type);
   const loc = {};
-  for (const x of st.prices || []) loc[x.location] = { server: Number(((x.price_monthly || {}).gross) || 0), ipv4: ipv4[x.location] || 0 };
+  for (const x of st.prices || []) loc[x.location] = { server: Number(((x.price_monthly || {}).gross) || 0), ipv4: (pr.ipv4 || {})[x.location] || 0 };
   const avail = {};
   for (const l of st.locations || []) avail[l.name] = !!l.available && !(l.deprecation && l.deprecation.unavailable_after && Date.parse(l.deprecation.unavailable_after) < deps.now());
-  return { id: st.id, memory: Number(st.memory), currency, loc, avail };
+  return { id: st.id, memory: Number(st.memory), currency: pr.currency || '', loc, avail };
 }
+
+async function priceOf(e, deps, type) { return typeInfo(e, deps, type, await pricing(e, deps)); }
 
 const total = (p, l) => (p.loc[l] ? Math.round((p.loc[l].server + p.loc[l].ipv4) * 100) / 100 : null);
 
@@ -65,6 +74,12 @@ async function checkSecrets(e, deps) {
 
 async function exists(e, deps, name) {
   return ((await P.hc(deps, e, 'GET', '/servers?name=' + encodeURIComponent(name))).servers || []).length > 0;
+}
+
+/* תקלה רגעית (רשת, 429, 5xx) — מנסים בדקה הבאה. רק תקלה קבועה עוצרת ומכבה את האוטומציה. */
+const transient = (x) => !x || !x.code || /^hcloud_(429|5\d\d)$/.test(x.code);
+async function existsSoft(e, deps, name) {
+  try { return await exists(e, deps, name); } catch (x) { if (transient(x)) return null; throw x; }
 }
 
 /* הזמנה אחת במיקום אחד: טוקנים חדשים לשתי הסביבות, קוד הקמה עם סודות טריים מ־Vercel, יצירה.
@@ -92,14 +107,22 @@ async function watch(e, deps, opts = {}) {
   const max = String(e.SNB_AUTOBUY_MAX || '').trim();
   if (!MONEY_RE.test(max)) return { stop: 'no_max', why: 'לא הוגדרה תקרת מחיר (המשתנה SNB_AUTOBUY_MAX) — לא מזמינים' };
   await checkSecrets(e, deps);
+  const gone = () => ({ stop: 'exists', why: 'השרת ' + AUTOBUY.name + ' כבר קיים — לא מזמינים שוב' });
+  if (await existsSoft(e, deps, AUTOBUY.name) === true) return gone();
+  const pr = await pricing(e, deps);            // פעם אחת לריצה — בכל דקה רק קריאה אחת (המלאי)
   let n = 0;
   while (deps.now() < until) {
     n++;
-    if (await exists(e, deps, AUTOBUY.name)) return { stop: 'exists', why: 'השרת ' + AUTOBUY.name + ' כבר קיים — לא מזמינים שוב' };
     let p = null;
-    try { p = await priceOf(e, deps, AUTOBUY.type); } catch (x) { if (x.code === 'hcloud_401' || x.code === 'hcloud_403') throw x; }
+    try { p = await typeInfo(e, deps, AUTOBUY.type, pr); } catch (x) { if (!transient(x)) throw x; }
     if (p) {
       if (p.memory < P.PLANS[AUTOBUY.plan].minGb) return { stop: 'too_small', why: AUTOBUY.type + ' עם ' + p.memory + 'GB' };
+      // "השרת קיים" — רק כשיש מלאי (בשאר הדקות קריאה אחת בלבד). לא ידוע (תקלה רגעית) — לא מזמינים בדקה הזו.
+      const ex = AUTOBUY.locations.some((l) => p.avail[l]) ? await existsSoft(e, deps, AUTOBUY.name) : false;
+      if (ex === true) return gone();
+      if (ex === null) p = null;
+    }
+    if (p) {
       for (const loc of AUTOBUY.locations) {
         if (!p.avail[loc]) continue;
         const price = total(p, loc);
@@ -152,7 +175,12 @@ if (require.main === module) {
       return;
     }
     fail('cmd', 'פקודה לא מוכרת');
-  })().catch((err) => { console.error('✗ ' + (err.message || err.code)); process.exit(1); });
+  })().catch((err) => {
+    // כל שגיאה = עצירה סופית: ה־workflow מכבה את עצמו ומודיע (כמו אצל Muse — אין ניסיון חוזר כל 6 שעות)
+    out('stopped', String(err.hcode || err.code || 'error').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 60));
+    console.error('✗ ' + (err.message || err.code));
+    process.exit(1);
+  });
 }
 
-module.exports = { AUTOBUY, priceOf, total, checkSecrets, exists, buyAt, watch, check };
+module.exports = { AUTOBUY, transient, pricing, typeInfo, priceOf, total, checkSecrets, exists, buyAt, watch, check };

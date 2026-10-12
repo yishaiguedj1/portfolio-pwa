@@ -8,6 +8,7 @@
 # איך: ריצה אחת מחזיקה כמעט 6 שעות ובודקת כל דקה (Actions לא מתזמן מתחת ל־5 דקות), והריצה המתוזמנת הבאה ממשיכה.
 # ברגע שיש מלאי: אותה הקמה של server.yml (all — ייצור + ניסוי, כולל השרתון של הייצור), בלי לחיצת אישור.
 # אחרי הזמנה: ה־workflow מכבה את עצמו, פותח Issue (התראה לטלפון באפליקציה של GitHub) ומחכה שהשרת יתחבר.
+# כל עצירה סופית אחרת (תקרה, שם קיים, הרשאה, מגבלת חשבון, שגיאה) — גם מכבה ופותח Issue. רק "אין מלאי" ממשיך.
 # גבולות: CX43 בלבד, fsn1 ואז nbg1, שם קבוע snb-cx43 (שרת אחד לכל היותר), בלי שום פעולה על שרת אחר.
 # השרת הקודם — המשתמש מסיר ומוחק בעצמו אחרי הבדיקה.
 name: autobuy
@@ -85,6 +86,17 @@ jobs:
           אחרי שהכל ירוק: במסך השרת באפליקציה (ייצור וניסוי) מסירים את השרת הקודם, ומוחקים אותו ב־Hetzner.
 
           ריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: נעצר (תקרה, שם קיים, הרשאה, מגבלה או שגיאה) — מכבים ומודיעים
+        if: always() && steps.buy.outputs.stopped != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHY: ${{ steps.buy.outputs.stopped }}
+        run: |
+          gh workflow disable autobuy.yml --repo "$GITHUB_REPOSITORY"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "ההזמנה האוטומטית נעצרה: $WHY" --body "ההזמנה האוטומטית של CX43 נעצרה ולא הזמינה כלום (קוד: $WHY). האוטומציה כובתה.
+
+          הפרטים בריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          אחרי הטיפול — להדליק שוב: Actions ← autobuy ← Enable workflow."
       - name: מחכים — השרתון של הניסוי והעובד שלו
         if: steps.buy.outputs.server != ''
         env:
