@@ -310,7 +310,10 @@ async function hc(deps, e, method, p, body) {
   });
   let j = null;
   try { j = await r.json(); } catch (x) { /* ריק */ }
-  if (r.status >= 300) fail('hcloud_' + r.status, 'Hetzner החזיר ' + r.status + (j && j.error ? ' · ' + String(j.error.code).slice(0, 40) : ''));
+  if (r.status >= 300) {
+    const hcode = j && j.error ? String(j.error.code).slice(0, 40) : '';
+    try { fail('hcloud_' + r.status, 'Hetzner החזיר ' + r.status + (hcode ? ' · ' + hcode : '')); } catch (x) { x.hcode = hcode; throw x; }
+  }
   return j || {};
 }
 
@@ -423,4 +426,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, parseExtra, register, unregister, create, waitUp, main, MARK };
+module.exports = { ENVS, PLANS, RE, shape, need, saOf, emailsOf, stagingFiles, prodFiles, planFiles, cloudInit, vercelEnv, appEnvLine, parseExtra, hc, NAME_RE, TYPE_RE, LOC_RE, register, unregister, create, waitUp, main, MARK };
