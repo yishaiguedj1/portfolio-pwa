@@ -334,7 +334,24 @@ function mock(opts = {}) {
       ok(process.env.IBKR_VAULT_KEY === undefined, 'הבדיקה לא משאירה את מפתח הכספת בסביבה');
       const Mx = mock({ vercel: { envs: sensEnvs } });
       const ax = await P.appEnv(Object.assign({}, EV, { PROD_APP_EXTRA: 'GDRIVE_SA_KEY=' + Buffer.from(E.PROD_FIREBASE_SA).toString('base64') }), Mx.deps);
-      ok(ax.sa === 'v' && !Mx.calls.some((x) => x.url.includes('_vapid')), 'GDRIVE_SA_KEY ב־PROD_APP_EXTRA — בלי בדיקת כספת');
+      ok(ax.sa === 'x', 'GDRIVE_SA_KEY ב־PROD_APP_EXTRA ואין רשומות בכספת — מתקבל (אין מה לשבור)');
+      // הקובץ המקורי מ־PROD_APP_EXTRA — נבדק מול הכספת כמו PROD_FIREBASE_SA; גם חשבון של פרויקט אחר
+      const orig = JSON.stringify(Object.assign(JSON.parse(otherSa), { project_id: 'drive-proj' }));
+      const Mo = mock({ vercel: { envs: sensEnvs } });
+      Mo.docs['studioVault/_vapid'] = { vk: { stringValue: sealWith(orig) } };
+      const ao = await P.appEnv(Object.assign({}, EV, { PROD_APP_EXTRA: 'GDRIVE_SA_KEY=' + orig }), Mo.deps);
+      const bo = JSON.parse(zlib.gunzipSync(Buffer.from(ao.line.slice('SNB_ENV_GZ='.length), 'base64')).toString());
+      ok(ao.sa === 'x' && bo.GDRIVE_SA_KEY === orig, 'הקובץ המקורי מ־PROD_APP_EXTRA פותח את הכספת — הוא שנכנס לשרת');
+      ok(String(process.env.GDRIVE_SA_KEY || '') !== Buffer.from(orig).toString('base64'), 'הבדיקה לא משאירה את המפתח שנבדק בסביבה');
+      let xm = '';
+      try { await P.appEnv(Object.assign({}, EV, { PROD_APP_EXTRA: 'GDRIVE_SA_KEY=' + E.PROD_FIREBASE_SA }), Mo.deps); } catch (x) { xm = x.code + ' ' + x.message; }
+      ok(xm.startsWith('extra_sa_mismatch') && !xm.includes('BEGIN'), 'קובץ לא נכון ב־PROD_APP_EXTRA — עצירה, לא עובר בשקט');
+      ok(await throwsCode(() => P.appEnv(Object.assign({}, EV, { PROD_APP_EXTRA: 'GDRIVE_SA_KEY={"type":"x"}' }), Mo.deps), 'extra_sa_bad'), 'קובץ שאינו מפתח של חשבון שירות — עצירה');
+      // הקובץ כמו שהורד (JSON בכמה שורות) בין שורות אחרות — מתקבל, נשמר בשורה אחת
+      const pretty = JSON.stringify(JSON.parse(orig), null, 2);
+      const ap = await P.appEnv(Object.assign({}, EV, { PROD_APP_EXTRA: 'MISTRAL_API_KEY=m1\nGDRIVE_SA_KEY=' + pretty + '\nR2_BUCKET=b' }), Mo.deps);
+      const bp = JSON.parse(zlib.gunzipSync(Buffer.from(ap.line.slice('SNB_ENV_GZ='.length), 'base64')).toString());
+      ok(ap.sa === 'x' && bp.GDRIVE_SA_KEY === orig && bp.MISTRAL_API_KEY === 'm1' && bp.R2_BUCKET === 'b', 'JSON בכמה שורות ב־PROD_APP_EXTRA — נקרא כמו שהוא, והשורות שאחריו לא נבלעות');
     }
 
     // טוקני Google במטמון לפי חשבון השירות — תהליך אחד שרושם בניסוי ואז בייצור (ההזמנה האוטומטית)
