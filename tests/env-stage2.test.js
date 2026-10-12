@@ -63,12 +63,24 @@ t('פס הפריסה: בדיקות → ניסוי → אישור → Pages → �
   assert.ok(/conclusion == 'success'/.test(w), 'רק כשהבדיקות ירוקות');
   assert.ok(/approve:[\s\S]*?needs: staging[\s\S]*?environment: production/.test(w), 'אישור בסביבה production');
   assert.ok(/deploy:[\s\S]*?needs: \[staging, approve\][\s\S]*?name: github-pages/.test(w), 'Pages רק אחרי האישור');
-  assert.ok(/verify-and-tag:[\s\S]*?needs: \[staging, deploy\][\s\S]*?swgen\.js --live[\s\S]*?git tag/.test(w));
+  assert.ok(/verify-and-tag:[\s\S]*?needs: \[staging, deploy\][\s\S]*?swgen\.js --live[\s\S]*?tag -a/.test(w));
   assert.ok(/ref: \$\{\{ env\.SHA \}\}/.test(w) && /head_sha/.test(w), 'פורסים בדיוק את הקומיט שנבדק');
   assert.ok(/^permissions:\s*\n\s*contents: read/m.test(w), 'הרשאות מינימליות כברירת מחדל');
   for (const u of w.match(/uses: \S+/g)) assert.ok(/@[0-9a-f]{40}$/.test(u), 'מקובע ל־SHA: ' + u);
   const test = read('.github/workflows/test.yml');
   assert.ok(/^name: tests$/m.test(test), 'שם ה־workflow שהפריסה מחכה לו');
+});
+
+t('פרודקשן רק כשגרסת המערכת עלתה; התגית = vX.Y.Z', () => {
+  const w = read('.github/workflows/deploy.yml');
+  assert.ok(/approve:[\s\S]*?if: needs\.staging\.outputs\.release == 'yes'/.test(w), 'אישור רק לגרסה חדשה');
+  assert.ok(/git ls-remote --tags origin "refs\/tags\/v\$rel"/.test(w), 'גרסה חדשה = אין לה עוד תגית');
+  assert.ok(/TAG: v\$\{\{ needs\.staging\.outputs\.rel \}\}/.test(w) && /tag -a "\$TAG"/.test(w));
+  const app = read('app.js');
+  const rel = app.match(/const APP_RELEASE = '(\d+\.\d+\.\d+)'/);
+  assert.ok(rel, 'APP_RELEASE ב־app.js');
+  assert.ok(new RegExp('^## ' + rel[1].replace(/\./g, '\\.') + ' ', 'm').test(read('CHANGELOG.md')), 'הגרסה הנוכחית מתועדת ב־CHANGELOG.md');
+  assert.ok(/^## לא פורסם$/m.test(read('CHANGELOG.md')), 'מקטע "לא פורסם" לשינויים שבניסוי');
 });
 
 console.log(`\n${n} בדיקות עברו`);

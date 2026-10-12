@@ -2,10 +2,11 @@
 #  1. הבדיקות (tests) עוברות על main. בלי בדיקות ירוקות — שום דבר לא עולה (עד היום Pages עלה גם כשהבדיקות נכשלו).
 #  2. staging: Cloudflare Pages בונה את main לבד (staging.thesnowball.app). כאן רק מחכים שהגרסה תעלה שם ובודקים
 #     כל קובץ מול הטביעות שב־sw.js (tools/swgen.js --live). כשהמשתנה STAGING_URL לא מוגדר — מדלגים.
-#  3. approve: הסביבה production ב־GitHub — מחכה לאישור שלך ("Review deployments" בטלפון). מיזוג חדש לפני האישור
+#  3. approve: רק כש־APP_RELEASE עלה (גרסה X.Y.Z שעוד אין לה תגית) — אחרת השינוי נשאר בניסוי ויעלה עם הגרסה הבאה.
+#     הסביבה production ב־GitHub מחכה לאישור שלך ("Review deployments" בטלפון). שחרור חדש לפני האישור
 #     מבטל את ההמתנה הקודמת — תמיד מאשרים את האחרון, שכולל את כל מה שלפניו.
 #  4. deploy: אותם קבצים בדיוק (אותו קומיט) ל־GitHub Pages. דורש בהגדרות: Pages → Source = GitHub Actions.
-#  5. verify-and-tag: האתר החי מגיש את הגרסה, כל קובץ זהה לטביעה, ותגית git ‏vNNN = נקודת חזרה.
+#  5. verify-and-tag: האתר החי מגיש את הבנייה, כל קובץ זהה לטביעה, ותגית git ‏vX.Y.Z (גרסת המערכת) = נקודת חזרה.
 # חזרה לגרסה קודמת = התוכן של התגית הקודמת כגרסה חדשה (CLAUDE.md סעיף 8). Run workflow ידני = פריסה חוזרת של הראשי.
 name: deploy
 on:
@@ -25,6 +26,8 @@ jobs:
     timeout-minutes: 25
     outputs:
       ver: ${{ steps.ver.outputs.ver }}
+      rel: ${{ steps.ver.outputs.rel }}
+      release: ${{ steps.ver.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,9 +36,17 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-      - name: הגרסה
+      - name: הבנייה, גרסת המערכת, והאם זו גרסה חדשה
         id: ver
-        run: echo "ver=$(grep -oP "const APP_VERSION = '\Kv\d+" app.js)" >> "$GITHUB_OUTPUT"
+        run: |
+          rel=$(grep -oP "const APP_RELEASE = '\K\d+\.\d+\.\d+" app.js)
+          echo "ver=$(grep -oP "const APP_VERSION = '\Kv\d+" app.js)" >> "$GITHUB_OUTPUT"
+          echo "rel=$rel" >> "$GITHUB_OUTPUT"
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$rel")" ]; then
+            echo "release=no" >> "$GITHUB_OUTPUT"; echo "‏$rel כבר באתר החי — השינוי נשאר בניסוי ויעלה עם הגרסה הבאה"
+          else
+            echo "release=yes" >> "$GITHUB_OUTPUT"; echo "גרסה חדשה: $rel — ממתין לאישור לפרודקשן"
+          fi
       - name: סביבת הניסוי מגישה את הגרסה, וכל קובץ זהה לטביעה
         env:
           URL: ${{ vars.STAGING_URL }}
@@ -51,13 +62,14 @@ jobs:
 
   approve:
     needs: staging
+    if: needs.staging.outputs.release == 'yes'
     runs-on: ubuntu-latest
     environment: production
     concurrency:
       group: deploy-approve
       cancel-in-progress: true
     steps:
-      - run: echo "אושר לפרודקשן — ${{ needs.staging.outputs.ver }} ($SHA)"
+      - run: echo "אושר לפרודקשן — ${{ needs.staging.outputs.rel }} (${{ needs.staging.outputs.ver }}, $SHA)"
 
   deploy:
     needs: [staging, approve]
@@ -106,11 +118,12 @@ jobs:
             echo "עדיין $live — מחכים ($i)"; sleep 30
           done
           echo "::error::האתר החי לא הגיע ל־$VER תוך 15 דקות"; exit 1
-      - name: תגית לגרסה
+      - name: תגית לגרסת המערכת
         env:
+          TAG: v${{ needs.staging.outputs.rel }}
           VER: ${{ needs.staging.outputs.ver }}
         run: |
-          if git rev-parse -q --verify "refs/tags/$VER" >/dev/null; then echo "התגית $VER כבר קיימת"; exit 0; fi
-          git tag "$VER" "$SHA"
-          git push origin "refs/tags/$VER"
-          echo "נוספה תגית $VER"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then echo "התגית $TAG כבר קיימת"; exit 0; fi
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com tag -a "$TAG" "$SHA" -m "$TAG (בנייה $VER)"
+          git push origin "refs/tags/$TAG"
+          echo "נוספה תגית $TAG (בנייה $VER)"

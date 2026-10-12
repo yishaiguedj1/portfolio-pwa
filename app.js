@@ -1163,7 +1163,7 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
   document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
   const verEl = document.getElementById('appVersion');
-  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = APP_VERSION; // v289: שורת "גרסה" — רק הערך
+  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = appVersionLabel(); // גרסת המערכת (מספר הבנייה)
   renderLangToggle();
   try { renderThemeToggle(); } catch (e) {}
   try { renderPfNote(); } catch (e) {}
@@ -4502,7 +4502,17 @@ function stripLegacyDemo(db) {
 }
 
 /* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן */
+/* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
+   APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
+   APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
+const APP_RELEASE = '1.0.0';
 const APP_VERSION = 'v395';
+/* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
+function appVersionLabel() {
+  const build = String(APP_VERSION).replace(/^v/, '');
+  const st = typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.name === 'staging';
+  return APP_RELEASE + ' (' + build + ')' + (st ? ' · ' + t('envStaging') : '');
+}
 
 
 /* תחזוקה (10/10/2026 — הסיכון מסעיף 15 ב־CLAUDE.md): עד עכשיו חריגה ממכסת ה־localStorage (~5MB) נבלעה בשקט,
@@ -13340,7 +13350,7 @@ function init() {
 
   // איפוס נתונים
   const verEl = document.getElementById('appVersion');
-  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = APP_VERSION; // v289: שורת "גרסה" — רק הערך
+  if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = appVersionLabel(); // גרסת המערכת (מספר הבנייה)
   document.getElementById('resetData').addEventListener('click', () => {
     askConfirm(t('resetConfirm'), () => { // v297: חלון שלנו
     const doReset = () => {
