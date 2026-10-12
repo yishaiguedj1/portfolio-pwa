@@ -228,27 +228,47 @@ function appEnvLine(vars, extraRaw, project) {
 }
 
 /* GDRIVE_SA_KEY מסומן Sensitive ב־Vercel (אי אפשר לקרוא אותו) — במקומו PROD_FIREBASE_SA, אבל רק אחרי הוכחה שזה
-   אותו מפתח בדיוק: רשומת ה־VAPID של הייצור (studioVault/_vapid, AAD webpush|vapid — api/studio.js) נפתחת במפתח
-   הכספת שנגזר ממנו. מפתח אחר של אותו חשבון שירות היה עובר מול Firestore, אבל כל מה שכבר מוצפן (IBKR, ה־Routine,
-   Drive) לא היה נפתח בשרת. רק תשובה ודאית — בלי רשומה / בלי מפתח = עצירה עם הסבר. */
-const VAPID_DOC = 'studioVault/_vapid', VAPID_AAD = 'webpush|vapid';
+   אותו מפתח בדיוק: רשומה קיימת בכספת של הייצור נפתחת במפתח שנגזר ממנו. מפתח אחר של אותו חשבון שירות היה עובר מול
+   Firestore, אבל כל מה שכבר מוצפן (IBKR, ה־Routine, Drive) לא היה נפתח בשרת. הרשומות שבודקים — כל אחת עם ה־AAD
+   שלה, כמו בשרתון (api/studio.js, lib/gdrive.js, api/ibkr-sync.js); רשומה אחת שנפתחת מספיקה. אין אף רשומה = עצירה. */
+const VAULT_PROBES = [
+  { col: 'studioVault', field: 'vk', aad: () => 'webpush|vapid', id: '_vapid' },
+  { col: 'studioVault', field: 'r', aad: (u) => 'studio|' + u + '|r' },
+  { col: 'driveVault', field: 'r', aad: (u) => 'gdrive|' + u + '|r' },
+  { col: 'studioDrive', field: 'r', aad: (u) => 'sdrive|' + u + '|r' },
+  { col: 'ibkrVault', field: 'c', aad: (u) => u + '|c' },
+];
 async function saVerified(e, vars, deps) {
   const env = ENVS.prod;
   const raw = Buffer.from(JSON.stringify(saOf(e[env.saVar], env.project))).toString('base64');
   const tok = await fsToken(e, env, deps);
-  const r = await deps.fetch(fsBase(env.project) + '/' + VAPID_DOC, { headers: { Authorization: 'Bearer ' + tok } });
-  let vk = '';
-  if (r.status === 200) { try { vk = String((((await r.json()).fields || {}).vk || {}).stringValue || ''); } catch (x) { /* ריק */ } }
-  if (!vk) fail('sa_unverified', 'GDRIVE_SA_KEY מסומן Sensitive ב־Vercel, ואין רשומת כספת לבדוק מולה את PROD_FIREBASE_SA (' + r.status + ') — להוסיף את GDRIVE_SA_KEY ל־PROD_APP_EXTRA');
+  const sealed = [];
+  for (const col of [...new Set(VAULT_PROBES.map((p) => p.col))]) {
+    const r = await deps.fetch(fsBase(env.project) + '/' + col + '?pageSize=5', { headers: { Authorization: 'Bearer ' + tok } });
+    if (r.status !== 200) continue;
+    let docs = [];
+    try { docs = (await r.json()).documents || []; } catch (x) { /* ריק */ }
+    for (const d of docs) {
+      const id = String(d.name || '').split('/').pop();
+      for (const p of VAULT_PROBES) {
+        if (p.col !== col || (p.id && p.id !== id) || (!p.id && id.startsWith('_'))) continue;
+        const v = String(((d.fields || {})[p.field] || {}).stringValue || '');
+        if (v) sealed.push({ v, aad: p.aad(id) });
+      }
+    }
+  }
+  if (!sealed.length) fail('sa_unverified', 'GDRIVE_SA_KEY מסומן Sensitive ב־Vercel, ואין בכספת של הייצור רשומה לבדוק מולה את PROD_FIREBASE_SA — להוסיף את GDRIVE_SA_KEY ל־PROD_APP_EXTRA');
   const extra = parseExtra(e.PROD_APP_EXTRA);
   const ev = vars.find((x) => x.key === 'IBKR_VAULT_KEY');
   const evk = 'IBKR_VAULT_KEY' in extra ? extra.IBKR_VAULT_KEY : (ev && ev.value) || '';
-  if (vk.split('.')[1] === 'e' && !evk) fail('vault_key_missing', 'הכספת מוצפנת ב־IBKR_VAULT_KEY, והוא מסומן Sensitive ב־Vercel — להוסיף אותו ל־PROD_APP_EXTRA');
+  if (!evk && sealed.every((x) => x.v.split('.')[1] === 'e')) fail('vault_key_missing', 'הכספת מוצפנת ב־IBKR_VAULT_KEY, והוא מסומן Sensitive ב־Vercel — להוסיף אותו ל־PROD_APP_EXTRA');
   const prev = process.env.IBKR_VAULT_KEY;
   process.env.IBKR_VAULT_KEY = evk;
-  let opened;
-  try { opened = require(path.join(ROOT, 'ibkr-proxy/lib/vault.js')).open(vk, VAPID_AAD); }
-  finally { if (prev === undefined) delete process.env.IBKR_VAULT_KEY; else process.env.IBKR_VAULT_KEY = prev; }
+  let opened = false;
+  try {
+    const V = require(path.join(ROOT, 'ibkr-proxy/lib/vault.js'));
+    opened = sealed.some((x) => V.open(x.v, x.aad) != null);
+  } finally { if (prev === undefined) delete process.env.IBKR_VAULT_KEY; else process.env.IBKR_VAULT_KEY = prev; }
   if (!opened) fail('sa_mismatch', 'PROD_FIREBASE_SA הוא לא אותו מפתח שב־Vercel (הכספת לא נפתחת בו) — להוסיף ל־PROD_APP_EXTRA את GDRIVE_SA_KEY המקורי, JSON בשורה אחת או base64');
   return raw;
 }
