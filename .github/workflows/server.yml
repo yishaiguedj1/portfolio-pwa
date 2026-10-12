@@ -1,27 +1,31 @@
 # "הקמת שרת" — מחוץ לשרת (שלב 2ב, 12/10/2026; תוכנית העמידות: מה שמקים את השרת לא חי עליו).
 #
 # Actions ← server ← Run workflow. רץ רק אחרי אישור שלך (Environment "production" — אותו אישור של הפריסה).
-#   1. טוקן שרת חדש נרשם ב־Firestore של הסביבה (חשבון השירות) — בלי השרתון, שעוד לא קיים.
+#   1. טוקן שרת חדש לכל סביבה נרשם ב־Firestore שלה (חשבון השירות) — בלי השרתון, שעוד לא קיים.
 #   2. קוד ההקמה מהריפו + קובצי הסודות של החדרים, מ־GitHub Secrets (לא מודפסים, לא נשמרים).
 #   3. השרת נוצר ב־Hetzner עם חומת האש snb-closed (בלי אף כלל נכנס). שם קיים = עוצרים, לא דורסים.
-#   4. מחכים שהשרתון יענה דרך ה־Tunnel ושהעובד יתחבר.
-# כרגע רק סביבת הניסוי (stg): ה־Tunnel, השרתון והעובד של הניסוי. הסודות — infra/README.md, "שרת הניסוי".
+#   4. מחכים שהשרתון של הניסוי יענה דרך ה־Tunnel ושהעובדים יתחברו.
+# מה מקימים:
+#   stg — הניסוי בלבד: ה־Tunnel, השרתון והעובד של הניסוי (ברירת מחדל: snb-stg-1, ‏cax21).
+#   all — שרת אחד לכל המערכת: גם העובד של הייצור (ברירת מחדל: snb-1, ‏cax31 — 16GB, הקטן ביותר שמתאים לשניהם).
+#         דורש גם PROD_FIREBASE_SA ו־PROD_ANTHROPIC_KEY.
+# הסודות — infra/README.md, "שרת הניסוי" ו"שרת אחד לכל המערכת".
 name: server
 
 on:
   workflow_dispatch:
     inputs:
       env:
-        description: 'סביבה'
+        description: 'מה להקים — stg: הניסוי בלבד · all: שרת אחד לייצור ולניסוי'
         type: choice
-        options: [stg]
+        options: [stg, all]
         default: stg
       name:
-        description: 'שם השרת ב־Hetzner'
-        default: snb-stg-1
+        description: 'שם השרת ב־Hetzner (ריק = snb-stg-1 / snb-1)'
+        default: ''
       type:
-        description: 'סוג (cax21 = Arm, 4 ליבות, 8GB)'
-        default: cax21
+        description: 'סוג (ריק = cax21 לניסוי / cax31 לשרת המאוחד)'
+        default: ''
       location:
         description: 'מיקום (nbg1 / fsn1 / hel1)'
         default: nbg1
@@ -39,59 +43,90 @@ jobs:
     timeout-minutes: 80
     permissions:
       contents: read
+    env:
+      PLAN: ${{ inputs.env }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: טוקן שרת חדש — נרשם ב־Firestore של הסביבה
+      - name: שם וסוג
+        id: def
+        env:
+          NAME_IN: ${{ inputs.name }}
+          TYPE_IN: ${{ inputs.type }}
+        run: |
+          set -eu
+          node tools/server-provision.js defaults --plan "$PLAN" --name "$NAME_IN" --type "$TYPE_IN" | sed 's/^✓ //' >> "$GITHUB_OUTPUT"
+      - name: טוקן שרת לניסוי — נרשם ב־Firestore של הניסוי
         id: reg
         env:
           STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
-          ENV_NAME: ${{ inputs.env }}
-          NAME: ${{ inputs.name }}
+          NAME: ${{ steps.def.outputs.name }}
         run: |
           set -eu
-          out=$(node tools/server-provision.js register --env "$ENV_NAME" --name "$NAME" --out "$RUNNER_TEMP/tok")
+          out=$(node tools/server-provision.js register --env stg --plan "$PLAN" --name "$NAME" --out "$RUNNER_TEMP/tok")
+          echo "$out"
+          echo "sid=${out#*sid=}" >> "$GITHUB_OUTPUT"
+      - name: טוקן שרת לייצור — נרשם ב־Firestore של הייצור
+        id: regp
+        if: inputs.env == 'all'
+        env:
+          PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
+          NAME: ${{ steps.def.outputs.name }}
+        run: |
+          set -eu
+          out=$(node tools/server-provision.js register --env prod --plan "$PLAN" --name "$NAME" --out "$RUNNER_TEMP/tokp")
           echo "$out"
           echo "sid=${out#*sid=}" >> "$GITHUB_OUTPUT"
       - name: קוד ההקמה עם הסודות
         env:
-          ENV_NAME: ${{ inputs.env }}
           STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
           STG_TUNNEL_TOKEN: ${{ secrets.STG_TUNNEL_TOKEN }}
           STG_R2_ACCESS_KEY_ID: ${{ secrets.STG_R2_ACCESS_KEY_ID }}
           STG_R2_SECRET_ACCESS_KEY: ${{ secrets.STG_R2_SECRET_ACCESS_KEY }}
           STG_ANTHROPIC_KEY: ${{ secrets.STG_ANTHROPIC_KEY }}
           STG_ADMIN_EMAIL: ${{ secrets.STG_ADMIN_EMAIL }}
+          PROD_ANTHROPIC_KEY: ${{ secrets.PROD_ANTHROPIC_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: node tools/server-provision.js cloud-init --env "$ENV_NAME" --token "$RUNNER_TEMP/tok" --out "$RUNNER_TEMP/ud"
+        run: node tools/server-provision.js cloud-init --plan "$PLAN" --token "$RUNNER_TEMP/tok" --token-prod "$RUNNER_TEMP/tokp" --out "$RUNNER_TEMP/ud"
       - name: יצירת השרת ב־Hetzner
         id: create
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          ENV_NAME: ${{ inputs.env }}
-          NAME: ${{ inputs.name }}
-          TYPE: ${{ inputs.type }}
+          NAME: ${{ steps.def.outputs.name }}
+          TYPE: ${{ steps.def.outputs.type }}
           LOC: ${{ inputs.location }}
         run: |
           set -eu
-          node tools/server-provision.js create --env "$ENV_NAME" --name "$NAME" --type "$TYPE" --location "$LOC" --user-data "$RUNNER_TEMP/ud"
-          rm -f "$RUNNER_TEMP/ud" "$RUNNER_TEMP/tok"
-      - name: מחכים — השרתון דרך ה־Tunnel, ואז העובד
+          node tools/server-provision.js create --plan "$PLAN" --name "$NAME" --type "$TYPE" --location "$LOC" --user-data "$RUNNER_TEMP/ud"
+          rm -f "$RUNNER_TEMP/ud" "$RUNNER_TEMP/tok" "$RUNNER_TEMP/tokp"
+      - name: מחכים — השרתון של הניסוי דרך ה־Tunnel, ואז העובד שלו
         env:
           STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
-          ENV_NAME: ${{ inputs.env }}
           SID: ${{ steps.reg.outputs.sid }}
         run: |
-          node tools/server-provision.js wait --env "$ENV_NAME" --sid "$SID"
-          echo "✓ השרת $SID מחובר" >> "$GITHUB_STEP_SUMMARY"
-      - name: ניקוי — השרת לא נוצר, הרישום נמחק
+          node tools/server-provision.js wait --env stg --sid "$SID"
+          echo "✓ הניסוי: השרת $SID מחובר" >> "$GITHUB_STEP_SUMMARY"
+      - name: מחכים — העובד של הייצור
+        if: inputs.env == 'all'
+        env:
+          PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
+          SID: ${{ steps.regp.outputs.sid }}
+        run: |
+          node tools/server-provision.js wait --env prod --sid "$SID"
+          echo "✓ הייצור: השרת $SID מחובר — אפשר להסיר את השרת הישן במסך השרת באפליקציה" >> "$GITHUB_STEP_SUMMARY"
+      - name: ניקוי — השרת לא נוצר, הרישום של הניסוי נמחק
         if: failure() && steps.reg.outputs.sid != '' && steps.create.outcome != 'success'
         env:
           STG_FIREBASE_SA: ${{ secrets.STG_FIREBASE_SA }}
-          ENV_NAME: ${{ inputs.env }}
           SID: ${{ steps.reg.outputs.sid }}
-        run: node tools/server-provision.js unregister --env "$ENV_NAME" --sid "$SID"
+        run: node tools/server-provision.js unregister --env stg --sid "$SID"
+      - name: ניקוי — השרת לא נוצר, הרישום של הייצור נמחק
+        if: failure() && steps.regp.outputs.sid != '' && steps.create.outcome != 'success'
+        env:
+          PROD_FIREBASE_SA: ${{ secrets.PROD_FIREBASE_SA }}
+          SID: ${{ steps.regp.outputs.sid }}
+        run: node tools/server-provision.js unregister --env prod --sid "$SID"
       - name: מחיקת הקבצים הזמניים
         if: always()
-        run: rm -f "$RUNNER_TEMP/ud" "$RUNNER_TEMP/tok"
+        run: rm -f "$RUNNER_TEMP/ud" "$RUNNER_TEMP/tok" "$RUNNER_TEMP/tokp"

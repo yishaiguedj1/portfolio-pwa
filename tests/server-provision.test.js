@@ -24,7 +24,10 @@ const E = {
   STG_ADMIN_EMAIL: 'Admin@Example.com',
   CLOUDFLARE_ACCOUNT_ID: 'c'.repeat(32),
   HCLOUD_TOKEN: 'H'.repeat(64),
+  PROD_FIREBASE_SA: JSON.stringify(Object.assign({}, SA, { project_id: 'yishaiguedj1-c786e', client_email: 'x@yishaiguedj1-c786e.iam.gserviceaccount.com' })),
+  PROD_ANTHROPIC_KEY: 'sk-ant-api03-' + 'P'.repeat(80),
 };
+const TYPES = { cax21: 8, cax31: 16, cx43: 16, cx22: 4 };
 
 function mock(opts = {}) {
   const calls = [], docs = {};
@@ -44,6 +47,7 @@ function mock(opts = {}) {
     if (url.startsWith('https://api.hetzner.cloud/v1/')) {
       const p = url.slice('https://api.hetzner.cloud/v1'.length);
       if (p.startsWith('/servers?name=')) return res(200, { servers: opts.exists ? [{ id: 9 }] : [] });
+      if (p.startsWith('/server_types?name=')) { const t0 = decodeURIComponent(p.split('=')[1]); return res(200, { server_types: TYPES[t0] ? [{ name: t0, memory: TYPES[t0] }] : [] }); }
       if (p === '/firewalls?name=snb-closed') return res(200, { firewalls: opts.fw ? [opts.fw] : [] });
       if (p === '/firewalls' && m === 'POST') return res(201, { firewall: { id: 77, rules: [] } });
       if (p === '/servers' && m === 'POST') return res(opts.createStatus || 201, { server: { id: 123 } });
@@ -70,7 +74,7 @@ function mock(opts = {}) {
     ok(doc && doc.th.stringValue === crypto.createHash('sha256').update(r.token).digest('hex') && !JSON.stringify(doc).includes(r.token),
       'רישום: ב־Firestore רק ה־hash, לא הטוקן');
     ok(doc.seen.integerValue === '0' && doc.paused.booleanValue === false && doc.name.stringValue === 'snb-stg-1', 'רישום: שרת חדש — לא נראה עדיין, לא מושהה');
-    const fsCall = M.calls.find((c) => c.url.includes('firestore'));
+    const fsCall = M.calls.find((c) => c.url.includes('firestore') && c.m === 'PATCH');
     ok(fsCall.url.includes('/projects/snowball-staging-758f6/') && fsCall.url.includes('currentDocument.exists=false'), 'רישום: לפרויקט של הניסוי, בלי לדרוס מסמך קיים');
     void d;
     const prodSa = Object.assign({}, SA, { project_id: 'yishaiguedj1-c786e' });
@@ -155,6 +159,67 @@ function mock(opts = {}) {
     ok(await P.unregister(E, env, '../x', M.deps) === false, 'ניקוי: מזהה לא תקין — לא נוגעים');
   }
 
+  /* ---------- שרת אחד לכל המערכת (plan all, 12/10/2026) ---------- */
+  {
+    const tokP = 'pppppppppppp-' + 'P'.repeat(43);
+    const all = P.cloudInit(tpl, P.planFiles('all', E, { stg: token, prod: tokP }));
+    ok(['/etc/snb/worker.env', '/etc/snb/tunnel.env', '/etc/snb/app-stg.env', '/etc/snb/worker-stg.env'].every((f) => all.includes('path: ' + f + '\n    permissions: "0600"')),
+      'all: ארבעת קובצי הסודות — העובד של הייצור + שלושת חדרי הניסוי');
+    const wk = all.split('path: /etc/snb/worker.env')[1].split('  - path:')[0];
+    ok(wk.includes('ANTHROPIC_API_KEY=' + E.PROD_ANTHROPIC_KEY + '\n') && wk.includes('SNB_WORKER_TOKEN=' + tokP + '\n') && !wk.includes(E.STG_ANTHROPIC_KEY),
+      'all: לעובד של הייצור — המפתח והטוקן של הייצור, לא של הניסוי');
+    ok(Buffer.byteLength(all) < 32 * 1024, 'all: עדיין מתחת ל־32KB של Hetzner (' + Buffer.byteLength(all) + ')');
+    const only = P.cloudInit(tpl, P.planFiles('stg', E, { stg: token }));
+    ok(!only.includes('path: /etc/snb/worker.env'), 'stg: בלי חדר הייצור');
+    let msg = '';
+    try { P.planFiles('all', Object.assign({}, E, { PROD_ANTHROPIC_KEY: '', STG_ANTHROPIC_KEY: 'x' }), { stg: token, prod: tokP }); } catch (e) { msg = e.message; }
+    ok(msg.startsWith('2 סודות לא תקינים') && msg.includes('PROD_ANTHROPIC_KEY') && msg.includes('STG_ANTHROPIC_KEY'), 'all: סודות שגויים משני החדרים — בהודעה אחת');
+    ok(await throwsCode(async () => P.planFiles('all', E, { stg: token, prod: '' }), 'secret_bad'), 'all: בלי טוקן לייצור — עצירה');
+    ok(await throwsCode(async () => P.planFiles('nope', E, {}), 'plan'), 'תוכנית לא מוכרת — עצירה');
+
+    // רישום בפרויקט של הייצור, עם חשבון השירות של הייצור בלבד
+    const M = mock();
+    const r = await P.register(E, P.ENVS.prod, 'snb-1', M.deps);
+    const put = M.calls.find((c) => c.m === 'PATCH');
+    ok(put.url.includes('/projects/yishaiguedj1-c786e/') && r.token.startsWith(r.sid + '-'), 'all: טוקן הייצור נרשם בפרויקט של הייצור');
+    ok(await throwsCode(() => P.register(Object.assign({}, E, { PROD_FIREBASE_SA: E.STG_FIREBASE_SA }), P.ENVS.prod, 'snb-1', mock().deps), 'sa_project'),
+      'all: חשבון שירות של הניסוי במקום של הייצור — עצירה');
+    // הבעלים — המנהל מ־sysBackup/cfg (להתראת "השרת נפל")
+    const M2 = mock();
+    M2.docs['sysBackup/cfg'] = { uid: { stringValue: 'AbCdEf0123456789' } };
+    await P.register(E, P.ENVS.stg, 'snb-1', M2.deps);
+    const d2 = Object.entries(M2.docs).find(([k]) => k.startsWith('studioServers/'))[1];
+    ok(d2.by.stringValue === 'AbCdEf0123456789', 'רישום: by = המנהל, כדי שהתראת "השרת נפל" תגיע אליו');
+    const M3 = mock();
+    M3.docs['sysBackup/cfg'] = { uid: { stringValue: '../x' } };
+    await P.register(E, P.ENVS.stg, 'snb-1', M3.deps);
+    ok(Object.entries(M3.docs).find(([k]) => k.startsWith('studioServers/'))[1].by.stringValue === '', 'רישום: מזהה מנהל לא תקין — ריק');
+
+    // ייצור: מחכים רק לעובד (השרתון ב־Vercel)
+    const M4 = mock({ healthAfter: Infinity, seenAfter: 1_000_000 + 3 * 60e3 });
+    const rp = await P.register(E, P.ENVS.prod, 'snb-1', M4.deps);
+    const w4 = await P.waitUp(E, P.ENVS.prod, rp.sid, M4.deps);
+    ok(w4.health && w4.seen > 0 && !M4.calls.some((c) => c.url.endsWith('/healthz')), 'all: ייצור — בלי healthz, רק העובד');
+
+    // גודל השרת
+    const ciAll = all;
+    ok(await throwsCode(() => P.create(E, { name: 'snb-1', type: 'cax21', location: 'nbg1', plan: 'all' }, ciAll, mock().deps), 'too_small'),
+      'all: שרת של 8GB — קטן מדי לייצור + ניסוי, עוצרים לפני היצירה');
+    const M5 = mock();
+    await P.create(E, { name: 'snb-1', type: 'cax31', location: 'nbg1', plan: 'all' }, ciAll, M5.deps);
+    const b5 = JSON.parse(M5.calls.find((c) => c.url.endsWith('/v1/servers') && c.m === 'POST').body);
+    ok(b5.server_type === 'cax31' && b5.labels.snb === 'all', 'all: 16GB — נוצר, עם תווית התוכנית');
+    ok(await throwsCode(() => P.create(E, { name: 'snb-1', type: 'cax99', location: 'nbg1', plan: 'all' }, ciAll, mock().deps), 'type'),
+      'סוג שרת שלא קיים ב־Hetzner — עצירה');
+    // ברירות מחדל לשם ולסוג לפי התוכנית
+    ok(await P.main(['defaults', '--plan', 'all'], E, mock().deps) === 'name=snb-1\ntype=cax31'
+      && await P.main(['defaults', '--plan', 'stg'], E, mock().deps) === 'name=snb-stg-1\ntype=cax21'
+      && await P.main(['defaults', '--plan', 'all', '--name', 'snb-2', '--type', 'cx43'], E, mock().deps) === 'name=snb-2\ntype=cx43',
+      'ברירות מחדל: all → snb-1 / cax31, stg → snb-stg-1 / cax21, ומה שהוזן גובר');
+    ok(await throwsCode(() => P.main(['defaults', '--plan', 'all', '--name', 'a\ntype=x'], E, mock().deps), 'opts'),
+      'ברירות מחדל: שם עם שורה חדשה — נדחה (לא נכנס ל־GITHUB_OUTPUT)');
+  }
+
   /* ---------- ה־workflow ---------- */
   {
     const w = read('.github/workflows/server.yml');
@@ -165,7 +230,13 @@ function mock(opts = {}) {
     ok(!/\$\{\{/.test(runs.replace(/^\s+[A-Z0-9_]+: \$\{\{[^}]+\}\}$/gm, '')), 'workflow: בלי ביטויים בתוך פקודות — הכל דרך env (בלי הזרקה)');
     ok(/if: failure\(\) && steps\.reg\.outputs\.sid != '' && steps\.create\.outcome != 'success'/.test(w),
       'workflow: ניקוי הרישום רק כשהשרת לא נוצר (שרת חי לא מאבד את הטוקן שלו)');
-    ok(/if: always\(\)\n\s+run: rm -f "\$RUNNER_TEMP\/ud" "\$RUNNER_TEMP\/tok"/.test(w), 'workflow: הקבצים עם הסודות נמחקים תמיד');
+    ok(/if: always\(\)\n\s+run: rm -f "\$RUNNER_TEMP\/ud" "\$RUNNER_TEMP\/tok" "\$RUNNER_TEMP\/tokp"/.test(w), 'workflow: הקבצים עם הסודות נמחקים תמיד');
+    ok(/if: failure\(\) && steps\.regp\.outputs\.sid != '' && steps\.create\.outcome != 'success'[\s\S]{0,200}unregister --env prod/.test(w),
+      'workflow: גם הרישום של הייצור נמחק כשהשרת לא נוצר');
+    ok(/options: \[stg, all\]/.test(w) && (w.match(/if: inputs\.env == 'all'/g) || []).length === 2,
+      'workflow: stg / all — הרישום וההמתנה של הייצור רק בשרת המאוחד');
+    ok(/PROD_FIREBASE_SA: \$\{\{ secrets\.PROD_FIREBASE_SA \}\}/.test(w) && !/STG_FIREBASE_SA[^\n]*\n[^\n]*--env prod/.test(w),
+      'workflow: לייצור — רק חשבון השירות של הייצור');
     const src = read('tools/server-provision.js');
     ok(!/console\.(log|error)\([^)]*(token|E\.|e\.STG|HCLOUD)/.test(src), 'הכלי לא מדפיס סודות');
   }
