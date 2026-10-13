@@ -1047,8 +1047,14 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-home > .appbar + .lib-hrow { padding: 0 16px 10px; justify-content: flex-end; }
 
 /* עצמאי (13/10/2026): בועת מצב הגיבוי בהדר (מעל הכפתורים, כמו קפסולת המצב ב־Invest וב־Studio) */
-.appbar-sub .lib-bkpill { margin: 0; height: 30px; padding-inline: 8px 12px; font-size: 13px; gap: 5px; }
-.appbar-sub .lib-bkpic svg { width: 18px; height: 18px; }
+/* בנייה 409: אחד לאחד כמו קפסולת המצב של Invest (.st-pill.open) — בהדר הבועה מחוץ ל־.lib-root, ולכן בלי האיפוס של
+   הכפתורים שם: עד עכשיו קיבלה את המסגרת של הדפדפן (2px outset לבנה) ונראתה זזה הצידה. המצב — רק בצבע האייקון. */
+.appbar-sub .lib-bkpill { -webkit-appearance: none; appearance: none; margin: 0; height: auto; gap: 6px; padding: 4px 11px 4px 10px;
+  font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1.3; border: 1px solid var(--card-border);
+  background: var(--surface-2) !important; color: var(--on-surface) !important; cursor: pointer; }
+.appbar-sub .lib-bkpill.off { color: var(--on-surface-var) !important; }
+.appbar-sub .lib-bkpic svg { width: 14px; height: 14px; }
+@media (max-width: 374px) { .appbar-sub .lib-bkpill { font-size: 11.5px; padding: 3px 9px; gap: 5px; } }
 /* "הספרייה שלי" בהגדרות — שורות בסגנון "אפשרויות מתקדמות" של Invest */
 .lib-setpage .lib-setcard { padding: 16px 6px 6px; }
 .lib-setcard > h2 { margin: 2px 14px 8px; }

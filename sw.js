@@ -21,7 +21,7 @@ const HASHES = {
   "./favicon-48.png": "54adadfbb7cfdbddb0102995a66a5145",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
   "./library.js": "dbd4ba43c0ed6557dfc14fcd6191c768",
-  "./library.css": "0101deeeeb53d3584e35a999c155df69",
+  "./library.css": "87da3d018a5eb664b9802cb5871fc2f2",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "17be92ab73db3643d73ae4c0e59ab347",
   "./ribbon3d.js": "ec23dd0dea0fe5f8ab6ed78a2a596452",
