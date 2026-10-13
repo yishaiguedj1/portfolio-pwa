@@ -45,19 +45,22 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "822798ee5ff6d01e9309d3a00b30a95b",
-  "./academy.js": "c4d483302488fd90a7bdc9ad60ad49fe",
+  "./academy.html": "ec20f16630bfc11f0d17777e3b342025",
+  "./academy-app.js": "c4d483302488fd90a7bdc9ad60ad49fe",
   "./strings-academy.js": "e2c85019b2f3c0650f83258f7782103d",
   "./core.js": "0298820bc709f6ec1b9996971c9b51ac",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
-  "./studio.js": "da4e2d7e94a2936c87b65a8e7314f11c",
+  "./studio.js": "5dfa1ed4914f64846d34154a0c9efe86",
   "./studio.css": "40692580ed4204e545f639f2192ca3a8",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
   "./studiosubs.js": "0c273369bbbd09869894f503c6e3fd79",
   "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
-  "./studiostore.js": "633c4083aebf82cdc389813e65ecee16"
+  "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
+  "./studio.html": "19e2b78d7b2c7b7b9108eb19e27f4f06",
+  "./studio-app.js": "fdbe3c2512345f6f5a617b4f1da11fef",
+  "./strings-studio.js": "ac8ee68bf5a1d8fe46bcdfd106f97d64"
 };
 /* </swgen> */
 
@@ -87,13 +90,14 @@ const LIB_SHELL = [
   './vendor/foliate-js/search.js', './vendor/foliate-js/text-walker.js', './vendor/foliate-js/footnotes.js',
   './vendor/foliate-js/mobi.js', './vendor/foliate-js/fb2.js', './vendor/foliate-js/comic-book.js',
   './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js',
-  './academy.html', './academy.js', './strings-academy.js', './core.js', './auth.js'   // שלב 3ג: Academy כדף עצמאי
+  './academy.html', './academy-app.js', './strings-academy.js', './core.js', './auth.js'   // שלב 3ג: Academy כדף עצמאי
 ];
 
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
-const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js', './studiostore.js'];   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
+const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js', './studiostore.js',
+  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
    ‎?v=<טביעה> = כתובת חדשה ל־CDN (לא עותק ישן מהמטמון שלו), cache:'reload' = לא מהמטמון של הדפדפן.

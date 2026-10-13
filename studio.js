@@ -1505,6 +1505,7 @@ function onPop(e) {
   if (ds.modalPop || ds.navSkip) return;   // חלון של האפליקציה נסגר ב"חזור" / back פנימי שלה — לא ניווט של הסטודיו
   const uaT = !!(e && e.hasUAVisualTransition);   // Chrome כבר הנפיש "חזור" משלו (משיכה מצד המסך) — בלי אנימציה שנייה
   const st = history.state || {};
+  if (!st.studio && SA) return;            // עצמאי — יציאה מהדף, אין לאן לחזור בתוכו
   if (!st.studio) { closeStudio(uaT); appToOverview(); return; }
   if (CW_OK) return;                       // עם CloseWatcher הדפים לא ברשומות (כאן רק "קדימה" חזרה לרשומה שלנו)
   scrolls[viewKey()] = root.scrollTop;
@@ -1586,7 +1587,7 @@ function navBar(o) {
   const bar = h('div', 'st-nav');
   let lead;
   if (o.cancel) lead = btn('st-txt', o.cancel, back, 'nav-cancel');
-  else { lead = btn('st-back', null, back, 'nav-back'); const l = h('span', 'st-back-l'); l.append(h('bdi', null, o.back)); lead.append(ico('back'), l); }
+  else { lead = btn('st-back', null, o.go || back, 'nav-back'); const l = h('span', 'st-back-l'); l.append(h('bdi', null, o.back)); lead.append(ico('back'), l); }
   const s = h('span', 'st-nav-s'); s.append(lead);
   const e = h('span', 'st-nav-e'); if (o.end) e.append(o.end);
   bar.append(s, h('span', 'st-nav-t', o.title || ''), e);
@@ -1734,6 +1735,9 @@ function banner(kind, txt, action) {
   return b;
 }
 function accessBanner() {
+  if (ui.access === 'signin' && SA && SA.auth && SA.auth.state() === 'out') {   // עצמאי בלי חיבור — כפתור כניסה (בתיק — מסך ההתחברות שלו)
+    return btn('st-btn wide st-signin', T('googleSignIn'), () => { SA.auth.signIn().then((ok) => { if (!ok) flashSafe(T('loginFailed')); }); }, 'signin');
+  }
   if (ui.access === 'signin') return banner('warn', T('studioErrSignin'));
   if (ui.access === 'denied') return banner('warn', T('studioErrDenied'));
   if (ui.access === 'offline') return banner('info', T('studioOffline'));
@@ -1952,7 +1956,7 @@ function pageHome(p) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('settings'), 'cpill');
   pill.append(h('i'), h('span', null, apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill')));
-  p.append(navBar({ back: 'THE SNOWBALL', end: pill }), large(T('studioTitle')));
+  p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { location.href = SA.home || './'; } : null }), large(T('studioTitle')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
@@ -5803,8 +5807,12 @@ function closeStudio(instant) {
   r.classList.add('leaving');
   setTimeout(() => r.remove(), 260);
 }
+/* שלב 3ד בתוכנית שלוש האפליקציות: הסטודיו כדף עצמאי (studio.html) — opt.standalone = { auth: SnbAuth, home }.
+   כמו בספרייה: הבית מחליף את רשומת הדף ("חזור" ממנו יוצא מהדף), "THE SNOWBALL" עובר ל־Invest, ובלי חיבור — כפתור כניסה. */
+let SA = null;
 export function openStudio(opt) {
   ensureCss();
+  if (!root) SA = opt && opt.standalone ? opt.standalone : null;
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
   const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
   if (root) { if (jobLink && jobRec(jobLink)) goJobLink(jobLink, linkView); return; }
@@ -5832,7 +5840,8 @@ export function openStudio(opt) {
   }
   document.body.append(root);
   document.documentElement.classList.add('studio-open');
-  if (!restore) afterBack(() => { try { history.pushState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} });
+  if (SA && !restore) { try { history.replaceState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} }   // עצמאי — הבית הוא הדף
+  else if (!restore) afterBack(() => { try { history.pushState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} });
   if (!window._stPop) { window._stPop = true; window.addEventListener('popstate', onPop); }
   if (CW_OK) {
     stack = restore ? chainFor(restore.sv || 'home', restore.sp == null ? null : restore.sp) : [{ v: 'home', p: null }];

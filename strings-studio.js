@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1398 מפתחות מתוך 2553) */
+/* המחרוזות של studio (1400 מפתחות מתוך 2553) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -8,6 +8,8 @@ he: {
   "btnCancel": "ביטול",
   "btnClose": "סגירה",
   "btnOk": "אישור",
+  "googleSignIn": "התחברות עם Google",
+  "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "studioAdvAfterT": "הצעות",
   "studioAdvCut": "לחתוך",
   "studioAdvCutOk": "השקט בקצוות ייחתך לפני התרגום",
@@ -1408,6 +1410,8 @@ en: {
   "btnCancel": "Cancel",
   "btnClose": "Close",
   "btnOk": "OK",
+  "googleSignIn": "Sign in with Google",
+  "loginFailed": "Sign-in failed — try again",
   "studioAdvAfterT": "Suggestions",
   "studioAdvCut": "Trim",
   "studioAdvCutOk": "The silent edges will be trimmed before translating",
