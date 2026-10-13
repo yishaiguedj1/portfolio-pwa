@@ -22,7 +22,7 @@ const ok = (c, m) => { assert.ok(c, m); n++; console.log('ok - ' + m); };
   ok(/rowSwitch\(\{ label: T\('studioPushT'\)/.test(src) && /T\('studioPushTest'\)/.test(src), 'מתג אחד בהגדרות הסטודיו + התראת בדיקה');
   for (const k of ['studioSecPush', 'studioPushT', 'studioPushOnS', 'studioPushOffS', 'studioPushDenied', 'studioPushNa', 'studioPushTest', 'studioPushTestSent', 'studioPushOnDone', 'studioPushErr', 'studioPushBusy'])
     ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
-  ok(/const sj = get\('studio'\);/.test(app) && /\/\^j\[A-Za-z0-9_-\]\{20\}\$\/\.test\(sj\)/.test(app) && /m\.openStudio\(\{ job: sj[,}]/.test(app), 'קישור מההתראה (‎#studio=<עבודה>) — רק מזהה בצורה הנכונה');
+  ok(/const sj = get\('studio'\);/.test(app) && /\/\^j\[A-Za-z0-9_-\]\{20\}\$\/\.test\(sj\)/.test(app) && /location\.replace\(APP_PAGE\.studio \+ '#studio=' \+ sj/.test(app) && /\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(fs.readFileSync(path.join(__dirname, '..', 'studio-app.js'), 'utf8')), 'קישור מההתראה (‎#studio=<עבודה>) — רק מזהה בצורה הנכונה, עובר ל־Studio העצמאי');
   ok(/\(\?:tab\|stock\|studio\)=/.test(app), 'קישור שהגיע כשהדף היה ברקע — מטופל בחזרה למסך');
   ok(/const jobLink = opt && \/\^j\[A-Za-z0-9_-\]\{20\}\$\/\.test/.test(src) && /goJobLink\(jobLink, linkView\)/.test(src) && /function goJobLink\(id, view\) \{\n  go\('job', id\);/.test(src), 'הסטודיו נפתח על העבודה');
   ok(/u: SUBJECT \+ \(j \? '#studio=' \+ j : ''\)/.test(wp) && !/spec|name/.test(wp.slice(wp.indexOf('function message'), wp.indexOf('async function sendAll'))), 'השרתון: בהתראה רק סוג האירוע ומזהה העבודה');

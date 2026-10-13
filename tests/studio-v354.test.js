@@ -85,8 +85,9 @@ ok(enHeb.length === 0, 'אין עברית במחרוזות האנגליות של
 /* ---------- 3. שילוב באפליקציה ---------- */
 ok(/<button id="menuStudioBtn" class="row-link menu-row"/.test(html) && /data-i18n="menuStudio"/.test(html) && /data-i18n="menuStudioSub"/.test(html), 'שורה בתפריט ההמבורגר');
 ok(/\.studio-ic \{ background:/.test(styles), 'אייקון אדום לשורה בתפריט');
-ok(/getElementById\('menuStudioBtn'\)[\s\S]{0,300}setMainMenuOpen\(false\)[\s\S]{0,500}import\('\.\/studio\.js'\)\.then\(\(m\) => m\.openStudio\(\)\)/.test(app), 'טעינה בעצלתיים בלחיצה (import דינמי, אחרי סגירת התפריט)');
-ok(/getElementById\('menuStudioBtn'\)[\s\S]{0,600}if \(navCurDepth\(\) === 0 && currentTabName\(\) !== 'overview'\) switchTab\('overview'\);[\s\S]{0,80}import\('\.\/studio\.js'\)/.test(app), 'פתיחה מטאב ראשי — הסקירה מתחת ("חזור" מהסטודיו נוחת עליה, כמו בספרייה)');
+ok(/getElementById\('menuStudioBtn'\)[\s\S]{0,300}setMainMenuOpen\(false\)[\s\S]{0,300}location\.href = APP_PAGE\.studio;/.test(app), 'לחיצה בתפריט — אחרי סגירת התפריט, עוברת ל־Studio העצמאי (13/10/2026)');
+// 13/10/2026: Studio נפתח כדף עצמאי — "חזור" ממנו חוזר לדף התיק כמו שהיה; אין שכבה מעל הסקירה, ו־studio.js לא נטען בתיק מהתפריט
+ok(!/getElementById\('menuStudioBtn'\)[\s\S]{0,400}import\('\.\/studio\.js'\)/.test(app), 'התפריט לא טוען את studio.js בתוך התיק');
 ok(!/<script[^>]+studio\.js/.test(html) && !/<link[^>]+studio\.css/.test(html), 'הסטודיו לא נטען עם האפליקציה');
 ok(/hs && hs\.studio[\s\S]{0,500}import\('\.\/studio\.js'\)\.then\(\(m\) => m\.openStudio\(\{ restore: hs \}\)\)/.test(app), 'רענון בזמן שהסטודיו פתוח — חוזרים לאותו דף');
 ok(/if\(h&&\(h\.lib\|\|h\.studio\)\)/.test(html) && /h\.lib\?'lib-open':'studio-open'/.test(html), 'וילון הרענון ב־index.html — גם לסטודיו');

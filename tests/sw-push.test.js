@@ -19,7 +19,7 @@ if (!/addEventListener\('push'/.test(sw)) {
 // מ9: פעולות בהתראה של עבודה שהסתיימה — "צפייה" / "עריכה" (‎&v=play|subs). הצד של האפליקציה נבדק תמיד.
 const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const st = fs.readFileSync(path.join(__dirname, '..', 'studio.js'), 'utf8');
-ok(/const sv = get\('v'\);/.test(app) && /openStudio\(\{ job: sj, view: sv === 'play' \|\| sv === 'subs' \? sv : '' \}\)/.test(app), 'האפליקציה מעבירה רק play/subs מהקישור');
+ok(/const sv = get\('v'\);/.test(app) && /\(sv === 'play' \|\| sv === 'subs' \? '&v=' \+ sv : ''\)/.test(app) && /&v=\(play\|subs\)/.test(fs.readFileSync(path.join(__dirname, '..', 'studio-app.js'), 'utf8')), 'האפליקציה מעבירה רק play/subs מהקישור (ל־Studio העצמאי)');
 ok(/function goJobLink\(id, view\) \{\n  go\('job', id\);/.test(st) && /view === 'play' && canPlay\(rec\)/.test(st) && /view === 'subs' && canEdit\(rec\)/.test(st), 'הסטודיו: דף העבודה קודם (חזור → העבודה), נגן/עורך רק כשאפשר');
 if (/actions: m\.k === 'done'/.test(sw)) {
   const vm = require('vm');

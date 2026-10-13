@@ -17,7 +17,8 @@ ok(/closeReader\(\{ instant: uaT \}\)/.test(pop) && /readerExit\(uaT\)/.test(pop
 ok(/if \(!instant\) box\.classList\.add\('out'\);/.test(cr) && /const gone = instant \|\|/.test(cr), 'סגירה מיידית של הקורא — בלי דהייה');
 ok(/if \(instant === true \|\| reduceMotion\(\)\) \{ r\.remove\(\); return; \}/.test(cl), 'סגירה מיידית של הספרייה');
 ok(/closeLibrary\(uaT\); appToOverview\(\);/.test(pop) && /function appToOverview\(\)[\s\S]{0,200}switchTab\('overview'\)/.test(lib), '"חזור" מהספרייה — לסקירה');
-ok(/navCurDepth\(\) === 0 && currentTabName\(\) !== 'overview'\) switchTab\('overview'\)/.test(app), 'פתיחה מטאב ראשי — הסקירה כבר מתחת לספרייה (גם בצילום של Chrome)');
+// 13/10/2026: Academy נפתחת כדף עצמאי (location.href) — "חזור" ממנה חוזר לדף התיק כמו שהיה; אין שכבה מעל הסקירה
+ok(/getElementById\('menuLibraryBtn'\)[\s\S]{0,600}location\.href = APP_PAGE\.academy;/.test(app), 'פתיחה מהתפריט — דף עצמאי, "חזור" חוזר לתיק');
 console.log(n + ' בדיקות עברו');
 // v351: משיכה מצד שמאל (Chrome מציג צילום) — הצילום של השומר רק כשהקורא מוצג במלואו
 {

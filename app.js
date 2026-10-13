@@ -4519,7 +4519,9 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '1.0.0';
-const APP_VERSION = 'v401';
+const APP_VERSION = 'v402';
+/* הכתובות של Academy ו־Studio (אפליקציות עצמאיות, 13/10/2026) — זהות ל־APP_URL ב־shell.js (שלב 4, דומיינים: בשני המקומות) */
+const APP_PAGE = { academy: 'academy.html', studio: 'studio.html' };
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12949,7 +12951,8 @@ function openStockFromHash() {
   if (/^j[A-Za-z0-9_-]{20}$/.test(sj)) {
     try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
     const sv = get('v');                       // פעולה בהתראה: ‎&v=play (צפייה) / ‎&v=subs (עריכה)
-    import('./studio.js').then((m) => m.openStudio({ job: sj, view: sv === 'play' || sv === 'subs' ? sv : '' })).catch(() => { try { flash(t('studioOpenErr')); } catch (err) {} });
+    // 13/10/2026: Studio הוא אפליקציה עצמאית (studio.html) — הקישור עובר אליה, היא פותחת את העבודה (studio-app.js)
+    location.replace(APP_PAGE.studio + '#studio=' + sj + (sv === 'play' || sv === 'subs' ? '&v=' + sv : ''));
     return true;
   }
   const tab = get('tab'), wl = get('wl'), sym = normalizeSym(get('stock'));
@@ -13437,17 +13440,15 @@ function init() {
     try { setMainMenuOpen(false); } catch (err) {}
     // v350 (בקשת המשתמש): "חזור" מהספרייה נוחת על הסקירה — עוברים אליה כבר עכשיו, מתחת לספרייה שנכנסת, כדי שגם צילום
     // הרשומה ש־Chrome מציג במשיכה מצד המסך יהיה הסקירה (מטאב ראשי בלבד — מהגדרות המעבר בסגירה, library.js)
-    try { if (navCurDepth() === 0 && currentTabName() !== 'overview') switchTab('overview'); } catch (err) {}
-    import('./library.js').then((m) => m.openLibrary()).catch(() => { try { flash(t('libOpenErr')); } catch (err) {} });
+    // 13/10/2026 (בקשת המשתמש): Academy = אפליקציה עצמאית עם ההדר והלוגו שלה — "חזור" ממנה חוזר לכאן
+    location.href = APP_PAGE.academy;
   });
   // v354: סטודיו התרגום (שלב 1) — מודול נפרד שנטען רק כאן (studio.js + studio.css), כמו הספרייה
   const mStudio = document.getElementById('menuStudioBtn');
   if (mStudio) mStudio.addEventListener('click', (e) => {
     e.stopPropagation();
     try { setMainMenuOpen(false); } catch (err) {}
-    // כמו בספרייה (v350): "חזור" מהסטודיו נוחת על הסקירה — עוברים אליה כבר עכשיו, מתחת לסטודיו (מטאב ראשי; מהגדרות — ביציאה, studio.js)
-    try { if (navCurDepth() === 0 && currentTabName() !== 'overview') switchTab('overview'); } catch (err) {}
-    import('./studio.js').then((m) => m.openStudio()).catch(() => { try { flash(t('studioOpenErr')); } catch (err) {} });
+    location.href = APP_PAGE.studio;           // 13/10/2026: Studio = אפליקציה עצמאית (כמו Academy)
   });
   const dBtn = document.getElementById('demoCreateBtn');
   if (dBtn) dBtn.addEventListener('click', () => demoCreate(dBtn));
