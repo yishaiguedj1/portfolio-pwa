@@ -69,7 +69,7 @@ async function checkSecrets(e, deps) {
   const fake = 'aaaaaaaaaaaa-' + 'A'.repeat(43);
   P.planFiles(AUTOBUY.plan, e, { stg: fake, prod: fake }, app.line);
   if (!/^[A-Za-z0-9]{20,100}$/.test(String(e.HCLOUD_TOKEN || ''))) fail('hcloud_token', 'חסר HCLOUD_TOKEN');
-  return app.keys.length + (app.sa === 'g' ? ' · חשבון השירות מ־PROD_FIREBASE_SA, אומת מול הכספת' : app.sa === 'x' ? ' · חשבון השירות מ־PROD_APP_EXTRA, אומת מול הכספת' : '');
+  return app.keys.length + ' משתנים לשרתון' + (app.sa === 'g' ? ' · חשבון השירות מ־PROD_FIREBASE_SA, אומת מול הכספת' : app.sa === 'x' ? ' · חשבון השירות מ־PROD_APP_EXTRA, אומת מול הכספת' : '');
 }
 
 async function exists(e, deps, name) {
@@ -152,7 +152,7 @@ async function check(e, deps) {
     }
   }
   let sec = '';
-  try { sec = 'הסודות: תקינים (' + (await checkSecrets(e, deps)) + ' משתנים מ־Vercel)'; } catch (x) { sec = 'הסודות: ✗ ' + x.message; }
+  try { sec = 'הסודות: תקינים (' + (await checkSecrets(e, deps)) + ')'; } catch (x) { sec = 'הסודות: ✗ ' + x.message; }
   lines.push(sec);
   lines.push('השם שיוזמן: ' + AUTOBUY.name + (await exists(e, deps, AUTOBUY.name) ? ' — ✗ כבר קיים' : ''));
   return lines.join('\n');
