@@ -15,7 +15,7 @@ await env.withSecurityRulesDisabled(async (c) => {
   const db = c.firestore();
   await setDoc(doc(db, 'users/alice'), { db: '{}', lib: { p: {} } });
   await setDoc(doc(db, 'users/bob'), { db: '{"secret":1}' });
-  for (const col of ['studioJobs/j1', 'studioVault/alice', 'studioServers/s1', 'studioStats/alice', 'ibkrVault/alice', 'driveVault/alice', 'academy/config', 'aiCache/x'])
+  for (const col of ['studioJobs/j1', 'studioVault/alice', 'studioServers/s1', 'studioStats/alice', 'ibkrVault/alice', 'driveVault/alice', 'academy/config', 'aiCache/x', 'sessions/alice'])
     await setDoc(doc(db, col), { x: 1, uid: 'alice' });
 });
 const alice = env.authenticatedContext('alice').firestore();
@@ -31,7 +31,7 @@ await ok(assertFails(deleteDoc(doc(alice, 'users/bob'))), 'אסור למחוק �
 await ok(assertFails(getDocs(collection(alice, 'users'))), 'אסור לרשום את כל המשתמשים');
 await ok(assertFails(getDoc(doc(anon, 'users/alice'))), 'בלי התחברות — אין גישה');
 await ok(assertFails(setDoc(doc(alice, 'users/alice'), { isAdmin: true }, { merge: true })), 'אסור להוסיף לעצמך שדה ניהול');
-for (const p of ['studioJobs/j1', 'studioVault/alice', 'studioServers/s1', 'studioStats/alice', 'ibkrVault/alice', 'driveVault/alice', 'academy/config', 'aiCache/x']) {
+for (const p of ['studioJobs/j1', 'studioVault/alice', 'studioServers/s1', 'studioStats/alice', 'ibkrVault/alice', 'driveVault/alice', 'academy/config', 'aiCache/x', 'sessions/alice']) {
   await ok(assertFails(getDoc(doc(alice, p))), 'השרתון בלבד — אסור לקרוא ' + p.split('/')[0]);
   await ok(assertFails(setDoc(doc(alice, p), { x: 2 })), 'השרתון בלבד — אסור לכתוב ' + p.split('/')[0]);
 }

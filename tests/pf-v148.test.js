@@ -54,7 +54,7 @@ const A = (k) => vm.runInContext(k, sb);
   // --- 5. ענן ---
   ok(/tdkey: firebase\.firestore\.FieldValue\.delete\(\)/.test(cloud), 'ענן: מפתח Twelve Data לא נשמר, ועותק ישן נמחק');
   ok(!/localStorage\.setItem\(LS_TDKEY, data\.tdkey\)/.test(cloud), 'ענן: המפתח לא נטען מהענן');
-  ok(!/appKey|token/.test(cloud.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '').replace(/idToken|getIdToken/g, '')), 'ענן: פרטי IBKR לא נכתבים לענן');
+  ok(!/appKey|token/.test(cloud.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '').replace(/idToken|getIdToken|signInWithCustomToken/g, '')), 'ענן: פרטי IBKR לא נכתבים לענן');
 
   // --- 6. CI ---
   ok(/permissions:\s*\n\s*contents: read/.test(wf), 'CI: הרשאת קריאה בלבד');

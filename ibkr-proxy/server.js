@@ -102,13 +102,20 @@ function readBody(req) {
   });
 }
 
+/* פונקציות של השרת בלבד (לא ב־api/, ולכן Vercel לא רואה אותן — שם כבר 12 מתוך 12):
+   session — החיבור המשותף (שלב 2 בתוכנית שלוש האפליקציות). העוגייה שלו עובדת רק תחת thesnowball.app,
+   כלומר רק בשרת שלנו — ב־Vercel (דומיין אחר) אין לה משמעות. */
+const SERVER_ONLY = { session: 'lib/session.js' };
+
 function createServer(opts = {}) {
   const dir = opts.dir || __dirname;
   const apiDir = opts.apiDir || path.join(dir, 'api');
   const cfg = opts.config || loadConfig(dir);
+  const only = opts.serverOnly || (opts.dir ? {} : SERVER_ONLY);
   const names = new Set(fs.readdirSync(apiDir).filter((f) => /^[a-z0-9-]+\.js$/.test(f)).map((f) => f.slice(0, -3)));
+  for (const n of Object.keys(only)) names.add(n);
   const ipHeader = String(opts.ipHeader != null ? opts.ipHeader : process.env.SNB_CLIENT_IP_HEADER || '').toLowerCase();
-  const load = (name) => require(path.join(apiDir, name + '.js'));
+  const load = (name) => require(Object.prototype.hasOwnProperty.call(only, name) ? path.join(dir, only[name]) : path.join(apiDir, name + '.js'));
 
   async function invoke(name, req, res) {
     const handler = load(name);
@@ -199,7 +206,7 @@ function startCron(server, cfg, opts = {}) {
   return { jobs, tick, stop: () => clearInterval(iv) };
 }
 
-module.exports = { createServer, startCron, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
+module.exports = { createServer, startCron, SERVER_ONLY, parseBody, parseCron, cronDue, maxDuration, decorate, unpackEnv };
 
 if (require.main === module) {
   const unpacked = unpackEnv(process.env);

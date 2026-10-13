@@ -28,6 +28,68 @@
   let bootFallback = null;
   let saveTimer = null;
 
+  /* ---- החיבור המשותף (שלב 2 בתוכנית שלוש האפליקציות, 13/10/2026) ----
+     השרתון מחזיק עוגייה אחת (HttpOnly — לא נראית כאן), וכל אפליקציה שואלת אותו "מי מחובר?" ומקבלת טוקן של
+     Firebase לעצמה (ct). עובד רק כשהאתר והשרתון באותו אתר (thesnowball.app) — ב־github.io העוגייה לא נשלחת, ושום
+     דבר לא משתנה. התנתקות מתפשטת רק כשהחיבור במכשיר הזה נוצר דרך העוגייה (LS_SESS) — חיבור ישן לא מנותק. */
+  const LS_SESS = 'pwa_sess_v1';
+  const SESS_CHECK_MS = 5 * 60e3;
+  let sessTried = false;
+  let sessCheckedAt = 0;
+  let sessBusy = false;          // התחברות עם Google באמצע — בדיקה במקביל הייתה רואה "אין עוגייה" ומנתקת
+  function sessBase() {
+    try {
+      const proxy = (window.SNB_ENV || {}).proxy || '';
+      const site = (h) => String(h).toLowerCase().split('.').slice(-2).join('.');
+      const host = location.hostname;
+      return /(^|\.)thesnowball\.app$/i.test(host) && site(host) === site(new URL(proxy).hostname) ? proxy : '';
+    } catch (e) { return ''; }
+  }
+  async function sessCall(body, ms) {
+    const base = sessBase();
+    if (!base) return null;
+    const ac = typeof AbortController === 'function' ? new AbortController() : null;
+    const to = ac ? setTimeout(() => ac.abort(), ms || 6000) : 0;
+    try {
+      const r = await fetch(base + '/api/session', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body), signal: ac ? ac.signal : undefined,
+      });
+      return r.status === 200 ? await r.json() : null;
+    } catch (e) { return null; } finally { clearTimeout(to); }
+  }
+  const sessMark = (on) => { try { if (on) localStorage.setItem(LS_SESS, '1'); else localStorage.removeItem(LS_SESS); } catch (e) {} };
+  const sessMarked = () => { try { return localStorage.getItem(LS_SESS) === '1'; } catch (e) { return false; } };
+  /* אחרי התחברות עם Google — העוגייה (השרתון מנפיק רק מהתחברות של עד 5 דקות) */
+  async function sessLogin(u) {
+    if (!u || !sessBase()) return;
+    try {
+      const j = await sessCall({ op: 'login', idToken: await u.getIdToken() });
+      if (j && j.ok) sessMark(true);
+    } catch (e) {}
+  }
+  /* "מי מחובר?" — אין משתמש כאן ויש עוגייה → מתחברים בשקט */
+  async function sessSignIn() {
+    if (sessTried || !sessBase()) return false;
+    sessTried = true;
+    const j = await sessCall({ op: 'who' }, 4000);
+    if (!j || j.s !== 1 || !j.ct) return false;
+    try { await auth.signInWithCustomToken(j.ct); sessMark(true); return true; } catch (e) { return false; }
+  }
+  /* יש משתמש כאן: התנתק באפליקציה אחרת / ממכשיר אחר → מתנתקים; התחבר בחשבון אחר → עוברים אליו */
+  async function sessCheck(force) {
+    if (!user || sessBusy || !sessBase() || (!force && Date.now() - sessCheckedAt < SESS_CHECK_MS)) return;
+    sessCheckedAt = Date.now();
+    const j = await sessCall({ op: 'who' });
+    if (!j || !j.ok || !user || sessBusy) return;           // תקלה ברשת/בשרתון — לא מנתקים
+    if (j.s === 1 && j.u === user.uid) { sessMark(true); return; }
+    if (j.s === 1 && j.ct) { try { await flushSave(); await auth.signInWithCustomToken(j.ct); } catch (e) {} return; }
+    if (j.s === 0 && sessMarked()) { sessMark(false); await flushSave(); try { await auth.signOut(); } catch (e) {} }
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) sessCheck(false); });
+  }
+
   function sdkOk() {
     return isConfigured &&
       typeof firebase !== 'undefined' &&
@@ -166,8 +228,11 @@
         const err = document.getElementById('loginErr');
         if (err) err.classList.add('hidden');
         try {
-          await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+          sessBusy = true;
+          const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+          sessLogin(cred && cred.user).then(() => { sessBusy = false; });
         } catch (e) {
+          sessBusy = false;
           if (err) {
             err.textContent = t('loginFailed');
             err.classList.remove('hidden');
@@ -243,6 +308,9 @@
   async function signOut() {
     await flushSave();
     localMode = false;
+    sessMark(false);
+    sessTried = true;                                        // אחרי "התנתק" — בלי כניסה שקטה (גם אם הבקשה לשרתון נכשלה)
+    await sessCall({ op: 'logout' }, 3000);                  // החיבור המשותף: גם שאר האפליקציות במכשיר מתנתקות
     try { await auth.signOut(); } catch (e) {}
     /* onAuthStateChanged יציג את מסך ההתחברות */
   }
@@ -284,6 +352,7 @@
       // v193: דגל "היה מחובר" — app.js משתמש בו כדי לא לצייר תיק ריק לרגע כשהאחסון המקומי ריק אבל הענן מלא
       try { if (u) localStorage.setItem(LS_CLOUD_USER, '1'); else localStorage.removeItem(LS_CLOUD_USER); } catch (e) {}
       if (!u) {
+        if (await sessSignIn()) return;                  // מחובר באפליקציה אחרת — onAuthStateChanged יחזור עם המשתמש
         if (switchOwner(null, null) === true) return;   // v313: התנתקות — הנתונים של החשבון יוצאים מהמכשיר הפעיל
         if (!localMode) showLogin();
         renderAccountCard();
@@ -292,6 +361,7 @@
       }
       hideLogin();
       renderAccountCard();
+      sessCheck(true);
       try {
         const snap = await userDoc().get();
         const sw = switchOwner(u.uid, !!(snap.exists && validCloudDb((snap.data() || {}).db)));
