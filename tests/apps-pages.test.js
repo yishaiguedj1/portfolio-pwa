@@ -44,5 +44,20 @@ for (const A of APPS) {
 }
 ok(/if \(lvl < 1 && root && !SA\)/.test(read('library.js')) && /if \(!st\.studio && SA\) return;/.test(read('studio.js')), 'עצמאי: אין "חזרה לסקירה" (אין תיק)');
 ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studio.html: קישור מהתראה (#studio=) פותח את העבודה');
-ok(/caches\.match\(request, \{ ignoreSearch: true \}\)\.then\(\(pg\) => pg \|\| caches\.match\('\.\/index\.html'\)\)/.test(sw), 'אופליין: ניווט לדף עצמאי מקבל את הדף עצמו, לא את התיק');
+/* אופליין: ניווט לדף עצמאי מקבל את הדף עצמו — גם בכתובת בלי סיומת (Cloudflare: academy.html → /academy). מריצים את sw.js ב־vm */
+{
+  const vm = require('vm');
+  const L = {};
+  const BASE = 'https://staging.thesnowball.app/';
+  const cached = { [BASE + 'index.html']: 'INVEST', [BASE + 'academy.html']: 'ACADEMY', [BASE + 'studio.html']: 'STUDIO' };
+  const norm = (k) => { const u = new URL(typeof k === 'string' ? k : k.url, BASE); return u.origin + u.pathname; };
+  const caches = { match: async (k) => cached[norm(k)] || undefined, open: async () => ({ put: async () => {} }), keys: async () => [] };
+  const self = { addEventListener: (k, f) => { L[k] = f; }, location: { origin: 'https://staging.thesnowball.app' }, registration: { scope: BASE }, clients: {} };
+  vm.runInNewContext(sw, { self, caches, fetch: () => Promise.reject(new Error('offline')), URL, Promise, console, Response: function () {}, setTimeout, crypto: {} });
+  const nav = (p) => new Promise((res) => L.fetch({ request: { method: 'GET', url: BASE + p, mode: 'navigate' }, respondWith: (pr) => pr.then(res, () => res('ERR')) }));
+  (async () => {
+    const r = await Promise.all(['academy', 'academy.html', 'studio', 'studio?x=1', 'nothing'].map(nav));
+    ok(r.join() === 'ACADEMY,ACADEMY,STUDIO,STUDIO,INVEST', 'אופליין: /academy ו־academy.html → Academy, /studio → Studio, דף לא מוכר → התיק (' + r.join() + ')');
+      })();
+}
 console.log('# ' + n + ' בדיקות עברו');
