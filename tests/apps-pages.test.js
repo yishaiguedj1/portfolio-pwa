@@ -33,9 +33,12 @@ for (const A of APPS) {
   const boot = read(A.app + '-app.js');
   ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
   // ההדר המשותף (13/10/2026): אותו shell.js, הלוגו של האפליקציה, והגלובוס בתפריט הפתוח = ההגדרות של האפליקציה
-  ok(boot.includes("import { createShell, APP_URL } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
+  ok(boot.includes("import { createShell, APP_URL, loginGate } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
   { const b = fs.readFileSync(path.join(root, 'logo-' + A.app + '.png')); ok(b.slice(1, 4).toString() === 'PNG' && b.readUInt32BE(16) === 512 && b.length < 200000, A.app + ': הלוגו — PNG של 512 (פי 4 מ־128), קל (<200KB)'); }
   ok(boot.indexOf('wireCoreBack()') > 0 && boot.indexOf('wireCoreBack()') < boot.indexOf(A.open + '({'), A.app + ': "חזור" של החלונות נרשם לפני המודול (סדר מאזיני popstate)');
+  // 13/10/2026 (בקשת המשתמש): מסך הכניסה של Invest גם כאן — רק כשהחיבור ענה "לא מחובר", עם הלוגו והשם של האפליקציה
+  ok(new RegExp("if \\(first === 'out'\\) loginGate\\(\\{ app: '" + A.app + "', auth: A, logo: 'logo-" + A.app + "\\.png'").test(boot)
+    && boot.indexOf('loginGate(') < boot.indexOf(A.open + '({'), A.app + ': לא מחובר — מסך הכניסה עם הלוגו שלה, לפני פתיחת המודול');
   ok(/pwa_auth_rl/.test(boot) && /Date\.now\(\) - last > 8000/.test(boot), A.app + ': טעינה מחדש כשהחיבור משתנה — עם שומר מפני לולאה');
 
   const mod = read(A.mod);

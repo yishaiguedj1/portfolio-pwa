@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v403';
+const CACHE_NAME = 'portfolio-pwa-v404';
 const HASHES = {
-  "./": "74dd6b8b4f20af42e4cbf37710fb5109",
-  "./index.html": "74dd6b8b4f20af42e4cbf37710fb5109",
-  "./styles.css": "8e57f11a18c7b6adaa13bf44d4068e05",
-  "./app.js": "065325159ca04f74606199e8b48333c3",
+  "./": "5afa03aea42b83f6e338470dd5195c34",
+  "./index.html": "5afa03aea42b83f6e338470dd5195c34",
+  "./styles.css": "80028ed6571ee811cb0a4049bff8f2cb",
+  "./app.js": "32d9e2d99735eb6006837792046a84cb",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "4d79529a9a53b944a43112551259b7d6",
@@ -46,13 +46,13 @@ const HASHES = {
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ec20f16630bfc11f0d17777e3b342025",
-  "./academy-app.js": "25d4cb2d06006d883b72e0eeb1b6185f",
-  "./strings-academy.js": "d8e753d98b716f2a88deb578d3848ef5",
+  "./academy-app.js": "b8d19e347ae2344b0316151a276c56a4",
+  "./strings-academy.js": "95739d29dc140e4fcdd53c14fb5774a4",
   "./core.js": "f3aaa18f99287168d2b64710b0ccd301",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
-  "./shell.js": "ac2c7c3b877d05e0a6a6d93f6dbff1c5",
+  "./shell.js": "ce7fb620f343d7344d953716aa2a8c35",
   "./logo-academy.png": "6ece7ee5b88d5272b19060d20315dd79",
-  "./studio.js": "0d0d36da01434e525b0bf14e5c376c5d",
+  "./studio.js": "aab4e60b921e71b9589f9a7f444efb1f",
   "./studio.css": "9d10cdcb67c6ed6632ab1329cb20f974",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
@@ -61,8 +61,8 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "19e2b78d7b2c7b7b9108eb19e27f4f06",
-  "./studio-app.js": "77f77fe1fbd3f64bd294daa3ecb8a052",
-  "./strings-studio.js": "19d1c497b397c8fb95a934e0a611b25d",
+  "./studio-app.js": "ad1d13ecdd226d7d2107ca58bfc14ca4",
+  "./strings-studio.js": "8784928d78ed6e817503b4a769f32b1f",
   "./logo-studio.png": "a75ebb22123a1c29a256e8d4798d376e"
 };
 /* </swgen> */

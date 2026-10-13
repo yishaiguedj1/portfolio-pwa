@@ -522,6 +522,9 @@ he: {
   loginSub: 'מתחברים פעם אחת — התיק נשמר בענן<br>ומסונכרן בכל מכשיר',
   googleSignIn: 'התחברות עם Google',
   skipLogin: 'המשך בלי חשבון',
+  loginSubAcademy: 'מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר',
+  loginSubStudio: 'מתחברים פעם אחת — העבודות והתרגומים נשמרים בענן ומסונכרנים בכל מכשיר',
+  studioSecAccount: 'חשבון',
   loginFailed: 'ההתחברות נכשלה — נסו שוב',
   signingIn: 'מתחבר…',
   cloudNotSetup: 'חיבור ענן לא הוגדר עדיין — הנתונים נשמרים בטלפון הזה בלבד.',
@@ -1063,6 +1066,9 @@ en: {
   loginSub: 'Sign in once — your portfolio is saved in the cloud<br>and synced on every device',
   googleSignIn: 'Sign in with Google',
   skipLogin: 'Continue without an account',
+  loginSubAcademy: 'Sign in once — your library, progress and highlights are saved in the cloud and synced on every device',
+  loginSubStudio: 'Sign in once — your jobs and translations are saved in the cloud and synced on every device',
+  studioSecAccount: 'Account',
   loginFailed: 'Sign-in failed — try again',
   signingIn: 'Signing in…',
   cloudNotSetup: 'Cloud connection not set up yet — data is stored on this phone only.',
@@ -4519,7 +4525,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '1.0.0';
-const APP_VERSION = 'v403';
+const APP_VERSION = 'v404';
 /* הכתובות של Academy ו־Studio (אפליקציות עצמאיות, 13/10/2026) — מ־firebase-config.js (SNB_ENV.apps, כמו APP_URL ב־shell.js):
    בכתובות הנפרדות (שלב 4) — academy[-staging].thesnowball.app וכו'; באתר המאוחד — הדפים שלידו */
 const APP_PAGE = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.apps) || { academy: 'academy.html', studio: 'studio.html' };

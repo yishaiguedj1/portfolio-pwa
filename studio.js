@@ -1538,6 +1538,7 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.6 3.5 5.5 3.5 8.6s-1.1 6-3.5 8.6c-2.4-2.6-3.5-5.5-3.5-8.6s1.1-6 3.5-8.6z"/>',
   spark: '<path d="M11 2.5l1.9 5.4 5.4 1.9-5.4 1.9L11 17.1l-1.9-5.4-5.4-1.9 5.4-1.9z" fill="currentColor" stroke="none"/><path d="M18.5 14.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill="currentColor" stroke="none"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16.2 6.8l2.3 2.3M13.8 9.2l1.8 1.8"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   out: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
@@ -5239,6 +5240,20 @@ function pageSettings(p) {
   p.append(navBar({ back: T('studioShort') }), large(T('studioSettings')));
   const ab = accessBanner(); if (ab) p.append(ab);
   p.append(list(rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' })));   // מ9: מדריך קצר
+  // Studio עצמאי (studio.html): החשבון — מי מחובר והתנתקות (בקשת המשתמש 13/10/2026; כמו בהגדרות Academy). בתיק — בהגדרות של Invest
+  const A = SA && SA.auth;
+  if (A) {
+    const u = A.user();
+    if (u) {
+      const who = h('div', 'st-row st-ric');
+      const wl = h('span', 'st-l'); wl.append(h('b', null, u.displayName || T('studioSecAccount')));
+      const ws = h('small'); ws.append(h('bdi', null, u.email || '')); wl.append(ws);
+      who.append(tile('user', 'blue'), wl);
+      p.append(secT(T('studioSecAccount')), list(who, btn('st-row st-act danger', T('signOut'), () => { A.signOut(); }, 'signout')));   // החיבור משתנה → הדף נטען מחדש (studio-app.js)
+    } else {
+      p.append(secT(T('studioSecAccount')), list(btn('st-row st-act', T('googleSignIn'), () => { A.signIn().then((ok) => { if (!ok) flashSafe(T('loginFailed')); }); }, 'signin-set')));
+    }
+  }
   // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };

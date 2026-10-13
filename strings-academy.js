@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (583 מפתחות מתוך 2557) */
+/* המחרוזות של academy (587 מפתחות מתוך 2560) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -264,7 +264,10 @@ he: {
   "libTapDownload": "בגיבוי — נגיעה להורדה",
   "libTitle": "ספרייה",
   "loading": "טוען…",
+  "loginAria": "התחברות",
   "loginFailed": "ההתחברות נכשלה — נסו שוב",
+  "loginSubAcademy": "מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר",
+  "loginSubStudio": "מתחברים פעם אחת — העבודות והתרגומים נשמרים בענן ומסונכרנים בכל מכשיר",
   "menuAria": "תפריט ראשי",
   "menuCloseAria": "סגירת התפריט",
   "menuLibrarySub": "מכתבים וספרים",
@@ -567,6 +570,7 @@ he: {
   "rdWeight": "עובי",
   "rdWhite": "לבן",
   "signOut": "התנתקות",
+  "skipLogin": "המשך בלי חשבון",
   "srcApple": "Apple Books",
   "srcGoogle": "Google Books",
   "srcNli": "הספרייה הלאומית",
@@ -849,7 +853,10 @@ en: {
   "libTapDownload": "In backup — tap to download",
   "libTitle": "Library",
   "loading": "Loading…",
+  "loginAria": "Sign in",
   "loginFailed": "Sign-in failed — try again",
+  "loginSubAcademy": "Sign in once — your library, progress and highlights are saved in the cloud and synced on every device",
+  "loginSubStudio": "Sign in once — your jobs and translations are saved in the cloud and synced on every device",
   "menuAria": "Main menu",
   "menuCloseAria": "Close menu",
   "menuLibrarySub": "Letters & books",
@@ -1152,6 +1159,7 @@ en: {
   "rdWeight": "Weight",
   "rdWhite": "White",
   "signOut": "Sign out",
+  "skipLogin": "Continue without an account",
   "srcApple": "Apple Books",
   "srcGoogle": "Google Books",
   "srcNli": "National Library of Israel",
