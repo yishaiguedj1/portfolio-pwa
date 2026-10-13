@@ -10,8 +10,10 @@ const qa = fs.readFileSync(path.join(root, 'tools', 'qa-motion.js'), 'utf8');
 const fn = (src, name) => { const i = src.indexOf('function ' + name + '('); if (i < 0) return ''; let d = 0, j = src.indexOf('{', i); for (let k = j; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && !--d) return src.slice(i, k + 1); } return ''; };
 const mp = fn(app, 'modalPush');
 ok(/navigator\.userActivation/.test(mp) && /if \(ua && !ua\.isActive\) return rec;/.test(mp), 'modalPush: רשומת היסטוריה רק עם הפעלת משתמש (pushState בלי נגיעה = רשומה "לדילוג" אצל Chrome)');
-const wb = fn(app, 'wireBackNav');
-ok(/if \(m\.pushed\) pushedClosed = true;/.test(wb) && /if \(pushedClosed\) \{[^\n]*modalPop[^\n]*return; \}/.test(wb), 'חלון בלי רשומה נסגר ב"חזור" בלי לבלוע את הניווט; חלון עם רשומה — ה"חזור" שלו');
+// שלב 3 בתוכנית שלוש האפליקציות: החלק הכללי של "חזור" עבר ל־backPopHandled (משותף ל־wireBackNav ולדפים העצמאיים)
+const wb = fn(app, 'backPopHandled');
+ok(/if \(m\.pushed\) pushedClosed = true;/.test(wb) && /if \(pushedClosed\) \{[^\n]*modalPop[^\n]*return true; \}/.test(wb) && /if \(backPopHandled\(\)\) return;/.test(fn(app, 'wireBackNav')),
+  'חלון בלי רשומה נסגר ב"חזור" בלי לבלוע את הניווט; חלון עם רשומה — ה"חזור" שלו');
 ok(/delete c\.modal; delete c\.sheet; history\.replaceState\(c, ''\)/.test(app), 'אתחול: שרידי modal/sheet ברשומה אחרי רענון מנוקים');
 ok(/if \(name !== prev\) \{ try \{ closeSrcPops\(\); clearItemActions\(\); \} catch \(e\) \{\} \}/.test(fn(app, 'switchTab')), 'מעבר טאב סוגר בועת סינון/כפתורי לחיצה ארוכה (רשומת החלון לא נשארת)');
 ok(/function cleanState\(extra\)[^\n]*delete st\.sheet; delete st\.modal;/.test(lib) && /history\.pushState\(cleanState\(\{ lib: 1, lv: v \}\), ''\)/.test(lib) && /const st = cleanState\(\{ lib: 2, book: id \}\);/.test(lib), 'ספרייה: רשומה חדשה (דף/קורא) בלי שרידי sheet/modal');

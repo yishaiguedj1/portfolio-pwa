@@ -11,13 +11,19 @@
    מילון מרכזי לכל המחרוזות הגלויות למשתמש.
    t('key') מחזיר את המחרוזת בשפה הנוכחית; t('key', {name: val}) ממלא {name}.
    השפה נשמרת ברמת המכשיר בלבד (pwa_lang_v1) — לא בענן. ברירת מחדל: עברית. */
+/* <core> */
 const LS_LANG = 'pwa_lang_v1';
+/* </core> */
 const LS_THEME = 'pwa_theme_v1'; // 'light' | 'dark' | 'system' — נשמר ברמת המכשיר בלבד, לא בענן
 
 /* v91: סט אייקונים נקי בקו־מתאר — מחליף אימוג'ים צבעוניים.
    סגנון אחיד: viewBox 24, stroke בצבע המותג, קצוות מעוגלים. */
+/* <core> */
 const _IC_PRE = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 const ICON_EDIT = _IC_PRE + '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const ICON_CLOSE = _IC_PRE + '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+const ICON_COLL = _IC_PRE + '<path d="M4 6h11v14H4z"/><path d="M8 3h12v14"/><line x1="9.5" y1="10" x2="9.5" y2="16"/><line x1="6.5" y1="13" x2="12.5" y2="13"/></svg>';   // v320: הוספה לאסופה (ספרייה)
+/* </core> */
 const ICON_SEARCH = _IC_PRE + '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>';
 const ICON_SYNC = _IC_PRE + '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10"/><path d="M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>';
 const ICON_MEASURE = _IC_PRE + '<path d="M3 17 17 3l4 4L7 21Z"/><line x1="8.5" y1="12.5" x2="10.5" y2="14.5"/><line x1="11.5" y1="9.5" x2="13.5" y2="11.5"/><line x1="14.5" y1="6.5" x2="16.5" y2="8.5"/></svg>';
@@ -29,8 +35,6 @@ const ICON_GEAR = _IC_PRE + '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.
 const ICON_SUN = _IC_PRE + '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></svg>';
 const ICON_MOON = _IC_PRE + '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
 const ICON_AUTO = _IC_PRE + '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>';
-const ICON_CLOSE = _IC_PRE + '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
-const ICON_COLL = _IC_PRE + '<path d="M4 6h11v14H4z"/><path d="M8 3h12v14"/><line x1="9.5" y1="10" x2="9.5" y2="16"/><line x1="6.5" y1="13" x2="12.5" y2="13"/></svg>';   // v320: הוספה לאסופה (ספרייה)
 const ICON_FILTER = _IC_PRE + '<path d="M3 5h18l-7 8.5V19l-4 2v-7.5Z"/></svg>';
 const ICON_LIST = _IC_PRE + '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>';
 const ICON_CHECK = _IC_PRE + '<polyline points="4 12.5 9.5 18 20 6.5"/></svg>';
@@ -1121,6 +1125,7 @@ en: {
 }
 };
 
+/* <core> */
 function getLang() {
   const m = getLangMode();
   return m === 'system' ? systemLang() : m;
@@ -1147,6 +1152,7 @@ function t(key, vars) {
   }
   return s;
 }
+/* </core> */
 
 /* מחיל את השפה על כל האלמנטים הסטטיים (data-i18n/*) ועל כיוון הדף. */
 function applyI18n() {
@@ -1821,6 +1827,7 @@ function ibkrSetBusy(busy) {
 }
 
 /* כתובת השרתון — לפי הסביבה (firebase-config.js, שלב 2 בסביבות); בלי הגדרה — השרתון של הייצור. */
+/* <core> */
 const IBKR_PROXY_DEFAULT = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.proxy) || 'https://ibkr-proxy-wine.vercel.app';
 
 function ibkrProxyBase() {
@@ -1837,6 +1844,7 @@ function ibkrProxyHeaders() {
   if (k) h['X-App-Key'] = k;
   return h;
 }
+/* </core> */
 
 /* מחלק טווח תאריכים לחלקים לפי שנים קלנדריות (פונקציה טהורה, נבדקת).
    מחזיר מערך של {fd, td} בפורמט YYYYMMDD.
@@ -3123,6 +3131,7 @@ function resetIbkrData(db, ibkrMode) {
 /* v297 (בקשת המשתמש): חלון אישור/הודעה שלנו במקום confirm/alert של הדפדפן —
    בלי הכותרת הגנרית "…github.io says", בסגנון הבועה של ההודעות באפליקציה, בגודל התוכן.
    בלי DOM אמיתי (הבדיקות) — נופל ל־confirm/alert הסינכרוניים, אז ההתנהגות בבדיקות לא משתנה. */
+/* <core> */
 function dlgAvailable() {
   return typeof document !== 'undefined' && !!document.body && typeof document.body.appendChild === 'function' &&
     typeof document.createElement === 'function' && typeof requestAnimationFrame === 'function';
@@ -3185,6 +3194,7 @@ function askAlert(msg, then) { askConfirm(msg, then || null, { alert: true }); }
 function askConfirmP(msg, opts) {
   return new Promise((res) => askConfirm(msg, () => res(true), Object.assign({}, opts, { onNo: () => res(false) })));
 }
+/* </core> */
 
 function doResetManual() {
   askConfirm(t('resetManualConfirm'), () => {
@@ -6820,6 +6830,7 @@ function ibkrReportTotal(data, cash, fx) {
   });
 })();
 
+/* <core> */
 function esc(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -6845,6 +6856,7 @@ function flash(msg) {
   clearTimeout(toastEl._h);
   toastEl._h = setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
+/* </core> */
 
 function setBanner(msg) {
   const b = document.getElementById('statusBanner');
@@ -6911,7 +6923,9 @@ function setTabPageDirection(prev, name) {
    בהתאם (history.go שלילי, בלי לטפל ב־popstate שנוצר ממנו). */
 function navDepth(name) { return name === 'advanced' ? 2 : name === 'settings' ? 1 : 0; }
 function navTabForDepth(d) { return d >= 2 ? 'advanced' : d === 1 ? 'settings' : 'overview'; }
+/* <core> */
 let _navSkipPop = 0;
+/* </core> */
 function navCurDepth() { try { const st = history.state; return (st && typeof st.snb === 'number') ? st.snb : 0; } catch (e) { return 0; } }
 function navSync(name, opts) {
   if ((opts && opts.fromPop) || typeof history === 'undefined' || !history.pushState) return;
@@ -6926,6 +6940,7 @@ function navSync(name, opts) {
 /* v322: "חזור" של המכשיר סוגר חלונות — תפריט, גיליונות (איפוס/שם רשימה/דוח), askConfirm/askAlert, בועת הסינון, כפתורי
    לחיצה ארוכה. כל חלון פתוח = רשומת היסטוריה אחת ({modal:n}); modalPush בפתיחה, modalDone בסגירה (back שלנו, נבלע ב־_navSkipPop).
    history.back() אסינכרוני — pushState שבא מיד אחריו (מעבר טאב מהתפריט, דף בספרייה) נדחה עד שה־back נחת: navBack/afterBack. */
+/* <core> */
 const _modals = [];
 let _backPending = 0;
 const _afterBack = [];
@@ -6949,25 +6964,39 @@ function modalDone(rec) {
   try { if (history.state && history.state.modal === rec.n) navBack(-1); } catch (e) {}
 }
 if (typeof window !== 'undefined') window.snbAfterBack = afterBack;
+/* </core> */
+/* <core> */
+/* שלב 3 בתוכנית שלוש האפליקציות: החלק הכללי של "חזור" — היסטוריה שקיצרנו בעצמנו (navBack) וחלונות פתוחים (modalPush).
+   משותף לאפליקציה (wireBackNav — אחריו מעבר הטאבים) ולדפים העצמאיים (wireCoreBack, דרך core.js). true = טופל. */
+function backPopHandled() {
+  if (_navSkipPop > 0) { // אנחנו קיצרנו את ההיסטוריה — הטאב/החלון כבר טופל (והספרייה לא מנווטת: navSkip)
+    _navSkipPop--;
+    document.documentElement.dataset.navSkip = '1';
+    setTimeout(() => { delete document.documentElement.dataset.navSkip; }, 0);
+    if (_backPending > 0) _backPending--;
+    if (!_backPending && _afterBack.length) _afterBack.splice(0).forEach((f) => { try { f(); } catch (e) {} });
+    return true;
+  }
+  const stModal = (history.state && history.state.modal) || 0;
+  if (_modals.length > stModal) {   // "חזור" על חלון פתוח — סוגר אותו (והספרייה לא מנווטת: modalPop)
+    let pushedClosed = false;
+    while (_modals.length > stModal) { const m = _modals.pop(); m.popping = true; m.done = true; if (m.pushed) pushedClosed = true; try { m.close(); } catch (e) {} }
+    // חלון עם רשומה משלו — ה"חזור" הזה היה שלו; חלון בלי רשומה (נפתח בלי נגיעה) — ה"חזור" ניווט אמיתי, ממשיכים
+    if (pushedClosed) { document.documentElement.dataset.modalPop = '1'; setTimeout(() => { delete document.documentElement.dataset.modalPop; }, 0); return true; }
+  }
+  return false;
+}
+function wireCoreBack() {
+  if (typeof window === 'undefined' || !window.addEventListener || window._backNav) return;
+  window._backNav = true;
+  window.addEventListener('popstate', backPopHandled);
+}
+/* </core> */
 function wireBackNav() {
   if (typeof window === 'undefined' || !window.addEventListener || window._backNav) return;
   window._backNav = true;
   window.addEventListener('popstate', () => {
-    if (_navSkipPop > 0) { // אנחנו קיצרנו את ההיסטוריה — הטאב/החלון כבר טופל (והספרייה לא מנווטת: navSkip)
-      _navSkipPop--;
-      document.documentElement.dataset.navSkip = '1';
-      setTimeout(() => { delete document.documentElement.dataset.navSkip; }, 0);
-      if (_backPending > 0) _backPending--;
-      if (!_backPending && _afterBack.length) _afterBack.splice(0).forEach((f) => { try { f(); } catch (e) {} });
-      return;
-    }
-    const stModal = (history.state && history.state.modal) || 0;
-    if (_modals.length > stModal) {   // "חזור" על חלון פתוח — סוגר אותו (והספרייה לא מנווטת: modalPop)
-      let pushedClosed = false;
-      while (_modals.length > stModal) { const m = _modals.pop(); m.popping = true; m.done = true; if (m.pushed) pushedClosed = true; try { m.close(); } catch (e) {} }
-      // חלון עם רשומה משלו — ה"חזור" הזה היה שלו; חלון בלי רשומה (נפתח בלי נגיעה) — ה"חזור" ניווט אמיתי, ממשיכים
-      if (pushedClosed) { document.documentElement.dataset.modalPop = '1'; setTimeout(() => { delete document.documentElement.dataset.modalPop; }, 0); return; }
-    }
+    if (backPopHandled()) return;
     const want = navTabForDepth(navCurDepth()), cur = currentTabName();
     if (navDepth(cur) === navCurDepth()) return; // כבר במקום (למשל טאב ראשי ברמה 0)
     switchTab(want, { fromPop: true });
@@ -11082,6 +11111,7 @@ function wireAllCardDrag() {
 
 /* v278 (בקשת המשתמש): לחיצה ארוכה → עריכה/מחיקה — כפתורים עגולים כמו בהדר (.icon-btn): עט ירוק, X אדום.
    על כרטיס — בתוך הכרטיס בקצה; על טאב — צף מתחתיו. לחיצה בכל מקום אחר מבטלת (והלחיצה עצמה לא עושה כלום אחר). */
+/* <core> */
 let _itemActs = null;
 function clearItemActions() {
   if (!_itemActs) return;
@@ -11120,6 +11150,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', (e) => { if (_itemActs && _itemActs.cancelTap) { e.stopPropagation(); e.preventDefault(); clearItemActions(); } }, true);
   document.addEventListener('scroll', () => { if (_itemActs && Date.now() - _itemActs.at > 350) clearItemActions(); }, true); // הכפתורים צפים — גלילה מבטלת
 }
+/* </core> */
 
 /* v278: טאבי רשימות המעקב — לחיצה ארוכה: גרירה לשינוי הסדר (אותו סגנון כמו הכרטיסים: מורם, מקום ריק מקווקו, השכנים מחליקים),
    שחרור בלי תזוזה = עט (שינוי שם) + X (מחיקה; לא לרשימה הראשית). הסדר ב־DB.wlOrder */
