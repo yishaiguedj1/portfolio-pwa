@@ -4588,6 +4588,7 @@ function loadDB() {
    הנתונים של הקודם עוברים למחסן שלו (pwa_stash_v1:<uid>) ונמחקים מהמקום הפעיל, ושל החדש חוזרים מהמחסן שלו (או ריק),
    ואז טעינה מחדש של הדף — כדי ששום דבר לא יישאר בזיכרון. מכשיר ותיק (בלי בעלים): הנתונים מאומצים רק כשלחשבון
    שמתחבר כבר יש מסמך בענן; חשבון חדש מתחיל נקי (והנתונים הישנים נשמרים במחסן 'legacy'). */
+/* <core> */
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
 const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו
 function accountOwner(store) {
@@ -4615,6 +4616,7 @@ function accountSwitchTo(uid, cloudHasDoc, store) {
   ls.setItem(LS_OWNER, to);
   return true;
 }
+/* </core> */
 const DB = loadDB();
 function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); try { scheduleAppWidgetSync(); } catch (e) {} } // v243: כל שינוי → לווידג'ט
 

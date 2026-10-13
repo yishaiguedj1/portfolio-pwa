@@ -13,7 +13,6 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const OPEN = '/* <core> */', CLOSE = '/* </core> */';
 /* המודולים של כל אפליקציה (כל מה ש־library.js / studio.js מייבאים). מודול חדש = להוסיף כאן. */
 const APPS = {
   academy: ['library.js', 'libadmin.js', 'libbackup.js', 'pagecurl.js', 'pagetex.js', 'ribbon3d.js', 'epubkit.js', 'academy-data.js'],
@@ -21,18 +20,21 @@ const APPS = {
 };
 const HEAD = '/* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */\n';
 
-function regions(src) {
+/* האזורים המסומנים בקובץ: tag = 'core' (app.js) או 'auth' (cloud.js, בתוך ה־IIFE — מוזחים, הסימון עם רווחים לפניו) */
+function regions(src, tag) {
+  const t = tag || 'core';
+  const open = new RegExp('^[ ]*/\\* <' + t + '> \\*/\\n', 'gm');
+  const close = new RegExp('^[ ]*/\\* </' + t + '> \\*/\\n', 'm');
   const out = [];
-  let i = 0;
-  for (;;) {
-    const a = src.indexOf(OPEN + '\n', i);
-    if (a < 0) break;
-    const b = src.indexOf(CLOSE + '\n', a);
-    if (b < 0) throw new Error('אזור core בלי סגירה');
-    out.push(src.slice(a + OPEN.length + 1, b));
-    i = b + CLOSE.length;
+  let m;
+  while ((m = open.exec(src))) {
+    const rest = src.slice(m.index + m[0].length);
+    const c = close.exec(rest);
+    if (!c) throw new Error('אזור ' + t + ' בלי סגירה');
+    out.push(rest.slice(0, c.index));
+    open.lastIndex = m.index + m[0].length + c.index + c[0].length;
   }
-  if (!out.length) throw new Error('אין אזורי core ב־app.js');
+  if (!out.length) throw new Error('אין אזורי ' + t);
   return out;
 }
 
@@ -69,6 +71,11 @@ function build() {
   const all = new Set(Object.keys(S.he));
   const coreKeys = keysIn(code.join('\n'), all);
   const files = { 'core.js': core };
+  /* auth.js — התבנית (tools/auth.tpl.js) + האזורים <auth> של cloud.js (טעינת Firebase, החיבור המשותף, החלפת בעלים) */
+  const tpl = fs.readFileSync(path.join(__dirname, 'auth.tpl.js'), 'utf8');
+  if (tpl.split('// @@cloud@@').length !== 2) throw new Error('auth.tpl.js בלי // @@cloud@@');
+  files['auth.js'] = HEAD.replace('מ־app.js', 'מ־cloud.js ו־tools/auth.tpl.js').replace('ב־app.js', 'ב־cloud.js / ב־tools/auth.tpl.js') +
+    tpl.replace('// @@cloud@@', regions(fs.readFileSync(path.join(ROOT, 'cloud.js'), 'utf8'), 'auth').join('\n').replace(/\n$/, ''));
   const problems = [];
   for (const [app, mods] of Object.entries(APPS)) {
     const keys = new Set(coreKeys);

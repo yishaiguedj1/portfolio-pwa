@@ -117,6 +117,34 @@ function askConfirmP(msg, opts) {
   return new Promise((res) => askConfirm(msg, () => res(true), Object.assign({}, opts, { onNo: () => res(false) })));
 }
 
+const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
+const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו
+function accountOwner(store) {
+  try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
+}
+/* מחזיר true כשהבעלים התחלף (צריך לטעון את הדף מחדש). cloudHasDoc: true/false/null (לא ידוע — למשל בלי רשת) */
+function accountSwitchTo(uid, cloudHasDoc, store) {
+  const ls = store || localStorage;
+  const to = uid || 'local';
+  let from = ls.getItem(LS_OWNER) || '';
+  if (from === to) return false;
+  if (!from) {
+    const hasData = ACCOUNT_KEYS.some((k) => ls.getItem(k) != null);
+    if (!hasData || to === 'local') { ls.setItem(LS_OWNER, to); return false; }
+    if (cloudHasDoc === true) { ls.setItem(LS_OWNER, to); ls.setItem(LS_LEGACY_OWNER, to); return false; }   // אותו אדם שחוזר
+    from = 'legacy';                                // חשבון חדש / לא ידוע — לא מקבל את הנתונים הישנים
+  }
+  const pack = {};
+  for (const k of ACCOUNT_KEYS) { const v = ls.getItem(k); if (v != null) pack[k] = v; ls.removeItem(k); }
+  try { if (Object.keys(pack).length) ls.setItem(LS_STASH + from, JSON.stringify(pack)); else ls.removeItem(LS_STASH + from); } catch (e) {}   // אין מקום — הפרטיות קודמת: הנתונים לא חוזרים לחשבון החדש
+  let back = null;
+  try { back = JSON.parse(ls.getItem(LS_STASH + to) || 'null'); } catch (e) {}
+  ls.removeItem(LS_STASH + to);
+  if (back) for (const k of ACCOUNT_KEYS) if (typeof back[k] === 'string') { try { ls.setItem(k, back[k]); } catch (e) {} }
+  ls.setItem(LS_OWNER, to);
+  return true;
+}
+
 function esc(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

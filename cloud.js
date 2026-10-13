@@ -28,6 +28,7 @@
   let bootFallback = null;
   let saveTimer = null;
 
+  /* <auth> */
   /* ---- החיבור המשותף (שלב 2 בתוכנית שלוש האפליקציות, 13/10/2026) ----
      השרתון מחזיק עוגייה אחת (HttpOnly — לא נראית כאן), וכל אפליקציה שואלת אותו "מי מחובר?" ומקבלת טוקן של
      Firebase לעצמה (ct). עובד רק כשהאתר והשרתון באותו אתר (thesnowball.app) — ב־github.io העוגייה לא נשלחת, ושום
@@ -89,7 +90,9 @@
   if (typeof document !== 'undefined' && document.addEventListener) {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) sessCheck(false); });
   }
+  /* </auth> */
 
+  /* <auth> */
   function sdkOk() {
     return isConfigured &&
       typeof firebase !== 'undefined' &&
@@ -136,6 +139,7 @@
       return false;
     }
   }
+  /* </auth> */
 
   function userDoc() {
     return fs.collection('users').doc(user.uid);
@@ -331,20 +335,23 @@
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(go, 0)); else setTimeout(go, 0);
   }
 
+  /* <auth> */
+  /* v313: מעבר בעלים → טעינה מחדש של הדף (שום דבר מהחשבון הקודם לא נשאר בזיכרון). שומר מפני לולאה. */
+  function switchOwner(uid, hasDoc) {
+    if (typeof accountSwitchTo !== 'function') return false;
+    let changed = false;
+    try { changed = accountSwitchTo(uid, hasDoc); } catch (e) { return 'stuck'; }
+    if (!changed) return false;
+    let last = 0;
+    try { last = +sessionStorage.getItem('pwa_owner_rl') || 0; sessionStorage.setItem('pwa_owner_rl', String(Date.now())); } catch (e) {}
+    if (Date.now() - last < 8000) return 'stuck';
+    location.reload();
+    return true;
+  }
+  /* </auth> */
+
   function watchAuth() {
     const fallback = bootFallback;
-    /* v313: מעבר בעלים → טעינה מחדש של הדף (שום דבר מהחשבון הקודם לא נשאר בזיכרון). שומר מפני לולאה. */
-    const switchOwner = (uid, hasDoc) => {
-      if (typeof accountSwitchTo !== 'function') return false;
-      let changed = false;
-      try { changed = accountSwitchTo(uid, hasDoc); } catch (e) { return 'stuck'; }
-      if (!changed) return false;
-      let last = 0;
-      try { last = +sessionStorage.getItem('pwa_owner_rl') || 0; sessionStorage.setItem('pwa_owner_rl', String(Date.now())); } catch (e) {}
-      if (Date.now() - last < 8000) return 'stuck';
-      location.reload();
-      return true;
-    };
     auth.onAuthStateChanged(async (u) => {
       clearTimeout(saveTimer);
       ready = false;
