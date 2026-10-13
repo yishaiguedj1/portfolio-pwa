@@ -52,8 +52,8 @@ ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\
   // ---------- sw.js: ההתקנה בכתובת של Academy (‏'/' שם = academy.html — הטביעה נבדקת מול הדף הזה)
   const sw = read('sw.js');
   const HASHES = JSON.parse('{' + /const HASHES = \{([\s\S]*?)\};/.exec(sw)[1].replace(/,\s*$/, '') + '}');
-  async function installAt(host) {
-    const store = new Map(); const listeners = {};
+  async function installAt(host, stale) {   // stale: {קובץ: תוכן ישן} — מה שהמטמון של הדפדפן מחזיר לבקשה שלא עוקפת אותו
+    const store = new Map(); const listeners = {}; store.listeners = listeners;
     const keyOf = (k) => new URL(typeof k === 'string' ? k : k.url, 'https://' + host + '/sw.js').pathname;
     const caches = {
       open: async () => ({ put: async (k, r) => { store.set(keyOf(k), r); } }),
@@ -64,6 +64,7 @@ ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\
       let rel = u.pathname.slice(1);
       if (rel === 'index.html') rel = '';   // כמו Cloudflare Pages: ‎/index.html → 308 לשורש (fetch עוקב), ובשורש של כתובת אפליקציה — הדף שלה (13/10/2026: בלי זה הבדיקה לא תפסה שכל עדכון שם נכשל)
       if (rel === '') rel = host.startsWith('academy') ? 'academy.html' : host.startsWith('studio') ? 'studio.html' : 'index.html';   // functions/index.js
+      if (stale && stale[rel] && req.cache !== 'reload') return new Response(stale[rel], { status: 200 });
       const f = path.join(root, rel);
       return fs.existsSync(f) ? new Response(fs.readFileSync(f), { status: 200 }) : new Response('', { status: 404 });
     };
@@ -82,6 +83,21 @@ ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\
   const i = await installAt('invest-staging.thesnowball.app');
   ok(await h(i.get('/')) === HASHES['./index.html'], 'invest ושאר הכתובות: "./" = index.html כמו קודם');
   ok(!a.has('/index.html') && !s.has('/index.html') && await h(i.get('/index.html')) === HASHES['./index.html'], 'כתובת אפליקציה: בלי index.html במטמון (מופנה לשורש = דף האפליקציה); ב־Invest — כן');
+  // 13/10/2026 (אריח המגדל האדום): אחרי ניקוי מטמון, studio.css לא נשמר בהתקנה, התבקש ב־fetch רגיל, והדפדפן החזיר עותק של
+  // הגרסה הקודמת (Cloudflare: 4 שעות בלי בדיקה) — שנשמר במטמון של הגרסה החדשה
+  {
+    const OLD = '.st-tile.t-green { background: var(--primary); }';
+    const st = await installAt('studio-staging.thesnowball.app', { 'studio.css': OLD });
+    ok(await h(st.get('/studio.css')) === HASHES['./studio.css'] && st.has('/studio.js'), 'Studio: הקבצים של הסטודיו נשמרים בהתקנה גם אחרי ניקוי מטמון — ומאומתים');
+    const ac = await installAt('academy-staging.thesnowball.app');
+    ok(ac.has('/library.js') && !ac.has('/studio.js') && !i.has('/studio.js'), 'Academy — הקבצים של הספרייה; Invest — רק מי שכבר נכנס (כמו קודם)');
+    st.delete('/studio.css');   // קובץ שחסר במטמון — בדיוק המצב בטלפון
+    const Req = class extends Request { constructor(u, o) { super(new URL(u, 'https://studio-staging.thesnowball.app/sw.js'), o); } };
+    let got; st.listeners.fetch({ request: new Req('https://studio-staging.thesnowball.app/studio.css'), respondWith: (p) => { got = p; } });
+    const res = await got; await new Promise((r) => setTimeout(r, 20));
+    ok(await h(res) === HASHES['./studio.css'] && await h(st.get('/studio.css')) === HASHES['./studio.css'], 'קובץ מהרשימה שחסר במטמון — מגיע מאומת (לא העותק הישן של הדפדפן), וזה מה שנשמר');
+  }
+  ok(/^\/\*\n  Cache-Control: no-cache$/m.test(read('_headers')), '_headers: הדפדפן בודק מול השרת כל קובץ בכל טעינה (Cloudflare Pages)');
 
   // ---------- השרתון: הכתובות של הניסוי מותרות, ורק הן
   const ib = read('ibkr-proxy/lib/ibkr.js');

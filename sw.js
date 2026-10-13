@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v407';
+const CACHE_NAME = 'portfolio-pwa-v408';
 const HASHES = {
   "./": "31b3c3f8a6a46cf31a84fe4eae55fd4f",
   "./index.html": "31b3c3f8a6a46cf31a84fe4eae55fd4f",
   "./styles.css": "e9ee13d61e7d022d49750ff12f79c8af",
-  "./app.js": "6d99039bb695ad568320ec000b38ff0c",
+  "./app.js": "60a6f49e3dcb7b97d8378b43d5e0363f",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "4d79529a9a53b944a43112551259b7d6",
@@ -48,7 +48,7 @@ const HASHES = {
   "./academy.html": "442191ef0c0920bdb363c32755f2587a",
   "./academy-app.js": "c11d632331b5232ca075a8d6b98674f4",
   "./strings-academy.js": "0aead41b04abbaa8dcd8aade79d62c0a",
-  "./core.js": "5fca4f46071570f0149fd6b3b1016c9a",
+  "./core.js": "1cbaa4f7c780e488d2829701438e9512",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
   "./shell.js": "afa442c38719878233ec1a091c5c2418",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -136,6 +136,15 @@ async function fetchVerified(p) {
    עד מחיקת נתוני האתר. שם index.html (הדף של Invest) לא נחוץ — מדלגים עליו. */
 const SHELL = ROOT_PAGE === './index.html' ? APP_SHELL : APP_SHELL.filter((p) => p !== './index.html');
 
+/* הכתובת → מפתח ברשימת הטביעות ('./studio.css'), רק לקובץ בלי פרמטרים שאינו ניווט; אחרת null */
+function shellKey(url, request) {
+  if (request.mode === 'navigate' || url.search) return null;
+  const base = new URL((self.registration && self.registration.scope) || './', self.location.href).pathname;
+  if (!url.pathname.startsWith(base)) return null;
+  const k = './' + url.pathname.slice(base.length);
+  return k !== './' && k !== './index.html' && HASHES[k] ? k : null;
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     // המעטפת — הכל או כלום: קובץ אחד ישן/חסר = ההתקנה נכשלת והגרסה הקודמת ממשיכה לעבוד
@@ -144,7 +153,8 @@ self.addEventListener('install', (event) => {
     for (const [p, r] of got) await cache.put(p, r);
     // הספרייה והסטודיו — רק אצל מי שכבר נכנס אליהם; קובץ שלא אומת לא נשמר (יורד מהרשת בשימוש)
     for (const [set, mark] of [[LIB_SHELL, './library.js'], [STUDIO_SHELL, './studio.js']]) {
-      if (!(await caches.match(mark))) continue;
+      // 13/10/2026: בכתובת של האפליקציה עצמה (academy / studio) — תמיד, גם אחרי ניקוי מטמון (עד היום רק אצל מי שכבר נכנס)
+      if (!(await caches.match(mark)) && ROOT_PAGE !== (set === LIB_SHELL ? './academy.html' : './studio.html')) continue;
       await Promise.all(set.map((p) => fetchVerified(p).then((r) => cache.put(p, r), () => {})));
     }
     await self.skipWaiting();
@@ -254,6 +264,14 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(request, { ignoreSearch: false }).then((hit) => {
       if (hit) return hit;
+      // 13/10/2026 (אריח המגדל האדום): קובץ מהרשימה של הגרסה שלא במטמון — רק מאומת, כמו בהתקנה. fetch רגיל קיבל
+      // מהמטמון של הדפדפן (Cloudflare: עד 4 שעות בלי בדיקה) עותק של גרסה קודמת, והוא נשמר כאן עד הגרסה הבאה.
+      const key = shellKey(url, request);
+      if (key) return fetchVerified(key).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(key, copy));
+        return res;
+      }, () => fetch(new Request(request, { cache: 'reload' })));   // לא אומת (פריסה באמצע?) — מהרשת, בלי לשמור
       return fetch(request).then((res) => {
         if (res && res.ok) {
           const copy = res.clone();
