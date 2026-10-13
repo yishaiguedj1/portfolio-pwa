@@ -2,14 +2,14 @@
    כמו academy-app.js: לפני הקובץ firebase-config.js, strings-studio.js, core.js, auth.js; אותו studio.js עם opt.standalone.
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
-import { createShell, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
+import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
 de.lang = lang;
 de.dir = lang === 'he' ? 'rtl' : 'ltr';
 wireCoreBack();                                    // "חזור" סוגר חלונות (askConfirm) לפני הסטודיו
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+appBoot();                                         // עדכון גרסה, רענון כשהיא משתלטת, הפס "סביבת ניסוי" (shell.js)
 setTimeout(() => { de.classList.remove('lib-restoring', 'lib-curtain'); }, 6000);
 
 const A = window.SnbAuth;
