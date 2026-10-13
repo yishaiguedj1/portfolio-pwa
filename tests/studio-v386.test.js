@@ -57,7 +57,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     'מומלץ לפעולה: הנחיות חדשות (בלי ירידה), מחוץ לתפקיד, פעולות שנכשלו, לא השלים');
   ok(st.agentRecs(null, null).length === 0 && st.agentRecs({ agents: [{ k: 'tl', vs: [], t: 100, v: 100, c: 100 }] }, {}).length === 0, 'הכל תקין — בלי המלצות');
   const sj = read('studio.js');
-  ok(/const recs = agentRecs\(ag, ui\.sh\);/.test(sj) && /k: 'ag-recs'/.test(sj), 'המגדל: שורה אחת "מומלץ לפעולה" בראש מקטע הסוכנים');
+  ok(/const recs = agentRecs\(ui\.ag, ui\.sh\);/.test(sj) && /recs\.length \? recText\(recs\[0\]\)/.test(sj), 'המגדל: שורת הסוכנים — "מומלץ לפעולה" כשיש');
   ok(!/kv\(T\('studioAgPv'\)/.test(sj) && /secT\(T\('studioPvT'\)\)/.test(sj), 'גרסת ההנחיות — רק במחזור החיים (בלי כפילות באריחים)');
   const app = read('app.js');
   for (const k of ['studioRecT', 'studioRecDrop', 'studioRecNew', 'studioRecNew1', 'studioRecTool', 'studioRecTool1', 'studioRecValid', 'studioRecCmp', 'studioRecShadow', 'studioRecShadow1',

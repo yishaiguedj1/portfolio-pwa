@@ -25,10 +25,10 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(st.normSlo({ st: 'evil', n: 1 }) === null && st.normSlo(null) === null && st.normSlo({ st: 'ok', n: 3, bad: 9 }).bad === 3, 'normSlo: מצב לא מוכר — כלום; "השתמשו" לא מעבר למספר העבודות');
   ok(JSON.stringify(st.chainFor('slo').map((x) => x.v)) === '["home","settings","tower","slo"]', '"חזור": תקציב שגיאות ← המגדל');
   const sj = read('studio.js');
-  ok(/p\.append\(\.\.\.sloSection\(\)\);/.test(sj) && /else if \(ui\.view === 'slo'\) pageSlo\(p\);/.test(sj), 'המגדל: שורה אחת → דף התקציב');
+  ok(/health\.push\(\.\.\.sloRows\(\), scanRow\(\)\);/.test(sj) && /else if \(ui\.view === 'slo'\) pageSlo\(p\);/.test(sj), 'המגדל: שורה אחת → דף התקציב');
   ok(/hero = h\('div', 'st-schero'\)/.test(sj.slice(sj.indexOf('function pageSlo('))), 'הדף: אותו כרטיס ציון של בדיקת המוכנות (בלי עיצוב חדש)');
   ok(!/studioVaAbRs/.test(sj) && !/studioVaAbRs/.test(read('app.js')), 'בלי כפילות: "עברו המשך" עבר מדף הערך לתקציב השגיאות');
-  ok(!/innerHTML/.test(sj.slice(sj.indexOf('function sloSection('), sj.indexOf('function valueSection('))), 'הדף בונה רק טקסט');
+  ok(!/innerHTML/.test(sj.slice(sj.indexOf('function sloRows('), sj.indexOf('function valueRow('))), 'הדף בונה רק טקסט');
   const app = read('app.js');
   for (const k of [...new Set((sj.match(/T\('studioSlo[A-Za-z]+'/g) || []).map((x) => x.slice(3, -1)))])
     ok((app.match(new RegExp('\\b' + k + ': "', 'g')) || []).length === 2, 'מחרוזת בעברית ובאנגלית: ' + k);

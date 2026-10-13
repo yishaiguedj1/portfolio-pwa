@@ -1431,7 +1431,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -2645,8 +2645,7 @@ function scoreTile(label, value, vals, betterUp, fmt) {
   const sv = spark(vals); if (sv) t.append(sv);
   return t;
 }
-function opsSection(o) {
-  const out = [];
+function opsScores(o) {   // v369: שלושת הציונים עם מגמה לשבוע
   const t = o.trend || { score: [], avail: [], mttr: [] };
   const fmt1 = (v) => (Math.round(v * 10) / 10).toLocaleString(uiLang() === 'en' ? 'en-US' : 'he-IL', { maximumFractionDigits: 1 });
   const sc = h('div', 'st-scores');
@@ -2654,33 +2653,23 @@ function opsSection(o) {
   sc.append(scoreTile(T('studioTwScore'), String(Math.round(o.score)), t.score, true, (v) => String(Math.round(v))),
     scoreTile(T('studioTwAvail'), fmtPct1(o.avail), t.avail, true, fmt1),
     scoreTile(T('studioOpsMttr'), o.mttr == null ? '—' : fmtShort(o.mttr * 60), t.mttr, false, (v) => String(Math.round(v))));
-  out.push(sc);
-  // התראות פתוחות — לפי ציון העדיפות; ארבע ראשונות, "הכל" מרחיב
-  const live = o.open.filter((a) => !a.m);
-  if (live.length) {
-    const head = h('div', 'st-sec-t st-sec-row');
-    head.append(h('span', null, T('studioOpsOpenT')));
-    if (live.length > 4) head.append(btn('st-linkb', ui.alAll ? T('studioTwLess') : T('studioTwAll', { n: live.length }), () => { ui.alAll = !ui.alAll; render('none'); }, 'al-all'));
-    out.push(head, list(...(ui.alAll ? live : live.slice(0, 4)).map(alertRow)));
-  }
-  const also = o.digest.top.filter((x) => !live.some((a) => a.c === x.c && a.k === x.k));   // סוגים שהיו היום ונסגרו
-  if (also.length) out.push(note(T('studioOpsDigestTop', { l: also.map((x) => opsAlert(x.c, x.k) + ' (' + x.n + ')').join(' · ') })));
-  if (o.mu.length) {
-    const det = h('details', 'st-details st-dig');
-    if (ui.muOpen) det.open = true;
-    det.addEventListener('toggle', () => { ui.muOpen = det.open; });
-    det.append(h('summary', null, T('studioOpsMutedT', { n: o.mu.length })), list(...o.mu.map((m) => {
-      const r = h('div', 'st-row st-ric st-muted');
-      const l = h('span', 'st-l'); l.append(h('b', null, opsAlert(m.c, m.k)), h('small', null, T('studioMutedUntil', { t: fmtClock(m.until) })));
-      r.append(h('i', 'st-sdot n'), l, btn('st-mini ghost', T('studioUnmute'), () => muteKind(m.c, m.k, 0), 'unmute:' + m.c + m.k));
-      return r;
-    })));
-    out.push(det);
-  }
-  return out;
+  return sc;
+}
+/* v368: התראות מושתקות — מקופלות, עם "בטל השתקה" */
+function mutedBlock(o) {
+  const det = h('details', 'st-details st-dig');
+  if (ui.muOpen) det.open = true;
+  det.addEventListener('toggle', () => { ui.muOpen = det.open; });
+  det.append(h('summary', null, T('studioOpsMutedT', { n: o.mu.length })), list(...o.mu.map((m) => {
+    const r = h('div', 'st-row st-ric st-muted');
+    const l = h('span', 'st-l'); l.append(h('b', null, opsAlert(m.c, m.k)), h('small', null, T('studioMutedUntil', { t: fmtClock(m.until) })));
+    r.append(h('i', 'st-sdot n'), l, btn('st-mini ghost', T('studioUnmute'), () => muteKind(m.c, m.k, 0), 'unmute:' + m.c + m.k));
+    return r;
+  })));
+  return det;
 }
 /* מפת השירות — לפי סדר השרשרת; רכיב עם התראה פתוחה מסומן בצבע החומרה */
-function serviceMap(o) {
+function serviceMapEl(o) {
   const map = h('div', 'st-smap');
   map.setAttribute('role', 'list'); map.setAttribute('aria-label', T('studioOpsMap'));
   OPS_COMPONENTS.forEach((c, i) => {
@@ -2691,7 +2680,7 @@ function serviceMap(o) {
     if (i) map.append(h('span', 'st-sarr', '←'));
     map.append(n);
   });
-  return [secT(T('studioOpsMap')), map];
+  return map;
 }
 /* שורת התראה ברשימה: מספר וזמן, "רכיב · מה קרה", גלולת חומרה, ופרטים בשורה אחת. נגיעה → רשומת ההתראה */
 function alertRow(a) {
@@ -2749,7 +2738,7 @@ function pageAlert(p) {
   const no = Number(ui.param);
   const all = ui.ops ? ui.ops.open : [];
   const a = all.find((x) => x.no === no);
-  p.append(navBar({ back: T('studioTwShort'), title: alrNo(no) }));
+  p.append(navBar({ back: T('studioTwAlertsT'), title: alrNo(no) }));
   if (!a) { p.append(h('div', 'st-empty st-empty-sm', T('studioAlGone'))); return; }
   const rec = a.j ? jobRec(a.j) : null;
   // כרטיס הכותרת
@@ -2910,14 +2899,6 @@ function majorBanner(inTower) {
   return b;
 }
 /* מקטע "תקלות" במגדל: פתוחות ובטיפול קודם, ואז שנסגרו לאחרונה; ארבע ראשונות, "הכל" מרחיב */
-function incSection() {
-  const L = ui.inc ? ui.inc.list : [];
-  if (!L.length) return [];
-  const head = h('div', 'st-sec-t st-sec-row');
-  head.append(h('span', null, ui.inc.open ? T('studioIncSecN', { n: ui.inc.open }) : T('studioIncSec')));
-  if (L.length > 4) head.append(btn('st-linkb', ui.incAll ? T('studioTwLess') : T('studioTwAll', { n: L.length }), () => { ui.incAll = !ui.incAll; render('none'); }, 'inc-all'));
-  return [head, list(...(ui.incAll ? L : L.slice(0, 4)).map((x) => incRow(x)))];
-}
 function incSummary(x) {
   const top = x.rc[0];
   if (x.st === 'o') return T('studioIncSumO', { t: opsAgo(x.f), r: top ? rcText(top, x) : incTitle(x.e) });
@@ -2966,7 +2947,7 @@ function pirSection(x) {
 function pageInc(p) {
   const no = Number(ui.param);
   const x = ui.inc ? ui.inc.list.find((y) => y.no === no) : null;
-  p.append(navBar({ back: T('studioTwShort'), title: incNo(no) }));
+  p.append(navBar({ back: T('studioTwAlertsT'), title: incNo(no) }));
   if (!x) { p.append(h('div', 'st-empty st-empty-sm', T('studioIncGone'))); return; }
   const rec = jobRec(x.j);
   const band = h('div', 'st-band ' + SEV_CLS[x.s]);
@@ -3087,22 +3068,6 @@ function effortName(e) {
 const agentModel = (a) => [a.m ? modelLabel(a.m) : '', effortName(a.ef)].filter(Boolean).join(' ');
 function agentTile(k) { const t = h('span', 'st-agt a-' + k, agentAbbr(k)); t.setAttribute('aria-hidden', 'true'); return t; }
 /* שורה לכל סוכן במגדל: מודל, עבודות, עלות; משמאל — אחוז ההצלחה. נגיעה → מסך המלאי */
-function agentsSection() {
-  const ag = ui.ag;
-  if (!ag || !ag.agents.length) return [];
-  const recs = agentRecs(ag, ui.sh);   // v386: "מומלץ לפעולה" — שורה אחת בראש, הפרטים בבקרת הסוכנים
-  return [secT(T('studioAgSec', { n: ag.jobs })), list(recs.length ? rowNav({ tile: tile('alert', 'orange'), label: T('studioRecT'), sub: recText(recs[0]),
-    value: ltr(String(recs.length)), onClick: () => go('agents'), k: 'ag-recs' }) : null, ...ag.agents.map((a) => {
-    const r = btn('st-row st-ric', null, () => go('agents'), 'ag:' + a.k);
-    const l = h('span', 'st-l');
-    const sub = h('small');
-    sub.append(h('bdi', null, agentModel(a)), ' · ' + T('studioAgJobs', { n: a.jobs }) + ' · ');
-    sub.append(usdEl(a.usd, a.partial));
-    l.append(h('b', null, agentName(a.k)), sub);   // "הנחיות חדשות" — במסך המלאי (כאן השורה קצרה)
-    r.append(agentTile(a.k), l, h('span', 'st-v', a.ok == null ? '—' : ltr(a.ok + '%')));
-    return r;
-  }))];
-}
 function recText(r) {
   const a = r.a ? agentName(r.a) : '';
   switch (r.k) {
@@ -3246,14 +3211,6 @@ function pbRow(x) {
   r.append(tg, h('b', null, pbTitle(x)), pill(PB_CLS[x.state], pbStName(x.state)), sub);
   return r;
 }
-function pbSection() {
-  const L = ui.pb ? ui.pb.list : [];
-  if (!L.length) return [];
-  const head = h('div', 'st-sec-t st-sec-row');
-  head.append(h('span', null, T('studioPbSec')));
-  if (L.length > 4) head.append(btn('st-linkb', ui.pbAll ? T('studioTwLess') : T('studioTwAll', { n: L.length }), () => { ui.pbAll = !ui.pbAll; render('none'); }, 'pb-all'));
-  return [head, list(...(ui.pbAll ? L : L.slice(0, 4)).map(pbRow))];
-}
 function rbName(k) {
   switch (k) {
     case 'net': return T('studioRbNet');
@@ -3314,7 +3271,7 @@ function slaCard(sla) {
 /* v383: תקציב שגיאות — שורה במגדל (כמה נשאר) → דף slo */
 const SLO_TILE = { ok: 'green', warn: 'orange', fast: 'orange', out: 'red', few: 'blue' };
 function sloSub(sl) { return sl.st === 'few' ? T('studioSloFew', { g: sl.good, n: sl.n, m: sl.min }) : T('studioSloAtt', { a: fmtNum(sl.att), t: sl.t }); }
-function sloSection() {
+function sloRows() {   // אמינות (תקציב שגיאות) וחריגות — שורות לקבוצה "מצב השירות" במגדל
   const sl = ui.slo, an = ui.an;
   const rows = [];
   if (sl && sl.n) rows.push(rowNav({ tile: tile('shield', SLO_TILE[sl.st]), label: T('studioSloT'), sub: sloSub(sl),
@@ -3325,7 +3282,7 @@ function sloSection() {
     rows.push(rowNav({ tile: tile('chart', act.length ? 'orange' : an.m.length ? 'green' : 'blue'), label: T('studioAnT'), sub: anSub(an),
       value: top ? ltr(fmtNum(top.s)) : '', onClick: () => go('anom'), k: 'tower-anom' }));
   }
-  return rows.length ? [secT(T('studioSloSec')), list(...rows)] : [];
+  return rows;
 }
 /* v385: ציון חריגה */
 function anSub(an) {
@@ -3427,9 +3384,9 @@ function pageSlo(p) {
   }
   p.append(note(T('studioSloNote')));
 }
-function valueSection() {
+function valueRow() {
   const va = ui.va;
-  if (!va || (!va.n && !va.bn)) return [];
+  if (!va || (!va.n && !va.bn)) return null;
   // הכותרת של המקטע כבר אומרת "ערך ועלות" — בשורה המספר עצמו (בלי כפילות)
   const r = btn('st-row st-ric', null, () => go('value'), 'tower-value');
   const l = h('span', 'st-l'), b = h('b');
@@ -3439,7 +3396,7 @@ function valueSection() {
   l.append(b);
   if (va.n && va.saved != null) l.append(h('small', null, T('studioVaMinS', { n: fmtNum(va.min) })));
   r.append(tile('chart', 'green'), l, ico('chev', 'st-chev'));
-  return [secT(T('studioVaSec')), list(r)];
+  return r;
 }
 const fmtNum = (n) => { try { return new Intl.NumberFormat(uiLang(), { maximumFractionDigits: n < 10 ? 1 : 0 }).format(n); } catch (e) { return String(Math.round(n)); } };
 /* סכום שלם או גדול — בלי אגורות ועם מפריד אלפים ("$2,031", "$5"); קטן — כמו בכל הסטודיו ("$0.08") */
@@ -3488,10 +3445,10 @@ const SC_P_CLS = ['', 'c', 'h', 'w', 'i', 'l'];
 const scColor = (s) => (s >= 90 ? 'green' : s >= 70 ? 'orange' : 'red');
 function scLabel(sc) { return !sc.f.length ? T('studioScAllOk') : sc.s >= 70 ? T('studioScMostly') : T('studioScNeeds'); }
 function scFindCount(n) { return n === 1 ? T('studioScFind1') : T('studioScFindN', { n }); }
-function scanSection() {
+function scanRow() {
   const sc = ui.sc;
   const sub = !sc ? T('studioScNever') : (sc.f.length ? scFindCount(sc.f.length) : T('studioScAllOk')) + ' · ' + opsAgo(sc.at);
-  return [secT(T('studioScSec')), list(rowNav({ tile: tile('shield', sc ? scColor(sc.s) : 'blue'), label: T('studioScT'), sub, value: sc ? String(sc.s) : '', onClick: () => go('scan'), k: 'tower-scan' }))];
+  return rowNav({ tile: tile('shield', sc ? scColor(sc.s) : 'blue'), label: T('studioScT'), sub, value: sc ? String(sc.s) : '', onClick: () => go('scan'), k: 'tower-scan' });
 }
 function scCat(ch) {
   switch (ch) {
@@ -3629,7 +3586,7 @@ function pageScan(p) {
 function pageProb(p) {
   const no = Number(ui.param);
   const x = ui.pb ? ui.pb.list.find((y) => y.no === no) : null;
-  p.append(navBar({ back: T('studioTwShort'), title: pbNo(no) }));
+  p.append(navBar({ back: T('studioTwProbsT'), title: pbNo(no) }));
   if (!x) { p.append(h('div', 'st-empty st-empty-sm', T('studioPbGone'))); return; }
   const band = h('div', 'st-band ' + PB_CLS[x.state]);
   band.append(h('small', null, T('studioPbKind')), h('b', null, pbTitle(x)));
@@ -3657,6 +3614,11 @@ function pageProb(p) {
   p.append(note(T('studioPbScoreN')));
 }
 /* v363: מסך "מגדל הפיקוח" — מה קורה עכשיו, "הרגיל" שלך לכל מצב (נלמד מהעבודות שלך), מתי עוצרים, ועצירות אחרונות */
+/* 13/10/2026 (בקשת המשתמש: "עמוד קצר יותר, אבל כמה שיותר מידע בקלות ובממשק נקי — כמו ש־Apple יודעים"): כמו "סיכום" ב־Health.
+   למעלה מה שצריך לראות במבט: המשפט על המצב, שלושת הציונים, מה דורש תשומת לב (2 הראשונות) ופעולות מהירות; ואז שתי
+   קבוצות של שורות (סמל, שם, הערך שלה, חץ) — "מצב השירות" ו"סוכנים ועלות" — וכל נושא בעמוד משנה משלו (התראות ותקלות,
+   מפת השירות, בעיות ותיקונים, הרגיל ומתי עוצרים; השאר — העמודים שכבר היו). "עכשיו" — רק כשיש עבודה שרצה */
+const TW_SUBS = ['alerts', 'smap', 'probs', 'norm'];
 function pageTower(p) {
   // v369: כותרת כמו בתוכנית — היום והתאריך, ומשפט אחד על המצב
   const nUrg = urgentAlerts().length;
@@ -3668,8 +3630,15 @@ function pageTower(p) {
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל
   const mb = majorBanner(true); if (mb) p.append(mb);   // v371: תקלה רחבה — הפעלות מחכות
-  if (ui.ops) p.append(...opsSection(ui.ops));   // v365/v369: ציונים עם מגמה והתראות פתוחות
-  p.append(...incSection());   // v371: תקלות — מה קרה לעבודות (ההתראות שמעל = האותות מהרכיבים)
+  if (ui.ops) p.append(opsScores(ui.ops));   // v369: שלושת הציונים עם מגמה
+  // מה דורש תשומת לב — שתי ההתראות הראשונות לפי ציון העדיפות, ושורה לכל ההתראות והתקלות
+  const live = ui.ops ? ui.ops.open.filter((a) => !a.m) : [];
+  const nInc = ui.inc ? ui.inc.open : 0;
+  if (ui.ops || nInc) {
+    const sub = live.length || nInc ? [live.length ? T('studioTwAlN', { n: live.length }) : '', nInc ? T('studioTwIncN', { n: nInc }) : ''].filter(Boolean).join(' · ') : T('studioTwQuiet');
+    p.append(setCard(T('studioTwAttnT'), list(...live.slice(0, 2).map(alertRow),
+      rowNav({ tile: tile('alert', live.some((a) => a.s <= 2) || nInc ? 'orange' : 'green'), label: T('studioTwAlertsT'), sub, onClick: () => go('alerts'), k: 'tw-alerts' }))));
+  }
   // v369: פעולות מהירות — רק מה שקיים
   const qa = h('div', 'st-qa');
   const qbtn = (icon, lbl, fn, k, cls) => { const b = btn('st-qa-b' + (cls ? ' ' + cls : ''), null, fn, k); const i = h('i'); i.append(ico(icon)); b.append(i, h('span', null, lbl)); return b; };
@@ -3678,33 +3647,80 @@ function pageTower(p) {
   if (resumable) qa.append(qbtn('film', T('studioQaResume'), () => go('job', resumable.id), 'qa-resume'));
   qa.append(qbtn('sliders', T('studioRlT'), () => go('rules'), 'qa-rules'));
   if (!ui.halt) qa.append(qbtn('power', T('studioQaHalt'), () => askHalt(), 'qa-halt', 'neg'));   // עצורים — "להחזיר" רק בבאנר שלמעלה
-  p.append(secT(T('studioTwQuick')), qa);
-  if (ui.ops) p.append(...serviceMap(ui.ops));
-  if (ui.api && (ui.api.admin || ui.api.servers)) {   // מצב API: השרת של המערכת
-    p.append(list(rowNav({ tile: tile('cloud', ui.api.online ? 'green' : 'orange'), label: T('studioSrvT'),
-      sub: ui.api.online ? T('studioSrvOnN', { n: ui.api.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'tower-srv' })));
-  }
-  p.append(...agentsSection());   // v373: מלאי הסוכנים — 30 יום
-  p.append(...valueSection());    // v377: ערך ועלות החודש
-  p.append(...sloSection());      // v383: תקציב שגיאות
-  p.append(...scanSection());     // v378: בדיקת מוכנות ותחזוקה
-  const name = (rec) => { const b = h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')); return b; };
-  const jobRow = (rec, sub, color, k) => {
-    const r = btn('st-row st-ric', null, () => go('job', rec.id), k);
-    const l = h('span', 'st-l'); const b = h('b'); b.append(name(rec)); l.append(b, h('small', null, sub));
-    r.append(tile('shield', color), l, ico('chev', 'st-chev'));
-    return r;
-  };
+  p.append(qa);
+  // עכשיו — רק כשמשהו רץ (בלי שורה "אין עבודה פעילה")
   const act = store.jobs.filter((r) => r.srv && (r.srv.state === 'running' || r.srv.state === 'queued'));
-  p.append(secT(T('studioTwSecNow')), list(...(act.length ? act.map((rec) => {
+  if (act.length) p.append(setCard(T('studioTwSecNow'), list(...act.map((rec) => {
     const tw = rec.srv.tw;
-    const sub = !tw ? T('studioTwWaitRep') : tw.sh ? T('studioShWarn') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });   // בלי "מגדל הפיקוח ·" — כבר בכותרת
-    return jobRow(rec, sub, tw && tw.lv === 'warn' ? 'orange' : 'green', 'tw:' + rec.id);
-  }) : [h('div', 'st-row st-muted', T('studioTwNone'))])));
-  // v369: "שליטה" (החוקים שלך ומתג החירום) — בפעולות המהירות למעלה, בלי שורות כפולות
-  // v376: ספר התיקונים הפך לניהול בעיות (Problem · KEDB) — כל תקלה שחוזרת, מה העקיפה, ומה שווה לתקן בקוד; ואחריו ספרי ההפעלה
-  p.append(...pbSection(), ...rbSection());
-  // הרגיל — המצב שבשימוש בברירת המחדל, וכל מצב שכבר נלמד מהעבודות שלך
+    const sub = !tw ? T('studioTwWaitRep') : tw.sh ? T('studioShWarn') : tw.lv === 'warn' ? T('studioTwWarnS', { x: fmtX(tw.x) }) : T('studioTwOkS', { x: fmtX(tw.x) });
+    const r = btn('st-row st-ric', null, () => go('job', rec.id), 'tw:' + rec.id);
+    const l = h('span', 'st-l'); const b = h('b'); b.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled'))); l.append(b, h('small', null, sub));
+    r.append(tile('shield', tw && tw.lv === 'warn' ? 'orange' : 'green'), l, ico('chev', 'st-chev'));
+    return r;
+  }))));
+  // מצב השירות — מפת השירות, השרת, אמינות וחריגות, בדיקת המוכנות, בעיות ותיקונים
+  const health = [];
+  if (ui.ops) {
+    const bad = OPS_COMPONENTS.filter((c) => ui.ops.comp[c]);
+    const worst = bad.length ? Math.min(...bad.map((c) => ui.ops.comp[c])) : 0;
+    health.push(rowNav({ tile: tile('shield', !bad.length ? 'green' : worst <= 2 ? 'red' : 'orange'), label: T('studioOpsMap'),
+      sub: !bad.length ? T('studioTwMapOk') : bad.map(opsComp).join(' · '), onClick: () => go('smap'), k: 'tw-smap' }));
+  }
+  if (ui.api && (ui.api.admin || ui.api.servers)) {   // מצב API: השרת של המערכת
+    health.push(rowNav({ tile: tile('cloud', ui.api.online ? 'green' : 'orange'), label: T('studioSrvT'),
+      sub: ui.api.online ? T('studioSrvOnN', { n: ui.api.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'tower-srv' }));
+  }
+  health.push(...sloRows(), scanRow());
+  const pbOpen = ui.pb ? ui.pb.open : 0;
+  if ((ui.pb && ui.pb.list.length) || ui.rb) {
+    const top = ui.pb && ui.pb.list.find((x) => x.state !== 'f');
+    health.push(rowNav({ tile: tile('sliders', pbOpen ? 'orange' : 'green'), label: T('studioTwProbsT'), sub: top ? pbTitle(top) : T('studioTwProbsNone'),
+      value: pbOpen ? ltr(String(pbOpen)) : '', onClick: () => go('probs'), k: 'tw-probs' }));
+  }
+  p.append(setCard(T('studioTwGrpHealth'), list(...health)));
+  // סוכנים ועלות — הסוכנים, ערך ועלות, הרגיל ומתי עוצרים
+  const ag = [];
+  if (ui.ag && ui.ag.agents.length) {
+    const recs = agentRecs(ui.ag, ui.sh);   // v386: "מומלץ לפעולה" — הפירוט בבקרת הסוכנים
+    ag.push(rowNav({ tile: tile(recs.length ? 'alert' : 'spark', recs.length ? 'orange' : 'green'), label: T('studioTwAgentsT'),
+      sub: recs.length ? recText(recs[0]) : T('studioTwAgentsS', { n: ui.ag.agents.length, j: ui.ag.jobs }), value: recs.length ? ltr(String(recs.length)) : '', onClick: () => go('agents'), k: 'tw-agents' }));
+  }
+  const vr = valueRow(); if (vr) ag.push(vr);
+  ag.push(rowNav({ tile: tile('coin', 'blue'), label: T('studioTwNormT'), sub: T('studioTwNormS'), onClick: () => go('norm'), k: 'tw-norm' }));
+  p.append(setCard(T('studioTwGrpAgents'), list(...ag)));
+}
+/* התראות ותקלות — כל ההתראות הפתוחות (לפי ציון העדיפות), סיכום 24 שעות, מושתקות, ותקלות */
+function pageAlerts(p) {
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioTwAlertsT')));
+  const ab = accessBanner(); if (ab) p.append(ab);
+  const o = ui.ops;
+  const live = o ? o.open.filter((a) => !a.m) : [];
+  if (live.length) p.append(setCard(T('studioOpsOpenT'), list(...live.map(alertRow))));
+  if (o) {
+    const also = o.digest.top.filter((x) => !live.some((a) => a.c === x.c && a.k === x.k));   // סוגים שהיו היום ונסגרו
+    if (also.length) p.append(note(T('studioOpsDigestTop', { l: also.map((x) => opsAlert(x.c, x.k) + ' (' + x.n + ')').join(' · ') })));
+    if (o.mu.length) p.append(mutedBlock(o));
+  }
+  const L = ui.inc ? ui.inc.list : [];
+  if (L.length) p.append(setCard(ui.inc.open ? T('studioIncSecN', { n: ui.inc.open }) : T('studioIncSec'), list(...L.map((x) => incRow(x)))));
+  if (!live.length && !L.length) p.append(setCard(null, list(h('div', 'st-row st-muted', T('studioTwQuiet')))));
+}
+/* מפת השירות — הרכיבים לפי סדר השרשרת, רכיב עם התראה פתוחה בצבע החומרה */
+function pageSmap(p) {
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioOpsMap')));
+  if (ui.ops) p.append(setCard(null, serviceMapEl(ui.ops)), note(T('studioTwMapNote')));
+}
+/* בעיות ותיקונים — כל בעיה שחוזרת (ספר התיקונים) וספרי ההפעלה של החודש */
+function pageProbs(p) {
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioTwProbsT')));
+  const L = ui.pb ? ui.pb.list : [];
+  if (L.length) p.append(setCard(T('studioPbSec'), list(...L.map(pbRow))));
+  const rb = rbSection();
+  if (rb.length) p.append(setCard(T('studioRbSec'), rb[1]), rb[2]);
+}
+/* הרגיל ומתי עוצרים — מה עולה עבודה רגילה בכל מצב (נלמד מהעבודות שלך), והספים של המגדל */
+function pageNorm(p) {
+  p.append(navBar({ back: T('studioTwShort') }), large(T('studioTwNormT')));
   const nm = curNorm();
   let learned = false;
   if (nm) {
@@ -3722,12 +3738,10 @@ function pageTower(p) {
       r.dataset.k = 'nm:' + id;
       return r;
     });
-    p.append(secT(T('studioTwSecNorm')), list(...rows));
+    p.append(setCard(T('studioTwSecNorm'), list(...rows)));
   }
   const rule = (txt) => h('div', 'st-row st-rule', txt);   // כללים — טקסט רגיל, לא כותרות
-  p.append(secT(T('studioTwSecRules')), list(rule(learned ? T('studioTwR1U') : T('studioTwR1')), rule(T('studioTwR2')), rule(T('studioTwR3')), rule(T('studioTwR4'))),
-    note(T('studioTwRulesNote')));
-  // v368: "עצירות אחרונות" הוסר — עצירה של המגדל היא התראה דחופה למעלה (נגיעה → העבודה, עם כרטיס העצירה)
+  p.append(setCard(T('studioTwSecRules'), list(rule(learned ? T('studioTwR1U') : T('studioTwR1')), rule(T('studioTwR2')), rule(T('studioTwR3')), rule(T('studioTwR4'))), note(T('studioTwRulesNote'))));
 }
 /* v367: מתג החירום — "עצור את כל הסוכנים" (מבטל את מפתחות העבודות, המגדל עוצר את הסשן, הפעלות מושהות) ו"להחזיר" */
 let haltBusy = false;
@@ -5715,7 +5729,7 @@ function shapeKey() {
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');
-  if (ui.view === 'tower') return 'tower|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(curNorm()) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
+  if (ui.view === 'tower' || TW_SUBS.includes(ui.view)) return ui.view + '|' + store.jobs.map(one).join(',') + '|' + ui.access + '|' + JSON.stringify(curNorm()) + JSON.stringify(ui.fb) + JSON.stringify(ui.ops) + JSON.stringify(ui.rl) + ui.halt + '|' + (ui.alAll ? 1 : 0) + JSON.stringify(ui.inc) + (ui.incAll ? 1 : 0) + JSON.stringify(ui.ag) + JSON.stringify(ui.pb) + (ui.pbAll ? 1 : 0) + JSON.stringify(ui.rb) + JSON.stringify(ui.sc) + JSON.stringify(ui.va) + JSON.stringify(ui.slo) + JSON.stringify(ui.sh) + JSON.stringify(ui.an);   // v383 · v384
   if (ui.view === 'alert') return 'alert|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.ops) + (ui.alTab || 'd') + ui.muPick + ackBusy + JSON.stringify(ui.fb) + store.jobs.map((r) => r.id + (r.srv && r.srv.fr ? r.srv.fr.s : '')).join();
   if (ui.view === 'agents') return 'agents|' + ui.access + '|' + JSON.stringify(ui.ag);
   if (ui.view === 'scan') return 'scan|' + ui.access + '|' + JSON.stringify(ui.sc) + scanBusy + (ui.scOk ? 1 : 0);   // v378
@@ -5774,6 +5788,10 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'store') pageStore(p);
   else if (ui.view === 'push') pagePush(p);
   else if (ui.view === 'tower') pageTower(p);
+  else if (ui.view === 'alerts') pageAlerts(p);     // 13/10/2026: עמודי המשנה של המגדל
+  else if (ui.view === 'smap') pageSmap(p);
+  else if (ui.view === 'probs') pageProbs(p);
+  else if (ui.view === 'norm') pageNorm(p);
   else if (ui.view === 'alert') pageAlert(p);
   else if (ui.view === 'inc') pageInc(p);
   else if (ui.view === 'agents') pageAgents(p);
@@ -5808,7 +5826,7 @@ const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(pref
 function onEnter() {
   if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
   else if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store') refreshStatus();
-  else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
+  else if (ui.view === 'tower' || TW_SUBS.includes(ui.view)) { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
   else if (ui.view === 'gloss') { refreshStatus(true); glossLoad(true); }   // v380: המילון — תמיד הגרסה העדכנית מ־Drive
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }

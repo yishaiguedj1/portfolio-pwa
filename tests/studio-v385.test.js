@@ -99,7 +99,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(bad && Object.keys(bad.j).length === 1 && bad.j['j' + 'A'.repeat(20)].length === 1 && bad.m.length === 1 && bad.m[0].tr === 'f' && bad.m[0].p === false, 'normAn: מסנן מפתחות, רכיבים וציונים לא תקינים');
   ok(st.normAn(null) === null, 'normAn: בלי נתונים — null');
   const sj = read('studio.js');
-  ok(/x === 'slo' \|\| x === 'anom' \? \['tower', null\]/.test(sj), 'דף החריגות — אב = המגדל');
+  ok(/x === 'slo' \|\| x === 'anom' \|\| TW_SUBS\.includes\(x\) \? \['tower', null\]/.test(sj), 'דף החריגות — אב = המגדל');
   ok(/p\.append\(\.\.\.anJobRows\(rec\)\);/.test(sj) && /const show = rows\.filter\(\(r\) => r\[1\] >= 3\);/.test(sj), 'דף העבודה: רק שלבים עם ציון 3 ומעלה');
   for (const c of ['claude', 'drive', 'vt']) ok(new RegExp("case '" + c + ":anomaly': return T\\('studioAl").test(sj), 'תווית להתראה ' + c + ':anomaly');
   const app = read('app.js');

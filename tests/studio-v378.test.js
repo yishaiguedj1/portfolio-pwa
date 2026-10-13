@@ -30,7 +30,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(st.normScan(null) === null && st.normScan({ at: 'x' }) === null && st.normScan({ at: 1, s: 900 }).s === 100, 'normScan: בלי זמן — null; ציון חסום ל־100');
   ok(st.chainFor('scan').map((x) => x.v).join() === 'home,settings,tower,scan', 'רענון בדף הבדיקה — חוזר דרך המגדל');
   const sj = read('studio.js');
-  ok(/p\.append\(\.\.\.scanSection\(\)\)/.test(sj) && /else if \(ui\.view === 'scan'\) pageScan\(p\)/.test(sj), 'מגדל: שורת מוכנות → דף');
+  ok(/health\.push\(\.\.\.sloRows\(\), scanRow\(\)\);/.test(sj) && /else if \(ui\.view === 'scan'\) pageScan\(p\)/.test(sj), 'מגדל: שורת מוכנות → דף');
   ok(/askConfirm\(scCleanQ\(x\), go2, \{ danger: true/.test(sj) && /askConfirm\(T\('studioScQAll'\), doIt, \{ danger: true/.test(sj), 'נקה — תמיד באישור הרסני');
   // כל סוג ממצא בשרתון — עם כותרת בטלפון (מחרוזות קבועות, בלי T(משתנה))
   for (const k of Object.keys(SC.KINDS)) ok(k === 'old' ? /default: return \[one \? T\('studioScOld1'\)/.test(sj) : sj.includes("case '" + k + "': return ["), 'תווית לממצא ' + k);

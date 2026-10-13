@@ -52,7 +52,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(N.score === 72 && N.comp.drive === 3 && N.comp.claude === 0 && !('evil' in N.comp) && N.open.length === 1 && N.open[0].rel === 1 && M.normOps('x') === null,
     'טלפון: normOps — רכיבים וסוגים תקינים בלבד');
   const st = read('studio.js');
-  ok(/if \(ui\.ops\) p\.append\(\.\.\.opsSection\(ui\.ops\)\)/.test(st) && /function opsAlert\(c, k\)/.test(st), 'טלפון: מסך המגדל — בריאות, מפת השירות והתראות פתוחות');
+  ok(/if \(ui\.ops\) p\.append\(opsScores\(ui\.ops\)\)/.test(st) && /function pageSmap\(p\)/.test(st) && /live\.slice\(0, 2\)\.map\(alertRow\)/.test(st) && /function opsAlert\(c, k\)/.test(st), 'טלפון: מסך המגדל — בריאות, מפת השירות והתראות פתוחות');
   ok(/opsEvent\(id, \[\{ c: k\[0\], k: k\[1\] \}\]\)/.test(st) && /run\.err === 'net' \? null/.test(st), 'טלפון: העלאה שנכשלה → אירוע ("אין רשת" בטלפון — לא תקלה של הסטודיו)');
   const app = read('app.js');
   const kinds = Object.keys(O.KINDS);

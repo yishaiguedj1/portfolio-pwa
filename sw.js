@@ -9,7 +9,7 @@ const HASHES = {
   "./": "5afa03aea42b83f6e338470dd5195c34",
   "./index.html": "5afa03aea42b83f6e338470dd5195c34",
   "./styles.css": "80028ed6571ee811cb0a4049bff8f2cb",
-  "./app.js": "7c7d854bf5e3449f07a5ee9e916acb2b",
+  "./app.js": "63b83f9ad339f53d07971d4bb610403f",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "4d79529a9a53b944a43112551259b7d6",
@@ -47,12 +47,12 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ec20f16630bfc11f0d17777e3b342025",
   "./academy-app.js": "4536f0fedf63c275c0587451aae57d7d",
-  "./strings-academy.js": "4f1456bc7e15470de78d9366bcc350c5",
+  "./strings-academy.js": "58e661ed32987cdf0d46702e2da33888",
   "./core.js": "e81cbde4c49ba56ff37070258b4c498c",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
   "./shell.js": "67af7a5f790ad32d9ba113f31252751a",
   "./logo-academy.png": "6ece7ee5b88d5272b19060d20315dd79",
-  "./studio.js": "76eae8eae8fbf1e1c60812dcb5192e6b",
+  "./studio.js": "a4664ac3d111b4a19643ade3cd1559b8",
   "./studio.css": "a1612167c90cc65c90f1875e2bb28240",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
@@ -62,7 +62,7 @@ const HASHES = {
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "19e2b78d7b2c7b7b9108eb19e27f4f06",
   "./studio-app.js": "d19b8e58d80c93a22e6236271126ab80",
-  "./strings-studio.js": "6891dbb43ba2e91bdf84c45741613dd4",
+  "./strings-studio.js": "36f07881c59f0ad512f5b8681174f59d",
   "./logo-studio.png": "a75ebb22123a1c29a256e8d4798d376e"
 };
 /* </swgen> */
