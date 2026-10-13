@@ -30,7 +30,7 @@ function envAt(host) {
   ok(true, 'באתר המאוחד (github.io, staging, pages.dev, localhost) — הדפים שלידו');
   ok(envAt('invest-staging.thesnowball.app').name === 'staging' && envAt('invest.thesnowball.app').name === 'prod' && envAt('evil-staging.thesnowball.app').name === 'prod', 'רק השמות הידועים עם -staging = ניסוי');
 }
-ok(/import \{ createShell, APP_URL, loginGate \} from '\.\/shell\.js'/.test(read('academy-app.js')) && /home: APP_URL\.invest/.test(read('studio-app.js')), '"THE SNOWBALL" בדפים העצמאיים → הכתובת של Invest');
+ok(/import \{ createShell, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards \} from '\.\/shell\.js'/.test(read('academy-app.js')) && /home: APP_URL\.invest/.test(read('studio-app.js')), '"THE SNOWBALL" בדפים העצמאיים → הכתובת של Invest');
 ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\.SNB_ENV\.apps;/.test(read('shell.js')), 'shell.js לוקח את הכתובות מ־firebase-config.js');
 
 // ---------- functions/index.js: השורש של כל כתובת

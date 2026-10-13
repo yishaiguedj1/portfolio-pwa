@@ -901,6 +901,8 @@ async function renderHomeNow() {
   if (ui.view && ui.view.admin) return renderAdmin();
   if (ui.view && ui.view.edit) return renderEdit(ui.view.edit);
   if (ui.view && ui.view.backup) return renderBackup();
+  if (ui.view && ui.view.settings) return renderSettings();
+  if (ui.view && ui.view.advanced) return renderAdvanced();
   if (ui.view && ui.view.bkbooks) return renderBackupBooks();
   if (ui.view && ui.view.coll) return renderColl(ui.view.coll);
   const allB = await allBooks();
@@ -1196,24 +1198,22 @@ function restoreCard(o) {
   card.append(go, prog);
   return card;
 }
-/* עצמאי (academy.html): הגלובוס בתפריט הפתוח = הגדרות Academy — החשבון. השפה וערכת הנושא — בהדר; הגיבוי — בתפריט (מקום אחד) */
-function openAcademySettings() {
-  const A = SA && SA.auth;
-  sheet(T('menuSettings'), (sh, close) => {
-    const list = h('div', 'lib-ios');
-    const u = A && A.user();
-    if (u) {
-      const who = h('div', 'lib-row'); who.append(h('span', 'lib-row-l', u.email || u.displayName || ''));
-      const out = h('button', 'lib-row danger'); out.type = 'button'; out.append(h('span', null, T('signOut')));
-      out.addEventListener('click', () => { close(); A.signOut(); });   // החיבור משתנה → הדף נטען מחדש (academy-app.js)
-      list.append(who, out);
-    } else if (A) {
-      const si = h('button', 'lib-row'); si.type = 'button'; si.append(h('span', null, T('googleSignIn')));
-      si.addEventListener('click', () => { close(); A.signIn().then((ok) => { if (!ok && typeof flash === 'function') flash(T('loginFailed')); }); });
-      list.append(si);
-    }
-    sh.append(list);
-  });
+/* עצמאי (academy.html): הגלובוס בתפריט הפתוח = הגדרות Academy — עמוד בפני עצמו (13/10/2026, בקשת המשתמש: באותה שפת עיצוב
+   כמו ההגדרות של Invest). כרטיס החשבון וכרטיס "תצוגה" — מ־shell.js, אחד לאחד כמו ב־Invest; הגיבוי — בתפריט (מקום אחד) */
+function openAcademySettings() { if (!(ui.view && ui.view.settings)) goView({ settings: 1 }); }
+function renderSettings() {
+  const home = subPage('');
+  home.classList.add('lib-setpage');
+  const big = home.querySelector('.lib-large'); if (big) big.remove();   // בלי כותרת "הגדרות" — בקשת המשתמש (כמו ב־Invest)
+  const C = SA && SA.cards;
+  if (C) home.append(C.account(), C.advRow(() => goView({ advanced: 1 })), C.display());   // הסדר של Invest
+}
+function renderAdvanced() {                  // "אפשרויות מתקדמות" — כמו ב־Invest: האפליקציה לאנדרואיד, גרסה וניקוי מטמון
+  const home = subPage(T('advancedTitle'));
+  home.classList.add('lib-setpage');
+  const back = home.querySelector('.lib-back span'); if (back) back.textContent = T('menuSettings');
+  const C = SA && SA.cards;
+  if (C) home.append(...C.advanced());
 }
 function openMineMenu() {                  // ⋯ בספרייה שלי: גיבוי, ייבוא, איפוס
   sheet(T('libMine'), (sh, close) => {

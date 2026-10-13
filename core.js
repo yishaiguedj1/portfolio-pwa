@@ -162,6 +162,20 @@ function askConfirmP(msg, opts) {
   return new Promise((res) => askConfirm(msg, () => res(true), Object.assign({}, opts, { onNo: () => res(false) })));
 }
 
+/* גרסת האפליקציה — מוצגת בהגדרות כדי לוודא שהטלפון מעודכן (באזור <core>: גם Academy ו־Studio מציגות אותה —
+   אחרי העלאת הגרסה: node tools/coregen.js ואז node tools/swgen.js) */
+/* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
+   APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
+   APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
+const APP_RELEASE = '1.0.0';
+const APP_VERSION = 'v405';
+/* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
+function appVersionLabel() {
+  const build = String(APP_VERSION).replace(/^v/, '');
+  const st = typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.name === 'staging';
+  return APP_RELEASE + ' (' + build + ')' + (st ? ' · ' + t('envStaging') : '');
+}
+
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
 const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו
 function accountOwner(store) {

@@ -46,7 +46,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(st.chainFor('value').map((x) => x.v).join() === 'home,settings,tower,value', 'רענון בדף הערך — חוזר דרך המגדל');
   const sj = read('studio.js');
   ok(/if \(rec\.srv && rec\.srv\.sla\) p\.append\(\.\.\.slaCard\(rec\.srv\.sla\)\)/.test(sj) && /h\('em', 'm50'\), h\('em', 'm75'\)/.test(sj), 'דף העבודה: כרטיס יעדים עם סימונים ב־50%/75%');
-  ok(/p\.append\(\.\.\.valueSection\(\)\)/.test(sj) && /function pageValue\(p\)/.test(sj) && /else if \(ui\.view === 'value'\) pageValue\(p\)/.test(sj), 'מגדל: ערך ועלות → דף');
+  ok(/const vr = valueRow\(\); if \(vr\) ag\.push\(vr\);/.test(sj) && /function pageValue\(p\)/.test(sj) && /else if \(ui\.view === 'value'\) pageValue\(p\)/.test(sj), 'מגדל: ערך ועלות → דף');
   ok(/net\.api\('price', \{ hp \}\)/.test(sj) && (sj.match(/setPrice\(/g) || []).length === 2, 'המחיר נקבע במקום אחד (דף הערך)');
   ok(/case 'claude:sla_time'/.test(sj) && /case 'claude:sla_cost'/.test(sj), 'תוויות להתראות ההפרה');
   const app = read('app.js');

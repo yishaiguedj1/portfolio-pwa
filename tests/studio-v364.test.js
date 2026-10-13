@@ -50,7 +50,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(F.length === 2 && F[0].fix === 'מפצלים' && F[1].st === '' && F[1].fix === '' && M.normFb('x') === null, 'טלפון: normFb — טביעה וסוג תקינים, התיקון רק מחרוזת');
   ok(M.normTw({ lv: 'red', why: 'loop', fp: FP }).fp === FP && M.normTw({ lv: 'red', fp: 'x' }).fp === '', 'טלפון: normTw שומר את טביעת העצירה');
   const st = read('studio.js');
-  ok(/secT\(T\('studioFbT'\)\)|function pbSection\(\)/.test(st) && /T\('studioFbKnown'\), known\.fix/.test(st), 'טלפון: מקטע "ספר התיקונים" במסך המגדל, ו"התיקון המוכר" בכרטיס העצירה');
+  ok(/function pageProbs\(p\)/.test(st) && /list\(\.\.\.L\.map\(pbRow\)\)/.test(st) && /T\('studioFbKnown'\), known\.fix/.test(st), 'טלפון: ספר התיקונים — עמוד "בעיות ותיקונים" במגדל, ו"התיקון המוכר" בכרטיס העצירה');
   ok(!/innerHTML[^;]*\.fix/.test(st) && /h\('(?:small|p)', (?:e|x)\.fix \? null : 'st-muted', (?:e|x)\.fix \|\| T\('studioFbNoFix'\)\)/.test(st), 'טלפון: התיקון (טקסט מ־Claude) מוצג כטקסט, לא כ־HTML');
   const app = read('app.js');
   for (const k of ['studioFbT', 'studioFbNoFix', 'studioFbKnown', 'studioFbAuto1', 'studioFbAutoN', 'studioFbStop1', 'studioFbStopN', 'studioFbWhyLoop', 'studioFbWhyIdle'])

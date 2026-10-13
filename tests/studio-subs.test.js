@@ -108,7 +108,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     'ביצועים: בחירה מציירת שתי שורות; אחרי שינוי מבני — שורות שלא השתנו נשארות ב־DOM (מפתח = אובייקט הכתובית)');
   ok(/\.st-se-row \{[^}]*content-visibility: auto/.test(read('studio.css')), 'ביצועים: שורות מחוץ למסך בלי פריסה (content-visibility)');
   ok(/if \(ONLY === 'studio' \|\| !ONLY\)/.test(read('tools/qa-motion.js')), 'כלי המעברים: תרחישי העורכים (--only studio)');
-  ok(/x === 'guide'\) \? \['settings', null\]/.test(sj) && /function pageGuide\(p\)/.test(sj), 'מדריך קצר מההגדרות');
+  ok(/x === 'guide'[^)]*\) \? \['settings', null\]/.test(sj) && /function pageGuide\(p\)/.test(sj), 'מדריך קצר מההגדרות');
   ok(!/innerHTML/.test(src) && !/fetch\(/.test(src), 'העורך: בלי innerHTML (טקסט רק ב־textContent / value) ובלי רשת');
   // מפתחות התרגום של העורך — בעברית ובאנגלית (הבדיקה של studio-v354 סורקת רק את studio.js)
   const vm = require('vm');

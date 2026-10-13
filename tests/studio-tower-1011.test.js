@@ -27,7 +27,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/studioSloFew: "\{g\} מתוך \{n\}/.test(app) && /T\('studioSloFew', \{ g: sl\.good/.test(sj), 'מוקדם למדוד — עדיין מראה כמה הסתיימו בלי התערבות');
 
   /* ---------- 3. "הרגיל" ---------- */
-  const tower = sj.slice(sj.indexOf('// הרגיל — המצב שבשימוש'), sj.indexOf("const rule = (txt) => h('div', 'st-row st-rule'"));
+  const tower = sj.slice(sj.indexOf('function pageNorm(p) {'), sj.indexOf("const rule = (txt) => h('div', 'st-row st-rule'"));
   ok(/MODE_ORDER\.slice\(\)\.reverse\(\)\.filter\(\(id\) => nm\[id\]\)/.test(tower), 'המגדל: כל המצבים ב"הרגיל" (גם מצב שהעבודה שלו לא נלמדה — Haiku Medium)');
   ok(/const curNorm = \(\) => \(apiMode\(\) \? ui\.normA \|\| ui\.normR : ui\.normR\)/.test(sj) && !/ui\.norm\b(?!R|A)/.test(sj), '"הרגיל" של המנוע שבשימוש — בכל מקום (מגדל, אומדן, סט הזהב)');
   const est = (apiOn) => st.startEstimate('haiku-high', 300, null, apiOn ? { cap: 30, month: 1 } : null, apiOn);
