@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v406';
+const CACHE_NAME = 'portfolio-pwa-v407';
 const HASHES = {
   "./": "31b3c3f8a6a46cf31a84fe4eae55fd4f",
   "./index.html": "31b3c3f8a6a46cf31a84fe4eae55fd4f",
   "./styles.css": "e9ee13d61e7d022d49750ff12f79c8af",
-  "./app.js": "77ab31d93c11ddc80861d4a8682ff1cb",
+  "./app.js": "6d99039bb695ad568320ec000b38ff0c",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "4d79529a9a53b944a43112551259b7d6",
@@ -48,7 +48,7 @@ const HASHES = {
   "./academy.html": "442191ef0c0920bdb363c32755f2587a",
   "./academy-app.js": "c11d632331b5232ca075a8d6b98674f4",
   "./strings-academy.js": "0aead41b04abbaa8dcd8aade79d62c0a",
-  "./core.js": "4f697145c20983062b352868b52c713d",
+  "./core.js": "5fca4f46071570f0149fd6b3b1016c9a",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
   "./shell.js": "afa442c38719878233ec1a091c5c2418",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -131,10 +131,15 @@ async function fetchVerified(p) {
   return new Response(buf, { headers: { 'Content-Type': res.headers.get('Content-Type') || 'application/octet-stream' } });
 }
 
+/* 13/10/2026 (תקלה בניסוי — "עדיין לא התעדכן"): בכתובת של Academy / Studio, ‏‎/index.html מופנה (308) לשורש, ושם מוגש
+   דף האפליקציה — הקובץ לעולם לא תואם לטביעה של index.html, וכל התקנה (הכל או כלום) נכשלה: הטלפון נשאר על הגרסה הישנה
+   עד מחיקת נתוני האתר. שם index.html (הדף של Invest) לא נחוץ — מדלגים עליו. */
+const SHELL = ROOT_PAGE === './index.html' ? APP_SHELL : APP_SHELL.filter((p) => p !== './index.html');
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     // המעטפת — הכל או כלום: קובץ אחד ישן/חסר = ההתקנה נכשלת והגרסה הקודמת ממשיכה לעבוד
-    const got = await Promise.all(APP_SHELL.map(async (p) => [p, await fetchVerified(p)]));
+    const got = await Promise.all(SHELL.map(async (p) => [p, await fetchVerified(p)]));
     const cache = await caches.open(CACHE_NAME);
     for (const [p, r] of got) await cache.put(p, r);
     // הספרייה והסטודיו — רק אצל מי שכבר נכנס אליהם; קובץ שלא אומת לא נשמר (יורד מהרשת בשימוש)

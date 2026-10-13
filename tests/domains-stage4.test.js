@@ -62,6 +62,7 @@ ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\
     const fetchFn = async (req) => {
       const u = new URL(req.url);
       let rel = u.pathname.slice(1);
+      if (rel === 'index.html') rel = '';   // כמו Cloudflare Pages: ‎/index.html → 308 לשורש (fetch עוקב), ובשורש של כתובת אפליקציה — הדף שלה (13/10/2026: בלי זה הבדיקה לא תפסה שכל עדכון שם נכשל)
       if (rel === '') rel = host.startsWith('academy') ? 'academy.html' : host.startsWith('studio') ? 'studio.html' : 'index.html';   // functions/index.js
       const f = path.join(root, rel);
       return fs.existsSync(f) ? new Response(fs.readFileSync(f), { status: 200 }) : new Response('', { status: 404 });
@@ -80,6 +81,7 @@ ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\
   ok(await h(s.get('/')) === HASHES['./studio.html'], 'studio: "./" במטמון = studio.html');
   const i = await installAt('invest-staging.thesnowball.app');
   ok(await h(i.get('/')) === HASHES['./index.html'], 'invest ושאר הכתובות: "./" = index.html כמו קודם');
+  ok(!a.has('/index.html') && !s.has('/index.html') && await h(i.get('/index.html')) === HASHES['./index.html'], 'כתובת אפליקציה: בלי index.html במטמון (מופנה לשורש = דף האפליקציה); ב־Invest — כן');
 
   // ---------- השרתון: הכתובות של הניסוי מותרות, ורק הן
   const ib = read('ibkr-proxy/lib/ibkr.js');
