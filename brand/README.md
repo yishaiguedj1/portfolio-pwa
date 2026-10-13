@@ -11,3 +11,5 @@
 ובאנדרואיד: `mipmap-*/ic_launcher*.png`, `drawable-nodpi/widget_logo.png` (רקע האייקון `icon_bg` שקוף).
 
 **v285 (30/09/2026)**: לוגו מעודכן — חולץ מהמקור על רקע לבן (הצפה מהקצוות + הגנת מסכת rembg + un-premultiply), כל קובץ באותו מלבן בדיוק של הלוגו הקודם, הקטנה ב־LANCZOS על אלפא מוכפלת (בלי הילה). בלי אובדן כשהקובץ ≤200KB; מעל — `pngquant` באיכות מקסימלית (logo-header, icon-512, icon-maskable-512). תמונות הבורר של הווידג׳טים (`widget_preview*.png`): הלוגו הוחלף במקום (192px ב־(192,8)), הרקע מתחתיו שוחזר (שחור + הכרטיס הראשון מהכרטיס השני, 114px מתחת, תגית IBKR מוזזת 14px) — אף פיקסל מחוץ לריבוע לא השתנה.
+
+**13/10/2026 — לוגו לכל אפליקציה**: `snowball-invest.png`, `snowball-academy.png`, `snowball-studio.png` (מאסטרים 1024, שקופים) + המקורות (`*-source.jpg`, רקע לבן). מהם: `logo-header.png` (Invest), `logo-academy.png`, `logo-studio.png` — 512px (פי 4 מגודל התצוגה, 128px), באותו מלבן של הלוגו הקודם, `pngquant --speed 1`. אותו חילוץ כמו v285. האייקונים (PWA, favicon, אנדרואיד) — עדיין מ־`snowball-logo.png`.

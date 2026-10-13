@@ -4,24 +4,24 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v399';
+const CACHE_NAME = 'portfolio-pwa-v400';
 const HASHES = {
   "./": "affb322fcd7e65067aa2f64e3dcfea7a",
   "./index.html": "affb322fcd7e65067aa2f64e3dcfea7a",
-  "./styles.css": "970e04bc9ef293a8116304f6b7ca8fdd",
-  "./app.js": "293fa3b8cd5d1616046c90bea73a106a",
+  "./styles.css": "8e57f11a18c7b6adaa13bf44d4068e05",
+  "./app.js": "1deb241d92e37c7635a1fa0548c2dc0c",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "42f8ddbbdacee303f37d1f8cb56ef3be",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
   "./icon-192.png": "511b5aee2e7341ac65fec0d29b91533f",
   "./icon-512.png": "b0a62fb8da14775653dadc9ddff1c09c",
-  "./logo-header.png": "92bee9001ec48674ae25703c9b6733bb",
+  "./logo-header.png": "0a8a4bf5de266a98afdae4d3c4db66b7",
   "./apple-touch-icon.png": "a0bd976c2c911b8dcc446fdbafabd50e",
   "./favicon-48.png": "54adadfbb7cfdbddb0102995a66a5145",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
-  "./library.js": "f8a24b74bbddf302a4286f13fa67470f",
-  "./library.css": "8673c0585467bee6f5ed73d6a46bc0dc",
+  "./library.js": "a19231aa652f13ba94b51e3a9790a27a",
+  "./library.css": "022e11017869f78f5ccc90ddcddf0077",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "17be92ab73db3643d73ae4c0e59ab347",
   "./ribbon3d.js": "aea160c033eebec3c86b79480c9c10c0",
@@ -46,12 +46,14 @@ const HASHES = {
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ec20f16630bfc11f0d17777e3b342025",
-  "./academy-app.js": "c4d483302488fd90a7bdc9ad60ad49fe",
-  "./strings-academy.js": "e2c85019b2f3c0650f83258f7782103d",
-  "./core.js": "0298820bc709f6ec1b9996971c9b51ac",
+  "./academy-app.js": "ea0c71f1850e2574676c4c6680f0421c",
+  "./strings-academy.js": "d8e753d98b716f2a88deb578d3848ef5",
+  "./core.js": "f3aaa18f99287168d2b64710b0ccd301",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
-  "./studio.js": "5dfa1ed4914f64846d34154a0c9efe86",
-  "./studio.css": "40692580ed4204e545f639f2192ca3a8",
+  "./shell.js": "6aa7ac1a83aea4db1fe3691795bf627e",
+  "./logo-academy.png": "1dd2d932ec46de06b2a87441a80b985e",
+  "./studio.js": "0d0d36da01434e525b0bf14e5c376c5d",
+  "./studio.css": "9d10cdcb67c6ed6632ab1329cb20f974",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
   "./studiosubs.js": "0c273369bbbd09869894f503c6e3fd79",
@@ -59,8 +61,9 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "19e2b78d7b2c7b7b9108eb19e27f4f06",
-  "./studio-app.js": "fdbe3c2512345f6f5a617b4f1da11fef",
-  "./strings-studio.js": "ac8ee68bf5a1d8fe46bcdfd106f97d64"
+  "./studio-app.js": "c27f47c6095f14fdd2824ab5748d0076",
+  "./strings-studio.js": "19d1c497b397c8fb95a934e0a611b25d",
+  "./logo-studio.png": "64914097f45fee35883b7b62d61cbb22"
 };
 /* </swgen> */
 
@@ -90,14 +93,15 @@ const LIB_SHELL = [
   './vendor/foliate-js/search.js', './vendor/foliate-js/text-walker.js', './vendor/foliate-js/footnotes.js',
   './vendor/foliate-js/mobi.js', './vendor/foliate-js/fb2.js', './vendor/foliate-js/comic-book.js',
   './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js',
-  './academy.html', './academy-app.js', './strings-academy.js', './core.js', './auth.js'   // שלב 3ג: Academy כדף עצמאי
+  './academy.html', './academy-app.js', './strings-academy.js', './core.js', './auth.js',   // שלב 3ג: Academy כדף עצמאי
+  './shell.js', './logo-academy.png'   // ההדר המשותף + הלוגו של Academy
 ];
 
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
 const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js', './studiostore.js',
-  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
+  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
    ‎?v=<טביעה> = כתובת חדשה ל־CDN (לא עותק ישן מהמטמון שלו), cache:'reload' = לא מהמטמון של הדפדפן.
@@ -237,9 +241,13 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       }).catch(() => {
-        // ניווט שנכשל אופליין — הדף עצמו מהמטמון (גם עם ?query; שלב 3: academy.html/studio.html), אחרת דף הבית השמור
+        // ניווט שנכשל אופליין — הדף עצמו מהמטמון (גם עם ?query; שלב 3: academy.html/studio.html), אחרת דף הבית השמור.
+        // Cloudflare Pages מעביר academy.html → ‎/academy ("כתובת יפה"), והמטמון שמור תחת academy.html — מנסים גם עם הסיומת
         if (request.mode === 'navigate') {
-          return caches.match(request, { ignoreSearch: true }).then((pg) => pg || caches.match('./index.html'));
+          const bare = /\/[^/.]+$/.test(url.pathname) ? url.pathname + '.html' : '';
+          return caches.match(request, { ignoreSearch: true })
+            .then((pg) => pg || (bare ? caches.match(bare, { ignoreSearch: true }) : null))
+            .then((pg) => pg || caches.match('./index.html'));
         }
         throw new Error('offline');
       });

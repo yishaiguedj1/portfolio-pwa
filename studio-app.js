@@ -2,6 +2,7 @@
    כמו academy-app.js: לפני הקובץ firebase-config.js, strings-studio.js, core.js, auth.js; אותו studio.js עם opt.standalone.
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
+import { createShell } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
@@ -29,4 +30,14 @@ A.onChange((st) => {
 const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.hash || '');
 if (link) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
-openStudio({ standalone: { auth: A, home: './' }, restore: hs && hs.studio ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '' });
+/* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
+const sa = { auth: A, home: './' };
+sa.shell = createShell({
+  app: 'studio', title: 'THE SNOWBALL Studio', logo: 'logo-studio.png',
+  items: [
+    { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-1.5 5h-5z"/><path d="M12 8v13"/><path d="M8 21h8"/></svg>',
+      title: t('studioTwT'), sub: t('shellTowerSub'), on: () => sa.tower && sa.tower() },
+  ],
+  onSettings: () => sa.settings && sa.settings(),
+});
+openStudio({ standalone: sa, restore: hs && hs.studio ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '' });

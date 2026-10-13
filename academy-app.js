@@ -2,6 +2,7 @@
    לפני הקובץ (academy.html): firebase-config.js, strings-academy.js, core.js, auth.js. אותו library.js כמו בתיק,
    עם opt.standalone (library.js — SA). עד שלב 5 האתר המאוחד לא משתנה: בתיק הספרייה עדיין נפתחת כשכבה. */
 import { openLibrary } from './library.js';
+import { createShell } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
@@ -29,4 +30,16 @@ A.onChange((st) => {
   if (Date.now() - last > 8000) location.reload();
 });
 const hs = history.state;
-await openLibrary({ standalone: { auth: A, home: './' }, restore: hs && hs.lib ? hs : null });
+/* ההדר המשותף (shell.js) — הלוגו של Academy, ובתפריט: "מה למדתי" והגיבוי. הגלובוס בתפריט הפתוח = הגדרות Academy */
+const sa = { auth: A, home: './' };
+sa.shell = createShell({
+  app: 'academy', title: 'THE SNOWBALL Academy', logo: 'logo-academy.png',
+  items: [
+    { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+      title: t('learnTitle'), sub: t('shellLearnSub'), on: () => sa.notes && sa.notes() },
+    { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H7a5 5 0 1 1 1.6-9.74A6 6 0 0 1 20 11.5a3.75 3.75 0 0 1-2.5 7.5z"/></svg>',
+      title: t('shellBackup'), sub: 'Google Drive', on: () => sa.backup && sa.backup() },
+  ],
+  onSettings: () => sa.settings && sa.settings(),
+});
+await openLibrary({ standalone: sa, restore: hs && hs.lib ? hs : null });
