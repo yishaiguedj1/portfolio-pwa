@@ -7,8 +7,9 @@
    בראש התפריט — מעבר לשתי האפליקציות האחרות (תוכנית שלוש האפליקציות, סעיף 4), ואחריהן הפריטים של האפליקציה.
    תלוי ב־core.js (t, btnFacesHTML, ICON_*, modalPush/modalDone, resolveTheme/setThemeMode, LS_LANG). */
 
-/* הכתובות של שלוש האפליקציות — המקום היחיד. שלב 4 (דומיינים) = כאן בלבד */
-export const APP_URL = { invest: './', academy: 'academy.html', studio: 'studio.html' };
+/* הכתובות של שלוש האפליקציות — מ־firebase-config.js (SNB_ENV.apps, לפי הכתובת שבה נמצאים; שלב 4). בלעדיו — הדפים שלידו */
+const ENV_APPS = typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.apps;
+export const APP_URL = ENV_APPS || { invest: './', academy: 'academy.html', studio: 'studio.html' };
 
 const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg>';
 const APPS = {

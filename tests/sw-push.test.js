@@ -11,7 +11,14 @@ if (!/addEventListener\('push'/.test(sw)) {
   console.log('ok - sw.js עוד בלי המאזינים להתראות (נכנסים ב־PR של sw.js)');
 } else {
   ok(/event\.waitUntil\(self\.registration\.showNotification\(/.test(sw), 'push → showNotification בתוך waitUntil (אחרת Chrome מציג התראה כללית)');
-  ok(/\^https:\\\/\\\/yishaiguedj1\\\.github\\\.io\\\/portfolio-pwa\\\/\(#studio=j\[A-Za-z0-9_-\]\{20\}\)\?\$/.test(sw), 'הקישור מההתראה — רק לאפליקציה, ורק ‎#studio=<מזהה>');
+  // שלב 4 (13/10/2026): הקישור תמיד בכתובת שבה נרשמה ההתראה — מההודעה רק מזהה העבודה (‎#studio=<מזהה>)
+  { const a = sw.indexOf('const hm = '), b = sw.indexOf('\n', sw.indexOf('const url = ', a));
+    const f = new Function('m', sw.slice(a, b) + '\nreturn url;');
+    const id = 'j' + 'A'.repeat(20);
+    ok(f({ u: 'https://yishaiguedj1.github.io/portfolio-pwa/#studio=' + id }) === './#studio=' + id
+      && f({ u: 'https://studio-staging.thesnowball.app/#studio=' + id }) === './#studio=' + id
+      && f({ u: 'https://evil.example/#studio=' + id + 'x' }) === './' && f({ u: 'javascript:alert(1)' }) === './'
+      && f({ u: 'https://evil.example/' }) === './' && f({}) === './', 'הקישור מההתראה — רק לאפליקציה שבה נרשמה, ורק ‎#studio=<מזהה>'); }
   ok(/addEventListener\('notificationclick'/.test(sw) && /clients\.openWindow\(url\)/.test(sw) && /w\.focus\(\)/.test(sw), 'נגיעה: חלון פתוח → אליו; אחרת חלון חדש');
   ok(/\.slice\(0, 80\)/.test(sw) && /\.slice\(0, 160\)/.test(sw), 'כותרת ושורה מוגבלות באורך');
 }

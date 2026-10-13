@@ -4519,9 +4519,10 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '1.0.0';
-const APP_VERSION = 'v402';
-/* הכתובות של Academy ו־Studio (אפליקציות עצמאיות, 13/10/2026) — זהות ל־APP_URL ב־shell.js (שלב 4, דומיינים: בשני המקומות) */
-const APP_PAGE = { academy: 'academy.html', studio: 'studio.html' };
+const APP_VERSION = 'v403';
+/* הכתובות של Academy ו־Studio (אפליקציות עצמאיות, 13/10/2026) — מ־firebase-config.js (SNB_ENV.apps, כמו APP_URL ב־shell.js):
+   בכתובות הנפרדות (שלב 4) — academy[-staging].thesnowball.app וכו'; באתר המאוחד — הדפים שלידו */
+const APP_PAGE = (typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.apps) || { academy: 'academy.html', studio: 'studio.html' };
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

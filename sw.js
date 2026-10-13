@@ -4,15 +4,15 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v402';
+const CACHE_NAME = 'portfolio-pwa-v403';
 const HASHES = {
   "./": "74dd6b8b4f20af42e4cbf37710fb5109",
   "./index.html": "74dd6b8b4f20af42e4cbf37710fb5109",
   "./styles.css": "8e57f11a18c7b6adaa13bf44d4068e05",
-  "./app.js": "547e710c903c61772fb7ca7eaba8335c",
+  "./app.js": "065325159ca04f74606199e8b48333c3",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
-  "./firebase-config.js": "42f8ddbbdacee303f37d1f8cb56ef3be",
+  "./firebase-config.js": "4d79529a9a53b944a43112551259b7d6",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
   "./icon-192.png": "511b5aee2e7341ac65fec0d29b91533f",
   "./icon-512.png": "b0a62fb8da14775653dadc9ddff1c09c",
@@ -46,11 +46,11 @@ const HASHES = {
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ec20f16630bfc11f0d17777e3b342025",
-  "./academy-app.js": "ea0c71f1850e2574676c4c6680f0421c",
+  "./academy-app.js": "25d4cb2d06006d883b72e0eeb1b6185f",
   "./strings-academy.js": "d8e753d98b716f2a88deb578d3848ef5",
   "./core.js": "f3aaa18f99287168d2b64710b0ccd301",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
-  "./shell.js": "6aa7ac1a83aea4db1fe3691795bf627e",
+  "./shell.js": "ac2c7c3b877d05e0a6a6d93f6dbff1c5",
   "./logo-academy.png": "6ece7ee5b88d5272b19060d20315dd79",
   "./studio.js": "0d0d36da01434e525b0bf14e5c376c5d",
   "./studio.css": "9d10cdcb67c6ed6632ab1329cb20f974",
@@ -61,7 +61,7 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "19e2b78d7b2c7b7b9108eb19e27f4f06",
-  "./studio-app.js": "c27f47c6095f14fdd2824ab5748d0076",
+  "./studio-app.js": "77f77fe1fbd3f64bd294daa3ecb8a052",
   "./strings-studio.js": "19d1c497b397c8fb95a934e0a611b25d",
   "./logo-studio.png": "a75ebb22123a1c29a256e8d4798d376e"
 };
@@ -106,9 +106,16 @@ const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbac
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
    ‎?v=<טביעה> = כתובת חדשה ל־CDN (לא עותק ישן מהמטמון שלו), cache:'reload' = לא מהמטמון של הדפדפן.
    עד היום ההתקנה לקחה מה שהגיע (addAll) והמשיכה גם בכישלון — קובץ ישן נכנס למטמון החדש לתמיד ("הרעלה"). */
+/* שלב 4 (13/10/2026): כתובת לכל אפליקציה — בשורש של academy[-staging].thesnowball.app מוגש academy.html
+   (functions/index.js ב־Cloudflare Pages), ובשל studio — studio.html. לכן './' במטמון = הדף של הכתובת הזו,
+   והטביעה שלו נבדקת מול הדף הזה (אחרת ההתקנה נכשלת: '/' שם הוא לא index.html). */
+const ROOT_PAGE = (() => {
+  const m = /^(academy|studio)(-staging)?\.thesnowball\.app$/.exec((self.location && self.location.hostname) || '');
+  return m ? './' + m[1] + '.html' : './index.html';
+})();
 const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 async function fetchVerified(p) {
-  const want = HASHES[p];
+  const want = HASHES[p === './' ? ROOT_PAGE : p];
   const res = await fetch(new Request(want ? p + '?v=' + want.slice(0, 12) : p, { cache: 'reload' }));
   if (!res.ok) throw new Error('http ' + res.status + ' ' + p);
   const buf = await res.arrayBuffer();
@@ -247,7 +254,7 @@ self.addEventListener('fetch', (event) => {
           const bare = /\/[^/.]+$/.test(url.pathname) ? url.pathname + '.html' : '';
           return caches.match(request, { ignoreSearch: true })
             .then((pg) => pg || (bare ? caches.match(bare, { ignoreSearch: true }) : null))
-            .then((pg) => pg || caches.match('./index.html'));
+            .then((pg) => pg || caches.match('./'));
         }
         throw new Error('offline');
       });
@@ -261,7 +268,9 @@ self.addEventListener('push', (event) => {
   let m = {};
   try { m = event.data ? event.data.json() : {}; } catch (e) { m = {}; }
   const title = String(m.t || 'THE SNOWBALL').slice(0, 80);
-  const url = /^https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/(#studio=j[A-Za-z0-9_-]{20})?$/.test(String(m.u || '')) ? m.u : './';
+  // הקישור תמיד בכתובת שבה נרשמה ההתראה (שלב 4: גם ב־studio[-staging].thesnowball.app) — מההודעה רק מזהה העבודה
+  const hm = /^https:\/\/[^#\s]*(#studio=j[A-Za-z0-9_-]{20})$/.exec(String(m.u || ''));
+  const url = './' + (hm ? hm[1] : '');
   event.waitUntil(self.registration.showNotification(title, {
     body: String(m.b || '').slice(0, 160), icon: 'icon-192.png', badge: 'favicon-48.png', lang: 'he', dir: 'auto',
     tag: m.j ? 'studio-' + m.j : 'studio', renotify: m.k === 'ask' || m.k === 'gate', data: { url },

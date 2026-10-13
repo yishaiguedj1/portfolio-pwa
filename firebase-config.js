@@ -4,7 +4,7 @@
  * שלב 2 בתוכנית הסביבות (12/10/2026): אותם קבצים בדיוק רצים בכל הסביבות,
  * והסביבה נקבעת לפי הכתובת שבה האתר נפתח:
  *   prod    — yishaiguedj1.github.io (והדומיין thesnowball.app כשיעבור)
- *   staging — staging.thesnowball.app ותצוגות מקדימות של Cloudflare Pages (*.pages.dev)
+ *   staging — staging.thesnowball.app, <אפליקציה>-staging.thesnowball.app ותצוגות מקדימות של Cloudflare Pages (*.pages.dev)
  *   local   — localhost (בדיקות) — כמו prod
  * כך "קידום לפרודקשן" = אותה בנייה שנבדקה בניסוי, בלי לבנות מחדש.
  *
@@ -32,24 +32,44 @@
   // כתובת חדשה = גם ב־connect-src של index.html.
   var STAGING_PROXY = 'https://api-staging.thesnowball.app';
 
+  /* שלב 4 בתוכנית שלוש האפליקציות (13/10/2026): כתובת לכל אפליקציה — ייצור <אפליקציה>.thesnowball.app,
+     ניסוי <אפליקציה>-staging.thesnowball.app. ברמה הראשונה בלבד (כמו api-staging): התעודה החינמית של Cloudflare
+     (Universal SSL) לא מכסה a.b.thesnowball.app. אותה רשימה ב־ibkr-proxy/lib/session.js (APPS) וב־functions/index.js */
+  var APP_HOST_RE = /^(invest|academy|studio|account)(-staging)?\.thesnowball\.app$/;
+  var APP_PAGES = { invest: './', academy: 'academy.html', studio: 'studio.html' };
+
   function envFor(host) {
     host = String(host || '').toLowerCase();
     if (host === 'staging.thesnowball.app' || /\.pages\.dev$/.test(host)) return 'staging';
+    var m = APP_HOST_RE.exec(host);
+    if (m && m[2]) return 'staging';
     if (host === 'localhost' || host === '127.0.0.1' || host === '') return 'local';
     return 'prod';
   }
 
-  var name = envFor(typeof location !== 'undefined' ? location.hostname : '');
+  /* הכתובת של כל אפליקציה מהמקום שבו נמצאים: בכתובות הנפרדות — הכתובת המלאה של האחרת באותה סביבה;
+     באתר המאוחד (github.io, staging.thesnowball.app, ‎*.pages.dev, localhost) — הדפים שלידו */
+  function appsFor(host) {
+    var m = APP_HOST_RE.exec(String(host || '').toLowerCase());
+    if (!m) return { invest: APP_PAGES.invest, academy: APP_PAGES.academy, studio: APP_PAGES.studio };
+    var suf = (m[2] || '') + '.thesnowball.app/';
+    return { invest: 'https://invest' + suf, academy: 'https://academy' + suf, studio: 'https://studio' + suf };
+  }
+
+  var host0 = typeof location !== 'undefined' ? location.hostname : '';
+  var name = envFor(host0);
   var env = {
     name: name,
     // הניסוי מדבר רק עם השרתון שלו — ההתחברות של הניסוי מאומתת שם מול פרויקט ה־Firebase של הניסוי
     proxy: name === 'staging' ? STAGING_PROXY : PROXY,
-    firebase: name === 'staging' ? STAGING_FIREBASE : PROD_FIREBASE
+    firebase: name === 'staging' ? STAGING_FIREBASE : PROD_FIREBASE,
+    apps: appsFor(host0)
   };
   if (typeof window !== 'undefined') {
     window.SNB_ENV = env;
     window.FIREBASE_CONFIG = env.firebase || {};
     window.snbEnvFor = envFor;
+    window.snbAppsFor = appsFor;
     if (name === 'staging' && typeof document !== 'undefined') document.documentElement.classList.add('env-staging');
   }
 })();

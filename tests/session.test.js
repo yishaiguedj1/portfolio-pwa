@@ -24,8 +24,11 @@ ok(A('https://thesnowball.app', 'prod') === 'all', 'הדומיין הראשי = 
 ok(A('https://invest.thesnowball.app', 'prod') === 'invest' && A('https://academy.thesnowball.app', 'prod') === 'academy'
   && A('https://studio.thesnowball.app', 'prod') === 'studio' && A('https://account.thesnowball.app', 'prod') === 'account', 'ארבע האפליקציות בייצור');
 ok(A('https://books.thesnowball.app', 'prod') === '', 'Books שונה ל־Academy — books לא מוכר');
-ok(A('https://staging.thesnowball.app', 'prod') === '' && A('https://invest.staging.thesnowball.app', 'prod') === '', 'הייצור לא מקבל את הניסוי (אותו אתר — העוגייה הייתה נשלחת)');
-ok(A('https://staging.thesnowball.app', 'staging') === 'all' && A('https://academy.staging.thesnowball.app', 'staging') === 'academy', 'הניסוי — שלו בלבד');
+ok(A('https://staging.thesnowball.app', 'prod') === '' && A('https://invest-staging.thesnowball.app', 'prod') === '', 'הייצור לא מקבל את הניסוי (אותו אתר — העוגייה הייתה נשלחת)');
+// שלב 4 (13/10/2026): בניסוי <אפליקציה>-staging — ברמה הראשונה (התעודה החינמית לא מכסה a.b.thesnowball.app)
+ok(A('https://staging.thesnowball.app', 'staging') === 'all' && A('https://academy-staging.thesnowball.app', 'staging') === 'academy'
+  && A('https://studio-staging.thesnowball.app', 'staging') === 'studio' && A('https://invest-staging.thesnowball.app', 'staging') === 'invest', 'הניסוי — שלו בלבד');
+ok(A('https://academy.staging.thesnowball.app', 'staging') === '' && A('https://evil-staging.thesnowball.app', 'staging') === '', 'בניסוי — רק השמות הידועים, ברמה הראשונה');
 ok(A('https://thesnowball.app', 'staging') === '' && A('https://invest.thesnowball.app', 'staging') === '', 'הניסוי לא מקבל את הייצור');
 ok(['https://yishaiguedj1.github.io', 'http://thesnowball.app', 'https://evilthesnowball.app', 'https://invest.thesnowball.app.evil.com',
   'https://x.invest.thesnowball.app', 'https://thesnowball.pages.dev', '', 'null'].every((o) => A(o, 'prod') === '' && A(o, 'staging') === ''), 'כל מקור אחר נחסם');

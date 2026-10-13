@@ -31,9 +31,9 @@ for (const A of APPS) {
   ok(!/app\.js"|cloud\.js|returns\.js/.test(page.replace(A.app + '-app.js', '')), A.app + ': בלי app.js / cloud.js / returns.js — בלי התיק');
 
   const boot = read(A.app + '-app.js');
-  ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: '\.\/' \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
+  ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
   // ההדר המשותף (13/10/2026): אותו shell.js, הלוגו של האפליקציה, והגלובוס בתפריט הפתוח = ההגדרות של האפליקציה
-  ok(boot.includes("import { createShell } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
+  ok(boot.includes("import { createShell, APP_URL } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
   { const b = fs.readFileSync(path.join(root, 'logo-' + A.app + '.png')); ok(b.slice(1, 4).toString() === 'PNG' && b.readUInt32BE(16) === 512 && b.length < 200000, A.app + ': הלוגו — PNG של 512 (פי 4 מ־128), קל (<200KB)'); }
   ok(boot.indexOf('wireCoreBack()') > 0 && boot.indexOf('wireCoreBack()') < boot.indexOf(A.open + '({'), A.app + ': "חזור" של החלונות נרשם לפני המודול (סדר מאזיני popstate)');
   ok(/pwa_auth_rl/.test(boot) && /Date\.now\(\) - last > 8000/.test(boot), A.app + ': טעינה מחדש כשהחיבור משתנה — עם שומר מפני לולאה');
@@ -62,7 +62,8 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   const vm = require('vm');
   const L = {};
   const BASE = 'https://staging.thesnowball.app/';
-  const cached = { [BASE + 'index.html']: 'INVEST', [BASE + 'academy.html']: 'ACADEMY', [BASE + 'studio.html']: 'STUDIO' };
+  const cached = { [BASE]: 'INVEST', [BASE + 'index.html']: 'INVEST',   // './' = דף השורש של הכתובת (תמיד במעטפת)
+    [BASE + 'academy.html']: 'ACADEMY', [BASE + 'studio.html']: 'STUDIO' };
   const norm = (k) => { const u = new URL(typeof k === 'string' ? k : k.url, BASE); return u.origin + u.pathname; };
   const caches = { match: async (k) => cached[norm(k)] || undefined, open: async () => ({ put: async () => {} }), keys: async () => [] };
   const self = { addEventListener: (k, f) => { L[k] = f; }, location: { origin: 'https://staging.thesnowball.app' }, registration: { scope: BASE }, clients: {} };

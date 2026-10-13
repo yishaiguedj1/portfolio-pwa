@@ -64,8 +64,9 @@ const ALLOWED_ORIGINS = new Set(['https://yishaiguedj1.github.io']);
 /* שלב 2 בסביבות (12/10/2026): סביבת הניסוי — staging.thesnowball.app ותצוגות מקדימות של Cloudflare Pages
    (thesnowball.pages.dev וכל <ענף>.thesnowball.pages.dev). עד שיש לה שרתון משלה היא פונה לזה: מקבלת מידע ציבורי
    (מחירים, היסטוריה, חיפוש) — ההתחברות שלה (פרויקט Firebase אחר) לא מאומתת כאן, ולכן שום נתון אישי לא נחשף לה.
-   כתובות נוספות: SNB_EXTRA_ORIGINS (רשימה מופרדת בפסיקים, https בלבד). */
-const STAGING_ORIGIN_RE = /^https:\/\/(staging\.thesnowball\.app|([a-z0-9-]{1,63}\.)?thesnowball\.pages\.dev)$/;
+   כתובות נוספות: SNB_EXTRA_ORIGINS (רשימה מופרדת בפסיקים, https בלבד).
+   שלב 4 (13/10/2026): גם הכתובת של כל אפליקציה בניסוי — <אפליקציה>-staging.thesnowball.app. */
+const STAGING_ORIGIN_RE = /^https:\/\/(((invest|academy|studio|account)-)?staging\.thesnowball\.app|([a-z0-9-]{1,63}\.)?thesnowball\.pages\.dev)$/;
 function extraOrigins() {
   return String(process.env.SNB_EXTRA_ORIGINS || '').split(',').map((x) => x.trim()).filter((x) => /^https:\/\/[a-z0-9.-]+$/.test(x));
 }
