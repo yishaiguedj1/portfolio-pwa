@@ -50,7 +50,7 @@ ok(/blob:/.test(dir('frame-src')) && /blob:/.test(dir('font-src')) && /blob:/.te
 
 // שילוב: שורה בתפריט + טעינה דינמית בלבד
 // 13/10/2026: השורה בתפריט עוברת ל־Academy העצמאית (academy.html) — library.js לא נטען בתיק מהתפריט
-ok(/id="menuLibraryBtn"/.test(html) && /getElementById\('menuLibraryBtn'\)[\s\S]{0,600}location\.href = APP_PAGE\.academy;/.test(app) && /const APP_PAGE = \{ academy: 'academy\.html', studio: 'studio\.html' \};/.test(app), 'שורת Academy בתפריט עוברת לאפליקציה העצמאית');
+ok(/id="menuLibraryBtn"/.test(html) && /getElementById\('menuLibraryBtn'\)[\s\S]{0,600}location\.href = APP_PAGE\.academy;/.test(app) && /const APP_PAGE = \(typeof window !== 'undefined' && window\.SNB_ENV && window\.SNB_ENV\.apps\) \|\| \{ academy: 'academy\.html', studio: 'studio\.html' \};/.test(app), 'שורת Academy בתפריט עוברת לאפליקציה העצמאית');
 ok(!/<script[^>]+library\.js/.test(html), 'library.js לא נטען בפתיחת האפליקציה');
 
 // כל מחרוזת גלויה בעברית ובאנגלית

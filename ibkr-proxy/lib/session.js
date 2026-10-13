@@ -40,11 +40,15 @@ function sessEnv(env) {
   return (e.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e') === 'yishaiguedj1-c786e' ? 'prod' : 'staging';
 }
 
-/* מקור → אפליקציה. רשימה סגורה; האתר המאוחד של היום (thesnowball.app / staging.thesnowball.app) = 'all' */
+/* מקור → אפליקציה. רשימה סגורה; האתר המאוחד של היום (thesnowball.app / staging.thesnowball.app) = 'all'.
+   הייצור: <אפליקציה>.thesnowball.app; הניסוי: <אפליקציה>-staging.thesnowball.app — ברמה הראשונה, כמו api-staging
+   (התעודה החינמית של Cloudflare לא מכסה a.b.thesnowball.app; שלב 4, 13/10/2026) */
 function appForOrigin(origin, envName) {
   const o = String(origin || '');
-  const base = envName === 'staging' ? 'staging\\.thesnowball\\.app' : 'thesnowball\\.app';
-  const m = new RegExp('^https://(?:(' + APPS.join('|') + ')\\.)?' + base + '$').exec(o);
+  const re = envName === 'staging'
+    ? '^https://(?:(' + APPS.join('|') + ')-)?staging\\.thesnowball\\.app$'
+    : '^https://(?:(' + APPS.join('|') + ')\\.)?thesnowball\\.app$';
+  const m = new RegExp(re).exec(o);
   if (!m) return '';
   return m[1] || 'all';
 }

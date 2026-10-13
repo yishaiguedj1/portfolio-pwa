@@ -2,7 +2,7 @@
    לפני הקובץ (academy.html): firebase-config.js, strings-academy.js, core.js, auth.js. אותו library.js כמו בתיק,
    עם opt.standalone (library.js — SA). עד שלב 5 האתר המאוחד לא משתנה: בתיק הספרייה עדיין נפתחת כשכבה. */
 import { openLibrary } from './library.js';
-import { createShell } from './shell.js';
+import { createShell, APP_URL } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
@@ -31,7 +31,7 @@ A.onChange((st) => {
 });
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Academy, ובתפריט: "מה למדתי" והגיבוי. הגלובוס בתפריט הפתוח = הגדרות Academy */
-const sa = { auth: A, home: './' };
+const sa = { auth: A, home: APP_URL.invest };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
 sa.shell = createShell({
   app: 'academy', title: 'THE SNOWBALL Academy', logo: 'logo-academy.png',
   items: [

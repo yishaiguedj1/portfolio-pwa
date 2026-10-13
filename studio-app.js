@@ -2,7 +2,7 @@
    כמו academy-app.js: לפני הקובץ firebase-config.js, strings-studio.js, core.js, auth.js; אותו studio.js עם opt.standalone.
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
-import { createShell } from './shell.js';
+import { createShell, APP_URL } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
@@ -31,7 +31,7 @@ const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.
 if (link) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
-const sa = { auth: A, home: './' };
+const sa = { auth: A, home: APP_URL.invest };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
 sa.shell = createShell({
   app: 'studio', title: 'THE SNOWBALL Studio', logo: 'logo-studio.png',
   items: [
