@@ -47,6 +47,8 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 .lib-round { width: 42px; height: 42px; border-radius: var(--pill); background: var(--surface); box-shadow: var(--shadow); display: grid; place-items: center;
   color: var(--primary); cursor: pointer; position: relative; overflow: hidden; }
 .lib-round svg { width: 24px; height: 24px; }
+/* שלב 3ג: הספרייה כדף עצמאי בלי חיבור — כפתור כניסה אחד, כמו .btn של האפליקציה */
+.lib-root .lib-signin { display: block; width: calc(100% - 32px); margin: 4px 16px 12px; padding: 12px 18px; border-radius: var(--pill); background: var(--primary); color: var(--on-primary); font-weight: 600; font-size: 16px; }
 .lib-round input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .lib-large { font-size: 34px; font-weight: 800; letter-spacing: -.5px; padding: 6px 16px 12px; margin: 0; }
 .lib-empty { padding: 8px 20px; color: var(--on-surface-var); font-size: 16px; line-height: 1.6; }
