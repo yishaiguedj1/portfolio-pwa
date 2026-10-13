@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="rtl" data-app="academy">
 <head>
 <meta charset="UTF-8">
 <!-- שלב 3ג בתוכנית שלוש האפליקציות: Academy כדף עצמאי. אותה מדיניות כמו index.html (הספרייה טוענת אותם מקורות), עם ה־hash של הסקריפט כאן. tests/apps-pages.test.js בודק. -->
@@ -13,9 +13,9 @@ try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!
 var h=history.state;if(h&&h.lib){e.classList.add('lib-curtain','lib-restoring');
 if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t=r.theme;if(!t||t==='auto'||(t==='white'&&!r.themeSet))t=d?'black':'white';var p={white:'#FFFFFF',sepia:'#F6EFE1',green:'#E8F0E3',black:'#000000'}[t];if(p)e.style.setProperty('--curtain',p);}}})();}catch(e){}
 </script>
-<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-academy-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-academy-192.png">
+<link rel="apple-touch-icon" href="apple-touch-academy.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>

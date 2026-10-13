@@ -33,9 +33,9 @@ const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
 const sa = { auth: A, home: APP_URL.invest };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
 /* עמוד ההגדרות — כרטיס החשבון, "אפשרויות מתקדמות" (גרסה, ניקוי מטמון, האפליקציה לאנדרואיד) ו"תצוגה" של Invest (shell.js), אחד לאחד */
-sa.cards = { account: () => accountCard(A), display: displayCard, advRow: advancedRow, advanced: advancedCards };
+sa.cards = { account: () => accountCard(A, 'icon-studio-192.png'), display: displayCard, advRow: advancedRow, advanced: advancedCards };
 sa.shell = createShell({
-  app: 'studio', title: 'THE SNOWBALL Studio', logo: 'logo-studio.png',
+  app: 'studio', title: 'THE SNOWBALL Studio', logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp',
   items: [
     { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-1.5 5h-5z"/><path d="M12 8v13"/><path d="M8 21h8"/></svg>',
       title: t('studioTwT'), sub: t('shellTowerSub'), on: () => sa.tower && sa.tower() },
@@ -43,5 +43,5 @@ sa.shell = createShell({
   onSettings: () => sa.settings && sa.settings(),
 });
 /* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Studio (shell.js) */
-if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.png', name: 'Studio' });
+if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' });
 openStudio({ standalone: sa, restore: hs && hs.studio ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '' });

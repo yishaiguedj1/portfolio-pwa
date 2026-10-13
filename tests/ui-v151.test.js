@@ -38,7 +38,7 @@ ok(/border-radius:\s*(16px|var\(--radius-sm\))/.test(rule('.form-row input[type=
 // v240: המעקב = כרטיסי מניה; ההסרה בכפתור מתאר אדום בתחתית הכרטיס הפתוח (במקום "ערוך") — לא ✕
 ok(/el\('button', 'chip-btn danger', t\('wlRemoveBtn'\)\)/.test(src) && !/wl-del[^>]*>✕/.test(src), 'מעקב: כפתור "הסר" (מתאר אדום) כמו בשאר הטאבים');
 // 7. התחברות
-ok(/#0F7A5A/.test(rule('.login-overlay')) && !/#1a73e8/i.test(css), 'מסך התחברות בירוק המותג');
+ok(/#1E9E45/.test(rule('.login-overlay')) && !/#1a73e8/i.test(css), 'מסך התחברות בירוק המותג');
 // 8. חיבור IBKR
 ok(/grid-template-columns:\s*1fr;/.test(rule('#ibkrConnDetails .form-grid')), 'שדות חיבור בעמודה אחת');
 ok(/transparent/.test(rule('#ibkrDisconnect.danger-btn')), 'ניתוק = מתאר אדום (משני)');

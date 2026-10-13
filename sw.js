@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v405';
+const CACHE_NAME = 'portfolio-pwa-v406';
 const HASHES = {
-  "./": "5afa03aea42b83f6e338470dd5195c34",
-  "./index.html": "5afa03aea42b83f6e338470dd5195c34",
-  "./styles.css": "80028ed6571ee811cb0a4049bff8f2cb",
-  "./app.js": "201d41cf39bf038c906cb7c348aa5e08",
+  "./": "31b3c3f8a6a46cf31a84fe4eae55fd4f",
+  "./index.html": "31b3c3f8a6a46cf31a84fe4eae55fd4f",
+  "./styles.css": "e9ee13d61e7d022d49750ff12f79c8af",
+  "./app.js": "77ab31d93c11ddc80861d4a8682ff1cb",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "4d79529a9a53b944a43112551259b7d6",
@@ -20,11 +20,11 @@ const HASHES = {
   "./apple-touch-icon.png": "a0bd976c2c911b8dcc446fdbafabd50e",
   "./favicon-48.png": "54adadfbb7cfdbddb0102995a66a5145",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
-  "./library.js": "6f7de7233a58835d6fc50e359566a88a",
-  "./library.css": "0b173dbe10d8f516b2f2fcecd654d15f",
+  "./library.js": "dbd4ba43c0ed6557dfc14fcd6191c768",
+  "./library.css": "0101deeeeb53d3584e35a999c155df69",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "17be92ab73db3643d73ae4c0e59ab347",
-  "./ribbon3d.js": "aea160c033eebec3c86b79480c9c10c0",
+  "./ribbon3d.js": "ec23dd0dea0fe5f8ab6ed78a2a596452",
   "./pagecurl.js": "223e78015f232482221512af5d67e2a7",
   "./pagetex.js": "8d4c24fd38625957c16882d7e778148b",
   "./libadmin.js": "37ae2eb318b4fd187205d2327c57350f",
@@ -45,25 +45,33 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "ec20f16630bfc11f0d17777e3b342025",
-  "./academy-app.js": "4536f0fedf63c275c0587451aae57d7d",
-  "./strings-academy.js": "58e661ed32987cdf0d46702e2da33888",
-  "./core.js": "e81cbde4c49ba56ff37070258b4c498c",
+  "./academy.html": "442191ef0c0920bdb363c32755f2587a",
+  "./academy-app.js": "c11d632331b5232ca075a8d6b98674f4",
+  "./strings-academy.js": "0aead41b04abbaa8dcd8aade79d62c0a",
+  "./core.js": "4f697145c20983062b352868b52c713d",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
-  "./shell.js": "67af7a5f790ad32d9ba113f31252751a",
-  "./logo-academy.png": "6ece7ee5b88d5272b19060d20315dd79",
-  "./studio.js": "a4664ac3d111b4a19643ade3cd1559b8",
-  "./studio.css": "a1612167c90cc65c90f1875e2bb28240",
+  "./shell.js": "afa442c38719878233ec1a091c5c2418",
+  "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
+  "./logo-academy-lg.webp": "a116879278b6fa9d301f98fc24137cab",
+  "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
+  "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
+  "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
+  "./studio.js": "1b36c39f87484cf281a12736e1b899ad",
+  "./studio.css": "cea242b914c346f0b8abfa3f58fa869b",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
   "./studiosubs.js": "0c273369bbbd09869894f503c6e3fd79",
   "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
-  "./studio.html": "19e2b78d7b2c7b7b9108eb19e27f4f06",
-  "./studio-app.js": "d19b8e58d80c93a22e6236271126ab80",
-  "./strings-studio.js": "36f07881c59f0ad512f5b8681174f59d",
-  "./logo-studio.png": "a75ebb22123a1c29a256e8d4798d376e"
+  "./studio.html": "583b44fb030fbef484a07814466b847e",
+  "./studio-app.js": "ed274f445c331a1bfa30250c033311ff",
+  "./strings-studio.js": "91f91d18ef87cf39d7305f6a0714386c",
+  "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
+  "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
+  "./icon-studio-192.png": "9b37d795c2aceac291c56b3ce425aaa3",
+  "./apple-touch-studio.png": "2845bce92943f4c0a3a3d1309063f850",
+  "./favicon-studio-48.png": "3ee4d1aaaf6e22684603032cf358c704"
 };
 /* </swgen> */
 
@@ -94,14 +102,14 @@ const LIB_SHELL = [
   './vendor/foliate-js/mobi.js', './vendor/foliate-js/fb2.js', './vendor/foliate-js/comic-book.js',
   './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js',
   './academy.html', './academy-app.js', './strings-academy.js', './core.js', './auth.js',   // שלב 3ג: Academy כדף עצמאי
-  './shell.js', './logo-academy.png'   // ההדר המשותף + הלוגו של Academy
+  './shell.js', './logo-academy.webp', './logo-academy-lg.webp', './icon-academy-192.png', './apple-touch-academy.png', './favicon-academy-48.png'   // ההדר המשותף + הלוגו של Academy
 ];
 
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
 const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js', './studiostore.js',
-  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
+  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.webp', './logo-studio-lg.webp', './icon-studio-192.png', './apple-touch-studio.png', './favicon-studio-48.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
    ‎?v=<טביעה> = כתובת חדשה ל־CDN (לא עותק ישן מהמטמון שלו), cache:'reload' = לא מהמטמון של הדפדפן.

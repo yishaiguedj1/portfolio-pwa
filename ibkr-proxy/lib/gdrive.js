@@ -22,7 +22,10 @@ const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 /* כתובת החזרה מותרת — רק עמוד oauth.html של האפליקציה (או localhost לפיתוח) */
-const REDIRECT_RE = /^(https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/oauth\.html|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/(?:[\w.-]+\/)*oauth\.html)$/;
+/* כתובת החזרה מחלון ההסכמה — רק עמוד oauth.html של האפליקציה: github.io, הכתובות של THE SNOWBALL (ייצור וניסוי, לכל
+   אפליקציה — שלב 4, 13/10/2026: בלי זה החיבור ל־Drive מ־academy-staging וכו' נדחה), או localhost. הכתובת חייבת להיות
+   רשומה גם בלקוח ה־OAuth ב־Google Cloud */
+const REDIRECT_RE = /^(https:\/\/yishaiguedj1\.github\.io\/portfolio-pwa\/oauth\.html|https:\/\/(?:(?:invest|academy|studio)(?:-staging)?\.|staging\.)?thesnowball\.app\/oauth\.html|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/(?:[\w.-]+\/)*oauth\.html)$/;
 
 function form(o) { return Object.entries(o).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); }
 async function tokenCall(deps, params) {

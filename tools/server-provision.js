@@ -69,6 +69,8 @@ const RE = {
   vproject: /^[a-z0-9._-]{1,100}$/,
   vteam: /^team_[A-Za-z0-9]{10,40}$/,
   uid: /^[A-Za-z0-9]{10,128}$/,
+  gclient: /^\d{6,20}-[a-z0-9]{20,40}\.apps\.googleusercontent\.com$/,   // לקוח OAuth של Google (גיבוי הספרייה / Drive של הסטודיו)
+  gsecret: /^GOCSPX-[A-Za-z0-9_-]{20,40}$/,
 };
 
 function fail(code, msg) { const e = new Error(msg || code); e.code = code; throw e; }
@@ -111,6 +113,15 @@ function need(re, v, code, label, opts = {}) {
   return v;
 }
 
+/* לקוח OAuth של Google לחדר הניסוי — רשות: שני הסודות יחד (‎<pre>_ID / <pre>_SECRET) או אף אחד; בלי — הגיבוי ל־Drive
+   בניסוי לא מוגדר (gdConfig → configured:false), כמו עד 13/10/2026 */
+function gdrivePair(e, pre, out, chk) {
+  const id = String(e[pre + '_ID'] || '').trim(), sec = String(e[pre + '_SECRET'] || '').trim();
+  if (!id && !sec) return [];
+  return [out + '_ID=' + chk(() => need(RE.gclient, id, 'gclient_bad', pre + '_ID', { expect: 'מספר-מחרוזת.apps.googleusercontent.com' })),
+    out + '_SECRET=' + chk(() => need(RE.gsecret, sec, 'gsecret_bad', pre + '_SECRET', { expect: 'מתחיל ב־GOCSPX-' }))];
+}
+
 /* קובצי הסודות של חדרי הניסוי — מחזיר [{path, lines}] */
 /* errs (רשות) — אוסף משותף לכמה חדרים, כדי שכל הסודות השגויים ידווחו בהודעה אחת */
 /* כל הסודות נבדקים, וכל מה שלא תקין מדווח יחד (12/10/2026: עצירה בבעיה הראשונה = ריצה לכל סוד שגוי) */
@@ -137,6 +148,8 @@ function stagingFiles(env, e, token, errs) {
       'IBKR_SYNC_USERS=' + admins,
       'STUDIO_API_USER_MONTH_USD=' + env.monthUsd,
       'CRON_SECRET=' + crypto.randomBytes(24).toString('hex'),
+      ...gdrivePair(e, 'STG_GDRIVE_CLIENT', 'GDRIVE_CLIENT', chk),          // רשות (13/10/2026): גיבוי הספרייה ל־Drive בניסוי
+      ...gdrivePair(e, 'STG_STUDIO_GDRIVE_CLIENT', 'STUDIO_GDRIVE_CLIENT', chk),   // רשות: Drive של הסטודיו בניסוי (לקוח נפרד — v357)
     ] },
     { path: '/etc/snb/worker-stg.env', lines: [
       'ANTHROPIC_API_KEY=' + v(RE.anthropic, e.STG_ANTHROPIC_KEY, 'anthropic_bad', 'STG_ANTHROPIC_KEY', { expect: 'מתחיל ב־sk-ant-' }),

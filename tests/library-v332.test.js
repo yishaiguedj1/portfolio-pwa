@@ -41,7 +41,7 @@ ok(/const scrubBms = \(\) => \(rd && rd\.mk\) \|\| \[\];/.test(lib) && /rd\.mk =
 ok(/for \(const t of \['hl', 'note', 'bm'\]\)/.test(lib) && /document\.createDocumentFragment\(\)/.test(lib), 'שכבות: הדגשות למטה, הערות מעליהן, סימניות למעלה; בנייה בבת אחת');
 ok(/renderBmMarks\(\); \}\s*else markBookmark\(true\);/.test(lib), 'הדגשה/הערה שנוספה, השתנתה או נמחקה — מתעדכנת על הציר מיד');
 ok(/rd\.scrubHitEl = hit \? el\.marks\.querySelector\('\[data-id="' \+ hit\.id \+ '"\]'\) : null;/.test(lib), 'בלי סריקת כל הסימונים בכל כניסה — רק הקודם והחדש');
-ok(/el\.scrub\.dataset\.hit = hit\.t; el\.scrub\.style\.setProperty\('--hit', hit\.col \|\| '#30D158'\)/.test(lib), 'האגודל מקבל טבעת בצבע הסימון שעליו');
+ok(/el\.scrub\.dataset\.hit = hit\.t; el\.scrub\.style\.setProperty\('--hit', hit\.col \|\| accent\(\)\)/.test(lib), 'האגודל מקבל טבעת בצבע הסימון שעליו');
 ok(/if \(hit\) \{ try \{ if \(navigator\.vibrate\) navigator\.vibrate\(10\); \} catch \(e\) \{\} \}/.test(lib), 'אותו רטט עדין לכל סוג');
 ok(/h\('span', 'rd-prev-note', hit\.n\)/.test(lib) && /h\('span', 'rd-prev-mk', hit\.x\)/.test(lib), 'תצוגה מקדימה: ההערה, ומתחתיה הקטע במרקר בצבע שלו');
 ok(/T\('annBmLabel'\) : t === 'note' \? T\('hlNote'\) : T\('hlColor'\)/.test(lib), 'תווית הסוג: סימנייה / הערה / הדגשה');

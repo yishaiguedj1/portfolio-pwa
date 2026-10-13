@@ -36,7 +36,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/function pageAlert\(p\)/.test(sj) && /ui\.view === 'alert'\) pageAlert\(p\)/.test(sj) && /go\('alert', a\.no\)/.test(sj), 'רשומת התראה — מכל שורה במגדל');
   ok(/'altab:' \+ k/.test(sj) && /T\('studioAlTabT'/.test(sj) && /T\('studioAlTabR'/.test(sj), 'שלושה טאבים: פרטים · ציר · קשורות');
   ok(/net\.api\('ack'/.test(sj) && /!a\.m && !a\.ak/.test(sj), '"אשר" — ההתראה יורדת מהבאנר בבית');
-  ok(/function scoreTile/.test(sj) && /function spark\(vals\)/.test(sj) && /createElementNS\(NS, 'svg'\)/.test(sj), 'אריחי "ציון יחיד" עם קו מגמה (SVG, בלי innerHTML)');
+  ok(/function scoreTile/.test(sj) && /function spark\(vals, tone\)/.test(sj) && /createElementNS\(NS, 'svg'\)/.test(sj), 'אריחי "ציון יחיד" עם קו מגמה (SVG, בלי innerHTML)');
   ok(/'st-qa-b'/.test(sj) && /if \(!ui\.halt\) qa\.append/.test(sj), 'פעולות מהירות — "עצור הכל" רק כשהסוכנים לא עצורים ("להחזיר" בבאנר)');
   ok(!/function alertRows/.test(sj) && !/ui\.alOpen/.test(sj) && !/'st-health'/.test(sj), 'בלי כפילות: השורה הנפתחת של v368 וכרטיס הבריאות הישן הוסרו');
   ok(/T\('studioAlFire'\), fireTxt\(rec\.srv\.fr\)/.test(sj), 'רשומת התראה של ה־Routine — מה Anthropic ענה להפעלה');

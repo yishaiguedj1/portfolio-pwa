@@ -122,6 +122,22 @@ function mock(opts = {}) {
     ok(threw, 'קוד ההקמה: ' + k + ' לא תקין — נדחה (בלי הזרקת YAML), וההודעה בלי הערך');
   }
   ok((() => { try { P.cloudInit(tpl.replace(P.MARK, ''), []); return false; } catch (e) { return e.code === 'tpl'; } })(), 'תבנית בלי שורת סימון — נדחית');
+  /* 13/10/2026 — לקוח OAuth של Google בניסוי (גיבוי הספרייה ו־Drive של הסטודיו): רשות, שני הסודות יחד, בצורה קשיחה */
+  {
+    const app = (x) => P.stagingFiles(env, Object.assign({}, E, x), token).find((f) => f.path === '/etc/snb/app-stg.env').lines.join('\n');
+    ok(!/GDRIVE_CLIENT/.test(app({})), 'Drive בניסוי: בלי הסודות — בלי שורות (כמו קודם)');
+    const G = { STG_GDRIVE_CLIENT_ID: ' 123456789012-' + 'a'.repeat(32) + '.apps.googleusercontent.com ', STG_GDRIVE_CLIENT_SECRET: 'GOCSPX-' + 'Ab_c-'.repeat(5) + 'x',
+      STG_STUDIO_GDRIVE_CLIENT_ID: '98765432-' + 'b'.repeat(32) + '.apps.googleusercontent.com', STG_STUDIO_GDRIVE_CLIENT_SECRET: 'GOCSPX-' + 'Q'.repeat(28) };
+    const a = app(G);
+    ok(a.includes('\nGDRIVE_CLIENT_ID=123456789012-' + 'a'.repeat(32) + '.apps.googleusercontent.com') && a.includes('\nGDRIVE_CLIENT_SECRET=' + G.STG_GDRIVE_CLIENT_SECRET)
+      && a.includes('\nSTUDIO_GDRIVE_CLIENT_ID=' + G.STG_STUDIO_GDRIVE_CLIENT_ID) && a.includes('\nSTUDIO_GDRIVE_CLIENT_SECRET=' + G.STG_STUDIO_GDRIVE_CLIENT_SECRET),
+      'Drive בניסוי: שני הלקוחות נכנסים ל־app-stg.env (מנוקים מרווחים)');
+    for (const [k, v] of [['STG_GDRIVE_CLIENT_SECRET', ''], ['STG_GDRIVE_CLIENT_ID', 'x.apps.googleusercontent.com\nZ=1'], ['STG_STUDIO_GDRIVE_CLIENT_SECRET', 'secret123']]) {
+      let msg = '';
+      try { app(Object.assign({}, G, { [k]: v })); } catch (e) { msg = e.message; }
+      ok(msg.includes(k) && (!v || !msg.includes(v.slice(0, 6))), 'Drive בניסוי: ' + k + ' חסר או לא תקין — נדחה, וההודעה בלי הערך');
+    }
+  }
   /* 12/10/2026 — הסוד של R2 נפסל פעמיים בלי לדעת למה: ההודעה אומרת עכשיו את הצורה (אורך + סוגי תווים), לא את הערך */
   {
     const up = P.cloudInit(tpl, P.stagingFiles(env, Object.assign({}, E, { STG_R2_SECRET_ACCESS_KEY: ' ' + 'B'.repeat(32) + '\n' + 'b'.repeat(32) + ' ' }), token));

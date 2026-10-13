@@ -119,6 +119,20 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .4);
 }
 
+/* ---- צבע המערכת לכל אפליקציה (13/10/2026, בקשת המשתמש — הגוונים המדויקים שבחר) ----
+   Studio = אדום, Academy = כחול, במקום הירוק של Invest בכל מקום שהוא מבטא (כפתורים, בוררים, מתגים, מיכלים).
+   הירוק הסמנטי (רווח, "תקין", צבעי הדגשה בספר) נשאר. הטקסט על הצבע — כהה, כמו על הירוק ב־Invest. */
+html[data-app="studio"] {
+  --primary: #FF4656; --primary-dark: #FF4656; --on-primary: #3D0008;
+  --primary-container: rgba(255, 70, 86, .16); --on-primary-container: #B3121F;
+}
+html[data-app="studio"][data-theme="dark"] { --on-primary-container: #FF9AA3; }
+html[data-app="academy"] {
+  --primary: #4699FF; --primary-dark: #4699FF; --on-primary: #00214D;
+  --primary-container: rgba(70, 153, 255, .16); --on-primary-container: #0B57B5;
+}
+html[data-app="academy"][data-theme="dark"] { --on-primary-container: #A5CBFF; }
+
 * { box-sizing: border-box; }
 html, body { overflow-x: hidden; overflow-x: clip; }
 html { -webkit-text-size-adjust: 100%; }
@@ -894,7 +908,7 @@ footer.fine { text-align: center; }
 .login-overlay {
   position: fixed; inset: 0; z-index: 200;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, #0F7A5A 0%, #063D2D 100%); /* v151: ירוק המותג (היה כחול זר) */
+  background: linear-gradient(160deg, #1E9E45 0%, #08401A 100%); /* v151: ירוק המותג; 13/10/2026 — נגזר מ־#30D158 של Invest, כמו האדום של Studio והכחול של Academy */
   padding: 20px;
 }
 .login-card {
@@ -916,6 +930,9 @@ footer.fine { text-align: center; }
 .google-btn:active { background: #f6fafe; }
 #skipLoginBtn { margin-top: 4px; }
 .login-overlay.sa { z-index: 1150; }   /* Academy / Studio (shell.js loginGate): מעל הספרייה והסטודיו (900–1101) */
+/* 13/10/2026: רקע הכניסה בצבע המערכת של כל אפליקציה — אותה עומק כמו הירוק של Invest */
+html[data-app="studio"] .login-overlay { background: linear-gradient(160deg, #C41E2E 0%, #5C0711 100%); }
+html[data-app="academy"] .login-overlay { background: linear-gradient(160deg, #1F63C4 0%, #0A2A5C 100%); }
 
 /* ---- מתגי בחירה בסגנון אפל (שפה / ערכת נושא) ---- */
 .lang-toggle, .theme-toggle {
@@ -1703,7 +1720,9 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .menu-row-t { font-size: 16.5px; font-weight: 700; }
 .menu-row-s { font-size: 13px; font-weight: 500; color: var(--on-surface-var); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .demo-ic { background: linear-gradient(135deg, #FFD60A, #FF9F0A); }
-.studio-ic { background: linear-gradient(135deg, #FF5E57, #FF2D55); }   /* v354: סטודיו התרגום */
+.studio-ic { background: #FF4656; }   /* v354: סטודיו התרגום; 13/10/2026 — צבע המערכת של Studio */
+.academy-ic { background: #4699FF; }  /* 13/10/2026: צבע המערכת של Academy */
+.invest-ic { background: #30D158; }   /* 13/10/2026: צבע המערכת של Invest */
 /* כרטיס ההצעה בראש הסקירה — מרווח כמו שאר הכרטיסים */
 #tab-overview > #demoOffer { margin-bottom: 14px; }
 

@@ -59,7 +59,7 @@ ok(/\.rd-slider::-webkit-slider-thumb \{[^}]*width: 22px; height: 22px;[^}]*bord
 ok(/\.rd-scrub\[dir="rtl"\] \.rd-track \{ background: linear-gradient\(to left/.test(css), 'המסילה מתמלאת בכיוון הספר (מ־v332 — שכבה משלה מתחת לסימונים)');
 ok(/\.rd-bmark \{[^}]*inset-inline-start: calc\(11px \+ var\(--f\) \* \(100% - 22px\)\)/.test(css), 'סימנייה על הציר בדיוק במרכז האגודל באותו מיקום');
 ok(/\.rd-bmark\.hit \{ transform: translateY\(-5px\) scale\(1\.55\)/.test(css), 'סימנייה שהאגודל עליה — מתרוממת מעליו');
-ok(/\.rd-prev \{[^}]*background: var\(--rd-page\)/.test(css) && /\.rd\[data-dark="1"\] \.rd-prev \{ background: #1C1C1E;/.test(css) && /\.rd-prev\.bm \{[^}]*rgba\(48,209,88/.test(css), 'תצוגה מקדימה = עמוד קטן בצבעי הקורא; בכהה משטח מוגבה; טבעת ירוקה על סימנייה');
+ok(/\.rd-prev \{[^}]*background: var\(--rd-page\)/.test(css) && /\.rd\[data-dark="1"\] \.rd-prev \{ background: #1C1C1E;/.test(css) && /\.rd-prev\.bm \{[^}]*color-mix\(in srgb, var\(--primary\) 60%/.test(css), 'תצוגה מקדימה = עמוד קטן בצבעי הקורא; בכהה משטח מוגבה; טבעת בצבע המערכת על סימנייה');
 ok(/@media \(prefers-reduced-motion: reduce\) \{ \.rd-prev, \.rd-bmark/.test(css), 'reduced-motion');
 ok((app.match(/\brdBackTo: '/g) || []).length === 2 && (app.match(/\brdProgress: '/g) || []).length === 2, 'מחרוזות בעברית ובאנגלית');
 console.log('# ' + n + ' בדיקות עברו');
