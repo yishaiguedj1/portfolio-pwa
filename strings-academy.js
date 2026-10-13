@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (587 מפתחות מתוך 2560) */
+/* המחרוזות של academy (597 מפתחות מתוך 2559) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -153,6 +153,7 @@ he: {
   "colReadingN": "{n} בקריאה",
   "colRename": "שינוי שם",
   "colShelf": "מדף ספרים",
+  "displayTitle": "תצוגה",
   "edAuthor": "כותב",
   "edAuthorSort": "שם הכותב למיון",
   "edCoverErr": "לא הצלחתי לטעון את התמונה",
@@ -201,6 +202,7 @@ he: {
   "hlRemoved": "הסימון הוסר",
   "hlSave": "שמירה",
   "langAria": "בחירת שפה",
+  "langTitleBi": "שפה / Language",
   "learnAll": "הכל",
   "learnColor": "סינון לפי צבע",
   "learnCount": "{n} פריטים",
@@ -264,6 +266,8 @@ he: {
   "libTapDownload": "בגיבוי — נגיעה להורדה",
   "libTitle": "ספרייה",
   "loading": "טוען…",
+  "localModeSub": "הנתונים נשמרים רק בטלפון הזה",
+  "localModeTitle": "מצב מקומי",
   "loginAria": "התחברות",
   "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "loginSubAcademy": "מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר",
@@ -533,6 +537,7 @@ he: {
   "mgWait": "ממתין",
   "mgWillAll": "ישתנה בכל ה־{n}",
   "mgWillChange": "ישתנו: {f}",
+  "myAccount": "החשבון שלי",
   "noBm": "עוד אין סימניות. הסימנייה נמצאת בסרגל העליון.",
   "noHl": "עוד אין הדגשות. סמנו טקסט ובחרו צבע.",
   "qShare": "שיתוף",
@@ -578,6 +583,10 @@ he: {
   "tabBm": "סימניות",
   "tabHl": "הדגשות",
   "tabToc": "תוכן",
+  "themeDark": "כהה",
+  "themeLight": "בהיר",
+  "themeSystem": "מערכת",
+  "themeTitle": "ערכת נושא",
   "trDict": "מילון",
   "trFail": "התרגום נכשל. נסה שוב.",
   "trGoogle": "פתיחה ב־Google",
@@ -588,7 +597,8 @@ he: {
   "trWiki": "ויקיפדיה",
   "trWikiMore": "לערך המלא",
   "trWikiNone": "לא נמצא ערך בוויקיפדיה",
-  "trWikiTr": "תורגם אוטומטית"
+  "trWikiTr": "תורגם אוטומטית",
+  "userLabel": "משתמש"
 },
 en: {
   "acAiNote": "Written with AI from the text of the letter.",
@@ -742,6 +752,7 @@ en: {
   "colReadingN": "{n} reading",
   "colRename": "Rename",
   "colShelf": "Bookshelf",
+  "displayTitle": "Display",
   "edAuthor": "Author(s)",
   "edAuthorSort": "Author sort",
   "edCoverErr": "Couldn't load the image",
@@ -790,6 +801,7 @@ en: {
   "hlRemoved": "Highlight removed",
   "hlSave": "Save",
   "langAria": "Choose language",
+  "langTitleBi": "Language",
   "learnAll": "All",
   "learnColor": "Filter by color",
   "learnCount": "{n} items",
@@ -853,6 +865,8 @@ en: {
   "libTapDownload": "In backup — tap to download",
   "libTitle": "Library",
   "loading": "Loading…",
+  "localModeSub": "Data is stored on this phone only",
+  "localModeTitle": "Local mode",
   "loginAria": "Sign in",
   "loginFailed": "Sign-in failed — try again",
   "loginSubAcademy": "Sign in once — your library, progress and highlights are saved in the cloud and synced on every device",
@@ -1122,6 +1136,7 @@ en: {
   "mgWait": "Waiting",
   "mgWillAll": "Will change in all {n}",
   "mgWillChange": "Will change: {f}",
+  "myAccount": "My account",
   "noBm": "No bookmarks yet. The bookmark is in the top bar.",
   "noHl": "No highlights yet. Select text and pick a color.",
   "qShare": "Share",
@@ -1167,6 +1182,10 @@ en: {
   "tabBm": "Bookmarks",
   "tabHl": "Highlights",
   "tabToc": "Contents",
+  "themeDark": "Dark",
+  "themeLight": "Light",
+  "themeSystem": "System",
+  "themeTitle": "Theme",
   "trDict": "Dictionary",
   "trFail": "Translation failed. Try again.",
   "trGoogle": "Open in Google",
@@ -1177,6 +1196,7 @@ en: {
   "trWiki": "Wikipedia",
   "trWikiMore": "Full article",
   "trWikiNone": "No Wikipedia entry found",
-  "trWikiTr": "machine-translated"
+  "trWikiTr": "machine-translated",
+  "userLabel": "User"
 }
 };

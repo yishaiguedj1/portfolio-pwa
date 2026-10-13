@@ -33,13 +33,15 @@ for (const A of APPS) {
   const boot = read(A.app + '-app.js');
   ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
   // ההדר המשותף (13/10/2026): אותו shell.js, הלוגו של האפליקציה, והגלובוס בתפריט הפתוח = ההגדרות של האפליקציה
-  ok(boot.includes("import { createShell, APP_URL, loginGate } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
+  ok(boot.includes("import { createShell, APP_URL, loginGate, accountCard, displayCard } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
   { const b = fs.readFileSync(path.join(root, 'logo-' + A.app + '.png')); ok(b.slice(1, 4).toString() === 'PNG' && b.readUInt32BE(16) === 512 && b.length < 200000, A.app + ': הלוגו — PNG של 512 (פי 4 מ־128), קל (<200KB)'); }
   ok(boot.indexOf('wireCoreBack()') > 0 && boot.indexOf('wireCoreBack()') < boot.indexOf(A.open + '({'), A.app + ': "חזור" של החלונות נרשם לפני המודול (סדר מאזיני popstate)');
   // 13/10/2026 (בקשת המשתמש): מסך הכניסה של Invest גם כאן — רק כשהחיבור ענה "לא מחובר", עם הלוגו והשם של האפליקציה
   ok(new RegExp("if \\(first === 'out'\\) loginGate\\(\\{ app: '" + A.app + "', auth: A, logo: 'logo-" + A.app + "\\.png'").test(boot)
     && boot.indexOf('loginGate(') < boot.indexOf(A.open + '({'), A.app + ': לא מחובר — מסך הכניסה עם הלוגו שלה, לפני פתיחת המודול');
   ok(/pwa_auth_rl/.test(boot) && /Date\.now\(\) - last > 8000/.test(boot), A.app + ': טעינה מחדש כשהחיבור משתנה — עם שומר מפני לולאה');
+  // 13/10/2026 (בקשת המשתמש): עמוד ההגדרות — כרטיס החשבון ו"תצוגה" של Invest מ־shell.js, דרך SA (בלי ייבוא בתוך המודול)
+  ok(boot.includes('sa.cards = { account: () => accountCard(A), display: displayCard };') && !/from '\.\/shell\.js'/.test(read(A.mod)), A.app + ': הכרטיסים של עמוד ההגדרות מגיעים דרך SA.cards');
 
   const mod = read(A.mod);
   ok(/if \(SA && !restore\) [^\n]*history\.replaceState\(/.test(mod), A.app + ': הבית מחליף את רשומת הדף — "חזור" ממנו יוצא מהדף');
@@ -56,7 +58,7 @@ ok(/if \(lvl < 1 && root && !SA\)/.test(read('library.js')) && /if \(!st\.studio
   ok(/acts\.append\(theme, langWrap, menuWrap\)/.test(sh) && sh.includes("btnFacesHTML(ICON_GLOBE, ICON_GEAR)") && sh.includes("btnFacesHTML(ICON_MENU, ICON_CLOSE)"), 'shell: הסדר והפנים של הכפתורים כמו ב־Invest');
   ok(/modalPush\(\(\) => setOpen\(false\)\)/.test(sh) && /window\.snbMenuClose = /.test(sh) && /window\.snbMenuClose && window\.snbMenuClose\(\)/.test(read('studio.js')), 'shell: "חזור" סוגר את התפריט (גם דרך CloseWatcher של הסטודיו)');
   ok(/if \(shell\) hrow\.textContent = ''/.test(read('library.js')) && /if \(SA && SA\.shell\) \{ SA\.shell\.setStatus\(pill\); p\.append\(SA\.shell\.el\); \}/.test(read('studio.js')), 'עצמאי: בלי "ספרייה" / "תרגום סרטונים" מתחת ללוגו (בקשת המשתמש)');
-  ok(/\.lib-root button:not\(\.appbar button\)/.test(read('library.css')), 'האיפוס של כפתורי הספרייה לא חל על ההדר');
+  ok(/\.lib-root button:not\(\.appbar button[,)]/.test(read('library.css')), 'האיפוס של כפתורי הספרייה לא חל על ההדר');
   ok(require(path.join(root, 'tools/coregen.js')).APPS.academy.includes('shell.js') && require(path.join(root, 'tools/coregen.js')).APPS.studio.includes('shell.js'), 'coregen: המחרוזות של shell.js בשתי האפליקציות');
 }
 ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studio.html: קישור מהתראה (#studio=) פותח את העבודה');
@@ -76,5 +78,27 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
     const r = await Promise.all(['academy', 'academy.html', 'studio', 'studio?x=1', 'nothing'].map(nav));
     ok(r.join() === 'ACADEMY,ACADEMY,STUDIO,STUDIO,INVEST', 'אופליין: /academy ו־academy.html → Academy, /studio → Studio, דף לא מוכר → התיק (' + r.join() + ')');
       })();
+}
+// ---------- עמוד ההגדרות של Academy ו־Studio = השפה של ההגדרות ב־Invest (13/10/2026)
+{
+  const sh = read('shell.js'), cl = read('cloud.js'), idx = read('index.html');
+  // כרטיס החשבון: אותו DOM כמו renderAccountCard ב־cloud.js — אותן מחלקות, אותם אייקונים
+  ok(/card\.id = 'accountCard'/.test(sh) && /box\.id = 'accountInfo'/.test(sh) && /#accountCard > h2 \{ display: none; \}/.test(read('styles.css')), 'shell: #accountCard / #accountInfo כמו ב־Invest');
+  for (const c of ["'acc-id'", "'acc-txt'", "'ios-list'", "'ios-row ios-row-btn'", "'acc-out'", "'acc-av'", "'ios-row-ic'", "'ios-row-lbl'"]) ok(sh.includes(c), 'shell: המחלקה ' + c + ' של כרטיס החשבון');
+  for (const k of ['out', 'phone', 'cloud']) {
+    const m = new RegExp(k + ": '(<svg[^']+)'").exec(sh);
+    ok(m && cl.includes(m[1]), 'shell: האייקון ' + k + ' זהה ל־cloud.js');
+  }
+  ok(/t\('localModeTitle'\)/.test(sh) && /t\('googleSignIn'\)/.test(sh) && /'icon-192\.png'/.test(sh), 'shell: לא מחובר — "מצב מקומי" וכניסה; תמונה חסרה → icon-192 (כמו Invest)');
+  // כרטיס תצוגה: אותן מחלקות של index.html, שלוש אפשרויות לשפה ולערכה (בלי מטבע)
+  ok(/'card display-card'/.test(sh) && /'display-row stack'/.test(sh) && /'lang-toggle'/.test(sh) && /'lang-opt'/.test(sh) && idx.includes('class="card display-card"'), 'shell: כרטיס "תצוגה" במחלקות של Invest');
+  ok(/\['system', t\('themeSystem'\)\]/.test(sh) && /setThemeMode\(v\)/.test(sh) && !/curUSD|curILS/.test(sh), 'shell: שפה וערכה עם "מערכת", בלי מטבע');
+  // Academy: עמוד בפני עצמו (לא גיליון), ו־Studio: כל מקטע = כרטיס
+  const lib = read('library.js'), st = read('studio.js');
+  ok(/function openAcademySettings\(\) \{ if \(!\(ui\.view && ui\.view\.settings\)\) goView\(\{ settings: 1 \}\); \}/.test(lib) && /if \(ui\.view && ui\.view\.settings\) return renderSettings\(\);/.test(lib), 'Academy: ההגדרות = עמוד בספרייה (רשומה בהיסטוריה)');
+  ok(/home\.append\(C\.account\(\), C\.display\(\)\)/.test(lib) && /\.lib-root button:not\(\.appbar button, \.card button\)/.test(read('library.css')), 'Academy: החשבון ותצוגה; האיפוס של כפתורי הספרייה לא נוגע בכרטיסים');
+  const ps = st.slice(st.indexOf('function pageSettings('), st.indexOf('/* ---------------- שלב 4: התראות לטלפון'));
+  ok(ps.indexOf('C.account()') > 0 && ps.indexOf('C.account()') < ps.indexOf("T('studioSecClaude')") && !/secT\(/.test(ps) && (ps.match(/setCard\(/g) || []).length >= 9, 'Studio: החשבון בראש העמוד, וכל מקטע = setCard');
+  ok(/'card st-card'/.test(st) && /\.st-card > \.st-list \{ margin: 0; background: transparent; \}/.test(read('studio.css')), 'Studio: הכרטיס = .card של styles.css, הרשימה בלי רקע משלה');
 }
 console.log('# ' + n + ' בדיקות עברו');

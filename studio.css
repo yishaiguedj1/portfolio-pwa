@@ -807,3 +807,13 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ov-l.tl { top: 3%; inset-inline-start: 3%; } .st-ov-l.tr { top: 3%; inset-inline-end: 3%; } .st-ov-l.bl { bottom: 3%; inset-inline-start: 3%; } .st-ov-l.br { bottom: 3%; inset-inline-end: 3%; }
 /* עצמאי (studio.html): ההדר המשותף (shell.js) בראש דף הבית — רווח מהתוכן כמו ב־Invest */
 .st-root .appbar { margin-bottom: 12px; }
+
+/* עמוד ההגדרות (13/10/2026, בקשת המשתמש: באותה שפת עיצוב כמו ההגדרות של Invest) — כל מקטע = .card של styles.css
+   עם הכותרת בתוכו; השורות של הסטודיו בלי רקע משלהן. כרטיס החשבון ו"תצוגה" — מ־shell.js, כמו ב־Invest */
+.st-page > .card { margin: 16px; }
+.st-card { padding: 16px 6px 6px; }
+.st-card.row-card { padding: 6px; }
+.st-card > h2 { margin: 2px 14px 8px; }
+.st-card > .st-list { margin: 0; background: transparent; }
+.st-card > .st-note { margin: 6px 14px 10px; }
+.st-card > .st-test { margin: 8px 8px 6px; background: var(--surface-2); }

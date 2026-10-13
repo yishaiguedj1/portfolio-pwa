@@ -173,3 +173,74 @@ export function loginGate(o) {
   document.body.append(veil);
   return veil;
 }
+
+/* עמוד ההגדרות של Academy ו־Studio (13/10/2026, בקשת המשתמש: "אותה שפת עיצוב כמו ההגדרות של Invest; כרטיס החשבון
+   בראש העמוד זהה אחד לאחד") — אותו DOM ואותן מחלקות של #accountCard (cloud.js, renderAccountCard) ושל כרטיס "תצוגה"
+   (index.html), העיצוב כולו מ־styles.css. אין כאן מטבע (רק ב־Invest). */
+const ACC_IC = {
+  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18h2"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.2 9.1 4 4 0 0 0 6.5 19z"/></svg>',
+};
+function accIdRow(av, title, sub) {
+  const row = h('div', 'acc-id');
+  const tx = h('div', 'acc-txt'); tx.append(h('b', null, title), h('span', null, sub));
+  row.append(av, tx);
+  return row;
+}
+function accActRow(cls, icon, label, onClick) {
+  const list = h('div', 'ios-list');
+  const b = h('button', 'ios-row ios-row-btn' + (cls ? ' ' + cls : '')); b.type = 'button';
+  const ic = h('span', 'ios-row-ic'); ic.setAttribute('aria-hidden', 'true'); ic.innerHTML = icon;
+  b.append(ic, h('span', 'ios-row-lbl', label));
+  b.addEventListener('click', onClick);
+  list.append(b);
+  return list;
+}
+/* החשבון: מחובר — תמונה, שם, מייל והתנתקות; לא מחובר — "מצב מקומי" וכניסה עם Google (כמו Invest אחרי "המשך בלי חשבון") */
+export function accountCard(A) {
+  const card = h('div', 'card'); card.id = 'accountCard';
+  const box = h('div'); box.id = 'accountInfo';
+  card.append(h('h2', null, t('myAccount')), box);
+  const u = A && A.user();
+  if (u) {
+    const img = h('img'); img.alt = ''; img.src = u.photoURL || 'icon-192.png';
+    img.addEventListener('error', () => { img.src = 'icon-192.png'; }, { once: true });
+    box.append(accIdRow(img, u.displayName || t('userLabel'), u.email || ''),
+      accActRow('acc-out', ACC_IC.out, t('signOut'), () => A.signOut()));   // החיבור משתנה → הדף נטען מחדש (academy-app.js / studio-app.js)
+  } else if (A) {
+    const av = h('span', 'acc-av'); av.setAttribute('aria-hidden', 'true'); av.innerHTML = ACC_IC.phone;
+    box.append(accIdRow(av, t('localModeTitle'), t('localModeSub')),
+      accActRow('', ACC_IC.cloud, t('googleSignIn'), () => { A.signIn().then((ok) => { if (!ok && typeof flash === 'function') flash(t('loginFailed')); }); }));
+  }
+  return card;
+}
+/* תצוגה: שפה (עברית / English / מערכת) וערכת נושא (בהיר / כהה / מערכת) — אותם בוררים של Invest */
+export function displayCard() {
+  const card = h('div', 'card display-card');
+  card.append(h('h2', null, t('displayTitle')));
+  const group = (label, aria, opts, cur, pick) => {
+    const row = h('div', 'display-row stack');
+    const tg = h('div', 'lang-toggle'); tg.setAttribute('role', 'group'); tg.setAttribute('aria-label', aria);
+    for (const [v, txt] of opts) {
+      const b = h('button', 'lang-opt' + (v === cur() ? ' active' : ''), txt); b.type = 'button';
+      b.setAttribute('aria-pressed', v === cur() ? 'true' : 'false');
+      b.addEventListener('click', () => {
+        if (v === cur()) return;
+        pick(v);
+        for (const x of tg.children) { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+      });
+      tg.append(b);
+    }
+    row.append(h('span', 'display-label', label), tg);
+    return row;
+  };
+  card.append(
+    group(t('langTitleBi'), 'Language', [['he', 'עברית'], ['en', 'English'], ['system', t('themeSystem')]], getLangMode, (v) => {
+      const before = getLang();
+      try { localStorage.setItem(LS_LANG, v); } catch (e) {}
+      if (getLang() !== before) location.reload();          // כל הטקסטים בדף נבנים מחדש בשפה החדשה
+    }),
+    group(t('themeTitle'), 'Theme', [['light', t('themeLight')], ['dark', t('themeDark')], ['system', t('themeSystem')]], getThemeMode, (v) => setThemeMode(v)));
+  return card;
+}

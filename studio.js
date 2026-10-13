@@ -1538,7 +1538,6 @@ const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכ
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.6 3.5 5.5 3.5 8.6s-1.1 6-3.5 8.6c-2.4-2.6-3.5-5.5-3.5-8.6s1.1-6 3.5-8.6z"/>',
   spark: '<path d="M11 2.5l1.9 5.4 5.4 1.9-5.4 1.9L11 17.1l-1.9-5.4-5.4-1.9 5.4-1.9z" fill="currentColor" stroke="none"/><path d="M18.5 14.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill="currentColor" stroke="none"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16.2 6.8l2.3 2.3M13.8 9.2l1.8 1.8"/>',
-  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   out: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
@@ -5235,40 +5234,39 @@ function pageGuide(p) {
   sec(T('studioGd4'), T('studioGd4a'));
   sec(T('studioGd5'), T('studioGd5a'));
 }
+/* כרטיס בעמוד ההגדרות — כמו בהגדרות של Invest (.card מ־styles.css): כותרת בתוך הכרטיס, השורות בלי רקע משלהן */
+function setCard(title, ...nodes) {
+  const c = h('section', 'card st-card' + (title ? '' : ' row-card'));
+  if (title) c.append(h('h2', null, title));
+  c.append(...nodes.filter(Boolean));
+  return c;
+}
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
   p.append(navBar({ back: T('studioShort') }), large(T('studioSettings')));
-  const ab = accessBanner(); if (ab) p.append(ab);
-  p.append(list(rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' })));   // מ9: מדריך קצר
-  // Studio עצמאי (studio.html): החשבון — מי מחובר והתנתקות (בקשת המשתמש 13/10/2026; כמו בהגדרות Academy). בתיק — בהגדרות של Invest
-  const A = SA && SA.auth;
-  if (A) {
-    const u = A.user();
-    if (u) {
-      const who = h('div', 'st-row st-ric');
-      const wl = h('span', 'st-l'); wl.append(h('b', null, u.displayName || T('studioSecAccount')));
-      const ws = h('small'); ws.append(h('bdi', null, u.email || '')); wl.append(ws);
-      who.append(tile('user', 'blue'), wl);
-      p.append(secT(T('studioSecAccount')), list(who, btn('st-row st-act danger', T('signOut'), () => { A.signOut(); }, 'signout')));   // החיבור משתנה → הדף נטען מחדש (studio-app.js)
-    } else {
-      p.append(secT(T('studioSecAccount')), list(btn('st-row st-act', T('googleSignIn'), () => { A.signIn().then((ok) => { if (!ok) flashSafe(T('loginFailed')); }); }, 'signin-set')));
-    }
-  }
+  // 13/10/2026 (בקשת המשתמש): באותה שפת עיצוב כמו ההגדרות של Invest — כל מקטע = כרטיס (.card מ־styles.css) עם כותרת,
+  // ובראש העמוד כרטיס החשבון של Invest אחד לאחד (shell.js, רק בדף העצמאי — בתיק החשבון בהגדרות של Invest)
+  const C = SA && SA.cards, A = SA && SA.auth;
+  const ab = C && A && A.state() === 'out' ? null : accessBanner();   // לא מחובר — הכניסה בכרטיס החשבון (בלי כפילות)
+  if (ab) p.append(ab);
+  if (C) p.append(C.account());
+  p.append(setCard(null, list(rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+  if (C) p.append(C.display());
   // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };
-  p.append(secT(T('studioSecClaude')), list(
+  p.append(setCard(T('studioSecClaude'), list(
     rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: !isApi && !cpMode(), onClick: pick('sub'), k: 'cn:sub' }),
     rowRadio({ label: T('studioConnCopy'), sub: T('studioConnCopyS'), on: cpMode(), onClick: pick('copy'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:copy' }),   // סבב 10
-    rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: isApi, onClick: pick('api'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:api' })));
+    rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: isApi, onClick: pick('api'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:api' }))));
   const c = store.conn;
   if (isApi) {
     // השרת של המערכת: בלי אשף ובלי Routine — רק התקציב, התקרה לעבודה והשרת
     const a = ui.api;
-    p.append(secT(T('studioSecApi')), list(
+    p.append(setCard(T('studioSecApi'), list(
       kvRow(T('studioApiMonth'), T('studioApiOf', { a: fmtUsd(a.month), b: fmtUsd(a.cap) })),
       rowNav({ label: T('studioApiCap'), value: '$' + s.cap, onClick: () => go('def', 'cap'), k: 'def:cap' }),
-      rowNav({ tile: tile('cloud', a.online ? 'green' : 'orange'), label: T('studioSrvT'), sub: a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'server' })));
+      rowNav({ tile: tile('cloud', a.online ? 'green' : 'orange'), label: T('studioSrvT'), sub: a.online ? T('studioSrvOnN', { n: a.online }) : T('studioSrvNone'), onClick: () => go('server'), k: 'server' }))));
   } else if (c) {
     const st = c.ok ? T('studioConnChecked', { t: fmtDate(c.ok) }) : T('studioConnUnchecked');
     const head = h('div', 'st-row st-ric');
@@ -5278,13 +5276,12 @@ function pageSettings(p) {
     const busy = testRun && (testRun.st === 'fire' || testRun.st === 'wait');
     const tb = btn('st-row st-act', busy ? T('studioTesting') : T('studioTestConn'), runTest, 'test');
     tb.disabled = !!busy || blocked();
-    p.append(secT(T('studioSecConnect')), list(head, tb,
+    p.append(setCard(T('studioSecConnect'), list(head, tb,
       rowNav({ label: T('studioReconnect'), onClick: () => go('connect'), k: 'wizard' }),
-      btn('st-row st-act danger', T('studioDisconn'), disconnectClaude, 'disconnect')));
-    const tl = testLine(); if (tl) p.append(tl);
+      btn('st-row st-act danger', T('studioDisconn'), disconnectClaude, 'disconnect')), testLine()));
   } else {
-    p.append(secT(T('studioSecConnect')), list(
-      rowNav({ tile: tile('key', 'green'), label: T('studioWizard'), sub: T('studioNotConn') + ' · ' + T('studioWizardS'), onClick: () => go('connect'), k: 'wizard' })));
+    p.append(setCard(T('studioSecConnect'), list(
+      rowNav({ tile: tile('key', 'green'), label: T('studioWizard'), sub: T('studioNotConn') + ' · ' + T('studioWizardS'), onClick: () => go('connect'), k: 'wizard' }))));
   }
   // Google Drive — שם הסרטונים והתוצרים (חיבור נפרד מגיבוי הספרייה, v357)
   const dr = store.drive;
@@ -5295,7 +5292,7 @@ function pageSettings(p) {
   drow.append(tile('cloud', 'blue'), dl);
   const drows = [drow];
   if (!dr || !dr.connected) { const b = btn('st-row st-act', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'drive-connect'); b.disabled = ui.driveBusy || blocked(); drows.push(b); }
-  p.append(secT(T('studioSecDrive')), list(...drows), note(T('studioDriveNote')));
+  p.append(setCard(T('studioSecDrive'), list(...drows), note(T('studioDriveNote'))));
   // שלב 4: התראות לטלפון — מתג אחד; בדיקה כשפועל
   if (ui.push == null) refreshPush().then(() => { if (root && ui.view === 'settings') render('none'); });
   const pst = ui.push || 'off';
@@ -5304,17 +5301,17 @@ function pageSettings(p) {
   if (pst === 'na' || pst === 'denied' || ui.pushBusy) prow.disabled = true;
   const prows = [prow];
   if (pst === 'on') prows.push(btn('st-row st-act', T('studioPushTest'), pushTest, 'push-test'));
-  p.append(secT(T('studioSecPush')), list(...prows));
+  p.append(setCard(T('studioSecPush'), list(...prows)));
   // העלאה
-  p.append(secT(T('studioSecUpload')), list(
-    rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' })));
-  p.append(secT(T('studioSecSafety')), list(
-    rowNav({ tile: tile('shield', 'green'), label: T('studioTwT'), sub: T('studioTwRowS'), onClick: () => go('tower'), k: 'tower' })));
-  p.append(secT(T('studioSecDefaults')), list(
+  p.append(setCard(T('studioSecUpload'), list(
+    rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' }))));
+  p.append(setCard(T('studioSecSafety'), list(
+    rowNav({ tile: tile('shield', 'green'), label: T('studioTwT'), sub: T('studioTwRowS'), onClick: () => go('tower'), k: 'tower' }))));
+  p.append(setCard(T('studioSecDefaults'), list(
     rowNav({ label: T('studioSecMode'), value: modeShort(m), onClick: () => go('def', 'mode'), k: 'def:mode' }),
     rowNav({ label: T('studioTo'), value: langsSum(s.to), onClick: () => go('lang', 'def'), k: 'def:to' }),
     rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
-    rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' })));
+    rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' }))));
 }
 /* ---------------- שלב 4: התראות לטלפון (Web Push, 10/10/2026) ----------------
    המפתח הציבורי מהשרתון; המנוי של הדפדפן נשלח אליו. ההתראות עצמן — רק סוג האירוע ומזהה העבודה (בלי שם קובץ).

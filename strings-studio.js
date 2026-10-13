@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1414 מפתחות מתוך 2560) */
+/* המחרוזות של studio (1423 מפתחות מתוך 2559) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -9,8 +9,12 @@ he: {
   "btnCancel": "ביטול",
   "btnClose": "סגירה",
   "btnOk": "אישור",
+  "displayTitle": "תצוגה",
   "googleSignIn": "התחברות עם Google",
   "langAria": "בחירת שפה",
+  "langTitleBi": "שפה / Language",
+  "localModeSub": "הנתונים נשמרים רק בטלפון הזה",
+  "localModeTitle": "מצב מקומי",
   "loginAria": "התחברות",
   "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "loginSubAcademy": "מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר",
@@ -21,6 +25,7 @@ he: {
   "menuSettings": "הגדרות",
   "menuStudioSub": "כתוביות בכל שפה",
   "menuThemeAria": "ערכת נושא — בהיר / כהה",
+  "myAccount": "החשבון שלי",
   "signOut": "התנתקות",
   "skipLogin": "המשך בלי חשבון",
   "studioAdvAfterT": "הצעות",
@@ -1131,7 +1136,6 @@ he: {
   "studioSeVerGone": "הקבצים של הגרסה הזו כבר לא קיימים",
   "studioSeVerName": "עריכה {n}",
   "studioSeVers": "גרסאות קודמות ({n})",
-  "studioSecAccount": "חשבון",
   "studioSecApi": "השרת של המערכת",
   "studioSecClaude": "Claude — מי עושה את העבודה",
   "studioSecConnect": "החיבור",
@@ -1415,7 +1419,12 @@ he: {
   "studioWizard": "הגדרת החיבור",
   "studioWizardS": "פעם אחת · כ־10 דקות",
   "studioWorkerMsgL": "מה העובד דיווח",
-  "studioWrongFile": "זה לא אותו סרטון. בחרו את הקובץ המקורי"
+  "studioWrongFile": "זה לא אותו סרטון. בחרו את הקובץ המקורי",
+  "themeDark": "כהה",
+  "themeLight": "בהיר",
+  "themeSystem": "מערכת",
+  "themeTitle": "ערכת נושא",
+  "userLabel": "משתמש"
 },
 en: {
   "actColl": "Add to collection",
@@ -1425,8 +1434,12 @@ en: {
   "btnCancel": "Cancel",
   "btnClose": "Close",
   "btnOk": "OK",
+  "displayTitle": "Display",
   "googleSignIn": "Sign in with Google",
   "langAria": "Choose language",
+  "langTitleBi": "Language",
+  "localModeSub": "Data is stored on this phone only",
+  "localModeTitle": "Local mode",
   "loginAria": "Sign in",
   "loginFailed": "Sign-in failed — try again",
   "loginSubAcademy": "Sign in once — your library, progress and highlights are saved in the cloud and synced on every device",
@@ -1437,6 +1450,7 @@ en: {
   "menuSettings": "Settings",
   "menuStudioSub": "Subtitles in any language",
   "menuThemeAria": "Theme — light / dark",
+  "myAccount": "My account",
   "signOut": "Sign out",
   "skipLogin": "Continue without an account",
   "studioAdvAfterT": "Suggestions",
@@ -2547,7 +2561,6 @@ en: {
   "studioSeVerGone": "This version's files no longer exist",
   "studioSeVerName": "Edit {n}",
   "studioSeVers": "Previous versions ({n})",
-  "studioSecAccount": "Account",
   "studioSecApi": "The system server",
   "studioSecClaude": "Claude — who does the work",
   "studioSecConnect": "Connection",
@@ -2831,6 +2844,11 @@ en: {
   "studioWizard": "Set up the connection",
   "studioWizardS": "One time · about 10 minutes",
   "studioWorkerMsgL": "Worker's last message",
-  "studioWrongFile": "That's not the same video. Choose the original file"
+  "studioWrongFile": "That's not the same video. Choose the original file",
+  "themeDark": "Dark",
+  "themeLight": "Light",
+  "themeSystem": "System",
+  "themeTitle": "Theme",
+  "userLabel": "User"
 }
 };
