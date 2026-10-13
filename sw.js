@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v398';
+const CACHE_NAME = 'portfolio-pwa-v399';
 const HASHES = {
   "./": "affb322fcd7e65067aa2f64e3dcfea7a",
   "./index.html": "affb322fcd7e65067aa2f64e3dcfea7a",
   "./styles.css": "970e04bc9ef293a8116304f6b7ca8fdd",
-  "./app.js": "02a3e68befc007b4528b77c40508313f",
+  "./app.js": "293fa3b8cd5d1616046c90bea73a106a",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "42f8ddbbdacee303f37d1f8cb56ef3be",
