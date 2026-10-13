@@ -39,7 +39,9 @@ async function verifyIdToken(token, opts = {}) {
   if (claims.aud !== project || claims.iss !== 'https://securetoken.google.com/' + project) throw new Error('wrong_project');
   if (!(claims.exp > now) || claims.iat > now + 300) throw new Error('expired');
   if (!claims.sub) throw new Error('bad_token');
-  return { uid: claims.sub, email: String(claims.email || '').toLowerCase(), verified: !!claims.email_verified };
+  // authTime/provider — לחיבור המשותף (lib/session.js): עוגייה רק מהתחברות טרייה עם Google, לא מטוקן מותאם
+  return { uid: claims.sub, email: String(claims.email || '').toLowerCase(), verified: !!claims.email_verified,
+    authTime: +claims.auth_time || 0, provider: String((claims.firebase || {}).sign_in_provider || '') };
 }
 
 /* רשימת הקוראים המורשים: LIBRARY_READERS = מיילים מופרדים בפסיק ("*" = כל משתמש מחובר) */

@@ -96,7 +96,10 @@ function listen(server) {
   // 3. הפונקציות האמיתיות — בלי רשת: CORS (OPTIONS) ו־405 על GET
   const real = S.createServer({ log: false });
   const p2 = await listen(real);
-  ok(real.names.size === 12 && real.names.has('studio') && real.names.has('ibkr-sync'), 'כל 12 הפונקציות של api/');
+  ok(real.names.size === 13 && real.names.has('studio') && real.names.has('ibkr-sync') && real.names.has('session'), 'כל 12 הפונקציות של api/ + session (של השרת בלבד)');
+  ok(!require('fs').existsSync(require('path').join(__dirname, '..', 'ibkr-proxy', 'api', 'session.js')), 'session לא ב־api/ — Vercel לא רואה אותו (12 מתוך 12)');
+  r = await req(p2, 'OPTIONS', '/api/session', { headers: { origin: 'https://yishaiguedj1.github.io' } });
+  ok(r.status === 403 && !r.headers['access-control-allow-origin'], 'session: מקור מחוץ ל־thesnowball.app נחסם');
   r = await req(p2, 'OPTIONS', '/api/flex-request', { headers: { origin: 'https://yishaiguedj1.github.io' } });
   ok(r.status === 204 && r.headers['access-control-allow-origin'] === 'https://yishaiguedj1.github.io', 'CORS כמו ב־Vercel');
   r = await req(p2, 'GET', '/api/flex-request', { headers: { origin: 'https://yishaiguedj1.github.io' } });
