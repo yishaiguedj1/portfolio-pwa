@@ -121,6 +121,11 @@ const { fakeR2, ENV } = require('./_r2fake');
   lib._reset();
   r = await call({ op: 'list' }, READER);
   ok(r.j.items.length === 5, 'לפני "סיום המעבר" — הרשימה עדיין מ־Drive');
+  const FOLDER = process.env.LIBRARY_FOLDER_ID;
+  delete process.env.LIBRARY_FOLDER_ID; lib._reset();
+  r = await call({ op: 'list' }, READER);
+  ok(r.code === 503 && r.j.error === 'not_configured' && r.j.diag.folder === 'missing', 'לפני סיום המעבר בלי LIBRARY_FOLDER_ID — "לא מוגדר" עם שם המשתנה');
+  process.env.LIBRARY_FOLDER_ID = FOLDER; lib._reset();
 
   /* 5. סיום המעבר: המקור = R2. טלפון ישן — אותם מזהים ואותו md5, גם כש־Drive לא זמין */
   r = await call({ op: 'migrateFinish', rid: 'mig-fin1' });
@@ -142,6 +147,20 @@ const { fakeR2, ENV } = require('./_r2fake');
   AI.map.set('ins|LETTER000001|' + md5(epub('2023')), { summary: 'מהמטמון' });
   r = await call({ op: 'insight', id: 'id-urn:uuid:buffett-2023' }, READER);
   ok(r.j.ok && r.j.insight.summary === 'מהמטמון' && AI.calls === 0, 'הניתוח שנשמר לפני המעבר — נמצא (אין קריאה חדשה ל־AI)');
+
+  /* 6א. אחרי המעבר — תיקיית Drive לא נדרשת (12/10/2026: LIBRARY_FOLDER_ID יכול לצאת מ־Vercel) */
+  delete process.env.LIBRARY_FOLDER_ID; lib._reset();
+  r = await call({ op: 'list' }, READER);
+  ok(r.j.ok && r.j.items.length === 2, 'בלי LIBRARY_FOLDER_ID: הרשימה מהקטלוג');
+  r = await call({ op: 'file', id: 'LETTER000001', via: 'r2' }, READER);
+  ok(r.j.ok && r.j.url, 'בלי LIBRARY_FOLDER_ID: קישור לקובץ');
+  r = await call({ op: 'insight', id: 'id-urn:uuid:buffett-2023' }, READER);
+  ok(r.j.ok && r.j.insight.summary === 'מהמטמון', 'בלי LIBRARY_FOLDER_ID: ניתוח מכתב');
+  r = await call({ op: 'health' }, READER);
+  ok(r.j.ok && r.j.count === 2 && r.j.src === 'r2', 'בלי LIBRARY_FOLDER_ID: בדיקת התקינות — מהקטלוג, src=r2');
+  r = await call({ op: 'readers' });
+  ok(r.code !== 503, 'בלי LIBRARY_FOLDER_ID: ניהול הקוראים לא נחסם');
+  process.env.LIBRARY_FOLDER_ID = FOLDER; lib._reset();
 
   /* 7. העלאת ספר חדש: קישור חתום → קובץ זמני → בדיקה → למקום הסופי */
   r = await call({ op: 'upPlan', items: [{ k: 'b', size: 5000 }, { k: 'b', size: 500 * 1024 * 1024 }, { k: 'c', size: 900 * 1024 }] });

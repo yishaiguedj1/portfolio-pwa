@@ -129,18 +129,21 @@ async function handler(req, res, deps = {}) {
     if (limited('gd|' + gu.uid, 60)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     return gdrive.handle(body, gu, res, deps);
   }
-  if (!serviceAccount() || (!process.env.LIBRARY_FOLDER_ID && !LM.OPS.has(String(body.op || '')) && body.op !== 'me')) {   // הקטלוג ב־R2 לא צריך את תיקיית Drive
-    // אבחון בלי לחשוף ערכים: איזה משתנה חסר / לא נקרא
+  /* אבחון בלי לחשוף ערכים: איזה משתנה חסר / לא נקרא. תיקיית Drive נדרשת רק עד סיום המעבר לקטלוג ב־R2 (12/10/2026) */
+  const notConfigured = () => {
     const raw = String(process.env.GDRIVE_SA_KEY || '').trim();
     return res.status(503).json({ ok: false, error: 'not_configured', diag: {
       saKey: !raw ? 'missing' : serviceAccount() ? 'ok' : (raw.startsWith('{') ? 'bad_json' : 'bad_format') + ':' + raw.length,
       folder: process.env.LIBRARY_FOLDER_ID ? 'ok' : 'missing', readers: process.env.LIBRARY_READERS ? 'ok' : 'missing' } });
-  }
-  if (body.op === 'health') { // בדיקת הגדרה בלי התחברות: רק האם הרובוט ניגש לתיקייה וכמה מכתבים יש בה — בלי שמות
+  };
+  if (!serviceAccount()) return notConfigured();
+  if (body.op === 'health') { // בדיקת הגדרה בלי התחברות: רק כמה מכתבים יש ומאיפה (src) — בלי שמות
     try {
-      const cat = await listAll(deps.fetch);
+      const lc = await LM.compat(deps).catch(() => null);   // אחרי המעבר — מהקטלוג, בלי Drive
+      if (!lc && !process.env.LIBRARY_FOLDER_ID) return notConfigured();
+      const count = lc ? lc.items.length : (await listAll(deps.fetch)).items.length;
       const st = await (deps.readers || readers).getReaders(deps.fetch, true);   // שלב 6: האם חשבון השירות ניגש ל־Firestore (בלי לחשוף את הרשימה)
-      return res.status(200).json({ ok: true, count: cat.items.length, store: st.err ? 'no_access' : 'ok', storeErr: st.err || '' });
+      return res.status(200).json({ ok: true, count, src: lc ? 'r2' : 'drive', store: st.err ? 'no_access' : 'ok', storeErr: st.err || '' });
     } catch (e) {
       return res.status(502).json({ ok: false, error: String(e && e.message || e).slice(0, 40) });
     }
@@ -188,6 +191,7 @@ async function handler(req, res, deps = {}) {
     let cat;
     const lc = await LM.compat(deps).catch(() => null);   // ס׳2: אחרי המעבר — הרשימה מהקטלוג, Drive לא נקרא בכלל
     if (lc) cat = { items: lc.items, v2: lc.byId };
+    else if (!process.env.LIBRARY_FOLDER_ID) return notConfigured();   // לפני המעבר — הרשימה עדיין מ־Drive
     else {
       try { cat = await listAll(deps.fetch); }
       catch (e) { cat = await catalogFromR2(deps.fetch); if (!cat) throw e; }   // Drive נפל — הקטלוג האחרון מ־R2
