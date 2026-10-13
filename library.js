@@ -914,7 +914,7 @@ async function renderHomeNow() {
   home.textContent = '';
   const top = h('div', 'lib-top');
   const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, 'THE SNOWBALL'));
-  back.addEventListener('click', () => history.back());
+  back.addEventListener('click', () => { if (SA) location.href = SA.home || './'; else history.back(); });
   const add = h('label', 'lib-round'); add.innerHTML = ICON.plus; add.title = T('libImport'); add.setAttribute('aria-label', T('libImport'));
   add.append(importInput());
   const learn = h('button', 'lib-round'); learn.type = 'button'; learn.innerHTML = ICON.notes; learn.setAttribute('aria-label', T('learnTitle')); learn.title = T('learnTitle');
@@ -929,6 +929,11 @@ async function renderHomeNow() {
   hrow.append(h('h1', 'lib-large', T('libTitle')));
   if (mine) { bkAdopt(); if (books.length || cloudOnly.length) hrow.append(backupPill()); }
   home.append(top, hrow);
+  if (SA && SA.auth && SA.auth.state() === 'out') {   // עצמאי בלי חיבור — כניסה עם Google (אחריה הדף נטען מחדש עם החשבון)
+    const si = h('button', 'lib-signin'); si.type = 'button'; si.textContent = T('googleSignIn');
+    si.addEventListener('click', () => { SA.auth.signIn().then((ok) => { if (!ok && typeof flash === 'function') flash(T('loginFailed')); }); });
+    home.append(si);
+  }
   home.append(shelfSeg(nMine));
   if (!mine) {
     if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
@@ -947,7 +952,7 @@ async function renderHomeNow() {
   }
   if (!books.length && !cloudOnly.length) {
     if (mine) { home.append(mineEmpty()); return; }
-    home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));
+    if (!(SA && syncNote === 'signin')) home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));   // עצמאי — הכפתור למעלה במקום ההסבר
     return;
   }
   const listed = books.concat(cloudOnly);
@@ -4112,7 +4117,7 @@ function onPop(e) {
   if (lvl >= 1 && lvl < 2) ui.view = (history.state && history.state.lv) || null;
   if (lvl < 2 && rd) closeReader({ instant: uaT });
   else if (lvl === 1 && root) navigateTo(uaT ? 'none' : 'pop', savedLibScroll());
-  if (lvl < 1 && root) { closeLibrary(uaT); appToOverview(); }
+  if (lvl < 1 && root && !SA) { closeLibrary(uaT); appToOverview(); }
 }
 /* v322: יציאה מהספרייה — השכבה יוצאת בתנועה (לא נעלמת בבת אחת) */
 /* v322: רענון בזמן שהספרייה פתוחה — index.html מוריד "וילון" בצבע הרקע לפני הציור הראשון (html.lib-restoring), כדי שהמשתמש
@@ -4161,9 +4166,14 @@ function restoreLibScroll() {
   tryIt();
 }
 
+/* שלב 3ג בתוכנית שלוש האפליקציות: הספרייה כדף עצמאי (academy.html) — opt.standalone = { auth: SnbAuth, home }.
+   ההבדלים מהשכבה שבתוך התיק: רשומת הבית מחליפה את רשומת הדף (לא נדחפת מעליה) — "חזור" מהבית יוצא מהדף;
+   "THE SNOWBALL" בראש הבית עובר ל־Invest; וכשלא מחוברים — כפתור כניסה עם Google (בתיק — מסך ההתחברות שלו). */
+let SA = null;
 export async function openLibrary(opt) {
   ensureCss();
   if (root) return;
+  SA = opt && opt.standalone ? opt.standalone : null;
   const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));
@@ -4181,7 +4191,8 @@ export async function openLibrary(opt) {
   root.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.lib-item, .lib-cover, .ed-cv, .ed-th')) e.preventDefault(); });
   document.body.append(root);
   document.documentElement.classList.add('lib-open');
-  if (!restore) afterBack(() => history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), ''));   // ברענון — הרשומות כבר בהיסטוריה
+  if (SA && !restore) history.replaceState(Object.assign({}, history.state || {}, { lib: 1 }), '');   // עצמאי — הבית הוא הדף ("חזור" ממנו יוצא מהדף)
+  else if (!restore) afterBack(() => history.pushState(Object.assign({}, history.state || {}, { lib: 1 }), ''));   // ברענון — הרשומות כבר בהיסטוריה
   if (!window._libPop) { window._libPop = true; window.addEventListener('popstate', onPop); }
   ui.view = restore ? (restore.lv || null) : null;
   if (!restore) { ui.author = SHELF; ui.q = ''; }   // v321: כל כניסה לספרייה — מדף ספרים

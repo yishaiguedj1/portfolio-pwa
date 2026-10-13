@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<!-- שלב 3ג בתוכנית שלוש האפליקציות: Academy כדף עצמאי. אותה מדיניות כמו index.html (הספרייה טוענת אותם מקורות), עם ה־hash של הסקריפט כאן. tests/academy-page.test.js בודק. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-CQ/onB6x1PVK852FwQK2W68Hq22uCw1bgau/+sDdGDE=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' blob:; media-src 'self' blob:; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://financialmodelingprep.com https://s3-symbol-logo.tradingview.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data: blob:; connect-src 'self' https://*.r2.cloudflarestorage.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://api-staging.thesnowball.app https://*.googleapis.com https://clients5.google.com https://en.wikipedia.org https://he.wikipedia.org https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src blob: https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com https://docs.google.com https://drive.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Academy</title>
+<meta name="theme-color" content="#FFFFFF" id="themeColorMeta">
+<script>/* שלב 3ג: academy.html — מסגרת זרה, ערכת נושא לפני הציור, ווילון כשמרעננים בתוך הספרייה/ספר (כמו index.html) */
+if(self!==top){try{top.location.replace(self.location.href);}catch(e){}document.documentElement.style.display='none';}
+try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.dataset.theme=d?'dark':'light';e.classList.add('lib-open');var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',d?'#000000':'#FFFFFF');
+var h=history.state;if(h&&h.lib){e.classList.add('lib-curtain','lib-restoring');
+if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t=r.theme;if(!t||t==='auto'||(t==='white'&&!r.themeSet))t=d?'black':'white';var p={white:'#FFFFFF',sepia:'#F6EFE1',green:'#E8F0E3',black:'#000000'}[t];if(p)e.style.setProperty('--curtain',p);}}})();}catch(e){}
+</script>
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script src="firebase-config.js" defer></script>
+<script src="strings-academy.js" defer></script>
+<script src="core.js" defer></script>
+<script src="auth.js" defer></script>
+<script type="module" src="academy.js"></script>
+</body>
+</html>

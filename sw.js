@@ -20,8 +20,8 @@ const HASHES = {
   "./apple-touch-icon.png": "a0bd976c2c911b8dcc446fdbafabd50e",
   "./favicon-48.png": "54adadfbb7cfdbddb0102995a66a5145",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
-  "./library.js": "60186e0a1ed0d40ad0baaa68d14e8ebd",
-  "./library.css": "ef3ea33b662dce192b0f87a149a61139",
+  "./library.js": "f8a24b74bbddf302a4286f13fa67470f",
+  "./library.css": "8673c0585467bee6f5ed73d6a46bc0dc",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "17be92ab73db3643d73ae4c0e59ab347",
   "./ribbon3d.js": "aea160c033eebec3c86b79480c9c10c0",
@@ -45,6 +45,11 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
+  "./academy.html": "822798ee5ff6d01e9309d3a00b30a95b",
+  "./academy.js": "c4d483302488fd90a7bdc9ad60ad49fe",
+  "./strings-academy.js": "e2c85019b2f3c0650f83258f7782103d",
+  "./core.js": "0298820bc709f6ec1b9996971c9b51ac",
+  "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
   "./studio.js": "da4e2d7e94a2936c87b65a8e7314f11c",
   "./studio.css": "40692580ed4204e545f639f2192ca3a8",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
@@ -81,7 +86,8 @@ const LIB_SHELL = [
   './vendor/foliate-js/paginator.js', './vendor/foliate-js/overlayer.js', './vendor/foliate-js/progress.js',
   './vendor/foliate-js/search.js', './vendor/foliate-js/text-walker.js', './vendor/foliate-js/footnotes.js',
   './vendor/foliate-js/mobi.js', './vendor/foliate-js/fb2.js', './vendor/foliate-js/comic-book.js',
-  './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js'
+  './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js',
+  './academy.html', './academy.js', './strings-academy.js', './core.js', './auth.js'   // שלב 3ג: Academy כדף עצמאי
 ];
 
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
@@ -227,9 +233,9 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       }).catch(() => {
-        // ניווט שנכשל אופליין — נחזור לדף הבית השמור
+        // ניווט שנכשל אופליין — הדף עצמו מהמטמון (גם עם ?query; שלב 3: academy.html/studio.html), אחרת דף הבית השמור
         if (request.mode === 'navigate') {
-          return caches.match('./index.html');
+          return caches.match(request, { ignoreSearch: true }).then((pg) => pg || caches.match('./index.html'));
         }
         throw new Error('offline');
       });

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (572 מפתחות מתוך 2553) */
+/* המחרוזות של academy (574 מפתחות מתוך 2553) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -188,6 +188,7 @@ he: {
   "ftMore": "עוד {n}",
   "ftNone": "לא נמצא בטקסט של המכתבים.",
   "ftTitle": "בתוך המכתבים",
+  "googleSignIn": "התחברות עם Google",
   "hlAddNote": "הוספת הערה",
   "hlColor": "הדגשה",
   "hlEditNote": "עריכת הערה",
@@ -261,6 +262,7 @@ he: {
   "libTapDownload": "בגיבוי — נגיעה להורדה",
   "libTitle": "ספרייה",
   "loading": "טוען…",
+  "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "mgAccept": "אישור",
   "mgActAdd": "להוסיף כספר נפרד",
   "mgActReplace": "להחליף את הקובץ",
@@ -762,6 +764,7 @@ en: {
   "ftMore": "{n} more",
   "ftNone": "Not found in the text of the letters.",
   "ftTitle": "Inside the letters",
+  "googleSignIn": "Sign in with Google",
   "hlAddNote": "Add note",
   "hlColor": "Highlight",
   "hlEditNote": "Edit note",
@@ -835,6 +838,7 @@ en: {
   "libTapDownload": "In backup — tap to download",
   "libTitle": "Library",
   "loading": "Loading…",
+  "loginFailed": "Sign-in failed — try again",
   "mgAccept": "Accept",
   "mgActAdd": "Add as a separate book",
   "mgActReplace": "Replace the file",
