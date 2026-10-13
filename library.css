@@ -38,7 +38,7 @@ html[data-lib-vt="fade"]::view-transition-new(lib-root) { animation: vtFadeIn .2
 @keyframes rdOut { to { opacity: 0; transform: scale(.96); } }
 @keyframes rdIn { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .lib-root, .lib-root.leaving, .rd { animation: none !important; } }
-.lib-root button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.lib-root button:not(.appbar button) { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }   /* ההדר המשותף (shell.js) — בעיצוב של styles.css, כמו ב־Invest */
 .lib-home { max-width: 760px; margin: 0 auto; padding: 0 0 28px; }
 .lib-top { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 16px 2px; }
 .lib-back { display: flex; align-items: center; gap: 2px; color: var(--primary) !important; font-size: 17px; }
@@ -1041,3 +1041,6 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
 .lib-root .mg-addrow { gap: 12px; min-height: 64px; }
 .lib-root .mg-addrow .mg-t2 { white-space: normal; }
 .lib-root .mg-selall { min-height: 28px; font-size: 14px; display: inline; }
+/* עצמאי (academy.html): בלי הכותרת "ספרייה" — שורת הפעולות של "הספרייה שלי" נצמדת לקצה, ברווח מההדר */
+.lib-home > .appbar { margin-bottom: 12px; }
+.lib-home > .appbar + .lib-hrow { padding: 0 16px 10px; justify-content: flex-end; }

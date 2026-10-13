@@ -1490,6 +1490,7 @@ function watch() {                // מאזין אחד בכל רגע; חדש א�
 }
 function closeRequest() {
   if (!root) return;
+  if (window.snbMenuClose && window.snbMenuClose()) { if (root) watch(); return; }   // התפריט של ההדר המשותף פתוח — "חזור" סוגר רק אותו
   // חלון אישור של האפליקציה (askConfirm) פתוח — "חזור" = הביטול שלו (יש לו רשומה משלו, והוא מוריד אותה)
   if (pickerClose()) { if (root) watch(); return; }   // ה־Picker של Google פתוח — "חזור" סוגר רק אותו
   const plm = document.querySelector('.st-pl-menu:not([hidden])');   // תפריט ההגדרות של הנגן — "חזור" סוגר אותו (כמו ב־YouTube)
@@ -1956,7 +1957,8 @@ function pageHome(p) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('settings'), 'cpill');
   pill.append(h('i'), h('span', null, apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill')));
-  p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { location.href = SA.home || './'; } : null }), large(T('studioTitle')));
+  if (SA && SA.shell) { SA.shell.setStatus(pill); p.append(SA.shell.el); }   // עצמאי: ההדר המשותף — הלוגו של Studio במקום הכותרת, הקפסולה בהדר
+  else p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { location.href = SA.home || './'; } : null }), large(T('studioTitle')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
@@ -5813,6 +5815,7 @@ let SA = null;
 export function openStudio(opt) {
   ensureCss();
   if (!root) SA = opt && opt.standalone ? opt.standalone : null;
+  if (SA) { SA.settings = () => go('settings'); SA.tower = () => go('tower'); }
   const jobLink = opt && /^j[A-Za-z0-9_-]{20}$/.test(String(opt.job || '')) ? opt.job : '';   // שלב 4: מההתראה
   const linkView = opt && (opt.view === 'play' || opt.view === 'subs') ? opt.view : '';          // פעולה בהתראה: צפייה / עריכה
   if (root) { if (jobLink && jobRec(jobLink)) goJobLink(jobLink, linkView); return; }

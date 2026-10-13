@@ -805,3 +805,5 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-ov-l { position: absolute; z-index: 2; height: auto; pointer-events: none; }
 /* הנגן ב־dir=ltr — start = שמאל התמונה */
 .st-ov-l.tl { top: 3%; inset-inline-start: 3%; } .st-ov-l.tr { top: 3%; inset-inline-end: 3%; } .st-ov-l.bl { bottom: 3%; inset-inline-start: 3%; } .st-ov-l.br { bottom: 3%; inset-inline-end: 3%; }
+/* עצמאי (studio.html): ההדר המשותף (shell.js) בראש דף הבית — רווח מהתוכן כמו ב־Invest */
+.st-root .appbar { margin-bottom: 12px; }

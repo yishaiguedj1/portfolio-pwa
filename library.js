@@ -921,14 +921,18 @@ async function renderHomeNow() {
   learn.addEventListener('click', () => goView({ notes: 1 }));
   const more = h('button', 'lib-round'); more.type = 'button'; more.innerHTML = ICON.more; more.setAttribute('aria-label', T('libMineMenu')); more.title = T('libMineMenu');
   more.addEventListener('click', openMineMenu);
-  const tr = h('div', 'lib-tr'); tr.append(learn);
+  const tr = h('div', 'lib-tr');
+  const shell = SA && SA.shell;            // עצמאי: ההדר המשותף (shell.js) במקום שורת "THE SNOWBALL"; "מה למדתי" — בתפריט
+  if (!shell) tr.append(learn);
   if (mine) tr.append(more, add);
   top.append(back, tr);
   // v327 (בקשת המשתמש, בהשראת Google Photos): מצב הגיבוי = בועה קטנה בשורת הכותרת, לא כרטיס מעל החיפוש
   const hrow = h('div', 'lib-hrow');
   hrow.append(h('h1', 'lib-large', T('libTitle')));
+  if (shell) hrow.textContent = '';         // עצמאי: בלי "ספרייה" מתחת ללוגו — הלוגו של Academy אומר את זה (בקשת המשתמש)
   if (mine) { bkAdopt(); if (books.length || cloudOnly.length) hrow.append(backupPill()); }
-  home.append(top, hrow);
+  if (shell) { if (mine) hrow.append(tr); home.append(shell.el); if (hrow.childNodes.length) home.append(hrow); }
+  else home.append(top, hrow);
   if (SA && SA.auth && SA.auth.state() === 'out') {   // עצמאי בלי חיבור — כניסה עם Google (אחריה הדף נטען מחדש עם החשבון)
     const si = h('button', 'lib-signin'); si.type = 'button'; si.textContent = T('googleSignIn');
     si.addEventListener('click', () => { SA.auth.signIn().then((ok) => { if (!ok && typeof flash === 'function') flash(T('loginFailed')); }); });
@@ -1191,6 +1195,25 @@ function restoreCard(o) {
   });
   card.append(go, prog);
   return card;
+}
+/* עצמאי (academy.html): הגלובוס בתפריט הפתוח = הגדרות Academy — החשבון. השפה וערכת הנושא — בהדר; הגיבוי — בתפריט (מקום אחד) */
+function openAcademySettings() {
+  const A = SA && SA.auth;
+  sheet(T('menuSettings'), (sh, close) => {
+    const list = h('div', 'lib-ios');
+    const u = A && A.user();
+    if (u) {
+      const who = h('div', 'lib-row'); who.append(h('span', 'lib-row-l', u.email || u.displayName || ''));
+      const out = h('button', 'lib-row danger'); out.type = 'button'; out.append(h('span', null, T('signOut')));
+      out.addEventListener('click', () => { close(); A.signOut(); });   // החיבור משתנה → הדף נטען מחדש (academy-app.js)
+      list.append(who, out);
+    } else if (A) {
+      const si = h('button', 'lib-row'); si.type = 'button'; si.append(h('span', null, T('googleSignIn')));
+      si.addEventListener('click', () => { close(); A.signIn().then((ok) => { if (!ok && typeof flash === 'function') flash(T('loginFailed')); }); });
+      list.append(si);
+    }
+    sh.append(list);
+  });
 }
 function openMineMenu() {                  // ⋯ בספרייה שלי: גיבוי, ייבוא, איפוס
   sheet(T('libMine'), (sh, close) => {
@@ -4174,6 +4197,7 @@ export async function openLibrary(opt) {
   ensureCss();
   if (root) return;
   SA = opt && opt.standalone ? opt.standalone : null;
+  if (SA) { SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.home = SA.home || './'; }
   const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));

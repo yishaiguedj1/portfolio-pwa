@@ -1729,3 +1729,10 @@ html.lib-open, html.lib-open body { overflow: hidden; }
   box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
 }
 [dir="ltr"] .env-strip { transform: translateX(-50%); }
+
+/* ההדר המשותף של Academy ו־Studio (shell.js, 13/10/2026) — אחד לאחד כמו ב־Invest. במקום ₪ — בהיר/כהה, ורק כשהתפריט פתוח
+   (החלטת המשתמש); נכנס באותה תנועה של הפנים בכפתורים (סיבוב + הקטנה). */
+.appbar-actions .shell-theme { display: none; }
+.appbar-actions.menu-open .shell-theme { display: flex; animation: shellThemeIn .38s cubic-bezier(.2, .9, .25, 1.15) both; }
+@keyframes shellThemeIn { from { opacity: 0; transform: rotate(-120deg) scale(.4); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .appbar-actions.menu-open .shell-theme { animation: none; } }
