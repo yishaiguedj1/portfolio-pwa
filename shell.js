@@ -244,3 +244,52 @@ export function displayCard() {
     group(t('themeTitle'), 'Theme', [['light', t('themeLight')], ['dark', t('themeDark')], ['system', t('themeSystem')]], getThemeMode, (v) => setThemeMode(v)));
   return card;
 }
+
+/* "אפשרויות מתקדמות" (13/10/2026, בקשת המשתמש: "בדיוק כמו ב־Invest") — השורה בעמוד ההגדרות והכרטיסים של העמוד
+   (index.html: #advancedCard, #widgetCard, #appInfoCard — אותו DOM ואותן מחלקות). בדפים העצמאיים אין תיק, ולכן
+   בכרטיס הווידג׳ט רק הורדת האפליקציה לאנדרואיד וההוראות (הסנכרון לווידג׳ט — מתוך Invest באפליקציה). */
+const ADV_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.2" fill="currentColor"/><circle cx="15" cy="12" r="2.2" fill="currentColor"/><circle cx="8" cy="18" r="2.2" fill="currentColor"/></svg>';
+const RELOAD_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/></svg>';
+export const APK_URL = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball.apk';
+export function advancedRow(onClick) {
+  const card = h('div', 'card row-card'); card.id = 'advancedCard';
+  const b = h('button', 'row-link'); b.type = 'button';
+  const ic = h('span', 'row-link-ic adv-ic'); ic.setAttribute('aria-hidden', 'true'); ic.innerHTML = ADV_IC;
+  const ch = h('span', 'row-link-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = CHEV;
+  b.append(ic, h('span', 'row-link-txt', t('advancedTitle')), ch);
+  b.addEventListener('click', onClick);
+  card.append(b);
+  return card;
+}
+/* ניקוי מטמון ורענון — כמו #clearCache ב־app.js: כל המטמונים של ה־Service Worker, ביטול הרישום, טעינה מחדש */
+async function clearCacheReload() {
+  try {
+    if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); }
+    if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
+  } catch (e) {}
+  location.reload();
+}
+export function advancedCards() {
+  const w = h('div', 'card'); w.id = 'widgetCard';
+  const row = h('div', 'btn-row');
+  const apk = h('a', 'btn', t('widgetApkBtn')); apk.id = 'widgetApk'; apk.href = APK_URL; apk.rel = 'noopener';
+  row.append(apk);
+  const how = h('details', 'fine'); how.id = 'widgetHow'; how.style.padding = '0'; how.style.marginTop = '8px';
+  const ol = h('ol', 'widget-steps');
+  ol.append(h('li', null, t('widgetStep1')), h('li', null, t('widgetStep2')), h('li', null, t('widgetStep3')));
+  how.append(h('summary', null, t('widgetHowTitle')), ol);
+  w.append(h('h2', null, t('widgetTitle')), row, how);
+
+  const info = h('div', 'card list-card'); info.id = 'appInfoCard';
+  const list = h('div', 'ios-list');
+  const ver = h('div', 'ios-row');
+  const val = h('span', 'ios-row-val', typeof appVersionLabel === 'function' ? appVersionLabel() : ''); val.id = 'appVersion'; val.dir = 'ltr';
+  ver.append(h('span', 'ios-row-lbl', t('versionLbl')), val);
+  const clr = h('button', 'ios-row ios-row-btn'); clr.type = 'button'; clr.id = 'clearCache';
+  const ic = h('span', 'ios-row-ic'); ic.setAttribute('aria-hidden', 'true'); ic.innerHTML = RELOAD_IC;
+  clr.append(ic, h('span', 'ios-row-lbl', t('clearCacheBtn')));
+  clr.addEventListener('click', clearCacheReload);
+  list.append(ver, clr);
+  info.append(h('h2', null, t('appInfoTitle')), list);
+  return [w, info];
+}

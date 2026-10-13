@@ -902,6 +902,7 @@ async function renderHomeNow() {
   if (ui.view && ui.view.edit) return renderEdit(ui.view.edit);
   if (ui.view && ui.view.backup) return renderBackup();
   if (ui.view && ui.view.settings) return renderSettings();
+  if (ui.view && ui.view.advanced) return renderAdvanced();
   if (ui.view && ui.view.bkbooks) return renderBackupBooks();
   if (ui.view && ui.view.coll) return renderColl(ui.view.coll);
   const allB = await allBooks();
@@ -1201,10 +1202,18 @@ function restoreCard(o) {
    כמו ההגדרות של Invest). כרטיס החשבון וכרטיס "תצוגה" — מ־shell.js, אחד לאחד כמו ב־Invest; הגיבוי — בתפריט (מקום אחד) */
 function openAcademySettings() { if (!(ui.view && ui.view.settings)) goView({ settings: 1 }); }
 function renderSettings() {
-  const home = subPage(T('menuSettings'));
+  const home = subPage('');
   home.classList.add('lib-setpage');
+  const big = home.querySelector('.lib-large'); if (big) big.remove();   // בלי כותרת "הגדרות" — בקשת המשתמש (כמו ב־Invest)
   const C = SA && SA.cards;
-  if (C) home.append(C.account(), C.display());
+  if (C) home.append(C.account(), C.advRow(() => goView({ advanced: 1 })), C.display());   // הסדר של Invest
+}
+function renderAdvanced() {                  // "אפשרויות מתקדמות" — כמו ב־Invest: האפליקציה לאנדרואיד, גרסה וניקוי מטמון
+  const home = subPage(T('advancedTitle'));
+  home.classList.add('lib-setpage');
+  const back = home.querySelector('.lib-back span'); if (back) back.textContent = T('menuSettings');
+  const C = SA && SA.cards;
+  if (C) home.append(...C.advanced());
 }
 function openMineMenu() {                  // ⋯ בספרייה שלי: גיבוי, ייבוא, איפוס
   sheet(T('libMine'), (sh, close) => {

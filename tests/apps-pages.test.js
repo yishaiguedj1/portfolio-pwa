@@ -33,7 +33,7 @@ for (const A of APPS) {
   const boot = read(A.app + '-app.js');
   ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
   // ההדר המשותף (13/10/2026): אותו shell.js, הלוגו של האפליקציה, והגלובוס בתפריט הפתוח = ההגדרות של האפליקציה
-  ok(boot.includes("import { createShell, APP_URL, loginGate, accountCard, displayCard } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
+  ok(boot.includes("import { createShell, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
   { const b = fs.readFileSync(path.join(root, 'logo-' + A.app + '.png')); ok(b.slice(1, 4).toString() === 'PNG' && b.readUInt32BE(16) === 512 && b.length < 200000, A.app + ': הלוגו — PNG של 512 (פי 4 מ־128), קל (<200KB)'); }
   ok(boot.indexOf('wireCoreBack()') > 0 && boot.indexOf('wireCoreBack()') < boot.indexOf(A.open + '({'), A.app + ': "חזור" של החלונות נרשם לפני המודול (סדר מאזיני popstate)');
   // 13/10/2026 (בקשת המשתמש): מסך הכניסה של Invest גם כאן — רק כשהחיבור ענה "לא מחובר", עם הלוגו והשם של האפליקציה
@@ -41,7 +41,7 @@ for (const A of APPS) {
     && boot.indexOf('loginGate(') < boot.indexOf(A.open + '({'), A.app + ': לא מחובר — מסך הכניסה עם הלוגו שלה, לפני פתיחת המודול');
   ok(/pwa_auth_rl/.test(boot) && /Date\.now\(\) - last > 8000/.test(boot), A.app + ': טעינה מחדש כשהחיבור משתנה — עם שומר מפני לולאה');
   // 13/10/2026 (בקשת המשתמש): עמוד ההגדרות — כרטיס החשבון ו"תצוגה" של Invest מ־shell.js, דרך SA (בלי ייבוא בתוך המודול)
-  ok(boot.includes('sa.cards = { account: () => accountCard(A), display: displayCard };') && !/from '\.\/shell\.js'/.test(read(A.mod)), A.app + ': הכרטיסים של עמוד ההגדרות מגיעים דרך SA.cards');
+  ok(boot.includes('sa.cards = { account: () => accountCard(A), display: displayCard, advRow: advancedRow, advanced: advancedCards };') && !/from '\.\/shell\.js'/.test(read(A.mod)), A.app + ': הכרטיסים של עמוד ההגדרות מגיעים דרך SA.cards');
 
   const mod = read(A.mod);
   ok(/if \(SA && !restore\) [^\n]*history\.replaceState\(/.test(mod), A.app + ': הבית מחליף את רשומת הדף — "חזור" ממנו יוצא מהדף');
@@ -96,9 +96,16 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   // Academy: עמוד בפני עצמו (לא גיליון), ו־Studio: כל מקטע = כרטיס
   const lib = read('library.js'), st = read('studio.js');
   ok(/function openAcademySettings\(\) \{ if \(!\(ui\.view && ui\.view\.settings\)\) goView\(\{ settings: 1 \}\); \}/.test(lib) && /if \(ui\.view && ui\.view\.settings\) return renderSettings\(\);/.test(lib), 'Academy: ההגדרות = עמוד בספרייה (רשומה בהיסטוריה)');
-  ok(/home\.append\(C\.account\(\), C\.display\(\)\)/.test(lib) && /\.lib-root button:not\(\.appbar button, \.card button\)/.test(read('library.css')), 'Academy: החשבון ותצוגה; האיפוס של כפתורי הספרייה לא נוגע בכרטיסים');
+  ok(/home\.append\(C\.account\(\), C\.advRow\(\(\) => goView\(\{ advanced: 1 \}\)\), C\.display\(\)\)/.test(lib) && /\.lib-root button:not\(\.appbar button, \.card button\)/.test(read('library.css')), 'Academy: החשבון ותצוגה; האיפוס של כפתורי הספרייה לא נוגע בכרטיסים');
   const ps = st.slice(st.indexOf('function pageSettings('), st.indexOf('/* ---------------- שלב 4: התראות לטלפון'));
-  ok(ps.indexOf('C.account()') > 0 && ps.indexOf('C.account()') < ps.indexOf("T('studioSecClaude')") && !/secT\(/.test(ps) && (ps.match(/setCard\(/g) || []).length >= 9, 'Studio: החשבון בראש העמוד, וכל מקטע = setCard');
+  ok(/C\.account\(\), C\.advRow\(\(\) => go\('adv'\)\), C\.display\(\)/.test(ps) && ps.indexOf('C.account()') > 0 && ps.indexOf('C.account()') < ps.indexOf("T('studioSecClaude')") && !/secT\(/.test(ps) && (ps.match(/setCard\(/g) || []).length >= 9, 'Studio: החשבון בראש העמוד, וכל מקטע = setCard');
+  // "אפשרויות מתקדמות" כמו ב־Invest (13/10/2026): שורה בהגדרות → עמוד עם האפליקציה לאנדרואיד, גרסה וניקוי מטמון
+  for (const id of ['advancedCard', 'widgetCard', 'appInfoCard', 'widgetApk', 'widgetHow', 'appVersion', 'clearCache']) ok(sh.includes("id = '" + id + "'") && idx.includes('id="' + id + '"'), 'shell: #' + id + ' כמו ב־index.html');
+  { const href = /href="(https:\/\/github\.com\/[^"]+\.apk)"/.exec(idx)[1]; ok(sh.includes("APK_URL = '" + href + "'"), 'shell: אותו קישור ל־APK כמו ב־Invest'); }
+  ok(/caches\.delete/.test(sh) && /r\.unregister\(\)/.test(sh) && /location\.reload\(\)/.test(sh), 'shell: ניקוי מטמון = כל המטמונים + ביטול ה־SW + טעינה מחדש (כמו #clearCache)');
+  ok(/appVersionLabel\(\)/.test(sh) && /const APP_VERSION = '(v\d+)'/.exec(read('core.js'))[1] === /const APP_VERSION = '(v\d+)'/.exec(read('app.js'))[1], 'הגרסה ב־core.js = ב־app.js (אזור <core>) — Academy ו־Studio מציגות את אותו המספר');
+  ok(/if \(ui\.view && ui\.view\.advanced\) return renderAdvanced\(\);/.test(lib) && /else if \(ui\.view === 'adv'\) pageAdvanced\(p\);/.test(st) && /x === 'guide' \|\| x === 'adv'\) \? \['settings', null\]/.test(st), 'Academy ו־Studio: עמוד "אפשרויות מתקדמות" ש"חזור" ממנו מגיע להגדרות');
+  ok(!/large\(T\('studioSettings'\)\)/.test(ps) && /if \(big\) big\.remove\(\)/.test(lib), 'בלי כותרת "הגדרות" בעמודי ההגדרות (בקשת המשתמש)');
   ok(/'card st-card'/.test(st) && /\.st-card > \.st-list \{ margin: 0; background: transparent; \}/.test(read('studio.css')), 'Studio: הכרטיס = .card של styles.css, הרשימה בלי רקע משלה');
 }
 console.log('# ' + n + ' בדיקות עברו');

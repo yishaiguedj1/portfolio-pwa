@@ -1431,7 +1431,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -5243,15 +5243,14 @@ function setCard(title, ...nodes) {
 }
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
-  p.append(navBar({ back: T('studioShort') }), large(T('studioSettings')));
+  p.append(navBar({ back: T('studioShort') }));   // בלי כותרת "הגדרות" — בקשת המשתמש (כמו ב־Invest)
   // 13/10/2026 (בקשת המשתמש): באותה שפת עיצוב כמו ההגדרות של Invest — כל מקטע = כרטיס (.card מ־styles.css) עם כותרת,
   // ובראש העמוד כרטיס החשבון של Invest אחד לאחד (shell.js, רק בדף העצמאי — בתיק החשבון בהגדרות של Invest)
   const C = SA && SA.cards, A = SA && SA.auth;
   const ab = C && A && A.state() === 'out' ? null : accessBanner();   // לא מחובר — הכניסה בכרטיס החשבון (בלי כפילות)
   if (ab) p.append(ab);
-  if (C) p.append(C.account());
+  if (C) p.append(C.account(), C.advRow(() => go('adv')), C.display());   // הסדר של Invest: חשבון ← מתקדמות ← תצוגה
   p.append(setCard(null, list(rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
-  if (C) p.append(C.display());
   // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };
@@ -5312,6 +5311,12 @@ function pageSettings(p) {
     rowNav({ label: T('studioTo'), value: langsSum(s.to), onClick: () => go('lang', 'def'), k: 'def:to' }),
     rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
     rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' }))));
+}
+/* "אפשרויות מתקדמות" — העמוד של Invest אחד לאחד (shell.js): האפליקציה לאנדרואיד, גרסה וניקוי מטמון. רק בדף העצמאי */
+function pageAdvanced(p) {
+  p.append(navBar({ back: T('studioSettings') }), large(T('advancedTitle')));
+  const C = SA && SA.cards;
+  if (C) p.append(...C.advanced());
 }
 /* ---------------- שלב 4: התראות לטלפון (Web Push, 10/10/2026) ----------------
    המפתח הציבורי מהשרתון; המנוי של הדפדפן נשלח אליו. ההתראות עצמן — רק סוג האירוע ומזהה העבודה (בלי שם קובץ).
@@ -5721,6 +5726,7 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'ai') pageAi(p);               // מ7: גיליון ה־AI
   else if (ui.view === 'ideas') pageIdeas(p);         // מ8: רעיונות
   else if (ui.view === 'guide') pageGuide(p);         // מ9: מדריך
+  else if (ui.view === 'adv') pageAdvanced(p);       // אפשרויות מתקדמות (כמו ב־Invest)
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'settings') pageSettings(p);
   else if (ui.view === 'tower') pageTower(p);

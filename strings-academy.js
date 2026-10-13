@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (597 מפתחות מתוך 2559) */
+/* המחרוזות של academy (609 מפתחות מתוך 2559) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -42,13 +42,16 @@ he: {
   "admRemoveQ": "להסיר את {e} מהספרייה?",
   "admSub": "מי יכול לקרוא את ספריית המכתבים",
   "admTitle": "ניהול הספרייה",
+  "advancedTitle": "אפשרויות מתקדמות",
   "annBmLabel": "סימנייה",
   "annCopy": "העתקה",
   "annDeleteBm": "מחיקת הסימנייה",
   "annMore": "אפשרויות",
   "annOpen": "מעבר למקום בספר",
   "annShareQuote": "שיתוף כציטוט",
+  "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
+  "appVersion": "גרסת אפליקציה: ",
   "bkAbout": "בקצרה",
   "bkAccount": "חשבון Google",
   "bkAgain": "קרא שוב",
@@ -135,6 +138,7 @@ he: {
   "btnCancel": "ביטול",
   "btnClose": "סגירה",
   "btnOk": "אישור",
+  "clearCacheBtn": "נקה מטמון ורענן",
   "colAddBooks": "הוספת ספרים",
   "colAddTo": "הוספה לאסופה — {t}",
   "colAdded": "נוסף ל\"{c}\"",
@@ -184,6 +188,7 @@ he: {
   "edTitle": "שם הספר",
   "edTitleT": "עריכת פרטי ספר",
   "edUse": "השתמש בפרטים",
+  "envStaging": "סביבת ניסוי",
   "ftCount": "{n} מופעים",
   "ftHits": "{n} מופעים",
   "ftIndexing": "סורק את המכתבים לחיפוש… {n} מתוך {t}",
@@ -598,7 +603,14 @@ he: {
   "trWikiMore": "לערך המלא",
   "trWikiNone": "לא נמצא ערך בוויקיפדיה",
   "trWikiTr": "תורגם אוטומטית",
-  "userLabel": "משתמש"
+  "userLabel": "משתמש",
+  "versionLbl": "גרסה",
+  "widgetApkBtn": "הורדת האפליקציה לאנדרואיד",
+  "widgetHowTitle": "איך מתקינים",
+  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\".",
+  "widgetStep2": "פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.",
+  "widgetStep3": "לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.",
+  "widgetTitle": "ווידג׳ט למסך הבית"
 },
 en: {
   "acAiNote": "Written with AI from the text of the letter.",
@@ -641,13 +653,16 @@ en: {
   "admRemoveQ": "Remove {e} from the library?",
   "admSub": "Who can read the letters library",
   "admTitle": "Manage library",
+  "advancedTitle": "Advanced options",
   "annBmLabel": "Bookmark",
   "annCopy": "Copy",
   "annDeleteBm": "Delete bookmark",
   "annMore": "Options",
   "annOpen": "Go to location",
   "annShareQuote": "Share as quote",
+  "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
+  "appVersion": "App version: ",
   "bkAbout": "In brief",
   "bkAccount": "Google account",
   "bkAgain": "Read again",
@@ -734,6 +749,7 @@ en: {
   "btnCancel": "Cancel",
   "btnClose": "Close",
   "btnOk": "OK",
+  "clearCacheBtn": "Clear cache & reload",
   "colAddBooks": "Add books",
   "colAddTo": "Add to collection — {t}",
   "colAdded": "Added to \"{c}\"",
@@ -783,6 +799,7 @@ en: {
   "edTitle": "Title",
   "edTitleT": "Edit book details",
   "edUse": "Use details",
+  "envStaging": "Staging",
   "ftCount": "{n} matches",
   "ftHits": "{n} matches",
   "ftIndexing": "Indexing letters for search… {n} of {t}",
@@ -1197,6 +1214,13 @@ en: {
   "trWikiMore": "Full article",
   "trWikiNone": "No Wikipedia entry found",
   "trWikiTr": "machine-translated",
-  "userLabel": "User"
+  "userLabel": "User",
+  "versionLbl": "Version",
+  "widgetApkBtn": "Download the Android app",
+  "widgetHowTitle": "How to install",
+  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\".",
+  "widgetStep2": "Open THE SNOWBALL and tap the screen — your stock list moves to the widget.",
+  "widgetStep3": "Long-press the home screen → Widgets → THE SNOWBALL → drag it onto the screen.",
+  "widgetTitle": "Home-screen widget"
 }
 };

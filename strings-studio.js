@@ -1,15 +1,20 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1423 מפתחות מתוך 2559) */
+/* המחרוזות של studio (1435 מפתחות מתוך 2559) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
   "actDelete": "מחיקה",
   "actEdit": "עריכה",
+  "advancedTitle": "אפשרויות מתקדמות",
+  "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
+  "appVersion": "גרסת אפליקציה: ",
   "btnCancel": "ביטול",
   "btnClose": "סגירה",
   "btnOk": "אישור",
+  "clearCacheBtn": "נקה מטמון ורענן",
   "displayTitle": "תצוגה",
+  "envStaging": "סביבת ניסוי",
   "googleSignIn": "התחברות עם Google",
   "langAria": "בחירת שפה",
   "langTitleBi": "שפה / Language",
@@ -1424,17 +1429,29 @@ he: {
   "themeLight": "בהיר",
   "themeSystem": "מערכת",
   "themeTitle": "ערכת נושא",
-  "userLabel": "משתמש"
+  "userLabel": "משתמש",
+  "versionLbl": "גרסה",
+  "widgetApkBtn": "הורדת האפליקציה לאנדרואיד",
+  "widgetHowTitle": "איך מתקינים",
+  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\".",
+  "widgetStep2": "פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.",
+  "widgetStep3": "לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.",
+  "widgetTitle": "ווידג׳ט למסך הבית"
 },
 en: {
   "actColl": "Add to collection",
   "actDelete": "Delete",
   "actEdit": "Edit",
+  "advancedTitle": "Advanced options",
+  "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
+  "appVersion": "App version: ",
   "btnCancel": "Cancel",
   "btnClose": "Close",
   "btnOk": "OK",
+  "clearCacheBtn": "Clear cache & reload",
   "displayTitle": "Display",
+  "envStaging": "Staging",
   "googleSignIn": "Sign in with Google",
   "langAria": "Choose language",
   "langTitleBi": "Language",
@@ -2849,6 +2866,13 @@ en: {
   "themeLight": "Light",
   "themeSystem": "System",
   "themeTitle": "Theme",
-  "userLabel": "User"
+  "userLabel": "User",
+  "versionLbl": "Version",
+  "widgetApkBtn": "Download the Android app",
+  "widgetHowTitle": "How to install",
+  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\".",
+  "widgetStep2": "Open THE SNOWBALL and tap the screen — your stock list moves to the widget.",
+  "widgetStep3": "Long-press the home screen → Widgets → THE SNOWBALL → drag it onto the screen.",
+  "widgetTitle": "Home-screen widget"
 }
 };
