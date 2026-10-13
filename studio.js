@@ -1431,7 +1431,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : (x === 'connect' || x === 'def' || x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'rules' || x === 'alert' || x === 'inc' || x === 'agents' || x === 'server' || x === 'prob' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' ? ['tower', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -1529,6 +1529,7 @@ function curtainDown() {
 /* ---------------- רכיבים ---------------- */
 const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ICON = {   // סמלים קבועים בלבד — אף פעם לא תוכן חיצוני
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   back: '<polyline points="9 6 15 12 9 18"/>',
   chev: '<polyline points="15 6 9 12 15 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -1955,7 +1956,7 @@ function badgeFor(ph) {
 /* ---------------- דפים ---------------- */
 function pageHome(p) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
-  const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('settings'), 'cpill');
+  const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
   pill.append(h('i'), h('span', null, apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill')));
   if (SA && SA.shell) { SA.shell.setStatus(pill); p.append(SA.shell.el); }   // עצמאי: ההדר המשותף — הלוגו של Studio במקום הכותרת, הקפסולה בהדר
   else p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { location.href = SA.home || './'; } : null }), large(T('studioTitle')));
@@ -2340,7 +2341,7 @@ function pageLang(p) {
   const target = def ? store.settings : form;
   if (!target || (which !== 'from' && which !== 'to' && !def)) { back(); return; }
   const multi = which !== 'from';
-  p.append(navBar({ back: def ? T('studioSettings') : (form.id ? T('studioEditT') : T('studioNew')) }),
+  p.append(navBar({ back: def ? T('studioDefsT') : (form.id ? T('studioEditT') : T('studioNew')) }),
     large(multi ? T('studioTo') : T('studioFrom')));
   const ul = uiLang();
   const sub = (c) => { const n = nativeName(c); return n !== langName(c, ul) ? n : null; };
@@ -3576,7 +3577,7 @@ function askClean(x) {
 }
 function scFindRow(x) {
   const [title, fix] = scText(x);
-  const nav = x.k.startsWith('claude_') ? () => go('connect') : x.k === 'drive_missing' || x.k === 'drive_revoked' ? () => go('settings') : x.k === 'budget_low' ? () => go('rules') : null;
+  const nav = x.k.startsWith('claude_') ? () => go('connect') : x.k === 'drive_missing' || x.k === 'drive_revoked' ? () => go('store') : x.k === 'budget_low' ? () => go('rules') : null;
   const r = nav ? btn('st-fnd ' + SC_P_CLS[x.p], null, nav, 'sc:' + x.k) : h('div', 'st-fnd ' + SC_P_CLS[x.p]);
   if (!nav) r.dataset.k = 'sc:' + x.k;
   const l = h('span', 'st-l');
@@ -5062,7 +5063,7 @@ function pageJob(p) {
   const acts = [];
   if (ph0 === 'need') acts.push(btn('st-btn wide', T('studioRepickBtn'), () => repickFor(id), 'repick'));
   else if (ph0 === 'paused' || ph0 === 'error') acts.push(btn('st-btn wide', ph0 === 'error' ? T('studioRetry') : T('studioResume'), () => resumeJob(id, true), 'resume'));
-  else if (ph0 === 'ready' && rec.up.wait === 'conn_missing') acts.push(btn('st-btn wide', T('studioConnectNow'), () => go('settings'), 'connect-now'));
+  else if (ph0 === 'ready' && rec.up.wait === 'conn_missing') acts.push(btn('st-btn wide', T('studioConnectNow'), () => go('eng'), 'connect-now'));
   // v367: מתג החירום פעיל — "להחזיר" במסך המגדל; מצב מעל המקסימום — "להתחיל בכל זאת"
   else if (ph0 === 'ready' && rec.up.wait === 'halted' && ui.halt) acts.push(btn('st-btn wide', T('studioHaltGo'), () => go('tower'), 'halt-go'));
   else if (ph0 === 'ready' && rec.up.wait === 'rule_mode') acts.push(btn('st-btn wide', T('studioStartAnyway'), () => { rec.up.wait = ''; tryStart(id, true); }, 'start-anyway'));
@@ -5241,20 +5242,50 @@ function setCard(title, ...nodes) {
   c.append(...nodes.filter(Boolean));
   return c;
 }
+/* עמוד ההגדרות (13/10/2026, בקשת המשתמש: "מסודר, נקי ואינטואיטיבי — כמו ש־Apple הייתה מתכננת"): כמו ב־Invest, ובשאר
+   כמו בהגדרות של iOS — עמוד ראשי קצר עם שורות (סמל, שם, המצב הנוכחי, חץ), וכל נושא בעמוד משנה משלו:
+     תרגום — Claude (מי מתרגם + החיבור / השרת), ברירות מחדל לכל פרויקט, מגדל הפיקוח
+     כללי  — אחסון והעלאה (Google Drive, רק ב־Wi‑Fi), התראות, מדריך קצר
+   ככה כל אפשרות נמצאת במקום אחד, והמצב שלה גלוי בלי להיכנס (מחובר / לא, פועל / כבוי) */
+function engLabel() { return apiMode() ? T('studioConnApi') : cpMode() ? T('studioConnCopy') : T('studioConnSub'); }
+function engReady() {                      // יש מי שיתרגם: Routine מחובר, או שרת פעיל במצב השרת / העתק־הדבק
+  if (apiMode() || cpMode()) return !!(ui.api && ui.api.online);
+  return !!store.conn;
+}
 function pageSettings(p) {
   const s = store.settings, m = modeById(s.mode);
   p.append(navBar({ back: T('studioShort') }));   // בלי כותרת "הגדרות" — בקשת המשתמש (כמו ב־Invest)
-  // 13/10/2026 (בקשת המשתמש): באותה שפת עיצוב כמו ההגדרות של Invest — כל מקטע = כרטיס (.card מ־styles.css) עם כותרת,
-  // ובראש העמוד כרטיס החשבון של Invest אחד לאחד (shell.js, רק בדף העצמאי — בתיק החשבון בהגדרות של Invest)
+  // באותה שפת עיצוב כמו ההגדרות של Invest: כרטיס החשבון של Invest בראש העמוד (shell.js, רק בדף העצמאי — בתיק
+  // החשבון בהגדרות של Invest), "אפשרויות מתקדמות" ו"תצוגה" — ואז ההגדרות של הסטודיו בכרטיסים (.card מ־styles.css)
   const C = SA && SA.cards, A = SA && SA.auth;
   const ab = C && A && A.state() === 'out' ? null : accessBanner();   // לא מחובר — הכניסה בכרטיס החשבון (בלי כפילות)
   if (ab) p.append(ab);
   if (C) p.append(C.account(), C.advRow(() => go('adv')), C.display());   // הסדר של Invest: חשבון ← מתקדמות ← תצוגה
-  p.append(setCard(null, list(rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+  if (ui.push == null) refreshPush().then(() => { if (root && (ui.view === 'settings' || ui.view === 'push')) render('none'); });
+  const ready = engReady(), apiOn = apiMode() || cpMode();
+  const dr = store.drive, drOk = !!(dr && dr.connected);
+  const pushOnNow = ui.push === 'on';
+  p.append(setCard(T('studioGrpTr'), list(
+    rowNav({ tile: tile('key', ready ? 'green' : 'orange'), label: 'Claude', sub: engLabel() + ' · ' + (ready ? T('studioConnOnShort') : T('studioNotConn')), onClick: () => go('eng'), k: 'eng' }),
+    rowNav({ tile: tile('sliders', 'blue'), label: T('studioDefsT'), sub: modeShort(m) + ' · ' + langsSum(s.to), onClick: () => go('defs'), k: 'defs' }),
+    rowNav({ tile: tile('shield', 'green'), label: T('studioTwT'), sub: T('studioTwRowS'), onClick: () => go('tower'), k: 'tower' }))));
+  // שורת האחסון: מחובר — המייל של Drive (בבידוד: שם לטיני בתוך טקסט עברי); לא — "Google Drive · לא מחובר"
+  const srow = rowNav({ tile: tile('cloud', drOk ? 'blue' : 'orange'), label: T('studioStoreT'), sub: drOk && dr.email ? null : 'Google Drive · ' + T('studioDriveNot'), onClick: () => go('store'), k: 'store' });
+  if (drOk && dr.email) { const sm = h('small'); sm.append(h('bdi', null, dr.email)); srow.querySelector('.st-l').append(sm); }
+  p.append(setCard(T('studioGrpGen'), list(
+    srow,
+    rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
+    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+}
+/* Claude — מי עושה את העבודה, והחיבור: Routine (המנוי שלי) או השרת של המערכת (תקציב, תקרה לעבודה, השרת) */
+function pageEng(p) {
+  const s = store.settings;
+  p.append(navBar({ back: T('studioSettings') }), large('Claude'));
+  const ab = accessBanner(); if (ab) p.append(ab);
   // "המנוי שלי" (Routine) או "השרת של המערכת" (מפתח API בשרת שלנו, תקציב חודשי). העתק־הדבק — בשלב 7
   const isApi = apiMode();
   const pick = (c) => () => { s.conn = c; save(); render('none'); };
-  p.append(setCard(T('studioSecClaude'), list(
+  p.append(setCard(T('studioWhoT'), list(
     rowRadio({ label: T('studioConnSub'), sub: T('studioConnSubS'), on: !isApi && !cpMode(), onClick: pick('sub'), k: 'cn:sub' }),
     rowRadio({ label: T('studioConnCopy'), sub: T('studioConnCopyS'), on: cpMode(), onClick: pick('copy'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:copy' }),   // סבב 10
     rowRadio({ label: T('studioConnApi'), sub: T('studioConnApiS'), on: isApi, onClick: pick('api'), disabled: !ui.api, badge: ui.api ? null : T('studioSoon'), k: 'cn:api' }))));
@@ -5280,9 +5311,24 @@ function pageSettings(p) {
       btn('st-row st-act danger', T('studioDisconn'), disconnectClaude, 'disconnect')), testLine()));
   } else {
     p.append(setCard(T('studioSecConnect'), list(
-      rowNav({ tile: tile('key', 'green'), label: T('studioWizard'), sub: T('studioNotConn') + ' · ' + T('studioWizardS'), onClick: () => go('connect'), k: 'wizard' }))));
+      rowNav({ tile: tile('key', 'orange'), label: T('studioWizard'), sub: T('studioNotConn') + ' · ' + T('studioWizardS'), onClick: () => go('connect'), k: 'wizard' }))));
   }
-  // Google Drive — שם הסרטונים והתוצרים (חיבור נפרד מגיבוי הספרייה, v357)
+}
+/* ברירות מחדל לכל פרויקט — מה שהטופס של פרויקט חדש מתחיל ממנו */
+function pageDefs(p) {
+  const s = store.settings, m = modeById(s.mode);
+  p.append(navBar({ back: T('studioSettings') }), large(T('studioDefsT')));
+  p.append(setCard(null, list(
+    rowNav({ label: T('studioSecMode'), value: modeShort(m), onClick: () => go('def', 'mode'), k: 'def:mode' }),
+    rowNav({ label: T('studioTo'), value: langsSum(s.to), onClick: () => go('lang', 'def'), k: 'def:to' }),
+    rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
+    rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' })), note(T('studioDefNote'))));
+}
+/* אחסון והעלאה — איפה הסרטונים נשמרים (Google Drive, חיבור נפרד מגיבוי הספרייה, v357) ואיך מעלים */
+function pageStore(p) {
+  const s = store.settings;
+  p.append(navBar({ back: T('studioSettings') }), large(T('studioStoreT')));
+  const ab = accessBanner(); if (ab) p.append(ab);
   const dr = store.drive;
   const drow = h('div', 'st-row st-ric');
   const dl = h('span', 'st-l'); dl.append(h('b', null, 'Google Drive'));
@@ -5292,25 +5338,20 @@ function pageSettings(p) {
   const drows = [drow];
   if (!dr || !dr.connected) { const b = btn('st-row st-act', ui.driveBusy ? T('studioDriveBusy') : T('studioDriveConnect'), connectDrive, 'drive-connect'); b.disabled = ui.driveBusy || blocked(); drows.push(b); }
   p.append(setCard(T('studioSecDrive'), list(...drows), note(T('studioDriveNote'))));
-  // שלב 4: התראות לטלפון — מתג אחד; בדיקה כשפועל
-  if (ui.push == null) refreshPush().then(() => { if (root && ui.view === 'settings') render('none'); });
+  p.append(setCard(T('studioSecUpload'), list(
+    rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' }))));
+}
+/* התראות לטלפון (שלב 4) — מתג אחד; בדיקה כשפועל */
+function pagePush(p) {
+  p.append(navBar({ back: T('studioSettings') }), large(T('studioSecPush')));
+  if (ui.push == null) refreshPush().then(() => { if (root && (ui.view === 'settings' || ui.view === 'push')) render('none'); });
   const pst = ui.push || 'off';
   const prow = rowSwitch({ label: T('studioPushT'), sub: ui.pushBusy ? T('studioPushBusy') : pst === 'on' ? T('studioPushOnS') : pst === 'denied' ? T('studioPushDenied') : pst === 'na' ? T('studioPushNa') : T('studioPushOffS'),
     on: pst === 'on', onClick: () => (pst === 'on' ? pushOff() : pushOn()), k: 'push' });
   if (pst === 'na' || pst === 'denied' || ui.pushBusy) prow.disabled = true;
   const prows = [prow];
   if (pst === 'on') prows.push(btn('st-row st-act', T('studioPushTest'), pushTest, 'push-test'));
-  p.append(setCard(T('studioSecPush'), list(...prows)));
-  // העלאה
-  p.append(setCard(T('studioSecUpload'), list(
-    rowSwitch({ label: T('studioWifiOnly'), sub: typeKnown() ? T('studioWifiOnlyS') : T('studioWifiUnknown'), on: s.wifi, onClick: () => { s.wifi = !s.wifi; save(); render('none'); }, k: 'wifi' }))));
-  p.append(setCard(T('studioSecSafety'), list(
-    rowNav({ tile: tile('shield', 'green'), label: T('studioTwT'), sub: T('studioTwRowS'), onClick: () => go('tower'), k: 'tower' }))));
-  p.append(setCard(T('studioSecDefaults'), list(
-    rowNav({ label: T('studioSecMode'), value: modeShort(m), onClick: () => go('def', 'mode'), k: 'def:mode' }),
-    rowNav({ label: T('studioTo'), value: langsSum(s.to), onClick: () => go('lang', 'def'), k: 'def:to' }),
-    rowNav({ label: T('studioSecOut'), value: outList(s.out).map(outShort).join(' + '), onClick: () => go('def', 'out'), k: 'def:out' }),
-    rowNav({ label: T('studioSecStyle'), value: styleName(s.style), onClick: () => go('def', 'style'), k: 'def:style' }))));
+  p.append(setCard(null, list(...prows)));
 }
 /* "אפשרויות מתקדמות" — העמוד של Invest אחד לאחד (shell.js): האפליקציה לאנדרואיד, גרסה וניקוי מטמון. רק בדף העצמאי */
 function pageAdvanced(p) {
@@ -5586,19 +5627,18 @@ function disconnectClaude() {
 function pageDef(p) {
   const s = store.settings, k = ui.param;
   const set = (fn) => { fn(); save(); render('none'); };
-  p.append(navBar({ back: T('studioSettings') }));
+  p.append(navBar({ back: k === 'cap' ? 'Claude' : T('studioDefsT') }));   // חזרה לעמוד שממנו באים (13/10/2026)
   if (k === 'mode') p.append(large(T('studioSecMode')), ...modePicker(s.mode, (id) => set(() => { s.mode = id; })));
   else if (k === 'out') p.append(large(T('studioSecOut')), outRows(s.out, 0, (o) => set(() => { s.out[o] = !s.out[o]; })));
   else if (k === 'style') p.append(large(T('studioSecStyle')), stylePicker(s.style, (st) => set(() => { s.style = st; })));
   else if (k === 'cap') { p.append(large(T('studioApiCap')), list(...CAPS.map((c) => rowRadio({ label: '$' + c, on: s.cap === c, onClick: () => set(() => { s.cap = c; }), k: 'cap:' + c }))), note(T('studioApiCapNote'))); return; }
-  else { back(); return; }
-  p.append(note(T('studioDefNote')));
+  else back();
 }
 
 /* אשף החיבור — שלושת השלבים של ההגדרה החד־פעמית: סביבה, Routine עם טריגר API, הדבקה ובדיקה.
    המפתח שמודבק נשלח לשרתון ונשמר שם רק מוצפן; בטלפון הוא רק בשדה, עד שהשמירה הצליחה (או שיוצאים מהדף) */
 function pageConnect(p) {
-  p.append(navBar({ back: T('studioSettings') }), large(T('studioWizT')), h('p', 'st-lede', T('studioWizLede')));
+  p.append(navBar({ back: 'Claude' }), large(T('studioWizT')), h('p', 'st-lede', T('studioWizLede')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const link = (href, k, label) => {
     const a = h('a', 'st-wbtn'); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dataset.k = k;
@@ -5693,7 +5733,7 @@ function shapeKey() {
   if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key + (ce.cues ? ce.cues.length : '') : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
   if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
-  if (ui.view === 'settings' || ui.view === 'connect') return ui.view + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
+  if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store' || ui.view === 'push') return ui.view + '|' + (ui.push || '') + (ui.pushBusy ? 'b' : '') + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
   return ui.view + '|' + ui.access;
 }
 let paintT = 0;
@@ -5729,6 +5769,10 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'adv') pageAdvanced(p);       // אפשרויות מתקדמות (כמו ב־Invest)
   else if (ui.view === 'cutsrc') pageCut(p, true);    // מ4: חיתוך לפני התרגום
   else if (ui.view === 'settings') pageSettings(p);
+  else if (ui.view === 'eng') pageEng(p);             // 13/10/2026: עמודי המשנה של ההגדרות
+  else if (ui.view === 'defs') pageDefs(p);
+  else if (ui.view === 'store') pageStore(p);
+  else if (ui.view === 'push') pagePush(p);
   else if (ui.view === 'tower') pageTower(p);
   else if (ui.view === 'alert') pageAlert(p);
   else if (ui.view === 'inc') pageInc(p);
@@ -5763,7 +5807,7 @@ const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(pref
 /* נכנסים לדף: מרעננים ממה שבשרתון (מצב החיבור, העבודות) */
 function onEnter() {
   if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
-  else if (ui.view === 'settings' || ui.view === 'connect') refreshStatus();
+  else if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store') refreshStatus();
   else if (ui.view === 'tower') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
   else if (ui.view === 'gloss') { refreshStatus(true); glossLoad(true); }   // v380: המילון — תמיד הגרסה העדכנית מ־Drive

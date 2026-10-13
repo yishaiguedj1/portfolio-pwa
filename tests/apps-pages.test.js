@@ -97,14 +97,26 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   const lib = read('library.js'), st = read('studio.js');
   ok(/function openAcademySettings\(\) \{ if \(!\(ui\.view && ui\.view\.settings\)\) goView\(\{ settings: 1 \}\); \}/.test(lib) && /if \(ui\.view && ui\.view\.settings\) return renderSettings\(\);/.test(lib), 'Academy: ההגדרות = עמוד בספרייה (רשומה בהיסטוריה)');
   ok(/home\.append\(C\.account\(\), C\.advRow\(\(\) => goView\(\{ advanced: 1 \}\)\), C\.display\(\)\)/.test(lib) && /\.lib-root button:not\(\.appbar button, \.card button\)/.test(read('library.css')), 'Academy: החשבון ותצוגה; האיפוס של כפתורי הספרייה לא נוגע בכרטיסים');
-  const ps = st.slice(st.indexOf('function pageSettings('), st.indexOf('/* ---------------- שלב 4: התראות לטלפון'));
-  ok(/C\.account\(\), C\.advRow\(\(\) => go\('adv'\)\), C\.display\(\)/.test(ps) && ps.indexOf('C.account()') > 0 && ps.indexOf('C.account()') < ps.indexOf("T('studioSecClaude')") && !/secT\(/.test(ps) && (ps.match(/setCard\(/g) || []).length >= 9, 'Studio: החשבון בראש העמוד, וכל מקטע = setCard');
+  const ps = st.slice(st.indexOf('function pageSettings('), st.indexOf('function pageEng(p)'));   // העמוד הראשי בלבד
+  ok(/C\.account\(\), C\.advRow\(\(\) => go\('adv'\)\), C\.display\(\)/.test(ps) && !/secT\(/.test(ps), 'Studio: החשבון, המתקדמות והתצוגה של Invest בראש העמוד');
+  // 13/10/2026 (בקשת המשתמש: "כמו ש־Apple הייתה מתכננת"): העמוד הראשי = שתי קבוצות של שורות, כל נושא בעמוד משנה
+  { const rows = [...ps.matchAll(/onClick: \(\) => go\('(\w+)'\)/g)].map((m) => m[1]).join();
+    ok(rows === 'eng,defs,tower,store,push,guide', 'Studio: השורות בעמוד הראשי — ' + rows);
+    ok((ps.match(/setCard\(/g) || []).length === 2 && /setCard\(T\('studioGrpTr'\)/.test(ps) && /setCard\(T\('studioGrpGen'\)/.test(ps), 'Studio: שתי קבוצות — תרגום וכללי'); }
+  for (const [v, fn] of [['eng', 'pageEng'], ['defs', 'pageDefs'], ['store', 'pageStore'], ['push', 'pagePush']]) ok(new RegExp("else if \\(ui\\.view === '" + v + "'\\) " + fn + '\\(p\\);').test(st) && st.includes('function ' + fn + '(p) {'), 'Studio: עמוד המשנה ' + v);
+  { const sec = (f) => { const a = st.indexOf('function ' + f + '(p) {'); return st.slice(a, st.indexOf('\n}\n', a)); };
+    ok(/T\('studioConnSub'\)/.test(sec('pageEng')) && /go\('connect'\)/.test(sec('pageEng')) && /go\('server'\)/.test(sec('pageEng')), 'Claude: מי מתרגם, האשף והשרת — במקום אחד');
+    ok(/connectDrive/.test(sec('pageStore')) && /s\.wifi = !s\.wifi/.test(sec('pageStore')), 'אחסון והעלאה: Drive ו"רק ב־Wi‑Fi"');
+    ok(/pushOn\(\)/.test(sec('pagePush')) && /pushTest/.test(sec('pagePush')), 'התראות: המתג והבדיקה');
+    ok(/go\('def', 'mode'\)/.test(sec('pageDefs')) && /go\('lang', 'def'\)/.test(sec('pageDefs')) && /go\('def', 'out'\)/.test(sec('pageDefs')) && /go\('def', 'style'\)/.test(sec('pageDefs')), 'ברירות מחדל: ארבע השורות'); }
+  ok(/x === 'connect' \|\| \(x === 'def' && y === 'cap'\) \? \['eng', null\]/.test(st) && /x === 'def' \|\| \(x === 'lang' && y === 'def'\) \? \['defs', null\]/.test(st), 'Studio: "חזור" מהפרטים — לעמוד המשנה שממנו באו');
+  ok(/x\.k === 'drive_revoked' \? \(\) => go\('store'\)/.test(st) && /T\('studioConnectNow'\), \(\) => go\('eng'\)/.test(st), 'Studio: קישורים מהתראות ומעבודה — ישר לעמוד הנכון');
   // "אפשרויות מתקדמות" כמו ב־Invest (13/10/2026): שורה בהגדרות → עמוד עם האפליקציה לאנדרואיד, גרסה וניקוי מטמון
   for (const id of ['advancedCard', 'widgetCard', 'appInfoCard', 'widgetApk', 'widgetHow', 'appVersion', 'clearCache']) ok(sh.includes("id = '" + id + "'") && idx.includes('id="' + id + '"'), 'shell: #' + id + ' כמו ב־index.html');
   { const href = /href="(https:\/\/github\.com\/[^"]+\.apk)"/.exec(idx)[1]; ok(sh.includes("APK_URL = '" + href + "'"), 'shell: אותו קישור ל־APK כמו ב־Invest'); }
   ok(/caches\.delete/.test(sh) && /r\.unregister\(\)/.test(sh) && /location\.reload\(\)/.test(sh), 'shell: ניקוי מטמון = כל המטמונים + ביטול ה־SW + טעינה מחדש (כמו #clearCache)');
   ok(/appVersionLabel\(\)/.test(sh) && /const APP_VERSION = '(v\d+)'/.exec(read('core.js'))[1] === /const APP_VERSION = '(v\d+)'/.exec(read('app.js'))[1], 'הגרסה ב־core.js = ב־app.js (אזור <core>) — Academy ו־Studio מציגות את אותו המספר');
-  ok(/if \(ui\.view && ui\.view\.advanced\) return renderAdvanced\(\);/.test(lib) && /else if \(ui\.view === 'adv'\) pageAdvanced\(p\);/.test(st) && /x === 'guide' \|\| x === 'adv'\) \? \['settings', null\]/.test(st), 'Academy ו־Studio: עמוד "אפשרויות מתקדמות" ש"חזור" ממנו מגיע להגדרות');
+  ok(/if \(ui\.view && ui\.view\.advanced\) return renderAdvanced\(\);/.test(lib) && /else if \(ui\.view === 'adv'\) pageAdvanced\(p\);/.test(st) && /x === 'guide' \|\| x === 'adv' \|\|[^)]*\) \? \['settings', null\]/.test(st), 'Academy ו־Studio: עמוד "אפשרויות מתקדמות" ש"חזור" ממנו מגיע להגדרות');
   ok(!/large\(T\('studioSettings'\)\)/.test(ps) && /if \(big\) big\.remove\(\)/.test(lib), 'בלי כותרת "הגדרות" בעמודי ההגדרות (בקשת המשתמש)');
   ok(/'card st-card'/.test(st) && /\.st-card > \.st-list \{ margin: 0; background: transparent; \}/.test(read('studio.css')), 'Studio: הכרטיס = .card של styles.css, הרשימה בלי רקע משלה');
 }
