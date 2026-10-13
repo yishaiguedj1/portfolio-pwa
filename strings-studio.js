@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1447 מפתחות מתוך 2582) */
+/* המחרוזות של studio (1448 מפתחות מתוך 2582) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -31,6 +31,7 @@ he: {
   "menuStudioSub": "כתוביות בכל שפה",
   "menuThemeAria": "ערכת נושא — בהיר / כהה",
   "myAccount": "החשבון שלי",
+  "shellTowerSub": "מצב השירות והסוכנים",
   "signOut": "התנתקות",
   "skipLogin": "המשך בלי חשבון",
   "studioAdvAfterT": "הצעות",
@@ -1480,6 +1481,7 @@ en: {
   "menuStudioSub": "Subtitles in any language",
   "menuThemeAria": "Theme — light / dark",
   "myAccount": "My account",
+  "shellTowerSub": "Service and agent status",
   "signOut": "Sign out",
   "skipLogin": "Continue without an account",
   "studioAdvAfterT": "Suggestions",

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (609 מפתחות מתוך 2582) */
+/* המחרוזות של academy (611 מפתחות מתוך 2582) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -579,6 +579,8 @@ he: {
   "rdTranslate": "תרגום",
   "rdWeight": "עובי",
   "rdWhite": "לבן",
+  "shellBackup": "גיבוי הספרייה",
+  "shellLearnSub": "הדגשות, הערות וסימניות",
   "signOut": "התנתקות",
   "skipLogin": "המשך בלי חשבון",
   "srcApple": "Apple Books",
@@ -1190,6 +1192,8 @@ en: {
   "rdTranslate": "Translate",
   "rdWeight": "Weight",
   "rdWhite": "White",
+  "shellBackup": "Library backup",
+  "shellLearnSub": "Highlights, notes and bookmarks",
   "signOut": "Sign out",
   "skipLogin": "Continue without an account",
   "srcApple": "Apple Books",

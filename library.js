@@ -932,8 +932,10 @@ async function renderHomeNow() {
   const hrow = h('div', 'lib-hrow');
   hrow.append(h('h1', 'lib-large', T('libTitle')));
   if (shell) hrow.textContent = '';         // עצמאי: בלי "ספרייה" מתחת ללוגו — הלוגו של Academy אומר את זה (בקשת המשתמש)
-  if (mine) { bkAdopt(); if (books.length || cloudOnly.length) hrow.append(backupPill()); }
-  if (shell) { if (mine) hrow.append(tr); home.append(shell.el); if (hrow.childNodes.length) home.append(hrow); }
+  if (mine && !shell) { bkAdopt(); if (books.length || cloudOnly.length) hrow.append(backupPill()); }
+  /* עצמאי (13/10/2026, בקשת המשתמש): בלי השורה שמתחת להדר — "הוספת ספר" = הכפתור ליד הגלובוס (shell, action),
+     "גיבוי" ו"איפוס" — בהגדרות; בועת מצב הגיבוי — בהדר, מעל הכפתורים (כמו קפסולת המצב ב־Invest וב־Studio) */
+  if (shell) { bkAdopt(); shell.setStatus(backupPill()); home.append(shell.el); }
   else home.append(top, hrow);
   if (SA && SA.auth && SA.auth.state() === 'out') {   // עצמאי בלי חיבור — כניסה עם Google (אחריה הדף נטען מחדש עם החשבון)
     const si = h('button', 'lib-signin'); si.type = 'button'; si.textContent = T('googleSignIn');
@@ -1207,6 +1209,34 @@ function renderSettings() {
   const big = home.querySelector('.lib-large'); if (big) big.remove();   // בלי כותרת "הגדרות" — בקשת המשתמש (כמו ב־Invest)
   const C = SA && SA.cards;
   if (C) home.append(C.account(), C.advRow(() => goView({ advanced: 1 })), C.display());   // הסדר של Invest
+  home.append(mineCard());
+}
+/* "הספרייה שלי" בהגדרות (13/10/2026, בקשת המשתמש — מה שהיה בתפריט ⋯): גיבוי ל־Google Drive, הוספת ספר, איפוס.
+   שורות בסגנון "אפשרויות מתקדמות" של Invest (.row-link מ־styles.css); הגיבוי — עם המצב שלו בשורה */
+function mineCard() {
+  const card = h('div', 'card lib-setcard');
+  card.append(h('h2', null, T('libMine')));
+  const row = (icCls, icon, title, sub, onClick, cls) => {
+    const b = h('button', 'row-link' + (cls ? ' ' + cls : '')); b.type = 'button';
+    const ic = h('span', 'row-link-ic ' + icCls); ic.setAttribute('aria-hidden', 'true'); ic.innerHTML = icon;
+    const tx = h('span', 'row-link-txt'); tx.append(h('span', 'menu-row-t', title)); if (sub) tx.append(h('span', 'menu-row-s', sub));
+    const ch = h('span', 'row-link-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = ICON.chev;
+    b.append(ic, tx, ch);
+    b.addEventListener('click', onClick);
+    return b;
+  };
+  const s = BK.settings(), st = bkPillState(signedIn(), s, BK.busy());
+  const bkSub = st === 'ok' ? [T('bkRowOn'), fmtWhen(s.lastAt)].filter(Boolean).join(' · ') : st === 'busy' ? T('bkRowBusy') : st === 'err' ? T('bkRowErr') : (signedIn() ? T('bkRowConnect') : T('bkRowSignIn'));
+  card.append(
+    row('lib-set-bk', ICON.cloud, T('bkTitle'), bkSub, () => goView({ backup: 1 })),
+    row('adv-ic', ICON.plus, T('libImport'), null, addBookPick),
+    row('lib-set-rs', ICON.trash, T('libResetMine'), null, openResetSheet, 'lib-set-danger'));
+  return card;
+}
+function addBookPick() {                      // בורר הקבצים — בתוך הנגיעה (כפתור ההדר / ההגדרות)
+  const inp = importInput(() => inp.remove());
+  inp.hidden = true; document.body.append(inp);
+  inp.click();
 }
 function renderAdvanced() {                  // "אפשרויות מתקדמות" — כמו ב־Invest: האפליקציה לאנדרואיד, גרסה וניקוי מטמון
   const home = subPage(T('advancedTitle'));
@@ -4197,7 +4227,7 @@ export async function openLibrary(opt) {
   ensureCss();
   if (root) return;
   SA = opt && opt.standalone ? opt.standalone : null;
-  if (SA) { SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.home = SA.home || './'; }
+  if (SA) { SA.settings = openAcademySettings; SA.notes = () => goView({ notes: 1 }); SA.backup = () => goView({ backup: 1 }); SA.addBook = addBookPick; SA.home = SA.home || './'; }
   const restore = opt && opt.restore && opt.restore.lib ? opt.restore : null;   // רענון בזמן שהספרייה הייתה פתוחה
   root = h('div', 'lib-root no-swipe');
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('libTitle'));

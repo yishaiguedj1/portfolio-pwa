@@ -1083,6 +1083,13 @@ function stubFetch(text, status = 200) {
     r = await run({ op: 'gdDisconnect', idToken: U1 });
     ok(r.payload.ok && !store.has('userUid00001') && calls.filter((c) => c.url.includes('/revoke')).length === nRev + 1 && /RT-SECRET-2/.test(calls.filter((c) => c.url.includes('/revoke')).pop().body), 'גיבוי Drive: ניתוק — ביטול אצל Google + מחיקת הרשומה');
     ok(gd.REDIRECT_RE.test('http://localhost:8080/oauth.html') && !gd.REDIRECT_RE.test('https://yishaiguedj1.github.io/other/oauth.html'), 'גיבוי Drive: כתובת חזרה — רק עמוד האפליקציה (או localhost)');
+    // 13/10/2026 — הדומיין החדש: כל אפליקציה בייצור ובניסוי, ושום דבר שרק נראה כמוהו
+    ok(['https://thesnowball.app/oauth.html', 'https://staging.thesnowball.app/oauth.html', 'https://academy.thesnowball.app/oauth.html',
+      'https://academy-staging.thesnowball.app/oauth.html', 'https://studio-staging.thesnowball.app/oauth.html', 'https://invest.thesnowball.app/oauth.html'].every((u) => gd.REDIRECT_RE.test(u)),
+      'גיבוי Drive: כתובת חזרה — כל אפליקציה ב־thesnowball.app (ייצור וניסוי)');
+    ok(!['https://evil-staging.thesnowball.app/oauth.html', 'https://a.b.staging.thesnowball.app/oauth.html', 'https://thesnowball.app.evil.com/oauth.html',
+      'http://academy.thesnowball.app/oauth.html', 'https://academy.thesnowball.app/x/oauth.html', 'https://academyx.thesnowball.app/oauth.html'].some((u) => gd.REDIRECT_RE.test(u)),
+      'גיבוי Drive: כתובת חזרה — לא תת־דומיין זר, לא http, לא נתיב אחר');
     env.forEach(([k, v]) => { if (v == null) delete process.env[k]; else process.env[k] = v; });
     gauth._reset();
   }

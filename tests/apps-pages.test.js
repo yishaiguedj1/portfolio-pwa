@@ -118,6 +118,18 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   ok(/appVersionLabel\(\)/.test(sh) && /const APP_VERSION = '(v\d+)'/.exec(read('core.js'))[1] === /const APP_VERSION = '(v\d+)'/.exec(read('app.js'))[1], 'הגרסה ב־core.js = ב־app.js (אזור <core>) — Academy ו־Studio מציגות את אותו המספר');
   ok(/if \(ui\.view && ui\.view\.advanced\) return renderAdvanced\(\);/.test(lib) && /else if \(ui\.view === 'adv'\) pageAdvanced\(p\);/.test(st) && /x === 'guide' \|\| x === 'adv' \|\|[^)]*\) \? \['settings', null\]/.test(st), 'Academy ו־Studio: עמוד "אפשרויות מתקדמות" ש"חזור" ממנו מגיע להגדרות');
   ok(!/large\(T\('studioSettings'\)\)/.test(ps) && /if \(big\) big\.remove\(\)/.test(lib), 'בלי כותרת "הגדרות" בעמודי ההגדרות (בקשת המשתמש)');
+  // 13/10/2026 (בקשת המשתמש): בלי הבר האפור — ה־+ בהדר מימין לגלובוס, הגיבוי וההוספה בהגדרות, הבועה בהדר
+  { const aa = read('academy-app.js');
+    ok(/const act = o\.action \|\| null;/.test(sh) && /btnFacesHTML\(act\.icon, themeIcon\(\)\)/.test(sh) && /if \(act && !isOpen\(\)\) \{ act\.on\(\); return; \}/.test(sh), 'shell: כפתור פעולה — סגור = הפעולה, פתוח = בהיר/כהה (כמו $ ב־Invest)');
+    ok(/action: \{ label: t\('libImport'\), on: \(\) => sa\.addBook && sa\.addBook\(\),\s*icon: _IC_PRE \+/.test(aa), 'Academy: ה־+ בהדר = הוספת ספר, אייקון בסגנון של שאר הכפתורים (_IC_PRE)');
+    ok(/SA\.addBook = addBookPick/.test(lib) && /function mineCard\(\)/.test(lib) && /home\.append\(mineCard\(\)\)/.test(lib), 'Academy: הגיבוי, ההוספה והאיפוס — בכרטיס "הספרייה שלי" בהגדרות');
+    ok(/if \(shell\) \{ bkAdopt\(\); shell\.setStatus\(backupPill\(\)\); home\.append\(shell\.el\); \}\s*else home\.append\(top, hrow\);/.test(lib), 'Academy: בדף העצמאי בלי שורת הכותרת האפורה — בועת הגיבוי בהדר, תמיד');
+    // המחרוזות של דפי האפליקציות עצמם נכנסות לקובץ המחרוזות (עד 13/10/2026 התפריט הציג "shellBackup")
+    for (const [f, sf] of [['academy-app.js', 'strings-academy.js'], ['studio-app.js', 'strings-studio.js']]) {
+      const keys = [...new Set([...read(f).matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)].map((m) => m[1]))], strs = read(sf);
+      ok(keys.length && keys.every((k) => strs.includes('"' + k + '":')), f + ': כל המחרוזות ב־' + sf + ' (' + keys.join(', ') + ')');
+    }
+  }
   ok(/'card st-card'/.test(st) && /\.st-card > \.st-list \{ margin: 0; background: transparent; \}/.test(read('studio.css')), 'Studio: הכרטיס = .card של styles.css, הרשימה בלי רקע משלה');
 }
 console.log('# ' + n + ' בדיקות עברו');

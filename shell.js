@@ -45,7 +45,10 @@ export function createShell(o) {
   const left = h('div', 'appbar-left');
   const sub = h('div', 'appbar-sub src-row'); sub.hidden = true;           // קפסולת מצב של האפליקציה (Invest: מצב השוק)
   const acts = h('div', 'appbar-actions');
-  const theme = h('button', 'icon-btn shell-theme'); theme.type = 'button';
+  /* o.action = {icon, label, on}: כפתור עם שני פנים כמו ₪ ב־Invest — רגיל = הפעולה של האפליקציה (Academy: הוספת ספר),
+     בתפריט הפתוח = בהיר/כהה. בלעדיו — כפתור הערכה מופיע רק כשהתפריט פתוח */
+  const act = o.action || null;
+  const theme = h('button', 'icon-btn ' + (act ? 'shell-act' : 'shell-theme')); theme.type = 'button';
   const langWrap = h('div', 'lang-wrap');
   const lang = h('button', 'icon-btn'); lang.type = 'button'; lang.innerHTML = btnFacesHTML(ICON_GLOBE, ICON_GEAR);
   const langMenu = h('div', 'lang-menu hidden'); langMenu.setAttribute('role', 'menu');
@@ -80,7 +83,12 @@ export function createShell(o) {
   row.append(brand, left);
   hdr.append(row);
 
-  const paintTheme = () => { theme.innerHTML = resolveTheme() === 'dark' ? ICON_SUN : ICON_MOON; };
+  const themeIcon = () => (resolveTheme() === 'dark' ? ICON_SUN : ICON_MOON);
+  const paintTheme = () => {
+    if (!act) { theme.innerHTML = themeIcon(); return; }
+    if (!theme.firstChild) theme.innerHTML = btnFacesHTML(act.icon, themeIcon());
+    const alt = theme.querySelector('.face-alt'); if (alt) alt.innerHTML = themeIcon();
+  };
   paintTheme();
   if (typeof window !== 'undefined') window.snbThemeChanged = paintTheme;
   let veil = null, modal = null;
@@ -99,13 +107,17 @@ export function createShell(o) {
     }
     document.body.classList.toggle('menu-blur', open);
     lang.setAttribute('aria-label', open ? t('menuSettings') : t('langAria'));
-    theme.setAttribute('aria-label', t('menuThemeAria'));
+    theme.setAttribute('aria-label', open || !act ? t('menuThemeAria') : act.label);
     menu.setAttribute('aria-label', open ? t('menuCloseAria') : t('menuAria'));
     if (open) langMenu.classList.add('hidden');
   }
   setOpen(false);
   menu.addEventListener('click', (e) => { e.stopPropagation(); setOpen(!isOpen()); });
-  theme.addEventListener('click', (e) => { e.stopPropagation(); setThemeMode(resolveTheme() === 'dark' ? 'light' : 'dark'); });
+  theme.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (act && !isOpen()) { act.on(); return; }   // סגור — הפעולה (בתוך הנגיעה: בורר הקבצים נפתח)
+    setThemeMode(resolveTheme() === 'dark' ? 'light' : 'dark');
+  });
   lang.addEventListener('click', (e) => {
     e.stopPropagation();
     if (isOpen()) { setOpen(false); if (o.onSettings) o.onSettings(); return; }   // תפריט פתוח → הגלובוס = הגדרות

@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v405';
+const CACHE_NAME = 'portfolio-pwa-v406';
 const HASHES = {
   "./": "5afa03aea42b83f6e338470dd5195c34",
   "./index.html": "5afa03aea42b83f6e338470dd5195c34",
   "./styles.css": "80028ed6571ee811cb0a4049bff8f2cb",
-  "./app.js": "201d41cf39bf038c906cb7c348aa5e08",
+  "./app.js": "803180e9778a087bb58fa8484ef56f97",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "4d79529a9a53b944a43112551259b7d6",
@@ -20,8 +20,8 @@ const HASHES = {
   "./apple-touch-icon.png": "a0bd976c2c911b8dcc446fdbafabd50e",
   "./favicon-48.png": "54adadfbb7cfdbddb0102995a66a5145",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
-  "./library.js": "6f7de7233a58835d6fc50e359566a88a",
-  "./library.css": "0b173dbe10d8f516b2f2fcecd654d15f",
+  "./library.js": "60d903d62913a2cec293fa8128496118",
+  "./library.css": "db015ea19aa38ee2bdc8aa7099250953",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "17be92ab73db3643d73ae4c0e59ab347",
   "./ribbon3d.js": "aea160c033eebec3c86b79480c9c10c0",
@@ -46,11 +46,11 @@ const HASHES = {
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "ec20f16630bfc11f0d17777e3b342025",
-  "./academy-app.js": "4536f0fedf63c275c0587451aae57d7d",
-  "./strings-academy.js": "58e661ed32987cdf0d46702e2da33888",
-  "./core.js": "e81cbde4c49ba56ff37070258b4c498c",
+  "./academy-app.js": "bfaf82cf88d3ad4f48d417c7464f83c2",
+  "./strings-academy.js": "36d3149e28ddeada9702f92d4473b812",
+  "./core.js": "4f697145c20983062b352868b52c713d",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
-  "./shell.js": "67af7a5f790ad32d9ba113f31252751a",
+  "./shell.js": "272d31373a375b9047bb8410c3a87825",
   "./logo-academy.png": "6ece7ee5b88d5272b19060d20315dd79",
   "./studio.js": "a4664ac3d111b4a19643ade3cd1559b8",
   "./studio.css": "a1612167c90cc65c90f1875e2bb28240",
@@ -62,7 +62,7 @@ const HASHES = {
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "19e2b78d7b2c7b7b9108eb19e27f4f06",
   "./studio-app.js": "d19b8e58d80c93a22e6236271126ab80",
-  "./strings-studio.js": "36f07881c59f0ad512f5b8681174f59d",
+  "./strings-studio.js": "ef2ea315928541a1c4c83ef9e24e178a",
   "./logo-studio.png": "a75ebb22123a1c29a256e8d4798d376e"
 };
 /* </swgen> */
