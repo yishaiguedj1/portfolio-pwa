@@ -33,22 +33,29 @@ for (const A of APPS) {
   const boot = read(A.app + '-app.js');
   ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
   // ההדר המשותף (13/10/2026): אותו shell.js, הלוגו של האפליקציה, והגלובוס בתפריט הפתוח = ההגדרות של האפליקציה
-  ok(boot.includes("import { createShell, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".png'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
-  { const b = fs.readFileSync(path.join(root, 'logo-' + A.app + '.png')); ok(b.slice(1, 4).toString() === 'PNG' && b.readUInt32BE(16) === 512 && b.length < 200000, A.app + ': הלוגו — PNG של 512 (פי 4 מ־128), קל (<200KB)'); }
+  ok(boot.includes("import { createShell, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".webp', logoLg: 'logo-" + A.app + "-lg.webp'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
+  // הלוגו (13/10/2026): WebP בצבע מלא — חד יותר מ־PNG של 256 צבעים (pngquant) ובמשקל דומה. 512 = פי 4 מ־128 בהדר, 768 למסך הכניסה (192px)
+  { const dim = (f) => { const b = fs.readFileSync(path.join(root, f)); return b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 16) === 'WEBPVP8X' ? [b.readUIntLE(24, 3) + 1, b.readUIntLE(27, 3) + 1, b.length, (b[20] & 16) > 0] : null; };
+    const [w, hh, n, al] = dim('logo-' + A.app + '.webp') || []; ok(w === 512 && hh === 512 && al && n < 200000, A.app + ': הלוגו בהדר — WebP של 512 עם שקיפות, <200KB');
+    const [w2, h2, n2, al2] = dim('logo-' + A.app + '-lg.webp') || []; ok(w2 === 768 && h2 === 768 && al2 && n2 < 320000, A.app + ': הלוגו למסך הכניסה — WebP של 768 עם שקיפות');
+    ok(!fs.existsSync(path.join(root, 'logo-' + A.app + '.png')), A.app + ': בלי ה־PNG הישן');
+    for (const [f, sz] of [['icon-' + A.app + '-192.png', 192], ['apple-touch-' + A.app + '.png', 180], ['favicon-' + A.app + '-48.png', 48]]) {
+      const b = fs.readFileSync(path.join(root, f)); ok(b.slice(1, 4).toString() === 'PNG' && b.readUInt32BE(16) === sz && page.includes('href="' + f + '"') && read('sw.js').includes("'./" + f + "'"), A.app + ': ' + f + ' — בדף ובמעטפת של sw.js');
+    } }
   ok(boot.indexOf('wireCoreBack()') > 0 && boot.indexOf('wireCoreBack()') < boot.indexOf(A.open + '({'), A.app + ': "חזור" של החלונות נרשם לפני המודול (סדר מאזיני popstate)');
   // 13/10/2026 (בקשת המשתמש): מסך הכניסה של Invest גם כאן — רק כשהחיבור ענה "לא מחובר", עם הלוגו והשם של האפליקציה
-  ok(new RegExp("if \\(first === 'out'\\) loginGate\\(\\{ app: '" + A.app + "', auth: A, logo: 'logo-" + A.app + "\\.png'").test(boot)
+  ok(new RegExp("if \\(first === 'out'\\) loginGate\\(\\{ app: '" + A.app + "', auth: A, logo: 'logo-" + A.app + "\\.webp', logoLg: 'logo-" + A.app + "-lg\\.webp'").test(boot)
     && boot.indexOf('loginGate(') < boot.indexOf(A.open + '({'), A.app + ': לא מחובר — מסך הכניסה עם הלוגו שלה, לפני פתיחת המודול');
   ok(/pwa_auth_rl/.test(boot) && /Date\.now\(\) - last > 8000/.test(boot), A.app + ': טעינה מחדש כשהחיבור משתנה — עם שומר מפני לולאה');
   // 13/10/2026 (בקשת המשתמש): עמוד ההגדרות — כרטיס החשבון ו"תצוגה" של Invest מ־shell.js, דרך SA (בלי ייבוא בתוך המודול)
-  ok(boot.includes('sa.cards = { account: () => accountCard(A), display: displayCard, advRow: advancedRow, advanced: advancedCards };') && !/from '\.\/shell\.js'/.test(read(A.mod)), A.app + ': הכרטיסים של עמוד ההגדרות מגיעים דרך SA.cards');
+  ok(boot.includes("sa.cards = { account: () => accountCard(A, 'icon-" + A.app + "-192.png'), display: displayCard, advRow: advancedRow, advanced: advancedCards };") && !/from '\.\/shell\.js'/.test(read(A.mod)), A.app + ': הכרטיסים של עמוד ההגדרות מגיעים דרך SA.cards');
 
   const mod = read(A.mod);
   ok(/if \(SA && !restore\) [^\n]*history\.replaceState\(/.test(mod), A.app + ': הבית מחליף את רשומת הדף — "חזור" ממנו יוצא מהדף');
   ok(/location\.href = SA\.home \|\| '\.\/'/.test(mod) && /SA\.auth\.signIn\(\)/.test(mod), A.app + ': "THE SNOWBALL" → Invest, ובלי חיבור — כפתור כניסה');
 
   const shell = (sw.match(new RegExp('const ' + A.shell + ' = \\[([\\s\\S]*?)\\];')) || [])[1] || '';
-  for (const f of [A.app + '.html', A.app + '-app.js', 'strings-' + A.app + '.js', 'core.js', 'auth.js', 'shell.js', 'logo-' + A.app + '.png']) ok(shell.includes("'./" + f + "'"), A.app + ': ' + A.shell + ' כולל ' + f);
+  for (const f of [A.app + '.html', A.app + '-app.js', 'strings-' + A.app + '.js', 'core.js', 'auth.js', 'shell.js', 'logo-' + A.app + '.webp', 'logo-' + A.app + '-lg.webp']) ok(shell.includes("'./" + f + "'"), A.app + ': ' + A.shell + ' כולל ' + f);
 }
 ok(/if \(lvl < 1 && root && !SA\)/.test(read('library.js')) && /if \(!st\.studio && SA\) return;/.test(read('studio.js')), 'עצמאי: אין "חזרה לסקירה" (אין תיק)');
 /* ההדר המשותף: כמו ב־Invest — שני כפתורים כשהתפריט סגור, בהיר/כהה רק בפתיחה (החלטת המשתמש); בלי הכותרת הגדולה מתחת ללוגו */
@@ -129,6 +136,24 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
       const keys = [...new Set([...read(f).matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)].map((m) => m[1]))], strs = read(sf);
       ok(keys.length && keys.every((k) => strs.includes('"' + k + '":')), f + ': כל המחרוזות ב־' + sf + ' (' + keys.join(', ') + ')');
     }
+  }
+  // 13/10/2026 (בקשת המשתמש): צבע מערכת לכל אפליקציה — Studio אדום, Academy כחול (הגוונים המדויקים), במקום הירוק של Invest
+  { const css = read('styles.css');
+    for (const [app, hex] of [['studio', '#FF4656'], ['academy', '#4699FF']]) {
+      ok(read(app + '.html').includes('<html lang="he" dir="rtl" data-app="' + app + '">'), app + ': data-app על <html>');
+      const m = new RegExp('html\\[data-app="' + app + '"\\] \\{([^}]*)\\}').exec(css);
+      ok(m && m[1].includes('--primary: ' + hex + ';') && m[1].includes('--primary-dark: ' + hex + ';') && /--primary-container: rgba\(/.test(m[1]) && /--on-primary: #/.test(m[1]), app + ': --primary = ' + hex);
+      ok(new RegExp('html\\[data-app="' + app + '"\\]\\[data-theme="dark"\\] \\{ --on-primary-container: #').test(css), app + ': גוון טקסט על מיכל — גם לכהה');
+    }
+    ok(/\.studio-ic \{ background: #FF4656; \}/.test(css) && /\.academy-ic \{ background: #4699FF; \}/.test(css) && /\.invest-ic \{ background: #30D158; \}/.test(css), 'אייקון כל אפליקציה בתפריט — בצבע שלה');
+    ok(/cls: 'invest-ic'/.test(sh) && /cls: 'academy-ic'/.test(sh) && /cls: 'studio-ic'/.test(sh) && idx.includes('row-link-ic academy-ic'), 'התפריט של Invest ושל ההדר המשותף משתמשים במחלקות האלה');
+    const sc = read('studio.css');
+    ok(/\.st-root \{ --st-ok: #30D158;/.test(sc) && /\.st-stg\.done \.dot \{ background: var\(--st-ok\)/.test(sc) && /\.st-sdot\.g \{ background: var\(--st-ok\)/.test(sc) && /\.st-tower svg \{[^}]*color: var\(--st-ok\)/.test(sc) && /\.st-sw\.on \{ background: var\(--st-ok\)/.test(sc) && /\.st-ring \.arc \{ stroke: var\(--st-ok\)/.test(sc) && /\.st-cpill\.on i \{ background: var\(--st-ok\)/.test(sc) && /tile\('shield', 'green'\)/.test(st) && /\.st-tile\.t-green \{ background: var\(--st-ok\)/.test(sc) && !/rgba\(48, ?209, ?88/.test(sc.replace(/\.st-root \{ --st-ok[^}]*\}/, '').replace(/\.st-root \.g \{[^}]*\}/, '').replace(/\[data-theme="dark"\] \.st-root \.g \{[^}]*\}/, '')),
+      'Studio: "תקין/הושלם" נשאר ירוק (--st-ok) — ✓ באדום נראה כמו שגיאה');
+    const lc = read('library.css');
+    ok(!/30D158|48, ?209, ?88/i.test(lc), 'library.css: בלי ירוק קשיח — הכל דרך --primary');
+    ok(/const accent = \(\) =>/.test(lib) && /::selection \{ background: \$\{accentRgba\(\.32\)\}/.test(lib) && /drawOptions: \{ color: accent\(\) \}/.test(lib) && /createRibbonAsync\(cv, \{ color: accent\(\),/.test(lib) && /x\.fillStyle = accent\(\)/.test(lib), 'library.js: בתוך הספר, בקנבס וב־WebGL — צבע המערכת מ־--primary');
+    ok(/srcset = o\.logo \+ ' 512w, ' \+ o\.logoLg \+ ' 768w'; img\.sizes = '128px'/.test(sh) && /img\.sizes = '192px'/.test(sh), 'shell: srcset — הלוגו חד בכל צפיפות מסך (הדר 128px, כניסה 192px)');
   }
   ok(/'card st-card'/.test(st) && /\.st-card > \.st-list \{ margin: 0; background: transparent; \}/.test(read('studio.css')), 'Studio: הכרטיס = .card של styles.css, הרשימה בלי רקע משלה');
 }

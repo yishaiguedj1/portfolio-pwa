@@ -15,6 +15,11 @@ const LS_READER = 'pwa_reader_v1';
 const FONT_URL = new URL('fonts/NotoSansHebrew-VF.woff2', document.baseURI).href;
 const WEIGHTS = [400, 470, 540, 610, 680];        // "עובי" 1–5, כמו רמת ההדגשה של קינדל
 const SPACING = [1.45, 1.62, 1.85];
+/* צבע המערכת של האפליקציה (13/10/2026): בתוך הספר (iframe), בקנבס וב־WebGL אין משתני CSS — קוראים את --primary.
+   Academy = כחול, Invest = ירוק. הקישורים בספר — גוון כהה/בהיר של אותו צבע (בערכות הלבן והשחור). */
+const accent = () => { try { return getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#30D158'; } catch (e) { return '#30D158'; } };
+const accentRgba = (a) => { const m = /^#([0-9a-f]{6})$/i.exec(accent()); const n = m ? parseInt(m[1], 16) : 0x30D158; return 'rgba(' + (n >> 16) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ', ' + a + ')'; };
+const appLink = (th) => (typeof document !== 'undefined' && document.documentElement && document.documentElement.dataset && document.documentElement.dataset.app === 'academy' && (th === THEMES.white || th === THEMES.black)) ? (th.dark ? '#A5CBFF' : '#0B57B5') : th.link;
 const THEMES = {
   white: { page: '#FFFFFF', ink: '#1A1A1A', ink2: '#6E6E73', rule: 'rgba(0,0,0,.16)', link: '#0B6B2C', dark: false },
   sepia: { page: '#F6EFE1', ink: '#3B2F22', ink2: '#7C6A55', rule: 'rgba(59,47,34,.2)', link: '#7A4A12', dark: false },
@@ -2625,12 +2630,12 @@ function bookCSS() {
     ${ourFont ? 'table { font-stretch: 90%; }' : ''}
     td.num, .num { font-variant-numeric: tabular-nums; }
     p, li, blockquote, dd, td, th, h1, h2, h3, h4, h5, h6 { overflow-wrap: break-word; } /* v348: שום שורה לא רחבה מהעמוד — אחרת גולשת לעמודים הבאים */
-    a, a:link, a:visited { color: ${th.link} !important; }
+    a, a:link, a:visited { color: ${appLink(th)} !important; }
     ${th !== THEMES.white ? `body *:not(img):not(svg):not(svg *) { color: inherit !important; background-color: transparent !important; }
-    a, a * { color: ${th.link} !important; }` : 'p.note, .note, caption { color: ' + th.ink2 + ' !important; }'}
+    a, a * { color: ${appLink(th)} !important; }` : 'p.note, .note, caption { color: ' + th.ink2 + ' !important; }'}
     pre { white-space: pre-wrap !important; }
     img, svg { max-width: 100%; height: auto; }
-    ::selection { background: rgba(48, 209, 88, .32); }
+    ::selection { background: ${accentRgba(.32)}; }
     ::highlight(snb-tap) { background-color: rgba(100, 210, 255, .36); }
     /* v337: בלי בחירה של הדפדפן — אחרת לחיצה ארוכה מקפיצה את תפריט ההעתקה של המכשיר ואת "Touch to Search" של Google.
        הסימון שלנו: צביעה (CSS Highlight) + ידיות גרירה משלנו, וההעתקה מהכרטיס */
@@ -2792,7 +2797,7 @@ async function openReader(id, opt) {
     if (opt && opt.find) {                 // תוצאת חיפוש: ההתאמה ה־k בפרק, מודגשת במנוע
       const cfis = [];
       try {
-        for await (const r of view.search({ query: opt.find.q, index: opt.find.sec, draw: Overlayer.highlight, drawOptions: { color: '#30D158' } })) {
+        for await (const r of view.search({ query: opt.find.q, index: opt.find.sec, draw: Overlayer.highlight, drawOptions: { color: accent() } })) {
           if (r && r.cfi) cfis.push(r.cfi);
           if (cfis.length > opt.find.k) break;
         }
@@ -2838,7 +2843,7 @@ async function ribbon3dSetup(box, btn) {
   if (!rd || rd.els.box !== box) return;
   const cv = h('canvas', 'rd-ribbon3d'); cv.setAttribute('aria-hidden', 'true');
   btn.prepend(cv);
-  const eng = await mod.createRibbonAsync(cv, { reduceMotion, onLand: () => { try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {} } });
+  const eng = await mod.createRibbonAsync(cv, { color: accent(), reduceMotion, onLand: () => { try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {} } });
   if (!eng || !rd || rd.els.box !== box) { if (eng) eng.destroy(); cv.remove(); return; }
   const lay = () => {
     if (!cv.isConnected) return;
@@ -3554,7 +3559,7 @@ function scrubInput() {
     rd.scrubHitEl = hit ? el.marks.querySelector('[data-id="' + hit.id + '"]') : null;
     if (rd.scrubHitEl) rd.scrubHitEl.classList.add('hit');
     // האגודל מקבל טבעת בצבע הסימון שעליו (ירוק לסימנייה, צבע ההדגשה להדגשה/הערה)
-    if (hit) { el.scrub.dataset.hit = hit.t; el.scrub.style.setProperty('--hit', hit.col || '#30D158'); } else delete el.scrub.dataset.hit;
+    if (hit) { el.scrub.dataset.hit = hit.t; el.scrub.style.setProperty('--hit', hit.col || accent()); } else delete el.scrub.dataset.hit;
     if (hit) { try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) {} }   // רטט עדין: "את על הסימנייה"
   }
   el.scrub.style.setProperty('--p', v / 10 + '%');
@@ -3648,7 +3653,7 @@ async function quoteCard(text, recIn) {
   const rtl = /[\u0590-\u05FF]/.test(text);
   x.direction = rtl ? 'rtl' : 'ltr'; x.textAlign = rtl ? 'right' : 'left';
   const ax = rtl ? W - pad : pad;
-  x.fillStyle = '#30D158'; x.font = '700 150px "SNB Noto UI", sans-serif'; x.fillText(rtl ? '”' : '“', ax, pad + 120);
+  x.fillStyle = accent(); x.font = '700 150px "SNB Noto UI", sans-serif'; x.fillText(rtl ? '”' : '“', ax, pad + 120);
   // הגופן הכי גדול שנכנס (ציטוט קצר = גדול), והגוש ממורכז אנכית בין המירכאות לחתימה
   let size = 72; let lines;
   for (; size >= 34; size -= 4) { x.font = '500 ' + size + 'px "SNB Noto UI", sans-serif'; lines = wrapQuote(text, W - pad * 2, (t) => x.measureText(t).width, 14); if (lines.length * size * 1.5 < H - 560) break; }

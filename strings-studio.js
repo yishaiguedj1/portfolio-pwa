@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1448 מפתחות מתוך 2582) */
+/* המחרוזות של studio (1449 מפתחות מתוך 2583) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1163,6 +1163,7 @@ he: {
   "studioSecUpload": "העלאה",
   "studioSecVideo": "הסרטון",
   "studioSecs": "{n} שנ׳",
+  "studioSeeAll": "הכל",
   "studioSettings": "הגדרות",
   "studioSev1": "קריטי",
   "studioSev2": "חמור",
@@ -2613,6 +2614,7 @@ en: {
   "studioSecUpload": "Upload",
   "studioSecVideo": "Video",
   "studioSecs": "{n}s",
+  "studioSeeAll": "See all",
   "studioSettings": "Settings",
   "studioSev1": "Critical",
   "studioSev2": "Major",

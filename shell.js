@@ -13,9 +13,9 @@ export const APP_URL = ENV_APPS || { invest: './', academy: 'academy.html', stud
 
 const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg>';
 const APPS = {
-  invest: { name: 'Invest', sub: () => t('appInvestSub'), cls: 'demo-ic',
+  invest: { name: 'Invest', sub: () => t('appInvestSub'), cls: 'invest-ic',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>' },
-  academy: { name: 'Academy', sub: () => t('menuLibrarySub'), cls: 'demo-ic',
+  academy: { name: 'Academy', sub: () => t('menuLibrarySub'), cls: 'academy-ic',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 7.5h7"/></svg>' },
   studio: { name: 'Studio', sub: () => t('menuStudioSub'), cls: 'studio-ic',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" stroke="none"/></svg>' },
@@ -40,6 +40,8 @@ export function createShell(o) {
   const row = h('div', 'appbar-row');
   const brand = h('h1', 'brand');
   const img = h('img', 'brand-logo'); img.src = o.logo || 'logo-header.png'; img.width = 128; img.height = 128; img.alt = ''; img.decoding = 'async';
+  // לוגו חד בכל צפיפות מסך (13/10/2026): 512 = פי 4 מ־128; ‏logoLg (768) לטלפונים בצפיפות גבוהה יותר
+  if (o.logoLg) { img.srcset = o.logo + ' 512w, ' + o.logoLg + ' 768w'; img.sizes = '128px'; }
   brand.append(img, h('span', 'sr-only', o.title || ''));
   if (o.onBrand) brand.addEventListener('click', o.onBrand);
   const left = h('div', 'appbar-left');
@@ -162,6 +164,7 @@ export function loginGate(o) {
   card.className = 'login-card';
   const img = document.createElement('img');
   img.className = 'login-logo'; img.src = o.logo; img.alt = o.name;
+  if (o.logoLg) { img.srcset = o.logo + ' 512w, ' + o.logoLg + ' 768w'; img.sizes = '192px'; }   // 192px במסך — בצפיפות 3 צריך 576
   const h1 = document.createElement('h1'); h1.textContent = o.name;
   const sub = document.createElement('p'); sub.className = 'login-sub'; sub.textContent = (LOGIN_SUB[o.app] || (() => ''))();
   const go = document.createElement('button');
@@ -210,14 +213,14 @@ function accActRow(cls, icon, label, onClick) {
   return list;
 }
 /* החשבון: מחובר — תמונה, שם, מייל והתנתקות; לא מחובר — "מצב מקומי" וכניסה עם Google (כמו Invest אחרי "המשך בלי חשבון") */
-export function accountCard(A) {
+export function accountCard(A, icon) {   // icon — תמונה כשאין תמונת חשבון (האייקון של האפליקציה)
   const card = h('div', 'card'); card.id = 'accountCard';
   const box = h('div'); box.id = 'accountInfo';
   card.append(h('h2', null, t('myAccount')), box);
   const u = A && A.user();
   if (u) {
-    const img = h('img'); img.alt = ''; img.src = u.photoURL || 'icon-192.png';
-    img.addEventListener('error', () => { img.src = 'icon-192.png'; }, { once: true });
+    const img = h('img'); img.alt = ''; img.src = u.photoURL || icon || 'icon-192.png';
+    img.addEventListener('error', () => { img.src = icon || 'icon-192.png'; }, { once: true });
     box.append(accIdRow(img, u.displayName || t('userLabel'), u.email || ''),
       accActRow('acc-out', ACC_IC.out, t('signOut'), () => A.signOut()));   // החיבור משתנה → הדף נטען מחדש (academy-app.js / studio-app.js)
   } else if (A) {

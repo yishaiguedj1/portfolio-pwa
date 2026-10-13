@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="rtl" data-app="studio">
 <head>
 <meta charset="UTF-8">
 <!-- שלב 3ד בתוכנית שלוש האפליקציות: Studio כדף עצמאי. אותה מדיניות כמו index.html (הסטודיו טוען אותם מקורות — Drive, Picker, R2), עם ה־hash של הסקריפט כאן. tests/apps-pages.test.js בודק. -->
@@ -12,9 +12,9 @@ if(self!==top){try{top.location.replace(self.location.href);}catch(e){}document.
 try{(function(){var s=localStorage.getItem('pwa_theme_v1');var d=s==='dark'||(s!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.dataset.theme=d?'dark':'light';e.classList.add('studio-open');var m=document.getElementById('themeColorMeta');if(m)m.setAttribute('content',d?'#000000':'#FFFFFF');
 var h=history.state;if(h&&h.studio)e.classList.add('lib-curtain','lib-restoring');})();}catch(e){}
 </script>
-<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-studio-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-studio-192.png">
+<link rel="apple-touch-icon" href="apple-touch-studio.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>

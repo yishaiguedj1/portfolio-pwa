@@ -2614,35 +2614,48 @@ function sevName(s) {
 }
 const alrNo = (no) => 'ALR' + String(no || 0).padStart(7, '0');
 const pill = (cls, txt) => h('span', 'st-pill ' + cls, txt);
-/* קו מגמה (SVG) — 7 נקודות, null מדולג */
-function spark(vals) {
+/* קו מגמה (13/10/2026, בקשת המשתמש: "יותר מגניב וחדשני, אבל נקי"): עקומה חלקה (Catmull-Rom), צבע שמתחזק לכיוון היום
+   ונקודה זוהרת בקצה — בלי מילוי ובלי צירים. ציר הזמן משמאל לימין גם ב־RTL. tone: 'up' (לטובה, ירוק) / 'dn' (כתום) */
+let sparkN = 0;
+function spark(vals, tone) {
   const pts = vals.map((v, i) => [i, v]).filter((x) => x[1] != null);
   if (pts.length < 2) return null;
   const ys = pts.map((x) => x[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
-  const X = (i) => (i / 6) * 100, Y = (v) => 19 - ((v - lo) / span) * 15;
-  const d = pts.map((x, k) => (k ? 'L' : 'M') + X(x[0]).toFixed(1) + ' ' + Y(x[1]).toFixed(1)).join(' ');
-  const NS = 'http://www.w3.org/2000/svg';
+  const X = (i) => 2 + (i / Math.max(6, pts[pts.length - 1][0])) * 94, Y = (v) => 20 - ((v - lo) / span) * 16;
+  const P = pts.map((x) => [X(x[0]), Y(x[1])]);
+  let d = 'M' + P[0][0].toFixed(1) + ' ' + P[0][1].toFixed(1);
+  for (let k = 0; k < P.length - 1; k++) {
+    const a = P[k - 1] || P[k], b = P[k], c = P[k + 1], e = P[k + 2] || c;
+    d += ' C' + (b[0] + (c[0] - a[0]) / 6).toFixed(1) + ' ' + (b[1] + (c[1] - a[1]) / 6).toFixed(1) + ' ' + (c[0] - (e[0] - b[0]) / 6).toFixed(1) + ' ' + (c[1] - (e[1] - b[1]) / 6).toFixed(1) + ' ' + c[0].toFixed(1) + ' ' + c[1].toFixed(1);
+  }
+  const NS = 'http://www.w3.org/2000/svg', id = 'stsp' + (++sparkN);
+  const wrap = h('span', 'st-spark ' + (tone || 'up')); wrap.setAttribute('aria-hidden', 'true');
   const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 100 22'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'st-spark'); svg.setAttribute('aria-hidden', 'true');
-  const area = document.createElementNS(NS, 'path'); area.setAttribute('class', 'a');
-  area.setAttribute('d', d + ' L' + X(pts[pts.length - 1][0]).toFixed(1) + ' 22 L' + X(pts[0][0]).toFixed(1) + ' 22Z');
-  const line = document.createElementNS(NS, 'path'); line.setAttribute('class', 's'); line.setAttribute('d', d);
-  svg.append(area, line);
-  return svg;
+  svg.setAttribute('viewBox', '0 0 100 24'); svg.setAttribute('preserveAspectRatio', 'none');
+  const defs = document.createElementNS(NS, 'defs'), g = document.createElementNS(NS, 'linearGradient');
+  g.setAttribute('id', id); g.setAttribute('x1', '0'); g.setAttribute('x2', '1'); g.setAttribute('y1', '0'); g.setAttribute('y2', '0');
+  for (const [o, op] of [['0', '.08'], ['.55', '.55'], ['1', '1']]) { const st = document.createElementNS(NS, 'stop'); st.setAttribute('offset', o); st.setAttribute('stop-color', 'currentColor'); st.setAttribute('stop-opacity', op); g.append(st); }
+  defs.append(g);
+  const line = document.createElementNS(NS, 'path'); line.setAttribute('d', d); line.setAttribute('stroke', 'url(#' + id + ')');
+  svg.append(defs, line);
+  const end = P[P.length - 1], dot = h('i');
+  dot.style.insetInlineStart = end[0] + '%'; dot.style.top = (end[1] / 24 * 100) + '%';
+  wrap.append(svg, dot);
+  return wrap;
 }
-/* אריח "ציון יחיד": תווית, ערך, שינוי מלפני שבוע (ירוק = לטובה) וקו מגמה */
+/* ציון יחיד בתוך כרטיס הציונים: תווית, ערך + השינוי מלפני שבוע באותה שורה (ירוק = לטובה), וקו מגמה */
 function scoreTile(label, value, vals, betterUp, fmt) {
   const t = h('div', 'st-sc');
-  t.append(h('small', null, label), h('b', null, value));
-  const ok = vals.filter((v) => v != null);
+  const top = h('span', 'st-sch'); top.append(h('small', null, label));   // התווית, ובצד השני — השינוי (כך למספר יש את כל הרוחב)
+  const ok = vals.filter((x) => x != null);
+  let tone = 'up';
   if (ok.length >= 2) {
     const dlt = ok[ok.length - 1] - ok[0];
-    if (Math.abs(dlt) >= 0.05) {
-      const good = betterUp ? dlt > 0 : dlt < 0;
-      t.append(h('span', 'st-trd ' + (good ? 'up' : 'dn'), (dlt > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dlt))));
-    }
+    const good = betterUp ? dlt >= 0 : dlt <= 0; tone = good ? 'up' : 'dn';
+    if (Math.abs(dlt) >= 0.05) top.append(h('span', 'st-trd ' + tone, (dlt > 0 ? '▲' : '▼') + '\u2009' + fmt(Math.abs(dlt))));
   }
-  const sv = spark(vals); if (sv) t.append(sv);
+  t.append(top, h('b', 'st-scv', value));
+  const sv = spark(vals, tone); if (sv) t.append(sv);
   return t;
 }
 function opsScores(o) {   // v369: שלושת הציונים עם מגמה לשבוע
@@ -2694,6 +2707,17 @@ function alertRow(a) {
   if (rec) sub.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')), ' · ');
   sub.append((a.n === 1 ? T('studioOpsEvent1') : T('studioOpsEvents', { n: a.n })) + (a.fl ? ' · ' + T('studioOpsFlap') : '') + (a.ak ? ' · ' + T('studioAlAcked') : ''));
   r.append(tg, b, pill(SEV_CLS[a.s], sevName(a.s)), sub);
+  return r;
+}
+/* התראה בסיכום של המגדל (13/10/2026, בקשת המשתמש — נקי ומינימליסטי): נקודה בצבע החומרה, מה קרה, ושורה אחת של פרטים.
+   המספר, גלולת החומרה והפס בצד — רק ברשימה המלאה (alertRow) */
+function alertMini(a) {
+  const r = btn('st-row st-ric st-am', null, () => { ui.alTab = 'd'; ui.muPick = 0; go('alert', a.no); }, 'al:' + a.no);
+  const l = h('span', 'st-l');
+  const sub = h('small'); sub.append(h('bdi', null, opsComp(a.c)), ' · ' + opsAgo(a.l) + ' · ' + (a.n === 1 ? T('studioOpsEvent1') : T('studioOpsEvents', { n: a.n })));
+  l.append(h('b', null, opsAlert(a.c, a.k)), sub);
+  const d = h('i', 'st-am-d ' + SEV_CLS[a.s]); d.title = sevName(a.s);
+  r.append(d, l, ico('chev', 'st-chev'));
   return r;
 }
 /* v368: התראות דחופות פתוחות (P1–P2, לא מושתקות; v369: ולא "אושרו") — לפי ציון העדיפות */
@@ -3636,8 +3660,10 @@ function pageTower(p) {
   const nInc = ui.inc ? ui.inc.open : 0;
   if (ui.ops || nInc) {
     const sub = live.length || nInc ? [live.length ? T('studioTwAlN', { n: live.length }) : '', nInc ? T('studioTwIncN', { n: nInc }) : ''].filter(Boolean).join(' · ') : T('studioTwQuiet');
-    p.append(setCard(T('studioTwAttnT'), list(...live.slice(0, 2).map(alertRow),
-      rowNav({ tile: tile('alert', live.some((a) => a.s <= 2) || nInc ? 'orange' : 'green'), label: T('studioTwAlertsT'), sub, onClick: () => go('alerts'), k: 'tw-alerts' }))));
+    // 13/10/2026: כותרת קטנה מעל הכרטיס עם "הכל ›" (כמו ב־Health), ובכרטיס — עד שתי התראות בשתי שורות; שקט = שורה אחת
+    const hd = h('div', 'st-sec-t st-sec-row'); hd.append(h('span', null, T('studioTwAttnT')), btn('st-linkb', T('studioSeeAll'), () => go('alerts'), 'tw-alerts'));
+    p.append(hd, list(...live.slice(0, 2).map(alertMini), live.length || nInc ? (live.length > 2 || nInc ? h('div', 'st-am-more', sub) : null)
+      : rowNav({ tile: tile('alert', 'green'), label: T('studioTwQuiet'), onClick: () => go('alerts'), k: 'tw-quiet' })));
   }
   // v369: פעולות מהירות — רק מה שקיים
   const qa = h('div', 'st-qa');

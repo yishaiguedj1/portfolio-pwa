@@ -486,7 +486,7 @@ function ribbonEngine(canvas, gl, opt, progs) {
 
   let lay = { w: 210, h: 300, cx: 0, cy: 0, dpr: 1 };
   let pageLin = lin('#ffffff'), dark = false;
-  const GREEN = lin('#30D158'), GRAY = lin('#B9B9BE'), GRAY_D = lin('#636366');   // הירוק הראשי של האפליקציה (--primary); אפור נקי (בכהה — כהה יותר, לא מסנוור בלילה)
+  const GREEN = lin(opt.color || '#30D158'), GRAY = lin('#B9B9BE'), GRAY_D = lin('#636366');   // הירוק הראשי של האפליקציה (--primary); אפור נקי (בכהה — כהה יותר, לא מסנוור בלילה)
   let on = false, plan = null, pt = 0, raf = 0, last = 0, acc = 0, still = 0, landed = true, pressing = false, pressT = 0, dead = false;
   const prevP = new Float32Array(s.n * 3);
   const H = 1 / RB.hz;

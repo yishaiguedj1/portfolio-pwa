@@ -112,7 +112,7 @@ const pure = (name) => new Function(lib.match(new RegExp('export function ' + na
   // השיידרים: נוסחאות Filament + מיפוי טונים Khronos Neutral, בלי ההילה שנפסלה
   ok(/float dGGXa\(/.test(r3src) && /float vGGXa\(/.test(r3src) && /float dCharlie\(/.test(r3src) && /float vNeubelt\(/.test(r3src), 'סאטן פיזיקלי: GGX אנאיזוטרופי + Smith מתואם + ברק בד Charlie + Neubelt (Filament)');
   ok(/vec3 neutral\(vec3 c\)/.test(r3src) && /col = neutral\(col\)/.test(r3src), 'מיפוי טונים Khronos PBR Neutral — הירוק של האפליקציה יוצא מדויק');
-  ok(/lin\('#30D158'\)/.test(r3src) && /GRAY_D = lin\('#636366'\)/.test(r3src) && /dark \? GRAY_D : GRAY/.test(r3src), 'צבעים: ירוק --primary, אפור נקי (כהה יותר במצב כהה)');
+  ok(/lin\(opt\.color \|\| '#30D158'\)/.test(r3src) && /GRAY_D = lin\('#636366'\)/.test(r3src) && /dark \? GRAY_D : GRAY/.test(r3src), 'צבעים: ירוק --primary, אפור נקי (כהה יותר במצב כהה)');
   ok(/stencilFunc\(gl\.NOTEQUAL, k \+ 1, 0xff\)/.test(r3src) && /shadowSamples\(64\)/.test(r3src) && /FS_BLUR/.test(r3src) && !/FS_AO/.test(r3src), 'צל: דגימה אחת לכל פיקסל בכל דגימת אור (סטנסיל) + טשטוש גאוסי; בלי ה־SSAO שיצר הילה מנוקדת');
   ok(/vec3 c = uLite\.a > 0\.5 \? uLite\.rgb \* s : vec3\(0\.012, 0\.016, 0\.03\) \* s;/.test(r3src) && /gl_FragColor = vec4\(c, uLite\.a > 0\.5 \? max\(c\.r, max\(c\.g, c\.b\)\) : s\);/.test(r3src), 'בבהיר הצל מכפיל את מה שמתחתיו; בכהה — צל בהיר (אלפא ≥ צבע, premultiplied תקין)');
   ok(/\(uLite\.a > 0\.5 \? t\.g : t\.r\)/.test(r3src) && /uK, dark \? 0\.95 : 0\.44, dark \? 0\.05 : 0\.3/.test(r3src), 'מצב כהה "נקי כמו אפל": רק מהחלקים שבאוויר — בלי קו בהיר סביב סרט שוכב');

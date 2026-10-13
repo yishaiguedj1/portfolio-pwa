@@ -33,9 +33,9 @@ const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Academy, ובתפריט: "מה למדתי" והגיבוי. הגלובוס בתפריט הפתוח = הגדרות Academy */
 const sa = { auth: A, home: APP_URL.invest };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
 /* עמוד ההגדרות — כרטיס החשבון, "אפשרויות מתקדמות" (גרסה, ניקוי מטמון, האפליקציה לאנדרואיד) ו"תצוגה" של Invest (shell.js), אחד לאחד */
-sa.cards = { account: () => accountCard(A), display: displayCard, advRow: advancedRow, advanced: advancedCards };
+sa.cards = { account: () => accountCard(A, 'icon-academy-192.png'), display: displayCard, advRow: advancedRow, advanced: advancedCards };
 sa.shell = createShell({
-  app: 'academy', title: 'THE SNOWBALL Academy', logo: 'logo-academy.png',
+  app: 'academy', title: 'THE SNOWBALL Academy', logo: 'logo-academy.webp', logoLg: 'logo-academy-lg.webp',
   items: [
     { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
       title: t('learnTitle'), sub: t('shellLearnSub'), on: () => sa.notes && sa.notes() },
@@ -48,5 +48,5 @@ sa.shell = createShell({
     icon: _IC_PRE + '<path d="M12 5v14M5 12h14"/></svg>' },
 });
 /* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Academy (shell.js) */
-if (first === 'out') loginGate({ app: 'academy', auth: A, logo: 'logo-academy.png', name: 'Academy' });
+if (first === 'out') loginGate({ app: 'academy', auth: A, logo: 'logo-academy.webp', logoLg: 'logo-academy-lg.webp', name: 'Academy' });
 await openLibrary({ standalone: sa, restore: hs && hs.lib ? hs : null });
