@@ -2,7 +2,7 @@
    כמו academy-app.js: לפני הקובץ firebase-config.js, strings-studio.js, core.js, auth.js; אותו studio.js עם opt.standalone.
    קישור מהתראה (#studio=<עבודה>&v=play|subs) פותח את העבודה. עד שלב 5 ההתראות עדיין פותחות את האתר המאוחד. */
 import { openStudio } from './studio.js';
-import { createShell, APP_URL } from './shell.js';
+import { createShell, APP_URL, loginGate } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
@@ -40,4 +40,6 @@ sa.shell = createShell({
   ],
   onSettings: () => sa.settings && sa.settings(),
 });
+/* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Studio (shell.js) */
+if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.png', name: 'Studio' });
 openStudio({ standalone: sa, restore: hs && hs.studio ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '' });

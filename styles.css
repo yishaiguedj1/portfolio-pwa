@@ -915,6 +915,7 @@ footer.fine { text-align: center; }
 }
 .google-btn:active { background: #f6fafe; }
 #skipLoginBtn { margin-top: 4px; }
+.login-overlay.sa { z-index: 1150; }   /* Academy / Studio (shell.js loginGate): מעל הספרייה והסטודיו (900–1101) */
 
 /* ---- מתגי בחירה בסגנון אפל (שפה / ערכת נושא) ---- */
 .lang-toggle, .theme-toggle {

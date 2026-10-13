@@ -2,7 +2,7 @@
    לפני הקובץ (academy.html): firebase-config.js, strings-academy.js, core.js, auth.js. אותו library.js כמו בתיק,
    עם opt.standalone (library.js — SA). עד שלב 5 האתר המאוחד לא משתנה: בתיק הספרייה עדיין נפתחת כשכבה. */
 import { openLibrary } from './library.js';
-import { createShell, APP_URL } from './shell.js';
+import { createShell, APP_URL, loginGate } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
@@ -42,4 +42,6 @@ sa.shell = createShell({
   ],
   onSettings: () => sa.settings && sa.settings(),
 });
+/* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Academy (shell.js) */
+if (first === 'out') loginGate({ app: 'academy', auth: A, logo: 'logo-academy.png', name: 'Academy' });
 await openLibrary({ standalone: sa, restore: hs && hs.lib ? hs : null });
