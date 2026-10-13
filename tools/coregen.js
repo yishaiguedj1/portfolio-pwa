@@ -99,11 +99,17 @@ if (require.main === module) {
   let stale = 0;
   for (const [f, txt] of Object.entries(files)) {
     const p = path.join(ROOT, f);
-    const cur = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
-    if (cur === txt) continue;
-    if (check) { console.error(f + ' לא מעודכן — node tools/coregen.js'); stale++; continue; }
-    fs.writeFileSync(p, txt);
-    console.log(f + ' נכתב (' + txt.length + ' תווים)');
+    // קריאה וכתיבה דרך אותו מזהה קובץ פתוח — בלי פער בין הבדיקה לכתיבה (CodeQL: file system race)
+    let fd = null;
+    try { fd = fs.openSync(p, check ? 'r' : 'r+'); } catch (e) { fd = null; }
+    try {
+      const cur = fd === null ? null : fs.readFileSync(fd, 'utf8');
+      if (cur === txt) continue;
+      if (check) { console.error(f + ' לא מעודכן — node tools/coregen.js'); stale++; continue; }
+      if (fd === null) fs.writeFileSync(p, txt, { flag: 'wx' });   // קובץ חדש — רק אם עדיין לא קיים
+      else { fs.ftruncateSync(fd, 0); fs.writeSync(fd, txt, 0, 'utf8'); }
+      console.log(f + ' נכתב (' + Buffer.byteLength(txt) + ' בתים)');
+    } finally { if (fd !== null) fs.closeSync(fd); }
   }
   if (check && stale) process.exit(1);
   if (check) console.log('core.js ומחרוזות האפליקציות מעודכנים');
