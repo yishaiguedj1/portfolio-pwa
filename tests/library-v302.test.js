@@ -49,7 +49,8 @@ ok(!/blob:|'unsafe-inline'|'unsafe-eval'/.test(dir('script-src')), 'CSP: אין 
 ok(/blob:/.test(dir('frame-src')) && /blob:/.test(dir('font-src')) && /blob:/.test(dir('style-src')), 'CSP: מסגרות, פונטים וסגנונות של הספר מ־blob');
 
 // שילוב: שורה בתפריט + טעינה דינמית בלבד
-ok(/id="menuLibraryBtn"/.test(html) && /import\('\.\/library\.js'\)\.then\(\(m\) => m\.openLibrary\(\)\)/.test(app), 'שורת "ספרייה" בתפריט טוענת את המודול רק בלחיצה');
+// 13/10/2026: השורה בתפריט עוברת ל־Academy העצמאית (academy.html) — library.js לא נטען בתיק מהתפריט
+ok(/id="menuLibraryBtn"/.test(html) && /getElementById\('menuLibraryBtn'\)[\s\S]{0,600}location\.href = APP_PAGE\.academy;/.test(app) && /const APP_PAGE = \{ academy: 'academy\.html', studio: 'studio\.html' \};/.test(app), 'שורת Academy בתפריט עוברת לאפליקציה העצמאית');
 ok(!/<script[^>]+library\.js/.test(html), 'library.js לא נטען בפתיחת האפליקציה');
 
 // כל מחרוזת גלויה בעברית ובאנגלית
