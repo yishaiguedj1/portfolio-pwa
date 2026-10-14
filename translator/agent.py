@@ -166,6 +166,24 @@ def beat_loop(server: str = '', tok: str = ''):
             time.sleep(1)
 
 
+def report_lost():
+    """הסוכן עלה ומצא סימן של עבודה שרצה (.busy) — השרת הופעל מחדש באמצע (עדכון snb-update, כיבוי, docker restart).
+    בלי הדיווח העבודה נשארת "רצה" עד STALE_MS (שעתיים) ורק אז נכשלת. worker_lost = תקלה חולפת בשרתון: חלון התאוששות
+    ואז "המשך" אוטומטי מנקודת השמירה. המפתח מקובץ המצב של job.py; דיווח שנכשל — לא עוצר את העלייה."""
+    if not BUSY.exists():
+        return False
+    try:
+        st = J.load_state()
+        if not st or st.get('job') != BUSY.read_text().strip():
+            return False
+        J.Ctx(st).report(fail=True, err='worker_lost', msg='השרת הופעל מחדש באמצע העבודה', force=True)
+        print('· עבודה ' + str(st.get('job', ''))[:6] + '… נקטעה בהפעלה מחדש — דווחה (תמשיך לבד מנקודת השמירה)', flush=True)
+        ev('lost')
+        return True
+    except BaseException:     # noqa: BLE001 — אין קובץ מצב / השרתון לא זמין: העבודה תיתפס כ"נתקעה" כמו קודם
+        return False
+
+
 def cleanup():
     """מחיקה של כל מה שהעבודה השאירה על הדיסק — כולל הסרטונים. המודלים (מטמון) נשארים."""
     J.ladder_stop()                              # איכויות הצפייה רצות בתהליך נפרד — לא ממשיכות לכתוב אחרי המחיקה
@@ -191,13 +209,30 @@ def cleanup():
                 pass
 
 
+def _kill_group(pgid: int):
+    """כל התהליכים שהעבודה פתחה (vt, ffmpeg, onnx) — לא רק job.py. בלי זה, עבודה שחרגה מהזמן השאירה את vt רץ
+    (וממשיך לכתוב לדיסק ולתפוס מעבד) גם אחרי שהעבודה הבאה התחילה."""
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+
+
 def run_child(args: list[str], timeout: int) -> int:
     cmd = [sys.executable, str(HERE / 'job.py')] + args
+    p = subprocess.Popen(cmd, cwd=str(HERE.parent), start_new_session=True)   # קבוצת תהליכים משלה — כדי לעצור את כולה
     try:
-        return subprocess.run(cmd, cwd=str(HERE.parent), timeout=timeout).returncode
+        return p.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         print('✗ העבודה חרגה מהזמן המרבי — נעצרה.', flush=True)
+        _kill_group(p.pid)
+        try:
+            p.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
         return 124
+    finally:
+        _kill_group(p.pid)   # 14/10/2026: גם כשהעבודה הסתיימה — תהליכי vt יתומים שנשארו ממנה (הקבוצה כבר ריקה = כלום)
 
 
 def crash_code(rc: int) -> str:
@@ -276,6 +311,7 @@ def main(once: bool = False) -> int:
     signal.signal(signal.SIGTERM, _on_term)
     signal.signal(signal.SIGINT, _on_term)
     server, tok = server_url(), token()
+    report_lost()                              # 14/10/2026: עבודה שרצה כשהשרת כבה — מדווחת, כדי שתמשיך לבד ולא "תרוץ" שעתיים
     cleanup()                                  # שאריות מהפעלה קודמת שנקטעה (כיבוי, עדכון)
     warm = None if once else start_warm()
     print('✓ הסוכן פעיל — שואל את השרתון אם יש עבודה', flush=True)

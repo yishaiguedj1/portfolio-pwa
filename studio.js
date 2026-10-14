@@ -898,7 +898,8 @@ function errText(code, extra) {
     case 'month_cap': return T('studioErrMonthCap');
     case 'no_server': return T('studioErrNoServer');
     case 'worker_oom': return T('studioErrOom');
-    case 'worker_crash': return T('studioErrCrash');   // 11/10/2026: קריסה ≠ זיכרון (ההודעה המשותפת הטעתה — PR #66)
+    case 'worker_crash': return T('studioErrCrash');
+    case 'worker_lost': return T('studioErrLost');   // 14/10/2026   // 11/10/2026: קריסה ≠ זיכרון (ההודעה המשותפת הטעתה — PR #66)
     case 'not_admin': return T('studioErrNotAdmin');
     case 'net': case 'http_0': return T('studioErrNet');
     case 'drive_full': return T('studioErrDriveFull');
@@ -2901,7 +2902,7 @@ function incTitle(e) {
     case 'no_claim': return T('studioIncNoClaim');
     case 'routine_auth': case 'routine_forbidden': case 'routine_missing': case 'routine_paused': return T('studioIncRoutine');
     case 'routine_rate': return T('studioIncRate');
-    case 'no_server': case 'job_timeout': case 'worker_unknown_kind': case 'worker_oom': case 'worker_crash': return T('studioIncServer');
+    case 'no_server': case 'job_timeout': case 'worker_unknown_kind': case 'worker_oom': case 'worker_crash': case 'worker_lost': return T('studioIncServer');
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
     case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
@@ -3264,6 +3265,20 @@ async function decideFix(fp, ok) {
     flashSafe(!j.ok ? errText(j.error) : ok ? T('studioFbKept') : T('studioFbDropped'));
   } finally { fixBusy = false; render('none'); }
   refreshJobs(true);   // v376: מצב הבעיה (אובחנה → עקיפה ידועה) מגיע עם רשימת העבודות
+}
+/* 14/10/2026: מחיקת רשומה מספר התיקונים — באישור (הרסני); אחרי המחיקה חוזרים לרשימת הבעיות */
+function delFix(fp) {
+  if (fixBusy) return;
+  askConfirm(T('studioFbDelQ'), async () => {
+    fixBusy = true;
+    try {
+      const j = await net.api('fbDel', { fp });
+      const fb = normFb(j.fb); if (fb) ui.fb = fb;
+      flashSafe(j.ok ? T('studioFbDeleted') : errText(j.error));
+      if (j.ok && ui.pb) ui.pb = Object.assign({}, ui.pb, { list: ui.pb.list.filter((y) => y.fp !== fp) });
+    } finally { fixBusy = false; render('none'); }
+    refreshJobs(true);
+  }, { danger: true, ok: T('studioFbDelOk') });
 }
 const fbStage = (st) => { const c = { tr: 'asr', al: 'al', tl: 'tl', rv: 'rv' }[st]; return c ? ckName(c) : ''; };
 /* ---------------- v376: בעיות וספרי הפעלה (מסך 3 בתוכנית — Problem · KEDB · LEAP · Playbooks) ---------------- */
@@ -3689,6 +3704,7 @@ function pageProb(p) {
   const incs = x.inc.map((n) => ui.inc && ui.inc.list.find((y) => y.no === n)).filter(Boolean);
   if (incs.length) p.append(secT(T('studioPbIncT')), list(...incs.map((y) => incRow(y))));
   p.append(note(T('studioPbScoreN')));
+  p.append(h('div', 'st-gap sm'), btn('st-btn danger wide', T('studioFbDel'), () => delFix(x.fp), 'fbx:' + x.fp));
 }
 /* v363: מסך "מגדל הפיקוח" — מה קורה עכשיו, "הרגיל" שלך לכל מצב (נלמד מהעבודות שלך), מתי עוצרים, ועצירות אחרונות */
 /* 13/10/2026 (בקשת המשתמש: "עמוד קצר יותר, אבל כמה שיותר מידע בקלות ובממשק נקי — כמו ש־Apple יודעים"): כמו "סיכום" ב־Health.
@@ -5640,6 +5656,7 @@ function srvEvText(k) {
     case 'auth': return T('studioSrvEvAuth');
     case 'net': return T('studioSrvEvNet');
     case 'warm': return T('studioSrvEvWarm');
+    case 'lost': return T('studioSrvEvLost');
     default: return '';
   }
 }

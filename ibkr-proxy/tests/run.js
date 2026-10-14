@@ -2823,7 +2823,7 @@ function stubFetch(text, status = 200) {
       ok(Vm.open.find((g) => g.c === 'vt').m === t0 + 4 * 3600e3 && Vm.score === V.score && O8.opsView(ap, t0 + 5 * 3600e3, mu).mu.length === 0,
         'סטודיו: השתקה — מסומנת בהתראה, לא משנה את ציון הבריאות, ופגה לבד');
     }
-    ok(S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('budget_stop', ['drive:up_retry']) && !S.isTransient('worker', ['vt:asr']) && S.isTransient('net', []),
+    ok(S.isTransient('worker_lost', []) && S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('budget_stop', ['drive:up_retry']) && !S.isTransient('worker', ['vt:asr']) && S.isTransient('net', []),
       'סטודיו: תקלה חולפת — Drive / רשת כן; עצירה של המגדל, התקציב או מתג החירום — אף פעם');
     rr = await run({ op: 'mute', idToken: OWNER, c: 'drive', k: 'up_retry', h: 4 });
     ok(rr.payload.ok && rr.payload.ops.mu.length === 1 && rr.payload.ops.mu[0].until === now + 4 * 3600e3, 'סטודיו: השתקה — נשמרת בחשבון, עם תפוגה');
@@ -2869,6 +2869,23 @@ function stubFetch(text, status = 200) {
     await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'tl_bad' });
     rr = await run({ op: 'job', idToken: OWNER, job: JRC });
     ok(rr.payload.job.rec === 0, 'סטודיו: כישלון שאינו חולף — בלי חלון התאוששות');
+    // 14/10/2026: ההמשך האוטומטי רץ גם מהבדיקה המתוזמנת (GET), בלי שהטלפון פותח את הסטודיו
+    {
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
+      const JRW = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JRW, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JRW });
+      const Krw = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JRW, key: Krw });
+      await wrk({ op: 'report', job: JRW, key: Krw, fail: true, err: 'drive_net' });
+      const nfw = fires.length;
+      now += S.RECOVER_WAIT + 1000;
+      const gx = mockRes(); await studio._handler({ method: 'GET', headers: {}, query: {} }, gx, deps());
+      const jw = (await run({ op: 'job', idToken: OWNER, job: JRW })).payload.job;
+      ok(gx.payload.ok && gx.payload.ar === 1 && fires.length === nfw + 1 && jw.state === 'queued' && jw.fires === 2,
+        'סטודיו: תקלה חולפת — "המשך" אוטומטי גם מהבדיקה המתוזמנת, כשהטלפון סגור');
+      await run({ op: 'cancel', idToken: OWNER, job: JRW });
+    }
     // "בטל" ומתג החירום עוצרים את ההמשך האוטומטי
     rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });
     const JRU = rr.payload.job.id;
@@ -3238,6 +3255,8 @@ function stubFetch(text, status = 200) {
         'When I grow up, I want to be a watermelon', { asPriv: 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw', salt: 'DGv6ra1nlYgDCS1FRnbzlw' });
       ok(W.b64u(body) === 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN',
         'push: ההצפנה זהה לוקטור הבדיקה של RFC 8291');
+      ok(W.KINDS.includes('major') && W.TEXT.he.major && W.TEXT.en.major && /studioOps[^\n]*\n\s*if \(mi && mi\.at === now && !mi\.x\) await notify\(deps, uid, 'major'/.test(require('fs').readFileSync(require.resolve('../api/studio.js'), 'utf8')),
+        'push: תקלה רחבה חדשה → התראה לטלפון (פעם אחת, כשהיא נפתחת)');
       const ua = crypto.createECDH('prime256v1'); ua.generateKeys();
       const auth = crypto.randomBytes(16);
       const sub = (e) => ({ endpoint: e, keys: { p256dh: W.b64u(ua.getPublicKey()), auth: W.b64u(auth) } });
@@ -3307,7 +3326,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,st,bk,ob' && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob' && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;

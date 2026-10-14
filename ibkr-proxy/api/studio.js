@@ -157,6 +157,7 @@ async function syncInc(deps, uid, jobs, now) {
     if (inc) patch.inc = inc;
     if (mi) patch.mi = mi;
     if (inc || mi) await patchDoc(deps, 'studioOps', uid, Object.assign(patch, { updated: now }));
+    if (mi && mi.at === now && !mi.x) await notify(deps, uid, 'major', '', now);   // 14/10/2026: תקלה רחבה חדשה — התראה לטלפון
     return { inc: inc || d.inc, mi: mi || d.mi, al: d.al, fb: st.fb, hpc: st.hpc || 0 };
   } catch (e) { return null; }
 }
@@ -274,10 +275,11 @@ async function watch(req, res, deps) {
   let down;
   try { down = await checkServers(deps, now); }
   catch (e) { return res.status(502).json({ ok: false }); }
+  const ar = await recoverAll(deps, now).catch(() => -1);   // 14/10/2026: "המשך" אוטומטי גם כשהטלפון סגור
   const st = await siteWatch(deps, now).catch(() => -1);   // שלב 5: הכתובות עצמן (השרתון שלנו ושלוש האפליקציות)
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
-  return res.status(200).json({ ok: true, down, st, bk, ob });
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob });
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
@@ -403,12 +405,14 @@ async function serverBack(deps, srv, sid, now) {
 /* העבודה נכנסת לתור; שרת פנוי לוקח אותה ב־poll ומקבל מפתח עבודה חדש (המפתח נוצר רק שם — לא מחכה בתור) */
 async function queueApi(deps, uid, job, now) {
   const st = await readStats(deps, uid);
-  const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH());
-  if (!cap) return { ok: false, error: 'month_cap' };
+  const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
+  if (!cap) return { ok: false, error: capWhy(job, st, now) };
   await patchJob(deps, job.id, { state: 'queued', eng: 'api', sid: '', pk: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
     err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now });
   return { ok: true };
 }
+/* למה אין תקציב להפעלה: התקרה של העבודה נוצלה בסשנים הקודמים (budget_cap — "המשך" במצב זול יותר / תקרה גבוהה יותר), או החודש */
+const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
 const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
 async function server(req, res, body, deps) {
@@ -438,10 +442,10 @@ async function server(req, res, body, deps) {
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       const st = await readStats(deps, job.uid);
-      const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH());
+      const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
       if (!cap) {
-        // התקציב החודשי נגמר בזמן שהעבודה חיכתה — נכשלת, לא נלקחת
-        await patchIf(deps, 'studioJobs', job.id, { state: 'failed', err: 'month_cap', ended: now, updated: now }, job._ut).catch(() => false);
+        // התקציב החודשי (או התקרה של העבודה) נגמר בזמן שהעבודה חיכתה — נכשלת, לא נלקחת
+        await patchIf(deps, 'studioJobs', job.id, { state: 'failed', err: capWhy(job, st, now), ended: now, updated: now }, job._ut).catch(() => false);
         continue;
       }
       const key = S.newKey();
@@ -521,6 +525,21 @@ async function doResume(deps, uid, job, now, body, auto) {
   const j = await readJob(deps, job.id);
   return { status: 200, json: Object.assign({ ok: f.ok, job: S.publicJob(j, now) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }) };
 }
+/* 14/10/2026: עד היום ההמשך האוטומטי רץ רק כשהטלפון פתח את רשימת העבודות — עבודה שנכשלה בתקלה חולפת כשהסטודיו סגור
+   נשארה "נכשלה" בשקט (בלי התראה, כי חיכתה להמשך). עכשיו גם הבדיקה המתוזמנת (watch) עוברת על העבודות שנכשלו.
+   שאילתה עם שוויון אחד (state) — בלי אינדקס. מחזיר כמה עבודות הופעלו */
+async function recoverAll(deps, now) {
+  const failed = (await query(deps, 'studioJobs', { state: 'failed' }, 100)).filter((j) => j.kind === 'tr' && UID_RE.test(String(j.uid || '')));
+  // תקלה רחבה מזוהה גם כשהטלפון סגור (syncInc) — רק למי שנכשלה לו עבודה ביממה האחרונה, עד 5 משתמשים בריצה
+  const fresh = Array.from(new Set(failed.filter((j) => now - (j.ended || j.updated || 0) < 864e5).map((j) => j.uid))).slice(0, 5);
+  for (const uid of fresh) await syncInc(deps, uid, await listJobs(deps, uid), now);
+  const due = failed.filter((j) => S.recoverAt(j, now) && now >= S.recoverAt(j, now));
+  const by = {};
+  for (const j of due) (by[j.uid] = by[j.uid] || []).push(j);
+  let n = 0;
+  for (const uid of Object.keys(by)) n += await autoRecover(deps, uid, by[uid], now);
+  return n;
+}
 /* v368: עבודות שחלון ההתאוששות שלהן נגמר — ממשיכות לבד (נבדק בכל צפייה מהטלפון). מתג החירום / אין חיבור — מוותרים, והעבודה נשארת "נכשלה" */
 async function autoRecover(deps, uid, jobs, now) {
   const due = jobs.filter((j) => j.kind === 'tr' && S.recoverAt(j, now) && now >= S.recoverAt(j, now));
@@ -529,7 +548,10 @@ async function autoRecover(deps, uid, jobs, now) {
     if (await majorNow(deps, uid, j)) continue;   // v371: בתקלה רחבה מחכים (rw נשאר) — ממשיכים כשהיא עוברת
     n++;
     const r = await doResume(deps, uid, j, now, {}, true).catch(() => ({ json: { ok: false, error: 'failed' } }));
-    if (!r.json.ok && r.json.error !== 'budget') await patchJob(deps, j.id, { rw: 0, updated: now }).catch(() => {});   // תקציב ההפעלות — ננסה בצפייה הבאה
+    if (!r.json.ok && r.json.error !== 'budget') {   // תקציב ההפעלות — ננסה בפעם הבאה
+      await patchJob(deps, j.id, { rw: 0, updated: now }).catch(() => {});
+      await notify(deps, uid, 'fail', j.id, now);   // ויתרנו על ההמשך — עכשיו זה כישלון אמיתי, וההתראה שנדחתה נשלחת
+    }
     if (r.json.ok) await raise(deps, uid, [{ c: 'claude', k: 'auto' }], j.id, now);
   }
   return n;
@@ -1107,6 +1129,14 @@ async function handler(req, res, deps = {}) {
       const st = await readStats(deps, uid);
       const fb = S.fbDecide(st.fb, String(body.fp || ''), body.ok === true, now);
       if (!fb) return res.status(404).json({ ok: false, error: 'no_proposal', fb: S.fbView(st.fb) });
+      await patchDoc(deps, 'studioStats', uid, { fb, updated: now });
+      return res.status(200).json({ ok: true, fb: S.fbView(fb) });
+    }
+    if (op === 'fbDel') {
+      // 14/10/2026: מחיקת רשומה מספר התיקונים — היא לא תוזכר יותר לסוכנים; אם התקלה תחזור, תיפתח רשומה חדשה
+      const st = await readStats(deps, uid);
+      const fb = S.fbRemove(st.fb, String(body.fp || ''));
+      if (!fb) return res.status(404).json({ ok: false, error: 'not_found', fb: S.fbView(st.fb) });
       await patchDoc(deps, 'studioStats', uid, { fb, updated: now });
       return res.status(200).json({ ok: true, fb: S.fbView(fb) });
     }

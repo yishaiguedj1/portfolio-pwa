@@ -52,7 +52,7 @@ const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח
 /* v368: המתנה לפני כישלון — תקלה חולפת (Drive / רשת) מקבלת חלון התאוששות, ואז "המשך" אוטומטי אחד מנקודת השמירה.
    רק אז "נכשלה" באמת. ההפעלה נספרת במכסה כמו כל הפעלה — לכן פעם אחת לעבודה (החלטה 1 בתוכנית) */
 const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
-const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded'];   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
+const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost'];   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
 const DET_ERRS = ['store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout'];
@@ -411,6 +411,12 @@ function fbDecide(list, fp, ok, now) {
   if (ok === true) { e.fix = e.px; e.fx = now; }
   delete e.px; delete e.pa;
   return out;
+}
+/* 14/10/2026: מחיקת רשומה מספר התיקונים (מהטלפון) — כשהתקלה תוקנה בקוד או שהתיקון שגוי. null = אין כזו */
+function fbRemove(list, fp) {
+  const all = fbList(list);
+  const out = all.filter((x) => x.fp !== fp);
+  return out.length === all.length ? null : out;
 }
 /* המגדל הזכיר תיקון מוכר לפני שהתקלה הגיעה לעצירה */
 function fbUsed(list, fp, now) {
@@ -956,7 +962,7 @@ function normHb(h) {
 }
 /* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
    מציג אותם. רק קודים מהקטלוג (בלי טקסט חופשי, בלי מזהי עבודות) — מה שלא מתאים נזרק */
-const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm'];
+const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm', 'lost'];   // 14/10: lost = עבודה נקטעה בהפעלה מחדש
 function normEv(a) {
   const out = [];
   for (const x of Array.isArray(a) ? a.slice(-12) : []) {
@@ -985,10 +991,11 @@ const monthUsed = (mu, now) => (mu && mu.m === monthKey(now) ? Math.max(0, +mu.u
 const addMonth = (mu, usd, now) => ({ m: monthKey(now), usd: Math.round((monthUsed(mu, now) + Math.max(0, +usd || 0)) * 1e4) / 1e4 });
 // usdOf — מוגדר למעלה (v367), מעוגל לסנטים
 /* תקרת העבודה בפועל: מה שהמשתמש בחר, אבל לא יותר ממה שנשאר החודש. פחות מדולר — לא מתחילים */
-function jobCap(spec, used, month) {
+function jobCap(spec, used, month, prev) {
   if (spec && spec.cp === 1) return CAP_MIN_JOB;   // סבב 10: העתק־הדבק — בלי טוקנים מהמפתח שלנו (התקציב החודשי לא נוגע)
   const left = Math.max(0, month - used);
-  const cap = Math.min(normCap(spec && spec.cap), left);
+  // 14/10/2026: התקרה היא לכל העבודה, לא לכל הפעלה — "המשך" מקבל רק את מה שנשאר אחרי הסשנים הקודמים (prev = use0)
+  const cap = Math.min(normCap(spec && spec.cap) - Math.max(0, Number(prev) || 0), left);
   return cap >= CAP_MIN_JOB ? Math.round(cap * 100) / 100 : 0;
 }
 
@@ -1030,7 +1037,7 @@ module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpVie
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
-  FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
+  FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,

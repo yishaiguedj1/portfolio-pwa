@@ -49,6 +49,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/\.st-fbp \{/.test(css) && /\.st-mini \{/.test(css), 'עיצוב: ההצעה וכפתורי "לשמור / לא"');
 
   /* ---------- 4. גרסה ---------- */
+  // 14/10/2026: מחיקת רשומה מספר התיקונים
+  ok(S.fbRemove(fb, FP).length === fb.length - 1 && S.fbRemove(fb, 'ffffffffffff') === null, 'מחיקה מספר התיקונים — רק הרשומה הזו; טביעה לא מוכרת = null');
+  ok(/op === 'fbDel'/.test(read('ibkr-proxy/api/studio.js')) && /net\.api\('fbDel'/.test(read('studio.js')) && /askConfirm\(T\('studioFbDelQ'\)[\s\S]{0,600}danger: true/.test(read('studio.js')), 'מחיקה מהטלפון — באישור הרסני, דרך השרתון');
   const ver = (app.match(/const APP_VERSION = '(v\d+)'/) || [])[1];
   const sw = (read('sw.js').match(/CACHE_NAME = '[^']*-(v\d+)'/) || [])[1];
   ok(+ver.slice(1) >= 366 && swVersionOk(ver, sw), 'APP_VERSION ≥ v366 ו־sw.js תואם או גרסה אחת אחורה');
