@@ -263,7 +263,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)));
   // שגיאות קונסול (בלי כשלי רשת של ה־API המדומה)
-  page.on('console', (m) => { if (m.type() !== 'error') return; const t = m.text(); if (/Failed to load resource|net::|the server responded|503|Content Security Policy|Blocked script execution in 'about:blank' because the document's frame is sandboxed/.test(t)) return;   /* פריים הספר חסום לסקריפטים בכוונה (סעיף 16, אבטחה) */ errors.push('console: ' + t.slice(0, 160)); });
+  page.on('console', (m) => { if (m.type() !== 'error') return; const t = m.text(); if (/Failed to load resource|net::|the server responded|503|Content Security Policy|Blocked script execution in '(about:blank|blob:[^']+)' because the document's frame is sandboxed/.test(t)) return;   /* פריים הספר חסום לסקריפטים בכוונה (סעיף 16, אבטחה) */ errors.push('console: ' + t.slice(0, 160)); });
   const cdp = await ctx.newCDPSession(page);
   if (CPU > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });
   const caster = makeCaster(cdp, OUT);
@@ -442,6 +442,9 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     // היעד = הגלילה שהייתה ממש לפני הלחיצה (הדף יכול להיות קצר מ־500 — "הספרייה שלי" עם 6 ספרים;
     // מ־v327 הגיבוי הוא גלולה בכותרת ולא כרטיס, והדף קצר עוד יותר — סף 20px)
     await step('lib: בדיקת גלילה שמורה', async () => { const r = await page.evaluate(() => ({ y: document.querySelector('.lib-root').scrollTop, want: window.__dbgTop })); if (!(r.want >= 20) || Math.abs(r.y - r.want) > 2) throw new Error('הגלילה לא שוחזרה (' + r.y + ' במקום ' + r.want + ')'); }, { settle: 100 });
+    // 14/10/2026: הקורא ב־academy.html משתמש ב־CloseWatcher ("חזור" = בקשת סגירה, לא ההיסטוריה) — goBack של הכלי יוצא
+    // מהדף. כדי שהשלבים הבאים ייבדקו בכל מקרה: חוזרים לבית הספרייה ל"הכל" כשהדף כבר לא שם
+    if (!(await page.$('.lib-root .lib-grid'))) { await page.goto(BASE + '/academy.html', { waitUntil: 'load' }); await sleep(1800); try { await page.click('.lib-chip:nth-child(2)'); } catch (e) {} await sleep(600); }
     await step('lib: לחיצה ארוכה', async () => { const bx = await page.locator('.lib-item >> nth=1').boundingBox(); await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: bx.x + bx.width / 2, y: bx.y + bx.height / 2 }] }); await sleep(650); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); });
     await step('lib: עריכה', async () => { await page.click('.item-acts .act-edit'); await sleep(900); }, { settle: 1200, expect: '.ed-form' });
     await step('lib: חזור ← מעריכה', back, { expect: '.lib-grid .lib-item' });
