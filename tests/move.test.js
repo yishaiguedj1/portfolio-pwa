@@ -179,6 +179,9 @@ const VERCEL = 'https://ibkr-proxy-wine.vercel.app', API = 'https://api.thesnowb
       && go('yishaiguedj1.github.io', '/portfolio-pwa/academy.html', '', '', true) === 'https://academy.thesnowball.app/'
       && go('yishaiguedj1.github.io', '/portfolio-pwa', '', '', true) === 'https://invest.thesnowball.app/', 'academy.html / studio.html → הכתובת של כל אפליקציה');
     ok(go('staging.thesnowball.app', '/index.html', '', '', true) === 'https://invest-staging.thesnowball.app/', 'הניסוי: staging.thesnowball.app → invest-staging');
+    ok(go('staging.thesnowball.app', '/studio', '', '#studio=jB', true) === 'https://studio-staging.thesnowball.app/#studio=jB' && go('staging.thesnowball.app', '/academy', '', '', true) === 'https://academy-staging.thesnowball.app/'
+      && go('staging.thesnowball.app', '/', '', '', true) === 'https://invest-staging.thesnowball.app/',
+      'כתובות "נקיות" של Cloudflare (‎/studio, ‎/academy — בלי ‎.html; נמצא בטלפון) עוברות גם הן');
     ok(!go('yishaiguedj1.github.io', '/portfolio-pwa/', '', '', false), 'לפני ההעברה — לא עוברים (עד ש"לכולם" יידלק)');
     ok(!go('yishaiguedj1.github.io', '/portfolio-pwa/oauth.html', '', '', true) && !go('yishaiguedj1.github.io', '/portfolio-pwa/', '?stay', '', true) && !go('invest.thesnowball.app', '/', '', '', true),
       'לא עוברים: חלון ההסכמה (oauth.html), ‎?stay (ניסיון חוזר), והכתובת החדשה עצמה');

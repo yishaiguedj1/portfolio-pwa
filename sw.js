@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v410';
+const CACHE_NAME = 'portfolio-pwa-v411';
 const HASHES = {
-  "./": "0bbf1996c8d5456a7ac8055f7a10664b",
-  "./index.html": "0bbf1996c8d5456a7ac8055f7a10664b",
+  "./": "20c63911a12b5304f23faf84fb91614d",
+  "./index.html": "20c63911a12b5304f23faf84fb91614d",
   "./styles.css": "e9ee13d61e7d022d49750ff12f79c8af",
-  "./app.js": "a687d505e8c67d243fecc1fea3a5c28b",
+  "./app.js": "a635240390b78d721d6bb60d3f1f680e",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "10946a98be641319ed921ff8f46b00ba",
@@ -46,10 +46,10 @@ const HASHES = {
   "./vendor/foliate-js/fixed-layout.js": "7aee1d15d8e0479b8a6c59a20304b250",
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
-  "./academy.html": "79b105f78424109b6ae8e86be1cfb417",
+  "./academy.html": "e9774c8338b75118688a40f6a4601373",
   "./academy-app.js": "f2615c8978581fc3c27176aff90d2de0",
   "./strings-academy.js": "9d794a469b9057e16ef9b236af2419d0",
-  "./core.js": "f6124e25bc0c3027db7703dd87c82510",
+  "./core.js": "f4339356da9bfd3aae4ad9fcdccc6812",
   "./auth.js": "3721563b3bb496d7e608fb6e43c6e1e9",
   "./shell.js": "0c0e3688872aa289ef5a89509af5b659",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -65,7 +65,7 @@ const HASHES = {
   "./studioedl.js": "6374ccc5beb6a6addf0b8e1ac10ac56f",
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
-  "./studio.html": "08dd76d84270a30e79546dcb81fe7ce6",
+  "./studio.html": "af97227e45c4d4553455ff9fabf6470c",
   "./studio-app.js": "d1b8eda8b1fdaf8a9579149bcb643bc8",
   "./strings-studio.js": "2e05bcbd7daa1ed0931adc18e5154c74",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
