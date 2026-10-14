@@ -1637,7 +1637,6 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 }
 
 /* v281: בהחלקה קצרה במעקב — הצ'יפ של הרשימה שאליה נעבור מסומן */
-#wlTabs .wl-tab.swipe-peek { box-shadow: inset 0 0 0 2px var(--primary); }
 
 /* ---------------- v286: כרטיס איפוס קומפקטי + גיליון בסגנון Apple ---------------- */
 .reset-card { padding: 6px; }

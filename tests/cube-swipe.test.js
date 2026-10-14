@@ -11,8 +11,8 @@ const fn = (src, name) => { const i = src.indexOf('function ' + name + '('); if 
 
 // ---- המנוע: טהור, בתוך core (מגיע ל־Academy ול־Studio דרך core.js)
 const ctx = {};
-vm.runInNewContext('const CUBE_P = 1.8, CUBE_W = 17, CUBE_RUB = 0.07;' + fn(app, 'cubeTransform') + fn(app, 'cubeSpring') + ';this.T = cubeTransform; this.S = cubeSpring;', ctx);
-const { T, S } = ctx;
+vm.runInNewContext('const CUBE_P = 1.8, CUBE_W = 17, CUBE_RUB = 0.07;' + fn(app, 'cubeTransform') + fn(app, 'cubeSpring') + fn(app, 'cubeVisible') + ';this.T = cubeTransform; this.S = cubeSpring; this.V = cubeVisible;', ctx);
+const { T, S, V } = ctx;
 const parse = (s) => { const m = /perspective\(([-\d.]+)px\) translateZ\(([-\d.]+)px\) rotateY\(([-\d.]+)deg\) translateZ\(([-\d.]+)px\)/.exec(s); return m ? m.slice(1).map(Number) : null; };
 const W = 390;
 ok(/const CUBE_P = 1\.8/.test(app), 'נקודת המבט = 1.8 רוחבי מסך (נמדד בסרטון)');
@@ -32,6 +32,10 @@ for (const p of [0.1, 0.25, 0.5, 0.75, 0.9]) {
 }
 ok(edgeOk, 'הצלע המשותפת נשארת בגובה המסך בכל זווית (הקובייה נסוגה — כמו בסרטון)');
 ok(convex, 'קובייה קמורה: הצלע הרחוקה נסוגה אחורה');
+// 14/10/2026 (דיווח המשתמש): פאה שהגב שלה פונה אליך — מוסתרת כולה; ההדר בזכוכית (שכבה מורכבת) הופיע הפוך מעל הדף החדש
+ok(V(0, 1, false, W) && !V(0, 1, true, W) && V(1, 1, true, W) && !V(1, 1, false, W), 'בהתחלה רק היוצא, בסוף רק הנכנס');
+ok(!V(0.92, -1, false, W) && !V(0.08, -1, true, W) && V(0.5, -1, false, W) && V(0.5, -1, true, W), 'קרוב לקצה — הפאה שמפנה גב מוסתרת, באמצע שתיהן גלויות');
+ok(/opacity: c\.rub \|\| cubeVisible\(q, c\.side, isIn, vw\) \? 1 : 0/.test(fn(app, 'cubeRun')) && /style\.opacity = cubeVisible/.test(fn(app, 'cubeSet')), 'ההסתרה גם באנימציה וגם בגרירה');
 const s1 = S(0.4, 3, 1);
 ok(Math.abs(s1[0] - 0.4) < 1e-9 && s1[s1.length - 1] === 1 && s1.every((x) => x >= 0 && x <= 1), 'הקפיץ: מהמקום של האצבע עד הסוף, בגבולות');
 ok(Math.abs((s1[1] - s1[0]) * 60 - 3) < 1.2, 'הקפיץ ממשיך מהמהירות של האצבע (בלי קפיצה במהירות בשחרור)');
@@ -41,11 +45,11 @@ ok(s0.every((x, i) => i === 0 || x >= s0[i - 1] - 1e-9), 'בלי חזרה אחו
 ok(S(0.3, -2, 0).every((x) => x >= 0 && x <= 0.31), 'ביטול: חוזר למקום');
 
 // ---- אותה חוקיות בשלוש האפליקציות: הספים וההחלטה בתוך core
-ok(/PAGE_SWIPE_FRAC = 0\.33, PAGE_SWIPE_MIN = 96/.test(core) && /WL_SWIPE_MIN = 48, WL_SWIPE_MAX_FRAC = 0\.3, WL_PAGE_FRAC = 0\.55/.test(core) && /function pageSwipeDecide\(/.test(core), 'הספים של Invest (v281) ו־pageSwipeDecide ב־core.js');
+ok(/PAGE_SWIPE_FRAC = 0\.33, PAGE_SWIPE_MIN = 96/.test(core) && /function pageSwipeDecide\(d, w, v\)/.test(core) && !/WL_SWIPE/.test(core + app), 'הספים של Invest (v281) ו־pageSwipeDecide ב־core.js; בלי "החלקה קצרה" בשום מקום');
 for (const f of ['cubeTransform', 'cubeSpring', 'cubeFace', 'cubeRun', 'cubeClone', 'cubeGhostRun', 'cubeSlideIn', 'snbSwipe']) ok(new RegExp('function ' + f + '\\(').test(core), f + ' ב־core.js');
 const sw = fn(app, 'snbSwipe');
-ok(/pageSwipeDecide\(d, g\.w, 0, true\)/.test(sw) && /pageSwipeDecide\(s\.d \|\| 0, s\.w, fwd \? v : 0, s\.watch\)/.test(sw), 'snbSwipe — אותה החלטה כמו ב־Invest (גם בשחרור)');
-ok(/d < zone\) tx = g\.tab \? d \* 0\.5/.test(sw) && /p = \(d - zone\) \/ \(g\.w - zone\)/.test(sw), 'עמוד עם טאבים: קצרה = התוכן של הטאב, ארוכה = העמוד מסתובב');
+ok(/pageSwipeDecide\(d, g\.w, 0\)/.test(sw) && /pageSwipeDecide\(s\.d \|\| 0, s\.w, fwd \? v : 0\)/.test(sw), 'snbSwipe — אותה החלטה כמו ב־Invest (גם בשחרור)');
+ok(!/hasTabs|o\.tabs|tabMove/.test(sw), 'בלי טאבים בהחלקה — רק עמודים (בקשת המשתמש)');
 ok(/Math\.abs\(dx\) < Math\.abs\(dy\) \* 1\.5\) \{ unhook\(g\); g = null; return; \}/.test(sw) && /PAGE_SWIPE_EDGE/.test(sw), 'תנועה אנכית = גלילה; קצה המסך ("חזור") לא נחשב');
 ok(/tg\.addEventListener\('touchmove', move, \{ passive: false \}\)/.test(sw) && /document\.addEventListener\('touchmove'/.test(sw) && /const seen = /.test(sw), 'האלמנט שנגעו בו נמחק כשהעמוד השכן נצבע — האזנה עליו ועל המסמך (לקח v283)');
 ok(/Promise\.resolve\(r\)\.then\(done, done\)/.test(sw), 'ביטול: הדף הקודם נצבע מאחורי ההעתק — ורק אז ההעתק יורד (בלי הבהוב)');
@@ -65,16 +69,18 @@ ok(/switchTab\(c\.to, \{ cubeDone: true \}\)/.test(fn(app, 'tabCubeCommit')), 'I
 
 // ---- Academy
 ok(/if \(\(kind === 'push' \|\| kind === 'pop'\) && cubeOk\(\)\) return cubeNav\(kind, y\)/.test(lib), 'Academy: מעבר בין דפים (לחיצה, "חזור") = קובייה');
-ok(/const LIB_SIB = \['home', 'notes', 'settings'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy: עמודים ראשיים = בית ← מה למדתי ← הגדרות, ההחלקה מחוברת');
-ok(/\['snb', 'mine'\]/.test(fn(lib, 'libSwipeTabs')) && /cubeSlideIn/.test(fn(lib, 'setShelf')), 'Academy: טאבים פנימיים = שתי הספריות, נכנסות מהצד');
-ok(/!\(history\.state \|\| \{\}\)\.sb\) return null/.test(fn(lib, 'libSwipePage')) && /sb: sb/.test(fn(lib, 'goView')), 'Academy: החלקה אחורה לבית רק כשהבית באמת מתחת לרשומה');
+ok(/const LIB_SIB = \['snb', 'mine', 'notes', 'settings'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy: ארבעה עמודים מימין לשמאל — THE SNOWBALL ← הספרייה שלי ← מה למדתי ← הגדרות');
+ok(!/libSwipeTabs/.test(lib) && /cubeGhostRun\(root, ghost, cubeSideFwd\(v === 'mine'\)\)/.test(fn(lib, 'setShelf')), 'Academy: שתי הספריות = עמודים בקובייה (גם בלחיצה על הבורר)');
+ok(/!\(history\.state \|\| \{\}\)\.sb\)\) return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /sb: sb/.test(fn(lib, 'goView')), 'Academy: החלקה אחורה לבית רק כשהבית באמת מתחת לרשומה');
 ok(/if \(swipePop > 0\)/.test(fn(lib, 'onPop')), 'Academy: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
+ok(/pv: pv/.test(fn(lib, 'goView')) && /return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /ui\.view = to;/.test(fn(lib, 'libBackPage')) && /swipePop\+\+; afterBack\(\(\) => history\.back\(\)\)/.test(fn(lib, 'libBackPage')), 'Academy: בעמוד משנה החלקה אחורה = "חזור" לדף הקודם (נשמר ברשומה), צמוד לאצבע');
+ok(/const LIB_NOBACK = \['edit', 'mgr', 'admin'\]/.test(lib), 'Academy: בלי החלקה אחורה בעריכה ובניהול');
 
 // ---- Studio
 const r = fn(st, 'render');
 ok(/cubeClone\(root\)/.test(r) && /cubeGhostRun\(root, ghost, cubeSideFwd\(kind === 'push'\)\)/.test(r), 'Studio: מעבר בין דפים = קובייה');
 ok(/const ST_SIB = \['home', 'tower', 'settings'\]/.test(st) && /wireStSwipe\(\);/.test(st), 'Studio: עמודים ראשיים = בית ← מגדל הפיקוח ← הגדרות, ההחלקה מחוברת');
-ok(/alert: 'alTab', inc: 'incTab'/.test(st) && /stTab\('alTab', k\)/.test(st) && /stTab\('incTab', k\)/.test(st), 'Studio: טאבים פנימיים = פרטים · ציר · קשורות (גם בלחיצה — נכנסים מהצד)');
+ok(!/stSwipeTabs|ST_TABS/.test(st) && /stTab\('alTab', k\)/.test(st), 'Studio: בלי החלקה בין הלשוניות — רק בלחיצה');
 ok(/'play', 'subs', 'cut'/.test(st), 'Studio: בלי החלקה בנגן, בעורכים ובטפסים');
 ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
 

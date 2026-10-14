@@ -5,7 +5,7 @@ let n = 0;
 function ok(c, name) { n++; if (!c) { console.error('FAIL - ' + name); process.exit(1); } console.log('ok - ' + name); }
 const lib = fs.readFileSync(path.join(__dirname, '..', 'library.js'), 'utf8');
 const pop = lib.slice(lib.indexOf('function onPop'), lib.indexOf('/* v315: מיקום הגלילה'));
-ok(/author: '\\u0001shelf'/.test(lib) && /if \(!restore\) \{ ui\.author = SHELF;/.test(lib) && /ui\.shelf = v; ui\.author = SHELF;/.test(lib), 'כל כניסה לספרייה וכל מעבר בין הספריות — "מדף ספרים"');
+ok(/author: '\\u0001shelf'/.test(lib) && /if \(!restore\) \{ ui\.author = SHELF;/.test(lib) && /ui\.shelf = k; ui\.author = SHELF;/.test(lib), 'כל כניסה לספרייה וכל מעבר בין הספריות — "מדף ספרים"');
 ok(!/pushState/.test(pop), 'אין pushState בתוך popstate (רשומה בלי הפעלת משתמש = Chrome מדלג עליה)');
 ok(/history\.pushState\(Object\.assign\(\{\}, st, \{ guard: CW_OK \? 0 : 1 \}\), ''\);/.test(lib) && /if \(rd && !rd\.armed && !CW_OK\) \{ rd\.armed = 1; readerArm\(box\); \}/.test(lib), 'פתיחת ספר: רשומת שומר בלחיצה, רשומת הקורא אחרי העמוד הראשון (v350 — צילום השומר = הקורא)');
 ok(/if \(lvl === 2 && rd && !rd\.closing\)/.test(pop) && /rdBackTwice/.test(pop), '"חזור" ראשון — נוחת על השומר: הודעה (או סגירת גיליון/בועה)');

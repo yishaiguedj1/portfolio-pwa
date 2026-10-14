@@ -874,44 +874,56 @@ async function cubeNav(kind, y) {
   if (!root) { ghost.remove(); return; }
   await cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
 }
-/* ההחלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest): עמודים ראשיים = הבית ← "מה למדתי" ← הגדרות (כמו הלשוניות
-   וההגדרות ב־Invest); טאבים פנימיים בבית = THE SNOWBALL ↔ הספרייה שלי (כמו רשימות המעקב) — קצרה = ספרייה, ארוכה = עמוד */
-const LIB_SIB = ['home', 'notes', 'settings'];
-function libSib(v) {
-  if (!v) return 'home';
+/* ההחלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest). 14/10/2026 (בקשת המשתמש): ארבעה עמודים בשורה אחת, מימין לשמאל —
+   THE SNOWBALL ← הספרייה שלי ← מה למדתי ← הגדרות; שתי הספריות הן עמודים בקובייה (לא טאבים — בלי "החלקה קצרה") */
+const LIB_SIB = ['snb', 'mine', 'notes', 'settings'];
+function libSib(v) {                       // העמוד הראשי שמוצג עכשיו, או null בעמוד משנה
+  if (!v) return ui.shelf === 'mine' ? 'mine' : 'snb';
   const k = Object.keys(v);
   return k.length === 1 && (k[0] === 'notes' || k[0] === 'settings') ? k[0] : null;
 }
+const libIsHome = (k) => k === 'snb' || k === 'mine';
+function libShow(k) {                      // מעבר מצב לעמוד ראשי (בלי היסטוריה)
+  if (libIsHome(k)) { ui.view = null; if (ui.shelf !== k) { ui.shelf = k; ui.author = SHELF; ui.q = ''; try { localStorage.setItem(LS_SHELF, k); } catch (e) {} } }
+  else ui.view = { [k]: 1 };
+}
 let swipePop = 0;                          // חזרה לבית בהחלקה — הדף כבר צויר; ה־popstate שלה לא מצייר שוב
+const LIB_NOBACK = ['edit', 'mgr', 'admin'];   // עריכה וניהול — בלי החלקה אחורה (טופס פתוח / ניווט משלהם)
+function libBackPage() {                   // עמוד משנה: החלקה אחורה = "חזור" — הדף הקודם (pv ברשומה) נצבע צמוד לאצבע
+  const st = history.state || {};
+  if (rd || !ui.view || st.lib !== 1 || !('pv' in st) || Object.keys(ui.view).some((k) => LIB_NOBACK.includes(k))) return null;
+  const prev = ui.view, y = root.scrollTop, to = st.pv || null;
+  return {
+    render() { saveLibScroll(); ui.view = to; root.scrollTop = 0; renderHomeNow().then(() => { if (root) root.scrollTop = savedLibScroll(); }); },
+    undo() { ui.view = prev; return renderHomeNow().then(() => { if (root) root.scrollTop = y; }); },
+    commit() { swipePop++; afterBack(() => history.back()); },
+  };
+}
 function libSwipePage(next) {
   const cur = libSib(ui.view);
-  if (!cur || rd) return null;
-  if (cur !== 'home' && !(history.state || {}).sb) return null;   // הגיעו לכאן לא מהבית — מתחת לרשומה אין את הבית
+  if (!cur || (!libIsHome(cur) && !(history.state || {}).sb)) return next ? null : libBackPage();   // עמוד משנה / הגיעו לא מהבית
   const to = LIB_SIB[LIB_SIB.indexOf(cur) + (next ? 1 : -1)];
   if (!to) return null;
-  const prev = ui.view, y = root.scrollTop;
+  const prev = ui.view, prevShelf = ui.shelf, prevAuthor = ui.author, prevQ = ui.q, y = root.scrollTop;
   return {
-    render() { saveLibScroll(); ui.view = to === 'home' ? null : { [to]: 1 }; root.scrollTop = 0; renderHomeNow().then(() => { if (root) root.scrollTop = 0; }); },
-    undo() { ui.view = prev; return renderHomeNow().then(() => { if (root) root.scrollTop = y; }); },
+    render() { saveLibScroll(); libShow(to); root.scrollTop = 0; renderHomeNow().then(() => { if (root) root.scrollTop = 0; }); },
+    undo() {
+      ui.view = prev; ui.author = prevAuthor; ui.q = prevQ;
+      if (ui.shelf !== prevShelf) { ui.shelf = prevShelf; try { localStorage.setItem(LS_SHELF, prevShelf); } catch (e) {} }
+      return renderHomeNow().then(() => { if (root) root.scrollTop = y; });
+    },
     commit() {
       const v = ui.view;
-      if (to === 'home') { swipePop++; afterBack(() => history.back()); }
-      else if (cur === 'home') afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: 1 }), ''));
+      if (libIsHome(cur) && libIsHome(to)) return;                          // בין שתי הספריות — אותה רשומה (הבית)
+      if (libIsHome(to)) { swipePop++; afterBack(() => history.back()); }   // מ"מה למדתי" חזרה לבית
+      else if (libIsHome(cur)) afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: 1, pv: null }), ''));
       else afterBack(() => history.replaceState(cleanState({ lib: 1, lv: v, sb: 1 }), ''));
     },
   };
 }
-const afterSeg = (seg) => { const out = []; for (let e = seg && seg.nextElementSibling; e; e = e.nextElementSibling) out.push(e); return out; };
-function libSwipeTabs(next) {
-  if (libSib(ui.view) !== 'home' || rd) return null;
-  const to = ['snb', 'mine'][(ui.shelf === 'mine' ? 1 : 0) + (next ? 1 : -1)];
-  if (!to) return null;
-  return { els: afterSeg(root.querySelector('.lib-home > .lib-seg')), go: () => setShelf(to) };
-}
 function wireLibSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
-  snbSwipe({ root: root, ok: () => !!root && !rd && !root.querySelector('.lib-veil:not(.out)') && !VT.inside,
-    hasTabs: () => libSib(ui.view) === 'home' && !rd, page: libSwipePage, tabs: libSwipeTabs });
+  snbSwipe({ root: root, ok: () => !!root && !rd && !root.querySelector('.lib-veil:not(.out)') && !VT.inside, page: libSwipePage });
 }
 let pinT = 0;
 function navScroll(y) {                  // גלילה תוכנתית של מעבר דף — מסומנת (data-nav-scroll) כדי שכלי המדידה לא יספור אותה כקפיצה
@@ -938,9 +950,10 @@ function pinScroll(y) {                  // הדף מתארך אחרי הציו�
 }
 function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
   saveLibScroll();
-  const sb = libSib(ui.view) === 'home' && (libSib(v) === 'notes' || libSib(v) === 'settings') ? 1 : 0;   // מהבית — ההחלקה אחורה מגיעה לבית
+  const sb = !ui.view && (libSib(v) === 'notes' || libSib(v) === 'settings') ? 1 : 0;   // מהבית — ההחלקה אחורה מגיעה לבית
+  const pv = ui.view || null;              // 14/10/2026: הדף הקודם — החלקה אחורה בעמוד משנה מציירת אותו צמוד לאצבע
   ui.view = v;
-  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: sb }), ''));
+  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: sb, pv: pv }), ''));
   navigateTo('push', 0).then(() => { if (root) try { root.focus({ preventScroll: true }); } catch (e) {} });
 }
 
@@ -1121,12 +1134,11 @@ async function renderHomeNow() {
 /* ---------------- v318: שתי ספריות + גיבוי ל־Google Drive (ממשק) ---------------- */
 function setShelf(v) {
   if (ui.shelf === v) return;
-  const dir = typeof cubeSideFwd === 'function' ? cubeSideFwd(v === 'mine') : 0;
-  ui.shelf = v; ui.author = SHELF; ui.q = '';   // v321: כל ספרייה נפתחת במדף
-  try { localStorage.setItem(LS_SHELF, v); } catch (e) {}
-  // 14/10/2026: כמו החלפת רשימת מעקב — התוכן שמתחת לבורר נכנס מהצד של הספרייה החדשה (לא הצלבה)
-  if (!dir) { navigateTo('fade', 0); return; }
-  navigateTo('none', 0).then(() => { if (root) cubeSlideIn(afterSeg(root.querySelector('.lib-home > .lib-seg')), dir); });
+  // 14/10/2026: שתי הספריות = שני עמודים בקובייה (כמו בהחלקה); בלי המנוע — הצלבה כמו קודם
+  if (!cubeOk()) { libShow(v); navigateTo('fade', 0); return; }
+  const ghost = cubeClone(root);
+  libShow(v);
+  Promise.resolve(renderHomeNow()).then(() => { if (!root) { ghost.remove(); return; } navScroll(0); cubeGhostRun(root, ghost, cubeSideFwd(v === 'mine')); }, () => ghost.remove());
 }
 function shelfSeg(nMine) {                 // בורר מקטעים בסגנון iOS
   const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
@@ -4330,4 +4342,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES, adm: () => (ADM ? ADM._state() : null) };
+export const _test = { go: (v) => goView(v), closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES, adm: () => (ADM ? ADM._state() : null) };
