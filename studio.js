@@ -5395,11 +5395,14 @@ function pageSettings(p) {
   p.append(setCard(T('studioGrpGen'), list(
     srow,
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
-    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
-  // 14/10/2026 (בקשת המשתמש): מאגר הלמידה — אפשר לבטל. בלי שם ובלי פרטים אישיים; מה שכבר נאסף לא מקושר לחשבון
+    rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }),   // מ9: מדריך קצר
+    lrnRow())));
+}
+/* 14/10/2026 (בקשת המשתמש): מאגר הלמידה — אפשר לבטל. בלי שם ובלי פרטים אישיים; מה שכבר נאסף לא מקושר לחשבון */
+function lrnRow() {
   const lr = rowSwitch({ label: T('studioLrnT'), sub: ui.lrn === false ? T('studioLrnOff') : T('studioLrnOn'), on: ui.lrn !== false, onClick: () => setLrn(ui.lrn === false), k: 'lrn' });
   if (lrnBusy || blocked()) lr.disabled = true;
-  p.append(setCard(T('studioLrnGrp'), list(lr)));
+  return lr;
 }
 let lrnBusy = false;
 async function setLrn(on) {

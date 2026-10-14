@@ -778,7 +778,7 @@ def learn_facts(ctx):
             out['gl'] = {'n': len(rows), 'u': len([x for x in mine.splitlines() if x.strip() and not x.startswith('#')])}
         except OSError:
             pass
-    en = ctx.st.get('api_eng')
+    en = ctx.st.get('eng_facts')
     if isinstance(en, dict):
         x = {k: v for k, v in en.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
         th = en.get('th')
@@ -2111,7 +2111,7 @@ def approve_render(ctx, wait=None):
 def fail(args):
     ctx = Ctx(load_state())
     err = args.err if ERR_RE.match(args.err or '') else 'worker'
-    ctx.report(fail=True, err=err, msg=args.msg, force=True, usage=usage_safe(), trace=trace_safe(), lx=learn_safe(ctx))
+    ctx.report(fail=True, err=err, msg=args.msg, force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe())
     print('✓ העבודה סומנה "נכשלה" (' + err + ').')
     return 0
 
@@ -2153,7 +2153,7 @@ def auto(args):
         if msg in ('', '0', '1', '2'):
             raise
         try:
-            Ctx(load_state()).report(fail=True, err=getattr(e, 'err', 'worker_step'), msg=msg[:200], force=True, usage=usage_safe(), trace=trace_safe(), lx=learn_safe())
+            Ctx(load_state()).report(fail=True, err=getattr(e, 'err', 'worker_step'), msg=msg[:200], force=True, lx=learn_safe(), usage=usage_safe(), trace=trace_safe())
         except (Stop, SystemExit, Exception):     # noqa: BLE001
             pass
         print(msg)
@@ -2161,8 +2161,8 @@ def auto(args):
     except Exception as e:               # noqa: BLE001 — חריגה לא צפויה (באג, OSError): כשל גלוי מיד, לא "רצה" עד STALE_MS
         try:
             # רק סוג החריגה — הטקסט שלה יכול לכלול נתיבים / שמות קבצים (פרטיות)
-            Ctx(load_state()).report(fail=True, err='worker_crash', msg=type(e).__name__[:60], force=True,
-                                     usage=usage_safe(), trace=trace_safe(), lx=learn_safe())
+            Ctx(load_state()).report(fail=True, err='worker_crash', msg=type(e).__name__[:60], force=True, lx=learn_safe(),
+                                     usage=usage_safe(), trace=trace_safe())
         except (Stop, SystemExit, Exception):     # noqa: BLE001
             pass
         raise
@@ -2594,9 +2594,9 @@ def finish(args):
     except Exception:            # noqa: BLE001
         rvf, fil = [], []
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
-    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q,
+    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
-               rvf=rvf or None, fil=fil or None, lx=learn_safe(ctx))   # 14/10/2026: מאגר הלמידה
+               rvf=rvf or None, fil=fil or None)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
 

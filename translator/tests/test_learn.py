@@ -35,7 +35,7 @@ class LearnFacts(unittest.TestCase):
         (pd / 'tr' / 'fixes_review.txt').write_text('#5 ' + SECRET + '\n', encoding='utf-8')
         (pd / 'tr' / 'glossary.tsv').write_text('# head\nA\tא\n' + job.GL_MARK + '\nB\tב\nC\tג\n', encoding='utf-8')
         self.ctx = SimpleNamespace(pdir=pd, st={'spec': {'dur': 300, 'name': SECRET + '.mp4'}, 'sync': {'off': 0.12, 'conf': 0.93},
-                                                'api_eng': {'cw': 1, 'rr': 0, 'tc': 2, 'mr': 1, 'fb': 3, 'th': {'tl': 9000, 'rv': 100}}})
+                                                'eng_facts': {'cw': 1, 'rr': 0, 'tc': 2, 'mr': 1, 'fb': 3, 'th': {'tl': 9000, 'rv': 100}}})
 
     def tearDown(self):
         self.tmp.cleanup()

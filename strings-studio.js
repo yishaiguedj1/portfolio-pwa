@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1459 מפתחות מתוך 2645) */
+/* המחרוזות של studio (1458 מפתחות מתוך 2644) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -719,7 +719,6 @@ he: {
   "studioLoading": "טוען…",
   "studioLoopOk": "להמשיך בכל זאת",
   "studioLoopQ": "זו הפעם ה־{n} ב־24 שעות שהעבודה הזו צריכה \"המשך\" — כנראה אותה תקלה חוזרת. להמשיך בכל זאת?",
-  "studioLrnGrp": "פרטיות",
   "studioLrnOff": "העבודות הבאות שלך לא ייכנסו למאגר הלמידה",
   "studioLrnOn": "בלי שם ובלי פרטים אישיים — רק כדי לשפר את המערכת",
   "studioLrnT": "שיפור התרגום בעזרת העבודות שלי",
@@ -2180,7 +2179,6 @@ en: {
   "studioLoading": "Loading…",
   "studioLoopOk": "Continue anyway",
   "studioLoopQ": "This job has needed \"Continue\" {n} times in 24 hours — probably the same problem again. Continue anyway?",
-  "studioLrnGrp": "Privacy",
   "studioLrnOff": "Your next jobs won't enter the learning database",
   "studioLrnOn": "No name, no personal details — only to improve the system",
   "studioLrnT": "Improve translation with my jobs",
