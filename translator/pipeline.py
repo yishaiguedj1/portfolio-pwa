@@ -283,6 +283,12 @@ class Pipeline:
 
     def __init__(self, ctx, jobmod, eng: llm.Engine, sleep=time.sleep):
         self.ctx, self.J, self.eng, self.sleep = ctx, jobmod, eng, sleep
+        # 14/10/2026: עצירה מיידית — היישור ברקע קיבל "עצור" / חלק אחר נכשל: חלקים שעוד לא שלחו בקשה לא שולחים
+        self.halt = threading.Event()
+
+    def halted(self):
+        stop = getattr(self.J, 'Stop', None)
+        return stop('halted') if isinstance(stop, type) and issubclass(stop, BaseException) else RuntimeError('halted')
 
     @property
     def pd(self) -> Path:
@@ -378,6 +384,8 @@ class Pipeline:
                 want = ids - set(got)
                 if not want:
                     break
+                if self.halt.is_set():                     # עצירה — בלי בקשה נוספת (מה שכבר נשלח — לא ניתן לבטל)
+                    raise self.halted()
                 # 11/10/2026: תשובה שנקטעה (חשיבה + תרגום מעל התקרה) — לא מכשילים את העבודה: שומרים את מה שהגיע
                 # (בלי השורה האחרונה, שאולי נחתכה) ומבקשים רק את החסר. ככה גם חלק ארוך מאוד נגמר.
                 ask = (f'תרגם את חלק {p["k"]}/{p["n"]} ({p["file"]}).' if not got and not attempt else
@@ -449,12 +457,19 @@ class Pipeline:
                     if len(pending) > 1:
                         warm.wait(timeout=1800)
                         futs += [ex.submit(self._tl_part, p, fx) for p in pending[1:]]
-                for f in as_completed(futs):
-                    f.result()                            # שגיאה בחלק כלשהו עולה כאן
-                    done_n += 1
-                    self.save_usage()
-                    if not quiet:
-                        ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
+                try:
+                    for f in as_completed(futs):
+                        f.result()                        # שגיאה בחלק כלשהו עולה כאן
+                        done_n += 1
+                        self.save_usage()
+                        if not quiet:
+                            ctx.report('tl', done_n / n, f'Claude מתרגם · חלק {done_n} מתוך {n}')
+                except BaseException:
+                    # 14/10/2026: חלק נכשל / "עצור" — שאר החלקים לא מתחילים (עד היום היציאה מה־with חיכתה לכולם, בתשלום)
+                    self.halt.set()
+                    for f in futs:
+                        f.cancel()
+                    raise
         if fix:
             self.fix_round('fixes.txt', fx, 'tl')
 
@@ -695,6 +710,7 @@ def run_auto(jobmod, args) -> int:
                         J.align_run(ctx)
                     except BaseException as e:      # noqa: BLE001 — SystemExit של vt חייב להיתפס
                         err.append(e)
+                        pl.halt.set()                # 14/10/2026: "עצור" / כשל ביישור — התרגום במקביל לא ממשיך לשלם
                 th = threading.Thread(target=bg, daemon=True)
                 th.start()
                 try:
