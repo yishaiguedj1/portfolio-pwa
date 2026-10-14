@@ -149,7 +149,10 @@ const INIT = `(() => {
     return bad;
   };
   try {
-    new PerformanceObserver((l) => { for (const e of l.getEntries()) { if (e.hadRecentInput || !M.cur) continue; M.cur.cls += e.value; M.cur.clsMax = Math.max(M.cur.clsMax, e.value);
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) { if (e.hadRecentInput || !M.cur) continue;
+      // 14/10/2026: פאה של הקובייה שעוברת מקום בפריסה בלי לזוז על המסך (היוצא נשאר במקומו כשהדף נגלל לראש) — לא קפיצה
+      if ((e.sources || []).length && e.sources.every((s) => { const n = s.node; const d = n && (n.nodeType === 1 ? n : n.parentElement); return d && d.closest && d.closest('.cube-out, .cube-in, .cube-ghost'); })) continue;
+      M.cur.cls += e.value; M.cur.clsMax = Math.max(M.cur.clsMax, e.value);
       const src = (e.sources || []).slice(0, 2).map((s) => { const n = s.node; if (!n) return '?'; let d = n.nodeType === 1 ? n : n.parentElement; return d ? (d.tagName.toLowerCase() + (d.id ? '#' + d.id : '') + (d.className && typeof d.className === 'string' ? '.' + d.className.trim().split(/\\s+/).slice(0, 2).join('.') : '')) : '?'; });
       M.cur.shifts.push({ v: +e.value.toFixed(4), t: Math.round(e.startTime - M.cur.t0), src }); } }).observe({ type: 'layout-shift', buffered: true });
   } catch (e) {}
