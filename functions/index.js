@@ -10,8 +10,17 @@ export function rootPage(host) {
   return m ? '/' + m[1] : '';   // ‎/academy = academy.html (Pages מגיש בלי הסיומת)
 }
 
+/* שלב 5 (14/10/2026): הכתובת הקצרה thesnowball.app (והניסוי staging.thesnowball.app נשאר האתר המאוחד) → Invest */
+export function apexTarget(url) {
+  const u = new URL(url);
+  if (u.hostname.toLowerCase() !== 'thesnowball.app') return '';
+  return 'https://invest.thesnowball.app/' + u.search;
+}
+
 export function onRequest({ request, env, next }) {
   const url = new URL(request.url);
+  const apex = apexTarget(request.url);
+  if (apex) return Response.redirect(apex, 301);
   const page = (request.method === 'GET' || request.method === 'HEAD') && rootPage(url.hostname);
   if (!page) return next();
   url.pathname = page;   // ה־query (למשל ?v= של sw.js) והקישור העמוק (#) נשמרים

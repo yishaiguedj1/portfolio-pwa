@@ -67,13 +67,16 @@ const ALLOWED_ORIGINS = new Set(['https://yishaiguedj1.github.io']);
    כתובות נוספות: SNB_EXTRA_ORIGINS (רשימה מופרדת בפסיקים, https בלבד).
    שלב 4 (13/10/2026): גם הכתובת של כל אפליקציה בניסוי — <אפליקציה>-staging.thesnowball.app. */
 const STAGING_ORIGIN_RE = /^https:\/\/(((invest|academy|studio|account)-)?staging\.thesnowball\.app|([a-z0-9-]{1,63}\.)?thesnowball\.pages\.dev)$/;
+/* שלב 5 (14/10/2026): הייצור בכתובות של thesnowball.app — אותה רשימה סגורה של ה־session (APPS), כאן ובשרת שלנו וגם
+   ב־Vercel (הגיבוי החם של האפליקציה כשהשרת שלנו לא עונה). השורש עצמו (thesnowball.app) רק מעביר ל־Invest */
+const PROD_ORIGIN_RE = /^https:\/\/(invest|academy|studio|account)\.thesnowball\.app$/;
 function extraOrigins() {
   return String(process.env.SNB_EXTRA_ORIGINS || '').split(',').map((x) => x.trim()).filter((x) => /^https:\/\/[a-z0-9.-]+$/.test(x));
 }
 function originAllowed(origin) {
   const o = String(origin || '');
   if (ALLOWED_ORIGINS.has(o)) return true;
-  if (STAGING_ORIGIN_RE.test(o) || (o && extraOrigins().includes(o))) return true;
+  if (PROD_ORIGIN_RE.test(o) || STAGING_ORIGIN_RE.test(o) || (o && extraOrigins().includes(o))) return true;
   return /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(o);
 }
 function cors(res, origin) {

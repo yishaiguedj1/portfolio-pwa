@@ -14,17 +14,19 @@ const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /^up
 const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
-const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up'];   // סבב 10: cp = העתק־הדבק מחכה לך
+const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'site_down', 'site_up'];   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
   he: { done: ['התרגום מוכן ✓', 'הכתוביות והסרטון מחכים בסטודיו'], fail: ['העבודה נעצרה', 'פתחו את הסטודיו לפרטים'],
     ask: ['שאלה מ־Claude', 'העבודה מחכה לתשובה שלך'], gate: ['צריך את האישור שלך', 'העבודה מחכה לאישור'],
     cp: ['העתקה והדבקה ל־Claude', 'בקשה חדשה מחכה — מעתיקים, מדביקים ב־Claude ומחזירים את התשובה'],
     srv_down: ['שרת התרגום לא מדווח', 'עבר רבע שעה בלי דיווח מהשרת — פתחו את מסך השרת'], srv_up: ['שרת התרגום חזר ✓', 'השרת מדווח שוב'],
+    site_down: ['THE SNOWBALL לא עונה', 'השרת או אחת האפליקציות לא עונים כבר שתי בדיקות. האפליקציה עוברת לגיבוי לבד'], site_up: ['THE SNOWBALL חזר ✓', 'כל הכתובות עונות שוב'],
     test: ['ההתראות עובדות ✓', 'כך תדעו כשתרגום מוכן או כש־Claude שואל משהו'] },
   en: { done: ['Translation ready ✓', 'Subtitles and video are waiting in the studio'], fail: ['The job stopped', 'Open the studio for details'],
     ask: ['Claude has a question', 'The job is waiting for your answer'], gate: ['Your approval is needed', 'The job is waiting for approval'],
     cp: ['Copy & paste to Claude', 'A new request is waiting — copy it, paste in Claude and bring back the answer'],
     srv_down: ['Translation server is silent', 'No report from the server for 15 minutes — open the Server screen'], srv_up: ['Translation server is back ✓', 'The server is reporting again'],
+    site_down: ['THE SNOWBALL is not responding', 'The server or one of the apps failed two checks in a row. The app switches to the backup by itself'], site_up: ['THE SNOWBALL is back ✓', 'All addresses respond again'],
     test: ['Notifications work ✓', 'You will know when a translation is ready or Claude asks something'] },
 };
 

@@ -87,7 +87,33 @@ async function live(base, fetchFn) {
   return { ok: errs.length === 0, errs, version: h.version, n: Object.keys(h.hashes).length };
 }
 
+/* שלב 5: הכתובת של Academy/Studio — השורש מגיש את הדף של האפליקציה (functions/index.js), ולכן לא בודקים שם את
+   המעטפת כולה (‎./ ו־index.html שם שונים), אלא שהשורש = הדף מהטביעות של sw.js באותה כתובת */
+async function liveRoot(base, fetchFn) {
+  base = base.replace(/\/?$/, '/');
+  const host = new URL(base).hostname;
+  const page = /^academy/.test(host) ? './academy.html' : /^studio/.test(host) ? './studio.html' : '';
+  if (!page) return { ok: false, errs: ['לא כתובת של Academy/Studio: ' + host] };
+  const get = async (rel) => {
+    const r = await fetchFn(base + rel + '?n=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error((rel || '/') + ': HTTP ' + r.status);
+    return Buffer.from(await r.arrayBuffer());
+  };
+  try {
+    const h = readHashes((await get('sw.js')).toString('utf8'));
+    if (!h) return { ok: false, errs: ['sw.js החי בלי בלוק swgen'] };
+    if (sha(await get('')) !== h.hashes[page]) return { ok: false, errs: ['השורש לא זהה ל־' + page] };
+    return { ok: true, errs: [], version: h.version, n: 1 };
+  } catch (e) { return { ok: false, errs: [String(e.message || e)] }; }
+}
+
 async function main(argv) {
+  if (argv[0] === '--live-root') {
+    const r = await liveRoot(argv[1] || '', fetch);
+    if (r.ok) { console.log('השורש תואם: ' + r.version); return 0; }
+    for (const e of r.errs) console.log('✗ ' + e);
+    return 1;
+  }
   if (argv[0] === '--live') {
     const r = await live(argv[1] || 'https://yishaiguedj1.github.io/portfolio-pwa/', fetch);
     if (r.ok) { console.log('האתר החי תואם: ' + r.version + ' · ' + r.n + ' קבצים'); return 0; }
@@ -107,4 +133,4 @@ async function main(argv) {
 }
 
 if (require.main === module) main(process.argv.slice(2)).then((c) => process.exit(c), (e) => { console.error(String(e.message || e)); process.exit(1); });
-module.exports = { build, shellPaths, readHashes, live, sha, fileOf, BEGIN, END, HASH_LEN };
+module.exports = { build, shellPaths, readHashes, live, liveRoot, sha, fileOf, BEGIN, END, HASH_LEN };

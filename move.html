@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" data-move="in">
+<head>
+<meta charset="UTF-8">
+<!-- שלב 5: העברת הנתונים מהכתובת הישנה (move.js). בלי רשת בכלל — רק הודעה מהחלון שפתח את הדף -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>THE SNOWBALL</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { min-height: 100vh; display: grid; place-items: center; padding: 16px; box-sizing: border-box; background: var(--bg); }
+  #move { max-width: 420px; width: 100%; text-align: center; }
+  #move h1 { font-size: 22px; margin: 12px 0 8px; }
+  .mv-msg { font-size: 16px; line-height: 1.5; color: var(--on-surface); margin: 0 0 18px; }
+  .mv-btns { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .mv-btns .btn { min-width: 220px; }
+</style>
+</head>
+<body>
+<main id="move" class="card" aria-live="polite"></main>
+<script src="move.js"></script>
+</body>
+</html>

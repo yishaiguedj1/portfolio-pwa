@@ -4,6 +4,8 @@
 import { openStudio } from './studio.js';
 import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
 
+if (window.SNB_MOVING) await new Promise(() => {});   // שלב 5: הכתובת הישנה עוברת לחדשה (הסקריפט המוטבע) — לא מתחילים כאן
+
 const de = document.documentElement;
 const lang = getLang();
 de.lang = lang;
