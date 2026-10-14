@@ -82,7 +82,7 @@
     sessTried = true;
     const j = await sessCall({ op: 'who' }, 4000);
     if (!j || j.s !== 1 || !j.ct) return false;
-    try { await auth.signInWithCustomToken(j.ct); sessMark(true); return true; } catch (e) { return false; }
+    try { await auth.signInWithCustomToken(j.ct); sessMark(true); return true; } catch (e) { sessCall({ op: 'note', c: String((e && e.code) || 'err').slice(0, 60) }); return false; }
   }
   /* יש משתמש כאן: התנתק באפליקציה אחרת / ממכשיר אחר → מתנתקים; התחבר בחשבון אחר → עוברים אליו */
   async function sessCheck(force) {

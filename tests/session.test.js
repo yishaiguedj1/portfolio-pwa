@@ -87,7 +87,7 @@ const cookieOf = (r) => { const m = /^__Host-snb_s=([^;]*);/.exec(r.h['set-cooki
   r = await call('POST', 'https://staging.thesnowball.app', { op: 'logout', all: true });
   ok(r.code === 403 && !r.h['set-cookie'], 'הניסוי לא יכול לנתק בייצור (נחסם לפני כל פעולה)');
   r = await call('GET', INV);
-  ok(r.code === 405, 'GET → 405');
+  ok(r.code === 200 && r.body.n && Array.isArray(r.body.last), 'GET → מוני האבחון');
   r = await call('POST', INV, { op: 'nope' });
   ok(r.code === 400 && r.body.error === 'bad_op', 'פעולה לא מוכרת → 400');
   r = await call('POST', INV, { op: 'login', idToken: 'x'.repeat(9000) });
@@ -177,6 +177,14 @@ const cookieOf = (r) => { const m = /^__Host-snb_s=([^;]*);/.exec(r.h['set-cooki
   r = await call('POST', INV, { op: 'who' }, c5);
   ok(r.code === 503 && r.body.error === 'store' && !r.body.ct && r.body.s === undefined, 'Firestore נפל → 503 (לא טוקן, וגם לא s=0 שינתק את הטלפון)');
   fsFail = 0;
+
+  /* ---------------------------------------------------------------- 7ב. אבחון: מונים בלי מזהה משתמש */
+  r = await call('POST', ACA, { op: 'note', c: 'auth/invalid-custom-token' });
+  ok(r.code === 200, 'הטלפון מדווח שגיאה של הטוקן המותאם');
+  r = await call('GET', '');
+  const dj = JSON.stringify(r.body);
+  ok(r.body.n['login:ok'] > 0 && r.body.n['who:ok'] > 0 && r.body.n['client:auth/invalid-custom-token'] === 1, 'המונים: התחברות, "מי מחובר", ושגיאת הטלפון');
+  ok(!/u1|u2|v1\./.test(dj) && r.body.last.length <= 20, 'בלי uid ובלי עוגייה בתשובה הציבורית');
 
   /* ---------------------------------------------------------------- 8. קצב */
   let last;
