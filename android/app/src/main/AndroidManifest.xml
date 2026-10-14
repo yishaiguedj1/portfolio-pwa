@@ -31,6 +31,13 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="invest.thesnowball.app" />
+            </intent-filter>
+            <!-- 2.0.0: הכתובת הישנה — קישורים ישנים (האתר שם מעביר לחדשה) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="yishaiguedj1.github.io" android:pathPrefix="/portfolio-pwa" />
             </intent-filter>
         </activity>
