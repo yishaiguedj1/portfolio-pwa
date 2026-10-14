@@ -676,7 +676,13 @@ def run_auto(jobmod, args) -> int:
                 if qs:
                     pl.ask(qs)
                 if bg:
-                    join_attach(J, ctx0, bg)
+                    try:
+                        join_attach(J, ctx0, bg)
+                    except getattr(J, 'Park', ()) or ():
+                        # 15/10/2026: הסרטון לא הגיע בזמן — ההגהה שולמה: שומרים אותה (הצירוף עוד לא נגע בפרויקט —
+                        # הוא חיכה לסרטון), והעבודה חוזרת לתור. בלקיחה הבאה: מנקודה זו, בלי לשלם על ההגהה שוב
+                        J.save_ck(pl.ctx, 'asr', {'pr': 1})
+                        raise
                 # 09/10/2026: ההגהה שולמה — שומרים אותה בנקודת השמירה של התמלול, כדי שכשל ביישור
                 # (העבודה הראשונה בשרת: נגמר הזיכרון) לא יגרום לשלם עליה שוב ב"המשך". אחרי הצירוף — הנקודה עקבית
                 # (הסרטון הוא המקור, הזמנים כבר על הציר שלו)
@@ -759,3 +765,9 @@ def run_auto(jobmod, args) -> int:
         ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None)
         print('✗ ' + str(e))
         return 1
+    except getattr(J, 'Park', ()) or ():
+        # 15/10/2026: השרת לא מחכה לסרטון — העבודה חוזרת לתור ("מחכה לסרטון") עם מה ששולם עד עכשיו
+        ctx = J.Ctx(J.load_state())
+        ctx.report(park=True, wv=True, msg='מחכה שהסרטון יסיים לעלות', force=True, usage=eng.ledger.list() or None)
+        print('⏸ הסרטון עוד לא הגיע — העבודה חזרה לתור ותמשיך כשיגיע. השרת פנוי בינתיים.')
+        return 3

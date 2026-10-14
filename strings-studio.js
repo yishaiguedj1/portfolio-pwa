@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1453 מפתחות מתוך 2639) */
+/* המחרוזות של studio (1455 מפתחות מתוך 2641) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -748,6 +748,7 @@ he: {
   "studioNowCancelled": "העבודה בוטלה",
   "studioNowDone": "התרגום מוכן!",
   "studioNowExtract": "מוציאים את הקול מהסרטון",
+  "studioNowParked": "מחכה שהסרטון יסיים לעלות — ממשיך לבד כשיגיע",
   "studioNowQueued": "Claude נפתח בענן ומתחיל לעבוד",
   "studioNowQueuedApi": "בתור לשרת — מתחיל ברגע שהוא פנוי",
   "studioNowRunning": "Claude עובד על הסרטון",
@@ -1238,6 +1239,7 @@ he: {
   "studioSrvEvLost": "עבודה נקטעה בהפעלה מחדש — דווחה",
   "studioSrvEvNet": "השרתון לא היה זמין",
   "studioSrvEvOom": "עבודה נהרגה (זיכרון)",
+  "studioSrvEvPark": "עבודה חזרה לתור עד שהסרטון יגיע",
   "studioSrvEvStop": "עבודה נעצרה מהאפליקציה",
   "studioSrvEvT": "אירועים אחרונים",
   "studioSrvEvTimeout": "עבודה חרגה מהזמן",
@@ -2203,6 +2205,7 @@ en: {
   "studioNowCancelled": "The job was cancelled",
   "studioNowDone": "Translation ready!",
   "studioNowExtract": "Taking the audio out of the video",
+  "studioNowParked": "Waiting for the video to finish uploading — continues on its own",
   "studioNowQueued": "Claude is starting up in the cloud",
   "studioNowQueuedApi": "In the server queue — starts as soon as it is free",
   "studioNowRunning": "Claude is working on the video",
@@ -2693,6 +2696,7 @@ en: {
   "studioSrvEvLost": "A job was cut by a restart — reported",
   "studioSrvEvNet": "The proxy was unavailable",
   "studioSrvEvOom": "Job killed (memory)",
+  "studioSrvEvPark": "A job went back to the queue until its video arrives",
   "studioSrvEvStop": "Job stopped from the app",
   "studioSrvEvT": "Recent events",
   "studioSrvEvTimeout": "Job ran out of time",
