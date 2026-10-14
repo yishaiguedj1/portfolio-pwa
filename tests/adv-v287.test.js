@@ -22,5 +22,5 @@ vm.runInNewContext("const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist
   "const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced');" + fn('pageSwipeTarget') + ';this.f = pageSwipeTarget;', ctx);
 ok(ctx.f('advanced', false) === 'settings' && ctx.f('advanced', true) === null, 'החלקה אחורה מהעמוד → הגדרות; קדימה — כלום');
 ok(ctx.f('pension', true) === 'settings' && ctx.f('settings', true) === null, 'העמוד לא נכנס לסבב העמודים הראשיים');
-ok(/PAGE_SWIPE_MAIN = TAB_ORDER\.filter\(\(t\) => t !== 'settings' && t !== 'advanced'\)/.test(app), 'advanced מחוץ לעמודים הראשיים');
+ok(/PAGE_SWIPE_MAIN = TAB_ORDER\.filter\(\(t\) => t !== 'settings' && t !== 'advanced'[^)]*\)/.test(app), 'advanced מחוץ לעמודים הראשיים');
 console.log('# ' + n + ' בדיקות עברו');

@@ -1676,17 +1676,27 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 @media (prefers-reduced-motion: reduce) { .reset-veil, .reset-veil .reset-sheet { transition: none; } }
 /* 14/10/2026: גיבוי ל־Google Drive — אותו גיליון של האיפוס, הפעולות בצבע הראשי (לא הרסניות) */
 .row-link-val { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--on-surface-var); font-size: 15px; font-weight: 500; }
-.pfbk-sheet .ios-list { margin-bottom: 12px; }
-.pfbk-sheet .ios-row-lbl { display: flex; flex-direction: column; gap: 2px; }
+/* 14/10/2026: עמוד הגיבוי ל־Google Drive (#tab-backup) — כמו עמוד הגיבוי של הספרייה: סמל, משפט, ואז קבוצות iOS עם כותרת קטנה */
+.pfbk-hero { text-align: center; padding: 2px 20px 4px; }
+.pfbk-hero p { margin: 4px 0 0; color: var(--on-surface-var); font-size: 14.5px; line-height: 1.5; }
+.pfbk-big { width: 60px; height: 60px; margin: 0 auto 10px; border-radius: var(--radius-sm); display: grid; place-items: center; color: #fff; background: linear-gradient(160deg, #4285F4, #34A853); }
+.pfbk-big svg { width: 32px; height: 32px; }
+.pfbk-page .ios-list { background: var(--surface); box-shadow: var(--shadow); }
+.pfbk-sec { margin: 20px 16px 6px; font-size: 13px; font-weight: 600; color: var(--on-surface-var); }
+.pfbk-page > .ios-list:first-child { margin-top: 20px; }
+.pfbk-page .ios-list + .ios-list, .pfbk-page .pfbk-foot + .ios-list { margin-top: 20px; }
+.pfbk-page .ios-row-lbl { display: flex; flex-direction: column; gap: 2px; }
+.pfbk-page .ios-row-val { max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pfbk-sub { font-size: 13px; font-weight: 400; color: var(--on-surface-var); line-height: 1.35; }
-.reset-opt.pfbk-opt.pfbk-main { font-weight: 700; }
-.pfbk-sheet .reset-group + .reset-cancel { margin-top: 10px; }
-.pfbk-sheet #pfbkBody > .reset-cancel:first-child { margin-top: 0; }
-.pfbk-sheet .ios-row-val { max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pfbk-note { padding: 0 4px; margin: 0 0 12px; font-size: 15px; line-height: 1.5; color: var(--on-surface-var); }
-.pfbk-err { margin: -4px 4px 12px; }
-.reset-opt.pfbk-opt { color: var(--primary); font-weight: 600; }
-.reset-opt.pfbk-opt:disabled { opacity: .55; cursor: default; }
+.pfbk-foot { margin: 6px 16px 0; font-size: 12.5px; line-height: 1.45; color: var(--on-surface-var); }
+.pfbk-foot.center { text-align: center; margin-top: 18px; font-size: 14.5px; }
+.pfbk-act { justify-content: center; }
+.pfbk-act .ios-row-lbl { flex: none; text-align: center; }
+.pfbk-act.main .ios-row-lbl { font-weight: 700; }
+.pfbk-act.muted { color: var(--on-surface-var); }
+.pfbk-act:disabled { opacity: .55; cursor: default; }
+.pfbk-errrow { color: var(--loss); font-size: 15px; }
+.pfbk-connect { display: block; width: 100%; margin-top: 20px; }
 .pfbk-sw { position: relative; flex: none; width: 50px; height: 30px; border: 0; padding: 0; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 18%, transparent); cursor: pointer; transition: background .2s ease; }
 .pfbk-sw i { position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: inset-inline-start .2s ease; }
 .pfbk-sw[aria-checked="true"] { background: var(--primary); }

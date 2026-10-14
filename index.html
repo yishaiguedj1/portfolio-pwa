@@ -400,21 +400,14 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
       </div>
     </div>
 
-    <!-- 14/10/2026 (בקשת המשתמש): גיבוי ושחזור של מה שהוזן ביד ל־Google Drive — שורה, והפרטים בגיליון בסגנון Apple -->
+    <!-- 14/10/2026 (בקשת המשתמש): גיבוי ושחזור של מה שהוזן ביד ל־Google Drive — שורה שפותחת עמוד משלה (#tab-backup), כמו הגיבוי של הספרייה -->
     <div class="card row-card" id="pfbkCard">
-      <button id="pfbkOpen" class="row-link" type="button" aria-haspopup="dialog" aria-controls="pfbkVeil">
+      <button id="pfbkOpen" class="row-link" type="button">
         <span class="row-link-ic adv-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5"/><polyline points="9 14 12 11 15 14"/><line x1="12" y1="11" x2="12" y2="20"/></svg></span>
         <span class="row-link-txt" data-i18n="pfbkTitle">גיבוי ל־Google Drive</span>
         <span class="row-link-val" id="pfbkState"></span>
         <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
       </button>
-      <div class="pf-sheet-veil reset-veil hidden" id="pfbkVeil">
-        <div class="pf-sheet reset-sheet pfbk-sheet" role="dialog" aria-modal="true" aria-labelledby="pfbkSheetTitle">
-          <div class="sheet-grab" aria-hidden="true"></div>
-          <h3 id="pfbkSheetTitle">גיבוי ל־Google Drive</h3>
-          <div id="pfbkBody"></div>
-        </div>
-      </div>
     </div>
 
     <!-- v286 (בקשת המשתמש): כרטיס איפוס קומפקטי — שורה אחת, והאפשרויות בגיליון בסגנון Apple (בלי טקסטי הסבר) -->
@@ -470,6 +463,15 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
         <button id="clearCache" class="ios-row ios-row-btn" type="button"><span class="ios-row-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/></svg></span><span class="ios-row-lbl" data-i18n="clearCacheBtn">נקה מטמון ורענן</span></button>
       </div>
     </div>
+  </section>
+  <!-- 14/10/2026 (בקשת המשתמש): עמוד הגיבוי ל־Google Drive — כמו עמוד הגיבוי של הספרייה (נפתח מההגדרות; חזרה בכפתור או בהחלקה) -->
+  <section id="tab-backup" class="tabpage" role="tabpanel" aria-labelledby="pfbkTitleEl">
+    <div class="subpage-head">
+      <button id="pfbkBack" class="subpage-back" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg><span data-i18n="tabSettings">הגדרות</span></button>
+      <h2 class="subpage-title" id="pfbkTitleEl" data-i18n="pfbkTitle">גיבוי ל־Google Drive</h2>
+    </div>
+    <div class="pfbk-hero"><div class="pfbk-big" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5"/><polyline points="9 14 12 11 15 14"/><line x1="12" y1="11" x2="12" y2="20"/></svg></div><p data-i18n="pfbkWhat">מה שהזנת ביד — מניות, עסקאות, הפקדות, פנסיה, רשימות מעקב והעדפות — נשמר בתיקייה ב־Google Drive שלך. נתוני IBKR חוזרים מהסנכרון.</p></div>
+    <div id="pfbkBody" class="pfbk-page"></div>
   </section>
 </main>
 
