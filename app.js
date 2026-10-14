@@ -6290,6 +6290,23 @@ async function tryYahooQuotes() {
   return { quotes: q, fx: fx, source: 'Yahoo', session: (sess === 'regular' || sess === 'closed') ? '' : sess };
 }
 
+/* 15/10/2026 (סרטון המשתמש — מעבר בין האפליקציות): בפתיחה בועת השער הראתה "—" והקפסולה "דיליי" עד התשובה הראשונה
+   מהרשת, ואז קפצו. מציגים מיד את מה ששמור בטלפון: שער הדולר תמיד (משתנה לאט); המחירים והמקור — רק כשהם מהדקות
+   האחרונות (BOOT_QUOTES_MS), אחרת זה היה מציג מחירים ישנים כ"חי". הטיק הראשון מחליף הכל. */
+const BOOT_QUOTES_MS = 3 * 60e3;
+function bootQuotesFromCache() {
+  const c = lsGet(LS_QUOTES);
+  if (!c || !(c.fx > 0)) return false;
+  if (!(state.fx > 0)) state.fx = c.fx;
+  if (c.quotes && c.at && Date.now() - c.at < BOOT_QUOTES_MS && !Object.keys(state.quotes || {}).length) {
+    state.quotes = c.quotes;
+    state.quotesAt = c.at;
+    state.source = c.source || null;
+    state.session = c.session || '';
+  }
+  return true;
+}
+
 async function refreshQuotes() {
   if (!quoteSymbols().length) {
     try { state.fx = await tryFx(); state.fxAt = Date.now(); } catch (e) { /* אין שער */ }
@@ -14458,6 +14475,7 @@ function init() {
     }
     appStarted = true;
     bootSig = dbSig();
+    bootQuotesFromCache();
     renderAll();
     document.documentElement.classList.remove('booting');   // 14/10/2026: התוכן מוצג רק מהציור הראשון (styles.css, html.booting)
     requestAnimationFrame(() => { try { positionTabIndicator(); } catch (e) {} });

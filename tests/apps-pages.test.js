@@ -130,7 +130,7 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
     ok(/const act = o\.action \|\| null;/.test(sh) && /btnFacesHTML\(act\.icon, themeIcon\(\)\)/.test(sh) && /if \(act && !isOpen\(\)\) \{ act\.on\(\); return; \}/.test(sh), 'shell: כפתור פעולה — סגור = הפעולה, פתוח = בהיר/כהה (כמו $ ב־Invest)');
     ok(/action: \{ label: t\('libImport'\), on: \(\) => sa\.addBook && sa\.addBook\(\),\s*icon: _IC_PRE \+/.test(aa), 'Academy: ה־+ בהדר = הוספת ספר, אייקון בסגנון של שאר הכפתורים (_IC_PRE)');
     ok(/SA\.addBook = addBookPick/.test(lib) && /function mineCard\(\)/.test(lib) && /home\.append\(mineCard\(\)\)/.test(lib), 'Academy: הגיבוי, ההוספה והאיפוס — בכרטיס "הספרייה שלי" בהגדרות');
-    ok(/if \(shell\) \{ bkAdopt\(\); shell\.setStatus\(backupPill\(\)\); home\.append\(shell\.el\); \}\s*else home\.append\(top, hrow\);/.test(lib), 'Academy: בדף העצמאי בלי שורת הכותרת האפורה — בועת הגיבוי בהדר, תמיד');
+    ok(/if \(shell\) \{ bkAdopt\(\); shell\.setStatus\(backupPill\(\)\); if \(shell\.el\.parentNode !== home\) home\.prepend\(shell\.el\); \}\s*else home\.append\(top, hrow\);/.test(lib), 'Academy: בדף העצמאי בלי שורת הכותרת האפורה — בועת הגיבוי בהדר, תמיד');
     // המחרוזות של דפי האפליקציות עצמם נכנסות לקובץ המחרוזות (עד 13/10/2026 התפריט הציג "shellBackup")
     for (const [f, sf] of [['academy-app.js', 'strings-academy.js'], ['studio-app.js', 'strings-studio.js']]) {
       const keys = [...new Set([...read(f).matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)].map((m) => m[1]))], strs = read(sf);

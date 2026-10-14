@@ -62,5 +62,15 @@ for (const [page, mod] of [['academy.html', 'library.js'], ['studio.html', 'stud
 ok(/\} else curtainDown\(true\);/.test(R('library.js')) && /curtainDown\(!restore\);/.test(R('studio.js')), 'הווילון יורד בכל פתיחה (לא רק ברענון)');
 ok(/goJobLink\(jobLink, linkView, 'none'\)/.test(R('studio.js')), 'קישור לעבודה בפתיחה — בלי קובייה על דף שעוד נכנס');
 ok(/data-t="' \+ Date\.now\(\)/.test(app) && /Date\.now\(\) - t0 > 90/.test(app), 'לוגו מניה שמגיע באיחור — בדהייה');
+// 15/10/2026 (סרטון המשתמש): התפריט "מתרענן" — ההדר נכנס שוב לדף בכל ציור, ואנימציית CSS רצה מחדש
+ok(/'menu-drop sh-drop hidden'/.test(R('shell.js')) && /drop\.animate\(\[\{ opacity: 0/.test(R('shell.js')) && /\.menu-drop\.sh-drop:not\(\.hidden\) \{ animation: none; \}/.test(R('styles.css')), 'shell: כניסת התפריט מהקוד — לא רצה מחדש כשההדר עובר');
+ok(/for \(const n of \[\.\.\.home\.childNodes\]\) if \(n !== keepHdr\) n\.remove\(\);/.test(R('library.js')) && /if \(shell\.el\.parentNode !== home\) home\.prepend\(shell\.el\);/.test(R('library.js')), 'הספרייה: ההדר נשאר במקומו בציור מחדש');
+{ const c = {}; vm.createContext(c); const st = { fx: null, quotes: {} }; let store = { at: Date.now() - 30e3, fx: 3.1, quotes: { A: { close: 1 } }, source: 'Yahoo', session: '' };
+  c.state = st; c.lsGet = () => store; c.LS_QUOTES = 'q';
+  vm.runInContext(app.match(/const BOOT_QUOTES_MS = [^\n]+/)[0] + '\n' + fn(app, 'bootQuotesFromCache') + ';this.f=bootQuotesFromCache;', c);
+  ok(c.f() === true && st.fx === 3.1 && st.quotes.A && st.source === 'Yahoo', 'פתיחה: השער והמחירים מהדקות האחרונות — מיד, בלי "—" ו"דיליי"');
+  const st2 = { fx: null, quotes: {} }; c.state = st2; store = { at: Date.now() - 3600e3, fx: 3.2, quotes: { A: { close: 1 } }, source: 'Yahoo' };
+  c.f(); ok(st2.fx === 3.2 && !st2.quotes.A && !st2.source, 'מטמון ישן — רק השער (לא מחירים ישנים כ"חי")'); }
+ok(/bootQuotesFromCache\(\);\n    renderAll\(\);/.test(app), 'לפני הציור הראשון');
 console.log('# ' + (n - bad) + '/' + n);
 process.exit(bad ? 1 : 0);

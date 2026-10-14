@@ -98,7 +98,7 @@ export function createShell(o) {
   const menuWrap = h('div', 'menu-wrap');
   const menu = h('button', 'icon-btn'); menu.type = 'button'; menu.innerHTML = btnFacesHTML(ICON_MENU, ICON_CLOSE);
   menu.setAttribute('aria-haspopup', 'true'); menu.setAttribute('aria-expanded', 'false');
-  const drop = h('div', 'menu-drop hidden');
+  const drop = h('div', 'menu-drop sh-drop hidden');
   const main = h('div', 'main-menu');
   for (const k of ['invest', 'academy', 'studio']) {
     if (k === o.app) continue;
@@ -129,6 +129,11 @@ export function createShell(o) {
     if (open && typeof appPrerender === 'function') appPrerender(Object.keys(APP_URL).filter((k) => k !== o.app).map((k) => APP_URL[k]));   // 14/10/2026: האפליקציות האחרות מוכנות מראש
     else if (!open && modal) { const m = modal; modal = null; modalDone(m); }
     drop.classList.toggle('hidden', !open);
+    /* 15/10/2026 (סרטון המשתמש — התפריט "מתרענן" פעמיים): הכניסה באנימציה מהקוד ולא ב־CSS — אנימציית CSS רצה מחדש בכל
+       פעם שההדר נכנס שוב לדף (הספרייה והסטודיו מציירים את דף הבית מחדש בזמן טעינה), והתפריט הפתוח הבהב שוב ושוב */
+    if (open && !was && drop.animate && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      try { drop.animate([{ opacity: 0, transform: 'translateY(-6px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2, .9, .25, 1)' }); } catch (e) {}
+    }
     menu.setAttribute('aria-expanded', open ? 'true' : 'false');
     acts.classList.toggle('menu-open', open);
     if (open && !veil) {                    // שכבת הטשטוש — בתוך השכבה של האפליקציה, מתחת להדר
