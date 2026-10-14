@@ -54,6 +54,7 @@
           set('out');
           return;
         }
+        if (sessBusy) sessLogin(u);                        // התחברות עם Google — העוגייה מיד, לפני מעבר הבעלים
         sessCheck(true);
         let hasDoc = null;                                 // לא ידוע (בלי רשת) — accountSwitchTo נזהר
         try { const snap = await fs.collection('users').doc(u.uid).get(); hasDoc = !!(snap.exists && (snap.data() || {}).db); } catch (e) {}

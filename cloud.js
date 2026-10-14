@@ -61,13 +61,20 @@
   }
   const sessMark = (on) => { try { if (on) localStorage.setItem(LS_SESS, '1'); else localStorage.removeItem(LS_SESS); } catch (e) {} };
   const sessMarked = () => { try { return localStorage.getItem(LS_SESS) === '1'; } catch (e) { return false; } };
-  /* אחרי התחברות עם Google — העוגייה (השרתון מנפיק רק מהתחברות של עד 5 דקות) */
-  async function sessLogin(u) {
-    if (!u || !sessBase()) return;
-    try {
-      const j = await sessCall({ op: 'login', idToken: await u.getIdToken() });
-      if (j && j.ok) sessMark(true);
-    } catch (e) {}
+  /* אחרי התחברות עם Google — העוגייה (השרתון מנפיק רק מהתחברות של עד 5 דקות). בקשה אחת בכל פעם (sessLoginP):
+     onAuthStateChanged מתחיל אותה כבר כשהמשתמש מגיע, ומעבר הבעלים מחכה לה לפני הטעינה מחדש — עד 14/10/2026 הטעינה
+     (התחברות אחרי "התנתק" = בעלים חדש) קטעה את הבקשה, העוגייה לא נשמרה, ו־Academy/Studio לא התחברו לבד. */
+  let sessLoginP = null;
+  function sessLogin(u) {
+    if (!u || !sessBase()) return Promise.resolve();
+    if (sessLoginP) return sessLoginP;
+    sessLoginP = (async () => {
+      try {
+        const j = await sessCall({ op: 'login', idToken: await u.getIdToken() });
+        if (j && j.ok) sessMark(true);
+      } catch (e) {}
+    })().finally(() => { sessLoginP = null; });
+    return sessLoginP;
   }
   /* "מי מחובר?" — אין משתמש כאן ויש עוגייה → מתחברים בשקט */
   async function sessSignIn() {
@@ -345,7 +352,8 @@
     let last = 0;
     try { last = +sessionStorage.getItem('pwa_owner_rl') || 0; sessionStorage.setItem('pwa_owner_rl', String(Date.now())); } catch (e) {}
     if (Date.now() - last < 8000) return 'stuck';
-    location.reload();
+    const go = () => location.reload();
+    if (sessLoginP) { sessLoginP.then(go, go); setTimeout(go, 7000); } else go();   // העוגייה קודם
     return true;
   }
   /* </auth> */
@@ -366,6 +374,7 @@
         fallback(); // v193: לא מחובר — האפליקציה ממשיכה מקומית (startApp עמיד לקריאה חוזרת)
         return;
       }
+      if (sessBusy) sessLogin(u);                        // התחברות עם Google — העוגייה מיד, לפני מעבר הבעלים
       hideLogin();
       renderAccountCard();
       sessCheck(true);
