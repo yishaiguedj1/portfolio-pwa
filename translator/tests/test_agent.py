@@ -208,7 +208,7 @@ class EventLogUnit(unittest.TestCase):
 
     def test_end_codes(self):
         e = self.A.end_code
-        self.assertEqual([e(0), e(1), e(2), e(124), e(137), e(-9), e(3)], ['done', 'fail', 'stop', 'timeout', 'oom', 'oom', 'crash'])
+        self.assertEqual([e(0), e(1), e(2), e(124), e(137), e(-9), e(3), e(4)], ['done', 'fail', 'stop', 'timeout', 'oom', 'oom', 'park', 'crash'])
 
     def test_repeated_net_collapses(self):
         for _ in range(5):
@@ -228,12 +228,12 @@ class HandleUnit(unittest.TestCase):
         sys.path.insert(0, str(HERE))
         import agent
         # 0 = הצליח, 1 = כבר דיווח, 2 = "עצור" — בלי דיווח; כל השאר = דיווח (אחרת העבודה "רצה" עד STALE_MS)
-        self.assertEqual([agent.crash_code(rc) for rc in (0, 1, 2)], ['', '', ''])
+        self.assertEqual([agent.crash_code(rc) for rc in (0, 1, 2, 3)], ['', '', '', ''], '3 = חזרה לתור (מחכה לסרטון) — דווח כבר')
         self.assertEqual(agent.crash_code(124), 'job_timeout')
         self.assertEqual(agent.crash_code(137), 'worker_oom', 'SIGKILL של מנהל הזיכרון')
         self.assertEqual(agent.crash_code(-9), 'worker_oom')
         self.assertEqual(agent.crash_code(-11), 'worker_crash')
-        self.assertEqual(agent.crash_code(3), 'worker_crash')
+        self.assertEqual(agent.crash_code(4), 'worker_crash')
 
     def test_tr_runs_auto_and_cleanup_on_crash(self):
         tmp = Path(tempfile.mkdtemp())

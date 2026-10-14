@@ -236,8 +236,9 @@ def run_child(args: list[str], timeout: int) -> int:
 
 
 def crash_code(rc: int) -> str:
-    """קוד היציאה של job.py auto → קוד שגיאה לדיווח, או '' כשאין מה לדווח (0 = הצליח, 1 = כבר דיווח, 2 = "עצור")."""
-    if rc in (0, 1, 2):
+    """קוד היציאה של job.py auto → קוד שגיאה לדיווח, או '' כשאין מה לדווח (0 = הצליח, 1 = כבר דיווח, 2 = "עצור",
+    3 = חזרה לתור — מחכה לסרטון, 15/10/2026)."""
+    if rc in (0, 1, 2, 3):
         return ''
     if rc == 124:
         return 'job_timeout'
@@ -254,6 +255,8 @@ def end_code(rc: int) -> str:
         return 'fail'
     if rc == 2:
         return 'stop'
+    if rc == 3:
+        return 'park'
     return {'job_timeout': 'timeout', 'worker_oom': 'oom'}.get(crash_code(rc), 'crash')
 
 
