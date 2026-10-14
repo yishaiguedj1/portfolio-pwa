@@ -1,5 +1,13 @@
 # Cloudflare Pages (הניסוי, ומשלב 5 גם הייצור — thesnowball-prod): הדפדפן בודק מול השרת כל קובץ בכל טעינה (ETag → 304 כשלא השתנה).
 # ברירת המחדל של Pages = 4 שעות בלי בדיקה — עותק של גרסה קודמת נכנס למטמון של הגרסה החדשה (13/10/2026, אריח המגדל האדום).
 # GitHub Pages מתעלם מהקובץ.
+# 14/10/2026 — כותרות אבטחה (משימת "יום העלייה"): frame-ancestors 'self' בכותרת (לא 'none' — הקורא והדפדוף מציגים מסמכים במסגרות באותו מקור) (ב־meta אין לו תוקף — עד היום רק הסקריפט המוטבע
+# הגן מ־clickjacking), nosniff, Referrer-Policy, הרשאות שאף דף לא משתמש בהן (בלי screen-wake-lock — הסטודיו והמשיכה מ־IBKR
+# צריכים אותו), HSTS. בלי COOP: move.html וחלון ההרשאה של Google מדברים עם החלון שפתח אותם.
 /*
   Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: frame-ancestors 'self'
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), hid=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
