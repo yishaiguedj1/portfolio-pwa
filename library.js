@@ -1015,7 +1015,7 @@ async function renderHomeNow() {
   home.textContent = '';
   const top = h('div', 'lib-top');
   const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, 'THE SNOWBALL'));
-  back.addEventListener('click', () => { if (SA) location.href = SA.home || './'; else history.back(); });
+  back.addEventListener('click', () => { if (SA) appGo(SA.home || './'); else history.back(); });
   const add = h('label', 'lib-round'); add.innerHTML = ICON.plus; add.title = T('libImport'); add.setAttribute('aria-label', T('libImport'));
   add.append(importInput());
   const learn = h('button', 'lib-round'); learn.type = 'button'; learn.innerHTML = ICON.notes; learn.setAttribute('aria-label', T('learnTitle')); learn.title = T('learnTitle');

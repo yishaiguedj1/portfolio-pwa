@@ -48,7 +48,7 @@ ok(/appPrerender\(\[APP_PAGE\.academy, APP_PAGE\.studio\]\)/.test(fn(app, 'setMa
 ok(/Supports-Loading-Mode: credentialed-prerender/.test(R('_headers')), '_headers: היעד מסכים ל־prerender מאותו אתר');
 // אנדרואיד: Academy ו־Studio בתוך האפליקציה
 const st = R('android/app/src/main/res/values/strings.xml'), ma = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
-ok(/academy\.thesnowball\.app/.test(st) && /studio\.thesnowball\.app/.test(st) && /setAdditionalTrustedOrigins\(EXTRA_ORIGINS\)/.test(ma), 'APK: Academy ו־Studio מקורות מאומתים (בלי שורת כתובת)');
+ok(/academy\.thesnowball\.app/.test(st) && /studio\.thesnowball\.app/.test(st) && /setAdditionalTrustedOrigins\(APP_ORIGINS\.filter/.test(ma), 'APK: Academy ו־Studio מקורות מאומתים (בלי שורת כתובת)');
 
 // הציור הראשון = הדף המלא
 { const head = idx.slice(0, idx.indexOf('</head>'));

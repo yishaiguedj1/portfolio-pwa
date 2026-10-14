@@ -52,7 +52,7 @@ for (const A of APPS) {
 
   const mod = read(A.mod);
   ok(/if \(SA && !restore\) [^\n]*history\.replaceState\(/.test(mod), A.app + ': הבית מחליף את רשומת הדף — "חזור" ממנו יוצא מהדף');
-  ok(/location\.href = SA\.home \|\| '\.\/'/.test(mod) && /SA\.auth\.signIn\(\)/.test(mod), A.app + ': "THE SNOWBALL" → Invest, ובלי חיבור — כפתור כניסה');
+  ok(/appGo\(SA\.home \|\| '\.\/'\)/.test(mod) && /SA\.auth\.signIn\(\)/.test(mod), A.app + ': "THE SNOWBALL" → Invest, ובלי חיבור — כפתור כניסה');
 
   const shell = (sw.match(new RegExp('const ' + A.shell + ' = \\[([\\s\\S]*?)\\];')) || [])[1] || '';
   for (const f of [A.app + '.html', A.app + '-app.js', 'strings-' + A.app + '.js', 'core.js', 'auth.js', 'shell.js', 'logo-' + A.app + '.webp', 'logo-' + A.app + '-lg.webp']) ok(shell.includes("'./" + f + "'"), A.app + ': ' + A.shell + ' כולל ' + f);

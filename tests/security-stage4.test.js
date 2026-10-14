@@ -17,7 +17,7 @@ const bm = read('ibkr-proxy/api/bookmeta.js');
 ok(/await f\(cur, \{ redirect: 'manual'/.test(bm) && !/await f\([a-z]+, \{ redirect: 'follow'/.test(bm), 'SSRF: כריכות — הפניות ידניות, כל יעד נבדק לפני הבקשה');
 ok(/diag: publicDiag\(diag\)/.test(read('ibkr-proxy/api/translate.js')), 'אבחון התרגום בתשובה — רק קודים ומספרים');
 ok(/code_challenge_method', 'S256'/.test(read('libbackup.js')) && /code_verifier: verifier/.test(read('ibkr-proxy/lib/gdrive.js')), 'PKCE בחיבור ל־Drive');
-const wd = read('android/app/src/main/java/io/github/yishaiguedj1/snowball/WidgetData.kt');
+const wd = read('android/app/src/invest/java/io/github/yishaiguedj1/snowball/WidgetData.kt');
 ok(/WidgetValidate\.items\(s\)/.test(wd) && /WidgetValidate\.list\(/.test(wd), 'ווידג׳ט: מה שמגיע מבחוץ נבדק בצורה המדויקת (WidgetValidate)');
 ok(/android:allowBackup="false"/.test(read('android/app/src/main/AndroidManifest.xml')), 'אנדרואיד: בלי גיבוי אוטומטי של נתוני האפליקציה');
 const aw = read('.github/workflows/android.yml');

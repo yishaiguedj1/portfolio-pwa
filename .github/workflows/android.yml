@@ -1,6 +1,9 @@
-# THE SNOWBALL — בניית אפליקציית האנדרואיד (APK) ופרסום בקישור קבוע.
-# רץ רק כשמשהו ב־android/ משתנה (או ידנית). מפרסם ל־Release בשם android-latest — קישור ההורדה לא משתנה:
-#   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball.apk
+# THE SNOWBALL — בניית אפליקציות האנדרואיד (APK) ופרסום בקישורים קבועים.
+# 14/10/2026: שלוש אפליקציות נפרדות (flavors ב־android/app/build.gradle.kts) — כל אחת בקישור קבוע משלה:
+#   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball.apk          (Invest — הקישור הישן)
+#   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-academy.apk
+#   https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball-studio.apk
+# רץ רק כשמשהו ב־android/ משתנה (או ידנית).
 # חתימה: הסוד SNOWBALL_KEYSTORE_B64 (+ SNOWBALL_KS_PASS). בלי הסוד — בונה עם מפתח debug ומעלה רק כ־artifact
 # (לא לקישור הקבוע), כי APK עם מפתח אחר לא מתקין את עצמו מעל הגרסה הקודמת.
 name: android
@@ -61,11 +64,14 @@ jobs:
           SNOWBALL_VERSION_NAME: 1.0.${{ github.run_number }}
         run: gradle --no-daemon assembleRelease
       - name: Rename
-        run: cp android/app/build/outputs/apk/release/app-release.apk the-snowball.apk
+        run: |
+          cp android/app/build/outputs/apk/invest/release/app-invest-release.apk the-snowball.apk
+          cp android/app/build/outputs/apk/academy/release/app-academy-release.apk the-snowball-academy.apk
+          cp android/app/build/outputs/apk/studio/release/app-studio-release.apk the-snowball-studio.apk
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: the-snowball-apk
-          path: the-snowball.apk
+          path: the-snowball*.apk
           retention-days: 14
       - name: Publish (android-latest)
         if: github.event_name != 'pull_request' && steps.ks.outputs.signed == 'true'
@@ -75,5 +81,5 @@ jobs:
           if ! gh release view android-latest > /dev/null 2>&1; then
             gh release create android-latest --title "THE SNOWBALL — אנדרואיד" --notes "הגרסה האחרונה של אפליקציית האנדרואיד. הקישור להורדה קבוע." --latest=false
           fi
-          gh release upload android-latest the-snowball.apk --clobber
+          gh release upload android-latest the-snowball.apk the-snowball-academy.apk the-snowball-studio.apk --clobber
           gh release edit android-latest --notes "הגרסה האחרונה: 1.0.${{ github.run_number }} (${GITHUB_SHA::7})"

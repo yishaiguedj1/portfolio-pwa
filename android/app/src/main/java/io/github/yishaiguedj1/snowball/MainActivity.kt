@@ -51,7 +51,7 @@ class MainActivity : Activity() {
     // חזרה מהאתר (כפתור "אחורה") — סוגרים, במקום להשאיר מסך לוגו ריק
     override fun onRestart() {
         super.onRestart()
-        WidgetRefresh.now(this) // חוזרים מהאפליקציה למסך הבית — הווידג'ט מתרענן
+        Flavor.onReturn(this) // חוזרים מהאפליקציה למסך הבית — ב־Invest הווידג'ט מתרענן
         if (launched) finish()
     }
 
@@ -81,12 +81,12 @@ class MainActivity : Activity() {
         val d = i?.data
         // 2.0.0: הכתובת החדשה (invest.thesnowball.app), והישנה נשארת מוכרת בשביל קישורים ישנים (האתר הישן מעביר לחדשה)
         val ours = d != null && d.scheme == "https" &&
-            (d.host == SITE_HOST || (d.host == OLD_HOST && (d.path ?: "").startsWith(OLD_PATH)))
+            (d.host == getString(R.string.siteHost) || (d.host == OLD_HOST && (d.path ?: "").startsWith(OLD_PATH)))
         val base = if (ours) d.toString()
         else getString(R.string.launchUrl)
         // v353: ‎n=<זמן> — כתובת שונה בכל פתיחה. הלוגו בווידג'ט שולח תמיד אותה כתובת (‎#tab=stocks), ונגיעה חוזרת
         // לא תמיד הגיעה לדף ("לפעמים לא עובד"); כרטיס מניה — כתובת שונה לכל מניה. האתר מוחק את ‎n= (appSessionFromHash)
-        val app = "app=" + WidgetStore.sig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
+        val app = "app=" + Flavor.appSig(this) + "&n=" + java.lang.Long.toString(System.currentTimeMillis(), 36)
         return Uri.parse(if (base.contains('#')) "$base&$app" else "$base#$app")
     }
 
@@ -103,15 +103,16 @@ class MainActivity : Activity() {
             // נקבע לפי מצב המערכת (TWA לא יודע על מתג הערכה שבתוך האתר)
             val dark = CustomTabColorSchemeParams.Builder()
                 .setToolbarColor(Color.BLACK).setNavigationBarColor(Color.BLACK).build()
+            // 14/10/2026: לכל אפליקציה הצבע שלה (R.string.barColor — Invest ירוק, Academy כחול, Studio אדום)
             val light = CustomTabColorSchemeParams.Builder()
-                .setToolbarColor(Color.parseColor("#30D158")).setNavigationBarColor(Color.BLACK).build()
+                .setToolbarColor(Color.parseColor(getString(R.string.barColor))).setNavigationBarColor(Color.BLACK).build()
             val builder = TrustedWebActivityIntentBuilder(url)
                 .setColorScheme(CustomTabsIntent.COLOR_SCHEME_SYSTEM)
                 .setDefaultColorSchemeParams(light)
                 .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_LIGHT, light)
                 .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_DARK, dark)
-                // 14/10/2026: Academy ו־Studio — באותה אפליקציה במסך מלא (בלי שורת הכתובת של Custom Tab); assetlinks בכל אחת
-                .setAdditionalTrustedOrigins(EXTRA_ORIGINS)
+                // 14/10/2026: שתי האפליקציות האחרות — מקורות מאומתים (מעבר בתפריט כשהשנייה לא מותקנת נשאר במסך מלא)
+                .setAdditionalTrustedOrigins(APP_ORIGINS.filter { !it.endsWith("//" + getString(R.string.siteHost)) })
             // מופע שנפתח מעל ה־TWA (קישור כשהאפליקציה פתוחה) — נסגר אחרי ההעברה; השורש נשאר עד "אחורה"
             l.launch(builder, null, null, { launched = true; if (!isTaskRoot) finish() }, TwaLauncher.CCT_FALLBACK_STRATEGY)
         } catch (e: Throwable) {
@@ -160,9 +161,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private val EXTRA_ORIGINS = listOf("https://academy.thesnowball.app", "https://studio.thesnowball.app")
+        private val APP_ORIGINS = listOf("https://invest.thesnowball.app", "https://academy.thesnowball.app", "https://studio.thesnowball.app")
         private const val KEY_LAUNCHED = "snowball.launched"
-        const val SITE_HOST = "invest.thesnowball.app"
         const val OLD_HOST = "yishaiguedj1.github.io"
         const val OLD_PATH = "/portfolio-pwa"
         val CHROME_PACKAGES = listOf("com.android.chrome", "com.chrome.beta", "com.chrome.dev", "com.chrome.canary")

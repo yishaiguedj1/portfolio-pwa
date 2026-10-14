@@ -2022,7 +2022,7 @@ function pageHome(p) {
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
   pill.append(h('i'), h('span', null, apiMode() ? T('studioConnApiOn') : store.conn ? T('studioConnOn') : T('studioConnPill')));
   if (SA && SA.shell) { SA.shell.setStatus(pill); p.append(SA.shell.el); }   // עצמאי: ההדר המשותף — הלוגו של Studio במקום הכותרת, הקפסולה בהדר
-  else p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { location.href = SA.home || './'; } : null }), large(T('studioTitle')));
+  else p.append(navBar({ back: 'THE SNOWBALL', end: pill, go: SA ? () => { appGo(SA.home || './'); } : null }), large(T('studioTitle')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);   // v367: מתג החירום פעיל — כאן רואים למה עבודות לא מתחילות
   const mb = majorBanner(); if (mb) p.append(mb);   // v371: תקלה רחבה — במקום הבאנר של ההתראות (היא כבר אומרת את החשוב)
