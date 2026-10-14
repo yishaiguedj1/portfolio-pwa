@@ -899,6 +899,34 @@ function libBackPage() {                   // עמוד משנה: החלקה אח
     commit() { swipePop++; afterBack(() => history.back()); },
   };
 }
+/* 14/10/2026 (בקשת המשתמש): בין שתי הספריות רק מה שמתחת לבורר מסתובב (core: cubeHold) — ההדר והבורר נשארים במקום,
+   והסימון בבורר זז עם האצבע (בגרירה), ובשחרור משלים את התנועה (או חוזר בביטול) */
+function segHoldY() {
+  const seg = root && root.querySelector('.lib-seg');
+  if (!seg) return 0;
+  const b = seg.getBoundingClientRect();
+  return b.bottom > 0 && b.bottom < innerHeight * 0.6 ? b.bottom + 7 : 0;
+}
+function segHoldOn(from, to) {
+  const rtl = document.documentElement.dir === 'rtl', x = (k) => (k === 'mine' ? (rtl ? -100 : 100) : 0);
+  const mark = (seg, k) => {
+    seg.classList.toggle('mine', k === 'mine');
+    seg.querySelectorAll('.lib-seg-b').forEach((b, i) => { const on = (i === 0) === (k !== 'mine'); b.classList.toggle('on', on); });
+  };
+  return (el, p) => {
+    const seg = el.querySelector('.lib-seg');
+    if (!seg) return;
+    if (p === 'commit' || p === 'cancel') {
+      mark(seg, p === 'commit' ? to : from);
+      getComputedStyle(seg, '::before').transform;      // המיקום הנוכחי נקבע — הסרת hold מפעילה את המעבר ממנו
+      seg.classList.remove('hold');
+      return;
+    }
+    seg.classList.add('hold');
+    seg.style.setProperty('--segx', (x(from) + (x(to) - x(from)) * p) + '%');
+    mark(seg, p > 0.5 ? to : from);
+  };
+}
 function libSwipePage(next) {
   const cur = libSib(ui.view);
   if (!cur || (!libIsHome(cur) && !(history.state || {}).sb)) return next ? null : libBackPage();   // עמוד משנה / הגיעו לא מהבית
@@ -912,6 +940,8 @@ function libSwipePage(next) {
       if (ui.shelf !== prevShelf) { ui.shelf = prevShelf; try { localStorage.setItem(LS_SHELF, prevShelf); } catch (e) {} }
       return renderHomeNow().then(() => { if (root) root.scrollTop = y; });
     },
+    hold: libIsHome(cur) && libIsHome(to) ? segHoldY : null,
+    holdOn: segHoldOn(cur, to),
     commit() {
       const v = ui.view;
       if (libIsHome(cur) && libIsHome(to)) return;                          // בין שתי הספריות — אותה רשומה (הבית)
@@ -1136,9 +1166,9 @@ function setShelf(v) {
   if (ui.shelf === v) return;
   // 14/10/2026: שתי הספריות = שני עמודים בקובייה (כמו בהחלקה); בלי המנוע — הצלבה כמו קודם
   if (!cubeOk()) { libShow(v); navigateTo('fade', 0); return; }
-  const ghost = cubeClone(root);
+  const ghost = cubeClone(root), from = ui.shelf;
   libShow(v);
-  Promise.resolve(renderHomeNow()).then(() => { if (!root) { ghost.remove(); return; } navScroll(0); cubeGhostRun(root, ghost, cubeSideFwd(v === 'mine')); }, () => ghost.remove());
+  Promise.resolve(renderHomeNow()).then(() => { if (!root) { ghost.remove(); return; } navScroll(0); cubeGhostRun(root, ghost, cubeSideFwd(v === 'mine'), { y: segHoldY(), on: segHoldOn(from, v) }); }, () => ghost.remove());
 }
 function shelfSeg(nMine) {                 // בורר מקטעים בסגנון iOS
   const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
