@@ -1517,10 +1517,10 @@ function onPop(e) {
 }
 /* ---------------- 14/10/2026: החלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest ו־Academy) ----------------
    עמודים ראשיים = הבית ← מגדל הפיקוח ← הגדרות (כמו הלשוניות וההגדרות ב־Invest); בעמוד משנה — החלקה אחורה = "חזור"
-   (כמו האפשרויות המתקדמות ב־Invest); טאבים פנימיים = פרטים · ציר · קשורות בהתראה ובתקלה — קצרה = טאב, ארוכה = עמוד */
+   (כמו האפשרויות המתקדמות ב־Invest). בלי "החלקה קצרה" לטאבים (בקשת המשתמש) — פרטים · ציר · קשורות רק בלחיצה */
 const ST_SIB = ['home', 'tower', 'settings'];
 const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
-const ST_TABS = { alert: 'alTab', inc: 'incTab' }, ST_TAB_KEYS = ['d', 't', 'r'];
+const ST_TAB_KEYS = ['d', 't', 'r'];
 let swipePop = 0;
 function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
   if (!ST_SIB.includes(ui.view) || ui.param != null) return false;
@@ -1562,15 +1562,9 @@ function stTab(k, v) {            // טאב פנימי — התוכן נכנס �
   render('none');
   if (typeof cubeSlideIn === 'function') cubeSlideIn(segAfter(), cubeSideFwd(now > was));
 }
-function stSwipeTabs(next) {
-  const k = ST_TABS[ui.view];
-  if (!k) return null;
-  const v = ST_TAB_KEYS[ST_TAB_KEYS.indexOf(ui[k] || 'd') + (next ? 1 : -1)];
-  return v ? { els: segAfter(), go: () => stTab(k, v) } : null;
-}
 function wireStSwipe() {
   if (typeof snbSwipe !== 'function' || !root) return;
-  snbSwipe({ root: root, hasTabs: () => !!ST_TABS[ui.view], page: stSwipePage, tabs: stSwipeTabs,
+  snbSwipe({ root: root, page: stSwipePage,
     ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden])') });
 }
 /* כמו בספרייה (v350, בקשת המשתמש): "חזור" מדף הבית של הסטודיו — לסקירה. מטאב ראשי app.js כבר עבר אליה בפתיחה */
