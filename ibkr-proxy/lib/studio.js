@@ -250,7 +250,7 @@ function addCk(list, ck, now) {
 }
 const lastCk = (list) => (Array.isArray(list) && list.length ? list[list.length - 1] : null);
 /* העבודה "רצה" אבל לא דיווחה שעתיים — הסשן נפל (מיכל שנסגר, תקלה בצד של Claude) */
-const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed) && now - (job.updated || 0) > STALE_MS;
+const isStale = (job, now) => !!job && (job.state === 'running' || job.state === 'queued' && job.claimed && !job.vw) && now - (job.updated || 0) > STALE_MS;   // vw: מחכה לסרטון בתור — לא תקועה
 /* אפשר להמשיך? עבודת תרגום עם קבצים, שנכשלה / בוטלה / נתקעה, ולא הופעלה יותר מדי פעמים */
 function canResume(job, now) {
   if (!job || job.kind !== 'tr' || !(job.fa || job.fv)) return 'state';
@@ -553,12 +553,16 @@ function fireSession(j) {
 /* תקציב ההפעלות: חותמות הזמן של השעה האחרונה */
 const recentFires = (fh, now) => (Array.isArray(fh) ? fh : []).filter((t) => now - t < 3600e3).slice(-50);
 
+/* 15/10/2026: עבודה בשרת שלנו שמחכה לסרטון חוזרת לתור (park) — רק תרגום במצב API, רצה, ורק כשהסרטון באמת חסר */
+const parkable = (job) => !!(job && job.kind === 'tr' && job.state === 'running' && job.spec && job.spec.eng === 'api' && !(job.fv && job.fv.id));
 /* ---------- מצב העבודה ---------- */
 /* הופעל ולא נלקח בזמן סביר → נכשל (נבדק בכל קריאה; נשמר בכתיבה הבאה) */
 function effState(job, now) {
   // v356: הפעלה "לא ודאית" (5xx/רשת — warn) שלא נלקחה: השגיאה של Anthropic, לא "לא התחיל" (שמפנה לרשת של הסביבה)
   if (job && job.state === 'queued' && job.eng === 'api') {
     // מצב API: העבודה בתור עד ששרת פנוי לוקח אותה. שרת לקח ולא התחיל בזמן / אף שרת לא לקח — נכשלה
+    // 15/10/2026: חזרה לתור עד שהסרטון יגיע (vw = מתי) — לא "אין שרת"; 12 שעות בלי סרטון = כמו בעובד
+    if (job.vw && !job.pk) return now - job.vw > PARK_MAX ? { state: 'failed', err: 'upload_timeout', at: job.vw + PARK_MAX } : { state: 'queued', err: '' };
     if (job.pk && now - job.pk > CLAIM_WAIT.tr) return { state: 'failed', err: 'no_claim', at: job.pk + CLAIM_WAIT.tr };
     if (!job.pk && job.fired && now - job.fired > API_QUEUE_WAIT) return { state: 'failed', err: 'no_server', at: job.fired + API_QUEUE_WAIT };
     return { state: 'queued', err: '' };
@@ -604,6 +608,7 @@ function publicJob(job, now) {
     rec: recoverAt(job, now),                       // v368: תקלה חולפת — ממשיכה לבד מהרגע הזה (0 = לא)
     eng: job.eng === 'api' || job.spec && job.spec.eng === 'api' ? 'api' : 'sub',   // מצב API: השרת של המערכת
     sid: job.eng === 'api' && SRV_ID_RE.test(String(job.sid || '')) ? job.sid : '',
+    vw: job.vw && !job.pk ? 1 : 0,                   // 15/10/2026: מחכה לסרטון בתור — השרת פנוי בינתיים
     fr: job.fr && typeof job.fr.s === 'number' ? { s: job.fr.s, ms: Math.max(0, Math.round(job.fr.ms || 0)) } : null,   // v369: תוצאת ההפעלה האחרונה
     tr: normTrace(job.tr),                          // v373: עקיבה — פעולות לכל סוכן והקבוצות הנפוצות
     q: normQuality(job.q), ij: normInj(job.ij),     // v374: מדד האיכות ושומר ההזרקות
@@ -929,6 +934,7 @@ const SRV_ID_RE = /^[a-z0-9]{12}$/;
 const SRV_TOKEN_RE = /^([a-z0-9]{12})-([A-Za-z0-9_-]{43})$/;
 const SRV_MAX = 5;                          // שרתים רשומים
 const SRV_ONLINE_MS = 12 * 60e3;            // שואל כל 20 שנ׳; באמצע עבודה — דופק כל 5 דק׳
+const PARK_MAX = 12 * 3600e3;               // 15/10/2026: עבודה שחזרה לתור עד שהסרטון יגיע — עד 12 שעות (כמו upload_timeout בעובד)
 const API_QUEUE_WAIT = 6 * 3600e3;          // עבודה בתור בלי שאף שרת לקח אותה — "אין שרת זמין"
 const CAP_DEF = 10, CAP_MAX = 100, CAP_MIN_JOB = 1;
 const normCap = (c) => Math.max(CAP_MIN_JOB, Math.min(CAP_MAX, Math.round(Number(c) || CAP_DEF)));
@@ -962,7 +968,7 @@ function normHb(h) {
 }
 /* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
    מציג אותם. רק קודים מהקטלוג (בלי טקסט חופשי, בלי מזהי עבודות) — מה שלא מתאים נזרק */
-const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm', 'lost'];   // 14/10: lost = עבודה נקטעה בהפעלה מחדש
+const SRV_EV = ['up', 'job', 'done', 'fail', 'stop', 'oom', 'timeout', 'crash', 'auth', 'net', 'warm', 'lost', 'park'];   // 14/10: lost = עבודה נקטעה בהפעלה מחדש; 15/10: park = חזרה לתור עד שהסרטון יגיע
 function normEv(a) {
   const out = [];
   for (const x of Array.isArray(a) ? a.slice(-12) : []) {
@@ -1041,5 +1047,5 @@ module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpVie
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
-  serverMatches, normHb, normEv, SRV_EV, serverView, monthKey, monthUsed, addMonth, jobCap,
+  serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

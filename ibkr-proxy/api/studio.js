@@ -407,7 +407,7 @@ async function queueApi(deps, uid, job, now) {
   const st = await readStats(deps, uid);
   const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
   if (!cap) return { ok: false, error: capWhy(job, st, now) };
-  await patchJob(deps, job.id, { state: 'queued', eng: 'api', sid: '', pk: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
+  await patchJob(deps, job.id, { state: 'queued', eng: 'api', sid: '', pk: 0, vw: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
     err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now });
   return { ok: true };
 }
@@ -441,6 +441,7 @@ async function server(req, res, body, deps) {
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
+      if (job.vw && !(job.fv && job.fv.id)) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם
       const st = await readStats(deps, job.uid);
       const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
       if (!cap) {
@@ -449,7 +450,7 @@ async function server(req, res, body, deps) {
         continue;
       }
       const key = S.newKey();
-      const got = await patchIf(deps, 'studioJobs', job.id, { sid: p.sid, pk: now, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, job._ut);
+      const got = await patchIf(deps, 'studioJobs', job.id, { sid: p.sid, pk: now, vw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
       return res.status(200).json({ ok: true, job: { id: job.id, key, kind: job.kind }, now });
@@ -877,6 +878,14 @@ async function worker(req, res, body, deps) {
         up.nt = null;
       }
     }
+    let parked = false;
+    if (body.park === true) {
+      // 15/10/2026: הסרטון לא הגיע — העבודה חוזרת לתור עד שיגיע, והשרת פנוי. המפתח מת (kh), מה ששולם עובר ל־use0
+      if (!S.parkable(job)) return res.status(409).json({ ok: false, error: 'park_bad' });
+      Object.assign(up, { state: 'queued', sid: '', pk: 0, kh: '', kx: 0, vw: now, wv0: job.wv0 || now });
+      delete up.ended; delete up.err;
+      parked = true;
+    }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; if (!job.c0) up.c0 = now; }
     // v377: מחכים לסרטון מהטלפון (wv) — השעון של יעד הזמן עוצר; דיווח התקדמות הבא בלי wv ממשיך אותו (אירוע בודד — לא)
     if (body.wv === true && job.kind === 'tr') { if (!job.wv0) up.wv0 = now; }
@@ -884,6 +893,7 @@ async function worker(req, res, body, deps) {
     // Firestore שומר כאן מספרים שלמים — לכן סנטים (mucc), לא דולרים
     const spent = job.eng === 'api' && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
     if (spent > 0) up.mucc = Math.round(S.usdOf(up.use) * 100);
+    if (parked && up.use) { up.use0 = up.use; up.use = null; }   // הסשן הבא מדווח מאפס — הסכום שלו מצטרף ל־use0 (כמו ב"המשך")
     if (job.kind === 'tr' && up.state === 'failed' && (job.ar || 0) < S.AUTO_RESUME_MAX) {
       // v368: תקלה חולפת (Drive / רשת) — חלון התאוששות, ואז "המשך" אוטומטי אחד
       let kinds = [];
