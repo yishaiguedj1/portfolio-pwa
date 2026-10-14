@@ -70,6 +70,10 @@ ok(/tabCubeGo\(tabCubeDrag\(prev, name/.test(fn(app, 'tabCubeSwitch')), 'לחי�
 { const d = fn(app, 'tabCubeDrag'); ok(d.indexOf('const sy = window.scrollY') >= 0 && d.indexOf('const sy = window.scrollY') < d.indexOf("classList.add('cube-in'") && /top: top \+ sy/.test(d) && d.indexOf("pg.style.position = 'fixed'") < d.indexOf("classList.add('cube-in'") && /c\.in\.css = css0/.test(d), 'עמוד גלול: הגלילה נקראת לפני שהעמוד הנכנס מוצג, והוא מחוץ לזרימה מההתחלה (scroll anchoring הזיז את שני העמודים מהמסך באחורה)'); }
 ok(/classList\.remove\('cube-in'\); cubeFaceOff\(c\.in\)/.test(fn(app, 'tabCubeRun')), 'ביטול: העמוד הנכנס מוסתר לפני שהוא חוזר לזרימה');
 ok(/tabs\.animate\(/.test(fn(app, 'tabCubeGo')), 'עמוד גלול: שורת הלשוניות יורדת ממקומה מאחורי ההדר, לא מופיעה בבת אחת');
+ok(/function cubeHold\(root, y\)/.test(app) && /b\.top >= y\) continue/.test(fn(app, 'cubeHold')) && /cube-hold/.test(fn(app, 'cubeHold')), 'רצועה קבועה: מעתיקים רק את מה שמעל הקו, בלי סיבוב');
+ok(/cubeClipTop\(c\.out, hy\); cubeClipTop\(c\.in, hy\)/.test(fn(app, 'cubeGhostRun')) && /cubeClipTop\(s\.cube\.out, hy\)/.test(fn(app, 'snbSwipe')), 'הפאות נחתכות מתחת לרצועה — בלחיצה ובגרירה');
+ok(/holdOn\(c, 'commit'\)/.test(fn(app, 'snbSwipe')) && /holdOn\(c, 'cancel'\)/.test(fn(app, 'snbSwipe')) && /c\.hold\.remove\(\)/.test(fn(app, 'snbSwipe')), 'הרצועה משלימה/חוזרת בשחרור ויורדת בסוף');
+{ const lib = fs.readFileSync(path.join(__dirname, '..', 'library.js'), 'utf8'); ok(/hold: libIsHome\(cur\) && libIsHome\(to\) \? segHoldY : null/.test(lib) && /segHoldOn\(from, v\)/.test(lib), 'Academy: בין שתי הספריות ההדר והבורר קבועים (גרירה ולחיצה)'); }
 ok(/fitNumbers\(pg\)/.test(fn(app, 'tabCubeDrag')), 'המספרים בעמוד הנכנס מותאמים כבר בגרירה — לא משנים גודל באמצע הסיבוב');
 ok(/function tabPrewarm\(\)/.test(app) && /tabPrewarm\(\);/.test(fn(app, 'switchTab')) && /_prewarmCss/.test(fn(app, 'tabCubeDrag')), 'העמודים השכנים נצבעים מראש כשהטלפון פנוי');
 
@@ -99,7 +103,7 @@ ok(/tabCubeGo\(c, v0, c\.to, null\)/.test(fn(app, 'tabCubeCommit')) && /switchTa
 // ---- Academy
 ok(/if \(\(kind === 'push' \|\| kind === 'pop'\) && cubeOk\(\)\) return cubeNav\(kind, y\)/.test(lib), 'Academy: מעבר בין דפים (לחיצה, "חזור") = קובייה');
 ok(/const LIB_SIB = \['snb', 'mine', 'notes', 'settings'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy: ארבעה עמודים מימין לשמאל — THE SNOWBALL ← הספרייה שלי ← מה למדתי ← הגדרות');
-ok(!/libSwipeTabs/.test(lib) && /cubeGhostRun\(root, ghost, cubeSideFwd\(v === 'mine'\)\)/.test(fn(lib, 'setShelf')), 'Academy: שתי הספריות = עמודים בקובייה (גם בלחיצה על הבורר)');
+ok(!/libSwipeTabs/.test(lib) && /cubeGhostRun\(root, ghost, cubeSideFwd\(v === 'mine'\), \{ y: segHoldY\(\)/.test(fn(lib, 'setShelf')), 'Academy: שתי הספריות = עמודים בקובייה (גם בלחיצה על הבורר)');
 ok(/!\(history\.state \|\| \{\}\)\.sb\)\) return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /sb: sb/.test(fn(lib, 'goView')), 'Academy: החלקה אחורה לבית רק כשהבית באמת מתחת לרשומה');
 ok(/if \(swipePop > 0\)/.test(fn(lib, 'onPop')), 'Academy: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
 ok(/pv: pv/.test(fn(lib, 'goView')) && /return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /ui\.view = to;/.test(fn(lib, 'libBackPage')) && /swipePop\+\+; afterBack\(\(\) => history\.back\(\)\)/.test(fn(lib, 'libBackPage')), 'Academy: בעמוד משנה החלקה אחורה = "חזור" לדף הקודם (נשמר ברשומה), צמוד לאצבע');
