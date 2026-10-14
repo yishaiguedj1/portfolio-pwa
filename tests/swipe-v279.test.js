@@ -47,7 +47,7 @@ ok(/html, body \{ overscroll-behavior-x: none; \}/.test(css), 'בלי "חזור"
 ok(/s\.style\.animation = ''/.test(fn('setTabPageDirection')) && /setTabPageDirection\(prev, name\)/.test(fn('switchTab')), 'מעבר עמוד מחזיר את אנימציית הכניסה');
 ok(/try \{ wirePageSwipe\(\); \}/.test(app), 'מחובר באתחול');
 // v283: אחרי מעבר בהחלקה — לראש העמוד / לראש טאבי הרשימות
-ok(/if \(act === 'page'\) \{ switchTab\(s\.to\); swipeScrollTop\(\); \}/.test(w), 'מעבר עמוד → ראש העמוד (גם כשנשמר מיקום גלילה)');
+ok(/if \(act === 'page'\) \{ if \(s\.cube && s\.cube\.in\) tabCubeCommit\(s\.cube, Math\.max\(0, vp\)\); else switchTab\(s\.to\); swipeScrollTop\(\); \}/.test(w), 'מעבר עמוד → ראש העמוד (גם כשנשמר מיקום גלילה); 14/10/2026: ממשיך את הקובייה מאותה זווית ומהירות');
 ok(/swipeScrollTop\(document\.getElementById\('wlTabs'\), s\.sy0 \|\| 0\)/.test(w), 'מעבר רשימה → ראש טאבי הרשימות');
 const sst = fn('swipeScrollTop');
 ok(/cancelScrollRestore\(\)/.test(sst) && /position === 'sticky'/.test(sst), 'מתחת להדר ולסרגל הדביקים, בלי שחזור הגלילה');

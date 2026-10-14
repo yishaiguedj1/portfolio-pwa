@@ -282,6 +282,267 @@ function wireCoreBack() {
   window.addEventListener('popstate', backPopHandled);
 }
 
+/* ---------------- 14/10/2026: החלקה ומעבר עמודים — אותה חוקיות בשלוש האפליקציות (בקשת המשתמש) ----------------
+   הספים כוילו ב־Invest (v279→v281) ומשותפים עכשיו ל־Academy ול־Studio: משיכה ארוכה = עמוד; בעמוד עם טאבים פנימיים
+   (רשימות המעקב, שתי הספריות ב־Academy, הלשוניות של התראה/תקלה ב־Studio) — קצרה = טאב, ארוכה = עמוד, ביניהן כלום. */
+const PAGE_SWIPE_FRAC = 0.33, PAGE_SWIPE_MIN = 96, PAGE_SWIPE_EDGE = 22;
+const PAGE_FLING_V = 0.45, PAGE_FLING_FRAC = 0.15, PAGE_FLING_MIN = 56;
+const WL_SWIPE_MIN = 48, WL_SWIPE_MAX_FRAC = 0.3, WL_PAGE_FRAC = 0.55;
+/* מה ההחלקה עושה (טהורה, נבדקת): d = מרחק בכיוון, w = רוחב, v = מהירות בשחרור (px/ms), watch = על רשימת מעקב
+   עם כמה רשימות. מחזיר 'page' | 'list' | null. */
+function pageSwipeDecide(d, w, v, watch) {
+  if (watch) {
+    if (d >= w * WL_PAGE_FRAC) return 'page';
+    if (d >= WL_SWIPE_MIN && d < w * WL_SWIPE_MAX_FRAC) return 'list';
+    return null;
+  }
+  if (d >= Math.max(PAGE_SWIPE_MIN, w * PAGE_SWIPE_FRAC)) return 'page';
+  if (v >= PAGE_FLING_V && d >= Math.max(PAGE_FLING_MIN, w * PAGE_FLING_FRAC)) return 'page';
+  return null;
+}
+/* ---- מעבר "קובייה" (14/10/2026, בקשת המשתמש — כמו המעבר בין המסכים במשגר של OnePlus 15) ----
+   נמדד פריים־פריים בסרטון של המשתמש: קובייה קמורה — שני העמודים פאות סמוכות והצלע המשותפת מתקרבת אליך; הציר במרכז
+   הקובייה (חצי רוחב מאחורי המסך), והקובייה נסוגה כך שהצלע הקרובה נשארת תמיד בגובה המסך (לא גדלה ולא נחתכת); נקודת
+   המבט במרחק 1.8 רוחבי מסך (התאמה לסרטון: שגיאה של כ־1%); ההדר והרקע לא זזים. התנועה צמודה לאצבע (רבע סיבוב = רוחב
+   המסך), ואחרי השחרור — קפיץ מרוסן קריטית שממשיך מהמהירות של האצבע (כ־0.3 שנ׳, כמו בסרטון).
+   פאה = כל אלמנט במישור העמוד: נקודת הציר תמיד במרכז המסך (transform-origin יחסית לאלמנט), כך שעמוד צר מהמסך (Invest —
+   השוליים של main) מסתובב כחלק מפאה ברוחב המסך, עם רווח בצלע — כמו הווידג׳טים בסרטון.
+   אחרי השחרור / בלחיצה — Web Animations עם פריימים מחושבים מראש: רץ ב־compositor גם כשהעמוד החדש עוד נצבע. */
+const CUBE_P = 1.8, CUBE_W = 17, CUBE_RUB = 0.07;
+let cubeNow = null;                      // המעבר שרץ עכשיו (נגיעה חדשה / מעבר חדש — מסיימים אותו מיד)
+function cubeReduce() { try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+function cubeSideFwd(fwd) {              // +1 = העמוד החדש נכנס מימין (קדימה ב־LTR, אחורה ב־RTL)
+  const rtl = typeof document !== 'undefined' && String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
+  return (!!fwd !== rtl) ? 1 : -1;
+}
+function cubeTransform(p, side, isIn, vw) {   // טהורה (נבדקת): p = 0..1 מרבע סיבוב
+  const q = Math.max(0, Math.min(1, +p || 0)), th = q * Math.PI / 2, h = vw / 2;
+  const zb = h * (Math.cos(th) + Math.sin(th) - 1);   // הנסיגה: הצלע הקרובה נשארת במישור המסך
+  const a = -side * q * 90 + (isIn ? side * 90 : 0);
+  const f = (x) => Math.round(x * 100) / 100 || 0;
+  return 'perspective(' + f(CUBE_P * vw) + 'px) translateZ(' + f(-(zb + h)) + 'px) rotateY(' + f(a) + 'deg) translateZ(' + f(h) + 'px)';
+}
+function cubeSpring(p0, v0, p1) {        // טהורה (נבדקת): מיקום כל 1/60 שנ׳ — קפיץ מרוסן קריטית מהמהירות של האצבע (p לשנייה)
+  const w = CUBE_W, A = p0 - p1, B = (v0 || 0) + w * A, out = [];
+  for (let i = 0; i < 90; i++) {
+    const t = i / 60, e = Math.exp(-w * t), x = p1 + (A + B * t) * e, v = (B - w * (A + B * t)) * e;
+    out.push(Math.max(0, Math.min(1, x)));
+    if (i > 2 && Math.abs(x - p1) < 0.003 && Math.abs(v) < 0.1) break;   // פחות מחצי מעלה — לא נראה
+  }
+  out[out.length - 1] = p1;
+  return out;
+}
+/* מכין אלמנט להיות פאה. o.fix = {top, left, width} — מוצמד למסך במקום הזה; o.clip — נחתך לגובה המסך (עמוד ארוך) */
+function cubeFace(el, o) {
+  const st = el.style, f = { el: el, css: st.cssText };
+  if (o && o.fix) { st.position = 'fixed'; st.top = o.fix.top + 'px'; st.left = o.fix.left + 'px'; st.width = o.fix.width + 'px'; st.right = 'auto'; st.margin = '0'; }
+  st.transform = '';
+  const r = el.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight, n = (x) => Math.round(x * 10) / 10;
+  st.transformOrigin = n(vw / 2 - r.left) + 'px ' + n(vh / 2 - r.top) + 'px';
+  if (o && o.clip) st.clipPath = 'inset(' + n(Math.max(0, -r.top)) + 'px 0 calc(100% - ' + n(Math.max(0, vh - r.top)) + 'px) 0)';
+  st.backfaceVisibility = 'hidden'; st.webkitBackfaceVisibility = 'hidden'; st.willChange = 'transform';
+  if (o && o.dead) st.pointerEvents = 'none';   // רק היוצא; הנכנס לחיץ כבר בזמן הסיבוב
+  st.outline = 'none';                   // טבעת הפוקוס של שכבה (Academy/Studio) הסתובבה איתה כמסגרת כהה
+  return f;
+}
+function cubeFaceOff(f) { if (f && f.el) f.el.style.cssText = f.css; }
+function cubeSet(c, p) {
+  const vw = window.innerWidth;
+  c.p = p;
+  if (c.rub) { if (c.out) c.out.el.style.transform = cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw); return; }
+  if (c.out) c.out.el.style.transform = cubeTransform(p, c.side, false, vw);
+  if (c.in) c.in.el.style.transform = cubeTransform(p, c.side, true, vw);
+}
+/* מ־c.p אל p1 בקפיץ (v0 = המהירות בשחרור, p לשנייה); done(p1) אחרי הפריים האחרון. c.finish() = לסיים מיד */
+function cubeRun(c, p1, v0, done) {
+  if (cubeNow && cubeNow !== c && cubeNow.finish) cubeNow.finish();
+  const vw = window.innerWidth, ps = cubeSpring(c.p || 0, v0 || 0, p1), dur = Math.max(17, (ps.length - 1) * 1000 / 60);
+  const anims = [];
+  const one = (f, isIn) => {
+    if (!f || typeof f.el.animate !== 'function') return;
+    const kf = ps.map((p) => ({ transform: cubeTransform(c.rub ? Math.min(CUBE_RUB, p) : p, c.side, isIn, vw) }));
+    try { anims.push(f.el.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' })); } catch (e) {}
+  };
+  one(c.out, false); if (!c.rub) one(c.in, true);
+  let fin = false;
+  const end = () => {
+    if (fin) return;
+    fin = true;
+    if (cubeNow === c) cubeNow = null;
+    cubeSet(c, p1);                       // המצב הסופי ב־style לפני שהאנימציות יורדות — בלי פריים באמצע
+    anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+    try { done(p1); } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  };
+  c.finish = end;
+  cubeNow = c;
+  if (!anims.length) return end();
+  Promise.all(anims.map((a) => a.finished)).then(end, end);
+}
+/* Academy / Studio: השכבה נצבעת מחדש באותו אלמנט — הדף היוצא = העתק "מת" שלה (קנבסים, גלילה, שדות), מעליה */
+function cubeClone(el) {
+  const c = el.cloneNode(true);
+  const a = el.querySelectorAll('canvas, input, textarea, select'), b = c.querySelectorAll('canvas, input, textarea, select');
+  for (let i = 0; i < a.length && i < b.length; i++) {
+    try {
+      if (a[i].tagName === 'CANVAS') { b[i].width = a[i].width; b[i].height = a[i].height; b[i].getContext('2d').drawImage(a[i], 0, 0); }
+      else b[i].value = a[i].value;
+    } catch (e) {}
+  }
+  c.querySelectorAll('video, audio, iframe').forEach((x) => x.remove());
+  c.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));   // getElementById לא מוצא את ההעתק
+  c.removeAttribute('id'); c.classList.add('cube-ghost'); c.setAttribute('aria-hidden', 'true');
+  try { c.inert = true; } catch (e) {}
+  el.after(c);
+  c.scrollTop = el.scrollTop;
+  return c;
+}
+function cubeBackdrop(el) {              // מתחת לשכבה — רקע אטום, כדי שמה שמאחוריה (התיק) לא יבצבץ בין הפאות (לקח v330)
+  const d = document.createElement('div');
+  d.className = 'cube-bd';
+  el.before(d);
+  return d;
+}
+/* מעבר שלם בשכבה (לחיצה, "חזור"): ghost = הדף היוצא (cubeClone, לפני הציור), root = הדף החדש שכבר צויר */
+function cubeGhostRun(root, ghost, side) {
+  const bd = cubeBackdrop(root);
+  const c = { side: side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root) };
+  cubeSet(c, 0);
+  return new Promise((res) => cubeRun(c, 1, 0, () => { cubeFaceOff(c.in); ghost.remove(); bd.remove(); res(); }));
+}
+function cubeSlideIn(els, dir) {         // טאב פנימי חדש נכנס מהצד (כמו החלפת רשימת מעקב — wlSlide)
+  if (cubeReduce()) return;
+  for (const e of els) { try { e.animate([{ opacity: 0, transform: 'translateX(' + (28 * dir) + 'px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2, .9, .25, 1)' }); } catch (x) {} }
+}
+/* ההחלקה של Academy ו־Studio — העתק של המחווה של Invest (wirePageSwipe) על שכבה בגלילה פנימית.
+   o.root — השכבה (האזנה עליה; התוכן מתחלף בתוכה); o.ok() — אפשר להתחיל עכשיו; o.hasTabs() — בעמוד יש טאבים פנימיים;
+   o.page(next) → {render(), undo(), commit()} | null — העמוד השכן: render מצייר אותו לתוך root (הדף היוצא = העתק),
+   undo מחזיר את הקודם (אפשר Promise), commit = ההיסטוריה; o.tabs(next) → {els, go()} | null — הטאב השכן. */
+function snbSwipe(o) {
+  const root = o.root;
+  if (!root || root._snbSwipe) return;
+  root._snbSwipe = true;
+  let g = null;
+  const rtl = () => String((document.documentElement && document.documentElement.dir) || 'ltr') === 'rtl';
+  const clock = () => ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+  const buzz = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const blocked = (tg) => {
+    if (!tg || !tg.closest) return true;
+    if (tg.closest('canvas, input, textarea, select, video, [contenteditable="true"], .item-acts, .dlg-veil, .cube-ghost')) return true;
+    const ns = tg.closest('.no-swipe');
+    if (ns && ns !== root) return true;
+    for (let el = tg; el && el !== root && el.nodeType === 1; el = el.parentElement) {   // פס גלילה אופקי
+      if (el.scrollWidth > el.clientWidth + 2) { const ox = getComputedStyle(el).overflowX; if (ox === 'auto' || ox === 'scroll') return true; }
+    }
+    return false;
+  };
+  const tabMove = (s, x, sign) => { if (s.tab) for (const el of s.tab.els) el.style.transform = x ? 'translate3d(' + sign * x + 'px,0,0)' : ''; };
+  const tabSettle = (s, back) => {
+    if (!s.tab) return;
+    for (const el of s.tab.els) {
+      if (back) { el.style.transition = 'transform .34s cubic-bezier(.2, .9, .25, 1)'; el.style.transform = ''; setTimeout(() => { el.style.transition = ''; }, 360); }
+      else { el.style.transition = ''; el.style.transform = ''; }
+    }
+  };
+  function begin(s) {                    // התזוזה של העמוד מתחילה — העמוד השכן נצבע, או "קפיץ" כשאין
+    const pg = o.page ? o.page(s.next) : null;
+    const bd = cubeBackdrop(root);
+    if (!pg) { s.cube = { side: s.side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd: bd }; return; }
+    const ghost = cubeClone(root);
+    try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); s.cube = null; return; }
+    s.cube = { side: s.side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost: ghost, bd: bd, pg: pg };
+  }
+  root.addEventListener('touchstart', (e) => {
+    if (g) cancel();
+    if (cubeNow && cubeNow.finish) cubeNow.finish();
+    if (e.touches.length !== 1 || !root.isConnected || (o.ok && !o.ok())) return;
+    const t = e.touches[0], w = root.clientWidth || window.innerWidth || 400;
+    if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
+    const tg = e.target;
+    if (blocked(tg)) return;
+    g = { x0: t.clientX, y0: t.clientY, w: w, lock: 0, act: null, watch: !!(o.hasTabs && o.hasTabs()), samples: [[clock(), t.clientX]], tg: tg };
+    // העמוד השכן נצבע באמצע הגרירה ומוחק את האלמנט שנגעו בו — האירועים ממשיכים להגיע רק אליו (לקח v283 ב־Invest):
+    // האזנה עליו וגם על המסמך, וכל אירוע מטופל פעם אחת
+    tg.addEventListener('touchmove', move, { passive: false });
+    tg.addEventListener('touchend', end, { passive: true });
+    tg.addEventListener('touchcancel', cancel, { passive: true });
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => { if (g) move(e); }, { passive: false });
+  document.addEventListener('touchend', (e) => { if (g) end(e); }, { passive: true });
+  document.addEventListener('touchcancel', (e) => { if (g) cancel(e); }, { passive: true });
+  const unhook = (s) => { if (!s || !s.tg) return; s.tg.removeEventListener('touchmove', move); s.tg.removeEventListener('touchend', end); s.tg.removeEventListener('touchcancel', cancel); };
+  let lastEv = null;
+  const seen = (e) => { if (!e) return false; if (e === lastEv) return true; lastEv = e; return false; };
+  function move(e) {
+    if (!g || seen(e)) return;
+    if (e.touches.length !== 1) { cancel(); return; }
+    const t = e.touches[0], dx = t.clientX - g.x0, dy = t.clientY - g.y0;
+    if (!g.lock) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) { unhook(g); g = null; return; }   // גלילה אנכית — לא נוגעים
+      g.lock = 1; g.next = rtl() ? dx > 0 : dx < 0; g.side = cubeSideFwd(g.next);
+      g.tab = g.watch && o.tabs ? o.tabs(g.next) : null;
+    }
+    if (e.cancelable) e.preventDefault();
+    const now = clock();
+    g.samples.push([now, t.clientX]);
+    while (g.samples.length > 2 && now - g.samples[0][0] > 100) g.samples.shift();
+    const same = (rtl() ? dx > 0 : dx < 0) === g.next, sign = dx < 0 ? -1 : 1;
+    const d = same ? Math.abs(dx) : 0, zone = g.w * WL_SWIPE_MAX_FRAC;
+    g.d = d;
+    let p = 0, tx = 0, act;
+    if (g.watch) {
+      if (d < zone) tx = g.tab ? d * 0.5 : Math.min(18, d * 0.1);   // קצרה: רק התוכן של הטאב זז
+      else p = (d - zone) / (g.w - zone);                           // מעבר לאזור — העמוד כולו מסתובב
+      act = pageSwipeDecide(d, g.w, 0, true);
+      if (act === 'list' && !g.tab) act = null;
+    } else { p = d / g.w; act = pageSwipeDecide(d, g.w, 0, false); }
+    tabMove(g, tx, sign);
+    if (p > 0 && !g.cube) begin(g);
+    if (g.cube) cubeSet(g.cube, g.cube.rub ? p * 0.15 : p);
+    if (act === 'page' && !(g.cube && g.cube.pg)) act = null;
+    if (act !== g.act) { if (act === 'page') buzz(12); else if (act === 'list') buzz(5); }
+    g.act = act;
+  }
+  function finishCube(s, act, vp) {
+    const c = s.cube;
+    if (!c) return;
+    if (act === 'page') {
+      cubeRun(c, 1, Math.max(0, vp), () => { cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove(); c.pg.commit(); });
+      return;
+    }
+    cubeRun(c, 0, Math.min(0, vp) * (c.rub ? 0.15 : 1), () => {
+      const done = () => { cubeFaceOff(c.in); cubeFaceOff(c.rub ? c.out : null); if (c.ghost) c.ghost.remove(); c.bd.remove(); };
+      if (!c.pg) return done();
+      let r; try { r = c.pg.undo(); } catch (e) { r = null; }
+      Promise.resolve(r).then(done, done);   // הדף הקודם נצבע מחדש מאחורי ההעתק — ורק אז ההעתק יורד
+    });
+  }
+  function end(e) {
+    if (!g || seen(e)) return;
+    const s = g; g = null;
+    unhook(s);
+    if (!s.lock) return;
+    const a = s.samples[0], b = s.samples[s.samples.length - 1];
+    const v = (b[0] > a[0]) ? Math.abs(b[1] - a[1]) / (b[0] - a[0]) : 0;
+    const fwd = s.samples.length > 1 && ((b[1] - a[1] > 0) === (rtl() === s.next));   // ההטלה בכיוון המשיכה
+    let act = pageSwipeDecide(s.d || 0, s.w, fwd ? v : 0, s.watch);
+    if (act === 'page' && !(s.cube && s.cube.pg)) act = null;
+    if (act === 'list' && !s.tab) act = null;
+    tabSettle(s, act !== 'list');
+    const span = s.watch ? s.w * (1 - WL_SWIPE_MAX_FRAC) : s.w;
+    finishCube(s, act, (fwd ? v : -v) * 1000 / span);
+    if (act === 'list') s.tab.go();
+  }
+  function cancel(e) {
+    if (!g || seen(e)) return;
+    const s = g; g = null;
+    unhook(s);
+    if (!s.lock) return;
+    tabSettle(s, true);
+    finishCube(s, null, 0);
+  }
+}
+
 let _itemActs = null;
 function clearItemActions() {
   if (!_itemActs) return;

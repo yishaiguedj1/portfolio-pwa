@@ -1504,6 +1504,7 @@ function onPop(e) {
   if (!root) return;
   const ds = document.documentElement.dataset;
   if (ds.modalPop || ds.navSkip) return;   // חלון של האפליקציה נסגר ב"חזור" / back פנימי שלה — לא ניווט של הסטודיו
+  if (swipePop > 0) { swipePop--; return; }   // 14/10/2026: חזרה לבית בהחלקה — הדף כבר צויר
   const uaT = !!(e && e.hasUAVisualTransition);   // Chrome כבר הנפיש "חזור" משלו (משיכה מצד המסך) — בלי אנימציה שנייה
   const st = history.state || {};
   if (!st.studio && SA) return;            // עצמאי — יציאה מהדף, אין לאן לחזור בתוכו
@@ -1513,6 +1514,64 @@ function onPop(e) {
   leaving();
   ui.view = st.sv || 'home'; ui.param = st.sp == null ? null : st.sp;
   render('pop', uaT);
+}
+/* ---------------- 14/10/2026: החלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest ו־Academy) ----------------
+   עמודים ראשיים = הבית ← מגדל הפיקוח ← הגדרות (כמו הלשוניות וההגדרות ב־Invest); בעמוד משנה — החלקה אחורה = "חזור"
+   (כמו האפשרויות המתקדמות ב־Invest); טאבים פנימיים = פרטים · ציר · קשורות בהתראה ובתקלה — קצרה = טאב, ארוכה = עמוד */
+const ST_SIB = ['home', 'tower', 'settings'];
+const ST_NOSWIPE = ['play', 'subs', 'cut', 'cutsrc', 'sty', 'ov', 'new', 'edit', 'lang', 'connect', 'ai', 'rr'];   // עורכים, נגן וטפסים — בלי
+const ST_TABS = { alert: 'alTab', inc: 'incTab' }, ST_TAB_KEYS = ['d', 't', 'r'];
+let swipePop = 0;
+function stSibOk() {              // דף ראשי שהבית נמצא ישר מתחתיו
+  if (!ST_SIB.includes(ui.view) || ui.param != null) return false;
+  if (CW_OK) return ui.view === 'home' ? stack.length <= 1 : stack.length === 2 && stack[0].v === 'home';
+  return ui.view === 'home' ? depth() <= 1 : depth() === 2;
+}
+function stSwipePage(next) {
+  const cur = ui.view;
+  let to = null, back = null;
+  if (stSibOk()) to = ST_SIB[ST_SIB.indexOf(cur) + (next ? 1 : -1)] || null;
+  else if (!next && CW_OK && stack.length > 1) back = stack[stack.length - 2];
+  if (!to && !back) return null;
+  const pv = ui.view, pp = ui.param, y = root.scrollTop, key = viewKey();
+  return {
+    render() {
+      scrolls[key] = y;
+      leaving();
+      if (to) { ui.view = to; ui.param = null; render('sib'); } else { ui.view = back.v; ui.param = back.p; render('sibpop'); }
+    },
+    undo() { ui.view = pv; ui.param = pp; render('none'); if (root) root.scrollTop = y; },
+    commit() {
+      if (back) { stack.pop(); syncState(); return; }
+      if (CW_OK) {
+        if (to === 'home') stack = [{ v: 'home', p: null }];
+        else if (cur === 'home') stack.push({ v: to, p: null });
+        else stack[stack.length - 1] = { v: to, p: null };
+        syncState();
+      } else if (to === 'home') { swipePop++; afterBack(() => { try { history.back(); } catch (e) {} }); }
+      else if (cur === 'home') afterBack(() => { try { history.pushState(cleanState({ studio: depth() + 1, sv: to, sp: null }), ''); } catch (e) {} });
+      else afterBack(() => { try { history.replaceState(cleanState({ studio: depth(), sv: to, sp: null }), ''); } catch (e) {} });
+    },
+  };
+}
+function segAfter() { const seg = root && root.querySelector('.st-page > .st-seg'); const out = []; for (let e = seg && seg.nextElementSibling; e; e = e.nextElementSibling) out.push(e); return out; }
+function stTab(k, v) {            // טאב פנימי — התוכן נכנס מהצד של הטאב החדש (כמו החלפת רשימת מעקב)
+  const was = ST_TAB_KEYS.indexOf(ui[k] || 'd'), now = ST_TAB_KEYS.indexOf(v);
+  if (was === now) return;
+  ui[k] = v;
+  render('none');
+  if (typeof cubeSlideIn === 'function') cubeSlideIn(segAfter(), cubeSideFwd(now > was));
+}
+function stSwipeTabs(next) {
+  const k = ST_TABS[ui.view];
+  if (!k) return null;
+  const v = ST_TAB_KEYS[ST_TAB_KEYS.indexOf(ui[k] || 'd') + (next ? 1 : -1)];
+  return v ? { els: segAfter(), go: () => stTab(k, v) } : null;
+}
+function wireStSwipe() {
+  if (typeof snbSwipe !== 'function' || !root) return;
+  snbSwipe({ root: root, hasTabs: () => !!ST_TABS[ui.view], page: stSwipePage, tabs: stSwipeTabs,
+    ok: () => !!root && !ST_NOSWIPE.includes(ui.view) && !document.querySelector('.dlg-veil.on, .st-pl-menu:not([hidden])') });
 }
 /* כמו בספרייה (v350, בקשת המשתמש): "חזור" מדף הבית של הסטודיו — לסקירה. מטאב ראשי app.js כבר עבר אליה בפתיחה */
 function appToOverview() {
@@ -2782,7 +2841,7 @@ function pageAlert(p) {
   const seg = h('div', 'st-seg');
   seg.setAttribute('role', 'tablist');
   for (const [k, lbl] of [['d', T('studioAlTabD')], ['t', T('studioAlTabT', { n: a.h.length })], ['r', T('studioAlTabR', { n: rel.length })]]) {
-    const b = btn('st-seg-b' + (tab === k ? ' on' : ''), lbl, () => { ui.alTab = k; render('none'); }, 'altab:' + k);
+    const b = btn('st-seg-b' + (tab === k ? ' on' : ''), lbl, () => stTab('alTab', k), 'altab:' + k);
     b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', tab === k ? 'true' : 'false');
     seg.append(b);
   }
@@ -2988,7 +3047,7 @@ function pageInc(p) {
   const seg = h('div', 'st-seg');
   seg.setAttribute('role', 'tablist');
   for (const [k, lbl] of [['d', T('studioAlTabD')], ['t', T('studioAlTabT', { n: x.tl.length })], ['r', T('studioAlTabR', { n: x.al.length })]]) {
-    const b = btn('st-seg-b' + (tab === k ? ' on' : ''), lbl, () => { ui.incTab = k; render('none'); }, 'inctab:' + k);
+    const b = btn('st-seg-b' + (tab === k ? ' on' : ''), lbl, () => stTab('incTab', k), 'inctab:' + k);
     b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', tab === k ? 'true' : 'false');
     seg.append(b);
   }
@@ -5787,7 +5846,7 @@ const repaint = () => { if (root) livePaint(); };
 function render(kind, still) {     // kind: none (ציור מחדש במקום) / push / pop; still = בלי אנימציה (Chrome כבר הנפיש)
   if (!root) return;
   const seq = ++renderSeq;
-  const keepY = kind === 'none' ? root.scrollTop : (kind === 'pop' ? (scrolls[viewKey()] || 0) : 0);
+  const keepY = kind === 'none' ? root.scrollTop : ((kind === 'pop' || kind === 'sibpop') ? (scrolls[viewKey()] || 0) : 0);
   const ae = document.activeElement;
   const fk = ae && root.contains(ae) && ae.dataset ? ae.dataset.k : null;   // הפוקוס חוזר לאותו רכיב אחרי ציור מחדש
   if (ui.view === 'home') form = null;   // יציאה מהטופס בלי שמירה — הטיוטה לא נשמרת
@@ -5833,9 +5892,14 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'connect') pageConnect(p);
   else pageHome(p);
   if (!root || seq !== renderSeq) return;   // הדף חזר אחורה תוך כדי בנייה (טיוטה שנמחקה וכו') — הציור החדש כבר במקום
-  if ((kind === 'push' || kind === 'pop') && !still && !reduceMotion()) p.classList.add(kind === 'push' ? 'in-push' : 'in-pop');
+  /* 14/10/2026 (בקשת המשתמש): מעבר בין דפים = קובייה, כמו בשלוש האפליקציות (core: cubeClone/cubeGhostRun) — הדף היוצא =
+     העתק של השכבה, החדש נצבע בשכבה עצמה מתחתיו. בלי המנוע — הכניסה הישנה (in-push/in-pop) */
+  const anim = (kind === 'push' || kind === 'pop') && !still && !reduceMotion() && !document.hidden;
+  const ghost = anim && typeof cubeClone === 'function' && root.firstChild ? cubeClone(root) : null;
+  if (anim && !ghost) p.classList.add(kind === 'push' ? 'in-push' : 'in-pop');
   root.replaceChildren(p);
   root.scrollTop = keepY;
+  if (ghost) cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
   lastShape = shapeKey();
   if (kind === 'none' && fk) {
     const el = Array.from(root.querySelectorAll('[data-k]')).find((x) => x.dataset.k === fk);
@@ -5931,6 +5995,7 @@ export function openStudio(opt) {
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', T('studioTitle'));
   root.tabIndex = -1;
   root.addEventListener('pointerup', () => { if (CW_OK && root && !cw) watch(); }, true);   // נגיעה = הפעלת משתמש → מאזין חדש אם חסר
+  wireStSwipe();                          // 14/10/2026: החלקה בין עמודים ובין טאבים (core: snbSwipe)
   if (!CW_OK && !window._stKey) {          // עם CloseWatcher גם Escape הוא בקשת סגירה — בלי מאזין משלנו
     window._stKey = true;
     document.addEventListener('keydown', (e) => {

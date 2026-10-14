@@ -16,7 +16,7 @@ ok(/if \(m\.pushed\) pushedClosed = true;/.test(wb) && /if \(pushedClosed\) \{[^
   'חלון בלי רשומה נסגר ב"חזור" בלי לבלוע את הניווט; חלון עם רשומה — ה"חזור" שלו');
 ok(/delete c\.modal; delete c\.sheet; history\.replaceState\(c, ''\)/.test(app), 'אתחול: שרידי modal/sheet ברשומה אחרי רענון מנוקים');
 ok(/if \(name !== prev\) \{ try \{ closeSrcPops\(\); clearItemActions\(\); \} catch \(e\) \{\} \}/.test(fn(app, 'switchTab')), 'מעבר טאב סוגר בועת סינון/כפתורי לחיצה ארוכה (רשומת החלון לא נשארת)');
-ok(/function cleanState\(extra\)[^\n]*delete st\.sheet; delete st\.modal;/.test(lib) && /history\.pushState\(cleanState\(\{ lib: 1, lv: v \}\), ''\)/.test(lib) && /const st = cleanState\(\{ lib: 2, book: id \}\);/.test(lib), 'ספרייה: רשומה חדשה (דף/קורא) בלי שרידי sheet/modal');
+ok(/function cleanState\(extra\)[^\n]*delete st\.sheet; delete st\.modal;/.test(lib) && /history\.pushState\(cleanState\(\{ lib: 1, lv: v, sb: sb \}\), ''\)/.test(lib) && /const st = cleanState\(\{ lib: 2, book: id \}\);/.test(lib), 'ספרייה: רשומה חדשה (דף/קורא) בלי שרידי sheet/modal');
 const sh = fn(lib, 'sheet');
 ok(/if \(!\(ua && !ua\.isActive\)\) afterBack/.test(sh) && /veil\._pushed = true/.test(sh), 'sheet(): רשומה רק עם הפעלת משתמש, מסומנת על הגיליון');
 ok(/const own = !!v\._pushed;[^\n]*\n\s*if \(own\) return;/.test(fn(lib, 'onPop')), 'onPop: גיליון בלי רשומה נסגר וממשיכים בניווט');

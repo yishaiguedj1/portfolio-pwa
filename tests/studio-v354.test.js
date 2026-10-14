@@ -99,8 +99,8 @@ else ok(true, 'sw.js עוד בגרסה הקודמת (שלב התוכן בפרו�
 
 /* ---------- 4. "חזור" והיסטוריה ---------- */
 ok(/function cleanState\(extra\) \{ const st = Object\.assign\(\{\}, history\.state \|\| \{\}, extra\);/.test(st), 'רשומות הסטודיו שומרות את שדות האפליקציה (snb) — "חזור" של האפליקציה לא מחליף טאב');
-ok((st.match(/history\.pushState\(/g) || []).length === 2 && (st.match(/history\.pushState\(cleanState\(/g) || []).length === 2, 'כל pushState דרך cleanState');
-ok((st.match(/afterBack\(\(\) => \{ try \{ history\.pushState/g) || []).length === 2 && /afterBack\(\(\) => \{ try \{ history\.back\(\); \}/.test(st) && /afterBack\(\(\) => \{ try \{ if \(root && history\.state && history\.state\.studio\) history\.replaceState/.test(st), 'pushState/replaceState/back אחרי back ממתין (snbAfterBack, לקח v322)');
+ok((st.match(/history\.pushState\(/g) || []).length === 3 && (st.match(/history\.pushState\(cleanState\(/g) || []).length === 3, 'כל pushState דרך cleanState (14/10/2026: גם ההחלקה לעמוד ראשי)');
+ok((st.match(/afterBack\(\(\) => \{ try \{ history\.pushState/g) || []).length === 3 && /afterBack\(\(\) => \{ try \{ history\.back\(\); \}/.test(st) && /afterBack\(\(\) => \{ try \{ if \(root && history\.state && history\.state\.studio\) history\.replaceState/.test(st), 'pushState/replaceState/back אחרי back ממתין (snbAfterBack, לקח v322)');
 // לקח v350–v352: "חזור" כניווט בהיסטוריה = צילום של Chrome במשיכה מהצד ("קפיצה") — CloseWatcher כשיש
 ok(/const CW_OK = typeof window !== 'undefined' && typeof window\.CloseWatcher === 'function';/.test(st), 'CloseWatcher כשהדפדפן תומך');
 ok(/if \(CW_OK\) \{ stack\.push\(\{ v: view, p \}\); syncState\(\); \}/.test(st) && /else afterBack\(\(\) => \{ try \{ history\.pushState\(cleanState\(\{ studio: depth\(\) \+ 1/.test(st), 'עם CloseWatcher — דף חדש בלי רשומה (replaceState בלבד); בלי — רשומה לכל דף');
