@@ -182,6 +182,12 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
       'workflow: עצירה סופית (תקרה, שם קיים, הרשאה, שגיאה) — מכבה ופותח Issue');
     ok(/catch\(\(err\) => \{\s*\/\/[^\n]*\n\s*out\('stopped'/.test(read('tools/server-autobuy.js')), 'הכלי: שגיאה = stopped ל־GITHUB_OUTPUT');
     ok(!/environment: production/.test(w), 'workflow: בלי שלב אישור (החלטת המשתמש — אוטומטי לגמרי, עם תקרה)');
+    // 14/10/2026: ההזמנה האוטומטית בונה את אותו קוד הקמה (planFiles) — כל סוד שההקמה הידנית מעבירה לקוד ההקמה
+    // חייב לעבור גם כאן (עד היום חסרו STG_GDRIVE_* — שרת שהוזמן לבד היה עולה בלי הגיבוי ל־Drive בניסוי)
+    const sec = (t) => new Set((t.match(/secrets\.([A-Z0-9_]+)/g) || []).map((x) => x.slice(8)));
+    const srv = sec(read('.github/workflows/server.yml')), auto = sec(w);
+    const miss = [...srv].filter((k) => !auto.has(k));
+    ok(!miss.length, 'workflow: כל הסודות של "הקמת שרת" עוברים גם בהזמנה האוטומטית' + (miss.length ? ' (חסרים: ' + miss.join(', ') + ')' : ''));
     const src = read('tools/server-autobuy.js');
     ok(!/console\.(log|error)\([^)]*(token|user_data|ud\b|E\.|HCLOUD)/.test(src) && !/writeFileSync\([^)]*ud/.test(src), 'הכלי לא מדפיס ולא כותב לדיסק את קוד ההקמה או סודות');
   }
