@@ -79,7 +79,10 @@ class MainActivity : Activity() {
        ומסנכרן רשימה רק כשיש הבדל (app.js → appWidgetSync). hash — לא משנה את הכתובת במטמון של ה־SW */
     private fun urlFor(i: Intent?): Uri {
         val d = i?.data
-        val base = if (d != null && d.scheme == "https" && d.host == SITE_HOST && (d.path ?: "").startsWith(SITE_PATH)) d.toString()
+        // 2.0.0: הכתובת החדשה (invest.thesnowball.app), והישנה נשארת מוכרת בשביל קישורים ישנים (האתר הישן מעביר לחדשה)
+        val ours = d != null && d.scheme == "https" &&
+            (d.host == SITE_HOST || (d.host == OLD_HOST && (d.path ?: "").startsWith(OLD_PATH)))
+        val base = if (ours) d.toString()
         else getString(R.string.launchUrl)
         // v353: ‎n=<זמן> — כתובת שונה בכל פתיחה. הלוגו בווידג'ט שולח תמיד אותה כתובת (‎#tab=stocks), ונגיעה חוזרת
         // לא תמיד הגיעה לדף ("לפעמים לא עובד"); כרטיס מניה — כתובת שונה לכל מניה. האתר מוחק את ‎n= (appSessionFromHash)
@@ -156,8 +159,9 @@ class MainActivity : Activity() {
 
     companion object {
         private const val KEY_LAUNCHED = "snowball.launched"
-        const val SITE_HOST = "yishaiguedj1.github.io"
-        const val SITE_PATH = "/portfolio-pwa"
+        const val SITE_HOST = "invest.thesnowball.app"
+        const val OLD_HOST = "yishaiguedj1.github.io"
+        const val OLD_PATH = "/portfolio-pwa"
         val CHROME_PACKAGES = listOf("com.android.chrome", "com.chrome.beta", "com.chrome.dev", "com.chrome.canary")
     }
 }

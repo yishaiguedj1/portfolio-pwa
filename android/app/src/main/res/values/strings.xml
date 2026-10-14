@@ -4,9 +4,9 @@
     <string name="loading">טוען…</string>
     <string name="openFailed">לא הצלחתי לפתוח את האתר. צלם את המסך ושלח:</string>
     <string name="noBrowser">לא נמצא דפדפן. התקן את Chrome ונסה שוב.</string>
-    <string name="launchUrl">https://yishaiguedj1.github.io/portfolio-pwa/</string>
-    <!-- אימות הקשר לאתר (Digital Asset Links). בלי assetlinks.json בשורש הדומיין — נפתח עם שורת כתובת דקה של כרום -->
-    <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://yishaiguedj1.github.io\"}}]</string>
+    <string name="launchUrl">https://invest.thesnowball.app/</string>
+    <!-- אימות הקשר לאתר (Digital Asset Links). בלי assetlinks.json בשורש הדומיין — נפתח עם שורת כתובת דקה של כרום. 2.0.0: הכתובת החדשה (‎.well-known/assetlinks.json בריפו) + הישנה -->
+    <string name="assetStatements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://invest.thesnowball.app\"}}, {\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://yishaiguedj1.github.io\"}}]</string>
     <string name="wUpdated">עודכן %1$s</string>
     <string name="wManual">ידני</string>
     <string name="wDesc">כל התיק במסך הבית: מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה.</string>
