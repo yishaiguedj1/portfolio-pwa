@@ -11,7 +11,9 @@ const mkStore = () => { const m = new Map(); return { getItem: (k) => (m.has(k) 
 const tick = (ms) => new Promise((r) => setTimeout(r, ms || 15));
 
 /* host: הכתובת של האתר; server(body) → תשובת /api/session; uid: מי מחובר ב־Firebase בפתיחה */
-function run(host, server, uid, ls) {
+function run(host, server, uid, ls, opt) {
+  opt = opt || {};
+  const reloads = [];
   ls = ls || mkStore();
   const calls = [], customs = [], listeners = {};
   let authCb = null, signOuts = 0, cur = uid ? { uid } : null, loginBtn = null;
@@ -29,7 +31,7 @@ function run(host, server, uid, ls) {
   };
   const sb = {
     localStorage: ls, sessionStorage: mkStore(), console, setTimeout, clearTimeout, URL, JSON,
-    location: { hostname: host, reload() {} },
+    location: { hostname: host, reload() { reloads.push(opt.at ? opt.at() : 1); } },
     SNB_ENV: { proxy: /staging/.test(host) ? 'https://api-staging.thesnowball.app' : /thesnowball/.test(host) ? 'https://api.thesnowball.app' : 'https://ibkr-proxy-wine.vercel.app' },
     fetch: async (url, init) => { const body = JSON.parse(init.body); calls.push({ url, init, body }); const j = await server(body); return { status: j ? 200 : 500, json: async () => j }; },
     document: { hidden: false, getElementById: el, querySelector: () => null, querySelectorAll: () => [],
@@ -39,7 +41,7 @@ function run(host, server, uid, ls) {
     firebase: { apps: [], initializeApp() { this.apps.push(1); }, auth: Object.assign(() => auth, { GoogleAuthProvider: function () {} }), firestore },
     DB: { positions: [], deposits: [] }, t: (k) => k, num: (x) => +x || 0, isDemoMode: () => false, setBanner() {},
     stripLegacyDemo: () => false, ensurePensionKinds() {}, saveDBto() {}, demoDb: () => ({ positions: [], deposits: [] }), applyDbData() {},
-    accountOwner: () => 'x', accountSwitchTo: () => false,
+    accountOwner: () => 'x', accountSwitchTo: (u) => !!(opt.switchTo && u),
   };
   sb.window = sb;
   vm.createContext(sb);
@@ -48,7 +50,7 @@ function run(host, server, uid, ls) {
   return new Promise((resolve) => setTimeout(async () => {
     authCb(cur);
     await tick(40);
-    resolve({ calls, customs, get signOuts() { return signOuts; }, ls, sb, listeners, auth, get cur() { return cur; }, loginBtn: () => loginBtn });
+    resolve({ reloads, calls, customs, get signOuts() { return signOuts; }, ls, sb, listeners, auth, get cur() { return cur; }, loginBtn: () => loginBtn });
   }, 20));
 }
 
@@ -113,6 +115,18 @@ function run(host, server, uid, ls) {
   await r.loginBtn()._click();
   await tick(120);
   ok(r.signOuts === 0, 'בדיקה במקביל להתחברות (העוגייה עוד לא קיימת) — לא מנתקת');
+
+  /* 9ג. התחברות אחרי "התנתק" = בעלים חדש → טעינה מחדש. עד 14/10/2026 היא קטעה את בקשת העוגייה (Academy/Studio לא
+     התחברו לבד); עכשיו הבקשה יוצאת כבר ב־onAuthStateChanged, והטעינה מחכה לה */
+  let done = false;
+  r = await run('thesnowball.app', (b) => (b.op === 'login'
+    ? new Promise((res) => setTimeout(() => { done = true; res({ ok: true }); }, 80))
+    : { ok: true, s: 0 }), null, null, { switchTo: true, at: () => done });
+  r.loginBtn()._click();
+  await tick(40);
+  ok(r.calls.filter((c) => c.body.op === 'login').length === 1 && r.reloads.length === 0, 'בעלים חדש — בקשת העוגייה יצאה אחת, והטעינה מחכה לה');
+  await tick(120);
+  ok(r.reloads[0] === true && r.ls.getItem('pwa_sess_v1') === '1', 'הטעינה מחדש רק אחרי שהעוגייה נשמרה');
 
   /* 10. התנתקות → גם העוגייה */
   ls = mkStore(); ls.setItem('pwa_sess_v1', '1');
