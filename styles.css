@@ -368,6 +368,13 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 @keyframes tabIn { from { opacity: .55; transform: translate3d(var(--tab-dx, 0px), 0, 0); } to { opacity: 1; transform: none; } }   /* v325: לא מ־0 — הישן כבר display:none והחדש היה שקוף לפריים שלם = מסך ריק (במצב כהה הבהוב שחור, נמדד ב־QA) */
 @keyframes fade { from { opacity: .4; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .tabpage.active { animation: fade .15s ease; } }
+/* 14/10/2026: מעבר "קובייה" (המנוע ב־app.js, <core>: cubeTransform). העמוד הנכנס בגרירה מוצג בלי להיות פעיל (cube-in),
+   היוצא נשאר מוצג עד סוף הסיבוב (cube-out); אחרי קובייה — בלי אנימציית הכניסה (no-in, עד שהעמוד יוצא) */
+.tabpage.cube-in, .tabpage.cube-out { display: block; }
+.tabpage.no-in { animation: none; }
+/* Academy / Studio: הדף היוצא = העתק "מת" של השכבה — בלי אנימציות כניסה שמתחילות מחדש בהעתק; רקע אטום מתחת לשכבה */
+.cube-ghost, .cube-ghost * { animation: none !important; transition: none !important; }
+.cube-bd { position: fixed; inset: 0; z-index: 899; background: var(--bg); pointer-events: none; }
 
 .card {
   background: var(--surface);

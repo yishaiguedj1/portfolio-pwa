@@ -862,7 +862,56 @@ function libTransition(kind, update) {
 }
 function renderHome(kind) { return libTransition(kind || 'none', renderHomeNow); }
 function navigateTo(kind, y) {           // ציור הדף הנוכחי (ui.view) + גלילה ליעד — בתוך אותו מעבר
+  if ((kind === 'push' || kind === 'pop') && cubeOk()) return cubeNav(kind, y);
   return libTransition(kind, async () => { await renderHomeNow(); pinScroll(y || 0); });
+}
+/* 14/10/2026 (בקשת המשתמש): מעבר בין דפים = קובייה, כמו בשלוש האפליקציות (המנוע ב־core: cubeClone/cubeGhostRun).
+   הדף היוצא = העתק של השכבה, הדף החדש נצבע בשכבה עצמה מתחתיו — ואז שניהם מסתובבים. דחיפה = קדימה, חזרה = אחורה */
+const cubeOk = () => !!root && !rd && !VT.inside && typeof cubeClone === 'function' && !cubeReduce() && !document.hidden;
+async function cubeNav(kind, y) {
+  const ghost = cubeClone(root);
+  try { await renderHomeNow(); pinScroll(y || 0); } catch (e) { ghost.remove(); throw e; }
+  if (!root) { ghost.remove(); return; }
+  await cubeGhostRun(root, ghost, cubeSideFwd(kind === 'push'));
+}
+/* ההחלקה (core: snbSwipe — אותה חוקיות כמו ב־Invest): עמודים ראשיים = הבית ← "מה למדתי" ← הגדרות (כמו הלשוניות
+   וההגדרות ב־Invest); טאבים פנימיים בבית = THE SNOWBALL ↔ הספרייה שלי (כמו רשימות המעקב) — קצרה = ספרייה, ארוכה = עמוד */
+const LIB_SIB = ['home', 'notes', 'settings'];
+function libSib(v) {
+  if (!v) return 'home';
+  const k = Object.keys(v);
+  return k.length === 1 && (k[0] === 'notes' || k[0] === 'settings') ? k[0] : null;
+}
+let swipePop = 0;                          // חזרה לבית בהחלקה — הדף כבר צויר; ה־popstate שלה לא מצייר שוב
+function libSwipePage(next) {
+  const cur = libSib(ui.view);
+  if (!cur || rd) return null;
+  if (cur !== 'home' && !(history.state || {}).sb) return null;   // הגיעו לכאן לא מהבית — מתחת לרשומה אין את הבית
+  const to = LIB_SIB[LIB_SIB.indexOf(cur) + (next ? 1 : -1)];
+  if (!to) return null;
+  const prev = ui.view, y = root.scrollTop;
+  return {
+    render() { saveLibScroll(); ui.view = to === 'home' ? null : { [to]: 1 }; root.scrollTop = 0; renderHomeNow().then(() => { if (root) root.scrollTop = 0; }); },
+    undo() { ui.view = prev; return renderHomeNow().then(() => { if (root) root.scrollTop = y; }); },
+    commit() {
+      const v = ui.view;
+      if (to === 'home') { swipePop++; afterBack(() => history.back()); }
+      else if (cur === 'home') afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: 1 }), ''));
+      else afterBack(() => history.replaceState(cleanState({ lib: 1, lv: v, sb: 1 }), ''));
+    },
+  };
+}
+const afterSeg = (seg) => { const out = []; for (let e = seg && seg.nextElementSibling; e; e = e.nextElementSibling) out.push(e); return out; };
+function libSwipeTabs(next) {
+  if (libSib(ui.view) !== 'home' || rd) return null;
+  const to = ['snb', 'mine'][(ui.shelf === 'mine' ? 1 : 0) + (next ? 1 : -1)];
+  if (!to) return null;
+  return { els: afterSeg(root.querySelector('.lib-home > .lib-seg')), go: () => setShelf(to) };
+}
+function wireLibSwipe() {
+  if (typeof snbSwipe !== 'function' || !root) return;
+  snbSwipe({ root: root, ok: () => !!root && !rd && !root.querySelector('.lib-veil:not(.out)') && !VT.inside,
+    hasTabs: () => libSib(ui.view) === 'home' && !rd, page: libSwipePage, tabs: libSwipeTabs });
 }
 let pinT = 0;
 function navScroll(y) {                  // גלילה תוכנתית של מעבר דף — מסומנת (data-nav-scroll) כדי שכלי המדידה לא יספור אותה כקפיצה
@@ -889,8 +938,9 @@ function pinScroll(y) {                  // הדף מתארך אחרי הציו�
 }
 function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
   saveLibScroll();
+  const sb = libSib(ui.view) === 'home' && (libSib(v) === 'notes' || libSib(v) === 'settings') ? 1 : 0;   // מהבית — ההחלקה אחורה מגיעה לבית
   ui.view = v;
-  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v }), ''));
+  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: sb }), ''));
   navigateTo('push', 0).then(() => { if (root) try { root.focus({ preventScroll: true }); } catch (e) {} });
 }
 
@@ -1071,9 +1121,12 @@ async function renderHomeNow() {
 /* ---------------- v318: שתי ספריות + גיבוי ל־Google Drive (ממשק) ---------------- */
 function setShelf(v) {
   if (ui.shelf === v) return;
+  const dir = typeof cubeSideFwd === 'function' ? cubeSideFwd(v === 'mine') : 0;
   ui.shelf = v; ui.author = SHELF; ui.q = '';   // v321: כל ספרייה נפתחת במדף
   try { localStorage.setItem(LS_SHELF, v); } catch (e) {}
-  navigateTo('fade', 0);
+  // 14/10/2026: כמו החלפת רשימת מעקב — התוכן שמתחת לבורר נכנס מהצד של הספרייה החדשה (לא הצלבה)
+  if (!dir) { navigateTo('fade', 0); return; }
+  navigateTo('none', 0).then(() => { if (root) cubeSlideIn(afterSeg(root.querySelector('.lib-home > .lib-seg')), dir); });
 }
 function shelfSeg(nMine) {                 // בורר מקטעים בסגנון iOS
   const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
@@ -4153,6 +4206,7 @@ function onPop(e) {
   if (sheetSkip > 0) { sheetSkip--; if (!sheetSkip) sheetClosed = null; const v = root && root.querySelector('.lib-veil.out'); if (v && v._settled) v._settled(); return; }   // v322: סגירה תוכנתית של גיליון — ה־back שלנו
   const ds = document.documentElement.dataset;
   if (ds.modalPop || ds.navSkip) return; // v322: חלון של האפליקציה נסגר ב"חזור" / ה־back שלה (סגירת כפתורי לחיצה ארוכה) — לא ניווט של הספרייה
+  if (swipePop > 0) { swipePop--; ui.view = (history.state && history.state.lv) || null; return; }   // 14/10/2026: חזרה לבית בהחלקה — כבר צויר
   const st = history.state || {};
   const lvl = st.lib || 0;
   const veils = root ? Array.from(root.querySelectorAll('.lib-veil:not(.out)')) : [];
@@ -4246,6 +4300,7 @@ export async function openLibrary(opt) {
     });
   }
   root.append(h('div', 'lib-home'));
+  wireLibSwipe();                          // 14/10/2026: החלקה בין עמודים ובין שתי הספריות (core: snbSwipe)
   // v316: לחיצה ארוכה על כריכה פתחה את תפריט הדפדפן ("הורדת תמונה") — אצלנו לחיצה ארוכה = עריכה/מחיקה
   root.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.lib-item, .lib-cover, .ed-cv, .ed-th')) e.preventDefault(); });
   document.body.append(root);
