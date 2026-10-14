@@ -470,6 +470,9 @@ he: {
   pfbkAccount: 'חשבון',
   pfbkLast: 'גיבוי אחרון',
   pfbkItems: 'פריטים בגיבוי',
+  pfbkItemsN: '{n} פריטים',
+  pfbkSecRestore: 'שחזור',
+  pfbkRsNote: 'בשחזור נוסף רק מה שחסר בטלפון — שום דבר לא נמחק ולא נכפל.',
   pfbkAuto: 'גיבוי אוטומטי',
   pfbkNow: 'לגבות עכשיו',
   pfbkBacking: 'מגבה…',
@@ -1056,6 +1059,9 @@ en: {
   pfbkAccount: 'Account',
   pfbkLast: 'Last backup',
   pfbkItems: 'Items in backup',
+  pfbkItemsN: '{n} items',
+  pfbkSecRestore: 'Restore',
+  pfbkRsNote: 'Restoring only adds what is missing on this phone — nothing is deleted or duplicated.',
   pfbkAuto: 'Automatic backup',
   pfbkNow: 'Back up now',
   pfbkBacking: 'Backing up…',
@@ -7105,9 +7111,9 @@ function tabShouldRender(name) {
   tabDirty[name] = true;
   return false;
 }
-const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings', 'advanced']; // v287: advanced = עמוד משנה של ההגדרות
+const TAB_ORDER = ['overview', 'stocks', 'trades', 'wishlist', 'deposits', 'pension', 'settings', 'advanced', 'backup']; // v287: advanced = עמוד משנה של ההגדרות; 14/10/2026: backup (גיבוי ל־Google Drive) — גם
 function tabRenderer(name) {
-  return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive }[name] || null;
+  return { overview: renderOverview, stocks: renderStocks, trades: renderTrades, wishlist: renderWishlist, deposits: renderDeposits, pension: renderPension, settings: renderSettingsLive, advanced: renderSettingsLive, backup: pfbkPaint }[name] || null;
 }
 /* v193: גלולה ירוקה שמחליקה בין הלשוניות (במקום רקע שקופץ) — כמו בורר מקטעים של אפל. ממוקמת פיזית (offsetLeft),
    עובד ב־RTL וב־LTR ובתוך סרגל שגולל. הפעם הראשונה — בלי אנימציה. */
@@ -7148,8 +7154,12 @@ function setTabPageDirection(prev, name) {
    אפשרויות מתקדמות = 2 — ורשומה בהיסטוריה לכל רמה ({snb: עומק}). "חזור" מהמתקדמות → הגדרות, מההגדרות → הסקירה
    (העמוד הראשי), ומהעמוד הראשי — יציאה כרגיל. מעבר ישיר לעמוד רדוד יותר (לשונית, "‹ הגדרות") מקצר את ההיסטוריה
    בהתאם (history.go שלילי, בלי לטפל ב־popstate שנוצר ממנו). */
-function navDepth(name) { return name === 'advanced' ? 2 : name === 'settings' ? 1 : 0; }
-function navTabForDepth(d) { return d >= 2 ? 'advanced' : d === 1 ? 'settings' : 'overview'; }
+const NAV_SUBS = 'advanced backup'.split(' '); // עמודי משנה של ההגדרות (רמה 2); איזה מהם — ב־sub של הרשומה (מחרוזת — לא מערך זוגות, שבדיקת התרגום קוראת כמפתח)
+function navDepth(name) { return NAV_SUBS.indexOf(name) >= 0 ? 2 : name === 'settings' ? 1 : 0; }
+function navTabForDepth(d) {
+  if (d >= 2) { let s = ''; try { s = (history.state && history.state.sub) || ''; } catch (e) {} return NAV_SUBS.indexOf(s) >= 0 ? s : 'advanced'; }
+  return d === 1 ? 'settings' : 'overview';
+}
 /* <core> */
 let _navSkipPop = 0;
 /* </core> */
@@ -7159,7 +7169,7 @@ function navSync(name, opts) {
   afterBack(() => {
     const cur = navCurDepth(), target = navDepth(name);
     try {
-      if (target > cur) { for (let d = cur + 1; d <= target; d++) history.pushState(Object.assign({}, history.state || {}, { snb: d }), ''); }
+      if (target > cur) { for (let d = cur + 1; d <= target; d++) history.pushState(Object.assign({}, history.state || {}, { snb: d }, d === 2 ? { sub: name } : {}), ''); }
       else if (target < cur) navBack(target - cur);
     } catch (e) {}
   });
@@ -7232,6 +7242,7 @@ function wireBackNav() {
 function switchTab(name, opts) {
   const prev = currentTabName();
   const cubeDone = !!(opts && opts.cubeDone);
+  if (prev === 'backup' && name !== 'backup' && _pfbkRs) pfbkRsClose(); // מסך השחזור נסגר עם העמוד
   if (!cubeDone && cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: מעבר קודם עוד מסתובב — מסיימים אותו מיד
   if (!cubeDone && tabCubeOk(prev, name, opts)) return tabCubeSwitch(prev, name, opts); // מעבר בקובייה (בסוף: כאן שוב, cubeDone)
   if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
@@ -11108,7 +11119,7 @@ function wireResetSheet() {
 }
 /* ---------------- 14/10/2026: גיבוי ושחזור ל־Google Drive — שורה בהגדרות → גיליון (pfbackup.js נטען רק כשצריך) ----------------
    החיבור = אותו חיבור של גיבוי הספרייה (השרתון שומר את ההרשאה). בלי כפתור ניתוק — החיבור משותף ל־Academy ול־Studio. */
-let _pfbk = null, _pfbkP = null, _pfbkModal = null, _pfbkBusy = '';
+let _pfbk = null, _pfbkP = null, _pfbkBusy = '';
 function pfbkSignedIn() { try { return !!(typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser); } catch (e) { return false; } }
 function pfbkOwner() { return accountOwner() || 'local'; }
 function pfbkPrefs() { const o = {}; for (const k of PF_BK_PREFS) { try { const v = localStorage.getItem(k); if (v != null) o[k] = v; } catch (e) {} } return o; }
@@ -11142,21 +11153,22 @@ function pfbkErrText(c) {
   if (c === 'gd_popup') return t('pfbkPopup');
   return t('pfbkFail', { c: String(c || 'failed').slice(0, 40) });
 }
-/* מצב הגיליון: _pfbkRs = מסך השחזור { snap, ui } (null = המסך הראשי) */
-let _pfbkRs = null;
+/* עמוד הגיבוי (#tab-backup, כמו עמוד הגיבוי של הספרייה): _pfbkRs = מסך השחזור { snap, ui } (null = המסך הראשי) */
+let _pfbkRs = null, _pfbkRsModal = null;
 const pfbkSw = (id, on, label) => '<button type="button" class="pfbk-sw" id="' + id + '" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" aria-label="' + esc(label) + '"><i></i></button>';
 const pfbkSwRow = (id, on, label, sub) => '<div class="ios-row"><span class="ios-row-lbl">' + esc(label) + (sub ? '<span class="pfbk-sub">' + esc(sub) + '</span>' : '') + '</span>' + pfbkSw(id, on, label) + '</div>';
+const pfbkSec = (title, rows) => (title ? '<h4 class="pfbk-sec">' + esc(title) + '</h4>' : '') + '<div class="ios-list">' + rows + '</div>';
+const pfbkAct = (id, label, busy, cls) => '<button id="' + id + '" class="ios-row ios-row-btn pfbk-act' + (cls ? ' ' + cls : '') + '" type="button"' + (busy ? ' disabled' : '') + '><span class="ios-row-lbl">' + esc(label) + '</span></button>';
 function pfbkPaint() {
   const b = _pfbk;
   const conn = b ? !!b.email() : pfbkConnectedHint();
   const s = b ? b.settings() : {};
   const st = document.getElementById('pfbkState');
   if (st) st.textContent = !conn ? t('pfbkOffShort') : s.err ? t('pfbkErrShort') : s.auto === false ? t('pfbkManualShort') : t('pfbkOnShort');
-  const v = document.getElementById('pfbkVeil'), body = document.getElementById('pfbkBody');
-  if (!v || !body || v.classList.contains('hidden')) return;
+  const body = document.getElementById('pfbkBody');
+  if (!body || currentTabName() !== 'backup') return;
   const row = (l, val) => '<div class="ios-row"><span class="ios-row-lbl">' + esc(l) + '</span><span class="ios-row-val" dir="auto">' + esc(val) + '</span></div>';
-  const title = document.getElementById('pfbkSheetTitle');
-  if (title) title.textContent = _pfbkRs ? t('pfbkRsTitle') : t('pfbkTitle');
+  const note = (txt) => '<p class="pfbk-foot center">' + esc(txt) + '</p>';
   let h;
   if (_pfbkRs && b) {
     // מסך השחזור: מה יתווסף (בדיקה על עותק), בחירה אם לכלול הגדרות ותצוגה, ואז "לשחזר"
@@ -11169,38 +11181,44 @@ function pfbkPaint() {
     if (prev.watch) add.push([t('pfbkRsWatch'), prev.watch]);
     if (prev.cash) add.push([t('pfbkRsCash'), '✓']);
     const any = add.length > 0 || prev.ui;
-    h = '<p class="fine pfbk-note">' + esc(t('pfbkRsFrom', { d: fmtTimeIL(rs.snap.at) })) + '</p>' +
-      '<div class="ios-list">' + (add.length ? add.map((a) => row(a[0], typeof a[1] === 'number' ? '+' + a[1] : a[1])).join('') : row(t('pfbkRsData'), t('pfbkRsHere'))) + '</div>' +
-      (pfBackupHasUi(rs.snap) ? '<div class="ios-list">' + pfbkSwRow('pfbkRsUi', rs.ui, t('pfbkUi'), rs.ui && !prev.ui ? t('pfbkRsUiSame') : t('pfbkUiSub')) + '</div>' : '') +
-      '<div class="reset-group"><button id="pfbkRsGo" class="reset-opt pfbk-opt pfbk-main" type="button"' + (any ? '' : ' disabled') + '>' + esc(any ? t('pfbkRestoreOk') : t('pfbkRsNothing')) + '</button></div>' +
-      '<button id="pfbkRsBack" class="reset-cancel" type="button">' + esc(t('pfbkBack')) + '</button>';
-  } else {
-    let main;
-    if (!pfbkSignedIn()) main = '<p class="fine pfbk-note">' + esc(t('pfbkSignIn')) + '</p>';
-    else if (DB && DB.demo) main = '<p class="fine pfbk-note">' + esc(t('pfbkDemo')) + '</p>';
-    else if (!b) main = '<p class="fine pfbk-note">' + esc(t('loading')) + '</p>';
-    else if (!conn) main = '<p class="fine pfbk-note">' + esc(t('pfbkWhat')) + '</p><div class="reset-group"><button id="pfbkConnect" class="reset-opt pfbk-opt pfbk-main" type="button"' + (_pfbkBusy ? ' disabled' : '') + '>' + esc(_pfbkBusy === 'connect' ? t('pfbkConnecting') : t('pfbkConnect')) + '</button></div>';
-    else {
-      main = '<div class="ios-list">' + row(t('pfbkAccount'), b.email()) + row(t('pfbkLast'), s.lastAt ? fmtTimeIL(s.lastAt) : '—') + (s.count ? row(t('pfbkItems'), String(s.count)) : '') + '</div>' +
-        '<div class="ios-list">' + pfbkSwRow('pfbkAuto', s.auto !== false, t('pfbkAuto')) + pfbkSwRow('pfbkUi', s.ui !== false, t('pfbkUi'), t('pfbkUiSub')) + '</div>' +
-        (s.err ? '<p class="form-err pfbk-err">' + esc(pfbkErrText(s.err)) + '</p>' : '') +
-        '<div class="reset-group">' +
-        '<button id="pfbkNow" class="reset-opt pfbk-opt" type="button"' + (_pfbkBusy ? ' disabled' : '') + '>' + esc(_pfbkBusy === 'now' ? t('pfbkBacking') : t('pfbkNow')) + '</button>' +
-        '<button id="pfbkRestore" class="reset-opt pfbk-opt" type="button"' + (_pfbkBusy ? ' disabled' : '') + '>' + esc(_pfbkBusy === 'restore' ? t('pfbkLoading') : t('pfbkRestore')) + '</button></div>';
-    }
-    h = main + '<button id="pfbkClose" class="reset-cancel" type="button">' + esc(t('btnClose')) + '</button>';
+    h = pfbkSec(t('pfbkRsTitle'), add.length ? add.map((a) => row(a[0], typeof a[1] === 'number' ? '+' + a[1] : a[1])).join('') : row(t('pfbkRsData'), t('pfbkRsHere'))) +
+      '<p class="pfbk-foot">' + esc(t('pfbkRsFrom', { d: fmtTimeIL(rs.snap.at) })) + '</p>' +
+      (pfBackupHasUi(rs.snap) ? pfbkSec('', pfbkSwRow('pfbkRsUi', rs.ui, t('pfbkUi'), rs.ui && !prev.ui ? t('pfbkRsUiSame') : t('pfbkUiSub'))) : '') +
+      pfbkSec('', pfbkAct('pfbkRsGo', any ? t('pfbkRestoreOk') : t('pfbkRsNothing'), !any, 'main') + pfbkAct('pfbkRsBack', t('btnCancel'), false, 'muted'));
+  } else if (!pfbkSignedIn()) h = note(t('pfbkSignIn'));
+  else if (DB && DB.demo) h = note(t('pfbkDemo'));
+  else if (!b) h = note(t('loading'));
+  else if (!conn) h = '<button id="pfbkConnect" class="btn pfbk-connect" type="button"' + (_pfbkBusy ? ' disabled' : '') + '>' + esc(_pfbkBusy === 'connect' ? t('pfbkConnecting') : t('pfbkConnect')) + '</button>';
+  else {
+    h = pfbkSec(t('pfbkLast'), row(s.lastAt ? fmtTimeIL(s.lastAt) : '—', s.count ? t('pfbkItemsN', { n: s.count }) : '') +
+        (s.err ? '<div class="ios-row pfbk-errrow"><span class="ios-row-lbl">' + esc(pfbkErrText(s.err)) + '</span></div>' : '') +
+        pfbkAct('pfbkNow', _pfbkBusy === 'now' ? t('pfbkBacking') : t('pfbkNow'), !!_pfbkBusy)) +
+      pfbkSec(t('tabSettings'), row(t('pfbkAccount'), b.email()) + pfbkSwRow('pfbkAuto', s.auto !== false, t('pfbkAuto')) + pfbkSwRow('pfbkUi', s.ui !== false, t('pfbkUi'), t('pfbkUiSub'))) +
+      pfbkSec(t('pfbkSecRestore'), pfbkAct('pfbkRestore', _pfbkBusy === 'restore' ? t('pfbkLoading') : t('pfbkRestore'), !!_pfbkBusy)) +
+      '<p class="pfbk-foot">' + esc(t('pfbkRsNote')) + '</p>';
   }
   body.innerHTML = h;
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
-  on('pfbkClose', closePfbkSheet);
   on('pfbkConnect', pfbkConnect);
   on('pfbkNow', () => pfbkBackupNow(true));
   on('pfbkRestore', pfbkRestore);
   on('pfbkAuto', () => { b.save({ auto: b.settings().auto === false }); pfbkPaint(); if (b.settings().auto !== false) pfbkBackupNow(false); });
   on('pfbkUi', () => { b.save({ ui: b.settings().ui === false }); pfbkPaint(); if (b.settings().auto !== false) pfbkBackupNow(false); });
   on('pfbkRsUi', () => { _pfbkRs.ui = !_pfbkRs.ui; pfbkPaint(); });
-  on('pfbkRsBack', () => { _pfbkRs = null; pfbkPaint(); });
+  on('pfbkRsBack', () => pfbkRsClose());
   on('pfbkRsGo', pfbkRestoreGo);
+}
+/* מסך השחזור = שלב בתוך העמוד; "חזור" של המכשיר סוגר אותו (modalPush) וחוזר למסך הראשי */
+function pfbkRsOpen(rs) {
+  _pfbkRs = rs;
+  if (!_pfbkRsModal) _pfbkRsModal = modalPush(() => { _pfbkRsModal = null; _pfbkRs = null; pfbkPaint(); });
+  pfbkPaint();
+  try { cancelScrollRestore(); window.scrollTo(0, 0); } catch (e) {}
+}
+function pfbkRsClose() {
+  _pfbkRs = null;
+  if (_pfbkRsModal) { const m = _pfbkRsModal; _pfbkRsModal = null; modalDone(m); }
+  pfbkPaint();
 }
 /* החלון של Google נפתח בתוך הלחיצה — המודול כבר טעון (הגיליון מחכה לו לפני שמציג את הכפתור) */
 function pfbkConnect() {
@@ -11230,15 +11248,14 @@ function pfbkRestore() {
   b.load().then((snap) => {
     _pfbkBusy = '';
     if (!snap) { pfbkPaint(); askAlert(t('pfbkNone')); return; }
-    _pfbkRs = { snap, ui: b.settings().ui !== false && pfBackupHasUi(snap) };
-    pfbkPaint();
+    pfbkRsOpen({ snap, ui: b.settings().ui !== false && pfBackupHasUi(snap) });
   }).catch((e) => { _pfbkBusy = ''; pfbkPaint(); askAlert(pfbkErrText(e && (e.code || e.message))); });
 }
 function pfbkRestoreGo() {
   const rs = _pfbkRs;
   if (!rs || !DB || DB.demo) return;
   const r = pfBackupMerge(DB, rs.snap, isIbkrMode(), pfbkPrefs(), rs.ui);
-  _pfbkRs = null;
+  pfbkRsClose();
   mtSyncPositions();
   saveDB();
   const keys = Object.keys(r.prefs);
@@ -11246,41 +11263,22 @@ function pfbkRestoreGo() {
   flash(t('pfbkRestored'));
   // שפה/ערכה/מטבע — נטענים מחדש כדי שהכל יתעדכן בבת אחת
   if (keys.some((k) => k === 'pwa_lang_v1' || k === 'pwa_theme_v1' || k === 'pwa_currency_v1')) { setTimeout(() => location.reload(), 700); return; }
-  closePfbkSheet();
   renderAll({ all: true });
 }
-function openPfbkSheet() {
-  const v = document.getElementById('pfbkVeil');
-  if (!v) return;
-  if (v.classList.contains('hidden')) _pfbkModal = modalPush(closePfbkSheet);
-  v.classList.remove('hidden', 'out');
-  void v.offsetWidth;
-  v.classList.add('in');
-  const o = document.getElementById('pfbkOpen');
-  if (o) o.setAttribute('aria-expanded', 'true');
+/* פתיחת העמוד: המודול נטען מראש (כפתור החיבור פותח את החלון של Google בתוך הלחיצה) */
+function openPfbkPage() {
   _pfbkRs = null;
-  pfbkPaint();
+  switchTab('backup');
   if (pfbkSignedIn()) pfbkLoad().then((b) => { pfbkPaint(); return b.status(); }).then(() => pfbkPaint()).catch(() => pfbkPaint());
 }
-function closePfbkSheet() {
-  const v = document.getElementById('pfbkVeil');
-  if (!v || v.classList.contains('hidden')) return;
-  if (_pfbkModal) { const m = _pfbkModal; _pfbkModal = null; modalDone(m); }
-  v.classList.remove('in');
-  v.classList.add('out');
-  const o = document.getElementById('pfbkOpen');
-  if (o) o.setAttribute('aria-expanded', 'false');
-  setTimeout(() => { if (v.classList.contains('out')) v.classList.add('hidden'); v.classList.remove('out'); }, 260);
-}
-function wirePfbkSheet() {
-  const v = document.getElementById('pfbkVeil'), o = document.getElementById('pfbkOpen');
-  if (!v || !o || v._wired) return;
-  v._wired = true;
-  if (v.parentNode !== document.body) document.body.appendChild(v);
-  o.addEventListener('click', openPfbkSheet);
-  v.addEventListener('click', (e) => { if (e.target === v) closePfbkSheet(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePfbkSheet(); });
+function wirePfbkPage() {
+  const o = document.getElementById('pfbkOpen'), bk = document.getElementById('pfbkBack');
+  if (!o || o._wired) return;
+  o._wired = true;
+  o.addEventListener('click', openPfbkPage);
+  if (bk) bk.addEventListener('click', () => switchTab('settings'));
   pfbkPaint();
+  if (currentTabName() === 'backup' && pfbkSignedIn()) pfbkLoad().then((b) => { pfbkPaint(); return b.status(); }).then(() => pfbkPaint()).catch(() => pfbkPaint());
 }
 /* v279: לחיצה על הלוגו בהדר → הסקירה (כבר בסקירה — לראש העמוד) */
 function wireBrandHome() {
@@ -11599,9 +11597,9 @@ function snbSwipe(o) {
    פס גלילה אופקי, טאבי הרשימות וקצה המסך (מחוות "חזור") — לא נחשבים.
    14/10/2026 (בקשת המשתמש): העמוד מסתובב בקובייה צמוד לאצבע; **ההחלקה הקצרה בין רשימות המעקב בוטלה** —
    בכל הטאבים החלקה = עמוד, ובין הרשימות עוברים בלחיצה על הצ'יפים. */
-const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced');
+const PAGE_SWIPE_MAIN = TAB_ORDER.filter((t) => t !== 'settings' && t !== 'advanced' && t !== 'backup');
 function pageSwipeTarget(cur, next) { // next=true → העמוד הבא (שמאלה ב־RTL)
-  if (cur === 'advanced') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
+  if (cur === 'advanced' || cur === 'backup') return next ? null : 'settings'; // v287: עמוד משנה — החלקה אחורה חוזרת להגדרות (כמו באייפון)
   if (cur === 'settings') return next ? null : PAGE_SWIPE_MAIN[PAGE_SWIPE_MAIN.length - 1];
   const i = PAGE_SWIPE_MAIN.indexOf(cur);
   if (i < 0) return null;
@@ -11653,7 +11651,7 @@ function wirePageSwipe() {
     if (cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: הקובייה עוד מסתובבת — נגיעה מסיימת אותה (העמוד החדש מתחת לאצבע)
     if (e.touches.length !== 1 || state.cardAnim || dragBusy()) return;
     const cur = currentTabName();
-    if (cur !== 'settings' && cur !== 'advanced' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
+    if (cur !== 'settings' && cur !== 'advanced' && cur !== 'backup' && PAGE_SWIPE_MAIN.indexOf(cur) < 0) return;
     const t = e.touches[0], w = window.innerWidth || 400;
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
     const tg = e.target; // גם בשטח הריק מתחת לתוכן (body), לא בהדר/בחלונות צפים
@@ -14166,7 +14164,7 @@ function init() {
   if (advB) advB.addEventListener('click', () => switchTab('settings'));
   // v286: גיליון אפשרויות האיפוס — הגיליון עובר ל־body (כרטיס עם transform/blur שובר position:fixed)
   wireResetSheet();
-  wirePfbkSheet();
+  wirePfbkPage();
   // v146: איפוס נפרד + תיק דמו
   const rmBtn = document.getElementById('resetManual');
   if (rmBtn) rmBtn.addEventListener('click', doResetManual);

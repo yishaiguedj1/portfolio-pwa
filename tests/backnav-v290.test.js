@@ -12,7 +12,8 @@ const H = { stack: [{ state: null }], i: 0, pops: 0,
   pushState(s) { this.stack = this.stack.slice(0, this.i + 1); this.stack.push({ state: s }); this.i++; },
   go(d) { this.i += d; this.pops++; } };
 const ctx = { history: H };
-vm.runInNewContext('let _navSkipPop = 0, _backPending = 0; const _afterBack = [];' + fn('afterBack') + fn('navBack') + fn('navDepth') + fn('navTabForDepth') + fn('navCurDepth') + fn('navSync') + ';this.sync = navSync; this.tab = navTabForDepth; this.skip = () => _navSkipPop;', ctx);
+const subs = (app.match(/const NAV_SUBS = [^;]+;/) || [''])[0];
+vm.runInNewContext(subs + 'let _navSkipPop = 0, _backPending = 0; const _afterBack = [];' + fn('afterBack') + fn('navBack') + fn('navDepth') + fn('navTabForDepth') + fn('navCurDepth') + fn('navSync') + ';this.sync = navSync; this.tab = navTabForDepth; this.skip = () => _navSkipPop;', ctx);
 ctx.sync('settings'); ok(H.stack.length === 2 && H.state.snb === 1, 'הגדרות = רשומה ברמה 1');
 ctx.sync('advanced'); ok(H.stack.length === 3 && H.state.snb === 2, 'מתקדמות = רשומה ברמה 2');
 ok(ctx.tab(1) === 'settings' && ctx.tab(0) === 'overview' && ctx.tab(2) === 'advanced', 'חזור: מתקדמות → הגדרות → סקירה');
@@ -22,4 +23,8 @@ ok(/navSync\(name, opts\); \/\/ v290/.test(fn('switchTab')) && /if \(\(opts && o
 ok(/_navSkipPop\+\+; \/\/ v290/.test(fn('dropAppNavEntry')), 'חזרה פנימית מקישור הווידג׳ט לא נחשבת "חזור" של המשתמש');
 ok(!/history\.replaceState\(null,/.test(app), 'ניקוי ה־hash שומר את מצב ההיסטוריה');
 ok(/wireBackNav\(\); \/\/ v290/.test(app), 'מאזין popstate מחובר');
+// 14/10/2026: עמוד הגיבוי — עמוד משנה נוסף ברמה 2; איזה עמוד — לפי sub ברשומה
+H.stack = [{ state: null }]; H.i = 0; vm.runInContext('_backPending = 0; _navSkipPop = 0;', ctx);
+ctx.sync('settings'); ctx.sync('backup'); ok(H.state.snb === 2 && H.state.sub === 'backup' && ctx.tab(2) === 'backup', 'גיבוי = רשומה ברמה 2 עם sub, ו"חזור" אליה פותח את הגיבוי');
+H.go(-1); ok(H.state.snb === 1 && ctx.tab(1) === 'settings', 'חזרה מהגיבוי → הגדרות');
 console.log('# ' + n + ' בדיקות עברו');
