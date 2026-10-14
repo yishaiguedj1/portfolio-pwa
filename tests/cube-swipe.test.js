@@ -11,8 +11,8 @@ const fn = (src, name) => { const i = src.indexOf('function ' + name + '('); if 
 
 // ---- המנוע: טהור, בתוך core (מגיע ל־Academy ול־Studio דרך core.js)
 const ctx = {};
-vm.runInNewContext('const CUBE_P = 1.8, CUBE_W = 17, CUBE_RUB = 0.07;' + fn(app, 'cubeTransform') + fn(app, 'cubeSpring') + ';this.T = cubeTransform; this.S = cubeSpring;', ctx);
-const { T, S } = ctx;
+vm.runInNewContext('const CUBE_P = 1.8, CUBE_W = 17, CUBE_RUB = 0.07;' + fn(app, 'cubeTransform') + fn(app, 'cubeSpring') + fn(app, 'cubeVisible') + ';this.T = cubeTransform; this.S = cubeSpring; this.V = cubeVisible;', ctx);
+const { T, S, V } = ctx;
 const parse = (s) => { const m = /perspective\(([-\d.]+)px\) translateZ\(([-\d.]+)px\) rotateY\(([-\d.]+)deg\) translateZ\(([-\d.]+)px\)/.exec(s); return m ? m.slice(1).map(Number) : null; };
 const W = 390;
 ok(/const CUBE_P = 1\.8/.test(app), 'נקודת המבט = 1.8 רוחבי מסך (נמדד בסרטון)');
@@ -32,6 +32,10 @@ for (const p of [0.1, 0.25, 0.5, 0.75, 0.9]) {
 }
 ok(edgeOk, 'הצלע המשותפת נשארת בגובה המסך בכל זווית (הקובייה נסוגה — כמו בסרטון)');
 ok(convex, 'קובייה קמורה: הצלע הרחוקה נסוגה אחורה');
+// 14/10/2026 (דיווח המשתמש): פאה שהגב שלה פונה אליך — מוסתרת כולה; ההדר בזכוכית (שכבה מורכבת) הופיע הפוך מעל הדף החדש
+ok(V(0, 1, false, W) && !V(0, 1, true, W) && V(1, 1, true, W) && !V(1, 1, false, W), 'בהתחלה רק היוצא, בסוף רק הנכנס');
+ok(!V(0.92, -1, false, W) && !V(0.08, -1, true, W) && V(0.5, -1, false, W) && V(0.5, -1, true, W), 'קרוב לקצה — הפאה שמפנה גב מוסתרת, באמצע שתיהן גלויות');
+ok(/opacity: c\.rub \|\| cubeVisible\(q, c\.side, isIn, vw\) \? 1 : 0/.test(fn(app, 'cubeRun')) && /style\.opacity = cubeVisible/.test(fn(app, 'cubeSet')), 'ההסתרה גם באנימציה וגם בגרירה');
 const s1 = S(0.4, 3, 1);
 ok(Math.abs(s1[0] - 0.4) < 1e-9 && s1[s1.length - 1] === 1 && s1.every((x) => x >= 0 && x <= 1), 'הקפיץ: מהמקום של האצבע עד הסוף, בגבולות');
 ok(Math.abs((s1[1] - s1[0]) * 60 - 3) < 1.2, 'הקפיץ ממשיך מהמהירות של האצבע (בלי קפיצה במהירות בשחרור)');

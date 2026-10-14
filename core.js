@@ -167,8 +167,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.1.0';
-const APP_VERSION = 'v416';
+const APP_RELEASE = '2.1.1';
+const APP_VERSION = 'v417';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -322,6 +322,15 @@ function cubeTransform(p, side, isIn, vw) {   // טהורה (נבדקת): p = 0.
   const f = (x) => Math.round(x * 100) / 100 || 0;
   return 'perspective(' + f(CUBE_P * vw) + 'px) translateZ(' + f(-(zb + h)) + 'px) rotateY(' + f(a) + 'deg) translateZ(' + f(h) + 'px)';
 }
+/* טהורה (נבדקת): האם הפאה פונה למצלמה. פאה שהגב שלה פונה אליך מוסתרת כולה (opacity) — backface-visibility לבד לא מספיק:
+   שכבה מורכבת בתוכה (ההדר בזכוכית, backdrop-filter) מצוירת גם מהגב, ובסוף הסיבוב הופיעה הפוכה מעל הדף החדש
+   (דיווח המשתמש 14/10/2026). n·(מצלמה − מרכז הפאה) > 0  ⇔  cos a > h / (P + zb + h) */
+function cubeVisible(p, side, isIn, vw) {
+  const q = Math.max(0, Math.min(1, +p || 0)), th = q * Math.PI / 2, h = vw / 2;
+  const zb = h * (Math.cos(th) + Math.sin(th) - 1);
+  const a = (-side * q * 90 + (isIn ? side * 90 : 0)) * Math.PI / 180;
+  return Math.cos(a) > h / (CUBE_P * vw + zb + h);
+}
 function cubeSpring(p0, v0, p1) {        // טהורה (נבדקת): מיקום כל 1/60 שנ׳ — קפיץ מרוסן קריטית מהמהירות של האצבע (p לשנייה)
   const w = CUBE_W, A = p0 - p1, B = (v0 || 0) + w * A, out = [];
   for (let i = 0; i < 90; i++) {
@@ -350,8 +359,11 @@ function cubeSet(c, p) {
   const vw = window.innerWidth;
   c.p = p;
   if (c.rub) { if (c.out) c.out.el.style.transform = cubeTransform(Math.min(CUBE_RUB, p), c.side, false, vw); return; }
-  if (c.out) c.out.el.style.transform = cubeTransform(p, c.side, false, vw);
-  if (c.in) c.in.el.style.transform = cubeTransform(p, c.side, true, vw);
+  for (const [f, isIn] of [[c.out, false], [c.in, true]]) {
+    if (!f) continue;
+    f.el.style.transform = cubeTransform(p, c.side, isIn, vw);
+    f.el.style.opacity = cubeVisible(p, c.side, isIn, vw) ? '' : '0';
+  }
 }
 /* מ־c.p אל p1 בקפיץ (v0 = המהירות בשחרור, p לשנייה); done(p1) אחרי הפריים האחרון. c.finish() = לסיים מיד */
 function cubeRun(c, p1, v0, done) {
@@ -360,7 +372,10 @@ function cubeRun(c, p1, v0, done) {
   const anims = [];
   const one = (f, isIn) => {
     if (!f || typeof f.el.animate !== 'function') return;
-    const kf = ps.map((p) => ({ transform: cubeTransform(c.rub ? Math.min(CUBE_RUB, p) : p, c.side, isIn, vw) }));
+    const kf = ps.map((p) => {
+      const q = c.rub ? Math.min(CUBE_RUB, p) : p;
+      return { transform: cubeTransform(q, c.side, isIn, vw), opacity: c.rub || cubeVisible(q, c.side, isIn, vw) ? 1 : 0 };
+    });
     try { anims.push(f.el.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' })); } catch (e) {}
   };
   one(c.out, false); if (!c.rub) one(c.in, true);
