@@ -100,6 +100,9 @@
     function on(e) {
       if (over || e.origin !== to || e.source !== w || !e.data || e.data.n !== n) return;
       if (e.data.t === 'snb-move-ready') {
+        // החדשה ענתה — מכאן מחכים בלי הגבלה: אולי היא שואלת את המשתמש ("להחליף?"). עד 411 הזמן נגמר באמצע
+        // השאלה, והישנה לא סימנה שעברנו — ההפניה ממנה לא עבדה (נמצא בטלפון)
+        win.clearTimeout(timer);
         w.postMessage({ t: 'snb-move-data', n: n, d: collect(win.localStorage) }, to);
       } else if (e.data.t === 'snb-move-done') {
         finish();

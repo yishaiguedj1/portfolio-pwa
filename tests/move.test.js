@@ -115,9 +115,9 @@ const VERCEL = 'https://ibkr-proxy-wine.vercel.app', API = 'https://api.thesnowb
     const deliver = (from, to, data, target) => { sent.push({ from: from.location.origin, target, data }); if (to.location.origin !== target) return; const fn = listeners.get(to); if (fn) fn({ origin: from.location.origin, source: from, data: JSON.parse(JSON.stringify(data)) }); };
     const oldWin = mkWin(OLD, mkStore({ pwa_db_v1: '{"positions":[{"sym":"Q"}]}', pwa_ibkr_v1: '{"token":"SECRET"}', pwa_hist_v2_Q: 'cache' }));
     const newWin = mkWin(NEW, mkStore({}));
-    const els = [];
+    const els = [], made = [];
     newWin.document = { documentElement: {}, getElementById: () => ({ replaceChildren: (...c) => els.splice(0, els.length, ...c), appendChild: (c) => els.push(c) }),
-      createElement: (tag) => ({ tag, set textContent(v) { this.t = v; }, get textContent() { return this.t; }, appendChild() {}, addEventListener(e, fn) { this.on = fn; } }) };
+      createElement: (tag) => { const x = { tag, set textContent(v) { this.t = v; }, get textContent() { return this.t; }, appendChild() {}, addEventListener(e, fn) { this.on = fn; } }; made.push(x); return x; } };
     let opened = '';
     oldWin.open = (url) => { opened = url; newWin.location.hash = url.slice(url.indexOf('#')); newWin.opener = oldWin; return newWin; };
     oldWin.postMessage = (d, t) => deliver(newWin, oldWin, d, t);   // החדשה כותבת ל־opener
@@ -155,6 +155,24 @@ const VERCEL = 'https://ibkr-proxy-wine.vercel.app', API = 'https://api.thesnowb
     const w6 = mkWin(NEW, mkStore({})); w6.document = newWin.document; w6.location.hash = '#n=' + 'd'.repeat(32) + '&l=en';
     MV.receive(w6);
     ok(els.some((e) => /Moving your data/.test(e.t || '')), 'receive: אפליקציה באנגלית — באנגלית');
+    // המשתמש חושב יותר מ־30 שניות על "להחליף?" — הישנה לא מוותרת אחרי שהחדשה ענתה
+    {
+      listeners.clear();
+      const o2 = mkWin(OLD, mkStore({ pwa_db_v1: '{"positions":[{"sym":"Z"}]}' }));
+      const n2 = mkWin(NEW, mkStore({ pwa_db_v1: '{"positions":[{"sym":"OTHER"}]}' }));
+      n2.document = newWin.document;
+      o2.open = (url) => { n2.location.hash = url.slice(url.indexOf('#')); n2.opener = o2; return n2; };
+      o2.postMessage = (d, t) => deliver(n2, o2, d, t);
+      n2.postMessage = (d, t) => deliver(o2, n2, d, t);
+      let r3 = null;
+      MV.send(o2, { done: () => { r3 = 'done'; }, fail: (c) => { r3 = c; } });
+      MV.receive(n2);
+      const replaceBtn = made.slice().reverse().find((e) => e.on && /להחליף/.test(e.t || ''));
+      if (o2._t) o2._t();   // עברו 30 שניות — אם הטיימר עוד חי, הוא היה מוותר
+      ok(!!replaceBtn && r3 === null, 'השאלה "להחליף?" פתוחה יותר מ־30 שנ׳ — הכתובת הישנה ממשיכה לחכות');
+      replaceBtn.on();
+      ok(r3 === 'done' && !!o2.localStorage.m.pwa_moved_v1 && n2.localStorage.m.pwa_db_v1 === '{"positions":[{"sym":"Z"}]}', 'אחרי "להחליף" — הנתונים עברו והישנה מסומנת (ההפניה תעבוד)');
+    }
     // החלון נחסם
     let r2 = null;
     const ow = mkWin(OLD, mkStore({})); ow.open = () => null;
