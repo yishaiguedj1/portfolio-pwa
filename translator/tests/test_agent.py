@@ -127,6 +127,32 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertIn('השרתון לא זמין (http_503)', r.stdout)
 
+    def test_reports_job_cut_by_restart(self):
+        """14/10/2026: הסוכן עולה ומוצא עבודה שרצה (.busy + קובץ המצב) — השרת הופעל מחדש באמצע. מדווח worker_lost
+        (השרתון: תקלה חולפת → "המשך" אוטומטי), ואז מנקה. בלי זה העבודה נשארה "רצה" עד שעתיים."""
+        work, state = self.tmp / 'work', self.tmp / 'state'
+        work.mkdir(parents=True)
+        state.mkdir(parents=True)
+        (work / '.busy').write_text(JOB)
+        (state / 'job.json').write_text(json.dumps({'job': JOB, 'key': KEY, 'server': self.fake.url,
+                                                    'drive_api': self.fake.url + '/drive/v3'}))
+        r = self.agent()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        lost = [x for x in self.fake.reports if x.get('err') == 'worker_lost']
+        self.assertEqual(len(lost), 1, r.stdout + r.stderr)
+        self.assertTrue(lost[0].get('fail'))
+        self.assertFalse((state / 'job.json').exists(), 'אחרי הדיווח — הניקוי הרגיל')
+        self.assertIn('lost', [k for _, k in self.fake.hb[0]['ev']], 'יומן השרת: "עבודה נקטעה"')
+        self.assertNotIn(KEY, r.stdout + r.stderr)
+
+    def test_no_report_without_busy(self):
+        state = self.tmp / 'state'
+        state.mkdir(parents=True)
+        (state / 'job.json').write_text(json.dumps({'job': JOB, 'key': KEY, 'server': self.fake.url, 'drive_api': self.fake.url + '/drive/v3'}))
+        r = self.agent()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual([x for x in self.fake.reports if x.get('err') == 'worker_lost'], [], 'בלי .busy — לא עבודה שנקטעה')
+
     def test_refuses_foreign_server_and_bad_token(self):
         r = self.agent(env=dict(self.env, SNB_SERVER='https://evil.example.com'))
         self.assertNotEqual(r.returncode, 0)
@@ -134,6 +160,41 @@ class AgentTests(unittest.TestCase):
         r = self.agent(env=dict(self.env, SNB_WORKER_TOKEN='short'))
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual(self.fake.polls, 0)
+
+
+class OrphanUnit(unittest.TestCase):
+    """14/10/2026: עבודה שחרגה מהזמן — נעצרת כל קבוצת התהליכים שלה (vt, ffmpeg), לא רק job.py."""
+
+    def test_timeout_kills_grandchildren(self):
+        sys.path.insert(0, str(HERE))
+        import agent
+        tmp = Path(tempfile.mkdtemp())
+        pidf = tmp / 'gc.pid'
+        (tmp / 'job.py').write_text(
+            'import subprocess, sys, time\n'
+            'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])\n'
+            'open(%r, "w").write(str(p.pid))\n'
+            'time.sleep(60)\n' % str(pidf))
+        saved = agent.HERE
+        agent.HERE = tmp
+        self.addCleanup(setattr, agent, 'HERE', saved)
+        rc = agent.run_child([], 2)
+        self.assertEqual(rc, 124)
+        gc = int(pidf.read_text())
+        import time
+        for _ in range(50):
+            try:
+                os.kill(gc, 0)
+            except ProcessLookupError:
+                break
+            try:                                   # זומבי (נכד שהורה מת — אצל init) עדיין "קיים"; לבדוק את המצב
+                if Path('/proc/%d/stat' % gc).read_text().split()[2] == 'Z':
+                    break
+            except OSError:
+                break
+            time.sleep(0.1)
+        else:
+            self.fail('הנכד (vt) עוד רץ אחרי שהעבודה חרגה מהזמן')
 
 
 class EventLogUnit(unittest.TestCase):

@@ -898,7 +898,8 @@ function errText(code, extra) {
     case 'month_cap': return T('studioErrMonthCap');
     case 'no_server': return T('studioErrNoServer');
     case 'worker_oom': return T('studioErrOom');
-    case 'worker_crash': return T('studioErrCrash');   // 11/10/2026: קריסה ≠ זיכרון (ההודעה המשותפת הטעתה — PR #66)
+    case 'worker_crash': return T('studioErrCrash');
+    case 'worker_lost': return T('studioErrLost');   // 14/10/2026   // 11/10/2026: קריסה ≠ זיכרון (ההודעה המשותפת הטעתה — PR #66)
     case 'not_admin': return T('studioErrNotAdmin');
     case 'net': case 'http_0': return T('studioErrNet');
     case 'drive_full': return T('studioErrDriveFull');
@@ -2901,7 +2902,7 @@ function incTitle(e) {
     case 'no_claim': return T('studioIncNoClaim');
     case 'routine_auth': case 'routine_forbidden': case 'routine_missing': case 'routine_paused': return T('studioIncRoutine');
     case 'routine_rate': return T('studioIncRate');
-    case 'no_server': case 'job_timeout': case 'worker_unknown_kind': case 'worker_oom': case 'worker_crash': return T('studioIncServer');
+    case 'no_server': case 'job_timeout': case 'worker_unknown_kind': case 'worker_oom': case 'worker_crash': case 'worker_lost': return T('studioIncServer');
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
     case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
@@ -5655,6 +5656,7 @@ function srvEvText(k) {
     case 'auth': return T('studioSrvEvAuth');
     case 'net': return T('studioSrvEvNet');
     case 'warm': return T('studioSrvEvWarm');
+    case 'lost': return T('studioSrvEvLost');
     default: return '';
   }
 }

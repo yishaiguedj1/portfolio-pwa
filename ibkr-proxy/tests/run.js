@@ -2823,7 +2823,7 @@ function stubFetch(text, status = 200) {
       ok(Vm.open.find((g) => g.c === 'vt').m === t0 + 4 * 3600e3 && Vm.score === V.score && O8.opsView(ap, t0 + 5 * 3600e3, mu).mu.length === 0,
         'סטודיו: השתקה — מסומנת בהתראה, לא משנה את ציון הבריאות, ופגה לבד');
     }
-    ok(S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('budget_stop', ['drive:up_retry']) && !S.isTransient('worker', ['vt:asr']) && S.isTransient('net', []),
+    ok(S.isTransient('worker_lost', []) && S.isTransient('worker', ['drive:dl_fail']) && !S.isTransient('tower_stop', ['drive:dl_fail']) && !S.isTransient('budget_stop', ['drive:up_retry']) && !S.isTransient('worker', ['vt:asr']) && S.isTransient('net', []),
       'סטודיו: תקלה חולפת — Drive / רשת כן; עצירה של המגדל, התקציב או מתג החירום — אף פעם');
     rr = await run({ op: 'mute', idToken: OWNER, c: 'drive', k: 'up_retry', h: 4 });
     ok(rr.payload.ok && rr.payload.ops.mu.length === 1 && rr.payload.ops.mu[0].until === now + 4 * 3600e3, 'סטודיו: השתקה — נשמרת בחשבון, עם תפוגה');
