@@ -359,6 +359,49 @@ function swipeVelocity(samples, now) {
   const den = sw * stt - st * st;
   return den > 1e-9 ? (sw * stx - st * sx) / den : 0;
 }
+/* 14/10/2026 (סרטון המשתמש — מסך שחור במעבר בין האפליקציות): כשהתפריט נפתח, Chrome מכין ברקע את האפליקציות
+   האחרות (Speculation Rules — prerender), והלחיצה מחליפה לדף שכבר מצויר. אותו אתר (thesnowball.app) — היעד מסכים
+   בכותרת Supports-Loading-Mode (_headers); ב־CSP ‏'inline-speculation-rules'. דפדפן בלי תמיכה / חיסכון בנתונים — כלום */
+function appPrerender(urls) {
+  try {
+    if (typeof document === 'undefined' || !urls || !urls.length || window._snbPre) return;
+    if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules'))) return;
+    if (navigator.connection && navigator.connection.saveData) return;
+    const list = urls.filter((u) => u && String(u).split('#')[0] !== location.href.split('#')[0]);
+    if (!list.length) return;
+    window._snbPre = 1;
+    const s = document.createElement('script');
+    s.type = 'speculationrules';
+    s.textContent = JSON.stringify({ prerender: [{ source: 'list', urls: list, eagerness: 'immediate' }] });
+    document.head.appendChild(s);
+  } catch (e) {}
+}
+/* 14/10/2026 (בקשת המשתמש — "בלי קפיצות"): הודעה שמופיעה בדף שכבר מוצג (פס התראה, שגיאת רשת) נפתחת בגובה —
+   התוכן שמתחתיה זז ברצף ולא קופץ. growWatch: רק מה שנוסף אחרי שהדף הוצג (מה שהיה בציור הראשון — חלק מהדף),
+   ולא מה שכבר היה גלוי בציור הקודם (ציור מחדש של אותו דף) */
+function growIn(el, ms) {
+  if (!el || cubeReduce() || typeof el.animate !== 'function') return;
+  const cs = getComputedStyle(el), hh = el.offsetHeight;
+  if (!hh) return;
+  const z = { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', overflow: 'hidden' };
+  const f = { height: hh + 'px', opacity: 1, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, overflow: 'hidden' };
+  try { el.animate([z, f], { duration: ms || 340, easing: 'cubic-bezier(.2,.9,.25,1)' }); } catch (e) {}
+}
+function growWatch(root, sel, view) {
+  if (!root || typeof MutationObserver === 'undefined') return;
+  let seen = new Set(), vk = null, at = 0, q = 0;
+  const sig = (e) => e.className + '|' + (e.dataset.k || '');   // לא לפי הטקסט — מספר שמתעדכן בפס קיים לא "פותח" אותו שוב
+  const scan = () => {
+    q = 0;
+    const els = [...root.querySelectorAll(sel)].filter((e) => e.getClientRects().length);
+    const k = view(), now = Date.now();
+    if (k !== vk) { vk = k; at = now; seen = new Set(els.map(sig)); return; }
+    const next = new Set();
+    for (const e of els) { const s = sig(e); next.add(s); if (!seen.has(s) && now - at > 400) growIn(e); }
+    seen = next;
+  };
+  new MutationObserver(() => { if (!q) { q = 1; Promise.resolve().then(scan); } }).observe(root, { childList: true, subtree: true });
+}
 /* מכין אלמנט להיות פאה. o.fix = {top, left, width} — מוצמד למסך במקום הזה; o.clip — נחתך לגובה המסך (עמוד ארוך) */
 function cubeFace(el, o) {
   const st = el.style, f = { el: el, css: st.cssText };

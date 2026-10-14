@@ -1023,6 +1023,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* ---------------- רשת (studionet.js) ---------------- */
 async function idTok() {
   try {
+    if (SA && SA.ready) await SA.ready;   // 14/10/2026: הדף מצויר לפני שהחיבור ענה — פעולות שצריכות חשבון מחכות לו
     const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
     return u ? await u.getIdToken() : '';
   } catch (e) { return ''; }
@@ -6007,6 +6008,7 @@ export function openStudio(opt) {
     });
   }
   document.body.append(root);
+  if (typeof growWatch === 'function') growWatch(root, '.st-banner', () => ui.view + '|' + (ui.param || ''));   // 14/10/2026: פס שמופיע בדף מוצג — נפתח ברכות
   document.documentElement.classList.add('studio-open');
   if (SA && !restore) { try { history.replaceState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} }   // עצמאי — הבית הוא הדף
   else if (!restore) afterBack(() => { try { history.pushState(cleanState({ studio: 1, sv: 'home', sp: null }), ''); } catch (e) {} });

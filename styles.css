@@ -1782,3 +1782,9 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 .appbar-actions.menu-open .shell-theme { display: flex; animation: shellThemeIn .38s cubic-bezier(.2, .9, .25, 1.15) both; }
 @keyframes shellThemeIn { from { opacity: 0; transform: rotate(-120deg) scale(.4); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .appbar-actions.menu-open .shell-theme { animation: none; } }
+
+/* 14/10/2026 (סרטון המשתמש — פתיחה מהווידג'ט): עד הציור הראשון של app.js התוכן ב־index.html הוא תבנית ריקה
+   (הסקירה, "טען תיק דמו", מקפים) — מוסתר, וההדר נשאר. רשת ביטחון: אחרי 5 שניות מוצג בכל מקרה */
+html.booting main, html.booting .tabs, html.booting .appbar-left { visibility: hidden; animation: snbBootShow 0s 5s forwards; }
+@keyframes snbBootShow { to { visibility: visible; } }
+html.booting *, html.booting *::before, html.booting *::after { transition: none !important; }   /* מצב הלשוניות/הכפתורים נקבע לפני הציור — בלי "דהייה" שממשיכה אחריו */

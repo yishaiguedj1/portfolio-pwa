@@ -16,10 +16,15 @@ setTimeout(() => { de.classList.remove('lib-restoring', 'lib-curtain'); }, 6000)
 
 const A = window.SnbAuth;
 A.start();
-const first = await new Promise((res) => {
+const ready = new Promise((res) => {
   const to = setTimeout(() => res('boot'), 8000);
   A.onChange((st) => { clearTimeout(to); res(st); });
 });
+/* 14/10/2026 (דיווח המשתמש — מסך שחור ואז הכל בבת אחת): כשבטלפון כבר יש חשבון, הדף מצויר מיד מהנתונים המקומיים
+   (כמו Invest), ורק פעולות שצריכות חשבון מחכות לחיבור (sa.ready → idToken). בלי חשבון — מחכים, כדי שלא יופיע דף
+   ואחריו מסך הכניסה */
+const owned = (() => { try { const o = localStorage.getItem('pwa_owner_v1'); return !!o && o !== 'local' && o !== 'legacy'; } catch (e) { return false; } })();
+const first = owned ? 'boot' : await ready;
 let known = first;
 A.onChange((st) => {
   if (known === 'boot') { known = st; return; }
@@ -33,7 +38,7 @@ const link = /[#&]studio=(j[A-Za-z0-9_-]{20})(?:&v=(play|subs))?/.exec(location.
 if (link) { try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {} }
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Studio, הקפסולה "חיבור ל־Claude" בהדר, ובתפריט מגדל הפיקוח. הגלובוס בתפריט הפתוח = ההגדרות */
-const sa = { auth: A, home: APP_URL.invest };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
+const sa = { auth: A, home: APP_URL.invest, ready };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
 /* עמוד ההגדרות — כרטיס החשבון, "אפשרויות מתקדמות" (גרסה, ניקוי מטמון, האפליקציה לאנדרואיד) ו"תצוגה" של Invest (shell.js), אחד לאחד */
 sa.cards = { account: () => accountCard(A, 'icon-studio-192.png'), display: displayCard, advRow: advancedRow, advanced: advancedCards };
 sa.shell = createShell({
@@ -46,4 +51,5 @@ sa.shell = createShell({
 });
 /* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Studio (shell.js) */
 if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' });
+else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' }); });
 openStudio({ standalone: sa, restore: hs && hs.studio ? hs : null, job: link ? link[1] : '', view: link && link[2] ? link[2] : '' });

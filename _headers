@@ -3,3 +3,4 @@
 # GitHub Pages מתעלם מהקובץ.
 /*
   Cache-Control: no-cache
+  Supports-Loading-Mode: credentialed-prerender

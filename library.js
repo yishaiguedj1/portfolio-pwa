@@ -403,6 +403,7 @@ let syncNote = '';
 let syncProgress = null;   // { done, total } בזמן הורדה מה־Drive
 async function idToken() {
   try {
+    if (SA && SA.ready) await SA.ready;   // 14/10/2026: הדף מצויר לפני שהחיבור ענה — פעולות שצריכות חשבון מחכות לו
     const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
     return u ? await u.getIdToken() : '';
   } catch (e) { return ''; }

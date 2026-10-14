@@ -12,6 +12,7 @@ html.studio-open, html.studio-open body { overflow: hidden; }
 html[dir="rtl"] .st-root { --st-x: -1; }
 .st-root.leaving { animation: stOut .24s cubic-bezier(.4,0,1,1) forwards; pointer-events: none; }
 .st-root.restored { animation: none; }   /* אחרי רענון — בלי כניסה */
+html[data-app="studio"] .st-root:not(.leaving) { animation: none; }   /* 14/10/2026: דף עצמאי — מופיע מיד, כמו Invest (לא שכבה שעולה) */
 @keyframes stIn { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
 @keyframes stOut { to { opacity: 0; transform: translateY(28px); } }
 /* מעבר בין דפים: הדף החדש נכנס מהצד המוביל (ב־RTL משמאל). מתחיל מ־.55 ולא מ־0 — בלי פריים ריק (לקח v325); הרקע של השכבה אטום */

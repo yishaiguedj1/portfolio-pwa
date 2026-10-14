@@ -7124,8 +7124,14 @@ function positionTabIndicator() {
   const act = tabs.querySelector('.tab.active');
   ind.classList.toggle('off', !act); // v223: בהגדרות אין לשונית פעילה — הגלולה נעלמת
   if (!act || !act.offsetWidth) return;
+  /* 14/10/2026 (נמדד בכניסה מהווידג'ט): החלקה רק כשהלשונית הפעילה התחלפה מול העין — מדידה מחדש של אותה לשונית
+     (גופן שנטען, שינוי רוחב) או לפני הציור הראשון (html.booting) קופצת למקום, לא "נוסעת" לאורך השורה */
+  const same = ind._tab === act.dataset.tab, quiet = same || document.documentElement.classList.contains('booting');
+  ind._tab = act.dataset.tab;
+  if (quiet) ind.style.transition = 'none';
   ind.style.width = act.offsetWidth + 'px';
   ind.style.transform = 'translateX(' + act.offsetLeft + 'px)';
+  if (quiet && tabs.classList.contains('has-ind')) { void ind.offsetWidth; ind.style.transition = ''; }
   if (!tabs.classList.contains('has-ind')) {
     ind.style.transition = 'none';
     tabs.classList.add('has-ind');
@@ -7231,7 +7237,7 @@ function wireBackNav() {
 }
 function switchTab(name, opts) {
   const prev = currentTabName();
-  const cubeDone = !!(opts && opts.cubeDone);
+  const cubeDone = !!(opts && (opts.cubeDone || opts.restore));   // 14/10/2026: גם בפתיחה (restore) — העמוד מופיע כמו שהוא, בלי כניסה מונפשת
   if (!cubeDone && cubeNow && cubeNow.finish) cubeNow.finish(); // 14/10/2026: מעבר קודם עוד מסתובב — מסיימים אותו מיד
   if (!cubeDone && tabCubeOk(prev, name, opts)) return tabCubeSwitch(prev, name, opts); // מעבר בקובייה (בסוף: כאן שוב, cubeDone)
   if ((prev === 'stocks' || prev === 'wishlist') && name !== prev) { try { closeStockCards(); } catch (e) {} } // v231; v240: גם מעקב
@@ -11082,8 +11088,12 @@ function renderWatchHead() {
   const on = tabs.querySelector('.wl-tab.on');
   // v283: רק גלילה אופקית של שורת הצ'יפים — scrollIntoView גלל גם את העמוד כולו (החביא את הטאבים מתחת להדר)
   if (on && tabs.scrollBy && tabs.scrollWidth > tabs.clientWidth + 2) {
-    try { const a = on.getBoundingClientRect(), b = tabs.getBoundingClientRect(); tabs.scrollBy({ left: (a.left + a.width / 2) - (b.left + b.width / 2), behavior: 'smooth' }); } catch (e) {}
+    // 14/10/2026 (נמדד בסרטון של המשתמש): בציור הראשון / מקישור מהווידג'ט — במקום, בלי החלקה (השורה "זזה" אחרי הפתיחה);
+    // חלק רק כשהרשימה הפתוחה התחלפה מול העין
+    const smooth = !!tabs._wlOn && tabs._wlOn !== on.dataset.wl && !!tabs.getClientRects().length;
+    try { const a = on.getBoundingClientRect(), b = tabs.getBoundingClientRect(); tabs.scrollBy({ left: (a.left + a.width / 2) - (b.left + b.width / 2), behavior: smooth ? 'smooth' : 'auto' }); } catch (e) {}
   }
+  if (on) tabs._wlOn = on.dataset.wl;
 }
 /* החלקה הצידה על הרשימה = הרשימה הבאה/הקודמת (ב־RTL: החלקה ימינה = הבאה). לא בתוך כרטיס פתוח/גרף/שורת הצ'יפים */
 /* v286: כרטיס האיפוס = שורה אחת "אפשרויות איפוס" → גיליון בסגנון Apple: שלוש האפשרויות (אותם כפתורים, אותם
@@ -11387,6 +11397,53 @@ function swipeVelocity(samples, now) {
   for (const [t, x] of pts) { const w = 1 + (t - t0) / 40, u = t - t0; sw += w; st += w * u; sx += w * x; stt += w * u * u; stx += w * u * x; }
   const den = sw * stt - st * st;
   return den > 1e-9 ? (sw * stx - st * sx) / den : 0;
+}
+/* 14/10/2026 (סרטון המשתמש — מסך שחור במעבר בין האפליקציות): כשהתפריט נפתח, Chrome מכין ברקע את האפליקציות
+   האחרות (Speculation Rules — prerender), והלחיצה מחליפה לדף שכבר מצויר. אותו אתר (thesnowball.app) — היעד מסכים
+   בכותרת Supports-Loading-Mode (_headers); ב־CSP ‏'inline-speculation-rules'. דפדפן בלי תמיכה / חיסכון בנתונים — כלום */
+/* הטקסט קבוע לכל זוג כתובות — ה־CSP מאשר אותו לפי hash (עם hash במדיניות Chrome מתעלם מ־'inline-speculation-rules'),
+   ו־tests/prerender.test.js בודק שכל ששת הצירופים (3 אפליקציות × ייצור/ניסוי) בכל הדפים */
+const PRE_RE = /^https:\/\/(invest|academy|studio)(-staging)?\.thesnowball\.app\/$/;
+function preRulesText(urls) { return JSON.stringify({ prerender: [{ source: 'list', urls: urls, eagerness: 'immediate' }] }); }
+function appPrerender(urls) {
+  try {
+    if (typeof document === 'undefined' || !urls || !urls.length || window._snbPre) return;
+    if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules'))) return;
+    if (navigator.connection && navigator.connection.saveData) return;
+    const list = urls.filter((u) => u && String(u).split('#')[0] !== location.href.split('#')[0]);
+    if (!list.length || !list.every((u) => PRE_RE.test(u))) return;   // רק בין הכתובות של האפליקציות (ייצור / ניסוי)
+    window._snbPre = 1;
+    const s = document.createElement('script');
+    s.type = 'speculationrules';
+    s.textContent = preRulesText(list);
+    document.head.appendChild(s);
+  } catch (e) {}
+}
+/* 14/10/2026 (בקשת המשתמש — "בלי קפיצות"): הודעה שמופיעה בדף שכבר מוצג (פס התראה, שגיאת רשת) נפתחת בגובה —
+   התוכן שמתחתיה זז ברצף ולא קופץ. growWatch: רק מה שנוסף אחרי שהדף הוצג (מה שהיה בציור הראשון — חלק מהדף),
+   ולא מה שכבר היה גלוי בציור הקודם (ציור מחדש של אותו דף) */
+function growIn(el, ms) {
+  if (!el || cubeReduce() || typeof el.animate !== 'function') return;
+  const cs = getComputedStyle(el), hh = el.offsetHeight;
+  if (!hh) return;
+  const z = { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', overflow: 'hidden' };
+  const f = { height: hh + 'px', opacity: 1, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, marginTop: cs.marginTop, marginBottom: cs.marginBottom, overflow: 'hidden' };
+  try { el.animate([z, f], { duration: ms || 340, easing: 'cubic-bezier(.2,.9,.25,1)' }); } catch (e) {}
+}
+function growWatch(root, sel, view) {
+  if (!root || typeof MutationObserver === 'undefined') return;
+  let seen = new Set(), vk = null, at = 0, q = 0;
+  const sig = (e) => e.className + '|' + (e.dataset.k || '');   // לא לפי הטקסט — מספר שמתעדכן בפס קיים לא "פותח" אותו שוב
+  const scan = () => {
+    q = 0;
+    const els = [...root.querySelectorAll(sel)].filter((e) => e.getClientRects().length);
+    const k = view(), now = Date.now();
+    if (k !== vk) { vk = k; at = now; seen = new Set(els.map(sig)); return; }
+    const next = new Set();
+    for (const e of els) { const s = sig(e); next.add(s); if (!seen.has(s) && now - at > 400) growIn(e); }
+    seen = next;
+  };
+  new MutationObserver(() => { if (!q) { q = 1; Promise.resolve().then(scan); } }).observe(root, { childList: true, subtree: true });
 }
 /* מכין אלמנט להיות פאה. o.fix = {top, left, width} — מוצמד למסך במקום הזה; o.clip — נחתך לגובה המסך (עמוד ארוך) */
 function cubeFace(el, o) {
@@ -13747,6 +13804,22 @@ function widgetParam(items) { return items.map((x) => [x.sym, x.src, x.name].con
    גם בהפעלה וגם כשהאפליקציה כבר פתוחה (hashchange). ה־hash נמחק מיד (רענון לא יפתח שוב). */
 /* v250: קישורים מהווידג'טים — ‎#tab=stocks|wishlist (הלוגו → הטאב של הווידג'ט), ‎&wl=<רשימה> (ווידג'ט המעקב → אותה רשימה),
    ‎#stock=SYM (נגיעה במניה) — בטאב של הווידג'ט: אחזקה בטאב המניות, מעקב ברשימה של הווידג'ט. */
+function bootLinkTab() {
+  const h = String(location.hash || '');
+  const get = (k) => { const m = new RegExp('(?:^#|&)' + k + '=([^&#]+)').exec(h); return m ? decodeURIComponent(m[1]) : ''; };
+  const tab = get('tab'), wl = get('wl'), sym = get('stock');
+  if (!tab && !sym) return '';
+  if (tab === 'wishlist') {
+    try {   // אותה רשימה כמו openStockFromHash: מהקישור, ואם המניה לא בה — הרשימה שבה היא נמצאת
+      const ls = wlLists(), has = (id) => ls.some((l) => l.id === id && (!sym || l.items.some((w) => w.sym === sym)));
+      let id = has(wl) ? wl : '';
+      if (!id && sym) { const f = ls.find((l) => l.items.some((w) => w.sym === sym)); if (f) id = f.id; }
+      if (id) localStorage.setItem(LS_WLACTIVE, id);
+    } catch (e) {}
+  }
+  if (sym) return tab === 'wishlist' ? 'wishlist' : 'stocks';
+  return TAB_ORDER.includes(tab) ? tab : '';
+}
 function openStockFromHash() {
   appSessionFromHash();
   const h = String(location.hash || '');
@@ -14081,7 +14154,11 @@ function init() {
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   // v85: שחזור הטאב האחרון אחרי רענון (לפני בדיקת המפתח — אם אין מפתח, הגדרות גובר)
   try {
-    const lastTab = localStorage.getItem('pwa_lasttab_v1');
+    let lastTab = localStorage.getItem('pwa_lasttab_v1');
+    /* 14/10/2026 (סרטון המשתמש): קישור מהווידג'ט — נפתחים ישר בטאב שלו ובאותה רשימה, בלי לצייר קודם את הטאב האחרון
+       ולסובב אליו (openStockFromHash אחר כך כבר באותו טאב — רק פותח את הכרטיס) */
+    const lk = bootLinkTab();
+    if (lk) lastTab = lk;
     if (lastTab && document.getElementById('tab-' + lastTab)) {
       switchTab(lastTab, { restore: true });
     }
@@ -14346,6 +14423,7 @@ function init() {
     appStarted = true;
     bootSig = dbSig();
     renderAll();
+    document.documentElement.classList.remove('booting');   // 14/10/2026: התוכן מוצג רק מהציור הראשון (styles.css, html.booting)
     requestAnimationFrame(() => { try { positionTabIndicator(); } catch (e) {} });
     refreshQuotes().then(() => { warmHistories(); liveStart(); });
     refreshEarnings().then(() => { renderOverview(); renderWishlist(); });
@@ -14418,6 +14496,7 @@ function setMainMenuOpen(open) {
   if (!d || !btn) return;
   const was = !d.classList.contains('hidden');
   if (open && !was) _menuModal = modalPush(() => setMainMenuOpen(false));           // v322: "חזור" סוגר את התפריט
+  if (open && typeof APP_PAGE !== 'undefined') appPrerender([APP_PAGE.academy, APP_PAGE.studio]);   // 14/10/2026: מעבר בלי מסך שחור
   else if (!open && _menuModal) { const m = _menuModal; _menuModal = null; modalDone(m); }
   d.classList.toggle('hidden', !open);
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
