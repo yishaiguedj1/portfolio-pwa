@@ -420,6 +420,11 @@ function mock(opts = {}) {
     ok(['VERCEL_TOKEN', 'PROD_TUNNEL_TOKEN', 'PROD_APP_EXTRA'].every((k) => ci.includes(k + ': ${{ secrets.' + k + ' }}'))
       && /VERCEL_PROJECT: \$\{\{ vars\.VERCEL_PROJECT \}\}/.test(ci), 'workflow ת3: הסודות של השרתון מגיעים רק לצעד של קוד ההקמה');
     const src = read('tools/server-provision.js');
+    /* 14/10/2026: הקמת snb-2 נעצרה ב"חסר חשבון השירות של Firebase" — מאז ת3 קוד ההקמה פותח את הכספת של הייצור
+       ב־PROD_FIREBASE_SA, והצעד לא קיבל אותו. כל סוד STG_/PROD_ שהכלי קורא — בצעד של קוד ההקמה */
+    const need = [...new Set(src.match(/\b(?:STG|PROD)_[A-Z0-9_]+\b/g))];
+    const miss = need.filter((k) => !new RegExp('\\b' + k + '[A-Z0-9_]*: \\$\\{\\{ secrets\\.' + k).test(ci));
+    ok(need.length >= 10 && !miss.length, 'workflow: כל סוד שהכלי קורא מגיע לצעד של קוד ההקמה' + (miss.length ? ' (חסרים: ' + miss.join(', ') + ')' : ''));
     ok(!/console\.(log|error)\([^)]*(token|E\.|e\.STG|HCLOUD)/.test(src), 'הכלי לא מדפיס סודות');
   }
 
