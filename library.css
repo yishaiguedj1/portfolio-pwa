@@ -612,6 +612,7 @@ textarea.ed-in { min-height: 130px; resize: vertical; line-height: 1.55; }
   box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); transition: transform .32s cubic-bezier(.3,1.2,.4,1); }
 [data-theme="dark"] .lib-seg::before { background: #636366; }
 .lib-seg.mine::before { transform: translateX(-100%); }
+[dir] .lib-seg.hold::before { transition: none; transform: translateX(var(--segx, 0)); }   /* 14/10/2026: הסימון עם האצבע בזמן מעבר בין הספריות */
 [dir="ltr"] .lib-seg.mine::before { transform: translateX(100%); }
 .lib-seg-b { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 4px; font-size: 14.5px !important; font-weight: 600; white-space: nowrap; }
 .lib-seg-b small { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }

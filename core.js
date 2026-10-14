@@ -167,8 +167,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.3.0';
-const APP_VERSION = 'v419';
+const APP_RELEASE = '2.3.2';
+const APP_VERSION = 'v421';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -458,12 +458,46 @@ function cubeBackdrop(el) {              // מתחת לשכבה — רקע אט�
   el.before(d);
   return d;
 }
-/* מעבר שלם בשכבה (לחיצה, "חזור"): ghost = הדף היוצא (cubeClone, לפני הציור), root = הדף החדש שכבר צויר */
-function cubeGhostRun(root, ghost, side) {
+/* 14/10/2026 (בקשת המשתמש — Academy, בין שתי הספריות): רק מה שמתחת לבורר מסתובב, כמו ב־Invest מתחת ללשוניות.
+   רצועה קבועה = העתק של מה שמעל y בדף החדש (ההדר והבורר), מעל הפאות ובלי סיבוב; הפאות נחתכות מתחתיה (cubeClipTop).
+   מעתיקים רק את מה שמעל הקו — לא את כל הדף */
+function cubeHold(root, y) {
+  const top = root.getBoundingClientRect().top;
+  if (!(y > top + 1)) return null;
+  const copy = (el) => {
+    const c = el.cloneNode(false);
+    for (const ch of el.childNodes) {
+      if (ch.nodeType !== 1) { c.appendChild(ch.cloneNode(true)); continue; }
+      const b = ch.getBoundingClientRect();
+      if ((!b.width && !b.height) || b.top >= y) continue;
+      c.appendChild(b.bottom <= y + 0.5 ? ch.cloneNode(true) : copy(ch));
+    }
+    return c;
+  };
+  const c = copy(root);
+  c.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));
+  c.removeAttribute('id'); c.classList.add('cube-hold', 'cube-flat'); c.setAttribute('aria-hidden', 'true');
+  try { c.inert = true; } catch (e) {}
+  const r = root.getBoundingClientRect(), st = c.style;
+  st.position = 'fixed'; st.top = r.top + 'px'; st.left = r.left + 'px'; st.width = r.width + 'px'; st.height = (y - r.top) + 'px';
+  st.bottom = 'auto'; st.right = 'auto'; st.overflow = 'hidden'; st.zIndex = '902'; st.pointerEvents = 'none'; st.transform = 'none'; st.clipPath = 'none';
+  (root.parentNode || document.body).appendChild(c);
+  c.scrollTop = root.scrollTop;
+  return c;
+}
+function cubeClipTop(f, y) {             // הפאה נחתכת מתחת לרצועה הקבועה (לפני הסיבוב — מידות אמיתיות)
+  if (!f || !f.el) return;
+  f.el.style.clipPath = 'inset(' + Math.max(0, Math.round((y - f.el.getBoundingClientRect().top) * 10) / 10) + 'px 0 0 0)';
+}
+/* מעבר שלם בשכבה (לחיצה, "חזור"): ghost = הדף היוצא (cubeClone, לפני הציור), root = הדף החדש שכבר צויר.
+   hold = {y, on(el, p|'commit'|'cancel')} — רצועה קבועה מעל y (cubeHold) */
+function cubeGhostRun(root, ghost, side, hold) {
   const bd = cubeBackdrop(root);
+  const hy = hold && hold.y > 0 ? hold.y : 0, he = hy ? cubeHold(root, hy) : null;
   const c = { side: side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root) };
+  if (he) { cubeClipTop(c.out, hy); cubeClipTop(c.in, hy); if (hold.on) { hold.on(he, 0); hold.on(he, 'commit'); } }
   cubeSet(c, 0);
-  return new Promise((res) => cubeRun(c, 1, 0, () => { cubeFaceOff(c.in); ghost.remove(); bd.remove(); res(); }));
+  return new Promise((res) => cubeRun(c, 1, 0, () => { cubeFaceOff(c.in); ghost.remove(); bd.remove(); if (he) he.remove(); res(); }));
 }
 function cubeSlideIn(els, dir) {         // טאב פנימי חדש נכנס מהצד (כמו החלפת רשימת מעקב — wlSlide)
   if (cubeReduce()) return;
@@ -497,8 +531,12 @@ function snbSwipe(o) {
     if (!pg) { s.cube = { side: s.side, p: 0, rub: true, out: cubeFace(root, { dead: true }), bd: bd }; return; }
     const ghost = cubeClone(root);
     try { pg.render(); } catch (e) { ghost.remove(); bd.remove(); s.cube = null; return; }
-    s.cube = { side: s.side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost: ghost, bd: bd, pg: pg };
+    let hy = 0; try { hy = pg.hold ? pg.hold() : 0; } catch (e) {}
+    const he = hy > 0 ? cubeHold(root, hy) : null;
+    s.cube = { side: s.side, p: 0, out: cubeFace(ghost, { dead: true }), in: cubeFace(root), ghost: ghost, bd: bd, pg: pg, hold: he };
+    if (he) { cubeClipTop(s.cube.out, hy); cubeClipTop(s.cube.in, hy); holdOn(s.cube, 0); }
   }
+  function holdOn(c, p) { if (c && c.hold && c.pg && c.pg.holdOn) { try { c.pg.holdOn(c.hold, p); } catch (e) {} } }
   root.addEventListener('touchstart', (e) => {
     if (g) cancel();
     if (cubeNow && cubeNow.finish) cubeNow.finish();
@@ -539,7 +577,7 @@ function snbSwipe(o) {
     g.d = d;
     let act = pageSwipeDecide(d, g.w, 0);
     if (p > 0 && !g.cube) begin(g);
-    if (g.cube) cubeSet(g.cube, g.cube.rub ? p * 0.15 : p);
+    if (g.cube) { cubeSet(g.cube, g.cube.rub ? p * 0.15 : p); holdOn(g.cube, p); }
     if (act === 'page' && !(g.cube && g.cube.pg)) act = null;
     if (act !== g.act && act === 'page') buzz(12);
     g.act = act;
@@ -548,11 +586,13 @@ function snbSwipe(o) {
     const c = s.cube;
     if (!c) return;
     if (act === 'page') {
-      cubeRun(c, 1, Math.max(0, vp), () => { cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove(); c.pg.commit(); });
+      holdOn(c, 'commit');
+      cubeRun(c, 1, Math.max(0, vp), () => { cubeFaceOff(c.in); c.ghost.remove(); c.bd.remove(); if (c.hold) c.hold.remove(); c.pg.commit(); });
       return;
     }
+    holdOn(c, 'cancel');
     cubeRun(c, 0, Math.min(0, vp) * (c.rub ? 0.15 : 1), () => {
-      const done = () => { cubeFaceOff(c.in); cubeFaceOff(c.rub ? c.out : null); if (c.ghost) c.ghost.remove(); c.bd.remove(); };
+      const done = () => { cubeFaceOff(c.in); cubeFaceOff(c.rub ? c.out : null); if (c.ghost) c.ghost.remove(); c.bd.remove(); if (c.hold) c.hold.remove(); };
       if (!c.pg) return done();
       let r; try { r = c.pg.undo(); } catch (e) { r = null; }
       Promise.resolve(r).then(done, done);   // הדף הקודם נצבע מחדש מאחורי ההעתק — ורק אז ההעתק יורד
