@@ -32,7 +32,7 @@ ok(!/WL_SWIPE|WL_PAGE_FRAC|'list'/.test(fn('pageSwipeDecide')) && !/WL_SWIPE_MIN
 ok(!/function wireWatchSwipe/.test(app), 'מנגנון אחד לשתי המחוות (בלי מאזין כפול)');
 const w = fn('wirePageSwipe');
 ok(/Math\.abs\(dx\) < Math\.abs\(dy\) \* 1\.5\) \{ unhook\(g\); g = null; return; \}/.test(w), 'תנועה אנכית = גלילה, לא החלקה');
-ok(/let act = pageSwipeDecide\(s\.d \|\| 0, s\.w, fwd \? v : 0\)/.test(w), 'ההחלטה בשחרור לפי מרחק + מהירות בכיוון');
+ok(/const v = swipeVelocity\(s\.samples, clock\(\)\)/.test(w) && /let act = pageSwipeDecide\(s\.d \|\| 0, s\.w, Math\.max\(0, v\)\)/.test(w), 'ההחלטה בשחרור לפי מרחק + מהירות האצבע ברגע השחרור, בכיוון (14/10/2026: swipeVelocity)');
 ok(/PAGE_SWIPE_EDGE/.test(w), 'קצה המסך (מחוות חזור) לא נחשב');
 ok(/canvas, \.sc-ov, input, textarea, select/.test(fn('pageSwipeBlocked')) && /\.wl-tabs/.test(fn('pageSwipeBlocked')), 'גרף/שדה/טאבי רשימות — לא מחליקים עמוד');
 ok(/overflowX/.test(fn('pageSwipeBlocked')), 'פס גלילה אופקי — לא מחליקים עמוד');
@@ -43,7 +43,7 @@ ok(/html, body \{ overscroll-behavior-x: none; \}/.test(css), 'בלי "חזור"
 ok(/s\.style\.animation = ''/.test(fn('setTabPageDirection')) && /setTabPageDirection\(prev, name\)/.test(fn('switchTab')), 'מעבר עמוד מחזיר את אנימציית הכניסה');
 ok(/try \{ wirePageSwipe\(\); \}/.test(app), 'מחובר באתחול');
 // v283: אחרי מעבר בהחלקה — לראש העמוד / לראש טאבי הרשימות
-ok(/if \(s\.cube && s\.cube\.in\) tabCubeCommit\(s\.cube, Math\.max\(0, vp\)\); else switchTab\(s\.to\);\s*swipeScrollTop\(\);/.test(w), 'מעבר עמוד → ראש העמוד (גם כשנשמר מיקום גלילה); 14/10/2026: ממשיך את הקובייה מאותה זווית ומהירות');
+ok(/if \(s\.cube && s\.cube\.in\) tabCubeCommit\(s\.cube, Math\.max\(0, vp\)\);[^\n]*\n\s*else \{ switchTab\(s\.to\); swipeScrollTop\(\); \}/.test(w) && /navScrollTop\(\)/.test(fn('tabCubeGo')), 'מעבר עמוד → ראש העמוד (גם כשנשמר מיקום גלילה); בקובייה — tabCubeGo גולל בשחרור, והיוצא נשאר במקומו');
 const sst = fn('swipeScrollTop');
 ok(/cancelScrollRestore\(\)/.test(sst) && /position === 'sticky'/.test(sst), 'מתחת להדר ולסרגל הדביקים, בלי שחזור הגלילה');
 ok(!/on\.scrollIntoView\(\{ block: 'nearest'/.test(app) && /tabs\.scrollBy\(\{ left:/.test(app), 'צ׳יפ הרשימה נגלל אופקית בלבד (לא מזיז את העמוד)');

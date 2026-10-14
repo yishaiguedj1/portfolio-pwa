@@ -142,7 +142,7 @@ ok(appSrc.includes("getElementById('clearCache')"), 'app.js מחבר מאזין 
 ok(/caches\.delete/.test(appSrc) && /unregister\(\)/.test(appSrc), 'ניקוי המטמון מוחק caches ומבטל רישום SW');
 
 /* ---------- התאמת גודל מספרים אוטומטית (v36) ---------- */
-ok(appSrc.includes('function fitNumbers()'), 'fitNumbers קיימת ב־app.js');
+ok(appSrc.includes('function fitNumbers(page)'), 'fitNumbers קיימת ב־app.js (14/10/2026: גם לעמוד שנכנס בקובייה)');
 ok(/\.stat-value, \.lg-pct, \.pension-total/.test(appSrc), 'fitNumbers מכסה stat-value, lg-pct ו־pension-total');
 ok(/renderOverview[\s\S]{0,4000}fitNumbers\(\)/.test(appSrc), 'renderOverview קוראת ל־fitNumbers');
 ok(/switchTab[\s\S]{0,2000}fitNumbers\(\)/.test(appSrc), 'switchTab קוראת ל־fitNumbers אחרי מעבר לשונית');
