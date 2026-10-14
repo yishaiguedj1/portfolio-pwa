@@ -4736,8 +4736,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.3.0';
-const APP_VERSION = 'v419';
+const APP_RELEASE = '2.3.1';
+const APP_VERSION = 'v420';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -7321,7 +7321,7 @@ function tabCubeRun(c, p1, v0) {
   cubeRun(c, p1, v0, () => {
     if (tabCube === c) tabCube = null;
     cubeFaceOff(c.out); if (c.out) c.out.el.classList.remove('cube-out');
-    if (c.in) { cubeFaceOff(c.in); c.in.el.classList.remove('cube-in'); }
+    if (c.in) { c.in.el.classList.remove('cube-in'); cubeFaceOff(c.in); }   // קודם מוסתר, אחר כך חוזר לזרימה
   });
 }
 function tabCubeSwitch(prev, name, opts) { // לחיצה על לשונית / תפריט / "חזור" — סיבוב מלא, באותה דרך כמו גרירה ושחרור
@@ -7340,14 +7340,22 @@ function tabFlowTop(page) {
 }
 function tabCubeDrag(cur, to, side) { // תחילת התזוזה בגרירה; to = null — "קפיץ" (אין עמוד בכיוון הזה)
   const out = document.getElementById('tab-' + cur);
+  /* 14/10/2026 (נמדד, דיווח המשתמש): הגלילה נקראת לפני שהעמוד הנכנס מוצג. קריאת scrollY מחשבת פריסה, ואחרי cube-in
+     העמוד הנכנס עוד בזרימה — כשהוא לפני היוצא בדף ("אחורה"), ה־scroll anchoring של הדפדפן הזיז את הגלילה בגובה כולו,
+     ושני העמודים נעלמו מהמסך עד סוף הסיבוב (רק בעמוד גלול). בנוסף — אם בכל זאת זזה, מחזירים אותה */
+  const sy = window.scrollY || 0;
   out.classList.add('no-in');
   const r = out.getBoundingClientRect(), top = tabFlowTop(out);
   const c = { side: side, p: 0, r0: { top: top, left: r.left, width: r.width }, to: to, rub: !to, out: cubeFace(out, { clip: true, dead: true }), in: null };
   if (to) {
     const pg = document.getElementById('tab-' + to);
     if (pg.classList.contains('prewarm')) { pg.classList.remove('prewarm'); pg.style.cssText = pg._prewarmCss || ''; }
+    const css0 = pg.style.cssText;
+    pg.style.position = 'fixed';             // מחוץ לזרימה כבר לפני שהוא מוצג
     pg.classList.add('cube-in', 'no-in');
-    c.in = cubeFace(pg, { fix: { top: top + (window.scrollY || 0), left: r.left, width: r.width }, clip: true });
+    c.in = cubeFace(pg, { fix: { top: top + sy, left: r.left, width: r.width }, clip: true });
+    c.in.css = css0;
+    if (Math.abs((window.scrollY || 0) - sy) > 0.5) window.scrollTo(0, sy);
     tabPageRender(to);
     try { fitNumbers(pg); } catch (e) {}
   }
@@ -7365,7 +7373,14 @@ function tabCubeGo(c, v0, name, opts) {
   tabCubeRun(c, 1, v0);
   switchTab(name, Object.assign({}, opts, { cubeDone: true, keepScroll: true }));
   if (sy > 0) { out.style.position = 'relative'; out.style.top = -sy + 'px'; }
+  const tabs = sy > 0 && document.querySelector('.tabs'), t0 = tabs ? tabs.getBoundingClientRect().top : 0;
   cancelScrollRestore(); navScrollTop();
+  /* 14/10/2026 (דיווח המשתמש): בעמוד גלול שורת הלשוניות מאחורי ההדר (sticky), והחזרה לראש העמוד הציגה אותה בבת אחת.
+     עכשיו היא יורדת ממקומה מאחורי ההדר יחד עם תחילת הסיבוב */
+  if (tabs && typeof tabs.animate === 'function' && !cubeReduce()) {
+    const d = t0 - tabs.getBoundingClientRect().top;
+    if (Math.abs(d) > 1) { try { tabs.animate([{ transform: 'translateY(' + d + 'px)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' }); } catch (e) {} }
+  }
 }
 function tabCubeCommit(c, v0) { tabCubeGo(c, v0, c.to, null); }
 /* v325: גלילה תוכנתית של מעבר טאב (ראש העמוד) — מסומנת data-nav-scroll על <html> לשני פריימים, כדי שכלי המדידה

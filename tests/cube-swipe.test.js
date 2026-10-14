@@ -67,6 +67,9 @@ ok(/marginTop/.test(tft) && /tabFlowTop\(out\)/.test(fn(app, 'tabCubeDrag')), '�
 const go = fn(app, 'tabCubeGo');
 ok(/cube-out/.test(go) && !/cubeFace\(/.test(go) && /keepScroll: true/.test(go) && /style\.top = -sy/.test(go), 'בשחרור: בלי מדידה מחדש של העמודים (היוצא נשאר בזרימה, הנכנס מוצמד עד הסוף)');
 ok(/tabCubeGo\(tabCubeDrag\(prev, name/.test(fn(app, 'tabCubeSwitch')), 'לחיצה על לשונית — אותה דרך כמו גרירה ושחרור');
+{ const d = fn(app, 'tabCubeDrag'); ok(d.indexOf('const sy = window.scrollY') >= 0 && d.indexOf('const sy = window.scrollY') < d.indexOf("classList.add('cube-in'") && /top: top \+ sy/.test(d) && d.indexOf("pg.style.position = 'fixed'") < d.indexOf("classList.add('cube-in'") && /c\.in\.css = css0/.test(d), 'עמוד גלול: הגלילה נקראת לפני שהעמוד הנכנס מוצג, והוא מחוץ לזרימה מההתחלה (scroll anchoring הזיז את שני העמודים מהמסך באחורה)'); }
+ok(/classList\.remove\('cube-in'\); cubeFaceOff\(c\.in\)/.test(fn(app, 'tabCubeRun')), 'ביטול: העמוד הנכנס מוסתר לפני שהוא חוזר לזרימה');
+ok(/tabs\.animate\(/.test(fn(app, 'tabCubeGo')), 'עמוד גלול: שורת הלשוניות יורדת ממקומה מאחורי ההדר, לא מופיעה בבת אחת');
 ok(/fitNumbers\(pg\)/.test(fn(app, 'tabCubeDrag')), 'המספרים בעמוד הנכנס מותאמים כבר בגרירה — לא משנים גודל באמצע הסיבוב');
 ok(/function tabPrewarm\(\)/.test(app) && /tabPrewarm\(\);/.test(fn(app, 'switchTab')) && /_prewarmCss/.test(fn(app, 'tabCubeDrag')), 'העמודים השכנים נצבעים מראש כשהטלפון פנוי');
 
