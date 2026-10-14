@@ -8,6 +8,7 @@ const quotes = require('../api/quotes');
 
 let n = 0;
 process.env.AI_ANON_DAILY = process.env.AI_ANON_DAILY || '1000000';   // v339: בבדיקות הישנות — בלי מגבלה יומית לכתובת
+process.env.SNB_SITEWATCH = 'off';   // שלב 5: ניטור הכתובות — רק בבלוק שלו (הכתובות האמיתיות לא נגישות בבדיקות)
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
 
 /* ---------- statementBaseFrom (SSRF guard) ---------- */
@@ -3306,7 +3307,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,bk,ob' && g.payload.bk === -1 && g.payload.ob === 0,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,st,bk,ob' && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;
@@ -3330,6 +3331,35 @@ function stubFetch(text, status = 200) {
         const g3 = await get({ authorization: 'Bearer c-secret-2' });
         delete process.env.STUDIO_WATCH_SECRET; delete process.env.CRON_SECRET;
         ok(g3.statusCode === 200, 'ת7: הקרון היומי של Vercel (CRON_SECRET) מתקבל גם כשיש STUDIO_WATCH_SECRET');
+        // שלב 5 (ב2): ניטור הכתובות מבחוץ — נכשלה פעמיים ברצף → התראה אחת למנהל (בעל הגיבוי); חזרו כולן → "חזר"
+        {
+          process.env.SNB_SITEWATCH = '';
+          db.set('sysBackup/cfg', { fields: { uid: { stringValue: 'ownerUid0001' } } });
+          let bad = new Set(['api']);
+          const seen = [];
+          const sget = async () => {
+            studio._reset();
+            const x = mockRes();
+            await studio._handler({ method: 'GET', headers: {} }, x, Object.assign(deps(), { fetch: (u, o) => {
+              if (/^https:\/\/[a-z-]+\.thesnowball\.app\//.test(u)) { seen.push(u); return Promise.resolve({ status: bad.has(new URL(u).hostname.split('.')[0]) ? 530 : 200 }); }
+              return fake(u, o);
+            } }));
+            return x;
+          };
+          pushes = [];
+          let a = await sget();
+          ok(a.payload.st === 0 && pushes.length === 0 && seen.length === 5, 'שלב 5: ניטור — 5 כתובות נבדקות; נכשלה פעם אחת — עדיין בלי התראה');
+          a = await sget();
+          ok(a.payload.st === 1 && pushes.length === 1 && decrypt(pushes[0].body).k === 'site_down', 'שלב 5: ניטור — נכשלה פעמיים ברצף → התראה "לא עונה" למנהל');
+          a = await sget();
+          ok(a.payload.st === 1 && pushes.length === 1, 'שלב 5: ניטור — בלי התראה כפולה');
+          bad = new Set();
+          a = await sget();
+          ok(a.payload.st === 0 && pushes.length === 2 && decrypt(pushes[1].body).k === 'site_up' && db.get('sysWatch/sites').fields.sd.stringValue === '', 'שלב 5: ניטור — כולן עונות → "חזר ✓"');
+          process.env.SNB_SITEWATCH = 'off';
+          db.delete('sysBackup/cfg');
+          studio._reset();
+        }
         // 11/10: GitHub מדלג על ריצות מתוזמנות — גם הטלפון בודק (פעם ב־5 דק׳, רק את השרתים שלו)
         const cr2 = await run({ op: 'srvCreate', idToken: OWNER, name: 'mon2' });
         await srvRun({ op: 'poll', hb: {} }, cr2.payload.token);

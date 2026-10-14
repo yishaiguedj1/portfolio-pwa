@@ -82,10 +82,10 @@ t('פס הפריסה: בדיקות → ניסוי → אישור → Pages → �
   assert.ok(/workflow_run\.event == 'push' && github\.event\.workflow_run\.head_branch == 'main' && github\.event\.workflow_run\.head_repository\.full_name == github\.repository/.test(w), 'רק push ל־main בריפו הזה — לא PR ולא fork');
   assert.ok(/approve:[\s\S]*?needs: staging[\s\S]*?environment: production/.test(w), 'אישור בסביבה production');
   assert.ok(/deploy:[\s\S]*?needs: \[staging, approve\][\s\S]*?name: github-pages/.test(w), 'Pages רק אחרי האישור');
-  assert.ok(/verify-and-tag:[\s\S]*?needs: \[staging, deploy\][\s\S]*?swgen\.js --live[\s\S]*?tag -a/.test(w));
+  assert.ok(/verify-and-tag:[\s\S]*?needs: \[staging, deploy(, deploy-cf)?\][\s\S]*?swgen\.js --live[\s\S]*?tag -a/.test(w));
   assert.ok(!/ref: \$\{\{ env\.SHA \}\}/.test(w) && /head_sha/.test(w), 'לא מושכים ישירות קומיט מהאירוע');
-  assert.strictEqual((w.match(/ref: main\n/g) || []).length, 3, 'כל שלב מושך את main');
-  assert.strictEqual((w.match(/merge-base --is-ancestor "\$SHA" HEAD \|\|[^\n]*\n\s*git checkout -q --detach "\$SHA"/g) || []).length, 3, 'ובודק שהקומיט ב־main לפני שעובר אליו');
+  assert.strictEqual((w.match(/ref: main\n/g) || []).length, 4, 'כל שלב מושך את main (כולל deploy-cf — שלב 5)');
+  assert.strictEqual((w.match(/merge-base --is-ancestor "\$SHA" HEAD \|\|[^\n]*\n\s*git checkout -q --detach "\$SHA"/g) || []).length, 4, 'ובודק שהקומיט ב־main לפני שעובר אליו');
   assert.ok(/^permissions:\s*\n\s*contents: read/m.test(w), 'הרשאות מינימליות כברירת מחדל');
   for (const u of w.match(/uses: \S+/g)) assert.ok(/@[0-9a-f]{40}$/.test(u), 'מקובע ל־SHA: ' + u);
   // הניסוי: העלאה ישירה מ־Actions (לא החיבור ל־Git של Cloudflare) — רק קומיט שהבדיקות שלו ירוקות, רק הקבצים שב־git

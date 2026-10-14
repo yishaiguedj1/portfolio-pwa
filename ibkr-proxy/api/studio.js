@@ -20,6 +20,7 @@
    הפעלת Routine: אין מפתח למניעת כפילות, ולכן לעולם לא מנסים שוב לבד — אחרת ייפתחו שני סשנים. */
 const { guard } = require('../lib/ibkr');
 const { verifyIdToken, datastoreToken, isAdmin, emails } = require('../lib/gauth');
+const SW = require('../lib/sitewatch');
 const vault = require('../lib/vault');
 const gdrive = require('../lib/gdrive').studio;   // v357: לקוח OAuth נפרד לסטודיו — לא רואה את גיבוי הספרייה
 const S = require('../lib/studio');
@@ -273,9 +274,32 @@ async function watch(req, res, deps) {
   let down;
   try { down = await checkServers(deps, now); }
   catch (e) { return res.status(502).json({ ok: false }); }
+  const st = await siteWatch(deps, now).catch(() => -1);   // שלב 5: הכתובות עצמן (השרתון שלנו ושלוש האפליקציות)
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
-  return res.status(200).json({ ok: true, down, bk, ob });
+  return res.status(200).json({ ok: true, down, st, bk, ob });
+}
+/* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
+   למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
+async function siteWatch(deps, now) {
+  if (process.env.SNB_SITEWATCH === 'off') return 0;   // בבדיקות השרתון (run.js) — הכתובות האמיתיות לא נגישות שם
+  const f = deps.fetch || fetch;
+  const ok = {};
+  await Promise.all(SW.SITES.map(async ([n, u]) => {
+    try {
+      const r = await f(u, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(SW.TIMEOUT), headers: { 'Cache-Control': 'no-cache' } });
+      ok[n] = r.status === 200;
+    } catch (e) { ok[n] = false; }
+  }));
+  const prev = (await readDoc(deps, 'sysWatch', 'sites').catch(() => null)) || {};
+  const r = SW.siteStep(prev, ok);
+  if (r.sd !== String(prev.sd || '') || r.sp !== String(prev.sp || '')) await patchDoc(deps, 'sysWatch', 'sites', { sd: r.sd, sp: r.sp, at: now });
+  const kind = r.down.length ? 'site_down' : r.up.length && !r.sd ? 'site_up' : '';   // "חזר" — רק כשכולן עונות
+  if (kind) {
+    const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+    if (cfg && UID_RE.test(String(cfg.uid || ''))) await notify(deps, cfg.uid, kind, '', now);
+  }
+  return r.sd ? r.sd.split(',').length : 0;
 }
 /* 11/10/2026 — הגיבוי אצל ספק שני (lib/offsite.js): ל־Drive של המנהל שרשום ב־sysBackup/cfg (נרשם כשהמנהל פותח את הסטודיו).
    הגישה: רק הלקוח של הספרייה (OFF.ownerToken) — **לא של הסטודיו**: העובד מקבל גישה של הלקוח של הסטודיו, ועובד שנפרץ היה

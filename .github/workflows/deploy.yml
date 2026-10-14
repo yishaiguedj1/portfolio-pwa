@@ -7,7 +7,9 @@
 #     הסביבה production ב־GitHub מחכה לאישור שלך ("Review deployments" בטלפון). שחרור חדש לפני האישור
 #     מבטל את ההמתנה הקודמת — תמיד מאשרים את האחרון, שכולל את כל מה שלפניו.
 #  4. deploy: אותם קבצים בדיוק (אותו קומיט) ל־GitHub Pages. דורש בהגדרות: Pages → Source = GitHub Actions.
-#  5. verify-and-tag: האתר החי מגיש את הבנייה, כל קובץ זהה לטביעה, ותגית git ‏vX.Y.Z (גרסת המערכת) = נקודת חזרה.
+#     deploy-cf (שלב 5, 14/10/2026): ובמקביל לפרויקט הייצור ב־Cloudflare Pages ‏(thesnowball-prod) —
+#     invest/academy/studio.thesnowball.app. github.io ממשיך לקבל את אותה בנייה (קישורים ישנים, APK ישן).
+#  5. verify-and-tag: האתר החי מגיש את הבנייה (בשתי הכתובות), כל קובץ זהה לטביעה, ותגית git ‏vX.Y.Z (גרסת המערכת) = נקודת חזרה.
 # חזרה לגרסה קודמת = התוכן של התגית הקודמת כגרסה חדשה (CLAUDE.md סעיף 8). Run workflow ידני = פריסה חוזרת של הראשי.
 name: deploy
 on:
@@ -122,8 +124,47 @@ jobs:
       - id: pages
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
+  deploy-cf:
+    needs: [staging, approve]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-cf-prod
+      cancel-in-progress: false
+    outputs:
+      up: ${{ steps.cf.outputs.up }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: הקומיט נמצא ב־main — ורק אז עוברים אליו
+        run: |
+          git merge-base --is-ancestor "$SHA" HEAD || { echo "::error::$SHA לא נמצא ב־main — לא פורסים"; exit 1; }
+          git checkout -q --detach "$SHA"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: העלאה לייצור (Cloudflare Pages ‏thesnowball-prod)
+        id: cf
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          REL: ${{ needs.staging.outputs.rel }}
+          VER: ${{ needs.staging.outputs.ver }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then echo "אין CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID — מדלגים"; exit 0; fi
+          W="npx --yes wrangler@4.140.0"
+          site="$RUNNER_TEMP/site"; mkdir -p "$site"
+          git archive "$SHA" | tar -x -C "$site"; rm -rf "$site/.github"
+          # הפרויקט נוצר ידנית (14/10/2026, עם הכתובות) — לא יוצרים כאן: שם שגוי = פרויקט ריק בלי כתובות
+          $W pages project list | grep -q ' thesnowball-prod ' || { echo "::error::אין פרויקט thesnowball-prod ב־Cloudflare"; exit 1; }
+          $W pages deploy "$site" --project-name thesnowball-prod --branch main --commit-hash "$SHA" --commit-message "$REL ($VER)" --commit-dirty=true
+          echo "up=yes" >> "$GITHUB_OUTPUT"
+
   verify-and-tag:
-    needs: [staging, deploy]
+    needs: [staging, deploy, deploy-cf]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -151,6 +192,29 @@ jobs:
             echo "עדיין $live — מחכים ($i)"; sleep 30
           done
           echo "::error::האתר החי לא הגיע ל־$VER תוך 15 דקות"; exit 1
+      - name: הכתובות של thesnowball.app מגישות את הגרסה, וכל קובץ זהה לטביעה
+        if: needs.deploy-cf.outputs.up == 'yes'
+        env:
+          VER: ${{ needs.staging.outputs.ver }}
+        run: |
+          # Invest — כל קובץ מול הטביעה; Academy ו־Studio — אותו פרויקט: הגרסה + הדף שבשורש (academy.html / studio.html)
+          for u in https://invest.thesnowball.app/ https://academy.thesnowball.app/ https://studio.thesnowball.app/; do
+            ok=
+            for i in $(seq 1 20); do
+              live=$(curl -sS --max-time 20 "${u}sw.js?n=$RANDOM$i" | grep -oP "portfolio-pwa-\Kv\d+" | head -1 || true)
+              if [ "$live" = "$VER" ]; then
+                case "$u" in
+                  *//invest.*) node tools/swgen.js --live "$u" && ok=1 ;;
+                  *) node tools/swgen.js --live-root "$u" && ok=1 ;;
+                esac
+              fi
+              [ -n "$ok" ] && { echo "$u על $VER"; break; }
+              echo "$u עדיין $live — מחכים ($i)"; sleep 15
+            done
+            [ -n "$ok" ] || { echo "::error::$u לא הגיע ל־$VER תוך 5 דקות"; exit 1; }
+          done
+          loc=$(curl -sS -o /dev/null -w '%{redirect_url}' --max-time 20 https://thesnowball.app/)
+          [ "$loc" = "https://invest.thesnowball.app/" ] || { echo "::error::thesnowball.app לא מעביר ל־Invest ($loc)"; exit 1; }
       - name: תגית לגרסת המערכת
         env:
           TAG: v${{ needs.staging.outputs.rel }}
