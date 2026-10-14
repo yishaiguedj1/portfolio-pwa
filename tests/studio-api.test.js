@@ -20,6 +20,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const hb = S.normHb({ v: 'deadbeef1234567', disk: 120, mem: -3, load: 2.345, busy: 'evil', name: '<b>' });
   ok(hb.v === 'deadbeef1234' && hb.disk === 100 && hb.mem === 0 && hb.load === 2.3 && hb.busy === '' && !('name' in hb), 'דופק: רק מספרים בטווח וגרסה; כל השאר נזרק');
   ok(S.jobCap({ cap: 20 }, 25, 30) === 5 && S.jobCap({ cap: 20 }, 29.2, 30) === 0 && S.jobCap({ cap: 3 }, 0, 30) === 3, 'תקרת עבודה: המינימום בין הבחירה למה שנשאר החודש; פחות מדולר — לא מתחילים');
+  ok(S.jobCap({ cap: 10 }, 0, 30, 7.5) === 2.5 && S.jobCap({ cap: 10 }, 0, 30, 9.5) === 0 && S.jobCap({ cap: 10 }, 25, 30, 2) === 5, '14/10: התקרה לכל העבודה — "המשך" מקבל רק מה שנשאר אחרי הסשנים הקודמים');
+  ok(/capWhy\(job, st, now\)/.test(read('ibkr-proxy/api/studio.js')) && /'budget_cap'/.test(read('ibkr-proxy/api/studio.js')), '14/10: תקרת העבודה נוצלה = budget_cap (לא month_cap)');
   ok(S.monthUsed({ m: S.monthKey(Date.UTC(2026, 9, 8)), usd: 4 }, Date.UTC(2026, 9, 20)) === 4 && S.monthUsed({ m: '2026-09', usd: 4 }, Date.UTC(2026, 9, 1)) === 0
     && S.addMonth({ m: '2026-09', usd: 9 }, 1.5, Date.UTC(2026, 9, 2)).usd === 1.5, 'תקציב חודשי: מתאפס בחודש חדש');
   const qj = { kind: 'tr', state: 'queued', eng: 'api', fired: 1000, spec: { eng: 'api' } };

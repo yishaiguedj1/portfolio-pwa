@@ -231,6 +231,24 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(he['1'], 'שלום וברוכים הבאים.')
         self.assertTrue(all(c['max_tokens'] >= 64000 for c in self.client.calls), 'תקרה של 64K לחלק (הייתה 32K)')
 
+    def test_halt_stops_parts_before_calling(self):
+        """14/10/2026: "עצור" מהיישור שברקע / כשל בחלק אחר — חלק שעוד לא שלח בקשה לא שולח (עד היום כולם המשיכו, בתשלום)."""
+        def h(kw):
+            return msg('#1 שלום\n#2 תודה\n#3 נטפליקס')
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        pl.halt.set()
+        with self.assertRaises(BaseException):
+            pl.translate(fix=False)
+        self.assertEqual(self.client.calls, [], 'אף בקשה לא נשלחה אחרי העצירה')
+
+    def test_failed_part_sets_halt(self):
+        def h(kw):
+            raise RuntimeError('boom')
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        with self.assertRaises(BaseException):
+            pl.translate(fix=False)
+        self.assertTrue(pl.halt.is_set(), 'כשל בחלק אחד עוצר את השאר')
+
     def test_partial_part_file_resumes(self):
         # "המשך" אחרי חלק שנכתב חלקית — ממשיכים ממה שכבר תורגם, לא מאפס (ובלי לשלם עליו שוב)
         (self.pd / 'tr' / 'batch_001.he.txt').write_text('#1 שלום\n', encoding='utf-8')
