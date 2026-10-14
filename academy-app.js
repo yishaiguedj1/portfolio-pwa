@@ -17,10 +17,15 @@ setTimeout(() => { de.classList.remove('lib-restoring', 'lib-curtain'); }, 6000)
 const A = window.SnbAuth;
 A.start();
 /* מחכים לתשובה הראשונה (מחובר / לא / אין רשת) — לכל היותר 8 שנ׳; הספרייה עובדת גם בלי (IndexedDB) */
-const first = await new Promise((res) => {
+const ready = new Promise((res) => {
   const to = setTimeout(() => res('boot'), 8000);
   A.onChange((st) => { clearTimeout(to); res(st); });
 });
+/* 14/10/2026 (דיווח המשתמש — מסך שחור ואז הכל בבת אחת): כשבטלפון כבר יש חשבון, הדף מצויר מיד מהנתונים המקומיים
+   (כמו Invest), ורק פעולות שצריכות חשבון מחכות לחיבור (sa.ready → idToken). בלי חשבון — מחכים, כדי שלא יופיע דף
+   ואחריו מסך הכניסה */
+const owned = (() => { try { const o = localStorage.getItem('pwa_owner_v1'); return !!o && o !== 'local' && o !== 'legacy'; } catch (e) { return false; } })();
+const first = owned ? 'boot' : await ready;
 /* החיבור השתנה אחרי הפתיחה (כניסה מהכפתור, התנתקות באפליקציה אחרת) → טעינה מחדש, עם שומר מפני לולאה */
 let known = first;
 A.onChange((st) => {
@@ -33,7 +38,7 @@ A.onChange((st) => {
 });
 const hs = history.state;
 /* ההדר המשותף (shell.js) — הלוגו של Academy, ובתפריט: "מה למדתי" והגיבוי. הגלובוס בתפריט הפתוח = הגדרות Academy */
-const sa = { auth: A, home: APP_URL.invest };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
+const sa = { auth: A, home: APP_URL.invest, ready };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
 /* עמוד ההגדרות — כרטיס החשבון, "אפשרויות מתקדמות" (גרסה, ניקוי מטמון, האפליקציה לאנדרואיד) ו"תצוגה" של Invest (shell.js), אחד לאחד */
 sa.cards = { account: () => accountCard(A, 'icon-academy-192.png'), display: displayCard, advRow: advancedRow, advanced: advancedCards };
 sa.shell = createShell({
@@ -51,4 +56,5 @@ sa.shell = createShell({
 });
 /* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Academy (shell.js) */
 if (first === 'out') loginGate({ app: 'academy', auth: A, logo: 'logo-academy.webp', logoLg: 'logo-academy-lg.webp', name: 'Academy' });
+else if (first === 'boot') ready.then((st) => { if (st === 'out') loginGate({ app: 'academy', auth: A, logo: 'logo-academy.webp', logoLg: 'logo-academy-lg.webp', name: 'Academy' }); });
 await openLibrary({ standalone: sa, restore: hs && hs.lib ? hs : null });

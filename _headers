@@ -6,6 +6,7 @@
 # צריכים אותו), HSTS. בלי COOP: move.html וחלון ההרשאה של Google מדברים עם החלון שפתח אותם.
 /*
   Cache-Control: no-cache
+  Supports-Loading-Mode: credentialed-prerender
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Content-Security-Policy: frame-ancestors 'self'

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl" data-app="academy">
+<html lang="he" dir="rtl" data-app="academy" class="lib-curtain lib-restoring">
 <head>
 <meta charset="UTF-8">
 <!-- שלב 3ג בתוכנית שלוש האפליקציות: Academy כדף עצמאי. אותה מדיניות כמו index.html (הספרייה טוענת אותם מקורות), עם ה־hash של הסקריפט כאן. tests/apps-pages.test.js בודק. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ExvqvhMRKk7BOGqnDXoR6bnMR1xbH+kt2VlNF40jgys=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' blob:; media-src 'self' blob:; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://financialmodelingprep.com https://s3-symbol-logo.tradingview.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data: blob:; connect-src 'self' https://*.r2.cloudflarestorage.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app https://*.googleapis.com https://clients5.google.com https://en.wikipedia.org https://he.wikipedia.org https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src blob: https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com https://docs.google.com https://drive.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-XHE7xqP2gVygQ6xw6PEchlmj61AzXH0sft23VD84cqk=' 'sha256-muAtgDKWKqxnyErdMUdvlmI5tJPO/0QytjSwIDdmTGk=' 'sha256-EVECOcaGomWOokAloZscyHxhgYG27uEAlbkGhQoyzUM=' 'sha256-CiOPEP5com+uZ7MHKpHsRIJBs1/pfLdFZdLmNQCyzlI=' 'sha256-YAa7yOTeLWzGImPzW3FJLDKdPRLtvxGwejEJkummonA=' 'sha256-EJcYESb5DEZuAKFMJG8ayQyOVmEOWqBjgWE5IBhuelI=' 'sha256-ExvqvhMRKk7BOGqnDXoR6bnMR1xbH+kt2VlNF40jgys=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' blob:; media-src 'self' blob:; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://financialmodelingprep.com https://s3-symbol-logo.tradingview.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data: blob:; connect-src 'self' https://*.r2.cloudflarestorage.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app https://*.googleapis.com https://clients5.google.com https://en.wikipedia.org https://he.wikipedia.org https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src blob: https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com https://docs.google.com https://drive.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Academy</title>
 <meta name="theme-color" content="#FFFFFF" id="themeColorMeta">
@@ -20,6 +20,14 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 <link rel="icon" type="image/png" sizes="192x192" href="icon-academy-192.png">
 <link rel="apple-touch-icon" href="apple-touch-academy.png">
 <link rel="stylesheet" href="styles.css">
+<!-- 14/10/2026 (דיווח המשתמש — קפיצות בכניסה): העיצוב של האפליקציה לפני הציור הראשון (לא אחרי שהקוד נטען), הלוגו מראש, והמודולים במקביל -->
+<link rel="stylesheet" href="library.css" id="libCss">
+<link rel="preload" as="image" href="logo-academy.webp" imagesrcset="logo-academy.webp 512w, logo-academy-lg.webp 768w" imagesizes="128px" fetchpriority="high">
+<link rel="modulepreload" href="library.js">
+<link rel="modulepreload" href="shell.js">
+<link rel="modulepreload" href="libbackup.js">
+<link rel="modulepreload" href="academy-data.js">
+<link rel="modulepreload" href="vendor/foliate-js/view.js">
 </head>
 <body>
 <script src="firebase-config.js" defer></script>

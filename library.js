@@ -403,6 +403,7 @@ let syncNote = '';
 let syncProgress = null;   // { done, total } בזמן הורדה מה־Drive
 async function idToken() {
   try {
+    if (SA && SA.ready) await SA.ready;   // 14/10/2026: הדף מצויר לפני שהחיבור ענה — פעולות שצריכות חשבון מחכות לו
     const u = typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser;
     return u ? await u.getIdToken() : '';
   } catch (e) { return ''; }
@@ -4276,9 +4277,17 @@ function onPop(e) {
 /* v322: יציאה מהספרייה — השכבה יוצאת בתנועה (לא נעלמת בבת אחת) */
 /* v322: רענון בזמן שהספרייה פתוחה — index.html מוריד "וילון" בצבע הרקע לפני הציור הראשון (html.lib-restoring), כדי שהמשתמש
    לא יראה את הסקירה ואז את הספרייה ואז את הספר; יורד כשהדף/העמוד הראשון מוכן (ולכל היותר אחרי 6 שניות — app.js) */
-function curtainDown() {
+function curtainDown(instant) {   // 14/10/2026: instant — פתיחה רגילה בדף העצמאי: הדף מופיע שלם בבת אחת (כמו Invest), בלי דהייה
   const e = document.documentElement;
   if (!e.classList.contains('lib-restoring')) return;
+  if (instant) {
+    // הלוגו בהדר — כבר מפוענח כשהדף מופיע (בלי "קפיצה" שלו פריים אחר כך); לכל היותר 400ms
+    const lg = document.querySelector('.appbar .brand-logo');
+    const go = () => { e.classList.remove('lib-restoring', 'lib-curtain'); e.style.removeProperty('--curtain'); };
+    if (lg && lg.decode) Promise.race([lg.decode().catch(() => {}), new Promise((r) => setTimeout(r, 400))]).then(go);
+    else go();
+    return;
+  }
   e.classList.remove('lib-restoring');
   setTimeout(() => { e.classList.remove('lib-curtain'); e.style.removeProperty('--curtain'); }, 400);
 }
@@ -4361,7 +4370,7 @@ export async function openLibrary(opt) {
     root.classList.add('restored');        // v322: בלי אנימציית כניסה אחרי רענון
     if (restore.lib >= 2 && restore.book) openReader(restore.book, { restored: true }).catch(() => {}).then(() => { if (!rd) curtainDown(); });
     else { restoreLibScroll(); curtainDown(); }
-  }
+  } else curtainDown(true);                // הווילון של academy.html (class בדף) — יורד כשהבית מצויר
   await first;
   backfillCovers();
   BK.schedule(8000);                       // v318: גיבוי אוטומטי של הספרייה הפרטית, אם הגיע הזמן

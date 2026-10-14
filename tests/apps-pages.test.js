@@ -31,7 +31,7 @@ for (const A of APPS) {
   ok(!/app\.js"|cloud\.js|returns\.js/.test(page.replace(A.app + '-app.js', '')), A.app + ': בלי app.js / cloud.js / returns.js — בלי התיק');
 
   const boot = read(A.app + '-app.js');
-  ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
+  ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest, ready \}/.test(boot) && /if \(SA && SA\.ready\) await SA\.ready/.test(read(A.mod)) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
   // ההדר המשותף (13/10/2026): אותו shell.js, הלוגו של האפליקציה, והגלובוס בתפריט הפתוח = ההגדרות של האפליקציה
   ok(boot.includes("import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".webp', logoLg: 'logo-" + A.app + "-lg.webp'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
   // הלוגו (13/10/2026): WebP בצבע מלא — חד יותר מ־PNG של 256 צבעים (pngquant) ובמשקל דומה. 512 = פי 4 מ־128 בהדר, 768 למסך הכניסה (192px)
@@ -140,7 +140,7 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   // 13/10/2026 (בקשת המשתמש): צבע מערכת לכל אפליקציה — Studio אדום, Academy כחול (הגוונים המדויקים), במקום הירוק של Invest
   { const css = read('styles.css');
     for (const [app, hex] of [['studio', '#FF4656'], ['academy', '#4699FF']]) {
-      ok(read(app + '.html').includes('<html lang="he" dir="rtl" data-app="' + app + '">'), app + ': data-app על <html>');
+      ok(read(app + '.html').includes('<html lang="he" dir="rtl" data-app="' + app + '" class="lib-curtain lib-restoring">'), app + ': data-app על <html>');
       const m = new RegExp('html\\[data-app="' + app + '"\\] \\{([^}]*)\\}').exec(css);
       ok(m && m[1].includes('--primary: ' + hex + ';') && m[1].includes('--primary-dark: ' + hex + ';') && /--primary-container: rgba\(/.test(m[1]) && /--on-primary: #/.test(m[1]), app + ': --primary = ' + hex);
       ok(new RegExp('html\\[data-app="' + app + '"\\]\\[data-theme="dark"\\] \\{ --on-primary-container: #').test(css), app + ': גוון טקסט על מיכל — גם לכהה');

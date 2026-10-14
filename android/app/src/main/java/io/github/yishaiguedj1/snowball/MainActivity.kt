@@ -110,6 +110,8 @@ class MainActivity : Activity() {
                 .setDefaultColorSchemeParams(light)
                 .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_LIGHT, light)
                 .setColorSchemeParams(CustomTabsIntent.COLOR_SCHEME_DARK, dark)
+                // 14/10/2026: Academy ו־Studio — באותה אפליקציה במסך מלא (בלי שורת הכתובת של Custom Tab); assetlinks בכל אחת
+                .setAdditionalTrustedOrigins(EXTRA_ORIGINS)
             // מופע שנפתח מעל ה־TWA (קישור כשהאפליקציה פתוחה) — נסגר אחרי ההעברה; השורש נשאר עד "אחורה"
             l.launch(builder, null, null, { launched = true; if (!isTaskRoot) finish() }, TwaLauncher.CCT_FALLBACK_STRATEGY)
         } catch (e: Throwable) {
@@ -158,6 +160,7 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private val EXTRA_ORIGINS = listOf("https://academy.thesnowball.app", "https://studio.thesnowball.app")
         private const val KEY_LAUNCHED = "snowball.launched"
         const val SITE_HOST = "invest.thesnowball.app"
         const val OLD_HOST = "yishaiguedj1.github.io"

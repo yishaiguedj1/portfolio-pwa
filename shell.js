@@ -126,6 +126,7 @@ export function createShell(o) {
   function setOpen(open) {
     const was = isOpen();
     if (open && !was) modal = modalPush(() => setOpen(false));            // "חזור" סוגר את התפריט (כמו ב־Invest)
+    if (open && typeof appPrerender === 'function') appPrerender(Object.keys(APP_URL).filter((k) => k !== o.app).map((k) => APP_URL[k]));   // 14/10/2026: האפליקציות האחרות מוכנות מראש
     else if (!open && modal) { const m = modal; modal = null; modalDone(m); }
     drop.classList.toggle('hidden', !open);
     menu.setAttribute('aria-expanded', open ? 'true' : 'false');

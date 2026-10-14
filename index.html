@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="rtl" class="booting">
 <head>
 <meta charset="UTF-8">
 <!-- אבטחה (v149): מדיניות תוכן — רק המקורות שהאפליקציה באמת משתמשת בהם. מקור חדש = להוסיף כאן, אחרת הדפדפן חוסם בשקט. tests/csp.test.js בודק. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-S/uHm/ZxqkDMVyDXZBV6ApaUXs9OA52BjCxLikc7Jg0=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' blob:; media-src 'self' blob:; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://financialmodelingprep.com https://s3-symbol-logo.tradingview.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data: blob:; connect-src 'self' https://*.r2.cloudflarestorage.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app https://*.googleapis.com https://clients5.google.com https://en.wikipedia.org https://he.wikipedia.org https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src blob: https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com https://docs.google.com https://drive.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-XHE7xqP2gVygQ6xw6PEchlmj61AzXH0sft23VD84cqk=' 'sha256-muAtgDKWKqxnyErdMUdvlmI5tJPO/0QytjSwIDdmTGk=' 'sha256-EVECOcaGomWOokAloZscyHxhgYG27uEAlbkGhQoyzUM=' 'sha256-CiOPEP5com+uZ7MHKpHsRIJBs1/pfLdFZdLmNQCyzlI=' 'sha256-YAa7yOTeLWzGImPzW3FJLDKdPRLtvxGwejEJkummonA=' 'sha256-EJcYESb5DEZuAKFMJG8ayQyOVmEOWqBjgWE5IBhuelI=' 'sha256-S/uHm/ZxqkDMVyDXZBV6ApaUXs9OA52BjCxLikc7Jg0=' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' blob:; media-src 'self' blob:; img-src 'self' data: blob: https://upload.wikimedia.org https://thumb.wikimedia.org https://financialmodelingprep.com https://s3-symbol-logo.tradingview.com https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' data: blob:; connect-src 'self' https://*.r2.cloudflarestorage.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://quote.cnbc.com https://stooq.com https://stooq.pl https://api.frankfurter.dev https://api.frankfurter.app https://open.er-api.com https://*.vercel.app https://api.thesnowball.app https://api-staging.thesnowball.app https://*.googleapis.com https://clients5.google.com https://en.wikipedia.org https://he.wikipedia.org https://securetoken.google.com https://*.firebaseio.com wss://*.firebaseio.com https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://www.gstatic.com https://apis.google.com; frame-src blob: https://yishaiguedj1-c786e.firebaseapp.com https://snowball-staging-758f6.firebaseapp.com https://accounts.google.com https://apis.google.com https://www.google.com https://docs.google.com https://drive.google.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title data-i18n="appTitle">תיק ההשקעות</title>
 <meta name="description" content="דשבורד תיק ההשקעות — מחירים חיים, הפקדות, פנסיה. אפליקציית ווב להתקנה.">
@@ -33,12 +33,21 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 <link rel="preconnect" href="https://ibkr-proxy-wine.vercel.app" crossorigin>
 <link rel="preconnect" href="https://financialmodelingprep.com" crossorigin>
 <link rel="dns-prefetch" href="https://www.gstatic.com">
+<!-- v193: ה־SDK של Firebase נטען מ־cloud.js אחרי הציור הראשון (אותם קבצים, אותן חתימות SRI) — לא חוסם את הטעינה.
+     14/10/2026: בראש הדף (defer — רצים אחרי הניתוח, באותו סדר) — blocking="render" עובד רק ב־head: הדפדפן לא מצייר עד
+     ש־cloud.js רץ, והוא מפעיל את האתחול של app.js מיד (window.snbInit) — הציור הראשון = הדף המלא, בלי תבנית ריקה/פריים ריק -->
+<link rel="preload" as="image" href="logo-header.png" fetchpriority="high">
+<script src="firebase-config.js" defer></script>
+<script src="returns.js" defer></script>
+<script src="move.js" defer></script>
+<script src="app.js" defer></script>
+<script src="cloud.js" defer blocking="render"></script>
 </head>
 <body>
 
 <header class="appbar">
   <div class="appbar-row">
-    <h1 class="brand"><img src="logo-header.png" class="brand-logo" width="128" height="128" alt="" decoding="async"><span class="sr-only" data-i18n="appTitle">תיק ההשקעות</span></h1>
+    <h1 class="brand"><img src="logo-header.png" class="brand-logo" width="128" height="128" alt="" decoding="sync" fetchpriority="high"><span class="sr-only" data-i18n="appTitle">תיק ההשקעות</span></h1>
     <div class="appbar-left">
     <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
     <div class="appbar-actions">
@@ -118,7 +127,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
     <button type="button" class="link-btn" id="demoBannerExit" data-i18n="demoExitBtn">יציאה מהדמו</button>
   </div>
   <!-- סקירה -->
-  <section id="tab-overview" class="tabpage active" role="tabpanel">
+  <section id="tab-overview" class="tabpage active no-in" role="tabpanel">
     <!-- v146→v291: הצעת תיק הדמו — בראש הסקירה, רק כשהחשבון ריק לגמרי (renderDemoUi); תמיד זמין גם בתפריט ההמבורגר -->
     <div class="card demo-card" id="demoOffer">
       <div class="demo-card-icon" aria-hidden="true">✨</div>
@@ -468,12 +477,6 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
 <!-- v198: הערת התחתית (עדכון מחירים/מסחר מורחב) הוסרה — בקשת המשתמש -->
 
-<!-- v193: ה־SDK של Firebase נטען מ־cloud.js אחרי הציור הראשון (אותם קבצים, אותן חתימות SRI) — לא חוסם את הטעינה -->
-<script src="firebase-config.js" defer></script>
-<script src="returns.js" defer></script>
-<script src="move.js" defer></script>
-<script src="app.js" defer></script>
-<script src="cloud.js" defer></script>
 <div id="loginOverlay" class="login-overlay hidden" role="dialog" data-i18n-aria="loginAria" aria-label="התחברות">
   <div class="login-card">
     <img src="logo-header.png" class="login-logo" alt="THE SNOWBALL Invest">
