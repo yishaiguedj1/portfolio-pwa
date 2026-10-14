@@ -282,20 +282,14 @@ function wireCoreBack() {
   window.addEventListener('popstate', backPopHandled);
 }
 
-/* ---------------- 14/10/2026: החלקה ומעבר עמודים — אותה חוקיות בשלוש האפליקציות (בקשת המשתמש) ----------------
-   הספים כוילו ב־Invest (v279→v281) ומשותפים עכשיו ל־Academy ול־Studio: משיכה ארוכה = עמוד; בעמוד עם טאבים פנימיים
-   (רשימות המעקב, שתי הספריות ב־Academy, הלשוניות של התראה/תקלה ב־Studio) — קצרה = טאב, ארוכה = עמוד, ביניהן כלום. */
+/* ---------------- 14/10/2026: החלקה ומעבר עמודים — חוקיות אחת בשלוש האפליקציות (בקשת המשתמש) ----------------
+   הספים כוילו ב־Invest (v279→v281) ומשותפים ל־Academy ול־Studio: החלקה = עמוד (שליש מהרוחב, או הטלה מהירה מ־15%).
+   **אין "החלקה קצרה" לטאבים בשום מקום** (בקשת המשתמש — בוטלה ברשימות המעקב, בשתי הספריות ובלשוניות של Studio):
+   בין טאבים בתוך עמוד עוברים רק בלחיצה. */
 const PAGE_SWIPE_FRAC = 0.33, PAGE_SWIPE_MIN = 96, PAGE_SWIPE_EDGE = 22;
 const PAGE_FLING_V = 0.45, PAGE_FLING_FRAC = 0.15, PAGE_FLING_MIN = 56;
-const WL_SWIPE_MIN = 48, WL_SWIPE_MAX_FRAC = 0.3, WL_PAGE_FRAC = 0.55;
-/* מה ההחלקה עושה (טהורה, נבדקת): d = מרחק בכיוון, w = רוחב, v = מהירות בשחרור (px/ms), watch = על רשימת מעקב
-   עם כמה רשימות. מחזיר 'page' | 'list' | null. */
-function pageSwipeDecide(d, w, v, watch) {
-  if (watch) {
-    if (d >= w * WL_PAGE_FRAC) return 'page';
-    if (d >= WL_SWIPE_MIN && d < w * WL_SWIPE_MAX_FRAC) return 'list';
-    return null;
-  }
+/* מה ההחלקה עושה (טהורה, נבדקת): d = מרחק בכיוון, w = רוחב, v = מהירות בשחרור (px/ms). מחזיר 'page' | null. */
+function pageSwipeDecide(d, w, v) {
   if (d >= Math.max(PAGE_SWIPE_MIN, w * PAGE_SWIPE_FRAC)) return 'page';
   if (v >= PAGE_FLING_V && d >= Math.max(PAGE_FLING_MIN, w * PAGE_FLING_FRAC)) return 'page';
   return null;
@@ -432,9 +426,9 @@ function cubeSlideIn(els, dir) {         // טאב פנימי חדש נכנס מ
   for (const e of els) { try { e.animate([{ opacity: 0, transform: 'translateX(' + (28 * dir) + 'px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2, .9, .25, 1)' }); } catch (x) {} }
 }
 /* ההחלקה של Academy ו־Studio — העתק של המחווה של Invest (wirePageSwipe) על שכבה בגלילה פנימית.
-   o.root — השכבה (האזנה עליה; התוכן מתחלף בתוכה); o.ok() — אפשר להתחיל עכשיו; o.hasTabs() — בעמוד יש טאבים פנימיים;
+   o.root — השכבה (האזנה עליה; התוכן מתחלף בתוכה); o.ok() — אפשר להתחיל עכשיו;
    o.page(next) → {render(), undo(), commit()} | null — העמוד השכן: render מצייר אותו לתוך root (הדף היוצא = העתק),
-   undo מחזיר את הקודם (אפשר Promise), commit = ההיסטוריה; o.tabs(next) → {els, go()} | null — הטאב השכן. */
+   undo מחזיר את הקודם (אפשר Promise), commit = ההיסטוריה. */
 function snbSwipe(o) {
   const root = o.root;
   if (!root || root._snbSwipe) return;
@@ -453,14 +447,6 @@ function snbSwipe(o) {
     }
     return false;
   };
-  const tabMove = (s, x, sign) => { if (s.tab) for (const el of s.tab.els) el.style.transform = x ? 'translate3d(' + sign * x + 'px,0,0)' : ''; };
-  const tabSettle = (s, back) => {
-    if (!s.tab) return;
-    for (const el of s.tab.els) {
-      if (back) { el.style.transition = 'transform .34s cubic-bezier(.2, .9, .25, 1)'; el.style.transform = ''; setTimeout(() => { el.style.transition = ''; }, 360); }
-      else { el.style.transition = ''; el.style.transform = ''; }
-    }
-  };
   function begin(s) {                    // התזוזה של העמוד מתחילה — העמוד השכן נצבע, או "קפיץ" כשאין
     const pg = o.page ? o.page(s.next) : null;
     const bd = cubeBackdrop(root);
@@ -477,7 +463,7 @@ function snbSwipe(o) {
     if (t.clientX < PAGE_SWIPE_EDGE || t.clientX > w - PAGE_SWIPE_EDGE) return;
     const tg = e.target;
     if (blocked(tg)) return;
-    g = { x0: t.clientX, y0: t.clientY, w: w, lock: 0, act: null, watch: !!(o.hasTabs && o.hasTabs()), samples: [[clock(), t.clientX]], tg: tg };
+    g = { x0: t.clientX, y0: t.clientY, w: w, lock: 0, act: null, samples: [[clock(), t.clientX]], tg: tg };
     // העמוד השכן נצבע באמצע הגרירה ומוחק את האלמנט שנגעו בו — האירועים ממשיכים להגיע רק אליו (לקח v283 ב־Invest):
     // האזנה עליו וגם על המסמך, וכל אירוע מטופל פעם אחת
     tg.addEventListener('touchmove', move, { passive: false });
@@ -498,27 +484,19 @@ function snbSwipe(o) {
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
       if (Math.abs(dx) < Math.abs(dy) * 1.5) { unhook(g); g = null; return; }   // גלילה אנכית — לא נוגעים
       g.lock = 1; g.next = rtl() ? dx > 0 : dx < 0; g.side = cubeSideFwd(g.next);
-      g.tab = g.watch && o.tabs ? o.tabs(g.next) : null;
     }
     if (e.cancelable) e.preventDefault();
     const now = clock();
     g.samples.push([now, t.clientX]);
     while (g.samples.length > 2 && now - g.samples[0][0] > 100) g.samples.shift();
-    const same = (rtl() ? dx > 0 : dx < 0) === g.next, sign = dx < 0 ? -1 : 1;
-    const d = same ? Math.abs(dx) : 0, zone = g.w * WL_SWIPE_MAX_FRAC;
+    const same = (rtl() ? dx > 0 : dx < 0) === g.next;
+    const d = same ? Math.abs(dx) : 0, p = d / g.w;
     g.d = d;
-    let p = 0, tx = 0, act;
-    if (g.watch) {
-      if (d < zone) tx = g.tab ? d * 0.5 : Math.min(18, d * 0.1);   // קצרה: רק התוכן של הטאב זז
-      else p = (d - zone) / (g.w - zone);                           // מעבר לאזור — העמוד כולו מסתובב
-      act = pageSwipeDecide(d, g.w, 0, true);
-      if (act === 'list' && !g.tab) act = null;
-    } else { p = d / g.w; act = pageSwipeDecide(d, g.w, 0, false); }
-    tabMove(g, tx, sign);
+    let act = pageSwipeDecide(d, g.w, 0);
     if (p > 0 && !g.cube) begin(g);
     if (g.cube) cubeSet(g.cube, g.cube.rub ? p * 0.15 : p);
     if (act === 'page' && !(g.cube && g.cube.pg)) act = null;
-    if (act !== g.act) { if (act === 'page') buzz(12); else if (act === 'list') buzz(5); }
+    if (act !== g.act && act === 'page') buzz(12);
     g.act = act;
   }
   function finishCube(s, act, vp) {
@@ -543,20 +521,15 @@ function snbSwipe(o) {
     const a = s.samples[0], b = s.samples[s.samples.length - 1];
     const v = (b[0] > a[0]) ? Math.abs(b[1] - a[1]) / (b[0] - a[0]) : 0;
     const fwd = s.samples.length > 1 && ((b[1] - a[1] > 0) === (rtl() === s.next));   // ההטלה בכיוון המשיכה
-    let act = pageSwipeDecide(s.d || 0, s.w, fwd ? v : 0, s.watch);
+    let act = pageSwipeDecide(s.d || 0, s.w, fwd ? v : 0);
     if (act === 'page' && !(s.cube && s.cube.pg)) act = null;
-    if (act === 'list' && !s.tab) act = null;
-    tabSettle(s, act !== 'list');
-    const span = s.watch ? s.w * (1 - WL_SWIPE_MAX_FRAC) : s.w;
-    finishCube(s, act, (fwd ? v : -v) * 1000 / span);
-    if (act === 'list') s.tab.go();
+    finishCube(s, act, (fwd ? v : -v) * 1000 / s.w);
   }
   function cancel(e) {
     if (!g || seen(e)) return;
     const s = g; g = null;
     unhook(s);
     if (!s.lock) return;
-    tabSettle(s, true);
     finishCube(s, null, 0);
   }
 }
