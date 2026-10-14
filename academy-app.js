@@ -10,6 +10,7 @@ const de = document.documentElement;
 const lang = getLang();
 de.lang = lang;
 de.dir = lang === 'he' ? 'rtl' : 'ltr';
+apkFromHash();                                    // פתיחה מהאפליקציה לאנדרואיד (‎#app=…) — סימן ללשונית, הכתובת מתנקה (core)
 wireCoreBack();                                    // "חזור" סוגר חלונות (askConfirm, כפתורי לחיצה ארוכה) לפני הספרייה
 appBoot();                                         // עדכון גרסה, רענון כשהיא משתלטת, הפס "סביבת ניסוי" (shell.js)
 setTimeout(() => { de.classList.remove('lib-restoring', 'lib-curtain'); }, 6000);   // וילון הרענון — לכל היותר 6 שנ׳ (כמו app.js)

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- THE SNOWBALL: האפליקציה = האתר (Trusted Web Activity בכרום — אותו חיבור Google ואותם נתונים).
-     קישורים לאתר (כולל #stock=SYM מהווידג'ט) נפתחים באפליקציה. -->
+<!-- THE SNOWBALL: כל אפליקציה = האתר שלה (Trusted Web Activity בכרום — אותו חיבור Google ואותם נתונים).
+     14/10/2026: שלוש אפליקציות נפרדות מאותו קוד (flavors ב־build.gradle.kts): Invest, Academy, Studio.
+     ${siteHost} = הכתובת של האפליקציה. הווידג'ט והכתובת הישנה — רק ב־Invest (src/invest/AndroidManifest.xml). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -31,56 +32,9 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="invest.thesnowball.app" />
-            </intent-filter>
-            <!-- 2.0.0: הכתובת הישנה — קישורים ישנים (האתר שם מעביר לחדשה) -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="yishaiguedj1.github.io" android:pathPrefix="/portfolio-pwa" />
+                <data android:scheme="https" android:host="${siteHost}" />
             </intent-filter>
         </activity>
-
-        <!-- רשימת המניות מהאתר לווידג'ט (intent://widget?s=…#Intent;scheme=snowball;…) — בלי מסך -->
-        <activity
-            android:name=".WidgetSyncActivity"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.NoDisplay">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="snowball" android:host="widget" />
-            </intent-filter>
-        </activity>
-
-        <receiver android:name=".TickReceiver" android:exported="false" />
-
-        <!-- הווידג'ט למסך הבית (Glance) -->
-        <receiver
-            android:name=".SnowballWidgetReceiver"
-            android:exported="true"
-            android:label="@string/app_name">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/snowball_widget_info" />
-        </receiver>
-
-        <!-- v249: ווידג'ט "רשימות מעקב" — טאבים למעבר בין הרשימות -->
-        <receiver
-            android:name=".SnowballWatchWidgetReceiver"
-            android:exported="true"
-            android:label="@string/wWatchLabel">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/snowball_watch_widget_info" />
-        </receiver>
 
         <service
             android:name="com.google.androidbrowserhelper.trusted.DelegationService"

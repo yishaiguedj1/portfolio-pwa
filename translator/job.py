@@ -1310,11 +1310,32 @@ def guarded(fn):
     return wrap
 
 
+class Park(Exception):
+    """15/10/2026: מצב השרת — הסרטון לא הגיע תוך PARK_AFTER. העבודה חוזרת לתור כ"מחכה לסרטון" (השרתון לא נותן אותה
+    לאף שרת עד שהסרטון נרשם), והשרת פנוי לעבודות אחרות. מה ששולם כבר — בנקודת השמירה (run_auto)."""
+
+
+def can_park(ctx) -> bool:
+    """רק בשרת שלנו (ב־Routine הסשן הוא של המשתמש ואין תור), ורק לעבודת תרגום."""
+    sp = ctx.st.get('spec') or {}
+    return sp.get('eng') == 'api' and ctx.st.get('kind', 'tr') == 'tr' and park_after() > 0
+
+
+def park_after() -> float:
+    try:
+        return float(os.environ.get('SNB_PARK_AFTER', '900'))
+    except ValueError:
+        return 900.0
+
+
 def wait_video(ctx, stage, msg):
-    """מחכים שהסרטון יסיים לעלות מהטלפון (מעדכנים את השרתון פעם בחמש דקות — הטלפון מציג את ההעלאה בעצמו)."""
+    """מחכים שהסרטון יסיים לעלות מהטלפון (מעדכנים את השרתון פעם בחמש דקות — הטלפון מציג את ההעלאה בעצמו).
+    בשרת שלנו — אחרי PARK_AFTER בלי סרטון: Park (העבודה חוזרת לתור, השרת לא תפוס עד 12 שעות)."""
     poll = float(os.environ.get('SNB_POLL', '30'))
-    n = 0
+    n, t0, park = 0, time.time(), can_park(ctx)
     while not (ctx.st.get('files') or {}).get('v'):
+        if park and time.time() - t0 >= park_after():
+            raise Park()
         if n == 0:
             print('מחכה שהסרטון יסיים לעלות מהטלפון…')
         if n % 10 == 0:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import sys
@@ -475,11 +476,14 @@ class JobHooks(unittest.TestCase):
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
 
-    def flow(self, ck, resumed, proofed=False, src=None, attach=False, tl_fail=False, rc_want=0):
+    def flow(self, ck, resumed, proofed=False, src=None, attach=False, tl_fail=False, rc_want=0, park=''):
         log = []
         state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
         if src:
             state['src'] = src
+
+        class Park(Exception):
+            pass
 
         class J:
             def load_state(self):
@@ -496,6 +500,8 @@ class RunAutoResume(unittest.TestCase):
 
             def prepare(self, a):
                 log.append('prepare')
+                if park == 'prepare':
+                    raise Park()
                 return 0
 
             def align(self, a):
@@ -508,6 +514,8 @@ class RunAutoResume(unittest.TestCase):
             if attach:
                 def attach_video(self, ctx):
                     log.append('attach')
+                    if park == 'attach':
+                        raise Park()
                     state['src'] = 'v'
 
             def align_run(self, ctx):
@@ -523,7 +531,9 @@ class RunAutoResume(unittest.TestCase):
                 return 0
 
             def Ctx(self, st):
-                return NS(st=st, report=lambda *a, **k: log.append('fail') if k.get('fail') else None)
+                return NS(st=st, report=lambda *a, **k: log.append('fail') if k.get('fail') else log.append('park') if k.get('park') else None)
+
+        J.Park = Park
 
         class Pl:
             def __init__(self, ctx, j, eng):
@@ -608,6 +618,19 @@ class RunAutoResume(unittest.TestCase):
         self.assertEqual(self.flow([], None, src='a'),
                          ['prepare', 'proofread', 'ck:asr+pr', 'align', 'translate', 'ck:tl', 'review', 'judge', 'finish'])
 
+    def test_park_while_waiting_for_video(self):
+        # 15/10/2026: השרת לא תפוס עד 12 שעות כשהסרטון לא עולה. ההגהה (ששולמה) נשמרת, העבודה חוזרת לתור (קוד 3)
+        log = self.flow([], None, src='a', attach=True, park='attach', rc_want=3)
+        self.assertEqual([x for x in log if x != 'attach'], ['prepare', 'proofread', 'ck:asr+pr', 'park'])
+        self.assertLess(log.index('ck:asr+pr'), log.index('park'), 'שומרים לפני שחוזרים לתור')
+        # בלקיחה הבאה (הסרטון כבר נרשם): מאותה נקודה, בלי לשלם על ההגהה שוב
+        self.check_parallel(self.flow([{'s': 'asr', 'id': 'x'}], 'asr', proofed=True, src='a', attach=True),
+                            ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
+
+    def test_park_before_anything_paid(self):
+        # בלי קול נפרד: מחכים לסרטון עוד בהכנה — אין מה לשמור, פשוט חוזרים לתור
+        self.assertEqual(self.flow([], None, park='prepare', rc_want=3), ['prepare', 'park'])
+
     def test_audio_first_attaches_then_parallel(self):
         # 10/10/2026: הטלפון תמיד מעלה קול קודם — הסרטון מצטרף ברקע בזמן ההגהה (קיצור היישור), לפני נקודת השמירה
         # של ההגהה (הנקודה עקבית: הסרטון הוא המקור), ואז התרגום רץ במקביל ליישור
@@ -676,6 +699,41 @@ class AttachInBackground(unittest.TestCase):
 
     def test_no_attach_in_old_worker(self):
         self.assertIsNone(P.start_attach(NS(), NS(st={})))
+
+
+class ParkWaitVideo(unittest.TestCase):
+    """15/10/2026: wait_video בשרת שלנו — Park אחרי SNB_PARK_AFTER בלי סרטון; ב־Routine (או כשהסרטון כבר כאן) — כמו קודם."""
+
+    def ctx(self, eng, files=None):
+        st = {'spec': {'eng': eng} if eng else {}, 'files': files or {}}
+        return NS(st=st, report=lambda *a, **k: None, refresh=lambda: None)
+
+    def run_wait(self, c):
+        import job as JJ
+        old = {k: os.environ.get(k) for k in ('SNB_PARK_AFTER', 'SNB_POLL')}
+        os.environ.update(SNB_PARK_AFTER='0.05', SNB_POLL='0.01')
+        try:
+            return JJ.wait_video(c, 'al', 'x')
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+    def test_api_parks(self):
+        import job as JJ
+        with self.assertRaises(JJ.Park):
+            self.run_wait(self.ctx('api'))
+
+    def test_routine_keeps_waiting(self):
+        import threading as T
+        c = self.ctx('')
+        T.Timer(0.15, lambda: c.st['files'].update(v={'id': 'v1'})).start()
+        self.assertEqual(self.run_wait(c), {'id': 'v1'}, 'ב־Routine אין תור — מחכים כמו קודם')
+
+    def test_video_present_returns(self):
+        self.assertEqual(self.run_wait(self.ctx('api', {'v': {'id': 'v2'}})), {'id': 'v2'})
 
 
 class QuietCtxWorker(unittest.TestCase):

@@ -20,6 +20,29 @@ android {
         versionName = System.getenv("SNOWBALL_VERSION_NAME") ?: "1.0"
     }
 
+    /* 14/10/2026 (בקשת המשתמש, תוכנית-שלוש-אפליקציות.md סעיף 4א): שלוש אפליקציות נפרדות מאותו קוד — לכל אחת
+       אייקון, שם, כתובת וצבע משלה. Invest שומרת את המזהה הקיים (ההתקנה מתעדכנת במקום, הווידג'ט נשאר);
+       Academy ו־Studio — מזהים חדשים. הווידג'ט רק ב־Invest (src/invest), Academy ו־Studio חולקות את src/lite. */
+    flavorDimensions += "app"
+    productFlavors {
+        fun app(name: String, id: String, label: String, host: String, color: String) = create(name) {
+            dimension = "app"
+            applicationId = id
+            manifestPlaceholders["siteHost"] = host
+            resValue("string", "app_name", label)
+            resValue("string", "siteHost", host)
+            resValue("string", "launchUrl", "https://$host/")
+            resValue("string", "barColor", color)
+        }
+        app("invest", "io.github.yishaiguedj1.snowball", "Invest", "invest.thesnowball.app", "#30D158")
+        app("academy", "app.thesnowball.academy", "Academy", "academy.thesnowball.app", "#4699FF")
+        app("studio", "app.thesnowball.studio", "Studio", "studio.thesnowball.app", "#FF4656")
+    }
+    sourceSets {
+        getByName("academy").java.srcDir("src/lite/java")
+        getByName("studio").java.srcDir("src/lite/java")
+    }
+
     signingConfigs {
         if (ksPath != null) {
             create("release") {
@@ -38,6 +61,8 @@ android {
         }
     }
 
+    buildFeatures { resValues = true }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -48,7 +73,11 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 
 dependencies {
     implementation("com.google.androidbrowserhelper:androidbrowserhelper:2.7.3")
-    implementation("androidx.glance:glance-appwidget:1.2.0")
-    implementation("androidx.work:work-runtime-ktx:2.12.0")
-    implementation("com.caverock:androidsvg-aar:1.4") // לוגואים של ת״א (SVG של TradingView)
+    // הווידג'ט — רק ב־Invest
+    "investImplementation"("androidx.glance:glance-appwidget:1.2.0")
+    "investImplementation"("androidx.work:work-runtime-ktx:2.12.0")
+    "investImplementation"("com.caverock:androidsvg-aar:1.4") // לוגואים של ת״א (SVG של TradingView)
+    // בלי ווידג'ט: התוסף של Compose (בשביל Glance) רץ על כל הגרסאות ודורש את ה־runtime — אותה גרסה ש־Glance מביא
+    "academyImplementation"("androidx.compose.runtime:runtime:1.7.8")
+    "studioImplementation"("androidx.compose.runtime:runtime:1.7.8")
 }

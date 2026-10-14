@@ -1,11 +1,12 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1455 מפתחות מתוך 2638) */
+/* המחרוזות של studio (1455 מפתחות מתוך 2641) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
   "actDelete": "מחיקה",
   "actEdit": "עריכה",
   "advancedTitle": "אפשרויות מתקדמות",
+  "apkTitle": "האפליקציה לאנדרואיד",
   "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
   "appVersion": "גרסת אפליקציה: ",
@@ -747,6 +748,7 @@ he: {
   "studioNowCancelled": "העבודה בוטלה",
   "studioNowDone": "התרגום מוכן!",
   "studioNowExtract": "מוציאים את הקול מהסרטון",
+  "studioNowParked": "מחכה שהסרטון יסיים לעלות — ממשיך לבד כשיגיע",
   "studioNowQueued": "Claude נפתח בענן ומתחיל לעבוד",
   "studioNowQueuedApi": "בתור לשרת — מתחיל ברגע שהוא פנוי",
   "studioNowRunning": "Claude עובד על הסרטון",
@@ -1237,6 +1239,7 @@ he: {
   "studioSrvEvLost": "עבודה נקטעה בהפעלה מחדש — דווחה",
   "studioSrvEvNet": "השרתון לא היה זמין",
   "studioSrvEvOom": "עבודה נהרגה (זיכרון)",
+  "studioSrvEvPark": "עבודה חזרה לתור עד שהסרטון יגיע",
   "studioSrvEvStop": "עבודה נעצרה מהאפליקציה",
   "studioSrvEvT": "אירועים אחרונים",
   "studioSrvEvTimeout": "עבודה חרגה מהזמן",
@@ -1453,16 +1456,14 @@ he: {
   "versionLbl": "גרסה",
   "widgetApkBtn": "הורדת האפליקציה לאנדרואיד",
   "widgetHowTitle": "איך מתקינים",
-  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\".",
-  "widgetStep2": "פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.",
-  "widgetStep3": "לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.",
-  "widgetTitle": "ווידג׳ט למסך הבית"
+  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\"."
 },
 en: {
   "actColl": "Add to collection",
   "actDelete": "Delete",
   "actEdit": "Edit",
   "advancedTitle": "Advanced options",
+  "apkTitle": "Android app",
   "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
   "appVersion": "App version: ",
@@ -2204,6 +2205,7 @@ en: {
   "studioNowCancelled": "The job was cancelled",
   "studioNowDone": "Translation ready!",
   "studioNowExtract": "Taking the audio out of the video",
+  "studioNowParked": "Waiting for the video to finish uploading — continues on its own",
   "studioNowQueued": "Claude is starting up in the cloud",
   "studioNowQueuedApi": "In the server queue — starts as soon as it is free",
   "studioNowRunning": "Claude is working on the video",
@@ -2694,6 +2696,7 @@ en: {
   "studioSrvEvLost": "A job was cut by a restart — reported",
   "studioSrvEvNet": "The proxy was unavailable",
   "studioSrvEvOom": "Job killed (memory)",
+  "studioSrvEvPark": "A job went back to the queue until its video arrives",
   "studioSrvEvStop": "Job stopped from the app",
   "studioSrvEvT": "Recent events",
   "studioSrvEvTimeout": "Job ran out of time",
@@ -2910,9 +2913,6 @@ en: {
   "versionLbl": "Version",
   "widgetApkBtn": "Download the Android app",
   "widgetHowTitle": "How to install",
-  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\".",
-  "widgetStep2": "Open THE SNOWBALL and tap the screen — your stock list moves to the widget.",
-  "widgetStep3": "Long-press the home screen → Widgets → THE SNOWBALL → drag it onto the screen.",
-  "widgetTitle": "Home-screen widget"
+  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\"."
 }
 };

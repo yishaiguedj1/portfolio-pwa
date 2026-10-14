@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wUpdated">עודכן %1$s</string>
+    <string name="wManual">ידני</string>
+    <string name="wDesc">כל התיק במסך הבית: מחיר, שינוי יומי ואחרי־מסחר. נגיעה במניה פותחת אותה.</string>
+    <string name="wEmpty">פתח את Invest ונגע במסך — רשימת המניות תעבור לווידג׳ט.</string>
+    <string name="wLoading">טוען מחירים…</string>
+    <string name="wFx">שער הדולר</string>
+    <string name="wWatch">מעקב</string>
+    <string name="wWatchLabel">רשימות מעקב</string>
+    <string name="wWatchDesc">רשימות המעקב במסך הבית — טאב לכל רשימה, מחיר ושינוי יומי. נגיעה במניה פותחת אותה.</string>
+    <string name="wWatchEmpty">אין עדיין רשימות מעקב. פתח את Invest, הוסף מניות למעקב ונגע במסך.</string>
+    <string name="wRefresh">רענון</string>
+</resources>

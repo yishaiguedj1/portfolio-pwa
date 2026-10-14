@@ -3148,6 +3148,50 @@ function stubFetch(text, status = 200) {
     rr = await run({ op: 'status', idToken: OWNER });
     ok(rr.payload.api.month === 7.25 && rr.payload.api.cap === 12 && rr.payload.api.admin === true && rr.payload.api.online === 1,
       'מצב API: התקציב החודשי = העלות שדווחה, בלי לספור פעמיים (דיווח מצטבר)');
+    {
+      // 15/10/2026: עבודה שמחכה לסרטון לא תופסת את השרת — חוזרת לתור (park) עד שהסרטון נרשם, ואז ממשיכה
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+      const JP = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JP, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JP });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KP = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JP, 'park: השרת לוקח עבודה שרק הקול שלה עלה');
+      await wrk({ op: 'claim', job: JP, key: KP });
+      await wrk({ op: 'report', job: JP, key: KP, st: 'tr', p: 0.4 });
+      const UP = [{ k: 'main', m: 'claude-opus-5-5', n: 1, i: 10, o: 10, cr: 0, c5: 0, c1: 0, usd: 0.25 }];
+      rr = await wrk({ op: 'report', job: JP, key: KP, park: true, wv: true, msg: 'x', usage: UP });
+      const fp = db.get('studioJobs/' + JP).fields;
+      ok(rr.payload.ok && fp.state.stringValue === 'queued' && !fp.kh.stringValue && !fp.sid.stringValue && Number(fp.vw.integerValue) > 0 && Number(fp.wv0.integerValue) > 0,
+        'park: העבודה חוזרת לתור, המפתח מת, והשעון של יעד הזמן עוצר (מחכים לך)');
+      rr = await run({ op: 'job', idToken: OWNER, job: JP });
+      ok(rr.payload.job.state === 'queued' && rr.payload.job.vw === 1 && !rr.payload.job.stale && Array.isArray(rr.payload.job.use) && rr.payload.job.use[0].usd === 0.25,
+        'park: הטלפון רואה "מחכה לסרטון" (vw), לא "נתקעה", ומה ששולם נשמר');
+      rr = await wrk({ op: 'report', job: JP, key: KP, st: 'al' });
+      ok(rr.statusCode === 401 || rr.payload.stop === true || rr.payload.ok === false, 'park: העובד הישן לא יכול להמשיך לדווח (המפתח מת)');
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      ok(rr.payload.job === null, 'park: השרת לא מקבל אותה שוב כל עוד הסרטון לא נרשם — פנוי לעבודות אחרות');
+      await run({ op: 'file', idToken: OWNER, job: JP, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KP2 = rr.payload.job && rr.payload.job.key;
+      ok(rr.payload.job && rr.payload.job.id === JP && KP2 !== KP && !Number(db.get('studioJobs/' + JP).fields.vw.integerValue), 'park: הסרטון נרשם → נלקחת שוב, עם מפתח חדש');
+      rr = await wrk({ op: 'report', job: JP, key: KP2, park: true });
+      ok(rr.statusCode === 409 && rr.payload.error === 'park_bad', 'park: אסור כשהסרטון כבר כאן (או כשהעבודה לא רצה)');
+      await wrk({ op: 'claim', job: JP, key: KP2 });
+      await wrk({ op: 'report', job: JP, key: KP2, st: 'al', p: 0.1 });
+      await wrk({ op: 'report', job: JP, key: KP2, done: true, usage: [Object.assign({}, UP[0], { k: 'tl', usd: 0.5 })] });
+      rr = await run({ op: 'job', idToken: OWNER, job: JP });
+      const tot = (rr.payload.job.use || []).reduce((a, x) => a + x.usd, 0);
+      ok(rr.payload.job.state === 'done' && Math.abs(tot - 0.75) < 1e-9, 'park: העלות של שני הסשנים נסכמת (use0 + החדש)');
+      rr = await run({ op: 'status', idToken: OWNER });
+      ok(rr.payload.api.month === 8, 'park: התקציב החודשי סופר כל דולר פעם אחת (7.25 + 0.25 + 0.5)');
+      const S3 = require('../lib/studio'), T0 = 1.8e12;
+      const pj = { kind: 'tr', state: 'queued', eng: 'api', spec: { eng: 'api' }, vw: T0, fired: T0 - 1e3, claimed: T0 - 5e3, updated: T0 };
+      ok(S3.effState(pj, T0 + 7 * 3600e3).state === 'queued' && S3.effState(pj, T0 + 13 * 3600e3).err === 'upload_timeout' && !S3.isStale(pj, T0 + 5 * 3600e3),
+        'park: לא "אין שרת" אחרי 6 שעות ולא "נתקעה" — רק 12 שעות בלי סרטון = upload_timeout');
+      ok(S3.SRV_EV.includes('park') && S3.parkable({ kind: 'tr', state: 'running', spec: { eng: 'api' } }) && !S3.parkable({ kind: 'tr', state: 'running', spec: {} }),
+        'park: רק בשרת שלנו (ב־Routine אין תור)');
+    }
     rr = await run({ op: 'status', idToken: FRIEND });
     ok(rr.payload.api.month === 0 && rr.payload.api.admin === false && !('servers' in rr.payload) || rr.payload.api.admin === false, 'מצב API: כל משתמש — תקציב משלו; לא מנהל');
     {
@@ -3198,7 +3242,7 @@ function stubFetch(text, status = 200) {
       ok(rr.payload.job.cp && rr.payload.job.cp.n === 1, 'סבב 10: גם ב־claim (המשך בסשן חדש)');
       await wrk({ op: 'report', job: JC, key: KC, done: true });
       rr = await run({ op: 'status', idToken: OWNER });
-      ok(rr.payload.api.month === 7.25, 'סבב 10: העתק־הדבק לא מוסיף לתקציב החודשי');
+      ok(rr.payload.api.month === 8, 'סבב 10: העתק־הדבק לא מוסיף לתקציב החודשי (7.25 + 0.75 של עבודת ה־park)');
       await run({ op: 'remove', idToken: OWNER, job: JC });
     }
     rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
