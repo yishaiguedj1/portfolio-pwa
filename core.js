@@ -167,8 +167,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.5.0';
-const APP_VERSION = 'v423';
+const APP_RELEASE = '2.6.0';
+const APP_VERSION = 'v424';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -359,6 +359,39 @@ function swipeVelocity(samples, now) {
   const den = sw * stt - st * st;
   return den > 1e-9 ? (sw * stx - st * sx) / den : 0;
 }
+/* 14/10/2026 (בקשת המשתמש — שלוש אפליקציות נפרדות לאנדרואיד): כל אפליקציה נפתחת עם ‎#app=… (MainActivity) —
+   הסימן נשמר ללשונית (sessionStorage), וממנו המעבר בתפריט פותח את האפליקציה *המותקנת* של השנייה (intent עם החבילה
+   שלה). לא מותקנת → Chrome עובר לאותה כתובת באותו מסך (browser_fallback_url; המקור מאומת — בלי שורת כתובת).
+   רק בכתובות הייצור — יש APK רק להן. Invest שומרת את המזהה הישן (ההתקנה מתעדכנת במקום, הווידג'ט נשאר). */
+const APK_PKGS = { invest: 'io.github.yishaiguedj1.snowball', academy: 'app.thesnowball.academy', studio: 'app.thesnowball.studio' };
+const SS_INAPK = 'pwa_in_apk';
+function inApk() { try { return sessionStorage.getItem(SS_INAPK) === '1'; } catch (e) { return false; } }
+/* Academy/Studio בפתיחה: מסמנים ומנקים ‎app=/‎n= מהכתובת (ב־Invest — appSessionFromHash, שגם שומר את חתימת הווידג'ט) */
+function apkFromHash() {
+  let h = '';
+  try { h = String(location.hash || ''); } catch (e) { return false; }
+  if (!/(?:^#|&)app=[0-9a-z]{1,16}/.test(h)) return false;
+  try { sessionStorage.setItem(SS_INAPK, '1'); } catch (e) {}
+  const rest = h.replace(/^#/, '').split('&').filter((x) => x && !/^(app|n)=/.test(x)).join('&');
+  try { history.replaceState(history.state, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
+  return true;
+}
+function apkIntentUrl(url) {
+  const m = /^https:\/\/(invest|academy|studio)\.thesnowball\.app(\/.*)?$/.exec(String(url || ''));
+  if (!m) return '';
+  return 'intent://' + m[1] + '.thesnowball.app' + (m[2] || '/') + '#Intent;scheme=https;package=' + APK_PKGS[m[1]] + ';S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+}
+/* מעבר לאפליקציה אחרת — מהתפריט ומ"THE SNOWBALL".
+   14/10/2026 (סרטון המשתמש: Academy/Studio "נתקעות" — מסך שחור וחזרה ל־Invest): סגירת התפריט מחזירה את הרשומה שלו
+   (modalDone → history.back, אסינכרוני). עם prerender המעבר לדף שהוכן מראש מיידי, וה"אחורה" שעוד חיכה רץ *אחריו* —
+   מהאפליקציה החדשה חזרה ל־Invest. לכן עוברים רק אחרי שה"אחורה" הסתיים (afterBack); רשת ביטחון — 700ms */
+function appGo(url) {
+  const to = (inApk() && apkIntentUrl(url)) || url;
+  let gone = false;
+  const go = () => { if (gone) return; gone = true; location.href = to; };
+  afterBack(go);
+  if (!gone) setTimeout(go, 700);
+}
 /* 14/10/2026 (סרטון המשתמש — מסך שחור במעבר בין האפליקציות): כשהתפריט נפתח, Chrome מכין ברקע את האפליקציות
    האחרות (Speculation Rules — prerender), והלחיצה מחליפה לדף שכבר מצויר. אותו אתר (thesnowball.app) — היעד מסכים
    בכותרת Supports-Loading-Mode (_headers); ב־CSP ‏'inline-speculation-rules'. דפדפן בלי תמיכה / חיסכון בנתונים — כלום */
@@ -369,6 +402,7 @@ function preRulesText(urls) { return JSON.stringify({ prerender: [{ source: 'lis
 function appPrerender(urls) {
   try {
     if (typeof document === 'undefined' || !urls || !urls.length || window._snbPre) return;
+    if (inApk()) return;   // באפליקציה לאנדרואיד המעבר פותח את האפליקציה המותקנת — אין מה להכין
     if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules'))) return;
     if (navigator.connection && navigator.connection.saveData) return;
     const list = urls.filter((u) => u && String(u).split('#')[0] !== location.href.split('#')[0]);

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (611 מפתחות מתוך 2638) */
+/* המחרוזות של academy (609 מפתחות מתוך 2639) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -49,6 +49,7 @@ he: {
   "annMore": "אפשרויות",
   "annOpen": "מעבר למקום בספר",
   "annShareQuote": "שיתוף כציטוט",
+  "apkTitle": "האפליקציה לאנדרואיד",
   "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
   "appVersion": "גרסת אפליקציה: ",
@@ -609,10 +610,7 @@ he: {
   "versionLbl": "גרסה",
   "widgetApkBtn": "הורדת האפליקציה לאנדרואיד",
   "widgetHowTitle": "איך מתקינים",
-  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\".",
-  "widgetStep2": "פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.",
-  "widgetStep3": "לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.",
-  "widgetTitle": "ווידג׳ט למסך הבית"
+  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\"."
 },
 en: {
   "acAiNote": "Written with AI from the text of the letter.",
@@ -662,6 +660,7 @@ en: {
   "annMore": "Options",
   "annOpen": "Go to location",
   "annShareQuote": "Share as quote",
+  "apkTitle": "Android app",
   "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
   "appVersion": "App version: ",
@@ -1222,9 +1221,6 @@ en: {
   "versionLbl": "Version",
   "widgetApkBtn": "Download the Android app",
   "widgetHowTitle": "How to install",
-  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\".",
-  "widgetStep2": "Open THE SNOWBALL and tap the screen — your stock list moves to the widget.",
-  "widgetStep3": "Long-press the home screen → Widgets → THE SNOWBALL → drag it onto the screen.",
-  "widgetTitle": "Home-screen widget"
+  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\"."
 }
 };

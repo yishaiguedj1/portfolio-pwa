@@ -361,10 +361,10 @@ he: {
   advancedTitle: 'אפשרויות מתקדמות',
   widgetTitle: 'ווידג׳ט למסך הבית',
   widgetEmpty: 'אין עדיין מניות בתיק.',
-  widgetAppSyncBtn: 'סנכרון לווידג׳ט', widgetAppSynced: 'רשימת המניות נשלחה לווידג׳ט', widgetApkBtn: 'הורדת האפליקציה לאנדרואיד', widgetHowTitle: 'איך מתקינים',
+  widgetAppSyncBtn: 'סנכרון לווידג׳ט', widgetAppSynced: 'רשימת המניות נשלחה לווידג׳ט', widgetApkBtn: 'הורדת האפליקציה לאנדרואיד', apkTitle: 'האפליקציה לאנדרואיד', widgetHowTitle: 'איך מתקינים',
   widgetStep1: 'מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים "התקנה ממקור לא ידוע".',
-  widgetStep2: 'פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.',
-  widgetStep3: 'לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.',
+  widgetStep2: 'פותחים את Invest ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.',
+  widgetStep3: 'לחיצה ארוכה על מסך הבית ← ווידג׳טים ← Invest ← גוררים למסך.',
 
   ibkrTitle: 'חיבור ל־IBKR',
   ibkrNever: 'טרם סונכרן — מוצגים הנתונים הידניים.',
@@ -950,10 +950,10 @@ en: {
   advancedTitle: 'Advanced options',
   widgetTitle: 'Home-screen widget',
   widgetEmpty: 'No stocks in your portfolio yet.',
-  widgetAppSyncBtn: 'Sync to widget', widgetAppSynced: 'Stock list sent to the widget', widgetApkBtn: 'Download the Android app', widgetHowTitle: 'How to install',
+  widgetAppSyncBtn: 'Sync to widget', widgetAppSynced: 'Stock list sent to the widget', widgetApkBtn: 'Download the Android app', apkTitle: 'Android app', widgetHowTitle: 'How to install',
   widgetStep1: 'Download the app (APK file) and open it. The first time, allow "install unknown apps".',
-  widgetStep2: 'Open THE SNOWBALL and tap the screen — your stock list moves to the widget.',
-  widgetStep3: 'Long-press the home screen → Widgets → THE SNOWBALL → drag it onto the screen.',
+  widgetStep2: 'Open Invest and tap the screen — your stock list moves to the widget.',
+  widgetStep3: 'Long-press the home screen → Widgets → Invest → drag it onto the screen.',
 
   ibkrTitle: 'IBKR connection',
   ibkrNever: 'Not synced yet — showing manual data.',
@@ -4742,8 +4742,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.5.0';
-const APP_VERSION = 'v423';
+const APP_RELEASE = '2.6.0';
+const APP_VERSION = 'v424';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -6288,6 +6288,23 @@ async function tryYahooQuotes() {
   const fx = fxq && fxq.close > 0 ? fxq.close : await tryFx();
   const sess = (results.find((r) => r && r.session) || {}).session || '';
   return { quotes: q, fx: fx, source: 'Yahoo', session: (sess === 'regular' || sess === 'closed') ? '' : sess };
+}
+
+/* 15/10/2026 (סרטון המשתמש — מעבר בין האפליקציות): בפתיחה בועת השער הראתה "—" והקפסולה "דיליי" עד התשובה הראשונה
+   מהרשת, ואז קפצו. מציגים מיד את מה ששמור בטלפון: שער הדולר תמיד (משתנה לאט); המחירים והמקור — רק כשהם מהדקות
+   האחרונות (BOOT_QUOTES_MS), אחרת זה היה מציג מחירים ישנים כ"חי". הטיק הראשון מחליף הכל. */
+const BOOT_QUOTES_MS = 3 * 60e3;
+function bootQuotesFromCache() {
+  const c = lsGet(LS_QUOTES);
+  if (!c || !(c.fx > 0)) return false;
+  if (!(state.fx > 0)) state.fx = c.fx;
+  if (c.quotes && c.at && Date.now() - c.at < BOOT_QUOTES_MS && !Object.keys(state.quotes || {}).length) {
+    state.quotes = c.quotes;
+    state.quotesAt = c.at;
+    state.source = c.source || null;
+    state.session = c.session || '';
+  }
+  return true;
 }
 
 async function refreshQuotes() {
@@ -11396,6 +11413,39 @@ function swipeVelocity(samples, now) {
   const den = sw * stt - st * st;
   return den > 1e-9 ? (sw * stx - st * sx) / den : 0;
 }
+/* 14/10/2026 (בקשת המשתמש — שלוש אפליקציות נפרדות לאנדרואיד): כל אפליקציה נפתחת עם ‎#app=… (MainActivity) —
+   הסימן נשמר ללשונית (sessionStorage), וממנו המעבר בתפריט פותח את האפליקציה *המותקנת* של השנייה (intent עם החבילה
+   שלה). לא מותקנת → Chrome עובר לאותה כתובת באותו מסך (browser_fallback_url; המקור מאומת — בלי שורת כתובת).
+   רק בכתובות הייצור — יש APK רק להן. Invest שומרת את המזהה הישן (ההתקנה מתעדכנת במקום, הווידג'ט נשאר). */
+const APK_PKGS = { invest: 'io.github.yishaiguedj1.snowball', academy: 'app.thesnowball.academy', studio: 'app.thesnowball.studio' };
+const SS_INAPK = 'pwa_in_apk';
+function inApk() { try { return sessionStorage.getItem(SS_INAPK) === '1'; } catch (e) { return false; } }
+/* Academy/Studio בפתיחה: מסמנים ומנקים ‎app=/‎n= מהכתובת (ב־Invest — appSessionFromHash, שגם שומר את חתימת הווידג'ט) */
+function apkFromHash() {
+  let h = '';
+  try { h = String(location.hash || ''); } catch (e) { return false; }
+  if (!/(?:^#|&)app=[0-9a-z]{1,16}/.test(h)) return false;
+  try { sessionStorage.setItem(SS_INAPK, '1'); } catch (e) {}
+  const rest = h.replace(/^#/, '').split('&').filter((x) => x && !/^(app|n)=/.test(x)).join('&');
+  try { history.replaceState(history.state, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
+  return true;
+}
+function apkIntentUrl(url) {
+  const m = /^https:\/\/(invest|academy|studio)\.thesnowball\.app(\/.*)?$/.exec(String(url || ''));
+  if (!m) return '';
+  return 'intent://' + m[1] + '.thesnowball.app' + (m[2] || '/') + '#Intent;scheme=https;package=' + APK_PKGS[m[1]] + ';S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+}
+/* מעבר לאפליקציה אחרת — מהתפריט ומ"THE SNOWBALL".
+   14/10/2026 (סרטון המשתמש: Academy/Studio "נתקעות" — מסך שחור וחזרה ל־Invest): סגירת התפריט מחזירה את הרשומה שלו
+   (modalDone → history.back, אסינכרוני). עם prerender המעבר לדף שהוכן מראש מיידי, וה"אחורה" שעוד חיכה רץ *אחריו* —
+   מהאפליקציה החדשה חזרה ל־Invest. לכן עוברים רק אחרי שה"אחורה" הסתיים (afterBack); רשת ביטחון — 700ms */
+function appGo(url) {
+  const to = (inApk() && apkIntentUrl(url)) || url;
+  let gone = false;
+  const go = () => { if (gone) return; gone = true; location.href = to; };
+  afterBack(go);
+  if (!gone) setTimeout(go, 700);
+}
 /* 14/10/2026 (סרטון המשתמש — מסך שחור במעבר בין האפליקציות): כשהתפריט נפתח, Chrome מכין ברקע את האפליקציות
    האחרות (Speculation Rules — prerender), והלחיצה מחליפה לדף שכבר מצויר. אותו אתר (thesnowball.app) — היעד מסכים
    בכותרת Supports-Loading-Mode (_headers); ב־CSP ‏'inline-speculation-rules'. דפדפן בלי תמיכה / חיסכון בנתונים — כלום */
@@ -11406,6 +11456,7 @@ function preRulesText(urls) { return JSON.stringify({ prerender: [{ source: 'lis
 function appPrerender(urls) {
   try {
     if (typeof document === 'undefined' || !urls || !urls.length || window._snbPre) return;
+    if (inApk()) return;   // באפליקציה לאנדרואיד המעבר פותח את האפליקציה המותקנת — אין מה להכין
     if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules'))) return;
     if (navigator.connection && navigator.connection.saveData) return;
     const list = urls.filter((u) => u && String(u).split('#')[0] !== location.href.split('#')[0]);
@@ -13918,7 +13969,7 @@ function appSessionFromHash() {
   let m = null;
   try { m = /(?:^#|&)app=([0-9a-z]{1,16})/.exec(location.hash || ''); } catch (e) {}
   if (!m) return;
-  try { sessionStorage.setItem(SS_APPSIG, m[1]); } catch (e) {}
+  try { sessionStorage.setItem(SS_APPSIG, m[1]); sessionStorage.setItem(SS_INAPK, '1'); } catch (e) {}
   // מנקים רק את ‎app= (‎stock= מטופל ב־openStockFromHash)
   // v353: ‎n= — מזהה ייחודי לכל פתיחה מהאפליקציה (MainActivity), נמחק יחד עם ‎app=
   const rest = String(location.hash || '').replace(/^#/, '').split('&').filter((x) => x && !/^(app|n)=/.test(x)).join('&');
@@ -14328,14 +14379,14 @@ function init() {
     // v350 (בקשת המשתמש): "חזור" מהספרייה נוחת על הסקירה — עוברים אליה כבר עכשיו, מתחת לספרייה שנכנסת, כדי שגם צילום
     // הרשומה ש־Chrome מציג במשיכה מצד המסך יהיה הסקירה (מטאב ראשי בלבד — מהגדרות המעבר בסגירה, library.js)
     // 13/10/2026 (בקשת המשתמש): Academy = אפליקציה עצמאית עם ההדר והלוגו שלה — "חזור" ממנה חוזר לכאן
-    location.href = APP_PAGE.academy;
+    appGo(APP_PAGE.academy);
   });
   // v354: סטודיו התרגום (שלב 1) — מודול נפרד שנטען רק כאן (studio.js + studio.css), כמו הספרייה
   const mStudio = document.getElementById('menuStudioBtn');
   if (mStudio) mStudio.addEventListener('click', (e) => {
     e.stopPropagation();
     try { setMainMenuOpen(false); } catch (err) {}
-    location.href = APP_PAGE.studio;           // 13/10/2026: Studio = אפליקציה עצמאית (כמו Academy)
+    appGo(APP_PAGE.studio);                    // 13/10/2026: Studio = אפליקציה עצמאית (כמו Academy)
   });
   const dBtn = document.getElementById('demoCreateBtn');
   if (dBtn) dBtn.addEventListener('click', () => demoCreate(dBtn));
@@ -14424,6 +14475,7 @@ function init() {
     }
     appStarted = true;
     bootSig = dbSig();
+    bootQuotesFromCache();
     renderAll();
     document.documentElement.classList.remove('booting');   // 14/10/2026: התוכן מוצג רק מהציור הראשון (styles.css, html.booting)
     requestAnimationFrame(() => { try { positionTabIndicator(); } catch (e) {} });

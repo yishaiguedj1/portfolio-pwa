@@ -1012,10 +1012,13 @@ async function renderHomeNow() {
   const cloudOnly = mine && cloudBooks ? cloudBooks.filter((c) => !have.has(c.id)) : [];   // v319: בגיבוי ולא בטלפון
   if (mine && cloudBooks === null) refreshCloud();
   const home = root.querySelector('.lib-home');
-  home.textContent = '';
+  /* 15/10/2026: ההדר המשותף נשאר במקומו — הוצאה והחזרה בכל ציור (בזמן טעינת הספרייה — כמה פעמים בשנייה) איפסו אותו
+     והתפריט הפתוח הבהב (סרטון המשתמש) */
+  const keepHdr = SA && SA.shell && SA.shell.el.parentNode === home ? SA.shell.el : null;
+  for (const n of [...home.childNodes]) if (n !== keepHdr) n.remove();
   const top = h('div', 'lib-top');
   const back = h('button', 'lib-back'); back.type = 'button'; back.innerHTML = ICON.back; back.append(h('span', null, 'THE SNOWBALL'));
-  back.addEventListener('click', () => { if (SA) location.href = SA.home || './'; else history.back(); });
+  back.addEventListener('click', () => { if (SA) appGo(SA.home || './'); else history.back(); });
   const add = h('label', 'lib-round'); add.innerHTML = ICON.plus; add.title = T('libImport'); add.setAttribute('aria-label', T('libImport'));
   add.append(importInput());
   const learn = h('button', 'lib-round'); learn.type = 'button'; learn.innerHTML = ICON.notes; learn.setAttribute('aria-label', T('learnTitle')); learn.title = T('learnTitle');
@@ -1034,7 +1037,7 @@ async function renderHomeNow() {
   if (mine && !shell) { bkAdopt(); if (books.length || cloudOnly.length) hrow.append(backupPill()); }
   /* עצמאי (13/10/2026, בקשת המשתמש): בלי השורה שמתחת להדר — "הוספת ספר" = הכפתור ליד הגלובוס (shell, action),
      "גיבוי" ו"איפוס" — בהגדרות; בועת מצב הגיבוי — בהדר, מעל הכפתורים (כמו קפסולת המצב ב־Invest וב־Studio) */
-  if (shell) { bkAdopt(); shell.setStatus(backupPill()); home.append(shell.el); }
+  if (shell) { bkAdopt(); shell.setStatus(backupPill()); if (shell.el.parentNode !== home) home.prepend(shell.el); }
   else home.append(top, hrow);
   if (SA && SA.auth && SA.auth.state() === 'out') {   // עצמאי בלי חיבור — כניסה עם Google (אחריה הדף נטען מחדש עם החשבון)
     const si = h('button', 'lib-signin'); si.type = 'button'; si.textContent = T('googleSignIn');

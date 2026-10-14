@@ -98,12 +98,12 @@ export function createShell(o) {
   const menuWrap = h('div', 'menu-wrap');
   const menu = h('button', 'icon-btn'); menu.type = 'button'; menu.innerHTML = btnFacesHTML(ICON_MENU, ICON_CLOSE);
   menu.setAttribute('aria-haspopup', 'true'); menu.setAttribute('aria-expanded', 'false');
-  const drop = h('div', 'menu-drop hidden');
+  const drop = h('div', 'menu-drop sh-drop hidden');
   const main = h('div', 'main-menu');
   for (const k of ['invest', 'academy', 'studio']) {
     if (k === o.app) continue;
     const A = APPS[k];
-    main.append(menuRow(A.icon, A.cls, A.name, A.sub(), () => { setOpen(false); location.href = APP_URL[k]; }));
+    main.append(menuRow(A.icon, A.cls, A.name, A.sub(), () => { setOpen(false); appGo(APP_URL[k]); }));   // באפליקציה לאנדרואיד — האפליקציה המותקנת (core: appGo)
   }
   for (const it of o.items || []) main.append(menuRow(it.icon, it.cls, it.title, it.sub, () => { setOpen(false); it.on(); }));
   drop.append(main);
@@ -129,6 +129,11 @@ export function createShell(o) {
     if (open && typeof appPrerender === 'function') appPrerender(Object.keys(APP_URL).filter((k) => k !== o.app).map((k) => APP_URL[k]));   // 14/10/2026: האפליקציות האחרות מוכנות מראש
     else if (!open && modal) { const m = modal; modal = null; modalDone(m); }
     drop.classList.toggle('hidden', !open);
+    /* 15/10/2026 (סרטון המשתמש — התפריט "מתרענן" פעמיים): הכניסה באנימציה מהקוד ולא ב־CSS — אנימציית CSS רצה מחדש בכל
+       פעם שההדר נכנס שוב לדף (הספרייה והסטודיו מציירים את דף הבית מחדש בזמן טעינה), והתפריט הפתוח הבהב שוב ושוב */
+    if (open && !was && drop.animate && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      try { drop.animate([{ opacity: 0, transform: 'translateY(-6px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2, .9, .25, 1)' }); } catch (e) {}
+    }
     menu.setAttribute('aria-expanded', open ? 'true' : 'false');
     acts.classList.toggle('menu-open', open);
     if (open && !veil) {                    // שכבת הטשטוש — בתוך השכבה של האפליקציה, מתחת להדר
@@ -295,6 +300,8 @@ export function displayCard() {
 const ADV_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.2" fill="currentColor"/><circle cx="15" cy="12" r="2.2" fill="currentColor"/><circle cx="8" cy="18" r="2.2" fill="currentColor"/></svg>';
 const RELOAD_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/></svg>';
 export const APK_URL = 'https://github.com/yishaiguedj1/portfolio-pwa/releases/download/android-latest/the-snowball.apk';
+/* 14/10/2026: לכל אפליקציה קובץ התקנה משלה (android.yml). Invest — הקישור הישן (ההתקנה הקיימת מתעדכנת במקום) */
+export function apkUrl(app) { return app === 'academy' || app === 'studio' ? APK_URL.replace(/\.apk$/, '-' + app + '.apk') : APK_URL; }
 export function advancedRow(onClick) {
   const card = h('div', 'card row-card'); card.id = 'advancedCard';
   const b = h('button', 'row-link'); b.type = 'button';
@@ -314,15 +321,17 @@ async function clearCacheReload() {
   location.reload();
 }
 export function advancedCards() {
+  /* 14/10/2026 (שלוש אפליקציות): כאן ההתקנה של האפליקציה הזו — בלי הווידג׳ט (הוא רק ב־Invest) */
+  const app = document.documentElement.dataset.app || 'invest';
   const w = h('div', 'card'); w.id = 'widgetCard';
   const row = h('div', 'btn-row');
-  const apk = h('a', 'btn', t('widgetApkBtn')); apk.id = 'widgetApk'; apk.href = APK_URL; apk.rel = 'noopener';
+  const apk = h('a', 'btn', t('widgetApkBtn')); apk.id = 'widgetApk'; apk.href = apkUrl(app); apk.rel = 'noopener';
   row.append(apk);
   const how = h('details', 'fine'); how.id = 'widgetHow'; how.style.padding = '0'; how.style.marginTop = '8px';
   const ol = h('ol', 'widget-steps');
-  ol.append(h('li', null, t('widgetStep1')), h('li', null, t('widgetStep2')), h('li', null, t('widgetStep3')));
+  ol.append(h('li', null, t('widgetStep1')));
   how.append(h('summary', null, t('widgetHowTitle')), ol);
-  w.append(h('h2', null, t('widgetTitle')), row, how);
+  w.append(h('h2', null, t('apkTitle')), row, how);
 
   const info = h('div', 'card list-card'); info.id = 'appInfoCard';
   const list = h('div', 'ios-list');
