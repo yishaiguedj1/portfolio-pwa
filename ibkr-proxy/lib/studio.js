@@ -412,6 +412,12 @@ function fbDecide(list, fp, ok, now) {
   delete e.px; delete e.pa;
   return out;
 }
+/* 14/10/2026: מחיקת רשומה מספר התיקונים (מהטלפון) — כשהתקלה תוקנה בקוד או שהתיקון שגוי. null = אין כזו */
+function fbRemove(list, fp) {
+  const all = fbList(list);
+  const out = all.filter((x) => x.fp !== fp);
+  return out.length === all.length ? null : out;
+}
 /* המגדל הזכיר תיקון מוכר לפני שהתקלה הגיעה לעצירה */
 function fbUsed(list, fp, now) {
   const out = fbList(list).map((e) => Object.assign({}, e));
@@ -1030,7 +1036,7 @@ module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpVie
   normRoutine, hintOf, normSpec, normFile, normOut, OUT_KINDS, OUT_MAX, normHl, HL_MAX, pickerCfg, extVideoOk, normUsage, normAsk, normAnswer, ASK_MAX,
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
-  FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide,
+  FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, toFields, fromFields,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,

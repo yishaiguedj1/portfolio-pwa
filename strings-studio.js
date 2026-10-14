@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1449 מפתחות מתוך 2632) */
+/* המחרוזות של studio (1453 מפתחות מתוך 2636) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -471,6 +471,10 @@ he: {
   "studioExVtt": "לנגנים באתרים (HTML5)",
   "studioFKey": "המפתח",
   "studioFUrl": "כתובת הטריגר",
+  "studioFbDel": "מחיקה מספר התיקונים",
+  "studioFbDelOk": "מחיקה",
+  "studioFbDelQ": "למחוק את הבעיה מספר התיקונים? הסוכנים לא יקבלו יותר את התיקון שלה. אם התקלה תחזור — תיפתח בעיה חדשה.",
+  "studioFbDeleted": "נמחקה מספר התיקונים",
   "studioFbDrop": "לא",
   "studioFbDropped": "ההצעה נמחקה",
   "studioFbKeep": "לשמור",
@@ -1922,6 +1926,10 @@ en: {
   "studioExVtt": "For web players (HTML5)",
   "studioFKey": "Key",
   "studioFUrl": "Trigger URL",
+  "studioFbDel": "Delete from the fix book",
+  "studioFbDelOk": "Delete",
+  "studioFbDelQ": "Delete this problem from the fix book? Agents will no longer get its fix. If the failure returns, a new problem opens.",
+  "studioFbDeleted": "Deleted from the fix book",
   "studioFbDrop": "No",
   "studioFbDropped": "Suggestion removed",
   "studioFbKeep": "Keep",

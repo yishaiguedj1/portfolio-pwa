@@ -1130,6 +1130,14 @@ async function handler(req, res, deps = {}) {
       await patchDoc(deps, 'studioStats', uid, { fb, updated: now });
       return res.status(200).json({ ok: true, fb: S.fbView(fb) });
     }
+    if (op === 'fbDel') {
+      // 14/10/2026: מחיקת רשומה מספר התיקונים — היא לא תוזכר יותר לסוכנים; אם התקלה תחזור, תיפתח רשומה חדשה
+      const st = await readStats(deps, uid);
+      const fb = S.fbRemove(st.fb, String(body.fp || ''));
+      if (!fb) return res.status(404).json({ ok: false, error: 'not_found', fb: S.fbView(st.fb) });
+      await patchDoc(deps, 'studioStats', uid, { fb, updated: now });
+      return res.status(200).json({ ok: true, fb: S.fbView(fb) });
+    }
     if (op === 'srvList' || op === 'srvCreate' || op === 'srvPause' || op === 'srvRemove') {
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
       if (op === 'srvCreate') {

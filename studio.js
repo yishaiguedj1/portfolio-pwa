@@ -3265,6 +3265,20 @@ async function decideFix(fp, ok) {
   } finally { fixBusy = false; render('none'); }
   refreshJobs(true);   // v376: מצב הבעיה (אובחנה → עקיפה ידועה) מגיע עם רשימת העבודות
 }
+/* 14/10/2026: מחיקת רשומה מספר התיקונים — באישור (הרסני); אחרי המחיקה חוזרים לרשימת הבעיות */
+function delFix(fp) {
+  if (fixBusy) return;
+  askConfirm(T('studioFbDelQ'), async () => {
+    fixBusy = true;
+    try {
+      const j = await net.api('fbDel', { fp });
+      const fb = normFb(j.fb); if (fb) ui.fb = fb;
+      flashSafe(j.ok ? T('studioFbDeleted') : errText(j.error));
+      if (j.ok && ui.pb) ui.pb = Object.assign({}, ui.pb, { list: ui.pb.list.filter((y) => y.fp !== fp) });
+    } finally { fixBusy = false; render('none'); }
+    refreshJobs(true);
+  }, { danger: true, ok: T('studioFbDelOk') });
+}
 const fbStage = (st) => { const c = { tr: 'asr', al: 'al', tl: 'tl', rv: 'rv' }[st]; return c ? ckName(c) : ''; };
 /* ---------------- v376: בעיות וספרי הפעלה (מסך 3 בתוכנית — Problem · KEDB · LEAP · Playbooks) ---------------- */
 const pbNo = (no) => 'B' + no;
@@ -3689,6 +3703,7 @@ function pageProb(p) {
   const incs = x.inc.map((n) => ui.inc && ui.inc.list.find((y) => y.no === n)).filter(Boolean);
   if (incs.length) p.append(secT(T('studioPbIncT')), list(...incs.map((y) => incRow(y))));
   p.append(note(T('studioPbScoreN')));
+  p.append(h('div', 'st-gap sm'), btn('st-btn danger wide', T('studioFbDel'), () => delFix(x.fp), 'fbx:' + x.fp));
 }
 /* v363: מסך "מגדל הפיקוח" — מה קורה עכשיו, "הרגיל" שלך לכל מצב (נלמד מהעבודות שלך), מתי עוצרים, ועצירות אחרונות */
 /* 13/10/2026 (בקשת המשתמש: "עמוד קצר יותר, אבל כמה שיותר מידע בקלות ובממשק נקי — כמו ש־Apple יודעים"): כמו "סיכום" ב־Health.
