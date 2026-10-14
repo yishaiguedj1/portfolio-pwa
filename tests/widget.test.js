@@ -148,21 +148,21 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   ok(R('appWidgetSync(false)') === true && /&w=%5B%7B/.test(R('location.href')), 'v249: ה־intent שולח גם את הרשימות (w)');
   R("DB.wishlist.length = 0; DB.wlExtra = [];");
   ok(R('appWidgetPayload()').w === '' && R('appWidgetPayload()').sig === R('javaHash36')(R('appWidgetPayload()').s + '|he'), 'v249: בלי רשימות — החתימה כמו קודם (תאימות ל־APK ישן)');
-  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/WidgetData.kt'), 'utf8');
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/invest/java/io/github/yishaiguedj1/snowball/WidgetData.kt'), 'utf8');
   ok(/\(items\(c\) \+ "\|" \+ lang\(c\) \+ \(if \(watch\(c\)\.isEmpty\(\)\) "" else "\|" \+ watch\(c\)\)\)\.hashCode\(\)/.test(kt), 'v249: האנדרואיד מחשב את אותה חתימה');
-  const mf = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
-  ok(/\.SnowballWatchWidgetReceiver/.test(mf) && fs.existsSync(path.join(root, 'android/app/src/main/res/xml/snowball_watch_widget_info.xml')), 'v249: ווידג׳ט "רשימות מעקב" רשום באפליקציה');
+  const mf = fs.readFileSync(path.join(root, 'android/app/src/invest/AndroidManifest.xml'), 'utf8');
+  ok(/\.SnowballWatchWidgetReceiver/.test(mf) && fs.existsSync(path.join(root, 'android/app/src/invest/res/xml/snowball_watch_widget_info.xml')), 'v249: ווידג׳ט "רשימות מעקב" רשום באפליקציה');
 }
 // v250: הלוגו של כל ווידג'ט → הטאב שלו; נגיעה במניה בווידג'ט המעקב → המעקב, באותה רשימה
 {
-  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/invest/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
   ok(/tabIntent\(context, "stocks"\)/.test(kt) && /tabIntent\(context, "wishlist", sel\?\.id\)/.test(kt) && /"&tab=wishlist&wl=" \+ Uri\.encode/.test(kt), 'v250: לוגו התיק → מניות, לוגו המעקב → מעקב (הרשימה שבווידג׳ט), מניה ממעקב → מעקב');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   ok(/const tab = get\('tab'\), wl = get\('wl'\), sym = normalizeSym\(get\('stock'\)\);/.test(app) && /\(watch \? wlItems\(\) : POSITIONS\)\.find\(\(w\) => w\.sym === sym\)/.test(app) && /openStockCard\(it\.sym, /.test(app), 'v250: האתר פותח את הטאב/הרשימה/המניה מהקישור (גם מניה שלא בתיק)');
 }
 // v251: מזהה שורה בווידג'ט המעקב כולל את הרשימה (בלי שורות "תקועות" מהרשימה הקודמת); קישור ישן → הרשימה שבה המניה באמת
 {
-  const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
+  const kt = fs.readFileSync(path.join(root, 'android/app/src/invest/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
   ok(/itemId = \{ \(listKey \+ "\|" \+ it\.sym\)\.hashCode\(\)\.toLong\(\) \}/.test(kt) && /KEY_LIST\] = id; it\[SnowballWidget\.KEY_STAMP\] = System\.nanoTime\(\)/.test(kt), 'v251: מזהה שורה לפי רשימה+סימבול, ובחירת טאב מאלצת ציור');
   ok(/if \(!inL\(target\)\) \{ const f = ls\.find/.test(fs.readFileSync(path.join(root, 'app.js'), 'utf8')), 'v251: מניה שלא ברשימה שבקישור — נפתחת ברשימה שבה היא נמצאת');
 }
@@ -171,7 +171,7 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   ok(/localStorage\.setItem\(LS_WLACTIVE, target\); \} catch \(e\) \{\}\s*try \{ closeStockCards\(\); \} catch \(e\) \{\}\s*try \{ renderWishlist\(\); \}/.test(app), 'v252: החלפת רשימה מקישור מציירת מחדש (לא נשארת על הרשימה הקודמת)');
   ok(/for \(const ms of \[520, 1100, 2000, 3200\]\) setTimeout\(pin, ms\)/.test(app), 'v252: הכרטיס נצמד לראש המסך עד שהכל נטען (אלא אם המשתמש נוגע)');
-  ok(/mem\.get\(key\) \?: BitmapFactory\.decodeFile/.test(fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/yishaiguedj1/snowball/LogoCache.kt'), 'utf8')), 'v252: לוגואים מהזיכרון — מעבר טאב בווידג׳ט בלי פענוח מהדיסק');
+  ok(/mem\.get\(key\) \?: BitmapFactory\.decodeFile/.test(fs.readFileSync(path.join(root, 'android/app/src/invest/java/io/github/yishaiguedj1/snowball/LogoCache.kt'), 'utf8')), 'v252: לוגואים מהזיכרון — מעבר טאב בווידג׳ט בלי פענוח מהדיסק');
 }
 // v254: קישור מהווידג'ט כשהאפליקציה כבר פתוחה — מופע חדש מעל ה־TWA (בלי singleTask), Chrome מעביר את הכתובת ללשונית;
 // הרשומה שנוספת בהיסטוריה (ניווט הלשונית) מוסרת כדי ש"אחורה" לא ייתקע
@@ -214,7 +214,7 @@ R("DB.wishlist.length = 0; DB.wishlist.push({ sym: 'TSLA', name: 'Tesla' }, { sy
   const png = require('../ibkr-proxy/lib/ta-logos.json');
   const missing = ids.filter((id) => !png.includes(id) || !fs2.existsSync(path2.join(__dirname, '..', 'logos', 'ta', id + '.png')));
   ok(ids.length >= 200 && !missing.length, 'לכל לוגו ת"א יש PNG לווידג׳ט (' + ids.length + ')' + (missing.length ? ' חסר: ' + missing.join(',') : ''));
-  const kt = fs2.readFileSync(path2.join(__dirname, '..', 'android/app/src/main/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
+  const kt = fs2.readFileSync(path2.join(__dirname, '..', 'android/app/src/invest/java/io/github/yishaiguedj1/snowball/SnowballWidget.kt'), 'utf8');
   ok(/val w = ColorProvider\(Color\(0xFFF2F2F7\), Color\(0xFF000000\)\)/.test(kt) && /val w2 = ColorProvider\(Color\(0xFFFFFFFF\), Color\(0xFF1C1C1E\)\)/.test(kt), 'ווידג׳ט: רקע וכרטיס בצבעי האפליקציה');
   ok(/background\(if \(on\) C\.primary else C\.chip\)/.test(kt) && /color = if \(on\) C\.onPrimary else C\.on/.test(kt) && /val onPrimary = ColorProvider\(Color\(0xFF06281A\)/.test(kt), 'ווידג׳ט: טאבים — פעיל כמו .tab.active באפליקציה, השאר בצבע הכרטיסים');
   ok(/private fun FxPill[\s\S]{0,900}?background\(C\.bubBg\)/.test(kt), 'ווידג׳ט: בועת שער הדולר בצבע ‎--surface-2 כמו באפליקציה');

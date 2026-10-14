@@ -1,11 +1,12 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1457 מפתחות מתוך 2640) */
+/* המחרוזות של studio (1455 מפתחות מתוך 2641) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
   "actDelete": "מחיקה",
   "actEdit": "עריכה",
   "advancedTitle": "אפשרויות מתקדמות",
+  "apkTitle": "האפליקציה לאנדרואיד",
   "appInfoTitle": "אפליקציה",
   "appInvestSub": "התיק שלך",
   "appVersion": "גרסת אפליקציה: ",
@@ -1455,16 +1456,14 @@ he: {
   "versionLbl": "גרסה",
   "widgetApkBtn": "הורדת האפליקציה לאנדרואיד",
   "widgetHowTitle": "איך מתקינים",
-  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\".",
-  "widgetStep2": "פותחים את THE SNOWBALL ונוגעים במסך — רשימת המניות עוברת לווידג׳ט.",
-  "widgetStep3": "לחיצה ארוכה על מסך הבית ← ווידג׳טים ← THE SNOWBALL ← גוררים למסך.",
-  "widgetTitle": "ווידג׳ט למסך הבית"
+  "widgetStep1": "מורידים את האפליקציה (קובץ APK) ופותחים אותו. בפעם הראשונה מאשרים \"התקנה ממקור לא ידוע\"."
 },
 en: {
   "actColl": "Add to collection",
   "actDelete": "Delete",
   "actEdit": "Edit",
   "advancedTitle": "Advanced options",
+  "apkTitle": "Android app",
   "appInfoTitle": "App",
   "appInvestSub": "Your portfolio",
   "appVersion": "App version: ",
@@ -2914,9 +2913,6 @@ en: {
   "versionLbl": "Version",
   "widgetApkBtn": "Download the Android app",
   "widgetHowTitle": "How to install",
-  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\".",
-  "widgetStep2": "Open THE SNOWBALL and tap the screen — your stock list moves to the widget.",
-  "widgetStep3": "Long-press the home screen → Widgets → THE SNOWBALL → drag it onto the screen.",
-  "widgetTitle": "Home-screen widget"
+  "widgetStep1": "Download the app (APK file) and open it. The first time, allow \"install unknown apps\"."
 }
 };
