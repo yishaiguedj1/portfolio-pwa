@@ -33,6 +33,6 @@ ok(/await page\.click\('#stockList \.stock >> nth=1 >> \.stock-head'\)/.test(qa)
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 ok(/@keyframes tabIn \{ from \{ opacity: \.55;/.test(css), 'tabIn לא מתחיל מ־opacity:0 (פריים ריק במעבר טאב — הבהוב שחור במצב כהה)');
 ok(/\.stock\.anim \.stock-body > \* \{ overflow: visible; align-self: start; min-width: 0; max-width: 100%; \}/.test(css), 'גוף הכרטיס בזמן האנימציה: min-width:0 (ב־320px הוא היה ברוחב התוכן והתכווץ בסוף — קפיצה אופקית)');
-ok(/function navScrollTop\(\) \{[\s\S]*?de\.dataset\.navScroll = '1';[\s\S]*?window\.scrollTo\(0, 0\);/.test(app) && /cancelScrollRestore\(\);\n  navScrollTop\(\);\n\}/.test(app), 'switchTab: הגלילה לראש העמוד מסומנת data-nav-scroll (navScrollTop)');
+ok(/function navScrollTop\(\) \{[\s\S]*?de\.dataset\.navScroll = '1';[\s\S]*?window\.scrollTo\(0, 0\);/.test(app) && /cancelScrollRestore\(\);\n  if \(!\(opts && opts\.keepScroll\)\) navScrollTop\(\);/.test(app), 'switchTab: הגלילה לראש העמוד מסומנת data-nav-scroll (navScrollTop)');
 ok(/!document\.documentElement\.dataset\.navScroll\) M\.cur\.scrollJumps\.push\(\{ el: 'window'/.test(qa), 'כלי: קפיצת חלון מסומנת data-nav-scroll לא נספרת');
 console.log('# ' + n + ' בדיקות עברו');
