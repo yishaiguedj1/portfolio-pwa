@@ -11,6 +11,34 @@
 const ENV_APPS = typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.apps;
 export const APP_URL = ENV_APPS || { invest: './', academy: 'academy.html', studio: 'studio.html' };
 
+/* האתחול המשותף של הדף (בנייה 409) — אותו דבר כמו ב־app.js של Invest. עד היום הדפים העצמאיים רק רשמו את ה־SW:
+   (1) בלי בדיקת עדכון כשחוזרים מהרקע (מעבר ממסך הבית לא טוען את הדף), (2) בלי רענון כשגרסה חדשה משתלטת — עותק ישן
+   נשאר פתוח והתחלף עם החדש בטלפון (Academy כחול ← ירוק ← כחול), (3) בלי הפס "סביבת ניסוי". */
+export function appBoot() {
+  if (window.SNB_ENV && window.SNB_ENV.name === 'staging' && !document.querySelector('.env-strip')) {
+    const strip = h('div', 'env-strip', t('envStaging'));
+    strip.setAttribute('role', 'note');
+    document.body.prepend(strip);
+  }
+  if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+  const sw = navigator.serviceWorker;
+  const hadController = !!sw.controller;               // התקנה ראשונה — בלי רענון
+  let reloaded = false;
+  sw.addEventListener('controllerchange', () => {
+    if (reloaded || !hadController) return;
+    reloaded = true;
+    // באמצע העלאה של הסטודיו לא מרעננים (ההעלאה הייתה נעצרת) — מחכים שתסתיים, כמו ב־app.js
+    const busy = () => { try { return typeof window.snbStudioBusy === 'function' && window.snbStudioBusy(); } catch (e) { return false; } };
+    const go = () => { if (busy()) setTimeout(go, 5000); else location.reload(); };
+    go();
+  });
+  sw.register('sw.js').then((reg) => {
+    const check = () => { try { reg.update().catch(() => {}); } catch (e) {} };
+    check();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  }).catch(() => {});
+}
+
 const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg>';
 const APPS = {
   invest: { name: 'Invest', sub: () => t('appInvestSub'), cls: 'invest-ic',

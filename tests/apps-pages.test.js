@@ -33,7 +33,7 @@ for (const A of APPS) {
   const boot = read(A.app + '-app.js');
   ok(boot.includes("import { " + A.open + " } from './" + A.mod + "'") && /const sa = \{ auth: A, home: APP_URL\.invest \}/.test(boot) && /standalone: sa/.test(boot), A.app + ': האתחול פותח את אותו המודול במצב עצמאי');
   // ההדר המשותף (13/10/2026): אותו shell.js, הלוגו של האפליקציה, והגלובוס בתפריט הפתוח = ההגדרות של האפליקציה
-  ok(boot.includes("import { createShell, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".webp', logoLg: 'logo-" + A.app + "-lg.webp'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
+  ok(boot.includes("import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js'") && boot.includes("app: '" + A.app + "'") && boot.includes("logo: 'logo-" + A.app + ".webp', logoLg: 'logo-" + A.app + "-lg.webp'") && /onSettings: \(\) => sa\.settings/.test(boot), A.app + ': ההדר המשותף עם הלוגו של ' + A.app);
   // הלוגו (13/10/2026): WebP בצבע מלא — חד יותר מ־PNG של 256 צבעים (pngquant) ובמשקל דומה. 512 = פי 4 מ־128 בהדר, 768 למסך הכניסה (192px)
   { const dim = (f) => { const b = fs.readFileSync(path.join(root, f)); return b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 16) === 'WEBPVP8X' ? [b.readUIntLE(24, 3) + 1, b.readUIntLE(27, 3) + 1, b.length, (b[20] & 16) > 0] : null; };
     const [w, hh, n, al] = dim('logo-' + A.app + '.webp') || []; ok(w === 512 && hh === 512 && al && n < 200000, A.app + ': הלוגו בהדר — WebP של 512 עם שקיפות, <200KB');

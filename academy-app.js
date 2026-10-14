@@ -2,14 +2,14 @@
    לפני הקובץ (academy.html): firebase-config.js, strings-academy.js, core.js, auth.js. אותו library.js כמו בתיק,
    עם opt.standalone (library.js — SA). עד שלב 5 האתר המאוחד לא משתנה: בתיק הספרייה עדיין נפתחת כשכבה. */
 import { openLibrary } from './library.js';
-import { createShell, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
+import { createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards } from './shell.js';
 
 const de = document.documentElement;
 const lang = getLang();
 de.lang = lang;
 de.dir = lang === 'he' ? 'rtl' : 'ltr';
 wireCoreBack();                                    // "חזור" סוגר חלונות (askConfirm, כפתורי לחיצה ארוכה) לפני הספרייה
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+appBoot();                                         // עדכון גרסה, רענון כשהיא משתלטת, הפס "סביבת ניסוי" (shell.js)
 setTimeout(() => { de.classList.remove('lib-restoring', 'lib-curtain'); }, 6000);   // וילון הרענון — לכל היותר 6 שנ׳ (כמו app.js)
 
 const A = window.SnbAuth;
