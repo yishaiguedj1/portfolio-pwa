@@ -150,6 +150,19 @@ function limited(ip, now) {
   return arr.length > 60;
 }
 
+/* ---------------------------------------------------------------- אבחון (14/10/2026)
+   מונים בלבד — בלי uid, מייל או עוגייה: איזה שלב הצליח ואיזה נכשל ובאיזה קוד, ו־20 האירועים האחרונים (זמן, קוד,
+   אפליקציה). GET /api/session מחזיר אותם, כדי שאפשר יהיה לדעת מבחוץ למה החיבור המשותף לא עבד בטלפון. */
+const stats = { since: Date.now(), n: {}, last: [] };
+const CODE_RE = /[^a-z0-9_:/-]/g;
+function tally(code, app) {
+  const k = String(code).toLowerCase().replace(CODE_RE, '').slice(0, 60) || 'x';
+  stats.n[k] = (stats.n[k] || 0) + 1;
+  stats.last.push([new Date().toISOString().slice(0, 19), k, app || '']);
+  if (stats.last.length > 20) stats.last.shift();
+  if (Object.keys(stats.n).length > 100) stats.n = {};
+}
+
 /* ---------------------------------------------------------------- הפונקציה */
 function cors(res, origin, app) {
   res.setHeader('Vary', 'Origin');
@@ -175,6 +188,10 @@ function makeHandler(over = {}) {
     };
     const h = req.headers || {};
     const origin = String(h.origin || '');
+    if (req.method === 'GET') {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ ok: true, since: new Date(stats.since).toISOString(), n: stats.n, last: stats.last });
+    }
     const app = appForOrigin(origin, sessEnv(deps.env));
     cors(res, origin, app);
     if (!app) return res.status(403).json({ ok: false, error: 'forbidden_origin' });
@@ -195,10 +212,11 @@ function makeHandler(over = {}) {
     /* התחברות: אסימון Firebase טרי מהתחברות עם Google → עוגייה */
     if (op === 'login') {
       let u;
-      try { u = await deps.verify(String(body.idToken || '')); } catch (e) { return res.status(401).json({ ok: false, error: 'bad_token' }); }
-      if (!UID_RE.test(u.uid)) return res.status(401).json({ ok: false, error: 'bad_token' });
-      if (u.provider === 'custom' || !(u.authTime > 0)) return res.status(403).json({ ok: false, error: 'not_fresh' });
-      if (now - u.authTime > LOGIN_FRESH || u.authTime > now + 300) return res.status(403).json({ ok: false, error: 'not_fresh' });
+      try { u = await deps.verify(String(body.idToken || '')); } catch (e) { tally('login:' + ((e && e.message) || 'bad_token'), app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
+      if (!UID_RE.test(u.uid)) { tally('login:uid', app); return res.status(401).json({ ok: false, error: 'bad_token' }); }
+      if (u.provider === 'custom' || !(u.authTime > 0)) { tally('login:not_fresh:' + (u.provider || 'none'), app); return res.status(403).json({ ok: false, error: 'not_fresh' }); }
+      if (now - u.authTime > LOGIN_FRESH || u.authTime > now + 300) { tally('login:not_fresh:age', app); return res.status(403).json({ ok: false, error: 'not_fresh' }); }
+      tally('login:ok', app);
       res.setHeader('Set-Cookie', setCookieHeader(sealCookie({ u: u.uid, a: u.authTime, i: now, x: now + MAX_AGE, p: PROJECT() }, key), MAX_AGE));
       return res.status(200).json({ ok: true });
     }
@@ -208,17 +226,20 @@ function makeHandler(over = {}) {
     /* "מי מחובר?" → טוקן מותאם לאפליקציה הזו (ct) */
     if (op === 'who') {
       if (!cur) {
+        tally(readCookie(req) ? 'who:bad_cookie' : 'who:none', app);
         if (readCookie(req)) res.setHeader('Set-Cookie', setCookieHeader('', 0));
         return res.status(200).json({ ok: true, s: 0 });
       }
       let vs;
-      try { vs = await readVs(cur.u, deps); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      try { vs = await readVs(cur.u, deps); } catch (e) { tally('who:store', app); return res.status(503).json({ ok: false, error: 'store' }); }
       if (cur.i < vs) {
+        tally('who:logged_out', app);
         res.setHeader('Set-Cookie', setCookieHeader('', 0));
         return res.status(200).json({ ok: true, s: 0 });
       }
       let tok;
-      try { tok = customToken(cur.u, app, now, deps.sa()); } catch (e) { return res.status(503).json({ ok: false, error: 'not_configured' }); }
+      try { tok = customToken(cur.u, app, now, deps.sa()); } catch (e) { tally('who:no_sa', app); return res.status(503).json({ ok: false, error: 'not_configured' }); }
+      tally('who:ok', app);
       if (now - cur.i > RENEW_AFTER) {
         res.setHeader('Set-Cookie', setCookieHeader(sealCookie({ u: cur.u, a: cur.a, i: now, x: now + MAX_AGE, p: PROJECT() }, key), MAX_AGE));
       }
@@ -227,11 +248,18 @@ function makeHandler(over = {}) {
 
     /* התנתקות: מהמכשיר (כל האפליקציות שבו — העוגייה משותפת), או מכל המכשירים (all) */
     if (op === 'logout') {
+      tally(body.all ? 'logout:all' : 'logout', app);
       res.setHeader('Set-Cookie', setCookieHeader('', 0));
       if (body.all && cur) {
         try { await writeVs(cur.u, now + 1, deps); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
       }
       return res.status(200).json({ ok: true, all: !!(body.all && cur) });
+    }
+
+    /* הטלפון מדווח שהטוקן המותאם נדחה ב־Firebase (רק הקוד של השגיאה) */
+    if (op === 'note') {
+      tally('client:' + String(body.c || ''), app);
+      return res.status(200).json({ ok: true });
     }
 
     return res.status(400).json({ ok: false, error: 'bad_op' });
