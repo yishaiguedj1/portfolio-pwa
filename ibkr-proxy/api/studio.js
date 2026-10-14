@@ -18,6 +18,7 @@
    מהטלפון גם: srvList · srvCreate { name } (המנהל; הטוקן מוצג פעם אחת) · srvPause { sid, paused } · srvRemove { sid }
    מצב העבודות ב־Firestore (studioJobs/{id}, studioVault/{uid}, studioServers/{sid}) דרך חשבון השירות — הטלפון לא קורא משם ישירות.
    הפעלת Routine: אין מפתח למניעת כפילות, ולכן לעולם לא מנסים שוב לבד — אחרת ייפתחו שני סשנים. */
+const crypto = require('crypto');
 const { guard } = require('../lib/ibkr');
 const { verifyIdToken, datastoreToken, isAdmin, emails } = require('../lib/gauth');
 const SW = require('../lib/sitewatch');
@@ -126,6 +127,49 @@ async function listJobs(deps, uid) {
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
 const readVault = (deps, uid) => readDoc(deps, 'studioVault', uid);
+/* 14/10/2026: מאגר הלמידה — משלימים רשומות מכל העבודות (אנונימיות, כולל ישנות ושל כל המשתמשים, בלי מי שכיבה את המתג),
+   ומחזירים את כל הרשומות לפי הזמן. משותף לפעולות המנהל ולמשיכה בטוקן ניתוח */
+async function learnLoad(deps, now) {
+  const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
+  const have = new Map(docs.map((d) => [d.id, d]));
+  let wrote = 0;
+  const offs = new Map();
+  for (const j of await query(deps, 'studioJobs', null, LEARN_MAX)) {
+    if (wrote >= LEARN_SYNC_MAX) break;
+    if (await learnOff(deps, j.uid, offs)) continue;   // המשתמש כיבה את המתג
+    const rec = LR.learnRec(j, now, S.effState);
+    if (!rec) continue;
+    const h = LR.recHash(rec), old = have.get(rec.id);
+    if (old && old.h === h) continue;
+    await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h, at: rec.at || now, updated: now });
+    have.set(rec.id, { id: rec.id, lr: rec, h });
+    wrote++;
+  }
+  const recs = [...have.values()].map((d) => d.lr).filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
+  return { recs, wrote };
+}
+/* טוקני ניתוח: המזהה = sha256 של הטוקן (40 תווים) — הטוקן עצמו לא נשמר. לטלפון: שם, מתי נוצר/פג/שימוש אחרון — בלי מי יצר */
+const AT_DAYS = 30, AT_MAX = 5;
+const AT_RE = /^snbL_[A-Za-z0-9_-]{32}$/;
+const atId = (tok) => crypto.createHash('sha256').update(String(tok)).digest('hex').slice(0, 40);
+const atView = (t) => ({ id: t.id, n: String(t.n || ''), at: t.at || 0, exp: t.exp || 0, last: t.last || 0, uses: t.uses || 0 });
+/* משיכה בטוקן ניתוח — שרת לשרת (סשן של Claude Code), בלי Origin ובלי Firebase. קריאה בלבד: הרשומות האנונימיות + החבילה */
+async function learnPull(req, res, body, deps) {
+  const tok = String(body.at || '');
+  if (!AT_RE.test(tok)) return res.status(401).json({ ok: false, error: 'bad_token' });
+  if (limited('at|' + atId(tok).slice(0, 12), 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  try {
+    const t = await readDoc(deps, 'sysTokens', atId(tok));
+    if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
+    const { recs } = await learnLoad(deps, now);
+    await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+    const view = LR.learnView(recs, now);
+    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
+  }
+}
 /* 14/10/2026 (בקשת המשתמש): המתג "שיפור התרגום בעזרת העבודות שלי" בהגדרות — כבוי (studioStats.lo = 1) = העבודות של
    המשתמש לא נכנסות למאגר מעכשיו. מה שכבר נכנס לא מקושר אליו (אין מיפוי). תקלה בקריאה = לא שומרים (זהירות) */
 async function learnOff(deps, uid, cache) {
@@ -999,6 +1043,7 @@ async function handler(req, res, deps = {}) {
   body = body || {};
   if (WORKER_OPS.has(String(body.op || ''))) return worker(req, res, body, deps);
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
+  if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (guard(req, res)) return;
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
@@ -1081,28 +1126,34 @@ async function handler(req, res, deps = {}) {
     return SC.scanView(sc);
   };
   try {
-    if (op === 'learn' || op === 'learnExport') {
-      // 14/10/2026: מאגר הלמידה — רק למנהל. קודם משלימים רשומות מכל העבודות שבסטודיו (כולל עבודות ישנות ושל משתמשים אחרים —
-      // אנונימיות), אחר כך הניתוח. learnExport = כל הרשומות כמו שהן (לניתוח מעמיק מחוץ לאפליקציה)
+    if (op === 'learn' || op === 'learnExport' || op === 'learnBrief') {
+      // 14/10/2026: מאגר הלמידה — רק למנהל. learnExport = כל הרשומות (לניתוח מחוץ לאפליקציה), learnBrief = החבילה ל־Claude
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
-      const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
-      const have = new Map(docs.map((d) => [d.id, d]));
-      let wrote = 0;
-      const offs = new Map();
-      for (const j of await query(deps, 'studioJobs', null, LEARN_MAX)) {
-        if (wrote >= LEARN_SYNC_MAX) break;
-        if (await learnOff(deps, j.uid, offs)) continue;   // המשתמש כיבה את המתג
-        const rec = LR.learnRec(j, now, S.effState);
-        if (!rec) continue;
-        const h = LR.recHash(rec), old = have.get(rec.id);
-        if (old && old.h === h) continue;
-        await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h, at: rec.at || now, updated: now });
-        have.set(rec.id, { id: rec.id, lr: rec, h });
-        wrote++;
-      }
-      const recs = [...have.values()].map((d) => d.lr).filter(Boolean);
-      if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs.sort((a, b) => (a.at || 0) - (b.at || 0)) });
+      const { recs, wrote } = await learnLoad(deps, now);
+      if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
+      if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
       return res.status(200).json({ ok: true, view: LR.learnView(recs, now), synced: wrote, now });
+    }
+    if (op === 'atNew' || op === 'atList' || op === 'atDel') {
+      // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (op === 'atNew') {
+        const list = await query(deps, 'sysTokens', null, 50);
+        if (list.filter((t) => t.exp > now).length >= AT_MAX) return res.status(409).json({ ok: false, error: 'too_many' });
+        const tok = 'snbL_' + crypto.randomBytes(24).toString('base64url');
+        const days = Math.max(1, Math.min(AT_DAYS, Math.round(Number(body.days) || AT_DAYS)));
+        const nm = String(body.name || '').replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 40) || 'Claude';
+        const rec = { n: nm, at: now, exp: now + days * 86400000, by: uid, last: 0, uses: 0 };
+        await patchDoc(deps, 'sysTokens', atId(tok), rec);
+        return res.status(200).json({ ok: true, token: tok, t: atView(Object.assign({ id: atId(tok) }, rec)) });
+      }
+      if (op === 'atDel') {
+        const id = String(body.id || '');
+        if (!/^[0-9a-f]{40}$/.test(id)) return res.status(400).json({ ok: false, error: 'bad_id' });
+        await delDoc(deps, 'sysTokens', id);
+      }
+      const list = await query(deps, 'sysTokens', null, 50);
+      return res.status(200).json({ ok: true, tokens: list.map(atView).sort((a, b) => b.at - a.at) });
     }
     if (op === 'learnPref') {
       // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל)

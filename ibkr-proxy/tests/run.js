@@ -3476,6 +3476,31 @@ function stubFetch(text, status = 200) {
         ok(!db.has(doneTr[0]) && lkeys().length === n0, 'מאגר הלמידה: הרשומה נשארת אחרי שהעבודה נמחקה');
       }
       studio._reset();
+      // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
+      const br = await run({ op: 'learnBrief', idToken: OWNER });
+      ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');
+      ok(!/ownerUid0001|friendUid03|@example\.com/.test(br.payload.brief + JSON.stringify(br.payload.records)), 'Claude: החבילה בלי uid ומיילים');
+      ok((await run({ op: 'atNew', idToken: FRIEND })).payload.error === 'not_admin', 'Claude: רק המנהל יוצר טוקן ניתוח');
+      const tn = await run({ op: 'atNew', idToken: OWNER, name: 'סשן <ניתוח>', days: 99 });
+      const TK = tn.payload.token;
+      ok(tn.payload.ok && /^snbL_[A-Za-z0-9_-]{32}$/.test(TK) && tn.payload.t.n === 'סשן ניתוח' && tn.payload.t.exp - tn.payload.t.at === 30 * 86400000, 'Claude: טוקן נוצר (שם נקי, עד 30 יום)');
+      const tkKeys = [...db.keys()].filter((k) => k.startsWith('sysTokens/'));
+      ok(tkKeys.length === 1 && !JSON.stringify(db.get(tkKeys[0])).includes(TK), 'Claude: הטוקן עצמו לא נשמר — רק ה־hash');
+      studio._reset();
+      let lp = await run({ op: 'learnPull', at: TK });
+      ok(lp.payload.ok && lp.payload.records.length === lkeys().length && /Claude/.test(lp.payload.brief) && lp.payload.view.v === 1, 'Claude: משיכה בטוקן — הרשומות, החבילה והניתוח');
+      ok((await run({ op: 'learnPull', at: 'snbL_' + 'x'.repeat(32) })).statusCode === 401, 'Claude: טוקן שלא קיים — 401');
+      ok((await run({ op: 'learnPull', at: TK, op2: 1, idToken: OWNER })).payload.ok, 'Claude: המשיכה לא דורשת Origin/Firebase');
+      const tl = await run({ op: 'atList', idToken: OWNER });
+      ok(tl.payload.tokens.length === 1 && tl.payload.tokens[0].uses >= 2 && !('by' in tl.payload.tokens[0]), 'Claude: רשימת הטוקנים — שימושים, בלי מי יצר');
+      now += 31 * 86400000;
+      studio._reset();
+      ok((await run({ op: 'learnPull', at: TK })).statusCode === 401, 'Claude: טוקן שפג — 401');
+      now -= 31 * 86400000;
+      await run({ op: 'atDel', idToken: OWNER, id: tl.payload.tokens[0].id });
+      studio._reset();
+      ok((await run({ op: 'learnPull', at: TK })).statusCode === 401 && ![...db.keys()].some((k) => k.startsWith('sysTokens/')), 'Claude: טוקן שבוטל — 401');
+      studio._reset();
     }
 
     // ניתוק
