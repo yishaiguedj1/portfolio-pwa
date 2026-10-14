@@ -883,10 +883,20 @@ function libSib(v) {
   return k.length === 1 && (k[0] === 'notes' || k[0] === 'settings') ? k[0] : null;
 }
 let swipePop = 0;                          // חזרה לבית בהחלקה — הדף כבר צויר; ה־popstate שלה לא מצייר שוב
+const LIB_NOBACK = ['edit', 'mgr', 'admin'];   // עריכה וניהול — בלי החלקה אחורה (טופס פתוח / ניווט משלהם)
+function libBackPage() {                   // עמוד משנה: החלקה אחורה = "חזור" — הדף הקודם (pv ברשומה) נצבע צמוד לאצבע
+  const st = history.state || {};
+  if (rd || !ui.view || st.lib !== 1 || !('pv' in st) || Object.keys(ui.view).some((k) => LIB_NOBACK.includes(k))) return null;
+  const prev = ui.view, y = root.scrollTop, to = st.pv || null;
+  return {
+    render() { saveLibScroll(); ui.view = to; root.scrollTop = 0; renderHomeNow().then(() => { if (root) root.scrollTop = savedLibScroll(); }); },
+    undo() { ui.view = prev; return renderHomeNow().then(() => { if (root) root.scrollTop = y; }); },
+    commit() { swipePop++; afterBack(() => history.back()); },
+  };
+}
 function libSwipePage(next) {
   const cur = libSib(ui.view);
-  if (!cur || rd) return null;
-  if (cur !== 'home' && !(history.state || {}).sb) return null;   // הגיעו לכאן לא מהבית — מתחת לרשומה אין את הבית
+  if (!cur || (cur !== 'home' && !(history.state || {}).sb)) return next ? null : libBackPage();   // עמוד משנה / הגיעו לא מהבית
   const to = LIB_SIB[LIB_SIB.indexOf(cur) + (next ? 1 : -1)];
   if (!to) return null;
   const prev = ui.view, y = root.scrollTop;
@@ -896,7 +906,7 @@ function libSwipePage(next) {
     commit() {
       const v = ui.view;
       if (to === 'home') { swipePop++; afterBack(() => history.back()); }
-      else if (cur === 'home') afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: 1 }), ''));
+      else if (cur === 'home') afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: 1, pv: null }), ''));
       else afterBack(() => history.replaceState(cleanState({ lib: 1, lv: v, sb: 1 }), ''));
     },
   };
@@ -939,8 +949,9 @@ function pinScroll(y) {                  // הדף מתארך אחרי הציו�
 function goView(v) {           // מעבר לדף בתוך הספרייה — רשומה בהיסטוריה, כך ש"חזור" של המכשיר מחזיר
   saveLibScroll();
   const sb = libSib(ui.view) === 'home' && (libSib(v) === 'notes' || libSib(v) === 'settings') ? 1 : 0;   // מהבית — ההחלקה אחורה מגיעה לבית
+  const pv = ui.view || null;              // 14/10/2026: הדף הקודם — החלקה אחורה בעמוד משנה מציירת אותו צמוד לאצבע
   ui.view = v;
-  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: sb }), ''));
+  afterBack(() => history.pushState(cleanState({ lib: 1, lv: v, sb: sb, pv: pv }), ''));
   navigateTo('push', 0).then(() => { if (root) try { root.focus({ preventScroll: true }); } catch (e) {} });
 }
 
@@ -4330,4 +4341,4 @@ export async function openLibrary(opt) {
   setTimeout(() => indexAll(), 600);
 }
 
-export const _test = { closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES, adm: () => (ADM ? ADM._state() : null) };
+export const _test = { go: (v) => goView(v), closeReq: () => { if (rd && rd.cw) { rd.cw.requestClose(); return true; } return false; }, curl: () => rd && rd.curl, curlPlain: () => ({ end: curlPlainN, wait: curlPlainW }), state: () => ({ sheetSkip, rd: !!rd, root: !!root, view: ui.view, vt: VT.inside, veils: root ? root.querySelectorAll('.lib-veil:not(.out)').length : 0 }), indexBook, bookExtras, HL_COLORS, normTerm, bookCSS: () => bookCSS(), setSettings: (o) => { S = Object.assign({}, defaults, o); }, WEIGHTS, THEMES, adm: () => (ADM ? ADM._state() : null) };

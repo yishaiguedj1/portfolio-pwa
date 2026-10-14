@@ -71,8 +71,10 @@ ok(/switchTab\(c\.to, \{ cubeDone: true \}\)/.test(fn(app, 'tabCubeCommit')), 'I
 ok(/if \(\(kind === 'push' \|\| kind === 'pop'\) && cubeOk\(\)\) return cubeNav\(kind, y\)/.test(lib), 'Academy: מעבר בין דפים (לחיצה, "חזור") = קובייה');
 ok(/const LIB_SIB = \['home', 'notes', 'settings'\]/.test(lib) && /wireLibSwipe\(\);/.test(lib), 'Academy: עמודים ראשיים = בית ← מה למדתי ← הגדרות, ההחלקה מחוברת');
 ok(/\['snb', 'mine'\]/.test(fn(lib, 'libSwipeTabs')) && /cubeSlideIn/.test(fn(lib, 'setShelf')), 'Academy: טאבים פנימיים = שתי הספריות, נכנסות מהצד');
-ok(/!\(history\.state \|\| \{\}\)\.sb\) return null/.test(fn(lib, 'libSwipePage')) && /sb: sb/.test(fn(lib, 'goView')), 'Academy: החלקה אחורה לבית רק כשהבית באמת מתחת לרשומה');
+ok(/!\(history\.state \|\| \{\}\)\.sb\)\) return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /sb: sb/.test(fn(lib, 'goView')), 'Academy: החלקה אחורה לבית רק כשהבית באמת מתחת לרשומה');
 ok(/if \(swipePop > 0\)/.test(fn(lib, 'onPop')), 'Academy: חזרה לבית בהחלקה לא מציירת שוב ב־popstate');
+ok(/pv: pv/.test(fn(lib, 'goView')) && /return next \? null : libBackPage\(\)/.test(fn(lib, 'libSwipePage')) && /ui\.view = to;/.test(fn(lib, 'libBackPage')) && /swipePop\+\+; afterBack\(\(\) => history\.back\(\)\)/.test(fn(lib, 'libBackPage')), 'Academy: בעמוד משנה החלקה אחורה = "חזור" לדף הקודם (נשמר ברשומה), צמוד לאצבע');
+ok(/const LIB_NOBACK = \['edit', 'mgr', 'admin'\]/.test(lib), 'Academy: בלי החלקה אחורה בעריכה ובניהול');
 
 // ---- Studio
 const r = fn(st, 'render');
