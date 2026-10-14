@@ -1674,6 +1674,24 @@ body.menu-blur #menuDrop:not(.hidden) { animation: menuPopIn .42s cubic-bezier(.
 .reset-veil:not(.in) { background: rgba(0,0,0,0); }
 .reset-veil:not(.in) .reset-sheet { transform: translateY(105%); }
 @media (prefers-reduced-motion: reduce) { .reset-veil, .reset-veil .reset-sheet { transition: none; } }
+/* 14/10/2026: גיבוי ל־Google Drive — אותו גיליון של האיפוס, הפעולות בצבע הראשי (לא הרסניות) */
+.row-link-val { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--on-surface-var); font-size: 15px; font-weight: 500; }
+.pfbk-sheet .ios-list { margin-bottom: 12px; }
+.pfbk-sheet .ios-row-lbl { display: flex; flex-direction: column; gap: 2px; }
+.pfbk-sub { font-size: 13px; font-weight: 400; color: var(--on-surface-var); line-height: 1.35; }
+.reset-opt.pfbk-opt.pfbk-main { font-weight: 700; }
+.pfbk-sheet .reset-group + .reset-cancel { margin-top: 10px; }
+.pfbk-sheet #pfbkBody > .reset-cancel:first-child { margin-top: 0; }
+.pfbk-sheet .ios-row-val { max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pfbk-note { padding: 0 4px; margin: 0 0 12px; font-size: 15px; line-height: 1.5; color: var(--on-surface-var); }
+.pfbk-err { margin: -4px 4px 12px; }
+.reset-opt.pfbk-opt { color: var(--primary); font-weight: 600; }
+.reset-opt.pfbk-opt:disabled { opacity: .55; cursor: default; }
+.pfbk-sw { position: relative; flex: none; width: 50px; height: 30px; border: 0; padding: 0; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 18%, transparent); cursor: pointer; transition: background .2s ease; }
+.pfbk-sw i { position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: inset-inline-start .2s ease; }
+.pfbk-sw[aria-checked="true"] { background: var(--primary); }
+.pfbk-sw[aria-checked="true"] i { inset-inline-start: 23px; }
+.pfbk-sw:focus-visible { outline: 2.5px solid var(--primary); outline-offset: 2px; }
 
 /* ---------------- v287: שורת קישור בהגדרות (כמו iOS) + עמוד משנה "אפשרויות מתקדמות" ---------------- */
 .row-card { padding: 6px; }

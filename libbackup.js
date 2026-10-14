@@ -429,5 +429,5 @@ export function createBackup(env) {
     }, delay == null ? 15000 : delay);
   }
   return { settings, saveSettings, config, status, token, connect, pick, disconnect, backupNow, overview, restore, removeFromBackup, deleteAll, quota, schedule, coverBlob,
-    busy: () => !!busy, _folders: folders, _listing: listing };
+    busy: () => !!busy, _folders: folders, _listing: listing, _req: req, _upload: upload };   // _req/_upload — גם לגיבוי של Invest (pfbackup.js)
 }

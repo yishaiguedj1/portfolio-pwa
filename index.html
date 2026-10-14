@@ -391,6 +391,23 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
       </div>
     </div>
 
+    <!-- 14/10/2026 (בקשת המשתמש): גיבוי ושחזור של מה שהוזן ביד ל־Google Drive — שורה, והפרטים בגיליון בסגנון Apple -->
+    <div class="card row-card" id="pfbkCard">
+      <button id="pfbkOpen" class="row-link" type="button" aria-haspopup="dialog" aria-controls="pfbkVeil">
+        <span class="row-link-ic adv-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5"/><polyline points="9 14 12 11 15 14"/><line x1="12" y1="11" x2="12" y2="20"/></svg></span>
+        <span class="row-link-txt" data-i18n="pfbkTitle">גיבוי ל־Google Drive</span>
+        <span class="row-link-val" id="pfbkState"></span>
+        <span class="row-link-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg></span>
+      </button>
+      <div class="pf-sheet-veil reset-veil hidden" id="pfbkVeil">
+        <div class="pf-sheet reset-sheet pfbk-sheet" role="dialog" aria-modal="true" aria-labelledby="pfbkSheetTitle">
+          <div class="sheet-grab" aria-hidden="true"></div>
+          <h3 id="pfbkSheetTitle">גיבוי ל־Google Drive</h3>
+          <div id="pfbkBody"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- v286 (בקשת המשתמש): כרטיס איפוס קומפקטי — שורה אחת, והאפשרויות בגיליון בסגנון Apple (בלי טקסטי הסבר) -->
     <div class="card reset-card" id="resetCard">
       <button id="resetOpen" class="reset-open" type="button" aria-haspopup="dialog" aria-controls="resetSheetVeil">

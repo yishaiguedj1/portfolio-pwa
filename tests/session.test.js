@@ -186,6 +186,43 @@ const cookieOf = (r) => { const m = /^__Host-snb_s=([^;]*);/.exec(r.h['set-cooki
   ok(r.body.n['login:ok'] > 0 && r.body.n['who:ok'] > 0 && r.body.n['client:auth/invalid-custom-token'] === 1, 'המונים: התחברות, "מי מחובר", ושגיאת הטלפון');
   ok(!/u1|u2|v1\./.test(dj) && r.body.last.length <= 20, 'בלי uid ובלי עוגייה בתשובה הציבורית');
 
+  /* ---------------------------------------------------------------- 7ג. חשבון שירות מפרויקט אחר (הייצור, 14/10/2026):
+     Firebase דוחה טוקן שנחתם בו (custom-token-mismatch) → חתימה בחשבון snb-session של הפרויקט דרך IAM signBlob */
+  {
+    const signer = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const SA2 = Object.assign({}, SA, { project_id: 'other-drive-project', client_email: 'drive@other-drive-project.iam.gserviceaccount.com' });
+    const iam = [];
+    let iamStatus = 200;
+    const fetch2 = async (url, init = {}) => {
+      if (url.indexOf('iamcredentials.googleapis.com') < 0) return fakeFetch(url, init);
+      iam.push({ url, auth: init.headers.Authorization });
+      if (iamStatus !== 200) return { status: iamStatus, json: async () => ({}) };
+      const blob = crypto.sign('RSA-SHA256', Buffer.from(JSON.parse(init.body).payload, 'base64'), signer.privateKey);
+      return { status: 200, json: async () => ({ keyId: 'k', signedBlob: blob.toString('base64') }) };
+    };
+    const H2 = S.makeHandler({ fetch: fetch2, now: () => NOW, token: async () => 'tk', sa: () => SA2, iamToken: async () => 'IAM',
+      verify: async (t) => { if (!TOKENS[t]) throw new Error('bad_token'); return TOKENS[t](); }, env: process.env });
+    const call2 = async (body, cookie) => {
+      const res = { code: 0, h: {}, body: null, setHeader(k, v) { this.h[k.toLowerCase()] = v; }, getHeader(k) { return this.h[k.toLowerCase()]; },
+        status(c) { this.code = c; return this; }, json(o) { this.body = o; return this; }, end() { return this; } };
+      await H2({ method: 'POST', headers: { origin: ACA, 'x-forwarded-for': '10.9.9.' + (++ipN % 250), cookie: cookie ? S.COOKIE + '=' + cookie : '' }, body }, res);
+      return res;
+    };
+    const ck2 = cookieOf(await call2({ op: 'login', idToken: 'fresh' }));
+    r = await call2({ op: 'who' }, ck2);
+    const pt = String((r.body || {}).ct || '').split('.');
+    const pl = pt.length === 3 ? JSON.parse(unb64(pt[1])) : {};
+    ok(r.code === 200 && r.body.s === 1 && iam.length === 1 && /serviceAccounts\/snb-session%40yishaiguedj1-c786e\.iam\.gserviceaccount\.com:signBlob$/.test(iam[0].url) && iam[0].auth === 'Bearer IAM',
+      'חשבון מפרויקט אחר → החתימה דרך IAM בחשבון snb-session של פרויקט ה־Firebase');
+    ok(pl.iss === 'snb-session@yishaiguedj1-c786e.iam.gserviceaccount.com' && pl.sub === pl.iss && pl.uid === 'u1' && pl.claims.app === 'academy'
+      && crypto.verify('RSA-SHA256', Buffer.from(pt[0] + '.' + pt[1]), signer.publicKey, unb64(pt[2])), 'הטוקן: iss/sub = החשבון החותם, והחתימה שלו תקפה');
+    iamStatus = 403;
+    r = await call2({ op: 'who' }, ck2);
+    ok(r.code === 503 && !(r.body || {}).ct, 'בלי הרשאה לחתום → 503 (לא s=0 שמנתק)');
+    r = await call('GET', '');
+    ok(r.body.n['who:sign_http_403'] >= 1, 'במוני האבחון: who:sign_http_403');
+  }
+
   /* ---------------------------------------------------------------- 8. קצב */
   let last;
   for (let i = 0; i < 61; i++) last = await call('POST', INV, { op: 'who' }, null, '9.9.9.9');

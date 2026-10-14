@@ -112,6 +112,29 @@ function customToken(uid, app, now, sa) {
   return head + '.' + body + '.' + sig;
 }
 
+/* חשבון השירות של השרתון (GDRIVE_SA_KEY) יכול להיות מפרויקט Google אחר — כך בייצור — ו־Firebase דוחה טוקן מותאם
+   שלא נחתם בחשבון של הפרויקט שלו (auth/custom-token-mismatch; נמצא במוני האבחון 14/10/2026). אז החתימה בחשבון ייעודי
+   בתוך פרויקט ה־Firebase — snb-session@<פרויקט> (בלי תפקידים) — דרך IAM Credentials ‏signBlob, בהרשאת "Service Account
+   Token Creator" שניתנה עליו לחשבון של השרתון. בלי מפתח נוסף בשרת, והחשבון הזה לא יכול לעשות שום דבר חוץ מלחתום. */
+const SIGNER = () => process.env.SNB_SESSION_SIGNER || ('snb-session@' + PROJECT() + '.iam.gserviceaccount.com');
+async function mintToken(uid, app, now, deps) {
+  const sa = deps.sa();
+  if (!sa || !sa.client_email || !sa.private_key) throw new Error('no_sa');
+  if (!sa.project_id || sa.project_id === PROJECT()) return customToken(uid, app, now, sa);
+  const email = SIGNER();
+  const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const body = b64url(JSON.stringify({ iss: email, sub: email, aud: AUD, iat: now, exp: now + TOKEN_TTL, uid, claims: { app } }));
+  const tk = await deps.iamToken();
+  const r = await deps.fetch('https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' + encodeURIComponent(email) + ':signBlob', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload: Buffer.from(head + '.' + body).toString('base64') }),
+  });
+  if (r.status !== 200) throw new Error('sign_http_' + r.status);
+  const j = await r.json();
+  if (!j || !j.signedBlob) throw new Error('sign_empty');
+  return head + '.' + body + '.' + b64url(Buffer.from(j.signedBlob, 'base64'));
+}
+
 /* ---------------------------------------------------------------- ההתנתקות מכל המכשירים — sessions/{uid}.vs */
 const vsCache = new Map();
 const DOC = (uid) => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() + '/databases/(default)/documents/sessions/' + uid;
@@ -184,6 +207,7 @@ function makeHandler(over = {}) {
       token: over.token || (() => G.datastoreToken(over.fetch)),
       verify: over.verify || ((t) => G.verifyIdToken(t, { fetch: over.fetch })),
       sa: over.sa || (() => G.serviceAccount()),
+      iamToken: over.iamToken || (() => G.cloudToken(over.fetch)),
       env: over.env || process.env,
     };
     const h = req.headers || {};
@@ -238,7 +262,7 @@ function makeHandler(over = {}) {
         return res.status(200).json({ ok: true, s: 0 });
       }
       let tok;
-      try { tok = customToken(cur.u, app, now, deps.sa()); } catch (e) { tally('who:no_sa', app); return res.status(503).json({ ok: false, error: 'not_configured' }); }
+      try { tok = await mintToken(cur.u, app, now, deps); } catch (e) { tally('who:' + ((e && e.message) || 'sign'), app); return res.status(503).json({ ok: false, error: 'not_configured' }); }
       tally('who:ok', app);
       if (now - cur.i > RENEW_AFTER) {
         res.setHeader('Set-Cookie', setCookieHeader(sealCookie({ u: cur.u, a: cur.a, i: now, x: now + MAX_AGE, p: PROJECT() }, key), MAX_AGE));
@@ -268,7 +292,7 @@ function makeHandler(over = {}) {
 
 module.exports = makeHandler();
 Object.assign(module.exports, {
-  makeHandler, appForOrigin, sessEnv, sealCookie, openCookie, cookieKey, customToken, readCookie, setCookieHeader,
+  makeHandler, appForOrigin, sessEnv, sealCookie, openCookie, cookieKey, customToken, mintToken, readCookie, setCookieHeader,
   COOKIE, MAX_AGE, RENEW_AFTER, LOGIN_FRESH, TOKEN_TTL, APPS, AUD,
   _reset: () => { vsCache.clear(); hits.clear(); },
 });

@@ -87,6 +87,7 @@ async function saToken(scope, fetchImpl) {
 }
 const driveToken = (f) => saToken('https://www.googleapis.com/auth/drive.readonly', f);
 const datastoreToken = (f) => saToken('https://www.googleapis.com/auth/datastore', f);
+const cloudToken = (f) => saToken('https://www.googleapis.com/auth/cloud-platform', f);   // IAM Credentials (החיבור המשותף)
 
 /* שלב 6: מנהלי הספרייה — LIBRARY_ADMINS (מיילים), ואם לא הוגדר: המייל הראשון ב־LIBRARY_READERS */
 const emails = (raw) => String(raw || '').toLowerCase().split(/[\s,;]+/).filter((x) => x && x !== '*');
@@ -103,5 +104,5 @@ function signList(list) {
   return crypto.createHmac('sha256', key).update(JSON.stringify(list)).digest('hex');
 }
 
-module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, serviceAccount, isAdmin, signList, emails,
+module.exports = { verifyIdToken, readerAllowed, driveToken, datastoreToken, cloudToken, serviceAccount, isAdmin, signList, emails,
   _reset: () => { certs = { at: 0, ttl: 0, keys: null }; Object.keys(toks).forEach((k) => delete toks[k]); } };
