@@ -274,10 +274,11 @@ async function watch(req, res, deps) {
   let down;
   try { down = await checkServers(deps, now); }
   catch (e) { return res.status(502).json({ ok: false }); }
+  const ar = await recoverAll(deps, now).catch(() => -1);   // 14/10/2026: "המשך" אוטומטי גם כשהטלפון סגור
   const st = await siteWatch(deps, now).catch(() => -1);   // שלב 5: הכתובות עצמן (השרתון שלנו ושלוש האפליקציות)
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
-  return res.status(200).json({ ok: true, down, st, bk, ob });
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob });
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
@@ -521,6 +522,17 @@ async function doResume(deps, uid, job, now, body, auto) {
   const j = await readJob(deps, job.id);
   return { status: 200, json: Object.assign({ ok: f.ok, job: S.publicJob(j, now) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }) };
 }
+/* 14/10/2026: עד היום ההמשך האוטומטי רץ רק כשהטלפון פתח את רשימת העבודות — עבודה שנכשלה בתקלה חולפת כשהסטודיו סגור
+   נשארה "נכשלה" בשקט (בלי התראה, כי חיכתה להמשך). עכשיו גם הבדיקה המתוזמנת (watch) עוברת על העבודות שנכשלו.
+   שאילתה עם שוויון אחד (state) — בלי אינדקס. מחזיר כמה עבודות הופעלו */
+async function recoverAll(deps, now) {
+  const due = (await query(deps, 'studioJobs', { state: 'failed' }, 100)).filter((j) => j.kind === 'tr' && UID_RE.test(String(j.uid || '')) && S.recoverAt(j, now) && now >= S.recoverAt(j, now));
+  const by = {};
+  for (const j of due) (by[j.uid] = by[j.uid] || []).push(j);
+  let n = 0;
+  for (const uid of Object.keys(by)) n += await autoRecover(deps, uid, by[uid], now);
+  return n;
+}
 /* v368: עבודות שחלון ההתאוששות שלהן נגמר — ממשיכות לבד (נבדק בכל צפייה מהטלפון). מתג החירום / אין חיבור — מוותרים, והעבודה נשארת "נכשלה" */
 async function autoRecover(deps, uid, jobs, now) {
   const due = jobs.filter((j) => j.kind === 'tr' && S.recoverAt(j, now) && now >= S.recoverAt(j, now));
@@ -529,7 +541,10 @@ async function autoRecover(deps, uid, jobs, now) {
     if (await majorNow(deps, uid, j)) continue;   // v371: בתקלה רחבה מחכים (rw נשאר) — ממשיכים כשהיא עוברת
     n++;
     const r = await doResume(deps, uid, j, now, {}, true).catch(() => ({ json: { ok: false, error: 'failed' } }));
-    if (!r.json.ok && r.json.error !== 'budget') await patchJob(deps, j.id, { rw: 0, updated: now }).catch(() => {});   // תקציב ההפעלות — ננסה בצפייה הבאה
+    if (!r.json.ok && r.json.error !== 'budget') {   // תקציב ההפעלות — ננסה בפעם הבאה
+      await patchJob(deps, j.id, { rw: 0, updated: now }).catch(() => {});
+      await notify(deps, uid, 'fail', j.id, now);   // ויתרנו על ההמשך — עכשיו זה כישלון אמיתי, וההתראה שנדחתה נשלחת
+    }
     if (r.json.ok) await raise(deps, uid, [{ c: 'claude', k: 'auto' }], j.id, now);
   }
   return n;
