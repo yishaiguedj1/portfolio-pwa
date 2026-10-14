@@ -82,5 +82,6 @@ ok(/if \(swipePop > 0\)/.test(fn(st, 'onPop')), 'Studio: חזרה לבית בה�
 ok(/\.cube-ghost, \.cube-ghost \* \{ animation: none !important; transition: none !important; \}/.test(css), 'ההעתק בלי אנימציות כניסה שמתחילות מחדש');
 ok(/\.cube-bd \{ position: fixed; inset: 0; z-index: 899; background: var\(--bg\);/.test(css), 'רקע אטום מתחת לשכבה — התיק לא מבצבץ בין הפאות (לקח v330)');
 ok(/dead: true/.test(fn(app, 'cubeGhostRun')) && !/pointerEvents = 'none'; *\n *return f/.test(fn(app, 'cubeFace')), 'רק הפאה היוצאת חסומה — הנכנסת לחיצה כבר בזמן הסיבוב');
+ok(/^\s*if \(cubeNow && cubeNow\.finish\) cubeNow\.finish\(\);\s*const c = el\.cloneNode\(true\);/m.test(fn(app, 'cubeClone').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')), 'מעבר שני ברצף: הקודם מסתיים לפני ההעתק — השכבה לא נשארת מסובבת');
 ok(/\[id\]'\)\.forEach\(\(x\) => x\.removeAttribute\('id'\)\)/.test(fn(app, 'cubeClone')) && /inert = true/.test(fn(app, 'cubeClone')), 'ההעתק: בלי מזהים כפולים, לא לחיץ');
 console.log('# ' + n + ' בדיקות עברו');

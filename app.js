@@ -10969,6 +10969,9 @@ function cubeRun(c, p1, v0, done) {
 }
 /* Academy / Studio: השכבה נצבעת מחדש באותו אלמנט — הדף היוצא = העתק "מת" שלה (קנבסים, גלילה, שדות), מעליה */
 function cubeClone(el) {
+  // מעבר קודם עוד רץ על אותה שכבה — מסיימים אותו קודם: אחרת ההעתק והפאה החדשה "שומרים" את הסגנון של אמצע הסיבוב,
+  // ובסוף השכבה משוחזרת אליו ונשארת מסובבת (נמצא ב־QA: דף שנדחף מיד אחרי דף אחר בסטודיו)
+  if (cubeNow && cubeNow.finish) cubeNow.finish();
   const c = el.cloneNode(true);
   const a = el.querySelectorAll('canvas, input, textarea, select'), b = c.querySelectorAll('canvas, input, textarea, select');
   for (let i = 0; i < a.length && i < b.length; i++) {
