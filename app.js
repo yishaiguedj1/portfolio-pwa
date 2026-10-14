@@ -456,6 +456,47 @@ he: {
 
   resetTitle: 'איפוס נתונים',
   resetOptions: 'אפשרויות איפוס',
+  pfbkTitle: 'גיבוי ל־Google Drive',
+  pfbkOffShort: 'לא פעיל',
+  pfbkOnShort: 'פעיל',
+  pfbkManualShort: 'ידני',
+  pfbkErrShort: 'תקלה',
+  pfbkSignIn: 'כדי לגבות צריך להתחבר לחשבון.',
+  pfbkDemo: 'בתיק הדמו אין גיבוי. יוצאים מהדמו ואז מגבים.',
+  pfbkWhat: 'מה שהזנת ביד — מניות, עסקאות, הפקדות, פנסיה, רשימות מעקב והעדפות — נשמר בתיקייה ב־Google Drive שלך. נתוני IBKR חוזרים מהסנכרון.',
+  pfbkConnect: 'חיבור ל־Google Drive',
+  pfbkConnecting: 'מתחבר…',
+  pfbkConnected: 'Google Drive חובר',
+  pfbkAccount: 'חשבון',
+  pfbkLast: 'גיבוי אחרון',
+  pfbkItems: 'פריטים בגיבוי',
+  pfbkAuto: 'גיבוי אוטומטי',
+  pfbkNow: 'לגבות עכשיו',
+  pfbkBacking: 'מגבה…',
+  pfbkDone: 'הגיבוי נשמר ב־Google Drive',
+  pfbkRestore: 'לשחזר מהגיבוי',
+  pfbkLoading: 'טוען את הגיבוי…',
+  pfbkNone: 'אין עדיין גיבוי ב־Google Drive.',
+  pfbkRestoreOk: 'לשחזר',
+  pfbkUi: 'כולל הגדרות ותצוגה',
+  pfbkUiSub: 'שפה, ערכת נושא, מטבע, מיון וסידור',
+  pfbkRsTitle: 'שחזור מהגיבוי',
+  pfbkRsFrom: 'גיבוי מ־{d}. יתווסף רק מה שחסר בטלפון — מה שכבר כאן לא ישתנה.',
+  pfbkRsPos: 'מניות',
+  pfbkRsTr: 'עסקאות',
+  pfbkRsDep: 'הפקדות',
+  pfbkRsPen: 'פנסיה',
+  pfbkRsWatch: 'מניות במעקב',
+  pfbkRsCash: 'מזומן',
+  pfbkRsData: 'הנתונים',
+  pfbkRsHere: 'כבר בטלפון',
+  pfbkRsUiSame: 'כבר כמו בגיבוי',
+  pfbkRsNothing: 'אין מה לשחזר',
+  pfbkBack: 'חזרה',
+  pfbkRestored: 'השחזור הושלם',
+  pfbkNotConfigured: 'הגיבוי ל־Google Drive עוד לא מוגדר בשרת.',
+  pfbkPopup: 'הדפדפן חסם את החלון של Google. מאשרים חלונות קופצים ומנסים שוב.',
+  pfbkFail: 'הגיבוי נכשל ({c}). נסו שוב בעוד רגע.',
   resetDesc: 'איפוס מלא: מוחק הכל — ידני ו־IBKR — מהענן ומהטלפון. התיק מתחיל ריק.',
   resetBtn: 'איפוס מלא',
   resetConfirm: 'למחוק את כל הנתונים? הכל יימחק מהענן ומהטלפון (מניות, עסקאות, הפקדות, פנסיה, מזומן ונתוני IBKR), והתיק יתחיל ריק.\nלא ניתן לבטל.',
@@ -1001,6 +1042,47 @@ en: {
 
   resetTitle: 'Reset data',
   resetOptions: 'Reset options',
+  pfbkTitle: 'Google Drive backup',
+  pfbkOffShort: 'Off',
+  pfbkOnShort: 'On',
+  pfbkManualShort: 'Manual',
+  pfbkErrShort: 'Error',
+  pfbkSignIn: 'Sign in to your account to back up.',
+  pfbkDemo: 'The demo portfolio has no backup. Exit the demo first.',
+  pfbkWhat: 'Everything you entered by hand — stocks, trades, deposits, pension, watchlists and preferences — is saved to a folder in your Google Drive. IBKR data comes back from the sync.',
+  pfbkConnect: 'Connect Google Drive',
+  pfbkConnecting: 'Connecting…',
+  pfbkConnected: 'Google Drive connected',
+  pfbkAccount: 'Account',
+  pfbkLast: 'Last backup',
+  pfbkItems: 'Items in backup',
+  pfbkAuto: 'Automatic backup',
+  pfbkNow: 'Back up now',
+  pfbkBacking: 'Backing up…',
+  pfbkDone: 'Backup saved to Google Drive',
+  pfbkRestore: 'Restore from backup',
+  pfbkLoading: 'Loading backup…',
+  pfbkNone: 'There is no backup in Google Drive yet.',
+  pfbkRestoreOk: 'Restore',
+  pfbkUi: 'Include settings & display',
+  pfbkUiSub: 'Language, theme, currency, sorting and order',
+  pfbkRsTitle: 'Restore from backup',
+  pfbkRsFrom: 'Backup from {d}. Only what is missing here is added — nothing already here changes.',
+  pfbkRsPos: 'Stocks',
+  pfbkRsTr: 'Trades',
+  pfbkRsDep: 'Deposits',
+  pfbkRsPen: 'Pension',
+  pfbkRsWatch: 'Watched stocks',
+  pfbkRsCash: 'Cash',
+  pfbkRsData: 'Data',
+  pfbkRsHere: 'Already here',
+  pfbkRsUiSame: 'Already as in the backup',
+  pfbkRsNothing: 'Nothing to restore',
+  pfbkBack: 'Back',
+  pfbkRestored: 'Restore complete',
+  pfbkNotConfigured: 'Google Drive backup is not set up on the server yet.',
+  pfbkPopup: 'The browser blocked the Google window. Allow pop-ups and try again.',
+  pfbkFail: 'Backup failed ({c}). Try again in a moment.',
   resetDesc: 'Full reset: deletes everything — manual and IBKR — from the cloud and this phone. The portfolio starts empty.',
   resetBtn: 'Full reset',
   resetConfirm: 'Delete all data? Everything will be deleted from the cloud and this phone (stocks, trades, deposits, pension, cash and IBKR data), and the portfolio will start empty.\nThis cannot be undone.',
@@ -3139,6 +3221,132 @@ function resetIbkrData(db, ibkrMode) {
   db.source = 'manual';
 }
 
+/* ---------------- 14/10/2026: גיבוי ושחזור של Invest ל־Google Drive (בקשת המשתמש) ----------------
+   רק מה שהוזן ביד — מניות לפי מחיר ממוצע, עסקאות, הפקדות, פנסיה, מזומן (במצב ידני), רשימות המעקב, הסידור וההעדפות.
+   IBKR לא נכנס לגיבוי (חוזר מהסנכרון). השחזור = מיזוג: מה שכבר בטלפון גובר, נוסף רק מה שחסר —
+   שחזור אחרי שחזור לא מוסיף כלום, ומניה שכבר קיימת (ידנית או מ־IBKR) לא נכנסת שוב. */
+const PF_BK_PREFS = ['pwa_lang_v1', 'pwa_theme_v1', 'pwa_currency_v1', 'pwa_stocksort_v1', 'pwa_wlsort_v1', 'pwa_srcfilter_v1'];
+const pfSymKey = (s) => String(s || '').trim().toUpperCase();
+const pfDepKey = (d) => [String(d.date || ''), Number(d.amount) || 0, String(d.place || '').trim()].join('|');
+const pfPenDepKey = (d) => [String(d.place || '').trim(), String(d.period || ''), Number(d.amount) || 0, String(d.note || '').trim(), String(d.kind || '')].join('|');
+const pfTradeKey = (x) => { const n = mtNorm(x); return [n.date, n.sym, n.side, n.qty, n.price, n.fee].join('|'); };
+const pfClone = (o) => JSON.parse(JSON.stringify(o));
+/* תמונת הגיבוי (טהורה). prefs = { מפתח: ערך } מהטלפון; withUi = false — בלי "הגדרות ותצוגה" (העדפות, מיון וסידור) */
+function pfBackupSnapshot(db, ibkrMode, prefs, now, withUi) {
+  const ui = withUi !== false;
+  const pos = (db.positions || []).filter((p) => p && p.sym && !p.fromTrades && !isIbkrPosition(p, ibkrMode))
+    .map((p) => { const o = pfClone(p); o.src = 'manual'; delete o.fromTrades; return o; });
+  const pr = {};
+  if (ui) for (const k of PF_BK_PREFS) if (prefs && prefs[k] != null) pr[k] = String(prefs[k]);
+  return {
+    v: 1, app: 'invest', at: now || 0, ui,
+    positions: pos,
+    trades: (db.manualTrades || []).map(mtNorm).filter((x) => x.sym && x.qty > 0),
+    deposits: (db.deposits || []).filter((d) => d && !isIbkrDeposit(d)).map(pfClone),
+    pensionFunds: pfClone(db.pensionFunds || []),
+    pensionDeposits: pfClone(db.pensionDeposits || []),
+    cash: ibkrMode ? null : { usd: Number(db.cash && db.cash.usd) || 0, ils: Number(db.cash && db.cash.ils) || 0 },
+    wishlist: pfClone(db.wishlist || []), wlMainName: db.wlMainName || '', wlExtra: pfClone(db.wlExtra || []),
+    wlOrder: ui ? pfClone(db.wlOrder || []) : [], stockOrder: ui ? pfClone(db.stockOrder || []) : [],
+    prefs: pr,
+  };
+}
+/* כמה פריטים יש בגיבוי (לשורת המצב) */
+function pfBackupCount(s) {
+  if (!s) return 0;
+  const w = (s.wishlist || []).length + (s.wlExtra || []).reduce((n, l) => n + ((l && l.items) || []).length, 0);
+  return (s.positions || []).length + (s.trades || []).length + (s.deposits || []).length + (s.pensionFunds || []).length + (s.pensionDeposits || []).length + w;
+}
+/* הוספה לפי מפתח עם ספירה: מכל מפתח נוסף רק מה שחסר (2 הפקדות זהות בגיבוי, 1 בטלפון → נוספת אחת) */
+function pfAddMulti(local, incoming, key) {
+  const have = new Map();
+  for (const x of local) { const k = key(x); have.set(k, (have.get(k) || 0) + 1); }
+  let n = 0;
+  for (const x of incoming) {
+    const k = key(x), c = have.get(k) || 0;
+    if (c > 0) { have.set(k, c - 1); continue; }
+    local.push(pfClone(x)); n++;
+  }
+  return n;
+}
+function pfWlUnion(items, add) {
+  const seen = new Set(items.map((w) => pfSymKey(w && w.sym)));
+  let n = 0;
+  for (const w of add || []) {
+    const k = pfSymKey(w && w.sym);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); items.push(pfClone(w)); n++;
+  }
+  return n;
+}
+/* המיזוג (במקום, על db). מחזיר כמה נוסף מכל סוג. withUi = המשתמש בחר לשחזר גם "הגדרות ותצוגה":
+   אז הסידור מהגיבוי, ו־prefs = ההעדפות מהגיבוי ששונות ממה שבטלפון (האפליקציה כותבת אותן). ui = משהו מזה משתנה. */
+function pfBackupMerge(db, snap, ibkrMode, localPrefs, withUi) {
+  const s = snap || {};
+  const out = { positions: 0, trades: 0, deposits: 0, pensionFunds: 0, pensionDeposits: 0, watch: 0, cash: false, prefs: {}, ui: false };
+  if (!Array.isArray(db.positions)) db.positions = [];
+  if (!Array.isArray(db.deposits)) db.deposits = [];
+  if (!Array.isArray(db.manualTrades)) db.manualTrades = [];
+  if (!Array.isArray(db.pensionFunds)) db.pensionFunds = [];
+  if (!Array.isArray(db.pensionDeposits)) db.pensionDeposits = [];
+  if (!Array.isArray(db.wishlist)) db.wishlist = [];
+  if (!Array.isArray(db.wlExtra)) db.wlExtra = [];
+  // עסקאות: לפי מזהה, ועסקה זהה בתוכן עם מזהה אחר — גם לא
+  const ids = new Set(db.manualTrades.map((x) => String(x && x.id || '')).filter(Boolean));
+  const keys = new Set(db.manualTrades.map(pfTradeKey));
+  for (const x of s.trades || []) {
+    const n = mtNorm(x);
+    if (!n.sym || !(n.qty > 0) || (n.id && ids.has(n.id)) || keys.has(pfTradeKey(n))) continue;
+    if (!n.id) n.id = 'r' + keys.size.toString(36) + Math.random().toString(36).slice(2, 7);
+    db.manualTrades.push(n); ids.add(n.id); keys.add(pfTradeKey(n)); out.trades++;
+  }
+  // מניות לפי ממוצע: מניה שכבר בטלפון (ידנית, מ־IBKR או מעסקאות) — לא נוגעים
+  const held = new Set(db.positions.map((p) => pfSymKey(p && p.sym)));
+  const traded = new Set(db.manualTrades.map((x) => mtNorm(x).sym));
+  for (const p of s.positions || []) {
+    const k = pfSymKey(p && p.sym);
+    if (!k || held.has(k) || traded.has(k)) continue;
+    const o = pfClone(p); o.sym = k; o.src = 'manual'; delete o.fromTrades;
+    db.positions.push(o); held.add(k); out.positions++;
+  }
+  out.deposits = pfAddMulti(db.deposits, (s.deposits || []).filter((d) => d && !isIbkrDeposit(d)), pfDepKey);
+  // קרנות פנסיה: לפי שם
+  const funds = new Set(db.pensionFunds.map((f) => String(f && f.name || '').trim().toLowerCase()));
+  for (const f of s.pensionFunds || []) {
+    const k = String(f && f.name || '').trim().toLowerCase();
+    if (!k || funds.has(k)) continue;
+    db.pensionFunds.push(pfClone(f)); funds.add(k); out.pensionFunds++;
+  }
+  out.pensionDeposits = pfAddMulti(db.pensionDeposits, s.pensionDeposits || [], pfPenDepKey);
+  // מזומן — רק במצב ידני ורק כשבטלפון אין
+  if (!ibkrMode && s.cash && !(Number(db.cash && db.cash.usd) || Number(db.cash && db.cash.ils))) {
+    const c = { usd: Number(s.cash.usd) || 0, ils: Number(s.cash.ils) || 0 };
+    if (c.usd || c.ils) { db.cash = c; out.cash = true; }
+  }
+  // רשימות המעקב: הראשית לפי סימבול; נוספות לפי מזהה, אחר כך לפי שם
+  out.watch += pfWlUnion(db.wishlist, s.wishlist);
+  if (!db.wlMainName && s.wlMainName) db.wlMainName = String(s.wlMainName);
+  for (const l of s.wlExtra || []) {
+    if (!l || !l.id) continue;
+    const nm = String(l.name || '').trim().toLowerCase();
+    const mine = db.wlExtra.find((x) => x && x.id === l.id) || db.wlExtra.find((x) => x && nm && String(x.name || '').trim().toLowerCase() === nm);
+    if (mine) { if (!Array.isArray(mine.items)) mine.items = []; out.watch += pfWlUnion(mine.items, l.items); continue; }
+    const items = []; out.watch += pfWlUnion(items, l.items);
+    db.wlExtra.push({ id: String(l.id), name: String(l.name || ''), items });
+  }
+  if (!withUi || s.ui === false) return out;
+  const same = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
+  if (Array.isArray(s.wlOrder) && s.wlOrder.length && !same(db.wlOrder, s.wlOrder)) { db.wlOrder = s.wlOrder.map(String); out.ui = true; }
+  if (Array.isArray(s.stockOrder) && s.stockOrder.length && !same(db.stockOrder, s.stockOrder)) { db.stockOrder = pfClone(s.stockOrder); out.ui = true; }
+  for (const k of PF_BK_PREFS) {
+    const v = s.prefs && s.prefs[k];
+    if (v != null && String(v) !== String((localPrefs || {})[k])) { out.prefs[k] = String(v); out.ui = true; }
+  }
+  return out;
+}
+const pfBackupHasUi = (s) => !!s && s.ui !== false && (Object.keys(s.prefs || {}).length > 0 || (s.stockOrder || []).length > 0 || (s.wlOrder || []).length > 0);
+const pfMergeTotal = (o) => o.positions + o.trades + o.deposits + o.pensionFunds + o.pensionDeposits + o.watch + (o.cash ? 1 : 0);
+
 /* v297 (בקשת המשתמש): חלון אישור/הודעה שלנו במקום confirm/alert של הדפדפן —
    בלי הכותרת הגנרית "…github.io says", בסגנון הבועה של ההודעות באפליקציה, בגודל התוכן.
    בלי DOM אמיתי (הבדיקות) — נופל ל־confirm/alert הסינכרוניים, אז ההתנהגות בבדיקות לא משתנה. */
@@ -4528,8 +4736,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.2.0';
-const APP_VERSION = 'v417';
+const APP_RELEASE = '2.3.0';
+const APP_VERSION = 'v418';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -4607,7 +4815,7 @@ function loadDB() {
    שמתחבר כבר יש מסמך בענן; חשבון חדש מתחיל נקי (והנתונים הישנים נשמרים במחסן 'legacy'). */
 /* <core> */
 const LS_OWNER = 'pwa_owner_v1', LS_STASH = 'pwa_stash_v1:', LS_LEGACY_OWNER = 'pwa_legacy_owner_v1';
-const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו
+const ACCOUNT_KEYS = ['pwa_db_v1', 'pwa_ibkr_v1', 'pwa_predemo_v1', 'pwa_wlactive_v1', 'pwa_srcfilter_v1', 'pwa_tdkey_v1', 'pwa_libbk_v1', 'pwa_libcoll_v1', 'pwa_studio_v1', 'pwa_pfbk_v1'];   // v318: גיבוי הספרייה הפרטית · v320: אסופות הספרייה · v354: טיוטות הסטודיו · 14/10/2026: גיבוי Invest ל־Drive
 function accountOwner(store) {
   try { return (store || localStorage).getItem(LS_OWNER) || ''; } catch (e) { return ''; }
 }
@@ -4635,7 +4843,7 @@ function accountSwitchTo(uid, cloudHasDoc, store) {
 }
 /* </core> */
 const DB = loadDB();
-function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); try { scheduleAppWidgetSync(); } catch (e) {} } // v243: כל שינוי → לווידג'ט
+function saveDB() { saveDBto(DB); if (window.__cloudSave) window.__cloudSave(); try { scheduleAppWidgetSync(); } catch (e) {} try { pfbkAuto(); } catch (e) {} } // v243: כל שינוי → לווידג'ט
 
 /* תיק ריק — למשתמש חדש או אחרי איפוס (השם נשמר לתאימות עם cloud.js) */
 function demoDb() {
@@ -10857,6 +11065,182 @@ function wireResetSheet() {
   if (c) c.addEventListener('click', closeResetSheet);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeResetSheet(); });
 }
+/* ---------------- 14/10/2026: גיבוי ושחזור ל־Google Drive — שורה בהגדרות → גיליון (pfbackup.js נטען רק כשצריך) ----------------
+   החיבור = אותו חיבור של גיבוי הספרייה (השרתון שומר את ההרשאה). בלי כפתור ניתוק — החיבור משותף ל־Academy ול־Studio. */
+let _pfbk = null, _pfbkP = null, _pfbkModal = null, _pfbkBusy = '';
+function pfbkSignedIn() { try { return !!(typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser); } catch (e) { return false; } }
+function pfbkOwner() { return accountOwner() || 'local'; }
+function pfbkPrefs() { const o = {}; for (const k of PF_BK_PREFS) { try { const v = localStorage.getItem(k); if (v != null) o[k] = v; } catch (e) {} } return o; }
+function pfbkSnap() { return !DB || DB.demo ? null : pfBackupSnapshot(DB, isIbkrMode(), pfbkPrefs(), Date.now(), !_pfbk || _pfbk.settings().ui !== false); }
+function pfbkConnectedHint() {
+  try { const a = JSON.parse(localStorage.getItem('pwa_libbk_v1') || '{}') || {}; return !!(a[pfbkOwner()] && a[pfbkOwner()].email); } catch (e) { return false; }
+}
+function pfbkLoad() {
+  if (_pfbk) return Promise.resolve(_pfbk);
+  if (!_pfbkP) _pfbkP = import('./pfbackup.js').then((m) => {
+    _pfbk = m.createPfBackup({
+      owner: pfbkOwner,
+      libApi: (body) => fetch(ibkrProxyBase() + '/api/library', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, ibkrProxyHeaders()), body: JSON.stringify(body) }),
+      idToken: async () => { try { const u = firebase.auth().currentUser; return u ? await u.getIdToken() : ''; } catch (e) { return ''; } },
+      redirectUri: () => new URL('oauth.html', document.baseURI).href,
+      openWindow: () => { try { return window.open('', 'snb-oauth', 'popup,width=480,height=700'); } catch (e) { return null; } },
+      count: pfBackupCount,
+      onAuto: () => pfbkPaint(),
+    });
+    return _pfbk;
+  }).catch((e) => { _pfbkP = null; throw e; });
+  return _pfbkP;
+}
+/* אחרי כל שמירה (saveDB): כשמחוברים — גיבוי שקט כעבור כמה שניות, רק אם משהו השתנה */
+function pfbkAuto() {
+  if (!pfbkConnectedHint() || !pfbkSignedIn() || !DB || DB.demo) return;
+  pfbkLoad().then((b) => b.schedule(pfbkSnap)).catch(() => {});
+}
+function pfbkErrText(c) {
+  if (c === 'gd_not_configured') return t('pfbkNotConfigured');
+  if (c === 'gd_popup') return t('pfbkPopup');
+  return t('pfbkFail', { c: String(c || 'failed').slice(0, 40) });
+}
+/* מצב הגיליון: _pfbkRs = מסך השחזור { snap, ui } (null = המסך הראשי) */
+let _pfbkRs = null;
+const pfbkSw = (id, on, label) => '<button type="button" class="pfbk-sw" id="' + id + '" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" aria-label="' + esc(label) + '"><i></i></button>';
+const pfbkSwRow = (id, on, label, sub) => '<div class="ios-row"><span class="ios-row-lbl">' + esc(label) + (sub ? '<span class="pfbk-sub">' + esc(sub) + '</span>' : '') + '</span>' + pfbkSw(id, on, label) + '</div>';
+function pfbkPaint() {
+  const b = _pfbk;
+  const conn = b ? !!b.email() : pfbkConnectedHint();
+  const s = b ? b.settings() : {};
+  const st = document.getElementById('pfbkState');
+  if (st) st.textContent = !conn ? t('pfbkOffShort') : s.err ? t('pfbkErrShort') : s.auto === false ? t('pfbkManualShort') : t('pfbkOnShort');
+  const v = document.getElementById('pfbkVeil'), body = document.getElementById('pfbkBody');
+  if (!v || !body || v.classList.contains('hidden')) return;
+  const row = (l, val) => '<div class="ios-row"><span class="ios-row-lbl">' + esc(l) + '</span><span class="ios-row-val" dir="auto">' + esc(val) + '</span></div>';
+  const title = document.getElementById('pfbkSheetTitle');
+  if (title) title.textContent = _pfbkRs ? t('pfbkRsTitle') : t('pfbkTitle');
+  let h;
+  if (_pfbkRs && b) {
+    // מסך השחזור: מה יתווסף (בדיקה על עותק), בחירה אם לכלול הגדרות ותצוגה, ואז "לשחזר"
+    const rs = _pfbkRs, prev = pfBackupMerge(JSON.parse(JSON.stringify(DB)), rs.snap, isIbkrMode(), pfbkPrefs(), rs.ui);
+    const add = [];
+    if (prev.positions) add.push([t('pfbkRsPos'), prev.positions]);
+    if (prev.trades) add.push([t('pfbkRsTr'), prev.trades]);
+    if (prev.deposits) add.push([t('pfbkRsDep'), prev.deposits]);
+    if (prev.pensionFunds + prev.pensionDeposits) add.push([t('pfbkRsPen'), prev.pensionFunds + prev.pensionDeposits]);
+    if (prev.watch) add.push([t('pfbkRsWatch'), prev.watch]);
+    if (prev.cash) add.push([t('pfbkRsCash'), '✓']);
+    const any = add.length > 0 || prev.ui;
+    h = '<p class="fine pfbk-note">' + esc(t('pfbkRsFrom', { d: fmtTimeIL(rs.snap.at) })) + '</p>' +
+      '<div class="ios-list">' + (add.length ? add.map((a) => row(a[0], typeof a[1] === 'number' ? '+' + a[1] : a[1])).join('') : row(t('pfbkRsData'), t('pfbkRsHere'))) + '</div>' +
+      (pfBackupHasUi(rs.snap) ? '<div class="ios-list">' + pfbkSwRow('pfbkRsUi', rs.ui, t('pfbkUi'), rs.ui && !prev.ui ? t('pfbkRsUiSame') : t('pfbkUiSub')) + '</div>' : '') +
+      '<div class="reset-group"><button id="pfbkRsGo" class="reset-opt pfbk-opt pfbk-main" type="button"' + (any ? '' : ' disabled') + '>' + esc(any ? t('pfbkRestoreOk') : t('pfbkRsNothing')) + '</button></div>' +
+      '<button id="pfbkRsBack" class="reset-cancel" type="button">' + esc(t('pfbkBack')) + '</button>';
+  } else {
+    let main;
+    if (!pfbkSignedIn()) main = '<p class="fine pfbk-note">' + esc(t('pfbkSignIn')) + '</p>';
+    else if (DB && DB.demo) main = '<p class="fine pfbk-note">' + esc(t('pfbkDemo')) + '</p>';
+    else if (!b) main = '<p class="fine pfbk-note">' + esc(t('loading')) + '</p>';
+    else if (!conn) main = '<p class="fine pfbk-note">' + esc(t('pfbkWhat')) + '</p><div class="reset-group"><button id="pfbkConnect" class="reset-opt pfbk-opt pfbk-main" type="button"' + (_pfbkBusy ? ' disabled' : '') + '>' + esc(_pfbkBusy === 'connect' ? t('pfbkConnecting') : t('pfbkConnect')) + '</button></div>';
+    else {
+      main = '<div class="ios-list">' + row(t('pfbkAccount'), b.email()) + row(t('pfbkLast'), s.lastAt ? fmtTimeIL(s.lastAt) : '—') + (s.count ? row(t('pfbkItems'), String(s.count)) : '') + '</div>' +
+        '<div class="ios-list">' + pfbkSwRow('pfbkAuto', s.auto !== false, t('pfbkAuto')) + pfbkSwRow('pfbkUi', s.ui !== false, t('pfbkUi'), t('pfbkUiSub')) + '</div>' +
+        (s.err ? '<p class="form-err pfbk-err">' + esc(pfbkErrText(s.err)) + '</p>' : '') +
+        '<div class="reset-group">' +
+        '<button id="pfbkNow" class="reset-opt pfbk-opt" type="button"' + (_pfbkBusy ? ' disabled' : '') + '>' + esc(_pfbkBusy === 'now' ? t('pfbkBacking') : t('pfbkNow')) + '</button>' +
+        '<button id="pfbkRestore" class="reset-opt pfbk-opt" type="button"' + (_pfbkBusy ? ' disabled' : '') + '>' + esc(_pfbkBusy === 'restore' ? t('pfbkLoading') : t('pfbkRestore')) + '</button></div>';
+    }
+    h = main + '<button id="pfbkClose" class="reset-cancel" type="button">' + esc(t('btnClose')) + '</button>';
+  }
+  body.innerHTML = h;
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  on('pfbkClose', closePfbkSheet);
+  on('pfbkConnect', pfbkConnect);
+  on('pfbkNow', () => pfbkBackupNow(true));
+  on('pfbkRestore', pfbkRestore);
+  on('pfbkAuto', () => { b.save({ auto: b.settings().auto === false }); pfbkPaint(); if (b.settings().auto !== false) pfbkBackupNow(false); });
+  on('pfbkUi', () => { b.save({ ui: b.settings().ui === false }); pfbkPaint(); if (b.settings().auto !== false) pfbkBackupNow(false); });
+  on('pfbkRsUi', () => { _pfbkRs.ui = !_pfbkRs.ui; pfbkPaint(); });
+  on('pfbkRsBack', () => { _pfbkRs = null; pfbkPaint(); });
+  on('pfbkRsGo', pfbkRestoreGo);
+}
+/* החלון של Google נפתח בתוך הלחיצה — המודול כבר טעון (הגיליון מחכה לו לפני שמציג את הכפתור) */
+function pfbkConnect() {
+  const b = _pfbk;
+  if (!b || _pfbkBusy) return;
+  _pfbkBusy = 'connect';
+  const p = b.connect(firebase.auth().currentUser && firebase.auth().currentUser.email);
+  pfbkPaint();
+  p.then(() => { _pfbkBusy = ''; flash(t('pfbkConnected')); return pfbkBackupNow(false); })
+    .catch((e) => { _pfbkBusy = ''; const c = e && (e.code || e.message); if (c !== 'gd_denied' && c !== 'gd_cancel') askAlert(pfbkErrText(c)); })
+    .finally(() => { _pfbkBusy = ''; pfbkPaint(); });
+}
+function pfbkBackupNow(loud) {
+  const b = _pfbk, snap = pfbkSnap();
+  if (!b || !snap || _pfbkBusy) return Promise.resolve();
+  _pfbkBusy = 'now'; pfbkPaint();
+  return b.backupNow(snap)
+    .then(() => { if (loud) flash(t('pfbkDone')); })
+    .catch((e) => { b.save({ err: String((e && (e.code || e.message)) || 'failed').slice(0, 40), errAt: Date.now() }); if (loud) askAlert(pfbkErrText(e && (e.code || e.message))); })
+    .finally(() => { _pfbkBusy = ''; pfbkPaint(); });
+}
+/* שחזור: טוענים את הגיבוי ועוברים למסך השחזור (סיכום + בחירה). מה שכבר בטלפון לא משתנה */
+function pfbkRestore() {
+  const b = _pfbk;
+  if (!b || _pfbkBusy || !DB || DB.demo) return;
+  _pfbkBusy = 'restore'; pfbkPaint();
+  b.load().then((snap) => {
+    _pfbkBusy = '';
+    if (!snap) { pfbkPaint(); askAlert(t('pfbkNone')); return; }
+    _pfbkRs = { snap, ui: b.settings().ui !== false && pfBackupHasUi(snap) };
+    pfbkPaint();
+  }).catch((e) => { _pfbkBusy = ''; pfbkPaint(); askAlert(pfbkErrText(e && (e.code || e.message))); });
+}
+function pfbkRestoreGo() {
+  const rs = _pfbkRs;
+  if (!rs || !DB || DB.demo) return;
+  const r = pfBackupMerge(DB, rs.snap, isIbkrMode(), pfbkPrefs(), rs.ui);
+  _pfbkRs = null;
+  mtSyncPositions();
+  saveDB();
+  const keys = Object.keys(r.prefs);
+  for (const k of keys) { try { localStorage.setItem(k, r.prefs[k]); } catch (e) {} }
+  flash(t('pfbkRestored'));
+  // שפה/ערכה/מטבע — נטענים מחדש כדי שהכל יתעדכן בבת אחת
+  if (keys.some((k) => k === 'pwa_lang_v1' || k === 'pwa_theme_v1' || k === 'pwa_currency_v1')) { setTimeout(() => location.reload(), 700); return; }
+  closePfbkSheet();
+  renderAll({ all: true });
+}
+function openPfbkSheet() {
+  const v = document.getElementById('pfbkVeil');
+  if (!v) return;
+  if (v.classList.contains('hidden')) _pfbkModal = modalPush(closePfbkSheet);
+  v.classList.remove('hidden', 'out');
+  void v.offsetWidth;
+  v.classList.add('in');
+  const o = document.getElementById('pfbkOpen');
+  if (o) o.setAttribute('aria-expanded', 'true');
+  _pfbkRs = null;
+  pfbkPaint();
+  if (pfbkSignedIn()) pfbkLoad().then((b) => { pfbkPaint(); return b.status(); }).then(() => pfbkPaint()).catch(() => pfbkPaint());
+}
+function closePfbkSheet() {
+  const v = document.getElementById('pfbkVeil');
+  if (!v || v.classList.contains('hidden')) return;
+  if (_pfbkModal) { const m = _pfbkModal; _pfbkModal = null; modalDone(m); }
+  v.classList.remove('in');
+  v.classList.add('out');
+  const o = document.getElementById('pfbkOpen');
+  if (o) o.setAttribute('aria-expanded', 'false');
+  setTimeout(() => { if (v.classList.contains('out')) v.classList.add('hidden'); v.classList.remove('out'); }, 260);
+}
+function wirePfbkSheet() {
+  const v = document.getElementById('pfbkVeil'), o = document.getElementById('pfbkOpen');
+  if (!v || !o || v._wired) return;
+  v._wired = true;
+  if (v.parentNode !== document.body) document.body.appendChild(v);
+  o.addEventListener('click', openPfbkSheet);
+  v.addEventListener('click', (e) => { if (e.target === v) closePfbkSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePfbkSheet(); });
+  pfbkPaint();
+}
 /* v279: לחיצה על הלוגו בהדר → הסקירה (כבר בסקירה — לראש העמוד) */
 function wireBrandHome() {
   const b = document.querySelector('.appbar .brand');
@@ -13697,6 +14081,7 @@ function init() {
   if (advB) advB.addEventListener('click', () => switchTab('settings'));
   // v286: גיליון אפשרויות האיפוס — הגיליון עובר ל־body (כרטיס עם transform/blur שובר position:fixed)
   wireResetSheet();
+  wirePfbkSheet();
   // v146: איפוס נפרד + תיק דמו
   const rmBtn = document.getElementById('resetManual');
   if (rmBtn) rmBtn.addEventListener('click', doResetManual);
