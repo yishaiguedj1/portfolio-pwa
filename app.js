@@ -12200,7 +12200,7 @@ function stockLogoHTML(sym) {
   return '<span class="stock-logo' + (known ? ' logo-ok' : '') + '">' +
     '<span class="stock-logo-fb">' + esc(first) + '</span>' +
     (src ? '<img class="stock-logo-img' + (known === 2 ? ' inv' : '') + '" crossorigin="anonymous" src="' + src + '" alt="" ' +
-      (known ? 'decoding="sync"' : 'loading="lazy" decoding="async"') + ' data-logo="1">' : '') +
+      (known ? 'decoding="sync"' : 'loading="lazy" decoding="async" data-t="' + Date.now() + '"') + ' data-logo="1">' : '') +
     '</span>';
 }
 
@@ -12228,6 +12228,10 @@ function logoImgFix(img) {
   try {
     const fb = img.previousElementSibling;
     if (fb && fb.classList && fb.classList.contains('stock-logo-fb')) fb.style.display = 'none';
+    // 14/10/2026 (בקשת המשתמש — "שום דבר לא קופץ"): לוגו שהגיע אחרי שהאות כבר הוצגה — נכנס בדהייה, לא מתחלף בבת אחת
+    const t0 = +(img.dataset && img.dataset.t) || 0;
+    if (t0 && Date.now() - t0 > 90 && typeof img.animate === 'function' && !(typeof cubeReduce === 'function' && cubeReduce())) img.animate([{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.9,.25,1)' });
+    if (img.dataset) delete img.dataset.t;
     const known = logoMeta()[src];
     if (known) { img.classList.toggle('inv', known === 2); return; } // v253: כבר נותח — בלי קנבס
     if (img.dataset.nocors) return; // נטען בלי CORS — אין ניתוח ואין זיכרון (אולי לא יעלה בפעם הבאה)
