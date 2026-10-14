@@ -125,10 +125,10 @@ const VERCEL = 'https://ibkr-proxy-wine.vercel.app', API = 'https://api.thesnowb
     // אתר זר שמנסה להשתיל נתונים ולגנוב
     const evil = mkWin('https://evil.example', mkStore({}));
     let res = null;
-    ok(MV.send(oldWin, { done: (to) => { res = 'done:' + to; }, fail: (c) => { res = 'fail:' + c; } }) === true && /^https:\/\/invest\.thesnowball\.app\/move\.html#n=[a-f0-9]{32}$/.test(opened),
+    ok(MV.send(oldWin, { done: (to) => { res = 'done:' + to; }, fail: (c) => { res = 'fail:' + c; } }) === true && /^https:\/\/invest\.thesnowball\.app\/move\.html#n=[a-f0-9]{32}&l=he$/.test(opened),
       'send: החלון נפתח בתוך הלחיצה, עם מזהה חד־פעמי ב־# (לא נשלח לשרת)');
     // הודעה מזויפת לחלון הישן לפני ה"מוכנה" — מאתר זר: נבלעת
-    listeners.get(oldWin)({ origin: evil.location.origin, source: evil, data: { t: 'snb-move-ready', n: opened.split('n=')[1] } });
+    listeners.get(oldWin)({ origin: evil.location.origin, source: evil, data: { t: 'snb-move-ready', n: opened.split('n=')[1].split('&')[0] } });
     ok(!sent.some((s) => s.data && s.data.d), 'הכתובת הישנה לא שולחת נתונים להודעה מאתר זר (גם עם המזהה הנכון)');
     MV.receive(newWin);
     ok(res === 'done:' + NEW && newWin.localStorage.m.pwa_db_v1 === '{"positions":[{"sym":"Q"}]}' && newWin.localStorage.m.pwa_ibkr_v1 === '{"token":"SECRET"}' && !newWin.localStorage.m.pwa_hist_v2_Q,
@@ -148,6 +148,13 @@ const VERCEL = 'https://ibkr-proxy-wine.vercel.app', API = 'https://api.thesnowb
     const w4 = mkWin(NEW, mkStore({})); w4.document = newWin.document; w4.location.hash = '#n=' + 'b'.repeat(32);
     MV.receive(w4);
     ok(!listeners.has(w4) && els.some((e) => /כתובת הישנה/.test(e.t || '')), 'receive: נפתח בלי הכתובת הישנה — רק הסבר איך מתחילים');
+    // השפה — של האפליקציה (מהכתובת הישנה), לא של הדפדפן: דפדפן באנגלית + אפליקציה בעברית = עברית
+    const w5 = mkWin(NEW, mkStore({})); w5.document = newWin.document; w5.navigator = { language: 'en-US' }; w5.location.hash = '#n=' + 'c'.repeat(32) + '&l=he';
+    MV.receive(w5);
+    ok(els.some((e) => /מעבירים/.test(e.t || '')), 'receive: השפה לפי האפליקציה (‎&l=), גם כשהדפדפן באנגלית');
+    const w6 = mkWin(NEW, mkStore({})); w6.document = newWin.document; w6.location.hash = '#n=' + 'd'.repeat(32) + '&l=en';
+    MV.receive(w6);
+    ok(els.some((e) => /Moving your data/.test(e.t || '')), 'receive: אפליקציה באנגלית — באנגלית');
     // החלון נחסם
     let r2 = null;
     const ow = mkWin(OLD, mkStore({})); ow.open = () => null;

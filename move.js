@@ -89,7 +89,10 @@
     var to = targetOf(win.location.origin);
     if (!to) return false;
     var n = nonce(win.crypto);
-    var w = win.open(to + '/move.html#n=' + n, '_blank');
+    // שפת הדף החדש = שפת האפליקציה (לא של הדפדפן — ברירת המחדל שלנו עברית)
+    var lang = 'he';
+    try { lang = typeof win.getLang === 'function' ? win.getLang() : (win.document.documentElement.lang || 'he'); } catch (e) {}
+    var w = win.open(to + '/move.html#n=' + n + '&l=' + (lang === 'en' ? 'en' : 'he'), '_blank');
     if (!w) { cb.fail('blocked'); return true; }
     var over = false;
     var timer = win.setTimeout(function () { finish(); cb.fail('timeout'); }, WAIT_MS);
@@ -124,7 +127,7 @@
   };
   function receive(win) {
     var doc = win.document;
-    var lang = /^he|^iw/i.test((win.navigator && win.navigator.language) || 'he') ? 'he' : 'en';
+    var lang = /(?:^#|&)l=en(?:&|$)/.test(win.location.hash || '') ? 'en' : 'he';   // מהכתובת הישנה — שפת האפליקציה, לא של הדפדפן
     var T = TXT[lang];
     doc.documentElement.lang = lang;
     doc.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';

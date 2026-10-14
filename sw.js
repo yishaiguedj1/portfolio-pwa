@@ -13,7 +13,7 @@ const HASHES = {
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "56a0db8a08b28f1b6f7969f6d4d958a4",
   "./firebase-config.js": "10946a98be641319ed921ff8f46b00ba",
-  "./move.js": "eb5d7c0c54500d1c8c9bce7eca25326c",
+  "./move.js": "1dadca8eba54a0c921e57a3550650693",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
   "./icon-192.png": "511b5aee2e7341ac65fec0d29b91533f",
   "./icon-512.png": "b0a62fb8da14775653dadc9ddff1c09c",
