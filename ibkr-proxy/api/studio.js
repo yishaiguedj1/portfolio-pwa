@@ -157,6 +157,7 @@ async function syncInc(deps, uid, jobs, now) {
     if (inc) patch.inc = inc;
     if (mi) patch.mi = mi;
     if (inc || mi) await patchDoc(deps, 'studioOps', uid, Object.assign(patch, { updated: now }));
+    if (mi && mi.at === now && !mi.x) await notify(deps, uid, 'major', '', now);   // 14/10/2026: תקלה רחבה חדשה — התראה לטלפון
     return { inc: inc || d.inc, mi: mi || d.mi, al: d.al, fb: st.fb, hpc: st.hpc || 0 };
   } catch (e) { return null; }
 }
@@ -526,7 +527,11 @@ async function doResume(deps, uid, job, now, body, auto) {
    נשארה "נכשלה" בשקט (בלי התראה, כי חיכתה להמשך). עכשיו גם הבדיקה המתוזמנת (watch) עוברת על העבודות שנכשלו.
    שאילתה עם שוויון אחד (state) — בלי אינדקס. מחזיר כמה עבודות הופעלו */
 async function recoverAll(deps, now) {
-  const due = (await query(deps, 'studioJobs', { state: 'failed' }, 100)).filter((j) => j.kind === 'tr' && UID_RE.test(String(j.uid || '')) && S.recoverAt(j, now) && now >= S.recoverAt(j, now));
+  const failed = (await query(deps, 'studioJobs', { state: 'failed' }, 100)).filter((j) => j.kind === 'tr' && UID_RE.test(String(j.uid || '')));
+  // תקלה רחבה מזוהה גם כשהטלפון סגור (syncInc) — רק למי שנכשלה לו עבודה ביממה האחרונה, עד 5 משתמשים בריצה
+  const fresh = Array.from(new Set(failed.filter((j) => now - (j.ended || j.updated || 0) < 864e5).map((j) => j.uid))).slice(0, 5);
+  for (const uid of fresh) await syncInc(deps, uid, await listJobs(deps, uid), now);
+  const due = failed.filter((j) => S.recoverAt(j, now) && now >= S.recoverAt(j, now));
   const by = {};
   for (const j of due) (by[j.uid] = by[j.uid] || []).push(j);
   let n = 0;

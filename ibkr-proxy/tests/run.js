@@ -3255,6 +3255,8 @@ function stubFetch(text, status = 200) {
         'When I grow up, I want to be a watermelon', { asPriv: 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw', salt: 'DGv6ra1nlYgDCS1FRnbzlw' });
       ok(W.b64u(body) === 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN',
         'push: ההצפנה זהה לוקטור הבדיקה של RFC 8291');
+      ok(W.KINDS.includes('major') && W.TEXT.he.major && W.TEXT.en.major && /studioOps[^\n]*\n\s*if \(mi && mi\.at === now && !mi\.x\) await notify\(deps, uid, 'major'/.test(require('fs').readFileSync(require.resolve('../api/studio.js'), 'utf8')),
+        'push: תקלה רחבה חדשה → התראה לטלפון (פעם אחת, כשהיא נפתחת)');
       const ua = crypto.createECDH('prime256v1'); ua.generateKeys();
       const auth = crypto.randomBytes(16);
       const sub = (e) => ({ endpoint: e, keys: { p256dh: W.b64u(ua.getPublicKey()), auth: W.b64u(auth) } });
