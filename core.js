@@ -381,10 +381,16 @@ function apkIntentUrl(url) {
   if (!m) return '';
   return 'intent://' + m[1] + '.thesnowball.app' + (m[2] || '/') + '#Intent;scheme=https;package=' + APK_PKGS[m[1]] + ';S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
 }
-/* מעבר לאפליקציה אחרת — מהתפריט ומ"THE SNOWBALL" */
+/* מעבר לאפליקציה אחרת — מהתפריט ומ"THE SNOWBALL".
+   14/10/2026 (סרטון המשתמש: Academy/Studio "נתקעות" — מסך שחור וחזרה ל־Invest): סגירת התפריט מחזירה את הרשומה שלו
+   (modalDone → history.back, אסינכרוני). עם prerender המעבר לדף שהוכן מראש מיידי, וה"אחורה" שעוד חיכה רץ *אחריו* —
+   מהאפליקציה החדשה חזרה ל־Invest. לכן עוברים רק אחרי שה"אחורה" הסתיים (afterBack); רשת ביטחון — 700ms */
 function appGo(url) {
-  const it = inApk() ? apkIntentUrl(url) : '';
-  location.href = it || url;
+  const to = (inApk() && apkIntentUrl(url)) || url;
+  let gone = false;
+  const go = () => { if (gone) return; gone = true; location.href = to; };
+  afterBack(go);
+  if (!gone) setTimeout(go, 700);
 }
 /* 14/10/2026 (סרטון המשתמש — מסך שחור במעבר בין האפליקציות): כשהתפריט נפתח, Chrome מכין ברקע את האפליקציות
    האחרות (Speculation Rules — prerender), והלחיצה מחליפה לדף שכבר מצויר. אותו אתר (thesnowball.app) — היעד מסכים
