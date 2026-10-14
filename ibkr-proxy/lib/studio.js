@@ -991,10 +991,11 @@ const monthUsed = (mu, now) => (mu && mu.m === monthKey(now) ? Math.max(0, +mu.u
 const addMonth = (mu, usd, now) => ({ m: monthKey(now), usd: Math.round((monthUsed(mu, now) + Math.max(0, +usd || 0)) * 1e4) / 1e4 });
 // usdOf — מוגדר למעלה (v367), מעוגל לסנטים
 /* תקרת העבודה בפועל: מה שהמשתמש בחר, אבל לא יותר ממה שנשאר החודש. פחות מדולר — לא מתחילים */
-function jobCap(spec, used, month) {
+function jobCap(spec, used, month, prev) {
   if (spec && spec.cp === 1) return CAP_MIN_JOB;   // סבב 10: העתק־הדבק — בלי טוקנים מהמפתח שלנו (התקציב החודשי לא נוגע)
   const left = Math.max(0, month - used);
-  const cap = Math.min(normCap(spec && spec.cap), left);
+  // 14/10/2026: התקרה היא לכל העבודה, לא לכל הפעלה — "המשך" מקבל רק את מה שנשאר אחרי הסשנים הקודמים (prev = use0)
+  const cap = Math.min(normCap(spec && spec.cap) - Math.max(0, Number(prev) || 0), left);
   return cap >= CAP_MIN_JOB ? Math.round(cap * 100) / 100 : 0;
 }
 

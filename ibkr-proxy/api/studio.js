@@ -405,12 +405,14 @@ async function serverBack(deps, srv, sid, now) {
 /* העבודה נכנסת לתור; שרת פנוי לוקח אותה ב־poll ומקבל מפתח עבודה חדש (המפתח נוצר רק שם — לא מחכה בתור) */
 async function queueApi(deps, uid, job, now) {
   const st = await readStats(deps, uid);
-  const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH());
-  if (!cap) return { ok: false, error: 'month_cap' };
+  const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
+  if (!cap) return { ok: false, error: capWhy(job, st, now) };
   await patchJob(deps, job.id, { state: 'queued', eng: 'api', sid: '', pk: 0, kh: '', kx: 0, fired: now, fires: (job.fires || 0) + 1,
     err: '', ed: '', warn: '', use: null, tw: null, sess: null, updated: now });
   return { ok: true };
 }
+/* למה אין תקציב להפעלה: התקרה של העבודה נוצלה בסשנים הקודמים (budget_cap — "המשך" במצב זול יותר / תקרה גבוהה יותר), או החודש */
+const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
 const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
 async function server(req, res, body, deps) {
@@ -440,10 +442,10 @@ async function server(req, res, body, deps) {
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       const st = await readStats(deps, job.uid);
-      const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH());
+      const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
       if (!cap) {
-        // התקציב החודשי נגמר בזמן שהעבודה חיכתה — נכשלת, לא נלקחת
-        await patchIf(deps, 'studioJobs', job.id, { state: 'failed', err: 'month_cap', ended: now, updated: now }, job._ut).catch(() => false);
+        // התקציב החודשי (או התקרה של העבודה) נגמר בזמן שהעבודה חיכתה — נכשלת, לא נלקחת
+        await patchIf(deps, 'studioJobs', job.id, { state: 'failed', err: capWhy(job, st, now), ended: now, updated: now }, job._ut).catch(() => false);
         continue;
       }
       const key = S.newKey();
