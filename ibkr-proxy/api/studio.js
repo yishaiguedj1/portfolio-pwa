@@ -126,10 +126,20 @@ async function listJobs(deps, uid) {
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
 const readVault = (deps, uid) => readDoc(deps, 'studioVault', uid);
+/* 14/10/2026 (בקשת המשתמש): המתג "שיפור התרגום בעזרת העבודות שלי" בהגדרות — כבוי (studioStats.lo = 1) = העבודות של
+   המשתמש לא נכנסות למאגר מעכשיו. מה שכבר נכנס לא מקושר אליו (אין מיפוי). תקלה בקריאה = לא שומרים (זהירות) */
+async function learnOff(deps, uid, cache) {
+  if (cache && cache.has(uid)) return cache.get(uid);
+  let off = true;
+  try { off = !!(((await readDoc(deps, 'studioStats', uid)) || {}).lo); } catch (e) { off = true; }
+  if (cache) cache.set(uid, off);
+  return off;
+}
 /* 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה (studioLearn/{מזהה מגובב}), נשארת גם אחרי מחיקת העבודה.
    בלי uid, שמות, מזהי קבצים או טקסט (studiolearn.js). כתיבה רק כשהרשומה השתנתה. תקלה כאן לא מפילה שום פעולה */
-async function learnSave(deps, job, now) {
+async function learnSave(deps, job, now, offCache) {
   try {
+    if (await learnOff(deps, job.uid, offCache)) return;
     const rec = LR.learnRec(job, now, S.effState);
     if (!rec) return;
     await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h: LR.recHash(rec), at: rec.at || now, updated: now });
@@ -1078,8 +1088,10 @@ async function handler(req, res, deps = {}) {
       const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
       const have = new Map(docs.map((d) => [d.id, d]));
       let wrote = 0;
+      const offs = new Map();
       for (const j of await query(deps, 'studioJobs', null, LEARN_MAX)) {
         if (wrote >= LEARN_SYNC_MAX) break;
+        if (await learnOff(deps, j.uid, offs)) continue;   // המשתמש כיבה את המתג
         const rec = LR.learnRec(j, now, S.effState);
         if (!rec) continue;
         const h = LR.recHash(rec), old = have.get(rec.id);
@@ -1092,6 +1104,12 @@ async function handler(req, res, deps = {}) {
       if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs.sort((a, b) => (a.at || 0) - (b.at || 0)) });
       return res.status(200).json({ ok: true, view: LR.learnView(recs, now), synced: wrote, now });
     }
+    if (op === 'learnPref') {
+      // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל)
+      const on = body.on === true;
+      await patchDoc(deps, 'studioStats', uid, { lo: on ? 0 : 1, updated: now });
+      return res.status(200).json({ ok: true, lrn: on });
+    }
     if (op === 'status') {
       const v = await readVault(deps, uid);
       const d = await gdrive.driveState(deps, uid).catch(() => ({ configured: gdrive.configured(), connected: false, email: '' }));
@@ -1100,7 +1118,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test

@@ -1075,6 +1075,7 @@ async function refreshStatus(force) {
     ui.sc = normScan(j.sc) || ui.sc;   // v378: בדיקת המוכנות האחרונה
     ui.picker = normPicker(j.pk);       // בחירה מ־Drive (Google Picker) — רק כשהוגדר מפתח בשרתון
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
+    if (!lrnBusy) ui.lrn = j.lrn !== false;   // 14/10/2026: מאגר הלמידה — דולק כברירת מחדל
     save();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
@@ -5395,6 +5396,21 @@ function pageSettings(p) {
     srow,
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
     rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }))));   // מ9: מדריך קצר
+  // 14/10/2026 (בקשת המשתמש): מאגר הלמידה — אפשר לבטל. בלי שם ובלי פרטים אישיים; מה שכבר נאסף לא מקושר לחשבון
+  const lr = rowSwitch({ label: T('studioLrnT'), sub: ui.lrn === false ? T('studioLrnOff') : T('studioLrnOn'), on: ui.lrn !== false, onClick: () => setLrn(ui.lrn === false), k: 'lrn' });
+  if (lrnBusy || blocked()) lr.disabled = true;
+  p.append(setCard(T('studioLrnGrp'), list(lr)));
+}
+let lrnBusy = false;
+async function setLrn(on) {
+  if (lrnBusy) return;
+  const prev = ui.lrn; ui.lrn = on; lrnBusy = true; render('none');
+  try {
+    const j = await net.api('learnPref', { on });
+    if (!j.ok) { ui.lrn = prev; flashSafe(errText(j.error)); }
+    else ui.lrn = j.lrn !== false;
+  } catch (e) { ui.lrn = prev; flashSafe(errText('net')); }
+  finally { lrnBusy = false; render('none'); }
 }
 /* Claude — מי עושה את העבודה, והחיבור: Routine (המנוי שלי) או השרת של המערכת (תקציב, תקרה לעבודה, השרת) */
 function pageEng(p) {
@@ -5854,7 +5870,7 @@ function shapeKey() {
   if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key + (ce.cues ? ce.cues.length : '') : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
   if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
-  if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store' || ui.view === 'push') return ui.view + '|' + (ui.push || '') + (ui.pushBusy ? 'b' : '') + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api);
+  if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store' || ui.view === 'push') return ui.view + '|' + (ui.push || '') + (ui.pushBusy ? 'b' : '') + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api) + '|' + ui.lrn + (lrnBusy ? 'b' : '');
   return ui.view + '|' + ui.access;
 }
 let paintT = 0;

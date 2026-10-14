@@ -3457,6 +3457,18 @@ function stubFetch(text, status = 200) {
       ok(r2.payload.synced === 0, 'מאגר הלמידה: פתיחה שנייה בלי שינוי — בלי כתיבות');
       const ex = await run({ op: 'learnExport', idToken: OWNER });
       ok(ex.payload.ok && ex.payload.records.length === lkeys().length, 'מאגר הלמידה: ייצוא — כל הרשומות');
+      // המתג בהגדרות: כבוי = העבודות של המשתמש לא נכנסות; status מחזיר את המצב
+      let pr = await run({ op: 'learnPref', idToken: OWNER, on: false });
+      const st0 = await run({ op: 'status', idToken: OWNER });
+      ok(pr.payload.ok && pr.payload.lrn === false && st0.payload.lrn === false, 'מאגר הלמידה: המתג נשמר כבוי, ו־status מחזיר אותו');
+      for (const k of lkeys()) db.delete(k);
+      await run({ op: 'learn', idToken: OWNER });
+      const otherJobs = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && ['tr', 'rr', 'ai'].includes((db.get(k).fields.kind || {}).stringValue) && db.get(k).fields.uid.stringValue !== 'ownerUid0001').length;
+      ok(lkeys().length === otherJobs, 'מאגר הלמידה: מתג כבוי — רק עבודות של משתמשים אחרים נכנסו (' + otherJobs + ')');
+      pr = await run({ op: 'learnPref', idToken: OWNER, on: true });
+      await run({ op: 'learn', idToken: OWNER });
+      ok(pr.payload.lrn === true && lkeys().length === nJobs, 'מאגר הלמידה: מתג דולק שוב — העבודות נכנסות');
+      studio._reset();
       const doneTr = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && db.get(k).fields.kind.stringValue === 'tr' && (db.get(k).fields.state || {}).stringValue === 'done' && db.get(k).fields.uid.stringValue === 'ownerUid0001');
       if (doneTr.length) {
         const n0 = lkeys().length;
