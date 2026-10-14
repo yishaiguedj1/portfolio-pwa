@@ -170,6 +170,15 @@ class Engine:
         self.think: dict = {}          # שלב → חשיבה מצטברת (טוקנים כשהשרת מדווח; אחרת תווים)
         self.refusal_retries = 0       # סירובים שעברו בניסוח מחדש (Haiku 5.5 — בלי נפילה בצד השרת)
         self._inflight = 0             # קריאות שנשלחו ועוד לא חזרו (לתקרה בזמן מקבול)
+        self.trunc = 0                 # 14/10/2026 (מאגר הלמידה): תשובות שנקטעו בתקרת הטוקנים
+        self.mid_retries = 0           # ניסיונות חוזרים על שגיאה חולפת באמצע הזרם
+
+    def facts(self) -> dict:
+        """14/10/2026: מאגר הלמידה — מספרים בלבד: אזהרות מטמון, סירובים שעברו, קטיעות, ניסיונות חוזרים, חשיבה לכל שלב,
+        וכמה בלוקים קבועים שונים נשלחו (פיצול לחלונות = פחות שיתוף במטמון)."""
+        with self._lock:
+            return {'cw': self.cache_warns, 'rr': self.refusal_retries, 'tc': self.trunc, 'mr': self.mid_retries,
+                    'fb': len(self._fixed_calls), 'th': dict(self.think)}
 
     # ------------------------------------------------------------------ ממשק אחד
     def complete(self, k: str, system_fixed: str, prompt: str, max_tokens: int = 32000,
@@ -227,6 +236,7 @@ class Engine:
             if self.cap is not None and spent is not None and spent >= self.cap:
                 raise LLMError('budget_cap', f'הגענו לתקרת העבודה (${self.cap:.2f})')
             print(f'· התשובה נקטעה בתקרה של {max_tokens} טוקנים (שלב {k}) — ניסיון אחד עם תקרת המודל')
+            self.trunc += 1
             res = self._call_retrying(system_fixed, system_extra, prompt, MAX_OUT)
             with self._lock:
                 self.ledger.add(k, self.spec.model, res.usage, res.usd)
@@ -246,6 +256,7 @@ class Engine:
             except LLMError as e:
                 if e.code not in TRANSIENT_CODES or i == len(MID_RETRY_WAIT):
                     raise
+                self.mid_retries += 1
                 print(f'· שגיאה חולפת מול Claude ({e.code}) — ניסיון נוסף בעוד {MID_RETRY_WAIT[i]} שנ׳')
                 time.sleep(MID_RETRY_WAIT[i])
 

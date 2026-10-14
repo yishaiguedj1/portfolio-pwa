@@ -3397,6 +3397,31 @@ function stubFetch(text, status = 200) {
       await run({ op: 'remove', idToken: OWNER, job: jid });
     }
 
+    // 14/10/2026: מאגר הלמידה — רק למנהל; משלים רשומות מכל העבודות; אנונימי; נשאר אחרי מחיקה
+    {
+      studio._reset();
+      r = await run({ op: 'learn', idToken: FRIEND });
+      ok(r.statusCode === 403 && r.payload.error === 'not_admin', 'מאגר הלמידה: רק המנהל רואה את לוח הבקרה');
+      const nJobs = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && ['tr', 'rr', 'ai'].includes((db.get(k).fields.kind || {}).stringValue)).length;
+      r = await run({ op: 'learn', idToken: OWNER });
+      const lkeys = () => [...db.keys()].filter((k) => k.startsWith('studioLearn/'));
+      ok(r.statusCode === 200 && r.payload.view && r.payload.view.v === 1 && lkeys().length >= nJobs && nJobs > 0, 'מאגר הלמידה: רשומה לכל עבודת תרגום / הפקה / AI (' + nJobs + ')');
+      const raw = lkeys().map((k) => JSON.stringify(db.get(k))).join('\n');
+      ok(!/ownerUid0001|friendUid03|readerUid002|@example\.com|session_|cse_|trig_|sk-ant/.test(raw), 'מאגר הלמידה: בלי uid, מיילים, סשנים או מפתחות');
+      ok(lkeys().every((k) => { const x = JSON.parse(db.get(k).fields.lr.stringValue); return !('name' in x) && !('folder' in x) && !('uid' in x) && typeof x.terms === 'number'; }), 'מאגר הלמידה: בלי שם קובץ, תיקייה או מונחים — רק כמה');
+      const r2 = await run({ op: 'learn', idToken: OWNER });
+      ok(r2.payload.synced === 0, 'מאגר הלמידה: פתיחה שנייה בלי שינוי — בלי כתיבות');
+      const ex = await run({ op: 'learnExport', idToken: OWNER });
+      ok(ex.payload.ok && ex.payload.records.length === lkeys().length, 'מאגר הלמידה: ייצוא — כל הרשומות');
+      const doneTr = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && db.get(k).fields.kind.stringValue === 'tr' && (db.get(k).fields.state || {}).stringValue === 'done' && db.get(k).fields.uid.stringValue === 'ownerUid0001');
+      if (doneTr.length) {
+        const n0 = lkeys().length;
+        await run({ op: 'remove', idToken: OWNER, job: doneTr[0].split('/')[1] });
+        ok(!db.has(doneTr[0]) && lkeys().length === n0, 'מאגר הלמידה: הרשומה נשארת אחרי שהעבודה נמחקה');
+      }
+      studio._reset();
+    }
+
     // ניתוק
     r = await run({ op: 'disconnect', idToken: OWNER });
     ok(r.payload.ok && !db.has('studioVault/ownerUid0001'), 'סטודיו: ניתוק מוחק את הרשומה מהכספת');

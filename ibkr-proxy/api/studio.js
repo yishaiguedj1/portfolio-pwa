@@ -39,6 +39,7 @@ const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודי�
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
+const LR = require('../lib/studiolearn');   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -49,6 +50,7 @@ const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del']);
 const SERVER_OPS = new Set(['poll', 'beat']);
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
+const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
 const FIRE_TIMEOUT = 20000;
 
@@ -124,6 +126,15 @@ async function listJobs(deps, uid) {
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
 const readVault = (deps, uid) => readDoc(deps, 'studioVault', uid);
+/* 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה (studioLearn/{מזהה מגובב}), נשארת גם אחרי מחיקת העבודה.
+   בלי uid, שמות, מזהי קבצים או טקסט (studiolearn.js). כתיבה רק כשהרשומה השתנתה. תקלה כאן לא מפילה שום פעולה */
+async function learnSave(deps, job, now) {
+  try {
+    const rec = LR.learnRec(job, now, S.effState);
+    if (!rec) return;
+    await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h: LR.recHash(rec), at: rec.at || now, updated: now });
+  } catch (e) {}
+}
 /* v363: "הרגיל" של המשתמש — דגימה לכל עבודה שהסתיימה (studioStats/{uid}, נפרד מהכספת: ניתוק Claude לא מוחק את ההיסטוריה) */
 /* v365: מגדל הפיקוח 2.0 — אירועים והתראות (lib/studioops.js) ב־studioOps/{uid}. תקלה כאן לעולם לא מפילה את הפעולה עצמה */
 async function raise(deps, uid, evs, j, now, once) {
@@ -655,6 +666,7 @@ async function driveTrash(deps, token, id) {
 }
 /* מחיקת רשומת עבודה (כמו "מחיקה" בטלפון): הרשומה, ההתראות והתקלה שלה. הקבצים ב־Drive נשארים */
 async function removeJobRec(deps, uid, job, now) {
+  await learnSave(deps, job, now);   // 14/10/2026: הרשומה במאגר הלמידה נשארת אחרי המחיקה
   await delDoc(deps, 'studioJobs', job.id);
   await r2Purge(deps, uid, job);   // ת4
   if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2 · מ7: ההפקות מחדש וגיליונות ה־AI של העבודה הולכים איתה
@@ -851,6 +863,7 @@ async function worker(req, res, body, deps) {
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
+    if (body.lx != null) { const lx = LR.normLx(body.lx); if (lx) up.lx = lx; }   // 14/10/2026: עובדות למאגר הלמידה (מספרים וקודים בלבד)
     if (body.trace != null) {
       // v373: עקיבה (מהיומנים, בסוף העבודה) — לא תקין נזרק בשקט
       const tr = S.normTrace(body.trace);
@@ -890,7 +903,12 @@ async function worker(req, res, body, deps) {
       try { kinds = O.opsView(((await readDoc(deps, 'studioOps', job.uid)) || {}).al, now).open.filter((a) => a.j === id).map((a) => a.c + ':' + a.k); } catch (e) {}
       if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.RECOVER_WAIT;
     }
+    if (up.state === 'failed' && job.kind === 'tr') {
+      // 14/10/2026: היסטוריית הכשלים של העבודה — גם עבודה שהצליחה אחרי "המשך" מלמדת על מה שנכשל בדרך (למאגר הלמידה)
+      up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([{ e: up.err, s: (up.prog && up.prog.st) || '', at: now }]).slice(-10);
+    }
     await patchJob(deps, id, up);
+    if (up.state === 'done' || up.state === 'failed') await learnSave(deps, Object.assign({}, job, up), now);
     if (spent > 0) {
       // מצב API: העלות נספרת בתקציב החודשי של המשתמש. תקלה כאן לא מפילה את הדיווח
       // קריאה וכתיבה בתנאי (updateTime) — שני דיווחים במקביל (שתי עבודות) לא דורסים זה את הסכום של זה
@@ -1043,6 +1061,27 @@ async function handler(req, res, deps = {}) {
     return SC.scanView(sc);
   };
   try {
+    if (op === 'learn' || op === 'learnExport') {
+      // 14/10/2026: מאגר הלמידה — רק למנהל. קודם משלימים רשומות מכל העבודות שבסטודיו (כולל עבודות ישנות ושל משתמשים אחרים —
+      // אנונימיות), אחר כך הניתוח. learnExport = כל הרשומות כמו שהן (לניתוח מעמיק מחוץ לאפליקציה)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
+      const have = new Map(docs.map((d) => [d.id, d]));
+      let wrote = 0;
+      for (const j of await query(deps, 'studioJobs', null, LEARN_MAX)) {
+        if (wrote >= LEARN_SYNC_MAX) break;
+        const rec = LR.learnRec(j, now, S.effState);
+        if (!rec) continue;
+        const h = LR.recHash(rec), old = have.get(rec.id);
+        if (old && old.h === h) continue;
+        await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h, at: rec.at || now, updated: now });
+        have.set(rec.id, { id: rec.id, lr: rec, h });
+        wrote++;
+      }
+      const recs = [...have.values()].map((d) => d.lr).filter(Boolean);
+      if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs.sort((a, b) => (a.at || 0) - (b.at || 0)) });
+      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), synced: wrote, now });
+    }
     if (op === 'status') {
       const v = await readVault(deps, uid);
       const d = await gdrive.driveState(deps, uid).catch(() => ({ configured: gdrive.configured(), connected: false, email: '' }));
@@ -1258,7 +1297,7 @@ async function handler(req, res, deps = {}) {
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
-      for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) await delDoc(deps, 'studioJobs', old.id);
+      for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) { await learnSave(deps, old, now); await delDoc(deps, 'studioJobs', old.id); }
       const job = { id: S.newJobId(), uid, kind: 'tr', state: 'new', created: now, updated: now, spec };
       if (apiJob(job) && R2.config().ok) job.folder = SR.folderFor(job.id);   // ת4: עבודה במצב שרת — הקבצים ב־R2 (Routine נשאר ב־Drive)
       await patchJob(deps, job.id, job);
@@ -1332,6 +1371,7 @@ async function handler(req, res, deps = {}) {
       if (!gq) return res.status(400).json({ ok: false, error: 'bad_params' });
       await patchJob(deps, job.id, { gq, updated: now });
       job.gq = gq;
+      await learnSave(deps, job, now);
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'r2up' || op === 'r2parts' || op === 'r2done' || op === 'r2url') {
@@ -1407,6 +1447,7 @@ async function handler(req, res, deps = {}) {
       const up = S.cuesSwap(job, fc, fs, now);
       await patchJob(deps, job.id, Object.assign({}, up, { updated: now }));
       Object.assign(job, up);
+      await learnSave(deps, job, now);   // עריכה אחרי העבודה = סימן למה שהתרגום פספס
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'cuesRestore') {
@@ -1510,6 +1551,7 @@ async function handler(req, res, deps = {}) {
       if (!S.FINAL.includes(st)) {
         await patchJob(deps, job.id, { state: 'cancelled', ended: now, updated: now });
         job.state = 'cancelled'; job.ended = now;
+        await learnSave(deps, job, now);
       }
       return res.status(200).json({ ok: true, job: view(job) });
     }

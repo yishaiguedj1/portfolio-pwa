@@ -1,0 +1,401 @@
+'use strict';
+/* מאגר הלמידה של סטודיו התרגום (14/10/2026, בקשת המשתמש: "החלק הכי חשוב — לשפר כל הזמן יכולות, יעילות, איכות וחיסכון בטוקנים").
+   טהור, בלי קריאות. שלושה חלקים:
+   1. normLx — העובדות שהעובד שולח בסוף כל הפעלה (job.py learn_facts): רק מספרים וקודים בצורה קבועה, בלי טקסט.
+   2. learnRec — רשומה אנונימית לכל עבודה (studioLearn/{מזהה}): בלי uid, בלי שמות קבצים/תיקיות/סשנים, בלי טקסט חופשי
+      (מונחים, הערות, שאלות, תיקונים — רק כמה). המזהה = sha256 של מזהה העבודה (אקראי) — רק לכפילויות; לא מקשר למשתמש.
+      הרשומה נשארת גם אחרי שהעבודה נמחקה מהסטודיו — זה הזיכרון הארוך של המערכת.
+   3. learnView — לוח הבקרה של המנהל: מדדים עיקריים מול התקופה הקודמת, לאן הולכים הכסף, הזמן והטוקנים, איכות, כשלים,
+      השוואת מצבים, והמסקנות — מדורגות לפי ההשפעה (כמה דולר בחודש / כמה נקודות איכות), כל אחת עם פעולה מוצעת. */
+const crypto = require('crypto');
+
+const LR_V = 1;
+const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
+const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
+const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
+const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
+const MODES = ['haiku-high', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // מהזול ליקר
+const DAY = 86400e3, WIN = 30 * DAY;
+const KEY_RE = /^[a-z][a-z0-9_.]{0,47}$/;
+const CODE_RE = /^[a-z][a-z0-9_]{0,39}$/;
+const CMD_RE = /^[a-z][a-z_-]{1,19}$/;
+const MODEL_RE = /^claude-[a-z0-9-]{1,50}$/;
+
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const r4 = (v) => Math.round(v * 1e4) / 1e4;
+const clampNum = (v, hi) => (isNum(v) && Math.abs(v) <= (hi || 1e12) ? r4(v) : typeof v === 'boolean' ? (v ? 1 : 0) : null);
+const lid = (jobId) => crypto.createHash('sha256').update('snb-learn|' + String(jobId || '')).digest('hex').slice(0, 20);
+const hour = (t) => (isNum(t) && t > 0 ? Math.floor(t / 3600e3) * 3600e3 : 0);
+
+/* ---------------- 1. העובדות מהעובד ---------------- */
+/* מילון שטוח של מספרים (מפתח בצורה קבועה) — כל ערך שאינו מספר / בוליאני נזרק בשקט */
+function flatNums(o, max, hi) {
+  const out = {};
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  for (const [k, v] of Object.entries(o)) {
+    if (Object.keys(out).length >= max) break;
+    if (!KEY_RE.test(k)) continue;
+    const x = clampNum(v, hi);
+    if (x != null) out[k] = x;
+  }
+  return out;
+}
+const numArr = (a, n) => (Array.isArray(a) && a.length <= n && a.every(isNum) ? a.map(r4) : null);
+function normLx(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const out = { v: 1 };
+  if (o.env && typeof o.env === 'object') {
+    const e = {};
+    if (isNum(o.env.cpus) && o.env.cpus >= 0 && o.env.cpus <= 1024) e.cpus = Math.round(o.env.cpus);
+    if (/^[a-z0-9_]{1,16}$/.test(String(o.env.arch || ''))) e.arch = o.env.arch;
+    if (o.env.gv != null) e.gv = o.env.gv ? 1 : 0;
+    if (isNum(o.env.mem) && o.env.mem > 0 && o.env.mem < 1e7) e.mem = Math.round(o.env.mem);   // MB
+    if (Object.keys(e).length) out.env = e;
+  }
+  const ps = flatNums(o.ps, 90); if (Object.keys(ps).length) out.ps = ps;            // מה ש־vt רשם לכל שלב (project.json)
+  if (Array.isArray(o.vt)) {                                                            // זמן לכל פקודת vt: [פקודה, פעמים, שניות, הארוכה]
+    const vt = [];
+    for (const x of o.vt.slice(0, 30)) {
+      if (!Array.isArray(x) || !CMD_RE.test(String(x[0] || ''))) continue;
+      const nums = x.slice(1, 4);
+      if (nums.length === 3 && nums.every((v) => isNum(v) && v >= 0 && v < 1e7)) vt.push([x[0], Math.round(nums[0]), r4(nums[1]), r4(nums[2])]);
+    }
+    if (vt.length) out.vt = vt;
+  }
+  if (o.cu && typeof o.cu === 'object') {                                               // התפלגות הכתוביות הסופיות (בלי טקסט)
+    const cu = flatNums(o.cu, 30, 1e7);
+    for (const k of ['cps', 'ch', 'du', 'gp', 'ln']) { const a = numArr(o.cu[k], 6); if (a) cu[k] = a; }
+    const fl = flatNums(o.cu.fl, 20, 1e7); if (Object.keys(fl).length) cu.fl = fl;
+    if (Object.keys(cu).length) out.cu = cu;
+  }
+  for (const k of ['wd', 'tl', 'en', 'sy', 'gl', 'md']) {
+    if (!o[k] || typeof o[k] !== 'object') continue;
+    const x = flatNums(o[k], 30, 1e12);
+    if (k === 'en' && o.en.th && typeof o.en.th === 'object') { const th = flatNums(o.en.th, 8, 1e12); if (Object.keys(th).length) x.th = th; }
+    if (Object.keys(x).length) out[k] = x;
+  }
+  return JSON.stringify(out).length <= 16000 ? out : Object.assign({}, out, { ps: undefined, vt: undefined });
+}
+
+/* ---------------- 2. רשומה לכל עבודה ---------------- */
+const STATES = ['new', 'queued', 'running', 'done', 'failed', 'cancelled'];
+function effBasic(job, now, effState) {
+  const e = typeof effState === 'function' ? effState(job, now) : { state: job.state, err: job.err || '' };
+  return { st: STATES.includes(e.state) ? e.state : 'failed', err: CODE_RE.test(String(e.err || '')) ? e.err : '' };
+}
+function useRows(use) {
+  const out = [];
+  for (const r of Array.isArray(use) ? use.slice(0, 6) : []) {
+    if (!r || !ROLES.includes(r.k) || !MODEL_RE.test(String(r.m || ''))) continue;
+    const row = { k: r.k, m: r.m };
+    for (const f of ['n', 'i', 'o', 'cr', 'c5', 'c1', 'op']) if (isNum(r[f]) && r[f] >= 0) row[f] = Math.round(r[f]);
+    for (const f of ['usd', 'oc']) if (isNum(r[f]) && r[f] >= 0) row[f] = r4(r[f]); else if (r[f] === null) row[f] = null;
+    out.push(row);
+  }
+  return out;
+}
+const usdSum = (rows) => r4(rows.reduce((s, r) => s + (isNum(r.usd) ? r.usd : 0), 0));
+const priced = (rows) => rows.length > 0 && rows.every((r) => isNum(r.usd));
+function stageSecs(prog) {
+  const out = {}, stg = (prog && prog.stg) || {};
+  for (const k of STAGES) { const x = stg[k]; if (x && x.s > 0 && x.e > x.s) out[k] = Math.round((x.e - x.s) / 1000); }
+  return out;
+}
+function edlInfo(e, dur) {
+  if (!e || typeof e !== 'object') return null;
+  const k = Array.isArray(e.k) ? e.k : [];
+  const kept = k.reduce((s, x) => s + (Array.isArray(x) && isNum(x[0]) && isNum(x[1]) ? Math.max(0, x[1] - x[0]) : 0), 0);
+  const o = { n: k.length, ar: typeof e.ar === 'string' ? e.ar.slice(0, 5) : 'src' };
+  if (dur > 0 && kept > 0) o.kf = r4(Math.min(1, kept / dur));
+  const fx = Object.keys(e).filter((x) => x !== 'k' && x !== 'ar' && /^[a-z]{1,3}$/.test(x)).sort();
+  if (fx.length) o.fx = fx;
+  return o;
+}
+function judgeInfo(jd) {
+  if (!jd || !isNum(jd.s)) return null;
+  const c = {};
+  for (const k of JG_CODES) if (jd.c && isNum(jd.c[k])) c[k] = jd.c[k];
+  return { s: jd.s, n: jd.n || 0, c };
+}
+function qualityInfo(q) {
+  if (!q || !isNum(q.s)) return null;
+  const b = {};
+  for (const m of Array.isArray(q.m) ? q.m : []) if (m && Q_KEYS.includes(m.k) && isNum(m.b)) b[m.k] = m.b;
+  return { s: q.s, n: q.n || 0, b };
+}
+function traceInfo(tr) {
+  if (!tr || !tr.a) return null;
+  const a = {};
+  for (const [k, v] of Object.entries(tr.a)) if (ROLES.includes(k) && v) a[k] = { n: v.n || 0, e: v.e || 0, s: v.s || 0, ...(isNum(v.w) ? { w: v.w } : {}) };
+  const g = (Array.isArray(tr.g) ? tr.g : []).filter((x) => Array.isArray(x) && /^[A-Za-z:_-]{1,30}$/.test(String(x[0]))).slice(0, 8).map((x) => [x[0], x[1] || 0, x[2] || 0]);
+  return { a, g };
+}
+function errHist(eh) {
+  return (Array.isArray(eh) ? eh : []).filter((x) => x && CODE_RE.test(String(x.e || ''))).slice(-10)
+    .map((x) => ({ e: x.e, s: STAGES.includes(x.s) ? x.s : '', t: hour(x.at) }));
+}
+/* job = מסמך העבודה כמו שהוא בשרתון; effState = S.effState (מוזרק — כדי שהקובץ לא יהיה תלוי ב־studio.js) */
+function learnRec(job, now, effState) {
+  if (!job || !/^j[A-Za-z0-9_-]{20}$/.test(String(job.id || '')) || !['tr', 'rr', 'ai'].includes(job.kind)) return null;
+  const sp = job.spec || {};
+  const e = effBasic(job, now, effState);
+  const use = useRows(Array.isArray(job.use) && job.use.length ? job.use : job.use0);
+  const dur = isNum(sp.dur) ? Math.round(sp.dur) : 0;
+  const rec = {
+    v: LR_V, id: lid(job.id), k: job.kind,
+    pid: /^j[A-Za-z0-9_-]{20}$/.test(String(job.rp || job.gs || '')) ? lid(job.rp || job.gs) : '',
+    gold: job.gs ? 1 : 0,
+    at: hour(job.created), end: hour(job.ended),
+    st: e.st, err: e.err,
+    eng: job.eng === 'api' || sp.eng === 'api' ? 'api' : 'sub', cp: sp.cp === 1 ? 1 : 0,
+    mode: MODES.includes(sp.mode) ? sp.mode : String(sp.mode || '').replace(/[^a-z0-9-]/g, '').slice(0, 20),
+    from: /^[a-z]{2,4}$/.test(String(sp.from || '')) ? sp.from : 'auto', to: Array.isArray(sp.to) ? sp.to.filter((x) => /^[a-z]{2,3}$/.test(x)).slice(0, 12) : [],
+    dur, mb: isNum(sp.size) ? Math.round(sp.size / 1048576) : 0, type: /^[a-z0-9.+/-]{1,40}$/.test(String(sp.type || '')) ? sp.type : '',
+    out: Array.isArray(sp.out) ? sp.out.filter((x) => /^[a-z]{2,10}$/.test(x)).slice(0, 6) : [], style: /^[a-z]{2,12}$/.test(String(sp.style || '')) ? sp.style : '',
+    terms: String(sp.terms || '').split(/\n|,/).filter((x) => x.trim()).length,   // כמה מונחים — לא המונחים עצמם
+    edl: edlInfo(sp.edl, dur),
+    src: job.fa && job.fa.id ? 'a' : 'v', ext: job.fv && job.fv.ext ? 1 : 0, r2: /^R2_/.test(String(job.folder || '')) ? 1 : 0,
+    fires: job.fires || 0, ar: job.ar || 0, eh: errHist(job.eh),
+    t: {
+      q: job.claimed && job.fired && job.claimed >= job.fired ? Math.round((job.claimed - job.fired) / 1000) : null,   // מההפעלה עד שנלקחה
+      run: job.ended && (job.c0 || job.claimed) && job.ended > (job.c0 || job.claimed) ? Math.round((job.ended - (job.c0 || job.claimed)) / 1000) : null,
+      pz: isNum(job.pz) ? Math.round(job.pz / 1000) : 0,                                 // השעון עצר — חיכינו לך / לסרטון
+      s: stageSecs(job.prog),
+    },
+    ep: job.ep && isNum(job.ep.t) ? { t: Math.round(job.ep.t), n: job.ep.n || 0 } : null,
+    tg: job.tg && isNum(job.tg.t) ? { t: Math.round(job.tg.t), u: isNum(job.tg.u) ? r4(job.tg.u) : null } : null,
+    use, usd: usdSum(use), pr: priced(use) ? 1 : 0,
+    tr: traceInfo(job.tr), q: qualityInfo(job.q), jd: judgeInfo(job.jd),
+    tw: job.tw && job.tw.lv ? { lv: job.tw.lv, why: CODE_RE.test(String(job.tw.why || '')) ? job.tw.why : '', x: isNum(job.tw.x) ? r4(job.tw.x) : null, sh: job.tw.sh ? 1 : 0 } : null,
+    ij: job.ij && isNum(job.ij.n) ? job.ij.n : 0,
+    gl: job.gl ? { u: job.gl.u || 0, s: Array.isArray(job.gl.s) ? job.gl.s.length : 0 } : null,
+    rvf: Array.isArray(job.rvf) ? job.rvf.length : 0, fil: Array.isArray(job.fil) ? job.fil.length : 0,   // סימונים מהביקורת, מילות מילוי — רק כמה
+    qn: job.qn || 0, gn: job.gn || 0, nn: Array.isArray(job.nh) ? job.nh.length : 0,
+    ed: Array.isArray(job.vh) ? job.vh.length : 0,                                       // כמה פעמים נשמרה עריכה של הכתוביות אחרי העבודה
+    gq: job.gq && isNum(job.gq.s) ? { s: r4(job.gq.s), tm: isNum(job.gq.tm) ? r4(job.gq.tm) : null } : null,
+    hl: Array.isArray(job.hl) ? job.hl.length : 0,
+    env: /^[0-9a-f]{12}$/.test(String(job.ev || '')) ? job.ev : '',
+    pv: job.pv && typeof job.pv === 'object' ? Object.fromEntries(Object.entries(job.pv).filter(([k, v]) => /^[a-z]{2,4}$/.test(k) && /^[0-9a-f]{8}$/.test(String(v)))) : null,
+    lx: normLx(job.lx),
+  };
+  return rec;
+}
+/* טביעה — כתיבה רק כשמשהו השתנה */
+const recHash = (rec) => crypto.createHash('sha1').update(JSON.stringify(rec)).digest('hex').slice(0, 16);
+
+/* ---------------- 3. לוח הבקרה ---------------- */
+const median = (a) => { const s = a.filter(isNum).sort((x, y) => x - y); if (!s.length) return null; const k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+const mean = (a) => { const s = a.filter(isNum); return s.length ? s.reduce((x, y) => x + y, 0) / s.length : null; };
+const sum = (a) => a.filter(isNum).reduce((x, y) => x + y, 0);
+const rnd = (v, d) => (isNum(v) ? Math.round(v * Math.pow(10, d || 0)) / Math.pow(10, d || 0) : null);
+const mins = (r) => (r.dur > 0 ? r.dur / 60 : 0);
+const runSec = (r) => (isNum(r.t && r.t.run) ? Math.max(0, r.t.run - (r.t.pz || 0)) : null);   // זמן עבודה, בלי ההמתנה לך
+const tokOf = (r) => r.use.reduce((s, u) => ({ i: s.i + (u.i || 0), o: s.o + (u.o || 0), cr: s.cr + (u.cr || 0), cw: s.cw + (u.c5 || 0) + (u.c1 || 0) }), { i: 0, o: 0, cr: 0, cw: 0 });
+const inTok = (t) => t.i + t.cr + t.cw;
+const okFirst = (r) => r.st === 'done' && (r.fires || 0) <= 1 + (r.ar || 0);
+/* עלות קלט "מלא" שאפשר היה לקרוא מהמטמון: הקלט שלא מהמטמון × 90% (קריאה = 10% מהמחיר). חלק הקלט מתוך העלות לפי
+   המשקלים היחסיים של Claude (פלט ×5, קריאה ×0.1, כתיבה ×1.25) — אומדן, מסומן ≈ */
+function cacheSavable(u) {
+  const w = (u.i || 0) + 5 * (u.o || 0) + 0.1 * (u.cr || 0) + 1.25 * ((u.c5 || 0) + (u.c1 || 0));
+  return w > 0 && isNum(u.usd) ? u.usd * ((u.i || 0) / w) * 0.9 : 0;
+}
+function kpis(rs) {
+  const tr = rs.filter((r) => r.k === 'tr' && !r.gold);
+  const fin = tr.filter((r) => r.st === 'done' || r.st === 'failed');
+  const done = tr.filter((r) => r.st === 'done');
+  const pr = done.filter((r) => r.pr && r.dur > 0);
+  const m = sum(pr.map(mins));
+  const tk = pr.map(tokOf), tin = sum(tk.map(inTok));
+  const timed = done.filter((r) => runSec(r) != null && r.dur > 0);
+  return {
+    n: tr.length, done: done.length, fin: fin.length,
+    min: rnd(sum(done.map(mins)), 1),
+    cpm: m > 0 ? rnd(sum(pr.map((r) => r.usd)) / m, 4) : null,                     // דולר לדקת סרטון
+    spm: timed.length ? rnd(median(timed.map((r) => runSec(r) / mins(r))), 1) : null, // שניות עבודה לדקת סרטון (חציון)
+    tpm: m > 0 ? Math.round(sum(tk.map((t) => inTok(t) + t.o)) / m) : null,           // טוקנים לדקת סרטון
+    ch: tin > 0 ? rnd(sum(tk.map((t) => t.cr)) / tin, 3) : null,                      // חלק הקלט שנקרא מהמטמון
+    q: rnd(mean(done.map((r) => r.q && r.q.s)), 1),                                    // מדד האיכות (0–100)
+    jd: rnd(mean(done.map((r) => r.jd && r.jd.s)), 1),                                 // ציון השופט (0–100)
+    ok: fin.length ? rnd(fin.filter(okFirst).length / fin.length, 3) : null,           // הצלחה בלי "המשך" ידני
+    usd: rnd(sum(tr.map((r) => r.usd)), 2),
+  };
+}
+function weekly(rs, now, n) {
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const a = now - (i + 1) * 7 * DAY, b = now - i * 7 * DAY;
+    const k = kpis(rs.filter((r) => r.at >= a && r.at < b));
+    out.push({ cpm: k.cpm, q: k.q, jd: k.jd, spm: k.spm, ok: k.ok, n: k.n });
+  }
+  return out;
+}
+function costRoles(rs) {
+  const by = {};
+  for (const r of rs) for (const u of r.use) {
+    const x = by[u.k] = by[u.k] || { k: u.k, usd: 0, i: 0, o: 0, cr: 0, cw: 0, n: 0, sav: 0, models: {} };
+    x.usd += isNum(u.usd) ? u.usd : 0; x.i += u.i || 0; x.o += u.o || 0; x.cr += u.cr || 0; x.cw += (u.c5 || 0) + (u.c1 || 0); x.n += u.n || 0;
+    x.sav += cacheSavable(u); x.models[u.m] = (x.models[u.m] || 0) + (isNum(u.usd) ? u.usd : 0);
+  }
+  const tot = sum(Object.values(by).map((x) => x.usd));
+  return Object.values(by).map((x) => ({ k: x.k, usd: rnd(x.usd, 4), sh: tot > 0 ? rnd(x.usd / tot, 3) : 0, calls: x.n,
+    tok: { i: x.i, o: x.o, cr: x.cr, cw: x.cw }, ch: x.i + x.cr + x.cw > 0 ? rnd(x.cr / (x.i + x.cr + x.cw), 3) : null, sav: rnd(x.sav, 4),
+    m: Object.entries(x.models).sort((a, b) => b[1] - a[1]).map((e) => e[0])[0] || '' })).sort((a, b) => b.usd - a.usd);
+}
+function stageTime(rs) {
+  const by = {};
+  let tot = 0;
+  for (const r of rs) for (const [k, v] of Object.entries(r.t.s || {})) { by[k] = (by[k] || 0) + v; tot += v; }
+  const per = (k) => median(rs.filter((r) => r.dur > 0 && r.t.s && isNum(r.t.s[k])).map((r) => r.t.s[k] / mins(r)));
+  return STAGES.filter((k) => by[k]).map((k) => ({ k, sec: Math.round(by[k]), sh: tot ? rnd(by[k] / tot, 3) : 0, spm: rnd(per(k), 1) }));
+}
+function vtTime(rs) {
+  const by = {};
+  for (const r of rs) for (const x of (r.lx && r.lx.vt) || []) { const o = by[x[0]] = by[x[0]] || { c: x[0], n: 0, sec: 0, mx: 0 }; o.n += x[1]; o.sec += x[2]; o.mx = Math.max(o.mx, x[3]); }
+  const tot = sum(Object.values(by).map((x) => x.sec));
+  return Object.values(by).sort((a, b) => b.sec - a.sec).slice(0, 8).map((x) => ({ c: x.c, n: x.n, sec: Math.round(x.sec), mx: rnd(x.mx, 1), sh: tot ? rnd(x.sec / tot, 3) : 0 }));
+}
+function failures(rs) {
+  const by = {};
+  const add = (code, st, usd, final) => { const o = by[code] = by[code] || { e: code, n: 0, fin: 0, usd: 0, st: {} }; o.n++; if (final) o.fin++; o.usd += usd || 0; if (st) o.st[st] = (o.st[st] || 0) + 1; };
+  for (const r of rs.filter((x) => x.k === 'tr')) {
+    const seen = new Set();
+    for (const x of r.eh || []) { add(x.e, x.s, 0, false); seen.add(x.e); }
+    if (r.st === 'failed' && r.err) { if (!seen.has(r.err)) add(r.err, '', r.usd, true); else { by[r.err].fin++; by[r.err].usd += r.usd; } }
+  }
+  return Object.values(by).sort((a, b) => b.n - a.n || b.usd - a.usd).slice(0, 10)
+    .map((x) => ({ e: x.e, n: x.n, fin: x.fin, usd: rnd(x.usd, 2), st: Object.entries(x.st).sort((a, b) => b[1] - a[1]).map((y) => y[0])[0] || '' }));
+}
+function judgeCodes(rs) {
+  const c = {}; let n = 0;
+  for (const r of rs) if (r.jd) { n += r.jd.n || 0; for (const [k, v] of Object.entries(r.jd.c || {})) c[k] = (c[k] || 0) + v; }
+  return { n, c: JG_CODES.filter((k) => c[k]).map((k) => ({ k, n: c[k], sh: n ? rnd(c[k] / n, 3) : 0 })).sort((a, b) => b.n - a.n) };
+}
+function qualityFails(rs) {
+  const b = {}; let n = 0;
+  for (const r of rs) if (r.q && r.q.n) { n += r.q.n; for (const [k, v] of Object.entries(r.q.b || {})) if (k !== 'chk') b[k] = (b[k] || 0) + v; }
+  return { n, m: Q_KEYS.filter((k) => k !== 'chk').map((k) => ({ k, b: b[k] || 0, sh: n ? rnd((b[k] || 0) / n, 4) : 0 })).sort((x, y) => y.sh - x.sh) };
+}
+function modeTable(rs) {
+  return MODES.map((m) => ({ m, ...kpis(rs.filter((r) => r.mode === m)) })).filter((x) => x.n > 0);
+}
+/* מנוע מסקנות — כל מסקנה: k (קוד), sev 1 דחוף / 2 חשוב / 3 שווה בדיקה, imp = ההשפעה המשוערת בדולר לחודש (או 0), v = המספרים.
+   הדירוג: קודם חומרה, אחר כך השפעה. הטלפון בונה את הטקסט מהקוד (בשתי השפות) */
+function insights(rs, k30, roles, stages, fails, jc, qf, modes, now) {
+  const out = [];
+  const tr = rs.filter((r) => r.k === 'tr' && !r.gold);
+  const done = tr.filter((r) => r.st === 'done');
+  const perMonth = (usd, list) => { const span = Math.max(WIN, now - Math.min(...list.map((r) => r.at || now))); return usd * WIN / span; };
+  // כשלים
+  const fin = tr.filter((r) => r.st === 'done' || r.st === 'failed');
+  if (fails.length && fin.length >= 3) {
+    const f = fails[0], rate = f.n / fin.length;
+    if (rate >= 0.1) out.push({ k: 'fail_top', sev: rate >= 0.25 ? 1 : 2, imp: rnd(perMonth(f.usd, tr), 2), v: { e: f.e, n: f.n, p: rnd(rate, 3), usd: f.usd, st: f.st } });
+  }
+  if (k30.ok != null && k30.fin >= 5 && k30.ok < 0.85) out.push({ k: 'first_pass', sev: k30.ok < 0.7 ? 1 : 2, imp: 0, v: { p: k30.ok, n: k30.fin } });
+  // טוקנים ועלות
+  for (const x of roles) {
+    if (x.k === 'jg' || x.k === 'sub') continue;
+    if (x.ch != null && x.ch < 0.6 && x.calls >= 6 && x.sav > 0.02) out.push({ k: 'cache_low', sev: x.ch < 0.3 ? 1 : 2, imp: rnd(perMonth(x.sav, rs), 2), v: { r: x.k, p: x.ch, usd: x.sav } });
+  }
+  if (roles.length && roles[0].sh >= 0.5 && roles[0].usd > 0.5) out.push({ k: 'cost_role', sev: 3, imp: rnd(perMonth(roles[0].usd, rs) * 0.2, 2), v: { r: roles[0].k, p: roles[0].sh, m: roles[0].m } });
+  const thinkRows = rs.map((r) => r.lx && r.lx.en && r.lx.en.th).filter(Boolean);
+  if (thinkRows.length >= 3) {
+    for (const role of ['tl', 'rv', 'main']) {
+      const th = sum(thinkRows.map((t) => t[role])), o = sum(rs.filter((r) => r.lx && r.lx.en && r.lx.en.th).map((r) => sum(r.use.filter((u) => u.k === role).map((u) => u.o))));
+      if (o > 20000 && th / o >= 0.6) { const ru = roles.find((x) => x.k === role); out.push({ k: 'think_heavy', sev: 3, imp: ru ? rnd(perMonth(ru.usd, rs) * 0.25, 2) : 0, v: { r: role, p: rnd(th / o, 3) } }); }
+    }
+  }
+  const trunc = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.tc));
+  if (trunc > 0) out.push({ k: 'truncated', sev: 2, imp: 0, v: { n: trunc, j: rs.filter((r) => r.lx && r.lx.en && r.lx.en.tc > 0).length } });
+  const cw = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.cw));
+  if (cw >= 3) out.push({ k: 'cache_miss', sev: 2, imp: 0, v: { n: cw } });
+  // תהליך התרגום: כמה תיקונים צריך אחרי התרגום הראשון, וכמה הביקורת משנה
+  const withCues = done.filter((r) => r.lx && r.lx.tl && r.lx.cu && r.lx.cu.n > 0);
+  if (withCues.length >= 3) {
+    const cues = sum(withCues.map((r) => r.lx.cu.n));
+    const fx = sum(withCues.map((r) => r.lx.tl.fx || 0)), rv = sum(withCues.map((r) => (r.lx.tl.fr || 0) + (r.lx.tl.fz || 0)));
+    if (cues && fx / cues >= 0.12) out.push({ k: 'fix_heavy', sev: 2, imp: 0, v: { p: rnd(fx / cues, 3) } });
+    const rvRole = roles.find((x) => x.k === 'rv');
+    if (cues && rv / cues < 0.02 && rvRole && rvRole.usd > 0.2) out.push({ k: 'rv_idle', sev: 3, imp: rnd(perMonth(rvRole.usd, rs) * 0.5, 2), v: { p: rnd(rv / cues, 4), usd: rvRole.usd } });
+    else if (cues && rv / cues >= 0.2) out.push({ k: 'rv_heavy', sev: 2, imp: 0, v: { p: rnd(rv / cues, 3) } });
+  }
+  // איכות
+  if (jc.n >= 40 && jc.c.length && jc.c[0].sh >= 0.08) out.push({ k: 'judge_top', sev: jc.c[0].sh >= 0.2 ? 1 : 2, imp: 0, v: { c: jc.c[0].k, p: jc.c[0].sh } });
+  if (qf.n >= 50 && qf.m.length && qf.m[0].sh >= 0.05) out.push({ k: 'q_metric', sev: qf.m[0].sh >= 0.15 ? 2 : 3, imp: 0, v: { m: qf.m[0].k, p: qf.m[0].sh } });
+  const edited = done.filter((r) => r.ed > 0).length;
+  if (done.length >= 4 && edited / done.length >= 0.3) out.push({ k: 'edits_after', sev: 2, imp: 0, v: { p: rnd(edited / done.length, 3), n: edited } });
+  const kids = rs.filter((r) => r.k === 'ai' && r.pid);
+  if (done.length >= 4 && kids.length / done.length >= 0.3) out.push({ k: 'ai_after', sev: 3, imp: 0, v: { n: kids.length } });
+  // זמן
+  if (stages.length) {
+    const s = stages.slice().sort((a, b) => b.sh - a.sh)[0];
+    if (s.sh >= 0.35) out.push({ k: 'slow_stage', sev: 3, imp: 0, v: { s: s.k, p: s.sh, spm: s.spm } });
+  }
+  const pzSh = sum(done.map((r) => r.t.pz)) / Math.max(1, sum(done.map((r) => r.t.run)));
+  if (done.length >= 3 && pzSh >= 0.2) out.push({ k: 'wait_user', sev: 3, imp: 0, v: { p: rnd(pzSh, 3) } });
+  const over = done.filter((r) => r.tg && r.tg.t > 0 && runSec(r) != null && runSec(r) > r.tg.t);
+  if (done.length >= 4 && over.length / done.length >= 0.25) out.push({ k: 'sla_over', sev: 2, imp: 0, v: { p: rnd(over.length / done.length, 3) } });
+  // התמלול והיישור
+  const prf = done.filter((r) => r.lx && r.lx.ps && isNum(r.lx.ps['edit_import.equal']));
+  if (prf.length >= 3) {
+    const ch = sum(prf.map((r) => (r.lx.ps['edit_import.replaced'] || 0) + (r.lx.ps['edit_import.inserted'] || 0) + (r.lx.ps['edit_import.deleted'] || 0)));
+    const all = ch + sum(prf.map((r) => r.lx.ps['edit_import.equal']));
+    if (all && ch / all >= 0.05) out.push({ k: 'asr_weak', sev: 2, imp: 0, v: { p: rnd(ch / all, 3) } });
+  }
+  const al = done.filter((r) => r.lx && r.lx.ps && isNum(r.lx.ps['align.aligned']));
+  if (al.length >= 3) {
+    const bad = sum(al.map((r) => (r.lx.ps['align.suspicious'] || 0) + (r.lx.ps['align.kept_approx'] || 0))), tot = bad + sum(al.map((r) => r.lx.ps['align.aligned']));
+    if (tot && bad / tot >= 0.05) out.push({ k: 'align_weak', sev: 3, imp: 0, v: { p: rnd(bad / tot, 3) } });
+  }
+  const sy = rs.filter((r) => r.lx && r.lx.sy && isNum(r.lx.sy.c));
+  if (sy.length >= 3 && sy.filter((r) => r.lx.sy.c < 0.6).length / sy.length >= 0.2) out.push({ k: 'sync_low', sev: 3, imp: 0, v: { p: rnd(sy.filter((r) => r.lx.sy.c < 0.6).length / sy.length, 3) } });
+  // השוואת מצבים: מצב זול יותר באיכות קרובה (לפחות 3 עבודות בכל אחד)
+  const good = modes.filter((x) => x.done >= 3 && x.cpm != null && (x.jd != null || x.q != null));
+  const score = (x) => (x.jd != null ? x.jd : x.q);
+  if (good.length >= 2) {
+    const best = good.slice().sort((a, b) => score(b) - score(a))[0];
+    const cheap = good.filter((x) => x.cpm < best.cpm && score(best) - score(x) <= 3).sort((a, b) => a.cpm - b.cpm)[0];
+    if (cheap) {
+      const mBest = sum(rs.filter((r) => r.mode === best.m && r.at >= now - WIN).map(mins));
+      out.push({ k: 'mode_value', sev: 2, imp: rnd(mBest * (best.cpm - cheap.cpm), 2), v: { a: best.m, b: cheap.m, d: rnd(score(best) - score(cheap), 1), sv: rnd(1 - cheap.cpm / best.cpm, 3) } });
+    }
+  }
+  // גרסת ההנחיות של המתרגם השתנתה — לפני ואחרי (3+ עבודות בכל צד)
+  const byPv = {};
+  for (const r of done) { const p = r.pv && r.pv.tl; if (p) (byPv[p] = byPv[p] || []).push(r); }
+  const pvs = Object.entries(byPv).filter(([, l]) => l.length >= 3).sort((a, b) => Math.max(...b[1].map((r) => r.at)) - Math.max(...a[1].map((r) => r.at)));
+  if (pvs.length >= 2) {
+    const [nw, od] = [kpis(pvs[0][1]), kpis(pvs[1][1])];
+    const dq = (nw.jd != null && od.jd != null) ? nw.jd - od.jd : (nw.q != null && od.q != null ? nw.q - od.q : null);
+    const dc = nw.cpm != null && od.cpm ? nw.cpm / od.cpm - 1 : null;
+    if (dq != null && (Math.abs(dq) >= 2 || (dc != null && Math.abs(dc) >= 0.15))) out.push({ k: 'pv_change', sev: dq <= -2 ? 1 : 3, imp: 0, v: { a: pvs[0][0], b: pvs[1][0], dq: rnd(dq, 1), dc: rnd(dc, 3) } });
+  }
+  if (rs.filter((r) => r.ij > 0).length >= 2) out.push({ k: 'inject_seen', sev: 3, imp: 0, v: { n: rs.filter((r) => r.ij > 0).length } });
+  const gq = done.filter((r) => r.gq).map((r) => r.gq.s);
+  if (gq.length) out.push({ k: 'gold', sev: 3, imp: 0, v: { s: rnd(mean(gq), 1), n: gq.length } });
+  if (!done.some((r) => r.lx)) out.push({ k: 'need_data', sev: 3, imp: 0, v: { n: done.length } });
+  return out.sort((a, b) => a.sev - b.sev || (b.imp || 0) - (a.imp || 0)).slice(0, 14);
+}
+/* records = כל הרשומות (מכל המשתמשים, אנונימיות). now = עכשיו */
+function learnView(records, now) {
+  const all = (Array.isArray(records) ? records : []).filter((r) => r && r.v === LR_V && r.use && r.t);
+  const rs = all.filter((r) => r.at >= now - 90 * DAY);
+  const cur = all.filter((r) => r.at >= now - WIN), prev = all.filter((r) => r.at >= now - 2 * WIN && r.at < now - WIN);
+  const k30 = kpis(cur), kp = kpis(prev);
+  const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done'));
+  const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs);
+  const tk = rs.map(tokOf);
+  return {
+    v: LR_V, n: all.length, n90: rs.length, first: all.length ? Math.min(...all.map((r) => r.at || now)) : 0,
+    k: k30, kp, wk: weekly(all, now, 8),
+    roles, tok: { i: sum(tk.map((t) => t.i)), o: sum(tk.map((t) => t.o)), cr: sum(tk.map((t) => t.cr)), cw: sum(tk.map((t) => t.cw)) },
+    stages, vt: vtTime(rs), fails, jc, qf, modes,
+    eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
+    follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length },
+    ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now),
+    recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
+      dur: r.dur, usd: r.usd, pr: r.pr, q: r.q ? r.q.s : null, jd: r.jd ? r.jd.s : null, run: runSec(r), fires: r.fires, ch: (() => { const t = tokOf(r); return inTok(t) ? rnd(t.cr / inTok(t), 3) : null; })() })),
+  };
+}
+
+module.exports = { LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };

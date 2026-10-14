@@ -296,6 +296,8 @@ class Pipeline:
 
     def save_usage(self):
         self.ctx.st['api_usage'] = self.eng.ledger.list()
+        if hasattr(self.eng, 'facts'):
+            self.ctx.st['api_eng'] = self.eng.facts()      # 14/10/2026: מאגר הלמידה
         self.J.save_state(self.ctx.st)
 
     # -------------------------------------------------------------- 2. הגהה + תדריך + מילון + שאלות
@@ -755,7 +757,10 @@ def run_auto(jobmod, args) -> int:
     except llm.LLMError as e:
         ctx = J.Ctx(J.load_state())
         ctx.st['api_usage'] = eng.ledger.list()
+        if hasattr(eng, 'facts'):
+            ctx.st['api_eng'] = eng.facts()
         J.save_state(ctx.st)
-        ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None)
+        lx = J.learn_safe(ctx) if hasattr(J, 'learn_safe') else None
+        ctx.report(fail=True, err=e.code, msg=str(e)[:200], force=True, usage=eng.ledger.list() or None, lx=lx)
         print('✗ ' + str(e))
         return 1
