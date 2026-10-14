@@ -2111,7 +2111,7 @@ def approve_render(ctx, wait=None):
 def fail(args):
     ctx = Ctx(load_state())
     err = args.err if ERR_RE.match(args.err or '') else 'worker'
-    ctx.report(fail=True, err=err, msg=args.msg, force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe())
+    ctx.report(lx=learn_safe(ctx), fail=True, err=err, msg=args.msg, force=True, usage=usage_safe(), trace=trace_safe())
     print('✓ העבודה סומנה "נכשלה" (' + err + ').')
     return 0
 
