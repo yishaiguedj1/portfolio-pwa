@@ -1447,7 +1447,7 @@ function leaving() {              // יציאה מדף: המפתח שהודבק 
   if (ui.view === 'connect') ui.wiz = { url: ui.wiz.url, key: '', busy: false, err: '' };
   if (ui.view === 'server') ui.newToken = '';   // טוקן שרת מוצג פעם אחת — יציאה מהדף מוחקת אותו מהזיכרון
 }
-function go(view, param) {
+function go(view, param, kind) {
   if (!root) return;
   const p = param == null ? null : param;
   scrolls[viewKey()] = root.scrollTop;
@@ -1455,7 +1455,7 @@ function go(view, param) {
   ui.view = view; ui.param = p;
   if (CW_OK) { stack.push({ v: view, p }); syncState(); }
   else afterBack(() => { try { history.pushState(cleanState({ studio: depth() + 1, sv: view, sp: p }), ''); } catch (e) {} });
-  render('push');
+  render(kind || 'push');
 }
 /* במקום הדף הנוכחי (מהטופס לדף ההתקדמות) — "חזור" משם חוזר לרשימה, לא לטופס */
 function replaceView(view, param) {
@@ -1573,9 +1573,17 @@ function appToOverview() {
   try { if (typeof switchTab === 'function' && typeof currentTabName === 'function' && currentTabName() !== 'overview') switchTab('overview'); } catch (e) {}
 }
 /* רענון בזמן שהסטודיו פתוח — index.html מוריד וילון בצבע הרקע עד שהדף הראשון מוכן (כמו בספרייה) */
-function curtainDown() {
+function curtainDown(instant) {   // 14/10/2026: instant — פתיחה רגילה בדף העצמאי: הדף מופיע שלם בבת אחת (כמו Invest), בלי דהייה
   const e = document.documentElement;
   if (!e.classList.contains('lib-restoring')) return;
+  if (instant) {
+    // הלוגו בהדר — כבר מפוענח כשהדף מופיע (בלי "קפיצה" שלו פריים אחר כך); לכל היותר 400ms
+    const lg = document.querySelector('.appbar .brand-logo');
+    const go = () => { e.classList.remove('lib-restoring', 'lib-curtain'); e.style.removeProperty('--curtain'); };
+    if (lg && lg.decode) Promise.race([lg.decode().catch(() => {}), new Promise((r) => setTimeout(r, 400))]).then(go);
+    else go();
+    return;
+  }
   e.classList.remove('lib-restoring');
   setTimeout(() => { e.classList.remove('lib-curtain'); e.style.removeProperty('--curtain'); }, 400);
 }
@@ -6025,12 +6033,12 @@ export function openStudio(opt) {
   }
   if (restore) root.classList.add('restored');
   render('none');
-  if (restore) curtainDown();
+  curtainDown(!restore);                   // 14/10/2026: הווילון של studio.html — יורד כשהדף הראשון מצויר
   try { root.focus({ preventScroll: true }); } catch (e) {}
   refreshStatus(true);
   const jobs0 = refreshJobs(true);
   // מההתראה: לדף העבודה — מיד אם היא כבר בטלפון, אחרת אחרי שהרשימה מהשרתון מגיעה
-  if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
+  if (jobLink) { if (jobRec(jobLink)) goJobLink(jobLink, linkView, 'none'); else Promise.resolve(jobs0).then(() => { if (root && jobRec(jobLink)) goJobLink(jobLink, linkView); }); }
   // העלאות שנקטעו (רענון): ממשיכים לבד כשיש ידית לקובץ עם הרשאה; אחרת המסך מבקש לבחור שוב
   for (const rec of store.jobs) {
     const done = rec.up.v.done && (rec.up.a.done || rec.up.noAudio);
@@ -6041,11 +6049,11 @@ export function openStudio(opt) {
 }
 
 /* קישור מההתראה: דף העבודה, ומשם הנגן / העורך כשאפשר — "חזור" מהם חוזר לעבודה */
-function goJobLink(id, view) {
-  go('job', id);
+function goJobLink(id, view, kind) {   // 14/10/2026: מיד בפתיחה (kind = 'none') — הדף מופיע כמו שהוא, בלי קובייה על דף שעוד נכנס
+  go('job', id, kind);
   const rec = jobRec(id);
-  if (view === 'play' && canPlay(rec)) go('play', id);
-  else if (view === 'subs' && canEdit(rec)) go('subs', id);
+  if (view === 'play' && canPlay(rec)) go('play', id, kind);
+  else if (view === 'subs' && canEdit(rec)) go('subs', id, kind);
 }
 
 export const _test = {

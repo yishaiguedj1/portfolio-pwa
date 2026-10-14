@@ -49,5 +49,18 @@ ok(/Supports-Loading-Mode: credentialed-prerender/.test(R('_headers')), '_header
 // אנדרואיד: Academy ו־Studio בתוך האפליקציה
 const st = R('android/app/src/main/res/values/strings.xml'), ma = R('android/app/src/main/java/io/github/yishaiguedj1/snowball/MainActivity.kt');
 ok(/academy\.thesnowball\.app/.test(st) && /studio\.thesnowball\.app/.test(st) && /setAdditionalTrustedOrigins\(EXTRA_ORIGINS\)/.test(ma), 'APK: Academy ו־Studio מקורות מאומתים (בלי שורת כתובת)');
+
+// הציור הראשון = הדף המלא
+{ const head = idx.slice(0, idx.indexOf('</head>'));
+  ok(/<script src="app\.js" defer><\/script>\n<script src="cloud\.js" defer blocking="render"><\/script>\n<\/head>/.test(idx) && !/<body>[\s\S]*<script src=/.test(idx), 'Invest: הסקריפטים בראש הדף, cloud.js חוסם ציור (blocking="render" עובד רק ב־head)');
+  ok(/try \{ if \(typeof window !== 'undefined' && document\.readyState !== 'loading' && typeof window\.snbInit === 'function'\) window\.snbInit\(\); \} catch/.test(R('cloud.js')) && /window\.snbInit = _initOnce;\n  document\.addEventListener\('DOMContentLoaded', _initOnce\);/.test(app), 'האתחול רץ בסוף cloud.js (לפני הציור), DOMContentLoaded גיבוי — פעם אחת');
+  ok(/<link rel="preload" as="image" href="logo-header\.png" fetchpriority="high">/.test(head) && /class="brand-logo"[^>]*decoding="sync"/.test(idx), 'הלוגו של Invest בפריים הראשון'); }
+for (const [page, mod] of [['academy.html', 'library.js'], ['studio.html', 'studio.js']]) {
+  ok(/<html [^>]*class="lib-curtain lib-restoring">/.test(R(page)), page + ': הווילון מההתחלה — הדף מופיע שלם');
+  ok(/function curtainDown\(instant\)/.test(R(mod)) && /if \(lg && lg\.decode\) Promise\.race\(\[lg\.decode\(\)/.test(R(mod)), mod + ': הווילון יורד מיד כשמוכן, אחרי שהלוגו פוענח');
+}
+ok(/\} else curtainDown\(true\);/.test(R('library.js')) && /curtainDown\(!restore\);/.test(R('studio.js')), 'הווילון יורד בכל פתיחה (לא רק ברענון)');
+ok(/goJobLink\(jobLink, linkView, 'none'\)/.test(R('studio.js')), 'קישור לעבודה בפתיחה — בלי קובייה על דף שעוד נכנס');
+ok(/data-t="' \+ Date\.now\(\)/.test(app) && /Date\.now\(\) - t0 > 90/.test(app), 'לוגו מניה שמגיע באיחור — בדהייה');
 console.log('# ' + (n - bad) + '/' + n);
 process.exit(bad ? 1 : 0);

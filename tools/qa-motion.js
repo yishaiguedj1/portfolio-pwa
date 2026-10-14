@@ -263,7 +263,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)));
   // שגיאות קונסול (בלי כשלי רשת של ה־API המדומה)
-  page.on('console', (m) => { if (m.type() !== 'error') return; const t = m.text(); if (/Failed to load resource|net::|the server responded|503|Content Security Policy/.test(t)) return; errors.push('console: ' + t.slice(0, 160)); });
+  page.on('console', (m) => { if (m.type() !== 'error') return; const t = m.text(); if (/Failed to load resource|net::|the server responded|503|Content Security Policy|Blocked script execution in 'about:blank' because the document's frame is sandboxed/.test(t)) return;   /* פריים הספר חסום לסקריפטים בכוונה (סעיף 16, אבטחה) */ errors.push('console: ' + t.slice(0, 160)); });
   const cdp = await ctx.newCDPSession(page);
   if (CPU > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });
   const caster = makeCaster(cdp, OUT);
@@ -397,13 +397,15 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
 
   /* ---------- הספרייה ---------- */
   if (ONLY !== 'app' && ONLY !== 'monkey' && ONLY !== 'ext' && ONLY !== 'ext2' && ONLY !== 'ext3' && ONLY !== 'ext4' && ONLY !== 'studio') {
-    if (ONLY === 'lib') { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(2000); }
+    /* 14/10/2026: Academy = דף עצמאי (academy.html, מבנייה 402 התפריט של Invest עובר אליו) — הבדיקה נפתחת שם,
+       ו"חזור" מהבית יוצא מהדף (כמו בטלפון) */
+    if (ONLY === 'lib') { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); await sleep(1500); }
     await page.evaluate(() => { localStorage.setItem('pwa_libshelf_v1', 'mine'); });
     if (MAXSTEPS && nSteps >= MAXSTEPS) { /* מכסת צעדים */ }
-    await step('lib: פתיחה מהתפריט', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1200); }, { settle: 1200 });
+    await step('lib: פתיחה מהתפריט', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(2200); }, { settle: 1200, expect: '.lib-root' });
     if (await ensureLibSeeded()) {
-      await page.evaluate(() => history.back()); await sleep(800);
-      await step('lib: פתיחה (אחרי ייבוא)', async () => { await jsClick('#menuBtn'); await sleep(300); await jsClick('#menuLibraryBtn'); await sleep(1200); }, { settle: 1200 });
+      await page.reload({ waitUntil: 'load' }); await sleep(1500);
+      await step('lib: פתיחה (אחרי ייבוא)', () => sleep(300), { settle: 1200, expect: '.lib-root' });
     }
     await step('lib: מדף → THE SNOWBALL', () => page.click('.lib-seg-b:nth-child(1)'));
     await step('lib: מדף → הספרייה שלי', () => page.click('.lib-seg-b:nth-child(2)'));

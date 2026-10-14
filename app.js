@@ -14444,7 +14444,12 @@ function init() {
 }
 
 if (typeof document !== 'undefined') {
-  document.addEventListener('DOMContentLoaded', init);
+  /* 14/10/2026 (רענון — פריים ריק בין הדף הישן לחדש): cloud.js (הסקריפט האחרון, blocking="render" ב־index.html) מפעיל
+     את האתחול מיד בסופו — הדפדפן לא מצייר עד שהדף כבר מצויר. DOMContentLoaded נשאר גיבוי (פעם אחת בלבד) */
+  let _initRan = false;
+  const _initOnce = () => { if (_initRan) return; _initRan = true; init(); };
+  if (typeof window !== 'undefined') window.snbInit = _initOnce;
+  document.addEventListener('DOMContentLoaded', _initOnce);
 }
 
 /* v103: תפריט המבורגר ראשי — נפתח/נסגר, נסגר בלחיצה בחוץ או Escape */

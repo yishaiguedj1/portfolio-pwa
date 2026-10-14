@@ -419,3 +419,5 @@
   window.__cloudSave = scheduleSave;
   window.__cloudFlush = flushSave;
 })();
+/* 14/10/2026: האתחול של app.js מיד כאן (הסקריפט האחרון בדף) — לא אחרי DOMContentLoaded, כדי שהציור הראשון יהיה הדף המלא */
+try { if (typeof window !== 'undefined' && document.readyState !== 'loading' && typeof window.snbInit === 'function') window.snbInit(); } catch (e) {}

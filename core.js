@@ -362,17 +362,21 @@ function swipeVelocity(samples, now) {
 /* 14/10/2026 (סרטון המשתמש — מסך שחור במעבר בין האפליקציות): כשהתפריט נפתח, Chrome מכין ברקע את האפליקציות
    האחרות (Speculation Rules — prerender), והלחיצה מחליפה לדף שכבר מצויר. אותו אתר (thesnowball.app) — היעד מסכים
    בכותרת Supports-Loading-Mode (_headers); ב־CSP ‏'inline-speculation-rules'. דפדפן בלי תמיכה / חיסכון בנתונים — כלום */
+/* הטקסט קבוע לכל זוג כתובות — ה־CSP מאשר אותו לפי hash (עם hash במדיניות Chrome מתעלם מ־'inline-speculation-rules'),
+   ו־tests/prerender.test.js בודק שכל ששת הצירופים (3 אפליקציות × ייצור/ניסוי) בכל הדפים */
+const PRE_RE = /^https:\/\/(invest|academy|studio)(-staging)?\.thesnowball\.app\/$/;
+function preRulesText(urls) { return JSON.stringify({ prerender: [{ source: 'list', urls: urls, eagerness: 'immediate' }] }); }
 function appPrerender(urls) {
   try {
     if (typeof document === 'undefined' || !urls || !urls.length || window._snbPre) return;
     if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules'))) return;
     if (navigator.connection && navigator.connection.saveData) return;
     const list = urls.filter((u) => u && String(u).split('#')[0] !== location.href.split('#')[0]);
-    if (!list.length) return;
+    if (!list.length || !list.every((u) => PRE_RE.test(u))) return;   // רק בין הכתובות של האפליקציות (ייצור / ניסוי)
     window._snbPre = 1;
     const s = document.createElement('script');
     s.type = 'speculationrules';
-    s.textContent = JSON.stringify({ prerender: [{ source: 'list', urls: list, eagerness: 'immediate' }] });
+    s.textContent = preRulesText(list);
     document.head.appendChild(s);
   } catch (e) {}
 }

@@ -140,7 +140,7 @@ ok(/\[#&\]studio=\(j\[A-Za-z0-9_-\]\{20\}\)/.test(read('studio-app.js')), 'studi
   // 13/10/2026 (בקשת המשתמש): צבע מערכת לכל אפליקציה — Studio אדום, Academy כחול (הגוונים המדויקים), במקום הירוק של Invest
   { const css = read('styles.css');
     for (const [app, hex] of [['studio', '#FF4656'], ['academy', '#4699FF']]) {
-      ok(read(app + '.html').includes('<html lang="he" dir="rtl" data-app="' + app + '">'), app + ': data-app על <html>');
+      ok(read(app + '.html').includes('<html lang="he" dir="rtl" data-app="' + app + '" class="lib-curtain lib-restoring">'), app + ': data-app על <html>');
       const m = new RegExp('html\\[data-app="' + app + '"\\] \\{([^}]*)\\}').exec(css);
       ok(m && m[1].includes('--primary: ' + hex + ';') && m[1].includes('--primary-dark: ' + hex + ';') && /--primary-container: rgba\(/.test(m[1]) && /--on-primary: #/.test(m[1]), app + ': --primary = ' + hex);
       ok(new RegExp('html\\[data-app="' + app + '"\\]\\[data-theme="dark"\\] \\{ --on-primary-container: #').test(css), app + ': גוון טקסט על מיכל — גם לכהה');
