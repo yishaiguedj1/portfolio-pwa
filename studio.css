@@ -835,3 +835,28 @@ button.st-fnd:active { background: var(--st-fill); }
 .st-card > .st-list { margin: 0; background: transparent; }
 .st-card > .st-note { margin: 6px 14px 10px; }
 .st-card > .st-test { margin: 8px 8px 6px; background: var(--surface-2); }
+/* 15/10/2026: מגדל הפיקוח למשתמשים — מינימלי (התצוגה המקדימה שאושרה). מצב = ירוק/כתום/אדום (--st-ok), כפתורים בצבע האפליקציה */
+.st-ut-date { color: var(--on-surface-var); font-size: 14px; margin: -4px 4px 14px; }
+.st-ut-hero { display: flex; gap: 12px; align-items: center; background: var(--surface); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 6px; }
+.st-ut-hic { width: 42px; height: 42px; border-radius: var(--pill); display: grid; place-items: center; flex: none; background: var(--st-ok-c); color: var(--st-ok); font-weight: 750; font-size: 18px; }
+.st-ut-hero.wait .st-ut-hic { background: rgba(245, 165, 36, .16); color: #F5A524; }
+.st-ut-ht { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.st-ut-ht b { font-size: 18px; }
+.st-ut-ht small { color: var(--on-surface-var); font-size: 14px; }
+.st-ut-row { align-items: center; }
+.st-ut-dot { width: 10px; height: 10px; border-radius: var(--pill); flex: none; background: var(--on-surface-var); }
+.st-ut-dot.ok { background: var(--st-ok); }
+.st-ut-dot.wait { background: #F5A524; }
+.st-ut-dot.bad { background: var(--loss); }
+.st-ut-bar { display: block; height: 5px; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 10%, transparent); margin-top: 7px; overflow: hidden; }
+.st-ut-bar[hidden] { display: none; }
+.st-ut-bar i { display: block; height: 100%; background: var(--st-ok); border-radius: var(--pill); }
+.st-ut-tail { flex: none; display: flex; align-items: center; }
+.st-ut-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.st-ut-tile { display: flex; flex-direction: column; gap: 2px; background: var(--surface); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+.st-ut-tile > span { color: var(--on-surface-var); font-size: 13px; }
+.st-ut-tile b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.st-ut-tile small { color: var(--on-surface-var); font-size: 12.5px; }
+.st-ut-meter { display: block; height: 6px; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 10%, transparent); margin-top: 8px; overflow: hidden; }
+.st-ut-meter i { display: block; height: 100%; background: var(--st-ok); border-radius: var(--pill); }
+.st-ut-cap { color: var(--on-surface-var); font-size: 13px; text-align: center; margin: 8px 0 0; }
