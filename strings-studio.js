@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1516 מפתחות מתוך 3006) */
+/* המחרוזות של studio (1517 מפתחות מתוך 3009) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -725,6 +725,7 @@ he: {
   "studioLoopQ": "זו הפעם ה־{n} ב־24 שעות שהעבודה הזו צריכה \"המשך\" — כנראה אותה תקלה חוזרת. להמשיך בכל זאת?",
   "studioLrnAckOk": "הבנתי",
   "studioLrnAckQ": "העבודות שלך עוזרות לשפר את התרגום. נשמרים זמנים, עלות וציונים, הטקסט של הכתוביות (המקור, התרגום, העריכות שלך ושמות הדוברים), וגם הקול ועותק קטן של הסרטון באיכות נמוכה. הכל מוצפן, בלי השם שלך ובלי הסרטון המקורי, ונמחק אחרי 24 חודשים. אפשר לכבות ולמחוק בכל רגע ב־Studio ← הגדרות.",
+  "studioLrnAckQF": "תקופת פיתוח — איסוף מלא: כדי לאבחן ולשפר נשמרים גם שם הקובץ, הטקסט המלא בלי השמטות, ההערות והשאלות שלך, קבצי העבודה (התרגום לכל חלק, הערות המבקר והשופט), הלוגים של השרת, יומן הקריאות ל־Claude והשגיאות באפליקציה — נוסף על הזמנים, העלות, הקול ועותק קטן של הסרטון. הכל מוצפן, בלי הסרטון המקורי ובלי נתוני Invest. הלוגים נמחקים אחרי 30 יום, השאר אחרי 24 חודשים. אפשר לכבות ולמחוק בכל רגע ב־Studio ← הגדרות.",
   "studioLrnForget": "מחק את התרומות שלי",
   "studioLrnForgetDone": "נמחקו {n} רשומות",
   "studioLrnForgetOk": "למחוק",
@@ -2243,6 +2244,7 @@ en: {
   "studioLoopQ": "This job has needed \"Continue\" {n} times in 24 hours — probably the same problem again. Continue anyway?",
   "studioLrnAckOk": "Got it",
   "studioLrnAckQ": "Your jobs help improve translation. We keep times, cost and scores, the subtitle text (the source, the translation, your edits and the speaker names), and also the audio and a small low-quality copy of the video. Everything is encrypted, without your name or the original video, and deleted after 24 months. You can turn it off and delete it any time in Studio → Settings.",
+  "studioLrnAckQF": "Development period — full collection: to diagnose and improve, we also keep the file name, the full unredacted text, your notes and questions, the job files (the translation of every part, the reviewer and judge notes), the server logs, the log of calls to Claude and the app errors — on top of times, cost, the audio and a small copy of the video. Everything is encrypted, without the original video and without Invest data. Logs are deleted after 30 days, the rest after 24 months. You can turn it off and delete it any time in Studio → Settings.",
   "studioLrnForget": "Delete my contributions",
   "studioLrnForgetDone": "{n} records deleted",
   "studioLrnForgetOk": "Delete",

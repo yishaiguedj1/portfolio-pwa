@@ -31,41 +31,69 @@ function scrub(s) {
     .slice(0, MAX_TXT);
 }
 const txt = (v, max) => scrub(v).slice(0, max || MAX_TXT);
+/* האיסוף המלא (learn_full, תקופת הפיתוח — lib/devlog.js): בלי scrub (רק תווי בקרה), עם תקרה גבוהה יותר */
+const MAX_TXT_F = 4000;
+const raw = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').slice(0, max || MAX_TXT_F);
+let T = txt;   // המנקה של הקריאה הנוכחית (normCorpus מחליף ומחזיר — הקוד סינכרוני)
 
 function normCue(c) {
   if (!c || typeof c !== 'object' || !Number.isInteger(c.i) || c.i < 0 || c.i > 1e6) return null;
-  const o = { i: c.i, s: n3(c.s), e: n3(c.e), k: SPK_RE.test(String(c.k || '')) ? c.k : 'S?', en: txt(c.en), d: txt(c.d) };
-  for (const k of ['f', 'r', 'z']) if (typeof c[k] === 'string') o[k] = txt(c[k]);
+  const o = { i: c.i, s: n3(c.s), e: n3(c.e), k: SPK_RE.test(String(c.k || '')) ? c.k : 'S?', en: T(c.en), d: T(c.d) };
+  for (const k of ['f', 'r', 'z']) if (typeof c[k] === 'string') o[k] = T(c[k]);
   return o;
 }
 function normWord(w) {
   if (!Array.isArray(w) || w.length < 3) return null;
-  return [txt(w[0], 60), n3(w[1]), n3(w[2]), SPK_RE.test(String(w[3] || '')) ? w[3] : 'S?', n3(w[4]), n3(w[5]), n3(w[6]),
+  return [T(w[0], 60), n3(w[1]), n3(w[2]), SPK_RE.test(String(w[3] || '')) ? w[3] : 'S?', n3(w[4]), n3(w[5]), n3(w[6]),
     ALIGN_RE.test(String(w[7] || '')) ? String(w[7] || '') : ''];
 }
 
 /* הגוף מהעובד → הפריט שנשמר (או null). month = 'YYYY-MM' מהשרתון */
-function normCorpus(o, month) {
+function normCorpus(o, month, full) {
+  T = full ? raw : txt;
+  try { return normCorpus0(o, month, !!full); } finally { T = txt; }
+}
+/* קבצי הטקסט של הפרויקט (רק באיסוף המלא): הנחיות, תרגום לכל חלק, הערות המבקר והשופט — { נתיב יחסי: תוכן } */
+const TX_FILES = 120, TX_FILE = 300 * 1024, TX_TOTAL = 6 * 1024 * 1024;
+const TX_PATH = /^(?!.*\.\.)[\w][\w./-]{0,119}$/;
+function normTx(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+  const out = {};
+  let left = TX_TOTAL, n = 0;
+  for (const [k, v] of Object.entries(x)) {
+    if (n >= TX_FILES || left <= 0) break;
+    if (!TX_PATH.test(k) || typeof v !== 'string') continue;
+    const c = raw(v, Math.min(TX_FILE, left));
+    out[k] = c; left -= c.length; n++;
+  }
+  return n ? out : null;
+}
+function normCorpus0(o, month, full) {
   if (!o || typeof o !== 'object' || Array.isArray(o) || o.v !== LC_V || !Array.isArray(o.cu)) return null;
   const cu = o.cu.slice(0, MAX_CUES).map(normCue).filter(Boolean);
   if (!cu.length) return null;
   const out = { v: LC_V, m: MONTH_RE.test(String(month || '')) ? month : '', cu };
   for (const k of ['mode', 'src', 'dst']) if (TOK_RE.test(String(o[k] || ''))) out[k] = o[k];
   if (isNum(o.dur) && o.dur > 0) out.dur = Math.round(o.dur * 10) / 10;
-  if (Array.isArray(o.fin)) out.fin = o.fin.slice(0, MAX_CUES).filter((c) => c && typeof c === 'object').map((c) => ({ s: n3(c.s), e: n3(c.e), h: txt(c.h) }));
+  if (Array.isArray(o.fin)) out.fin = o.fin.slice(0, MAX_CUES).filter((c) => c && typeof c === 'object').map((c) => ({ s: n3(c.s), e: n3(c.e), h: T(c.h) }));
   if (Array.isArray(o.wd)) out.wd = o.wd.slice(0, MAX_WORDS).map(normWord).filter(Boolean);
-  if (Array.isArray(o.pt)) out.pt = o.pt.slice(0, MAX_PT).filter((x) => typeof x === 'string').map((x) => txt(x));
+  if (Array.isArray(o.pt)) out.pt = o.pt.slice(0, MAX_PT).filter((x) => typeof x === 'string').map((x) => T(x));
   if (o.sp && typeof o.sp === 'object' && !Array.isArray(o.sp)) {
     const sp = {};
     for (const [k, v] of Object.entries(o.sp).slice(0, 20)) {
       if (!SPK_RE.test(k) || !v || typeof v !== 'object') continue;
       const x = {};
-      for (const f of ['n', 'r', 'g']) if (typeof v[f] === 'string' && v[f].trim()) x[f] = txt(v[f], 80);
+      for (const f of ['n', 'r', 'g']) if (typeof v[f] === 'string' && v[f].trim()) x[f] = T(v[f], 80);
       if (Object.keys(x).length) sp[k] = x;
     }
     if (Object.keys(sp).length) out.sp = sp;
   }
-  if (Array.isArray(o.gl)) out.gl = o.gl.slice(0, MAX_GL).filter((x) => typeof x === 'string').map((x) => txt(x, 200));
+  if (Array.isArray(o.gl)) out.gl = o.gl.slice(0, MAX_GL).filter((x) => typeof x === 'string').map((x) => T(x, 200));
+  if (full) {
+    out.full = 1;
+    const tx = normTx(o.tx);
+    if (tx) out.tx = tx;
+  }
   return out;
 }
 
@@ -145,4 +173,4 @@ function corpusStats(items) {
   return out;
 }
 
-module.exports = { LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, parseKey, oldestMonth, expired, corpusStats };
+module.exports = { LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normTx, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, qeKey, eKey, mKey, MEDIA_KINDS, MEDIA_MAX, parseKey, oldestMonth, expired, corpusStats };

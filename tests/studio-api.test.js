@@ -30,7 +30,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(S.workerJob({ id: 'j', kind: 'tr', eng: 'api', capc: 1250 }).cap === 12.5 && S.workerJob({ id: 'j', kind: 'tr', capc: 1250 }).cap === null, 'העובד מקבל תקרה רק במצב API (נשמרת בסנטים)');
   ok(S.publicJob({ id: 'j', kind: 'tr', state: 'new', spec: { eng: 'api' } }, 1).eng === 'api' && S.publicJob({ id: 'j', kind: 'tr', state: 'new', spec: {} }, 1).eng === 'sub', 'הטלפון יודע באיזה מנוע העבודה');
   const api = read('ibkr-proxy/api/studio.js');
-  ok(/const SERVER_OPS = new Set\(\['poll', 'beat'\]\)/.test(api) && /S\.serverMatches\(srv, p\.tok\)/.test(api) && /patchIf\(deps, 'studioJobs', job\.id, \{ sid: p\.sid/.test(api),
+  ok(/const SERVER_OPS = new Set\(\['poll', 'beat'/.test(api) && /S\.serverMatches\(srv, p\.tok\)/.test(api) && /patchIf\(deps, 'studioJobs', job\.id, \{ sid: p\.sid/.test(api),
     'השרתון: poll/beat רק עם טוקן שרת, ולקיחה בתנאי (שני שרתים לא לוקחים אותה עבודה)');
   ok(/if \(!isAdmin\(user\)\) return res\.status\(403\)\.json\(\{ ok: false, error: 'not_admin' \}\)/.test(api) && /th: S\.keyHash\(token\)/.test(api),
     'השרתון: רק המנהל מנהל שרתים; נשמר רק ה־hash של הטוקן');
@@ -71,7 +71,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   /* ---------- 3. העובד והשרת ---------- */
   const ag = read('translator/agent.py');
   ok(/def host_info\(/.test(ag) && /hb = host_info\(busy\)[\s\S]{0,200}'op': op, 'v': 1, 'hb': hb\}/.test(ag) && /poll\(server, tok, 'beat', _busy\)/.test(ag), 'הסוכן: דופק עם מצב השרת, וגם באמצע עבודה');
-  ok(/rc = run_child\(\['auto'\], AUTO_TIMEOUT_S\)/.test(ag) && /finally:\s*\n\s*_busy = ''\s*\n\s*cleanup\(\)/.test(ag), 'הסוכן: run ואז auto, וניקוי תמיד בסוף');
+  ok(/rc = run_child\(\['auto'\], AUTO_TIMEOUT_S\)/.test(ag) && /finally:[\s\S]{0,700}?_busy = ''[\s\S]{0,80}?cleanup\(\)/.test(ag), 'הסוכן: run ואז auto, וניקוי תמיד בסוף');
 
   /* ---------- 4. מחרוזות ---------- */
   const app = read('app.js');

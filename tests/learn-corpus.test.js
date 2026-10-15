@@ -117,7 +117,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(sealed.startsWith('v1.') && !/my-private-lecture|ownerUid0001|owner@example|054-123|התקשרו/.test(sealed), 'בדלי — מוצפן: בלי טקסט, בלי שם הקובץ, uid או מייל');
   ok((await a.put(body(raw))).saved === false, 'פעם אחת לעבודה (lc)');
   ok((await a.put('not-base64-gzip')).saved === false, 'גוף שבור — לא נשמר, בלי שגיאה לעובד');
-  const big = await call({ op: 'learnPut', job: a.id, key: 'x'.repeat(43), lc: 'A'.repeat(3e6) }, true);
+  const big = await call({ op: 'learnPut', job: a.id, key: 'x'.repeat(43), lc: 'A'.repeat(4.2e6) }, true);
   ok(big.code === 413, 'גוף גדול מדי — 413');
 
   // מתג כבוי — לא נשמר

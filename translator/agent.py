@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import collections
+import json
 import os
 import platform
 import random
@@ -63,6 +64,12 @@ def token() -> str:
 def host_info(busy: str = '') -> dict:
     """מצב השרת למסך השרת באפליקציה — מספרים בלבד (בלי שמות קבצים, בלי תוכן). כל ערך שלא נמדד — לא נשלח."""
     hb = {'v': os.environ.get('SNB_VERSION', 'dev')[:12], 'busy': busy}
+    if busy:                          # 15/10/2026: הדופק עם השלב הנוכחי (מ־prog.json של job.py)
+        pr = _prog()
+        if re.match(r'^[a-z0-9_-]{1,24}$', str(pr.get('st') or '')):
+            hb['st'] = pr['st']
+            if isinstance(pr.get('p'), (int, float)):
+                hb['p'] = round(pr['p'], 3)
     # ת2: האם הקופסה רצה בליבה מדומה (gVisor מחזיר release שמסתיים ב־gvisor), ואם לא — למה (snb_runtime במארח)
     hb['iso'] = 'g' if platform.release().endswith('gvisor') else 'r'
     why = os.environ.get('SNB_ISO_WHY', '')
@@ -155,12 +162,56 @@ def heartbeat():
 _busy = ''
 
 
+_cpu_prev = [0, 0]
+
+
+def cpu_pct():
+    """אחוז המעבד מאז הדגימה הקודמת (/proc/stat, כל הליבות)"""
+    try:
+        f = [int(x) for x in Path('/proc/stat').read_text().splitlines()[0].split()[1:]]
+    except (OSError, ValueError, IndexError):
+        return None
+    idle, tot = f[3] + (f[4] if len(f) > 4 else 0), sum(f)
+    pi, pt = _cpu_prev
+    _cpu_prev[:] = [idle, tot]
+    if not pt or tot <= pt:
+        return None
+    return round(100 * (1 - (idle - pi) / (tot - pt)), 1)
+
+
+def met_sample() -> dict:
+    hb = host_info(_busy)
+    d = {'t': int(time.time()), 'cpu': cpu_pct(), 'mem': hb.get('mem'), 'disk': hb.get('disk'), 'free': hb.get('free'), 'load': hb.get('load')}
+    if _busy:
+        pr = _prog()
+        d.update({'j': _busy, 'st': str(pr.get('st') or '')[:24], 'p': pr.get('p')})
+        if _child['pid']:
+            d['rss'] = sum(x.get('rss') or 0 for x in proc_snapshot(_child['pid']))
+    return {k: v for k, v in d.items() if v not in (None, '')}
+
+
 def beat_loop(server: str = '', tok: str = ''):
+    """כל דקה: דגימת מדדים (האיסוף המלא); כל BEAT_S: הדופק (קובץ alive + beat לשרתון — עם השלב הנוכחי);
+    כל MET_FLUSH דגימות: מנה לשרתון. השרתון ענה שהדגל כבוי — מנסים שוב רק אחרי שעה (הדגימות נזרקות)"""
+    smp, n, quiet_until = [], 0, 0.0
+    cpu_pct()
     while not _stop:
-        heartbeat()
-        if server and _busy:
-            poll(server, tok, 'beat', _busy)      # באמצע עבודה: מסך השרת יודע שהוא חי ועל מה הוא עובד
-        for _ in range(BEAT_S):
+        if n % max(1, BEAT_S // MET_S) == 0:
+            heartbeat()
+            if server and _busy:
+                poll(server, tok, 'beat', _busy)      # באמצע עבודה: מסך השרת יודע שהוא חי, על מה הוא עובד ובאיזה שלב
+        n += 1
+        if server and tok and time.time() >= quiet_until:
+            try:
+                smp.append(met_sample())
+            except Exception:     # noqa: BLE001
+                pass
+            if len(smp) >= MET_FLUSH:
+                j = dev_send(server, tok, 'devMet', {'smp': smp, 'ver': os.environ.get('SNB_VERSION', 'dev')[:12], 'cores': os.cpu_count() or 1})
+                smp = []
+                if not j.get('saved'):
+                    quiet_until = time.time() + 3600
+        for _ in range(MET_S):
             if _stop:
                 return
             time.sleep(1)
@@ -218,9 +269,177 @@ def _kill_group(pgid: int):
         pass
 
 
+# ---------------------------------------------------------------- האיסוף המלא בתקופת הפיתוח (15/10/2026)
+# הדגל learn_full במרכז הניהול. הסוכן שולח לשרתון (טוקן השרת, devLog/devMet): סוף הלוג של כל עבודה וה־traceback בכישלון;
+# כשעבודה תקועה (ההתקדמות לא זזה STUCK_S) — מצב התהליך (faulthandler של job.py + /proc); ומדדי מעבד/זיכרון/דיסק פעם בדקה.
+# הלוג של העבודה נשלח רק כש־job.py קיבל full מהשרתון (הבעלים אישר את הנוסח); המדדים — השרתון בודק את הדגל.
+# השרתון מנקה סודות (lib/devlog.js — redact) ומצפין. תקלה כאן לעולם לא נוגעת בעבודה עצמה.
+DEV_DIR = J.VT_WORK / '_dev'
+TAIL_LINES = 4000
+TAIL_BYTES = 200 * 1024
+STUCK_S = int(os.environ.get('SNB_STUCK_S', str(20 * 60)))
+MET_S = 60
+MET_FLUSH = 10                      # דגימות במנה (= פעם ב־10 דק׳)
+_tail: collections.deque = collections.deque(maxlen=TAIL_LINES)
+_tail_lock = threading.Lock()
+_child = {'pid': 0, 'started': 0.0}
+
+
+def _pump(stream):
+    """הפלט של job.py: לקונסולה של docker כמו קודם, ולזנב בזיכרון (לשליחה בסוף העבודה)"""
+    for raw in iter(stream.readline, b''):
+        try:
+            sys.stdout.buffer.write(raw)
+            sys.stdout.flush()
+        except (OSError, ValueError):
+            pass
+        with _tail_lock:
+            _tail.append(raw.decode('utf-8', 'replace').rstrip('\n')[:2000])
+
+
+def tail_text() -> str:
+    with _tail_lock:
+        lines = list(_tail)
+    out, n = [], 0
+    for ln in reversed(lines):
+        n += len(ln) + 1
+        if n > TAIL_BYTES:
+            break
+        out.append(ln)
+    return '\n'.join(reversed(out))
+
+
+def last_traceback(text: str) -> str:
+    """ה־traceback האחרון בלוג (Python מדפיס אותו ל־stderr — שנאסף יחד עם הפלט)"""
+    i = text.rfind('Traceback (most recent call last):')
+    if i < 0:
+        i = text.rfind('Fatal Python error')
+    return text[i:][:32 * 1024] if i >= 0 else ''
+
+
+def _read(path, limit=None):
+    try:
+        b = Path(path).read_bytes()
+        return b[-limit:] if limit else b
+    except OSError:
+        return b''
+
+
+def proc_snapshot(pgid: int) -> list:
+    """מצב כל התהליכים של העבודה (קבוצת התהליכים של job.py): מצב, על מה מחכה (wchan), זיכרון, זמן מעבד, שורת פקודה"""
+    out = []
+    try:
+        tick = os.sysconf('SC_CLK_TCK')
+        page = os.sysconf('SC_PAGE_SIZE')
+    except (ValueError, OSError):
+        tick, page = 100, 4096
+    for d in Path('/proc').iterdir() if Path('/proc').is_dir() else []:
+        if not d.name.isdigit():
+            continue
+        try:
+            st = (d / 'stat').read_text()
+            comm = st[st.index('(') + 1:st.rindex(')')]
+            f = st[st.rindex(')') + 2:].split()
+            if pgid and int(f[2]) != pgid:
+                continue
+            rss = int((d / 'statm').read_text().split()[1]) * page
+            cl = (d / 'cmdline').read_bytes().replace(b'\0', b' ').decode('utf-8', 'replace').strip()
+            cl = re.sub(r'(--key[ =])\S+', r'\1⟨key⟩', cl)[:300]
+            out.append({'pid': int(d.name), 'cm': re.sub(r'[^\w.:@/+-]', '_', comm)[:40], 's': f[0][:1],
+                        'wc': re.sub(r'[^\w.]', '', _read(d / 'wchan').decode('ascii', 'replace'))[:48],
+                        'rss': rss, 'cpu': round((int(f[11]) + int(f[12])) / tick, 1), 'th': int(f[17]), 'cl': cl})
+        except (OSError, ValueError, IndexError):
+            continue
+    return out[:60]
+
+
+def _job_state() -> dict:
+    try:
+        return J.load_state() or {}
+    except BaseException:     # noqa: BLE001
+        return {}
+
+
+def _prog() -> dict:
+    try:
+        return json.loads((J.STATE.parent / 'prog.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def dev_send(server: str, tok: str, op: str, d: dict) -> dict:
+    try:
+        st, j, _ = J.http('POST', server + '/api/studio', {'op': op, 'd': d}, headers={'Authorization': 'Bearer ' + tok}, timeout=60)
+        return j if st == 200 and isinstance(j, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def calls_log() -> list:
+    out = []
+    for ln in _read(DEV_DIR / 'calls.jsonl', 4 * 1024 * 1024).decode('utf-8', 'replace').splitlines():
+        try:
+            x = json.loads(ln)
+            if isinstance(x, dict):
+                out.append(x)
+        except ValueError:
+            continue
+    return out[-3000:]
+
+
+def dev_job_log(server: str, tok: str, job_id: str, rc: int, kind: str = 'end', stack: str = '', ps=None) -> bool:
+    """היומן של העבודה לשרתון — רק כשהעבודה במצב המלא (job.py שמר full מהלקיחה)"""
+    st = _job_state()
+    if not st.get('full') or st.get('job') != job_id or not server:
+        return False
+    pr = _prog()
+    text = tail_text()
+    d = {'job': job_id, 't': kind, 'rc': rc, 'tail': text, 'tb': last_traceback(text) if kind == 'end' else '',
+         'calls': calls_log(), 'st': str(pr.get('st') or '')[:24], 'p': pr.get('p'),
+         'dur': int(time.time() - _child['started']) if _child['started'] else None,
+         'idle': int(time.time() - pr['chg']) if isinstance(pr.get('chg'), (int, float)) else None,
+         'ver': os.environ.get('SNB_VERSION', 'dev')[:12]}
+    if stack:
+        d['stack'] = stack
+    if ps:
+        d['ps'] = ps
+    if kind == 'end':
+        d['stack'] = d.get('stack') or _read(DEV_DIR / 'stack.txt', 64 * 1024).decode('utf-8', 'replace')
+    return bool(dev_send(server, tok, 'devLog', {k: v for k, v in d.items() if v not in (None, '')}).get('saved'))
+
+
+def stuck_watch(server: str, tok: str, job_id: str, stop: threading.Event):
+    """עבודה שההתקדמות שלה לא זזה STUCK_S: faulthandler ב־job.py (SIGUSR1 → stack.txt) + מצב התהליכים → devLog stuck.
+    פעם אחת לכל תקיעה (לפי chg), ולכל היותר פעם בחצי שעה"""
+    last_chg, last_at = None, 0.0
+    while not stop.wait(60):
+        pr = _prog()
+        chg = pr.get('chg')
+        if not isinstance(chg, (int, float)) or time.time() - chg < STUCK_S or chg == last_chg or time.time() - last_at < 1800:
+            continue
+        if not _job_state().get('full'):
+            continue
+        last_chg, last_at = chg, time.time()
+        pid = _child['pid']
+        try:
+            sp = DEV_DIR / 'stack.txt'
+            before = sp.stat().st_size if sp.exists() else 0
+            if pid:
+                os.kill(pid, signal.SIGUSR1)
+            time.sleep(3)
+            stack = _read(sp).decode('utf-8', 'replace')[before:][-64 * 1024:]
+        except OSError:
+            stack = ''
+        dev_job_log(server, tok, job_id, -1, 'stuck', stack, proc_snapshot(pid))
+
+
 def run_child(args: list[str], timeout: int) -> int:
     cmd = [sys.executable, str(HERE / 'job.py')] + args
-    p = subprocess.Popen(cmd, cwd=str(HERE.parent), start_new_session=True)   # קבוצת תהליכים משלה — כדי לעצור את כולה
+    p = subprocess.Popen(cmd, cwd=str(HERE.parent), start_new_session=True,   # קבוצת תהליכים משלה — כדי לעצור את כולה
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)   # 15/10: הפלט נאסף לזנב (האיסוף המלא)
+    _child['pid'] = p.pid
+    pump = threading.Thread(target=_pump, args=(p.stdout,), daemon=True)
+    pump.start()
     try:
         return p.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -233,6 +452,12 @@ def run_child(args: list[str], timeout: int) -> int:
         return 124
     finally:
         _kill_group(p.pid)   # 14/10/2026: גם כשהעבודה הסתיימה — תהליכי vt יתומים שנשארו ממנה (הקבוצה כבר ריקה = כלום)
+        pump.join(5)
+        try:
+            p.stdout.close()
+        except OSError:
+            pass
+        _child['pid'] = 0
 
 
 def crash_code(rc: int) -> str:
@@ -260,11 +485,18 @@ def end_code(rc: int) -> str:
     return {'job_timeout': 'timeout', 'worker_oom': 'oom'}.get(crash_code(rc), 'crash')
 
 
-def handle(jb: dict, server: str) -> int:
+def handle(jb: dict, server: str, tok: str = '') -> int:
     global _busy
     J.VT_WORK.mkdir(parents=True, exist_ok=True)
     BUSY.write_text(jb['id'])
     _busy = jb['id']
+    with _tail_lock:
+        _tail.clear()
+    _child['started'] = time.time()
+    stop = threading.Event()
+    rc = None
+    if tok:
+        threading.Thread(target=stuck_watch, args=(server, tok, jb['id'], stop), daemon=True).start()
     try:
         base = ['run', '--job', jb['id'], '--key', jb['key']]
         if server != J.SERVER:                 # שרתון הניסוי או localhost בבדיקות — job.py בודק שוב בעצמו
@@ -285,7 +517,14 @@ def handle(jb: dict, server: str) -> int:
                     pass
         return rc
     finally:
+        stop.set()
+        if tok:
+            try:
+                dev_job_log(server, tok, jb['id'], rc if isinstance(rc, int) else -2)   # לפני הניקוי — הקבצים עוד שם
+            except BaseException:     # noqa: BLE001
+                pass
         _busy = ''
+        _child['started'] = 0.0
         cleanup()
         try:
             BUSY.unlink()
@@ -329,7 +568,7 @@ def main(once: bool = False) -> int:
             if warm is not None and warm.is_alive():
                 warm.join(WARM_WAIT_S)           # ההורדה מראש עוד רצה — העבודה הייתה מורידה את אותם קבצים בעצמה
             ev('job')
-            rc = handle(r['job'], server)
+            rc = handle(r['job'], server, tok)
             print('← סיום (' + str(rc) + ')', flush=True)
             ev(end_code(rc))
             backoff = POLL_S

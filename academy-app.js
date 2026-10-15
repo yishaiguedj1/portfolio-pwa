@@ -17,6 +17,7 @@ setTimeout(() => { de.classList.remove('lib-restoring', 'lib-curtain'); }, 6000)
 
 const A = window.SnbAuth;
 A.start();
+devErrBoot(() => A.user());                        // 15/10/2026: שגיאות לשרתון — רק כשהדגל learn_full דולק (core)
 /* מחכים לתשובה הראשונה (מחובר / לא / אין רשת) — לכל היותר 8 שנ׳; הספרייה עובדת גם בלי (IndexedDB) */
 const ready = new Promise((res) => {
   const to = setTimeout(() => res('boot'), 8000);

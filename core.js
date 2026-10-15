@@ -109,6 +109,42 @@ function sysCfgCached() {
   return _sysCfg;
 }
 function snbFlag(k) { const c = sysCfgCached(); return !(c && c.f && c.f[k] === false); }
+/* 15/10/2026 — האיסוף המלא בתקופת הפיתוח (הדגל learn_full): שגיאות JavaScript מ־Academy ו־Studio לשרתון (op devErr — רק של
+   המנהל, השרתון בודק). הלכידה מתחילה כשהקובץ נטען (data-app על <html>), השליחה — אחרי devErrBoot עם החיבור, רק כשהדגל
+   ידוע כדולק (בלי מטמון = לא שולחים). אותה שגיאה ברצף = שורה אחת עם מונה; עד 20 במנה, מנה לכל היותר כל 15 שנ׳ */
+const _devErr = { q: [], app: '', user: null, t: 0, wired: false };
+function devErrPush(ty, msg, src, ln, col, stk) {
+  const q = _devErr.q, key = ty + '|' + msg + '|' + src + '|' + ln;
+  const old = q.find((x) => x._k === key);
+  if (old) { old.n = (old.n || 1) + 1; return; }
+  if (q.length >= 20) return;
+  q.push({ _k: key, ty, at: Date.now(), msg: String(msg || '').slice(0, 500), src: String(src || '').slice(0, 300), ln: ln | 0, col: col | 0,
+    stk: String(stk || '').slice(0, 4000), path: String((typeof location !== 'undefined' && location.pathname) || '').slice(0, 200) });
+  devErrFlush();
+}
+function devErrWire() {
+  if (_devErr.wired || typeof window === 'undefined' || typeof document === 'undefined' || !window.addEventListener) return;
+  const app = document.documentElement && document.documentElement.dataset ? document.documentElement.dataset.app : '';
+  if (app !== 'academy' && app !== 'studio') return;
+  _devErr.wired = true; _devErr.app = app;
+  window.addEventListener('error', (e) => { if (e && e.message) devErrPush('err', e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack); });
+  window.addEventListener('unhandledrejection', (e) => { const r = e && e.reason; devErrPush('rej', (r && (r.message || r.name)) || String(r), '', 0, 0, r && r.stack); });
+}
+function devErrBoot(getUser) { _devErr.user = getUser; devErrFlush(); }
+function devErrFlush() {
+  if (!_devErr.q.length || !_devErr.user || _devErr.busy || typeof fetch !== 'function') return;
+  const later = (ms) => { clearTimeout(_devErr.tm); _devErr.tm = setTimeout(devErrFlush, ms); };
+  const c = sysCfgCached(), u = _devErr.user();
+  if (!(c && c.f && c.f.learn_full === true) || !u || typeof u.getIdToken !== 'function') return later(20000);   // הדגל/החיבור עוד בדרך
+  const wait = _devErr.t + 15000 - Date.now();
+  if (wait > 0) return later(wait);
+  const errs = _devErr.q.splice(0, 20).map((x) => { const o = Object.assign({}, x); delete o._k; return o; });
+  _devErr.t = Date.now(); _devErr.busy = true;
+  const pl = { app: _devErr.app, ver: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '', ua: String(navigator.userAgent || '').slice(0, 200), errs };
+  u.getIdToken().then((tk) => fetch(ibkrProxyBase() + '/api/studio', { method: 'POST', headers: ibkrProxyHeaders(), keepalive: true, body: JSON.stringify(Object.assign({ op: 'devErr', idToken: tk }, pl)) }))
+    .catch(() => {}).then(() => { _devErr.busy = false; if (_devErr.q.length) devErrFlush(); });
+}
+devErrWire();
 function maintPaint(c) {
   if (typeof document === 'undefined' || !document.body) return;
   let el = document.querySelector('.maint-strip');
@@ -202,7 +238,7 @@ function askConfirmP(msg, opts) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.11.0';
-const APP_VERSION = 'v438';
+const APP_VERSION = 'v439';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
