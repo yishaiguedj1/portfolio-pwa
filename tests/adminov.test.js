@@ -45,4 +45,12 @@ const cs = ap.academy.cat;
 ok(cs.n === 4 && cs.pub === 2 && cs.draft === 1 && cs.hide === 1 && cs.del === 1 && cs.noCover === 1 && cs.mb === 3 && cs.ch7 === 1 && cs.fm.epub === 1, 'אפליקציות: הקטלוג — מצבים, בלי כריכה, נפח, שינויים בשבוע');
 ok(ap.invest.users === 7 && ap.invest.ibkr === 2 && ap.academy.backup === null && ap.shared.sess === null && ap.academy.readers === 4, 'אפליקציות: ספירות — לא נמדד = null (לא אפס)');
 ok(A.appsView({ now }).academy.cat === null, 'אפליקציות: בלי קטלוג — null');
+// בדיקות בטלפון
+const md2 = ['## בדיקות בטלפון שעוד לא אושרו', '- [ ] עותק לוואטסאפ', '- [ ] STL', '- [ ] Academy:', '  - הוספה של כמה ספרים', '  - חיפוש בבן־יהודה', '## סטודיו', '- [ ] משהו אחר'].join('\n');
+const tk2 = A.tasksParse(md2, now);
+ok(tk2.items.every((x) => /^[0-9a-f]{12}$/.test(x.id)) && tk2.items[0].id === A.tasksParse(md2, now + 1e9).items[0].id, 'בדיקות: מזהה יציב לכל משימה');
+const cv = A.checksView(tk2, { [tk2.items[1].id]: { st: 'ok', at: 1 }, [tk2.items[0].id]: { st: 'no', n: 'לא נפתח', at: 2 } });
+ok(cv.open.length === 2 && cv.open[0].t === 'עותק לוואטסאפ' && cv.open[0].st === 'no' && cv.open[0].n === 'לא נפתח' && cv.done.length === 1, 'בדיקות: רק המקטע של הבדיקות; "עובד" יורד, "לא עובד" נשאר עם ההערה');
+ok(tk2.items[2].t === 'Academy: הוספה של כמה ספרים · חיפוש בבן־יהודה', 'משימות: תתי־סעיפים אחרי נקודתיים נכנסים לכותרת');
+ok(A.noteClean('a <b>`x`\n') === 'a b x' && A.noteClean('x'.repeat(400)).length === 300, 'בדיקות: הערה נקייה (בלי תגיות, עד 300)');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

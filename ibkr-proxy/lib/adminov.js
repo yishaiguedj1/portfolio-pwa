@@ -5,6 +5,7 @@
      sum    — משפט אחד (מספר הפריטים הדחופים) לראש המסך
    בלי פרטים אישיים: שמות שרתים (שהמנהל נתן), מספרי PR, גרסאות ותאריכים בלבד. */
 'use strict';
+const crypto = require('crypto');
 
 const DAY = 86400000;
 /* תאריכים שחייבים לזכור (CLAUDE.md, משימות-פתוחות.md). k = קוד; d = התאריך; warn = כמה ימים לפני מתחילים להזכיר */
@@ -119,6 +120,8 @@ function tasksParse(md, now) {
   for (const ln of String(md || '').split('\n')) {
     const hm = /^##\s+(.+)$/.exec(ln);
     if (hm) { sec = plain(hm[1]).replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s*\(.*$/, '').slice(0, 40); if (!secs.includes(sec)) secs.push(sec); continue; }
+    const sm = /^\s+- (.+)$/.exec(ln);
+    if (sm && out.length && out[out.length - 1]._c) { const L = out[out.length - 1]; L.t = (L.t + (L._n++ ? ' · ' : ': ') + plain(sm[1])).slice(0, 120); continue; }
     const im = /^- \[( |x)\]\s+(.+)$/.exec(ln);
     if (!im || im[1] === 'x') continue;
     const body = im[2];
@@ -126,12 +129,15 @@ function tasksParse(md, now) {
     const w = /‹בעבודה:\s*([^·›]+?)\s*(?:\(([^)]*)\))?\s*·\s*([^›]+)›/.exec(body);
     const onlyDate = bm && /^~?\d{2}\/\d{2}\/\d{4}$/.test(bm[1].trim());
     let t = plain(bm && !onlyDate ? bm[1] : (onlyDate ? body.slice(bm[0].length) : body).replace(/‹[^›]*›/g, '').replace(/^[\s—–-]+/, '').split(/[.(]\s/)[0]);
+    const colon = !bm && /:\s*$/.test(body);
     t = t.replace(/[.:;—-]+\s*$/, '').replace(/\s*\([^)]*\)?\s*$/, '').replace(/[.:;—-]+\s*$/, '').slice(0, 90);
     const dm = DATE_RE.exec(bm ? bm[1] : body.slice(0, 40));
     const at = dm ? Date.UTC(+dm[3], +dm[2] - 1, +dm[1]) : 0;
-    out.push({ s: sec, t, w: w ? { by: plain(w[1]).slice(0, 24), n: plain(w[2] || '').slice(0, 30), d: plain(w[3]).slice(0, 12) } : null,
-      at, left: at && now ? Math.ceil((at - now) / DAY) : null });
+    const id = crypto.createHash('sha1').update(sec + '|' + t).digest('hex').slice(0, 12);
+    out.push({ id, s: sec, t, w: w ? { by: plain(w[1]).slice(0, 24), n: plain(w[2] || '').slice(0, 30), d: plain(w[3]).slice(0, 12) } : null,
+      at, left: at && now ? Math.ceil((at - now) / DAY) : null, _c: colon, _n: 0 });
   }
+  for (const x of out) { delete x._c; delete x._n; }
   return { items: out, secs: secs.map((s) => ({ s, n: out.filter((x) => x.s === s).length })).filter((x) => x.n) };
 }
 
@@ -161,4 +167,13 @@ function appsView(f) {
     shared: { sess: num(c.sess) } };
 }
 
-module.exports = { DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* בדיקות בטלפון (15/10/2026, "אימות אחרי שינוי"): המקטע ברשימה + התשובות של המנהל (sysChecks). st: ok = עובד, no = לא עובד.
+   "עובד" יורד מהרשימה הפתוחה; "לא עובד" נשאר, עם ההערה — עד שהסשן מתקן ומוחק את השורה מהקובץ */
+const CHECK_SEC = /^בדיקות בטלפון/;
+function checksView(tk, answers) {
+  const A = answers || {};
+  const all = ((tk && tk.items) || []).filter((x) => CHECK_SEC.test(x.s)).map((x) => Object.assign({ id: x.id, t: x.t }, A[x.id] ? { st: A[x.id].st, n: A[x.id].n || '', at: A[x.id].at || 0 } : {}));
+  return { open: all.filter((x) => x.st !== 'ok'), done: all.filter((x) => x.st === 'ok') };
+}
+const noteClean = (x) => String(x || '').replace(/[\u0000-\u001f<>`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+module.exports = { checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

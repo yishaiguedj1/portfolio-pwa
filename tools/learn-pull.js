@@ -4,6 +4,7 @@
      brief.md      — ההוראה ל־Claude, המדדים, המסקנות המדורגות ומילון השדות
      records.json  — כל הרשומות (רשומה לכל עבודה, בלי פרטים אישיים)
      view.json     — הניתוח המלא של לוח הבקרה
+     checks.json   — התשובות של המנהל לבדיקות בטלפון (עובד / לא עובד + הערה)
    הטוקן — רק ממשתנה סביבה או מהשורה, אף פעם לא בקובץ בריפו.
    שימוש:
      SNB_LEARN_TOKEN=snbL_… node tools/learn-pull.js [--out <תיקייה>] [--api <כתובת>] [--staging]
@@ -52,8 +53,9 @@ async function main() {
   fs.writeFileSync(path.join(out, 'brief.md'), j.brief || '');
   fs.writeFileSync(path.join(out, 'records.json'), JSON.stringify(j.records || [], null, 1));
   fs.writeFileSync(path.join(out, 'view.json'), JSON.stringify(j.view || {}, null, 1));
+  fs.writeFileSync(path.join(out, 'checks.json'), JSON.stringify(j.checks || [], null, 1));
   const v = j.view || {};
-  console.log('נמשכו ' + (j.records || []).length + ' רשומות · מסקנות: ' + ((v.ins || []).length) + ' · נשמר ב: ' + out);
+  console.log('נמשכו ' + (j.records || []).length + ' רשומות · מסקנות: ' + ((v.ins || []).length) + ' · בדיקות בטלפון: ' + (j.checks || []).filter((c) => c.st === 'no').length + ' לא עובדות · נשמר ב: ' + out);
   console.log('לקרוא קודם: ' + path.join(out, 'brief.md'));
 }
 

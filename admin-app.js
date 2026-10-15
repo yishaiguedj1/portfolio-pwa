@@ -181,6 +181,9 @@ page('ov', { tab: 'ov', title: () => t('admTabOv'), render(p) {
   if (!o) { p.append(h('p', 'adm-note', t('admErr'))); return; }
   const items = o.items.map(itemRow).filter(Boolean);
   p.append(grp(items.length ? fmt(t('admWaitN'), { n: items.length }) : t('admWait0')), items.length ? list(...items) : list(row({ c: 'green', ic: '✓', t: t('admAllGood') })));
+  if (!D.tk) needTasks();
+  const ck = (D.tk && D.tk.ck && D.tk.ck.open) || [];
+  if (ck.length) p.append(grp(fmt(t('admChkN'), { n: ck.length }), ck.length > 3 ? [t('studioSeeAll'), () => go('checks')] : null), list(...ck.slice(0, 3).map(checkRow)));
   if (v && v.k) {
     const wk = v.wk || [];
     p.append(grp(t('admSec30')), tiles(
@@ -365,7 +368,7 @@ page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
 async function needTasks() {
   if (D.tk && Date.now() - D.tkAt < 60000) return;
   const r = await api('adminTasks');
-  if (r.ok) { D.tk = r; D.tkAt = Date.now(); if (cur === 'team' || cur === 'imp') paint(); }
+  if (r.ok) { D.tk = r; D.tkAt = Date.now(); if (['team', 'imp', 'ov', 'checks', 'check'].includes(cur)) paint(); }
 }
 const sessShort = (x) => String(x || '').replace(/^session_/, '').slice(0, 6);
 page('team', { tab: 'imp', parent: 'imp', title: () => t('admTeam'), render(p) {
@@ -392,6 +395,47 @@ page('team', { tab: 'imp', parent: 'imp', title: () => t('admTeam'), render(p) {
   }
   const src = h('a'); src.append(h('bdi', null, t('admTeamSrc'))); src.href = gh + '/blob/main/' + encodeURIComponent('משימות-פתוחות.md'); src.target = '_blank'; src.rel = 'noopener';
   const f = h('p', 'adm-foot'); f.append(t('admTeamNote') + ' ', src); p.append(f);
+} });
+/* ---- לבדוק בטלפון (15/10/2026, "אימות אחרי שינוי" של ServiceNow): המקטע ברשימה בריפו + התשובה שלך.
+   "עובד" יורד מהרשימה; "לא עובד" נשאר עם ההערה, והסשן רואה אותה במשיכה (tools/learn-pull.js → checks.json) ---- */
+function checkRow(x) {
+  return row({ c: x.st === 'no' ? 'red' : 'blue', ic: x.st === 'no' ? '!' : '☐', t: x.t, s: x.st === 'no' ? fmt(t('admChkNo'), { n: x.n || '—' }) : '', on: () => { D.ckSel = x.id; go('check'); } });
+}
+page('checks', { tab: 'ov', parent: 'ov', title: () => t('admChkT'), render(p) {
+  const ck = D.tk && D.tk.ck;
+  if (!ck) { needTasks(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  p.append(h('p', 'adm-dt', t('admChkS')));
+  p.append(ck.open.length ? list(...ck.open.map(checkRow)) : list(row({ c: 'green', ic: '✓', t: t('admChkNone') })));
+  if (ck.done.length) p.append(grp(fmt(t('admChkDone'), { n: ck.done.length })), list(...ck.done.map((x) => row({ c: 'green', ic: '✓', t: x.t, s: day(x.at), on: () => { D.ckSel = x.id; go('check'); } }))));
+} });
+page('check', { tab: 'ov', parent: 'checks', title: () => t('admChkOne'), render(p) {
+  const ck = D.tk && D.tk.ck, x = ck && [...ck.open, ...ck.done].find((y) => y.id === D.ckSel);
+  if (!x) { p.append(h('p', 'adm-note', t('admChkGone'))); return; }
+  const card = h('section', 'card adm-card');
+  card.append(h('h2', null, x.t), h('p', 'adm-sub', x.st === 'ok' ? fmt(t('admChkWasOk'), { d: day(x.at) }) : x.st === 'no' ? fmt(t('admChkWasNo'), { d: day(x.at) }) : t('admChkAsk')));
+  const note = h('textarea', 'adm-search adm-note-in'); note.id = 'admChkNote'; note.rows = 3; note.maxLength = 300; note.placeholder = t('admChkNoteP'); note.setAttribute('dir', 'auto'); note.value = x.n || '';
+  note.hidden = x.st !== 'no';
+  const br = h('div', 'btn-row');
+  const bOk = h('button', 'btn', t('admChkOk')); bOk.type = 'button';
+  const bNo = h('button', 'btn secondary-btn', x.st === 'no' ? t('admChkSend') : t('admChkBad')); bNo.type = 'button';
+  const save = async (st) => {
+    bOk.disabled = bNo.disabled = true;
+    const j = await api('adminCheck', { id: x.id, st, note: note.value, t: x.t });
+    bOk.disabled = bNo.disabled = false;
+    if (!j.ok) { flash(t('admErr')); return; }
+    Object.assign(x, { st, n: st === 'no' ? note.value.trim() : '', at: Date.now() });
+    if (st === 'ok') { ck.open = ck.open.filter((y) => y !== x); if (!ck.done.includes(x)) ck.done.unshift(x); }
+    else if (!ck.open.includes(x)) { ck.done = ck.done.filter((y) => y !== x); ck.open.unshift(x); }
+    flash(st === 'ok' ? t('admChkSavedOk') : t('admChkSavedNo'));
+    history.length > 1 ? history.back() : go('checks');
+  };
+  bOk.addEventListener('click', () => save('ok'));
+  bNo.addEventListener('click', () => { if (note.hidden) { note.hidden = false; note.focus(); bNo.textContent = t('admChkSend'); return; } save('no'); });
+  br.append(bOk, bNo);
+  card.append(note, br);
+  p.append(card);
+  if (x.st) { const u = h('button', 'mini-btn', t('admChkUndo')); u.type = 'button'; u.addEventListener('click', async () => { const j = await api('adminCheck', { id: x.id, st: '' }); if (j.ok) { delete x.st; x.n = ''; ck.done = ck.done.filter((y) => y !== x); if (!ck.open.includes(x)) ck.open.push(x); paint(); } }); card.append(u); }
+  p.append(h('p', 'adm-foot', t('admChkFoot')));
 } });
 page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) { p.append(labCard(D.lab || { ok: false })); } });
 page('claude', { tab: 'imp', parent: 'imp', title: () => t('admClaudeT'), render(p) { p.append(claudeCard()); } });

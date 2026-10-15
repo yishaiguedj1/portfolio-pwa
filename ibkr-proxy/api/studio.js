@@ -172,6 +172,12 @@ async function aoFacts(deps, now) {
 }
 /* 14/10/2026: מאגר הלמידה — משלימים רשומות מכל העבודות (אנונימיות, כולל ישנות ושל כל המשתמשים, בלי מי שכיבה את המתג),
    ומחזירים את כל הרשומות לפי הזמן. משותף לפעולות המנהל ולמשיכה בטוקן ניתוח */
+/* התשובות לבדיקות בטלפון (sysChecks) — { id: { st, n, at } } */
+async function checkAnswers(deps) {
+  const l = await query(deps, 'sysChecks', null, 300).catch(() => []);
+  const o = {}; for (const x of l) o[x.id] = { st: x.st, n: x.n || '', at: x.at || 0, t: x.t || '' };
+  return o;
+}
 async function learnLoad(deps, now) {
   const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
   const have = new Map(docs.map((d) => [d.id, d]));
@@ -208,7 +214,9 @@ async function learnPull(req, res, body, deps) {
     const { recs } = await learnLoad(deps, now);
     await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
     const view = LR.learnView(recs, now);
-    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs });
+    // 15/10/2026: גם התשובות של המנהל לבדיקות בטלפון — כך הסשן יודע מה עובד ומה לא (רק כותרת, מצב והערה של המנהל)
+    const checks = Object.entries(await checkAnswers(deps)).map(([id, x]) => ({ id, t: x.t, st: x.st, n: x.n, at: x.at }));
+    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks });
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
@@ -1220,7 +1228,19 @@ async function handler(req, res, deps = {}) {
       }, now);
       const ext = await aoFacts(deps, now);
       const prs = ((ext.gh && ext.gh.prs) || []).filter((x) => !x.dep);
-      return res.status(200).json({ ok: true, tk: md == null ? null : AO.tasksParse(md, now), prs, at: now });
+      const tk = md == null ? null : AO.tasksParse(md, now);
+      return res.status(200).json({ ok: true, tk, prs, ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
+    }
+    if (op === 'adminCheck') {
+      // 15/10/2026: אימות אחרי שינוי — המנהל עונה על בדיקה בטלפון: ok (עובד) / no (לא עובד + הערה) / '' (לבטל). נשמר ב־sysChecks
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const id = String(body.id || '');
+      if (!/^[0-9a-f]{12}$/.test(id)) return res.status(400).json({ ok: false, error: 'bad_id' });
+      const st = String(body.st || '');
+      if (!['ok', 'no', ''].includes(st)) return res.status(400).json({ ok: false, error: 'bad_state' });
+      if (!st) { await delDoc(deps, 'sysChecks', id); return res.status(200).json({ ok: true }); }
+      await patchDoc(deps, 'sysChecks', id, { st, n: st === 'no' ? AO.noteClean(body.note) : '', t: AO.noteClean(body.t).slice(0, 90), at: now });
+      return res.status(200).json({ ok: true });
     }
     if (op === 'atNew' || op === 'atList' || op === 'atDel') {
       // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash

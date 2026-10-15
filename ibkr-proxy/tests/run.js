@@ -3503,6 +3503,11 @@ function stubFetch(text, status = 200) {
       ok((await run({ op: 'adminApps', idToken: FRIEND })).payload.error === 'not_admin', 'אפליקציות: רק המנהל');
       const apR = await run({ op: 'adminApps', idToken: OWNER });
       ok(apR.payload.ok && apR.payload.apps.v === 1 && 'users' in apR.payload.apps.invest && !/ownerUid0001|@example\.com/.test(JSON.stringify(apR.payload)), 'אפליקציות: מספרים בלבד, בלי uid ומיילים');
+      ok((await run({ op: 'adminCheck', idToken: FRIEND, id: 'abcdef012345', st: 'ok' })).payload.error === 'not_admin', 'בדיקות בטלפון: רק המנהל עונה');
+      ok((await run({ op: 'adminCheck', idToken: OWNER, id: 'zz', st: 'ok' })).statusCode === 400, 'בדיקות בטלפון: מזהה לא תקין — 400');
+      const ckR = await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: 'no', note: 'לא <נפתח>', t: 'עותק לוואטסאפ' });
+      const ckDoc = db.get('sysChecks/abcdef012345');
+      ok(ckR.payload.ok && ckDoc && ckDoc.fields.st.stringValue === 'no' && ckDoc.fields.n.stringValue === 'לא נפתח', 'בדיקות בטלפון: "לא עובד" נשמר עם הערה נקייה');
       // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
       const br = await run({ op: 'learnBrief', idToken: OWNER });
       ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');
@@ -3516,6 +3521,9 @@ function stubFetch(text, status = 200) {
       studio._reset();
       let lp = await run({ op: 'learnPull', at: TK });
       ok(lp.payload.ok && lp.payload.records.length === lkeys().length && /Claude/.test(lp.payload.brief) && lp.payload.view.v === 1, 'Claude: משיכה בטוקן — הרשומות, החבילה והניתוח');
+      ok(lp.payload.checks.some((c) => c.id === 'abcdef012345' && c.st === 'no' && c.n === 'לא נפתח'), 'Claude: המשיכה כוללת את התשובות לבדיקות בטלפון');
+      await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: '' });
+      ok(!db.has('sysChecks/abcdef012345'), 'בדיקות בטלפון: ביטול מוחק את התשובה');
       ok((await run({ op: 'learnPull', at: 'snbL_' + 'x'.repeat(32) })).statusCode === 401, 'Claude: טוקן שלא קיים — 401');
       ok((await run({ op: 'learnPull', at: TK, op2: 1, idToken: OWNER })).payload.ok, 'Claude: המשיכה לא דורשת Origin/Firebase');
       const tl = await run({ op: 'atList', idToken: OWNER });
