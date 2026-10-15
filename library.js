@@ -634,19 +634,47 @@ function syncDrive() {
 }
 
 /* ---------------- שלב 3: התקדמות והגדרות בין מכשירים ----------------
-   שדה נפרד `lib` במסמך המשתמש ב־Firestore (users/{uid}) — כתיבה עם merge, כך ששמירת התיק (שדה db) לא נוגעת בו
-   והוא לא נוגע בתיק. p = התקדמות לכל ספר { c: CFI, f: אחוז, d: נקרא, t: זמן }, s = הגדרות הקורא. הכי עדכני מנצח. */
+   שדה `lib` במסמך של Academy ב־Firestore (academyUsers/{uid} — מ־15/10/2026; עד אז בתוך users/{uid}) — כתיבה עם merge. p = התקדמות לכל ספר { c: CFI, f: אחוז, d: נקרא, t: זמן }, s = הגדרות הקורא. הכי עדכני מנצח. */
 export function cloudKey(id) { return 'k' + String(id || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 140); }
 export function mergeProgress(local, remote) {   // טהורה: מחזירה עדכון מקומי אם המרוחק חדש יותר, אחרת null
   if (!remote || !(remote.t > (local.lastRead || 0))) return null;
   return { cfi: remote.c || local.cfi || '', fraction: +remote.f || 0, done: !!remote.d || !!local.done, lastRead: remote.t };
+}
+/* שלב 6 בתוכנית שלוש האפליקציות (15/10/2026): המסמך של Academy = academyUsers/{uid} — לא מסמך התיק (users/{uid}).
+   כללי Firestore לפי טענת app בטוקן: Academy לא ניגשת לתיק. הנתונים הישנים (users/{uid}.lib) עוברים בשרתון
+   (op:'libMove' — lib/libmove.js): העתקה, ושבוע אחר כך מחיקה. קריאה וכתיבה מחכות להעברה (עד MOVE_WAIT). */
+const LIB_COL = 'academyUsers';
+const LS_LIBMV = 'pwa_libmv_v1';   // uid שההעברה שלו הסתיימה (נמחק גם מהמסמך הישן) — בלי עוד קריאות לשרתון
+const MOVE_WAIT = 8000;
+let movedP = null, movedUid = '', movedSettled = '';
+function libMoved() {
+  let uid = '';
+  try { const u = firebase.auth().currentUser; uid = (u && u.uid) || ''; } catch (e) {}
+  if (!uid) return Promise.resolve(false);
+  if (movedP && movedUid === uid) return movedP;
+  movedUid = uid;
+  let done = '';
+  try { done = localStorage.getItem(LS_LIBMV) || ''; } catch (e) {}
+  if (done === uid) { movedSettled = uid; return (movedP = Promise.resolve(true)); }
+  const go = (async () => {
+    try {
+      const tk = await idToken(); if (!tk) return false;
+      const j = await libApi({ op: 'libMove', idToken: tk }).then((r) => r.json());
+      if (!j || !j.ok) return false;                               // תקלה — ננסה שוב בפתיחה הבאה (בינתיים כותבים למסמך החדש; ההעברה מאחדת לפי ספר)
+      if (j.st === 'done' || j.st === 'deleted') { try { localStorage.setItem(LS_LIBMV, uid); } catch (e) {} }
+      return true;
+    } catch (e) { return false; }
+  })();
+  movedP = Promise.race([go, new Promise((r) => setTimeout(() => r(false), MOVE_WAIT))]);
+  movedP.then(() => { if (movedUid === uid) movedSettled = uid; });
+  return movedP;
 }
 function userRef() {
   try {
     if (typeof firebase === 'undefined' || !firebase.apps || !firebase.apps.length || !firebase.firestore) return null;
     const u = firebase.auth().currentUser;
     if (u && libOwner() !== u.uid) return null;   // v313: ההתקדמות במכשיר של חשבון אחר — לא נכתבת לחשבון הזה
-    return u ? firebase.firestore().collection('users').doc(u.uid) : null;
+    return u ? firebase.firestore().collection(LIB_COL).doc(u.uid) : null;
   } catch (e) { return null; }
 }
 let pendingP = {}, pendingA = {}, pushT = 0, settingsT = 0;
@@ -655,8 +683,10 @@ function pushProgress(rec, now) {
   clearTimeout(pushT);
   pushT = setTimeout(flushProgress, now ? 0 : 4000);
 }
+function curUid() { try { const u = firebase.auth().currentUser; return (u && u.uid) || ''; } catch (e) { return ''; } }
 function flushProgress() {
   clearTimeout(pushT);
+  if (userRef() && movedSettled !== curUid()) { libMoved().then(flushProgress); return; }   // שלב 6: קודם ההעברה, אחר כך כתיבה
   const ref = userRef(); const p = pendingP, a = pendingA;
   if (!ref || (!Object.keys(p).length && !Object.keys(a).length)) return;
   pendingP = {}; pendingA = {};
@@ -673,9 +703,11 @@ function pushAnn(rec, ann) {
 function pushSettings() {
   S.t = Date.now(); saveSettings();
   clearTimeout(settingsT);
-  settingsT = setTimeout(() => { const ref = userRef(); if (ref) ref.set({ lib: { s: S } }, { merge: true }).catch(() => {}); }, 3000);
+  settingsT = setTimeout(() => libMoved().then(() => { const ref = userRef(); if (ref) ref.set({ lib: { s: S } }, { merge: true }).catch(() => {}); }), 3000);
 }
 async function pullCloud() {
+  if (!userRef()) return 0;
+  await libMoved();
   const ref = userRef(); if (!ref) return 0;
   let lib; try { const snap = await ref.get(); lib = snap.exists && snap.data().lib; } catch (e) { return 0; }
   if (!lib) return 0;
@@ -1653,7 +1685,7 @@ function collSave(map) {
 }
 function collPut(id, c, push) {         // שמירה מקומית + לענן (merge של שדה אחד)
   const map = collAll(); map[id] = c; collSave(map);
-  if (push !== false) { const ref = userRef(); if (ref) ref.set({ lib: { c: { [id]: c } } }, { merge: true }).catch(() => {}); }
+  if (push !== false) libMoved().then(() => { const ref = userRef(); if (ref) ref.set({ lib: { c: { [id]: c } } }, { merge: true }).catch(() => {}); });
 }
 const myColls = (shelf) => Object.entries(collAll()).filter(([, c]) => c && !c.d && c.s === shelf).map(([id, c]) => ({ key: 'c:' + id, id, name: c.n, ids: c.b || [], u: c.u || 0 }))
   .sort((a, b) => String(a.name).localeCompare(String(b.name), 'he'));

@@ -1,17 +1,28 @@
 rules_version = '2';
 // כללי הגישה ל־Firestore של THE SNOWBALL (הפרויקט yishaiguedj1-c786e).
-// הטלפון ניגש רק למסמך שלו: users/{uid} — התיק, ההגדרות, התקדמות הקריאה (שדה lib).
+// הטלפון ניגש רק למסמכים שלו, ולכל אפליקציה המסמך שלה (שלב 6, 15/10/2026 — טענת app בטוקן המותאם, ‏lib/session.js):
+//   users/{uid}        — Invest: התיק וההגדרות.
+//   academyUsers/{uid} — Academy: התקדמות הקריאה, הדגשות, אסופות והגדרות הקורא (שדה lib; עד 15/10 בתוך users/{uid}).
+//   טוקן בלי app (התחברות ישירה עם Google) ו־app 'all' (הכתובת המאוחדת) — לשניהם. Studio — לאף אחד (הכל דרך השרתון).
+//   כך פרצה בספרייה (תוכן של צד שלישי) לא קוראת את התיק, גם באותו חשבון.
 // כל השאר (studioJobs, studioVault, studioServers, studioStats, studioOps, ibkrVault, driveVault, studioDrive,
-// academy, aiCache, aiUse) — רק השרתון, דרך חשבון השירות (שעוקף את הכללים). מהטלפון: אסור, גם לקרוא.
+// academy (config), aiCache, aiUse) — רק השרתון, דרך חשבון השירות (שעוקף את הכללים). מהטלפון: אסור, גם לקרוא.
 // העלאה: Firebase Console ← Firestore ← Rules ← להדביק את הקובץ הזה ← Publish (firestore/README.md).
 // בדיקות: firestore/rules.test.mjs מול האמולטור הרשמי (ב־CI: test.yml, firestore-rules).
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
-      allow read, delete: if signedInAs(uid);
+      allow read, delete: if signedInAs(uid) && appIs('invest');
       // כתיבה: רק למסמך שלך, ובלי שדות שהשרתון מנהל (אף אחד מהם לא נכתב מהטלפון היום — זה מונע שימוש לרעה בעתיד)
-      allow create, update: if signedInAs(uid)
+      allow create, update: if signedInAs(uid) && appIs('invest')
         && !request.resource.data.keys().hasAny(['admin', 'role', 'isAdmin', 'studio', 'vault']);
+    }
+    match /academyUsers/{uid} {
+      allow read: if signedInAs(uid) && appIs('academy');
+      // כתיבה: רק השדה lib. mv/dl (מתי ההעברה והמחיקה) — רק השרתון (lib/libmove.js)
+      allow create: if signedInAs(uid) && appIs('academy') && request.resource.data.keys().hasOnly(['lib']);
+      allow update: if signedInAs(uid) && appIs('academy')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lib']);
     }
     // ברירת מחדל: הכל סגור
     match /{document=**} {
@@ -19,6 +30,10 @@ service cloud.firestore {
     }
     function signedInAs(uid) {
       return request.auth != null && request.auth.uid == uid;
+    }
+    // הטוקן של האפליקציה הזו (או בלי app — התחברות ישירה עם Google; או 'all' — הכתובת המאוחדת)
+    function appIs(name) {
+      return !('app' in request.auth.token) || request.auth.token.app == name || request.auth.token.app == 'all';
     }
   }
 }
