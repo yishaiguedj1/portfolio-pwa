@@ -526,7 +526,7 @@ export function createSubsEditor(opts) {
       for (const x of nc.lines) pv.append(el('div', null, x));
       const acts = el('div', 'st-sg-a');
       acts.append(b('done', T('studioSgFix'), () => {
-        if (apply(g.cues, null)) { if (opts.flash) opts.flash(T('studioSgFixed')); }
+        if (apply(g.cues, null)) { if (opts.flash) opts.flash(T('studioSgFixed')); if (opts.onSugFix) opts.onSugFix(g.k); }
       }, 'sg-fix:' + g.i),
       b('', T('studioSgNo'), () => { dismissed.add(g.key); if (opts.onDismiss) opts.onDismiss(g.key); paintSug(); }, 'sg-no:' + g.i),
       b('', T('studioSgShow'), () => { choose(g.i); opts.seek(c.s); }, 'sg-go:' + g.i));
@@ -716,4 +716,66 @@ export function createSubsEditor(opts) {
     applyCues(next) { return apply(next, null); },
     destroy() { rows.clear(); },
   };
+}
+
+/* ---------- מאגר הלמידה מ׳3 (15/10/2026): מה השתנה בין שתי גרסאות של הכתוביות — טהור ----------
+   לא לפי מזהים (השמירה ממספרת מחדש, ופיצול יוצר כתוביות חדשות) — לפי חפיפה בזמן: שתי כתוביות "אותה" אם החפיפה ביניהן
+   היא לפחות ED_OV מהקצרה. כל רכיב קשיר = שינוי אחד: txt (טקסט; m = גם הזמנים זזו), tm (רק זמן), sp (פיצול), mg (מיזוג),
+   add / del, mx (מורכב). cd / wd = מרחק עריכה בתווים / במילים (כמו HTER — כמה צריך היה לתקן) */
+export const ED_MAX = 1500, ED_TM = 0.05, ED_OV = 0.3;
+const edTxt = (c) => c.lines.join('\n');
+function lev(a, b) {
+  if (a.length > 600 || b.length > 600) return Math.max(a.length, b.length);   // כתובית ארוכה מאוד — אומדן עליון
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+const edWords = (s) => s.split(/\s+/).filter(Boolean);
+export function editDiff(before, after) {
+  const A = (before || []).slice().sort((x, y) => x.s - y.s), B = (after || []).slice().sort((x, y) => x.s - y.s);
+  const par = Array.from({ length: A.length + B.length }, (_, k) => k);
+  const find = (k) => { while (par[k] !== k) { par[k] = par[par[k]]; k = par[k]; } return k; };
+  const join = (x, y) => { par[find(x)] = find(y); };
+  for (let i = 0, j0 = 0; i < A.length; i++) {
+    const a = A[i];
+    while (j0 < B.length && B[j0].e <= a.s) j0++;
+    for (let j = j0; j < B.length && B[j].s < a.e; j++) {
+      const b = B[j], ov = Math.min(a.e, b.e) - Math.max(a.s, b.s);
+      if (ov > 0 && ov >= ED_OV * Math.min(a.e - a.s, b.e - b.s)) join(i, A.length + j);
+    }
+  }
+  const comp = new Map();
+  const put = (k, side, c) => { const r = find(k); if (!comp.has(r)) comp.set(r, { b: [], a: [] }); comp.get(r)[side].push(c); };
+  A.forEach((c, i) => put(i, 'b', c)); B.forEach((c, j) => put(A.length + j, 'a', c));
+  const out = [];
+  for (const g of comp.values()) {
+    const nb = g.b.length, na = g.a.length;
+    let t;
+    if (nb === 1 && na === 1) {
+      const x = g.b[0], y = g.a[0], txt = edTxt(x) !== edTxt(y), tm = Math.abs(x.s - y.s) > ED_TM || Math.abs(x.e - y.e) > ED_TM;
+      if (!txt && !tm) continue;
+      t = txt ? 'txt' : 'tm';
+      g.m = txt && tm ? 1 : 0;
+    } else t = !nb ? 'add' : !na ? 'del' : nb === 1 ? 'sp' : na === 1 ? 'mg' : 'mx';
+    const hb = g.b.map(edTxt).join('\n'), ha = g.a.map(edTxt).join('\n');
+    const row = { t, b: g.b.map((c) => ({ s: r3(c.s), e: r3(c.e), h: edTxt(c) })), a: g.a.map((c) => ({ s: r3(c.s), e: r3(c.e), h: edTxt(c) })),
+      en: g.b.map((c) => c.en || '').filter(Boolean).join(' '), cd: lev(hb.replace(/\s+/g, ' '), ha.replace(/\s+/g, ' ')), wd: lev(edWords(hb), edWords(ha)) };
+    if (g.m) row.m = 1;
+    out.push(row);
+  }
+  out.sort((x, y) => ((x.b[0] || x.a[0]).s - (y.b[0] || y.a[0]).s));
+  return out.slice(0, ED_MAX);
+}
+/* מספרים בלבד — למאגר (בלי טקסט): כמה שינויים מכל סוג, מרחקי העריכה, וכמה מילים / תווים יש בגרסה החדשה (המכנה של HTER) */
+export const ED_KINDS = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
+export function editStats(diff, after) {
+  const o = { n: diff.length, cd: 0, wd: 0, m: 0, wa: 0, ca: 0 };
+  for (const k of ED_KINDS) o[k] = 0;
+  for (const d of diff) { o[d.t] = (o[d.t] || 0) + 1; o.cd += d.cd || 0; o.wd += d.wd || 0; if (d.m) o.m++; }
+  for (const c of after || []) { const t = edTxt(c); o.wa += edWords(t).length; o.ca += t.replace(/\s+/g, '').length; }
+  return o;
 }

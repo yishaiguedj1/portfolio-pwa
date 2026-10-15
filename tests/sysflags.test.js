@@ -136,7 +136,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok((await api('adminCfg', { set: { flag: 'bogus', on: false } })).error === 'bad_params', 'דגל לא מוכר — 400');
 
   /* learn — גם בעובד */
-  await api('learnPref', { ack: true });
+  await api('learnPref', { ack: true, tv: 2 });
   for (const [k, v] of db) if (k.startsWith('studioJobs/')) v.fields.state = { stringValue: 'done' };
   const nj = await newJob();
   const lc = zlib.gzipSync(Buffer.from(JSON.stringify({ v: 1, cu: [{ i: 1, s: 0, e: 1, k: 'S1', en: 'a', d: 'א' }] }))).toString('base64');

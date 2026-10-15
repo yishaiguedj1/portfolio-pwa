@@ -77,6 +77,43 @@ function normLx(o) {
   return JSON.stringify(out).length <= 16000 ? out : Object.assign({}, out, { ps: undefined, vt: undefined });
 }
 
+/* ---------------- 1ב. מה קרה אחרי העבודה (מ׳3, 15/10/2026) — מהטלפון, מספרים בלבד ----------------
+   e = עריכות בעורך הכתוביות (s שמירות, ws שניות עבודה פעילה, n שינויים, cd/wd מרחק עריכה בתווים/במילים, m שינויי טקסט שגם
+       הזמן שלהם זז, wa/ca מילים/תווים בגרסה האחרונה — המכנה של HTER, ולכל סוג: txt tm sp mg add del mx)
+   pl = הנגן (n הפעלות, sec שניות צפייה, cov החלק הגדול ביותר של הסרטון שנצפה — 0 עד 1)
+   o = תוצרים (dl הורדות, sh שיתופים, dx שמירה בתיקייה ב־Drive) · sg = הצעות (a התקבלו, r נדחו)
+   ai = גיליון ה־AI (q בקשות, a שינויים שהוחלו, r שנדחו) · gl = מונחים שנוספו למילון מתוך העבודה (a)
+   הטלפון שולח תוספת (delta); המיזוג מחבר, חוץ מ־cov (המקסימום) ו־wa/ca (האחרון). **UX_SHAPE זהה ל־UX_SHAPE ב־studio.js** */
+const ED_KINDS = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
+const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
+const UX_LAST = ['wa', 'ca'], UX_HI = 1e7;
+function normUx(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const out = {};
+  for (const [g, keys] of Object.entries(UX_SHAPE)) {
+    const x = o[g];
+    if (!x || typeof x !== 'object' || Array.isArray(x)) continue;
+    const y = {};
+    for (const k of keys) {
+      const v = x[k];
+      if (!isNum(v) || v < 0 || v > UX_HI) continue;
+      y[k] = k === 'cov' ? Math.min(1, r4(v)) : Math.round(v);
+    }
+    if (Object.keys(y).length) out[g] = y;
+  }
+  return Object.keys(out).length ? out : null;
+}
+function mergeUx(cur, add) {
+  const a = normUx(add);
+  if (!a) return normUx(cur);
+  const out = normUx(cur) || {};
+  for (const [g, x] of Object.entries(a)) {
+    const y = out[g] || (out[g] = {});
+    for (const [k, v] of Object.entries(x)) y[k] = k === 'cov' ? Math.max(y[k] || 0, v) : UX_LAST.includes(k) ? v : Math.min(UX_HI, (y[k] || 0) + v);
+  }
+  return out;
+}
+
 /* ---------------- 2. רשומה לכל עבודה ---------------- */
 const STATES = ['new', 'queued', 'running', 'done', 'failed', 'cancelled'];
 function effBasic(job, now, effState) {
@@ -177,6 +214,7 @@ function learnRec(job, now, effState) {
     env: /^[0-9a-f]{12}$/.test(String(job.ev || '')) ? job.ev : '',
     pv: job.pv && typeof job.pv === 'object' ? Object.fromEntries(Object.entries(job.pv).filter(([k, v]) => /^[a-z]{2,4}$/.test(k) && /^[0-9a-f]{8}$/.test(String(v)))) : null,
     lx: normLx(job.lx),
+    ux: normUx(job.ux),
   };
   return rec;
 }
@@ -218,7 +256,30 @@ function kpis(rs) {
     jd: rnd(mean(done.map((r) => r.jd && r.jd.s)), 1),                                 // ציון השופט (0–100)
     ok: fin.length ? rnd(fin.filter(okFirst).length / fin.length, 3) : null,           // הצלחה בלי "המשך" ידני
     usd: rnd(sum(tr.map((r) => r.usd)), 2),
+    ...uxKpis(done),
   };
+}
+/* מ׳3: מה קרה אחרי העבודה. ht = שיעור העריכה (HTER: מילים שתוקנו ÷ מילים בגרסה האחרונה) על העבודות שנערכו ונשמרו;
+   edr = חלק העבודות שנערכו; cov = חציון החלק שנצפה בנגן (מהעבודות שנצפו); sga = חלק ההצעות שהתקבלו */
+function uxKpis(done) {
+  const ed = done.filter((r) => r.ux && r.ux.e && r.ux.e.s > 0 && r.ux.e.wa > 0);
+  const pl = done.filter((r) => r.ux && r.ux.pl && r.ux.pl.n > 0);
+  const sg = done.map((r) => (r.ux && r.ux.sg) || {}), sga = sum(sg.map((x) => x.a)), sgr = sum(sg.map((x) => x.r));
+  return {
+    ht: ed.length ? rnd(sum(ed.map((r) => r.ux.e.wd)) / sum(ed.map((r) => r.ux.e.wa)), 3) : null,
+    edr: done.length ? rnd(ed.length / done.length, 3) : null,
+    cov: pl.length ? rnd(median(pl.map((r) => r.ux.pl.cov)), 3) : null,
+    sga: sga + sgr > 0 ? rnd(sga / (sga + sgr), 3) : null,
+  };
+}
+/* סיכום לכל סוג פעולה אחרי העבודה (90 יום) — לניתוח */
+function uxSum(rs) {
+  const out = {};
+  for (const r of rs) {
+    if (!r.ux) continue;
+    for (const [g, x] of Object.entries(r.ux)) { const y = out[g] || (out[g] = { jobs: 0 }); y.jobs++; for (const [k, v] of Object.entries(x)) if (k !== 'cov') y[k] = (y[k] || 0) + v; }
+  }
+  return out;
 }
 function weekly(rs, now, n) {
   const out = [];
@@ -391,7 +452,7 @@ function learnView(records, now) {
     roles, tok: { i: sum(tk.map((t) => t.i)), o: sum(tk.map((t) => t.o)), cr: sum(tk.map((t) => t.cr)), cw: sum(tk.map((t) => t.cw)) },
     stages, vt: vtTime(rs), fails, jc, qf, modes,
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
-    follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length },
+    follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')) },
     ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now),
     recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
       dur: r.dur, usd: r.usd, pr: r.pr, q: r.q ? r.q.s : null, jd: r.jd ? r.jd.s : null, run: runSec(r), fires: r.fires, ch: (() => { const t = tokOf(r); return inTok(t) ? rnd(t.cr / inTok(t), 3) : null; })() })),
@@ -419,6 +480,7 @@ const FIELDS = [
   ['ep/tg', 'הצפי והיעד שנקבעו בלקיחה'], ['tr', 'עקיבה: פעולות/שגיאות לכל סוכן'], ['q', 'מדד האיכות (0–100) ומה נכשל'],
   ['jd', 'ציון השופט וקודי הבעיות'], ['tw', 'המגדל עצר/הזהיר, ולמה'], ['fires/ar', 'כמה הפעלות / המשכים אוטומטיים'],
   ['ed', 'כמה פעמים נשמרה עריכה ידנית אחרי העבודה'], ['gq', 'ציון מול תרגום אנושי (סט הזהב)'], ['pv/env', 'גרסאות ההנחיות והסביבה'],
+  ['ux', 'מה קרה אחרי העבודה (מהטלפון): e עריכות (s שמירות, ws שניות עבודה, n שינויים, wd/cd מרחק עריכה במילים/בתווים, wa/ca מילים/תווים בגרסה האחרונה, ולכל סוג: txt טקסט, tm זמן, sp פיצול, mg מיזוג, add, del, mx מורכב), pl נגן (n הפעלות, sec שניות, cov חלק שנצפה), o תוצרים (dl הורדות, sh שיתופים, dx ל־Drive), sg הצעות (a/r), ai גיליון AI (q בקשות, a הוחלו, r נדחו), gl מונחים שנוספו'],
   ['lx', 'עובדות מפורטות מהעובד: שלבי vt, תמלול, יישור, סנכרון, מנוע (קטיעות, ניסיונות חוזרים, חשיבה), זיכרון'],
 ];
 const fmtv = (v) => (v == null ? '—' : typeof v === 'number' ? String(v) : JSON.stringify(v));
@@ -441,7 +503,7 @@ function learnBrief(view, now) {
   L.push('| מדד | עכשיו | קודם |');
   L.push('|---|---|---|');
   for (const [key, he] of [['n', 'עבודות'], ['done', 'הסתיימו'], ['ok', 'עברו בלי "המשך" (חלק)'], ['min', 'דקות סרטון'], ['cpm', 'דולר לדקת סרטון'],
-    ['spm', 'שניות עבודה לדקה (חציון)'], ['tpm', 'טוקנים לדקה'], ['ch', 'חלק הקלט מהמטמון'], ['q', 'מדד איכות'], ['jd', 'ציון שופט']]) {
+    ['spm', 'שניות עבודה לדקה (חציון)'], ['tpm', 'טוקנים לדקה'], ['ch', 'חלק הקלט מהמטמון'], ['q', 'מדד איכות'], ['jd', 'ציון שופט'], ['ht', 'שיעור העריכה שלך (HTER)'], ['edr', 'עבודות שנערכו (חלק)'], ['cov', 'חלק הסרטון שנצפה (חציון)'], ['sga', 'הצעות שהתקבלו (חלק)']]) {
     if (k[key] == null && kp[key] == null) continue;
     L.push('| ' + he + ' (`' + key + '`) | ' + fmtv(k[key]) + ' | ' + fmtv(kp[key]) + ' |');
   }
@@ -467,4 +529,4 @@ function learnBrief(view, now) {
   return L.join('\n');
 }
 
-module.exports = { learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };
+module.exports = { normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };

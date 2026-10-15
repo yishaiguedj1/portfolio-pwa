@@ -287,13 +287,35 @@ async function learnPut(deps, job, b64, now) {
     if (!c.ok || job.kind !== 'tr' || job.lc || typeof b64 !== 'string' || b64.length > LC_MAX_BODY) return false;
     if (await learnSkip(deps, job)) return false;
     const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
-    if (!(+st.lra > 0)) return false;   // ההודעה לא נקראה — מדדים כן, תוכן לא
+    if (!(+st.lrt > 0)) return false;   // 15/10/2026: ההסכמה לטקסט (lrt) — רק אחרי שאושר הנוסח שאומר שהטקסט נשמר; lra הישן ("רק מספרים") לא מספיק
     const raw = require('zlib').gunzipSync(Buffer.from(b64, 'base64'), { maxOutputLength: 16 * 1024 * 1024 });
     const item = LC.normCorpus(JSON.parse(raw.toString('utf8')), LC.monthOf(now));
     if (!item) return false;
     const lid = LR.lid(job.id);
     await R2.putText(c, r2deps(deps), LC.qKey(lid), vault.seal(item, 'learn|' + lid), 'application/octet-stream');
     await patchJob(deps, job.id, { lc: now });
+    return true;
+  } catch (e) { return false; }
+}
+/* מ׳3: העריכות שלך בעורך הכתוביות — אותם תנאים של learnPut (המתג, ההודעה נקראה), פריט אחד לעבודה שמצטבר בכל שמירה:
+   הקיים נפתח (מהתור qe/ או מהחודש e/<le>/), השמירה החדשה נוספת (LC.addEdits), ונכתב לתור. job.le = החודש של הפריט */
+const LE_MAX = 1500000;
+const LRN_TV = 2;   // **זהה ל־LRN_TV ב־studio.js** — הנוסח של ההודעה שאומר שגם הטקסט נשמר
+async function learnEditPut(deps, job, sess, now) {
+  try {
+    const c = learnCfg();
+    if (!c.ok || job.kind !== 'tr' || !sess || typeof sess !== 'object') return false;
+    if (JSON.stringify(sess).length > LE_MAX) return false;
+    if (await learnSkip(deps, job)) return false;
+    const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
+    if (!(+st.lrt > 0)) return false;   // ההסכמה לטקסט — כמו ב־learnPut
+    const lid = LR.lid(job.id), rd = r2deps(deps), aad = 'learn|' + lid;
+    let prev = vault.open(await R2.getText(c, rd, LC.qeKey(lid), LE_MAX * 3), aad);
+    if (!prev && /^\d{4}-\d{2}$/.test(String(job.le || ''))) prev = vault.open(await R2.getText(c, rd, LC.eKey(job.le, lid), LE_MAX * 3), aad);
+    const item = LC.addEdits(prev, sess, LC.monthOf(now));
+    if (!item) return false;
+    await R2.putText(c, rd, LC.qeKey(lid), vault.seal(item, aad), 'application/octet-stream');
+    if (job.le !== item.m) await patchJob(deps, job.id, { le: item.m });
     return true;
   } catch (e) { return false; }
 }
@@ -316,9 +338,19 @@ async function learnBatch(deps, now) {
     if (item && /^\d{4}-\d{2}$/.test(String(item.m || ''))) { await R2.copy(c, rd, it.key, LC.cKey(item.m, p.lid), 'application/octet-stream'); moved++; }
     await R2.del(c, rd, it.key);   // לא נפתח (מפתח אחר / שובש) — לא נשאר בתור לנצח
   }
-  for (const it of await R2.list(c, rd, 'c/', 50000)) {
+  for (const it of (await R2.list(c, rd, 'qe/', LC_BATCH_MAX)).slice(0, LC_BATCH_MAX)) {   // מ׳3: העריכות — אותו מסלול
     const p = LC.parseKey(it.key);
-    if (p && p.kind === 'c' && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); gone++; }
+    if (!p || p.kind !== 'qe') continue;
+    const sealed = await R2.getText(c, rd, it.key, LE_MAX * 3);
+    const item = sealed && vault.open(sealed, 'learn|' + p.lid);
+    if (item && /^\d{4}-\d{2}$/.test(String(item.m || ''))) { await R2.copy(c, rd, it.key, LC.eKey(item.m, p.lid), 'application/octet-stream'); moved++; }
+    await R2.del(c, rd, it.key);
+  }
+  for (const pre of ['c/', 'e/']) {
+    for (const it of await R2.list(c, rd, pre, 50000)) {
+      const p = LC.parseKey(it.key);
+      if (p && (p.kind === 'c' || p.kind === 'e') && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); gone++; }
+    }
   }
   await patchDoc(deps, 'sysLearn', 'batch', { day, at: now, mv: moved, gn: gone });
   return moved;
@@ -330,7 +362,7 @@ async function learnCorpusForget(deps, ids) {
   let n = 0;
   try {
     const rd = r2deps(deps);
-    for (const pre of ['q/', 'c/']) {
+    for (const pre of ['q/', 'c/', 'qe/', 'e/']) {
       for (const it of await R2.list(c, rd, pre, 50000)) {
         const p = LC.parseKey(it.key);
         if (p && ids.has(p.lid)) { await R2.del(c, rd, it.key); n++; }
@@ -344,14 +376,17 @@ async function learnCorpusView(deps, items) {
   const c = learnCfg();
   if (!c.ok) return { on: false };
   const rd = r2deps(deps);
-  const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000)];
+  const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000), ...await R2.list(c, rd, 'qe/', 5000), ...await R2.list(c, rd, 'e/', 50000)];
   const out = Object.assign({ on: true }, LC.corpusStats(keys));
   if (items > 0) {
     const list = [];
     for (const it of keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'c').sort((a, b) => (a.key < b.key ? 1 : -1)).slice(0, Math.min(items, 20))) {
       const p = LC.parseKey(it.key);
       const x = vault.open(await R2.getText(c, rd, it.key, LC_MAX_BODY * 2), 'learn|' + p.lid);
-      if (x) list.push(Object.assign({ id: p.lid }, x));
+      if (!x) continue;
+      const ek = keys.find((k) => { const q = LC.parseKey(k.key); return q && q.lid === p.lid && (q.kind === 'e' || q.kind === 'qe'); });   // מ׳3: העריכות של אותה עבודה
+      const ed = ek ? vault.open(await R2.getText(c, rd, ek.key, LE_MAX * 3), 'learn|' + p.lid) : null;
+      list.push(Object.assign({ id: p.lid }, x, ed ? { ed: ed.ss } : {}));
     }
     out.items = list;
   }
@@ -1488,9 +1523,11 @@ async function handler(req, res, deps = {}) {
     }
     if (op === 'learnPref') {
       // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל). 15/10 (מ׳1): ack = ההודעה בכניסה הראשונה נקראה (lra)
-      if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, { lra: now, updated: now }); return res.status(200).json({ ok: true, lra: now }); }
+      // 15/10/2026: tv = גרסת הנוסח שנקרא. LRN_TV ומעלה (הנוסח שאומר שגם טקסט הכתוביות ושמות הדוברים נשמרים) = גם lrt — ההסכמה לטקסט
+      const tx = body.ack === true && (body.tv | 0) >= LRN_TV ? { lrt: now } : {};
+      if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, Object.assign({ lra: now, updated: now }, tx)); return res.status(200).json(Object.assign({ ok: true, lra: now }, tx)); }
       const on = body.on === true;
-      await patchDoc(deps, 'studioStats', uid, Object.assign({ lo: on ? 0 : 1, updated: now }, body.ack === true ? { lra: now } : {}));
+      await patchDoc(deps, 'studioStats', uid, Object.assign({ lo: on ? 0 : 1, updated: now }, body.ack === true ? Object.assign({ lra: now }, tx) : {}));
       return res.status(200).json({ ok: true, lrn: on });
     }
     if (op === 'learnForget') {
@@ -1513,7 +1550,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -1861,6 +1898,16 @@ async function handler(req, res, deps = {}) {
       const j = await readJob(deps, job.id);
       return res.status(200).json(Object.assign({ ok: f.ok, job: view(j) }, f.ok ? (f.unsure ? { unsure: f.unsure, detail: f.detail } : {}) : { error: f.error, retry: f.retry, detail: f.detail || '' }));
     }
+    if (op === 'learnUx') {
+      // מ׳3: מה קרה אחרי העבודה — צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים (תוספת מספרים; LR.normUx)
+      if (job.kind !== 'tr') return res.status(409).json({ ok: false, error: 'state' });
+      const ux = LR.mergeUx(job.ux, body.ux);
+      if (!LR.normUx(body.ux)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      await patchJob(deps, job.id, { ux });
+      job.ux = ux;
+      await learnSave(deps, job, now);
+      return res.status(200).json({ ok: true });
+    }
     if (op === 'cuesSave') {
       // מ2: גרסה ערוכה של הכתוביות — שני קבצים שהטלפון כבר העלה לתיקיית העבודה (cues JSON + SRT); הקודמים נשמרים בהיסטוריה
       if (job.kind !== 'tr' || st !== 'done' || !S.FILE_ID_RE.test(String(job.folder || ''))) return res.status(409).json({ ok: false, error: 'state' });
@@ -1873,9 +1920,12 @@ async function handler(req, res, deps = {}) {
       if (fs && fs.error) return res.status(200).json({ ok: false, error: fs.error });
       if (!fc || !fs || !(fc.size > 0 && fc.size <= S.CUES_MAX) || !(fs.size > 0 && fs.size <= S.CUES_MAX)) return res.status(400).json({ ok: false, error: 'file_bad' });
       const up = S.cuesSwap(job, fc, fs, now);
+      const ux = body.pe ? LR.mergeUx(job.ux, { e: Object.assign({}, body.pe, { s: 1 }) }) : null;   // מ׳3: מה השתנה בשמירה הזו (מספרים)
+      if (ux) up.ux = ux;
       await patchJob(deps, job.id, Object.assign({}, up, { updated: now }));
       Object.assign(job, up);
       await learnSave(deps, job, now);   // עריכה אחרי העבודה = סימן למה שהתרגום פספס
+      if (body.pt) await learnEditPut(deps, job, body.pt, now);   // מ׳3: הטקסט לפני/אחרי — רק עם ההסכמה לתוכן
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'cuesRestore') {

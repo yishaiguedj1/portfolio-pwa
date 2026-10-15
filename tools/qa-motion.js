@@ -834,15 +834,17 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     // סבב 6: גל קול (סינוס עם הפסקות) וחילופי שוטים ליד קצוות הכתוביות
     const META = { v: 1, r: 20, pk: Buffer.from(Array.from({ length: 600 }, (_, i) => (i % 50 < 32 ? 120 + Math.round(100 * Math.abs(Math.sin(i / 3))) : 8))).toString('base64'), sh: [2.4, 7.6, 12.45, 20.1] };
     let nUp = 0;
+    let lastCues = null; const lastUx = [];   // מ׳3: מה הטלפון שלח למאגר הלמידה
     const SJ = (r, o) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
     await page.route(/\/studio-media\//, (r) => { const m = /bytes=(\d+)-(\d*)/.exec(r.request().headers().range || ''); const a = m ? +m[1] : 0, z = m && m[2] ? +m[2] : VID.length - 1; r.fulfill({ status: m ? 206 : 200, headers: { 'content-type': 'video/webm', 'accept-ranges': 'bytes', 'content-range': 'bytes ' + a + '-' + z + '/' + VID.length, 'content-length': String(z - a + 1) }, body: VID.subarray(a, z + 1) }); });
     await page.route(/^https:\/\/www\.googleapis\.com\/(upload\/)?drive\//, (r) => { const u = r.request().url(); if (u.includes('cue1234567890?alt=media')) return SJ(r, CUES); if (u.includes('met1234567890?alt=media')) return SJ(r, META); if (u.includes('srt1234567890?alt=media')) return r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'text/plain' }, body: '1\n00:00:01,000 --> 00:00:02,000\nשלום\n' }); if (u.includes('uploadType=multipart')) return SJ(r, { id: 'up' + (++nUp) + 'abcdefghijk' }); return r.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '{}' }); });
     await page.route(/\/api\/studio/, (r) => { const b = JSON.parse(r.request().postData() || '{}');
-      if (b.op === 'status') return SJ(r, { ok: true, conn: { hint: 'trig_…ABCD', since: now, ok: now }, drive: { configured: true, connected: true, email: 'a@b.c' }, kinds: ['ping', 'tr', 'rr', 'ai'], fb: [], fm: 'suggest', rl: { b: 0, mx: '', ab: false }, halt: 0, now });
+      if (b.op === 'status') return SJ(r, { ok: true, conn: { hint: 'trig_…ABCD', since: now, ok: now }, drive: { configured: true, connected: true, email: 'a@b.c' }, kinds: ['ping', 'tr', 'rr', 'ai'], fb: [], fm: 'suggest', rl: { b: 0, mx: '', ab: false }, halt: 0, lrn: true, lra: now, lrt: now, now });   // ההודעה של מאגר הלמידה כבר נקראה — לא חוסמת את התרחישים
       if (b.op === 'jobs') return SJ(r, { ok: true, jobs: [job], kinds: ['ping', 'tr', 'rr', 'ai'], now });
       if (b.op === 'job') return SJ(r, { ok: true, job, now });
       if (b.op === 'drive') return SJ(r, { ok: true, token: 'AT_abcdefghij', exp: now + 3600e3 });
-      if (b.op === 'cuesSave') { job.ev++; job.vh = job.vh.concat([Date.now()]); return SJ(r, { ok: true, job }); }
+      if (b.op === 'learnUx') { lastUx.push(b.ux); return SJ(r, { ok: true }); }   // מ׳3
+      if (b.op === 'cuesSave') { lastCues = b; job.ev++; job.vh = job.vh.concat([Date.now()]); return SJ(r, { ok: true, job }); }
       return SJ(r, { ok: false, error: 'x' }); });
     const openStudioJob = () => page.evaluate(async ([id, j]) => {
       localStorage.setItem('pwa_studio_v1', JSON.stringify({ settings: {}, drafts: [], jobs: [{ id, vm: { w: 1080, h: 1920 }, spec: j.spec, up: { folder: 'fold1234567890', started: j.created, a: { done: true, id: 'aud1234567890' }, v: { done: true, id: 'vid1234567890', size: 10 } }, srv: j }] }));
@@ -866,6 +868,10 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
     await step('studio: רענון באמצע עריכה — הטיוטה חוזרת', async () => { await sleep(1900); await page.evaluate(() => history.replaceState(null, '')); await reload(2500); await openStudioJob(); await sleep(1500); await page.click('[data-k="subs"]'); },
       { settle: 1500, expect: '[data-k="se-save"]:not(:disabled)' });
     await step('studio: שמירה ל־Drive', () => page.click('[data-k="se-save"]'), { settle: 1200, expect: '[data-k="se-save"]:disabled' });
+    await step('studio: שמירה — מה השתנה נשלח למאגר (מ׳3)', async () => {
+      const pt = lastCues && lastCues.pt, pe = lastCues && lastCues.pe;
+      if (!pe || !(pe.n > 0) || !(pe.wa > 0) || !pt || !Array.isArray(pt.ch) || !pt.ch.length || !pt.ch.every((d) => d.t && Array.isArray(d.b) && Array.isArray(d.a))) throw new Error('cuesSave בלי pe/pt: ' + JSON.stringify(lastCues && { pe, n: pt && pt.ch && pt.ch.length }));
+    }, { settle: 100 });
     await step('studio: גיליון AI', () => page.click('[data-k="se-ai"]'), { pre: '[data-k="se-ai"]', settle: 900, expect: '[data-k="ai-add"]' });
     await step('studio: חזור ← העורך', esc, { settle: 1500, expect: '.st-se-row' });
     await step('studio: הפקה מחדש', () => page.click('[data-k="se-rr"]'), { pre: '[data-k="se-rr"]', settle: 1000, expect: '[data-k="rr-go"]' });

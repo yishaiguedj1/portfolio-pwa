@@ -58,7 +58,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/indexedDB\.open\('snb-studio', 2\)/.test(st) && /if \(!r\.result\.objectStoreNames\.contains\(n\)\) r\.result\.createObjectStore\(n\)/.test(st) && /IDB_STORES = \['handles', 'drafts'\]/.test(st),
     'IndexedDB: גרסה 2 — הטיוטות במאגר נפרד, השדרוג לא מוחק את הידיות');
   ok(/seDraftSoon\(me, rec\); \} \}\);/.test(st) && /}, 1500\);/.test(st), 'שמירת טיוטה שנייה וחצי אחרי העריכה האחרונה');
-  ok(/me\.saved = ver; clearTimeout\(me\.drT\); draftDel\(rec\.id\);/.test(st) && /draftDel\(rec\.id\); save\(\); seStop\(\); se = null;/.test(st) && /handleOp\('del', id\); draftDel\(id\);/.test(st),
+  ok(/me\.saved = ver;[^\n]*clearTimeout\(me\.drT\); draftDel\(rec\.id\);/.test(st) && /draftDel\(rec\.id\); save\(\); seStop\(\); se = null;/.test(st) && /handleOp\('del', id\); draftDel\(id\);/.test(st),
     'הטיוטה נמחקת אחרי שמירה, שחזור גרסה ומחיקת עבודה');
   ok(/me\.ed\.applyCues\(normCues\(JSON\.parse\(d\.c\)\)\)/.test(st) && /danger: true, onNo: \(\) => draftDel\(rec\.id\)/.test(st), 'חזרה = צעד ביטול אחד; גרסה ישנה — חלון אישור (לא = מחיקה)');
 
