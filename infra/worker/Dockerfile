@@ -74,8 +74,12 @@ COPY --from=ffmpeg /opt/ffmpeg /opt/ffmpeg
 COPY --from=deps /opt/vt /opt/vt
 COPY --from=aligner /opt/aligner /opt/aligner
 COPY --chown=root:root translator /app/translator
+# 16/10/2026: הגדרת השרת לעדכון ידני בלי שרת חדש — נתונים בלבד, שום דבר לא מריץ אותם לבד (infra/worker/snb-host-apply)
+COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml /opt/snb-host/
+COPY --chown=root:root --chmod=755 infra/worker/snb-host-apply /opt/snb-host/apply
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
- && find /app /opt/aligner -type d -exec chmod 755 {} + && find /app /opt/aligner -type f -exec chmod 644 {} +
+ && find /app /opt/aligner -type d -exec chmod 755 {} + && find /app /opt/aligner -type f -exec chmod 644 {} + \
+ && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml
 
 ENV PATH=/opt/vt/bin:/opt/ffmpeg:/usr/local/bin:/usr/bin:/bin \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \

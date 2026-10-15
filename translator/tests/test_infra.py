@@ -57,6 +57,13 @@ class Compose(unittest.TestCase):
         # גבולות לפי גודל השרת בפועל — קבוע גדול מהשרת (cpus 7.5 בשרת של 4 ליבות) = הקונטיינר לא עולה
         self.assertIn('cpus: ${SNB_CPUS:-', c)
         self.assertIn('mem_limit: ${SNB_MEM:-', c)
+        # 16/10/2026: בעומס — חלוקה לפי משקל (שני העובדים שווים, השרתונים קודמים); בלי עומס — עבודה מקבלת הכל
+        self.assertEqual(c.count('cpu_shares: 1024'), 1, 'הייצור')
+        self.assertEqual(c.count('cpu_shares: 512'), 1, 'הניסוי — אחרי הייצור בעומס')
+        self.assertEqual(c.count('mem_reservation:'), 2, 'שריון זיכרון לכל עובד')
+        self.assertIn('oom_score_adj: 300', c)
+        self.assertEqual(c.count('nice: 20'), 2, 'ladder_boost: העובדים יכולים לצאת מ־SCHED_IDLE (עד nice 0)')
+        self.assertGreaterEqual(c.count('cpu_shares: 2048'), 3, 'השרתונים וה־Tunnel קודמים לעבודת רקע')
         common = read('infra/host/snb-common.sh')
         self.assertLess(common.index('snb_compose() {'), common.index('\tsnb_limits\n'), 'כל הפעלה מחשבת את הגבולות')
 
@@ -214,7 +221,7 @@ case "$1" in
            h=$(printf '%s' "$tag$(cat "$T/rev-$tag" 2>/dev/null)" | sha256sum | cut -c1-64); echo "$img@sha256:$h"; exit 0; }; exit 0 ;;
   volume) v=$(echo "$@" | awk '{print $NF}'); [ -d "$T/vol/$v" ] && { echo "$T/vol/$v"; exit 0; }; exit 1 ;;
   compose) [ "$2" = version ] && exit 0
-           echo "UP profiles=$COMPOSE_PROFILES cpus=$SNB_CPUS mem=$SNB_MEM cpus_stg=$SNB_CPUS_STG mem_stg=$SNB_MEM_STG" >> "$T/compose"; exit 0 ;;
+           echo "UP profiles=$COMPOSE_PROFILES cpus=$SNB_CPUS mem=$SNB_MEM cpus_stg=$SNB_CPUS_STG mem_stg=$SNB_MEM_STG memr=$SNB_MEMR memr_stg=$SNB_MEMR_STG" >> "$T/compose"; exit 0 ;;
   info) echo '{"runsc":{}}'; exit 0 ;;
   run) exit 0 ;;
 esac
@@ -311,13 +318,27 @@ class Rooms(unittest.TestCase):
         self.assertNotIn(re.search(r'SNB_IMAGE=(\S+)', r1['env']).group(1), e2, 'הייצור לא תלוי בעבודה של הניסוי')
 
     def test_limits_split_when_both_workers(self):
+        import os
         r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=16 * 1024 * 1024)
-        m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
-        self.assertEqual(m.group(3), '3072')
-        self.assertEqual(int(m.group(1)) + 3072 + 800 + 1024, 16 * 1024, 'סך הכל = כל הזיכרון של השרת')
+        m = re.search(r'cpus=([\d.]+) mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m memr=(\d+)m memr_stg=(\d+)m', r['compose'])
+        avail = 16 * 1024 - 1024 - 800
+        mem, mem_s, res, res_s = (int(m.group(i)) for i in (2, 4, 5, 6))
+        n = os.cpu_count() or 2
+        full = '%.1f' % (n - 0.5 if n > 1 else n)
+        self.assertEqual((m.group(1), m.group(3)), (full, full), 'המעבד — תקרה, לא שריון: כל עובד יכול לקבל את כל הליבות')
+        self.assertGreaterEqual(min(res, res_s), 4608, 'שריון ≥ שיא של עבודה (היישור ב־ONNX תחת gVisor — 4.2GB)')
+        self.assertEqual(mem + res_s, avail, 'תקרה של הייצור + שריון של הניסוי = כל הזיכרון (בלי OOM כששניהם בשיא)')
+        self.assertEqual(mem_s + res, avail, 'וגם הפוך')
+        self.assertGreater(mem, res, 'בלי עומס — יותר מהשריון (מטמון קבצים ומודלים)')
         r = self.run_update(['tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=8 * 1024 * 1024)
         m = re.search(r'mem_stg=(\d+)m', r['compose'])
         self.assertEqual(int(m.group(1)), 8 * 1024 - 1024 - 800, 'עובד ניסוי לבד מקבל את כל השרת')
+        # שרת גדול (CX53, 32GB): השריון עד 8GB, והשאר פנוי לעבודה שרצה
+        r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env', 'app.env', 'tunnel-prod.env'],
+                            mem_kb=32 * 1024 * 1024)
+        m = re.search(r'mem=(\d+)m .* memr=(\d+)m memr_stg=(\d+)m', r['compose'])
+        self.assertEqual(int(m.group(2)), 8192)
+        self.assertEqual(int(m.group(1)), 32 * 1024 - 1024 - 800 - 1100 - 8192)
 
     def test_prod_app_room(self):
         # ת3: השרתון של הייצור — snb-app:prod (אחרי אישור), ו־Tunnel נפרד
@@ -333,8 +354,8 @@ class Rooms(unittest.TestCase):
     def test_limits_all_rooms(self):
         r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env', 'app.env', 'tunnel-prod.env'],
                             mem_kb=16 * 1024 * 1024)
-        m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
-        self.assertEqual(int(m.group(1)), 16 * 1024 - 1024 - 800 - 1100 - 3072, 'השרתון של הייצור וה־Tunnel שלו יורדים מהעובד')
+        m = re.search(r'mem=(\d+)m .* memr_stg=(\d+)m', r['compose'])
+        self.assertEqual(int(m.group(1)) + int(m.group(2)), 16 * 1024 - 1024 - 800 - 1100, 'השרתון של הייצור וה־Tunnel שלו יורדים מהעובד')
 
     def test_cloud_init_slim_keeps_code(self):
         # ההערות יורדות מקוד ההקמה (מקום לסודות), הקוד נשאר — ובקבצים אין heredoc שבו שורה עם # היא תוכן
@@ -403,3 +424,63 @@ class Rooms(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class HostApply(unittest.TestCase):
+    """16/10/2026: עדכון ידני של הגדרת השרת מתוך התמונה (snb-host-apply) — בלי שרת חדש, ובלי שום דבר אוטומטי."""
+
+    def setUp(self):
+        import tempfile, os
+        self.d = tempfile.mkdtemp()
+        self.h, self.s = os.path.join(self.d, 'h'), os.path.join(self.d, 's')
+        for x in ('opt/snb', 'usr/local/lib/snb'):
+            os.makedirs(os.path.join(self.h, x))
+        os.makedirs(self.s)
+        open(os.path.join(self.h, 'opt/snb/compose.yaml'), 'w').write('old\n')
+        open(os.path.join(self.h, 'usr/local/lib/snb/common.sh'), 'w').write('old=1\n')
+        open(os.path.join(self.s, 'compose.yaml'), 'w').write(read('infra/compose.yaml'))
+        open(os.path.join(self.s, 'snb-common.sh'), 'w').write(read('infra/host/snb-common.sh'))
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def run_apply(self):
+        import os
+        env = dict(os.environ, SNB_HOST_ROOT=self.h, SNB_HOST_SRC=self.s)
+        return subprocess.run(['sh', str(ROOT / 'infra/worker/snb-host-apply')], capture_output=True, text=True, env=env, timeout=20)
+
+    def test_copies_and_is_idempotent(self):
+        import os, stat
+        r = self.run_apply()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(open(os.path.join(self.h, 'opt/snb/compose.yaml')).read(), read('infra/compose.yaml'))
+        self.assertEqual(open(os.path.join(self.h, 'usr/local/lib/snb/common.sh')).read(), read('infra/host/snb-common.sh'))
+        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.h, 'opt/snb/compose.yaml')).st_mode), 0o644)
+        self.assertIn('Done (2 updated)', r.stdout)
+        self.assertIn('Done (0 updated)', self.run_apply().stdout, 'הרצה שנייה — כלום')
+
+    def test_refuses_while_job_runs(self):
+        import os
+        v = os.path.join(self.h, 'var/lib/docker/volumes/snb_work-stg/_data')
+        os.makedirs(v); open(os.path.join(v, '.busy'), 'w').write('j')
+        r = self.run_apply()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(open(os.path.join(self.h, 'opt/snb/compose.yaml')).read(), 'old\n', 'עבודה רצה — לא נוגעים')
+
+    def test_bad_syntax_not_installed(self):
+        import os
+        open(os.path.join(self.s, 'snb-common.sh'), 'w').write('if then fi (\n')
+        r = self.run_apply()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(open(os.path.join(self.h, 'usr/local/lib/snb/common.sh')).read(), 'old=1\n')
+
+    def test_packaged_as_data_only(self):
+        d = read('infra/worker/Dockerfile')
+        self.assertIn('COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml /opt/snb-host/', d)
+        self.assertIn('/opt/snb-host/apply', d)
+        for f in ('infra/host/snb-update', 'infra/host/snb-common.sh', 'infra/compose.yaml'):
+            self.assertNotIn('snb-host', read(f).replace('snb-host-apply', ''), 'שום דבר בשרת לא מריץ את הקבצים לבד: ' + f)
+        w = read('.github/workflows/worker-image.yml')
+        self.assertIn("- 'infra/host/snb-common.sh'", w, 'שינוי בהגדרה בונה תמונה חדשה')
+        self.assertIn("- 'infra/compose.yaml'", w)

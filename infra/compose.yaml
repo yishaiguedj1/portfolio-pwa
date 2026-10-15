@@ -42,10 +42,14 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 512
+    ulimits:
+      nice: 20           # 16/10/2026: ladder_boost — איכויות הצפייה יוצאות מ־SCHED_IDLE כש־finish מחכה רק להן. 20 = עד nice 0, לא יותר
     # לפי גודל השרת — snb_limits ב־snb-common.sh (כל ההפעלות עוברות דרך snb_compose)
     mem_limit: ${SNB_MEM:-6g}
     memswap_limit: ${SNB_MEM:-6g}
     cpus: ${SNB_CPUS:-3.5}
+    cpu_shares: 1024     # 16/10/2026: בעומס — לפי משקל (השרתונים 2048 > הייצור 1024 > הניסוי 512); בלי עומס — עבודה מקבלת הכל
+    mem_reservation: ${SNB_MEMR:-4608m}   # memory.low — מובטח בעומס (snb_limits)
     tmpfs:
       - /tmp:size=2g,mode=1777,noexec,nosuid,nodev
       - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev
@@ -83,6 +87,7 @@ services:
     mem_limit: 256m
     memswap_limit: 256m
     cpus: 0.5
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     networks: [edge-prod]
     logging:
       driver: json-file
@@ -109,6 +114,7 @@ services:
     mem_limit: 768m
     memswap_limit: 768m
     cpus: 1.5
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
     networks: [edge-prod]
@@ -138,6 +144,7 @@ services:
     mem_limit: 256m
     memswap_limit: 256m
     cpus: 0.5
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     networks: [edge]
     logging:
       driver: json-file
@@ -163,6 +170,7 @@ services:
     mem_limit: 512m
     memswap_limit: 512m
     cpus: 1.0
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
     networks: [edge]
@@ -189,9 +197,14 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 512
+    ulimits:
+      nice: 20           # 16/10/2026: ladder_boost — איכויות הצפייה יוצאות מ־SCHED_IDLE כש־finish מחכה רק להן. 20 = עד nice 0, לא יותר
     mem_limit: ${SNB_MEM_STG:-3g}
     memswap_limit: ${SNB_MEM_STG:-3g}
     cpus: ${SNB_CPUS_STG:-1.5}
+    cpu_shares: 512      # הייצור קודם לניסוי בעומס; לבד — כל הליבות
+    mem_reservation: ${SNB_MEMR_STG:-3g}
+    oom_score_adj: 300   # אם בכל זאת ייגמר הזיכרון בשרת — הניסוי נעצר ראשון, לא הייצור
     tmpfs:
       - /tmp:size=1g,mode=1777,noexec,nosuid,nodev
       - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev
