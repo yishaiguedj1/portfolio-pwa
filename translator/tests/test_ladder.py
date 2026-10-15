@@ -134,37 +134,76 @@ if __name__ == '__main__':
 
 
 class Boost(unittest.TestCase):
-    """16/10/2026: finish מחכה רק לאיכויות — הן עוברות מ־SCHED_IDLE לעדיפות רגילה (כל התהליכונים בקבוצה, גם ילדים)."""
+    """16/10/2026: finish מחכה רק לאיכויות — הן עוברות מ־SCHED_IDLE לעדיפות רגילה (כל התהליכונים בקבוצה, גם ילדים).
+    בלי הרשאות זה מותר רק כש־RLIMIT_NICE ≥ 20 (compose: ulimits nice 20) — בלי זה: 0, בלי שגיאה."""
 
-    @unittest.skipUnless(hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס בלבד')
-    def test_boost_whole_group(self):
-        import job as J
-        d = Path(tempfile.mkdtemp())
-        old = J.LADDER_DIR
-        J.LADDER_DIR = d
+    def spawn(self, d, nice_rl):
+        import resource
+        def pre():
+            if nice_rl:
+                resource.setrlimit(resource.RLIMIT_NICE, (nice_rl, nice_rl))
         code = ('import os,subprocess,time\n'
+                'os.nice(15)\n'
                 'os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))\n'
                 'c = subprocess.Popen(["sleep", "30"])\n'          # ילד יורש SCHED_IDLE — כמו ffmpeg
                 'open(os.environ["OUT"], "w").write(str(c.pid))\n'
                 'time.sleep(30)\n')
-        p = subprocess.Popen([sys.executable, '-c', code], start_new_session=True, env=dict(os.environ, OUT=str(d / 'child')))
+        p = subprocess.Popen([sys.executable, '-c', code], start_new_session=True, preexec_fn=pre,
+                             env=dict(os.environ, OUT=str(d / 'child')))
+        (d / 'pid').write_text(str(p.pid))
+        import time
+        for _ in range(200):
+            if (d / 'child').exists() and (d / 'child').read_text():
+                break
+            time.sleep(0.05)
+        return p, int((d / 'child').read_text())
+
+    def run_case(self, nice_rl):
+        import job as J
+        d = Path(tempfile.mkdtemp())
+        old = J.LADDER_DIR
+        J.LADDER_DIR = d
+        p = None
         try:
-            (d / 'pid').write_text(str(p.pid))
-            for _ in range(100):
-                if (d / 'child').exists() and (d / 'child').read_text():
-                    break
-                import time
-                time.sleep(0.05)
-            child = int((d / 'child').read_text())
-            self.assertEqual(os.sched_getscheduler(p.pid), os.SCHED_IDLE)
+            p, child = self.spawn(d, nice_rl)
             self.assertEqual(os.sched_getscheduler(child), os.SCHED_IDLE)
-            self.assertGreaterEqual(J.ladder_boost(), 2)
-            self.assertEqual(os.sched_getscheduler(p.pid), os.SCHED_OTHER, 'התהליך הראשי')
-            self.assertEqual(os.sched_getscheduler(child), os.SCHED_OTHER, 'גם ffmpeg שכבר רץ')
-            (d / 'pid').write_text(str(99999999))
+            n = J.ladder_boost()
+            return n, os.sched_getscheduler(p.pid), os.sched_getscheduler(child), os.getpriority(os.PRIO_PROCESS, child)
+        finally:
+            if p:
+                os.killpg(p.pid, 9)
+                p.wait()
+            J.LADDER_DIR = old
+            shutil.rmtree(d, ignore_errors=True)
+
+    @unittest.skipUnless(hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס בלבד')
+    def test_boost_whole_group(self):
+        import resource
+        hard = resource.getrlimit(resource.RLIMIT_NICE)[1]
+        ran = False
+        if hard == resource.RLIM_INFINITY or hard >= 20:
+            # כמו בקונטיינר (ulimits nice 20). הכלל בליבה: יציאה מ־SCHED_IDLE מותרת כש־can_nice(nice הנוכחי) — 20−15 ≤ 20
+            n, a, b, nice = self.run_case(20)
+            self.assertGreaterEqual(n, 2)
+            self.assertEqual((a, b), (os.SCHED_OTHER, os.SCHED_OTHER), 'התהליך הראשי וגם ffmpeg שכבר רץ')
+            self.assertEqual(nice, 15, 'nice לא יורד — רק יוצאים מ־SCHED_IDLE')
+            ran = True
+        if os.geteuid() != 0:
+            n, a, b, _ = self.run_case(0)                      # שרת ישן — בלי ההרשאה: כלום, בלי שגיאה
+            self.assertEqual((n, a, b), (0, os.SCHED_IDLE, os.SCHED_IDLE))
+            ran = True
+        if not ran:
+            self.skipTest('root בלי אפשרות להגדיר RLIMIT_NICE — אין מה להוכיח כאן')
+
+    def test_boost_nothing(self):
+        import job as J
+        d = Path(tempfile.mkdtemp())
+        old = J.LADDER_DIR
+        try:
+            J.LADDER_DIR = d
+            self.assertEqual(J.ladder_boost(), 0, 'אין pid — כלום')
+            (d / 'pid').write_text('99999999')
             self.assertEqual(J.ladder_boost(), 0, 'אין קבוצה כזו — כלום, בלי שגיאה')
         finally:
-            os.killpg(p.pid, 9)
-            p.wait()
             J.LADDER_DIR = old
             shutil.rmtree(d, ignore_errors=True)

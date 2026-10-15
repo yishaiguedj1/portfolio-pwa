@@ -42,6 +42,8 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 512
+    ulimits:
+      nice: 20           # 16/10/2026: ladder_boost — איכויות הצפייה יוצאות מ־SCHED_IDLE כש־finish מחכה רק להן. 20 = עד nice 0, לא יותר
     # לפי גודל השרת — snb_limits ב־snb-common.sh (כל ההפעלות עוברות דרך snb_compose)
     mem_limit: ${SNB_MEM:-6g}
     memswap_limit: ${SNB_MEM:-6g}
@@ -195,6 +197,8 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 512
+    ulimits:
+      nice: 20           # 16/10/2026: ladder_boost — איכויות הצפייה יוצאות מ־SCHED_IDLE כש־finish מחכה רק להן. 20 = עד nice 0, לא יותר
     mem_limit: ${SNB_MEM_STG:-3g}
     memswap_limit: ${SNB_MEM_STG:-3g}
     cpus: ${SNB_CPUS_STG:-1.5}

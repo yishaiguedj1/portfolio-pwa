@@ -2709,7 +2709,8 @@ def ladder_running():
 def ladder_boost():
     """16/10/2026: העבודה הגיעה לסוף ומחכה רק לאיכויות — מעבירים את התהליך שלהן (וכל ffmpeg שבקבוצה) מ־SCHED_IDLE
     לעדיפות רגילה עם nice 15. ב־SCHED_IDLE הן מקבלות מעבד רק כשאף תהליך אחר בשרת לא רוצה אותו, וכשעובד אחר עסוק
-    finish חיכה סתם עד LADDER_WAIT. nice לא יורד (לא צריך הרשאה); כל תקלה — נשאר כמו שהיה. מחזיר כמה תהליכונים הועלו."""
+    finish חיכה סתם עד LADDER_WAIT. משתמש בלי הרשאות יוצא מ־SCHED_IDLE רק כש־RLIMIT_NICE מתיר (compose: ulimits nice 20 —
+    עד nice 0, לא מעל רגיל); בלי זה (שרת שהוקם לפני כן) — EPERM ונשאר כמו שהיה. מחזיר כמה תהליכונים הועלו."""
     try:
         pg = int((LADDER_DIR / 'pid').read_text())
     except (OSError, ValueError):

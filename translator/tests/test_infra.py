@@ -62,6 +62,7 @@ class Compose(unittest.TestCase):
         self.assertEqual(c.count('cpu_shares: 512'), 1, 'הניסוי — אחרי הייצור בעומס')
         self.assertEqual(c.count('mem_reservation:'), 2, 'שריון זיכרון לכל עובד')
         self.assertIn('oom_score_adj: 300', c)
+        self.assertEqual(c.count('nice: 20'), 2, 'ladder_boost: העובדים יכולים לצאת מ־SCHED_IDLE (עד nice 0)')
         self.assertGreaterEqual(c.count('cpu_shares: 2048'), 3, 'השרתונים וה־Tunnel קודמים לעבודת רקע')
         common = read('infra/host/snb-common.sh')
         self.assertLess(common.index('snb_compose() {'), common.index('\tsnb_limits\n'), 'כל הפעלה מחשבת את הגבולות')
