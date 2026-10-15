@@ -78,4 +78,9 @@ ok(b1.send.includes('bk_fail') && !A.watchStep(b1.patch, rg, { okAt: now - 3 * 2
 const WP = require('../ibkr-proxy/lib/webpush.js');
 ok(/admin\.html#ready$/.test(WP.message('ready_fail', '', 'he').u) && /#studio=/.test(WP.message('done', 'jabcdefghij0123456789', 'he').u), 'התראה: של המנהל נפתחת במרכז הניהול, של עבודה — בסטודיו');
 ok(['bk_fail', 'ready_fail'].every((k) => WP.KINDS.includes(k) && WP.TEXT.he[k] && WP.TEXT.en[k]), 'התראה: הסוגים החדשים בשתי השפות');
+// נתיב הפריסה
+const lv = A.laneView([{ n: 140, t: 'ממתין לתור אחרי #139 — 2.9.0 (429): x', at: 3 }, { n: 139, t: '(428): מגדל המשתמשים', at: 1 }, { n: 97, t: 'bump', dep: 1 }, { n: 141, t: 'מסמכים', at: 2 }], []);
+ok(lv.holder.n === 139 && lv.holder.b === 428 && lv.holder.t === 'מגדל המשתמשים' && lv.queue.map((x) => x.n).join() === '140' && lv.queue[0].b === 429 && lv.queue[0].t === 'x' && lv.queue[0].after === 139 && lv.other.map((x) => x.n).join() === '141' && !lv.free, 'נתיב: מי מחזיק, מי בתור, ומה בלי גרסה (בלי Dependabot)');
+ok(A.laneView([], []).free && !A.laneView([], [{ id: 1 }]).free && A.laneView([], [{ id: 1 }]).deploy === 1, 'נתיב: פנוי רק כשאין PR עם גרסה ואין פריסה שמחכה');
+ok(A.laneView([{ n: 5, t: '2.9.0 (429): שחרור' }], []).holder.rel === '2.9.0', 'נתיב: PR של שחרור — גרסת המערכת');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

@@ -1265,7 +1265,7 @@ async function handler(req, res, deps = {}) {
       const ext = await aoFacts(deps, now);
       const prs = ((ext.gh && ext.gh.prs) || []).filter((x) => !x.dep);
       const tk = md == null ? null : AO.tasksParse(md, now);
-      return res.status(200).json({ ok: true, tk, prs, ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
+      return res.status(200).json({ ok: true, tk, prs, lane: AO.laneView(prs, ext.gh && ext.gh.waiting), ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
     }
     if (op === 'adminReady') {
       // 15/10/2026: בדיקת מוכנות לכל המערכת — כותרות המטמון, הגרסה החיה בשלוש הכתובות, השרתון והגיבוי שלו, חתימת החיבור המשותף,

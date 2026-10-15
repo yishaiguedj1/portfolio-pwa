@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (304 מפתחות מתוך 2934) */
+/* המחרוזות של admin (308 מפתחות מתוך 2939) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -126,6 +126,11 @@ he: {
   "admLabNone": "עוד אין מסקנות — צריך עוד עבודות",
   "admLabS": "{n} עבודות במאגר · 30 יום (מתחת: 30 הקודמים)",
   "admLabT": "מעבדת השיפור",
+  "admLaneDeploy": "פריסה מחכה לאישור שלך — הנתיב תפוס עד שהיא ירוקה",
+  "admLaneFree": "פנוי — אפשר לפתוח PR עם גרסה",
+  "admLaneHeld": "תפוס · PR ‎#{n} · בנייה {b}",
+  "admLaneOrder": "סדר המיזוג: קודם ‎#{n}, אחריו לפי המספרים — כך אין התנגשויות ביומן וסבבי CI חוזרים.",
+  "admLaneT": "נתיב הפריסה",
   "admLoading": "טוען…",
   "admMaint": "מצב תחזוקה",
   "admMinAgo": "לפני {n} דק׳",
@@ -246,7 +251,6 @@ he: {
   "admTeamNone": "אף סשן לא הכריז על משימה",
   "admTeamNote": "מהרשימה בריפו. \"בעבודה\" = מה שסשן הכריז עליו.",
   "admTeamNow": "בעבודה עכשיו",
-  "admTeamPr": "PR פתוחים",
   "admTeamS": "{n} משימות פתוחות · {w} בעבודה",
   "admTeamSrc": "משימות-פתוחות.md",
   "admToday": "היום",
@@ -432,6 +436,11 @@ en: {
   "admLabNone": "No insights yet — more jobs needed",
   "admLabS": "{n} jobs in the database · 30 days (below: previous 30)",
   "admLabT": "Improvement lab",
+  "admLaneDeploy": "A deploy is waiting for your approval — the lane stays taken until it is green",
+  "admLaneFree": "Free — a versioned PR can be opened",
+  "admLaneHeld": "Taken · PR #{n} · build {b}",
+  "admLaneOrder": "Merge order: #{n} first, then by the numbers — no log conflicts and no repeated CI rounds.",
+  "admLaneT": "Deploy lane",
   "admLoading": "Loading…",
   "admMaint": "Maintenance mode",
   "admMinAgo": "{n} min ago",
@@ -552,7 +561,6 @@ en: {
   "admTeamNone": "No session has claimed a task",
   "admTeamNote": "From the list in the repo. \"In progress\" = what a session has claimed.",
   "admTeamNow": "In progress now",
-  "admTeamPr": "Open PRs",
   "admTeamS": "{n} open tasks · {w} in progress",
   "admTeamSrc": "the task list",
   "admToday": "today",

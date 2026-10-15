@@ -225,4 +225,20 @@ function watchStep(prev, rd, bk, now) {
   return { send, patch: Object.keys(patch).length ? patch : null };
 }
 
-module.exports = { watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* נתיב הפריסה (15/10/2026, Work queues — CLAUDE.md סעיף 11): PR עם מספר בנייה בכותרת ("2.9.0 (429): …" / "(429): …") מחזיק את
+   הנתיב; PR שכתוב בו "ממתין לתור אחרי #NN" — בתור אחריו. waiting = ריצת deploy שמחכה לאישור (הנתיב עוד תפוס עד שהיא ירוקה) */
+const BUILD_RE = /^(?:(\d+\.\d+\.\d+)\s+)?\((\d{3,5})\)/;
+function laneView(prs, waiting) {
+  const own = (prs || []).filter((p) => p && !p.dep).map((p) => {
+    const q = /^\s*ממתין לתור אחרי\s*#(\d+)\s*[—–:-]?\s*/.exec(String(p.t || ''));
+    const t0 = String(p.t || '').slice(q ? q[0].length : 0), m = BUILD_RE.exec(t0);
+    return { n: p.n, t: t0.replace(BUILD_RE, '').replace(/^[:\s]+/, '').slice(0, 90), b: m ? +m[2] : 0, rel: m && m[1] ? m[1] : '', after: q ? +q[1] : 0, at: p.at || 0 }; });
+  const withB = own.filter((x) => x.b && !x.after).sort((a, c) => a.b - c.b || a.at - c.at);
+  const holder = withB[0] || null;
+  const queue = [...withB.slice(1), ...own.filter((x) => x.after).sort((a, c) => a.at - c.at)];
+  const other = own.filter((x) => !x.b && !x.after);
+  const w = (waiting || []).length;
+  return { holder, queue, other, deploy: w, free: !holder && !w };
+}
+
+module.exports = { laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

@@ -428,7 +428,18 @@ page('team', { tab: 'imp', parent: 'imp', title: () => t('admTeam'), render(p) {
   else p.append(h('p', 'adm-dt', fmt(t('admTeamS'), { n: items.length, w: items.filter((x) => x.w).length })));
   const wk = items.filter((x) => x.w);
   p.append(grp(t('admTeamNow')), wk.length ? list(...wk.map((x) => row({ c: 'purple', ic: '◇', t: x.t, s: [x.w.n || sessShort(x.w.by), x.w.d].filter(Boolean).join(' · ') }))) : list(row({ c: 'gray', ic: '—', t: t('admTeamNone') })));
-  if ((d.prs || []).length) p.append(grp(t('admTeamPr')), list(...d.prs.map((x) => { const s = h('bdi', null, x.t || ''); return row({ c: 'orange', ic: '⇄', t: fmt(t('admItPr'), { n: x.n }), s, on: open(gh + '/pull/' + x.n) }); })));
+  const L = d.lane;
+  if (L) {
+    // נתיב הפריסה: מי מחזיק, מה בתור ובאיזה סדר למזג (CLAUDE.md סעיף 11) — במקום רשימת ה־PR
+    const lr = [];
+    lr.push(L.holder ? row({ c: 'orange', ic: '⇪', t: fmt(t('admLaneHeld'), { n: L.holder.n, b: L.holder.b }) + (L.holder.rel ? ' · ' + L.holder.rel : ''), s: h('bdi', null, L.holder.t), on: open(gh + '/pull/' + L.holder.n) })
+      : row({ c: L.deploy ? 'orange' : 'green', ic: L.deploy ? '⇪' : '✓', t: L.deploy ? t('admLaneDeploy') : t('admLaneFree') }));
+    if (L.holder && L.deploy) lr.push(row({ c: 'orange', ic: '⧗', t: t('admLaneDeploy') }));
+    L.queue.forEach((x, i) => lr.push(row({ c: 'gray', ic: String(i + 2), t: fmt(t('admItPr'), { n: x.n }) + (x.b ? ' · ' + fmt(t('admRunBuild'), { b: x.b }) : ''), s: h('bdi', null, x.t), on: open(gh + '/pull/' + x.n) })));
+    for (const x of L.other) lr.push(row({ c: 'gray', ic: '⇄', t: fmt(t('admItPr'), { n: x.n }), s: h('bdi', null, x.t), on: open(gh + '/pull/' + x.n) }));
+    p.append(grp(t('admLaneT')), list(...lr));
+    if (L.holder && L.queue.length) p.append(h('p', 'adm-foot', fmt(t('admLaneOrder'), { n: L.holder.n })));
+  }
   const dated = items.filter((x) => x.left != null).sort((a, b) => a.left - b.left);
   if (dated.length) p.append(grp(t('admSecDates')), list(...dated.map((x) => row({ c: x.left <= 7 ? 'red' : x.left <= 30 ? 'orange' : 'gray', ic: '⧗', t: x.t, v: x.left, tr: t('admDays') }))));
   if (d.tk) {
