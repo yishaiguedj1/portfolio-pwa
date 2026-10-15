@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (194 מפתחות מתוך 2825) */
+/* המחרוזות של admin (201 מפתחות מתוך 2832) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -143,7 +143,14 @@ he: {
   "admTabImp": "שיפור",
   "admTabOv": "סקירה",
   "admTabSys": "מערכת",
-  "admTeam": "סשנים של Claude",
+  "admTeam": "סשנים ומשימות",
+  "admTeamBy": "לפי נושא",
+  "admTeamNone": "אף סשן לא הכריז על משימה",
+  "admTeamNote": "מהרשימה בריפו. \"בעבודה\" = מה שסשן הכריז עליו.",
+  "admTeamNow": "בעבודה עכשיו",
+  "admTeamPr": "PR פתוחים",
+  "admTeamS": "{n} משימות פתוחות · {w} בעבודה",
+  "admTeamSrc": "משימות-פתוחות.md",
   "admTokCmd": "הפקודה לסשן",
   "admTokDel": "בטל",
   "admTokDelQ": "לבטל את הטוקן? סשן שמשתמש בו יפסיק לקבל נתונים",
@@ -339,7 +346,14 @@ en: {
   "admTabImp": "Improve",
   "admTabOv": "Overview",
   "admTabSys": "System",
-  "admTeam": "Claude sessions",
+  "admTeam": "Sessions & tasks",
+  "admTeamBy": "By topic",
+  "admTeamNone": "No session has claimed a task",
+  "admTeamNote": "From the list in the repo. \"In progress\" = what a session has claimed.",
+  "admTeamNow": "In progress now",
+  "admTeamPr": "Open PRs",
+  "admTeamS": "{n} open tasks · {w} in progress",
+  "admTeamSrc": "the task list",
   "admTokCmd": "Command for the session",
   "admTokDel": "Revoke",
   "admTokDelQ": "Revoke this token? A session using it will stop receiving data",

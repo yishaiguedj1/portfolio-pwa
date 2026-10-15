@@ -108,4 +108,31 @@ function aiView(f) {
   };
 }
 
-module.exports = { DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS };
+
+/* ---- סשנים ומשימות (15/10/2026): משימות-פתוחות.md מהריפו (ציבורי) — מה פתוח, מה בעבודה ובידי איזה סשן, מה עם תאריך.
+   טהור: מקבל את הטקסט ומחזיר רשימה קצרה. בלי Markdown בפלט (רק טקסט), כל שדה חתוך */
+const plain = (x) => String(x || '').replace(/`([^`]*)`/g, '$1').replace(/\*\*([^*]*)\*\*/g, '$1').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*>#]/g, '').replace(/\s+/g, ' ').trim();
+const DATE_RE = /(?:^|[\s*~])(\d{2})\/(\d{2})\/(\d{4})/;
+function tasksParse(md, now) {
+  const out = [], secs = [];
+  let sec = '';
+  for (const ln of String(md || '').split('\n')) {
+    const hm = /^##\s+(.+)$/.exec(ln);
+    if (hm) { sec = plain(hm[1]).replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s*\(.*$/, '').slice(0, 40); if (!secs.includes(sec)) secs.push(sec); continue; }
+    const im = /^- \[( |x)\]\s+(.+)$/.exec(ln);
+    if (!im || im[1] === 'x') continue;
+    const body = im[2];
+    const bm = /^\*\*(.+?)\*\*/.exec(body);
+    const w = /‹בעבודה:\s*([^·›]+?)\s*(?:\(([^)]*)\))?\s*·\s*([^›]+)›/.exec(body);
+    const onlyDate = bm && /^~?\d{2}\/\d{2}\/\d{4}$/.test(bm[1].trim());
+    let t = plain(bm && !onlyDate ? bm[1] : (onlyDate ? body.slice(bm[0].length) : body).replace(/‹[^›]*›/g, '').replace(/^[\s—–-]+/, '').split(/[.(]\s/)[0]);
+    t = t.replace(/[.:;—-]+\s*$/, '').replace(/\s*\([^)]*\)?\s*$/, '').replace(/[.:;—-]+\s*$/, '').slice(0, 90);
+    const dm = DATE_RE.exec(bm ? bm[1] : body.slice(0, 40));
+    const at = dm ? Date.UTC(+dm[3], +dm[2] - 1, +dm[1]) : 0;
+    out.push({ s: sec, t, w: w ? { by: plain(w[1]).slice(0, 24), n: plain(w[2] || '').slice(0, 30), d: plain(w[3]).slice(0, 12) } : null,
+      at, left: at && now ? Math.ceil((at - now) / DAY) : null });
+  }
+  return { items: out, secs: secs.map((s) => ({ s, n: out.filter((x) => x.s === s).length })).filter((x) => x.n) };
+}
+
+module.exports = { DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse };

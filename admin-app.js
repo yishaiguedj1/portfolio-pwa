@@ -54,7 +54,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {} };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -311,13 +311,46 @@ page('quota', { tab: 'sys', parent: 'sys', title: () => t('admQuota'), render(p)
   p.append(h('p', 'adm-foot', t('admQNote')));
 } });
 page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
+  if (!D.tk) needTasks();
   const v = D.lab && D.lab.view;
   const top = v && (v.ins || [])[0];
   const L = (D.lab && D.lab.insL) || {};
   p.append(list(
     row({ c: 'purple', ic: '✦', t: t('admLabT'), s: top ? ((lang === 'he' && L[top.k]) || top.k) : t('admLabNone'), v: v ? (v.ins || []).length : '', tr: t('admInsShort'), on: () => go('lab') }),
     row({ c: 'blue', ic: '◇', t: t('admClaudeT'), s: t('admClaudeShort'), on: () => go('claude') }),
-    soonRow('gray', '⇄', t('admTeam'))));
+    row({ c: 'gray', ic: '⇄', t: t('admTeam'), s: D.tk && D.tk.tk ? fmt(t('admTeamS'), { n: D.tk.tk.items.length, w: D.tk.tk.items.filter((x) => x.w).length }) : '', on: () => go('team') })));
+} });
+/* ---- סשנים ומשימות (15/10/2026): משימות-פתוחות.md מהריפו — מה בעבודה ובידי איזה סשן, מה עם תאריך, PR פתוחים ---- */
+async function needTasks() {
+  if (D.tk && Date.now() - D.tkAt < 60000) return;
+  const r = await api('adminTasks');
+  if (r.ok) { D.tk = r; D.tkAt = Date.now(); if (cur === 'team' || cur === 'imp') paint(); }
+}
+const sessShort = (x) => String(x || '').replace(/^session_/, '').slice(0, 6);
+page('team', { tab: 'imp', parent: 'imp', title: () => t('admTeam'), render(p) {
+  const d = D.tk;
+  if (!d) { needTasks(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const gh = 'https://github.com/yishaiguedj1/portfolio-pwa';
+  const open = (u) => () => { try { window.open(u, '_blank', 'noopener'); } catch (e) {} };
+  const items = (d.tk && d.tk.items) || [];
+  if (!d.tk) p.append(h('p', 'adm-note', t('admErr')));
+  else p.append(h('p', 'adm-dt', fmt(t('admTeamS'), { n: items.length, w: items.filter((x) => x.w).length })));
+  const wk = items.filter((x) => x.w);
+  p.append(grp(t('admTeamNow')), wk.length ? list(...wk.map((x) => row({ c: 'purple', ic: '◇', t: x.t, s: [x.w.n || sessShort(x.w.by), x.w.d].filter(Boolean).join(' · ') }))) : list(row({ c: 'gray', ic: '—', t: t('admTeamNone') })));
+  if ((d.prs || []).length) p.append(grp(t('admTeamPr')), list(...d.prs.map((x) => { const s = h('bdi', null, x.t || ''); return row({ c: 'orange', ic: '⇄', t: fmt(t('admItPr'), { n: x.n }), s, on: open(gh + '/pull/' + x.n) }); })));
+  const dated = items.filter((x) => x.left != null).sort((a, b) => a.left - b.left);
+  if (dated.length) p.append(grp(t('admSecDates')), list(...dated.map((x) => row({ c: x.left <= 7 ? 'red' : x.left <= 30 ? 'orange' : 'gray', ic: '⧗', t: x.t, v: x.left, tr: t('admDays') }))));
+  if (d.tk) {
+    const rows = [];
+    for (const sc of d.tk.secs) {
+      const on = !!D.tkOpen[sc.s];
+      rows.push(row({ c: 'gray', ic: on ? '▾' : (de.dir === 'rtl' ? '◂' : '▸'), t: sc.s, v: sc.n, on: () => { D.tkOpen[sc.s] = !on; paint(); } }));
+      if (on) for (const x of items.filter((y) => y.s === sc.s)) rows.push(row({ c: x.w ? 'purple' : 'gray', ic: x.w ? '◇' : '·', t: x.t, s: x.w ? sessShort(x.w.by) + ' · ' + x.w.d : '' }));
+    }
+    p.append(grp(t('admTeamBy')), list(...rows));
+  }
+  const src = h('a'); src.append(h('bdi', null, t('admTeamSrc'))); src.href = gh + '/blob/main/' + encodeURIComponent('משימות-פתוחות.md'); src.target = '_blank'; src.rel = 'noopener';
+  const f = h('p', 'adm-foot'); f.append(t('admTeamNote') + ' ', src); p.append(f);
 } });
 page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) { p.append(labCard(D.lab || { ok: false })); } });
 page('claude', { tab: 'imp', parent: 'imp', title: () => t('admClaudeT'), render(p) { p.append(claudeCard()); } });

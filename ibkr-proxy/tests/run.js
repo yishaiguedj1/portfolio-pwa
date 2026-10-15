@@ -3497,6 +3497,9 @@ function stubFetch(text, status = 200) {
       ok(!/ownerUid0001|zzAiTestUid01|u_aaaa|@example\.com/.test(JSON.stringify(aiR.payload)), 'AI ועלויות: בלי uid, בלי מזהה קורא ובלי מיילים');
       db.delete('studioStats/zzAiTestUid01'); db.delete('aiUse/' + tday);
       void mu0;
+      ok((await run({ op: 'adminTasks', idToken: FRIEND })).payload.error === 'not_admin', 'סשנים ומשימות: רק המנהל');
+      const tk = await run({ op: 'adminTasks', idToken: OWNER });
+      ok(tk.payload.ok && Array.isArray(tk.payload.prs) && (tk.payload.tk === null || Array.isArray(tk.payload.tk.items)), 'סשנים ומשימות: תשובה גם כשהריפו לא ענה');
       // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
       const br = await run({ op: 'learnBrief', idToken: OWNER });
       ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');

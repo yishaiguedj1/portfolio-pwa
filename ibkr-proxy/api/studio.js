@@ -1192,6 +1192,17 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, ai: AO.aiView({ now, days, lim: AICACHE.limits(),
         month: { usd: used.reduce((a, b) => a + b, 0), users: used.length, cap: USER_MONTH(), top: used.length ? Math.max(...used) : 0 }, fns }) });
     }
+    if (op === 'adminTasks') {
+      // 15/10/2026: מרכז הניהול ← סשנים ומשימות. משימות-פתוחות.md מהריפו (ציבורי) + ה־PR הפתוחים של הסשנים. מנהל בלבד
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const md = await aoGet(deps, 'tasks', async () => {
+        const r = await (deps.fetch || fetch)('https://raw.githubusercontent.com/' + AO_REPO + '/main/' + encodeURIComponent('משימות-פתוחות.md'), { signal: AbortSignal.timeout(6000) });
+        return r.status === 200 ? (await r.text()).slice(0, 200000) : null;
+      }, now);
+      const ext = await aoFacts(deps, now);
+      const prs = ((ext.gh && ext.gh.prs) || []).filter((x) => !x.dep);
+      return res.status(200).json({ ok: true, tk: md == null ? null : AO.tasksParse(md, now), prs, at: now });
+    }
     if (op === 'atNew' || op === 'atList' || op === 'atDel') {
       // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
