@@ -106,6 +106,11 @@ function guard(req, res, max = 4096) {   // max: מנהל הספרייה (ס׳1)
   }
   if (req.method === 'OPTIONS') { res.status(204).end(); return true; }
   if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'POST only' }); return true; }
+  /* שלב 7: הפעולה שייכת לאפליקציה — מקור או טוקן של אפליקציה אחרת נחסמים (lib/appscope.js) */
+  let body0 = req.body;
+  if (typeof body0 === 'string') { try { body0 = JSON.parse(body0); } catch (e) { body0 = null; } }
+  const denied = require('./appscope').appDenied(req, body0);
+  if (denied) { res.status(403).json({ ok: false, error: denied }); return true; }
   const need = process.env.APP_KEY;
   if (need && !safeEqual(h['x-app-key'] || h['X-App-Key'], need)) {
     res.status(401).json({ ok: false, error: 'bad_app_key' });
