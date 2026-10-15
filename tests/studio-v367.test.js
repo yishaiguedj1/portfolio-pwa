@@ -16,7 +16,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const O = require(path.join(root, 'ibkr-proxy/lib/studioops.js'));
   ok(JSON.stringify(S.normRules()) === '{"b":0,"mx":"","ab":false,"jx":false,"am":false}', 'בלי חוקים כברירת מחדל');
   const order = Object.keys(S.NORM_DEF).sort((a, b) => S.NORM_DEF[a] - S.NORM_DEF[b]);
-  ok(order.join() === 'haiku-high,sonnet-medium,sonnet-high,opus-medium', '"מצב מקסימלי" — לפי הצפוי לשעה (NORM_DEF)');
+  ok(order.join() === 'haiku-high,sonnet-low,sonnet-medium,sonnet-high,opus-medium', '"מצב מקסימלי" — לפי הצפוי לשעה (NORM_DEF)');
   const g = S.normGate({ k: 'b', usd: 10.271, cap: 10 }, 'g000000000001');
   ok(g.g === 'b' && g.q === '' && g.o.join() === 'go,stop' && g.d === 1 && g.n.usd === 10.27, 'שער תקציב — בלי טקסט מ־Claude, ברירת המחדל "לעצור"');
   ok(S.normGate({ k: 'r', cues: [{ t: '1:00', x: 'א' }], cnt: 3 }, 'g1').d === 1 && S.normGate({ k: 'q' }, 'g1') === null, 'שער צריבה — ברירת המחדל "רק כתוביות"; סוג לא מוכר נזרק');

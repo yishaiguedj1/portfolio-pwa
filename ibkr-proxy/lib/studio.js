@@ -25,11 +25,16 @@ const ACTIVE = ['new', 'queued', 'running'];
 const KINDS = ['ping', 'tr', 'rr', 'ai'];   // מ2: rr = הפקה מחדש (כתוביות ערוכות / רשימת עריכות → צריבה; בלי טוקנים)
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
 const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
-// 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. הראשון = ברירת המחדל (Sonnet Medium — המומלץ).
-const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium'];
+// 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. 15/10: נוסף Sonnet Low (לבדיקות — איך הוא וכמה עולה).
+const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium', 'sonnet-low'];
+/* 15/10/2026 (בקשת המשתמש): לכל המשתמשים רק שני מצבים — "רגיל" (Haiku High, ברירת המחדל) ו"ביצועים" (Sonnet Medium).
+   כל השאר — רק למנהל ולמי שברשימת "כל המודלים" במרכז הניהול (sysCfg.amEm, lib/sysflags.js). **= PUBLIC_MODES בטלפון** */
+const PUBLIC_MODES = ['haiku-high', 'sonnet-medium'];
+const DEFAULT_MODE = 'haiku-high';
+const modeOk = (m, full) => !!full || PUBLIC_MODES.includes(m);
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
 const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high' };   // 11/10: Haiku Medium יצא (= המחיר של High)
-const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || MODES[0]);
+const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || DEFAULT_MODE);
 /* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
    של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
 const LANG_READY = { from: ['auto', 'en'], to: ['he'] };
@@ -292,13 +297,14 @@ const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
 // Haiku 5.5 (10/10/2026): מחושב ממאגר המדידות — הטוקנים של Sonnet Medium (5 דק׳ TED) במחיר של Haiku (פי 20 זול) ×1.3
 // (הטוקנייזר שלו סופר יותר) = ‎~0.2$ לשעה במצב API; ב־Routine הסשן המתזמר נשאר Sonnet (‎~1.1$). 0.6/0.8 = בין השניים,
 // כך שאף מנוע לא מגיע ל"חריג" (פי 2) בלי סיבה. יוחלף ב"רגיל" הנלמד מ־NORM_MIN עבודות.
-const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0 };
+// Sonnet Low (15/10/2026): הערכה — פחות חשיבה מ־Medium; יוחלף ב"רגיל" הנלמד
+const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0, 'sonnet-low': 2.2 };
 const NORM_FIXED = 1.5;
 /* 11/10/2026: מצב השרת (API) — בלי סשן Claude מתזמר: אין "עלות פתיחה" של ~127K טוקנים, ומנהל העבודה רץ במודל של המצב.
    מהמדידות (5 דק׳ TED, translator/bench: ‎$0.565 / 0.345 / 0.215 / 0.045 / 0.04 לעבודה) × 12, מעוגל מעלה; הקבוע = השופט
    ושאר מה שלא תלוי באורך. עד 11/10 השרת השתמש בערכי ה־Routine — "הרגיל" ל־Haiku High היה $0.80 ($0.54 בפועל), והתקציב
    לעבודה של 5 דק׳ ‎~$1.55 (בפועל $0.04). **זהה ל־NORM_DEF_API / NORM_FIXED_API בטלפון** (studio.js). */
-const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
+const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0, 'sonnet-low': 1.8 };
 const NORM_FIXED_API = 0.05;
 const engKey = (e) => (e === 'api' || e === 'a' ? 'a' : 'r');
 const normDef = (mode, eng) => (engKey(eng) === 'a' ? NORM_DEF_API : NORM_DEF)[mode];
@@ -704,12 +710,12 @@ function rrJob(parent, body, id, uid, now) {
   return { id, uid, kind: 'rr', state: 'new', created: now, updated: now, spec: rrSpec(parent, body), fv: parent.fv || null, fc: fc ? { id: fc.id, name: fc.name, size: fc.size } : null,
     folder: parent.folder, rp: parent.id };
 }
-/* מ7: גיליון ה־AI בהפעלה אחת — הבקשה (תור, JSON) כבר בתיקיית העבודה; המצב — זול כברירת מחדל (Sonnet Medium) */
+/* מ7: גיליון ה־AI בהפעלה אחת — הבקשה (תור, JSON) כבר בתיקיית העבודה; המצב — ברירת המחדל (מ־15/10: Haiku High) */
 const AI_Q_MAX = 512 * 1024;
 function aiJob(parent, fq, mode, id, uid, now) {
   const sp = parent.spec || {};
   return { id, uid, kind: 'ai', state: 'new', created: now, updated: now, folder: parent.folder, rp: parent.id, fq,
-    spec: { name: sp.name || '', size: sp.size || 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(mode || 'sonnet-medium'), out: [], style: STYLES[0], terms: '',
+    spec: { name: sp.name || '', size: sp.size || 0, type: '', dur: 0, from: sp.from || 'auto', to: sp.to || ['he'], mode: modeNow(mode || DEFAULT_MODE), out: [], style: STYLES[0], terms: '',
       ...(sp.eng === 'api' ? { eng: 'api', cap: CAP_MIN_JOB } : {}) } };
 }
 function goldClone(src, id, uid, now) {
@@ -1039,7 +1045,7 @@ function fromFields(f) {
 }
 
 module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
-  MODES, LEGACY_MODES, modeNow, LANG_READY, langReady,
+  MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
   normTrace, normPv, normQuality, normInj, Q_KEYS, INJ_CODES, normJudge, JG_CODES, normRvf, RVF_MAX, RVF_CODES, normFil, FIL_MAX, normSty, normOv, normGl, glClean, normNoteText, noteView, NOTE_MAX,

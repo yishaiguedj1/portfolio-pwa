@@ -31,14 +31,14 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     { no: 4, fp: 'bad', why: 'loop', state: 'w' }, { no: 5, fp: 'bbbbbbbbbbbb', why: 'evil', state: 'n' }, { no: 6, fp: 'cccccccccccc', why: 'cost', state: 'zz' }] });
   ok(pb.list.length === 1 && pb.list[0].fix.length === 160 && pb.list[0].inc.join() === '7,8' && pb.open === 1, 'normPb: רק רשומות תקינות, תיקון מקוצר');
   ok(st.normRb([{ k: 'net', r: 's', n: 2 }, { k: 'evil', r: 's', n: 1 }, { k: 'cheap', r: 'x' }]).length === 1 && st.normRb('x') === null, 'normRb: רק ספרים מהקטלוג');
-  ok(st.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,haiku-high' && st.cheaperModes('sonnet-medium').join() === 'haiku-high' && !st.cheaperModes('haiku-high').length && !st.cheaperModes('haiku-medium').length && st.cheaperModes('opus-max').join() === st.cheaperModes('opus-medium').join(), 'cheaperModes בטלפון = בשרתון');
+  ok(st.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,sonnet-low,haiku-high' && st.cheaperModes('sonnet-medium').join() === 'sonnet-low,haiku-high' && !st.cheaperModes('haiku-high').length && !st.cheaperModes('haiku-medium').length && st.cheaperModes('opus-max').join() === st.cheaperModes('opus-medium').join(), 'cheaperModes בטלפון = בשרתון');
   ok(st.costStop({ err: 'tower_stop', tw: { why: 'cap' } }) && !st.costStop({ err: 'tower_stop', tw: { why: 'idle' } }) && !st.costStop(null), 'costStop בטלפון = בשרתון');
   ok(st.chainFor('prob', 3).map((x) => x.v).join() === 'home,settings,tower,towerx,probs,prob', 'רענון בדף בעיה — חוזר דרך המגדל ו"בעיות ותיקונים"');
   const sj = read('studio.js');
   ok(/list\(\.\.\.L\.map\(pbRow\)\)/.test(sj) && /const rb = rbSection\(\);/.test(sj) && !/secT\(T\('studioFbT'\)\)/.test(sj), 'מגדל: מקטע "בעיות" במקום ספר התיקונים (בלי כפילות) + ספרי הפעלה');
   ok(/function pageProb\(p\)/.test(sj) && /else if \(ui\.view === 'prob'\) pageProb\(p\)/.test(sj), 'דף בעיה');
   ok(/const pt = h\('small', null, x\.px\); pt\.dir = 'auto'/.test(sj) && !/innerHTML/.test(sj.slice(sj.indexOf('function pbRow'), sj.indexOf('function pageProb') + 2000)), 'ההצעה והתיקון — טקסט בלבד');
-  ok(/costStop\(rec\.srv\) \? cheaperModes\(rec\.spec\.mode\)\[0\]/.test(sj) && /askConfirm\(T\('studioCheapQ'/.test(sj), 'דף העבודה: "להמשיך במצב זול יותר" — באישור');
+  ok(/costStop\(rec\.srv\) \? cheaperModes\(rec\.spec\.mode\)\.filter\(\(x\) => modeOk\(x, ui\.mf\)\)\[0\]/.test(sj) && /askConfirm\(T\('studioCheapQ'/.test(sj), 'דף העבודה: "להמשיך במצב זול יותר" — באישור');
   const app = read('app.js');
   for (const k of ['studioPbSec', 'studioPbStN', 'studioPbStD', 'studioPbStW', 'studioPbStF', 'studioPbJobs1', 'studioPbJobsN', 'studioPbCost', 'studioPbAfter', 'studioPbGone',
     'studioPbKind', 'studioPbStops', 'studioPbJobsK', 'studioPbCostK', 'studioPbAutoK', 'studioPbLastK', 'studioPbFixT', 'studioPbIncT', 'studioPbScoreN', 'studioRbSec', 'studioRbNet',

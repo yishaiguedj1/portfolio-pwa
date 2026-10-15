@@ -28,7 +28,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
   /* ---------- 3. "הרגיל" ---------- */
   const tower = sj.slice(sj.indexOf('function pageNorm(p) {'), sj.indexOf("const rule = (txt) => h('div', 'st-row st-rule'"));
-  ok(/MODE_ORDER\.slice\(\)\.reverse\(\)\.filter\(\(id\) => nm\[id\]\)/.test(tower), 'המגדל: כל המצבים ב"הרגיל" (גם מצב שהעבודה שלו לא נלמדה — Haiku Medium)');
+  ok(/MODE_ORDER\.slice\(\)\.reverse\(\)\.filter\(\(id\) => nm\[id\] && \(modeOk\(id, ui\.mf\) \|\| nm\[id\]\.n\)\)/.test(tower), 'המגדל: כל המצבים ב"הרגיל" (גם מצב שהעבודה שלו לא נלמדה — Haiku Medium)');
   ok(/const curNorm = \(\) => \(apiMode\(\) \? ui\.normA \|\| ui\.normR : ui\.normR\)/.test(sj) && !/ui\.norm\b(?!R|A)/.test(sj), '"הרגיל" של המנוע שבשימוש — בכל מקום (מגדל, אומדן, סט הזהב)');
   const est = (apiOn) => st.startEstimate('haiku-high', 300, null, apiOn ? { cap: 30, month: 1 } : null, apiOn);
   ok(est(true).usd < est(false).usd && est(true).usd <= 0.35 && est(false).usd >= 1.5, 'אומדן לפני התחלה: בשרת בלי עלות הפתיחה של ה־Routine');
@@ -42,7 +42,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(!st.MODES.some((m) => m.id === 'haiku-medium') && !srv.MODES.includes('haiku-medium'), 'אין Haiku Medium בטלפון ובשרתון');
   ok(st.modeNow('haiku-medium') === 'haiku-high' && srv.modeNow('haiku-medium') === 'haiku-high', 'עבודה / טיוטה ישנה ב־Haiku Medium → Haiku High');
   ok(st.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high' && srv.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high', 'חוק "מצב מקסימלי" ישן → Haiku High (לא "בלי הגבלה")');
-  ok(st.migrateSettings({ mode: 'haiku-medium' }).mode === 'haiku-high' && st.migrateSettings({ mode: 'opus-high' }).mode === 'sonnet-medium', 'הגדרה ישנה: Haiku נשאר Haiku; Opus הישן → ברירת המחדל');
+  ok(st.migrateSettings({ mode: 'haiku-medium' }).mode === 'haiku-high' && st.migrateSettings({ mode: 'opus-high' }).mode === 'haiku-high' && st.migrateSettings({ mode: 'sonnet-medium', mv: 2 }).mode === 'haiku-high' && st.migrateSettings({ mode: 'sonnet-medium', mv: 3 }).mode === 'sonnet-medium' && st.migrateSettings({ mode: 'opus-medium', mv: 2 }).mode === 'opus-medium', 'הגדרה ישנה: Haiku נשאר Haiku; Opus / Sonnet Medium של ברירת המחדל הישנה → "רגיל" (פעם אחת, mv 3); בחירה מכוונת נשארת');
   const llm = read('translator/llm.py'), tw = read('translator/tower.py'), rb = read('translator/RUNBOOK.md');
   ok(!/'haiku-medium': \('anthropic'/.test(llm) && /'haiku-medium': 'haiku-high'/.test(llm) && !/'haiku-medium'/.test(tw) && !/\| `haiku-medium` \|/.test(rb), 'בעובד: לא במצבים, כן במיפוי של מצבים שהוסרו; לא במגדל ולא בטבלת ה־RUNBOOK');
   ok(!/HaiMed/.test(app) && !/HaiMed/.test(sj), 'המחרוזות של Haiku Medium הוסרו');

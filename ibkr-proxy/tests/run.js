@@ -1293,7 +1293,7 @@ function stubFetch(text, status = 200) {
     ok(S.normRoutine('  ' + RURL + ' ', 'Bearer ' + RKEY + '\n').trig === 'trig_01ABCDEFGHJKLMNOPQRSTUVW' && S.normRoutine('https://api.anthropic.com.evil.com/v1/claude_code/routines/trig_01ABCDEFGH/fire', RKEY).error === 'bad_url'
       && S.normRoutine(RURL.replace('https', 'http'), RKEY).error === 'bad_url' && S.normRoutine(RURL, 'sk-ant-api03-' + 'x'.repeat(40)).error === 'bad_key', 'סטודיו: כתובת ומפתח של Routine — רווחים ו־Bearer מתנקים, כתובת/מפתח מסוג אחר נדחים');
     const sp = S.normSpec({ name: 'Ackman\u0000 interview.mkv', size: 3.2 * 1024 ** 3, to: ['he', 'he', 'xx', 'en'], mode: 'nope', out: ['same', 'mkv', 'zip'], terms: 'Bill Ackman', from: 'en', dur: 4620.4 });
-    ok(sp && sp.name === 'Ackman interview.mkv' && sp.to.join() === 'he,en' && sp.mode === 'sonnet-medium' && S.normSpec({ name: 'x', size: 5, to: ['he'], mode: 'opus-max' }).mode === 'opus-medium' && sp.out.join() === 'same,mkv' && sp.dur === 4620 && !S.normSpec({ name: 'x', size: 0, to: ['he'] }) && !S.normSpec({ name: 'x', size: 5, to: ['xx'] }), 'סטודיו: פרטי עבודה — מנוקים ומוגבלים (שפות כפולות/לא מוכרות, מצב לא מוכר, גודל 0)');
+    ok(sp && sp.name === 'Ackman interview.mkv' && sp.to.join() === 'he,en' && sp.mode === 'haiku-high' && S.normSpec({ name: 'x', size: 5, to: ['he'], mode: 'opus-max' }).mode === 'opus-medium' && sp.out.join() === 'same,mkv' && sp.dur === 4620 && !S.normSpec({ name: 'x', size: 0, to: ['he'] }) && !S.normSpec({ name: 'x', size: 5, to: ['xx'] }), 'סטודיו: פרטי עבודה — מנוקים ומוגבלים (שפות כפולות/לא מוכרות, מצב לא מוכר, גודל 0)');
     let rep = S.applyReport({ prog: null }, { st: 'tr', p: 0.4, msg: 'כותבים\u0007 כל מילה', ex: 'דקה 3 מתוך 77' }, 1000);
     rep = S.applyReport({ prog: rep.prog }, { st: 'al', p: 7 }, 5000);
     ok(rep.prog.stg.tr.s === 1000 && rep.prog.stg.tr.e === 5000 && rep.prog.stg.al.s === 5000 && rep.prog.p === 1 && rep.prog.st === 'al' && !/\u0007/.test(rep.prog.msg || 'כותבים כל מילה'), 'סטודיו: דיווח — שלב חדש סוגר את הקודם עם זמן אמיתי, אחוז מוגבל ל־0–1, תווי בקרה מנוקים');
@@ -1309,6 +1309,25 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403 && r.payload.error === 'forbidden_origin', 'סטודיו: פעולת טלפון בלי Origin של האפליקציה — חסומה');
     r = await run({ op: 'status', idToken: FRIEND });
     ok(r.payload.ok && r.payload.conn === null && r.payload.drive.connected === false, 'סטודיו: משתמש מ־STUDIO_USERS מורשה (בלי חיבור ובלי Drive משלו)');
+    // 15/10/2026: מצבי התרגום — לכולם רק "רגיל" (Haiku High) ו"ביצועים" (Sonnet Medium); המנהל ורשימת "כל המודלים" — הכל
+    ok(r.payload.mf === false && (await run({ op: 'status', idToken: OWNER })).payload.mf === true, 'מצבים: משתמש רגיל — mf=false, המנהל — mf=true');
+    for (const m of ['opus-medium', 'sonnet-low', 'sonnet-high', 'opus-max']) {
+      r = await run({ op: 'create', idToken: FRIEND, spec: { name: 'a.mp4', size: 1000, to: ['he'], mode: m, out: ['same'] } });
+      ok(r.statusCode === 403 && r.payload.error === 'mode_locked', 'מצבים: ' + m + ' סגור למשתמש רגיל (403 mode_locked, לפני העלאה)');
+    }
+    ok(S.modeOk('haiku-high', false) && S.modeOk('sonnet-medium', false) && !S.modeOk('sonnet-low', false) && S.modeOk('sonnet-low', true) && S.modeNow('nope') === 'haiku-high', 'מצבים: modeOk / ברירת המחדל Haiku High');
+    r = await run({ op: 'adminCfg', idToken: FRIEND, set: { am: 'friend@example.com', on: true } });
+    ok(r.statusCode === 403, 'מצבים: רק המנהל משנה את הרשימה');
+    r = await run({ op: 'adminCfg', idToken: OWNER, set: { am: ' Reader@Example.com ', on: true } });
+    ok(r.payload.ok && r.payload.cfg.am.join() === 'reader@example.com', 'מצבים: המנהל מוסיף מייל (אותיות קטנות, בלי רווחים)');
+    ok((await run({ op: 'adminCfg', idToken: OWNER, set: { am: 'not-an-email', on: true } })).statusCode === 400, 'מצבים: מייל לא תקין נדחה');
+    r = await run({ op: 'status', idToken: READER });
+    ok(r.payload.ok && r.payload.mf === true, 'מצבים: מי שברשימה — מקבל גם את הסטודיו וגם את כל המצבים');
+    r = await run({ op: 'cfg' });
+    ok(r.payload.ok && !JSON.stringify(r.payload).includes('reader@'), 'מצבים: הרשימה לא יוצאת ב־cfg הציבורי');
+    r = await run({ op: 'adminCfg', idToken: OWNER, set: { am: 'reader@example.com', on: false } });
+    ok(r.payload.ok && r.payload.cfg.am.length === 0 && (await run({ op: 'status', idToken: READER })).statusCode === 403, 'מצבים: הסרה — הגישה נסגרת מיד');
+    r = await run({ op: 'status', idToken: FRIEND });
     // v357: Drive של הסטודיו — לקוח OAuth נפרד. החיבור של גיבוי הספרייה (driveVault) לא נחשב כאן
     r = await run({ op: 'status', idToken: OWNER });
     ok(r.payload.ok && r.payload.drive.connected === false && r.payload.drive.configured === true, 'סטודיו: החיבור של גיבוי הספרייה לא נותן גישה לסטודיו (לקוח OAuth אחר)');
@@ -2009,7 +2028,7 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 400, 'סטודיו: גיליון AI — קובץ בקשה שלא בתיקיית העבודה נדחה');
       rr = await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' });
       const A1 = rr.payload.job;
-      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'sonnet-medium', 'סטודיו: גיליון AI — עבודה "חדשה" (Sonnet Medium כברירת מחדל)');
+      ok(rr.payload.ok && A1.kind === 'ai' && A1.state === 'new' && A1.rp === JP && A1.files.q.id === 'aiq1234567890' && A1.spec.mode === 'haiku-high', 'סטודיו: גיליון AI — עבודה "חדשה" (Haiku High כברירת מחדל — 15/10)');
       ok((await run({ op: 'aiRun', idToken: OWNER, job: JP, q: 'aiq1234567890' })).payload.error === 'ai_busy', 'סטודיו: גיליון AI — אחד בכל פעם לכל עבודה');
       const f2 = fires.length;
       rr = await run({ op: 'start', idToken: OWNER, job: A1.id });
@@ -2445,7 +2464,7 @@ function stubFetch(text, status = 200) {
       ok(P5.problemsView(fbv.map((e) => Object.assign({}, e, { at: 50, fix: '', px: e.fp === FPb ? 'x' : '' })), [], jobsX, now).list.map((x) => x.state).sort().join() === 'd,n', 'סטודיו: בעיה — חדשה / אובחנה (הצעה שמחכה)');
       const rbx = P5.runbooksView([{ fp: FPa, auto: 2, ua: now - 1000 }, { fp: FPb, auto: 5, ua: now - 40 * 864e5 }], jobsX, now);
       ok(JSON.stringify(rbx) === '[{"k":"net","r":"s","n":1},{"k":"known","r":"s","n":2},{"k":"cheap","r":"c","n":1}]', 'סטודיו: ספרי הפעלה — כמה פעמים החודש, ומה בטוח / באישור');
-      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,haiku-high' && S5.cheaperModes('sonnet-medium').join() === 'haiku-high' && !S5.cheaperModes('haiku-high').length && !S5.cheaperModes('haiku-medium').length && S5.cheaperModes('opus-max').join() === S5.cheaperModes('opus-medium').join(), 'סטודיו: מצבים זולים יותר — מהקרוב');
+      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,sonnet-low,haiku-high' && S5.cheaperModes('sonnet-medium').join() === 'sonnet-low,haiku-high' && !S5.cheaperModes('haiku-high').length && !S5.cheaperModes('haiku-medium').length && S5.cheaperModes('opus-max').join() === S5.cheaperModes('opus-medium').join(), 'סטודיו: מצבים זולים יותר — מהקרוב');
       ok(S5.COST_STOP({ err: 'budget_stop' }) && S5.COST_STOP({ err: 'tower_stop', tw: { why: 'cost' } }) && !S5.COST_STOP({ err: 'tower_stop', tw: { why: 'loop' } }) && !S5.COST_STOP({ err: 'net' }),
         'סטודיו: "מצב זול יותר" רק אחרי עצירה על עלות');
       // מקצה לקצה: עצירה על עלות → המשך במצב זול יותר

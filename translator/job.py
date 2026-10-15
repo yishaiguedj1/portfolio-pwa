@@ -1101,7 +1101,7 @@ def terms_line(spec):
 def spec_line(spec):
     mins = round((spec.get('dur') or 0) / 60)
     return '"' + str(spec.get('name') or '') + '"' + (' · ' + str(mins) + ' דק׳' if mins else '') + \
-        ' · מצב ' + str(spec.get('mode') or 'sonnet-medium') + ' · תוצרים: ' + '+'.join((spec.get('out') or []) + ['srt'])
+        ' · מצב ' + str(spec.get('mode') or 'haiku-high') + ' · תוצרים: ' + '+'.join((spec.get('out') or []) + ['srt'])
 
 
 def mirror_prog(st, p):

@@ -22,21 +22,26 @@ export const LS_STUDIO = 'pwa_studio_v1';
 
 /* מצבי התרגום — המספרים מהמבחן מול המתרגם האנושי של TED (נספח ה׳ בתוכנית). q = איכות, u = שימוש במנוי (מתוך 5,
    לפי הצפוי לשעה — NORM_DEF בשרתון), min = הערכת זמן לשעת ראיון בדקות.
-   10/10/2026 (בקשת המשתמש): Sonnet 5.5 · Medium = המומלץ וברירת המחדל; נוסף Haiku 5.5 (Medium/High — עוד לא נבדק במבחן,
-   לכן q = 1 עד שיימדד); Opus High/Max הוסרו — הגבוה ביותר: Opus Medium */
+   10/10/2026 (בקשת המשתמש): נוסף Haiku 5.5 (עוד לא נבדק במבחן, לכן q = 1 עד שיימדד); Opus High/Max הוסרו.
+   15/10/2026 (בקשת המשתמש): לכל המשתמשים רק שני מצבים (tier) — "רגיל" = Haiku High (ברירת המחדל) ו"ביצועים" = Sonnet Medium.
+   כל השאר — רק למנהל ולמי שברשימת "כל המודלים" במרכז הניהול (ui.mf מהשרתון, שאוכף — modeOk). נוסף Sonnet Low לבדיקות */
 export const MODES = [
   { id: 'opus-medium', fam: 'opus', effort: 'Medium', q: 4, u: 5, min: 105 },
-  { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85, rec: true },
+  { id: 'sonnet-medium', fam: 'sonnet', effort: 'Medium', q: 2, u: 3, min: 85, tier: 'perf' },
   { id: 'sonnet-high', fam: 'sonnet', effort: 'High', q: 3, u: 4, min: 95 },
+  { id: 'sonnet-low', fam: 'sonnet', effort: 'Low', q: 1, u: 2, min: 80 },   // 15/10: עוד לא נבדק — הערכה עד שיימדד
   // Haiku: min מהמדידות — זמן קבוע (תמלול, יישור, צריבה ‎~52 דק׳ לשעה) + חלק ה־LLM (Opus ‎~53) × המהירות היחסית
-  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76 },
+  { id: 'haiku-high', fam: 'haiku', effort: 'High', q: 1, u: 1, min: 76, tier: 'std' },
 ];
-export const DEFAULT_MODE = 'sonnet-medium';
+export const DEFAULT_MODE = 'haiku-high';
+export const PUBLIC_MODES = ['haiku-high', 'sonnet-medium'];   // **= PUBLIC_MODES בשרתון** (lib/studio.js)
+export const modeOk = (id, full) => !!full || PUBLIC_MODES.includes(id);
+/* המצב שהמשתמש יכול להשתמש בו: מצב סגור (טיוטה / הגדרה ישנה, או שהוסר מהרשימה) → ברירת המחדל */
+export const modeFor = (id, full) => { const k = modeNow(id); return modeOk(k, full) ? k : DEFAULT_MODE; };
 // מצבים שהוסרו → המצב הקיים הקרוב (= LEGACY_MODES בשרתון ובעובד): עבודה / טיוטה / חוק ישנים ממשיכים לעבוד
 // 11/10/2026 (בקשת המשתמש): Haiku Medium יצא — המחיר כמו High (‎$0.04 מול $0.045 לעבודה של 5 דק׳), אז נשאר רק High
 export const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high' };
 export const modeNow = (id) => (MODES.some((m) => m.id === id) ? id : LEGACY_MODES[id] || DEFAULT_MODE);
-const REC_MODE = MODES.find((m) => m.rec);
 /* שפות: התמלול (Parakeet v2/v3, ivrit.ai, Omnilingual) מכסה גם שפות שלא ברשימה — זו רשימת הבחירה המהירה */
 export const SOURCE_LANGS = ['en', 'he', 'ar', 'ru', 'es', 'fr', 'de', 'it', 'pt', 'uk', 'pl', 'nl', 'tr', 'fa', 'hi', 'zh', 'ja', 'ko'];
 /* הסקירה (10/10/2026): מה שהעובד יודע היום (= LANG_READY בשרתון). השאר מוצג "בקרוב" ולא נבחר — לא נכשלים אחרי ההעלאה */
@@ -71,7 +76,7 @@ const HOSTS_EXTRA = ['huggingface.co', '*.huggingface.co', '*.hf.co', '*.pytorch
 
 /* ---------------- טהורות (נבדקות ב־node) ---------------- */
 export function defaultSettings() {
-  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 2, pq: 'src' };   // pq: איכות הצפייה בנגן (ברירת מחדל = המקור)
+  return { mode: DEFAULT_MODE, to: ['he'], out: { same: true, compact: false, mkv: false }, style: 'bold', conn: 'sub', wifi: false, cap: 10, mv: 3, pq: 'src' };   // pq: איכות הצפייה בנגן (ברירת מחדל = המקור)
 }
 function normOut(o) {
   const d = { same: true, compact: false, mkv: false };
@@ -217,7 +222,7 @@ export function normGq(o) {
 }
 export const NORM_FIXED = 1.5;   // **זהה ל־NORM_FIXED בשרתון** (lib/studio.js) — העלות הקבועה של עבודה (פתיחה, מדריכים)
 // 11/10/2026: מצב השרת — בלי סשן מתזמר (**זהה ל־NORM_DEF_API / NORM_FIXED_API בשרתון**; tests/studio-v363 משווה)
-export const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0 };
+export const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0, 'sonnet-low': 1.8 };
 export const NORM_FIXED_API = 0.05;
 /* מ6 (כלל 2): אומדן לפני כל התחלה — זמן (דקות לשעת וידאו של המצב × האורך) ועלות ("הרגיל" שלך, אחרת ברירת המחדל).
    במצב השרת — גם כמה נשאר מהתקציב החודשי. טהור */
@@ -751,11 +756,14 @@ export function normStore(o) {
   return { settings: migrateSettings(src.settings), drafts, jobs, conn: c, drive: d, sugx, amd };
 }
 /* 10/10/2026: ברירת המחדל עברה מ־Opus Medium ל־Sonnet Medium — הגדרות שנשמרו לפני כן (בלי mv) עם הברירה הישנה עוברות פעם אחת
-   לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת */
+   לחדשה. בחירה אחרת שנשמרה (Sonnet High וכו׳) נשארת
+   15/10/2026: ברירת המחדל עברה ל־Haiku High ("רגיל") — מי שנשאר על הברירה הקודמת (Sonnet Medium) עובר פעם אחת (mv 3) */
 export function migrateSettings(o) {
   const s = normSettings(o);
-  if (o && typeof o === 'object' && o.mv !== 2 && /^opus-(medium|high|max)$/.test(o.mode)) s.mode = DEFAULT_MODE;   // רק Opus (Haiku Medium → High דרך modeNow)
-  s.mv = 2;
+  const mv = o && typeof o === 'object' ? o.mv : 0;
+  if (mv !== 2 && mv !== 3 && /^opus-(medium|high|max)$/.test(o && o.mode)) s.mode = DEFAULT_MODE;   // רק Opus (Haiku Medium → High דרך modeNow)
+  if (mv !== 3 && o && o.mode === 'sonnet-medium') s.mode = DEFAULT_MODE;
+  s.mv = 3;
   return s;
 }
 /* טיוטה מהטופס: רק פרטי הקובץ (שם, גודל, סוג) — הקובץ עצמו לא נשמר */
@@ -820,6 +828,7 @@ function modeSub(id) {
     case 'opus-medium': return T('studioMsOpusMed');
     case 'sonnet-high': return T('studioMsSonHigh');
     case 'haiku-high': return T('studioMsHaiHigh');
+    case 'sonnet-low': return T('studioMsSonLow');
     default: return T('studioMsSonMed');
   }
 }
@@ -828,6 +837,7 @@ function effortSub(id) {
     case 'opus-medium': return T('studioEfOpusMed');
     case 'sonnet-high': return T('studioEfSonHigh');
     case 'haiku-high': return T('studioEfHaiHigh');
+    case 'sonnet-low': return T('studioEfSonLow');
     default: return T('studioEfSonMed');
   }
 }
@@ -836,6 +846,7 @@ function modeSum(id) {
     case 'opus-medium': return T('studioSumOpusMed');
     case 'sonnet-high': return T('studioSumSonHigh');
     case 'haiku-high': return T('studioSumHaiHigh');
+    case 'sonnet-low': return T('studioSumSonLow');
     default: return T('studioSumSonMed');
   }
 }
@@ -902,6 +913,7 @@ function errText(code, extra) {
     case 'worker_crash': return T('studioErrCrash');
     case 'worker_lost': return T('studioErrLost');   // 14/10/2026   // 11/10/2026: קריסה ≠ זיכרון (ההודעה המשותפת הטעתה — PR #66)
     case 'not_admin': return T('studioErrNotAdmin');
+    case 'mode_locked': return T('studioErrModeLocked');   // 15/10: המצב לא פתוח לחשבון הזה
     case 'net': case 'http_0': return T('studioErrNet');
     case 'drive_full': return T('studioErrDriveFull');
     case 'not_connected': case 'revoked': case 'drive_auth': return T('studioErrDrive');
@@ -1081,6 +1093,7 @@ async function refreshStatus(force) {
     ui.lra = num(j.lra);                       // 15/10 (מ׳1): ההודעה על מאגר הלמידה כבר נקראה
     ui.lrt = num(j.lrt);                       // 15/10: הנוסח שאומר שגם הטקסט נשמר — נקרא
     ui.lrm = num(j.lrm);                       // מ׳4: הנוסח שאומר שגם הקול ועותק ב־240p נשמרים — נקרא
+    ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
     ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     save();
     lrnNotice();
@@ -1890,11 +1903,13 @@ function copyBox(txt, label, k, prose) {
   return wrap;
 }
 
-/* בורר מצב התרגום — כרטיס המצב הנבחר (המומלץ בולט) + שתי קבוצות מאמץ + שורת המבחן */
+/* בורר מצב התרגום — כרטיס המצב הנבחר + "רגיל" / "ביצועים" (לכולם) + "כל המודלים" (רק למנהל ולמי שברשימה — ui.mf)
+   + שורת המבחן. 15/10/2026 (בקשת המשתמש) */
+const tierName = (m) => (m.tier === 'std' ? T('studioTierStd') : m.tier === 'perf' ? T('studioTierPerf') : modeShort(m));
 function modePicker(cur, onPick) {
-  const m = modeById(cur);
-  const best = h('div', 'st-mode-best' + (m.rec ? '' : ' other'));
-  best.append(h('span', 'st-ribbon', m.rec ? T('studioRibbonRec') : T('studioRibbonSel', { name: modeShort(REC_MODE) })));
+  const m = modeById(modeFor(cur, ui.mf));
+  const best = h('div', 'st-mode-best' + (m.tier === 'std' ? '' : ' other'));
+  best.append(h('span', 'st-ribbon', m.tier === 'std' ? T('studioRibbonStd') : m.tier === 'perf' ? T('studioRibbonPerf') : T('studioRibbonLab')));
   const mh = h('div', 'st-mh');
   const mt = h('span', 'st-l'); mt.append(h('b', null, modeName(m)), h('small', null, modeSub(m.id)));
   mh.append(tile('spark', 'green'), mt);
@@ -1904,27 +1919,28 @@ function modePicker(cur, onPick) {
   meters.append(meter(T('studioQuality'), bars(m.q)), meter(T('studioUsage'), bars(m.u, 'amber')),
     meter(T('studioHourEst'), h('b', null, T('studioHrs', { t: fmtHM(m.min) }))));
   best.append(mh, meters);
-  const grp = (fam) => {
+  const grp = (title, sub, ids, label) => {
     const g = h('div', 'st-mode-grp');
     const gh = h('div', 'st-gh');
-    const title = fam === 'opus' ? T('studioGrpPerf') : fam === 'sonnet' ? T('studioGrpEco') : T('studioGrpLite');
-    gh.append(h('b', null, title), h('small', null, fam === 'opus' ? T('studioGrpPerfS') : fam === 'sonnet' ? T('studioGrpEcoS') : T('studioGrpLiteS')));
+    gh.append(h('b', null, title), h('small', null, sub));
     const ef = h('div', 'st-effort'); ef.setAttribute('role', 'radiogroup'); ef.setAttribute('aria-label', title);
-    for (const x of MODES.filter((y) => y.fam === fam)) {
+    for (const x of ids.map(modeById)) {
       const b = btn(null, null, () => onPick(x.id), 'm:' + x.id);
       b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', x.id === m.id ? 'true' : 'false');
-      b.append(h('b', null, x.effort), h('small', x.rec ? 'star' : null, effortSub(x.id)));
+      b.append(h('b', null, label(x)), h('small', null, label === tierName ? modeShort(x) : effortSub(x.id)));
       ef.append(b);
     }
     g.append(gh, ef);
     return g;
   };
+  const groups = [grp(T('studioGrpMain'), T('studioGrpMainS'), PUBLIC_MODES, tierName)];
+  if (ui.mf) groups.push(grp(T('studioGrpLab'), T('studioGrpLabS'), MODE_ORDER.filter((id) => !PUBLIC_MODES.includes(id)), modeShort));
   const sum = h('p', 'st-modesum');
   const nb = h('b'); nb.append(h('bdi', 'st-nw', modeName(m)));   // מבודד — שם המודל לא "נדבק" לטקסט הלטיני שלפניו
   sum.append(T('studioSumPre') + ' ', nb, ' — ' + modeSum(m.id));
   // v367: מעל המצב המקסימלי שבחוקים שלך — לפני שמתחילים נשאל אותך
   const over = modeOverMax(m.id, ui.rl.mx) ? banner('warn', T('studioRlOverForm', { m: modeShort(modeById(ui.rl.mx)) })) : null;
-  return [best, grp('opus'), grp('sonnet'), grp('haiku'), sum, over].filter(Boolean);
+  return [best, ...groups, sum, over].filter(Boolean);
 }
 /* מה לקבל — שלוש אפשרויות + SRT קבוע. ההערכה לפי גודל הקובץ (כשיש) */
 function outRows(out, size, onToggle) {
@@ -2292,7 +2308,7 @@ function startFromForm() {
     const pr = f.fileObj ? (sm && sm.dur ? { dur: sm.dur } : await probeVideo(file)) : { dur: f.drive.dur || 0 };
     const ed = edlPre(normEdl(f.edl, pr.dur || 0));   // מ4: חיתוך לפני התרגום — האורך (ומכאן ההערכות) אחרי החיתוך
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
-      mode: f.mode, out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };
+      mode: modeFor(f.mode, ui.mf), out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };   // 15/10: מצב שסגור למשתמש → ברירת המחדל
     if (ed) spec.edl = ed;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
     else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
@@ -3975,7 +3991,7 @@ function pageNorm(p) {
   const nm = curNorm();
   let learned = false;
   if (nm) {
-    const ids = MODE_ORDER.slice().reverse().filter((id) => nm[id]);   // 11/10: כל המצבים (מהיקר לזול) — טבלת מחירים אחת, גם למצב שעוד לא נלמד
+    const ids = MODE_ORDER.slice().reverse().filter((id) => nm[id] && (modeOk(id, ui.mf) || nm[id].n));   // 15/10: מצב סגור — רק אם כבר עבדת בו   // 11/10: כל המצבים (מהיקר לזול) — טבלת מחירים אחת, גם למצב שעוד לא נלמד
     const rows = ids.map((id) => {
       const v = nm[id];
       if (!v.d) learned = true;
@@ -4023,7 +4039,7 @@ function haltBanner() {
   return b;
 }
 /* v367: "החוקים שלך" — סיכום בשורה אחת */
-const MODE_ORDER = ['haiku-high', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
+const MODE_ORDER = ['haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // לפי הצפוי לשעה (NORM_DEF בשרתון)
 export const modeOverMax = (id, mx) => !!mx && MODE_ORDER.indexOf(id) > MODE_ORDER.indexOf(mx);
 const ltr = (x) => '\u2066' + x + '\u2069';   // סכום בדולרים בתוך משפט בעברית — בידוד, כדי שלא יתהפך
 const budgetTxt = (b) => ltr('$' + (Number.isInteger(b) ? String(b) : b.toFixed(2)));
@@ -4051,7 +4067,7 @@ function rulesBudget(p, sec) {
 /* מצב מקסימלי — מצב יקר יותר מחכה לאישור שלך לפני שמתחילים. לכל מצב — כמה עולה עבודה רגילה לשעת סרטון (הרגיל שלך) */
 function rulesMax(p, sec) {
   const rl = ui.rl, off = blocked() || rulesBusy;
-  const mxs = [''].concat(MODE_ORDER.slice(0, -1));
+  const mxs = [''].concat(MODE_ORDER.filter((id) => modeOk(id, ui.mf)).slice(0, -1));   // 15/10: רק המצבים הפתוחים למשתמש
   if (sec) p.append(secT(T('studioRlMaxT')));
   p.append(list(...mxs.map((id) => rowRadio({ label: id ? T('studioRlUpTo', { m: modeName(modeById(id)) }) : T('studioRlAllModes'),
     sub: id ? normHint(id) : null, on: rl.mx === id, onClick: () => setRules({ mx: id }), k: 'rm:' + (id || 'all'), disabled: off }))));
@@ -5375,7 +5391,7 @@ function pageJob(p) {
     const ck = rec.srv.ck;
     acts.push(btn('st-btn wide', ui.resuming === id ? T('studioResuming') : ck ? T('studioResumeCk') : T('studioRetryAll'), () => resumeSrv(id), 'resume-srv'));
     // v376: ספר ההפעלה "מצב זול יותר" — משנה את התוצאה, ולכן רק באישור שלך
-    const cm = costStop(rec.srv) ? cheaperModes(rec.spec.mode)[0] : '';
+    const cm = costStop(rec.srv) ? cheaperModes(rec.spec.mode).filter((x) => modeOk(x, ui.mf))[0] : '';   // 15/10: רק מצב פתוח (השרתון אוכף)
     if (cm && !ui.resuming) acts.push(btn('st-btn ghost wide', T('studioCheapGo', { m: modeShort(modeById(cm)) }), () => {
       if (typeof askConfirm === 'function') askConfirm(T('studioCheapQ', { m: modeName(modeById(cm)) }), () => resumeSrv(id, false, false, cm), { ok: T('studioCheapOk') });
       else resumeSrv(id, false, false, cm);

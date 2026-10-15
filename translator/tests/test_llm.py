@@ -200,9 +200,11 @@ class AnthropicTests(unittest.TestCase):
     def test_modes_haiku_and_removed(self):
         # 10/10/2026: Haiku 5.5 (medium/high), Sonnet Medium = ברירת המחדל, Opus High/Max הוסרו → Opus Medium
         # 11/10/2026: Haiku Medium יצא (המחיר כמו High) — עבודה ישנה ממשיכה ב־High
-        self.assertEqual(sorted(llm.MODES), ['haiku-high', 'opus-medium', 'sonnet-high', 'sonnet-medium'])
+        # 15/10/2026: ברירת המחדל = Haiku High ("רגיל"); נוסף Sonnet Low (לבדיקות)
+        self.assertEqual(sorted(llm.MODES), ['haiku-high', 'opus-medium', 'sonnet-high', 'sonnet-low', 'sonnet-medium'])
+        self.assertEqual((llm.Spec.of('sonnet-low').model, llm.Spec.of('sonnet-low').effort), ('claude-sonnet-5-5', 'low'))
         self.assertEqual((llm.Spec.of('haiku-medium').model, llm.Spec.of('haiku-medium').effort), ('claude-haiku-5-5', 'high'))
-        self.assertEqual(llm.DEFAULT_MODE, 'sonnet-medium')
+        self.assertEqual(llm.DEFAULT_MODE, 'haiku-high')
         self.assertEqual((llm.Spec.of('haiku-high').model, llm.Spec.of('haiku-high').effort), ('claude-haiku-5-5', 'high'))
         for old in ('opus-high', 'opus-max'):
             self.assertEqual((llm.Spec.of(old).model, llm.Spec.of(old).effort), ('claude-opus-5-5', 'medium'))

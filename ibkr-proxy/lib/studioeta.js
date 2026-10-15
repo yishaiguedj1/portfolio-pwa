@@ -17,7 +17,7 @@ const PRIOR = {
   a: { tr: [70, 40], al: [60, 20], tl: [30, 2], rv: [40, 5], bn: [40, 28], sv: [10, 3] },
   r: { tr: [90, 6], al: [120, 4], tl: [180, 39], rv: [120, 9], bn: [60, 18], sv: [20, 2.5] },
 };
-const MODE_MIN = { 'sonnet-medium': 85, 'haiku-high': 76, 'sonnet-high': 95, 'opus-medium': 105 };   // = MODES בטלפון
+const MODE_MIN = { 'sonnet-medium': 85, 'haiku-high': 76, 'sonnet-high': 95, 'opus-medium': 105, 'sonnet-low': 80 };   // = MODES בטלפון
 const LAMBDA = 3, HALF_LIFE = 30 * 86400e3, SIGMA0 = 0.35, NQ = 8, ET_MAX = 40;
 const Z = { 50: 0, 80: 0.8416, 90: 1.2816 };
 
