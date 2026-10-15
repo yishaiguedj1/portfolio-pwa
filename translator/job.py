@@ -344,6 +344,7 @@ def run(args):
                     'bx': _int(job.get('bx')), 'u0': _usd(job.get('u0')),                 # v367: אישורים מעבר לתקציב, ומה שכבר עלה
                     'ls': ls,
                     'pir': pir_valid(got.get('pir')),                                    # v379: דוח אחרי תקלה שמחכה לסיכום
+                    'full': got.get('full') == 1,                                        # 15/10: האיסוף המלא (הדגל learn_full + הנוסח נקרא)
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
@@ -826,6 +827,7 @@ LC_MAX_CUES = 4000
 LC_MAX_WORDS = 40000
 LC_MAX_TXT = 400
 LC_MAX_B64 = 2400000        # בערך 1.8MB דחוס — שעתיים של הרצאה נכנסות בלי זמני מילים
+LC_MAX_B64_FULL = 3900000   # 15/10: האיסוף המלא — גם קבצי הטקסט (השרתון מקבל עד 4MB)
 _LC_SPK = re.compile(r'^S\d{1,2}$')
 
 
@@ -913,6 +915,41 @@ def learn_corpus(ctx):
             out['gl'] = gl[:300]
     except OSError:
         pass
+    if ctx.st.get('full'):
+        tx = project_texts(pd)
+        if tx:
+            out['tx'] = tx
+    return out
+
+
+# 15/10/2026 — האיסוף המלא: קבצי הטקסט של הפרויקט (הנחיות לסוכנים, התרגום לכל חלק, התיקונים, הערות המבקר והשופט,
+# ההגהה, שומר ההזרקות, זמני השלבים). בלי מדיה ובלי הקבצים הגדולים שכבר בקורפוס (זמני המילים, הכתוביות). השרתון בודק שוב
+TX_EXT = ('.md', '.txt', '.tsv', '.srt', '.ass', '.vtt', '.json')
+TX_SKIP = {'cues.en.json', 'en.aligned.json', 'en.words.json', 'cues.final.json', 'timeline.json'}
+TX_FILE = 300 * 1024
+TX_TOTAL = 6 * 1024 * 1024
+
+
+def project_texts(pd):
+    out, left = {}, TX_TOTAL
+    for p in sorted(pd.rglob('*')):
+        if len(out) >= 120 or left <= 0:
+            break
+        try:
+            rel = p.relative_to(pd).as_posix()
+        except ValueError:
+            continue
+        if not p.is_file() or p.suffix.lower() not in TX_EXT or p.name in TX_SKIP or rel.startswith(('asr/', '_learn/', '_ladder/')) \
+                or p.name.startswith('source.') or not re.match(r'^[\w][\w./-]{0,119}$', rel):
+            continue
+        try:
+            if p.stat().st_size > TX_FILE * 4:
+                continue
+            t = re.sub(r'[\x00-\x08\x0b-\x1f\x7f]', '', p.read_text(encoding='utf-8', errors='replace'))[:min(TX_FILE, left)]
+        except OSError:
+            continue
+        out[rel] = t
+        left -= len(t)
     return out
 
 
@@ -925,10 +962,12 @@ def learn_put(ctx):
             return False
         import base64
         import gzip
-        for drop in ((), ('wd',), ('wd', 'fin', 'pt')):
+        full = 'tx' in data
+        drops = ((), ('wd',), ('wd', 'tx'), ('wd', 'fin', 'pt', 'tx')) if full else ((), ('wd',), ('wd', 'fin', 'pt'))
+        for drop in drops:
             x = {k: v for k, v in data.items() if k not in drop}
             b = base64.b64encode(gzip.compress(json.dumps(x, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))).decode('ascii')
-            if len(b) <= LC_MAX_B64:
+            if len(b) <= (LC_MAX_B64_FULL if full else LC_MAX_B64):
                 j = ctx.c.raw('learnPut', lc=b)
                 return bool(j.get('saved'))
         return False
@@ -2354,8 +2393,33 @@ def fix(args):
     return 0
 
 
+DEV_DIR = VT_WORK / '_dev'
+
+
+def dev_setup(st):
+    """15/10/2026 — האיסוף המלא (רק כשהשרתון אמר full בלקיחה): faulthandler ל־_dev/stack.txt (קריסה קשה, ו־SIGUSR1 מהסוכן
+    כשהעבודה תקועה — מצב כל החוטים), ויומן הקריאות ל־Claude ב־_dev/calls.jsonl (llm.py — SNB_CALLLOG). הסוכן שולח את שניהם"""
+    if not st.get('full'):
+        return False
+    try:
+        import faulthandler
+        DEV_DIR.mkdir(parents=True, exist_ok=True)
+        f = open(DEV_DIR / 'stack.txt', 'a', encoding='utf-8')   # noqa: SIM115 — פתוח לכל חיי התהליך
+        faulthandler.enable(file=f, all_threads=True)
+        if hasattr(signal, 'SIGUSR1'):
+            faulthandler.register(signal.SIGUSR1, file=f, all_threads=True, chain=False)
+        os.environ['SNB_CALLLOG'] = str(DEV_DIR / 'calls.jsonl')
+        return True
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def auto(args):
     """מצב "API של המערכת": מנהל העבודה הוא סקריפט (pipeline.py), והמודל מקבל רק את עבודת השפה."""
+    try:
+        dev_setup(load_state())
+    except BaseException:     # noqa: BLE001 — האיסוף משני
+        pass
     try:
         if load_state().get('kind') == 'rr':      # מ2: הפקה מחדש — אותה פקודה כמו ב־Routine, בלי מודל
             return render(args)

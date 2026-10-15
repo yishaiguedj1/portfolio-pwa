@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (357 מפתחות מתוך 3023) */
+/* המחרוזות של admin (359 מפתחות מתוך 3026) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -91,6 +91,8 @@ he: {
   "admFindPh": "חיפוש מסך…",
   "admFlAll": "כל האפליקציות",
   "admFlFoot": "כל דגל נבדק בקוד במקום אחד. שינוי חל בשרת תוך חצי דקה, ובאפליקציות — בפתיחה הבאה או בחזרה אליהן.",
+  "admFlFull": "איסוף מלא (תקופת הפיתוח)",
+  "admFlFullS": "לוגים, יומן הקריאות, מדדים, שגיאות וטקסט מלא — לכבות כשיהיו משתמשים",
   "admFlLearn": "איסוף למאגר הלמידה",
   "admFlLearnS": "מדדים וטקסט מעבודות חדשות",
   "admFlLive": "מחירים חיים",
@@ -450,6 +452,8 @@ en: {
   "admFindPh": "Find a screen…",
   "admFlAll": "All apps",
   "admFlFoot": "Each flag is checked in one place in the code. Changes apply on the server within half a minute, and in the apps on the next open or return.",
+  "admFlFull": "Full collection (development period)",
+  "admFlFullS": "Logs, call log, metrics, errors and full text — turn off once there are users",
   "admFlLearn": "Learning database collection",
   "admFlLearnS": "Metrics and text from new jobs",
   "admFlLive": "Live prices",

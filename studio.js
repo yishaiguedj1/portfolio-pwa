@@ -1094,6 +1094,7 @@ async function refreshStatus(force) {
     ui.lrt = num(j.lrt);                       // 15/10: הנוסח שאומר שגם הטקסט נשמר — נקרא
     ui.lrm = num(j.lrm);                       // מ׳4: הנוסח שאומר שגם הקול ועותק ב־240p נשמרים — נקרא
     ui.mf = j.mf === true;                     // 15/10: כל מצבי התרגום (המנהל / רשימת "כל המודלים") — אחרת רק "רגיל" ו"ביצועים"
+    ui.lrf = num(j.lrf);                       // 15/10: הנוסח של האיסוף המלא (תקופת הפיתוח) — נקרא
     save();
     lrnNotice();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
@@ -5599,13 +5600,19 @@ let lrnBusy = false;
 /* 15/10/2026 (מ׳1): הודעה אחת בכניסה הראשונה — מה נאסף ושאפשר לכבות. כל סגירה ("הבנתי", "חזור", לחיצה בחוץ) = נקראה;
    היא לא מכבה כלום בעצמה — הבחירה רק במתג בהגדרות */
 let lrnAsked = false;
-export const LRN_TV = 3;   // **זהה ל־LRN_TV/LRN_MV בשרתון** — גרסת הנוסח (2 = גם טקסט הכתוביות ושמות הדוברים, 3 = גם הקול ועותק ב־240p — מ׳4)
+export const LRN_TV = 4;   // **זהה ל־LRN_TV/LRN_MV/LRN_FV בשרתון** — גרסת הנוסח (2 = גם טקסט הכתוביות ושמות הדוברים, 3 = גם הקול ועותק ב־240p — מ׳4, 4 = האיסוף המלא בתקופת הפיתוח)
+const LRN_MV = 3;          // הנוסח הרגיל (כשהדגל learn_full כבוי)
+/* 15/10/2026: כשהאיסוף המלא דולק (הדגל learn_full במרכז הניהול) — נוסח 4, שאומר שגם שם הקובץ, הטקסט המלא, הלוגים והשגיאות
+   נשמרים; מי שקרא רק את 3 רואה אותו פעם אחת. כבוי — נוסח 3 כמו קודם */
+const lrnFullOn = () => { try { const c = typeof sysCfgCached === 'function' ? sysCfgCached() : null; return !!(c && c.f && c.f.learn_full === true); } catch (e) { return false; } };
 function lrnNotice() {
-  if (lrnAsked || ui.lrm || ui.access !== 'ok' || typeof askConfirm !== 'function') return;   // מי שקרא רק את הנוסח הישן ("רק מספרים") — רואה את החדש
+  const full = lrnFullOn();
+  if (lrnAsked || (full ? ui.lrf : ui.lrm) || ui.access !== 'ok' || typeof askConfirm !== 'function') return;   // מי שקרא רק את הנוסח הקודם — רואה את החדש
   lrnAsked = true;
-  setTimeout(() => askConfirm(T('studioLrnAckQ'), () => {
+  setTimeout(() => askConfirm(full ? T('studioLrnAckQF') : T('studioLrnAckQ'), () => {
     ui.lra = ui.lrt = ui.lrm = Date.now();
-    net.api('learnPref', { ack: true, tv: LRN_TV }).catch(() => {});
+    if (full) ui.lrf = ui.lrm;
+    net.api('learnPref', { ack: true, tv: full ? LRN_TV : LRN_MV }).catch(() => {});
   }, { alert: true, ok: T('studioLrnAckOk') }), 700);
 }
 /* 15/10/2026 (מ׳1): "מחק את התרומות שלי" — הרשומות של כל העבודות שלך במאגר (גם של עבודות שנמחקו). באישור הרסני */
