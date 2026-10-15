@@ -58,12 +58,12 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(kp.ht === 0.2 && kp.edr === 0.667 && kp.cov === 0.7 && kp.sga === 0.75, 'המדדים: HTER על מה שנערך, חלק העבודות שנערכו, חציון הצפייה, הצעות שהתקבלו');
   const lrec = LR.learnRec({ id: 'j' + 'A'.repeat(20), kind: 'tr', state: 'done', created: now0, spec: { dur: 600 }, ux: { e: { s: 1, wd: 4 }, o: { dl: 2 } } }, now0, () => ({ state: 'done' }));
   ok(lrec && lrec.ux && lrec.ux.e.wd === 4 && lrec.ux.o.dl === 2, 'הרשומה במאגר כוללת את ux');
-  const sjv = +sj.match(/export const LRN_TV = (\d+)/)[1], svv = +fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8').match(/const LRN_TV = (\d+)/)[1];
-  ok(sjv === 2 && sjv === svv, 'LRN_TV — זהה בטלפון ובשרתון');
+  const sjv = +sj.match(/export const LRN_TV = (\d+)/)[1], svv = +fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8').match(/const LRN_MV = (\d+)/)[1];
+  ok(sjv === 3 && sjv === svv, 'LRN_TV בטלפון = LRN_MV בשרתון (מ׳4: הנוסח של הקול וה־240p)');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const he = app.match(/studioLrnAckQ: "([^"]*)"/)[1], en = app.match(/studioLrnAckQ: "([^"]*)"/g)[1];
   ok(/טקסט/.test(he) && /שמות הדוברים/.test(he) && /24 חודשים/.test(he) && !/בלי טקסט|רק מספרים/.test(he) && /subtitle text/.test(en) && !/no text/i.test(en), 'ההודעה אומרת שגם הטקסט ושמות הדוברים נשמרים (בעברית ובאנגלית)');
-  ok(/ui\.lrt \|\| ui\.access/.test(sj) && /learnPref', \{ ack: true, tv: LRN_TV \}/.test(sj), 'הטלפון מציג את ההודעה לפי lrt ושולח את הגרסה');
+  ok(/ui\.lrm \|\| ui\.access/.test(sj) && /learnPref', \{ ack: true, tv: LRN_TV \}/.test(sj), 'הטלפון מציג את ההודעה לפי lrt ושולח את הגרסה');
   const brief = LR.learnBrief(LR.learnView([Object.assign(recOf({ e: { s: 1, wd: 1, wa: 10 } }), { id: 'x', eng: 'api' })], now0), now0);
   ok(/`ux`/.test(brief) && /HTER/.test(brief), 'החבילה לניתוח מסבירה את ux ואת HTER');
 

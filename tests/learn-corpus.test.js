@@ -97,7 +97,7 @@ const { fakeR2, ACC } = require('./_r2fake');
     const j = await api('create', { spec });
     const id = j.job.id, key = crypto.randomBytes(32).toString('base64url');
     Object.assign(db.get('studioJobs/' + id).fields, { kh: { stringValue: crypto.createHash('sha256').update(key).digest('hex') }, kx: { integerValue: String(NOW + 3600e3) }, state: { stringValue: 'running' } });
-    return { id, put: (lc) => call({ op: 'learnPut', job: id, key, lc }, true).then((r) => r.j) };
+    return { id, key, put: (lc) => call({ op: 'learnPut', job: id, key, lc }, true).then((r) => r.j) };
   };
   const body = (o) => zlib.gzipSync(Buffer.from(JSON.stringify(o))).toString('base64');
   const LR = require(path.join(root, 'ibkr-proxy/lib/studiolearn.js'));
@@ -158,6 +158,44 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok(fg.ok && fg.nc === 1 && (await keysIn('q/')).length === 0, '"מחק את התרומות שלי" — גם הקורפוס בדלי נמחק');
   const e = await newJob();
   ok((await e.put(body(raw))).saved === false, 'עבודה שנוצרה לפני המחיקה — לא נכנסת שוב');
+
+  /* מ׳4 (15/10/2026): הקול ועותק ה־240p — קישור חתום ומפתח עטוף; רק אחרי ההודעה שאומרת זאת (lrm) */
+  NOW = Date.UTC(2026, 9, 22, 12); R.now = NOW;
+  for (const [k, v] of db) if (k.startsWith('studioJobs/')) v.fields.state = { stringValue: 'done' };
+  const mj = await newJob();
+  const mcall = (op, k) => call({ op, job: mj.id, key: mj.key, k }, true).then((r) => r.j);
+  ok((await mcall('learnMedia', 'a')).skip === true, 'הקול: ההודעה של הקול וה־240p עוד לא נקראה (tv 2 בלבד) — לא מבקשים');
+  const ack3 = await api('learnPref', { ack: true, tv: 3 });
+  ok(ack3.lrm > 0 && ack3.lrt > 0, 'הנוסח של מ׳4 (tv 3) — גם lrm');
+  const ma = await mcall('learnMedia', 'a');
+  const lidM = LR.lid(mj.id);
+  ok(ma.url && ma.url.includes('.r2.cloudflarestorage.com/') && ma.url.includes('/m/2026-10/' + lidM + '.a.mp4') && /X-Amz-Signature=/.test(ma.url), 'קישור PUT חתום לנתיב m/<חודש>/<מזהה>.a.mp4');
+  ok(/^[0-9a-f]{32}$/.test(ma.key) && /^[0-9a-f]{32}$/.test(ma.kid) && ma.max > 0, 'מפתח הצפנה חדש לעבודה (16 בתים) + מזהה');
+  const kobj = (await keysIn('m/')).find((k) => k.endsWith('.a.key'));
+  const ksealed = Buffer.from(R.objs.get('snb-studio/' + kobj) || R.objs.get(kobj) || '').toString('utf8');
+  ok(kobj && ksealed.startsWith('v1.') && !ksealed.includes(ma.key), 'המפתח נשמר ליד הקובץ — עטוף בכספת, לא גלוי');
+  const pu = await R.fetch(ma.url, { method: 'PUT', body: Buffer.alloc(5000, 7), headers: { 'content-length': '5000' } });
+  ok(pu.status === 200, 'העובד מעלה ישירות לדלי');
+  ok((await mcall('learnMediaDone', 'a')).saved === true, 'learnMediaDone: נבדק הגודל ונרשם');
+  ok((await mcall('learnMedia', 'a')).skip === true, 'פעם אחת לכל סוג בעבודה (lm)');
+  const mv = await mcall('learnMedia', 'v');
+  ok(mv.url && mv.url.includes('/m/2026-10/' + lidM + '.v.mp4') && mv.key !== ma.key, 'ה־240p: קישור ומפתח משלו, באותו חודש');
+  ok((await mcall('learnMediaDone', 'v')).saved === false && !(await keysIn('m/')).some((k) => k.includes('.v.')), 'לא הועלה — לא נרשם, והמפתח נמחק');
+  ok((await mcall('learnMedia', 'x')).skip === true, 'סוג לא מוכר — לא');
+  const lpm = await call({ op: 'learnPull', at: tokA }, true);
+  ok(lpm.j.corpus.na === 1 && lpm.j.corpus.nv === 0 && lpm.j.corpus.mb === 5000, 'בלוח: כמה קול / 240p ו־MB');
+  NOW = Date.UTC(2028, 11, 2, 12); R.now = NOW;
+  await call({}, false, true);
+  ok((await keysIn('m/')).length === 0, 'הקול וה־240p — נמחקים אחרי 24 חודשים');
+  NOW = Date.UTC(2026, 9, 23, 12); R.now = NOW;
+  for (const [k, v] of db) if (k.startsWith('studioJobs/')) v.fields.state = { stringValue: 'done' };
+  const mj2 = await newJob();
+  const m2 = await call({ op: 'learnMedia', job: mj2.id, key: mj2.key, k: 'a' }, true).then((r) => r.j);
+  await R.fetch(m2.url, { method: 'PUT', body: Buffer.alloc(100, 1), headers: { 'content-length': '100' } });
+  await call({ op: 'learnMediaDone', job: mj2.id, key: mj2.key, k: 'a' }, true);
+  ok((await keysIn('m/')).length === 2, 'עבודה נוספת — הקול והמפתח בדלי');
+  await api('learnForget', {});
+  ok((await keysIn('m/')).length === 0, '"מחק את התרומות שלי" — גם הקול וה־240p');
 
   /* בלי הדלי — כלום */
   for (const [k, v] of db) if (k.startsWith('studioJobs/')) v.fields.state = { stringValue: 'done' };   // מקום לעבודה חדשה

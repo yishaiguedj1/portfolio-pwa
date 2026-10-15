@@ -145,3 +145,95 @@ class LearnCorpus(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@unittest.skipUnless(__import__('shutil').which('ffmpeg'), 'ffmpeg חסר')
+class LearnMedia(unittest.TestCase):
+    """15/10/2026 (מ׳4): הקול ועותק 240p — רק כשהשרתון מבקש, מוצפנים (בלי המפתח לא מתפענחים), מועלים לקישור, ונמחקים מהדיסק"""
+
+    def setUp(self):
+        import http.server
+        import subprocess
+        import threading
+        self.tmp = tempfile.TemporaryDirectory()
+        self.pd = Path(self.tmp.name) / 'proj'
+        self.pd.mkdir()
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=25', '-f', 'lavfi', '-i', 'sine=f=440',
+                        '-t', '3', '-c:v', 'libx264', '-c:a', 'aac', str(self.pd / 'source.mp4')], check=True)
+        self.got = {}
+        got = self.got
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_PUT(self):
+                n = int(self.headers['Content-Length'])
+                got[self.path] = self.rfile.read(n)
+                self.send_response(200)
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+        self.srv = http.server.HTTPServer(('127.0.0.1', 0), H)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.base = 'http://127.0.0.1:%d/' % self.srv.server_port
+        self.calls = []
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.tmp.cleanup()
+
+    def ctx(self, answer):
+        calls = self.calls
+
+        def raw(op, **kw):
+            calls.append((op, kw))
+            return answer(op, kw)
+        return SimpleNamespace(pdir=self.pd, st={'kind': 'tr'}, c=SimpleNamespace(raw=raw))
+
+    def test_upload_encrypted(self):
+        import subprocess
+        key, kid = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1'
+        orig = job._lm_put
+
+        def put(url, path):                                   # הקישור "חתום" ב־https; כאן — לשרת המקומי
+            return orig(url.replace('https://r2.test/', self.base), path)
+        job._lm_put = put
+        try:
+            ans = lambda op, kw: ({'url': 'https://r2.test/' + kw['k'], 'key': key, 'kid': kid, 'max': 50_000_000} if op == 'learnMedia' else {'saved': True})
+            self.assertEqual(job.learn_media(self.ctx(ans)), ['a', 'v'])
+        finally:
+            job._lm_put = orig
+        self.assertEqual([c[0] for c in self.calls], ['learnMedia', 'learnMediaDone', 'learnMedia', 'learnMediaDone'])
+        self.assertEqual(set(self.got), {'/a', '/v'})
+        self.assertFalse((self.pd / '_learn').exists(), 'הקבצים הזמניים נמחקו')
+        for k, data in self.got.items():
+            p = Path(self.tmp.name) / ('got' + k.strip('/') + '.mp4')
+            p.write_bytes(data)
+            self.assertEqual(subprocess.run(['ffmpeg', '-v', 'error', '-decryption_key', key, '-i', str(p), '-f', 'null', '-'],
+                                            capture_output=True).returncode, 0, 'עם המפתח — מתפענח')
+            probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,height', '-of', 'json', str(p)], capture_output=True, text=True)
+            st = json.loads(probe.stdout or '{}').get('streams') or []
+            if k == '/a':
+                self.assertEqual([s['codec_type'] for s in st], ['audio'], 'קול בלבד')
+            else:
+                self.assertEqual([s.get('height') for s in st if s['codec_type'] == 'video'], [240])
+            self.assertIn(b'tenc', data, 'מסומן כמוצפן (CENC)')
+
+    def test_skip_when_not_asked(self):
+        self.assertEqual(job.learn_media(self.ctx(lambda op, kw: {'ok': True, 'skip': True})), [])
+        self.assertEqual([c[0] for c in self.calls], ['learnMedia', 'learnMedia'])
+        self.assertEqual(self.got, {})
+
+    def test_bad_key_or_url_ignored(self):
+        bad = lambda op, kw: {'url': 'http://evil/', 'key': 'zz', 'kid': 'zz', 'max': 1}
+        self.assertEqual(job.learn_media(self.ctx(bad)), [])
+        self.assertEqual(self.got, {})
+
+    def test_too_big_not_uploaded(self):
+        ans = lambda op, kw: {'url': 'https://r2.test/' + kw['k'], 'key': '0' * 32, 'kid': '1' * 32, 'max': 10}
+        self.assertEqual(job.learn_media(self.ctx(ans)), [])
+        self.assertNotIn('learnMediaDone', [c[0] for c in self.calls])
+
+    def test_no_video_source(self):
+        (self.pd / 'source.mp4').unlink()
+        self.assertEqual(job.learn_media(self.ctx(lambda op, kw: {})), [])
+        self.assertEqual(self.calls, [])
