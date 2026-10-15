@@ -31,6 +31,7 @@ ok(deny('library', O.invest, { op: 'gdToken' }) === '' && deny('library', O.inve
 ok(deny('library', O.invest, { op: 'list' }) === 'wrong_app' && deny('library', O.invest, { op: 'libMove' }) === 'wrong_app', 'Invest → /api/library שאר הפעולות: חסום');
 ok(deny('library', O.studio, { op: 'gdToken' }) === 'wrong_app', 'Studio → /api/library gd*: חסום (ל־Studio לקוח Drive משלו)');
 ok(deny('studio', O.invest, { op: 'cfg' }) === '' && deny('studio', O.academy, { op: 'cfg' }) === '', 'op cfg של /api/studio (מצב תחזוקה, core.js) — פתוח לכל האפליקציות');
+ok(deny('studio', O.invest, { op: 'fbSend' }) === '' && deny('studio', O.academy, { op: 'fbSend' }) === '', 'op fbSend (משוב מההגדרות) — פתוח לכל האפליקציות');
 ok(deny('studio', O.academy, { op: 'jobs' }) === 'wrong_app', 'שאר הפעולות של /api/studio — רק Studio');
 // מקור בלי אפליקציה ("הכל", github.io, localhost, בלי מקור) — כמו קודם
 for (const o of ['https://thesnowball.app', 'https://yishaiguedj1.github.io', 'http://localhost:8080', '']) {

@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { fb: null, us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -200,12 +200,14 @@ page('apps', { tab: 'apps', title: () => t('admTabApps'), render(p) {
   const A2 = D.apps;
   if (!A2) needApps();
   if (!D.us) needUsage();
+  if (!D.fb) needFb();
+  if (!D.cfg) needCfg();
   const iv = A2 && A2.invest, ac = A2 && A2.academy;
   p.append(list(
     row({ c: 'invest', ic: '↗', t: 'Invest', s: iv && iv.users != null ? fmt(t('admAppInvestS2'), { n: iv.users, i: iv.ibkr == null ? '—' : iv.ibkr }) : t('admLoading'), on: () => go('invest') }),
     row({ c: 'academy', ic: '▤', t: 'Academy', s: ac && ac.cat ? fmt(t('admAppAcademyS2'), { n: ac.cat.pub, r: ac.readers == null ? '—' : ac.readers }) : A2 ? t('admUnknown') : t('admLoading'), on: () => go('academy') }),
     row({ c: 'studio', ic: '▶', t: 'Studio', s: k ? fmt(t('admAppStudioS'), { n: k.n || 0, c: usd(k.cpm, 3) }) : t('admSoon'), v: k && k.ok != null ? pctTxt(k.ok) : '', tr: k && k.ok != null ? t('admKok') : '', sp: v ? spark((v.wk || []).map((x) => x.n), COL.studio) : null, on: () => go('studio') })));
-  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admLoading'), on: () => go('users') }), row({ c: 'blue', ic: '∑', t: t('admUsage'), s: D.us && D.us.jobs ? fmt(t('admUsS'), { n: D.us.jobs.n }) : '', on: () => go('usage') }), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
+  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admLoading'), on: () => go('users') }), row({ c: 'blue', ic: '∑', t: t('admUsage'), s: D.us && D.us.jobs ? fmt(t('admUsS'), { n: D.us.jobs.n }) : '', on: () => go('usage') }), row({ c: 'orange', ic: '✉', t: t('admFeedback'), s: D.fb ? (D.fb.open ? fmt(t('admFbOpenN'), { n: D.fb.open }) : t('admFbNone')) : '', badge: D.fb ? D.fb.open : 0, on: () => go('feedback') }), row({ c: 'purple', ic: '📣', t: t('admMsgs'), s: D.cfg && D.cfg.an ? t('admAnOn') : t('admAnOffS'), on: () => go('news') })));
 } });
 /* ---- Invest ו־Academy (15/10/2026): מספרים בלבד מהשרתון (adminApps — ספירות ב־Firestore והקטלוג ב־R2). לא נמדד = "—" ---- */
 async function needApps() {
@@ -487,12 +489,87 @@ page('usage', { tab: 'apps', parent: 'apps', title: () => t('admUsage'), render(
   p.append(grp('Invest'), funnel(U.invest, 'invest'), grp('Academy'), funnel(U.academy, 'academy'), grp('Studio'), funnel(U.studio, 'studio'));
   p.append(h('p', 'adm-foot', t('admUgFoot')));
 } });
+/* ---- משוב ופניות (15/10/2026): מה שמשתמשים שלחו מההגדרות של כל אפליקציה (fbSend). "טופל", לענות במייל, מחיקה ---- */
+async function needFb(set) {
+  const r = await api('adminFb', set ? { set } : {});
+  if (r.ok) { D.fb = r.fb; if (['feedback', 'apps'].includes(cur)) paint(); }
+  if (set) D.log = null;
+  return r;
+}
+const FBK = { bug: () => t('fbKBug'), idea: () => t('fbKIdea'), other: () => t('fbKOther') };
+const APPC = { invest: 'invest', academy: 'academy', studio: 'studio' };
+function fbCard(x) {
+  const c = h('section', 'card adm-card adm-fb' + (x.st === 'd' ? ' done' : ''));
+  const top = h('div', 'adm-fbtop');
+  const chip = h('span', 'adm-chip', (FBK[x.k] || FBK.other)()); chip.style.background = COL[x.k === 'bug' ? 'red' : x.k === 'idea' ? 'purple' : 'gray'];
+  const ap = h('span', 'adm-chip', x.app ? x.app.replace(/^./, (m) => m.toUpperCase()) : '—'); ap.style.background = COL[APPC[x.app]] || COL.gray;
+  top.append(chip, ap, h('small', null, [day(x.at) + ' ' + clock(x.at), x.ver, x.plat].filter(Boolean).join(' · ')));
+  const tx = h('p', 'adm-fbtx', x.t); tx.setAttribute('dir', 'auto');
+  const br = h('div', 'btn-row');
+  if (x.em) { const a = h('a', 'btn secondary-btn', t('admFbReply')); a.href = 'mailto:' + encodeURIComponent(x.em) + '?subject=' + encodeURIComponent('THE SNOWBALL'); br.append(a); }
+  const st = h('button', x.st === 'd' ? 'btn secondary-btn' : 'btn', x.st === 'd' ? t('admFbReopen') : t('admFbDone')); st.type = 'button';
+  st.addEventListener('click', async () => { st.disabled = true; const r = await needFb({ id: x.id, st: x.st === 'd' ? 'n' : 'd' }); if (!r.ok) { st.disabled = false; flash(t('admErr')); } });
+  const del = h('button', 'mini-btn danger', t('admModelsDel')); del.type = 'button';
+  del.addEventListener('click', () => askConfirm(t('admFbDelQ'), async () => { const r = await needFb({ id: x.id, st: 'x' }); flash(r.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admModelsDel') }));
+  br.append(st, del);
+  c.append(top, tx);
+  if (x.em) { const em = h('p', 'adm-sub'); em.append(h('bdi', null, x.em)); c.append(em); }
+  c.append(br);
+  return c;
+}
+page('feedback', { tab: 'apps', parent: 'apps', title: () => t('admFeedback'), render(p) {
+  const F = D.fb;
+  if (!F) { needFb(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const open = F.items.filter((x) => x.st === 'n'), done = F.items.filter((x) => x.st === 'd');
+  p.append(h('p', 'adm-dt', open.length ? fmt(t('admFbOpenN'), { n: open.length }) : t('admFbNone')));
+  if (open.length) p.append(...open.map(fbCard));
+  if (done.length) p.append(grp(fmt(t('admFbDoneN'), { n: done.length })), ...done.slice(0, 30).map(fbCard));
+  p.append(h('p', 'adm-foot', t('admFbFoot')));
+} });
+/* ---- הודעות ומה חדש (15/10/2026): הודעה שאתה כותב — פעם אחת בכל מכשיר, לאפליקציות שבחרת, עד מתי שבחרת (sysCfg.an*).
+   "מה חדש" — אוטומטי אחרי כל שחרור לייצור, מ־CHANGELOG.md (newsShow ב־core) ---- */
+page('news', { tab: 'apps', parent: 'apps', title: () => t('admMsgs'), render(p) {
+  const cf = D.cfg;
+  if (!cf) { needCfg(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const an = cf.an, d = cf.anD || {};
+  const card = h('section', 'card adm-card');
+  card.append(h('h2', null, an ? t('admAnOn') : t('admAnNew')));
+  if (an) card.append(h('p', 'adm-sub', [an.apps.map((a) => a.replace(/^./, (m) => m.toUpperCase())).join(' · '), an.til ? fmt(t('admMaintTil'), { t: day(an.til) + ' ' + clock(an.til) }) : t('admMaintDurInf')].join(' · ')));
+  const ti = h('input', 'adm-search'); ti.maxLength = 60; ti.placeholder = t('admAnTitleP'); ti.setAttribute('dir', 'auto'); ti.value = d.t || '';
+  const bo = h('textarea', 'adm-search adm-note-in'); bo.rows = 4; bo.maxLength = 400; bo.placeholder = t('admAnBodyP'); bo.setAttribute('dir', 'auto'); bo.value = d.b || '';
+  const apps = new Set(d.apps && d.apps.length ? d.apps : ['invest', 'academy', 'studio']);
+  const seg = h('div', 'adm-seg');
+  for (const a of ['invest', 'academy', 'studio']) {
+    const b = h('button', 'mini-btn', a.replace(/^./, (m) => m.toUpperCase())); b.type = 'button'; b.setAttribute('aria-pressed', apps.has(a) ? 'true' : 'false');
+    b.addEventListener('click', () => { if (apps.has(a)) apps.delete(a); else apps.add(a); b.setAttribute('aria-pressed', apps.has(a) ? 'true' : 'false'); });
+    seg.append(b);
+  }
+  let dur = 7;
+  const dseg = h('div', 'adm-seg');
+  const DUR = [[0, t('admMaintDurInf')], [1, t('admAnDur1')], [7, t('admAnDur7')], [30, t('admAnDur30')]];
+  const paintD = () => [...dseg.children].forEach((b, i) => b.setAttribute('aria-pressed', DUR[i][0] === dur ? 'true' : 'false'));
+  for (const [n2, lbl] of DUR) { const b = h('button', 'mini-btn', lbl); b.type = 'button'; b.addEventListener('click', () => { dur = n2; paintD(); }); dseg.append(b); }
+  paintD();
+  const br = h('div', 'btn-row');
+  const pub = h('button', 'btn', an ? t('admAnRepub') : t('admAnPub')); pub.type = 'button';
+  pub.addEventListener('click', () => {
+    if (!(ti.value.trim() || bo.value.trim()) || !apps.size) { flash(t('admAnNeed')); return; }
+    askConfirm(t('admAnQ'), async () => {
+      const r = await needCfg({ an: { on: true, t: ti.value, b: bo.value, apps: [...apps], til: dur ? Date.now() + dur * 864e5 : 0 } });
+      flash(r.ok ? t('admSaved') : t('admErr'));
+    }, { ok: t('admAnPub') });
+  });
+  br.append(pub);
+  if (an) { const off = h('button', 'btn secondary-btn', t('admAnOff')); off.type = 'button'; off.addEventListener('click', async () => { const r = await needCfg({ an: { on: false } }); flash(r.ok ? t('admSaved') : t('admErr')); }); br.append(off); }
+  card.append(h('div', 'adm-lbl', t('admAnTitleL')), ti, h('div', 'adm-lbl', t('admAnBodyL')), bo, h('div', 'adm-lbl', t('admAnApps')), seg, h('div', 'adm-lbl', t('admMaintDur')), dseg, br);
+  p.append(card, grp(t('admNewsT')), list(row({ c: 'green', ic: '★', t: t('admNewsAuto'), s: t('admNewsAutoS') })), h('p', 'adm-foot', t('admAnFoot')));
+} });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */
 async function needCfg(set) {
   const r = await api('adminCfg', set ? { set } : {});
   if (set) { D.users = null; D.log = null; }   // הרשימה של "כל המודלים" מוצגת גם במשתמשים
-  if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'sys'].includes(cur)) paint(); }
+  if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'sys', 'news', 'apps'].includes(cur)) paint(); }
   return r;
 }
 const clock = (ms) => new Date(ms).toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });

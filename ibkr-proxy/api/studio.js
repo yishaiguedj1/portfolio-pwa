@@ -1497,6 +1497,14 @@ async function handler(req, res, deps = {}) {
   let user;
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
   if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
+  if (body.op === 'fbSend') {   // 15/10/2026: משוב מההגדרות של כל אפליקציה — כל משתמש מחובר (לא רק של Studio)
+    if (limited('fb|' + user.uid, 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    const now = deps.now || Date.now();
+    const e = AO.fbEntry(body, user, now);
+    if (!e) return res.status(400).json({ ok: false, error: 'bad_params' });
+    try { await patchDoc(deps, 'sysFeedback', now.toString(36) + crypto.randomBytes(3).toString('hex'), e); } catch (err) { return res.status(503).json({ ok: false, error: 'store' }); }
+    return res.status(200).json({ ok: true });
+  }
   // 15/10/2026: מי שברשימת "כל המודלים" במרכז הניהול מקבל גם את הסטודיו (בלי לחכות לפתיחה לכולם / ל־STUDIO_USERS)
   if (!allowed(user) && !SF.amHas(await sysCfg(deps, deps.now || Date.now()), user)) return res.status(403).json({ ok: false, error: 'not_allowed' });
   if (limited('p|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -1706,6 +1714,19 @@ async function handler(req, res, deps = {}) {
         return Object.fromEntries(K.map((k, i) => [k, v[i]]));
       }, now);
       return res.status(200).json({ ok: true, us: AO.usageView({ now, counts: c || {}, jobs: await jobs30(deps, now) }) });
+    }
+    if (op === 'adminFb') {
+      // 15/10/2026: מרכז הניהול ← משוב ופניות. 300 האחרונים; set = { id, st: 'd'|'n'|'x' } (טופל / חדש / מחיקה)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (body.set) {
+        const id = String(body.set.id || ''), st = String(body.set.st || '');
+        if (!/^[0-9a-z]{6,20}$/.test(id) || !['d', 'n', 'x'].includes(st)) return res.status(400).json({ ok: false, error: 'bad_params' });
+        if (st === 'x') await delDoc(deps, 'sysFeedback', id); else await patchDoc(deps, 'sysFeedback', id, { st });
+        if (st !== 'n') await adminLog(deps, user, st === 'x' ? 'fb_del' : 'fb_done', '', now);
+      }
+      let list = [];
+      try { list = await query(deps, 'sysFeedback', null, 300); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      return res.status(200).json({ ok: true, fb: AO.fbView(list) });
     }
     if (op === 'adminSecrets') {
       // 15/10/2026: מרכז הניהול ← סודות ותאריכים. רק "מוגדר / לא" לכל סוד (הקטלוג של SECURITY.md), אף פעם לא ערך;

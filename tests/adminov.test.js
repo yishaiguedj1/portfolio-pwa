@@ -134,4 +134,10 @@ ok(A.usageView({ now, counts: {} }).studio[1].n === null && A.usageView({ now })
     ok(!dup.length, 'מחרוזות: אין מפתח adm* כפול' + (dup.length ? ' — ' + dup.join(', ') : ''));
   }
 }
+// משוב ופניות (15/10/2026)
+const fe = A.fbEntry({ k: 'bug', t: '  לא <נפתח>  ', app: 'studio', ver: 'v443', ua: 'Mozilla/5.0 (Linux; Android 15)' }, { email: 'U@Example.com', uid: 'abc' }, now);
+ok(fe.k === 'bug' && fe.t === 'לא נפתח' && fe.app === 'studio' && fe.plat === 'android' && fe.em === 'u@example.com' && fe.st === 'n' && !('uid' in fe), 'משוב: נקי, עם אפליקציה, גרסה, סוג מכשיר ומייל (בלי uid)');
+ok(A.fbEntry({ t: 'ab' }, {}, now) === null && A.fbEntry({ k: 'zz', t: 'abc', app: 'zz', ver: '<x>' }, {}, now).k === 'other' && A.fbEntry({ k: 'zz', t: 'abc', app: 'zz' }, {}, now).app === 'invest', 'משוב: קצר מדי נדחה; ערכים לא מוכרים → ברירת מחדל');
+const fv = A.fbView([{ id: 'a1', t: 'x1', at: 1, st: 'd' }, { id: 'b2', t: 'x2', at: 2 }, { id: 'c3' }]);
+ok(fv.items.map((x) => x.id).join() === 'b2,a1' && fv.open === 1, 'משוב: החדש ראשון, ריק נזרק, ספירת הפתוחים');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

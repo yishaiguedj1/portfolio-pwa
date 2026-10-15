@@ -261,7 +261,7 @@ function laneView(prs, waiting) {
 
 /* יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): כל שינוי שהמנהל עושה ממרכז הניהול נרשם ב־sysLog — מה, מי (מייל), מתי, ופרט קצר.
    סוגים רק מהקטלוג (בלי טקסט חופשי בסוג), הפרט מנוקה (noteClean, עד 120). נשמר LOG_DAYS ימים */
-const LOG_KINDS = ['mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
+const LOG_KINDS = ['an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
 const LOG_DAYS = 90, LOG_SHOW = 200;
 function logEntry(k, d, who, now) {
   if (!LOG_KINDS.includes(k)) return null;
@@ -271,6 +271,7 @@ function logEntry(k, d, who, now) {
 /* מה ש־adminCfg עשה, לפי ה־set ומה שהיה לפניו */
 function cfgLogKind(set, before, now) {
   if (!set || typeof set !== 'object') return null;
+  if (set.an && typeof set.an === 'object') return set.an.on === true ? ['an_on', set.an.t || set.an.b] : ['an_off', ''];
   if (set.mt && typeof set.mt === 'object') return set.mt.on === true ? [before && before.mtOn && (!before.mtTil || before.mtTil > now) ? 'mt_upd' : 'mt_on', set.mt.msg] : ['mt_off', ''];
   if (typeof set.flag === 'string' && typeof set.on === 'boolean') return [set.on ? 'fl_on' : 'fl_off', set.flag];
   if (typeof set.am === 'string' && typeof set.on === 'boolean') return [set.on ? 'am_add' : 'am_del', set.am.trim().toLowerCase()];
@@ -384,4 +385,21 @@ function usageView(f) {
     jobs: f.jobs ? { n: jobs.length, done: jobs.filter((j) => j.state === 'done').length, wk } : null };
 }
 
-module.exports = { usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* משוב ופניות (15/10/2026): מה שמשתמש שולח מההגדרות של כל אפליקציה. נשמר ב־sysFeedback — סוג מקטלוג, טקסט מנוקה, האפליקציה,
+   הגרסה, סוג המכשיר והמייל (כדי שתוכל לענות; בלי uid). st: n = חדש, d = טופל */
+const FB_KINDS = ['bug', 'idea', 'other'], FB_APPS = ['invest', 'academy', 'studio'];
+function fbEntry(b, user, now) {
+  const t = noteClean(b && b.t).slice(0, 1000);
+  if (t.length < 3) return null;
+  const plat = /android/i.test(String(b && b.ua || '')) ? 'android' : /iphone|ipad|mac os/i.test(String(b && b.ua || '')) ? 'apple' : /windows/i.test(String(b && b.ua || '')) ? 'windows' : 'other';
+  const em = String((user && user.email) || '').trim().toLowerCase();
+  return { k: FB_KINDS.includes(b.k) ? b.k : 'other', t, app: FB_APPS.includes(b.app) ? b.app : 'invest', ver: /^v\d{3,5}$/.test(String(b.ver || '')) ? b.ver : '',
+    plat, em: EM_RE.test(em) ? em : '', at: Math.floor(now), st: 'n' };
+}
+function fbView(list) {
+  const items = (list || []).filter((x) => x && x.id && x.t).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 200)
+    .map((x) => ({ id: x.id, k: FB_KINDS.includes(x.k) ? x.k : 'other', t: noteClean(x.t).slice(0, 1000), app: x.app || '', ver: x.ver || '', plat: x.plat || '', em: x.em || '', at: +x.at || 0, st: x.st === 'd' ? 'd' : 'n' }));
+  return { items, open: items.filter((x) => x.st === 'n').length };
+}
+
+module.exports = { FB_KINDS, fbEntry, fbView, usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

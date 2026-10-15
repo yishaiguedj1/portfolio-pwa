@@ -3608,6 +3608,16 @@ function stubFetch(text, status = 200) {
       ok((await run({ op: 'adminUsage', idToken: FRIEND })).payload.error === 'not_admin', 'שימוש: רק המנהל');
       const usg = await run({ op: 'adminUsage', idToken: OWNER });
       ok(usg.payload.ok && usg.payload.us.studio.length === 4 && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(usg.payload)), 'שימוש: משפכים במספרים, בלי uid ומיילים');
+      const fbS = await run({ op: 'fbSend', idToken: FRIEND, k: 'idea', t: 'רעיון לשיפור', app: 'academy', ver: 'v443' });
+      ok(fbS.payload.ok, 'משוב: כל משתמש מחובר שולח (גם בלי גישה לסטודיו)');
+      ok((await run({ op: 'fbSend', idToken: FRIEND, t: 'x' })).statusCode === 400, 'משוב: טקסט קצר מדי — 400');
+      ok((await run({ op: 'adminFb', idToken: FRIEND })).payload.error === 'not_admin', 'משוב: רק המנהל רואה');
+      const fbL = await run({ op: 'adminFb', idToken: OWNER });
+      const fb1 = fbL.payload.fb.items.find((x) => x.t === 'רעיון לשיפור');
+      ok(fbL.payload.ok && fb1 && fb1.app === 'academy' && fb1.st === 'n' && fbL.payload.fb.open >= 1, 'משוב: המנהל רואה את הפנייה');
+      const fbD = await run({ op: 'adminFb', idToken: OWNER, set: { id: fb1.id, st: 'd' } });
+      ok(fbD.payload.fb.items.find((x) => x.id === fb1.id).st === 'd', 'משוב: סימון "טופל"');
+      ok((await run({ op: 'adminFb', idToken: OWNER, set: { id: fb1.id, st: 'x' } })).payload.fb.items.every((x) => x.id !== fb1.id), 'משוב: מחיקה');
       ok((await run({ op: 'adminSecrets', idToken: FRIEND })).payload.error === 'not_admin', 'סודות: רק המנהל');
       const scR = await run({ op: 'adminSecrets', idToken: OWNER });
       ok(scR.payload.ok && scR.payload.sec.items.find((x) => x.k === 'sa').set === true && !JSON.stringify(scR.payload).includes(String(process.env.GDRIVE_SA_KEY || '').slice(0, 20) || '§'), 'סודות: "מוגדר" בלי הערך');
