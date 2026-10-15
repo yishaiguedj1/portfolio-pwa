@@ -49,6 +49,38 @@ class FakeClient:
         return S()
 
 
+class ClientTimeoutTests(unittest.TestCase):
+    """15/10/2026: חיבור תקוע באמצע הזרם — נכשל אחרי כ־2.5 דק׳ בלי בייטים (ניסיון חוזר), לא חצי שעה."""
+
+    def test_client_short_read_timeout(self):
+        import os
+        seen = {}
+
+        class FakeAnthropic:
+            def __init__(self, **kw):
+                seen.update(kw)
+        prev = sys.modules.get('anthropic')
+        sys.modules['anthropic'] = NS(Anthropic=FakeAnthropic)
+        old = os.environ.get('ANTHROPIC_API_KEY')
+        os.environ['ANTHROPIC_API_KEY'] = 'x'
+        try:
+            llm.Engine(llm.Spec.of('haiku-high'))._client_or_new()
+        finally:
+            if prev is None:
+                sys.modules.pop('anthropic', None)
+            else:
+                sys.modules['anthropic'] = prev
+            if old is None:
+                os.environ.pop('ANTHROPIC_API_KEY', None)
+            else:
+                os.environ['ANTHROPIC_API_KEY'] = old
+        t = seen['timeout']
+        read = getattr(t, 'read', t)
+        self.assertLessEqual(read, 300, 'בין שני בייטים — דקות בודדות, לא 1800 שנ׳')
+        self.assertGreaterEqual(read, 60, 'לא קצר מדי — חשיבה ארוכה עדיין שולחת ping, אבל מרווח ביטחון')
+        self.assertEqual(seen['max_retries'], 4)
+
+
 class AnthropicTests(unittest.TestCase):
     def test_request_shape_cache_effort(self):
         c = FakeClient([fake_msg('תרגום', i=200, o=80, cr=9000, c5=0)])

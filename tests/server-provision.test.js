@@ -285,6 +285,16 @@ function mock(opts = {}) {
     const AS = require('../ibkr-proxy/server.js');
     const env2 = { SNB_ENV_GZ: a.line.split('=').slice(1).join('=') };
     ok(AS.unpackEnv(env2) === Object.keys(back).length && env2.GDRIVE_SA_KEY === back.GDRIVE_SA_KEY, 'השרתון פותח את השורה שהכלי בנה');
+    // 15/10/2026: מאגר הלמידה (R2L_*) — רשות. Sensitive בלי חלופה = השרת מוקם בלי אף אחד מהם, עם SNB_LEARN_REMOTE
+    const lv = vars.filter((x) => x.key !== 'R2_SECRET_ACCESS_KEY').concat([{ key: 'R2L_BUCKET', value: 'snb-learn' }, { key: 'R2L_ACCESS_KEY_ID', value: null }, { key: 'R2L_SECRET_ACCESS_KEY', value: null }]);
+    const la = P.appEnvLine(lv, '', 'yishaiguedj1-c786e');
+    const lb = JSON.parse(zlib.gunzipSync(Buffer.from(la.line.slice('SNB_ENV_GZ='.length), 'base64')).toString());
+    ok(la.opt.join() === 'R2L_ACCESS_KEY_ID,R2L_SECRET_ACCESS_KEY' && lb.SNB_LEARN_REMOTE === '1' && !Object.keys(lb).some((k) => /^R2L_/.test(k)),
+      'R2L_* Sensitive — לא עוצר: בלי אף משתנה של המאגר (לא חצי הגדרה), SNB_LEARN_REMOTE=1, והשמות לאזהרה');
+    const lc = P.appEnvLine(lv, 'R2L_ACCESS_KEY_ID=k1\nR2L_SECRET_ACCESS_KEY=k2', 'yishaiguedj1-c786e');
+    const ld = JSON.parse(zlib.gunzipSync(Buffer.from(lc.line.slice('SNB_ENV_GZ='.length), 'base64')).toString());
+    ok(!lc.opt.length && !('SNB_LEARN_REMOTE' in ld) && ld.R2L_BUCKET === 'snb-learn' && ld.R2L_SECRET_ACCESS_KEY === 'k2', 'עם PROD_APP_EXTRA — המאגר נכנס לשרת כרגיל');
+    ok(await throwsCode(async () => P.appEnvLine(lv.concat([{ key: 'OTHER_KEY', value: null }]), '', 'yishaiguedj1-c786e'), 'vercel_sensitive'), 'משתנה אחר Sensitive — עדיין עוצר');
     ok(await throwsCode(async () => P.appEnvLine([{ key: 'X', value: '1' }], '', 'yishaiguedj1-c786e'), 'vercel_sa'), 'Vercel: בלי חשבון שירות — עצירה');
     ok(await throwsCode(async () => P.appEnvLine([{ key: 'GDRIVE_SA_KEY', value: JSON.stringify(SAP) }, { key: 'FIREBASE_PROJECT_ID', value: 'other' }], '', 'yishaiguedj1-c786e'), 'vercel_project_id'),
       'Vercel: פרויקט Firebase אחר — עצירה');

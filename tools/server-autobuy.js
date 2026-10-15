@@ -69,7 +69,8 @@ async function checkSecrets(e, deps) {
   const fake = 'aaaaaaaaaaaa-' + 'A'.repeat(43);
   P.planFiles(AUTOBUY.plan, e, { stg: fake, prod: fake }, app.line);
   if (!/^[A-Za-z0-9]{20,100}$/.test(String(e.HCLOUD_TOKEN || ''))) fail('hcloud_token', 'חסר HCLOUD_TOKEN');
-  return app.keys.length + ' משתנים לשרתון' + (app.sa === 'g' ? ' · חשבון השירות מ־PROD_FIREBASE_SA, אומת מול הכספת' : app.sa === 'x' ? ' · חשבון השירות מ־PROD_APP_EXTRA, אומת מול הכספת' : '');
+  return app.keys.length + ' משתנים לשרתון' + (app.sa === 'g' ? ' · חשבון השירות מ־PROD_FIREBASE_SA, אומת מול הכספת' : app.sa === 'x' ? ' · חשבון השירות מ־PROD_APP_EXTRA, אומת מול הכספת' : '')
+    + (app.opt.length ? ' · ⚠ בלי מאגר הלמידה (' + app.opt.join(', ') + ' — Sensitive; להוסיף ל־PROD_APP_EXTRA) — הפעולות שלו דרך Vercel' : '');
 }
 
 async function exists(e, deps, name) {
@@ -93,7 +94,7 @@ async function buyAt(e, deps, loc) {
     const app = await P.appEnv(e, deps);
     const ud = P.cloudInit(tpl, P.planFiles(AUTOBUY.plan, e, { stg: stg.token, prod: prod.token }, app.line));
     const r = await P.create(e, { name: AUTOBUY.name, type: AUTOBUY.type, location: loc, plan: AUTOBUY.plan }, ud, deps);
-    return { server: r.id, location: loc, sid: stg.sid, sidp: prod.sid };
+    return { server: r.id, location: loc, sid: stg.sid, sidp: prod.sid, learn: app.opt.length ? 'remote' : 'ok' };
   } catch (x) {
     await P.unregister(e, P.ENVS.stg, stg.sid, deps).catch(() => {});
     if (prod) await P.unregister(e, P.ENVS.prod, prod.sid, deps).catch(() => {});
@@ -167,7 +168,7 @@ if (require.main === module) {
     if (cmd === 'watch') {
       const r = await watch(process.env, deps, { minutes: Number(process.argv[3]) || 345 });
       if (r.bought) {
-        for (const k of ['server', 'location', 'sid', 'sidp']) out(k, r.bought[k]);
+        for (const k of ['server', 'location', 'sid', 'sidp', 'learn']) out(k, r.bought[k]);
         out('price', r.bought.price); out('currency', r.bought.currency || 'na');
         console.log('✓ הוזמן: ' + AUTOBUY.name + ' · ' + AUTOBUY.type + ' · ' + r.bought.location);
       } else if (r.stop) { out('stopped', r.stop); console.log('■ ' + r.why); }

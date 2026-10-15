@@ -83,11 +83,16 @@ jobs:
           LOC: ${{ steps.buy.outputs.location }}
           PRICE: ${{ steps.buy.outputs.price }}
           CUR: ${{ steps.buy.outputs.currency }}
+          LEARN: ${{ steps.buy.outputs.learn }}
         run: |
+          W=''
+          [ "$LEARN" = remote ] && W='⚠ השרת הוקם בלי מאגר הלמידה (R2L_* מסומנים Sensitive ב־Vercel). הכל עובד, והפעולות של המאגר עוברות ל־Vercel. כדי שייכנסו בהקמה הבאה — להוסיף אותם לסוד PROD_APP_EXTRA (שורה לכל אחד: שם=ערך).'
           gh issue create --repo "$GITHUB_REPOSITORY" --title "הוזמן שרת: snb-cx53 · CX53 · $LOC" --body "@$GITHUB_REPOSITORY_OWNER — הוזמן אוטומטית: snb-cx53 · CX53 · $LOC · $PRICE $CUR לחודש.
 
           האוטומציה כובתה. בעוד 5–10 דקות השרת יתחבר — הריצה ממשיכה לבדוק ומסכמת למטה.
           אחרי שהכל ירוק: במסך השרת באפליקציה (ייצור וניסוי) מסירים את השרת הקודם, ומוחקים אותו ב־Hetzner.
+
+          $W
 
           ריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
       - name: נעצר (תקרה, שם קיים, הרשאה, מגבלה או שגיאה) — מכבים ומודיעים

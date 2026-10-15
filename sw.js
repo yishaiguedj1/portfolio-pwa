@@ -12,7 +12,7 @@ const HASHES = {
   "./app.js": "863e0beddc9ed224328d3f34f8b4879c",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
-  "./firebase-config.js": "860f747cedea43c11b0f91fef687700b",
+  "./firebase-config.js": "ffaf70bf205506ec1d4230d9ed4ad036",
   "./move.js": "5f2580e686bc4768e65086b897398db6",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
   "./icon-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
