@@ -1711,7 +1711,7 @@ def gl_load(ctx):
         req = urllib.request.Request(ctx.api + '/files/' + files[0]['id'] + '?alt=media', headers=dict(auth, **{'User-Agent': UA}))
         with urllib.request.urlopen(req, timeout=30) as r:
             return gl_parse(r.read(GL_BYTES).decode('utf-8', 'replace'))
-    except Exception:          # noqa: BLE001 — מילון שלא נטען לא מפיל עבודה
+    except (SystemExit, Exception):   # noqa: BLE001 — מילון שלא נטען לא מפיל עבודה (גם "אין גישה ל־Drive" מ־ctx.token(), 15/10/2026)
         return None
 
 
