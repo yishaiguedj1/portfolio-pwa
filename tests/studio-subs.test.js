@@ -99,7 +99,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/import \{ createSubsEditor, toSrt, toCuesJson, toVtt, toTtml[^}]*\} from '\.\/studiosubs\.js';/.test(sj) && (/'\.\/studioplay\.js'/.test(read('sw.js')) ? /'\.\/studiosubs\.js'/.test(read('sw.js')) : true)   /* שלב התוכן: sw.js עוד בלי קבצי העורכים */, 'studio.js מייבא את העורך; sw.js שומר אותו לאופליין');
   ok(/x === 'play' \|\| x === 'subs' \|\| x === 'rr' \? \['job', y\]/.test(sj), 'חזור מהעורך / מההפקה — לדף העבודה');
   ok(/if \(ui\.view === 'subs'\) seStop\(\)/.test(sj) && /'subs\|' \+ ui\.param/.test(sj), 'הנגן של העורך נעצר ביציאה; הדף לא נבנה מחדש בזמן הקלדה');
-  ok(/net\.api\('cuesSave', \{ job: rec\.id, c, s: s2, ev: rec\.srv\.ev \|\| 0 \}\)/.test(sj) && /\{ snbEdit: 'c' \}/.test(sj), 'שמירה: שני קבצים לתיקיית העבודה ואז cuesSave עם הגרסה (בלי דריסה של שמירה ממקום אחר)');
+  ok(/net\.api\('cuesSave', Object\.assign\(\{ job: rec\.id, c, s: s2, ev: rec\.srv\.ev \|\| 0 \}, learn\)\)/.test(sj) && /\{ snbEdit: 'c' \}/.test(sj), 'שמירה: שני קבצים לתיקיית העבודה ואז cuesSave עם הגרסה (בלי דריסה של שמירה ממקום אחר)');
   ok(/net\.api\('rerender'/.test(sj) && /net\.api\('start', \{ job: j\.job\.id \}\)/.test(sj), 'הפקה מחדש: יצירה ואז start רגיל (כל השמירות)');
   ok(/if \(sj\.kind === 'rr'\) \{/.test(sj), 'עבודות הפקה מחדש — לא ברשימה הראשית');
   const src = read('studiosubs.js');

@@ -13,7 +13,7 @@ import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
-import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline } from './studiosubs.js';
+import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
 import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
@@ -1079,6 +1079,7 @@ async function refreshStatus(force) {
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     if (!lrnBusy) ui.lrn = j.lrn !== false;   // 14/10/2026: מאגר הלמידה — דולק כברירת מחדל
     ui.lra = num(j.lra);                       // 15/10 (מ׳1): ההודעה על מאגר הלמידה כבר נקראה
+    ui.lrt = num(j.lrt);                       // 15/10: הנוסח שאומר שגם הטקסט נשמר — נקרא
     save();
     lrnNotice();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
@@ -1691,6 +1692,46 @@ function rowExt(o) {
   a.append(rowTxt(o.label, o.sub), ico('out', 'st-chev'));
   return a;
 }
+/* ---------- מאגר הלמידה מ׳3 (15/10/2026): מה קרה אחרי העבודה ----------
+   תוספות מספרים לכל עבודת תרגום (צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים), נשלחות יחד (op:'learnUx') אחרי
+   8 שנ׳ שקט / כשהאפליקציה יורדת לרקע. השרתון מחליט אם לשמור (המתג של מאגר הלמידה). **UX_SHAPE זהה לשרתון (lib/studiolearn.js)** */
+export const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'], pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
+const uxQ = new Map();
+let uxT = 0;
+function uxAdd(rec, g, k, v = 1) {
+  if (!rec || !rec.srv || rec.srv.kind !== 'tr' || !(UX_SHAPE[g] || []).includes(k) || !(v > 0)) return;
+  const m = uxQ.get(rec.id) || {}, x = m[g] || (m[g] = {});
+  x[k] = k === 'cov' ? Math.max(x[k] || 0, Math.min(1, v)) : (x[k] || 0) + Math.round(v);
+  uxQ.set(rec.id, m);
+  clearTimeout(uxT); uxT = setTimeout(uxFlush, 8000);
+}
+function uxFlush() {
+  clearTimeout(uxT); uxT = 0;
+  for (const [id, ux] of uxQ) { uxQ.delete(id); try { Promise.resolve(net.api('learnUx', { job: id, ux })).catch(() => {}); } catch (e) {} }
+}
+/* כיסוי הצפייה בנגן: כל שנייה בסרטון שנוגנה (לא בהשהיה) נספרת פעם אחת. מחזיר פונקציה שמסיימת וסופרת */
+function watchTrack(rec, v) {
+  if (!rec || !v || !v.addEventListener) return () => {};
+  let seen = null, secs = 0, played = false;
+  const tick = () => {
+    const d = v.duration;
+    if (!(d > 0) || !isFinite(d) || v.paused) return;
+    if (!seen) seen = new Uint8Array(Math.ceil(d));
+    const k = Math.floor(v.currentTime || 0);
+    if (k >= 0 && k < seen.length && !seen[k]) { seen[k] = 1; secs++; }
+  };
+  const onPlay = () => { played = true; };
+  v.addEventListener('timeupdate', tick); v.addEventListener('play', onPlay);
+  let done = false;
+  return () => {
+    if (done) return; done = true;
+    v.removeEventListener('timeupdate', tick); v.removeEventListener('play', onPlay);
+    if (!played) return;
+    uxAdd(rec, 'pl', 'n');
+    if (secs) uxAdd(rec, 'pl', 'sec', secs);
+    if (seen && seen.length && secs) uxAdd(rec, 'pl', 'cov', secs / seen.length);
+  };
+}
 /* סבב 1: שורת תוצר — נגיעה פותחת ב־Drive; הכפתור בצד: כתוביות — שיתוף כקובץ (WhatsApp, "שמירה בקבצים"…) או הורדה,
    סרטון — הורדה מ־Drive (קובץ של כמה GB לא נטען לזיכרון של הדף) */
 const isTextOut = (k) => k === 'srt' || k === 'en';
@@ -1732,6 +1773,7 @@ async function shareSmall(rec, o) {
   setTimeout(() => URL.revokeObjectURL(u), 5000);
 }
 async function shareOut(rec, o) {
+  uxAdd(rec, 'o', isTextOut(o.k) || o.k === 'small' ? 'sh' : 'dl');   // מ׳3
   if (o.k === 'small') return shareSmall(rec, o);
   if (!isTextOut(o.k)) { window.open('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(o.id), '_blank', 'noopener'); return; }
   let txt;
@@ -2398,7 +2440,7 @@ async function exportToDrive(rec) {
     }
     if (srt) await (isR2Id(srt.id) ? net.r2ToDrive(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt') : net.driveCopy(srt.id, dest.id, fileTitle(rec.spec.name) + '.he.srt'));
     rec.up.dx = { f: dest.id, n: dest.name.slice(0, 120), at: Date.now() };
-    save();
+    save(); uxAdd(rec, 'o', 'dx');
     flashSafe(T('studioDxDone', { n: dest.name }));
   } catch (e) { flashSafe(T('studioDxErr')); }
   finally { dxBusy = ''; render('none'); }
@@ -4222,7 +4264,7 @@ function pageGloss(p) {
   p.append(secT(T('studioGlN', { n: gl.rows.length })), rows.length ? list(...rows.map(glRow)) : h('div', 'st-empty st-empty-sm', T('studioGlNone')));
 }
 /* דף העבודה: כמה מונחים מהמילון שימשו, ומונחים חדשים שנקבעו בעבודה — כל אחד ב־+ או "להוסיף הכל" */
-function glossJobCard(g) {
+function glossJobCard(g, rec) {
   if (gl.st === '' && (ui.r2 || store.drive && store.drive.connected) && g.s.length) setTimeout(() => glossLoad(), 0);
   const fresh = gl.st === 'ok' ? g.s.filter((x) => !glHas(x[0])) : g.s;
   if (!g.u && !fresh.length) return [];
@@ -4237,14 +4279,14 @@ function glossJobCard(g) {
       const en = h('b'); const eb = h('bdi', null, x[0]); eb.dir = 'ltr'; en.append(eb);
       const he = h('small', null, x[1]); he.dir = 'auto';
       l.append(en, he);
-      const b = btn('st-mini tint', null, () => glossWrite(glUpsert(gl.rows, [[x[0], x[1], '']]), T('studioGlAdded')), 'gla:' + x[0].toLowerCase());
+      const b = btn('st-mini tint', null, () => { uxAdd(rec, 'gl', 'a'); glossWrite(glUpsert(gl.rows, [[x[0], x[1], '']]), T('studioGlAdded')); }, 'gla:' + x[0].toLowerCase());
       b.append(ico('plus')); b.setAttribute('aria-label', T('studioGlAdd'));
       if (gl.st !== 'ok' || gl.busy || blocked()) b.disabled = true;
       r.append(l, b);
       card.append(r);
     }
     if (fresh.length > 1) {
-      const all = btn('st-btn ghost wide', T('studioGlAddAll', { n: fresh.length }), () => glossWrite(glUpsert(gl.rows, fresh.map((x) => [x[0], x[1], ''])), T('studioGlAdded')), 'gl-all');
+      const all = btn('st-btn ghost wide', T('studioGlAddAll', { n: fresh.length }), () => { uxAdd(rec, 'gl', 'a', fresh.length); glossWrite(glUpsert(gl.rows, fresh.map((x) => [x[0], x[1], ''])), T('studioGlAdded')); }, 'gl-all');
       if (gl.st !== 'ok' || gl.busy || blocked()) all.disabled = true;
       card.append(all);
     }
@@ -4461,7 +4503,7 @@ function ladderOf(rec) {
 const pqSave = (q) => { if (store.settings.pq !== q) { store.settings.pq = q; save(); } };
 const canPlay = (rec) => !!(rec && (outOf(rec, 'cues') || outOf(rec, 'srt')) && ((rec.up.v && rec.up.v.id) || burnedOut(rec)));
 let pl = null;                    // { id, st: 'load'|'ok'|'err', ctl, cues, iss, err }
-function playClose() { if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
+function playClose() { if (pl && pl.wt) pl.wt(); if (pl && pl.ctl) pl.ctl.destroy(); pl = null; }
 const plPaint = () => queueMicrotask(() => { if (shapeKey() !== lastShape) render('none'); });   // מ9: גם כשהטעינה מיידית (מהעורך) — בלי ציור מקונן
 async function playLoad(rec) {
   const me = pl;
@@ -4477,6 +4519,7 @@ async function playLoad(rec) {
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
       ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave });   // איכויות כמו ב־YouTube
+    me.wt = watchTrack(rec, me.ctl.video);   // מ׳3: כמה מהסרטון נצפה
     me.st = 'ok';
   } catch (e) {
     if (pl !== me) return;
@@ -4568,11 +4611,13 @@ async function seLoad(rec) {
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
     const only = seOnly === rec.id; seOnly = '';
     me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, shots: me.meta ? me.meta.sh : [],
-      dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); },
+      dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); uxAdd(rec, 'sg', 'r'); },
+      onSugFix: () => uxAdd(rec, 'sg', 'a'),
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
-      onChange: () => { seSavePaint(); if (me.tl) me.tl.draw(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); seDraftSoon(me, rec); } });
+      onChange: () => { seAct(me); seSavePaint(); if (me.tl) me.tl.draw(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); seDraftSoon(me, rec); } });
     me.saved = me.ed.ver(); me.st = 'ok';
+    me.base = cues; me.act = 0; me.last = 0;   // מ׳3: מה נטען — להשוואה בשמירה
     // סבב 8: טיוטה שנשארה מהפעם הקודמת (רענון / האפליקציה נסגרה) — חוזרת כצעד ביטול אחד ("ביטול" = הגרסה השמורה)
     const d = await idbOp('drafts', 'get', rec.id), use = draftUse(d, rec.srv.ev);
     if (se === me && use) {
@@ -4586,6 +4631,8 @@ async function seLoad(rec) {
   }
   render('none');
 }
+/* מ׳3: זמן עבודה פעיל בעורך — הפרש בין שינויים רצופים, עד דקה (הפסקה ארוכה לא נספרת) */
+function seAct(me) { const t = Date.now(); if (me.last && t - me.last < 60000) me.act += t - me.last; me.last = t; }
 function seSavePaint() {
   const b = se && se.saveB;
   if (!b) return;
@@ -4603,10 +4650,12 @@ async function seSave(then) {
     const folder = jobFolder(rec), base = (fileTitle(rec.spec.name) || 'subs').slice(0, 80) + ' (' + T('studioSeVerName', { n: (rec.srv.ev || 0) + 1 }) + ')';
     const c = await net.textUpload(folder, base + '.cues.json', 'application/json', toCuesJson(cues), { snbEdit: 'c' });
     const s2 = await net.textUpload(folder, base + '.he.srt', 'application/x-subrip', toSrt(cues), { snbEdit: 's' });
-    const j = await net.api('cuesSave', { job: rec.id, c, s: s2, ev: rec.srv.ev || 0 });
+    const diff = me.base ? editDiff(me.base, cues) : [], ws = Math.round((me.act || 0) / 1000);   // מ׳3: מה השתנה מאז הטעינה / השמירה הקודמת
+    const learn = diff.length ? { pe: Object.assign(editStats(diff, cues), { ws }), pt: { ws, ch: diff } } : {};
+    const j = await net.api('cuesSave', Object.assign({ job: rec.id, c, s: s2, ev: rec.srv.ev || 0 }, learn));
     if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
     if (!j.ok) flashSafe(j.error === 'stale' ? T('studioSeStale') : errText(j.error));
-    else { me.saved = ver; clearTimeout(me.drT); draftDel(rec.id); save(); flashSafe(T('studioSeSaved')); if (then) then(); }
+    else { me.saved = ver; me.base = cues; me.act = 0; clearTimeout(me.drT); draftDel(rec.id); save(); flashSafe(T('studioSeSaved')); if (then) then(); }
   } catch (e) {
     flashSafe(errText((e && e.code) || 'drive'));
   } finally {
@@ -5086,6 +5135,7 @@ function pageAi(p) {
     const go2 = btn('st-btn wide', n === 1 ? T('studioAiApply1') : T('studioAiApply', { n }), () => {
       const r = applyItems(se.ed.cues(), ai.base, fixes, ai.acc);
       if (r.n) se.ed.applyCues(r.cues);
+      uxAdd(rec, 'ai', 'q', fixes.length); uxAdd(rec, 'ai', 'a', r.n); uxAdd(rec, 'ai', 'r', fixes.length - n);   // מ׳3
       flashSafe(r.skipped ? T('studioAiApplied2', { n: r.n, s: r.skipped }) : T('studioAiApplied', { n: r.n }));
       ai = null; back();
     }, 'ai-apply');
@@ -5361,7 +5411,7 @@ function pageJob(p) {
     const jr = (rec.srv.use || []).find((r) => r.k === 'jg');
     p.append(...qualityCard(rec.srv.q, rec.srv.ij, rec.srv.jd, jr ? modelLabel(jr.m) : ''));
   }
-  if (rec.srv && rec.srv.gl) p.append(...glossJobCard(rec.srv.gl));   // v380: מונחים חדשים מהעבודה — למילון שלך, באישור
+  if (rec.srv && rec.srv.gl) p.append(...glossJobCard(rec.srv.gl, rec));   // v380: מונחים חדשים מהעבודה — למילון שלך, באישור
   p.append(...goldCard(rec));   // v387: סט הזהב — תרגום אנושי לייחוס, והציון מולו
   // v359: עלות — שורה לכל שלב, עלות הפתיחה של כל סוכן־משנה, סכום כולל
   const cv = rec.srv && rec.srv.use ? costView(rec.srv.use, rec.spec.mode) : null;
@@ -5532,12 +5582,13 @@ let lrnBusy = false;
 /* 15/10/2026 (מ׳1): הודעה אחת בכניסה הראשונה — מה נאסף ושאפשר לכבות. כל סגירה ("הבנתי", "חזור", לחיצה בחוץ) = נקראה;
    היא לא מכבה כלום בעצמה — הבחירה רק במתג בהגדרות */
 let lrnAsked = false;
+export const LRN_TV = 2;   // **זהה ל־LRN_TV בשרתון** — גרסת הנוסח (2 = גם טקסט הכתוביות ושמות הדוברים)
 function lrnNotice() {
-  if (lrnAsked || ui.lra || ui.access !== 'ok' || typeof askConfirm !== 'function') return;
+  if (lrnAsked || ui.lrt || ui.access !== 'ok' || typeof askConfirm !== 'function') return;   // מי שקרא רק את הנוסח הישן ("רק מספרים") — רואה את החדש
   lrnAsked = true;
   setTimeout(() => askConfirm(T('studioLrnAckQ'), () => {
-    ui.lra = Date.now();
-    net.api('learnPref', { ack: true }).catch(() => {});
+    ui.lra = ui.lrt = Date.now();
+    net.api('learnPref', { ack: true, tv: LRN_TV }).catch(() => {});
   }, { alert: true, ok: T('studioLrnAckOk') }), 700);
 }
 /* 15/10/2026 (מ׳1): "מחק את התרומות שלי" — הרשומות של כל העבודות שלך במאגר (גם של עבודות שנמחקו). באישור הרסני */
@@ -6205,7 +6256,7 @@ export function openStudio(opt) {
     window._stVis = true;
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') { if (wlWant) wakeOn(); if (root) pollNow(); }
-      else { clearTimeout(pollT); pollT = 0; }
+      else { clearTimeout(pollT); pollT = 0; uxFlush(); }   // מ׳3: מה שנאסף נשלח לפני שהאפליקציה יורדת לרקע
     });
   }
   document.body.append(root);

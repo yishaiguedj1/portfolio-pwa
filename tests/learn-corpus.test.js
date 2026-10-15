@@ -105,7 +105,10 @@ const { fakeR2, ACC } = require('./_r2fake');
 
   const a = await newJob();
   ok((await a.put(body(raw))).saved === false, 'ההודעה עוד לא נקראה — הטקסט לא נשמר (המדדים כן, בנפרד)');
-  ok((await api('learnPref', { ack: true })).ok, 'ההודעה נקראה (lra)');
+  ok((await api('learnPref', { ack: true })).ok, 'הנוסח הישן נקרא (lra בלי tv)');
+  ok((await a.put(body(raw))).saved === false, 'אישור של הנוסח הישן ("רק מספרים") — הטקסט לא נשמר');
+  const ackT = await api('learnPref', { ack: true, tv: 2 });
+  ok(ackT.ok && ackT.lrt > 0, 'הנוסח החדש (tv 2 — "גם הטקסט נשמר") נקרא: lrt');
   const pr = await a.put(body(raw));
   ok(pr.ok && pr.saved === true, 'learnPut: נשמר');
   const q1 = await keysIn('q/');

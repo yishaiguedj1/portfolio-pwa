@@ -69,15 +69,49 @@ function normCorpus(o, month) {
   return out;
 }
 
+/* מ׳3 (15/10/2026): העריכות שלך בעורך הכתוביות אחרי העבודה — לכל שמירה (ss) רשימת שינויים: t סוג (txt tm sp mg add del mx),
+   b / a הכתוביות לפני / אחרי ({s, e, h}), en המקור באנגלית, m = שינוי טקסט שגם הזמן שלו זז; ws שניות עבודה פעילה.
+   פריט אחד לעבודה, מצטבר: השרתון פותח את הקיים ומוסיף את השמירה החדשה (עד ED_SS שמירות / ED_CH שינויים) */
+const ED_T = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
+const ED_SS = 40, ED_CH = 3000, ED_SIDE = 12;
+const edCue = (c) => (c && typeof c === 'object' ? { s: n3(c.s), e: n3(c.e), h: txt(c.h) } : null);
+function normEditSession(x) {
+  if (!x || typeof x !== 'object' || !Array.isArray(x.ch)) return null;
+  const ch = [];
+  for (const d of x.ch.slice(0, ED_CH)) {
+    if (!d || typeof d !== 'object' || !ED_T.includes(d.t)) continue;
+    const r = { t: d.t, b: Array.isArray(d.b) ? d.b.slice(0, ED_SIDE).map(edCue).filter(Boolean) : [], a: Array.isArray(d.a) ? d.a.slice(0, ED_SIDE).map(edCue).filter(Boolean) : [] };
+    if (typeof d.en === 'string' && d.en) r.en = txt(d.en);
+    if (d.m === 1) r.m = 1;
+    if (r.b.length || r.a.length) ch.push(r);
+  }
+  if (!ch.length) return null;
+  const out = { ch };
+  if (isNum(x.ws) && x.ws >= 0) out.ws = Math.round(Math.min(x.ws, 86400));
+  return out;
+}
+/* prev = הפריט הקיים (או null), sess = השמירה החדשה מהטלפון → הפריט המעודכן (או null — אין מה לשמור) */
+function addEdits(prev, sess, month) {
+  const ns = normEditSession(sess);
+  if (!ns) return null;
+  const ok = prev && typeof prev === 'object' && prev.v === LC_V && Array.isArray(prev.ss);
+  const ss = (ok ? prev.ss.map(normEditSession).filter(Boolean) : []).concat([ns]).slice(-ED_SS);
+  let left = ED_CH;
+  for (let k = ss.length - 1; k >= 0; k--) { if (left <= 0) { ss.splice(0, k + 1); break; } if (ss[k].ch.length > left) ss[k].ch = ss[k].ch.slice(0, left); left -= ss[k].ch.length; }
+  return { v: LC_V, k: 'ed', m: ok && MONTH_RE.test(String(prev.m || '')) ? prev.m : (MONTH_RE.test(String(month || '')) ? month : ''), ss };
+}
+
 const monthOf = (now) => new Date(now).toISOString().slice(0, 7);
 const qKey = (lid) => 'q/' + lid + '.bin';
 const cKey = (month, lid) => 'c/' + month + '/' + lid + '.bin';
-/* המפתח → {kind q|c, month, lid} (או null — לא שלנו) */
+const qeKey = (lid) => 'qe/' + lid + '.bin';
+const eKey = (month, lid) => 'e/' + month + '/' + lid + '.bin';
+/* המפתח → {kind q|c|qe|e, month, lid} (או null — לא שלנו). q/c = הקורפוס מהעובד, qe/e = העריכות שלך (מ׳3) */
 function parseKey(k) {
-  let m = /^q\/([0-9a-f]{20})\.bin$/.exec(String(k || ''));
-  if (m) return { kind: 'q', month: '', lid: m[1] };
-  m = /^c\/(\d{4}-\d{2})\/([0-9a-f]{20})\.bin$/.exec(String(k || ''));
-  return m ? { kind: 'c', month: m[1], lid: m[2] } : null;
+  let m = /^(q|qe)\/([0-9a-f]{20})\.bin$/.exec(String(k || ''));
+  if (m) return { kind: m[1], month: '', lid: m[2] };
+  m = /^(c|e)\/(\d{4}-\d{2})\/([0-9a-f]{20})\.bin$/.exec(String(k || ''));
+  return m ? { kind: m[1], month: m[2], lid: m[3] } : null;
 }
 /* החודש האחרון שעוד נשמר: היום פחות 24 חודשים */
 function oldestMonth(now) {
@@ -90,15 +124,17 @@ const expired = (month, now) => MONTH_RE.test(month) && month < oldestMonth(now)
 
 /* סטטיסטיקה למנהל מתוך רשימת המפתחות (בלי לפתוח קובץ) */
 function corpusStats(items) {
-  const out = { n: 0, q: 0, bytes: 0, months: {} };
+  const out = { n: 0, q: 0, ne: 0, qe: 0, bytes: 0, months: {} };
   for (const it of items || []) {
     const p = parseKey(it.key);
     if (!p) continue;
     out.bytes += it.size || 0;
     if (p.kind === 'q') out.q++;
+    else if (p.kind === 'qe') out.qe++;
+    else if (p.kind === 'e') out.ne++;
     else { out.n++; out.months[p.month] = (out.months[p.month] || 0) + 1; }
   }
   return out;
 }
 
-module.exports = { LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, monthOf, qKey, cKey, parseKey, oldestMonth, expired, corpusStats };
+module.exports = { LC_V, KEEP_MONTHS, LID_RE, scrub, normCorpus, normEditSession, addEdits, ED_SS, ED_CH, monthOf, qKey, cKey, qeKey, eKey, parseKey, oldestMonth, expired, corpusStats };

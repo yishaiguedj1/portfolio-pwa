@@ -59,7 +59,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sj = read('studio.js');
   ok(/gl: normGl\(s\.gl\)/.test(sj), 'העבודה בטלפון שומרת את ההצעות');
   ok(/function pageGloss\(p\)/.test(sj) && /else if \(ui\.view === 'gloss'\) pageGloss\(p\)/.test(sj) && /go\('gloss'\)/.test(sj), 'דף המילון — מהחוקים שלך (כל מה שקובעים לסוכנים במקום אחד)');
-  ok(/function glossJobCard\(g\)/.test(sj) && /glossJobCard\(rec\.srv\.gl\)/.test(sj), 'דף העבודה: מונחים חדשים — להוספה במילון');
+  ok(/function glossJobCard\(g, rec\)/.test(sj) && /glossJobCard\(rec\.srv\.gl, rec\)/.test(sj), 'דף העבודה: מונחים חדשים — להוספה במילון');
   ok(/glossWrite\(glUpsert\(gl\.rows, \[\[x\[0\], x\[1\], ''\]\]\)/.test(sj), 'הצעה נכנסת למילון רק בלחיצה (+ / להוסיף הכל)');
   ok(!/innerHTML/.test(sj.slice(sj.indexOf('/* ---- v380'), sj.indexOf('function qualityCard('))), 'הטקסט מהמילון ומההצעות — רק כטקסט');
   const nets = read('studionet.js');
