@@ -563,6 +563,24 @@ async function serverBack(deps, srv, sid, now) {
   await notify(deps, srv.by, 'srv_up', '', now);
 }
 
+/* 15/10/2026: "השרת לא מצליח להתחבר" — הטוקן נדחה. רישום לכל היותר פעם ב־BAD_AUTH_GAP (בלי כתיבה בכל ניסיון);
+   התראה במגדל + לטלפון רק בפעם הראשונה (עד שפנייה תקינה מאפסת את ba) */
+async function badAuth(deps, srv, sid, now) {
+  if (!S.badAuthDue(srv, now)) return;
+  const first = !(srv.ba > 0);
+  const got = await patchIf(deps, 'studioServers', sid, { ba: now, updated: now }, srv._ut).catch(() => false);
+  if (!got || !first || !UID_RE.test(String(srv.by || ''))) return;
+  await raise(deps, srv.by, [{ c: 'server', k: 'auth' }], '', now);
+  await notify(deps, srv.by, 'srv_auth', '', now);
+}
+async function authBack(deps, srv, sid, now) {
+  if (!UID_RE.test(String(srv.by || ''))) return;
+  try {
+    const others = (await query(deps, 'studioServers', null, S.SRV_MAX + 5)).filter((x) => x.id !== sid && x.ba && x.by === srv.by);
+    if (!others.length) await raise(deps, srv.by, [{ c: 'server', k: 'auth', ok: true }], '', now);
+  } catch (e) {}
+}
+
 /* ---------- מצב "API של המערכת": תור לשרת שלנו (בלי Routine) ---------- */
 /* העבודה נכנסת לתור; שרת פנוי לוקח אותה ב־poll ומקבל מפתח עבודה חדש (המפתח נוצר רק שם — לא מחכה בתור) */
 async function queueApi(deps, uid, job, now) {
@@ -590,10 +608,14 @@ async function server(req, res, body, deps) {
   if (limited('s|' + p.sid, 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });
   const now = deps.now || Date.now();
   try {
-    const srv = await readDoc(deps, 'studioServers', p.sid);
-    if (!srv || !S.serverMatches(srv, p.tok)) return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
+    const srv = await readDocT(deps, 'studioServers', p.sid);   // _ut — הרישום של טוקן שנדחה בכתיבה בתנאי
+    if (!srv || !S.serverMatches(srv, p.tok)) {
+      if (srv) await badAuth(deps, srv, p.sid, now).catch(() => {});   // 15/10/2026: שרת קיים שהטוקן שלו נדחה — מדווחים, לא בשקט
+      return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
+    }
     const hb = S.normHb(body.hb);
     const seen = { seen: now, hb, updated: now };
+    if (srv.ba) { seen.ba = 0; await authBack(deps, srv, p.sid, now); }
     if (srv.dn) { seen.dn = 0; await serverBack(deps, srv, p.sid, now); }   // ת7: שרת שסומן "לא מדווח" חזר
     if (body.op === 'beat' || srv.paused) {
       await patchDoc(deps, 'studioServers', p.sid, seen);
@@ -1456,6 +1478,7 @@ async function handler(req, res, deps = {}) {
         else {
           await delDoc(deps, 'studioServers', sid);   // הטוקן מת מיד — השרת יקבל 401
           if (sd.dn) await downClear(deps, sd.by || uid, sid, now);   // ת7: שרת שנפל והוסר — ההתראה נסגרת
+          if (sd.ba) await authBack(deps, Object.assign({ by: uid }, sd), sid, now);   // 15/10: שרת שהטוקן שלו נדחה והוסר — גם
         }
       }
       const list = await servers();

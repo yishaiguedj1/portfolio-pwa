@@ -15,12 +15,13 @@ const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
 const ADMIN_URL = 'https://studio.thesnowball.app/admin.html';
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
-const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail'];   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
+const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail'];   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
   he: { done: ['התרגום מוכן ✓', 'הכתוביות והסרטון מחכים בסטודיו'], fail: ['העבודה נעצרה', 'פתחו את הסטודיו לפרטים'],
     ask: ['שאלה מ־Claude', 'העבודה מחכה לתשובה שלך'], gate: ['צריך את האישור שלך', 'העבודה מחכה לאישור'],
     cp: ['העתקה והדבקה ל־Claude', 'בקשה חדשה מחכה — מעתיקים, מדביקים ב־Claude ומחזירים את התשובה'],
     srv_down: ['שרת התרגום לא מדווח', 'עבר רבע שעה בלי דיווח מהשרת — פתחו את מסך השרת'], srv_up: ['שרת התרגום חזר ✓', 'השרת מדווח שוב'],
+    srv_auth: ['שרת התרגום לא מצליח להתחבר', 'השרתון דוחה את הטוקן שלו — פתחו את מסך השרת'],
     site_down: ['THE SNOWBALL לא עונה', 'השרת או אחת האפליקציות לא עונים כבר שתי בדיקות. האפליקציה עוברת לגיבוי לבד'], site_up: ['THE SNOWBALL חזר ✓', 'כל הכתובות עונות שוב'],
     major: ['תקלה רחבה בסטודיו', 'אותה תקלה בכמה עבודות. עבודות חדשות מחכות עד שהיא עוברת — פרטים במגדל הפיקוח'],
     bk_fail: ['הגיבוי לא רץ', 'עברו יותר מיומיים בלי גיבוי אצל ספק שני — פרטים במרכז הניהול'],
@@ -30,6 +31,7 @@ const TEXT = {
     ask: ['Claude has a question', 'The job is waiting for your answer'], gate: ['Your approval is needed', 'The job is waiting for approval'],
     cp: ['Copy & paste to Claude', 'A new request is waiting — copy it, paste in Claude and bring back the answer'],
     srv_down: ['Translation server is silent', 'No report from the server for 15 minutes — open the Server screen'], srv_up: ['Translation server is back ✓', 'The server is reporting again'],
+    srv_auth: ['Translation server cannot connect', 'Its token is being rejected — open the Server screen'],
     site_down: ['THE SNOWBALL is not responding', 'The server or one of the apps failed two checks in a row. The app switches to the backup by itself'], site_up: ['THE SNOWBALL is back ✓', 'All addresses respond again'],
     major: ['Studio-wide problem', 'The same failure hit several jobs. New jobs wait until it clears — details in the Control Tower'],
     bk_fail: ['Backup is not running', 'More than 2 days without an off-site backup — details in the admin center'],

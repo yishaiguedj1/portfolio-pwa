@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1511 מפתחות מתוך 2963) */
+/* המחרוזות של studio (1513 מפתחות מתוך 2965) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -154,6 +154,7 @@ he: {
   "studioAlRoutineRate": "יותר מדי הפעלות — ממתינים",
   "studioAlRoutineUnsure": "Anthropic החזיר שגיאה בהפעלה",
   "studioAlScore": "ציון עדיפות",
+  "studioAlServerAuth": "שרת התרגום לא מצליח להתחבר (הטוקן נדחה)",
   "studioAlServerDown": "שרת התרגום לא מדווח (רבע שעה בלי דיווח)",
   "studioAlSlaCost": "עבודה חרגה מיעד התקציב",
   "studioAlSlaTime": "עבודה חרגה מיעד הזמן",
@@ -1243,6 +1244,7 @@ he: {
   "studioSoon": "בקרוב",
   "studioSrvAdd": "הוספת שרת",
   "studioSrvAdding": "יוצר טוקן…",
+  "studioSrvAuthBad": "לא מצליח להתחבר — הטוקן נדחה מאז {t}. מחליפים טוקן (snb-setup) או מסירים ומוסיפים מחדש",
   "studioSrvDisk": "דיסק {n}%",
   "studioSrvEmpty": "עוד אין שרתים",
   "studioSrvEvAuth": "השרתון לא מכיר את טוקן השרת",
@@ -1667,6 +1669,7 @@ en: {
   "studioAlRoutineRate": "Too many starts — waiting",
   "studioAlRoutineUnsure": "Anthropic returned an error on start",
   "studioAlScore": "Priority score",
+  "studioAlServerAuth": "Translation server cannot connect (token rejected)",
   "studioAlServerDown": "Translation server silent (no report for 15 min)",
   "studioAlSlaCost": "A job breached its budget target",
   "studioAlSlaTime": "A job breached its time target",
@@ -2756,6 +2759,7 @@ en: {
   "studioSoon": "Soon",
   "studioSrvAdd": "Add a server",
   "studioSrvAdding": "Creating a token…",
+  "studioSrvAuthBad": "Cannot connect — token rejected since {t}. Replace the token (snb-setup) or remove and add the server again",
   "studioSrvDisk": "Disk {n}%",
   "studioSrvEmpty": "No servers yet",
   "studioSrvEvAuth": "The proxy rejected the server token",

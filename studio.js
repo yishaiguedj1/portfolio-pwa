@@ -109,7 +109,7 @@ export function normServers(list) {
   if (!Array.isArray(list)) return null;
   const n = (x) => (Number.isFinite(+x) ? +x : null);
   return list.slice(0, 10).filter((x) => x && /^[a-z0-9]{12}$/.test(String(x.id || ''))).map((x) => ({
-    id: x.id, name: String(x.name || x.id).slice(0, 40), seen: Math.max(0, n(x.seen) || 0), online: x.online === true, paused: x.paused === true,
+    id: x.id, name: String(x.name || x.id).slice(0, 40), seen: Math.max(0, n(x.seen) || 0), ba: Math.max(0, n(x.ba) || 0), online: x.online === true, paused: x.paused === true,
     hb: x.hb && typeof x.hb === 'object' ? { v: /^[0-9a-f]{7,12}$|^dev$/.test(String(x.hb.v || '')) ? x.hb.v : '', disk: n(x.hb.disk), mem: n(x.hb.mem), free: n(x.hb.free),
       iso: x.hb.iso === 'g' || x.hb.iso === 'r' ? x.hb.iso : '', iw: ['mem', 'missing', 'selftest', 'manual'].includes(x.hb.iw) ? x.hb.iw : '',
       al: x.hb.al === 'o' || x.hb.al === 't' ? x.hb.al : '',
@@ -2654,6 +2654,7 @@ function opsAlert(c, k) {
     case 'claude:sla_time': return T('studioAlSlaTime');   // v377
     case 'claude:sla_cost': return T('studioAlSlaCost');
     case 'server:down': return T('studioAlServerDown');   // ת7: הבדיקה המתוזמנת
+    case 'server:auth': return T('studioAlServerAuth');   // 15/10: הטוקן נדחה
     case 'vt:setup': return T('studioAlVtSetup');
     case 'vt:ingest': return T('studioAlVtIngest');
     case 'vt:asr': return T('studioAlVtAsr');
@@ -5876,6 +5877,7 @@ function pageServer(p) {
     const sub = h('small', null, parts.join(' · '));
     if (sv.hb && sv.hb.v) sub.append(' · ', h('bdi', null, sv.hb.v.slice(0, 7)));
     l.append(b, sub);
+    if (sv.ba && sv.ba > sv.seen) l.append(h('small', 'st-warn', T('studioSrvAuthBad', { t: fmtDate(sv.ba) })));   // 15/10: הטוקן נדחה — מה עושים
     if (sv.hb && sv.hb.iso && stt !== 'off') l.append(h('small', null, isoTxt(sv.hb) + (sv.hb.al === 'o' ? ' · ' + T('studioAlOnnx') : '')));   // ת2: בידוד הקופסה · שלב 4.1: היישור
     if (sv.job) { const js = h('small'); js.append(T('studioSrvJob') + ' '); js.append(h('bdi', null, sv.job.name ? fileTitle(sv.job.name) : T('studioSrvJobOther'))); l.append(js); }
     const evs = srvEvents(sv.hb);

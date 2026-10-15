@@ -3436,6 +3436,38 @@ function stubFetch(text, status = 200) {
         await run({ op: 'jobs', idToken: OWNER });
         ok(pushes.length === 0, 'ת7: בדיקה מהטלפון — בלי התראה כפולה');
         await run({ op: 'srvRemove', idToken: OWNER, sid: cr2.payload.server.id });
+        // 15/10/2026: "השרת לא מצליח להתחבר" — שרת קיים שהטוקן שלו נדחה (10/10: כל השרתים קיבלו 401 בשקט)
+        {
+          const cr3 = await run({ op: 'srvCreate', idToken: OWNER, name: 'auth' });
+          const S3 = cr3.payload.server.id, BAD = S3 + '-' + 'z'.repeat(43);
+          const authOpen = async () => ((await run({ op: 'status', idToken: OWNER })).payload.ops.open || []).some((a) => a.c === 'server' && (a.k === 'auth' || (a.sub || []).some((b) => b.k === 'auth')));   // מקובצת תחת down כשהשרת גם שותק
+          const baOf = () => +((db.get('studioServers/' + S3).fields.ba || {}).integerValue || 0);
+          await srvRun({ op: 'poll', hb: {} }, cr3.payload.token);
+          pushes = [];
+          let x = await srvRun({ op: 'poll', hb: {} }, BAD);
+          ok(x.statusCode === 401 && x.payload.stop === true && pushes.length === 1 && decrypt(pushes[0].body).k === 'srv_auth' && decrypt(pushes[0].body).j === '' && baOf() === now && await authOpen(),
+            '15/10: טוקן שנדחה לשרת קיים → 401, התראה לטלפון ("לא מצליח להתחבר") ובמגדל (server:auth), ba נרשם');
+          const ba1 = baOf();
+          now += 3 * 60e3;
+          await srvRun({ op: 'poll', hb: {} }, BAD);
+          ok(pushes.length === 1 && baOf() === ba1, '15/10: ניסיון חוזר תוך 10 דק׳ — בלי כתיבה ובלי התראה נוספת');
+          now += 8 * 60e3;
+          await srvRun({ op: 'poll', hb: {} }, BAD);
+          ok(pushes.length === 1 && baOf() === now, '15/10: אחרי 10 דק׳ — ba מתעדכן, בלי התראה כפולה');
+          now += 41 * 60e3;
+          ok(await authOpen(), '15/10: ההתראה במגדל לא נסגרת לבד אחרי חצי שעה (דביקה)');
+          const ls = await run({ op: 'srvList', idToken: OWNER });
+          const v = (ls.payload.servers || []).find((y) => y.id === S3);
+          ok(v && v.ba > 0 && v.ba > v.seen, '15/10: מסך השרת מקבל ba (מתי נדחה לאחרונה)');
+          x = await srvRun({ op: 'poll', hb: {} }, cr3.payload.token);
+          ok(x.statusCode === 200 && baOf() === 0 && !(await authOpen()), '15/10: פנייה תקינה → ba מתאפס וההתראה נסגרת');
+          x = await srvRun({ op: 'poll', hb: {} }, 'nonexist0000-' + 'z'.repeat(43));
+          ok(x.statusCode === 401 && !db.get('studioServers/nonexist0000'), '15/10: שרת שלא קיים (הוסר) — 401 בלי רישום');
+          await srvRun({ op: 'poll', hb: {} }, BAD);
+          ok(await authOpen(), '15/10: נדחה שוב');
+          await run({ op: 'srvRemove', idToken: OWNER, sid: S3 });
+          ok(!(await authOpen()), '15/10: שרת שנדחה והוסר — ההתראה נסגרת');
+        }
       }
       r = await run({ op: 'push', idToken: OWNER, act: 'off', e: 'https://fcm.googleapis.com/fcm/send/dev1' });
       ok(r.payload.n === 0, 'push: ביטול במכשיר');
