@@ -42,6 +42,7 @@ const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
 const LR = require('../lib/studiolearn');
 const LC = require('../lib/learncorpus');
+const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
@@ -53,7 +54,7 @@ const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone']);
-const SERVER_OPS = new Set(['poll', 'beat']);
+const SERVER_OPS = new Set(['poll', 'beat', 'devLog', 'devMet']);   // devLog/devMet — האיסוף המלא (lib/devlog.js)
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
@@ -278,7 +279,7 @@ async function learnSave(deps, job, now, offCache) {
    → התור q/<lid>.bin. פעם ביום (learnBatch מתוך watch) התור עובר ל־c/<חודש>/<lid>.bin — כך זמן הקובץ בדלי הוא זמן האצווה,
    לא הרגע שבו המשתמש הריץ עבודה. התוכן נמחק אחרי 24 חודשים; הרשומות המספריות (studioLearn) נשארות.
    נשמר רק כשהמתג דולק, ההודעה נקראה (lra — הסכמה לתוכן), והעבודה לא כבר נשמרה (lc). תקלה כאן לעולם לא מפילה את סוף העבודה */
-const LC_MAX_BODY = 2600000;
+const LC_MAX_BODY = 4000000;   // 15/10: עד 4MB — באיסוף המלא גם קבצי הטקסט של הפרויקט (Vercel: 4.5MB)
 const learnCfg = (env = process.env) => R2.config({ R2_ACCOUNT_ID: env.R2L_ACCOUNT_ID || env.R2_ACCOUNT_ID, R2_ACCESS_KEY_ID: env.R2L_ACCESS_KEY_ID,
   R2_SECRET_ACCESS_KEY: env.R2L_SECRET_ACCESS_KEY, R2_BUCKET: env.R2L_BUCKET, R2_JURISDICTION: env.R2L_JURISDICTION || env.R2_JURISDICTION });
 async function learnPut(deps, job, b64, now) {
@@ -289,8 +290,10 @@ async function learnPut(deps, job, b64, now) {
     const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
     if (!(+st.lrt > 0)) return false;   // 15/10/2026: ההסכמה לטקסט (lrt) — רק אחרי שאושר הנוסח שאומר שהטקסט נשמר; lra הישן ("רק מספרים") לא מספיק
     const raw = require('zlib').gunzipSync(Buffer.from(b64, 'base64'), { maxOutputLength: 16 * 1024 * 1024 });
-    const item = LC.normCorpus(JSON.parse(raw.toString('utf8')), LC.monthOf(now));
+    const full = await learnFull(deps, job, st);   // 15/10/2026: האיסוף המלא — בלי scrub, עם קבצי הטקסט ותמונת העבודה
+    const item = LC.normCorpus(JSON.parse(raw.toString('utf8')), LC.monthOf(now), full);
     if (!item) return false;
+    if (full) Object.assign(item, fullExtras(job));
     const lid = LR.lid(job.id);
     await R2.putText(c, r2deps(deps), LC.qKey(lid), vault.seal(item, 'learn|' + lid), 'application/octet-stream');
     await patchJob(deps, job.id, { lc: now });
@@ -387,6 +390,7 @@ async function learnBatch(deps, now) {
       if (p && (p.kind === 'c' || p.kind === 'e' || p.kind === 'm') && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); gone++; }
     }
   }
+  gone += await devGc(deps, now).catch(() => 0);   // האיסוף המלא: לוגים ומדדים מעל 30 יום
   await patchDoc(deps, 'sysLearn', 'batch', { day, at: now, mv: moved, gn: gone });
   return moved;
 }
@@ -426,6 +430,103 @@ async function learnCorpusView(deps, items) {
     out.items = list;
   }
   return out;
+}
+/* ---------- האיסוף המלא בתקופת הפיתוח (15/10/2026, בקשת המשתמש — הדגל learn_full במרכז הניהול) ----------
+   לכבות כשיהיו משתמשים. בדלי של מאגר הלמידה (snb-learn), מוצפן (AAD dev|<המפתח>), תחת d/<יום>/<סוג>/ — נמחק אחרי 30 יום.
+   - j: מהשרת בסוף כל עבודה / כשהיא תקועה — סוף הלוג, traceback, מצב התהליכים, יומן הקריאות ל־Claude. רק לעבודה שהבעלים
+     שלה אישר את הנוסח של האיסוף המלא (lrf) — הלוג כולל את שם הקובץ ומשפטים מהעבודה.
+   - m: מדדי השרת (מעבד/זיכרון/דיסק) פעם בדקה, במנות. בלי תוכן — רק הדגל.
+   - e: שגיאות JavaScript מהטלפון (Academy, Studio) — רק של המנהל.
+   משיכה לקריאה בלבד: devPull בטוקן הניתוח (tools/dev-pull.js). בלי Firestore — כל פריט = קובץ אחד בדלי. */
+const LRN_FV = 4;   // **זהה ל־LRN_TV ב־studio.js** — הנוסח שאומר שבתקופת הפיתוח נשמר הכל (שם הקובץ, הטקסט המלא, הלוגים)
+async function learnFull(deps, job, st) {
+  try {
+    if (!(await flagOn(deps, 'learn_full')) || job.kind !== 'tr' || (await learnSkip(deps, job))) return false;
+    const s = st || (await readDoc(deps, 'studioStats', job.uid)) || {};
+    return +s.lrf > 0;
+  } catch (e) { return false; }
+}
+/* מה שהשרתון יודע ומוסיף לפריט במאגר במצב המלא: שם הקובץ, ההערות שלך, השאלות והתשובות, ותמונת העבודה (בלי סודות) */
+function fullExtras(job) {
+  const spec = job.spec || {};
+  const o = { fn: DL.text(spec.name, 300), jb: DL.jobSnap(job) };
+  if (Array.isArray(job.nh) && job.nh.length) o.nh = DL.jobSnap(job.nh);
+  if (job.qa) o.qa = DL.jobSnap(job.qa);
+  return o;
+}
+async function devPut(deps, kind, item, now) {
+  const c = learnCfg();
+  if (!c.ok || !item) return false;
+  const id = DL.newId(now, crypto.randomBytes(6).toString('hex').replace(/[^a-z0-9]/g, ''));
+  const key = DL.dKey(now, kind, id);
+  await R2.putText(c, r2deps(deps), key, vault.seal(item, 'dev|' + key), 'application/octet-stream');
+  return true;
+}
+/* מהשרת (טוקן השרת): devLog = היומן של עבודה, devMet = מנת מדדים */
+async function devSrv(deps, body, sid, now) {
+  try {
+    if (!(await flagOn(deps, 'learn_full', now))) return false;
+    if (body.op === 'devMet') {
+      const m = DL.normMet(body.d);
+      return m ? devPut(deps, 'm', Object.assign(m, { sid }), now) : false;
+    }
+    const l = DL.normJobLog(body.d);
+    if (!l) return false;
+    const job = await readJob(deps, l.job);
+    if (!job || job.sid !== sid && job.sid !== '' || !(await learnFull(deps, job))) return false;   // רק עבודה שהשרת הזה לקח
+    return devPut(deps, 'j', Object.assign(l, { sid, eng: job.eng || '', mode: (job.spec && job.spec.mode) || '' }), now);
+  } catch (e) { return false; }
+}
+/* מהטלפון (Academy / Studio): שגיאות JavaScript — רק של המנהל, רק כשהדגל דולק */
+async function devErr(deps, user, body, now) {
+  try {
+    if (!isAdmin(user) || !(await flagOn(deps, 'learn_full', now))) return false;
+    if (limited('de|' + user.uid, 6)) return false;
+    return devPut(deps, 'e', DL.normErrs(body), now);
+  } catch (e) { return false; }
+}
+/* ניקוי: פריטים מעל 30 יום. מתוך האצווה היומית של מאגר הלמידה */
+async function devGc(deps, now) {
+  const c = learnCfg();
+  if (!c.ok) return 0;
+  const rd = r2deps(deps);
+  let n = 0;
+  for (const it of await R2.list(c, rd, 'd/', 50000)) if (DL.expiredKey(it.key, now)) { await R2.del(c, rd, it.key); n++; }
+  return n;
+}
+/* משיכה לקריאה בלבד בטוקן הניתוח — הלוגים, יומן הקריאות, המדדים ושגיאות הטלפון של הימים האחרונים.
+   days 1–14, kinds = j/m/e, job = רק עבודה אחת. עד DEV_PULL_MAX פריטים פתוחים (מהחדש) */
+const DEV_PULL_MAX = 400;
+async function devPull(req, res, body, deps) {
+  const tok = String(body.at || '');
+  if (!AT_RE.test(tok)) return res.status(401).json({ ok: false, error: 'bad_token' });
+  if (limited('at|' + atId(tok).slice(0, 12), 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  try {
+    const t = await readDoc(deps, 'sysTokens', atId(tok));
+    if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
+    const c = learnCfg();
+    const on = await flagOn(deps, 'learn_full', now);
+    if (!c.ok) return res.status(200).json({ ok: true, on, r2: false, at: now, items: [] });
+    await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+    const kinds = new Set((Array.isArray(body.kinds) ? body.kinds : DL.KINDS).filter((k) => DL.KINDS.includes(k)));
+    const days = new Set(DL.daysBack(now, Math.max(1, Math.min(14, Math.floor(+body.days || 2)))));
+    const job = /^j[A-Za-z0-9_-]{20}$/.test(String(body.job || '')) ? body.job : '';
+    const rd = r2deps(deps);
+    const all = await R2.list(c, rd, 'd/', 50000);
+    const keys = all.filter((it) => { const p = DL.parseKey(it.key); return p && kinds.has(p.kind) && days.has(p.day); })
+      .sort((a, b) => (a.key < b.key ? 1 : -1)).slice(0, DEV_PULL_MAX);
+    const items = [];
+    for (const it of keys) {
+      const x = vault.open(await R2.getText(c, rd, it.key, 8 * 1024 * 1024), 'dev|' + it.key);
+      if (!x || (job && x.job !== job)) continue;
+      const p = DL.parseKey(it.key);
+      items.push(Object.assign({ k: p.kind, day: p.day }, x));
+    }
+    return res.status(200).json({ ok: true, on, r2: true, at: now, stats: DL.devStats(all), items });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
+  }
 }
 /* v363: "הרגיל" של המשתמש — דגימה לכל עבודה שהסתיימה (studioStats/{uid}, נפרד מהכספת: ניתוק Claude לא מוחק את ההיסטוריה) */
 /* v365: מגדל הפיקוח 2.0 — אירועים והתראות (lib/studioops.js) ב־studioOps/{uid}. תקלה כאן לעולם לא מפילה את הפעולה עצמה */
@@ -784,7 +885,7 @@ async function server(req, res, body, deps) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
   let len = 0; try { len = JSON.stringify(body).length; } catch (e) { len = 1e9; }
-  if (len > 4096) return res.status(413).json({ ok: false, error: 'too_large' });
+  if (len > (body.op === 'devLog' || body.op === 'devMet' ? DL.BODY_MAX : 4096)) return res.status(413).json({ ok: false, error: 'too_large' });
   const hd = req.headers || {};
   const m = /^Bearer (\S+)$/.exec(String(hd.authorization || hd.Authorization || ''));
   const p = m && S.parseServerToken(m[1]);
@@ -797,6 +898,7 @@ async function server(req, res, body, deps) {
       if (srv) await badAuth(deps, srv, p.sid, now).catch(() => {});   // 15/10/2026: שרת קיים שהטוקן שלו נדחה — מדווחים, לא בשקט
       return res.status(401).json({ ok: false, error: 'no_auth', stop: true });
     }
+    if (body.op === 'devLog' || body.op === 'devMet') return res.status(200).json({ ok: true, saved: await devSrv(deps, body, p.sid, now), now });   // האיסוף המלא
     const hb = S.normHb(body.hb);
     const seen = { seen: now, hb, updated: now };
     if (!(srv.seen > 0)) {
@@ -1150,7 +1252,8 @@ async function worker(req, res, body, deps) {
       if (job.kind === 'tr' && R2.config().ok) {
         try { const t = await R2.getText(R2.config(), r2deps(deps), S.glKey(job.uid), 256 * 1024); if (t != null) gl = S.glParse(t); } catch (e) { gl = null; }
       }
-      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl), drive: await driveFor(), pir, now });
+      const full = job.kind === 'tr' && (await learnFull(deps, job, stats)) ? 1 : 0;   // האיסוף המלא: העובד שולח גם את קבצי הטקסט ואת יומן הקריאות
+      return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl), drive: await driveFor(), pir, full, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
@@ -1360,6 +1463,7 @@ async function handler(req, res, deps = {}) {
   if (WORKER_OPS.has(String(body.op || ''))) return worker(req, res, body, deps);
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
+  if (body.op === 'devPull') return devPull(req, res, body, deps);   // 15/10/2026: האיסוף המלא — לוגים, קריאות, מדדים, שגיאות (קריאה בלבד)
   if (guard(req, res)) return;
   if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)
     if (limited('cfg|' + String(((req.socket || {}).remoteAddress) || ''), 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -1372,6 +1476,7 @@ async function handler(req, res, deps = {}) {
   if (!UID_RE.test(String(user.uid || ''))) return res.status(401).json({ ok: false, error: 'no_auth' });
   if (!allowed(user)) return res.status(403).json({ ok: false, error: 'not_allowed' });
   if (limited('p|' + user.uid, 120)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  if (body.op === 'devErr') return res.status(200).json({ ok: true, saved: await devErr(deps, user, body, deps.now || Date.now()) });   // שגיאות מהטלפון (האיסוף המלא)
   if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault_not_configured' });
   const uid = user.uid, op = String(body.op || ''), now = deps.now || Date.now();
   if ((op === 'status' || op === 'jobs') && watchDue(now)) await checkServers(deps, now, uid).catch(() => 0);
@@ -1561,7 +1666,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'learnPref') {
       // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל). 15/10 (מ׳1): ack = ההודעה בכניסה הראשונה נקראה (lra)
       // 15/10/2026: tv = גרסת הנוסח שנקרא. LRN_TV ומעלה (הנוסח שאומר שגם טקסט הכתוביות ושמות הדוברים נשמרים) = גם lrt — ההסכמה לטקסט
-      const tx = body.ack === true && (body.tv | 0) >= LRN_TV ? Object.assign({ lrt: now }, (body.tv | 0) >= LRN_MV ? { lrm: now } : {}) : {};   // מ׳4: 3 = גם הקול ו־240p
+      const tx = body.ack === true && (body.tv | 0) >= LRN_TV ? Object.assign({ lrt: now }, (body.tv | 0) >= LRN_MV ? { lrm: now } : {}, (body.tv | 0) >= LRN_FV ? { lrf: now } : {}) : {};   // 4 = האיסוף המלא   // מ׳4: 3 = גם הקול ו־240p
       if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, Object.assign({ lra: now, updated: now }, tx)); return res.status(200).json(Object.assign({ ok: true, lra: now }, tx)); }
       const on = body.on === true;
       await patchDoc(deps, 'studioStats', uid, Object.assign({ lo: on ? 0 : 1, updated: now }, body.ack === true ? Object.assign({ lra: now }, tx) : {}));
@@ -1587,7 +1692,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, lrf: +st.lrf || 0 /* האיסוף המלא — הנוסח נקרא */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test

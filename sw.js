@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v437';
+const CACHE_NAME = 'portfolio-pwa-v438';
 const HASHES = {
   "./": "4ea641b80e22297bbebba35123ed046b",
   "./index.html": "4ea641b80e22297bbebba35123ed046b",
   "./styles.css": "fbb6061acd78b2f40130ebea04e3dd9d",
-  "./app.js": "256f46c1e31894b2b8302a5ba8d80294",
+  "./app.js": "7083f573f1fd83cad1eec9707f29e15d",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "860f747cedea43c11b0f91fef687700b",
@@ -47,9 +47,9 @@ const HASHES = {
   "./vendor/foliate-js/vendor/zip.js": "2a0d43157e4a447c6e43351225758795",
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
-  "./academy-app.js": "799da4a976132c0b32bae2ff8ea00845",
-  "./strings-academy.js": "0a65c6823082ae66ba71fecff3e57f5c",
-  "./core.js": "adb9b8006e29f28466bb5a07c14751e5",
+  "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
+  "./strings-academy.js": "1d51ee090777889fecbd2b3493c25e12",
+  "./core.js": "229394c8fea326d1697beef2858e4155",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "9ca89f5948c5dbbbc2be2d71054ed35e",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -57,7 +57,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "0ef48d528e03731987a41c61b70f8775",
+  "./studio.js": "2600c07c3c213bfffe9e6019ff1709f0",
   "./studio.css": "3b2f35029d2459ab5f062d1a0a6496ff",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
@@ -66,8 +66,8 @@ const HASHES = {
   "./studioai.js": "e0a43e7a48c70e3bf5028813acebbf3e",
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
-  "./studio-app.js": "5a63fccdc0e5a519e999c9c3be1b71d0",
-  "./strings-studio.js": "44b7a7331e68b3b8350479e2ec3b3521",
+  "./studio-app.js": "1bd843c44038fe58e339ce3101a7ffa6",
+  "./strings-studio.js": "dd2f6084eedf44609f989a2d28b840d8",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./icon-studio-192.png": "9b37d795c2aceac291c56b3ce425aaa3",

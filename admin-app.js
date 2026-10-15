@@ -322,7 +322,7 @@ page('maint', { tab: 'sys', parent: 'sys', title: () => t('admMaint'), render(p)
 } });
 const FL = {
   st_api: [() => t('admFlStApi'), () => t('admFlStApiS')], st_routine: [() => t('admFlStRt'), () => t('admFlStRtS')],
-  st_auto: [() => t('admFlStAuto'), () => t('admFlStAutoS')], learn: [() => t('admFlLearn'), () => t('admFlLearnS')],
+  st_auto: [() => t('admFlStAuto'), () => t('admFlStAutoS')], learn: [() => t('admFlLearn'), () => t('admFlLearnS')], learn_full: [() => t('admFlFull'), () => t('admFlFullS')],
   push: [() => t('admFlPush'), () => t('admFlPushS')], iv_live: [() => t('admFlLive'), () => t('admFlLiveS')],
 };
 const APPN = { studio: 'Studio', invest: 'Invest', all: () => t('admFlAll') };

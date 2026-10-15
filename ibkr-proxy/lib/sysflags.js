@@ -11,6 +11,7 @@ const FLAGS = [
   { k: 'st_routine', app: 'studio', where: 'api/studio.js — sysBlock (יצירה, התחלה, המשך)' },      // תרגום ב־Claude שבמנוי (Routine)
   { k: 'st_auto', app: 'studio', where: 'api/studio.js — autoRecover' },                            // "המשך" אוטומטי אחרי תקלה חולפת
   { k: 'learn', app: 'studio', where: 'api/studio.js — learnSave, learnPut' },                      // איסוף למאגר הלמידה
+  { k: 'learn_full', app: 'all', where: 'api/studio.js — learnFull, devSrv, devErr, devPull' },     // 15/10/2026: האיסוף המלא בתקופת הפיתוח (לוגים, קריאות, מדדים, שגיאות, טקסט מלא) — לכבות כשיהיו משתמשים
   { k: 'push', app: 'all', where: 'api/studio.js — notify' },                                       // התראות לטלפון
   { k: 'iv_live', app: 'invest', where: 'app.js — liveCanTick' },                                   // מחירים חיים ב־Invest
 ];

@@ -18,6 +18,7 @@ cache_control על הבלוק הקבוע). ספק אחר יתווסף רק אם 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import threading
 import time
@@ -149,6 +150,8 @@ class Result:
     think_chars: int = 0        # חשיבה: טוקנים מ־usage.output_tokens_details.thinking_tokens; בלי השדה — תווים
                                 # (במודלים של 5.5 טקסט החשיבה מושמט כברירת מחדל — ספירת תווים בלבד הייתה תמיד 0)
     diag: object = None         # response.diagnostics (cache diagnostics, GA) — None = אין סטייה או אין מידע
+    rid: object = None          # 15/10: request id (יומן הקריאות — לפנייה לתמיכה של Anthropic)
+    mid: object = None          # message id
 
     @property
     def truncated(self) -> bool:
@@ -206,6 +209,7 @@ class Engine:
     def _complete(self, k, system_fixed, prompt, max_tokens, system_extra, on_first_token, partial_ok=False) -> 'Result':
         if self.spec.provider != 'anthropic':
             raise LLMError('provider_unknown', self.spec.provider)
+        _tl.k, _tl.a = k, 0                  # יומן הקריאות: השלב של הקריאה (לחוט הזה)
         res = self._call_retrying(system_fixed, system_extra, prompt, max_tokens, on_first_token)
         fh = hashlib.sha1(system_fixed.encode('utf-8')).hexdigest()
         with self._lock:
@@ -251,6 +255,7 @@ class Engine:
         """11/10/2026 (ביקורת העמידות): ה־SDK מנסה שוב רק את פתיחת הבקשה. עומס (529/5xx) או ניתוק שמגיעים באמצע
         הזרם הכשילו עבודה שלמה של שעה (עשרות קריאות, 4 במקביל). כאן — עוד שני ניסיונות עם השהיה, רק לשגיאות חולפות."""
         for i in range(len(MID_RETRY_WAIT) + 1):
+            _tl.a = i                        # יומן הקריאות: מספר הניסיון
             try:
                 return self._anthropic(fixed, extra, prompt, max_tokens, on_first_token if i == 0 else None)
             except LLMError as e:
@@ -299,6 +304,22 @@ class Engine:
         return self._client
 
     def _anthropic(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
+        """15/10/2026 — יומן הקריאות (האיסוף המלא, רק כש־SNB_CALLLOG מוגדר): זמן, משך, שלב, ניסיון, stop_reason, request id,
+        טוקנים ועלות — לכל קריאה, גם לזו שנכשלה. העטיפה לא משנה את ההתנהגות; תקלה ביומן נבלעת"""
+        t0 = time.time()
+        try:
+            res = self._anthropic0(fixed, extra, prompt, max_tokens, on_first_token)
+        except LLMError as e:
+            call_log({'t': t0, 'ms': int((time.time() - t0) * 1000), 'k': getattr(_tl, 'k', ''), 'm': self.spec.model,
+                      'a': getattr(_tl, 'a', 0), 'mt': max_tokens, 'err': e.code, 'em': str(e)[:300],
+                      'rid': getattr(e.__cause__, 'request_id', None)})
+            raise
+        call_log({'t': t0, 'ms': int((time.time() - t0) * 1000), 'k': getattr(_tl, 'k', ''), 'm': self.spec.model,
+                  'a': getattr(_tl, 'a', 0), 'mt': max_tokens, 'sr': res.stop, 'rid': res.rid, 'mid': res.mid,
+                  'th': res.think_chars, 'usd': res.usd, **res.usage})
+        return res
+
+    def _anthropic0(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
         system = [{'type': 'text', 'text': fixed, 'cache_control': {'type': 'ephemeral', 'ttl': CACHE_TTL}}]
         if extra:
             system.append({'type': 'text', 'text': extra})
@@ -358,7 +379,27 @@ class Engine:
         usage = {'i': int(u.input_tokens or 0), 'o': int(u.output_tokens or 0),
                  'cr': int(getattr(u, 'cache_read_input_tokens', 0) or 0), 'c5': max(c5, 0), 'c1': c1}
         usd = cost_anthropic(self.spec.model, usage['i'], usage['o'], usage['cr'], usage['c5'], usage['c1'])
-        return Result(text, usage, usd, stop, think_chars=think, diag=getattr(msg, 'diagnostics', None))
+        return Result(text, usage, usd, stop, think_chars=think, diag=getattr(msg, 'diagnostics', None),
+                      rid=getattr(msg, '_request_id', None), mid=mid)
+
+
+_tl = threading.local()
+_log_lock = threading.Lock()
+
+
+def call_log(entry: dict):
+    """שורה ב־calls.jsonl (הסוכן שולח בסוף העבודה, השרתון מנקה ומצפין). רק כש־job.py הגדיר SNB_CALLLOG"""
+    path = os.environ.get('SNB_CALLLOG')
+    if not path:
+        return
+    try:
+        d = {k: v for k, v in entry.items() if v not in (None, '')}
+        if isinstance(d.get('rid'), str):
+            d['rid'] = d['rid'][:80]
+        with _log_lock, open(path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(d, ensure_ascii=False, default=str) + '\n')
+    except (OSError, TypeError, ValueError):
+        pass
 
 
 def _diag_reason(diag) -> str | None:
