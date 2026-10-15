@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1487 מפתחות מתוך 2939) */
+/* המחרוזות של studio (1494 מפתחות מתוך 2946) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -719,6 +719,13 @@ he: {
   "studioLoading": "טוען…",
   "studioLoopOk": "להמשיך בכל זאת",
   "studioLoopQ": "זו הפעם ה־{n} ב־24 שעות שהעבודה הזו צריכה \"המשך\" — כנראה אותה תקלה חוזרת. להמשיך בכל זאת?",
+  "studioLrnAckOk": "הבנתי",
+  "studioLrnAckQ": "העבודות שלך עוזרות לשפר את התרגום: נשמרים רק מספרים — זמנים, עלות, ציונים וקודי שגיאה. בלי שם, בלי קבצים ובלי טקסט. אפשר לכבות ולמחוק בכל רגע ב־Studio ← הגדרות.",
+  "studioLrnForget": "מחק את התרומות שלי",
+  "studioLrnForgetDone": "נמחקו {n} רשומות",
+  "studioLrnForgetOk": "למחוק",
+  "studioLrnForgetQ": "למחוק מהמאגר את כל מה שנאסף מהעבודות שלך? העבודות עצמן לא נמחקות. עבודות חדשות ייכנסו רק אם המתג דולק.",
+  "studioLrnForgetS": "מה שכבר נאסף מהעבודות שלך",
   "studioLrnOff": "העבודות הבאות שלך לא ייכנסו למאגר הלמידה",
   "studioLrnOn": "בלי שם ובלי פרטים אישיים — רק כדי לשפר את המערכת",
   "studioLrnT": "שיפור התרגום בעזרת העבודות שלי",
@@ -2208,6 +2215,13 @@ en: {
   "studioLoading": "Loading…",
   "studioLoopOk": "Continue anyway",
   "studioLoopQ": "This job has needed \"Continue\" {n} times in 24 hours — probably the same problem again. Continue anyway?",
+  "studioLrnAckOk": "Got it",
+  "studioLrnAckQ": "Your jobs help improve translation: only numbers are kept — times, cost, scores and error codes. No name, no files, no text. You can turn it off and delete it any time in Studio → Settings.",
+  "studioLrnForget": "Delete my contributions",
+  "studioLrnForgetDone": "{n} records deleted",
+  "studioLrnForgetOk": "Delete",
+  "studioLrnForgetQ": "Delete everything collected from your jobs? The jobs themselves stay. New jobs enter only if the switch is on.",
+  "studioLrnForgetS": "What's already been collected from your jobs",
   "studioLrnOff": "Your next jobs won't enter the learning database",
   "studioLrnOn": "No name, no personal details — only to improve the system",
   "studioLrnT": "Improve translation with my jobs",

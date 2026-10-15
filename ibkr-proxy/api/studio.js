@@ -199,7 +199,7 @@ async function learnLoad(deps, now) {
   const offs = new Map();
   for (const j of await query(deps, 'studioJobs', null, LEARN_MAX)) {
     if (wrote >= LEARN_SYNC_MAX) break;
-    if (await learnOff(deps, j.uid, offs)) continue;   // המשתמש כיבה את המתג
+    if (await learnSkip(deps, j, offs)) continue;   // המשתמש כיבה את המתג / מחק את התרומות שלו
     const rec = LR.learnRec(j, now, S.effState);
     if (!rec) continue;
     const h = LR.recHash(rec), old = have.get(rec.id);
@@ -236,19 +236,32 @@ async function learnPull(req, res, body, deps) {
   }
 }
 /* 14/10/2026 (בקשת המשתמש): המתג "שיפור התרגום בעזרת העבודות שלי" בהגדרות — כבוי (studioStats.lo = 1) = העבודות של
-   המשתמש לא נכנסות למאגר מעכשיו. מה שכבר נכנס לא מקושר אליו (אין מיפוי). תקלה בקריאה = לא שומרים (זהירות) */
-async function learnOff(deps, uid, cache) {
-  if (cache && cache.has(uid)) return cache.get(uid);
-  let off = true;
-  try { off = !!(((await readDoc(deps, 'studioStats', uid)) || {}).lo); } catch (e) { off = true; }
-  if (cache) cache.set(uid, off);
-  return off;
+   המשתמש לא נכנסות למאגר מעכשיו. 15/10 (מ׳1): "מחק את התרומות שלי" (studioStats.lf = מתי) — עבודה שנוצרה עד אז לא נכנסת שוב.
+   תקלה בקריאה = לא שומרים (זהירות) */
+async function learnSkip(deps, job, cache) {
+  const uid = job.uid;
+  let p = cache && cache.get(uid);
+  if (!p) {
+    try { const st = (await readDoc(deps, 'studioStats', uid)) || {}; p = { off: !!st.lo, lf: +st.lf || 0 }; } catch (e) { p = { off: true, lf: 0 }; }
+    if (cache) cache.set(uid, p);
+  }
+  return p.off || (p.lf > 0 && (+job.created || 0) <= p.lf);
+}
+/* הרשומות של עבודות שנמחקו — כדי ש"מחק את התרומות שלי" ימחק גם אותן. רק המזהים המגובבים, במסמך הפרטי של המשתמש (studioStats.lgn) */
+const LGN_MAX = 400;
+async function learnGone(deps, uid, ids, now) {
+  try {
+    const st = (await readDoc(deps, 'studioStats', uid)) || {};
+    const have = String(st.lgn || '').split(',').filter((x) => /^[0-9a-f]{20}$/.test(x));
+    const all = [...new Set([...have, ...ids.map(LR.lid)])].slice(-LGN_MAX);
+    await patchDoc(deps, 'studioStats', uid, { lgn: all.join(','), updated: now });
+  } catch (e) {}
 }
 /* 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה (studioLearn/{מזהה מגובב}), נשארת גם אחרי מחיקת העבודה.
    בלי uid, שמות, מזהי קבצים או טקסט (studiolearn.js). כתיבה רק כשהרשומה השתנתה. תקלה כאן לא מפילה שום פעולה */
 async function learnSave(deps, job, now, offCache) {
   try {
-    if (await learnOff(deps, job.uid, offCache)) return;
+    if (await learnSkip(deps, job, offCache)) return;
     const rec = LR.learnRec(job, now, S.effState);
     if (!rec) return;
     await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h: LR.recHash(rec), at: rec.at || now, updated: now });
@@ -808,9 +821,11 @@ async function removeJobRec(deps, uid, job, now) {
   await learnSave(deps, job, now);   // 14/10/2026: הרשומה במאגר הלמידה נשארת אחרי המחיקה
   await delDoc(deps, 'studioJobs', job.id);
   await r2Purge(deps, uid, job);   // ת4
+  const gone = [job.id];
   if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2 · מ7: ההפקות מחדש וגיליונות ה־AI של העבודה הולכים איתה
-    for (const r of (await listJobs(deps, uid)).filter((j) => (j.kind === 'rr' || j.kind === 'ai') && j.rp === job.id)) await delDoc(deps, 'studioJobs', r.id);
+    for (const r of (await listJobs(deps, uid)).filter((j) => (j.kind === 'rr' || j.kind === 'ai') && j.rp === job.id)) { await delDoc(deps, 'studioJobs', r.id); gone.push(r.id); }
   }
+  await learnGone(deps, uid, gone, now);   // 15/10 (מ׳1): כדי ש"מחק את התרומות שלי" ימצא גם אותן
   await closeJobOps(deps, uid, job.id, now);
   try {   // v371 · v379: התקלה נסגרת, עם מה שעלה בטעות (לדוח)
     const d = await readDoc(deps, 'studioOps', uid);
@@ -1308,10 +1323,22 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, tokens: list.map(atView).sort((a, b) => b.at - a.at) });
     }
     if (op === 'learnPref') {
-      // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל)
+      // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל). 15/10 (מ׳1): ack = ההודעה בכניסה הראשונה נקראה (lra)
+      if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, { lra: now, updated: now }); return res.status(200).json({ ok: true, lra: now }); }
       const on = body.on === true;
-      await patchDoc(deps, 'studioStats', uid, { lo: on ? 0 : 1, updated: now });
+      await patchDoc(deps, 'studioStats', uid, Object.assign({ lo: on ? 0 : 1, updated: now }, body.ack === true ? { lra: now } : {}));
       return res.status(200).json({ ok: true, lrn: on });
+    }
+    if (op === 'learnForget') {
+      // 15/10/2026 (מ׳1): "מחק את התרומות שלי" — הרשומות של כל העבודות של המשתמש (גם שנמחקו — studioStats.lgn), ועבודה
+      // שנוצרה עד עכשיו לא נכנסת שוב (lf). המתג לא משתנה: עבודות חדשות נכנסות רק אם הוא דולק
+      if (limited('lf|' + uid, 3)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+      const st = await readStats(deps, uid);
+      const ids = new Set([...(await listJobs(deps, uid)).map((j) => LR.lid(j.id)), ...String(st.lgn || '').split(',').filter((x) => /^[0-9a-f]{20}$/.test(x))]);
+      await patchDoc(deps, 'studioStats', uid, { lf: now, lgn: '', updated: now });
+      let n = 0;
+      for (const id of ids) { try { if (await readDoc(deps, 'studioLearn', id)) { await delDoc(deps, 'studioLearn', id); n++; } } catch (e) {} }
+      return res.status(200).json({ ok: true, n, lf: now });
     }
     if (op === 'status') {
       const v = await readVault(deps, uid);
@@ -1321,7 +1348,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test

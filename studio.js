@@ -1076,7 +1076,9 @@ async function refreshStatus(force) {
     ui.picker = normPicker(j.pk);       // בחירה מ־Drive (Google Picker) — רק כשהוגדר מפתח בשרתון
     ui.r2 = j.r2 === true;              // 11/10: האחסון שלנו (R2) מוגדר — המילון שם, בלי צורך ב־Drive
     if (!lrnBusy) ui.lrn = j.lrn !== false;   // 14/10/2026: מאגר הלמידה — דולק כברירת מחדל
+    ui.lra = num(j.lra);                       // 15/10 (מ׳1): ההודעה על מאגר הלמידה כבר נקראה
     save();
+    lrnNotice();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
   repaint();
 }
@@ -5475,7 +5477,7 @@ function pageSettings(p) {
     srow,
     rowNav({ tile: tile('bell', 'red'), label: T('studioSecPush'), value: pushOnNow ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('push'), k: 'push' }),
     rowNav({ tile: tile('help', 'blue'), label: T('studioGuide'), sub: T('studioGuideSub'), onClick: () => go('guide'), k: 'guide' }),   // מ9: מדריך קצר
-    lrnRow())));
+    lrnRow(), lrnForgetRow())));
 }
 /* 14/10/2026 (בקשת המשתמש): מאגר הלמידה — אפשר לבטל. בלי שם ובלי פרטים אישיים; מה שכבר נאסף לא מקושר לחשבון */
 function lrnRow() {
@@ -5484,6 +5486,33 @@ function lrnRow() {
   return lr;
 }
 let lrnBusy = false;
+/* 15/10/2026 (מ׳1): הודעה אחת בכניסה הראשונה — מה נאסף ושאפשר לכבות. כל סגירה ("הבנתי", "חזור", לחיצה בחוץ) = נקראה;
+   היא לא מכבה כלום בעצמה — הבחירה רק במתג בהגדרות */
+let lrnAsked = false;
+function lrnNotice() {
+  if (lrnAsked || ui.lra || ui.access !== 'ok' || typeof askConfirm !== 'function') return;
+  lrnAsked = true;
+  setTimeout(() => askConfirm(T('studioLrnAckQ'), () => {
+    ui.lra = Date.now();
+    net.api('learnPref', { ack: true }).catch(() => {});
+  }, { alert: true, ok: T('studioLrnAckOk') }), 700);
+}
+/* 15/10/2026 (מ׳1): "מחק את התרומות שלי" — הרשומות של כל העבודות שלך במאגר (גם של עבודות שנמחקו). באישור הרסני */
+let lrnForgetBusy = false;
+function lrnForgetRow() {
+  const r = rowNav({ tile: tile('alert', 'red'), label: T('studioLrnForget'), sub: T('studioLrnForgetS'), onClick: () => askConfirm(T('studioLrnForgetQ'), lrnForget, { danger: true, ok: T('studioLrnForgetOk') }), k: 'lrnf' });
+  if (lrnForgetBusy || blocked()) r.disabled = true;
+  return r;
+}
+async function lrnForget() {
+  if (lrnForgetBusy) return;
+  lrnForgetBusy = true; render('none');
+  try {
+    const j = await net.api('learnForget', {});
+    flashSafe(j.ok ? T('studioLrnForgetDone', { n: num(j.n) }) : errText(j.error));
+  } catch (e) { flashSafe(errText('net')); }
+  finally { lrnForgetBusy = false; render('none'); }
+}
 async function setLrn(on) {
   if (lrnBusy) return;
   const prev = ui.lrn; ui.lrn = on; lrnBusy = true; render('none');
@@ -5952,7 +5981,7 @@ function shapeKey() {
   if (ui.view === 'cut' || ui.view === 'cutsrc') return ui.view + '|' + ui.param + '|' + (ce ? ce.key + (ce.cues ? ce.cues.length : '') : '') + '|' + ui.access;   // מ4–מ5: לא נבנה מחדש בזמן עריכה
   if (ui.view === 'play') return 'play|' + ui.param + '|' + (pl ? pl.st + pl.iss.length : '') + '|' + ui.access;   // מ1: הנגן לא נבנה מחדש
   if (ui.view === 'gloss') return 'gloss|' + ui.access + '|' + gl.st + (gl.busy ? 1 : 0) + JSON.stringify(gl.rows) + gl.q + '|' + JSON.stringify(store.drive);   // v380
-  if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store' || ui.view === 'push') return ui.view + '|' + (ui.push || '') + (ui.pushBusy ? 'b' : '') + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api) + '|' + ui.lrn + (lrnBusy ? 'b' : '');
+  if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store' || ui.view === 'push') return ui.view + '|' + (ui.push || '') + (ui.pushBusy ? 'b' : '') + '|' + (testRun ? testRun.st + (testRun.claimed ? 'c' : '') : '') + '|' + ui.access + '|' + JSON.stringify(store.conn) + JSON.stringify(store.drive) + ui.driveBusy + store.settings.conn + store.settings.cap + JSON.stringify(ui.api) + '|' + ui.lrn + (lrnBusy ? 'b' : '') + (lrnForgetBusy ? 'f' : '');
   return ui.view + '|' + ui.access;
 }
 let paintT = 0;
