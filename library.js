@@ -1126,7 +1126,7 @@ async function renderHomeNow() {
   }
   if (!books.length && !cloudOnly.length) {
     if (mine) { home.append(mineEmpty()); return; }
-    if (!(SA && syncNote === 'signin')) home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));   // עצמאי — הכפתור למעלה במקום ההסבר
+    if (!(SA && syncNote === 'signin') && !(syncFail && !syncing)) home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));   // עצמאי — הכפתור למעלה במקום ההסבר
     return;
   }
   const listed = books.concat(cloudOnly);
