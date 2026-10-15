@@ -23,7 +23,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const v = st.normSlo({ t: 95, n: 20, bad: 2, left: 0, burn: 2.5, n7: 6, st: 'out', min: 5, list: [{ j: J, c: 'fail', at: 5 }, { j: 'evil', c: 'fail' }, { j: J, c: 'x' }] });
   ok(v && v.good === 18 && v.att === 90 && v.list.length === 1 && v.burn === 2.5, 'normSlo: מספרים עקביים, רק עבודות וסיבות מוכרות');
   ok(st.normSlo({ st: 'evil', n: 1 }) === null && st.normSlo(null) === null && st.normSlo({ st: 'ok', n: 3, bad: 9 }).bad === 3, 'normSlo: מצב לא מוכר — כלום; "השתמשו" לא מעבר למספר העבודות');
-  ok(JSON.stringify(st.chainFor('slo').map((x) => x.v)) === '["home","settings","tower","slo"]', '"חזור": תקציב שגיאות ← המגדל');
+  ok(JSON.stringify(st.chainFor('slo').map((x) => x.v)) === '["home","settings","tower","towerx","slo"]', '"חזור": תקציב שגיאות ← המגדל');
   const sj = read('studio.js');
   ok(/health\.push\(\.\.\.sloRows\(\), scanRow\(\)\);/.test(sj) && /else if \(ui\.view === 'slo'\) pageSlo\(p\);/.test(sj), 'המגדל: שורה אחת → דף התקציב');
   ok(/hero = h\('div', 'st-schero'\)/.test(sj.slice(sj.indexOf('function pageSlo('))), 'הדף: אותו כרטיס ציון של בדיקת המוכנות (בלי עיצוב חדש)');

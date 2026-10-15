@@ -51,7 +51,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(v.list.length === 1 && v.list[0].by === '' && v.list[0].rc.length === 2 && v.list[0].tl.length === 2 && v.list[0].al.length === 1 && v.list[0].sim.by === 'c',
     'normInc: רק רשומות, סיבות, אירועים והתראות מהקטלוג');
   ok(st.majorOn(v) && !st.majorOn(st.normInc({ list: [], mi: { no: 1, c: 'drive', e: 'auth', at: 1, x: 2 } })) && st.normInc(null) === null, 'majorOn: רק תקלה רחבה פעילה');
-  ok(st.chainFor('inc', 7).map((x) => x.v).join() === 'home,settings,tower,alerts,inc', 'רענון בדף תקלה — חוזר דרך המגדל ו"התראות ותקלות"');
+  ok(st.chainFor('inc', 7).map((x) => x.v).join() === 'home,settings,tower,towerx,alerts,inc', 'רענון בדף תקלה — חוזר דרך המגדל ו"התראות ותקלות"');
   const sj = read('studio.js');
   ok(/function pageInc\(p\)/.test(sj) && /else if \(ui\.view === 'inc'\) pageInc\(p\)/.test(sj) && /list\(\.\.\.L\.map\(\(x\) => incRow\(x\)\)\)/.test(sj) && /function pageAlerts\(p\)/.test(sj), 'מגדל: התקלות בעמוד \"התראות ותקלות\" ודף תקלה');
   ok(/const mb = majorBanner\(\); if \(mb\) p\.append\(mb\);   \/\/ v371: תקלה רחבה — במקום/.test(sj) && /const ub = mb \? null : urgentBanner\(\)/.test(sj), 'בית: באנר תקלה רחבה במקום באנר ההתראות (בלי כפילות)');

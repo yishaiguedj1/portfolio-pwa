@@ -28,7 +28,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const v = st.normScan({ at: 5, s: 86, n: 9, ok: ['claude', 'evil'], f: [{ k: 'orphans', p: 4, ch: 'orphans', n: 4, b: 1.8e9 }, { k: 'evil', p: 1 }, { k: 'ck', p: 9 }], fb: 1.8e9 });
   ok(v && v.s === 86 && v.f.length === 1 && v.ok.join() === 'claude' && v.f[0].b === 1.8e9, 'normScan: תקין; סוג / עדיפות לא מוכרים — נזרקים');
   ok(st.normScan(null) === null && st.normScan({ at: 'x' }) === null && st.normScan({ at: 1, s: 900 }).s === 100, 'normScan: בלי זמן — null; ציון חסום ל־100');
-  ok(st.chainFor('scan').map((x) => x.v).join() === 'home,settings,tower,scan', 'רענון בדף הבדיקה — חוזר דרך המגדל');
+  ok(st.chainFor('scan').map((x) => x.v).join() === 'home,settings,tower,towerx,scan', 'רענון בדף הבדיקה — חוזר דרך המגדל');
   const sj = read('studio.js');
   ok(/health\.push\(\.\.\.sloRows\(\), scanRow\(\)\);/.test(sj) && /else if \(ui\.view === 'scan'\) pageScan\(p\)/.test(sj), 'מגדל: שורת מוכנות → דף');
   ok(/askConfirm\(scCleanQ\(x\), go2, \{ danger: true/.test(sj) && /askConfirm\(T\('studioScQAll'\), doIt, \{ danger: true/.test(sj), 'נקה — תמיד באישור הרסני');

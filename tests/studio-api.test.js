@@ -46,7 +46,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sv = st.normServers([{ id: 'abc123def456', name: '<img src=x>', online: true, hb: { v: 'evil!', disk: 40 }, job: { id: 'jAbCdEfGhIjKlMnOpQrS-', name: 'a.mp4' } }, { id: 'bad' }]);
   ok(sv.length === 1 && sv[0].hb.v === '' && sv[0].hb.disk === 40 && sv[0].job.name === 'a.mp4' && st.srvState(sv[0]) === 'on' && st.srvState({ paused: true, online: true }) === 'paused',
     'מסך השרת: רשימה מנוקה; מושהה גובר על מחובר');
-  ok(st.chainFor('server').map((x) => x.v).join() === 'home,settings,tower,server', 'מסך השרת: "חזור" — מגדל הפיקוח ← הגדרות ← בית');
+  ok(st.chainFor('server').map((x) => x.v).join() === 'home,settings,tower,towerx,server', 'מסך השרת: "חזור" — מגדל הפיקוח ← הגדרות ← בית');
   const src = read('studio.js');
   ok(/if \(apiMode\(\)\) Object\.assign\(spec, \{ eng: 'api', cap: store\.settings\.cap \}\)/.test(src), 'הטופס: במצב API העבודה נשלחת עם המנוע והתקרה');
   ok(/if \(ui\.view === 'server'\) ui\.newToken = ''/.test(src) && /copyBox\(ui\.newToken/.test(src), 'טוקן שרת חדש: מוצג פעם אחת ונמחק מהזיכרון ביציאה מהדף');

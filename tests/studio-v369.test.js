@@ -31,7 +31,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const a = o.open[0];
   ok(a.no === 42 && a.ak === 5 && a.h.length === 1 && a.sub.length === 1 && o.trend.score.length === 7 && o.trend.score[1] === null,
     'normOps: מספר, אישור, ציר וקשורות — רק ערכים תקינים; מגמה עד 7 נקודות');
-  ok(st.chainFor('alert', 42).map((x) => x.v).join() === 'home,settings,tower,alerts,alert', 'רענון ברשומת התראה — חוזר אליה (דרך המגדל ו"התראות ותקלות")');
+  ok(st.chainFor('alert', 42).map((x) => x.v).join() === 'home,settings,tower,towerx,alerts,alert', 'רענון ברשומת התראה — חוזר אליה (דרך המגדל ו"התראות ותקלות")');
   const sj = read('studio.js');
   ok(/function pageAlert\(p\)/.test(sj) && /ui\.view === 'alert'\) pageAlert\(p\)/.test(sj) && /go\('alert', a\.no\)/.test(sj), 'רשומת התראה — מכל שורה במגדל');
   ok(/'altab:' \+ k/.test(sj) && /T\('studioAlTabT'/.test(sj) && /T\('studioAlTabR'/.test(sj), 'שלושה טאבים: פרטים · ציר · קשורות');

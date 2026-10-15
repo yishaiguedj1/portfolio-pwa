@@ -52,7 +52,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const sj = read('studio.js');
   ok(/function pageRules\(p\)/.test(sj) && /ui\.view === 'rules'\) pageRules\(p\)/.test(sj) && /go\('rules'\)/.test(sj), 'מסך "החוקים שלך" — מהמגדל');
   ok(/askConfirm\(q, \(\) => setHalt\(true\), \{ danger: true/.test(sj) && /net\.api\('halt'/.test(sj) && /net\.api\('rules'/.test(sj), 'מתג החירום — באישור (פעולה הרסנית), ונשמר בשרתון');
-  ok((sj.match(/const hb = haltBanner\(\)/g) || []).length === 2, 'כשהסוכנים עצורים — באנר בבית ובמגדל');
+  ok((sj.match(/const hb = haltBanner\(\)/g) || []).length === 3, 'כשהסוכנים עצורים — באנר בבית ובמגדל');
   ok(/const x = h\('span', 'st-cue-x', cu\.x\); x\.dir = 'auto'/.test(sj) && !/innerHTML[^;]*cu\./.test(sj), 'הכתוביות לדוגמה — טקסט בלבד');
   ok(/case 'claude:budget': return T\('studioAlClaudeBudget'\)/.test(sj), 'תווית להתראה "הגענו לתקציב"');
   const app = read('app.js');
