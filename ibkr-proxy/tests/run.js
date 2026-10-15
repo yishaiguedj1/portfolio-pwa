@@ -688,6 +688,19 @@ function stubFetch(text, status = 200) {
     ok(r.statusCode === 403, 'library: Origin זר נחסם');
     r = await run({ op: 'health' });
     ok(r.statusCode === 200 && r.payload.count === 2 && !JSON.stringify(r.payload).includes('epub'), 'library: בדיקת תקינות — רק מספר המכתבים, בלי שמות ובלי התחברות');
+    // 15/10/2026: הניסוי קורא את המדף של הייצור — רק קריאה, רק מכתובת ניסוי, רק עם אסימון של פרויקט הניסוי
+    const STG = { aud: 'snowball-staging-758f6', iss: 'https://securetoken.google.com/snowball-staging-758f6' };
+    const stgO = { origin: 'https://academy-staging.thesnowball.app' };
+    r = await run({ op: 'file', idToken: mkTok(STG), id: 'FILE00000001' }, stgO);
+    ok(r.statusCode === 200 && Buffer.isBuffer(r.payload), 'library: הניסוי — קריאת ספר מהמדף של הייצור');
+    r = await run({ op: 'list', idToken: mkTok(STG) }, stgO);
+    ok(r.statusCode === 401, 'library: הניסוי — פעולה שאינה קריאת המדף נדחית');
+    r = await run({ op: 'file', idToken: mkTok(STG), id: 'FILE00000001' }, { origin: 'https://academy.thesnowball.app' });
+    ok(r.statusCode === 401, 'library: אסימון של הניסוי מכתובת של הייצור — נדחה');
+    r = await run({ op: 'file', idToken: mkTok({ aud: 'other-project', iss: 'https://securetoken.google.com/other-project' }), id: 'FILE00000001' }, stgO);
+    ok(r.statusCode === 401, 'library: פרויקט שלישי מכתובת ניסוי — נדחה');
+    r = await run({ op: 'file', idToken: mkTok(Object.assign({ email: 'stranger@example.com' }, STG)), id: 'FILE00000001' }, stgO);
+    ok(r.statusCode === 403, 'library: הניסוי — רק קוראים מורשים');
     ok(lib._folderId('https://drive.google.com/drive/folders/1AbCdEfGhIjK_l-9?usp=sharing') === '1AbCdEfGhIjK_l-9' && lib._folderId(' 1AbCdEfGhIjK ') === '1AbCdEfGhIjK'
       && lib._folderId('https://drive.google.com/open?id=1AbCdEfGhIjK') === '1AbCdEfGhIjK', 'library: מזהה התיקייה — גם מהקישור המלא');
     // שלב 5: ניתוח מכתב — EPUB סינתטי (ZIP ללא דחיסה) → טקסט → מנוע הניתוח (מדומה)

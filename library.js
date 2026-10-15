@@ -419,8 +419,10 @@ async function idToken() {
     return u ? await u.getIdToken() : '';
   } catch (e) { return ''; }
 }
+const SHELF_OPS = new Set(['cat', 'urls', 'file']);   // בניסוי — מהמדף של הייצור, לקריאה בלבד (SNB_ENV.shelfApi)
 function libApi(body) {
-  const base = (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
+  const shelf = SHELF_OPS.has(body && body.op) && typeof window !== 'undefined' && window.SNB_ENV && window.SNB_ENV.shelfApi;
+  const base = shelf || (typeof IBKR_PROXY_DEFAULT !== 'undefined' && IBKR_PROXY_DEFAULT) || '';
   const headers = Object.assign({ 'Content-Type': 'application/json' }, typeof ibkrProxyHeaders === 'function' ? ibkrProxyHeaders() : {});
   return fetch(base + '/api/library', { method: 'POST', headers, body: JSON.stringify(body) });
 }

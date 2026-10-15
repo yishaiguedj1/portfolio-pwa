@@ -428,6 +428,6 @@ async function ibkrGetMulti(path, firstHost, budgetMs) {
 
 module.exports = {
   IBKR_HOST, IBKR_HOSTS, IBKR_HOSTS_LIST, FLEX_SEND_PATH, FLEX_GET_PATH, ibkrUserAgent,
-  statementBaseFrom, statementEndpointFrom, cors, guard, originAllowed, safeEqual, TOKEN_RE, QUERY_RE, CODE_RE, rateLimited, parseXml, findKids, firstKid,
+  statementBaseFrom, statementEndpointFrom, cors, guard, originAllowed, STAGING_ORIGIN_RE, safeEqual, TOKEN_RE, QUERY_RE, CODE_RE, rateLimited, parseXml, findKids, firstKid,
   statementToJson, ibkrGet, ibkrGetMulti, errorXml, flexDate, num,
 };
