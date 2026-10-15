@@ -91,4 +91,12 @@ ok(uv.ac.app.map((x) => x.e).join() === 'new@example.com,old@example.com' && uv.
 ok(uv.st.env.length === 1 && uv.st.am.join() === 'm@example.com' && uv.st.conn === 3 && uv.ib.on === 2 && uv.ac.backup === null, 'משתמשים: Studio, IBKR והספירות (לא נמדד = null)');
 ok(A.usersView({ acApp: [], acErr: 'fs_http_403' }).ac.store === 'no_access' && A.usersView({}).ac.store === 'none' && !A.usersView({}).ac.open, 'משתמשים: אין גישה לרשימה — לא "ריק"');
 ok(!/uid/i.test(JSON.stringify(uv)), 'משתמשים: בלי uid');
+// יומן פעולות (15/10/2026)
+ok(A.logEntry('xx', 'a', 'b@example.com', now) === null && A.logEntry('fl_off', 'learn<b>', 'Boss@Example.com', now).d === 'learn b' && A.logEntry('ac_add', 'x', 'לא מייל', now).w === '', 'יומן: רק סוגים מהקטלוג, פרט מנוקה, מייל תקין בלבד');
+ok(A.cfgLogKind({ mt: { on: true, msg: 'm' } }, { mtOn: 0 }, now)[0] === 'mt_on' && A.cfgLogKind({ mt: { on: true } }, { mtOn: 1, mtTil: 0 }, now)[0] === 'mt_upd' && A.cfgLogKind({ mt: { on: true } }, { mtOn: 1, mtTil: now - 1 }, now)[0] === 'mt_on', 'יומן: תחזוקה — הדלקה מול עדכון (תחזוקה שפגה = הדלקה חדשה)');
+ok(A.cfgLogKind({ flag: 'push', on: false }, {}, now).join() === 'fl_off,push' && A.cfgLogKind({ am: 'a@example.com', on: true }, {}, now)[0] === 'am_add' && A.cfgLogKind({}, {}, now) === null, 'יומן: דגלים ומודלים');
+const lg = [{ id: 'a', k: 'fl_on', d: 'x', w: 'boss@example.com', at: now - H }, { id: 'b', k: 'ac_add', d: 'r@example.com', w: 'other@example.com', at: now - 3 * H }, { id: 'c', k: 'mt_on', at: now - 100 * 24 * H }, { id: 'd', k: 'zz', at: now }];
+const lv2 = A.logView(lg, now, 'Boss@example.com');
+ok(lv2.items.map((x) => x.k).join() === 'fl_on,ac_add' && lv2.items[0].w === '' && lv2.items[1].w === 'other@example.com' && lv2.n7 === 2, 'יומן: החדש ראשון, "אני" בלי מייל, ישן וסוג לא מוכר לא מוצגים');
+ok(A.logOld(lg, now).join() === 'c', 'יומן: מה שישן מ־90 יום נמחק');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

@@ -3600,6 +3600,13 @@ function stubFetch(text, status = 200) {
       const ckR = await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: 'no', note: 'לא <נפתח>', t: 'עותק לוואטסאפ' });
       const ckDoc = db.get('sysChecks/abcdef012345');
       ok(ckR.payload.ok && ckDoc && ckDoc.fields.st.stringValue === 'no' && ckDoc.fields.n.stringValue === 'לא נפתח', 'בדיקות בטלפון: "לא עובד" נשמר עם הערה נקייה');
+      ok((await run({ op: 'adminLog', idToken: FRIEND })).payload.error === 'not_admin', 'יומן פעולות: רק המנהל');
+      await run({ op: 'adminCfg', idToken: OWNER, set: { flag: 'push', on: false } });
+      await run({ op: 'adminCfg', idToken: OWNER, set: { flag: 'push', on: true } });
+      const lgR = await run({ op: 'adminLog', idToken: OWNER });
+      const lks = lgR.payload.log.items.map((x) => x.k);
+      ok(lgR.payload.ok && ['fl_on', 'fl_off', 'ck_no', 'am_add'].every((k) => lks.includes(k)) && lgR.payload.log.items.find((x) => x.k === 'fl_off').d === 'push' && lgR.payload.log.items.every((x) => x.w === '') && lgR.payload.log.items.every((x, i, a) => !i || a[i - 1].at >= x.at), 'יומן פעולות: דגל, מודלים ותשובת בדיקה נרשמו — החדש ראשון, "אני" בלי מייל');
+      ok(![...db.keys()].filter((k) => k.startsWith('sysLog/')).some((k) => /ownerUid0001/.test(JSON.stringify(db.get(k)))), 'יומן פעולות: בלי uid');
       ok((await run({ op: 'adminReady', idToken: FRIEND })).payload.error === 'not_admin', 'מוכנות: רק המנהל');
       const rdR = await run({ op: 'adminReady', idToken: OWNER, fresh: 1 });
       ok(rdR.payload.ok && rdR.payload.rd.n >= 8 && Array.isArray(rdR.payload.rd.checks), 'מוכנות: תשובה גם כשהכתובות לא עונות (בבדיקה)');

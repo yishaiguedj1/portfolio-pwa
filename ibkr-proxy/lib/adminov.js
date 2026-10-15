@@ -259,4 +259,30 @@ function laneView(prs, waiting) {
   return { holder, queue, other, deploy: w, free: !holder && !w };
 }
 
-module.exports = { usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): כל שינוי שהמנהל עושה ממרכז הניהול נרשם ב־sysLog — מה, מי (מייל), מתי, ופרט קצר.
+   סוגים רק מהקטלוג (בלי טקסט חופשי בסוג), הפרט מנוקה (noteClean, עד 120). נשמר LOG_DAYS ימים */
+const LOG_KINDS = ['mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
+const LOG_DAYS = 90, LOG_SHOW = 200;
+function logEntry(k, d, who, now) {
+  if (!LOG_KINDS.includes(k)) return null;
+  const w = String(who || '').trim().toLowerCase();
+  return { k, d: noteClean(d).slice(0, 120), w: EM_RE.test(w) ? w : '', at: Math.floor(now) };
+}
+/* מה ש־adminCfg עשה, לפי ה־set ומה שהיה לפניו */
+function cfgLogKind(set, before, now) {
+  if (!set || typeof set !== 'object') return null;
+  if (set.mt && typeof set.mt === 'object') return set.mt.on === true ? [before && before.mtOn && (!before.mtTil || before.mtTil > now) ? 'mt_upd' : 'mt_on', set.mt.msg] : ['mt_off', ''];
+  if (typeof set.flag === 'string' && typeof set.on === 'boolean') return [set.on ? 'fl_on' : 'fl_off', set.flag];
+  if (typeof set.am === 'string' && typeof set.on === 'boolean') return [set.on ? 'am_add' : 'am_del', set.am.trim().toLowerCase()];
+  return null;
+}
+function logView(list, now, me) {
+  const m = String(me || '').toLowerCase();
+  const items = (list || []).filter((x) => x && LOG_KINDS.includes(x.k) && +x.at > now - LOG_DAYS * DAY)
+    .sort((a, b) => b.at - a.at).slice(0, LOG_SHOW)
+    .map((x) => ({ k: x.k, d: noteClean(x.d).slice(0, 120), w: x.w && x.w !== m ? String(x.w) : '', at: +x.at }));
+  return { items, n7: items.filter((x) => x.at > now - 7 * DAY).length, days: LOG_DAYS };
+}
+const logOld = (list, now) => (list || []).filter((x) => x && x.id && !(+x.at > now - LOG_DAYS * DAY)).map((x) => x.id).slice(0, 20);
+
+module.exports = { LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

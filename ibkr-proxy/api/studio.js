@@ -151,6 +151,12 @@ async function aoGet(deps, key, fn, now) {
   aoCache.set(key, { at: now, v });
   return v;
 }
+/* 15/10/2026: יומן הפעולות של מרכז הניהול (sysLog). תקלה ברישום לא מפילה את הפעולה עצמה */
+async function adminLog(deps, user, k, d, now) {
+  const e = AO.logEntry(k, d, user && user.email, now);
+  if (!e) return;
+  try { await patchDoc(deps, 'sysLog', now.toString(36) + crypto.randomBytes(3).toString('hex'), e); } catch (err) {}
+}
 async function aoJson(deps, url) {
   const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
   if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
@@ -1629,6 +1635,8 @@ async function handler(req, res, deps = {}) {
         const patch = SF.applyAdmin(d, body.set, now);
         if (!patch) return res.status(400).json({ ok: false, error: 'bad_params' });
         await patchDoc(deps, 'sysCfg', 'main', Object.assign({ updated: now }, patch));
+        const lk = AO.cfgLogKind(body.set, d, now);
+        if (lk) await adminLog(deps, user, lk[0], lk[1], now);
         cfgC = { at: now, v: Object.assign({}, d, patch) };
       }
       return res.status(200).json({ ok: true, cfg: SF.adminCfg(cfgC.v, now), now });
@@ -1647,6 +1655,7 @@ async function handler(req, res, deps = {}) {
         let list = cur.list.filter((x) => x.email !== email);
         if (body.set.on) list = list.concat([{ email, at: now }]).slice(-500);
         try { await RD.saveReaders(list, deps.fetch); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+        await adminLog(deps, user, body.set.on ? 'ac_add' : 'ac_del', email, now);
         cur = { list, err: '' };
       }
       const admins = emails(process.env.LIBRARY_ADMINS);
@@ -1657,6 +1666,14 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, users: AO.usersView({ admins: admins.length ? admins : emails(process.env.LIBRARY_READERS).slice(0, 1),
         acEnv: String(process.env.LIBRARY_READERS || '').split(/[\s,;]+/), acApp: cur ? cur.list : null, acErr: cur ? cur.err : 'x',
         stEnv: emails(process.env.STUDIO_USERS), am: SF.amList(await sysCfg(deps, now)), ibEnv: emails(process.env.IBKR_SYNC_USERS), counts }) });
+    }
+    if (op === 'adminLog') {
+      // 15/10/2026: מרכז הניהול ← יומן פעולות. 300 האחרונות (בלי orderBy — אוסף קטן של מנהל אחד), ממוין כאן; ישנות מ־90 יום נמחקות
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      let list = [];
+      try { list = await query(deps, 'sysLog', null, 300); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      for (const id of AO.logOld(list, now)) { try { await delDoc(deps, 'sysLog', id); } catch (e) {} }
+      return res.status(200).json({ ok: true, log: AO.logView(list, now, user.email) });
     }
     if (op === 'adminReady') {
       // 15/10/2026: בדיקת מוכנות לכל המערכת — כותרות המטמון, הגרסה החיה בשלוש הכתובות, השרתון והגיבוי שלו, חתימת החיבור המשותף,
@@ -1673,8 +1690,9 @@ async function handler(req, res, deps = {}) {
       if (!/^[0-9a-f]{12}$/.test(id)) return res.status(400).json({ ok: false, error: 'bad_id' });
       const st = String(body.st || '');
       if (!['ok', 'no', ''].includes(st)) return res.status(400).json({ ok: false, error: 'bad_state' });
-      if (!st) { await delDoc(deps, 'sysChecks', id); return res.status(200).json({ ok: true }); }
+      if (!st) { await delDoc(deps, 'sysChecks', id); await adminLog(deps, user, 'ck_clr', AO.noteClean(body.t).slice(0, 90), now); return res.status(200).json({ ok: true }); }
       await patchDoc(deps, 'sysChecks', id, { st, n: st === 'no' ? AO.noteClean(body.note) : '', t: AO.noteClean(body.t).slice(0, 90), at: now });
+      await adminLog(deps, user, st === 'ok' ? 'ck_ok' : 'ck_no', AO.noteClean(body.t).slice(0, 90), now);
       return res.status(200).json({ ok: true });
     }
     if (op === 'atNew' || op === 'atList' || op === 'atDel') {

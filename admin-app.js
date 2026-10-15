@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -279,12 +279,15 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: mOn ? 'red' : 'gray', ic: '⏻', t: t('admMaint'), s: !cf ? t('admLoading') : mOn ? t('admMaintOn') + (cf.m.msg ? ' · ' + cf.m.msg : '') : t('admMaintOffS'), badge: mOn ? 1 : 0, on: () => go('maint') }),
     row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') }),
     row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') })));
-  p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
+  if (!D.log) needLog();
+  const lg = D.log;
+  p.append(grp(t('admSecSec')), list(row({ c: 'green', ic: '☰', t: t('admLogT'), s: !lg ? t('admLoading') : lg.items.length ? fmt(t('admLogS'), { n: lg.n7, a: ago(lg.items[0].at) }) : t('admLogNone'), on: () => go('log') }), soonRow('gray', '⚿', t('admSecrets'))));
 } });
 /* ---- משתמשים והרשאות (15/10/2026, מסך 3 בתוכנית 5א): מי מורשה לאן. נערך כאן רק מה שהשרתון שומר (קוראי Academy);
    "כל המודלים" ב־Studio — במסך המודלים (בלי כפילות); מה שבמשתני Vercel — מוצג עם מנעול, משתנה שם ---- */
 async function needUsers(set) {
   const r = await api('adminUsers', set ? { set } : {});
+  if (set) D.log = null;
   if (r.ok) { D.users = r.users; if (cur === 'users') paint(); }
   return r;
 }
@@ -334,11 +337,42 @@ page('users', { tab: 'apps', parent: 'apps', title: () => t('admUsersT'), render
     U.ib.on != null ? row({ c: 'gray', ic: '◉', t: t('admUsIbOn'), v: U.ib.on }) : null));
   p.append(h('p', 'adm-foot', t('admUsFoot')));
 } });
+/* ---- יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): מה שונה ממרכז הניהול, מי ומתי. נרשם בשרתון (sysLog), 90 יום ---- */
+async function needLog() {
+  const r = await api('adminLog');
+  if (r.ok) { D.log = r.log; if (['log', 'sys'].includes(cur)) paint(); }
+}
+const FLN = (k) => (FL[k] ? FL[k][0]() : k);
+function logRow(x) {
+  const d = x.d || '';
+  const L = {
+    mt_on: ['red', '⏻', t('admLgMtOn'), d], mt_upd: ['orange', '⏻', t('admLgMtUpd'), d], mt_off: ['green', '⏻', t('admLgMtOff'), ''],
+    fl_on: ['green', '⚙', fmt(t('admLgFlOn'), { n: FLN(d) }), ''], fl_off: ['orange', '⚙', fmt(t('admLgFlOff'), { n: FLN(d) }), ''],
+    am_add: ['studio', '✦', t('admLgAmAdd'), d], am_del: ['gray', '✦', t('admLgAmDel'), d],
+    ac_add: ['academy', '▤', t('admLgAcAdd'), d], ac_del: ['gray', '▤', t('admLgAcDel'), d],
+    ck_ok: ['green', '✓', t('admLgCkOk'), d], ck_no: ['red', '✕', t('admLgCkNo'), d], ck_clr: ['gray', '↺', t('admLgCkClr'), d] }[x.k];
+  if (!L) return null;
+  const sub = h('span');
+  if (L[3]) sub.append(h('bdi', null, L[3]));
+  if (x.w) { if (L[3]) sub.append(' · '); sub.append(h('bdi', null, x.w)); }
+  return row({ c: L[0], ic: L[1], t: L[2], s: sub.childNodes.length ? sub : '', v: clock(x.at) });
+}
+page('log', { tab: 'sys', parent: 'sys', title: () => t('admLogT'), render(p) {
+  const lg = D.log;
+  if (!lg) { needLog(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (!lg.items.length) { p.append(list(row({ c: 'gray', ic: '☰', t: t('admLogNone') })), h('p', 'adm-foot', fmt(t('admLogFoot'), { n: lg.days }))); return; }
+  const dk = (ms) => new Date(ms).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'numeric' });
+  let g = null, rows = [];
+  const flush = () => { if (rows.length) p.append(grp(g), list(...rows)); rows = []; };
+  for (const x of lg.items) { const k = dk(x.at); if (k !== g) { flush(); g = k; } rows.push(logRow(x)); }
+  flush();
+  p.append(h('p', 'adm-foot', fmt(t('admLogFoot'), { n: lg.days })));
+} });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */
 async function needCfg(set) {
   const r = await api('adminCfg', set ? { set } : {});
-  if (set) D.users = null;   // הרשימה של "כל המודלים" מוצגת גם במשתמשים
+  if (set) { D.users = null; D.log = null; }   // הרשימה של "כל המודלים" מוצגת גם במשתמשים
   if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'sys'].includes(cur)) paint(); }
   return r;
 }
@@ -630,7 +664,7 @@ page('check', { tab: 'ov', parent: 'checks', title: () => t('admChkOne'), render
   const bNo = h('button', 'btn secondary-btn', x.st === 'no' ? t('admChkSend') : t('admChkBad')); bNo.type = 'button';
   const save = async (st) => {
     bOk.disabled = bNo.disabled = true;
-    const j = await api('adminCheck', { id: x.id, st, note: note.value, t: x.t });
+    const j = await api('adminCheck', { id: x.id, st, note: note.value, t: x.t }); D.log = null;
     bOk.disabled = bNo.disabled = false;
     if (!j.ok) { flash(t('admErr')); return; }
     Object.assign(x, { st, n: st === 'no' ? note.value.trim() : '', at: Date.now() });
@@ -644,7 +678,7 @@ page('check', { tab: 'ov', parent: 'checks', title: () => t('admChkOne'), render
   br.append(bOk, bNo);
   card.append(note, br);
   p.append(card);
-  if (x.st) { const u = h('button', 'mini-btn', t('admChkUndo')); u.type = 'button'; u.addEventListener('click', async () => { const j = await api('adminCheck', { id: x.id, st: '' }); if (j.ok) { delete x.st; x.n = ''; ck.done = ck.done.filter((y) => y !== x); if (!ck.open.includes(x)) ck.open.push(x); paint(); } }); card.append(u); }
+  if (x.st) { const u = h('button', 'mini-btn', t('admChkUndo')); u.type = 'button'; u.addEventListener('click', async () => { const j = await api('adminCheck', { id: x.id, st: '', t: x.t }); D.log = null; if (j.ok) { delete x.st; x.n = ''; ck.done = ck.done.filter((y) => y !== x); if (!ck.open.includes(x)) ck.open.push(x); paint(); } }); card.append(u); }
   p.append(h('p', 'adm-foot', t('admChkFoot')));
 } });
 page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) { p.append(labCard(D.lab || { ok: false })); } });
