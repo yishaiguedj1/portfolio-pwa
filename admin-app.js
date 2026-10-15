@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -280,8 +280,9 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') }),
     row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') })));
   if (!D.log) needLog();
+  if (!D.sec) needSec();
   const lg = D.log;
-  p.append(grp(t('admSecSec')), list(row({ c: 'green', ic: '☰', t: t('admLogT'), s: !lg ? t('admLoading') : lg.items.length ? fmt(t('admLogS'), { n: lg.n7, a: ago(lg.items[0].at) }) : t('admLogNone'), on: () => go('log') }), soonRow('gray', '⚿', t('admSecrets'))));
+  p.append(grp(t('admSecSec')), list(row({ c: 'green', ic: '☰', t: t('admLogT'), s: !lg ? t('admLoading') : lg.items.length ? fmt(t('admLogS'), { n: lg.n7, a: ago(lg.items[0].at) }) : t('admLogNone'), on: () => go('log') }), row({ c: !D.sec ? 'gray' : D.sec.bad ? 'orange' : 'green', ic: '⚿', t: t('admSecrets'), s: !D.sec ? t('admLoading') : D.sec.bad ? fmt(t('admScBadN'), { n: D.sec.bad }) : fmt(t('admScOkS'), { n: D.sec.dates[0] ? D.sec.dates[0].left : '—' }), badge: D.sec ? D.sec.items.filter((x) => x.sev === 1).length : 0, on: () => go('secrets') })));
 } });
 /* ---- משתמשים והרשאות (15/10/2026, מסך 3 בתוכנית 5א): מי מורשה לאן. נערך כאן רק מה שהשרתון שומר (קוראי Academy);
    "כל המודלים" ב־Studio — במסך המודלים (בלי כפילות); מה שבמשתני Vercel — מוצג עם מנעול, משתנה שם ---- */
@@ -367,6 +368,45 @@ page('log', { tab: 'sys', parent: 'sys', title: () => t('admLogT'), render(p) {
   for (const x of lg.items) { const k = dk(x.at); if (k !== g) { flush(); g = k; } rows.push(logRow(x)); }
   flush();
   p.append(h('p', 'adm-foot', fmt(t('admLogFoot'), { n: lg.days })));
+} });
+/* ---- סודות ותאריכים (15/10/2026): הקטלוג של SECURITY.md — רק "מוגדר / חסר", אף פעם לא ערך. נגיעה = מה הוא פותח ואיך מחליפים ---- */
+async function needSec() {
+  const r = await api('adminSecrets');
+  if (r.ok) { D.sec = r.sec; if (['secrets', 'sys'].includes(cur)) paint(); }
+}
+const SC = {
+  sa: () => [t('admScSa'), t('admScSaS'), t('admScSaR')], vault: () => [t('admScVault'), t('admScVaultS'), t('admScVaultR')],
+  gd_lib: () => [t('admScGdLib'), t('admScGdLibS'), t('admScGdR')], gd_st: () => [t('admScGdSt'), t('admScGdStS'), t('admScGdR')],
+  r2: () => [t('admScR2'), t('admScR2S'), t('admScR2R')], r2l: () => [t('admScR2l'), t('admScR2lS'), t('admScR2R')],
+  gemini: () => ['Gemini', t('admScGemS'), t('admScKeyR')], mistral: () => ['Mistral', t('admScMisS'), t('admScKeyR')],
+  books: () => ['Google Books', t('admScBooksS'), t('admScKeyR')], picker: () => [t('admScPicker'), t('admScPickerS'), t('admScKeyR')],
+  cron: () => [t('admScCron'), t('admScCronS'), t('admScRandR')], watch: () => [t('admScWatch'), t('admScWatchS'), t('admScRandR')],
+  gh: () => [t('admScGh'), t('admScGhS'), t('admScGhR')], sess: () => [t('admScSess'), t('admScSessS'), t('admScSessR')],
+  ant: () => [t('admScAnt'), t('admScAntS'), t('admScAntR')], apk: () => [t('admScApk'), t('admScApkS'), t('admScApkR')],
+  srv_tok: () => [t('admScSrvTok'), t('admScSrvTokS'), t('admScSrvTokR')], ibkr: () => ['IBKR', t('admScIbkrS'), t('admScIbkrR')],
+  routine: () => ['Routine', t('admScRtS'), t('admScRtR')] };
+const WHERE = { vercel: () => t('admScWVercel'), srv: () => t('admScWSrv'), gh: () => 'GitHub Secrets', worker: () => t('admScWWorker'), vault: () => t('admScWVault') };
+function secRow(x) {
+  const L = SC[x.k] && SC[x.k]();
+  if (!L) return null;
+  const st = x.n != null ? fmt(t('admScUsers'), { n: x.n }) : x.set === true ? t('admScSet') : x.set === false ? (x.part ? fmt(t('admScPart'), { p: x.part }) : x.r === 3 ? t('admScOpt') : t('admScMissing')) : '—';
+  const c = x.sev === 1 ? 'red' : x.sev === 2 ? 'orange' : x.set === true ? 'green' : 'gray';
+  const sub = x.date ? fmt(t('admScUntil'), { d: x.date.d.split('-').reverse().join('/'), n: x.date.left }) : L[1];
+  return row({ c, ic: x.set === true ? '✓' : x.set === false ? (x.sev <= 2 ? '!' : '○') : '⚿', t: L[0], s: sub, v: st,
+    on: () => askAlert(L[0] + '\n\n' + L[1] + '\n\n' + t('admScHow') + ' ' + L[2]) });
+}
+page('secrets', { tab: 'sys', parent: 'sys', title: () => t('admSecrets'), render(p) {
+  const S2 = D.sec;
+  if (!S2) { needSec(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  p.append(h('p', 'adm-dt', (S2.bad ? fmt(t('admScBadN'), { n: S2.bad }) : t('admScAllOk')) + ' · ' + (S2.host === 'srv' ? t('admScFromSrv') : t('admScFromVercel'))));
+  p.append(grp(t('admSecDates')), list(...S2.dates.map((d) => row({ c: d.left <= 14 ? 'orange' : 'gray', ic: '⧗', t: (RD_DN[d.k] || (() => d.k))(), s: d.d.split('-').reverse().join('/'), v: d.left, tr: t('admDays') }))));
+  const bad = S2.items.filter((x) => x.sev <= 2);
+  if (bad.length) p.append(grp(t('admScNeed')), list(...bad.map(secRow)));
+  for (const w of ['vercel', 'srv', 'worker', 'gh', 'vault']) {
+    const its = S2.items.filter((x) => x.w === w && x.sev > 2);
+    if (its.length) p.append(grp(WHERE[w]()), list(...its.map(secRow)));
+  }
+  p.append(h('p', 'adm-foot', t('admScFoot')));
 } });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */

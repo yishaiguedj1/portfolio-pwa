@@ -1667,6 +1667,17 @@ async function handler(req, res, deps = {}) {
         acEnv: String(process.env.LIBRARY_READERS || '').split(/[\s,;]+/), acApp: cur ? cur.list : null, acErr: cur ? cur.err : 'x',
         stEnv: emails(process.env.STUDIO_USERS), am: SF.amList(await sysCfg(deps, now)), ibEnv: emails(process.env.IBKR_SYNC_USERS), counts }) });
     }
+    if (op === 'adminSecrets') {
+      // 15/10/2026: מרכז הניהול ← סודות ותאריכים. רק "מוגדר / לא" לכל סוד (הקטלוג של SECURITY.md), אף פעם לא ערך;
+      // מה שבכספות — כמה משתמשים, בלי uid
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const vaults = await aoGet(deps, 'vaults', async () => {
+        const [ibkr, routine] = await Promise.all(['ibkrVault', 'studioVault'].map((c) => fsCount(deps, c)));
+        return { ibkr, routine };
+      }, now);
+      return res.status(200).json({ ok: true, sec: AO.secretsView({ now, host: process.env.VERCEL ? 'vercel' : 'srv', vaults: vaults || {},
+        has: (n) => typeof process.env[n] === 'string' && process.env[n].trim() !== '' }) });
+    }
     if (op === 'adminLog') {
       // 15/10/2026: מרכז הניהול ← יומן פעולות. 300 האחרונות (בלי orderBy — אוסף קטן של מנהל אחד), ממוין כאן; ישנות מ־90 יום נמחקות
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });

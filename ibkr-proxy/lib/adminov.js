@@ -285,4 +285,49 @@ function logView(list, now, me) {
 }
 const logOld = (list, now) => (list || []).filter((x) => x && x.id && !(+x.at > now - LOG_DAYS * DAY)).map((x) => x.id).slice(0, 20);
 
-module.exports = { LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* סודות ותאריכים (15/10/2026, מסך "סודות ותאריכים" ב־5א): הקטלוג של SECURITY.md. **רק אם מוגדר — אף פעם לא ערך**, גם לא חלק ממנו.
+   r: 1 = חובה (חסר = אדום), 2 = מומלץ (חסר = כתום), 3 = רשות. w: איפה הוא חי — vercel (גם השרת שלנו מקבל את אותם משתנים),
+   srv (רק בשרת), gh (GitHub Secrets), worker (קובץ בשרת העובד), vault (כספת בשרתון, לכל משתמש). מה שלא נקרא מהשרתון — set: null.
+   d: התאריך מ־DATES שקשור אליו. סוד חדש ב־SECURITY.md = שורה כאן */
+const SECRETS = [
+  { k: 'sa', w: 'vercel', r: 1, env: ['GDRIVE_SA_KEY'] },
+  { k: 'vault', w: 'vercel', r: 2, env: ['IBKR_VAULT_KEY'] },
+  { k: 'gd_lib', w: 'vercel', r: 1, env: ['GDRIVE_CLIENT_ID', 'GDRIVE_CLIENT_SECRET'] },
+  { k: 'gd_st', w: 'vercel', r: 1, env: ['STUDIO_GDRIVE_CLIENT_ID', 'STUDIO_GDRIVE_CLIENT_SECRET'] },
+  { k: 'r2', w: 'vercel', r: 1, env: ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY'] },
+  { k: 'r2l', w: 'vercel', r: 3, env: ['R2L_ACCESS_KEY_ID', 'R2L_SECRET_ACCESS_KEY'] },
+  { k: 'gemini', w: 'vercel', r: 2, env: ['GEMINI_API_KEY'] },
+  { k: 'mistral', w: 'vercel', r: 3, env: ['MISTRAL_API_KEY'] },
+  { k: 'books', w: 'vercel', r: 3, env: ['GOOGLE_BOOKS_KEY'] },
+  { k: 'picker', w: 'vercel', r: 3, env: ['STUDIO_PICKER_KEY'] },
+  { k: 'cron', w: 'vercel', r: 3, env: ['CRON_SECRET'] },
+  { k: 'watch', w: 'vercel', r: 3, env: ['STUDIO_WATCH_SECRET'] },
+  { k: 'gh', w: 'vercel', r: 3, env: ['GITHUB_TOKEN'] },
+  { k: 'sess', w: 'srv', r: 3, env: ['SNB_SESSION_KEY'] },
+  { k: 'ant', w: 'worker', r: 1, env: null, d: 'ant_key' },
+  { k: 'apk', w: 'gh', r: 1, env: null },
+  { k: 'srv_tok', w: 'worker', r: 1, env: null },
+  { k: 'ibkr', w: 'vault', r: 3, env: null },
+  { k: 'routine', w: 'vault', r: 3, env: null },
+];
+/* f = { has: (name) => bool, host: 'vercel'|'srv', now, vaults: { ibkr, routine } (מספרים או null) } */
+function secretsView(f) {
+  const now = f.now || Date.now();
+  const has = typeof f.has === 'function' ? f.has : () => false;
+  const V = f.vaults || {};
+  const items = SECRETS.map((x) => {
+    let set = null, part = 0;
+    // srv רק כשהבקשה רצה בשרת שלנו; ב־Vercel — לא נבדק מכאן
+    if (x.env && (x.w !== 'srv' || f.host === 'srv')) { part = x.env.filter((n) => has(n)).length; set = part === x.env.length; }
+    const o = { k: x.k, w: x.w, r: x.r, set };
+    if (set === false && part) o.part = part + '/' + x.env.length;
+    if (x.w === 'vault') { const n = V[x.k]; o.n = Number.isFinite(n) && n >= 0 ? n : null; }
+    if (x.d) { const dt = DATES.find((y) => y.k === x.d); if (dt) o.date = { d: dt.d, left: daysTo(dt.d, now) }; }
+    o.sev = set === false ? (x.r === 1 ? 1 : x.r === 2 ? 2 : 4) : o.date && o.date.left <= 30 ? 2 : 4;
+    return o;
+  });
+  return { v: 1, host: f.host === 'srv' ? 'srv' : 'vercel', items, bad: items.filter((x) => x.sev <= 2).length,
+    dates: DATES.map((x) => ({ k: x.k, d: x.d, left: daysTo(x.d, now) })).sort((a, b) => a.left - b.left) };
+}
+
+module.exports = { SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

@@ -99,4 +99,11 @@ const lg = [{ id: 'a', k: 'fl_on', d: 'x', w: 'boss@example.com', at: now - H },
 const lv2 = A.logView(lg, now, 'Boss@example.com');
 ok(lv2.items.map((x) => x.k).join() === 'fl_on,ac_add' && lv2.items[0].w === '' && lv2.items[1].w === 'other@example.com' && lv2.n7 === 2, 'יומן: החדש ראשון, "אני" בלי מייל, ישן וסוג לא מוכר לא מוצגים');
 ok(A.logOld(lg, now).join() === 'c', 'יומן: מה שישן מ־90 יום נמחק');
+// סודות ותאריכים (15/10/2026)
+const SV = A.secretsView({ now, host: 'vercel', has: (n) => ['GDRIVE_SA_KEY', 'R2_ACCESS_KEY_ID', 'SNB_SESSION_KEY'].includes(n), vaults: { ibkr: 2, routine: null } });
+const sk = (k) => SV.items.find((x) => x.k === k);
+ok(sk('sa').set === true && sk('gd_lib').set === false && sk('gd_lib').sev === 1 && sk('vault').sev === 2 && sk('cron').sev === 4, 'סודות: חובה חסר = אדום, מומלץ = כתום, רשות = שקט');
+ok(sk('r2').part === '1/2' && sk('sess').set === null && A.secretsView({ now, host: 'srv', has: (n) => n === 'SNB_SESSION_KEY' }).items.find((x) => x.k === 'sess').set === true, 'סודות: חלקי = "1/2"; סוד של השרת נבדק רק כשהבקשה רצה בשרת');
+ok(sk('ant').set === null && sk('ant').date.d === '2027-01-16' && sk('ibkr').n === 2 && sk('routine').n === null, 'סודות: מה שלא נקרא מכאן = לא ידוע, עם התאריך; כספות — מספר בלבד');
+ok(!/"(GDRIVE|R2_|SNB_)/.test(JSON.stringify(SV)) && SV.bad === SV.items.filter((x) => x.sev <= 2).length && SV.dates.every((x, i, a) => !i || a[i - 1].left <= x.left), 'סודות: בלי שמות משתנים וערכים בתשובה; תאריכים מהקרוב');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

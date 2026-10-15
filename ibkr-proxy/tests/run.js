@@ -3600,6 +3600,9 @@ function stubFetch(text, status = 200) {
       const ckR = await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: 'no', note: 'לא <נפתח>', t: 'עותק לוואטסאפ' });
       const ckDoc = db.get('sysChecks/abcdef012345');
       ok(ckR.payload.ok && ckDoc && ckDoc.fields.st.stringValue === 'no' && ckDoc.fields.n.stringValue === 'לא נפתח', 'בדיקות בטלפון: "לא עובד" נשמר עם הערה נקייה');
+      ok((await run({ op: 'adminSecrets', idToken: FRIEND })).payload.error === 'not_admin', 'סודות: רק המנהל');
+      const scR = await run({ op: 'adminSecrets', idToken: OWNER });
+      ok(scR.payload.ok && scR.payload.sec.items.find((x) => x.k === 'sa').set === true && !JSON.stringify(scR.payload).includes(String(process.env.GDRIVE_SA_KEY || '').slice(0, 20) || '§'), 'סודות: "מוגדר" בלי הערך');
       ok((await run({ op: 'adminLog', idToken: FRIEND })).payload.error === 'not_admin', 'יומן פעולות: רק המנהל');
       await run({ op: 'adminCfg', idToken: OWNER, set: { flag: 'push', on: false } });
       await run({ op: 'adminCfg', idToken: OWNER, set: { flag: 'push', on: true } });
