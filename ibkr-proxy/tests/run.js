@@ -3508,6 +3508,23 @@ function stubFetch(text, status = 200) {
         await run({ op: 'remove', idToken: OWNER, job: doneTr[0].split('/')[1] });
         ok(!db.has(doneTr[0]) && lkeys().length === n0, 'מאגר הלמידה: הרשומה נשארת אחרי שהעבודה נמחקה');
       }
+      // 15/10/2026 (מ׳1): ההודעה בכניסה הראשונה + "מחק את התרומות שלי" — גם של עבודה שנמחקה, ובלי שיחזרו בסנכרון הבא
+      {
+        const LRm = require('../lib/studiolearn');
+        const ack = await run({ op: 'learnPref', idToken: OWNER, ack: true });
+        const st1 = await run({ op: 'status', idToken: OWNER });
+        ok(ack.payload.ok && st1.payload.lra > 0 && st1.payload.lrn === true, 'מ׳1: ההודעה נקראה — נשמר, והמתג לא השתנה');
+        const goneId = doneTr.length ? doneTr[0].split('/')[1] : '';
+        ok(!goneId || String(db.get('studioStats/ownerUid0001').fields.lgn.stringValue).includes(LRm.lid(goneId)), 'מ׳1: עבודה שנמחקה — המזהה המגובב נשמר במסמך הפרטי');
+        const others = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && ['tr', 'rr', 'ai'].includes((db.get(k).fields.kind || {}).stringValue) && db.get(k).fields.uid.stringValue !== 'ownerUid0001').length;
+        const fg = await run({ op: 'learnForget', idToken: OWNER });
+        ok(fg.payload.ok && fg.payload.n > 0 && lkeys().length === others, 'מ׳1: התרומות שלי נמחקו (' + fg.payload.n + '), של אחרים נשארו');
+        ok(!goneId || !db.has('studioLearn/' + LRm.lid(goneId)), 'מ׳1: גם הרשומה של העבודה שנמחקה');
+        studio._reset();
+        await run({ op: 'learn', idToken: OWNER });
+        ok(lkeys().length === others, 'מ׳1: בסנכרון הבא העבודות הישנות שלי לא חוזרות');
+        studio._reset();
+      }
       studio._reset();
       // 15/10/2026: מרכז הניהול — הסקירה (מנהל בלבד, בלי פרטים אישיים; עובדות מבחוץ שנכשלו = "לא ידוע")
       ok((await run({ op: 'adminOv', idToken: FRIEND })).payload.error === 'not_admin', 'מרכז הניהול: רק המנהל רואה את הסקירה');
