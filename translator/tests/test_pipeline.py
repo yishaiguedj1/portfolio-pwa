@@ -440,6 +440,71 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(called, [], 'בלי מדגם (כבוי בחוקים / מעט כתוביות) — אין קריאה למודל')
 
 
+class PostIncident(unittest.TestCase):
+    """15/10/2026: דוח אחרי תקלה גם במצב השרת — Sonnet כותב את הסיכום מהעובדות של הלקיחה, נשלח פעם אחת, כשל לא מפיל."""
+    setUp, tearDown, engine = FlowTests.setUp, FlowTests.tearDown, FlowTests.engine
+    P_FACTS = {'no': 27, 'c': 'routine', 'e': 'routine_down', 's': 1, 'by': 'c', 'n': 2, 'm': 0, 'tti': 120, 'ttr': 2040,
+               'usd': 0.42, 'st': 'r', 'rc': [], 'tl': [[0, 'o'], [34, 'r']]}
+
+    def hook(self, pir=True, send=0):
+        J = self.J
+        J.st = {'pir': dict(self.P_FACTS)} if pir else {}
+        J.load_state = lambda: J.st
+        J.pir_facts = lambda p: 'INC0000027 · P1 · קוד ' + p['e']
+        J.PIR_ASK = 'שלושה משפטים.'
+        J.sent = []
+        J.pir_send = lambda st, t, m: (J.sent.append((t, m)), send)[1]
+        return J
+
+    def test_writes_with_sonnet_and_sends_once(self):
+        J = self.hook()
+        seen = []
+
+        def h(kw):
+            seen.append((kw['model'], (kw.get('output_config') or {}).get('effort')))
+            self.assertIn('<incident>', kw['messages'][0]['content'], 'העובדות = נתונים בגבולות מסומנים')
+            return msg('העבודה נכשלה פעמיים. הסיבה הסבירה: ה־Routine לא ענה. Claude המשיך לבד.')
+        eng = self.engine(h, 'haiku-high')
+        P.post_incident(J, eng)
+        self.assertEqual(seen, [('claude-sonnet-5-5', 'medium')], 'הסיכום תמיד ב־Sonnet (החלטה 3), בלי קשר למצב העבודה')
+        self.assertEqual(len(J.sent), 1)
+        self.assertEqual(J.sent[0][1], 'claude-sonnet-5-5', 'המודל שענה נשלח עם הסיכום')
+        self.assertEqual({r['k']: r['m'] for r in eng.ledger.list()}.get('sub'), 'claude-sonnet-5-5', 'העלות בספר של העבודה')
+
+    def test_no_pending_no_call(self):
+        J = self.hook(pir=False)
+        called = []
+        P.post_incident(J, self.engine(lambda kw: called.append(1) or msg('x')))
+        self.assertEqual((called, J.sent), ([], []), 'אין דוח שמחכה — אין קריאה')
+
+    def test_failure_does_not_raise(self):
+        J = self.hook()
+
+        def h(kw):
+            raise llm.LLMError('api_overloaded', 'עומס')
+        old = llm.MID_RETRY_WAIT
+        llm.MID_RETRY_WAIT = (0, 0)
+        try:
+            P.post_incident(J, self.engine(h))
+        finally:
+            llm.MID_RETRY_WAIT = old
+        self.assertEqual(J.sent, [], 'כשל — בלי שליחה, והעבודה ממשיכה')
+
+    def test_send_failure_does_not_raise(self):
+        J = self.hook()
+
+        def boom(st, t, m):
+            raise SystemExit('השרתון לא ענה')
+        J.pir_send = boom
+        P.post_incident(J, self.engine(lambda kw: msg('שלושה משפטים קצרים על מה שקרה בעבודה.')))
+
+    def test_manual_engine_skips(self):
+        J = self.hook()
+        called = []
+        P.post_incident(J, llm.ManualEngine(lambda k, t: called.append(1) or ''))
+        self.assertEqual((called, J.sent), ([], []), 'העתק־הדבק — בלי סיכום')
+
+
 class JobHooks(unittest.TestCase):
     def test_job_has_auto_and_ask_user(self):
         src = (Path(P.__file__).parent / 'job.py').read_text(encoding='utf-8')
