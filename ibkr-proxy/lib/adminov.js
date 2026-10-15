@@ -207,4 +207,22 @@ function readyView(f) {
   return { v: 1, at: now, n: out.length, pass: out.length - fails.length, checks: [...fails, ...out.filter((x) => x.ok)] };
 }
 
-module.exports = { readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* ההחלטה של הבדיקה המתוזמנת (טהורה): מה לשלוח לטלפון. prev = sysWatch/ready, rd = readyView, bk = sysBackup/cfg */
+function watchStep(prev, rd, bk, now) {
+  // כשל נחשב רק כשהוא חוזר בשתי בדיקות רצופות (שעה) — באמצע פריסה הכתובות מגישות לרגע בניות שונות
+  const cur = ((rd && rd.checks) || []).filter((x) => !x.ok && x.k !== 'dates').map((x) => x.k).sort();
+  const sp = (x) => String(x || '').split(',').filter(Boolean);
+  const pp = sp(prev.pp), fp = sp(prev.fp);
+  const conf = cur.filter((k) => pp.includes(k));
+  const send = [];
+  const patch = {};
+  if (cur.join() !== pp.join()) patch.pp = cur.join();
+  if (conf.join() !== fp.join()) { patch.fp = conf.join(); if (conf.some((k) => !fp.includes(k))) send.push('ready_fail'); }
+  const day = new Date(now).toISOString().slice(0, 10);
+  const stale = !bk || !bk.okAt || now - bk.okAt > 2 * DAY;
+  if (stale && prev.bkd !== day) { send.push('bk_fail'); patch.bkd = day; }
+  if (Object.keys(patch).length) patch.at = now;
+  return { send, patch: Object.keys(patch).length ? patch : null };
+}
+
+module.exports = { watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

@@ -9,6 +9,7 @@ const quotes = require('../api/quotes');
 let n = 0;
 process.env.AI_ANON_DAILY = process.env.AI_ANON_DAILY || '1000000';   // v339: בבדיקות הישנות — בלי מגבלה יומית לכתובת
 process.env.SNB_SITEWATCH = 'off';   // שלב 5: ניטור הכתובות — רק בבלוק שלו (הכתובות האמיתיות לא נגישות בבדיקות)
+process.env.SNB_ADMINWATCH = 'off';   // 15/10/2026: התראות המנהל (adminWatch) — ההחלטה נבדקת ב־tests/adminov.test.js (watchStep)
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
 
 /* ---------- statementBaseFrom (SSRF guard) ---------- */
@@ -3370,7 +3371,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob' && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw' && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;

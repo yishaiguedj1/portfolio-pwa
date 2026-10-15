@@ -172,6 +172,20 @@ async function aoFacts(deps, now) {
 }
 /* 14/10/2026: מאגר הלמידה — משלימים רשומות מכל העבודות (אנונימיות, כולל ישנות ושל כל המשתמשים, בלי מי שכיבה את המתג),
    ומחזירים את כל הרשומות לפי הזמן. משותף לפעולות המנהל ולמשיכה בטוקן ניתוח */
+/* 15/10/2026: בדיקת המוכנות — עובדות ציבוריות בלבד (כתובות האתר) + מוני החיבור המשותף. משותף למסך ולבדיקה המתוזמנת */
+async function readyNow(deps, now) {
+  const f = deps.fetch || fetch;
+  const get = async (u, txt) => { try { const r = await f(u, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(6000) }); return { s: r.status, cc: r.headers && r.headers.get ? r.headers.get('cache-control') : null, t: txt && r.status === 200 ? await r.text() : '' }; } catch (e) { return null; } };
+  const H = { invest: 'https://invest.thesnowball.app', academy: 'https://academy.thesnowball.app', studio: 'https://studio.thesnowball.app' };
+  const sw = await Promise.all(Object.values(H).map((u) => get(u + '/sw.js', true)));
+  const cache = {}, builds = {};
+  Object.keys(H).forEach((k, i) => { const x = sw[i]; cache[k] = x && x.s === 200 ? (x.cc || '') : null; builds[k] = x && x.s === 200 ? AO.swBuild(x.t) : 0; });
+  const [main, fb, links, sec] = await Promise.all([get('https://api.thesnowball.app/api/session', true), get('https://ibkr-proxy-wine.vercel.app/api/session', true), get(H.invest + '/.well-known/assetlinks.json', true), get(H.invest + '/.well-known/security.txt', true)]);
+  let sess = null; try { sess = main && main.s === 200 ? { last: JSON.parse(main.t).last || [] } : null; } catch (e) {}
+  let nl = null; try { nl = links && links.s === 200 ? (JSON.parse(links.t) || []).filter((x) => x && x.target && x.target.package_name).length : null; } catch (e) {}
+  const sm = sec && /^Expires:\s*(\S+)/m.exec(sec.t || '');
+  return AO.readyView({ now, cache, builds, sess, links: nl, api: { main: !!(main && main.s === 200), fb: !!(fb && fb.s === 200) }, sec: sm ? sm[1] : null });
+}
 /* התשובות לבדיקות בטלפון (sysChecks) — { id: { st, n, at } } */
 async function checkAnswers(deps) {
   const l = await query(deps, 'sysChecks', null, 300).catch(() => []);
@@ -395,10 +409,29 @@ async function watch(req, res, deps) {
   const st = await siteWatch(deps, now).catch(() => -1);   // שלב 5: הכתובות עצמן (השרתון שלנו ושלוש האפליקציות)
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
-  return res.status(200).json({ ok: true, down, ar, st, bk, ob });
+  const aw = await adminWatch(deps, now).catch(() => -1);   // 15/10/2026: התראות למנהל — הגיבוי ובדיקת המוכנות
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw });
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
+/* 15/10/2026: התראה לטלפון של המנהל רק על מה שלא יכול לחכות (On-call) — פעם בשעה למופע:
+   בדיקת מוכנות שנכשלה (רק כשרשימת הכשלים השתנתה — לא כל שעה מחדש), והגיבוי אצל ספק שני שלא רץ יותר מיומיים (פעם ביום).
+   המצב ב־sysWatch/ready (fp = הכשלים שכבר דווחו, bkd = היום שבו דווח הגיבוי). 1 = נשלחה התראה, 0 = לא */
+const AW_EVERY = 3600e3;
+let lastAw = 0;
+async function adminWatch(deps, now) {
+  if (process.env.SNB_SITEWATCH === 'off' || process.env.SNB_ADMINWATCH === 'off' || Math.abs(now - lastAw) < AW_EVERY) return 0;
+  lastAw = now;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !UID_RE.test(String(cfg.uid || ''))) return 0;
+  const prev = (await readDoc(deps, 'sysWatch', 'ready').catch(() => null)) || {};
+  const rd = await readyNow(deps, now);
+  aoCache.set('ready', { at: now, v: rd });
+  const step = AO.watchStep(prev, rd, cfg, now);
+  if (step.patch) await patchDoc(deps, 'sysWatch', 'ready', step.patch);
+  for (const k of step.send) await notify(deps, cfg.uid, k, '', now);
+  return step.send.length ? 1 : 0;
+}
 async function siteWatch(deps, now) {
   if (process.env.SNB_SITEWATCH === 'off') return 0;   // בבדיקות השרתון (run.js) — הכתובות האמיתיות לא נגישות שם
   const f = deps.fetch || fetch;
@@ -1192,7 +1225,10 @@ async function handler(req, res, deps = {}) {
         query(deps, 'studioServers', null, S.SRV_MAX + 5).then((l) => l.map((x) => S.serverView(x, now)).filter(Boolean)).catch(() => []),
         readDoc(deps, 'sysBackup', 'cfg').catch(() => null), readDoc(deps, 'sysWatch', 'sites').catch(() => null), aoFacts(deps, now)]);
       const bk = backup ? { okAt: backup.okAt || 0, err: backup.err || '', up: backup.up || 0 } : null;
-      return res.status(200).json({ ok: true, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null }, ext)) });
+      // 15/10/2026: התראות לטלפון — כמה מכשירים רשומים אצלך, והאם ההתראות של המערכת נשלחות אליך (בעל הגיבוי, sysBackup/cfg.uid)
+      const myst = await readStats(deps, uid).catch(() => ({}));
+      const push = { n: W.normSubs(myst.wp).length, me: !!(backup && backup.uid === uid) };
+      return res.status(200).json({ ok: true, push, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null }, ext)) });
     }
     if (op === 'adminAi') {
       // 15/10/2026: מרכז הניהול ← AI ועלויות. מנהל בלבד. רק מספרים: קריאות AI ליום (Academy), כמה קוראים (מספר, בלי זהות),
@@ -1236,19 +1272,7 @@ async function handler(req, res, deps = {}) {
       // assetlinks, security.txt ותאריכים. רק עובדות ציבוריות (כתובות האתר) + מונים בלי פרטים. מטמון 5 דק׳ (fresh = לבדוק עכשיו)
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
       if (body.fresh) aoCache.delete('ready');
-      const v = await aoGet(deps, 'ready', async () => {
-        const f = deps.fetch || fetch;
-        const get = async (u, txt) => { try { const r = await f(u, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(6000) }); return { s: r.status, cc: r.headers && r.headers.get ? r.headers.get('cache-control') : null, t: txt && r.status === 200 ? await r.text() : '' }; } catch (e) { return null; } };
-        const H = { invest: 'https://invest.thesnowball.app', academy: 'https://academy.thesnowball.app', studio: 'https://studio.thesnowball.app' };
-        const sw = await Promise.all(Object.values(H).map((u) => get(u + '/sw.js', true)));
-        const cache = {}, builds = {};
-        Object.keys(H).forEach((k, i) => { const x = sw[i]; cache[k] = x && x.s === 200 ? (x.cc || '') : null; builds[k] = x && x.s === 200 ? AO.swBuild(x.t) : 0; });
-        const [main, fb, links, sec] = await Promise.all([get('https://api.thesnowball.app/api/session', true), get('https://ibkr-proxy-wine.vercel.app/api/session', true), get(H.invest + '/.well-known/assetlinks.json', true), get(H.invest + '/.well-known/security.txt', true)]);
-        let sess = null; try { sess = main && main.s === 200 ? { last: JSON.parse(main.t).last || [] } : null; } catch (e) {}
-        let nl = null; try { nl = links && links.s === 200 ? (JSON.parse(links.t) || []).filter((x) => x && x.target && x.target.package_name).length : null; } catch (e) {}
-        const sm = sec && /^Expires:\s*(\S+)/m.exec(sec.t || '');
-        return AO.readyView({ now, cache, builds, sess, links: nl, api: { main: !!(main && main.s === 200), fb: !!(fb && fb.s === 200) }, sec: sm ? sm[1] : null });
-      }, now);
+      const v = await aoGet(deps, 'ready', () => readyNow(deps, now), now);
       return res.status(200).json({ ok: true, rd: v });
     }
     if (op === 'adminCheck') {

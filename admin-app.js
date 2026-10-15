@@ -270,6 +270,7 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: 'orange', ic: '$', t: t('admAiCost'), s: ai && ai.month ? fmt(t('admAiCostS'), { u: usd(ai.month.usd), n: ai.today.t }) : k ? fmt(t('admAiCostS2'), { u: usd(k.usd) }) : '', badge: ai ? ai.warn.filter((w) => w.sev <= 2).length : 0, on: () => go('ai') }),
     row({ c: 'blue', ic: '%', t: t('admQuota'), s: o && o.dates && o.dates[0] ? fmt(t('admQuotaS'), { n: o.dates[0].left }) : '', on: () => go('quota') }),
     row({ c: !D.rd ? 'gray' : D.rd.pass === D.rd.n ? 'green' : D.rd.checks[0].sev === 1 ? 'red' : 'orange', ic: '✓', t: t('admRdT'), s: D.rd ? fmt(t('admRdS'), { p: D.rd.pass, n: D.rd.n }) : t('admLoading'), badge: D.rd ? D.rd.n - D.rd.pass : 0, on: () => go('ready') }),
+    row({ c: !D.push ? 'gray' : D.push.n && D.push.me ? 'green' : 'orange', ic: '◉', t: t('admPushT'), s: !D.push ? '' : !D.push.n ? t('admPushOffS') : !D.push.me ? t('admPushNotMe') : fmt(t('admPushOnS'), { n: D.push.n }), on: () => go('push') }),
     row({ c: dep ? 'orange' : 'green', ic: '⇪', t: t('admInfra'), s: dep ? t('admItDeploy') : prod && prod.v.b ? fmt(t('admRunBuild'), { b: prod.v.b }) + (stag && stag.v.ahead === 1 ? ' · ' + t('admRunAhead1') : stag && stag.v.ahead > 1 ? ' · ' + fmt(t('admRunAhead'), { n: stag.v.ahead }) : '') : '', badge: dep ? 1 : 0, on: () => go('infra') })));
   p.append(grp(t('admSecCtl')), list(soonRow('gray', '⚙', t('admCfg')), soonRow('red', '⏻', t('admMaint'))));
   p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
@@ -371,6 +372,18 @@ page('ready', { tab: 'sys', parent: 'sys', title: () => t('admRdT'), render(p) {
   if (good.length) p.append(grp(t('admRdGood')), list(...good.map(readyRow)));
   p.append(list(row({ c: 'blue', ic: '⟲', t: t('admRdAgain'), on: async () => { p.querySelector('.adm-dt').textContent = t('admLoading'); await needReady(true); } })));
   p.append(h('p', 'adm-foot', t('admRdFoot')));
+} });
+/* ---- התראות לטלפון (15/10/2026, On-call): רק מה שלא יכול לחכות. משתמש בהתראות שכבר קיימות ב־Studio (Web Push) ---- */
+const PUSH_KINDS = [['red', '!', () => t('admPushSite'), () => t('admPushSiteS')], ['red', '☁', () => t('admPushSrv'), () => t('admPushSrvS')], ['red', '▶', () => t('admPushMajor'), () => t('admPushMajorS')],
+  ['orange', '✓', () => t('admPushReady'), () => t('admPushReadyS')], ['orange', '⟲', () => t('admPushBk'), () => t('admPushBkS')]];
+page('push', { tab: 'sys', parent: 'sys', title: () => t('admPushT'), render(p) {
+  const P = D.push || { n: 0, me: false };
+  const on = P.n > 0 && P.me;
+  p.append(h('p', 'adm-dt', on ? fmt(t('admPushOnS'), { n: P.n }) : !P.n ? t('admPushOffS') : t('admPushNotMe')));
+  p.append(grp(t('admPushSec')), list(...PUSH_KINDS.map(([c, ic, tt, ss]) => row({ c, ic, t: tt(), s: ss(), v: on ? t('studioOnShort') : t('studioOffShort') }))));
+  if (P.n) p.append(list(row({ c: 'blue', ic: '◉', t: t('admPushTest'), on: async () => { const j = await api('push', { act: 'test' }); flash(j.ok && j.sent ? t('admPushSent') : t('admErr')); } })));
+  else p.append(list(row({ c: 'studio', ic: '↗', t: t('admPushHow'), s: t('admPushHowS'), on: () => { try { window.open(APP_URL.studio, '_self'); } catch (e) {} } })));
+  p.append(h('p', 'adm-foot', t('admPushFoot')));
 } });
 page('quota', { tab: 'sys', parent: 'sys', title: () => t('admQuota'), render(p) {
   const ai = D.ai, o = D.ov;
@@ -492,7 +505,7 @@ else boot();
 
 async function load() {
   const [ov, lab] = await Promise.all([api('adminOv'), api('learn')]);
-  D.ov = ov.ok ? ov.ov : null; D.lab = lab; D.ovAt = Date.now();
+  D.ov = ov.ok ? ov.ov : null; D.push = ov.ok ? ov.push : null; D.lab = lab; D.ovAt = Date.now();
   return { ov, lab };
 }
 async function boot() {
