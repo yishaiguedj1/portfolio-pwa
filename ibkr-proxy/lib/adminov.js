@@ -330,4 +330,40 @@ function secretsView(f) {
     dates: DATES.map((x) => ({ k: x.k, d: x.d, left: daysTo(x.d, now) })).sort((a, b) => a.left - b.left) };
 }
 
-module.exports = { SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* סוכנים ומודלים (15/10/2026, Studio במרכז הניהול): של כל המערכת — 30 יום של עבודות התרגום מכל המשתמשים (לא רק שלי כמו במגדל).
+   מצבי התרגום: מי פתוח לכולם, כמה עבודות, כמה הסתיימו, כמה עלו, ומה "הרגיל" לשעת סרטון (Routine / השרת). בלי uid ובלי שמות */
+function modesView(f) {
+  const now = f.now || Date.now();
+  const jobs = (f.jobs || []).filter((j) => j && j.kind === 'tr' && (j.created || 0) >= now - 30 * DAY);
+  const r4 = (x) => Math.round(x * 1e4) / 1e4;
+  const usdOf = (j) => [].concat(Array.isArray(j.use) ? j.use : [], Array.isArray(j.use0) ? j.use0 : []).reduce((a, r) => a + (r && typeof r.usd === 'number' ? r.usd : 0), 0);
+  const modes = (f.modes || []).map((m) => {
+    const js = jobs.filter((j) => j.spec && j.spec.mode === m);
+    const ended = js.filter((j) => j.state === 'done' || j.state === 'failed');
+    const api = js.filter((j) => j.spec && j.spec.eng === 'api').length;
+    return { m, pub: (f.pub || []).includes(m), def: m === f.dflt, n: js.length, ok: ended.length ? ended.filter((j) => j.state === 'done').length / ended.length : null,
+      usd: r4(js.reduce((a, j) => a + usdOf(j), 0)), api, ph: (f.def || {})[m] == null ? null : f.def[m], pha: (f.defApi || {})[m] == null ? null : f.defApi[m] };
+  });
+  return { jobs: jobs.length, modes };
+}
+/* שרתים ומשאבים: כל השרתים של המערכת עם מה שהדופק מדווח (דיסק, זיכרון, עומס, בידוד, מנוע היישור, גרסה, אירועים).
+   list = serverView לכל שרת; busy = { [sid]: { st, p } } — רק השלב, בלי מזהה עבודה ושם */
+function serversAdmin(list, busy, now) {
+  const B = busy || {};
+  const out = (list || []).filter(Boolean).map((s) => {
+    const hb = s.hb || {};
+    const warn = [];
+    if (s.ba) warn.push('auth');
+    if (!s.online && s.seen && !s.paused) warn.push('down');
+    if (hb.disk != null && hb.disk >= 85) warn.push('disk');
+    if (hb.mem != null && hb.mem >= 90) warn.push('mem');
+    if (hb.iso === 'r') warn.push('iso');
+    const b = B[s.id];
+    return { n: s.name, online: s.online, paused: s.paused, seen: s.seen, created: s.created, warn,
+      hb: { v: hb.v || '', disk: hb.disk, free: hb.free, mem: hb.mem, load: hb.load, up: hb.up, iso: hb.iso || '', iw: hb.iw || '', al: hb.al || '', ev: Array.isArray(hb.ev) ? hb.ev.slice(-8) : [] },
+      job: b ? { st: String(b.st || '').slice(0, 24), p: typeof b.p === 'number' ? b.p : null } : null };
+  }).sort((a, b) => (b.online - a.online) || (b.seen - a.seen));
+  return { servers: out, online: out.filter((x) => x.online && !x.paused).length, warn: out.filter((x) => x.warn.length).length, at: now };
+}
+
+module.exports = { modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

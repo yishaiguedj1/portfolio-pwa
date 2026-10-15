@@ -1667,6 +1667,31 @@ async function handler(req, res, deps = {}) {
         acEnv: String(process.env.LIBRARY_READERS || '').split(/[\s,;]+/), acApp: cur ? cur.list : null, acErr: cur ? cur.err : 'x',
         stEnv: emails(process.env.STUDIO_USERS), am: SF.amList(await sysCfg(deps, now)), ibEnv: emails(process.env.IBKR_SYNC_USERS), counts }) });
     }
+    if (op === 'adminAgents' || op === 'adminServers') {
+      // 15/10/2026: מרכז הניהול ← Studio. עבודות התרגום של 30 הימים האחרונים מכל המשתמשים (שאילתה עם טווח על created —
+      // בלי אינדקס מורכב), מצטבר בלבד: הסוכנים (studioagents), מצבי התרגום, והשרתים עם הדופק שלהם
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const jobs = await aoGet(deps, 'jobs30', async () => {
+        const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: { from: [{ collectionId: 'studioJobs' }],
+          where: { fieldFilter: { field: { fieldPath: 'created' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(now - 30 * 86400000) } } },
+          orderBy: [{ field: { fieldPath: 'created' }, direction: 'DESCENDING' }], limit: 400 } });
+        if (r.status !== 200) return null;
+        return (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
+          .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }));
+      }, now);
+      if (op === 'adminAgents') {
+        if (!jobs) return res.status(503).json({ ok: false, error: 'store' });
+        const ag = A.agentsView(jobs, now);
+        return res.status(200).json({ ok: true, ag: { jobs: ag.jobs, agents: ag.agents, ev: ag.ev, risk: ag.risk },
+          md: AO.modesView({ now, jobs, modes: S.MODES, pub: S.PUBLIC_MODES, dflt: S.DEFAULT_MODE, def: S.NORM_DEF, defApi: S.NORM_DEF_API }) });
+      }
+      let list = [];
+      try { list = (await query(deps, 'studioServers', null, S.SRV_MAX + 5)).map((x) => S.serverView(x, now)).filter(Boolean); }
+      catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+      const busy = {};
+      for (const j of jobs || []) if (j.state === 'running' && j.sid && !busy[j.sid]) busy[j.sid] = { st: j.prog && j.prog.st, p: j.prog && j.prog.p };
+      return res.status(200).json({ ok: true, srv: AO.serversAdmin(list, busy, now) });
+    }
     if (op === 'adminSecrets') {
       // 15/10/2026: מרכז הניהול ← סודות ותאריכים. רק "מוגדר / לא" לכל סוד (הקטלוג של SECURITY.md), אף פעם לא ערך;
       // מה שבכספות — כמה משתמשים, בלי uid

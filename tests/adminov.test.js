@@ -106,4 +106,17 @@ ok(sk('sa').set === true && sk('gd_lib').set === false && sk('gd_lib').sev === 1
 ok(sk('r2').part === '1/2' && sk('sess').set === null && A.secretsView({ now, host: 'srv', has: (n) => n === 'SNB_SESSION_KEY' }).items.find((x) => x.k === 'sess').set === true, 'סודות: חלקי = "1/2"; סוד של השרת נבדק רק כשהבקשה רצה בשרת');
 ok(sk('ant').set === null && sk('ant').date.d === '2027-01-16' && sk('ibkr').n === 2 && sk('routine').n === null, 'סודות: מה שלא נקרא מכאן = לא ידוע, עם התאריך; כספות — מספר בלבד');
 ok(!/"(GDRIVE|R2_|SNB_)/.test(JSON.stringify(SV)) && SV.bad === SV.items.filter((x) => x.sev <= 2).length && SV.dates.every((x, i, a) => !i || a[i - 1].left <= x.left), 'סודות: בלי שמות משתנים וערכים בתשובה; תאריכים מהקרוב');
+// סוכנים ומודלים, שרתים ומשאבים (15/10/2026)
+const D30 = 30 * 24 * H;
+const mv = A.modesView({ now, modes: ['haiku-high', 'opus-medium', 'sonnet-low'], pub: ['haiku-high'], dflt: 'haiku-high', def: { 'haiku-high': 0.8 }, defApi: { 'haiku-high': 0.55 },
+  jobs: [{ kind: 'tr', created: now - H, state: 'done', spec: { mode: 'haiku-high', eng: 'api' }, use: [{ usd: 0.1 }], use0: [{ usd: 0.05 }] },
+    { kind: 'tr', created: now - 2 * H, state: 'failed', spec: { mode: 'haiku-high' }, use: [{ usd: 0.2 }] },
+    { kind: 'tr', created: now - D30 - H, state: 'done', spec: { mode: 'opus-medium' } }, { kind: 'rr', created: now, spec: { mode: 'opus-medium' } }] });
+const mh = mv.modes[0];
+ok(mv.jobs === 2 && mh.pub && mh.def && mh.n === 2 && mh.ok === 0.5 && Math.abs(mh.usd - 0.35) < 1e-9 && mh.api === 1 && mh.ph === 0.8 && mh.pha === 0.55, 'מצבים: פתוח לכולם, ברירת המחדל, עבודות, הצלחה, עלות כולל "המשך", מנוע');
+ok(mv.modes[1].n === 0 && mv.modes[1].ok === null && mv.modes[2].ph === null && !mv.modes[1].pub, 'מצבים: ישן מ־30 יום והפקה מחדש לא נספרים; בלי נתון = null');
+const sa = A.serversAdmin([{ id: 's1', name: 'snb-2', online: true, paused: false, seen: now, hb: { disk: 90, mem: 40, iso: 'g', ev: [[1, 'up']] } },
+  { id: 's2', name: 'old', online: false, paused: false, seen: now - 9 * H, ba: now, hb: null }], { s1: { st: 'al', p: 0.4 } }, now);
+ok(sa.servers[0].n === 'snb-2' && sa.servers[0].job.st === 'al' && sa.servers[0].warn.join() === 'disk' && sa.servers[1].warn.join() === 'auth,down' && sa.online === 1 && sa.warn === 2, 'שרתים: מקוון ראשון, דיסק מלא, טוקן שנדחה, לא מדווח, השלב הנוכחי');
+ok(!/"s1"|"s2"|"id"/.test(JSON.stringify(sa)), 'שרתים: בלי מזהי שרת ועבודה');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

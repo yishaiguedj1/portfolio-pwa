@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -245,6 +245,8 @@ page('academy', { tab: 'apps', parent: 'apps', title: () => 'Academy', render(p)
   p.append(list(row({ c: 'academy', ic: '↗', t: t('admAcManage'), on: openApp('academy') }), row({ c: 'orange', ic: '$', t: t('admAiCost'), on: () => go('ai') })));
 } });
 page('studio', { tab: 'apps', parent: 'apps', title: () => 'Studio', render(p) {
+  if (!D.ag) needAg();
+  if (!D.srv) needSrv();
   const v = D.lab && D.lab.view;
   p.append(h('p', 'adm-dt', t('admLab30')));
   if (v && v.k) {
@@ -257,7 +259,8 @@ page('studio', { tab: 'apps', parent: 'apps', title: () => 'Studio', render(p) {
   }
   p.append(grp(t('admSecStudioTower')), list(
     row({ c: 'red', ic: '!', t: t('admStudioTower'), s: t('admStudioTowerS'), on: () => { try { window.open(APP_URL.studio, '_self'); } catch (e) {} } }),
-    soonRow('purple', '✦', t('admStudioAgents')), soonRow('blue', '☁', t('admStudioSrv'))));
+    row({ c: 'purple', ic: '✦', t: t('admStudioAgents'), s: D.ag ? fmt(t('admAgDt'), { n: D.ag.ag.jobs }) : '', on: () => go('agents') }),
+    row({ c: !D.srv ? 'blue' : D.srv.warn ? 'orange' : 'green', ic: '☁', t: t('admStudioSrv'), s: D.srv ? fmt(t('admSvS'), { n: D.srv.online, m: D.srv.servers.length }) : '', badge: D.srv ? D.srv.warn : 0, on: () => go('servers') })));
   p.append(grp(t('admLabT')), list(row({ c: 'purple', ic: '✦', t: t('admLabT'), s: v ? fmt(t('admLabS'), { n: v.n || 0 }) : '', on: () => go('lab') })));
 } });
 page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
@@ -407,6 +410,58 @@ page('secrets', { tab: 'sys', parent: 'sys', title: () => t('admSecrets'), rende
     if (its.length) p.append(grp(WHERE[w]()), list(...its.map(secRow)));
   }
   p.append(h('p', 'adm-foot', t('admScFoot')));
+} });
+/* ---- Studio: סוכנים ומודלים, שרתים ומשאבים (15/10/2026). של כל המערכת (30 יום, כל המשתמשים) — המגדל בסטודיו נשאר לעבודות שלי.
+   מספרים מצטברים בלבד מהשרתון (adminAgents/adminServers) ---- */
+async function needAg() {
+  const r = await api('adminAgents');
+  if (r.ok) { D.ag = { ag: r.ag, md: r.md }; if (['agents', 'studio'].includes(cur)) paint(); }
+}
+async function needSrv() {
+  const r = await api('adminServers');
+  if (r.ok) { D.srv = r.srv; if (['servers', 'studio'].includes(cur)) paint(); }
+}
+page('agents', { tab: 'apps', parent: 'studio', title: () => t('admStudioAgents'), render(p) {
+  const G = D.ag;
+  if (!G) { needAg(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  p.append(h('p', 'adm-dt', fmt(t('admAgDt'), { n: G.ag.jobs })));
+  const ag = G.ag.agents || [];
+  if (ag.length) p.append(grp(t('admAgSec')), list(...ag.map((a) => {
+    const sub = h('span'); if (a.m) sub.append(h('bdi', null, a.m), ' · '); sub.append((a.ef || '—') + ' · ' + fmt(t('admAgJobs'), { n: a.jobs, u: usd(a.usd) }));
+    return row({ c: a.sc == null ? 'gray' : a.sc >= 80 ? 'green' : a.sc >= 60 ? 'orange' : 'red', ic: '◇', t: (ROLE[a.k] || (() => a.k))(), s: sub, v: a.sc == null ? '—' : a.sc, tr: t('admAgScore') });
+  })));
+  else p.append(list(row({ c: 'gray', ic: '◇', t: t('admAgNone') })));
+  p.append(grp(t('admAgModes'), [t('admModels'), () => go('models')]), list(...G.md.modes.map((m) => row({ c: m.pub ? 'studio' : 'gray', ic: m.def ? '★' : '◎', t: modeName(m.m),
+    s: [m.pub ? t('admAgPub') : t('admAgList'), fmt(t('admAgN'), { n: m.n }), m.ok == null ? '' : pctTxt(m.ok)].filter(Boolean).join(' · '),
+    v: m.pha == null ? '' : usd(m.pha), tr: m.pha == null ? '' : t('admAgPerHr') }))));
+  const RK = { inj: () => t('admAgRInj'), cost: () => t('admAgRCost'), loop: () => t('admAgRLoop') };
+  p.append(grp(t('admAgRisk')), list(...(G.ag.risk || []).map((r) => row({ c: r.n ? 'orange' : 'green', ic: r.st === 's' ? '⏹' : '⚑', t: (RK[r.r] || (() => r.r))(), s: r.st === 's' ? t('admAgStop') : t('admAgMark'), v: r.n }))));
+  p.append(h('p', 'adm-foot', t('admAgFoot')));
+} });
+const SV_EV = { up: () => t('studioSrvEvUp'), job: () => t('studioSrvEvJob'), done: () => t('studioSrvEvDone'), fail: () => t('studioSrvEvFail'), stop: () => t('studioSrvEvStop'),
+  oom: () => t('studioSrvEvOom'), timeout: () => t('studioSrvEvTimeout'), crash: () => t('studioSrvEvCrash'), auth: () => t('studioSrvEvAuth'), net: () => t('studioSrvEvNet'),
+  warm: () => t('studioSrvEvWarm'), lost: () => t('studioSrvEvLost'), park: () => t('studioSrvEvPark') };
+const ISO = { mem: () => t('studioIsoMem'), missing: () => t('studioIsoMissing'), selftest: () => t('studioIsoSelftest'), manual: () => t('studioIsoManual') };
+const STG = { up: () => t('studioStgUp'), tr: () => t('studioStgTr'), al: () => t('studioStgAl'), tl: () => t('admRoleTl'), rv: () => t('studioStgRv'), bn: () => t('studioStgBn'), sv: () => t('studioStgSv') };
+const upTxt = (s) => (s == null ? '—' : s < 3600 ? fmt(t('admMinAgo'), { n: Math.round(s / 60) }) : s < 86400 ? fmt(t('admHrAgo'), { n: Math.round(s / 3600) }) : fmt(t('admDayAgo'), { n: Math.round(s / 86400) }));
+page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'), render(p) {
+  const V = D.srv;
+  if (!V) { needSrv(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  p.append(h('p', 'adm-dt', fmt(t('admSvS'), { n: V.online, m: V.servers.length })));
+  if (!V.servers.length) p.append(list(row({ c: 'gray', ic: '☁', t: t('admSvNone') })));
+  for (const x of V.servers) {
+    const hb = x.hb || {};
+    const st = x.warn.includes('auth') ? ['red', t('admSvAuth')] : x.paused ? ['gray', t('admRunPaused')] : x.online ? ['green', x.job ? fmt(t('admSvBusy'), { s: (STG[x.job.st] || (() => '—'))() }) + (x.job.p != null ? ' · ' + Math.round(x.job.p * 100) + '%' : '') : t('admSvIdle')] : ['red', t('admSvDown')];
+    const rows = [row({ c: st[0], ic: '◉', t: st[1], s: fmt(t('admItLast'), { a: ago(x.seen) }) + (hb.v ? ' · ' + hb.v : '') })];
+    if (hb.disk != null) rows.push(row({ c: x.warn.includes('disk') ? 'orange' : 'gray', ic: '▤', t: t('admSvDisk'), s: hb.free != null ? fmt(t('admSvFree'), { n: hb.free }) : '', v: Math.round(hb.disk) + '%', meter: [hb.disk, hb.disk >= 85 ? 'w' : ''] }));
+    if (hb.mem != null) rows.push(row({ c: x.warn.includes('mem') ? 'orange' : 'gray', ic: '▦', t: t('admSvMem'), v: Math.round(hb.mem) + '%', meter: [hb.mem, hb.mem >= 90 ? 'w' : ''] }));
+    if (hb.load != null) rows.push(row({ c: 'gray', ic: '∿', t: t('admSvLoad'), s: hb.up != null ? fmt(t('admSvUp'), { a: upTxt(hb.up) }) : '', v: hb.load }));
+    if (hb.iso) rows.push(row({ c: hb.iso === 'g' ? 'green' : 'orange', ic: '⛨', t: hb.iso === 'g' ? t('studioIsoG') : (ISO[hb.iw] || (() => t('studioIsoR')))(), s: hb.al === 'o' ? t('admSvAlO') : hb.al === 't' ? t('admSvAlT') : '' }));
+    if (hb.ev && hb.ev.length) rows.push(row({ c: 'gray', ic: '☰', t: t('studioSrvEvT'), s: hb.ev.slice(-3).reverse().map((e) => (SV_EV[e[1]] || (() => e[1]))()).join(' · ') }));
+    p.append(grp(x.n), list(...rows));
+  }
+  p.append(list(row({ c: 'gray', ic: '↗', t: t('admSvRebuild'), s: t('admSvRebuildS'), on: () => { try { window.open('https://github.com/yishaiguedj1/portfolio-pwa/actions/workflows/server.yml', '_blank', 'noopener'); } catch (e) {} } })),
+    h('p', 'adm-foot', t('admSvFoot')));
 } });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */

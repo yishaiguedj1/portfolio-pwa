@@ -3600,6 +3600,11 @@ function stubFetch(text, status = 200) {
       const ckR = await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: 'no', note: 'לא <נפתח>', t: 'עותק לוואטסאפ' });
       const ckDoc = db.get('sysChecks/abcdef012345');
       ok(ckR.payload.ok && ckDoc && ckDoc.fields.st.stringValue === 'no' && ckDoc.fields.n.stringValue === 'לא נפתח', 'בדיקות בטלפון: "לא עובד" נשמר עם הערה נקייה');
+      ok((await run({ op: 'adminAgents', idToken: FRIEND })).payload.error === 'not_admin' && (await run({ op: 'adminServers', idToken: FRIEND })).payload.error === 'not_admin', 'סוכנים ושרתים: רק המנהל');
+      const agR = await run({ op: 'adminAgents', idToken: OWNER });
+      ok(agR.payload.ok && Array.isArray(agR.payload.md.modes) && agR.payload.md.modes.length >= 4 && Array.isArray(agR.payload.ag.agents) && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(agR.payload)), 'סוכנים ומודלים: כל המצבים, בלי uid ומיילים');
+      const svR = await run({ op: 'adminServers', idToken: OWNER });
+      ok(svR.payload.ok && Array.isArray(svR.payload.srv.servers) && !/ownerUid0001|"th"|"by"/.test(JSON.stringify(svR.payload)), 'שרתים ומשאבים: בלי uid ובלי hash של טוקן');
       ok((await run({ op: 'adminSecrets', idToken: FRIEND })).payload.error === 'not_admin', 'סודות: רק המנהל');
       const scR = await run({ op: 'adminSecrets', idToken: OWNER });
       ok(scR.payload.ok && scR.payload.sec.items.find((x) => x.k === 'sa').set === true && !JSON.stringify(scR.payload).includes(String(process.env.GDRIVE_SA_KEY || '').slice(0, 20) || '§'), 'סודות: "מוגדר" בלי הערך');
