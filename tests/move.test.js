@@ -59,6 +59,17 @@ const VERCEL = 'https://ibkr-proxy-wine.vercel.app', API = 'https://api.thesnowb
     const w2 = envAt('invest.thesnowball.app', f2, ss);
     r = await w2.fetch(API + '/api/studio', { method: 'POST' });
     ok(r.status === 503 && calls.length === 1, 'השרת ענה (גם 5xx) — הבקשה כבר הגיעה, לא שולחים שוב (בלי כפילות של פעולה)');
+    // 15/10/2026: 421 = שרת בלי המפתחות של מאגר הלמידה — אותה בקשה (אותו גוף) ל־Vercel, בלי לסמן את השרת כנופל
+    const bodies = [];
+    const f3 = (url, init) => { calls.push(url); bodies.push(init && init.body); return Promise.resolve({ status: url.startsWith(API) ? 421 : 200, url }); };
+    calls.length = 0; ss.m = {};
+    const w3 = envAt('invest.thesnowball.app', f3, ss);
+    r = await w3.fetch(API + '/api/studio', { method: 'POST', body: '{"op":"learnForget"}' });
+    ok(r.status === 200 && calls.join() === [API + '/api/studio', VERCEL + '/api/studio'].join() && bodies[1] === '{"op":"learnForget"}' && !ss.m.snb_api_down,
+      '421 מהשרת — אותה בקשה ל־Vercel; השרת לא מסומן כנופל');
+    calls.length = 0;
+    await w3.fetch(API + '/api/quotes', {});
+    ok(calls[0] === API + '/api/quotes', 'אחרי 421 — הבקשה הבאה שוב לשרת שלנו');
   }
 
   // ---------- CSP, רשימת המקורות בשרתון, assetlinks

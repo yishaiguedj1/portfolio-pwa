@@ -84,7 +84,10 @@
       if (url.indexOf(primary + '/') !== 0 || /\/api\/session(\b|$)/.test(url)) return orig.call(win, input, init);
       var alt = backup + url.slice(primary.length);
       if (isDown()) return orig.call(win, alt, init);
-      return orig.call(win, input, init).catch(function (e) {
+      /* 421 = "הבקשה הזו לא כאן" — שרת שהוקם בלי המפתחות של מאגר הלמידה (SNB_LEARN_REMOTE ב־api/studio.js). השרתון
+         עונה לפני כל שינוי, ואותה בקשה הולכת ל־Vercel — רק היא, בלי לסמן את השרת כנופל */
+      var redo = function (r) { return r && r.status === 421 ? orig.call(win, alt, init) : r; };
+      return orig.call(win, input, init).then(redo, function (e) {
         var sig = init && init.signal;
         if ((e && e.name === 'AbortError') || (sig && sig.aborted)) throw e;
         if (win.navigator && win.navigator.onLine === false) throw e;
