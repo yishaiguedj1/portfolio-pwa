@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (611 מפתחות מתוך 2967) */
+/* המחרוזות של academy (612 מפתחות מתוך 3006) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -280,6 +280,7 @@ he: {
   "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "loginSubAcademy": "מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר",
   "loginSubStudio": "מתחברים פעם אחת — העבודות והתרגומים נשמרים בענן ומסונכרנים בכל מכשיר",
+  "maintBar": "עבודות תחזוקה",
   "menuAria": "תפריט ראשי",
   "menuCloseAria": "סגירת התפריט",
   "menuLibrarySub": "מכתבים וספרים",
@@ -893,6 +894,7 @@ en: {
   "loginFailed": "Sign-in failed — try again",
   "loginSubAcademy": "Sign in once — your library, progress and highlights are saved in the cloud and synced on every device",
   "loginSubStudio": "Sign in once — your jobs and translations are saved in the cloud and synced on every device",
+  "maintBar": "Maintenance",
   "menuAria": "Main menu",
   "menuCloseAria": "Close menu",
   "menuLibrarySub": "Letters & books",

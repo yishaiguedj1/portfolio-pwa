@@ -1800,3 +1800,15 @@ html.lib-open, html.lib-open body { overflow: hidden; }
 html.booting main, html.booting .tabs, html.booting .appbar-left { visibility: hidden; animation: snbBootShow 0s 5s forwards; }
 @keyframes snbBootShow { to { visibility: visible; } }
 html.booting *, html.booting *::before, html.booting *::after { transition: none !important; }   /* מצב הלשוניות/הכפתורים נקבע לפני הציור — בלי "דהייה" שממשיכה אחריו */
+
+/* 15/10/2026: מצב תחזוקה (מרכז הניהול) — פס קבוע בתחתית המסך בשלוש האפליקציות (כמו "סביבת ניסוי", ומעליו כששניהם);
+   לא תופס מקום בפריסה ולא חוסם נגיעות. למעלה הוא כיסה את קפסולת מצב השוק ואת הלוגו */
+.maint-strip {
+  position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); inset-inline-start: 50%;
+  transform: translateX(50%); z-index: 2000; pointer-events: none; max-width: calc(100vw - 32px);
+  padding: 3px 12px; border-radius: var(--pill); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #FF9F0A; color: #1A1000; font-size: 12px; font-weight: 700; line-height: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+.maint-strip.env-up { bottom: calc(env(safe-area-inset-bottom, 0px) + 38px); }
+[dir="ltr"] .maint-strip { transform: translateX(-50%); }

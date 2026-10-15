@@ -47,6 +47,7 @@ const side = h('nav', 'adm-side');
 const tabs = h('nav', 'adm-tabs');
 const wrap = h('div', 'adm-wrap'); wrap.append(side, root);
 document.body.append(shell.el, wrap, tabs);
+if (typeof sysCfgBoot === 'function') sysCfgBoot();   // 15/10/2026: הפס של מצב התחזוקה — גם כאן, כדי לזכור לכבות
 const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
 
 /* ---------------- הניווט (15/10/2026, התצוגה המקדימה שאושרה) ----------------
@@ -54,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -272,8 +273,74 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: !D.rd ? 'gray' : D.rd.pass === D.rd.n ? 'green' : D.rd.checks[0].sev === 1 ? 'red' : 'orange', ic: '✓', t: t('admRdT'), s: D.rd ? fmt(t('admRdS'), { p: D.rd.pass, n: D.rd.n }) : t('admLoading'), badge: D.rd ? D.rd.n - D.rd.pass : 0, on: () => go('ready') }),
     row({ c: !D.push ? 'gray' : D.push.n && D.push.me ? 'green' : 'orange', ic: '◉', t: t('admPushT'), s: !D.push ? '' : !D.push.n ? t('admPushOffS') : !D.push.me ? t('admPushNotMe') : fmt(t('admPushOnS'), { n: D.push.n }), on: () => go('push') }),
     row({ c: dep ? 'orange' : 'green', ic: '⇪', t: t('admInfra'), s: dep ? t('admItDeploy') : prod && prod.v.b ? fmt(t('admRunBuild'), { b: prod.v.b }) + (stag && stag.v.ahead === 1 ? ' · ' + t('admRunAhead1') : stag && stag.v.ahead > 1 ? ' · ' + fmt(t('admRunAhead'), { n: stag.v.ahead }) : '') : '', badge: dep ? 1 : 0, on: () => go('infra') })));
-  p.append(grp(t('admSecCtl')), list(soonRow('gray', '⚙', t('admCfg')), soonRow('red', '⏻', t('admMaint'))));
+  if (!D.cfg) needCfg();
+  const cf = D.cfg, mOn = !!(cf && cf.m), nOff = cf ? cf.flags.filter((f) => !f.on).length : 0;
+  p.append(grp(t('admSecCtl')), list(
+    row({ c: mOn ? 'red' : 'gray', ic: '⏻', t: t('admMaint'), s: !cf ? t('admLoading') : mOn ? t('admMaintOn') + (cf.m.msg ? ' · ' + cf.m.msg : '') : t('admMaintOffS'), badge: mOn ? 1 : 0, on: () => go('maint') }),
+    row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') })));
   p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
+} });
+/* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
+   השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */
+async function needCfg(set) {
+  const r = await api('adminCfg', set ? { set } : {});
+  if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'sys'].includes(cur)) paint(); }
+  return r;
+}
+const clock = (ms) => new Date(ms).toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
+page('maint', { tab: 'sys', parent: 'sys', title: () => t('admMaint'), render(p) {
+  const cf = D.cfg;
+  if (!cf) { needCfg(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const mt = cf.mt, on = !!cf.m;
+  const card = h('section', 'card adm-card');
+  card.append(h('h2', null, on ? t('admMaintOn') : t('admMaintOff')),
+    h('p', 'adm-sub', on ? fmt(t('admMaintSince'), { a: ago(mt.at) }) + (mt.til ? ' · ' + fmt(t('admMaintTil'), { t: clock(mt.til) }) : '') : t('admMaintOffS')));
+  const msg = h('textarea', 'adm-search adm-note-in'); msg.rows = 2; msg.maxLength = 140; msg.placeholder = t('admMaintMsgP'); msg.setAttribute('dir', 'auto'); msg.value = mt.msg || '';
+  let dur = 0;
+  const seg = h('div', 'adm-seg');
+  const DUR = [[0, t('admMaintDurInf')], [30, t('admMaintDur30')], [60, t('admMaintDur60')], [180, t('admMaintDur180')]];
+  const paintSeg = () => [...seg.children].forEach((b, i) => b.setAttribute('aria-pressed', DUR[i][0] === dur ? 'true' : 'false'));
+  for (const [m, lbl] of DUR) { const b = h('button', 'mini-btn', lbl); b.type = 'button'; b.addEventListener('click', () => { dur = m; paintSeg(); }); seg.append(b); }
+  paintSeg();
+  const br = h('div', 'btn-row');
+  const save = async (want) => {
+    const r = await needCfg({ mt: { on: want, msg: msg.value, til: want && dur ? Date.now() + dur * 60e3 : 0 } });
+    flash(r.ok ? t('admSaved') : t('admErr'));
+  };
+  if (on) {
+    const upd = h('button', 'btn secondary-btn', t('admMaintUpd')); upd.type = 'button'; upd.addEventListener('click', () => save(true));
+    const off = h('button', 'btn', t('admMaintStop')); off.type = 'button'; off.addEventListener('click', () => save(false));
+    br.append(off, upd);
+    card.append(h('div', 'adm-lbl', t('admMaintMsgL')), msg, br);
+  } else {
+    const go2 = h('button', 'btn danger-btn', t('admMaintGo')); go2.type = 'button';
+    go2.addEventListener('click', () => askConfirm(t('admMaintQ'), () => save(true), { danger: true, ok: t('admMaintGo') }));
+    br.append(go2);
+    card.append(h('div', 'adm-lbl', t('admMaintMsgL')), msg, h('div', 'adm-lbl', t('admMaintDur')), seg, br);
+  }
+  p.append(card, h('p', 'adm-foot', t('admMaintFoot')));
+} });
+const FL = {
+  st_api: [() => t('admFlStApi'), () => t('admFlStApiS')], st_routine: [() => t('admFlStRt'), () => t('admFlStRtS')],
+  st_auto: [() => t('admFlStAuto'), () => t('admFlStAutoS')], learn: [() => t('admFlLearn'), () => t('admFlLearnS')],
+  push: [() => t('admFlPush'), () => t('admFlPushS')], iv_live: [() => t('admFlLive'), () => t('admFlLiveS')],
+};
+const APPN = { studio: 'Studio', invest: 'Invest', all: () => t('admFlAll') };
+page('flags', { tab: 'sys', parent: 'sys', title: () => t('admCfg'), render(p) {
+  const cf = D.cfg;
+  if (!cf) { needCfg(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const rows = cf.flags.filter((f) => FL[f.k]).map((f) => {
+    const r = h('div', 'adm-r adm-flr');   // בלי אייקון — המתג עצמו מראה את המצב (מינימליזם)
+    const m = h('span', 'adm-m'), tx = h('span', 'adm-tx');
+    const an = APPN[f.app];
+    tx.append(h('b', null, FL[f.k][0]()), h('small', null, (typeof an === 'function' ? an() : an) + ' · ' + FL[f.k][1]()));
+    const sw = h('button', 'adm-sw'); sw.type = 'button'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', f.on ? 'true' : 'false'); sw.setAttribute('aria-label', FL[f.k][0]()); sw.append(h('i'));
+    const set = async (on) => { sw.disabled = true; const r2 = await needCfg({ flag: f.k, on }); sw.disabled = false; flash(r2.ok ? t('admSaved') : t('admErr')); };
+    sw.addEventListener('click', () => (f.on ? askConfirm(fmt(t('admFlOffQ'), { n: FL[f.k][0]() }), () => set(false), { danger: true, ok: t('admFlOff') }) : set(true)));
+    m.append(tx, sw); r.append(m);
+    return r;
+  });
+  p.append(list(...rows), h('p', 'adm-foot', t('admFlFoot')));
 } });
 page('infra', { tab: 'sys', parent: 'sys', title: () => t('admInfra'), render(p) {
   const o = D.ov;

@@ -98,6 +98,40 @@ function ibkrProxyHeaders() {
   if (k) h['X-App-Key'] = k;
   return h;
 }
+/* 15/10/2026 (בקשת המשתמש, מהמחקר על ServiceNow): מצב תחזוקה והגדרות ודגלים — מהשרתון (op ציבורי cfg, בלי התחברות),
+   לשלוש האפליקציות. במטמון בטלפון (LS_SYSCFG — מטמון, לא נתון אישי) כדי שהפס יופיע כבר בפריים הראשון; נבדק שוב בכל
+   חזרה לאפליקציה. snbFlag(k) — דגל שלא ידוע (אין חיבור, אין מטמון) = דולק. בזמן תחזוקה — פס קבוע למעלה, בלי לחסום נגיעות */
+const LS_SYSCFG = 'pwa_syscfg_v1';
+let _sysCfg = null;
+function sysCfgCached() {
+  if (_sysCfg) return _sysCfg;
+  try { _sysCfg = JSON.parse(localStorage.getItem(LS_SYSCFG) || 'null'); } catch (e) { _sysCfg = null; }
+  return _sysCfg;
+}
+function snbFlag(k) { const c = sysCfgCached(); return !(c && c.f && c.f[k] === false); }
+function maintPaint(c) {
+  if (typeof document === 'undefined' || !document.body) return;
+  let el = document.querySelector('.maint-strip');
+  const m = c && c.m;
+  if (!(m && m.on && !(m.til && Date.now() > m.til))) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.className = 'maint-strip'; el.setAttribute('role', 'status'); document.body.prepend(el); }
+  el.classList.toggle('env-up', !!document.querySelector('.env-strip'));   // בסביבת הניסוי — מעל הפס שלה
+  el.textContent = t('maintBar') + (m.msg ? ' · ' + m.msg : '');
+}
+let _sysCfgWired = false;
+function sysCfgBoot() {
+  maintPaint(sysCfgCached());
+  if (typeof fetch !== 'function') return;
+  const go = () => fetch(ibkrProxyBase() + '/api/studio', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify({ op: 'cfg' }) })
+    .then((r) => r.json()).then((j) => {
+      if (!j || !j.ok || !j.cfg) return;
+      _sysCfg = j.cfg;
+      try { localStorage.setItem(LS_SYSCFG, JSON.stringify(j.cfg)); } catch (e) {}
+      maintPaint(j.cfg);
+    }).catch(() => {});
+  go();
+  if (!_sysCfgWired && typeof document !== 'undefined') { _sysCfgWired = true; document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); }); }
+}
 
 function dlgAvailable() {
   return typeof document !== 'undefined' && !!document.body && typeof document.body.appendChild === 'function' &&
