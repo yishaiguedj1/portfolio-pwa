@@ -19,10 +19,11 @@ const SCOPE = {
 };
 /* חריגים לפי op: הגיבוי של Invest ל־Drive (pfbackup.js) עובר דרך פעולות gd* של /api/library;
    op:'cfg' של /api/studio = מצב התחזוקה והדגלים הציבוריים — כל שלוש האפליקציות טוענות אותו (core.js);
+   op:'fbSend' = משוב מההגדרות של כל אפליקציה (15/10/2026);
    op:'devErr' = שגיאות JavaScript מהטלפון (האיסוף המלא, 15/10/2026) — מכל אפליקציה, השרתון מקבל רק של המנהל */
 function scopeFor(name, op) {
   if (name === 'library' && /^gd[A-Z]/.test(String(op || ''))) return ['academy', 'invest'];
-  if (name === 'studio' && (op === 'cfg' || op === 'devErr')) return null;   // devErr = שגיאות מהטלפון (האיסוף המלא) — מ־Academy ומ־Studio, רק של המנהל
+  if (name === 'studio' && (op === 'cfg' || op === 'devErr' || op === 'fbSend')) return null;   // fbSend = משוב מההגדרות של כל אפליקציה   // devErr = שגיאות מהטלפון (האיסוף המלא) — מ־Academy ומ־Studio, רק של המנהל
   return SCOPE[name] || null;
 }
 function endpointOf(url) {

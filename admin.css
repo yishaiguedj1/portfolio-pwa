@@ -106,3 +106,10 @@ html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 @media (prefers-reduced-motion: reduce) { .adm .adm-sw, .adm .adm-sw i { transition: none; } }
 /* הפס של מצב התחזוקה — מעל שורת הלשוניות בטלפון */
 @media (max-width: 899px) { html[data-app="admin"] .maint-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 74px); } html[data-app="admin"] .maint-strip.env-up { bottom: calc(env(safe-area-inset-bottom, 0px) + 102px); } }
+/* 15/10/2026: משוב ופניות */
+.adm-fb.done { opacity: .72; }
+.adm-fbtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.adm-fbtop small { color: var(--on-surface-var); font-size: 12.5px; }
+.adm-chip { color: #fff; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: var(--pill); }
+.adm-fbtx { margin: 0 0 8px; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.45; }
+

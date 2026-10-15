@@ -14,6 +14,8 @@ on:
     paths:
       - 'translator/**'
       - 'infra/worker/**'
+      - 'infra/host/snb-common.sh'   # נארז בתמונה לעדכון ידני של הגדרת השרת (snb-host-apply)
+      - 'infra/compose.yaml'
       - '.github/workflows/worker-image.yml'
   workflow_dispatch:
 

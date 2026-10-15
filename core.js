@@ -164,9 +164,93 @@ function sysCfgBoot() {
       _sysCfg = j.cfg;
       try { localStorage.setItem(LS_SYSCFG, JSON.stringify(j.cfg)); } catch (e) {}
       maintPaint(j.cfg);
+      setTimeout(() => newsShow(j.cfg), 1800);   // אחרי שהדף נפתח — לא מעל מסך הפתיחה
     }).catch(() => {});
   go();
   if (!_sysCfgWired && typeof document !== 'undefined') { _sysCfgWired = true; document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); }); }
+}
+/* 15/10/2026 (מרכז הניהול ← משוב ופניות, בקשת המשתמש): שורת "שליחת משוב" בהגדרות של שלוש האפליקציות → חלון קטן:
+   סוג (בעיה / רעיון / אחר) + טקסט. נשלח ל־op:'fbSend' (כל משתמש מחובר), יחד עם האפליקציה והגרסה; המנהל רואה במרכז הניהול */
+const appName = () => (typeof document !== 'undefined' && document.documentElement && document.documentElement.dataset.app) || 'invest';
+async function fbIdToken() {
+  try {
+    const A = typeof window !== 'undefined' && window.SnbAuth;
+    const u = A && A.user ? A.user() : (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.auth().currentUser);
+    return u ? await u.getIdToken() : '';
+  } catch (e) { return ''; }
+}
+function feedbackOpen() {
+  if (typeof document === 'undefined') return;
+  const box = document.createElement('div'); box.className = 'fb-form';
+  const seg = document.createElement('div'); seg.className = 'fb-seg';
+  let kind = 'bug';
+  const K = [['bug', t('fbKBug')], ['idea', t('fbKIdea')], ['other', t('fbKOther')]];
+  const paint = () => [...seg.children].forEach((b, i) => b.setAttribute('aria-pressed', K[i][0] === kind ? 'true' : 'false'));
+  for (const [k, lbl] of K) { const b = document.createElement('button'); b.type = 'button'; b.className = 'mini-btn'; b.textContent = lbl; b.addEventListener('click', () => { kind = k; paint(); }); seg.appendChild(b); }
+  paint();
+  const ta = document.createElement('textarea'); ta.className = 'fb-in'; ta.rows = 4; ta.maxLength = 1000; ta.setAttribute('dir', 'auto'); ta.placeholder = t('fbPh'); ta.setAttribute('aria-label', t('fbPh'));
+  const meta = document.createElement('p'); meta.className = 'fb-meta';
+  meta.textContent = t('fbMeta').replace('{a}', appName().replace(/^./, (c) => c.toUpperCase())).replace('{v}', (typeof APP_RELEASE !== 'undefined' ? APP_RELEASE : '') + ' (' + String(typeof APP_VERSION !== 'undefined' ? APP_VERSION : '').replace(/^v/, '') + ')');
+  box.append(seg, ta, meta);
+  askConfirm(t('fbTitle'), async () => {
+    const tk = await fbIdToken();
+    if (!tk) { askAlert(t('fbSignIn')); return; }
+    try {
+      const body = { op: 'fbSend', idToken: tk, k: kind, t: ta.value, app: appName(), ver: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '', ua: String(navigator.userAgent || '').slice(0, 200) };
+      const r = await fetch(ibkrProxyBase() + '/api/studio', { method: 'POST', headers: ibkrProxyHeaders(), body: JSON.stringify(Object.assign({ op: 'fbSend' }, body)) });
+      const j = await r.json().catch(() => null);
+      flash(j && j.ok ? t('fbThanks') : t('fbErr'));
+    } catch (e) { flash(t('fbErr')); }
+  }, { body: box, ok: t('fbSend'), onOpen: (ok) => {
+    ok.disabled = true;
+    ta.addEventListener('input', () => { ok.disabled = ta.value.trim().length < 3; });
+    setTimeout(() => { try { ta.focus({ preventScroll: true }); } catch (e) {} }, 60);
+  } });
+}
+/* השורה בהגדרות — אותו מבנה של "אפשרויות מתקדמות" (.row-link). ב־Invest בתוך #advancedCard (index.html), ב־Academy/Studio ב־advancedRow */
+const FB_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+/* 15/10/2026 (מרכז הניהול ← הודעות): ההודעה שהמנהל כתב (cfg.an — פעם אחת בכל מכשיר לכל הודעה), ואחריה "מה חדש" אחרי שחרור לייצור:
+   השורות של הגרסה מ־CHANGELOG.md (מתפרסם עם האתר) — פעם אחת לכל גרסה, לא בהתקנה ראשונה. בלי חלון בזמן שחלון אחר פתוח */
+const LS_ANSEEN = 'pwa_anseen_v1', LS_RELSEEN = 'pwa_relseen_v1';
+let _newsBusy = false;
+function changelogItems(md, rel) {
+  const lines = String(md || '').split('\n');
+  const i = lines.findIndex((l) => l.startsWith('## ' + rel + ' '));
+  if (i < 0) return [];
+  const out = [];
+  for (let k = i + 1; k < lines.length && !lines[k].startsWith('## '); k++) {
+    const m = /^- (.+)/.exec(lines[k]);
+    if (!m) continue;
+    let x = m[1].replace(/\*\*/g, '').replace(/`/g, '').trim();
+    const cut = [' — ', ' ('].map((d) => x.indexOf(d)).filter((i) => i > 8).sort((a, b) => a - b)[0];   // רק הכותרת של השורה
+    if (cut) x = x.slice(0, cut);
+    out.push(x.length > 90 ? x.slice(0, 88).trim() + '…' : x);
+  }
+  return out.slice(0, 5);
+}
+function newsShow(c) {
+  if (_newsBusy || typeof document === 'undefined' || document.hidden || document.querySelector('.dlg-veil')) return;
+  const app = appName();
+  if (!['invest', 'academy', 'studio'].includes(app)) return;
+  const get = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+  const set = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const an = c && c.an;
+  if (an && an.apps && an.apps.includes(app) && get(LS_ANSEEN) !== String(an.id)) {
+    _newsBusy = true; set(LS_ANSEEN, String(an.id));
+    askAlert([an.t, an.b].filter(Boolean).join('\n\n'), () => { _newsBusy = false; setTimeout(() => newsShow(c), 400); });
+    return;
+  }
+  const rel = typeof APP_RELEASE !== 'undefined' ? APP_RELEASE : '';
+  const seen = get(LS_RELSEEN);
+  if (!rel || seen === rel) return;
+  set(LS_RELSEEN, rel);
+  if (!seen || getLang() !== 'he' || typeof fetch !== 'function') return;   // התקנה ראשונה — בלי "מה חדש"; הרשימה בעברית בלבד
+  _newsBusy = true;
+  fetch('CHANGELOG.md', { cache: 'no-store' }).then((r) => (r.ok ? r.text() : '')).then((md) => {
+    const items = changelogItems(md, rel);
+    if (!items.length || document.querySelector('.dlg-veil')) { _newsBusy = false; return; }
+    askAlert(t('newsT').replace('{v}', rel) + '\n\n' + items.map((x) => '• ' + x).join('\n'), () => { _newsBusy = false; });
+  }).catch(() => { _newsBusy = false; });
 }
 
 function dlgAvailable() {
@@ -199,6 +283,7 @@ function askConfirm(msg, onYes, opts) {
   const cancel = o.alert ? null : mk('dlg-cancel', o.cancel || t('btnCancel'));
   const ok = mk('dlg-ok' + (o.danger ? ' danger' : ''), o.ok || (o.alert ? t('btnClose') : t('btnOk')));
   box.appendChild(p);
+  if (o.body) box.appendChild(o.body);   // 15/10/2026: תוכן נוסף בחלון (טופס המשוב)
   box.appendChild(btns);
   veil.appendChild(box);
   document.body.appendChild(veil);
@@ -225,7 +310,8 @@ function askConfirm(msg, onYes, opts) {
   if (cancel) cancel.addEventListener('click', () => done(false));
   veil.addEventListener('click', (e) => { if (e.target === veil) done(false); });
   document.addEventListener('keydown', onKey, true);
-  setTimeout(() => { try { ok.focus({ preventScroll: true }); } catch (e) {} }, 30);
+  if (o.onOpen) o.onOpen(ok);
+  else setTimeout(() => { try { ok.focus({ preventScroll: true }); } catch (e) {} }, 30);
 }
 function askAlert(msg, then) { askConfirm(msg, then || null, { alert: true }); }
 function askConfirmP(msg, opts) {
@@ -237,8 +323,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.11.0';
-const APP_VERSION = 'v441';
+const APP_RELEASE = '2.12.0';
+const APP_VERSION = 'v443';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');

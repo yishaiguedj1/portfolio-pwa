@@ -27,13 +27,19 @@ snb_limits() {
 	# ת3: השרתון של הייצור (768MB) וה־Tunnel שלו (256MB)
 	case ",$COMPOSE_PROFILES," in *,app,*|*,tunnel-prod,*) m=$((m - 1100)) ;; esac
 	[ "$m" -ge 1024 ] || m=1024
-	SNB_CPUS=$c SNB_MEM=${m}m SNB_CPUS_STG=$c SNB_MEM_STG=${m}m
+	# 16/10/2026 — חלוקה לפי המודל של cgroup v2 (כמו requests/limits ב־Kubernetes), עם מירב הביצועים לעבודה:
+	#   מעבד = משאב שאפשר לחלק בזמן: תקרה (cpus) = כל הליבות לכל עובד — עבודה לבד מקבלת הכל, בלי throttling.
+	#     בעומס המשקלים (cpu_shares ב־compose) מחלקים: השרתונים 2048 > הייצור 1024 > הניסוי 512.
+	#   זיכרון = משאב שאי אפשר לקחת בחזרה: לכל עובד שריון (mem_reservation = memory.low — מה שמובטח לו בעומס,
+	#     לפחות שיא של עבודה: היישור ב־ONNX 4.2GB תחת gVisor) ותקרה (mem_limit = memory.max — מה שפנוי, לזיכרון
+	#     המטמון של הקבצים והמודלים). תקרה של אחד + שריון של השני = כל הזיכרון ⇒ שני עובדים בשיא לא מגיעים ל־OOM.
+	#   עד 16/10 הניסוי קיבל 1.5 ליבות ו־3GB: תמלול 8:47 דק׳ = 91 שנ׳, shots = 137 שנ׳, והיישור נהרג (worker_step).
+	SNB_CPUS=$c SNB_MEM=${m}m SNB_MEMR=${m}m SNB_CPUS_STG=$c SNB_MEM_STG=${m}m SNB_MEMR_STG=${m}m
 	case ",$COMPOSE_PROFILES," in *,prod,*,stg-worker,*|*,prod,stg-worker,*)
-		SNB_CPUS_STG=1.5; SNB_MEM_STG=3072m
-		SNB_CPUS=$(awk -v c="$c" 'BEGIN{printf "%.1f", (c > 2.5 ? c - 1.5 : 1)}')
-		m=$((m - 3072)); [ "$m" -ge 1024 ] || m=1024; SNB_MEM=${m}m ;;
+		r=$((m * 35 / 100)); [ "$r" -ge 4608 ] || r=4608; [ "$r" -le 8192 ] || r=8192; [ "$r" -le $((m / 2)) ] || r=$((m / 2))
+		SNB_MEM=$((m - r))m SNB_MEMR=${r}m SNB_MEM_STG=$((m - r))m SNB_MEMR_STG=${r}m ;;
 	esac
-	export SNB_CPUS SNB_MEM SNB_CPUS_STG SNB_MEM_STG
+	export SNB_CPUS SNB_MEM SNB_MEMR SNB_CPUS_STG SNB_MEM_STG SNB_MEMR_STG
 }
 
 # החדרים — לפי קובצי הסודות שיש בשרת (compose.yaml: profiles). בלי קובץ = החדר כבוי.

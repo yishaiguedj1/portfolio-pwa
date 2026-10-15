@@ -2706,6 +2706,33 @@ def ladder_running():
         return False
 
 
+def ladder_boost():
+    """16/10/2026: העבודה הגיעה לסוף ומחכה רק לאיכויות — מעבירים את התהליך שלהן (וכל ffmpeg שבקבוצה) מ־SCHED_IDLE
+    לעדיפות רגילה עם nice 15. ב־SCHED_IDLE הן מקבלות מעבד רק כשאף תהליך אחר בשרת לא רוצה אותו, וכשעובד אחר עסוק
+    finish חיכה סתם עד LADDER_WAIT. משתמש בלי הרשאות יוצא מ־SCHED_IDLE רק כש־RLIMIT_NICE מתיר (compose: ulimits nice 20 —
+    עד nice 0, לא מעל רגיל); בלי זה (שרת שהוקם לפני כן) — EPERM ונשאר כמו שהיה. מחזיר כמה תהליכונים הועלו."""
+    try:
+        pg = int((LADDER_DIR / 'pid').read_text())
+    except (OSError, ValueError):
+        return 0
+    n = 0
+    for d in Path('/proc').iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            if int((d / 'stat').read_text().rsplit(')', 1)[1].split()[2]) != pg:     # pgrp
+                continue
+            for t in (d / 'task').iterdir():
+                try:
+                    os.sched_setscheduler(int(t.name), os.SCHED_OTHER, os.sched_param(0))
+                    n += 1
+                except (AttributeError, OSError):
+                    pass
+        except (OSError, ValueError, IndexError):
+            continue
+    return n
+
+
 def ladder_stop():
     """עוצר בנייה שרצה ברקע (קבוצת התהליכים כולה — גם ffmpeg). בסוף עבודה / ניקוי."""
     if ladder_running():
@@ -2772,6 +2799,8 @@ def ladder_finish(ctx):
     if not st or st.get('job') != ctx.st['job']:
         return None
     waited = 0
+    if st.get('s') == 'run' and ladder_running():
+        ladder_boost()                           # עכשיו רק הן נשארו — לא לחכות למעבד "פנוי לגמרי"
     while st.get('s') == 'run' and ladder_running() and waited < LADDER_WAIT:
         ctx.report('sv', None, 'מכינים איכויות צפייה')
         time.sleep(5)

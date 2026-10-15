@@ -1,0 +1,30 @@
+#!/bin/sh
+# עדכון ידני וחד־פעמי של הגדרת השרת, בלי שרת חדש (16/10/2026, בקשת המשתמש).
+# עד היום infra/host ו־compose.yaml נכתבו רק בהקמה (cloud-init) — כל שינוי בהם = שרת חדש.
+# הקבצים נארזים בתמונת העובד החתומה (/opt/snb-host) כנתונים בלבד: שום דבר בשרת לא מריץ אותם לבד.
+# מריצים רק במסוף של Hetzner, ביד (ההודעות באנגלית — המסוף לא מציג עברית):
+#   docker run --rm -u0 -v /:/h --entrypoint /opt/snb-host/apply ghcr.io/yishaiguedj1/snb-worker:prod
+#   snb-update
+# מסרב כשעבודת תרגום רצה (שינוי ב־compose בונה את הקונטיינר מחדש = העבודה נקטעת).
+set -eu
+H=${SNB_HOST_ROOT:-/h}
+S=${SNB_HOST_SRC:-/opt/snb-host}
+[ -d "$H/opt/snb" ] && [ -d "$H/usr/local/lib/snb" ] || { echo "Run with: -v /:/h (server root not mounted)"; exit 1; }
+for v in snb_work snb_work-stg; do
+	if [ -e "$H/var/lib/docker/volumes/$v/_data/.busy" ]; then
+		echo "A translation job is running ($v). Stop it in Studio or wait, then run again."; exit 1
+	fi
+done
+n=0
+for x in snb-common.sh:usr/local/lib/snb/common.sh:644 compose.yaml:opt/snb/compose.yaml:644; do
+	src=$S/${x%%:*}; rest=${x#*:}; dst=$H/${rest%%:*}; mode=${rest##*:}
+	[ -s "$src" ] || { echo "Missing $src in image"; exit 1; }
+	case "$src" in *.sh) sh -n "$src" || { echo "Syntax check failed: $src"; exit 1; } ;; esac
+	if cmp -s "$src" "$dst"; then echo "Same: /${rest%%:*}"; continue; fi
+	cp "$src" "$dst.snb-new"
+	chmod "$mode" "$dst.snb-new"
+	mv -f "$dst.snb-new" "$dst"
+	echo "Updated: /${rest%%:*}"
+	n=$((n + 1))
+done
+echo "Done ($n updated). Now run: snb-update"

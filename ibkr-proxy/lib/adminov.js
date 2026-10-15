@@ -261,7 +261,7 @@ function laneView(prs, waiting) {
 
 /* יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): כל שינוי שהמנהל עושה ממרכז הניהול נרשם ב־sysLog — מה, מי (מייל), מתי, ופרט קצר.
    סוגים רק מהקטלוג (בלי טקסט חופשי בסוג), הפרט מנוקה (noteClean, עד 120). נשמר LOG_DAYS ימים */
-const LOG_KINDS = ['mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
+const LOG_KINDS = ['an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
 const LOG_DAYS = 90, LOG_SHOW = 200;
 function logEntry(k, d, who, now) {
   if (!LOG_KINDS.includes(k)) return null;
@@ -271,6 +271,7 @@ function logEntry(k, d, who, now) {
 /* מה ש־adminCfg עשה, לפי ה־set ומה שהיה לפניו */
 function cfgLogKind(set, before, now) {
   if (!set || typeof set !== 'object') return null;
+  if (set.an && typeof set.an === 'object') return set.an.on === true ? ['an_on', set.an.t || set.an.b] : ['an_off', ''];
   if (set.mt && typeof set.mt === 'object') return set.mt.on === true ? [before && before.mtOn && (!before.mtTil || before.mtTil > now) ? 'mt_upd' : 'mt_on', set.mt.msg] : ['mt_off', ''];
   if (typeof set.flag === 'string' && typeof set.on === 'boolean') return [set.on ? 'fl_on' : 'fl_off', set.flag];
   if (typeof set.am === 'string' && typeof set.on === 'boolean') return [set.on ? 'am_add' : 'am_del', set.am.trim().toLowerCase()];
@@ -330,4 +331,75 @@ function secretsView(f) {
     dates: DATES.map((x) => ({ k: x.k, d: x.d, left: daysTo(x.d, now) })).sort((a, b) => a.left - b.left) };
 }
 
-module.exports = { SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* סוכנים ומודלים (15/10/2026, Studio במרכז הניהול): של כל המערכת — 30 יום של עבודות התרגום מכל המשתמשים (לא רק שלי כמו במגדל).
+   מצבי התרגום: מי פתוח לכולם, כמה עבודות, כמה הסתיימו, כמה עלו, ומה "הרגיל" לשעת סרטון (Routine / השרת). בלי uid ובלי שמות */
+function modesView(f) {
+  const now = f.now || Date.now();
+  const jobs = (f.jobs || []).filter((j) => j && j.kind === 'tr' && (j.created || 0) >= now - 30 * DAY);
+  const r4 = (x) => Math.round(x * 1e4) / 1e4;
+  const usdOf = (j) => [].concat(Array.isArray(j.use) ? j.use : [], Array.isArray(j.use0) ? j.use0 : []).reduce((a, r) => a + (r && typeof r.usd === 'number' ? r.usd : 0), 0);
+  const modes = (f.modes || []).map((m) => {
+    const js = jobs.filter((j) => j.spec && j.spec.mode === m);
+    const ended = js.filter((j) => j.state === 'done' || j.state === 'failed');
+    const api = js.filter((j) => j.spec && j.spec.eng === 'api').length;
+    return { m, pub: (f.pub || []).includes(m), def: m === f.dflt, n: js.length, ok: ended.length ? ended.filter((j) => j.state === 'done').length / ended.length : null,
+      usd: r4(js.reduce((a, j) => a + usdOf(j), 0)), api, ph: (f.def || {})[m] == null ? null : f.def[m], pha: (f.defApi || {})[m] == null ? null : f.defApi[m] };
+  });
+  return { jobs: jobs.length, modes };
+}
+/* שרתים ומשאבים: כל השרתים של המערכת עם מה שהדופק מדווח (דיסק, זיכרון, עומס, בידוד, מנוע היישור, גרסה, אירועים).
+   list = serverView לכל שרת; busy = { [sid]: { st, p } } — רק השלב, בלי מזהה עבודה ושם */
+function serversAdmin(list, busy, now) {
+  const B = busy || {};
+  const out = (list || []).filter(Boolean).map((s) => {
+    const hb = s.hb || {};
+    const warn = [];
+    if (s.ba) warn.push('auth');
+    if (!s.online && s.seen && !s.paused) warn.push('down');
+    if (hb.disk != null && hb.disk >= 85) warn.push('disk');
+    if (hb.mem != null && hb.mem >= 90) warn.push('mem');
+    if (hb.iso === 'r') warn.push('iso');
+    const b = B[s.id];
+    return { n: s.name, online: s.online, paused: s.paused, seen: s.seen, created: s.created, warn,
+      hb: { v: hb.v || '', disk: hb.disk, free: hb.free, mem: hb.mem, load: hb.load, up: hb.up, iso: hb.iso || '', iw: hb.iw || '', al: hb.al || '', ev: Array.isArray(hb.ev) ? hb.ev.slice(-8) : [] },
+      job: b ? { st: String(b.st || '').slice(0, 24), p: typeof b.p === 'number' ? b.p : null } : null };
+  }).sort((a, b) => (b.online - a.online) || (b.seen - a.seen));
+  return { servers: out, online: out.filter((x) => x.online && !x.paused).length, warn: out.filter((x) => x.warn.length).length, at: now };
+}
+
+/* שימוש ומשפכים (15/10/2026): מכמה שנכנסו עד כמה שהגיעו לערך — רק מספרים קיימים (ספירות של אוספים + עבודות 30 יום).
+   משפך = שלבים { k, n }; n = null כשלא נמדד. בלי מעקב חדש ובלי uid בפלט (רק ספירת uid שונים) */
+function usageView(f) {
+  const now = f.now || Date.now();
+  const c = f.counts || {};
+  const num = (x) => (Number.isFinite(x) && x >= 0 ? x : null);
+  const jobs = (f.jobs || []).filter((j) => j && j.kind === 'tr');
+  const uids = (l) => new Set(l.map((j) => j.uid).filter(Boolean)).size;
+  const sv = num(c.studioVault), sd = num(c.studioDrive);   // חיבור ל־Claude (Routine) או ל־Drive — הגדול מבין השניים
+  const wk = [3, 2, 1, 0].map((w) => { const a = now - (w + 1) * 7 * DAY, b = now - w * 7 * DAY; const l = jobs.filter((j) => j.created >= a && j.created < b); return { n: l.length, u: uids(l) }; });
+  return { v: 1,
+    invest: [{ k: 'acc', n: num(c.users) }, { k: 'sess', n: num(c.sessions) }, { k: 'ibkr', n: num(c.ibkrVault) }],
+    academy: [{ k: 'open', n: num(c.academyUsers) }, { k: 'backup', n: num(c.driveVault) }],
+    studio: [{ k: 'open', n: num(c.studioStats) }, { k: 'conn', n: sv == null && sd == null ? null : Math.max(sv || 0, sd || 0) },
+      { k: 'job', n: f.jobs ? uids(jobs) : null }, { k: 'done', n: f.jobs ? uids(jobs.filter((j) => j.state === 'done')) : null }],
+    jobs: f.jobs ? { n: jobs.length, done: jobs.filter((j) => j.state === 'done').length, wk } : null };
+}
+
+/* משוב ופניות (15/10/2026): מה שמשתמש שולח מההגדרות של כל אפליקציה. נשמר ב־sysFeedback — סוג מקטלוג, טקסט מנוקה, האפליקציה,
+   הגרסה, סוג המכשיר והמייל (כדי שתוכל לענות; בלי uid). st: n = חדש, d = טופל */
+const FB_KINDS = ['bug', 'idea', 'other'], FB_APPS = ['invest', 'academy', 'studio'];
+function fbEntry(b, user, now) {
+  const t = noteClean(b && b.t).slice(0, 1000);
+  if (t.length < 3) return null;
+  const plat = /android/i.test(String(b && b.ua || '')) ? 'android' : /iphone|ipad|mac os/i.test(String(b && b.ua || '')) ? 'apple' : /windows/i.test(String(b && b.ua || '')) ? 'windows' : 'other';
+  const em = String((user && user.email) || '').trim().toLowerCase();
+  return { k: FB_KINDS.includes(b.k) ? b.k : 'other', t, app: FB_APPS.includes(b.app) ? b.app : 'invest', ver: /^v\d{3,5}$/.test(String(b.ver || '')) ? b.ver : '',
+    plat, em: EM_RE.test(em) ? em : '', at: Math.floor(now), st: 'n' };
+}
+function fbView(list) {
+  const items = (list || []).filter((x) => x && x.id && x.t).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 200)
+    .map((x) => ({ id: x.id, k: FB_KINDS.includes(x.k) ? x.k : 'other', t: noteClean(x.t).slice(0, 1000), app: x.app || '', ver: x.ver || '', plat: x.plat || '', em: x.em || '', at: +x.at || 0, st: x.st === 'd' ? 'd' : 'n' }));
+  return { items, open: items.filter((x) => x.st === 'n').length };
+}
+
+module.exports = { FB_KINDS, fbEntry, fbView, usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
