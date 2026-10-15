@@ -3590,6 +3590,11 @@ function stubFetch(text, status = 200) {
       ok((await run({ op: 'adminApps', idToken: FRIEND })).payload.error === 'not_admin', 'אפליקציות: רק המנהל');
       const apR = await run({ op: 'adminApps', idToken: OWNER });
       ok(apR.payload.ok && apR.payload.apps.v === 1 && 'users' in apR.payload.apps.invest && !/ownerUid0001|@example\.com/.test(JSON.stringify(apR.payload)), 'אפליקציות: מספרים בלבד, בלי uid ומיילים');
+      ok((await run({ op: 'adminUsers', idToken: FRIEND })).payload.error === 'not_admin', 'משתמשים: רק המנהל');
+      const usR = await run({ op: 'adminUsers', idToken: OWNER });
+      ok(usR.payload.ok && usR.payload.users.v === 1 && Array.isArray(usR.payload.users.admins) && usR.payload.users.admins.length >= 1 && !/ownerUid0001/.test(JSON.stringify(usR.payload)), 'משתמשים: מי מורשה לאן, בלי uid');
+      ok((await run({ op: 'adminUsers', idToken: OWNER, set: { k: 'ac', email: 'לא מייל', on: true } })).statusCode === 400, 'משתמשים: מייל לא תקין — 400');
+      ok((await run({ op: 'adminUsers', idToken: OWNER, set: { k: 'st', email: 'a@example.com', on: true } })).statusCode === 400, 'משתמשים: רק קוראי Academy נערכים כאן (Studio — במודלים, IBKR — ב־Vercel)');
       ok((await run({ op: 'adminCheck', idToken: FRIEND, id: 'abcdef012345', st: 'ok' })).payload.error === 'not_admin', 'בדיקות בטלפון: רק המנהל עונה');
       ok((await run({ op: 'adminCheck', idToken: OWNER, id: 'zz', st: 'ok' })).statusCode === 400, 'בדיקות בטלפון: מזהה לא תקין — 400');
       const ckR = await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: 'no', note: 'לא <נפתח>', t: 'עותק לוואטסאפ' });

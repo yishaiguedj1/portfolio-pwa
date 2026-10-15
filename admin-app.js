@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -204,7 +204,7 @@ page('apps', { tab: 'apps', title: () => t('admTabApps'), render(p) {
     row({ c: 'invest', ic: '↗', t: 'Invest', s: iv && iv.users != null ? fmt(t('admAppInvestS2'), { n: iv.users, i: iv.ibkr == null ? '—' : iv.ibkr }) : t('admLoading'), on: () => go('invest') }),
     row({ c: 'academy', ic: '▤', t: 'Academy', s: ac && ac.cat ? fmt(t('admAppAcademyS2'), { n: ac.cat.pub, r: ac.readers == null ? '—' : ac.readers }) : A2 ? t('admUnknown') : t('admLoading'), on: () => go('academy') }),
     row({ c: 'studio', ic: '▶', t: 'Studio', s: k ? fmt(t('admAppStudioS'), { n: k.n || 0, c: usd(k.cpm, 3) }) : t('admSoon'), v: k && k.ok != null ? pctTxt(k.ok) : '', tr: k && k.ok != null ? t('admKok') : '', sp: v ? spark((v.wk || []).map((x) => x.n), COL.studio) : null, on: () => go('studio') })));
-  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admSoon') }), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
+  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admLoading'), on: () => go('users') }), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
 } });
 /* ---- Invest ו־Academy (15/10/2026): מספרים בלבד מהשרתון (adminApps — ספירות ב־Firestore והקטלוג ב־R2). לא נמדד = "—" ---- */
 async function needApps() {
@@ -281,10 +281,64 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') })));
   p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
 } });
+/* ---- משתמשים והרשאות (15/10/2026, מסך 3 בתוכנית 5א): מי מורשה לאן. נערך כאן רק מה שהשרתון שומר (קוראי Academy);
+   "כל המודלים" ב־Studio — במסך המודלים (בלי כפילות); מה שבמשתני Vercel — מוצג עם מנעול, משתנה שם ---- */
+async function needUsers(set) {
+  const r = await api('adminUsers', set ? { set } : {});
+  if (r.ok) { D.users = r.users; if (cur === 'users') paint(); }
+  return r;
+}
+function emRow(e, sub, del) {
+  const r = h('div', 'ios-row adm-trow');
+  const tx = h('span', 'adm-ttx'); const b = h('b'); b.append(h('bdi', null, e)); b.style.overflowWrap = 'anywhere'; tx.append(b);
+  if (sub) tx.append(h('small', null, sub));
+  r.append(tx);
+  if (del) { const d = h('button', 'mini-btn danger', t('admModelsDel')); d.type = 'button'; d.addEventListener('click', del); r.append(d); }
+  return r;
+}
+const iosList = (rows) => { const l = h('div', 'ios-list'); l.append(...rows); return l; };
+page('users', { tab: 'apps', parent: 'apps', title: () => t('admUsersT'), render(p) {
+  const U = D.users;
+  if (!U) { needUsers(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const env = t('admUsEnv');
+  p.append(h('div', 'adm-lbl', t('admUsAdmins')), iosList(U.admins.length ? U.admins.map((e) => emRow(e, env)) : [h('div', 'ios-row adm-dim', '—')]));
+  // Academy: מי קורא את המדף של THE SNOWBALL
+  p.append(grp('Academy'));
+  const card = h('section', 'card adm-card');
+  card.append(h('p', 'adm-sub', U.ac.open ? t('admUsAcOpen') : t('admUsAcSub')));
+  if (U.ac.store === 'ok') {
+    const inp = h('input', 'adm-search'); inp.type = 'email'; inp.placeholder = t('admModelsPh'); inp.setAttribute('aria-label', t('admModelsPh')); inp.dir = 'ltr'; inp.autocomplete = 'off';
+    const add = h('button', 'btn', t('admModelsAdd')); add.type = 'button';
+    const doAdd = async () => {
+      const e = inp.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { flash(t('admModelsBad')); return; }
+      add.disabled = true; const r = await needUsers({ k: 'ac', email: e, on: true }); add.disabled = false;
+      flash(r.ok ? t('admSaved') : t('admErr'));
+    };
+    add.addEventListener('click', doAdd);
+    inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') doAdd(); });
+    const br = h('div', 'btn-row'); br.append(add);
+    card.append(inp, br);
+  } else card.append(h('p', 'adm-note', t('admUsAcNoStore')));
+  const acRows = U.ac.env.map((e) => emRow(e, env)).concat(U.ac.app.map((x) => emRow(x.e, fmt(t('admUsAdded'), { d: day(x.at) }),
+    () => askConfirm(fmt(t('admUsAcDelQ'), { e: x.e }), async () => { const r = await needUsers({ k: 'ac', email: x.e, on: false }); flash(r.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admModelsDel') }))));
+  p.append(card, h('div', 'adm-lbl', fmt(t('admUsReaders'), { n: U.ac.env.length + U.ac.app.length })), iosList(acRows.length ? acRows : [h('div', 'ios-row adm-dim', U.ac.open ? t('admUsAcOpenRow') : '—')]));
+  // Studio: STUDIO_USERS + מי שברשימת "כל המודלים" (מקבל גם את הסטודיו)
+  p.append(grp('Studio'), list(
+    row({ c: 'studio', ic: '▶', t: t('admUsStEnv'), s: U.st.env.length ? U.st.env.join(' · ') : t('admUsNone'), v: U.st.env.length || '', tr: U.st.env.length ? env : '' }),
+    row({ c: 'studio', ic: '✦', t: t('admModels'), s: U.st.am.length ? U.st.am.join(' · ') : t('admModelsMe'), v: U.st.am.length || '', on: () => go('models') }),
+    U.st.conn != null ? row({ c: 'gray', ic: '☁', t: t('admUsStConn'), v: U.st.conn }) : null));
+  // IBKR: הסנכרון ברקע — המנהל + IBKR_SYNC_USERS
+  p.append(grp(t('admUsIb')), list(
+    row({ c: 'invest', ic: '⟳', t: t('admUsIbEnv'), s: U.ib.env.length ? U.ib.env.join(' · ') : t('admUsIbMe'), v: U.ib.env.length || '', tr: U.ib.env.length ? env : '' }),
+    U.ib.on != null ? row({ c: 'gray', ic: '◉', t: t('admUsIbOn'), v: U.ib.on }) : null));
+  p.append(h('p', 'adm-foot', t('admUsFoot')));
+} });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */
 async function needCfg(set) {
   const r = await api('adminCfg', set ? { set } : {});
+  if (set) D.users = null;   // הרשימה של "כל המודלים" מוצגת גם במשתמשים
   if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'sys'].includes(cur)) paint(); }
   return r;
 }

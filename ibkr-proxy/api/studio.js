@@ -1633,6 +1633,31 @@ async function handler(req, res, deps = {}) {
       }
       return res.status(200).json({ ok: true, cfg: SF.adminCfg(cfgC.v, now), now });
     }
+    if (op === 'adminUsers') {
+      // 15/10/2026: מרכז הניהול ← משתמשים והרשאות. מי מורשה ל־Academy (משתני Vercel + מי שנוסף מהאפליקציה), ל־Studio
+      // (STUDIO_USERS + "כל המודלים") ולסנכרון IBKR ברקע. set = הוספה/הסרה של קורא ב־Academy (אותה רשימה חתומה של api/library)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const RD = deps.readers || require('../lib/readers');
+      let cur = null;
+      try { cur = await RD.getReaders(deps.fetch, true); } catch (e) { cur = { list: null, err: 'x' }; }
+      if (body.set) {
+        const email = String(body.set.email || '').trim().toLowerCase();
+        if (body.set.k !== 'ac' || !RD.EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: 'bad_params' });
+        if (!cur || cur.err) return res.status(503).json({ ok: false, error: 'store' });
+        let list = cur.list.filter((x) => x.email !== email);
+        if (body.set.on) list = list.concat([{ email, at: now }]).slice(-500);
+        try { await RD.saveReaders(list, deps.fetch); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
+        cur = { list, err: '' };
+      }
+      const admins = emails(process.env.LIBRARY_ADMINS);
+      const counts = await aoGet(deps, 'ucount', async () => {
+        const [ibkr, lib, studio] = await Promise.all(['ibkrVault', 'driveVault', 'studioDrive'].map((c) => fsCount(deps, c)));
+        return { ibkr, lib, studio };
+      }, now);
+      return res.status(200).json({ ok: true, users: AO.usersView({ admins: admins.length ? admins : emails(process.env.LIBRARY_READERS).slice(0, 1),
+        acEnv: String(process.env.LIBRARY_READERS || '').split(/[\s,;]+/), acApp: cur ? cur.list : null, acErr: cur ? cur.err : 'x',
+        stEnv: emails(process.env.STUDIO_USERS), am: SF.amList(await sysCfg(deps, now)), ibEnv: emails(process.env.IBKR_SYNC_USERS), counts }) });
+    }
     if (op === 'adminReady') {
       // 15/10/2026: בדיקת מוכנות לכל המערכת — כותרות המטמון, הגרסה החיה בשלוש הכתובות, השרתון והגיבוי שלו, חתימת החיבור המשותף,
       // assetlinks, security.txt ותאריכים. רק עובדות ציבוריות (כתובות האתר) + מונים בלי פרטים. מטמון 5 דק׳ (fresh = לבדוק עכשיו)

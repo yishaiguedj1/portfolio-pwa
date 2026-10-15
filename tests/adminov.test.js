@@ -83,4 +83,12 @@ const lv = A.laneView([{ n: 140, t: 'ממתין לתור אחרי #139 — 2.9.0
 ok(lv.holder.n === 139 && lv.holder.b === 428 && lv.holder.t === 'מגדל המשתמשים' && lv.queue.map((x) => x.n).join() === '140' && lv.queue[0].b === 429 && lv.queue[0].t === 'x' && lv.queue[0].after === 139 && lv.other.map((x) => x.n).join() === '141' && !lv.free, 'נתיב: מי מחזיק, מי בתור, ומה בלי גרסה (בלי Dependabot)');
 ok(A.laneView([], []).free && !A.laneView([], [{ id: 1 }]).free && A.laneView([], [{ id: 1 }]).deploy === 1, 'נתיב: פנוי רק כשאין PR עם גרסה ואין פריסה שמחכה');
 ok(A.laneView([{ n: 5, t: '2.9.0 (429): שחרור' }], []).holder.rel === '2.9.0', 'נתיב: PR של שחרור — גרסת המערכת');
+// משתמשים והרשאות (15/10/2026)
+const uv = A.usersView({ admins: ['Boss@Example.com', 'bad'], acEnv: ['boss@example.com', '*', ' r@example.com ', ''], acApp: [{ email: 'old@example.com', at: 1 }, { email: 'New@Example.com', at: 9 }, { email: 'x' }],
+  stEnv: ['s@example.com', 's@example.com'], am: ['m@example.com'], ibEnv: [], counts: { ibkr: 2, lib: null, studio: 3 } });
+ok(uv.admins.join() === 'boss@example.com' && uv.ac.open && uv.ac.env.join() === 'boss@example.com,r@example.com', 'משתמשים: מנהלים, "*" = פתוח לכל מחובר (לא מייל), מיילים מנורמלים');
+ok(uv.ac.app.map((x) => x.e).join() === 'new@example.com,old@example.com' && uv.ac.store === 'ok', 'משתמשים: קוראים מהאפליקציה — החדש ראשון, לא תקין נזרק');
+ok(uv.st.env.length === 1 && uv.st.am.join() === 'm@example.com' && uv.st.conn === 3 && uv.ib.on === 2 && uv.ac.backup === null, 'משתמשים: Studio, IBKR והספירות (לא נמדד = null)');
+ok(A.usersView({ acApp: [], acErr: 'fs_http_403' }).ac.store === 'no_access' && A.usersView({}).ac.store === 'none' && !A.usersView({}).ac.open, 'משתמשים: אין גישה לרשימה — לא "ריק"');
+ok(!/uid/i.test(JSON.stringify(uv)), 'משתמשים: בלי uid');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

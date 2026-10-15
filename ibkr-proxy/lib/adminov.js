@@ -167,6 +167,24 @@ function appsView(f) {
     shared: { sess: num(c.sess) } };
 }
 
+/* משתמשים והרשאות (15/10/2026, מסך 3 בתוכנית 5א): מי מורשה לאן. רק למנהל — כאן כן יש מיילים (זה כל העניין), אבל לא uid.
+   f = { admins, acEnv (LIBRARY_READERS), acApp ([{email, at}] מ־academy/config), acErr, stEnv (STUDIO_USERS), am (sysCfg.amEm),
+   ibEnv (IBKR_SYNC_USERS), counts: { ibkr, lib, studio } }. "*" ברשימת הקוראים = פתוח לכל מחובר (לא מייל) */
+const EM_RE = /^[^\s@,;]{1,64}@[^\s@,;]{1,190}\.[a-z]{2,24}$/i;
+function emList(l) { return Array.from(new Set((l || []).map((x) => String(x || '').trim().toLowerCase()).filter((x) => EM_RE.test(x)))).slice(0, 500); }
+function usersView(f) {
+  const c = f.counts || {};
+  const num = (x) => (Number.isFinite(x) && x >= 0 ? x : null);
+  const raw = (f.acEnv || []).map((x) => String(x || '').trim());
+  const app = (Array.isArray(f.acApp) ? f.acApp : []).filter((x) => x && EM_RE.test(x.email)).map((x) => ({ e: String(x.email).toLowerCase(), at: +x.at || 0 }))
+    .sort((a, b) => b.at - a.at).slice(0, 500);
+  return { v: 1,
+    admins: emList(f.admins),
+    ac: { open: raw.includes('*'), env: emList(raw), app, store: f.acApp == null ? 'none' : f.acErr ? 'no_access' : 'ok', backup: num(c.lib) },
+    st: { env: emList(f.stEnv), am: emList(f.am), conn: num(c.studio) },
+    ib: { env: emList(f.ibEnv), on: num(c.ibkr) } };
+}
+
 /* בדיקות בטלפון (15/10/2026, "אימות אחרי שינוי"): המקטע ברשימה + התשובות של המנהל (sysChecks). st: ok = עובד, no = לא עובד.
    "עובד" יורד מהרשימה הפתוחה; "לא עובד" נשאר, עם ההערה — עד שהסשן מתקן ומוחק את השורה מהקובץ */
 const CHECK_SEC = /^בדיקות בטלפון/;
@@ -241,4 +259,4 @@ function laneView(prs, waiting) {
   return { holder, queue, other, deploy: w, free: !holder && !w };
 }
 
-module.exports = { laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+module.exports = { usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
