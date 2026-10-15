@@ -98,7 +98,7 @@
 **פעם אחת — מה צריך (בטלפון):**
 1. **Hetzner:** Security ← API tokens ← Generate (Read & Write) → הסוד `HCLOUD_TOKEN`.
 2. **Cloudflare Tunnel:** Zero Trust ← Networks ← Tunnels ← Create ← Cloudflared, בשם `snb-stg`. מעתיקים את הטוקן (המחרוזת הארוכה אחרי `--token`) → הסוד `STG_TUNNEL_TOKEN`. ב־Public Hostname: ‏`api-staging` · ‏`thesnowball.app` · ‏HTTP · ‏`app-stg:3000`.
-3. **R2:** דלי `snb-staging` ב־EU, עם CORS ל־`https://staging.thesnowball.app` ול־`https://thesnowball.pages.dev` (GET/PUT/HEAD, כותרות `*`, חשיפת `ETag`). מפתח Object Read & Write לדלי הזה בלבד → `STG_R2_ACCESS_KEY_ID`, ‏`STG_R2_SECRET_ACCESS_KEY`.
+3. **R2:** דלי `snb-staging` ב־EU, עם CORS ל־`https://staging.thesnowball.app`, ל־`https://thesnowball.pages.dev`, ל־`https://studio-staging.thesnowball.app` ול־`https://academy-staging.thesnowball.app` (כתובת אפליקציה חדשה בניסוי = גם כאן — בלעדיה ההעלאה מהטלפון נחסמת בשקט; נוספו 15/10/2026) (GET/PUT/HEAD, כותרות `*`, חשיפת `ETag`). מפתח Object Read & Write לדלי הזה בלבד → `STG_R2_ACCESS_KEY_ID`, ‏`STG_R2_SECRET_ACCESS_KEY`.
 4. **Firebase (הניסוי):** Project settings ← Service accounts ← Generate new private key → כל תוכן הקובץ בסוד `STG_FIREBASE_SA`. הכלי מסרב לחשבון של פרויקט אחר.
 5. **Anthropic:** מפתח נפרד עם תקרה נמוכה → `STG_ANTHROPIC_KEY`.
 6. **המייל שלך** (מנהל בניסוי) → `STG_ADMIN_EMAIL`.
