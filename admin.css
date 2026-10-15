@@ -90,3 +90,5 @@ html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 .adm-foot { color: var(--on-surface-var); font-size: 12.5px; line-height: 1.5; margin: 14px 4px 0; }
 .adm-list + .adm-list { margin-top: 14px; }
 .adm-note-in { display: block; width: 100%; box-sizing: border-box; resize: vertical; font: inherit; margin: 10px 0 12px; }
+.adm-fix { display: block; margin-top: 4px; color: var(--on-surface); white-space: normal; overflow-wrap: anywhere; }
+.adm-tx small:has(.adm-fix) { white-space: normal; overflow: visible; text-overflow: clip; }

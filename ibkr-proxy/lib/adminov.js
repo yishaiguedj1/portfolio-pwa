@@ -176,4 +176,35 @@ function checksView(tk, answers) {
   return { open: all.filter((x) => x.st !== 'ok'), done: all.filter((x) => x.st === 'ok') };
 }
 const noteClean = (x) => String(x || '').replace(/[\u0000-\u001f<>`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
-module.exports = { checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* ---- בדיקת מוכנות לכל המערכת (15/10/2026, Instance Scan — כל בדיקה נולדה מתקלה שכבר הייתה אצלנו).
+   f = { now, cache: { host: 'cache-control' | null }, builds: { invest, academy, studio } (0 = לא נקרא),
+         sess: { last: [[זמן, קוד, אפליקציה]] } | null, links: מספר החבילות ב־assetlinks | null,
+         api: { main: bool, fb: bool }, sec: 'Expires' של security.txt | null }
+   כל בדיקה: { k, ok, sev (1 דחוף / 2), v } — הטקסט, ו"מה עושים", בטלפון */
+function readyView(f) {
+  const now = f.now || Date.now();
+  const out = [];
+  const cache = f.cache || {};
+  const bad = Object.entries(cache).filter(([, v]) => v != null && !/no-cache|no-store/.test(String(v))).map(([h]) => h);
+  const miss = Object.entries(cache).filter(([, v]) => v == null).map(([h]) => h);
+  out.push({ k: 'cache', sev: 1, ok: !bad.length && !miss.length, v: { bad, miss, n: Object.keys(cache).length } });
+  const b = f.builds || {};
+  const vals = Object.values(b).filter((x) => x > 0);
+  out.push({ k: 'live', sev: 1, ok: vals.length === 3 && new Set(vals).size === 1, v: { b } });
+  const api = f.api || {};
+  out.push({ k: 'api', sev: 1, ok: !!api.main, v: {} });
+  out.push({ k: 'fb', sev: 2, ok: !!api.fb, v: {} });
+  const sl = (f.sess && f.sess.last) || null;
+  const signBad = sl ? sl.filter((x) => /sign_http_40[34]/.test(String(x[1]))) : [];
+  out.push({ k: 'sess', sev: 2, ok: !!sl && !signBad.length, v: { n: signBad.length, read: !!sl } });
+  out.push({ k: 'links', sev: 2, ok: f.links != null && f.links >= 3, v: { n: f.links } });
+  const ex = f.sec ? Date.parse(f.sec) : 0;
+  const exLeft = ex ? Math.ceil((ex - now) / DAY) : null;
+  out.push({ k: 'sec', sev: 2, ok: exLeft != null && exLeft > 30, v: { left: exLeft } });
+  const soon = DATES.map((x) => ({ k: x.k, left: daysTo(x.d, now), warn: x.warn })).filter((x) => x.left <= x.warn);
+  out.push({ k: 'dates', sev: 2, ok: !soon.length, v: { soon: soon.map((x) => ({ k: x.k, left: x.left })), next: DATES.map((x) => daysTo(x.d, now)).sort((a, c) => a - c)[0] } });
+  const fails = out.filter((x) => !x.ok).sort((a, c) => a.sev - c.sev);
+  return { v: 1, at: now, n: out.length, pass: out.length - fails.length, checks: [...fails, ...out.filter((x) => x.ok)] };
+}
+
+module.exports = { readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

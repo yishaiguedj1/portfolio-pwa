@@ -53,4 +53,14 @@ const cv = A.checksView(tk2, { [tk2.items[1].id]: { st: 'ok', at: 1 }, [tk2.item
 ok(cv.open.length === 2 && cv.open[0].t === 'עותק לוואטסאפ' && cv.open[0].st === 'no' && cv.open[0].n === 'לא נפתח' && cv.done.length === 1, 'בדיקות: רק המקטע של הבדיקות; "עובד" יורד, "לא עובד" נשאר עם ההערה');
 ok(tk2.items[2].t === 'Academy: הוספה של כמה ספרים · חיפוש בבן־יהודה', 'משימות: תתי־סעיפים אחרי נקודתיים נכנסים לכותרת');
 ok(A.noteClean('a <b>`x`\n') === 'a b x' && A.noteClean('x'.repeat(400)).length === 300, 'בדיקות: הערה נקייה (בלי תגיות, עד 300)');
+// בדיקת מוכנות
+const good = { now, cache: { invest: 'no-cache', academy: 'no-cache', studio: 'no-cache' }, builds: { invest: 427, academy: 427, studio: 427 },
+  sess: { last: [['t', 'who:ok', 'invest']] }, links: 3, api: { main: true, fb: true }, sec: '2027-10-14T00:00:00Z' };
+const rg = A.readyView(good);
+ok(rg.pass === rg.n - (rg.checks.find((x) => x.k === 'dates').ok ? 0 : 1) && rg.checks.find((x) => x.k === 'cache').ok, 'מוכנות: הכל תקין');
+const rb = A.readyView(Object.assign({}, good, { cache: { invest: 'max-age=14400', academy: 'no-cache', studio: null }, builds: { invest: 427, academy: 426, studio: 427 }, sess: { last: [['t', 'mint:sign_http_404', 'studio']] }, links: 2, api: { main: false, fb: true } }));
+const kb = rb.checks.filter((x) => !x.ok).map((x) => x.k);
+ok(['cache', 'live', 'api', 'sess', 'links'].every((k) => kb.includes(k)) && rb.checks[0].sev === 1, 'מוכנות: כל כשל נתפס, הדחופים קודם');
+ok(rb.checks.find((x) => x.k === 'cache').v.bad.join() === 'invest' && rb.checks.find((x) => x.k === 'cache').v.miss.join() === 'studio', 'מוכנות: איזו כתובת דורסת את המטמון ואיזו לא ענתה');
+ok(!A.readyView({ now }).checks.find((x) => x.k === 'sess').ok, 'מוכנות: מה שלא נקרא — לא "עבר"');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

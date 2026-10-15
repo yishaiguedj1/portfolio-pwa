@@ -1231,6 +1231,26 @@ async function handler(req, res, deps = {}) {
       const tk = md == null ? null : AO.tasksParse(md, now);
       return res.status(200).json({ ok: true, tk, prs, ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
     }
+    if (op === 'adminReady') {
+      // 15/10/2026: בדיקת מוכנות לכל המערכת — כותרות המטמון, הגרסה החיה בשלוש הכתובות, השרתון והגיבוי שלו, חתימת החיבור המשותף,
+      // assetlinks, security.txt ותאריכים. רק עובדות ציבוריות (כתובות האתר) + מונים בלי פרטים. מטמון 5 דק׳ (fresh = לבדוק עכשיו)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (body.fresh) aoCache.delete('ready');
+      const v = await aoGet(deps, 'ready', async () => {
+        const f = deps.fetch || fetch;
+        const get = async (u, txt) => { try { const r = await f(u, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(6000) }); return { s: r.status, cc: r.headers && r.headers.get ? r.headers.get('cache-control') : null, t: txt && r.status === 200 ? await r.text() : '' }; } catch (e) { return null; } };
+        const H = { invest: 'https://invest.thesnowball.app', academy: 'https://academy.thesnowball.app', studio: 'https://studio.thesnowball.app' };
+        const sw = await Promise.all(Object.values(H).map((u) => get(u + '/sw.js', true)));
+        const cache = {}, builds = {};
+        Object.keys(H).forEach((k, i) => { const x = sw[i]; cache[k] = x && x.s === 200 ? (x.cc || '') : null; builds[k] = x && x.s === 200 ? AO.swBuild(x.t) : 0; });
+        const [main, fb, links, sec] = await Promise.all([get('https://api.thesnowball.app/api/session', true), get('https://ibkr-proxy-wine.vercel.app/api/session', true), get(H.invest + '/.well-known/assetlinks.json', true), get(H.invest + '/.well-known/security.txt', true)]);
+        let sess = null; try { sess = main && main.s === 200 ? { last: JSON.parse(main.t).last || [] } : null; } catch (e) {}
+        let nl = null; try { nl = links && links.s === 200 ? (JSON.parse(links.t) || []).filter((x) => x && x.target && x.target.package_name).length : null; } catch (e) {}
+        const sm = sec && /^Expires:\s*(\S+)/m.exec(sec.t || '');
+        return AO.readyView({ now, cache, builds, sess, links: nl, api: { main: !!(main && main.s === 200), fb: !!(fb && fb.s === 200) }, sec: sm ? sm[1] : null });
+      }, now);
+      return res.status(200).json({ ok: true, rd: v });
+    }
     if (op === 'adminCheck') {
       // 15/10/2026: אימות אחרי שינוי — המנהל עונה על בדיקה בטלפון: ok (עובד) / no (לא עובד + הערה) / '' (לבטל). נשמר ב־sysChecks
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });

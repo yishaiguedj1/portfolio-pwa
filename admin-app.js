@@ -54,7 +54,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -265,9 +265,11 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
   const prod = run.find((x) => x.k === 'prod'), stag = run.find((x) => x.k === 'stag');
   const ai = D.ai, k = D.lab && D.lab.view && D.lab.view.k;
   if (!ai) needAi();
+  if (!D.rd) needReady();
   p.append(list(
     row({ c: 'orange', ic: '$', t: t('admAiCost'), s: ai && ai.month ? fmt(t('admAiCostS'), { u: usd(ai.month.usd), n: ai.today.t }) : k ? fmt(t('admAiCostS2'), { u: usd(k.usd) }) : '', badge: ai ? ai.warn.filter((w) => w.sev <= 2).length : 0, on: () => go('ai') }),
     row({ c: 'blue', ic: '%', t: t('admQuota'), s: o && o.dates && o.dates[0] ? fmt(t('admQuotaS'), { n: o.dates[0].left }) : '', on: () => go('quota') }),
+    row({ c: !D.rd ? 'gray' : D.rd.pass === D.rd.n ? 'green' : D.rd.checks[0].sev === 1 ? 'red' : 'orange', ic: '✓', t: t('admRdT'), s: D.rd ? fmt(t('admRdS'), { p: D.rd.pass, n: D.rd.n }) : t('admLoading'), badge: D.rd ? D.rd.n - D.rd.pass : 0, on: () => go('ready') }),
     row({ c: dep ? 'orange' : 'green', ic: '⇪', t: t('admInfra'), s: dep ? t('admItDeploy') : prod && prod.v.b ? fmt(t('admRunBuild'), { b: prod.v.b }) + (stag && stag.v.ahead === 1 ? ' · ' + t('admRunAhead1') : stag && stag.v.ahead > 1 ? ' · ' + fmt(t('admRunAhead'), { n: stag.v.ahead }) : '') : '', badge: dep ? 1 : 0, on: () => go('infra') })));
   p.append(grp(t('admSecCtl')), list(soonRow('gray', '⚙', t('admCfg')), soonRow('red', '⏻', t('admMaint'))));
   p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
@@ -337,6 +339,38 @@ page('ai', { tab: 'sys', parent: 'sys', title: () => t('admAiCost'), render(p) {
     }
   }
   p.append(h('p', 'adm-foot', t('admAiNote')));
+} });
+/* ---- בדיקת מוכנות (15/10/2026, Instance Scan): כל בדיקה נולדה מתקלה שכבר הייתה אצלנו. בשורה — מה נבדק, ובכשל גם מה עושים ---- */
+async function needReady(fresh) {
+  if (!fresh && D.rd && Date.now() - D.rdAt < 60000) return;
+  const r = await api('adminReady', fresh ? { fresh: 1 } : {});
+  if (r.ok) { D.rd = r.rd; D.rdAt = Date.now(); if (['ready', 'sys'].includes(cur)) paint(); }
+}
+const RD_DN = { ant_key: () => t('admItAnt'), brk13f: () => t('admItBrk'), sec_txt: () => t('admItSec'), drill: () => t('admItDrill') };
+function readyRow(x) {
+  const v = x.v || {};
+  const T = { cache: [t('admRdCache'), t('admRdCacheOk'), fmt(t('admRdCacheBad'), { h: [...(v.bad || []), ...(v.miss || [])].join(' · ') }), t('admRdCacheFix')],
+    live: [t('admRdLive'), fmt(t('admRdLiveOk'), { b: (v.b || {}).invest || '—' }), Object.entries(v.b || {}).map(([k, b]) => k + ' ' + (b || '—')).join(' · '), t('admRdLiveFix')],
+    api: [t('admRdApi'), t('admRdApiOk'), t('admRdApiBad'), t('admRdApiFix')],
+    fb: [t('admRdFb'), t('admRdFbOk'), t('admRdFbBad'), t('admRdFbFix')],
+    sess: [t('admRdSess'), t('admRdSessOk'), v.read ? fmt(t('admRdSessBad'), { n: v.n }) : t('admRdNoRead'), t('admRdSessFix')],
+    links: [t('admRdLinks'), t('admRdLinksOk'), v.n == null ? t('admRdNoRead') : fmt(t('admRdLinksBad'), { n: v.n }), t('admRdLinksFix')],
+    sec: [t('admRdSec'), fmt(t('admRdSecOk'), { n: v.left }), v.left == null ? t('admRdNoRead') : fmt(t('admRdSecBad'), { n: v.left }), t('admRdSecFix')],
+    dates: [t('admRdDates'), fmt(t('admRdDatesOk'), { n: v.next }), (v.soon || []).map((d) => (RD_DN[d.k] || (() => d.k))() + ' · ' + d.left).join(' · '), t('admRdDatesFix')] }[x.k];
+  if (!T) return null;
+  if (x.ok) return row({ c: 'green', ic: '✓', t: T[0], s: T[1] });
+  const sub = h('span'); sub.append(h('span', null, T[2])); const fx = h('span', 'adm-fix', T[3]); sub.append(fx);
+  return row({ c: x.sev === 1 ? 'red' : 'orange', ic: '!', t: T[0], s: sub });
+}
+page('ready', { tab: 'sys', parent: 'sys', title: () => t('admRdT'), render(p) {
+  const r = D.rd;
+  if (!r) { needReady(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  p.append(h('p', 'adm-dt', fmt(t('admRdHead'), { a: ago(r.at), p: r.pass, n: r.n })));
+  const bad = r.checks.filter((x) => !x.ok), good = r.checks.filter((x) => x.ok);
+  if (bad.length) p.append(grp(t('admRdBad')), list(...bad.map(readyRow)));
+  if (good.length) p.append(grp(t('admRdGood')), list(...good.map(readyRow)));
+  p.append(list(row({ c: 'blue', ic: '⟲', t: t('admRdAgain'), on: async () => { p.querySelector('.adm-dt').textContent = t('admLoading'); await needReady(true); } })));
+  p.append(h('p', 'adm-foot', t('admRdFoot')));
 } });
 page('quota', { tab: 'sys', parent: 'sys', title: () => t('admQuota'), render(p) {
   const ai = D.ai, o = D.ov;

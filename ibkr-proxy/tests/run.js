@@ -3508,6 +3508,9 @@ function stubFetch(text, status = 200) {
       const ckR = await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: 'no', note: 'לא <נפתח>', t: 'עותק לוואטסאפ' });
       const ckDoc = db.get('sysChecks/abcdef012345');
       ok(ckR.payload.ok && ckDoc && ckDoc.fields.st.stringValue === 'no' && ckDoc.fields.n.stringValue === 'לא נפתח', 'בדיקות בטלפון: "לא עובד" נשמר עם הערה נקייה');
+      ok((await run({ op: 'adminReady', idToken: FRIEND })).payload.error === 'not_admin', 'מוכנות: רק המנהל');
+      const rdR = await run({ op: 'adminReady', idToken: OWNER, fresh: 1 });
+      ok(rdR.payload.ok && rdR.payload.rd.n >= 8 && Array.isArray(rdR.payload.rd.checks), 'מוכנות: תשובה גם כשהכתובות לא עונות (בבדיקה)');
       // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
       const br = await run({ op: 'learnBrief', idToken: OWNER });
       ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');
