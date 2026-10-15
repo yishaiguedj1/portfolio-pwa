@@ -92,3 +92,17 @@ html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 .adm-note-in { display: block; width: 100%; box-sizing: border-box; resize: vertical; font: inherit; margin: 10px 0 12px; }
 .adm-fix { display: block; margin-top: 4px; color: var(--on-surface); white-space: normal; overflow-wrap: anywhere; }
 .adm-tx small:has(.adm-fix) { white-space: normal; overflow: visible; text-overflow: clip; }
+
+/* 15/10/2026: מצב תחזוקה והגדרות ודגלים — מתג בסגנון iOS (כמו במתג של IBKR, בירוק של המצב) ובורר משך */
+.adm .adm-sw { position: relative; flex: none; width: 50px; height: 30px; border: 0; padding: 0; border-radius: var(--pill); background: var(--card-border); cursor: pointer; transition: background .2s ease; }
+.adm .adm-sw i { position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: inset-inline-start .2s ease; }
+.adm .adm-sw[aria-checked="true"] { background: #30D158; }
+.adm .adm-sw[aria-checked="true"] i { inset-inline-start: 23px; }
+.adm .adm-sw:disabled { opacity: .5; }
+.adm .adm-sw:focus-visible { outline: 2.5px solid #30D158; outline-offset: 2px; }
+.adm .adm-flr .adm-m { align-items: center; }
+.adm .adm-seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.adm .adm-seg .mini-btn[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+@media (prefers-reduced-motion: reduce) { .adm .adm-sw, .adm .adm-sw i { transition: none; } }
+/* הפס של מצב התחזוקה — מעל שורת הלשוניות בטלפון */
+@media (max-width: 899px) { html[data-app="admin"] .maint-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 74px); } html[data-app="admin"] .maint-strip.env-up { bottom: calc(env(safe-area-inset-bottom, 0px) + 102px); } }

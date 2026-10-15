@@ -929,6 +929,8 @@ function errText(code, extra) {
     case 'resume_limit': return T('studioErrResumeLimit');
     case 'tower_stop': return T('studioErrTower');
     case 'halted': return T('studioErrHalted');
+    case 'maint': return T('studioErrMaint') + (extra && extra.msg ? ' · ' + extra.msg : '');   // 15/10/2026: מצב תחזוקה
+    case 'flag_off': return T('studioErrFlagOff');
     case 'gold_full': return T('studioErrGoldFull');   // v387: סט הזהב
     case 'gold_busy': return T('studioErrGoldBusy');
     case 'no_gold': return T('studioGoldNone');

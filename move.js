@@ -21,7 +21,7 @@
   // לא עוברים: מצב רגעי של התחברות/טעינה מחדש/חלון הסכמה, וסימן ההעברה עצמו
   var SKIP = ['pwa_owner_rl', 'pwa_auth_rl', 'pwa_oauth_v1', 'pwa_sess_v1', 'pwa_cloud_user_v1', 'pwa_libscroll_v1', 'pwa_moved_v1'];
   // = LS_CACHE_PREFIXES ב־app.js (הבדיקה משווה) — מטמונים נבנים מחדש בכתובת החדשה
-  var CACHE = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1'];
+  var CACHE = ['pwa_hist_v2_', 'pwa_hist_v1_', 'pwa_intra_v1_', 'pwa_quotes_v2', 'pwa_fxhist_v1', 'pwa_bench_v1', 'pwa_wordmarks_v4', 'pwa_logo_meta_v1', 'pwa_earn_v1', 'pwa_syscfg_v1'];
   var KEY_RE = /^pwa_[A-Za-z0-9_:.@-]{1,120}$/;
   var MAX_BYTES = 8e6;          // כל ה־localStorage של הדפדפן (5MB) נכנס בנוחות
   var WAIT_MS = 30e3;           // הכתובת החדשה לא ענתה — חלון חסום / נפתח בלי קשר לישנה (למשל מתוך האפליקציה באנדרואיד)

@@ -4,7 +4,8 @@
    - רשימה מותרת: רק השדות כאן יוצאים מהגוף שהעובד שלח (שדה חדש בעובד לא נכנס בלי שינוי כאן).
    - ניקוי טקסט (scrub): מיילים, קישורים, טלפונים ומספרים ארוכים (תעודת זהות, חשבון, כרטיס) מוחלפים בתגים.
      שמות נשארים — בלי זה אי אפשר ללמוד תרגום שמות (התוכנית, "איך מנתקים").
-   - בלי uid, בלי שם קובץ/תיקייה/סרטון, בלי שמות דוברים (רק S1, S2), בלי זמן מדויק — רק החודש (m), שהשרתון קובע.
+   - בלי uid, בלי שם קובץ/תיקייה/סרטון, בלי זמן מדויק — רק החודש (m), שהשרתון קובע. בכתוביות הדובר הוא S1/S2,
+     ושמות הדוברים (עם התפקיד והמגדר — להתאמה בעברית) בטבלה אחת, sp (בקשת המשתמש 15/10/2026).
    המפתח בדלי: q/<lid>.bin (תור — עד האצווה היומית) → c/<YYYY-MM>/<lid>.bin. lid = אותו מזהה מגובב של studioLearn
    (מ׳1 — כך "מחק את התרומות שלי" מוצא גם את הקורפוס). התוכן מוצפן (lib/vault.js, AAD = learn|<lid>). */
 
@@ -54,6 +55,16 @@ function normCorpus(o, month) {
   if (Array.isArray(o.fin)) out.fin = o.fin.slice(0, MAX_CUES).filter((c) => c && typeof c === 'object').map((c) => ({ s: n3(c.s), e: n3(c.e), h: txt(c.h) }));
   if (Array.isArray(o.wd)) out.wd = o.wd.slice(0, MAX_WORDS).map(normWord).filter(Boolean);
   if (Array.isArray(o.pt)) out.pt = o.pt.slice(0, MAX_PT).filter((x) => typeof x === 'string').map((x) => txt(x));
+  if (o.sp && typeof o.sp === 'object' && !Array.isArray(o.sp)) {
+    const sp = {};
+    for (const [k, v] of Object.entries(o.sp).slice(0, 20)) {
+      if (!SPK_RE.test(k) || !v || typeof v !== 'object') continue;
+      const x = {};
+      for (const f of ['n', 'r', 'g']) if (typeof v[f] === 'string' && v[f].trim()) x[f] = txt(v[f], 80);
+      if (Object.keys(x).length) sp[k] = x;
+    }
+    if (Object.keys(sp).length) out.sp = sp;
+  }
   if (Array.isArray(o.gl)) out.gl = o.gl.slice(0, MAX_GL).filter((x) => typeof x === 'string').map((x) => txt(x, 200));
   return out;
 }

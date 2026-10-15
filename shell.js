@@ -20,6 +20,7 @@ export function appBoot() {
     strip.setAttribute('role', 'note');
     document.body.prepend(strip);
   }
+  if (typeof sysCfgBoot === 'function') sysCfgBoot();   // 15/10/2026: מצב תחזוקה והדגלים (core.js) — כמו ב־app.js
   if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
   const sw = navigator.serviceWorker;
   const hadController = !!sw.controller;               // התקנה ראשונה — בלי רענון

@@ -801,7 +801,7 @@ def learn_safe(ctx=None):
 
 # ---------------------------------------------------------------- מאגר הלמידה מ׳2: קורפוס הטקסט (15/10/2026)
 # רשומה לכל כתובית — המקור, הטיוטה, אחרי תיקוני המתרגם, אחרי הביקורת, אחרי התיקון האחרון, והסופי — וזמני המילים
-# משלושת המקורות (תמלול, Qwen, CTC). רק מה שברשימה הזו יוצא; בלי שם הסרטון, שם הקובץ, שמות הדוברים או נתיבים.
+# משלושת המקורות (תמלול, Qwen, CTC), ושמות הדוברים (בקשת המשתמש 15/10). רק מה שברשימה הזו יוצא; בלי שם הסרטון, שם הקובץ או נתיבים.
 # השרתון מנקה שוב (lib/learncorpus.js — מיילים, טלפונים, מספרים ארוכים), מצפין ושומר בדלי נפרד. **LC_V זהה בשרתון**
 LC_V = 1
 LC_MAX_CUES = 4000
@@ -861,6 +861,12 @@ def learn_corpus(ctx):
             out[key] = val
     if _num_ok(spec.get('dur')):
         out['dur'] = round(spec['dur'], 1)
+    sp = {}                                                         # 15/10 (בקשת המשתמש): שמות הדוברים, התפקיד והמגדר (להתאמה בעברית)
+    for k, v in ((_read_json(pd / 'project.json') or {}).get('speakers') or {}).items():
+        if _LC_SPK.match(str(k)) and isinstance(v, dict) and len(sp) < 20:
+            sp[k] = {x: _lc_txt(v.get(y))[:80] for x, y in (('n', 'name'), ('r', 'role'), ('g', 'gender')) if v.get(y)}
+    if sp:
+        out['sp'] = sp
     fin = _read_json(pd / 'out' / 'cues.final.json')
     if isinstance(fin, list):
         out['fin'] = [{'s': _lc_num(c.get('start')), 'e': _lc_num(c.get('end')),

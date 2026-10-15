@@ -14,19 +14,20 @@ const { fakeR2, ACC } = require('./_r2fake');
 (async () => {
   const LC = require(path.join(root, 'ibkr-proxy/lib/learncorpus.js'));
   /* ---------- 1. ניקוי ורשימה מותרת (טהור) ---------- */
-  ok(LC.scrub('כתבו לי ל־dana.levi@gmail.com או 054-123-4567') === 'כתבו לי ל־⟨מייל⟩ או ⟨מספר⟩', 'מייל וטלפון מוחלפים בתגים');
+  ok(LC.scrub('כתבו לי ל־dana.levi@example.com או 054-123-4567') === 'כתבו לי ל־⟨מייל⟩ או ⟨מספר⟩', 'מייל וטלפון מוחלפים בתגים');
   ok(LC.scrub('ב־1965 קנינו 7 מניות ב־$1,000,000') === 'ב־1965 קנינו 7 מניות ב־$1,000,000', 'שנים, מספרים קצרים וסכומים נשארים');
   ok(LC.scrub('ת"ז 123456789 · www.example.com/x') === 'ת"ז ⟨מספר⟩ · ⟨קישור⟩', 'מספר ארוך וקישור מוחלפים');
   ok(LC.scrub('Warren Buffett said') === 'Warren Buffett said', 'שמות נשארים (בלעדיהם אי אפשר ללמוד תרגום שמות)');
   const raw = { v: 1, uid: 'ownerUid0001', name: 'my-video.mp4', folder: 'X', mode: 'sonnet-medium', src: 'en', dst: 'he', dur: 600,
     cu: [{ i: 1, s: 1.2, e: 3.4, k: 'S1', en: 'Call 054-123-4567', d: 'תתקשרו', f: 'התקשרו', secret: 'x' }, { i: 2, s: 4, e: 5, k: 'Dana Levi', en: 'Hi', d: 'היי' }, { i: 'x' }],
     fin: [{ s: 1.2, e: 3.4, h: 'התקשרו\nעכשיו', id: 9 }], wd: [['Call', 1.2, 1.5, 'S1', 1.1, 1.25, 1.2, 'qwen3', 'extra'], ['bad']],
-    pt: ['bufet => Buffett'], gl: ['Berkshire\tברקשייר'], at: 123 };
+    pt: ['bufet => Buffett'], sp: { S1: { n: 'Warren Buffett', r: 'CEO', g: 'm', x: 'drop' }, 'Dana': { n: 'x' }, S2: { n: 'call 054-123-4567' } }, gl: ['Berkshire\tברקשייר'], at: 123 };
   const it = LC.normCorpus(raw, '2026-10');
   ok(it && it.m === '2026-10' && it.cu.length === 2 && !('uid' in it) && !('name' in it) && !('folder' in it) && !('at' in it), 'רק השדות המותרים (uid, שם, תיקייה וזמן — לא)');
   ok(it.cu[0].en === 'Call ⟨מספר⟩' && it.cu[0].f === 'התקשרו' && !('secret' in it.cu[0]) && !('r' in it.cu[0]), 'הכתובית: מנוקה, ורק השלבים ששינו משהו');
   ok(it.cu[1].k === 'S?', 'שם דובר במקום S1/S2 — לא נשמר');
   ok(it.wd.length === 1 && it.wd[0].length === 8 && it.fin[0].h === 'התקשרו\nעכשיו' && !('id' in it.fin[0]), 'זמני המילים והסופי — בצורה קבועה');
+  ok(JSON.stringify(it.sp) === JSON.stringify({ S1: { n: 'Warren Buffett', r: 'CEO', g: 'm' }, S2: { n: 'call ⟨מספר⟩' } }), 'שמות הדוברים נשמרים (בקשת המשתמש) — רק S1/S2, שם/תפקיד/מגדר, מנוקים');
   ok(LC.normCorpus(Object.assign({}, raw, { v: 2 }), '2026-10') === null && LC.normCorpus({ v: 1, cu: [] }, 'x') === null, 'גרסה אחרת / בלי כתוביות — לא נשמר');
   ok(LC.oldestMonth(Date.UTC(2026, 9, 15)) === '2024-10' && LC.expired('2024-09', Date.UTC(2026, 9, 15)) && !LC.expired('2024-10', Date.UTC(2026, 9, 15)), '24 חודשים בדיוק');
   ok(LC.parseKey('c/2026-10/' + 'a'.repeat(20) + '.bin').month === '2026-10' && LC.parseKey('c/x/../y.bin') === null, 'מפתחות בדלי — רק בצורה שלנו');
@@ -137,7 +138,7 @@ const { fakeR2, ACC } = require('./_r2fake');
   const lp = await call({ op: 'learnPull', at: tokA, ci: 5 }, true);
   ok(lp.j && lp.j.ok && lp.j.corpus.on && lp.j.corpus.n === 2 && lp.j.corpus.items.length === 2, 'learnPull: המספרים + הפריטים (עם ci)');
   const flat = JSON.stringify(lp.j.corpus.items);
-  ok(!/my-private-lecture|ownerUid0001|owner@example|054-123|Dana Levi/.test(flat) && /התקשרו/.test(flat) && lp.j.corpus.items[0].m === '2026-10', 'הפריטים הפתוחים: הטקסט כן — שום שדה מזהה לא');
+  ok(!/my-private-lecture|ownerUid0001|owner@example|054-123|Dana Levi/.test(flat) && /התקשרו/.test(flat) && /Warren Buffett/.test(flat) && lp.j.corpus.items[0].m === '2026-10', 'הפריטים הפתוחים: הטקסט כן — שום שדה מזהה לא');
   const lp0 = await call({ op: 'learnPull', at: tokA }, true);
   ok(lp0.j.corpus.n === 2 && !lp0.j.corpus.items, 'בלי ci — רק המספרים');
 

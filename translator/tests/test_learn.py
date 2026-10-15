@@ -92,6 +92,7 @@ class LearnCorpus(unittest.TestCase):
         (pd / 'tr' / 'glossary.tsv').write_text('# head\nBerkshire\tברקשייר\n', encoding='utf-8')
         (pd / 'out' / 'cues.final.json').write_text(json.dumps([{'id': 1, 'start': 2.0, 'end': 3.5, 'lines': ['אחת'], 'he': 'אחת'}]), encoding='utf-8')
         (pd / 'en.aligned.json').write_text(json.dumps({'words': [{'w': 'line', 's': 2.0, 'e': 2.3, 'spk': 'S1', 's_asr': 1.9, 's_qwen': 2.0, 's_ctc': 2.02, 'align': 'qwen3'}]}))
+        (pd / 'project.json').write_text(json.dumps({'title': SECRET, 'speakers': {'S1': {'name': 'Warren Buffett', 'role': 'CEO', 'gender': 'm'}, 'bad key': {'name': 'x'}}}), encoding='utf-8')
         (pd / 'en.patch.applied.0.txt').write_text('# x\nbufet => Buffett\n', encoding='utf-8')
         self.ctx = SimpleNamespace(pdir=pd, st={'spec': {'dur': 300, 'name': SECRET + '.mp4', 'mode': 'sonnet-medium', 'from': 'en', 'to': ['he']}})
 
@@ -111,11 +112,12 @@ class LearnCorpus(unittest.TestCase):
         self.assertEqual(c['wd'], [['line', 2.0, 2.3, 'S1', 1.9, 2.0, 2.02, 'qwen3']])
         self.assertEqual(c['pt'], ['bufet => Buffett'])
         self.assertEqual(c['gl'], ['Berkshire\tברקשייר'])
+        self.assertEqual(c['sp'], {'S1': {'n': 'Warren Buffett', 'r': 'CEO', 'g': 'm'}})   # בקשת המשתמש: שמות הדוברים נשמרים
         self.assertEqual((c['mode'], c['src'], c['dst'], c['dur']), ('sonnet-medium', 'en', 'he', 300))
 
     def test_privacy(self):
         txt = json.dumps(job.learn_corpus(self.ctx), ensure_ascii=False)
-        for bad in (SECRET, 'my-private-video-name', '/tmp', 'Dana'):
+        for bad in (SECRET, 'my-private-video-name', '/tmp', 'Dana'):   # Dana = דובר בלי מזהה S1/S2 — לא בטבלת השמות
             self.assertNotIn(bad, txt)
 
     def test_put(self):
