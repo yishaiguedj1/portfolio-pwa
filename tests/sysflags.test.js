@@ -146,5 +146,14 @@ const { fakeR2, ACC } = require('./_r2fake');
   ok((await nj.put(lc)).saved === true, 'דולק שוב — נשמר');
   ok(jid, 'עבודת המנהל נוצרה בזמן התחזוקה');
 
+  // 15/10/2026: הודעה מהמנהל (מרכז הניהול ← הודעות)
+  {
+    const t0 = Date.parse('2026-10-15T10:00:00Z');
+    const pa = SF.applyAdmin({}, { an: { on: true, t: 'עדכון <b>', b: 'קישור https://evil.example זה', apps: ['studio', 'zz'] } }, t0);
+    ok(pa && pa.anId === t0 && pa.anT === 'עדכון b' && pa.anB === 'קישור זה' && pa.anApps === 'studio', 'הודעה: טקסט נקי, בלי קישורים, רק אפליקציות מהקטלוג');
+    ok(SF.applyAdmin({}, { an: { on: true, t: '', b: '', apps: ['studio'] } }, t0) === null && SF.applyAdmin({}, { an: { on: true, t: 'x', apps: [] } }, t0) === null, 'הודעה: בלי טקסט או בלי אפליקציה — נדחית');
+    ok(SF.publicCfg(pa, t0).an.id === t0 && SF.publicCfg(Object.assign({}, pa, { anTil: t0 + 1 }), t0 + 2).an === null && SF.publicCfg({ anId: 0, anT: 'x', anApps: 'invest' }, t0).an === null, 'הודעה: יוצאת ב־cfg הציבורי, פגה בזמן, כבויה = null');
+    ok(SF.applyAdmin(pa, { an: { on: false } }, t0).anId === 0 && SF.adminCfg(pa, t0).anD.apps.join() === 'studio', 'הודעה: כיבוי; למנהל — הטיוטה');
+  }
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

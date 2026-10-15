@@ -106,4 +106,38 @@ ok(sk('sa').set === true && sk('gd_lib').set === false && sk('gd_lib').sev === 1
 ok(sk('r2').part === '1/2' && sk('sess').set === null && A.secretsView({ now, host: 'srv', has: (n) => n === 'SNB_SESSION_KEY' }).items.find((x) => x.k === 'sess').set === true, 'סודות: חלקי = "1/2"; סוד של השרת נבדק רק כשהבקשה רצה בשרת');
 ok(sk('ant').set === null && sk('ant').date.d === '2027-01-16' && sk('ibkr').n === 2 && sk('routine').n === null, 'סודות: מה שלא נקרא מכאן = לא ידוע, עם התאריך; כספות — מספר בלבד');
 ok(!/"(GDRIVE|R2_|SNB_)/.test(JSON.stringify(SV)) && SV.bad === SV.items.filter((x) => x.sev <= 2).length && SV.dates.every((x, i, a) => !i || a[i - 1].left <= x.left), 'סודות: בלי שמות משתנים וערכים בתשובה; תאריכים מהקרוב');
+// סוכנים ומודלים, שרתים ומשאבים (15/10/2026)
+const D30 = 30 * 24 * H;
+const mv = A.modesView({ now, modes: ['haiku-high', 'opus-medium', 'sonnet-low'], pub: ['haiku-high'], dflt: 'haiku-high', def: { 'haiku-high': 0.8 }, defApi: { 'haiku-high': 0.55 },
+  jobs: [{ kind: 'tr', created: now - H, state: 'done', spec: { mode: 'haiku-high', eng: 'api' }, use: [{ usd: 0.1 }], use0: [{ usd: 0.05 }] },
+    { kind: 'tr', created: now - 2 * H, state: 'failed', spec: { mode: 'haiku-high' }, use: [{ usd: 0.2 }] },
+    { kind: 'tr', created: now - D30 - H, state: 'done', spec: { mode: 'opus-medium' } }, { kind: 'rr', created: now, spec: { mode: 'opus-medium' } }] });
+const mh = mv.modes[0];
+ok(mv.jobs === 2 && mh.pub && mh.def && mh.n === 2 && mh.ok === 0.5 && Math.abs(mh.usd - 0.35) < 1e-9 && mh.api === 1 && mh.ph === 0.8 && mh.pha === 0.55, 'מצבים: פתוח לכולם, ברירת המחדל, עבודות, הצלחה, עלות כולל "המשך", מנוע');
+ok(mv.modes[1].n === 0 && mv.modes[1].ok === null && mv.modes[2].ph === null && !mv.modes[1].pub, 'מצבים: ישן מ־30 יום והפקה מחדש לא נספרים; בלי נתון = null');
+const sa = A.serversAdmin([{ id: 's1', name: 'snb-2', online: true, paused: false, seen: now, hb: { disk: 90, mem: 40, iso: 'g', ev: [[1, 'up']] } },
+  { id: 's2', name: 'old', online: false, paused: false, seen: now - 9 * H, ba: now, hb: null }], { s1: { st: 'al', p: 0.4 } }, now);
+ok(sa.servers[0].n === 'snb-2' && sa.servers[0].job.st === 'al' && sa.servers[0].warn.join() === 'disk' && sa.servers[1].warn.join() === 'auth,down' && sa.online === 1 && sa.warn === 2, 'שרתים: מקוון ראשון, דיסק מלא, טוקן שנדחה, לא מדווח, השלב הנוכחי');
+ok(!/"s1"|"s2"|"id"/.test(JSON.stringify(sa)), 'שרתים: בלי מזהי שרת ועבודה');
+// שימוש ומשפכים (15/10/2026)
+const uvw = A.usageView({ now, counts: { users: 10, sessions: 6, ibkrVault: 2, academyUsers: 5, driveVault: 1, studioStats: 4, studioVault: 1, studioDrive: 3 },
+  jobs: [{ kind: 'tr', uid: 'a', created: now - H, state: 'done' }, { kind: 'tr', uid: 'a', created: now - 2 * H, state: 'failed' }, { kind: 'tr', uid: 'b', created: now - 8 * 24 * H, state: 'failed' }, { kind: 'rr', uid: 'c', created: now }] });
+ok(uvw.invest.map((x) => x.n).join() === '10,6,2' && uvw.studio.map((x) => x.n).join() === '4,3,2,1', 'שימוש: משפכים — Invest, ו־Studio: נכנסו → חיברו → הריצו → הצליחו (משתמשים שונים)');
+ok(uvw.jobs.n === 3 && uvw.jobs.done === 1 && uvw.jobs.wk[3].n === 2 && uvw.jobs.wk[3].u === 1 && uvw.jobs.wk[2].n === 1, 'שימוש: עבודות לפי שבוע (הפקה מחדש לא נספרת)');
+ok(A.usageView({ now, counts: {} }).studio[1].n === null && A.usageView({ now }).jobs === null && !/"a"|"b"/.test(JSON.stringify(uvw)), 'שימוש: לא נמדד = null; בלי uid בפלט');
+// 15/10/2026: מפתח מחרוזת כפול במרכז הניהול דורס בשקט את הקודם (admUsFoot הופיע פעמיים — מסך השימוש הציג את הטקסט של ההרשאות)
+{
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'app.js'), 'utf8');
+  for (const line of src.split('\n').filter((l) => /admModelsFoot: "/.test(l))) {
+    const seen = new Set(), dup = [];
+    for (const m of line.matchAll(/(?<![A-Za-z0-9_])(adm[A-Za-z0-9]+): "/g)) { if (seen.has(m[1])) dup.push(m[1]); seen.add(m[1]); }
+    ok(!dup.length, 'מחרוזות: אין מפתח adm* כפול' + (dup.length ? ' — ' + dup.join(', ') : ''));
+  }
+}
+// משוב ופניות (15/10/2026)
+const fe = A.fbEntry({ k: 'bug', t: '  לא <נפתח>  ', app: 'studio', ver: 'v443', ua: 'Mozilla/5.0 (Linux; Android 15)' }, { email: 'U@Example.com', uid: 'abc' }, now);
+ok(fe.k === 'bug' && fe.t === 'לא נפתח' && fe.app === 'studio' && fe.plat === 'android' && fe.em === 'u@example.com' && fe.st === 'n' && !('uid' in fe), 'משוב: נקי, עם אפליקציה, גרסה, סוג מכשיר ומייל (בלי uid)');
+ok(A.fbEntry({ t: 'ab' }, {}, now) === null && A.fbEntry({ k: 'zz', t: 'abc', app: 'zz', ver: '<x>' }, {}, now).k === 'other' && A.fbEntry({ k: 'zz', t: 'abc', app: 'zz' }, {}, now).app === 'invest', 'משוב: קצר מדי נדחה; ערכים לא מוכרים → ברירת מחדל');
+const fv = A.fbView([{ id: 'a1', t: 'x1', at: 1, st: 'd' }, { id: 'b2', t: 'x2', at: 2 }, { id: 'c3' }]);
+ok(fv.items.map((x) => x.id).join() === 'b2,a1' && fv.open === 1, 'משוב: החדש ראשון, ריק נזרק, ספירת הפתוחים');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);
