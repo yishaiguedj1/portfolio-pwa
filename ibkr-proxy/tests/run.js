@@ -9,6 +9,7 @@ const quotes = require('../api/quotes');
 let n = 0;
 process.env.AI_ANON_DAILY = process.env.AI_ANON_DAILY || '1000000';   // v339: בבדיקות הישנות — בלי מגבלה יומית לכתובת
 process.env.SNB_SITEWATCH = 'off';   // שלב 5: ניטור הכתובות — רק בבלוק שלו (הכתובות האמיתיות לא נגישות בבדיקות)
+process.env.SNB_ADMINWATCH = 'off';   // 15/10/2026: התראות המנהל (adminWatch) — ההחלטה נבדקת ב־tests/adminov.test.js (watchStep)
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
 
 /* ---------- statementBaseFrom (SSRF guard) ---------- */
@@ -3370,7 +3371,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob' && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw' && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;
@@ -3508,6 +3509,41 @@ function stubFetch(text, status = 200) {
         ok(!db.has(doneTr[0]) && lkeys().length === n0, 'מאגר הלמידה: הרשומה נשארת אחרי שהעבודה נמחקה');
       }
       studio._reset();
+      // 15/10/2026: מרכז הניהול — הסקירה (מנהל בלבד, בלי פרטים אישיים; עובדות מבחוץ שנכשלו = "לא ידוע")
+      ok((await run({ op: 'adminOv', idToken: FRIEND })).payload.error === 'not_admin', 'מרכז הניהול: רק המנהל רואה את הסקירה');
+      const ao = await run({ op: 'adminOv', idToken: OWNER });
+      ok(ao.payload.ok && ao.payload.ov.v === 1 && Array.isArray(ao.payload.ov.items) && ao.payload.ov.run.some((x) => x.k === 'prod'), 'מרכז הניהול: סקירה — מחכה לך + מה רץ איפה');
+      ok(!/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(ao.payload)), 'מרכז הניהול: הסקירה בלי uid ומיילים');
+      // 15/10/2026: מרכז הניהול ← AI ועלויות — קריאות ליום מול התקרה, ההוצאה החודשית של Studio (סכום, בלי מי)
+      ok((await run({ op: 'adminAi', idToken: FRIEND })).payload.error === 'not_admin', 'AI ועלויות: רק המנהל');
+      const ai0 = (await run({ op: 'adminAi', idToken: OWNER })).payload.ai;
+      const tday = ai0.today.d, mkey = tday.slice(0, 7);
+      db.set('aiUse/' + tday, { fields: { t: { integerValue: '1700' }, i: { integerValue: '4' }, u_aaaaaaaaaaaaaaaa: { integerValue: '9' }, u_bbbbbbbbbbbbbbbb: { integerValue: '2' } } });
+      const mu0 = db.get('studioStats/ownerUid0001');
+      db.set('studioStats/zzAiTestUid01', { fields: { mu: { stringValue: JSON.stringify({ m: mkey, usd: 26 }) } } });
+      const aiR = await run({ op: 'adminAi', idToken: OWNER });
+      const AIV = aiR.payload.ai;
+      ok(aiR.payload.ok && AIV.days.length === 14 && AIV.today.t === 1700 && AIV.today.u === 2 && AIV.today.i === 4, 'AI ועלויות: היום — קריאות, ניתוחים, כמה קוראים');
+      ok(AIV.month && AIV.month.users >= 1 && AIV.month.top >= 26 && AIV.month.cap > 0, 'AI ועלויות: ההוצאה החודשית של Studio על השרת');
+      ok(AIV.warn.some((w) => w.k === 'ai_day' && w.sev === 2) && AIV.warn.some((w) => w.k === 'st_cap'), 'AI ועלויות: אזהרה כשהיום קרוב לתקרה וכשמשתמש קרוב לתקציב החודשי');
+      ok(AIV.fns && AIV.fns.n === 12 && AIV.fns.max === 12, 'AI ועלויות: פונקציות Vercel — 12 מתוך 12');
+      ok(!/ownerUid0001|zzAiTestUid01|u_aaaa|@example\.com/.test(JSON.stringify(aiR.payload)), 'AI ועלויות: בלי uid, בלי מזהה קורא ובלי מיילים');
+      db.delete('studioStats/zzAiTestUid01'); db.delete('aiUse/' + tday);
+      void mu0;
+      ok((await run({ op: 'adminTasks', idToken: FRIEND })).payload.error === 'not_admin', 'סשנים ומשימות: רק המנהל');
+      const tk = await run({ op: 'adminTasks', idToken: OWNER });
+      ok(tk.payload.ok && Array.isArray(tk.payload.prs) && (tk.payload.tk === null || Array.isArray(tk.payload.tk.items)), 'סשנים ומשימות: תשובה גם כשהריפו לא ענה');
+      ok((await run({ op: 'adminApps', idToken: FRIEND })).payload.error === 'not_admin', 'אפליקציות: רק המנהל');
+      const apR = await run({ op: 'adminApps', idToken: OWNER });
+      ok(apR.payload.ok && apR.payload.apps.v === 1 && 'users' in apR.payload.apps.invest && !/ownerUid0001|@example\.com/.test(JSON.stringify(apR.payload)), 'אפליקציות: מספרים בלבד, בלי uid ומיילים');
+      ok((await run({ op: 'adminCheck', idToken: FRIEND, id: 'abcdef012345', st: 'ok' })).payload.error === 'not_admin', 'בדיקות בטלפון: רק המנהל עונה');
+      ok((await run({ op: 'adminCheck', idToken: OWNER, id: 'zz', st: 'ok' })).statusCode === 400, 'בדיקות בטלפון: מזהה לא תקין — 400');
+      const ckR = await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: 'no', note: 'לא <נפתח>', t: 'עותק לוואטסאפ' });
+      const ckDoc = db.get('sysChecks/abcdef012345');
+      ok(ckR.payload.ok && ckDoc && ckDoc.fields.st.stringValue === 'no' && ckDoc.fields.n.stringValue === 'לא נפתח', 'בדיקות בטלפון: "לא עובד" נשמר עם הערה נקייה');
+      ok((await run({ op: 'adminReady', idToken: FRIEND })).payload.error === 'not_admin', 'מוכנות: רק המנהל');
+      const rdR = await run({ op: 'adminReady', idToken: OWNER, fresh: 1 });
+      ok(rdR.payload.ok && rdR.payload.rd.n >= 8 && Array.isArray(rdR.payload.rd.checks), 'מוכנות: תשובה גם כשהכתובות לא עונות (בבדיקה)');
       // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
       const br = await run({ op: 'learnBrief', idToken: OWNER });
       ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');
@@ -3521,6 +3557,9 @@ function stubFetch(text, status = 200) {
       studio._reset();
       let lp = await run({ op: 'learnPull', at: TK });
       ok(lp.payload.ok && lp.payload.records.length === lkeys().length && /Claude/.test(lp.payload.brief) && lp.payload.view.v === 1, 'Claude: משיכה בטוקן — הרשומות, החבילה והניתוח');
+      ok(lp.payload.checks.some((c) => c.id === 'abcdef012345' && c.st === 'no' && c.n === 'לא נפתח'), 'Claude: המשיכה כוללת את התשובות לבדיקות בטלפון');
+      await run({ op: 'adminCheck', idToken: OWNER, id: 'abcdef012345', st: '' });
+      ok(!db.has('sysChecks/abcdef012345'), 'בדיקות בטלפון: ביטול מוחק את התשובה');
       ok((await run({ op: 'learnPull', at: 'snbL_' + 'x'.repeat(32) })).statusCode === 401, 'Claude: טוקן שלא קיים — 401');
       ok((await run({ op: 'learnPull', at: TK, op2: 1, idToken: OWNER })).payload.ok, 'Claude: המשיכה לא דורשת Origin/Firebase');
       const tl = await run({ op: 'atList', idToken: OWNER });
