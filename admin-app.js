@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -204,7 +204,7 @@ page('apps', { tab: 'apps', title: () => t('admTabApps'), render(p) {
     row({ c: 'invest', ic: '↗', t: 'Invest', s: iv && iv.users != null ? fmt(t('admAppInvestS2'), { n: iv.users, i: iv.ibkr == null ? '—' : iv.ibkr }) : t('admLoading'), on: () => go('invest') }),
     row({ c: 'academy', ic: '▤', t: 'Academy', s: ac && ac.cat ? fmt(t('admAppAcademyS2'), { n: ac.cat.pub, r: ac.readers == null ? '—' : ac.readers }) : A2 ? t('admUnknown') : t('admLoading'), on: () => go('academy') }),
     row({ c: 'studio', ic: '▶', t: 'Studio', s: k ? fmt(t('admAppStudioS'), { n: k.n || 0, c: usd(k.cpm, 3) }) : t('admSoon'), v: k && k.ok != null ? pctTxt(k.ok) : '', tr: k && k.ok != null ? t('admKok') : '', sp: v ? spark((v.wk || []).map((x) => x.n), COL.studio) : null, on: () => go('studio') })));
-  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admSoon') }), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
+  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admLoading'), on: () => go('users') }), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
 } });
 /* ---- Invest ו־Academy (15/10/2026): מספרים בלבד מהשרתון (adminApps — ספירות ב־Firestore והקטלוג ב־R2). לא נמדד = "—" ---- */
 async function needApps() {
@@ -279,12 +279,140 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: mOn ? 'red' : 'gray', ic: '⏻', t: t('admMaint'), s: !cf ? t('admLoading') : mOn ? t('admMaintOn') + (cf.m.msg ? ' · ' + cf.m.msg : '') : t('admMaintOffS'), badge: mOn ? 1 : 0, on: () => go('maint') }),
     row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') }),
     row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') })));
-  p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
+  if (!D.log) needLog();
+  if (!D.sec) needSec();
+  const lg = D.log;
+  p.append(grp(t('admSecSec')), list(row({ c: 'green', ic: '☰', t: t('admLogT'), s: !lg ? t('admLoading') : lg.items.length ? fmt(t('admLogS'), { n: lg.n7, a: ago(lg.items[0].at) }) : t('admLogNone'), on: () => go('log') }), row({ c: !D.sec ? 'gray' : D.sec.bad ? 'orange' : 'green', ic: '⚿', t: t('admSecrets'), s: !D.sec ? t('admLoading') : D.sec.bad ? fmt(t('admScBadN'), { n: D.sec.bad }) : fmt(t('admScOkS'), { n: D.sec.dates[0] ? D.sec.dates[0].left : '—' }), badge: D.sec ? D.sec.items.filter((x) => x.sev === 1).length : 0, on: () => go('secrets') })));
+} });
+/* ---- משתמשים והרשאות (15/10/2026, מסך 3 בתוכנית 5א): מי מורשה לאן. נערך כאן רק מה שהשרתון שומר (קוראי Academy);
+   "כל המודלים" ב־Studio — במסך המודלים (בלי כפילות); מה שבמשתני Vercel — מוצג עם מנעול, משתנה שם ---- */
+async function needUsers(set) {
+  const r = await api('adminUsers', set ? { set } : {});
+  if (set) D.log = null;
+  if (r.ok) { D.users = r.users; if (cur === 'users') paint(); }
+  return r;
+}
+function emRow(e, sub, del) {
+  const r = h('div', 'ios-row adm-trow');
+  const tx = h('span', 'adm-ttx'); const b = h('b'); b.append(h('bdi', null, e)); b.style.overflowWrap = 'anywhere'; tx.append(b);
+  if (sub) tx.append(h('small', null, sub));
+  r.append(tx);
+  if (del) { const d = h('button', 'mini-btn danger', t('admModelsDel')); d.type = 'button'; d.addEventListener('click', del); r.append(d); }
+  return r;
+}
+const iosList = (rows) => { const l = h('div', 'ios-list'); l.append(...rows); return l; };
+page('users', { tab: 'apps', parent: 'apps', title: () => t('admUsersT'), render(p) {
+  const U = D.users;
+  if (!U) { needUsers(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const env = t('admUsEnv');
+  p.append(h('div', 'adm-lbl', t('admUsAdmins')), iosList(U.admins.length ? U.admins.map((e) => emRow(e, env)) : [h('div', 'ios-row adm-dim', '—')]));
+  // Academy: מי קורא את המדף של THE SNOWBALL
+  p.append(grp('Academy'));
+  const card = h('section', 'card adm-card');
+  card.append(h('p', 'adm-sub', U.ac.open ? t('admUsAcOpen') : t('admUsAcSub')));
+  if (U.ac.store === 'ok') {
+    const inp = h('input', 'adm-search'); inp.type = 'email'; inp.placeholder = t('admModelsPh'); inp.setAttribute('aria-label', t('admModelsPh')); inp.dir = 'ltr'; inp.autocomplete = 'off';
+    const add = h('button', 'btn', t('admModelsAdd')); add.type = 'button';
+    const doAdd = async () => {
+      const e = inp.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { flash(t('admModelsBad')); return; }
+      add.disabled = true; const r = await needUsers({ k: 'ac', email: e, on: true }); add.disabled = false;
+      flash(r.ok ? t('admSaved') : t('admErr'));
+    };
+    add.addEventListener('click', doAdd);
+    inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') doAdd(); });
+    const br = h('div', 'btn-row'); br.append(add);
+    card.append(inp, br);
+  } else card.append(h('p', 'adm-note', t('admUsAcNoStore')));
+  const acRows = U.ac.env.map((e) => emRow(e, env)).concat(U.ac.app.map((x) => emRow(x.e, fmt(t('admUsAdded'), { d: day(x.at) }),
+    () => askConfirm(fmt(t('admUsAcDelQ'), { e: x.e }), async () => { const r = await needUsers({ k: 'ac', email: x.e, on: false }); flash(r.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admModelsDel') }))));
+  p.append(card, h('div', 'adm-lbl', fmt(t('admUsReaders'), { n: U.ac.env.length + U.ac.app.length })), iosList(acRows.length ? acRows : [h('div', 'ios-row adm-dim', U.ac.open ? t('admUsAcOpenRow') : '—')]));
+  // Studio: STUDIO_USERS + מי שברשימת "כל המודלים" (מקבל גם את הסטודיו)
+  p.append(grp('Studio'), list(
+    row({ c: 'studio', ic: '▶', t: t('admUsStEnv'), s: U.st.env.length ? U.st.env.join(' · ') : t('admUsNone'), v: U.st.env.length || '', tr: U.st.env.length ? env : '' }),
+    row({ c: 'studio', ic: '✦', t: t('admModels'), s: U.st.am.length ? U.st.am.join(' · ') : t('admModelsMe'), v: U.st.am.length || '', on: () => go('models') }),
+    U.st.conn != null ? row({ c: 'gray', ic: '☁', t: t('admUsStConn'), v: U.st.conn }) : null));
+  // IBKR: הסנכרון ברקע — המנהל + IBKR_SYNC_USERS
+  p.append(grp(t('admUsIb')), list(
+    row({ c: 'invest', ic: '⟳', t: t('admUsIbEnv'), s: U.ib.env.length ? U.ib.env.join(' · ') : t('admUsIbMe'), v: U.ib.env.length || '', tr: U.ib.env.length ? env : '' }),
+    U.ib.on != null ? row({ c: 'gray', ic: '◉', t: t('admUsIbOn'), v: U.ib.on }) : null));
+  p.append(h('p', 'adm-foot', t('admUsFoot')));
+} });
+/* ---- יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): מה שונה ממרכז הניהול, מי ומתי. נרשם בשרתון (sysLog), 90 יום ---- */
+async function needLog() {
+  const r = await api('adminLog');
+  if (r.ok) { D.log = r.log; if (['log', 'sys'].includes(cur)) paint(); }
+}
+const FLN = (k) => (FL[k] ? FL[k][0]() : k);
+function logRow(x) {
+  const d = x.d || '';
+  const L = {
+    mt_on: ['red', '⏻', t('admLgMtOn'), d], mt_upd: ['orange', '⏻', t('admLgMtUpd'), d], mt_off: ['green', '⏻', t('admLgMtOff'), ''],
+    fl_on: ['green', '⚙', fmt(t('admLgFlOn'), { n: FLN(d) }), ''], fl_off: ['orange', '⚙', fmt(t('admLgFlOff'), { n: FLN(d) }), ''],
+    am_add: ['studio', '✦', t('admLgAmAdd'), d], am_del: ['gray', '✦', t('admLgAmDel'), d],
+    ac_add: ['academy', '▤', t('admLgAcAdd'), d], ac_del: ['gray', '▤', t('admLgAcDel'), d],
+    ck_ok: ['green', '✓', t('admLgCkOk'), d], ck_no: ['red', '✕', t('admLgCkNo'), d], ck_clr: ['gray', '↺', t('admLgCkClr'), d] }[x.k];
+  if (!L) return null;
+  const sub = h('span');
+  if (L[3]) sub.append(h('bdi', null, L[3]));
+  if (x.w) { if (L[3]) sub.append(' · '); sub.append(h('bdi', null, x.w)); }
+  return row({ c: L[0], ic: L[1], t: L[2], s: sub.childNodes.length ? sub : '', v: clock(x.at) });
+}
+page('log', { tab: 'sys', parent: 'sys', title: () => t('admLogT'), render(p) {
+  const lg = D.log;
+  if (!lg) { needLog(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (!lg.items.length) { p.append(list(row({ c: 'gray', ic: '☰', t: t('admLogNone') })), h('p', 'adm-foot', fmt(t('admLogFoot'), { n: lg.days }))); return; }
+  const dk = (ms) => new Date(ms).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'numeric' });
+  let g = null, rows = [];
+  const flush = () => { if (rows.length) p.append(grp(g), list(...rows)); rows = []; };
+  for (const x of lg.items) { const k = dk(x.at); if (k !== g) { flush(); g = k; } rows.push(logRow(x)); }
+  flush();
+  p.append(h('p', 'adm-foot', fmt(t('admLogFoot'), { n: lg.days })));
+} });
+/* ---- סודות ותאריכים (15/10/2026): הקטלוג של SECURITY.md — רק "מוגדר / חסר", אף פעם לא ערך. נגיעה = מה הוא פותח ואיך מחליפים ---- */
+async function needSec() {
+  const r = await api('adminSecrets');
+  if (r.ok) { D.sec = r.sec; if (['secrets', 'sys'].includes(cur)) paint(); }
+}
+const SC = {
+  sa: () => [t('admScSa'), t('admScSaS'), t('admScSaR')], vault: () => [t('admScVault'), t('admScVaultS'), t('admScVaultR')],
+  gd_lib: () => [t('admScGdLib'), t('admScGdLibS'), t('admScGdR')], gd_st: () => [t('admScGdSt'), t('admScGdStS'), t('admScGdR')],
+  r2: () => [t('admScR2'), t('admScR2S'), t('admScR2R')], r2l: () => [t('admScR2l'), t('admScR2lS'), t('admScR2R')],
+  gemini: () => ['Gemini', t('admScGemS'), t('admScKeyR')], mistral: () => ['Mistral', t('admScMisS'), t('admScKeyR')],
+  books: () => ['Google Books', t('admScBooksS'), t('admScKeyR')], picker: () => [t('admScPicker'), t('admScPickerS'), t('admScKeyR')],
+  cron: () => [t('admScCron'), t('admScCronS'), t('admScRandR')], watch: () => [t('admScWatch'), t('admScWatchS'), t('admScRandR')],
+  gh: () => [t('admScGh'), t('admScGhS'), t('admScGhR')], sess: () => [t('admScSess'), t('admScSessS'), t('admScSessR')],
+  ant: () => [t('admScAnt'), t('admScAntS'), t('admScAntR')], apk: () => [t('admScApk'), t('admScApkS'), t('admScApkR')],
+  srv_tok: () => [t('admScSrvTok'), t('admScSrvTokS'), t('admScSrvTokR')], ibkr: () => ['IBKR', t('admScIbkrS'), t('admScIbkrR')],
+  routine: () => ['Routine', t('admScRtS'), t('admScRtR')] };
+const WHERE = { vercel: () => t('admScWVercel'), srv: () => t('admScWSrv'), gh: () => 'GitHub Secrets', worker: () => t('admScWWorker'), vault: () => t('admScWVault') };
+function secRow(x) {
+  const L = SC[x.k] && SC[x.k]();
+  if (!L) return null;
+  const st = x.n != null ? fmt(t('admScUsers'), { n: x.n }) : x.set === true ? t('admScSet') : x.set === false ? (x.part ? fmt(t('admScPart'), { p: x.part }) : x.r === 3 ? t('admScOpt') : t('admScMissing')) : '—';
+  const c = x.sev === 1 ? 'red' : x.sev === 2 ? 'orange' : x.set === true ? 'green' : 'gray';
+  const sub = x.date ? fmt(t('admScUntil'), { d: x.date.d.split('-').reverse().join('/'), n: x.date.left }) : L[1];
+  return row({ c, ic: x.set === true ? '✓' : x.set === false ? (x.sev <= 2 ? '!' : '○') : '⚿', t: L[0], s: sub, v: st,
+    on: () => askAlert(L[0] + '\n\n' + L[1] + '\n\n' + t('admScHow') + ' ' + L[2]) });
+}
+page('secrets', { tab: 'sys', parent: 'sys', title: () => t('admSecrets'), render(p) {
+  const S2 = D.sec;
+  if (!S2) { needSec(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  p.append(h('p', 'adm-dt', (S2.bad ? fmt(t('admScBadN'), { n: S2.bad }) : t('admScAllOk')) + ' · ' + (S2.host === 'srv' ? t('admScFromSrv') : t('admScFromVercel'))));
+  p.append(grp(t('admSecDates')), list(...S2.dates.map((d) => row({ c: d.left <= 14 ? 'orange' : 'gray', ic: '⧗', t: (RD_DN[d.k] || (() => d.k))(), s: d.d.split('-').reverse().join('/'), v: d.left, tr: t('admDays') }))));
+  const bad = S2.items.filter((x) => x.sev <= 2);
+  if (bad.length) p.append(grp(t('admScNeed')), list(...bad.map(secRow)));
+  for (const w of ['vercel', 'srv', 'worker', 'gh', 'vault']) {
+    const its = S2.items.filter((x) => x.w === w && x.sev > 2);
+    if (its.length) p.append(grp(WHERE[w]()), list(...its.map(secRow)));
+  }
+  p.append(h('p', 'adm-foot', t('admScFoot')));
 } });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */
 async function needCfg(set) {
   const r = await api('adminCfg', set ? { set } : {});
+  if (set) { D.users = null; D.log = null; }   // הרשימה של "כל המודלים" מוצגת גם במשתמשים
   if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'sys'].includes(cur)) paint(); }
   return r;
 }
@@ -576,7 +704,7 @@ page('check', { tab: 'ov', parent: 'checks', title: () => t('admChkOne'), render
   const bNo = h('button', 'btn secondary-btn', x.st === 'no' ? t('admChkSend') : t('admChkBad')); bNo.type = 'button';
   const save = async (st) => {
     bOk.disabled = bNo.disabled = true;
-    const j = await api('adminCheck', { id: x.id, st, note: note.value, t: x.t });
+    const j = await api('adminCheck', { id: x.id, st, note: note.value, t: x.t }); D.log = null;
     bOk.disabled = bNo.disabled = false;
     if (!j.ok) { flash(t('admErr')); return; }
     Object.assign(x, { st, n: st === 'no' ? note.value.trim() : '', at: Date.now() });
@@ -590,7 +718,7 @@ page('check', { tab: 'ov', parent: 'checks', title: () => t('admChkOne'), render
   br.append(bOk, bNo);
   card.append(note, br);
   p.append(card);
-  if (x.st) { const u = h('button', 'mini-btn', t('admChkUndo')); u.type = 'button'; u.addEventListener('click', async () => { const j = await api('adminCheck', { id: x.id, st: '' }); if (j.ok) { delete x.st; x.n = ''; ck.done = ck.done.filter((y) => y !== x); if (!ck.open.includes(x)) ck.open.push(x); paint(); } }); card.append(u); }
+  if (x.st) { const u = h('button', 'mini-btn', t('admChkUndo')); u.type = 'button'; u.addEventListener('click', async () => { const j = await api('adminCheck', { id: x.id, st: '', t: x.t }); D.log = null; if (j.ok) { delete x.st; x.n = ''; ck.done = ck.done.filter((y) => y !== x); if (!ck.open.includes(x)) ck.open.push(x); paint(); } }); card.append(u); }
   p.append(h('p', 'adm-foot', t('admChkFoot')));
 } });
 page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) { p.append(labCard(D.lab || { ok: false })); } });
