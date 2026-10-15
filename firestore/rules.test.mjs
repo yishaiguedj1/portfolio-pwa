@@ -36,6 +36,24 @@ for (const p of ['studioJobs/j1', 'studioVault/alice', 'studioServers/s1', 'stud
   await ok(assertFails(setDoc(doc(alice, p), { x: 2 })), 'השרתון בלבד — אסור לכתוב ' + p.split('/')[0]);
 }
 await ok(assertFails(setDoc(doc(alice, 'users/alice/sub/x'), { x: 1 })), 'אסור תת־אוספים מתחת למסמך המשתמש');
+// שלב 6 (15/10/2026): לכל אפליקציה המסמך שלה — לפי טענת app בטוקן המותאם
+await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'academyUsers/alice'), { lib: { p: {} }, mv: 1 }); });
+const as = (app) => env.authenticatedContext('alice', { app }).firestore();
+await ok(assertSucceeds(getDoc(doc(as('invest'), 'users/alice'))), 'Invest קוראת את התיק');
+await ok(assertSucceeds(getDoc(doc(as('all'), 'users/alice'))), 'הכתובת המאוחדת (all) קוראת את התיק');
+await ok(assertFails(getDoc(doc(as('academy'), 'users/alice'))), 'Academy לא קוראת את התיק — גם באותו חשבון');
+await ok(assertFails(setDoc(doc(as('academy'), 'users/alice'), { lib: { s: {} } }, { merge: true })), 'Academy לא כותבת למסמך התיק');
+await ok(assertFails(getDoc(doc(as('studio'), 'users/alice'))), 'Studio לא קוראת את התיק');
+await ok(assertSucceeds(getDoc(doc(as('academy'), 'academyUsers/alice'))), 'Academy קוראת את המסמך שלה');
+await ok(assertSucceeds(setDoc(doc(as('academy'), 'academyUsers/alice'), { lib: { s: { theme: 'auto' } } }, { merge: true })), 'Academy כותבת התקדמות (merge של lib)');
+await ok(assertSucceeds(getDoc(doc(alice, 'academyUsers/alice'))), 'בלי app (התחברות ישירה עם Google) — גם למסמך של Academy');
+await ok(assertFails(getDoc(doc(as('invest'), 'academyUsers/alice'))), 'Invest לא קוראת את הספרייה');
+await ok(assertFails(getDoc(doc(as('studio'), 'academyUsers/alice'))), 'Studio לא קוראת את הספרייה');
+await ok(assertFails(setDoc(doc(as('academy'), 'academyUsers/alice'), { mv: 0 }, { merge: true })), 'אסור לשנות את mv (ההעברה — רק השרתון)');
+await ok(assertFails(setDoc(doc(as('academy'), 'academyUsers/alice'), { dl: 1 }, { merge: true })), 'אסור להוסיף dl');
+await ok(assertFails(getDoc(doc(env.authenticatedContext('bob', { app: 'academy' }).firestore(), 'academyUsers/alice'))), 'אסור לקרוא ספרייה של משתמש אחר');
+await ok(assertSucceeds(setDoc(doc(env.authenticatedContext('dan', { app: 'academy' }).firestore(), 'academyUsers/dan'), { lib: { p: {} } })), 'משתמש חדש יוצר את המסמך שלו ב־Academy');
+await ok(assertFails(setDoc(doc(env.authenticatedContext('eve', { app: 'academy' }).firestore(), 'academyUsers/eve'), { lib: {}, mv: 1 })), 'ביצירה — רק lib');
 await ok(assertSucceeds(deleteDoc(doc(alice, 'users/alice'))), 'משתמש מוחק את המסמך שלו (איפוס מלא)');
 await env.cleanup();
 console.log('# ' + n + ' בדיקות עברו');
