@@ -54,7 +54,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { ov: null, lab: null, ovAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -197,7 +197,7 @@ page('apps', { tab: 'apps', title: () => t('admTabApps'), render(p) {
     soonRow('invest', '↗', 'Invest', t('admAppInvestS')),
     soonRow('academy', '▤', 'Academy', t('admAppAcademyS')),
     row({ c: 'studio', ic: '▶', t: 'Studio', s: k ? fmt(t('admAppStudioS'), { n: k.n || 0, c: usd(k.cpm, 3) }) : t('admSoon'), v: k && k.ok != null ? pctTxt(k.ok) : '', tr: k && k.ok != null ? t('admKok') : '', sp: v ? spark((v.wk || []).map((x) => x.n), COL.studio) : null, on: () => go('studio') })));
-  p.append(grp(t('admSecShared')), list(soonRow('gray', '👥', t('admUsers')), soonRow('blue', '◔', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
+  p.append(grp(t('admSecShared')), list(soonRow('gray', '👥', t('admUsers')), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
 } });
 page('studio', { tab: 'apps', parent: 'apps', title: () => 'Studio', render(p) {
   const v = D.lab && D.lab.view;
@@ -219,9 +219,11 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
   const o = D.ov, run = (o && o.run) || [];
   const dep = o ? o.items.find((x) => x.k === 'deploy_wait') : null;
   const prod = run.find((x) => x.k === 'prod'), stag = run.find((x) => x.k === 'stag');
+  const ai = D.ai, k = D.lab && D.lab.view && D.lab.view.k;
+  if (!ai) needAi();
   p.append(list(
-    soonRow('orange', '$', t('admAiCost')),
-    soonRow('blue', '◔', t('admQuota')),
+    row({ c: 'orange', ic: '$', t: t('admAiCost'), s: ai && ai.month ? fmt(t('admAiCostS'), { u: usd(ai.month.usd), n: ai.today.t }) : k ? fmt(t('admAiCostS2'), { u: usd(k.usd) }) : '', badge: ai ? ai.warn.filter((w) => w.sev <= 2).length : 0, on: () => go('ai') }),
+    row({ c: 'blue', ic: '%', t: t('admQuota'), s: o && o.dates && o.dates[0] ? fmt(t('admQuotaS'), { n: o.dates[0].left }) : '', on: () => go('quota') }),
     row({ c: dep ? 'orange' : 'green', ic: '⇪', t: t('admInfra'), s: dep ? t('admItDeploy') : prod && prod.v.b ? fmt(t('admRunBuild'), { b: prod.v.b }) + (stag && stag.v.ahead === 1 ? ' · ' + t('admRunAhead1') : stag && stag.v.ahead > 1 ? ' · ' + fmt(t('admRunAhead'), { n: stag.v.ahead }) : '') : '', badge: dep ? 1 : 0, on: () => go('infra') })));
   p.append(grp(t('admSecCtl')), list(soonRow('gray', '⚙', t('admCfg')), soonRow('red', '⏻', t('admMaint'))));
   p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
@@ -234,6 +236,79 @@ page('infra', { tab: 'sys', parent: 'sys', title: () => t('admInfra'), render(p)
   p.append(grp(t('admSecRun')), list(...o.run.map(runRow).filter(Boolean)));
   const dates = o.items.filter((x) => /^date_/.test(x.k)).map(itemRow).filter(Boolean);
   if (dates.length) p.append(grp(t('admSecDates')), list(...dates));
+} });
+/* ---- AI ועלויות (15/10/2026): Studio — ממאגר הלמידה (30 יום), Academy — מוני ה־AI היומיים, השרת — ההוצאה החודשית.
+   נטען רק בכניסה למסך (adminAi); בלי נתונים — "—", לא ממציאים ---- */
+const ROLE = { main: () => t('admRoleMain'), tl: () => t('admRoleTl'), rv: () => t('admRoleRv'), jg: () => t('admRoleJg'), sub: () => t('admRoleSub') };
+const modeName = (m) => String(m || '').replace(/-/g, ' · ').replace(/^./, (c) => c.toUpperCase());
+async function needAi() {
+  if (D.ai && Date.now() - D.aiAt < 60000) return;
+  const r = await api('adminAi');
+  if (r.ok) { D.ai = r.ai; D.aiAt = Date.now(); if (cur === 'ai' || cur === 'quota' || cur === 'sys') paint(); }
+}
+function aiWarnRow(w) {
+  const v = w.v || {}, c = w.sev === 1 ? 'red' : w.sev === 2 ? 'orange' : 'gray';
+  switch (w.k) {
+    case 'ai_day': return row({ c, ic: '!', t: t('admAiWDay'), s: fmt(t('admOfMax'), { n: v.n, m: v.m }), meter: [v.n / v.m * 100, w.sev === 1 ? 'x' : 'w'] });
+    case 'ai_ins': return row({ c, ic: '!', t: t('admAiWIns'), s: fmt(t('admOfMax'), { n: v.n, m: v.m }), meter: [v.n / v.m * 100, 'w'] });
+    case 'st_cap': return row({ c, ic: '!', t: t('admAiWCap'), s: fmt(t('admAiWCapS'), { p: v.p }), meter: [v.p, 'w'] });
+    case 'fn_full': return row({ c, ic: '∑', t: t('admAiWFn'), s: fmt(t('admOfMax'), { n: v.n, m: v.m }) });
+    default: return null;
+  }
+}
+page('ai', { tab: 'sys', parent: 'sys', title: () => t('admAiCost'), render(p) {
+  const ai = D.ai, v = D.lab && D.lab.view, k = v && v.k;
+  if (!ai) needAi();
+  const parts = [];
+  if (k) parts.push(fmt(t('admAiHeroSt'), { u: usd(k.usd) }));
+  if (ai) parts.push(fmt(t('admAiHeroAc'), { n: ai.today.t }));
+  p.append(h('p', 'adm-dt', parts.join(' · ') || t('admLoading')));
+  if (ai && ai.warn.length) p.append(grp(t('admSecWaitInfra')), list(...ai.warn.map(aiWarnRow)));
+  if (k) {
+    const wk = v.wk || [];
+    p.append(grp(t('admAiSecSt')), tiles(
+      tileEl('orange', t('admAiSpend'), usd(k.usd), v.kp && v.kp.n ? fmt(t('admPrev'), { n: usd(v.kp.usd) }) : '', '', []),
+      tileEl('purple', t('admKcpm'), usd(k.cpm, 3), '', '', wk.map((x) => x.cpm)),
+      tileEl('green', t('admKch'), pctTxt(k.ch), '', '', []),
+      tileEl('blue', t('admAiTpm'), k.tpm == null ? '—' : (k.tpm / 1000).toFixed(1) + 'K', '', '', [])));
+    const roles = (v.roles || []).filter((r) => r.usd > 0);
+    if (roles.length) p.append(grp(t('admAiSecRole')), list(...roles.map((r) => row({ c: 'purple', ic: '◇', t: (ROLE[r.k] || (() => r.k))(), s: r.m ? h('bdi', null, r.m) : '', v: usd(r.usd), tr: Math.round(r.sh * 100) + '%', meter: [r.sh * 100, ''] }))));
+    const eng = v.eng || [];
+    if (eng.length) p.append(grp(t('admAiSecEng')), list(...eng.map((e) => row({ c: e.e === 'api' ? 'blue' : 'green', ic: e.e === 'api' ? '☁' : '◆', t: e.e === 'api' ? t('admAiEngApi') : t('admAiEngSub'), s: fmt(t('admAiEngS'), { n: e.n || 0, c: usd(e.cpm, 3) }), v: usd(e.usd) }))));
+    const modes = (v.modes || []).filter((m) => m.n);
+    if (modes.length) p.append(grp(t('admAiSecMode')), list(...modes.map((m) => row({ c: 'gray', ic: '◎', t: modeName(m.m), s: fmt(t('admAiModeS'), { n: m.done || 0, c: usd(m.cpm, 3) }), v: m.jd != null ? String(Math.round(m.jd)) : m.q != null ? String(Math.round(m.q)) : '', tr: m.jd != null ? t('admKjd') : m.q != null ? t('admKq') : '' }))));
+  }
+  if (ai) {
+    const L = ai.lim;
+    p.append(grp(t('admAiSecAc')), list(
+      row({ c: 'academy', ic: '✦', t: t('admAiCalls'), s: fmt(t('admOfMax'), { n: ai.today.t, m: L.total }), meter: [ai.pct, ai.pct >= 100 ? 'x' : ai.pct >= 80 ? 'w' : ''], sp: spark(ai.days.map((x) => x.t), COL.academy) }),
+      row({ c: 'academy', ic: '▤', t: t('admAiIns'), s: fmt(t('admOfMax'), { n: ai.today.i, m: L.ins }), meter: [L.ins ? ai.today.i / L.ins * 100 : 0, ''] }),
+      row({ c: 'academy', ic: '👥', t: t('admAiReaders'), s: fmt(t('admAiReadersS'), { m: L.user }), v: ai.today.u }),
+      row({ c: 'gray', ic: '∑', t: t('admAiWeek'), v: ai.wk.t, tr: ai.wk.p ? (ai.wk.t >= ai.wk.p ? '▲ ' : '▼ ') + Math.abs(Math.round((ai.wk.t / ai.wk.p - 1) * 100)) + '%' : '', trc: ai.wk.t > ai.wk.p ? 'up' : 'dn' })));
+    if (ai.month) {
+      const m = ai.month;
+      p.append(grp(t('admAiSecSrv')), list(
+        row({ c: 'studio', ic: '☁', t: t('admAiMonth'), s: fmt(t('admAiMonthS'), { n: m.users }), v: usd(m.usd) }),
+        row({ c: m.cap && m.top >= 0.8 * m.cap ? 'orange' : 'gray', ic: '∑', t: t('admAiTop'), s: fmt(t('admAiTopS'), { c: usd(m.cap, 0) }), v: usd(m.top), meter: [m.cap ? m.top / m.cap * 100 : 0, m.cap && m.top >= 0.8 * m.cap ? 'w' : ''] })));
+    }
+  }
+  p.append(h('p', 'adm-foot', t('admAiNote')));
+} });
+page('quota', { tab: 'sys', parent: 'sys', title: () => t('admQuota'), render(p) {
+  const ai = D.ai, o = D.ov;
+  if (!ai) needAi();
+  const DN = { ant_key: () => t('admItAnt'), brk13f: () => t('admItBrk'), sec_txt: () => t('admItSec'), drill: () => t('admItDrill') };
+  if (o && o.dates) p.append(grp(t('admSecDates')), list(...o.dates.map((d) => row({ c: d.left <= 7 ? 'red' : d.left <= 30 ? 'orange' : 'gray', ic: '⧗', t: (DN[d.k] || (() => d.k))(), s: d.d, v: d.left, tr: t('admDays') }))));
+  if (ai) {
+    const L = ai.lim, rows = [];
+    if (ai.fns) rows.push(row({ c: ai.fns.n >= ai.fns.max ? 'orange' : 'green', ic: '▲', t: t('admQFn'), s: fmt(t('admOfMax'), { n: ai.fns.n, m: ai.fns.max }), meter: [ai.fns.n / ai.fns.max * 100, ai.fns.n >= ai.fns.max ? 'w' : ''] }));
+    rows.push(row({ c: 'academy', ic: '✦', t: t('admQAiDay'), v: L.total, tr: t('admQPerDay') }));
+    rows.push(row({ c: 'academy', ic: '👤', t: t('admQAiUser'), s: fmt(t('admQAnon'), { n: L.anon }), v: L.user, tr: t('admQPerDay') }));
+    rows.push(row({ c: 'academy', ic: '▤', t: t('admQAiIns'), v: L.ins, tr: t('admQPerDay') }));
+    if (ai.month) rows.push(row({ c: 'studio', ic: '☁', t: t('admQStCap'), v: usd(ai.month.cap, 0), tr: t('admQPerMonth') }));
+    p.append(grp(t('admQSecLim')), list(...rows));
+  }
+  p.append(h('p', 'adm-foot', t('admQNote')));
 } });
 page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
   const v = D.lab && D.lab.view;

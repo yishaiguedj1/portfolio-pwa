@@ -41,6 +41,7 @@ const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות 
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
 const LR = require('../lib/studiolearn');
+const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
@@ -1176,6 +1177,20 @@ async function handler(req, res, deps = {}) {
         readDoc(deps, 'sysBackup', 'cfg').catch(() => null), readDoc(deps, 'sysWatch', 'sites').catch(() => null), aoFacts(deps, now)]);
       const bk = backup ? { okAt: backup.okAt || 0, err: backup.err || '', up: backup.up || 0 } : null;
       return res.status(200).json({ ok: true, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null }, ext)) });
+    }
+    if (op === 'adminAi') {
+      // 15/10/2026: מרכז הניהול ← AI ועלויות. מנהל בלבד. רק מספרים: קריאות AI ליום (Academy), כמה קוראים (מספר, בלי זהות),
+      // ההוצאה החודשית של Studio על השרת (סכום, כמה משתמשים, הגבוה ביותר מול התקרה — בלי לומר מי), ופונקציות Vercel
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const keys = AO.dayKeys(now, AO.AI_DAYS);
+      const docs = await Promise.all(keys.map((d) => readDoc(deps, 'aiUse', d).catch(() => null)));
+      const days = {}; keys.forEach((d, i) => { days[d] = docs[i]; });
+      const stats = await query(deps, 'studioStats', null, 500).catch(() => []);
+      const used = stats.map((x) => S.monthUsed(x.mu, now)).filter((x) => x > 0);
+      let fns = null;
+      try { const n = require('fs').readdirSync(__dirname).filter((f) => /\.js$/.test(f)).length; fns = { n, max: 12 }; } catch (e) {}
+      return res.status(200).json({ ok: true, ai: AO.aiView({ now, days, lim: AICACHE.limits(),
+        month: { usd: used.reduce((a, b) => a + b, 0), users: used.length, cap: USER_MONTH(), top: used.length ? Math.max(...used) : 0 }, fns }) });
     }
     if (op === 'atNew' || op === 'atList' || op === 'atDel') {
       // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash

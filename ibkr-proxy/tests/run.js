@@ -3481,6 +3481,22 @@ function stubFetch(text, status = 200) {
       const ao = await run({ op: 'adminOv', idToken: OWNER });
       ok(ao.payload.ok && ao.payload.ov.v === 1 && Array.isArray(ao.payload.ov.items) && ao.payload.ov.run.some((x) => x.k === 'prod'), 'מרכז הניהול: סקירה — מחכה לך + מה רץ איפה');
       ok(!/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(ao.payload)), 'מרכז הניהול: הסקירה בלי uid ומיילים');
+      // 15/10/2026: מרכז הניהול ← AI ועלויות — קריאות ליום מול התקרה, ההוצאה החודשית של Studio (סכום, בלי מי)
+      ok((await run({ op: 'adminAi', idToken: FRIEND })).payload.error === 'not_admin', 'AI ועלויות: רק המנהל');
+      const ai0 = (await run({ op: 'adminAi', idToken: OWNER })).payload.ai;
+      const tday = ai0.today.d, mkey = tday.slice(0, 7);
+      db.set('aiUse/' + tday, { fields: { t: { integerValue: '1700' }, i: { integerValue: '4' }, u_aaaaaaaaaaaaaaaa: { integerValue: '9' }, u_bbbbbbbbbbbbbbbb: { integerValue: '2' } } });
+      const mu0 = db.get('studioStats/ownerUid0001');
+      db.set('studioStats/zzAiTestUid01', { fields: { mu: { stringValue: JSON.stringify({ m: mkey, usd: 26 }) } } });
+      const aiR = await run({ op: 'adminAi', idToken: OWNER });
+      const AIV = aiR.payload.ai;
+      ok(aiR.payload.ok && AIV.days.length === 14 && AIV.today.t === 1700 && AIV.today.u === 2 && AIV.today.i === 4, 'AI ועלויות: היום — קריאות, ניתוחים, כמה קוראים');
+      ok(AIV.month && AIV.month.users >= 1 && AIV.month.top >= 26 && AIV.month.cap > 0, 'AI ועלויות: ההוצאה החודשית של Studio על השרת');
+      ok(AIV.warn.some((w) => w.k === 'ai_day' && w.sev === 2) && AIV.warn.some((w) => w.k === 'st_cap'), 'AI ועלויות: אזהרה כשהיום קרוב לתקרה וכשמשתמש קרוב לתקציב החודשי');
+      ok(AIV.fns && AIV.fns.n === 12 && AIV.fns.max === 12, 'AI ועלויות: פונקציות Vercel — 12 מתוך 12');
+      ok(!/ownerUid0001|zzAiTestUid01|u_aaaa|@example\.com/.test(JSON.stringify(aiR.payload)), 'AI ועלויות: בלי uid, בלי מזהה קורא ובלי מיילים');
+      db.delete('studioStats/zzAiTestUid01'); db.delete('aiUse/' + tday);
+      void mu0;
       // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
       const br = await run({ op: 'learnBrief', idToken: OWNER });
       ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');

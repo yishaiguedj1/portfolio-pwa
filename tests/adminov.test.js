@@ -18,4 +18,14 @@ ok(busy.items.every((x, i, a) => !i || a[i - 1].sev <= x.sev), 'ממוין לפ�
 const late = A.overview({ now: Date.parse('2027-01-05T00:00:00Z'), backup: { okAt: Date.parse('2027-01-04T20:00:00Z') }, gh: null });
 ok(late.items.some((x) => x.k === 'date_ant_key' && x.v.left === 11), 'תאריך מתקרב — מפתח Anthropic פג בעוד 11 ימים');
 ok(A.overview({ now, gh: null }).items.some((x) => x.k === 'bk_none'), 'בלי גיבוי בכלל — דחוף');
+ok(quiet.dates.length === A.DATES.length && quiet.dates.every((x, i, a) => !i || a[i - 1].left <= x.left), 'כל התאריכים, מהקרוב לרחוק (למסך המכסות)');
+// AI ועלויות
+const dk = A.dayKeys(now, 14);
+const days = {}; days[dk[13]] = { t: 1650, i: 85, u_a: 3, u_b: 1 }; days[dk[12]] = { t: 300 }; days[dk[5]] = { t: 200 };
+const av = A.aiView({ now, days, lim: { total: 2000, user: 150, anon: 40, ins: 100 }, month: { usd: 40, users: 3, cap: 30, top: 25 }, fns: { n: 12, max: 12 } });
+ok(av.days.length === 14 && av.today.t === 1650 && av.today.u === 2 && av.pct === 82.5, 'AI: היום — קריאות, קוראים (מספר בלבד), אחוז מהתקרה');
+ok(av.wk.t === 1950 && av.wk.p === 200 && av.peak === 1650, 'AI: השבוע מול הקודם, השיא');
+ok(av.warn.map((w) => w.k).join() === 'ai_day,ai_ins,st_cap,fn_full', 'AI: אזהרות — תקרה יומית, ניתוחים, תקציב חודשי, פונקציות מלאות');
+ok(A.aiView({ now, days: {}, month: null }).warn.length === 0 && A.aiView({ now }).month === null, 'AI: בלי נתונים — בלי אזהרות ובלי מספרים מומצאים');
+ok(!JSON.stringify(av).includes('u_a'), 'AI: מזהי הקוראים לא יוצאים');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);

@@ -87,3 +87,4 @@ button.adm-r:active { background: color-mix(in srgb, var(--on-surface) 6%, trans
 html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 .adm-nb:empty { display: none; }
 .adm-nb:empty + .adm-h1 { margin-top: 8px; }
+.adm-foot { color: var(--on-surface-var); font-size: 12.5px; line-height: 1.5; margin: 14px 4px 0; }

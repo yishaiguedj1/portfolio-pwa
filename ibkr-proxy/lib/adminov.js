@@ -65,7 +65,47 @@ function overview(f) {
   run.push({ k: 'backup', ok: !!(bk && bk.okAt && now - bk.okAt <= 2 * DAY && !bk.err), v: { at: (bk && bk.okAt) || 0, up: (bk && bk.up) || 0 } });
   run.push({ k: 'sites', ok: !down.length, v: { down } });
   const urgent = items.filter((x) => x.sev <= 2).length;
-  return { v: 1, at: now, sum: { urgent, all: items.length }, items, run };
+  const dates = DATES.map((x) => ({ k: x.k, d: x.d, left: daysTo(x.d, now) })).sort((a, b) => a.left - b.left);
+  return { v: 1, at: now, sum: { urgent, all: items.length }, items, run, dates };
 }
 
-module.exports = { DATES, overview, swBuild, daysTo };
+/* ---- AI ועלויות (15/10/2026, סבב 4 בתוכנית) ----
+   aiUse/{יום} (lib/aicache.js): t = כל הקריאות, i = ניתוחי מכתבים, u_<hash> = לכל קורא — כאן רק כמה קוראים (מספר).
+   f = { now, days: { 'YYYY-MM-DD': doc|null }, lim: {total,user,anon,ins}, month: { usd, users, cap }, fns: { n, max } } */
+const AI_DAYS = 14;
+function dayKeys(now, n) {
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) out.push(new Date(now - i * DAY).toISOString().slice(0, 10));
+  return out;
+}
+function aiUseDay(doc) {
+  const d = doc || {};
+  const u = Object.keys(d).filter((k) => /^u_/.test(k)).length;
+  return { t: Math.max(0, +d.t || 0), i: Math.max(0, +d.i || 0), u };
+}
+function aiView(f) {
+  const now = f.now || Date.now();
+  const lim = f.lim || { total: 2000, user: 150, anon: 40, ins: 100 };
+  const days = dayKeys(now, AI_DAYS).map((d) => Object.assign({ d }, aiUseDay(f.days && f.days[d])));
+  const td = days[days.length - 1];
+  const wk = days.slice(-7), pw = days.slice(-14, -7);
+  const sumT = (l) => l.reduce((s, x) => s + x.t, 0);
+  const peak = days.reduce((m, x) => Math.max(m, x.t), 0);
+  const mo = f.month || null;
+  const fns = f.fns || null;
+  // אזהרות: רק מה שדורש פעולה (תקרה יומית קרובה, תקציב חודשי של Studio, פונקציות Vercel)
+  const warn = [];
+  if (lim.total > 0 && td.t >= 0.8 * lim.total) warn.push({ k: 'ai_day', sev: td.t >= lim.total ? 1 : 2, v: { n: td.t, m: lim.total } });
+  if (lim.ins > 0 && td.i >= 0.8 * lim.ins) warn.push({ k: 'ai_ins', sev: 2, v: { n: td.i, m: lim.ins } });
+  if (mo && mo.cap > 0 && mo.top >= 0.8 * mo.cap) warn.push({ k: 'st_cap', sev: 2, v: { p: Math.round(mo.top / mo.cap * 100) } });
+  if (fns && fns.max && fns.n >= fns.max) warn.push({ k: 'fn_full', sev: 3, v: { n: fns.n, m: fns.max } });
+  return {
+    v: 1, at: now, lim, days, today: td,
+    wk: { t: sumT(wk), p: sumT(pw), i: wk.reduce((s, x) => s + x.i, 0), u: Math.max(0, ...wk.map((x) => x.u)) },
+    peak, pct: lim.total > 0 ? Math.round(td.t / lim.total * 1000) / 10 : 0,
+    month: mo ? { usd: Math.round((mo.usd || 0) * 100) / 100, users: mo.users || 0, cap: mo.cap || 0, top: Math.round((mo.top || 0) * 100) / 100 } : null,
+    fns, warn: warn.sort((a, b) => a.sev - b.sev),
+  };
+}
+
+module.exports = { DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS };
