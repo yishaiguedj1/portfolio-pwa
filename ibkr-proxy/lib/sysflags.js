@@ -4,6 +4,8 @@
    ושמות קצרים כמו f/m כבר תפוסים — לכן שמות ארוכים וייחודיים):
      mtOn (0/1) · mtMsg (הודעה למשתמשים) · mtTil (עד מתי, 0 = עד שמכבים) · mtAt (מתי הודלק)
      flOff — רשימה מופרדת בפסיקים של הדגלים שכבויים (כל דגל שלא ברשימה — דולק; דגל חדש דולק כברירת מחדל)
+     amEm — מי מקבל את כל מצבי התרגום (15/10/2026, בקשת המשתמש): מיילים מופרדים בפסיקים, אותיות קטנות. לכולם — רק
+     PUBLIC_MODES (lib/studio.js); המנהל ומי שברשימה — כל המצבים. נאכף ב־api/studio.js (modeOk). לא יוצא ב־publicCfg
    מה שמוצג במסך הדגלים חייב להיות נאכף בקוד — לכל דגל המקום שבו הוא נבדק (where). דגל חדש = כאן + האכיפה + מחרוזות. */
 
 const FLAGS = [
@@ -17,6 +19,12 @@ const FLAGS = [
 const KEYS = FLAGS.map((f) => f.k);
 const MSG_MAX = 140;
 const TIL_MAX = 7 * 864e5;   // תחזוקה מתוזמנת — עד שבוע קדימה
+const AM_MAX = 50;   // מיילים ברשימת "כל המודלים"
+const EMAIL_RE = /^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,24}$/;
+const normEmail = (s) => { const e = String(s == null ? '' : s).trim().toLowerCase(); return EMAIL_RE.test(e) ? e : ''; };
+const amList = (doc) => Array.from(new Set(String((doc && doc.amEm) || '').split(',').map(normEmail).filter(Boolean))).slice(0, AM_MAX);
+/* מי שברשימה — רק עם מייל מאומת (כמו STUDIO_USERS) */
+const amHas = (doc, user) => !!(user && user.verified && user.email && amList(doc).includes(String(user.email).toLowerCase()));
 
 /* הודעה למשתמשים: טקסט בלבד, שורה אחת, בלי קישורים ובלי תגיות */
 function normMsg(s) {
@@ -39,9 +47,9 @@ function publicCfg(doc, now) {
 /* למנהל: הכל, כולל מתי הודלק */
 function adminCfg(doc, now) {
   return Object.assign(publicCfg(doc, now), { mt: { on: +((doc && doc.mtOn) || 0) === 1, msg: normMsg(doc && doc.mtMsg), til: +((doc && doc.mtTil) || 0), at: +((doc && doc.mtAt) || 0) },
-    flags: FLAGS.map((x) => ({ k: x.k, app: x.app, on: !offSet(doc).has(x.k) })) });
+    flags: FLAGS.map((x) => ({ k: x.k, app: x.app, on: !offSet(doc).has(x.k) })), am: amList(doc) });
 }
-/* שינוי מהמנהל → השדות לכתיבה (או null — לא תקין). b = { mt: {on, msg, til} } או { flag: k, on } */
+/* שינוי מהמנהל → השדות לכתיבה (או null — לא תקין). b = { mt: {on, msg, til} } או { flag: k, on } או { am: מייל, on } */
 function applyAdmin(doc, b, now) {
   if (b && b.mt && typeof b.mt === 'object') {
     const on = b.mt.on === true;
@@ -54,7 +62,14 @@ function applyAdmin(doc, b, now) {
     if (b.on) off.delete(b.flag); else off.add(b.flag);
     return { flOff: KEYS.filter((k) => off.has(k)).join(',') };
   }
+  if (b && typeof b.am === 'string' && typeof b.on === 'boolean') {
+    const e = normEmail(b.am);
+    if (!e) return null;
+    const l = amList(doc).filter((x) => x !== e);
+    if (b.on) { if (l.length >= AM_MAX) return null; l.push(e); }
+    return { amEm: l.join(',') };
+  }
   return null;
 }
 
-module.exports = { FLAGS, KEYS, MSG_MAX, TIL_MAX, normMsg, maintOn, flagOn, publicCfg, adminCfg, applyAdmin };
+module.exports = { FLAGS, KEYS, MSG_MAX, TIL_MAX, AM_MAX, normMsg, normEmail, maintOn, flagOn, publicCfg, adminCfg, applyAdmin, amList, amHas };

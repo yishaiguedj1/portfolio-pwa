@@ -277,14 +277,15 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
   const cf = D.cfg, mOn = !!(cf && cf.m), nOff = cf ? cf.flags.filter((f) => !f.on).length : 0;
   p.append(grp(t('admSecCtl')), list(
     row({ c: mOn ? 'red' : 'gray', ic: '⏻', t: t('admMaint'), s: !cf ? t('admLoading') : mOn ? t('admMaintOn') + (cf.m.msg ? ' · ' + cf.m.msg : '') : t('admMaintOffS'), badge: mOn ? 1 : 0, on: () => go('maint') }),
-    row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') })));
+    row({ c: nOff ? 'orange' : 'green', ic: '⚙', t: t('admCfg'), s: !cf ? t('admLoading') : nOff ? fmt(t('admFlagsOffN'), { n: nOff }) : t('admFlagsAll'), on: () => go('flags') }),
+    row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') })));
   p.append(grp(t('admSecSec')), list(soonRow('green', '🔒', t('admSecLog')), soonRow('gray', '⚿', t('admSecrets'))));
 } });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */
 async function needCfg(set) {
   const r = await api('adminCfg', set ? { set } : {});
-  if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'sys'].includes(cur)) paint(); }
+  if (r.ok) { D.cfg = r.cfg; if (['maint', 'flags', 'models', 'sys'].includes(cur)) paint(); }
   return r;
 }
 const clock = (ms) => new Date(ms).toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
@@ -341,6 +342,36 @@ page('flags', { tab: 'sys', parent: 'sys', title: () => t('admCfg'), render(p) {
     return r;
   });
   p.append(list(...rows), h('p', 'adm-foot', t('admFlFoot')));
+} });
+/* 15/10/2026 (בקשת המשתמש): מצבי התרגום בסטודיו — לכולם "רגיל" (Haiku High) ו"ביצועים" (Sonnet Medium); כאן — מי מקבל את
+   כל המודלים (גם Sonnet Low/High ו־Opus). המנהל תמיד. השרתון אוכף (modeOk ב־api/studio.js), וגם פותח לרשימה את הסטודיו */
+page('models', { tab: 'sys', parent: 'sys', title: () => t('admModels'), render(p) {
+  const cf = D.cfg;
+  if (!cf) { needCfg(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const card = h('section', 'card adm-card');
+  card.append(h('p', 'adm-sub', t('admModelsSub')));
+  const inp = h('input', 'adm-search'); inp.type = 'email'; inp.placeholder = t('admModelsPh'); inp.setAttribute('aria-label', t('admModelsPh')); inp.dir = 'ltr'; inp.autocomplete = 'off';
+  const add = h('button', 'btn', t('admModelsAdd')); add.type = 'button';
+  const doAdd = async () => {
+    const e = inp.value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { flash(t('admModelsBad')); return; }
+    add.disabled = true; const r = await needCfg({ am: e, on: true }); add.disabled = false;
+    flash(r.ok ? t('admSaved') : t('admErr'));
+  };
+  add.addEventListener('click', doAdd);
+  inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') doAdd(); });
+  const br = h('div', 'btn-row'); br.append(add);
+  card.append(inp, br);
+  const rows = [h('div', 'ios-row adm-dim', t('admModelsMeRow'))].concat((cf.am || []).map((e) => {
+    const r = h('div', 'ios-row adm-trow');
+    const tx = h('span', 'adm-ttx'); const b = h('b'); b.append(h('bdi', null, e)); b.style.overflowWrap = 'anywhere'; tx.append(b);
+    const del = h('button', 'mini-btn danger', t('admModelsDel')); del.type = 'button';
+    del.addEventListener('click', () => askConfirm(fmt(t('admModelsDelQ'), { e }), async () => { const r2 = await needCfg({ am: e, on: false }); flash(r2.ok ? t('admSaved') : t('admErr')); }, { danger: true, ok: t('admModelsDel') }));
+    r.append(tx, del);
+    return r;
+  }));
+  const l = h('div', 'ios-list'); l.append(...rows);
+  p.append(card, h('div', 'adm-lbl', t('admModelsList')), l, h('p', 'adm-foot', t('admModelsFoot')));
 } });
 page('infra', { tab: 'sys', parent: 'sys', title: () => t('admInfra'), render(p) {
   const o = D.ov;

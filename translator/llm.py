@@ -45,8 +45,10 @@ MODES = {
     'haiku-high': ('anthropic', 'claude-haiku-5-5', 'high'),
     'sonnet-high': ('anthropic', 'claude-sonnet-5-5', 'high'),
     'opus-medium': ('anthropic', 'claude-opus-5-5', 'medium'),
+    'sonnet-low': ('anthropic', 'claude-sonnet-5-5', 'low'),       # 15/10/2026: לבדיקות (רק למנהל / לרשימת "כל המודלים")
 }
-DEFAULT_MODE = 'sonnet-medium'
+# 15/10/2026 (בקשת המשתמש): ברירת המחדל = Haiku High ("רגיל"); Sonnet Medium = "ביצועים". = DEFAULT_MODE בשרתון ובטלפון
+DEFAULT_MODE = 'haiku-high'
 # 11/10/2026: Haiku Medium יצא (המחיר כמו High) — עבודה ישנה ממשיכה ב־High
 LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high'}   # = LEGACY_MODES בשרתון
 
