@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v436';
+const CACHE_NAME = 'portfolio-pwa-v437';
 const HASHES = {
   "./": "4ea641b80e22297bbebba35123ed046b",
   "./index.html": "4ea641b80e22297bbebba35123ed046b",
   "./styles.css": "fbb6061acd78b2f40130ebea04e3dd9d",
-  "./app.js": "a936a96cc4628474ce029e31494cfaf5",
+  "./app.js": "256f46c1e31894b2b8302a5ba8d80294",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "860f747cedea43c11b0f91fef687700b",
@@ -49,7 +49,7 @@ const HASHES = {
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "799da4a976132c0b32bae2ff8ea00845",
   "./strings-academy.js": "0a65c6823082ae66ba71fecff3e57f5c",
-  "./core.js": "f31bf98fa803b63a0d3603bf74e41bc7",
+  "./core.js": "adb9b8006e29f28466bb5a07c14751e5",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "9ca89f5948c5dbbbc2be2d71054ed35e",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -57,7 +57,7 @@ const HASHES = {
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
-  "./studio.js": "10732ec55f5a31016a83544d96bca4ca",
+  "./studio.js": "0ef48d528e03731987a41c61b70f8775",
   "./studio.css": "3b2f35029d2459ab5f062d1a0a6496ff",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
@@ -67,7 +67,7 @@ const HASHES = {
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "5a63fccdc0e5a519e999c9c3be1b71d0",
-  "./strings-studio.js": "c391b38927d2e5be7876067fccf04df9",
+  "./strings-studio.js": "44b7a7331e68b3b8350479e2ec3b3521",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./icon-studio-192.png": "9b37d795c2aceac291c56b3ce425aaa3",

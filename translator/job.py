@@ -938,6 +938,85 @@ def learn_put(ctx):
         return False
 
 
+# מ׳4 (15/10/2026): הקול (Opus 32kbps) ועותק ב־240p למאגר הלמידה — רק מה שהשרתון מבקש (המתג, ההודעה שאומרת שגם הקול
+# ו־240p נשמרים, הדלי מוגדר), מוצפנים בזמן הקידוד (CENC של ffmpeg, המפתח מהשרתון לעבודה הזו) ומועלים ישירות לדלי.
+# מהפרויקט (source.*) — על אותו ציר זמן של הכתוביות. המקור המלא לא נשמר. תקלה כאן לעולם לא מפילה את סוף העבודה
+LM_ENC = {
+    'a': ['-vn', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
+    'v': ['-vf', 'scale=-2:240', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
+}
+LM_TIMEOUT = {'a': 900, 'v': 2400}
+LM_VIDEO_EXT = ('.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi')
+_LM_HEX = re.compile(r'^[0-9a-f]{32}$')
+
+
+def _lm_source(pd):
+    for p in sorted(pd.glob('source.*')):
+        if p.suffix.lower() in LM_VIDEO_EXT and p.is_file():
+            return p
+    return None
+
+
+def _lm_nice():
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+
+
+def _lm_put(url, path):
+    """PUT של קובץ שלם לקישור החתום, בזרימה (בלי לטעון את הקובץ לזיכרון). מחזיר את הסטטוס (0 = רשת)"""
+    size = path.stat().st_size
+    with open(path, 'rb') as f:
+        req = urllib.request.Request(url, data=f, method='PUT', headers={'Content-Length': str(size), 'Content-Type': 'video/mp4', 'User-Agent': UA})
+        try:
+            with urllib.request.urlopen(req, timeout=900) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+        except (urllib.error.URLError, TimeoutError, OSError):
+            return 0
+
+
+def learn_media(ctx):
+    if os.environ.get('SNB_LEARNMEDIA') == 'off' or ctx.st.get('kind', 'tr') != 'tr':
+        return []
+    src = _lm_source(ctx.pdir)
+    if not src:
+        return []
+    work = ctx.pdir / '_learn'
+    out = []
+    try:
+        for k in ('a', 'v'):
+            j = ctx.c.raw('learnMedia', k=k)
+            url, key, kid = str(j.get('url') or ''), str(j.get('key') or ''), str(j.get('kid') or '')
+            if not url.startswith('https://') or not _LM_HEX.match(key) or not _LM_HEX.match(kid):
+                continue                                     # השרתון לא מבקש (מתג / הודעה / דלי / כבר נשמר)
+            work.mkdir(parents=True, exist_ok=True)
+            dst = work / (k + '.mp4')
+            cmd = (['ffmpeg', '-v', 'error', '-nostdin', '-y', '-i', str(src)] + LM_ENC[k]
+                   + ['-encryption_scheme', 'cenc-aes-ctr', '-encryption_key', key, '-encryption_kid', kid, '-movflags', '+faststart', str(dst)])
+            try:
+                subprocess.run(cmd, env=vt_env(), timeout=LM_TIMEOUT[k], check=True, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=_lm_nice)
+            except (subprocess.SubprocessError, OSError):
+                continue                                     # אין רצועה כזו / ffmpeg נכשל — בלי
+            size = dst.stat().st_size if dst.exists() else 0
+            if 0 < size <= int(j.get('max') or 0) and 200 <= _lm_put(url, dst) < 300:
+                if ctx.c.raw('learnMediaDone', k=k).get('saved'):
+                    out.append(k)
+            dst.unlink(missing_ok=True)
+        if out:
+            print('· מאגר הלמידה: ' + ' + '.join({'a': 'הקול', 'v': 'עותק 240p'}[k] for k in out) + ' (מוצפן)')
+        return out
+    except Stop:
+        raise
+    except (SystemExit, Exception):      # noqa: BLE001 — מידע משני
+        return out
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 # ---------------------------------------------------------------- מצב העבודה בסשן
 _STATE_LOCK = threading.Lock()   # צירוף הסרטון רץ ברקע בזמן ההגהה (מצב API) — שני תהליכונים כותבים את אותו מצב
 
@@ -2734,6 +2813,7 @@ def finish(args):
         rvf, fil = [], []
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
     learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
+    learn_media(ctx)                             # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — גם לפני הדיווח האחרון
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
                rvf=rvf or None, fil=fil or None)

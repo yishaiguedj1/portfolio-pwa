@@ -1080,6 +1080,7 @@ async function refreshStatus(force) {
     if (!lrnBusy) ui.lrn = j.lrn !== false;   // 14/10/2026: מאגר הלמידה — דולק כברירת מחדל
     ui.lra = num(j.lra);                       // 15/10 (מ׳1): ההודעה על מאגר הלמידה כבר נקראה
     ui.lrt = num(j.lrt);                       // 15/10: הנוסח שאומר שגם הטקסט נשמר — נקרא
+    ui.lrm = num(j.lrm);                       // מ׳4: הנוסח שאומר שגם הקול ועותק ב־240p נשמרים — נקרא
     save();
     lrnNotice();
   } else ui.access = j.error === 'signin' || j.error === 'no_auth' ? 'signin' : j.error === 'not_allowed' ? 'denied' : j.error === 'net' ? 'offline' : 'error';
@@ -5582,12 +5583,12 @@ let lrnBusy = false;
 /* 15/10/2026 (מ׳1): הודעה אחת בכניסה הראשונה — מה נאסף ושאפשר לכבות. כל סגירה ("הבנתי", "חזור", לחיצה בחוץ) = נקראה;
    היא לא מכבה כלום בעצמה — הבחירה רק במתג בהגדרות */
 let lrnAsked = false;
-export const LRN_TV = 2;   // **זהה ל־LRN_TV בשרתון** — גרסת הנוסח (2 = גם טקסט הכתוביות ושמות הדוברים)
+export const LRN_TV = 3;   // **זהה ל־LRN_TV/LRN_MV בשרתון** — גרסת הנוסח (2 = גם טקסט הכתוביות ושמות הדוברים, 3 = גם הקול ועותק ב־240p — מ׳4)
 function lrnNotice() {
-  if (lrnAsked || ui.lrt || ui.access !== 'ok' || typeof askConfirm !== 'function') return;   // מי שקרא רק את הנוסח הישן ("רק מספרים") — רואה את החדש
+  if (lrnAsked || ui.lrm || ui.access !== 'ok' || typeof askConfirm !== 'function') return;   // מי שקרא רק את הנוסח הישן ("רק מספרים") — רואה את החדש
   lrnAsked = true;
   setTimeout(() => askConfirm(T('studioLrnAckQ'), () => {
-    ui.lra = ui.lrt = Date.now();
+    ui.lra = ui.lrt = ui.lrm = Date.now();
     net.api('learnPref', { ack: true, tv: LRN_TV }).catch(() => {});
   }, { alert: true, ok: T('studioLrnAckOk') }), 700);
 }

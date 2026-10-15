@@ -52,7 +52,7 @@ const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() +
 const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
-const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut']);
+const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut', 'learnMedia', 'learnMediaDone']);
 const SERVER_OPS = new Set(['poll', 'beat']);
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
@@ -319,6 +319,41 @@ async function learnEditPut(deps, job, sess, now) {
     return true;
   } catch (e) { return false; }
 }
+/* מ׳4 (15/10/2026): הקול (Opus 32kbps) והעותק ב־240p. העובד מבקש קישור לכל סוג (learnMedia) → מפתח הצפנה חדש לעבודה
+   (16 בתים, CENC של ffmpeg) עטוף בכספת ליד הקובץ + קישור PUT חתום לשעה → העובד מצפין בזמן הקידוד ומעלה ישירות לדלי →
+   learnMediaDone בודק את הגודל ורושם (job.lm). אותם תנאים של הקורפוס, ובנוסף ההודעה שאומרת שגם הקול ועותק קטן נשמרים (lrm).
+   לא נשמר: המקור המלא. נמחק אחרי 24 חודשים ובמחיקת התרומות. תקלה כאן לעולם לא מפילה את סוף העבודה */
+const LRN_MV = 3;   // **זהה ל־LRN_TV ב־studio.js** — הנוסח שאומר שגם הקול ועותק ב־240p נשמרים
+async function learnMedia(deps, job, k, now) {
+  try {
+    const c = learnCfg();
+    if (!c.ok || job.kind !== 'tr' || !LC.MEDIA_KINDS.includes(k) || String(job.lm || '').includes(k)) return null;
+    if (await learnSkip(deps, job)) return null;
+    const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
+    if (!(+st.lrm > 0)) return null;
+    const lid = LR.lid(job.id), rd = r2deps(deps);
+    const month = /^\d{4}-\d{2}$/.test(String(job.lmm || '')) ? job.lmm : LC.monthOf(now);   // הקול והסרטון באותו חודש
+    const key = crypto.randomBytes(16).toString('hex'), kid = crypto.randomBytes(16).toString('hex');
+    await R2.putText(c, rd, LC.mKey(month, lid, k, 'key'), vault.seal({ k: key, i: kid, at: now }, 'learn|' + lid + '|' + k), 'application/octet-stream');
+    const url = await R2.presign(c, rd, { method: 'PUT', key: LC.mKey(month, lid, k, 'mp4'), expires: 3600 });
+    if (job.lmm !== month) await patchJob(deps, job.id, { lmm: month });
+    return { url, key, kid, max: LC.MEDIA_MAX[k] };
+  } catch (e) { return null; }
+}
+async function learnMediaDone(deps, job, k) {
+  try {
+    const c = learnCfg();
+    if (!c.ok || !LC.MEDIA_KINDS.includes(k) || !/^\d{4}-\d{2}$/.test(String(job.lmm || '')) || String(job.lm || '').includes(k)) return false;
+    const lid = LR.lid(job.id), rd = r2deps(deps);
+    const h = await R2.head(c, rd, LC.mKey(job.lmm, lid, k, 'mp4'));
+    if (!h || !(h.size > 0) || h.size > LC.MEDIA_MAX[k]) {   // לא הגיע / גדול מהמותר — לא נשאר כלום
+      for (const part of ['mp4', 'key']) await R2.del(c, rd, LC.mKey(job.lmm, lid, k, part)).catch(() => {});
+      return false;
+    }
+    await patchJob(deps, job.id, { lm: String(job.lm || '') + k });
+    return true;
+  } catch (e) { return false; }
+}
 /* האצווה היומית: q → c/<חודש>, ומחיקת חודשים ישנים מ־24. פעם ביום (sysLearn/batch.day). מחזיר כמה עברו, ‎0 = לא היום */
 const LC_BATCH_MAX = 500;
 async function learnBatch(deps, now) {
@@ -346,10 +381,10 @@ async function learnBatch(deps, now) {
     if (item && /^\d{4}-\d{2}$/.test(String(item.m || ''))) { await R2.copy(c, rd, it.key, LC.eKey(item.m, p.lid), 'application/octet-stream'); moved++; }
     await R2.del(c, rd, it.key);
   }
-  for (const pre of ['c/', 'e/']) {
+  for (const pre of ['c/', 'e/', 'm/']) {
     for (const it of await R2.list(c, rd, pre, 50000)) {
       const p = LC.parseKey(it.key);
-      if (p && (p.kind === 'c' || p.kind === 'e') && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); gone++; }
+      if (p && (p.kind === 'c' || p.kind === 'e' || p.kind === 'm') && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); gone++; }
     }
   }
   await patchDoc(deps, 'sysLearn', 'batch', { day, at: now, mv: moved, gn: gone });
@@ -362,7 +397,7 @@ async function learnCorpusForget(deps, ids) {
   let n = 0;
   try {
     const rd = r2deps(deps);
-    for (const pre of ['q/', 'c/', 'qe/', 'e/']) {
+    for (const pre of ['q/', 'c/', 'qe/', 'e/', 'm/']) {
       for (const it of await R2.list(c, rd, pre, 50000)) {
         const p = LC.parseKey(it.key);
         if (p && ids.has(p.lid)) { await R2.del(c, rd, it.key); n++; }
@@ -376,7 +411,7 @@ async function learnCorpusView(deps, items) {
   const c = learnCfg();
   if (!c.ok) return { on: false };
   const rd = r2deps(deps);
-  const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000), ...await R2.list(c, rd, 'qe/', 5000), ...await R2.list(c, rd, 'e/', 50000)];
+  const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000), ...await R2.list(c, rd, 'qe/', 5000), ...await R2.list(c, rd, 'e/', 50000), ...await R2.list(c, rd, 'm/', 50000)];
   const out = Object.assign({ on: true }, LC.corpusStats(keys));
   if (items > 0) {
     const list = [];
@@ -1119,6 +1154,8 @@ async function worker(req, res, body, deps) {
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
     if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
+    if (body.op === 'learnMedia') return res.status(200).json(Object.assign({ ok: true, now }, (await learnMedia(deps, job, String(body.k || ''), now)) || { skip: true }));   // מ׳4
+    if (body.op === 'learnMediaDone') return res.status(200).json({ ok: true, saved: await learnMediaDone(deps, job, String(body.k || '')), now });
     if (body.op.startsWith('r2')) {   // ת4: הקבצים של העבודה ב־R2 (קלט, תוצרים, נקודות שמירה)
       const op = { r2get: 'url', r2wup: 'up', r2wparts: 'parts', r2wdone: 'done', r2del: 'del' }[body.op];
       const [code, out] = await r2Files(deps, op, body, job.uid, job.folder, 'worker');
@@ -1524,7 +1561,7 @@ async function handler(req, res, deps = {}) {
     if (op === 'learnPref') {
       // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל). 15/10 (מ׳1): ack = ההודעה בכניסה הראשונה נקראה (lra)
       // 15/10/2026: tv = גרסת הנוסח שנקרא. LRN_TV ומעלה (הנוסח שאומר שגם טקסט הכתוביות ושמות הדוברים נשמרים) = גם lrt — ההסכמה לטקסט
-      const tx = body.ack === true && (body.tv | 0) >= LRN_TV ? { lrt: now } : {};
+      const tx = body.ack === true && (body.tv | 0) >= LRN_TV ? Object.assign({ lrt: now }, (body.tv | 0) >= LRN_MV ? { lrm: now } : {}) : {};   // מ׳4: 3 = גם הקול ו־240p
       if (body.ack === true && body.on === undefined) { await patchDoc(deps, 'studioStats', uid, Object.assign({ lra: now, updated: now }, tx)); return res.status(200).json(Object.assign({ ok: true, lra: now }, tx)); }
       const on = body.on === true;
       await patchDoc(deps, 'studioStats', uid, Object.assign({ lo: on ? 0 : 1, updated: now }, body.ack === true ? Object.assign({ lra: now }, tx) : {}));
@@ -1550,7 +1587,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, lra: +st.lra || 0, lrt: +st.lrt || 0, lrm: +st.lrm || 0 /* מ׳4 */, lf: +st.lf || 0 /* 15/10 (מ׳1): ההודעה נקראה / מתי נמחקו התרומות */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
