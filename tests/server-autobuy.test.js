@@ -1,4 +1,4 @@
-/* הזמנה אוטומטית של CX43 (12/10/2026): tools/server-autobuy.js + .github/workflows/autobuy.yml.
+/* הזמנה אוטומטית של CX53 (12/10/2026): tools/server-autobuy.js + .github/workflows/autobuy.yml.
    Hetzner, Vercel, Firestore ו־Google OAuth מדומים — בלי רשת, בלי סודות אמיתיים ובלי הזמנה אמיתית. */
 'use strict';
 const fs = require('fs');
@@ -58,8 +58,8 @@ function mock(o = {}) {
       if (p.startsWith('/server_types?name=')) {
         const name = decodeURIComponent(p.split('=')[1]);
         let av = {};
-        if (name === 'cx43') { const list = o.avail || [{}]; av = list[Math.min(checks, list.length - 1)]; checks++; }
-        const price = (name === 'cx43' ? (o.price || '17.49') : '24.49');
+        if (name === 'cx53') { const list = o.avail || [{}]; av = list[Math.min(checks, list.length - 1)]; checks++; }
+        const price = (name === 'cx53' ? (o.price || '17.49') : '24.49');
         return res(200, { server_types: [{ id: 99, name, memory: 16, prices: ['fsn1', 'nbg1'].map((l) => ({ location: l, price_monthly: { net: price, gross: price } })),
           locations: ['fsn1', 'nbg1', 'hel1'].map((l) => ({ name: l, available: !!av[l] })) }] });
       }
@@ -84,7 +84,7 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
   {
     const M = mock({ avail: [{ fsn1: true }] });
     const out = await A.check(E, M.deps);
-    ok(out.includes('cx43 · fsn1 · 17.99 USD לחודש (כולל IPv4) · במלאי עכשיו') && out.includes('cx43 · nbg1 · 17.99 USD') && out.includes('אזל'),
+    ok(out.includes('cx53 · fsn1 · 17.99 USD לחודש (כולל IPv4) · במלאי עכשיו') && out.includes('cx53 · nbg1 · 17.99 USD') && out.includes('אזל'),
       'check: המחיר במטבע של החשבון (שרת + IPv4) והמלאי לכל מיקום');
     ok(out.includes('cax31 · fsn1 · 24.99 USD'), 'check: גם המחיר של CAX31 — להשוואה');
     ok(out.includes('הסודות: תקינים'), 'check: הסודות נבדקו (בלי ערכים)');
@@ -107,8 +107,8 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
     const r = await A.watch(E, M.deps, { minutes: 60 });
     ok(r.bought && r.bought.location === 'fsn1' && r.bought.server === 555 && M.deps.now() === 1_000_000 + 3 * 60e3, 'שלוש דקות בלי מלאי, ובבדיקה הרביעית מזמינים — ב־fsn1 (קודם)');
     const b = JSON.parse(posts(M)[0].body);
-    ok(posts(M).length === 1 && b.name === 'snb-cx43' && b.server_type === 'cx43' && b.firewalls[0].firewall === 7 && b.labels.snb === 'all',
-      'הזמנה אחת: השם הקבוע, CX43, חומת האש הסגורה, תוכנית all');
+    ok(posts(M).length === 1 && b.name === 'snb-cx53' && b.server_type === 'cx53' && b.firewalls[0].firewall === 7 && b.labels.snb === 'all',
+      'הזמנה אחת: השם הקבוע, CX53, חומת האש הסגורה, תוכנית all');
     ok(b.user_data.includes('path: /etc/snb/app.env') && b.user_data.includes('path: /etc/snb/worker.env') && b.user_data.includes('path: /etc/snb/app-stg.env'),
       'קוד ההקמה: כל החדרים (ייצור + ניסוי + השרתון של הייצור)');
     ok(Object.keys(M.docs).filter((k) => k.startsWith('studioServers/')).length === 2 && r.bought.sid && r.bought.sidp, 'טוקן שרת לכל סביבה נרשם');
@@ -147,7 +147,7 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
     const r5 = await A.watch(E, M5.deps, { minutes: 30 });
     ok(r5.timeout && r5.checks === 30, 'בדיקה כל דקה עד הדדליין');
     const hz = (s) => M5.calls.filter((c) => c.url.includes('api.hetzner.cloud/v1' + s)).length;
-    ok(hz('/server_types?name=cx43') === 30 && hz('/pricing') === 1 && hz('/servers?name=') === 1,
+    ok(hz('/server_types?name=cx53') === 30 && hz('/pricing') === 1 && hz('/servers?name=') === 1,
       'קריאה אחת ל־Hetzner בדקה: המחירון פעם אחת לריצה, "השרת קיים" רק בהתחלה וכשיש מלאי');
 
     /* תקלה רגעית — ממשיכים; תקלה קבועה — עוצרים (ה־workflow מכבה ומודיע) */
@@ -165,8 +165,8 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
   }
 
   /* ---------- הקבועים ---------- */
-  ok(A.AUTOBUY.type === 'cx43' && A.AUTOBUY.locations.join(',') === 'fsn1,nbg1' && A.AUTOBUY.name === 'snb-cx43' && A.AUTOBUY.every === 60e3,
-    'CX43 בלבד, fsn1 ואז nbg1, שם קבוע, כל דקה');
+  ok(A.AUTOBUY.type === 'cx53' && A.AUTOBUY.locations.join(',') === 'fsn1,nbg1' && A.AUTOBUY.name === 'snb-cx53' && A.AUTOBUY.every === 60e3,
+    'CX53 בלבד, fsn1 ואז nbg1, שם קבוע, כל דקה');
 
   /* ---------- ה־workflow ---------- */
   {
