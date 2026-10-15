@@ -310,7 +310,13 @@ export function advancedRow(onClick) {
   const ch = h('span', 'row-link-chev'); ch.setAttribute('aria-hidden', 'true'); ch.innerHTML = CHEV;
   b.append(ic, h('span', 'row-link-txt', t('advancedTitle')), ch);
   b.addEventListener('click', onClick);
-  card.append(b);
+  // 15/10/2026: "שליחת משוב" באותו כרטיס — כמו ב־index.html (feedbackOpen ב־core)
+  const f = h('button', 'row-link'); f.type = 'button'; f.id = 'feedbackOpen';
+  const fic = h('span', 'row-link-ic fb-ic'); fic.setAttribute('aria-hidden', 'true'); fic.innerHTML = FB_IC;
+  const fch = h('span', 'row-link-chev'); fch.setAttribute('aria-hidden', 'true'); fch.innerHTML = CHEV;
+  f.append(fic, h('span', 'row-link-txt', t('fbRowT')), fch);
+  f.addEventListener('click', () => feedbackOpen());
+  card.append(b, f);
   return card;
 }
 /* ניקוי מטמון ורענון — כמו #clearCache ב־app.js: כל המטמונים של ה־Service Worker, ביטול הרישום, טעינה מחדש */

@@ -1920,7 +1920,7 @@ function modePicker(cur, onPick) {
     meter(T('studioHourEst'), h('b', null, T('studioHrs', { t: fmtHM(m.min) }))));
   best.append(mh, meters);
   const grp = (title, sub, ids, label) => {
-    const g = h('div', 'st-mode-grp');
+    const g = h('div', 'st-mode-grp' + (ids.length > 2 ? ' many' : ''));   // 15/10/2026: שלושה כרטיסים (כל המודלים) — גופן קטן יותר, השם בשורה אחת
     const gh = h('div', 'st-gh');
     gh.append(h('b', null, title), h('small', null, sub));
     const ef = h('div', 'st-effort'); ef.setAttribute('role', 'radiogroup'); ef.setAttribute('aria-label', title);

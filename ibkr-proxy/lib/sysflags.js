@@ -39,16 +39,31 @@ function maintOn(doc, now) {
 }
 const flagOn = (doc, k) => !offSet(doc).has(k);
 
+
+/* 15/10/2026 (מרכז הניהול ← הודעות): הודעה שהמנהל כותב — כותרת וטקסט, לאילו אפליקציות, עד מתי. מוצגת פעם אחת בכל מכשיר
+   (לפי anId — הדלקה חדשה = מזהה חדש = מוצגת שוב). שדות שטוחים: anId (זמן ההדלקה, 0 = כבויה), anT, anB, anApps, anTil */
+const AN_APPS = ['invest', 'academy', 'studio'];
+const AN_T_MAX = 60, AN_B_MAX = 400;
+const normAn = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\bhttps?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim().slice(0, n);
+const anApps = (x) => { const l = (Array.isArray(x) ? x : String(x || '').split(',')).filter((a) => AN_APPS.includes(a)); return AN_APPS.filter((a) => l.includes(a)); };
+function anView(doc, now) {
+  const id = +((doc && doc.anId) || 0), til = +((doc && doc.anTil) || 0);
+  if (!(id > 0) || (til > 0 && now >= til)) return null;
+  const apps = anApps(doc.anApps), t = normAn(doc.anT, AN_T_MAX), b = normAn(doc.anB, AN_B_MAX);
+  return apps.length && (t || b) ? { id, t, b, apps, til } : null;
+}
+
 /* מה שהאפליקציות מקבלות (בלי התחברות): רק התחזוקה וההדלקה של כל דגל — בלי מי הדליק ומתי */
 function publicCfg(doc, now) {
   const off = offSet(doc), f = {};
   for (const k of KEYS) f[k] = !off.has(k);
-  return { m: maintOn(doc, now) ? { on: true, msg: normMsg(doc.mtMsg), til: +doc.mtTil > 0 ? +doc.mtTil : 0 } : null, f };
+  return { m: maintOn(doc, now) ? { on: true, msg: normMsg(doc.mtMsg), til: +doc.mtTil > 0 ? +doc.mtTil : 0 } : null, f, an: anView(doc, now) };
 }
 /* למנהל: הכל, כולל מתי הודלק */
 function adminCfg(doc, now) {
   return Object.assign(publicCfg(doc, now), { mt: { on: +((doc && doc.mtOn) || 0) === 1, msg: normMsg(doc && doc.mtMsg), til: +((doc && doc.mtTil) || 0), at: +((doc && doc.mtAt) || 0) },
-    flags: FLAGS.map((x) => ({ k: x.k, app: x.app, on: !offSet(doc).has(x.k) })), am: amList(doc) });
+    flags: FLAGS.map((x) => ({ k: x.k, app: x.app, on: !offSet(doc).has(x.k) })), am: amList(doc),
+    anD: { t: normAn(doc && doc.anT, AN_T_MAX), b: normAn(doc && doc.anB, AN_B_MAX), apps: anApps(doc && doc.anApps), til: +((doc && doc.anTil) || 0), on: +((doc && doc.anId) || 0) > 0 } });
 }
 /* שינוי מהמנהל → השדות לכתיבה (או null — לא תקין). b = { mt: {on, msg, til} } או { flag: k, on } או { am: מייל, on } */
 function applyAdmin(doc, b, now) {
@@ -63,6 +78,12 @@ function applyAdmin(doc, b, now) {
     if (b.on) off.delete(b.flag); else off.add(b.flag);
     return { flOff: KEYS.filter((k) => off.has(k)).join(',') };
   }
+  if (b && b.an && typeof b.an === 'object') {
+    if (b.an.on !== true) return { anId: 0 };
+    const t = normAn(b.an.t, AN_T_MAX), body = normAn(b.an.b, AN_B_MAX), apps = anApps(b.an.apps), til = Math.floor(Number(b.an.til) || 0);
+    if (!(t || body) || !apps.length || (til && (til <= now || til > now + 60 * 864e5))) return null;
+    return { anId: now, anT: t, anB: body, anApps: apps.join(','), anTil: til };
+  }
   if (b && typeof b.am === 'string' && typeof b.on === 'boolean') {
     const e = normEmail(b.am);
     if (!e) return null;
@@ -73,4 +94,4 @@ function applyAdmin(doc, b, now) {
   return null;
 }
 
-module.exports = { FLAGS, KEYS, MSG_MAX, TIL_MAX, AM_MAX, normMsg, normEmail, maintOn, flagOn, publicCfg, adminCfg, applyAdmin, amList, amHas };
+module.exports = { AN_APPS, anView, normAn, FLAGS, KEYS, MSG_MAX, TIL_MAX, AM_MAX, normMsg, normEmail, maintOn, flagOn, publicCfg, adminCfg, applyAdmin, amList, amHas };
