@@ -40,7 +40,8 @@ const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודי�
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
-const LR = require('../lib/studiolearn');   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
+const LR = require('../lib/studiolearn');
+const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -127,6 +128,39 @@ async function listJobs(deps, uid) {
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
 const readVault = (deps, uid) => readDoc(deps, 'studioVault', uid);
+/* 15/10/2026: מרכז הניהול — עובדות מבחוץ (GitHub ציבורי, sw.js החי) עם מטמון של 5 דקות במופע (GitHub בלי טוקן = 60 בשעה).
+   כל תקלה = "לא ידוע" (0 / null), לא שגיאה — המסך מציג מה שיש */
+const AO_TTL = 300000, AO_REPO = 'yishaiguedj1/portfolio-pwa';
+const aoCache = new Map();
+async function aoGet(deps, key, fn, now) {
+  const c = aoCache.get(key);
+  if (c && now - c.at < AO_TTL) return c.v;
+  let v = null; try { v = await fn(); } catch (e) { v = null; }
+  aoCache.set(key, { at: now, v });
+  return v;
+}
+async function aoJson(deps, url) {
+  const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
+  if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
+  const r = await (deps.fetch || fetch)(url, { headers: h, signal: AbortSignal.timeout(6000) });
+  return r.status === 200 ? r.json() : null;
+}
+async function aoFacts(deps, now) {
+  const f = deps.fetch || fetch;
+  const build = (u) => aoGet(deps, 'sw|' + u, async () => { const r = await f(u, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(6000) }); return r.status === 200 ? AO.swBuild(await r.text()) : 0; }, now);
+  const gh = await aoGet(deps, 'gh', async () => {
+    const A = 'https://api.github.com/repos/' + AO_REPO;
+    const [runs, prs, tags] = await Promise.all([aoJson(deps, A + '/actions/runs?status=waiting&per_page=5'), aoJson(deps, A + '/pulls?state=open&per_page=30'), aoJson(deps, A + '/tags?per_page=1')]);
+    if (!runs && !prs) return null;
+    return {
+      waiting: ((runs && runs.workflow_runs) || []).slice(0, 5).map((w) => ({ id: Number(w.id) || 0, at: Date.parse(w.created_at) || 0 })),
+      prs: (Array.isArray(prs) ? prs : []).map((p) => ({ n: Number(p.number) || 0, t: String(p.title || '').slice(0, 120), dep: /\[bot\]$/.test(String(p.user && p.user.login || '')) ? 1 : 0, at: Date.parse(p.created_at) || 0 })),
+      tag: Array.isArray(tags) && tags[0] && /^v\d+\.\d+\.\d+$/.test(String(tags[0].name)) ? tags[0].name : '',
+    };
+  }, now);
+  const [prodBuild, stagBuild] = await Promise.all([build('https://invest.thesnowball.app/sw.js'), build('https://thesnowball.pages.dev/sw.js')]);
+  return { gh, prodBuild: prodBuild || 0, stagBuild: stagBuild || 0 };
+}
 /* 14/10/2026: מאגר הלמידה — משלימים רשומות מכל העבודות (אנונימיות, כולל ישנות ושל כל המשתמשים, בלי מי שכיבה את המתג),
    ומחזירים את כל הרשומות לפי הזמן. משותף לפעולות המנהל ולמשיכה בטוקן ניתוח */
 async function learnLoad(deps, now) {
@@ -1133,6 +1167,15 @@ async function handler(req, res, deps = {}) {
       if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
       if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
       return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, now });
+    }
+    if (op === 'adminOv') {
+      // 15/10/2026: מרכז הניהול — סקירה, "מחכה לך" ו"מה רץ איפה". מנהל בלבד; בלי פרטים אישיים (שמות שרתים, מספרי PR, גרסאות)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const [srvs, backup, sites, ext] = await Promise.all([
+        query(deps, 'studioServers', null, S.SRV_MAX + 5).then((l) => l.map((x) => S.serverView(x, now)).filter(Boolean)).catch(() => []),
+        readDoc(deps, 'sysBackup', 'cfg').catch(() => null), readDoc(deps, 'sysWatch', 'sites').catch(() => null), aoFacts(deps, now)]);
+      const bk = backup ? { okAt: backup.okAt || 0, err: backup.err || '', up: backup.up || 0 } : null;
+      return res.status(200).json({ ok: true, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null }, ext)) });
     }
     if (op === 'atNew' || op === 'atList' || op === 'atDel') {
       // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash

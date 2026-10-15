@@ -3476,6 +3476,11 @@ function stubFetch(text, status = 200) {
         ok(!db.has(doneTr[0]) && lkeys().length === n0, 'מאגר הלמידה: הרשומה נשארת אחרי שהעבודה נמחקה');
       }
       studio._reset();
+      // 15/10/2026: מרכז הניהול — הסקירה (מנהל בלבד, בלי פרטים אישיים; עובדות מבחוץ שנכשלו = "לא ידוע")
+      ok((await run({ op: 'adminOv', idToken: FRIEND })).payload.error === 'not_admin', 'מרכז הניהול: רק המנהל רואה את הסקירה');
+      const ao = await run({ op: 'adminOv', idToken: OWNER });
+      ok(ao.payload.ok && ao.payload.ov.v === 1 && Array.isArray(ao.payload.ov.items) && ao.payload.ov.run.some((x) => x.k === 'prod'), 'מרכז הניהול: סקירה — מחכה לך + מה רץ איפה');
+      ok(!/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(ao.payload)), 'מרכז הניהול: הסקירה בלי uid ומיילים');
       // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
       const br = await run({ op: 'learnBrief', idToken: OWNER });
       ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');
