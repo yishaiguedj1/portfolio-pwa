@@ -8,6 +8,7 @@
    כל מכתב נשמר שם פעם אחת לכל גרסה (lib/<id>.<md5>.epub), והטלפון מקבל קישור חתום ומוריד ישירות (via:'r2').
    הקטלוג נשמר גם ב־R2 (lib/catalog.json) — אם הגישה ל־Drive נופלת, הספרייה ממשיכה מ־R2. */
 const { guard } = require('../lib/ibkr');
+const LMV = require('../lib/libmove');
 const { verifyIdToken, readerAllowed, driveToken, serviceAccount, isAdmin, emails } = require('../lib/gauth');
 const readers = require('../lib/readers');
 const { epubText } = require('../lib/epubtext');
@@ -128,6 +129,15 @@ async function handler(req, res, deps = {}) {
     try { gu = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
     if (limited('gd|' + gu.uid, 60)) return res.status(429).json({ ok: false, error: 'rate_limited' });
     return gdrive.handle(body, gu, res, deps);
+  }
+  /* שלב 6 (15/10/2026): העברת הנתונים של Academy ממסמך התיק למסמך משלה — כל משתמש מחובר, רק המסמכים שלו (lib/libmove.js) */
+  if (body.op === 'libMove') {
+    let mu;
+    try { mu = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
+    if (limited('mv|' + mu.uid, 20)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    if (!serviceAccount()) return res.status(503).json({ ok: false, error: 'not_configured' });
+    try { return res.status(200).json(Object.assign({ ok: true }, await LMV.move(deps, mu.uid, deps.now ? deps.now() : Date.now()))); }
+    catch (e) { return res.status(502).json({ ok: false, error: String((e && e.message) || e).slice(0, 40) }); }
   }
   /* אבחון בלי לחשוף ערכים: איזה משתנה חסר / לא נקרא. תיקיית Drive נדרשת רק עד סיום המעבר לקטלוג ב־R2 (12/10/2026) */
   const notConfigured = () => {
