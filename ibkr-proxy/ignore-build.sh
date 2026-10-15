@@ -4,6 +4,9 @@
 # Vercel משכפל רק את הקומיטים האחרונים — הקומיט הישן לא תמיד בשכפול (לקח v285: "bad object" → exit 128
 # → "Production deployment failed" במייל בכל דחיפה). לכן: מעמיקים את ההיסטוריה, ואם עדיין אין — שואלים את GitHub.
 # בכל ספק — פורסים (אף פעם לא קורסים).
+# רק main נפרס (15/10/2026 — תצוגות מקדימות של ענפים גמרו את מכסת 100 הפריסות ביום של Hobby).
+# העיקר ב־vercel.json (git.deploymentEnabled — ענף אחר לא יוצר פריסה בכלל); כאן גיבוי.
+[ -n "$VERCEL_GIT_COMMIT_REF" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ] && exit 0
 P="$VERCEL_GIT_PREVIOUS_SHA"
 C="${VERCEL_GIT_COMMIT_SHA:-HEAD}"
 [ -z "$P" ] && exit 1
