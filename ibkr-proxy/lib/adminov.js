@@ -135,4 +135,30 @@ function tasksParse(md, now) {
   return { items: out, secs: secs.map((s) => ({ s, n: out.filter((x) => x.s === s).length })).filter((x) => x.n) };
 }
 
-module.exports = { DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse };
+/* ---- האפליקציות (15/10/2026): מספרים בלבד. f = { now, counts: { users, ibkr, lib, studio, sess } (null = לא נמדד),
+   cat: קטלוג הספרייה (libcat) או null, readers: מספר הקוראים שנוספו מהאפליקציה או null } */
+function catStats(cat, now) {
+  if (!cat || !Array.isArray(cat.books)) return null;
+  const live = cat.books.filter((b) => b && !b.del);
+  const by = (st) => live.filter((b) => b.st === st).length;
+  const pub = live.filter((b) => b.st === 'pub');
+  const fm = {};
+  let bytes = 0;
+  for (const b of live) for (const f of b.files || []) { fm[f.fmt || '?'] = (fm[f.fmt || '?'] || 0) + 1; bytes += +f.size || 0; }
+  const hist = Array.isArray(cat.hist) ? cat.hist : [];
+  return { n: live.length, pub: pub.length, draft: by('draft'), hide: by('hide'), del: cat.books.length - live.length,
+    noCover: pub.filter((b) => !b.cover).length, fm, mb: Math.round(bytes / 1048576),
+    at: cat.at || 0, ch7: hist.filter((h) => h && h.at >= now - 7 * DAY).length, src: (cat.cfg && cat.cfg.source) || 'drive' };
+}
+function appsView(f) {
+  const now = f.now || Date.now();
+  const c = f.counts || {};
+  const num = (x) => (Number.isFinite(x) && x >= 0 ? x : null);
+  return { v: 1, at: now,
+    invest: { users: num(c.users), ibkr: num(c.ibkr) },
+    academy: { cat: catStats(f.cat, now), readers: num(f.readers), backup: num(c.lib) },
+    studio: { conn: num(c.studio) },
+    shared: { sess: num(c.sess) } };
+}
+
+module.exports = { DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

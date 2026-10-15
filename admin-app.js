@@ -54,7 +54,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {} };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -193,11 +193,52 @@ page('ov', { tab: 'ov', title: () => t('admTabOv'), render(p) {
 } });
 page('apps', { tab: 'apps', title: () => t('admTabApps'), render(p) {
   const v = D.lab && D.lab.view, k = v && v.k;
+  const A2 = D.apps;
+  if (!A2) needApps();
+  const iv = A2 && A2.invest, ac = A2 && A2.academy;
   p.append(list(
-    soonRow('invest', '↗', 'Invest', t('admAppInvestS')),
-    soonRow('academy', '▤', 'Academy', t('admAppAcademyS')),
+    row({ c: 'invest', ic: '↗', t: 'Invest', s: iv && iv.users != null ? fmt(t('admAppInvestS2'), { n: iv.users, i: iv.ibkr == null ? '—' : iv.ibkr }) : t('admLoading'), on: () => go('invest') }),
+    row({ c: 'academy', ic: '▤', t: 'Academy', s: ac && ac.cat ? fmt(t('admAppAcademyS2'), { n: ac.cat.pub, r: ac.readers == null ? '—' : ac.readers }) : A2 ? t('admUnknown') : t('admLoading'), on: () => go('academy') }),
     row({ c: 'studio', ic: '▶', t: 'Studio', s: k ? fmt(t('admAppStudioS'), { n: k.n || 0, c: usd(k.cpm, 3) }) : t('admSoon'), v: k && k.ok != null ? pctTxt(k.ok) : '', tr: k && k.ok != null ? t('admKok') : '', sp: v ? spark((v.wk || []).map((x) => x.n), COL.studio) : null, on: () => go('studio') })));
-  p.append(grp(t('admSecShared')), list(soonRow('gray', '👥', t('admUsers')), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
+  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admSoon') }), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
+} });
+/* ---- Invest ו־Academy (15/10/2026): מספרים בלבד מהשרתון (adminApps — ספירות ב־Firestore והקטלוג ב־R2). לא נמדד = "—" ---- */
+async function needApps() {
+  if (D.apps && Date.now() - D.appsAt < 60000) return;
+  const r = await api('adminApps');
+  if (r.ok) { D.apps = r.apps; D.appsAt = Date.now(); if (['apps', 'invest', 'academy'].includes(cur)) paint(); }
+}
+const nn = (x) => (x == null ? '—' : String(x));
+const openApp = (k) => () => { try { window.open(APP_URL[k], '_self'); } catch (e) {} };
+page('invest', { tab: 'apps', parent: 'apps', title: () => 'Invest', render(p) {
+  const a = D.apps;
+  if (!a) { needApps(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  const iv = a.invest;
+  p.append(tiles(tileEl('invest', t('admInvUsers'), nn(iv.users), '', '', []), tileEl('red', t('admInvIbkr'), nn(iv.ibkr), iv.users && iv.ibkr != null ? Math.round(iv.ibkr / iv.users * 100) + '%' : '', '', [])));
+  p.append(grp(t('admSecData')), list(
+    row({ c: 'red', ic: '⟲', t: t('admInvIbkrT'), s: t('admInvIbkrS'), v: nn(iv.ibkr) })));
+  p.append(list(row({ c: 'invest', ic: '↗', t: t('admOpenApp'), on: openApp('invest') })));
+} });
+page('academy', { tab: 'apps', parent: 'apps', title: () => 'Academy', render(p) {
+  const a = D.apps;
+  if (!a) { needApps(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (!D.ai) needAi();
+  const ac = a.academy, c = ac.cat;
+  if (c) p.append(h('p', 'adm-dt', fmt(t('admAcUpd'), { a: ago(c.at) }) + (c.ch7 ? ' · ' + fmt(t('admAcCh7'), { n: c.ch7 }) : '')));
+  p.append(tiles(tileEl('academy', t('admAcPub'), c ? String(c.pub) : '—', c && c.draft ? fmt(t('admAcDraft'), { n: c.draft }) : '', '', []),
+    tileEl('purple', t('admAcReaders'), nn(ac.readers), '', '', []),
+    tileEl('green', t('admAcBackup'), nn(ac.backup), '', '', []),
+    tileEl('blue', t('admAiCalls'), D.ai ? String(D.ai.today.t) : '—', D.ai ? t('admToday') : '', '', D.ai ? D.ai.days.map((x) => x.t) : [])));
+  if (c) {
+    const fm = Object.entries(c.fm || {}).sort((x, y) => y[1] - x[1]).map(([k, v]) => k.toUpperCase() + ' ' + v).join(' · ');
+    p.append(grp(t('admAcSecCat')), list(
+      row({ c: c.noCover ? 'orange' : 'green', ic: '▣', t: t('admAcNoCover'), v: c.noCover }),
+      c.hide ? row({ c: 'gray', ic: '◌', t: t('admAcHide'), v: c.hide }) : null,
+      c.del ? row({ c: 'gray', ic: '⌫', t: t('admAcDel'), s: t('admAcDelS'), v: c.del }) : null,
+      row({ c: 'gray', ic: '▤', t: t('admAcFiles'), s: fm || '—', v: '\u2066' + c.mb + ' MB\u2069' }),
+      row({ c: c.src === 'r2' ? 'green' : 'orange', ic: '☁', t: t('admAcSrc'), s: c.src === 'r2' ? 'Cloudflare R2' : 'Google Drive' })));
+  } else p.append(h('p', 'adm-note', t('admAcNoCat')));
+  p.append(list(row({ c: 'academy', ic: '↗', t: t('admAcManage'), on: openApp('academy') }), row({ c: 'orange', ic: '$', t: t('admAiCost'), on: () => go('ai') })));
 } });
 page('studio', { tab: 'apps', parent: 'apps', title: () => 'Studio', render(p) {
   const v = D.lab && D.lab.view;
@@ -244,7 +285,7 @@ const modeName = (m) => String(m || '').replace(/-/g, ' · ').replace(/^./, (c) 
 async function needAi() {
   if (D.ai && Date.now() - D.aiAt < 60000) return;
   const r = await api('adminAi');
-  if (r.ok) { D.ai = r.ai; D.aiAt = Date.now(); if (cur === 'ai' || cur === 'quota' || cur === 'sys') paint(); }
+  if (r.ok) { D.ai = r.ai; D.aiAt = Date.now(); if (['ai', 'quota', 'sys', 'academy'].includes(cur)) paint(); }
 }
 function aiWarnRow(w) {
   const v = w.v || {}, c = w.sev === 1 ? 'red' : w.sev === 2 ? 'orange' : 'gray';

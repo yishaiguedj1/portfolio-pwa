@@ -113,6 +113,14 @@ async function query(deps, col, eq, limit) {
   return (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
     .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop(), _ut: x.document.updateTime || '' }));
 }
+/* 15/10/2026: ספירה בלי לקרוא מסמכים (aggregation count) — מרכז הניהול רואה כמה, לא מה. null = לא נמדד */
+async function fsCount(deps, col) {
+  try {
+    const r = await fsCall(deps, 'POST', ':runAggregationQuery', { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: col }] }, aggregations: [{ alias: 'n', count: {} }] } });
+    const v = r.status === 200 && Array.isArray(r.j) && r.j[0] && r.j[0].result && r.j[0].result.aggregateFields && r.j[0].result.aggregateFields.n;
+    return v ? +v.integerValue : null;
+  } catch (e) { return null; }
+}
 async function delDoc(deps, col, id) {
   const r = await fsCall(deps, 'DELETE', '/' + col + '/' + id);
   if (r.status !== 200 && r.status !== 404) throw new Error('fs_http_' + r.status);
@@ -1191,6 +1199,17 @@ async function handler(req, res, deps = {}) {
       try { const n = require('fs').readdirSync(__dirname).filter((f) => /\.js$/.test(f)).length; fns = { n, max: 12 }; } catch (e) {}
       return res.status(200).json({ ok: true, ai: AO.aiView({ now, days, lim: AICACHE.limits(),
         month: { usd: used.reduce((a, b) => a + b, 0), users: used.length, cap: USER_MONTH(), top: used.length ? Math.max(...used) : 0 }, fns }) });
+    }
+    if (op === 'adminApps') {
+      // 15/10/2026: מרכז הניהול ← האפליקציות. מספרים בלבד: כמה משתמשים, כמה חיברו IBKR / גיבוי / Studio, הקטלוג של Academy
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const v = await aoGet(deps, 'apps', async () => {
+        const [users, ibkr, lib, studio, sess] = await Promise.all(['users', 'ibkrVault', 'driveVault', 'studioDrive', 'sessions'].map((c) => fsCount(deps, c)));
+        let cat = null; try { cat = (await require('../lib/libmgr').loadCat(deps)).cat; } catch (e) {}
+        let rd = null; try { const r = await require('../lib/readers').getReaders(deps.fetch); rd = r.err ? null : r.list.length; } catch (e) {}
+        return AO.appsView({ now, counts: { users, ibkr, lib, studio, sess }, cat, readers: rd });
+      }, now);
+      return res.status(200).json({ ok: true, apps: v });
     }
     if (op === 'adminTasks') {
       // 15/10/2026: מרכז הניהול ← סשנים ומשימות. משימות-פתוחות.md מהריפו (ציבורי) + ה־PR הפתוחים של הסשנים. מנהל בלבד

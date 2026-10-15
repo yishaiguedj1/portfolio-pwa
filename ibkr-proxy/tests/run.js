@@ -3500,6 +3500,9 @@ function stubFetch(text, status = 200) {
       ok((await run({ op: 'adminTasks', idToken: FRIEND })).payload.error === 'not_admin', 'סשנים ומשימות: רק המנהל');
       const tk = await run({ op: 'adminTasks', idToken: OWNER });
       ok(tk.payload.ok && Array.isArray(tk.payload.prs) && (tk.payload.tk === null || Array.isArray(tk.payload.tk.items)), 'סשנים ומשימות: תשובה גם כשהריפו לא ענה');
+      ok((await run({ op: 'adminApps', idToken: FRIEND })).payload.error === 'not_admin', 'אפליקציות: רק המנהל');
+      const apR = await run({ op: 'adminApps', idToken: OWNER });
+      ok(apR.payload.ok && apR.payload.apps.v === 1 && 'users' in apR.payload.apps.invest && !/ownerUid0001|@example\.com/.test(JSON.stringify(apR.payload)), 'אפליקציות: מספרים בלבד, בלי uid ומיילים');
       // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
       const br = await run({ op: 'learnBrief', idToken: OWNER });
       ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');

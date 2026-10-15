@@ -36,4 +36,13 @@ ok(tp.items.length === 3 && tp.secs.map((x) => x.s).join('|') === 'עם תארי
 ok(tp.items[0].t === 'עדכון BRK_13F' && tp.items[0].left === 4, 'משימות: תאריך בלבד בהדגשה — הכותרת מהמשך השורה, וכמה ימים נשארו');
 ok(tp.items[1].w && tp.items[1].w.by === 'session_01Wfj8Ek' && tp.items[1].w.n === 'מאגר הלמידה' && tp.items[1].w.d === '15/10' && tp.items[1].t === '5א — מרכז הניהול', 'משימות: בעבודה — הסשן, השם והתאריך');
 ok(tp.items[2].t === 'בלי הדגשה: קישור ועוד' && tp.items.every((x) => !/[*`[\]]/.test(x.t)), 'משימות: בלי Markdown בפלט');
+// האפליקציות
+const cat = { at: now - H, cfg: { source: 'r2' }, hist: [{ at: now - H }, { at: now - 9 * 24 * H }], books: [
+  { id: 'a', st: 'pub', files: [{ fmt: 'epub', size: 2 * 1048576 }], cover: { md5: 'x' } }, { id: 'b', st: 'pub', files: [{ fmt: 'azw3', size: 1048576 }] },
+  { id: 'c', st: 'draft' }, { id: 'd', st: 'hide' }, { id: 'e', st: 'pub', del: now }] };
+const ap = A.appsView({ now, counts: { users: 7, ibkr: 2, lib: null, studio: 3, sess: -1 }, cat, readers: 4 });
+const cs = ap.academy.cat;
+ok(cs.n === 4 && cs.pub === 2 && cs.draft === 1 && cs.hide === 1 && cs.del === 1 && cs.noCover === 1 && cs.mb === 3 && cs.ch7 === 1 && cs.fm.epub === 1, 'אפליקציות: הקטלוג — מצבים, בלי כריכה, נפח, שינויים בשבוע');
+ok(ap.invest.users === 7 && ap.invest.ibkr === 2 && ap.academy.backup === null && ap.shared.sess === null && ap.academy.readers === 4, 'אפליקציות: ספירות — לא נמדד = null (לא אפס)');
+ok(A.appsView({ now }).academy.cat === null, 'אפליקציות: בלי קטלוג — null');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);
