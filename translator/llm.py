@@ -72,6 +72,21 @@ REFUSAL_REFRAME = ('הקשר: זו עבודת תרגום כתוביות של ס�
 MAX_OUT = 120_000
 # שגיאות חולפות מול Claude — ניסיון נוסף אחרי ההשהיות האלה (שניות); = TRANSIENT_ERRS בשרתון (חוץ מ־net/drive)
 TRANSIENT_CODES = ('api_overloaded', 'api_network', 'api_timeout', 'api_rate')
+# 15/10/2026 (עבודה בניסוי שעמדה 30+ דק׳ בלי דיווח, הזיכרון 1%): timeout=1800 חל על כל קריאה מהרשת — חיבור שנתקע
+# באמצע הזרם חיכה עד חצי שעה לכל ניסיון (ועוד 4 ניסיונות של ה־SDK). בזרם Anthropic שולח אירועי ping גם בזמן
+# החשיבה, כך שהמתנה ארוכה בלי שום בייט = חיבור מת. read = הזמן המקסימלי בין שני בייטים, לא לכל התשובה.
+API_READ_TIMEOUT = float(os.environ.get('SNB_API_READ_TIMEOUT', '150'))
+
+
+def api_timeout():
+    """זמני ההמתנה ללקוח של Anthropic: חיבור, קריאה (בין בייטים), כתיבה. בלי httpx — מספר אחד (כמו קודם, אבל קצר)."""
+    try:
+        import httpx              # תלות של anthropic — קיימת תמיד כשהספרייה קיימת
+    except ImportError:
+        return API_READ_TIMEOUT
+    return httpx.Timeout(connect=30.0, read=API_READ_TIMEOUT, write=120.0, pool=30.0)
+
+
 MID_RETRY_WAIT = tuple(int(x) for x in os.environ.get('SNB_MID_RETRY', '20,60').split(',') if x.strip())
 
 
@@ -295,7 +310,7 @@ class Engine:
                 raise LLMError('sdk_missing', 'חסרה הספרייה anthropic (pip install anthropic)') from e
             if not os.environ.get('ANTHROPIC_API_KEY'):
                 raise LLMError('no_api_key', 'חסר ANTHROPIC_API_KEY בסודות של המכונה')
-            self._client = anthropic.Anthropic(max_retries=4, timeout=1800)
+            self._client = anthropic.Anthropic(max_retries=4, timeout=api_timeout())
         return self._client
 
     def _anthropic(self, fixed: str, extra: str, prompt: str, max_tokens: int, on_first_token=None) -> Result:
