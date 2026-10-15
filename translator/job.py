@@ -799,6 +799,121 @@ def learn_safe(ctx=None):
         return None
 
 
+# ---------------------------------------------------------------- מאגר הלמידה מ׳2: קורפוס הטקסט (15/10/2026)
+# רשומה לכל כתובית — המקור, הטיוטה, אחרי תיקוני המתרגם, אחרי הביקורת, אחרי התיקון האחרון, והסופי — וזמני המילים
+# משלושת המקורות (תמלול, Qwen, CTC). רק מה שברשימה הזו יוצא; בלי שם הסרטון, שם הקובץ, שמות הדוברים או נתיבים.
+# השרתון מנקה שוב (lib/learncorpus.js — מיילים, טלפונים, מספרים ארוכים), מצפין ושומר בדלי נפרד. **LC_V זהה בשרתון**
+LC_V = 1
+LC_MAX_CUES = 4000
+LC_MAX_WORDS = 40000
+LC_MAX_TXT = 400
+LC_MAX_B64 = 2400000        # בערך 1.8MB דחוס — שעתיים של הרצאה נכנסות בלי זמני מילים
+_LC_SPK = re.compile(r'^S\d{1,2}$')
+
+
+def _lc_txt(v):
+    return re.sub(r'[\x00-\x08\x0b-\x1f\x7f]', '', str(v or ''))[:LC_MAX_TXT] if v is not None else ''
+
+
+def _lc_answers(paths):
+    out = {}
+    for p in paths:
+        try:
+            txt = Path(p).read_text(encoding='utf-8')
+        except OSError:
+            continue
+        for raw in txt.splitlines():
+            m = re.match(r'^#(\d+)\s?(.*)$', raw.strip())
+            if m:
+                out[m.group(1)] = m.group(2).strip()
+    return out
+
+
+def _lc_num(v):
+    return round(float(v), 3) if _num_ok(v) else None
+
+
+def learn_corpus(ctx):
+    pd = ctx.pdir
+    cues = _read_json(pd / 'cues.en.json')
+    if not isinstance(cues, list) or not cues:
+        return None
+    td = pd / 'tr'
+    d = _lc_answers(sorted(td.glob('batch_*.he.txt')))
+    f = dict(d, **_lc_answers([td / 'fixes.txt']))
+    r = dict(f, **_lc_answers([td / 'fixes_review.txt']))
+    z = dict(r, **_lc_answers([td / 'fixes_zfinal.txt']))
+    cu = []
+    for c in cues[:LC_MAX_CUES]:
+        if not isinstance(c, dict) or not str(c.get('id', '')).isdigit():
+            continue
+        k = str(c['id'])
+        row = {'i': int(k), 's': _lc_num(c.get('speech_s')), 'e': _lc_num(c.get('speech_e')),
+               'k': c.get('spk') if _LC_SPK.match(str(c.get('spk') or '')) else 'S?', 'en': _lc_txt(c.get('en')), 'd': _lc_txt(d.get(k))}
+        for key, cur, prev in (('f', f, d), ('r', r, f), ('z', z, r)):   # רק כשהשלב שינה משהו — כך רואים מה כל סוכן תיקן
+            if cur.get(k) != prev.get(k):
+                row[key] = _lc_txt(cur.get(k))
+        cu.append(row)
+    out = {'v': LC_V, 'cu': cu}
+    spec = ctx.st.get('spec') or {}
+    for key, val in (('mode', spec.get('mode')), ('src', spec.get('from')), ('dst', ','.join(spec.get('to') or []) if isinstance(spec.get('to'), list) else '')):
+        if re.match(r'^[a-z][a-z0-9,-]{0,47}$', str(val or '')):
+            out[key] = val
+    if _num_ok(spec.get('dur')):
+        out['dur'] = round(spec['dur'], 1)
+    fin = _read_json(pd / 'out' / 'cues.final.json')
+    if isinstance(fin, list):
+        out['fin'] = [{'s': _lc_num(c.get('start')), 'e': _lc_num(c.get('end')),
+                       'h': _lc_txt('\n'.join(str(x) for x in c.get('lines') or []) or c.get('he'))}
+                      for c in fin[:LC_MAX_CUES] if isinstance(c, dict)]
+    wj = _read_json(pd / 'en.aligned.json') or _read_json(pd / 'en.words.json') or {}
+    words = wj.get('words') if isinstance(wj, dict) else None
+    if isinstance(words, list):
+        # [מילה, התחלה, סוף, דובר, תמלול, Qwen, CTC, איך הוכרע] — הפערים בין מנועי היישור
+        out['wd'] = [[_lc_txt(w.get('w'))[:60], _lc_num(w.get('s')), _lc_num(w.get('e')),
+                      w.get('spk') if _LC_SPK.match(str(w.get('spk') or '')) else 'S?',
+                      _lc_num(w.get('s_asr')), _lc_num(w.get('s_qwen')), _lc_num(w.get('s_ctc')),
+                      str(w.get('align') or '')[:12] if re.match(r'^[a-z0-9_]{0,12}$', str(w.get('align') or '')) else '']
+                     for w in words[:LC_MAX_WORDS] if isinstance(w, dict)]
+    pt = []
+    for p in sorted(pd.glob('en.patch.applied.*.txt')):            # ההגהה: מה התמלול שמע לא נכון
+        try:
+            pt += [_lc_txt(x) for x in p.read_text(encoding='utf-8').splitlines() if ' => ' in x]
+        except OSError:
+            pass
+    if pt:
+        out['pt'] = pt[:2000]
+    try:
+        gl = [_lc_txt(x) for x in (td / 'glossary.tsv').read_text(encoding='utf-8').splitlines() if x.strip() and not x.startswith('#')]
+        if gl:
+            out['gl'] = gl[:300]
+    except OSError:
+        pass
+    return out
+
+
+def learn_put(ctx):
+    """בסוף העבודה, לפני הדיווח האחרון: הקורפוס לשרתון. השרתון מחליט אם לשמור (מתג, הודעה שנקראה, דלי מוגדר).
+    תקלה כאן לעולם לא מפילה את סוף העבודה"""
+    try:
+        data = learn_corpus(ctx)
+        if not data:
+            return False
+        import base64
+        import gzip
+        for drop in ((), ('wd',), ('wd', 'fin', 'pt')):
+            x = {k: v for k, v in data.items() if k not in drop}
+            b = base64.b64encode(gzip.compress(json.dumps(x, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))).decode('ascii')
+            if len(b) <= LC_MAX_B64:
+                j = ctx.c.raw('learnPut', lc=b)
+                return bool(j.get('saved'))
+        return False
+    except Stop:
+        raise
+    except (SystemExit, Exception):      # noqa: BLE001 — מידע משני
+        return False
+
+
 # ---------------------------------------------------------------- מצב העבודה בסשן
 _STATE_LOCK = threading.Lock()   # צירוף הסרטון רץ ברקע בזמן ההגהה (מצב API) — שני תהליכונים כותבים את אותו מצב
 
@@ -2594,6 +2709,7 @@ def finish(args):
     except Exception:            # noqa: BLE001
         rvf, fil = [], []
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
+    learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
                rvf=rvf or None, fil=fil or None)
