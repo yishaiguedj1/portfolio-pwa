@@ -121,6 +121,7 @@ class Fake:
         self.gloss = None                                             # v380: קובץ המילון ב־Drive (bytes) — None = אין
         self.notes, self.note_next = [], None                         # v382: הערות שנקראו (בלקיחה) והערה שתימסר בנקודת השמירה הבאה
         self.gl = None                                                # 11/10: המילון מ־R2 בתשובת הלקיחה (None = לא נשלח)
+        self.token_err = ''                                           # 15/10: Drive לא מחובר (עבודה ב־R2) — 'not_connected'
         self.gate_ans, self.gate_after, self.gate_polls = None, 1, 0  # v367: התשובה לשער ('go'/'stop') ואחרי כמה בדיקות
         fake = self
 
@@ -172,9 +173,9 @@ class Fake:
                                                                   'folder': 'FOLDER00001', 'files': files, 'qa': fake.qa, 'ck': fake.ck,
                                                                   'nm': fake.nm, 'fb': fake.fb, 'ls': fake.ls, 'fm': fake.fm,
                                                                   'rl': fake.rl, 'bx': fake.bx, 'u0': fake.u0, 'notes': fake.notes, 'gl': fake.gl},
-                                            'drive': {'token': TOKEN}, 'pir': fake.pir})
+                                            'drive': {'error': fake.token_err} if fake.token_err else {'token': TOKEN}, 'pir': fake.pir})
                 if op == 'token':
-                    return self._send(200, {'ok': True, 'drive': {'token': TOKEN}})
+                    return self._send(200, {'ok': True, 'drive': {'error': fake.token_err} if fake.token_err else {'token': TOKEN}})
                 if op == 'qa':                                   # v367: בדיקת תשובה לשער
                     q = fake.qa
                     if q and q.get('g') and q['a'] is None and fake.gate_ans:
@@ -819,6 +820,18 @@ class TestWorker(unittest.TestCase):
         txt = (self.tmp / 'work' / SLUG / 'tr' / 'glossary.tsv').read_text()
         self.assertIn('Moat\tחפיר מ־R2', txt)
         self.assertNotIn('מה שב־Drive', txt, 'R2 גובר — Drive לא נקרא')
+
+    def test_glossary_no_drive(self):
+        # 15/10/2026 (עבודה אמיתית בניסוי): עבודה ב־R2 בלי Drive מחובר ובלי מילון ב־R2 — ctx.token() זורק SystemExit,
+        # ו־except Exception לא תפס אותו: העבודה נפלה ב־align על "אין גישה ל־Drive". מילון שלא נטען לא מפיל עבודה
+        import job as J
+        class Ctx:
+            st, api = {'gl': None}, 'https://www.googleapis.com/drive/v3'
+            def token(self, force=False):
+                raise SystemExit('✗ אין גישה ל־Drive (not_connected)')
+        self.assertIsNone(J.gl_load(Ctx()), 'בלי Drive — None (לא נטען), לא SystemExit')
+        c = Ctx(); c.st = {'gl': [['Moat', 'חפיר', '']]}
+        self.assertEqual([list(r) for r in J.gl_load(c)], [['Moat', 'חפיר', '']], 'המילון מ־R2 — בלי לגעת ב־Drive')
 
     def test_note(self):
         # v382: הערה לעובד — הערות שכבר נקראו מגיעות בלקיחה; הערה חדשה נמסרת בתשובה לנקודת שמירה: מודפסת ל־Claude,
