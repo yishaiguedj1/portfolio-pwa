@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1513 מפתחות מתוך 2965) */
+/* המחרוזות של studio (1516 מפתחות מתוך 3006) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -25,6 +25,7 @@ he: {
   "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "loginSubAcademy": "מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר",
   "loginSubStudio": "מתחברים פעם אחת — העבודות והתרגומים נשמרים בענן ומסונכרנים בכל מכשיר",
+  "maintBar": "עבודות תחזוקה",
   "menuAria": "תפריט ראשי",
   "menuCloseAria": "סגירת התפריט",
   "menuLibrarySub": "מכתבים וספרים",
@@ -419,11 +420,13 @@ he: {
   "studioErrDrive": "Google Drive לא מחובר. חברו אותו בהגדרות הסטודיו",
   "studioErrDriveFull": "אין מספיק מקום ב־Google Drive. פנו מקום ונסו שוב",
   "studioErrFile": "הקובץ לא הגיע שלם לענן. נסו שוב",
+  "studioErrFlagOff": "האפשרות הזו כבויה כרגע",
   "studioErrGeneric": "משהו השתבש ({c})",
   "studioErrGoldBusy": "הרצה קודמת של סט הזהב עוד לא הסתיימה",
   "studioErrGoldFull": "בסט הזהב כבר יש 5 עבודות — הסירו אחת קודם",
   "studioErrHalted": "כל הסוכנים עצורים (מתג החירום)",
   "studioErrLost": "השרת הופעל מחדש באמצע העבודה — היא ממשיכה לבד מנקודת השמירה",
+  "studioErrMaint": "עבודות תחזוקה — אי אפשר להתחיל עבודה חדשה כרגע. נסו שוב בעוד זמן קצר",
   "studioErrMajor": "יש תקלה רחבה — ההפעלה מחכה עד שהיא עוברת",
   "studioErrMaxTok": "התשובה של Claude נקטעה באמצע — אפשר להמשיך מאותה נקודה",
   "studioErrMode": "אי אפשר לעבור למצב הזה בעבודה הזו",
@@ -1540,6 +1543,7 @@ en: {
   "loginFailed": "Sign-in failed — try again",
   "loginSubAcademy": "Sign in once — your library, progress and highlights are saved in the cloud and synced on every device",
   "loginSubStudio": "Sign in once — your jobs and translations are saved in the cloud and synced on every device",
+  "maintBar": "Maintenance",
   "menuAria": "Main menu",
   "menuCloseAria": "Close menu",
   "menuLibrarySub": "Letters & books",
@@ -1934,11 +1938,13 @@ en: {
   "studioErrDrive": "Google Drive isn't connected. Connect it in studio settings",
   "studioErrDriveFull": "Not enough space in Google Drive. Free some up and try again",
   "studioErrFile": "The file didn't arrive complete in the cloud. Try again",
+  "studioErrFlagOff": "This option is turned off right now",
   "studioErrGeneric": "Something went wrong ({c})",
   "studioErrGoldBusy": "The previous golden set run hasn't finished yet",
   "studioErrGoldFull": "The golden set already has 5 jobs — remove one first",
   "studioErrHalted": "All agents are stopped (kill switch)",
   "studioErrLost": "The server restarted mid-job — it resumes by itself from the checkpoint",
+  "studioErrMaint": "Maintenance — new jobs can't start right now. Try again shortly",
   "studioErrMajor": "There is a major incident — the run waits until it passes",
   "studioErrMaxTok": "Claude's answer was cut off — you can resume from the same point",
   "studioErrMode": "Can't switch to that mode for this job",

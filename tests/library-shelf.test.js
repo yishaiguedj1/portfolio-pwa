@@ -48,7 +48,11 @@ ok(/op: 'cat', idToken: tk, have: fresh \? -1 : st\.v/.test(lib) && /cj\.src ===
 ok(/drv\.some\(\(b\) => !b\.md5 && !b\.hidden\)/.test(lib) && /st\.n !== drv\.length/.test(lib), 'ניקוי/החזרת מוסתר → תמונה מלאה (לא "אין שינוי")');
 ok(/if \(!failed\) \{[\s\S]{0,200}LS_CATV/.test(lib), 'הגרסה נשמרת רק כשהכל ירד');
 ok(/if \(rec\.cat\) \{ applyEdit\(rec, rec\.cat\); if \(rec\.edit\) applyEdit\(rec, rec\.edit\); \}/.test(lib), 'בייבוא: הקטלוג גובר על הקובץ, עריכה אישית — על שניהם');
-ok(/R2_URL\.test\(String\(url \|\| ''\)\) \? await fetch\(url\)/.test(lib), 'מורידים רק מכתובת של R2');
+ok(/if \(R2_URL\.test\(String\(url \|\| ''\)\)\) \{\s*try \{ const r = await fetch\(url\)/.test(lib), 'מורידים ישירות רק מכתובת של R2');
+/* 15/10/2026: המדף היה ריק בטלפון בשקט — גיבוי דרך השרתון + קוד כשל גלוי */
+ok(/op: 'file', idToken: tk, id: b\.id \}/.test(lib) && !/op: 'file', idToken: tk, id: b\.id, via/.test(lib), 'R2 נכשל → אותו ספר דרך השרתון (בלי via — הקובץ עצמו)');
+ok(/syncFail = failed \? \{ c: firstWhy/.test(lib) && /T\('libSyncFailN'/.test(lib) && /T\('libSyncFail'/.test(lib), 'כשל בסנכרון המדף — שורה עם קוד, לא "ריקה" בשקט');
+ok(/catch\(\(e\) => \{ syncFail = \{ c: 'ex:'/.test(lib), 'חריגה בסנכרון לא נבלעת');
 ok(/id: b\.driveId \|\| b\.id/.test(lib), 'ניתוח AI גם לספר שאין לו driveId');
 
 console.log('# ' + n + ' בדיקות עברו');

@@ -41,6 +41,8 @@ const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות 
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
 const LR = require('../lib/studiolearn');
+const LC = require('../lib/learncorpus');
+const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
 const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
 const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
@@ -50,7 +52,7 @@ const BASE = () => 'https://firestore.googleapis.com/v1/projects/' + PROJECT() +
 const DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 const UID_RE = /^[A-Za-z0-9]{6,128}$/;
 const AAD = (uid) => 'studio|' + uid + '|r';
-const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del']);
+const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del', 'learnPut']);
 const SERVER_OPS = new Set(['poll', 'beat']);
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
 const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
@@ -230,7 +232,9 @@ async function learnPull(req, res, body, deps) {
     const view = LR.learnView(recs, now);
     // 15/10/2026: גם התשובות של המנהל לבדיקות בטלפון — כך הסשן יודע מה עובד ומה לא (רק כותרת, מצב והערה של המנהל)
     const checks = Object.entries(await checkAnswers(deps)).map(([id, x]) => ({ id, t: x.t, st: x.st, n: x.n, at: x.at }));
-    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks });
+    // מ׳2: קורפוס הטקסט — המספרים תמיד; הפריטים עצמם (עד 20) רק כשהסשן ביקש (ci) — לניתוח ב־Claude שבמנוי
+    const corpus = await learnCorpusView(deps, Math.max(0, Math.min(20, Math.floor(+body.ci || 0)))).catch(() => ({ on: false, error: 'r2' }));
+    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks, corpus });
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
@@ -239,6 +243,7 @@ async function learnPull(req, res, body, deps) {
    המשתמש לא נכנסות למאגר מעכשיו. 15/10 (מ׳1): "מחק את התרומות שלי" (studioStats.lf = מתי) — עבודה שנוצרה עד אז לא נכנסת שוב.
    תקלה בקריאה = לא שומרים (זהירות) */
 async function learnSkip(deps, job, cache) {
+  if (!(await flagOn(deps, 'learn'))) return true;   // 15/10/2026: הדגל "איסוף למאגר הלמידה" כבוי — לכולם
   const uid = job.uid;
   let p = cache && cache.get(uid);
   if (!p) {
@@ -266,6 +271,91 @@ async function learnSave(deps, job, now, offCache) {
     if (!rec) return;
     await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h: LR.recHash(rec), at: rec.at || now, updated: now });
   } catch (e) {}
+}
+/* ---------- מאגר הלמידה מ׳2 (15/10/2026): קורפוס הטקסט בדלי נפרד ----------
+   הדלי snb-learn עם מפתח משלו (R2L_* במשתני Vercel; החשבון — R2L_ACCOUNT_ID או של snb-studio). בלי הגדרה — לא נשמר כלום.
+   העובד שולח בסוף העבודה (learnPut, מפתח העבודה) → ניקוי ורשימה מותרת (lib/learncorpus.js) → הצפנה (vault, AAD learn|<lid>)
+   → התור q/<lid>.bin. פעם ביום (learnBatch מתוך watch) התור עובר ל־c/<חודש>/<lid>.bin — כך זמן הקובץ בדלי הוא זמן האצווה,
+   לא הרגע שבו המשתמש הריץ עבודה. התוכן נמחק אחרי 24 חודשים; הרשומות המספריות (studioLearn) נשארות.
+   נשמר רק כשהמתג דולק, ההודעה נקראה (lra — הסכמה לתוכן), והעבודה לא כבר נשמרה (lc). תקלה כאן לעולם לא מפילה את סוף העבודה */
+const LC_MAX_BODY = 2600000;
+const learnCfg = (env = process.env) => R2.config({ R2_ACCOUNT_ID: env.R2L_ACCOUNT_ID || env.R2_ACCOUNT_ID, R2_ACCESS_KEY_ID: env.R2L_ACCESS_KEY_ID,
+  R2_SECRET_ACCESS_KEY: env.R2L_SECRET_ACCESS_KEY, R2_BUCKET: env.R2L_BUCKET, R2_JURISDICTION: env.R2L_JURISDICTION || env.R2_JURISDICTION });
+async function learnPut(deps, job, b64, now) {
+  try {
+    const c = learnCfg();
+    if (!c.ok || job.kind !== 'tr' || job.lc || typeof b64 !== 'string' || b64.length > LC_MAX_BODY) return false;
+    if (await learnSkip(deps, job)) return false;
+    const st = (await readDoc(deps, 'studioStats', job.uid)) || {};
+    if (!(+st.lra > 0)) return false;   // ההודעה לא נקראה — מדדים כן, תוכן לא
+    const raw = require('zlib').gunzipSync(Buffer.from(b64, 'base64'), { maxOutputLength: 16 * 1024 * 1024 });
+    const item = LC.normCorpus(JSON.parse(raw.toString('utf8')), LC.monthOf(now));
+    if (!item) return false;
+    const lid = LR.lid(job.id);
+    await R2.putText(c, r2deps(deps), LC.qKey(lid), vault.seal(item, 'learn|' + lid), 'application/octet-stream');
+    await patchJob(deps, job.id, { lc: now });
+    return true;
+  } catch (e) { return false; }
+}
+/* האצווה היומית: q → c/<חודש>, ומחיקת חודשים ישנים מ־24. פעם ביום (sysLearn/batch.day). מחזיר כמה עברו, ‎0 = לא היום */
+const LC_BATCH_MAX = 500;
+async function learnBatch(deps, now) {
+  const c = learnCfg();
+  if (!c.ok || process.env.SNB_LEARNBATCH === 'off') return 0;
+  const day = new Date(now).toISOString().slice(0, 10);
+  const b = (await readDoc(deps, 'sysLearn', 'batch').catch(() => null)) || {};
+  if (b.day === day) return 0;
+  await patchDoc(deps, 'sysLearn', 'batch', { day, at: now });
+  const rd = r2deps(deps);
+  let moved = 0, gone = 0;
+  for (const it of (await R2.list(c, rd, 'q/', LC_BATCH_MAX)).slice(0, LC_BATCH_MAX)) {
+    const p = LC.parseKey(it.key);
+    if (!p || p.kind !== 'q') continue;
+    const sealed = await R2.getText(c, rd, it.key, LC_MAX_BODY * 2);
+    const item = sealed && vault.open(sealed, 'learn|' + p.lid);
+    if (item && /^\d{4}-\d{2}$/.test(String(item.m || ''))) { await R2.copy(c, rd, it.key, LC.cKey(item.m, p.lid), 'application/octet-stream'); moved++; }
+    await R2.del(c, rd, it.key);   // לא נפתח (מפתח אחר / שובש) — לא נשאר בתור לנצח
+  }
+  for (const it of await R2.list(c, rd, 'c/', 50000)) {
+    const p = LC.parseKey(it.key);
+    if (p && p.kind === 'c' && LC.expired(p.month, now)) { await R2.del(c, rd, it.key); gone++; }
+  }
+  await patchDoc(deps, 'sysLearn', 'batch', { day, at: now, mv: moved, gn: gone });
+  return moved;
+}
+/* "מחק את התרומות שלי": כל פריט שהמזהה שלו ברשימה — בתור ובחודשים. מחזיר כמה נמחקו */
+async function learnCorpusForget(deps, ids) {
+  const c = learnCfg();
+  if (!c.ok || !ids.size) return 0;
+  let n = 0;
+  try {
+    const rd = r2deps(deps);
+    for (const pre of ['q/', 'c/']) {
+      for (const it of await R2.list(c, rd, pre, 50000)) {
+        const p = LC.parseKey(it.key);
+        if (p && ids.has(p.lid)) { await R2.del(c, rd, it.key); n++; }
+      }
+    }
+  } catch (e) {}
+  return n;
+}
+/* למנהל ולסשן הניתוח: כמה פריטים, כמה בתור, כמה MB — מרשימת המפתחות בלבד. items = עד n פריטים פתוחים, מהחודש החדש */
+async function learnCorpusView(deps, items) {
+  const c = learnCfg();
+  if (!c.ok) return { on: false };
+  const rd = r2deps(deps);
+  const keys = [...await R2.list(c, rd, 'q/', 5000), ...await R2.list(c, rd, 'c/', 50000)];
+  const out = Object.assign({ on: true }, LC.corpusStats(keys));
+  if (items > 0) {
+    const list = [];
+    for (const it of keys.filter((k) => (LC.parseKey(k.key) || {}).kind === 'c').sort((a, b) => (a.key < b.key ? 1 : -1)).slice(0, Math.min(items, 20))) {
+      const p = LC.parseKey(it.key);
+      const x = vault.open(await R2.getText(c, rd, it.key, LC_MAX_BODY * 2), 'learn|' + p.lid);
+      if (x) list.push(Object.assign({ id: p.lid }, x));
+    }
+    out.items = list;
+  }
+  return out;
 }
 /* v363: "הרגיל" של המשתמש — דגימה לכל עבודה שהסתיימה (studioStats/{uid}, נפרד מהכספת: ניתוק Claude לא מוחק את ההיסטוריה) */
 /* v365: מגדל הפיקוח 2.0 — אירועים והתראות (lib/studioops.js) ב־studioOps/{uid}. תקלה כאן לעולם לא מפילה את הפעולה עצמה */
@@ -333,8 +423,31 @@ async function vapidKeys(deps) {
   return v2;
 }
 /* התראה לכל המכשירים של המשתמש — רק סוג האירוע ומזהה העבודה. תקלה כאן לא מפילה שום דבר */
+/* 15/10/2026: מצב תחזוקה ודגלים — המסמך sysCfg/main, במטמון של המופע 30 שנ׳ (שינוי מהמנהל מעדכן מיד). תקלה בקריאה = כמו
+   ברירת המחדל (בלי תחזוקה, כל הדגלים דולקים) — תקלה ב־Firestore לא עוצרת את כל המערכת */
+let cfgC = { at: 0, v: null };
+async function sysCfg(deps, now) {
+  if (cfgC.v && Math.abs(now - cfgC.at) < 30e3) return cfgC.v;
+  const d = (await readDoc(deps, 'sysCfg', 'main').catch(() => null)) || {};
+  cfgC = { at: now, v: d };
+  return d;
+}
+const flagOn = async (deps, k, now) => SF.flagOn(await sysCfg(deps, now || Date.now()), k);
+/* עבודה חדשה / התחלה / המשך: בזמן תחזוקה — רק המנהל; מנוע שהדגל שלו כבוי — לא; "המשך" אוטומטי — רק כש־st_auto דולק.
+   עבודות שכבר רצות ממשיכות (התחזוקה עוצרת רק מה שמתחיל) */
+async function sysBlock(deps, job, now, auto, adm) {
+  const d = await sysCfg(deps, now);
+  if (SF.maintOn(d, now) && !adm) return { error: 'maint', msg: SF.normMsg(d.mtMsg), til: +d.mtTil || 0 };
+  if (['tr', 'rr', 'ai'].includes(job.kind)) {
+    const fl = apiJob(job) ? 'st_api' : 'st_routine';
+    if (!SF.flagOn(d, fl)) return { error: 'flag_off', fl };
+  }
+  if (auto && !SF.flagOn(d, 'st_auto')) return { error: 'flag_off', fl: 'st_auto' };
+  return null;
+}
 async function notify(deps, uid, kind, jobId, now) {
   try {
+    if (!(await flagOn(deps, 'push', now))) return 0;   // הדגל "התראות לטלפון" כבוי
     const st = await readStats(deps, uid);
     const subs = W.normSubs(st.wp);
     if (!subs.length) return 0;
@@ -423,7 +536,8 @@ async function watch(req, res, deps) {
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
   const aw = await adminWatch(deps, now).catch(() => -1);   // 15/10/2026: התראות למנהל — הגיבוי ובדיקת המוכנות
-  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw });
+  const lc = await learnBatch(deps, now).catch(() => -1);   // 15/10/2026 (מ׳2): קורפוס הטקסט — האצווה היומית ומחיקה אחרי 24 חודשים
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc });
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
@@ -663,7 +777,7 @@ async function ruleBlock(deps, uid, job, body) {
 /* v361: "המשך מאותה נקודה" — מפתח חדש והפעלה חוזרת של ה־Routine; העובד מוריד את נקודת השמירה האחרונה וממשיך ממנה.
    הטוקנים של הסשנים הקודמים נשמרים (use0) ומתווספים לדיווח הבא. v368: גם "המשך" אוטומטי אחרי תקלה חולפת (auto) —
    אותה דרך בדיוק, פעם אחת לעבודה (ar), והמצב שאישרת בהתחלה לא נשאל שוב (ov) */
-async function doResume(deps, uid, job, now, body, auto) {
+async function doResume(deps, uid, job, now, body, auto, adm) {
   const why = S.canResume(job, now);
   if (why) return { status: 409, json: { ok: false, error: why } };
   // v376: ספר ההפעלה "מצב זול יותר" — משנה את התוצאה, ולכן רק בלחיצה שלך (לא בהמשך האוטומטי) ורק אחרי עצירה על עלות
@@ -673,6 +787,8 @@ async function doResume(deps, uid, job, now, body, auto) {
     if (!S.COST_STOP(job) || !S.cheaperModes(from).includes(body.mode)) return { status: 409, json: { ok: false, error: 'mode' } };
     dm = from;
   }
+  const sb = await sysBlock(deps, job, now, auto, adm);   // 15/10/2026: תחזוקה / דגל כבוי
+  if (sb) return { status: 409, json: Object.assign({ ok: false }, sb) };
   const stop = await ruleBlock(deps, uid, job, auto ? { ov: true } : body);   // v367
   if (stop) return { status: 409, json: Object.assign({ ok: false }, stop) };
   // v384: "המשך" חוזר — זו הפעם השלישית ב־24 שעות: לולאה. ההמשך האוטומטי מוותר (והתראה), ידני — רק באישור שלך (lo)
@@ -736,6 +852,7 @@ async function autoRecover(deps, uid, jobs, now) {
   let n = 0;
   for (const j of due) {
     if (await majorNow(deps, uid, j)) continue;   // v371: בתקלה רחבה מחכים (rw נשאר) — ממשיכים כשהיא עוברת
+    if (SF.maintOn(await sysCfg(deps, now), now)) continue;   // 15/10/2026: בזמן תחזוקה מחכים — ממשיכים כשהיא נגמרת
     n++;
     const r = await doResume(deps, uid, j, now, {}, true).catch(() => ({ json: { ok: false, error: 'failed' } }));
     if (!r.json.ok && r.json.error !== 'budget') {   // תקציב ההפעלות — ננסה בפעם הבאה
@@ -902,7 +1019,7 @@ async function worker(req, res, body, deps) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
   let len = 0; try { len = JSON.stringify(body).length; } catch (e) { len = 1e9; }
-  if (len > 16384) return res.status(413).json({ ok: false, error: 'too_large' });
+  if (len > (body.op === 'learnPut' ? LC_MAX_BODY : 16384)) return res.status(413).json({ ok: false, error: 'too_large' });
   const id = String(body.job || ''), key = String(body.key || '');
   if (!S.JOB_RE.test(id) || !S.KEY_RE.test(key)) return res.status(400).json({ ok: false, error: 'bad_params' });
   if (limited('w|' + id, 90)) return res.status(429).json({ ok: false, error: 'rate_limited' });
@@ -966,6 +1083,7 @@ async function worker(req, res, body, deps) {
       return res.status(200).json({ ok: true, job: S.workerJob(job, nm, S.fbForWorker(stats.fb), stats.fm, stats.rl, gl), drive: await driveFor(), pir, now });
     }
     if (body.op === 'token') return res.status(200).json({ ok: true, drive: await driveFor(), now });
+    if (body.op === 'learnPut') return res.status(200).json({ ok: true, saved: await learnPut(deps, job, body.lc, now), now });   // מ׳2
     if (body.op.startsWith('r2')) {   // ת4: הקבצים של העבודה ב־R2 (קלט, תוצרים, נקודות שמירה)
       const op = { r2get: 'url', r2wup: 'up', r2wparts: 'parts', r2wdone: 'done', r2del: 'del' }[body.op];
       const [code, out] = await r2Files(deps, op, body, job.uid, job.folder, 'worker');
@@ -1171,6 +1289,11 @@ async function handler(req, res, deps = {}) {
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
   if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (guard(req, res)) return;
+  if (body.op === 'cfg') {   // 15/10/2026: מצב התחזוקה והדגלים — לשלוש האפליקציות, בלי התחברות (רק מה שציבורי)
+    if (limited('cfg|' + String(((req.socket || {}).remoteAddress) || ''), 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+    const now = deps.now || Date.now();
+    return res.status(200).json({ ok: true, cfg: SF.publicCfg(await sysCfg(deps, now), now), now });
+  }
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) { return res.status(401).json({ ok: false, error: 'no_auth' }); }
@@ -1258,7 +1381,8 @@ async function handler(req, res, deps = {}) {
       const { recs, wrote } = await learnLoad(deps, now);
       if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
       if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
-      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, now });
+      const corpus = await learnCorpusView(deps, 0).catch(() => ({ on: false, error: 'r2' }));   // מ׳2: רק המספרים
+      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, corpus, now });
     }
     if (op === 'adminOv') {
       // 15/10/2026: מרכז הניהול — סקירה, "מחכה לך" ו"מה רץ איפה". מנהל בלבד; בלי פרטים אישיים (שמות שרתים, מספרי PR, גרסאות)
@@ -1308,6 +1432,19 @@ async function handler(req, res, deps = {}) {
       const prs = ((ext.gh && ext.gh.prs) || []).filter((x) => !x.dep);
       const tk = md == null ? null : AO.tasksParse(md, now);
       return res.status(200).json({ ok: true, tk, prs, lane: AO.laneView(prs, ext.gh && ext.gh.waiting), ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
+    }
+    if (op === 'adminCfg') {
+      // 15/10/2026: מצב תחזוקה והגדרות ודגלים — מנהל בלבד. בלי set — רק קריאה
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      cfgC = { at: 0, v: null };
+      const d = await sysCfg(deps, now);
+      if (body.set) {
+        const patch = SF.applyAdmin(d, body.set, now);
+        if (!patch) return res.status(400).json({ ok: false, error: 'bad_params' });
+        await patchDoc(deps, 'sysCfg', 'main', Object.assign({ updated: now }, patch));
+        cfgC = { at: now, v: Object.assign({}, d, patch) };
+      }
+      return res.status(200).json({ ok: true, cfg: SF.adminCfg(cfgC.v, now), now });
     }
     if (op === 'adminReady') {
       // 15/10/2026: בדיקת מוכנות לכל המערכת — כותרות המטמון, הגרסה החיה בשלוש הכתובות, השרתון והגיבוי שלו, חתימת החיבור המשותף,
@@ -1365,7 +1502,8 @@ async function handler(req, res, deps = {}) {
       await patchDoc(deps, 'studioStats', uid, { lf: now, lgn: '', updated: now });
       let n = 0;
       for (const id of ids) { try { if (await readDoc(deps, 'studioLearn', id)) { await delDoc(deps, 'studioLearn', id); n++; } } catch (e) {} }
-      return res.status(200).json({ ok: true, n, lf: now });
+      const nc = await learnCorpusForget(deps, ids);   // מ׳2: גם הטקסט בדלי (בתור ובחודשים)
+      return res.status(200).json({ ok: true, n, nc, lf: now });
     }
     if (op === 'status') {
       const v = await readVault(deps, uid);
@@ -1581,6 +1719,8 @@ async function handler(req, res, deps = {}) {
       const spec = S.normSpec(body.spec);
       if (!spec) return res.status(400).json({ ok: false, error: 'bad_spec' });
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
+      const sbc = await sysBlock(deps, { kind: 'tr', spec }, now, false, isAdmin(user));   // 15/10/2026: לפני שמעלים כמה GB
+      if (sbc) return res.status(409).json(Object.assign({ ok: false }, sbc));
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) { await learnSave(deps, old, now); await delDoc(deps, 'studioJobs', old.id); }
@@ -1704,6 +1844,8 @@ async function handler(req, res, deps = {}) {
       if (job.kind === 'ai' ? !job.fq : !job.fa && !job.fv || job.kind === 'rr' && !(job.fv && job.fc)) return res.status(409).json({ ok: false, error: 'no_files' });
       if (job.kind === 'tr' && !S.langReady(job.spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported', job: view(job) });
       if (!S.WORKER_KINDS.includes(job.kind)) return res.status(200).json({ ok: false, error: 'worker_not_ready', job: view(job) });
+      const sbs = await sysBlock(deps, job, now, false, isAdmin(user));   // 15/10/2026: תחזוקה / דגל כבוי
+      if (sbs) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, sbs));
       const stop = await ruleBlock(deps, uid, job, body);   // v367: מתג החירום / מצב מעל המקסימום
       if (stop) return res.status(409).json(Object.assign({ ok: false, job: view(job) }, stop));
       const mj = body.mo !== true ? await majorNow(deps, uid, job) : null;   // v371: תקלה רחבה — מחכים, או "להתחיל בכל זאת"
@@ -1820,7 +1962,7 @@ async function handler(req, res, deps = {}) {
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'resume') {
-      const r = await doResume(deps, uid, job, now, body, false);
+      const r = await doResume(deps, uid, job, now, body, false, isAdmin(user));
       if (!r.json.job) r.json.job = view(job);
       return res.status(r.status).json(r.json);
     }
@@ -1854,4 +1996,4 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => hits.clear();
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; };

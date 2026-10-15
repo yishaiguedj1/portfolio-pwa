@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (609 מפתחות מתוך 2965) */
+/* המחרוזות של academy (612 מפתחות מתוך 3006) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -267,6 +267,8 @@ he: {
   "libSortOld": "לפי שנה · מהישן",
   "libSortRecent": "נקראו לאחרונה",
   "libSortTitle": "מיון",
+  "libSyncFail": "ספריית המכתבים לא נטענה (קוד: {c}). ננסה שוב בכניסה הבאה.",
+  "libSyncFailN": "{n} מתוך {t} מכתבים לא ירדו (קוד: {c}). ננסה שוב בכניסה הבאה.",
   "libSyncProg": "מוריד מכתבים מהספרייה… {n} מתוך {t}",
   "libSyncing": "טוען את ספריית המכתבים…",
   "libTapDownload": "בגיבוי — נגיעה להורדה",
@@ -278,6 +280,7 @@ he: {
   "loginFailed": "ההתחברות נכשלה — נסו שוב",
   "loginSubAcademy": "מתחברים פעם אחת — הספרייה, ההתקדמות וההדגשות נשמרות בענן ומסונכרנות בכל מכשיר",
   "loginSubStudio": "מתחברים פעם אחת — העבודות והתרגומים נשמרים בענן ומסונכרנים בכל מכשיר",
+  "maintBar": "עבודות תחזוקה",
   "menuAria": "תפריט ראשי",
   "menuCloseAria": "סגירת התפריט",
   "menuLibrarySub": "מכתבים וספרים",
@@ -878,6 +881,8 @@ en: {
   "libSortOld": "By year · oldest",
   "libSortRecent": "Recently read",
   "libSortTitle": "Sort",
+  "libSyncFail": "The letters library did not load (code: {c}). We will retry next time.",
+  "libSyncFailN": "{n} of {t} letters did not download (code: {c}). We will retry next time.",
   "libSyncProg": "Downloading letters… {n} of {t}",
   "libSyncing": "Loading the letters library…",
   "libTapDownload": "In backup — tap to download",
@@ -889,6 +894,7 @@ en: {
   "loginFailed": "Sign-in failed — try again",
   "loginSubAcademy": "Sign in once — your library, progress and highlights are saved in the cloud and synced on every device",
   "loginSubStudio": "Sign in once — your jobs and translations are saved in the cloud and synced on every device",
+  "maintBar": "Maintenance",
   "menuAria": "Main menu",
   "menuCloseAria": "Close menu",
   "menuLibrarySub": "Letters & books",

@@ -400,6 +400,17 @@ async function importFiles(files, extra, outIds) {
    בלי התחברות / בלי הרשאה / בלי רשת — שקט, והספרייה המקומית נשארת. */
 let syncing = null;
 let syncNote = '';
+/* 15/10/2026 (דיווח המשתמש: "ספריית המכתבים עוד ריקה" כשבשרת 84 ספרים): כשל בסנכרון המדף היה נבלע בשקט.
+   עכשיו נשמר קוד קצר של הכשל הראשון + כמה ספרים לא ירדו, ומוצג בדף — בלי פרטים אישיים. */
+let syncFail = null;                              // { c: קוד, n: כמה נכשלו, t: מתוך } או null
+const failCode = (e) => String((e && e.message) || e || 'err').replace(/[^A-Za-z0-9_:.-]/g, '').slice(0, 40) || 'err';
+async function apiJson(body) {                    // { j, c } — c = קוד לאבחון כשאין תשובה תקינה
+  let r;
+  try { r = await libApi(body); } catch (e) { return { j: null, c: 'net' }; }
+  let j = null;
+  try { j = await r.json(); } catch (e) {}
+  return { j, c: j && j.ok ? '' : 'http' + r.status + (j && j.error ? ':' + j.error : '') };
+}
 let syncProgress = null;   // { done, total } בזמן הורדה מה־Drive
 async function idToken() {
   try {
@@ -501,8 +512,9 @@ const BOOK_TYPES = { epub: 'application/epub+zip', azw3: 'application/vnd.amazon
 async function catUrls(tk, ids, kind) {
   const out = {};
   for (let i = 0; i < ids.length; i += 200) {
-    const j = await libApi({ op: 'urls', idToken: tk, ids: ids.slice(i, i + 200), kind }).then((r) => r.json()).catch(() => null);
+    const { j, c } = await apiJson({ op: 'urls', idToken: tk, ids: ids.slice(i, i + 200), kind });
     if (j && j.ok) Object.assign(out, j.urls || {});
+    else if (!out._c) Object.defineProperty(out, '_c', { value: 'urls:' + c, enumerable: false });
   }
   return out;
 }
@@ -510,31 +522,48 @@ async function catFetchView(j) {                  // קטלוג גדול — ק�
   if (j.full) return j;
   if (!R2_URL.test(String(j.url || '')) || typeof DecompressionStream === 'undefined') return null;
   const r = await fetch(j.url);
-  if (!r.ok) return null;
+  if (!r.ok) throw new Error('view' + r.status);
   const full = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();
   return Object.assign({}, j, { full });
 }
+/* ספר מהמדף: קודם ישירות מ־R2 (קישור חתום); נכשל (רשת/CORS/קישור) → אותו קובץ דרך השרתון (op:'file' בלי via) */
+async function shelfFile(tk, b, url) {
+  let why = 'nourl';
+  if (R2_URL.test(String(url || ''))) {
+    try { const r = await fetch(url); if (r.ok) return { blob: await r.blob() }; why = 'r2_' + r.status; }
+    catch (e) { why = 'r2_net'; }
+  }
+  try {
+    const r = await libApi({ op: 'file', idToken: tk, id: b.id });
+    if (r.ok && !/json/.test(r.headers.get('content-type') || '')) return { blob: await r.blob(), why };
+    let e = ''; try { e = (await r.json()).error || ''; } catch (x) {}
+    return { why: why + '>' + r.status + (e ? ':' + e : '') };
+  } catch (e) { return { why: why + '>net' }; }
+}
 async function syncShelf(tk, j) {
-  const res = await catFetchView(j);
-  if (!res) return 0;
+  let res;
+  try { res = await catFetchView(j); } catch (e) { syncFail = { c: failCode(e), n: 0, t: 0 }; return 0; }
+  if (!res) { syncFail = { c: 'view', n: 0, t: 0 }; return 0; }
   const plan = shelfSyncPlan(await allBooksRaw(), res);
-  let changed = 0, failed = 0, done = 0;
+  let changed = 0, failed = 0, done = 0, firstWhy = '';
   const fu = await catUrls(tk, plan.fetch.map((b) => b.id), 'f');
+  if (fu._c) firstWhy = fu._c;
   const total = plan.fetch.length;
   const queue = plan.fetch.slice();
   const worker = async () => {
     for (let b; (b = queue.shift());) {
       try {
-        const f = b.files[0], url = fu[b.id];
-        const r = R2_URL.test(String(url || '')) ? await fetch(url) : { ok: false };
-        if (!r.ok) throw new Error('dl');
+        const f = b.files[0];
+        const got = await shelfFile(tk, b, fu[b.id]);
+        if (got.why && !firstWhy) firstWhy = got.why;      // גם כשהגיבוי דרך השרתון הצליח — לדעת שהישיר נכשל
+        if (!got.blob) throw new Error(got.why || 'dl');
         const name = String(b.title || 'book').replace(/[\\/:*?"<>|]/g, ' ').slice(0, 100) + '.' + f.fmt;
-        const file = new File([await r.blob()], name, { type: BOOK_TYPES[f.fmt] || 'application/octet-stream' });
+        const file = new File([got.blob], name, { type: BOOK_TYPES[f.fmt] || 'application/octet-stream' });
         const n = await importFiles([file], { id: b.id, md5: f.md5, src: 'drive', cat: catFields(b), catSig: b.cover ? '' : catSigOf(b) });
         if (!n) throw new Error('import');
         changed += n;
         if (b.cover) plan.meta.push(b);                                  // הכריכה — בשלב הבא
-      } catch (e) { failed++; }
+      } catch (e) { failed++; if (!firstWhy || e.message === 'import') firstWhy = failCode(e); }
       done++;
       syncProgress = { done, total };
       if (done % 8 === 0 && root && !rd) renderHome();
@@ -542,6 +571,7 @@ async function syncShelf(tk, j) {
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
   syncProgress = null;
+  syncFail = failed ? { c: firstWhy || 'dl', n: failed, t: total } : null;
   const wantCover = plan.meta.filter((b) => b.cover);
   const cu = wantCover.length ? await catUrls(tk, wantCover.map((b) => b.id), 'c') : {};
   for (const b of plan.meta) {
@@ -588,12 +618,13 @@ function syncDrive() {
     const drv = (await allBooksRaw()).filter((b) => b.src === 'drive');
     const st = catState();
     const fresh = !st || st.n !== drv.length || drv.some((b) => !b.md5 && !b.hidden);   // ניקוי/החזרת מוסתר — תמונה מלאה
-    const cj = await libApi({ op: 'cat', idToken: tk, have: fresh ? -1 : st.v }).then((r) => r.json()).catch(() => null);
-    if (cj && cj.ok && cj.src === 'r2') { syncNote = ''; return cj.same ? 0 : syncShelf(tk, cj); }
+    const { j: cj, c: cc } = await apiJson({ op: 'cat', idToken: tk, have: fresh ? -1 : st.v });
+    if (cj && cj.ok && cj.src === 'r2') { syncNote = ''; if (cj.same) { syncFail = null; return 0; } return syncShelf(tk, cj); }
     if (cj && !cj.ok && cj.error === 'not_allowed') { syncNote = 'denied'; return 0; }
     const j = await libApi({ op: 'list', idToken: tk }).then((r) => r.json()).catch(() => null);
-    if (!j || !j.ok) { syncNote = j && j.error === 'not_allowed' ? 'denied' : ''; return 0; }
+    if (!j || !j.ok) { syncNote = j && j.error === 'not_allowed' ? 'denied' : ''; if (!syncNote) syncFail = { c: 'cat:' + (cc || 'src') + '|list:' + (j ? j.error || 'bad' : 'net'), n: 0, t: 0 }; return 0; }
     syncNote = '';
+    syncFail = null;
     const plan = driveSyncPlan(await allBooks(), j.items || []);
     let changed = 0, done = 0;
     const queue = plan.fetch.slice();
@@ -629,7 +660,7 @@ function syncDrive() {
       changed++;
     }
     return changed;
-  })().catch(() => 0).finally(() => { syncing = null; });
+  })().catch((e) => { syncFail = { c: 'ex:' + failCode(e), n: 0, t: 0 }; return 0; }).finally(() => { syncing = null; });
   return syncing;
 }
 
@@ -1080,6 +1111,7 @@ async function renderHomeNow() {
   if (!mine) {
     if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
     else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
+    else if (syncFail && !syncing) home.append(h('p', 'lib-note', syncFail.n ? T('libSyncFailN', { n: syncFail.n, t: syncFail.t, c: syncFail.c }) : T('libSyncFail', { c: syncFail.c })));
   }
 
   if (books.length || cloudOnly.length) {   // גם בספרייה קטנה — החיפוש מגיע גם לתוך הטקסט
@@ -1094,7 +1126,7 @@ async function renderHomeNow() {
   }
   if (!books.length && !cloudOnly.length) {
     if (mine) { home.append(mineEmpty()); return; }
-    if (!(SA && syncNote === 'signin')) home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));   // עצמאי — הכפתור למעלה במקום ההסבר
+    if (!(SA && syncNote === 'signin') && !(syncFail && !syncing)) home.append(h('p', 'lib-empty', T(syncing ? 'libSyncing' : syncNote === 'signin' ? 'libSignIn' : 'libEmptySnb')));   // עצמאי — הכפתור למעלה במקום ההסבר
     return;
   }
   const listed = books.concat(cloudOnly);
