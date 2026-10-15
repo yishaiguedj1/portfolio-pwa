@@ -246,6 +246,38 @@ def _main_model():
         return ''
 
 
+PIR_ASK = ('כתוב בעברית שלושה משפטים קצרים, בלי אשמה: מה קרה, מה הסיבה הסבירה, ומה החזיר לעבודה או מה כדאי לשנות. '
+           'רק מהעובדות שלמעלה — בלי ניחושים, בלי קוד ובלי קישורים.')
+
+
+def pir_facts(p) -> str:
+    """העובדות של דוח התקלה כטקסט — אותו טקסט ל־Routine (הדפסה) ולמצב השרת (הבקשה ל־Claude)."""
+    mins = lambda sec: str(max(0, round(sec / 60))) + ' דק׳'
+    out = [inc_no(p['no']) + ' · P' + str(p['s']) + ' · ' + PIR_COMP[p['c']] + ' · קוד ' + p['e'] + (' · חלק מתקלה רחבה' if p['m'] else ''),
+           'נכשלה ' + str(p['n']) + ' פעמים · ' + ('נפתרה' if p['st'] == 'r' else 'נסגרה בלי פתרון')
+           + (' · Claude המשיך לבד' if p['by'] == 'c' else ' · המשתמש המשיך' if p['by'] == 'u' else ''),
+           'זמן לזיהוי: ' + mins(p['tti']) + ' · זמן לתיקון: ' + mins(p['ttr']) + ' · עלה בטעות: $' + format(p['usd'], '.2f')]
+    if p['rc']:
+        out.append('שורש סביר (חשבון בקוד): ' + ' · '.join(PIR_RC[r['t']] + (' (' + PIR_COMP.get(r['c'], '') + (' ' + r['k'] if r['k'] else '') + ')' if r['c'] else '') + ' ' + str(int(r['p'])) + '%' for r in p['rc']))
+    out.append('ציר הזמן (דקות מפתיחת התקלה):')
+    for e in p['tl']:
+        out.append('  ' + ('+' if e[0] >= 0 else '') + str(e[0]) + ' · ' + PIR_H[e[1]] + (' · ' + PIR_COMP.get(e[2], e[2]) + (':' + e[3] if len(e) > 3 else '') if len(e) > 2 else ''))
+    return '\n'.join(out)
+
+
+def pir_send(st, text, model) -> int:
+    """שולח את הסיכום (פעם אחת) ומוחק את הבקשה מהמצב. 1 = הטקסט לא תקין."""
+    p = st.get('pir')
+    t = re.sub(r'\s+', ' ', re.sub(r'[\x00-\x1f\x7f]', ' ', str(text or ''))).strip()
+    if not p or len(t) < 20:
+        return 1
+    got = Ctx(st).c.call('report', pir={'no': p['no'], 't': t[:420], 'm': model or ''})
+    st.pop('pir', None)
+    save_state(st)
+    print('✓ הסיכום נשמר בדוח התקלה.' if got.get('pir') else '· הדוח כבר לא מחכה לסיכום — ממשיכים.')
+    return 0
+
+
 def pir(args):
     """v379: דוח אחרי תקלה — בלי --text מציג את העובדות; עם --text שולח את הסיכום (פעם אחת)."""
     st = load_state()
@@ -254,27 +286,13 @@ def pir(args):
         print('אין דוח תקלה לכתוב בעבודה הזו.')
         return 0
     if not args.text:
-        mins = lambda sec: str(max(0, round(sec / 60))) + ' דק׳'
-        print(inc_no(p['no']) + ' · P' + str(p['s']) + ' · ' + PIR_COMP[p['c']] + ' · קוד ' + p['e'] + (' · חלק מתקלה רחבה' if p['m'] else ''))
-        print('נכשלה ' + str(p['n']) + ' פעמים · ' + ('נפתרה' if p['st'] == 'r' else 'נסגרה בלי פתרון')
-              + (' · Claude המשיך לבד' if p['by'] == 'c' else ' · המשתמש המשיך' if p['by'] == 'u' else ''))
-        print('זמן לזיהוי: ' + mins(p['tti']) + ' · זמן לתיקון: ' + mins(p['ttr']) + ' · עלה בטעות: $' + format(p['usd'], '.2f'))
-        if p['rc']:
-            print('שורש סביר (חשבון בקוד): ' + ' · '.join(PIR_RC[r['t']] + (' (' + PIR_COMP.get(r['c'], '') + (' ' + r['k'] if r['k'] else '') + ')' if r['c'] else '') + ' ' + str(int(r['p'])) + '%' for r in p['rc']))
-        print('ציר הזמן (דקות מפתיחת התקלה):')
-        for e in p['tl']:
-            print('  ' + ('+' if e[0] >= 0 else '') + str(e[0]) + ' · ' + PIR_H[e[1]] + (' · ' + PIR_COMP.get(e[2], e[2]) + (':' + e[3] if len(e) > 3 else '') if len(e) > 2 else ''))
-        print('כתוב בעברית שלושה משפטים קצרים, בלי אשמה: מה קרה, מה הסיבה הסבירה, ומה החזיר לעבודה או מה כדאי לשנות. רק מהעובדות שלמעלה — בלי ניחושים, בלי קוד ובלי קישורים.')
+        print(pir_facts(p))
+        print(PIR_ASK)
         print('  python3 translator/job.py pir --text "…"')
         return 0
-    t = re.sub(r'\s+', ' ', re.sub(r'[\x00-\x1f\x7f]', ' ', args.text)).strip()
-    if len(t) < 20:
+    if pir_send(st, args.text, _main_model()):
         print('✗ קצר מדי — שלושה משפטים.')
         return 1
-    got = Ctx(st).c.call('report', pir={'no': p['no'], 't': t[:420], 'm': _main_model()})
-    st.pop('pir', None)
-    save_state(st)
-    print('✓ הסיכום נשמר בדוח התקלה.' if got.get('pir') else '· הדוח כבר לא מחכה לסיכום — ממשיכים.')
     return 0
 
 
