@@ -17,9 +17,11 @@ const SCOPE = {
   bookmeta: ['academy'],
   studio: ['studio'],
 };
-/* חריגים לפי op: הגיבוי של Invest ל־Drive (pfbackup.js) עובר דרך פעולות gd* של /api/library */
+/* חריגים לפי op: הגיבוי של Invest ל־Drive (pfbackup.js) עובר דרך פעולות gd* של /api/library;
+   op:'cfg' של /api/studio = מצב התחזוקה והדגלים הציבוריים — כל שלוש האפליקציות טוענות אותו (core.js) */
 function scopeFor(name, op) {
   if (name === 'library' && /^gd[A-Z]/.test(String(op || ''))) return ['academy', 'invest'];
+  if (name === 'studio' && op === 'cfg') return null;
   return SCOPE[name] || null;
 }
 function endpointOf(url) {

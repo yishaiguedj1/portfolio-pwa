@@ -30,6 +30,8 @@ for (const ep of ['quotes', 'history', 'search', 'wordmark', 'widget']) {
 ok(deny('library', O.invest, { op: 'gdToken' }) === '' && deny('library', O.invest, { op: 'gdConnect' }) === '', 'Invest → /api/library gd*: מותר (גיבוי ל־Drive)');
 ok(deny('library', O.invest, { op: 'list' }) === 'wrong_app' && deny('library', O.invest, { op: 'libMove' }) === 'wrong_app', 'Invest → /api/library שאר הפעולות: חסום');
 ok(deny('library', O.studio, { op: 'gdToken' }) === 'wrong_app', 'Studio → /api/library gd*: חסום (ל־Studio לקוח Drive משלו)');
+ok(deny('studio', O.invest, { op: 'cfg' }) === '' && deny('studio', O.academy, { op: 'cfg' }) === '', 'op cfg של /api/studio (מצב תחזוקה, core.js) — פתוח לכל האפליקציות');
+ok(deny('studio', O.academy, { op: 'jobs' }) === 'wrong_app', 'שאר הפעולות של /api/studio — רק Studio');
 // מקור בלי אפליקציה ("הכל", github.io, localhost, בלי מקור) — כמו קודם
 for (const o of ['https://thesnowball.app', 'https://yishaiguedj1.github.io', 'http://localhost:8080', '']) {
   ok(deny('ibkr-sync', o) === '' && deny('studio', o) === '', `מקור ${o || '(בלי)'} — לא נחסם לפי מקור`);
@@ -56,6 +58,24 @@ function fakeRes() { const r = { code: 0, body: null, headers: {} }; r.setHeader
   ok(guard({ url: '/api/ibkr-sync', method: 'POST', headers: { origin: O.invest }, body: { op: 'status' } }, res2) === false, 'guard: Invest → ibkr-sync עובר');
   const res3 = fakeRes();
   ok(guard({ url: '/api/studio', method: 'OPTIONS', headers: { origin: O.academy } }, res3) === true && res3.code === 204, 'guard: preflight לא נחסם (הבקשה עצמה כן)');
+}
+// שומר: כל קריאה לשרתון מהקוד של אפליקציה — לפעולה שפתוחה לאפליקציה הזו (קובץ משותף = לשלושתן)
+{
+  const fs = require('fs');
+  const { scopeFor } = require('../ibkr-proxy/lib/appscope.js');
+  const FILES = { 'core.js': ['invest', 'academy', 'studio'], 'shell.js': ['invest', 'academy', 'studio'], 'auth.js': ['invest', 'academy', 'studio'],
+    'app.js': ['invest'], 'cloud.js': ['invest'], 'pfbackup.js': ['invest'], 'library.js': ['academy'], 'libadmin.js': ['academy'], 'studionet.js': ['studio'], 'studio.js': ['studio'], 'admin-app.js': ['studio'] };
+  const bad = [];
+  for (const [f, apps] of Object.entries(FILES)) {
+    const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    for (const line of src.split('\n')) {
+      const m = /'\/api\/([a-z-]+)'/.exec(line); if (!m) continue;
+      const op = (/op: *'([A-Za-z]+)'/.exec(line) || [])[1];
+      const sc = scopeFor(m[1], op || (m[1] === 'library' && f === 'app.js' ? 'gdToken' : ''));
+      if (sc && apps.some((a) => !sc.includes(a))) bad.push(f + ' → /api/' + m[1] + (op ? ' ' + op : ''));
+    }
+  }
+  ok(!bad.length, 'כל קריאה לשרתון מקוד של אפליקציה — לפעולה שפתוחה לה' + (bad.length ? ' — חסום: ' + bad.join('; ') : ''));
 }
 // כל פעולה בשרתון שמאמתת טוקן של משתמש — ברשימה
 {
