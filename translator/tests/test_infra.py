@@ -424,3 +424,63 @@ class Rooms(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class HostApply(unittest.TestCase):
+    """16/10/2026: עדכון ידני של הגדרת השרת מתוך התמונה (snb-host-apply) — בלי שרת חדש, ובלי שום דבר אוטומטי."""
+
+    def setUp(self):
+        import tempfile, os
+        self.d = tempfile.mkdtemp()
+        self.h, self.s = os.path.join(self.d, 'h'), os.path.join(self.d, 's')
+        for x in ('opt/snb', 'usr/local/lib/snb'):
+            os.makedirs(os.path.join(self.h, x))
+        os.makedirs(self.s)
+        open(os.path.join(self.h, 'opt/snb/compose.yaml'), 'w').write('old\n')
+        open(os.path.join(self.h, 'usr/local/lib/snb/common.sh'), 'w').write('old=1\n')
+        open(os.path.join(self.s, 'compose.yaml'), 'w').write(read('infra/compose.yaml'))
+        open(os.path.join(self.s, 'snb-common.sh'), 'w').write(read('infra/host/snb-common.sh'))
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def run_apply(self):
+        import os
+        env = dict(os.environ, SNB_HOST_ROOT=self.h, SNB_HOST_SRC=self.s)
+        return subprocess.run(['sh', str(ROOT / 'infra/worker/snb-host-apply')], capture_output=True, text=True, env=env, timeout=20)
+
+    def test_copies_and_is_idempotent(self):
+        import os, stat
+        r = self.run_apply()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(open(os.path.join(self.h, 'opt/snb/compose.yaml')).read(), read('infra/compose.yaml'))
+        self.assertEqual(open(os.path.join(self.h, 'usr/local/lib/snb/common.sh')).read(), read('infra/host/snb-common.sh'))
+        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.h, 'opt/snb/compose.yaml')).st_mode), 0o644)
+        self.assertIn('Done (2 updated)', r.stdout)
+        self.assertIn('Done (0 updated)', self.run_apply().stdout, 'הרצה שנייה — כלום')
+
+    def test_refuses_while_job_runs(self):
+        import os
+        v = os.path.join(self.h, 'var/lib/docker/volumes/snb_work-stg/_data')
+        os.makedirs(v); open(os.path.join(v, '.busy'), 'w').write('j')
+        r = self.run_apply()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(open(os.path.join(self.h, 'opt/snb/compose.yaml')).read(), 'old\n', 'עבודה רצה — לא נוגעים')
+
+    def test_bad_syntax_not_installed(self):
+        import os
+        open(os.path.join(self.s, 'snb-common.sh'), 'w').write('if then fi (\n')
+        r = self.run_apply()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(open(os.path.join(self.h, 'usr/local/lib/snb/common.sh')).read(), 'old=1\n')
+
+    def test_packaged_as_data_only(self):
+        d = read('infra/worker/Dockerfile')
+        self.assertIn('COPY --chown=root:root infra/host/snb-common.sh infra/compose.yaml /opt/snb-host/', d)
+        self.assertIn('/opt/snb-host/apply', d)
+        for f in ('infra/host/snb-update', 'infra/host/snb-common.sh', 'infra/compose.yaml'):
+            self.assertNotIn('snb-host', read(f).replace('snb-host-apply', ''), 'שום דבר בשרת לא מריץ את הקבצים לבד: ' + f)
+        w = read('.github/workflows/worker-image.yml')
+        self.assertIn("- 'infra/host/snb-common.sh'", w, 'שינוי בהגדרה בונה תמונה חדשה')
+        self.assertIn("- 'infra/compose.yaml'", w)
