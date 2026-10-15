@@ -18,6 +18,7 @@
    מהטלפון גם: srvList · srvCreate { name } (המנהל; הטוקן מוצג פעם אחת) · srvPause { sid, paused } · srvRemove { sid }
    מצב העבודות ב־Firestore (studioJobs/{id}, studioVault/{uid}, studioServers/{sid}) דרך חשבון השירות — הטלפון לא קורא משם ישירות.
    הפעלת Routine: אין מפתח למניעת כפילות, ולכן לעולם לא מנסים שוב לבד — אחרת ייפתחו שני סשנים. */
+const crypto = require('crypto');
 const { guard } = require('../lib/ibkr');
 const { verifyIdToken, datastoreToken, isAdmin, emails } = require('../lib/gauth');
 const SW = require('../lib/sitewatch');
@@ -39,6 +40,7 @@ const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודי�
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
+const LR = require('../lib/studiolearn');   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -49,6 +51,7 @@ const AAD = (uid) => 'studio|' + uid + '|r';
 const WORKER_OPS = new Set(['claim', 'token', 'report', 'qa', 'r2get', 'r2wup', 'r2wparts', 'r2wdone', 'r2del']);
 const SERVER_OPS = new Set(['poll', 'beat']);
 /* מצב API: תקציב חודשי לכל משתמש (מפתח ה־API של המערכת). מעבר לזה — התקרה ב־Console של Anthropic */
+const LEARN_MAX = 5000, LEARN_SYNC_MAX = 400;   // מאגר הלמידה: כמה רשומות קוראים, וכמה משלימים בכל פתיחה של לוח הבקרה
 const USER_MONTH = () => Math.max(1, Math.min(10000, Number(process.env.STUDIO_API_USER_MONTH_USD) || 30));
 const FIRE_TIMEOUT = 20000;
 
@@ -124,6 +127,68 @@ async function listJobs(deps, uid) {
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
 const readVault = (deps, uid) => readDoc(deps, 'studioVault', uid);
+/* 14/10/2026: מאגר הלמידה — משלימים רשומות מכל העבודות (אנונימיות, כולל ישנות ושל כל המשתמשים, בלי מי שכיבה את המתג),
+   ומחזירים את כל הרשומות לפי הזמן. משותף לפעולות המנהל ולמשיכה בטוקן ניתוח */
+async function learnLoad(deps, now) {
+  const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
+  const have = new Map(docs.map((d) => [d.id, d]));
+  let wrote = 0;
+  const offs = new Map();
+  for (const j of await query(deps, 'studioJobs', null, LEARN_MAX)) {
+    if (wrote >= LEARN_SYNC_MAX) break;
+    if (await learnOff(deps, j.uid, offs)) continue;   // המשתמש כיבה את המתג
+    const rec = LR.learnRec(j, now, S.effState);
+    if (!rec) continue;
+    const h = LR.recHash(rec), old = have.get(rec.id);
+    if (old && old.h === h) continue;
+    await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h, at: rec.at || now, updated: now });
+    have.set(rec.id, { id: rec.id, lr: rec, h });
+    wrote++;
+  }
+  const recs = [...have.values()].map((d) => d.lr).filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
+  return { recs, wrote };
+}
+/* טוקני ניתוח: המזהה = sha256 של הטוקן (40 תווים) — הטוקן עצמו לא נשמר. לטלפון: שם, מתי נוצר/פג/שימוש אחרון — בלי מי יצר */
+const AT_DAYS = 30, AT_MAX = 5;
+const AT_RE = /^snbL_[A-Za-z0-9_-]{32}$/;
+const atId = (tok) => crypto.createHash('sha256').update(String(tok)).digest('hex').slice(0, 40);
+const atView = (t) => ({ id: t.id, n: String(t.n || ''), at: t.at || 0, exp: t.exp || 0, last: t.last || 0, uses: t.uses || 0 });
+/* משיכה בטוקן ניתוח — שרת לשרת (סשן של Claude Code), בלי Origin ובלי Firebase. קריאה בלבד: הרשומות האנונימיות + החבילה */
+async function learnPull(req, res, body, deps) {
+  const tok = String(body.at || '');
+  if (!AT_RE.test(tok)) return res.status(401).json({ ok: false, error: 'bad_token' });
+  if (limited('at|' + atId(tok).slice(0, 12), 6)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const now = deps.now || Date.now();
+  try {
+    const t = await readDoc(deps, 'sysTokens', atId(tok));
+    if (!t || !(t.exp > now)) return res.status(401).json({ ok: false, error: 'bad_token' });
+    const { recs } = await learnLoad(deps, now);
+    await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
+    const view = LR.learnView(recs, now);
+    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
+  }
+}
+/* 14/10/2026 (בקשת המשתמש): המתג "שיפור התרגום בעזרת העבודות שלי" בהגדרות — כבוי (studioStats.lo = 1) = העבודות של
+   המשתמש לא נכנסות למאגר מעכשיו. מה שכבר נכנס לא מקושר אליו (אין מיפוי). תקלה בקריאה = לא שומרים (זהירות) */
+async function learnOff(deps, uid, cache) {
+  if (cache && cache.has(uid)) return cache.get(uid);
+  let off = true;
+  try { off = !!(((await readDoc(deps, 'studioStats', uid)) || {}).lo); } catch (e) { off = true; }
+  if (cache) cache.set(uid, off);
+  return off;
+}
+/* 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה (studioLearn/{מזהה מגובב}), נשארת גם אחרי מחיקת העבודה.
+   בלי uid, שמות, מזהי קבצים או טקסט (studiolearn.js). כתיבה רק כשהרשומה השתנתה. תקלה כאן לא מפילה שום פעולה */
+async function learnSave(deps, job, now, offCache) {
+  try {
+    if (await learnOff(deps, job.uid, offCache)) return;
+    const rec = LR.learnRec(job, now, S.effState);
+    if (!rec) return;
+    await patchDoc(deps, 'studioLearn', rec.id, { lr: rec, h: LR.recHash(rec), at: rec.at || now, updated: now });
+  } catch (e) {}
+}
 /* v363: "הרגיל" של המשתמש — דגימה לכל עבודה שהסתיימה (studioStats/{uid}, נפרד מהכספת: ניתוק Claude לא מוחק את ההיסטוריה) */
 /* v365: מגדל הפיקוח 2.0 — אירועים והתראות (lib/studioops.js) ב־studioOps/{uid}. תקלה כאן לעולם לא מפילה את הפעולה עצמה */
 async function raise(deps, uid, evs, j, now, once) {
@@ -678,6 +743,7 @@ async function driveTrash(deps, token, id) {
 }
 /* מחיקת רשומת עבודה (כמו "מחיקה" בטלפון): הרשומה, ההתראות והתקלה שלה. הקבצים ב־Drive נשארים */
 async function removeJobRec(deps, uid, job, now) {
+  await learnSave(deps, job, now);   // 14/10/2026: הרשומה במאגר הלמידה נשארת אחרי המחיקה
   await delDoc(deps, 'studioJobs', job.id);
   await r2Purge(deps, uid, job);   // ת4
   if (job.kind === 'tr' && Array.isArray(job.fo) && job.fo.some((o) => o && o.k === 'cues')) {   // מ2 · מ7: ההפקות מחדש וגיליונות ה־AI של העבודה הולכים איתה
@@ -874,6 +940,7 @@ async function worker(req, res, body, deps) {
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
+    if (body.lx != null) { const lx = LR.normLx(body.lx); if (lx) up.lx = lx; }   // 14/10/2026: עובדות למאגר הלמידה (מספרים וקודים בלבד)
     if (body.trace != null) {
       // v373: עקיבה (מהיומנים, בסוף העבודה) — לא תקין נזרק בשקט
       const tr = S.normTrace(body.trace);
@@ -922,7 +989,12 @@ async function worker(req, res, body, deps) {
       try { kinds = O.opsView(((await readDoc(deps, 'studioOps', job.uid)) || {}).al, now).open.filter((a) => a.j === id).map((a) => a.c + ':' + a.k); } catch (e) {}
       if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.RECOVER_WAIT;
     }
+    if (up.state === 'failed' && job.kind === 'tr') {
+      // 14/10/2026: היסטוריית הכשלים של העבודה — גם עבודה שהצליחה אחרי "המשך" מלמדת על מה שנכשל בדרך (למאגר הלמידה)
+      up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([{ e: up.err, s: (up.prog && up.prog.st) || '', at: now }]).slice(-10);
+    }
     await patchJob(deps, id, up);
+    if (up.state === 'done' || up.state === 'failed') await learnSave(deps, Object.assign({}, job, up), now);
     if (spent > 0) {
       // מצב API: העלות נספרת בתקציב החודשי של המשתמש. תקלה כאן לא מפילה את הדיווח
       // קריאה וכתיבה בתנאי (updateTime) — שני דיווחים במקביל (שתי עבודות) לא דורסים זה את הסכום של זה
@@ -993,6 +1065,7 @@ async function handler(req, res, deps = {}) {
   body = body || {};
   if (WORKER_OPS.has(String(body.op || ''))) return worker(req, res, body, deps);
   if (SERVER_OPS.has(String(body.op || ''))) return server(req, res, body, deps);
+  if (body.op === 'learnPull') return learnPull(req, res, body, deps);   // 14/10/2026: טוקן ניתוח (Claude Code)
   if (guard(req, res)) return;
   if (body.op === 'gdConfig') return res.status(200).json({ ok: true, clientId: gdrive.cfg().id, configured: gdrive.configured(), picker: !!S.pickerCfg(process.env, gdrive.cfg().id) });   // המזהה ציבורי · picker = האם מפתח ה־Picker נטען (רק כן/לא — לאבחון בלי התחברות)
   let user;
@@ -1075,6 +1148,41 @@ async function handler(req, res, deps = {}) {
     return SC.scanView(sc);
   };
   try {
+    if (op === 'learn' || op === 'learnExport' || op === 'learnBrief') {
+      // 14/10/2026: מאגר הלמידה — רק למנהל. learnExport = כל הרשומות (לניתוח מחוץ לאפליקציה), learnBrief = החבילה ל־Claude
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const { recs, wrote } = await learnLoad(deps, now);
+      if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
+      if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
+      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, now });
+    }
+    if (op === 'atNew' || op === 'atList' || op === 'atDel') {
+      // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (op === 'atNew') {
+        const list = await query(deps, 'sysTokens', null, 50);
+        if (list.filter((t) => t.exp > now).length >= AT_MAX) return res.status(409).json({ ok: false, error: 'too_many' });
+        const tok = 'snbL_' + crypto.randomBytes(24).toString('base64url');
+        const days = Math.max(1, Math.min(AT_DAYS, Math.round(Number(body.days) || AT_DAYS)));
+        const nm = String(body.name || '').replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 40) || 'Claude';
+        const rec = { n: nm, at: now, exp: now + days * 86400000, by: uid, last: 0, uses: 0 };
+        await patchDoc(deps, 'sysTokens', atId(tok), rec);
+        return res.status(200).json({ ok: true, token: tok, t: atView(Object.assign({ id: atId(tok) }, rec)) });
+      }
+      if (op === 'atDel') {
+        const id = String(body.id || '');
+        if (!/^[0-9a-f]{40}$/.test(id)) return res.status(400).json({ ok: false, error: 'bad_id' });
+        await delDoc(deps, 'sysTokens', id);
+      }
+      const list = await query(deps, 'sysTokens', null, 50);
+      return res.status(200).json({ ok: true, tokens: list.map(atView).sort((a, b) => b.at - a.at) });
+    }
+    if (op === 'learnPref') {
+      // 14/10/2026: המתג בהגדרות — לכל משתמש (לא רק למנהל)
+      const on = body.on === true;
+      await patchDoc(deps, 'studioStats', uid, { lo: on ? 0 : 1, updated: now });
+      return res.status(200).json({ ok: true, lrn: on });
+    }
     if (op === 'status') {
       const v = await readVault(deps, uid);
       const d = await gdrive.driveState(deps, uid).catch(() => ({ configured: gdrive.configured(), connected: false, email: '' }));
@@ -1083,7 +1191,7 @@ async function handler(req, res, deps = {}) {
         drive: { configured: d.configured, connected: d.connected, email: d.email }, kinds: S.WORKER_KINDS.slice(),
         norm: S.normsView(st.ns, 'r'), normA: S.normsView(st.ns, 'a') /* 11/10: הרגיל לפי המנוע */, sh: S.thView(st.thr) /* v384: מצב צל לכל מצב */, wpN: W.normSubs(st.wp).length, fb: S.fbView(st.fb), fm: S.normFixMode(st.fm), ops: await opsFor(uid), inc: await incFor(uid),
         rl: S.normRules(st.rl), halt: st.halt || 0, api: await apiView(st), sc: await scFor(uid), eta: ETA.etaView(st.et, now),
-        pk: S.pickerCfg(process.env, gdrive.cfg().id), r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
+        pk: S.pickerCfg(process.env, gdrive.cfg().id), lrn: !st.lo /* 14/10: המתג של מאגר הלמידה */, r2: !!R2.config().ok /* 11/10: האחסון שלנו מוגדר (המילון שם) */, now });   // בחירה מ־Drive (Picker) — רק כשהוגדר מפתח   // v367: החוקים ומתג החירום
     }
     if (op === 'push') {
       // שלב 4: התראות — key (המפתח הציבורי, ל־subscribe בטלפון) / on (מנוי של המכשיר) / off / test
@@ -1291,7 +1399,7 @@ async function handler(req, res, deps = {}) {
       if (!S.langReady(spec)) return res.status(400).json({ ok: false, error: 'lang_unsupported' });   // לפני ההעלאה, לא אחריה
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
-      for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) await delDoc(deps, 'studioJobs', old.id);
+      for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) { await learnSave(deps, old, now); await delDoc(deps, 'studioJobs', old.id); }
       const job = { id: S.newJobId(), uid, kind: 'tr', state: 'new', created: now, updated: now, spec };
       if (apiJob(job) && R2.config().ok) job.folder = SR.folderFor(job.id);   // ת4: עבודה במצב שרת — הקבצים ב־R2 (Routine נשאר ב־Drive)
       await patchJob(deps, job.id, job);
@@ -1365,6 +1473,7 @@ async function handler(req, res, deps = {}) {
       if (!gq) return res.status(400).json({ ok: false, error: 'bad_params' });
       await patchJob(deps, job.id, { gq, updated: now });
       job.gq = gq;
+      await learnSave(deps, job, now);
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'r2up' || op === 'r2parts' || op === 'r2done' || op === 'r2url') {
@@ -1440,6 +1549,7 @@ async function handler(req, res, deps = {}) {
       const up = S.cuesSwap(job, fc, fs, now);
       await patchJob(deps, job.id, Object.assign({}, up, { updated: now }));
       Object.assign(job, up);
+      await learnSave(deps, job, now);   // עריכה אחרי העבודה = סימן למה שהתרגום פספס
       return res.status(200).json({ ok: true, job: view(job) });
     }
     if (op === 'cuesRestore') {
@@ -1543,6 +1653,7 @@ async function handler(req, res, deps = {}) {
       if (!S.FINAL.includes(st)) {
         await patchJob(deps, job.id, { state: 'cancelled', ended: now, updated: now });
         job.state = 'cancelled'; job.ended = now;
+        await learnSave(deps, job, now);
       }
       return res.status(200).json({ ok: true, job: view(job) });
     }

@@ -659,6 +659,146 @@ def usage_safe():
         return None
 
 
+# ---------------------------------------------------------------- מאגר הלמידה (14/10/2026)
+# עובדות על העבודה שמלמדות איפה לשפר — רק מספרים וקודים בצורה קבועה, אף פעם לא טקסט מהסרטון, שמות או נתיבים.
+# השרתון מנקה שוב (studiolearn.normLx) ושומר ברשומה אנונימית לכל עבודה. כל כשל כאן = מדלגים על החלק (מידע משני).
+_LX_KEY = re.compile(r'^[a-z][a-z0-9_]{0,30}$')
+_FIX_LINE = re.compile(r'^#\d+\s')
+
+
+def _pct(vals, ps):
+    s = sorted(v for v in vals if isinstance(v, (int, float)))
+    if not s:
+        return []
+    return [round(s[min(len(s) - 1, int(p * (len(s) - 1) + 0.5))], 3) for p in ps]
+
+
+def _num_ok(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) < 1e12 and v == v
+
+
+def _read_json(p):
+    try:
+        return json.loads(Path(p).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+
+
+def _count_fix_lines(p):
+    try:
+        return sum(1 for x in Path(p).read_text(encoding='utf-8').splitlines() if _FIX_LINE.match(x.strip() + ' '))
+    except OSError:
+        return 0
+
+
+def _mem_mb():
+    try:
+        v = Path('/sys/fs/cgroup/memory.max').read_text().strip()
+        if v.isdigit():
+            return int(v) // 1048576
+    except OSError:
+        pass
+    try:
+        for line in Path('/proc/meminfo').read_text().splitlines():
+            if line.startswith('MemTotal:'):
+                return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return 0
+
+
+def learn_facts(ctx):
+    out = {'v': 1}
+    try:
+        e = env_facts()
+        out['env'] = {'cpus': int(e.get('cpus') or 0), 'arch': re.sub(r'[^a-z0-9_]', '', str(e.get('arch') or '').lower())[:16],
+                      'gv': 1 if e.get('gvisor') else 0, 'mem': _mem_mb()}
+    except Exception:            # noqa: BLE001
+        pass
+    pd = ctx.pdir
+    ps = {}
+    meta = _read_json(pd / 'project.json') or {}
+    for stg, info in (meta.get('stages') or {}).items():
+        if not _LX_KEY.match(str(stg)) or not isinstance(info, dict):
+            continue
+        for k, v in info.items():
+            if _LX_KEY.match(str(k)) and (_num_ok(v) or isinstance(v, bool)):
+                ps[stg + '.' + k] = int(v) if isinstance(v, bool) else v
+    al = (_read_json(pd / 'en.aligned.json') or {}).get('stats') or {}
+    for sub in ('ctc', 'consensus'):
+        for k, v in (al.get(sub) or {}).items() if isinstance(al.get(sub), dict) else []:
+            if _LX_KEY.match(str(k)) and _num_ok(v):
+                ps['align.' + sub + '.' + k] = v
+    if ps:
+        out['ps'] = dict(list(ps.items())[:90])
+    tm = _read_json(pd / 'snb-timing.json') or {}
+    agg = {}
+    for x in tm.get('vt') or []:
+        if isinstance(x, list) and len(x) >= 3 and re.match(r'^[a-z][a-z_-]{1,19}$', str(x[0])) and _num_ok(x[2]):
+            a = agg.setdefault(x[0], [0, 0.0, 0.0])
+            a[0] += 1
+            a[1] += float(x[2])
+            a[2] = max(a[2], float(x[2]))
+    if agg:
+        out['vt'] = [[k, v[0], round(v[1], 2), round(v[2], 2)] for k, v in sorted(agg.items(), key=lambda kv: -kv[1][1])][:30]
+    cues = _read_json(pd / 'out' / 'cues.final.json')
+    if isinstance(cues, list) and cues:
+        cps = [c.get('cps') for c in cues if isinstance(c, dict)]
+        ch = [c.get('chars') for c in cues if isinstance(c, dict)]
+        du = [(c.get('end') or 0) - (c.get('start') or 0) for c in cues if isinstance(c, dict) and _num_ok(c.get('end')) and _num_ok(c.get('start'))]
+        gp = [(b.get('start') or 0) - (a.get('end') or 0) for a, b in zip(cues, cues[1:])
+              if isinstance(a, dict) and isinstance(b, dict) and _num_ok(a.get('end')) and _num_ok(b.get('start'))]
+        nl = [len(c.get('lines') or []) for c in cues if isinstance(c, dict)]
+        fl = {}
+        for c in cues:
+            for f in (c.get('flags') or []) if isinstance(c, dict) else []:
+                if _LX_KEY.match(str(f)):
+                    fl[f] = fl.get(f, 0) + 1
+        out['cu'] = {'n': len(cues), 'cps': _pct(cps, (0.1, 0.5, 0.9, 1.0)), 'ch': _pct(ch, (0.5, 0.9)), 'du': _pct(du, (0.1, 0.5, 0.9)),
+                     'gp': _pct(gp, (0.1, 0.5)), 'l2': round(sum(1 for x in nl if x >= 2) / max(1, len(nl)), 3),
+                     'mg': sum(1 for c in cues if isinstance(c, dict) and c.get('merged')), 'chn': sum(1 for c in cues if isinstance(c, dict) and c.get('chained')),
+                     'sn': sum(1 for c in cues if isinstance(c, dict) and (c.get('snap_in') or c.get('snap_out'))), 'fl': fl}
+    wj = _read_json(pd / 'en.words.json') or {}
+    words = wj.get('words') if isinstance(wj, dict) else None
+    if isinstance(words, list) and words:
+        spk = {w.get('spk') for w in words if isinstance(w, dict)}
+        dur = ps.get('ingest.duration') or (ctx.st.get('spec') or {}).get('dur') or 0
+        out['wd'] = {'n': len(words), 'spk': len([x for x in spk if x not in (None, 'S?')]),
+                     'unk': sum(1 for w in words if isinstance(w, dict) and w.get('spk') in (None, 'S?')),
+                     'wpm': round(len(words) / (dur / 60), 1) if _num_ok(dur) and dur > 0 else 0}
+    td = pd / 'tr'
+    if td.is_dir():
+        out['tl'] = {'pt': len(list(td.glob('batch_*.he.txt'))), 'fx': _count_fix_lines(td / 'fixes.txt'),
+                     'fr': _count_fix_lines(td / 'fixes_review.txt'), 'fz': _count_fix_lines(td / 'fixes_zfinal.txt'),
+                     'ntl': sum(1 for x in td.glob('fixes*.txt'))}
+        try:
+            gtxt = (td / 'glossary.tsv').read_text(encoding='utf-8')
+            rows = [x for x in gtxt.splitlines() if x.strip() and not x.startswith('#')]
+            mine = gtxt.split(GL_MARK, 1)[1] if GL_MARK in gtxt else ''
+            out['gl'] = {'n': len(rows), 'u': len([x for x in mine.splitlines() if x.strip() and not x.startswith('#')])}
+        except OSError:
+            pass
+    en = ctx.st.get('eng_facts')
+    if isinstance(en, dict):
+        x = {k: v for k, v in en.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
+        th = en.get('th')
+        if isinstance(th, dict):
+            x['th'] = {k: v for k, v in th.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
+        out['en'] = x
+    sy = ctx.st.get('sync')
+    if isinstance(sy, dict) and _num_ok(sy.get('conf')):
+        out['sy'] = {'c': sy.get('conf'), 'o': sy.get('off') if _num_ok(sy.get('off')) else 0}
+    return out
+
+
+def learn_safe(ctx=None):
+    """לדיווח האחרון (סיום / כישלון): תקלה כאן לא מפילה את סוף העבודה"""
+    try:
+        return learn_facts(ctx or Ctx(load_state()))
+    except (SystemExit, Exception):      # noqa: BLE001 — מידע משני
+        return None
+
+
 # ---------------------------------------------------------------- מצב העבודה בסשן
 _STATE_LOCK = threading.Lock()   # צירוף הסרטון רץ ברקע בזמן ההגהה (מצב API) — שני תהליכונים כותבים את אותו מצב
 
@@ -1971,7 +2111,7 @@ def approve_render(ctx, wait=None):
 def fail(args):
     ctx = Ctx(load_state())
     err = args.err if ERR_RE.match(args.err or '') else 'worker'
-    ctx.report(fail=True, err=err, msg=args.msg, force=True, usage=usage_safe(), trace=trace_safe())
+    ctx.report(lx=learn_safe(ctx), fail=True, err=err, msg=args.msg, force=True, usage=usage_safe(), trace=trace_safe())
     print('✓ העבודה סומנה "נכשלה" (' + err + ').')
     return 0
 
@@ -2013,7 +2153,7 @@ def auto(args):
         if msg in ('', '0', '1', '2'):
             raise
         try:
-            Ctx(load_state()).report(fail=True, err=getattr(e, 'err', 'worker_step'), msg=msg[:200], force=True, usage=usage_safe(), trace=trace_safe())
+            Ctx(load_state()).report(fail=True, err=getattr(e, 'err', 'worker_step'), msg=msg[:200], force=True, lx=learn_safe(), usage=usage_safe(), trace=trace_safe())
         except (Stop, SystemExit, Exception):     # noqa: BLE001
             pass
         print(msg)
@@ -2021,7 +2161,7 @@ def auto(args):
     except Exception as e:               # noqa: BLE001 — חריגה לא צפויה (באג, OSError): כשל גלוי מיד, לא "רצה" עד STALE_MS
         try:
             # רק סוג החריגה — הטקסט שלה יכול לכלול נתיבים / שמות קבצים (פרטיות)
-            Ctx(load_state()).report(fail=True, err='worker_crash', msg=type(e).__name__[:60], force=True,
+            Ctx(load_state()).report(fail=True, err='worker_crash', msg=type(e).__name__[:60], force=True, lx=learn_safe(),
                                      usage=usage_safe(), trace=trace_safe())
         except (Stop, SystemExit, Exception):     # noqa: BLE001
             pass
@@ -2454,7 +2594,7 @@ def finish(args):
     except Exception:            # noqa: BLE001
         rvf, fil = [], []
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
-    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, usage=usage_safe(), trace=trace_safe(), quality=q,
+    ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
                rvf=rvf or None, fil=fil or None)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))

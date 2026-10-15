@@ -3473,6 +3473,68 @@ function stubFetch(text, status = 200) {
       await run({ op: 'remove', idToken: OWNER, job: jid });
     }
 
+    // 14/10/2026: מאגר הלמידה — רק למנהל; משלים רשומות מכל העבודות; אנונימי; נשאר אחרי מחיקה
+    {
+      studio._reset();
+      r = await run({ op: 'learn', idToken: FRIEND });
+      ok(r.statusCode === 403 && r.payload.error === 'not_admin', 'מאגר הלמידה: רק המנהל רואה את לוח הבקרה');
+      const nJobs = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && ['tr', 'rr', 'ai'].includes((db.get(k).fields.kind || {}).stringValue)).length;
+      r = await run({ op: 'learn', idToken: OWNER });
+      const lkeys = () => [...db.keys()].filter((k) => k.startsWith('studioLearn/'));
+      ok(r.statusCode === 200 && r.payload.view && r.payload.view.v === 1 && lkeys().length >= nJobs && nJobs > 0, 'מאגר הלמידה: רשומה לכל עבודת תרגום / הפקה / AI (' + nJobs + ')');
+      const raw = lkeys().map((k) => JSON.stringify(db.get(k))).join('\n');
+      ok(!/ownerUid0001|friendUid03|readerUid002|@example\.com|session_|cse_|trig_|sk-ant/.test(raw), 'מאגר הלמידה: בלי uid, מיילים, סשנים או מפתחות');
+      ok(lkeys().every((k) => { const x = JSON.parse(db.get(k).fields.lr.stringValue); return !('name' in x) && !('folder' in x) && !('uid' in x) && typeof x.terms === 'number'; }), 'מאגר הלמידה: בלי שם קובץ, תיקייה או מונחים — רק כמה');
+      const r2 = await run({ op: 'learn', idToken: OWNER });
+      ok(r2.payload.synced === 0, 'מאגר הלמידה: פתיחה שנייה בלי שינוי — בלי כתיבות');
+      const ex = await run({ op: 'learnExport', idToken: OWNER });
+      ok(ex.payload.ok && ex.payload.records.length === lkeys().length, 'מאגר הלמידה: ייצוא — כל הרשומות');
+      // המתג בהגדרות: כבוי = העבודות של המשתמש לא נכנסות; status מחזיר את המצב
+      let pr = await run({ op: 'learnPref', idToken: OWNER, on: false });
+      const st0 = await run({ op: 'status', idToken: OWNER });
+      ok(pr.payload.ok && pr.payload.lrn === false && st0.payload.lrn === false, 'מאגר הלמידה: המתג נשמר כבוי, ו־status מחזיר אותו');
+      for (const k of lkeys()) db.delete(k);
+      await run({ op: 'learn', idToken: OWNER });
+      const otherJobs = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && ['tr', 'rr', 'ai'].includes((db.get(k).fields.kind || {}).stringValue) && db.get(k).fields.uid.stringValue !== 'ownerUid0001').length;
+      ok(lkeys().length === otherJobs, 'מאגר הלמידה: מתג כבוי — רק עבודות של משתמשים אחרים נכנסו (' + otherJobs + ')');
+      pr = await run({ op: 'learnPref', idToken: OWNER, on: true });
+      await run({ op: 'learn', idToken: OWNER });
+      ok(pr.payload.lrn === true && lkeys().length === nJobs, 'מאגר הלמידה: מתג דולק שוב — העבודות נכנסות');
+      studio._reset();
+      const doneTr = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && db.get(k).fields.kind.stringValue === 'tr' && (db.get(k).fields.state || {}).stringValue === 'done' && db.get(k).fields.uid.stringValue === 'ownerUid0001');
+      if (doneTr.length) {
+        const n0 = lkeys().length;
+        await run({ op: 'remove', idToken: OWNER, job: doneTr[0].split('/')[1] });
+        ok(!db.has(doneTr[0]) && lkeys().length === n0, 'מאגר הלמידה: הרשומה נשארת אחרי שהעבודה נמחקה');
+      }
+      studio._reset();
+      // 14/10/2026: הערוץ ל־Claude — חבילה לניתוח וטוקן קריאה בלבד
+      const br = await run({ op: 'learnBrief', idToken: OWNER });
+      ok(br.payload.ok && /מה מבקשים ממך, Claude/.test(br.payload.brief) && br.payload.records.length === lkeys().length, 'Claude: חבילה לניתוח — הוראה + רשומות');
+      ok(!/ownerUid0001|friendUid03|@example\.com/.test(br.payload.brief + JSON.stringify(br.payload.records)), 'Claude: החבילה בלי uid ומיילים');
+      ok((await run({ op: 'atNew', idToken: FRIEND })).payload.error === 'not_admin', 'Claude: רק המנהל יוצר טוקן ניתוח');
+      const tn = await run({ op: 'atNew', idToken: OWNER, name: 'סשן <ניתוח>', days: 99 });
+      const TK = tn.payload.token;
+      ok(tn.payload.ok && /^snbL_[A-Za-z0-9_-]{32}$/.test(TK) && tn.payload.t.n === 'סשן ניתוח' && tn.payload.t.exp - tn.payload.t.at === 30 * 86400000, 'Claude: טוקן נוצר (שם נקי, עד 30 יום)');
+      const tkKeys = [...db.keys()].filter((k) => k.startsWith('sysTokens/'));
+      ok(tkKeys.length === 1 && !JSON.stringify(db.get(tkKeys[0])).includes(TK), 'Claude: הטוקן עצמו לא נשמר — רק ה־hash');
+      studio._reset();
+      let lp = await run({ op: 'learnPull', at: TK });
+      ok(lp.payload.ok && lp.payload.records.length === lkeys().length && /Claude/.test(lp.payload.brief) && lp.payload.view.v === 1, 'Claude: משיכה בטוקן — הרשומות, החבילה והניתוח');
+      ok((await run({ op: 'learnPull', at: 'snbL_' + 'x'.repeat(32) })).statusCode === 401, 'Claude: טוקן שלא קיים — 401');
+      ok((await run({ op: 'learnPull', at: TK, op2: 1, idToken: OWNER })).payload.ok, 'Claude: המשיכה לא דורשת Origin/Firebase');
+      const tl = await run({ op: 'atList', idToken: OWNER });
+      ok(tl.payload.tokens.length === 1 && tl.payload.tokens[0].uses >= 2 && !('by' in tl.payload.tokens[0]), 'Claude: רשימת הטוקנים — שימושים, בלי מי יצר');
+      now += 31 * 86400000;
+      studio._reset();
+      ok((await run({ op: 'learnPull', at: TK })).statusCode === 401, 'Claude: טוקן שפג — 401');
+      now -= 31 * 86400000;
+      await run({ op: 'atDel', idToken: OWNER, id: tl.payload.tokens[0].id });
+      studio._reset();
+      ok((await run({ op: 'learnPull', at: TK })).statusCode === 401 && ![...db.keys()].some((k) => k.startsWith('sysTokens/')), 'Claude: טוקן שבוטל — 401');
+      studio._reset();
+    }
+
     // ניתוק
     r = await run({ op: 'disconnect', idToken: OWNER });
     ok(r.payload.ok && !db.has('studioVault/ownerUid0001'), 'סטודיו: ניתוק מוחק את הרשומה מהכספת');
