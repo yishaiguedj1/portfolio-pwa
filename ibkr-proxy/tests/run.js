@@ -3605,6 +3605,9 @@ function stubFetch(text, status = 200) {
       ok(agR.payload.ok && Array.isArray(agR.payload.md.modes) && agR.payload.md.modes.length >= 4 && Array.isArray(agR.payload.ag.agents) && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(agR.payload)), 'סוכנים ומודלים: כל המצבים, בלי uid ומיילים');
       const svR = await run({ op: 'adminServers', idToken: OWNER });
       ok(svR.payload.ok && Array.isArray(svR.payload.srv.servers) && !/ownerUid0001|"th"|"by"/.test(JSON.stringify(svR.payload)), 'שרתים ומשאבים: בלי uid ובלי hash של טוקן');
+      ok((await run({ op: 'adminUsage', idToken: FRIEND })).payload.error === 'not_admin', 'שימוש: רק המנהל');
+      const usg = await run({ op: 'adminUsage', idToken: OWNER });
+      ok(usg.payload.ok && usg.payload.us.studio.length === 4 && !/ownerUid0001|friendUid03|@example\.com/.test(JSON.stringify(usg.payload)), 'שימוש: משפכים במספרים, בלי uid ומיילים');
       ok((await run({ op: 'adminSecrets', idToken: FRIEND })).payload.error === 'not_admin', 'סודות: רק המנהל');
       const scR = await run({ op: 'adminSecrets', idToken: OWNER });
       ok(scR.payload.ok && scR.payload.sec.items.find((x) => x.k === 'sa').set === true && !JSON.stringify(scR.payload).includes(String(process.env.GDRIVE_SA_KEY || '').slice(0, 20) || '§'), 'סודות: "מוגדר" בלי הערך');

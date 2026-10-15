@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -199,12 +199,13 @@ page('apps', { tab: 'apps', title: () => t('admTabApps'), render(p) {
   const v = D.lab && D.lab.view, k = v && v.k;
   const A2 = D.apps;
   if (!A2) needApps();
+  if (!D.us) needUsage();
   const iv = A2 && A2.invest, ac = A2 && A2.academy;
   p.append(list(
     row({ c: 'invest', ic: '↗', t: 'Invest', s: iv && iv.users != null ? fmt(t('admAppInvestS2'), { n: iv.users, i: iv.ibkr == null ? '—' : iv.ibkr }) : t('admLoading'), on: () => go('invest') }),
     row({ c: 'academy', ic: '▤', t: 'Academy', s: ac && ac.cat ? fmt(t('admAppAcademyS2'), { n: ac.cat.pub, r: ac.readers == null ? '—' : ac.readers }) : A2 ? t('admUnknown') : t('admLoading'), on: () => go('academy') }),
     row({ c: 'studio', ic: '▶', t: 'Studio', s: k ? fmt(t('admAppStudioS'), { n: k.n || 0, c: usd(k.cpm, 3) }) : t('admSoon'), v: k && k.ok != null ? pctTxt(k.ok) : '', tr: k && k.ok != null ? t('admKok') : '', sp: v ? spark((v.wk || []).map((x) => x.n), COL.studio) : null, on: () => go('studio') })));
-  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admLoading'), on: () => go('users') }), soonRow('blue', '∑', t('admUsage')), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
+  p.append(grp(t('admSecShared')), list(row({ c: 'gray', ic: '👥', t: t('admUsers'), s: A2 && A2.invest.users != null ? fmt(t('admUsersS'), { n: A2.invest.users, s: A2.shared.sess == null ? '—' : A2.shared.sess }) : t('admLoading'), on: () => go('users') }), row({ c: 'blue', ic: '∑', t: t('admUsage'), s: D.us && D.us.jobs ? fmt(t('admUsS'), { n: D.us.jobs.n }) : '', on: () => go('usage') }), soonRow('orange', '✉', t('admFeedback')), soonRow('purple', '📣', t('admMsgs'))));
 } });
 /* ---- Invest ו־Academy (15/10/2026): מספרים בלבד מהשרתון (adminApps — ספירות ב־Firestore והקטלוג ב־R2). לא נמדד = "—" ---- */
 async function needApps() {
@@ -462,6 +463,29 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
   }
   p.append(list(row({ c: 'gray', ic: '↗', t: t('admSvRebuild'), s: t('admSvRebuildS'), on: () => { try { window.open('https://github.com/yishaiguedj1/portfolio-pwa/actions/workflows/server.yml', '_blank', 'noopener'); } catch (e) {} } })),
     h('p', 'adm-foot', t('admSvFoot')));
+} });
+/* ---- שימוש ומשפכים (15/10/2026): כמה נכנסו לכל אפליקציה ועד איפה הגיעו. רק ספירות קיימות + עבודות 30 יום — בלי מעקב חדש ---- */
+async function needUsage() {
+  const r = await api('adminUsage');
+  if (r.ok) { D.us = r.us; if (['usage', 'apps'].includes(cur)) paint(); }
+}
+const FUN = { acc: () => t('admUfAcc'), sess: () => t('admUfSess'), ibkr: () => t('admUfIbkr'), open: () => t('admUfOpen'), backup: () => t('admUfBackup'),
+  conn: () => t('admUfConn'), job: () => t('admUfJob'), done: () => t('admUfDone') };
+function funnel(steps, c) {
+  const base = steps[0] && steps[0].n;
+  return list(...steps.map((x, i) => row({ c: i ? 'gray' : c, ic: String(i + 1), t: FUN[x.k](), v: x.n == null ? '—' : x.n,
+    tr: i && base && x.n != null ? Math.round(x.n / base * 100) + '%' : '', meter: base && x.n != null ? [x.n / base * 100, ''] : null })));
+}
+page('usage', { tab: 'apps', parent: 'apps', title: () => t('admUsage'), render(p) {
+  const U = D.us;
+  if (!U) { needUsage(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (U.jobs) {
+    const wk = U.jobs.wk;
+    p.append(tiles(tileEl('studio', t('admUsJobs'), String(U.jobs.n), fmt(t('admUsDone'), { n: U.jobs.done }), '', wk.map((x) => x.n)),
+      tileEl('purple', t('admUsWkU'), String(wk[3].u), fmt(t('admUsPrevWk'), { n: wk[2].u }), '', wk.map((x) => x.u))));
+  }
+  p.append(grp('Invest'), funnel(U.invest, 'invest'), grp('Academy'), funnel(U.academy, 'academy'), grp('Studio'), funnel(U.studio, 'studio'));
+  p.append(h('p', 'adm-foot', t('admUgFoot')));
 } });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */

@@ -366,4 +366,22 @@ function serversAdmin(list, busy, now) {
   return { servers: out, online: out.filter((x) => x.online && !x.paused).length, warn: out.filter((x) => x.warn.length).length, at: now };
 }
 
-module.exports = { modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* שימוש ומשפכים (15/10/2026): מכמה שנכנסו עד כמה שהגיעו לערך — רק מספרים קיימים (ספירות של אוספים + עבודות 30 יום).
+   משפך = שלבים { k, n }; n = null כשלא נמדד. בלי מעקב חדש ובלי uid בפלט (רק ספירת uid שונים) */
+function usageView(f) {
+  const now = f.now || Date.now();
+  const c = f.counts || {};
+  const num = (x) => (Number.isFinite(x) && x >= 0 ? x : null);
+  const jobs = (f.jobs || []).filter((j) => j && j.kind === 'tr');
+  const uids = (l) => new Set(l.map((j) => j.uid).filter(Boolean)).size;
+  const sv = num(c.studioVault), sd = num(c.studioDrive);   // חיבור ל־Claude (Routine) או ל־Drive — הגדול מבין השניים
+  const wk = [3, 2, 1, 0].map((w) => { const a = now - (w + 1) * 7 * DAY, b = now - w * 7 * DAY; const l = jobs.filter((j) => j.created >= a && j.created < b); return { n: l.length, u: uids(l) }; });
+  return { v: 1,
+    invest: [{ k: 'acc', n: num(c.users) }, { k: 'sess', n: num(c.sessions) }, { k: 'ibkr', n: num(c.ibkrVault) }],
+    academy: [{ k: 'open', n: num(c.academyUsers) }, { k: 'backup', n: num(c.driveVault) }],
+    studio: [{ k: 'open', n: num(c.studioStats) }, { k: 'conn', n: sv == null && sd == null ? null : Math.max(sv || 0, sd || 0) },
+      { k: 'job', n: f.jobs ? uids(jobs) : null }, { k: 'done', n: f.jobs ? uids(jobs.filter((j) => j.state === 'done')) : null }],
+    jobs: f.jobs ? { n: jobs.length, done: jobs.filter((j) => j.state === 'done').length, wk } : null };
+}
+
+module.exports = { usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

@@ -157,6 +157,18 @@ async function adminLog(deps, user, k, d, now) {
   if (!e) return;
   try { await patchDoc(deps, 'sysLog', now.toString(36) + crypto.randomBytes(3).toString('hex'), e); } catch (err) {}
 }
+/* 15/10/2026: עבודות התרגום של 30 הימים האחרונים מכל המשתמשים — למרכז הניהול (סוכנים, שרתים, שימוש). טווח + orderBy על created
+   (בלי אינדקס מורכב), עד 400, מטמון 5 דק׳. null = Firestore לא ענה */
+function jobs30(deps, now) {
+  return aoGet(deps, 'jobs30', async () => {
+    const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: { from: [{ collectionId: 'studioJobs' }],
+      where: { fieldFilter: { field: { fieldPath: 'created' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(now - 30 * 86400000) } } },
+      orderBy: [{ field: { fieldPath: 'created' }, direction: 'DESCENDING' }], limit: 400 } });
+    if (r.status !== 200) return null;
+    return (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
+      .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }));
+  }, now);
+}
 async function aoJson(deps, url) {
   const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
   if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
@@ -1671,14 +1683,7 @@ async function handler(req, res, deps = {}) {
       // 15/10/2026: מרכז הניהול ← Studio. עבודות התרגום של 30 הימים האחרונים מכל המשתמשים (שאילתה עם טווח על created —
       // בלי אינדקס מורכב), מצטבר בלבד: הסוכנים (studioagents), מצבי התרגום, והשרתים עם הדופק שלהם
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
-      const jobs = await aoGet(deps, 'jobs30', async () => {
-        const r = await fsCall(deps, 'POST', ':runQuery', { structuredQuery: { from: [{ collectionId: 'studioJobs' }],
-          where: { fieldFilter: { field: { fieldPath: 'created' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(now - 30 * 86400000) } } },
-          orderBy: [{ field: { fieldPath: 'created' }, direction: 'DESCENDING' }], limit: 400 } });
-        if (r.status !== 200) return null;
-        return (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
-          .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop() }));
-      }, now);
+      const jobs = await jobs30(deps, now);
       if (op === 'adminAgents') {
         if (!jobs) return res.status(503).json({ ok: false, error: 'store' });
         const ag = A.agentsView(jobs, now);
@@ -1691,6 +1696,16 @@ async function handler(req, res, deps = {}) {
       const busy = {};
       for (const j of jobs || []) if (j.state === 'running' && j.sid && !busy[j.sid]) busy[j.sid] = { st: j.prog && j.prog.st, p: j.prog && j.prog.p };
       return res.status(200).json({ ok: true, srv: AO.serversAdmin(list, busy, now) });
+    }
+    if (op === 'adminUsage') {
+      // 15/10/2026: מרכז הניהול ← שימוש ומשפכים. רק ספירות (aggregation count) ועבודות 30 יום מצטברות — בלי מעקב חדש אחרי משתמשים
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const c = await aoGet(deps, 'ucount2', async () => {
+        const K = ['users', 'ibkrVault', 'driveVault', 'sessions', 'academyUsers', 'studioStats', 'studioVault', 'studioDrive'];
+        const v = await Promise.all(K.map((k) => fsCount(deps, k)));
+        return Object.fromEntries(K.map((k, i) => [k, v[i]]));
+      }, now);
+      return res.status(200).json({ ok: true, us: AO.usageView({ now, counts: c || {}, jobs: await jobs30(deps, now) }) });
     }
     if (op === 'adminSecrets') {
       // 15/10/2026: מרכז הניהול ← סודות ותאריכים. רק "מוגדר / לא" לכל סוד (הקטלוג של SECURITY.md), אף פעם לא ערך;
