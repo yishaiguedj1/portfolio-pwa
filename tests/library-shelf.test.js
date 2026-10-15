@@ -55,4 +55,7 @@ ok(/syncFail = failed \? \{ c: firstWhy/.test(lib) && /T\('libSyncFailN'/.test(l
 ok(/catch\(\(e\) => \{ syncFail = \{ c: 'ex:'/.test(lib), 'חריגה בסנכרון לא נבלעת');
 ok(/id: b\.driveId \|\| b\.id/.test(lib), 'ניתוח AI גם לספר שאין לו driveId');
 
+ok(/const SHELF_OPS = new Set\(\['cat', 'urls', 'file'\]\)/.test(lib) && /window\.SNB_ENV\.shelfApi/.test(lib), 'בניסוי — קריאת המדף מהשרתון של הייצור (רק cat/urls/file)');
+{ const fc = require('fs').readFileSync(require('path').join(__dirname, '..', 'firebase-config.js'), 'utf8');
+  ok(/shelfApi: name === 'staging' \? PROD_API : ''/.test(fc), 'shelfApi רק בניסוי, ובייצור ריק'); }
 console.log('# ' + n + ' בדיקות עברו');
