@@ -1437,7 +1437,7 @@ function syncState() {            // CloseWatcher: הרשומה היחידה מ�
 /* רענון במצב CloseWatcher: המסלול עד הדף ששמור ברשומה. הטופס לא נשמר — דף השפות של טופס חוזר לטופס חדש */
 export function chainFor(v, p) {
   if ((v === 'lang' && p !== 'def') || v === 'cutsrc') { v = 'new'; p = null; }   // הטופס (והקובץ) לא שורדים רענון
-  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
+  const parent = (x, y) => (x === 'home' ? null : x === 'connect' || (x === 'def' && y === 'cap') ? ['eng', null] : x === 'def' || (x === 'lang' && y === 'def') ? ['defs', null] : (x === 'lang' || x === 'tower' || x === 'guide' || x === 'adv' || x === 'eng' || x === 'defs' || x === 'store' || x === 'push') ? ['settings', null] : x === 'gloss' ? ['rules', null] : x === 'alert' || x === 'inc' ? ['alerts', null] : x === 'prob' ? ['probs', null] : x === 'rules' || x === 'towerx' || x === 'rlb' || x === 'rlm' ? ['tower', null] : x === 'agents' || x === 'server' || x === 'value' || x === 'scan' || x === 'slo' || x === 'anom' || TW_SUBS.includes(x) ? ['towerx', null] : x === 'edit' ? ['project', y] : x === 'play' || x === 'subs' || x === 'rr' ? ['job', y] : x === 'cut' || x === 'sty' || x === 'ov' ? ['rr', y] : x === 'ai' ? ['subs', y] : x === 'ideas' ? ['job', y] : ['home', null]);
   const out = [{ v, p }];
   for (let c = parent(v, p); c; c = parent(c[0], c[1])) out.unshift({ v: c[0], p: c[1] });
   return out;
@@ -3732,15 +3732,21 @@ const TW_SUBS = ['alerts', 'smap', 'probs', 'norm'];
 function pageTower(p) {
   const tr = store.jobs.filter((r) => r.spec && (!r.kind || r.kind === 'tr'));
   const waits = tr.filter((r) => qaPending(r));
-  const hero = h('div', 'st-ut-hero' + (waits.length ? ' wait' : ''));
-  const hi = h('span', 'st-ut-hic'); hi.textContent = waits.length ? '!' : '✓';
+  const noEng = ui.access === 'ok' && !engReady();   // 15/10/2026: בלי חיבור ל־Claude — הכותרת לא אומרת "הכל עובד"
+  const hero = h('div', 'st-ut-hero' + (waits.length || noEng ? ' wait' : ''));
+  const hi = h('span', 'st-ut-hic'); hi.textContent = waits.length || noEng ? '!' : '✓';
   const ht = h('span', 'st-ut-ht');
-  ht.append(h('b', null, !waits.length ? T('studioUtHello') : waits.length === 1 ? T('studioUtWait1') : T('studioUtWaitN', { n: waits.length })),
-    h('small', null, waits.length ? T('studioUtWaitS') : T('studioUtHelloS')));
+  // 15/10/2026: משפט המשנה אומר מה קורה עכשיו — כמה רצות, או מתי הסתיימה האחרונה (במקום "אין שום דבר" קבוע)
+  const nRun = tr.filter((r) => r.srv && (r.srv.state === 'running' || r.srv.state === 'queued')).length;
+  const last = tr.find((r) => r.srv && r.srv.state === 'done' && r.srv.ended);
+  ht.append(h('b', null, !waits.length && noEng ? T('studioUtNeedClaude') : !waits.length ? T('studioUtHello') : waits.length === 1 ? T('studioUtWait1') : T('studioUtWaitN', { n: waits.length })),
+    h('small', null, waits.length ? T('studioUtWaitS') : noEng ? T('studioUtNeedClaudeS') : nRun ? (nRun === 1 ? T('studioUtRun1') : T('studioUtRunN', { n: nRun }))
+      : last ? T('studioUtLast', { a: opsAgo(last.srv.ended) }) : T('studioUtHelloS')));
   hero.append(hi, ht);
   const dt = new Date();
   p.append(navBar({ back: T('studioBack'), title: T('studioTwT') }), large(T('studioTwT')),
-    h('p', 'st-ut-date', dt.toLocaleDateString(uiLang() === 'en' ? 'en-US' : 'he-IL', { weekday: 'long', day: 'numeric', month: 'long' })), hero);
+    h('p', 'st-ut-date', dt.toLocaleDateString(uiLang() === 'en' ? 'en-US' : 'he-IL', { weekday: 'long', day: 'numeric', month: 'long' })));
+  if (ui.access === 'ok') p.append(hero);   // לא מחובר — הבאנר שמתחת מסביר; בלי "הכל עובד" שסותר אותו
   const ab = accessBanner(); if (ab) p.append(ab);
   const hb = haltBanner(); if (hb) p.append(hb);
   // מחכה לך — שאלה או אישור, כפתור אחד שמוביל לעבודה (שם עונים)
@@ -3794,11 +3800,22 @@ function pageTower(p) {
   // החוקים שלך — כל שורה פותחת את הדף שבו קובעים אותם (מקום אחד לכל הגדרה)
   const rl = ui.rl || {};
   const mx = rl.mx && modeById(rl.mx);
+  // 15/10/2026: מה חסר כדי שהכל יעבוד — רק כשמשהו באמת חסר (כשהכל מוגדר — המקטע לא מופיע; הפרטים בהגדרות)
+  const miss = [];
+  if (noEng) miss.push(rowNav({ tile: tile('key', 'orange'), label: T('studioUtConnect'), sub: T('studioUtConnectS'), onClick: () => go('eng'), k: 'ut-nc' }));
+  if (ui.push === 'off') miss.push(rowNav({ tile: tile('bell', 'orange'), label: T('studioUtNeedPush'), sub: T('studioUtNeedPushS'), onClick: () => go('push'), k: 'ut-np' }));
+  if (miss.length) p.append(secT(T('studioUtSecSetup')), list(...miss));
+  if (ui.push == null) refreshPush().then(() => { if (root && ui.view === 'tower') render('none'); });
+  // 15/10/2026 (המשתמש): כל שורה משנה את מה שכתוב בה — תקציב ומצב בעמוד בחירה משלהם (כמו בהגדרות של iOS), צריבה במתג כאן
+  const off = blocked() || rulesBusy;
+  const abSw = rowSwitch({ label: T('studioUtAskRender'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ut-ra' });
+  if (off) abSw.disabled = true;
   p.append(secT(T('studioUtSecRules')), list(
-    rowNav({ label: T('studioUtBudget'), value: rl.b ? budgetTxt(rl.b) : T('studioUtNoLimit'), onClick: () => go('rules'), k: 'ut-rb' }),
-    rowNav({ label: T('studioUtMax'), value: mx ? modeShort(mx) : T('studioUtNoLimit'), onClick: () => go('rules'), k: 'ut-rm' }),
-    rowNav({ label: T('studioUtAskRender'), value: rl.ab ? T('studioOnShort') : T('studioOffShort'), onClick: () => go('rules'), k: 'ut-ra' }),
-    rowNav({ label: T('studioUtGloss'), onClick: () => go('gloss'), k: 'ut-rg' })));
+    rowNav({ label: T('studioUtBudget'), value: rl.b ? budgetTxt(rl.b) : T('studioUtNoLimit'), onClick: () => go('rlb'), k: 'ut-rb' }),
+    rowNav({ label: T('studioUtMax'), value: mx ? modeShort(mx) : T('studioUtNoLimit'), onClick: () => go('rlm'), k: 'ut-rm' }),
+    abSw,
+    rowNav({ label: T('studioUtGloss'), value: gl.st === 'ok' ? T('studioUtGlossN', { n: gl.rows.length }) : '', onClick: () => go('gloss'), k: 'ut-rg' }),
+    rowNav({ label: T('studioUtMore'), sub: T('studioUtMoreS'), onClick: () => go('rules'), k: 'ut-rr' })));
   if (!ui.halt) p.append(h('div', 'st-gap sm'), btn('st-btn danger wide', T('studioUtStop'), () => askHalt(), 'ut-halt'), h('p', 'st-ut-cap', T('studioUtStopS')));
   // המנהל — המגדל המלא (בהמשך: מרכז הניהול)
   if (ui.api && ui.api.admin) p.append(h('div', 'st-gap sm'), list(rowNav({ tile: tile('shield', 'blue'), label: T('studioUtFull'), sub: T('studioUtFullS'), onClick: () => go('towerx'), k: 'ut-full' })));
@@ -3975,19 +3992,42 @@ async function setRules(patch) {
     else { ui.rl = prev; flashSafe(errText(j.error)); }
   } finally { rulesBusy = false; render('none'); }
 }
+/* תקציב לעבודה — הגעת אליו: Claude עוצר ושואל בטלפון. משותף לעמוד החוקים ולעמוד הבחירה מהמגדל (sec = עם כותרת) */
+function rulesBudget(p, sec) {
+  const rl = ui.rl, off = blocked() || rulesBusy;
+  const opts = [0].concat(RULE_BUDGETS);
+  if (rl.b && !opts.includes(rl.b)) opts.push(rl.b);
+  if (sec) p.append(secT(T('studioRlBudgetT')));
+  p.append(list(...opts.map((b) => rowRadio({ label: b ? budgetTxt(b) : T('studioRlNoBudget'), sub: b ? null : T('studioRlNoBudgetS'),
+    on: rl.b === b, onClick: () => setRules({ b }), k: 'rb:' + b, disabled: off }))), note(T('studioRlBudgetNote')));
+}
+/* מצב מקסימלי — מצב יקר יותר מחכה לאישור שלך לפני שמתחילים. לכל מצב — כמה עולה עבודה רגילה לשעת סרטון (הרגיל שלך) */
+function rulesMax(p, sec) {
+  const rl = ui.rl, off = blocked() || rulesBusy;
+  const mxs = [''].concat(MODE_ORDER.slice(0, -1));
+  if (sec) p.append(secT(T('studioRlMaxT')));
+  p.append(list(...mxs.map((id) => rowRadio({ label: id ? T('studioRlUpTo', { m: modeName(modeById(id)) }) : T('studioRlAllModes'),
+    sub: id ? normHint(id) : null, on: rl.mx === id, onClick: () => setRules({ mx: id }), k: 'rm:' + (id || 'all'), disabled: off }))));
+  if (!sec) p.append(note(T('studioRlMaxNote')));
+}
+/* "כ־$X לשעת סרטון" — מהרגיל שנלמד (או ברירת המחדל), כדי שיהיה ברור מה כל בחירה אומרת */
+function normHint(id) {
+  try { const n = curNorm(); const x = n && n[id]; return x && x.ph ? T('studioRlPerHour', { u: ltr(fmtUsd(x.ph)) }) : null; } catch (e) { return null; }
+}
+function pageRuleBudget(p) {
+  p.append(navBar({ back: T('studioTwT') }), large(T('studioUtBudget')), h('p', 'st-lede', T('studioRlBudgetLede')));
+  rulesBudget(p, false);
+}
+function pageRuleMax(p) {
+  p.append(navBar({ back: T('studioTwT') }), large(T('studioUtMax')), h('p', 'st-lede', T('studioRlMaxLede')));
+  rulesMax(p, false);
+}
 function pageRules(p) {
   p.append(navBar({ back: T('studioTwT') }), large(T('studioRlT')), h('p', 'st-lede', T('studioRlLede')));
   const ab = accessBanner(); if (ab) p.append(ab);
   const rl = ui.rl, off = blocked() || rulesBusy;
-  // תקציב לעבודה — הגעת אליו: Claude עוצר ושואל בטלפון
-  const opts = [0].concat(RULE_BUDGETS);
-  if (rl.b && !opts.includes(rl.b)) opts.push(rl.b);
-  p.append(secT(T('studioRlBudgetT')), list(...opts.map((b) => rowRadio({ label: b ? budgetTxt(b) : T('studioRlNoBudget'), sub: b ? null : T('studioRlNoBudgetS'),
-    on: rl.b === b, onClick: () => setRules({ b }), k: 'rb:' + b, disabled: off }))), note(T('studioRlBudgetNote')));
-  // מצב מקסימלי — מצב יקר יותר מחכה לאישור שלך לפני שמתחילים
-  const mxs = [''].concat(MODE_ORDER.slice(0, -1));
-  p.append(secT(T('studioRlMaxT')), list(...mxs.map((id) => rowRadio({ label: id ? T('studioRlUpTo', { m: modeName(modeById(id)) }) : T('studioRlAllModes'),
-    on: rl.mx === id, onClick: () => setRules({ mx: id }), k: 'rm:' + (id || 'all'), disabled: off }))));
+  rulesBudget(p, true);
+  rulesMax(p, true);
   // אישור לפני צריבה — 5 כתוביות לדוגמה בטלפון
   p.append(secT(T('studioRlAbT')), list(rowSwitch({ label: T('studioRlAb'), sub: T('studioRlAbS'), on: rl.ab, onClick: () => { if (!off) setRules({ ab: !rl.ab }); }, k: 'ra' })));
   // v375: שופט האיכות (Haiku, 40 כתוביות לדוגמה בסוף כל עבודה) — פועל כברירת מחדל (החלטה 4 בתוכנית)
@@ -5973,7 +6013,7 @@ function shapeKey() {
   if (ui.view === 'prob') return 'prob|' + ui.param + '|' + ui.access + '|' + JSON.stringify(ui.pb) + JSON.stringify(ui.inc) + (fixBusy ? 1 : 0);   // v376
   if (ui.view === 'inc') return 'inc|' + ui.param + '|' + ui.access + '|' + (pirBusy ? 1 : 0) + JSON.stringify(ui.inc) + ui.incTab + JSON.stringify(ui.fb) + (ui.resuming || '') + store.jobs.map((r) => r.id + (canResume(r) ? 'r' : '')).join();
   if (ui.view === 'server') return 'server|' + ui.access + '|' + JSON.stringify(ui.api) + JSON.stringify(ui.servers) + ui.srvQueue + '|' + (ui.newToken ? 1 : 0) + ui.srvBusy;
-  if (ui.view === 'rules') return 'rules|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length;
+  if (ui.view === 'rules' || ui.view === 'rlb' || ui.view === 'rlm') return ui.view + '|' + ui.access + '|' + JSON.stringify(ui.rl) + ui.fm + gl.st + gl.rows.length + (rulesBusy ? 'b' : '');
   if (ui.view === 'subs') { const r = jobRec(ui.param); return 'subs|' + ui.param + '|' + (se ? se.st : '') + '|' + ui.access + '|' + (r && r.srv ? r.srv.ev + ':' + r.srv.vh.length : '') + (r && rrJobs.get(r.id) ? rrJobs.get(r.id).srv.state : ''); }   // מ2: לא נבנה מחדש בזמן הקלדה
   if (ui.view === 'rr') { const x = rrJobs.get(ui.param), v = rrPv.get(ui.param); return 'rr|' + ui.param + '|' + ui.access + '|' + (x ? x.srv.state + JSON.stringify(x.srv.prog) + x.srv.out.length : '') + '|' + (v ? v.srv.state + JSON.stringify(v.srv.prog) + v.srv.out.length : '') + (rrBusy ? 1 : 0) + JSON.stringify(rrOpt) + (seDirty() ? 'd' : ''); }
   if (ui.view === 'ideas') return 'ideas|' + ui.param + '|' + ui.access + '|' + (idea ? idea.k + idea.mode + (idea.busy ? 'b' : '') + (idea.cues ? idea.cues.length : 'l') + (idea.text != null ? 't' + idea.text.length : '') : '');   // מ8
@@ -6036,6 +6076,8 @@ function render(kind, still) {     // kind: none (ציור מחדש במקום) 
   else if (ui.view === 'scan') pageScan(p);   // v378
   else if (ui.view === 'prob') pageProb(p);   // v376
   else if (ui.view === 'rules') pageRules(p);
+  else if (ui.view === 'rlb') pageRuleBudget(p);
+  else if (ui.view === 'rlm') pageRuleMax(p);
   else if (ui.view === 'gloss') pageGloss(p);   // v380
   else if (ui.view === 'server') pageServer(p);
   else if (ui.view === 'def') pageDef(p);
@@ -6067,7 +6109,7 @@ function onEnter() {
   if (ui.view === 'home') { refreshStatus(); refreshJobs(); }
   else if (ui.view === 'settings' || ui.view === 'connect' || ui.view === 'eng' || ui.view === 'store') refreshStatus();
   else if (ui.view === 'tower' || ui.view === 'towerx' || TW_SUBS.includes(ui.view)) { refreshStatus(true); refreshJobs(true); }
-  else if (ui.view === 'rules' || ui.view === 'alert') refreshStatus(true);
+  else if (ui.view === 'rules' || ui.view === 'alert' || ui.view === 'rlb' || ui.view === 'rlm') refreshStatus(true);
   else if (ui.view === 'gloss') { refreshStatus(true); glossLoad(true); }   // v380: המילון — תמיד הגרסה העדכנית מ־Drive
   else if (ui.view === 'inc') { refreshStatus(true); refreshJobs(true); }
   else if (ui.view === 'agents') refreshJobs(true);
