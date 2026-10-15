@@ -17,6 +17,7 @@ const ROOT = path.join(__dirname, '..');
 const APPS = {
   academy: ['library.js', 'libadmin.js', 'libbackup.js', 'pagecurl.js', 'pagetex.js', 'ribbon3d.js', 'epubkit.js', 'academy-data.js', 'shell.js', 'academy-app.js'],
   studio: ['studio.js', 'studionet.js', 'studioplay.js', 'studiosubs.js', 'studioedl.js', 'studioai.js', 'studiostore.js', 'libbackup.js', 'shell.js', 'studio-app.js'],
+  admin: ['shell.js', 'admin-app.js'],   // מרכז הניהול (שלב 5א)
 };
 const HEAD = '/* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */\n';
 
