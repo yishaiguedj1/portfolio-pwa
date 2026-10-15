@@ -197,6 +197,19 @@ const { fakeR2, ACC } = require('./_r2fake');
   await api('learnForget', {});
   ok((await keysIn('m/')).length === 0, '"מחק את התרומות שלי" — גם הקול וה־240p');
 
+  /* 15/10/2026: שרת שהוקם בלי המפתחות (SNB_LEARN_REMOTE) — 421 לפני כל שינוי, והטלפון שולח ל־Vercel */
+  const keepB = process.env.R2L_BUCKET;
+  delete process.env.R2L_BUCKET; process.env.SNB_LEARN_REMOTE = '1'; R2._reset();
+  const lf0 = db.get('studioStats/ownerUid0001').fields.lf;
+  const rf = await call({ op: 'learnForget', idToken: OWNER });
+  ok(rf.code === 421 && rf.j.error === 'learn_remote' && JSON.stringify(db.get('studioStats/ownerUid0001').fields.lf) === JSON.stringify(lf0),
+    'בלי המפתחות בשרת — "מחק את התרומות שלי" לא "מצליח" בלי למחוק: 421, ושום דבר לא השתנה');
+  ok((await call({ op: 'learn', idToken: OWNER })).code === 421, 'בלי המפתחות בשרת — גם המספרים של המאגר (המנהל) מ־Vercel');
+  ok((await call({ op: 'jobs', idToken: OWNER })).code === 200, 'שאר הפעולות — כרגיל בשרת');
+  process.env.R2L_BUCKET = keepB; R2._reset();
+  ok((await call({ op: 'learnForget', idToken: OWNER })).code === 200, 'עם הדלי — הדגל לא משנה כלום (Vercel עצמו)');
+  delete process.env.SNB_LEARN_REMOTE;
+
   /* בלי הדלי — כלום */
   for (const [k, v] of db) if (k.startsWith('studioJobs/')) v.fields.state = { stringValue: 'done' };   // מקום לעבודה חדשה
   delete process.env.R2L_BUCKET; R2._reset();

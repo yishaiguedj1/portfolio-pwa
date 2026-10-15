@@ -231,16 +231,24 @@ async function vercelEnv(e, deps) {
 
 /* מהרשימה של Vercel לשורה אחת: SNB_ENV_GZ = gzip+base64 של {שם: ערך} (server.js — unpackEnv פותח). כל ערך עובר
    כמו שהוא, גם עם רווחים, # או מירכאות. חסר ערך (Sensitive) ואין ב־PROD_APP_EXTRA — שגיאה עם השמות בלבד. */
+/* 15/10/2026: מאגר הלמידה (R2L_*) — רשות. חסר אחד מהם (Sensitive ולא ב־PROD_APP_EXTRA) → השרת מוקם בלי אף אחד מהם
+   (לא חצי הגדרה), עם SNB_LEARN_REMOTE=1: השרתון עונה 421 לפעולות של המאגר והטלפון שולח אותן ל־Vercel (api/studio.js).
+   opt = השמות שחסרו — לאזהרה ב־Issue של ההזמנה */
+const ENV_OPT_RE = /^R2L_/;
 function appEnvLine(vars, extraRaw, project) {
   const zlib = require('zlib');
   const extra = parseExtra(extraRaw);
-  const obj = {}, missing = [];
+  const obj = {}, missing = [], opt = [];
   for (const x of vars) {
     if (!ENV_KEY_RE.test(x.key) || ENV_SKIP.has(x.key) || ENV_SKIP_RE.test(x.key)) continue;
-    if (x.value == null) { if (!(x.key in extra)) missing.push(x.key); continue; }
+    if (x.value == null) { if (!(x.key in extra)) (ENV_OPT_RE.test(x.key) ? opt : missing).push(x.key); continue; }
     obj[x.key] = x.value;
   }
   for (const [k, v] of Object.entries(extra)) if (!ENV_SKIP.has(k)) obj[k] = v;
+  if (opt.length) {
+    for (const k of Object.keys(obj)) if (ENV_OPT_RE.test(k)) delete obj[k];
+    obj.SNB_LEARN_REMOTE = '1';
+  }
   if (missing.length) fail('vercel_sensitive', missing.length + ' משתנים מסומנים Sensitive ב־Vercel ואי אפשר לקרוא אותם: '
     + missing.sort().join(', ') + ' — להוסיף אותם לסוד PROD_APP_EXTRA (שורה לכל אחד: שם=ערך)');
   /* חשבון השירות — חובה וזהה ל־Vercel: ממנו Firestore, ומפתח הכספת כשאין IBKR_VAULT_KEY */
@@ -249,7 +257,7 @@ function appEnvLine(vars, extraRaw, project) {
   if (!sa || sa.type !== 'service_account' || !sa.private_key) fail('vercel_sa', 'ב־Vercel אין GDRIVE_SA_KEY תקין — השרתון לא יגיע ל־Firestore');
   if (obj.FIREBASE_PROJECT_ID && obj.FIREBASE_PROJECT_ID !== project) fail('vercel_project_id', 'FIREBASE_PROJECT_ID ב־Vercel שונה מ־' + project);
   const b64 = zlib.gzipSync(Buffer.from(JSON.stringify(obj)), { level: 9 }).toString('base64');
-  return { line: 'SNB_ENV_GZ=' + b64, keys: Object.keys(obj).sort(), vault: obj.IBKR_VAULT_KEY ? 'e' : 's' };
+  return { line: 'SNB_ENV_GZ=' + b64, keys: Object.keys(obj).sort(), vault: obj.IBKR_VAULT_KEY ? 'e' : 's', opt: opt.sort() };
 }
 
 /* GDRIVE_SA_KEY מסומן Sensitive ב־Vercel (אי אפשר לקרוא אותו) — במקומו PROD_FIREBASE_SA, אבל רק אחרי הוכחה שזה

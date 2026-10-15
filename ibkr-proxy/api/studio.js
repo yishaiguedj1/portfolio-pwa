@@ -282,6 +282,11 @@ async function learnSave(deps, job, now, offCache) {
 const LC_MAX_BODY = 4000000;   // 15/10: עד 4MB — באיסוף המלא גם קבצי הטקסט של הפרויקט (Vercel: 4.5MB)
 const learnCfg = (env = process.env) => R2.config({ R2_ACCOUNT_ID: env.R2L_ACCOUNT_ID || env.R2_ACCOUNT_ID, R2_ACCESS_KEY_ID: env.R2L_ACCESS_KEY_ID,
   R2_SECRET_ACCESS_KEY: env.R2L_SECRET_ACCESS_KEY, R2_BUCKET: env.R2L_BUCKET, R2_JURISDICTION: env.R2L_JURISDICTION || env.R2_JURISDICTION });
+/* 15/10/2026: שרת שהוקם בלי המפתחות של הדלי (Sensitive ב־Vercel ולא ב־PROD_APP_EXTRA — tools/server-provision.js כותב
+   SNB_LEARN_REMOTE=1). פעולה מהטלפון שנוגעת בדלי לא "מצליחה" כאן בלי לעשות כלום — 421 לפני כל שינוי, והטלפון שולח את
+   אותה בקשה ל־Vercel (installFailover ב־firebase-config.js). בלי הדלי בשום מקום (בלי הדגל) — כמו קודם */
+const learnRemote = (env = process.env) => env.SNB_LEARN_REMOTE === '1' && !learnCfg(env).ok;
+const LEARN_REMOTE_OPS = new Set(['learnForget', 'learn']);
 async function learnPut(deps, job, b64, now) {
   try {
     const c = learnCfg();
@@ -1552,6 +1557,7 @@ async function handler(req, res, deps = {}) {
     return SC.scanView(sc);
   };
   try {
+    if ((LEARN_REMOTE_OPS.has(op) || (op === 'cuesSave' && body.pt)) && learnRemote()) return res.status(421).json({ ok: false, error: 'learn_remote' });
     if (op === 'learn' || op === 'learnExport' || op === 'learnBrief') {
       // 14/10/2026: מאגר הלמידה — רק למנהל. learnExport = כל הרשומות (לניתוח מחוץ לאפליקציה), learnBrief = החבילה ל־Claude
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
