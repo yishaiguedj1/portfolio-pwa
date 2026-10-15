@@ -27,17 +27,19 @@ snb_limits() {
 	# ת3: השרתון של הייצור (768MB) וה־Tunnel שלו (256MB)
 	case ",$COMPOSE_PROFILES," in *,app,*|*,tunnel-prod,*) m=$((m - 1100)) ;; esac
 	[ "$m" -ge 1024 ] || m=1024
-	SNB_CPUS=$c SNB_MEM=${m}m SNB_CPUS_STG=$c SNB_MEM_STG=${m}m
+	# 16/10/2026 — חלוקה לפי המודל של cgroup v2 (כמו requests/limits ב־Kubernetes), עם מירב הביצועים לעבודה:
+	#   מעבד = משאב שאפשר לחלק בזמן: תקרה (cpus) = כל הליבות לכל עובד — עבודה לבד מקבלת הכל, בלי throttling.
+	#     בעומס המשקלים (cpu_shares ב־compose) מחלקים: השרתונים 2048 > הייצור 1024 > הניסוי 512.
+	#   זיכרון = משאב שאי אפשר לקחת בחזרה: לכל עובד שריון (mem_reservation = memory.low — מה שמובטח לו בעומס,
+	#     לפחות שיא של עבודה: היישור ב־ONNX 4.2GB תחת gVisor) ותקרה (mem_limit = memory.max — מה שפנוי, לזיכרון
+	#     המטמון של הקבצים והמודלים). תקרה של אחד + שריון של השני = כל הזיכרון ⇒ שני עובדים בשיא לא מגיעים ל־OOM.
+	#   עד 16/10 הניסוי קיבל 1.5 ליבות ו־3GB: תמלול 8:47 דק׳ = 91 שנ׳, shots = 137 שנ׳, והיישור נהרג (worker_step).
+	SNB_CPUS=$c SNB_MEM=${m}m SNB_MEMR=${m}m SNB_CPUS_STG=$c SNB_MEM_STG=${m}m SNB_MEMR_STG=${m}m
 	case ",$COMPOSE_PROFILES," in *,prod,*,stg-worker,*|*,prod,stg-worker,*)
-		# 16/10/2026: המעבד — תקרה, לא שריון: שני העובדים מקבלים את כל הליבות (כמעט תמיד רק אחד עובד, וכשהשניים —
-		# הליבה מתחלקת ביניהם). עד היום הניסוי קיבל 1.5 ליבות ו־3GB: תמלול 8:47 דק׳ = 91 שנ׳, shots = 137 שנ׳,
-		# והיישור ב־ONNX (שיא 4.2GB תחת gVisor) נהרג על הזיכרון (worker_step). הזיכרון כן מתחלק (סכום ≤ השרת):
-		# לניסוי 45%, בין 3GB ל־6GB.
-		s=$((m * 45 / 100)); [ "$s" -le 6144 ] || s=6144; [ "$s" -ge 3072 ] || s=3072
-		SNB_CPUS_STG=$c; SNB_MEM_STG=${s}m
-		m=$((m - s)); [ "$m" -ge 1024 ] || m=1024; SNB_MEM=${m}m ;;
+		r=$((m * 35 / 100)); [ "$r" -ge 4608 ] || r=4608; [ "$r" -le 8192 ] || r=8192; [ "$r" -le $((m / 2)) ] || r=$((m / 2))
+		SNB_MEM=$((m - r))m SNB_MEMR=${r}m SNB_MEM_STG=$((m - r))m SNB_MEMR_STG=${r}m ;;
 	esac
-	export SNB_CPUS SNB_MEM SNB_CPUS_STG SNB_MEM_STG
+	export SNB_CPUS SNB_MEM SNB_MEMR SNB_CPUS_STG SNB_MEM_STG SNB_MEMR_STG
 }
 
 # החדרים — לפי קובצי הסודות שיש בשרת (compose.yaml: profiles). בלי קובץ = החדר כבוי.

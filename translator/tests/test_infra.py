@@ -58,7 +58,10 @@ class Compose(unittest.TestCase):
         self.assertIn('cpus: ${SNB_CPUS:-', c)
         self.assertIn('mem_limit: ${SNB_MEM:-', c)
         # 16/10/2026: בעומס — חלוקה לפי משקל (שני העובדים שווים, השרתונים קודמים); בלי עומס — עבודה מקבלת הכל
-        self.assertEqual(c.count('cpu_shares: 1024'), 2, 'שני העובדים — משקל שווה')
+        self.assertEqual(c.count('cpu_shares: 1024'), 1, 'הייצור')
+        self.assertEqual(c.count('cpu_shares: 512'), 1, 'הניסוי — אחרי הייצור בעומס')
+        self.assertEqual(c.count('mem_reservation:'), 2, 'שריון זיכרון לכל עובד')
+        self.assertIn('oom_score_adj: 300', c)
         self.assertGreaterEqual(c.count('cpu_shares: 2048'), 3, 'השרתונים וה־Tunnel קודמים לעבודת רקע')
         common = read('infra/host/snb-common.sh')
         self.assertLess(common.index('snb_compose() {'), common.index('\tsnb_limits\n'), 'כל הפעלה מחשבת את הגבולות')
@@ -217,7 +220,7 @@ case "$1" in
            h=$(printf '%s' "$tag$(cat "$T/rev-$tag" 2>/dev/null)" | sha256sum | cut -c1-64); echo "$img@sha256:$h"; exit 0; }; exit 0 ;;
   volume) v=$(echo "$@" | awk '{print $NF}'); [ -d "$T/vol/$v" ] && { echo "$T/vol/$v"; exit 0; }; exit 1 ;;
   compose) [ "$2" = version ] && exit 0
-           echo "UP profiles=$COMPOSE_PROFILES cpus=$SNB_CPUS mem=$SNB_MEM cpus_stg=$SNB_CPUS_STG mem_stg=$SNB_MEM_STG" >> "$T/compose"; exit 0 ;;
+           echo "UP profiles=$COMPOSE_PROFILES cpus=$SNB_CPUS mem=$SNB_MEM cpus_stg=$SNB_CPUS_STG mem_stg=$SNB_MEM_STG memr=$SNB_MEMR memr_stg=$SNB_MEMR_STG" >> "$T/compose"; exit 0 ;;
   info) echo '{"runsc":{}}'; exit 0 ;;
   run) exit 0 ;;
 esac
@@ -316,18 +319,25 @@ class Rooms(unittest.TestCase):
     def test_limits_split_when_both_workers(self):
         import os
         r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=16 * 1024 * 1024)
-        m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
-        stg = (16 * 1024 - 1024 - 800) * 45 // 100
-        stg = min(stg, 6144)
-        self.assertEqual(int(m.group(3)), stg, 'הניסוי: 45% מהזיכרון, עד 6GB (היישור ב־ONNX — שיא 4.2GB)')
-        self.assertEqual(int(m.group(1)) + stg + 800 + 1024, 16 * 1024, 'סך הכל = כל הזיכרון של השרת')
+        m = re.search(r'cpus=([\d.]+) mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m memr=(\d+)m memr_stg=(\d+)m', r['compose'])
+        avail = 16 * 1024 - 1024 - 800
+        mem, mem_s, res, res_s = (int(m.group(i)) for i in (2, 4, 5, 6))
         n = os.cpu_count() or 2
         full = '%.1f' % (n - 0.5 if n > 1 else n)
-        self.assertEqual(m.group(2), full, 'הניסוי מקבל את כל הליבות (תקרה, לא שריון)')
-        self.assertIn('cpus=%s ' % full, r['compose'], 'גם הייצור')
+        self.assertEqual((m.group(1), m.group(3)), (full, full), 'המעבד — תקרה, לא שריון: כל עובד יכול לקבל את כל הליבות')
+        self.assertGreaterEqual(min(res, res_s), 4608, 'שריון ≥ שיא של עבודה (היישור ב־ONNX תחת gVisor — 4.2GB)')
+        self.assertEqual(mem + res_s, avail, 'תקרה של הייצור + שריון של הניסוי = כל הזיכרון (בלי OOM כששניהם בשיא)')
+        self.assertEqual(mem_s + res, avail, 'וגם הפוך')
+        self.assertGreater(mem, res, 'בלי עומס — יותר מהשריון (מטמון קבצים ומודלים)')
         r = self.run_update(['tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=8 * 1024 * 1024)
         m = re.search(r'mem_stg=(\d+)m', r['compose'])
         self.assertEqual(int(m.group(1)), 8 * 1024 - 1024 - 800, 'עובד ניסוי לבד מקבל את כל השרת')
+        # שרת גדול (CX53, 32GB): השריון עד 8GB, והשאר פנוי לעבודה שרצה
+        r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env', 'app.env', 'tunnel-prod.env'],
+                            mem_kb=32 * 1024 * 1024)
+        m = re.search(r'mem=(\d+)m .* memr=(\d+)m memr_stg=(\d+)m', r['compose'])
+        self.assertEqual(int(m.group(2)), 8192)
+        self.assertEqual(int(m.group(1)), 32 * 1024 - 1024 - 800 - 1100 - 8192)
 
     def test_prod_app_room(self):
         # ת3: השרתון של הייצור — snb-app:prod (אחרי אישור), ו־Tunnel נפרד
@@ -343,11 +353,8 @@ class Rooms(unittest.TestCase):
     def test_limits_all_rooms(self):
         r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env', 'app.env', 'tunnel-prod.env'],
                             mem_kb=16 * 1024 * 1024)
-        m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
-        avail = 16 * 1024 - 1024 - 800 - 1100
-        stg = min(avail * 45 // 100, 6144)
-        self.assertEqual(int(m.group(3)), stg)
-        self.assertEqual(int(m.group(1)), avail - stg, 'השרתון של הייצור וה־Tunnel שלו יורדים מהעובד')
+        m = re.search(r'mem=(\d+)m .* memr_stg=(\d+)m', r['compose'])
+        self.assertEqual(int(m.group(1)) + int(m.group(2)), 16 * 1024 - 1024 - 800 - 1100, 'השרתון של הייצור וה־Tunnel שלו יורדים מהעובד')
 
     def test_cloud_init_slim_keeps_code(self):
         # ההערות יורדות מקוד ההקמה (מקום לסודות), הקוד נשאר — ובקבצים אין heredoc שבו שורה עם # היא תוכן

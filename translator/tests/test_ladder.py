@@ -131,3 +131,40 @@ class TestBuild(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Boost(unittest.TestCase):
+    """16/10/2026: finish מחכה רק לאיכויות — הן עוברות מ־SCHED_IDLE לעדיפות רגילה (כל התהליכונים בקבוצה, גם ילדים)."""
+
+    @unittest.skipUnless(hasattr(os, 'SCHED_IDLE') and sys.platform.startswith('linux'), 'לינוקס בלבד')
+    def test_boost_whole_group(self):
+        import job as J
+        d = Path(tempfile.mkdtemp())
+        old = J.LADDER_DIR
+        J.LADDER_DIR = d
+        code = ('import os,subprocess,time\n'
+                'os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))\n'
+                'c = subprocess.Popen(["sleep", "30"])\n'          # ילד יורש SCHED_IDLE — כמו ffmpeg
+                'open(os.environ["OUT"], "w").write(str(c.pid))\n'
+                'time.sleep(30)\n')
+        p = subprocess.Popen([sys.executable, '-c', code], start_new_session=True, env=dict(os.environ, OUT=str(d / 'child')))
+        try:
+            (d / 'pid').write_text(str(p.pid))
+            for _ in range(100):
+                if (d / 'child').exists() and (d / 'child').read_text():
+                    break
+                import time
+                time.sleep(0.05)
+            child = int((d / 'child').read_text())
+            self.assertEqual(os.sched_getscheduler(p.pid), os.SCHED_IDLE)
+            self.assertEqual(os.sched_getscheduler(child), os.SCHED_IDLE)
+            self.assertGreaterEqual(J.ladder_boost(), 2)
+            self.assertEqual(os.sched_getscheduler(p.pid), os.SCHED_OTHER, 'התהליך הראשי')
+            self.assertEqual(os.sched_getscheduler(child), os.SCHED_OTHER, 'גם ffmpeg שכבר רץ')
+            (d / 'pid').write_text(str(99999999))
+            self.assertEqual(J.ladder_boost(), 0, 'אין קבוצה כזו — כלום, בלי שגיאה')
+        finally:
+            os.killpg(p.pid, 9)
+            p.wait()
+            J.LADDER_DIR = old
+            shutil.rmtree(d, ignore_errors=True)
