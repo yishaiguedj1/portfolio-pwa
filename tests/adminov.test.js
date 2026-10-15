@@ -83,4 +83,27 @@ const lv = A.laneView([{ n: 140, t: 'ממתין לתור אחרי #139 — 2.9.0
 ok(lv.holder.n === 139 && lv.holder.b === 428 && lv.holder.t === 'מגדל המשתמשים' && lv.queue.map((x) => x.n).join() === '140' && lv.queue[0].b === 429 && lv.queue[0].t === 'x' && lv.queue[0].after === 139 && lv.other.map((x) => x.n).join() === '141' && !lv.free, 'נתיב: מי מחזיק, מי בתור, ומה בלי גרסה (בלי Dependabot)');
 ok(A.laneView([], []).free && !A.laneView([], [{ id: 1 }]).free && A.laneView([], [{ id: 1 }]).deploy === 1, 'נתיב: פנוי רק כשאין PR עם גרסה ואין פריסה שמחכה');
 ok(A.laneView([{ n: 5, t: '2.9.0 (429): שחרור' }], []).holder.rel === '2.9.0', 'נתיב: PR של שחרור — גרסת המערכת');
+// משתמשים והרשאות (15/10/2026)
+const uv = A.usersView({ admins: ['Boss@Example.com', 'bad'], acEnv: ['boss@example.com', '*', ' r@example.com ', ''], acApp: [{ email: 'old@example.com', at: 1 }, { email: 'New@Example.com', at: 9 }, { email: 'x' }],
+  stEnv: ['s@example.com', 's@example.com'], am: ['m@example.com'], ibEnv: [], counts: { ibkr: 2, lib: null, studio: 3 } });
+ok(uv.admins.join() === 'boss@example.com' && uv.ac.open && uv.ac.env.join() === 'boss@example.com,r@example.com', 'משתמשים: מנהלים, "*" = פתוח לכל מחובר (לא מייל), מיילים מנורמלים');
+ok(uv.ac.app.map((x) => x.e).join() === 'new@example.com,old@example.com' && uv.ac.store === 'ok', 'משתמשים: קוראים מהאפליקציה — החדש ראשון, לא תקין נזרק');
+ok(uv.st.env.length === 1 && uv.st.am.join() === 'm@example.com' && uv.st.conn === 3 && uv.ib.on === 2 && uv.ac.backup === null, 'משתמשים: Studio, IBKR והספירות (לא נמדד = null)');
+ok(A.usersView({ acApp: [], acErr: 'fs_http_403' }).ac.store === 'no_access' && A.usersView({}).ac.store === 'none' && !A.usersView({}).ac.open, 'משתמשים: אין גישה לרשימה — לא "ריק"');
+ok(!/uid/i.test(JSON.stringify(uv)), 'משתמשים: בלי uid');
+// יומן פעולות (15/10/2026)
+ok(A.logEntry('xx', 'a', 'b@example.com', now) === null && A.logEntry('fl_off', 'learn<b>', 'Boss@Example.com', now).d === 'learn b' && A.logEntry('ac_add', 'x', 'לא מייל', now).w === '', 'יומן: רק סוגים מהקטלוג, פרט מנוקה, מייל תקין בלבד');
+ok(A.cfgLogKind({ mt: { on: true, msg: 'm' } }, { mtOn: 0 }, now)[0] === 'mt_on' && A.cfgLogKind({ mt: { on: true } }, { mtOn: 1, mtTil: 0 }, now)[0] === 'mt_upd' && A.cfgLogKind({ mt: { on: true } }, { mtOn: 1, mtTil: now - 1 }, now)[0] === 'mt_on', 'יומן: תחזוקה — הדלקה מול עדכון (תחזוקה שפגה = הדלקה חדשה)');
+ok(A.cfgLogKind({ flag: 'push', on: false }, {}, now).join() === 'fl_off,push' && A.cfgLogKind({ am: 'a@example.com', on: true }, {}, now)[0] === 'am_add' && A.cfgLogKind({}, {}, now) === null, 'יומן: דגלים ומודלים');
+const lg = [{ id: 'a', k: 'fl_on', d: 'x', w: 'boss@example.com', at: now - H }, { id: 'b', k: 'ac_add', d: 'r@example.com', w: 'other@example.com', at: now - 3 * H }, { id: 'c', k: 'mt_on', at: now - 100 * 24 * H }, { id: 'd', k: 'zz', at: now }];
+const lv2 = A.logView(lg, now, 'Boss@example.com');
+ok(lv2.items.map((x) => x.k).join() === 'fl_on,ac_add' && lv2.items[0].w === '' && lv2.items[1].w === 'other@example.com' && lv2.n7 === 2, 'יומן: החדש ראשון, "אני" בלי מייל, ישן וסוג לא מוכר לא מוצגים');
+ok(A.logOld(lg, now).join() === 'c', 'יומן: מה שישן מ־90 יום נמחק');
+// סודות ותאריכים (15/10/2026)
+const SV = A.secretsView({ now, host: 'vercel', has: (n) => ['GDRIVE_SA_KEY', 'R2_ACCESS_KEY_ID', 'SNB_SESSION_KEY'].includes(n), vaults: { ibkr: 2, routine: null } });
+const sk = (k) => SV.items.find((x) => x.k === k);
+ok(sk('sa').set === true && sk('gd_lib').set === false && sk('gd_lib').sev === 1 && sk('vault').sev === 2 && sk('cron').sev === 4, 'סודות: חובה חסר = אדום, מומלץ = כתום, רשות = שקט');
+ok(sk('r2').part === '1/2' && sk('sess').set === null && A.secretsView({ now, host: 'srv', has: (n) => n === 'SNB_SESSION_KEY' }).items.find((x) => x.k === 'sess').set === true, 'סודות: חלקי = "1/2"; סוד של השרת נבדק רק כשהבקשה רצה בשרת');
+ok(sk('ant').set === null && sk('ant').date.d === '2027-01-16' && sk('ibkr').n === 2 && sk('routine').n === null, 'סודות: מה שלא נקרא מכאן = לא ידוע, עם התאריך; כספות — מספר בלבד');
+ok(!/"(GDRIVE|R2_|SNB_)/.test(JSON.stringify(SV)) && SV.bad === SV.items.filter((x) => x.sev <= 2).length && SV.dates.every((x, i, a) => !i || a[i - 1].left <= x.left), 'סודות: בלי שמות משתנים וערכים בתשובה; תאריכים מהקרוב');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);
