@@ -615,6 +615,11 @@ async function server(req, res, body, deps) {
     }
     const hb = S.normHb(body.hb);
     const seen = { seen: now, hb, updated: now };
+    if (!(srv.seen > 0)) {
+      // 15/10/2026: שרת שמתחבר בפעם הראשונה — התראה לטלפון (שרת שהוזמן אוטומטית עלה בלי שאף אחד ידע). כתיבה בתנאי: התראה אחת בלבד
+      const first = await patchIf(deps, 'studioServers', p.sid, { seen: now, updated: now }, srv._ut).catch(() => false);
+      if (first && UID_RE.test(String(srv.by || ''))) await notify(deps, srv.by, 'srv_new', '', now).catch(() => {});
+    }
     if (srv.ba) { seen.ba = 0; await authBack(deps, srv, p.sid, now); }
     if (srv.dn) { seen.dn = 0; await serverBack(deps, srv, p.sid, now); }   // ת7: שרת שסומן "לא מדווח" חזר
     if (body.op === 'beat' || srv.paused) {

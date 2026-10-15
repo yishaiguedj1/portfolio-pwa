@@ -84,7 +84,7 @@ jobs:
           PRICE: ${{ steps.buy.outputs.price }}
           CUR: ${{ steps.buy.outputs.currency }}
         run: |
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "הוזמן שרת: snb-cx43 · CX43 · $LOC" --body "הוזמן אוטומטית: snb-cx43 · CX43 · $LOC · $PRICE $CUR לחודש.
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "הוזמן שרת: snb-cx43 · CX43 · $LOC" --body "@$GITHUB_REPOSITORY_OWNER — הוזמן אוטומטית: snb-cx43 · CX43 · $LOC · $PRICE $CUR לחודש.
 
           האוטומציה כובתה. בעוד 5–10 דקות השרת יתחבר — הריצה ממשיכה לבדוק ומסכמת למטה.
           אחרי שהכל ירוק: במסך השרת באפליקציה (ייצור וניסוי) מסירים את השרת הקודם, ומוחקים אותו ב־Hetzner.
@@ -96,8 +96,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WHY: ${{ steps.buy.outputs.stopped }}
         run: |
-          gh workflow disable autobuy.yml --repo "$GITHUB_REPOSITORY"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "ההזמנה האוטומטית נעצרה: $WHY" --body "ההזמנה האוטומטית של CX43 נעצרה ולא הזמינה כלום (קוד: $WHY). האוטומציה כובתה.
+          gh workflow disable autobuy.yml --repo "$GITHUB_REPOSITORY" || true
+          [ "$WHY" = exists ] && exit 0
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "ההזמנה האוטומטית נעצרה: $WHY" --body "@$GITHUB_REPOSITORY_OWNER — ההזמנה האוטומטית של CX43 נעצרה ולא הזמינה כלום (קוד: $WHY). האוטומציה כובתה.
 
           הפרטים בריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           אחרי הטיפול — להדליק שוב: Actions ← autobuy ← Enable workflow."

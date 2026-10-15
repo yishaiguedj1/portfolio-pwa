@@ -3365,6 +3365,11 @@ function stubFetch(text, status = 200) {
         let g = await get();
         ok(g.statusCode === 200 && g.payload.down === 0 && pushes.length === 0, 'ת7: שרת שעוד לא התחבר — לא "נפל" (קוד הקמה שמחכה למלאי)');
         await srvRun({ op: 'poll', hb: {} }, T7);
+        // 15/10/2026: התחברות ראשונה = התראה אחת "שרת חדש התחבר"; הפנייה הבאה — בלי
+        ok(pushes.length === 1 && decrypt(pushes[0].body).k === 'srv_new' && decrypt(pushes[0].body).j === '', '15/10: שרת שמתחבר בפעם הראשונה → התראה לטלפון "שרת חדש התחבר"');
+        await srvRun({ op: 'poll', hb: {} }, T7);
+        ok(pushes.length === 1, '15/10: פנייה שנייה של אותו שרת — בלי התראה נוספת');
+        pushes = [];
         now += 14 * 60e3;
         g = await get();
         ok(g.payload.down === 0 && pushes.length === 0, 'ת7: שקט של פחות מרבע שעה — בלי התראה (עבודה ארוכה / שרתון שנפל לרגע)');

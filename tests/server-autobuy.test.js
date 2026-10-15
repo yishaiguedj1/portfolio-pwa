@@ -178,8 +178,12 @@ const posts = (M) => M.calls.filter((c) => c.m === 'POST' && c.url.endsWith('/v1
     for (const u of w.match(/uses:\s*\S+/g) || []) ok(/@[0-9a-f]{40}$/.test(u), 'workflow: action נעול ל־SHA: ' + u);
     const runs = w.split('\n').filter((l) => /^\s+run:|^\s{10}\S/.test(l)).join('\n');
     ok(!/\$\{\{/.test(runs.replace(/^\s+[A-Z0-9_]+: \$\{\{[^}]+\}\}$/gm, '')), 'workflow: בלי ביטויים בתוך פקודות');
-    ok(/if: always\(\) && steps\.buy\.outputs\.stopped != ''[\s\S]{0,200}gh workflow disable autobuy\.yml[\s\S]{0,60}gh issue create/.test(w),
+    ok(/if: always\(\) && steps\.buy\.outputs\.stopped != ''[\s\S]{0,200}gh workflow disable autobuy\.yml[\s\S]{0,120}gh issue create/.test(w),
       'workflow: עצירה סופית (תקרה, שם קיים, הרשאה, שגיאה) — מכבה ופותח Issue');
+    // 15/10/2026: ה־Issue נפתח בשם הבוט — בלי אזכור GitHub לא שולח התראה, וההזמנה של 14/10 עברה בשקט
+    ok((w.match(/gh issue create[^\n]*--body "@\$GITHUB_REPOSITORY_OWNER /g) || []).length === 2, 'workflow: שני ה־Issues מזכירים את בעל הריפו (התראה ומייל)');
+    // ריצה מתוזמנת שמצאה את השרת שכבר הוזמן: האוטומציה כבר כבויה — בלי ריצה אדומה ובלי Issue כפול
+    ok(/gh workflow disable autobuy\.yml --repo "\$GITHUB_REPOSITORY" \|\| true\n\s+\[ "\$WHY" = exists \] && exit 0/.test(w), 'workflow: "השרת כבר קיים" — בלי כישלון ובלי Issue נוסף');
     ok(/catch\(\(err\) => \{\s*\/\/[^\n]*\n\s*out\('stopped'/.test(read('tools/server-autobuy.js')), 'הכלי: שגיאה = stopped ל־GITHUB_OUTPUT');
     ok(!/environment: production/.test(w), 'workflow: בלי שלב אישור (החלטת המשתמש — אוטומטי לגמרי, עם תקרה)');
     // 14/10/2026: ההזמנה האוטומטית בונה את אותו קוד הקמה (planFiles) — כל סוד שההקמה הידנית מעבירה לקוד ההקמה
