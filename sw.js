@@ -4,22 +4,22 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v425';
+const CACHE_NAME = 'portfolio-pwa-v426';
 const HASHES = {
   "./": "4ea641b80e22297bbebba35123ed046b",
   "./index.html": "4ea641b80e22297bbebba35123ed046b",
   "./styles.css": "55d5e7fb64aa96dad478a863fcab0c01",
-  "./app.js": "7cef35ae020dd1d5107d9a34e767a4a8",
+  "./app.js": "6400764b2112edfb416d5c47a85ec42d",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "10946a98be641319ed921ff8f46b00ba",
   "./move.js": "03c287db6fe0019e26f156f66390a175",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
-  "./icon-192.png": "511b5aee2e7341ac65fec0d29b91533f",
-  "./icon-512.png": "b0a62fb8da14775653dadc9ddff1c09c",
+  "./icon-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
+  "./icon-512.png": "7eff4578ee1f38ddb524eace83d90024",
   "./logo-header.png": "0a8a4bf5de266a98afdae4d3c4db66b7",
-  "./apple-touch-icon.png": "a0bd976c2c911b8dcc446fdbafabd50e",
-  "./favicon-48.png": "54adadfbb7cfdbddb0102995a66a5145",
+  "./apple-touch-icon.png": "113a5dd87df18077a64196f3d533e3e9",
+  "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
   "./library.js": "c3fc9a2a5c12e2a3b625e0cd062e4bd1",
   "./library.css": "b3c30e9b53d028cf7b60423e7d31f6ea",
@@ -49,7 +49,7 @@ const HASHES = {
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "799da4a976132c0b32bae2ff8ea00845",
   "./strings-academy.js": "9df349cd9f5379ef0bbddfcdfffd8d65",
-  "./core.js": "fca2f2d148cfecfc7b6666b5b910fe18",
+  "./core.js": "0fa076c81286396b5e63da6383046699",
   "./auth.js": "a1221d95bc87b0ee932605956f3a7c12",
   "./shell.js": "cad20f6551d0bfccc7a7878c9f9b083a",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
