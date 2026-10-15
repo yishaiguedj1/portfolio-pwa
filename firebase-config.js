@@ -102,7 +102,8 @@
     proxy: proxy,
     proxyBackup: proxy === PROD_API ? PROXY : '',
     firebase: name === 'staging' ? STAGING_FIREBASE : PROD_FIREBASE,
-    apps: appsFor(host0)
+    apps: appsFor(host0),
+    shelfApi: name === 'staging' ? PROD_API : ''   // 15/10/2026: המדף של הייצור, לקריאה בלבד (api/library.js — shelfGuest)
   };
   if (typeof window !== 'undefined') {
     window.SNB_ENV = env;
