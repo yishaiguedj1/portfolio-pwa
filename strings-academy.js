@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של academy (609 מפתחות מתוך 2644) */
+/* המחרוזות של academy (609 מפתחות מתוך 2673) */
 const STRINGS = {
 he: {
   "acAiNote": "הניתוח נכתב בעזרת AI מתוך הטקסט של המכתב.",
@@ -32,7 +32,7 @@ he: {
   "admBadEmail": "המייל לא תקין",
   "admEmailPh": "מייל של קורא חדש",
   "admEnv": "מוגדרים ב־Vercel",
-  "admErr": "הפעולה נכשלה — נסו שוב",
+  "admErr": "לא הצלחנו לטעון — נסה שוב",
   "admNoStore": "כדי להוסיף קוראים מכאן צריך לתת לחשבון השירות הרשאה אחת ב־Firebase. עד אז — הקוראים מוגדרים ב־Vercel.",
   "admNone": "אין עדיין.",
   "admOpen": "כל משתמש מחובר",
@@ -643,7 +643,7 @@ en: {
   "admBadEmail": "Invalid email",
   "admEmailPh": "New reader email",
   "admEnv": "Set in Vercel",
-  "admErr": "That failed — try again",
+  "admErr": "Couldn't load — try again",
   "admNoStore": "To add readers here, grant the service account one permission in Firebase. Until then, readers are set in Vercel.",
   "admNone": "None yet.",
   "admOpen": "Any signed-in user",

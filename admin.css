@@ -1,0 +1,24 @@
+/* מרכז הניהול (שלב 5א, 14/10/2026) — רק תוספות לרכיבים של styles.css (card, btn, ios-list, mini-btn). מחלקות עם קידומת adm- */
+.adm { max-width: 760px; margin: 0 auto; padding: 4px 16px 48px; }
+.adm-hero { font-size: 26px; font-weight: 750; margin: 6px 4px 14px; }
+.adm-card { margin-bottom: 14px; }
+.adm-sub { color: var(--on-surface-var); font-size: 14px; margin: 4px 0 10px; line-height: 1.5; }
+.adm-note, .adm-wait { color: var(--on-surface-var); text-align: center; margin: 40px 0 16px; }
+.adm-dim { color: var(--on-surface-var); }
+.adm-lbl { font-size: 13px; font-weight: 650; color: var(--on-surface-var); margin: 16px 2px 6px; }
+.adm-tok { margin-top: 14px; }
+.adm-shown { margin-top: 10px; }
+.adm-code { display: flex; gap: 8px; align-items: center; background: var(--surface-var, rgba(127,127,127,.12)); border-radius: var(--radius-xs); padding: 8px 10px; margin: 4px 0 8px; }
+.adm-code code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12.5px; direction: ltr; text-align: start; }
+.adm-trow { display: flex; align-items: center; gap: 10px; }
+.adm-ttx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adm-ttx small, .adm-ins small { color: var(--on-surface-var); font-size: 12.5px; }
+.adm-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.adm-kpi { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-var, rgba(127,127,127,.10)); }
+.adm-kpi b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.adm-kpi small { color: var(--on-surface-var); font-size: 12px; }
+.adm-kl { font-size: 12.5px; color: var(--on-surface-var); }
+.adm-ins { display: flex; align-items: center; gap: 10px; }
+.adm-dot { width: 9px; height: 9px; border-radius: var(--pill); background: var(--on-surface-var); flex: none; }
+.adm-ins.s1 .adm-dot { background: var(--loss); }
+.adm-ins.s2 .adm-dot { background: #F5A524; }

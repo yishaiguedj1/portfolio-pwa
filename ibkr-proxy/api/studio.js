@@ -1132,7 +1132,7 @@ async function handler(req, res, deps = {}) {
       const { recs, wrote } = await learnLoad(deps, now);
       if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
       if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
-      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), synced: wrote, now });
+      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, now });
     }
     if (op === 'atNew' || op === 'atList' || op === 'atDel') {
       // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash
