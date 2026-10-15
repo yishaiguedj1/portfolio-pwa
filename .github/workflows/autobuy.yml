@@ -1,15 +1,15 @@
-# הזמנה אוטומטית של CX43 כשהוא חוזר למלאי (12/10/2026, באישור מפורש של המשתמש) — tools/server-autobuy.js.
+# הזמנה אוטומטית של CX53 כשהוא חוזר למלאי (12/10/2026 ל־CX43; מ־15/10/2026 ל־CX53 — $34.99 + IPv4 $0.60, באישור מפורש של המשתמש) — tools/server-autobuy.js.
 #
 # כבוי עד שהמשתמש מדליק — שני משתנים (Settings ← Secrets and variables ← Actions ← Variables):
 #   SNB_AUTOBUY     = on        → ההדלקה עצמה (= האישור לעלות)
-#   SNB_AUTOBUY_MAX = 19.99     → תקרת המחיר לחודש במטבע של החשבון, כולל IPv4. מחיר גבוה יותר = לא מזמינים.
+#   SNB_AUTOBUY_MAX = 36        → תקרת המחיר לחודש במטבע של החשבון, כולל IPv4. מחיר גבוה יותר = לא מזמינים.
 # קודם מריצים ידנית mode=check: המחיר המדויק מה־API של החשבון, המלאי עכשיו, ושהסודות תקינים — בלי הזמנה.
 #
 # איך: ריצה אחת מחזיקה כמעט 6 שעות ובודקת כל דקה (Actions לא מתזמן מתחת ל־5 דקות), והריצה המתוזמנת הבאה ממשיכה.
 # ברגע שיש מלאי: אותה הקמה של server.yml (all — ייצור + ניסוי, כולל השרתון של הייצור), בלי לחיצת אישור.
 # אחרי הזמנה: ה־workflow מכבה את עצמו, פותח Issue (התראה לטלפון באפליקציה של GitHub) ומחכה שהשרת יתחבר.
 # כל עצירה סופית אחרת (תקרה, שם קיים, הרשאה, מגבלת חשבון, שגיאה) — גם מכבה ופותח Issue. רק "אין מלאי" ממשיך.
-# גבולות: CX43 בלבד, fsn1 ואז nbg1, שם קבוע snb-cx43 (שרת אחד לכל היותר), בלי שום פעולה על שרת אחר.
+# גבולות: CX53 בלבד, fsn1 ואז nbg1, שם קבוע snb-cx53 (שרת אחד לכל היותר), בלי שום פעולה על שרת אחר.
 # השרת הקודם — המשתמש מסיר ומוחק בעצמו אחרי הבדיקה.
 name: autobuy
 
@@ -84,7 +84,7 @@ jobs:
           PRICE: ${{ steps.buy.outputs.price }}
           CUR: ${{ steps.buy.outputs.currency }}
         run: |
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "הוזמן שרת: snb-cx43 · CX43 · $LOC" --body "הוזמן אוטומטית: snb-cx43 · CX43 · $LOC · $PRICE $CUR לחודש.
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "הוזמן שרת: snb-cx53 · CX53 · $LOC" --body "@$GITHUB_REPOSITORY_OWNER — הוזמן אוטומטית: snb-cx53 · CX53 · $LOC · $PRICE $CUR לחודש.
 
           האוטומציה כובתה. בעוד 5–10 דקות השרת יתחבר — הריצה ממשיכה לבדוק ומסכמת למטה.
           אחרי שהכל ירוק: במסך השרת באפליקציה (ייצור וניסוי) מסירים את השרת הקודם, ומוחקים אותו ב־Hetzner.
@@ -96,8 +96,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WHY: ${{ steps.buy.outputs.stopped }}
         run: |
-          gh workflow disable autobuy.yml --repo "$GITHUB_REPOSITORY"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "ההזמנה האוטומטית נעצרה: $WHY" --body "ההזמנה האוטומטית של CX43 נעצרה ולא הזמינה כלום (קוד: $WHY). האוטומציה כובתה.
+          gh workflow disable autobuy.yml --repo "$GITHUB_REPOSITORY" || true
+          [ "$WHY" = exists ] && exit 0
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "ההזמנה האוטומטית נעצרה: $WHY" --body "@$GITHUB_REPOSITORY_OWNER — ההזמנה האוטומטית של CX53 נעצרה ולא הזמינה כלום (קוד: $WHY). האוטומציה כובתה.
 
           הפרטים בריצה: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           אחרי הטיפול — להדליק שוב: Actions ← autobuy ← Enable workflow."
