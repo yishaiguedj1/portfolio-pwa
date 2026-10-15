@@ -40,10 +40,11 @@ const ENVS = {
   },
 };
 /* מה כל תוכנית מקימה, ומה ברירת המחדל לשם ולגודל. ייצור + ניסוי באותו שרת = לפחות 16GB:
-   העובד של הניסוי מקבל 3GB, השרתון וה־Tunnel כ־0.8GB, ושיא היישור תחת gVisor 4.2GB (snb_limits). */
+   העובד של הניסוי מקבל 45% מהזיכרון (3–6GB), השרתון וה־Tunnel כ־0.8GB, ושיא היישור תחת gVisor 4.2GB (snb_limits).
+   16/10/2026: השרת המאוחד עבר ל־x86 (CX43, Intel/AMD) — ברירת המחדל כמוהו. התמונות עדיין נבנות גם ל־Arm (גיבוי כשאין מלאי). */
 const PLANS = {
   stg: { envs: ['stg'], name: 'snb-stg-1', type: 'cax21', minGb: 4 },
-  all: { envs: ['prod', 'stg'], name: 'snb-1', type: 'cax31', minGb: 15 },
+  all: { envs: ['prod', 'stg'], name: 'snb-1', type: 'cx43', minGb: 15 },
 };
 /* ת3: משתני Vercel שלא עוברים לשרת — של Vercel עצמו, ומה שהשרת קובע בעצמו (compose) */
 const VERCEL_API = 'https://api.vercel.com';

@@ -57,6 +57,9 @@ class Compose(unittest.TestCase):
         # גבולות לפי גודל השרת בפועל — קבוע גדול מהשרת (cpus 7.5 בשרת של 4 ליבות) = הקונטיינר לא עולה
         self.assertIn('cpus: ${SNB_CPUS:-', c)
         self.assertIn('mem_limit: ${SNB_MEM:-', c)
+        # 16/10/2026: בעומס — חלוקה לפי משקל (שני העובדים שווים, השרתונים קודמים); בלי עומס — עבודה מקבלת הכל
+        self.assertEqual(c.count('cpu_shares: 1024'), 2, 'שני העובדים — משקל שווה')
+        self.assertGreaterEqual(c.count('cpu_shares: 2048'), 3, 'השרתונים וה־Tunnel קודמים לעבודת רקע')
         common = read('infra/host/snb-common.sh')
         self.assertLess(common.index('snb_compose() {'), common.index('\tsnb_limits\n'), 'כל הפעלה מחשבת את הגבולות')
 
@@ -311,10 +314,17 @@ class Rooms(unittest.TestCase):
         self.assertNotIn(re.search(r'SNB_IMAGE=(\S+)', r1['env']).group(1), e2, 'הייצור לא תלוי בעבודה של הניסוי')
 
     def test_limits_split_when_both_workers(self):
+        import os
         r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=16 * 1024 * 1024)
         m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
-        self.assertEqual(m.group(3), '3072')
-        self.assertEqual(int(m.group(1)) + 3072 + 800 + 1024, 16 * 1024, 'סך הכל = כל הזיכרון של השרת')
+        stg = (16 * 1024 - 1024 - 800) * 45 // 100
+        stg = min(stg, 6144)
+        self.assertEqual(int(m.group(3)), stg, 'הניסוי: 45% מהזיכרון, עד 6GB (היישור ב־ONNX — שיא 4.2GB)')
+        self.assertEqual(int(m.group(1)) + stg + 800 + 1024, 16 * 1024, 'סך הכל = כל הזיכרון של השרת')
+        n = os.cpu_count() or 2
+        full = '%.1f' % (n - 0.5 if n > 1 else n)
+        self.assertEqual(m.group(2), full, 'הניסוי מקבל את כל הליבות (תקרה, לא שריון)')
+        self.assertIn('cpus=%s ' % full, r['compose'], 'גם הייצור')
         r = self.run_update(['tunnel.env', 'app-stg.env', 'worker-stg.env'], mem_kb=8 * 1024 * 1024)
         m = re.search(r'mem_stg=(\d+)m', r['compose'])
         self.assertEqual(int(m.group(1)), 8 * 1024 - 1024 - 800, 'עובד ניסוי לבד מקבל את כל השרת')
@@ -334,7 +344,10 @@ class Rooms(unittest.TestCase):
         r = self.run_update(['worker.env', 'tunnel.env', 'app-stg.env', 'worker-stg.env', 'app.env', 'tunnel-prod.env'],
                             mem_kb=16 * 1024 * 1024)
         m = re.search(r'mem=(\d+)m cpus_stg=([\d.]+) mem_stg=(\d+)m', r['compose'])
-        self.assertEqual(int(m.group(1)), 16 * 1024 - 1024 - 800 - 1100 - 3072, 'השרתון של הייצור וה־Tunnel שלו יורדים מהעובד')
+        avail = 16 * 1024 - 1024 - 800 - 1100
+        stg = min(avail * 45 // 100, 6144)
+        self.assertEqual(int(m.group(3)), stg)
+        self.assertEqual(int(m.group(1)), avail - stg, 'השרתון של הייצור וה־Tunnel שלו יורדים מהעובד')
 
     def test_cloud_init_slim_keeps_code(self):
         # ההערות יורדות מקוד ההקמה (מקום לסודות), הקוד נשאר — ובקבצים אין heredoc שבו שורה עם # היא תוכן

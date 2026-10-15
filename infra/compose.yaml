@@ -46,6 +46,7 @@ services:
     mem_limit: ${SNB_MEM:-6g}
     memswap_limit: ${SNB_MEM:-6g}
     cpus: ${SNB_CPUS:-3.5}
+    cpu_shares: 1024     # 16/10/2026: בעומס — חלוקה לפי משקל; בלי עומס — עבודה אחת מקבלת את כל הליבות
     tmpfs:
       - /tmp:size=2g,mode=1777,noexec,nosuid,nodev
       - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev
@@ -83,6 +84,7 @@ services:
     mem_limit: 256m
     memswap_limit: 256m
     cpus: 0.5
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     networks: [edge-prod]
     logging:
       driver: json-file
@@ -109,6 +111,7 @@ services:
     mem_limit: 768m
     memswap_limit: 768m
     cpus: 1.5
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
     networks: [edge-prod]
@@ -138,6 +141,7 @@ services:
     mem_limit: 256m
     memswap_limit: 256m
     cpus: 0.5
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     networks: [edge]
     logging:
       driver: json-file
@@ -163,6 +167,7 @@ services:
     mem_limit: 512m
     memswap_limit: 512m
     cpus: 1.0
+    cpu_shares: 2048     # השרתון / ה־Tunnel קודמים לעבודת רקע — האפליקציה לא מאטה בזמן תרגום
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
     networks: [edge]
@@ -192,6 +197,7 @@ services:
     mem_limit: ${SNB_MEM_STG:-3g}
     memswap_limit: ${SNB_MEM_STG:-3g}
     cpus: ${SNB_CPUS_STG:-1.5}
+    cpu_shares: 1024
     tmpfs:
       - /tmp:size=1g,mode=1777,noexec,nosuid,nodev
       - /state:size=16m,uid=10001,gid=10001,mode=0700,noexec,nosuid,nodev

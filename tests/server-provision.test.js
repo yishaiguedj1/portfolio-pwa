@@ -244,10 +244,10 @@ function mock(opts = {}) {
     ok(await throwsCode(() => P.create(E, { name: 'snb-1', type: 'cax99', location: 'nbg1', plan: 'all' }, ciAll, mock().deps), 'type'),
       'סוג שרת שלא קיים ב־Hetzner — עצירה');
     // ברירות מחדל לשם ולסוג לפי התוכנית
-    ok(await P.main(['defaults', '--plan', 'all'], E, mock().deps) === 'name=snb-1\ntype=cax31'
+    ok(await P.main(['defaults', '--plan', 'all'], E, mock().deps) === 'name=snb-1\ntype=cx43'
       && await P.main(['defaults', '--plan', 'stg'], E, mock().deps) === 'name=snb-stg-1\ntype=cax21'
       && await P.main(['defaults', '--plan', 'all', '--name', 'snb-2', '--type', 'cx43'], E, mock().deps) === 'name=snb-2\ntype=cx43',
-      'ברירות מחדל: all → snb-1 / cax31, stg → snb-stg-1 / cax21, ומה שהוזן גובר');
+      'ברירות מחדל: all → snb-1 / cx43 (x86), stg → snb-stg-1 / cax21, ומה שהוזן גובר');
     ok(await throwsCode(() => P.main(['defaults', '--plan', 'all', '--name', 'a\ntype=x'], E, mock().deps), 'opts'),
       'ברירות מחדל: שם עם שורה חדשה — נדחה (לא נכנס ל־GITHUB_OUTPUT)');
   }

@@ -29,9 +29,13 @@ snb_limits() {
 	[ "$m" -ge 1024 ] || m=1024
 	SNB_CPUS=$c SNB_MEM=${m}m SNB_CPUS_STG=$c SNB_MEM_STG=${m}m
 	case ",$COMPOSE_PROFILES," in *,prod,*,stg-worker,*|*,prod,stg-worker,*)
-		SNB_CPUS_STG=1.5; SNB_MEM_STG=3072m
-		SNB_CPUS=$(awk -v c="$c" 'BEGIN{printf "%.1f", (c > 2.5 ? c - 1.5 : 1)}')
-		m=$((m - 3072)); [ "$m" -ge 1024 ] || m=1024; SNB_MEM=${m}m ;;
+		# 16/10/2026: המעבד — תקרה, לא שריון: שני העובדים מקבלים את כל הליבות (כמעט תמיד רק אחד עובד, וכשהשניים —
+		# הליבה מתחלקת ביניהם). עד היום הניסוי קיבל 1.5 ליבות ו־3GB: תמלול 8:47 דק׳ = 91 שנ׳, shots = 137 שנ׳,
+		# והיישור ב־ONNX (שיא 4.2GB תחת gVisor) נהרג על הזיכרון (worker_step). הזיכרון כן מתחלק (סכום ≤ השרת):
+		# לניסוי 45%, בין 3GB ל־6GB.
+		s=$((m * 45 / 100)); [ "$s" -le 6144 ] || s=6144; [ "$s" -ge 3072 ] || s=3072
+		SNB_CPUS_STG=$c; SNB_MEM_STG=${s}m
+		m=$((m - s)); [ "$m" -ge 1024 ] || m=1024; SNB_MEM=${m}m ;;
 	esac
 	export SNB_CPUS SNB_MEM SNB_CPUS_STG SNB_MEM_STG
 }
