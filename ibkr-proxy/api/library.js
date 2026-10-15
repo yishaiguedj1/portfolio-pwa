@@ -7,7 +7,7 @@
    11/10/2026 — R2 (כשמוגדר): התיקייה ב־Drive נשארת המקום שבו מוסיפים מכתבים, והקוראים מקבלים אותם מ־R2:
    כל מכתב נשמר שם פעם אחת לכל גרסה (lib/<id>.<md5>.epub), והטלפון מקבל קישור חתום ומוריד ישירות (via:'r2').
    הקטלוג נשמר גם ב־R2 (lib/catalog.json) — אם הגישה ל־Drive נופלת, הספרייה ממשיכה מ־R2. */
-const { guard } = require('../lib/ibkr');
+const { guard, STAGING_ORIGIN_RE } = require('../lib/ibkr');
 const LMV = require('../lib/libmove');
 const { verifyIdToken, readerAllowed, driveToken, serviceAccount, isAdmin, emails } = require('../lib/gauth');
 const readers = require('../lib/readers');
@@ -116,6 +116,20 @@ async function getBook(item, cat, deps) {
   return { buf, name: meta.name || item.name, key: key || '' };
 }
 
+/* 15/10/2026 (החלטת המשתמש — בלי עותק נוסף באחסון): סביבת הניסוי קוראת את המדף של הייצור, לקריאה בלבד. אסימון
+   של פרויקט ה־Firebase של הניסוי מתקבל כאן רק כש: הפרויקט שלנו אחר (זה הייצור), הפעולה קריאה של המדף (SHELF_RO),
+   והבקשה מכתובת של הניסוי. המשתמש עדיין חייב להיות ברשימת הקוראים (מייל מאומת), ואף פעם לא מנהל (ro). */
+const STAGING_PROJECT = 'snowball-staging-758f6';
+const SHELF_RO = new Set(['cat', 'urls', 'file']);
+async function shelfGuest(req, body, deps, err) {
+  if (!err || err.message !== 'wrong_project' || !SHELF_RO.has(String(body.op || ''))) return null;
+  const own = (deps.verify && deps.verify.project) || process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
+  const origin = String((req.headers || {}).origin || '');
+  if (own === STAGING_PROJECT || !STAGING_ORIGIN_RE.test(origin)) return null;
+  try { return Object.assign(await verifyIdToken(body.idToken, Object.assign({}, deps.verify || {}, { project: STAGING_PROJECT })), { ro: true }); }
+  catch (e) { return null; }
+}
+
 async function handler(req, res, deps = {}) {
   const op0 = req.body && typeof req.body === 'object' ? String(req.body.op || '') : '';
   if (guard(req, res, BIG_OPS.has(op0) ? 65536 : 4096)) return;
@@ -160,7 +174,8 @@ async function handler(req, res, deps = {}) {
   }
   let user;
   try { user = await verifyIdToken(body.idToken, deps.verify || {}); } catch (e) {
-    return res.status(401).json({ ok: false, error: 'no_auth', why: String(e.message || e).slice(0, 40) });
+    user = await shelfGuest(req, body, deps, e);
+    if (!user) return res.status(401).json({ ok: false, error: 'no_auth', why: String(e.message || e).slice(0, 40) });
   }
   let allowed = readerAllowed(user);
   if (!allowed) {                                  // שלב 6: גם קוראים שנוספו מתוך האפליקציה (Firestore, רשימה חתומה)
@@ -168,6 +183,7 @@ async function handler(req, res, deps = {}) {
     allowed = readerAllowed(user, undefined, rl.list.map((x) => x.email));
   }
   if (!allowed) return res.status(403).json({ ok: false, error: 'not_allowed', email: user.email });
+  if (user.ro && !SHELF_RO.has(String(body.op || ''))) return res.status(403).json({ ok: false, error: 'read_only' });
   /* שלב 6: ניהול קוראים — רק למנהל (LIBRARY_ADMINS, או המייל הראשון ב־LIBRARY_READERS) */
   if (body.op === 'me') return res.status(200).json({ ok: true, admin: isAdmin(user), cat: !!R2.config().ok });
   if (LM.OPS.has(String(body.op || ''))) {      // מנהל הספרייה: הקטלוג ב־R2 (לקוראים: cat/urls; למנהל: adminCat/catApply/undo)
@@ -175,7 +191,7 @@ async function handler(req, res, deps = {}) {
     let lastCat = null;   // ס׳2: המעבר קורא את הרשימה מ־Drive (או מהעותק ב־R2) ומוריד מ־Drive רק מה שעוד לא ב־R2
     const legacy = { list: async () => { try { lastCat = await listAll(deps.fetch); } catch (e) { lastCat = await catalogFromR2(deps.fetch); if (!lastCat) throw e; } return lastCat; },
       download: (it) => getBook(it, lastCat || { r2only: true }, deps) };
-    return LM.handle(String(body.op), body, user, isAdmin(user), res, deps, legacy);
+    return LM.handle(String(body.op), body, user, !user.ro && isAdmin(user), res, deps, legacy);
   }
   if (['readers', 'addReader', 'removeReader', 'refresh'].includes(body.op)) {
     if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
