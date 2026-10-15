@@ -22,3 +22,73 @@
 .adm-dot { width: 9px; height: 9px; border-radius: var(--pill); background: var(--on-surface-var); flex: none; }
 .adm-ins.s1 .adm-dot { background: var(--loss); }
 .adm-ins.s2 .adm-dot { background: #F5A524; }
+
+/* 15/10/2026: הניווט בסגנון iOS (התצוגה שאושרה) — חמש לשוניות בתחתית / פס צד במחשב, שורות אינפורמטיביות, אריחים כמו ב־Health */
+.adm-wrap { display: flex; align-items: flex-start; }
+.adm-wrap .adm { flex: 1; min-width: 0; padding-bottom: 96px; }
+.adm-page { max-width: 760px; margin: 0 auto; }
+.adm-nb { min-height: 34px; display: flex; align-items: center; }
+.adm-back { background: none; border: 0; padding: 4px 2px; font: inherit; font-size: 16px; font-weight: 600; color: #5E5CE6; cursor: pointer; }
+.adm-h1 { font-size: 32px; font-weight: 800; margin: 0 4px 2px; letter-spacing: -.3px; }
+.adm-dt { color: var(--on-surface-var); font-size: 14px; margin: 0 4px 6px; }
+.adm-grp { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 600; color: var(--on-surface-var); margin: 18px 14px 6px; }
+.adm-link { background: none; border: 0; font: inherit; color: #5E5CE6; font-weight: 600; cursor: pointer; }
+.adm-list { background: var(--surface); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+.adm-r { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; background: none; border: 0; font: inherit; color: inherit; text-align: start; }
+button.adm-r { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.adm-r:active { background: color-mix(in srgb, var(--on-surface) 6%, transparent); }
+.adm-r + .adm-r .adm-m { border-top: 1px solid color-mix(in srgb, var(--on-surface) 9%, transparent); }
+.adm-ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-size: 14px; font-weight: 700; flex: none; }
+.adm-m { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px 0; min-height: 30px; }
+.adm-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.adm-tx b { font-weight: 600; font-size: 16px; }
+.adm-tx small { color: var(--on-surface-var); font-size: 13px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-mtr { display: block; height: 5px; border-radius: var(--pill); background: color-mix(in srgb, var(--on-surface) 10%, transparent); margin-top: 6px; overflow: hidden; }
+.adm-mtr i { display: block; height: 100%; border-radius: var(--pill); background: #30D158; }
+.adm-mtr i.w { background: #F5A524; }
+.adm-mtr i.x { background: #FF453A; }
+.adm-val { flex: none; text-align: end; display: flex; flex-direction: column; }
+.adm-val b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.adm-val small { font-size: 12px; font-weight: 650; color: var(--on-surface-var); }
+.adm-val small.up { color: #1a8a3a; }
+.adm-val small.dn { color: #d70015; }
+.adm-ch { color: color-mix(in srgb, var(--on-surface) 30%, transparent); font-size: 20px; font-weight: 300; flex: none; }
+[dir="ltr"] .adm-ch { transform: scaleX(-1); }
+.adm-sp { width: 54px; height: 22px; flex: none; }
+.adm-bdg { min-width: 20px; height: 20px; border-radius: var(--pill); background: #FF453A; color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; padding: 0 6px; flex: none; }
+.adm-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.adm-t { background: var(--surface); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
+.adm-tk { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; }
+.adm-tk i { width: 8px; height: 8px; border-radius: var(--pill); flex: none; }
+.adm-t > b { display: block; font-size: 24px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.adm-tf { display: flex; justify-content: space-between; align-items: flex-end; gap: 6px; min-height: 22px; }
+.adm-tf small { font-size: 12px; color: var(--on-surface-var); }
+.adm-search { width: 100%; box-sizing: border-box; border: 0; border-radius: 12px; padding: 10px 14px; font: inherit; font-size: 16px; background: color-mix(in srgb, var(--on-surface) 7%, transparent); color: var(--on-surface); margin-bottom: 12px; }
+/* הלשוניות — בתחתית בטלפון */
+.adm-tabs { position: fixed; inset-inline: 0; bottom: 0; z-index: 50; display: flex; justify-content: space-around; padding: 6px 0 calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid color-mix(in srgb, var(--on-surface) 10%, transparent); }
+.adm-tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 72px; background: none; border: 0; font: inherit; font-size: 11px; font-weight: 600; color: var(--on-surface-var); cursor: pointer; }
+.adm-tab i { font-style: normal; font-size: 22px; line-height: 26px; }
+.adm-tab.on, .adm-sitem.on { color: #5E5CE6; }
+.adm-tab .adm-bdg { position: absolute; top: -4px; inset-inline-end: 12px; min-width: 18px; height: 18px; font-size: 11px; }
+/* פס צד — במחשב */
+.adm-side { display: none; }
+.adm-sbrand { font-weight: 800; font-size: 15px; padding: 6px 12px 12px; }
+.adm-sitem { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 10px; background: none; border: 0; font: inherit; font-size: 15px; font-weight: 600; color: var(--on-surface); text-align: start; cursor: pointer; }
+.adm-sitem i { font-style: normal; width: 22px; text-align: center; }
+.adm-sitem.on { background: rgba(94, 92, 230, .12); }
+.adm-sitem .adm-bdg { margin-inline-start: auto; }
+@media (min-width: 900px) {
+  .adm-side { display: block; position: sticky; top: 8px; width: 230px; flex: none; padding: 8px; margin: 8px; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); }
+  .adm-tabs { display: none; }
+  .adm-wrap .adm { padding-bottom: 48px; }
+  .adm-tiles { grid-template-columns: repeat(4, 1fr); }
+}
+/* ההדר המשותף קטן יותר כאן — מרכז הניהול הוא מסך עבודה, הלוגו לא צריך חצי מסך */
+html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
+.adm-nb:empty { display: none; }
+.adm-nb:empty + .adm-h1 { margin-top: 8px; }
+.adm-foot { color: var(--on-surface-var); font-size: 12.5px; line-height: 1.5; margin: 14px 4px 0; }
+.adm-list + .adm-list { margin-top: 14px; }
+.adm-note-in { display: block; width: 100%; box-sizing: border-box; resize: vertical; font: inherit; margin: 10px 0 12px; }
+.adm-fix { display: block; margin-top: 4px; color: var(--on-surface); white-space: normal; overflow-wrap: anywhere; }
+.adm-tx small:has(.adm-fix) { white-space: normal; overflow: visible; text-overflow: clip; }

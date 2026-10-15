@@ -40,7 +40,9 @@ const SR = require('../lib/studior2');   // ת4: הקבצים של הסטודי�
 const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות לטלפון (Web Push עצמאי)
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
-const LR = require('../lib/studiolearn');   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
+const LR = require('../lib/studiolearn');
+const AICACHE = require('../lib/aicache');   // 15/10/2026: התקרות היומיות של ה־AI (limits) — למסך AI ועלויות
+const AO = require('../lib/adminov');   // 15/10/2026: מרכז הניהול — הסקירה, "מחכה לך" ו"מה רץ איפה"   // 14/10/2026: מאגר הלמידה — רשומה אנונימית לכל עבודה + לוח הבקרה של המנהל
 const A = require('../lib/studioagents');   // v373: מלאי הסוכנים   // v371: תקלות, שורש סביר ותקלה רחבה
 
 const PROJECT = () => process.env.FIREBASE_PROJECT_ID || 'yishaiguedj1-c786e';
@@ -111,6 +113,14 @@ async function query(deps, col, eq, limit) {
   return (Array.isArray(r.j) ? r.j : []).filter((x) => x && x.document && x.document.name)
     .map((x) => Object.assign(S.fromFields(x.document.fields), { id: String(x.document.name).split('/').pop(), _ut: x.document.updateTime || '' }));
 }
+/* 15/10/2026: ספירה בלי לקרוא מסמכים (aggregation count) — מרכז הניהול רואה כמה, לא מה. null = לא נמדד */
+async function fsCount(deps, col) {
+  try {
+    const r = await fsCall(deps, 'POST', ':runAggregationQuery', { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: col }] }, aggregations: [{ alias: 'n', count: {} }] } });
+    const v = r.status === 200 && Array.isArray(r.j) && r.j[0] && r.j[0].result && r.j[0].result.aggregateFields && r.j[0].result.aggregateFields.n;
+    return v ? +v.integerValue : null;
+  } catch (e) { return null; }
+}
 async function delDoc(deps, col, id) {
   const r = await fsCall(deps, 'DELETE', '/' + col + '/' + id);
   if (r.status !== 200 && r.status !== 404) throw new Error('fs_http_' + r.status);
@@ -127,8 +137,61 @@ async function listJobs(deps, uid) {
 const readJob = (deps, id) => readDoc(deps, 'studioJobs', id);
 const patchJob = (deps, id, o) => patchDoc(deps, 'studioJobs', id, o);
 const readVault = (deps, uid) => readDoc(deps, 'studioVault', uid);
+/* 15/10/2026: מרכז הניהול — עובדות מבחוץ (GitHub ציבורי, sw.js החי) עם מטמון של 5 דקות במופע (GitHub בלי טוקן = 60 בשעה).
+   כל תקלה = "לא ידוע" (0 / null), לא שגיאה — המסך מציג מה שיש */
+const AO_TTL = 300000, AO_REPO = 'yishaiguedj1/portfolio-pwa';
+const aoCache = new Map();
+async function aoGet(deps, key, fn, now) {
+  const c = aoCache.get(key);
+  if (c && now - c.at < AO_TTL) return c.v;
+  let v = null; try { v = await fn(); } catch (e) { v = null; }
+  aoCache.set(key, { at: now, v });
+  return v;
+}
+async function aoJson(deps, url) {
+  const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-admin' };
+  if (process.env.GITHUB_TOKEN) h.Authorization = 'Bearer ' + process.env.GITHUB_TOKEN;
+  const r = await (deps.fetch || fetch)(url, { headers: h, signal: AbortSignal.timeout(6000) });
+  return r.status === 200 ? r.json() : null;
+}
+async function aoFacts(deps, now) {
+  const f = deps.fetch || fetch;
+  const build = (u) => aoGet(deps, 'sw|' + u, async () => { const r = await f(u, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(6000) }); return r.status === 200 ? AO.swBuild(await r.text()) : 0; }, now);
+  const gh = await aoGet(deps, 'gh', async () => {
+    const A = 'https://api.github.com/repos/' + AO_REPO;
+    const [runs, prs, tags] = await Promise.all([aoJson(deps, A + '/actions/runs?status=waiting&per_page=5'), aoJson(deps, A + '/pulls?state=open&per_page=30'), aoJson(deps, A + '/tags?per_page=1')]);
+    if (!runs && !prs) return null;
+    return {
+      waiting: ((runs && runs.workflow_runs) || []).slice(0, 5).map((w) => ({ id: Number(w.id) || 0, at: Date.parse(w.created_at) || 0 })),
+      prs: (Array.isArray(prs) ? prs : []).map((p) => ({ n: Number(p.number) || 0, t: String(p.title || '').slice(0, 120), dep: /\[bot\]$/.test(String(p.user && p.user.login || '')) ? 1 : 0, at: Date.parse(p.created_at) || 0 })),
+      tag: Array.isArray(tags) && tags[0] && /^v\d+\.\d+\.\d+$/.test(String(tags[0].name)) ? tags[0].name : '',
+    };
+  }, now);
+  const [prodBuild, stagBuild] = await Promise.all([build('https://invest.thesnowball.app/sw.js'), build('https://thesnowball.pages.dev/sw.js')]);
+  return { gh, prodBuild: prodBuild || 0, stagBuild: stagBuild || 0 };
+}
 /* 14/10/2026: מאגר הלמידה — משלימים רשומות מכל העבודות (אנונימיות, כולל ישנות ושל כל המשתמשים, בלי מי שכיבה את המתג),
    ומחזירים את כל הרשומות לפי הזמן. משותף לפעולות המנהל ולמשיכה בטוקן ניתוח */
+/* 15/10/2026: בדיקת המוכנות — עובדות ציבוריות בלבד (כתובות האתר) + מוני החיבור המשותף. משותף למסך ולבדיקה המתוזמנת */
+async function readyNow(deps, now) {
+  const f = deps.fetch || fetch;
+  const get = async (u, txt) => { try { const r = await f(u, { headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(6000) }); return { s: r.status, cc: r.headers && r.headers.get ? r.headers.get('cache-control') : null, t: txt && r.status === 200 ? await r.text() : '' }; } catch (e) { return null; } };
+  const H = { invest: 'https://invest.thesnowball.app', academy: 'https://academy.thesnowball.app', studio: 'https://studio.thesnowball.app' };
+  const sw = await Promise.all(Object.values(H).map((u) => get(u + '/sw.js', true)));
+  const cache = {}, builds = {};
+  Object.keys(H).forEach((k, i) => { const x = sw[i]; cache[k] = x && x.s === 200 ? (x.cc || '') : null; builds[k] = x && x.s === 200 ? AO.swBuild(x.t) : 0; });
+  const [main, fb, links, sec] = await Promise.all([get('https://api.thesnowball.app/api/session', true), get('https://ibkr-proxy-wine.vercel.app/api/session', true), get(H.invest + '/.well-known/assetlinks.json', true), get(H.invest + '/.well-known/security.txt', true)]);
+  let sess = null; try { sess = main && main.s === 200 ? { last: JSON.parse(main.t).last || [] } : null; } catch (e) {}
+  let nl = null; try { nl = links && links.s === 200 ? (JSON.parse(links.t) || []).filter((x) => x && x.target && x.target.package_name).length : null; } catch (e) {}
+  const sm = sec && /^Expires:\s*(\S+)/m.exec(sec.t || '');
+  return AO.readyView({ now, cache, builds, sess, links: nl, api: { main: !!(main && main.s === 200), fb: !!(fb && fb.s === 200) }, sec: sm ? sm[1] : null });
+}
+/* התשובות לבדיקות בטלפון (sysChecks) — { id: { st, n, at } } */
+async function checkAnswers(deps) {
+  const l = await query(deps, 'sysChecks', null, 300).catch(() => []);
+  const o = {}; for (const x of l) o[x.id] = { st: x.st, n: x.n || '', at: x.at || 0, t: x.t || '' };
+  return o;
+}
 async function learnLoad(deps, now) {
   const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
   const have = new Map(docs.map((d) => [d.id, d]));
@@ -165,7 +228,9 @@ async function learnPull(req, res, body, deps) {
     const { recs } = await learnLoad(deps, now);
     await patchDoc(deps, 'sysTokens', t.id, { last: now, uses: (t.uses || 0) + 1 }).catch(() => {});
     const view = LR.learnView(recs, now);
-    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs });
+    // 15/10/2026: גם התשובות של המנהל לבדיקות בטלפון — כך הסשן יודע מה עובד ומה לא (רק כותרת, מצב והערה של המנהל)
+    const checks = Object.entries(await checkAnswers(deps)).map(([id, x]) => ({ id, t: x.t, st: x.st, n: x.n, at: x.at }));
+    return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(view, now), view, records: recs, checks });
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
@@ -344,10 +409,29 @@ async function watch(req, res, deps) {
   const st = await siteWatch(deps, now).catch(() => -1);   // שלב 5: הכתובות עצמן (השרתון שלנו ושלוש האפליקציות)
   const bk = await dailyBackup(deps, now);   // ת7: הגיבוי היומי — תקלה בו לא מפילה את הניטור
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
-  return res.status(200).json({ ok: true, down, ar, st, bk, ob });
+  const aw = await adminWatch(deps, now).catch(() => -1);   // 15/10/2026: התראות למנהל — הגיבוי ובדיקת המוכנות
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw });
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
+/* 15/10/2026: התראה לטלפון של המנהל רק על מה שלא יכול לחכות (On-call) — פעם בשעה למופע:
+   בדיקת מוכנות שנכשלה (רק כשרשימת הכשלים השתנתה — לא כל שעה מחדש), והגיבוי אצל ספק שני שלא רץ יותר מיומיים (פעם ביום).
+   המצב ב־sysWatch/ready (fp = הכשלים שכבר דווחו, bkd = היום שבו דווח הגיבוי). 1 = נשלחה התראה, 0 = לא */
+const AW_EVERY = 3600e3;
+let lastAw = 0;
+async function adminWatch(deps, now) {
+  if (process.env.SNB_SITEWATCH === 'off' || process.env.SNB_ADMINWATCH === 'off' || Math.abs(now - lastAw) < AW_EVERY) return 0;
+  lastAw = now;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !UID_RE.test(String(cfg.uid || ''))) return 0;
+  const prev = (await readDoc(deps, 'sysWatch', 'ready').catch(() => null)) || {};
+  const rd = await readyNow(deps, now);
+  aoCache.set('ready', { at: now, v: rd });
+  const step = AO.watchStep(prev, rd, cfg, now);
+  if (step.patch) await patchDoc(deps, 'sysWatch', 'ready', step.patch);
+  for (const k of step.send) await notify(deps, cfg.uid, k, '', now);
+  return step.send.length ? 1 : 0;
+}
 async function siteWatch(deps, now) {
   if (process.env.SNB_SITEWATCH === 'off') return 0;   // בבדיקות השרתון (run.js) — הכתובות האמיתיות לא נגישות שם
   const f = deps.fetch || fetch;
@@ -1133,6 +1217,74 @@ async function handler(req, res, deps = {}) {
       if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
       if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
       return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, now });
+    }
+    if (op === 'adminOv') {
+      // 15/10/2026: מרכז הניהול — סקירה, "מחכה לך" ו"מה רץ איפה". מנהל בלבד; בלי פרטים אישיים (שמות שרתים, מספרי PR, גרסאות)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const [srvs, backup, sites, ext] = await Promise.all([
+        query(deps, 'studioServers', null, S.SRV_MAX + 5).then((l) => l.map((x) => S.serverView(x, now)).filter(Boolean)).catch(() => []),
+        readDoc(deps, 'sysBackup', 'cfg').catch(() => null), readDoc(deps, 'sysWatch', 'sites').catch(() => null), aoFacts(deps, now)]);
+      const bk = backup ? { okAt: backup.okAt || 0, err: backup.err || '', up: backup.up || 0 } : null;
+      // 15/10/2026: התראות לטלפון — כמה מכשירים רשומים אצלך, והאם ההתראות של המערכת נשלחות אליך (בעל הגיבוי, sysBackup/cfg.uid)
+      const myst = await readStats(deps, uid).catch(() => ({}));
+      const push = { n: W.normSubs(myst.wp).length, me: !!(backup && backup.uid === uid) };
+      return res.status(200).json({ ok: true, push, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null }, ext)) });
+    }
+    if (op === 'adminAi') {
+      // 15/10/2026: מרכז הניהול ← AI ועלויות. מנהל בלבד. רק מספרים: קריאות AI ליום (Academy), כמה קוראים (מספר, בלי זהות),
+      // ההוצאה החודשית של Studio על השרת (סכום, כמה משתמשים, הגבוה ביותר מול התקרה — בלי לומר מי), ופונקציות Vercel
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const keys = AO.dayKeys(now, AO.AI_DAYS);
+      const docs = await Promise.all(keys.map((d) => readDoc(deps, 'aiUse', d).catch(() => null)));
+      const days = {}; keys.forEach((d, i) => { days[d] = docs[i]; });
+      const stats = await query(deps, 'studioStats', null, 500).catch(() => []);
+      const used = stats.map((x) => S.monthUsed(x.mu, now)).filter((x) => x > 0);
+      let fns = null;
+      try { const n = require('fs').readdirSync(__dirname).filter((f) => /\.js$/.test(f)).length; fns = { n, max: 12 }; } catch (e) {}
+      return res.status(200).json({ ok: true, ai: AO.aiView({ now, days, lim: AICACHE.limits(),
+        month: { usd: used.reduce((a, b) => a + b, 0), users: used.length, cap: USER_MONTH(), top: used.length ? Math.max(...used) : 0 }, fns }) });
+    }
+    if (op === 'adminApps') {
+      // 15/10/2026: מרכז הניהול ← האפליקציות. מספרים בלבד: כמה משתמשים, כמה חיברו IBKR / גיבוי / Studio, הקטלוג של Academy
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const v = await aoGet(deps, 'apps', async () => {
+        const [users, ibkr, lib, studio, sess] = await Promise.all(['users', 'ibkrVault', 'driveVault', 'studioDrive', 'sessions'].map((c) => fsCount(deps, c)));
+        let cat = null; try { cat = (await require('../lib/libmgr').loadCat(deps)).cat; } catch (e) {}
+        let rd = null; try { const r = await require('../lib/readers').getReaders(deps.fetch); rd = r.err ? null : r.list.length; } catch (e) {}
+        return AO.appsView({ now, counts: { users, ibkr, lib, studio, sess }, cat, readers: rd });
+      }, now);
+      return res.status(200).json({ ok: true, apps: v });
+    }
+    if (op === 'adminTasks') {
+      // 15/10/2026: מרכז הניהול ← סשנים ומשימות. משימות-פתוחות.md מהריפו (ציבורי) + ה־PR הפתוחים של הסשנים. מנהל בלבד
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const md = await aoGet(deps, 'tasks', async () => {
+        const r = await (deps.fetch || fetch)('https://raw.githubusercontent.com/' + AO_REPO + '/main/' + encodeURIComponent('משימות-פתוחות.md'), { signal: AbortSignal.timeout(6000) });
+        return r.status === 200 ? (await r.text()).slice(0, 200000) : null;
+      }, now);
+      const ext = await aoFacts(deps, now);
+      const prs = ((ext.gh && ext.gh.prs) || []).filter((x) => !x.dep);
+      const tk = md == null ? null : AO.tasksParse(md, now);
+      return res.status(200).json({ ok: true, tk, prs, lane: AO.laneView(prs, ext.gh && ext.gh.waiting), ck: tk ? AO.checksView(tk, await checkAnswers(deps)) : null, at: now });
+    }
+    if (op === 'adminReady') {
+      // 15/10/2026: בדיקת מוכנות לכל המערכת — כותרות המטמון, הגרסה החיה בשלוש הכתובות, השרתון והגיבוי שלו, חתימת החיבור המשותף,
+      // assetlinks, security.txt ותאריכים. רק עובדות ציבוריות (כתובות האתר) + מונים בלי פרטים. מטמון 5 דק׳ (fresh = לבדוק עכשיו)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      if (body.fresh) aoCache.delete('ready');
+      const v = await aoGet(deps, 'ready', () => readyNow(deps, now), now);
+      return res.status(200).json({ ok: true, rd: v });
+    }
+    if (op === 'adminCheck') {
+      // 15/10/2026: אימות אחרי שינוי — המנהל עונה על בדיקה בטלפון: ok (עובד) / no (לא עובד + הערה) / '' (לבטל). נשמר ב־sysChecks
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const id = String(body.id || '');
+      if (!/^[0-9a-f]{12}$/.test(id)) return res.status(400).json({ ok: false, error: 'bad_id' });
+      const st = String(body.st || '');
+      if (!['ok', 'no', ''].includes(st)) return res.status(400).json({ ok: false, error: 'bad_state' });
+      if (!st) { await delDoc(deps, 'sysChecks', id); return res.status(200).json({ ok: true }); }
+      await patchDoc(deps, 'sysChecks', id, { st, n: st === 'no' ? AO.noteClean(body.note) : '', t: AO.noteClean(body.t).slice(0, 90), at: now });
+      return res.status(200).json({ ok: true });
     }
     if (op === 'atNew' || op === 'atList' || op === 'atDel') {
       // 14/10/2026: טוקני ניתוח — קריאה בלבד של מאגר הלמידה, לסשן של Claude Code (tools/learn-pull.js). נשמר רק ה־hash

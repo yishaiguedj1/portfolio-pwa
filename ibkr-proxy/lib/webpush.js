@@ -13,8 +13,9 @@ const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /^up
   /^[a-z0-9-]+\.notify\.windows\.com$/, /^web\.push\.apple\.com$/];
 const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
+const ADMIN_URL = 'https://studio.thesnowball.app/admin.html';
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
-const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'site_down', 'site_up', 'major'];   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
+const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail'];   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
   he: { done: ['התרגום מוכן ✓', 'הכתוביות והסרטון מחכים בסטודיו'], fail: ['העבודה נעצרה', 'פתחו את הסטודיו לפרטים'],
     ask: ['שאלה מ־Claude', 'העבודה מחכה לתשובה שלך'], gate: ['צריך את האישור שלך', 'העבודה מחכה לאישור'],
@@ -22,6 +23,8 @@ const TEXT = {
     srv_down: ['שרת התרגום לא מדווח', 'עבר רבע שעה בלי דיווח מהשרת — פתחו את מסך השרת'], srv_up: ['שרת התרגום חזר ✓', 'השרת מדווח שוב'],
     site_down: ['THE SNOWBALL לא עונה', 'השרת או אחת האפליקציות לא עונים כבר שתי בדיקות. האפליקציה עוברת לגיבוי לבד'], site_up: ['THE SNOWBALL חזר ✓', 'כל הכתובות עונות שוב'],
     major: ['תקלה רחבה בסטודיו', 'אותה תקלה בכמה עבודות. עבודות חדשות מחכות עד שהיא עוברת — פרטים במגדל הפיקוח'],
+    bk_fail: ['הגיבוי לא רץ', 'עברו יותר מיומיים בלי גיבוי אצל ספק שני — פרטים במרכז הניהול'],
+    ready_fail: ['בדיקת מוכנות נכשלה', 'משהו בהגדרות השתנה — מה ומה עושים, במרכז הניהול'],
     test: ['ההתראות עובדות ✓', 'כך תדעו כשתרגום מוכן או כש־Claude שואל משהו'] },
   en: { done: ['Translation ready ✓', 'Subtitles and video are waiting in the studio'], fail: ['The job stopped', 'Open the studio for details'],
     ask: ['Claude has a question', 'The job is waiting for your answer'], gate: ['Your approval is needed', 'The job is waiting for approval'],
@@ -29,6 +32,8 @@ const TEXT = {
     srv_down: ['Translation server is silent', 'No report from the server for 15 minutes — open the Server screen'], srv_up: ['Translation server is back ✓', 'The server is reporting again'],
     site_down: ['THE SNOWBALL is not responding', 'The server or one of the apps failed two checks in a row. The app switches to the backup by itself'], site_up: ['THE SNOWBALL is back ✓', 'All addresses respond again'],
     major: ['Studio-wide problem', 'The same failure hit several jobs. New jobs wait until it clears — details in the Control Tower'],
+    bk_fail: ['Backup is not running', 'More than 2 days without an off-site backup — details in the admin center'],
+    ready_fail: ['A readiness check failed', 'Something in the setup changed — what and how to fix it, in the admin center'],
     test: ['Notifications work ✓', 'You will know when a translation is ready or Claude asks something'] },
 };
 
@@ -100,7 +105,10 @@ function message(kind, jobId, lang) {
   const t = (TEXT[lang] || TEXT.he)[kind];
   if (!t) return null;
   const j = /^j[A-Za-z0-9_-]{20}$/.test(String(jobId || '')) ? jobId : '';
-  return { t: t[0], b: t[1], k: kind, j, u: SUBJECT + (j ? '#studio=' + j : '') };
+  const adm = { bk_fail: 'ready', ready_fail: 'ready' }[kind];   // התראות המנהל — נפתחות במרכז הניהול
+  const m = { t: t[0], b: t[1], k: kind, j, u: SUBJECT + (j ? '#studio=' + j : '') };
+  if (adm) m.u = ADMIN_URL + '#' + adm;
+  return m;
 }
 
 /* שליחה לכל המכשירים של אדם. מחזיר את הרשימה המעודכנת (מנוי שפג — 404/410 — יוצא ממנה) ומספר ההצלחות */
