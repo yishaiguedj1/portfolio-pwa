@@ -481,6 +481,14 @@ class HostApply(unittest.TestCase):
         self.assertIn('/opt/snb-host/apply', d)
         for f in ('infra/host/snb-update', 'infra/host/snb-common.sh', 'infra/compose.yaml'):
             self.assertNotIn('snb-host', read(f).replace('snb-host-apply', ''), 'שום דבר בשרת לא מריץ את הקבצים לבד: ' + f)
+        # 16/10/2026: בנייה ראשונה נכשלה — .dockerignore חסם את הקבצים. כל COPY בתמונה חייב לעבור בו
+        ign = read('.dockerignore')
+        for line in re.findall(r'(?m)^COPY .+$', d):
+            if '--from=' in line:
+                continue                        # משלב בנייה קודם, לא מהריפו
+            for src in [x for x in line.split()[1:-1] if not x.startswith('--')]:
+                if not src.startswith('translator'):
+                    self.assertIn('!' + src + '\n', ign, src + ' חסום ב־.dockerignore — הבנייה תיכשל')
         w = read('.github/workflows/worker-image.yml')
         self.assertIn("- 'infra/host/snb-common.sh'", w, 'שינוי בהגדרה בונה תמונה חדשה')
         self.assertIn("- 'infra/compose.yaml'", w)
