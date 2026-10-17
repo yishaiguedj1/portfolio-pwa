@@ -113,3 +113,4 @@ html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 .adm-chip { color: #fff; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: var(--pill); }
 .adm-fbtx { margin: 0 0 8px; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.45; }
 .adm-srvbtns { margin: 8px 0 4px; }
+.adm-code { margin: -6px 4px 16px; padding: 10px 12px; border-radius: var(--radius-xs); background: rgba(127,127,127,.15); font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }

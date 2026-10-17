@@ -476,6 +476,13 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
     br.append(pz, rm);
     p.append(grp(x.n), list(...rows), br);
   }
+  // 17/10/2026 (session_01V9f): עדכון הגדרת השרת בלי שרת חדש — ידני במסוף של Hetzner (infra/worker/snb-host-apply). רק מציגים ומעתיקים, לא מריצים
+  const HOST_CMD = 'docker run --rm -u0 -v /:/h --entrypoint /opt/snb-host/apply ghcr.io/yishaiguedj1/snb-worker:prod\nsnb-update';
+  const hostRow = row({ c: 'blue', ic: '⌘', t: t('admSvHost'), s: t('admSvHostS'), on: () => {
+    const pre = h('pre', 'adm-code', HOST_CMD); pre.dir = 'ltr';
+    askConfirm(t('admSvHostQ'), () => copyText(HOST_CMD), { body: pre, ok: t('admSvHostCopy') });
+  } });
+  p.append(list(hostRow));
   p.append(list(row({ c: 'gray', ic: '↗', t: t('admSvRebuild'), s: t('admSvRebuildS'), on: () => { try { window.open('https://github.com/yishaiguedj1/portfolio-pwa/actions/workflows/server.yml', '_blank', 'noopener'); } catch (e) {} } })),
     h('p', 'adm-foot', t('admSvFoot')));
 } });

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (602 מפתחות מתוך 3244) */
+/* המחרוזות של admin (606 מפתחות מתוך 3248) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -452,6 +452,10 @@ he: {
   "admSvDown": "לא מדווח",
   "admSvFoot": "מה שהשרת מדווח בכל פנייה (כל כמה שניות). יצירה, מחיקה והקמה מחדש — רק ב־GitHub Actions וב־Hetzner, עם הזהות שלך.",
   "admSvFree": "{n}GB פנויים",
+  "admSvHost": "עדכון הגדרת השרת (ידני)",
+  "admSvHostCopy": "העתקה",
+  "admSvHostQ": "מריצים במסוף של Hetzner (Console), שתי שורות. הפקודה מסרבת אם עבודת תרגום רצה — קודם לעצור אותה ב־Studio.",
+  "admSvHostS": "במסוף של Hetzner, כשאין עבודת תרגום רצה",
   "admSvIdle": "מקוון, פנוי",
   "admSvLoad": "עומס",
   "admSvMem": "זיכרון",
@@ -1056,6 +1060,10 @@ en: {
   "admSvDown": "Not reporting",
   "admSvFoot": "What the server reports on every call (every few seconds). Creating, deleting and rebuilding — only in GitHub Actions and Hetzner, with your identity.",
   "admSvFree": "{n}GB free",
+  "admSvHost": "Update server setup (manual)",
+  "admSvHostCopy": "Copy",
+  "admSvHostQ": "Run in the Hetzner console, two lines. It refuses while a translation job runs — stop it in Studio first.",
+  "admSvHostS": "In the Hetzner console, when no translation job is running",
   "admSvIdle": "Online, idle",
   "admSvLoad": "Load",
   "admSvMem": "Memory",
