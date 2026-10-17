@@ -27,6 +27,9 @@ const TOKEN_TTL = 3600;                  // טוקן מותאם — שעה (המ
 const VS_CACHE_MS = 30e3;
 const AUD = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
 const APPS = ['invest', 'academy', 'studio', 'account'];
+/* מרכז הניהול (17/10/2026): admin[-staging].thesnowball.app — הפעולות שלו ב־/api/studio, ולכן מבחינת
+   ההרשאות (appscope, הטענה app בטוקן) הוא Studio. לא אפליקציה חדשה: בלי מסמך משלו ובלי פעולות משלו */
+const ALIAS = { admin: 'studio' };
 const UID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
 const b64url = (b) => Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -46,11 +49,11 @@ function sessEnv(env) {
 function appForOrigin(origin, envName) {
   const o = String(origin || '');
   const re = envName === 'staging'
-    ? '^https://(?:(' + APPS.join('|') + ')-)?staging\\.thesnowball\\.app$'
-    : '^https://(?:(' + APPS.join('|') + ')\\.)?thesnowball\\.app$';
+    ? '^https://(?:(' + APPS.concat(Object.keys(ALIAS)).join('|') + ')-)?staging\\.thesnowball\\.app$'
+    : '^https://(?:(' + APPS.concat(Object.keys(ALIAS)).join('|') + ')\\.)?thesnowball\\.app$';
   const m = new RegExp(re).exec(o);
   if (!m) return '';
-  return m[1] || 'all';
+  return ALIAS[m[1]] || m[1] || 'all';
 }
 
 /* ---------------------------------------------------------------- העוגייה */
