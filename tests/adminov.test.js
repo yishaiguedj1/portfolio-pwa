@@ -118,7 +118,7 @@ ok(mv.modes[1].n === 0 && mv.modes[1].ok === null && mv.modes[2].ph === null && 
 const sa = A.serversAdmin([{ id: 's1', name: 'snb-2', online: true, paused: false, seen: now, hb: { disk: 90, mem: 40, iso: 'g', ev: [[1, 'up']] } },
   { id: 's2', name: 'old', online: false, paused: false, seen: now - 9 * H, ba: now, hb: null }], { s1: { st: 'al', p: 0.4 } }, now);
 ok(sa.servers[0].n === 'snb-2' && sa.servers[0].job.st === 'al' && sa.servers[0].warn.join() === 'disk' && sa.servers[1].warn.join() === 'auth,down' && sa.online === 1 && sa.warn === 2, 'שרתים: מקוון ראשון, דיסק מלא, טוקן שנדחה, לא מדווח, השלב הנוכחי');
-ok(!/"s1"|"s2"|"id"/.test(JSON.stringify(sa)), 'שרתים: בלי מזהי שרת ועבודה');
+ok(sa.servers[0].id === 's1' && !/"by"|"th"|job":\{"id/.test(JSON.stringify(sa)), 'שרתים: מזהה השרת (להשהיה ולהסרה) — בלי מזהה עבודה, בעלים או hash');
 // שימוש ומשפכים (15/10/2026)
 const uvw = A.usageView({ now, counts: { users: 10, sessions: 6, ibkrVault: 2, academyUsers: 5, driveVault: 1, studioStats: 4, studioVault: 1, studioDrive: 3 },
   jobs: [{ kind: 'tr', uid: 'a', created: now - H, state: 'done' }, { kind: 'tr', uid: 'a', created: now - 2 * H, state: 'failed' }, { kind: 'tr', uid: 'b', created: now - 8 * 24 * H, state: 'failed' }, { kind: 'rr', uid: 'c', created: now }] });
@@ -140,4 +140,13 @@ ok(fe.k === 'bug' && fe.t === 'לא נפתח' && fe.app === 'studio' && fe.plat 
 ok(A.fbEntry({ t: 'ab' }, {}, now) === null && A.fbEntry({ k: 'zz', t: 'abc', app: 'zz', ver: '<x>' }, {}, now).k === 'other' && A.fbEntry({ k: 'zz', t: 'abc', app: 'zz' }, {}, now).app === 'invest', 'משוב: קצר מדי נדחה; ערכים לא מוכרים → ברירת מחדל');
 const fv = A.fbView([{ id: 'a1', t: 'x1', at: 1, st: 'd' }, { id: 'b2', t: 'x2', at: 2 }, { id: 'c3' }]);
 ok(fv.items.map((x) => x.id).join() === 'b2,a1' && fv.open === 1, 'משוב: החדש ראשון, ריק נזרק, ספירת הפתוחים');
+// גיבויים (17/10/2026)
+const d0 = new Date(now).toISOString().slice(0, 10), d1 = new Date(now - 24 * H).toISOString().slice(0, 10), d5 = new Date(now - 5 * 24 * H).toISOString().slice(0, 10);
+const bv = A.backupsView({ now, me: 'me1', r2: [{ key: 'bk/' + d0 + '/fs.json.gz', size: 2097152 }, { key: 'bk/' + d0 + '/cat2.json.gz', size: 1048576 }, { key: 'bk/' + d1 + '/catalog.json.gz', size: 10 }, { key: 'bk/x/y' }],
+  off: { day: d0, okAt: now - H, up: 120, left: 3, err: '', uid: 'me1' } });
+ok(bv.r2.days[0].d === d0 && bv.r2.days[0].mb === 3 && bv.r2.days[0].fs && bv.r2.days[0].cat2 && !bv.r2.days[0].cat && bv.r2.n === 1 && bv.r2.last === d0, 'גיבויים: R2 לפי יום — גודל, מה בפנים, יום "מלא" = יש fs');
+ok(bv.off.mine && bv.off.up === 120 && bv.warn.length === 0, 'גיבויים: הגיבוי ב־Drive שלך, בלי אזהרות');
+const bw = A.backupsView({ now, r2: [{ key: 'bk/' + d5 + '/fs.json.gz', size: 1 }], off: { okAt: now - 3 * 24 * H, err: 'gd_http_401', uid: 'x' } });
+ok(bw.warn.join() === 'r2_stale,off_stale,off_err' && !bw.off.mine && A.backupsView({ now, r2: [], off: null }).warn.join() === 'r2_none,off_none', 'גיבויים: ישן, תקלה, ואין בכלל');
+ok(A.backupsView({ now, r2: null, off: { okAt: now, err: 'בלי <תגיות>' } }).off.err === '' && A.backupsView({ now, r2: null }).r2 === null, 'גיבויים: קוד שגיאה רק מהקטלוג; R2 לא מוגדר = null');
 console.log(`\nכל ${n} הבדיקות עברו ✓`);
