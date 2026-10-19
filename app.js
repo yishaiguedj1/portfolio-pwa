@@ -4899,7 +4899,7 @@ function stripLegacyDemo(db) {
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
 const APP_RELEASE = '2.12.0';
-const APP_VERSION = 'v443';
+const APP_VERSION = 'v445';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -12048,6 +12048,17 @@ function wirePageSwipe() {
    בטאב המניות וברשימות המעקב, רק במיון "סדר הוספה" (ובמניות — בלי סינון). לחיצה ארוכה (380ms, בלי תזוזה) מרימה את
    הכרטיס (רטט קצר, צל, הגדלה קלה), הוא עוקב אחרי האצבע, והשאר מפנים מקום בהחלקה (FLIP); ליד קצה המסך — גלילה אוטומטית.
    שחרור → הכרטיס נוחת במקום, והסדר נשמר (onDrop). גלילה רגילה (תזוזה לפני הלחיצה הארוכה) לא מושפעת. */
+/* 19/10/2026 (דיווח המשתמש, סרטון): הפריט הנגרר קפץ כ־230px מתחת לאצבע. עמוד שנכנס באנימציית tabIn (fill: both — בלחיצה
+   על לשונית / בפתיחה, לא בקובייה) נשאר "עם אנימציית transform" גם אחריה, ו־Chrome הופך אותו לבלוק המכיל של position:fixed —
+   גם כש־transform:none !important. לכן: (1) העמוד מקבל no-in (האנימציה כבר נגמרה; המחלקה יורדת רק כשיוצאים מהעמוד — לא רצה
+   שוב, לקח v324); (2) רשת ביטחון — מודדים איפה הפריט נחת בפועל ומקזזים כל בלוק מכיל אחר */
+function dragLift(node, r, w) {
+  const pg = node.closest && node.closest('.tabpage');
+  if (pg) pg.classList.add('no-in');
+  Object.assign(node.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: w + 'px', margin: '0', zIndex: '45' });
+  const q = node.getBoundingClientRect();
+  return { x: q.left - r.left, y: q.top - r.top };   // 0,0 = המסך הוא הבלוק המכיל
+}
 function wireCardDrag(list, cfg) {
   if (!list || list._dragWired) return;
   list._dragWired = true;
@@ -12070,7 +12081,7 @@ function wireCardDrag(list, cfg) {
   function place() {
     if (!drag) return;
     if (Math.abs(cy - drag.y0) > SLOP) drag.moved = true;
-    drag.card.style.top = (cy - drag.offY) + 'px';
+    drag.card.style.top = (cy - drag.offY - drag.cb.y) + 'px';
     const mid = cy - drag.offY + drag.h / 2;
     const cs = cards();
     let target = null;
@@ -12081,12 +12092,13 @@ function wireCardDrag(list, cfg) {
       flipMove(() => { if (target) list.insertBefore(drag.ph, target); else list.appendChild(drag.ph); });
     }
   }
-  function tick() { // גלילה אוטומטית ליד הקצוות
+  function tick() { // פעם בפריים: מיקום לפי האצבע + גלילה אוטומטית ליד הקצוות
     raf = null;
     if (!drag) return;
     const top = barBottom() + 70, bottom = window.innerHeight - 70;
     const v = cy < top ? -Math.min(18, (top - cy) / 4) : cy > bottom ? Math.min(18, (cy - bottom) / 4) : 0;
-    if (v) { window.scrollBy(0, v); place(); }
+    if (v) window.scrollBy(0, v);
+    if (v || cy !== drag.lastY) { drag.lastY = cy; place(); }
     raf = requestAnimationFrame(tick);
   }
   function begin(card) {
@@ -12099,8 +12111,9 @@ function wireCardDrag(list, cfg) {
     ph.style.height = r.height + 'px';
     list.insertBefore(ph, card);
     list._dragging = true;
-    drag = { card, ph, offY: cy - r.top, h: r.height, y0: cy, moved: false };
-    Object.assign(card.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: r.width + 'px', margin: '0', zIndex: '45' });
+    drag = { card, ph, offY: cy - r.top, h: r.height, y0: cy, moved: false, cb: { x: 0, y: 0 } };
+    drag.cb = dragLift(card, r, r.width);
+    if (drag.cb.x || drag.cb.y) { card.style.left = (r.left - drag.cb.x) + 'px'; card.style.top = (r.top - drag.cb.y) + 'px'; }
     card.classList.add('dragging');
     document.documentElement.classList.add('drag-active');
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
@@ -12115,7 +12128,7 @@ function wireCardDrag(list, cfg) {
     if (raf) { cancelAnimationFrame(raf); raf = null; }
     const pr = d.ph.getBoundingClientRect();
     d.card.style.transition = 'top .18s cubic-bezier(.2, .9, .25, 1)';
-    d.card.style.top = pr.top + 'px';
+    d.card.style.top = (pr.top - d.cb.y) + 'px';
     d.card.classList.remove('dragging');
     setTimeout(() => {
       list.insertBefore(d.card, d.ph);
@@ -12140,14 +12153,14 @@ function wireCardDrag(list, cfg) {
   list.addEventListener('touchstart', (e) => { if (e.touches.length === 1) arm(e.target, e.touches[0].clientX, e.touches[0].clientY); else cancelTimer(); }, { passive: true });
   list.addEventListener('touchmove', (e) => {
     const t0 = e.touches[0];
-    if (drag) { e.preventDefault(); cy = t0.clientY; place(); return; }
+    if (drag) { e.preventDefault(); cy = t0.clientY; return; }   // המיקום עצמו — ב־tick, פעם בפריים
     if (timer && (Math.abs(t0.clientX - sx) > SLOP || Math.abs(t0.clientY - sy) > SLOP)) cancelTimer(); // גלילה רגילה
   }, { passive: false });
   list.addEventListener('touchend', end);
   list.addEventListener('touchcancel', end);
   list.addEventListener('mousedown', (e) => { if (e.button === 0) arm(e.target, e.clientX, e.clientY); });
   document.addEventListener('mousemove', (e) => {
-    if (drag) { cy = e.clientY; place(); return; }
+    if (drag) { cy = e.clientY; return; }
     if (timer && (Math.abs(e.clientX - sx) > SLOP || Math.abs(e.clientY - sy) > SLOP)) cancelTimer();
   });
   document.addEventListener('mouseup', end);
@@ -12251,7 +12264,7 @@ function wireTabDrag(bar) {
   function place() {
     if (!drag) return;
     if (Math.abs(cx - drag.x0) > SLOP) drag.moved = true;
-    drag.tab.style.left = (cx - drag.offX) + 'px';
+    drag.tab.style.left = (cx - drag.offX - drag.cb.x) + 'px';
     const mid = cx - drag.offX + drag.w / 2, R = rtl();
     let target = null;
     for (const c of chips()) { const r = c.getBoundingClientRect(), m = r.left + r.width / 2; if (R ? mid > m : mid < m) { target = c; break; } }
@@ -12264,7 +12277,8 @@ function wireTabDrag(bar) {
     if (!drag) return;
     const r = bar.getBoundingClientRect();
     const v = cx < r.left + 40 ? -Math.min(14, (r.left + 40 - cx) / 3) : cx > r.right - 40 ? Math.min(14, (cx - r.right + 40) / 3) : 0;
-    if (v) { bar.scrollLeft += v; place(); }
+    if (v) bar.scrollLeft += v;
+    if (v || cx !== drag.lastX) { drag.lastX = cx; place(); }
     raf = requestAnimationFrame(tick);
   }
   function begin(tab) {
@@ -12274,8 +12288,9 @@ function wireTabDrag(bar) {
     const ph = el('div', 'wl-tab-ph');
     ph.style.width = r.width + 'px'; ph.style.height = r.height + 'px';
     bar.insertBefore(ph, tab);
-    drag = { tab, ph, offX: cx - r.left, w: r.width, x0: cx, moved: false };
-    Object.assign(tab.style, { position: 'fixed', top: r.top + 'px', left: r.left + 'px', width: Math.ceil(r.width) + 1 + 'px', margin: '0', zIndex: '45' }); // +1: שם בלי קיצור אחרי עיגול
+    drag = { tab, ph, offX: cx - r.left, w: r.width, x0: cx, moved: false, cb: { x: 0, y: 0 } };
+    drag.cb = dragLift(tab, r, Math.ceil(r.width) + 1); // +1: שם בלי קיצור אחרי עיגול
+    if (drag.cb.x || drag.cb.y) { tab.style.left = (r.left - drag.cb.x) + 'px'; tab.style.top = (r.top - drag.cb.y) + 'px'; }
     tab.classList.add('dragging');
     document.documentElement.classList.add('drag-active');
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
@@ -12290,7 +12305,7 @@ function wireTabDrag(bar) {
     if (raf) { cancelAnimationFrame(raf); raf = null; }
     const pr = d.ph.getBoundingClientRect();
     d.tab.style.transition = 'left .18s cubic-bezier(.2, .9, .25, 1), top .18s cubic-bezier(.2, .9, .25, 1)';
-    d.tab.style.left = pr.left + 'px'; d.tab.style.top = pr.top + 'px';
+    d.tab.style.left = (pr.left - d.cb.x) + 'px'; d.tab.style.top = (pr.top - d.cb.y) + 'px';
     d.tab.classList.remove('dragging');
     setTimeout(() => {
       bar.insertBefore(d.tab, d.ph);
@@ -12322,14 +12337,14 @@ function wireTabDrag(bar) {
   bar.addEventListener('touchstart', (e) => { if (e.touches.length === 1) arm(e.target, e.touches[0].clientX, e.touches[0].clientY); else cancelTimer(); }, { passive: true });
   bar.addEventListener('touchmove', (e) => {
     const t0 = e.touches[0];
-    if (drag) { e.preventDefault(); cx = t0.clientX; place(); return; }
+    if (drag) { e.preventDefault(); cx = t0.clientX; return; }   // המיקום — ב־tick, פעם בפריים
     if (timer && (Math.abs(t0.clientX - sx) > SLOP || Math.abs(t0.clientY - sy) > SLOP)) cancelTimer(); // גלילה רגילה של הטאבים
   }, { passive: false });
   bar.addEventListener('touchend', end);
   bar.addEventListener('touchcancel', end);
   bar.addEventListener('mousedown', (e) => { if (e.button === 0) arm(e.target, e.clientX, e.clientY); });
   document.addEventListener('mousemove', (e) => {
-    if (drag) { cx = e.clientX; place(); return; }
+    if (drag) { cx = e.clientX; return; }
     if (timer && (Math.abs(e.clientX - sx) > SLOP || Math.abs(e.clientY - sy) > SLOP)) cancelTimer();
   });
   document.addEventListener('mouseup', end);
