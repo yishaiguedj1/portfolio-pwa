@@ -55,7 +55,7 @@ const done = () => de.classList.remove('lib-restoring', 'lib-curtain');
    (ערך, מגמה, גרף קטן, שורת מצב אחת), ומשורה נכנסים פנימה (לכל היותר שלוש רמות; "‹" חוזר). מסך שעוד לא נבנה = "בקרוב",
    בלי מספרים מומצאים. כל מסך: { tab, title, parent?, render(p) } */
 const TABS = [['ov', () => t('admTabOv'), '◉'], ['apps', () => t('admTabApps'), '▦'], ['sys', () => t('admTabSys'), '⚙'], ['imp', () => t('admTabImp'), '✦'], ['find', () => t('admTabFind'), '⌕']];
-const D = { fb: null, us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
+const D = { bk: null, fb: null, us: null, ag: null, srv: null, sec: null, log: null, users: null, cfg: null, ov: null, lab: null, ovAt: 0, ai: null, aiAt: 0, tk: null, tkAt: 0, tkOpen: {}, apps: null, appsAt: 0, rd: null, rdAt: 0 };   // הנתונים מהשרתון (adminOv, learn) — נטענים פעם אחת ומתרעננים בחזרה לדף
 const PAGES = {};
 const page = (k, o) => { PAGES[k] = o; };
 let cur = 'ov';
@@ -277,6 +277,7 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: 'orange', ic: '$', t: t('admAiCost'), s: ai && ai.month ? fmt(t('admAiCostS'), { u: usd(ai.month.usd), n: ai.today.t }) : k ? fmt(t('admAiCostS2'), { u: usd(k.usd) }) : '', badge: ai ? ai.warn.filter((w) => w.sev <= 2).length : 0, on: () => go('ai') }),
     row({ c: 'blue', ic: '%', t: t('admQuota'), s: o && o.dates && o.dates[0] ? fmt(t('admQuotaS'), { n: o.dates[0].left }) : '', on: () => go('quota') }),
     row({ c: !D.rd ? 'gray' : D.rd.pass === D.rd.n ? 'green' : D.rd.checks[0].sev === 1 ? 'red' : 'orange', ic: '✓', t: t('admRdT'), s: D.rd ? fmt(t('admRdS'), { p: D.rd.pass, n: D.rd.n }) : t('admLoading'), badge: D.rd ? D.rd.n - D.rd.pass : 0, on: () => go('ready') }),
+    row({ c: !D.bk ? 'gray' : D.bk.warn.length ? 'orange' : 'green', ic: '⟲', t: t('admBkT'), s: !D.bk ? t('admLoading') : D.bk.warn.length ? fmt(t('admBkWarnN'), { n: D.bk.warn.length }) : fmt(t('admBkOkS'), { d: D.bk.r2 && D.bk.r2.last ? D.bk.r2.last.split('-').reverse().slice(0, 2).join('/') : '—' }), badge: D.bk ? D.bk.warn.filter((w) => /none|err/.test(w)).length : 0, on: () => go('backups') }),
     row({ c: !D.push ? 'gray' : D.push.n && D.push.me ? 'green' : 'orange', ic: '◉', t: t('admPushT'), s: !D.push ? '' : !D.push.n ? t('admPushOffS') : !D.push.me ? t('admPushNotMe') : fmt(t('admPushOnS'), { n: D.push.n }), on: () => go('push') }),
     row({ c: dep ? 'orange' : 'green', ic: '⇪', t: t('admInfra'), s: dep ? t('admItDeploy') : prod && prod.v.b ? fmt(t('admRunBuild'), { b: prod.v.b }) + (stag && stag.v.ahead === 1 ? ' · ' + t('admRunAhead1') : stag && stag.v.ahead > 1 ? ' · ' + fmt(t('admRunAhead'), { n: stag.v.ahead }) : '') : '', badge: dep ? 1 : 0, on: () => go('infra') })));
   if (!D.cfg) needCfg();
@@ -287,6 +288,7 @@ page('sys', { tab: 'sys', title: () => t('admTabSys'), render(p) {
     row({ c: 'studio', ic: '✦', t: t('admModels'), s: !cf ? t('admLoading') : cf.am && cf.am.length ? fmt(t('admModelsN'), { n: cf.am.length }) : t('admModelsMe'), on: () => go('models') })));
   if (!D.log) needLog();
   if (!D.sec) needSec();
+  if (!D.bk) needBk();
   const lg = D.log;
   p.append(grp(t('admSecSec')), list(row({ c: 'green', ic: '☰', t: t('admLogT'), s: !lg ? t('admLoading') : lg.items.length ? fmt(t('admLogS'), { n: lg.n7, a: ago(lg.items[0].at) }) : t('admLogNone'), on: () => go('log') }), row({ c: !D.sec ? 'gray' : D.sec.bad ? 'orange' : 'green', ic: '⚿', t: t('admSecrets'), s: !D.sec ? t('admLoading') : D.sec.bad ? fmt(t('admScBadN'), { n: D.sec.bad }) : fmt(t('admScOkS'), { n: D.sec.dates[0] ? D.sec.dates[0].left : '—' }), badge: D.sec ? D.sec.items.filter((x) => x.sev === 1).length : 0, on: () => go('secrets') })));
 } });
@@ -357,6 +359,8 @@ function logRow(x) {
     fl_on: ['green', '⚙', fmt(t('admLgFlOn'), { n: FLN(d) }), ''], fl_off: ['orange', '⚙', fmt(t('admLgFlOff'), { n: FLN(d) }), ''],
     am_add: ['studio', '✦', t('admLgAmAdd'), d], am_del: ['gray', '✦', t('admLgAmDel'), d],
     ac_add: ['academy', '▤', t('admLgAcAdd'), d], ac_del: ['gray', '▤', t('admLgAcDel'), d],
+    srv_pause: ['orange', '☁', t('admLgSrvPause'), d], srv_resume: ['green', '☁', t('admLgSrvResume'), d], srv_del: ['red', '☁', t('admLgSrvDel'), d],
+    an_on: ['purple', '📣', t('admLgAnOn'), d], an_off: ['gray', '📣', t('admLgAnOff'), ''], fb_done: ['green', '✉', t('admLgFbDone'), ''], fb_del: ['gray', '✉', t('admLgFbDel'), ''],
     ck_ok: ['green', '✓', t('admLgCkOk'), d], ck_no: ['red', '✕', t('admLgCkNo'), d], ck_clr: ['gray', '↺', t('admLgCkClr'), d] }[x.k];
   if (!L) return null;
   const sub = h('span');
@@ -461,8 +465,26 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
     if (hb.load != null) rows.push(row({ c: 'gray', ic: '∿', t: t('admSvLoad'), s: hb.up != null ? fmt(t('admSvUp'), { a: upTxt(hb.up) }) : '', v: hb.load }));
     if (hb.iso) rows.push(row({ c: hb.iso === 'g' ? 'green' : 'orange', ic: '⛨', t: hb.iso === 'g' ? t('studioIsoG') : (ISO[hb.iw] || (() => t('studioIsoR')))(), s: hb.al === 'o' ? t('admSvAlO') : hb.al === 't' ? t('admSvAlT') : '' }));
     if (hb.ev && hb.ev.length) rows.push(row({ c: 'gray', ic: '☰', t: t('studioSrvEvT'), s: hb.ev.slice(-3).reverse().map((e) => (SV_EV[e[1]] || (() => e[1]))()).join(' · ') }));
-    p.append(grp(x.n), list(...rows));
+    const br = h('div', 'btn-row adm-srvbtns');
+    const pz = h('button', 'btn secondary-btn', x.paused ? t('admSvResume') : t('admSvPause')); pz.type = 'button';
+    pz.addEventListener('click', () => {
+      const go2 = async () => { pz.disabled = true; const r = await api('srvPause', { sid: x.id, paused: !x.paused }); D.log = null; if (r.ok) needSrv(); else { pz.disabled = false; flash(t('admErr')); } };
+      if (x.paused) go2(); else askConfirm(fmt(t('admSvPauseQ'), { n: x.n }), go2, { ok: t('admSvPause') });
+    });
+    const rm = h('button', 'mini-btn danger', t('admModelsDel')); rm.type = 'button';
+    rm.addEventListener('click', () => askConfirm(fmt(t('admSvDelQ'), { n: x.n }), async () => { const r = await api('srvRemove', { sid: x.id }); D.log = null; flash(r.ok ? t('admSaved') : t('admErr')); if (r.ok) needSrv(); }, { danger: true, ok: t('admModelsDel') }));
+    br.append(pz, rm);
+    p.append(grp(x.n), list(...rows), br);
   }
+  // 17/10/2026 (session_01V9f): עדכון הגדרת השרת בלי שרת חדש — ידני במסוף של Hetzner (infra/worker/snb-host-apply). רק מציגים ומעתיקים, לא מריצים
+  // 20/10/2026 (session_01V9f): המסוף של Hetzner לא מעביר Shift — ':' יוצא ';' והפקודה נחתכת. לכן בלי ':' '_' '$' '|' ואותיות גדולות:
+  // שורה 1 מציגה את מזהה התמונה של prod, ובשורה 2 מקלידים אותו במקום image-id
+  const HOST_CMD = 'docker images ghcr.io/yishaiguedj1/snb-worker\ndocker run --rm -u0 --mount type=bind,source=/,target=/h --entrypoint /opt/snb-host/apply image-id\nsnb-update';
+  const hostRow = row({ c: 'blue', ic: '⌘', t: t('admSvHost'), s: t('admSvHostS'), on: () => {
+    const pre = h('pre', 'adm-code', HOST_CMD); pre.dir = 'ltr';
+    askConfirm(t('admSvHostQ'), () => copyText(HOST_CMD), { body: pre, ok: t('admSvHostCopy') });
+  } });
+  p.append(list(hostRow));
   p.append(list(row({ c: 'gray', ic: '↗', t: t('admSvRebuild'), s: t('admSvRebuildS'), on: () => { try { window.open('https://github.com/yishaiguedj1/portfolio-pwa/actions/workflows/server.yml', '_blank', 'noopener'); } catch (e) {} } })),
     h('p', 'adm-foot', t('admSvFoot')));
 } });
@@ -563,6 +585,27 @@ page('news', { tab: 'apps', parent: 'apps', title: () => t('admMsgs'), render(p)
   if (an) { const off = h('button', 'btn secondary-btn', t('admAnOff')); off.type = 'button'; off.addEventListener('click', async () => { const r = await needCfg({ an: { on: false } }); flash(r.ok ? t('admSaved') : t('admErr')); }); br.append(off); }
   card.append(h('div', 'adm-lbl', t('admAnTitleL')), ti, h('div', 'adm-lbl', t('admAnBodyL')), bo, h('div', 'adm-lbl', t('admAnApps')), seg, h('div', 'adm-lbl', t('admMaintDur')), dseg, br);
   p.append(card, grp(t('admNewsT')), list(row({ c: 'green', ic: '★', t: t('admNewsAuto'), s: t('admNewsAutoS') })), h('p', 'adm-foot', t('admAnFoot')));
+} });
+/* ---- גיבויים (17/10/2026, "מה עובר" למרכז הניהול): הגיבוי היומי ל־R2 ו"ספק שני" (Drive שלך). קריאה בלבד — שחזור ידני (SECURITY/infra) ---- */
+async function needBk() {
+  const r = await api('adminBackups');
+  if (r.ok) { D.bk = r.bk; if (['backups', 'sys'].includes(cur)) paint(); }
+}
+const BKW = { r2_none: () => t('admBkR2None'), r2_stale: () => t('admBkR2Stale'), off_none: () => t('admBkOffNone'), off_stale: () => t('admBkOffStale'), off_err: () => t('admBkOffErr') };
+page('backups', { tab: 'sys', parent: 'sys', title: () => t('admBkT'), render(p) {
+  const B = D.bk;
+  if (!B) { needBk(); p.append(h('p', 'adm-dt', t('admLoading'))); return; }
+  if (B.warn.length) p.append(grp(t('admSecWaitInfra')), list(...B.warn.map((w) => row({ c: /none|err/.test(w) ? 'red' : 'orange', ic: '!', t: BKW[w](), s: w === 'off_err' && B.off ? B.off.err : '' }))));
+  const r2 = B.r2;
+  p.append(grp(t('admBkR2')));
+  if (!r2) p.append(list(row({ c: 'gray', ic: '☁', t: t('admBkR2Off') })));
+  else p.append(list(row({ c: r2.n ? 'green' : 'red', ic: '☁', t: fmt(t('admBkDays'), { n: r2.n, k: B.keep }), s: r2.last ? fmt(t('admBkLast'), { d: r2.last.split('-').reverse().join('/') }) : '' }),
+    ...r2.days.slice(0, 7).map((x) => row({ c: x.fs ? 'gray' : 'orange', ic: x.fs ? '✓' : '!', t: x.d.split('-').reverse().join('/'), s: [x.fs ? 'Firestore' : '', x.cat || x.cat2 ? t('admBkCat') : ''].filter(Boolean).join(' · ') || t('admBkPart'), v: '\u2066' + x.mb + ' MB\u2069' }))));
+  const o = B.off;
+  p.append(grp(t('admBkOff')), list(o && o.owner
+    ? row({ c: o.err ? 'red' : o.okAt ? 'green' : 'orange', ic: '⟲', t: o.mine ? t('admBkOffMine') : t('admBkOffOther'), s: [o.okAt ? fmt(t('admItLast'), { a: ago(o.okAt) }) : '', o.up ? fmt(t('admBkUp'), { n: o.up }) : '', o.left ? fmt(t('admBkLeft'), { n: o.left }) : ''].filter(Boolean).join(' · ') })
+    : row({ c: 'orange', ic: '⟲', t: t('admBkOffNoOwner'), s: t('admBkOffNoOwnerS') })));
+  p.append(h('p', 'adm-foot', t('admBkFoot')));
 } });
 /* ---- מצב תחזוקה והגדרות ודגלים (15/10/2026, בקשת המשתמש — ServiceNow: System Maintenance / System Properties).
    השרתון אוכף (lib/sysflags.js, sysBlock); האפליקציות מקבלות את המצב ב־op ציבורי cfg ומציגות פס ---- */

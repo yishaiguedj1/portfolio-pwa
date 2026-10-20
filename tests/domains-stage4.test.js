@@ -28,6 +28,8 @@ function envAt(host) {
     assert.deepStrictEqual({ ...e.apps }, { invest: './', academy: 'academy.html', studio: 'studio.html' }, h);
   }
   ok(true, 'באתר המאוחד (github.io, staging, pages.dev, localhost) — הדפים שלידו');
+  { const ad = envAt('admin-staging.thesnowball.app'), ap = envAt('admin.thesnowball.app');
+    ok(ad.name === 'staging' && ad.proxy === 'https://api-staging.thesnowball.app' && ad.apps.studio === 'https://studio-staging.thesnowball.app/' && ap.name === 'prod' && ap.proxy === 'https://api.thesnowball.app' && ap.admin === 'https://admin.thesnowball.app/' && ad.admin === 'https://admin-staging.thesnowball.app/' && envAt('localhost').admin === 'admin.html' && !('admin' in ap.apps), 'מרכז הניהול (17/10/2026): admin-staging = ניסוי, admin = ייצור (השרתון של כל סביבה)'); }
   ok(envAt('invest-staging.thesnowball.app').name === 'staging' && envAt('invest.thesnowball.app').name === 'prod' && envAt('evil-staging.thesnowball.app').name === 'prod', 'רק השמות הידועים עם -staging = ניסוי');
 }
 ok(/import \{ createShell, appBoot, APP_URL, loginGate, accountCard, displayCard, advancedRow, advancedCards \} from '\.\/shell\.js'/.test(read('academy-app.js')) && /home: APP_URL\.invest/.test(read('studio-app.js')), '"THE SNOWBALL" בדפים העצמאיים → הכתובת של Invest');
@@ -41,6 +43,7 @@ ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\
   const F = mod.exports;
   ok(F.rootPage('academy-staging.thesnowball.app') === '/academy' && F.rootPage('studio.thesnowball.app') === '/studio'
     && F.rootPage('invest-staging.thesnowball.app') === '' && F.rootPage('staging.thesnowball.app') === '' && F.rootPage('academy.staging.thesnowball.app') === '', 'השורש: academy/studio → הדף שלהן, כל השאר → index.html');
+  ok(F.rootPage('admin.thesnowball.app') === '/admin' && F.rootPage('admin-staging.thesnowball.app') === '/admin' && F.rootPage('admin.staging.thesnowball.app') === '', 'השורש של admin[-staging] → admin.html');
   const seen = [];
   const env = { ASSETS: { fetch: async (r) => { seen.push(r.url); return 'asset'; } } };
   const next = async () => 'next';
@@ -102,8 +105,12 @@ ok(/const ENV_APPS = typeof window !== 'undefined' && window\.SNB_ENV && window\
   // ---------- השרתון: הכתובות של הניסוי מותרות, ורק הן
   const ib = read('ibkr-proxy/lib/ibkr.js');
   const RE = new Function('return ' + /const STAGING_ORIGIN_RE = (\/.*\/);/.exec(ib)[1])();
-  ok(['https://invest-staging.thesnowball.app', 'https://academy-staging.thesnowball.app', 'https://studio-staging.thesnowball.app', 'https://account-staging.thesnowball.app', 'https://staging.thesnowball.app'].every((o) => RE.test(o)), 'השרתון: הכתובות של כל אפליקציה בניסוי מותרות');
+  ok(['https://invest-staging.thesnowball.app', 'https://academy-staging.thesnowball.app', 'https://studio-staging.thesnowball.app', 'https://account-staging.thesnowball.app', 'https://admin-staging.thesnowball.app', 'https://staging.thesnowball.app'].every((o) => RE.test(o)), 'השרתון: הכתובות של כל אפליקציה בניסוי מותרות');
   ok(!['https://academy.staging.thesnowball.app', 'https://evil-staging.thesnowball.app', 'https://academy-staging.thesnowball.app.evil.com', 'http://academy-staging.thesnowball.app'].some((o) => RE.test(o)), 'השרתון: שמות אחרים נחסמים');
 
+  { const S = require('../ibkr-proxy/lib/session.js'), I = require('../ibkr-proxy/lib/ibkr.js');
+    ok(S.appForOrigin('https://admin.thesnowball.app', 'prod') === 'studio' && S.appForOrigin('https://admin-staging.thesnowball.app', 'staging') === 'studio'
+      && S.appForOrigin('https://admin-staging.thesnowball.app', 'prod') === '' && S.appForOrigin('https://admin.thesnowball.app', 'staging') === '', 'מרכז הניהול = Studio בהרשאות, ורק בסביבה שלו');
+    ok(I.originAllowed('https://admin.thesnowball.app') && I.originAllowed('https://admin-staging.thesnowball.app') && !I.originAllowed('https://admins.thesnowball.app'), 'השרתון מקבל את admin[-staging] (ורק אותם)'); }
   console.log('# ' + n + ' בדיקות עברו');
 })().catch((e) => { console.error(e); process.exit(1); });
