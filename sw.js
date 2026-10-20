@@ -6,9 +6,9 @@
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
 const CACHE_NAME = 'portfolio-pwa-v451';
 const HASHES = {
-  "./": "b5fc73708a90b20b54c807e770147dfe",
-  "./index.html": "b5fc73708a90b20b54c807e770147dfe",
-  "./styles.css": "e5f05c23655040c6bcceeda16615484b",
+  "./": "1017ef4971eb1e5d6a36236f56aef6f4",
+  "./index.html": "1017ef4971eb1e5d6a36236f56aef6f4",
+  "./styles.css": "7ba36ddaebfb742f10b5b57d0d38c38c",
   "./app.js": "0db4e053c88b2d6544dbc63a2a32e0fe",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
@@ -52,7 +52,7 @@ const HASHES = {
   "./strings-academy.js": "04ba8881e1ab235ebe09097f26a930ab",
   "./core.js": "295f230127ee65e3063406b50719d163",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
-  "./shell.js": "76e10cdfdaf35c2d55fb564b9d9ff9d0",
+  "./shell.js": "85556b131e50da61d2fc8627430c3833",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
   "./logo-academy-lg.webp": "a116879278b6fa9d301f98fc24137cab",
   "./logo-blink-academy.png": "6e5675c0701235cda6af4130440abd3a",

@@ -73,6 +73,7 @@ export function createShell(o) {
   if (o.logoLg) { img.srcset = o.logo + ' 512w, ' + o.logoLg + ' 768w'; img.sizes = '128px'; }
   const blink = h('span', 'brand-blink'), snow = h('span', 'brand-snow');   // 20/10/2026: מצמוץ, שלג והילה סביב הלוגו (styles.css)
   blink.setAttribute('aria-hidden', 'true'); snow.setAttribute('aria-hidden', 'true');
+  snow.innerHTML = '<i></i><i></i><i></i><b></b><b></b><b></b>';   // שלוש שכבות שלג + שלושה ניצוצות קרח
   brand.append(img, blink, snow, h('span', 'sr-only', o.title || ''));
   if (o.onBrand) brand.addEventListener('click', o.onBrand);
   const left = h('div', 'appbar-left');

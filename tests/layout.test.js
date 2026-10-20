@@ -43,7 +43,7 @@ ok(/\.menu-drop\s*\{[^}]*left:\s*0;\s*right:\s*auto/.test(css) && /\.lang-menu\s
 ok(/\.appbar-left > \.appbar-sub\s*\{[^}]*grid-column:\s*1 \/ -1;\s*grid-row:\s*4;\s*justify-self:\s*center/.test(css), 'קפסולת המצב מתחת ללוגו, באמצע');
 ok(/\.appbar-sub\s*\{[^}]*text-overflow:\s*ellipsis/.test(css), 'שורת המשנה נחתכת ב־… ולא דוחפת את הכפתורים');
 ok(/\.brand-logo\s*\{[^}]*width:\s*128px/.test(css), 'הלוגו בגודל קבוע (128px, v198) — לא תלוי במקום שנשאר');
-ok(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.appbar \.brand-logo, \.appbar \.brand-blink[^}]*animation:\s*none/.test(css), 'הלוגו החי עומד כשמבקשים להפחית תנועה');
+ok(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.appbar \.brand-logo, \.appbar \.brand-blink[^}]*\.appbar \.brand-snow b \{ animation:\s*none/.test(css), 'הלוגו החי עומד כשמבקשים להפחית תנועה');
 
 /* ---------- 3. פלטת iOS 26 בשתי הערכות ---------- */
 const darkCss = css.split('[data-theme="dark"]')[1] || '';
