@@ -114,3 +114,21 @@ html[data-app="admin"] .appbar .brand-logo { width: 64px; height: 64px; }
 .adm-fbtx { margin: 0 0 8px; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.45; }
 .adm-srvbtns { margin: 8px 0 4px; }
 .adm-code { margin: -6px 4px 16px; padding: 10px 12px; border-radius: var(--radius-xs); background: rgba(127,127,127,.15); font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
+/* 20/10/2026 (מ׳6): מעבדת השיפור — כרטיס "הכי חשוב עכשיו" (פס צבע לפי החומרה), כותרת מסקנה, טקסט "מה לעשות" */
+.adm-top { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; box-sizing: border-box; margin: 10px 0 4px; padding: 14px 16px; border: 0; border-inline-start: 5px solid #8E8E93; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); font: inherit; color: inherit; text-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.adm-top.s1 { border-inline-start-color: #FF453A; }
+.adm-top.s2 { border-inline-start-color: #F5A524; }
+.adm-top:disabled { cursor: default; }
+.adm-top:not(:disabled):active { background: color-mix(in srgb, var(--on-surface) 6%, var(--surface)); }
+.adm-top small { font-size: 12.5px; font-weight: 650; color: var(--on-surface-var); }
+.adm-top b { font-size: 19px; font-weight: 750; line-height: 1.3; }
+.adm-top span { font-size: 14.5px; line-height: 1.45; color: var(--on-surface); }
+.adm-top em { font-style: normal; font-size: 13px; font-weight: 650; color: #5E5CE6; margin-top: 2px; }
+.adm-insh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 4px 0; }
+.adm-insh small { color: var(--on-surface-var); font-size: 13.5px; font-weight: 600; }
+.adm-txt p { margin: 0; padding: 12px 14px; line-height: 1.5; font-size: 15px; }
+.adm-tf small.up { color: #1a8a3a; font-weight: 650; }
+.adm-tf small.dn { color: #d70015; font-weight: 650; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .adm-tf small.up { color: #30D158; } :root:not([data-theme="light"]) .adm-tf small.dn { color: #FF453A; } }
+:root[data-theme="dark"] .adm-tf small.up { color: #30D158; }
+:root[data-theme="dark"] .adm-tf small.dn { color: #FF453A; }

@@ -517,6 +517,13 @@ async function devGc(deps, now) {
   for (const it of await R2.list(c, rd, 'd/', 50000)) if (DL.expiredKey(it.key, now)) { await R2.del(c, rd, it.key); n++; }
   return n;
 }
+/* מ׳6 (20/10/2026): סיכום האיסוף המלא למסך המעבדה — רק ספירות לפי סוג ויום, בלי לפתוח אף פריט */
+async function devView(deps, now) {
+  const on = await flagOn(deps, 'learn_full', now);
+  const c = learnCfg();
+  if (!c.ok) return { on, r2: false };
+  return Object.assign({ on, r2: true }, DL.devStats(await R2.list(c, r2deps(deps), 'd/', 50000)));
+}
 /* משיכה לקריאה בלבד בטוקן הניתוח — הלוגים, יומן הקריאות, המדדים ושגיאות הטלפון של הימים האחרונים.
    days 1–14, kinds = j/m/e, job = רק עבודה אחת. עד DEV_PULL_MAX פריטים פתוחים (מהחדש) */
 const DEV_PULL_MAX = 400;
@@ -1595,7 +1602,8 @@ async function handler(req, res, deps = {}) {
       if (op === 'learnExport') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, records: recs });
       if (op === 'learnBrief') return res.status(200).json({ ok: true, v: LR.LR_V, at: now, brief: LR.learnBrief(LR.learnView(recs, now), now), records: recs });
       const corpus = await learnCorpusView(deps, 0).catch(() => ({ on: false, error: 'r2' }));   // מ׳2: רק המספרים
-      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, corpus, now });
+      const dev = await devView(deps, now).catch(() => ({ on: false, error: 'r2' }));             // מ׳6: האיסוף המלא — רק ספירות
+      return res.status(200).json({ ok: true, view: LR.learnView(recs, now), insL: LR.INS_HE, synced: wrote, corpus, dev, now });
     }
     if (op === 'adminOv') {
       // 15/10/2026: מרכז הניהול — סקירה, "מחכה לך" ו"מה רץ איפה". מנהל בלבד; בלי פרטים אישיים (שמות שרתים, מספרי PR, גרסאות)
