@@ -1052,7 +1052,7 @@ label.lib-row input { position: absolute; inset: 0; opacity: 0; cursor: pointer;
    הכפתורים שם: עד עכשיו קיבלה את המסגרת של הדפדפן (2px outset לבנה) ונראתה זזה הצידה. המצב — רק בצבע האייקון. */
 .appbar-sub .lib-bkpill { -webkit-appearance: none; appearance: none; margin: 0; height: auto; gap: 6px; padding: 4px 11px 4px 10px;
   font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1.3; border: 1px solid var(--card-border);
-  background: var(--surface-2) !important; color: var(--on-surface) !important; cursor: pointer; }
+  background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg) !important; color: var(--on-surface) !important; cursor: pointer; }   /* אטום — השלג של הלוגו מאחוריו */
 .appbar-sub .lib-bkpill.off { color: var(--on-surface-var) !important; }
 .appbar-sub .lib-bkpic svg { width: 14px; height: 14px; }
 @media (max-width: 374px) { .appbar-sub .lib-bkpill { font-size: 11.5px; padding: 3px 9px; gap: 5px; } }

@@ -17,7 +17,7 @@ const fn = (name) => { const i = src.indexOf('function ' + name + '('); return s
 ok(/document\.body\.classList\.toggle\('menu-blur', open\)/.test(fn('setMainMenuOpen')), 'setMainMenuOpen מדליק/מכבה את הטשטוש (כל דרך סגירה עוברת דרכה)');
 ok(/veil\.id = 'menuVeil'/.test(fn('initMainMenu')) && /touchmove/.test(fn('initMainMenu')), 'שכבת טשטוש על העמוד, בלי גלילה מאחוריה');
 ok(/\.menu-veil \{[^}]*z-index: 19;[^}]*backdrop-filter: blur\(18px\)/.test(css), 'שכבת העמוד מתחת להדר (z 19) עם blur');
-ok(/body\.menu-blur \.appbar \.brand, body\.menu-blur \.appbar-sub, body\.menu-blur \.appbar \.fx-pill \{ filter: blur/.test(css), 'בהדר: הלוגו/המקור/השער מטושטשים, הכפתורים לא');
+ok(/body\.menu-blur \.appbar \.brand > \*, body\.menu-blur \.appbar-sub, body\.menu-blur \.appbar \.fx-pill \{ filter: blur/.test(css), 'בהדר: הלוגו/המקור/השער מטושטשים, הכפתורים לא');
 ok(/prefers-reduced-motion: reduce\) \{\s*\.menu-veil/.test(css), 'מכבד "הפחת תנועה"');
 ok(/if \(!state\.open\[sym\]\) closeStockCards\(sym, card\);/.test(fn('toggleStock')), 'פתיחת כרטיס סוגרת את האחרים');
 ok(/\(prev === 'stocks' \|\| prev === 'wishlist'\) && name !== prev\) \{ try \{ closeStockCards\(\)/.test(fn('switchTab')), 'יציאה מטאב המניות/המעקב סוגרת הכל');
