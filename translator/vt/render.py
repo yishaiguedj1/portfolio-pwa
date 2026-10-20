@@ -93,11 +93,31 @@ def _color_args(info: dict) -> list[str]:
     return out
 
 
+def svt_lp() -> int:
+    """מקביליות של SVT-AV1 = הליבות שמותרות לתהליך (4–16). הפלט זהה בבית בכל lp (נמדד 20/10/2026: lp 1/2/4/אוטומטי
+    — אותו md5). עד 20/10 היה lp=4 קבוע (נמדד במכונה של 4 ליבות) — בשרת של 8 ליבות חצי מהמעבד עמד בזמן הצריבה.
+    ‏SNB_SVT_LP דורס (בדיקות / מדידה)."""
+    v = os.environ.get("SNB_SVT_LP", "")
+    if v.isdigit() and 1 <= int(v) <= 64:
+        return int(v)
+    try:
+        n = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        n = os.cpu_count() or 4
+    try:                                         # מכסת המעבד של הקונטיינר (cgroup v2: "<quota> <period>")
+        q, per = Path("/sys/fs/cgroup/cpu.max").read_text().split()[:2]
+        if q != "max":
+            n = min(n, max(1, int(-(-int(q) // int(per)))))
+    except (OSError, ValueError):
+        pass
+    return max(4, min(16, n))
+
+
 def enc_args(codec: str, crf: int, preset: int | str, params: str = "") -> list[str]:
     if codec == "av1":
-        # lp=4: מקביליות פנימית — +18% מהירות, פלט זהה בבית (נמדד)
+        # lp: מקביליות פנימית לפי הליבות (svt_lp) — פלט זהה בבית
         return ["-c:v", "libsvtav1", "-preset", str(preset), "-crf", str(crf),
-                "-svtav1-params", "lp=4" + (":" + params if params else ""), "-pix_fmt", "yuv420p"]
+                "-svtav1-params", f"lp={svt_lp()}" + (":" + params if params else ""), "-pix_fmt", "yuv420p"]
     return ["-c:v", "libx264", "-preset", str(preset), "-crf", str(crf), "-pix_fmt", "yuv420p", "-profile:v", "high"]
 
 
