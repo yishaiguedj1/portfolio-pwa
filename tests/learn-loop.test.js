@@ -57,7 +57,7 @@ ok(!/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(JSON.stringify(lv.ver) + JSON.
 
 // 6. ההתראה השבועית
 const m = W.message('lab_week', '', 'he'), me = W.message('lab_week', '', 'en');
-ok(m && m.u.endsWith('/admin.html#labWk') && me && /lab/i.test(me.t), 'lab_week → מרכז הניהול, עמוד השבוע, בשתי השפות');
+ok(m && m.u === 'https://admin.thesnowball.app/#labWk' && me && /lab/i.test(me.t), 'lab_week → מרכז הניהול, עמוד השבוע, בשתי השפות');
 const api = R('ibkr-proxy/api/studio.js');
 ok(/async function learnWeekly[\s\S]{0,900}query\(deps, 'studioLearn'[\s\S]{0,400}if \(!n\) return 0;[\s\S]{0,200}notify\(deps, cfg\.uid, 'lab_week'/.test(api), 'השבועית: רק אחרי שבדקה שהיו עבודות, ולמנהל (בעל הגיבוי)');
 ok(!/learnWeekly[\s\S]{0,1200}patchDoc\(deps, 'studioLearn'/.test(api), 'השבועית קוראת בלבד מ־studioLearn');

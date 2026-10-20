@@ -13,7 +13,7 @@ const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /^up
   /^[a-z0-9-]+\.notify\.windows\.com$/, /^web\.push\.apple\.com$/];
 const SUB_MAX = 5;                 // מכשירים לאדם
 const TTL = 24 * 3600;             // שעות שההתראה מחכה לטלפון כבוי
-const ADMIN_URL = 'https://studio.thesnowball.app/admin.html';
+const ADMIN_URL = 'https://admin.thesnowball.app/';   // 20/10/2026: הכתובת של מרכז הניהול (מאחורי Cloudflare Access)
 const SUBJECT = 'https://yishaiguedj1.github.io/portfolio-pwa/';   // VAPID "sub" — כתובת ולא מייל (פרטיות)
 const KINDS = ['done', 'fail', 'ask', 'gate', 'cp', 'srv_down', 'srv_up', 'srv_auth', 'srv_new', 'site_down', 'site_up', 'major', 'bk_fail', 'ready_fail', 'lab_week'];   // 20/10/2026 (מ׳7): lab_week = הסיכום השבועי של המעבדה (למנהל)   // 15/10/2026: srv_new = שרת שהתחבר בפעם הראשונה (גם מהזמנה אוטומטית)   // 15/10/2026: למנהל — הגיבוי נכשל / בדיקת המוכנות נכשלה (נפתח במרכז הניהול)   // 14/10/2026: major = תקלה רחבה (studioinc majorSync)   // שלב 5: הכתובות עצמן (lib/sitewatch.js)   // סבב 10: cp = העתק־הדבק מחכה לך
 const TEXT = {
