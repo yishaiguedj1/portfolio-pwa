@@ -41,7 +41,7 @@ function download(name, text) {
   document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
-const shell = createShell({ app: 'admin', title: t('admT'), logo: 'logo-header.png', items: [], onSettings: () => {} });
+const shell = createShell({ app: 'admin', title: t('admT'), logo: 'logo-invest.webp', logoLg: 'logo-invest-lg.webp', items: [], onSettings: () => {} });
 const root = h('main', 'adm');
 const side = h('nav', 'adm-side');
 const tabs = h('nav', 'adm-tabs');
@@ -934,7 +934,7 @@ page('find', { tab: 'find', title: () => t('admTabFind'), render(p) {
   setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
 } });
 
-if (first === 'out') { loginGate({ app: 'admin', auth: A, logo: 'logo-header.png', name: t('admT') }); done(); }
+if (first === 'out') { loginGate({ app: 'admin', auth: A, logo: 'logo-invest.webp', logoLg: 'logo-invest-lg.webp', name: t('admT') }); done(); }
 else boot();
 
 async function load() {

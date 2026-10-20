@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v451';
+const CACHE_NAME = 'portfolio-pwa-v452';
 const HASHES = {
-  "./": "1017ef4971eb1e5d6a36236f56aef6f4",
-  "./index.html": "1017ef4971eb1e5d6a36236f56aef6f4",
-  "./styles.css": "7ba36ddaebfb742f10b5b57d0d38c38c",
-  "./app.js": "0db4e053c88b2d6544dbc63a2a32e0fe",
+  "./": "3ac7c49f3acc0957a4058cc4aec9ea91",
+  "./index.html": "3ac7c49f3acc0957a4058cc4aec9ea91",
+  "./styles.css": "fd9e05204b0b88ed4d3f3dee4383d868",
+  "./app.js": "fc98b98e3ffeb3c40a4cdf2f228a8514",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -18,12 +18,20 @@ const HASHES = {
   "./icon-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
   "./icon-512.png": "7eff4578ee1f38ddb524eace83d90024",
   "./logo-header.png": "0a8a4bf5de266a98afdae4d3c4db66b7",
-  "./logo-blink-invest.png": "3d6d210f99d1852eaf29d7750959f36f",
+  "./logo-invest.webp": "c44531c94c7a7fbed46ba10379551cd2",
+  "./logo-invest-lg.webp": "8219383149ad646277609dd24a74939a",
+  "./face-invest.webp": "b002b4590278b60a95d3ae080ffd39c6",
+  "./snow-far-light.png": "59d69655a5d5b6fda866f2520f362cc0",
+  "./snow-mid-light.png": "8930aa90c47777829b0fdde807f96ed3",
+  "./snow-near-light.png": "ab6066dc9cdb962556f28ea88a0e547f",
+  "./snow-far-dark.png": "93133fb04738459bdd55073ffce0b375",
+  "./snow-mid-dark.png": "b2b9305931041225bedc002bb9a162cc",
+  "./snow-near-dark.png": "e498c2616053a47118d26dbb6a538d87",
   "./apple-touch-icon.png": "113a5dd87df18077a64196f3d533e3e9",
   "./favicon-48.png": "b06144704421831d745fd553558517a7",
   "./ibkr-logo.png": "3c73fe172d48b3f58f11bcc146dd1987",
   "./library.js": "13b115847c283b3fcf1f83b0b68e20fb",
-  "./library.css": "b3c30e9b53d028cf7b60423e7d31f6ea",
+  "./library.css": "7eb1386d22e9b056c383748d898fa34f",
   "./academy-data.js": "5a761be316a12e64ddb5427c02b642df",
   "./libbackup.js": "b8ae4b2558a1ad7d7bea075d2c3e86a5",
   "./ribbon3d.js": "ec23dd0dea0fe5f8ab6ed78a2a596452",
@@ -50,17 +58,17 @@ const HASHES = {
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "04ba8881e1ab235ebe09097f26a930ab",
-  "./core.js": "295f230127ee65e3063406b50719d163",
+  "./core.js": "fabcdcf694e1a35c04f7e12b5fb26da3",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
-  "./shell.js": "85556b131e50da61d2fc8627430c3833",
+  "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
   "./logo-academy-lg.webp": "a116879278b6fa9d301f98fc24137cab",
-  "./logo-blink-academy.png": "6e5675c0701235cda6af4130440abd3a",
+  "./face-academy.webp": "9aea37be25db82a7a48a5343a8b351b2",
   "./icon-academy-192.png": "b82b5761fdea121b4c7517b5846c4933",
   "./apple-touch-academy.png": "75c0b94a544390ed9ae20cc3f86f0ead",
   "./favicon-academy-48.png": "f6cbfb6ef0edd6cb50bfd3ab8cb69ce2",
   "./studio.js": "7f55190e5f20052361378f89df937375",
-  "./studio.css": "30b4e3a3f21b8c900e67df66bf6b6524",
+  "./studio.css": "b4584d0dc98c648dacde6ceb8eb554c9",
   "./studionet.js": "7b287b60864e1e383c2ab955a2502d2f",
   "./studioplay.js": "8cce97bbb6d36a16c2813766f8b308d4",
   "./studiosubs.js": "c2184938f88dd934fd608d6613a3caf5",
@@ -72,7 +80,7 @@ const HASHES = {
   "./strings-studio.js": "68bd74cf8d79cf6016a1ee1380162826",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
-  "./logo-blink-studio.png": "81706ddcfc920bdd43fef4d9e90925be",
+  "./face-studio.webp": "b26a0f320bf8b5ca69526c8275a9e940",
   "./icon-studio-192.png": "9b37d795c2aceac291c56b3ce425aaa3",
   "./apple-touch-studio.png": "2845bce92943f4c0a3a3d1309063f850",
   "./favicon-studio-48.png": "3ee4d1aaaf6e22684603032cf358c704"
@@ -91,7 +99,7 @@ const APP_SHELL = [
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
-  './logo-header.png', './logo-blink-invest.png',
+  './logo-header.png', './logo-invest.webp', './logo-invest-lg.webp', './face-invest.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png',
   './apple-touch-icon.png',
   './favicon-48.png',
   './ibkr-logo.png'
@@ -107,14 +115,14 @@ const LIB_SHELL = [
   './vendor/foliate-js/mobi.js', './vendor/foliate-js/fb2.js', './vendor/foliate-js/comic-book.js',
   './vendor/foliate-js/fixed-layout.js', './vendor/foliate-js/vendor/zip.js', './vendor/foliate-js/vendor/fflate.js',
   './academy.html', './academy-app.js', './strings-academy.js', './core.js', './auth.js',   // שלב 3ג: Academy כדף עצמאי
-  './shell.js', './logo-academy.webp', './logo-academy-lg.webp', './logo-blink-academy.png', './icon-academy-192.png', './apple-touch-academy.png', './favicon-academy-48.png'   // ההדר המשותף + הלוגו של Academy
+  './shell.js', './logo-academy.webp', './logo-academy-lg.webp', './face-academy.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png', './icon-academy-192.png', './apple-touch-academy.png', './favicon-academy-48.png'   // ההדר המשותף + הלוגו של Academy
 ];
 
 /* v354: סטודיו התרגום — אותו דבר: נטען מראש בעדכון רק אצל מי שכבר נכנס אליו (studio.js במטמון הקודם).
    v355: גם studionet.js ו־libbackup.js (המודולים שהסטודיו מייבא) — בלעדיהם הסטודיו לא נפתח אופליין.
    Mediabunny (vendor/mediabunny) לא כאן: חילוץ הקול צריך רשת בכל מקרה (ההעלאה), והוא נשמר במטמון בשימוש הראשון */
 const STUDIO_SHELL = ['./studio.js', './studio.css', './studionet.js', './libbackup.js', './studioplay.js', './studiosubs.js', './studioedl.js', './studioai.js', './studiostore.js',
-  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.webp', './logo-studio-lg.webp', './logo-blink-studio.png', './icon-studio-192.png', './apple-touch-studio.png', './favicon-studio-48.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
+  './studio.html', './studio-app.js', './strings-studio.js', './core.js', './auth.js', './shell.js', './logo-studio.webp', './logo-studio-lg.webp', './face-studio.webp', './snow-far-light.png', './snow-mid-light.png', './snow-near-light.png', './snow-far-dark.png', './snow-mid-dark.png', './snow-near-dark.png', './icon-studio-192.png', './apple-touch-studio.png', './favicon-studio-48.png'];   // שלב 3ד: Studio כדף עצמאי   // מ1: הנגן · מ2: עורך הכתוביות · מ4: עורך הווידאו · מ7: גיליון ה־AI · ת4: studiostore.js (מזהי R2)
 
 /* 12/10/2026 (פס פריסה אחד): קובץ מהרשת רק אם הוא בדיוק הקובץ שהגרסה הזו נבנתה ממנו.
    ‎?v=<טביעה> = כתובת חדשה ל־CDN (לא עותק ישן מהמטמון שלו), cache:'reload' = לא מהמטמון של הדפדפן.
