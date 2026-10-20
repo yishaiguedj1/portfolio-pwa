@@ -323,8 +323,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.15.0';
-const APP_VERSION = 'v455';
+const APP_RELEASE = '2.15.1';
+const APP_VERSION = 'v456';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -852,6 +852,21 @@ function snbSwipe(o) {
     if (!s.lock) return;
     finishCube(s, null, 0);
   }
+}
+/* 20/10/2026 (בקשת המשתמש): הסרגל שמתחת להדר (הלשוניות ב־Invest, הבורר בין הספריות ב־Academy) דבוק לתחתית ההדר
+   בגלילה — לא ב־8px מלמעלה (שם הוא נעלם מאחורי ההדר, שגובהו ~180px). ‎--appbar-h על <html> = גובה ההדר הנוכחי,
+   מתעדכן כשהגובה משתנה (שפה, קפסולת המצב) וכשההדר מוחלף (ציור מחדש בספרייה) — לקרוא אחרי כל ציור של ההדר */
+let _barHEl = null, _barHRO = null;
+function barHeightVar() {
+  if (typeof document === 'undefined' || !document.querySelector) return;
+  const b = document.querySelector('.appbar');
+  const put = () => { if (_barHEl && _barHEl.isConnected) document.documentElement.style.setProperty('--appbar-h', Math.round(_barHEl.getBoundingClientRect().height) + 'px'); };
+  if (b !== _barHEl) {
+    if (_barHRO) _barHRO.disconnect();
+    _barHEl = b;
+    if (b && typeof ResizeObserver === 'function') { _barHRO = new ResizeObserver(put); _barHRO.observe(b); }
+  }
+  put();
 }
 /* 20/10/2026 (בקשת המשתמש — "כמו בתפריטים הכי חדשים של Apple"): הסימון של הלשונית הנבחרת עובר אליה בתנועה "נוזלית"
    כמו בסרגל של iOS 26 — הקצה המוביל נמתח קדימה, הקצה האחורי מצטרף, הגלולה נדחסת מעט לגובה, עוברת את היעד בכמה

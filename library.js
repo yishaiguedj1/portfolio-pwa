@@ -965,28 +965,32 @@ function libBackPage() {                   // עמוד משנה: החלקה אח
     commit() { swipePop++; afterBack(() => history.back()); },
   };
 }
-/* 14/10/2026 (בקשת המשתמש): בין שתי הספריות רק מה שמתחת להדר מסתובב (core: cubeHold) — ההדר נשאר במקום.
-   20/10/2026: הבורר כבר לא בעמוד — סרגל קבוע בתחתית (segBar), מחוץ לשכבה שמסתובבת; הסימון שבו זז עם האצבע בגרירה,
-   ובשחרור משלים את התנועה (או חוזר בביטול) */
+/* 14/10/2026 (בקשת המשתמש): בין שתי הספריות רק מה שמתחת לבורר מסתובב (core: cubeHold) — ההדר והבורר נשארים במקום,
+   והסימון בבורר זז עם האצבע (בגרירה), ובשחרור משלים את התנועה (או חוזר בביטול) */
 function segHoldY() {
-  const top = root && root.querySelector('.lib-home > .appbar, .lib-home > .lib-hrow');
-  if (!top) return 0;
-  const b = top.getBoundingClientRect();
-  return b.bottom > 0 && b.bottom < innerHeight * 0.6 ? b.bottom : 0;
+  const seg = root && root.querySelector('.lib-seg');
+  if (!seg) return 0;
+  const b = seg.getBoundingClientRect();
+  return b.bottom > 0 && b.bottom < innerHeight * 0.6 ? b.bottom + 7 : 0;
 }
 function segHoldOn(from, to) {
+  const rtl = document.documentElement.dir === 'rtl', x = (k) => (k === 'mine' ? (rtl ? -100 : 100) : 0);
+  const mark = (seg, k) => {
+    seg.classList.toggle('mine', k === 'mine');
+    seg.querySelectorAll('.lib-seg-b').forEach((b, i) => { const on = (i === 0) === (k !== 'mine'); b.classList.toggle('on', on); });
+  };
   return (el, p) => {
-    const bar = segBar;
-    if (!bar) return;
-    if (p === 'commit' || p === 'cancel') { segMark(p === 'commit' ? to : from, true); return; }
-    const a = segPos(from), b = segPos(to);
-    if (!a || !b) return;
-    const ind = bar.querySelector('.lib-seg-ind');
-    if (ind._liquid) { try { ind._liquid.cancel(); } catch (e) {} ind._liquid = null; }
-    ind.style.width = (a.w + (b.w - a.w) * p) + 'px';
-    ind.style.transform = 'translateX(' + (a.x + (b.x - a.x) * p) + 'px)';
-    ind._x = a.x + (b.x - a.x) * p; ind._w = a.w + (b.w - a.w) * p;
-    segMark(p > 0.5 ? to : from, false, true);
+    const seg = el.querySelector('.lib-seg');
+    if (!seg) return;
+    if (p === 'commit' || p === 'cancel') {
+      mark(seg, p === 'commit' ? to : from);
+      getComputedStyle(seg, '::before').transform;      // המיקום הנוכחי נקבע — הסרת hold מפעילה את המעבר ממנו
+      seg.classList.remove('hold');
+      return;
+    }
+    seg.classList.add('hold');
+    seg.style.setProperty('--segx', (x(from) + (x(to) - x(from)) * p) + '%');
+    mark(seg, p > 0.5 ? to : from);
   };
 }
 function libSwipePage(next) {
@@ -1051,7 +1055,6 @@ function goView(v) {           // מעבר לדף בתוך הספרייה — ר
 
 async function renderHomeNow() {
   if (!root) return;
-  if (ui.view) segShow(false);           // 20/10/2026: הסרגל התחתון רק בשני עמודי הבית
   if (ui.view && ui.view.book) return renderBook(ui.view.book);
   if (ui.view && ui.view.notes) return renderNotes();
   if (ui.view && ui.view.track) return renderTrack(ui.view.track);
@@ -1106,7 +1109,7 @@ async function renderHomeNow() {
     si.addEventListener('click', () => { SA.auth.signIn().then((ok) => { if (!ok && typeof flash === 'function') flash(T('loginFailed')); }); });
     home.append(si);
   }
-  shelfSeg(nMine);
+  home.append(shelfSeg(nMine));
   if (!mine) {
     if (syncNote === 'denied') home.append(h('p', 'lib-note', T('libDenied')));
     else if (syncProgress && syncProgress.total > 1) home.append(h('p', 'lib-note', T('libSyncProg', { n: syncProgress.done, t: syncProgress.total })));
@@ -1237,52 +1240,21 @@ function setShelf(v) {
   libShow(v);
   Promise.resolve(renderHomeNow()).then(() => { if (!root) { ghost.remove(); return; } navScroll(0); cubeGhostRun(root, ghost, cubeSideFwd(v === 'mine'), { y: segHoldY(), on: segHoldOn(from, v) }); }, () => ghost.remove());
 }
-/* 20/10/2026 (בקשת המשתמש — כמו ב־Invest): הבורר בין שתי הספריות = סרגל קבוע בתחתית המסך, מחוץ ל־root (שמסתובב
-   בקובייה ונגלל) — לא זז בגלילה ולא במעבר; מוצג רק בשני עמודי הבית. הסימון = אלמנט (‏.lib-seg-ind) שעובר בתנועה
-   "נוזלית" (liquidPill ב־core, אותה תנועה של Invest). הכפתורים ראשונים ב־DOM (nth-child בכלי המדידה) */
-let segBar = null;
-function shelfSeg(nMine) {                 // בורר מקטעים — סרגל תחתון
-  if (!segBar) {
-    const seg = segBar = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
-    const one = (v, label) => {
-      const b = h('button', 'lib-seg-b'); b.type = 'button'; b.dataset.v = v;
-      b.setAttribute('role', 'tab');
-      b.append(h('span', null, label), h('small', null, ''));
-      b.addEventListener('click', () => setShelf(v));
-      seg.append(b);
-    };
-    one('snb', 'THE SNOWBALL');
-    one('mine', T('libMine'));
-    seg.append(h('span', 'lib-seg-ind'));
-    document.body.append(seg);
-  }
-  const n = segBar.querySelector('.lib-seg-b[data-v="mine"] small');
-  n.textContent = nMine ? String(nMine) : '';
-  segShow(true);
-  segMark(ui.shelf, true);
-  return segBar;
-}
-function segShow(on) {
-  if (!segBar) return;
-  segBar.classList.toggle('on', !!on && !!root);
-  if (root) root.classList.toggle('seg-on', !!on);
-}
-function segPos(v) {
-  const b = segBar && segBar.querySelector('.lib-seg-b[data-v="' + v + '"]');
-  return b && b.offsetWidth ? { x: b.offsetLeft, w: b.offsetWidth } : null;
-}
-function segMark(v, move, textOnly) {
-  if (!segBar) return;
-  segBar.classList.toggle('mine', v === 'mine');
-  segBar.querySelectorAll('.lib-seg-b').forEach((b) => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-  if (textOnly || !move) return;
-  const ind = segBar.querySelector('.lib-seg-ind'), to = segPos(v);
-  if (!to) return;
-  const x0 = ind._x, w0 = ind._w;
-  ind.style.width = to.w + 'px';
-  ind.style.transform = 'translateX(' + to.x + 'px)';
-  ind._x = to.x; ind._w = to.w;
-  if (x0 != null && segBar.classList.contains('on') && typeof liquidPill === 'function') liquidPill(ind, x0, w0, to.x, to.w);
+function shelfSeg(nMine) {                 // בורר מקטעים בסגנון iOS
+  const seg = h('div', 'lib-seg no-swipe'); seg.setAttribute('role', 'tablist');
+  const one = (v, label, n) => {
+    const b = h('button', 'lib-seg-b' + (ui.shelf === v ? ' on' : '')); b.type = 'button';
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', ui.shelf === v ? 'true' : 'false');
+    b.append(h('span', null, label));
+    if (n) b.append(h('small', null, String(n)));
+    b.addEventListener('click', () => setShelf(v));
+    seg.append(b);
+  };
+  one('snb', 'THE SNOWBALL', 0);
+  one('mine', T('libMine'), nMine);
+  seg.classList.toggle('mine', ui.shelf === 'mine');
+  requestAnimationFrame(() => { if (typeof barHeightVar === 'function') barHeightVar(); });   // 20/10/2026: גובה ההדר לבורר הדבוק
+  return seg;
 }
 let pillPrev = '';
 export function bkPillState(signed, s, busy) {   // טהורה (נבדקת): off | busy | err | ok
@@ -4391,7 +4363,6 @@ function curtainDown(instant) {   // 14/10/2026: instant — פתיחה רגיל
 }
 function closeLibrary(instant) {
   const r = root; root = null;
-  if (segBar) { const sb = segBar; segBar = null; sb.classList.remove('on'); setTimeout(() => sb.remove(), 260); }
   hideSel(); hideTr(true);
   document.documentElement.classList.remove('lib-open');
   if (instant === true || reduceMotion()) { r.remove(); return; }
