@@ -288,3 +288,28 @@ class HandleUnit(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class BootPollUnit(unittest.TestCase):
+    """20/10/2026: הפנייה הראשונה אחרי העלייה (boot) — השרתון מסמן worker_lost לעבודה שנקטעה אצל השרת הזה.
+    רק ב־poll, ורק עד התשובה התקינה הראשונה (תקלת רשת — boot נשלח שוב בפעם הבאה)."""
+
+    def test_boot_only_first_ok_poll(self):
+        sys.path.insert(0, str(HERE))
+        import agent
+        sent = []
+        answers = [(200, {'ok': True, 'job': None}), (503, {}), (200, {'ok': True, 'job': None}), (200, {'ok': True, 'job': None})]
+
+        def fake_http(method, url, body, headers=None, timeout=None):
+            sent.append(dict(body))
+            st, j = answers.pop(0)
+            return st, j, {}
+        saved_http, saved_boot = agent.J.http, agent._boot
+        agent.J.http, agent._boot = fake_http, True
+        self.addCleanup(setattr, agent.J, 'http', saved_http)
+        self.addCleanup(setattr, agent, '_boot', saved_boot)
+        agent.poll('https://x', 't', 'beat', 'j' + 'a' * 20)   # דופק — בלי boot
+        agent.poll('https://x', 't')                           # 503 — עוד לא "עלינו", ישלח שוב
+        agent.poll('https://x', 't')                           # התשובה התקינה הראשונה
+        agent.poll('https://x', 't')
+        self.assertEqual([b.get('boot') for b in sent], [None, True, True, None])

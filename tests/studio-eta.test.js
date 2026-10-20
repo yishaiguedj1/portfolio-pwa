@@ -51,7 +51,15 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   // 4. השרתון: היעד = p90, דגימה בסיום, מודל ב־status, הקובץ בלי תלויות
   const api = read('ibkr-proxy/api/studio.js');
   ok(/tg\.t = ETA\.etaTarget\(ep\)/.test(api) && /patch\.ep = ep/.test(api), 'הלקיחה: תוכנית לעבודה + יעד זמן = p90 + דקה');
-  ok(/ETA\.etaSample\(Object\.assign\(\{\}, job, up\), now\)/.test(api) && /eta: ETA\.etaView\(st\.et, now\)/.test(api), 'סוף העבודה מלמד; status מחזיר את המודל');
+  ok(/ETA\.etaSample\(Object\.assign\(\{\}, job, up\), now\)/.test(api) && /eta: ETA\.etaView\(st\.et, now, /.test(api), 'סוף העבודה מלמד; status מחזיר את המודל');
+  // 20/10/2026: מאגר משותף לשרת — כל העבודות בשרת מלמדות את הצפי; ה־Routine נשאר לכל משתמש
+  const E2 = require(path.join(__dirname, '..', 'ibkr-proxy/lib/studioeta.js'));
+  const smpA = (d, al) => ({ e: 'a', m: 'haiku-high', d, s: { tr: 60, al, tl: 30, rv: 40, bn: 60, sv: 10 }, at: 1e12 });
+  const g = Array.from({ length: 60 }, (_, i) => smpA(300 + i, 400));
+  ok(E2.etSamplesFor([smpA(300, 100)], g, 'a').length === 60 && E2.etSamplesFor([smpA(300, 100)], g, 'r').length === 1 && E2.etSamplesFor([smpA(300, 100)], [], 'a').length === 1,
+    'השרת לומד מהמאגר המשותף (כשיש בו), Routine — מהעבודות של המשתמש');
+  ok(E2.addEtSample(g.concat(g, g, g), smpA(999, 1), E2.ET_G_MAX).length === E2.ET_G_MAX && E2.normEtSamples(g.concat(g)).length === E2.ET_MAX, 'עד 200 דגימות במאגר המשותף, 40 לכל משתמש');
+  ok(/studioEta', 'a', \{ et: ETA\.addEtSample\(g && g\.et, es, ETA\.ET_G_MAX\)/.test(api) && /ETA\.etSamplesFor\(stats\.et, ge,/.test(api), 'סוף עבודה בשרת → המאגר המשותף; הלקיחה מתכננת ממנו');
   ok(!/require\(/.test(read('ibkr-proxy/lib/studioeta.js')), 'studioeta.js טהור — בלי require');
   // 5. מאגר המדידות: הנתונים המדויקים של עבודה שהסתיימה — בלי שם קובץ ובלי מזהי Drive
   const bsrc = st.slice(st.indexOf('export function benchData('), st.indexOf('/* ת2 (10/10/2026): בידוד'));

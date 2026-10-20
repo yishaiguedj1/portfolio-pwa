@@ -54,6 +54,11 @@ function normLx(o) {
     if (isNum(o.env.mem) && o.env.mem > 0 && o.env.mem < 1e7) e.mem = Math.round(o.env.mem);   // MB
     if (Object.keys(e).length) out.env = e;
   }
+  if (o.vid && typeof o.vid === 'object') {                                           // 20/10/2026: רזולוציה, פריימים, קצב — לצפי הצריבה
+    const v = {};
+    for (const [k, hi] of [['w', 16384], ['h', 16384], ['fps', 480], ['kb', 1e6]]) if (isNum(o.vid[k]) && o.vid[k] > 0 && o.vid[k] <= hi) v[k] = k === 'fps' ? r4(o.vid[k]) : Math.round(o.vid[k]);
+    if (Object.keys(v).length) out.vid = v;
+  }
   const ps = flatNums(o.ps, 90); if (Object.keys(ps).length) out.ps = ps;            // מה ש־vt רשם לכל שלב (project.json)
   if (Array.isArray(o.vt)) {                                                            // זמן לכל פקודת vt: [פקודה, פעמים, שניות, הארוכה]
     const vt = [];

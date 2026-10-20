@@ -24,6 +24,7 @@ class LearnFacts(unittest.TestCase):
                        'edit_import': {'at': 'x', 'equal': 780, 'replaced': 20, 'inserted': 7, 'deleted': 5},
                        'align': {'at': 'x', 'aligned': 800, 'suspicious': 9, 'kept_approx': 3, 'seconds': 41.2, 'engine': 'onnx-int8'},
                        'build': {'at': 'x', 'style': 'bold', 'errors': 0, 'warnings': 4}}}), encoding='utf-8')
+        (pd / 'media.json').write_text(json.dumps({'path': '/home/x/' + SECRET + '.mp4', 'video': {'width': 1920, 'height': 1080, 'fps_float': 29.97, 'bitrate': 1100000, 'codec': 'h264'}}))
         (pd / 'en.aligned.json').write_text(json.dumps({'stats': {'ctc': {'aligned': 790, 'seconds': 12.5}, 'consensus': {'moved_100ms': 14}}, 'words': []}))
         (pd / 'snb-timing.json').write_text(json.dumps({'env': {}, 'vt': [['asr', 1, 60.0, 'Main'], ['align', 2, 40.0, 'x'], ['align', 5, 10.0, 'x'], ['../bad cmd', 1, 3, 'x']]}))
         cues = [{'id': i, 'start': i * 3.0, 'end': i * 3.0 + 2.5, 'cps': 10 + i, 'chars': 30 + i, 'lines': [SECRET] * (1 + i % 2),
@@ -60,6 +61,7 @@ class LearnFacts(unittest.TestCase):
         self.assertEqual(lx['en']['tc'], 2)
         self.assertEqual(lx['en']['th'], {'tl': 9000, 'rv': 100})
         self.assertEqual(lx['sy'], {'c': 0.93, 'o': 0.12})
+        self.assertEqual(lx['vid'], {'w': 1920, 'h': 1080, 'fps': 29.97, 'kb': 1100})   # 20/10/2026: לצפי הצריבה — מספרים בלבד
 
     def test_privacy(self):
         txt = json.dumps(job.learn_facts(self.ctx), ensure_ascii=False)

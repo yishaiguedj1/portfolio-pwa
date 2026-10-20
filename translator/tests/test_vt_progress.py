@@ -35,3 +35,29 @@ class VtFrac(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SpeedSafe(unittest.TestCase):
+    """20/10/2026: האצות בלי שינוי בתוצאה — נמדדו בתמונת העובד (יומן העבודה)."""
+
+    def test_svt_lp_cores(self):
+        import os
+        sys.path.insert(0, str(HERE))
+        from vt import render
+        old = os.environ.get('SNB_SVT_LP')
+        try:
+            os.environ['SNB_SVT_LP'] = '8'
+            self.assertEqual(render.svt_lp(), 8)
+            self.assertIn('lp=8:enable-tf=0', ' '.join(render.enc_args('av1', 40, 10, 'enable-tf=0')))
+            del os.environ['SNB_SVT_LP']
+            self.assertTrue(4 <= render.svt_lp() <= 16)
+        finally:
+            if old is None:
+                os.environ.pop('SNB_SVT_LP', None)
+            else:
+                os.environ['SNB_SVT_LP'] = old
+
+    def test_release_before_ctc(self):
+        src = (HERE / 'vt' / 'cli.py').read_text(encoding='utf-8')
+        body = src[src.index('def cmd_align'):src.index('def cmd_retime')]
+        self.assertLess(body.index('_release_memory()'), body.index('ctc_align(words'))

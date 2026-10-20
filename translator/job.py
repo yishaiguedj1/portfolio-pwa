@@ -735,6 +735,12 @@ def learn_facts(ctx):
     except Exception:            # noqa: BLE001
         pass
     pd = ctx.pdir
+    # 20/10/2026: מה שקובע כמה זמן לוקחים הצריבה ואיכויות הצפייה — רזולוציה, קצב פריימים וקצב הווידאו (מספרים בלבד)
+    mv = (_read_json(pd / 'media.json') or {}).get('video') or {}
+    vid = {k: mv.get(src) for k, src in (('w', 'width'), ('h', 'height'), ('fps', 'fps_float'), ('kb', 'bitrate'))}
+    vid = {k: (round(v / 1000) if k == 'kb' else v) for k, v in vid.items() if _num_ok(v) and v > 0}
+    if vid:
+        out['vid'] = vid
     ps = {}
     meta = _read_json(pd / 'project.json') or {}
     for stg, info in (meta.get('stages') or {}).items():
