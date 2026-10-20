@@ -2414,6 +2414,27 @@ def dev_setup(st):
         return False
 
 
+def crash_where(e: BaseException) -> str:
+    """20/10/2026: חריגה לא צפויה — סוג החריגה ואיפה בקוד שלנו ("KeyError @ pipeline.py:712 proofread"), בלי הטקסט שלה
+    ובלי נתיבים (פרטיות). עד היום נשלח רק הסוג, והיומן המלא לא נשמר בסביבת הניסוי — קריסה אי אפשר היה לאבחן בלי מסוף.
+    המסגרת האחרונה שבתיקיית translator/ (לא בתוך vt/ ולא בספרייה חיצונית)"""
+    name = type(e).__name__[:40]
+    try:
+        import traceback
+        here = str(HERE) + os.sep
+        last = None
+        for fr in traceback.extract_tb(e.__traceback__):
+            f = str(fr.filename or '')
+            if f.startswith(here) and os.sep not in f[len(here):]:
+                last = fr
+        if last is not None:
+            fn = re.sub(r'[^A-Za-z0-9_]', '', str(last.name or ''))[:40]
+            return (name + ' @ ' + os.path.basename(last.filename) + ':' + str(int(last.lineno or 0)) + (' ' + fn if fn else ''))[:120]
+    except Exception:     # noqa: BLE001 — האבחון משני
+        pass
+    return name
+
+
 def auto(args):
     """מצב "API של המערכת": מנהל העבודה הוא סקריפט (pipeline.py), והמודל מקבל רק את עבודת השפה."""
     try:
@@ -2443,7 +2464,7 @@ def auto(args):
     except Exception as e:               # noqa: BLE001 — חריגה לא צפויה (באג, OSError): כשל גלוי מיד, לא "רצה" עד STALE_MS
         try:
             # רק סוג החריגה — הטקסט שלה יכול לכלול נתיבים / שמות קבצים (פרטיות)
-            Ctx(load_state()).report(fail=True, err='worker_crash', msg=type(e).__name__[:60], force=True, lx=learn_safe(),
+            Ctx(load_state()).report(fail=True, err='worker_crash', msg=crash_where(e), force=True, lx=learn_safe(),
                                      usage=usage_safe(), trace=trace_safe())
         except (Stop, SystemExit, Exception):     # noqa: BLE001
             pass

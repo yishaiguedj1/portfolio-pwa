@@ -18,6 +18,7 @@ const MODES = ['haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus
 const DAY = 86400e3, WIN = 30 * DAY;
 const KEY_RE = /^[a-z][a-z0-9_.]{0,47}$/;
 const CODE_RE = /^[a-z][a-z0-9_]{0,39}$/;
+const WHERE_RE = /^[A-Za-z_][A-Za-z0-9_]{0,39} @ [a-z_][a-z0-9_]{0,30}\.py:\d{1,6}( [A-Za-z_][A-Za-z0-9_]{0,39})?$/;   // = lib/studio.js
 const CMD_RE = /^[a-z][a-z_-]{1,19}$/;
 const MODEL_RE = /^claude-[a-z0-9-]{1,50}$/;
 
@@ -169,7 +170,7 @@ function traceInfo(tr) {
 }
 function errHist(eh) {
   return (Array.isArray(eh) ? eh : []).filter((x) => x && CODE_RE.test(String(x.e || ''))).slice(-10)
-    .map((x) => ({ e: x.e, s: STAGES.includes(x.s) ? x.s : '', t: hour(x.at) }));
+    .map((x) => Object.assign({ e: x.e, s: STAGES.includes(x.s) ? x.s : '', t: hour(x.at) }, WHERE_RE.test(String(x.w || '')) ? { w: x.w } : {}));   // 20/10/2026: איפה קרס
 }
 /* job = מסמך העבודה כמו שהוא בשרתון; effState = S.effState (מוזרק — כדי שהקובץ לא יהיה תלוי ב־studio.js) */
 function learnRec(job, now, effState) {
