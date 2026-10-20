@@ -71,7 +71,9 @@ export function createShell(o) {
   const img = h('img', 'brand-logo'); img.src = o.logo || 'logo-header.png'; img.width = 128; img.height = 128; img.alt = ''; img.decoding = 'async';
   // לוגו חד בכל צפיפות מסך (13/10/2026): 512 = פי 4 מ־128; ‏logoLg (768) לטלפונים בצפיפות גבוהה יותר
   if (o.logoLg) { img.srcset = o.logo + ' 512w, ' + o.logoLg + ' 768w'; img.sizes = '128px'; }
-  brand.append(img, h('span', 'sr-only', o.title || ''));
+  const blink = h('span', 'brand-blink'), snow = h('span', 'brand-snow');   // 20/10/2026: מצמוץ, שלג והילה סביב הלוגו (styles.css)
+  blink.setAttribute('aria-hidden', 'true'); snow.setAttribute('aria-hidden', 'true');
+  brand.append(img, blink, snow, h('span', 'sr-only', o.title || ''));
   if (o.onBrand) brand.addEventListener('click', o.onBrand);
   const left = h('div', 'appbar-left');
   const sub = h('div', 'appbar-sub src-row'); sub.hidden = true;           // קפסולת מצב של האפליקציה (Invest: מצב השוק)
