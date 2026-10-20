@@ -80,6 +80,44 @@ class ClientTimeoutTests(unittest.TestCase):
         self.assertGreaterEqual(read, 60, 'לא קצר מדי — חשיבה ארוכה עדיין שולחת ping, אבל מרווח ביטחון')
         self.assertEqual(seen['max_retries'], 4)
 
+    def test_timeout_is_the_sdks_own(self):
+        # 20/10/2026: anthropic 1.x (httpx2) דוחה httpx.Timeout ב־TypeError — כל עבודה בשרת קרסה בקריאה הראשונה.
+        # ה־Timeout חייב להגיע מה־SDK עצמו (anthropic.Timeout), לא מ־httpx
+        import os
+        seen = {}
+
+        class SdkTimeout:
+            def __init__(self, **kw):
+                self.__dict__.update(kw)
+
+        class FakeAnthropic:
+            def __init__(self, **kw):
+                if not isinstance(kw.get('timeout'), (SdkTimeout, float, int)):
+                    raise TypeError('Invalid `timeout` argument; use httpx2.Timeout')
+                seen.update(kw)
+        prev = sys.modules.get('anthropic')
+        sys.modules['anthropic'] = NS(Anthropic=FakeAnthropic, Timeout=SdkTimeout)
+        old = os.environ.get('ANTHROPIC_API_KEY')
+        os.environ['ANTHROPIC_API_KEY'] = 'x'
+        try:
+            llm.Engine(llm.Spec.of('haiku-high'))._client_or_new()
+        finally:
+            if prev is None:
+                sys.modules.pop('anthropic', None)
+            else:
+                sys.modules['anthropic'] = prev
+            if old is None:
+                os.environ.pop('ANTHROPIC_API_KEY', None)
+            else:
+                os.environ['ANTHROPIC_API_KEY'] = old
+        self.assertIsInstance(seen['timeout'], SdkTimeout)
+        self.assertEqual(seen['timeout'].read, llm.API_READ_TIMEOUT)
+
+    def test_image_smoke_builds_real_client(self):
+        # הבדיקות כאן רצות בלי anthropic — בניית התמונה בונה את הלקוח האמיתי (בלי רשת), כדי שאי־התאמה לספרייה תעצור את הבנייה
+        df = (Path(__file__).resolve().parents[2] / 'infra' / 'worker' / 'Dockerfile').read_text(encoding='utf-8')
+        self.assertIn('_client_or_new()', df)
+
 
 class AnthropicTests(unittest.TestCase):
     def test_request_shape_cache_effort(self):

@@ -82,12 +82,17 @@ API_READ_TIMEOUT = float(os.environ.get('SNB_API_READ_TIMEOUT', '150'))
 
 
 def api_timeout():
-    """זמני ההמתנה ללקוח של Anthropic: חיבור, קריאה (בין בייטים), כתיבה. בלי httpx — מספר אחד (כמו קודם, אבל קצר)."""
+    """זמני ההמתנה ללקוח של Anthropic: חיבור, קריאה (בין בייטים), כתיבה. בלי הספרייה — מספר אחד (כמו קודם, אבל קצר).
+    20/10/2026: Timeout של ה־SDK עצמו (anthropic.Timeout), לא של httpx — מ־anthropic 1.x ה־SDK עובד עם httpx2 ודוחה
+    httpx.Timeout ב־TypeError. כל עבודה בשרת קרסה כך בקריאה הראשונה ל־Claude (ההגהה), מ־15/10 ועד התיקון."""
     try:
-        import httpx              # תלות של anthropic — קיימת תמיד כשהספרייה קיימת
+        from anthropic import Timeout
     except ImportError:
         return API_READ_TIMEOUT
-    return httpx.Timeout(connect=30.0, read=API_READ_TIMEOUT, write=120.0, pool=30.0)
+    try:
+        return Timeout(connect=30.0, read=API_READ_TIMEOUT, write=120.0, pool=30.0)
+    except (TypeError, ValueError):
+        return API_READ_TIMEOUT
 
 
 MID_RETRY_WAIT = tuple(int(x) for x in os.environ.get('SNB_MID_RETRY', '20,60').split(',') if x.strip())
