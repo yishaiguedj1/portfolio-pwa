@@ -1438,6 +1438,24 @@ def note_timing(ctx, cmd, t0, t1):
         pass
 
 
+# 20/10/2026: vt align מדפיס "יישור 3/40" (Qwen) ואז "CTC 10/52" — בלי סימן אחוז, ולכן עד היום הטלפון לא קיבל
+# שום התקדמות בשלב היישור: הפס נתקע בהתחלה ומודל הזמנים הסיק "עוד 3 שעות". Qwen = ‏80% מהשלב, CTC = ‏20%.
+ALIGN_STEPS = ((re.compile(r'יישור (\d+)/(\d+)'), 0.0, 0.8), (re.compile(r'CTC (\d+)/(\d+)'), 0.8, 1.0))
+
+
+def vt_frac(cmd, line):
+    """חלק השלב (0–1) מתוך שורת פלט של vt, או None. אחוז מפורש — בכל פקודה; לספירת חלונות — רק ב־align."""
+    m = re.search(r'(\d{1,3}(?:\.\d)?)%', line)
+    if m:
+        return min(1.0, float(m.group(1)) / 100)
+    if cmd == 'align':
+        for rx, a, b in ALIGN_STEPS:
+            m = rx.search(line)
+            if m and int(m.group(2)) > 0:
+                return a + (b - a) * min(1.0, int(m.group(1)) / int(m.group(2)))
+    return None
+
+
 def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
@@ -1447,10 +1465,10 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     for line in proc.stdout:
         line = line.rstrip()
         tail = (tail + [line])[-12:]
-        m = re.search(r'(\d{1,3}(?:\.\d)?)%', line)
-        if stage and m:
+        f = vt_frac(args[0], line)
+        if stage and f is not None:
             try:
-                ctx.report(stage, lo + (hi - lo) * min(1.0, float(m.group(1)) / 100))
+                ctx.report(stage, lo + (hi - lo) * f)
             except Stop:
                 proc.kill()
                 raise
