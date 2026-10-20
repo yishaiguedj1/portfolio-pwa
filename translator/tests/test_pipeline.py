@@ -535,7 +535,27 @@ class JobHooks(unittest.TestCase):
         finally:
             P.run_auto, JJ.Ctx, JJ.load_state, JJ.usage_safe, JJ.trace_safe = saved
         self.assertEqual(len(sent), 1)
-        self.assertEqual((sent[0]['fail'], sent[0]['err'], sent[0]['msg']), (True, 'worker_crash', 'ValueError'))
+        self.assertEqual((sent[0]['fail'], sent[0]['err']), (True, 'worker_crash'))
+        self.assertRegex(sent[0]['msg'], r'^ValueError @ job\.py:\d+ auto$')   # 20/10: המקום בקוד שלנו, בלי הטקסט (הנתיב)
+
+    def test_crash_where(self):
+        # 20/10/2026: הקריסה מדווחת עם המקום בקוד של העובד (קובץ, שורה, פונקציה) — בלי הטקסט ובלי נתיבים
+        import job as JJ
+        code = compile('def proofread(x):\n    return x + 1\n', str(JJ.HERE / 'pipeline.py'), 'exec')
+        ns = {}
+        exec(code, ns)   # noqa: S102 — קוד קבוע של הבדיקה
+        try:
+            ns['proofread']('/root/work/private-name.mp4')
+        except TypeError as e:
+            w = JJ.crash_where(e)
+        self.assertEqual(w, 'TypeError @ pipeline.py:2 proofread')
+        self.assertNotIn('private', w)
+        code = compile('def f():\n    raise KeyError(1)\n', '/usr/lib/python3/x.py', 'exec')   # לא בקוד שלנו — רק הסוג
+        exec(code, ns)   # noqa: S102
+        try:
+            ns['f']()
+        except KeyError as e:
+            self.assertEqual(JJ.crash_where(e), 'KeyError')
 
 
 class RunAutoResume(unittest.TestCase):
