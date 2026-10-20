@@ -555,6 +555,12 @@ def main(once: bool = False) -> int:
     server, tok = server_url(), token()
     report_lost()                              # 14/10/2026: עבודה שרצה כשהשרת כבה — מדווחת, כדי שתמשיך לבד ולא "תרוץ" שעתיים
     cleanup()                                  # שאריות מהפעלה קודמת שנקטעה (כיבוי, עדכון)
+    # 20/10/2026: בעלייה אף עבודה לא רצה — .busy שנשאר (עבודה שנקטעה, כבר דווחה למעלה) הוא שארית. עד היום cleanup()
+    # דילג עליו, והוא נשאר לתמיד: snb-update לא החליף את העובד של הניסוי ימים ("עבודה רצה"), וגם snb-host-apply סירב
+    try:
+        BUSY.unlink()
+    except OSError:
+        pass
     warm = None if once else start_warm()
     print('✓ הסוכן פעיל — שואל את השרתון אם יש עבודה', flush=True)
     ev('up')

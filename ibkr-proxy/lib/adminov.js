@@ -261,7 +261,7 @@ function laneView(prs, waiting) {
 
 /* יומן פעולות (15/10/2026, מסך 6 בתוכנית 5א): כל שינוי שהמנהל עושה ממרכז הניהול נרשם ב־sysLog — מה, מי (מייל), מתי, ופרט קצר.
    סוגים רק מהקטלוג (בלי טקסט חופשי בסוג), הפרט מנוקה (noteClean, עד 120). נשמר LOG_DAYS ימים */
-const LOG_KINDS = ['an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
+const LOG_KINDS = ['srv_pause', 'srv_resume', 'srv_del', 'an_on', 'an_off', 'fb_done', 'fb_del', 'mt_on', 'mt_upd', 'mt_off', 'fl_on', 'fl_off', 'am_add', 'am_del', 'ac_add', 'ac_del', 'ck_ok', 'ck_no', 'ck_clr'];
 const LOG_DAYS = 90, LOG_SHOW = 200;
 function logEntry(k, d, who, now) {
   if (!LOG_KINDS.includes(k)) return null;
@@ -360,7 +360,7 @@ function serversAdmin(list, busy, now) {
     if (hb.mem != null && hb.mem >= 90) warn.push('mem');
     if (hb.iso === 'r') warn.push('iso');
     const b = B[s.id];
-    return { n: s.name, online: s.online, paused: s.paused, seen: s.seen, created: s.created, warn,
+    return { id: s.id, n: s.name, online: s.online, paused: s.paused, seen: s.seen, created: s.created, warn,
       hb: { v: hb.v || '', disk: hb.disk, free: hb.free, mem: hb.mem, load: hb.load, up: hb.up, iso: hb.iso || '', iw: hb.iw || '', al: hb.al || '', ev: Array.isArray(hb.ev) ? hb.ev.slice(-8) : [] },
       job: b ? { st: String(b.st || '').slice(0, 24), p: typeof b.p === 'number' ? b.p : null } : null };
   }).sort((a, b) => (b.online - a.online) || (b.seen - a.seen));
@@ -402,4 +402,31 @@ function fbView(list) {
   return { items, open: items.filter((x) => x.st === 'n').length };
 }
 
-module.exports = { FB_KINDS, fbEntry, fbView, usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+/* גיבויים (15/10/2026 → 17/10, "מה עובר" למרכז הניהול): (1) הגיבוי היומי ל־R2 — `bk/<יום>/{fs,catalog,cat2}.json.gz`, 14 יום;
+   (2) הגיבוי אצל ספק שני — Drive של המנהל (sysBackup/cfg: day, okAt, up, left, err, uid). r2 = רשימת R2.list של 'bk/' או null */
+function backupsView(f) {
+  const now = f.now || Date.now();
+  const yday = new Date(now - DAY).toISOString().slice(0, 10);
+  let r2 = null;
+  if (Array.isArray(f.r2)) {
+    const by = {};
+    for (const it of f.r2) {
+      const m = /^bk\/(\d{4}-\d{2}-\d{2})\/(fs|catalog|cat2)\.json\.gz$/.exec(String((it && it.key) || ''));
+      if (!m) continue;
+      const d = by[m[1]] || (by[m[1]] = { d: m[1], b: 0, fs: false, cat: false, cat2: false });
+      d.b += +it.size || 0; d[m[2]] = true;
+    }
+    const days = Object.values(by).sort((a, b) => (a.d < b.d ? 1 : -1)).map((x) => ({ d: x.d, mb: Math.round(x.b / 1048576 * 10) / 10, fs: x.fs, cat: x.cat, cat2: x.cat2 }));
+    const full = days.filter((x) => x.fs);
+    r2 = { days, n: full.length, last: full.length ? full[0].d : '' };
+  }
+  const o = f.off;
+  const off = o ? { day: String(o.day || ''), okAt: +o.okAt || 0, up: +o.up || 0, left: +o.left || 0, err: /^[a-z0-9_]{1,30}$/.test(String(o.err || '')) ? o.err : '', mine: !!(o.uid && o.uid === f.me), owner: !!o.uid } : null;
+  const warn = [];
+  if (r2 && !r2.n) warn.push('r2_none'); else if (r2 && r2.last < yday) warn.push('r2_stale');
+  if (!off || !off.okAt) warn.push('off_none'); else if (now - off.okAt > 2 * DAY) warn.push('off_stale');
+  if (off && off.err) warn.push('off_err');
+  return { r2, off, warn, keep: 14 };
+}
+
+module.exports = { backupsView, FB_KINDS, fbEntry, fbView, usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };

@@ -3618,6 +3618,9 @@ function stubFetch(text, status = 200) {
       const fbD = await run({ op: 'adminFb', idToken: OWNER, set: { id: fb1.id, st: 'd' } });
       ok(fbD.payload.fb.items.find((x) => x.id === fb1.id).st === 'd', 'משוב: סימון "טופל"');
       ok((await run({ op: 'adminFb', idToken: OWNER, set: { id: fb1.id, st: 'x' } })).payload.fb.items.every((x) => x.id !== fb1.id), 'משוב: מחיקה');
+      ok((await run({ op: 'adminBackups', idToken: FRIEND })).payload.error === 'not_admin', 'גיבויים: רק המנהל');
+      const bkR = await run({ op: 'adminBackups', idToken: OWNER });
+      ok(bkR.payload.ok && Array.isArray(bkR.payload.bk.warn) && !/ownerUid0001/.test(JSON.stringify(bkR.payload)), 'גיבויים: מצב שני הגיבויים, בלי uid');
       ok((await run({ op: 'adminSecrets', idToken: FRIEND })).payload.error === 'not_admin', 'סודות: רק המנהל');
       const scR = await run({ op: 'adminSecrets', idToken: OWNER });
       ok(scR.payload.ok && scR.payload.sec.items.find((x) => x.k === 'sa').set === true && !JSON.stringify(scR.payload).includes(String(process.env.GDRIVE_SA_KEY || '').slice(0, 20) || '§'), 'סודות: "מוגדר" בלי הערך');
