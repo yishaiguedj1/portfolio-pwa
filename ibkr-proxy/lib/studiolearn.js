@@ -15,7 +15,7 @@ const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
 const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
 const MX_GROUPS = ['st', 'tm', 'cs', 'om'];                // st שלבים · tm תזמון · cs עקביות · om השמטות
-const MODES = ['haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // מהזול ליקר
+const MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // מהזול ליקר
 const DAY = 86400e3, WIN = 30 * DAY;
 const KEY_RE = /^[a-z][a-z0-9_.]{0,47}$/;
 const CODE_RE = /^[a-z][a-z0-9_]{0,39}$/;

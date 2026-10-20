@@ -335,18 +335,63 @@ class Pipeline:
         return parse_questions(sec.get('QUESTIONS', ''))
 
     # -------------------------------------------------------------- 3. שאלות למשתמש
+    # 20/10/2026 (בקשת המשתמש): שאלה לא מעכבת את העבודה בשום צורה. השאלה הראשונה נשלחת לטלפון והעבודה ממשיכה מיד
+    # עם ברירת המחדל; רגע לפני התרגום מציצים (בלי לחכות) — תשובה שכבר הגיעה נכנסת לתדריך בחינם. תשובה שמגיעה אחר כך
+    # = הצעה בטלפון בסוף העבודה לתקן את הכתוביות לפיה (גיליון ה־AI, באישור). שאלות נוספות — לפי שיקול דעת.
+    DECIDED_H = '## החלטות המשתמש (גוברות על כל השאר)'
+
+    def _decision(self, q: str, text: str, how: str) -> str:
+        return (f'- {q} → ' + (text if how != 'none' else 'אין תשובה — להחליט לפי שיקול דעת')
+                + (' (ברירת מחדל — המשתמש עוד לא ענה)' if how == 'default' else ''))
+
+    def _write_decided(self, decided: list[str]):
+        bp = self.pd / 'tr' / 'brief.md'
+        old = bp.read_text(encoding='utf-8') if bp.exists() else ''
+        old = old.split('\n\n' + self.DECIDED_H, 1)[0]
+        bp.write_text(old.rstrip('\n') + '\n\n' + self.DECIDED_H + '\n' + '\n'.join(decided) + '\n', encoding='utf-8')
+
     def ask(self, qs: list[dict], wait: int = 480) -> list[str]:
-        """אותו פרוטוקול של job.py ask. מחזיר שורות החלטה לתדריך."""
+        """שולח את השאלה הראשונה בלי לחכות. מחזיר שורות החלטה לתדריך (בינתיים — ברירת המחדל)."""
         decided = []
-        for q in qs[:MAX_QUESTIONS]:
-            text, how = self.J.ask_user(self.ctx, q['q'], q['opts'], q['default'], wait)
-            decided.append(f'- {q["q"]} → ' + (text if how != 'none' else 'אין תשובה — להחליט לפי שיקול דעת')
-                           + (' (ברירת מחדל — המשתמש לא ענה)' if how == 'default' else ''))
+        for n, q in enumerate(qs[:MAX_QUESTIONS]):
+            opts = [o for o in q['opts'] if o][:4]
+            d = q['default'] if opts and 0 <= q['default'] < len(opts) else (0 if opts else -1)
+            text, how = (opts[d], 'default') if d >= 0 else ('', 'none')
+            if n == 0 and hasattr(self.J, 'ask_post'):
+                qid = self.J.ask_post(self.ctx, q['q'], opts, d)
+                if qid:
+                    self.ctx.st['qnb'] = {'id': qid, 'q': q['q'], 'o': opts, 'd': d}
+                    self.J.save_state(self.ctx.st)
+            decided.append(self._decision(q['q'], text, how))
         if decided:
-            bp = self.pd / 'tr' / 'brief.md'
-            old = bp.read_text(encoding='utf-8') if bp.exists() else ''
-            bp.write_text(old.rstrip('\n') + '\n\n## החלטות המשתמש (גוברות על כל השאר)\n' + '\n'.join(decided) + '\n', encoding='utf-8')
+            self._write_decided(decided)
+            self.ctx.st['qdec'] = decided
+            self.J.save_state(self.ctx.st)
         return decided
+
+    def ask_late(self):
+        """רגע לפני התרגום: תשובה שכבר הגיעה נכנסת לתדריך. בלי המתנה — ומדווחים לשרתון לפי מה התרגום נעשה."""
+        nb = self.ctx.st.get('qnb')
+        if not nb or nb.get('used') is not None or not hasattr(self.J, 'ask_peek'):
+            return
+        a = self.J.ask_peek(self.ctx, nb['id'])
+        # used: מספר התשובה שהתרגום נעשה לפיה · ‎-1 = שיקול דעת (שאלה פתוחה בלי תשובה) · ‎-2 = התשובה הפתוחה שלך
+        used, text = nb['d'], ''
+        if a and isinstance(a.get('i'), int):
+            if 0 <= a['i'] < len(nb['o']):
+                used, text = a['i'], nb['o'][a['i']]
+            elif a['i'] == -1 and not nb['o'] and str(a.get('t') or '').strip():
+                used, text = -2, str(a['t']).strip()[:200]
+        if text:
+            decided = list(self.ctx.st.get('qdec') or [])
+            if decided:
+                decided[0] = self._decision(nb['q'], text, 'answer')
+                self._write_decided(decided)
+                self.ctx.st['qdec'] = decided
+            print(f'✓ התשובה שלך הגיעה לפני התרגום: {text}')
+        nb['used'] = used
+        self.J.save_state(self.ctx.st)
+        self.J.ask_used(self.ctx, nb['id'], used)
 
     # -------------------------------------------------------------- 5. תרגום
     def fixed_tl(self, source: str | None = None) -> str:
@@ -758,6 +803,7 @@ def run_auto(jobmod, args) -> int:
                         pl.halt.set()                # 14/10/2026: "עצור" / כשל ביישור — התרגום במקביל לא ממשיך לשלם
                 th = threading.Thread(target=bg, daemon=True)
                 th.start()
+                pl.ask_late()
                 try:
                     pl.translate(fix=False, quiet=True)
                 except BaseException:
@@ -778,6 +824,7 @@ def run_auto(jobmod, args) -> int:
                 ctx.report('tl', 0.6, 'התרגום מוכן — Claude מתקן לפי הבדיקה האוטומטית', force=True)
                 pl.fix_round('fixes.txt', pl.fixed_tl(), 'tl')
             else:
+                pl.ask_late()
                 try:
                     pl.translate()
                 except llm.LLMError:

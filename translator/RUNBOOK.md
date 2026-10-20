@@ -57,10 +57,11 @@
    | `haiku-high` (ברירת המחדל — "רגיל") | haiku | high |
    | `sonnet-medium` ("ביצועים") | sonnet | medium |
    | `sonnet-low` | sonnet | low |
+   | `haiku-medium` | haiku | medium |
    | `sonnet-high` | sonnet | high |
    | `opus-medium` | opus | medium |
 
-   מצב אחר שמופיע בעבודה ישנה (`opus-high` / `opus-max`) = `opus-medium`; `haiku-medium` = `haiku-high`. בלי מצב — `haiku-high`.
+   מצב אחר שמופיע בעבודה ישנה (`opus-high` / `opus-max`) = `opus-medium`. בלי מצב — `haiku-high`.
 
    ההנחיה לסוכן: "תרגם את העבודה לפי translator/TRANSLATE.md. הפרויקט: <הנתיב משורת "הפרויקט:" של run>". הוא מחזיר רק סיכום קצר.
    כשהוא מסיים: **`$J save tl`** (בחזית, שניות) — נקודת שמירה של התרגום, כדי שתקלה בהמשך לא תחייב לתרגם שוב.

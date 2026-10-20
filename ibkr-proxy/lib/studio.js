@@ -30,14 +30,14 @@ const KINDS = ['ping', 'tr', 'rr', 'ai'];   // מ2: rr = הפקה מחדש (כת
 /* מה העובד בענן יודע לבצע. שלב 2: רק "בדיקת חיבור"; התרגום עצמו מגיע בשלב 3 — אז 'tr' נכנס לכאן, והאפליקציה לא משתנה */
 const WORKER_KINDS = ['ping', 'tr', 'rr', 'ai'];   // v358: העובד מתרגם (שלב 3); מ2: הפקה מחדש
 // 10/10/2026 (בקשת המשתמש): Haiku 5.5 נכנס, Opus High/Max יצאו. 15/10: נוסף Sonnet Low (לבדיקות — איך הוא וכמה עולה).
-const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium', 'sonnet-low'];
+const MODES = ['sonnet-medium', 'haiku-high', 'sonnet-high', 'opus-medium', 'sonnet-low', 'haiku-medium'];   // 20/10/2026: Haiku Medium חזר — רק למנהל / לרשימת "כל המודלים"
 /* 15/10/2026 (בקשת המשתמש): לכל המשתמשים רק שני מצבים — "רגיל" (Haiku High, ברירת המחדל) ו"ביצועים" (Sonnet Medium).
    כל השאר — רק למנהל ולמי שברשימת "כל המודלים" במרכז הניהול (sysCfg.amEm, lib/sysflags.js). **= PUBLIC_MODES בטלפון** */
 const PUBLIC_MODES = ['haiku-high', 'sonnet-medium'];
 const DEFAULT_MODE = 'haiku-high';
 const modeOk = (m, full) => !!full || PUBLIC_MODES.includes(m);
 // מצבים שהוסרו → המצב הקיים הקרוב (עבודה / טיוטה / חוק שנשמרו לפני ההחלפה ממשיכים לעבוד, לא נופלים)
-const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high' };   // 11/10: Haiku Medium יצא (= המחיר של High)
+const LEGACY_MODES = { 'opus-high': 'opus-medium', 'opus-max': 'opus-medium' };   // 11/10: Haiku Medium יצא (= המחיר של High)
 const modeNow = (m) => (MODES.includes(m) ? m : LEGACY_MODES[m] || DEFAULT_MODE);
 /* הסקירה (10/10/2026): מה שהעובד יודע היום — מקור אנגלית (או "אוטומטי"), יעד עברית. השאר נדחה כבר ביצירה (לפני העלאה
    של כמה GB והפעלת Claude), לא בעובד. **= LANG_READY בטלפון** (tests/studio-review.test.js). שפה חדשה = כאן + בטלפון + בעובד */
@@ -302,13 +302,13 @@ const NORM_MIN = 3, NORM_KEEP = 40, NORM_DUR_MIN = 600;
 // (הטוקנייזר שלו סופר יותר) = ‎~0.2$ לשעה במצב API; ב־Routine הסשן המתזמר נשאר Sonnet (‎~1.1$). 0.6/0.8 = בין השניים,
 // כך שאף מנוע לא מגיע ל"חריג" (פי 2) בלי סיבה. יוחלף ב"רגיל" הנלמד מ־NORM_MIN עבודות.
 // Sonnet Low (15/10/2026): הערכה — פחות חשיבה מ־Medium; יוחלף ב"רגיל" הנלמד
-const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-high': 0.8, 'sonnet-high': 4.2, 'opus-medium': 6.0, 'sonnet-low': 2.2 };
+const NORM_DEF = { 'sonnet-medium': 3.0, 'haiku-high': 0.8, 'haiku-medium': 0.7, 'sonnet-high': 4.2, 'opus-medium': 6.0, 'sonnet-low': 2.2 };
 const NORM_FIXED = 1.5;
 /* 11/10/2026: מצב השרת (API) — בלי סשן Claude מתזמר: אין "עלות פתיחה" של ~127K טוקנים, ומנהל העבודה רץ במודל של המצב.
    מהמדידות (5 דק׳ TED, translator/bench: ‎$0.565 / 0.345 / 0.215 / 0.045 / 0.04 לעבודה) × 12, מעוגל מעלה; הקבוע = השופט
    ושאר מה שלא תלוי באורך. עד 11/10 השרת השתמש בערכי ה־Routine — "הרגיל" ל־Haiku High היה $0.80 ($0.54 בפועל), והתקציב
    לעבודה של 5 דק׳ ‎~$1.55 (בפועל $0.04). **זהה ל־NORM_DEF_API / NORM_FIXED_API בטלפון** (studio.js). */
-const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'sonnet-high': 4.2, 'opus-medium': 7.0, 'sonnet-low': 1.8 };
+const NORM_DEF_API = { 'sonnet-medium': 2.6, 'haiku-high': 0.55, 'haiku-medium': 0.5, 'sonnet-high': 4.2, 'opus-medium': 7.0, 'sonnet-low': 1.8 };
 const NORM_FIXED_API = 0.05;
 const engKey = (e) => (e === 'api' || e === 'a' ? 'a' : 'r');
 const normDef = (mode, eng) => (engKey(eng) === 'a' ? NORM_DEF_API : NORM_DEF)[mode];
@@ -469,7 +469,8 @@ function normAsk(a) {
   const o = (Array.isArray(a.o) ? a.o : []).slice(0, 12).map((x) => clean(x, 80)).filter(Boolean).slice(0, 4);
   const d = Number.isInteger(a.d) && a.d >= 0 && a.d < o.length ? a.d : (o.length ? 0 : -1);
   const w = Math.max(60, Math.min(ASK_WAIT_MAX, Math.round(Number(a.w) || 480)));
-  return { id: a.id, q, o, d, w };
+  // 20/10/2026: nb = שאלה שלא עוצרת את העבודה (העובד ממשיך עם ברירת המחדל; אפשר לענות גם אחרי הסוף ולתקן לפיה)
+  return a.nb === 1 ? { id: a.id, q, o, d, w, nb: 1 } : { id: a.id, q, o, d, w };
 }
 /* התשובה מהטלפון: אחת מהתשובות המוכנות (i) או טקסט חופשי (t) — רק כשאין תשובות מוכנות */
 function normAnswer(qa, body) {
