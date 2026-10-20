@@ -607,25 +607,20 @@ textarea.ed-in { min-height: 130px; resize: vertical; line-height: 1.55; }
 @media (prefers-reduced-motion: reduce) { .ed-cover.loading .ed-cv { animation: none; } }
 
 /* ---------- v318: שתי ספריות (בורר מקטעים) + גיבוי ל־Google Drive — בסגנון iOS ---------- */
-.lib-seg { position: fixed; z-index: 905; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); max-width: 520px; margin: 0 auto;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 6px; border-radius: var(--pill); isolation: isolate;
-  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border); box-shadow: var(--shadow), var(--glass-hi);
-  font-family: var(--font); color: var(--on-surface);
-  opacity: 0; transform: translateY(14px); pointer-events: none; transition: opacity .24s ease, transform .32s cubic-bezier(.2,.9,.25,1); }
-.lib-seg.on { opacity: 1; transform: none; pointer-events: auto; }
-html:not(.lib-open) .lib-seg { display: none; }
-.lib-seg-ind { position: absolute; top: 6px; bottom: 6px; left: 0; width: 0; z-index: 0; border-radius: var(--pill); background: var(--primary);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 2px 8px rgba(0,0,0,.18); transform-origin: center; pointer-events: none; will-change: transform; }
-.lib-seg-b { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 6px; border: 0; background: none; cursor: pointer;
-  font: inherit; font-size: 15.5px; font-weight: 600; color: var(--on-surface-var); border-radius: var(--pill); white-space: nowrap;
-  -webkit-tap-highlight-color: transparent; transition: color .28s ease, transform .16s ease; }
-.lib-seg-b:active { transform: scale(.95); }
-.lib-seg-b.on { color: var(--on-primary); font-weight: 700; }
-.lib-seg-b small { font-size: 12.5px; font-weight: 600; opacity: .7; font-variant-numeric: tabular-nums; }
-.lib-seg-b small:empty { display: none; }
-.lib-root.seg-on .lib-home { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); }   /* 20/10/2026: מקום לסרגל התחתון */
-@media (prefers-reduced-motion: reduce) { .lib-seg { transition: none; } }
+/* 20/10/2026 (בקשת המשתמש): דבוק מתחת להדר בגלילה (‎--appbar-h מ־barHeightVar ב־core); הרקע אטום — אותו גוון על הרקע
+   של הדף (קודם 9% שקוף), כדי שהתוכן שנגלל מתחתיו לא ייראה דרכו */
+.lib-seg { position: sticky; top: calc(var(--appbar-h, 0px) + 8px); z-index: 21; display: grid; grid-template-columns: 1fr 1fr; margin: 0 16px 14px; padding: 2px; border-radius: 10px;
+  background: linear-gradient(color-mix(in srgb, var(--on-surface) 9%, transparent), color-mix(in srgb, var(--on-surface) 9%, transparent)), var(--bg); }
+.lib-seg::before { content: ""; position: absolute; top: 2px; bottom: 2px; inset-inline-start: 2px; width: calc(50% - 2px); border-radius: 8px; background: var(--surface);
+  box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); transition: transform .32s cubic-bezier(.3,1.2,.4,1); }
+body.menu-blur .lib-seg, body:has(.appbar .lang-menu:not(.hidden)) .lib-seg { z-index: 5; }   /* תפריט של ההדר פתוח — מעל הבורר */
+[data-theme="dark"] .lib-seg::before { background: #636366; }
+.lib-seg.mine::before { transform: translateX(-100%); }
+[dir] .lib-seg.hold::before { transition: none; transform: translateX(var(--segx, 0)); }   /* 14/10/2026: הסימון עם האצבע בזמן מעבר בין הספריות */
+[dir="ltr"] .lib-seg.mine::before { transform: translateX(100%); }
+.lib-seg-b { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 4px; font-size: 14.5px !important; font-weight: 600; white-space: nowrap; }
+.lib-seg-b small { font-size: 12.5px; font-weight: 500; color: var(--on-surface-var); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .lib-seg::before { transition: none; } }
 
 .lib-bkic { flex: none; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; background: linear-gradient(160deg, #4285F4, #34A853); }
 .lib-bkic svg { width: 21px; height: 21px; }

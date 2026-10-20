@@ -137,7 +137,7 @@ const { fakeDrive } = require('./_drivefake.js');
   ok(apiCalls.filter((x) => x === 'gdToken').length === 2, 'גישה שפגה באמצע (401) — מבקשים חדשה וממשיכים');
 
   /* ---------- הממשק (טקסט) ---------- */
-  ok(/function shelfSeg\(/.test(lib) && /role', 'tablist'/.test(lib) && /\.lib-seg-ind/.test(css) && /liquidPill\(/.test(lib), 'בורר בין THE SNOWBALL לספרייה שלי — סרגל קבוע בתחתית עם סימון נוזלי (20/10/2026)');
+  ok(/function shelfSeg\(/.test(lib) && /role', 'tablist'/.test(lib) && /\.lib-seg::before/.test(css), 'בורר מקטעים בסגנון iOS בין THE SNOWBALL לספרייה שלי');
   ok(/const shelfOf = \(b\) => \(b && b\.src === 'drive' \? 'snb' : 'mine'\)/.test(lib), 'ההפרדה: מכתב Drive = THE SNOWBALL, כל השאר = הספרייה שלי');
   ok(/if \(mine\) tr\.append\(more, add\)/.test(lib), 'הוספת ספר רק בספרייה שלי');
   ok(/filter\(\(r\) => shelfOf\(r\.b\) === ui\.shelf\)/.test(lib), 'חיפוש בתוך הטקסט — רק בספרייה שנבחרה');
