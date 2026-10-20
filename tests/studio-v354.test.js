@@ -20,12 +20,13 @@ const STUBS = { createNet: () => ({ api: async () => ({ ok: false }), driveApi: 
   probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}), progressModel: () => ({ stages: [], left: 0, pct: 0 }),
   createBackup: () => ({}), waitOAuthCode: () => {}, normPq: (v) => (v === 'auto' || [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144].includes(v) ? v : 'src'), normLadder: () => null, normChapters: () => [], normSty: () => null, STY_COLORS: {}, STY_Y: 40 };   // איכויות הצפייה (studioplay.js)
 const body = st.replace(/^export (const|function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;');
-const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, migrateSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
+const S = new Function('t', '__stubs', body + '\nreturn { defaultSettings, normSettings, migrateSettings, normDraft, normStore, newDraft, fmtSize, fmtHM, outList, modeById, modeName, langName, fileTitle, fileExt, chainFor, MODES, DEFAULT_MODE, PUBLIC_MODES, modeOk, modeFor, SOURCE_LANGS, TARGET_LANGS, STYLES, OUTS, LS_STUDIO, openStudio };')(undefined, STUBS);
 ok(S.LS_STUDIO === 'pwa_studio_v1', 'מפתח האחסון: pwa_studio_v1');
 const def = S.defaultSettings();
 ok(def.mode === 'haiku-high' && S.DEFAULT_MODE === 'haiku-high', 'ברירת המחדל: Haiku 5.5 · High — "רגיל" (מ־15/10/2026)');
 ok(S.MODES.filter((m) => m.tier).map((m) => m.id + ':' + m.tier).sort().join() === 'haiku-high:std,sonnet-medium:perf', '15/10: "רגיל" = Haiku High, "ביצועים" = Sonnet Medium');
-ok(S.MODES.map((m) => m.id).sort().join() === 'haiku-high,opus-medium,sonnet-high,sonnet-low,sonnet-medium', 'חמשת המצבים (11/10: Haiku Medium יצא; 15/10: נוסף Sonnet Low)');
+ok(S.MODES.map((m) => m.id).sort().join() === 'haiku-high,haiku-medium,opus-medium,sonnet-high,sonnet-low,sonnet-medium', 'ששת המצבים (15/10: נוסף Sonnet Low; 20/10: Haiku Medium חזר לבדיקות)');
+ok(!S.PUBLIC_MODES.includes('haiku-medium') && !S.modeOk('haiku-medium', false) && S.modeOk('haiku-medium', true) && S.modeFor('haiku-medium', false) === 'haiku-high', '20/10: Haiku Medium — רק למנהל ולרשימת "כל המודלים"');
 ok(def.out.same === true && def.out.compact === false && def.out.mkv === false, 'ברירת המחדל לפלט: זהה למקור (+SRT תמיד)');
 ok(S.outList(def.out).join() === 'same,srt' && S.outList({ compact: true, mkv: true }).join() === 'compact,mkv,srt', 'SRT תמיד בסוף רשימת הפלטים');
 ok(def.to.join() === 'he' && def.style === 'bold' && def.conn === 'sub', 'ברירות מחדל: עברית, מודגש, המנוי שלי');

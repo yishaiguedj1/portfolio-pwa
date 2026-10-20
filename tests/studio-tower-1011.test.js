@@ -37,15 +37,15 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/case 'worker_oom': return T\('studioErrOom'\);/.test(sj) && /case 'worker_crash': return T\('studioErrCrash'\);/.test(sj), 'הודעה נפרדת לקריסה');
   ok((app.match(/\bstudioErrCrash: "/g) || []).length === 2 && !/studioErrCrash: "[^"]*זיכרון/.test(app), 'בעברית ובאנגלית, בלי "זיכרון"');
 
-  /* ---------- 5. Haiku Medium יצא (11/10, בקשת המשתמש — המחיר כמו High) ---------- */
+  /* ---------- 5. Haiku Medium: יצא ב־11/10, חזר ב־20/10 כמצב לבדיקות (בקשת המשתמש) — רק למנהל / "כל המודלים" ---------- */
   const srv = require(path.join(root, 'ibkr-proxy/lib/studio.js'));
-  ok(!st.MODES.some((m) => m.id === 'haiku-medium') && !srv.MODES.includes('haiku-medium'), 'אין Haiku Medium בטלפון ובשרתון');
-  ok(st.modeNow('haiku-medium') === 'haiku-high' && srv.modeNow('haiku-medium') === 'haiku-high', 'עבודה / טיוטה ישנה ב־Haiku Medium → Haiku High');
-  ok(st.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high' && srv.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high', 'חוק "מצב מקסימלי" ישן → Haiku High (לא "בלי הגבלה")');
-  ok(st.migrateSettings({ mode: 'haiku-medium' }).mode === 'haiku-high' && st.migrateSettings({ mode: 'opus-high' }).mode === 'haiku-high' && st.migrateSettings({ mode: 'sonnet-medium', mv: 2 }).mode === 'haiku-high' && st.migrateSettings({ mode: 'sonnet-medium', mv: 3 }).mode === 'sonnet-medium' && st.migrateSettings({ mode: 'opus-medium', mv: 2 }).mode === 'opus-medium', 'הגדרה ישנה: Haiku נשאר Haiku; Opus / Sonnet Medium של ברירת המחדל הישנה → "רגיל" (פעם אחת, mv 3); בחירה מכוונת נשארת');
+  ok(st.MODES.some((m) => m.id === 'haiku-medium') && srv.MODES.includes('haiku-medium') && !srv.PUBLIC_MODES.includes('haiku-medium'), 'Haiku Medium בטלפון ובשרתון — לא בין המצבים הפתוחים לכולם');
+  ok(st.modeNow('haiku-medium') === 'haiku-medium' && srv.modeNow('haiku-medium') === 'haiku-medium' && !srv.modeOk('haiku-medium', false) && srv.modeOk('haiku-medium', true), 'כבר לא ממופה ל־High; השרתון אוכף מי רשאי');
+  ok(st.normRules({ mx: 'haiku-medium' }).mx === 'haiku-medium' && srv.normRules({ mx: 'haiku-medium' }).mx === 'haiku-medium', 'חוק "מצב מקסימלי" ב־Haiku Medium נשמר');
+  ok(st.migrateSettings({ mode: 'opus-high' }).mode === 'haiku-high' && st.migrateSettings({ mode: 'sonnet-medium', mv: 2 }).mode === 'haiku-high' && st.migrateSettings({ mode: 'sonnet-medium', mv: 3 }).mode === 'sonnet-medium' && st.migrateSettings({ mode: 'opus-medium', mv: 2 }).mode === 'opus-medium', 'הגדרה ישנה: Opus / Sonnet Medium של ברירת המחדל הישנה → "רגיל" (פעם אחת, mv 3); בחירה מכוונת נשארת');
   const llm = read('translator/llm.py'), tw = read('translator/tower.py'), rb = read('translator/RUNBOOK.md');
-  ok(!/'haiku-medium': \('anthropic'/.test(llm) && /'haiku-medium': 'haiku-high'/.test(llm) && !/'haiku-medium'/.test(tw) && !/\| `haiku-medium` \|/.test(rb), 'בעובד: לא במצבים, כן במיפוי של מצבים שהוסרו; לא במגדל ולא בטבלת ה־RUNBOOK');
-  ok(!/HaiMed/.test(app) && !/HaiMed/.test(sj), 'המחרוזות של Haiku Medium הוסרו');
+  ok(/'haiku-medium': \('anthropic', 'claude-haiku-5-5', 'medium'\)/.test(llm) && !/'haiku-medium': 'haiku-high'/.test(llm) && /'haiku-medium': 0\.7/.test(tw) && /\| `haiku-medium` \| haiku \| medium \|/.test(rb), 'בעובד: במצבים (מאמץ medium), במגדל ובטבלת ה־RUNBOOK');
+  ok(/studioMsHaiMed/.test(app) && /studioMsHaiMed/.test(sj), 'המחרוזות של Haiku Medium');
 
   console.log('\n' + n + ' passed');
 })().catch((e) => { console.error(e); process.exit(1); });

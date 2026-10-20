@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1543 מפתחות מתוך 3457) */
+/* המחרוזות של studio (1546 מפתחות מתוך 3460) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -419,6 +419,7 @@ he: {
   "studioEdZoom": "זום",
   "studioEditT": "עריכת פרויקט",
   "studioEfHaiHigh": "חסכוני מאוד",
+  "studioEfHaiMed": "הכי חסכוני",
   "studioEfOpusMed": "הדרגה הגבוהה",
   "studioEfSonHigh": "יסודי יותר",
   "studioEfSonLow": "זול יותר",
@@ -763,6 +764,7 @@ he: {
   "studioMore": "עוד",
   "studioMoreN": "ועוד {n}",
   "studioMsHaiHigh": "מהיר וחסכוני · מתאים לרוב הסרטונים",
+  "studioMsHaiMed": "הכי זול · פחות חשיבה מ־High",
   "studioMsOpusMed": "הכי מדויק · ‏4 שגיאות מהותיות במבחן",
   "studioMsSonHigh": "יסודי יותר · ‏13% פחות שימוש מ־Opus Medium",
   "studioMsSonLow": "פחות חשיבה · זול מ־Medium",
@@ -1350,6 +1352,7 @@ he: {
   "studioStyleClassic": "קלאסי",
   "studioStyleKaraoke": "קריוקי",
   "studioSumHaiHigh": "עוד לא נבדק. מהיר וזול מאוד — מתאים לרוב הסרטונים.",
+  "studioSumHaiMed": "בבדיקה. פחות חשיבה מ־Haiku High — בודקים איך הוא וכמה הוא עולה.",
   "studioSumOpusMed": "ציון 90.2 · ‏4 שגיאות מהותיות — הכי מדויק.",
   "studioSumPre": "במבחן מול מתרגם אנושי:",
   "studioSumSonHigh": "ציון 87.7 · ‏9 שגיאות מהותיות (פי 2).",
@@ -1964,6 +1967,7 @@ en: {
   "studioEdZoom": "Zoom",
   "studioEditT": "Edit project",
   "studioEfHaiHigh": "Very economical",
+  "studioEfHaiMed": "Most economical",
   "studioEfOpusMed": "Top tier",
   "studioEfSonHigh": "More thorough",
   "studioEfSonLow": "Cheaper",
@@ -2308,6 +2312,7 @@ en: {
   "studioMore": "More",
   "studioMoreN": "+{n}",
   "studioMsHaiHigh": "Fast and economical · right for most videos",
+  "studioMsHaiMed": "Cheapest · less thinking than High",
   "studioMsOpusMed": "Most accurate · 4 major errors in the test",
   "studioMsSonHigh": "More thorough · 13% less usage than Opus Medium",
   "studioMsSonLow": "Less thinking · cheaper than Medium",
@@ -2895,6 +2900,7 @@ en: {
   "studioStyleClassic": "Classic",
   "studioStyleKaraoke": "Karaoke",
   "studioSumHaiHigh": "not tested yet. Fast and very cheap — right for most videos.",
+  "studioSumHaiMed": "in testing. Less thinking than Haiku High — testing how it does and what it costs.",
   "studioSumOpusMed": "score 90.2 · 4 major errors — the most accurate.",
   "studioSumPre": "Against a human translator:",
   "studioSumSonHigh": "score 87.7 · 9 major errors (2×).",
