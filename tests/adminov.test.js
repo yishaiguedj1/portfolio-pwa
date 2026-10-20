@@ -76,7 +76,7 @@ ok(A.watchStep(Object.assign({}, w1.patch, w2.patch), rg, okBk, now + 3 * H).pat
 const b1 = A.watchStep({}, rg, { okAt: now - 3 * 24 * H }, now);
 ok(b1.send.includes('bk_fail') && !A.watchStep(b1.patch, rg, { okAt: now - 3 * 24 * H }, now + H).send.includes('bk_fail'), 'התראה: הגיבוי — פעם ביום');
 const WP = require('../ibkr-proxy/lib/webpush.js');
-ok(/admin\.html#ready$/.test(WP.message('ready_fail', '', 'he').u) && /#studio=/.test(WP.message('done', 'jabcdefghij0123456789', 'he').u), 'התראה: של המנהל נפתחת במרכז הניהול, של עבודה — בסטודיו');
+ok(WP.message('ready_fail', '', 'he').u === 'https://admin.thesnowball.app/#ready' && /#studio=/.test(WP.message('done', 'jabcdefghij0123456789', 'he').u), 'התראה: של המנהל נפתחת במרכז הניהול, של עבודה — בסטודיו');
 ok(['bk_fail', 'ready_fail'].every((k) => WP.KINDS.includes(k) && WP.TEXT.he[k] && WP.TEXT.en[k]), 'התראה: הסוגים החדשים בשתי השפות');
 // נתיב הפריסה
 const lv = A.laneView([{ n: 140, t: 'ממתין לתור אחרי #139 — 2.9.0 (429): x', at: 3 }, { n: 139, t: '(428): מגדל המשתמשים', at: 1 }, { n: 97, t: 'bump', dep: 1 }, { n: 141, t: 'מסמכים', at: 2 }], []);
