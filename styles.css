@@ -198,13 +198,17 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
    ולכפתור השני, בצד הימני; בועת השער (רק ב־Invest) — מתחת ל־☰ בצד השמאלי. שתיהן באותו גודל בדיוק: ברוחב של שני
    הכפתורים שמעליהן ובגובה של כפתור, וכל אחת מיושרת לקצה החיצוני שלהם */
 .appbar-left > .appbar-sub { grid-column: 1 / 5; grid-row: 2; justify-self: start; position: relative; z-index: 1; }
-.appbar-left > .appbar-sub[hidden] { display: none; }
+.appbar .appbar-left > .appbar-sub[hidden] { display: none; }
 .appbar-left > .fx-pill { grid-column: 6 / 10; grid-row: 2; justify-self: end; }
-.appbar .fx-pill, .appbar .appbar-sub > * { box-sizing: border-box; width: calc(var(--ib) * 2 + 8px); min-width: 0; height: 44px; }   /* 44 = הגובה של בועת השער (גם ב־320, שם הכפתורים 40) */
+.appbar .fx-pill, .appbar .appbar-sub > * { box-sizing: border-box; width: calc(var(--ib) * 2 + 8px); min-width: 0; min-height: 44px; }   /* 44 = הגובה של בועת השער (גם ב־320, שם הכפתורים 40) */
+/* שתיהן באותה שורה של הרשת ונמתחות לגובה שלה — באותו גובה תמיד, גם כשהטקסט בטלפון מוגדל (הגדרת נגישות) */
+.appbar-left > .appbar-sub, .appbar-left > .fx-pill { align-self: stretch; }
+.appbar .appbar-left > .appbar-sub { display: flex; align-items: stretch; }
+.appbar .appbar-sub > * { flex: 1 1 auto; }
 /* הקפסולה = אותה "קופסה" של בועת השער: פינות, טקסט במרכז, לכל היותר שתי שורות — הסיבה (חג, דיליי) בשורה השנייה.
    באותו גובה בכל מצב (נמדד בכל המצבים, בעברית ובאנגלית, ב־320–412). ליד הנקודה החיה — בלי האייקון (אין מקום לשניהם) */
 .appbar .appbar-sub > * { display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; column-gap: 5px; row-gap: 0;
-  margin: 0; padding: 3px 4px; border-radius: var(--radius-xs); text-align: center; white-space: normal; line-height: 1.2; overflow: hidden;
+  margin: 0; padding: 3px 4px; border-radius: var(--radius-xs); text-align: center; white-space: normal; line-height: 1.2;
   font-size: 12px; }
 .appbar .appbar-sub > * > small { flex-basis: 100%; font-size: 11px; }
 .appbar .appbar-sub .st-pill i + svg { display: none; }

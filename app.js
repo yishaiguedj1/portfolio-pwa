@@ -6417,7 +6417,7 @@ function sourceLabelHTML(st, nowMs) { // טהורה (נבדקת)
     const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
     const r = m.reason && names[m.reason];
     // 20/10/2026: הסיבה בשורה שנייה — הקפסולה בגודל של בועת השער (styles.css, .appbar-sub > *)
-    return '<span class="st-pill closed">' + SRC_SESS_ICONS.closed + esc(r ? t('stClosedHdr') : t('stClosedFull')) + (r ? '<small>' + esc(r) + '</small>' : '') + '</span>';
+    return '<span class="st-pill closed">' + SRC_SESS_ICONS.closed + esc(t('stClosedHdr')) + (r ? '<small>' + esc(r) + '</small>' : '') + '</span>';
   }
   const lbl = m.kind === 'pre' ? t('sessPreShort') : m.kind === 'post' ? t('sessPostShort') : m.kind === 'night' ? t('sessNightShort') : t('stOpen');
   return '<span class="st-pill ' + m.kind + (live ? '' : ' delay') + '"><i></i>' + (SRC_SESS_ICONS[m.kind] || '') + esc(lbl) +
