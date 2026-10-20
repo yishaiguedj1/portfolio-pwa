@@ -196,7 +196,8 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 .appbar-actions > .menu-wrap { grid-column: 9; grid-row: 1; }
 .appbar-left > .appbar-sub { grid-column: 1 / -1; grid-row: 4; justify-self: center; margin-top: -20px; position: relative; z-index: 1; }
 .appbar-left > .appbar-sub[hidden] { display: none; }
-.appbar-left > .fx-pill { grid-column: 6 / 10; grid-row: 2; justify-self: end; }
+/* 20/10/2026 (בקשת המשתמש): מתחת לגלובוס ול־₪ — בצד הימני, באותו גובה ובאותו מרחק מהקצה */
+.appbar-left > .fx-pill { grid-column: 1 / 5; grid-row: 2; justify-self: start; }
 html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = מעבר עמוד, לא "חזור" של הדפדפן */
 .appbar h1.brand { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* v279: לוגו → סקירה */
 .brand-logo {
