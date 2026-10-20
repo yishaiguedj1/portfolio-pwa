@@ -772,10 +772,171 @@ export function editDiff(before, after) {
 }
 /* מספרים בלבד — למאגר (בלי טקסט): כמה שינויים מכל סוג, מרחקי העריכה, וכמה מילים / תווים יש בגרסה החדשה (המכנה של HTER) */
 export const ED_KINDS = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
-export function editStats(diff, after) {
+export function editStats(diff, after, before) {
   const o = { n: diff.length, cd: 0, wd: 0, m: 0, wa: 0, ca: 0 };
   for (const k of ED_KINDS) o[k] = 0;
   for (const d of diff) { o[d.t] = (o[d.t] || 0) + 1; o.cd += d.cd || 0; o.wd += d.wd || 0; if (d.m) o.m++; }
   for (const c of after || []) { const t = edTxt(c); o.wa += edWords(t).length; o.ca += t.replace(/\s+/g, '').length; }
+  if (before) Object.assign(o, suberCounts(before, after || []));   // מ׳5: SubER — גם השבירות והזמנים
   return o;
+}
+
+/* ---------- מאגר הלמידה מ׳5 (20/10/2026): SubER בשמירה מהעורך — טהור ----------
+   כמה עריכות היו צריכות כדי להגיע מהגרסה הקודמת לחדשה, כולל שבירות שורה/כתובית וזמנים (apptek/SubER: TER על מילים
+   ושבירות, מילים מתאימות רק כשהכתוביות שלהן חופפות בזמן). **העתק של translator/learnmetrics.py** (suber_counts, ter_edits —
+   מ־lib_ter של sacrebleu); שינוי באחד = בשני — tests/learn-metrics.test.js משווה. sb = עריכות, sr = אסימוני הייחוס */
+const TR_SHIFT_SIZE = 10, TR_SHIFT_DIST = 50, TR_BEAM = 100, TR_CACHE = 10000, TR_CANDS = 1000, TR_INF = 1e16;
+class TrBeam {
+  constructor(ref, match, allowed) {
+    this.ref = ref; this.n = ref.length; this.match = match; this.allowed = allowed;
+    this.init = Array.from({ length: this.n + 1 }, (_, i) => [i, 'i']);
+    this.cache = new Map(); this.size = 0;
+  }
+  run(h) {
+    let node = this.cache, start = 0;
+    const dist = [this.init];
+    for (const w of h) { const x = node.get(w); if (!x) break; start++; node = x[0]; dist.push(x[1]); }
+    const nh = h.length, nCache = dist.length;
+    for (let i = start; i < nh; i++) dist.push(Array.from({ length: this.n + 1 }, () => [TR_INF, 'x']));
+    const ratio = nh ? this.n / nh : 1;
+    const beam = TR_BEAM < ratio / 2 ? Math.ceil(ratio / 2 + TR_BEAM) : TR_BEAM;
+    for (let i = start + 1; i <= nh; i++) {
+      const diag = Math.floor(i * ratio), lo = Math.max(0, diag - beam), hi = i === nh ? this.n + 1 : Math.min(this.n + 1, diag + beam);
+      const row = dist[i], prev = dist[i - 1];
+      for (let j = lo; j < hi; j++) {
+        if (j === 0) { row[j] = [prev[j][0] + 1, 'd']; continue; }
+        let cs, op;
+        if (this.match(h[i - 1], this.ref[j - 1])) { cs = 0; op = ' '; } else { cs = this.allowed(h[i - 1], this.ref[j - 1]) ? 1 : TR_INF; op = 's'; }
+        for (const [c, o] of [[prev[j - 1][0] + cs, op], [prev[j][0] + 1, 'd'], [row[j - 1][0] + 1, 'i']]) if (row[j][0] > c) row[j] = [c, o];
+      }
+    }
+    let trace = '', i = nh, j = this.n;
+    while (i > 0 || j > 0) {
+      const op = dist[i][j][1];
+      trace = op + trace;
+      if (op === 's' || op === ' ') { i--; j--; } else if (op === 'i') j--; else if (op === 'd') i--; else throw new Error('trace');
+    }
+    if (this.size < TR_CACHE) {                                  // המטמון לא משנה את התוצאה — רק את המהירות
+      let nd = this.cache;
+      for (let k = 0; k < start; k++) nd = nd.get(h[k])[0];
+      for (let k = start; k < nh; k++) {
+        let x = nd.get(h[k]);
+        if (!x) { x = [new Map(), dist[k + 1]]; nd.set(h[k], x); this.size++; }
+        nd = x[0];
+      }
+    }
+    return [dist[nh][this.n][0], trace];
+  }
+}
+function trAlign(trace) {
+  let ph = -1, pr = -1;
+  const he = [], re = [], al = new Map();
+  for (const op of trace) {
+    if (op === ' ' || op === 's') { ph++; pr++; al.set(pr, ph); he.push(op === 's' ? 1 : 0); re.push(op === 's' ? 1 : 0); }
+    else if (op === 'i') { ph++; he.push(1); }
+    else if (op === 'd') { pr++; al.set(pr, ph); re.push(1); }
+  }
+  return [al, re, he];
+}
+function trPerform(w, s, len, t) {
+  if (t < s) return w.slice(0, t).concat(w.slice(s, s + len), w.slice(t, s), w.slice(s + len));
+  if (t > s + len) return w.slice(0, s).concat(w.slice(s + len, t), w.slice(s, s + len), w.slice(t));
+  return w.slice(0, s).concat(w.slice(s + len, len + t), w.slice(s, s + len), w.slice(len + t));
+}
+const trSum = (a, s, e) => { let x = 0; for (let k = s; k < e && k < a.length; k++) x += a[k]; return x; };
+const trGt = (a, b) => { for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k] > b[k]; return false; };
+function trShift(h, r, ed, checked, match) {
+  const [pre, inv] = ed.run(h);
+  const [al, refErr, hypErr] = trAlign(inv.replace(/[id]/g, (c) => (c === 'i' ? 'd' : 'i')));
+  let best = null;
+  const nh = h.length, nr = r.length;
+  outer:
+  for (let sh = 0; sh < nh; sh++) {
+    for (let sr = 0; sr < nr; sr++) {
+      if (Math.abs(sr - sh) > TR_SHIFT_DIST) continue;
+      let ln = 0;
+      while (match(h[sh + ln], r[sr + ln]) && ln < TR_SHIFT_SIZE) {
+        ln++;
+        if (trSum(hypErr, sh, sh + ln) !== 0 && trSum(refErr, sr, sr + ln) !== 0 && !(sh <= al.get(sr) && al.get(sr) < sh + ln)) {
+          let prev = -1;
+          for (let off = -1; off < ln; off++) {
+            let idx;
+            if (sr + off === -1) idx = 0;
+            else if (al.has(sr + off)) idx = al.get(sr + off) + 1;
+            else break;
+            if (idx === prev) continue;
+            prev = idx;
+            const sw = trPerform(h, sh, ln, idx);
+            const cand = [pre - ed.run(sw)[0], ln, -sh, -idx];
+            checked++;
+            if (!best || trGt(cand, best[0])) best = [cand, sw];
+          }
+          if (checked >= TR_CANDS) break outer;                  // כמו ב־Python: רק אחרי זוג שנבדק
+        }
+        if (nh === sh + ln || nr === sr + ln) break;
+      }
+    }
+  }
+  return best ? [best[0][0], best[1], checked] : [0, h, checked];
+}
+export function terEdits(h, r, match = (a, b) => a === b, allowed = () => true) {
+  if (!r.length) return [h.length, 0];
+  const ed = new TrBeam(r, match, allowed);
+  let shifts = 0, cur = h, checked = 0;
+  for (;;) {
+    const [delta, nw, ck] = trShift(cur, r, ed, checked, match);
+    checked = ck;
+    if (checked >= TR_CANDS || delta <= 0) break;
+    shifts++; cur = nw;
+  }
+  return [shifts + ed.run(cur)[0], r.length];
+}
+const PY_WS = /[\t\n\v\f\r \x1c-\x1f\x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/;   // = str.split() של Python
+const pySplit = (s) => s.split(PY_WS).filter(Boolean);
+const SB_PUNCT = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g;
+function sbNorm(w) { const x = w.toLowerCase(), y = x.replace(SB_PUNCT, '').replace(/…/g, ''); return y || x; }
+const SB_BR = new Set(['<eol>', '<eob>']);
+function sbTimed(subs) {
+  const out = [];
+  for (const s of subs) {
+    const ws = [];
+    for (const line of s.lines || []) {
+      ws.push(...pySplit(String(line).replace(/<\/?[^>]>/g, '')).map((w) => [w, '']));
+      if (ws.length) ws[ws.length - 1][1] = '<eol>';
+    }
+    if (ws.length) ws[ws.length - 1][1] = '<eob>';
+    for (const [w, br] of ws) { out.push({ w: sbNorm(w), s: s.s, e: s.e }); if (br) out.push({ w: br, s: s.s, e: s.e }); }
+  }
+  return out;
+}
+const sbOk = (a, b) => SB_BR.has(a.w) === SB_BR.has(b.w) && (a.s < b.e) === (b.s < a.e);
+const sbMatch = (a, b) => a.w === b.w && sbOk(a, b);
+function* sbParts(hyp, ref) {
+  let hp = [], rp = [], i = 0, j = 0, last = -Infinity;
+  while (i < hyp.length || j < ref.length) {
+    if (i < hyp.length && (j === ref.length || hyp[i].s < ref[j].s)) {
+      if ((hp.length || rp.length) && hyp[i].s >= last) { yield [hp, rp]; hp = []; rp = []; }
+      hp.push(hyp[i]); last = Math.max(last, hyp[i].e); i++;
+    } else {
+      if ((hp.length || rp.length) && ref[j].s >= last) { yield [hp, rp]; hp = []; rp = []; }
+      rp.push(ref[j]); last = Math.max(last, ref[j].e); j++;
+    }
+  }
+  if (hp.length || rp.length) yield [hp, rp];
+}
+const sbSort = (a) => a.map((c, k) => [c, k]).sort((x, y) => x[0].s - y[0].s || x[1] - y[1]).map((x) => x[0]);
+/* hyp / ref = [{s, e, lines}] → {sb, sr} */
+export function suberCounts(hyp, ref) {
+  let e = 0, n = 0;
+  for (const [hp, rp] of sbParts(sbSort(hyp || []), sbSort(ref || []))) {
+    const h = sbTimed(hp), r = sbTimed(rp);
+    if (h.length === r.length && h.every((x, k) => x.w === r[k].w && x.s === r[k].s && x.e === r[k].e)) { n += r.length; continue; }
+    const [a, b] = terEdits(h, r, sbMatch, sbOk);
+    e += a; n += b;
+  }
+  return { sb: e, sr: n };
+}
+export function suber(hyp, ref) {
+  const { sb, sr } = suberCounts(hyp, ref);
+  return sr ? Math.round(100000 * sb / sr) / 1000 : (sb ? 100 : 0);
 }

@@ -740,13 +740,32 @@ async function watch(req, res, deps) {
   const ob = await offsiteBackup(deps, now).catch(() => -1);   // 11/10/2026: ועותק ב־Drive (ספק אחר)
   const aw = await adminWatch(deps, now).catch(() => -1);   // 15/10/2026: התראות למנהל — הגיבוי ובדיקת המוכנות
   const lc = await learnBatch(deps, now).catch(() => -1);   // 15/10/2026 (מ׳2): קורפוס הטקסט — האצווה היומית ומחיקה אחרי 24 חודשים
-  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc });
+  const lw = await learnWeekly(deps, now).catch(() => -1);   // 20/10/2026 (מ׳7): הסיכום השבועי של המעבדה — התראה למנהל
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc, lw });
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
 /* 15/10/2026: התראה לטלפון של המנהל רק על מה שלא יכול לחכות (On-call) — פעם בשעה למופע:
    בדיקת מוכנות שנכשלה (רק כשרשימת הכשלים השתנתה — לא כל שעה מחדש), והגיבוי אצל ספק שני שלא רץ יותר מיומיים (פעם ביום).
    המצב ב־sysWatch/ready (fp = הכשלים שכבר דווחו, bkd = היום שבו דווח הגיבוי). 1 = נשלחה התראה, 0 = לא */
+/* מ׳7 (20/10/2026): התראה שבועית למנהל — "סיכום השבוע במעבדה מוכן". פעם בשבוע (sysWatch/learnWk.at) ורק כשהיו
+   עבודות תרגום ב־7 הימים האחרונים; בדיקה פעם ב־6 שעות למופע. קריאה בלבד מ־studioLearn — הסיכום עצמו מחושב כשנכנסים למעבדה */
+const LW_EVERY = 6 * 3600e3, LW_WEEK = 7 * 86400e3;
+let lastLw = 0;
+async function learnWeekly(deps, now) {
+  if (process.env.SNB_LEARNWEEK === 'off' || Math.abs(now - lastLw) < LW_EVERY) return 0;
+  lastLw = now;
+  const cfg = await readDoc(deps, 'sysBackup', 'cfg').catch(() => null);
+  if (!cfg || !UID_RE.test(String(cfg.uid || ''))) return 0;
+  const w = (await readDoc(deps, 'sysWatch', 'learnWk').catch(() => null)) || {};
+  if (w.at && now - w.at < LW_WEEK - 3600e3) return 0;
+  const docs = await query(deps, 'studioLearn', null, LEARN_MAX);
+  const n = docs.filter((d) => d.lr && d.lr.k === 'tr' && (d.lr.at || 0) >= now - LW_WEEK).length;
+  if (!n) return 0;   // שבוע בלי עבודות — בלי התראה, ובודקים שוב בעוד 6 שעות
+  await patchDoc(deps, 'sysWatch', 'learnWk', { at: now, n });
+  await notify(deps, cfg.uid, 'lab_week', '', now);
+  return 1;
+}
 const AW_EVERY = 3600e3;
 let lastAw = 0;
 async function adminWatch(deps, now) {
@@ -2374,4 +2393,4 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; };
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; };

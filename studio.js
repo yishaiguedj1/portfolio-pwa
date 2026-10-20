@@ -1725,7 +1725,7 @@ function rowExt(o) {
 /* ---------- מאגר הלמידה מ׳3 (15/10/2026): מה קרה אחרי העבודה ----------
    תוספות מספרים לכל עבודת תרגום (צפייה, הורדות ושיתוף, הצעות, גיליון ה־AI, מונחים), נשלחות יחד (op:'learnUx') אחרי
    8 שנ׳ שקט / כשהאפליקציה יורדת לרקע. השרתון מחליט אם לשמור (המתג של מאגר הלמידה). **UX_SHAPE זהה לשרתון (lib/studiolearn.js)** */
-export const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'], pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
+export const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr', 'txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'], pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
 const uxQ = new Map();
 let uxT = 0;
 function uxAdd(rec, g, k, v = 1) {
@@ -4692,7 +4692,7 @@ async function seSave(then) {
     const c = await net.textUpload(folder, base + '.cues.json', 'application/json', toCuesJson(cues), { snbEdit: 'c' });
     const s2 = await net.textUpload(folder, base + '.he.srt', 'application/x-subrip', toSrt(cues), { snbEdit: 's' });
     const diff = me.base ? editDiff(me.base, cues) : [], ws = Math.round((me.act || 0) / 1000);   // מ׳3: מה השתנה מאז הטעינה / השמירה הקודמת
-    const learn = diff.length ? { pe: Object.assign(editStats(diff, cues), { ws }), pt: { ws, ch: diff } } : {};
+    const learn = diff.length ? { pe: Object.assign(editStats(diff, cues, me.base), { ws }), pt: { ws, ch: diff } } : {};
     const j = await net.api('cuesSave', Object.assign({ job: rec.id, c, s: s2, ev: rec.srv.ev || 0 }, learn));
     if (j.job) rec.srv = normJob({ id: rec.id, srv: j.job }).srv;
     if (!j.ok) flashSafe(j.error === 'stale' ? T('studioSeStale') : errText(j.error));
