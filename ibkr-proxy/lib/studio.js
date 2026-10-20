@@ -16,6 +16,10 @@ const FILE_ID_RE = /^[A-Za-z0-9_-]{10,100}$/;
 const SESSION_RE = /^(?:session|cse)_([A-Za-z0-9]{8,80})$/;
 const SESSION_URL_RE = /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]{8,80}$/;
 const ERR_RE = /^[a-z0-9_]{1,40}$/;
+/* 20/10/2026: איפה העובד קרס — "KeyError @ pipeline.py:712 proofread" (crash_where ב־job.py). רק הצורה הזו נשמרת:
+   סוג חריגה, שם קובץ של העובד, שורה ופונקציה — בלי טקסט חופשי ובלי נתיבים */
+const WHERE_RE = /^[A-Za-z_][A-Za-z0-9_]{0,39} @ [a-z_][a-z0-9_]{0,30}\.py:\d{1,6}( [A-Za-z_][A-Za-z0-9_]{0,39})?$/;
+const crashWhere = (msg) => (WHERE_RE.test(String(msg || '')) ? String(msg) : '');
 const KEY_TTL = 48 * 3600e3;
 const CLAIM_WAIT = { ping: 6 * 60e3, tr: 30 * 60e3 };   // הופעל ולא נלקח בזמן הזה = Claude לא התחיל (סשן שנפל / הנחיה אחרת)
 /* השלבים, בסדר — אותם מזהים באפליקציה (studionet.js) ובעובד (translator/job.py) */
@@ -1044,7 +1048,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,

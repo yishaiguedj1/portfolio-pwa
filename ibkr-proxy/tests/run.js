@@ -2902,6 +2902,27 @@ function stubFetch(text, status = 200) {
     await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'tl_bad' });
     rr = await run({ op: 'job', idToken: OWNER, job: JRC });
     ok(rr.payload.job.rec === 0, 'סטודיו: כישלון שאינו חולף — בלי חלון התאוששות');
+    // 20/10/2026: קריסה — איפה בקוד נשמר בהיסטוריית הכשלים (צורה קשיחה בלבד), ושני "המשך" במקביל = הפעלה אחת
+    {
+      rr = await run({ op: 'resume', idToken: OWNER, job: JRC, lo: true });
+      let Kx = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JRC, key: Kx });
+      await wrk({ op: 'report', job: JRC, key: Kx, fail: true, err: 'worker_crash', msg: 'KeyError @ pipeline.py:712 proofread' });
+      let eh = S.fromFields(db.get('studioJobs/' + JRC).fields).eh;
+      ok(eh[eh.length - 1].w === 'KeyError @ pipeline.py:712 proofread', 'סטודיו: קריסה — סוג החריגה ומקומה בקוד נשמרים');
+      ok(require('../lib/studiolearn').learnRec(Object.assign(S.fromFields(db.get('studioJobs/' + JRC).fields), { id: JRC }), now, S.effState).eh.slice(-1)[0].w === 'KeyError @ pipeline.py:712 proofread',
+        'סטודיו: קריסה — המקום עובר לרשומת הלמידה (נקרא בלי מסוף)');
+      rr = await run({ op: 'resume', idToken: OWNER, job: JRC, lo: true });
+      Kx = keyOf(fires[fires.length - 1]);
+      await wrk({ op: 'claim', job: JRC, key: Kx });
+      await wrk({ op: 'report', job: JRC, key: Kx, fail: true, err: 'worker_crash', msg: 'boom /home/user/secret.mp4' });
+      eh = S.fromFields(db.get('studioJobs/' + JRC).fields).eh;
+      ok(!('w' in eh[eh.length - 1]), 'סטודיו: קריסה — טקסט חופשי / נתיב לא נשמר');
+      const nfr = fires.length;
+      const [ra, rb] = await Promise.all([run({ op: 'resume', idToken: OWNER, job: JRC, lo: true }), run({ op: 'resume', idToken: OWNER, job: JRC, lo: true })]);
+      ok([ra, rb].filter((x) => x.payload.ok).length === 1 && fires.length === nfr + 1,
+        'סטודיו: שני "המשך" כמעט באותו רגע — רק אחד מפעיל (השני לא מבטל את המפתח של הראשון)');
+    }
     // 14/10/2026: ההמשך האוטומטי רץ גם מהבדיקה המתוזמנת (GET), בלי שהטלפון פותח את הסטודיו
     {
       rr = await run({ op: 'create', idToken: OWNER, spec: SPEC });

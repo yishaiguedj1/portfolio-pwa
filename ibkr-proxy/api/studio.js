@@ -980,6 +980,10 @@ async function ruleBlock(deps, uid, job, body) {
    הטוקנים של הסשנים הקודמים נשמרים (use0) ומתווספים לדיווח הבא. v368: גם "המשך" אוטומטי אחרי תקלה חולפת (auto) —
    אותה דרך בדיוק, פעם אחת לעבודה (ar), והמצב שאישרת בהתחלה לא נשאל שוב (ov) */
 async function doResume(deps, uid, job, now, body, auto, adm) {
+  // 20/10/2026: קריאה טרייה עם updateTime, והכתיבה הראשונה בתנאי — שני "המשך" כמעט באותו רגע (לחיצה + ההמשך האוטומטי,
+  // או שתי לחיצות) קראו שניהם "נכשלה" והשני דרס את המפתח של הראשון, שהשרת כבר לקח: העובד קיבל "עצור" והעבודה נתקעה
+  const fresh = await readDocT(deps, 'studioJobs', job.id).catch(() => null);
+  if (fresh && fresh.uid === job.uid) job = fresh;
   const why = S.canResume(job, now);
   if (why) return { status: 409, json: { ok: false, error: why } };
   // v376: ספר ההפעלה "מצב זול יותר" — משנה את התוצאה, ולכן רק בלחיצה שלך (לא בהמשך האוטומטי) ורק אחרי עצירה על עלות
@@ -1017,7 +1021,10 @@ async function doResume(deps, uid, job, now, body, auto, adm) {
   if (job.ended && (job.state === 'failed' || job.state === 'cancelled')) { patch.pz = (job.pz || 0) + Math.max(0, now - job.ended); patch.wv0 = 0; }
   if (auto) patch.ar = (job.ar || 0) + 1;
   if (dm) patch.spec = Object.assign({}, job.spec, { mode: body.mode, dm });   // dm = המצב שממנו ירדנו (לספירת ספר ההפעלה)   // נרשם לפני ההפעלה — שתי צפיות במקביל לא יפעילו פעמיים
-  await patchJob(deps, job.id, patch);
+  if (job._ut) {
+    // בתנאי: מישהו אחר כבר המשיך אותה מאז שקראנו — לא מפעילים שוב (ולא דורסים את המפתח של ההפעלה שרצה)
+    if (!(await patchIf(deps, 'studioJobs', job.id, patch, job._ut))) return { status: 409, json: { ok: false, error: 'state', job: S.publicJob(await readJob(deps, job.id), now) } };
+  } else await patchJob(deps, job.id, patch);
   Object.assign(job, patch);
   if (api) {
     const q = await queueApi(deps, uid, job, now);
@@ -1418,7 +1425,9 @@ async function worker(req, res, body, deps) {
     }
     if (up.state === 'failed' && job.kind === 'tr') {
       // 14/10/2026: היסטוריית הכשלים של העבודה — גם עבודה שהצליחה אחרי "המשך" מלמדת על מה שנכשל בדרך (למאגר הלמידה)
-      up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([{ e: up.err, s: (up.prog && up.prog.st) || '', at: now }]).slice(-10);
+      // 20/10/2026: קריסה — גם איפה בקוד (w, צורה קשיחה בלבד), כדי שאפשר יהיה לאבחן בלי מסוף
+      const w = up.err === 'worker_crash' ? S.crashWhere(body.msg) : '';
+      up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([Object.assign({ e: up.err, s: (up.prog && up.prog.st) || '', at: now }, w ? { w } : {})]).slice(-10);
     }
     await patchJob(deps, id, up);
     if (up.state === 'done' || up.state === 'failed') await learnSave(deps, Object.assign({}, job, up), now);
