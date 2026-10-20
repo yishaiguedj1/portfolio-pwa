@@ -145,6 +145,8 @@ body {
   line-height: 1.5;
   padding-bottom: 32px;
 }
+/* 20/10/2026: מקום לסרגל הלשוניות שבתחתית (64px + 12px מהקצה + מרווח) — התוכן האחרון לא מוסתר מאחוריו */
+body:has(> nav.tabs) { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
 a { color: var(--link); }
 
 /* ---- App bar — זכוכית צפה ---- */
@@ -194,7 +196,7 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 .appbar-actions > .lang-wrap { grid-column: 1; grid-row: 1; }
 .appbar-actions > .icon-btn { grid-column: 3; grid-row: 1; }
 .appbar-actions > .menu-wrap { grid-column: 9; grid-row: 1; }
-.appbar-left > .appbar-sub { grid-column: 1 / -1; grid-row: 4; justify-self: center; margin-top: -20px; position: relative; z-index: 1; }
+.appbar-left > .appbar-sub { grid-column: 1 / -1; grid-row: 4; justify-self: center; margin-top: -2px; position: relative; z-index: 1; }   /* 20/10/2026 (בקשת המשתמש): מתחת ללוגו, לא עליו (היה -20px) */
 .appbar-left > .appbar-sub[hidden] { display: none; }
 /* 20/10/2026 (בקשת המשתמש): מתחת לגלובוס ול־₪ — בצד הימני, באותו גובה ובאותו מרחק מהקצה */
 .appbar-left > .fx-pill { grid-column: 1 / 5; grid-row: 2; justify-self: start; }
@@ -512,12 +514,15 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
 /* ---- Tabs — סרגל זכוכית צף ----
    גלילה פנימית אופקית עם סרגל מוסתר: כל 5 הלשוניות תמיד נגישות,
    שום דבר לא נחתך בקצוות — לא ב־RTL ולא ב־LTR. */
+/* 20/10/2026 (בקשת המשתמש): סרגל קבוע בתחתית המסך — באותם שוליים של הכרטיסים, מעל אזור המחוות של המכשיר,
+   בהישג האגודל. מתחת לווילון של התפריט (19) ומעל התוכן; הגוף שומר לו מקום (padding-bottom) */
 .tabs {
-  position: sticky; top: 8px; z-index: 15;   /* 20/10/2026: בחלק האטום של ההדר — לא מבצבצת מטושטשת מאחורי הלוגו */
+  position: fixed; z-index: 18;
+  left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
   display: flex; gap: 4px;
   isolation: isolate;
-  margin: 12px 14px 0; padding: 6px;
-  max-width: calc(100% - 28px);
+  margin: 0 auto; padding: 6px;
+  max-width: calc(720px - 32px);
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -529,6 +534,8 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
   box-shadow: var(--shadow), var(--glass-hi);
 }
 .tabs::-webkit-scrollbar { display: none; }
+
+.tabs { scroll-behavior: auto; }
 /* לחיצה נקייה ברמת אפל: בלי קוביית ההיילייט של אנדרואיד, עם משוב עדין */
 button, a, .tab, .icon-btn, .ss-add {
   -webkit-tap-highlight-color: transparent;
@@ -551,6 +558,19 @@ button, a, .tab, .icon-btn, .ss-add {
 .tab-ico { width: 28px; height: 28px; margin-block: -3px; flex: none; display: block; } /* v276: גדול יותר (בקשת המשתמש) — שוליים שליליים: גובה הטאבים לא משתנה */
 .tab-ico path { fill: var(--primary); transition: fill .28s ease; }
 .tab.active .tab-ico path { fill: currentColor; }
+/* 20/10/2026: בסרגל התחתון כל הלשוניות גלויות בלי גלילה — הגופן לפי הרוחב (16px ב־412, ‏~14.5 ב־375, ‏12.5 ב־320;
+   נמדד גם באנגלית), והמרווח שנשאר מתחלק בין הלשוניות. הגלילה האופקית נשארת רק כרשת ביטחון */
+.tabs .tab { flex: 1 1 auto; min-width: max-content; padding: 12px 3px; font-size: clamp(11px, calc(7.4vw - 13px), 16px); }
+[dir="ltr"] .tabs .tab { font-size: clamp(10px, calc(6.2vw - 11px), 14.5px); padding-inline: 2px; }   /* באנגלית המילים ארוכות יותר (Watchlist, Deposits) */
+.tabs { gap: 2px; }
+.tabs .tab.tab-icon { flex: 0 0 auto; padding-inline: 10px; }
+.tabs .tab-set { display: none; }   /* 20/10/2026: "הגדרות" — רק כשהעמוד פתוח (tabSetBar ב־app.js) */
+.tabs.set-on .tab-set { display: flex; }
+/* גלגל שיניים בלבד (בקשת המשתמש) — קו, באותו גודל של סמל הסקירה; ירוק כשלא פעיל, בצבע הטקסט על הגלולה */
+.tab-gear { width: 24px; height: 24px; margin-block: -1px; stroke: var(--primary); transition: stroke .28s ease; }
+.tab .tab-ico.tab-gear path, .tab.active .tab-ico.tab-gear path, .tab-gear circle { fill: none; }
+.tab.active .tab-gear { stroke: currentColor; }
+.tabs .tab.tab-set { padding-inline: 16px; }
 .tab.active {
   background: var(--primary); color: var(--on-primary); font-weight: 700;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 8px rgba(0, 0, 0, .18);
@@ -1082,7 +1102,7 @@ footer.fine { text-align: center; }
 
 /* ---- Toast — קפסולת זכוכית ---- */
 .toast {
-  position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%) translateY(20px);
+  position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); left: 50%; transform: translateX(-50%) translateY(20px); /* 20/10/2026: מעל סרגל הלשוניות */
   background: rgba(30, 32, 31, .82); color: #fff; padding: 12px 22px; border-radius: var(--pill);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
@@ -2010,6 +2030,10 @@ html.lib-open, html.lib-open body { overflow: hidden; }
   box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
 }
 [dir="ltr"] .env-strip { transform: translateX(-50%); }
+/* 20/10/2026: ב־Invest הסרגל בתחתית — התוויות מעליו */
+body:has(> nav.tabs) .env-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 86px); }
+body:has(> nav.tabs) .maint-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 86px); }
+body:has(> nav.tabs) .maint-strip.env-up { bottom: calc(env(safe-area-inset-bottom, 0px) + 114px); }
 
 /* ההדר המשותף של Academy ו־Studio (shell.js, 13/10/2026) — אחד לאחד כמו ב־Invest. במקום ₪ — בהיר/כהה, ורק כשהתפריט פתוח
    (החלטת המשתמש); נכנס באותה תנועה של הפנים בכפתורים (סיבוב + הקטנה). */

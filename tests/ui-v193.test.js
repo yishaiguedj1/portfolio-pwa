@@ -27,7 +27,7 @@ for (const [fn, tab] of [['renderOverview', 'overview'], ['renderStocks', 'stock
 ok(/function renderAll\(opts\) \{\s*_renderForce = !!\(opts && opts\.all\);/.test(src) && /function renderAllInner\(\)/.test(src), 'renderAll({all:true}) מכריח ציור של כל הטאבים (החלפת שפה)');
 ok(/if \(tabDirty\[name\]\) \{ const fn = tabRenderer\(name\);/.test(src), 'switchTab מצייר טאב שהשתנה בזמן שהיה מוסתר');
 ok(/function setTabPageDirection\(prev, name\)/.test(src) && /'--tab-dx'/.test(src), 'כיוון הכניסה של העמוד נקבע לפי סדר הלשוניות ו־RTL');
-ok(/positionTabIndicator\(\); \} catch \(e\) \{\}\s*if \(actTab && actTab\.scrollIntoView\)/.test(src), 'הגלולה נמדדת לפני שהעמוד החדש מוצג (layout כפוי קטן)');
+ok(/positionTabIndicator\(\); \} catch \(e\) \{\}\s*if \((!setMove && )?actTab && actTab\.scrollIntoView\)/.test(src), 'הגלולה נמדדת לפני שהעמוד החדש מוצג (layout כפוי קטן)');
 
 // --- 2. עוגה: מפתח ציור + מטמון פריסה + איחוד ציורי לוגו ---
 ok(/canvas\._pieDrawKey === key/.test(src), 'drawPie: פריים זהה (טיק חי בלי שינוי) לא מצויר מחדש');
