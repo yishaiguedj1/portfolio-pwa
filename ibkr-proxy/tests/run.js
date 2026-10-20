@@ -2721,6 +2721,16 @@ function stubFetch(text, status = 200) {
       ok(solved.every((x) => x.st === 'r' || x.st === 'x'), 'סטודיו: תקלות — נפתרה / נסגרה גם כשהעבודה לא עברה "בטיפול"');
       const end = I.majorSync(mi, solved, [], t0 + 6 * 60e3);
       ok(end && end.x && !I.majorActive(end) && end.h.pop()[1] === 'r', 'סטודיו: תקלה רחבה — נסגרת לבד כשהתקלות נפתרו');
+      // 20/10/2026: עבודה שהצליחה אחרי ההכרזה סוגרת את התקלה הרחבה — גם כשהעבודות שנכשלו עדיין "נכשלה"
+      const okEnd = I.majorSync(mi, mk, [], t0 + 7 * 60e3, { r: t0 + 6 * 60e3 });
+      ok(okEnd && okEnd.x === t0 + 7 * 60e3 && okEnd.v === t0 + 6 * 60e3 && !I.majorActive(okEnd), 'סטודיו: תקלה רחבה — נסגרת כשעבודה מאוחרת הצליחה');
+      ok(I.majorSync(okEnd, mk, [], t0 + 8 * 60e3, { r: t0 + 6 * 60e3 }) === null, 'סטודיו: תקלה רחבה — כשלים מלפני ההצלחה לא מכריזים שוב');
+      ok(I.majorSync(mi, mk, [], t0 + 7 * 60e3, { a: t0 + 6 * 60e3 }) === null, 'סטודיו: תקלה רחבה של ה־Routine — הצלחה בשרת לא סוגרת אותה');
+      ok(I.majorSync(mi, mk, [], t0 + 7 * 60e3, { r: t0 + 60e3 }) === null, 'סטודיו: תקלה רחבה — הצלחה מלפני ההכרזה לא סוגרת');
+      const resumed = I.incSync(mk, [fct(JA, 'running', '', { bad: false, fires: 2, fired: t0 + 8 * 60e3 }), fct(JB, 'failed', 'no_claim')], [], [], t0 + 8 * 60e3 + 1);
+      const again = I.incSync(resumed, [fct(JA, 'failed', 'no_claim', { fires: 2, at: t0 + 9 * 60e3, fired: t0 + 8 * 60e3 }), fct(JB, 'failed', 'no_claim')], [], [], t0 + 10 * 60e3);
+      const re = I.majorSync(okEnd, again, [], t0 + 10 * 60e3, { r: t0 + 6 * 60e3 });
+      ok(re && re.no === 2 && I.majorActive(re), 'סטודיו: תקלה רחבה — כשל חוזר אחרי ההצלחה מכריז שוב');
       // רכיב שנכשל לכמה עבודות (התראה, עוד לפני "נכשלה")
       let wa = O1.opsApply([], [{ c: 'drive', k: 'auth' }], JA, t0);
       wa = O1.opsApply(wa, [{ c: 'drive', k: 'auth' }], JC, t0);
@@ -3492,7 +3502,7 @@ function stubFetch(text, status = 200) {
         pushes = [];
         now += 6 * 60e3;
         await run({ op: 'jobs', idToken: OWNER });
-        ok(pushes.length === 0, 'ת7: בדיקה מהטלפון — בלי התראה כפולה');
+        ok(!pushes.some((p) => decrypt(p.body).k === 'srv_down'), 'ת7: בדיקה מהטלפון — בלי התראה כפולה');   // 20/10: רק srv_down — תקלה רחבה חדשה כאן היא אירוע אמיתי (no_claim בשתי עבודות אחרי הצלחה)
         await run({ op: 'srvRemove', idToken: OWNER, sid: cr2.payload.server.id });
         // 15/10/2026: "השרת לא מצליח להתחבר" — שרת קיים שהטוקן שלו נדחה (10/10: כל השרתים קיבלו 401 בשקט)
         {

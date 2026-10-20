@@ -584,7 +584,9 @@ async function syncInc(deps, uid, jobs, now) {
     const st = await readStats(deps, uid);
     const facts = jobs.filter((j) => j.kind === 'tr').map((j) => I.jobFacts(j, S.effState(j, now), S.isStale(j, now)));
     let inc = I.incSync(d.inc, facts, d.al, st.fb, now);
-    const mi = I.majorSync(d.mi, inc || d.inc, d.al, now);
+    const ok = { a: 0, r: 0 };   // 20/10/2026: סיום אחרון שהצליח — סוגר תקלה רחבה שעברה (studioinc majorSync)
+    for (const j of jobs) if (j.kind === 'tr' && S.effState(j, now).state === 'done') { const k = apiJob(j) ? 'a' : 'r'; ok[k] = Math.max(ok[k], Number(j.ended) || 0); }
+    const mi = I.majorSync(d.mi, inc || d.inc, d.al, now, ok);
     const marked = I.majorMark(inc || d.inc, mi || d.mi, now);
     if (marked) inc = marked;
     const patch = {};
