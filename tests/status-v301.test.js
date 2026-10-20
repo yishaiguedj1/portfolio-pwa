@@ -22,7 +22,7 @@ const LABOR = Date.parse('2026-09-07T15:00:00Z');
 const open = f({ source: 'Yahoo', live: true, session: '' }, WED);
 ok(/st-pill open"/.test(open) && /<i><\/i>/.test(open) && /השוק פתוח/.test(open) && !/Yahoo/.test(open) && !/דיליי/.test(open), 'פתוח וחי: נקודה + "השוק פתוח", בלי שם המקור');
 const openD = f({ source: 'CNBC', live: false, session: '' }, WED);
-ok(/st-pill open delay/.test(openD) && /· דיליי/.test(openD) && !/CNBC/.test(openD), 'פתוח בגיבוי: נקודה אפורה + "· דיליי"');
+ok(/st-pill open delay/.test(openD) && /<small>דיליי<\/small>/.test(openD) && !/CNBC/.test(openD), 'פתוח בגיבוי: נקודה אפורה + "דיליי" בשורה שנייה');
 ok(/st-pill open delay/.test(f({ source: 'Yahoo', live: true, stale: true, session: '' }, WED)), 'נתונים שמורים = דיליי');
 for (const [k, lbl] of [['pre', 'מסחר־מוקדם'], ['post', 'מסחר־מאוחר'], ['night', 'מסחר־לילי']]) {
   const h = f({ source: 'Yahoo', live: true, session: k }, WED);
@@ -30,9 +30,9 @@ for (const [k, lbl] of [['pre', 'מסחר־מוקדם'], ['post', 'מסחר־מ�
   ok(new RegExp('st-pill ' + k + ' delay').test(f({ source: 'CNBC', live: false, session: k }, WED)), k + ' בדיליי: נקודה אפורה');
 }
 const sat = f({ source: 'CNBC', live: false, session: 'pre' }, SAT);
-ok(/st-pill closed/.test(sat) && /השוק סגור · סופ״ש/.test(sat) && !/<i>/.test(sat) && !/דיליי/.test(sat), 'שבת: סגור + סופ״ש גם כשהגיבוי אומר "מסחר מוקדם"; מנעול בלי נקודה');
-ok(/השוק סגור · חג המולד/.test(f({ source: 'Yahoo', live: true, session: 'closed' }, XMAS)), 'חג: שם החג');
-ok(/השוק סגור · יום העבודה/.test(f({ source: 'Yahoo', live: true, session: '' }, LABOR)), 'שם חג מתוקן: "יום העבודה"');
+ok(/st-pill closed/.test(sat) && /השוק סגור<small>סופ״ש<\/small>/.test(sat) && !/<i>/.test(sat) && !/דיליי/.test(sat), 'שבת: סגור + סופ״ש גם כשהגיבוי אומר "מסחר מוקדם"; מנעול בלי נקודה');
+ok(/השוק סגור<small>חג המולד<\/small>/.test(f({ source: 'Yahoo', live: true, session: 'closed' }, XMAS)), 'חג: שם החג');
+ok(/השוק סגור<small>יום העבודה<\/small>/.test(f({ source: 'Yahoo', live: true, session: '' }, LABOR)), 'שם חג מתוקן: "יום העבודה"');
 ok(/st-pill night/.test(f({ source: 'Yahoo', live: true, session: 'night' }, SAT)), 'מסחר לילי גובר על "סופ״ש" (יום ראשון בערב)');
 const closedNoReason = f({ source: 'Yahoo', live: true, session: 'closed' }, WED);
 ok(/st-pill closed/.test(closedNoReason) && />השוק סגור<\/span>/.test(closedNoReason.replace(/<svg.*<\/svg>/, '')), 'סגור בלי סיבה (סגירה מיוחדת/אחרי השעות)');
