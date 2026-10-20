@@ -152,15 +152,26 @@ a { color: var(--link); }
   position: sticky; top: 0; z-index: 20;
   --ib: 44px;
   padding: 10px 16px 8px;
-  /* 20/10/2026 (בקשת המשתמש — כמו הממשק של Muse): בלי פס זכוכית — ההדר בצבע הדף, הלוגו "מרחף" באמצע,
-     והתוכן שנגלל מתחתיו נמוג ברצועה רכה (::after) במקום קו גבול */
-  background: var(--bg);
+  /* 20/10/2026 (בקשת המשתמש — כמו הממשק של Muse): בלי פס זכוכית — הלוגו "מרחף" באמצע. הרקע = שכבה אחת (::before)
+     שנמשכת 110px מתחת להדר: אטומה למעלה, ומתחת לקפסולה נמוגה ומיטשטשת בהדרגה (כ־200px, עקומה רכה) — הכרטיסים
+     שנגללים מתחת "נבלעים" בה במקום להיחתך בקו. מופיעה רק כשמתחילים לגלול (scroll-driven, בלי JS) — בראש העמוד
+     אין מה להסתיר, והכרטיס הראשון לא מטושטש. */
+  background: transparent;
   color: var(--on-surface);
 }
-.appbar::after {
-  content: ''; position: absolute; inset-inline: 0; top: 100%; height: 22px; pointer-events: none;
-  background: linear-gradient(var(--bg), color-mix(in srgb, var(--bg) 0%, transparent));
+.appbar::before {
+  content: ''; position: absolute; inset: 0 0 -110px 0; z-index: -1; pointer-events: none;
+  background: var(--bg);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
+  --scrim: linear-gradient(#000 0, #000 calc(100% - 200px), rgba(0, 0, 0, .93) calc(100% - 168px), rgba(0, 0, 0, .78) calc(100% - 134px),
+    rgba(0, 0, 0, .56) calc(100% - 100px), rgba(0, 0, 0, .32) calc(100% - 66px), rgba(0, 0, 0, .13) calc(100% - 34px), transparent 100%);
+  -webkit-mask-image: var(--scrim); mask-image: var(--scrim);
 }
+@supports (animation-timeline: scroll()) {
+  .appbar::before { animation: hdrScrim linear both; animation-timeline: scroll(nearest block); animation-range: 0 72px; }
+}
+@keyframes hdrScrim { from { opacity: 0; } to { opacity: 1; } }
+.cube-flat .appbar::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* v131: לוגו 106px בצד אחד (הלוגו קודם ב־DOM -> קצה ה"התחלה" ב־RTL, כלומר
    ימין), כפתורי הפעולה + שורת "מקור" מקובצים יחד בצד השני (שמאל),
    ממורכזים אנכית מול גובה הלוגו (align-items:center בשורה). */
@@ -497,7 +508,7 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
    גלילה פנימית אופקית עם סרגל מוסתר: כל 5 הלשוניות תמיד נגישות,
    שום דבר לא נחתך בקצוות — לא ב־RTL ולא ב־LTR. */
 .tabs {
-  position: sticky; top: 78px; z-index: 15;
+  position: sticky; top: 8px; z-index: 15;   /* 20/10/2026: בחלק האטום של ההדר — לא מבצבצת מטושטשת מאחורי הלוגו */
   display: flex; gap: 4px;
   isolation: isolate;
   margin: 12px 14px 0; padding: 6px;
