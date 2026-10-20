@@ -563,14 +563,15 @@ button, a, .tab, .icon-btn, .ss-add {
 .tabs .tab { flex: 1 1 auto; min-width: max-content; padding: 12px 3px; font-size: clamp(11px, calc(7.4vw - 13px), 16px); }
 [dir="ltr"] .tabs .tab { font-size: clamp(10px, calc(6.2vw - 11px), 14.5px); padding-inline: 2px; }   /* באנגלית המילים ארוכות יותר (Watchlist, Deposits) */
 .tabs { gap: 2px; }
-.tabs .tab.tab-icon { flex: 0 0 auto; padding-inline: 10px; }
+.tabs .tab.tab-icon { flex: 1 1 auto; padding-inline: 3px; }   /* 20/10/2026: אותו ריפוד ואותה חלוקה כמו לשונית טקסט — המרווחים בין כל הלשוניות שווים (נמדד) */
+.tabs.set-on .tab, .tabs.set-on .tab.tab-icon { flex: 0 0 auto; padding-inline: 6px; }   /* בעמוד ההגדרות הסרגל נגלל — מרווח קבוע ושווה בין כולן, גם לגלגל */
+[dir="ltr"] .tabs.set-on .tab { padding-inline: 6px; }
 .tabs .tab-set { display: none; }   /* 20/10/2026: "הגדרות" — רק כשהעמוד פתוח (tabSetBar ב־app.js) */
 .tabs.set-on .tab-set { display: flex; }
 /* גלגל שיניים בלבד (בקשת המשתמש) — קו, באותו גודל של סמל הסקירה; ירוק כשלא פעיל, בצבע הטקסט על הגלולה */
 .tab-gear { width: 24px; height: 24px; margin-block: -1px; stroke: var(--primary); transition: stroke .28s ease; }
 .tab .tab-ico.tab-gear path, .tab.active .tab-ico.tab-gear path, .tab-gear circle { fill: none; }
 .tab.active .tab-gear { stroke: currentColor; }
-.tabs .tab.tab-set { padding-inline: 16px; }
 .tab.active {
   background: var(--primary); color: var(--on-primary); font-weight: 700;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 8px rgba(0, 0, 0, .18);
@@ -716,8 +717,14 @@ main { padding: 8px 16px 0; max-width: 720px; margin: 0 auto; }
 .stock-pcol { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
 .stock-ext:empty { display: none; }
 /* שורות המשנה: שתי עמודות — אחוזים בצד ההתחלה, סכומים בצד הסוף, שורה לכל זוג */
-.stock-sub { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3px 12px; font-size: 14px; color: var(--on-surface-var); }
-.stock-sub .sub-val, .stock-sub .buy-amt { justify-self: end; font-variant-numeric: tabular-nums; }
+/* 20/10/2026 (בקשת המשתמש): הצדדים התחלפו — השווי והרווח בכסף בצד של הלוגו (התחלה), השינוי היומי ו"מהקנייה" בצד של
+   המחיר (סוף), מתחת למחיר. אותו סדר ב־DOM (היום, שווי, מהקנייה %, מהקנייה בכסף), רק המקום ברשת; גם בכרטיס המעקב */
+.stock-sub { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 3px 12px; font-size: 14px; color: var(--on-surface-var); }
+.stock-sub > .day-chg { grid-area: 1 / 2; justify-self: end; text-align: end; }
+.stock-sub > .sub-val { grid-area: 1 / 1; }
+.stock-sub > .buy-chg { grid-area: 2 / 2; justify-self: end; }
+.stock-sub > .buy-amt { grid-area: 2 / 1; }
+.stock-sub .sub-val, .stock-sub .buy-amt { justify-self: start; font-variant-numeric: tabular-nums; }
 .stock-sub .buy-chg, .stock-sub .buy-amt { font-weight: 600; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .stock-sub .buy-chg:not(.pos):not(.neg), .stock-sub .buy-amt:not(.pos):not(.neg) { color: var(--on-surface-var); }
 .day-chg { font-weight: 700; font-variant-numeric: tabular-nums; }
