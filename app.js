@@ -7291,7 +7291,7 @@ function tabRenderer(name) {
 }
 /* v193: גלולה ירוקה שמחליקה בין הלשוניות (במקום רקע שקופץ) — כמו בורר מקטעים של אפל. ממוקמת פיזית (offsetLeft),
    עובד ב־RTL וב־LTR ובתוך סרגל שגולל. הפעם הראשונה — בלי אנימציה. */
-/* 20/10/2026 (בקשת המשתמש): לשונית "הגדרות" בסרגל התחתון רק כשעמוד ההגדרות פתוח — אחרי "פנסיה" (משמאל בעברית).
+/* 20/10/2026 (בקשת המשתמש): לשונית "הגדרות" (גלגל שיניים) בסרגל רק כשעמוד ההגדרות פתוח — אחרי "פנסיה" (משמאל בעברית).
    בכניסה היא נוספת בקצה, והסרגל נגלל אליה בתנועה רכה ("נמשכת" מדופן המסך) יחד עם הקובייה; ביציאה הסרגל נגלל חזרה
    והיא יורדת רק אחרי שיצאה מהמסך. מחזיר true כשהגלילה של הסרגל בטיפול כאן */
 let _tabSetT = 0;
@@ -7336,14 +7336,8 @@ function positionTabIndicator(track) {
   const same = ind._tab === act.dataset.tab, quiet = same || track === true || document.documentElement.classList.contains('booting');
   ind._tab = act.dataset.tab;
   if (quiet) ind.style.transition = 'none';
-  const x0 = ind._x, w0 = ind._w, x1 = act.offsetLeft, w1 = act.offsetWidth;
-  ind._x = x1; ind._w = w1;
-  // 20/10/2026: מעבר ללשונית אחרת = תנועה "נוזלית" (liquidPill, ב־<core>) במקום ההחלקה של transition
-  const liquid = !quiet && tabs.classList.contains('has-ind') && x0 != null;
-  if (liquid) ind.style.transition = 'none';
-  ind.style.width = w1 + 'px';
-  ind.style.transform = 'translateX(' + x1 + 'px)';
-  if (liquid) { void ind.offsetWidth; ind.style.transition = ''; liquidPill(ind, x0, w0, x1, w1); }
+  ind.style.width = act.offsetWidth + 'px';
+  ind.style.transform = 'translateX(' + act.offsetLeft + 'px)';
   if (quiet && tabs.classList.contains('has-ind')) { void ind.offsetWidth; ind.style.transition = ''; }
   if (!tabs.classList.contains('has-ind')) {
     ind.style.transition = 'none';
@@ -11958,25 +11952,6 @@ function barHeightVar() {
   }
   put();
 }
-/* 20/10/2026 (בקשת המשתמש — "כמו בתפריטים הכי חדשים של Apple"): הסימון של הלשונית הנבחרת עובר אליה בתנועה "נוזלית"
-   כמו בסרגל של iOS 26 — הקצה המוביל נמתח קדימה, הקצה האחורי מצטרף, הגלולה נדחסת מעט לגובה, עוברת את היעד בכמה
-   פיקסלים וחוזרת בקפיץ. el ממוקם ב־transform: translateX + width; המצב הסופי כבר כתוב עליו (inline) — כאן רק התנועה.
-   משותף ל־Invest (‏.tab-ind) ול־Academy (‏.lib-tab-ind) */
-function liquidPill(el, x0, w0, x1, w1) {
-  if (!el || typeof el.animate !== 'function' || cubeReduce()) return null;
-  const d = x1 - x0;
-  if (Math.abs(d) < 1 && Math.abs(w1 - w0) < 1) return null;
-  const r0 = x0 + w0, r1 = x1 + w1, fwd = d > 0;
-  const L1 = fwd ? x0 + d * 0.3 : x0 + d * 0.86, R1 = fwd ? r0 + (r1 - r0) * 0.86 : r0 + (r1 - r0) * 0.3;
-  const ov = (fwd ? 1 : -1) * Math.min(7, Math.abs(d) * 0.05);
-  const f = (L, R, sy) => ({ transform: 'translateX(' + L.toFixed(1) + 'px) scaleY(' + sy + ')', width: Math.max(8, R - L).toFixed(1) + 'px' });
-  const k0 = f(x0, r0, 1), k1 = f(L1, R1, 0.86), k2 = f(x1 + ov, r1 + ov * 0.4, 1.03), k3 = f(x1, r1, 1);
-  k0.offset = 0; k1.offset = 0.36; k2.offset = 0.72; k3.offset = 1;
-  k0.easing = 'cubic-bezier(.45,0,.25,1)'; k1.easing = 'cubic-bezier(.2,.7,.3,1)'; k2.easing = 'cubic-bezier(.3,0,.3,1)';
-  try { if (el._liquid) el._liquid.cancel(); } catch (e) {}
-  try { el._liquid = el.animate([k0, k1, k2, k3], { duration: 560 }); } catch (e) { return null; }
-  return el._liquid;
-}
 /* </core> */
 
 /* ---------------- v279→v281: החלקה בין העמודים הראשיים ----------------
@@ -12164,7 +12139,7 @@ function wireCardDrag(list, cfg) {
   function tick() { // פעם בפריים: מיקום לפי האצבע + גלילה אוטומטית ליד הקצוות
     raf = null;
     if (!drag) return;
-    const top = barBottom() + 70, bottom = window.innerHeight - tabsBottomInset() - 70;
+    const top = barBottom() + 70, bottom = window.innerHeight - 70;
     const v = cy < top ? -Math.min(18, (top - cy) / 4) : cy > bottom ? Math.min(18, (cy - bottom) / 4) : 0;
     if (v) window.scrollBy(0, v);
     if (v || cy !== drag.lastY) { drag.lastY = cy; place(); }
@@ -12928,13 +12903,6 @@ function scrollCardToTop(card) {
 }
 // v238: הכרטיס הפתוח = בדיוק גובה המסך שמתחת להדר (10px מעל ומתחת) — לא גדול ולא קטן ממנו:
 // הגרף מתמתח או מתכווץ כדי להשלים. נמדד מהגובה הטבעי של התוכן (גם באמצע אנימציית הפתיחה).
-/* 20/10/2026: כמה מתחתית המסך תופס סרגל הלשוניות הקבוע (0 כשהוא לא קבוע / מוסתר) — מה שמתחת לו לא נראה */
-function tabsBottomInset() {
-  const t = typeof document !== 'undefined' && document.querySelector && document.querySelector('nav.tabs');
-  if (!t || !t.getBoundingClientRect || !window.innerHeight || getComputedStyle(t).position !== 'fixed') return 0;
-  const top = t.getBoundingClientRect().top;
-  return top > 0 ? Math.max(0, window.innerHeight - top) : 0;
-}
 function fitCardToScreen(sym, card, smooth) {
   if (typeof window === 'undefined' || !window.innerHeight) return false;
   card = card || stockCardEl(sym);
@@ -12954,7 +12922,7 @@ function fitCardToScreen(sym, card, smooth) {
     if (head) card._fitRO.observe(head);
   }
   const bar = document.querySelector('.appbar');
-  const avail = window.innerHeight - (bar ? bar.getBoundingClientRect().height : 0) - tabsBottomInset() - 20;
+  const avail = window.innerHeight - (bar ? bar.getBoundingClientRect().height : 0) - 20;
   const cardH = card.getBoundingClientRect().height - body.getBoundingClientRect().height + Math.max(inner.offsetHeight, inner.scrollHeight);
   const h = Math.round(Math.max(140, Math.min(560, cv.clientHeight + avail - cardH)));
   if (Math.abs(h - cv.clientHeight) < 2) return false;

@@ -868,25 +868,6 @@ function barHeightVar() {
   }
   put();
 }
-/* 20/10/2026 (בקשת המשתמש — "כמו בתפריטים הכי חדשים של Apple"): הסימון של הלשונית הנבחרת עובר אליה בתנועה "נוזלית"
-   כמו בסרגל של iOS 26 — הקצה המוביל נמתח קדימה, הקצה האחורי מצטרף, הגלולה נדחסת מעט לגובה, עוברת את היעד בכמה
-   פיקסלים וחוזרת בקפיץ. el ממוקם ב־transform: translateX + width; המצב הסופי כבר כתוב עליו (inline) — כאן רק התנועה.
-   משותף ל־Invest (‏.tab-ind) ול־Academy (‏.lib-tab-ind) */
-function liquidPill(el, x0, w0, x1, w1) {
-  if (!el || typeof el.animate !== 'function' || cubeReduce()) return null;
-  const d = x1 - x0;
-  if (Math.abs(d) < 1 && Math.abs(w1 - w0) < 1) return null;
-  const r0 = x0 + w0, r1 = x1 + w1, fwd = d > 0;
-  const L1 = fwd ? x0 + d * 0.3 : x0 + d * 0.86, R1 = fwd ? r0 + (r1 - r0) * 0.86 : r0 + (r1 - r0) * 0.3;
-  const ov = (fwd ? 1 : -1) * Math.min(7, Math.abs(d) * 0.05);
-  const f = (L, R, sy) => ({ transform: 'translateX(' + L.toFixed(1) + 'px) scaleY(' + sy + ')', width: Math.max(8, R - L).toFixed(1) + 'px' });
-  const k0 = f(x0, r0, 1), k1 = f(L1, R1, 0.86), k2 = f(x1 + ov, r1 + ov * 0.4, 1.03), k3 = f(x1, r1, 1);
-  k0.offset = 0; k1.offset = 0.36; k2.offset = 0.72; k3.offset = 1;
-  k0.easing = 'cubic-bezier(.45,0,.25,1)'; k1.easing = 'cubic-bezier(.2,.7,.3,1)'; k2.easing = 'cubic-bezier(.3,0,.3,1)';
-  try { if (el._liquid) el._liquid.cancel(); } catch (e) {}
-  try { el._liquid = el.animate([k0, k1, k2, k3], { duration: 560 }); } catch (e) { return null; }
-  return el._liquid;
-}
 
 let _itemActs = null;
 function clearItemActions() {
