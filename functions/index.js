@@ -3,7 +3,7 @@
    כרגיל, בלי להיספר במכסת Workers. בשורש של academy[-staging].thesnowball.app מוגש academy.html (וב־studio —
    studio.html) באותה כתובת נקייה; בכל כתובת אחרת (Invest, האתר המאוחד, תצוגות מקדימות) — index.html כרגיל.
    אותה רשימה ב־firebase-config.js (APP_HOST_RE) וב־sw.js (ROOT_PAGE). */
-const ROOT_RE = /^(academy|studio)(-staging)?\.thesnowball\.app$/;
+const ROOT_RE = /^(academy|studio|admin)(-staging)?\.thesnowball\.app$/;   // admin = מרכז הניהול (17/10/2026), מאחורי Cloudflare Access
 
 export function rootPage(host) {
   const m = ROOT_RE.exec(String(host || '').toLowerCase());

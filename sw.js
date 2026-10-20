@@ -4,15 +4,15 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v445';
+const CACHE_NAME = 'portfolio-pwa-v446';
 const HASHES = {
   "./": "d094d2fe69becf053227fe5eaad28a1e",
   "./index.html": "d094d2fe69becf053227fe5eaad28a1e",
   "./styles.css": "d81bc1a1acf56066d97677ac4a4b17c5",
-  "./app.js": "29167a11487ff4ebe80c0c249979b4d6",
+  "./app.js": "4b9c40c8df4075575ddeba6fe63ac653",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
-  "./firebase-config.js": "ffaf70bf205506ec1d4230d9ed4ad036",
+  "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
   "./move.js": "5f2580e686bc4768e65086b897398db6",
   "./manifest.webmanifest": "933cd57a01bc2c47f5e1904be166220b",
   "./icon-192.png": "cf3bed681a924e2fbecc04893a92f5bf",
@@ -48,8 +48,8 @@ const HASHES = {
   "./vendor/foliate-js/vendor/fflate.js": "e63bcc21f83a43e5f71d5cbefd351ff4",
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
-  "./strings-academy.js": "66f2b1a5d9a4cd68ca1343c4997d696e",
-  "./core.js": "a7aedbb26189d2e42d81f0006ace08df",
+  "./strings-academy.js": "514755135109a45a5404a162b776e593",
+  "./core.js": "c727cff71fc5a541136ad32767e955d9",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "6a0820653cec48eee52b29818eb97368",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -67,7 +67,7 @@ const HASHES = {
   "./studiostore.js": "633c4083aebf82cdc389813e65ecee16",
   "./studio.html": "e797e443dfa76398884be3d9f012d250",
   "./studio-app.js": "1bd843c44038fe58e339ce3101a7ffa6",
-  "./strings-studio.js": "5aeed3400a1a2aa336afa7c7d9d17bc2",
+  "./strings-studio.js": "61208970d4267f8b1083cdd51854f217",
   "./logo-studio.webp": "0d7c2fa06f0d037782ba1371411e641a",
   "./logo-studio-lg.webp": "607346abe8a670fb1a60499d52575398",
   "./icon-studio-192.png": "9b37d795c2aceac291c56b3ce425aaa3",

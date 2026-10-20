@@ -1728,6 +1728,14 @@ async function handler(req, res, deps = {}) {
       try { list = await query(deps, 'sysFeedback', null, 300); } catch (e) { return res.status(503).json({ ok: false, error: 'store' }); }
       return res.status(200).json({ ok: true, fb: AO.fbView(list) });
     }
+    if (op === 'adminBackups') {
+      // 17/10/2026: מרכז הניהול ← גיבויים. הגיבוי היומי ל־R2 (רשימת bk/) והגיבוי אצל ספק שני (sysBackup/cfg). קריאה בלבד
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const c = R2.config();
+      const [r2, off] = await Promise.all([c.ok ? R2.list(c, r2deps(deps), 'bk/', 200).catch(() => null) : Promise.resolve(null),
+        readDoc(deps, 'sysBackup', 'cfg').catch(() => null)]);
+      return res.status(200).json({ ok: true, bk: AO.backupsView({ now, r2, off, me: uid }) });
+    }
     if (op === 'adminSecrets') {
       // 15/10/2026: מרכז הניהול ← סודות ותאריכים. רק "מוגדר / לא" לכל סוד (הקטלוג של SECURITY.md), אף פעם לא ערך;
       // מה שבכספות — כמה משתמשים, בלי uid
@@ -1927,6 +1935,7 @@ async function handler(req, res, deps = {}) {
           if (sd.dn) await downClear(deps, sd.by || uid, sid, now);   // ת7: שרת שנפל והוסר — ההתראה נסגרת
           if (sd.ba) await authBack(deps, Object.assign({ by: uid }, sd), sid, now);   // 15/10: שרת שהטוקן שלו נדחה והוסר — גם
         }
+        await adminLog(deps, user, op === 'srvRemove' ? 'srv_del' : body.paused === true ? 'srv_pause' : 'srv_resume', sd.name || sid, now);   // 17/10/2026: יומן הפעולות
       }
       const list = await servers();
       const jobs = await query(deps, 'studioJobs', { eng: 'api' }, 100).catch(() => []);
