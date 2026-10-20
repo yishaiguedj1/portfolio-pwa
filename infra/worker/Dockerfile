@@ -80,6 +80,10 @@ COPY --chown=root:root --chmod=755 infra/worker/snb-host-apply /opt/snb-host/app
 RUN rm -rf /app/translator/tests /app/translator/research /app/translator/__pycache__ \
  && find /app /opt/aligner -type d -exec chmod 755 {} + && find /app /opt/aligner -type f -exec chmod 644 {} + \
  && chmod 644 /opt/snb-host/snb-common.sh /opt/snb-host/compose.yaml
+# 20/10/2026: בדיקת עשן מול הספריות האמיתיות שבתמונה (הבדיקות ב־CI רצות בלי anthropic) — בניית הלקוח של Claude
+# בלי רשת. anthropic 1.x עבר ל־httpx2 ודחה httpx.Timeout ב־TypeError: כל עבודה בשרת קרסה בקריאה הראשונה, והבנייה עברה
+RUN cd /app/translator && ANTHROPIC_API_KEY=build-check /opt/vt/bin/python -B -c \
+    "import llm; c = llm.Engine(llm.Spec.of(llm.DEFAULT_MODE))._client_or_new(); assert c.timeout.read == llm.API_READ_TIMEOUT, c.timeout"
 
 ENV PATH=/opt/vt/bin:/opt/ffmpeg:/usr/local/bin:/usr/bin:/bin \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
