@@ -1,11 +1,12 @@
 # יוצר את logo-blink-<app>.png — אותו לוגו עם עיניים עצומות (רק אזור העדשות), למצמוץ של הלוגו החי בהדר (20/10/2026).
-# שימוש: python3 tools/brand-blink.py logo-header.png logo-blink-invest.png  (דורש numpy + scipy; מדפיס את המיקום באחוזים ל־styles.css)
+# שימוש: python3 tools/brand-blink.py logo-header.png logo-blink-invest.png [blink|smile]  (דורש numpy + scipy; מדפיס את המיקום באחוזים ל־styles.css)
 # מחליפים לוגו — מריצים שוב ומעדכנים ב־styles.css את --bk-y / --bk-h / --bk-oy של האפליקציה.
 import sys, json
 from PIL import Image, ImageDraw, ImageFilter
 import numpy as np
 from scipy import ndimage as nd
 src, out = sys.argv[1], sys.argv[2]
+mode = sys.argv[3] if len(sys.argv) > 3 else 'blink'   # blink = עין עצומה ורגועה (‿) · smile = עין מחייכת (∩, כמו ^^)
 img = Image.open(src).convert('RGBA'); im = np.asarray(img).astype(float); N = im.shape[0]; s = N/512
 L = im[...,:3] @ [.299,.587,.114]
 bright = L > 150
@@ -55,6 +56,8 @@ for seed, box in [((232,262),(222,264,244,278)), ((300,273),(278,316,243,278))]:
     col = ys[xs == x0_]; topy[x0_] = col.min() + (col.max()-col.min())*.35
   p0 = (xs.min()+1.5*s, topy[xs.min()]); p2 = (xs.max()-1.5*s, topy[xs.max()])
   cy = max(p0[1], p2[1]) + 3.4*s        # הקשת שוקעת באמצע — עין עצומה ורגועה
+  if mode == 'smile':                    # חיוך עם העיניים: הקצוות יורדים, האמצע עולה — קשת כלפי מעלה
+    p0 = (p0[0] + .8*s, p0[1] + 3.2*s); p2 = (p2[0] - .8*s, p2[1] + 3.2*s); cy = min(p0[1], p2[1]) - 3.6*s
   K = 4; H, W = a.shape[:2]
   lay = Image.new('L', (W*K, H*K), 0); d = ImageDraw.Draw(lay)
   pts = []
