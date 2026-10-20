@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1534 מפתחות מתוך 3448) */
+/* המחרוזות של studio (1536 מפתחות מתוך 3450) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1039,6 +1039,8 @@ he: {
   "studioRlT": "החוקים שלך",
   "studioRlUpTo": "עד {m}",
   "studioRrBusy": "כבר יש הפקה שרצה לעבודה הזו",
+  "studioRrCancel": "ביטול ההפקה",
+  "studioRrCancelQ": "לבטל את ההפקה מחדש? התרגום והכתוביות נשארים כמו שהם.",
   "studioRrDirty": "יש שינויים שלא נשמרו — נשמור אותם קודם.",
   "studioRrDone": "מוכן",
   "studioRrFailed": "לא הצליחה",
@@ -2575,6 +2577,8 @@ en: {
   "studioRlT": "Your rules",
   "studioRlUpTo": "Up to {m}",
   "studioRrBusy": "A render is already running for this job",
+  "studioRrCancel": "Cancel render",
+  "studioRrCancelQ": "Cancel this re-render? The translation and subtitles stay as they are.",
   "studioRrDirty": "You have unsaved changes — we'll save them first.",
   "studioRrDone": "Ready",
   "studioRrFailed": "Didn't work",
