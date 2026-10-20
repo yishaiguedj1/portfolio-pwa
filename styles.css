@@ -333,19 +333,21 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
 .appbar .brand-snow i { position: absolute; inset: 0; animation: snowSway var(--sw, 6s) cubic-bezier(.45, 0, .55, 1) infinite alternate; }
 .appbar .brand-snow i::before { content: ''; position: absolute; inset-inline: 0; top: calc(-1 * var(--h)); height: calc(100% + var(--h));
   background: var(--img) 0 0 / var(--w) var(--h) repeat; animation: snowFall var(--d) linear infinite; }
-.appbar .brand-snow i:nth-child(1) { --sw: 8s; }
-.appbar .brand-snow i:nth-child(1)::before { --img: url(snow-far-light.png); --w: 120px; --h: 150px; --d: 16s; }
-.appbar .brand-snow i:nth-child(2) { --sw: 6s; animation-delay: -2s; }
-.appbar .brand-snow i:nth-child(2)::before { --img: url(snow-mid-light.png); --w: 170px; --h: 200px; --d: 12s; }
-.appbar .brand-snow i:nth-child(3) { --sw: 4.8s; animation-delay: -3.5s; }
-.appbar .brand-snow i:nth-child(3)::before { --img: url(snow-near-light.png); --w: 230px; --h: 280px; --d: 9s; }
-.appbar .brand-snow.front i:nth-child(1) { --sw: 5.4s; animation-delay: -1s; }
-.appbar .brand-snow.front i:nth-child(1)::before { --img: url(snow-near-light.png); --w: 230px; --h: 280px; --d: 7s; background-position: 110px 60px; scale: 1.25; }
+.appbar .brand-snow i:nth-child(1) { --sw: 13s; }
+.appbar .brand-snow i:nth-child(1)::before { --img: url(snow-far-light.png); --w: 120px; --h: 150px; --d: 34s; }
+.appbar .brand-snow i:nth-child(2) { --sw: 10.5s; animation-delay: -4s; }
+.appbar .brand-snow i:nth-child(2)::before { --img: url(snow-mid-light.png); --w: 170px; --h: 200px; --d: 30s; }
+.appbar .brand-snow i:nth-child(3) { --sw: 8.5s; animation-delay: -6s; }
+.appbar .brand-snow i:nth-child(3)::before { --img: url(snow-near-light.png); --w: 230px; --h: 280px; --d: 24s; }
+.appbar .brand-snow.front i:nth-child(1) { --sw: 9.5s; animation-delay: -3s; }
+.appbar .brand-snow.front i:nth-child(1)::before { --img: url(snow-near-light.png); --w: 230px; --h: 280px; --d: 20s; background-position: 110px 60px; scale: 1.25; }
 [data-theme="dark"] .appbar .brand-snow i:nth-child(1)::before { --img: url(snow-far-dark.png); }
 [data-theme="dark"] .appbar .brand-snow i:nth-child(2)::before { --img: url(snow-mid-dark.png); }
 [data-theme="dark"] .appbar .brand-snow i:nth-child(3)::before, [data-theme="dark"] .appbar .brand-snow.front i:nth-child(1)::before { --img: url(snow-near-dark.png); }
 @keyframes snowFall { to { transform: translateY(var(--h)); } }
-@keyframes snowSway { from { transform: translateX(-6px); } to { transform: translateX(6px); } }
+/* 20/10/2026 (בקשת המשתמש — "כמו פתיתי שלג אמיתיים"): ירידה איטית — 4–14 פיקסלים בשנייה, הרחוקים לאט והקרובים מעט מהר יותר
+   (עומק), ונדנוד רחב ואיטי ברוח במקום תנודה קצרה */
+@keyframes snowSway { from { transform: translateX(-9px); } to { transform: translateX(9px); } }
 /* ניצוצות קרח על הקריסטלים — כוכב דק של ארבע קרניים שמנצנץ לרגע, כל אחד בזמן אחר */
 .appbar .brand-snow b { position: absolute; width: 13px; height: 13px; margin: -6.5px; opacity: 0; transform: scale(.3);
   background: radial-gradient(circle, #fff 0 1.1px, transparent 1.8px),
