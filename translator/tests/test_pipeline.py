@@ -75,6 +75,19 @@ class FakeJ:
         self.asked.append(q)
         return 'ביל אקמן', 'answer'
 
+    answer = None          # 20/10/2026: מה שהשרתון מחזיר ל־ask_peek (None = עוד לא ענו)
+    used = None
+
+    def ask_post(self, ctx, q, opts, d):
+        self.asked.append(q)
+        return 'qtest1'
+
+    def ask_peek(self, ctx, qid):
+        return self.answer
+
+    def ask_used(self, ctx, qid, u):
+        self.used = u
+
     def vt(self, ctx, args):
         self.cmds.append(args[0])
         td = self.pd / 'tr'
@@ -177,7 +190,30 @@ class FlowTests(unittest.TestCase):
         self.assertTrue((self.pd / 'tr' / 'glossary.tsv').read_text(encoding='utf-8').endswith('Netflix\tנטפליקס\n'))
         pl.ask(qs)
         self.assertEqual(self.J.asked, ['כתיב השם?'])
-        self.assertIn('כתיב השם? → ביל אקמן', (self.pd / 'tr' / 'brief.md').read_text(encoding='utf-8'))
+        brief = (self.pd / 'tr' / 'brief.md').read_text(encoding='utf-8')
+        self.assertIn('כתיב השם? → ביל אקמן (ברירת מחדל — המשתמש עוד לא ענה)', brief, '20/10: לא מחכים — ממשיכים עם ברירת המחדל')
+        # רגע לפני התרגום: התשובה כבר הגיעה (אחרת) — נכנסת לתדריך, בלי כפילות של מקטע ההחלטות
+        self.J.answer = {'i': 1, 't': 'ביל אקמאן'}
+        pl.ask_late()
+        brief = (self.pd / 'tr' / 'brief.md').read_text(encoding='utf-8')
+        self.assertIn('כתיב השם? → ביל אקמאן', brief)
+        self.assertNotIn('ביל אקמן (ברירת', brief)
+        self.assertEqual(brief.count('החלטות המשתמש'), 1)
+        self.assertEqual(self.J.used, 1)
+        pl.ask_late()                        # פעם אחת בלבד
+        self.assertEqual(self.J.used, 1)
+
+    def test_ask_never_waits(self):
+        # 20/10/2026 (בקשת המשתמש): שאלה לא מעכבת את העבודה — לא ask_user (שמחכה), ותשובה שלא הגיעה = ברירת המחדל
+        self.J.ask_user = lambda *a, **k: self.fail('ask_user מחכה לתשובה — אסור במצב השרת')
+        pl = P.Pipeline(self.ctx, self.J, None)
+        pl.ask([{'q': 'מגדר הדוברת?', 'opts': ['אישה', 'איש'], 'default': 0}, {'q': 'עוד?', 'opts': [], 'default': 0}])
+        pl.ask_late()
+        self.assertEqual(self.J.used, 0, 'בלי תשובה — התרגום לפי ברירת המחדל, והשרתון יודע')
+        brief = (self.pd / 'tr' / 'brief.md').read_text(encoding='utf-8')
+        self.assertIn('מגדר הדוברת? → אישה', brief)
+        self.assertIn('עוד? → אין תשובה — להחליט לפי שיקול דעת', brief)
+        self.assertEqual(self.J.asked, ['מגדר הדוברת?'], 'רק השאלה הראשונה נשלחת לטלפון')
 
     def test_translate_retry_missing_and_fix_round(self):
         def h(kw):
@@ -627,6 +663,9 @@ class RunAutoResume(unittest.TestCase):
             def proofread(self):
                 log.append('proofread')
                 return []
+
+            def ask_late(self):                      # 20/10/2026: הצצה לתשובה לפני התרגום — בלי המתנה (נבדק בנפרד)
+                pass
 
             def translate(self, fix=True, quiet=False):
                 log.append('translate')

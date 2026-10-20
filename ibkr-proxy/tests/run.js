@@ -1715,7 +1715,7 @@ function stubFetch(text, status = 200) {
     await nmJob(12.83); await nmJob(7.7);                              // 10$ ו־6$ לשעה
     r = await run({ op: 'status', idToken: OWNER });
     const NM = r.payload.norm['opus-medium'];
-    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['sonnet-high'].d === true && r.payload.norm['haiku-high'].d === true && !r.payload.norm['opus-max'] && !r.payload.norm['haiku-medium'], 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
+    ok(NM.ph === 6 && NM.mx === 10 && NM.n === 3 && !NM.d && r.payload.norm['sonnet-high'].d === true && r.payload.norm['haiku-high'].d === true && !r.payload.norm['opus-max'] && r.payload.norm['haiku-medium'].d === true, 'סטודיו: אחרי 3 עבודות — החציון לשעת סרטון והכבדה ביותר (רק למצב שלהן)');
     const sdoc = db.get('studioStats/ownerUid0001');
     ok(sdoc && !/Ackman|aud1234567890|fold/.test(JSON.stringify(sdoc)), 'סטודיו: ההיסטוריה — רק מצב, אורך ועלות (בלי שמות קבצים)');
     const w4 = await nmJob(30);
@@ -2464,7 +2464,7 @@ function stubFetch(text, status = 200) {
       ok(P5.problemsView(fbv.map((e) => Object.assign({}, e, { at: 50, fix: '', px: e.fp === FPb ? 'x' : '' })), [], jobsX, now).list.map((x) => x.state).sort().join() === 'd,n', 'סטודיו: בעיה — חדשה / אובחנה (הצעה שמחכה)');
       const rbx = P5.runbooksView([{ fp: FPa, auto: 2, ua: now - 1000 }, { fp: FPb, auto: 5, ua: now - 40 * 864e5 }], jobsX, now);
       ok(JSON.stringify(rbx) === '[{"k":"net","r":"s","n":1},{"k":"known","r":"s","n":2},{"k":"cheap","r":"c","n":1}]', 'סטודיו: ספרי הפעלה — כמה פעמים החודש, ומה בטוח / באישור');
-      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,sonnet-low,haiku-high' && S5.cheaperModes('sonnet-medium').join() === 'sonnet-low,haiku-high' && !S5.cheaperModes('haiku-high').length && !S5.cheaperModes('haiku-medium').length && S5.cheaperModes('opus-max').join() === S5.cheaperModes('opus-medium').join(), 'סטודיו: מצבים זולים יותר — מהקרוב');
+      ok(S5.cheaperModes('opus-medium').join() === 'sonnet-high,sonnet-medium,sonnet-low,haiku-high,haiku-medium' && S5.cheaperModes('sonnet-medium').join() === 'sonnet-low,haiku-high,haiku-medium' && S5.cheaperModes('haiku-high').join() === 'haiku-medium' && !S5.cheaperModes('haiku-medium').length && S5.cheaperModes('opus-max').join() === S5.cheaperModes('opus-medium').join(), 'סטודיו: מצבים זולים יותר — מהקרוב');
       ok(S5.COST_STOP({ err: 'budget_stop' }) && S5.COST_STOP({ err: 'tower_stop', tw: { why: 'cost' } }) && !S5.COST_STOP({ err: 'tower_stop', tw: { why: 'loop' } }) && !S5.COST_STOP({ err: 'net' }),
         'סטודיו: "מצב זול יותר" רק אחרי עצירה על עלות');
       // מקצה לקצה: עצירה על עלות → המשך במצב זול יותר
@@ -2721,6 +2721,16 @@ function stubFetch(text, status = 200) {
       ok(solved.every((x) => x.st === 'r' || x.st === 'x'), 'סטודיו: תקלות — נפתרה / נסגרה גם כשהעבודה לא עברה "בטיפול"');
       const end = I.majorSync(mi, solved, [], t0 + 6 * 60e3);
       ok(end && end.x && !I.majorActive(end) && end.h.pop()[1] === 'r', 'סטודיו: תקלה רחבה — נסגרת לבד כשהתקלות נפתרו');
+      // 20/10/2026: עבודה שהצליחה אחרי ההכרזה סוגרת את התקלה הרחבה — גם כשהעבודות שנכשלו עדיין "נכשלה"
+      const okEnd = I.majorSync(mi, mk, [], t0 + 7 * 60e3, { r: t0 + 6 * 60e3 });
+      ok(okEnd && okEnd.x === t0 + 7 * 60e3 && okEnd.v === t0 + 6 * 60e3 && !I.majorActive(okEnd), 'סטודיו: תקלה רחבה — נסגרת כשעבודה מאוחרת הצליחה');
+      ok(I.majorSync(okEnd, mk, [], t0 + 8 * 60e3, { r: t0 + 6 * 60e3 }) === null, 'סטודיו: תקלה רחבה — כשלים מלפני ההצלחה לא מכריזים שוב');
+      ok(I.majorSync(mi, mk, [], t0 + 7 * 60e3, { a: t0 + 6 * 60e3 }) === null, 'סטודיו: תקלה רחבה של ה־Routine — הצלחה בשרת לא סוגרת אותה');
+      ok(I.majorSync(mi, mk, [], t0 + 7 * 60e3, { r: t0 + 60e3 }) === null, 'סטודיו: תקלה רחבה — הצלחה מלפני ההכרזה לא סוגרת');
+      const resumed = I.incSync(mk, [fct(JA, 'running', '', { bad: false, fires: 2, fired: t0 + 8 * 60e3 }), fct(JB, 'failed', 'no_claim')], [], [], t0 + 8 * 60e3 + 1);
+      const again = I.incSync(resumed, [fct(JA, 'failed', 'no_claim', { fires: 2, at: t0 + 9 * 60e3, fired: t0 + 8 * 60e3 }), fct(JB, 'failed', 'no_claim')], [], [], t0 + 10 * 60e3);
+      const re = I.majorSync(okEnd, again, [], t0 + 10 * 60e3, { r: t0 + 6 * 60e3 });
+      ok(re && re.no === 2 && I.majorActive(re), 'סטודיו: תקלה רחבה — כשל חוזר אחרי ההצלחה מכריז שוב');
       // רכיב שנכשל לכמה עבודות (התראה, עוד לפני "נכשלה")
       let wa = O1.opsApply([], [{ c: 'drive', k: 'auth' }], JA, t0);
       wa = O1.opsApply(wa, [{ c: 'drive', k: 'auth' }], JC, t0);
@@ -2969,7 +2979,7 @@ function stubFetch(text, status = 200) {
     // v367: החוקים שלך, מתג החירום ושערי אישור
     now += 3600e3 + 1;                       // תקציב ההפעלות לשעה מתחיל מחדש
     const SPECX = Object.assign({}, SPEC, { mode: 'opus-medium' });
-    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false,"am":false}' && S.normRules({ b: 12.3, mx: 'sonnet-high', ab: true }).b === 12.5 && S.normRules({ mx: 'opus-high' }).mx === 'opus-medium' && S.normRules({ mx: 'haiku-medium' }).mx === 'haiku-high'
+    ok(JSON.stringify(S.normRules(null)) === '{"b":0,"mx":"","ab":false,"jx":false,"am":false}' && S.normRules({ b: 12.3, mx: 'sonnet-high', ab: true }).b === 12.5 && S.normRules({ mx: 'opus-high' }).mx === 'opus-medium' && S.normRules({ mx: 'haiku-medium' }).mx === 'haiku-medium'
       && S.normRules({ b: 1e9 }).b === S.RULE_BUDGET_MAX && S.normRules({ b: 0.5, mx: 'evil', ab: 'yes' }).b === 0 && S.normRules({ mx: 'evil', ab: 'yes' }).mx === '' && S.normRules({ ab: 'yes' }).ab === false,
     'סטודיו: חוקים — בלי חוקים כברירת מחדל; תקציב מעוגל לחצי דולר ועד 500; מצב שהוסר → הקרוב (11/10); מצב/אישור לא תקינים — נזרקים');
     ok(S.modeOver('opus-medium', 'sonnet-high') && S.modeOver('sonnet-medium', 'haiku-high') && !S.modeOver('haiku-high', 'sonnet-medium') && !S.modeOver('opus-medium', '') && !S.modeOver('sonnet-high', 'sonnet-high'),
@@ -3232,11 +3242,23 @@ function stubFetch(text, status = 200) {
       rr = await wrk({ op: 'report', job: JP, key: KP2, park: true });
       ok(rr.statusCode === 409 && rr.payload.error === 'park_bad', 'park: אסור כשהסרטון כבר כאן (או כשהעבודה לא רצה)');
       await wrk({ op: 'claim', job: JP, key: KP2 });
+      // 20/10/2026: שאלה שלא עוצרת (nb) — העבודה ממשיכה, השעון לא עוצר, ואפשר לענות גם אחרי הסוף (ההצעה לתקן)
+      await wrk({ op: 'report', job: JP, key: KP2, ask: { id: 'qnb1', q: 'מה מגדר המרואיינת?', o: ['אישה', 'איש'], d: 0, nb: 1 } });
+      rr = await run({ op: 'job', idToken: OWNER, job: JP });
+      const L3 = require('../lib/studiosla');
+      ok(rr.payload.job.qa.nb === 1 && L3.qaPause({ at: 1, nb: 1 }, 1e13) === 0 && L3.qaPause({ at: 1 }, 2) === 1,
+        'שאלה שלא עוצרת: נשמרת עם nb, והשעון של יעד הזמן לא עוצר בגללה');
+      await wrk({ op: 'report', job: JP, key: KP2, askUsed: { id: 'qnb1', u: 7 } });
+      await wrk({ op: 'report', job: JP, key: KP2, askUsed: { id: 'qnb1', u: 0 } });
+      rr = await run({ op: 'job', idToken: OWNER, job: JP });
+      ok(rr.payload.job.qa.u === 0, 'שאלה שלא עוצרת: העובד מדווח לפי מה התרגום נעשה (מספר מחוץ לרשימה — נזרק)');
       await wrk({ op: 'report', job: JP, key: KP2, st: 'al', p: 0.1 });
       await wrk({ op: 'report', job: JP, key: KP2, done: true, usage: [Object.assign({}, UP[0], { k: 'tl', usd: 0.5 })] });
       rr = await run({ op: 'job', idToken: OWNER, job: JP });
       const tot = (rr.payload.job.use || []).reduce((a, x) => a + x.usd, 0);
       ok(rr.payload.job.state === 'done' && Math.abs(tot - 0.75) < 1e-9, 'park: העלות של שני הסשנים נסכמת (use0 + החדש)');
+      rr = await run({ op: 'answer', idToken: OWNER, job: JP, qid: 'qnb1', i: 1 });
+      ok(rr.payload.ok && rr.payload.job.qa.a.i === 1 && rr.payload.job.qa.u === 0, 'שאלה שלא עוצרת: אפשר לענות גם אחרי שהעבודה הסתיימה (הטלפון מציע לתקן לפי התשובה)');
       rr = await run({ op: 'status', idToken: OWNER });
       ok(rr.payload.api.month === 8, 'park: התקציב החודשי סופר כל דולר פעם אחת (7.25 + 0.25 + 0.5)');
       const S3 = require('../lib/studio'), T0 = 1.8e12;
@@ -3492,7 +3514,7 @@ function stubFetch(text, status = 200) {
         pushes = [];
         now += 6 * 60e3;
         await run({ op: 'jobs', idToken: OWNER });
-        ok(pushes.length === 0, 'ת7: בדיקה מהטלפון — בלי התראה כפולה');
+        ok(!pushes.some((p) => decrypt(p.body).k === 'srv_down'), 'ת7: בדיקה מהטלפון — בלי התראה כפולה');   // 20/10: רק srv_down — תקלה רחבה חדשה כאן היא אירוע אמיתי (no_claim בשתי עבודות אחרי הצלחה)
         await run({ op: 'srvRemove', idToken: OWNER, sid: cr2.payload.server.id });
         // 15/10/2026: "השרת לא מצליח להתחבר" — שרת קיים שהטוקן שלו נדחה (10/10: כל השרתים קיבלו 401 בשקט)
         {

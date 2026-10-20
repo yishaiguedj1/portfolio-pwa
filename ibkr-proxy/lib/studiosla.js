@@ -8,7 +8,7 @@ const STAGES = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 // זהה ל־RATE ב־studionet.js (דקות עבודה לכל דקת סרטון; התרגום והבדיקה לפי המצב) — tests/studio-v377 משווה
 const RATE = { tr: 8 / 77, al: 5 / 77, tl: 50 / 77, rv: 12 / 77, bn: 23 / 77, sv: 3 / 77 };
 // זהה ל־min של MODES ב־studio.js
-const MODE_MIN = { 'sonnet-medium': 85, 'haiku-high': 76, 'sonnet-high': 95, 'opus-medium': 105, 'sonnet-low': 80 };
+const MODE_MIN = { 'sonnet-medium': 85, 'haiku-high': 76, 'haiku-medium': 74, 'sonnet-high': 95, 'opus-medium': 105, 'sonnet-low': 80 };
 const MARKS = [0.5, 0.75];                  // הסימונים על השעון, כמו ב־ServiceNow
 const HP_DEF = 5;                           // החלטה 5: מחיר מתרגם אנושי לדקת סרטון (משנים בדף הערך)
 const HP_MIN = 0.5, HP_MAX = 100;
@@ -53,7 +53,7 @@ function progFrac(job) {
 }
 /* זמן ההמתנה לשאלה / לשער (מהשאלה עד התשובה, או עד עכשיו) */
 function qaPause(qa, now) {
-  if (!qa || !qa.at) return 0;
+  if (!qa || !qa.at || qa.nb) return 0;   // 20/10/2026: שאלה שלא עוצרת את העבודה — גם השעון לא עוצר
   const end = qa.a && qa.a.at ? qa.a.at : now;
   return Math.max(0, end - qa.at);
 }
@@ -63,7 +63,7 @@ function clock(job, now) {
   const c0 = job.c0 || job.claimed || 0;
   if (!c0) return { el: 0, pz: 0, paused: false };
   const end = TERMINAL.includes(job.state) && job.ended ? job.ended : now;
-  const open = job.qa && job.qa.at && !(job.qa.a && job.qa.a.at);
+  const open = job.qa && job.qa.at && !job.qa.nb && !(job.qa.a && job.qa.a.at);
   const wv = job.wv0 && !TERMINAL.includes(job.state) ? Math.max(0, now - job.wv0) : 0;
   const pz = Math.max(0, (job.pz || 0) + qaPause(job.qa, end) + wv);
   return { el: Math.max(0, end - c0 - pz), pz, paused: !!(open || job.wv0) && !TERMINAL.includes(job.state) };

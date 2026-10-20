@@ -47,11 +47,12 @@ MODES = {
     'sonnet-high': ('anthropic', 'claude-sonnet-5-5', 'high'),
     'opus-medium': ('anthropic', 'claude-opus-5-5', 'medium'),
     'sonnet-low': ('anthropic', 'claude-sonnet-5-5', 'low'),       # 15/10/2026: לבדיקות (רק למנהל / לרשימת "כל המודלים")
+    'haiku-medium': ('anthropic', 'claude-haiku-5-5', 'medium'),   # 20/10/2026: חזר לבדיקות (כמו sonnet-low)
 }
 # 15/10/2026 (בקשת המשתמש): ברירת המחדל = Haiku High ("רגיל"); Sonnet Medium = "ביצועים". = DEFAULT_MODE בשרתון ובטלפון
 DEFAULT_MODE = 'haiku-high'
-# 11/10/2026: Haiku Medium יצא (המחיר כמו High) — עבודה ישנה ממשיכה ב־High
-LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium', 'haiku-medium': 'haiku-high'}   # = LEGACY_MODES בשרתון
+# 11/10/2026: Haiku Medium יצא; 20/10/2026 (בקשת המשתמש): חזר כמצב לבדיקות — לא ממופה יותר ל־High
+LEGACY_MODES = {'opus-high': 'opus-medium', 'opus-max': 'opus-medium'}   # = LEGACY_MODES בשרתון
 
 # ההתאמות ל־Haiku 5.5 (10/10/2026, מהמחקר ומתיעוד המודל):
 # 1. כרטיס המחיר: בקשה שהקלט שלה (כולל המטמון) מעל 100K טוקנים מתומחרת כולה בכרטיס היקר — פי 5. Opus/Sonnet — מחיר

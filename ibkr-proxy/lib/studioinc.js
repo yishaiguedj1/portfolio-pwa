@@ -148,25 +148,35 @@ function incCloseJob(inc, j, now, al, w) {
 }
 
 /* תקלה רחבה (Major Incident): אותו רכיב + קוד בשתי עבודות שונות תוך 24 שעות (ולפחות אחת עוד לא נפתרה),
-   או התראה מ־WIDE_ALERTS פתוחה בשתי עבודות. mi = { no, c, e, at, x, n, h } — הנוכחית או האחרונה */
-function majorSync(mi, inc, al, now) {
+   או התראה מ־WIDE_ALERTS פתוחה בשתי עבודות. mi = { no, c, e, at, x, n, h } — הנוכחית או האחרונה.
+   20/10/2026 (בקשת המשתמש): עבודה שהסתיימה בהצלחה אחרי שהתקלה הוכרזה = הוכחה שהיא עברה (עיקרון 7) — נסגרת (v = מתי),
+   וכשלים מלפני ההצלחה לא מכריזים עליה שוב. עד היום היא נשארה פתוחה עד 24 שעות מהכשל הראשון, וכל עבודה חדשה שאלה
+   "להתחיל בכל זאת?" גם אחרי שהתיקון עבד. ok = { a, r } — סיום אחרון שהצליח של עבודת שרת / Routine */
+/* מתי העבודה נכשלה בפעם האחרונה — גם כשל חוזר אחרי "המשך" (f בציר), לא רק הפתיחה */
+const lastFail = (x) => (Array.isArray(x.h) ? x.h : []).reduce((m, e) => (Array.isArray(e) && (e[1] === 'o' || e[1] === 'f') ? Math.max(m, num(e[0])) : m), num(x.f));
+const okFor = (c, ok) => { const o = ok && typeof ok === 'object' ? ok : {}; return c === 'routine' ? num(o.r) : c === 'server' ? num(o.a) : Math.max(num(o.a), num(o.r)); };
+function majorSync(mi, inc, al, now, ok) {
   const list = incList(inc, now);
   const cands = new Map();
   for (const x of list.filter((y) => now - y.f < DAY)) {
     const key = x.c + ':' + x.e;
     const g = cands.get(key) || { c: x.c, e: x.e, jobs: new Set(), live: false, at: Infinity };
-    g.jobs.add(x.j); if (x.st === 'o' || x.st === 'w') g.live = true; g.at = Math.min(g.at, x.f);
+    g.jobs.add(x.j); if (x.st === 'o' || x.st === 'w') g.live = true; g.at = Math.min(g.at, x.f); g.last = Math.max(num(g.last), lastFail(x));
     cands.set(key, g);
   }
   for (const a of (Array.isArray(al) ? al : []).filter((y) => y && !y.x && WIDE_ALERTS.includes(y.c + ':' + y.k) && JOB_RE.test(String(y.j || '')))) {
     const key = a.c + ':' + a.k;
     const g = cands.get(key) || { c: a.c, e: a.k, jobs: new Set(), live: true, at: Infinity };
-    g.jobs.add(a.j); g.at = Math.min(g.at, a.f || now);
+    g.jobs.add(a.j); g.at = Math.min(g.at, a.f || now); g.last = Math.max(num(g.last), num(a.f) || now);
     cands.set(key, g);
   }
-  const hit = Array.from(cands.values()).filter((g) => g.live && g.jobs.size >= 2).sort((a, b) => b.jobs.size - a.jobs.size || a.at - b.at)[0];
+  const hit = Array.from(cands.values()).filter((g) => g.live && g.jobs.size >= 2 && num(g.last) > okFor(g.c, ok)).sort((a, b) => b.jobs.size - a.jobs.size || a.at - b.at)[0];
   const cur = mi && typeof mi === 'object' && Number.isInteger(mi.no) && COMPONENTS.includes(mi.c) && ERR_RE.test(String(mi.e || '')) ? Object.assign({}, mi) : null;
   const active = cur && !cur.x;
+  if (active && okFor(cur.c, ok) > num(cur.at)) {   // עבודה הצליחה אחרי ההכרזה — התקלה עברה
+    cur.x = now; cur.v = okFor(cur.c, ok); hist(cur, now, 'r');
+    return cur;
+  }
   if (hit) {
     if (active && cur.c === hit.c && cur.e === hit.e) {
       if (hit.jobs.size !== cur.n) { cur.n = hit.jobs.size; cur.l = now; return cur; }
@@ -219,4 +229,4 @@ function incView(inc, mi, al, now) {
 }
 /* מפה קצרה עבודה → התקלה שלה (לדף העבודה ולרשימה) */
 
-module.exports = { INC_MAX, ERR_INFO, WIDE_ALERTS, MAJOR_TTL, H_CODES, errInfo, jobFacts, rootCauses, incSync, incCloseJob, majorSync, majorActive, majorMark, incView };
+module.exports = { okFor, INC_MAX, ERR_INFO, WIDE_ALERTS, MAJOR_TTL, H_CODES, errInfo, jobFacts, rootCauses, incSync, incCloseJob, majorSync, majorActive, majorMark, incView };

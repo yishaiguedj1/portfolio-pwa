@@ -1206,7 +1206,7 @@ class QuietCtx(Ctx):
     בזמן ההגהה לא מחכים לאף אחד). כישלון ושאלות כן עוברים."""
 
     def report(self, st=None, p=None, msg=None, force=False, **extra):
-        if extra.get('fail') or extra.get('ask') or extra.get('askTimeout'):
+        if extra.get('fail') or extra.get('ask') or extra.get('askTimeout') or extra.get('askUsed'):
             return Ctx.report(self, st, p, msg, force, **extra)
         return None
 
@@ -1438,6 +1438,24 @@ def note_timing(ctx, cmd, t0, t1):
         pass
 
 
+# 20/10/2026: vt align מדפיס "יישור 3/40" (Qwen) ואז "CTC 10/52" — בלי סימן אחוז, ולכן עד היום הטלפון לא קיבל
+# שום התקדמות בשלב היישור: הפס נתקע בהתחלה ומודל הזמנים הסיק "עוד 3 שעות". Qwen = ‏80% מהשלב, CTC = ‏20%.
+ALIGN_STEPS = ((re.compile(r'יישור (\d+)/(\d+)'), 0.0, 0.8), (re.compile(r'CTC (\d+)/(\d+)'), 0.8, 1.0))
+
+
+def vt_frac(cmd, line):
+    """חלק השלב (0–1) מתוך שורת פלט של vt, או None. אחוז מפורש — בכל פקודה; לספירת חלונות — רק ב־align."""
+    m = re.search(r'(\d{1,3}(?:\.\d)?)%', line)
+    if m:
+        return min(1.0, float(m.group(1)) / 100)
+    if cmd == 'align':
+        for rx, a, b in ALIGN_STEPS:
+            m = rx.search(line)
+            if m and int(m.group(2)) > 0:
+                return a + (b - a) * min(1.0, int(m.group(1)) / int(m.group(2)))
+    return None
+
+
 def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
@@ -1447,10 +1465,10 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     for line in proc.stdout:
         line = line.rstrip()
         tail = (tail + [line])[-12:]
-        m = re.search(r'(\d{1,3}(?:\.\d)?)%', line)
-        if stage and m:
+        f = vt_frac(args[0], line)
+        if stage and f is not None:
             try:
-                ctx.report(stage, lo + (hi - lo) * min(1.0, float(m.group(1)) / 100))
+                ctx.report(stage, lo + (hi - lo) * f)
             except Stop:
                 proc.kill()
                 raise
@@ -1984,6 +2002,38 @@ def ask_user(ctx, q, opts, default=0, wait=480):
         pass
     print('· לא ענו בזמן.')
     return fallback
+
+
+def ask_post(ctx, q, opts, default=0):
+    """20/10/2026: שאלה שלא עוצרת את העבודה (nb) — נשלחת לטלפון ומחזירה את המזהה מיד. התשובה יכולה להגיע גם אחרי סוף
+    העבודה (ואז הטלפון מציע לתקן את הכתוביות לפיה). None = לא נשלחה (מכסת השאלות / תקלה) — ממשיכים בלעדיה."""
+    opts = [o.strip() for o in (opts or []) if o and o.strip()][:4]
+    d = default if opts and 0 <= default < len(opts) else (0 if opts else -1)
+    qid = 'q' + format(int(time.time() * 1000) % (36 ** 8), 'x')[-12:]
+    try:
+        ctx.report(ask={'id': qid, 'q': q, 'o': opts, 'd': d, 'w': 1800, 'nb': 1}, force=True)
+    except SystemExit as e:
+        print('· השאלה לא נשלחה (%s) — ממשיכים לפי שיקול דעת.' % str(e)[:80])
+        return None
+    print('השאלה נשלחה לטלפון — העבודה ממשיכה בלי לחכות.')
+    return qid
+
+
+def ask_peek(ctx, qid):
+    """התשובה לשאלה, אם כבר הגיעה — בלי לחכות (op qa: קריאה בלבד). None = עוד אין / תקלה."""
+    try:
+        qa = (ctx.c.call('qa') or {}).get('qa') or {}
+    except SystemExit:
+        return None
+    return qa.get('a') if qa.get('id') == qid else None
+
+
+def ask_used(ctx, qid, used):
+    """לשרתון: לפי איזו תשובה התרגום נעשה — כך הטלפון יודע אם להציע תיקון בסוף. תקלה כאן לא עוצרת את העבודה."""
+    try:
+        ctx.report(askUsed={'id': qid, 'u': int(used)}, force=True)
+    except SystemExit:
+        pass
 
 
 # ---------------------------------------------------------------- סבב 10: העתק־הדבק לעבודה מלאה
