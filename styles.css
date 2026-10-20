@@ -182,19 +182,21 @@ a { color: var(--link); }
    (menu-open מחליף להם פנים). העמודות לפי כיוון פיזי: ב־RTL עמודה 1 = ימין, ב־LTR היא מתהפכת (direction: rtl ברשת). */
 .appbar-row {
   display: grid; direction: rtl;
-  grid-template-columns: var(--ib) var(--ib) 1fr auto 1fr var(--ib) var(--ib);
+  grid-template-columns: var(--ib) 8px var(--ib) 1fr auto 1fr var(--ib) 8px var(--ib);
   grid-template-rows: var(--ib) auto 1fr auto;
-  column-gap: 8px; row-gap: 10px; align-items: start;
+  column-gap: 0; row-gap: 10px; align-items: start;
+  /* 20/10/2026: מרווח קבוע רק בין שני כפתורים צמודים (עמודות 2 ו־8) — ליד הלוגו המרווח הוא ה־1fr. עם column-gap של 8px
+     בין כל העמודות הרשת דרשה 352px, ובטלפון של 375 היא חרגה שמאלה: ☰ ובועת השער נצמדו לקצה בזמן שהגלובוס נשאר ב־16px */
 }
 .appbar-row > * { direction: var(--dir, rtl); }
 html[dir="ltr"] .appbar-row > * { --dir: ltr; }
-.appbar h1.brand { grid-column: 4; grid-row: 1 / 4; position: static; overflow: visible; line-height: 0; font-size: 0; margin: 0; }
+.appbar h1.brand { grid-column: 5; grid-row: 1 / 4; position: static; overflow: visible; line-height: 0; font-size: 0; margin: 0; }
 .appbar-actions > .lang-wrap { grid-column: 1; grid-row: 1; }
-.appbar-actions > .icon-btn { grid-column: 2; grid-row: 1; }
-.appbar-actions > .menu-wrap { grid-column: 7; grid-row: 1; }
+.appbar-actions > .icon-btn { grid-column: 3; grid-row: 1; }
+.appbar-actions > .menu-wrap { grid-column: 9; grid-row: 1; }
 .appbar-left > .appbar-sub { grid-column: 1 / -1; grid-row: 4; justify-self: center; margin-top: -20px; position: relative; z-index: 1; }
 .appbar-left > .appbar-sub[hidden] { display: none; }
-.appbar-left > .fx-pill { grid-column: 5 / 8; grid-row: 2; justify-self: end; }
+.appbar-left > .fx-pill { grid-column: 6 / 10; grid-row: 2; justify-self: end; }
 html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = מעבר עמוד, לא "חזור" של הדפדפן */
 .appbar h1.brand { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* v279: לוגו → סקירה */
 .brand-logo {
