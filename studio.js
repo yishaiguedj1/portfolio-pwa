@@ -15,7 +15,7 @@ import { isR2Folder, isR2Id } from './studiostore.js';
 import { createPlayer, normCues, issuesList, fmtT, normLadder, normPq, normChapters, normSty, STY_COLORS, STY_Y } from './studioplay.js';
 import { createSubsEditor, toSrt, toCuesJson, toVtt, toTtml, toStl, termIssues, flagIndex, normMeta, createTimeline, editDiff, editStats } from './studiosubs.js';
 import { createEdlEditor, normEdl, edlPre, edlDur, outDur, silenceSegs, removeRange, addRange, segAt, intersectSegs, cutFillers, normOv, OV_T_MAX, OV_LG_MAX, OV_POS, previewEdl, PV_LEN } from './studioedl.js';
-import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
+import { AI_KINDS, aiRow, normQueue, aiPrompt, parseAnswer, normItems, applyItems, aiEstimate, AI_MAX_ROWS, AI_NOTE_MAX, TEXT_KINDS, AI_T_ROWS, aiTRow, parseText, parseRanges, parseChapters } from './studioai.js';
 
 const T = (k, v) => (typeof t === 'function' ? t(k, v) : k);
 export const LS_STUDIO = 'pwa_studio_v1';
@@ -294,6 +294,7 @@ export function afterAdvice(rec, o) {
   const out = [], sv = rec && rec.srv, x = o || {};
   if (!sv || sv.state !== 'done' || sv.kind === 'rr') return out;
   if (sv.rvf && sv.rvf.length) out.push({ k: 'rvf', act: 'subs', n: new Set(sv.rvf.map((f) => f[0])).size });   // סבב 4: לבדיקה שלך
+  if (askFixDue(sv.qa)) out.push({ k: 'ask', act: 'ai' });   // 20/10/2026: התשובה שלך הגיעה אחרי התרגום — לתקן לפיה
   if (sv.jd && sv.jd.f && sv.jd.f.length) out.push({ k: 'jd', act: 'ai', n: sv.jd.f.length });
   if (rec.vm && rec.vm.h > rec.vm.w && !x.rrDone) out.push({ k: 'vert', act: 'rr' });
   return out;
@@ -326,8 +327,18 @@ export function normQa(q) {
       cnt: Math.min(num(n.cnt), 1e5),
       cues: (Array.isArray(n.cues) ? n.cues : []).filter((c) => c && typeof c.x === 'string' && c.x).slice(0, 5)
         .map((c) => ({ t: /^\d{1,2}:\d{2}(?::\d{2})?$/.test(String(c.t || '')) ? c.t : '', x: c.x.slice(0, 140) })) };
+  } else if (q.nb === 1) {
+    // 20/10/2026: שאלה שלא עוצרת את העבודה. u = לפי מה התרגום נעשה (מספר, ‎-1 שיקול דעת, ‎-2 התשובה הפתוחה; אין = עוד לא התחיל)
+    out.nb = 1;
+    if (Number.isInteger(q.u) && q.u >= -2 && q.u < o.length) out.u = q.u;
   }
   return out;
+}
+/* 20/10/2026: ענית על שאלה שלא עצרה את העבודה, והתרגום נעשה לפי משהו אחר — לתקן את הכתוביות לפי התשובה? טהור */
+export function askFixDue(qa) {
+  if (!qa || qa.nb !== 1 || !qa.a || qa.a.auto) return false;
+  const used = qa.u !== undefined ? qa.u : qa.d;
+  return qa.a.i >= 0 ? qa.a.i !== used : used !== -2;
 }
 /* v367: החוקים שלך (מהשרתון, op status) — אותה בדיקה כמו בשרתון (lib/studio.js normRules) */
 export const RULE_BUDGETS = [5, 10, 20, 40];
@@ -687,7 +698,7 @@ export function recovering(rec) {
 /* יש שאלה פתוחה שמחכה לתשובה (והעבודה עוד רצה) */
 export function qaPending(rec) {
   const s = rec && rec.srv;
-  return !!(s && s.qa && !s.qa.a && (s.state === 'queued' || s.state === 'running'));
+  return !!(s && s.qa && !s.qa.a && !s.qa.nb && (s.state === 'queued' || s.state === 'running'));   // שאלה שלא עוצרת — לא "מחכה לך"
 }
 /* v359: טוקנים ועלות של עבודה — אותה בדיקה כמו בשרתון (lib/studio.js normUsage): עד 6 שורות, מודל claude-…, מספרים בלבד */
 const USE_KINDS = ['main', 'tl', 'rv', 'jg', 'sub'];   // v375: jg = שופט האיכות
@@ -4148,10 +4159,14 @@ function gateCard(rec, qa) {
 const budgetStep = (qa) => ui.rl.b || qa.n.cap;
 function askCard(rec) {
   const qa = rec.srv && rec.srv.qa;
-  if (!qa || FINAL.includes(rec.srv.state)) return null;
+  if (!qa || (FINAL.includes(rec.srv.state) && !(qa.nb && !qa.a && rec.srv.state === 'done'))) return null;
   if (qa.g) return gateCard(rec, qa);
   const c = h('div', 'st-ask' + (qa.a ? ' done' : ''));
   c.dataset.k = 'ask';
+  if (qa.a && qa.nb) {                          // 20/10/2026: ענית — נכנס לתרגום אם הוא עוד לא התחיל, אחרת הצעה בסוף
+    c.append(ico('check'), h('span', null, qa.u === undefined ? T('studioAskNbSoon', { a: qa.a.t }) : askFixDue(qa) ? T('studioAskNbLate', { a: qa.a.t }) : T('studioAskDone', { a: qa.a.t })));
+    return c;
+  }
   if (qa.a) {                                   // כבר טופלה — שורה אחת
     const tx = qa.a.auto ? (qa.d >= 0 ? T('studioAskAuto', { a: qa.a.t }) : T('studioAskAutoFree')) : T('studioAskDone', { a: qa.a.t });
     c.append(ico('check'), h('span', null, tx));
@@ -4177,6 +4192,10 @@ function askCard(rec) {
     opts.append(ta, send);
   }
   c.append(opts);
+  if (qa.nb) {   // 20/10/2026: העבודה לא מחכה — עונים מתי שנוח, ובסוף אפשר לתקן לפי התשובה
+    c.append(h('small', 'st-ask-n', qa.d >= 0 ? T('studioAskNb', { a: qa.o[qa.d] }) : T('studioAskNbFree')));
+    return c;
+  }
   const until = fmtClock((qa.at || Date.now()) + qa.w * 1000);
   c.append(h('small', 'st-ask-n', qa.d >= 0 ? T('studioAskDefault', { t: until, a: qa.o[qa.d] }) : T('studioAskFree', { t: until })));
   return c;
@@ -5104,7 +5123,13 @@ export function jdRows(cues, ids) {
   const want = new Set(ids || []);
   return cues.map((c, i) => (want.has(c.i) ? aiRow(c, i + 1) : null)).filter(Boolean).slice(0, AI_MAX_ROWS);
 }
-let aiPreset = null;   // { id, ids } — "בדיקת משמעות" מהצעות העבודה: העורך נטען ואז גיליון ה־AI עם הבקשה מוכנה
+let aiPreset = null;
+/* 20/10/2026: ההוראה לגיליון ה־AI — התשובה שלך במקום מה שהתרגום הניח. השאלה מ־Claude: רק טקסט, מקוצר (AI_NOTE_MAX) */
+export function askFixNote(qa) {
+  const q = String((qa && qa.q) || '').replace(/\s+/g, ' ').trim().slice(0, 110);
+  const a = String((qa && qa.a && qa.a.t) || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return T('studioAskFixN', { q, a }).slice(0, AI_NOTE_MAX);
+}   // { id, ids } — "בדיקת משמעות" מהצעות העבודה: העורך נטען ואז גיליון ה־AI עם הבקשה מוכנה
 function aiScopeRows(cues, scope, sel) {
   const idx = scope === 'sel' ? (sel >= 0 ? [sel] : []) : scope === 'iss' ? cues.map((c, i) => (issuesList([c]).length ? i : -1)).filter((i) => i >= 0) : cues.map((c, i) => i);
   return idx.slice(0, AI_MAX_ROWS).map((i) => aiRow(cues[i], i + 1));
@@ -5157,9 +5182,9 @@ function pageAi(p) {
   const cues = se.ed.cues();
   if (!ai || ai.id !== rec.id) ai = { id: rec.id, base: cues, ver: se.ed.ver(), queue: [], k: 'meaning', n: '', scope: se.ed.selected() >= 0 ? 'sel' : 'iss', mode: '', answer: '', items: null, acc: new Set(), busy: false, model: '', err: '' };
   if (aiPreset && aiPreset.id === rec.id) {   // סבב 2: בדיקת משמעות לכתוביות שהשופט סימן — הבקשה כבר בתור, נשאר אומדן ואישור
-    const rows = jdRows(cues, aiPreset.ids), run = aiPreset.run;
+    const free = aiPreset.free, rows = free ? aiScopeRows(cues, 'all', -1) : jdRows(cues, aiPreset.ids), run = aiPreset.run;   // 20/10/2026: free = תיקון לפי תשובה
     aiPreset = null;
-    if (rows.length && !ai.items) { ai.k = 'meaning'; ai.queue = normQueue(ai.queue.concat([{ k: 'meaning', rows, n: '' }])); ai.base = cues; ai.ver = se.ed.ver(); }
+    if (rows.length && !ai.items) { ai.k = free ? 'free' : 'meaning'; ai.queue = normQueue(ai.queue.concat([{ k: ai.k, rows, n: free || '' }])); ai.base = cues; ai.ver = se.ed.ver(); }
     if (run && rows.length && !ai.items && !ai.busy) queueMicrotask(() => { if (ui.view === 'ai' && ai && ai.id === rec.id && !ai.busy) aiRunJob(rec); });   // סבב 10: הכלל — האומדן והאישור מיד
   }
   p.append(navBar({ back: T('studioSeTitle'), title: T('studioAiTitle') }));
@@ -5399,6 +5424,7 @@ function pageJob(p) {
     const aa = canEdit(rec) ? afterAdvice(rec, { rrDone: !!(rrJobs.get(rec.id) && rrJobs.get(rec.id).srv && rrJobs.get(rec.id).srv.state === 'done') }) : [];
     if (aa.length) p.append(secT(T('studioAdvAfterT')), list(...aa.map((a) => rowNav(a.k === 'jd'
       ? { tile: tile('spark', 'teal'), label: T('studioAdvJd', { n: a.n }), sub: T('studioAdvJdS'), onClick: () => { aiPreset = { id: rec.id, ids: rec.srv.jd.f }; go('subs', rec.id); }, k: 'adv-jd' }
+      : a.k === 'ask' ? { tile: tile('help', 'orange'), label: T('studioAdvAsk'), sub: T('studioAdvAskS', { a: rec.srv.qa.a.t }), onClick: () => { aiPreset = { id: rec.id, free: askFixNote(rec.srv.qa), run: true }; go('subs', rec.id); }, k: 'adv-ask' }
       : a.k === 'rvf' ? { tile: tile('edit', 'orange'), label: T('studioAdvRvf', { n: a.n }), sub: rvfSub(rec.srv.rvf), onClick: () => { seOnly = rec.id; go('subs', rec.id); }, k: 'adv-rvf' }   // סבב 4
       : { tile: tile('film', 'blue'), label: T('studioAdvVert'), sub: T('studioAdvVertS'), onClick: () => go('rr', rec.id), k: 'adv-vert' }))));   // סבב 2: הצעות אחרי
   } else if (!quiet && !qaPending(rec) && !tstop) p.append(nowc);   // כרטיס העצירה כבר אומר מה קרה   // שאלה פתוחה — כרטיס השאלה הוא "מה קורה עכשיו"

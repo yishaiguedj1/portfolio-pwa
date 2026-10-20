@@ -1359,6 +1359,11 @@ async function worker(req, res, body, deps) {
       up.gn = (job.gn || 0) + 1;
       gateId = qa.id;
     }
+    if (body.askUsed != null && job.qa && job.qa.nb === 1 && body.askUsed && String(body.askUsed.id) === job.qa.id) {
+      // 20/10/2026: לפי איזו תשובה התרגום נעשה (מספר, ‎-1 = שיקול דעת, ‎-2 = התשובה הפתוחה) — הטלפון מציע תיקון כשענית אחרת
+      const u = Number(body.askUsed.u);
+      if (Number.isInteger(u) && u >= -2 && u < job.qa.o.length) up.qa = Object.assign({}, up.qa || job.qa, { u });
+    }
     if (body.askTimeout != null && job.qa && !job.qa.a && String(body.askTimeout) === job.qa.id) {
       // לא ענית בזמן — העובד ממשיך עם ברירת המחדל, והטלפון מראה את זה במקום שאלה פתוחה
       const d = job.qa.d;
@@ -2286,7 +2291,8 @@ async function handler(req, res, deps = {}) {
     }
     if (op === 'answer') {
       // תשובה לשאלה של Claude — פעם אחת, לשאלה הנוכחית בלבד, כל עוד העבודה רצה
-      if (st !== 'queued' && st !== 'running') return res.status(409).json({ ok: false, error: 'state', job: view(job) });
+      // 20/10/2026: שאלה שלא עוצרת את העבודה (nb) — אפשר לענות גם אחרי שהעבודה הסתיימה (ההצעה לתקן בסוף)
+      if (st !== 'queued' && st !== 'running' && !(job.qa && job.qa.nb === 1 && job.kind === 'tr')) return res.status(409).json({ ok: false, error: 'state', job: view(job) });
       const a = S.normAnswer(job.qa, body);
       if (!a) return res.status(400).json({ ok: false, error: 'bad_answer', job: view(job) });
       job.qa = Object.assign({}, job.qa, { a: Object.assign(a, { at: now }) });

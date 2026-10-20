@@ -53,7 +53,7 @@ function progFrac(job) {
 }
 /* זמן ההמתנה לשאלה / לשער (מהשאלה עד התשובה, או עד עכשיו) */
 function qaPause(qa, now) {
-  if (!qa || !qa.at) return 0;
+  if (!qa || !qa.at || qa.nb) return 0;   // 20/10/2026: שאלה שלא עוצרת את העבודה — גם השעון לא עוצר
   const end = qa.a && qa.a.at ? qa.a.at : now;
   return Math.max(0, end - qa.at);
 }
@@ -63,7 +63,7 @@ function clock(job, now) {
   const c0 = job.c0 || job.claimed || 0;
   if (!c0) return { el: 0, pz: 0, paused: false };
   const end = TERMINAL.includes(job.state) && job.ended ? job.ended : now;
-  const open = job.qa && job.qa.at && !(job.qa.a && job.qa.a.at);
+  const open = job.qa && job.qa.at && !job.qa.nb && !(job.qa.a && job.qa.a.at);
   const wv = job.wv0 && !TERMINAL.includes(job.state) ? Math.max(0, now - job.wv0) : 0;
   const pz = Math.max(0, (job.pz || 0) + qaPause(job.qa, end) + wv);
   return { el: Math.max(0, end - c0 - pz), pz, paused: !!(open || job.wv0) && !TERMINAL.includes(job.state) };

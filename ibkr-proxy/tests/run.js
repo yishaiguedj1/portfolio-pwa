@@ -3242,11 +3242,23 @@ function stubFetch(text, status = 200) {
       rr = await wrk({ op: 'report', job: JP, key: KP2, park: true });
       ok(rr.statusCode === 409 && rr.payload.error === 'park_bad', 'park: אסור כשהסרטון כבר כאן (או כשהעבודה לא רצה)');
       await wrk({ op: 'claim', job: JP, key: KP2 });
+      // 20/10/2026: שאלה שלא עוצרת (nb) — העבודה ממשיכה, השעון לא עוצר, ואפשר לענות גם אחרי הסוף (ההצעה לתקן)
+      await wrk({ op: 'report', job: JP, key: KP2, ask: { id: 'qnb1', q: 'מה מגדר המרואיינת?', o: ['אישה', 'איש'], d: 0, nb: 1 } });
+      rr = await run({ op: 'job', idToken: OWNER, job: JP });
+      const L3 = require('../lib/studiosla');
+      ok(rr.payload.job.qa.nb === 1 && L3.qaPause({ at: 1, nb: 1 }, 1e13) === 0 && L3.qaPause({ at: 1 }, 2) === 1,
+        'שאלה שלא עוצרת: נשמרת עם nb, והשעון של יעד הזמן לא עוצר בגללה');
+      await wrk({ op: 'report', job: JP, key: KP2, askUsed: { id: 'qnb1', u: 7 } });
+      await wrk({ op: 'report', job: JP, key: KP2, askUsed: { id: 'qnb1', u: 0 } });
+      rr = await run({ op: 'job', idToken: OWNER, job: JP });
+      ok(rr.payload.job.qa.u === 0, 'שאלה שלא עוצרת: העובד מדווח לפי מה התרגום נעשה (מספר מחוץ לרשימה — נזרק)');
       await wrk({ op: 'report', job: JP, key: KP2, st: 'al', p: 0.1 });
       await wrk({ op: 'report', job: JP, key: KP2, done: true, usage: [Object.assign({}, UP[0], { k: 'tl', usd: 0.5 })] });
       rr = await run({ op: 'job', idToken: OWNER, job: JP });
       const tot = (rr.payload.job.use || []).reduce((a, x) => a + x.usd, 0);
       ok(rr.payload.job.state === 'done' && Math.abs(tot - 0.75) < 1e-9, 'park: העלות של שני הסשנים נסכמת (use0 + החדש)');
+      rr = await run({ op: 'answer', idToken: OWNER, job: JP, qid: 'qnb1', i: 1 });
+      ok(rr.payload.ok && rr.payload.job.qa.a.i === 1 && rr.payload.job.qa.u === 0, 'שאלה שלא עוצרת: אפשר לענות גם אחרי שהעבודה הסתיימה (הטלפון מציע לתקן לפי התשובה)');
       rr = await run({ op: 'status', idToken: OWNER });
       ok(rr.payload.api.month === 8, 'park: התקציב החודשי סופר כל דולר פעם אחת (7.25 + 0.25 + 0.5)');
       const S3 = require('../lib/studio'), T0 = 1.8e12;

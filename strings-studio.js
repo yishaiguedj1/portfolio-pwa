@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1536 מפתחות מתוך 3450) */
+/* המחרוזות של studio (1543 מפתחות מתוך 3457) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -49,6 +49,8 @@ he: {
   "signOut": "התנתקות",
   "skipLogin": "המשך בלי חשבון",
   "studioAdvAfterT": "הצעות",
+  "studioAdvAsk": "לתקן לפי התשובה שלך",
+  "studioAdvAskS": "ענית: {a} · Claude מתקן רק כתוביות שהתשובה משנה, באישורך",
   "studioAdvCut": "לחתוך",
   "studioAdvCutOk": "השקט בקצוות ייחתך לפני התרגום",
   "studioAdvDup": "את הסרטון הזה כבר תרגמת",
@@ -223,7 +225,12 @@ he: {
   "studioAskAutoFree": "לא היה מענה — Claude החליט לבד",
   "studioAskDefault": "לא תספיק לענות עד {t}? נמשיך עם: {a}",
   "studioAskDone": "ענית: {a}",
+  "studioAskFixN": "לשאלה \"{q}\" המשתמש ענה: {a}. תקן רק כתוביות שהתשובה משנה (למשל לשון זכר/נקבה, שם או מונח), ואת השאר השאר כמו שהן.",
   "studioAskFree": "לא תספיק לענות עד {t}? Claude יחליט לבד",
+  "studioAskNb": "העבודה ממשיכה בינתיים לפי: {a}. אפשר לענות גם אחר כך — ובסוף לתקן לפי התשובה",
+  "studioAskNbFree": "העבודה ממשיכה בינתיים לפי שיקול הדעת של Claude. אפשר לענות גם אחר כך — ובסוף לתקן לפי התשובה",
+  "studioAskNbLate": "ענית: {a} — התרגום כבר רץ; בסוף אפשר לתקן לפי התשובה",
+  "studioAskNbSoon": "ענית: {a} — ייכנס לתרגום אם הוא עוד לא התחיל",
   "studioAskSend": "שליחה",
   "studioAskT": "Claude שואל",
   "studioAudioFile": "קול",
@@ -1587,6 +1594,8 @@ en: {
   "signOut": "Sign out",
   "skipLogin": "Continue without an account",
   "studioAdvAfterT": "Suggestions",
+  "studioAdvAsk": "Fix to match your answer",
+  "studioAdvAskS": "You answered: {a} · Claude fixes only the subtitles it changes, with your approval",
   "studioAdvCut": "Trim",
   "studioAdvCutOk": "The silent edges will be trimmed before translating",
   "studioAdvDup": "You already translated this video",
@@ -1761,7 +1770,12 @@ en: {
   "studioAskAutoFree": "No answer — Claude decided",
   "studioAskDefault": "No answer by {t}? We'll go with: {a}",
   "studioAskDone": "You answered: {a}",
+  "studioAskFixN": "To the question \"{q}\" the user answered: {a}. Fix only the subtitles this answer changes (e.g. gender, a name or a term) and leave the rest as they are.",
   "studioAskFree": "No answer by {t}? Claude will decide",
+  "studioAskNb": "The job keeps going with: {a}. You can answer later too — and fix the subtitles to match at the end",
+  "studioAskNbFree": "The job keeps going on Claude's judgment. You can answer later too — and fix the subtitles to match at the end",
+  "studioAskNbLate": "You answered: {a} — the translation was already running; you can fix it at the end",
+  "studioAskNbSoon": "You answered: {a} — used if the translation hasn't started yet",
   "studioAskSend": "Send",
   "studioAskT": "Claude asks",
   "studioAudioFile": "audio",

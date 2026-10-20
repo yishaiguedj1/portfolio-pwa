@@ -469,7 +469,8 @@ function normAsk(a) {
   const o = (Array.isArray(a.o) ? a.o : []).slice(0, 12).map((x) => clean(x, 80)).filter(Boolean).slice(0, 4);
   const d = Number.isInteger(a.d) && a.d >= 0 && a.d < o.length ? a.d : (o.length ? 0 : -1);
   const w = Math.max(60, Math.min(ASK_WAIT_MAX, Math.round(Number(a.w) || 480)));
-  return { id: a.id, q, o, d, w };
+  // 20/10/2026: nb = שאלה שלא עוצרת את העבודה (העובד ממשיך עם ברירת המחדל; אפשר לענות גם אחרי הסוף ולתקן לפיה)
+  return a.nb === 1 ? { id: a.id, q, o, d, w, nb: 1 } : { id: a.id, q, o, d, w };
 }
 /* התשובה מהטלפון: אחת מהתשובות המוכנות (i) או טקסט חופשי (t) — רק כשאין תשובות מוכנות */
 function normAnswer(qa, body) {

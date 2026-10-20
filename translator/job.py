@@ -1206,7 +1206,7 @@ class QuietCtx(Ctx):
     בזמן ההגהה לא מחכים לאף אחד). כישלון ושאלות כן עוברים."""
 
     def report(self, st=None, p=None, msg=None, force=False, **extra):
-        if extra.get('fail') or extra.get('ask') or extra.get('askTimeout'):
+        if extra.get('fail') or extra.get('ask') or extra.get('askTimeout') or extra.get('askUsed'):
             return Ctx.report(self, st, p, msg, force, **extra)
         return None
 
@@ -1984,6 +1984,38 @@ def ask_user(ctx, q, opts, default=0, wait=480):
         pass
     print('· לא ענו בזמן.')
     return fallback
+
+
+def ask_post(ctx, q, opts, default=0):
+    """20/10/2026: שאלה שלא עוצרת את העבודה (nb) — נשלחת לטלפון ומחזירה את המזהה מיד. התשובה יכולה להגיע גם אחרי סוף
+    העבודה (ואז הטלפון מציע לתקן את הכתוביות לפיה). None = לא נשלחה (מכסת השאלות / תקלה) — ממשיכים בלעדיה."""
+    opts = [o.strip() for o in (opts or []) if o and o.strip()][:4]
+    d = default if opts and 0 <= default < len(opts) else (0 if opts else -1)
+    qid = 'q' + format(int(time.time() * 1000) % (36 ** 8), 'x')[-12:]
+    try:
+        ctx.report(ask={'id': qid, 'q': q, 'o': opts, 'd': d, 'w': 1800, 'nb': 1}, force=True)
+    except SystemExit as e:
+        print('· השאלה לא נשלחה (%s) — ממשיכים לפי שיקול דעת.' % str(e)[:80])
+        return None
+    print('השאלה נשלחה לטלפון — העבודה ממשיכה בלי לחכות.')
+    return qid
+
+
+def ask_peek(ctx, qid):
+    """התשובה לשאלה, אם כבר הגיעה — בלי לחכות (op qa: קריאה בלבד). None = עוד אין / תקלה."""
+    try:
+        qa = (ctx.c.call('qa') or {}).get('qa') or {}
+    except SystemExit:
+        return None
+    return qa.get('a') if qa.get('id') == qid else None
+
+
+def ask_used(ctx, qid, used):
+    """לשרתון: לפי איזו תשובה התרגום נעשה — כך הטלפון יודע אם להציע תיקון בסוף. תקלה כאן לא עוצרת את העבודה."""
+    try:
+        ctx.report(askUsed={'id': qid, 'u': int(used)}, force=True)
+    except SystemExit:
+        pass
 
 
 # ---------------------------------------------------------------- סבב 10: העתק־הדבק לעבודה מלאה
