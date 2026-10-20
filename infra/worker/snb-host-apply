@@ -2,14 +2,16 @@
 # עדכון ידני וחד־פעמי של הגדרת השרת, בלי שרת חדש (16/10/2026, בקשת המשתמש).
 # עד היום infra/host ו־compose.yaml נכתבו רק בהקמה (cloud-init) — כל שינוי בהם = שרת חדש.
 # הקבצים נארזים בתמונת העובד החתומה (/opt/snb-host) כנתונים בלבד: שום דבר בשרת לא מריץ אותם לבד.
-# מריצים רק במסוף של Hetzner, ביד (ההודעות באנגלית — המסוף לא מציג עברית):
-#   docker run --rm -u0 -v /:/h --entrypoint /opt/snb-host/apply ghcr.io/yishaiguedj1/snb-worker:prod
+# מריצים רק במסוף של Hetzner, ביד (ההודעות באנגלית — המסוף לא מציג עברית). המסוף לא מעביר Shift (20/10/2026: ':'
+# יצא ';' והפקודה נחתכה) — לכן בלי ':' / '_' / '$': את התמונה לפי ה־IMAGE ID של התג prod, והתיקייה ב־--mount:
+#   docker images ghcr.io/yishaiguedj1/snb-worker
+#   docker run --rm -u0 --mount type=bind,source=/,target=/h --entrypoint /opt/snb-host/apply <IMAGE ID של prod>
 #   snb-update
 # מסרב כשעבודת תרגום רצה (שינוי ב־compose בונה את הקונטיינר מחדש = העבודה נקטעת).
 set -eu
 H=${SNB_HOST_ROOT:-/h}
 S=${SNB_HOST_SRC:-/opt/snb-host}
-[ -d "$H/opt/snb" ] && [ -d "$H/usr/local/lib/snb" ] || { echo "Run with: -v /:/h (server root not mounted)"; exit 1; }
+[ -d "$H/opt/snb" ] && [ -d "$H/usr/local/lib/snb" ] || { echo "Run with: --mount type=bind,source=/,target=/h (server root not mounted)"; exit 1; }
 for v in snb_work snb_work-stg; do
 	if [ -e "$H/var/lib/docker/volumes/$v/_data/.busy" ]; then
 		echo "A translation job is running ($v). Stop it in Studio or wait, then run again."; exit 1
