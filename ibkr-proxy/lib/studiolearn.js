@@ -14,6 +14,7 @@ const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
 const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
+const MX_GROUPS = ['st', 'tm', 'cs', 'om'];                // st שלבים · tm תזמון · cs עקביות · om השמטות
 const MODES = ['haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // מהזול ליקר
 const DAY = 86400e3, WIN = 30 * DAY;
 const KEY_RE = /^[a-z][a-z0-9_.]{0,47}$/;
@@ -69,6 +70,11 @@ function normLx(o) {
     const fl = flatNums(o.cu.fl, 20, 1e7); if (Object.keys(fl).length) cu.fl = fl;
     if (Object.keys(cu).length) out.cu = cu;
   }
+  if (o.mx && typeof o.mx === 'object' && !Array.isArray(o.mx)) {                      // מ׳5: המדדים בקוד (translator/learnmetrics.py)
+    const mx = {};
+    for (const g of MX_GROUPS) { const x = flatNums(o.mx[g], 30, 1e7); if (Object.keys(x).length) mx[g] = x; }
+    if (Object.keys(mx).length) out.mx = mx;
+  }
   for (const k of ['wd', 'tl', 'en', 'sy', 'gl', 'md']) {
     if (!o[k] || typeof o[k] !== 'object') continue;
     const x = flatNums(o[k], 30, 1e12);
@@ -80,14 +86,15 @@ function normLx(o) {
 
 /* ---------------- 1ב. מה קרה אחרי העבודה (מ׳3, 15/10/2026) — מהטלפון, מספרים בלבד ----------------
    e = עריכות בעורך הכתוביות (s שמירות, ws שניות עבודה פעילה, n שינויים, cd/wd מרחק עריכה בתווים/במילים, m שינויי טקסט שגם
-       הזמן שלהם זז, wa/ca מילים/תווים בגרסה האחרונה — המכנה של HTER, ולכל סוג: txt tm sp mg add del mx)
+       הזמן שלהם זז, wa/ca מילים/תווים בגרסה האחרונה — המכנה של HTER, ולכל סוג: txt tm sp mg add del mx;
+       מ׳5: sb עריכות SubER — גם שבירות וזמנים, sr אסימוני הייחוס בגרסה האחרונה — המכנה)
    pl = הנגן (n הפעלות, sec שניות צפייה, cov החלק הגדול ביותר של הסרטון שנצפה — 0 עד 1)
    o = תוצרים (dl הורדות, sh שיתופים, dx שמירה בתיקייה ב־Drive) · sg = הצעות (a התקבלו, r נדחו)
    ai = גיליון ה־AI (q בקשות, a שינויים שהוחלו, r שנדחו) · gl = מונחים שנוספו למילון מתוך העבודה (a)
    הטלפון שולח תוספת (delta); המיזוג מחבר, חוץ מ־cov (המקסימום) ו־wa/ca (האחרון). **UX_SHAPE זהה ל־UX_SHAPE ב־studio.js** */
 const ED_KINDS = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
-const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
-const UX_LAST = ['wa', 'ca'], UX_HI = 1e7;
+const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
+const UX_LAST = ['wa', 'ca', 'sr'], UX_HI = 1e7;
 function normUx(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -261,13 +268,14 @@ function kpis(rs) {
   };
 }
 /* מ׳3: מה קרה אחרי העבודה. ht = שיעור העריכה (HTER: מילים שתוקנו ÷ מילים בגרסה האחרונה) על העבודות שנערכו ונשמרו;
-   edr = חלק העבודות שנערכו; cov = חציון החלק שנצפה בנגן (מהעבודות שנצפו); sga = חלק ההצעות שהתקבלו */
+   sb = SubER (מ׳5 — כמו HTER, אבל גם שבירות שורה/כתובית וזמנים); edr = חלק העבודות שנערכו; cov = חציון החלק שנצפה בנגן (מהעבודות שנצפו); sga = חלק ההצעות שהתקבלו */
 function uxKpis(done) {
   const ed = done.filter((r) => r.ux && r.ux.e && r.ux.e.s > 0 && r.ux.e.wa > 0);
   const pl = done.filter((r) => r.ux && r.ux.pl && r.ux.pl.n > 0);
   const sg = done.map((r) => (r.ux && r.ux.sg) || {}), sga = sum(sg.map((x) => x.a)), sgr = sum(sg.map((x) => x.r));
   return {
     ht: ed.length ? rnd(sum(ed.map((r) => r.ux.e.wd)) / sum(ed.map((r) => r.ux.e.wa)), 3) : null,
+    sb: (() => { const x = ed.filter((r) => r.ux.e.sr > 0); return x.length ? rnd(sum(x.map((r) => r.ux.e.sb || 0)) / sum(x.map((r) => r.ux.e.sr)), 3) : null; })(),   // מ׳5: SubER
     edr: done.length ? rnd(ed.length / done.length, 3) : null,
     cov: pl.length ? rnd(median(pl.map((r) => r.ux.pl.cov)), 3) : null,
     sga: sga + sgr > 0 ? rnd(sga / (sga + sgr), 3) : null,
@@ -337,12 +345,36 @@ function qualityFails(rs) {
   for (const r of rs) if (r.q && r.q.n) { n += r.q.n; for (const [k, v] of Object.entries(r.q.b || {})) if (k !== 'chk') b[k] = (b[k] || 0) + v; }
   return { n, m: Q_KEYS.filter((k) => k !== 'chk').map((k) => ({ k, b: b[k] || 0, sh: n ? rnd((b[k] || 0) / n, 4) : 0 })).sort((x, y) => y.sh - x.sh) };
 }
+/* מ׳5: המדדים בקוד מכל העבודות שהסתיימו (lx.mx) — יחסים מצרפיים: מה כל שלב שינה (ch = חלק הכתוביות ששונו, t TER,
+   c chrF++, ממוצע משוקלל במספר הכתוביות), תזמון מול הדיבור, עקביות והשמטות */
+const MX_PAIRS = ['df', 'fr', 'rz', 'dz'];
+function mxView(rs) {
+  const xs = rs.filter((r) => r.k === 'tr' && r.st === 'done' && r.lx && r.lx.mx).map((r) => r.lx.mx);
+  if (!xs.length) return null;
+  const g = (k) => xs.map((x) => x[k]).filter(Boolean);
+  const share = (a, b) => (b > 0 ? rnd(a / b, 4) : null);
+  const st = g('st').filter((x) => x.n > 0), n = sum(st.map((x) => x.n));
+  const wavg = (k) => { const w = st.filter((x) => isNum(x[k])); const d = sum(w.map((x) => x.n)); return d ? rnd(sum(w.map((x) => x[k] * x.n)) / d, 2) : null; };
+  const out = { n: xs.length, st: { n } };
+  for (const p of MX_PAIRS) out.st[p] = { ch: share(sum(st.map((x) => x[p + '.ch'])), n), t: wavg(p + '.t'), c: wavg(p + '.c') };
+  const tm = g('tm').filter((x) => x.n > 0), tn = sum(tm.map((x) => x.n)), sp = sum(tm.map((x) => x.n - (x.nw || 0)));
+  const sh = tm.filter((x) => isNum(x['sh.near']));
+  out.tm = { n: tn, late: share(sum(tm.map((x) => x.late)), sp), cut: share(sum(tm.map((x) => x.cut)), sp), nw: share(sum(tm.map((x) => x.nw)), tn),
+    in: rnd(median(tm.map((x) => x['in.p50'])), 3), out: rnd(median(tm.map((x) => x['out.p50'])), 3),
+    shb: sh.length ? share(sum(sh.map((x) => x['sh.bad'])), 2 * sum(sh.map((x) => x.n))) : null };
+  const cs = g('cs'), nmn = sum(cs.map((x) => x['nm.n'])), gln = sum(cs.map((x) => x['gl.n']));
+  out.cs = { nm: nmn, nmv: share(sum(cs.map((x) => x['nm.var'])), nmn), gl: gln, glm: share(sum(cs.map((x) => x['gl.miss'])), gln), glx: sum(cs.map((x) => x['gl.mix'])) };
+  const om = g('om'), numn = sum(om.map((x) => x['num.n']));
+  out.om = { e: share(sum(om.map((x) => x['om.e'])), n), s: share(sum(om.map((x) => x['om.s'])), n), num: numn, numm: share(sum(om.map((x) => x['num.miss'])), numn),
+    r50: rnd(median(om.map((x) => x['om.r50'])), 3) };
+  return out;
+}
 function modeTable(rs) {
   return MODES.map((m) => ({ m, ...kpis(rs.filter((r) => r.mode === m)) })).filter((x) => x.n > 0);
 }
 /* מנוע מסקנות — כל מסקנה: k (קוד), sev 1 דחוף / 2 חשוב / 3 שווה בדיקה, imp = ההשפעה המשוערת בדולר לחודש (או 0), v = המספרים.
    הדירוג: קודם חומרה, אחר כך השפעה. הטלפון בונה את הטקסט מהקוד (בשתי השפות) */
-function insights(rs, k30, roles, stages, fails, jc, qf, modes, now) {
+function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx) {
   const out = [];
   const tr = rs.filter((r) => r.k === 'tr' && !r.gold);
   const done = tr.filter((r) => r.st === 'done');
@@ -432,6 +464,17 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now) {
     const dc = nw.cpm != null && od.cpm ? nw.cpm / od.cpm - 1 : null;
     if (dq != null && (Math.abs(dq) >= 2 || (dc != null && Math.abs(dc) >= 0.15))) out.push({ k: 'pv_change', sev: dq <= -2 ? 1 : 3, imp: 0, v: { a: pvs[0][0], b: pvs[1][0], dq: rnd(dq, 1), dc: rnd(dc, 3) } });
   }
+  // מ׳5: המדדים בקוד
+  if (mx) {
+    if (mx.om.num >= 20 && mx.om.numm >= 0.05) out.push({ k: 'num_drop', sev: mx.om.numm >= 0.15 ? 1 : 2, imp: 0, v: { p: mx.om.numm, n: mx.om.num } });
+    const om = (mx.om.e || 0) + (mx.om.s || 0);
+    if (mx.st.n >= 200 && om >= 0.02) out.push({ k: 'omit_cues', sev: om >= 0.05 ? 1 : 2, imp: 0, v: { p: rnd(om, 4), em: mx.om.e, sh: mx.om.s } });
+    const lc = (mx.tm.late || 0) + (mx.tm.cut || 0);
+    if (mx.tm.n >= 200 && lc >= 0.1) out.push({ k: 'tm_late', sev: lc >= 0.2 ? 2 : 3, imp: 0, v: { p: rnd(lc, 4), lt: mx.tm.late, ct: mx.tm.cut } });
+    if (mx.tm.n >= 200 && mx.tm.shb != null && mx.tm.shb >= 0.05) out.push({ k: 'shot_near', sev: 3, imp: 0, v: { p: mx.tm.shb } });
+    if (mx.cs.nm >= 5 && mx.cs.nmv >= 0.1) out.push({ k: 'name_var', sev: 3, imp: 0, v: { p: mx.cs.nmv, n: mx.cs.nm } });
+    if (mx.cs.gl >= 10 && mx.cs.glm >= 0.1) out.push({ k: 'gl_miss', sev: 2, imp: 0, v: { p: mx.cs.glm, n: mx.cs.gl, x: mx.cs.glx } });
+  }
   if (rs.filter((r) => r.ij > 0).length >= 2) out.push({ k: 'inject_seen', sev: 3, imp: 0, v: { n: rs.filter((r) => r.ij > 0).length } });
   const gq = done.filter((r) => r.gq).map((r) => r.gq.s);
   if (gq.length) out.push({ k: 'gold', sev: 3, imp: 0, v: { s: rnd(mean(gq), 1), n: gq.length } });
@@ -445,16 +488,16 @@ function learnView(records, now) {
   const cur = all.filter((r) => r.at >= now - WIN), prev = all.filter((r) => r.at >= now - 2 * WIN && r.at < now - WIN);
   const k30 = kpis(cur), kp = kpis(prev);
   const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done'));
-  const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs);
+  const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs), mx = mxView(rs);
   const tk = rs.map(tokOf);
   return {
     v: LR_V, n: all.length, n90: rs.length, first: all.length ? Math.min(...all.map((r) => r.at || now)) : 0,
     k: k30, kp, wk: weekly(all, now, 8),
     roles, tok: { i: sum(tk.map((t) => t.i)), o: sum(tk.map((t) => t.o)), cr: sum(tk.map((t) => t.cr)), cw: sum(tk.map((t) => t.cw)) },
-    stages, vt: vtTime(rs), fails, jc, qf, modes,
+    stages, vt: vtTime(rs), fails, jc, qf, modes, mx,
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
     follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')) },
-    ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now),
+    ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx),
     recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
       dur: r.dur, usd: r.usd, pr: r.pr, q: r.q ? r.q.s : null, jd: r.jd ? r.jd.s : null, run: runSec(r), fires: r.fires, ch: (() => { const t = tokOf(r); return inTok(t) ? rnd(t.cr / inTok(t), 3) : null; })() })),
   };
@@ -472,6 +515,8 @@ const INS_HE = {
   q_metric: 'מדד איכות שנכשל הרבה', edits_after: 'עריכות ידניות אחרי העבודה', ai_after: 'שימוש בגיליון ה־AI אחרי העבודה',
   slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', asr_weak: 'תמלול חלש',
   align_weak: 'יישור חלש', sync_low: 'סנכרון קול־וידאו לא ודאי', mode_value: 'מצב זול יותר כמעט באותה איכות',
+  num_drop: 'מספרים שנעלמו בתרגום', omit_cues: 'כתוביות שנראות מושמטות', tm_late: 'כתוביות שעולות מאוחר / יורדות מוקדם',
+  shot_near: 'גבולות קרובים לחילוף שוט', name_var: 'שם אחד בכמה איותים', gl_miss: 'מונחים מהמילון שלא נשמרו',
   pv_change: 'שינוי בעקבות גרסת הנחיות', inject_seen: 'שורות שנראות כמו הוראה בתמלול', gold: 'ציון סט הזהב', need_data: 'חסרים נתונים מפורטים',
 };
 const FIELDS = [
@@ -483,6 +528,8 @@ const FIELDS = [
   ['ed', 'כמה פעמים נשמרה עריכה ידנית אחרי העבודה'], ['gq', 'ציון מול תרגום אנושי (סט הזהב)'], ['pv/env', 'גרסאות ההנחיות והסביבה'],
   ['ux', 'מה קרה אחרי העבודה (מהטלפון): e עריכות (s שמירות, ws שניות עבודה, n שינויים, wd/cd מרחק עריכה במילים/בתווים, wa/ca מילים/תווים בגרסה האחרונה, ולכל סוג: txt טקסט, tm זמן, sp פיצול, mg מיזוג, add, del, mx מורכב), pl נגן (n הפעלות, sec שניות, cov חלק שנצפה), o תוצרים (dl הורדות, sh שיתופים, dx ל־Drive), sg הצעות (a/r), ai גיליון AI (q בקשות, a הוחלו, r נדחו), gl מונחים שנוספו'],
   ['lx', 'עובדות מפורטות מהעובד: שלבי vt, תמלול, יישור, סנכרון, מנוע (קטיעות, ניסיונות חוזרים, חשיבה), זיכרון'],
+  ['lx.mx', 'מ׳5 — מדדים בקוד: st מה כל שלב שינה (df טיוטה←תיקוני המתרגם, fr ←ביקורת, rz ←תיקון אחרון, dz טיוטה←סופי; ch כתוביות ששונו, t TER, c chrF++), tm תזמון מול הדיבור (in/out שניות מהמילה הראשונה/האחרונה, late/cut, nw בלי דיבור, sh.near/sh.bad גבולות 0–11 / 1–11 פריימים מחילוף שוט), cs עקביות (nm שמות שנבדקו, nm.var עם יותר מאיות אחד, gl מונחים מהמילון: n/miss/mix), om השמטות (om.e ריקות, om.s קצרות מאוד, om.r50 יחס אורך, num מספרים n/miss)'],
+  ['ux.e.sb/sr', 'מ׳5 — SubER אחרי עריכה בעורך: עריכות / אסימוני הייחוס (מילים + שבירות)'],
 ];
 const fmtv = (v) => (v == null ? '—' : typeof v === 'number' ? String(v) : JSON.stringify(v));
 function learnBrief(view, now) {
@@ -504,7 +551,7 @@ function learnBrief(view, now) {
   L.push('| מדד | עכשיו | קודם |');
   L.push('|---|---|---|');
   for (const [key, he] of [['n', 'עבודות'], ['done', 'הסתיימו'], ['ok', 'עברו בלי "המשך" (חלק)'], ['min', 'דקות סרטון'], ['cpm', 'דולר לדקת סרטון'],
-    ['spm', 'שניות עבודה לדקה (חציון)'], ['tpm', 'טוקנים לדקה'], ['ch', 'חלק הקלט מהמטמון'], ['q', 'מדד איכות'], ['jd', 'ציון שופט'], ['ht', 'שיעור העריכה שלך (HTER)'], ['edr', 'עבודות שנערכו (חלק)'], ['cov', 'חלק הסרטון שנצפה (חציון)'], ['sga', 'הצעות שהתקבלו (חלק)']]) {
+    ['spm', 'שניות עבודה לדקה (חציון)'], ['tpm', 'טוקנים לדקה'], ['ch', 'חלק הקלט מהמטמון'], ['q', 'מדד איכות'], ['jd', 'ציון שופט'], ['ht', 'שיעור העריכה שלך (HTER)'], ['sb', 'SubER אחרי העריכה'], ['edr', 'עבודות שנערכו (חלק)'], ['cov', 'חלק הסרטון שנצפה (חציון)'], ['sga', 'הצעות שהתקבלו (חלק)']]) {
     if (k[key] == null && kp[key] == null) continue;
     L.push('| ' + he + ' (`' + key + '`) | ' + fmtv(k[key]) + ' | ' + fmtv(kp[key]) + ' |');
   }
@@ -521,6 +568,7 @@ function learnBrief(view, now) {
   sec('קודי השופט', v.jc);
   sec('מדדי איכות שנכשלו', v.qf);
   sec('מצבי התרגום', v.modes);
+  sec('מדדים בקוד (מ׳5)', v.mx);
   sec('לפי מנוע', v.eng);
   sec('מה קרה אחרי העבודה', v.follow);
   sec('מגמה שבועית (8 שבועות)', v.wk);
