@@ -35,14 +35,15 @@ ok(/html,\s*body\s*\{[^}]*overflow-x:\s*(clip|hidden)/.test(css), 'אין גלי
 /* ---------- 2. כותרת עליונה: אין התנגשות במסכים צרים ---------- */
 // v130: הכותרת הפכה ללוגו (מידה קבועה) בשורה נפרדת מהכפתורים — אין יותר
 // טקסט כותרת מתכווץ שמאיים לדחוק את הכפתורים; שורת "מקור" בשורה שלה
-ok(/\.appbar-row\s*\{[^}]*justify-content:\s*space-between/.test(css), 'שורת הכותרת: כפתורים ולוגו בקצוות, לא מתנגשים');
+// 20/10/2026 (כמו Muse): רשת סימטרית — הלוגו באמצע, ☰ בפינה השמאלית העליונה, הגלובוס והכפתור השני בפינה הימנית;
+// הכפתורים בעמודות ברוחב קבוע (--ib) — קפסולה ארוכה לא מזיזה אותם (היא מתחת ללוגו, בשורה משלה)
+ok(/\.appbar-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*var\(--ib\) var\(--ib\) 1fr auto 1fr var\(--ib\) var\(--ib\)/.test(css), 'שורת הכותרת: רשת סימטרית — הלוגו במרכז');
+ok(/\.appbar-actions > \.menu-wrap\s*\{[^}]*grid-column:\s*7;\s*grid-row:\s*1/.test(css) && /\.appbar-row\s*\{[^}]*direction:\s*rtl/.test(css), '☰ תמיד בפינה השמאלית העליונה (גם באנגלית — הרשת בכיוון קבוע)');
+ok(/\.menu-drop\s*\{[^}]*left:\s*0;\s*right:\s*auto/.test(css) && /\.lang-menu\s*\{[^}]*right:\s*0;\s*left:\s*auto/.test(css), 'התפריטים נפתחים לתוך המסך מהפינה שלהם');
+ok(/\.appbar-left > \.appbar-sub\s*\{[^}]*grid-column:\s*1 \/ -1;\s*grid-row:\s*4;\s*justify-self:\s*center/.test(css), 'קפסולת המצב מתחת ללוגו, באמצע');
 ok(/\.appbar-sub\s*\{[^}]*text-overflow:\s*ellipsis/.test(css), 'שורת המשנה נחתכת ב־… ולא דוחפת את הכפתורים');
-ok(/\.appbar-actions\s*\{[^}]*flex:\s*none/.test(css), 'בלוק הכפתורים לא נמעך (flex:none)');
 ok(/\.brand-logo\s*\{[^}]*width:\s*128px/.test(css), 'הלוגו בגודל קבוע (128px, v198) — לא תלוי במקום שנשאר');
-// v140: כפתורי הפעולה צמודים לקצה המסך (flex-end) — לא flex-start, שהיה
-// מצמיד אותם לקצה הבלוק שגדל/מתכווץ לפי אורך שורת "מקור" ומזיז אותם
-// (דווח 25/09/2026: "אחרי סגירת המסחר נוסף הטקסט 'אחרי-מסחר' וכל הלחצנים זזים")
-ok(/\.appbar-left\s*\{[^}]*align-items:\s*flex-end/.test(css), 'appbar-left: flex-end — כפתורי הפעולה לא זזים כששורת המקור מתארכת');
+ok(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.appbar \.brand-logo, \.appbar \.brand-blink[^}]*\.appbar \.brand-snow b \{ animation:\s*none/.test(css), 'הלוגו החי עומד כשמבקשים להפחית תנועה');
 
 /* ---------- 3. פלטת iOS 26 בשתי הערכות ---------- */
 const darkCss = css.split('[data-theme="dark"]')[1] || '';
