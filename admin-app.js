@@ -830,9 +830,8 @@ page('imp', { tab: 'imp', title: () => t('admTabImp'), render(p) {
   if (!D.tk) needTasks();
   const v = D.lab && D.lab.view;
   const top = v && (v.ins || [])[0];
-  const L = (D.lab && D.lab.insL) || {};
   p.append(list(
-    row({ c: 'purple', ic: '✦', t: t('admLabT'), s: top ? ((lang === 'he' && L[top.k]) || top.k) : t('admLabNone'), v: v ? (v.ins || []).length : '', tr: t('admInsShort'), on: () => go('lab') }),
+    row({ c: 'purple', ic: '✦', t: t('admLabT'), s: top ? insName(top.k) : t('admLabNone'), v: v ? (v.ins || []).length : '', tr: t('admInsShort'), on: () => go('lab') }),
     row({ c: 'blue', ic: '◇', t: t('admClaudeT'), s: t('admClaudeShort'), on: () => go('claude') }),
     row({ c: 'gray', ic: '⇄', t: t('admTeam'), s: D.tk && D.tk.tk ? fmt(t('admTeamS'), { n: D.tk.tk.items.length, w: D.tk.tk.items.filter((x) => x.w).length }) : '', on: () => go('team') })));
 } });
@@ -920,7 +919,6 @@ page('check', { tab: 'ov', parent: 'checks', title: () => t('admChkOne'), render
   if (x.st) { const u = h('button', 'mini-btn', t('admChkUndo')); u.type = 'button'; u.addEventListener('click', async () => { const j = await api('adminCheck', { id: x.id, st: '', t: x.t }); D.log = null; if (j.ok) { delete x.st; x.n = ''; ck.done = ck.done.filter((y) => y !== x); if (!ck.open.includes(x)) ck.open.push(x); paint(); } }); card.append(u); }
   p.append(h('p', 'adm-foot', t('admChkFoot')));
 } });
-page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) { p.append(labCard(D.lab || { ok: false })); } });
 page('claude', { tab: 'imp', parent: 'imp', title: () => t('admClaudeT'), render(p) { p.append(claudeCard()); } });
 page('find', { tab: 'find', title: () => t('admTabFind'), render(p) {
   const inp = h('input', 'adm-search'); inp.type = 'search'; inp.placeholder = t('admFindPh'); inp.setAttribute('aria-label', t('admFindPh'));
@@ -1017,34 +1015,331 @@ function codeRow(text) {
   return r;
 }
 
-/* ---- מעבדת השיפור: המדדים מול החודש הקודם, והמסקנות המדורגות ---- */
-function labCard(lab) {
-  const card = h('section', 'card adm-card');
-  card.append(h('h2', null, t('admLabT')));
-  if (!lab.ok) { card.append(h('p', 'adm-note', t('admErr'))); return card; }
-  const v = lab.view || {}, k = v.k || {}, kp = v.kp || {};
-  card.append(h('p', 'adm-sub', fmt(t('admLabS'), { n: v.n || 0 })));
-  const pct = (x) => (x == null ? '—' : Math.round(x * 100) + '%');
-  const KP = [['n', t('admKn'), (x) => (x == null ? '—' : x)], ['ok', t('admKok'), pct], ['cpm', t('admKcpm'), (x) => (x == null ? '—' : '$' + x.toFixed(3))],
-    ['spm', t('admKspm'), (x) => (x == null ? '—' : Math.round(x))], ['ch', t('admKch'), pct], ['q', t('admKq'), (x) => (x == null ? '—' : Math.round(x))], ['jd', t('admKjd'), (x) => (x == null ? '—' : Math.round(x))]];
-  const grid = h('div', 'adm-kpis');
-  for (const [key, lbl, f] of KP) {
-    if (k[key] == null && kp[key] == null) continue;
-    const tile = h('div', 'adm-kpi');
-    tile.append(h('span', 'adm-kl', lbl), h('b', null, f(k[key])), h('small', null, f(kp[key])));
-    grid.append(tile);
+/* ---- מעבדת השיפור (מ׳6, 20/10/2026): מסך ראשי + עמודי משנה. כל החישובים בשרתון (learnView ב־lib/studiolearn.js) — כאן רק מציגים.
+   הכי חשוב עכשיו → אריחים מול 30 הימים הקודמים (עם מגמה שבועית) → שורה לכל נושא. עמוד המשנה של מסקנה = מה לעשות + המספרים.
+   בלי מספרים מומצאים: נתון שחסר = "—" */
+const LV = () => (D.lab && D.lab.ok && D.lab.view) || null;
+const nz = (x) => x != null && isFinite(x);
+const pcTxt = (x) => (nz(x) ? (Math.abs(x) < 0.1 && x !== 0 ? (x * 100).toFixed(1) : Math.round(x * 100)) + '%' : '—');
+const usdTxt = (x, d) => (nz(x) ? '$' + (x >= 100 ? Math.round(x).toLocaleString('en-US') : x.toFixed(d != null ? d : x < 1 ? 3 : 2)) : '—');
+const numTxt = (x) => (nz(x) ? (Math.abs(x) >= 1000 ? Math.round(x).toLocaleString('en-US') : String(Math.round(x * 10) / 10)) : '—');
+const kTok = (x) => (!nz(x) ? '—' : x >= 1e6 ? (x / 1e6).toFixed(1) + 'M' : x >= 1e3 ? Math.round(x / 1e3) + 'K' : String(x));
+const durTxt = (s) => (!nz(s) ? '—' : s < 90 ? Math.round(s) + t('admSecU') : s < 5400 ? Math.round(s / 60) + t('admMinU') : (s / 3600).toFixed(1) + t('admHrU'));
+const ltr = (s) => '⁦' + s + '⁩';
+function modeTxt(m) { return String(m || '—').split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
+const roleTxt = (k) => (ROLE[k] ? ROLE[k]() : k || '—');
+function stgTxt(k) {
+  switch (k) {
+    case 'up': return t('admStgUp');
+    case 'tr': return t('admStgTr');
+    case 'al': return t('admStgAl');
+    case 'tl': return t('admStgTl');
+    case 'rv': return t('admStgRv');
+    case 'bn': return t('admStgBn');
+    case 'sv': return t('admStgSv');
+    default: return k || '—';
   }
-  card.append(grid);
-  card.append(h('div', 'adm-lbl', t('admInsT')));
-  const ins = v.ins || [];
-  if (!ins.length) card.append(h('p', 'adm-dim', t('admLabNone')));
-  const L = lab.insL || {};
-  const lst = h('div', 'ios-list');
-  for (const x of ins) {
-    const r = h('div', 'ios-row adm-ins s' + x.sev);
-    r.append(h('span', 'adm-dot'), h('span', 'adm-ttx', (lang === 'he' && L[x.k]) || x.k), (() => { const m = h('small', null, x.imp ? '≈ $' + x.imp : ''); m.dir = 'ltr'; return m; })());
-    lst.append(r);
+}
+function jgTxt(k) {
+  switch (k) {
+    case 'mean': return t('studioJgMean');
+    case 'omit': return t('studioJgOmit');
+    case 'add': return t('studioJgAdd');
+    case 'gram': return t('studioJgGram');
+    case 'flu': return t('studioJgFlu');
+    case 'term': return t('studioJgTerm');
+    default: return k || '—';
   }
-  card.append(lst);
+}
+function qTxt(k) {
+  switch (k) {
+    case 'cps': return t('studioQCps');
+    case 'len': return t('studioQLen');
+    case 'lines': return t('studioQLines');
+    case 'dur': return t('studioQDur');
+    case 'en': return t('studioQEn');
+    case 'chk': return t('studioQChk');
+    default: return k || '—';
+  }
+}
+function stTxt(s) {
+  switch (s) {
+    case 'done': return t('admJsDone');
+    case 'failed': return t('admJsFail');
+    case 'cancelled': return t('admJsCancel');
+    default: return s || '—';
+  }
+}
+/* כל מסקנה: שם, ומה לעשות (מהקוד — השרתון שולח רק קוד ומספרים) */
+function insName(k) {
+  switch (k) {
+    case 'fail_top': return t('admI_fail_top');
+    case 'first_pass': return t('admI_first_pass');
+    case 'cache_low': return t('admI_cache_low');
+    case 'cost_role': return t('admI_cost_role');
+    case 'think_heavy': return t('admI_think_heavy');
+    case 'truncated': return t('admI_truncated');
+    case 'cache_miss': return t('admI_cache_miss');
+    case 'fix_heavy': return t('admI_fix_heavy');
+    case 'rv_idle': return t('admI_rv_idle');
+    case 'rv_heavy': return t('admI_rv_heavy');
+    case 'judge_top': return t('admI_judge_top');
+    case 'q_metric': return t('admI_q_metric');
+    case 'edits_after': return t('admI_edits_after');
+    case 'ai_after': return t('admI_ai_after');
+    case 'slow_stage': return t('admI_slow_stage');
+    case 'wait_user': return t('admI_wait_user');
+    case 'sla_over': return t('admI_sla_over');
+    case 'asr_weak': return t('admI_asr_weak');
+    case 'align_weak': return t('admI_align_weak');
+    case 'sync_low': return t('admI_sync_low');
+    case 'mode_value': return t('admI_mode_value');
+    case 'pv_change': return t('admI_pv_change');
+    case 'inject_seen': return t('admI_inject_seen');
+    case 'gold': return t('admI_gold');
+    case 'need_data': return t('admI_need_data');
+    default: return k;
+  }
+}
+function insAct(k) {
+  switch (k) {
+    case 'fail_top': return t('admA_fail_top');
+    case 'first_pass': return t('admA_first_pass');
+    case 'cache_low': return t('admA_cache_low');
+    case 'cost_role': return t('admA_cost_role');
+    case 'think_heavy': return t('admA_think_heavy');
+    case 'truncated': return t('admA_truncated');
+    case 'cache_miss': return t('admA_cache_miss');
+    case 'fix_heavy': return t('admA_fix_heavy');
+    case 'rv_idle': return t('admA_rv_idle');
+    case 'rv_heavy': return t('admA_rv_heavy');
+    case 'judge_top': return t('admA_judge_top');
+    case 'q_metric': return t('admA_q_metric');
+    case 'edits_after': return t('admA_edits_after');
+    case 'ai_after': return t('admA_ai_after');
+    case 'slow_stage': return t('admA_slow_stage');
+    case 'wait_user': return t('admA_wait_user');
+    case 'sla_over': return t('admA_sla_over');
+    case 'asr_weak': return t('admA_asr_weak');
+    case 'align_weak': return t('admA_align_weak');
+    case 'sync_low': return t('admA_sync_low');
+    case 'mode_value': return t('admA_mode_value');
+    case 'pv_change': return t('admA_pv_change');
+    case 'inject_seen': return t('admA_inject_seen');
+    case 'gold': return t('admA_gold');
+    case 'need_data': return t('admA_need_data');
+    default: return '';
+  }
+}
+/* המספרים של מסקנה — [תווית, ערך]. לכל שדה ב־v משמעות לפי המסקנה (m = מודל ב־cost_role, מדד ב־q_metric) */
+function insFacts(x) {
+  const v = x.v || {}, out = [];
+  const add = (l, val) => { if (val != null && val !== '—' && val !== '') out.push([l, val]); };
+  if (v.e) add(t('admFCode'), ltr(v.e));
+  if (v.r) add(t('admFRole'), roleTxt(v.r));
+  if (v.s) add(t('admFStage'), stgTxt(v.s));
+  if (v.st) add(t('admFStage'), stgTxt(v.st));
+  if (v.c) add(t('admFJudge'), jgTxt(v.c));
+  if (x.k === 'q_metric' && v.m) add(t('admFMetric'), qTxt(v.m));
+  else if (v.m) add(t('admFModel'), ltr(String(v.m).replace(/^claude-/, '')));
+  if (x.k === 'mode_value') { add(t('admFModeA'), modeTxt(v.a)); add(t('admFModeB'), modeTxt(v.b)); add(t('admFSave'), pcTxt(v.sv)); add(t('admFDq'), numTxt(v.d)); }
+  if (x.k === 'pv_change') { add(t('admFPvNew'), ltr(v.a)); add(t('admFPvOld'), ltr(v.b)); add(t('admFDq'), numTxt(v.dq)); if (nz(v.dc)) add(t('admFDc'), pcTxt(v.dc)); }
+  if (nz(v.p)) add(t('admFShare'), pcTxt(v.p));
+  if (nz(v.n)) add(t('admFN'), numTxt(v.n));
+  if (nz(v.j)) add(t('admFJobs'), numTxt(v.j));
+  if (nz(v.usd)) add(t('admFUsd'), usdTxt(v.usd, 2));
+  if (nz(v.spm)) add(t('admFSpm'), numTxt(v.spm));
+  if (x.k === 'gold' && nz(v.s)) add(t('admFGold'), numTxt(v.s));
+  if (x.imp) add(t('admFImp'), usdTxt(x.imp, 2));
+  return out;
+}
+const SEV_C = { 1: 'red', 2: 'orange', 3: 'gray' };
+const sevTxt = (s) => (s === 1 ? t('admSev1') : s === 2 ? t('admSev2') : t('admSev3'));
+/* מגמה מול התקופה הקודמת: חץ + האם זה לטובה (dir: 1 = גבוה עדיף, -1 = נמוך עדיף) */
+function trend(a, b, dir, f) {
+  if (!nz(a) || !nz(b)) return ['', ''];
+  if (a === b) return ['=', ''];
+  const up = a > b;
+  return [(up ? '↑ ' : '↓ ') + f(Math.abs(a - b)), (up ? dir > 0 : dir < 0) ? 'up' : 'dn'];
+}
+function labTile(c, lbl, key, dir, f, fd) {
+  const v = LV(); if (!v) return null;
+  const a = (v.k || {})[key], b = (v.kp || {})[key];
+  if (a == null && b == null) return null;
+  const [tr, trc] = trend(a, b, dir, fd || f);
+  return tileEl(c, lbl, f(a), tr || (nz(b) ? fmt(t('admWas'), { v: f(b) }) : ''), trc, (v.wk || []).map((w) => w[key]));
+}
+function labHero(v) {
+  const top = (v.ins || [])[0];
+  const card = h('button', 'adm-top s' + (top ? top.sev : 3)); card.type = 'button';
+  if (!top) { card.disabled = true; card.append(h('small', null, t('admNowTop')), h('b', null, t('admLabNone'))); return card; }
+  const hd = h('small', null, t('admNowTop') + ' · ' + sevTxt(top.sev));
+  card.append(hd, h('b', null, insName(top.k)), h('span', null, insAct(top.k)));
+  if (top.imp) { const m = h('em', null, fmt(t('admImpMo'), { v: usdTxt(top.imp, 2) })); card.append(m); }
+  card.addEventListener('click', () => { D.labI = 0; go('labIn'); });
   return card;
 }
+const needLab = (p) => { const v = LV(); if (!v) p.append(h('p', 'adm-note', D.lab && D.lab.error ? t('admErr') : t('admLoading'))); return v; };
+
+page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const k = v.k || {};
+  p.append(h('p', 'adm-dt', fmt(t('admLabDt'), { n: v.n || 0, m: v.n90 || 0, d: v.first ? day(v.first) : '—' })));
+  p.append(labHero(v));
+  p.append(grp(t('admLab30')), tiles(
+    labTile('purple', t('admKn'), 'n', 1, numTxt),
+    labTile('green', t('admKok'), 'ok', 1, pcTxt),
+    labTile('blue', t('admKcpm'), 'cpm', -1, (x) => usdTxt(x, 3)),
+    labTile('orange', t('admKspm'), 'spm', -1, numTxt),
+    labTile('green', t('admKq'), 'q', 1, numTxt),
+    labTile('purple', t('admKjd'), 'jd', 1, numTxt)));
+  const fails = v.fails || [], roles = v.roles || [], stg = (v.stages || []).slice().sort((a, b) => b.sh - a.sh)[0];
+  p.append(grp(t('admLabMore')), list(
+    row({ c: 'orange', ic: '!', t: t('admLabIns'), s: (v.ins || []).length ? insName(v.ins[0].k) : t('admLabNone'), v: (v.ins || []).length, on: () => go('labIns') }),
+    row({ c: 'blue', ic: '$', t: t('admLabCost'), s: roles.length ? fmt(t('admLabCostS'), { r: roleTxt(roles[0].k), p: pcTxt(roles[0].sh) }) : '', v: usdTxt(k.usd, 2), on: () => go('labCost') }),
+    row({ c: 'orange', ic: '◷', t: t('admLabTime'), s: stg ? fmt(t('admLabTimeS'), { s: stgTxt(stg.k), p: pcTxt(stg.sh) }) : '', v: nz(k.spm) ? numTxt(k.spm) : '', tr: nz(k.spm) ? t('admSpmU') : '', on: () => go('labTime') }),
+    row({ c: 'green', ic: '✓', t: t('admLabQual'), s: (v.jc && v.jc.c && v.jc.c[0]) ? fmt(t('admLabQualS'), { c: jgTxt(v.jc.c[0].k) }) : '', v: nz(k.jd) ? numTxt(k.jd) : nz(k.q) ? numTxt(k.q) : '', on: () => go('labQual') }),
+    row({ c: 'red', ic: '✕', t: t('admLabFails'), s: fails.length ? ltr(fails[0].e) + ' · ' + fails[0].n : t('admLabFailsNone'), v: fails.length ? fails.reduce((a, x) => a + x.n, 0) : 0, on: () => go('labFails') }),
+    row({ c: 'purple', ic: '⇆', t: t('admLabModes'), s: (v.modes || []).map((x) => modeTxt(x.m)).join(' · '), v: (v.modes || []).length, on: () => go('labModes') }),
+    row({ c: 'blue', ic: '↻', t: t('admLabAfter'), s: fmt(t('admLabAfterS'), { e: (v.follow || {}).ed || 0, r: (v.follow || {}).rr || 0 }), v: nz(k.ht) ? pcTxt(k.ht) : '', tr: nz(k.ht) ? 'HTER' : '', on: () => go('labAfter') }),
+    row({ c: 'gray', ic: '≡', t: t('admLabRecent'), s: (v.recent || [])[0] ? day(v.recent[0].at) + ' · ' + modeTxt(v.recent[0].mode) : '', v: (v.recent || []).length, on: () => go('labRecent') }),
+    row({ c: 'gray', ic: '▤', t: t('admLabData'), s: labDataSub(), on: () => go('labData') })));
+  p.append(list(row({ c: 'blue', ic: '◇', t: t('admClaudeT'), s: t('admClaudeShort'), on: () => go('claude') })));
+} });
+function labDataSub() {
+  const c = (D.lab && D.lab.corpus) || {}, d = (D.lab && D.lab.dev) || {};
+  return fmt(t('admLabDataS'), { c: c.on ? (c.n || 0) + (c.q || 0) : '—', d: d.on ? t('admOn') : t('admOff') });
+}
+page('labIns', { tab: 'imp', parent: 'lab', title: () => t('admLabIns'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const ins = v.ins || [];
+  p.append(h('p', 'adm-dt', t('admLabInsS')));
+  if (!ins.length) { p.append(list(row({ c: 'gray', ic: '—', t: t('admLabNone') }))); return; }
+  for (const s of [1, 2, 3]) {
+    const g = ins.map((x, i) => [x, i]).filter(([x]) => x.sev === s);
+    if (!g.length) continue;
+    p.append(grp(sevTxt(s)), list(...g.map(([x, i]) => row({ c: SEV_C[s], ic: String(i + 1), t: insName(x.k), s: insAct(x.k), v: x.imp ? usdTxt(x.imp, 2) : '', tr: x.imp ? t('admPerMo') : '', on: () => { D.labI = i; go('labIn'); } }))));
+  }
+} });
+page('labIn', { tab: 'imp', parent: 'labIns', title: () => { const v = LV(), x = v && (v.ins || [])[D.labI || 0]; return x ? insName(x.k) : t('admLabIns'); }, render(p) {
+  const v = needLab(p); if (!v) return;
+  const x = (v.ins || [])[D.labI || 0];
+  if (!x) { p.append(h('p', 'adm-note', t('admLabNone'))); return; }
+  const top = h('div', 'adm-insh');
+  top.append(h('span', 'adm-chip', sevTxt(x.sev))); top.lastChild.style.background = COL[SEV_C[x.sev]];
+  if (x.imp) top.append(h('small', null, fmt(t('admImpMo'), { v: usdTxt(x.imp, 2) })));
+  p.append(top, grp(t('admWhatDo')), (() => { const d = h('div', 'adm-list adm-txt'); d.append(h('p', null, insAct(x.k))); return d; })());
+  const f = insFacts(x);
+  if (f.length) p.append(grp(t('admNumbers')), list(...f.map(([l, val]) => row({ c: 'gray', ic: '#', t: l, v: val }))));
+  p.append(h('p', 'adm-foot', t('admInsFoot')), list(row({ c: 'blue', ic: '◇', t: t('admClaudeT'), s: t('admClaudeShort'), on: () => go('claude') })));
+} });
+page('labCost', { tab: 'imp', parent: 'lab', title: () => t('admLabCost'), render(p) {
+  const v = needLab(p); if (!v) return;
+  p.append(tiles(
+    labTile('blue', t('admKusd'), 'usd', -1, (x) => usdTxt(x, 2)),
+    labTile('blue', t('admKcpm'), 'cpm', -1, (x) => usdTxt(x, 3)),
+    labTile('green', t('admKch'), 'ch', 1, pcTxt),
+    labTile('purple', t('admKtpm'), 'tpm', -1, kTok)));
+  const roles = v.roles || [];
+  p.append(grp(t('admByRole')), roles.length ? list(...roles.map((r) => row({ c: 'blue', ic: '$', t: roleTxt(r.k),
+    s: [nz(r.ch) ? fmt(t('admCacheP'), { p: pcTxt(r.ch) }) : '', r.sav > 0.01 ? fmt(t('admSavable'), { v: usdTxt(r.sav, 2) }) : '', r.m ? ltr(r.m.replace(/^claude-/, '')) : '', fmt(t('admCalls'), { n: r.calls })].filter(Boolean).join(' · '),
+    v: usdTxt(r.usd, 2), tr: pcTxt(r.sh), meter: [r.sh * 100, ''] }))) : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
+  const tk = v.tok || {}, all = (tk.i || 0) + (tk.o || 0) + (tk.cr || 0) + (tk.cw || 0);
+  if (all) p.append(grp(t('admTok90')), list(
+    row({ c: 'gray', ic: '→', t: t('admTokI'), v: kTok(tk.i), meter: [tk.i / all * 100, ''] }),
+    row({ c: 'green', ic: '↺', t: t('admTokCr'), v: kTok(tk.cr), meter: [tk.cr / all * 100, ''] }),
+    row({ c: 'orange', ic: '+', t: t('admTokCw'), v: kTok(tk.cw), meter: [tk.cw / all * 100, 'w'] }),
+    row({ c: 'purple', ic: '←', t: t('admTokO'), v: kTok(tk.o), meter: [tk.o / all * 100, ''] })));
+} });
+page('labTime', { tab: 'imp', parent: 'lab', title: () => t('admLabTime'), render(p) {
+  const v = needLab(p); if (!v) return;
+  p.append(tiles(labTile('orange', t('admKspm'), 'spm', -1, numTxt), labTile('purple', t('admKmin'), 'min', 1, numTxt)));
+  const st = v.stages || [];
+  p.append(grp(t('admByStage')), st.length ? list(...st.map((s) => row({ c: 'orange', ic: '◷', t: stgTxt(s.k), s: fmt(t('admStgS'), { t: durTxt(s.sec) }),
+    v: numTxt(s.spm), tr: t('admSpmU'), meter: [s.sh * 100, s.sh >= 0.35 ? 'w' : ''] }))) : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
+  const vt = v.vt || [];
+  if (vt.length) p.append(grp(t('admVt')), list(...vt.map((x) => row({ c: 'gray', ic: '›', t: ltr('vt ' + x.c), s: fmt(t('admVtS'), { n: x.n, m: durTxt(x.mx) }), v: durTxt(x.sec), tr: pcTxt(x.sh), meter: [x.sh * 100, ''] }))));
+} });
+page('labQual', { tab: 'imp', parent: 'lab', title: () => t('admLabQual'), render(p) {
+  const v = needLab(p); if (!v) return;
+  p.append(tiles(labTile('green', t('admKq'), 'q', 1, numTxt), labTile('purple', t('admKjd'), 'jd', 1, numTxt),
+    labTile('orange', t('admKht'), 'ht', -1, pcTxt), labTile('blue', t('admKedr'), 'edr', -1, pcTxt)));
+  const jc = v.jc || {}, qf = v.qf || {};
+  p.append(grp(fmt(t('admJudgeG'), { n: jc.n || 0 })), (jc.c || []).length ? list(...jc.c.map((x) => row({ c: 'purple', ic: '⚖', t: jgTxt(x.k), v: numTxt(x.n), tr: pcTxt(x.sh), meter: [x.sh * 100 * 4, x.sh >= 0.2 ? 'x' : x.sh >= 0.08 ? 'w' : ''] })))
+    : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
+  p.append(grp(fmt(t('admQfG'), { n: qf.n || 0 })), (qf.m || []).some((x) => x.b) ? list(...qf.m.filter((x) => x.b).map((x) => row({ c: 'green', ic: '✓', t: qTxt(x.k), v: numTxt(x.b), tr: pcTxt(x.sh), meter: [x.sh * 100 * 5, x.sh >= 0.15 ? 'x' : x.sh >= 0.05 ? 'w' : ''] })))
+    : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
+  p.append(h('p', 'adm-foot', t('admQualFoot')));
+} });
+page('labFails', { tab: 'imp', parent: 'lab', title: () => t('admLabFails'), render(p) {
+  const v = needLab(p); if (!v) return;
+  p.append(tiles(labTile('green', t('admKok'), 'ok', 1, pcTxt), labTile('purple', t('admKdone'), 'done', 1, numTxt)));
+  const f = v.fails || [];
+  p.append(grp(t('admFailsG')), f.length ? list(...f.map((x) => row({ c: x.fin ? 'red' : 'orange', ic: '✕', t: ltr(x.e),
+    s: [fmt(t('admFailsFin'), { n: x.fin }), x.st ? stgTxt(x.st) : '', x.usd ? fmt(t('admFailsUsd'), { v: usdTxt(x.usd, 2) }) : ''].filter(Boolean).join(' · '), v: x.n }))) : list(row({ c: 'green', ic: '✓', t: t('admLabFailsNone') })));
+  p.append(h('p', 'adm-foot', t('admFailsFoot')));
+} });
+page('labModes', { tab: 'imp', parent: 'lab', title: () => t('admLabModes'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const line = (x) => [fmt(t('admModeN'), { n: x.n }), nz(x.jd) ? fmt(t('admModeJd'), { v: numTxt(x.jd) }) : nz(x.q) ? fmt(t('admModeQ'), { v: numTxt(x.q) }) : '', nz(x.ok) ? fmt(t('admModeOk'), { v: pcTxt(x.ok) }) : '', nz(x.spm) ? fmt(t('admModeSpm'), { v: numTxt(x.spm) }) : ''].filter(Boolean).join(' · ');
+  const m = v.modes || [];
+  p.append(grp(t('admModesG')), m.length ? list(...m.map((x) => row({ c: 'purple', ic: '⇆', t: modeTxt(x.m), s: line(x), v: usdTxt(x.cpm, 3), tr: t('admPerMin') }))) : list(row({ c: 'gray', ic: '—', t: t('admNoData') })));
+  const e = v.eng || [];
+  if (e.length) p.append(grp(t('admEngG')), list(...e.map((x) => row({ c: 'blue', ic: x.e === 'api' ? '▣' : '◇', t: x.e === 'api' ? t('admEngApi') : t('admEngSub'), s: line(x), v: usdTxt(x.cpm, 3), tr: t('admPerMin') }))));
+} });
+page('labAfter', { tab: 'imp', parent: 'lab', title: () => t('admLabAfter'), render(p) {
+  const v = needLab(p); if (!v) return;
+  p.append(tiles(labTile('orange', t('admKht'), 'ht', -1, pcTxt), labTile('blue', t('admKedr'), 'edr', -1, pcTxt), labTile('green', t('admKcov'), 'cov', 1, pcTxt), labTile('purple', t('admKsga'), 'sga', 1, pcTxt)));
+  const f = v.follow || {}, u = f.ux || {}, n = (x) => numTxt(x || 0);
+  p.append(grp(t('admAfterJobs')), list(
+    row({ c: 'orange', ic: '✎', t: t('admAfterEd'), v: n(f.ed) }),
+    row({ c: 'blue', ic: '↻', t: t('admAfterRr'), v: n(f.rr) }),
+    row({ c: 'purple', ic: '✦', t: t('admAfterAi'), v: n(f.ai) }),
+    row({ c: 'gray', ic: '★', t: t('admAfterGold'), v: n(f.gold) })));
+  const e = u.e, pl = u.pl, o = u.o, sg = u.sg, ai = u.ai, gl = u.gl;
+  const rows = [];
+  if (e) rows.push(row({ c: 'orange', ic: '✎', t: t('admUxE'), s: fmt(t('admUxES'), { s: n(e.s), n: n(e.n), w: durTxt(e.ws) }), v: n(e.jobs) }));
+  if (pl) rows.push(row({ c: 'blue', ic: '▶', t: t('admUxPl'), s: fmt(t('admUxPlS'), { n: n(pl.n), t: durTxt(pl.sec) }), v: n(pl.jobs) }));
+  if (o) rows.push(row({ c: 'green', ic: '↓', t: t('admUxO'), s: fmt(t('admUxOS'), { d: n(o.dl), s: n(o.sh), x: n(o.dx) }), v: n(o.jobs) }));
+  if (sg) rows.push(row({ c: 'purple', ic: '✓', t: t('admUxSg'), s: fmt(t('admUxAR'), { a: n(sg.a), r: n(sg.r) }), v: n(sg.jobs) }));
+  if (ai) rows.push(row({ c: 'purple', ic: '✦', t: t('admUxAi'), s: fmt(t('admUxAiS'), { q: n(ai.q), a: n(ai.a), r: n(ai.r) }), v: n(ai.jobs) }));
+  if (gl) rows.push(row({ c: 'gray', ic: 'Aa', t: t('admUxGl'), s: fmt(t('admUxGlS'), { a: n(gl.a) }), v: n(gl.jobs) }));
+  p.append(grp(t('admAfterUx')), rows.length ? list(...rows) : list(row({ c: 'gray', ic: '—', t: t('admNoData') })), h('p', 'adm-foot', t('admAfterFoot')));
+} });
+page('labRecent', { tab: 'imp', parent: 'lab', title: () => t('admLabRecent'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const r = v.recent || [];
+  if (!r.length) { p.append(list(row({ c: 'gray', ic: '—', t: t('admNoData') }))); return; }
+  p.append(list(...r.map((x, i) => row({ c: x.st === 'done' ? 'green' : x.st === 'failed' ? 'red' : 'gray', ic: x.st === 'done' ? '✓' : x.st === 'failed' ? '✕' : '·',
+    t: day(x.at) + ' · ' + modeTxt(x.mode), s: [stTxt(x.st), x.err ? ltr(x.err) : '', durTxt(x.dur), nz(x.jd) ? fmt(t('admModeJd'), { v: numTxt(x.jd) }) : nz(x.q) ? fmt(t('admModeQ'), { v: numTxt(x.q) }) : ''].filter(Boolean).join(' · '),
+    v: usdTxt(x.usd, 2), on: () => { D.labJ = i; go('labRec'); } }))));
+} });
+page('labRec', { tab: 'imp', parent: 'labRecent', title: () => t('admLabRec'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const x = (v.recent || [])[D.labJ || 0];
+  if (!x) { p.append(h('p', 'adm-note', t('admNoData'))); return; }
+  const kv = (l, val) => (val == null || val === '' || val === '—' ? null : row({ c: 'gray', ic: '#', t: l, v: val }));
+  p.append(h('p', 'adm-dt', ltr(x.id) + ' · ' + day(x.at)), list(
+    kv(t('admRState'), stTxt(x.st)), kv(t('admFCode'), x.err ? ltr(x.err) : ''), kv(t('admRMode'), modeTxt(x.mode)),
+    kv(t('admREng'), x.eng === 'api' ? t('admEngApi') : x.eng ? t('admEngSub') : ''), kv(t('admRDur'), durTxt(x.dur)), kv(t('admRRun'), durTxt(x.run)),
+    kv(t('admFUsd'), usdTxt(x.usd, 3)), kv(t('admKch'), pcTxt(x.ch)), kv(t('admKq'), numTxt(x.q)), kv(t('admKjd'), numTxt(x.jd)), kv(t('admRFires'), numTxt(x.fires))));
+  p.append(h('p', 'adm-foot', t('admRecFoot')));
+} });
+page('labData', { tab: 'imp', parent: 'lab', title: () => t('admLabData'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const c = D.lab.corpus || {}, d = D.lab.dev || {};
+  const mb = (b) => (nz(b) ? ltr((b / 1048576 >= 10 ? Math.round(b / 1048576) : (b / 1048576).toFixed(1)) + ' MB') : '—');
+  p.append(grp(t('admDataRec')), list(row({ c: 'purple', ic: '≡', t: t('admDataRecT'), s: fmt(t('admDataRecS'), { n: v.n90 || 0 }), v: numTxt(v.n) })));
+  p.append(grp(t('admDataCorpus')), c.on ? list(
+    row({ c: 'blue', ic: 'T', t: t('admDataTxt'), s: c.q ? fmt(t('admDataQ'), { n: c.q }) : '', v: numTxt(c.n || 0) }),
+    row({ c: 'orange', ic: '✎', t: t('admDataEd'), s: c.qe ? fmt(t('admDataQ'), { n: c.qe }) : '', v: numTxt(c.ne || 0) }),
+    row({ c: 'green', ic: '♪', t: t('admDataMedia'), s: fmt(t('admDataMediaS'), { a: c.na || 0, v: c.nv || 0, m: mb(c.mb) }), v: numTxt((c.na || 0) + (c.nv || 0)) }),
+    row({ c: 'gray', ic: '▤', t: t('admDataSize'), v: mb(c.bytes) })) : list(row({ c: 'gray', ic: '—', t: c.error ? t('admErr') : t('admDataOff') })));
+  const days = Object.entries(d.days || {}).sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 7);
+  p.append(grp(t('admDataDev')), list(
+    row({ c: d.on ? 'green' : 'gray', ic: d.on ? '●' : '○', t: t('admDataDevFlag'), s: d.on ? t('admDataDevOnS') : t('admDataDevOffS'), v: d.on ? t('admOn') : t('admOff'), on: () => go('flags') }),
+    ...(d.r2 ? [row({ c: 'purple', ic: 'J', t: t('admDataDevJ'), v: numTxt(d.j || 0) }), row({ c: 'blue', ic: 'M', t: t('admDataDevM'), v: numTxt(d.m || 0) }),
+      row({ c: 'red', ic: 'E', t: t('admDataDevE'), v: numTxt(d.e || 0) }), row({ c: 'gray', ic: '▤', t: t('admDataSize'), v: mb(d.bytes) })] : [])));
+  if (days.length) p.append(grp(t('admDataDays')), list(...days.map(([k, n]) => row({ c: 'gray', ic: '·', t: ltr(k), v: numTxt(n) }))));
+  p.append(h('p', 'adm-foot', t('admDataFoot')));
+} });
