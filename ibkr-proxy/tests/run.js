@@ -9,7 +9,8 @@ const quotes = require('../api/quotes');
 let n = 0;
 process.env.AI_ANON_DAILY = process.env.AI_ANON_DAILY || '1000000';   // v339: בבדיקות הישנות — בלי מגבלה יומית לכתובת
 process.env.SNB_SITEWATCH = 'off';   // שלב 5: ניטור הכתובות — רק בבלוק שלו (הכתובות האמיתיות לא נגישות בבדיקות)
-process.env.SNB_ADMINWATCH = 'off';   // 15/10/2026: התראות המנהל (adminWatch) — ההחלטה נבדקת ב־tests/adminov.test.js (watchStep)
+process.env.SNB_ADMINWATCH = 'off';
+process.env.SNB_LEARNWEEK = 'off';   // 20/10/2026 (מ׳7): ההתראה השבועית — רק בבלוק שלה   // 15/10/2026: התראות המנהל (adminWatch) — ההחלטה נבדקת ב־tests/adminov.test.js (watchStep)
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
 
 /* ---------- statementBaseFrom (SSRF guard) ---------- */
@@ -3429,7 +3430,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw,lc' && g.payload.lc === 0 && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw,lc,lw' && g.payload.lc === 0 && g.payload.lw === 0 && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;
@@ -3559,6 +3560,24 @@ function stubFetch(text, status = 200) {
       pr = await run({ op: 'learnPref', idToken: OWNER, on: true });
       await run({ op: 'learn', idToken: OWNER });
       ok(pr.payload.lrn === true && lkeys().length === nJobs, 'מאגר הלמידה: מתג דולק שוב — העבודות נכנסות');
+      // מ׳7: התראה שבועית למנהל — רק כשהיו עבודות תרגום השבוע, ופעם בשבוע
+      {
+        process.env.SNB_LEARNWEEK = '';
+        db.set('sysBackup/cfg', { fields: { uid: { stringValue: 'ownerUid0001' } } });
+        const wget = async () => { studio._reset(); const x = mockRes(); await studio._handler({ method: 'GET', headers: {} }, x, deps()); return x; };
+        let a = await wget();
+        const wk = db.get('sysWatch/learnWk');
+        ok(a.payload.lw === 1 && wk && +wk.fields.at.integerValue === now && +wk.fields.n.integerValue > 0, 'מ׳7: היו עבודות תרגום השבוע → התראה שבועית למנהל, ונרשם מתי');
+        a = await wget();
+        ok(a.payload.lw === 0, 'מ׳7: פעם בשבוע — בלי התראה כפולה');
+        db.set('sysWatch/learnWk', { fields: { at: { integerValue: String(now - 8 * 86400e3) } } });
+        const keep = lkeys().map((k) => [k, db.get(k)]);
+        for (const [k] of keep) db.delete(k);
+        a = await wget();
+        ok(a.payload.lw === 0 && +db.get('sysWatch/learnWk').fields.at.integerValue === now - 8 * 86400e3, 'מ׳7: שבוע בלי עבודות — בלי התראה, ובודקים שוב אחר כך');
+        for (const [k, v] of keep) db.set(k, v);
+        process.env.SNB_LEARNWEEK = 'off'; db.delete('sysBackup/cfg'); db.delete('sysWatch/learnWk'); studio._reset();
+      }
       studio._reset();
       const doneTr = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && db.get(k).fields.kind.stringValue === 'tr' && (db.get(k).fields.state || {}).stringValue === 'done' && db.get(k).fields.uid.stringValue === 'ownerUid0001');
       if (doneTr.length) {

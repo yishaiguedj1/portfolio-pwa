@@ -1094,7 +1094,8 @@ function insName(k) {
     case 'align_weak': return t('admI_align_weak');
     case 'sync_low': return t('admI_sync_low');
     case 'mode_value': return t('admI_mode_value');
-    case 'pv_change': return t('admI_pv_change');
+    case 'ver_worse': return t('admI_ver_worse');
+    case 'ver_better': return t('admI_ver_better');
     case 'inject_seen': return t('admI_inject_seen');
     case 'gold': return t('admI_gold');
     case 'need_data': return t('admI_need_data');
@@ -1130,7 +1131,8 @@ function insAct(k) {
     case 'align_weak': return t('admA_align_weak');
     case 'sync_low': return t('admA_sync_low');
     case 'mode_value': return t('admA_mode_value');
-    case 'pv_change': return t('admA_pv_change');
+    case 'ver_worse': return t('admA_ver_worse');
+    case 'ver_better': return t('admA_ver_better');
     case 'inject_seen': return t('admA_inject_seen');
     case 'gold': return t('admA_gold');
     case 'need_data': return t('admA_need_data');
@@ -1155,7 +1157,7 @@ function insFacts(x) {
   if (x.k === 'q_metric' && v.m) add(t('admFMetric'), qTxt(v.m));
   else if (v.m) add(t('admFModel'), ltr(String(v.m).replace(/^claude-/, '')));
   if (x.k === 'mode_value') { add(t('admFModeA'), modeTxt(v.a)); add(t('admFModeB'), modeTxt(v.b)); add(t('admFSave'), pcTxt(v.sv)); add(t('admFDq'), numTxt(v.d)); }
-  if (x.k === 'pv_change') { add(t('admFPvNew'), ltr(v.a)); add(t('admFPvOld'), ltr(v.b)); add(t('admFDq'), numTxt(v.dq)); if (nz(v.dc)) add(t('admFDc'), pcTxt(v.dc)); }
+  if (x.k === 'ver_worse' || x.k === 'ver_better') { add(t('admFVerDim'), verDim(v.d)); add(t('admFVerNew'), ltr(v.a)); add(t('admFVerOld'), ltr(v.b)); if (v.k) add(t('admFVerMet'), verMetName(v.k)); add(t('admFVerN'), numTxt(v.na)); add(t('admFVerNb'), numTxt(v.nb)); }
   if (nz(v.p)) add(t('admFShare'), pcTxt(v.p));
   if (nz(v.n)) add(t('admFN'), numTxt(v.n));
   if (nz(v.j)) add(t('admFJobs'), numTxt(v.j));
@@ -1203,6 +1205,7 @@ page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
   const k = v.k || {};
   p.append(h('p', 'adm-dt', fmt(t('admLabDt'), { n: v.n || 0, m: v.n90 || 0, d: v.first ? day(v.first) : '—' })));
   p.append(labHero(v));
+  p.append(list(wkRow(v)));
   p.append(grp(t('admLab30')), tiles(
     labTile('purple', t('admKn'), 'n', 1, numTxt),
     labTile('green', t('admKok'), 'ok', 1, pcTxt),
@@ -1217,6 +1220,7 @@ page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
     row({ c: 'orange', ic: '◷', t: t('admLabTime'), s: stg ? fmt(t('admLabTimeS'), { s: stgTxt(stg.k), p: pcTxt(stg.sh) }) : '', v: nz(k.spm) ? numTxt(k.spm) : '', tr: nz(k.spm) ? t('admSpmU') : '', on: () => go('labTime') }),
     row({ c: 'green', ic: '✓', t: t('admLabQual'), s: (v.jc && v.jc.c && v.jc.c[0]) ? fmt(t('admLabQualS'), { c: jgTxt(v.jc.c[0].k) }) : '', v: nz(k.jd) ? numTxt(k.jd) : nz(k.q) ? numTxt(k.q) : '', on: () => go('labQual') }),
     mxRow(v),
+    verRow(v),
     row({ c: 'red', ic: '✕', t: t('admLabFails'), s: fails.length ? ltr(fails[0].e) + ' · ' + fails[0].n : t('admLabFailsNone'), v: fails.length ? fails.reduce((a, x) => a + x.n, 0) : 0, on: () => go('labFails') }),
     row({ c: 'purple', ic: '⇆', t: t('admLabModes'), s: (v.modes || []).map((x) => modeTxt(x.m)).join(' · '), v: (v.modes || []).length, on: () => go('labModes') }),
     row({ c: 'blue', ic: '↻', t: t('admLabAfter'), s: fmt(t('admLabAfterS'), { e: (v.follow || {}).ed || 0, r: (v.follow || {}).rr || 0 }), v: nz(k.ht) ? pcTxt(k.ht) : '', tr: nz(k.ht) ? 'HTER' : '', on: () => go('labAfter') }),
@@ -1321,6 +1325,75 @@ page('labMx', { tab: 'imp', parent: 'lab', title: () => t('admLabMx'), render(p)
     row({ c: 'red', ic: '…', t: t('admMxShort'), s: nz(om.r50) ? fmt(t('admMxRatio'), { v: numTxt(om.r50) }) : '', v: pcTxt(om.s), meter: meter(om.s, 20, om.s >= 0.02) }),
     row({ c: 'red', ic: '#', t: t('admMxNum'), s: fmt(t('admMxNumS'), { n: numTxt(om.num) }), v: nz(om.numm) ? pcTxt(om.numm) : '—', meter: meter(om.numm, 5, om.numm >= 0.05) })));
   p.append(h('p', 'adm-foot', t('admMxFoot')));
+} });
+/* מ׳7 (20/10/2026): הלולאה — לפני ואחרי לכל גרסה (learnView.ver) והשבוע מול השבוע שעבר (learnView.ws). החישוב בשרתון */
+function verDim(d) {
+  switch (d) {
+    case 'env': return t('admVdEnv');
+    case 'tl': return t('admVdTl');
+    case 'rv': return t('admVdRv');
+    case 'rb': return t('admVdRb');
+    case 'jg': return t('admVdJg');
+    default: return ltr(String(d || ''));
+  }
+}
+function verV(v) {
+  switch (v) {
+    case 'up': return [t('admVvUp'), 'green'];
+    case 'dn': return [t('admVvDn'), 'red'];
+    case 'eq': return [t('admVvEq'), 'gray'];
+    case 'mix': return [t('admVvMix'), 'orange'];
+    case 'few': return [t('admVvFew'), 'gray'];
+    default: return [t('admVvQ'), 'blue'];
+  }
+}
+function verMetName(k) {
+  switch (k) {
+    case 'q': return t('admKq');
+    case 'jd': return t('admKjd');
+    case 'ok': return t('admKok');
+    case 'cpm': return t('admKcpm');
+    case 'spm': return t('admKspm');
+    case 'ht': return t('admKht');
+    case 'num': return t('admMxNum');
+    default: return ltr(String(k || ''));
+  }
+}
+const VER_FMT = { q: numTxt, jd: numTxt, ok: pcTxt, cpm: (x) => usdTxt(x, 3), spm: numTxt, ht: pcTxt, num: pcTxt };
+function verRow(v) {
+  const x = (v.ver || [])[0];
+  return row({ c: 'purple', ic: '⇄', t: t('admLabVer'), s: x ? verDim(x.d) + ' · ' + verV(x.v)[0] : t('admLabVerNone'), v: (v.ver || []).length || '', on: () => go('labVer') });
+}
+function wkRow(v) {
+  const w = v.ws || { k: {} };
+  return row({ c: 'blue', ic: '7', t: t('admLabWk'), s: fmt(t('admLabWkS'), { n: numTxt(w.k.n || 0), m: numTxt(w.k.min || 0) }), v: (w.nv || []).length ? '⇄ ' + w.nv.length : '', on: () => go('labWk') });
+}
+page('labVer', { tab: 'imp', parent: 'lab', title: () => t('admLabVer'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const vs = v.ver || [];
+  if (!vs.length) { p.append(list(row({ c: 'gray', ic: '—', t: t('admLabVerNone') })), h('p', 'adm-foot', t('admVerFoot'))); return; }
+  for (const x of vs) {
+    p.append(grp(verDim(x.d) + ' · ' + verV(x.v)[0]), h('p', 'adm-dt', fmt(t('admVerDt'), { d: day(x.at), a: x.na, b: x.nb })));
+    p.append(list(...x.m.map((m) => { const f = VER_FMT[m.k] || numTxt, [mt, mc] = verV(m.v);
+      return row({ c: mc, ic: m.v === 'up' ? '↑' : m.v === 'dn' ? '↓' : m.v === 'eq' ? '=' : '·', t: verMetName(m.k),
+        s: fmt(t('admVerAb'), { a: f(m.a), b: f(m.b) }), v: mt }); })));
+  }
+  p.append(h('p', 'adm-foot', t('admVerFoot')));
+} });
+page('labWk', { tab: 'imp', parent: 'lab', title: () => t('admLabWk'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const w = v.ws || { k: {}, kp: {} }, k = w.k || {}, kp = w.kp || {};
+  const tl = (c, lbl, key, dir, f) => { if (k[key] == null && kp[key] == null) return null; const [tr, trc] = trend(k[key], kp[key], dir, f);
+    return tileEl(c, lbl, f(k[key]), tr || (nz(kp[key]) ? fmt(t('admWas'), { v: f(kp[key]) }) : ''), trc, []); };
+  p.append(h('p', 'adm-dt', t('admWkDt')), tiles(
+    tl('purple', t('admKn'), 'n', 1, numTxt), tl('purple', t('admKmin'), 'min', 1, numTxt), tl('blue', t('admWkUsd'), 'usd', -1, (x) => usdTxt(x, 2)),
+    tl('blue', t('admKcpm'), 'cpm', -1, (x) => usdTxt(x, 3)), tl('green', t('admKq'), 'q', 1, numTxt), tl('purple', t('admKjd'), 'jd', 1, numTxt),
+    tl('green', t('admKok'), 'ok', 1, pcTxt), tl('orange', t('admKht'), 'ht', -1, pcTxt)));
+  const nv = w.nv || [];
+  p.append(grp(t('admWkNv')), nv.length ? list(...nv.map((x) => { const [vt, vc] = verV(x.v); return row({ c: vc, ic: '⇄', t: verDim(x.d), v: vt, on: () => go('labVer') }); }))
+    : list(row({ c: 'gray', ic: '—', t: t('admWkNone') })));
+  const top = (v.ins || [])[0];
+  if (top) p.append(grp(t('admNowTop')), list(row({ c: SEV_C[top.sev], ic: '!', t: insName(top.k), s: insAct(top.k), on: () => { D.labI = 0; go('labIn'); } })));
 } });
 page('labFails', { tab: 'imp', parent: 'lab', title: () => t('admLabFails'), render(p) {
   const v = needLab(p); if (!v) return;
