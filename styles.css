@@ -401,6 +401,8 @@ html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand 
 /* 20/10/2026: השלג של הלוגו עובר מאחורי הפקדים בהדר — רקע אטום באותו גוון בדיוק (הגוון השקוף מעל צבע הדף),
    אחרת בכהה הפתיתים נראו דרך הכפתורים כאילו הם מעליהם */
 .appbar .icon-btn, .appbar .fx-pill, .appbar .st-pill.open { background: linear-gradient(var(--surface-2), var(--surface-2)) var(--bg); }
+/* בועת השער כמו הכפתורים: ממוקמת (אחרת שכבת השלג — הקשר ערימה של הלוגו — מצוירת מעליה) ועם אותו מסגור */
+.appbar .fx-pill { position: relative; z-index: 1; border: 1px solid var(--card-border); }
 .appbar .st-pill.pre { background: color-mix(in srgb, #FF9F0A 18%, var(--bg)); }
 .appbar .st-pill.post { background: color-mix(in srgb, #5E5CE6 18%, var(--bg)); }
 .appbar .st-pill.night { background: color-mix(in srgb, #0A84FF 16%, var(--bg)); }
