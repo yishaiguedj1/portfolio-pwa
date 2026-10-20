@@ -142,6 +142,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(len(lost), 1, r.stdout + r.stderr)
         self.assertTrue(lost[0].get('fail'))
         self.assertFalse((state / 'job.json').exists(), 'אחרי הדיווח — הניקוי הרגיל')
+        self.assertFalse((work / '.busy').exists(), '20/10/2026: .busy שנשאר מעבודה שנקטעה נמחק — אחרת המעדכן לא מחליף גרסה לעולם')
         self.assertIn('lost', [k for _, k in self.fake.hb[0]['ev']], 'יומן השרת: "עבודה נקטעה"')
         self.assertNotIn(KEY, r.stdout + r.stderr)
 
@@ -152,6 +153,16 @@ class AgentTests(unittest.TestCase):
         r = self.agent()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual([x for x in self.fake.reports if x.get('err') == 'worker_lost'], [], 'בלי .busy — לא עבודה שנקטעה')
+
+    def test_stale_busy_removed_on_start(self):
+        # 20/10/2026: .busy בלי קובץ מצב (העבודה כבר נמחקה / בוטלה) — בעלייה אף עבודה לא רצה, אז הוא שארית
+        work = self.tmp / 'work'
+        work.mkdir(parents=True)
+        (work / '.busy').write_text(JOB)
+        r = self.agent()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse((work / '.busy').exists())
+        self.assertEqual(self.fake.hb[0]['busy'], '', 'הדופק: לא עסוק')
 
     def test_refuses_foreign_server_and_bad_token(self):
         r = self.agent(env=dict(self.env, SNB_SERVER='https://evil.example.com'))
