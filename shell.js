@@ -68,12 +68,12 @@ export function createShell(o) {
   const hdr = h('header', 'appbar');
   const row = h('div', 'appbar-row');
   const brand = h('h1', 'brand');
-  const img = h('img', 'brand-logo'); img.src = o.logo || 'logo-header.png'; img.width = 128; img.height = 128; img.alt = ''; img.decoding = 'async';
+  const img = h('img', 'brand-logo'); img.src = o.logo || 'logo-invest.webp'; img.width = 128; img.height = 128; img.alt = ''; img.decoding = 'async';
   // לוגו חד בכל צפיפות מסך (13/10/2026): 512 = פי 4 מ־128; ‏logoLg (768) לטלפונים בצפיפות גבוהה יותר
   if (o.logoLg) { img.srcset = o.logo + ' 512w, ' + o.logoLg + ' 768w'; img.sizes = '128px'; }
-  /* 20/10/2026: הלוגו החי — הלוגו, המצמוץ, החיוך והברק בעטיפה אחת שזזה יחד; השלג מאחור ולפני (styles.css) */
+  /* 20/10/2026: הלוגו החי — הלוגו, הפנים (face-<app>.webp) והברק בעטיפה אחת שזזה יחד; השלג מאחור ולפני (styles.css) */
   const art = h('span', 'brand-art'), snow = h('span', 'brand-snow'), front = h('span', 'brand-snow front');
-  for (const c of ['brand-blink', 'brand-smile', 'brand-sheen']) { const e = h('span', c); e.setAttribute('aria-hidden', 'true'); art.append(e); }
+  for (const c of ['brand-face', 'brand-sheen']) { const e = h('span', c); e.setAttribute('aria-hidden', 'true'); art.append(e); }
   art.prepend(img);
   snow.innerHTML = '<i></i><i></i><i></i><b></b><b></b><b></b>'; front.innerHTML = '<i></i>';   // שלוש שכבות שלג + שלושה ניצוצות קרח · שכבה קרובה
   snow.setAttribute('aria-hidden', 'true'); front.setAttribute('aria-hidden', 'true');

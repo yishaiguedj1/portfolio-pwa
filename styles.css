@@ -195,44 +195,110 @@ html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = �
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.5)) drop-shadow(0 0 14px rgba(57,255,120,.10));
 }
 /* 20/10/2026 (בקשת המשתמש — "לוגו חי" כמו הדמות של Muse, ברמה של לוגו מקצועי, נקי כמו של Apple).
-   השכבות: .brand-art (הלוגו + המצמוץ + החיוך + הברק) זז כיחידה אחת — אף שכבה לא "מחליקה" מהפנים, גם בתלת־ממד;
+   השכבות: .brand-art (הלוגו + הפנים החיות + הברק) זז כיחידה אחת — אף שכבה לא "מחליקה" מהפנים, גם בתלת־ממד;
    סביבו הילה קרה, אד בבסיס, ושלג בשלוש שכבות עומק מאחור + שכבה קרובה ומטושטשת לפני הלוגו (רק בשוליים).
    התנועה = כמה אנימציות על תכונות נפרדות שמתחברות: translate (ריחוף, 6.5 שנ׳), scale (נשימה, 4.6 שנ׳),
-   rotate (נטייה, 9 שנ׳) ו־transform (ה"משחק" — מבט לצד, צחקוק — על ציר של 16 שנ׳, יחד עם המצמוץ והחיוך);
+   rotate (נטייה, 9 שנ׳) ו־transform (תנועת הראש — נמשך אחרי המבט, מרים סנטר בהרמת הגבות, צוחק — 20 שנ׳, יחד עם הפנים);
+   הפנים = גיליון של 12 פריימים (face-<app>.webp, tools/brand-face.py — liquify של הציור עצמו: מצמוץ אמיתי, מבט, גבות,
+   חיוך דושן) שמתחלפים ב־step-end לפי tools/brand-face-timeline.py;
    מחזורים שונים = התנועה לא חוזרת על עצמה באותו סדר, כמו דמות חיה. רק transform/opacity — compositor בלבד.
-   התמונות: logo-blink-*.png / logo-smile-*.png (tools/brand-blink.py), snow-*-light|dark.png (tools/snow-sprites.py, פי 4). */
-.appbar .brand { --logo: url(logo-header.png); --blink: url(logo-blink-invest.png); --smile: url(logo-smile-invest.png);
-  --bk-y: 48.44%; --bk-h: 5.47%; isolation: isolate; }
-html[data-app="academy"] .appbar .brand { --logo: url(logo-academy.webp); --blink: url(logo-blink-academy.png); --smile: url(logo-smile-academy.png); --bk-y: 48.18%; --bk-h: 5.6%; }
-html[data-app="studio"] .appbar .brand { --logo: url(logo-studio.webp); --blink: url(logo-blink-studio.png); --smile: url(logo-smile-studio.png); --bk-y: 48.18%; --bk-h: 5.34%; }
+   השלג: snow-*-light|dark.png (tools/snow-sprites.py, פי 4). */
+.appbar .brand { --logo: url(logo-invest.webp); --face: url(face-invest.webp); isolation: isolate; }
+html[data-app="academy"] .appbar .brand { --logo: url(logo-academy.webp); --face: url(face-academy.webp); }
+html[data-app="studio"] .appbar .brand { --logo: url(logo-studio.webp); --face: url(face-studio.webp); }
 .appbar .brand-art { position: relative; z-index: 2; display: block; transform-origin: 50% 86%; will-change: transform;
   animation: artFloat 6.5s cubic-bezier(.45, 0, .55, 1) infinite, artBreath 4.6s cubic-bezier(.45, 0, .55, 1) infinite,
-             artLean 9s cubic-bezier(.45, 0, .55, 1) infinite, artAct 16s linear infinite; }
-.appbar .brand-blink, .appbar .brand-smile { position: absolute; left: 44.14%; top: var(--bk-y); width: 17.58%; height: var(--bk-h);
-  background: var(--blink) center / 100% 100% no-repeat; opacity: 0; pointer-events: none; animation: eyeBlink 16s linear infinite; }
-.appbar .brand-smile { background-image: var(--smile); animation-name: eyeSmile; }
+             artLean 9s cubic-bezier(.45, 0, .55, 1) infinite, artAct 20s linear infinite; }
+.appbar .brand-face { position: absolute; pointer-events: none;   /* המיקום מ־brand-face.py (באחוזים מהלוגו) */
+  left: var(--fx); top: var(--fy); width: var(--fw); height: var(--fh);
+  background: var(--face) 0 0 / 1200% 100% no-repeat; animation: faceAct 20s step-end infinite; }
+.appbar .brand { --fx: 39.714%; --fy: 43.62%; --fw: 26.172%; --fh: 21.875%; }
+html[data-app="academy"] .appbar .brand, html[data-app="studio"] .appbar .brand { --fx: 39.844%; --fw: 26.042%; --fh: 21.615%; }
 @keyframes artFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
 @keyframes artBreath { 0%, 100% { scale: 1; } 45% { scale: 1.022; } }
-@keyframes artLean { 0%, 100% { rotate: -1.6deg; } 50% { rotate: 1.6deg; } }
-/* ה"משחק" (16 שנ׳): 0–4 מבט קדימה · 4.3 מצמוץ · 6–8.4 חיוך עם העיניים וצחקוק קטן · 10.5–13 מבט לצד ובחזרה · 14 מצמוץ כפול */
+@keyframes artLean { 0%, 100% { rotate: -1.4deg; } 50% { rotate: 1.4deg; } }
+/* פריימי הפנים ותנועת הראש — tools/brand-face-timeline.py (20 שנ׳, תזמון אנושי) */
+@keyframes faceAct {
+  0.000% { background-position-x: 0.0000%; }
+  4.500% { background-position-x: 36.3636%; }
+  4.700% { background-position-x: 45.4545%; }
+  12.000% { background-position-x: 36.3636%; }
+  12.200% { background-position-x: 0.0000%; }
+  16.500% { background-position-x: 9.0909%; }
+  16.650% { background-position-x: 18.1818%; }
+  16.800% { background-position-x: 27.2727%; }
+  17.300% { background-position-x: 18.1818%; }
+  17.600% { background-position-x: 9.0909%; }
+  18.000% { background-position-x: 0.0000%; }
+  23.000% { background-position-x: 90.9091%; }
+  25.500% { background-position-x: 72.7273%; }
+  26.750% { background-position-x: 0.0000%; }
+  30.500% { background-position-x: 72.7273%; }
+  31.750% { background-position-x: 81.8182%; }
+  36.000% { background-position-x: 100.0000%; }
+  36.650% { background-position-x: 81.8182%; }
+  43.000% { background-position-x: 72.7273%; }
+  44.750% { background-position-x: 0.0000%; }
+  49.000% { background-position-x: 9.0909%; }
+  49.150% { background-position-x: 18.1818%; }
+  49.300% { background-position-x: 27.2727%; }
+  49.800% { background-position-x: 18.1818%; }
+  50.100% { background-position-x: 9.0909%; }
+  50.500% { background-position-x: 0.0000%; }
+  55.000% { background-position-x: 54.5455%; }
+  55.200% { background-position-x: 63.6364%; }
+  61.500% { background-position-x: 54.5455%; }
+  61.700% { background-position-x: 0.0000%; }
+  66.000% { background-position-x: 9.0909%; }
+  66.150% { background-position-x: 18.1818%; }
+  66.300% { background-position-x: 27.2727%; }
+  66.800% { background-position-x: 18.1818%; }
+  67.100% { background-position-x: 9.0909%; }
+  67.500% { background-position-x: 0.0000%; }
+  71.500% { background-position-x: 36.3636%; }
+  77.000% { background-position-x: 0.0000%; }
+  81.000% { background-position-x: 72.7273%; }
+  87.500% { background-position-x: 0.0000%; }
+  91.000% { background-position-x: 9.0909%; }
+  91.150% { background-position-x: 18.1818%; }
+  91.300% { background-position-x: 27.2727%; }
+  91.800% { background-position-x: 18.1818%; }
+  92.100% { background-position-x: 9.0909%; }
+  92.500% { background-position-x: 0.0000%; }
+  93.250% { background-position-x: 9.0909%; }
+  93.400% { background-position-x: 18.1818%; }
+  93.550% { background-position-x: 27.2727%; }
+  94.050% { background-position-x: 18.1818%; }
+  94.350% { background-position-x: 9.0909%; }
+  94.750% { background-position-x: 0.0000%; }
+  100% { background-position-x: 0%; }
+}
 @keyframes artAct {
-  0%, 36% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.3, 0, .2, 1); }
-  39% { transform: perspective(520px) translateY(-2px) scale(1.03) rotateY(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
-  42% { transform: perspective(520px) translateY(0px) scale(1.035) rotateY(0deg) rotate(-1deg); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
-  45% { transform: perspective(520px) translateY(-1.6px) scale(1.035) rotateY(0deg) rotate(-1deg); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
-  48% { transform: perspective(520px) translateY(0px) scale(1.03) rotateY(0deg) rotate(-0.5deg); animation-timing-function: cubic-bezier(.45, 0, .2, 1); }
-  54%, 64% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.45, 0, .25, 1); }
-  71%, 76% { transform: perspective(520px) translateY(0px) scale(1) rotateY(9deg) rotate(0.8deg); animation-timing-function: cubic-bezier(.45, 0, .25, 1); }
-  83%, 100% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotate(0deg); }
-}
-}
-@keyframes eyeBlink {   /* כ־140ms כל מצמוץ; 26.9% = 4.3 שנ׳, 87.5% + 89.4% = מצמוץ כפול */
-  0%, 26.6%, 27.6%, 87.2%, 88.1%, 89.1%, 90%, 100% { opacity: 0; }
-  26.95%, 27.25%, 87.5%, 87.8%, 89.4%, 89.7% { opacity: 1; }
-}
-@keyframes eyeSmile {
-  0%, 37%, 52.5%, 100% { opacity: 0; }
-  39%, 50% { opacity: 1; }
+  0.000% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  5.250% { transform: perspective(520px) translateY(0px) scale(1) rotateY(-4.5deg) rotateX(0deg) rotate(-0.6deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  11.500% { transform: perspective(520px) translateY(0px) scale(1) rotateY(-4.5deg) rotateX(0deg) rotate(-0.6deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  13.500% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  22.750% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  23.750% { transform: perspective(520px) translateY(-2.2px) scale(1.02) rotateY(0deg) rotateX(5deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  27.000% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  30.500% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  32.500% { transform: perspective(520px) translateY(-1px) scale(1.03) rotateY(0deg) rotateX(0deg) rotate(-1.5deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  34.000% { transform: perspective(520px) translateY(0px) scale(1.03) rotateY(0deg) rotateX(0deg) rotate(-1.5deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  35.000% { transform: perspective(520px) translateY(-1.7px) scale(1.035) rotateY(0deg) rotateX(0deg) rotate(-1.5deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  36.000% { transform: perspective(520px) translateY(0px) scale(1.035) rotateY(0deg) rotateX(0deg) rotate(-1.2deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  37.000% { transform: perspective(520px) translateY(-1.2px) scale(1.03) rotateY(0deg) rotateX(0deg) rotate(-1.2deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  38.500% { transform: perspective(520px) translateY(-0.4px) scale(1.03) rotateY(0deg) rotateX(0deg) rotate(-1deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  44.750% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  55.750% { transform: perspective(520px) translateY(0px) scale(1) rotateY(4.5deg) rotateX(0deg) rotate(0.6deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  61.500% { transform: perspective(520px) translateY(0px) scale(1) rotateY(4.5deg) rotateX(0deg) rotate(0.6deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  63.500% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  72.000% { transform: perspective(520px) translateY(0px) scale(1) rotateY(-2.4deg) rotateX(0deg) rotate(-0.3deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  77.500% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  81.000% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  83.000% { transform: perspective(520px) translateY(0px) scale(1.015) rotateY(0deg) rotateX(0deg) rotate(-0.8deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  87.500% { transform: perspective(520px) translateY(0px) scale(1.015) rotateY(0deg) rotateX(0deg) rotate(-0.8deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  90.000% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
+  100.000% { transform: perspective(520px) translateY(0px) scale(1) rotateY(0deg) rotateX(0deg) rotate(0deg); animation-timing-function: cubic-bezier(.4, 0, .25, 1); }
 }
 /* ברק שעובר על הקרח פעם במחזור — פס אור רך בצורת הלוגו בלבד (מסכה מהלוגו עצמו) */
 .appbar .brand-sheen { position: absolute; inset: 0; overflow: hidden; pointer-events: none;
@@ -287,7 +353,7 @@ html[data-app="studio"] .appbar .brand { --logo: url(logo-studio.webp); --blink:
 .appbar .brand-snow b:nth-of-type(3) { left: 37%; top: 80%; animation-delay: -4.1s; animation-duration: 8s; }
 @keyframes iceGlint { 0%, 70%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 80% { opacity: 1; transform: scale(1) rotate(45deg); } 90% { opacity: 0; transform: scale(.5) rotate(90deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .appbar .brand-logo, .appbar .brand-art, .appbar .brand-blink, .appbar .brand-smile, .appbar .brand-sheen::before, .appbar .brand::before, .appbar .brand::after, .appbar .brand-snow i, .appbar .brand-snow i::before, .appbar .brand-snow b { animation: none; }
+  .appbar .brand-logo, .appbar .brand-art, .appbar .brand-face, .appbar .brand-sheen::before, .appbar .brand::before, .appbar .brand::after, .appbar .brand-snow i, .appbar .brand-snow i::before, .appbar .brand-snow b { animation: none; }
 }
 
 /* v140: flex-end (לא flex-start) — הצד היציב הוא זה שצמוד לקצה המסך (לא

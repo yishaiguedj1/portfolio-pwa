@@ -36,7 +36,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 <!-- v193: ה־SDK של Firebase נטען מ־cloud.js אחרי הציור הראשון (אותם קבצים, אותן חתימות SRI) — לא חוסם את הטעינה.
      14/10/2026: בראש הדף (defer — רצים אחרי הניתוח, באותו סדר) — blocking="render" עובד רק ב־head: הדפדפן לא מצייר עד
      ש־cloud.js רץ, והוא מפעיל את האתחול של app.js מיד (window.snbInit) — הציור הראשון = הדף המלא, בלי תבנית ריקה/פריים ריק -->
-<link rel="preload" as="image" href="logo-header.png" fetchpriority="high">
+<link rel="preload" as="image" href="logo-invest-lg.webp" fetchpriority="high">
 <script src="firebase-config.js" defer></script>
 <script src="returns.js" defer></script>
 <script src="move.js" defer></script>
@@ -47,7 +47,7 @@ if(h.lib>=2){var r=JSON.parse(localStorage.getItem('pwa_reader_v1')||'{}');var t
 
 <header class="appbar">
   <div class="appbar-row">
-    <h1 class="brand"><span class="brand-art"><img src="logo-header.png" class="brand-logo" width="128" height="128" alt="" decoding="sync" fetchpriority="high"><span class="brand-blink" aria-hidden="true"></span><span class="brand-smile" aria-hidden="true"></span><span class="brand-sheen" aria-hidden="true"></span></span><span class="brand-snow" aria-hidden="true"><i></i><i></i><i></i><b></b><b></b><b></b></span><span class="brand-snow front" aria-hidden="true"><i></i></span><span class="sr-only" data-i18n="appTitle">תיק ההשקעות</span></h1>
+    <h1 class="brand"><span class="brand-art"><img src="logo-invest-lg.webp" class="brand-logo" width="128" height="128" alt="" decoding="sync" fetchpriority="high"><span class="brand-face" aria-hidden="true"></span><span class="brand-sheen" aria-hidden="true"></span></span><span class="brand-snow" aria-hidden="true"><i></i><i></i><i></i><b></b><b></b><b></b></span><span class="brand-snow front" aria-hidden="true"><i></i></span><span class="sr-only" data-i18n="appTitle">תיק ההשקעות</span></h1>
     <div class="appbar-left">
     <p class="appbar-sub" id="sourceLabel" data-i18n="loadingSource">מקור: טוען…</p>
     <div class="appbar-actions">

@@ -22,4 +22,4 @@
 
 **20/10/2026 (בנייה 451)**: הלוגו החי בהדר — `logo-blink-invest.png` / `-academy` / `-studio`: אותו לוגו עם עיניים עצומות, רק המלבן של העדשות (מ־`logo-header.png`, `logo-academy-lg.webp`, `logo-studio-lg.webp`). נוצרו ב־`tools/brand-blink.py`: מילוי העפעף והאישון מצבע העדשה סביבם, וקשת עפעף סגור שמתעבה באמצע בצבע הקווים של הלוגו. המיקום באחוזים — ב־styles.css (`--bk-y`/`--bk-h`/`--bk-oy`). לוגו חדש = להריץ שוב.
 
-**20/10/2026, סבב 2**: גם `logo-smile-<app>.png` (עיניים מחייכות — `tools/brand-blink.py <לוגו> <יעד> smile`), ואריחי השלג `snow-<far|mid|near>-<light|dark>.png` (`tools/snow-sprites.py`, פי 4, זרע קבוע).
+**20/10/2026, סבב 3**: `logo-blink/smile-*.png` הוחלפו ב־`face-<app>.webp` — גיליון של 12 פריימים של הפנים (`tools/brand-face.py`: liquify של הציור עצמו — מצמוץ שבו העפעף מסתיר את האישון בהדרגה, מבט לצדדים, הרמת גבות, חיוך דושן וצחוק), ותזמון אנושי ב־`tools/brand-face-timeline.py`. ל־Invest לוגו חדש מהמאסטר: `logo-invest.webp` (512) ו־`logo-invest-lg.webp` (768), באותו מלבן של `logo-header.png` (שנשאר לאייקונים ולמבחנים). אריחי השלג `snow-<far|mid|near>-<light|dark>.png` (`tools/snow-sprites.py`, פי 4, זרע קבוע).
