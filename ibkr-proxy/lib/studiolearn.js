@@ -14,6 +14,7 @@ const STAGES = ['up', 'tr', 'al', 'tl', 'rv', 'bn', 'sv'];
 const ROLES = ['main', 'tl', 'rv', 'jg', 'sub'];
 const Q_KEYS = ['cps', 'len', 'lines', 'dur', 'en', 'chk'];
 const JG_CODES = ['mean', 'omit', 'add', 'gram', 'flu', 'term'];
+const MX_GROUPS = ['st', 'tm', 'cs', 'om'];                // st שלבים · tm תזמון · cs עקביות · om השמטות
 const MODES = ['haiku-medium', 'haiku-high', 'sonnet-low', 'sonnet-medium', 'sonnet-high', 'opus-medium'];   // מהזול ליקר
 const DAY = 86400e3, WIN = 30 * DAY;
 const KEY_RE = /^[a-z][a-z0-9_.]{0,47}$/;
@@ -74,6 +75,11 @@ function normLx(o) {
     const fl = flatNums(o.cu.fl, 20, 1e7); if (Object.keys(fl).length) cu.fl = fl;
     if (Object.keys(cu).length) out.cu = cu;
   }
+  if (o.mx && typeof o.mx === 'object' && !Array.isArray(o.mx)) {                      // מ׳5: המדדים בקוד (translator/learnmetrics.py)
+    const mx = {};
+    for (const g of MX_GROUPS) { const x = flatNums(o.mx[g], 30, 1e7); if (Object.keys(x).length) mx[g] = x; }
+    if (Object.keys(mx).length) out.mx = mx;
+  }
   for (const k of ['wd', 'tl', 'en', 'sy', 'gl', 'md']) {
     if (!o[k] || typeof o[k] !== 'object') continue;
     const x = flatNums(o[k], 30, 1e12);
@@ -85,14 +91,15 @@ function normLx(o) {
 
 /* ---------------- 1ב. מה קרה אחרי העבודה (מ׳3, 15/10/2026) — מהטלפון, מספרים בלבד ----------------
    e = עריכות בעורך הכתוביות (s שמירות, ws שניות עבודה פעילה, n שינויים, cd/wd מרחק עריכה בתווים/במילים, m שינויי טקסט שגם
-       הזמן שלהם זז, wa/ca מילים/תווים בגרסה האחרונה — המכנה של HTER, ולכל סוג: txt tm sp mg add del mx)
+       הזמן שלהם זז, wa/ca מילים/תווים בגרסה האחרונה — המכנה של HTER, ולכל סוג: txt tm sp mg add del mx;
+       מ׳5: sb עריכות SubER — גם שבירות וזמנים, sr אסימוני הייחוס בגרסה האחרונה — המכנה)
    pl = הנגן (n הפעלות, sec שניות צפייה, cov החלק הגדול ביותר של הסרטון שנצפה — 0 עד 1)
    o = תוצרים (dl הורדות, sh שיתופים, dx שמירה בתיקייה ב־Drive) · sg = הצעות (a התקבלו, r נדחו)
    ai = גיליון ה־AI (q בקשות, a שינויים שהוחלו, r שנדחו) · gl = מונחים שנוספו למילון מתוך העבודה (a)
    הטלפון שולח תוספת (delta); המיזוג מחבר, חוץ מ־cov (המקסימום) ו־wa/ca (האחרון). **UX_SHAPE זהה ל־UX_SHAPE ב־studio.js** */
 const ED_KINDS = ['txt', 'tm', 'sp', 'mg', 'add', 'del', 'mx'];
-const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
-const UX_LAST = ['wa', 'ca'], UX_HI = 1e7;
+const UX_SHAPE = { e: ['s', 'ws', 'n', 'cd', 'wd', 'm', 'wa', 'ca', 'sb', 'sr'].concat(ED_KINDS), pl: ['n', 'sec', 'cov'], o: ['dl', 'sh', 'dx'], sg: ['a', 'r'], ai: ['q', 'a', 'r'], gl: ['a'] };
+const UX_LAST = ['wa', 'ca', 'sr'], UX_HI = 1e7;
 function normUx(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -266,13 +273,14 @@ function kpis(rs) {
   };
 }
 /* מ׳3: מה קרה אחרי העבודה. ht = שיעור העריכה (HTER: מילים שתוקנו ÷ מילים בגרסה האחרונה) על העבודות שנערכו ונשמרו;
-   edr = חלק העבודות שנערכו; cov = חציון החלק שנצפה בנגן (מהעבודות שנצפו); sga = חלק ההצעות שהתקבלו */
+   sb = SubER (מ׳5 — כמו HTER, אבל גם שבירות שורה/כתובית וזמנים); edr = חלק העבודות שנערכו; cov = חציון החלק שנצפה בנגן (מהעבודות שנצפו); sga = חלק ההצעות שהתקבלו */
 function uxKpis(done) {
   const ed = done.filter((r) => r.ux && r.ux.e && r.ux.e.s > 0 && r.ux.e.wa > 0);
   const pl = done.filter((r) => r.ux && r.ux.pl && r.ux.pl.n > 0);
   const sg = done.map((r) => (r.ux && r.ux.sg) || {}), sga = sum(sg.map((x) => x.a)), sgr = sum(sg.map((x) => x.r));
   return {
     ht: ed.length ? rnd(sum(ed.map((r) => r.ux.e.wd)) / sum(ed.map((r) => r.ux.e.wa)), 3) : null,
+    sb: (() => { const x = ed.filter((r) => r.ux.e.sr > 0); return x.length ? rnd(sum(x.map((r) => r.ux.e.sb || 0)) / sum(x.map((r) => r.ux.e.sr)), 3) : null; })(),   // מ׳5: SubER
     edr: done.length ? rnd(ed.length / done.length, 3) : null,
     cov: pl.length ? rnd(median(pl.map((r) => r.ux.pl.cov)), 3) : null,
     sga: sga + sgr > 0 ? rnd(sga / (sga + sgr), 3) : null,
@@ -342,12 +350,107 @@ function qualityFails(rs) {
   for (const r of rs) if (r.q && r.q.n) { n += r.q.n; for (const [k, v] of Object.entries(r.q.b || {})) if (k !== 'chk') b[k] = (b[k] || 0) + v; }
   return { n, m: Q_KEYS.filter((k) => k !== 'chk').map((k) => ({ k, b: b[k] || 0, sh: n ? rnd((b[k] || 0) / n, 4) : 0 })).sort((x, y) => y.sh - x.sh) };
 }
+/* מ׳5: המדדים בקוד מכל העבודות שהסתיימו (lx.mx) — יחסים מצרפיים: מה כל שלב שינה (ch = חלק הכתוביות ששונו, t TER,
+   c chrF++, ממוצע משוקלל במספר הכתוביות), תזמון מול הדיבור, עקביות והשמטות */
+const MX_PAIRS = ['df', 'fr', 'rz', 'dz'];
+function mxView(rs) {
+  const xs = rs.filter((r) => r.k === 'tr' && r.st === 'done' && r.lx && r.lx.mx).map((r) => r.lx.mx);
+  if (!xs.length) return null;
+  const g = (k) => xs.map((x) => x[k]).filter(Boolean);
+  const share = (a, b) => (b > 0 ? rnd(a / b, 4) : null);
+  const st = g('st').filter((x) => x.n > 0), n = sum(st.map((x) => x.n));
+  const wavg = (k) => { const w = st.filter((x) => isNum(x[k])); const d = sum(w.map((x) => x.n)); return d ? rnd(sum(w.map((x) => x[k] * x.n)) / d, 2) : null; };
+  const out = { n: xs.length, st: { n } };
+  for (const p of MX_PAIRS) out.st[p] = { ch: share(sum(st.map((x) => x[p + '.ch'])), n), t: wavg(p + '.t'), c: wavg(p + '.c') };
+  const tm = g('tm').filter((x) => x.n > 0), tn = sum(tm.map((x) => x.n)), sp = sum(tm.map((x) => x.n - (x.nw || 0)));
+  const sh = tm.filter((x) => isNum(x['sh.near']));
+  out.tm = { n: tn, late: share(sum(tm.map((x) => x.late)), sp), cut: share(sum(tm.map((x) => x.cut)), sp), nw: share(sum(tm.map((x) => x.nw)), tn),
+    in: rnd(median(tm.map((x) => x['in.p50'])), 3), out: rnd(median(tm.map((x) => x['out.p50'])), 3),
+    shb: sh.length ? share(sum(sh.map((x) => x['sh.bad'])), 2 * sum(sh.map((x) => x.n))) : null };
+  const cs = g('cs'), nmn = sum(cs.map((x) => x['nm.n'])), gln = sum(cs.map((x) => x['gl.n']));
+  out.cs = { nm: nmn, nmv: share(sum(cs.map((x) => x['nm.var'])), nmn), gl: gln, glm: share(sum(cs.map((x) => x['gl.miss'])), gln), glx: sum(cs.map((x) => x['gl.mix'])) };
+  const om = g('om'), numn = sum(om.map((x) => x['num.n']));
+  out.om = { e: share(sum(om.map((x) => x['om.e'])), n), s: share(sum(om.map((x) => x['om.s'])), n), num: numn, numm: share(sum(om.map((x) => x['num.miss'])), numn),
+    r50: rnd(median(om.map((x) => x['om.r50'])), 3) };
+  return out;
+}
 function modeTable(rs) {
   return MODES.map((m) => ({ m, ...kpis(rs.filter((r) => r.mode === m)) })).filter((x) => x.n > 0);
 }
 /* מנוע מסקנות — כל מסקנה: k (קוד), sev 1 דחוף / 2 חשוב / 3 שווה בדיקה, imp = ההשפעה המשוערת בדולר לחודש (או 0), v = המספרים.
    הדירוג: קודם חומרה, אחר כך השפעה. הטלפון בונה את הטקסט מהקוד (בשתי השפות) */
-function insights(rs, k30, roles, stages, fails, jc, qf, modes, now) {
+/* ---------------- מ׳7 (20/10/2026): הלולאה — לפני ואחרי לכל גרסה ----------------
+   כל עבודה נושאת את גרסת הקוד של העובד (env) ואת גרסת ההנחיות של כל סוכן (pv). לכל ממד: הגרסה החדשה (זו שהופיעה אחרונה)
+   מול הקודמת — הממוצע לעבודה, ההפרש ורווח סמך של 90% ב־bootstrap (זרע קבוע לפי הגרסאות — אותה תשובה בכל טעינה).
+   פסק: up = טוב יותר בוודאות, dn = גרוע יותר בוודאות, eq = כל הרווח בתוך הסף (אותו דבר בפועל), ? = עוד לא ברור, few = פחות מ־VER_MIN */
+const VER_DIMS = ['env', 'tl', 'rv', 'rb', 'jg'];   // env = הקוד, השאר = ההנחיות של המתרגם / המבקר / המתזמר / השופט
+const VER_MIN = 3, VER_LAST = 20, VER_B = 2000;
+// [מפתח, כיוון (1 = גבוה עדיף), סף שוויון (מוחלט, או r = יחסי לממוצע הישן), ליבה]
+const VER_MET = [['q', 1, 2, 1], ['jd', 1, 2, 1], ['ok', 1, 0.05, 1], ['cpm', -1, 'r', 1], ['spm', -1, 'r', 0], ['ht', -1, 0.02, 0], ['num', -1, 0.02, 0]];
+function verVals(r) {
+  const done = r.st === 'done', m = mins(r), ox = r.lx && r.lx.mx && r.lx.mx.om, e = r.ux && r.ux.e, rs = runSec(r);
+  return {
+    q: done && r.q ? r.q.s : null, jd: done && r.jd ? r.jd.s : null,
+    ok: r.st === 'done' || r.st === 'failed' ? (okFirst(r) ? 1 : 0) : null,
+    cpm: done && r.pr && m > 0 ? r.usd / m : null, spm: done && rs != null && m > 0 ? rs / m : null,
+    ht: done && e && e.s > 0 && e.wa > 0 ? e.wd / e.wa : null,
+    num: done && ox && ox['num.n'] > 0 ? ox['num.miss'] / ox['num.n'] : null,
+  };
+}
+function seeded(s) {   // mulberry32
+  let a = 0; for (const ch of String(s)) a = (Math.imul(a ^ ch.charCodeAt(0), 2654435761) >>> 0);
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+/* רווח סמך של 90% להפרש הממוצעים (a פחות b), bootstrap לא־מזווג */
+function bootDiff(a, b, rnd01) {
+  const mA = mean(a), mB = mean(b), ds = new Array(VER_B);
+  for (let i = 0; i < VER_B; i++) {
+    let sa = 0, sb = 0;
+    for (let j = 0; j < a.length; j++) sa += a[(rnd01() * a.length) | 0];
+    for (let j = 0; j < b.length; j++) sb += b[(rnd01() * b.length) | 0];
+    ds[i] = sa / a.length - sb / b.length;
+  }
+  ds.sort((x, y) => x - y);
+  return { d: mA - mB, lo: ds[Math.floor(0.05 * VER_B)], hi: ds[Math.ceil(0.95 * VER_B) - 1] };
+}
+function verMetric(k, dir, tol, A, B, seed) {
+  const a = A.map((r) => verVals(r)[k]).filter(isNum), b = B.map((r) => verVals(r)[k]).filter(isNum);
+  const out = { k, na: a.length, nb: b.length, a: rnd(mean(a), 4), b: rnd(mean(b), 4) };
+  if (a.length < VER_MIN || b.length < VER_MIN) return Object.assign(out, { v: 'few' });
+  const x = bootDiff(a, b, seeded(seed + '|' + k));
+  const t = tol === 'r' ? 0.1 * Math.abs(mean(b)) : tol;
+  // בכיוון "טוב": חיובי = לטובה
+  const lo = dir > 0 ? x.lo : -x.hi, hi = dir > 0 ? x.hi : -x.lo;
+  const v = lo > 0 && hi > t * 0.5 ? 'up' : hi < 0 && lo < -t * 0.5 ? 'dn' : lo >= -t && hi <= t ? 'eq' : '?';
+  return Object.assign(out, { d: rnd(x.d, 4), lo: rnd(x.lo, 4), hi: rnd(x.hi, 4), v });
+}
+function versionsView(all) {
+  const tr = all.filter((r) => r.k === 'tr' && !r.gold && (r.st === 'done' || r.st === 'failed'));
+  const out = [];
+  for (const dim of VER_DIMS) {
+    const by = {};
+    for (const r of tr) { const g = dim === 'env' ? r.env : r.pv && r.pv[dim]; if (g) (by[g] = by[g] || []).push(r); }
+    const vs = Object.entries(by).map(([g, l]) => ({ g, l: l.sort((x, y) => x.at - y.at), at: Math.min(...l.map((r) => r.at || 0)) })).sort((x, y) => y.at - x.at);
+    if (vs.length < 2) continue;
+    const [A, B] = vs, seed = dim + '|' + A.g + '|' + B.g;
+    const la = A.l.slice(-VER_LAST), lb = B.l.slice(-VER_LAST);
+    const m = VER_MET.map(([k, dir, tol]) => verMetric(k, dir, tol, la, lb, seed)).filter((x) => x.na || x.nb);
+    const core = m.filter((x) => VER_MET.find((y) => y[0] === x.k)[3]);
+    const v = la.length < VER_MIN || lb.length < VER_MIN ? 'few'
+      : core.some((x) => x.v === 'dn') ? 'dn' : m.some((x) => x.v === 'up') && !m.some((x) => x.v === 'dn') ? 'up'
+      : m.some((x) => x.v === 'dn') ? 'mix' : m.length && m.every((x) => x.v === 'eq' || x.v === 'few') && m.some((x) => x.v === 'eq') ? 'eq' : '?';
+    out.push({ d: dim, a: A.g, b: B.g, at: A.at, na: la.length, nb: lb.length, v, m });
+  }
+  return out.sort((x, y) => y.at - x.at);
+}
+/* סיכום שבועי: 7 הימים האחרונים מול 7 שלפניהם + אילו גרסאות חדשות הופיעו השבוע */
+function weekSum(all, now, ver) {
+  const a = now - 7 * DAY, b = now - 14 * DAY;
+  const k = kpis(all.filter((r) => r.at >= a)), kp = kpis(all.filter((r) => r.at >= b && r.at < a));
+  const pick = (x) => ({ n: x.n, done: x.done, min: x.min, usd: x.usd, cpm: x.cpm, q: x.q, jd: x.jd, ok: x.ok, ht: x.ht });
+  return { from: a, k: pick(k), kp: pick(kp), nv: (ver || []).filter((x) => x.at >= a).map((x) => ({ d: x.d, v: x.v })) };
+}
+function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   const out = [];
   const tr = rs.filter((r) => r.k === 'tr' && !r.gold);
   const done = tr.filter((r) => r.st === 'done');
@@ -427,15 +530,21 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now) {
       out.push({ k: 'mode_value', sev: 2, imp: rnd(mBest * (best.cpm - cheap.cpm), 2), v: { a: best.m, b: cheap.m, d: rnd(score(best) - score(cheap), 1), sv: rnd(1 - cheap.cpm / best.cpm, 3) } });
     }
   }
-  // גרסת ההנחיות של המתרגם השתנתה — לפני ואחרי (3+ עבודות בכל צד)
-  const byPv = {};
-  for (const r of done) { const p = r.pv && r.pv.tl; if (p) (byPv[p] = byPv[p] || []).push(r); }
-  const pvs = Object.entries(byPv).filter(([, l]) => l.length >= 3).sort((a, b) => Math.max(...b[1].map((r) => r.at)) - Math.max(...a[1].map((r) => r.at)));
-  if (pvs.length >= 2) {
-    const [nw, od] = [kpis(pvs[0][1]), kpis(pvs[1][1])];
-    const dq = (nw.jd != null && od.jd != null) ? nw.jd - od.jd : (nw.q != null && od.q != null ? nw.q - od.q : null);
-    const dc = nw.cpm != null && od.cpm ? nw.cpm / od.cpm - 1 : null;
-    if (dq != null && (Math.abs(dq) >= 2 || (dc != null && Math.abs(dc) >= 0.15))) out.push({ k: 'pv_change', sev: dq <= -2 ? 1 : 3, imp: 0, v: { a: pvs[0][0], b: pvs[1][0], dq: rnd(dq, 1), dc: rnd(dc, 3) } });
+  // מ׳7: גרסה חדשה של הקוד או של ההנחיות — גרועה / טובה יותר בוודאות (bootstrap, versionsView)
+  const vMet = (x, w) => (x.m.find((y) => y.v === w && VER_MET.find((z) => z[0] === y.k)[3]) || x.m.find((y) => y.v === w) || {}).k || '';
+  const vw = (ver || []).find((x) => x.v === 'dn'), vb = (ver || []).find((x) => x.v === 'up');
+  if (vw) out.push({ k: 'ver_worse', sev: 1, imp: 0, v: { d: vw.d, a: vw.a, b: vw.b, k: vMet(vw, 'dn'), na: vw.na, nb: vw.nb } });
+  if (vb) out.push({ k: 'ver_better', sev: 3, imp: 0, v: { d: vb.d, a: vb.a, b: vb.b, k: vMet(vb, 'up'), na: vb.na, nb: vb.nb } });
+  // מ׳5: המדדים בקוד
+  if (mx) {
+    if (mx.om.num >= 20 && mx.om.numm >= 0.05) out.push({ k: 'num_drop', sev: mx.om.numm >= 0.15 ? 1 : 2, imp: 0, v: { p: mx.om.numm, n: mx.om.num } });
+    const om = (mx.om.e || 0) + (mx.om.s || 0);
+    if (mx.st.n >= 200 && om >= 0.02) out.push({ k: 'omit_cues', sev: om >= 0.05 ? 1 : 2, imp: 0, v: { p: rnd(om, 4), em: mx.om.e, sh: mx.om.s } });
+    const lc = (mx.tm.late || 0) + (mx.tm.cut || 0);
+    if (mx.tm.n >= 200 && lc >= 0.1) out.push({ k: 'tm_late', sev: lc >= 0.2 ? 2 : 3, imp: 0, v: { p: rnd(lc, 4), lt: mx.tm.late, ct: mx.tm.cut } });
+    if (mx.tm.n >= 200 && mx.tm.shb != null && mx.tm.shb >= 0.05) out.push({ k: 'shot_near', sev: 3, imp: 0, v: { p: mx.tm.shb } });
+    if (mx.cs.nm >= 5 && mx.cs.nmv >= 0.1) out.push({ k: 'name_var', sev: 3, imp: 0, v: { p: mx.cs.nmv, n: mx.cs.nm } });
+    if (mx.cs.gl >= 10 && mx.cs.glm >= 0.1) out.push({ k: 'gl_miss', sev: 2, imp: 0, v: { p: mx.cs.glm, n: mx.cs.gl, x: mx.cs.glx } });
   }
   if (rs.filter((r) => r.ij > 0).length >= 2) out.push({ k: 'inject_seen', sev: 3, imp: 0, v: { n: rs.filter((r) => r.ij > 0).length } });
   const gq = done.filter((r) => r.gq).map((r) => r.gq.s);
@@ -450,16 +559,16 @@ function learnView(records, now) {
   const cur = all.filter((r) => r.at >= now - WIN), prev = all.filter((r) => r.at >= now - 2 * WIN && r.at < now - WIN);
   const k30 = kpis(cur), kp = kpis(prev);
   const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done'));
-  const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs);
+  const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs), mx = mxView(rs), ver = versionsView(all);
   const tk = rs.map(tokOf);
   return {
     v: LR_V, n: all.length, n90: rs.length, first: all.length ? Math.min(...all.map((r) => r.at || now)) : 0,
     k: k30, kp, wk: weekly(all, now, 8),
     roles, tok: { i: sum(tk.map((t) => t.i)), o: sum(tk.map((t) => t.o)), cr: sum(tk.map((t) => t.cr)), cw: sum(tk.map((t) => t.cw)) },
-    stages, vt: vtTime(rs), fails, jc, qf, modes,
+    stages, vt: vtTime(rs), fails, jc, qf, modes, mx, ver, ws: weekSum(all, now, ver),
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
     follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')) },
-    ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now),
+    ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver),
     recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
       dur: r.dur, usd: r.usd, pr: r.pr, q: r.q ? r.q.s : null, jd: r.jd ? r.jd.s : null, run: runSec(r), fires: r.fires, ch: (() => { const t = tokOf(r); return inTok(t) ? rnd(t.cr / inTok(t), 3) : null; })() })),
   };
@@ -477,7 +586,9 @@ const INS_HE = {
   q_metric: 'מדד איכות שנכשל הרבה', edits_after: 'עריכות ידניות אחרי העבודה', ai_after: 'שימוש בגיליון ה־AI אחרי העבודה',
   slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', asr_weak: 'תמלול חלש',
   align_weak: 'יישור חלש', sync_low: 'סנכרון קול־וידאו לא ודאי', mode_value: 'מצב זול יותר כמעט באותה איכות',
-  pv_change: 'שינוי בעקבות גרסת הנחיות', inject_seen: 'שורות שנראות כמו הוראה בתמלול', gold: 'ציון סט הזהב', need_data: 'חסרים נתונים מפורטים',
+  num_drop: 'מספרים שנעלמו בתרגום', omit_cues: 'כתוביות שנראות מושמטות', tm_late: 'כתוביות שעולות מאוחר / יורדות מוקדם',
+  shot_near: 'גבולות קרובים לחילוף שוט', name_var: 'שם אחד בכמה איותים', gl_miss: 'מונחים מהמילון שלא נשמרו',
+  ver_worse: 'גרסה חדשה גרועה יותר', ver_better: 'גרסה חדשה טובה יותר', inject_seen: 'שורות שנראות כמו הוראה בתמלול', gold: 'ציון סט הזהב', need_data: 'חסרים נתונים מפורטים',
 };
 const FIELDS = [
   ['k', 'סוג: tr תרגום, rr הפקה מחדש, ai גיליון AI'], ['st/err', 'מצב סופי וקוד השגיאה'], ['eng', 'api = השרת שלנו, sub = Routine של המשתמש'],
@@ -488,6 +599,8 @@ const FIELDS = [
   ['ed', 'כמה פעמים נשמרה עריכה ידנית אחרי העבודה'], ['gq', 'ציון מול תרגום אנושי (סט הזהב)'], ['pv/env', 'גרסאות ההנחיות והסביבה'],
   ['ux', 'מה קרה אחרי העבודה (מהטלפון): e עריכות (s שמירות, ws שניות עבודה, n שינויים, wd/cd מרחק עריכה במילים/בתווים, wa/ca מילים/תווים בגרסה האחרונה, ולכל סוג: txt טקסט, tm זמן, sp פיצול, mg מיזוג, add, del, mx מורכב), pl נגן (n הפעלות, sec שניות, cov חלק שנצפה), o תוצרים (dl הורדות, sh שיתופים, dx ל־Drive), sg הצעות (a/r), ai גיליון AI (q בקשות, a הוחלו, r נדחו), gl מונחים שנוספו'],
   ['lx', 'עובדות מפורטות מהעובד: שלבי vt, תמלול, יישור, סנכרון, מנוע (קטיעות, ניסיונות חוזרים, חשיבה), זיכרון'],
+  ['lx.mx', 'מ׳5 — מדדים בקוד: st מה כל שלב שינה (df טיוטה←תיקוני המתרגם, fr ←ביקורת, rz ←תיקון אחרון, dz טיוטה←סופי; ch כתוביות ששונו, t TER, c chrF++), tm תזמון מול הדיבור (in/out שניות מהמילה הראשונה/האחרונה, late/cut, nw בלי דיבור, sh.near/sh.bad גבולות 0–11 / 1–11 פריימים מחילוף שוט), cs עקביות (nm שמות שנבדקו, nm.var עם יותר מאיות אחד, gl מונחים מהמילון: n/miss/mix), om השמטות (om.e ריקות, om.s קצרות מאוד, om.r50 יחס אורך, num מספרים n/miss)'],
+  ['ux.e.sb/sr', 'מ׳5 — SubER אחרי עריכה בעורך: עריכות / אסימוני הייחוס (מילים + שבירות)'],
 ];
 const fmtv = (v) => (v == null ? '—' : typeof v === 'number' ? String(v) : JSON.stringify(v));
 function learnBrief(view, now) {
@@ -509,7 +622,7 @@ function learnBrief(view, now) {
   L.push('| מדד | עכשיו | קודם |');
   L.push('|---|---|---|');
   for (const [key, he] of [['n', 'עבודות'], ['done', 'הסתיימו'], ['ok', 'עברו בלי "המשך" (חלק)'], ['min', 'דקות סרטון'], ['cpm', 'דולר לדקת סרטון'],
-    ['spm', 'שניות עבודה לדקה (חציון)'], ['tpm', 'טוקנים לדקה'], ['ch', 'חלק הקלט מהמטמון'], ['q', 'מדד איכות'], ['jd', 'ציון שופט'], ['ht', 'שיעור העריכה שלך (HTER)'], ['edr', 'עבודות שנערכו (חלק)'], ['cov', 'חלק הסרטון שנצפה (חציון)'], ['sga', 'הצעות שהתקבלו (חלק)']]) {
+    ['spm', 'שניות עבודה לדקה (חציון)'], ['tpm', 'טוקנים לדקה'], ['ch', 'חלק הקלט מהמטמון'], ['q', 'מדד איכות'], ['jd', 'ציון שופט'], ['ht', 'שיעור העריכה שלך (HTER)'], ['sb', 'SubER אחרי העריכה'], ['edr', 'עבודות שנערכו (חלק)'], ['cov', 'חלק הסרטון שנצפה (חציון)'], ['sga', 'הצעות שהתקבלו (חלק)']]) {
     if (k[key] == null && kp[key] == null) continue;
     L.push('| ' + he + ' (`' + key + '`) | ' + fmtv(k[key]) + ' | ' + fmtv(kp[key]) + ' |');
   }
@@ -526,6 +639,9 @@ function learnBrief(view, now) {
   sec('קודי השופט', v.jc);
   sec('מדדי איכות שנכשלו', v.qf);
   sec('מצבי התרגום', v.modes);
+  sec('מדדים בקוד (מ׳5)', v.mx);
+  sec('לפני ואחרי לכל גרסה (מ׳7) — d ממד (env קוד, tl/rv/rb/jg הנחיות), a חדשה, b קודמת, v פסק (up/dn/eq/?/few/mix), m: ממוצע לעבודה a/b, הפרש d ורווח סמך 90% lo–hi', v.ver);
+  sec('השבוע מול השבוע שעבר', v.ws);
   sec('לפי מנוע', v.eng);
   sec('מה קרה אחרי העבודה', v.follow);
   sec('מגמה שבועית (8 שבועות)', v.wk);
@@ -535,4 +651,4 @@ function learnBrief(view, now) {
   return L.join('\n');
 }
 
-module.exports = { normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };
+module.exports = { versionsView, weekSum, VER_DIMS, VER_MET, normUx, mergeUx, UX_SHAPE, ED_KINDS, learnBrief, INS_HE, LR_V, lid, normLx, learnRec, recHash, learnView, kpis, insights, cacheSavable, MODES, STAGES };

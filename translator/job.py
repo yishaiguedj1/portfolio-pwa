@@ -813,7 +813,26 @@ def learn_facts(ctx):
     sy = ctx.st.get('sync')
     if isinstance(sy, dict) and _num_ok(sy.get('conf')):
         out['sy'] = {'c': sy.get('conf'), 'o': sy.get('off') if _num_ok(sy.get('off')) else 0}
+    mx = learn_metrics(ctx)
+    if mx:
+        out['mx'] = mx
     return out
+
+
+def learn_metrics(ctx):
+    """מ׳5 (20/10/2026): המדדים בקוד (learnmetrics.py) — מה כל שלב שינה, תזמון מול הדיבור, עקביות, השמטות. רק מספרים.
+    מאותו קורפוס של learn_corpus, בלי קשר להסכמה לשמירת הטקסט (הטקסט לא יוצא מכאן). תקלה = בלי המדדים"""
+    try:
+        import learnmetrics
+        corpus = learn_corpus(ctx)
+        if not corpus:
+            return None
+        pd = ctx.pdir
+        shots = [x.get('t') for x in ((_read_json(pd / 'shots.json') or {}).get('shots') or []) if isinstance(x, dict)]
+        v = (_read_json(pd / 'media.json') or {}).get('video') or {}
+        return learnmetrics.job_metrics(corpus, shots, v.get('fps_float') if _num_ok(v.get('fps_float')) else None)
+    except (SystemExit, Exception):      # noqa: BLE001 — מידע משני
+        return None
 
 
 def learn_safe(ctx=None):
