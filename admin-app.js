@@ -477,7 +477,9 @@ page('servers', { tab: 'apps', parent: 'studio', title: () => t('admStudioSrv'),
     p.append(grp(x.n), list(...rows), br);
   }
   // 17/10/2026 (session_01V9f): עדכון הגדרת השרת בלי שרת חדש — ידני במסוף של Hetzner (infra/worker/snb-host-apply). רק מציגים ומעתיקים, לא מריצים
-  const HOST_CMD = 'docker run --rm -u0 -v /:/h --entrypoint /opt/snb-host/apply ghcr.io/yishaiguedj1/snb-worker:prod\nsnb-update';
+  // 20/10/2026 (session_01V9f): המסוף של Hetzner לא מעביר Shift — ':' יוצא ';' והפקודה נחתכת. לכן בלי ':' '_' '$' '|' ואותיות גדולות:
+  // שורה 1 מציגה את מזהה התמונה של prod, ובשורה 2 מקלידים אותו במקום image-id
+  const HOST_CMD = 'docker images ghcr.io/yishaiguedj1/snb-worker\ndocker run --rm -u0 --mount type=bind,source=/,target=/h --entrypoint /opt/snb-host/apply image-id\nsnb-update';
   const hostRow = row({ c: 'blue', ic: '⌘', t: t('admSvHost'), s: t('admSvHostS'), on: () => {
     const pre = h('pre', 'adm-code', HOST_CMD); pre.dir = 'ltr';
     askConfirm(t('admSvHostQ'), () => copyText(HOST_CMD), { body: pre, ok: t('admSvHostCopy') });
