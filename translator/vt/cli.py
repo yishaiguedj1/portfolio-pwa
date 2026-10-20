@@ -196,6 +196,19 @@ def cmd_edit_import(a):
     pr.mark("edit_import", **stats)
 
 
+def _release_memory() -> None:
+    """מחזיר למערכת זיכרון ש־glibc שומר אחרי ש־Qwen שוחרר. נמדד 20/10/2026 על 84 דק׳: בלי זה התהליך נשאר על 5.3GB
+    גם כל שלב ה־CTC (12 דק׳), ובשרת זה הצטבר עם איכויות הצפייה והקבצים של סרטון ארוך עד שהקונטיינר נפל. בלי השפעה
+    על התוצאה; תקלה = כלום."""
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
+
 def cmd_align(a):
     from .align import align_words
     pr = Project(a.name)
@@ -208,6 +221,7 @@ def cmd_align(a):
         # מנוע שני + חציון של שלושה מקורות (Qwen, ‏CTC, תמלול) — מבחן TED: אפס הקדמות
         # של יותר מ־0.2 שנ׳, ו־95% מהכתוביות עד חצי שנייה מהתזמון האנושי (Qwen לבד: 90%)
         from .align_ctc import ctc_align, consensus
+        _release_memory()                    # 20/10/2026: הזיכרון של Qwen (‎~5GB באריזה של ONNX) לפני CTC — לא סכום של שניהם
         for w in words:
             if w.get("s_asr") is None and w.get("align") in ("suspicious", "approx"):
                 w["s_asr"], w["e_asr"] = w["s"], w["e"]

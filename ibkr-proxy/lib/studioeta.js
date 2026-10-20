@@ -19,6 +19,9 @@ const PRIOR = {
 };
 const MODE_MIN = { 'sonnet-medium': 85, 'haiku-high': 76, 'haiku-medium': 74, 'sonnet-high': 95, 'opus-medium': 105, 'sonnet-low': 80 };   // = MODES בטלפון
 const LAMBDA = 3, HALF_LIFE = 30 * 86400e3, SIGMA0 = 0.35, NQ = 8, ET_MAX = 40;
+// 20/10/2026 (בקשת המשתמש: צפי מדויק ככל האפשר): בשרת שלנו הזמן תלוי בחומרה, לא במשתמש — מאגר אחד לכל העבודות
+// בשרת (studioEta/a), גדול יותר. ה־Routine נשאר לכל משתמש (המנוי שלו). כל עבודה שהסתיימה מעדכנת אותו.
+const ET_G_MAX = 200;
 const Z = { 50: 0, 80: 0.8416, 90: 1.2816 };
 
 const eng = (e) => (e === 'a' || e === 'api' ? 'a' : 'r');
@@ -38,7 +41,7 @@ function etaSample(job, now) {
   if (Object.keys(s).length < 3) return null;
   return { e: eng(job.eng), m: MODE_MIN[sp.mode] ? sp.mode : 'opus-medium', d: Math.round(sp.dur), s, at: now };
 }
-function normEtSamples(list) {
+function normEtSamples(list, max) {
   const out = [];
   for (const x of Array.isArray(list) ? list : []) {
     if (!x || !num(x.d, 1, 86400) || !num(x.at, 0, 1e14) || !x.s || typeof x.s !== 'object') continue;
@@ -46,9 +49,13 @@ function normEtSamples(list) {
     for (const k of STAGES) if (num(x.s[k], 0, 86400)) s[k] = x.s[k];
     out.push({ e: eng(x.e), m: MODE_MIN[x.m] ? x.m : 'opus-medium', d: x.d, s, at: x.at });
   }
-  return out.slice(-ET_MAX);
+  return out.slice(-(max || ET_MAX));
 }
-function addEtSample(list, smp) { return normEtSamples((Array.isArray(list) ? list : []).concat(smp ? [smp] : [])); }
+function addEtSample(list, smp, max) { return normEtSamples((Array.isArray(list) ? list : []).concat(smp ? [smp] : []), max); }
+/* 20/10/2026: הדגימות לצפי של מנוע — השרת: המאגר המשותף (כשיש בו), אחרת של המשתמש; Routine — של המשתמש */
+function etSamplesFor(userEt, globalEt, e) {
+  return eng(e) === 'a' && Array.isArray(globalEt) && globalEt.length ? normEtSamples(globalEt, ET_G_MAX) : userEt;
+}
 
 /* שלב אחד: ריבועים מינימליים משוקללים (משקל = דעיכה / y² — שגיאה יחסית). ה־prior נכנס כ"עבודות מדומות":
    λ עבודות על הקו של ה־prior, חצי ב־5 דק׳ וחצי ב־30 דק׳ — כך נלמדים גם הקבוע וגם השיפוע (עונש ישיר על a ו־b
@@ -71,7 +78,7 @@ function fitStage(pts, a0, b0, now) {
 /* המודל למנוע: [a, b] לכל שלב (b של תרגום/ביקורת מנורמל ל־Opus · Medium), וקוונטילי האי־ודאות של העבודה כולה */
 function etaModel(samples, e, now) {
   const E = eng(e), pri = PRIOR[E];
-  const list = normEtSamples(samples).filter((x) => x.e === E);
+  const list = normEtSamples(samples, ET_G_MAX).filter((x) => x.e === E);
   const st = {};
   for (const k of STAGES) {
     const pts = list.filter((x) => x.s[k] != null).map((x) => ({
@@ -113,7 +120,7 @@ function etaTarget(ep) {
   return Math.round(ep.t * Math.exp((ep.q && ep.q[2]) || Z[90] * SIGMA0)) + 60;
 }
 /* מה שהטלפון מקבל ב־status: מודל לכל מנוע (לעבודות שעוד לא נלקחו) */
-function etaView(samples, now) { return { a: etaModel(samples, 'a', now), r: etaModel(samples, 'r', now) }; }
+function etaView(samples, now, globalEt) { return { a: etaModel(etSamplesFor(samples, globalEt, 'a'), 'a', now), r: etaModel(samples, 'r', now) }; }
 /* הטלפון שולח ep רק בצורה הזו (השרתון לא סומך על מה שנשמר בלי בדיקה) */
 function normEp(ep) {
   if (!ep || typeof ep !== 'object' || !ep.s || typeof ep.s !== 'object') return null;
@@ -124,5 +131,5 @@ function normEp(ep) {
   return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };
 }
 
-module.exports = { STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX,
+module.exports = { STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
   etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf };
