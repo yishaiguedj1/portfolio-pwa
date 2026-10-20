@@ -100,7 +100,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/x === 'play' \|\| x === 'subs' \|\| x === 'rr' \? \['job', y\]/.test(sj), 'חזור מהעורך / מההפקה — לדף העבודה');
   ok(/if \(ui\.view === 'subs'\) seStop\(\)/.test(sj) && /'subs\|' \+ ui\.param/.test(sj), 'הנגן של העורך נעצר ביציאה; הדף לא נבנה מחדש בזמן הקלדה');
   ok(/net\.api\('cuesSave', Object\.assign\(\{ job: rec\.id, c, s: s2, ev: rec\.srv\.ev \|\| 0 \}, learn\)\)/.test(sj) && /\{ snbEdit: 'c' \}/.test(sj), 'שמירה: שני קבצים לתיקיית העבודה ואז cuesSave עם הגרסה (בלי דריסה של שמירה ממקום אחר)');
-  ok(/net\.api\('rerender'/.test(sj) && /net\.api\('start', \{ job: j\.job\.id \}\)/.test(sj), 'הפקה מחדש: יצירה ואז start רגיל (כל השמירות)');
+  ok(/net\.api\('rerender'/.test(sj) && /startSub\(j\.job\.id\)/.test(sj) && /net\.api\('start', \{ job: id \}\)/.test(sj), 'הפקה מחדש: יצירה ואז start רגיל (כל השמירות)');
+  ok(/k\.error !== 'major'/.test(sj) && /net\.api\('start', \{ job: id, mo: true \}\)/.test(sj) && /rrKick\(r\)/.test(sj) && /rrCancel\(r\)/.test(sj) && /net\.api\('cancel', \{ job: x\.id \}\)/.test(sj), '20/10: תקלה רחבה — שאלה ו"להתחיל בכל זאת" גם להפקה מחדש ול־AI, וכפתור להפקה שנתקעה');
   ok(/if \(sj\.kind === 'rr'\) \{/.test(sj), 'עבודות הפקה מחדש — לא ברשימה הראשית');
   const src = read('studiosubs.js');
   // מ9: ביצועים בטלפון חלש (נמדד עם 1,500 כתוביות, מעבד מואט פי 4: בחירה 4 שנ׳ → 67ms, פיצול 2 שנ׳ → 90ms, ביטול 3 שנ׳ → 160ms)

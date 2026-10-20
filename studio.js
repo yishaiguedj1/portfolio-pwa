@@ -4849,6 +4849,14 @@ function pageCut(p, before) {
 }
 
 let rrBusy = false;
+/* 20/10/2026: עבודת משנה (הפקה מחדש / בדיקה / AI) בזמן תקלה רחבה — השרתון מחזיר major. עד היום ההודעה הבזיקה והעבודה
+   נשארה "ממתין להתחלה" בלי דרך להמשיך; עכשיו שואלים כמו בעבודה הראשית, ו"להתחיל בכל זאת" = mo */
+async function startSub(id) {
+  const k = await net.api('start', { job: id });
+  if (k.ok || k.error !== 'major' || typeof askConfirm !== 'function') return k;
+  const yes = await new Promise((ok) => askConfirm(T('studioMajorQ', { c: opsComp(k.mi && k.mi.c) }), () => ok(true), { ok: T('studioStartAnyway'), onNo: () => ok(false) }));
+  return yes ? net.api('start', { job: id, mo: true }) : k;
+}
 async function rrStart(rec, prv) {
   if (rrBusy) return;
   const all = RR_OUTS.filter((k) => rrOpt.out[k]);
@@ -4863,12 +4871,33 @@ async function rrStart(rec, prv) {
     if (!j.ok || !j.job) { flashSafe(j.error === 'rr_busy' ? T('studioRrBusy') : errText(j.error)); return; }
     const x = normJob({ id: j.job.id, srv: j.job });
     if (x) (prv ? rrPv : rrJobs).set(rec.id, x);
-    const k = await net.api('start', { job: j.job.id });
+    const k = await startSub(j.job.id);
     if (k.job && x) x.srv = normJob({ id: x.id, srv: k.job }).srv;
     if (!k.ok) flashSafe(errText(k.error)); else if (!prv) rrEdl.delete(rec.id);
   } catch (e) {
     flashSafe(errText((e && e.code) || 'net'));
   } finally { rrBusy = false; repaint(); schedulePoll(); }
+}
+function rrCancel(x) {   // ההפקה בלבד — התרגום והכתוביות של העבודה המקורית לא נוגעים
+  const doIt = async () => {
+    try {
+      const j = await net.api('cancel', { job: x.id });
+      if (j.job) x.srv = normJob({ id: x.id, srv: j.job }).srv;
+      if (!j.ok) flashSafe(errText(j.error));
+    } catch (e) { flashSafe(errText((e && e.code) || 'net')); }
+    repaint();
+  };
+  if (typeof askConfirm === 'function') askConfirm(T('studioRrCancelQ'), doIt, { danger: true, ok: T('studioRrCancel') }); else doIt();
+}
+async function rrKick(x) {   // הפקה שנוצרה ולא התחילה — מתחילים שוב (עם השאלה על התקלה הרחבה)
+  if (rrBusy) return;
+  rrBusy = true; repaint();
+  try {
+    const k = await startSub(x.id);
+    if (k.job) x.srv = normJob({ id: x.id, srv: k.job }).srv;
+    if (!k.ok) flashSafe(errText(k.error));
+  } catch (e) { flashSafe(errText((e && e.code) || 'net')); }
+  finally { rrBusy = false; repaint(); schedulePoll(); }
 }
 /* ---------- סבב 5: עיצוב הכתוביות (גודל, צבע, רקע, גובה) — תצוגה חיה על הסרטון, ואותה הגדרה בצריבה ---------- */
 const rrSty = () => normSty(rrOpt.sty !== undefined ? rrOpt.sty : store.settings.sty);
@@ -5031,9 +5060,11 @@ function pageRr(p) {
     pb.append(pi); pi.style.width = Math.round(100 * (typeof pr.p === 'number' ? pr.p : 0)) + '%';
     ic.append(ico('redo')); l.append(h('b', null, stg), pb); c.append(ic, l);
     p.append(c);
+    if (st === 'new' && !rrBusy) p.append(btn('st-btn wide', T('studioStartAnyway'), () => rrKick(r), 'rr-kick'));   // 20/10/2026: נחסמה בתקלה רחבה
+    if (!rrBusy) p.append(btn('st-btn danger wide', T('studioRrCancel'), () => rrCancel(r), 'rr-cancel'));   // 20/10/2026: אפשר לעצור הפקה (ממתינה / רצה)
   } else if (r && st === 'done' && r.srv.out.length) {
     p.append(secT(T('studioRrReady')), list(...r.srv.out.map((o) => rowExt({ href: 'https://drive.google.com/file/d/' + o.id + '/view', tile: tile('film', 'green'), label: outShort(o.k), sub: o.size ? fmtSize(o.size) : '', k: 'rr-out:' + o.k }))));
-  } else if (r && (st === 'failed' || st === 'cancelled')) p.append(banner('warn', T('studioRrFailedL', { e: errText(r.srv.err) })));
+  } else if (r && (st === 'failed' || st === 'cancelled' && r.srv.err)) p.append(banner('warn', T('studioRrFailedL', { e: errText(r.srv.err) })));   // ביטול ביד — בלי באנר כישלון
   const active = r && ['new', 'queued', 'running'].includes(st);
   if (active) return;
   // סבב 10: הצריבה לבדיקה — מצב / התוצאה (קטע קצר), לצד ההפקה המלאה
@@ -5093,7 +5124,7 @@ async function aiJobRun(rec, queue, alive) {
   const qid = await net.textUpload(jobFolder(rec), (fileTitle(rec.spec.name) || 'ai').slice(0, 80) + ' (AI).request.json', 'application/json', JSON.stringify(queue), { snbAi: 'q' });
   const j = await net.api('aiRun', { job: rec.id, q: qid });
   if (!j.ok || !j.job) throw Object.assign(new Error('x'), { code: j.error });
-  const k = await net.api('start', { job: j.job.id });
+  const k = await startSub(j.job.id);
   if (!k.ok) throw Object.assign(new Error('x'), { code: k.error });
   for (let t = 0; t < 225 && alive(); t++) {                    // עד ~15 דק׳, כל 4 שנ׳
     await new Promise((r) => setTimeout(r, 4000));
