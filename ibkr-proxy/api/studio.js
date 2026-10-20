@@ -944,6 +944,9 @@ async function server(req, res, body, deps) {
       await patchDoc(deps, 'studioServers', p.sid, seen);
       return res.status(200).json({ ok: true, job: null, paused: srv.paused === true, now });
     }
+    // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
+    // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
+    if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
     for (const job of qd) {
@@ -967,6 +970,21 @@ async function server(req, res, body, deps) {
   } catch (err) {
     return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
   }
+}
+
+/* 20/10/2026: העבודה שהשרת הזה עבד עליה כשהסוכן עלה מחדש — כמו דיווח fail: worker_lost של העובד (תקלה חולפת: חלון
+   התאוששות ואז "המשך" אוטומטי מנקודת השמירה). רק עבודה שבאמת אצלו (sid) ושעוד רצה; המפתח מת — עובד ישן לא ממשיך לכתוב */
+async function lostOnBoot(deps, sid, now) {
+  let n = 0;
+  for (const job of await query(deps, 'studioJobs', { sid, state: 'running' }, 20)) {
+    if (!apiJob(job) || S.effState(job, now).state !== 'running') continue;
+    const up = S.applyReport(job, { fail: true, err: 'worker_lost', msg: 'השרת הופעל מחדש באמצע העבודה' }, now);
+    up.kh = ''; up.kx = 0;
+    if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.RECOVER_WAIT;
+    if (job.kind === 'tr') up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([{ e: 'worker_lost', s: (up.prog && up.prog.st) || '', at: now }]).slice(-10);
+    if (await patchIf(deps, 'studioJobs', job.id, up, job._ut).catch(() => false)) n++;
+  }
+  return n;
 }
 
 /* v367: לפני הפעלה — מתג החירום (תמיד חוסם) ומצב מעל המקסימום שבחוקים (חוסם עד שמאשרים: ov) */

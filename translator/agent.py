@@ -118,19 +118,34 @@ def ev_list() -> list:
         return [list(x) for x in _events]
 
 
+# 20/10/2026: מצב העבודה (/state) נמחק בהפעלה מחדש של הקונטיינר — report_lost לא מוצא אותו. לכן הפנייה הראשונה
+# אחרי העלייה (boot) אומרת לשרתון לבדוק בעצמו: עבודה שהוא נתן לשרת הזה ועוד "רצה" — נקטעה.
+_boot = True
+
+
+def _set_booted():
+    global _boot
+    _boot = False
+
+
 def poll(server: str, tok: str, op: str = 'poll', busy: str = '') -> dict:
     """{'job': {'id', 'key', 'kind'}} או {'job': None}. שגיאה → {'error': ...} (הלולאה מחכה ומנסה שוב).
     op='beat' — רק דופק (באמצע עבודה), בלי לבקש עבודה."""
     try:
         hb = host_info(busy)
         hb['ev'] = ev_list()
-        st, j, hd = J.http('POST', server + '/api/studio', {'op': op, 'v': 1, 'hb': hb},
+        body = {'op': op, 'v': 1, 'hb': hb}
+        if op == 'poll' and _boot:
+            body['boot'] = True      # 20/10/2026: הפנייה הראשונה אחרי העלייה — השרתון מסמן עבודה שנקטעה אצלנו (worker_lost)
+        st, j, hd = J.http('POST', server + '/api/studio', body,
                            headers={'Authorization': 'Bearer ' + tok}, timeout=30)
     except (OSError, ValueError) as e:
         return {'error': 'network', 'detail': type(e).__name__}
     if st == 401:
         return {'error': 'auth'}          # הטוקן בוטל (השרת הוסר באפליקציה) — מחכים הרבה, לא מציפים
     if st == 200 and j.get('ok'):
+        if op == 'poll':
+            _set_booted()
         jb = j.get('job')
         if isinstance(jb, dict) and J.JOB_RE.match(str(jb.get('id') or '')) and J.KEY_RE.match(str(jb.get('key') or '')):
             return {'job': {'id': jb['id'], 'key': jb['key'], 'kind': jb.get('kind') or 'tr'}}

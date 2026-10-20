@@ -3268,6 +3268,30 @@ function stubFetch(text, status = 200) {
       ok(S3.SRV_EV.includes('park') && S3.parkable({ kind: 'tr', state: 'running', spec: { eng: 'api' } }) && !S3.parkable({ kind: 'tr', state: 'running', spec: {} }),
         'park: רק בשרת שלנו (ב־Routine אין תור)');
     }
+    {
+      // 20/10/2026: הסוכן עלה מחדש באמצע עבודה (הקונטיינר הופעל מחדש, /state נמחק) — הפנייה הראשונה (boot) מסמנת אותה
+      // worker_lost (תקלה חולפת → המשך אוטומטי מנקודת השמירה), במקום "רצה" שעתיים בלי שאף אחד עובד עליה
+      rr = await run({ op: 'create', idToken: OWNER, spec: SPECA });
+      const JL = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JL, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'file', idToken: OWNER, job: JL, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+      rr = await run({ op: 'start', idToken: OWNER, job: JL });
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      const KL = rr.payload.job && rr.payload.job.key;
+      await wrk({ op: 'claim', job: JL, key: KL });
+      await wrk({ op: 'report', job: JL, key: KL, st: 'al', p: 0.05 });
+      rr = await srvRun({ op: 'beat', hb: { busy: JL }, boot: true }, STOK);
+      ok(db.get('studioJobs/' + JL).fields.state.stringValue === 'running', 'boot: רק ב־poll (דופק באמצע עבודה לא מסמן כלום)');
+      rr = await srvRun({ op: 'poll', hb: {} }, STOK);
+      ok(db.get('studioJobs/' + JL).fields.state.stringValue === 'running', 'boot: poll רגיל (בלי boot) לא נוגע בעבודה שרצה');
+      rr = await srvRun({ op: 'poll', hb: {}, boot: true }, STOK);
+      const fl = db.get('studioJobs/' + JL).fields;
+      ok(rr.payload.ok && fl.state.stringValue === 'failed' && fl.err.stringValue === 'worker_lost' && !fl.kh.stringValue && Number(fl.rw.integerValue) > 0,
+        'boot: העבודה שהשרת הזה לקח ועוד רצה — נכשלת כ־worker_lost, המפתח מת, וחלון ההתאוששות נפתח (המשך אוטומטי)');
+      rr = await wrk({ op: 'report', job: JL, key: KL, st: 'al', p: 0.5 });
+      ok(rr.statusCode === 401 || rr.payload.stop === true || rr.payload.ok === false, 'boot: עובד ישן (אם בכל זאת חי) לא ממשיך לכתוב');
+      await run({ op: 'remove', idToken: OWNER, job: JL });
+    }
     rr = await run({ op: 'status', idToken: FRIEND });
     ok(rr.payload.api.month === 0 && rr.payload.api.admin === false && !('servers' in rr.payload) || rr.payload.api.admin === false, 'מצב API: כל משתמש — תקציב משלו; לא מנהל');
     {
