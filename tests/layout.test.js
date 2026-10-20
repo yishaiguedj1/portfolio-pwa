@@ -146,5 +146,5 @@ ok(/caches\.delete/.test(appSrc) && /unregister\(\)/.test(appSrc), 'ניקוי �
 ok(appSrc.includes('function fitNumbers(page)'), 'fitNumbers קיימת ב־app.js (14/10/2026: גם לעמוד שנכנס בקובייה)');
 ok(/\.stat-value, \.lg-pct, \.pension-total/.test(appSrc), 'fitNumbers מכסה stat-value, lg-pct ו־pension-total');
 ok(/renderOverview[\s\S]{0,4000}fitNumbers\(\)/.test(appSrc), 'renderOverview קוראת ל־fitNumbers');
-ok(/switchTab[\s\S]{0,2000}fitNumbers\(\)/.test(appSrc), 'switchTab קוראת ל־fitNumbers אחרי מעבר לשונית');
+ok(/switchTab[\s\S]{0,3000}fitNumbers\(\)/.test(appSrc), 'switchTab קוראת ל־fitNumbers אחרי מעבר לשונית');
 ok(/white-space:\s*nowrap/.test(css), 'מספרים גדולים לא נשברים לשורות');

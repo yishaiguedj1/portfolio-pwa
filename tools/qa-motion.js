@@ -672,7 +672,7 @@ if (require.main !== module) { module.exports = { BOOKS, epub, zipStore, DB, rou
       await step('ext2: אופליין — טעינה + התקנת Service Worker', async () => { await page.goto(BASE + '/index.html', { waitUntil: 'load' }); for (let i = 0; i < 30; i++) { await sleep(500); const ok = await page.evaluate(async () => { try { const r = await navigator.serviceWorker.getRegistration(); if (!r || !r.active) return false; const ks = await caches.keys(); return ks.some((k) => /portfolio-pwa-v/.test(k)); } catch (e) { return false; } }); if (ok) break; } await sleep(2500); }, { settle: 500 });
       await step('ext2: אופליין — ניתוק הרשת ורענון', async () => { await ctx2.setOffline(true); await page.reload({ waitUntil: 'load' }); await sleep(2500); }, { settle: 1500, expect: '.tab.active' });
       await step('ext2: אופליין — טאב מניות', () => page.click('.tab[data-tab="stocks"]'), { scroll: true, expect: '#tab-stocks.active #stockList .stock' });
-      await step('ext2: אופליין — הספרייה נפתחת מהמטמון', async () => { await page.evaluate(() => document.getElementById('menuBtn').click()); await sleep(300); await page.evaluate(() => document.getElementById('menuLibraryBtn').click()); await sleep(2500); }, { settle: 1500, expect: '.lib-root .lib-seg' });
+      await step('ext2: אופליין — הספרייה נפתחת מהמטמון', async () => { await page.evaluate(() => document.getElementById('menuBtn').click()); await sleep(300); await page.evaluate(() => document.getElementById('menuLibraryBtn').click()); await sleep(2500); }, { settle: 1500, expect: '.lib-seg.on' });
       await step('ext2: אופליין — חזור', () => page.goBack().catch(() => {}), { settle: 1200, expect: '.tab.active' });
       await ctx2.setOffline(false);
       await ctx2.close();
