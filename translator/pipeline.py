@@ -745,7 +745,7 @@ class Pipeline:
             else:
                 unrev = 0
             rf = getattr(self.J, 'review_flags', None)          # סבב 4: "!#מספר קוד" — לבדיקה שלך בעורך
-            fl = [f for f in rf(res.text, {int(x) for x in ids}) if str(f[0]) not in lines] if rf else []
+            fl = list(rf(res.text, {int(x) for x in ids})) if rf else []
             return lines, fl, unrev, 1 if getattr(res, 'stop', None) == 'max_tokens' else 0
         with ThreadPoolExecutor(max_workers=max(1, min(RV_PARALLEL, len(slices)))) as ex:
             rvu = rvc = 0
@@ -754,6 +754,7 @@ class Pipeline:
                 flags += fl
                 rvu += u
                 rvc += c
+        flags = [f for f in flags if str(f[0]) not in got]   # כתובית שתוקנה — לא מסומנת לבדיקה
         # מאגר הלמידה (תוכנית השיפור 3.10א): כתוביות, קטעים, קטעים שנקטעו, וכמה כתוביות לכל היותר לא נבדקו
         ctx.st['rvx'] = {'rvn': n_cues, 'rvs': len(slices), 'rvc': rvc, 'rvu': rvu}
         self.save_usage()
