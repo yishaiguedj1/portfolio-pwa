@@ -44,13 +44,19 @@ const hs = history.state;
 const sa = { auth: A, home: APP_URL.invest, ready };   // שלב 4: בכתובת הנפרדת — הכתובת של Invest
 /* עמוד ההגדרות — כרטיס החשבון, "אפשרויות מתקדמות" (גרסה, ניקוי מטמון, האפליקציה לאנדרואיד) ו"תצוגה" של Invest (shell.js), אחד לאחד */
 sa.cards = { account: () => accountCard(A, 'icon-studio-192.png'), display: displayCard, advRow: advancedRow, advanced: advancedCards };
+/* מגדל הפיקוח — תא מזוגג (בקשת המשתמש 21/10/2026, אופציה 3): בהדר בצבע של Studio, ובתפריט בצבע השורה */
+const TOWER_IC = (c) => '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M12 1.2v2"/><path d="M8.2 3.2h7.6"/><path d="M6.8 4.8h10.4L15.7 9H8.3z" fill="' + c + '" fill-opacity=".2"/>'
+  + '<path d="M8.8 10.5h6.4"/><path d="M10.6 10.5 10 21.5M13.4 10.5l.6 11"/><path d="M7.5 22h9"/></svg>';
 sa.shell = createShell({
   app: 'studio', title: 'THE SNOWBALL Studio', logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp',
   items: [
-    { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-1.5 5h-5z"/><path d="M12 8v13"/><path d="M8 21h8"/></svg>',
+    { icon: TOWER_IC('currentColor').replace(' class="ic"', ''),
       title: t('studioTwT'), sub: t('shellTowerSub'), on: () => sa.tower && sa.tower() },
   ],
   onSettings: () => sa.settings && sa.settings(),
+  /* ליד הגלובוס — מגדל הפיקוח; כשהתפריט פתוח — בהיר/כהה, כמו ב־Academy */
+  action: { label: t('studioTwT'), on: () => sa.tower && sa.tower(), icon: TOWER_IC('var(--primary)') },
 });
 /* לא מחובר — מסך הכניסה של Invest, עם הלוגו והשם של Studio (shell.js) */
 if (first === 'out') loginGate({ app: 'studio', auth: A, logo: 'logo-studio.webp', logoLg: 'logo-studio-lg.webp', name: 'Studio' });
