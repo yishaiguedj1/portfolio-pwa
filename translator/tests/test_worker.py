@@ -967,6 +967,24 @@ class TestWorker(unittest.TestCase):
         self.assertNotIn('--compact', r)
         self.assertEqual(sorted(o['k'] for o in self.fake.reports[-1]['out']), ['same', 'small', 'srt'])
 
+    def test_early_subs_before_render(self):
+        """21/10/2026 (תוכנית השיפור 3.13ג): הכתוביות עולות ומדווחות לפני הצריבה — ובסוף לא עולות שוב (אותה טביעה)"""
+        self.fake.spec = dict(self.fake.spec, out=['same'])
+        self.take()
+        self.assertEqual(self.job('prepare')[0], 0)
+        self.assertEqual(self.job('align')[0], 0)
+        code, out = self.job('finish')
+        self.assertEqual(code, 0, out)
+        self.assertIn('הכתוביות עלו לפני הצריבה', out)
+        early = [r for r in self.fake.reports if r.get('out') and not r.get('done') and r.get('st') == 'bn']
+        self.assertTrue(early, 'דיווח עם out בשלב הצריבה')
+        self.assertEqual([o['k'] for o in early[0]['out']][0], 'srt')
+        done = self.fake.reports[-1]
+        ids = {o['k']: o['id'] for o in done['out']}
+        self.assertEqual(ids['srt'], {o['k']: o['id'] for o in early[0]['out']}['srt'], 'אותו קובץ — בלי העלאה חוזרת')
+        n_srt = [u for u in self.fake.uploads.values() if str(u['meta'].get('name', '')).endswith('.he.srt')]
+        self.assertEqual(len(n_srt), 1)
+
     def test_render_gate_go(self):
         # v367: אישור לפני צריבה — "לצרוב": צורבים כרגיל
         out, cmds, kinds = self.finish_with_gate('go')

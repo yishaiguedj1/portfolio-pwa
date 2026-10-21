@@ -5752,7 +5752,10 @@ function pageJob(p) {
   const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)) : [];   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
   // 21/10/2026: התוצרים עלו והעובד עוד משלים ברקע (איכויות צפייה לנגן, עותק למאגר הלמידה) — הם כבר שלך, בלי לחכות
   const early = ph0 !== 'done' && rec.srv && rec.srv.state === 'running' ? (rec.srv.out || []).filter((o) => OUT_MAIN.includes(o.k)) : [];
-  if (early.length) p.append(secT(T('studioSecResults')), list(...early.map((o) => rowOut(rec, o))), note(T('studioOutEarly')));
+  // 21/10/2026 (תוכנית השיפור 3.13ג): הכתוביות עולות לפני הצריבה — הנגן זמין עם הסרטון המקורי, בלי לחכות לצריבה
+  const burning = early.length && !early.some((o) => o.k !== 'srt' && o.k !== 'en');
+  if (early.length && burning && canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));
+  if (early.length) p.append(secT(T('studioSecResults')), list(...early.map((o) => rowOut(rec, o))), note(burning ? T('studioOutEarlySubs') : T('studioOutEarly')));
   if (outs.length) {
     if (canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o)),
