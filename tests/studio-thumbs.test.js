@@ -54,4 +54,12 @@ ok(!SC.expiredJob({ kind: 'tr', state: 'done', folder: 'DriveFolder01234567', en
 const gc = api.slice(api.indexOf('async function jobGc'), api.indexOf('\n}\n', api.indexOf('async function jobGc')));
 ok(/removeJobRec\(deps, j\.uid, j, now\)/.test(gc) && !/learn|snb-learn|R2L/i.test(gc.replace(/removeJobRec/g, '')), 'המחיקה דרך removeJobRec (שומר קודם במאגר הלמידה) — בלי לגעת במאגר עצמו');
 ok(/await learnSave\(deps, job, now\);\s+\/\/[^\n]*\n\s+await delDoc\(deps, 'studioJobs', job\.id\)/.test(api), 'removeJobRec — מאגר הלמידה נשמר לפני מחיקת הרשומה');
+const app = fs.readFileSync(path.join(root, 'studio-app.js'), 'utf8');
+const srcFn = st.slice(st.indexOf('function thumbSources(rec)'), st.indexOf('function thumbsLoad()'));
+ok(srcFn.indexOf('hl[hl.length - 1].id') < srcFn.indexOf("['small', 'compact', 'same']") && srcFn.indexOf("['small', 'compact', 'same']") < srcFn.indexOf('rec.up.v && rec.up.v.id'),
+  'מקור לפריים — מהקטן לגדול: איכות הצפייה הנמוכה, העותק הצרוב, ואז המקור (סרטון כבד/לא מפוענח לא משאיר עבודה בלי תמונה)');
+ok(/for \(const x of srcs\) \{ tried = true; u = await grabFrame\(x\.u, x\.wait\); if \(u\) break; \}/.test(st), 'מקור שנכשל — עוברים לבא');
+ok(/export const thumbsReady = thumbChain = thumbsLoad\(\);/.test(st) && /Promise\.race\(\[thumbsReady, new Promise\(\(r\) => setTimeout\(r, 400\)\)\]\)\.then\(\(\) =>\s*openStudio\(/.test(app),
+  'התמונות השמורות נטענות לפני הציור הראשון (מאחורי הווילון, עד 400ms) — בלי הבהוב בכל פתיחה');
+ok(/if \(Date\.now\(\) - t0 > 250\) th\.classList\.add\('in'\)/.test(st), 'דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך מוצג');
 console.log(n + ' בדיקות עברו');

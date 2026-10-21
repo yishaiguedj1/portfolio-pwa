@@ -1199,15 +1199,15 @@ export function thumbTimes(dur) {   // טהורה: מתי לנסות (שניות
 export function thumbOk(mean, sd) { return mean > 24 && mean < 235 && sd > 14; }   // טהורה: לא שחור, לא לבן, לא אחיד
 const thumbs = new Map();          // מזהה → כתובת data: ('' = לא הצליח בסשן הזה)
 const thumbWait = new Map();       // מזהה → [פונקציות שמחכות לתמונה]
-let thumbChain = Promise.resolve();
-function grabFrame(src) {
+let thumbChain = Promise.resolve();   // אחרי thumbsLoad (בהמשך) — קודם מה ששמור, ורק אז פריימים חדשים
+function grabFrame(src, wait) {
   return new Promise((ok) => {
     if (typeof document === 'undefined' || !src) { ok(''); return; }
     const v = document.createElement('video');
     v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
     let best = null, done = false, times = [];
     const end = (u) => { if (done) return; done = true; clearTimeout(to); try { v.removeAttribute('src'); v.load(); } catch (e) {} ok(u || (best && best.u) || ''); };
-    const to = setTimeout(() => end(''), THUMB_WAIT);
+    const to = setTimeout(() => end(''), wait || THUMB_WAIT);
     const shot = () => {
       try {
         const w = v.videoWidth, hh = v.videoHeight;
@@ -1241,10 +1241,28 @@ function grabFrame(src) {
     v.src = src;
   });
 }
-function thumbSrc(rec) {             // מאיפה לקחת פריים: הסרטון המקורי בענן, ואם אין — הסרטון הצרוב
-  if (!rec || !net || typeof net.mediaUrl !== 'function') return '';
-  const id = rec.up && rec.up.v && rec.up.v.id, bo = burnedOut(rec);
-  return (id && net.mediaUrl(id)) || (bo && net.mediaUrl(bo.id)) || '';
+/* מאיפה לקחת פריים — מהקטן לגדול: איכות הצפייה הנמוכה ביותר (H.264 קטן), העותק הצרוב (הקטן קודם), ואז המקור.
+   עד 21/10 רק המקור — סרטון כבד (או בקודק שהטלפון לא מפענח) לא הספיק בזמן, ולחלק מהעבודות לא הייתה תמונה */
+function thumbSources(rec) {
+  if (!rec || !net || typeof net.mediaUrl !== 'function') return [];
+  const out = [], add = (id, wait) => { const u = id && net.mediaUrl(id); if (u && !out.some((x) => x.u === u)) out.push({ u, wait }); };
+  const hl = rec.srv && Array.isArray(rec.srv.hl) ? rec.srv.hl : null;
+  if (hl && hl.length > 1) add(hl[hl.length - 1].id, 12000);
+  for (const k of ['small', 'compact', 'same']) { const o = outOf(rec, k); if (o) add(o.id, 15000); }
+  add(rec.up && rec.up.v && rec.up.v.id, 25000);
+  return out;
+}
+/* כל התמונות השמורות נטענות לזיכרון פעם אחת, מיד כשהמודול נטען — כך הרשימה מצוירת איתן מהפריים הראשון,
+   בלי סמל שמתחלף לתמונה בכל פתיחה */
+function thumbsLoad() {
+  if (typeof indexedDB === 'undefined') return Promise.resolve();
+  return hdb().then((db) => new Promise((ok) => {
+    try {
+      const os = db.transaction('thumbs', 'readonly').objectStore('thumbs'), rq = os.openCursor();
+      rq.onsuccess = () => { const c = rq.result; if (!c) { ok(); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key)) thumbs.set(c.key, c.value); c.continue(); };
+      rq.onerror = () => ok();
+    } catch (e) { ok(); }
+  })).catch(() => {});
 }
 function thumbSet(id, u) {
   thumbs.set(id, u);
@@ -1263,11 +1281,12 @@ function thumbFor(rec, cb, file) {
   if (thumbBusy.has(id)) return '';
   thumbBusy.add(id);
   thumbChain = thumbChain.then(async () => {
-    let u = file ? '' : await idbOp('thumbs', 'get', id), tried = false;
+    let u = thumbs.get(id) || '', tried = false;
+    if (!u && !file) u = await idbOp('thumbs', 'get', id) || '';
     if (!u) {
-      const url = file ? URL.createObjectURL(file) : thumbSrc(rec);
-      if (url) { tried = true; u = await grabFrame(url); }
-      if (file) URL.revokeObjectURL(url);
+      const srcs = file ? [{ u: URL.createObjectURL(file), wait: THUMB_WAIT }] : thumbSources(rec);
+      for (const x of srcs) { tried = true; u = await grabFrame(x.u, x.wait); if (u) break; }
+      if (file) URL.revokeObjectURL(srcs[0].u);
       if (u) idbOp('thumbs', 'put', id, u);
     }
     thumbBusy.delete(id);
@@ -1278,9 +1297,12 @@ function thumbFor(rec, cb, file) {
 /* ציור התמונה על אריח (.st-thumb) — דהייה כשהיא מגיעה אחרי הציור; בלי תמונה נשאר סמל הסרט */
 function paintThumb(th, rec) {
   const put = (u) => { th.style.backgroundImage = 'url("' + u + '")'; th.classList.add('img'); };
-  const u = thumbFor(rec, (x) => { if (x) { th.classList.add('in'); put(x); } });
+  const t0 = Date.now();
+  const u = thumbFor(rec, (x) => { if (!x) return; if (Date.now() - t0 > 250) th.classList.add('in'); put(x); });   // דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך כבר מוצג
   if (u) put(u);
 }
+export const thumbsReady = thumbChain = thumbsLoad();   // מיד בטעינת המודול — studio-app.js מחכה לו (עד 400ms) לפני הציור הראשון
+
 /* סבב 8: טיוטת עורך הכתוביות — שינויים שלא נשמרו שורדים רענון וסגירה (בטלפון בלבד, לפי מזהה העבודה).
    ev = הגרסה בשרתון שעליה נערך; טיוטה על גרסה ישנה יותר — רק באישור (אחרת הייתה דורסת שמירה מאוחרת) */
 export const DRAFT_MAX = 4 * 1048576;
