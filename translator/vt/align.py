@@ -65,7 +65,7 @@ def plan_chunks(words: list[dict], max_s: float = MAX_CHUNK_S, audio_len: float 
 
 
 class Aligner:
-    def __init__(self, device: str = "cpu"):
+    def __init__(self, device: str = "cpu", dur_min: float = 0.0):
         # שלב 4.1 (10/10/2026): גרפי ONNX INT8 מהמודל הרשמי, כשהם בתמונה (/opt/aligner) — חצי זיכרון ומהיר יותר
         # (נמדד על 4 הרצאות TED, יומן העבודה). תקלה בטעינה = חוזרים ל־torch, לא נכשלים.
         self.onnx = None
@@ -74,7 +74,7 @@ class Aligner:
             d = onnx_dir()
             if d is not None:
                 try:
-                    self.onnx = OnnxAligner(d)
+                    self.onnx = OnnxAligner(d, dur_min=dur_min)
                     self.engine = "onnx-" + str(self.onnx.man.get("quant", "?"))
                     return
                 except Exception as e:  # noqa: BLE001 — כל תקלה בגרפים: המנוע הקודם
@@ -173,7 +173,7 @@ def align_words(words: list[dict], wav_path: str, device: str = "cpu",
     total = len(audio) / sr
     chunks = plan_chunks(words, audio_len=total)
     pc = PartCache(cache, "q", [[w["w"], w["s"], w["e"]] for w in words] + [list(c) for c in chunks])
-    al = Aligner(device) if len(pc.data) < len(chunks) else None
+    al = Aligner(device, total / 60) if len(pc.data) < len(chunks) else None
     t0 = time.time()
     stats = {"chunks": len(chunks), "aligned": 0, "kept_approx": 0, "suspicious": 0, "engine": al.engine if al else "cache",
              "cached": 0}
@@ -183,7 +183,7 @@ def align_words(words: list[dict], wav_path: str, device: str = "cpu",
             stats["cached"] += 1
         else:
             if al is None:
-                al = Aligner(device)
+                al = Aligner(device, total / 60)
                 stats["engine"] = al.engine
             seg = audio[int(cs * sr):int(ce * sr)]
             res = al.align_chunk(seg, sr, words[i0:i1])

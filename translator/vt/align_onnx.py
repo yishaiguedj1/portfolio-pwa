@@ -63,7 +63,11 @@ def verify(d: Path) -> dict:
 # (כל נפילה ≈ רבע שעה + "המשך"). נמדד (20/10): עם ה־arena של ONNX השיא 5.0GB, בלעדיה 2.8GB ו־+32% זמן, פלט זהה.
 # לכן: כשבתחילת היישור פנוי פחות מ־ARENA_NEED_MB (השיא שנמדד עם arena) — בלי arena (עוד כמה דקות במקום קריסה).
 # ניסיון שבא אחרי נפילה באמצע היישור של אותה עבודה — job.py מכבה (SNB_ALIGN_ARENA=off, סימן ב־/cache). =on/off עוקף.
-ARENA_NEED_MB = int(os.environ.get("SNB_ALIGN_ARENA_MB", "5000"))
+# 21/10/2026 ערב (עוד נפילה — סרטון של 103 דק׳, ‏rc -9 באמצע היישור): השיא עם arena לא קבוע. מהמדדים של הייצור
+# (תקרה 8088MB): 20 דק׳ — בשימוש 6.1–6.6GB, ‏87 דק׳ — 6.9GB (נשארו 1.2GB), ‏103 דק׳ — נהרג. ‏5000 היה הסף של בדיקה קצרה.
+# הסף = קבוע + לדקת סרטון: עד ~75 דק׳ arena (מהיר), מעל — חיסכון מההתחלה (+32% ביישור במקום נפילה + "המשך").
+ARENA_NEED_MB = int(os.environ.get("SNB_ALIGN_ARENA_MB", "6900"))
+ARENA_PER_MIN = float(os.environ.get("SNB_ALIGN_ARENA_PER_MIN", "15"))
 
 
 def mem_free_mb() -> int | None:
@@ -84,14 +88,14 @@ def mem_free_mb() -> int | None:
     return None
 
 
-def use_arena(free: int | None = None) -> bool:
+def use_arena(free: int | None = None, dur_min: float = 0.0) -> bool:
     v = os.environ.get("SNB_ALIGN_ARENA", "").lower()
     if v in ("on", "1"):
         return True
     if v in ("off", "0"):
         return False
     free = mem_free_mb() if free is None else free
-    return free is None or free >= ARENA_NEED_MB
+    return free is None or free >= ARENA_NEED_MB + ARENA_PER_MIN * max(0.0, dur_min or 0.0)
 
 
 def session(path: Path, threads: int | None = None, arena: bool = True):
@@ -108,7 +112,7 @@ def session(path: Path, threads: int | None = None, arena: bool = True):
 
 
 class OnnxAligner:
-    def __init__(self, d: Path, threads: int | None = None):
+    def __init__(self, d: Path, threads: int | None = None, dur_min: float = 0.0):
         from qwen_asr.core.transformers_backend import Qwen3ASRConfig, Qwen3ASRProcessor
         from qwen_asr.inference.qwen3_forced_aligner import Qwen3ForceAlignProcessor
         from transformers import AutoConfig, AutoProcessor
@@ -123,7 +127,7 @@ class OnnxAligner:
         self.seg_ms = float(cfg["timestamp_segment_time"])
         self.audio_id = int(cfg["thinker_config"]["audio_token_id"])
         free = mem_free_mb()
-        self.arena = use_arena(free)
+        self.arena = use_arena(free, dur_min)
         self.conv = session(d / "audio-conv.onnx", threads, self.arena)
         self.enc = session(d / "audio-encoder.onnx", threads, self.arena)
         self.dec = session(d / "text-decoder.onnx", threads, self.arena)
