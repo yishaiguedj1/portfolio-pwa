@@ -54,6 +54,15 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     ok(st.slaLiveT(s, 1000000 + 3600e3, true).el === 660, 'slaLiveT: לכל היותר 10 דק׳ קדימה מהעדכון האחרון');
     ok(/live\(tRow,/.test(sj), 'כרטיס היעדים מתעדכן במקום (live)');
   }
+  // 21/10/2026 ("נוצר ב־12:00 ועברו 14 דקות?"): גם הזמן מאז ההתחלה, וכמה ממנו השעון עצר
+  {
+    const c = 1_000_000_000, sla = { t: { tg: 3600, el: 15 * 60, f: 0.25, lv: 'ok', paused: false }, at: c + 40 * 60e3 };
+    const w = st.slaWall({ created: c, srv: { state: 'running', ended: 0, sla } }, c + 40 * 60e3);
+    ok(w === 'studioSlaWall · studioSlaWaitOf', 'slaWall: 40 דק׳ מאז ההתחלה, 25 מהן השעון עצר — ' + w);
+    ok(/studioSlaWall: "מאז ההתחלה \{t\}"/.test(read('app.js')), 'slaWall: המחרוזת בעברית');
+    ok(st.slaWall({ created: c, srv: { state: 'running', ended: 0, sla: { t: Object.assign({}, sla.t, { el: 40 * 60 }), at: c + 40 * 60e3 } } }, c + 40 * 60e3).indexOf('·') < 0, 'slaWall: בלי המתנה — רק הזמן');
+    ok(st.slaWall({ created: 0, srv: { sla } }, c) === '', 'slaWall: בלי זמן יצירה — כלום');
+  }
   ok(/const vr = valueRow\(\); if \(vr\) ag\.push\(vr\);/.test(sj) && /function pageValue\(p\)/.test(sj) && /else if \(ui\.view === 'value'\) pageValue\(p\)/.test(sj), 'מגדל: ערך ועלות → דף');
   ok(/net\.api\('price', \{ hp \}\)/.test(sj) && (sj.match(/setPrice\(/g) || []).length === 2, 'המחיר נקבע במקום אחד (דף הערך)');
   ok(/case 'claude:sla_time'/.test(sj) && /case 'claude:sla_cost'/.test(sj), 'תוויות להתראות ההפרה');

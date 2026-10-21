@@ -597,7 +597,7 @@ class JobHooks(unittest.TestCase):
 class RunAutoResume(unittest.TestCase):
     """run_auto: המשך מנקודת שמירה מדלג על מה שכבר שולם — בלי Claude אמיתי (Pipeline ו־Engine מדומים)."""
 
-    def flow(self, ck, resumed, proofed=False, src=None, attach=False, tl_fail=False, rc_want=0, park=''):
+    def flow(self, ck, resumed, proofed=False, src=None, attach=False, tl_fail=False, rc_want=0, park='', late=False):
         log = []
         state = {'job': 'j' + 'a' * 20, 'spec': {'mode': 'opus-medium'}, 'ck': ck}
         if src:
@@ -636,6 +636,17 @@ class RunAutoResume(unittest.TestCase):
                 def attach_video(self, ctx):
                     log.append('attach')
                     if park == 'attach':
+                        raise Park()
+                    state['src'] = 'v'
+
+            if late:
+                def video_prefetch(self, ctx, stop):
+                    log.append('prefetch')
+                    stop.wait(5)
+
+                def attach_late(self, ctx):
+                    log.append('attach_late')
+                    if park == 'late':
                         raise Park()
                     state['src'] = 'v'
 
@@ -751,6 +762,23 @@ class RunAutoResume(unittest.TestCase):
         self.check_parallel(self.flow([{'s': 'asr', 'id': 'x'}], 'asr', proofed=True, src='a', attach=True),
                             ['restore', 'attach', 'align_prep', 'translate', 'fix', 'ck:tl', 'review', 'judge', 'finish'])
 
+    def test_audio_first_never_waits_for_video(self):
+        # 21/10/2026 (בקשת המשתמש): ההגהה, התכנון, היישור והתרגום רצים על הקול; הסרטון יורד ברקע ומצטרף רק לפני הבדיקה
+        log = self.flow([], None, src='a', late=True)
+        self.assertEqual(log.count('prefetch'), 1, 'ההורדה ברקע מתחילה מיד')
+        self.assertLess(log.index('prefetch'), log.index('proofread'))
+        self.check_parallel([x for x in log if x != 'prefetch'],
+                            ['prepare', 'proofread', 'ck:asr+pr', 'align_prep', 'translate', 'fix', 'ck:tl',
+                             'attach_late', 'review', 'judge', 'finish'])
+
+    def test_late_attach_park_and_resume(self):
+        # הסרטון עוד לא הגיע כשצריך אותו — התרגום כבר שמור (ck:tl), העבודה חוזרת לתור; בהמשך — רק הצירוף והבדיקה
+        log = self.flow([], None, src='a', late=True, park='late', rc_want=3)
+        self.assertIn('ck:tl', log)
+        self.assertLess(log.index('ck:tl'), log.index('park'))
+        log = self.flow([{'s': 'tl', 'id': 'x'}], 'tl', src='a', late=True)
+        self.assertEqual([x for x in log if x != 'prefetch'], ['restore', 'attach_late', 'review', 'judge', 'finish'])
+
     def test_park_before_anything_paid(self):
         # בלי קול נפרד: מחכים לסרטון עוד בהכנה — אין מה לשמור, פשוט חוזרים לתור
         self.assertEqual(self.flow([], None, park='prepare', rc_want=3), ['prepare', 'park'])
@@ -858,6 +886,47 @@ class ParkWaitVideo(unittest.TestCase):
 
     def test_video_present_returns(self):
         self.assertEqual(self.run_wait(self.ctx('api', {'v': {'id': 'v2'}})), {'id': 'v2'})
+
+
+class VideoPrefetch(unittest.TestCase):
+    """21/10/2026: הורדת הסרטון ברקע — בשקט, בלי לשמור מצב, ונעצרת כשמבקשים (לפני הצירוף)."""
+
+    def run_it(self, files, claims):
+        import job as JJ
+        import threading as T
+        got, saved = [], []
+        st = {'server': 'http://127.0.0.1:1', 'job': 'j' + 'a' * 20, 'key': 'k' * 43, 'drive_api': 'http://127.0.0.1:1/drive/v3',
+              'files': files}
+        old = (JJ.fetch_input, JJ.save_state, JJ.Client.call)
+        JJ.fetch_input = lambda c, fid, dest, size, on_progress=None: got.append((fid, dest.name, size))
+        JJ.save_state = lambda s: saved.append(s)
+        it = iter(claims)
+        JJ.Client.call = lambda self, op, **k: {'job': {'files': next(it, {})}}
+        os.environ['SNB_POLL'] = '0.01'
+        try:
+            stop = T.Event()
+            ctx = NS(st=st)
+            th = T.Thread(target=lambda: got.append(('ret', JJ.video_prefetch(ctx, stop))))
+            th.start()
+            th.join(1)
+            stop.set()
+            th.join(2)
+        finally:
+            JJ.fetch_input, JJ.save_state, JJ.Client.call = old
+            os.environ.pop('SNB_POLL', None)
+        self.assertFalse(th.is_alive(), 'נעצרת')
+        self.assertEqual(saved, [], 'לא שומרת מצב — התהליכון הראשי הוא היחיד שכותב')
+        self.assertEqual(st['files'], files, 'לא נוגעת במילון של התהליכון הראשי')
+        return got
+
+    def test_downloads_when_video_arrives(self):
+        got = self.run_it({}, [{}, {'v': {'id': 'V1', 'name': 'a.mp4', 'size': 9}}])
+        self.assertEqual(got[0], ('V1', 'jaaaaaaaaaaaaaaaaaaaa.mp4', 9))
+        self.assertEqual(got[-1][1]['id'], 'V1')
+
+    def test_stops_without_video(self):
+        got = self.run_it({}, [])
+        self.assertEqual(got, [('ret', None)])
 
 
 class QuietCtxWorker(unittest.TestCase):

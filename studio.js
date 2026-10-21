@@ -3654,6 +3654,18 @@ export function slaLiveT(sla, now, running) {
   const el = Math.round(t.el + add);
   return { el, f: t.tg > 0 ? el / t.tg : t.f };
 }
+/* 21/10/2026: "מאז ההתחלה 47 דק׳ · 25 מהן חיכינו לך או לסרטון" — מהיצירה עד הסוף (או עכשיו), מול שעון היעד */
+export function slaWall(r, now) {
+  const s = r && r.srv && r.srv.sla;
+  if (!s || !(r.created > 0)) return '';
+  const end = r.srv.ended > 0 && r.srv.state !== 'running' && r.srv.state !== 'queued' ? r.srv.ended : now;
+  const wall = Math.max(0, Math.round((end - r.created) / 1000));
+  const el = slaLiveT(s, now, r.srv.state === 'running').el;
+  const wait = Math.max(0, wall - el);
+  const head = T('studioSlaWall', { t: fmtShort(wall) });
+  if (s.t.paused) return head + ' · ' + T('studioSlaWaitNow');
+  return wait >= 60 ? head + ' · ' + T('studioSlaWaitOf', { t: fmtShort(wait) }) : head;
+}
 function slaCard(rec) {
   const id = rec.id, cur = () => { const r = jobRec(id); return r && r.srv && r.srv.sla ? r : null; };
   const sla = rec.srv.sla, t = sla.t;
@@ -3679,8 +3691,13 @@ function slaCard(rec) {
     }));
   }
   const out = [secT(T('studioSlaT')), list(...rows)];
-  if (t.paused) out.push(note(T('studioSlaPaused')));
-  else if (t.pz >= 60) out.push(note(T('studioSlaPz', { t: fmtShort(t.pz) })));
+  // 21/10/2026 (המשתמש: "נוצר ב־12:00 ועברו 14 דקות?"): גם הזמן מאז ההתחלה — וכמה ממנו השעון עצר
+  const wn = note('');
+  out.push(live(wn, (el) => {
+    const r = cur(); if (!r) return;
+    const w = slaWall(r, Date.now());
+    if (w) el.textContent = w;
+  }));
   return out;
 }
 /* v383: תקציב שגיאות — שורה במגדל (כמה נשאר) → דף slo */

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1550 מפתחות מתוך 3538) */
+/* המחרוזות של studio (1551 מפתחות מתוך 3541) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1246,11 +1246,12 @@ he: {
   "studioSlaOfU": "מתוך",
   "studioSlaOk": "בזמן",
   "studioSlaOver": "חרגה",
-  "studioSlaPaused": "השעון עצר — מחכים לך או לסרטון מהטלפון",
-  "studioSlaPz": "השעון עצר {t} כשחיכינו לך או לסרטון",
   "studioSlaRisk": "בסיכון",
   "studioSlaT": "יעדים",
   "studioSlaTime": "זמן",
+  "studioSlaWaitNow": "השעון עצר — מחכים לך או לסרטון מהטלפון",
+  "studioSlaWaitOf": "{t} מהם חיכינו לך או לסרטון",
+  "studioSlaWall": "מאז ההתחלה {t}",
   "studioSloAtt": "{a}% בלי התערבות · יעד {t}%",
   "studioSloBad": "השתמשו בתקציב",
   "studioSloBurn": "קצב שריפה · 7 ימים",
@@ -2798,11 +2799,12 @@ en: {
   "studioSlaOfU": "of",
   "studioSlaOk": "On track",
   "studioSlaOver": "Breached",
-  "studioSlaPaused": "Clock paused — waiting on you or the video upload",
-  "studioSlaPz": "Clock paused {t} while waiting on you or the video",
   "studioSlaRisk": "At risk",
   "studioSlaT": "Targets",
   "studioSlaTime": "Time",
+  "studioSlaWaitNow": "clock paused — waiting on you or the video upload",
+  "studioSlaWaitOf": "{t} of it waiting on you or the video",
+  "studioSlaWall": "Since start {t}",
   "studioSloAtt": "{a}% without intervention · target {t}%",
   "studioSloBad": "Used the budget",
   "studioSloBurn": "Burn rate · 7 days",

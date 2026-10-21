@@ -630,6 +630,34 @@ class TestWorker(unittest.TestCase):
         words = json.loads((self.tmp / 'work' / SLUG / 'asr' / 'parakeet.json').read_text())['words']
         self.assertEqual(words[0]['s'], 1.0, 'בלי הזזה — התמלול החדש כבר על ציר הזמן של הסרטון')
 
+    def _late(self, sync):
+        # 21/10/2026: הכל רץ על הקול; הסרטון מצטרף רק עכשיו — הזמנים של המילים (גם אחרי היישור) זזים, והכתוביות מתעדכנות ב־retime
+        self.assertEqual(self.take()[0], 0)
+        self.assertEqual(self.job('prepare')[0], 0)
+        W = self.tmp / 'work' / SLUG
+        for n in ('en.words.json', 'en.aligned.json'):
+            (W / n).write_text(json.dumps({'words': [{'w': 'Hi', 's': 1.0, 'e': 1.5, 's_asr': 0.9, 'e_asr': 1.4}]}))
+        code, out = self.job('attach-late', env={'FAKE_SYNC': sync})
+        self.assertEqual(code, 0, out)
+        self.assertEqual(int((W / 'src_size').read_text()), len(VIDEO), 'הסרטון הוא המקור עכשיו')
+        cmds = [l.split()[0] for l in (self.tmp / 'vt.log').read_text().splitlines()][4:]
+        return W, cmds, out
+
+    def test_attach_late_shifts_and_retimes(self):
+        W, cmds, out = self._late('0.250000 0.990')
+        self.assertEqual(cmds, ['ingest', 'sync', 'retime', 'shots'], 'בלי יישור מחדש ובלי תמלול מחדש')
+        for n in ('en.words.json', 'en.aligned.json'):
+            w = json.loads((W / n).read_text())['words'][0]
+            self.assertEqual((w['s'], w['e'], w['s_asr'], w['e_asr']), (1.25, 1.75, 1.15, 1.65), n)
+        self.assertEqual(json.loads((W / 'asr' / 'parakeet.json').read_text())['words'][0]['s'], 1.25)
+        self.assertEqual(self.job('attach-late')[1].strip().splitlines()[-1], '· הסרטון כבר המקור — אין מה לצרף.')
+
+    def test_attach_late_unsure_realigns(self):
+        W, cmds, out = self._late('3.874 0.003')
+        self.assertIn('מיישרים מחדש', out)
+        self.assertEqual(cmds, ['ingest', 'sync', 'align', 'retime', 'shots'], 'יישור מחדש על הקול של הסרטון — בלי תמלול מחדש ובלי טוקנים')
+        self.assertEqual(json.loads((W / 'en.aligned.json').read_text())['words'][0]['s'], 1.0, 'בלי הזזה')
+
     def test_sync_module(self):
         # sync.py האמיתי על אותות סינתטיים: היסט חיובי/שלילי מדויק לדגימה, קבצים שונים — ודאות אפסית
         try:

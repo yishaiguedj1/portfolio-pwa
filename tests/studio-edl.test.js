@@ -90,7 +90,7 @@ print(json.dumps(out))`, path.join(root, 'translator'), tmp], { encoding: 'utf8'
   const ep = read('translator/edl.py');
   ok(/def ffmpeg_args\(src, out, e, info, audio_only=False[,)]/.test(ep) && /\[0:v\]trim%s,setpts=PTS-STARTPTS/.test(ep) && /crop=%d:%d:%d:%d/.test(ep) && !/shell=True/.test(ep), 'edl.py: trim/concat/crop, רשימת ארגומנטים בלי shell');
   const jp = read('translator/job.py');
-  ok((jp.match(/src = edl_src\(ctx, src, /g) || []).length === 4, 'העובד חותך מיד אחרי כל הורדה של המקור (קול, סרטון, צירוף הסרטון, המשך)');
+  ok((jp.match(/src = edl_src\(ctx, src, /g) || []).length === 5, 'העובד חותך מיד אחרי כל הורדה של המקור (קול, סרטון, צירוף הסרטון, צירוף מאוחר, המשך)');
   ok(/for k in \('edl0', 'edl'\):/.test(jp) && /E\.compose_edl\(e0, e1\)/.test(read('translator/rerender.py')), 'הפקה מחדש: החיתוך שלפני התרגום + החיתוך החדש = עריכה אחת על המקור; הכתוביות זזות רק עם החדש');
 
   /* ---------- 6. השרתון ---------- */

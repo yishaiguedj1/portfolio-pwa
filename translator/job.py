@@ -1975,6 +1975,89 @@ def attach_video(ctx):
     save_state(ctx.st)
 
 
+TIME_KEYS = ('s', 'e', 's_asr', 'e_asr')
+
+
+def shift_times(pdir, off):
+    """21/10/2026: כמו shift_words, אבל לכל קובצי המילים — גם אחרי היישור (en.words.json, en.aligned.json).
+    הזמנים של הכתוביות עצמן מתעדכנים אחר כך מהמילים (vt retime)."""
+    n = shift_words(pdir, off)
+    for name in ('en.words.json', 'en.aligned.json'):
+        p = pdir / name
+        if not p.exists():
+            continue
+        d = json.loads(p.read_text(encoding='utf-8'))
+        for w in d.get('words') or []:
+            for k in TIME_KEYS:
+                if isinstance(w.get(k), (int, float)):
+                    w[k] = round(max(0.0, w[k] + off), 3)
+        p.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+        n += 1
+    return n
+
+
+def video_prefetch(ctx, stop):
+    """21/10/2026 (בקשת המשתמש: "ששום דבר לא יחכה לשום דבר שלא הכרחי"): ברקע, בזמן שההגהה, היישור והתרגום רצים על
+    הקול — מחכים בשקט שהסרטון יסיים לעלות ומורידים אותו. לא נוגעים בפרויקט ולא שומרים מצב (עותק של המילון — התהליכון
+    הראשי שומר את שלו), ולא מדווחים כלום: אף אחד לא מחכה לזה עד שצריך את הסרטון (attach_late)."""
+    q = QuietCtx(dict(ctx.st))
+    poll = float(os.environ.get('SNB_POLL', '30'))
+    while not stop.is_set():
+        v = (q.st.get('files') or {}).get('v') or {}
+        if v.get('id'):
+            fetch_input(q, v['id'], in_path(q, v, 'v'), int(v.get('size') or 0))
+            return v
+        stop.wait(poll)
+        if stop.is_set():
+            break
+        try:
+            q.st['files'] = (q.c.call('claim').get('job') or {}).get('files') or {}
+        except (SystemExit, Exception):          # noqa: BLE001 — רשת רגעית; התהליכון הראשי יחכה בעצמו אם צריך
+            pass
+    return None
+
+
+def attach_late(ctx):
+    """21/10/2026: "הקול קודם" בלי לחכות לסרטון. ההגהה, התכנון, היישור והתרגום צריכים רק את הקול — הסרטון נחוץ רק
+    לחילופי השוטים, לבדיקה האחרונה ולצריבה. לכן הוא מצטרף כאן, לפני הבדיקה: קליטה, מדידת ההיסט בין הקולות (sync.py),
+    הזזת זמני המילים (גם של היישור) ו־vt retime — החלוקה והתרגום נשמרים, רק הזמנים מתעדכנים. היסט לא ודאי → יישור
+    מחדש על הקול של הסרטון (בלי טוקנים). עד היום כל השלבים חיכו לסרטון אחרי ההגהה (בעבודה של 21/10 — 25 דקות)."""
+    v = wait_video(ctx, 'rv', 'מחכה שהסרטון יסיים לעלות')
+    src = in_path(ctx, v, 'v')
+    ctx.report('rv', 0, 'מצרפים את הסרטון', force=True)
+    fetch_input(ctx, v['id'], src, int(v.get('size') or 0))     # אחרי video_prefetch — כבר כאן (או ממשיכים מאותו בייט)
+    ladder_start(ctx, src)                       # אחרי היישור — בלי סכנת זיכרון
+    src = edl_src(ctx, src, 'v')
+    pd = ctx.pdir
+    first = pd / 'audio16k.first.wav'
+    if (pd / 'audio16k.wav').exists():
+        (pd / 'audio16k.wav').replace(first)
+    for old in pd.glob('source.*'):
+        old.unlink()
+    set_source(pd, src)
+    vt(ctx, ['ingest', ctx.name, '--force'])
+    off, conf = 0.0, 0.0
+    if first.exists():
+        r = subprocess.run([VT_PY, str(HERE / 'sync.py'), str(first), str(pd / 'audio16k.wav')], capture_output=True, text=True)
+        try:
+            off, conf = (float(x) for x in (r.stdout or '').split()[:2])
+        except ValueError:
+            off, conf = 0.0, 0.0
+    if conf >= SYNC_MIN_CONF:
+        if abs(off) >= 0.0005:
+            shift_times(pd, off)
+            vt(ctx, ['retime', ctx.name])
+        print('✓ הסרטון צורף · היסט %+.3f שנ׳ (ודאות %.2f)' % (off, conf))
+    else:
+        print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — מיישרים מחדש על הקול של הסרטון (בלי טוקנים)' % conf)
+        vt(ctx, ['align', ctx.name])
+        vt(ctx, ['retime', ctx.name])
+    vt(ctx, ['shots', ctx.name])
+    ctx.st['src'] = 'v'
+    ctx.st['sync'] = {'off': round(off, 4), 'conf': round(conf, 3)}
+    save_state(ctx.st)
+
+
 # ---------------------------------------------------------------- v380: זיכרון מונחים
 # מילון אחד לכל משתמש ב־Drive של הסטודיו (קובץ TSV, appProperties snbGloss=1 — אותו פורמט של tr/glossary.tsv).
 # אחרי tr-prep נכנסים לעבודה רק המונחים שמופיעים בתמליל (פחות טוקנים), מתחת לשורת GL_MARK — המשתמש גובר.
@@ -2089,6 +2172,17 @@ def gl_suggest(ctx):
     used = sum(1 for r in proj if r[0].lower() in uk)
     new = [[r[0], r[1]] for r in proj if r[0].lower() not in uk][:GL_SUG]
     return {'u': used, 's': new} if used or new else None
+
+
+@guarded
+def attach_late_cmd(args):
+    """21/10/2026: הצירוף המאוחר של הסרטון (מצב השרת קורא ישירות ל־attach_late; כאן — לבדיקות ולבדיקה ידנית)."""
+    ctx = Ctx(load_state())
+    if ctx.st.get('src') != 'a':
+        print('· הסרטון כבר המקור — אין מה לצרף.')
+        return 0
+    attach_late(ctx)
+    return 0
 
 
 @guarded
@@ -3433,6 +3527,7 @@ def main(argv=None):
     r.add_argument('--drive-api', default=DRIVE_API, help=argparse.SUPPRESS)
     sub.add_parser('prepare', help='הורדה, קליטה, תמלול וקובץ ההגהה')
     sub.add_parser('align', help='ייבוא ההגהה, יישור, תכנון וקובץ התרגום')
+    sub.add_parser('attach-late', help=argparse.SUPPRESS)
     s = sub.add_parser('stage', help='דיווח התקדמות לאפליקציה')
     s.add_argument('st')
     s.add_argument('--p', type=float)
@@ -3471,7 +3566,7 @@ def main(argv=None):
         return {'prepare': prepare, 'align': align, 'stage': stage, 'finish': finish, 'fail': fail, 'ask': ask, 'vt': vt_cmd,
                 'save': save, 'restore': restore, 'fix': fix, 'pir': pir, 'gate': gate_cmd, 'auto': auto,
                 'judge-prep': judge_prep, 'judge': judge, 'render': render,
-                'ai-prep': ai_prep, 'ai-done': ai_done, 'ladder-run': ladder_run}[a.cmd](a)
+                'ai-prep': ai_prep, 'ai-done': ai_done, 'ladder-run': ladder_run, 'attach-late': attach_late_cmd}[a.cmd](a)
     if not JOB_RE.match(a.job) or not KEY_RE.match(a.key):
         print('✗ מזהה העבודה או המפתח לא בצורה הנכונה (job=j + 20 תווים, key = 43 תווים).')
         return 1
