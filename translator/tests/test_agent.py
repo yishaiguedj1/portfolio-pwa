@@ -3,6 +3,7 @@
 הרצה: python3 -m unittest tests.test_agent   (מתוך translator/)
 """
 import json
+import time
 import os
 import subprocess
 import sys
@@ -96,7 +97,7 @@ class AgentTests(unittest.TestCase):
         hb = self.fake.hb[0]
         self.assertEqual(hb['busy'], '')
         self.assertTrue(0 <= hb['disk'] <= 100 and hb['free'] >= 0 and 'mem' in hb, 'דופק: דיסק, זיכרון — מספרים בלבד')
-        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
+        self.assertEqual(set(hb) - {'v', 'busy', 'disk', 'free', 'load', 'mem', 'up', 'iso', 'iw', 'al', 'ev', 'cpu', 'nj', 'mx'}, set(), 'בלי שום שדה מעבר למספרים, לגרסה ולקודים הקבועים')
         self.assertEqual([k for _, k in hb['ev']], ['up'], 'ת7: יומן השרת — "הסוכן עלה" נשלח כבר בפנייה הראשונה')
         self.assertTrue(all(isinstance(t, int) and t > 1.6e9 for t, _ in hb['ev']))
         self.assertIn(hb['al'], ('o', 't'), 'שלב 4.1: מנוע היישור — קוד קבוע (בלי גרפים בבדיקה = torch)')
@@ -313,3 +314,103 @@ class BootPollUnit(unittest.TestCase):
         agent.poll('https://x', 't')                           # התשובה התקינה הראשונה
         agent.poll('https://x', 't')
         self.assertEqual([b.get('boot') for b in sent], [None, True, True, None])
+
+
+JOB2 = 'jZyXwVuTsRqPoNmLkJiH-'
+KEY2 = 'Q' * 40 + '_-8'
+
+
+class SlotsFake(Fake):
+    """שתי עבודות בתור; הלקיחה של הראשונה איטית (8 שנ׳) — כך הבקשה השנייה מגיעה כשהראשונה עוד רצה"""
+    def __init__(self):
+        super().__init__()
+        self.queue = [{'id': JOB, 'key': KEY, 'kind': 'ping', 'dur': 600}, {'id': JOB2, 'key': KEY2, 'kind': 'ping', 'dur': 300}]
+        self.bodies, self.claims = [], {}
+        fake = self
+        keys = {JOB: KEY, JOB2: KEY2}
+
+        class H(self.srv.RequestHandlerClass):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
+                if body.get('op') == 'poll':
+                    fake.polls += 1
+                    fake.bodies.append(body)
+                    jb = fake.queue.pop(0) if fake.queue else None
+                    return self._send(200, {'ok': True, 'job': jb})
+                if keys.get(body.get('job')) != body.get('key'):
+                    return self._send(403, {'ok': False, 'error': 'bad_key', 'stop': True})
+                if body['op'] == 'claim':
+                    fake.claims[body['job']] = time.time()
+                    if body['job'] == JOB:
+                        time.sleep(8)
+                    return self._send(200, {'ok': True, 'job': {'kind': 'ping'}, 'drive': {'token': 'ya29.T'}})
+                if body['op'] == 'report':
+                    fake.reports.append(body)
+                    return self._send(200, {'ok': True})
+                return self._send(400, {'ok': False})
+        self.srv.RequestHandlerClass = H
+
+
+class SlotsTests(unittest.TestCase):
+    """21/10/2026: כמה עבודות במקביל — כל אחת בתהליך ובתיקיות משלה, והבקשה לעוד עבודה כוללת כמה זיכרון פנוי"""
+
+    def test_two_jobs_in_parallel(self):
+        fake = SlotsFake()
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / 'home').mkdir()
+        env = dict(os.environ, SNB_SERVER=fake.url, SNB_WORKER_TOKEN=WTOK, SNB_DRIVE_API=fake.url + '/drive/v3',
+                   VT_WORK=str(tmp / 'work'), SNB_STATE=str(tmp / 'state'), HOME=str(tmp / 'home'), SNB_POLL_S='0.2',
+                   SNB_SLOTS='2', SNB_STOP_AFTER='2', SNB_MEM_DB=str(tmp / 'cache' / 'mem.json'))
+        try:
+            r = subprocess.run([sys.executable, str(HERE / 'agent.py')], env=env, capture_output=True, text=True, timeout=90)
+        finally:
+            fake.srv.shutdown()
+            fake.srv.server_close()
+        out = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, out)
+        done = {x.get('job') for x in fake.reports if x.get('done')}
+        self.assertEqual(done, {JOB, JOB2}, 'שתי העבודות רצו ודווחו')
+        self.assertLess(fake.claims[JOB2] - fake.claims[JOB], 8, 'השנייה נלקחה בזמן שהראשונה עוד רצה — במקביל, לא בתור')
+        fits = [b.get('fit') for b in fake.bodies if b.get('fit')]
+        self.assertTrue(fits, 'הבקשה לעוד עבודה (כשאחת רצה) כוללת כמה זיכרון פנוי')
+        f = fits[0]
+        self.assertTrue(all(isinstance(f[k], (int, float)) for k in ('mb', 'a', 'b', 'ra', 'rb', 'ai')), f)
+        self.assertTrue(any((b.get('hb') or {}).get('nj') == 1 for b in fake.bodies), 'הדופק: כמה עבודות רצות')
+        self.assertTrue(all(isinstance((b.get('hb') or {}).get('cpu'), int) for b in fake.bodies), 'הדופק: הליבות המותרות')
+        self.assertEqual(list((tmp / 'work').iterdir()), [], 'אחרי שתי העבודות לא נשאר כלום — גם לא תיקיות המשבצות')
+        self.assertFalse(any((tmp / 'state').glob('s*')), 'מצב העבודות (כולל המפתחות) נמחק')
+        self.assertNotIn(KEY, out)
+        self.assertNotIn(KEY2, out)
+        self.assertIn('שיא זיכרון', out, 'השיא של כל עבודה נמדד')
+        self.assertFalse((tmp / 'cache' / 'mem.json').exists(), 'בדיקת חיבור לא נכנסת למאגר השיאים (רק תרגום / הפקה / AI)')
+
+
+class MemUnit(unittest.TestCase):
+    def setUp(self):
+        sys.path.insert(0, str(HERE))
+        import agent
+        self.A = agent
+
+    def test_need_and_learning(self):
+        A = self.A
+        with tempfile.TemporaryDirectory() as d:
+            A.MEM_DB = Path(d) / 'm.json'
+            base = A.mem_need('tr', 3600)
+            self.assertEqual(base, round((4600 + 22 * 60) * 1.1), 'לפני מדידות — ה־prior × מרווח')
+            A.mem_note('tr', 600, 9000)                   # שיא גבוה מה־prior — המודל עולה
+            self.assertGreater(A.mem_need('tr', 3600), base)
+            A.mem_note('tr', 600, 100)                    # שיא נמוך — לא מוריד מתחת ל־prior (שמרני)
+            self.assertEqual(A.mem_model('tr')[0], round(9000 - 22 * 10))
+            self.assertEqual(A.mem_need('ai', 0), round(700 * 1.1))
+
+    def test_slots_by_cpu(self):
+        A = self.A
+        old = os.environ.pop('SNB_SLOTS', None)
+        try:
+            self.assertEqual(A.slots_max(), max(1, min(4, A.cpus_allowed() // 4)))
+            os.environ['SNB_SLOTS'] = '9'
+            self.assertEqual(A.slots_max(), 4, 'לכל היותר 4')
+        finally:
+            os.environ.pop('SNB_SLOTS', None)
+            if old is not None:
+                os.environ['SNB_SLOTS'] = old

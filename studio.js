@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB } from './studionet.js';
+import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -158,6 +158,7 @@ export function normJob(j) {
     style: STYLES.includes(sp.style) ? sp.style : 'bold', terms: String(sp.terms || '').slice(0, TERMS_MAX),
   };
   if (edlPre(normEdl(sp.edl))) spec.edl = edlPre(normEdl(sp.edl));   // מ4: חיתוך לפני התרגום (הכתוביות על ציר הזמן שאחרי החיתוך)
+  if (num(sp.px) >= 0.02 && num(sp.px) <= 16) spec.px = num(sp.px);   // 21/10/2026: פיקסלים לשנייה מול 1080p30 — לצפי
   const u = j.up && typeof j.up === 'object' ? j.up : {};
   const part = (x) => {
     x = x && typeof x === 'object' ? x : {};
@@ -1023,11 +1024,14 @@ function fileNameEl(name) {
   return b;
 }
 /* זמנים בשפה פשוטה */
+/* 21/10/2026 (מחקר הצפי): דיוק שמוצג רק עד כמה שהוא אמיתי — עד 10 דק׳ בדקות, עד שעה בעיגול ל־5 דק׳,
+   מעל שעה ל־10 דק׳; בלי שניות בראש המסך. צפי של "43 דקות" מבטיח דיוק שאין לנו, והמספר קופץ בכל רענון */
 function fmtLeft(sec) {             // "55 דקות" / "שעה ו־40 דק׳" — בראש מסך ההתקדמות
-  const m = Math.round(Math.max(0, sec) / 60);
+  let m = Math.round(Math.max(0, sec) / 60);
   if (m < 1) return T('studioLt1');
+  if (m >= 10) m = Math.round(m / (m >= 60 ? 10 : 5)) * (m >= 60 ? 10 : 5);
   if (m < 60) return T('studioMinLong', { m });
-  return T('studioHM', { h: Math.floor(m / 60), m: m % 60 });
+  return m % 60 ? T('studioHM', { h: Math.floor(m / 60), m: m % 60 }) : T('studioHOnly', { h: m / 60 });
 }
 function fmtSecShort(sec) {         // מתחת לדקה וחצי — בשניות ("40 שנ׳"), אחרת כמו fmtShort
   return sec < 90 ? T('studioSecs', { n: Math.max(1, Math.round(sec)) }) : fmtShort(sec);
@@ -2105,7 +2109,7 @@ function planFor(rec) {
   if (rec.srv && rec.srv.ep) return rec.srv.ep;
   const eng = (rec.srv && rec.srv.eng) === 'api' || rec.spec.eng === 'api' ? 'a' : 'r';
   const md = ui.eta && ui.eta[eng];
-  return (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
+  return (md && planFrom(md, modeById(rec.spec.mode).min, rec.spec.dur || 0, rec.spec.px)) || { s: stageEstimates(modeById(rec.spec.mode).min, rec.spec.dur || 0), q: Q_DEF, n: 0 };
 }
 function modelFor(rec) {
   const run = runs.get(rec.id);
@@ -2115,12 +2119,20 @@ function modelFor(rec) {
   return m;
 }
 /* שעת הסיום שמוצגת (p80) — יציבה: יורדת מיד, עולה רק כשהפער גדול מדקה או מ־10% ממה שנשאר (מחקר הצפי, 10/10/2026) */
-const etaEnd = new Map();
+/* 21/10/2026: עולה רק כשהפער גדול מ־3 דק׳ או מ־10% (היסטרזיס — שעה שקופצת קדימה ואחורה מאבדת אמון), ומעל שעה
+   השעה מעוגלת קדימה ל־5 דק׳ ("בסביבות 14:35", לא 14:33) */
+const etaEnd = new Map(), pctMemo = new Map();
 function shownEnd(id, leftSec) {
-  const now = Date.now(), raw = now + leftSec * 1000, prev = etaEnd.get(id);
-  if (!prev || raw < prev || raw - prev > Math.max(60e3, 0.1 * leftSec * 1000) || prev < now) { etaEnd.set(id, raw); return raw; }
+  const now = Date.now(), r0 = now + leftSec * 1000, prev = etaEnd.get(id);
+  const raw = leftSec > 3600 ? Math.ceil(r0 / 300e3) * 300e3 : r0;
+  if (!prev || raw < prev || raw - prev > Math.max(180e3, 0.1 * leftSec * 1000) || prev < now) { etaEnd.set(id, raw); return raw; }
   return prev;
 }
+/* 21/10/2026: אותו מספר בכל מקום — ברשימה, בבית ובמסך העבודה (עד היום הרשימה הראתה p50 והמסך p80) */
+const shownLeft = (rec, m) => Math.max(0, (shownEnd(rec.id, m.left80) - Date.now()) / 1000);
+/* הטבעת והפס לא חוזרים אחורה באותה הפעלה ("המשך" — הפעלה חדשה, מותר להתחיל מנקודה אחרת) */
+const pctKey = (rec, x) => rec.id + ':' + ((rec.srv && rec.srv.fires) || 0) + ':' + (x || '');
+const shownPct = (rec, v, x) => monoPct(pctMemo, pctKey(rec, x), v || 0);
 function videoLine(rec, run) {    // "עלו 1.2GB מתוך 3.2GB · 4.3MB לשנייה · נשארו 8 דק׳"
   const sent = run && run.phase === 'video' ? run.sent || 0 : rec.up.v.sent || 0, size = rec.spec.size;
   const parts = [T('studioUpOf', { a: fmtSize(sent), b: fmtSize(size) })];
@@ -2273,8 +2285,8 @@ function pageHome(p) {
         bd.className = 'st-badge ' + c; bd.textContent = l;
         const upping = ph === 'extract' || ph === 'audio' || ph === 'video';
         tx.textContent = upping ? Math.round(100 * (ph === 'video' ? run.p || 0 : m.stages[0].p || 0)) + '%' + (ph === 'video' && !rec.up.noAudio ? ' · ' + T('studioVideoShort') : '')
-          : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(m.left) }) : '';
-        const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : m.pct;
+          : ph === 'running' || ph === 'queued' ? T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) }) : '';
+        const pct = ph === 'done' ? 1 : ph === 'video' ? run.p || 0 : upping ? m.stages[0].p || 0 : ph === 'running' || ph === 'queued' ? shownPct(rec, m.pct, 'h') : m.pct;
         bar.hidden = FINAL.includes(ph) || ph === 'ready';
         bi.style.width = Math.round(100 * pct) + '%';
       });
@@ -2460,6 +2472,8 @@ function startFromForm() {
     const spec = { name: file.name, size: file.size, type: file.type || '', dur: ed ? edlDur(ed, pr.dur || 0) : pr.dur || 0, from: f.from, to: f.to,
       mode: modeFor(f.mode, ui.mf), out: OUTS.filter((k) => f.out[k]), style: f.style, terms: f.terms };   // 15/10: מצב שסגור למשתמש → ברירת המחדל
     if (ed) spec.edl = ed;
+    // 21/10/2026: מידות הסרטון (מהבדיקה בבחירה) → px לצפי של הצריבה; הקצב לא ידוע כאן — 30 פריימים (העובד מתקן אחרי הקליטה)
+    if (sm && sm.w > 0 && sm.h > 0) spec.px = Math.round(Math.max(0.02, Math.min(16, sm.w * sm.h / (1920 * 1080))) * 1000) / 1000;
     if (apiMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap });   // השרת של המערכת — בלי Routine
     else if (cpMode()) Object.assign(spec, { eng: 'api', cap: store.settings.cap, cp: 1 });   // סבב 10: העתק־הדבק — השרת מתמלל וצורב, Claude שלך מתרגם
     // מ6 (כלל 2): אומדן ואישור לפני ההתחלה — עוד לפני שנוצרת עבודה ולפני ההעלאה
@@ -3992,9 +4006,9 @@ function pageTower(p) {
         const run = ph === 'running' || ph === 'queued';
         const stop = canResume(rec) && !recovering(rec);
         dot.className = 'st-ut-dot ' + (run || ph === 'done' ? 'ok' : stop ? 'bad' : 'wait');
-        sm.textContent = recovering(rec) ? T('studioBRecover') : run ? T('studioBRunning') + ' · ' + T('studioLeftShort', { t: fmtLeft(m.left) })
+        sm.textContent = recovering(rec) ? T('studioBRecover') : run ? T('studioBRunning') + ' · ' + T('studioLeftShort', { t: fmtLeft(shownLeft(rec, m)) })
           : stop ? T('studioUtStopped') + (rec.srv.err ? ' — ' + errText(rec.srv.err) : '') : badgeFor(ph)[1];
-        bar.hidden = !run; bi.style.width = Math.round(100 * (m.pct || 0)) + '%';
+        bar.hidden = !run; bi.style.width = Math.round(100 * (run ? shownPct(rec, m.pct, 'h') : m.pct || 0)) + '%';
         tail.replaceChildren(stop ? btn('st-mini ghost', T('studioUtResume'), () => go('job', rec.id), 'ut-r:' + rec.id) : ico('chev', 'st-chev'));
       });
       return r;
@@ -5519,8 +5533,9 @@ function pageJob(p) {
   live(hero, () => {
     const r = jobRec(id); if (!r) return;
     const run = runs.get(id), ph = jobPhase(r, run), hs = heroState(r, run, ph);
-    arc.style.strokeDashoffset = String(Math.round(170 * (1 - hs.pct)));
-    pctEl.textContent = hs.check ? '✓' : Math.round(hs.pct * 100) + '%';
+    const pv = hs.check ? hs.pct : shownPct(r, hs.pct, ph === 'failed' || ph === 'cancelled' || ph === 'stuck' ? '' : 'h');
+    arc.style.strokeDashoffset = String(Math.round(170 * (1 - pv)));
+    pctEl.textContent = hs.check ? '✓' : Math.round(pv * 100) + '%';
     big.textContent = hs.big; sub.textContent = hs.sub; sub.hidden = !hs.sub;
   });
   p.append(hero);
@@ -5619,10 +5634,10 @@ function pageJob(p) {
     txt.append(h('b', null, stageName(s.id, toTxt)), h('small', null, stageSub(s.id)));
     const tm = h('span', 'st-stg-t');
     row.append(dot, txt, tm);
-    if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * ((mm && mm.p) || 0)) + '%'; }); }
+    if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }
     live(tm, () => {
       const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id) || s;
-      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? T('studioStageLeft', { t: fmtShort(mm.left) }) : approx(fmtShort(mm.est));
+      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? (mm.over ? T('studioStageLong', { t: fmtShort(mm.left) }) : T('studioStageLeft', { t: fmtShort(mm.left) })) : approx(fmtShort(mm.est));
     });
     stl.append(row);
   }

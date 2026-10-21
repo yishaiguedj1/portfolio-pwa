@@ -985,9 +985,13 @@ async function server(req, res, body, deps) {
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
+    // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
+    // לפי הסדר: אם הוותיקה לא נכנסת, לא מקדימים לה עבודה קטנה (אחרת עבודה ארוכה מחכה לנצח מאחורי קצרות)
+    const fit = S.normFit(body.fit);
     for (const job of qd) {
       if (!apiJob(job) || S.effState(job, now).state !== 'queued') continue;
       if (job.vw && !(job.fv && job.fv.id)) continue;   // 15/10/2026: מחכה לסרטון — לא תופסים שרת עד שהוא נרשם
+      if (fit && S.peakNeed(job, fit) > fit.mb) break;
       const st = await readStats(deps, job.uid);
       const cap = S.jobCap(job.spec, S.monthUsed(st.mu, now), USER_MONTH(), S.usdOf(job.use0));
       if (!cap) {
@@ -996,12 +1000,16 @@ async function server(req, res, body, deps) {
         continue;
       }
       const key = S.newKey();
-      const got = await patchIf(deps, 'studioJobs', job.id, { sid: p.sid, pk: now, vw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, job._ut);
+      // 21/10/2026: לצפי — הליבות של השרת וכמה עבודות כבר רצות עליו (חולקות את המעבד)
+      const fx = Object.assign(hb.cpu > 0 ? { hc: Math.round(hb.cpu) } : {}, { cc: Math.max(0, Math.round(hb.nj || 0)) });
+      const got = await patchIf(deps, 'studioJobs', job.id, Object.assign({ sid: p.sid, pk: now, vw: 0, capc: Math.round(cap * 100), kh: S.keyHash(key), kx: now + S.KEY_TTL, updated: now }, fx), job._ut);
       if (!got) continue;
       await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: job.id }));
-      return res.status(200).json({ ok: true, job: { id: job.id, key, kind: job.kind }, now });
+      const dur = job.spec && job.spec.dur > 0 ? Math.round(job.spec.dur) : 0;
+      return res.status(200).json({ ok: true, job: Object.assign({ id: job.id, key, kind: job.kind }, dur ? { dur } : {}), now });
     }
-    await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, { job: '' }));
+    // שרת שעדיין מריץ עבודה (nj) ושאל אם יש עוד — העבודה שלו נשארת רשומה
+    await patchDoc(deps, 'studioServers', p.sid, Object.assign(seen, hb.nj > 0 ? {} : { job: '' }));
     return res.status(200).json({ ok: true, job: null, now });
   } catch (err) {
     return res.status(502).json({ ok: false, error: /^(fs_http_|sa_http_)/.test(String(err.message)) ? String(err.message).slice(0, 30) : 'failed' });
@@ -1318,7 +1326,7 @@ async function worker(req, res, body, deps) {
       let ep = job.ep;
       if (job.kind === 'tr' && !ep && job.spec && job.spec.dur > 0) {
         const ge = job.eng === 'api' ? ((await readDoc(deps, 'studioEta', 'a').catch(() => null)) || {}).et : null;
-        ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur);
+        ep = ETA.etaPlan(ETA.etaModel(ETA.etSamplesFor(stats.et, ge, job.eng === 'api' ? 'a' : 'r'), job.eng === 'api' ? 'a' : 'r', now), job.spec.mode, job.spec.dur, ETA.jobFactors(job));
         patch.ep = ep;
       }
       if (job.kind === 'tr' && !job.tg) {
@@ -1473,6 +1481,15 @@ async function worker(req, res, body, deps) {
     }
     if (job.state === 'queued') { up.state = up.state || 'running'; up.claimed = now; up.warn = ''; if (!job.c0) up.c0 = now; }
     // v377: מחכים לסרטון מהטלפון (wv) — השעון של יעד הזמן עוצר; דיווח התקדמות הבא בלי wv ממשיך אותו (אירוע בודד — לא)
+    // 21/10/2026: העובד גילה את המידות והקצב האמיתיים (אחרי הקליטה) — שלב הצריבה בתוכנית מחושב מחדש, פעם אחת
+    if (job.kind === 'tr' && !job.pxm && Number.isFinite(+body.px) && +body.px >= 0.02 && +body.px <= 16) {
+      up.pxm = Math.round(+body.px * 1000);   // שלם (toFields מעגל מספרים) — px × 1000
+      const ep2 = job.ep && ETA.replanPx(job.ep, job.spec && job.spec.dur, up.pxm / 1000);
+      if (ep2) {
+        up.ep = ep2;
+        if (job.tg && job.tg.t) up.tg = Object.assign({}, job.tg, { t: ETA.etaTarget(ep2) });   // היעד נקבע על מידות משוערות
+      }
+    }
     if (body.wv === true && job.kind === 'tr') { if (!job.wv0) up.wv0 = now; }
     else if (job.wv0 && (body.st || body.done === true || body.fail === true)) { up.pz = (up.pz != null ? up.pz : job.pz || 0) + Math.max(0, now - job.wv0); up.wv0 = 0; }
     // Firestore שומר כאן מספרים שלמים — לכן סנטים (mucc), לא דולרים

@@ -44,7 +44,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   // 3. הטלפון: מאיפה התוכנית, שעה יציבה, טווח לפני 8 עבודות, הסבר
   const st = read('studio.js'), app = read('app.js');
   ok(/if \(rec\.srv && rec\.srv\.ep\) return rec\.srv\.ep;/.test(st) && /planFrom\(md, modeById\(rec\.spec\.mode\)\.min/.test(st) && /stageEstimates\(modeById/.test(st), 'התוכנית: מהשרתון (נקבעה בלקיחה) → מהמודל → הטבלה הישנה');
-  ok(/raw < prev \|\| raw - prev > Math\.max\(60e3, 0\.1 \* leftSec \* 1000\)/.test(st), 'שעת הסיום: יורדת מיד, עולה רק בפער של דקה / 10%');
+  ok(/raw < prev \|\| raw - prev > Math\.max\(180e3, 0\.1 \* leftSec \* 1000\)/.test(st), 'שעת הסיום: יורדת מיד, עולה רק בפער של 3 דק׳ / 10% (21/10/2026 — היסטרזיס)');
   ok(/m\.n >= 8 \|\| m\.left90 - m\.left < 120 \? T\('studioReadyAt'/.test(st) && /T\('studioReadyRange'/.test(st), 'לפני 8 עבודות — טווח ("בין … ל־…"), אחר כך שעה אחת');
   for (const k of ['studioReadyRange', 'studioEtaK', 'studioEtaN', 'studioEtaPrior']) ok((app.match(new RegExp(k + ': "', 'g')) || []).length === 2, 'מחרוזת בשתי השפות: ' + k);
 

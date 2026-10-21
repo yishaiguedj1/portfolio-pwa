@@ -88,6 +88,12 @@ def host_info(busy: str = '') -> dict:
         hb['load'] = round(os.getloadavg()[0], 2)
     except OSError:
         pass
+    hb['cpu'] = cpus_allowed()                      # 21/10/2026: לצפי (השרתון מנרמל זמנים לפי הליבות) ולמסך השרת
+    if _slots:
+        hb['nj'] = len(_slots)
+    lim = mem_limit_mb()
+    if lim:
+        hb['mx'] = lim
     try:
         mi = dict(ln.split(':', 1) for ln in Path('/proc/meminfo').read_text().splitlines() if ':' in ln)
         tot, av = int(mi['MemTotal'].split()[0]), int(mi['MemAvailable'].split()[0])
@@ -128,13 +134,15 @@ def _set_booted():
     _boot = False
 
 
-def poll(server: str, tok: str, op: str = 'poll', busy: str = '') -> dict:
+def poll(server: str, tok: str, op: str = 'poll', busy: str = '', fit: dict | None = None) -> dict:
     """{'job': {'id', 'key', 'kind'}} או {'job': None}. שגיאה → {'error': ...} (הלולאה מחכה ומנסה שוב).
-    op='beat' — רק דופק (באמצע עבודה), בלי לבקש עבודה."""
+    op='beat' — רק דופק (באמצע עבודה), בלי לבקש עבודה. fit — כשכבר רצה עבודה: כמה זיכרון פנוי לעוד אחת (הזמנה)."""
     try:
         hb = host_info(busy)
         hb['ev'] = ev_list()
         body = {'op': op, 'v': 1, 'hb': hb}
+        if fit:
+            body['fit'] = fit
         if op == 'poll' and _boot:
             body['boot'] = True      # 20/10/2026: הפנייה הראשונה אחרי העלייה — השרתון מסמן עבודה שנקטעה אצלנו (worker_lost)
         st, j, hd = J.http('POST', server + '/api/studio', body,
@@ -148,7 +156,10 @@ def poll(server: str, tok: str, op: str = 'poll', busy: str = '') -> dict:
             _set_booted()
         jb = j.get('job')
         if isinstance(jb, dict) and J.JOB_RE.match(str(jb.get('id') or '')) and J.KEY_RE.match(str(jb.get('key') or '')):
-            return {'job': {'id': jb['id'], 'key': jb['key'], 'kind': jb.get('kind') or 'tr'}}
+            out = {'id': jb['id'], 'key': jb['key'], 'kind': jb.get('kind') or 'tr'}
+            if isinstance(jb.get('dur'), (int, float)) and 0 < jb['dur'] <= 86400:
+                out['dur'] = jb['dur']                 # 21/10/2026: אורך הסרטון — להזמנת הזיכרון
+            return {'job': out}
         return {'job': None, 'paused': j.get('paused') is True}
     return {'error': 'http_' + str(st)}
 
@@ -175,6 +186,7 @@ def heartbeat():
 
 
 _busy = ''
+_slots: dict = {}                   # 21/10/2026: העבודות שרצות במקביל — מספר משבצת → Slot
 
 
 _cpu_prev = [0, 0]
@@ -375,9 +387,12 @@ def _job_state() -> dict:
         return {}
 
 
-def _prog() -> dict:
+def _prog(state_dir=None) -> dict:
+    if state_dir is None and _slots:                  # המשבצת של העבודה שמוצגת בדופק (הראשונה)
+        sl = next(iter(_slots.values()))
+        state_dir = sl.state
     try:
-        return json.loads((J.STATE.parent / 'prog.json').read_text(encoding='utf-8'))
+        return json.loads(((state_dir or J.STATE.parent) / 'prog.json').read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return {}
 
@@ -547,6 +562,313 @@ def handle(jb: dict, server: str, tok: str = '') -> int:
             pass
 
 
+# ---------------------------------------------------------------- כמה עבודות במקביל (21/10/2026)
+# בקשת המשתמש: לנצל את הזיכרון — עבודה שנייה (ושלישית) נכנסת כשיש לה מקום, לא מחכה בתור שהשרת יסיים.
+# כמו requests ב־Kubernetes / reservation ב־Nomad: לכל עבודה שרצה "הזמנה" = השיא הצפוי שלה (לא מה שהיא תופסת
+# עכשיו — יישור של שעה עולה ל־6GB אחרי עשרים דקות), ועבודה חדשה נכנסת רק אם השיא שלה נכנס במה שנשאר בתוך התקרה
+# של הקונטיינר, פחות מרווח בטחון. PSI (לחץ זיכרון של הקרנל) = בלם: בלחץ לא מכניסים כלום.
+# כל עבודה רצה בתהליך בן משלו (agent.py --slot) עם תיקיית מצב ותיקיית עבודה משלה (SNB_STATE/VT_WORK = s<n>) —
+# job.py לא השתנה: הוא בטוח שהוא לבד. השיא האמיתי של כל עבודה נמדד (RSS של כל התהליכים שלה) ונלמד.
+SLOTS_MAX = 4
+MEM_DB = Path(os.environ.get('SNB_MEM_DB', '/cache/snb-mem.json'))
+# השיא הצפוי לפי סוג העבודה: [קבוע MB, MB לדקת סרטון]. תרגום: היישור ב־ONNX תחת gVisor 4.2GB ל־5 דק׳ (נמדד 10/10),
+# ‏CTC לפני השחרור 5.3GB לשעה ועשרים (20/10) — לכן קבוע גבוה ושיפוע מתון. הפקה מחדש = צריבה; גיליון AI = קריאות בלבד.
+MEM_PRIOR = {'tr': (4600, 22), 'rr': (2200, 6), 'ai': (700, 0)}
+MEM_MARGIN = 1.1                    # ההזמנה = השיא הצפוי + 10%
+MEM_BASE_MB = 400                   # הסוכן עצמו + ההכנה מראש של המודלים
+PSI_MAX = 10.0                      # some avg10 מעל 10% — הזיכרון כבר בלחץ: לא מכניסים עבודה
+
+
+def cpus_allowed() -> int:
+    try:
+        return len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        return os.cpu_count() or 1
+
+
+def slots_max() -> int:
+    """כמה עבודות לכל היותר במקביל. SNB_SLOTS קובע; אחרת לפי הליבות — לפחות 4 ליבות לעבודה (יישור וצריבה מוגבלים
+    במעבד: שתי עבודות על 4 ליבות לא מסיימות מהר יותר מאחת אחרי השנייה, רק מאחרות את שתיהן)."""
+    v = os.environ.get('SNB_SLOTS', '')
+    if v.isdigit() and int(v) > 0:
+        return min(SLOTS_MAX, int(v))
+    return max(1, min(SLOTS_MAX, cpus_allowed() // 4))
+
+
+def _read_int(p) -> int | None:
+    try:
+        t = Path(p).read_text().strip()
+        return None if t == 'max' else int(t)
+    except (OSError, ValueError):
+        return None
+
+
+def _meminfo() -> dict:
+    try:
+        return {k: int(v.split()[0]) for k, v in (ln.split(':', 1) for ln in Path('/proc/meminfo').read_text().splitlines() if ':' in ln)}
+    except (OSError, ValueError, IndexError):
+        return {}
+
+
+def mem_limit_mb() -> int:
+    """התקרה של הקונטיינר (cgroup v2 memory.max); בלי — כל הזיכרון של המכונה (תחת gVisor /proc/meminfo = התקרה)."""
+    mi = _meminfo()
+    tot = mi.get('MemTotal', 0) // 1024
+    cg = _read_int('/sys/fs/cgroup/memory.max')
+    lim = cg // (1024 * 1024) if cg else 0
+    return min(x for x in (tot, lim) if x > 0) if (tot or lim) else 0
+
+
+def mem_pressure() -> float:
+    """PSI: אחוז הזמן ב־10 השניות האחרונות שבו משימה כלשהי חיכתה לזיכרון (some avg10). 0 כשאין PSI."""
+    for p in ('/sys/fs/cgroup/memory.pressure', '/proc/pressure/memory'):
+        try:
+            m = re.search(r'some avg10=([0-9.]+)', Path(p).read_text())
+            if m:
+                return float(m.group(1))
+        except OSError:
+            continue
+    return 0.0
+
+
+def mem_samples() -> list:
+    try:
+        d = json.loads(MEM_DB.read_text(encoding='utf-8'))
+        return [x for x in d if isinstance(x, list) and len(x) == 3 and x[0] in MEM_PRIOR and all(isinstance(v, (int, float)) for v in x[1:])][-60:]
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def mem_note(kind: str, dur_s: float, peak_mb: float):
+    """שיא אמיתי של עבודה שהסתיימה → המאגר של השרת (בתיקיית המטמון — שורד הפעלה מחדש). מספרים בלבד."""
+    if kind not in MEM_PRIOR or not (peak_mb > 0):
+        return
+    try:
+        MEM_DB.parent.mkdir(parents=True, exist_ok=True)
+        MEM_DB.write_text(json.dumps((mem_samples() + [[kind, round(dur_s or 0), round(peak_mb)]])[-60:]), encoding='utf-8')
+    except OSError:
+        pass
+
+
+def mem_model(kind: str) -> tuple[int, float]:
+    """[קבוע, לדקה] לסוג העבודה: ה־prior, ומעליו המעטפת של מה שנמדד בשרת הזה (לעולם לא מתחת ל־prior — שמרני).
+    השיפוע נשאר של ה־prior; הקבוע עולה כך שכל שיא שנמדד נכנס מתחת לקו."""
+    a, b = MEM_PRIOR.get(kind, MEM_PRIOR['tr'])
+    for k, d, pk in mem_samples():
+        if k == kind:
+            a = max(a, pk - b * (d / 60))
+    return int(round(a)), b
+
+
+def mem_need(kind: str, dur_s: float) -> int:
+    a, b = mem_model(kind)
+    return int(round((a + b * max(0.0, dur_s or 0) / 60) * MEM_MARGIN))
+
+
+def _children() -> dict:
+    kids = {}
+    for d in Path('/proc').iterdir() if Path('/proc').is_dir() else []:
+        if d.name.isdigit():
+            try:
+                st = (d / 'stat').read_text()
+                kids.setdefault(int(st[st.rindex(')') + 2:].split()[1]), []).append(int(d.name))
+            except (OSError, ValueError, IndexError):
+                continue
+    return kids
+
+
+def tree_rss_mb(pid: int, kids: dict | None = None) -> float:
+    """RSS של תהליך וכל הצאצאים שלו (גם בקבוצות תהליכים אחרות — job.py ו־vt פותחים session משלהם)"""
+    kids = kids if kids is not None else _children()
+    try:
+        page = os.sysconf('SC_PAGE_SIZE')
+    except (ValueError, OSError):
+        page = 4096
+    tot, todo, seen = 0, [pid], set()
+    while todo:
+        p = todo.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        try:
+            tot += int(Path('/proc/%d/statm' % p).read_text().split()[1]) * page
+        except (OSError, ValueError, IndexError):
+            pass
+        todo.extend(kids.get(p, []))
+    return tot / (1024 * 1024)
+
+
+class Slot:
+    """עבודה אחת שרצה בתהליך בן משלו. state/work = התיקיות שלה; need = ההזמנה (MB); peak = השיא שנמדד."""
+
+    def __init__(self, n: int, jb: dict):
+        self.n, self.jb, self.id = n, jb, jb['id']
+        self.state = J.STATE.parent / ('s%d' % n)
+        self.work = J.VT_WORK / ('s%d' % n)
+        self.kind = jb.get('kind') or 'tr'
+        self.dur = float(jb.get('dur') or 0)
+        self.need = mem_need(self.kind, self.dur)
+        self.peak = 0.0
+        self.p = None
+        self.t0 = time.time()
+
+    def start(self, server: str, tok: str):
+        for d in (self.state, self.work):
+            shutil.rmtree(d, ignore_errors=True)
+            d.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ, SNB_STATE=str(self.state), VT_WORK=str(self.work), SNB_SLOT=str(self.n))
+        self.p = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '--slot'], env=env, cwd=str(HERE.parent),
+                                  stdin=subprocess.PIPE, start_new_session=True)
+        # העבודה (כולל המפתח) — ב־stdin, לא בשורת הפקודה (שגלויה ב־ps)
+        self.p.stdin.write(json.dumps({'job': self.jb, 'server': server}).encode())
+        self.p.stdin.close()
+
+    def sample(self, kids=None):
+        if self.p and self.p.poll() is None:
+            self.peak = max(self.peak, tree_rss_mb(self.p.pid, kids))
+            if not self.dur:                             # האורך — מקובץ המצב של job.py (נכתב בלקיחה)
+                try:
+                    self.dur = float(((json.loads((self.state / 'job.json').read_text(encoding='utf-8')).get('spec') or {}).get('dur')) or 0)
+                    self.need = mem_need(self.kind, self.dur)
+                except (OSError, ValueError, TypeError, AttributeError):
+                    pass
+
+    def reserved(self) -> float:
+        """כמה מהזיכרון שמור לה: השיא הצפוי, או מה שהיא כבר תופסת אם עברה אותו"""
+        return max(self.need, self.peak * MEM_MARGIN)
+
+    def done(self) -> int | None:
+        return self.p.poll() if self.p else 0
+
+    def stop(self):
+        """כל העץ — job.py ו־vt פותחים session משלהם, kill לקבוצה של הבן לא מגיע אליהם"""
+        if self.p and self.p.poll() is None:
+            kids, todo, all_ = _children(), [self.p.pid], []
+            while todo:
+                x = todo.pop()
+                all_.append(x)
+                todo.extend(kids.get(x, []))
+            for x in reversed(all_):
+                try:
+                    os.kill(x, signal.SIGTERM)
+                except OSError:
+                    pass
+
+    def finish(self):
+        shutil.rmtree(self.state, ignore_errors=True)
+        shutil.rmtree(self.work, ignore_errors=True)
+
+
+def mem_fit(slots: dict) -> dict | None:
+    """כמה זיכרון פנוי לעוד עבודה (MB), ולפי איזה מודל — השרתון בוחר רק עבודה שהשיא שלה נכנס. None = לא מכניסים כלום.
+    התקרה פחות הסוכן, פחות מרווח בטחון (10%, לפחות 1GB), פחות ההזמנות של מה שרץ; ובנוסף לא יותר ממה שבאמת פנוי
+    עכשיו (MemAvailable) פחות מה שהעבודות שרצות עוד יתפסו עד השיא שלהן."""
+    lim = mem_limit_mb()
+    if not lim or mem_pressure() > PSI_MAX:
+        return None
+    head = max(1024, lim * 0.1)
+    res = sum(s.reserved() for s in slots.values())
+    grow = sum(max(0.0, s.reserved() - s.peak) for s in slots.values())   # מה שהן עוד יגדלו (מעבר למה שהן תופסות עכשיו)
+    av = _meminfo().get('MemAvailable', 0) / 1024
+    free = lim - MEM_BASE_MB - head - res
+    if av:
+        free = min(free, av - head - grow)
+    if free < mem_need('ai', 0):
+        return None
+    a, b = mem_model('tr')
+    ra, rb = mem_model('rr')
+    return {'mb': int(free), 'a': int(round(a * MEM_MARGIN)), 'b': round(b * MEM_MARGIN, 1), 'ra': int(round(ra * MEM_MARGIN)),
+            'rb': round(rb * MEM_MARGIN, 1), 'ai': mem_need('ai', 0)}
+
+
+def write_busy():
+    """/work/.busy כל עוד עבודה כלשהי רצה — כך snb-update לא מחליף גרסה באמצע (המזהים, שורה לכל אחת)"""
+    try:
+        if _slots:
+            J.VT_WORK.mkdir(parents=True, exist_ok=True)
+            BUSY.write_text('\n'.join(s.id for s in _slots.values()))
+        elif BUSY.exists():
+            BUSY.unlink()
+    except OSError:
+        pass
+
+
+def slot_main() -> int:
+    """תהליך הבן של משבצת: העבודה מ־stdin, אותו handle של עבודה יחידה (job.py עם התיקיות של המשבצת)."""
+    signal.signal(signal.SIGTERM, _on_term)
+    try:
+        d = json.loads(sys.stdin.read() or '{}')
+        jb, server = d['job'], d['server']
+    except (ValueError, KeyError, TypeError):
+        return 1
+    if server not in J.SERVERS and not J.LOCAL_RE.match(server):
+        return 1
+    if not (J.JOB_RE.match(str(jb.get('id') or '')) and J.KEY_RE.match(str(jb.get('key') or ''))):
+        return 1
+    return handle(jb, server, token())
+
+
+def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> int:
+    """הלולאה כשמותר יותר מעבודה אחת: שואלים את השרתון כל עוד יש משבצת ויש זיכרון, ומדגימים את השיא של כל עבודה."""
+    global _busy
+    backoff, finished = POLL_S, 0
+    nxt_poll = 0.0
+    while not _stop:
+        kids = _children() if _slots else None
+        for n, sl in list(_slots.items()):
+            sl.sample(kids)
+            rc = sl.done()
+            if rc is None:
+                continue
+            print('← סיום ' + sl.id[:6] + '… (' + str(rc) + ') · שיא זיכרון ' + str(int(sl.peak)) + 'MB', flush=True)
+            ev(end_code(rc))
+            if rc in (0, 1, 2) and sl.peak > 0:
+                mem_note(sl.kind, sl.dur, sl.peak)
+            sl.finish()
+            del _slots[n]
+            finished += 1
+            nxt_poll = 0.0                                   # התפנתה משבצת — שואלים מיד
+        _busy = next(iter(_slots.values())).id if _slots else ''
+        write_busy()
+        if stop_after and finished >= stop_after and not _slots:
+            return 0
+        now = time.time()
+        if len(_slots) < nmax and now >= nxt_poll:
+            fit = mem_fit(_slots) if _slots else None
+            if _slots and fit is None:
+                nxt_poll = now + POLL_S                      # אין זיכרון לעוד עבודה — מחכים שתסתיים / שהלחץ ירד
+            else:
+                r = poll(server, tok, fit=fit)
+                if r.get('job'):
+                    jb = r['job']
+                    if warm is not None and warm.is_alive() and not _slots:
+                        warm.join(WARM_WAIT_S)
+                    n = next(i for i in range(1, SLOTS_MAX + 1) if i not in _slots)
+                    sl = Slot(n, jb)
+                    print('→ עבודה ' + jb['id'][:6] + '… (משבצת ' + str(n) + ', הזמנה ' + str(sl.need) + 'MB)', flush=True)
+                    ev('job')
+                    _slots[n] = sl
+                    write_busy()
+                    sl.start(server, tok)
+                    backoff, nxt_poll = POLL_S, now + 2          # עוד אחת? בודקים שוב בעוד רגע (הזיכרון כבר מחושב עם זו)
+                    continue
+                if r.get('error') == 'auth':
+                    ev('auth')
+                    backoff = MAX_BACKOFF_S
+                    print('✗ השרתון לא מכיר את טוקן השרת (בוטל באפליקציה?) — snb-setup עם טוקן חדש', flush=True)
+                elif r.get('error'):
+                    ev('net')
+                    backoff = min(MAX_BACKOFF_S, backoff * 2)
+                    print('· השרתון לא זמין (' + r['error'] + ') — עוד ' + str(int(backoff)) + ' שנ׳', flush=True)
+                else:
+                    backoff = POLL_S
+                nxt_poll = now + backoff * random.uniform(0.85, 1.15)
+        time.sleep(1 if _slots else 0.5)
+    for sl in _slots.values():                              # כיבוי (SIGTERM): העבודות נעצרות; הסוכן הבא ידווח עליהן (boot)
+        sl.stop()
+    return 0
+
+
 WARM_WAIT_S = 900
 
 
@@ -581,6 +903,10 @@ def main(once: bool = False) -> int:
     ev('up')
     if not once:
         threading.Thread(target=beat_loop, args=(server, tok), daemon=True).start()
+    nmax = slots_max()
+    if not once and nmax > 1:
+        print('· עד ' + str(nmax) + ' עבודות במקביל, לפי הזיכרון (תקרה ' + str(mem_limit_mb()) + 'MB)', flush=True)
+        return run_slots(server, tok, warm, nmax, int(os.environ.get('SNB_STOP_AFTER', '0') or 0))
     backoff = POLL_S
     while not _stop:
         r = poll(server, tok)
@@ -615,4 +941,4 @@ def main(once: bool = False) -> int:
 
 
 if __name__ == '__main__':
-    sys.exit(main('--once' in sys.argv))
+    sys.exit(slot_main() if '--slot' in sys.argv else main('--once' in sys.argv))

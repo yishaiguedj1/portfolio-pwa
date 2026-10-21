@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1547 מפתחות מתוך 3535) */
+/* המחרוזות של studio (1549 מפתחות מתוך 3537) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -620,6 +620,7 @@ he: {
   "studioGuideSub": "מה עושים, באיזה סדר, ומה עולה כסף",
   "studioHM": "{h} ש׳ ו־{m} דק׳",
   "studioHMShort": "{t} ש׳",
+  "studioHOnly": "{h} ש׳",
   "studioHaltBack": "הסוכנים חזרו לעבוד",
   "studioHaltBackBtn": "להחזיר",
   "studioHaltDone0": "הסוכנים נעצרו",
@@ -1312,6 +1313,7 @@ he: {
   "studioSrvT": "השרת",
   "studioSrvTokNote": "בקונסולה של Hetzner: snb-setup. אחרי היציאה מהדף הוא לא יוצג שוב.",
   "studioStageLeft": "עוד {t}",
+  "studioStageLong": "לוקח יותר מהרגיל · עוד {t}",
   "studioStart": "התחלת התרגום",
   "studioStartAnyway": "להתחיל בכל זאת",
   "studioStartDraft": "להמשיך ולהתחיל",
@@ -2169,6 +2171,7 @@ en: {
   "studioGuideSub": "What to do, in what order, and what costs money",
   "studioHM": "{h} h {m} min",
   "studioHMShort": "{t} h",
+  "studioHOnly": "{h} h",
   "studioHaltBack": "Agents are back",
   "studioHaltBackBtn": "Resume",
   "studioHaltDone0": "Agents stopped",
@@ -2861,6 +2864,7 @@ en: {
   "studioSrvT": "Server",
   "studioSrvTokNote": "In the Hetzner console: snb-setup. It will not be shown again after you leave this page.",
   "studioStageLeft": "{t} left",
+  "studioStageLong": "Taking longer than usual · {t} left",
   "studioStart": "Start translating",
   "studioStartAnyway": "Start anyway",
   "studioStartDraft": "Continue and start",
