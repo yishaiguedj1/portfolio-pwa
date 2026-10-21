@@ -1096,6 +1096,8 @@ function insName(k) {
     case 'slow_stage': return t('admI_slow_stage');
     case 'wait_user': return t('admI_wait_user');
     case 'sla_over': return t('admI_sla_over');
+    case 'eta_off': return t('admI_eta_off');
+    case 'rv_unrev': return t('admI_rv_unrev');
     case 'asr_weak': return t('admI_asr_weak');
     case 'align_weak': return t('admI_align_weak');
     case 'sync_low': return t('admI_sync_low');
@@ -1133,6 +1135,8 @@ function insAct(k) {
     case 'slow_stage': return t('admA_slow_stage');
     case 'wait_user': return t('admA_wait_user');
     case 'sla_over': return t('admA_sla_over');
+    case 'eta_off': return t('admA_eta_off');
+    case 'rv_unrev': return t('admA_rv_unrev');
     case 'asr_weak': return t('admA_asr_weak');
     case 'align_weak': return t('admA_align_weak');
     case 'sync_low': return t('admA_sync_low');
@@ -1211,7 +1215,7 @@ page('lab', { tab: 'imp', parent: 'imp', title: () => t('admLabT'), render(p) {
   const k = v.k || {};
   p.append(h('p', 'adm-dt', fmt(t('admLabDt'), { n: v.n || 0, m: v.n90 || 0, d: v.first ? day(v.first) : '—' })));
   p.append(labHero(v));
-  p.append(list(wkRow(v)));
+  p.append(list(row({ c: 'green', ic: '↗', t: t('admImT'), s: imHeadline(v.im), on: () => go('labImp') }), wkRow(v)));
   p.append(grp(t('admLab30')), tiles(
     labTile('purple', t('admKn'), 'n', 1, numTxt),
     labTile('green', t('admKok'), 'ok', 1, pcTxt),
@@ -1238,6 +1242,135 @@ function labDataSub() {
   const c = (D.lab && D.lab.corpus) || {}, d = (D.lab && D.lab.dev) || {};
   return fmt(t('admLabDataS'), { c: c.on ? (c.n || 0) + (c.q || 0) : '—', d: d.on ? t('admOn') : t('admOff') });
 }
+/* ---- השפעת המאגר לאורך זמן (21/10/2026, בקשת המשתמש: "כמה השתפר מנקודה לנקודה רק בזכות המאגר, ומאיפה בדיוק") ----
+   כל החישוב בשרתון (lib/learnimpact.js → view.im); כאן רק הצגה. טווח מותאם = op learnImpact */
+const IMV = () => { const v = LV(); return v && v.im ? (D.imCu && D.imR === 'cu' ? Object.assign({}, v.im, { cmp: Object.assign({}, v.im.cmp, D.imCu.cmp) }) : v.im) : null; };
+function imName(k) {
+  switch (k) {
+    case 'tot': return t('admImM_tot'); case 'act': return t('admImM_act'); case 'up': return t('admImM_up'); case 'eta': return t('admImM_eta');
+    case 'tr': return t('admImM_tr'); case 'al': return t('admImM_al'); case 'rv': return t('admImM_rv'); case 'bn': return t('admImM_bn'); case 'sv': return t('admImM_sv');
+    case 'ok': return t('admImM_ok'); case 'crash': return t('admImM_crash'); case 'fail': return t('admImM_fail');
+    case 'cpm': return t('admImM_cpm'); case 'tpm': return t('admImM_tpm');
+    case 'q': return t('admImM_q'); case 'jd': return t('admImM_jd'); case 'ht': return t('admImM_ht'); case 'num': return t('admImM_num'); case 'glm': return t('admImM_glm');
+    default: return k;
+  }
+}
+function imFam(f) {
+  switch (f) { case 'speed': return t('admImFspeed'); case 'rel': return t('admImFrel'); case 'cost': return t('admImFcost'); case 'qual': return t('admImFqual'); default: return f; }
+}
+function imSrc(s) {
+  switch (s) { case 'devlog': return t('admImSrcDev'); case 'lab': return t('admImSrcLab'); case 'user': return t('admImSrcUser'); case 'ops': return t('admImSrcOps'); default: return s; }
+}
+const IM_FMT = { eta: pcTxt, cpm: (x) => usdTxt(x, 3), ok: pcTxt, crash: pcTxt, fail: pcTxt, ht: pcTxt, num: pcTxt, glm: pcTxt, q: numTxt, jd: numTxt, tpm: numTxt };
+const imVal = (k, x) => (IM_FMT[k] || ((y) => (nz(y) ? numTxt(y) + ' ' + t('admImSec') : '—')))(x);
+const imLtr = (x) => '\u2066' + x + '\u2069';      // סימן לפני המספר גם בעברית (בלי זה "15%−")
+const imSign = (x) => (Math.abs(x) < 1e-9 ? '' : x > 0 ? '+' : '−');
+function imDelta(c) {          // "−42%" בירוק כשלטובה, באדום כשלרעה
+  if (!c || c.v === 'few' || !nz(c.d)) return ['', ''];
+  const relK = nz(c.rel) && ['tot', 'act', 'up', 'tr', 'al', 'rv', 'bn', 'sv', 'cpm', 'tpm'].includes(c.k);
+  const txt = relK ? (Math.round(c.rel * 100) === 0 ? '0%' : imSign(c.rel) + Math.abs(Math.round(c.rel * 100)) + '%') : imSign(c.d) + imVal(c.k, Math.abs(c.d));
+  return [imLtr(txt), c.v === 'up' ? 'up' : c.v === 'dn' ? 'dn' : ''];
+}
+function imSave(sv) {
+  if (!sv || !nz(sv.v) || sv.v === 0) return '';
+  const a = Math.abs(sv.v), sign = sv.v > 0 ? '' : '−';
+  return (sign ? imLtr(sign + ' ') : '') + (sv.u === 'min' ? fmt(t('admImUmin'), { v: numTxt(a) }) : sv.u === 'usd' ? fmt(t('admImUusd'), { v: usdTxt(a, 2) }) : fmt(t('admImUjobs'), { v: numTxt(a) }));
+}
+function imRow(c, ci) {         // ci = גם רווח הסמך (בעמוד של שיפור; ברשימה הכללית — רק לפני/אחרי והחיסכון)
+  const [dt, dc] = imDelta(c), [vt, vc] = verV(c.v);
+  let s = c.v === 'few' ? fmt(t('admImFewS'), { a: c.na, b: c.nb }) : fmt(t('admImAB'), { a: imVal(c.k, c.a), b: imVal(c.k, c.b) }) + (!ci && imSave(c.sv) ? ' · ' + imSave(c.sv) : '');
+  if (ci && c.v !== 'few') {           // בעמוד של שיפור: שורה שנייה — רווח הסמך והחיסכון (בשורה אחת זה נחתך)
+    const sec = !IM_FMT[c.k];                      // שניות — היחידה פעם אחת בסוף ("90%: −29.9 עד 6.9 שנ׳")
+    const nv = (x) => imLtr((x < 0 ? '−' : '') + (sec ? numTxt(Math.abs(x)) : imVal(c.k, Math.abs(x))));
+    const ciTxt = nz(c.lo) ? fmt(t('admImCI'), { lo: nv(c.lo), hi: nv(c.hi) }) + (sec ? ' ' + t('admImSec') : '') : '';
+    const sm = h('span'); sm.append(s, h('br'), [ciTxt, imSave(c.sv)].filter(Boolean).join(' · '));
+    s = sm;
+  }
+  return row({ c: vc, ic: c.v === 'up' ? '↑' : c.v === 'dn' ? '↓' : c.v === 'eq' ? '=' : '·', t: imName(c.k), s, v: dt || vt, tr: dt ? vt : '', trc: dc });
+}
+function imHeadline(im) {      // השורה בעמוד המעבדה
+  if (!im || !im.start) return t('admImWait');
+  const all = (im.cmp.all || { m: [] }).m.filter((c) => c.v === 'up').sort((a, b) => Math.abs(b.rel || 0) - Math.abs(a.rel || 0)).slice(0, 2);
+  return fmt(t('admImSince'), { d: day(im.start) }) + (all.length ? ' · ' + all.map((c) => imName(c.k) + ' ' + imDelta(c)[0]).join(' · ') : '');
+}
+function imRangeSeg(p) {
+  const seg = h('div', 'adm-seg'), R = [['d7', t('admImR7')], ['d30', t('admImR30')], ['d90', t('admImR90')], ['all', t('admImRall')], ['cu', t('admImRcu')]];
+  const cur2 = D.imR || 'all';
+  for (const [k, lbl] of R) {
+    const b = h('button', 'mini-btn', lbl); b.type = 'button'; b.setAttribute('aria-pressed', k === cur2 ? 'true' : 'false');
+    b.addEventListener('click', () => { D.imR = k; paint(); });
+    seg.append(b);
+  }
+  p.append(seg);
+  if (cur2 === 'cu') {
+    const f = h('input', 'adm-search'); f.type = 'date'; f.value = D.imF || '';
+    const to = h('input', 'adm-search'); to.type = 'date'; to.value = D.imT || '';
+    const go2 = h('button', 'btn', t('admImGo')); go2.type = 'button';
+    go2.addEventListener('click', async () => {
+      const a = Date.parse(f.value), b = Date.parse(to.value) + 864e5 - 1;
+      if (!(a > 0 && b > a)) { flash(t('admImBadR')); return; }
+      D.imF = f.value; D.imT = to.value;
+      const r = await api('learnImpact', { from: a, to: b });
+      if (r.ok) { D.imCu = r.im; paint(); } else flash(t('admErr'));
+    });
+    p.append(h('div', 'adm-lbl', t('admImFrom')), f, h('div', 'adm-lbl', t('admImTo')), to, h('div', 'btn-row', go2));
+  }
+}
+page('labImp', { tab: 'imp', parent: 'lab', title: () => t('admImT'), render(p) {
+  const v = needLab(p); if (!v) return;
+  const im = IMV();
+  if (!im) { p.append(list(row({ c: 'gray', ic: '—', t: t('admImWait') }))); return; }
+  // 1. "מאיפה השיפור" — השיפורים, גם אלה שעוד לא נפרסו
+  const live = (im.imps || []).filter((x) => x.st === 'live');
+  p.append(h('p', 'adm-dt', im.start ? fmt(t('admImDt'), { d: day(im.start), n: (im.vol || {}).jobs || 0, m: numTxt((im.vol || {}).min || 0) }) : t('admImWait')));
+  if (im.start) {
+    imRangeSeg(p);
+    const rk = D.imR || 'all', C = im.cmp[rk];
+    if (rk === 'cu' && !C) p.append(h('p', 'adm-note', t('admImPick')));
+    if (C) {
+      p.append(h('p', 'adm-dt', fmt(t('admImRng'), { a: day(C.from), b: day(C.to), n: C.nb })));
+      // 2. כותרת: המדדים הראשיים
+      const H = im.head.map((k) => C.m.find((c) => c.k === k)).filter((c) => c && c.v !== 'few');
+      if (H.length) p.append(tiles(...H.slice(0, 6).map((c) => { const [dt, dc] = imDelta(c); return tileEl(verV(c.v)[1], imName(c.k), dt || '—', fmt(t('admImAB'), { a: imVal(c.k, c.a), b: imVal(c.k, c.b) }), dc, (im.wk || []).map((w) => w[c.k])); })));
+      // 3. כל המדדים לפי משפחה
+      for (const f of ['speed', 'rel', 'cost', 'qual']) {
+        const rows2 = C.m.filter((c) => c.f === f && (c.na || c.nb));
+        if (rows2.length) p.append(grp(imFam(f)), list(...rows2.map((c) => imRow(c))));
+      }
+    }
+  }
+  p.append(grp(t('admImWhere')), list(...(im.imps || []).map((x) => {
+    const tg = (x.c || []).filter((c) => c.tg && c.v !== 'few'), best = tg.sort((a, b) => (b.good || 0) - (a.good || 0))[0];
+    const nm = (lang === 'he' ? x.he : x.en) || [x.id];
+    return row({ c: x.st !== 'live' ? 'gray' : best ? verV(best.v)[1] : 'blue', ic: x.id.slice(1), t: nm[0],
+      s: x.st !== 'live' ? t('admImStWait') : fmt(t('admImStLive'), { d: day(x.at) }) + (best ? ' · ' + imName(best.k) + ' ' + imDelta(best)[0] : ' · ' + t('admVvFew')),
+      v: best && imSave(best.sv) ? imSave(best.sv) : '', on: () => { D.imI = x.id; go('labImpI'); } });
+  })));
+  // 4. פירוק: הכולל = השיפורים + "לא מוסבר"
+  if ((im.dec || []).length) {
+    p.append(grp(t('admImDec')));
+    for (const d of im.dec) {
+      const rows3 = d.parts.map((x) => { const imp = (im.imps || []).find((y) => y.id === x.id) || {}; const nm = (lang === 'he' ? imp.he : imp.en) || [x.id];
+        return row({ c: x.tg ? 'green' : 'gray', ic: x.id.slice(1), t: nm[0], v: imLtr(imSign(x.d) + imVal(d.k, Math.abs(x.d))) }); });
+      rows3.push(row({ c: 'gray', ic: '…', t: t('admImRest'), v: imLtr(imSign(d.rest) + imVal(d.k, Math.abs(d.rest))) }));
+      p.append(h('p', 'adm-dt', imName(d.k) + ' · ' + t('admImTotal') + ' ' + imLtr(imSign(d.d) + imVal(d.k, Math.abs(d.d)))), list(...rows3));
+    }
+  }
+  p.append(h('p', 'adm-foot', t('admImFoot')));
+} });
+page('labImpI', { tab: 'imp', parent: 'labImp', title: () => { const im = IMV(), x = im && (im.imps || []).find((y) => y.id === D.imI); return x ? ((lang === 'he' ? x.he : x.en) || [x.id])[0] : t('admImT'); }, render(p) {
+  const im = IMV(), x = im && (im.imps || []).find((y) => y.id === D.imI);
+  if (!x) { p.append(h('p', 'adm-note', t('admLoading'))); return; }
+  const nm = (lang === 'he' ? x.he : x.en) || [x.id, ''];
+  p.append(h('p', 'adm-dt', (x.st === 'live' ? fmt(t('admImStLive'), { d: day(x.at) }) : t('admImStWait')) + ' · ' + imSrc(x.src)));
+  p.append(list(row({ c: 'purple', ic: '?', t: t('admImHyp'), s: nm[1] || '' })));
+  if (x.st !== 'live') { p.append(h('p', 'adm-foot', t('admImWaitFoot'))); return; }
+  const tg = (x.c || []).filter((c) => c.tg), ot = (x.c || []).filter((c) => !c.tg && c.v !== 'few');
+  if (tg.length) p.append(grp(t('admImTg')), list(...tg.map((c) => imRow(c, true))));
+  if (ot.length) p.append(grp(t('admImOther')), list(...ot.map((c) => imRow(c, true))));
+  p.append(h('p', 'adm-foot', t('admImIFoot')));
+} });
+
 page('labIns', { tab: 'imp', parent: 'lab', title: () => t('admLabIns'), render(p) {
   const v = needLab(p); if (!v) return;
   const ins = v.ins || [];
@@ -1379,7 +1512,8 @@ page('labVer', { tab: 'imp', parent: 'lab', title: () => t('admLabVer'), render(
   const vs = v.ver || [];
   if (!vs.length) { p.append(list(row({ c: 'gray', ic: '—', t: t('admLabVerNone') })), h('p', 'adm-foot', t('admVerFoot'))); return; }
   for (const x of vs) {
-    p.append(grp(verDim(x.d) + ' · ' + verV(x.v)[0]), h('p', 'adm-dt', fmt(t('admVerDt'), { d: day(x.at), a: x.na, b: x.nb })));
+    // 21/10/2026: באיזו שכבה הושוו (מצב · מנוע) — השוואה רק בתוך אותו מצב (studiolearn verStratum)
+    p.append(grp(verDim(x.d) + ' · ' + verV(x.v)[0]), h('p', 'adm-dt', fmt(t('admVerDt'), { d: day(x.at), a: x.na, b: x.nb }) + (x.sk ? ' · ' + x.sk.split('|').join(' · ') : '')));
     p.append(list(...x.m.map((m) => { const f = VER_FMT[m.k] || numTxt, [mt, mc] = verV(m.v);
       return row({ c: mc, ic: m.v === 'up' ? '↑' : m.v === 'dn' ? '↓' : m.v === 'eq' ? '=' : '·', t: verMetName(m.k),
         s: fmt(t('admVerAb'), { a: f(m.a), b: f(m.b) }), v: mt }); })));

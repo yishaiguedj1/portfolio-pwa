@@ -4,6 +4,7 @@
 ב־R2 כל החלקים חוץ מהאחרון באותו גודל (ps) — השרתון קובע.
 התלויות מוזרקות (call, opener, sleep) — נבדק בלי רשת.
 call(op, **kw) → dict: תשובת השרתון כמו שהיא (גם ok:false), חריגה רק כשהוא לא עונה בכלל."""
+import os
 import time
 import urllib.error
 import urllib.request
@@ -23,6 +24,24 @@ def _open(req, timeout, opener=None):
     return (opener or urllib.request.urlopen)(req, timeout=timeout)
 
 
+DROP_EVERY = 64 * 1024 * 1024
+
+
+def drop_cache(f, written, last):
+    """21/10/2026: הורדה של סרטון (מאות MB) רצה במקביל ליישור, והיישור כבר על גבול הזיכרון של העובד. תחת gVisor מטמון הקבצים
+    יכול להיספר בזיכרון של הקונטיינר — כל 64MB: לכתוב לדיסק ולשחרר את הדפים מהמטמון. מחזיר את הנקודה האחרונה ששוחררה.
+    תקלה (מערכת בלי fadvise) — לא נוגעת בהורדה."""
+    if written - last < DROP_EVERY:
+        return last
+    try:
+        f.flush()
+        os.fdatasync(f.fileno())
+        os.posix_fadvise(f.fileno(), 0, 0, os.POSIX_FADV_DONTNEED)
+    except (AttributeError, OSError):
+        pass
+    return written
+
+
 def download(call, fid, dest, on_progress=None, opener=None, sleep=time.sleep):
     """הורדה בזרם עם המשך מאותו בייט (Range). קישור שפג (403) → קישור חדש מהשרתון."""
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -40,12 +59,14 @@ def download(call, fid, dest, on_progress=None, opener=None, sleep=time.sleep):
         try:
             with _open(req, 60, opener) as r, open(dest, 'ab' if have and r.status == 206 else 'wb') as f:
                 got = have if r.status == 206 else 0
+                dropped = got
                 while True:
                     b = r.read(READ)
                     if not b:
                         break
                     f.write(b)
                     got += len(b)
+                    dropped = drop_cache(f, got, dropped)
                     if on_progress and size:
                         on_progress(got / size)
             if not size or dest.stat().st_size >= size:

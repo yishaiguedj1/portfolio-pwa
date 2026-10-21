@@ -28,7 +28,7 @@ const J = JSON.stringify;
   ok(/' — קטע לבדיקה' if spec\.get\('prv'\) == 1/.test(read('translator/job.py')), 'העובד: שם התוצר מסומן "קטע לבדיקה"');
 
   /* ---------- 2. בדיקת משמעות אוטומטית ---------- */
-  const STUBS = Object.assign({}, P, SB, E, { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), stageEstimates: () => ({}),
+  const STUBS = Object.assign({}, P, SB, E, { createNet: () => ({}), probeVideo: async () => ({}), extractAudio: async () => ({}), uploadBoth: async () => {}, stageEstimates: () => ({}),
     progressModel: () => ({ stages: [], left: 0, pct: 0 }), createBackup: () => ({}), waitOAuthCode: () => {} });
   const body = st.replace(/^export (const|function|async function) /gm, '$1 ').replace(/^import \{([^}]+)\} from '[^']+';$/gm, 'const {$1} = __stubs;')
     .replace(/^import \* as (\w+) from '[^']+';$/gm, 'const $1 = __stubs;');

@@ -187,6 +187,22 @@ const { fakeR2, ACC } = require('./_r2fake');
   const sp = DP.split(dp.j.items);
   ok(sp.jobs.length === 1 && sp.calls.length === 1 && sp.calls[0].job === jid && sp.metrics.length === 1 && sp.errors.length === 1 && /עבודות שנכשלו/.test(DP.summary(dp.j, sp)), 'tools/dev-pull.js: הקבצים והסיכום');
 
+  /* 21/10/2026: משיכה בחלקים (next) — לסוג אחד, וכל סוג עד הסוף; שרת בלי הדלי (r2:false) → הכתובת הבאה */
+  {
+    const pages = { j: [{ items: [{ k: 'j', job: jid }], next: 'd/2026-10-21/j/b.bin' }, { items: [{ k: 'j', job: jid }] }], m: [{ items: [{ k: 'm', smp: [] }] }], e: [{ items: [] }] };
+    const seen = [];
+    const fake = async (u, init) => { const b = JSON.parse(init.body); seen.push(b.kinds[0] + ':' + (b.before || '')); const pg = pages[b.kinds[0]].shift();
+      return { ok: true, status: 200, json: async () => Object.assign({ ok: true, on: true, r2: true, at: NOW }, pg) }; };
+    const all = await DP.pullAll('https://x', { token: tokA, days: 1, kinds: ['j', 'm', 'e'] }, fake);
+    ok(all.items.length === 3 && seen.join(',') === 'j:,j:d/2026-10-21/j/b.bin,m:,e:', 'dev-pull: לכל סוג בנפרד, וממשיך עם next עד הסוף');
+    const none = await DP.pullAll('https://x', { token: tokA, days: 1, kinds: ['j'] }, async () => ({ ok: true, status: 200, json: async () => ({ ok: true, on: true, r2: false, items: [] }) }));
+    ok(none.r2 === false, 'dev-pull: r2:false מסומן (main עובר לכתובת הבאה)');
+    const lost = DP.summary({ at: NOW, on: true, r2: true }, DP.split([{ k: 'j', job: jid, t: 'lost', rc: -9 }, { k: 'm', sid: 's', smp: [{ t: 1000, mem: 100, j: jid, st: 'al' }, { t: 1400, mem: 1 }] }]));
+    ok(/lost/.test(lost) && /פערים בדגימות \(1\)/.test(lost), 'dev-pull: יומן של עבודה שנקטעה + פער בדגימות בסיכום');
+  }
+  // devPull בשרתון: next כשנגמר תקציב הזמן (לא 504)
+  ok(/DEV_PULL_BUDGET_MS/.test(fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8')), 'devPull: תקציב זמן');
+
   /* הדגל כבוי */
   db.set('sysCfg/main', { fields: { flOff: { stringValue: 'learn_full' } }, ut: 'x' });
   NOW += 31e3; R.now = NOW;

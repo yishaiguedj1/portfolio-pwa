@@ -206,14 +206,70 @@ def cpu_pct():
     return round(100 * (1 - (idle - pi) / (tot - pt)), 1)
 
 
+MET_TOP_MEM = 80                    # מעל אחוז זיכרון זה — גם התהליכים הכבדים (שם + MB) בדגימה
+
+
+def mem_stat() -> dict:
+    """memory.stat של ה־cgroup (MB): ma = anon (זיכרון של תהליכים), mf = file (מטמון קבצים, ניתן לפינוי), msh = shmem.
+    בלי cgroup v2 (או תחת gVisor בלי הקובץ) — ריק"""
+    try:
+        kv = dict(ln.split() for ln in Path('/sys/fs/cgroup/memory.stat').read_text().splitlines() if ln.count(' ') == 1)
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for src, dst in (('anon', 'ma'), ('file', 'mf'), ('shmem', 'msh')):
+        try:
+            out[dst] = int(kv[src]) // 1048576
+        except (KeyError, ValueError):
+            pass
+    return out
+
+
+def top_procs(n: int = 5) -> list:
+    """התהליכים עם הכי הרבה זיכרון: רק שם התהליך (comm) ו־MB — בלי שורת פקודה (שמות קבצים)"""
+    try:
+        page = os.sysconf('SC_PAGE_SIZE')
+    except (ValueError, OSError):
+        page = 4096
+    out = []
+    for d in Path('/proc').iterdir() if Path('/proc').is_dir() else []:
+        if not d.name.isdigit():
+            continue
+        try:
+            st = (d / 'stat').read_text()
+            comm = re.sub(r'[^\w.:@+-]', '_', st[st.index('(') + 1:st.rindex(')')])[:24]
+            out.append({'c': comm, 'r': int(int((d / 'statm').read_text().split()[1]) * page / 1048576)})
+        except (OSError, ValueError, IndexError):
+            continue
+    return sorted(out, key=lambda x: -x['r'])[:n]
+
+
 def met_sample() -> dict:
     hb = host_info(_busy)
-    d = {'t': int(time.time()), 'cpu': cpu_pct(), 'mem': hb.get('mem'), 'disk': hb.get('disk'), 'free': hb.get('free'), 'load': hb.get('load')}
+    mi = _meminfo()
+    d = {'t': int(time.time()), 'cpu': cpu_pct(), 'mem': hb.get('mem'), 'disk': hb.get('disk'), 'free': hb.get('free'), 'load': hb.get('load'),
+         # 21/10/2026 (מהיומנים): "100%" בלי התקרה לא אומר כמה GB; PSI = כמה זמן תהליכים חיכו לזיכרון (האות שמקדים OOM)
+         'mx': mem_limit_mb() or None, 'av': int(mi['MemAvailable'] / 1024) if mi.get('MemAvailable') else None,
+         'psi': mem_pressure() or None}
+    ms = mem_stat()                     # 21/10/2026: anon (תהליכים) מול file (מטמון קבצים) — מכריע אם "100%" הוא זיכרון אמיתי או מטמון
+    if ms:
+        d.update(ms)
     if _busy:
         pr = _prog()
         d.update({'j': _busy, 'st': str(pr.get('st') or '')[:24], 'p': pr.get('p')})
         if _child['pid']:
             d['rss'] = sum(x.get('rss') or 0 for x in proc_snapshot(_child['pid']))
+    if _slots:                          # במשבצות _child של הסוכן ריק — rss היה תמיד 0. עכשיו לכל משבצת
+        kids, sl = _children(), []
+        for x in list(_slots.values()):
+            if x.p and x.p.poll() is None:
+                pr = _prog(x.state)
+                sl.append({'j': x.id, 'st': str(pr.get('st') or '')[:24], 'p': pr.get('p'), 'rss': int(tree_rss_mb(x.p.pid, kids))})
+        if sl:
+            d['sl'] = sl
+            d['rss'] = sum(x['rss'] for x in sl) * 1048576
+    if (d.get('mem') or 0) >= MET_TOP_MEM:
+        d['top'] = top_procs()
     return {k: v for k, v in d.items() if v not in (None, '')}
 
 
@@ -254,7 +310,11 @@ def report_lost():
         st = J.load_state()
         if not st or st.get('job') != BUSY.read_text().strip():
             return False
-        J.Ctx(st).report(fail=True, err='worker_lost', msg='השרת הופעל מחדש באמצע העבודה', force=True)
+        # 21/10/2026: סימן של שלב כבד שלא נוקה = נפל באמצע היישור (כמעט תמיד זיכרון). עדיין worker_lost (חולף) — כי ה"המשך"
+        # רץ עכשיו במצב חיסכון (job.py heavy_mark) ולא יפול שוב באותו מקום
+        heavy = sorted(p.name.split('.')[1] for p in J.HEAVY_DIR.glob(J.vt_slug(st['job']) + '.*.json')) if J.HEAVY_DIR.is_dir() else []
+        msg = ('השרת נפל באמצע ' + {'align': 'היישור'}.get(heavy[0], heavy[0]) + ' (כנראה נגמר הזיכרון) — ממשיכים במצב חיסכון') if heavy else 'השרת הופעל מחדש באמצע העבודה'
+        J.Ctx(st).report(fail=True, err='worker_lost', msg=msg, force=True)
         print('· עבודה ' + str(st.get('job', ''))[:6] + '… נקטעה בהפעלה מחדש — דווחה (תמשיך לבד מנקודת השמירה)', flush=True)
         ev('lost')
         return True
@@ -417,6 +477,16 @@ def calls_log() -> list:
     return out[-3000:]
 
 
+def vt_timeline(job_id: str) -> list:
+    """21/10/2026: ציר הזמן של פקודות vt בעבודה (snb-timing.json — שם, התחלה, משך, תהליכון). learn_facts שולח רק סכום לפקודה;
+    בלי הציר אי אפשר לראות מה רץ במקביל למה (היישור מול איכויות הצפייה — הנפילות של היום)"""
+    try:
+        d = json.loads((J.VT_WORK / J.vt_slug(job_id) / 'snb-timing.json').read_text(encoding='utf-8'))
+        return [x[:6] for x in (d.get('vt') or [])[-200:] if isinstance(x, list) and len(x) >= 3]
+    except (OSError, ValueError, AttributeError, TypeError):
+        return []
+
+
 def dev_job_log(server: str, tok: str, job_id: str, rc: int, kind: str = 'end', stack: str = '', ps=None) -> bool:
     """היומן של העבודה לשרתון — רק כשהעבודה במצב המלא (job.py שמר full מהלקיחה)"""
     st = _job_state()
@@ -428,7 +498,7 @@ def dev_job_log(server: str, tok: str, job_id: str, rc: int, kind: str = 'end', 
          'calls': calls_log(), 'st': str(pr.get('st') or '')[:24], 'p': pr.get('p'),
          'dur': int(time.time() - _child['started']) if _child['started'] else None,
          'idle': int(time.time() - pr['chg']) if isinstance(pr.get('chg'), (int, float)) else None,
-         'ver': os.environ.get('SNB_VERSION', 'dev')[:12]}
+         'ver': os.environ.get('SNB_VERSION', 'dev')[:12], 'tm': vt_timeline(job_id) or None}
     if stack:
         d['stack'] = stack
     if ps:
@@ -436,6 +506,78 @@ def dev_job_log(server: str, tok: str, job_id: str, rc: int, kind: str = 'end', 
     if kind == 'end':
         d['stack'] = d.get('stack') or _read(DEV_DIR / 'stack.txt', 64 * 1024).decode('utf-8', 'replace')
     return bool(dev_send(server, tok, 'devLog', {k: v for k, v in d.items() if v not in (None, '')}).get('saved'))
+
+
+# 21/10/2026 (מהיומנים של הייצור): שלוש נפילות של השרת באמצע היישור לא השאירו אף שורת יומן — היומן נשלח רק בסוף העבודה,
+# והזיכרון של התהליך נעלם יחד עם הקונטיינר. "קופסה שחורה": כל FLIGHT_S הזנב + השלב + התהליכים נכתבים לדיסק המתמיד
+# (/work — שם כבר נמצאים קובצי העבודה; רק כשהעבודה במצב המלא), ובעלייה הבאה נשלחים כ־devLog מסוג lost ונמחקים.
+FLIGHT_S = int(os.environ.get('SNB_FLIGHT_S', '60'))
+FLIGHT_DIR = Path(os.environ.get('SNB_FLIGHT_DIR') or str(J.VT_WORK / '_flight'))
+
+
+def flight_write(job_id: str):
+    st = _job_state()
+    if not st.get('full') or st.get('job') != job_id:
+        return False
+    pr = _prog()
+    d = {'job': job_id, 't': 'lost', 'rc': -9, 'at': int(time.time()), 'tail': tail_text(), 'calls': calls_log(),
+         'st': str(pr.get('st') or '')[:24], 'p': pr.get('p'),
+         'dur': int(time.time() - _child['started']) if _child['started'] else None,
+         'idle': int(time.time() - pr['chg']) if isinstance(pr.get('chg'), (int, float)) else None,
+         'ver': os.environ.get('SNB_VERSION', 'dev')[:12], 'ps': proc_snapshot(_child['pid']) if _child['pid'] else None,
+         'tm': vt_timeline(job_id) or None}
+    try:
+        FLIGHT_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = FLIGHT_DIR / (job_id + '.tmp')
+        tmp.write_text(json.dumps({k: v for k, v in d.items() if v not in (None, '')}, ensure_ascii=False), encoding='utf-8')
+        os.chmod(tmp, 0o600)
+        tmp.replace(FLIGHT_DIR / (job_id + '.json'))
+        return True
+    except OSError:
+        return False
+
+
+def flight_loop(job_id: str, stop: threading.Event):
+    while not stop.wait(FLIGHT_S):
+        try:
+            flight_write(job_id)
+        except Exception:     # noqa: BLE001 — תקלה כאן לעולם לא נוגעת בעבודה
+            pass
+
+
+def flight_clear(job_id: str):
+    for ext in ('.json', '.tmp'):
+        try:
+            (FLIGHT_DIR / (job_id + ext)).unlink()
+        except OSError:
+            pass
+
+
+def flight_send(server: str, tok: str, only: str = '') -> int:
+    """בעלייה: כל קופסה שחורה שנשארה = עבודה שנקטעה באמצע (השרת נפל). שולחים ומוחקים — גם כשהשליחה נכשלה (לא נשמר מעל יום)"""
+    n = 0
+    if not FLIGHT_DIR.is_dir():
+        return 0
+    for f in sorted(FLIGHT_DIR.glob((only or '*') + '.json')):
+        try:
+            d = json.loads(f.read_text(encoding='utf-8'))
+            if server and tok and J.JOB_RE.match(str(d.get('job') or '')) and time.time() - float(d.get('at') or 0) < 86400:
+                d['lost'] = int(time.time())
+                if dev_send(server, tok, 'devLog', d).get('saved'):
+                    n += 1
+        except (OSError, ValueError, TypeError):
+            pass
+        finally:
+            try:
+                f.unlink()
+            except OSError:
+                pass
+    for f in FLIGHT_DIR.glob((only or '*') + '.tmp'):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    return n
 
 
 def stuck_watch(server: str, tok: str, job_id: str, stop: threading.Event):
@@ -527,6 +669,7 @@ def handle(jb: dict, server: str, tok: str = '') -> int:
     rc = None
     if tok:
         threading.Thread(target=stuck_watch, args=(server, tok, jb['id'], stop), daemon=True).start()
+        threading.Thread(target=flight_loop, args=(jb['id'], stop), daemon=True).start()
     try:
         base = ['run', '--job', jb['id'], '--key', jb['key']]
         if server != J.SERVER:                 # שרתון הניסוי או localhost בבדיקות — job.py בודק שוב בעצמו
@@ -553,6 +696,7 @@ def handle(jb: dict, server: str, tok: str = '') -> int:
                 dev_job_log(server, tok, jb['id'], rc if isinstance(rc, int) else -2)   # לפני הניקוי — הקבצים עוד שם
             except BaseException:     # noqa: BLE001
                 pass
+        flight_clear(jb['id'])               # העבודה הסתיימה כרגיל (גם בכישלון) — היומן נשלח, הקופסה השחורה מיותרת
         _busy = ''
         _child['started'] = 0.0
         cleanup()
@@ -716,7 +860,7 @@ class Slot:
         for d in (self.state, self.work):
             shutil.rmtree(d, ignore_errors=True)
             d.mkdir(parents=True, exist_ok=True)
-        env = dict(os.environ, SNB_STATE=str(self.state), VT_WORK=str(self.work), SNB_SLOT=str(self.n))
+        env = dict(os.environ, SNB_STATE=str(self.state), VT_WORK=str(self.work), SNB_SLOT=str(self.n), SNB_FLIGHT_DIR=str(FLIGHT_DIR))
         self.p = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '--slot'], env=env, cwd=str(HERE.parent),
                                   stdin=subprocess.PIPE, start_new_session=True)
         # העבודה (כולל המפתח) — ב־stdin, לא בשורת הפקודה (שגלויה ב־ps)
@@ -824,6 +968,10 @@ def run_slots(server: str, tok: str, warm, nmax: int, stop_after: int = 0) -> in
             ev(end_code(rc))
             if rc in (0, 1, 2) and sl.peak > 0:
                 mem_note(sl.kind, sl.dur, sl.peak)
+            try:
+                flight_send(server, tok, sl.id)          # תהליך המשבצת מת בלי לסיים (נהרג) — היומן שלו עכשיו, לא בעלייה הבאה
+            except Exception:     # noqa: BLE001
+                pass
             sl.finish()
             del _slots[n]
             finished += 1
@@ -891,6 +1039,11 @@ def main(once: bool = False) -> int:
     signal.signal(signal.SIGINT, _on_term)
     server, tok = server_url(), token()
     report_lost()                              # 14/10/2026: עבודה שרצה כשהשרת כבה — מדווחת, כדי שתמשיך לבד ולא "תרוץ" שעתיים
+    try:
+        if flight_send(server, tok):           # 21/10/2026: היומן של מה שנקטע — לפני הניקוי
+            print('· נשלח היומן של עבודה שנקטעה באמצע (האיסוף המלא)', flush=True)
+    except Exception:     # noqa: BLE001
+        pass
     cleanup()                                  # שאריות מהפעלה קודמת שנקטעה (כיבוי, עדכון)
     # 20/10/2026: בעלייה אף עבודה לא רצה — .busy שנשאר (עבודה שנקטעה, כבר דווחה למעלה) הוא שארית. עד היום cleanup()
     # דילג עליו, והוא נשאר לתמיד: snb-update לא החליף את העובד של הניסוי ימים ("עבודה רצה"), וגם snb-host-apply סירב
