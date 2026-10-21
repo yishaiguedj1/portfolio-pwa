@@ -669,6 +669,34 @@ def start_attach(J, ctx):
     return th, box
 
 
+def late_attach(J, st) -> bool:
+    """21/10/2026: "הקול קודם" בלי לחכות לסרטון — העבודה כולה על הקול, והסרטון מצטרף רק לפני הבדיקה (attach_late)."""
+    return st.get('src') == 'a' and hasattr(J, 'attach_late') and hasattr(J, 'video_prefetch')
+
+
+def start_prefetch(J, ctx):
+    """הורדת הסרטון ברקע מרגע שהוא עולה — שקט, בלי לגעת בפרויקט. (thread, stop)."""
+    stop = threading.Event()
+    th = threading.Thread(target=lambda: _quiet(lambda: J.video_prefetch(ctx, stop)), name='prefetch', daemon=True)
+    th.start()
+    return th, stop
+
+
+def stop_prefetch(pre):
+    """לפני הצירוף: מסיימים את ההורדה שבדרך (לא שני כותבים לאותו קובץ) ועוצרים את ההמתנה השקטה."""
+    if pre:
+        th, stop = pre
+        stop.set()
+        th.join()
+
+
+def _quiet(fn):
+    try:
+        fn()
+    except BaseException:                    # noqa: BLE001 — הורדה ברקע שנכשלה: attach_late מוריד בעצמו (מאותו בייט)
+        pass
+
+
 def join_attach(J, ctx, bg, poll: float = 5.0):
     """מחכים לצירוף אחרי ההגהה. הסרטון עוד לא עלה — "מחכים לסרטון" (השעון של יעד הזמן עוצר, כמו ב־wait_video)."""
     th, box = bg
@@ -750,13 +778,15 @@ def run_auto(jobmod, args) -> int:
         after = order.index(done) if done in order else 0
         if after < 1 and J.prepare(ns) != 0:
             return 1
+        late = late_attach(J, J.load_state())
+        pre = start_prefetch(J, J.Ctx(J.load_state())) if late else None
         if after < 2:
             st = J.load_state()
             if not (done == 'asr' and st.get('proofed')):
                 ctx0 = J.Ctx(st)
                 # 10/10/2026 (קיצור היישור): "הקול קודם" — צירוף הסרטון (הורדה, קליטה, היסט, שוטים) רץ ברקע בזמן
                 # ש־Claude מגיה ובזמן השאלות; המעבד פנוי שם ממילא (מחכים לרשת / למשתמש). אותו מילון מצב, בלי דיווח.
-                bg = start_attach(J, ctx0) if ctx0.st.get('src') == 'a' else None
+                bg = start_attach(J, ctx0) if ctx0.st.get('src') == 'a' and not late else None
                 pl = Pipeline(ctx0, J, eng)
                 qs = pl.proofread()
                 if qs:
@@ -776,14 +806,15 @@ def run_auto(jobmod, args) -> int:
             else:
                 print('· ההגהה, התדריך והמילון כבר בנקודת השמירה — לא משלמים עליהם שוב.')
         ctx = J.Ctx(J.load_state())
-        if after < 2 and ctx.st.get('src') == 'a' and hasattr(J, 'attach_video') and hasattr(J, 'align_prep'):
+        if after < 2 and not late and ctx.st.get('src') == 'a' and hasattr(J, 'attach_video') and hasattr(J, 'align_prep'):
             # 10/10/2026 (העבודה האמיתית הראשונה): הטלפון תמיד מעלה קודם את הקול, כך שהמסלול המקבילי לא רץ אף פעם.
             # הסרטון כבר עלה בדרך כלל עוד לפני סוף התמלול — מצרפים אותו עכשיו (הורדה, ingest, היסט, shots),
             # ואחרי זה החלוקה יציבה (גם תמלול מחדש קורה כאן, לפני התכנון) → התרגום רץ במקביל ליישור.
             J.attach_video(ctx)
             ctx = J.Ctx(J.load_state())
         pl = Pipeline(ctx, J, eng)
-        parallel = after < 2 and ctx.st.get('src') != 'a' and hasattr(J, 'align_prep')
+        # 21/10/2026: גם על הקול (late) — התכנון, היישור והתרגום לא צריכים את הסרטון
+        parallel = after < 2 and (late or ctx.st.get('src') != 'a') and hasattr(J, 'align_prep')
         if after < 2 and not parallel:
             # "הקול קודם": הצירוף של הסרטון עלול לתמלל מחדש — התכנון חייב לחכות ליישור (בטור, כמו קודם)
             if J.align(ns) != 0:
@@ -837,6 +868,12 @@ def run_auto(jobmod, args) -> int:
                         pass
                     raise
             J.save_ck(ctx, 'tl')             # נקודת שמירה: אם משהו נקטע אחרי התרגום, לא מתרגמים שוב
+        if late_attach(J, J.load_state()):
+            # הסרטון נחוץ מכאן: לשוטים, לבדיקה האחרונה ולצריבה. ברוב העבודות הוא כבר ירד ברקע
+            stop_prefetch(pre)
+            J.attach_late(J.Ctx(J.load_state()))
+            ctx = J.Ctx(J.load_state())
+            pl = Pipeline(ctx, J, eng)
         if after < 4:
             fixed, left = pl.review()
             print(f'✓ תרגום וביקורת: {fixed} תיקוני ביקורת · נשארו {left} שגיאות')

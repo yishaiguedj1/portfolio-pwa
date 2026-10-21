@@ -3654,6 +3654,18 @@ export function slaLiveT(sla, now, running) {
   const el = Math.round(t.el + add);
   return { el, f: t.tg > 0 ? el / t.tg : t.f };
 }
+/* 21/10/2026: "מאז ההתחלה 47 דק׳ · 25 מהן חיכינו לך או לסרטון" — מהיצירה עד הסוף (או עכשיו), מול שעון היעד */
+export function slaWall(r, now) {
+  const s = r && r.srv && r.srv.sla;
+  if (!s || !(r.created > 0)) return '';
+  const end = r.srv.ended > 0 && r.srv.state !== 'running' && r.srv.state !== 'queued' ? r.srv.ended : now;
+  const wall = Math.max(0, Math.round((end - r.created) / 1000));
+  const el = slaLiveT(s, now, r.srv.state === 'running').el;
+  const wait = Math.max(0, wall - el);
+  const head = T('studioSlaWall', { t: fmtShort(wall) });
+  if (s.t.paused) return head + ' · ' + T('studioSlaWaitNow');
+  return wait >= 60 ? head + ' · ' + T('studioSlaWaitOf', { t: fmtShort(wait) }) : head;
+}
 function slaCard(rec) {
   const id = rec.id, cur = () => { const r = jobRec(id); return r && r.srv && r.srv.sla ? r : null; };
   const sla = rec.srv.sla, t = sla.t;
@@ -3679,8 +3691,13 @@ function slaCard(rec) {
     }));
   }
   const out = [secT(T('studioSlaT')), list(...rows)];
-  if (t.paused) out.push(note(T('studioSlaPaused')));
-  else if (t.pz >= 60) out.push(note(T('studioSlaPz', { t: fmtShort(t.pz) })));
+  // 21/10/2026 (המשתמש: "נוצר ב־12:00 ועברו 14 דקות?"): גם הזמן מאז ההתחלה — וכמה ממנו השעון עצר
+  const wn = note('');
+  out.push(live(wn, (el) => {
+    const r = cur(); if (!r) return;
+    const w = slaWall(r, Date.now());
+    if (w) el.textContent = w;
+  }));
   return out;
 }
 /* v383: תקציב שגיאות — שורה במגדל (כמה נשאר) → דף slo */
@@ -5658,6 +5675,9 @@ function pageJob(p) {
   // 10/10/2026: עבודה שהסתיימה — התוצרים עצמם במקום כרטיס "התרגום מוכן!" שני (הראש כבר אומר את זה);
   // עד עכשיו הקישורים היו רק בתוך "פרטים טכניים" המקופלים
   const outs = ph0 === 'done' ? ((rec.srv && rec.srv.out) || []).filter((o) => OUT_MAIN.includes(o.k)) : [];   // קבצי עזר (cues/vtt/ass) — לנגן ולעורך
+  // 21/10/2026: התוצרים עלו והעובד עוד משלים ברקע (איכויות צפייה לנגן, עותק למאגר הלמידה) — הם כבר שלך, בלי לחכות
+  const early = ph0 !== 'done' && rec.srv && rec.srv.state === 'running' ? (rec.srv.out || []).filter((o) => OUT_MAIN.includes(o.k)) : [];
+  if (early.length) p.append(secT(T('studioSecResults')), list(...early.map((o) => rowOut(rec, o))), note(T('studioOutEarly')));
   if (outs.length) {
     if (canPlay(rec)) p.append(btn('st-btn wide', T('studioPlWatch'), () => go('play', id), 'play'));   // מ1: הנגן
     p.append(secT(T('studioSecResults')), list(...outs.map((o) => rowOut(rec, o)),
@@ -5717,9 +5737,13 @@ function pageJob(p) {
     const tm = h('span', 'st-stg-t');
     row.append(dot, txt, tm);
     if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }
+    // 21/10: "לוקח יותר מהרגיל" — שורה מתחת לפס, לא ליד הזמן (טקסט ארוך שלא נשבר דחס את שם השלב לעמודה צרה)
+    const ov = s.state === 'now' ? h('small', 'st-stg-ov', T('studioStageLong')) : null;
+    if (ov) { ov.hidden = !s.over; txt.append(ov); }
     live(tm, () => {
       const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id) || s;
-      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? (mm.over ? T('studioStageLong', { t: fmtShort(mm.left) }) : T('studioStageLeft', { t: fmtShort(mm.left) })) : approx(fmtShort(mm.est));
+      if (ov) ov.hidden = !(mm.state === 'now' && mm.over);
+      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? T('studioStageLeft', { t: fmtShort(mm.left) }) : approx(fmtShort(mm.est));
     });
     stl.append(row);
   }
@@ -6382,7 +6406,7 @@ let renderSeq = 0;
 let lastShape = '';
 /* "צורת" הדף — כשהיא משתנה (שלב חדש, העלאה הסתיימה, שגיאה) בונים את הדף מחדש; אחרת רק מעדכנים במקום */
 function shapeKey() {
-  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : ''); };   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
+  const one = (rec) => { const run = runs.get(rec.id); return rec.id + ':' + jobPhase(rec, run) + ':' + modelFor(rec).stages.map((s) => s.state[0]).join('') + ':' + (rec.up.v.done ? 1 : 0) + (rec.up.wait || '') + (rec.srv && rec.srv.use ? 'u' : '') + (rec.srv && rec.srv.qa ? rec.srv.qa.id + (rec.srv.qa.a ? 'a' : '') : '') + (rec.srv && rec.srv.ck ? rec.srv.ck.s : '') + (ui.resuming === rec.id ? 'r' : '') + (rec.srv && rec.srv.tw ? rec.srv.tw.lv + rec.srv.tw.x + (rec.srv.tw.sh ? 's' : '') : '') + (recovering(rec) ? 'R' : '') + (rec.srv && rec.srv.nt ? 'n' + rec.srv.nt.h.length + (rec.srv.nt.p ? 'p' : '') : '') + (rec.srv && rec.srv.cp ? 'c' + rec.srv.cp.n + (rec.srv.cp.a ? 'a' : '') : '') + (cpBusy ? 'B' : '') + (rec.srv && rec.srv.out.length ? 'o' + rec.srv.out.length : ''); };   // v382: הערה שנקראה / ממתינה; סבב 10: העתק־הדבק
   const incK = (j) => { const x = ui.inc && ui.inc.list.find((y) => y.j === j); return x ? x.no + x.st + x.s : ''; };
   if (ui.view === 'job') { const r = jobRec(ui.param); return 'job|' + (r ? one(r) : '') + '|' + ui.access + '|' + ui.halt + '|' + ui.kinds.join() + (r && towerStopped(r) && ui.fb ? '|' + ui.fb.filter((e) => e.fix).map((e) => e.fp).join() : '') + '|' + incK(ui.param); }
   if (ui.view === 'home') return 'home|' + store.jobs.map(one).join(',') + '|' + store.drafts.length + '|' + ui.access + '|' + (store.conn ? 1 : 0) + '|' + ui.halt + '|' + urgentAlerts().map((a) => a.id).join() + '|' + (majorOn(ui.inc) ? ui.inc.mi.no + ':' + ui.inc.mi.n : '');

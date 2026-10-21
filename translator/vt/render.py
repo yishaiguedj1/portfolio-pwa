@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
+import subprocess
+import threading
+import time
 from pathlib import Path
 
 from .config import FONTS_DIR
@@ -113,11 +117,11 @@ def svt_lp() -> int:
     return max(4, min(16, n))
 
 
-def enc_args(codec: str, crf: int, preset: int | str, params: str = "") -> list[str]:
+def enc_args(codec: str, crf: int, preset: int | str, params: str = "", lp: int | None = None) -> list[str]:
     if codec == "av1":
-        # lp: מקביליות פנימית לפי הליבות (svt_lp) — פלט זהה בבית
+        # lp: מקביליות פנימית לפי הליבות (svt_lp) — פלט זהה בבית. בצריבה בחלקים — חלק מהליבות לכל חלק
         return ["-c:v", "libsvtav1", "-preset", str(preset), "-crf", str(crf),
-                "-svtav1-params", f"lp={svt_lp()}" + (":" + params if params else ""), "-pix_fmt", "yuv420p"]
+                "-svtav1-params", f"lp={lp or svt_lp()}" + (":" + params if params else ""), "-pix_fmt", "yuv420p"]
     return ["-c:v", "libx264", "-preset", str(preset), "-crf", str(crf), "-pix_fmt", "yuv420p", "-profile:v", "high"]
 
 
@@ -177,28 +181,43 @@ def calibrate_crf(src: Path, ass: Path, info: dict, ratio: float, codec: str = "
     starts = [dur * (0.04 + 0.92 * i / max(1, n - 1)) for i in spread_order(n)]
     enc = {c: 0 for c in crfs}
     src_bytes = 0
+    # 21/10/2026: הדגימות בזוגות במקביל (כמו הצריבה בחלקים), כל אחת עם חלק מהליבות. התוצאה זהה בבית (SVT-AV1 מוציא
+    # אותו קובץ בכל lp), והעצירה המוקדמת נבדקת באותן נקודות (4, 6, …). נמדד בכיול של 12 דגימות 1080p ב־4 ליבות.
+    par = max(1, min(len(starts), cal_par()))
+    lp = max(1, svt_lp() // par) if codec == "av1" else None
     with tempfile.TemporaryDirectory() as td:
-        for k, t in enumerate(starts):
+        for k0 in range(0, len(starts), par):
             # עצירה מוקדמת (שלב 4.3, 10/10/2026): מקור בקצב גבוה (סרטון מהטלפון, הרצאה ב־1Mbps) נחסם ב־CRF 18
             # בכל מקרה — אחרי 4 דגימות מפוזרות על כל הסרטון ההחלטה ידועה, ושאר הכיול מבוזבז (נמדד: 24% מזמן
             # הצריבה ב־5 דק׳). רק כשהחיזוי רחוק ≥4 מהגבול; קרוב לגבול — ממשיכים כרגיל.
-            if k >= CAL_MIN and src_bytes > 0 and min(enc.values()) > 0:
+            if k0 >= CAL_MIN and src_bytes > 0 and min(enc.values()) > 0:
                 raw = _crf_raw(enc, src_bytes, crfs, ratio)
                 if raw < CRF_MIN - CAL_MARGIN or raw > CRF_MAX + CAL_MARGIN:
-                    log(f"כיול: {k} דגימות מספיקות (החיזוי {raw:.0f} — מחוץ לטווח, נחסם)")
+                    log(f"כיול: {k0} דגימות מספיקות (החיזוי {raw:.0f} — מחוץ לטווח, נחסם)")
                     break
-            t = min(t, max(0.0, dur - win - 1))
-            a, b = bisect.bisect_left(pts, t + base), bisect.bisect_left(pts, t + base + win)
-            src_bytes += sum(sz for _, sz in packets[a:b])
-            outs = {c: Path(td) / f"s{k}_{c}.mkv" for c in crfs}
-            fc = f"[0:v]{sub_filter(ass, base)},split=2[a][b]"
-            cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.3f}", "-copyts",
-                   "-i", str(src), "-filter_complex", fc]
-            for lab, c in zip("ab", crfs):
-                cmd += ["-map", f"[{lab}]", "-frames:v", str(gop)] + enc_args(codec, c, preset, params) + ["-an", str(outs[c])]
-            run(cmd, quiet=True, env=dict(os.environ, SVT_LOG="1"))
-            for c in crfs:
-                enc[c] += outs[c].stat().st_size
+            cmds, batch = [], []
+            for k in range(k0, min(len(starts), k0 + par)):
+                t = min(starts[k], max(0.0, dur - win - 1))
+                a, b = bisect.bisect_left(pts, t + base), bisect.bisect_left(pts, t + base + win)
+                src_bytes += sum(sz for _, sz in packets[a:b])
+                outs = {c: Path(td) / f"s{k}_{c}.mkv" for c in crfs}
+                fc = f"[0:v]{sub_filter(ass, base)},split=2[a][b]"
+                cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.3f}", "-copyts",
+                       "-i", str(src), "-filter_complex", fc]
+                for lab, c in zip("ab", crfs):
+                    cmd += ["-map", f"[{lab}]", "-frames:v", str(gop)] + enc_args(codec, c, preset, params, lp=lp) + ["-an", str(outs[c])]
+                cmds.append(cmd)
+                batch.append(outs)
+            env = dict(os.environ, SVT_LOG="1")
+            if len(cmds) == 1:
+                run(cmds[0], quiet=True, env=env)
+            else:
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(len(cmds)) as ex:
+                    list(ex.map(lambda c: run(c, quiet=True, env=env), cmds))      # תקלה באחת — נזרקת כאן
+            for outs in batch:
+                for c in crfs:
+                    enc[c] += outs[c].stat().st_size
     r1, r2 = (enc[c] / max(src_bytes, 1) for c in crfs)
     slope = (math.log(r2) - math.log(r1)) / (crfs[1] - crfs[0])
     crf = _crf_raw(enc, src_bytes, crfs, ratio)
@@ -239,6 +258,16 @@ def burn(src: Path, ass: Path, out: Path, info: dict, codec: str = "av1", profil
     if scale_h:
         fc += f";[v0]scale=-2:{scale_h}[v1]"
         last = "v1"
+    nparts = burn_parts(info.get("duration") or 0.0, work) if start is None and end is None else 1
+    said = nparts > 1                            # שורת "צורב →" פעם אחת לכל צריבה (העובד סופר אותן — RenderProg)
+    if nparts > 1:
+        log(f"צורב → {out.name} ({codec}, preset={preset}, crf={crf}, {nseg} מצבי כתוביות, {nparts} חלקים במקביל)")
+        try:
+            _burn_parts(src, out, info, work, lst, y0, scale_h, codec, crf, preset, prof, profile, nparts)
+            return {"codec": codec, "crf": crf, "preset": preset, "segments": nseg, "parts": nparts}
+        except (subprocess.CalledProcessError, OSError, ValueError) as e:
+            # כל תקלה בדרך המקבילית — הצריבה הרגילה, אותה תוצאה (רק לאט יותר). העבודה לא נופלת בגלל האצה
+            log(f"· הצריבה בחלקים נכשלה ({type(e).__name__}) — צורבים בתהליך אחד")
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-stats", "-y"]
     seek = []
     if start is not None:
@@ -248,18 +277,203 @@ def burn(src: Path, ass: Path, out: Path, info: dict, codec: str = "av1", profil
         cmd += ["-t", f"{end - (start or 0.0):.3f}"]
     cmd += ["-filter_complex", fc, "-map", f"[{last}]", "-map", "0:a:0?"]
     cmd += enc_args(codec, crf, preset, prof["params"] if codec == "av1" else "") + _color_args(info)
-    if profile == "small":
-        mono = is_mono(src, info)
-        cmd += ["-c:a", "aac", "-b:a", "64k" if mono else "96k"] + (["-ac", "1"] if mono else [])
-    elif a and a.get("codec") in MP4_AUDIO_OK:
-        cmd += ["-c:a", "copy"]
-    else:
-        cmd += ["-c:a", "aac", "-b:a", "160k"]
+    cmd += _audio_args(src, info, profile)
     cmd += ["-movflags", "+faststart", "-metadata:s:v:0", "language=eng", str(out)]
-    log(f"צורב → {out.name} ({codec}, preset={preset}, crf={crf}, {nseg} מצבי כתוביות)")
+    if not said:
+        log(f"צורב → {out.name} ({codec}, preset={preset}, crf={crf}, {nseg} מצבי כתוביות)")
     total = (end - (start or 0.0)) if end is not None else info["duration"] - (start or 0.0)
     run_progress(cmd, total, "צריבה", every=0.02)   # 21/10/2026: כל 2% (העובד שולח לכל היותר פעם ב־15 שנ׳)
     return {"codec": codec, "crf": crf, "preset": preset, "segments": nseg}
+
+
+def _audio_args(src: Path, info: dict, profile: str) -> list[str]:
+    a = info.get("audio", {})
+    if profile == "small":
+        mono = is_mono(src, info)
+        return ["-c:a", "aac", "-b:a", "64k" if mono else "96k"] + (["-ac", "1"] if mono else [])
+    if a and a.get("codec") in MP4_AUDIO_OK:
+        return ["-c:a", "copy"]
+    return ["-c:a", "aac", "-b:a", "160k"]
+
+
+# 21/10/2026 — צריבה בחלקים במקביל (בקשת המשתמש: "כמו מנהל הורדות"). SVT-AV1 בתהליך אחד לא מנצל את כל הליבות
+# (וגם הפענוח וההלבשה של הכתוביות רצים בתהליך הזה), ולכן כמה חלקים במקביל — כל אחד עם חלק מהליבות — מסיימים מהר יותר.
+# נמדד ב־4 ליבות, 1080p, preset 10: תהליך אחד 57.0 שנ׳ → שני חלקים 45.4 (‏−20%); תוכן כבד 39.2 → 32.9 (‏−16%);
+# ארבעה חלקים לא הוסיפו (43.8 / 38.6). זיכרון: 676MB → 1,095MB בשיא.
+# האיכות: אותו CRF ואותו preset בכל חלק (הכיול פעם אחת, על כל הסרטון), גבולות באמצע בין פריימים — כל פריים פעם אחת,
+# בדיוק עם הכתובית שלו (אותה רשימת הלבשה, מוזזת). ההבדל היחיד: פריים מפתח בתחילת כל חלק (n−1 נוספים — זניח בגודל).
+BURN_PAR_MIN_S = 120.0                           # סרטון קצר מזה — תהליך אחד (החיבור והפתיחה לא שווים)
+BURN_PART_MIN_FRAMES = 1800                      # לפחות דקה ב־30fps לכל חלק
+
+
+def burn_parts(duration: float, work: Path | None = None) -> int:
+    """כמה חלקים במקביל: 2 עד 11 ליבות, 3 מ־12, 4 מ־16. ‏SNB_BURN_PAR דורס (1 = כבוי)."""
+    v = os.environ.get("SNB_BURN_PAR", "")
+    if v.isdigit() and 1 <= int(v) <= 8:
+        n = int(v)
+    elif duration < BURN_PAR_MIN_S:
+        return 1
+    else:
+        n = max(2, min(4, svt_lp() // 4))
+    frames = 0
+    try:
+        frames = len(json.loads(((work or Path(".")) / "segments.json").read_text())["times"])
+    except (OSError, ValueError, KeyError):
+        return 1
+    return max(1, min(n, frames // BURN_PART_MIN_FRAMES if not v.isdigit() else n, frames))
+
+
+def cal_par() -> int:
+    """כמה דגימות כיול במקביל — כמו מספר החלקים בצריבה (בלי תלות באורך הסרטון). ‏SNB_BURN_PAR=1 מכבה."""
+    v = os.environ.get("SNB_BURN_PAR", "")
+    if v.isdigit() and 1 <= int(v) <= 8:
+        return int(v)
+    return max(2, min(4, svt_lp() // 4))
+
+
+def part_bounds(nframes: int, n: int) -> list[tuple[int, int]]:
+    """n טווחים של פריימים [מ, עד) — שווים ככל האפשר, בלי חפיפה ובלי חור."""
+    b = [round(k * nframes / n) for k in range(n + 1)]
+    return [(b[k], b[k + 1]) for k in range(n) if b[k + 1] > b[k]]
+
+
+def run_parts(cmds: list[list[str]], totals: list[float], label: str, every: float = 0.02) -> None:
+    """כמה ffmpeg במקביל עם שורת התקדמות אחת משותפת (סכום הזמן שקודד מכל החלקים). תקלה באחד — עוצרים את כולם."""
+    env = dict(os.environ, SVT_LOG=os.environ.get("SVT_LOG", "1"))
+    done = [0.0] * len(cmds)
+    total = max(sum(totals), 1e-6)
+    procs = []
+    for c in cmds:
+        c = [x for x in c if x != "-stats"]
+        procs.append(subprocess.Popen(c[:1] + ["-nostats", "-progress", "pipe:1"] + c[1:], stdout=subprocess.PIPE, text=True, env=env))
+
+    def read(i, p):
+        for line in p.stdout:
+            if line.startswith("out_time_us="):
+                try:
+                    done[i] = min(totals[i], int(line.split("=")[1]) / 1e6)
+                except ValueError:
+                    pass
+
+    ths = [threading.Thread(target=read, args=(i, p), daemon=True) for i, p in enumerate(procs)]
+    for t in ths:
+        t.start()
+    t0, nxt, bad = time.time(), every, None
+    while True:
+        rcs = [p.poll() for p in procs]
+        if any(r not in (None, 0) for r in rcs):
+            bad = next(i for i, r in enumerate(rcs) if r not in (None, 0))
+            break
+        frac = sum(done) / total
+        if frac >= nxt:
+            el = time.time() - t0
+            log(f"{label}: {frac * 100:.0f}% · {el / 60:.1f} דק׳ · נותרו ~{el / max(frac, 1e-6) * (1 - frac) / 60:.1f}")
+            while nxt <= frac:
+                nxt += every
+        if all(r == 0 for r in rcs):
+            break
+        time.sleep(0.5)
+    if bad is not None:
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+        for p in procs:
+            p.wait()
+        raise subprocess.CalledProcessError(procs[bad].returncode, cmds[bad])
+    for t in ths:
+        t.join(2)
+
+
+def count_frames(path: Path) -> int:
+    p = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
+                        "stream=nb_read_packets", "-of", "csv=p=0", str(path)], capture_output=True, text=True, check=True)
+    return int(p.stdout.strip().split()[0])
+
+
+def _start_time(src: Path) -> float:
+    p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=start_time", "-of", "csv=p=0", str(src)],
+                       capture_output=True, text=True, check=True)
+    try:
+        return float(p.stdout.strip() or 0.0)
+    except ValueError:
+        return 0.0
+
+
+def _first_pts(src: Path, x: float) -> float | None:
+    """איפה קפיצה מהירה ל־x באמת נוחתת: הזמן (המקורי) של הפריים הראשון אחרי הקפיצה — אותה קפיצה שהחלק יעשה."""
+    p = subprocess.run(["ffmpeg", "-hide_banner", "-copyts", "-noaccurate_seek", "-ss", f"{x:.6f}", "-i", str(src),
+                        "-map", "0:v:0", "-vf", "showinfo", "-frames:v", "1", "-an", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    import re
+    m = re.search(r"pts_time:\s*(-?[0-9.]+)", p.stderr)
+    return float(m.group(1)) if m else None
+
+
+def seek_point(src: Path, cut: float) -> float | None:
+    """נקודת קפיצה שנוחתת לפני החיתוך (זמן מקורי). קפיצה מהירה נוחתת על פריים מפתח — בדרך כלל זה שלפני, אבל לא
+    תמיד: ב־MKV היא נחתה על זה שאחרי (נמצא בבדיקה: ‎-ss 6.46 → 9.5, והחלק איבד שתי שניות). לכן בודקים, וחוזרים
+    אחורה עד שהיא לפני. None = מפענחים מההתחלה (נכון תמיד, רק לאט יותר)."""
+    x, step = cut - 1.0, 4.0
+    for _ in range(6):
+        if x <= 0:
+            return None
+        f = _first_pts(src, x)
+        if f is not None and f < cut - 1e-4:
+            return x
+        x -= step
+        step *= 2
+    return None
+
+
+def _burn_parts(src: Path, out: Path, info: dict, work: Path, lst: Path, y0: int, scale_h: int | None, codec: str,
+                crf: int, preset, prof: dict, profile: str, n: int) -> None:
+    """כל חלק: הזמנים המקוריים (‎-copyts — אותו ציר של רשימת הכתוביות), קפיצה מהירה לפריים מפתח לפני החלק, ואז
+    ‏trim בדיוק על החיתוך. לא ‎-ss מדויק: הוא משאיר גם את הפריים שמוצג ברגע החיתוך (נמצא בבדיקה — החלק השני
+    התחיל פריים אחד מוקדם, ונגמר פריים אחד לפני הסוף). ‏trim שומר רק פריים שהזמן שלו ≥ החיתוך, והחיתוך באמצע בין פריימים."""
+    from .overlay import cut_time, overlay_filter
+    times = json.loads((work / "segments.json").read_text())["times"]
+    parts = part_bounds(len(times), n)
+    lp = max(1, svt_lp() // len(parts)) if codec == "av1" else None
+    st = _start_time(src)                        # הזמנים ברשימה מתחילים באפס (frame_times_ms) — הווידאו לפי start_time
+    pdir = work / "parts"
+    pdir.mkdir(parents=True, exist_ok=True)
+    cmds, totals, files = [], [], []
+    for k, (fa, fb) in enumerate(parts):
+        t = cut_time(times, fa)
+        f = pdir / f"part{k}.mp4"
+        fc = (f"[0:v]setpts=PTS-{st:.6f}/TB[m];" + overlay_filter(y0).replace("[0:v][s]", "[m][s]")
+              + f"[v0];[v0]trim=start={t:.6f},setpts=PTS-STARTPTS[v1]")
+        last = "v1"
+        if scale_h:
+            fc += f";[v1]scale=-2:{scale_h}[v2]"
+            last = "v2"
+        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-copyts"]
+        x = seek_point(src, st + t) if fa else None
+        if x is not None:
+            cmd += ["-noaccurate_seek", "-ss", f"{x:.6f}"]
+        cmd += ["-i", str(src), "-f", "concat", "-safe", "0", "-i", str(lst), "-filter_complex", fc,
+                "-map", f"[{last}]", "-frames:v", str(fb - fa), "-an"]
+        cmd += enc_args(codec, crf, preset, prof["params"] if codec == "av1" else "", lp=lp) + _color_args(info)
+        cmd += [str(f)]
+        cmds.append(cmd)
+        totals.append((cut_time(times, fb) if fb < len(times) else info.get("duration") or 0.0) - t)
+        files.append(f)
+    run_parts(cmds, totals, "צריבה")
+    got = [count_frames(f) for f in files]
+    if got != [fb - fa for fa, fb in parts]:
+        raise ValueError(f"part_frames {got}")
+    lst = pdir / "parts.txt"
+    lst.write_text("ffconcat version 1.0\n" + "".join(f"file {f.name}\n" for f in files), encoding="utf-8")
+    # הסנכרון עם הקול: החלקים מתחילים באפס, והווידאו במקור מתחיל ב־times[0] (למשל ‎23ms אחרי הקול — ריפוד של AAC)
+    off = ["-itsoffset", f"{times[0] / 1000:.6f}"] if times and times[0] > 0 else []
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"] + off + ["-f", "concat", "-safe", "0", "-i", str(lst),
+           "-i", str(src), "-map", "0:v:0", "-map", "1:a:0?", "-c:v", "copy"] + _audio_args(src, info, profile)
+    cmd += ["-movflags", "+faststart", "-metadata:s:v:0", "language=eng", str(out)]
+    run(cmd)
+    if count_frames(out) != len(times):
+        raise ValueError("out_frames")
+    for f in files + [lst]:
+        f.unlink(missing_ok=True)
 
 
 def burn_libass(src: Path, ass: Path, out: Path, info: dict, crf: int = 18, preset: str = "medium",

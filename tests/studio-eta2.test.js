@@ -90,6 +90,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/shownPct\(r, hs\.pct/.test(st) && /shownPct\(jobRec\(id\) \|\| rec, mm && \(mm\.pv != null \? mm\.pv : mm\.p\)/.test(st), 'הטבעת והפס של השלב — לא חוזרים אחורה, והפס כולל זחילה');
   ok(/spec\.px = Math\.round/.test(st), 'הטלפון שולח את המידות (px) כבר ביצירה');
   const app = read('app.js');
-  ok(/studioStageLong: "לוקח יותר מהרגיל · עוד \{t\}"/.test(app) && /studioHOnly: "\{h\} ש׳"/.test(app), 'המחרוזות בעברית (ובאנגלית — i18n-coverage)');
+  ok(/studioStageLong: "לוקח יותר מהרגיל"/.test(app) && /studioHOnly: "\{h\} ש׳"/.test(app), 'המחרוזות בעברית (ובאנגלית — i18n-coverage)');
+  // 21/10: "לוקח יותר מהרגיל" בשורה מתחת לפס — ליד הזמן הוא דחס את שם השלב
+  ok(/st-stg-ov/.test(require('fs').readFileSync(__dirname + '/../studio.js', 'utf8')) && !/studioStageLong', \{ t:/.test(require('fs').readFileSync(__dirname + '/../studio.js', 'utf8')), 'החריגה מתחת לשלב, לא ליד הזמן');
   console.log('\n' + n + ' בדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });
