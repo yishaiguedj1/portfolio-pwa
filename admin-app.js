@@ -13,6 +13,12 @@ wireCoreBack();
 if (window.SNB_ENV && window.SNB_ENV.name === 'staging') { const s = document.createElement('div'); s.className = 'env-strip'; s.textContent = t('envStaging'); document.body.prepend(s); }
 setTimeout(() => de.classList.remove('lib-restoring', 'lib-curtain'), 6000);
 
+// 21/10/2026: למרכז הניהול אין Service Worker — אבל בכתובת הזו נשאר בטלפון אחד ישן של Invest, שהגיש את הדף של Invest
+// בכניסה לשורש. כאן מסירים כל Service Worker ומטמון שלו (גם sw.js עצמו מוחק את עצמו בכתובת הזו)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+  if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
+}
 const A = window.SnbAuth;
 A.start();
 const first = await new Promise((res) => { const to = setTimeout(() => res('boot'), 8000); A.onChange((st) => { clearTimeout(to); res(st); }); });

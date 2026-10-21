@@ -4,12 +4,12 @@
  * הגרסה הקודמת נשארת, והדפדפן מנסה שוב בבדיקת העדכון הבאה. לכן תוכן ו־sw.js עולים יחד, ב־PR אחד.
  */
 /* <swgen> נוצר ב־node tools/swgen.js — לא לערוך ביד. הבדיקות ושומר הפריסה משווים לקבצים */
-const CACHE_NAME = 'portfolio-pwa-v469';
+const CACHE_NAME = 'portfolio-pwa-v470';
 const HASHES = {
   "./": "2dc9c89cee293d86a4de945e5e0fb5a6",
   "./index.html": "2dc9c89cee293d86a4de945e5e0fb5a6",
   "./styles.css": "1f578fd7c392342171dbdf3870a4f718",
-  "./app.js": "c9e975e2a02d5f6c972f4615e0ac1c58",
+  "./app.js": "5437e4b59e23e2edd453870e1aeb5f5e",
   "./returns.js": "2f3dc3487aece0da5b647ef7c5673c46",
   "./cloud.js": "39bf52f7bb220ecf474e77b2572386d3",
   "./firebase-config.js": "b4310d14adcb697783f8cda07b91411f",
@@ -58,7 +58,7 @@ const HASHES = {
   "./academy.html": "e7f536140456bdf6163ff1f094fcfec2",
   "./academy-app.js": "bb4ea1a4ff773d3775b94bccbef70e1c",
   "./strings-academy.js": "2e54eceafa48b0cd1da0e94faed272ec",
-  "./core.js": "eb89bdc840c981d3222b43f8aec35cac",
+  "./core.js": "4843c68adc449cb2e03d157c873e9c2d",
   "./auth.js": "556d7250a03993819af63e6ade4382b1",
   "./shell.js": "76e0a41a1583a981587d8c8f44e77b94",
   "./logo-academy.webp": "1861cb325f7ac8b9a82f90ef41e2b940",
@@ -134,6 +134,15 @@ const ROOT_PAGE = (() => {
   const m = /^(academy|studio)(-staging)?\.thesnowball\.app$/.exec((self.location && self.location.hostname) || '');
   return m ? './' + m[1] + '.html' : './index.html';
 })();
+/* 21/10/2026 (דיווח המשתמש: admin.thesnowball.app פתח את Invest): למרכז הניהול אין Service Worker — אבל בטלפון
+   נשאר שם אחד של Invest (מלפני שהכתובת הופנתה למרכז הניהול), שהגיש מהמטמון את index.html לכל כניסה לשורש.
+   בכתובת הזו הוא מוחק את המטמון ואת עצמו, ומרענן את החלונות הפתוחים (הבדיקה הבאה של app.js מורידה אותו) */
+const NO_SW = /^admin(-staging)?\.thesnowball\.app$/.test((self.location && self.location.hostname) || '');
+async function selfDestruct() {
+  await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+  await self.registration.unregister();
+  for (const c of await self.clients.matchAll({ type: 'window' })) { try { await c.navigate(c.url); } catch (e) {} }
+}
 const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 async function fetchVerified(p) {
   const want = HASHES[p === './' ? ROOT_PAGE : p];
@@ -159,6 +168,7 @@ function shellKey(url, request) {
 }
 
 self.addEventListener('install', (event) => {
+  if (NO_SW) { self.skipWaiting(); return; }
   event.waitUntil((async () => {
     // המעטפת — הכל או כלום: קובץ אחד ישן/חסר = ההתקנה נכשלת והגרסה הקודמת ממשיכה לעבוד
     const got = await Promise.all(SHELL.map(async (p) => [p, await fetchVerified(p)]));
@@ -180,6 +190,7 @@ const RUNTIME = 'portfolio-pwa-rt-v1';
 const RT_HOSTS = { 'upload.wikimedia.org': /^\/wikipedia\/commons\//, 'thumb.wikimedia.org': /^\/wikipedia\/commons\//, 'financialmodelingprep.com': /^\/image-stock\//, 's3-symbol-logo.tradingview.com': /./, 'www.gstatic.com': /^\/firebasejs\// };
 
 self.addEventListener('activate', (event) => {
+  if (NO_SW) { event.waitUntil(selfDestruct()); return; }
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
@@ -253,7 +264,7 @@ async function mediaFetch(event, id) {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET') return;
+  if (NO_SW || request.method !== 'GET') return;
 
   const url = new URL(request.url);
   const mm = url.origin === self.location.origin && MEDIA_RE.exec(url.pathname);
