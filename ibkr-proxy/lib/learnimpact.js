@@ -33,6 +33,8 @@ const IMP_METRICS = [
   ['tot', 'speed', -1, 'r', 1, (r) => (done(r) && r.t && isNum(r.t.run) && mins(r) > 0 ? r.t.run / mins(r) : null)],                      // כל הזמן שחיכית
   ['act', 'speed', -1, 'r', 1, (r) => (done(r) && r.t && isNum(r.t.run) && mins(r) > 0 ? Math.max(0, r.t.run - (r.t.pz || 0)) / mins(r) : null)],   // זמן עבודה בפועל
   ['up', 'speed', -1, 'r', 0, (r) => { const u = r.ut; if (!u || mins(r) <= 0) return null; const ms = u.vf ? u.v : (u.ex || 0) + (u.a || 0); return ms > 0 ? ms / 1000 / mins(r) : null; }],   // עד שהשרת יכול להתחיל
+  // 21/10/2026: דיוק הצפי — כמה הזמן בפועל רחוק מהצפי שנקבע בלקיחה (ep.t), ביחס לצפי. "נשאר בערך 1 ש׳ 40 ד׳" שלא מתקיים = חוויה גרועה
+  ['eta', 'speed', -1, 0.05, 1, (r) => (done(r) && r.ep && r.ep.t > 0 && r.t && isNum(r.t.run) && (r.fires || 0) <= 1 ? Math.abs(Math.max(0, r.t.run - (r.t.pz || 0)) - r.ep.t) / r.ep.t : null)],
   ['tr', 'speed', -1, 'r', 1, stg('tr')], ['al', 'speed', -1, 'r', 1, stg('al')], ['rv', 'speed', -1, 'r', 1, stg('rv')],
   ['bn', 'speed', -1, 'r', 1, stg('bn')], ['sv', 'speed', -1, 'r', 1, stg('sv')],
   // אמינות — חלק מהעבודות

@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (950 מפתחות מתוך 3603) */
+/* המחרוזות של admin (951 מפתחות מתוך 3604) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -320,6 +320,7 @@ he: {
   "admImM_bn": "צריבה",
   "admImM_cpm": "עלות לדקת סרטון",
   "admImM_crash": "נפילות של השרת",
+  "admImM_eta": "טעות בצפי הזמן",
   "admImM_fail": "עבודות שנכשלו",
   "admImM_glm": "מונחים שלא נשמרו",
   "admImM_ht": "העריכות שלך (HTER)",
@@ -1272,6 +1273,7 @@ en: {
   "admImM_bn": "Burn-in",
   "admImM_cpm": "Cost per video minute",
   "admImM_crash": "Server crashes",
+  "admImM_eta": "Error in the time estimate",
   "admImM_fail": "Failed jobs",
   "admImM_glm": "Glossary terms not kept",
   "admImM_ht": "Your edits (HTER)",
