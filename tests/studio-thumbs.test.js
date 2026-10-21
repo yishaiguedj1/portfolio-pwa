@@ -59,6 +59,8 @@ const srcFn = st.slice(st.indexOf('function thumbSources(rec)'), st.indexOf('fun
 ok(srcFn.indexOf('hl[hl.length - 1].id') < srcFn.indexOf("['small', 'compact', 'same']") && srcFn.indexOf("['small', 'compact', 'same']") < srcFn.indexOf('rec.up.v && rec.up.v.id'),
   'מקור לפריים — מהקטן לגדול: איכות הצפייה הנמוכה, העותק הצרוב, ואז המקור (סרטון כבד/לא מפוענח לא משאיר עבודה בלי תמונה)');
 ok(/for \(const x of srcs\) \{ tried = true; u = await grabFrame\(x\.u, x\.wait\); if \(u\) break; \}/.test(st), 'מקור שנכשל — עוברים לבא');
+ok(/x\.spec\.name === sp\.name && x\.spec\.size === sp\.size/.test(st) && /u = thumbs\.get\(x\.id\) \|\| ''/.test(st) && /for \(const y of thumbSources\(x\)\)/.test(st),
+  'עבודה בלי סרטון בענן (בוטלה לפני ההעלאה) — התמונה של עבודה אחרת מאותו קובץ, או פריים מהסרטון שלה');
 ok(/export const thumbsReady = thumbChain = thumbsLoad\(\);/.test(st) && /Promise\.race\(\[thumbsReady, new Promise\(\(r\) => setTimeout\(r, 400\)\)\]\)\.then\(\(\) =>\s*openStudio\(/.test(app),
   'התמונות השמורות נטענות לפני הציור הראשון (מאחורי הווילון, עד 400ms) — בלי הבהוב בכל פתיחה');
 ok(/if \(Date\.now\(\) - t0 > 250\) th\.classList\.add\('in'\)/.test(st), 'דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך מוצג');

@@ -1276,6 +1276,12 @@ function thumbSet(id, u) {
 /* התמונה של העבודה: מיד אם בזיכרון; אחרת קוראים מ־IndexedDB, ואם אין — פריים מהסרטון (בתור). cb נקרא כשיש.
    עוד אין סרטון בענן (עולה) — לא נרשם ככישלון, ומנסים שוב בציור הבא; ניסיון שנכשל — לא שוב בסשן הזה */
 const thumbBusy = new Set();
+/* 21/10/2026: עבודה שבוטלה לפני שהסרטון עלה — אין ממה לקחת פריים; עבודות אחרות של אותו קובץ (שם + גודל) נותנות אותה תמונה */
+function thumbSibs(rec) {
+  const sp = rec && rec.spec;
+  if (!sp || !sp.name || !sp.size || typeof store === 'undefined' || !store || !Array.isArray(store.jobs)) return [];
+  return store.jobs.filter((x) => x && x.id !== rec.id && x.spec && x.spec.name === sp.name && x.spec.size === sp.size);
+}
 function thumbFor(rec, cb, file) {
   if (!rec || !rec.id) return '';
   const id = rec.id, have = thumbs.get(id);
@@ -1287,8 +1293,11 @@ function thumbFor(rec, cb, file) {
   thumbChain = thumbChain.then(async () => {
     let u = thumbs.get(id) || '', tried = false;
     if (!u && !file) u = await idbOp('thumbs', 'get', id) || '';
+    const sibs = file ? [] : thumbSibs(rec);
+    if (!u) for (const x of sibs) { u = thumbs.get(x.id) || ''; if (u) break; }   // אותו קובץ בעבודה אחרת — אותה תמונה
     if (!u) {
       const srcs = file ? [{ u: URL.createObjectURL(file), wait: THUMB_WAIT }] : thumbSources(rec);
+      for (const x of sibs) for (const y of thumbSources(x)) if (!srcs.some((z) => z.u === y.u)) srcs.push(y);
       for (const x of srcs) { tried = true; u = await grabFrame(x.u, x.wait); if (u) break; }
       if (file) URL.revokeObjectURL(srcs[0].u);
       if (u) idbOp('thumbs', 'put', id, u);
