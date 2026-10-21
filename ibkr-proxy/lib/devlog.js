@@ -24,6 +24,7 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const num = (v, lo, hi, d) => (isNum(+v) && v !== null && v !== '' ? Math.max(lo, Math.min(hi, Math.round(+v * (d || 1)) / (d || 1))) : null);
 const int = (v, lo, hi) => (Number.isInteger(+v) && v !== null && v !== '' ? Math.max(lo, Math.min(hi, +v)) : null);
 const tok = (v, re, max) => (re.test(String(v == null ? '' : v)) ? String(v).slice(0, max) : '');
+const dropEmpty = (o) => { for (const k of Object.keys(o)) if (o[k] === '' || o[k] == null) delete o[k]; return o; };
 
 /* סודות שאסור שיישמרו גם בלוג של תקלה: מפתח Anthropic, Bearer, טוקן שרת (<12>-<43>), JWT, מפתח עבודה בשורת הפקודה,
    חתימות של קישורים (S3/R2, Google), access_token / refresh_token */
@@ -70,10 +71,11 @@ function normPs(p) {
   for (const k of Object.keys(o)) if (o[k] === '' || o[k] == null) delete o[k];
   return o;
 }
-/* היומן של עבודה מהשרת. t = end (סוף עבודה) / stuck (תקועה — באמצע) */
+/* היומן של עבודה מהשרת. t = end (סוף עבודה) / stuck (תקועה — באמצע) / lost (21/10/2026: "קופסה שחורה" — הזנב שנשמר
+   בדיסק כל דקה, נשלח בעלייה הבאה של הסוכן כשהשרת נפל באמצע; עד היום עבודה שקרסה לא השאירה שום יומן) */
 function normJobLog(b) {
   if (!b || typeof b !== 'object' || !JOB_RE.test(String(b.job || ''))) return null;
-  const o = { v: DL_V, job: b.job, t: b.t === 'stuck' ? 'stuck' : 'end', rc: int(b.rc, -255, 255),
+  const o = { v: DL_V, job: b.job, t: b.t === 'stuck' || b.t === 'lost' ? b.t : 'end', at: int(b.at, 1.6e9, 4e9), rc: int(b.rc, -255, 255),
     st: tok(b.st, /^[a-z0-9_-]{1,24}$/, 24), p: num(b.p, 0, 1, 1000), dur: int(b.dur, 0, 1e6), idle: int(b.idle, 0, 1e6),
     ver: tok(b.ver, /^[0-9a-f]{7,40}$|^dev$/, 12) };
   if (typeof b.tail === 'string' && b.tail) o.tail = text(b.tail, TAIL_MAX, true);
@@ -81,6 +83,12 @@ function normJobLog(b) {
   if (typeof b.stack === 'string' && b.stack) o.stack = text(b.stack, STACK_MAX, true);
   if (Array.isArray(b.ps)) { const ps = b.ps.slice(0, PS_MAX).map(normPs).filter(Boolean); if (ps.length) o.ps = ps; }
   if (Array.isArray(b.calls)) { const cs = b.calls.slice(-CALLS_MAX).map(normCall).filter(Boolean); if (cs.length) o.calls = cs; }
+  if (Array.isArray(b.tm)) {      // 21/10/2026: ציר הזמן של פקודות vt — [פקודה, התחלה, משך, תהליכון]; רק שמות ומספרים
+    const tm = b.tm.slice(-200).map((x) => Array.isArray(x) && tok(x[0], /^[a-z][a-z_-]{1,19}$/, 20) && num(x[1], 1.6e9, 4e9, 10) && num(x[2], 0, 1e6, 100) != null
+      ? [x[0], num(x[1], 1.6e9, 4e9, 10), num(x[2], 0, 1e6, 100), tok(x[3], /^[\w-]{1,12}$/, 12)] : null).filter(Boolean);
+    if (tm.length) o.tm = tm;
+  }
+  if (b.t === 'lost') o.lost = int(b.lost, 1.6e9, 4e9);
   for (const k of Object.keys(o)) if (o[k] === '' || o[k] == null) delete o[k];
   return o;
 }
@@ -92,7 +100,18 @@ function normMet(b) {
     if (!s || typeof s !== 'object') continue;
     const o = { t: int(s.t, 1.6e9, 4e9), cpu: num(s.cpu, 0, 100, 10), mem: num(s.mem, 0, 100, 10), disk: num(s.disk, 0, 100, 10),
       free: num(s.free, 0, 1e5, 10), load: num(s.load, 0, 512, 100), rss: int(s.rss, 0, 1e9), io: int(s.io, 0, 1e12),
-      j: tok(s.j, JOB_RE, 21), st: tok(s.st, /^[a-z0-9_-]{1,24}$/, 24), p: num(s.p, 0, 1, 1000) };
+      j: tok(s.j, JOB_RE, 21), st: tok(s.st, /^[a-z0-9_-]{1,24}$/, 24), p: num(s.p, 0, 1, 1000),
+      // 21/10/2026: בלי התקרה אי אפשר לתרגם "100%" ל־GB; במשבצות rss של העבודה היה תמיד 0 — עכשיו לכל משבצת
+      mx: int(s.mx, 0, 1e7), av: int(s.av, 0, 1e7), psi: num(s.psi, 0, 100, 100) };
+    if (Array.isArray(s.sl)) {
+      const sl = s.sl.slice(0, 4).map((x) => x && typeof x === 'object' && JOB_RE.test(String(x.j || '')) ? dropEmpty({
+        j: x.j, st: tok(x.st, /^[a-z0-9_-]{1,24}$/, 24), p: num(x.p, 0, 1, 1000), rss: int(x.rss, 0, 1e7), cpu: num(x.cpu, 0, 1e4, 10) }) : null).filter(Boolean);
+      if (sl.length) o.sl = sl;
+    }
+    if (Array.isArray(s.top)) {      // התהליכים הכבדים כשהזיכרון גבוה: רק שם התהליך (comm) ו־MB — בלי שורת פקודה
+      const top = s.top.slice(0, 5).map((x) => x && typeof x === 'object' && tok(x.c, /^[\w.:@+-]{1,24}$/, 24) ? { c: x.c, r: int(x.r, 0, 1e7) } : null).filter(Boolean);
+      if (top.length) o.top = top;
+    }
     if (!o.t) continue;
     for (const k of Object.keys(o)) if (o[k] === '' || o[k] == null) delete o[k];
     smp.push(o);

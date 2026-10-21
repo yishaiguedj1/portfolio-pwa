@@ -294,6 +294,16 @@ class Pipeline:
     def pd(self) -> Path:
         return self.ctx.pdir
 
+    def adopt(self, *keys):
+        """מפתחות שפונקציה של job.py כתבה ישר לקובץ המצב → לעותק שבזיכרון, אחרת save_usage דורס אותם.
+        21/10/2026: כך אבד ציון השופט בכל עבודה בשרת (jg נמחק לפני judge, jd אחריו) — "השופט לא החזיר תשובה תקינה" על תשובה תקינה"""
+        st = self.J.load_state()
+        for k in keys:
+            if k in st:
+                self.ctx.st[k] = st[k]
+            else:
+                self.ctx.st.pop(k, None)
+
     def save_usage(self):
         self.ctx.st['api_usage'] = self.eng.ledger.list()
         if hasattr(self.eng, 'facts'):
@@ -586,7 +596,8 @@ class Pipeline:
         except SystemExit as e:
             print(str(e))
             return
-        st = self.J.load_state()
+        self.adopt('jg')
+        st = self.ctx.st
         sample = self.pd / 'judge' / 'sample.md'
         if not (st.get('jg') or {}).get('ids') or not sample.exists():
             return
@@ -611,6 +622,7 @@ class Pipeline:
         jd.mkdir(exist_ok=True)
         (jd / 'verdict.txt').write_text(res.text.strip() + '\n', encoding='utf-8')
         self.J.judge(SimpleNamespace())
+        self.adopt('jd')
 
     # -------------------------------------------------------------- 6. ביקורת
     def review(self):

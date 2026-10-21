@@ -527,6 +527,7 @@ async function devView(deps, now) {
 /* משיכה לקריאה בלבד בטוקן הניתוח — הלוגים, יומן הקריאות, המדדים ושגיאות הטלפון של הימים האחרונים.
    days 1–14, kinds = j/m/e, job = רק עבודה אחת. עד DEV_PULL_MAX פריטים פתוחים (מהחדש) */
 const DEV_PULL_MAX = 400;
+const DEV_PULL_BUDGET_MS = 18000;
 async function devPull(req, res, body, deps) {
   const tok = String(body.at || '');
   if (!AT_RE.test(tok)) return res.status(401).json({ ok: false, error: 'bad_token' });
@@ -544,16 +545,25 @@ async function devPull(req, res, body, deps) {
     const job = /^j[A-Za-z0-9_-]{20}$/.test(String(body.job || '')) ? body.job : '';
     const rd = r2deps(deps);
     const all = await R2.list(c, rd, 'd/', 50000);
-    const keys = all.filter((it) => { const p = DL.parseKey(it.key); return p && kinds.has(p.kind) && days.has(p.day); })
+    // 21/10/2026: יום אחד בכל הסוגים = ~70 פריטים שנפתחו אחד־אחד → 504 (maxDuration 30). עכשיו: 8 במקביל, תקציב זמן,
+    // ו־next = המפתח שממנו ממשיכים (מהחדש לישן) — tools/dev-pull.js ממשיך לבד עד שאין next
+    const before = typeof body.before === 'string' && body.before.startsWith('d/') ? body.before : '';
+    const keys = all.filter((it) => { const p = DL.parseKey(it.key); return p && kinds.has(p.kind) && days.has(p.day) && (!before || it.key < before); })
       .sort((a, b) => (a.key < b.key ? 1 : -1)).slice(0, DEV_PULL_MAX);
-    const items = [];
-    for (const it of keys) {
-      const x = vault.open(await R2.getText(c, rd, it.key, 8 * 1024 * 1024), 'dev|' + it.key);
-      if (!x || (job && x.job !== job)) continue;
-      const p = DL.parseKey(it.key);
-      items.push(Object.assign({ k: p.kind, day: p.day }, x));
+    const t0 = Date.now(), items = [];
+    let i = 0, next = '';
+    while (i < keys.length) {
+      if (Date.now() - t0 > DEV_PULL_BUDGET_MS) { next = keys[i - 1] ? keys[i - 1].key : ''; break; }
+      const batch = keys.slice(i, i + 8);
+      i += batch.length;
+      const got = await Promise.all(batch.map((it) => R2.getText(c, rd, it.key, 8 * 1024 * 1024).then((t) => vault.open(t, 'dev|' + it.key)).catch(() => null)));
+      got.forEach((x, n) => {
+        if (!x || (job && x.job !== job)) return;
+        const p = DL.parseKey(batch[n].key);
+        items.push(Object.assign({ k: p.kind, day: p.day }, x));
+      });
     }
-    return res.status(200).json({ ok: true, on, r2: true, at: now, stats: DL.devStats(all), items });
+    return res.status(200).json({ ok: true, on, r2: true, at: now, stats: DL.devStats(all), items, next: next || undefined });
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }

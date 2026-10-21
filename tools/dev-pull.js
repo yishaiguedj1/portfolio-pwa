@@ -33,11 +33,29 @@ function args(argv) {
 async function pull(base, o, fetchFn) {
   const r = await (fetchFn || fetch)(base.replace(/\/+$/, '') + '/api/studio', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ op: 'devPull', at: o.token, days: o.days, job: o.job || undefined, kinds: o.kinds }),
+    body: JSON.stringify({ op: 'devPull', at: o.token, days: o.days, job: o.job || undefined, kinds: o.kinds, before: o.before || undefined }),
   });
   let j = null; try { j = await r.json(); } catch (e) {}
   if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('http_' + r.status));
   return j;
+}
+
+/* 21/10/2026: כל הסוגים בנפרד (בקשה לסוג — כל אחת בתקציב הזמן של הפונקציה), וכל סוג עד שאין next. כך משיכה של כמה ימים לא נופלת ב־504 */
+async function pullAll(base, o, fetchFn) {
+  let out = null;
+  for (const k of o.kinds) {
+    let before = '';
+    for (let n = 0; n < 50; n++) {
+      const j = await pull(base, Object.assign({}, o, { kinds: [k], before }), fetchFn);
+      if (!out) out = Object.assign({}, j, { items: [] });
+      out.items.push(...(j.items || []));
+      out.on = out.on || j.on;
+      if (!j.r2) return Object.assign(out, { r2: false });
+      if (!j.next || j.next === before) break;
+      before = j.next;
+    }
+  }
+  return out || { ok: true, on: false, r2: true, at: Date.now(), items: [] };
 }
 
 /* הפריטים → הקבצים (טהור — נבדק ב־tests/devlog.test.js) */
@@ -59,7 +77,7 @@ function summary(j, s) {
   const L = ['# האיסוף המלא — ' + new Date(j.at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC', ''];
   L.push('הדגל learn_full: ' + (j.on ? 'דולק' : 'כבוי') + (j.r2 ? '' : ' · הדלי של מאגר הלמידה לא מוגדר'));
   L.push('עבודות: ' + s.jobs.length + ' · קריאות ל־Claude: ' + s.calls.length + ' · דגימות מדדים: ' + s.metrics.length + ' · שגיאות מהטלפון: ' + s.errors.length, '');
-  const bad = s.jobs.filter((x) => x.t === 'stuck' || x.tb || (x.rc != null && x.rc !== 0));
+  const bad = s.jobs.filter((x) => x.t === 'stuck' || x.t === 'lost' || x.tb || (x.rc != null && x.rc !== 0));
   if (bad.length) {
     L.push('## לקרוא קודם — עבודות שנכשלו / נתקעו');
     for (const x of bad.slice(0, 20)) L.push('- ' + x.job + ' · ' + x.t + ' · rc ' + x.rc + ' · שלב ' + (x.st || '?') + (x.tb ? ' · יש traceback' : '') + (x.stack ? ' · יש מצב חוטים' : ''));
@@ -73,6 +91,13 @@ function summary(j, s) {
   }
   const hot = s.metrics.filter((m) => m.mem > 90 || m.disk > 90);
   if (hot.length) L.push('## לחץ משאבים: ' + hot.length + ' דקות עם זיכרון / דיסק מעל 90%', '');
+  const gaps = [];      // 21/10/2026: פער בדגימות = השרת לא דגם (לרוב הופעל מחדש — אחרי זיכרון 100%)
+  for (let i = 1; i < s.metrics.length; i++) if (s.metrics[i].sid === s.metrics[i - 1].sid && s.metrics[i].t - s.metrics[i - 1].t > 150) gaps.push([s.metrics[i - 1], s.metrics[i]]);
+  if (gaps.length) {
+    L.push('## פערים בדגימות (' + gaps.length + ') — השרת לא דגם, לרוב הפעלה מחדש');
+    for (const [a, b] of gaps.slice(-20)) L.push('- ' + new Date(a.t * 1000).toISOString().slice(11, 19) + '→' + new Date(b.t * 1000).toISOString().slice(11, 19) + ' UTC · לפני: זיכרון ' + a.mem + '%' + (a.j ? ' · ' + a.j + ' ' + (a.st || '') : ''));
+    L.push('');
+  }
   if (s.errors.length) {
     L.push('## שגיאות מהטלפון');
     for (const e of s.errors.slice(-20)) L.push('- ' + e.app + ' ' + (e.ver || '') + ' · ' + (e.msg || '').slice(0, 160) + (e.n > 1 ? ' ×' + e.n : ''));
@@ -91,7 +116,11 @@ async function main() {
   const bases = o.api ? [o.api] : API[o.env];
   let j = null, last = null;
   for (const b of bases) {
-    try { j = await pull(b, o); break; } catch (e) { last = e; if (/bad_token|rate_limited/.test(e.message)) break; }
+    try {
+      j = await pullAll(b, o);
+      if (!j.r2 && b !== bases[bases.length - 1]) { last = new Error('r2_missing@' + b); j = null; continue; }   // 21/10/2026: שרת שהוקם בלי מפתחות הדלי — הכתובת הבאה
+      break;
+    } catch (e) { last = e; if (/bad_token|rate_limited/.test(e.message)) break; }
   }
   if (!j) { console.error('המשיכה נכשלה: ' + (last && last.message)); process.exit(1); }
   const out = o.out || path.join(process.env.TMPDIR || '/tmp', 'snb-dev-' + new Date(j.at).toISOString().slice(0, 16).replace(/[:T]/g, '-'));
@@ -107,4 +136,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { args, pull, split, summary };
+module.exports = { args, pull, pullAll, split, summary };

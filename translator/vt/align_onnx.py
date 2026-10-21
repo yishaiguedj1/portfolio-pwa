@@ -59,11 +59,46 @@ def verify(d: Path) -> dict:
     return man
 
 
-def session(path: Path, threads: int | None = None):
+# 21/10/2026 (מהיומנים של הייצור): היישור של סרטון של כשעה וחצי הגיע ל־100% זיכרון בכל עבודה, ושלוש פעמים השרת נפל
+# (כל נפילה ≈ רבע שעה + "המשך"). נמדד (20/10): עם ה־arena של ONNX השיא 5.0GB, בלעדיה 2.8GB ו־+32% זמן, פלט זהה.
+# לכן: כשבתחילת היישור פנוי פחות מ־ARENA_NEED_MB — בלי arena (עוד כמה דקות במקום קריסה). SNB_ALIGN_ARENA=on/off עוקף.
+ARENA_NEED_MB = int(os.environ.get("SNB_ALIGN_ARENA_MB", "5600"))
+
+
+def mem_free_mb() -> int | None:
+    """כמה זיכרון פנוי לתהליך: התקרה של ה־cgroup פחות מה שבשימוש, אחרת MemAvailable (תחת gVisor — התקרה)"""
+    try:
+        mx = Path("/sys/fs/cgroup/memory.max").read_text().strip()
+        cur = int(Path("/sys/fs/cgroup/memory.current").read_text().strip())
+        if mx.isdigit():
+            return max(0, (int(mx) - cur) // 1048576)
+    except (OSError, ValueError):
+        pass
+    try:
+        for ln in Path("/proc/meminfo").read_text().splitlines():
+            if ln.startswith("MemAvailable:"):
+                return int(ln.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def use_arena(free: int | None = None) -> bool:
+    v = os.environ.get("SNB_ALIGN_ARENA", "").lower()
+    if v in ("on", "1"):
+        return True
+    if v in ("off", "0"):
+        return False
+    free = mem_free_mb() if free is None else free
+    return free is None or free >= ARENA_NEED_MB
+
+
+def session(path: Path, threads: int | None = None, arena: bool = True):
     """InferenceSession עם הגדרות המחקר: בלי "סיבוב" של תהליכונים מחכים (שורף ליבות שאחרים צריכים),
     תהליכון בין־אופרטורים אחד, כל הליבות שמותרות לתהליך בתוך אופרטור."""
     import onnxruntime as ort
     so = ort.SessionOptions()
+    so.enable_cpu_mem_arena = arena
     so.intra_op_num_threads = threads or len(os.sched_getaffinity(0))
     so.inter_op_num_threads = 1
     so.add_session_config_entry("session.intra_op.allow_spinning", "0")
@@ -86,12 +121,15 @@ class OnnxAligner:
         self.ts_id = int(cfg["timestamp_token_id"])
         self.seg_ms = float(cfg["timestamp_segment_time"])
         self.audio_id = int(cfg["thinker_config"]["audio_token_id"])
-        self.conv = session(d / "audio-conv.onnx", threads)
-        self.enc = session(d / "audio-encoder.onnx", threads)
-        self.dec = session(d / "text-decoder.onnx", threads)
+        free = mem_free_mb()
+        self.arena = use_arena(free)
+        self.conv = session(d / "audio-conv.onnx", threads, self.arena)
+        self.enc = session(d / "audio-encoder.onnx", threads, self.arena)
+        self.dec = session(d / "text-decoder.onnx", threads, self.arena)
         self.embed = np.load(d / "embed.npy", mmap_mode="r")      # float16, ‏(vocab, 1024) — רק השורות שצריך
         self.pos = np.load(d / "pos.npy")
-        log(f"מודל היישור (ONNX {self.man.get('quant', '?')}) נטען ({time.time() - t0:.0f} שנ׳)")
+        log(f"מודל היישור (ONNX {self.man.get('quant', '?')}) נטען ({time.time() - t0:.0f} שנ׳)"
+            + ("" if self.arena else f" · מצב חיסכון בזיכרון (פנוי {free}MB) — איטי יותר, בלי סכנת קריסה"))
 
     def audio_features(self, mel: np.ndarray) -> np.ndarray:
         """(128, T) → (T', 1024), בדיוק כמו Qwen3ASRAudioEncoder.forward לאודיו אחד."""

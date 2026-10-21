@@ -142,6 +142,24 @@ class Build(unittest.TestCase):
         self.assertIn('mmap_mode="r"', src, "טבלת ההטמעות לא נטענת כולה לזיכרון")
         self.assertIn("verify(d)", src, "הקבצים נבדקים לפני טעינה")
 
+    def test_low_memory_mode(self):
+        """21/10/2026: פנוי פחות מהשיא עם arena (סרטון ארוך) — בלי arena (איטי יותר, אבל לא קורס). עקיפה ידנית בשני הכיוונים"""
+        old = os.environ.pop("SNB_ALIGN_ARENA", None)
+        try:
+            self.assertTrue(O.use_arena(O.ARENA_NEED_MB + 1))
+            self.assertFalse(O.use_arena(O.ARENA_NEED_MB - 1), "מעט זיכרון — מצב חיסכון")
+            self.assertTrue(O.use_arena(None), "לא ידוע — כמו קודם")
+            os.environ["SNB_ALIGN_ARENA"] = "on"
+            self.assertTrue(O.use_arena(10))
+            os.environ["SNB_ALIGN_ARENA"] = "off"
+            self.assertFalse(O.use_arena(10 ** 6))
+        finally:
+            os.environ.pop("SNB_ALIGN_ARENA", None)
+            if old is not None:
+                os.environ["SNB_ALIGN_ARENA"] = old
+        self.assertIn("so.enable_cpu_mem_arena = arena", read("translator/vt/align_onnx.py"))
+        self.assertIsInstance(O.mem_free_mb(), (int, type(None)))
+
 
 if __name__ == "__main__":
     unittest.main()

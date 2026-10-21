@@ -1040,6 +1040,9 @@ LM_ENC = {
     'a': ['-vn', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
     'v': ['-vf', 'scale=-2:240', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k'],
 }
+# 21/10/2026 (מהיומנים של הייצור): הקידוד ל־240p של סרטון של שעה וחצי לקח כ־6 דק׳ בסוף העבודה (91% מעבד, אחרי שהתוצרים כבר עלו).
+# כשאיכויות הצפייה כבר בנו 240p (אותו x264 veryfast, CRF 30) — מעתיקים את הווידאו כמו שהוא ומקודדים רק את הקול (שניות)
+LM_COPY_V = ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'copy', '-ac', '1', '-c:a', 'libopus', '-b:a', '32k']
 LM_TIMEOUT = {'a': 900, 'v': 2400}
 LM_VIDEO_EXT = ('.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi')
 _LM_HEX = re.compile(r'^[0-9a-f]{32}$')
@@ -1048,6 +1051,21 @@ _LM_HEX = re.compile(r'^[0-9a-f]{32}$')
 def _lm_source(pd):
     for p in sorted(pd.glob('source.*')):
         if p.suffix.lower() in LM_VIDEO_EXT and p.is_file():
+            return p
+    return None
+
+
+def _lm_ladder240(ctx):
+    """הקובץ של 240p מאיכויות הצפייה של העבודה הזו (אם נבנו והקובץ עוד בדיסק), אחרת None"""
+    try:
+        st = ladder_state() or {}
+    except Exception:        # noqa: BLE001
+        return None
+    if st.get('s') != 'ok' or not st.get('job') or st.get('job') != ctx.st.get('job'):
+        return None
+    for r in st.get('rungs') or []:
+        p = Path(str(r.get('f') or ''))
+        if min(int(r.get('w') or 0), int(r.get('h') or 0)) == 240 and p.is_file():
             return p
     return None
 
@@ -1089,12 +1107,20 @@ def learn_media(ctx):
                 continue                                     # השרתון לא מבקש (מתג / הודעה / דלי / כבר נשמר)
             work.mkdir(parents=True, exist_ok=True)
             dst = work / (k + '.mp4')
-            cmd = (['ffmpeg', '-v', 'error', '-nostdin', '-y', '-i', str(src)] + LM_ENC[k]
-                   + ['-encryption_scheme', 'cenc-aes-ctr', '-encryption_key', key, '-encryption_kid', kid, '-movflags', '+faststart', str(dst)])
-            try:
-                subprocess.run(cmd, env=vt_env(), timeout=LM_TIMEOUT[k], check=True, stdin=subprocess.DEVNULL,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=_lm_nice)
-            except (subprocess.SubprocessError, OSError):
+            lad = _lm_ladder240(ctx) if k == 'v' else None
+            ways = ([(lad, LM_COPY_V)] if lad else []) + [(src, LM_ENC[k])]
+            ok = False
+            for inp, enc in ways:
+                cmd = (['ffmpeg', '-v', 'error', '-nostdin', '-y', '-i', str(inp)] + enc
+                       + ['-encryption_scheme', 'cenc-aes-ctr', '-encryption_key', key, '-encryption_kid', kid, '-movflags', '+faststart', str(dst)])
+                try:
+                    subprocess.run(cmd, env=vt_env(), timeout=LM_TIMEOUT[k], check=True, stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=_lm_nice)
+                    ok = True
+                    break
+                except (subprocess.SubprocessError, OSError):
+                    dst.unlink(missing_ok=True)              # ההעתקה נכשלה — מקודדים מהמקור כמו קודם
+            if not ok:
                 continue                                     # אין רצועה כזו / ffmpeg נכשל — בלי
             size = dst.stat().st_size if dst.exists() else 0
             if 0 < size <= int(j.get('max') or 0) and 200 <= _lm_put(url, dst) < 300:

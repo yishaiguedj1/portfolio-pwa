@@ -451,6 +451,39 @@ class FlowTests(unittest.TestCase):
             llm.CARD_LIMIT.clear()
             llm.CARD_LIMIT.update(old)
 
+    def test_judge_score_survives_save_usage(self):
+        """21/10/2026 (מהיומנים של הייצור): קובץ מצב אחד — judge_prep כותב jg, judge כותב jd, ו־save_usage של העותק
+        שבזיכרון דרס את שניהם. הציון חייב לשרוד את save_usage שאחרי השופט."""
+        J = self.J
+        disk = {'files': {}}
+        J.load_state = lambda: dict(disk)
+        J.save_state = lambda st: (disk.clear(), disk.update(st))
+
+        def judge_prep(a):
+            d = self.pd / 'judge'
+            d.mkdir(exist_ok=True)
+            (d / 'sample.md').write_text('#1 Hello\n→ שלום\n#2 Thanks\n→ תודה\n', encoding='utf-8')
+            st = J.load_state()
+            st['jg'] = {'ids': [1, 2], 'a': 2}
+            J.save_state(st)
+            return 0
+
+        def judge(a):
+            st = J.load_state()
+            ids = set(st.get('jg', {}).get('ids') or [])
+            txt = (self.pd / 'judge' / 'verdict.txt').read_text(encoding='utf-8')
+            st['jd'] = {'s': 88, 'n': 2} if ids and '#1' in txt else None
+            if st['jd'] is None:
+                st.pop('jd')
+            J.save_state(st)
+            return 0
+        J.judge_prep, J.judge = judge_prep, judge
+        pl = P.Pipeline(self.ctx, J, self.engine(lambda kw: msg('#1 5 ok\n#2 4 flu'), 'haiku-high'))
+        pl.judge()
+        pl.save_usage()
+        self.assertEqual(disk.get('jd'), {'s': 88, 'n': 2}, 'הציון נשאר בקובץ המצב אחרי save_usage')
+        self.assertIn('jg', disk)
+
     def test_judge_always_haiku_high(self):
         J = self.J
 
