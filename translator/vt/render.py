@@ -258,7 +258,7 @@ def burn(src: Path, ass: Path, out: Path, info: dict, codec: str = "av1", profil
     cmd += ["-movflags", "+faststart", "-metadata:s:v:0", "language=eng", str(out)]
     log(f"צורב → {out.name} ({codec}, preset={preset}, crf={crf}, {nseg} מצבי כתוביות)")
     total = (end - (start or 0.0)) if end is not None else info["duration"] - (start or 0.0)
-    run_progress(cmd, total, "צריבה")
+    run_progress(cmd, total, "צריבה", every=0.02)   # 21/10/2026: כל 2% (העובד שולח לכל היותר פעם ב־15 שנ׳)
     return {"codec": codec, "crf": crf, "preset": preset, "segments": nseg}
 
 
@@ -309,9 +309,10 @@ def small_copy(src: Path, out: Path, target_mb: float = 28.0) -> int:
     log_base = str(out.with_suffix(""))
     common = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), "-c:v", "libx264",
               "-preset", "slow", "-b:v", f"{v}k", "-passlogfile", log_base]
-    run(common + ["-pass", "1", "-an", "-f", "null", "/dev/null"])
-    run(common + ["-pass", "2", "-c:a", "aac", "-b:a", f"{SMALL_AUDIO_KBPS}k", "-ac", "1",
-                  "-movflags", "+faststart", str(out)])
+    # 21/10/2026: עם התקדמות (‎-progress) — העובד מראה בטלפון את המעבר הזה כחלק משלב הצריבה, לא כעצירה
+    run_progress(common + ["-pass", "1", "-an", "-f", "null", "/dev/null"], dur, "עותק קטן 1/2", every=0.05)
+    run_progress(common + ["-pass", "2", "-c:a", "aac", "-b:a", f"{SMALL_AUDIO_KBPS}k", "-ac", "1",
+                  "-movflags", "+faststart", str(out)], dur, "עותק קטן 2/2", every=0.05)
     for f in out.parent.glob(Path(log_base).name + "*.log*"):
         f.unlink()
     log(f"גרסה קטנה → {out.name} ({out.stat().st_size / 1048576:.1f}MB, וידאו {v}kbps)")

@@ -1481,16 +1481,62 @@ def vt_frac(cmd, line):
     return None
 
 
+# 21/10/2026 (דיוק הצפי): vt render מריץ כמה מעברים (MKV, צריבה זהה למקור, דחוס, עותק קטן בשני מעברים), וכל אחד
+# מדפיס "צריבה: N%" מ־0 — הפס בטלפון חזר אחורה בכל מעבר. עכשיו כל מעבר הוא חלק מהשלב לפי המשקל שלו (בערך כמה זמן
+# הוא לוקח ביחס לצריבה זהה למקור), והאחוז שמדווח רק עולה.
+RENDER_W = {'mkv': 0.03, 'same': 1.0, 'compact': 0.75, 'small1': 0.12, 'small2': 0.2}
+
+
+class RenderProg:
+    """התקדמות של vt render לפי המעברים שהפקודה תריץ (בסדר של cmd_render ב־vt/cli.py)."""
+    BURN = re.compile(r'צורב → ')
+    PCT = re.compile(r'(צריבה|עותק קטן (\d)/2): (\d{1,3})%')
+
+    def __init__(self, args):
+        a = set(args)
+        comp = '--compact' in a or not ({'--burn', '--mkv', '--compact', '--small'} & a)
+        self.passes = (['mkv'] if '--mkv' in a else []) + (['same'] if '--burn' in a else []) + (['compact'] if comp else []) + \
+            (['small1', 'small2'] if '--small' in a else [])
+        self.burns = [i for i, k in enumerate(self.passes) if k in ('same', 'compact')]
+        self.tot = sum(RENDER_W[k] for k in self.passes) or 1.0
+        self.i, self.f, self.best = (0 if self.passes and self.passes[0] != 'mkv' else -1), 0.0, 0.0
+        self.nb = 0
+
+    def _at(self, i, f):
+        return (sum(RENDER_W[k] for k in self.passes[:max(0, i)]) + RENDER_W[self.passes[i]] * f) / self.tot
+
+    def feed(self, line):
+        if self.BURN.search(line) and self.nb < len(self.burns):
+            self.i, self.f = self.burns[self.nb], 0.0
+            self.nb += 1
+        else:
+            m = self.PCT.search(line)
+            if not m:
+                return None
+            if m.group(2):
+                k = 'small' + m.group(2)
+                if k in self.passes:
+                    self.i = self.passes.index(k)
+            if not (0 <= self.i < len(self.passes)):
+                return None
+            self.f = min(1.0, int(m.group(3)) / 100)
+        if not (0 <= self.i < len(self.passes)):
+            return None
+        self.best = max(self.best, self._at(self.i, self.f))
+        return self.best
+
+
 def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
     proc = subprocess.Popen([VT_PY, '-m', 'vt'] + args, cwd=str(HERE), env=vt_env(),
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     tail = []
+    rp = RenderProg(args[1:]) if args and args[0] == 'render' else None
     for line in proc.stdout:
         line = line.rstrip()
         tail = (tail + [line])[-12:]
-        f = vt_frac(args[0], line)
+        f = rp.feed(line) if rp else vt_frac(args[0], line)
         if stage and f is not None:
             try:
                 ctx.report(stage, lo + (hi - lo) * f)
@@ -1505,8 +1551,39 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
         why = ' — נגמר הזיכרון' if rc in (-9, 137) else ''
         raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').')
     note_timing(ctx, args[0], t0, time.time())
+    if args[0] == 'ingest':
+        report_px(ctx)
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
     return tail
+
+
+def px_of(media):
+    """פיקסלים לשנייה ביחס ל־1080p30 (רוחב × גובה × פריימים) — מה שקובע כמה זמן לוקחת הצריבה. None = אין וידאו.
+    זהה ל־pxOf בשרתון (ibkr-proxy/lib/studioeta.js)."""
+    v = (media or {}).get('video') or {}
+    w, h, fps = v.get('width'), v.get('height'), v.get('fps_float')
+    if not (_num_ok(w) and _num_ok(h) and 16 <= w <= 16384 and 16 <= h <= 16384):
+        return None
+    f = fps if _num_ok(fps) and 1 <= fps <= 240 else 30
+    return round(max(0.02, min(16.0, w * h * f / (1920 * 1080 * 30))), 3)
+
+
+def report_px(ctx):
+    """21/10/2026: אחרי הקליטה — המידות והקצב האמיתיים לשרתון, שמחשב מחדש את זמן הצריבה בתוכנית (פעם אחת לעבודה).
+    גם מתוך הצירוף ברקע (QuietCtx) — זה לא דיווח התקדמות. תקלה כאן לא נוגעת בעבודה."""
+    try:
+        if ctx.st.get('pxs'):
+            return
+        px = px_of(_read_json(ctx.pdir / 'media.json'))
+        if px is None:
+            return
+        Ctx.report(ctx, px=px, force=True)
+        ctx.st['pxs'] = 1
+        save_state(ctx.st)
+    except Stop:
+        raise
+    except BaseException:      # noqa: BLE001 — כולל SystemExit של Client
+        pass
 
 
 def engine_modules():

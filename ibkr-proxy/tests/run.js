@@ -3293,6 +3293,44 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 401 || rr.payload.stop === true || rr.payload.ok === false, 'boot: עובד ישן (אם בכל זאת חי) לא ממשיך לכתוב');
       await run({ op: 'remove', idToken: OWNER, job: JL });
     }
+    {
+      // 21/10/2026: כמה עבודות במקביל בשרת אחד — עבודה נוספת רק כשהשיא הצפוי שלה נכנס בזיכרון שהסוכן אמר שפנוי
+      // (לפי הסדר — הוותיקה לא נכנסת = לא מקדימים לה), והצפי מקבל את הליבות ואת מספר העבודות שכבר רצות
+      const SC = require('../lib/studio'), E = require('../lib/studioeta');
+      const FIT = { mb: 900, a: 5060, b: 24.2, ra: 2420, rb: 6.6, ai: 770 };
+      ok(JSON.stringify(SC.normFit(FIT)) === JSON.stringify(FIT) && SC.normFit({ mb: 'x' }) === null && SC.normFit(Object.assign({}, FIT, { a: 1e9 })) === null, 'fit: מספרים בלבד, בגבולות');
+      ok(SC.peakNeed({ kind: 'tr', spec: { dur: 3600 } }, FIT) === 5060 + 24.2 * 60 && SC.peakNeed({ kind: 'ai', spec: { dur: 3600 } }, FIT) === 770
+        && SC.peakNeed({ kind: 'rr', spec: { dur: 600 } }, FIT) === 2420 + 6.6 * 10, 'fit: השיא לפי סוג העבודה והאורך');
+      rr = await run({ op: 'create', idToken: OWNER, spec: Object.assign({}, SPECA, { px: 1 }) });
+      const JF = rr.payload.job.id;
+      await run({ op: 'file', idToken: OWNER, job: JF, which: 'a', id: 'aud1234567890', folder: 'fold1234567890' });
+      await run({ op: 'file', idToken: OWNER, job: JF, which: 'v', id: 'vid1234567890', folder: 'fold1234567890' });
+      await run({ op: 'start', idToken: OWNER, job: JF });
+      rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: FIT }, STOK);
+      ok(rr.payload.ok && rr.payload.job === null && db.get('studioJobs/' + JF).fields.state.stringValue === 'queued', 'fit: לא נכנסת בזיכרון שנשאר — לא נלקחת (מחכה לשרת פנוי יותר)');
+      rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 }, fit: Object.assign({}, FIT, { mb: 9000 }) }, STOK);
+      ok(rr.payload.job && rr.payload.job.id === JF && rr.payload.job.dur === 4620, 'fit: נכנסת — נלקחת, עם האורך (להזמנת הזיכרון בסוכן)');
+      const KF = rr.payload.job.key;
+      let fl = db.get('studioJobs/' + JF).fields;
+      ok(+fl.hc.integerValue === 16 && +fl.cc.integerValue === 1, 'הצפי: הליבות של השרת וכמה עבודות כבר רצות עליו — נרשמים בלקיחה');
+      await wrk({ op: 'claim', job: JF, key: KF });
+      fl = db.get('studioJobs/' + JF).fields;
+      const ep = JSON.parse(fl.ep.stringValue);
+      const solo = E.planOf(E.etaModel([], 'a', Date.now()).st, SPECA.mode, 4620);
+      ok(ep.f && ep.f.c === 16 && ep.f.cc === 1 && Array.isArray(ep.bn) && ep.s.tl === solo.s.tl && ep.s.al !== solo.s.al,
+        'הצפי: שלבים שמוגבלים במעבד לפי הליבות ועבודות במקביל; התרגום (Claude) — לא');
+      rr = await srvRun({ op: 'poll', hb: { nj: 1, cpu: 16 } }, STOK);
+      ok(db.get('studioServers/' + SID).fields.job.stringValue === JF, 'שרת שעוד מריץ עבודה ושאל אם יש עוד — העבודה שלו נשארת רשומה');
+      await wrk({ op: 'report', job: JF, key: KF, px: 4 });
+      fl = db.get('studioJobs/' + JF).fields;
+      const ep2 = JSON.parse(fl.ep.stringValue), tg2 = JSON.parse(fl.tg.stringValue);
+      ok(+fl.pxm.integerValue === 4000 && ep2.s.bn > ep.s.bn * 2.5 && ep2.s.tr === ep.s.tr && ep2.t === Object.values(ep2.s).reduce((a, b) => a + b, 0) && tg2.t === E.etaTarget(ep2),
+        'px מהעובד (4K): שלב הצריבה בתוכנית מחושב מחדש, השאר כמו שהיה, והיעד לפי התוכנית החדשה');
+      await wrk({ op: 'report', job: JF, key: KF, px: 1 });
+      ok(+db.get('studioJobs/' + JF).fields.pxm.integerValue === 4000, 'px — פעם אחת לעבודה');
+      await wrk({ op: 'report', job: JF, key: KF, fail: true, err: 'api_error' });
+      await run({ op: 'remove', idToken: OWNER, job: JF });
+    }
     rr = await run({ op: 'status', idToken: FRIEND });
     ok(rr.payload.api.month === 0 && rr.payload.api.admin === false && !('servers' in rr.payload) || rr.payload.api.admin === false, 'מצב API: כל משתמש — תקציב משלו; לא מנהל');
     {
