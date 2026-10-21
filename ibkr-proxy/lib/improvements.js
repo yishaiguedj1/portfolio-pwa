@@ -27,6 +27,9 @@ const IMPROVEMENTS = [
   { id: 'i07', at: null, m: ['jd', 'q', 'rv'], src: 'devlog',
     he: ['ביקורת בקטעים קטנים ובמקביל', 'Haiku High חשב 63K מתוך 64K טוקנים וחצי סרטון יצא בלי ביקורת — קטעים של עד 250 כתוביות, 4 במקביל, וקטע שנקטע מתפצל'],
     en: ['Review in small parallel slices', 'Haiku High spent 63K of 64K tokens thinking; half a video went unreviewed — slices of up to 250 cues, 4 in parallel'] },
+  { id: 'i08', at: null, m: ['q', 'jd', 'ht'], src: 'devlog',
+    he: ['תיקוני ההגהה מוחלים', 'בשתי עבודות 0 תיקונים — 25 ו־59 נזרקו (רווחים, מירכאות, שם שחוזר). עכשיו מוחלים בבטחה, ומה שנזרק נספר לפי סיבה'],
+    en: ['Proofreading fixes are applied', 'Two jobs applied 0 fixes (25 and 59 dropped) — now applied safely, drops counted by reason'] },
 ];
 
 module.exports = { IMPROVEMENTS };

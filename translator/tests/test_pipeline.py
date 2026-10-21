@@ -129,10 +129,31 @@ class PureTests(unittest.TestCase):
         self.assertEqual(ok, ['netflicks => Netflix'], 'רק תיקון שהישן שלו מופיע בדיוק פעם אחת')
         self.assertEqual(len(dropped), 2)
         self.assertEqual(P.clean_glossary(sec['GLOSSARY']), 'Netflix\tנטפליקס\nReed\tריד')
+
         qs = P.parse_questions(sec['QUESTIONS'])
         self.assertEqual(len(qs), 2, 'לכל היותר 2 שאלות')
         self.assertEqual((qs[0]['default'], qs[1]['opts'], qs[1]['default']), (1, [], -1))
         self.assertEqual(P.parse_questions('אין'), [])
+
+    def test_patch_robust(self):
+        """21/10/2026 (יומני הייצור: "0 תיקונים — נזרקו 59"): רווחים/מירכאות שונים, ושם שגוי שחוזר — מוחלים; vt מקבל את השורות"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('vtt', str(Path(P.__file__).parent / 'vt' / 'transcript.py'))
+        edit = ('[S? 0:00] So Netflicks started in ninety ninety seven and Netflicks grew fast.\n'
+                '[S? 0:30] Reed Hastings said that Netflicks would win. It’s   true they said.\n')
+        patch = ('Netflicks => Netflix\n'                        # 3 מופעים, שם — כל המופעים
+                 "It's true they => It is true they\n"          # מירכאות מעוגלות ורווחים כפולים בתמליל
+                 'that => THAT\n'                               # מילה נפוצה — לא גלובלי
+                 'said => told\n')                              # מופיע פעמיים, מילה נפוצה — נזרק
+        ok, dropped = P.valid_patch(edit, patch)
+        from vt.transcript import apply_patch
+        out, errs = apply_patch(edit, '\n'.join(ok))
+        self.assertEqual(errs, [], 'vt מקבל את כל השורות')
+        self.assertNotIn('Netflicks', out)
+        self.assertEqual(out.count('Netflix'), 3)
+        self.assertIn('It is true they', out)
+        self.assertEqual(sorted(d.split(':')[0] for d in dropped), ['amb'], 'רק "said" נזרק (מילה נפוצה שחוזרת)')
+        self.assertIn('THAT', out, '"that" מופיע פעם אחת — מוחל כרגיל')
 
     def test_source_answers_issues(self):
         head, parts = P.parse_source(SOURCE)

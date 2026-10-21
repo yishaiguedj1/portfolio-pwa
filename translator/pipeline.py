@@ -63,25 +63,91 @@ def split_sections(text: str) -> dict[str, str]:
     return out
 
 
+_QUOTES = str.maketrans({'\u2019': "'", '\u2018': "'", '\u201c': '"', '\u201d': '"', '\u2013': '-', '\u2014': '-'})
+PATCH_GLOBAL_MAX = 50
+# מילים נפוצות — תיקון "גלובלי" שלהן מסוכן (שינוי של כל מופע). שם / מונח / שגיאת תמלול — כן
+_COMMON = set('''that this with have from they will would there their what about which when your said could been them than
+then were also into some only other more these very just like well know think because going really people things right
+said time year years make made over much even most such back after first through where those being does doing''' .split())
+
+
+def _wb(old):
+    """המופעים של old כמילים שלמות (לא חלק ממילה), בשורה אחת"""
+    return re.compile(r"(?<![A-Za-z0-9'])" + re.escape(old) + r"(?![A-Za-z0-9'])")
+
+
+def _unique_span(cur, a, b, limit=240):
+    """מרחיבים את [a, b) במילה לכל צד (בתוך השורה) עד שהטקסט מופיע פעם אחת בדיוק. None = אי אפשר"""
+    ls, le = cur.rfind('\n', 0, a) + 1, cur.find('\n', b)
+    le = len(cur) if le < 0 else le
+    while cur.count(cur[a:b]) != 1:
+        na = max(ls, cur.rfind(' ', ls, max(ls, a - 1)) + 1) if a > ls else a
+        nb = cur.find(' ', min(le, b + 1), le) if b < le else b
+        nb = le if nb < 0 else nb
+        if (na, nb) == (a, b) or nb - na > limit:
+            return None
+        a, b = na, nb
+    return a, b
+
+
 def valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str]]:
-    """שורות `ישן => חדש` שאפשר להחיל בבטחה: הישן מופיע בדיוק פעם אחת, וכל שורה לבד (בלי תלות בסדר).
-    מחזיר (שורות תקינות, הערות על מה שנזרק) — תיקון לא תקין נזרק, לא מפיל את העבודה."""
+    """שורות `ישן => חדש` שאפשר להחיל בבטחה (vt apply_patch: הישן מופיע בדיוק פעם אחת, בשורה אחת), לפי הסדר.
+    21/10/2026 (יומני הייצור: "0 תיקונים — נזרקו 59 שלא התאימו לתמליל" — ההגהה שולמה ולא שינתה כלום): תיקון שהישן שלו
+    (1) שונה רק ברווחים / במירכאות מעוגלות — נמצא את המופע היחיד ונכתב בדיוק כמו בתמליל; (2) מילה/ביטוי שלם שמופיע כמה
+    פעמים (שם שהתמלול שמע לא נכון לאורך כל הסרטון) — שורה לכל מופע, עם הקשר מינימלי שהופך אותה לייחודית (עד
+    PATCH_GLOBAL_MAX). השאר נזרק כמו קודם. מחזיר (שורות תקינות לקובץ, הערות על מה שנזרק — עם קוד: nf/amb/nl/bad)."""
     ok, dropped, cur = [], [], edit_text
+
+    def emit(a, b, new):
+        nonlocal cur
+        sp = _unique_span(cur, a, b)
+        if sp is None:
+            return False
+        x, y = sp
+        old_ctx = cur[x:y]
+        if '\n' in old_ctx:
+            return False
+        new_ctx = cur[x:a] + new + cur[b:y]
+        ok.append(old_ctx + ' => ' + new_ctx)
+        cur = cur[:x] + new_ctx.replace('\\n', '\n') + cur[y:]
+        return True
+
     for line in patch_text.splitlines():
         s = line.rstrip()
         if not s.strip() or s.lstrip().startswith('#') or s.startswith('```'):
             continue
         if ' => ' not in s:
-            dropped.append(s[:60] + ' (בלי =>)')
+            dropped.append('bad: ' + s[:60])
             continue
         old, new = s.split(' => ', 1)
         if not old or old == new:
             continue
-        if cur.count(old) != 1:
-            dropped.append(old[:60] + f' (מופיע {cur.count(old)} פעמים)')
+        n = cur.count(old)
+        if n == 1:
+            cur = cur.replace(old, new.replace('\\n', '\n'), 1)
+            ok.append(s)
             continue
-        cur = cur.replace(old, new.replace('\\n', '\n'), 1)
-        ok.append(s)
+        if n == 0:                                    # רווחים / מירכאות שונים — מופע יחיד בשורה אחת
+            toks = old.translate(_QUOTES).split()
+            pat = re.compile(r'[ \t]+'.join(re.escape(t) for t in toks)) if toks else None
+            ms = list(pat.finditer(cur.translate(_QUOTES))) if pat else []
+            if len(ms) == 1 and emit(ms[0].start(), ms[0].end(), new):
+                continue
+            dropped.append(('amb: ' if len(ms) > 1 else 'nf: ') + old[:60])
+            continue
+        # כמה מופעים: רק מילה/ביטוי שלם עם אות, ולא החלפה שמכילה את הישן (לולאה)
+        ms = list(_wb(old).finditer(cur))
+        safe = (len(old.strip()) >= 4 and re.search('[A-Za-z]', old) and old.lower() not in _COMMON and old.lower() != new.lower()
+                and old not in new)
+        if safe and 1 < len(ms) <= PATCH_GLOBAL_MAX and len(ms) == n:
+            done = 0
+            for m in reversed(ms):                    # מהסוף — המיקומים של המופעים הקודמים לא זזים
+                done += 1 if emit(m.start(), m.end(), new) else 0
+            if done == len(ms):
+                continue
+            dropped.append('nl: ' + old[:60] + f' ({done}/{len(ms)})')
+            continue
+        dropped.append('amb: ' + old[:60] + f' ({n})')
     return ok, dropped
 
 
@@ -342,7 +408,10 @@ class Pipeline:
         gl = clean_glossary(sec.get('GLOSSARY', ''))
         head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
         (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
-        print(f'✓ הגהה: {len(ok)} תיקונים' + (f' (נזרקו {len(dropped)} שלא התאימו לתמליל)' if dropped else '')
+        why = {}
+        for d in dropped:
+            why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
+        print(f'✓ הגהה: {len(ok)} תיקונים' + (f' (נזרקו {len(dropped)} שלא התאימו לתמליל: ' + ', '.join(f'{k} {v}' for k, v in sorted(why.items())) + ')' if dropped else '')
               + f' · מילון: {len(gl.splitlines()) if gl else 0} מונחים')
         return parse_questions(sec.get('QUESTIONS', ''))
 
