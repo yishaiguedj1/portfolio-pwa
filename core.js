@@ -323,8 +323,8 @@ function askConfirmP(msg, opts) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.16.0';
-const APP_VERSION = 'v457';
+const APP_RELEASE = '2.16.1';
+const APP_VERSION = 'v458';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -859,8 +859,11 @@ function snbSwipe(o) {
 let _barHEl = null, _barHRO = null;
 function barHeightVar() {
   if (typeof document === 'undefined' || !document.querySelector) return;
-  const b = document.querySelector('.appbar');
-  const put = () => { if (_barHEl && _barHEl.isConnected) document.documentElement.style.setProperty('--appbar-h', Math.round(_barHEl.getBoundingClientRect().height) + 'px'); };
+  /* 21/10/2026 (סרטון המשתמש — הבורר של Academy קפץ אל שורת החיפוש): הגובה בפריסה (offsetHeight), לא getBoundingClientRect —
+     באמצע מעבר בקובייה ההדר מסובב והמלבן שלו גדל (~240 במקום ~120), והבורר נדבק נמוך מדי עד הציור הבא; וגם לא ההעתקים
+     של המעבר (cube-ghost / cube-hold), שנמחקים בסופו */
+  const b = [...document.querySelectorAll('.appbar')].find((x) => !x.closest('.cube-ghost, .cube-hold')) || null;
+  const put = () => { if (_barHEl && _barHEl.isConnected && _barHEl.offsetHeight) document.documentElement.style.setProperty('--appbar-h', _barHEl.offsetHeight + 'px'); };
   if (b !== _barHEl) {
     if (_barHRO) _barHRO.disconnect();
     _barHEl = b;
