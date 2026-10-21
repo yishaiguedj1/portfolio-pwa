@@ -172,6 +172,8 @@ function normSpec(s) {
     style: STYLES.includes(s.style) ? s.style : STYLES[0],
     terms: String(s.terms || '').replace(/\u0000/g, '').slice(0, 1000),
   }, edlPre(normEdl(s.edl)) ? { edl: edlPre(normEdl(s.edl)) } : {},   // מ4: חיתוך לפני התרגום (dur = האורך אחרי החיתוך)
+  // 21/10/2026: פיקסלים לשנייה ביחס ל־1080p30 (מהמידות שהטלפון קרא; העובד מתקן אחרי הקליטה) — לצפי של הצריבה
+  Number.isFinite(+s.px) && +s.px >= 0.02 && +s.px <= 16 ? { px: Math.round(+s.px * 1000) / 1000 } : {},
   s.eng === 'api' ? Object.assign({ eng: 'api', cap: normCap(s.cap) }, s.cp === 1 ? { cp: 1 } : {}) : {});   // מצב API של המערכת — עם תקרת עבודה ($); סבב 10: cp = העתק־הדבק (Claude של המשתמש)
 }
 /* קובץ שעלה ל־Drive (מה ש־Drive עצמו החזיר — api/studio.js מאמת מולו) */
@@ -976,7 +978,24 @@ function normHb(h) {
     // ת2: בידוד הקופסה — g = gVisor, r = רגיל (runc) + הסיבה מקטלוג קבוע
     iso: h.iso === 'g' || h.iso === 'r' ? h.iso : '', iw: h.iso === 'r' && ['mem', 'missing', 'selftest', 'manual'].includes(h.iw) ? h.iw : '',
     al: h.al === 'o' || h.al === 't' ? h.al : '',   // שלב 4.1: מנוע היישור (o = ONNX INT8)
+    // 21/10/2026: ליבות מותרות (לצפי — מנרמל זמנים בין שרתים), עבודות שרצות עכשיו ותקרת הזיכרון של הקונטיינר (MB)
+    cpu: n(h.cpu, 0, 512), nj: n(h.nj, 0, 16), mx: n(h.mx, 0, 4e6),
     ev: normEv(h.ev) };   // ת7: יומן השרת — האירועים האחרונים (קודים מקטלוג קבוע + זמן)
+}
+/* 21/10/2026: כמה עבודות במקביל בשרת אחד — הסוכן שולח כמה זיכרון פנוי לעוד עבודה (mb) ואת המודל שלו לשיא של כל סוג
+   (הוא מודד ולומד את השיא האמיתי; translator/agent.py — mem_fit). מספרים בלבד, בגבולות סבירים */
+function normFit(f) {
+  if (!f || typeof f !== 'object') return null;
+  const n = (x, lo, hi) => (Number.isFinite(+x) && +x >= lo && +x <= hi ? +x : null);
+  const o = { mb: n(f.mb, 0, 4e6), a: n(f.a, 100, 1e5), b: n(f.b, 0, 1e4), ra: n(f.ra, 100, 1e5), rb: n(f.rb, 0, 1e4), ai: n(f.ai, 50, 1e5) };
+  return Object.values(o).every((v) => v != null) ? o : null;
+}
+/* השיא הצפוי של עבודה (MB) לפי המודל של השרת: תרגום / הפקה מחדש לפי האורך, גיליון AI — קבוע */
+function peakNeed(job, fit) {
+  const m = ((job && job.spec && job.spec.dur) || 3600) / 60;
+  if (job && job.kind === 'ai') return fit.ai;
+  if (job && job.kind === 'rr') return fit.ra + fit.rb * m;
+  return fit.a + fit.b * m;
 }
 /* ת7 (11/10/2026): יומן השרת במקום אחד — העובד שולח בכל פנייה את 12 האירועים האחרונים שלו ([שניות, קוד]), ומסך השרת
    מציג אותם. רק קודים מהקטלוג (בלי טקסט חופשי, בלי מזהי עבודות) — מה שלא מתאים נזרק */
@@ -1061,7 +1080,7 @@ module.exports = { crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, no
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
-  effState, publicJob, workerJob, applyReport, toFields, fromFields,
+  effState, publicJob, workerJob, applyReport, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

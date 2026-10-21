@@ -81,22 +81,59 @@ export function stageEstimates(modeMin, durSec) {
    לעבודה שעוד לא נלקחה — המודל מ־status. planFrom = planOf בשרתון (tests/studio-eta.test.js משווה). */
 export const Q_DEF = [0, 0.295, 0.449];          // לפני 8 עבודות: σ=0.35 → p80 = ×1.34, p90 = ×1.57 (זהה לשרתון)
 const ETA_ST = ['tr', 'al', 'tl', 'rv', 'bn', 'sv'];
-export function planFrom(model, modeMin, durSec) {
+export const PX_EXP = 0.85;   // = PX_EXP בשרתון: הצריבה לפי "דקות אפקטיביות" = דקות × px^0.85 (px = פיקסלים לשנייה מול 1080p30)
+export function planFrom(model, modeMin, durSec, px) {
   if (!model || !model.st) return null;
   const m = (durSec > 0 ? durSec : 3600) / 60, k = (modeMin > 0 ? modeMin : 105) / 105, s = {};
+  const pf = px >= 0.02 && px <= 16 ? Math.pow(px, PX_EXP) : 1;
   let t = 0;
   for (const x of ETA_ST) {
     const ab = model.st[x];
     if (!Array.isArray(ab)) return null;
-    s[x] = Math.round((ab[0] + ab[1] * m) * ((x === 'tl' || x === 'rv') ? k : 1));
+    s[x] = Math.round((ab[0] + ab[1] * m * (x === 'bn' ? pf : 1)) * ((x === 'tl' || x === 'rv') ? k : 1));
     t += s[x];
   }
   return { s, t, q: Array.isArray(model.q) && model.q.length === 3 ? model.q : Q_DEF, n: model.n || 0 };
 }
+/* 21/10/2026 (מחקר הצפי השני — הסיכום ביומן): משכי שלבים מתפלגים בערך לוג־נורמלית (שגיאה כפלית). לשלב שרץ עכשיו
+   הזמן שנשאר הוא לפי ההתפלגות המותנית — "בהינתן שעברו t שניות": q_p(T | T>t) = F⁻¹(F(t) + p·(1−F(t))).
+   כך שלב שלוקח יותר מהצפוי לא "נתקע על פחות מדקה" — מה שנשאר בו גדל, כמו שקורה באמת לשלבים עם זנב ארוך. */
+const SQ2 = Math.SQRT2;
+function erf(x) {   // Abramowitz–Stegun 7.1.26 (שגיאה < 1.5e-7)
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return x >= 0 ? y : -y;
+}
+export const normCdf = (z) => 0.5 * (1 + erf(z / SQ2));
+export function normInv(p) {   // Acklam (שגיאה יחסית < 1.2e-9)
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const q = Math.min(1 - 1e-12, Math.max(1e-12, p));
+  if (q < 0.02425) { const r = Math.sqrt(-2 * Math.log(q)); return (((((c[0] * r + c[1]) * r + c[2]) * r + c[3]) * r + c[4]) * r + c[5]) / ((((d[0] * r + d[1]) * r + d[2]) * r + d[3]) * r + 1); }
+  if (q > 1 - 0.02425) { const r = Math.sqrt(-2 * Math.log(1 - q)); return -(((((c[0] * r + c[1]) * r + c[2]) * r + c[3]) * r + c[4]) * r + c[5]) / ((((d[0] * r + d[1]) * r + d[2]) * r + d[3]) * r + 1); }
+  const r = q - 0.5, s = r * r;
+  return (((((a[0] * s + a[1]) * s + a[2]) * s + a[3]) * s + a[4]) * s + a[5]) * r / (((((b[0] * s + b[1]) * s + b[2]) * s + b[3]) * s + b[4]) * s + 1);
+}
+/* הקוונטיל p של משך השלב בהינתן שעברו t שניות (median = הצפי, σ בסקאלה לוגריתמית) */
+export function condQuantile(median, sigma, t, p) {
+  const m = Math.max(1, median), sg = Math.max(0.05, sigma);
+  if (!(t > 0)) return m * Math.exp(sg * normInv(p));
+  const F = normCdf(Math.log(t / m) / sg);
+  return Math.max(t, m * Math.exp(sg * normInv(F + p * (1 - F))));
+}
+export const STAGE_SIGMA = 0.45;   // אי־הוודאות של שלב בודד לפני שיש נתונים (גדולה משל העבודה כולה — שלבים מתקזזים)
+/* זחילה: שלב בלי דיווח התקדמות פנימי (תשובה של Claude, כיול לפני צריבה) — הפס ממשיך לזוז לפי הזמן הצפוי,
+   מתקרב ל־90% של השלב ולא מגיע לסופו עד שהשלב באמת נגמר (Apple HIG: פס שעומד נקרא כתקיעה; Harrison 2007) */
+export const creep = (el, e) => 0.9 * (1 - Math.exp(-Math.max(0, el) / Math.max(1, e)));
+
 /* מצב המסך: לכל שלב — הסתיים (כמה לקח) / עכשיו (כמה נשאר + אחוז) / מחכה (הערכה). והסכום: כמה נשאר בסך הכל.
    10/10/2026 (מחקר הצפי): השלב הנוכחי = שילוב של ההערכה עם הקצב בפועל לפי כמה התקדם (w = p/(p+0.15));
    שלבים שלא התחילו = ההערכה × ‎√ρ (ρ = בפועל/צפוי של השלבים שכבר הסתיימו בעבודה הזו — עומס בשרת משפיע על כולם);
    left = p50, left80/left90 = לפי אי־ודאות העבר, שמצטמצמת ככל שמתקדמים.
+   21/10/2026: ההערכה של השלב הנוכחי = החציון המותנה (condQuantile) — לא "הצפי פחות מה שעבר"; הפס (pct) כולל זחילה
+   בשלב בלי דיווח (p = max(מה שדווח, creep)); over = השלב עבר את ה־p90 שלו ("לוקח יותר מהרגיל").
    job = מה שהשרתון מחזיר (prog.stg: זמני התחלה וסיום אמיתיים מהעובד); up = מצב ההעלאה בטלפון {p, left, done} */
 export function progressModel(job, est, up, now, q) {
   const prog = (job && job.prog) || {};
@@ -106,6 +143,8 @@ export function progressModel(job, est, up, now, q) {
   // v361: נכשלה / בוטלה — השלב שבו נעצרה נסגר בשרתון, אבל הוא לא "הושלם" (בלי ✓; "המשך" פותח אותו מחדש)
   const stopped = job && (job.state === 'failed' || job.state === 'cancelled');
   const qq = Array.isArray(q) && q.length === 3 ? q : Q_DEF;
+  // σ של שלב: מאי־הוודאות של העבודות הקודמות (q[2] = 1.28σ של העבודה) × 1.25, בין 0.25 ל־0.8
+  const sgS = Math.max(0.25, Math.min(0.8, (qq[2] > 0 ? qq[2] / 1.2816 : STAGE_SIGMA / 1.25) * 1.25));
   // ρ: כמה לקחו השלבים שהסתיימו מול ההערכה שלהם (0.5–3)
   let dT = 0, dE = 0;
   for (const s of STAGES) {
@@ -127,18 +166,22 @@ export function progressModel(job, est, up, now, q) {
     else if (ended || (stg[s] && stg[s].e)) row = { id: s, state: 'done', took: stg[s] && stg[s].e ? Math.max(0, Math.round((stg[s].e - stg[s].s) / 1000)) : 0 };
     else if (s === cur && stg[s]) {
       const el = Math.max(0, (now - stg[s].s) / 1000), p = Math.max(0, Math.min(0.99, prog.p || 0));
+      const tot0 = condQuantile(e, sgS, el, 0.5);       // משך השלב הצפוי בהינתן מה שכבר עבר
       // העובד יודע הכי טוב (eta); אחרת שילוב: ההערכה בהתחלה, הקצב בפועל ככל שמתקדמים (לא קופצים מיד לקצב — הוא רועש בהתחלה)
       let l;
       if (prog.eta != null) l = Math.max(0, prog.eta - Math.max(0, (now - (prog.at || now)) / 1000));
       else {
-        const w = p > 0 ? p / (p + 0.15) : 0, tot = (1 - w) * e + (p > 0 ? w * el / p : 0);
-        l = tot - el;
+        const w = p > 0 ? p / (p + 0.15) : 0, tot = (1 - w) * tot0 + (p > 0 ? w * el / p : 0);
+        l = Math.max(tot - el, (1 - p) * (tot0 - el));
       }
       l = Math.max(10, Math.round(l));
-      row = { id: s, state: 'now', left: l, p, est: e, slow: el > e * 1.5 && el > 300 };
+      // הפס: מה שדווח, ולפחות הזחילה לפי הזמן — אבל לא יותר ממה שהזמן שנשאר מרשה
+      const pv = Math.max(p, Math.min(creep(el, e), el / (el + l)));
+      const over = el > condQuantile(e, sgS, 0, 0.9) && el > 120;
+      row = { id: s, state: 'now', left: l, p, pv, est: e, slow: over, over };
     } else row = { id: s, state: 'wait', est: e };
     if (row.state === 'done') doneW += e0;
-    else if (row.state === 'now') { left += row.left; doneW += e0 * (row.p || 0); }
+    else if (row.state === 'now') { left += row.left; doneW += e0 * (row.pv != null ? row.pv : row.p || 0); }
     else left += row.est;
     stages.push(row);
   }
@@ -146,6 +189,15 @@ export function progressModel(job, est, up, now, q) {
   const k = (i) => Math.exp((qq[i] || 0) * (1 - pct));   // האי־ודאות קטנה ככל שנשאר פחות
   const l50 = ended ? 0 : Math.round(left * k(0));
   return { stages, left: l50, left80: ended ? 0 : Math.max(l50, Math.round(left * k(1))), left90: ended ? 0 : Math.max(l50, Math.round(left * k(2))), pct, rho };
+}
+
+/* 21/10/2026: מה שמוצג — הטבעת לא חוזרת אחורה (חזרה = "משהו השתבש"), ושעת הסיום יציבה (ראו shownEnd בסטודיו).
+   key = עבודה + מספר ההפעלה ("המשך" פותח מחדש — שם מותר להתחיל מנקודה אחרת) */
+export function monoPct(memo, key, pct) {
+  const prev = memo.get(key);
+  const v = prev != null && prev > pct ? prev : pct;
+  memo.set(key, v);
+  return v;
 }
 
 const abortErr = () => { const e = new Error('aborted'); e.name = 'AbortError'; return e; };

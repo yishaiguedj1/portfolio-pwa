@@ -24,6 +24,22 @@ const LAMBDA = 3, HALF_LIFE = 30 * 86400e3, SIGMA0 = 0.35, NQ = 8, ET_MAX = 40;
 const ET_G_MAX = 200;
 const Z = { 50: 0, 80: 0.8416, 90: 1.2816 };
 
+/* 21/10/2026 (מחקר הצפי השני): שלושה דברים שקובעים זמן ולא היו במודל.
+   1. px — פיקסלים לשנייה ביחס ל־1080p30 (רוחב × גובה × פריימים): הצריבה מקודדת כל פיקסל, ו־4K60 לוקח פי ~5 מ־1080p30.
+      נכנס כ"דקות אפקטיביות" של שלב הצריבה בלבד: x = דקות × px^PX_EXP (קידוד לא לגמרי לינארי בפיקסלים).
+   2. c — הליבות של השרת (תמלול, יישור וצריבה מוגבלים במעבד): הזמנים מנורמלים ל־REF_CPUS ליבות בחזקת CPU_EXP
+      (מקבול לא מושלם — מעבר מ־8 ל־16 ליבות נותן ~×1.7, לא ×2). כך דגימות משרתים שונים נכנסות לאותו מאגר.
+   3. cc — כמה עבודות אחרות רצו בשרת כשהעבודה נלקחה: הן חולקות את המעבד. דגימה עם cc > 0 לא מלמדת את השלבים
+      שמוגבלים במעבד (היא לא מייצגת עבודה לבד), ובתוכנית השלבים האלה גדלים ב־(1 + CC_K·cc) — הערכה שמרנית, הקצב
+      בפועל מתקן אותה תוך כדי (progressModel). */
+const CPU_ST = ['tr', 'al', 'bn'], REF_CPUS = 8, CPU_EXP = 0.8, PX_EXP = 0.85, CC_K = 0.5;
+const fNorm = (f) => {
+  f = f && typeof f === 'object' ? f : {};
+  return { px: num(f.px, 0.02, 16) ? f.px : 1, c: num(f.c, 1, 256) ? Math.round(f.c) : REF_CPUS, cc: num(f.cc, 0, 16) ? Math.round(f.cc) : 0 };
+};
+/* המכפיל לשלב: ליבות (מנורמל ל־REF_CPUS) × עבודות במקביל — רק לשלבים שמוגבלים במעבד */
+const cpuK = (k, f) => (CPU_ST.includes(k) ? Math.pow(REF_CPUS / f.c, CPU_EXP) * (1 + CC_K * f.cc) : 1);
+const xOf = (k, m, f) => (k === 'bn' ? m * Math.pow(f.px, PX_EXP) : m);
 const eng = (e) => (e === 'a' || e === 'api' ? 'a' : 'r');
 const modeK = (m) => (MODE_MIN[m] || 105) / 105;
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
@@ -39,7 +55,17 @@ function etaSample(job, now) {
     if (x && x.s > 0 && x.e > x.s) s[k] = Math.round((x.e - x.s) / 1000);
   }
   if (Object.keys(s).length < 3) return null;
-  return { e: eng(job.eng), m: MODE_MIN[sp.mode] ? sp.mode : 'opus-medium', d: Math.round(sp.dur), s, at: now };
+  const f = jobFactors(job), out = { e: eng(job.eng), m: MODE_MIN[sp.mode] ? sp.mode : 'opus-medium', d: Math.round(sp.dur), s, at: now };
+  if (f.px !== 1 || f.c !== REF_CPUS || f.cc) out.f = f;
+  return out;
+}
+/* הגורמים של עבודה: px מהעובד (אחרי הקליטה — המידות והקצב האמיתיים), אחרת מהטלפון (מידות בלבד, 30 פריימים);
+   c ו־cc — מהלקיחה (השרת שלקח אותה) */
+function jobFactors(job) {
+  const sp = (job && job.spec) || {};
+  // pxm = px × 1000 (Firestore שומר כאן מספרים שלמים — toFields מעגל)
+  const px = job && num(job.pxm, 20, 16000) ? job.pxm / 1000 : sp.px;
+  return fNorm({ px, c: job && job.hc, cc: job && job.cc });
 }
 function normEtSamples(list, max) {
   const out = [];
@@ -47,7 +73,9 @@ function normEtSamples(list, max) {
     if (!x || !num(x.d, 1, 86400) || !num(x.at, 0, 1e14) || !x.s || typeof x.s !== 'object') continue;
     const s = {};
     for (const k of STAGES) if (num(x.s[k], 0, 86400)) s[k] = x.s[k];
-    out.push({ e: eng(x.e), m: MODE_MIN[x.m] ? x.m : 'opus-medium', d: x.d, s, at: x.at });
+    const o = { e: eng(x.e), m: MODE_MIN[x.m] ? x.m : 'opus-medium', d: x.d, s, at: x.at };
+    if (x.f && typeof x.f === 'object') { const f = fNorm(x.f); if (f.px !== 1 || f.c !== REF_CPUS || f.cc) o.f = f; }
+    out.push(o);
   }
   return out.slice(-(max || ET_MAX));
 }
@@ -81,13 +109,16 @@ function etaModel(samples, e, now) {
   const list = normEtSamples(samples, ET_G_MAX).filter((x) => x.e === E);
   const st = {};
   for (const k of STAGES) {
-    const pts = list.filter((x) => x.s[k] != null).map((x) => ({
-      x: x.d / 60, y: (k === 'tl' || k === 'rv') ? x.s[k] / modeK(x.m) : x.s[k], at: x.at }));   // ממירים למצב הייחוס
+    // ממירים לייחוס: מצב Opus · Medium (תרגום/ביקורת), REF_CPUS ליבות בלי עבודות במקביל (תמלול/יישור/צריבה), 1080p30 (צריבה)
+    const pts = list.filter((x) => x.s[k] != null && !(CPU_ST.includes(k) && fNorm(x.f).cc > 0)).map((x) => {
+      const f = fNorm(x.f);
+      return { x: xOf(k, x.d / 60, f), y: ((k === 'tl' || k === 'rv') ? x.s[k] / modeK(x.m) : x.s[k]) / cpuK(k, f), at: x.at };
+    });
     st[k] = fitStage(pts, pri[k][0], pri[k][1], now);
   }
-  // אי־ודאות: יחס בפועל/צפי של כל עבודה שלמה (כל ששת השלבים נמדדו)
+  // אי־ודאות: יחס בפועל/צפי של כל עבודה שלמה (כל ששת השלבים נמדדו) — הצפי עם הגורמים שלה
   const lr = list.filter((x) => STAGES.every((k) => x.s[k] != null))
-    .map((x) => Math.log(STAGES.reduce((a, k) => a + x.s[k], 0) / Math.max(1, planOf(st, x.m, x.d).t))).sort((a, b) => a - b);
+    .map((x) => Math.log(STAGES.reduce((a, k) => a + x.s[k], 0) / Math.max(1, planOf(st, x.m, x.d, x.f).t))).sort((a, b) => a - b);
   let q;
   if (lr.length >= NQ) {
     const at = (p) => lr[Math.min(lr.length - 1, Math.ceil((lr.length + 1) * p) - 1)];
@@ -98,21 +129,37 @@ function etaModel(samples, e, now) {
 }
 const r3 = (v) => Math.round(v * 1000) / 1000;
 /* התוכנית לעבודה: p50 לכל שלב (שניות) והסכום */
-function planOf(st, mode, durSec) {
-  const m = (durSec > 0 ? durSec : 3600) / 60, k = modeK(mode), s = {};
+function planOf(st, mode, durSec, fx) {
+  const m = (durSec > 0 ? durSec : 3600) / 60, k = modeK(mode), s = {}, f = fNorm(fx);
   let t = 0;
   for (const x of STAGES) {
     const ab = (st && st[x]) || PRIOR.a[x];
-    s[x] = Math.round((ab[0] + ab[1] * m) * ((x === 'tl' || x === 'rv') ? k : 1));
+    s[x] = Math.round((ab[0] + ab[1] * xOf(x, m, f)) * ((x === 'tl' || x === 'rv') ? k : 1) * cpuK(x, f));
     t += s[x];
   }
   return { s, t };
 }
-/* ‏ep של עבודה (נקבע בלקיחה, הטלפון מציג ממנו): שלבים p50 + קוונטילים + כמה עבודות מאחורי המודל */
-function etaPlan(model, mode, durSec) {
+/* ‏ep של עבודה (נקבע בלקיחה, הטלפון מציג ממנו): שלבים p50 + קוונטילים + כמה עבודות מאחורי המודל.
+   21/10/2026: עם הגורמים של העבודה (f), ו־bn = [a, b] של הצריבה — כדי לעדכן אותה כשהעובד מגלה את המידות האמיתיות */
+function etaPlan(model, mode, durSec, fx) {
   const mdl = model || etaModel([], 'a', 0);
-  const p = planOf(mdl.st, mode, durSec);
-  return { s: p.s, t: p.t, q: mdl.q, n: mdl.n };
+  const p = planOf(mdl.st, mode, durSec, fx);
+  const bn = (mdl.st && mdl.st.bn) || PRIOR.a.bn;
+  return { s: p.s, t: p.t, q: mdl.q, n: mdl.n, bn: [bn[0], bn[1]], f: fNorm(fx) };
+}
+/* העובד מדווח px אמיתי (אחרי הקליטה): שלב הצריבה בתוכנית מחושב מחדש, השאר כמו שהיה */
+function replanPx(ep, durSec, px) {
+  if (!ep || !ep.s || !num(px, 0.02, 16) || !(durSec > 0)) return null;
+  const f = Object.assign(fNorm(ep.f), { px }), ab = Array.isArray(ep.bn) && ep.bn.length === 2 && ep.bn.every((v) => num(v, 0, 1e5)) ? ep.bn : PRIOR.a.bn;
+  const bn = Math.round((ab[0] + ab[1] * xOf('bn', durSec / 60, f)) * cpuK('bn', f));
+  const s = Object.assign({}, ep.s, { bn });
+  return Object.assign({}, ep, { s, t: STAGES.reduce((a, k) => a + (s[k] || 0), 0), f });
+}
+/* px מהמידות והקצב (העובד: media.json; הטלפון: מידות בלבד → 30 פריימים) */
+function pxOf(w, h, fps) {
+  if (!(num(w, 16, 16384) && num(h, 16, 16384))) return null;
+  const r = (w * h * (num(fps, 1, 240) ? fps : 30)) / (1920 * 1080 * 30);
+  return Math.round(Math.max(0.02, Math.min(16, r)) * 1000) / 1000;
 }
 /* יעד הזמן (SLA): p90 של העבודה כולה + דקה — "חרגה" רק כשבאמת חריג */
 function etaTarget(ep) {
@@ -128,8 +175,9 @@ function normEp(ep) {
   let t = 0;
   for (const k of STAGES) { if (!num(ep.s[k], 0, 86400)) return null; s[k] = ep.s[k]; t += s[k]; }
   const q = Array.isArray(ep.q) && ep.q.length === 3 && ep.q.every((v) => num(v, -3, 3)) ? ep.q.slice() : [0, r3(Z[80] * SIGMA0), r3(Z[90] * SIGMA0)];
-  return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };
+  return { s, t, q, n: num(ep.n, 0, 1000) ? Math.round(ep.n) : 0 };   // רק מה שהטלפון צריך — bn/f נשארים בשרתון
 }
 
 module.exports = { STAGES, PRIOR, MODE_MIN, LAMBDA, HALF_LIFE, SIGMA0, NQ, ET_MAX, ET_G_MAX, etSamplesFor,
-  etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf };
+  etaSample, normEtSamples, addEtSample, fitStage, etaModel, etaPlan, etaTarget, etaView, normEp, planOf,
+  CPU_ST, REF_CPUS, CPU_EXP, PX_EXP, CC_K, jobFactors, replanPx, pxOf };

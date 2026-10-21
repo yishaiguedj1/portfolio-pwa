@@ -32,7 +32,9 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const byId = (id) => m.stages.find((s) => s.id === id);
   // 10/10/2026 (מחקר הצפי): השלב הנוכחי = שילוב — ההערכה (מותאמת ב־√ρ של השלבים שהסתיימו) והקצב בפועל, w = p/(p+0.15)
   const rho = Math.max(0.5, Math.min(3, 600 / (est.tr + est.al))), eTl = Math.round(est.tl * Math.sqrt(rho)), w = 0.5 / 0.65;
-  const want = Math.round((1 - w) * eTl + w * 600 - 300);
+  // 21/10/2026: ההערכה = החציון המותנה (בהינתן שעברו 300 שנ׳), לא הצפי עצמו
+  const sg = Math.max(0.25, Math.min(0.8, N.Q_DEF[2] / 1.2816 * 1.25)), t0 = N.condQuantile(eTl, sg, 300, 0.5);
+  const want = Math.round(Math.max((1 - w) * t0 + w * 600 - 300, 0.5 * (t0 - 300)));
   ok(byId('up').state === 'done' && byId('up').took === 70 && byId('tr').state === 'done' && byId('tr').took === 300 && byId('tl').state === 'now' && Math.abs(byId('tl').left - want) < 2 && byId('rv').state === 'wait',
     'מסך ההתקדמות: שלב שהסתיים — כמה לקח באמת; שלב נוכחי — שילוב ההערכה עם הקצב בפועל; שלב שמחכה — ההערכה');
   ok(m.left === byId('tl').left + byId('rv').est + byId('bn').est + byId('sv').est && byId('rv').est === Math.round(est.rv * Math.sqrt(rho)) && m.pct > 0 && m.pct < 1, 'הזמן הכולל = מה שנשאר בשלב הנוכחי + ההערכות של השלבים שמחכים');

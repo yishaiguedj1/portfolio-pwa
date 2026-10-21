@@ -61,3 +61,52 @@ class SpeedSafe(unittest.TestCase):
         src = (HERE / 'vt' / 'cli.py').read_text(encoding='utf-8')
         body = src[src.index('def cmd_align'):src.index('def cmd_retime')]
         self.assertLess(body.index('_release_memory()'), body.index('ctc_align(words'))
+
+
+class RenderProgress(unittest.TestCase):
+    """21/10/2026: vt render מריץ כמה מעברים, וכל אחד מדפיס "צריבה: N%" מאפס — הפס בטלפון חזר אחורה בכל מעבר"""
+
+    def feed(self, args, lines):
+        rp = job.RenderProg(args)
+        return [rp.feed(x) for x in lines]
+
+    def test_burn_then_compact_never_back(self):
+        got = self.feed(['p', '--compact', '--burn'], ['[vt] צורב → p.he.mp4 (av1)', '[vt] צריבה: 50% · 1 דק׳', '[vt] צריבה: 100% · 2 דק׳',
+                                                     '[vt] צורב → p.he.compact.mp4 (av1)', '[vt] צריבה: 10% · 0.1 דק׳', '[vt] צריבה: 100%'])
+        vals = [x for x in got if x is not None]
+        self.assertEqual(vals, sorted(vals), 'עולה בלבד — גם כשהמעבר השני מתחיל מ־0%')
+        self.assertAlmostEqual(vals[2], 1.0 / 1.75, 3, 'הצריבה הזהה = 1.0 מתוך 1.75 (זהה + דחוס)')
+        self.assertAlmostEqual(vals[-1], 1.0)
+
+    def test_small_copy_passes(self):
+        got = self.feed(['p', '--compact', '--small', '28'], ['צורב → p.compact', 'צריבה: 100%', 'עותק קטן 1/2: 50%', 'עותק קטן 2/2: 100%'])
+        w = job.RENDER_W
+        tot = w['compact'] + w['small1'] + w['small2']
+        self.assertAlmostEqual(got[2], (w['compact'] + w['small1'] * 0.5) / tot, 3)
+        self.assertAlmostEqual(got[3], 1.0)
+
+    def test_default_is_compact_and_mkv_first(self):
+        self.assertEqual(job.RenderProg(['p']).passes, ['compact'], 'בלי דגלים — רק הדחוס (כמו cmd_render)')
+        rp = job.RenderProg(['p', '--mkv', '--burn'])
+        self.assertEqual(rp.passes, ['mkv', 'same'])
+        self.assertIsNone(rp.feed('צריבה: 40%'), 'לפני שהצריבה התחילה (עוד ב־MKV) — לא מנחשים')
+        self.assertGreater(rp.feed('צורב → x'), 0)
+
+    def test_matches_vt_output(self):
+        r = (HERE / 'vt' / 'render.py').read_text(encoding='utf-8')
+        self.assertIn('log(f"צורב → ', r)
+        self.assertIn('run_progress(cmd, total, "צריבה", every=0.02)', r)
+        self.assertIn('"עותק קטן 1/2"', r)
+        self.assertIn('"עותק קטן 2/2"', r)
+        c = (HERE / 'vt' / 'cli.py').read_text(encoding='utf-8')
+        i_mkv, i_burn, i_comp, i_small = (c.index(x) for x in ('if a.mkv:', 'if a.burn:', 'if a.compact:', 'if a.small:'))
+        self.assertTrue(i_mkv < i_burn < i_comp < i_small, 'סדר המעברים ב־cmd_render = הסדר ב־RenderProg')
+
+
+class PxOf(unittest.TestCase):
+    def test_px(self):
+        self.assertEqual(job.px_of({'video': {'width': 1920, 'height': 1080, 'fps_float': 30}}), 1.0)
+        self.assertEqual(job.px_of({'video': {'width': 3840, 'height': 2160, 'fps_float': 60}}), 8.0)
+        self.assertEqual(job.px_of({'video': {'width': 1280, 'height': 720}}), round(1280 * 720 / (1920 * 1080), 3), 'בלי קצב — 30')
+        self.assertIsNone(job.px_of({}))
+        self.assertIsNone(job.px_of({'video': {'width': 0, 'height': 1080}}))
