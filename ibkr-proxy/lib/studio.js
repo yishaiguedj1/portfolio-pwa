@@ -80,7 +80,7 @@ const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'api_network',
 const DET_ERRS = ['worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout'];
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
-const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_model', 'no_api_key'];
+const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_quota', 'api_model', 'no_api_key'];
 /* האם הכישלון חולף: קוד השגיאה שהעובד דיווח, או התראת Drive פתוחה של העבודה הזו ברגע הכישלון */
 function isTransient(err, openKinds) {
   const e = String(err || '');

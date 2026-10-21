@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1559 מפתחות מתוך 3637) */
+/* המחרוזות של studio (1561 מפתחות מתוך 3639) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -432,6 +432,7 @@ he: {
   "studioEmptyT": "עוד אין פרויקטים",
   "studioErrApiKey": "Anthropic דחה את המפתח או את המודל של השרת — מחליפים מפתח במסך השרת",
   "studioErrApiNet": "תקלת רשת או עומס מול Anthropic — אפשר להמשיך מאותה נקודה",
+  "studioErrApiQuota": "מפתח ה־API של השרת הגיע למגבלת ההוצאה שהוגדרה ב־Anthropic — מעלים את המגבלה במסוף של Anthropic ואז \"המשך\"",
   "studioErrBadKey": "זה לא המפתח של הטריגר. מעתיקים אותו אחרי Generate token",
   "studioErrBadUrl": "זו לא כתובת של טריגר Routine. מעתיקים אותה מחלון ה־API ב־claude.ai",
   "studioErrBudget": "יותר מדי הפעלות בשעה האחרונה. נסו שוב מאוחר יותר",
@@ -661,6 +662,7 @@ he: {
   "studioInDriveNote": "ב־Drive שלך · נשאר במקומו",
   "studioIncApiKey": "המפתח או המודל של השרת נדחו",
   "studioIncApiNet": "תקלת רשת מול Anthropic",
+  "studioIncApiQuota": "המפתח של השרת הגיע למגבלת ההוצאה",
   "studioIncBudget": "עצירה בתקציב שקבעת",
   "studioIncByC": "Claude לבד",
   "studioIncByU": "ידנית",
@@ -1993,6 +1995,7 @@ en: {
   "studioEmptyT": "No projects yet",
   "studioErrApiKey": "Anthropic rejected the server key or model — replace the key on the server screen",
   "studioErrApiNet": "Network trouble or load at Anthropic — you can resume from the same point",
+  "studioErrApiQuota": "The server API key reached the spend limit set at Anthropic — raise it in the Anthropic Console, then Resume",
   "studioErrBadKey": "That's not the trigger key. Copy it after Generate token",
   "studioErrBadUrl": "That's not a Routine trigger URL. Copy it from the API window at claude.ai",
   "studioErrBudget": "Too many runs in the past hour. Try again later",
@@ -2222,6 +2225,7 @@ en: {
   "studioInDriveNote": "In your Drive · stays where it is",
   "studioIncApiKey": "Server key or model rejected",
   "studioIncApiNet": "Network trouble with Anthropic",
+  "studioIncApiQuota": "Server key hit its spend limit",
   "studioIncBudget": "Stopped at your budget",
   "studioIncByC": "Claude, on its own",
   "studioIncByU": "Manually",

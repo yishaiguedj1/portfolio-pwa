@@ -325,6 +325,21 @@ class AnthropicTests(unittest.TestCase):
             e.complete('tl', 'X', 'Y')
         self.assertEqual(cm.exception.code, 'api_rate')
 
+    def test_spend_limit_is_quota(self):
+        """21/10/2026: מגבלת ההוצאה של ה־Workspace מגיעה כ־400 — קוד משלו (P1), לא "בקשה שגויה\""""
+        class BadRequestError(Exception):
+            pass
+        c = FakeClient([BadRequestError("Error code: 400 - You have reached your specified workspace API usage limits. You will regain access on 2026-11-01")])
+        e = llm.Engine(llm.Spec.of('opus-medium'), client=c)
+        with self.assertRaises(llm.LLMError) as cm:
+            e.complete('jg', 'X', 'Y')
+        self.assertEqual(cm.exception.code, 'api_quota')
+        c = FakeClient([BadRequestError('Error code: 400 - prompt is too long')])
+        e = llm.Engine(llm.Spec.of('opus-medium'), client=c)
+        with self.assertRaises(llm.LLMError) as cm:
+            e.complete('jg', 'X', 'Y')
+        self.assertEqual(cm.exception.code, 'api_bad_request')
+
     def test_haiku_long_prompt_tier(self):
         self.assertAlmostEqual(llm.cost_anthropic('claude-haiku-5-5', 1000, 1000, 0, 0), (1000 * 0.10 + 1000 * 0.50) / 1e6)
         self.assertAlmostEqual(llm.cost_anthropic('claude-haiku-5-5', 120000, 1000, 0, 0), (120000 * 0.50 + 1000 * 2.50) / 1e6)

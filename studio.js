@@ -973,6 +973,7 @@ function errText(code, extra) {
     case 'major': return T('studioErrMajor');   // v371
     case 'mode': return T('studioErrMode');   // v376
     case 'budget_stop': case 'budget_cap': return T('studioErrBudgetStop');
+    case 'api_quota': return T('studioErrApiQuota');   // 21/10/2026
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioErrApiKey');   // הסקירה: קודי מצב API
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioErrApiNet');
     case 'model_refusal': return T('studioErrRefusal');
@@ -3289,6 +3290,7 @@ function incTitle(e) {
     case 'month_cap': return T('studioIncMonth');
     case 'tower_stop': return T('studioIncTower');
     case 'budget_stop': case 'budget_cap': return T('studioIncBudget');
+    case 'api_quota': return T('studioIncApiQuota');
     case 'api_auth': case 'api_model': case 'no_api_key': return T('studioIncApiKey');
     case 'api_network': case 'api_timeout': case 'api_rate': case 'api_overloaded': return T('studioIncApiNet');
     case 'stale': return T('studioIncStale');

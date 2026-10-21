@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -383,6 +384,10 @@ class Engine:
                     code = 'api_network'                      # הזרם נותק
                 else:
                     code = 'api_error'
+            # 21/10/2026: מגבלת ההוצאה של ה־Workspace (או יתרה שנגמרה) מגיעה כ־400 רגיל — עד כאן "api_bad_request",
+            # והשופט פשוט דילג. זה לא באג בבקשה: שום קריאה לא תעבור עד שהמגבלה מורמת במסוף — קוד משלו, P1, בלי "המשך" לבד.
+            if code in ('api_bad_request', 'api_rate', 'api_auth') and re.search(r'usage limits?|credit balance|spend limit', str(e), re.I):
+                code = 'api_quota'
             raise LLMError(code, f'{name}: {str(e)[:200]}') from e
         stop = getattr(msg, 'stop_reason', None)
         text = ''.join(getattr(b, 'text', '') for b in msg.content if getattr(b, 'type', '') == 'text')
