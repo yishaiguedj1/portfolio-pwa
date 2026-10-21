@@ -1913,6 +1913,13 @@ def wait_video(ctx, stage, msg):
     בשרת שלנו — אחרי PARK_AFTER בלי סרטון: Park (העבודה חוזרת לתור, השרת לא תפוס עד 12 שעות)."""
     poll = float(os.environ.get('SNB_POLL', '30'))
     n, t0, park = 0, time.time(), can_park(ctx)
+    if not (ctx.st.get('files') or {}).get('v'):
+        # 21/10/2026 (יומני הייצור — בשלוש עבודות TED בדיוק 40 שנ׳ "מחכה שהסרטון יסיים לעלות"): הסרטון כבר עלה וירד ברקע
+        # (video_prefetch עדכן רק את העותק שלו), אבל כאן ישנו 30 שנ׳ לפני הבדיקה הראשונה מול השרתון. עכשיו — בודקים מיד
+        try:
+            ctx.refresh()
+        except (SystemExit, Exception):           # noqa: BLE001 — רשת רגעית: הלולאה הרגילה תנסה שוב
+            pass
     while not (ctx.st.get('files') or {}).get('v'):
         if park and time.time() - t0 >= park_after():
             raise Park()
@@ -3317,7 +3324,7 @@ def early_text_outputs(ctx, title):
             early[k] = {'id': fid, 'sha': _sha(p), 'name': name}
             out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
         if out:
-            ctx.report('bn', 0, 'הכתוביות מוכנות — אפשר לצפות בנגן בזמן שהסרטון נצרב', out=out, force=True)
+            ctx.report('bn', None, 'הכתוביות מוכנות — אפשר לצפות בנגן בזמן שהסרטון נצרב', out=out, force=True)   # p=None: לא מחזירים את פס הצריבה לאפס
             print('✓ הכתוביות עלו לפני הצריבה (' + ', '.join(o['k'] for o in out) + ')')
     except Stop:
         raise
@@ -3488,6 +3495,8 @@ def ladder_finish(ctx):
         time.sleep(5)
         waited += 5
         st = ladder_state() or {}
+    if waited:
+        note_timing(ctx, 'sv-ladder-wait', time.time() - waited, time.time())   # כמה מזה היה רק המתנה לקידוד
     if st.get('s') != 'ok':
         ladder_stop()
         print('· בלי איכויות צפייה (' + str(st.get('why') or 'time') + ') — הנגן מנגן את המקור כמו שהוא.')
@@ -3538,14 +3547,23 @@ def finish(args):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []
     title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
-    early = early_text_outputs(ctx, title) if want and os.environ.get('SNB_EARLY_SUBS', 'on') != 'off' else {}
+    # 21/10/2026 (יומני הייצור: 27 שנ׳ בין build לצריבה — גל הקול ושבעה קבצים בטור): ההעלאה המוקדמת רצה ברקע, במקביל לצריבה
+    early, eth = {}, None
+    if want and os.environ.get('SNB_EARLY_SUBS', 'on') != 'off':
+        eth = threading.Thread(target=lambda: early.update(early_text_outputs(ctx, title)), name='early', daemon=True)
+        eth.start()
     if want:
         ctx.report('bn', 0, 'מוסיפים את הכתוביות לסרטון', force=True)
         flags = (['--compact'] if 'compact' in want else []) + (['--burn'] if 'same' in want else []) + (['--mkv'] if 'mkv' in want else [])
         if 'small' in want:                      # סבב 8: העותק לוואטסאפ נבנה מסרטון צרוב — בלי צרוב שנבחר, הדחוס (לא עולה)
             flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
+    t_sv = time.time()
+    if eth is not None:
+        eth.join()
+        note_timing(ctx, 'sv-early', t_sv, time.time())    # 21/10/2026: מדידה לכל חלק בשלב השמירה (3.5 דק׳ בסרטון של 20 דק׳)
     ctx.report('sv', 0, 'שומרים את התוצרים', force=True)
+    t_up = time.time()
     out, total = [], 0
     files = []
     for k, fname, suffix, mime in OUT_FILES:
@@ -3598,9 +3616,14 @@ def finish(args):
     except (SystemExit, Exception):              # noqa: BLE001 — רק הקדמה; הדיווח האחרון שולח אותם בכל מקרה
         pass
     gq = gold_score(ctx)                         # פריט 15: הציון מול התרגום האנושי (רק בהרצה של סט הזהב)
+    note_timing(ctx, 'sv-upload', t_up, time.time())
+    t_l = time.time()
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
+    note_timing(ctx, 'sv-ladder', t_l, time.time())
+    t_l = time.time()
     learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
     learn_media(ctx)                             # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — גם לפני הדיווח האחרון
+    note_timing(ctx, 'sv-learn', t_l, time.time())
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
                rvf=rvf or None, fil=fil or None, gq=gq)
