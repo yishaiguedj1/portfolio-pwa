@@ -37,6 +37,8 @@ FIX_ROUNDS = 2
 FIX_ROUNDS_MAX = 5     # 11/10/2026: סבבים נוספים רק כל עוד מספר השגיאות יורד
 # חלקי התרגום רצים במקביל אחרי שהקריאה הראשונה התחילה לענות (= הבלוק הקבוע כבר במטמון וכולם קוראים ממנו).
 TL_PARALLEL = max(1, int(os.environ.get('SNB_TL_PAR', '4')))
+RV_SLICE_CUES = int(os.environ.get('SNB_RV_SLICE', '250'))   # 21/10/2026: קטע ביקורת — עד כמה כתוביות (החשיבה גדלה עם הקטע)
+RV_PARALLEL = int(os.environ.get('SNB_RV_PAR', '4'))
 # 11/10/2026 (תקלת max_tokens בעבודה אמיתית): תשובה של שורה לכל כתובית שנקטעה — שומרים מה שהגיע ומבקשים רק את החסר.
 TL_ATTEMPTS = 6        # ניסיונות לחלק אחד (כל עוד יש התקדמות)
 FIX_BATCH = 40         # כתוביות לבקשת תיקון אחת (קודם — הכל בבקשה אחת של 16K)
@@ -635,24 +637,47 @@ class Pipeline:
         bp = self.pd / 'tr' / 'brief.md'
         fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text()),
                              block('brief', bp.read_text(encoding='utf-8') if bp.exists() else '')])
-        # Haiku מעל סף ה־100K — הביקורת בקטעים (כל קטע עם התדריך והמילון; הבלוק הקבוע זהה → במטמון)
-        slices, n = [pkg], 1
-        while not self.eng.fits_card(fixed, block('review_package', slices[0])) and n < 32:
+        # Haiku מעל סף ה־100K — הביקורת בקטעים (כל קטע עם התדריך והמילון; הבלוק הקבוע זהה → במטמון).
+        # 21/10/2026 (יומני הייצור): בקטע של ~700 כתוביות Haiku High חשב 63,405 מתוך 64,000 טוקני הפלט ולא כתב אף תיקון —
+        # חצי סרטון בלי ביקורת. לכן גם לפי מספר הכתוביות (RV_SLICE_CUES), הקטעים במקביל (RV_PARALLEL), וקטע שנקטע בלי
+        # תשובה מתפצל לשניים ומנסה פעם אחת
+        n_cues = len(re.findall(r'(?m)^#\d+', pkg))
+        n = max(1, -(-n_cues // RV_SLICE_CUES))
+        slices = split_package(pkg, n) if n > 1 else [pkg]
+        while not self.eng.fits_card(fixed, block('review_package', slices[0])) and n < 64:
             n *= 2
             slices = split_package(pkg, n)
-        if n > 1:
-            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים — כל בקשה מתחת לסף 100K הטוקנים')
+        if len(slices) > 1:
+            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים (עד {RV_SLICE_CUES} כתוביות, {RV_PARALLEL} במקביל)')
         got, flags = {}, []
-        for sl in slices:
-            res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=64000, partial_ok=True)
-            self.save_usage()
+
+        warm = threading.Event()                 # המטמון: הקטע הראשון כותב את הבלוק הקבוע, השאר מתחילים כשהוא כבר עונה
+        if len(slices) == 1:
+            warm.set()
+
+        def one(sl, depth=0):
+            if sl is not slices[0]:
+                warm.wait(180)
+            res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=64000, partial_ok=True,
+                                    on_first_token=warm.set if sl is slices[0] else None)
+            warm.set()
             ids = set(re.findall(r'#(\d+)', sl))
+            lines = answer_lines(kept_text(res), ids)
             if getattr(res, 'stop', None) == 'max_tokens':
+                parts = split_package(sl, 2)
+                if depth == 0 and not lines and len(parts) > 1:
+                    print('· קטע של הביקורת נקטע בלי תשובה (החשיבה לקחה את כל התקרה) — מפצלים לשניים ומנסים שוב')
+                    out = [one(x, 1) for x in parts]
+                    return {k: v for o in out for k, v in o[0].items()}, [f for o in out for f in o[1]]
                 print('· הביקורת של קטע נקטעה — התיקונים שהגיעו נשמרים, השאר עוברים בבדיקה האוטומטית')
-            got.update(answer_lines(kept_text(res), ids))
             rf = getattr(self.J, 'review_flags', None)          # סבב 4: "!#מספר קוד" — לבדיקה שלך בעורך
-            if rf:
-                flags += [f for f in rf(res.text, {int(x) for x in ids}) if str(f[0]) not in got]
+            fl = [f for f in rf(res.text, {int(x) for x in ids}) if str(f[0]) not in lines] if rf else []
+            return lines, fl
+        with ThreadPoolExecutor(max_workers=max(1, min(RV_PARALLEL, len(slices)))) as ex:
+            for lines, fl in ex.map(one, slices):
+                got.update(lines)
+                flags += fl
+        self.save_usage()
         (self.pd / 'tr' / 'fixes_review.txt').write_text(fmt_lines(got) + '\n' if got else '', encoding='utf-8')
         if flags:
             (self.pd / 'review').mkdir(exist_ok=True)

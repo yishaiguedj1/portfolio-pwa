@@ -24,6 +24,9 @@ const IMPROVEMENTS = [
   { id: 'i06', at: null, m: ['up', 'tot'], src: 'user',
     he: ['הסרטון עולה במקביל לחילוץ הקול', '"הקול לקח 17 דק׳" — עכשיו הסרטון מתחיל לעלות מיד, וכשהוא מסיים ראשון מתחילים ממנו'],
     en: ['Video uploads in parallel with audio extraction', '"The audio took 17 minutes" — the video starts at once'] },
+  { id: 'i07', at: null, m: ['jd', 'q', 'rv'], src: 'devlog',
+    he: ['ביקורת בקטעים קטנים ובמקביל', 'Haiku High חשב 63K מתוך 64K טוקנים וחצי סרטון יצא בלי ביקורת — קטעים של עד 250 כתוביות, 4 במקביל, וקטע שנקטע מתפצל'],
+    en: ['Review in small parallel slices', 'Haiku High spent 63K of 64K tokens thinking; half a video went unreviewed — slices of up to 250 cues, 4 in parallel'] },
 ];
 
 module.exports = { IMPROVEMENTS };

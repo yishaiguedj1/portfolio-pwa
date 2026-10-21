@@ -484,6 +484,39 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(disk.get('jd'), {'s': 88, 'n': 2}, 'הציון נשאר בקובץ המצב אחרי save_usage')
         self.assertIn('jg', disk)
 
+    def test_review_slices_by_cues_parallel_and_retry(self):
+        """21/10/2026 (יומני הייצור): קטע של ~700 כתוביות — Haiku High חשב את כל 64K הטוקנים ולא כתב תיקון. עכשיו: קטעים של
+        עד RV_SLICE_CUES, במקביל, וקטע שנקטע בלי תשובה — מתפצל ומנסה פעם אחת. כל הכתוביות מגיעות לביקורת."""
+        import threading as _th
+        cues = ''.join(f'#{i} Line {i}\n→ שורה {i}\n' for i in range(1, 601))
+        (self.pd / 'review').mkdir(exist_ok=True)
+        self.J.vt = (lambda ctx, args, _v=self.J.vt: (_v(ctx, args), (self.pd / 'review' / 'package.md').write_text(
+            '# חבילה\n\n## כתוביות (600)\n\n' + cues, encoding='utf-8') if args[0] == 'review-pack' else None)[0])
+        seen, lock, first = [], _th.Lock(), {'n': 0}
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            if '<review_package>' not in p:
+                return msg('')
+            ids = [int(x) for x in re.findall(r'(?m)^#(\d+)', p)]
+            with lock:
+                seen.append((min(ids), max(ids)))
+                first['n'] += 1
+                boom = first['n'] == 1                     # הקטע הראשון "חושב" את כל התקרה ונקטע בלי תשובה
+            if boom:
+                m = msg('')
+                m.stop_reason = 'max_tokens'
+                return m
+            return msg('\n'.join(f'#{i} מתוקן {i}' for i in ids))
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-high'))
+        fixed, left = pl.review()
+        rv = (self.pd / 'tr' / 'fixes_review.txt').read_text(encoding='utf-8')
+        got = set(int(x) for x in re.findall(r'(?m)^#(\d+)', rv))
+        self.assertEqual(got, set(range(1, 601)), 'כל 600 הכתוביות קיבלו ביקורת — גם הקטע שנקטע (אחרי פיצול)')
+        sizes = sorted(b - a + 1 for a, b in seen)
+        self.assertLessEqual(max(sizes), P.RV_SLICE_CUES, 'אף קטע לא גדול מ־RV_SLICE_CUES')
+        self.assertEqual(len(seen), 3 + 2, '3 קטעים + 2 חצאים של הקטע שנקטע')
+
     def test_judge_always_haiku_high(self):
         J = self.J
 
