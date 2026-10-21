@@ -1,5 +1,5 @@
 // 21/10/2026 (בקשת המשתמש): תמונה ממוזערת לכל עבודה + תמונה בנגן לפני הניגון (כמו YouTube), ובפתיחה על נקודה — הפריים
-// שלה; בבית רק 4 העבודות האחרונות בכרטיס שנגלל בתוכו; עבודה ב־R2 נמחקת חודש אחרי הסיום (מאגר הלמידה נשאר)
+// שלה; בבית רק 5 העבודות האחרונות בכרטיס שנגלל בתוכו; עבודה ב־R2 נמחקת חודש אחרי הסיום (מאגר הלמידה נשאר)
 const fs = require('fs');
 const path = require('path');
 let n = 0;
@@ -32,7 +32,7 @@ ok(v.poster === '', 'setPoster — רק data:/blob: (לא כתובת חיצונ�
 setP('data:image/jpeg;base64,AAAA');
 ok(v.poster === 'data:image/jpeg;base64,AAAA', 'setPoster — תמונה מקומית מתקבלת');
 
-ok(/export const JOBS_SHOWN = 4;/.test(st) && /function jobsCard\(rows\)/.test(st) && /jobsCard\(rows\)\)/.test(st), 'בבית — 4 העבודות האחרונות, בכרטיס משלהן');
+ok(/export const JOBS_SHOWN = 5;/.test(st) && /function jobsCard\(rows\)/.test(st) && /jobsCard\(rows\)\)/.test(st), 'בבית — 5 העבודות האחרונות, בכרטיס משלהן');
 ok(/\.st-list\.st-jobs \{ overflow-y: auto; overscroll-behavior: contain;/.test(css), 'הכרטיס נגלל בתוכו, והגלילה לא עוברת לעמוד');
 ok(/l\.scrollBy\(\{ top: Math\.max\(60, l\.clientHeight - 24\), behavior: 'smooth' \}\)/.test(st) && /more\.hidden = !left/.test(st), '"עבודות קודמות" גולל בתוך הכרטיס, ונעלם כשאין עוד');
 
