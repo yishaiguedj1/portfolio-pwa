@@ -1525,3 +1525,17 @@ class TestWorker(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class JudgeSampleSize(unittest.TestCase):
+    """21/10/2026: מדגם השופט גדל עם אורך הסרטון (40 → עד 100) — 40 כתוביות מ־1,600 = רעש של ‎±3 נקודות"""
+
+    def test_judge_n(self):
+        import job
+        self.assertEqual(job.judge_n(300), 40)
+        self.assertEqual(job.judge_n(600), 40)
+        self.assertEqual(job.judge_n(1000), 66)
+        self.assertEqual(job.judge_n(1616), 100)
+        pkg = '\n'.join('#%d hello %d\n→ שלום %d' % (i, i, i) for i in range(1, 1617))
+        pick, total = job.judge_pick(pkg, job.judge_n(1616))
+        self.assertEqual((len(pick), total), (100, 1616))

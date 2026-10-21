@@ -2776,6 +2776,11 @@ def quality(path, chk_ok=True):
 
 # v375: שופט האיכות (Haiku) — מדגם של JG_N כתוביות מחבילת הביקורת; לכל אחת ציון 1–5 וקוד קבוע. רק מספרים וקודים חוזרים לשרתון
 JG_N = 40
+JG_N_MAX = 100   # 21/10/2026: בסרטון ארוך 40 כתוביות = ‎±3 נקודות רעש (ההבדל בין מצבים נבלע); עד 100, כתובית אחת לכל 15
+
+
+def judge_n(total):
+    return JG_N if total <= JG_N * 15 else min(JG_N_MAX, total // 15)
 JG_CODES = ('ok', 'mean', 'omit', 'add', 'gram', 'flu', 'term')
 JG_F_MAX = 40   # **זהה ל־JG_F_MAX בשרתון ובטלפון** — כמה מספרי כתוביות מסומנות נשלחים
 _JG_LINE = re.compile(r'^#(\d{1,6})\s+([1-5])\s+([a-z]{2,4})\s*$')
@@ -2916,6 +2921,8 @@ def judge_prep(args):
     except OSError:
         raise SystemExit('✗ חבילת הביקורת לא נוצרה — מדלגים על השופט ל־finish.')
     pick, total = judge_pick(pkg)
+    if total > JG_N * 15:
+        pick, total = judge_pick(pkg, judge_n(total))
     if len(pick) < 10:
         print('· פחות מ־10 כתוביות — בלי שופט; ממשיכים ל־finish.')
         return 0
