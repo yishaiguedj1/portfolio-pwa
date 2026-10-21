@@ -346,6 +346,7 @@ def run(args):
                     'ls': ls,
                     'pir': pir_valid(got.get('pir')),                                    # v379: דוח אחרי תקלה שמחכה לסיכום
                     'full': got.get('full') == 1,                                        # 15/10: האיסוף המלא (הדגל learn_full + הנוסח נקרא)
+                    'gref': job.get('gref') if FILE_ID_RE.match(str(job.get('gref') or '')) else None,   # פריט 15: הייחוס של סט הזהב
                     'notes': notes_valid(job.get('notes')),                              # v382: הערות שלך שכבר נקראו (להמשך)
                     'gl': [list(r) for r in gl_rows(job.get('gl'))] if gl_rows(job.get('gl')) is not None else None,   # 11/10: המילון מ־R2 (None = מ־Drive)
                     'cap': job.get('cap') if isinstance(job.get('cap'), (int, float)) and 0 < job.get('cap') <= 100 else None})   # מצב API: תקרת העבודה ($)
@@ -3479,14 +3480,41 @@ def finish(args):
         raise
     except (SystemExit, Exception):              # noqa: BLE001 — רק הקדמה; הדיווח האחרון שולח אותם בכל מקרה
         pass
+    gq = gold_score(ctx)                         # פריט 15: הציון מול התרגום האנושי (רק בהרצה של סט הזהב)
     hl = ladder_finish(ctx)                      # איכויות הצפייה (אם מוכנות) — המקור מוחלף בגרסה הארוזה
     learn_put(ctx)                               # 15/10/2026 (מ׳2): קורפוס הטקסט למאגר הלמידה — לפני הדיווח האחרון (אחריו המפתח מת)
     learn_media(ctx)                             # מ׳4: הקול ועותק ב־240p (רק כשהשרתון מבקש) — גם לפני הדיווח האחרון
     ctx.report(done=True, out=out, msg='התרגום מוכן', force=True, lx=learn_safe(ctx), usage=usage_safe(), trace=trace_safe(), quality=q,
                judge=ctx.st.get('jd'), gl=gl, hl=hl and hl['hl'], vs=hl and hl['vs'],      # v375: שופט האיכות (Haiku) — אם רץ
-               rvf=rvf or None, fil=fil or None)
+               rvf=rvf or None, fil=fil or None, gq=gq)
     print('✓ העבודה הסתיימה: ' + ', '.join(o['name'] for o in out))
     return 0
+
+
+def gold_score(ctx):
+    """פריט 15 (21/10/2026): הרצה של סט הזהב — הציון מול התרגום האנושי מחושב כאן (translator/goldscore.py = goldCompare
+    של הטלפון), כך ש"ריצת מבחן" מקבלת ציון בלי שהטלפון פתוח. כל תקלה = בלי ציון (הטלפון עדיין יכול לחשב), העבודה לא נופלת."""
+    ref = ctx.st.get('gref')
+    srt = ctx.pdir / 'out' / 'he.srt'
+    if not ref or not srt.exists():
+        return None
+    try:
+        from goldscore import gold_compare
+        dest = ctx.pdir / 'judge' / 'ref.srt'
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.unlink(missing_ok=True)             # הורדה קודמת (המשך) — לא להוסיף לסופה
+        fetch_input(ctx, ref, dest, 0)
+        if dest.stat().st_size > 2 * 1024 * 1024:
+            return None
+        gq = gold_compare(srt.read_text(encoding='utf-8', errors='replace'), dest.read_text(encoding='utf-8', errors='replace'))
+        if gq:
+            print('· סט הזהב: chrF++ ' + str(gq['s']) + ' · כיסוי זמן ' + str(gq['tm']) + '% · ' + str(gq['n']) + ' כתוביות בייחוס')
+        return gq
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:   # noqa: BLE001 — מידע משני
+        print('· סט הזהב: לא חושב ציון (' + type(e).__name__ + ')')
+        return None
 
 
 # ---------------------------------------------------------------- נקודות שמירה (v361)

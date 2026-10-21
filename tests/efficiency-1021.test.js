@@ -41,3 +41,27 @@ const api = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8')
   ok(m && m[5](Object.assign({ ux: { pl: { n: 1, cov: 0.95 } } }, done)) === 1 && m[5](Object.assign({ ux: { pl: { n: 1, cov: 0.95 }, e: { s: 1 } } }, done)) === 0
     && m[5](Object.assign({ ux: { pl: { n: 1, cov: 0.3 } } }, done)) === null, '18: wok — נצפה עד הסוף: 1 בלי עריכה, 0 עם; לא נצפה — לא נספר');
 }
+// 15: ריצת מבחן — במרכז הניהול, הציון מהעובד (goldscore.py = goldCompare; הבדיקה המלאה ב־gold-score.test.js)
+{
+  const fs = require('fs');
+  const adm = fs.readFileSync(path.join(root, 'admin-app.js'), 'utf8'), job = fs.readFileSync(path.join(root, 'translator/job.py'), 'utf8');
+  ok(/page\('gold'/.test(adm) && /api\('goldRun', \{ ok: true, src: D\.gSrc, modes: sel \}\)/.test(adm) && /askConfirm\(fmt\(t\('admGoldQ'\)/.test(adm), '15: מסך ריצת המבחן — אומדן ואישור לפני goldRun עם המצבים');
+  ok(/gq = gold_score\(ctx\)/.test(job) && /gq=gq\)/.test(job) && fs.existsSync(path.join(root, 'translator/goldscore.py')), '15: העובד מחשב ושולח את הציון בדיווח האחרון');
+}
+// 16: תזכורת לריצת מבחן — אחרי שינוי בקוד/בהנחיות, או אחרי שבוע. רק תזכורת, שום דבר לא רץ לבד
+{
+  const AO = require(path.join(root, 'ibkr-proxy/lib/adminov.js'));
+  const D = 86400e3, now = 2e12;
+  const gold = { kind: 'tr', state: 'done', gd: { r: 'x' }, created: now - 30 * D, ev: 'aaaaaaaaaaaa' };
+  const run = (o) => Object.assign({ kind: 'tr', state: 'done', gs: 'jG', created: now - 2 * D, ev: 'aaaaaaaaaaaa', pv: { tl: '11111111' } }, o);
+  const job = (o) => Object.assign({ kind: 'tr', state: 'done', created: now - D, ev: 'aaaaaaaaaaaa', pv: { tl: '11111111' } }, o);
+  ok(AO.goldDue([job({})], now) === null, '16: בלי עבודת זהב — בלי תזכורת');
+  ok(AO.goldDue([gold], now).r === 'wk', '16: עבודת זהב בלי אף ריצה — תזכורת');
+  ok(AO.goldDue([gold, run({}), job({})], now) === null, '16: אותה גרסה ופחות משבוע — שקט');
+  ok(AO.goldDue([gold, run({}), job({ pv: { tl: '22222222' } })], now).r === 'ver', '16: הנחיות חדשות מאז הריצה — תזכורת');
+  ok(AO.goldDue([gold, run({}), job({ ev: 'bbbbbbbbbbbb' })], now).r === 'ver', '16: קוד חדש בעובד מאז הריצה — תזכורת');
+  ok(AO.goldDue([gold, run({ created: now - 9 * D }), job({ created: now - 10 * D })], now).r === 'wk', '16: עבר שבוע — תזכורת');
+  ok(AO.goldDue([gold, run({ state: 'running' }), job({ ev: 'bbbbbbbbbbbb' })], now) === null, '16: ריצה פתוחה — לא מזכירים');
+  const ov = AO.overview({ now, jobs: [gold] });
+  ok(ov.items.some((x) => x.k === 'gold_due'), '16: מופיע ב"מחכה לך"');
+}

@@ -1022,6 +1022,7 @@ async function server(req, res, body, deps) {
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
     if (body.boot === true) await lostOnBoot(deps, p.sid, now).catch(() => {});
+    if (body.boot === true) await smokeAfterUpdate(deps, srv, p.sid, hb.v, now).catch(() => {});   // פריט 13: עבודת בדיקה אחרי עדכון
     // poll: העבודה הוותיקה ביותר שמחכה לשרת
     const qd = (await query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }, 30)).sort((a, b) => (a.fired || 0) - (b.fired || 0));
     // 21/10/2026: השרת כבר מריץ עבודה ושואל אם יש עוד — רק עבודה שהשיא הצפוי שלה נכנס בזיכרון שנשאר לו (fit).
@@ -1055,6 +1056,21 @@ async function server(req, res, body, deps) {
   }
 }
 
+/* פריט 13 (סבב הייעול, 21/10/2026): הסוכן עלה בגרסה חדשה של העובד (hb.v ≠ smv) — עבודת בדיקה של דקה (S.smokeJob) למי
+   שהוסיף את השרת, מעבודת הזהב שלו, לתור הרגיל (רצה כשיש מקום — לא עוצרת עבודה). נכשלה = ההתראות הרגילות של עבודה שנכשלה.
+   הפעם הראשונה של שרת רק נרשמת; smv נכתב בתנאי — בדיקה אחת לגרסה. STUDIO_SMOKE=off מכבה */
+async function smokeAfterUpdate(deps, srv, sid, v, now) {
+  if (process.env.STUDIO_SMOKE === 'off' || !/^[0-9a-f]{12}$/.test(String(v || '')) || srv.smv === v) return;
+  const mine = await patchIf(deps, 'studioServers', sid, { smv: v, updated: now }, srv._ut).catch(() => false);
+  if (!mine || !srv.smv || !UID_RE.test(String(srv.by || ''))) return;
+  const all = await listJobs(deps, srv.by);
+  if (all.some((j) => j.sm && S.ACTIVE.includes(S.effState(j, now).state))) return;
+  const src = S.goldSources(all).sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+  const c = src && S.smokeJob(src, S.newJobId(), srv.by, now);
+  if (!c) return;
+  await patchJob(deps, c.id, c);
+  await queueApi(deps, srv.by, c, now);
+}
 /* 20/10/2026: העבודה שהשרת הזה עבד עליה כשהסוכן עלה מחדש — כמו דיווח fail: worker_lost של העובד (תקלה חולפת: חלון
    התאוששות ואז "המשך" אוטומטי מנקודת השמירה). רק עבודה שבאמת אצלו (sid) ושעוד רצה; המפתח מת — עובד ישן לא ממשיך לכתוב */
 async function lostOnBoot(deps, sid, now) {
@@ -1481,6 +1497,7 @@ async function worker(req, res, body, deps) {
     if (body.quality != null) { const q = S.normQuality(body.quality); if (q) up.q = q; }   // v374: מדד האיכות — לא תקין נזרק בשקט
     if (body.inj != null) { const ij = S.normInj(body.inj); if (ij) up.ij = ij; }          // v374: שומר ההזרקות
     if (body.judge != null) { const jd = S.normJudge(body.judge); if (jd) up.jd = jd; }    // v375: שופט האיכות
+    if (body.gq != null && (job.gs || S.normGd(job.gd))) { const gq = S.normGq(Object.assign({}, body.gq, { at: now })); if (gq) up.gq = gq; }   // פריט 15: הציון מול הייחוס — מהעובד
     if (body.gl != null) { const gl = S.normGl(body.gl); if (gl) up.gl = gl; }            // v380: זיכרון המונחים
     if (body.rvf != null) { const v = S.normRvf(body.rvf); if (v) up.rvf = v; }          // סבב 4: סימונים מהביקורת
     if (body.fil != null) { const v = S.normFil(body.fil); if (v) up.fil = v; }          // סבב 4: מילות מילוי
@@ -1761,7 +1778,8 @@ async function handler(req, res, deps = {}) {
       // 15/10/2026: התראות לטלפון — כמה מכשירים רשומים אצלך, והאם ההתראות של המערכת נשלחות אליך (בעל הגיבוי, sysBackup/cfg.uid)
       const myst = await readStats(deps, uid).catch(() => ({}));
       const push = { n: W.normSubs(myst.wp).length, me: !!(backup && backup.uid === uid) };
-      return res.status(200).json({ ok: true, push, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null }, ext)) });
+      const jobs = await listJobs(deps, uid).catch(() => []);   // פריט 16: ריצת מבחן מומלצת (סט הזהב שלך)
+      return res.status(200).json({ ok: true, push, ov: AO.overview(Object.assign({ now, servers: srvs, backup: bk, sites: sites ? { sd: sites.sd || '' } : null, jobs }, ext)) });
     }
     if (op === 'adminAi') {
       // 15/10/2026: מרכז הניהול ← AI ועלויות. מנהל בלבד. רק מספרים: קריאות AI ליום (Academy), כמה קוראים (מספר, בלי זהות),
@@ -2226,13 +2244,18 @@ async function handler(req, res, deps = {}) {
       if (body.ok !== true) return res.status(400).json({ ok: false, error: 'confirm' });
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
-      const src = S.goldSources(all).slice(0, S.GOLD_MAX);
+      // פריט 15 ("ריצת מבחן"): src = עבודת זהב אחת, modes = כמה מצבים עליה (השוואה בין מצבים על אותו סרטון)
+      const modes = Array.isArray(body.modes) ? Array.from(new Set(body.modes.map((m) => S.modeNow(m)))).filter((m) => S.MODES.includes(m)).slice(0, S.GOLD_MAX) : [];
+      if (Array.isArray(body.modes) && (!modes.length || !body.src)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      for (const m of modes) if (await modeLocked(m)) return res.status(403).json({ ok: false, error: 'mode_locked' });
+      const gsrc = S.goldSources(all).filter((j) => !body.src || j.id === body.src);
+      const src = (modes.length ? modes.map((m) => [gsrc[0], m]) : gsrc.map((j) => [j, null])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
       if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
       const made = [];
-      for (const j of src) { const c = S.goldClone(j, S.newJobId(), uid, now); await patchJob(deps, c.id, c); made.push(view(c)); }
+      for (const [j, m] of src) { const c = S.goldClone(j, S.newJobId(), uid, now, m); await patchJob(deps, c.id, c); made.push(view(c)); }
       return res.status(200).json({ ok: true, jobs: made });
     }
     let job = await mine(body.job);

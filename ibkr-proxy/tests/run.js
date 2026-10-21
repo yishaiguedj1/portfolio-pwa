@@ -1959,9 +1959,19 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 409, 'סטודיו: סט הזהב — הרצה חוזרת היא לא עבודת זהב בעצמה');
       const SC2 = require('../lib/studioscan');
       ok(SC2.oldJobs([Object.assign({}, base, { gd: { r: 'refs1234567890' }, ended: now - 400 * 86400e3 })], now).length === 0, 'סטודיו: סט הזהב — עבודת זהב לא נמחקת בניקוי "עבודות ישנות"');
+      // פריט 15 (21/10/2026): הייחוס עובר לעובד (gref), וריצת מבחן בכמה מצבים על עבודת זהב אחת
+      const c1 = S.fromFields(db.get('studioJobs/' + run1.id).fields);
+      ok(c1.gr === 'refs1234567890' && SG.workerJob(c1).gref === 'refs1234567890' && SG.workerJob(base).gref === null, 'סטודיו: סט הזהב — קובץ הייחוס עובר לעובד (gref), רק בהרצה של סט הזהב');
+      await run({ op: 'remove', idToken: OWNER, job: run1.id });
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, modes: ['haiku-high'] });
+      ok(rr.statusCode === 400 && rr.payload.error === 'bad_params', 'סטודיו: ריצת מבחן — מצבים בלי עבודת מקור נדחים');
+      rr = await run({ op: 'goldRun', idToken: OWNER, ok: true, src: JGD, modes: ['haiku-high', 'sonnet-low', 'haiku-high', 'nope'] });
+      const mm = (rr.payload.jobs || []).map((j) => j.spec.mode);
+      ok(rr.payload.ok && mm.join() === 'haiku-high,sonnet-low' && rr.payload.jobs.every((j) => j.gs === JGD && j.state === 'new'), 'סטודיו: ריצת מבחן — עבודה לכל מצב (בלי כפולים ובלי מצב לא מוכר), "חדשות"');
+      const runs = rr.payload.jobs.map((j) => j.id);
       rr = await run({ op: 'gold', idToken: OWNER, job: JGD, ref: null });
       ok(rr.payload.ok && rr.payload.job.gd === null && rr.payload.job.gq === null, 'סטודיו: סט הזהב — הסרה');
-      for (const id of [JGD, JNS, run1.id]) await run({ op: 'remove', idToken: OWNER, job: id });
+      for (const id of [JGD, JNS].concat(runs)) await run({ op: 'remove', idToken: OWNER, job: id });
       const odG = db.get('studioOps/ownerUid0001');
       if (odG) { delete odG.fields.inc; delete odG.fields.mi; }
     }
@@ -3312,6 +3322,29 @@ function stubFetch(text, status = 200) {
       ok(rr.statusCode === 401 || rr.payload.stop === true || rr.payload.ok === false, 'boot: עובד ישן (אם בכל זאת חי) לא ממשיך לכתוב');
       await run({ op: 'remove', idToken: OWNER, job: JL });
     }
+    {
+      // פריט 13 (21/10/2026): הסוכן עלה בגרסה חדשה של העובד — עבודת בדיקה של דקה מעבודת הזהב (פעם אחת לגרסה; הפעם הראשונה רק נרשמת)
+      const SM = require('../lib/studio');
+      const JGS = 'jSMOKEGOLD' + '0'.repeat(11);
+      db.set('studioJobs/' + JGS, { fields: SM.toFields({ uid: 'ownerUid0001', kind: 'tr', state: 'done', created: now - 86400e3, updated: now - 86400e3, ended: now - 86400e3, folder: 'fold1234567890',
+        spec: { name: 'Talk.mp4', size: 100, dur: 300, to: ['he'], from: 'en', mode: 'sonnet-low', out: ['compact'], eng: 'api', cap: 5 }, gd: { r: 'refs1234567890', n: 400, at: now },
+        fa: { id: 'aud1234567890', name: 'a', size: 5 }, fv: { id: 'vid1234567890', name: 'v', size: 100 }, fo: [{ id: 'outs1234567890', k: 'srt', size: 9 }] }) });
+      const smokes = () => [...db.keys()].filter((k) => k.startsWith('studioJobs/')).map((k) => Object.assign(SM.fromFields(db.get(k).fields), { id: k.slice(11) })).filter((j) => j.sm);
+      await srvRun({ op: 'poll', hb: { v: 'aaaaaaaaaaaa', nj: 1 }, fit: { mb: 1, a: 1, b: 1, ra: 1, rb: 1, ai: 1 }, boot: true }, STOK);
+      ok(smokes().length === 0, 'בדיקה אחרי עדכון: הגרסה הראשונה של השרת רק נרשמת');
+      await srvRun({ op: 'poll', hb: { v: 'bbbbbbbbbbbb', nj: 1 }, fit: { mb: 1, a: 1, b: 1, ra: 1, rb: 1, ai: 1 }, boot: true }, STOK);
+      const sm = smokes();
+      ok(sm.length === 1 && sm[0].state === 'queued' && sm[0].spec.dur === 60 && sm[0].spec.out.join() === 'srt' && sm[0].spec.mode === SM.DEFAULT_MODE
+        && sm[0].spec.edl && sm[0].spec.edl.k[0][1] === 60 && sm[0].gs === JGS && !sm[0].gr, 'בדיקה אחרי עדכון: גרסה חדשה — עבודה של דקה, רק SRT, במצב ברירת המחדל, בלי ציון, בתור');
+      await srvRun({ op: 'poll', hb: { v: 'bbbbbbbbbbbb', nj: 1 }, fit: { mb: 1, a: 1, b: 1, ra: 1, rb: 1, ai: 1 }, boot: true }, STOK);
+      ok(smokes().length === 1, 'בדיקה אחרי עדכון: הפעלה מחדש באותה גרסה — לא שוב');
+      rr = await run({ op: 'jobs', idToken: OWNER });
+      ok((rr.payload.jobs || []).some((j) => j.id === sm[0].id && j.sm === 1), 'בדיקה אחרי עדכון: מסומנת (sm) — הטלפון מסתיר אותה מהרשימה');
+      ok(SM.smokeJob({ spec: { eng: 'api', dur: 300, edl: { k: [[0, 100]] } } }, 'x', 'u', now) === null && SM.smokeJob({ spec: { dur: 300 } }, 'x', 'u', now) === null,
+        'בדיקה אחרי עדכון: לא מעבודה עם חיתוך משלה ולא מעבודת Routine');
+      for (const k of [JGS, sm[0].id]) db.delete('studioJobs/' + k);
+    }
+    studio._reset();   // מונה הקצב של השרת (20 פניות) — שלוש הפניות כאן לא נספרות בתרחישים הבאים
     {
       // 21/10/2026: כמה עבודות במקביל בשרת אחד — עבודה נוספת רק כשהשיא הצפוי שלה נכנס בזיכרון שהסוכן אמר שפנוי
       // (לפי הסדר — הוותיקה לא נכנסת = לא מקדימים לה), והצפי מקבל את הליבות ואת מספר העבודות שכבר רצות

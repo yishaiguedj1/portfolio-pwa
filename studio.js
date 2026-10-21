@@ -1142,6 +1142,7 @@ async function refreshJobs(force) {
   const rr = new Map(), pv = new Map();
   for (const sj of j.jobs) {
     if (!sj || !JOB_RE.test(String(sj.id || ''))) continue;
+    if (sj.sm === 1) continue;   // פריט 13: עבודת הבדיקה אחרי עדכון של העובד — רק במרכז הניהול ובהתראות, לא ברשימה
     if (sj.kind === 'rr') { const x = normJob({ id: sj.id, srv: sj }); if (x && x.srv.rp) (sj.spec && sj.spec.prv === 1 ? pv : rr).set(x.srv.rp, x); continue; }   // מ2; סבב 10: צריבה לבדיקה — בנפרד
     ids.add(sj.id);
     const loc = have.get(sj.id);

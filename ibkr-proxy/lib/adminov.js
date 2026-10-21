@@ -57,6 +57,10 @@ function overview(f) {
   }
   // 7. הניסוי לפני הייצור בהרבה בניות — כדאי לשחרר
   if (f.prodBuild && f.stagBuild && f.stagBuild - f.prodBuild >= 3 && !((gh && gh.waiting) || []).length) items.push({ k: 'release_due', sev: 3, v: { p: f.prodBuild, s: f.stagBuild } });
+  // 8. פריט 16 (21/10/2026): ריצת מבחן מומלצת — הקוד או ההנחיות השתנו מאז הריצה האחרונה, או שעבר שבוע. רק תזכורת:
+  //    שום דבר לא רץ לבד (עולה כסף — רק באישור שלך, במסך ריצת המבחן)
+  const gd = goldDue(f.jobs, now);
+  if (gd) items.push({ k: 'gold_due', sev: 3, v: gd });
   items.sort((a, b) => a.sev - b.sev);
 
   const run = [];
@@ -68,6 +72,22 @@ function overview(f) {
   const urgent = items.filter((x) => x.sev <= 2).length;
   const dates = DATES.map((x) => ({ k: x.k, d: x.d, left: daysTo(x.d, now) })).sort((a, b) => a.left - b.left);
   return { v: 1, at: now, sum: { urgent, all: items.length }, items, run, dates };
+}
+
+/* פריט 16: מתי כדאי ריצת מבחן על סט הזהב. ver = גרסת הסביבה (ev) או ההנחיות (pv) של העבודה האחרונה שונה מזו של הריצה
+   האחרונה; wk = עבר שבוע (או אף פעם). בלי עבודת זהב / ריצה פתוחה — כלום */
+const GOLD_WK = 7 * DAY;
+function goldDue(jobs, now) {
+  const L = (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.kind === 'tr' && !j.sm);   // בלי עבודות הבדיקה (פריט 13)
+  if (!L.some((j) => j.gd && j.state === 'done' && !j.gs)) return null;
+  const runs = L.filter((j) => j.gs).sort((a, b) => (b.created || 0) - (a.created || 0));
+  if (runs.some((j) => ['new', 'queued', 'running'].includes(j.state))) return null;
+  const ver = (j) => (j && j.ev ? j.ev + '|' + JSON.stringify(j.pv || {}) : '');
+  const lastRun = runs[0] || null, ranVer = ver(runs.find((j) => j.ev));
+  const cur = L.filter((j) => !j.gs && j.ev).sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+  if (cur && ranVer && ver(cur) !== ranVer && (cur.created || 0) > ((lastRun && lastRun.created) || 0)) return { r: 'ver', at: lastRun.created || 0 };
+  if (!lastRun || now - (lastRun.created || 0) > GOLD_WK) return { r: 'wk', at: (lastRun && lastRun.created) || 0 };
+  return null;
 }
 
 /* ---- AI ועלויות (15/10/2026, סבב 4 בתוכנית) ----
@@ -429,4 +449,4 @@ function backupsView(f) {
   return { r2, off, warn, keep: 14 };
 }
 
-module.exports = { backupsView, FB_KINDS, fbEntry, fbView, usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
+module.exports = { goldDue, GOLD_WK, backupsView, FB_KINDS, fbEntry, fbView, usageView, modesView, serversAdmin, SECRETS, secretsView, LOG_KINDS, LOG_DAYS, logEntry, cfgLogKind, logView, logOld, usersView, laneView, watchStep, readyView, checksView, noteClean, CHECK_SEC, DATES, overview, swBuild, daysTo, aiView, aiUseDay, dayKeys, AI_DAYS, tasksParse, appsView, catStats };
