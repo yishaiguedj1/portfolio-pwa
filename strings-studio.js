@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1554 מפתחות מתוך 3609) */
+/* המחרוזות של studio (1558 מפתחות מתוך 3614) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -51,6 +51,9 @@ he: {
   "studioAdvAfterT": "הצעות",
   "studioAdvAsk": "לתקן לפי התשובה שלך",
   "studioAdvAskS": "ענית: {a} · Claude מתקן רק כתוביות שהתשובה משנה, באישורך",
+  "studioAdvBurn": "אפשר לחסוך כ־{m} דק׳ — רק נגן וכתוביות",
+  "studioAdvBurnOk": "רק נגן וכתוביות — בלי צריבה",
+  "studioAdvBurnS": "בלי סרטון צרוב: הנגן מציג את הכתוביות מעל המקור. אפשר לצרוב גם אחר כך.",
   "studioAdvCut": "לחתוך",
   "studioAdvCutOk": "השקט בקצוות ייחתך לפני התרגום",
   "studioAdvDup": "את הסרטון הזה כבר תרגמת",
@@ -63,6 +66,7 @@ he: {
   "studioAdvLang": "הקול מסומן ב{l}",
   "studioAdvLangS": "כרגע מתרגמים רק מאנגלית",
   "studioAdvNoAudio": "אין קול בסרטון",
+  "studioAdvNoBurn": "בלי צריבה",
   "studioAdvOpen": "לפתוח",
   "studioAdvRepickS": "כדאי לבדוק שזה הקובץ הנכון",
   "studioAdvRvf": "{n} כתוביות לבדיקה שלך",
@@ -1607,6 +1611,9 @@ en: {
   "studioAdvAfterT": "Suggestions",
   "studioAdvAsk": "Fix to match your answer",
   "studioAdvAskS": "You answered: {a} · Claude fixes only the subtitles it changes, with your approval",
+  "studioAdvBurn": "Save about {m} min — player and subtitles only",
+  "studioAdvBurnOk": "Player and subtitles only — no burn",
+  "studioAdvBurnS": "No burned video: the player shows the subtitles over the original. You can burn later.",
   "studioAdvCut": "Trim",
   "studioAdvCutOk": "The silent edges will be trimmed before translating",
   "studioAdvDup": "You already translated this video",
@@ -1619,6 +1626,7 @@ en: {
   "studioAdvLang": "The audio is marked as {l}",
   "studioAdvLangS": "Only English is translated for now",
   "studioAdvNoAudio": "This video has no audio",
+  "studioAdvNoBurn": "No burn",
   "studioAdvOpen": "Open",
   "studioAdvRepickS": "Check that this is the right file",
   "studioAdvRvf": "{n} subtitles to check",

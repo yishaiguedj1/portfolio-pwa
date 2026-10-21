@@ -243,7 +243,10 @@ function estText(e, apiOn) {
 }
 /* ---------- סבב 2: הצעות לפני ההתחלה — מהבדיקה של הסרטון בטלפון (חינם). לכל הצעה פעולה אחת ----------
    bad = כנראה אין מה לתרגם (אין קול / שקט), warn = כדאי לבדוק (שפה, כבר תורגם), tip = חוסך זמן וכסף (שקט בקצוות) */
-export const EDGE_MIN = 10;      // שניות של שקט בהתחלה / בסוף שמצדיקות הצעה לחתוך
+export const EDGE_MIN = 10;
+// 21/10/2026 (סבב הייעול, 1): בסרטון ארוך הצריבה היא החלק הכבד בסוף (23 דק׳ מתוך 68 בסרטון של 87 דק׳ — 0.26 דק׳ לכל דקה).
+// הצעה לוותר עליה: הנגן מציג את הכתוביות מעל המקור, ואפשר לצרוב אחר כך ב"הפקה מחדש"
+export const LONG_BURN_S = 30 * 60, BURN_MIN_PER_MIN = 0.26;      // שניות של שקט בהתחלה / בסוף שמצדיקות הצעה לחתוך
 const ADV_ORDER = { bad: 0, warn: 1, tip: 2 };
 export function sourceAdvice(m, ctx) {
   const out = [], c = ctx || {};
@@ -263,6 +266,7 @@ export function sourceAdvice(m, ctx) {
       const a = lead >= EDGE_MIN ? Math.max(0, lead - 1) : 0, b = trail >= EDGE_MIN ? Math.min(m.dur, m.dur - trail + 1) : m.dur;
       out.push({ k: 'edges', sev: 'tip', act: 'cut', a: Math.round(a * 10) / 10, b: Math.round(b * 10) / 10, save: Math.round(a + (m.dur - b)) });
     }
+    if (m.dur >= LONG_BURN_S && c.out && OUTS.some((k) => c.out[k])) out.push({ k: 'burn', sev: 'tip', act: 'noburn', save: Math.round(m.dur / 60 * BURN_MIN_PER_MIN) });
   }
   return out.sort((x, y) => ADV_ORDER[x.sev] - ADV_ORDER[y.sev]);
 }
@@ -2461,12 +2465,13 @@ function advText(a) {
     case 'silent': return [T('studioAdvSilent'), T('studioAdvRepickS')];
     case 'same': return [T('studioAdvSame', { l: langName(a.lang, uiLang()) }), T('studioAdvSameS')];
     case 'lang': return [T('studioAdvLang', { l: langName(a.lang, uiLang()) }), T('studioAdvLangS')];
+    case 'burn': return [T('studioAdvBurn', { m: a.save }), T('studioAdvBurnS')];
     default: return [T('studioAdvEdges', { t: fmtDur(a.save) }), T('studioAdvEdgesS')];
   }
 }
 function advRows(f, pick) {
   const sa = f.sa && f.sa.st === 'ok' ? f.sa.m : null;
-  const list0 = sourceAdvice(sa, { name: f.file && f.file.name, size: f.file && f.file.size, from: f.from, to: f.to, edl: f.edl, jobs: store.jobs })
+  const list0 = sourceAdvice(sa, { name: f.file && f.file.name, size: f.file && f.file.size, from: f.from, to: f.to, edl: f.edl, out: f.out, jobs: store.jobs })
     .filter((a) => !(f.saX && f.saX.includes(a.k)));
   if (!list0.length) return null;
   return list(...list0.map((a) => {
@@ -2476,8 +2481,9 @@ function advRows(f, pick) {
     r.append(tile(a.sev === 'tip' ? 'spark' : 'alert', a.sev === 'bad' ? 'red' : a.sev === 'warn' ? 'orange' : 'green'), rowTxt(t1, t2));
     const go2 = a.act === 'open' ? () => go('job', a.id)
       : a.act === 'cut' ? () => { f.edl = normEdl({ k: [[a.a, a.b]], ar: 'src', x: 0.5 }, sa.dur); flashSafe(T('studioAdvCutOk')); render('none'); }
+      : a.act === 'noburn' ? () => { for (const k of OUTS) f.out[k] = false; flashSafe(T('studioAdvBurnOk')); render('none'); }
       : pick;
-    const lbl = a.act === 'open' ? T('studioAdvOpen') : a.act === 'cut' ? T('studioAdvCut') : T('studioReplace');
+    const lbl = a.act === 'open' ? T('studioAdvOpen') : a.act === 'cut' ? T('studioAdvCut') : a.act === 'noburn' ? T('studioAdvNoBurn') : T('studioReplace');
     const b = btn('st-mini tint', lbl, go2, 'adv-go:' + a.k);
     const x = btn('st-advx', null, () => { f.saX = (f.saX || []).concat(a.k); render('none'); }, 'adv-x:' + a.k);
     x.setAttribute('aria-label', T('studioAdvHide')); x.append(ico('x'));

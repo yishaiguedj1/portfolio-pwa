@@ -47,6 +47,8 @@ const IMP_METRICS = [
   // איכות
   ['q', 'qual', 1, 1, 1, (r) => (done(r) && r.q && isNum(r.q.s) ? r.q.s : null)],
   ['jd', 'qual', 1, 2, 1, (r) => (done(r) && r.jd && isNum(r.jd.s) ? r.jd.s : null)],
+  // 21/10/2026 (סבב הייעול, 18): צפית עד הסוף (‎≥90%) ולא תיקנת = אות חיובי חלש; 1/0 לכל עבודה שנצפתה כך
+  ['wok', 'qual', 1, 0.1, 1, (r) => { const u = r.ux || {}; return done(r) && u.pl && u.pl.cov >= 0.9 ? ((u.e && u.e.s > 0) ? 0 : 1) : null; }],
   ['ht', 'qual', -1, 0.02, 1, (r) => { const e = r.ux && r.ux.e; return done(r) && e && e.s > 0 && e.wa > 0 ? e.wd / e.wa : null; }],   // העריכות שלך
   ['num', 'qual', -1, 0.02, 1, (r) => { const o = r.lx && r.lx.mx && r.lx.mx.om; return done(r) && o && o['num.n'] > 0 ? o['num.miss'] / o['num.n'] : null; }],
   ['glm', 'qual', -1, 0.02, 1, (r) => { const c = r.lx && r.lx.mx && r.lx.mx.cs; return done(r) && c && c['gl.n'] > 0 ? c['gl.miss'] / c['gl.n'] : null; }],

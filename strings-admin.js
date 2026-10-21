@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (955 מפתחות מתוך 3609) */
+/* המחרוזות של admin (956 מפתחות מתוך 3614) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -338,6 +338,7 @@ he: {
   "admImM_tpm": "טוקנים לדקת סרטון",
   "admImM_tr": "תמלול והגהה",
   "admImM_up": "העלאה מהטלפון עד שהשרת מתחיל",
+  "admImM_wok": "נצפו עד הסוף בלי תיקון",
   "admImOther": "מדדים נוספים שזזו",
   "admImPick": "בוחרים טווח ולוחצים \"הצגה\"",
   "admImR30": "30 יום",
@@ -1295,6 +1296,7 @@ en: {
   "admImM_tpm": "Tokens per video minute",
   "admImM_tr": "Transcription and proofreading",
   "admImM_up": "Phone upload until the server starts",
+  "admImM_wok": "Watched to the end without edits",
   "admImOther": "Other metrics that moved",
   "admImPick": "Pick a range and tap \"Show\"",
   "admImR30": "30 days",

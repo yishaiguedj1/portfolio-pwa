@@ -1251,7 +1251,7 @@ function imName(k) {
     case 'tr': return t('admImM_tr'); case 'al': return t('admImM_al'); case 'rv': return t('admImM_rv'); case 'bn': return t('admImM_bn'); case 'sv': return t('admImM_sv');
     case 'ok': return t('admImM_ok'); case 'crash': return t('admImM_crash'); case 'fail': return t('admImM_fail');
     case 'cpm': return t('admImM_cpm'); case 'tpm': return t('admImM_tpm');
-    case 'q': return t('admImM_q'); case 'jd': return t('admImM_jd'); case 'ht': return t('admImM_ht'); case 'num': return t('admImM_num'); case 'glm': return t('admImM_glm');
+    case 'q': return t('admImM_q'); case 'jd': return t('admImM_jd'); case 'ht': return t('admImM_ht'); case 'wok': return t('admImM_wok'); case 'num': return t('admImM_num'); case 'glm': return t('admImM_glm');
     default: return k;
   }
 }
@@ -1261,7 +1261,7 @@ function imFam(f) {
 function imSrc(s) {
   switch (s) { case 'devlog': return t('admImSrcDev'); case 'lab': return t('admImSrcLab'); case 'user': return t('admImSrcUser'); case 'ops': return t('admImSrcOps'); default: return s; }
 }
-const IM_FMT = { eta: pcTxt, cpm: (x) => usdTxt(x, 3), ok: pcTxt, crash: pcTxt, fail: pcTxt, ht: pcTxt, num: pcTxt, glm: pcTxt, q: numTxt, jd: numTxt, tpm: numTxt };
+const IM_FMT = { eta: pcTxt, wok: pcTxt, cpm: (x) => usdTxt(x, 3), ok: pcTxt, crash: pcTxt, fail: pcTxt, ht: pcTxt, num: pcTxt, glm: pcTxt, q: numTxt, jd: numTxt, tpm: numTxt };
 const imVal = (k, x) => (IM_FMT[k] || ((y) => (nz(y) ? numTxt(y) + ' ' + t('admImSec') : '—')))(x);
 const imLtr = (x) => '\u2066' + x + '\u2069';      // סימן לפני המספר גם בעברית (בלי זה "15%−")
 const imSign = (x) => (Math.abs(x) < 1e-9 ? '' : x > 0 ? '+' : '−');

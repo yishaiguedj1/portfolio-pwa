@@ -33,3 +33,11 @@ const api = fs.readFileSync(path.join(root, 'ibkr-proxy/api/studio.js'), 'utf8')
   ok(/if \(await updatePending\(deps, hb\.v, now\)/.test(api) && api.indexOf('updatePending(deps, hb.v') < api.indexOf("query(deps, 'studioJobs', { state: 'queued', eng: 'api', sid: '' }"), '9: הבדיקה לפני חיפוש עבודה בתור');
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })();
+// 18: צפייה עד הסוף בלי עריכה = אות חיובי
+{
+  const I = require(path.join(root, 'ibkr-proxy/lib/learnimpact.js'));
+  const m = I.IMP_METRICS.find((x) => x[0] === 'wok');
+  const done = { st: 'done', k: 'tr', dur: 600 };
+  ok(m && m[5](Object.assign({ ux: { pl: { n: 1, cov: 0.95 } } }, done)) === 1 && m[5](Object.assign({ ux: { pl: { n: 1, cov: 0.95 }, e: { s: 1 } } }, done)) === 0
+    && m[5](Object.assign({ ux: { pl: { n: 1, cov: 0.3 } } }, done)) === null, '18: wok — נצפה עד הסוף: 1 בלי עריכה, 0 עם; לא נצפה — לא נספר');
+}
