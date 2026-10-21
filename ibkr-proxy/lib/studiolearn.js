@@ -1,4 +1,5 @@
 'use strict';
+const { impactView } = require('./learnimpact');
 /* מאגר הלמידה של סטודיו התרגום (14/10/2026, בקשת המשתמש: "החלק הכי חשוב — לשפר כל הזמן יכולות, יעילות, איכות וחיסכון בטוקנים").
    טהור, בלי קריאות. שלושה חלקים:
    1. normLx — העובדות שהעובד שולח בסוף כל הפעלה (job.py learn_facts): רק מספרים וקודים בצורה קבועה, בלי טקסט.
@@ -597,6 +598,7 @@ function learnView(records, now) {
     eng: ['api', 'sub'].map((e) => ({ e, ...kpis(rs.filter((r) => r.eng === e)) })).filter((x) => x.n),
     follow: { rr: rs.filter((r) => r.k === 'rr').length, ai: rs.filter((r) => r.k === 'ai').length, ed: rs.filter((r) => r.k === 'tr' && (r.ed > 0)).length, gold: rs.filter((r) => r.gold).length, ux: uxSum(rs.filter((r) => r.k === 'tr')) },
     ins: insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver),
+    im: impactView(all, now),            // 21/10/2026: השפעת המאגר לאורך זמן (lib/learnimpact.js) — הבסיס מול עכשיו, לכל שיפור
     recent: all.filter((r) => r.k === 'tr').sort((a, b) => b.at - a.at).slice(0, 12).map((r) => ({ id: r.id.slice(0, 8), at: r.at, st: r.st, err: r.err, mode: r.mode, eng: r.eng,
       dur: r.dur, usd: r.usd, pr: r.pr, q: r.q ? r.q.s : null, jd: r.jd ? r.jd.s : null, run: runSec(r), fires: r.fires, ch: (() => { const t = tokOf(r); return inTok(t) ? rnd(t.cr / inTok(t), 3) : null; })() })),
   };
@@ -673,6 +675,13 @@ function learnBrief(view, now) {
   sec('לפי מנוע', v.eng);
   sec('מה קרה אחרי העבודה', v.follow);
   sec('מגמה שבועית (8 שבועות)', v.wk);
+  // 21/10/2026: השפעת המאגר — לכל שיפור שנפרס: לפני/אחרי (שכבות מצב·מנוע, רווח סמך 90%), והבסיס מול "הכל מאז"
+  if (v.im) sec('השפעת המאגר — start = השיפור הראשון שנפרס; imps: לכל שיפור c = מדדים (a לפני, b אחרי, d, lo–hi, v פסק, tg = המדד שכוונו אליו); all = הבסיס מול כל מה שמאז', {
+    start: v.im.start, vol: v.im.vol,
+    imps: (v.im.imps || []).map((x) => ({ id: x.id, at: x.at, st: x.st, m: x.m, he: x.he && x.he[0], c: (x.c || []).filter((c) => c.v !== 'few').map((c) => ({ k: c.k, a: c.a, b: c.b, d: c.d, lo: c.lo, hi: c.hi, v: c.v, tg: c.tg })) })),
+    all: v.im.cmp && v.im.cmp.all ? v.im.cmp.all.m.filter((c) => c.v !== 'few').map((c) => ({ k: c.k, a: c.a, b: c.b, rel: c.rel, v: c.v })) : null,
+    dec: v.im.dec,
+  });
   L.push('');
   L.push('## מילון השדות ברשומות (בקובץ records.json)');
   for (const [f, he] of FIELDS) L.push('- `' + f + '` — ' + he);

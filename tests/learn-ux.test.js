@@ -205,7 +205,7 @@ const { fakeR2, ACC } = require('./_r2fake');
     ok(r.code === 400, 'upTel: בלי שום דבר ידוע — 400');
     const keysPhone = sj.match(/export const UTL_KEYS = (\[[^\]]*\])/)[1].replace(/'/g, '"');
     ok(keysPhone === JSON.stringify(SR.UTL_KEYS).replace(/,/g, ', '), 'UTL_KEYS בטלפון = בשרתון');
-    ok(/utlSend\(id\);\s+\/\/ כבר עכשיו/.test(sj) && /finally \{ utlAdd\(rec, 'ex'/.test(sj) && /utlAdd\(rec, 'hid'/.test(sj), 'הטלפון מודד חילוץ, זמן ברקע, ושולח אחרי הקול ובסוף');
+    ok(/utlSend\(id\);\s+\/\/ כבר עכשיו/.test(sj) && /finally\(\(\) => utlAdd\(rec, 'ex'/.test(sj) && /utlAdd\(rec, 'hid'/.test(sj), 'הטלפון מודד חילוץ, זמן ברקע, ושולח אחרי הקול ובסוף');
   }
   /* בלי הסכמה לתוכן — המספרים כן, הטקסט לא */
   db.get('studioStats/ownerUid0001').fields.lrt = { integerValue: '0' };   // הנוסח של הטקסט "לא נקרא" — המתג עצמו דולק

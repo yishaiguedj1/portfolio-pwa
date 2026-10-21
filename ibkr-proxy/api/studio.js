@@ -41,6 +41,7 @@ const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות 
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
 const LR = require('../lib/studiolearn');
+const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר לאורך זמן
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
@@ -1704,6 +1705,14 @@ async function handler(req, res, deps = {}) {
   };
   try {
     if ((LEARN_REMOTE_OPS.has(op) || (op === 'cuesSave' && body.pt)) && learnRemote()) return res.status(421).json({ ok: false, error: 'learn_remote' });
+    if (op === 'learnImpact') {
+      // 21/10/2026: השפעת המאגר בטווח מותאם (from/to, ms) — רק למנהל; הטווחים המוכנים כבר ב־learn (view.im)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const from = Math.floor(+body.from), to = Math.floor(+body.to);
+      if (!(from > 0 && to > from && to - from <= 400 * 864e5)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const { recs } = await learnLoad(deps, now);
+      return res.status(200).json({ ok: true, im: LI.impactView(recs.filter((r) => r && r.v === LR.LR_V), now, { from, to }), now });
+    }
     if (op === 'learn' || op === 'learnExport' || op === 'learnBrief') {
       // 14/10/2026: מאגר הלמידה — רק למנהל. learnExport = כל הרשומות (לניתוח מחוץ לאפליקציה), learnBrief = החבילה ל־Claude
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
