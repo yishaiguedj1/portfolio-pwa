@@ -482,7 +482,7 @@ def vt_timeline(job_id: str) -> list:
     בלי הציר אי אפשר לראות מה רץ במקביל למה (היישור מול איכויות הצפייה — הנפילות של היום)"""
     try:
         d = json.loads((J.VT_WORK / J.vt_slug(job_id) / 'snb-timing.json').read_text(encoding='utf-8'))
-        return [x[:4] for x in (d.get('vt') or [])[-200:] if isinstance(x, list) and len(x) >= 3]
+        return [x[:6] for x in (d.get('vt') or [])[-200:] if isinstance(x, list) and len(x) >= 3]
     except (OSError, ValueError, AttributeError, TypeError):
         return []
 

@@ -1306,6 +1306,7 @@ class QuietCtx(Ctx):
 # ---------------------------------------------------------------- Drive
 def drive_download(ctx, fid, dest, size, on_progress=None):
     """הורדה בזרם, עם המשך מאותו בייט אחרי ניתוק (Range) וגישה חדשה כשפגה."""
+    import store                                 # drop_cache — אותו מנגנון של ההורדה מ־R2
     dest.parent.mkdir(parents=True, exist_ok=True)
     tries = 0
     while True:
@@ -1319,12 +1320,14 @@ def drive_download(ctx, fid, dest, size, on_progress=None):
         try:
             with urllib.request.urlopen(req, timeout=60) as r, open(dest, 'ab' if have and r.status == 206 else 'wb') as f:
                 got = have if r.status == 206 else 0
+                dropped = got
                 while True:
                     b = r.read(8 * 1024 * 1024)
                     if not b:
                         break
                     f.write(b)
                     got += len(b)
+                    dropped = store.drop_cache(f, got, dropped)     # 21/10/2026: מטמון הקבצים בזמן היישור (store.py)
                     if on_progress and size:
                         on_progress(got / size)
             if not size or dest.stat().st_size >= size:
@@ -1529,7 +1532,18 @@ def lib_versions():
     return out
 
 
-def note_timing(ctx, cmd, t0, t1):
+def busy_slots():
+    """21/10/2026: כמה עבודות רצו בשרת ברגע הזה (הקובץ ‎/work/.busy של הסוכן — שורה לכל עבודה). בלי משבצות — 1.
+    "איטי" מול "חלק את המעבד עם עבודה אחרת" — בלי זה אי אפשר להבחין."""
+    if not os.environ.get('SNB_SLOT'):
+        return 1
+    try:
+        return max(1, len([x for x in (VT_WORK.parent / '.busy').read_text().splitlines() if x.strip()]))
+    except OSError:
+        return 1
+
+
+def note_timing(ctx, cmd, t0, t1, rss=0):
     """מדידה (10/10/2026, קיצור היישור): כמה זמן לקחה כל פקודת vt → snb-timing.json בפרויקט, שנכנס לנקודת השמירה.
     רק שם הפקודה ומספרים. כשל בכתיבה לא נוגע בעבודה."""
     try:
@@ -1541,7 +1555,7 @@ def note_timing(ctx, cmd, t0, t1):
                 d = json.loads(p.read_text(encoding='utf-8'))
             except (OSError, ValueError):
                 d = {'env': env_facts(), 'vt': []}
-            d['vt'] = (d.get('vt') or [])[-200:] + [[cmd, round(t0, 1), round(t1 - t0, 2), threading.current_thread().name[:12]]]
+            d['vt'] = (d.get('vt') or [])[-200:] + [[cmd, round(t0, 1), round(t1 - t0, 2), threading.current_thread().name[:12], int(rss or 0), busy_slots()]]
             p.write_text(json.dumps(d), encoding='utf-8')
     except Exception:          # noqa: BLE001 — מדידה בלבד
         pass
@@ -1714,7 +1728,14 @@ def _vt(ctx, args, stage, lo, hi, t0):
             except Stop:
                 proc.kill()
                 raise
-    rc = proc.wait()
+    rss = 0
+    try:                                         # 21/10/2026: שיא הזיכרון של הפקודה עצמה (כולל הצאצאים שחיכתה להם) — לא דגימה לדקה
+        _, stt, ru = os.wait4(proc.pid, 0)
+        rc = os.waitstatus_to_exitcode(stt)
+        proc.returncode = rc
+        rss = int(ru.ru_maxrss / 1024)          # KB → MB
+    except (ChildProcessError, OSError, AttributeError, ValueError):
+        rc = proc.wait()
     if rc != 0:
         print('\n'.join(tail))
         ctx.event('vt', VT_KIND.get(args[0], 'other'))
@@ -1724,7 +1745,7 @@ def _vt(ctx, args, stage, lo, hi, t0):
             # 21/10/2026: קוד משלו — עד היום worker_step, ועם התראת אחסון ישנה פתוחה זה הוצג כ"ניתוק מהרשת" (חולף)
             raise StepError('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').', 'worker_oom')
         raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
-    note_timing(ctx, args[0], t0, time.time())
+    note_timing(ctx, args[0], t0, time.time(), rss)
     if args[0] == 'ingest':
         report_px(ctx)
     print('✓ vt ' + args[0] + (': ' + tail[-1] if tail else ''))
@@ -2106,7 +2127,9 @@ def video_prefetch(ctx, stop):
     while not stop.is_set():
         v = (q.st.get('files') or {}).get('v') or {}
         if v.get('id'):
+            t0 = time.time()
             fetch_input(q, v['id'], in_path(q, v, 'v'), int(v.get('size') or 0))
+            note_timing(q, 'prefetch', t0, time.time())     # 21/10/2026: מתי ההורדה ברקע רצה (מול היישור) וכמה זמן לקחה
             return v
         stop.wait(poll)
         if stop.is_set():

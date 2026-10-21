@@ -85,7 +85,7 @@ function normJobLog(b) {
   if (Array.isArray(b.calls)) { const cs = b.calls.slice(-CALLS_MAX).map(normCall).filter(Boolean); if (cs.length) o.calls = cs; }
   if (Array.isArray(b.tm)) {      // 21/10/2026: ציר הזמן של פקודות vt — [פקודה, התחלה, משך, תהליכון]; רק שמות ומספרים
     const tm = b.tm.slice(-200).map((x) => Array.isArray(x) && tok(x[0], /^[a-z][a-z_-]{1,19}$/, 20) && num(x[1], 1.6e9, 4e9, 10) && num(x[2], 0, 1e6, 100) != null
-      ? [x[0], num(x[1], 1.6e9, 4e9, 10), num(x[2], 0, 1e6, 100), tok(x[3], /^[\w-]{1,12}$/, 12)] : null).filter(Boolean);
+      ? [x[0], num(x[1], 1.6e9, 4e9, 10), num(x[2], 0, 1e6, 100), tok(x[3], /^[\w-]{1,12}$/, 12), int(x[4], 0, 1e7) || 0, int(x[5], 1, 16) || 1] : null).filter(Boolean);   // [4] = שיא זיכרון של הפקודה (MB), [5] = עבודות שרצו במקביל
     if (tm.length) o.tm = tm;
   }
   if (b.t === 'lost') o.lost = int(b.lost, 1.6e9, 4e9);
