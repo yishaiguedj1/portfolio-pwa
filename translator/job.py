@@ -847,6 +847,9 @@ def learn_facts(ctx):
         if isinstance(th, dict):
             x['th'] = {k: v for k, v in th.items() if _LX_KEY.match(str(k)) and _num_ok(v)}
         out['en'] = x
+    rvx = ctx.st.get('rvx')                      # 21/10/2026: הביקורת — כתוביות, קטעים, נקטעו, לא נבדקו (pipeline.review)
+    if isinstance(rvx, dict):
+        out.setdefault('en', {}).update({k: v for k, v in rvx.items() if _LX_KEY.match(str(k)) and _num_ok(v)})
     sy = ctx.st.get('sync')
     if isinstance(sy, dict) and _num_ok(sy.get('conf')):
         out['sy'] = {'c': sy.get('conf'), 'o': sy.get('off') if _num_ok(sy.get('off')) else 0}

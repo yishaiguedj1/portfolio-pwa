@@ -503,6 +503,9 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   }
   const trunc = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.tc));
   if (trunc > 0) out.push({ k: 'truncated', sev: 2, imp: 0, v: { n: trunc, j: rs.filter((r) => r.lx && r.lx.en && r.lx.en.tc > 0).length } });
+  /* 21/10/2026 (תוכנית השיפור 3.10א): כתוביות שכנראה לא עברו ביקורת (קטע שנקטע) — מתוך כל מה שהגיע לביקורת */
+  const rvN = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.rvn)), rvU = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.rvu));
+  if (rvN > 0 && rvU / rvN >= 0.02) out.push({ k: 'rv_unrev', sev: rvU / rvN >= 0.1 ? 1 : 2, imp: 0, v: { p: rnd(rvU / rvN, 3), n: rvU, j: rs.filter((r) => r.lx && r.lx.en && r.lx.en.rvu > 0).length } });
   const cw = sum(rs.map((r) => r.lx && r.lx.en && r.lx.en.cw));
   if (cw >= 3) out.push({ k: 'cache_miss', sev: 2, imp: 0, v: { n: cw } });
   // תהליך התרגום: כמה תיקונים צריך אחרי התרגום הראשון, וכמה הביקורת משנה
@@ -618,7 +621,7 @@ const INS_HE = {
   cost_role: 'תפקיד אחד לוקח את רוב העלות', think_heavy: 'חשיבה כבדה', truncated: 'תשובות שנקטעו', cache_miss: 'פספוסי מטמון',
   fix_heavy: 'הרבה סבבי תיקון', rv_idle: 'המבקר כמעט לא משנה', rv_heavy: 'המבקר משנה הרבה', judge_top: 'הבעיה שהשופט מסמן הכי הרבה',
   q_metric: 'מדד איכות שנכשל הרבה', edits_after: 'עריכות ידניות אחרי העבודה', ai_after: 'שימוש בגיליון ה־AI אחרי העבודה',
-  slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', eta_off: 'טעות בצפי הזמן', asr_weak: 'תמלול חלש',
+  slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', eta_off: 'טעות בצפי הזמן', rv_unrev: 'כתוביות בלי ביקורת', asr_weak: 'תמלול חלש',
   align_weak: 'יישור חלש', sync_low: 'סנכרון קול־וידאו לא ודאי', mode_value: 'מצב זול יותר כמעט באותה איכות',
   num_drop: 'מספרים שנעלמו בתרגום', omit_cues: 'כתוביות שנראות מושמטות', tm_late: 'כתוביות שעולות מאוחר / יורדות מוקדם',
   shot_near: 'גבולות קרובים לחילוף שוט', name_var: 'שם אחד בכמה איותים', gl_miss: 'מונחים מהמילון שלא נשמרו',

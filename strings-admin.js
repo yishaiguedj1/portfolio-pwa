@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (953 מפתחות מתוך 3606) */
+/* המחרוזות של admin (955 מפתחות מתוך 3608) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -28,6 +28,7 @@ he: {
   "admA_q_metric": "לחזק את המדד הזה בבדיקה האוטומטית או בהנחיה, כדי שייתפס לפני הסוף.",
   "admA_rv_heavy": "המבקר מתקן הרבה — המתרגם מפספס. לבדוק מה הוא מתקן ולהעביר את זה להנחיית המתרגם.",
   "admA_rv_idle": "המבקר עולה כסף ולא משנה כמעט כלום. לשקול לדלג עליו בסרטונים קלים או מודל זול יותר.",
+  "admA_rv_unrev": "קטעי ביקורת נקטעו לפני הסוף. להקטין את הקטע (SNB_RV_SLICE) או להוריד את המאמץ של הביקורת.",
   "admA_shot_near": "כתוביות שמתחילות או נגמרות 1–11 פריימים מחילוף שוט — מהבהבות לעין. להדק את ההצמדה לשוטים ב־vt.",
   "admA_sla_over": "עבודות עוברות את היעד. לעדכן את הצפי או להאיץ את השלב האיטי.",
   "admA_slow_stage": "השלב הזה לוקח את רוב הזמן. לבדוק אם אפשר להריץ אותו במקביל או להאיץ את הפקודה הארוכה.",
@@ -292,6 +293,7 @@ he: {
   "admI_q_metric": "מדד איכות שנכשל הרבה",
   "admI_rv_heavy": "המבקר משנה הרבה",
   "admI_rv_idle": "המבקר כמעט לא משנה",
+  "admI_rv_unrev": "כתוביות בלי ביקורת",
   "admI_shot_near": "גבולות קרובים לחילוף שוט",
   "admI_sla_over": "חריגה מיעד הזמן",
   "admI_slow_stage": "שלב איטי",
@@ -983,6 +985,7 @@ en: {
   "admA_q_metric": "Strengthen this check in the automatic test or the prompt, so it is caught before the end.",
   "admA_rv_heavy": "The reviewer fixes a lot, so the translator misses things. See what it fixes and move that into the translator prompt.",
   "admA_rv_idle": "The reviewer costs money and changes almost nothing. Consider skipping it on easy videos or a cheaper model.",
+  "admA_rv_unrev": "Review slices were cut before the end. Use smaller slices (SNB_RV_SLICE) or a lower review effort.",
   "admA_shot_near": "Subtitles start or end 1–11 frames from a shot change, which flickers. Tighten shot snapping in vt.",
   "admA_sla_over": "Jobs go over the target. Update the estimate or speed up the slow stage.",
   "admA_slow_stage": "This stage takes most of the time. Check whether it can run in parallel or speed up its longest command.",
@@ -1247,6 +1250,7 @@ en: {
   "admI_q_metric": "A quality check that fails a lot",
   "admI_rv_heavy": "The reviewer changes a lot",
   "admI_rv_idle": "The reviewer barely changes anything",
+  "admI_rv_unrev": "Cues left unreviewed",
   "admI_shot_near": "Edges close to a shot change",
   "admI_sla_over": "Over the time target",
   "admI_slow_stage": "A slow stage",

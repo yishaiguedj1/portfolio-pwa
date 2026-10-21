@@ -26,6 +26,9 @@ ok(!/fetch\(|XMLHttpRequest/.test(adm.slice(adm.indexOf('/* ---- מעבדת הש
   ok(off.some((x) => x.k === 'eta_off' && x.sev === 2), 'eta_off — צפי רחוק ב־50%+ = חומרה 2');
   const good = LRx.insights([mk(1000, 950), mk(1200, 1150), mk(900, 920), mk(1300, 1250)], k30, [], [], [], { n: 0, c: [] }, { n: 0, m: [] }, [], Date.now(), null, null);
   ok(!good.some((x) => x.k === 'eta_off'), 'eta_off — צפי מדויק = בלי תובנה');
+  const rv = (n, u) => ({ k: 'tr', st: 'done', t: { run: 1, pz: 0, s: {} }, lx: { en: { rvn: n, rvu: u } } });
+  const un = LRx.insights([rv(600, 70), rv(600, 0)], k30, [], [], [], { n: 0, c: [] }, { n: 0, m: [] }, [], Date.now(), null, null);
+  ok(un.some((x) => x.k === 'rv_unrev' && x.v.n === 70 && x.v.j === 1), 'rv_unrev — 70 כתוביות בלי ביקורת בעבודה אחת');
 }
 console.log(fail ? `\n${fail} מתוך ${n} נכשלו` : `\nכל ${n} הבדיקות עברו ✓`);
 process.exit(fail ? 1 : 0);

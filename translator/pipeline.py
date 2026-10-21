@@ -737,15 +737,25 @@ class Pipeline:
                 if depth == 0 and not lines and len(parts) > 1:
                     print('· קטע של הביקורת נקטע בלי תשובה (החשיבה לקחה את כל התקרה) — מפצלים לשניים ומנסים שוב')
                     out = [one(x, 1) for x in parts]
-                    return {k: v for o in out for k, v in o[0].items()}, [f for o in out for f in o[1]]
+                    return {k: v for o in out for k, v in o[0].items()}, [f for o in out for f in o[1]], sum(o[2] for o in out), 1 + sum(o[3] for o in out)
                 print('· הביקורת של קטע נקטעה — התיקונים שהגיעו נשמרים, השאר עוברים בבדיקה האוטומטית')
+                # 21/10/2026: כמה כתוביות כנראה לא נבדקו — אחרי התיקון האחרון שהגיע (חסם עליון: תיקון רק במה שצריך)
+                last = max((int(x) for x in lines), default=-1)
+                unrev = sum(1 for x in ids if int(x) > last)
+            else:
+                unrev = 0
             rf = getattr(self.J, 'review_flags', None)          # סבב 4: "!#מספר קוד" — לבדיקה שלך בעורך
             fl = [f for f in rf(res.text, {int(x) for x in ids}) if str(f[0]) not in lines] if rf else []
-            return lines, fl
+            return lines, fl, unrev, 1 if getattr(res, 'stop', None) == 'max_tokens' else 0
         with ThreadPoolExecutor(max_workers=max(1, min(RV_PARALLEL, len(slices)))) as ex:
-            for lines, fl in ex.map(one, slices):
+            rvu = rvc = 0
+            for lines, fl, u, c in ex.map(one, slices):
                 got.update(lines)
                 flags += fl
+                rvu += u
+                rvc += c
+        # מאגר הלמידה (תוכנית השיפור 3.10א): כתוביות, קטעים, קטעים שנקטעו, וכמה כתוביות לכל היותר לא נבדקו
+        ctx.st['rvx'] = {'rvn': n_cues, 'rvs': len(slices), 'rvc': rvc, 'rvu': rvu}
         self.save_usage()
         (self.pd / 'tr' / 'fixes_review.txt').write_text(fmt_lines(got) + '\n' if got else '', encoding='utf-8')
         if flags:

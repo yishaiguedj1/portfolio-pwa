@@ -537,6 +537,28 @@ class FlowTests(unittest.TestCase):
         sizes = sorted(b - a + 1 for a, b in seen)
         self.assertLessEqual(max(sizes), P.RV_SLICE_CUES, 'אף קטע לא גדול מ־RV_SLICE_CUES')
         self.assertEqual(len(seen), 3 + 2, '3 קטעים + 2 חצאים של הקטע שנקטע')
+        self.assertEqual(self.ctx.st['rvx'], {'rvn': 600, 'rvs': 3, 'rvc': 1, 'rvu': 0},
+                         'למאגר: 600 כתוביות, 3 קטעים, אחד נקטע, ואחרי הפיצול אף כתובית לא נשארה בלי ביקורת')
+
+    def test_review_unreviewed_counted(self):
+        """קטע שנקטע אחרי תיקונים חלקיים (בתוך הפיצול) — מה שאחרי התיקון האחרון נספר "לא נבדק" (חסם עליון)."""
+        cues = ''.join(f'#{i} Line {i}\n→ שורה {i}\n' for i in range(1, 101))
+        (self.pd / 'review').mkdir(exist_ok=True)
+        self.J.vt = (lambda ctx, args, _v=self.J.vt: (_v(ctx, args), (self.pd / 'review' / 'package.md').write_text(
+            '# חבילה\n\n## כתוביות (100)\n\n' + cues, encoding='utf-8') if args[0] == 'review-pack' else None)[0])
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            if '<review_package>' not in p:
+                return msg('')
+            m = msg('#10 מתוקן\n#30 מתוקן\n#31 חצי')   # השורה האחרונה נזרקת (kept_text)
+            m.stop_reason = 'max_tokens'
+            return m
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        pl.review()
+        x = self.ctx.st['rvx']
+        self.assertEqual((x['rvn'], x['rvs'], x['rvc']), (100, 1, 1))
+        self.assertEqual(x['rvu'], 70, 'אחרי #30 — 70 כתוביות כנראה לא נבדקו')
 
     def test_judge_always_haiku_high(self):
         J = self.J
