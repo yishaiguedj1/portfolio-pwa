@@ -12,6 +12,7 @@ v361: אחרי כל שלב גדול נשמרת נקודת שמירה ב־Drive; 
 ולכן ממנו נלקחים רק שני ערכים, שנבדקים כאן בצורה קפדנית.
 """
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -3174,6 +3175,44 @@ AUX_FILES = (
 )
 
 
+def _sha(p):
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
+
+
+def early_text_outputs(ctx, title):
+    """21/10/2026 (תוכנית השיפור 3.13ג, מהיומנים: הצריבה = 23 דק׳ בסוף העבודה): הכתוביות, cues והציר מוכנים כבר אחרי
+    build — עולים לפני הצריבה ומדווחים לטלפון, כך שהנגן ועורך הכתוביות זמינים מיד. אחרי הצריבה: קובץ שלא השתנה
+    (אותה טביעה) לא עולה שוב. כל תקלה כאן — ממשיכים כרגיל, הכל עולה בסוף."""
+    early, out = {}, []
+    try:
+        meta_safe(ctx)
+        items = [(k, ctx.pdir / 'out' / f, title + suf, mime) for k, f, suf, mime in OUT_FILES if k == 'srt']
+        items += [(k, ctx.pdir / 'out' / f, title + suf, mime) for k, f, suf, mime in AUX_FILES]
+        for k, p, name, mime in items:
+            if not p.exists():
+                continue
+            fid = put_output(ctx, p, name, k, mime)
+            early[k] = {'id': fid, 'sha': _sha(p), 'name': name}
+            out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
+        if out:
+            ctx.report('bn', 0, 'הכתוביות מוכנות — אפשר לצפות בנגן בזמן שהסרטון נצרב', out=out, force=True)
+            print('✓ הכתוביות עלו לפני הצריבה (' + ', '.join(o['k'] for o in out) + ')')
+    except Stop:
+        raise
+    except (SystemExit, Exception) as e:          # noqa: BLE001 — רק הקדמה; הכל עולה שוב בסוף
+        print('· העלאת הכתוביות לפני הצריבה לא הצליחה (' + str(e).strip()[:80] + ') — הן יעלו בסוף')
+    return early
+
+
+def _early_id(early, k, p, name):
+    e = early.get(k)
+    return e['id'] if e and e['name'] == name and e['sha'] == _sha(p) else ''
+
+
 def meta_safe(ctx):
     """סבב 6: out/timeline.json (peaks.py בסביבת vt) — מידע משני; תקלה לא מפילה את סוף העבודה"""
     try:
@@ -3380,6 +3419,8 @@ def finish(args):
     if want and (ctx.st.get('rl') or {}).get('ab') and not approve_render(ctx):
         print('· בלי צריבה (המשתמש בחר רק קובץ כתוביות, או לא ענה בזמן) — מעלים את קובץ הכתוביות.')
         want = []
+    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
+    early = early_text_outputs(ctx, title) if want and os.environ.get('SNB_EARLY_SUBS', 'on') != 'off' else {}
     if want:
         ctx.report('bn', 0, 'מוסיפים את הכתוביות לסרטון', force=True)
         flags = (['--compact'] if 'compact' in want else []) + (['--burn'] if 'same' in want else []) + (['--mkv'] if 'mkv' in want else [])
@@ -3387,7 +3428,6 @@ def finish(args):
             flags += (['--compact'] if 'compact' not in want and 'same' not in want else []) + ['--small', str(SMALL_MB)]
         vt(ctx, ['render', ctx.name] + flags, 'bn', 0.0, 1.0)
     ctx.report('sv', 0, 'שומרים את התוצרים', force=True)
-    title = os.path.splitext(str(spec.get('name') or ctx.name))[0][:120]
     out, total = [], 0
     files = []
     for k, fname, suffix, mime in OUT_FILES:
@@ -3403,7 +3443,7 @@ def finish(args):
     done = 0
     for k, p, name, mime in files:
         base = done
-        fid = put_output_retry(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
+        fid = _early_id(early, k, p, name) or put_output_retry(ctx, p, name, k, mime, lambda f, b=base, s=p.stat().st_size: ctx.report('sv', (b + f * s) / max(1, total)))
         done += p.stat().st_size
         out.append({'id': fid, 'name': name, 'size': p.stat().st_size, 'k': k})
     meta_safe(ctx)
@@ -3412,7 +3452,7 @@ def finish(args):
         if not p.exists():
             continue
         try:
-            fid = put_output(ctx, p, title + suffix, k, mime)
+            fid = _early_id(early, k, p, title + suffix) or put_output(ctx, p, title + suffix, k, mime)
             out.append({'id': fid, 'name': title + suffix, 'size': p.stat().st_size, 'k': k})
         except Stop:
             raise

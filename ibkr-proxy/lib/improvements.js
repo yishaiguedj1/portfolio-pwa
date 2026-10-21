@@ -30,6 +30,9 @@ const IMPROVEMENTS = [
   { id: 'i08', at: '2026-10-21T13:09:00Z', m: ['q', 'jd', 'ht'], src: 'devlog',
     he: ['תיקוני ההגהה מוחלים', 'בשתי עבודות 0 תיקונים — 25 ו־59 נזרקו (רווחים, מירכאות, שם שחוזר). עכשיו מוחלים בבטחה, ומה שנזרק נספר לפי סיבה'],
     en: ['Proofreading fixes are applied', 'Two jobs applied 0 fixes (25 and 59 dropped) — now applied safely, drops counted by reason'] },
+  { id: 'i09', at: null, m: ['tot'], src: 'devlog',
+    he: ['הכתוביות לפני הצריבה', 'הצריבה = 23 דק׳ בסוף עבודה של 87 דק׳ — הכתוביות והנגן זמינים מיד אחרי הבדיקה'],
+    en: ['Subtitles before the burn', 'Burning takes 23 minutes on an 87-minute video — subtitles and the player are available right after the review'] },
 ];
 
 module.exports = { IMPROVEMENTS };

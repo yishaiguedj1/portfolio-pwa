@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1553 מפתחות מתוך 3608) */
+/* המחרוזות של studio (1554 מפתחות מתוך 3609) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -830,6 +830,7 @@ he: {
   "studioOutCompactS": "כחצי מהגודל, כמעט זהה בעין · ‏1080p",
   "studioOutDown": "הורדה",
   "studioOutEarly": "הקבצים מוכנים. ברקע מכינים עוד את איכויות הצפייה לנגן — העבודה תסומן כגמורה בסוף.",
+  "studioOutEarlySubs": "הכתוביות מוכנות — אפשר כבר לצפות בנגן. הסרטון עם הכתוביות הצרובות יגיע בסוף.",
   "studioOutEn": "כתוביות בשפת המקור (SRT)",
   "studioOutEnShort": "כתוביות המקור",
   "studioOutErr": "לא הצלחנו לקרוא את הקובץ — נסו שוב",
@@ -2385,6 +2386,7 @@ en: {
   "studioOutCompactS": "About half the size, nearly identical to the eye · 1080p",
   "studioOutDown": "Download",
   "studioOutEarly": "Your files are ready. Viewing qualities for the player are still being prepared — the job will show as done at the end.",
+  "studioOutEarlySubs": "The subtitles are ready — you can watch in the player now. The video with burned-in subtitles comes at the end.",
   "studioOutEn": "Source-language subtitles (SRT)",
   "studioOutEnShort": "Source subtitles",
   "studioOutErr": "Couldn't read the file — try again",
