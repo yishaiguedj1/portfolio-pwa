@@ -11,6 +11,7 @@ process.env.AI_ANON_DAILY = process.env.AI_ANON_DAILY || '1000000';   // v339: �
 process.env.SNB_SITEWATCH = 'off';   // שלב 5: ניטור הכתובות — רק בבלוק שלו (הכתובות האמיתיות לא נגישות בבדיקות)
 process.env.SNB_ADMINWATCH = 'off';
 process.env.SNB_LEARNWEEK = 'off';   // 20/10/2026 (מ׳7): ההתראה השבועית — רק בבלוק שלה   // 15/10/2026: התראות המנהל (adminWatch) — ההחלטה נבדקת ב־tests/adminov.test.js (watchStep)
+process.env.SNB_JOBGC = 'off';   // 21/10/2026: מחיקת עבודות בנות חודש — רק בבלוק שלה
 const ok = (cond, name) => { n++; assert(cond, name); console.log('ok -', name); };
 
 /* ---------- statementBaseFrom (SSRF guard) ---------- */
@@ -3476,7 +3477,7 @@ function stubFetch(text, status = 200) {
         now += 2 * 60e3;
         g = await get();
         const m1 = pushes.length === 1 && decrypt(pushes[0].body);
-        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw,lc,lw' && g.payload.lc === 0 && g.payload.lw === 0 && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
+        ok(g.payload.down === 1 && m1 && m1.k === 'srv_down' && m1.j === '' && +db.get('studioServers/' + S7).fields.dn.integerValue === now && Object.keys(g.payload).join() === 'ok,down,ar,st,bk,ob,aw,lc,lw,jg' && g.payload.jg === 0 && g.payload.lc === 0 && g.payload.lw === 0 && g.payload.aw === 0 && g.payload.ar === 0 && g.payload.st === 0 && g.payload.bk === -1 && g.payload.ob === 0,
           'ת7: שותק רבע שעה → התראה לטלפון ("השרת לא מדווח"), מסומן; התשובה רק מספרים (בלי R2 — הגיבוי -1)');
         ok(await srvOpen(), 'ת7: התראה במגדל (server:down)');
         now += 40 * 60e3;
@@ -3623,6 +3624,26 @@ function stubFetch(text, status = 200) {
         ok(a.payload.lw === 0 && +db.get('sysWatch/learnWk').fields.at.integerValue === now - 8 * 86400e3, 'מ׳7: שבוע בלי עבודות — בלי התראה, ובודקים שוב אחר כך');
         for (const [k, v] of keep) db.set(k, v);
         process.env.SNB_LEARNWEEK = 'off'; db.delete('sysBackup/cfg'); db.delete('sysWatch/learnWk'); studio._reset();
+      }
+      // 21/10/2026: עבודה ב־R2 שהסתיימה לפני יותר מחודש נמחקת לבד — לא עבודת זהב, לא עבודה ב־Drive, לא עבודה חדשה
+      {
+        process.env.SNB_JOBGC = '';
+        const D = 86400e3, mkJ = (id, folder, ended, extra) => db.set('studioJobs/' + id, { fields: Object.assign({ uid: { stringValue: 'ownerUid0001' }, kind: { stringValue: 'tr' },
+          state: { stringValue: 'done' }, folder: { stringValue: folder }, ended: { integerValue: String(ended) }, updated: { integerValue: String(ended) } }, extra || {}) });
+        mkJ('jGcOldR2aaaaaaaaaaaaa', 'R2_jGcOldR2aaaaaaaaaaaaa', now - 31 * D);
+        mkJ('jGcOldDrvaaaaaaaaaaaa', 'DriveFolderId0123456789', now - 40 * D);
+        mkJ('jGcOldGoldaaaaaaaaaaa', 'R2_jGcOldGoldaaaaaaaaaaa', now - 40 * D, { gd: { stringValue: '{"ref":"x"}' } });
+        mkJ('jGcNewR2aaaaaaaaaaaaa', 'R2_jGcNewR2aaaaaaaaaaaaa', now - 29 * D);
+        const wget = async () => { const x = mockRes(); await studio._handler({ method: 'GET', headers: {} }, x, deps()); return x; };
+        studio._reset();
+        let a = await wget();
+        ok(a.payload.jg === 1 && !db.has('studioJobs/jGcOldR2aaaaaaaaaaaaa'), 'מחיקה אחרי חודש: עבודה ב־R2 שהסתיימה לפני 31 יום — נמחקה');
+        ok(db.has('studioJobs/jGcOldDrvaaaaaaaaaaaa') && db.has('studioJobs/jGcOldGoldaaaaaaaaaaa') && db.has('studioJobs/jGcNewR2aaaaaaaaaaaaa'),
+          'מחיקה אחרי חודש: עבודה ב־Drive, עבודת זהב ועבודה בת 29 יום — נשארו');
+        a = await wget();
+        ok(a.payload.jg === 0, 'מחיקה אחרי חודש: פעם ב־6 שעות למופע');
+        for (const id of ['jGcOldDrvaaaaaaaaaaaa', 'jGcOldGoldaaaaaaaaaaa', 'jGcNewR2aaaaaaaaaaaaa']) db.delete('studioJobs/' + id);
+        process.env.SNB_JOBGC = 'off'; studio._reset();
       }
       studio._reset();
       const doneTr = [...db.keys()].filter((k) => k.startsWith('studioJobs/') && db.get(k).fields.kind.stringValue === 'tr' && (db.get(k).fields.state || {}).stringValue === 'done' && db.get(k).fields.uid.stringValue === 'ownerUid0001');

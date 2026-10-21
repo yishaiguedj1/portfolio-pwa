@@ -21,7 +21,7 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(/op === 'scan'/.test(api) && /op === 'clean'/.test(api) && /SC\.CLEAN_KINDS\.includes\(k\)/.test(api), 'op scan / clean — רק סוגי ניקוי מוכרים');
   ok(/const other = await readJob\(deps, f\.job\)/.test(api), 'תיקייה של עבודה שקיימת אצל משתמש אחר — לא נוגעים');
   ok(/trashed: true/.test(api) && !/method: 'DELETE'[^\n]*drive/i.test(api), 'נקה = לפח של Drive (אפשר לשחזר), לא מחיקה');
-  ok((api.match(/await removeJobRec\(/g) || []).length === 2, 'מחיקת רשומה — פונקציה אחת ("מחיקה" ורשומות ישנות)');
+  ok((api.match(/await removeJobRec\(/g) || []).length === 3, 'מחיקת רשומה — פונקציה אחת ("מחיקה", רשומות ישנות, ומחיקה אחרי חודש)');
   ok(/sc: await scFor\(uid\)/.test(api) && /'sc'(, '[a-z]+')*\]/.test(read('ibkr-proxy/lib/studio.js')), 'הסריקה האחרונה נשמרת ומוצגת ב־status');
 
   /* ---------- 2. הטלפון ---------- */

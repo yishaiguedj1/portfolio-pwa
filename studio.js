@@ -1144,7 +1144,9 @@ async function refreshJobs(force) {
       if (rec) store.jobs.push(rec);
     }
   }
-  store.jobs = store.jobs.filter((x) => ids.has(x.id) || (runs.get(x.id) && runs.get(x.id).active)).sort((a, b) => b.created - a.created);
+  const keep = (x) => ids.has(x.id) || (runs.get(x.id) && runs.get(x.id).active);
+  for (const x of store.jobs) if (!keep(x)) { idbOp('thumbs', 'del', x.id); thumbs.delete(x.id); }   // 21/10/2026: עבודה שנמחקה (גם אחרי חודש, בשרתון) — גם התמונה
+  store.jobs = store.jobs.filter(keep).sort((a, b) => b.created - a.created);
   rrJobs = rr; rrPv = pv;
   save();
   // v371: התקלה הרחבה עברה — עבודות שחיכו לה מתחילות לבד
@@ -1161,10 +1163,11 @@ const jobRec = (id) => store.jobs.find((x) => x.id === id) || null;
 
 /* ---------------- ידיות לקבצים (File System Access) — המשך אחרי רענון בלי לבחור שוב ---------------- */
 // סבב 8: גרסה 2 — גם 'drafts' (טיוטות העורך). שדרוג לא מוחק: רק מה שחסר נוצר
-const IDB_STORES = ['handles', 'drafts'];
+// 21/10/2026: גרסה 3 — גם 'thumbs' (התמונות הממוזערות של העבודות)
+const IDB_STORES = ['handles', 'drafts', 'thumbs'];
 function hdb() {
   return new Promise((ok, no) => {
-    const r = indexedDB.open('snb-studio', 2);
+    const r = indexedDB.open('snb-studio', 3);
     r.onupgradeneeded = () => { for (const n of IDB_STORES) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
     r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
   });
@@ -1181,6 +1184,103 @@ async function idbOp(store, mode, id, val) {
   } catch (e) { return null; }
 }
 const handleOp = (mode, id, val) => idbOp('handles', mode, id, val);
+
+/* ---------------- 21/10/2026 (בקשת המשתמש — כמו ב־YouTube): תמונה ממוזערת לכל עבודה ----------------
+   פריים מהסרטון עצמו, בטלפון בלבד (בלי שרת ובלי עלות): מהקובץ המקומי כשמתחילים עבודה, ואחרת מהסרטון בענן דרך ה־SW
+   (אותה כתובת של הנגן — באותו מקור, כך שהקנבס לא "מוכתם"). JPEG קטן ב־IndexedDB ('thumbs', לפי מזהה העבודה).
+   הפריים הראשון שאינו כהה/אחיד מבין כמה נקודות (פתיח שחור לא נבחר); עבודה אחת בכל פעם, עד THUMB_WAIT לכל אחת */
+export const THUMB_W = 320, THUMB_WAIT = 20000;
+export const THUMB_AT = [0.2, 0.08, 0.4, 0.6];   // חלקים מהאורך — לפי הסדר
+export function thumbTimes(dur) {   // טהורה: מתי לנסות (שניות). אורך לא ידוע — שתי נקודות קבועות
+  const d = Number(dur) || 0;
+  if (!(d > 0) || !isFinite(d)) return [1, 0];
+  return THUMB_AT.map((f) => Math.max(0, Math.min(d - 0.1, Math.round(d * f * 10) / 10)));
+}
+export function thumbOk(mean, sd) { return mean > 24 && mean < 235 && sd > 14; }   // טהורה: לא שחור, לא לבן, לא אחיד
+const thumbs = new Map();          // מזהה → כתובת data: ('' = לא הצליח בסשן הזה)
+const thumbWait = new Map();       // מזהה → [פונקציות שמחכות לתמונה]
+let thumbChain = Promise.resolve();
+function grabFrame(src) {
+  return new Promise((ok) => {
+    if (typeof document === 'undefined' || !src) { ok(''); return; }
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
+    let best = null, done = false, times = [];
+    const end = (u) => { if (done) return; done = true; clearTimeout(to); try { v.removeAttribute('src'); v.load(); } catch (e) {} ok(u || (best && best.u) || ''); };
+    const to = setTimeout(() => end(''), THUMB_WAIT);
+    const shot = () => {
+      try {
+        const w = v.videoWidth, hh = v.videoHeight;
+        if (!w || !hh) return null;
+        const c = document.createElement('canvas');
+        c.width = THUMB_W; c.height = Math.max(1, Math.round(THUMB_W * hh / w));
+        const x = c.getContext('2d');
+        x.drawImage(v, 0, 0, c.width, c.height);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let n = 0, sm = 0, sq = 0;
+        for (let i = 0; i < d.length; i += 64) { const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; n++; sm += l; sq += l * l; }
+        const mean = sm / n, sd = Math.sqrt(Math.max(0, sq / n - mean * mean));
+        return { u: c.toDataURL('image/jpeg', 0.72), mean, sd };
+      } catch (e) { return null; }
+    };
+    const next = () => {
+      if (!times.length) { end(''); return; }
+      const t = times.shift();
+      if (Math.abs(v.currentTime - t) < 0.05) onSeek(); else v.currentTime = t;
+    };
+    const onSeek = () => {
+      if (done) return;
+      const r = shot();
+      if (r && (!best || r.sd > best.sd)) best = r;
+      if (r && thumbOk(r.mean, r.sd)) { end(r.u); return; }
+      next();
+    };
+    v.addEventListener('seeked', onSeek);
+    v.addEventListener('error', () => end(''));
+    v.addEventListener('loadedmetadata', () => { times = thumbTimes(v.duration); next(); }, { once: true });
+    v.src = src;
+  });
+}
+function thumbSrc(rec) {             // מאיפה לקחת פריים: הסרטון המקורי בענן, ואם אין — הסרטון הצרוב
+  if (!rec || !net || typeof net.mediaUrl !== 'function') return '';
+  const id = rec.up && rec.up.v && rec.up.v.id, bo = burnedOut(rec);
+  return (id && net.mediaUrl(id)) || (bo && net.mediaUrl(bo.id)) || '';
+}
+function thumbSet(id, u) {
+  thumbs.set(id, u);
+  const w = thumbWait.get(id); thumbWait.delete(id);
+  if (w) for (const f of w) { try { f(u); } catch (e) {} }
+}
+/* התמונה של העבודה: מיד אם בזיכרון; אחרת קוראים מ־IndexedDB, ואם אין — פריים מהסרטון (בתור). cb נקרא כשיש.
+   עוד אין סרטון בענן (עולה) — לא נרשם ככישלון, ומנסים שוב בציור הבא; ניסיון שנכשל — לא שוב בסשן הזה */
+const thumbBusy = new Set();
+function thumbFor(rec, cb, file) {
+  if (!rec || !rec.id) return '';
+  const id = rec.id, have = thumbs.get(id);
+  if (have) return have;
+  if (have === '' && !file) return '';
+  if (cb) { const w = thumbWait.get(id) || []; w.push(cb); thumbWait.set(id, w); }
+  if (thumbBusy.has(id)) return '';
+  thumbBusy.add(id);
+  thumbChain = thumbChain.then(async () => {
+    let u = file ? '' : await idbOp('thumbs', 'get', id), tried = false;
+    if (!u) {
+      const url = file ? URL.createObjectURL(file) : thumbSrc(rec);
+      if (url) { tried = true; u = await grabFrame(url); }
+      if (file) URL.revokeObjectURL(url);
+      if (u) idbOp('thumbs', 'put', id, u);
+    }
+    thumbBusy.delete(id);
+    if (u || tried) thumbSet(id, u || ''); else thumbWait.delete(id);
+  }).catch(() => { thumbBusy.delete(id); thumbSet(id, ''); });
+  return '';
+}
+/* ציור התמונה על אריח (.st-thumb) — דהייה כשהיא מגיעה אחרי הציור; בלי תמונה נשאר סמל הסרט */
+function paintThumb(th, rec) {
+  const put = (u) => { th.style.backgroundImage = 'url("' + u + '")'; th.classList.add('img'); };
+  const u = thumbFor(rec, (x) => { if (x) { th.classList.add('in'); put(x); } });
+  if (u) put(u);
+}
 /* סבב 8: טיוטת עורך הכתוביות — שינויים שלא נשמרו שורדים רענון וסגירה (בטלפון בלבד, לפי מזהה העבודה).
    ev = הגרסה בשרתון שעליה נערך; טיוטה על גרסה ישנה יותר — רק באישור (אחרת הייתה דורסת שמירה מאוחרת) */
 export const DRAFT_MAX = 4 * 1048576;
@@ -2098,6 +2198,33 @@ function badgeFor(ph) {
 }
 
 /* ---------------- דפים ---------------- */
+/* 21/10/2026 (בקשת המשתמש): בבית רק 4 העבודות האחרונות — הכרטיס בגובה של 4 שורות ונגלל בתוכו (העמוד עצמו לא נגלל בגללו),
+   ו"עבודות קודמות" גולל בתוך הכרטיס לישנות יותר. מקום הגלילה נשמר בין ציורים (ui.jobsY) */
+export const JOBS_SHOWN = 4;
+function jobsCard(rows) {
+  const l = list(...rows);
+  if (rows.length <= JOBS_SHOWN) return l;
+  l.classList.add('st-jobs');
+  const wrap = h('div', 'st-jobs-w');
+  const more = btn('st-jobs-more', '', () => l.scrollBy({ top: Math.max(60, l.clientHeight - 24), behavior: 'smooth' }), 'jobs-more');
+  const paint = () => {
+    const lb = l.getBoundingClientRect().bottom;
+    const left = rows.filter((r) => r.getBoundingClientRect().bottom > lb + 2).length;   // שורות שעוד לא נראו במלואן (מתחת לנראה)
+    more.textContent = T('studioJobsMore', { n: left });
+    more.hidden = !left;
+  };
+  l.addEventListener('scroll', () => { ui.jobsY = l.scrollTop; paint(); }, { passive: true });
+  requestAnimationFrame(() => {
+    if (!l.isConnected) return;
+    let hh = 0;
+    for (let i = 0; i < JOBS_SHOWN; i++) hh += rows[i].offsetHeight;
+    l.style.maxHeight = hh + 'px';
+    if (ui.jobsY) l.scrollTop = ui.jobsY;
+    paint();
+  });
+  wrap.append(l, more);
+  return wrap;
+}
 function pageHome(p) {
   const pon = apiMode() ? ui.api.online > 0 : !!store.conn;
   const pill = btn('st-cpill' + (pon ? ' on' : ''), null, () => go('eng'), 'cpill');
@@ -2123,6 +2250,7 @@ function pageHome(p) {
     const rows = store.jobs.map((rec) => {
       const r = btn('st-proj', null, () => go('job', rec.id), 'j:' + rec.id);
       const th = h('span', 'st-thumb'); th.append(ico('film'));
+      paintThumb(th, rec);
       const bar = h('span', 'st-tprog'); const bi = h('i'); bar.append(bi); th.append(bar);
       const info = h('span', 'st-pinfo');
       const nm = h('b'); nm.append(h('bdi', null, fileTitle(rec.spec.name) || T('studioUntitled')));
@@ -2145,7 +2273,7 @@ function pageHome(p) {
       });
       return r;
     });
-    p.append(secT(T('studioSecJobs')), list(...rows));
+    p.append(secT(T('studioSecJobs')), jobsCard(rows));
   }
   if (!store.drafts.length) return;
   const rows = store.drafts.map((d) => {
@@ -2345,6 +2473,7 @@ function startFromForm() {
     if (f.id) store.drafts = store.drafts.filter((d) => d.id !== f.id);   // טיוטה שהתחילה — כבר עבודה
     save();
     if (f.handle) handleOp('put', rec.id, f.handle);
+    if (f.fileObj) thumbFor(rec, null, f.fileObj);   // 21/10/2026: התמונה מהקובץ שבטלפון — בלי לחכות שיעלה
     form = null;
     if (!root) { startRun(rec.id, ext ? null : file); return; }
     replaceView('job', rec.id);
@@ -4559,7 +4688,8 @@ async function playLoad(rec) {
     if (!src && !fb) { me.st = 'err'; me.err = 'nosw'; plPaint(); return; }
     me.cues = cues; me.iss = issuesList(cues);
     me.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues, issues: me.iss, chapters: rec.chap || [], T,
-      ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave });   // איכויות כמו ב־YouTube
+      ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave,   // איכויות כמו ב־YouTube
+      poster: thumbFor(rec, (u) => { if (pl === me && me.ctl) me.ctl.setPoster(u); }) });   // 21/10/2026: התמונה לפני הניגון
     me.wt = watchTrack(rec, me.ctl.video);   // מ׳3: כמה מהסרטון נצפה
     me.st = 'ok';
   } catch (e) {
@@ -4651,12 +4781,14 @@ async function seLoad(rec) {
     if (gl.st === '' && store.drive && store.drive.connected) { await Promise.race([glossLoad(), new Promise((r) => setTimeout(r, 2500))]); if (se !== me) return; }
     if (!cues.length) { me.st = 'err'; me.err = 'empty'; render('none'); return; }
     const only = seOnly === rec.id; seOnly = '';
+    me.at = -1;   // 21/10/2026: נפתח על נקודה מסוימת (רק לבדיקה) — הנגן מציג את הפריים שלה, לא את התמונה של העבודה
     me.ed = createSubsEditor({ cues, T, issueName, flash: flashSafe, onAi: () => go('ai', rec.id), flags: seFlags(rec, cues), only, shots: me.meta ? me.meta.sh : [],
       dismissed: new Set(store.sugx || []), onDismiss: (key) => { store.sugx = (store.sugx || []).concat(key).slice(-500); save(); uxAdd(rec, 'sg', 'r'); },
       onSugFix: () => uxAdd(rec, 'sg', 'a'),
       getTime: () => (me.ctl ? me.ctl.video.currentTime || 0 : 0),
       seek: (t) => { if (me.ctl) me.ctl.seek(Math.max(0, t - 0.05)); }, play: () => { if (me.ctl) me.ctl.play(); },
       onChange: () => { seAct(me); seSavePaint(); if (me.tl) me.tl.draw(); clearTimeout(me.upT); me.upT = setTimeout(() => { if (me.ctl) me.ctl.setCues(me.ed.cues()); }, 200); seDraftSoon(me, rec); } });
+    if (only) { const k = me.ed.firstShown(); if (k >= 0) me.at = Math.max(0, me.ed.cues()[k].s - 0.05); }
     me.saved = me.ed.ver(); me.st = 'ok';
     me.base = cues; me.act = 0; me.last = 0;   // מ׳3: מה נטען — להשוואה בשמירה
     // סבב 8: טיוטה שנשארה מהפעם הקודמת (רענון / האפליקציה נסגרה) — חוזרת כצעד ביטול אחד ("ביטול" = הגרסה השמורה)
@@ -4727,9 +4859,15 @@ function pageSubs(p) {
     const src = srcId ? net.mediaUrl(srcId) : '', fb = bo ? net.mediaUrl(bo.id) : '';
     if (src || fb) {
       const me = se;
+      const at = me.at >= 0 ? me.at : -1;
       se.ctl = createPlayer({ src: src || fb, fallback: src ? fb : '', burned: !src, cues: se.ed.cues(), T,
         ladder: src ? ladderOf(rec) : null, pq: store.settings.pq, onPq: pqSave,
+        poster: at >= 0 ? '' : thumbFor(rec, (u) => { if (se === me && me.ctl && !(me.at >= 0)) me.ctl.setPoster(u); }),   // 21/10/2026: כמו ב־YouTube
         onTime: (t) => { if (me.ed && me.ctl) me.ed.time(t, !me.ctl.video.paused); } });
+      if (at >= 0) {   // נפתח על נקודה — הפריים של הנקודה (גם אחרי שהסרטון נטען: לפני כן הדפדפן יכול להתעלם מהקפיצה)
+        se.ctl.seek(at);
+        se.ctl.video.addEventListener('loadedmetadata', () => { if (se === me && me.ctl && me.ctl.video.currentTime < 0.01) me.ctl.seek(at); }, { once: true });
+      }
     }
   }
   if (aiPreset && aiPreset.id === rec.id) queueMicrotask(() => { if (ui.view === 'subs' && aiPreset) go('ai', rec.id); });   // סבב 2
@@ -4822,7 +4960,8 @@ function pageCut(p, before) {
       edl = rrEdl.get(rec.id) || null; dur = rec.spec.dur || 0;
     }
     if (!src) { p.append(h('div', 'st-empty st-empty-sm', T('studioPlNoSw'))); ce = null; return; }
-    ce.ctl = createPlayer({ src, fallback: fb, burned, cues, T });
+    const me = ce;
+    ce.ctl = createPlayer({ src, fallback: fb, burned, cues, T, poster: rec ? thumbFor(rec, (u) => { if (ce === me && me.ctl) me.ctl.setPoster(u); }) : '' });
     ce.ed = createEdlEditor({ video: ce.ctl.video, frame: ce.ctl.el, dur, edl, T, flash: flashSafe, full: !before,   // סבב 3: מהירות, סיבוב, מסגור ושמע — רק בהפקה מחדש
       onChange: (e) => { if (before) { if (form) form.edl = e; } else if (e) rrEdl.set(key, e); else rrEdl.delete(key); } });
   }
@@ -4959,7 +5098,7 @@ function pageSty(p) {
     syStop();
     sy = { key: rec.id, ctl: null, cues: se && se.id === rec.id && se.ed ? se.ed.cues() : null };
     const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
-    if (src) sy.ctl = createPlayer({ src, cues: sy.cues || [], T, pq: store.settings.pq });
+    if (src) { const me = sy; sy.ctl = createPlayer({ src, cues: sy.cues || [], T, pq: store.settings.pq, poster: thumbFor(rec, (u) => { if (sy === me && me.ctl) me.ctl.setPoster(u); }) }); }
     const me = sy, co = outOf(rec, 'cues');
     if (!me.cues && co) net.driveJson(co.id).then((j) => { if (sy === me) { me.cues = normCues(j); if (me.ctl) { me.ctl.setCues(me.cues); syPeek(me); } } }, () => {});
     else syPeek(me);
@@ -5029,7 +5168,7 @@ function pageOv(p) {
     ovp = { key: rec.id, ctl: null, tEl: h('div', 'st-ov-t'), lEl: document.createElement('img') };
     ovp.lEl.alt = ''; ovp.lEl.className = 'st-ov-l';
     const src = rec.up.v && rec.up.v.id ? net.mediaUrl(rec.up.v.id) : '';
-    if (src) { ovp.ctl = createPlayer({ src, cues: [], T, burned: true, pq: store.settings.pq }); ovp.ctl.el.append(ovp.tEl, ovp.lEl); }
+    if (src) { const me = ovp; ovp.ctl = createPlayer({ src, cues: [], T, burned: true, pq: store.settings.pq, poster: thumbFor(rec, (u) => { if (ovp === me && me.ctl) me.ctl.setPoster(u); }) }); ovp.ctl.el.append(ovp.tEl, ovp.lEl); }
   }
   const o = rrOv(rec.id) || {}, cur = ovT.get(rec.id) || {}, lg = store.settings.lg || null;
   if (ovp.ctl) { const top = h('div', 'st-se-top'); top.append(ovp.ctl.el); p.append(top); ovPaint(o); }
@@ -5550,7 +5689,7 @@ function pageJob(p) {
         if (!fin) await net.api('cancel', { job: id });
         const j = await net.api('remove', { job: id });
         if (!j.ok && j.error !== 'no_job') { flashSafe(errText(j.error)); return; }
-        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); save();
+        store.jobs = store.jobs.filter((x) => x.id !== id); runs.delete(id); handleOp('del', id); draftDel(id); idbOp('thumbs', 'del', id); thumbs.delete(id); save();
         flashSafe(T('studioJobDeleted')); back();
       } else {
         const j = await net.api('cancel', { job: id });
