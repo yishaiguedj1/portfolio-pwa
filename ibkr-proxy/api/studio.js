@@ -741,7 +741,24 @@ async function watch(req, res, deps) {
   const aw = await adminWatch(deps, now).catch(() => -1);   // 15/10/2026: התראות למנהל — הגיבוי ובדיקת המוכנות
   const lc = await learnBatch(deps, now).catch(() => -1);   // 15/10/2026 (מ׳2): קורפוס הטקסט — האצווה היומית ומחיקה אחרי 24 חודשים
   const lw = await learnWeekly(deps, now).catch(() => -1);   // 20/10/2026 (מ׳7): הסיכום השבועי של המעבדה — התראה למנהל
-  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc, lw });
+  const jg = await jobGc(deps, now).catch(() => -1);   // 21/10/2026: עבודות ב־R2 שהסתיימו לפני יותר מחודש
+  return res.status(200).json({ ok: true, down, ar, st, bk, ob, aw, lc, lw, jg });
+}
+/* 21/10/2026 (בקשת המשתמש): עבודה ב־R2 שהסתיימה לפני יותר מחודש (SC.expiredJob) נמחקת כמו "מחיקה" בטלפון —
+   removeJobRec: קודם הרשומה במאגר הלמידה נשמרת (learnSave), ואז הרשומה, הקבצים ב־R2, ההפקות מחדש וגיליונות ה־AI.
+   הדלי של מאגר הלמידה (snb-learn) לא נוגעים בו. פעם ב־6 שעות למופע, עד GC_MAX בריצה (זמן הפונקציה). מספר שנמחקו, ‎-1 = תקלה */
+const GC_EVERY = 6 * 3600e3, GC_MAX = 20;
+let lastGc = 0;
+async function jobGc(deps, now) {
+  if (process.env.SNB_JOBGC === 'off' || Math.abs(now - lastGc) < GC_EVERY) return 0;
+  lastGc = now;
+  const all = [];
+  for (const st of SC.FINAL) all.push(...await query(deps, 'studioJobs', { state: st }, 300));
+  let n = 0;
+  for (const j of all.filter((x) => UID_RE.test(String(x.uid || '')) && SC.expiredJob(x, now)).slice(0, GC_MAX)) {
+    try { await removeJobRec(deps, j.uid, j, now); n++; } catch (e) {}
+  }
+  return n;
 }
 /* שלב 5 (ב2): ניטור הכתובות מבחוץ (lib/sitewatch.js). המצב ב־sysWatch/sites (sd = נפלו, sp = נכשלו פעם אחת); ההתראה —
    למנהל שרשום כבעל הגיבוי (sysBackup/cfg.uid). מחזיר כמה כתובות למטה כרגע, ‎-1 = תקלה בבדיקה עצמה */
@@ -2410,4 +2427,4 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; };
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; };

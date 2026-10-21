@@ -168,7 +168,8 @@ a { color: var(--link); }
   -webkit-mask-image: var(--scrim); mask-image: var(--scrim);
 }
 @supports (animation-timeline: scroll()) {
-  .appbar::before { animation: hdrScrim linear both; animation-timeline: scroll(nearest block); animation-range: 0 72px; }
+  /* 21/10/2026: בלי opacity בסיסית, בעמוד קצר שלא נגלל (ציר לא פעיל — האנימציה לא חלה) השכבה הופיעה במלואה וכיסתה את הכרטיס הראשון */
+  .appbar::before { opacity: 0; animation: hdrScrim linear both; animation-timeline: scroll(nearest block); animation-range: 0 72px; }
 }
 @keyframes hdrScrim { from { opacity: 0; } to { opacity: 1; } }
 .cube-flat .appbar::before { -webkit-backdrop-filter: none; backdrop-filter: none; }

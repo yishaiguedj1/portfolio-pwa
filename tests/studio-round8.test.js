@@ -55,8 +55,8 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(X.draftUse(null, 0) === '' && X.draftUse({ v: 1, ev: 0, c: 'x{' }, 0) === '' && X.draftUse({ v: 1, ev: 0, c: '[]' }, 0) === '' && X.draftUse({ v: 2, ev: 0, c: d.c }, 0) === '',
     'טיוטה פגומה / ריקה / פורמט אחר — מתעלמים');
   ok(X.draftRec([{ s: 0, e: 1, lines: ['א'.repeat(X.DRAFT_MAX)] }], 0, 0) === null, 'טיוטה ענקית — לא נשמרת');
-  ok(/indexedDB\.open\('snb-studio', 2\)/.test(st) && /if \(!r\.result\.objectStoreNames\.contains\(n\)\) r\.result\.createObjectStore\(n\)/.test(st) && /IDB_STORES = \['handles', 'drafts'\]/.test(st),
-    'IndexedDB: גרסה 2 — הטיוטות במאגר נפרד, השדרוג לא מוחק את הידיות');
+  ok(/indexedDB\.open\('snb-studio', 3\)/.test(st) && /if \(!r\.result\.objectStoreNames\.contains\(n\)\) r\.result\.createObjectStore\(n\)/.test(st) && /IDB_STORES = \['handles', 'drafts', 'thumbs'\]/.test(st),
+    'IndexedDB: גרסה 3 — הטיוטות והתמונות הממוזערות במאגרים נפרדים, השדרוג לא מוחק את הידיות');
   ok(/seDraftSoon\(me, rec\); \} \}\);/.test(st) && /}, 1500\);/.test(st), 'שמירת טיוטה שנייה וחצי אחרי העריכה האחרונה');
   ok(/me\.saved = ver;[^\n]*clearTimeout\(me\.drT\); draftDel\(rec\.id\);/.test(st) && /draftDel\(rec\.id\); save\(\); seStop\(\); se = null;/.test(st) && /handleOp\('del', id\); draftDel\(id\);/.test(st),
     'הטיוטה נמחקת אחרי שמירה, שחזור גרסה ומחיקת עבודה');

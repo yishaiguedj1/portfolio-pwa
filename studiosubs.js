@@ -712,6 +712,8 @@ export function createSubsEditor(opts) {
     /* סבב 4: "רק בעיות" מבחוץ (ההצעה "לבדיקה שלך" כשהעורך כבר טעון) */
     showOnly(on) { if (only === !!on) return; only = !!on; sel = -1; paintBar(); paintList(); },
     selected: () => sel,
+    /* 21/10/2026: הכתובית הראשונה ברשימה כמו שהיא מוצגת עכשיו ("רק לבדיקה" / חיפוש) — הנגן נפתח עליה; ‎-1 = אין */
+    firstShown() { const k = visible()[0]; return k == null ? -1 : k; },
     /* מ7: שינויים מגיליון ה־AI — צעד ביטול אחד */
     applyCues(next) { return apply(next, null); },
     destroy() { rows.clear(); },
