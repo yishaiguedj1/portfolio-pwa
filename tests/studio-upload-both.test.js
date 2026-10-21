@@ -76,5 +76,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await r.p;
     ok(r.ev.join() === 'start,ph:video,videoDone' && !r.log.some((x) => x[0] === 'a'), 'רק הסרטון: ' + r.ev.join());
   }
+  {
+    // 21/10/2026 (עבודה אמיתית): הסרטון סיים לעלות כשהעבודה הייתה "נכשלה" (worker_lost) — השרתון רושם אותו, כדי שה"המשך" ימצא אותו
+    const api = require('fs').readFileSync(require('path').join(__dirname, '..', 'ibkr-proxy/api/studio.js'), 'utf8');
+    const m = api.match(/if \(op === 'file'\) \{[\s\S]{0,600}?error: 'state'/);
+    ok(m && /\['new', 'queued', 'running', 'failed'\]\.includes\(st\)/.test(m[0]), "op 'file' מקבל גם עבודה שנכשלה");
+  }
   console.log('\nכל ' + n + ' הבדיקות עברו ✓');
 })().catch((e) => { console.error(e); process.exit(1); });

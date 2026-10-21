@@ -2246,7 +2246,9 @@ async function handler(req, res, deps = {}) {
       return res.status(code).json(out);
     }
     if (op === 'file') {
-      if (job.kind !== 'tr' || st !== 'new' && st !== 'queued' && st !== 'running') return res.status(409).json({ ok: false, error: 'state' });
+      // 21/10/2026 (עבודה אמיתית): הסרטון סיים לעלות בדיוק כשהעבודה נכשלה (השרת התעדכן — worker_lost) — 'state' השאיר
+      // את הסרטון בלי רישום, וה"המשך" האוטומטי היה מחכה לו עד upload_timeout. עבודה שנכשלה עוד ממשיכה — רושמים
+      if (job.kind !== 'tr' || !['new', 'queued', 'running', 'failed'].includes(st)) return res.status(409).json({ ok: false, error: 'state' });
       const which = body.which === 'v' ? 'v' : body.which === 'a' ? 'a' : '';
       const fid = String(body.id || ''), folder = String(body.folder || ''), ext = body.ext === true && which === 'v';   // ext: סרטון שבחרת ב־Drive (Picker) — נשאר במקומו
       if (!which || !S.FILE_ID_RE.test(fid) || !S.FILE_ID_RE.test(folder) || (job.folder && job.folder !== folder)) return res.status(400).json({ ok: false, error: 'bad_params' });
