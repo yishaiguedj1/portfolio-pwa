@@ -2288,6 +2288,7 @@ function heroState(rec, run, ph) {
     : T('studioReadyRange', { a: fmtClock(now + m.left * 1000), b: fmtClock(now + m.left90 * 1000) });
   return { pct: m.pct, big: T('studioLeftBig', { t: fmtLeft(Math.max(0, (end - now) / 1000)) }), sub };
 }
+const SRV_DIED = new Set(['worker_lost', 'worker_crash', 'worker_oom']);
 /* מה קורה עכשיו — משפט אחד */
 function nowLine(rec, run, ph) {
   if (ph === 'wait') return run.wait === 'wifi' ? T('studioWaitWifi') : T('studioWaitNet');
@@ -2304,7 +2305,8 @@ function nowLine(rec, run, ph) {
   if (ph === 'queued') return rec.srv && rec.srv.vw ? T('studioNowParked') : rec.srv && rec.srv.eng === 'api' ? T('studioNowQueuedApi') : T('studioNowQueued');
   if (ph === 'running') return (rec.srv && rec.srv.prog && rec.srv.prog.msg) || T('studioNowRunning');
   if (ph === 'done') return T('studioNowDone');
-  if (ph === 'failed') return recovering(rec) ? T('studioRecLine') : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
+  // 21/10/2026: נפילה של השרת (לרוב זיכרון ביישור) הוצגה כ"הקשר עם האחסון או עם הרשת נקטע" — מטעה; לכשל כזה ההודעה שלו
+  if (ph === 'failed') return recovering(rec) ? (SRV_DIED.has(rec.srv && rec.srv.err) ? errText(rec.srv.err) : T('studioRecLine')) : cardMsg(rec, ph) || errText(rec.srv && rec.srv.err);
   if (ph === 'stuck') return T('studioNowStuck');
   return rec.srv && rec.srv.err === 'halted' ? T('studioErrHalted') : T('studioNowCancelled');
 }
