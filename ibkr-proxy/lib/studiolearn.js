@@ -150,8 +150,14 @@ function useRows(use) {
 const usdSum = (rows) => r4(rows.reduce((s, r) => s + (isNum(r.usd) ? r.usd : 0), 0));
 const priced = (rows) => rows.length > 0 && rows.every((r) => isNum(r.usd));
 function stageSecs(prog) {
+  // 21/10/2026: כולל את הזמן שנצבר בשלב לפני "המשך" (a) — כמו stgSpent ב־lib/studio.js
   const out = {}, stg = (prog && prog.stg) || {};
-  for (const k of STAGES) { const x = stg[k]; if (x && x.s > 0 && x.e > x.s) out[k] = Math.round((x.e - x.s) / 1000); }
+  for (const k of STAGES) {
+    const x = stg[k];
+    if (!x) continue;
+    const ms = (isNum(x.a) ? x.a : 0) + (x.s > 0 && x.e > x.s ? x.e - x.s : 0);
+    if (ms > 0) out[k] = Math.round(ms / 1000);
+  }
   return out;
 }
 function edlInfo(e, dur) {
@@ -429,6 +435,15 @@ function verMetric(k, dir, tol, A, B, seed) {
   const v = lo > 0 && hi > t * 0.5 ? 'up' : hi < 0 && lo < -t * 0.5 ? 'dn' : lo >= -t && hi <= t ? 'eq' : '?';
   return Object.assign(out, { d: rnd(x.d, 4), lo: rnd(x.lo, 4), hi: rnd(x.hi, 4), v });
 }
+const stratOf = (r) => (r.mode || '?') + '|' + (r.eng || '?');
+function verStratum(la, lb) {
+  const ca = {}, cb = {};
+  for (const r of la) ca[stratOf(r)] = (ca[stratOf(r)] || 0) + 1;
+  for (const r of lb) cb[stratOf(r)] = (cb[stratOf(r)] || 0) + 1;
+  let best = '', bv = 0;
+  for (const k of Object.keys(ca)) { const v = Math.min(ca[k], cb[k] || 0); if (v > bv || (v === bv && v > 0 && ca[k] > (ca[best] || 0))) { best = k; bv = v; } }
+  return best || null;              // אין שכבה משותפת — null = "few" (לא משווים תפוחים לתפוזים)
+}
 function versionsView(all) {
   const tr = all.filter((r) => r.k === 'tr' && !r.gold && (r.st === 'done' || r.st === 'failed'));
   const out = [];
@@ -438,13 +453,16 @@ function versionsView(all) {
     const vs = Object.entries(by).map(([g, l]) => ({ g, l: l.sort((x, y) => x.at - y.at), at: Math.min(...l.map((r) => r.at || 0)) })).sort((x, y) => y.at - x.at);
     if (vs.length < 2) continue;
     const [A, B] = vs, seed = dim + '|' + A.g + '|' + B.g;
-    const la = A.l.slice(-VER_LAST), lb = B.l.slice(-VER_LAST);
+    // 21/10/2026 (ניתוח הייצור): השוואה בין גרסאות רק באותו מצב ואותו מנוע — אחרת "גרסה גרועה יותר" = מודל זול יותר
+    // (ההנחיות החדשות רצו על Haiku, הקודמות על Sonnet/Opus). השכבה = זו שבה יש הכי הרבה עבודות בשני הצדדים (min)
+    const sk = verStratum(A.l.slice(-VER_LAST * 3), B.l.slice(-VER_LAST * 3));
+    const la = sk ? A.l.filter((r) => stratOf(r) === sk).slice(-VER_LAST) : [], lb = sk ? B.l.filter((r) => stratOf(r) === sk).slice(-VER_LAST) : [];
     const m = VER_MET.map(([k, dir, tol]) => verMetric(k, dir, tol, la, lb, seed)).filter((x) => x.na || x.nb);
     const core = m.filter((x) => VER_MET.find((y) => y[0] === x.k)[3]);
     const v = la.length < VER_MIN || lb.length < VER_MIN ? 'few'
       : core.some((x) => x.v === 'dn') ? 'dn' : m.some((x) => x.v === 'up') && !m.some((x) => x.v === 'dn') ? 'up'
       : m.some((x) => x.v === 'dn') ? 'mix' : m.length && m.every((x) => x.v === 'eq' || x.v === 'few') && m.some((x) => x.v === 'eq') ? 'eq' : '?';
-    out.push({ d: dim, a: A.g, b: B.g, at: A.at, na: la.length, nb: lb.length, v, m });
+    out.push({ d: dim, a: A.g, b: B.g, at: A.at, na: la.length, nb: lb.length, v, m, sk: sk || '' });
   }
   return out.sort((x, y) => y.at - x.at);
 }
@@ -563,7 +581,10 @@ function learnView(records, now) {
   const rs = all.filter((r) => r.at >= now - 90 * DAY);
   const cur = all.filter((r) => r.at >= now - WIN), prev = all.filter((r) => r.at >= now - 2 * WIN && r.at < now - WIN);
   const k30 = kpis(cur), kp = kpis(prev);
-  const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done'));
+  // 21/10/2026: זמן לפי שלב — רק עבודות "נקיות" (הפעלה אחת, המתנה למשתמש מתחת ל־20% מהריצה). עבודה של 5 דק׳ שחיכתה
+  // 8 שעות לתשובה רשמה את כל ההמתנה על "תמלול", והמסקנה slow_stage הצביעה על השלב הלא נכון
+  const clean = (r) => (r.fires || 0) <= 1 && !(r.t && r.t.run > 0 && (r.t.pz || 0) / r.t.run > 0.2);
+  const roles = costRoles(rs), stages = stageTime(rs.filter((r) => r.k === 'tr' && r.st === 'done' && clean(r)));
   const fails = failures(rs), jc = judgeCodes(rs), qf = qualityFails(rs), modes = modeTable(rs), mx = mxView(rs), ver = versionsView(all);
   const tk = rs.map(tokOf);
   return {

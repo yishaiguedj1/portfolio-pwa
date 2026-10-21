@@ -1373,7 +1373,8 @@ page('labVer', { tab: 'imp', parent: 'lab', title: () => t('admLabVer'), render(
   const vs = v.ver || [];
   if (!vs.length) { p.append(list(row({ c: 'gray', ic: '—', t: t('admLabVerNone') })), h('p', 'adm-foot', t('admVerFoot'))); return; }
   for (const x of vs) {
-    p.append(grp(verDim(x.d) + ' · ' + verV(x.v)[0]), h('p', 'adm-dt', fmt(t('admVerDt'), { d: day(x.at), a: x.na, b: x.nb })));
+    // 21/10/2026: באיזו שכבה הושוו (מצב · מנוע) — השוואה רק בתוך אותו מצב (studiolearn verStratum)
+    p.append(grp(verDim(x.d) + ' · ' + verV(x.v)[0]), h('p', 'adm-dt', fmt(t('admVerDt'), { d: day(x.at), a: x.na, b: x.nb }) + (x.sk ? ' · ' + x.sk.replace('|', ' · ') : '')));
     p.append(list(...x.m.map((m) => { const f = VER_FMT[m.k] || numTxt, [mt, mc] = verV(m.v);
       return row({ c: mc, ic: m.v === 'up' ? '↑' : m.v === 'dn' ? '↓' : m.v === 'eq' ? '=' : '·', t: verMetName(m.k),
         s: fmt(t('admVerAb'), { a: f(m.a), b: f(m.b) }), v: mt }); })));

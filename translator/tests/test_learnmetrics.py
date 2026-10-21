@@ -62,12 +62,27 @@ class JobMetrics(unittest.TestCase):
         self.assertEqual((cs['nm.n'], cs['nm.var']), (1, 1))      # מייקל / מיקל
         self.assertEqual((cs['gl.n'], cs['gl.miss'], cs['gl.mix']), (2, 0, 1))
 
+    def test_glossary_prefixes_and_neighbors(self):
+        """21/10/2026: "הפד" נשמר גם ב"בפד"/"ולפד", ומונח שעבר לכתובית השכנה — לא נחשבים פספוס"""
+        cu = [row(1, 'at the Fed meeting', 'בפגישה בפד'), row(2, 'and the Fed', 'וכך'), row(3, 'said that', 'אמר שהפד מסכים'),
+              row(4, 'the Fed again', 'הבנק שוב')]
+        cs = L.job_metrics({'cu': cu, 'gl': ['Fed\tהפד']})['cs']
+        self.assertEqual((cs['gl.n'], cs['gl.miss']), (3, 0))
+
     def test_omissions(self):
         cu = [row(1, 'we sold 1,000 shares in 2020', 'מכרנו 1000 מניות ב־2021'), row(2, 'this is a long sentence with many words', ''),
               row(3, 'this is a long sentence with many words in it', 'כן'), row(4, 'the 1990s were good', 'שנות ה־90 היו טובות')]
         om = L.job_metrics({'cu': cu})['om']
         self.assertEqual((om['om.e'], om['om.s']), (1, 1))
         self.assertEqual((om['num.n'], om['num.miss']), (2, 1))   # 2020 נעלם; 1990s לא נבדק
+
+    def test_numbers_hebrew_forms(self):
+        """21/10/2026: מספר קטן כמילה, "X אלף", ומספר שעבר לכתובית השכנה — לא נחשבים כנעלמים"""
+        cu = [row(1, 'we have 3 kids and', 'יש לנו שלושה ילדים'), row(2, 'raised 100,000 dollars', 'גייסנו 100 אלף דולר'),
+              row(3, 'in the year', 'בשנת 2019'), row(4, 'twenty 2019 was hard', 'הייתה שנה קשה'),
+              row(5, 'and 250 people', 'ומאה אנשים')]
+        om = L.job_metrics({'cu': cu})['om']
+        self.assertEqual((om['num.n'], om['num.miss']), (4, 1))   # רק 250 → "מאה" באמת שגוי
 
     def test_numbers_only(self):
         cu = [row(1, 'Secret words here', 'מילים סודיות כאן', f='מילים סודיות')]
