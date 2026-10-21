@@ -1301,6 +1301,16 @@ function stubFetch(text, status = 200) {
     ok(rep.prog.stg.tr.s === 1000 && rep.prog.stg.tr.e === 5000 && rep.prog.stg.al.s === 5000 && rep.prog.p === 1 && rep.prog.st === 'al' && !/\u0007/.test(rep.prog.msg || 'כותבים כל מילה'), 'סטודיו: דיווח — שלב חדש סוגר את הקודם עם זמן אמיתי, אחוז מוגבל ל־0–1, תווי בקרה מנוקים');
     const fin = S.applyReport({ prog: rep.prog }, { fail: true, err: 'Bad Code!' }, 9000);
     ok(fin.state === 'failed' && fin.err === 'worker' && fin.prog.stg.al.e === 9000 && S.applyReport({}, { st: 'zz' }, 1).prog.st === '', 'סטודיו: כשל — קוד שגיאה לא תקין הופך ל־worker; שלב לא מוכר נדחה');
+    {   // 21/10/2026: "המשך" מנקודת שמירה מוקדמת — השלבים שאחרי השלב שחזר נמחקים (לא נשארים ✓)
+      const back = S.applyReport({ prog: fin.prog }, { st: 'tr', p: 0 }, 12000);
+      ok(back.prog.st === 'tr' && back.prog.stg.tr.s === 12000 && back.prog.stg.tr.a === 4000 && back.prog.stg.al.e === 0 && back.prog.stg.al.s === 0 && back.prog.stg.al.a === 4000,
+        'סטודיו: חזרה לשלב קודם — השלבים שאחריו לא ✓, והזמן שכבר הושקע בהם נצבר (a)');
+      const al2 = S.applyReport({ prog: back.prog }, { st: 'al', p: 0 }, 20000);
+      ok(al2.prog.stg.al.s === 20000 && al2.prog.stg.al.a === 4000 && al2.prog.stg.tr.e === 20000, 'סטודיו: השלב חוזר — הזמן הקודם נשמר');
+      const re = S.applyReport({ prog: S.applyReport({ prog: al2.prog }, { fail: true, err: 'net' }, 25000).prog }, { st: 'al', p: 0.1 }, 90000);
+      ok(re.prog.stg.al.s === 90000 && re.prog.stg.al.a === 9000, 'סטודיו: "המשך" באותו שלב — מהרגע הזה, בלי הזמן שבין הכשל להמשך');
+      ok(S.isTransient('worker_oom', ['drive:dl_retry']) === false, 'סטודיו: worker_oom לא "חולף" גם כשהתראת אחסון ישנה פתוחה');
+    }
 
     // הרשאות
     let r = await run({ op: 'status' });

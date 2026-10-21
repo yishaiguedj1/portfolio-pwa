@@ -40,6 +40,12 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(rvRow(150, 0.9).pv === 0.9, 'הפס = מה שדווח כשהוא מקדים את הזחילה');
   const fin = N.progressModel({ state: 'done', prog: {} }, est, { done: true }, now);
   ok(fin.pct === 1 && fin.left === 0, 'סיום — 100%, 0');
+  {   // 21/10/2026: אחרי "המשך" — שלב מהסשן הקודם שאחרי השלב הנוכחי לא מסומן ✓
+    const m = N.progressModel({ state: 'running', prog: { st: 'tr', p: 0.2, stg: { tr: { s: now - 60e3, e: 0 }, al: { s: now - 2e6, e: now - 1e6 } } } }, est, { done: true, took: 60 }, now);
+    ok(m.stages.find((s) => s.id === 'al').state !== 'done' && m.stages.find((s) => s.id === 'tr').state === 'now', 'אחרי "המשך": היישור הישן לא ✓ בזמן שהתמליל רץ שוב');
+    const m2 = N.progressModel({ state: 'running', prog: { st: 'tl', p: 0.2, stg: { tr: { s: now - 9e5, e: now - 8e5, a: 6e4 }, al: { s: 0, e: 0, a: 3e5 }, tl: { s: now - 6e4, e: 0 } } } }, est, { done: true, took: 60 }, now);
+    ok(m2.stages.find((s) => s.id === 'tr').took === 160, 'שלב שנעשה בשני סשנים — הזמן של שניהם (סכום השלבים = הזמן שעבר)');
+  }
 
   /* ---------- 3. לא חוזר אחורה ---------- */
   const memo = new Map();

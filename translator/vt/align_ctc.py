@@ -170,7 +170,7 @@ def _plan(words: list[dict], key_s: str, key_e: str, max_s: float) -> list[tuple
     return out
 
 
-def ctc_align(words: list[dict], wav_path: str) -> dict:
+def ctc_align(words: list[dict], wav_path: str, cache: str | None = None) -> dict:
     """מוסיף לכל מילה s_ctc/e_ctc. חלונות לפי הזמנים הקיימים + שוליים וכוכבית בקצוות."""
     import soundfile as sf
     audio, sr = sf.read(wav_path, dtype="float32")
@@ -182,17 +182,24 @@ def ctc_align(words: list[dict], wav_path: str) -> dict:
     for w in words:
         w["_lo"] = min(x for x in (w["s"], w.get("s_asr", w["s"])) if x is not None)
         w["_hi"] = max(x for x in (w["e"], w.get("e_asr", w["e"])) if x is not None)
-    al = CtcAligner()
     t0 = time.time()
     plan = _plan(words, "_lo", "_hi", WIN_S)
+    from .align import PartCache                  # 21/10/2026: המשך מהחלון שנעצר בו (כמו ב־Qwen)
+    pc = PartCache(cache, "c", [[w["w"], w["_lo"], w["_hi"]] for w in words] + [list(p) for p in plan])
+    al = CtcAligner() if len(pc.data) < len(plan) else None
     ok = 0
     for ci, (i0, i1) in enumerate(plan):
         a = max(0.0, words[i0]["_lo"] - MARGIN_S)
         b = min(total, words[i1 - 1]["_hi"] + MARGIN_S)
         if i0 > 0:
             a = max(a, min(words[i0 - 1]["_hi"], words[i0]["_lo"]) - 0.05)
-        seg = audio[int(a * SR):int(b * SR)]
-        res = al.align(seg, [spoken(w["w"]) for w in words[i0:i1]])
+        res = pc.get(ci)
+        if res is None or len(res) != i1 - i0:
+            if al is None:
+                al = CtcAligner()
+            seg = audio[int(a * SR):int(b * SR)]
+            res = al.align(seg, [spoken(w["w"]) for w in words[i0:i1]])
+            pc.put(ci, res, force=ci + 1 == len(plan))
         for k, r in enumerate(res):
             w = words[i0 + k]
             if r is None:

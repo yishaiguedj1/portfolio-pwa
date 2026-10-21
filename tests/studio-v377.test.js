@@ -45,7 +45,15 @@ const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   ok(st.normValue({ m: 'evil' }) === null && !st.normValue({ m: '2026-10', bn: { s: 'evil', sh: 1 } }).bn, 'normValue: חודש / שלב לא מוכר — נזרק');
   ok(st.chainFor('value').map((x) => x.v).join() === 'home,settings,tower,towerx,value', 'רענון בדף הערך — חוזר דרך המגדל');
   const sj = read('studio.js');
-  ok(/if \(rec\.srv && rec\.srv\.sla\) p\.append\(\.\.\.slaCard\(rec\.srv\.sla\)\)/.test(sj) && /h\('em', 'm50'\), h\('em', 'm75'\)/.test(sj), 'דף העבודה: כרטיס יעדים עם סימונים ב־50%/75%');
+  ok(/if \(rec\.srv && rec\.srv\.sla\) p\.append\(\.\.\.slaCard\(rec\)\)/.test(sj) && /h\('em', 'm50'\), h\('em', 'm75'\)/.test(sj), 'דף העבודה: כרטיס יעדים עם סימונים ב־50%/75%');
+  // 21/10/2026: הזמן שעבר רץ בין עדכונים — לא כשהשעון עוצר / העבודה לא רצה; עד 10 דק׳ קדימה
+  {
+    const s = { t: { tg: 600, el: 60, f: 0.1, lv: 'ok', paused: false }, at: 1000000 };
+    ok(st.slaLiveT(s, 1000000 + 30e3, true).el === 90 && Math.abs(st.slaLiveT(s, 1030000, true).f - 0.15) < 1e-9, 'slaLiveT: רץ בין עדכונים');
+    ok(st.slaLiveT(s, 1030000, false).el === 60 && st.slaLiveT(Object.assign({}, s, { t: Object.assign({}, s.t, { paused: true }) }), 1030000, true).el === 60, 'slaLiveT: עבודה שלא רצה / שעון עוצר — לא זז');
+    ok(st.slaLiveT(s, 1000000 + 3600e3, true).el === 660, 'slaLiveT: לכל היותר 10 דק׳ קדימה מהעדכון האחרון');
+    ok(/live\(tRow,/.test(sj), 'כרטיס היעדים מתעדכן במקום (live)');
+  }
   ok(/const vr = valueRow\(\); if \(vr\) ag\.push\(vr\);/.test(sj) && /function pageValue\(p\)/.test(sj) && /else if \(ui\.view === 'value'\) pageValue\(p\)/.test(sj), 'מגדל: ערך ועלות → דף');
   ok(/net\.api\('price', \{ hp \}\)/.test(sj) && (sj.match(/setPrice\(/g) || []).length === 2, 'המחיר נקבע במקום אחד (דף הערך)');
   ok(/case 'claude:sla_time'/.test(sj) && /case 'claude:sla_cost'/.test(sj), 'תוויות להתראות ההפרה');
