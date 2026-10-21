@@ -2208,7 +2208,7 @@ async function handler(req, res, deps = {}) {
       const sbc = await sysBlock(deps, { kind: 'tr', spec }, now, false, isAdmin(user));   // 15/10/2026: לפני שמעלים כמה GB
       if (sbc) return res.status(409).json(Object.assign({ ok: false }, sbc));
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state)).slice(S.MAX_STORED - 1)) { await learnSave(deps, old, now); await delDoc(deps, 'studioJobs', old.id); }
       const job = { id: S.newJobId(), uid, kind: 'tr', state: 'new', created: now, updated: now, spec };
       if (apiJob(job) && R2.config().ok) job.folder = SR.folderFor(job.id);   // ת4: עבודה במצב שרת — הקבצים ב־R2 (Routine נשאר ב־Drive)
@@ -2252,7 +2252,7 @@ async function handler(req, res, deps = {}) {
       const src = (modes.length ? modes.map((m) => [gsrc[0], m]) : gsrc.map((j) => [j, null])).filter((x) => x[0]).slice(0, S.GOLD_MAX);
       if (!src.length) return res.status(400).json({ ok: false, error: 'no_gold' });
       if (all.some((j) => j.gs && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'gold_busy' });   // הרצה קודמת עוד פתוחה
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length + src.length > S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });   // הסקירה: לא לעקוף את MAX_ACTIVE
       for (const old of all.filter((j) => S.FINAL.includes(S.effState(j, now).state) && !j.gd).slice(S.MAX_STORED - src.length)) await delDoc(deps, 'studioJobs', old.id);
       const made = [];
       for (const [j, m] of src) { const c = S.goldClone(j, S.newJobId(), uid, now, m); await patchJob(deps, c.id, c); made.push(view(c)); }
@@ -2407,7 +2407,7 @@ async function handler(req, res, deps = {}) {
       if ((await readStats(deps, uid)).halt) return res.status(409).json({ ok: false, error: 'halted' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.some((j) => j.kind === 'rr' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'rr_busy' });
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       const prv = body.prv === true;                 // סבב 10: צריבה לבדיקה מחליפה רק בדיקה קודמת (לא את ההפקה המלאה), ולהפך
       for (const old of all.filter((j) => j.kind === 'rr' && j.rp === job.id && !!(j.spec && j.spec.prv) === prv && S.FINAL.includes(S.effState(j, now).state))) await delDoc(deps, 'studioJobs', old.id);   // רק ההפקה האחרונה נשמרת
       const r = S.rrJob(job, body, S.newJobId(), uid, now);
@@ -2422,7 +2422,7 @@ async function handler(req, res, deps = {}) {
       if (!S.FILE_ID_RE.test(q)) return res.status(400).json({ ok: false, error: 'bad_params' });
       const all = (await listJobs(deps, uid)).filter((j) => j.kind !== 'ping');
       if (all.some((j) => j.kind === 'ai' && j.rp === job.id && S.ACTIVE.includes(S.effState(j, now).state))) return res.status(409).json({ ok: false, error: 'ai_busy' });
-      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.MAX_ACTIVE) return res.status(409).json({ ok: false, error: 'too_many' });
+      if (all.filter((j) => S.ACTIVE.includes(S.effState(j, now).state)).length >= S.maxActive(isAdmin(user))) return res.status(409).json({ ok: false, error: 'too_many' });
       const fq = await driveFileInFolder(deps, uid, job.folder, q);
       if (fq && fq.error) return res.status(200).json({ ok: false, error: fq.error });
       if (!fq || !(fq.size > 0 && fq.size <= S.AI_Q_MAX)) return res.status(400).json({ ok: false, error: 'file_bad' });

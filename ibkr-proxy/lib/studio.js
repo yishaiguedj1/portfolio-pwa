@@ -50,6 +50,10 @@ const OUT_KINDS = ['compact', 'same', 'mkv', 'srt', 'cues', 'vtt', 'ass', 'en', 
 const OUT_MAX = 10;
 const MAX_SIZE = 64 * 1024 ** 3;            // 64GB — הרבה מעל כל ראיון (Drive מקבל עד 5TB)
 const MAX_ACTIVE = 5;                       // עבודות פתוחות בבת אחת למשתמש
+// 21/10/2026 (בקשת המשתמש — מבחני עומס של 2–4 סרטונים ארוכים במקביל): למנהל אין מגבלה מעשית. המשאבים ממילא לא לפי משתמש:
+// השרת לוקח עבודות מהתור לפי הסדר, לפי הליבות והזיכרון שלו — עבודות של משתמש אחד = אותו דבר כמו של כמה משתמשים
+const MAX_ACTIVE_ADMIN = 50;
+const maxActive = (admin) => (admin ? MAX_ACTIVE_ADMIN : MAX_ACTIVE);
 const MAX_STORED = 100;                     // מעבר לזה — הישנות שהסתיימו נמחקות
 const FIRE_HOUR = 20;                       // הפעלות בשעה למשתמש (ל־Routine מותר 30 — שומרים מרווח לתיקונים ול"הפעל עכשיו")
 const TEST_GAP = 60e3;                      // בדיקת חיבור — לכל היותר פעם בדקה
@@ -1121,7 +1125,7 @@ function fromFields(f) {
   return o;
 }
 
-module.exports = { UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
+module.exports = { MAX_ACTIVE_ADMIN, maxActive, UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, normCpq, cpView, cpWorker, CP_ROLES, CP_N_MAX, CP_FILE_MAX,
   MODES, LEGACY_MODES, modeNow, PUBLIC_MODES, DEFAULT_MODE, modeOk, LANG_READY, langReady,
   SHADOW_N, SH_DIFF, RED_X, thStep, thView, LOOP_N, LOOP_WIN, loopRecent,
   GOLD_MAX, GOLD_REF_MAX, normGd, normGq, goldSources, goldClone, smokeJob, SMOKE_S, VH_MAX, CUES_MAX, RR_OUTS, normEdl, edlPre, AI_Q_MAX, aiJob, cuesSwap, rrSpec, rrJob,
