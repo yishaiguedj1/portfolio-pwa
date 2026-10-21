@@ -959,6 +959,30 @@ async function queueApi(deps, uid, job, now) {
 const capWhy = (job, st, now) => (S.jobCap(job.spec, 0, USER_MONTH(), S.usdOf(job.use0)) ? 'month_cap' : 'budget_cap');
 const apiJob = (job) => (job.kind === 'tr' || job.kind === 'rr' || job.kind === 'ai') && job.spec && job.spec.eng === 'api';   // מ2 · מ7: הפקה מחדש וגיליון ה־AI — באותו מנוע כמו המקור   // מ2: הפקה מחדש — באותו מנוע כמו המקור
 
+/* 21/10/2026 (סבב הייעול, 9 — "חלון עדכון"): עבודה שנלקחה בדיוק כשהעובד מתעדכן נהרגה (worker_lost פעמיים). אחרי קידום
+   של תמונת עובד ל־prod (ריצת worker-image מוצלחת על main — מה־API הציבורי של GitHub, מטמון 2 דק׳), עובד שעוד בגרסה
+   הקודמת (hb.v ≠ ה־SHA החדש) לא מקבל עבודה חדשה UPD_WIN — snb-update בודק כל 15 דק׳. אחרי החלון — עבודה כרגיל גם אם
+   העדכון לא קרה (לא תוקעים את התור). כל תקלה בבדיקה = אין חלון */
+const UPD_WIN = 20 * 60e3, UPD_TTL = 2 * 60e3;
+let _upd = { at: 0, sha: '', t: 0 };
+async function latestWorker(deps, now) {
+  if (deps.workerRelease) return deps.workerRelease(now);
+  if (now - _upd.at < UPD_TTL) return _upd;
+  _upd = { at: now, sha: _upd.sha, t: _upd.t };
+  try {
+    const r = await (deps.fetch || fetch)('https://api.github.com/repos/yishaiguedj1/portfolio-pwa/actions/workflows/worker-image.yml/runs?branch=main&status=success&per_page=1',
+      { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'snb-studio' }, signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined });
+    const run = r.status === 200 ? ((await r.json()).workflow_runs || [])[0] : null;
+    if (run && /^[0-9a-f]{40}$/.test(String(run.head_sha)) && Date.parse(run.updated_at) > 0) _upd = { at: now, sha: run.head_sha, t: Date.parse(run.updated_at) };
+  } catch (e) {}
+  return _upd;
+}
+async function updatePending(deps, ver, now) {
+  if (!/^[0-9a-f]{12}$/.test(String(ver || ''))) return false;      // dev / לא ידוע — בלי חלון
+  const w = await latestWorker(deps, now);
+  return !!(w && w.sha && w.t && now - w.t >= 0 && now - w.t < UPD_WIN && !w.sha.startsWith(ver));
+}
+
 async function server(req, res, body, deps) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -990,6 +1014,10 @@ async function server(req, res, body, deps) {
     if (body.op === 'beat' || srv.paused) {
       await patchDoc(deps, 'studioServers', p.sid, seen);
       return res.status(200).json({ ok: true, job: null, paused: srv.paused === true, now });
+    }
+    if (await updatePending(deps, hb.v, now).catch(() => false)) {
+      await patchDoc(deps, 'studioServers', p.sid, seen);
+      return res.status(200).json({ ok: true, job: null, upd: true, now });   // חלון עדכון — העובד מתחלף בדקות הקרובות
     }
     // 20/10/2026: הסוכן עלה (boot) — עבודה שהשרת הזה לקח ועוד "רצה" נקטעה בהפעלה מחדש. עד היום רק הסוכן דיווח עליה
     // (report_lost), אבל מצב העבודה שלו ב־/state (tmpfs) נמחק בהפעלה מחדש — והעבודה "רצה" שעתיים בלי שאף אחד עובד עליה
@@ -1035,7 +1063,7 @@ async function lostOnBoot(deps, sid, now) {
     if (!apiJob(job) || S.effState(job, now).state !== 'running') continue;
     const up = S.applyReport(job, { fail: true, err: 'worker_lost', msg: 'השרת הופעל מחדש באמצע העבודה' }, now);
     up.kh = ''; up.kx = 0;
-    if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.RECOVER_WAIT;
+    if (job.kind === 'tr' && (job.ar || 0) < S.AUTO_RESUME_MAX) up.rw = now + S.recoverWait(job, now);
     if (job.kind === 'tr') up.eh = (Array.isArray(job.eh) ? job.eh : []).concat([{ e: 'worker_lost', s: (up.prog && up.prog.st) || '', at: now }]).slice(-10);
     if (await patchIf(deps, 'studioJobs', job.id, up, job._ut).catch(() => false)) n++;
   }
@@ -1517,7 +1545,7 @@ async function worker(req, res, body, deps) {
       // v368: תקלה חולפת (Drive / רשת) — חלון התאוששות, ואז "המשך" אוטומטי אחד
       let kinds = [];
       try { kinds = O.opsView(((await readDoc(deps, 'studioOps', job.uid)) || {}).al, now).open.filter((a) => a.j === id).map((a) => a.c + ':' + a.k); } catch (e) {}
-      if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.RECOVER_WAIT;
+      if (S.isTransient(up.err, kinds.concat(O.normEvents(body.ev).filter((e) => !e.ok).map((e) => e.c + ':' + e.k)))) up.rw = now + S.recoverWait(job, now);
     }
     if (up.state === 'failed' && job.kind === 'tr') {
       // 14/10/2026: היסטוריית הכשלים של העבודה — גם עבודה שהצליחה אחרי "המשך" מלמדת על מה שנכשל בדרך (למאגר הלמידה)
@@ -2462,4 +2490,5 @@ async function handler(req, res, deps = {}) {
 
 module.exports = (req, res) => handler(req, res);
 module.exports._handler = handler;
-module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; };
+module.exports._reset = () => { hits.clear(); cfgC = { at: 0, v: null }; lastLw = 0; lastGc = 0; _upd = { at: 0, sha: '', t: 0 }; };
+module.exports._updatePending = updatePending;

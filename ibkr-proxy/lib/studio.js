@@ -61,6 +61,15 @@ const STALE_MS = 2 * 3600e3;                // "רצה" בלי שום דיווח
 /* v368: המתנה לפני כישלון — תקלה חולפת (Drive / רשת) מקבלת חלון התאוששות, ואז "המשך" אוטומטי אחד מנקודת השמירה.
    רק אז "נכשלה" באמת. ההפעלה נספרת במכסה כמו כל הפעלה — לכן פעם אחת לעבודה (החלטה 1 בתוכנית) */
 const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
+/* 21/10/2026 (סבב הייעול, 12): נפילה בדקות הראשונות אחרי הלקיחה = כמעט תמיד תשתית (עדכון של העובד בדיוק בלקיחה, רשת) —
+   ממשיכים אחרי 15 שנ׳ ולא אחרי 3 דק׳. "המשך" אוטומטי עדיין פעם אחת לעבודה (AUTO_RESUME_MAX) */
+const EARLY_FAIL_MS = 4 * 60e3, EARLY_WAIT = 15e3;
+function recoverWait(job, now) {
+  const t0 = job && (job.claimed || job.c0);
+  if (!t0 || now - t0 < 0 || now - t0 >= EARLY_FAIL_MS) return RECOVER_WAIT;
+  // נשמרה נקודה בהפעלה הזו — העבודה כבר התקדמה; זו לא תקלת תשתית של הרגע הראשון
+  return (Array.isArray(job.ck) ? job.ck : []).some((c) => c && c.at >= t0) ? RECOVER_WAIT : EARLY_WAIT;
+}
 const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost'];   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
@@ -1108,7 +1117,7 @@ module.exports = { UTL_KEYS, normUtl, crashWhere, glKey, glParse, glFormat, GL_M
   RULE_BUDGET_MAX, normRules, modeOver, usdOf, GATE_KINDS, GATE_MAX, GATE_WAIT, newGateId, normGate,
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
-  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
+  CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, EARLY_FAIL_MS, EARLY_WAIT, recoverWait, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
   effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,

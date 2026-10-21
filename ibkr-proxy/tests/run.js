@@ -2902,6 +2902,7 @@ function stubFetch(text, status = 200) {
     let Krc = keyOf(fires[fires.length - 1]);
     await wrk({ op: 'claim', job: JRC, key: Krc });
     await wrk({ op: 'report', job: JRC, key: Krc, st: 'tr', p: 0.4, ck: { s: 'asr', id: 'ck01234567890', size: 99 } });
+    now += 5 * 60e3;   // 21/10/2026: נפילה באמצע העבודה (לא בדקות הראשונות — שם ממשיכים אחרי 15 שנ׳, tests/efficiency-1021)
     await wrk({ op: 'report', job: JRC, key: Krc, fail: true, err: 'worker', ev: [{ c: 'drive', k: 'dl_fail' }] });
     rr = await run({ op: 'job', idToken: OWNER, job: JRC });
     ok(rr.payload.job.state === 'failed' && rr.payload.job.rec === now + S.RECOVER_WAIT, 'סטודיו: תקלה חולפת (Drive) — "נכשלה" עם חלון התאוששות: ממשיכה לבד בעוד 3 דק׳');
