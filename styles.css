@@ -183,7 +183,7 @@ a { color: var(--link); }
 .appbar-row {
   display: grid; direction: rtl;
   grid-template-columns: var(--ib) 8px var(--ib) 1fr auto 1fr var(--ib) 8px var(--ib);
-  grid-template-rows: var(--ib) auto 1fr auto;
+  grid-template-rows: var(--ib) auto 1fr;
   column-gap: 0; row-gap: 10px; align-items: start;
   /* 20/10/2026: מרווח קבוע רק בין שני כפתורים צמודים (עמודות 2 ו־8) — ליד הלוגו המרווח הוא ה־1fr. עם column-gap של 8px
      בין כל העמודות הרשת דרשה 352px, ובטלפון של 375 היא חרגה שמאלה: ☰ ובועת השער נצמדו לקצה בזמן שהגלובוס נשאר ב־16px */
@@ -194,10 +194,27 @@ html[dir="ltr"] .appbar-row > * { --dir: ltr; }
 .appbar-actions > .lang-wrap { grid-column: 1; grid-row: 1; }
 .appbar-actions > .icon-btn { grid-column: 3; grid-row: 1; }
 .appbar-actions > .menu-wrap { grid-column: 9; grid-row: 1; }
-.appbar-left > .appbar-sub { grid-column: 1 / -1; grid-row: 4; justify-self: center; margin-top: -2px; position: relative; z-index: 1; }   /* 20/10/2026 (בקשת המשתמש): מתחת ללוגו, לא עליו (היה -20px) */
-.appbar-left > .appbar-sub[hidden] { display: none; }
-/* 20/10/2026 (בקשת המשתמש): מתחת לגלובוס ול־₪ — בצד הימני, באותו גובה ובאותו מרחק מהקצה */
-.appbar-left > .fx-pill { grid-column: 1 / 5; grid-row: 2; justify-self: start; }
+/* 20/10/2026 (בקשת המשתמש, 2.16.0): הקפסולה של המצב (השוק ב־Invest, הגיבוי ב־Academy, החיבור ב־Studio) — מתחת לגלובוס
+   ולכפתור השני, בצד הימני; בועת השער (רק ב־Invest) — מתחת ל־☰ בצד השמאלי. שתיהן באותו גודל בדיוק: ברוחב של שני
+   הכפתורים שמעליהן ובגובה של כפתור, וכל אחת מיושרת לקצה החיצוני שלהם */
+.appbar-left > .appbar-sub { grid-column: 1 / 5; grid-row: 2; justify-self: start; position: relative; z-index: 1; }
+.appbar .appbar-left > .appbar-sub[hidden] { display: none; }
+.appbar-left > .fx-pill { grid-column: 6 / 10; grid-row: 2; justify-self: end; }
+.appbar .fx-pill, .appbar .appbar-sub > * { box-sizing: border-box; width: calc(var(--ib) * 2 + 8px); min-width: 0; min-height: 44px; }   /* 44 = הגובה של בועת השער (גם ב־320, שם הכפתורים 40) */
+/* שתיהן באותה שורה של הרשת ונמתחות לגובה שלה — באותו גובה תמיד, גם כשהטקסט בטלפון מוגדל (הגדרת נגישות) */
+.appbar-left > .appbar-sub, .appbar-left > .fx-pill { align-self: stretch; }
+.appbar .appbar-left > .appbar-sub { display: flex; align-items: stretch; }
+.appbar .appbar-sub > * { flex: 1 1 auto; }
+/* הקפסולה = אותה "קופסה" של בועת השער: פינות, טקסט במרכז, לכל היותר שתי שורות — הסיבה (חג, דיליי) בשורה השנייה.
+   באותו גובה בכל מצב (נמדד בכל המצבים, בעברית ובאנגלית, ב־320–412). ליד הנקודה החיה — בלי האייקון (אין מקום לשניהם) */
+.appbar .appbar-sub > * { display: flex; flex-wrap: wrap; align-items: center; align-content: center; justify-content: center; column-gap: 5px; row-gap: 0;
+  margin: 0; padding: 3px 4px; border-radius: var(--radius-xs); text-align: center; white-space: normal; line-height: 1.2;
+  font-size: 12px; }
+.appbar .appbar-sub > * > small { flex-basis: 100%; font-size: 11px; }
+.appbar .appbar-sub .st-pill i + svg { display: none; }
+/* תווית ארוכה (Connect Claude) נשברת בתוך עצמה, ליד הנקודה/האייקון — לא יורדת כולה לשורה משלה */
+.appbar .appbar-sub > * > span:not(.sr-only):not(:empty) { max-width: calc(100% - 20px); }
+@media (max-width: 374px) { .appbar .appbar-sub > * { font-size: 11px; padding: 3px; } .appbar .appbar-sub > * > small { font-size: 10px; } }
 html, body { overscroll-behavior-x: none; } /* v279: משיכה אופקית = מעבר עמוד, לא "חזור" של הדפדפן */
 .appbar h1.brand { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* v279: לוגו → סקירה */
 .brand-logo {

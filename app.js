@@ -268,7 +268,7 @@ he: {
   rdFont: 'גופן', rdLayout: 'פריסה', rdTheme: 'ערכה', rdFontBook: 'הגופן של הקובץ', rdSize: 'גודל', rdWeight: 'עובי',
   rdAlign: 'יישור', rdAlignStart: 'לימין', rdAlignJustify: 'לשני הצדדים', rdSpacing: 'ריווח', rdSpacing1: 'צפוף', rdSpacing2: 'רגיל', rdSpacing3: 'מרווח',
   rdFlow: 'תצוגה', rdPages: 'עמודים', rdScroll: 'גלילה', rdAuto: 'אוטומטי', rdWhite: 'לבן', rdSepia: 'ספיה', rdGreen: 'ירוק', rdBlack: 'שחור',
-  stOpen: 'השוק פתוח', stClosedWith: 'השוק סגור · {r}', stClosedFull: 'השוק סגור',
+  stOpen: 'השוק פתוח', stClosedWith: 'השוק סגור · {r}', stClosedFull: 'השוק סגור', stClosedHdr: 'השוק סגור',
   sessionPre: ' · מסחר־מוקדם',
   sessionPost: ' · מסחר־מאוחר',
   sessionNight: ' · מסחר־לילי',
@@ -857,7 +857,7 @@ en: {
   rdFont: 'Font', rdLayout: 'Layout', rdTheme: 'Theme', rdFontBook: 'Publisher font', rdSize: 'Size', rdWeight: 'Weight',
   rdAlign: 'Alignment', rdAlignStart: 'Start', rdAlignJustify: 'Justified', rdSpacing: 'Spacing', rdSpacing1: 'Tight', rdSpacing2: 'Normal', rdSpacing3: 'Wide',
   rdFlow: 'View', rdPages: 'Pages', rdScroll: 'Scroll', rdAuto: 'Auto', rdWhite: 'White', rdSepia: 'Sepia', rdGreen: 'Green', rdBlack: 'Black',
-  stOpen: 'Market open', stClosedWith: 'Closed · {r}', stClosedFull: 'Market closed',
+  stOpen: 'Market open', stClosedWith: 'Closed · {r}', stClosedFull: 'Market closed', stClosedHdr: 'Closed',
   sessionPre: ' · pre-market',
   sessionPost: ' · post-market',
   sessionNight: ' · overnight',
@@ -4898,8 +4898,8 @@ function stripLegacyDemo(db) {
 /* שני מספרים (12/10/2026), כמו versionName + versionCode באנדרואיד:
    APP_RELEASE = גרסת המערכת (SemVer: MAJOR.MINOR.PATCH) — עולה רק כשמשחררים לפרודקשן; מה חדש בה — CHANGELOG.md.
    APP_VERSION = מספר הבנייה — עולה בכל שינוי בקבצים (מפתח המטמון ב־sw.js, tools/swgen.js). בהגדרות: "1.0.0 (395)". */
-const APP_RELEASE = '2.15.1';
-const APP_VERSION = 'v456';
+const APP_RELEASE = '2.16.0';
+const APP_VERSION = 'v457';
 /* "1.0.0 (395)"; בסביבת הניסוי — גם "· ניסוי" */
 function appVersionLabel() {
   const build = String(APP_VERSION).replace(/^v/, '');
@@ -6416,11 +6416,12 @@ function sourceLabelHTML(st, nowMs) { // טהורה (נבדקת)
   if (m.kind === 'closed') {
     const names = { hdWeekend: t('hdWeekend'), hdNewYear: t('hdNewYear'), hdMlk: t('hdMlk'), hdPresidents: t('hdPresidents'), hdGoodFriday: t('hdGoodFriday'), hdMemorial: t('hdMemorial'), hdJuneteenth: t('hdJuneteenth'), hdIndependence: t('hdIndependence'), hdLabor: t('hdLabor'), hdThanksgiving: t('hdThanksgiving'), hdChristmas: t('hdChristmas') };
     const r = m.reason && names[m.reason];
-    return '<span class="st-pill closed">' + SRC_SESS_ICONS.closed + esc(r ? t('stClosedWith', { r }) : t('stClosedFull')) + '</span>';
+    // 20/10/2026: הסיבה בשורה שנייה — הקפסולה בגודל של בועת השער (styles.css, .appbar-sub > *)
+    return '<span class="st-pill closed">' + SRC_SESS_ICONS.closed + esc(t('stClosedHdr')) + (r ? '<small>' + esc(r) + '</small>' : '') + '</span>';
   }
   const lbl = m.kind === 'pre' ? t('sessPreShort') : m.kind === 'post' ? t('sessPostShort') : m.kind === 'night' ? t('sessNightShort') : t('stOpen');
   return '<span class="st-pill ' + m.kind + (live ? '' : ' delay') + '"><i></i>' + (SRC_SESS_ICONS[m.kind] || '') + esc(lbl) +
-    (live ? '' : '<small>· ' + esc(t('srcDelayed')) + '</small>') + '</span>';
+    (live ? '' : '<small>' + esc(t('srcDelayed')) + '</small>') + '</span>';
 }
 function updateSourceLabel() {
   const el = document.getElementById('sourceLabel');
