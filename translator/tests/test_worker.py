@@ -366,9 +366,11 @@ class TestWorker(unittest.TestCase):
         self.assertNotIn(KEY, out)
         # 21/10/2026: התוצרים מגיעים לטלפון לפני ההשלמות שברקע (איכויות צפייה, מאגר הלמידה) — בדיווח שאינו done
         early = [r for r in self.fake.reports if r.get('out') and not r.get('done')]
-        self.assertEqual(len(early), 1)
-        self.assertEqual(sorted(o['k'] for o in early[0]['out']), sorted(o['k'] for o in done['out'] if o['k'] in ('compact', 'srt')))
-        self.assertLess(self.fake.reports.index(early[0]), self.fake.reports.index(done))
+        # 21/10/2026 (3.13ג): קודם הכתוביות לפני הצריבה (שלב bn), ואחר כך כל התוצרים לפני ההשלמות שברקע
+        self.assertEqual([r.get('st') for r in early], ['bn', 'sv'])
+        self.assertEqual([o['k'] for o in early[0]['out']][0], 'srt')
+        self.assertEqual(sorted(o['k'] for o in early[1]['out']), sorted(o['k'] for o in done['out'] if o['k'] in ('compact', 'srt')))
+        self.assertLess(self.fake.reports.index(early[1]), self.fake.reports.index(done))
 
     # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
     def seed_ladder(self, s='ok'):
