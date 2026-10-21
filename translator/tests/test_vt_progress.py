@@ -274,3 +274,12 @@ class PxOf(unittest.TestCase):
         self.assertEqual(job.px_of({'video': {'width': 1280, 'height': 720}}), round(1280 * 720 / (1920 * 1080), 3), 'בלי קצב — 30')
         self.assertIsNone(job.px_of({}))
         self.assertIsNone(job.px_of({'video': {'width': 0, 'height': 1080}}))
+
+
+class CkNext(unittest.TestCase):
+    """21/10/2026: "המשך" מנקודת התמלול עם ההגהה בפנים — היישור, לא "כותבים כל מילה" שכבר הסתיים."""
+
+    def test_stage(self):
+        self.assertEqual(job.ck_next('asr', {'pr': 1})[0], 'al')
+        self.assertEqual(job.ck_next('asr', {})[0], 'tr')
+        self.assertEqual(job.ck_next('al', {'pr': 1})[0], 'tl')

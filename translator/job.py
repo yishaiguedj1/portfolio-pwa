@@ -3195,6 +3195,14 @@ CK_NEXT = {   # מאיזה שלב בעבודה ממשיכים אחרי כל נק
 }
 
 
+def ck_next(used, info):
+    """השלב שממשיכים בו. 21/10/2026: נקודת התמלול עם ההגהה בפנים (מצב השרת, pr) = היישור — "כותבים כל מילה" כבר
+    הסתיים ונשמר, ולא חוזר לטלפון כ"עכשיו"."""
+    if used == 'asr' and (info or {}).get('pr'):
+        return 'al', CK_NEXT['asr'][1]
+    return CK_NEXT[used]
+
+
 def ck_files(pdir):
     """הקבצים שנכנסים לנקודת השמירה (נתיבים יחסיים, בסדר קבוע)."""
     out = []
@@ -3355,8 +3363,9 @@ def restore(args):
     pd = ctx.pdir
     info, used = None, None
     for c in reversed(cks):
-        st_next = CK_NEXT[c['s']][0]
-        ctx.report(st_next, None, 'ממשיכים מנקודת השמירה', force=True)
+        # 21/10/2026: בלי שלב — עד שיודעים מה בנקודה (ההגהה בפנים?), לא פותחים שלב שכבר הסתיים. עד היום נשלח
+        # CK_NEXT['asr'] = 'tr', ו"כותבים כל מילה" נפתח מחדש בטלפון גם כשההגהה כבר שולמה ונשמרה
+        ctx.report(None, None, 'ממשיכים מנקודת השמירה', force=True)
         tgz = VT_WORK / '_ck' / ('in.' + c['s'] + '.tar.gz')
         tmp = pd.with_name(pd.name + '.restore')
         try:
@@ -3382,7 +3391,7 @@ def restore(args):
         print('· אין נקודת שמירה תקינה — מתחילים מההתחלה.')
         print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py prepare')
         return 0
-    st_next, todo = CK_NEXT[used]
+    st_next, todo = ck_next(used, info)
     apply_notes(ctx)                             # v382: הערות שכבר נקראו בסשן הקודם → לתדריך המשוחזר
     ctx.refresh()
     files = ctx.st.get('files') or {}
@@ -3404,7 +3413,7 @@ def restore(args):
     ctx.st['proofed'] = bool(info.get('pr'))       # מצב API: ההגהה, התדריך והמילון כבר בפרויקט ששוחזר
     save_state(ctx.st)
     fresh = used == 'asr' and not ctx.st['proofed']
-    ctx.report(st_next, 1 if used == 'asr' else 0, 'התמליל מוכן — Claude מגיה אותו' if fresh else 'ממשיכים מאותה נקודה', force=True)
+    ctx.report(st_next, 1 if fresh else 0, 'התמליל מוכן — Claude מגיה אותו' if fresh else 'ממשיכים מאותה נקודה', force=True)
     print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')
     qa = ctx.st.get('qa') or {}
     if qa.get('a') and qa.get('q'):

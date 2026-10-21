@@ -1309,6 +1309,9 @@ function stubFetch(text, status = 200) {
       ok(al2.prog.stg.al.s === 20000 && al2.prog.stg.al.a === 4000 && al2.prog.stg.tr.e === 20000, 'סטודיו: השלב חוזר — הזמן הקודם נשמר');
       const re = S.applyReport({ prog: S.applyReport({ prog: al2.prog }, { fail: true, err: 'net' }, 25000).prog }, { st: 'al', p: 0.1 }, 90000);
       ok(re.prog.stg.al.s === 90000 && re.prog.stg.al.a === 9000, 'סטודיו: "המשך" באותו שלב — מהרגע הזה, בלי הזמן שבין הכשל להמשך');
+      const rp = S.resumeProg(S.applyReport({ prog: al2.prog }, { fail: true, err: 'net' }, 25000).prog, 30000);
+      ok(rp.stg.al.s === 30000 && rp.stg.al.e === 0 && rp.stg.al.a === 9000 && rp.stg.tr.e === 20000 && S.resumeProg(rp, 1) === null,
+        'סטודיו: "המשך" — השלב שנעצר בו נפתח מיד (לא ✓ עד הדיווח הראשון); שלב פתוח — בלי שינוי');
       ok(S.isTransient('worker_oom', ['drive:dl_retry']) === false, 'סטודיו: worker_oom לא "חולף" גם כשהתראת אחסון ישנה פתוחה');
     }
 

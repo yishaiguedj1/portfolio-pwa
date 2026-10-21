@@ -1084,6 +1084,7 @@ async function doResume(deps, uid, job, now, body, auto, adm) {
   // v377: הזמן שבין העצירה ל"המשך" לא נספר בשעון של יעד הזמן (מחכה לך)
   if (job.ended && (job.state === 'failed' || job.state === 'cancelled')) { patch.pz = (job.pz || 0) + Math.max(0, now - job.ended); patch.wv0 = 0; }
   if (auto) patch.ar = (job.ar || 0) + 1;
+  { const pg = S.resumeProg(job.prog, now); if (pg) patch.prog = pg; }   // 21/10/2026: השלב שנעצר בו — "עכשיו", לא ✓
   if (dm) patch.spec = Object.assign({}, job.spec, { mode: body.mode, dm });   // dm = המצב שממנו ירדנו (לספירת ספר ההפעלה)   // נרשם לפני ההפעלה — שתי צפיות במקביל לא יפעילו פעמיים
   if (job._ut) {
     // בתנאי: מישהו אחר כבר המשיך אותה מאז שקראנו — לא מפעילים שוב (ולא דורסים את המפתח של ההפעלה שרצה)
