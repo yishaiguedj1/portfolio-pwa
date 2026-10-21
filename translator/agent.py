@@ -512,6 +512,7 @@ def dev_job_log(server: str, tok: str, job_id: str, rc: int, kind: str = 'end', 
 # והזיכרון של התהליך נעלם יחד עם הקונטיינר. "קופסה שחורה": כל FLIGHT_S הזנב + השלב + התהליכים נכתבים לדיסק המתמיד
 # (/work — שם כבר נמצאים קובצי העבודה; רק כשהעבודה במצב המלא), ובעלייה הבאה נשלחים כ־devLog מסוג lost ונמחקים.
 FLIGHT_S = int(os.environ.get('SNB_FLIGHT_S', '60'))
+FLIGHT_FIRST = float(os.environ.get('SNB_FLIGHT_FIRST', '15'))   # הכתיבה הראשונה — מוקדם
 FLIGHT_DIR = Path(os.environ.get('SNB_FLIGHT_DIR') or str(J.VT_WORK / '_flight'))
 
 
@@ -538,7 +539,11 @@ def flight_write(job_id: str):
 
 
 def flight_loop(job_id: str, stop: threading.Event):
-    while not stop.wait(FLIGHT_S):
+    # 21/10/2026: עבודה שנפלה בדקה הראשונה (עדכון של העובד בדיוק בלקיחה) לא השאירה אף שורה — הכתיבה הראשונה אחרי
+    # FLIGHT_FIRST שניות (מספיק כדי שקובץ המצב של job.py קיים), ואחר כך כל FLIGHT_S
+    wait = FLIGHT_FIRST
+    while not stop.wait(wait):
+        wait = FLIGHT_S
         try:
             flight_write(job_id)
         except Exception:     # noqa: BLE001 — תקלה כאן לעולם לא נוגעת בעבודה

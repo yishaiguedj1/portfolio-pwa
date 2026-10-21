@@ -38,6 +38,10 @@ resolve() {
 		if ! cosign verify --certificate-identity-regexp "$signer" --certificate-oidc-issuer "$SNB_ISSUER" "$ref" >/dev/null 2>&1; then
 			say "✗ החתימה של $ref לא אומתה — נשארים בגרסה הנוכחית"; keep; return 0
 		fi
+		# 21/10/2026: ההורדה לוקחת דקות — עבודה שנלקחה בינתיים נהרגה בהפעלה מחדש (worker_lost פעמיים). בודקים שוב אחרי ההורדה
+		if [ "$busy" != none ] && [ "$NOW" != "--now" ] && snb_busy "$busy"; then
+			say "עבודה התחילה בזמן ההורדה ($busy) — $var יתעדכן בסיומה (הגרסה כבר ירדה)"; keep; return 0
+		fi
 		say "✓ גרסה חדשה מאומתת ($var): $ref"
 	fi
 	printf '%s=%s\n' "$var" "$ref"
