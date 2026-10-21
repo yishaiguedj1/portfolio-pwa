@@ -663,9 +663,40 @@ def prompt_versions():
     return out
 
 
+LIVE_USAGE = None          # 21/10/2026: מצב השרת — pipeline מציב כאן את ה־ledger של המנוע (פונקציה שמחזירה את השורות)
+_LIVE_SENT = {'sig': '', 't': 0.0}
+LIVE_EVERY = 30.0          # שניות בין דיווחי עלות בזמן ריצה (רק כשהיא השתנתה)
+
+
+def _live_rows():
+    try:
+        rows = LIVE_USAGE() if LIVE_USAGE else None
+        return [dict(r) for r in rows][:USE_MAX] if rows else None
+    except Exception:            # noqa: BLE001 — מידע משני (תהליכון התרגום יכול לשנות את ה־ledger תוך כדי)
+        return None
+
+
+def live_usage(force=False):
+    """21/10/2026 (דיווח המשתמש: "תקציב $0" כל זמן העבודה): במצב השרת העלות נשלחה רק בסוף / בכשל של Claude, ולכן
+    יעד התקציב בטלפון עמד על $0 עד הסוף. עכשיו היא מצטרפת לדיווח התקדמות — כל LIVE_EVERY שניות, רק כשהשתנתה."""
+    rows = _live_rows()
+    if not rows:
+        return None
+    sig = json.dumps(rows, sort_keys=True)
+    now = time.time()
+    if sig == _LIVE_SENT['sig'] or (not force and now - _LIVE_SENT['t'] < LIVE_EVERY):
+        return None
+    _LIVE_SENT.update(sig=sig, t=now)
+    return rows
+
+
 def usage_safe():
     """לדיווח האחרון: תקלה בקריאת היומנים לא מפילה את סוף העבודה. אין יומנים → None (לא נשלח).
-    מצב API (pipeline): העלות האמיתית מה־ledger של המנוע, שנשמר במצב העבודה (api_usage) — לא יומני סשן."""
+    מצב API (pipeline): העלות האמיתית מה־ledger של המנוע, שנשמר במצב העבודה (api_usage) — לא יומני סשן.
+    21/10/2026: כשל בשלב של הכלים (vt נהרג, אחסון) — ה־ledger החי, אחרת מה ששולם עד הכשל לא נספר בכלל."""
+    rows = _live_rows()
+    if rows:
+        return rows
     try:
         api = (load_state() or {}).get('api_usage') if STATE.exists() else None
         if isinstance(api, list) and api:
@@ -1185,6 +1216,10 @@ class Ctx:
         if not force and not extra and st == self.last[0] and now - self.last[1] < 15 and abs((p or 0) - self.last[2]) < 0.1:
             return                                  # אותו שלב, פחות מ־15 שנ׳ ופחות מ־10% — לא שווה כתיבה
         body = {k: v for k, v in extra.items() if v is not None}
+        if 'usage' not in body:
+            u = live_usage(force)
+            if u:
+                body['usage'] = u
         if st:
             body['st'] = st
         if p is not None:
@@ -1529,6 +1564,40 @@ class RenderProg:
 def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
+    held = ladder_hold() if args and args[0] in LADDER_HOLD_CMDS else None
+    stop = threading.Event()
+    if args and args[0] == 'align':
+        threading.Thread(target=align_ck_watch, args=(ctx, stop), daemon=True).start()
+    try:
+        return _vt(ctx, args, stage, lo, hi, t0)
+    finally:
+        stop.set()
+        if held:
+            ladder_start(ctx, held)
+
+
+ALIGN_CK_EVERY = float(os.environ.get('SNB_ALIGN_CK', '240'))
+
+
+def align_ck_watch(ctx, stop):
+    """21/10/2026 (דיווח המשתמש: "המשך" התחיל את היישור מההתחלה — עוד 19 דק׳): vt align שומר את הקטעים שסיים
+    (align.part.json), וכאן הוא עולה לענן בתוך נקודת השמירה של התמלול כל ALIGN_CK_EVERY שניות — כך "המשך" אחרי
+    הפעלה מחדש ממשיך מהקטע שנעצר בו. רק כשההגהה כבר בנקודה (מצב השרת) — אחרת הנקודה הזו לא כוללת אותה."""
+    part = ctx.pdir / 'align.part.json'
+    last = 0.0
+    while not stop.wait(ALIGN_CK_EVERY):
+        if not (ctx.st.get('ck_pr') or ctx.st.get('proofed')):
+            return
+        try:
+            m = part.stat().st_mtime
+        except OSError:
+            continue
+        if m != last and not stop.is_set():
+            last = m
+            save_ck(ctx, 'asr', {'pr': 1})
+
+
+def _vt(ctx, args, stage, lo, hi, t0):
     proc = subprocess.Popen([VT_PY, '-m', 'vt'] + args, cwd=str(HERE), env=vt_env(),
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     tail = []
@@ -1549,7 +1618,10 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
         ctx.event('vt', VT_KIND.get(args[0], 'other'))
         # ‎-9 = התהליך נהרג מבחוץ — כמעט תמיד מגבלת הזיכרון של הקונטיינר (09/10/2026: vt align בשרת של 8GB)
         why = ' — נגמר הזיכרון' if rc in (-9, 137) else ''
-        raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').')
+        if why:
+            # 21/10/2026: קוד משלו — עד היום worker_step, ועם התראת אחסון ישנה פתוחה זה הוצג כ"ניתוק מהרשת" (חולף)
+            raise StepError('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + why + ').', 'worker_oom')
+        raise SystemExit('✗ vt ' + args[0] + ' נכשל (קוד ' + str(rc) + ').')
     note_timing(ctx, args[0], t0, time.time())
     if args[0] == 'ingest':
         report_px(ctx)
@@ -2915,6 +2987,27 @@ def ladder_stop():
             pass
 
 
+LADDER_HOLD_CMDS = ('align',)
+
+
+def ladder_hold():
+    """21/10/2026 (עבודה של שעה וחצי נפלה פעמיים ביישור — השרת "הופעל מחדש"): היישור הוא השיא של העבודה (Qwen ואז CTC,
+    ‎~5GB), ובמקביל רצו איכויות הצפייה — ffmpeg עם פענוח 1080p וחמישה מקודדים, והקבצים שהוא כותב (תחת gVisor הם
+    בזיכרון של הקונטיינר). בסרטון ארוך הסכום עבר את התקרה, ו־gVisor הורג את כל הקונטיינר — לא רק את התהליך הכבד.
+    עוצרים את הבנייה לפני היישור (ומוחקים את מה שנכתב עד עכשיו) ומתחילים אותה מחדש אחריו. מחזיר את המקור, או None."""
+    st = ladder_state()
+    if not st or st.get('s') != 'run' or not st.get('src') or not ladder_running():
+        return None
+    ladder_stop()
+    for _ in range(50):                          # עד 5 שנ׳ — שהזיכרון באמת ישתחרר לפני שהיישור טוען את המודל
+        if not ladder_running():
+            break
+        time.sleep(0.1)
+    shutil.rmtree(LADDER_DIR / 'out', ignore_errors=True)
+    print('· איכויות הצפייה מחכות לסוף היישור (זיכרון)', flush=True)
+    return st['src']
+
+
 def ladder_start(ctx, src):
     """מתחיל לבנות את האיכויות ברקע (פעם אחת לעבודה). חיתוך לפני התרגום / SNB_LADDER=off — בלי."""
     if os.environ.get('SNB_LADDER') == 'off' or (ctx.st.get('spec') or {}).get('edl') or ctx.st.get('kind', 'tr') != 'tr':
@@ -2926,7 +3019,7 @@ def ladder_start(ctx, src):
         return False
     shutil.rmtree(LADDER_DIR, ignore_errors=True)
     LADDER_DIR.mkdir(parents=True, exist_ok=True)
-    (LADDER_DIR / 'state.json').write_text(json.dumps({'job': ctx.st['job'], 's': 'run', 'at': time.time()}), encoding='utf-8')
+    (LADDER_DIR / 'state.json').write_text(json.dumps({'job': ctx.st['job'], 's': 'run', 'at': time.time(), 'src': str(src)}), encoding='utf-8')
     log = open(LADDER_DIR / 'ladder.log', 'ab')
     p = subprocess.Popen([sys.executable, str(HERE / 'job.py'), 'ladder-run', '--job', ctx.st['job'], '--src', str(src)],
                          stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True, env=vt_env())
@@ -3102,6 +3195,14 @@ CK_NEXT = {   # מאיזה שלב בעבודה ממשיכים אחרי כל נק
 }
 
 
+def ck_next(used, info):
+    """השלב שממשיכים בו. 21/10/2026: נקודת התמלול עם ההגהה בפנים (מצב השרת, pr) = היישור — "כותבים כל מילה" כבר
+    הסתיים ונשמר, ולא חוזר לטלפון כ"עכשיו"."""
+    if used == 'asr' and (info or {}).get('pr'):
+        return 'al', CK_NEXT['asr'][1]
+    return CK_NEXT[used]
+
+
 def ck_files(pdir):
     """הקבצים שנכנסים לנקודת השמירה (נתיבים יחסיים, בסדר קבוע)."""
     out = []
@@ -3225,6 +3326,8 @@ def save_ck(ctx, s, extra=None):
         size = path.stat().st_size
         fid = put_output(ctx, path, 'נקודת שמירה — ' + CK_LABEL[s] + '.tar.gz', s, 'application/gzip', prop='snbCk')
         r = ctx.report(ck={'s': s, 'id': fid, 'size': size}, force=True)
+        if (extra or {}).get('pr'):
+            ctx.st['ck_pr'] = 1                  # ההגהה בנקודה — היישור יכול לשמור התקדמות באותה נקודה (align_ck_watch)
         if isinstance(r, dict) and r.get('note'):
             note_receive(ctx, r['note'])         # v382: הערה שלך — נמסרת בנקודת השמירה
         old = (ctx.st.get('ckids') or {}).get(s)
@@ -3260,8 +3363,9 @@ def restore(args):
     pd = ctx.pdir
     info, used = None, None
     for c in reversed(cks):
-        st_next = CK_NEXT[c['s']][0]
-        ctx.report(st_next, None, 'ממשיכים מנקודת השמירה', force=True)
+        # 21/10/2026: בלי שלב — עד שיודעים מה בנקודה (ההגהה בפנים?), לא פותחים שלב שכבר הסתיים. עד היום נשלח
+        # CK_NEXT['asr'] = 'tr', ו"כותבים כל מילה" נפתח מחדש בטלפון גם כשההגהה כבר שולמה ונשמרה
+        ctx.report(None, None, 'ממשיכים מנקודת השמירה', force=True)
         tgz = VT_WORK / '_ck' / ('in.' + c['s'] + '.tar.gz')
         tmp = pd.with_name(pd.name + '.restore')
         try:
@@ -3287,7 +3391,7 @@ def restore(args):
         print('· אין נקודת שמירה תקינה — מתחילים מההתחלה.')
         print('הצעד הבא (ברקע, run_in_background): python3 translator/job.py prepare')
         return 0
-    st_next, todo = CK_NEXT[used]
+    st_next, todo = ck_next(used, info)
     apply_notes(ctx)                             # v382: הערות שכבר נקראו בסשן הקודם → לתדריך המשוחזר
     ctx.refresh()
     files = ctx.st.get('files') or {}
@@ -3309,7 +3413,7 @@ def restore(args):
     ctx.st['proofed'] = bool(info.get('pr'))       # מצב API: ההגהה, התדריך והמילון כבר בפרויקט ששוחזר
     save_state(ctx.st)
     fresh = used == 'asr' and not ctx.st['proofed']
-    ctx.report(st_next, 1 if used == 'asr' else 0, 'התמליל מוכן — Claude מגיה אותו' if fresh else 'ממשיכים מאותה נקודה', force=True)
+    ctx.report(st_next, 1 if fresh else 0, 'התמליל מוכן — Claude מגיה אותו' if fresh else 'ממשיכים מאותה נקודה', force=True)
     print('✓ הפרויקט שוחזר מנקודת השמירה: אחרי ' + CK_LABEL[used] + '.')
     qa = ctx.st.get('qa') or {}
     if qa.get('a') and qa.get('q'):

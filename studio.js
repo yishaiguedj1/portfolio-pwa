@@ -477,7 +477,7 @@ export function normSla(o) {
   const num = (v, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= hi ? v : null);
   const tg = num(o.t.tg, 1e6), el = num(o.t.el, 1e7), f = num(o.t.f, 1e4);
   if (!tg || el == null || f == null || !SLA_LV.includes(o.t.lv)) return null;
-  const out = { t: { tg, el, pz: num(o.t.pz, 1e7) || 0, f, lv: o.t.lv, paused: o.t.paused === true }, pf: num(o.pf, 1) || 0 };
+  const out = { t: { tg, el, pz: num(o.t.pz, 1e7) || 0, f, lv: o.t.lv, paused: o.t.paused === true }, pf: num(o.pf, 1) || 0, at: Date.now() };   // 21/10/2026: at = מתי הגיע — הזמן ממשיך לרוץ בין עדכונים (slaLiveT)
   if (o.u && typeof o.u === 'object') {
     const ut = num(o.u.tg, 1e5), sp = num(o.u.sp, 1e5), uf = num(o.u.f, 1e4);
     if (ut && sp != null && uf != null && SLA_LV.includes(o.u.lv)) out.u = { tg: ut, sp, f: uf, lv: o.u.lv };
@@ -3637,12 +3637,37 @@ function slaRow(label, valTxt, f, lv, k) {
   r.append(l, pill(SLA_CLS[lv], slaLvName(lv)));
   return r;
 }
-function slaCard(sla) {
+/* 21/10/2026 (דיווח המשתמש: "29 דק׳" עמד, וקפץ ל־4 דקות יותר רק אחרי יציאה וכניסה): הזמן שעבר ממשיך לרוץ בין
+   העדכונים מהשרתון — לא כשהשעון עוצר (מחכים לך) או כשהעבודה הסתיימה; לכל היותר 10 דק׳ קדימה מהעדכון האחרון */
+export function slaLiveT(sla, now, running) {
   const t = sla.t;
-  const rows = [slaRow(T('studioSlaTime'), T('studioSlaOf', { a: fmtShort(t.el), b: approx(fmtShort(t.tg)) }), t.f, t.lv, 'sla:t')];
+  const add = running && !t.paused && sla.at ? Math.max(0, Math.min(600, (now - sla.at) / 1000)) : 0;
+  const el = Math.round(t.el + add);
+  return { el, f: t.tg > 0 ? el / t.tg : t.f };
+}
+function slaCard(rec) {
+  const id = rec.id, cur = () => { const r = jobRec(id); return r && r.srv && r.srv.sla ? r : null; };
+  const sla = rec.srv.sla, t = sla.t;
+  // השורות מתעדכנות במקום (live) — בכל טיק ובכל עדכון מהשרתון, בלי לבנות את הדף מחדש
+  const paint = (row, val, f, lv) => {
+    const v = row.querySelector('small'); if (v) v.replaceChildren(val);
+    const i = row.querySelector('.st-slabar i'); if (i) i.style.width = Math.round(Math.min(1, f) * 100) + '%';
+    const b = row.querySelector('.st-slabar'); if (b) b.className = 'st-slabar ' + SLA_CLS[lv];
+    const pl = row.lastElementChild; if (pl && pl.dataset.lv !== lv) { const n = pill(SLA_CLS[lv], slaLvName(lv)); n.dataset.lv = lv; row.replaceChild(n, pl); }
+  };
+  const tRow = slaRow(T('studioSlaTime'), '', t.f, t.lv, 'sla:t');
+  const rows = [live(tRow, (row) => {
+    const r = cur(); if (!r) return;
+    const s = r.srv.sla, x = slaLiveT(s, Date.now(), r.srv.state === 'running');
+    paint(row, T('studioSlaOf', { a: fmtShort(x.el), b: approx(fmtShort(s.t.tg)) }), x.f, s.t.lv);
+  })];
   if (sla.u) {
-    const v = h('span'); v.append(usdEl(sla.u.sp), ' ' + T('studioSlaOfU') + ' ', approx(fmtUsd(sla.u.tg)));
-    rows.push(slaRow(T('studioSlaCost'), v, sla.u.f, sla.u.lv, 'sla:u'));
+    rows.push(live(slaRow(T('studioSlaCost'), '', sla.u.f, sla.u.lv, 'sla:u'), (row) => {
+      const r = cur(); if (!r || !r.srv.sla.u) return;
+      const u = r.srv.sla.u, v = h('span');
+      v.append(usdEl(u.sp), ' ' + T('studioSlaOfU') + ' ', approx(fmtUsd(u.tg)));
+      paint(row, v, u.f, u.lv);
+    }));
   }
   const out = [secT(T('studioSlaT')), list(...rows)];
   if (t.paused) out.push(note(T('studioSlaPaused')));
@@ -5692,7 +5717,7 @@ function pageJob(p) {
   p.append(secT(T('studioSecStages')), stl);
   const nc = noteCard(rec);   // v382: הערה ל־Claude — נקראת בנקודת השמירה הבאה
   if (nc) p.append(...nc);
-  if (rec.srv && rec.srv.sla) p.append(...slaCard(rec.srv.sla));   // v377: יעד זמן ותקציב
+  if (rec.srv && rec.srv.sla) p.append(...slaCard(rec));   // v377: יעד זמן ותקציב
   p.append(...anJobRows(rec));   // v385: השלבים שחרגו מהרגיל שלך
 
   if (rec.srv) {   // v374: איכות הכתוביות + שומר ההזרקות · v375: שופט האיכות (והמודל שלו — משורת העלות)

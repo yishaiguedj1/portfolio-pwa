@@ -154,6 +154,11 @@ export function progressModel(job, est, up, now, q) {
   const rho = dE > 0 && dT > 0 ? Math.max(0.5, Math.min(3, dT / dE)) : 1, adj = Math.sqrt(rho);
   const stages = [];
   let left = 0, doneW = 0, allW = 0;
+  // 21/10/2026: שלב אחרי השלב הנוכחי שנסגר לפני שהנוכחי התחיל = מהסשן הקודם (לפני "המשך") — ייעשה שוב, לא ✓
+  const ci = STAGES.indexOf(cur), c0 = cur && stg[cur] ? stg[cur].s : 0;
+  const redo = (s) => !ended && ci >= 0 && STAGES.indexOf(s) > ci && c0 > 0 && stg[s] && stg[s].e > 0 && stg[s].e <= c0;
+  // הזמן שהושקע בשלב בכל הסשנים (a = מה שנצבר לפני "המשך") — כך סכום השלבים = הזמן שעבר ביעדים
+  const spent = (x) => Math.max(0, Math.round(((+x.a || 0) + (x.e > 0 && x.s > 0 ? x.e - x.s : 0)) / 1000));
   for (const s of STAGES) {
     const e0 = s === 'up' ? Math.max(30, up && up.est ? up.est : 60) : est[s] || 60;
     const e = s === 'up' ? e0 : Math.round(e0 * adj);
@@ -163,7 +168,7 @@ export function progressModel(job, est, up, now, q) {
       if (up && up.done) row = { id: s, state: 'done', took: up.took || 0 };
       else row = { id: s, state: up && up.active ? 'now' : 'wait', left: up && up.left > 0 ? up.left : e, p: up ? up.p || 0 : 0, est: e };
     } else if (stopped && s === cur) row = { id: s, state: 'wait', est: e };
-    else if (ended || (stg[s] && stg[s].e)) row = { id: s, state: 'done', took: stg[s] && stg[s].e ? Math.max(0, Math.round((stg[s].e - stg[s].s) / 1000)) : 0 };
+    else if (ended || (stg[s] && stg[s].e && !redo(s))) row = { id: s, state: 'done', took: stg[s] ? spent(stg[s]) : 0 };
     else if (s === cur && stg[s]) {
       const el = Math.max(0, (now - stg[s].s) / 1000), p = Math.max(0, Math.min(0.99, prog.p || 0));
       const tot0 = condQuantile(e, sgS, el, 0.5);       // משך השלב הצפוי בהינתן מה שכבר עבר

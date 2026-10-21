@@ -64,7 +64,7 @@ const RECOVER_WAIT = 3 * 60e3, AUTO_RESUME_MAX = 1;
 const TRANSIENT_ERRS = ['net', 'drive', 'drive_net', 'store_net', 'api_network', 'api_timeout', 'api_rate', 'api_overloaded', 'worker_lost'];   // 14/10/2026: worker_lost = השרת הופעל מחדש באמצע (עדכון / כיבוי) — ממשיכים מנקודת השמירה   // 11/10: store_net = ניתוק מול R2 / Drive   // הסקירה: גם רשת/קצב/עומס מול Anthropic במצב API
 /* 11/10/2026 (ביקורת העמידות): כשל דטרמיניסטי — אותה בקשה תיכשל שוב. לא "חולף" גם כשבמקרה נשארה פתוחה התראת Drive
    ישנה מאותה עבודה (קודם: max_tokens אחרי התראת הורדה ישנה קיבל "המשך" אוטומטי ששילם שוב על אותו כשל) */
-const DET_ERRS = ['store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout'];
+const DET_ERRS = ['worker_oom', 'store_fail', 'max_tokens', 'check_errors', 'model_refusal', 'api_bad_request', 'no_api_key', 'sdk_missing', 'mode_unknown', 'cp_empty', 'cp_timeout'];
 const TRANSIENT_KINDS = ['drive:dl_retry', 'drive:up_retry', 'drive:dl_fail', 'drive:up_fail'];
 /* עצירה מכוונת — אף פעם לא "חולפת", גם כשבמקרה הייתה תקלת Drive פתוחה (המגדל / התקציב / מתג החירום / ההחלטה שלך) */
 const STOP_ERRS = ['tower_stop', 'budget_stop', 'halted', 'upload_timeout', 'lang_unsupported', 'worker_unknown_kind', 'budget_cap', 'api_auth', 'api_model', 'no_api_key'];
@@ -916,6 +916,14 @@ function workerJob(job, nm, fb, fm, rl, gl) {
     notes: (Array.isArray(job.nh) ? job.nh : []).map((x) => normNoteText(x && x.t)).filter(Boolean).slice(-NOTE_MAX),
     cp: cpWorker(job.cp) };   // סבב 10: העתק־הדבק   // v382: ההערות שכבר נקראו — להמשך בסשן חדש
 }
+/* 21/10/2026: כמה זמן (ms) כבר הושקע בשלב בסשנים קודמים — הצבור (a) ועוד הקטע שנסגר */
+function stgSpent(x) { return !x ? 0 : Math.max(0, (+x.a || 0) + (x.e > 0 && x.s > 0 ? x.e - x.s : 0)); }
+/* 21/10/2026: "המשך" — השלב שנעצר בו נפתח מיד (מהרגע הזה, עם הזמן שכבר הושקע). עד היום הוא נשאר סגור עד הדיווח
+   הראשון של העובד, והטלפון הראה אותו ✓ ("הסתיים") בזמן שהעבודה מורידה את הנקודה ומתחילה אותו שוב */
+function resumeProg(prog, now) {
+  if (!prog || !prog.st || !prog.stg || !prog.stg[prog.st] || !(prog.stg[prog.st].e > 0)) return null;
+  return Object.assign({}, prog, { stg: Object.assign({}, prog.stg, { [prog.st]: { s: now, e: 0, a: stgSpent(prog.stg[prog.st]) } }) });
+}
 /* דיווח מהעובד → התקדמות חדשה. כל שלב מקבל זמן התחלה וסיום אמיתיים (המסך מציג "✓ 8 דק׳") */
 function applyReport(job, r, now) {
   const prog = Object.assign({ st: '', p: 0, stg: {} }, job.prog || {});
@@ -924,11 +932,15 @@ function applyReport(job, r, now) {
   const st = STAGES.includes(r.st) ? r.st : '';
   if (st && st !== prog.st) {
     closeCur();
-    prog.stg[st] = { s: now, e: 0 };
+    prog.stg[st] = { s: now, e: 0, a: stgSpent(prog.stg[st]) };
+    // 21/10/2026: "המשך" מנקודת שמירה מוקדמת — העבודה חזרה לשלב קודם, ומה שאחריו ייעשה שוב. בלי זה "מתאימים כל
+    // משפט" נשאר ✓ (נסגר בכשל) בזמן ש"כותבים כל מילה" רץ מחדש. הזמן שכבר הושקע בהם נשמר (a) — סכום השלבים = הזמן שעבר
+    for (const k of STAGES.slice(STAGES.indexOf(st) + 1)) if (prog.stg[k]) prog.stg[k] = { s: 0, e: 0, a: stgSpent(prog.stg[k]) };
     prog.st = st; prog.p = 0; delete prog.eta;
   }
-  // v361: אחרי "המשך" — השלב שבו העבודה נעצרה נפתח שוב (נסגר כשהיא נכשלה)
-  else if (st && prog.stg[st] && prog.stg[st].e && r.done !== true && r.fail !== true) prog.stg[st] = Object.assign({}, prog.stg[st], { e: 0 });
+  // v361: אחרי "המשך" — השלב שבו העבודה נעצרה נפתח שוב (נסגר כשהיא נכשלה). 21/10/2026: מהרגע הזה, והזמן הקודם נצבר
+  // (עד היום s נשאר הישן, והזמן שבין הכשל ל"המשך" נספר כעבודה בשלב)
+  else if (st && prog.stg[st] && prog.stg[st].e && r.done !== true && r.fail !== true) prog.stg[st] = { s: now, e: 0, a: stgSpent(prog.stg[st]) };
   if (r.p != null && Number.isFinite(+r.p)) prog.p = Math.max(0, Math.min(1, +r.p));
   if (r.msg != null) prog.msg = clean(r.msg, 240);
   if (r.ex != null) prog.ex = clean(r.ex, 240);
@@ -1080,7 +1092,7 @@ module.exports = { crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, no
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
-  effState, publicJob, workerJob, applyReport, toFields, fromFields, normFit, peakNeed,
+  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

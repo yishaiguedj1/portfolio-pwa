@@ -11,8 +11,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import time
 import unicodedata
+from pathlib import Path
 
 import numpy as np
 
@@ -118,20 +122,72 @@ class Aligner:
         return out
 
 
+class PartCache:
+    """21/10/2026: התוצאות של כל קטע נשמרות לקובץ תוך כדי (align.part.json בפרויקט) — יישור של שעה וחצי שנקטע
+    (השרת הופעל מחדש) ממשיך מהקטע שנעצר בו, לא מההתחלה. המפתח = המילים והחלוקה: קובץ של יישור אחר לא נקרא.
+    התוצאה זהה בדיוק (המודל דטרמיניסטי); תקלה בקובץ = מיישרים כרגיל."""
+
+    EVERY = 15.0
+
+    def __init__(self, path, part: str, key_src):
+        self.path = Path(path) if path else None
+        self.part = part
+        self.key = hashlib.sha1(json.dumps(key_src, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
+        self.data, self.t = {}, 0.0
+        if not self.path:
+            return
+        try:
+            d = json.loads(self.path.read_text(encoding="utf-8"))
+            self.all = d if isinstance(d, dict) else {}
+        except (OSError, ValueError):
+            self.all = {}
+        sec = self.all.get(part)
+        if isinstance(sec, dict) and sec.get("k") == self.key and isinstance(sec.get("r"), dict):
+            self.data = sec["r"]
+
+    def get(self, i):
+        return self.data.get(str(i))
+
+    def put(self, i, res, force=False):
+        if not self.path:
+            return
+        self.data[str(i)] = [[float(x) for x in r] if r is not None else None for r in res]   # numpy → float (JSON)
+        if not force and time.time() - self.t < self.EVERY:
+            return
+        self.t = time.time()
+        try:
+            self.all[self.part] = {"k": self.key, "r": self.data}
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.all), encoding="utf-8")
+            os.replace(tmp, self.path)
+        except (OSError, TypeError, ValueError):
+            pass
+
+
 def align_words(words: list[dict], wav_path: str, device: str = "cpu",
-                max_dev_s: float = 1.2) -> tuple[list[dict], dict]:
+                max_dev_s: float = 1.2, cache: str | None = None) -> tuple[list[dict], dict]:
     import soundfile as sf
     audio, sr = sf.read(wav_path, dtype="float32")
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
     total = len(audio) / sr
     chunks = plan_chunks(words, audio_len=total)
-    al = Aligner(device)
+    pc = PartCache(cache, "q", [[w["w"], w["s"], w["e"]] for w in words] + [list(c) for c in chunks])
+    al = Aligner(device) if len(pc.data) < len(chunks) else None
     t0 = time.time()
-    stats = {"chunks": len(chunks), "aligned": 0, "kept_approx": 0, "suspicious": 0, "engine": al.engine}
+    stats = {"chunks": len(chunks), "aligned": 0, "kept_approx": 0, "suspicious": 0, "engine": al.engine if al else "cache",
+             "cached": 0}
     for ci, (i0, i1, cs, ce) in enumerate(chunks):
-        seg = audio[int(cs * sr):int(ce * sr)]
-        res = al.align_chunk(seg, sr, words[i0:i1])
+        res = pc.get(ci)
+        if res is not None and len(res) == i1 - i0:
+            stats["cached"] += 1
+        else:
+            if al is None:
+                al = Aligner(device)
+                stats["engine"] = al.engine
+            seg = audio[int(cs * sr):int(ce * sr)]
+            res = al.align_chunk(seg, sr, words[i0:i1])
+            pc.put(ci, res, force=ci + 1 == len(chunks))
         for k, r in enumerate(res):
             w = words[i0 + k]
             if r is None:

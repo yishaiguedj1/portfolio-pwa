@@ -213,7 +213,8 @@ def cmd_align(a):
     from .align import align_words
     pr = Project(a.name)
     words = read_json(pr.p("en.words.json"))["words"]
-    words, stats = align_words(words, str(pr.p("audio16k.wav")), device=a.device)
+    part = pr.p("align.part.json")               # 21/10/2026: התקדמות היישור — המשך מאותו קטע אחרי הפעלה מחדש
+    words, stats = align_words(words, str(pr.p("audio16k.wav")), device=a.device, cache=str(part))
     aligner = "Qwen3-ForcedAligner-0.6B" + (" · ONNX INT8" if str(stats.get("engine", "")).startswith("onnx-int8") else "")
     log(f"יושרו {stats['aligned']} מילים · חשודות {stats['suspicious']} · משוערות {stats['kept_approx']} "
         f"· {stats['seconds']} שנ׳")
@@ -225,12 +226,13 @@ def cmd_align(a):
         for w in words:
             if w.get("s_asr") is None and w.get("align") in ("suspicious", "approx"):
                 w["s_asr"], w["e_asr"] = w["s"], w["e"]
-        stats["ctc"] = ctc_align(words, str(pr.p("audio16k.wav")))
+        stats["ctc"] = ctc_align(words, str(pr.p("audio16k.wav")), cache=str(part))
         stats["consensus"] = consensus(words)
         aligner += " + MMS_FA (CTC) + ASR · median"
         log(f"CTC: {stats['ctc']['aligned']} מילים ב־{stats['ctc']['seconds']} שנ׳ · "
             f"הכרעה הזיזה {stats['consensus']['moved_100ms']} מילים ביותר מ־0.1 שנ׳")
     write_json(pr.p("en.aligned.json"), {"aligner": aligner, "stats": stats, "words": words})
+    part.unlink(missing_ok=True)
     pr.mark("align", **{k: v for k, v in stats.items() if not isinstance(v, dict)})
 
 
