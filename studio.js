@@ -8,7 +8,7 @@
    כשהדפדפן תומך — כדי להמשיך העלאה אחרי רענון בלי לבחור שוב.
    "חזור" של המכשיר: עם CloseWatcher — רשומה אחת ומחסנית דפים בזיכרון; בלי — רשומה לכל דף (סעיף 18 ב־CLAUDE.md).
    מחרוזות: t() של app.js (STRINGS.he/en, מפתחות studio*) — כל מפתח כתוב כאן מילולית, והבדיקות מאמתות שהוא קיים בשתי השפות. */
-import { createNet, probeVideo, extractAudio, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB } from './studionet.js';
+import { createNet, probeVideo, extractAudio, uploadBoth, stageEstimates, progressModel, monoPct, planFrom, Q_DEF, glClean, glUpsert, GL_MAX, parseSrt, goldCompare, GOLD_REF_MAX, inspectSource, QUIET_DB } from './studionet.js';
 import { createBackup, waitOAuthCode } from './libbackup.js';
 // ת4: מזהים של R2 (העלאה ותוצרים בעבודה במצב שרת)
 import { isR2Folder, isR2Id } from './studiostore.js';
@@ -1344,7 +1344,7 @@ async function pickWithHandle() {
    הצילום של המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, בזמן שהסרטון המלא עלה אחר כך ב־4–6MB/שנ׳. בלי מדידה
    מהטלפון אי אפשר לדעת אם זה החילוץ, דף מואט ברקע או משהו אחר. רק מספרים (בלי שמות) → op:'upTel' → job.utl.
    **UTL_KEYS זהה ל־UTL_KEYS בשרתון (lib/studio.js)** */
-export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc'];
+export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc', 'vf'];
 export function normUtl(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
@@ -1507,49 +1507,63 @@ async function runJob(id, run) {
       run.phase = 'done';
       return;
     }
-    // 1. הקול — מחולץ בטלפון בלי קידוד ועולה ראשון (Claude מתחיל לעבוד בזמן שהסרטון עולה)
-    if (!up.a.done && !up.noAudio) {
-      run.phase = 'extract'; run.p = 0; paintSoon();
-      let ex;
-      const tx = Date.now();
-      try { ex = await extractAudio(file, { onProgress: (p) => { run.p = p; paintSoon(); }, signal: sig }); }
-      catch (e) { if (isAbortErr(e)) throw e; ex = { none: 'extract' }; }
-      finally { utlAdd(rec, 'ex', Date.now() - tx); }
-      if (ex.none) { up.noAudio = ex.none; save(); }
-      else {
+    // 1+2. הקול והסרטון — uploadBoth (studionet.js): הסרטון מתחיל מיד במקביל לחילוץ, הקול עולה ראשון כשהוא מוכן, והסרטון
+    // שסיים לפני החילוץ עוצר אותו (21/10/2026 — "הקול לקח 17 דק׳")
+    let tx = 0, ta = 0, tv = 0;
+    await uploadBoth({
+      signal: sig, gate: () => gate(run),
+      needAudio: !up.a.done && !up.noAudio, needVideo: !up.v.done,
+      onPhase: (ph) => {
+        run.phase = ph; run.p = 0; run.rs = null;
+        if (ph === 'video') { run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; }
+        paintSoon();
+      },
+      extract: (signal) => {
+        tx = Date.now();
+        return extractAudio(file, { onProgress: (p) => { if (run.phase === 'extract') { run.p = p; paintSoon(); } }, signal })
+          .finally(() => utlAdd(rec, 'ex', Date.now() - tx));
+      },
+      noAudio: (why, videoFirst) => { up.noAudio = why; if (videoFirst) utlOf(rec).vf = 1; save(); },
+      upAudio: (ex) => {
         const size = ex.blob.size;
-        run.phase = 'audio'; run.p = 0; run.sent = 0; run.total = size; run.rs = null; paintSoon();
+        run.sent = 0; run.total = size;
         utlOf(rec).ab = size;
-        const ta = Date.now();
-        const f = await net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
+        ta = Date.now();
+        return net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
           r2: up.a.r2, onR2: (x) => { up.a.r2 = x; save(); },
           meta: { name: fileTitle(rec.spec.name) + ' — ' + T('studioAudioFile') + '.' + ex.ext, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'a' } },
           onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); },
           onWait: onWaitT }).finally(() => utlAdd(rec, 'a', Date.now() - ta));
+      },
+      audioDone: async (f, ex) => {
         await register(id, 'a', f.id, up.folder);
-        up.a = { done: true, id: f.id, size: Number(f.size) || size, uri: '', sent: size };
+        up.a = { done: true, id: f.id, size: Number(f.size) || ex.blob.size, uri: '', sent: ex.blob.size };
         up.took = Math.round((Date.now() - run.t0) / 1000);
         save();
         utlSend(id);                           // כבר עכשיו — גם אם הסרטון ייתקע, יודעים כמה לקח הקול
-      }
-    }
-    if (up.a.done) await tryStart(id);
-    // 2. הסרטון המלא — אותו קובץ בדיוק (השרתון מאמת את הגודל מול Drive)
-    if (!up.v.done) {
-      run.phase = 'video'; run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; run.rs = null; paintSoon();
-      utlOf(rec).vb = file.size;
-      const tv = Date.now();
-      const f = await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: () => gate(run),
-        uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
-        meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
-        onProgress: (b) => { up.v.sent = b; run.sent = b; run.p = b / file.size; tickRate(run, b); paintSoon(); saveSoon(); },
-        onWait: onWaitT }).finally(() => utlAdd(rec, 'v', Date.now() - tv));
-      await register(id, 'v', f.id, up.folder);
-      up.v = { done: true, id: f.id, size: Number(f.size) || file.size, uri: '', sent: file.size };
-      if (!up.took) up.took = Math.round((Date.now() - run.t0) / 1000);
-      save();
-      handleOp('del', id);
-    }
+      },
+      start: () => (up.a.done ? tryStart(id) : null),
+      upVideo: (vGate) => {
+        utlOf(rec).vb = file.size;
+        tv = Date.now();
+        return net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: vGate,
+          uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
+          meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
+          onProgress: (b) => {
+            up.v.sent = b;
+            if (run.phase === 'video') { run.sent = b; run.p = b / file.size; tickRate(run, b); }
+            paintSoon(); saveSoon();
+          },
+          onWait: onWaitT }).finally(() => utlAdd(rec, 'v', Date.now() - tv));
+      },
+      videoDone: async (f) => {
+        await register(id, 'v', f.id, up.folder);
+        up.v = { done: true, id: f.id, size: Number(f.size) || file.size, uri: '', sent: file.size };
+        if (!up.took) up.took = Math.round((Date.now() - run.t0) / 1000);
+        save();
+        handleOp('del', id);
+      },
+    });
     if (!up.started) await tryStart(id);
     run.phase = 'done'; run.file = null;
     if (run.evd) opsEvent(id, [{ c: 'phone', k: 'upload', ok: true }, { c: 'phone', k: 'stall', ok: true }]);   // v365: ההעלאה הצליחה — ההתראות נסגרות
@@ -2271,7 +2285,10 @@ function heroState(rec, run, ph) {
 /* מה קורה עכשיו — משפט אחד */
 function nowLine(rec, run, ph) {
   if (ph === 'wait') return run.wait === 'wifi' ? T('studioWaitWifi') : T('studioWaitNet');
-  if (ph === 'extract') return T('studioNowExtract');
+  if (ph === 'extract') {             // 21/10/2026: הסרטון עולה במקביל לחילוץ (uploadBoth)
+    const vp = rec.spec && rec.spec.size > 0 && rec.up.v.sent > 0 ? Math.min(99, Math.floor(100 * rec.up.v.sent / rec.spec.size)) : 0;
+    return vp > 0 ? T('studioNowExtractPar', { p: vp }) : T('studioNowExtract');
+  }
   if (ph === 'audio') return T('studioNowAudio');
   if (ph === 'video') return rec.up.noAudio ? T('studioNowVideoOnly') : T('studioNowVideo');
   if (ph === 'need') return T('studioNeedFile');
@@ -5850,7 +5867,7 @@ function pageJob(p) {
     kvRow(T('studioSecMode'), modeName(modeById(rec.spec.mode))),
     kvRow(T('studioSecOut'), rec.spec.out.concat('srt').map(outShort).join(' + ')),
     kvRow(T('studioSecStyle'), styleName(rec.spec.style)),
-    rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
+    rec.up.a.done ? kvRow(T('studioAudioK'), fmtSize(rec.up.a.size)) : rec.up.noAudio && rec.up.noAudio !== 'video_first' ? kvRow(T('studioAudioK'), T('studioNoAudio')) : null,
     kvRow(T('studioCreated'), fmtDate(rec.created)),
     kvRow(T('studioJobId'), rec.id, true),
     rec.srv && rec.srv.ed ? kvRow(T('studioErrCodeL'), rec.srv.ed, true) : null,

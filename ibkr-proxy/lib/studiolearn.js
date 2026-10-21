@@ -488,7 +488,9 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   // טוקנים ועלות
   for (const x of roles) {
     if (x.k === 'jg' || x.k === 'sub') continue;
-    if (x.ch != null && x.ch < 0.6 && x.calls >= 6 && x.sav > 0.02) out.push({ k: 'cache_low', sev: x.ch < 0.3 ? 1 : 2, imp: rnd(perMonth(x.sav, rs), 2), v: { r: x.k, p: x.ch, usd: x.sav } });
+    // 21/10/2026 (ניתוח הייצור): "פספוס מטמון" של $0.07 לחודש דורג sev 1 — מעל באגים אמיתיים. החומרה לפי ההשפעה בדולרים
+    const im = perMonth(x.sav, rs);
+    if (x.ch != null && x.ch < 0.6 && x.calls >= 6 && x.sav > 0.02) out.push({ k: 'cache_low', sev: im >= 5 ? 1 : im >= 1 ? 2 : 3, imp: rnd(im, 2), v: { r: x.k, p: x.ch, usd: x.sav } });
   }
   if (roles.length && roles[0].sh >= 0.5 && roles[0].usd > 0.5) out.push({ k: 'cost_role', sev: 3, imp: rnd(perMonth(roles[0].usd, rs) * 0.2, 2), v: { r: roles[0].k, p: roles[0].sh, m: roles[0].m } });
   const thinkRows = rs.map((r) => r.lx && r.lx.en && r.lx.en.th).filter(Boolean);
