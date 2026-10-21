@@ -321,7 +321,7 @@ KEY2 = 'Q' * 40 + '_-8'
 
 
 class SlotsFake(Fake):
-    """שתי עבודות בתור; הלקיחה של הראשונה איטית (3 שנ׳) — כך הבקשה השנייה מגיעה כשהראשונה עוד רצה"""
+    """שתי עבודות בתור; הלקיחה של הראשונה איטית (8 שנ׳) — כך הבקשה השנייה מגיעה כשהראשונה עוד רצה"""
     def __init__(self):
         super().__init__()
         self.queue = [{'id': JOB, 'key': KEY, 'kind': 'ping', 'dur': 600}, {'id': JOB2, 'key': KEY2, 'kind': 'ping', 'dur': 300}]
@@ -342,7 +342,7 @@ class SlotsFake(Fake):
                 if body['op'] == 'claim':
                     fake.claims[body['job']] = time.time()
                     if body['job'] == JOB:
-                        time.sleep(3)
+                        time.sleep(8)
                     return self._send(200, {'ok': True, 'job': {'kind': 'ping'}, 'drive': {'token': 'ya29.T'}})
                 if body['op'] == 'report':
                     fake.reports.append(body)
@@ -370,7 +370,7 @@ class SlotsTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, out)
         done = {x.get('job') for x in fake.reports if x.get('done')}
         self.assertEqual(done, {JOB, JOB2}, 'שתי העבודות רצו ודווחו')
-        self.assertLess(fake.claims[JOB2] - fake.claims[JOB], 3, 'השנייה נלקחה בזמן שהראשונה עוד רצה — במקביל, לא בתור')
+        self.assertLess(fake.claims[JOB2] - fake.claims[JOB], 8, 'השנייה נלקחה בזמן שהראשונה עוד רצה — במקביל, לא בתור')
         fits = [b.get('fit') for b in fake.bodies if b.get('fit')]
         self.assertTrue(fits, 'הבקשה לעוד עבודה (כשאחת רצה) כוללת כמה זיכרון פנוי')
         f = fits[0]
