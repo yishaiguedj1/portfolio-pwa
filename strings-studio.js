@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1551 מפתחות מתוך 3541) */
+/* המחרוזות של studio (1552 מפתחות מתוך 3542) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -828,6 +828,7 @@ he: {
   "studioOutCompact": "דחוס",
   "studioOutCompactS": "כחצי מהגודל, כמעט זהה בעין · ‏1080p",
   "studioOutDown": "הורדה",
+  "studioOutEarly": "הקבצים מוכנים. ברקע מכינים עוד את איכויות הצפייה לנגן — העבודה תסומן כגמורה בסוף.",
   "studioOutEn": "כתוביות בשפת המקור (SRT)",
   "studioOutEnShort": "כתוביות המקור",
   "studioOutErr": "לא הצלחנו לקרוא את הקובץ — נסו שוב",
@@ -2381,6 +2382,7 @@ en: {
   "studioOutCompact": "Compact",
   "studioOutCompactS": "About half the size, nearly identical to the eye · 1080p",
   "studioOutDown": "Download",
+  "studioOutEarly": "Your files are ready. Viewing qualities for the player are still being prepared — the job will show as done at the end.",
   "studioOutEn": "Source-language subtitles (SRT)",
   "studioOutEnShort": "Source subtitles",
   "studioOutErr": "Couldn't read the file — try again",

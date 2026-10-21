@@ -364,6 +364,11 @@ class TestWorker(unittest.TestCase):
         self.assertEqual(up['compact']['meta']['name'], 'Interview_2026 (עברית).mp4')
         self.assertTrue(any(r.get('st') == 'sv' for r in self.fake.reports))
         self.assertNotIn(KEY, out)
+        # 21/10/2026: התוצרים מגיעים לטלפון לפני ההשלמות שברקע (איכויות צפייה, מאגר הלמידה) — בדיווח שאינו done
+        early = [r for r in self.fake.reports if r.get('out') and not r.get('done')]
+        self.assertEqual(len(early), 1)
+        self.assertEqual(sorted(o['k'] for o in early[0]['out']), sorted(o['k'] for o in done['out'] if o['k'] in ('compact', 'srt')))
+        self.assertLess(self.fake.reports.index(early[0]), self.fake.reports.index(done))
 
     # ---------------------------------------------------------------- איכויות צפייה (ladder.py)
     def seed_ladder(self, s='ok'):
