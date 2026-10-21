@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של admin (951 מפתחות מתוך 3604) */
+/* המחרוזות של admin (953 מפתחות מתוך 3606) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -12,6 +12,7 @@ he: {
   "admA_cache_miss": "המטמון נכתב שוב ושוב — כנראה ההנחיה משתנה או שעבר יותר מדי זמן בין קריאות.",
   "admA_cost_role": "לנסות לקצר את הקלט של התפקיד הזה או מודל זול יותר רק לו, ולמדוד את האיכות.",
   "admA_edits_after": "אתה עורך הרבה אחרי העבודה. לבדוק בקורפוס מה תיקנת — זה המקור הטוב ביותר לשיפור ההנחיה.",
+  "admA_eta_off": "הזמן שהוצג בטלפון רחוק מהזמן בפועל. לבדוק איזה שלב סוטה ולעדכן את הצפי שלו.",
   "admA_fail_top": "לפתוח את יומני העבודות שנכשלו בקוד הזה ולתקן את השורש. אם הוא חולף — להוסיף ניסיון חוזר.",
   "admA_first_pass": "יותר מדי עבודות צריכות \"המשך\". לבדוק את הכשלים — כל קוד שחוזר הוא תיקון אחד.",
   "admA_fix_heavy": "הרבה כתוביות נכשלות בבדיקה אחרי התרגום. לחזק את הכללים בהנחיית המתרגם (אורך, קצב).",
@@ -275,6 +276,7 @@ he: {
   "admI_cache_miss": "המטמון נכתב מחדש",
   "admI_cost_role": "תפקיד אחד לוקח את רוב העלות",
   "admI_edits_after": "עריכות ידניות אחרי העבודה",
+  "admI_eta_off": "טעות בצפי הזמן",
   "admI_fail_top": "הכשל הנפוץ ביותר",
   "admI_first_pass": "עבודות שעוברות בלי עזרה",
   "admI_fix_heavy": "הרבה סבבי תיקון",
@@ -965,6 +967,7 @@ en: {
   "admA_cache_miss": "The cache is written again and again: the prompt probably changes, or too much time passes between calls.",
   "admA_cost_role": "Try shortening this role’s input or a cheaper model for it alone, and measure quality.",
   "admA_edits_after": "You edit a lot after the job. Check in the corpus what you fixed: it is the best source for improving the prompt.",
+  "admA_eta_off": "The time shown on the phone is far from the actual time. Check which stage drifts and update its estimate.",
   "admA_fail_top": "Open the logs of the jobs that failed with this code and fix the root cause. If it is transient, add a retry.",
   "admA_first_pass": "Too many jobs need \"resume\". Check the failures: each recurring code is one fix.",
   "admA_fix_heavy": "Many subtitles fail the check after translation. Strengthen the rules in the translator prompt (length, speed).",
@@ -1228,6 +1231,7 @@ en: {
   "admI_cache_miss": "Cache rewritten",
   "admI_cost_role": "One role takes most of the cost",
   "admI_edits_after": "Manual edits after the job",
+  "admI_eta_off": "Time estimate is off",
   "admI_fail_top": "Most common failure",
   "admI_first_pass": "Jobs that pass unaided",
   "admI_fix_heavy": "Many fix rounds",

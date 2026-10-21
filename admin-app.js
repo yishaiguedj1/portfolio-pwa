@@ -1090,6 +1090,7 @@ function insName(k) {
     case 'slow_stage': return t('admI_slow_stage');
     case 'wait_user': return t('admI_wait_user');
     case 'sla_over': return t('admI_sla_over');
+    case 'eta_off': return t('admI_eta_off');
     case 'asr_weak': return t('admI_asr_weak');
     case 'align_weak': return t('admI_align_weak');
     case 'sync_low': return t('admI_sync_low');
@@ -1127,6 +1128,7 @@ function insAct(k) {
     case 'slow_stage': return t('admA_slow_stage');
     case 'wait_user': return t('admA_wait_user');
     case 'sla_over': return t('admA_sla_over');
+    case 'eta_off': return t('admA_eta_off');
     case 'asr_weak': return t('admA_asr_weak');
     case 'align_weak': return t('admA_align_weak');
     case 'sync_low': return t('admA_sync_low');

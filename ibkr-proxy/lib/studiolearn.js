@@ -530,6 +530,10 @@ function insights(rs, k30, roles, stages, fails, jc, qf, modes, now, mx, ver) {
   const pzSh = sum(done.map((r) => r.t.pz)) / Math.max(1, sum(done.map((r) => r.t.run)));
   if (done.length >= 3 && pzSh >= 0.2) out.push({ k: 'wait_user', sev: 3, imp: 0, v: { p: rnd(pzSh, 3) } });
   const over = done.filter((r) => r.tg && r.tg.t > 0 && runSec(r) != null && runSec(r) > r.tg.t);
+  /* טעות הצפי (21/10/2026): הצפי בלקיחה (ep.t) מול הזמן בפועל בלי ההמתנות — רק עבודות בהפעלה אחת */
+  const etaErr = done.filter((r) => r.ep && r.ep.t > 0 && r.t && isNum(r.t.run) && (r.fires || 0) <= 1)
+    .map((r) => Math.abs(Math.max(0, r.t.run - (r.t.pz || 0)) - r.ep.t) / r.ep.t).sort((a, b) => a - b);
+  if (etaErr.length >= 4) { const med = etaErr[Math.floor(etaErr.length / 2)]; if (med >= 0.25) out.push({ k: 'eta_off', sev: med >= 0.5 ? 2 : 3, imp: 0, v: { p: rnd(med, 3), n: etaErr.length } }); }
   if (done.length >= 4 && over.length / done.length >= 0.25) out.push({ k: 'sla_over', sev: 2, imp: 0, v: { p: rnd(over.length / done.length, 3) } });
   // התמלול והיישור
   const prf = done.filter((r) => r.lx && r.lx.ps && isNum(r.lx.ps['edit_import.equal']));
@@ -614,7 +618,7 @@ const INS_HE = {
   cost_role: 'תפקיד אחד לוקח את רוב העלות', think_heavy: 'חשיבה כבדה', truncated: 'תשובות שנקטעו', cache_miss: 'פספוסי מטמון',
   fix_heavy: 'הרבה סבבי תיקון', rv_idle: 'המבקר כמעט לא משנה', rv_heavy: 'המבקר משנה הרבה', judge_top: 'הבעיה שהשופט מסמן הכי הרבה',
   q_metric: 'מדד איכות שנכשל הרבה', edits_after: 'עריכות ידניות אחרי העבודה', ai_after: 'שימוש בגיליון ה־AI אחרי העבודה',
-  slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', asr_weak: 'תמלול חלש',
+  slow_stage: 'שלב איטי מהצפוי', wait_user: 'זמן המתנה למשתמש', sla_over: 'חריגה מיעד הזמן', eta_off: 'טעות בצפי הזמן', asr_weak: 'תמלול חלש',
   align_weak: 'יישור חלש', sync_low: 'סנכרון קול־וידאו לא ודאי', mode_value: 'מצב זול יותר כמעט באותה איכות',
   num_drop: 'מספרים שנעלמו בתרגום', omit_cues: 'כתוביות שנראות מושמטות', tm_late: 'כתוביות שעולות מאוחר / יורדות מוקדם',
   shot_near: 'גבולות קרובים לחילוף שוט', name_var: 'שם אחד בכמה איותים', gl_miss: 'מונחים מהמילון שלא נשמרו',
