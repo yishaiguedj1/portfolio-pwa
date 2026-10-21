@@ -5717,9 +5717,13 @@ function pageJob(p) {
     const tm = h('span', 'st-stg-t');
     row.append(dot, txt, tm);
     if (s.state === 'now') { const pb = h('span', 'st-pbar'); const pi = h('i'); pb.append(pi); txt.append(pb); live(pb, () => { const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id); pi.style.width = Math.round(100 * shownPct(jobRec(id) || rec, mm && (mm.pv != null ? mm.pv : mm.p), s.id)) + '%'; }); }
+    // 21/10: "לוקח יותר מהרגיל" — שורה מתחת לפס, לא ליד הזמן (טקסט ארוך שלא נשבר דחס את שם השלב לעמודה צרה)
+    const ov = s.state === 'now' ? h('small', 'st-stg-ov', T('studioStageLong')) : null;
+    if (ov) { ov.hidden = !s.over; txt.append(ov); }
     live(tm, () => {
       const mm = modelFor(jobRec(id) || rec).stages.find((x) => x.id === s.id) || s;
-      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? (mm.over ? T('studioStageLong', { t: fmtShort(mm.left) }) : T('studioStageLeft', { t: fmtShort(mm.left) })) : approx(fmtShort(mm.est));
+      if (ov) ov.hidden = !(mm.state === 'now' && mm.over);
+      tm.textContent = mm.state === 'done' ? (mm.took ? '✓ ' + fmtShort(mm.took) : '✓') : mm.state === 'now' ? T('studioStageLeft', { t: fmtShort(mm.left) }) : approx(fmtShort(mm.est));
     });
     stl.append(row);
   }
