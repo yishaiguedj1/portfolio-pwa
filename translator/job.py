@@ -1668,6 +1668,7 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
     held = ladder_hold() if args and args[0] in LADDER_HOLD_CMDS else None
+    eh = early_shots_hold(True) if args and args[0] in EARLY_HOLD_CMDS else False
     stop = threading.Event()
     if args and args[0] == 'align' and ctx is not None:
         threading.Thread(target=align_ck_watch, args=(ctx, stop), daemon=True).start()
@@ -1694,6 +1695,8 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
                 os.environ[restore[0]] = restore[1]
         if held:
             ladder_start(ctx, held)
+        if eh:
+            early_shots_hold(False)
 
 
 ALIGN_CK_EVERY = float(os.environ.get('SNB_ALIGN_CK', '240'))
@@ -2135,6 +2138,7 @@ def video_prefetch(ctx, stop):
             t0 = time.time()
             fetch_input(q, v['id'], in_path(q, v, 'v'), int(v.get('size') or 0))
             note_timing(q, 'prefetch', t0, time.time())     # 21/10/2026: מתי ההורדה ברקע רצה (מול היישור) וכמה זמן לקחה
+            early_shots_start(q, in_path(q, v, 'v'))
             return v
         stop.wait(poll)
         if stop.is_set():
@@ -2193,14 +2197,112 @@ def attach_late(ctx):
 _SHOTS_BG = {}
 
 
+# 21/10/2026 (עבודת הבקרה: השוטים עדיין עיכבו את הסוף ב־2.5 דק׳ — הביקורת נגמרה ב־14:32:53, השוטים ב־14:35:24): הזיהוי
+# מתחיל כבר כשהסרטון ירד ברקע (video_prefetch), על הקובץ עצמו — בזמן ההגהה המעבד מחכה ל־Claude. מושהה (SIGSTOP) בזמן
+# התמלול והיישור, שעל המעבד הן הנתיב הקריטי, וממשיך אחריהם. הזמנים = ציר הזמן של הסרטון = של הפרויקט אחרי הצירוף.
+# חיתוך לפני התרגום (edl) — לא (המקור משתנה); SNB_EARLY_SHOTS=off מכבה. תקלה כלשהי = vt shots כמו קודם.
+EARLY_HOLD_CMDS = ('asr', 'align')
+_EARLY = {'p': None, 'out': None, 't0': 0.0, 'hold': 0}
+_EARLY_LOCK = threading.Lock()
+EARLY_SHOTS_PY = (
+    'import json,os,sys,pathlib\n'
+    'from vt import media\n'
+    'th=float(sys.argv[3])\n'
+    's=media.detect_shots(pathlib.Path(sys.argv[1]),th)\n'
+    't=sys.argv[2]+".tmp"\n'
+    'json.dump({"threshold":th,"shots":s},open(t,"w"))\n'
+    'os.replace(t,sys.argv[2])\n')
+
+
+def _signal_group(p, sig):
+    try:
+        os.killpg(p.pid, sig)
+    except (OSError, AttributeError):
+        pass
+
+
+def early_shots_start(q, src):
+    if os.environ.get('SNB_EARLY_SHOTS') == 'off' or (q.st.get('spec') or {}).get('edl') or not Path(src).exists():
+        return False
+    try:
+        th = float((json.loads((q.pdir / 'project.json').read_text(encoding='utf-8')).get('settings') or {}).get('shot_threshold') or 10.0)
+    except (OSError, ValueError):
+        th = 10.0
+    out = q.pdir / 'shots.early.json'
+    try:
+        out.unlink()
+    except OSError:
+        pass
+
+    def idle():
+        try:
+            os.nice(15)
+            os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))
+        except (AttributeError, OSError):
+            pass
+    with _EARLY_LOCK:
+        if _EARLY['p'] is not None:
+            return False
+        try:
+            p = subprocess.Popen([VT_PY, '-c', EARLY_SHOTS_PY, str(src), str(out), str(th)], cwd=str(HERE), env=vt_env(),
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                                 start_new_session=True, preexec_fn=idle)
+        except OSError:
+            return False
+        _EARLY.update(p=p, out=out, t0=time.time())
+        if _EARLY['hold'] > 0:                    # התחיל בזמן תמלול / יישור — מחכה להם
+            _signal_group(p, signal.SIGSTOP)
+    return True
+
+
+def early_shots_hold(on):
+    """on=True לפני פקודה כבדה (מושהה), False אחריה (ממשיך). מונה — שתי פקודות כבדות במקביל לא משחררות זו את זו."""
+    with _EARLY_LOCK:
+        _EARLY['hold'] = max(0, _EARLY['hold'] + (1 if on else -1))
+        p = _EARLY['p']
+        if p is not None and p.poll() is None and (_EARLY['hold'] == 1 and on or _EARLY['hold'] == 0 and not on):
+            _signal_group(p, signal.SIGSTOP if on else signal.SIGCONT)
+    return True
+
+
+def early_shots_take(ctx):
+    """אחרי הצירוף: מחכים לזיהוי המוקדם (כבר לא מושהה) ומעתיקים אותו ל־shots.json. True = יש שוטים; False = vt shots."""
+    with _EARLY_LOCK:
+        p, out, t0 = _EARLY['p'], _EARLY['out'], _EARLY['t0']
+        _EARLY.update(p=None, out=None)
+    if p is None:
+        return False
+    _signal_group(p, signal.SIGCONT)
+    try:
+        rc = p.wait()
+        d = json.loads(out.read_text(encoding='utf-8')) if rc == 0 else None
+    except (OSError, ValueError):
+        d = None
+    if not isinstance(d, dict) or not isinstance(d.get('shots'), list):
+        return False
+    (ctx.pdir / 'shots.json').write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
+    try:
+        out.unlink()
+    except OSError:
+        pass
+    subprocess.run([VT_PY, '-c', 'import sys\nfrom vt.project import Project\nProject(sys.argv[1]).mark("shots", count=int(sys.argv[2]), early=1)',
+                    ctx.name, str(len(d['shots']))], cwd=str(HERE), env=vt_env(), capture_output=True)
+    note_timing(ctx, 'shots', t0, time.time())
+    print('✓ חילופי שוטים: %d (זוהו ברקע מרגע שהסרטון ירד)' % len(d['shots']))
+    return True
+
+
 def shots_bg(ctx):
     if os.environ.get('SNB_SHOTS_BG') == 'off' or not hasattr(ctx, 'quiet'):
-        vt(ctx, ['shots', ctx.name])
+        if not early_shots_take(ctx):
+            vt(ctx, ['shots', ctx.name])
         return
     q, box = ctx.quiet(), {}
 
     def run():
         try:
+            if early_shots_take(q):
+                return
             vt(q, ['shots', ctx.name])
         except BaseException as e:          # noqa: BLE001 — נזרק (או נוסה שוב) ב־shots_join, בתהליכון הראשי
             box['err'] = e

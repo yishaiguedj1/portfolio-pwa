@@ -90,6 +90,38 @@ def _unique_span(cur, a, b, limit=240):
     return a, b
 
 
+# 21/10/2026 (עבודת הבקרה): בשלוש עבודות Haiku כל תיקוני ההגהה נזרקו (59/59, 25/25, 59/59 — "nf"), ב־Sonnet 31/35 הוחלו.
+# ההנחיה מציגה את הפורמט בתוך `…`, ומודל קטן מעתיק את העטיפה (או מוסיף תבליט / מספר / חץ אחר) — ה"ישן" מתחיל ב־` ולא נמצא.
+_BULLET = re.compile(r'^\s*(?:[-*•]|\d{1,3}[.)])\s+')
+_ARROWS = (' -> ', ' → ', ' ⇒ ')
+_WRAP = ('`', '"', '“', '”', "'")
+
+
+def _unwrap(x: str) -> str:
+    """צד אחד של תיקון: בלי רווחים בקצוות ובלי עטיפה שלמה במירכאות / גרשיים הפוכים (רק כשהעטיפה סוגרת את כל הצד)."""
+    x = x.strip()
+    while len(x) >= 2 and x[0] in _WRAP and x[-1] in _WRAP and (x[0] == x[-1] or x[0] in '“”' and x[-1] in '“”'):
+        x = x[1:-1].strip()
+    return x
+
+
+def patch_line(s: str) -> str:
+    """שורת תיקון כמו שמודל כותב אותה → `ישן => חדש`: בלי תבליט/מספור, בלי עטיפה של כל השורה בגרשיים הפוכים, וחץ אחר
+    (-> → ⇒) כשאין `=>`. מה שאין בו חץ בכלל — נשאר כמו שהוא (ונזרק כ־bad)."""
+    s = _BULLET.sub('', s.strip())
+    if len(s) >= 2 and s[0] == '`' and s[-1] == '`' and s.count('`') == 2:
+        s = s[1:-1].strip()
+    if ' => ' not in s:
+        for a in _ARROWS:
+            if s.count(a) == 1:
+                s = s.replace(a, ' => ')
+                break
+    if ' => ' in s:
+        a, b = s.split(' => ', 1)
+        s = _unwrap(a) + ' => ' + _unwrap(b)
+    return s
+
+
 def valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str]]:
     """שורות `ישן => חדש` שאפשר להחיל בבטחה (vt apply_patch: הישן מופיע בדיוק פעם אחת, בשורה אחת), לפי הסדר.
     21/10/2026 (יומני הייצור: "0 תיקונים — נזרקו 59 שלא התאימו לתמליל" — ההגהה שולמה ולא שינתה כלום): תיקון שהישן שלו
@@ -116,10 +148,11 @@ def valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str]]:
         s = line.rstrip()
         if not s.strip() or s.lstrip().startswith('#') or s.startswith('```'):
             continue
+        s = patch_line(s)
         if ' => ' not in s:
             dropped.append('bad: ' + s[:60])
             continue
-        old, new = s.split(' => ', 1)
+        old, new = (_unwrap(x) for x in s.split(' => ', 1))
         if not old or old == new:
             continue
         n = cur.count(old)
@@ -413,6 +446,8 @@ class Pipeline:
             why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
         print(f'✓ הגהה: {len(ok)} תיקונים' + (f' (נזרקו {len(dropped)} שלא התאימו לתמליל: ' + ', '.join(f'{k} {v}' for k, v in sorted(why.items())) + ')' if dropped else '')
               + f' · מילון: {len(gl.splitlines()) if gl else 0} מונחים')
+        if dropped and not ok:                    # כולם נזרקו — שתי דוגמאות קצרות ליומן (לאבחון הפורמט, בלי כל התמליל)
+            print('· דוגמאות שנזרקו: ' + ' | '.join(repr(d[:48]) for d in dropped[:2]))
         return parse_questions(sec.get('QUESTIONS', ''))
 
     # -------------------------------------------------------------- 3. שאלות למשתמש
