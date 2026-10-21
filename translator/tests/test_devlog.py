@@ -121,7 +121,7 @@ class Agent(unittest.TestCase):
         A.cpu_pct()
         s = A.met_sample()
         self.assertIn('t', s)
-        self.assertTrue(all(k in ('t', 'cpu', 'mem', 'disk', 'free', 'load', 'j', 'st', 'p', 'rss', 'mx', 'av', 'psi', 'sl', 'top') for k in s))
+        self.assertTrue(all(k in ('t', 'cpu', 'mem', 'disk', 'free', 'load', 'j', 'st', 'p', 'rss', 'mx', 'av', 'psi', 'sl', 'top', 'ma', 'mf', 'msh') for k in s))
         self.assertTrue(s.get('mx', 0) > 0, '21/10/2026: התקרה בכל דגימה (בלי זה "100%" לא אומר כמה GB)')
 
     def test_metrics_per_slot_rss(self):

@@ -170,7 +170,8 @@ export function normJob(j) {
     noAudio: typeof u.noAudio === 'string' ? u.noAudio.slice(0, 20) : '', started: num(u.started),
     wait: typeof u.wait === 'string' ? u.wait.slice(0, 40) : '', took: num(u.took),
     ext: u.ext === true, extReg: u.extReg === true,   // מקור מ־Drive: בלי העלאה; extReg = נרשם בשרתון
-    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null };   // התוצר נשמר בתיקייה שבחרת ב־Drive
+    dx: u.dx && FID_RE.test(String(u.dx.f || '')) ? { f: u.dx.f, n: String(u.dx.n || '').slice(0, 120), at: num(u.dx.at) } : null,   // התוצר נשמר בתיקייה שבחרת ב־Drive
+    tl: normUtl(u.tl) };
   const fp = j.fp && typeof j.fp === 'object' ? { name: String(j.fp.name || '').slice(0, 200), size: num(j.fp.size), lm: num(j.fp.lm) } : null;
   const s = j.srv && typeof j.srv === 'object' ? j.srv : null;
   const srv = s ? {
@@ -1339,13 +1340,58 @@ async function pickWithHandle() {
   } catch (e) { return e && e.name === 'AbortError' ? { cancel: true } : null; }
 }
 
+/* ---------------- 21/10/2026: מדידת ההעלאה מהטלפון (פרויקט השיפור המתמיד) ----------------
+   הצילום של המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, בזמן שהסרטון המלא עלה אחר כך ב־4–6MB/שנ׳. בלי מדידה
+   מהטלפון אי אפשר לדעת אם זה החילוץ, דף מואט ברקע או משהו אחר. רק מספרים (בלי שמות) → op:'upTel' → job.utl.
+   **UTL_KEYS זהה ל־UTL_KEYS בשרתון (lib/studio.js)** */
+export const UTL_KEYS = ['c2s', 'ex', 'ab', 'a', 'v', 'vb', 'hid', 'hn', 'rs', 'wt', 'wl', 'wlr', 'nt', 'dl', 'dm', 'hc'];
+export function normUtl(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const out = {};
+  for (const k of UTL_KEYS) { const v = Number(o[k]); if (Number.isFinite(v) && v >= 0 && v <= 1e11) out[k] = Math.round(v); }
+  return Object.keys(out).length ? out : null;
+}
+const NET_CODE = { wifi: 1, cellular: 2, ethernet: 3 };
+function utlOf(rec) {
+  const tl = rec.up.tl || (rec.up.tl = {});
+  try {
+    const c = navigator.connection;
+    if (c) { tl.nt = NET_CODE[c.type] || (c.type ? 4 : 0); if (c.downlink > 0) tl.dl = Math.round(c.downlink * 10); }
+    if (navigator.deviceMemory) tl.dm = Math.round(navigator.deviceMemory * 10);
+    if (navigator.hardwareConcurrency) tl.hc = navigator.hardwareConcurrency;
+  } catch (e) {}
+  return tl;
+}
+function utlAdd(rec, k, v) { const tl = utlOf(rec); tl[k] = Math.round((tl[k] || 0) + v); }
+function utlSend(id) {
+  const rec = jobRec(id), tl = rec && normUtl(rec.up.tl);
+  if (tl) { try { Promise.resolve(net.api('upTel', { job: id, tl })).catch(() => {}); } catch (e) {} }
+}
+let wlDenied = false;
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => {        // כמה זמן הדף היה ברקע בזמן העלאה (Chrome מאט / עוצר דף מוסתר)
+    const now = Date.now();
+    for (const [id, r] of runs) {
+      if (!r || !r.active) continue;
+      if (document.visibilityState === 'hidden') r.hid0 = now;
+      else if (r.hid0) { const rec = jobRec(id); if (rec) { utlAdd(rec, 'hid', now - r.hid0); utlAdd(rec, 'hn', 1); } r.hid0 = 0; }
+    }
+  });
+}
+
 /* ---------------- ההעלאה — רצה ברקע גם כשיוצאים מהסטודיו (כל עוד האפליקציה פתוחה) ---------------- */
 const runs = new Map();           // id → { active, phase, p, sent, total, rate, wait, err, need, ctl, file, t0 }
 let wl = null, wlWant = false;    // מסך דולק בזמן העלאה (אנדרואיד משהה לשוניות ברקע)
 async function wakeOn() {
   wlWant = true;
   if (wl || typeof navigator === 'undefined' || !navigator.wakeLock || document.visibilityState !== 'visible') return;
-  try { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } catch (e) { wl = null; }
+  try {
+    wl = await navigator.wakeLock.request('screen');
+    wl.addEventListener('release', () => {
+      wl = null;
+      for (const [id, r] of runs) if (r && r.active) { const rec = jobRec(id); if (rec) utlAdd(rec, 'wlr', 1); }   // המסך יכול לכבות באמצע
+    });
+  } catch (e) { wl = null; wlDenied = true; }
 }
 function wakeOffIfIdle() {
   if ([...runs.values()].some((r) => r.active)) return;
@@ -1450,6 +1496,8 @@ async function runJob(id, run) {
   if (!rec) { run.active = false; return; }
   const up = rec.up, file = run.file, sig = run.ctl.signal;
   wakeOn(); paintSoon();
+  { const tl = utlOf(rec); tl.rs = (tl.rs || 0) + 1; if (!tl.c2s && rec.created) tl.c2s = Math.max(0, run.t0 - rec.created); }
+  const onWaitT = () => { utlAdd(rec, 'wt', 1); paintSoon(); };
   try {
     if (!up.folder) { up.folder = await net.jobFolder(id, fileTitle(rec.spec.name)); save(); }
     if (up.ext) {   // סרטון מ־Drive: נשאר במקומו — רק רישום בשרתון (מאומת מול Drive: קיים, בגודל, סרטון) והתחלה
@@ -1463,32 +1511,39 @@ async function runJob(id, run) {
     if (!up.a.done && !up.noAudio) {
       run.phase = 'extract'; run.p = 0; paintSoon();
       let ex;
+      const tx = Date.now();
       try { ex = await extractAudio(file, { onProgress: (p) => { run.p = p; paintSoon(); }, signal: sig }); }
       catch (e) { if (isAbortErr(e)) throw e; ex = { none: 'extract' }; }
+      finally { utlAdd(rec, 'ex', Date.now() - tx); }
       if (ex.none) { up.noAudio = ex.none; save(); }
       else {
         const size = ex.blob.size;
         run.phase = 'audio'; run.p = 0; run.sent = 0; run.total = size; run.rs = null; paintSoon();
+        utlOf(rec).ab = size;
+        const ta = Date.now();
         const f = await net.upload({ blob: ex.blob, size, mime: ex.blob.type, signal: sig, gate: () => gate(run),
           r2: up.a.r2, onR2: (x) => { up.a.r2 = x; save(); },
           meta: { name: fileTitle(rec.spec.name) + ' — ' + T('studioAudioFile') + '.' + ex.ext, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'a' } },
           onProgress: (b) => { run.sent = b; run.p = b / size; tickRate(run, b); paintSoon(); },
-          onWait: () => paintSoon() });
+          onWait: onWaitT }).finally(() => utlAdd(rec, 'a', Date.now() - ta));
         await register(id, 'a', f.id, up.folder);
         up.a = { done: true, id: f.id, size: Number(f.size) || size, uri: '', sent: size };
         up.took = Math.round((Date.now() - run.t0) / 1000);
         save();
+        utlSend(id);                           // כבר עכשיו — גם אם הסרטון ייתקע, יודעים כמה לקח הקול
       }
     }
     if (up.a.done) await tryStart(id);
     // 2. הסרטון המלא — אותו קובץ בדיוק (השרתון מאמת את הגודל מול Drive)
     if (!up.v.done) {
       run.phase = 'video'; run.total = file.size; run.sent = up.v.sent || 0; run.p = run.sent / file.size; run.rs = null; paintSoon();
+      utlOf(rec).vb = file.size;
+      const tv = Date.now();
       const f = await net.upload({ blob: file, size: file.size, mime: file.type || 'application/octet-stream', signal: sig, gate: () => gate(run),
         uri: up.v.uri || '', onUri: (u) => { up.v.uri = u; save(); }, r2: up.v.r2, onR2: (x) => { up.v.r2 = x; save(); },
         meta: { name: rec.spec.name, parents: [up.folder], appProperties: { snbJob: id, snbPart: 'v' } },
         onProgress: (b) => { up.v.sent = b; run.sent = b; run.p = b / file.size; tickRate(run, b); paintSoon(); saveSoon(); },
-        onWait: () => paintSoon() });
+        onWait: onWaitT }).finally(() => utlAdd(rec, 'v', Date.now() - tv));
       await register(id, 'v', f.id, up.folder);
       up.v = { done: true, id: f.id, size: Number(f.size) || file.size, uri: '', sent: file.size };
       if (!up.took) up.took = Math.round((Date.now() - run.t0) / 1000);
@@ -1508,7 +1563,10 @@ async function runJob(id, run) {
     }
   } finally {
     run.active = false; run.wait = '';
+    if (run.hid0) { utlAdd(rec, 'hid', Date.now() - run.hid0); run.hid0 = 0; }
+    { const tl = utlOf(rec); tl.wl = wl ? 1 : wlDenied ? 2 : 0; }
     save(); wakeOffIfIdle(); repaint();
+    utlSend(id);
   }
 }
 /* v365: אירוע למגדל הפיקוח מהטלפון — בלי לחכות ובלי לעצור כלום אם נכשל */

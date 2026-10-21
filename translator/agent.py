@@ -209,6 +209,22 @@ def cpu_pct():
 MET_TOP_MEM = 80                    # מעל אחוז זיכרון זה — גם התהליכים הכבדים (שם + MB) בדגימה
 
 
+def mem_stat() -> dict:
+    """memory.stat של ה־cgroup (MB): ma = anon (זיכרון של תהליכים), mf = file (מטמון קבצים, ניתן לפינוי), msh = shmem.
+    בלי cgroup v2 (או תחת gVisor בלי הקובץ) — ריק"""
+    try:
+        kv = dict(ln.split() for ln in Path('/sys/fs/cgroup/memory.stat').read_text().splitlines() if ln.count(' ') == 1)
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for src, dst in (('anon', 'ma'), ('file', 'mf'), ('shmem', 'msh')):
+        try:
+            out[dst] = int(kv[src]) // 1048576
+        except (KeyError, ValueError):
+            pass
+    return out
+
+
 def top_procs(n: int = 5) -> list:
     """התהליכים עם הכי הרבה זיכרון: רק שם התהליך (comm) ו־MB — בלי שורת פקודה (שמות קבצים)"""
     try:
@@ -235,6 +251,9 @@ def met_sample() -> dict:
          # 21/10/2026 (מהיומנים): "100%" בלי התקרה לא אומר כמה GB; PSI = כמה זמן תהליכים חיכו לזיכרון (האות שמקדים OOM)
          'mx': mem_limit_mb() or None, 'av': int(mi['MemAvailable'] / 1024) if mi.get('MemAvailable') else None,
          'psi': mem_pressure() or None}
+    ms = mem_stat()                     # 21/10/2026: anon (תהליכים) מול file (מטמון קבצים) — מכריע אם "100%" הוא זיכרון אמיתי או מטמון
+    if ms:
+        d.update(ms)
     if _busy:
         pr = _prog()
         d.update({'j': _busy, 'st': str(pr.get('st') or '')[:24], 'p': pr.get('p')})
@@ -291,7 +310,11 @@ def report_lost():
         st = J.load_state()
         if not st or st.get('job') != BUSY.read_text().strip():
             return False
-        J.Ctx(st).report(fail=True, err='worker_lost', msg='השרת הופעל מחדש באמצע העבודה', force=True)
+        # 21/10/2026: סימן של שלב כבד שלא נוקה = נפל באמצע היישור (כמעט תמיד זיכרון). עדיין worker_lost (חולף) — כי ה"המשך"
+        # רץ עכשיו במצב חיסכון (job.py heavy_mark) ולא יפול שוב באותו מקום
+        heavy = sorted(p.name.split('.')[1] for p in J.HEAVY_DIR.glob(J.vt_slug(st['job']) + '.*.json')) if J.HEAVY_DIR.is_dir() else []
+        msg = ('השרת נפל באמצע ' + {'align': 'היישור'}.get(heavy[0], heavy[0]) + ' (כנראה נגמר הזיכרון) — ממשיכים במצב חיסכון') if heavy else 'השרת הופעל מחדש באמצע העבודה'
+        J.Ctx(st).report(fail=True, err='worker_lost', msg=msg, force=True)
         print('· עבודה ' + str(st.get('job', ''))[:6] + '… נקטעה בהפעלה מחדש — דווחה (תמשיך לבד מנקודת השמירה)', flush=True)
         ev('lost')
         return True

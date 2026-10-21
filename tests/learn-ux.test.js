@@ -193,6 +193,20 @@ const { fakeR2, ACC } = require('./_r2fake');
   r = await call({ op: 'learnUx', idToken: OWNER, job: J1.id, ux: { zz: 1 } });
   ok(r.code === 400, 'learnUx: בלי שום דבר ידוע — 400');
   ok(SR.fromFields(db.get('studioLearn/' + LR.lid(J1.id)).fields).lr.ux.pl.cov === 0.9, 'הרשומה במאגר מתעדכנת');
+  /* 21/10/2026: מדידת ההעלאה מהטלפון (op upTel → job.utl) — "הקול לקח 17 דק׳" */
+  {
+    const before = SR.fromFields(db.get('studioJobs/' + J1.id).fields).updated;
+    r = await api('upTel', { job: J1.id, tl: { c2s: 4000, ex: 900000, ab: 80e6, a: 20000, hid: 600000, hn: 3, wl: 2, nt: 2, name: 'x', bad: -5 } });
+    ok(r && r.ok, 'upTel — עובר');
+    const jt = SR.fromFields(db.get('studioJobs/' + J1.id).fields);
+    ok(jt.utl && jt.utl.ex === 900000 && jt.utl.hid === 600000 && jt.utl.wl === 2 && !('name' in jt.utl) && !('bad' in jt.utl), 'upTel: רק מספרים מהרשימה');
+    ok(jt.updated === before, 'upTel לא נוגע ב־updated (השעון של "נתקעה")');
+    r = await call({ op: 'upTel', idToken: OWNER, job: J1.id, tl: { zz: 1 } });
+    ok(r.code === 400, 'upTel: בלי שום דבר ידוע — 400');
+    const keysPhone = sj.match(/export const UTL_KEYS = (\[[^\]]*\])/)[1].replace(/'/g, '"');
+    ok(keysPhone === JSON.stringify(SR.UTL_KEYS).replace(/,/g, ', '), 'UTL_KEYS בטלפון = בשרתון');
+    ok(/utlSend\(id\);\s+\/\/ כבר עכשיו/.test(sj) && /finally \{ utlAdd\(rec, 'ex'/.test(sj) && /utlAdd\(rec, 'hid'/.test(sj), 'הטלפון מודד חילוץ, זמן ברקע, ושולח אחרי הקול ובסוף');
+  }
   /* בלי הסכמה לתוכן — המספרים כן, הטקסט לא */
   db.get('studioStats/ownerUid0001').fields.lrt = { integerValue: '0' };   // הנוסח של הטקסט "לא נקרא" — המתג עצמו דולק
   for (const [k, v] of db) if (k.startsWith('studioJobs/') && k !== 'studioJobs/' + J1.id) v.fields.state = { stringValue: 'done' };

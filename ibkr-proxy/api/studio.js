@@ -2420,6 +2420,14 @@ async function handler(req, res, deps = {}) {
       await raise(deps, uid, evs, job.id, now);
       return res.status(200).json({ ok: true });
     }
+    if (op === 'upTel') {
+      // 21/10/2026: מדידת ההעלאה מהטלפון (מספרים בלבד) — לאבחון "הקול לקח 17 דק׳". הטלפון שולח את כל המצטבר; דורס
+      const tl = S.normUtl(body.tl);
+      if (!tl || job.kind !== 'tr') return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (limited('ut|' + uid, 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+      await patchJob(deps, job.id, { utl: tl });          // בלי updated — הוא השעון של "נתקעה" (isStale), והטלפון לא אומר שהעובד חי
+      return res.status(200).json({ ok: true });
+    }
     if (op === 'cancel') {
       await closeJobOps(deps, uid, job.id, now);
       if (job.rw) { await patchJob(deps, job.id, { rw: 0, updated: now }); job.rw = 0; }   // v368: "בטל" גם עוצר את ההמשך האוטומטי

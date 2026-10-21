@@ -763,6 +763,12 @@ def learn_facts(ctx):
         e = env_facts()
         out['env'] = {'cpus': int(e.get('cpus') or 0), 'arch': re.sub(r'[^a-z0-9_]', '', str(e.get('arch') or '').lower())[:16],
                       'gv': 1 if e.get('gvisor') else 0, 'mem': _mem_mb()}
+        img = re.sub(r'[^0-9a-f]', '', str(e.get('img') or ''))[:12]
+        if img:
+            out['env']['img'] = img
+        for k, v in (e.get('lib') or {}).items():
+            if re.match(r'^[0-9][0-9a-z.+-]{0,19}$', str(v)):
+                out['env'][{'anthropic': 'an', 'onnxruntime': 'ort', 'httpx': 'hx'}.get(k, k[:3])] = str(v)
     except Exception:            # noqa: BLE001
         pass
     pd = ctx.pdir
@@ -1503,7 +1509,24 @@ def env_facts():
     except (AttributeError, OSError):
         aff = os.cpu_count() or 0
     return {'cpus': aff, 'cpu_max': rd('/sys/fs/cgroup/cpu.max', 40), 'arch': os.uname().machine,
-            'gvisor': 'gvisor' in (rd('/proc/version', 200) + rd('/proc/self/cgroup', 200)).lower() or os.path.exists('/proc/gvisor')}
+            'gvisor': 'gvisor' in (rd('/proc/version', 200) + rd('/proc/self/cgroup', 200)).lower() or os.path.exists('/proc/gvisor'),
+            'img': os.environ.get('SNB_VERSION', '')[:12], 'lib': lib_versions()}
+
+
+def lib_versions():
+    """21/10/2026: גרסת התמונה והספריות שקובעות התנהגות (מהניתוח: הקריסה של anthropic 1.x — httpx.Timeout — הייתה מוסברת מיד
+    עם תווית כזו). רק שם וגרסה."""
+    out = {}
+    try:
+        from importlib import metadata
+        for n in ('anthropic', 'onnxruntime', 'httpx'):
+            try:
+                out[n] = metadata.version(n)[:20]
+            except Exception:    # noqa: BLE001
+                pass
+    except Exception:            # noqa: BLE001
+        pass
+    return out
 
 
 def note_timing(ctx, cmd, t0, t1):
@@ -1587,6 +1610,41 @@ class RenderProg:
         return self.best
 
 
+# 21/10/2026 (מהיומנים של הייצור: שלוש נפילות ברצף ביישור של אותה עבודה — כל "המשך" חזר על אותו דבר בדיוק).
+# סימן לפני שלב כבד בזיכרון, בדיסק שלא נמחק בעלייה (/cache — רק מזהה עבודה ומספר, בלי תוכן); הצליח = נמחק.
+# סימן שנשאר = התהליך מת באמצע (לרוב נגמר הזיכרון, והקונטיינר הופעל מחדש) → בניסוי הבא: מצב חיסכון (בלי arena של ONNX,
+# 5.0→2.8GB, ‎+32% זמן — vt/align_onnx.py). כך "המשך" אוטומטי אחרי נפילה כזו מצליח במקום ליפול שוב.
+HEAVY_DIR = Path(os.environ.get('SNB_HEAVY_DIR', '/cache/snb-heavy'))
+HEAVY_ENV = {'align': ('SNB_ALIGN_ARENA', 'off')}
+HEAVY_TTL = 3 * 86400
+
+
+def heavy_mark(ctx, cmd):
+    """כמה פעמים השלב הזה של העבודה הזו כבר התחיל ולא הסתיים (0 = ניסיון ראשון). כותב את הסימן לניסיון הנוכחי."""
+    try:
+        HEAVY_DIR.mkdir(parents=True, exist_ok=True)
+        now = time.time()
+        for f in HEAVY_DIR.glob('*.json'):
+            try:
+                if now - f.stat().st_mtime > HEAVY_TTL:
+                    f.unlink()
+            except OSError:
+                pass
+        f = HEAVY_DIR / (vt_slug(ctx.st['job']) + '.' + cmd + '.json')
+        n = int((_read_json(f) or {}).get('n') or 0)
+        f.write_text(json.dumps({'n': n + 1, 'at': int(now)}), encoding='utf-8')
+        return n
+    except Exception:            # noqa: BLE001 — מדידה/הגנה בלבד
+        return 0
+
+
+def heavy_clear(ctx, cmd):
+    try:
+        (HEAVY_DIR / (vt_slug(ctx.st['job']) + '.' + cmd + '.json')).unlink()
+    except Exception:            # noqa: BLE001
+        pass
+
+
 def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     """מריץ פקודת vt. שורת סיכום לכל פקודה; אחוזים מהפלט הולכים לשרתון כהתקדמות השלב."""
     t0 = time.time()
@@ -1594,10 +1652,27 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     stop = threading.Event()
     if args and args[0] == 'align' and ctx is not None:
         threading.Thread(target=align_ck_watch, args=(ctx, stop), daemon=True).start()
+    heavy = args[0] if args and args[0] in HEAVY_ENV and ctx is not None and isinstance(getattr(ctx, 'st', None), dict) and ctx.st.get('job') else ''
+    restore = None
+    if heavy and heavy_mark(ctx, heavy) > 0:
+        k, v = HEAVY_ENV[heavy]
+        restore = (k, os.environ.get(k))
+        os.environ[k] = v
+        print('· הניסיון הקודם של השלב הזה נקטע באמצע (כנראה נגמר הזיכרון) — עכשיו במצב חיסכון: איטי יותר, בלי סכנת קריסה')
+    ok = False
     try:
-        return _vt(ctx, args, stage, lo, hi, t0)
+        r = _vt(ctx, args, stage, lo, hi, t0)
+        ok = True
+        return r
     finally:
         stop.set()
+        if heavy and ok:
+            heavy_clear(ctx, heavy)
+        if restore:
+            if restore[1] is None:
+                os.environ.pop(restore[0], None)
+            else:
+                os.environ[restore[0]] = restore[1]
         if held:
             ladder_start(ctx, held)
 
@@ -2078,10 +2153,46 @@ def attach_late(ctx):
         print('· ההיסט בין הקול לסרטון לא ודאי (%.2f) — מיישרים מחדש על הקול של הסרטון (בלי טוקנים)' % conf)
         vt(ctx, ['align', ctx.name])
         vt(ctx, ['retime', ctx.name])
-    vt(ctx, ['shots', ctx.name])
+    shots_bg(ctx)                                # 21/10/2026: ברקע, בזמן הביקורת — נחוץ רק לבנייה הסופית (finish → shots_join)
     ctx.st['src'] = 'v'
     ctx.st['sync'] = {'off': round(off, 4), 'conf': round(conf, 3)}
     save_state(ctx.st)
+
+
+# 21/10/2026 (מהיומנים של הייצור): זיהוי השוטים בסרטון של 87 דק׳ — 8.5 דק׳ ב־97% מעבד, ובמסלול "הקול קודם" הוא היה על
+# הנתיב הקריטי (לפני הביקורת). השוטים משמשים רק לתזמון בבנייה (הצמדה לחיתוכים); הביקורת והשופט עוסקים בטקסט, והם בעיקר
+# מחכים ל־Claude — המעבד פנוי. לכן: ברקע מהצירוף, ו־finish מחכה לו לפני הבנייה הסופית. SNB_SHOTS_BG=off = כמו קודם.
+_SHOTS_BG = {}
+
+
+def shots_bg(ctx):
+    if os.environ.get('SNB_SHOTS_BG') == 'off' or not hasattr(ctx, 'quiet'):
+        vt(ctx, ['shots', ctx.name])
+        return
+    q, box = ctx.quiet(), {}
+
+    def run():
+        try:
+            vt(q, ['shots', ctx.name])
+        except BaseException as e:          # noqa: BLE001 — נזרק (או נוסה שוב) ב־shots_join, בתהליכון הראשי
+            box['err'] = e
+    th = threading.Thread(target=run, name='shots', daemon=True)
+    th.start()
+    _SHOTS_BG[ctx.name] = (th, box)
+
+
+def shots_join(ctx):
+    """לפני הבנייה הסופית: מחכים לזיהוי שרץ ברקע. נכשל ברקע / לא רץ בתהליך הזה (המשך מנקודת שמירה לפני שהסתיים) — עכשיו."""
+    bg = _SHOTS_BG.pop(ctx.name, None)
+    if bg:
+        th, box = bg
+        if th.is_alive():
+            ctx.report('rv', None, 'מסיימים לזהות את חילופי השוטים')
+            th.join()
+        if 'err' not in box:
+            return
+    if ctx.st.get('src') == 'v' and not (ctx.pdir / 'shots.json').exists():
+        vt(ctx, ['shots', ctx.name])
 
 
 # ---------------------------------------------------------------- v380: זיכרון מונחים
@@ -2208,6 +2319,7 @@ def attach_late_cmd(args):
         print('· הסרטון כבר המקור — אין מה לצרף.')
         return 0
     attach_late(ctx)
+    shots_join(ctx)                              # פקודה בפני עצמה — לא יוצאים לפני שהשוטים (ברקע) הסתיימו
     return 0
 
 
@@ -3235,6 +3347,7 @@ def finish(args):
     errs = re.findall(r'שגיאות (\d+)', '\n'.join(vt(ctx, ['tr-check', ctx.name])))
     if (not errs or int(errs[-1]) > 0) and not args.force:
         raise SystemExit('✗ tr-check מצא שגיאות — לתקן ב־tr/fixes_zfinal.txt ולהריץ שוב: grep -A2 "שגיא" ' + str(ctx.pdir / 'tr' / 'check.md'))
+    shots_join(ctx)                              # 21/10/2026: השוטים רצו ברקע בזמן הביקורת — לפני הנקודה (שתכלול אותם) והבנייה
     save_ck(ctx, 'rv')                           # התרגום אחרי הביקורת — אם הצריבה או ההעלאה נקטעות, ממשיכים מכאן
     vt(ctx, ['tr-merge', ctx.name])
     vt(ctx, ['build', ctx.name, '--style', vt_style(ctx.st.get('spec'))])

@@ -52,6 +52,9 @@ function normLx(o) {
     if (/^[a-z0-9_]{1,16}$/.test(String(o.env.arch || ''))) e.arch = o.env.arch;
     if (o.env.gv != null) e.gv = o.env.gv ? 1 : 0;
     if (isNum(o.env.mem) && o.env.mem > 0 && o.env.mem < 1e7) e.mem = Math.round(o.env.mem);   // MB
+    // 21/10/2026: גרסת התמונה והספריות (anthropic / onnxruntime / httpx) — כדי לייחס שינוי בהתנהגות לגרסה
+    if (/^[0-9a-f]{7,12}$/.test(String(o.env.img || ''))) e.img = o.env.img;
+    for (const k of ['an', 'ort', 'hx']) if (/^[0-9][0-9a-z.+-]{0,19}$/.test(String(o.env[k] || ''))) e[k] = o.env[k];
     if (Object.keys(e).length) out.env = e;
   }
   if (o.vid && typeof o.vid === 'object') {                                           // 20/10/2026: רזולוציה, פריימים, קצב — לצפי הצריבה
@@ -228,6 +231,8 @@ function learnRec(job, now, effState) {
     pv: job.pv && typeof job.pv === 'object' ? Object.fromEntries(Object.entries(job.pv).filter(([k, v]) => /^[a-z]{2,4}$/.test(k) && /^[0-9a-f]{8}$/.test(String(v)))) : null,
     lx: normLx(job.lx),
     ux: normUx(job.ux),
+    // 21/10/2026: מדידת ההעלאה מהטלפון (חילוץ, העלאה, זמן ברקע — op upTel, כבר מנורמל בכתיבה): רק מספרים
+    ut: job.utl && typeof job.utl === 'object' && !Array.isArray(job.utl) ? Object.fromEntries(Object.entries(job.utl).filter(([k, v]) => /^[a-z0-9]{1,4}$/.test(k) && isNum(v))) : null,
   };
   return rec;
 }

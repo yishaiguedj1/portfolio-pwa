@@ -61,8 +61,9 @@ def verify(d: Path) -> dict:
 
 # 21/10/2026 (מהיומנים של הייצור): היישור של סרטון של כשעה וחצי הגיע ל־100% זיכרון בכל עבודה, ושלוש פעמים השרת נפל
 # (כל נפילה ≈ רבע שעה + "המשך"). נמדד (20/10): עם ה־arena של ONNX השיא 5.0GB, בלעדיה 2.8GB ו־+32% זמן, פלט זהה.
-# לכן: כשבתחילת היישור פנוי פחות מ־ARENA_NEED_MB — בלי arena (עוד כמה דקות במקום קריסה). SNB_ALIGN_ARENA=on/off עוקף.
-ARENA_NEED_MB = int(os.environ.get("SNB_ALIGN_ARENA_MB", "5600"))
+# לכן: כשבתחילת היישור פנוי פחות מ־ARENA_NEED_MB (השיא שנמדד עם arena) — בלי arena (עוד כמה דקות במקום קריסה).
+# ניסיון שבא אחרי נפילה באמצע היישור של אותה עבודה — job.py מכבה (SNB_ALIGN_ARENA=off, סימן ב־/cache). =on/off עוקף.
+ARENA_NEED_MB = int(os.environ.get("SNB_ALIGN_ARENA_MB", "5000"))
 
 
 def mem_free_mb() -> int | None:
