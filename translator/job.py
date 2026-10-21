@@ -1566,7 +1566,7 @@ def vt(ctx, args, stage=None, lo=0.0, hi=1.0):
     t0 = time.time()
     held = ladder_hold() if args and args[0] in LADDER_HOLD_CMDS else None
     stop = threading.Event()
-    if args and args[0] == 'align':
+    if args and args[0] == 'align' and ctx is not None:
         threading.Thread(target=align_ck_watch, args=(ctx, stop), daemon=True).start()
     try:
         return _vt(ctx, args, stage, lo, hi, t0)
@@ -1583,18 +1583,19 @@ def align_ck_watch(ctx, stop):
     """21/10/2026 (דיווח המשתמש: "המשך" התחיל את היישור מההתחלה — עוד 19 דק׳): vt align שומר את הקטעים שסיים
     (align.part.json), וכאן הוא עולה לענן בתוך נקודת השמירה של התמלול כל ALIGN_CK_EVERY שניות — כך "המשך" אחרי
     הפעלה מחדש ממשיך מהקטע שנעצר בו. רק כשההגהה כבר בנקודה (מצב השרת) — אחרת הנקודה הזו לא כוללת אותה."""
-    part = ctx.pdir / 'align.part.json'
     last = 0.0
     while not stop.wait(ALIGN_CK_EVERY):
-        if not (ctx.st.get('ck_pr') or ctx.st.get('proofed')):
-            return
         try:
-            m = part.stat().st_mtime
-        except OSError:
+            if not (ctx.st.get('ck_pr') or ctx.st.get('proofed')):
+                return
+            m = (ctx.pdir / 'align.part.json').stat().st_mtime
+            if m != last and not stop.is_set():
+                last = m
+                save_ck(ctx, 'asr', {'pr': 1})
+        except Stop:
+            return                               # העבודה נעצרה — היישור עצמו יקבל את זה בדיווח הבא
+        except (OSError, SystemExit, Exception):   # noqa: BLE001 — שמירה ברקע לא מפילה את היישור
             continue
-        if m != last and not stop.is_set():
-            last = m
-            save_ck(ctx, 'asr', {'pr': 1})
 
 
 def _vt(ctx, args, stage, lo, hi, t0):

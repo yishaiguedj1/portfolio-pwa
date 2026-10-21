@@ -195,7 +195,16 @@ def prerender(ass: Path, out_dir: Path, width: int, height: int, src: Path,
     return write_list(out_dir), y0, n
 
 
-def write_list(out_dir: Path, start: float | None = None, end: float | None = None) -> Path:
+def cut_time(times: list[int], f: int) -> float:
+    """הזמן (שנ׳) שבין פריים f−1 לפריים f — נקודת חיתוך שעמידה לעיגול: ‎-ss בה מתחיל בדיוק בפריים f."""
+    if f <= 0:
+        return 0.0
+    if f >= len(times):
+        return times[-1] / 1000 + 0.5
+    return (times[f - 1] + times[f]) / 2000
+
+
+def write_list(out_dir: Path, start: float | None = None, end: float | None = None, name: str | None = None) -> Path:
     """קובץ concat: כל מעבר באמצע בין שני פריימים אמיתיים — עמיד לעיגול, ותמיד אותו פריים כמו libass.
 
     לקטע (start/end): הזמנים מוזזים ב־start, כי ffmpeg עם ‎-ss לפני הקלט מאפס את ציר הזמן לנקודת החיתוך.
@@ -208,11 +217,7 @@ def write_list(out_dir: Path, start: float | None = None, end: float | None = No
     stop = end if end is not None else float("inf")
 
     def at(f: int) -> float:
-        if f <= 0:
-            return 0.0
-        if f >= len(times):
-            return times[-1] / 1000 + 0.5
-        return (times[f - 1] + times[f]) / 2000
+        return cut_time(times, f)
 
     rows, cur = ["ffconcat version 1.0"], 0.0
     for k, (fa, fb) in enumerate(segs):
@@ -224,7 +229,7 @@ def write_list(out_dir: Path, start: float | None = None, end: float | None = No
         rows += [f"file {names[k]}", f"duration {tb - ta:.6f}"]
         cur = tb
     rows += ["file blank.png", "duration 1.0"]
-    lst = out_dir / ("overlay.txt" if start is None else f"overlay_{int(off)}.txt")
+    lst = out_dir / (name or ("overlay.txt" if start is None else f"overlay_{int(off)}.txt"))
     lst.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return lst
 

@@ -1492,7 +1492,12 @@ async function worker(req, res, body, deps) {
       }
     }
     if (body.wv === true && job.kind === 'tr') { if (!job.wv0) up.wv0 = now; }
-    else if (job.wv0 && (body.st || body.done === true || body.fail === true)) { up.pz = (up.pz != null ? up.pz : job.pz || 0) + Math.max(0, now - job.wv0); up.wv0 = 0; }
+    else if (job.wv0 && (body.st || body.done === true || body.fail === true)) {
+      up.pz = (up.pz != null ? up.pz : job.pz || 0) + Math.max(0, now - job.wv0); up.wv0 = 0;
+      // 21/10/2026: גם השלב שבו חיכינו לא סופר את ההמתנה (עד היום — 39 דק׳ "ביישור" אחרי חזרה לתור, והצפי ‎"עוד 3:09 ש׳")
+      const ws = job.prog && job.prog.st;
+      if (ws && up.prog) up.prog = S.excludeWait(up.prog, ws, job.wv0, now);
+    }
     // Firestore שומר כאן מספרים שלמים — לכן סנטים (mucc), לא דולרים
     const spent = job.eng === 'api' && up.use ? S.usdOf(up.use) - (job.mucc || 0) / 100 : 0;
     if (spent > 0) up.mucc = Math.round(S.usdOf(up.use) * 100);

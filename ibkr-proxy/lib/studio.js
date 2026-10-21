@@ -918,6 +918,14 @@ function workerJob(job, nm, fb, fm, rl, gl) {
 }
 /* 21/10/2026: כמה זמן (ms) כבר הושקע בשלב בסשנים קודמים — הצבור (a) ועוד הקטע שנסגר */
 function stgSpent(x) { return !x ? 0 : Math.max(0, (+x.a || 0) + (x.e > 0 && x.s > 0 ? x.e - x.s : 0)); }
+/* 21/10/2026: המתנה לסרטון מהטלפון (wv0 → עכשיו) לא נספרת בשלב שבו חיכינו — כמו בשעון של יעד הזמן (pz).
+   השלב פשוט "התחיל מאוחר יותר" בזמן ההמתנה; שלב שכבר נסגר — לא לפני הסגירה */
+function excludeWait(prog, st, from, to) {
+  const x = prog && prog.stg && prog.stg[st];
+  if (!x || !(x.s > 0) || !(from > 0) || !(to > from) || x.s > from) return prog;
+  const s = Math.min(x.s + (to - from), x.e > 0 ? x.e : to);
+  return Object.assign({}, prog, { stg: Object.assign({}, prog.stg, { [st]: Object.assign({}, x, { s }) }) });
+}
 /* 21/10/2026: "המשך" — השלב שנעצר בו נפתח מיד (מהרגע הזה, עם הזמן שכבר הושקע). עד היום הוא נשאר סגור עד הדיווח
    הראשון של העובד, והטלפון הראה אותו ✓ ("הסתיים") בזמן שהעבודה מורידה את הנקודה ומתחילה אותו שוב */
 function resumeProg(prog, now) {
@@ -1092,7 +1100,7 @@ module.exports = { crashWhere, glKey, glParse, glFormat, GL_MAX, JSON_FIELDS, no
   NORM_MIN, NORM_DEF, NORM_FIXED, NORM_DEF_API, NORM_FIXED_API, normDef, normFixed, engKey, normSample, addSample, learnedNorm, normsView,
   FB_MAX, FIX_MAX, normFixText, fbList, fbNumber, cheaperModes, COST_STOP, fbStop, fbFix, fbUsed, fbForWorker, fbView, FIX_MODES, normFixMode, fbDecide, fbRemove,
   CK_STAGES, STALE_MS, RESUME_MAX, RECOVER_WAIT, AUTO_RESUME_MAX, TRANSIENT_ERRS, TRANSIENT_KINDS, STOP_ERRS, DET_ERRS, isTransient, recoverAt, normTower, normCk, addCk, lastCk, isStale, canResume, mergeUse, newJobId, newKey, keyHash, keyMatches, fireText, fireError, fireDetail, fireSession, recentFires,
-  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, toFields, fromFields, normFit, peakNeed,
+  effState, publicJob, workerJob, applyReport, resumeProg, stgSpent, excludeWait, toFields, fromFields, normFit, peakNeed,
   SRV_ID_RE, SRV_MAX, SRV_ONLINE_MS, SRV_DOWN_MS, serversDown, BAD_AUTH_GAP, badAuthDue, API_QUEUE_WAIT, CAP_DEF, CAP_MAX, CAP_MIN_JOB, normCap, newServerId, newServerToken, parseServerToken,
   serverMatches, normHb, normEv, SRV_EV, parkable, PARK_MAX, serverView, monthKey, monthUsed, addMonth, jobCap,
 };

@@ -1312,6 +1312,10 @@ function stubFetch(text, status = 200) {
       const rp = S.resumeProg(S.applyReport({ prog: al2.prog }, { fail: true, err: 'net' }, 25000).prog, 30000);
       ok(rp.stg.al.s === 30000 && rp.stg.al.e === 0 && rp.stg.al.a === 9000 && rp.stg.tr.e === 20000 && S.resumeProg(rp, 1) === null,
         'סטודיו: "המשך" — השלב שנעצר בו נפתח מיד (לא ✓ עד הדיווח הראשון); שלב פתוח — בלי שינוי');
+      // ההמתנה לסרטון (wv0 → עכשיו) לא נספרת בשלב: היישור התחיל ב־1000, חיכה מ־2000 עד 40000 → מתחיל "ב־39000"
+      const w = S.excludeWait({ st: 'al', stg: { al: { s: 1000, e: 0 } } }, 'al', 2000, 40000);
+      ok(w.stg.al.s === 39000 && S.excludeWait(w, 'al', 10000, 20000).stg.al.s === 39000 && S.excludeWait({ st: 'al', stg: { al: { s: 1000, e: 5000 } } }, 'al', 2000, 40000).stg.al.s === 5000,
+        'סטודיו: המתנה לסרטון לא נספרת בשלב (כמו בשעון היעד); המתנה שהתחילה לפני השלב — בלי שינוי; שלב שנסגר — לא אחרי הסגירה');
       ok(S.isTransient('worker_oom', ['drive:dl_retry']) === false, 'סטודיו: worker_oom לא "חולף" גם כשהתראת אחסון ישנה פתוחה');
     }
 
