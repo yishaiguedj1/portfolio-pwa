@@ -734,6 +734,8 @@ def run_auto(jobmod, args) -> int:
         eng = llm.ManualEngine(lambda k, text: J.cp_round(J.Ctx(J.load_state()), k, text))
     else:
         eng = llm.Engine(llm.Spec.of(mode), cap_usd=float(cap) if cap else DEFAULT_CAP_USD)
+    if hasattr(J, 'LIVE_USAGE'):
+        J.LIVE_USAGE = eng.ledger.list             # 21/10/2026: העלות בזמן ריצה, וגם בכשל של שלב הכלים (usage_safe)
     ns = SimpleNamespace(force=False)
     post_incident(J, eng)                          # דוח אחרי תקלה שמחכה לסיכום (מהלקיחה) — לפני העבודה עצמה
     try:
