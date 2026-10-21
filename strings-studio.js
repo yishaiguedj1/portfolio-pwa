@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1549 מפתחות מתוך 3537) */
+/* המחרוזות של studio (1550 מפתחות מתוך 3538) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -738,6 +738,7 @@ he: {
   "studioJobDeleted": "העבודה נמחקה",
   "studioJobId": "מזהה העבודה",
   "studioJobsMore": "עבודות קודמות · {n}",
+  "studioJobsTop": "חזרה לעבודות האחרונות",
   "studioKeepOpen": "השאירו את האפליקציה פתוחה עד שההעלאה מסתיימת. המסך נשאר דולק בינתיים.",
   "studioLangSoon": "כרגע מתרגמים מאנגלית לעברית — שאר השפות בקרוב",
   "studioLeftBig": "נשארו בערך {t}",
@@ -2289,6 +2290,7 @@ en: {
   "studioJobDeleted": "Job deleted",
   "studioJobId": "Job ID",
   "studioJobsMore": "Earlier jobs · {n}",
+  "studioJobsTop": "Back to latest jobs",
   "studioKeepOpen": "Keep the app open until the upload finishes. The screen stays on meanwhile.",
   "studioLangSoon": "For now we translate English to Hebrew — more languages soon",
   "studioLeftBig": "About {t} left",

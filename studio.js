@@ -1203,15 +1203,15 @@ export function thumbTimes(dur) {   // טהורה: מתי לנסות (שניות
 export function thumbOk(mean, sd) { return mean > 24 && mean < 235 && sd > 14; }   // טהורה: לא שחור, לא לבן, לא אחיד
 const thumbs = new Map();          // מזהה → כתובת data: ('' = לא הצליח בסשן הזה)
 const thumbWait = new Map();       // מזהה → [פונקציות שמחכות לתמונה]
-let thumbChain = Promise.resolve();
-function grabFrame(src) {
+let thumbChain = Promise.resolve();   // אחרי thumbsLoad (בהמשך) — קודם מה ששמור, ורק אז פריימים חדשים
+function grabFrame(src, wait) {
   return new Promise((ok) => {
     if (typeof document === 'undefined' || !src) { ok(''); return; }
     const v = document.createElement('video');
     v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.setAttribute('playsinline', '');
     let best = null, done = false, times = [];
     const end = (u) => { if (done) return; done = true; clearTimeout(to); try { v.removeAttribute('src'); v.load(); } catch (e) {} ok(u || (best && best.u) || ''); };
-    const to = setTimeout(() => end(''), THUMB_WAIT);
+    const to = setTimeout(() => end(''), wait || THUMB_WAIT);
     const shot = () => {
       try {
         const w = v.videoWidth, hh = v.videoHeight;
@@ -1245,10 +1245,28 @@ function grabFrame(src) {
     v.src = src;
   });
 }
-function thumbSrc(rec) {             // מאיפה לקחת פריים: הסרטון המקורי בענן, ואם אין — הסרטון הצרוב
-  if (!rec || !net || typeof net.mediaUrl !== 'function') return '';
-  const id = rec.up && rec.up.v && rec.up.v.id, bo = burnedOut(rec);
-  return (id && net.mediaUrl(id)) || (bo && net.mediaUrl(bo.id)) || '';
+/* מאיפה לקחת פריים — מהקטן לגדול: איכות הצפייה הנמוכה ביותר (H.264 קטן), העותק הצרוב (הקטן קודם), ואז המקור.
+   עד 21/10 רק המקור — סרטון כבד (או בקודק שהטלפון לא מפענח) לא הספיק בזמן, ולחלק מהעבודות לא הייתה תמונה */
+function thumbSources(rec) {
+  if (!rec || !net || typeof net.mediaUrl !== 'function') return [];
+  const out = [], add = (id, wait) => { const u = id && net.mediaUrl(id); if (u && !out.some((x) => x.u === u)) out.push({ u, wait }); };
+  const hl = rec.srv && Array.isArray(rec.srv.hl) ? rec.srv.hl : null;
+  if (hl && hl.length > 1) add(hl[hl.length - 1].id, 12000);
+  for (const k of ['small', 'compact', 'same']) { const o = outOf(rec, k); if (o) add(o.id, 15000); }
+  add(rec.up && rec.up.v && rec.up.v.id, 25000);
+  return out;
+}
+/* כל התמונות השמורות נטענות לזיכרון פעם אחת, מיד כשהמודול נטען — כך הרשימה מצוירת איתן מהפריים הראשון,
+   בלי סמל שמתחלף לתמונה בכל פתיחה */
+function thumbsLoad() {
+  if (typeof indexedDB === 'undefined') return Promise.resolve();
+  return hdb().then((db) => new Promise((ok) => {
+    try {
+      const os = db.transaction('thumbs', 'readonly').objectStore('thumbs'), rq = os.openCursor();
+      rq.onsuccess = () => { const c = rq.result; if (!c) { ok(); return; } if (typeof c.value === 'string' && c.value && !thumbs.has(c.key)) thumbs.set(c.key, c.value); c.continue(); };
+      rq.onerror = () => ok();
+    } catch (e) { ok(); }
+  })).catch(() => {});
 }
 function thumbSet(id, u) {
   thumbs.set(id, u);
@@ -1267,11 +1285,12 @@ function thumbFor(rec, cb, file) {
   if (thumbBusy.has(id)) return '';
   thumbBusy.add(id);
   thumbChain = thumbChain.then(async () => {
-    let u = file ? '' : await idbOp('thumbs', 'get', id), tried = false;
+    let u = thumbs.get(id) || '', tried = false;
+    if (!u && !file) u = await idbOp('thumbs', 'get', id) || '';
     if (!u) {
-      const url = file ? URL.createObjectURL(file) : thumbSrc(rec);
-      if (url) { tried = true; u = await grabFrame(url); }
-      if (file) URL.revokeObjectURL(url);
+      const srcs = file ? [{ u: URL.createObjectURL(file), wait: THUMB_WAIT }] : thumbSources(rec);
+      for (const x of srcs) { tried = true; u = await grabFrame(x.u, x.wait); if (u) break; }
+      if (file) URL.revokeObjectURL(srcs[0].u);
       if (u) idbOp('thumbs', 'put', id, u);
     }
     thumbBusy.delete(id);
@@ -1282,9 +1301,12 @@ function thumbFor(rec, cb, file) {
 /* ציור התמונה על אריח (.st-thumb) — דהייה כשהיא מגיעה אחרי הציור; בלי תמונה נשאר סמל הסרט */
 function paintThumb(th, rec) {
   const put = (u) => { th.style.backgroundImage = 'url("' + u + '")'; th.classList.add('img'); };
-  const u = thumbFor(rec, (x) => { if (x) { th.classList.add('in'); put(x); } });
+  const t0 = Date.now();
+  const u = thumbFor(rec, (x) => { if (!x) return; if (Date.now() - t0 > 250) th.classList.add('in'); put(x); });   // דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך כבר מוצג
   if (u) put(u);
 }
+export const thumbsReady = thumbChain = thumbsLoad();   // מיד בטעינת המודול — studio-app.js מחכה לו (עד 400ms) לפני הציור הראשון
+
 /* סבב 8: טיוטת עורך הכתוביות — שינויים שלא נשמרו שורדים רענון וסגירה (בטלפון בלבד, לפי מזהה העבודה).
    ev = הגרסה בשרתון שעליה נערך; טיוטה על גרסה ישנה יותר — רק באישור (אחרת הייתה דורסת שמירה מאוחרת) */
 export const DRAFT_MAX = 4 * 1048576;
@@ -2210,34 +2232,60 @@ function badgeFor(ph) {
 }
 
 /* ---------------- דפים ---------------- */
-/* 21/10/2026 (בקשת המשתמש): בבית רק 5 העבודות האחרונות — הכרטיס בגובה של 5 שורות ונגלל בתוכו (העמוד עצמו לא נגלל בגללו),
-   ו"עבודות קודמות" גולל בתוך הכרטיס לישנות יותר. מקום הגלילה נשמר בין ציורים (ui.jobsY) */
-export const JOBS_SHOWN = 5;
+/* 21/10/2026 (בקשת המשתמש): בבית הכרטיס של העבודות בגובה של המסך — כמה עבודות שנכנסות בשלמותן (לפחות JOBS_MIN, עד JOBS_MAX),
+   כך שהעמוד כולו סטטי ו"עבודות קודמות" תמיד גלוי בלי לגלול. הכרטיס נגלל בתוכו באצבע ונעצר בתחילת שורה (scroll-snap).
+   מקום הגלילה נשמר בין ציורים (ui.jobsY); שינוי גודל (סיבוב / מקלדת) — מחשבים מחדש */
+export const JOBS_MIN = 2, JOBS_MAX = 8;
+export function jobsFit(heights, avail) {   // טהורה: כמה שורות נכנסות בשלמותן בגובה הפנוי
+  let n = 0, sum = 0;
+  for (const x of heights) { if (sum + x > avail + 0.5) break; sum += x; n++; }
+  return Math.max(Math.min(JOBS_MIN, heights.length), Math.min(n, JOBS_MAX));
+}
 function jobsCard(rows) {
   const l = list(...rows);
-  if (rows.length <= JOBS_SHOWN) return l;
+  if (rows.length <= 3) return l;   // עד 3 עבודות — תמיד נכנסות, בלי כרטיס נגלל
   l.classList.add('st-jobs');
   const wrap = h('div', 'st-jobs-w');
-  /* "עבודות קודמות": השורה האחרונה שנראית עולה לראש הכרטיס — 4 עבודות חדשות ועוד אחת להמשכיות (כמו דפדוף ב־iOS).
-     הגלילה באצבע עובדת גם בלי הכפתור, ונעצרת תמיד על תחילת שורה (scroll-snap ב־CSS) */
+  /* "עבודות קודמות": השורה האחרונה שנראית עולה לראש הכרטיס (עבודות חדשות + אחת להמשכיות, כמו דפדוף ב־iOS);
+     בסוף הרשימה הכפתור לא נעלם — "חזרה לאחרונות" גולל לראש הכרטיס */
   const more = btn('st-jobs-more', '', () => {
+    const max = l.scrollHeight - l.clientHeight;
+    if (l.scrollTop >= max - 2) { l.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     const lt = l.getBoundingClientRect().top, lb = lt + l.clientHeight;
     const last = rows.filter((r) => r.getBoundingClientRect().top < lb - 4).pop();
     const to = last ? l.scrollTop + last.getBoundingClientRect().top - lt : l.scrollTop + l.clientHeight;
-    l.scrollTo({ top: Math.min(to, l.scrollHeight - l.clientHeight), behavior: 'smooth' });
+    l.scrollTo({ top: Math.min(to, max), behavior: 'smooth' });
   }, 'jobs-more');
   const paint = () => {
     const lb = l.getBoundingClientRect().bottom;
     const left = rows.filter((r) => r.getBoundingClientRect().bottom > lb + 2).length;   // שורות שעוד לא נראו במלואן (מתחת לנראה)
-    more.textContent = T('studioJobsMore', { n: left });
-    more.hidden = !left;
+    more.textContent = left ? T('studioJobsMore', { n: left }) : T('studioJobsTop');
+    more.hidden = l.scrollHeight <= l.clientHeight + 2;   // הכל נכנס — אין לאן לגלול
   };
+  const fit = () => {
+    if (!l.isConnected) { removeEventListener('resize', onRs); return; }
+    const sc = l.closest('.st-root') || document.scrollingElement || document.documentElement;
+    const st = sc === document.scrollingElement ? 0 : sc.getBoundingClientRect().top;
+    const top = l.getBoundingClientRect().top - st + (sc.scrollTop || 0);   // מראש העמוד, בלי תלות בגלילה
+    const pb = parseFloat(getComputedStyle(sc).paddingBottom) || 0;   // הריפוד בתחתית השכבה (28px + אזור הבטוח)
+    const mb = (more.offsetHeight || 37) + 8;   // הכפתור והרווח שמעליו
+    const avail = (sc.clientHeight || innerHeight) - top - mb - Math.max(16, pb);
+    const n = jobsFit(rows.map((r) => r.offsetHeight), avail);
+    let hh = 0;
+    for (let i = 0; i < n && i < rows.length; i++) hh += rows[i].offsetHeight;
+    l.style.maxHeight = hh + 'px';
+    paint();
+  };
+  let rsT = 0;
+  const onRs = () => { clearTimeout(rsT); rsT = setTimeout(fit, 120); };
+  addEventListener('resize', onRs);
+  // גובה השורות משתנה אחרי הציור (הגופן נטען, שם שנשבר לשתי שורות) — מחשבים שוב, אחרת עבודה אחת יותר מדי והעמוד נגלל
+  if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(() => { if (!l.isConnected) { ro.disconnect(); return; } onRs(); }); rows.forEach((r) => ro.observe(r)); }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (l.isConnected) fit(); });
   l.addEventListener('scroll', () => { ui.jobsY = l.scrollTop; paint(); }, { passive: true });
   requestAnimationFrame(() => {
     if (!l.isConnected) return;
-    let hh = 0;
-    for (let i = 0; i < JOBS_SHOWN; i++) hh += rows[i].offsetHeight;
-    l.style.maxHeight = hh + 'px';
+    fit();
     if (ui.jobsY) l.scrollTop = ui.jobsY;
     paint();
   });

@@ -1,5 +1,5 @@
 // 21/10/2026 (בקשת המשתמש): תמונה ממוזערת לכל עבודה + תמונה בנגן לפני הניגון (כמו YouTube), ובפתיחה על נקודה — הפריים
-// שלה; בבית רק 5 העבודות האחרונות בכרטיס שנגלל בתוכו; עבודה ב־R2 נמחקת חודש אחרי הסיום (מאגר הלמידה נשאר)
+// שלה; בבית הכרטיס של העבודות בגובה המסך (נגלל בתוכו, "עבודות קודמות" תמיד גלוי); עבודה ב־R2 נמחקת חודש אחרי הסיום (מאגר הלמידה נשאר)
 const fs = require('fs');
 const path = require('path');
 let n = 0;
@@ -32,9 +32,17 @@ ok(v.poster === '', 'setPoster — רק data:/blob: (לא כתובת חיצונ�
 setP('data:image/jpeg;base64,AAAA');
 ok(v.poster === 'data:image/jpeg;base64,AAAA', 'setPoster — תמונה מקומית מתקבלת');
 
-ok(/export const JOBS_SHOWN = 5;/.test(st) && /function jobsCard\(rows\)/.test(st) && /jobsCard\(rows\)\)/.test(st), 'בבית — 5 העבודות האחרונות, בכרטיס משלהן');
-ok(/\.st-list\.st-jobs \{ overflow-y: auto; overscroll-behavior: contain;/.test(css), 'הכרטיס נגלל בתוכו, והגלילה לא עוברת לעמוד');
-ok(/l\.scrollTo\(\{ top: Math\.min\(to, l\.scrollHeight - l\.clientHeight\), behavior: 'smooth' \}\)/.test(st) && /more\.hidden = !left/.test(st), '"עבודות קודמות" — השורה האחרונה שנראית עולה לראש הכרטיס, והכפתור נעלם כשאין עוד');
+const fitSrc = st.slice(st.indexOf('export const JOBS_MIN'), st.indexOf('function jobsCard(rows)')).replace(/export /g, '');
+const jobsFit = new Function(fitSrc + '\nreturn jobsFit;')();
+ok(jobsFit([106, 106, 106, 106, 106, 106, 106], 430) === 4 && jobsFit([106, 106, 106, 106, 106, 106, 106], 540) === 5 && jobsFit(Array(12).fill(100), 640) === 6,
+  'כמה עבודות בכרטיס — לפי הגובה הפנוי במסך (4 בטלפון רגיל, 5–6 במסך גדול)');
+ok(jobsFit(Array(9).fill(106), 150) === 2 && jobsFit(Array(20).fill(50), 5000) === 8, 'מסך קטן מאוד — לפחות 2; מסך ענק — עד 8');
+ok(/function jobsCard\(rows\)/.test(st) && /jobsCard\(rows\)\)/.test(st) && /const avail = \(sc\.clientHeight \|\| innerHeight\) - top - mb - Math\.max\(16, pb\);/.test(st),
+  'הגובה הפנוי = המסך פחות מה שמעל הכרטיס, הכפתור והריפוד בתחתית — העמוד סטטי והכפתור תמיד גלוי');
+ok(/new ResizeObserver\(/.test(st.slice(st.indexOf('function jobsCard'))) && /addEventListener\('resize', onRs\)/.test(st) && /document\.fonts\.ready\.then/.test(st),
+  'חישוב מחדש כשגובה השורות משתנה (גופן, שם בשתי שורות) וכשהמסך משתנה');
+ok(/l\.scrollTo\(\{ top: Math\.min\(to, max\), behavior: 'smooth' \}\)/.test(st) && /T\('studioJobsTop'\)/.test(st) && /l\.scrollTo\(\{ top: 0, behavior: 'smooth' \}\)/.test(st),
+  '"עבודות קודמות" — השורה האחרונה שנראית עולה לראש הכרטיס; בסוף הרשימה הכפתור נשאר: "חזרה לעבודות האחרונות"');
 ok(/scroll-snap-type: y proximity/.test(css) && /\.st-list\.st-jobs > \.st-proj \{ scroll-snap-align: start; \}/.test(css) && /touch-action: pan-y/.test(css), 'גלילה באצבע בתוך הכרטיס — נעצרת על תחילת שורה');
 
 const D = 86400e3, now = Date.UTC(2026, 9, 21), F = 'R2_j' + 'a'.repeat(20);
@@ -46,4 +54,12 @@ ok(!SC.expiredJob({ kind: 'tr', state: 'done', folder: 'DriveFolder01234567', en
 const gc = api.slice(api.indexOf('async function jobGc'), api.indexOf('\n}\n', api.indexOf('async function jobGc')));
 ok(/removeJobRec\(deps, j\.uid, j, now\)/.test(gc) && !/learn|snb-learn|R2L/i.test(gc.replace(/removeJobRec/g, '')), 'המחיקה דרך removeJobRec (שומר קודם במאגר הלמידה) — בלי לגעת במאגר עצמו');
 ok(/await learnSave\(deps, job, now\);\s+\/\/[^\n]*\n\s+await delDoc\(deps, 'studioJobs', job\.id\)/.test(api), 'removeJobRec — מאגר הלמידה נשמר לפני מחיקת הרשומה');
+const app = fs.readFileSync(path.join(root, 'studio-app.js'), 'utf8');
+const srcFn = st.slice(st.indexOf('function thumbSources(rec)'), st.indexOf('function thumbsLoad()'));
+ok(srcFn.indexOf('hl[hl.length - 1].id') < srcFn.indexOf("['small', 'compact', 'same']") && srcFn.indexOf("['small', 'compact', 'same']") < srcFn.indexOf('rec.up.v && rec.up.v.id'),
+  'מקור לפריים — מהקטן לגדול: איכות הצפייה הנמוכה, העותק הצרוב, ואז המקור (סרטון כבד/לא מפוענח לא משאיר עבודה בלי תמונה)');
+ok(/for \(const x of srcs\) \{ tried = true; u = await grabFrame\(x\.u, x\.wait\); if \(u\) break; \}/.test(st), 'מקור שנכשל — עוברים לבא');
+ok(/export const thumbsReady = thumbChain = thumbsLoad\(\);/.test(st) && /Promise\.race\(\[thumbsReady, new Promise\(\(r\) => setTimeout\(r, 400\)\)\]\)\.then\(\(\) =>\s*openStudio\(/.test(app),
+  'התמונות השמורות נטענות לפני הציור הראשון (מאחורי הווילון, עד 400ms) — בלי הבהוב בכל פתיחה');
+ok(/if \(Date\.now\(\) - t0 > 250\) th\.classList\.add\('in'\)/.test(st), 'דהייה רק לתמונה חדשה שמגיעה אחרי שהמסך מוצג');
 console.log(n + ' בדיקות עברו');
