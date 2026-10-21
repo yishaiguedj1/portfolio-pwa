@@ -323,6 +323,54 @@ export async function inspectSource(file, o = {}) {
 }
 /* רצועת הקול בלי קידוד מחדש (העתקה) — Opus/Vorbis ל־WebM, כל השאר ל־M4A (המיכל שהספייק בדק על הראיון של אקמן).
    כשההעתקה בלתי אפשרית (קודק שהמיכל לא מקבל, ואין מקודד בדפדפן) — בלי קול, והעבודה מתחילה מהסרטון המלא */
+/* 21/10/2026 (צילום המשתמש: "מוציאים את הקול ושולחים אותו קודם" — 17 דק׳, והשרת חיכה כל הזמן הזה; הסרטון המלא עלה אחר כך
+   בדקה וחצי). "הקול קודם" נועד לרשת איטית — אבל כשהחילוץ בטלפון איטי, הכל חיכה לו. התזמור (טהור, בלי DOM — נבדק ב־node):
+   הסרטון מתחיל לעלות מיד, במקביל לחילוץ; כשהקול מוכן — הסרטון ממתין (gate) עד שהקול עלה ברשת המלאה; הסרטון סיים לפני
+   החילוץ — החילוץ נעצר ומתחילים מהסרטון. ברשת איטית — כמו קודם (החילוץ מהיר מההעלאה, והקול עולה ראשון).
+   o: { needAudio, needVideo, signal, extract(signal), upAudio(ex), upVideo(gate), gate(), onPhase(ph), audioDone(f, ex),
+        noAudio(why, videoFirst), videoDone(f), start() } */
+export async function uploadBoth(o) {
+  const sig = o.signal;
+  let audioUp = false, vidP = null;
+  const pause = () => new Promise((r) => setTimeout(r, o.pauseMs || 400));
+  const vGate = async () => {
+    if (o.gate) await o.gate();
+    while (audioUp && !(sig && sig.aborted)) await pause();
+  };
+  const startVideo = () => {
+    if (vidP || !o.needVideo) return vidP;
+    vidP = Promise.resolve().then(() => o.upVideo(vGate));
+    vidP.catch(() => {});                  // נבדק ב־await למטה — כאן רק שלא תהיה דחייה "לא מטופלת"
+    return vidP;
+  };
+  if (o.needAudio) {
+    o.onPhase('extract');
+    startVideo();
+    const exCtl = new AbortController();
+    if (sig) sig.addEventListener('abort', () => exCtl.abort(), { once: true });
+    let videoFirst = false, extracting = true;
+    if (vidP) vidP.then(() => { if (extracting) { videoFirst = true; exCtl.abort(); } }, () => {});
+    let ex;
+    try { ex = await o.extract(exCtl.signal); }
+    catch (e) { if (videoFirst) ex = { none: 'video_first' }; else if (e && (e.name === 'AbortError' || e.code === 'aborted')) throw e; else ex = { none: 'extract' }; }
+    finally { extracting = false; }
+    if (ex.none) o.noAudio(ex.none, videoFirst);
+    else {
+      o.onPhase('audio');
+      audioUp = true;
+      let f;
+      try { f = await o.upAudio(ex); } finally { audioUp = false; }
+      await o.audioDone(f, ex);
+    }
+  }
+  if (o.start) await o.start();
+  if (o.needVideo) {
+    o.onPhase('video');
+    const f = await startVideo();
+    await o.videoDone(f);
+  }
+}
+
 export async function extractAudio(file, o = {}) {
   const MB = await (o.load || loadMediabunny)();
   const input = new MB.Input({ formats: MB.ALL_FORMATS, source: new MB.BlobSource(file) });

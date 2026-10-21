@@ -41,6 +41,7 @@ const W = require('../lib/webpush');   // שלב 4 בסטודיו: התראות 
 const SLO = require('../lib/studioslo');   // v383: תקציב שגיאות
 const AN = require('../lib/studioanom');   // v385: ציון חריגה 0–10
 const LR = require('../lib/studiolearn');
+const LI = require('../lib/learnimpact');   // 21/10/2026: השפעת המאגר לאורך זמן
 const LC = require('../lib/learncorpus');
 const DL = require('../lib/devlog');   // 15/10/2026: האיסוף המלא בתקופת הפיתוח (הדגל learn_full) — לוגים, יומן הקריאות, מדדים, שגיאות מהטלפון
 const SF = require('../lib/sysflags');   // 15/10/2026: מצב תחזוקה והגדרות ודגלים (sysCfg/main)   // 15/10/2026 (מ׳2): קורפוס הטקסט — לדלי נפרד snb-learn
@@ -527,6 +528,7 @@ async function devView(deps, now) {
 /* משיכה לקריאה בלבד בטוקן הניתוח — הלוגים, יומן הקריאות, המדדים ושגיאות הטלפון של הימים האחרונים.
    days 1–14, kinds = j/m/e, job = רק עבודה אחת. עד DEV_PULL_MAX פריטים פתוחים (מהחדש) */
 const DEV_PULL_MAX = 400;
+const DEV_PULL_BUDGET_MS = 18000;
 async function devPull(req, res, body, deps) {
   const tok = String(body.at || '');
   if (!AT_RE.test(tok)) return res.status(401).json({ ok: false, error: 'bad_token' });
@@ -544,16 +546,25 @@ async function devPull(req, res, body, deps) {
     const job = /^j[A-Za-z0-9_-]{20}$/.test(String(body.job || '')) ? body.job : '';
     const rd = r2deps(deps);
     const all = await R2.list(c, rd, 'd/', 50000);
-    const keys = all.filter((it) => { const p = DL.parseKey(it.key); return p && kinds.has(p.kind) && days.has(p.day); })
+    // 21/10/2026: יום אחד בכל הסוגים = ~70 פריטים שנפתחו אחד־אחד → 504 (maxDuration 30). עכשיו: 8 במקביל, תקציב זמן,
+    // ו־next = המפתח שממנו ממשיכים (מהחדש לישן) — tools/dev-pull.js ממשיך לבד עד שאין next
+    const before = typeof body.before === 'string' && body.before.startsWith('d/') ? body.before : '';
+    const keys = all.filter((it) => { const p = DL.parseKey(it.key); return p && kinds.has(p.kind) && days.has(p.day) && (!before || it.key < before); })
       .sort((a, b) => (a.key < b.key ? 1 : -1)).slice(0, DEV_PULL_MAX);
-    const items = [];
-    for (const it of keys) {
-      const x = vault.open(await R2.getText(c, rd, it.key, 8 * 1024 * 1024), 'dev|' + it.key);
-      if (!x || (job && x.job !== job)) continue;
-      const p = DL.parseKey(it.key);
-      items.push(Object.assign({ k: p.kind, day: p.day }, x));
+    const t0 = Date.now(), items = [];
+    let i = 0, next = '';
+    while (i < keys.length) {
+      if (Date.now() - t0 > DEV_PULL_BUDGET_MS) { next = keys[i - 1] ? keys[i - 1].key : ''; break; }
+      const batch = keys.slice(i, i + 8);
+      i += batch.length;
+      const got = await Promise.all(batch.map((it) => R2.getText(c, rd, it.key, 8 * 1024 * 1024).then((t) => vault.open(t, 'dev|' + it.key)).catch(() => null)));
+      got.forEach((x, n) => {
+        if (!x || (job && x.job !== job)) return;
+        const p = DL.parseKey(batch[n].key);
+        items.push(Object.assign({ k: p.kind, day: p.day }, x));
+      });
     }
-    return res.status(200).json({ ok: true, on, r2: true, at: now, stats: DL.devStats(all), items });
+    return res.status(200).json({ ok: true, on, r2: true, at: now, stats: DL.devStats(all), items, next: next || undefined });
   } catch (e) {
     return res.status(502).json({ ok: false, error: /^fs_http_/.test(String(e.message)) ? String(e.message).slice(0, 20) : 'failed' });
   }
@@ -1694,6 +1705,14 @@ async function handler(req, res, deps = {}) {
   };
   try {
     if ((LEARN_REMOTE_OPS.has(op) || (op === 'cuesSave' && body.pt)) && learnRemote()) return res.status(421).json({ ok: false, error: 'learn_remote' });
+    if (op === 'learnImpact') {
+      // 21/10/2026: השפעת המאגר בטווח מותאם (from/to, ms) — רק למנהל; הטווחים המוכנים כבר ב־learn (view.im)
+      if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
+      const from = Math.floor(+body.from), to = Math.floor(+body.to);
+      if (!(from > 0 && to > from && to - from <= 400 * 864e5)) return res.status(400).json({ ok: false, error: 'bad_params' });
+      const { recs } = await learnLoad(deps, now);
+      return res.status(200).json({ ok: true, im: LI.impactView(recs.filter((r) => r && r.v === LR.LR_V), now, { from, to }), now });
+    }
     if (op === 'learn' || op === 'learnExport' || op === 'learnBrief') {
       // 14/10/2026: מאגר הלמידה — רק למנהל. learnExport = כל הרשומות (לניתוח מחוץ לאפליקציה), learnBrief = החבילה ל־Claude
       if (!isAdmin(user)) return res.status(403).json({ ok: false, error: 'not_admin' });
@@ -2408,6 +2427,14 @@ async function handler(req, res, deps = {}) {
       const evs = O.normEvents(body.ev).filter((e) => e.c === 'phone' || e.c === 'drive');
       if (!evs.length) return res.status(400).json({ ok: false, error: 'bad_event' });
       await raise(deps, uid, evs, job.id, now);
+      return res.status(200).json({ ok: true });
+    }
+    if (op === 'upTel') {
+      // 21/10/2026: מדידת ההעלאה מהטלפון (מספרים בלבד) — לאבחון "הקול לקח 17 דק׳". הטלפון שולח את כל המצטבר; דורס
+      const tl = S.normUtl(body.tl);
+      if (!tl || job.kind !== 'tr') return res.status(400).json({ ok: false, error: 'bad_params' });
+      if (limited('ut|' + uid, 30)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+      await patchJob(deps, job.id, { utl: tl });          // בלי updated — הוא השעון של "נתקעה" (isStale), והטלפון לא אומר שהעובד חי
       return res.status(200).json({ ok: true });
     }
     if (op === 'cancel') {

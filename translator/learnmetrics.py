@@ -498,6 +498,14 @@ def _skel(t):
     return t[:1] + re.sub('[ויאה׳״]', '', t[1:])
 
 
+def _gl_found(alt, text):
+    """מונח מהמילון בטקסט: כמו שהוא, או אחרי אותיות שימוש (ו/ב/ל/מ/כ/ש/ה) — וה"א הידיעה של המונח יכולה להיבלע ("בפד" = "ב+הפד")"""
+    if alt in text:
+        return True
+    core = alt[1:] if alt.startswith('ה') and len(alt) >= 3 else alt
+    return bool(re.search(r'(?:^|[\s״"\'(\-־])[' + ''.join(sorted(_PREF)) + r']{1,3}' + re.escape(core) + r'(?=$|[\s.,!?:;״"\'()\-־])', text))
+
+
 def consistency_metrics(rows, glossary=None):
     """שם אחד באיות אחד (שמות באנגלית שחוזרים ב־2 כתוביות לפחות), ומונחים מהמילון"""
     out = {}
@@ -542,15 +550,17 @@ def consistency_metrics(rows, glossary=None):
             continue
         pat = re.compile(r"(?<![a-z])" + re.escape(en) + r"(?![a-z])")
         used = set()
-        for x in rows:
+        for i, x in enumerate(rows):
             if not x['z'] or not pat.search(x['en'].lower()):
                 continue
             hits += 1
-            got = [a for a in alts if a in x['z']]
-            if not got:
+            # 21/10/2026 (ניתוח הייצור: "18.7% מהמונחים לא נשמרו" — מדידה מחמירה): גם עם אותיות שימוש ("הפד" ב"בפד"/"לפד"),
+            # וגם בכתובית השכנה (החלוקה בעברית שונה)
+            own = [a for a in alts if _gl_found(a, x['z'])]
+            if own:
+                used.add(own[0])                # "מעורב" — רק לפי הכתובית עצמה
+            elif not any(_gl_found(a, ' '.join(rows[j]['z'] for j in range(max(0, i - 1), min(len(rows), i + 2)))) for a in alts):
                 miss += 1
-            else:
-                used.add(got[0])
         if len(used) > 1:
             mixed += 1
     out['gl.n'] = hits
@@ -559,12 +569,34 @@ def consistency_metrics(rows, glossary=None):
     return out
 
 
+# 21/10/2026 (ניתוח הייצור: "15.8% מהמספרים נעלמו" — רובם תרגום נכון): בעברית מספר קטן נכתב במילים ("שלושה"), "100,000" =
+# "100 אלף", ומספר יכול לעבור לכתובית השכנה כשהחלוקה שונה. מספר נחשב "נשמר" אם הופיע (כספרות, כ"X אלף/מיליון/מיליארד",
+# או — עד 10 — כמילה) בכתובית או באחת השכנות. num.miss אחרי התיקון = מה שבאמת שווה לבדוק
+_HE_SMALL = {
+    '0': ('אפס',), '1': ('אחד', 'אחת', 'ראשון', 'ראשונה'), '2': ('שניים', 'שתיים', 'שני', 'שתי'), '3': ('שלוש', 'שלושה'),
+    '4': ('ארבע', 'ארבעה'), '5': ('חמש', 'חמישה'), '6': ('שש', 'שישה'), '7': ('שבע', 'שבעה'), '8': ('שמונה',),
+    '9': ('תשע', 'תשעה'), '10': ('עשר', 'עשרה'),
+}
+_HE_SCALE = (('000000000', ('מיליארד', 'מיליארדים')), ('000000', ('מיליון', 'מיליונים')), ('000', ('אלף', 'אלפים')))
+
+
+def _num_kept(d, he):
+    """d = ספרות בלי פסיקים. he = הטקסט העברי (הכתובית והשכנות)"""
+    if d in [x.replace(',', '') for x in _DIGITS.findall(he)]:
+        return True
+    for z, words in _HE_SCALE:
+        if d.endswith(z) and len(d) > len(z) and d[:-len(z)] in [x.replace(',', '') for x in _DIGITS.findall(he)] and any(w in he for w in words):
+            return True
+    return any(w in he for w in _HE_SMALL.get(d, ()))
+
+
 def omission_metrics(rows):
     """כתובית שנשארה ריקה, קיצור חריג (פחות מ־30% מאורך המקור במשפט של 6 מילים ומעלה), ומספרים שנעלמו"""
     out = {}
     empty = short = 0
     ratios = []
     nums = miss = 0
+    near = {id(x): ' '.join(rows[j]['z'] for j in range(max(0, i - 1), min(len(rows), i + 2))) for i, x in enumerate(rows)}
     for x in rows:
         en, he = x['en'], x['z']
         nw = len(en.split())
@@ -576,13 +608,10 @@ def omission_metrics(rows):
             ratios.append(ch / ce)
             if nw >= 6 and ch / ce < 0.3:
                 short += 1
-        hd = [d.replace(',', '') for d in _DIGITS.findall(he)]
         for d in _DIGITS.findall(en):
             d = d.replace(',', '')
             nums += 1
-            if d in hd:
-                hd.remove(d)
-            else:
+            if not _num_kept(d, near.get(id(x), he)):
                 miss += 1
     out['om.e'] = empty
     out['om.s'] = short

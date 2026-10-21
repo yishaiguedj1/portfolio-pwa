@@ -220,6 +220,42 @@ class LearnMedia(unittest.TestCase):
                 self.assertEqual([s.get('height') for s in st if s['codec_type'] == 'video'], [240])
             self.assertIn(b'tenc', data, 'מסומן כמוצפן (CENC)')
 
+    def test_video_copied_from_ladder_240(self):
+        """21/10/2026: כשיש 240p מאיכויות הצפייה — מעתיקים אותו (בלי קידוד וידאו), ועדיין מוצפן ומתפענח עם המפתח"""
+        import subprocess
+        key, kid = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', 'f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1'
+        r240 = Path(self.tmp.name) / 'r240.mp4'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=426x240:rate=25', '-f', 'lavfi', '-i', 'sine=f=440',
+                        '-t', '3', '-c:v', 'libx264', '-c:a', 'aac', '-ac', '2', str(r240)], check=True)
+        orig_put, orig_state, orig_run = job._lm_put, job.ladder_state, job.subprocess.run
+        cmds = []
+        job._lm_put = lambda url, path: orig_put(url.replace('https://r2.test/', self.base), path)
+        job.ladder_state = lambda: {'job': 'jX', 's': 'ok', 'rungs': [{'w': 426, 'h': 240, 'f': str(r240)}]}
+        job.subprocess.run = lambda cmd, **kw: (cmds.append(cmd), orig_run(cmd, **kw))[1]
+        try:
+            c = self.ctx(lambda op, kw: ({'url': 'https://r2.test/' + kw['k'], 'key': key, 'kid': kid, 'max': 50_000_000} if op == 'learnMedia' else {'saved': True}))
+            c.st['job'] = 'jX'
+            self.assertEqual(job.learn_media(c), ['a', 'v'])
+        finally:
+            job._lm_put, job.ladder_state, job.subprocess.run = orig_put, orig_state, orig_run
+        vcmd = [x for x in cmds if x[0] == 'ffmpeg' and str(r240) in x]
+        self.assertEqual(len(vcmd), 1, 'הווידאו מהסולם')
+        self.assertIn('copy', vcmd[0], 'בלי קידוד וידאו')
+        p = Path(self.tmp.name) / 'gotv.mp4'
+        p.write_bytes(self.got['/v'])
+        self.assertEqual(subprocess.run(['ffmpeg', '-v', 'error', '-decryption_key', key, '-i', str(p), '-f', 'null', '-'],
+                                        capture_output=True).returncode, 0, 'עם המפתח — מתפענח')
+        self.assertIn(b'tenc', self.got['/v'])
+
+    def test_ladder_of_other_job_ignored(self):
+        c = SimpleNamespace(st={'job': 'jA'})
+        orig = job.ladder_state
+        job.ladder_state = lambda: {'job': 'jB', 's': 'ok', 'rungs': [{'w': 426, 'h': 240, 'f': __file__}]}
+        try:
+            self.assertIsNone(job._lm_ladder240(c), 'סולם של עבודה אחרת — לא')
+        finally:
+            job.ladder_state = orig
+
     def test_skip_when_not_asked(self):
         self.assertEqual(job.learn_media(self.ctx(lambda op, kw: {'ok': True, 'skip': True})), [])
         self.assertEqual([c[0] for c in self.calls], ['learnMedia', 'learnMedia'])

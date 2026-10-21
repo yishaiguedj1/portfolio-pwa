@@ -37,6 +37,8 @@ FIX_ROUNDS = 2
 FIX_ROUNDS_MAX = 5     # 11/10/2026: סבבים נוספים רק כל עוד מספר השגיאות יורד
 # חלקי התרגום רצים במקביל אחרי שהקריאה הראשונה התחילה לענות (= הבלוק הקבוע כבר במטמון וכולם קוראים ממנו).
 TL_PARALLEL = max(1, int(os.environ.get('SNB_TL_PAR', '4')))
+RV_SLICE_CUES = int(os.environ.get('SNB_RV_SLICE', '250'))   # 21/10/2026: קטע ביקורת — עד כמה כתוביות (החשיבה גדלה עם הקטע)
+RV_PARALLEL = int(os.environ.get('SNB_RV_PAR', '4'))
 # 11/10/2026 (תקלת max_tokens בעבודה אמיתית): תשובה של שורה לכל כתובית שנקטעה — שומרים מה שהגיע ומבקשים רק את החסר.
 TL_ATTEMPTS = 6        # ניסיונות לחלק אחד (כל עוד יש התקדמות)
 FIX_BATCH = 40         # כתוביות לבקשת תיקון אחת (קודם — הכל בבקשה אחת של 16K)
@@ -61,25 +63,91 @@ def split_sections(text: str) -> dict[str, str]:
     return out
 
 
+_QUOTES = str.maketrans({'\u2019': "'", '\u2018': "'", '\u201c': '"', '\u201d': '"', '\u2013': '-', '\u2014': '-'})
+PATCH_GLOBAL_MAX = 50
+# מילים נפוצות — תיקון "גלובלי" שלהן מסוכן (שינוי של כל מופע). שם / מונח / שגיאת תמלול — כן
+_COMMON = set('''that this with have from they will would there their what about which when your said could been them than
+then were also into some only other more these very just like well know think because going really people things right
+said time year years make made over much even most such back after first through where those being does doing''' .split())
+
+
+def _wb(old):
+    """המופעים של old כמילים שלמות (לא חלק ממילה), בשורה אחת"""
+    return re.compile(r"(?<![A-Za-z0-9'])" + re.escape(old) + r"(?![A-Za-z0-9'])")
+
+
+def _unique_span(cur, a, b, limit=240):
+    """מרחיבים את [a, b) במילה לכל צד (בתוך השורה) עד שהטקסט מופיע פעם אחת בדיוק. None = אי אפשר"""
+    ls, le = cur.rfind('\n', 0, a) + 1, cur.find('\n', b)
+    le = len(cur) if le < 0 else le
+    while cur.count(cur[a:b]) != 1:
+        na = max(ls, cur.rfind(' ', ls, max(ls, a - 1)) + 1) if a > ls else a
+        nb = cur.find(' ', min(le, b + 1), le) if b < le else b
+        nb = le if nb < 0 else nb
+        if (na, nb) == (a, b) or nb - na > limit:
+            return None
+        a, b = na, nb
+    return a, b
+
+
 def valid_patch(edit_text: str, patch_text: str) -> tuple[list[str], list[str]]:
-    """שורות `ישן => חדש` שאפשר להחיל בבטחה: הישן מופיע בדיוק פעם אחת, וכל שורה לבד (בלי תלות בסדר).
-    מחזיר (שורות תקינות, הערות על מה שנזרק) — תיקון לא תקין נזרק, לא מפיל את העבודה."""
+    """שורות `ישן => חדש` שאפשר להחיל בבטחה (vt apply_patch: הישן מופיע בדיוק פעם אחת, בשורה אחת), לפי הסדר.
+    21/10/2026 (יומני הייצור: "0 תיקונים — נזרקו 59 שלא התאימו לתמליל" — ההגהה שולמה ולא שינתה כלום): תיקון שהישן שלו
+    (1) שונה רק ברווחים / במירכאות מעוגלות — נמצא את המופע היחיד ונכתב בדיוק כמו בתמליל; (2) מילה/ביטוי שלם שמופיע כמה
+    פעמים (שם שהתמלול שמע לא נכון לאורך כל הסרטון) — שורה לכל מופע, עם הקשר מינימלי שהופך אותה לייחודית (עד
+    PATCH_GLOBAL_MAX). השאר נזרק כמו קודם. מחזיר (שורות תקינות לקובץ, הערות על מה שנזרק — עם קוד: nf/amb/nl/bad)."""
     ok, dropped, cur = [], [], edit_text
+
+    def emit(a, b, new):
+        nonlocal cur
+        sp = _unique_span(cur, a, b)
+        if sp is None:
+            return False
+        x, y = sp
+        old_ctx = cur[x:y]
+        if '\n' in old_ctx:
+            return False
+        new_ctx = cur[x:a] + new + cur[b:y]
+        ok.append(old_ctx + ' => ' + new_ctx)
+        cur = cur[:x] + new_ctx.replace('\\n', '\n') + cur[y:]
+        return True
+
     for line in patch_text.splitlines():
         s = line.rstrip()
         if not s.strip() or s.lstrip().startswith('#') or s.startswith('```'):
             continue
         if ' => ' not in s:
-            dropped.append(s[:60] + ' (בלי =>)')
+            dropped.append('bad: ' + s[:60])
             continue
         old, new = s.split(' => ', 1)
         if not old or old == new:
             continue
-        if cur.count(old) != 1:
-            dropped.append(old[:60] + f' (מופיע {cur.count(old)} פעמים)')
+        n = cur.count(old)
+        if n == 1:
+            cur = cur.replace(old, new.replace('\\n', '\n'), 1)
+            ok.append(s)
             continue
-        cur = cur.replace(old, new.replace('\\n', '\n'), 1)
-        ok.append(s)
+        if n == 0:                                    # רווחים / מירכאות שונים — מופע יחיד בשורה אחת
+            toks = old.translate(_QUOTES).split()
+            pat = re.compile(r'[ \t]+'.join(re.escape(t) for t in toks)) if toks else None
+            ms = list(pat.finditer(cur.translate(_QUOTES))) if pat else []
+            if len(ms) == 1 and emit(ms[0].start(), ms[0].end(), new):
+                continue
+            dropped.append(('amb: ' if len(ms) > 1 else 'nf: ') + old[:60])
+            continue
+        # כמה מופעים: רק מילה/ביטוי שלם עם אות, ולא החלפה שמכילה את הישן (לולאה)
+        ms = list(_wb(old).finditer(cur))
+        safe = (len(old.strip()) >= 4 and re.search('[A-Za-z]', old) and old.lower() not in _COMMON and old.lower() != new.lower()
+                and old not in new)
+        if safe and 1 < len(ms) <= PATCH_GLOBAL_MAX and len(ms) == n:
+            done = 0
+            for m in reversed(ms):                    # מהסוף — המיקומים של המופעים הקודמים לא זזים
+                done += 1 if emit(m.start(), m.end(), new) else 0
+            if done == len(ms):
+                continue
+            dropped.append('nl: ' + old[:60] + f' ({done}/{len(ms)})')
+            continue
+        dropped.append('amb: ' + old[:60] + f' ({n})')
     return ok, dropped
 
 
@@ -294,6 +362,16 @@ class Pipeline:
     def pd(self) -> Path:
         return self.ctx.pdir
 
+    def adopt(self, *keys):
+        """מפתחות שפונקציה של job.py כתבה ישר לקובץ המצב → לעותק שבזיכרון, אחרת save_usage דורס אותם.
+        21/10/2026: כך אבד ציון השופט בכל עבודה בשרת (jg נמחק לפני judge, jd אחריו) — "השופט לא החזיר תשובה תקינה" על תשובה תקינה"""
+        st = self.J.load_state()
+        for k in keys:
+            if k in st:
+                self.ctx.st[k] = st[k]
+            else:
+                self.ctx.st.pop(k, None)
+
     def save_usage(self):
         self.ctx.st['api_usage'] = self.eng.ledger.list()
         if hasattr(self.eng, 'facts'):
@@ -330,7 +408,10 @@ class Pipeline:
         gl = clean_glossary(sec.get('GLOSSARY', ''))
         head = (HERE / 'templates' / 'glossary.tsv').read_text(encoding='utf-8').rstrip('\n')
         (td / 'glossary.tsv').write_text(head + ('\n' + gl if gl else '') + '\n', encoding='utf-8')
-        print(f'✓ הגהה: {len(ok)} תיקונים' + (f' (נזרקו {len(dropped)} שלא התאימו לתמליל)' if dropped else '')
+        why = {}
+        for d in dropped:
+            why[d.split(':', 1)[0]] = why.get(d.split(':', 1)[0], 0) + 1
+        print(f'✓ הגהה: {len(ok)} תיקונים' + (f' (נזרקו {len(dropped)} שלא התאימו לתמליל: ' + ', '.join(f'{k} {v}' for k, v in sorted(why.items())) + ')' if dropped else '')
               + f' · מילון: {len(gl.splitlines()) if gl else 0} מונחים')
         return parse_questions(sec.get('QUESTIONS', ''))
 
@@ -586,7 +667,8 @@ class Pipeline:
         except SystemExit as e:
             print(str(e))
             return
-        st = self.J.load_state()
+        self.adopt('jg')
+        st = self.ctx.st
         sample = self.pd / 'judge' / 'sample.md'
         if not (st.get('jg') or {}).get('ids') or not sample.exists():
             return
@@ -611,6 +693,7 @@ class Pipeline:
         jd.mkdir(exist_ok=True)
         (jd / 'verdict.txt').write_text(res.text.strip() + '\n', encoding='utf-8')
         self.J.judge(SimpleNamespace())
+        self.adopt('jd')
 
     # -------------------------------------------------------------- 6. ביקורת
     def review(self):
@@ -623,24 +706,58 @@ class Pipeline:
         bp = self.pd / 'tr' / 'brief.md'
         fixed = '\n\n'.join([RULES, RV_TASK, block('style_guide', guide_text()),
                              block('brief', bp.read_text(encoding='utf-8') if bp.exists() else '')])
-        # Haiku מעל סף ה־100K — הביקורת בקטעים (כל קטע עם התדריך והמילון; הבלוק הקבוע זהה → במטמון)
-        slices, n = [pkg], 1
-        while not self.eng.fits_card(fixed, block('review_package', slices[0])) and n < 32:
+        # Haiku מעל סף ה־100K — הביקורת בקטעים (כל קטע עם התדריך והמילון; הבלוק הקבוע זהה → במטמון).
+        # 21/10/2026 (יומני הייצור): בקטע של ~700 כתוביות Haiku High חשב 63,405 מתוך 64,000 טוקני הפלט ולא כתב אף תיקון —
+        # חצי סרטון בלי ביקורת. לכן גם לפי מספר הכתוביות (RV_SLICE_CUES), הקטעים במקביל (RV_PARALLEL), וקטע שנקטע בלי
+        # תשובה מתפצל לשניים ומנסה פעם אחת
+        n_cues = len(re.findall(r'(?m)^#\d+', pkg))
+        n = max(1, -(-n_cues // RV_SLICE_CUES))
+        slices = split_package(pkg, n) if n > 1 else [pkg]
+        while not self.eng.fits_card(fixed, block('review_package', slices[0])) and n < 64:
             n *= 2
             slices = split_package(pkg, n)
-        if n > 1:
-            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים — כל בקשה מתחת לסף 100K הטוקנים')
+        if len(slices) > 1:
+            print(f'· {self.eng.spec.model}: הביקורת ב־{len(slices)} קטעים (עד {RV_SLICE_CUES} כתוביות, {RV_PARALLEL} במקביל)')
         got, flags = {}, []
-        for sl in slices:
-            res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=64000, partial_ok=True)
-            self.save_usage()
+
+        warm = threading.Event()                 # המטמון: הקטע הראשון כותב את הבלוק הקבוע, השאר מתחילים כשהוא כבר עונה
+        if len(slices) == 1:
+            warm.set()
+
+        def one(sl, depth=0):
+            if sl is not slices[0]:
+                warm.wait(180)
+            res = self.eng.complete('rv', fixed, block('review_package', sl), max_tokens=64000, partial_ok=True,
+                                    on_first_token=warm.set if sl is slices[0] else None)
+            warm.set()
             ids = set(re.findall(r'#(\d+)', sl))
+            lines = answer_lines(kept_text(res), ids)
             if getattr(res, 'stop', None) == 'max_tokens':
+                parts = split_package(sl, 2)
+                if depth == 0 and not lines and len(parts) > 1:
+                    print('· קטע של הביקורת נקטע בלי תשובה (החשיבה לקחה את כל התקרה) — מפצלים לשניים ומנסים שוב')
+                    out = [one(x, 1) for x in parts]
+                    return {k: v for o in out for k, v in o[0].items()}, [f for o in out for f in o[1]], sum(o[2] for o in out), 1 + sum(o[3] for o in out)
                 print('· הביקורת של קטע נקטעה — התיקונים שהגיעו נשמרים, השאר עוברים בבדיקה האוטומטית')
-            got.update(answer_lines(kept_text(res), ids))
+                # 21/10/2026: כמה כתוביות כנראה לא נבדקו — אחרי התיקון האחרון שהגיע (חסם עליון: תיקון רק במה שצריך)
+                last = max((int(x) for x in lines), default=-1)
+                unrev = sum(1 for x in ids if int(x) > last)
+            else:
+                unrev = 0
             rf = getattr(self.J, 'review_flags', None)          # סבב 4: "!#מספר קוד" — לבדיקה שלך בעורך
-            if rf:
-                flags += [f for f in rf(res.text, {int(x) for x in ids}) if str(f[0]) not in got]
+            fl = list(rf(res.text, {int(x) for x in ids})) if rf else []
+            return lines, fl, unrev, 1 if getattr(res, 'stop', None) == 'max_tokens' else 0
+        with ThreadPoolExecutor(max_workers=max(1, min(RV_PARALLEL, len(slices)))) as ex:
+            rvu = rvc = 0
+            for lines, fl, u, c in ex.map(one, slices):
+                got.update(lines)
+                flags += fl
+                rvu += u
+                rvc += c
+        flags = [f for f in flags if str(f[0]) not in got]   # כתובית שתוקנה — לא מסומנת לבדיקה
+        # מאגר הלמידה (תוכנית השיפור 3.10א): כתוביות, קטעים, קטעים שנקטעו, וכמה כתוביות לכל היותר לא נבדקו
+        ctx.st['rvx'] = {'rvn': n_cues, 'rvs': len(slices), 'rvc': rvc, 'rvu': rvu}
+        self.save_usage()
         (self.pd / 'tr' / 'fixes_review.txt').write_text(fmt_lines(got) + '\n' if got else '', encoding='utf-8')
         if flags:
             (self.pd / 'review').mkdir(exist_ok=True)

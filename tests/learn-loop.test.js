@@ -67,5 +67,17 @@ const adm = R('admin-app.js');
 ok(/page\('labVer'/.test(adm) && /page\('labWk'/.test(adm) && /verRow\(v\)/.test(adm) && /wkRow\(v\)/.test(adm), 'מרכז הניהול: עמודי "לפני ואחרי" ו"השבוע"');
 for (const d of L.VER_DIMS) ok(new RegExp("case '" + d + "': return t\\('admVd").test(adm), 'שם לממד ' + d);
 for (const [k] of L.VER_MET) ok(new RegExp("case '" + k + "': return t\\(").test(adm.slice(adm.indexOf('function verMetName'))), 'שם למדד ' + k);
+// 21/10/2026 (ניתוח הייצור): ההנחיות החדשות רצו על Haiku והקודמות על Opus — "גרסה גרועה יותר" היה המודל, לא ההנחיות
+{
+  const o2 = old(6, { mode: 'opus-medium', eng: 'api', q: { s: 99 }, pv: { tl: '11111111' }, env: 'cccccccccccc' });
+  const n2 = nw(6, { mode: 'haiku-high', eng: 'api', q: { s: 96 }, pv: { tl: '22222222' }, env: 'cccccccccccc' });
+  const t2 = L.versionsView(o2.concat(n2)).find((x) => x.d === 'tl');
+  ok(t2 && t2.v === 'few' && t2.sk === '', 'מצבים שונים בלי שכבה משותפת — לא משווים ("few"), לא "גרוע יותר"');
+  const n3 = n2.concat(nw(4, { mode: 'opus-medium', eng: 'api', q: { s: 99 }, pv: { tl: '22222222' }, env: 'cccccccccccc' }));
+  const t3 = L.versionsView(o2.concat(n3)).find((x) => x.d === 'tl');
+  ok(t3 && t3.sk === 'opus-medium|api' && t3.na === 4 && t3.nb === 6 && t3.m.find((m) => m.k === 'q').v === 'eq', 'יש שכבה משותפת — משווים רק בתוכה (Opus מול Opus): אותו ציון = "שווה"');
+  const st = L.learnRec({ id: 'j' + 'Z'.repeat(20), kind: 'tr', state: 'done', created: now, spec: { dur: 60 }, prog: { stg: { tr: { s: 1000, e: 61000, a: 30000 } } } }, now, () => ({ state: 'done' }));
+  ok(st.t.s.tr === 90, 'זמן השלב כולל את מה שנצבר לפני "המשך" (a)');
+}
 console.log(fail ? `\n${fail} מתוך ${n} נכשלו` : `\nכל ${n} הבדיקות עברו ✓`);
 process.exit(fail ? 1 : 0);

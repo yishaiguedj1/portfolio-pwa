@@ -129,10 +129,31 @@ class PureTests(unittest.TestCase):
         self.assertEqual(ok, ['netflicks => Netflix'], 'רק תיקון שהישן שלו מופיע בדיוק פעם אחת')
         self.assertEqual(len(dropped), 2)
         self.assertEqual(P.clean_glossary(sec['GLOSSARY']), 'Netflix\tנטפליקס\nReed\tריד')
+
         qs = P.parse_questions(sec['QUESTIONS'])
         self.assertEqual(len(qs), 2, 'לכל היותר 2 שאלות')
         self.assertEqual((qs[0]['default'], qs[1]['opts'], qs[1]['default']), (1, [], -1))
         self.assertEqual(P.parse_questions('אין'), [])
+
+    def test_patch_robust(self):
+        """21/10/2026 (יומני הייצור: "0 תיקונים — נזרקו 59"): רווחים/מירכאות שונים, ושם שגוי שחוזר — מוחלים; vt מקבל את השורות"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('vtt', str(Path(P.__file__).parent / 'vt' / 'transcript.py'))
+        edit = ('[S? 0:00] So Netflicks started in ninety ninety seven and Netflicks grew fast.\n'
+                '[S? 0:30] Reed Hastings said that Netflicks would win. It’s   true they said.\n')
+        patch = ('Netflicks => Netflix\n'                        # 3 מופעים, שם — כל המופעים
+                 "It's true they => It is true they\n"          # מירכאות מעוגלות ורווחים כפולים בתמליל
+                 'that => THAT\n'                               # מילה נפוצה — לא גלובלי
+                 'said => told\n')                              # מופיע פעמיים, מילה נפוצה — נזרק
+        ok, dropped = P.valid_patch(edit, patch)
+        from vt.transcript import apply_patch
+        out, errs = apply_patch(edit, '\n'.join(ok))
+        self.assertEqual(errs, [], 'vt מקבל את כל השורות')
+        self.assertNotIn('Netflicks', out)
+        self.assertEqual(out.count('Netflix'), 3)
+        self.assertIn('It is true they', out)
+        self.assertEqual(sorted(d.split(':')[0] for d in dropped), ['amb'], 'רק "said" נזרק (מילה נפוצה שחוזרת)')
+        self.assertIn('THAT', out, '"that" מופיע פעם אחת — מוחל כרגיל')
 
     def test_source_answers_issues(self):
         head, parts = P.parse_source(SOURCE)
@@ -450,6 +471,94 @@ class FlowTests(unittest.TestCase):
         finally:
             llm.CARD_LIMIT.clear()
             llm.CARD_LIMIT.update(old)
+
+    def test_judge_score_survives_save_usage(self):
+        """21/10/2026 (מהיומנים של הייצור): קובץ מצב אחד — judge_prep כותב jg, judge כותב jd, ו־save_usage של העותק
+        שבזיכרון דרס את שניהם. הציון חייב לשרוד את save_usage שאחרי השופט."""
+        J = self.J
+        disk = {'files': {}}
+        J.load_state = lambda: dict(disk)
+        J.save_state = lambda st: (disk.clear(), disk.update(st))
+
+        def judge_prep(a):
+            d = self.pd / 'judge'
+            d.mkdir(exist_ok=True)
+            (d / 'sample.md').write_text('#1 Hello\n→ שלום\n#2 Thanks\n→ תודה\n', encoding='utf-8')
+            st = J.load_state()
+            st['jg'] = {'ids': [1, 2], 'a': 2}
+            J.save_state(st)
+            return 0
+
+        def judge(a):
+            st = J.load_state()
+            ids = set(st.get('jg', {}).get('ids') or [])
+            txt = (self.pd / 'judge' / 'verdict.txt').read_text(encoding='utf-8')
+            st['jd'] = {'s': 88, 'n': 2} if ids and '#1' in txt else None
+            if st['jd'] is None:
+                st.pop('jd')
+            J.save_state(st)
+            return 0
+        J.judge_prep, J.judge = judge_prep, judge
+        pl = P.Pipeline(self.ctx, J, self.engine(lambda kw: msg('#1 5 ok\n#2 4 flu'), 'haiku-high'))
+        pl.judge()
+        pl.save_usage()
+        self.assertEqual(disk.get('jd'), {'s': 88, 'n': 2}, 'הציון נשאר בקובץ המצב אחרי save_usage')
+        self.assertIn('jg', disk)
+
+    def test_review_slices_by_cues_parallel_and_retry(self):
+        """21/10/2026 (יומני הייצור): קטע של ~700 כתוביות — Haiku High חשב את כל 64K הטוקנים ולא כתב תיקון. עכשיו: קטעים של
+        עד RV_SLICE_CUES, במקביל, וקטע שנקטע בלי תשובה — מתפצל ומנסה פעם אחת. כל הכתוביות מגיעות לביקורת."""
+        import threading as _th
+        cues = ''.join(f'#{i} Line {i}\n→ שורה {i}\n' for i in range(1, 601))
+        (self.pd / 'review').mkdir(exist_ok=True)
+        self.J.vt = (lambda ctx, args, _v=self.J.vt: (_v(ctx, args), (self.pd / 'review' / 'package.md').write_text(
+            '# חבילה\n\n## כתוביות (600)\n\n' + cues, encoding='utf-8') if args[0] == 'review-pack' else None)[0])
+        seen, lock, first = [], _th.Lock(), {'n': 0}
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            if '<review_package>' not in p:
+                return msg('')
+            ids = [int(x) for x in re.findall(r'(?m)^#(\d+)', p)]
+            with lock:
+                seen.append((min(ids), max(ids)))
+                first['n'] += 1
+                boom = first['n'] == 1                     # הקטע הראשון "חושב" את כל התקרה ונקטע בלי תשובה
+            if boom:
+                m = msg('')
+                m.stop_reason = 'max_tokens'
+                return m
+            return msg('\n'.join(f'#{i} מתוקן {i}' for i in ids))
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h, 'haiku-high'))
+        fixed, left = pl.review()
+        rv = (self.pd / 'tr' / 'fixes_review.txt').read_text(encoding='utf-8')
+        got = set(int(x) for x in re.findall(r'(?m)^#(\d+)', rv))
+        self.assertEqual(got, set(range(1, 601)), 'כל 600 הכתוביות קיבלו ביקורת — גם הקטע שנקטע (אחרי פיצול)')
+        sizes = sorted(b - a + 1 for a, b in seen)
+        self.assertLessEqual(max(sizes), P.RV_SLICE_CUES, 'אף קטע לא גדול מ־RV_SLICE_CUES')
+        self.assertEqual(len(seen), 3 + 2, '3 קטעים + 2 חצאים של הקטע שנקטע')
+        self.assertEqual(self.ctx.st['rvx'], {'rvn': 600, 'rvs': 3, 'rvc': 1, 'rvu': 0},
+                         'למאגר: 600 כתוביות, 3 קטעים, אחד נקטע, ואחרי הפיצול אף כתובית לא נשארה בלי ביקורת')
+
+    def test_review_unreviewed_counted(self):
+        """קטע שנקטע אחרי תיקונים חלקיים (בתוך הפיצול) — מה שאחרי התיקון האחרון נספר "לא נבדק" (חסם עליון)."""
+        cues = ''.join(f'#{i} Line {i}\n→ שורה {i}\n' for i in range(1, 101))
+        (self.pd / 'review').mkdir(exist_ok=True)
+        self.J.vt = (lambda ctx, args, _v=self.J.vt: (_v(ctx, args), (self.pd / 'review' / 'package.md').write_text(
+            '# חבילה\n\n## כתוביות (100)\n\n' + cues, encoding='utf-8') if args[0] == 'review-pack' else None)[0])
+
+        def h(kw):
+            p = kw['messages'][0]['content']
+            if '<review_package>' not in p:
+                return msg('')
+            m = msg('#10 מתוקן\n#30 מתוקן\n#31 חצי')   # השורה האחרונה נזרקת (kept_text)
+            m.stop_reason = 'max_tokens'
+            return m
+        pl = P.Pipeline(self.ctx, self.J, self.engine(h))
+        pl.review()
+        x = self.ctx.st['rvx']
+        self.assertEqual((x['rvn'], x['rvs'], x['rvc']), (100, 1, 1))
+        self.assertEqual(x['rvu'], 70, 'אחרי #30 — 70 כתוביות כנראה לא נבדקו')
 
     def test_judge_always_haiku_high(self):
         J = self.J
