@@ -2678,28 +2678,43 @@ def gate_cmd(args):
 SRT_TIME_RE = re.compile(r'^(\d{2}):(\d{2}):(\d{2})[,.]\d{3}\s*-->')
 
 
-def srt_samples(path, n=5):
-    """v367: כמה כתוביות לדוגמה, מפוזרות לאורך הסרטון (זמן + טקסט בלי תגיות), ומספר הכתוביות."""
+def _srt_spans(path):
+    """[(התחלה, סוף בשניות, טקסט בלי תגיות ובלי סימני כיווניות)] — ריק כשאין קובץ."""
     try:
         txt = Path(path).read_text(encoding='utf-8-sig', errors='replace')
     except OSError:
-        return [], 0
-    cues = []
+        return []
+    out = []
     for blk in re.split(r'\n\s*\n', txt.replace('\r', '')):
         lines = [x for x in blk.strip().split('\n') if x.strip()]
-        ti = next((i for i, x in enumerate(lines) if SRT_TIME_RE.match(x.strip())), -1)
+        ti = next((i for i, x in enumerate(lines) if SRT_SPAN_RE.match(x.strip())), -1)
         if ti < 0:
             continue
-        m = SRT_TIME_RE.match(lines[ti].strip())
-        h, mi, se = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        t = '%d:%02d:%02d' % (h, mi, se) if h else '%d:%02d' % (mi, se)
-        x = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>|\{[^}]*\}', '', ' '.join(lines[ti + 1:]))).strip()
+        g = [int(v) for v in SRT_SPAN_RE.match(lines[ti].strip()).groups()]
+        a, b = g[0] * 3600 + g[1] * 60 + g[2] + g[3] / 1000, g[4] * 3600 + g[5] * 60 + g[6] + g[7] / 1000
+        x = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>|\{[^}]*\}|[\u200e\u200f\u202a-\u202e\u2066-\u2069]', '', ' '.join(lines[ti + 1:]))).strip()
         if x:
-            cues.append({'t': t, 'x': x[:140]})
-    if len(cues) <= n:
-        return cues, len(cues)
-    step = (len(cues) - 1) / (n - 1)
-    return [cues[round(i * step)] for i in range(n)], len(cues)
+            out.append((a, b, x))
+    return out
+
+
+def srt_samples(path, n=5, en=None):
+    """v367: כמה כתוביות לדוגמה, מפוזרות לאורך הסרטון (זמן + טקסט בלי תגיות), ומספר הכתוביות.
+    21/10/2026 (בקשת המשתמש): עם en (en.reference.srt) — לכל כתובית גם המקור באנגלית של אותו זמן (`e`), להשוואה ישירה."""
+    spans = _srt_spans(path)
+    if not spans:
+        return [], 0
+    pick = spans if len(spans) <= n else [spans[round(i * (len(spans) - 1) / (n - 1))] for i in range(n)]
+    ens = _srt_spans(en) if en else []
+    cues = []
+    for a, b, x in pick:
+        s = int(a)
+        c = {'t': '%d:%02d:%02d' % (s // 3600, s // 60 % 60, s % 60) if s >= 3600 else '%d:%02d' % (s // 60, s % 60), 'x': x[:140]}
+        e = ' '.join(t for (ea, eb, t) in ens if min(b, eb) - max(a, ea) > 0.05)   # חופפת בזמן (גם כתובית שאוחדה)
+        if e:
+            c['e'] = e[:160]
+        cues.append(c)
+    return cues, len(spans)
 
 
 SRT_SPAN_RE = re.compile(r'^(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})')
@@ -2932,7 +2947,7 @@ def judge(args):
 
 def approve_render(ctx, wait=None):
     """v367: חוק "אישור לפני צריבה" — 5 כתוביות לדוגמה בטלפון; "לצרוב" / "רק קובץ כתוביות". בלי תשובה בזמן — רק כתוביות."""
-    cues, cnt = srt_samples(ctx.pdir / 'out' / 'he.srt')
+    cues, cnt = srt_samples(ctx.pdir / 'out' / 'he.srt', en=ctx.pdir / 'out' / 'en.reference.srt')
     ctx.report('bn', 0, 'מחכים לאישור שלך לפני הצריבה', force=True)
     try:
         gid = ctx.c.call('report', gate={'k': 'r', 'cues': cues, 'cnt': cnt}).get('gate') or ''

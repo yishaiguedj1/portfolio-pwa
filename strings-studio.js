@@ -1,5 +1,5 @@
 /* נוצר אוטומטית מ־app.js ב־tools/coregen.js — לא לערוך ביד (שינוי = ב־app.js, ואז node tools/coregen.js). */
-/* המחרוזות של studio (1558 מפתחות מתוך 3636) */
+/* המחרוזות של studio (1559 מפתחות מתוך 3637) */
 const STRINGS = {
 he: {
   "actColl": "הוספה לאסופה",
@@ -1282,6 +1282,7 @@ he: {
   "studioSloUsed": "אילו עבודות",
   "studioSloWin": "30 הימים האחרונים",
   "studioSoon": "בקרוב",
+  "studioSrcEn": "המקור באנגלית",
   "studioSrvAdd": "הוספת שרת",
   "studioSrvAdding": "יוצר טוקן…",
   "studioSrvAuthBad": "לא מצליח להתחבר — הטוקן נדחה מאז {t}. מחליפים טוקן (snb-setup) או מסירים ומוסיפים מחדש",
@@ -2842,6 +2843,7 @@ en: {
   "studioSloUsed": "Which jobs",
   "studioSloWin": "Last 30 days",
   "studioSoon": "Soon",
+  "studioSrcEn": "English source",
   "studioSrvAdd": "Add a server",
   "studioSrvAdding": "Creating a token…",
   "studioSrvAuthBad": "Cannot connect — token rejected since {t}. Replace the token (snb-setup) or remove and add the server again",

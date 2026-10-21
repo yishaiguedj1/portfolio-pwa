@@ -333,7 +333,8 @@ export function normQa(q) {
     out.n = g === 'b' ? { usd: usd(n.usd), cap: usd(n.cap) } : {
       cnt: Math.min(num(n.cnt), 1e5),
       cues: (Array.isArray(n.cues) ? n.cues : []).filter((c) => c && typeof c.x === 'string' && c.x).slice(0, 5)
-        .map((c) => ({ t: /^\d{1,2}:\d{2}(?::\d{2})?$/.test(String(c.t || '')) ? c.t : '', x: c.x.slice(0, 140) })) };
+        .map((c) => Object.assign({ t: /^\d{1,2}:\d{2}(?::\d{2})?$/.test(String(c.t || '')) ? c.t : '', x: c.x.slice(0, 140) },
+          typeof c.e === 'string' && c.e ? { e: c.e.slice(0, 160) } : {})) };   // 21/10: e = המקור באנגלית של אותו זמן
   } else if (q.nb === 1) {
     // 20/10/2026: שאלה שלא עוצרת את העבודה. u = לפי מה התרגום נעשה (מספר, ‎-1 שיקול דעת, ‎-2 התשובה הפתוחה; אין = עוד לא התחיל)
     out.nb = 1;
@@ -4453,6 +4454,14 @@ function pageRules(p) {
     rowRadio({ label: T('studioFmAuto'), sub: T('studioFmAutoS'), on: fm === 'auto', onClick: () => setFixMode('auto'), k: 'fm:auto', disabled: blocked() })));
 }
 /* v367: שער — הגענו לתקציב / לפני הצריבה. הטקסט מהקטלוג; הכתוביות לדוגמה (מהתרגום) — רק כטקסט */
+/* 21/10/2026 (בקשת המשתמש): המקור באנגלית של אותה כתובית — מתחת לתרגום, קטן ואפור, משמאל לימין (מיושר לצד השני),
+   עם תווית EN קטנה: ברור שזו שפה אחרת, וברור שזה אותו קטע (באותה שורה). אותה צורה בבדיקה לפני הצריבה ובעורך */
+function srcLine(e) {
+  const d = h('div', 'st-src'); d.dir = 'ltr'; d.lang = 'en';
+  const tag = h('span', 'st-src-l', 'EN'); tag.setAttribute('aria-label', T('studioSrcEn'));
+  d.append(tag, h('span', 'st-src-x', e));
+  return d;
+}
 function gateCard(rec, qa) {
   const b = qa.g === 'b';
   const c = h('div', 'st-ask st-gate' + (qa.a ? ' done' : ''));
@@ -4472,8 +4481,11 @@ function gateCard(rec, qa) {
     for (const cu of qa.n.cues) {
       const r = h('div', 'st-cue');
       const tm = h('bdi', 'st-cue-t', cu.t); tm.dir = 'ltr';
+      const tx = h('div', 'st-cue-b');
       const x = h('span', 'st-cue-x', cu.x); x.dir = 'auto';
-      r.append(tm, x);
+      tx.append(x);
+      if (cu.e) tx.append(srcLine(cu.e));      // 21/10 (בקשת המשתמש): המקור באנגלית מתחת לתרגום — השוואה ישירה
+      r.append(tm, tx);
       cl.append(r);
     }
     c.append(cl);

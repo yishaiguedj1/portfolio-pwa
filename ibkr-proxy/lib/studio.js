@@ -529,7 +529,8 @@ function normGate(g, id) {
   } else {
     // 5 כתוביות לדוגמה מהתרגום — תוכן מהסרטון: בטלפון רק כטקסט
     const cues = (Array.isArray(g.cues) ? g.cues : []).slice(0, 20)
-      .map((c) => ({ t: CUE_T_RE.test(String((c && c.t) || '')) ? c.t : '', x: clean(c && c.x, 140) })).filter((c) => c.x).slice(0, 5);
+      .map((c) => Object.assign({ t: CUE_T_RE.test(String((c && c.t) || '')) ? c.t : '', x: clean(c && c.x, 140) },
+        clean(c && c.e, 160) ? { e: clean(c && c.e, 160) } : {})).filter((c) => c.x).slice(0, 5);   // 21/10: e = המקור באנגלית של אותו זמן
     n = { cues, cnt: Math.max(0, Math.min(1e5, Math.floor(Number(g.cnt) || 0))) };
   }
   return { id, g: g.k, q: '', o: ['go', 'stop'], d: 1, w: GATE_WAIT, n };

@@ -1196,6 +1196,14 @@ class TestWorker(unittest.TestCase):
         self.assertEqual([c['x'] for c in cues], ['שורה 0 שנייה', 'שורה 3 שנייה', 'שורה 6 שנייה', 'שורה 8 שנייה', 'שורה 11 שנייה'])
         self.assertEqual(cues[0]['t'], '0:05')
         self.assertEqual(J.srt_samples(self.tmp / 'none.srt'), ([], 0))
+        # 21/10/2026: המקור באנגלית של אותו זמן (en.reference.srt) — לכל כתובית לדוגמה
+        en = self.tmp / 'en.srt'
+        en.write_text('\n\n'.join('%d\n%02d:%02d:05,000 --> %02d:%02d:07,000\nline %d' % (i + 1, i // 60, i % 60, i // 60, i % 60, i)
+                                  for i in range(12)) + '\n', encoding='utf-8')
+        cues, n = J.srt_samples(p, en=en)
+        self.assertEqual([c.get('e') for c in cues], ['line 0', 'line 3', 'line 6', 'line 8', 'line 11'])
+        cues, n = J.srt_samples(p, en=self.tmp / 'none.srt')
+        self.assertTrue(all('e' not in c for c in cues), 'בלי קובץ אנגלית — בלי e')
 
     def test_ops_events(self):
         # v365: אירועים למגדל הפיקוח — Drive שהתאושש אחרי ניתוק (ok), ו־vt שנכשל (תמלול) — רק סוגים מהקטלוג, בלי טקסט
