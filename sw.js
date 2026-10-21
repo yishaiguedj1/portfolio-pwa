@@ -134,6 +134,15 @@ const ROOT_PAGE = (() => {
   const m = /^(academy|studio)(-staging)?\.thesnowball\.app$/.exec((self.location && self.location.hostname) || '');
   return m ? './' + m[1] + '.html' : './index.html';
 })();
+/* 21/10/2026 (דיווח המשתמש: admin.thesnowball.app פתח את Invest): למרכז הניהול אין Service Worker — אבל בטלפון
+   נשאר שם אחד של Invest (מלפני שהכתובת הופנתה למרכז הניהול), שהגיש מהמטמון את index.html לכל כניסה לשורש.
+   בכתובת הזו הוא מוחק את המטמון ואת עצמו, ומרענן את החלונות הפתוחים (הבדיקה הבאה של app.js מורידה אותו) */
+const NO_SW = /^admin(-staging)?\.thesnowball\.app$/.test((self.location && self.location.hostname) || '');
+async function selfDestruct() {
+  await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+  await self.registration.unregister();
+  for (const c of await self.clients.matchAll({ type: 'window' })) { try { await c.navigate(c.url); } catch (e) {} }
+}
 const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 async function fetchVerified(p) {
   const want = HASHES[p === './' ? ROOT_PAGE : p];
@@ -159,6 +168,7 @@ function shellKey(url, request) {
 }
 
 self.addEventListener('install', (event) => {
+  if (NO_SW) { self.skipWaiting(); return; }
   event.waitUntil((async () => {
     // המעטפת — הכל או כלום: קובץ אחד ישן/חסר = ההתקנה נכשלת והגרסה הקודמת ממשיכה לעבוד
     const got = await Promise.all(SHELL.map(async (p) => [p, await fetchVerified(p)]));
@@ -180,6 +190,7 @@ const RUNTIME = 'portfolio-pwa-rt-v1';
 const RT_HOSTS = { 'upload.wikimedia.org': /^\/wikipedia\/commons\//, 'thumb.wikimedia.org': /^\/wikipedia\/commons\//, 'financialmodelingprep.com': /^\/image-stock\//, 's3-symbol-logo.tradingview.com': /./, 'www.gstatic.com': /^\/firebasejs\// };
 
 self.addEventListener('activate', (event) => {
+  if (NO_SW) { event.waitUntil(selfDestruct()); return; }
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
@@ -253,7 +264,7 @@ async function mediaFetch(event, id) {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET') return;
+  if (NO_SW || request.method !== 'GET') return;
 
   const url = new URL(request.url);
   const mm = url.origin === self.location.origin && MEDIA_RE.exec(url.pathname);
